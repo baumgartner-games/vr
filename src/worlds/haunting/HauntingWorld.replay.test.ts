@@ -12,7 +12,8 @@ import { StationTravelPlan } from './stationTravelPlan';
 import { VentNet } from './vents/ventGraph';
 import { VentTravel } from './vents/ventTravel';
 import type { HauntState } from './net';
-import { freshGhosts } from './rules/ghosts';
+import { dropAlpha, freshTrail, type Trail } from './rules/blood';
+import { freshGhosts, GHOST_LIVE, GHOST_TTL } from './rules/ghosts';
 import { HOST_BUSY } from './rules/worldMenu';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
@@ -49,6 +50,13 @@ interface ReplayWorld {
   monsterArt: THREE.Object3D | null;
   technicianArt: THREE.Object3D | null;
   showTechnician(): void;
+  /** Die Blutspur und ihre Flecken auf dem Boden (`rules/blood.ts`). */
+  blood: Trail;
+  bloodArt: THREE.Group | null;
+  paintTrail(): void;
+  /** Und die halbdurchsichtige Kopie an der zuletzt gesehenen Stelle (`rules/ghosts.ts`). */
+  ghostArt: THREE.Object3D | null;
+  paintGhost(): void;
   director: { clear: jest.Mock; spawn: jest.Mock };
 }
 
@@ -95,6 +103,9 @@ function replay(): ReplayWorld {
     // Die Puste des Technikers (`mission.ts`): `stepCrew` rechnet sie in jedem
     // Bild weiter und setzt daraus `PlayerRig.sprintScale`.
     stamina: freshStamina(),
+    // Und die Blutspur (`rules/blood.ts`), die `stepCrew` in jedem Bild
+    // fortschreibt — auch wenn niemand blutet.
+    blood: freshTrail(),
     repaired: 0,
     routineDice: new Rng(0x4d4f4e53),
     beacons: [],
@@ -358,4 +369,57 @@ test('der 2D-Techniker bekommt einen Körper — und verschwindet im Schutzschra
   world.showTechnician();
   expect(world.technicianArt).toBe(body);
   expect(body.visible).toBe(false);
+});
+
+/**
+ * **Der Ghost in der Welt** (Paket M3c). Er ist Weltgeometrie und kein
+ * Bildschirmzeichen — nur deshalb steht er auch in der Brille. Sichtbar wird
+ * er erst, wenn der Techniker das echte Monster **nicht** mehr sieht, und er
+ * verschwindet mit der Lebenszeit des Markers.
+ */
+test('der Ghost des Monsters erscheint nach dem Sichtverlust und verfällt mit der TTL', () => {
+  const world = replay();
+  world.state.monsterOn = true;
+  world.state.time = 100;
+  world.state.ghosts.monster = { x: 3, z: -4, yaw: 1, since: 100 };
+  // Gerade eben gesehen: kein Doppelgänger neben dem echten Vieh.
+  world.paintGhost();
+  expect(world.ghostArt?.visible ?? false).toBe(false);
+  // Eine Sekunde später ist es eine Erinnerung.
+  world.state.time = 100 + GHOST_LIVE + 0.5;
+  world.paintGhost();
+  expect(world.ghostArt!.visible).toBe(true);
+  expect(world.ghostArt!.position.x).toBe(3);
+  expect(world.ghostArt!.position.z).toBe(-4);
+  expect(world.ghostArt!.rotation.y).toBe(1);
+  // Und mit `GHOST_TTL` ist sie weg.
+  world.state.time = 100 + GHOST_TTL;
+  world.paintGhost();
+  expect(world.ghostArt!.visible).toBe(false);
+});
+
+test('die Blutflecken liegen flach auf dem Boden und werden wiederverwendet', () => {
+  const world = replay();
+  world.state.time = 50;
+  world.state.blood = [
+    { x: 1, z: 2, since: 49 },
+    { x: 2.5, z: 2, since: 50 },
+  ];
+  world.paintTrail();
+  const spots = world.bloodArt!.children as THREE.Mesh[];
+  expect(spots).toHaveLength(2);
+  expect(spots.every((spot) => spot.visible)).toBe(true);
+  // Flach: um die x-Achse gekippt, ein Fingerbreit über dem Blech.
+  expect(spots[0]!.rotation.x).toBeCloseTo(-Math.PI / 2, 6);
+  expect(spots[0]!.position.y).toBeGreaterThan(0);
+  expect(spots[0]!.position.y).toBeLessThan(0.05);
+  // Der ältere ist blasser als der frische (`dropAlpha`).
+  const opacity = (i: number): number => (spots[i]!.material as THREE.MeshBasicMaterial).opacity;
+  expect(opacity(0)).toBeLessThan(opacity(1));
+  expect(dropAlpha(world.state.blood![0]!, 50)).toBeLessThan(1);
+  // Eine kürzere Spur wirft die Scheiben nicht weg, sie schaltet sie ab.
+  world.state.blood = [{ x: 1, z: 2, since: 50 }];
+  world.paintTrail();
+  expect(world.bloodArt!.children).toHaveLength(2);
+  expect((world.bloodArt!.children[1] as THREE.Mesh).visible).toBe(false);
 });

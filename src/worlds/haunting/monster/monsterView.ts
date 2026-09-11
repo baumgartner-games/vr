@@ -2,7 +2,8 @@ import type { RoleHost, RoleView } from '../registry/roles';
 import { Joystick } from '../map/joystick';
 import { MapView } from '../map/mapView';
 import { MONSTER_ID } from '../map/flatRound';
-import type { MapSnapshot } from '../map/mapSnapshot';
+import { roomAtPoint, type MapSnapshot } from '../map/mapSnapshot';
+import { ghostAgeText, ghostsToDraw } from '../rules/ghosts';
 import {
   computeVisibility,
   LitCache,
@@ -198,12 +199,36 @@ class MonsterView implements MonsterRoleView {
                   ? 'Schritte in Hörweite.'
                   : field.visibleEntities.length > 1
                     ? 'Beute in Sicht.'
-                    : 'Nichts zu hören.'
+                    : (this.lastSeen(snapshot, field) ?? 'Nichts zu hören.')
                 : 'Zuschauer: die Runde rechnet das Monster selbst.';
     const text = `${parts.join(' · ')}\n${line}`;
     if (text === this.hudText) return;
     this.hudText = text;
     this.hud.replaceChildren(el('strong', '', parts.join(' · ')), el('span', '', line));
+  }
+
+  /**
+   * **„Zuletzt gesehen: Werkstatt · vor 6 s"** (`rules/ghosts.ts`, Paket M3b).
+   *
+   * Der Marker steht ohnehin auf der Karte; die Zeile daneben sagt das, was
+   * ein Ring nicht sagen kann: **wie alt** die Erinnerung ist. Genau daran
+   * hängt die Entscheidung — sechs Sekunden heißt „er ist noch da drüben",
+   * zwanzig heißt „er ist längst zwei Räume weiter".
+   *
+   * Welchen Marker das Monster sehen darf, entscheidet nicht diese Ansicht,
+   * sondern die Regel für alle vier (`ghostsToDraw`): Hier ist der Blick
+   * realitätsnah, also nur der Marker des Technikers, und nur solange es ihn
+   * nicht wirklich sieht.
+   */
+  private lastSeen(snapshot: MapSnapshot, field: VisibilityField): string | null {
+    const [mark] = ghostsToDraw(snapshot.ghosts, snapshot.time, {
+      omniscient: false,
+      viewer: 'monster',
+      visible: () => field.visibleEntities.length > 1,
+    });
+    if (!mark) return null;
+    const room = roomAtPoint(snapshot, mark.ghost);
+    return `Zuletzt gesehen: ${room?.name ?? 'irgendwo'} · ${ghostAgeText(mark.ghost, snapshot.time)}`;
   }
 
   private refreshKeys(): void {

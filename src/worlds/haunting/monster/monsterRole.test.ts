@@ -293,4 +293,30 @@ describe('Die Karte aus Monstersicht', () => {
     expect(view.current.following).toBe(MONSTER_ID);
     view.dispose();
   });
+
+  /**
+   * **„Zuletzt gesehen: … · vor 6 s"** (`rules/ghosts.ts`, Paket M3b). Der
+   * Marker steht auf der Karte; die Zeile sagt, **wie alt** er ist — daran
+   * hängt, ob sich das Hinlaufen noch lohnt.
+   */
+  it('schreibt die zuletzt gesehene Stelle mit ihrem Alter in die Kopfzeile', () => {
+    const { round, view, step } = seat(4);
+    round.torch = false;
+    round.haunt.lit.length = 0;
+    step(1);
+    const hud = (): string => view.element.querySelector('.monster__hud')?.textContent ?? '';
+    expect(hud()).toContain('Nichts zu hören');
+    // Es hat ihn gesehen — vor sechs Sekunden.
+    const where = round.graph.centre(round.player.space);
+    round.haunt.ghosts.technician = {
+      x: where.x,
+      z: where.z,
+      yaw: 0,
+      since: round.haunt.time - 6,
+    };
+    step(2);
+    expect(hud()).toContain('Zuletzt gesehen');
+    expect(hud()).toContain('vor 6 s');
+    view.dispose();
+  });
 });

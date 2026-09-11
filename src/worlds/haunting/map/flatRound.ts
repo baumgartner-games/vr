@@ -56,6 +56,15 @@ import {
   toggleLock,
   type DoorLocks,
 } from '../rules/doorLocks';
+import {
+  freshTrail,
+  sniff,
+  stepTrail,
+  wound,
+  SNIFF_EVERY,
+  type Scent,
+  type Trail,
+} from '../rules/blood';
 import { freshGhosts, markGhost } from '../rules/ghosts';
 import { VentNet } from '../vents/ventGraph';
 import { VentTravel } from '../vents/ventTravel';
@@ -285,6 +294,15 @@ export class FlatRound implements MapSource {
   /** Die Reisezeitauskunft für die Abfangrechnung — einmal je Runde gebaut. */
   private readonly estimator: ReturnType<typeof graphEstimator>;
   /**
+   * **Die Blutspur des Technikers** (`rules/blood.ts`). Ihre Tropfenliste
+   * *ist* `haunt.blood` — dasselbe Feld, nicht eine Kopie davon: Zwei Listen
+   * wären zwei Spuren, und die gezeichnete wäre irgendwann eine andere als
+   * die, über die das Monster läuft.
+   */
+  readonly blood: Trail = freshTrail();
+  /** Wann das Monster zuletzt geschnüffelt hat — `SNIFF_EVERY` Sekunden später wieder. */
+  private sniffed = -Infinity;
+  /**
    * **Die Puste des Technikers** (`mission.ts`). Ohne sie war der Sprint hier
    * unbegrenzt, und damit war jede Jagd in dem Moment vorbei, in dem er
    * losrannte.
@@ -377,6 +395,7 @@ export class FlatRound implements MapSource {
       technician: null,
       ride: 'out',
       ghosts: freshGhosts(),
+      blood: this.blood.drops,
     };
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
@@ -732,6 +751,10 @@ export class FlatRound implements MapSource {
         this.wave(PLAYER_ID, this.player, stepLoudness(speed), input.sprint ? 'sprint' : 'walk');
       }
     } else this.stepPulse = 0;
+    // **Die Blutspur** (`rules/blood.ts`): Sie läuft in jedem Bild mit, auch
+    // wenn niemand blutet — sonst blieben die Tropfen einer längst
+    // geschlossenen Wunde bis zum Rundenende liegen.
+    stepTrail(this.blood, this.player, this.haunt.time);
     const gap = this.haunt.monsterOn
       ? Math.hypot(this.player.x - this.monster.x, this.player.z - this.monster.z)
       : Infinity;
@@ -870,6 +893,22 @@ export class FlatRound implements MapSource {
       this.caught = crew.hidden;
     if (!hidden) this.caught = '';
 
+    // **Die Fährte unter den eigenen Füßen** (`rules/blood.ts`): Nur Tropfen
+    // im Raum des Monsters und in Schnüffelweite zählen — quer über die
+    // Station riecht niemand etwas. Was daraus wird, entscheidet die Routine
+    // (`RoutineInput.scent`), die es ins Gedächtnis schreibt. Gesucht wird
+    // zweimal je Sekunde und nicht je Bild: Eine Spur liegt da, sie trifft
+    // nicht ein.
+    let scent: Scent | null = null;
+    if (!piloted && this.haunt.time - this.sniffed >= SNIFF_EVERY) {
+      this.sniffed = this.haunt.time;
+      scent = sniff(
+        this.blood,
+        this.monster,
+        this.haunt.time,
+        (drop) => this.graph.spaceAt(drop) === this.monster.space,
+      );
+    }
     const decision = piloted
       ? this.driver!.decide(dt)
       : this.routine.step(this.graph, {
@@ -882,6 +921,7 @@ export class FlatRound implements MapSource {
           caught: this.caught,
           rng: () => this.rng.next(),
           memory: this.brain,
+          scent,
           estimator: this.estimator,
           base: monsterBase(crew.options.monster),
           time: this.haunt.time,
@@ -1052,6 +1092,9 @@ export class FlatRound implements MapSource {
 
   private hit(text: string): void {
     const crew = this.haunt.crew;
+    // **Wer getroffen wird, blutet** (`rules/blood.ts`) — und zieht dem
+    // Monster für die nächsten zwei Minuten eine Fährte hinterher.
+    wound(this.blood, this.haunt.time);
     // **Der Schub nach dem Treffer** (`mission.HIT_BURST`). Wer getroffen
     // wird, steht sonst genau dort, wo ihn der nächste Schlag trifft: Die drei
     // Sekunden Unverwundbarkeit nützen nichts, wenn man sie im Griff des

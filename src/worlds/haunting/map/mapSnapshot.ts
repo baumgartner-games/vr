@@ -1,6 +1,7 @@
 import type { RoomKind } from '../house';
 import type { MonsterMode } from '../monsterRoutine';
 import type { MarkColour } from '../rules/cargo';
+import type { Drop } from '../rules/blood';
 import type { Ghosts } from '../rules/ghosts';
 
 /**
@@ -312,6 +313,15 @@ export interface MapSnapshot {
    * denn genau das, was man *nicht* mehr sieht, ist er ja.
    */
   ghosts?: Ghosts;
+  /**
+   * **Die Blutspur des Technikers** (`rules/blood.ts`, `HauntState.blood`) —
+   * Tropfen mit Ort und Zeit. Wie die Ghost-Marker steht sie neben den
+   * `entities` und nicht darin: Ein Tropfen ist kein Wesen, er bewegt sich
+   * nicht und macht keinen Lärm. Und wie sie wird er vom Sichtbarkeitsmodell
+   * **nicht** weggeschnitten — was auf dem Boden liegt, liegt auch im Dunkeln
+   * da; ob eine Ansicht es zeigt, entscheidet sie selbst.
+   */
+  blood?: Drop[];
 }
 
 /** Ein Snapshot ohne Station — der Anfangswert jeder Ansicht. */

@@ -543,3 +543,69 @@ describe('Das Monster mit Gedächtnis und Abfangrechnung', () => {
     expect(blind.insight).toBeUndefined();
   });
 });
+
+/**
+ * **Die Blutspur** (`rules/blood.ts`). Gesucht hat sie der Aufrufer — nur er
+ * weiß, welche Tropfen im Raum des Monsters liegen; eingetragen wird sie
+ * hier, wie alles, was ins Gedächtnis geht.
+ */
+describe('Was das Monster aus einer Fährte macht', () => {
+  const scent = (dir: { x: number; z: number } | null, trust = 0.55) => ({
+    at: { x: 19, z: 5, since: 0 },
+    age: 0,
+    dir,
+    trust,
+  });
+
+  it('glaubt den Verfolgten in dem Raum, in den die Spur zeigt', () => {
+    const graph = planGraph();
+    const memory = new MonsterMemory(graph);
+    const routine = new MonsterRoutine(tuned());
+    think(routine, graph, memory, 0.25, () => ({
+      at: { x: 18, z: 5 },
+      here: 'saal',
+      scent: scent({ x: 1, z: 0 }),
+    }));
+    expect(memory.mostLikely()).toBe('ost');
+  });
+
+  /**
+   * Eine frische Sichtung schlägt jede Fährte: Ein Tropfen sagt, wo jemand
+   * **war**, das Signal sagt, wo er **ist**.
+   */
+  it('lässt die Fährte liegen, solange es eine Stelle hat', () => {
+    const graph = planGraph();
+    const memory = new MonsterMemory(graph);
+    const routine = new MonsterRoutine(tuned());
+    think(routine, graph, memory, 0.25, () => ({
+      at: { x: 18, z: 5 },
+      here: 'saal',
+      signal: { x: 10, z: -5 },
+      seen: true,
+      quarry: 'nord',
+      scent: scent({ x: 1, z: 0 }),
+    }));
+    expect(memory.mostLikely()).toBe('nord');
+  });
+
+  it('schiebt den Glauben nur so weit, wie die Fährte zu trauen ist', () => {
+    const belief = (trust: number | null): number => {
+      const graph = planGraph();
+      const memory = new MonsterMemory(graph);
+      const routine = new MonsterRoutine(tuned());
+      think(routine, graph, memory, 0.25, () => ({
+        at: { x: 18, z: 5 },
+        here: 'saal',
+        ...(trust === null ? {} : { scent: scent({ x: 1, z: 0 }, trust) }),
+      }));
+      return memory.belief('ost');
+    };
+    // Ohne Fährte bleibt es beim Gleichstand der vier Räume, mit einer
+    // frischen wird daraus eine Spitze — und eine halb verblasste liegt
+    // dazwischen.
+    expect(belief(null)).toBeLessThan(0.3);
+    expect(belief(0.25)).toBeGreaterThan(belief(null));
+    expect(belief(0.55)).toBeGreaterThan(belief(0.25));
+    expect(belief(0.55)).toBeLessThan(1);
+  });
+});

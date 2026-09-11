@@ -429,3 +429,69 @@ describe('Geräusche auf dem Boden der Szene', () => {
     scene.dispose();
   });
 });
+
+describe('Spur und Erinnerung auf dem gespielten Bild', () => {
+  /** Ein Raum mit zwei Tropfen Blut und zwei Ghost-Markern darin. */
+  function marked(): MapSnapshot {
+    const s = room();
+    s.time = 10;
+    s.blood = [
+      { x: 4, z: 5, since: 8 },
+      { x: 5.5, z: 5, since: 9 },
+    ];
+    s.ghosts = {
+      monster: { x: 7, z: 6, yaw: 0, since: 9 },
+      technician: { x: 3, z: 4, yaw: 1, since: 9 },
+    };
+    return s;
+  }
+
+  it('malt die Tropfen auf den Boden und zählt sie', () => {
+    const scene = new FlatScene({ mode: 'omniscient' });
+    scene.setSnapshot(marked());
+    scene.setVisibility(omniscient());
+    scene.setView({ centreX: 5, centreZ: 5 });
+    scene.draw();
+    expect(scene.stats.drops).toBe(2);
+    // Verblasst ist verblasst: ein Snapshot eine Minute später zeigt nichts mehr.
+    const old = marked();
+    old.time = 200;
+    scene.setSnapshot(old);
+    scene.draw();
+    expect(scene.stats.drops).toBe(0);
+  });
+
+  /**
+   * Die Regel aus `rules/ghosts.ghostsToDraw`, hier am gespielten Bild: Der
+   * Techniker sieht in „Realitätsnah" nur den Marker des Monsters, der
+   * Zuschauer beide.
+   */
+  it('zeigt dem Techniker einen Marker und dem Zuschauer beide', () => {
+    const watch = new FlatScene({ mode: 'omniscient' });
+    watch.setSnapshot(marked());
+    watch.setVisibility(omniscient());
+    watch.setView({ centreX: 5, centreZ: 5 });
+    watch.draw();
+    expect(watch.stats.ghosts).toBe(2);
+
+    const own = new FlatScene({ mode: 'realistic' });
+    own.setSnapshot(marked());
+    own.setVisibility(emptyField('realistic'));
+    own.setView({ centreX: 5, centreZ: 5 });
+    own.draw();
+    expect(own.stats.ghosts).toBe(1);
+  });
+
+  it('lässt den Marker weg, solange das Monster wirklich zu sehen ist', () => {
+    const s = marked();
+    s.entities.push(entity(MONSTER_ID, 7, 6, 'monster'));
+    const field = emptyField('realistic');
+    field.visibleEntities = [MONSTER_ID];
+    const scene = new FlatScene({ mode: 'realistic' });
+    scene.setSnapshot(s);
+    scene.setVisibility(field);
+    scene.setView({ centreX: 5, centreZ: 5 });
+    scene.draw();
+    expect(scene.stats.ghosts).toBe(0);
+  });
+});

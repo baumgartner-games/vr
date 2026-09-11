@@ -201,5 +201,9 @@ export function extractMapSnapshot(source: MapSource, kind: '3d' | 'flat' = '3d'
     // führt sie, ob 3D-Welt oder 2D-Runde, also braucht es dafür keinen
     // eigenen Getter in `MapSource`.
     ghosts: state.ghosts,
+    // Dasselbe für die Blutspur (`rules/blood.ts`): Sie steht im Stand, also
+    // reicht der Snapshot sie durch — gezeichnet wird sie in 2D, gerochen in
+    // der Routine des Monsters.
+    ...(state.blood?.length ? { blood: state.blood } : {}),
   };
 }

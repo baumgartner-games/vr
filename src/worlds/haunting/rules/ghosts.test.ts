@@ -1,11 +1,15 @@
 import {
   GHOST_FADE,
   GHOST_TTL,
+  GHOST_WATCH,
   freshGhosts,
   ghostAge,
+  ghostAgeText,
   ghostAlpha,
+  ghostsToDraw,
   markGhost,
   type Ghost,
+  type Ghosts,
 } from './ghosts';
 
 describe('Der Marker der zuletzt gesehenen Stelle', () => {
@@ -74,5 +78,65 @@ describe('Wie ein Marker verblasst', () => {
   it('hält das Ausblenden innerhalb der Lebenszeit', () => {
     expect(GHOST_FADE).toBeGreaterThan(0);
     expect(GHOST_FADE).toBeLessThan(GHOST_TTL);
+  });
+});
+
+describe('Wer welchen Marker zu sehen bekommt', () => {
+  const both: Ghosts = {
+    monster: { x: 1, z: 2, yaw: 0, since: 100 },
+    technician: { x: 3, z: 4, yaw: 1, since: 100 },
+  };
+  const kinds = (list: ReturnType<typeof ghostsToDraw>): string[] => list.map((one) => one.kind);
+
+  it('zeigt dem Techniker nur den Marker des Monsters — und nur ohne Sicht darauf', () => {
+    expect(kinds(ghostsToDraw(both, 105, { omniscient: false, viewer: 'technician' }))).toEqual([
+      'monster',
+    ]);
+    expect(
+      ghostsToDraw(both, 105, {
+        omniscient: false,
+        viewer: 'technician',
+        visible: (kind) => kind === 'monster',
+      }),
+    ).toEqual([]);
+  });
+
+  it('zeigt dem Monster nur den Marker des Technikers', () => {
+    expect(kinds(ghostsToDraw(both, 105, { omniscient: false, viewer: 'monster' }))).toEqual([
+      'technician',
+    ]);
+  });
+
+  /**
+   * Der Zuschauer sieht beides **neben** den echten Figuren — sonst sähe er
+   * nicht, was die beiden voneinander glauben, und genau das ist die halbe
+   * Spannung. Blass, damit er die Erinnerung nicht für einen Körper hält.
+   */
+  it('zeigt dem Zuschauer beide, blass und trotz Sicht', () => {
+    const seen = ghostsToDraw(both, 105, {
+      omniscient: true,
+      viewer: 'technician',
+      visible: () => true,
+    });
+    expect(kinds(seen)).toEqual(['monster', 'technician']);
+    for (const one of seen) expect(one.alpha).toBeCloseTo(GHOST_WATCH, 6);
+  });
+
+  it('lässt verfallene Marker und fehlende Stände weg', () => {
+    expect(ghostsToDraw(both, 100 + GHOST_TTL, { omniscient: true, viewer: 'monster' })).toEqual(
+      [],
+    );
+    expect(ghostsToDraw(undefined, 0, { omniscient: true, viewer: 'monster' })).toEqual([]);
+    expect(ghostsToDraw(freshGhosts(), 0, { omniscient: true, viewer: 'monster' })).toEqual([]);
+  });
+});
+
+describe('Wie alt eine Erinnerung im Funk heißt', () => {
+  const ghost: Ghost = { x: 0, z: 0, yaw: 0, since: 100 };
+
+  it('zählt Sekunden, solange es Sekunden sind, und danach Minuten', () => {
+    expect(ghostAgeText(ghost, 106)).toBe('vor 6 s');
+    expect(ghostAgeText(ghost, 159)).toBe('vor 59 s');
+    expect(ghostAgeText(ghost, 220)).toBe('vor 2 min');
   });
 });

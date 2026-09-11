@@ -15,6 +15,7 @@ import { Rng } from './rng';
 import { stationGraph, COMMAND, type StationGraph } from './roomGraph';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { taskCargo } from './rules/cargo';
+import { freshTrail, sniff, stepTrail, wound, SNIFF_EVERY, type Scent } from './rules/blood';
 import { DEFAULT_TUNING, type BotTuning } from './botTuning';
 import { HEARING, Hearing, reachOf, type HearingWorld } from './audio/hearing';
 import { NOISE } from './audio/cues';
@@ -215,6 +216,16 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
   // bis zwei Sekunden braucht. Für das Monster ist sie so lange keine Kante
   // mehr, wie es im Mittel dauert, sie aufzuziehen.
   const seal = freshSeal();
+  /**
+   * **Die Blutspur** (`rules/blood.ts`). Sie gehört in den Prüfstand und nicht
+   * nur ins Spiel: Ein Treffer, der dem Monster für zwei Minuten eine Fährte
+   * schenkt, verschiebt die Balance — und was die Balance verschiebt, muss
+   * hier ausgespielt werden, sonst trainiert das Training gegen ein Monster,
+   * das es so nicht gibt.
+   */
+  const trail = freshTrail();
+  /** Wann zuletzt geschnüffelt wurde — `SNIFF_EVERY` Sekunden später wieder. */
+  let sniffed = -Infinity;
   let sealed: { pair: string; until: number } | null = null;
   /** Wann die Flucht anläuft — sofort allein, um `commandLag` später im Team. */
   let alarm = Infinity;
@@ -223,6 +234,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
 
   for (; time < limit; time += DT) {
     invulnerable = Math.max(0, invulnerable - DT);
+    stepTrail(trail, technician, time);
     const gap = Math.hypot(technician.x - monster.x, technician.z - monster.z);
     if (technician.space !== wasSpace) {
       if (fleeing) askSeal(seal, pairKey(wasSpace, technician.space), time, players, roll);
@@ -295,16 +307,28 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     );
     if (memory.mode === 'hunt' && before !== 'hunt') contacts++;
 
+    // Die Fährte unter den Füßen des Monsters — nur, was in seinem Raum und in
+    // Schnüffelweite liegt (`blood.sniff`); alles andere wäre Hellsehen.
+    // Gesucht wird nur, was auch gebraucht wird: Wer eine frische Stelle hat,
+    // schaut nicht auf den Boden (`RoutineInput.scent`), und wer versteckt
+    // ist, riecht nichts.
+    const signal = memory.memory > 0 ? memory.target : null;
+    let scent: Scent | null = null;
+    if (!hidden && !signal && time - sniffed >= SNIFF_EVERY) {
+      sniffed = time;
+      scent = sniff(trail, monster, time, (drop) => graph.spaceAt(drop) === monster.space);
+    }
     const decision = routine.step(graph, {
       dt: DT,
       at: monster,
       here: monster.space,
-      signal: memory.memory > 0 ? memory.target : null,
+      signal,
       seen,
       quarry: technician.space,
       caught,
       rng: roll,
       memory: brain,
+      scent,
       estimator,
       base,
       time,
@@ -322,9 +346,11 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     // ihn etwas besser stellt als im Spiel. Bewusst so gelassen: Balance.
     if (decision.strike && hidden && decision.cabin === hidden) {
       // Die Kabine geht kaputt: ein Treffer, und danach steht er wieder im
-      // Raum — mit dem Vorsprung, den ihm `savour` gewährt.
+      // Raum — mit dem Vorsprung, den ihm `savour` gewährt, und von jetzt an
+      // mit einer Blutspur hinter sich.
       hp--;
       hits++;
+      wound(trail, time);
       hidden = '';
       caught = '';
       invulnerable = 3;
@@ -377,6 +403,7 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     if (gap < CONTACT && invulnerable <= 0 && !decision.strike) {
       hp--;
       hits++;
+      wound(trail, time);
       invulnerable = 3;
       if (hp <= 0)
         return done(false, 'killed', time, hits, job, contacts, hides, modes, jobs.length);

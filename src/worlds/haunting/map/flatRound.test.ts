@@ -6,6 +6,7 @@ import { FlatWalker } from './flatWalk';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
 import { STILL } from '../monster/monsterHelm';
 import { cargoOf } from '../rules/cargo';
+import { DROP_SPACING } from '../rules/blood';
 import type { FloorPoint } from '../stationLayout';
 
 const DT = 1 / 30;
@@ -223,6 +224,53 @@ describe('Das Monster in der 2D-Welt', () => {
     expect(round.haunt.ghosts.monster).toEqual(mark);
     // Und das Monster ist inzwischen woanders — der Punkt ist eine Erinnerung.
     expect(Math.hypot(round.monster.x - mark.x, round.monster.z - mark.z)).toBeGreaterThan(1);
+  });
+
+  /**
+   * **Wer blutet, wird verfolgt** (`rules/blood.ts`). Vor dem ersten Treffer
+   * liegt nichts auf dem Boden, danach fällt alle `DROP_SPACING` Meter ein
+   * Tropfen — und die Liste, die die Karte zeichnet, ist dieselbe, die im
+   * Stand übers Netz geht.
+   */
+  it('zieht nach einem Treffer eine Blutspur hinter sich her', () => {
+    const round = new FlatRound(4);
+    expect(round.blood.drops).toEqual([]);
+    // Ein paar Meter laufen, ohne getroffen zu sein: kein Tropfen.
+    for (let t = 0; t < 2; t += DT) round.step(DT, { x: 0, z: 1, sprint: false });
+    expect(round.blood.drops).toEqual([]);
+    // Das Monster steht plötzlich daneben — Treffer.
+    round.monster.x = round.player.x;
+    round.monster.z = round.player.z;
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.state().crew.hp).toBe(2);
+    // Der Treffer fällt am Ende des Bildes, der erste Tropfen im nächsten —
+    // und zwar dort, wo der Schlag saß, ohne dass jemand einen Schritt tut.
+    expect(round.blood.drops).toEqual([]);
+    round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.blood.drops).toHaveLength(1);
+    // Und das Vieh soll ihn jetzt in Ruhe lassen; geprüft wird die Spur.
+    round.monster.x += 40;
+    const first = round.blood.drops[0]!;
+    expect(Math.hypot(first.x - round.player.x, first.z - round.player.z)).toBeLessThan(0.5);
+    // Und ab jetzt tropft es beim Laufen — nach Strecke, nicht nach Zeit.
+    const walker = new FlatWalker(round);
+    const goal = round.jobs()[0]!.at;
+    for (let t = 0; t < 10; t += DT) {
+      const input = walker.input(goal, DT);
+      if (!input) break;
+      round.step(DT, input);
+    }
+    expect(round.blood.drops.length).toBeGreaterThan(2);
+    for (let i = 1; i < round.blood.drops.length; i++)
+      expect(
+        Math.hypot(
+          round.blood.drops[i]!.x - round.blood.drops[i - 1]!.x,
+          round.blood.drops[i]!.z - round.blood.drops[i - 1]!.z,
+        ),
+      ).toBeGreaterThan(DROP_SPACING * 0.9);
+    // Dieselbe Liste in Stand und Snapshot — zwei Listen wären zwei Spuren.
+    expect(round.state().blood).toBe(round.blood.drops);
+    expect(round.snapshot().blood).toEqual(round.blood.drops);
   });
 });
 

@@ -3,9 +3,12 @@ import { CARGO_BAND_COLORS, FIXTURE_CATALOG, LOCKER_SIZE, markHeight } from '../
 import type { MapItem } from './mapSnapshot';
 import {
   ART,
+  BLOOD_INK,
   CREW_COLORS,
   crewColor,
+  drawBloodDrop,
   drawCrewmate,
+  drawGhost,
   drawFixture,
   drawMonster,
   drawName,
@@ -286,5 +289,68 @@ describe('Frachtkiste', () => {
     const done = paintingContext();
     drawProp(done.ctx, 0, 0, 80, crate({ state: 'taken', goal: true }), 0.5);
     expect(named(done.calls, 'set:strokeStyle').map((c) => c.args[0])).not.toContain(ART.goal);
+  });
+});
+
+describe('Die gestrichelte Erinnerung', () => {
+  it('zeichnet nur eine Kontur — gefüllt wäre sie eine zweite Figur', () => {
+    const { ctx, calls } = fakeContext();
+    drawGhost(ctx, 50, 60, { scale: 80, kind: 'stalker', facing: 1, alpha: 0.5 });
+    expect(named(calls, 'fill')).toHaveLength(0);
+    expect(named(calls, 'stroke')).toHaveLength(1);
+    // Gestrichelt hin, und danach wieder aufgeräumt.
+    const dashes = named(calls, 'setLineDash').map((c) => c.args[0] as number[]);
+    expect(dashes[0]!.length).toBe(2);
+    expect(dashes.at(-1)).toEqual([]);
+    expect(named(calls, 'save')).toHaveLength(1);
+    expect(named(calls, 'restore')).toHaveLength(1);
+  });
+
+  it('nimmt die Deckkraft, die ihm gegeben wird, und spiegelt für den Blick nach links', () => {
+    const { ctx, calls } = fakeContext();
+    drawGhost(ctx, 0, 0, { scale: 80, kind: 'crew', facing: -1, alpha: 0.25 });
+    expect(ctx.globalAlpha).toBe(0.25);
+    expect(named(calls, 'scale')).toEqual([{ name: 'scale', args: [-1, 1] }]);
+  });
+
+  /**
+   * Der Ghost eines Monsters ist derselbe Umriss wie das Monster selbst —
+   * sonst ließe sich aus der Erinnerung nicht ablesen, welche Sorte man vor
+   * sich hat.
+   */
+  it('nimmt für jede Monstersorte ihre eigene Silhouette', () => {
+    const points = (kind: string): number => {
+      const { ctx, calls } = fakeContext();
+      drawGhost(ctx, 0, 0, { scale: 80, kind, facing: 1, alpha: 1 });
+      return named(calls, 'lineTo').length;
+    };
+    // Der Crawler ist flach und lang (zehn Ecken), der Wächter aufrecht (elf).
+    expect(points('crawler')).not.toBe(points('sentinel'));
+    // Der Techniker ist eine Bohne aus zwei Bögen und drei Geraden.
+    expect(points('crew')).toBeLessThan(points('crawler'));
+  });
+});
+
+describe('Ein Tropfen Blut', () => {
+  it('liegt flach auf dem Boden und wächst nicht nach Norden', () => {
+    const { ctx, calls } = fakeContext();
+    drawBloodDrop(ctx, 40, 90, 80, { since: 3 }, 0.8);
+    const ellipses = named(calls, 'ellipse');
+    // Der Fleck und sein Spritzer, beide auf der Höhe des Punkts.
+    expect(ellipses).toHaveLength(2);
+    expect(ellipses[0]!.args[0]).toBe(40);
+    expect(ellipses[0]!.args[1]).toBe(90);
+    expect(named(calls, 'fill')).toHaveLength(2);
+    expect(ctx.globalAlpha).toBe(0.8);
+  });
+
+  it('wird mit dem Alter aus frischem Blut getrocknetes', () => {
+    const ink = (alpha: number): string => {
+      const { ctx } = fakeContext();
+      drawBloodDrop(ctx, 0, 0, 80, { since: 3 }, alpha);
+      return ctx.fillStyle as string;
+    };
+    expect(ink(0.9)).toBe(BLOOD_INK.fresh);
+    expect(ink(0.2)).toBe(BLOOD_INK.dry);
   });
 });

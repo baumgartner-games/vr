@@ -87,6 +87,10 @@ describe('Der Stand mit Techniker, Fahrt und Kabinen', () => {
         monster: { x: -8, z: 3.5, yaw: 1.1, since: 4 },
         technician: { x: 12, z: -30, yaw: -2, since: 9 },
       },
+      blood: [
+        { x: 1, z: -2, since: 3 },
+        { x: 2.5, z: -2, since: 4 },
+      ],
     };
   }
 
@@ -144,5 +148,23 @@ describe('Der Stand mit Techniker, Fahrt und Kabinen', () => {
       ghosts: { monster: { x: 1e9, z: 'weit', yaw: NaN, since: '4' }, technician: null },
     })!;
     expect(odd.ghosts.monster).toEqual({ x: 1000, z: 0, yaw: 0, since: 0 });
+  });
+
+  /**
+   * **Die Blutspur ist ein optionales Feld ohne Versionssprung** (`rules/blood.ts`).
+   * An ihr hängt beim Empfänger keine Regel — er malt sie nur. Ein Gerät ohne
+   * sie sieht keine Tropfen und spielt dieselbe Runde; deshalb bleibt
+   * `STATION_PROTOCOL` stehen, wo es steht.
+   */
+  it('trägt die Blutspur mit und kommt auch ohne sie aus', () => {
+    const replay = readState(JSON.parse(JSON.stringify(stateMessage(state()))))!;
+    expect(replay.blood).toEqual(state().blood);
+    const { blood, ...without } = wireOf();
+    expect(blood).toBeDefined();
+    expect(readState(without)!.blood).toEqual([]);
+    expect(readState({ ...wireOf(), blood: 'viel' })!.blood).toEqual([]);
+    // Und Unsinn im Tropfen wird auf Meter und Zahlen zurechtgestutzt.
+    const odd = readState({ ...wireOf(), blood: [{ x: 1e9, z: 'weit', since: null }] })!;
+    expect(odd.blood).toEqual([{ x: 1000, z: 0, since: 0 }]);
   });
 });

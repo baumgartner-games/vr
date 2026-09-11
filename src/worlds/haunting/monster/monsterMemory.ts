@@ -35,6 +35,12 @@ import type { FloorPoint } from '../stationLayout';
  *   nicht verfällt, macht aus einer alten Sichtung für den Rest der Runde
  *   einen Wegweiser.
  *
+ * Dazu kommen zwei Ereignisse, die die Welt meldet, weil die Routine sie
+ * nicht sehen kann: ein **Aufruhr** (`disturbed`, eine fertig gewordene
+ * Reparatur) und eine **Fährte** (`tracked`, Blut auf dem Boden,
+ * `rules/blood.ts`). Beide schreiben unter `heard` und nicht in die Spur —
+ * sie sagen, wo jemand war, nicht, wohin er in dieser Sekunde läuft.
+ *
  * **Gesperrte Türen halten den Glauben auf.** Was das Monster selbst
  * zugeschlagen oder der Techniker verriegelt hat (`HauntState.shut`, siehe
  * `rules/doorLocks.ts`), lässt keine Masse durch — wer hinter einem Riegel
@@ -72,6 +78,16 @@ export const FLOOR = 0.01;
 export const TRACK_LENGTH = 6;
 /** Ab diesem Anteil taucht ein Raum im `snapshot` für die Zuschauer auf. */
 export const SNAPSHOT_MIN = 0.02;
+
+/**
+ * **Wie weit voraus eine Blutspur gelesen wird**, in Metern (`tracked`).
+ *
+ * Drei Meter sind reichlich mehr als der Abstand zweier Tropfen
+ * (`blood.DROP_SPACING`) und weniger als ein halber Raum: weit genug, um über
+ * eine Türschwelle hinauszureichen, kurz genug, um nicht zwei Räume weiter zu
+ * raten. Findet dort kein Raum, bleibt es bei dem, in dem der Tropfen liegt.
+ */
+export const SCENT_LEAD = 3;
 
 /**
  * Der größte Zeitschritt, den eine Diffusion am Stück macht. Explizites Euler
@@ -249,6 +265,49 @@ export class MonsterMemory {
     const note = this.notes.get(where);
     if (note) note.heard = time;
     for (const id of this.spaces) this.mass.set(id, id === where ? 1 : 0);
+  }
+
+  /**
+   * **Eine Fährte auf dem Boden** (`rules/blood.ts`) — Blut, über das das
+   * Monster gerade gelaufen ist.
+   *
+   * Sie sagt zwei Dinge, und erst beide zusammen machen sie wertvoll: dass
+   * jemand hier war, und **wohin er weiterging**. Deshalb landet die Masse
+   * nicht in dem Raum, in dem der Tropfen liegt, sondern in dem, auf den die
+   * Spur zeigt (`SCENT_LEAD` Meter voraus, sofern dort überhaupt ein Raum
+   * ist). Ein Monster, das den Tropfen unter den eigenen Füßen für den
+   * Aufenthaltsort des Verfolgten hält, sucht genau dort, wo es schon steht.
+   *
+   * **Sie schiebt den Glauben, sie ersetzt ihn nicht.** `seen` und
+   * `disturbed` legen die ganze Masse in einen Raum, weil es dort gerade
+   * *jetzt* etwas zu sehen oder zu hören gab. Blut ist alt, und wie alt, sagt
+   * `trust` (0 bis 1): Bei 1 käme die Gewissheit einer Sichtung heraus, und
+   * ein einziger Treffer schenkte dem Monster den Rest der Runde. Also wird
+   * gemischt — `trust` Anteil Fährte, der Rest das bisherige Bild.
+   *
+   * **Kein Eintrag in der Spur**, aus demselben Grund wie bei `disturbed`:
+   * Aus einer Fährte eine Fahrtrichtung samt Tempo zu rechnen, wäre eine
+   * erfundene Sichtung — die Prognose der Abfangrechnung
+   * (`monster/monsterIntercept.ts`) hinge dann an einem Tropfen von vor
+   * dreißig Sekunden. Notiert wird unter `heard`: gemerkt, nicht gesehen.
+   */
+  tracked(room: string, at: FloorPoint, dir: FloorPoint | null, trust: number, time: number): void {
+    const here = this.mass.has(room) ? room : (this.world.spaceAt?.(at) ?? '');
+    if (!this.mass.has(here)) return;
+    const weight = Math.max(0, Math.min(1, trust));
+    if (!(weight > 0)) return;
+    let where = here;
+    if (dir) {
+      const ahead =
+        this.world.spaceAt?.({ x: at.x + dir.x * SCENT_LEAD, z: at.z + dir.z * SCENT_LEAD }) ?? '';
+      if (this.mass.has(ahead)) where = ahead;
+    }
+    this.trace = time;
+    const note = this.notes.get(where);
+    if (note) note.heard = time;
+    for (const id of this.spaces)
+      this.mass.set(id, this.mass.get(id)! * (1 - weight) + (id === where ? weight : 0));
+    this.normalize();
   }
 
   /**

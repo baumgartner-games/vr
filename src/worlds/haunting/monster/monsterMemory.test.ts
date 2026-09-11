@@ -5,6 +5,7 @@ import {
   FLOOR,
   FORGET,
   MonsterMemory,
+  SCENT_LEAD,
   TRACK_LENGTH,
   doorKey,
   shutPairs,
@@ -444,5 +445,74 @@ describe('Aus Türkennungen Raumpaare machen', () => {
     expect(memory.exits('c').map(({ door }) => door)).toContain(doorKey('c', 'd'));
     closed.push(...shutPairs(doors, ['d1']));
     expect(memory.exits('c').map(({ door }) => door)).not.toContain(doorKey('c', 'd'));
+  });
+});
+
+describe('Eine Blutspur auf dem Boden', () => {
+  /** Ein Tropfen dicht an der Grenze zwischen `b` und `c`, damit `SCENT_LEAD` hinüberreicht. */
+  const drop = { x: 14, z: 0 };
+
+  it('glaubt den Verfolgten dort, wohin die Spur zeigt — nicht dort, wo sie liegt', () => {
+    const memory = new MonsterMemory(world);
+    expect(nearest(drop)).toBe('b');
+    expect(nearest({ x: drop.x + SCENT_LEAD, z: 0 })).toBe('c');
+    memory.tracked('b', drop, { x: 1, z: 0 }, 1, 10);
+    expect(memory.mostLikely()).toBe('c');
+    expect(memory.belief('c')).toBeCloseTo(1, 6);
+  });
+
+  it('bleibt ohne Richtung bei dem Raum, in dem der Tropfen liegt', () => {
+    const memory = new MonsterMemory(world);
+    memory.tracked('b', drop, null, 1, 10);
+    expect(memory.mostLikely()).toBe('b');
+  });
+
+  /**
+   * Der eigentliche Unterschied zu einer Sichtung: Blut **schiebt** den
+   * Glauben, es ersetzt ihn nicht. Bei voller Gewissheit wäre ein Treffer der
+   * Anfang vom Ende der Runde.
+   */
+  it('mischt sich nach `trust` in das bisherige Bild', () => {
+    const memory = new MonsterMemory(world);
+    const before = memory.belief('c');
+    memory.tracked('b', drop, { x: 1, z: 0 }, 0.5, 10);
+    expect(memory.belief('c')).toBeCloseTo(0.5 + 0.5 * before, 6);
+    expect(memory.belief('a')).toBeCloseTo(0.5 * before, 6);
+  });
+
+  it('lässt bei `trust` 0 alles, wie es war', () => {
+    const memory = new MonsterMemory(world);
+    memory.tracked('b', drop, { x: 1, z: 0 }, 0, 10);
+    expect(memory.belief('c')).toBeCloseTo(0.2, 6);
+  });
+
+  /** Ein Raumname, den das Gedächtnis nicht kennt, wird über den Ort gerettet — wie bei `seen`. */
+  it('rettet einen fremden Raumnamen über die Stelle', () => {
+    const memory = new MonsterMemory(world);
+    memory.tracked('zimmer 3', drop, null, 1, 10);
+    expect(memory.mostLikely()).toBe('b');
+  });
+
+  /** Und eine Welt ohne Ortsauskunft lässt das Bild ganz in Ruhe. */
+  it('kommt ohne `spaceAt` gar nicht erst zum Zug', () => {
+    const blind: RoutineWorld = { ...world, spaceAt: undefined };
+    const memory = new MonsterMemory(blind);
+    memory.tracked('zimmer 3', drop, null, 1, 10);
+    expect(memory.belief('b')).toBeCloseTo(0.2, 6);
+  });
+
+  /**
+   * Eine Fährte ist keine Sichtung: Käme sie in die Spur, rechnete die
+   * Abfangrechnung aus einem dreißig Sekunden alten Tropfen eine
+   * Fahrtrichtung samt Tempo.
+   */
+  it('schreibt nichts in die Spur der Sichtungen', () => {
+    const memory = new MonsterMemory(world);
+    memory.tracked('b', drop, { x: 1, z: 0 }, 1, 10);
+    expect(memory.track.sightings).toHaveLength(0);
+    expect(memory.track.velocity()).toBeNull();
+    // Notiert wird sie trotzdem — unter „gehört", wo die Wahrheit steht.
+    expect(memory.note('c').heard).toBe(10);
+    expect(memory.note('c').seen).toBe(-Infinity);
   });
 });

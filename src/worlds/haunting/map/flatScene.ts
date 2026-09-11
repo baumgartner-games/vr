@@ -1,11 +1,15 @@
+import { dropAlpha } from '../rules/blood';
+import { ghostsToDraw } from '../rules/ghosts';
 import {
   ART,
   SPRITE_H,
   SPRITE_W,
   crewColor,
+  drawBloodDrop,
   drawCrewmate,
   drawDrone,
   drawFixture,
+  drawGhost,
   drawLamp,
   drawMonster,
   drawName,
@@ -221,6 +225,10 @@ export class FlatScene {
     noises: 0,
     /** Ob der Zielraum getönt wurde — 0 oder 1. */
     goalRooms: 0,
+    /** Wie viele Blutstropfen auf dem Boden lagen (`rules/blood.ts`). */
+    drops: 0,
+    /** Und wie viele gestrichelte Erinnerungen (`rules/ghosts.ts`). */
+    ghosts: 0,
   };
 
   constructor(private readonly options: FlatSceneOptions = {}) {
@@ -371,6 +379,8 @@ export class FlatScene {
       dimmed: 0,
       noises: 0,
       goalRooms: 0,
+      drops: 0,
+      ghosts: 0,
     };
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -438,6 +448,11 @@ export class FlatScene {
     // Welle, die den Spieler überdeckt, nimmt ihm genau das Bild, für das sie
     // da ist (`noiseWaves.ts`).
     this.drawNoise(ctx);
+    // --- Und das Blut, auf demselben Boden ---------------------------------------
+    // Vor der Dunkelheit gezeichnet, also **nur dort zu sehen, wo man
+    // hinsieht**: Eine Spur, die man quer durch die schwarze Station leuchten
+    // sähe, wäre ein Radar und keine Fährte.
+    this.drawBlood(ctx, inView);
     for (const { room, b } of rooms) this.drawRoomName(ctx, room, b);
 
     // --- Wände: entdoppeln, Türen kennen, nach Achse trennen -----------------------
@@ -532,6 +547,44 @@ export class FlatScene {
         },
       });
     }
+    // --- Die Erinnerungen, zwischen den Figuren --------------------------------
+    // Wer hinsieht, ist hier immer der Techniker — diese Szene ist sein Bild.
+    // Ob er den Ghost des Monsters überhaupt sehen darf, entscheidet die Regel
+    // an einer Stelle für alle vier Ansichten (`rules/ghosts.ghostsToDraw`).
+    const beast = s.entities.find((entity) => entity.kind === 'monster');
+    for (const one of ghostsToDraw(s.ghosts, s.time, {
+      omniscient,
+      viewer: 'technician',
+      visible: (kind) =>
+        s.entities.some(
+          (entity) =>
+            entity.kind === (kind === 'monster' ? 'monster' : 'player') &&
+            !entity.concealed &&
+            visible.has(entity.id),
+        ),
+    })) {
+      if (!inView(one.ghost.x - 1, one.ghost.z - 2, one.ghost.x + 1, one.ghost.z + 1)) continue;
+      const p = this.toScreen(one.ghost.x, one.ghost.z);
+      const kind =
+        one.kind === 'monster' && beast
+          ? this.monsterKind(beast)
+          : one.kind === 'monster'
+            ? 'stalker'
+            : 'crew';
+      layer.push({
+        z: one.ghost.z,
+        order: 2,
+        draw: () => {
+          drawGhost(ctx, p.x, p.y, {
+            scale: u,
+            kind,
+            facing: facingOf(one.ghost.yaw),
+            alpha: one.alpha,
+          });
+          this.stats.ghosts++;
+        },
+      });
+    }
     layer.sort((a, b) => a.z - b.z || a.order - b.order);
     for (const one of layer) one.draw();
 
@@ -565,6 +618,29 @@ export class FlatScene {
       this.stats.names++;
     }
     this.options.overlay?.(ctx, this);
+  }
+
+  /**
+   * **Die Blutspur auf dem Boden** (`rules/blood.ts`): dunkelrote Tropfen,
+   * die über `DROP_FADE` verblassen. Sie liegen flach auf der Platte und
+   * werden deshalb **vor** allem Aufrechten gezeichnet — ein Fleck, der über
+   * dem Stiefel liegt, der ihn hinterlassen hat, sieht aus wie ein Fehler.
+   */
+  private drawBlood(
+    ctx: CanvasRenderingContext2D,
+    inView: (minX: number, minZ: number, maxX: number, maxZ: number) => boolean,
+  ): void {
+    const drops = this.snapshot.blood ?? [];
+    if (!drops.length) return;
+    const u = this.state.scale;
+    for (const drop of drops) {
+      const alpha = dropAlpha(drop, this.snapshot.time);
+      if (alpha <= 0) continue;
+      if (!inView(drop.x - 0.4, drop.z - 0.4, drop.x + 0.4, drop.z + 0.4)) continue;
+      const p = this.toScreen(drop.x, drop.z);
+      drawBloodDrop(ctx, p.x, p.y, u, drop, alpha);
+      this.stats.drops++;
+    }
   }
 
   /**
