@@ -142,6 +142,18 @@ const TAP_SLOP = 8;
 const WHEEL_RATE = 0.0016;
 /** Rand um die Station, wenn sie ganz ins Bild soll, in Metern je Seite. */
 const FIT_MARGIN = 4;
+/**
+ * **Wie weit die ganz herausgezoomte Station nach unten gezogen werden darf**,
+ * in Bildpunkten.
+ *
+ * Ganz heraus passt sie ins Bild und stand deshalb fest in der Mitte — und
+ * ihre obere Kante lag damit hinter Aufgabenkasten und Sprungknöpfen, genau
+ * in dem Moment, in dem man sie ganz sehen wollte. Nach unten gibt der
+ * Anschlag deshalb so viel nach, wie oben verdeckt ist; nach oben gar nicht,
+ * denn dorthin will niemand. Ein Anschlag bleibt es: Wer zieht, soll die
+ * Station nicht aus dem Bild schieben und sie danach suchen müssen.
+ */
+export const PAN_HEADROOM = 150;
 
 const INK = {
   space: '#000000',
@@ -305,6 +317,12 @@ export class FlatScene {
    * Passt die Station auf einer Achse ganz hinein, gilt auf dieser Achse
    * deshalb ihre Mitte, und die Figur läuft darin herum; auf der anderen
    * folgt die Kamera weiter.
+   *
+   * **Mit einer Ausnahme, und zwar nach unten** (`PAN_HEADROOM`): Wer die
+   * Kamera selbst in die Hand genommen hat — gezogen, also `following` los —,
+   * darf die Station unter dem oberen Rand hervorziehen. Solange die Kamera
+   * einer Figur folgt, bleibt es bei der Mitte: Sonst hinge das Bild davon ab,
+   * wo die Figur gerade steht, und wackelte beim Gehen.
    */
   private settle(): void {
     const b = this.snapshot.bounds;
@@ -312,7 +330,13 @@ export class FlatScene {
     const { w, h } = this.size();
     const u = this.state.scale;
     if ((b.maxX - b.minX + 2 * FIT_MARGIN) * u <= w) this.state.centreX = (b.minX + b.maxX) / 2;
-    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) this.state.centreZ = (b.minZ + b.maxZ) / 2;
+    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) {
+      const middle = (b.minZ + b.maxZ) / 2;
+      this.state.centreZ =
+        this.following !== null
+          ? middle
+          : Math.min(middle, Math.max(middle - PAN_HEADROOM / u, this.state.centreZ));
+    }
   }
 
   private size(): { w: number; h: number } {

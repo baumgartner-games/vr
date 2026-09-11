@@ -175,13 +175,31 @@ am Bildrand zeigen zum nächsten Ziel (am Desktop im Schiff ein Kompass am obere
 Karte, und im Modus „Alles sehen" führen Bögen von Klappe zu Klappe mit dem
 Raum, in dem der Schacht endet. Wer das Monster spielt, steigt mit
 **Interagieren** in eine Klappe und wählt darunter den Zielraum.
-Oben links stehen zwei Zeilen und sonst nichts: **O₂** mit der Restzeit und den
-Anzug-Herzen, darunter **Aufgaben:** mit einem Kreis je Auftrag — voll
-erledigt, halb angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste
-mit den Namen auf, ein zweiter wieder zu. Das **Zahnrad** zeigt nur noch, was
-sich mitten in der Runde ändert — Ansicht, Zielpfade, Ton und **Zurück zur
-Lobby**; wer mitspielt und was die nächste Runde wird, steht dort. **Wer
-zuschaut**, hat keinen Stock, dafür zwei Knöpfe rechts: _Zum Techniker_ und
+**Der obere Rand gehört in 2D dem Spiel.** Die Kopfzeile der Seite (Menü,
+Verbindung, VR) ist dort ausgeblendet und kommt beim Verlassen zurück; was
+oben steht, steht untereinander statt voreinander. Ganz oben links zwei
+Zeilen und sonst nichts: **O₂** mit der Restzeit und den Anzug-Herzen,
+darunter **Aufgaben:** mit einem Kreis je Auftrag — voll erledigt, halb
+angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste mit den Namen
+auf, ein zweiter wieder zu. Rechts daneben das **Zahnrad**, in der Zeile
+darunter die Sprungknöpfe — die sind damit nie verdeckt.
+
+Das **Zahnrad** zeigt, was sich mitten in der Runde ändert — Ansicht,
+Zielpfade, Ton und **Zurück zur Lobby** —, und darin unter **Aufmachen** die
+drei Wege nach draußen: **Karte** (die Übersicht der Station; den eigenen
+🗺-Knopf oben rechts gibt es nicht mehr), **Menü** und **Verbindung**, also
+das, was sonst in der Kopfzeile steht. Wer mitspielt und was die nächste Runde
+wird, steht in der Lobby. **Immer nur eines auf einmal:** Solange Karte,
+Rätsel, Raumakte oder Menü offen sind, ist der Rest weg — kein HUD, keine
+Reiter, keine Spielszene dahinter; ein Zurück bringt alles wieder, und die
+Runde ist unterdessen weitergelaufen.
+
+**Verschieben ist ein Blick zur Seite.** Die Szene lässt sich ziehen und mit
+zwei Fingern zoomen; dann steht oben **Zum Spieler**. Sobald du wieder einen
+Schritt gehst, springt die Kamera von selbst zurück. Ganz herausgezoomt passt
+die ganze Station ins Bild und lässt sich ein Stück nach unten ziehen, damit
+ihre obere Kante frei unter den Anzeigen steht. **Wer
+zuschaut**, hat keinen Stock, dafür zwei Knöpfe: _Zum Techniker_ und
 _Zum Monster_, jederzeit umschaltbar. Die Sicht von Archiv, Einsatzkontrolle
 oder Drohne wählt man in der Lobby unter „Plätze und Geräte" — auch während
 eine Runde läuft.

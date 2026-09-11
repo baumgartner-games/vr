@@ -8324,14 +8324,46 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   welchen Platz besetzt und wie die nächste Runde verteilt ist, steht in der
   Lobby; der Fortschrittsbalken „Aufgaben erledigt" zählte
   dasselbe wie die drei Kreise darunter und ist weg. Der obere Bildschirmrand
-  gehört dem, was sich ändert. Oben rechts Karte
-  (das alte `MapView` als Overlay) und Zahnrad, unten rechts der große Knopf
+  gehört dem, was sich ändert — und er gehört der 2D-Welt **allein**: Der
+  Streifen der Seite (Weltname, Menü, Verbindung, VR — `index.html`, `#hud`,
+  `z-index: 5`) wird beim Betreten abgeschaltet (`core/pageHud.ts`) und beim
+  Verlassen so wiederhergestellt, wie er war; `--flat-top` rückt dafür in
+  `.flat--world` um dessen Höhe nach oben (über der 3D-Szene, `.flat.ship3d`,
+  bleibt es beim alten Maß). **Oben steht eine Spalte, keine Sammlung von
+  Abständen** (`.flat__top`): erste Zeile der Kasten und rechts daneben das
+  Zahnrad, zweite Zeile die Sprungknöpfe. Vorher hing jedes davon an
+  `--flat-top` plus einer geratenen Zahl und lag reihum vor dem nächsten —
+  „Zum Spieler" gab es, zu sehen war der Reiter davor. **Der eigene
+  🗺-Knopf ist weg**; die Karte (das alte `MapView` als Overlay) steht als
+  Eintrag im Zahnrad, zusammen mit „Menü" und „Verbindung", die die Knöpfe der
+  abgeschalteten Kopfzeile drücken (`pressPageButton`) — „Menü" holt die
+  Kopfzeile dafür zurück (`.is-paged`), weil das Weltmenü ein Panel in der
+  3D-Szene ist und sonst hinter der 2D-Welt läge. Unten rechts der große Knopf
   „Benutzen" mit „Werkzeug" und „Wechseln" darüber. Stock links. Der Stock hat eine **sichtbare
   Ruhestellung** unten links und springt beim Aufsetzen unter den Daumen
-  (`map/joystick.ts`); HUD, Meldung und Eckknöpfe beginnen unter dem HUD der
-  Seite (`--flat-top`). `.flat [hidden] { display: none !important }` ist
+  (`map/joystick.ts`). `.flat [hidden] { display: none !important }` ist
   Pflicht: Panels mit `display: flex` und `hidden` standen sonst als leerer
   Balken mitten auf der Karte — über dem Spieler.
+- **Ein Overlay auf einmal** (`FlatOverlay`, `FlatMode.applyOverlay`): Karte,
+  Rätsel, Raumakte und Optionsmenü wollen dieselbe Fläche. Solange eines
+  offen ist, sind HUD, Reiter, Zahnrad, Sprungknöpfe, Stock, Knöpfe **und die
+  Szene** weg — die Runde läuft weiter, sie ist nur nicht zu sehen. Das steht
+  an *einer* Stelle, weil vier Stellen, die je ein `hidden` umlegen, sich
+  genau dann widersprechen, wenn zwei gleichzeitig zutreffen: Vorher stand die
+  Aufgabenliste über dem Kabelrätsel und der Stock lief darunter weiter. Das
+  Rätsel gehört dabei der Runde und keinem Knopf — `syncOverlay` zieht den
+  Zustand nach `PuzzleOverlay.sync` nach, ein offenes Rätsel schiebt Karte,
+  Akte und Menü beiseite. Wer das Monster spielt, sieht das HUD des Technikers
+  gar nicht mehr: Sauerstoff und Auftragsliste des Gegners sind kein
+  Monsterwissen.
+- **Die Kamera kommt beim ersten Schritt zurück** (`FlatMode.followPlayer`,
+  `CAMERA_RETURN`): Wer die Szene zur Seite zieht, sieht nach — und läuft
+  dann weiter. Vorher blieb die Kamera liegen, und der Techniker lief aus dem
+  eigenen Bild heraus, bis er den Knopf fand. Verschieben ist damit ein Blick
+  zur Seite, kein Zustand; „Zum Spieler" steht nur da, solange er wirklich
+  etwas tut. **Nur für den, der spielt** — in der Vorführung und beim
+  Zuschauen läuft der Techniker ununterbrochen, und dieselbe Regel nähme dort
+  jedes Verschieben im nächsten Bild wieder zurück.
 - **Ganz heraus geht immer bis zur ganzen Station** — in der Szene wie auf
   der Karte (`FlatScene.fitScale`, `MapView.fitScale`). Beide haben eine
   feste Zoom-Untergrenze (`minScale`: 28 Punkte je Meter in der Szene, 6 auf
@@ -8346,7 +8378,13 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Eine Kamera, die der Figur folgt, hielte sie in der Mitte und schöbe die
   halbe Station aus dem Bild — genau die Hälfte, die man beim Herauszoomen
   sehen wollte. Das Folgen bleibt dabei an; sobald wieder herangezoomt wird,
-  hängt die Kamera wieder an der Figur.
+  hängt die Kamera wieder an der Figur. **Nach unten gibt der Anschlag
+  nach** (`PAN_HEADROOM`, 150 Punkte, in Szene und Karte): Wer selbst zieht —
+  also `following` los —, holt die Station so weit herunter, wie oben verdeckt
+  ist, und sieht ihre obere Kante frei unter `--flat-top`. Nach oben gibt er
+  gar nicht nach, und wer einer Figur folgt, bekommt weiter die Mitte:
+  sonst hinge das Bild daran, wo die Figur gerade steht, und wackelte beim
+  Gehen.
 - **Die Karte hat die Handschrift eines Brettspiels** (`map/mapView.ts`,
   `INK`): helle Böden mit Kachelfugen (`FLOOR_TILE` 1,25 m), Wände als dunkler
   Kern mit heller Kante, **Türen als Blätter in Pfosten** — zu ist ein Blatt
@@ -8445,8 +8483,9 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   neu gebaut, wenn sich der Rätselstand ändert** — ein Knopf, der zwischen
   Aufsetzen und Abheben des Fingers aus dem DOM fällt, bekommt auf dem
   Telefon keinen Klick; genau daran scheiterte das Lösen. Rätsel, Optionen
-  und Akte hängen unter dem HUD der Seite (`--flat-top`) statt in der
-  Bildmitte, und das Rätsel liegt über dem Optionsmenü (`z-index`).
+  und Akte hängen unter `--flat-top` statt in der Bildmitte, und das Rätsel
+  liegt über dem Optionsmenü (`z-index`) — offen ist ohnehin immer nur eines
+  (`FlatOverlay`, oben).
 - **Der Kompass am oberen Bildrand** (`objectiveCompass.ts`) gehört dem
   Desktop-Techniker: Himmelsrichtungen und die Ziele (`HauntingWorld.objectives`,
   dieselbe Regel wie in 2D) als gelbe Dreiecke mit Entfernung, was hinten
@@ -8533,9 +8572,10 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     ihm zu überlagern.
   - **2D-Optionsmenü** (`FlatMode.renderOptions`): nur noch, was sich *in* der
     Runde ändert — Ansicht (die zwei Modi nur für den Zuschauer; wer mitspielt,
-    bekommt „Realitätsnah" als Zeile), Zielpfade, Ton und **„Zurück zur
-    Lobby"**. Neue Runde, „Mit Monster", der dreistufige Rollenknopf und die
-    eingebettete Tafel sind dort weg.
+    bekommt „Realitätsnah" als Zeile), Zielpfade, unter „Aufmachen" die drei
+    Wege nach draußen (**Karte**, **Menü**, **Verbindung**), Ton und **„Zurück
+    zur Lobby"**. Neue Runde, „Mit Monster", der dreistufige Rollenknopf und
+    die eingebettete Tafel sind dort weg.
   **Zuschauen in 2D ist eine eigene Rolle** (`FlatRole` `watch`, früher
   `bot`): kein Stock, keine Knöpfe, dafür **beide** Sprungknöpfe („Zum
   Techniker", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".

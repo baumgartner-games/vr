@@ -135,15 +135,19 @@ describe('Die 2D-Welt', () => {
     flat.dispose();
   });
 
-  it('öffnet die Kartenübersicht als Overlay und schließt sie wieder', () => {
+  it('öffnet die Kartenübersicht aus dem Zahnrad und schließt sie wieder', () => {
     const flat = new FlatMode(3, { test: true }, { exit: () => {} });
     document.body.append(flat.element);
     const overlay = flat.element.querySelector<HTMLElement>('.flat__map')!;
     expect(overlay.hidden).toBe(true);
     expect(flat.mapOpen).toBe(false);
-    flat.element.querySelector<HTMLButtonElement>('.flat__mapkey')!.click();
+    // Der eigene 🗺-Knopf oben rechts ist weg; die Karte steht im Zahnrad.
+    expect(flat.element.querySelector('.flat__mapkey')).toBeNull();
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    flat.element.querySelector<HTMLButtonElement>('[data-map]')!.click();
     expect(overlay.hidden).toBe(false);
     expect(flat.mapOpen).toBe(true);
+    expect(flat.openOverlay).toBe('map');
     // Die alte Karte zeichnet im Modus der Runde, mit dem Spieler drauf.
     flat.update(DT);
     expect(flat.map.current.field.mode).toBe('realistic');
@@ -269,7 +273,6 @@ describe('Die 2D-Welt', () => {
     // Die Szene bleibt, samt dem Knopf, der sie zum Techniker zurückholt.
     expect(flat.element.querySelector<HTMLElement>('.flat__scene')!.hidden).toBe(false);
     expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.hidden).toBe(false);
-    expect(flat.element.querySelector<HTMLElement>('.flat__mapkey')!.hidden).toBe(false);
     const start = { ...flat.round.player };
     for (let i = 0; i < 90; i++) flat.update(DT);
     const moved = Math.hypot(flat.round.player.x - start.x, flat.round.player.z - start.z);
@@ -315,6 +318,94 @@ describe('Die 2D-Welt', () => {
   });
 });
 
+/**
+ * **Ein Overlay auf einmal.** Karte, Rätsel, Raumakte und Optionsmenü wollen
+ * dieselbe Fläche; solange eines offen ist, sind HUD, Reiter, Stock, Knöpfe und
+ * die Szene weg — und zwar aus *einer* Stelle heraus (`applyOverlay`).
+ */
+describe('Ein Overlay auf einmal', () => {
+  /** Was die Spielansicht ausmacht — alles davon geht unter einem Overlay weg. */
+  function chrome(flat: FlatMode): Record<string, boolean> {
+    const at = (selector: string): boolean =>
+      !!flat.element.querySelector<HTMLElement>(selector)?.hidden;
+    return {
+      top: at('.flat__top'),
+      stick: at('.flat__stick'),
+      buttons: at('.flat__buttons'),
+      scene: at('.flat__scene'),
+    };
+  }
+
+  it('versteckt unter der Karte HUD, Reiter, Stock, Knöpfe und die Szene', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.update(DT);
+    expect(flat.openOverlay).toBe('none');
+    expect(chrome(flat)).toEqual({ top: false, stick: false, buttons: false, scene: false });
+    flat.showMap(true);
+    flat.update(DT);
+    expect(flat.openOverlay).toBe('map');
+    expect(chrome(flat)).toEqual({ top: true, stick: true, buttons: true, scene: true });
+    // Der Reiter „Aufgaben:" hängt im HUD und geht damit mit weg.
+    expect(
+      flat.element.querySelector<HTMLElement>('.flat__tab')!.closest('.flat__top'),
+    ).not.toBeNull();
+    // Die Runde läuft weiter — sie ist nur nicht zu sehen.
+    const time = flat.round.state().time;
+    flat.update(DT);
+    expect(flat.round.state().time).toBeGreaterThan(time);
+    flat.element.querySelector<HTMLButtonElement>('.flat__map-close')!.click();
+    flat.update(DT);
+    expect(flat.openOverlay).toBe('none');
+    expect(chrome(flat)).toEqual({ top: false, stick: false, buttons: false, scene: false });
+    flat.dispose();
+  });
+
+  it('lässt Karte, Akte und Optionsmenü einander ablösen statt sich zu stapeln', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    const map = flat.element.querySelector<HTMLElement>('.flat__map')!;
+    const sheet = flat.element.querySelector<HTMLElement>('.flat__sheet')!;
+    const options = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    const open = (): string[] =>
+      [
+        ['map', map],
+        ['sheet', sheet],
+        ['options', options],
+      ]
+        .filter(([, node]) => !(node as HTMLElement).hidden)
+        .map(([name]) => name as string);
+    flat.showMap(true);
+    expect(open()).toEqual(['map']);
+    flat.openSheet(flat.round.snapshot().rooms[0]!.id);
+    expect(open()).toEqual(['sheet']);
+    expect(flat.mapOpen).toBe(false);
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    expect(open()).toEqual(['options']);
+    flat.element.querySelector<HTMLButtonElement>('[data-close-options]')!.click();
+    expect(open()).toEqual([]);
+    expect(flat.openOverlay).toBe('none');
+    flat.dispose();
+  });
+
+  /**
+   * **Der Streifen der Seite gehört nicht über die 2D-Welt** (`core/pageHud.ts`):
+   * Er lag mit z-index 5 über Aufgabenkasten und Sprungknöpfen. Beim Verlassen
+   * kommt er zurück, wie er war.
+   */
+  it('schaltet die Kopfzeile der Seite ab und beim Verlassen wieder an', () => {
+    const hud = document.createElement('div');
+    hud.id = 'hud';
+    document.body.append(hud);
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    expect(hud.hidden).toBe(true);
+    flat.dispose();
+    expect(hud.hidden).toBe(false);
+    hud.remove();
+  });
+});
+
 describe('Die Sprungknöpfe rechts', () => {
   /**
    * **Ein Knopf, der nichts tut, gehört weg.** Wer die Kamera ohnehin am
@@ -353,6 +444,53 @@ describe('Die Sprungknöpfe rechts', () => {
     flat.update(DT);
     expect(flat.scene.current.following).toBe('monster');
     expect(centre.hidden).toBe(false);
+    flat.dispose();
+  });
+
+  /**
+   * **Sie dürfen nie verdeckt sein.** Vorher hingen HUD, Zahnrad und
+   * Sprungknöpfe je an einem eigenen Abstand vom oberen Rand und lagen damit
+   * voreinander: „Zum Spieler" gab es, zu sehen war der Reiter davor. Jetzt
+   * steht alles in **einer** Spalte, und die Knöpfe stehen im DOM hinter dem
+   * HUD — also darunter.
+   */
+  it('stellt die Sprungknöpfe in der Spalte hinter das HUD', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    const top = flat.element.querySelector<HTMLElement>('.flat__top')!;
+    const rows = [...top.children].map((node) => node.classList[0]);
+    expect(rows).toEqual(['flat__top-row', 'flat__jump']);
+    // Erste Zeile: der Kasten, daneben das Zahnrad — und sonst nichts.
+    const row = top.querySelector<HTMLElement>('.flat__top-row')!;
+    expect([...row.children].map((node) => node.className)).toEqual([
+      'flat__hud is-collapsed',
+      'flat__corner flat__options',
+    ]);
+    // Verschoben steht „Zum Spieler" da, und die ganze Spalte ist sichtbar.
+    flat.scene.panBy(90, 0);
+    flat.update(DT);
+    expect(top.hidden).toBe(false);
+    expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.hidden).toBe(false);
+    flat.dispose();
+  });
+
+  /**
+   * **Verschieben ist ein Blick zur Seite, kein Zustand.** Wer weitergeht,
+   * bekommt seine Kamera zurück, ohne einen Knopf zu suchen.
+   */
+  it('holt die Kamera beim ersten Schritt von selbst zum Spieler zurück', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.update(DT);
+    flat.scene.panBy(120, 0);
+    expect(flat.scene.current.following).toBeNull();
+    // Stillstehen ändert nichts — der Blick zur Seite bleibt.
+    flat.update(DT);
+    expect(flat.scene.current.following).toBeNull();
+    // Ein Schritt holt sie zurück.
+    for (let i = 0; i < 3; i++) flat.round.step(DT, { x: 1, z: 0, sprint: false });
+    flat.update(DT);
+    expect(flat.scene.current.following).toBe('player');
     flat.dispose();
   });
 });

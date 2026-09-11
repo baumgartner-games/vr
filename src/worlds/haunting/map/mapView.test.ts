@@ -122,6 +122,38 @@ describe('MapView', () => {
     expect(view.getView().scale).toBeCloseTo(fit);
   });
 
+  /**
+   * **Ganz heraus heißt nicht festgenagelt.** Passt das Haus ins Bild, stand
+   * es fest in der Mitte — und seine obere Kante lag damit hinter dem, was
+   * oben schwebt. Wer selbst zieht, darf es so weit nach unten holen, wie oben
+   * verdeckt ist; nach oben und aus dem Bild heraus nicht.
+   */
+  it('lässt das ganz herausgezoomte Haus nach unten unter den oberen Rand ziehen', () => {
+    const round = new FlatRound(5, { test: true });
+    const view = new MapView({ minScale: 6, maxScale: 60 });
+    view.setSnapshot(round.snapshot());
+    view.fit();
+    view.draw();
+    const b = round.snapshot().bounds;
+    const middle = view.toScreen(b.minX, b.minZ).y;
+    // Nach unten ziehen: die obere Kante wandert mit.
+    view.panBy(0, 120);
+    view.draw();
+    const down = view.toScreen(b.minX, b.minZ).y;
+    expect(down).toBeGreaterThan(middle + 60);
+    // Aber nicht unbegrenzt: Der Anschlag gibt nur so viel nach, wie oben
+    // verdeckt ist, und hält das Haus damit im Bild.
+    view.panBy(0, 400);
+    view.draw();
+    const limit = view.toScreen(b.minX, b.minZ).y;
+    expect(limit).toBeGreaterThan(down);
+    expect(limit - middle).toBeLessThan(200);
+    // Und nach oben gibt er gar nicht nach.
+    view.panBy(0, -400);
+    view.draw();
+    expect(view.toScreen(b.minX, b.minZ).y).toBeCloseTo(middle);
+  });
+
   it('zeichnet für die Schalttafel keine Marker und keine Items', () => {
     const round = new FlatRound(5);
     const view = new MapView({ layers: PANEL_LAYERS });

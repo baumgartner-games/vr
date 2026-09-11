@@ -6,6 +6,7 @@ import {
   scaleForWidth,
   DEFAULT_SCALE,
   PHONE_SCALE,
+  PAN_HEADROOM,
 } from './flatScene';
 import { SPRITE_H } from './flatArt';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
@@ -191,6 +192,39 @@ describe('FlatScene', () => {
     scene.zoomAt(100, 200, 150);
     scene.draw();
     expect(scene.getView().centreX).toBeCloseTo(round.player.x);
+    scene.dispose();
+  });
+
+  /**
+   * **Ganz heraus heißt nicht festgenagelt** (`PAN_HEADROOM`). Die Station
+   * stand dann fest in der Mitte, und ihre obere Kante lag hinter
+   * Aufgabenkasten und Sprungknöpfen — genau dann, wenn man sie ganz sehen
+   * wollte. Wer selbst zieht, holt sie so weit nach unten, wie oben verdeckt
+   * ist; nach oben gibt der Anschlag nicht nach.
+   */
+  it('lässt die ganz herausgezoomte Station nach unten unter den oberen Rand ziehen', () => {
+    const round = new FlatRound(5, { test: true });
+    const scene = new FlatScene();
+    scene.setSnapshot(round.snapshot());
+    scene.follow(PLAYER_ID);
+    scene.zoomAt(0.001, 200, 150);
+    scene.draw();
+    const b = round.snapshot().bounds;
+    const middle = scene.toScreen(b.minX, b.minZ).y;
+    scene.panBy(0, 60);
+    scene.draw();
+    const down = scene.toScreen(b.minX, b.minZ).y;
+    expect(down).toBeGreaterThan(middle + 30);
+    // Der Anschlag hält die Station im Bild.
+    scene.panBy(0, 600);
+    scene.draw();
+    const limit = scene.toScreen(b.minX, b.minZ).y;
+    expect(limit).toBeGreaterThan(down);
+    expect(limit - middle).toBeLessThanOrEqual(PAN_HEADROOM + 1);
+    // Nach oben gar nicht: Dort ist nichts zu holen.
+    scene.panBy(0, -600);
+    scene.draw();
+    expect(scene.toScreen(b.minX, b.minZ).y).toBeCloseTo(middle);
     scene.dispose();
   });
 

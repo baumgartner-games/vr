@@ -7,7 +7,10 @@
  *
  * `.flat` ist dabei nur der Rahmen: Lage, Schrift und die Maße, aus denen
  * Stock und Knöpfe ihre Plätze rechnen. Der schwarze Grund gehört der
- * 2D-Welt und steht dort.
+ * 2D-Welt und steht dort — und ebenso die kleinere Kante oben: Hier gilt das
+ * Maß **mit** Streifen der Seite (58 px), weil diese Knöpfe über der 3D-Szene
+ * unter ihm liegen; die gespielte 2D-Welt schaltet ihn ab und rückt
+ * `--flat-top` in `map/flat.css` (`.flat--world`) selbst nach oben.
  */
 .flat { position: fixed; inset: 0; z-index: 4; color: #e8ecf7; font: 14px system-ui, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; --flat-top: calc(max(12px, env(safe-area-inset-top)) + 58px); --flat-bottom: max(14px, env(safe-area-inset-bottom)); --flat-key: 72px; --flat-act: 104px; }
 .flat [hidden] { display: none !important; }

@@ -210,6 +210,15 @@ const HIT = 16;
 const FLOOR_TILE = NOISE_TILE;
 /** Rand um das Haus, wenn es ganz ins Bild soll, in Metern je Seite. */
 const FIT_MARGIN = 2;
+/**
+ * **Wie weit das ganz herausgezoomte Haus nach unten gezogen werden darf**, in
+ * Bildpunkten — dieselbe Nachgiebigkeit wie in der Szene
+ * (`flatScene.PAN_HEADROOM`) und aus demselben Grund: Ganz heraus passt das
+ * Haus ins Bild und stand deshalb fest in der Mitte, obere Kante hinter dem,
+ * was oben schwebt. Nach unten gibt der Anschlag so viel nach, wie oben
+ * verdeckt ist; nach oben nicht, und aus dem Bild heraus schon gar nicht.
+ */
+const PAN_HEADROOM = 150;
 export { WAVE_SPEED, WAVE_LINGER };
 
 export const INK = {
@@ -411,6 +420,11 @@ export class MapView {
    * einer Figur folgt: Sonst schöbe die Figur in der Mitte die halbe Karte
    * aus dem Bild, die man beim Herauszoomen gerade sehen wollte. Je Achse,
    * und nur ungedreht; gedreht wird die Karte nirgends.
+   *
+   * **Nach unten gibt der Anschlag nach** (`PAN_HEADROOM`), und nur für den,
+   * der selbst gezogen hat: Über der Karte schweben Anzeigen, und das Haus
+   * ganz zu sehen heißt auch, seine obere Kante unter ihnen hervorzuholen.
+   * Solange die Karte einer Figur folgt, bleibt es bei der Mitte.
    */
   private settle(): void {
     const b = this.snapshot.bounds;
@@ -418,7 +432,13 @@ export class MapView {
     const { w, h } = this.size();
     const u = this.state.scale;
     if ((b.maxX - b.minX + 2 * FIT_MARGIN) * u <= w) this.state.centreX = (b.minX + b.maxX) / 2;
-    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) this.state.centreZ = (b.minZ + b.maxZ) / 2;
+    if ((b.maxZ - b.minZ + 2 * FIT_MARGIN) * u <= h) {
+      const middle = (b.minZ + b.maxZ) / 2;
+      this.state.centreZ =
+        this.following !== null
+          ? middle
+          : Math.min(middle, Math.max(middle - PAN_HEADROOM / u, this.state.centreZ));
+    }
   }
 
   private size(): { w: number; h: number } {
