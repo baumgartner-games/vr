@@ -197,6 +197,19 @@ body.haunt-on #hud { display: none; }
 /* `display: flex` schlägt sonst das `hidden`-Attribut: Im Aufbau steht kein
    Auftragsstreifen, weil dort noch nichts läuft (`stationUi.write`). */
 .haunt__quest[hidden] { display: none; }
+/* --- Die Antwort der Welt (`stationUi.say`) --- */
+/* Sie steht unter dem Auftragsstreifen und über der Seite: Was die Welt auf
+   einen Knopfdruck sagt, ging bisher in die Statuszeile des Handgelenk-Menüs,
+   und die liegt in der 3D-Szene hinter dieser Seite. */
+.haunt__say {
+  padding: 8px 14px;
+  background: rgba(255, 216, 74, 0.12);
+  border-bottom: 1px solid var(--haunt-warn);
+  color: var(--haunt-ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .haunt__quest-label { letter-spacing: 0.1em; text-transform: uppercase; }
 .haunt__quest-count { margin-left: auto; color: var(--haunt-dim); }
 .haunt__pips { display: flex; gap: 4px; flex: 1; max-width: 220px; }

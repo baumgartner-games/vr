@@ -10,6 +10,7 @@ import type { StationId } from './stations';
 import type { MapRound } from './map/mapSnapshot';
 import type { MonsterPort } from './monster/monsterDriver';
 import type { LobbyChoice } from './rules/lobby';
+import { SHIP_OCCUPIED } from './rules/worldMenu';
 import {
   defaultSetup,
   NOT_IN_CENTRE,
@@ -524,6 +525,38 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     open('watch:all');
     expect(game.setup.seats.monster.who).toBe('bot');
     expect(game.seat).toBe('watch');
+  });
+
+  /**
+   * **Was die Welt sagt, steht auf dem Telefon.** `ctx.notify` schreibt in die
+   * Statuszeile des Handgelenk-Menüs, und die liegt als Panel in der 3D-Szene
+   * hinter dieser Seite: Jede Begründung für einen abgewiesenen Start landete
+   * hinter dem eigenen Telefon, und der Knopf sah aus, als täte er nichts.
+   */
+  it('zeigt die Antwort der Welt auf der Seite und löst sie beim nächsten Tipp ab', () => {
+    const game = crew('red', false);
+    button('[data-tab="setup"]').click();
+    const line = () => document.querySelector<HTMLElement>('.haunt__say')!;
+    expect(line().hidden).toBe(true);
+    game.ui.say('Im Schiff fehlt der Techniker.');
+    expect(line().hidden).toBe(false);
+    expect(line().textContent).toContain('Im Schiff fehlt der Techniker.');
+    expect(line().getAttribute('aria-live')).toBe('polite');
+    button('[data-start-setup]').click();
+    expect(line().hidden).toBe(true);
+  });
+
+  it('sagt statt eines toten Knopfes, warum im Schiff gerade kein Start geht', () => {
+    // Ein Techniker im Raum und die Ansicht auf dem Schiff: Der Knopf ist
+    // gesperrt. Wer ihn trotzdem trifft — der Raum kann zwischen Zeichnen und
+    // Tippen belegt worden sein —, bekommt den Grund und kein Nichts.
+    const game = crew('red', true, undefined, false);
+    button('[data-tab="setup"]').click();
+    const start = button('[data-start-setup]');
+    start.disabled = false;
+    start.click();
+    expect(game.startSetup).not.toHaveBeenCalled();
+    expect(document.querySelector('.haunt__say')!.textContent).toContain(SHIP_OCCUPIED);
   });
 
   it('sperrt den Start im Schiff, solange ein anderer Techniker spielt — in 2D nicht', () => {

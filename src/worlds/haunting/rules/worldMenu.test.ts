@@ -3,9 +3,12 @@ import {
   asIntent,
   mayCompute,
   opensFlat,
+  shipStart,
   startBlocker,
   startedRound,
   startEntries,
+  SHIP_NEEDS_TECHNICIAN,
+  SHIP_OCCUPIED,
   type WorldMenuState,
 } from './worldMenu';
 
@@ -167,5 +170,42 @@ describe('Die Beschriftungen', () => {
       (entry) => entry.id,
     );
     expect(shut).toEqual(open);
+  });
+});
+
+/**
+ * **Der zweite Befund**: „Der Knopf ‚Mission starten' scheint die Mission
+ * nicht zu starten." Wer im Aufbau verteilt, steht dabei nicht am Stock —
+ * und genau daran brach der Start ab, ohne dass es jemand sah.
+ */
+describe('Wer im Schiff startet', () => {
+  it('startet sofort, wenn er den Anzug schon trägt', () => {
+    expect(shipStart({ atStick: true, mine: true, occupied: false })).toBe('start');
+    // Auch die Brille eines Zuschauers, der am Stock steht, startet — wer dort
+    // steht, ist der Techniker, egal was die Lobby gemerkt hat.
+    expect(shipStart({ atStick: true, mine: false, occupied: true })).toBe('start');
+  });
+
+  it('steigt erst in den Anzug, wenn der Aufbau ihn dafür vorsieht', () => {
+    expect(shipStart({ atStick: false, mine: true, occupied: false })).toBe('stick');
+  });
+
+  it('lässt den Anzug dem, der ihn schon trägt', () => {
+    expect(shipStart({ atStick: false, mine: true, occupied: true })).toBe('others');
+    expect(shipStart({ atStick: false, mine: false, occupied: true })).toBe('others');
+  });
+
+  it('sagt einem Platz in der Zentrale, dass der Runde der Techniker fehlt', () => {
+    expect(shipStart({ atStick: false, mine: false, occupied: false })).toBe('nobody');
+  });
+
+  it('hat für beide Absagen einen ganzen Satz, der weiterhilft', () => {
+    for (const text of [SHIP_NEEDS_TECHNICIAN, SHIP_OCCUPIED]) {
+      expect(text.length).toBeGreaterThan(40);
+      expect(text).toContain('Techniker');
+    }
+    // Er sagt nicht nur „geht nicht", sondern auch, was stattdessen geht.
+    expect(SHIP_NEEDS_TECHNICIAN).toContain('Bot');
+    expect(SHIP_OCCUPIED).toContain('Karte von oben');
   });
 });

@@ -20,7 +20,9 @@ import { freshLocks, type DoorLocks } from './rules/doorLocks';
 import { freshLamps, type Lamps } from './rules/lamps';
 import { freshSpook, type Spook } from './haunt';
 import { freshGhosts, GHOST_LIVE, GHOST_TTL } from './rules/ghosts';
-import { HOST_BUSY } from './rules/worldMenu';
+import { HOST_BUSY, SHIP_NEEDS_TECHNICIAN, SHIP_OCCUPIED } from './rules/worldMenu';
+import { defaultSetup, type RoundSetup } from './rules/roundSetup';
+import type { Intent } from './rules/lobby';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
 
@@ -50,6 +52,11 @@ interface ReplayWorld {
   lobbyChoice: LobbyChoice;
   flatTechnician: boolean;
   pendingBotRound: boolean;
+  /** Die Tafel der nächsten Runde (`rules/roundSetup.ts`). */
+  setup: RoundSetup;
+  /** Eine Absicht, die noch auf den Anzug wartet (`rules/worldMenu.shipStart`). */
+  pendingStart: Intent | null;
+  startRound(what: Intent, ctx: unknown): void;
   stepCrew(dt: number, ctx: unknown): void;
   npcTarget(target: THREE.Vector3): THREE.Vector3 | null;
   monster: unknown;
@@ -151,6 +158,36 @@ function replay(): ReplayWorld {
     lobbyChoice: defaultLobby('desktop'),
   });
   return world;
+}
+
+/**
+ * **Ein Gerät im Aufbau**: kein Stock, keine Brille — so, wie ein Telefon oder
+ * ein Desktop dasteht, das die Runde gerade verteilt hat. Der Raum ist leer,
+ * die Tafel steht auf „Techniker: Mensch", die Ansicht auf dem Schiff.
+ */
+function setupStarter(): ReplayWorld {
+  const world = replay();
+  Object.assign(world, {
+    claims: new Map(),
+    seatedAt: 0,
+    hostId: 'local',
+    setup: defaultSetup(),
+    pendingStart: null,
+    lobbyChoice: { intent: 'play', view: '3d', me: 'technician' },
+  });
+  world.state.phase = 'briefing';
+  return world;
+}
+
+/** Der Rahmen dazu — und auf Wunsch ein zweiter, der schon im Anzug steckt. */
+function starterCtx(occupied = false) {
+  return {
+    ...election('desktop', occupied),
+    notify: jest.fn(),
+    menu: { toggle: jest.fn() },
+    renderer: { xr: { isPresenting: false } },
+    refreshWorldMenu: jest.fn(),
+  };
 }
 
 test('a same-seed replay changing test mode rebuilds the deck, interactions and automatic-door state', () => {
@@ -276,6 +313,7 @@ test.each(['vr', 'desktop'])(
     const ctx = { ...election('desktop', true), notify: jest.fn(), menu: { toggle: jest.fn() } };
     ctx.net.peers.get('remote')!.role = role;
     if (role === 'desktop') world.receive({ kind: 'technician', active: true }, 'remote');
+    world.context = ctx;
     world.requestBotRound(ctx);
     expect(world.pendingBotRound).toBe(false);
     expect(world.flatTechnician).toBe(false);
@@ -610,4 +648,54 @@ describe('Der Wechsel des Gastgebers', () => {
     world.receive(JSON.parse(JSON.stringify(stateMessage(fresh))), 'remote');
     expect(world.state.time).toBe(41);
   });
+});
+
+/**
+ * **Der Befund des Besitzers**: „Der Knopf ‚Mission starten' scheint die
+ * Mission nicht zu starten." Er stimmte für jedes Gerät, das nicht schon am
+ * Stock stand — also für jedes Telefon und jeden Desktop, der die Runde im
+ * Aufbau verteilt hatte: `startMission` fragte `ctx.role`, fand `desktop` und
+ * stieg wortlos aus (`rules/worldMenu.shipStart`).
+ */
+test('the setup page start button puts a desktop on the stick and then really starts the round', () => {
+  const world = setupStarter();
+  const ctx = starterCtx();
+  world.context = ctx;
+  world.startRound('play', ctx);
+  // Kein „geht nicht" mehr — der Aufbau ist der Weg an den Stock.
+  expect(world.flatTechnician).toBe(true);
+  expect(world.pendingStart).toBe('play');
+  expect(ctx.notify).not.toHaveBeenCalled();
+  // Und das, was `update` im nächsten Bild tut: Die Rolle steht am Stock
+  // (`ctx.role === 'vr'`), und dieselbe Absicht läuft noch einmal durch.
+  world.pendingStart = null;
+  const stick = { ...ctx, role: 'vr' };
+  world.context = stick;
+  // Das Haus selbst baut der Nachbau nicht auf (`newRound` braucht Szene und
+  // Spieler); geprüft wird, dass die Mission jetzt wirklich losgeht.
+  Object.assign(world, { newRound: jest.fn(), announce: jest.fn() });
+  world.startRound('play', stick);
+  expect(world.state.phase).toBe('running');
+  expect(world.state.monsterOn).toBe(true);
+  expect(stick.menu.toggle).toHaveBeenCalledWith(false);
+});
+
+test('a seat in the centre is told that the ship round has nobody in the suit', () => {
+  const world = setupStarter();
+  const ctx = starterCtx();
+  world.context = ctx;
+  world.lobbyChoice = { intent: 'play', view: '3d', me: 'red' };
+  world.startRound('play', ctx);
+  expect(world.flatTechnician).toBe(false);
+  expect(world.pendingStart).toBeNull();
+  expect(ctx.notify).toHaveBeenCalledWith(SHIP_NEEDS_TECHNICIAN);
+});
+
+test('the start is refused while another technician wears the suit — with a reason', () => {
+  const world = setupStarter();
+  const ctx = starterCtx(true);
+  world.context = ctx;
+  world.startRound('play', ctx);
+  expect(world.flatTechnician).toBe(false);
+  expect(ctx.notify).toHaveBeenCalledWith(SHIP_OCCUPIED);
 });
