@@ -66,6 +66,19 @@ der Brillenspieler sich am Handgelenk aus dem Boden holen können.
   50 ms) — der Herzschlag reißt dann ab. Der Test treibt `App.frame` deshalb
   per Timer.
 
+- **Nachtrag (dritter PR): Rot mit drei Karten, Absturz nach dem Treffer.**
+  Die Blätterzeile (`haunt__subs`) lag unter der absolut gesetzten Karte —
+  klickbar war nur die Leinwand; jetzt liegt sie darüber, die Karte beginnt
+  darunter. Der Absturz kam aus `NpcDirector.update`: Der Schlag ruft
+  `HauntingWorld.takeHit` **in** der Schleife, und bei „Anzug 0" räumt der
+  `clear()` dort alle NPCs weg; mit zwei Einträgen (ein altes Monster, das
+  `spawnMonster` nur überschrieben statt weggeräumt hatte) griff der Rücklauf
+  ins Leere. Die Schleife läuft jetzt über eine Abschrift, `spawnMonster`
+  räumt vorher weg (`npcDirector.test.ts`: zwei Zombies, ein Schlag, der
+  alles wegräumt). Geprüft mit zwei Clients: drei Treffer bis „verloren",
+  keine Fehler auf beiden Seiten; Rot blättert zwischen Späher, Schalttafel
+  und Archiv.
+
 ### Was offen bleibt
 
 - Die Welt liest die Lobby beim Aufbau aus dem Speicher. Käme sie einmal

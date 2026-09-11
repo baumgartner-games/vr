@@ -8933,6 +8933,24 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     Technikers dann den Namen des Menschen im Anzug („du · im Anzug" bei sich
     selbst) statt „Ich · Mensch · Bot" — nur die Lämpchen der Fähigkeiten
     bleiben. Trägt ihn niemand, stehen die Knöpfe wie bei jedem Platz.
+  - **Die Blätterzeile eines Farbplatzes liegt über der Karte**
+    (`haunting.css`, `.haunt.is-view .haunt__subs`). Eine Rolle mit Karte
+    füllt die Fläche absolut (`views.css`, `.role { inset: 0 }`); die Zeile
+    zum Blättern zwischen Späher, Schalttafel und Archiv stand im Fluss
+    darunter — sichtbar, aber jeder Tipp traf die Leinwand. Rot mit drei
+    Fähigkeiten sah deshalb nur den Späher. Jetzt hat sie eine Ebene und einen
+    Grund, und die Karte fängt unter ihr an (`.role { top: 57px }`, nur wenn
+    die Zeile da ist).
+  - **Ein Monster, nie zwei — und eine Schleife, die das aushält.**
+    `NpcDirector.update` läuft über eine Abschrift der NPC-Liste: Der Schlag
+    (`strike` → `world.strikePlayer` → `HauntingWorld.takeHit`) landet mitten
+    in der Schleife, und bei „Anzug 0" nimmt die Welt dort das Monster aus dem
+    Spiel (`removeMonster` → `clear`). Mit mehr als einem Eintrag griff der
+    Rücklauf danach ins Leere (`this.npcs[i]` undefined, „reading 'update'")
+    — der Absturz nach einem Treffer. Und `spawnMonster` räumt ein noch
+    stehendes Monster vorher weg (`director.clear()`): Gastgeberwechsel,
+    2D→3D und ein zweiter Start ersetzten bisher nur die Referenz, der alte
+    NPC lief als Geist weiter und schlug weiter zu.
   - **Feststecken? Zurück auf den Boden** (`HauntingWorld.unstickPlayer`,
     Eintrag `haunt:rescue` in jeder Lage des Weltmenüs, Brille wie
     Bildschirm): misst, wo die Füße stehen — in einem Zimmer der Station geht

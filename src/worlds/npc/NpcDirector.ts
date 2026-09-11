@@ -495,21 +495,29 @@ export class NpcDirector implements NpcControl {
         }
       : null;
 
-    for (let i = this.npcs.length - 1; i >= 0; i--) {
-      const npc = this.npcs[i]!;
+    // **Über eine Abschrift der Liste**, nicht über die Liste selbst: Ein
+    // Schlag (`strike` → `world.strikePlayer`) landet mitten in der Welt, und
+    // die darf darauf antworten, indem sie NPCs wegräumt oder neue setzt —
+    // Haunting nimmt bei „Anzug 0" das Monster aus dem Spiel (`clear`). Wer
+    // dabei rückwärts über die Originalliste lief, griff im nächsten Schritt
+    // ins Leere (`this.npcs[i]` undefined → „reading 'update'"). Wer während
+    // des Durchlaufs verschwunden ist, wird nicht mehr angefasst.
+    for (const npc of [...this.npcs].reverse()) {
+      if (!this.npcs.includes(npc)) continue;
       const hit = npc.update(dt, target, Math.random, run);
       if (hit && player) this.strike(npc, player);
+      if (!this.npcs.includes(npc)) continue;
       // Eine Tür, die fällt, ist ein Ereignis: Wer nicht hinsieht, soll es
       // wenigstens lesen. Einmal, nicht sechzigmal je Sekunde (`Npc.brokeDoor`).
       if (npc.brokeDoor) this.world.notify('Die Tür ist hin');
       // Ein Gefallener liegt eine Weile herum und verschwindet dann. Ohne das
       // Aufräumen füllt sich eine Halle nach zwanzig Minuten mit Leichen, und
       // jede davon zeichnet weiter mit.
-      if (!npc.alive && npc.restingFor > REST_TIME) this.retire(i);
+      if (!npc.alive && npc.restingFor > REST_TIME) this.retire(this.npcs.indexOf(npc));
       // Und wer durch ein Portal in den Himmel und wieder heraus gefallen ist,
       // fällt sonst für immer weiter und rechnet dabei mit. Dieselbe Grenze wie
       // bei den Kugeln.
-      else if (npc.feet(_probe).y < VOID_FLOOR) this.retire(i);
+      else if (npc.feet(_probe).y < VOID_FLOOR) this.retire(this.npcs.indexOf(npc));
     }
 
     for (const cage of this.cages) {

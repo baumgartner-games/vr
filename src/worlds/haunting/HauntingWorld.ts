@@ -4650,6 +4650,11 @@ export class HauntingWorld extends GridWorld {
   }
 
   private spawnMonster(at: { x: number; z: number }): void {
+    // **Ein Monster, nie zwei.** Wer hier ankommt, während noch eines steht
+    // (Gastgeberwechsel, 2D→3D, ein zweiter Start), ersetzte bisher nur die
+    // Referenz — der alte NPC lief als Geist weiter, schlug weiter zu, und
+    // beim Wegräumen griff der Direktor mit zwei Einträgen ins Leere.
+    if (this.monster) this.director?.clear();
     const kind = MONSTERS.find((m) => m.id === this.state.crew.options.monster)!;
     this.monster =
       this.director?.spawn({
