@@ -4,7 +4,7 @@ import type { RoutePath } from './route';
 import type { HouseDoor, HouseSpec } from '../house';
 import { COMMAND, type StationGraph } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
-import { stationRoute, type RouteAvoid } from '../stationNavigation';
+import { coreCrossed, stationRoute, type RouteAvoid } from '../stationNavigation';
 import { StationTravelPlan } from '../stationTravelPlan';
 import { pointSegmentDistance } from './snapshotClearance';
 
@@ -49,11 +49,20 @@ import { pointSegmentDistance } from './snapshotClearance';
 
 /** So weit darf die gemiedene Stelle wandern, bevor eine neue Route fällig ist, in Metern. */
 export const AVOID_TOLERANCE = 1.5;
+/**
+ * **Und so weit nur, solange die Stelle einen harten Kern hat** (`RouteAvoid.core`)
+ * — also während einer Verfolgung. Anderthalb Meter sind dann zu viel: Das
+ * Monster geht in einer halben Sekunde weiter als der Kern breit ist, und eine
+ * Route, die um seinen *alten* Stand herumführt, führt durch den neuen.
+ */
+export const CORE_TOLERANCE = 0.5;
 
 /** Ab so vielen Metern Wanderung des Ziels lohnt sich eine neue Route. */
 export const GOAL_TOLERANCE = 0.75;
 /** So lange wird eine Route mindestens gelaufen, bevor ein gewandertes Ziel eine neue bekommt, in Sekunden. */
 export const HOLD = 0.5;
+/** Auf der Flucht wird öfter nachgerechnet — der Verfolger wartet nicht. */
+export const CORE_HOLD = 0.2;
 /** Ab diesem Abstand zur laufenden Strecke gilt der Läufer als abgekommen, in Metern. */
 export const OFF_ROUTE = 0.75;
 /** Wie nah man einem Wegpunkt kommen muss, damit er als erreicht gilt, in Metern. */
@@ -138,10 +147,19 @@ export class FlatNavigator {
       graph.version !== this.version ||
       (wandered > GOAL_TOLERANCE && time - this.plannedAt >= HOLD) ||
       this.dreadMoved(avoid, time) ||
+      this.crossesCore(at, avoid, time) ||
       this.strayed(at);
     if (!stale) return this.leg(false);
 
-    this.avoid = avoid ? { at: { ...avoid.at }, radius: avoid.radius, weight: avoid.weight } : null;
+    this.avoid = avoid
+      ? {
+          at: { ...avoid.at },
+          radius: avoid.radius,
+          weight: avoid.weight,
+          ...(avoid.core === undefined ? {} : { core: avoid.core }),
+          ...(avoid.coreWeight === undefined ? {} : { coreWeight: avoid.coreWeight }),
+        }
+      : null;
     this.wanted = { x: goal.x, z: goal.z };
     this.version = graph.version;
     this.plannedAt = time;
@@ -199,11 +217,46 @@ export class FlatNavigator {
     const had = this.avoid;
     if (!had && !avoid) return false;
     if (!had || !avoid) return true;
-    if (time - this.plannedAt < HOLD) return false;
+    const chased = (avoid.core ?? 0) > 0 || (had.core ?? 0) > 0;
+    if (time - this.plannedAt < (chased ? CORE_HOLD : HOLD)) return false;
     return (
-      Math.hypot(avoid.at.x - had.at.x, avoid.at.z - had.at.z) > AVOID_TOLERANCE ||
-      Math.abs(avoid.weight - had.weight) > 0.5
+      Math.hypot(avoid.at.x - had.at.x, avoid.at.z - had.at.z) >
+        (chased ? CORE_TOLERANCE : AVOID_TOLERANCE) ||
+      Math.abs(avoid.weight - had.weight) > 0.5 ||
+      (avoid.core ?? 0) !== (had.core ?? 0)
     );
+  }
+
+  /**
+   * **Führt der Rest der laufenden Route durch das Feld des Monsters?**
+   *
+   * Das ist die Frage, die eine Verfolgung regelmäßig stellen muss, und sie
+   * ist billiger als jede Neuplanung: ein Abstand je verbleibendem Abschnitt.
+   * Eine Route ist nicht deshalb gut, weil sie beim Planen gut war — das
+   * Monster läuft, und es läuft gern genau dorthin, wo der Techniker gleich
+   * langgeht. Sagt diese Prüfung ja, wird sofort neu gerechnet, und der neue
+   * Weg zahlt den Kern (`stationNavigation.CORE_WEIGHT`) statt ihn zu
+   * durchschneiden.
+   */
+  private crossesCore(at: FloorPoint, avoid: RouteAvoid | null, time: number): boolean {
+    const core = avoid?.core ?? 0;
+    if (!avoid || !(core > 0)) return false;
+    const points = this.route?.points;
+    if (!points) return false;
+    if (time - this.plannedAt < CORE_HOLD) return false;
+    // **Wer selbst im Kern steht, wird nicht daran gehindert, herauszulaufen.**
+    // Geprüft wird erst ab dem ersten Wegpunkt, der draußen liegt: Von dort an
+    // ist ein Wiedereintritt eine Entscheidung und kein Fluchtweg.
+    let outside = Math.hypot(at.x - avoid.at.x, at.z - avoid.at.z) >= core;
+    let from: FloorPoint = at;
+    for (let i = this.cursor; i < points.length; i++) {
+      const to = points[i]!;
+      const clear = Math.hypot(to.x - avoid.at.x, to.z - avoid.at.z) >= core;
+      if (outside && coreCrossed(avoid, from, to)) return true;
+      outside = outside || clear;
+      from = to;
+    }
+    return false;
   }
 
   private plan(graph: NavGraph, at: FloorPoint, goal: FloorPoint): void {

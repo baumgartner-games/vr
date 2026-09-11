@@ -134,8 +134,12 @@ export const REACH = 1.6;
 export const PLAYER_RADIUS = 0.35;
 /** Und der des Monsters — auch der Radius seiner Wegsuche. */
 export const MONSTER_RADIUS = 0.4;
-/** Ab hier trifft das Monster. */
-const CONTACT = 1.7;
+/**
+ * **Ab hier trifft das Monster** — und genau so weit reicht auch der harte
+ * Kern, den die Wegsuche des fliehenden Technikers um es herum legt
+ * (`rules/technicianBot.DREAD_CORE`).
+ */
+export const CONTACT = 1.7;
 /** Wie lange Holz einen Verfolger aufhält, in Sekunden. */
 const WOOD_DELAY = 2.5;
 /**

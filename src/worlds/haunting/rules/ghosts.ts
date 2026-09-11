@@ -32,14 +32,18 @@ import type { FloorPoint } from '../stationLayout';
  * Sekunden vor dem Verfall. Vorher steht der Marker satt da: Eine Erinnerung,
  * die sofort zu blassen anfängt, sieht aus wie ein Anzeigefehler.
  */
-export const GHOST_FADE = 12;
+export const GHOST_FADE = 4;
 
 /**
- * **Und wann sie ganz weg ist.** 25 Sekunden sind etwa die Zeit, in der
- * jemand die halbe Station durchquert: Danach sagt der Punkt nichts mehr,
- * und ein Punkt, der nichts mehr sagt, lügt.
+ * **Und wann sie ganz weg ist**: zehn Sekunden nach der letzten Sichtung.
+ *
+ * Es waren einmal fünfundzwanzig — die Zeit, in der jemand die halbe Station
+ * durchquert. Genau das war zu lang: Wer den Punkt so lange stehen lässt,
+ * zeichnet einen Gegner an eine Stelle, an der schon zwei Zimmer lang keiner
+ * mehr ist, und gewöhnt sich an, ihm zu glauben. Zehn Sekunden sind ungefähr
+ * ein Zimmer weit; wird die Sichtung erneuert, fängt die Uhr von vorn an.
  */
-export const GHOST_TTL = 25;
+export const GHOST_TTL = 10;
 
 /**
  * **Ab wann eine Erinnerung eine Erinnerung ist**, in Sekunden.

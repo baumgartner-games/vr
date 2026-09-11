@@ -40,6 +40,16 @@ export interface RoleStripHost {
    * eine Ansicht ohne Runde (Tests) soll ihre Rollen zeigen dürfen.
    */
   rights?(): { allowed: boolean; why: string };
+  /**
+   * **Knöpfe, die keine Rollenansicht aufschlagen** — heute genau einer:
+   * „Zuschauer", der die laufende Runde alles sehen lässt, statt eine zweite
+   * Ansicht darüberzulegen. Er gehört in dieselbe Zeile wie die Rollen, weil
+   * er dieselbe Frage beantwortet („wessen Bild sehe ich?"); er darf nur
+   * nicht dieselbe Mechanik haben, denn es gibt nichts aufzuschlagen.
+   */
+  extras?(): ReadonlyArray<{ id: string; label: string; active: boolean; title?: string }>;
+  /** Ein solcher Knopf wurde gedrückt. */
+  onExtra?(id: string): void;
 }
 
 export class RoleStrip {
@@ -54,6 +64,12 @@ export class RoleStrip {
     this.element.setAttribute('aria-label', 'Rolle');
     this.element.addEventListener('click', (event) => {
       const key = (event.target as HTMLElement | null)?.closest('button');
+      const extra = key?.dataset['roleExtra'];
+      if (extra !== undefined) {
+        this.host.onExtra?.(extra);
+        this.render();
+        return;
+      }
       const id = key?.dataset['roleStrip'];
       if (id === undefined) return;
       this.show(id);
@@ -125,7 +141,20 @@ export class RoleStrip {
         }
         return key;
       }),
+      ...(this.host.extras?.() ?? []).map((extra) => {
+        const key = el('button', 'role-strip__key', extra.label);
+        key.dataset['roleExtra'] = extra.id;
+        key.classList.toggle('is-active', extra.active);
+        key.setAttribute('aria-pressed', String(extra.active));
+        if (extra.title) key.title = extra.title;
+        return key;
+      }),
     );
+  }
+
+  /** Die Knöpfe neu zeichnen, wenn sich draußen etwas geändert hat. */
+  refresh(): void {
+    this.render();
   }
 
   dispose(): void {

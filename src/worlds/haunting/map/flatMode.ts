@@ -57,13 +57,23 @@ import { pageHudShown, pressPageButton, showPageHud } from '../../../core/pageHu
  * **Der obere Rand gehört dieser Welt allein.** Der Streifen der Seite
  * (Weltname, Menü, Verbindung, VR — `index.html`, `#hud`) wird beim Betreten
  * abgeschaltet (`core/pageHud.ts`) und beim Verlassen wieder so hergestellt,
- * wie er war; `--flat-top` rückt dafür nach oben. Darunter steht, in dieser
- * Reihenfolge und **nebeneinander statt übereinander**: der Kasten mit zwei
- * Zeilen (Sauerstoffuhr mit Anzug-Leben, darunter der Reiter „Aufgaben" mit
- * einem Kreis je Auftrag), rechts daneben das Zahnrad — und in der Zeile
- * darunter die Sprungknöpfe. Vorher hingen die drei an festen Abständen vom
- * oberen Rand und lagen damit reihum voreinander: „Zum Spieler" gab es, aber
- * zu sehen war der Reiter davor.
+ * wie er war; `--flat-top` rückt dafür nach oben. Darunter steht **eine
+ * Spalte aus drei Zeilen**, und zwar in dieser Reihenfolge:
+ *
+ * 1. **Die Rollen als Knöpfe in einem Panel** (`views/roleStrip.ts`) — die
+ *    Station selbst, Archiv, Schalttafel, Späher, Monster, Zuschauer —, und
+ *    am Ende der Zeile das Zahnrad.
+ * 2. **Links beginnend der Kasten** mit Auftrag und Uhr: Sauerstoff mit
+ *    Anzug-Leben, darunter der Reiter „Aufgaben" mit einem Kreis je Auftrag.
+ * 3. **Die Sprungknöpfe**, im Fluss der Spalte und nicht an einer Ecke.
+ *
+ * Vorher hing jedes dieser vier Dinge an einem eigenen, geratenen Abstand vom
+ * oberen Rand und lag damit reihum vor dem nächsten: „Zum Spieler" gab es,
+ * zu sehen war der Rollenstreifen davor.
+ *
+ * **Und ist ein Overlay offen, ist die ganze Spalte weg** (`applyOverlay`).
+ * Wer das Optionsmenü aufmacht, sieht das Menü — nicht daneben noch den Kopf
+ * der Runde, den er gerade verlassen hat.
  *
  * **Ein Overlay auf einmal** (`FlatOverlay`). Karte, Rätsel, Raumakte und
  * Optionsmenü sind vier Bilder, die dieselbe Fläche wollen; solange eines
@@ -152,9 +162,9 @@ const TOAST_SECONDS = 3.2;
 export const SCOUT_PERIOD = 3.5;
 /**
  * Wie viele Punkte vom oberen Rand die Randdreiecke wegbleiben — so hoch ist
- * die Spalte oben (`.flat__top`: Kasten, Zahnrad, Sprungknöpfe).
+ * die Spalte oben (`.flat__top`: Rollen mit Zahnrad, Kasten, Sprungknöpfe).
  */
-const EDGE_TOP = 118;
+const EDGE_TOP = 158;
 /**
  * **Ab wie viel Bewegung je Bild die Kamera von selbst zum Spieler
  * zurückspringt**, in Metern.
@@ -218,6 +228,8 @@ export class FlatMode {
    */
   private readonly top = el('div', 'flat__top');
   private readonly topRow = el('div', 'flat__top-row');
+  /** Zweite Zeile, links beginnend: der Kasten mit Auftrag und Uhr. */
+  private readonly hudRow = el('div', 'flat__top-row flat__top-row--hud');
   private readonly hud = el('div', 'flat__hud');
   private readonly vitals = el('div', 'flat__vitals');
   private readonly tasks = el('div', 'flat__tasks');
@@ -406,11 +418,14 @@ export class FlatMode {
     this.ending.hidden = true;
     this.ending.addEventListener('click', (event) => this.optionClick(event));
     this.icon.hidden = true;
-    // Der obere Rand als **eine** Spalte: erst HUD und Zahnrad nebeneinander,
-    // darunter die Sprungknöpfe. Sie stehen damit im DOM hinter dem HUD und
-    // liegen auf dem Bild darunter — nicht dahinter.
-    this.topRow.append(this.hud, this.optionsKey);
-    this.top.append(this.topRow, this.jump);
+    // **Der obere Rand als eine Spalte, drei Zeilen** (siehe `flat.css`):
+    // oben die Rollen als Knöpfe in einem Panel und ganz rechts das Zahnrad,
+    // darunter — links beginnend — der Kasten mit Auftrag und Uhr, und
+    // darunter die Sprungknöpfe. Der Rollenstreifen hing vorher als eigenes
+    // Ding an einem geratenen Abstand von oben und lag damit über dem
+    // Sprungknopf: „Zum Spieler" gab es, zu sehen war der Reiter davor.
+    this.hudRow.append(this.hud);
+    this.top.append(this.topRow, this.hudRow, this.jump);
     this.strip = new RoleStrip({
       roleHost: () => this.roleHost(),
       homeLabel: () => 'Station',
@@ -427,7 +442,28 @@ export class FlatMode {
         });
         return { allowed: allowed.abilities, why: allowed.why };
       },
+      // **Zuschauer steht in derselben Zeile wie die Rollen.** Er beantwortet
+      // dieselbe Frage — wessen Bild sehe ich? —, schlägt aber nichts auf: Er
+      // gibt den Stock dem Techniker aus Zahlen und macht die Karte allwissend
+      // (`registry/viewModes.ts`, „Alles sehen"). Am Netz ist er ohnehin der
+      // Zustand; dort ist der Knopf nur die Anzeige davon.
+      extras: () => [
+        {
+          id: 'watch',
+          label: 'Zuschauer',
+          active: this.role === 'watch',
+          title: 'Alles sehen · der Techniker aus Zahlen spielt weiter',
+        },
+      ],
+      onExtra: (id) => {
+        if (id !== 'watch') return;
+        this.setWatching(this.role !== 'watch');
+      },
     });
+    // Der Rollenstreifen ist die erste Zeile des Kopfs und kein eigenes
+    // Schwebendes mehr — dadurch verschwindet er mit ihm, sobald ein Overlay
+    // offen ist, und verdeckt nichts mehr.
+    this.topRow.append(this.strip.element, this.optionsKey);
     this.element.append(
       this.scene.element,
       this.top,
@@ -436,7 +472,6 @@ export class FlatMode {
       this.buttons,
       this.mapOverlay,
       this.strip.stage,
-      this.strip.element,
       this.puzzle.element,
       this.sheet,
       this.options,
@@ -532,10 +567,16 @@ export class FlatMode {
     this.mapOverlay.hidden = this.overlay !== 'map';
     this.sheet.hidden = this.overlay !== 'sheet';
     this.options.hidden = this.overlay !== 'options';
-    // Der obere Rand mitsamt Zahnrad: Wer ein Overlay offen hat, schließt es
-    // über dessen eigenen Knopf und nicht über das Menü dahinter.
-    this.top.hidden = open || guest;
-    this.hud.hidden = role === 'monster' || guest;
+    // **Der obere Rand ist weg, solange ein Overlay offen ist** — Karte,
+    // Rätsel, Akte, Optionsmenü. Wer das Menü offen hat, sieht das Menü und
+    // nicht noch einmal den Kopf dahinter; geschlossen wird über den eigenen
+    // Knopf des Overlays.
+    this.top.hidden = open;
+    // **Eine aufgeschlagene Rolle lässt die erste Zeile stehen.** Sie ist der
+    // Rückweg: Wer die Schalttafel offen hat und den Streifen mit versteckte,
+    // säße darin fest. Uhr und Sprungknöpfe gehören dagegen der Szene und
+    // gehen mit ihr weg.
+    this.hudRow.hidden = role === 'monster' || guest;
     this.jump.hidden = role === 'monster' || guest;
     this.scene.element.hidden = open || guest || role === 'monster';
     if (this.session) this.session.element.hidden = open || guest;
@@ -579,6 +620,27 @@ export class FlatMode {
   /** Wer gerade spielt — für Tests und die Anzeige. */
   get role(): FlatRole {
     return this.session ? 'monster' : this.bot || this.netWatch ? 'watch' : 'technician';
+  }
+
+  /**
+   * **Zuschauen an und wieder aus.** Wer zusieht, überlässt den Stock dem
+   * Techniker aus Zahlen (`rules/technicianBot.ts`); wer zurückkommt, nimmt
+   * ihn wieder — dieselbe Runde, dieselbe Karte, ein anderer Kopf.
+   *
+   * **Und er sieht dabei alles.** Das war die halbe Rolle und stand doch in
+   * einem zweiten Menü: Ein Zuschauer, der nur so viel sieht wie der Anzug des
+   * anderen hergibt, sieht einem schwarzen Bild zu. Wer zurück an den Stock
+   * geht, bekommt die realitätsnahe Sicht wieder — sonst spielte er weiter mit
+   * dem Wissen des Zuschauers.
+   */
+  setWatching(watching: boolean): void {
+    if ((this.role === 'watch') === watching) return;
+    this.playRole(watching ? 'watch' : 'technician');
+    const modes = viewModesFor('flat');
+    const wanted = watching ? 'omniscient' : 'realistic';
+    const mode = modes.find((one) => one.visibility === wanted);
+    if (mode && mode.id !== this.mode.id) this.setMode(mode);
+    this.strip.refresh();
   }
 
   /** Der Modus, den die Karte gerade zeigt. */
@@ -1483,10 +1545,7 @@ export class FlatMode {
       // steht keine neue Runde mehr — die wird im Aufbau verteilt.
       this.restart();
     } else if (data['watch'] !== undefined) {
-      // **Zuschauen an und wieder aus.** Wer zusieht, überlässt den Stock dem
-      // Techniker aus Zahlen (`rules/technicianBot.ts`); wer zurückkommt,
-      // nimmt ihn wieder — dieselbe Runde, dieselbe Karte, ein anderer Kopf.
-      this.playRole(this.role === 'watch' ? 'technician' : 'watch');
+      this.setWatching(this.role !== 'watch');
       this.renderOptions();
     } else if (data['switchView'] === '2d' || data['switchView'] === '3d') {
       // Das Menü geht zu: Der Wechsel nimmt diese ganze Ansicht mit, und ein

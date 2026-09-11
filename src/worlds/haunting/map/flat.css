@@ -8,10 +8,11 @@
  * Knopf (das Zahnrad). Handgesetzt wie `haunting.css`.
  *
  * **Der obere Rand ist eine Spalte** (`.flat__top`) und keine Sammlung von
- * Dingen mit je einem eigenen Abstand von oben: erste Zeile Aufgabenkasten
- * und Zahnrad nebeneinander, zweite Zeile die Sprungknöpfe. Vorher hing
- * jedes davon an `--flat-top` plus einer geratenen Zahl und lag damit reihum
- * vor dem nächsten — „Zum Spieler" gab es, zu sehen war der Reiter davor.
+ * Dingen mit je einem eigenen Abstand von oben: erste Zeile die Rollenknöpfe
+ * mit dem Zahnrad am Ende, zweite Zeile der Aufgabenkasten, dritte Zeile die
+ * Sprungknöpfe. Vorher hing jedes davon an `--flat-top` plus einer geratenen
+ * Zahl und lag damit reihum vor dem nächsten — „Zum Spieler" gab es, zu sehen
+ * war der Rollenstreifen davor.
  *
  * `--flat-top` ist die Kante, an der diese Spalte beginnt. In der gespielten
  * 2D-Welt (`.flat--world`) ist der Streifen der Seite abgeschaltet
@@ -39,8 +40,16 @@
 /* Die Spalte am oberen Rand: HUD und Zahnrad in einer Zeile, die Sprungknöpfe
    darunter. Sie fängt nichts ab, was sie nicht selbst bedient — sonst läge
    über der halben Szene eine unsichtbare Platte, durch die kein Tipp geht. */
-.flat__top { position: absolute; left: 12px; right: 12px; top: var(--flat-top); display: flex; flex-direction: column; gap: 8px; pointer-events: none; z-index: 1; }
+.flat__top { position: absolute; left: 12px; right: 12px; top: var(--flat-top); display: flex; flex-direction: column; gap: 8px; pointer-events: none; z-index: 6; }
 .flat__top-row { display: flex; align-items: flex-start; gap: 10px; }
+/* Zweite Zeile, links beginnend: der Kasten mit Auftrag und Uhr. */
+.flat__top-row--hud { justify-content: flex-start; }
+/* Der Rollenstreifen ist die erste Zeile des Kopfs (`flatMode.ts`) und nicht
+   mehr ein eigenes Ding an einem geratenen Abstand von oben: Er nimmt den
+   Platz links, das Zahnrad steht am Ende der Zeile, und beide verdecken
+   einander nicht mehr. Auf einem schmalen Telefon bricht er um, statt zu
+   scrollen — ein Knopf, den man erst herschieben muss, findet niemand. */
+.flat__top .role-strip { pointer-events: auto; position: static; transform: none; max-width: none; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; overflow: visible; z-index: auto; }
 .flat__hud { width: max-content; max-width: min(58vw, 300px); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; border-radius: 6px; background: rgba(28, 32, 38, 0.86); border: 2px solid #6c7480; pointer-events: none; }
 .flat__vitals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; color: #d3dae6; text-shadow: 0 1px 2px #000; }
 .flat__vitals strong { font-size: 14px; color: #fff; font-variant-numeric: tabular-nums; }
@@ -71,8 +80,10 @@
 .flat__corner { width: 52px; height: 52px; flex: none; border-radius: 50%; border: 3px solid #2d3238; background: #d8dde3; color: #2a2e34; font: inherit; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; touch-action: manipulation; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
 .flat__options { margin-left: auto; pointer-events: auto; }
 /* Die Sprungknöpfe in der Zeile unter dem HUD: „Zum Spieler" verschwindet,
-   sobald die Kamera ohnehin dort steht; wer zusieht, behält beide. */
-.flat__jump { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+   sobald die Kamera ohnehin dort steht; wer zusieht, behält beide. Sie liegen
+   im Fluss der Spalte und nicht an einer festen Ecke — vorher rutschten sie
+   unter den Rollenstreifen und waren halb verdeckt. */
+.flat__jump { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; }
 .flat__centre { width: auto; height: auto; padding: 6px 12px; border-radius: 999px; font-size: 12px; background: rgba(66, 72, 80, 0.94); color: #fff; border-color: #1d2126; pointer-events: auto; }
 .flat__centre.is-active { background: #ffd54a; color: #1d2126; }
 .flat__centre--monster.is-active { background: #ff5a5f; color: #fff; }

@@ -462,29 +462,73 @@ describe('Die Sprungknöpfe rechts', () => {
   });
 
   /**
-   * **Sie dürfen nie verdeckt sein.** Vorher hingen HUD, Zahnrad und
-   * Sprungknöpfe je an einem eigenen Abstand vom oberen Rand und lagen damit
-   * voreinander: „Zum Spieler" gab es, zu sehen war der Reiter davor. Jetzt
-   * steht alles in **einer** Spalte, und die Knöpfe stehen im DOM hinter dem
-   * HUD — also darunter.
+   * **Sie dürfen nie verdeckt sein.** Vorher hingen HUD, Zahnrad,
+   * Rollenstreifen und Sprungknöpfe je an einem eigenen Abstand vom oberen
+   * Rand und lagen damit voreinander: „Zum Spieler" gab es, zu sehen war der
+   * Reiter davor. Jetzt steht alles in **einer** Spalte, drei Zeilen: Rollen
+   * und Zahnrad, darunter der Kasten, darunter die Sprungknöpfe.
    */
-  it('stellt die Sprungknöpfe in der Spalte hinter das HUD', () => {
+  it('stellt Rollen, Kasten und Sprungknöpfe untereinander in eine Spalte', () => {
     const flat = new FlatMode(3, { test: true }, { exit: () => {} });
     document.body.append(flat.element);
     const top = flat.element.querySelector<HTMLElement>('.flat__top')!;
     const rows = [...top.children].map((node) => node.classList[0]);
-    expect(rows).toEqual(['flat__top-row', 'flat__jump']);
-    // Erste Zeile: der Kasten, daneben das Zahnrad — und sonst nichts.
+    expect(rows).toEqual(['flat__top-row', 'flat__top-row', 'flat__jump']);
+    expect(top.children[1]!.classList.contains('flat__top-row--hud')).toBe(true);
+    // Erste Zeile: die Rollenknöpfe, am Ende das Zahnrad — und sonst nichts.
     const row = top.querySelector<HTMLElement>('.flat__top-row')!;
     expect([...row.children].map((node) => node.className)).toEqual([
-      'flat__hud is-collapsed',
+      'role-strip',
       'flat__corner flat__options',
     ]);
+    // Zweite Zeile: der Kasten mit Auftrag und Uhr.
+    expect(
+      [...top.querySelector<HTMLElement>('.flat__top-row--hud')!.children].map(
+        (node) => node.className,
+      ),
+    ).toEqual(['flat__hud is-collapsed']);
     // Verschoben steht „Zum Spieler" da, und die ganze Spalte ist sichtbar.
     flat.scene.panBy(90, 0);
     flat.update(DT);
     expect(top.hidden).toBe(false);
     expect(flat.element.querySelector<HTMLElement>('.flat__centre')!.hidden).toBe(false);
+    flat.dispose();
+  });
+
+  /**
+   * **Ist das Optionsmenü offen, ist der Kopf weg** — Rollen, Kasten und
+   * Sprungknöpfe. Wer das Menü aufmacht, will das Menü sehen und nicht
+   * daneben noch die halbe Runde.
+   */
+  it('nimmt den ganzen Kopf weg, solange das Optionsmenü offen ist', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    const top = flat.element.querySelector<HTMLElement>('.flat__top')!;
+    expect(top.hidden).toBe(false);
+    flat.element.querySelector<HTMLElement>('.flat__options')!.click();
+    expect(flat.openOverlay).toBe('options');
+    expect(top.hidden).toBe(true);
+    flat.dispose();
+  });
+
+  /**
+   * **Zuschauer steht in derselben Zeile wie die Rollen** und sieht alles: Ein
+   * Zuschauer mit der Sicht des Anzugs sähe ein schwarzes Bild.
+   */
+  it('macht aus dem Zuschauer-Knopf eine Bot-Runde mit allwissender Karte', () => {
+    const flat = new FlatMode(3, { test: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    expect(flat.role).toBe('technician');
+    const watch = (): HTMLButtonElement =>
+      flat.element.querySelector<HTMLButtonElement>('[data-role-extra="watch"]')!;
+    watch().click();
+    expect(flat.role).toBe('watch');
+    expect(flat.visibilityMode).toBe('omniscient');
+    expect(watch().classList.contains('is-active')).toBe(true);
+    watch().click();
+    expect(flat.role).toBe('technician');
+    expect(flat.visibilityMode).toBe('realistic');
+    expect(watch().classList.contains('is-active')).toBe(false);
     flat.dispose();
   });
 
