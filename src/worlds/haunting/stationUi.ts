@@ -47,6 +47,16 @@ import {
   type LobbyChoice,
   type View,
 } from './rules/lobby';
+import {
+  defaultLens,
+  seatHasView,
+  seatStation,
+  WATCH_FOLLOWS,
+  WATCH_SEATS,
+  type WatchFollow,
+  type WatchLens,
+  type WatchSeat,
+} from './watchLens';
 import type { RoleView } from './registry/roles';
 import type { MonsterPort } from './monster/monsterDriver';
 import { mountMonsterView } from './monster/monsterView';
@@ -306,6 +316,15 @@ export class StationUi {
    */
   private monsterView: RoleView | null = null;
   private monsterAt = 0;
+  /** Ob die gebaute Monster-Ansicht ein Steuer hat — der Zuschauer bekommt keins. */
+  private monsterPiloted = true;
+  /**
+   * **Wessen Platz der Zuschauer gerade ansieht** (`watchLens.ts`) — und ob
+   * das Overlay „KI-Absichten" mitläuft. Steht hier und nicht in der Welt,
+   * weil es eine Wahl der Oberfläche ist: Sie überlebt kein Neuladen, sie
+   * geht über kein Netz, und sie ändert an der Runde nichts.
+   */
+  private lens: WatchLens = defaultLens();
 
   constructor(private readonly host: StationHost) {
     this.root.className = 'haunt';
@@ -377,6 +396,25 @@ export class StationUi {
     document.body.classList.remove('haunt-on');
   }
 
+  /**
+   * **Was der Zuschauer gerade ansieht** — die Welt richtet ihre Kamera
+   * danach aus (`HauntingWorld.render`, `aimShow`) und blendet das
+   * KI-Overlay ein. Außerhalb der Station `watch` bedeutet er nichts.
+   */
+  get watchLens(): Readonly<WatchLens> {
+    return this.lens;
+  }
+
+  /**
+   * Welches Gerät hinter dem Bild steckt, das gerade zu sehen ist. Für alle
+   * Stationen ihre eigene — und für den Zuschauer die, in deren Rolle er
+   * gerade geschlüpft ist.
+   */
+  get shownStation(): StationId | null {
+    const station = this.station;
+    return station === 'watch' ? seatStation(this.lens.seat) : station;
+  }
+
   /** Welche Station gerade zu sehen ist — `null` heißt: die Übersicht in der Zentrale. */
   get station(): StationId | null {
     if (this.vanOpen) return null;
@@ -406,7 +444,7 @@ export class StationUi {
    * nächsten Schriftgröße wieder falsch.
    */
   headroom(): number {
-    if (this.station === 'archive') return 0;
+    if (this.shownStation === 'archive') return 0;
     const box = this.quest.getBoundingClientRect();
     return Math.max(0, box.bottom);
   }
@@ -444,6 +482,8 @@ export class StationUi {
       this.selected,
       this.archiveTab,
       this.controlTab,
+      // Der Blick des Zuschauers: Platz, Verfolgter, Overlay (`watchLens.ts`).
+      `${this.lens.seat}/${this.lens.follow}/${this.lens.insight}`,
       state.phase,
       state.fuse,
       state.crew.hp,
@@ -502,19 +542,24 @@ export class StationUi {
     }
     // Der Punkt des Spähers wandert zwischen zwei Neuschriften weiter — er ist
     // das Einzige, was sich ohne Knopfdruck ändert.
-    if (
-      (station === 'scout' || station === 'hack') &&
-      this.controlTab === 'radar' &&
-      performance.now() - this.lastRadar > 66
-    ) {
+    const peeking = station === 'watch';
+    const scouting = peeking
+      ? this.lens.seat === 'scout'
+      : (station === 'scout' || station === 'hack') && this.controlTab === 'radar';
+    if (scouting && performance.now() - this.lastRadar > 66) {
       this.lastRadar = performance.now();
       this.drawScout();
-      this.drawEcg();
+      // Die Pulskurve hängt an der Einsatzkontrolle; der Zuschauer bekommt nur
+      // den Schirm, und ein Zeichnen ins Leere wäre Arbeit ohne Bild.
+      if (!peeking) this.drawEcg();
     }
+    // Das Archivblatt des Zuschauers folgt dem Techniker, damit es nicht nach
+    // zwei Minuten ein leeres Zimmer zeigt.
+    if (peeking && this.lens.seat === 'archive') this.followArchive();
     // Die Monster-Ansicht zeichnet sich selbst (`RoleView.update`) — Stock
     // lesen, Karte nachführen —, gedrosselt wie der Späherschirm. Wer die
     // Station verlässt, gibt sie frei: Ihr Port hält sonst das Steuer.
-    if (station === 'monster' && this.monsterView) {
+    if (this.shownStation === 'monster' && this.monsterView) {
       const now = performance.now();
       // Das erste Bild sofort — `performance.now()` kann kurz nach dem Start
       // der Seite noch unter der Drossel liegen, und eine Ansicht ohne erstes
@@ -535,11 +580,11 @@ export class StationUi {
   /** Ob diese Station überhaupt ein Bild der Welt bekommt. */
   private get hasView(): boolean {
     const station = this.station;
-    return (
-      station === 'drone' ||
-      station === 'watch' ||
-      (station === 'archive' && this.archiveTab === 'rooms')
-    );
+    // Der Zuschauer hat ein Bild, solange der Platz, den er ansieht, eines
+    // hat: Deck, Archivblatt, Drohnenkamera. Späherschirm und Monsteransicht
+    // zeichnet die Oberfläche selbst, die Tafel hat mit dem Haus nichts zu tun.
+    if (station === 'watch') return seatHasView(this.lens.seat);
+    return station === 'drone' || (station === 'archive' && this.archiveTab === 'rooms');
   }
 
   // --- schreiben -------------------------------------------------------------
@@ -596,7 +641,7 @@ export class StationUi {
     // **Der Scrollstand bleibt, solange dieselbe Seite bleibt.** Ein Knopf
     // schreibt die Seite neu, und eine neu geschriebene Liste fängt oben an —
     // wer unten auf einen Schalter tippt, stünde danach wieder oben.
-    const page = `${station ?? 'van'}/${this.archiveTab}/${this.controlTab}/${this.vanOpen ? 'van' : 'seat'}`;
+    const page = `${station ?? 'van'}/${this.archiveTab}/${this.controlTab}/${this.lens.seat}/${this.vanOpen ? 'van' : 'seat'}`;
     const keep = page === this.paged ? this.body.scrollTop : 0;
     this.paged = page;
     const focused =
@@ -768,10 +813,18 @@ export class StationUi {
    * Steuer übers Netz; ohne Port (eine Welt ohne Karte) ist sie ein
    * Zuschauerfenster in die Wahrnehmung des Monsters.
    */
-  private monsterPage(): HTMLElement[] {
+  private monsterPage(piloted = true): HTMLElement[] {
     const host = this.host;
     if (!host.snapshot)
       return [note('warn', 'Keine Karte', 'Diese Welt liefert der Monster-Station keinen Stand.')];
+    // **Der Zuschauer bekommt kein Steuer.** Der Gastgeber hörte ohnehin nicht
+    // auf ihn (`net.receive` fragt den Platz), aber ein Stock unter dem Daumen,
+    // der nichts bewegt, ist eine Zusage, die das Spiel nicht einhält.
+    if (this.monsterView && this.monsterPiloted !== piloted) {
+      this.monsterView.dispose();
+      this.monsterView = null;
+    }
+    this.monsterPiloted = piloted;
     this.monsterView ??= mountMonsterView({
       snapshot: () => host.snapshot!(),
       me: () => this.host.me(),
@@ -779,7 +832,7 @@ export class StationUi {
       flip: (id, on) => this.host.flip(id, on),
       flyTo: (roomId) => this.host.flyTo(roomId),
       notify: (text) => this.host.notify?.(text),
-      extra: { monster: this.host.monsterPort?.() ?? null },
+      extra: { monster: piloted ? (this.host.monsterPort?.() ?? null) : null },
     });
     return [this.monsterView.element];
   }
@@ -1586,22 +1639,119 @@ export class StationUi {
   }
 
   /**
-   * **Der Fernseher.** Alles zu sehen, nichts zu bedienen.
+   * **Der Fernseher.** Alles zu sehen, nichts zu bedienen — aber jetzt aus
+   * jedem Blickwinkel.
    *
-   * Er ist die einzige Station ohne einen einzigen Knopf, und das ist seine
-   * ganze Bauart: Wer alles sieht *und* etwas tun kann, ist kein Zuschauer
-   * mehr, sondern der fünfte Spieler mit den besten Karten — und dann sind die
-   * anderen vier Deko. Deshalb steht hier nur, was das Bild ist und was man
-   * damit **nicht** macht.
+   * Er war lange das ganze Deck von schräg oben und sonst nichts: ein
+   * Fenster, kein Platz. Gewünscht war das Gegenteil — „statt nur den
+   * Techniker spielen zu können, auch in die Rollen der anderen Spieler
+   * schlüpfen". Deshalb stehen hier zwei Fragen und ein Schalter:
+   * **wessen Platz** man ansieht (`watchLens.ts`), **wem** die Kamera über
+   * dem Deck folgt, und ob das Overlay „KI-Absichten" mitläuft.
+   *
+   * **Knöpfe, die nur die Kamera drehen.** Die Regel des Fernsehers bleibt:
+   * Wer alles sieht *und* schalten dürfte, wäre der fünfte Spieler mit den
+   * besten Karten, und die anderen vier wären Deko. Der Zuschauer bekommt
+   * deshalb das *Bild* eines Platzes und nie seine Knöpfe — die Tafel steht
+   * hier als Liste, nicht als Schalterwand.
    */
   private watchPage(): HTMLElement[] {
     const state = this.host.state();
-    return [
-      note(
-        'live',
-        'Die ganze Station, bei Tag',
-        'Von schräg oben, ohne Decke, mit allem darin: den Sachen, der Drohne, dem Mitspieler — und dem Monster, wenn es an ist. Für den Fernseher im Raum gedacht, nicht fürs Telefon in der Hand.',
+    const seat = this.lens.seat;
+    const out: HTMLElement[] = [head('Wessen Platz?', 'nur sehen')];
+    const seats = el('div', 'haunt__watch-grid');
+    for (const entry of WATCH_SEATS) {
+      const key = el('button', `haunt__watch-key${entry.id === seat ? ' is-active' : ''}`);
+      key.dataset['watchSeat'] = entry.id;
+      key.setAttribute('aria-pressed', entry.id === seat ? 'true' : 'false');
+      key.append(el('strong', '', entry.label), el('small', '', entry.hint));
+      seats.append(key);
+    }
+    out.push(seats);
+
+    if (seat === 'deck') {
+      out.push(head('Wem folgen?'));
+      const follows = el('div', 'haunt__watch-grid');
+      for (const entry of WATCH_FOLLOWS) {
+        const key = el(
+          'button',
+          `haunt__watch-key${entry.id === this.lens.follow ? ' is-active' : ''}`,
+        );
+        key.dataset['watchFollow'] = entry.id;
+        key.setAttribute('aria-pressed', entry.id === this.lens.follow ? 'true' : 'false');
+        key.append(el('strong', '', entry.label), el('small', '', entry.hint));
+        follows.append(key);
+      }
+      out.push(follows);
+      out.push(
+        note(
+          'live',
+          'Die ganze Station, bei Tag',
+          'Von schräg oben, ohne Decke, mit allem darin: den Sachen, der Drohne, dem Techniker — auch dem, der von einem anderen Gerät aus in 2D spielt — und dem Monster, wenn es an ist.',
+        ),
+      );
+    } else if (seat === 'archive') {
+      out.push(
+        note(
+          'calm',
+          'Das Blatt des Archivars',
+          'Ein Zimmer von oben, ohne Lebewesen — genau das, was der Archivar sieht. Aufgeschlagen ist das Zimmer, in dem der Techniker gerade steht.',
+        ),
+      );
+    } else if (seat === 'drone') {
+      out.push(
+        note(
+          'calm',
+          'Das Bild der Drohne',
+          'Was in dem Zimmer steht, in dem sie gerade steht. Fliegen tut sie ohne dich — der Pilot sitzt woanders.',
+        ),
+      );
+    } else if (seat === 'scout') {
+      out.push(
+        note(
+          'calm',
+          'Wände und ein Punkt',
+          'Der Späherschirm zeigt nur die Umgebung des Monsters. Absuchen kann man die Station damit nicht — man wird herumgeschleift.',
+        ),
+        this.scout,
+      );
+    } else if (seat === 'control') {
+      out.push(
+        note(
+          'calm',
+          'Die Tafel, von außen',
+          'Was gerade an und was aus ist. Umlegen darf sie nur, wer an der Einsatzkontrolle sitzt.',
+        ),
+        this.watchPanel(),
+      );
+    } else if (seat === 'monster') {
+      out.push(
+        note(
+          'live',
+          'Die Station aus Monstersicht',
+          'Seine Karte, seine Ohren — und nichts von dem, was es nicht wahrnimmt. Das Steuer bleibt bei dem, der am Monster-Telefon sitzt.',
+        ),
+        ...this.monsterPage(false),
+      );
+    }
+
+    const insight = el(
+      'button',
+      `haunt__watch-key haunt__watch-key--wide${this.lens.insight ? ' is-active' : ''}`,
+    );
+    insight.dataset['watchInsight'] = '';
+    insight.setAttribute('aria-pressed', this.lens.insight ? 'true' : 'false');
+    insight.append(
+      el('strong', '', `KI-Absichten: ${this.lens.insight ? 'an' : 'aus'}`),
+      el(
+        'small',
+        '',
+        'Wo das Monster den Techniker vermutet, wohin es ihn laufen sieht und an welcher Tür es ihn abfangen will — mit beiden Ankunftszeiten.',
       ),
+    );
+    out.push(head('KI-Absichten', 'nur für Zuschauer'), insight);
+
+    out.push(
       note(
         'warn',
         'Und du sagst nichts',
@@ -1614,7 +1764,44 @@ export class StationUi {
           ? 'Es läuft in der Station herum, und du siehst es. Die in der Zentrale sehen es nicht — der Späher hat einen Punkt, sonst niemand etwas.'
           : 'Der VR-Spieler hat es ausgeschaltet. Solange bleibt die Station leer, und alle üben.',
       ),
-    ];
+    );
+    return out;
+  }
+
+  /**
+   * **Die Tafel als Auskunft.** Dieselben Schalter wie beim Hacker
+   * (`panel.visibleSwitches`), nur als Zeilen: Wer zusieht, soll lesen
+   * können, was an ist — umlegen darf es der, der davor sitzt.
+   */
+  private watchPanel(): HTMLElement {
+    const state = this.host.state();
+    const list = el('div', 'haunt__watch-panel');
+    for (const entry of visibleSwitches(this.host.spec().switches, true)) {
+      const on =
+        entry.kind === 'door'
+          ? !state.shut.includes(entry.target)
+          : entry.kind === 'light'
+            ? state.lit.includes(entry.target)
+            : state.loud.includes(entry.target);
+      list.append(fact(entry.label, on ? 'an' : 'aus', !on));
+    }
+    return list;
+  }
+
+  /**
+   * **Welches Zimmer der Zuschauer im Archivblatt aufgeschlagen hat**: das, in
+   * dem der Techniker steht. Ein Blatt, das er selbst durchblättern müsste,
+   * wäre ein sechster Satz Knöpfe für eine Rolle, die nichts bedient — und
+   * ein Blatt, das irgendwo stehen bleibt, zeigt nach zwei Minuten ein leeres
+   * Zimmer.
+   */
+  private followArchive(): void {
+    const snapshot = this.host.snapshot?.();
+    const room = snapshot?.entities.find(
+      (entity) => entity.kind === 'player' || entity.kind === 'bot',
+    )?.roomId;
+    if (room && room !== this.selected) this.selected = room;
+    else if (!this.selected) this.selected = this.host.spec().rooms[0]?.id ?? '';
   }
 
   /** Der Hacker: Schalter, und keiner sagt, wo er hingeht. */
@@ -1804,7 +1991,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-dossier-room],[data-game-menu],[data-intent],[data-view],[data-restart],[data-start-setup]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-dossier-room],[data-game-menu],[data-intent],[data-view],[data-restart],[data-start-setup],[data-watch-seat],[data-watch-follow],[data-watch-insight]',
     );
     if (!hit) return;
 
@@ -1825,6 +2012,18 @@ export class StationUi {
             this.mine === 'monster' ? 'monster' : 'technician',
           ),
         );
+    } else if (hit.dataset['watchSeat']) {
+      // **Nur das Bild wechselt.** Der Platz bleibt der Fernseher — der
+      // Zuschauer setzt sich nicht ans Archiv, er sieht dem Archivar zu.
+      this.lens = { ...this.lens, seat: hit.dataset['watchSeat'] as WatchSeat };
+      if (this.lens.seat === 'archive') {
+        this.followArchive();
+        this.host.archiveHome();
+      }
+    } else if (hit.dataset['watchFollow']) {
+      this.lens = { ...this.lens, follow: hit.dataset['watchFollow'] as WatchFollow };
+    } else if (hit.dataset['watchInsight'] !== undefined) {
+      this.lens = { ...this.lens, insight: !this.lens.insight };
     } else if (hit.dataset['view'] !== undefined) {
       const choice = this.host.lobby?.();
       if (choice) this.host.setLobby?.({ ...choice, view: hit.dataset['view'] as View });

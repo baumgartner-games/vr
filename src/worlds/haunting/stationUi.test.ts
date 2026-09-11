@@ -659,3 +659,65 @@ describe('Phone dashboard DOM and Canvas interaction', () => {
     expect(ui.viewport()).toBeNull();
   });
 });
+
+/**
+ * **Der Zuschauer schlüpft in die Rollen der anderen.** Der Fernseher war das
+ * ganze Deck von schräg oben und sonst nichts; gewünscht war, mitten in der
+ * Runde umschalten zu können — auf das Blatt des Archivars, das Bild der
+ * Drohne, den Späherschirm, die Monsteransicht.
+ */
+describe('Die Rollenwahl des Zuschauers', () => {
+  it('bietet alle Plätze an, wechselt das Bild und bleibt dabei am Fernseher sitzen', () => {
+    const { ui } = crew('watch');
+    expect(ui.watchLens.seat).toBe('deck');
+    expect(ui.shownStation).toBe('watch');
+    const seats = [...document.querySelectorAll<HTMLElement>('[data-watch-seat]')].map(
+      (key) => key.dataset['watchSeat'],
+    );
+    expect(seats).toEqual(['deck', 'archive', 'control', 'scout', 'drone', 'monster']);
+
+    button('[data-watch-seat="drone"]').click();
+    expect(ui.watchLens.seat).toBe('drone');
+    // Das Bild ist das der Drohne — der **Platz** bleibt der Fernseher.
+    expect(ui.shownStation).toBe('drone');
+    expect(ui.station).toBe('watch');
+    expect(ui.viewport()).not.toBeNull();
+
+    // Die Tafel bekommt er als Auskunft und nicht als Schalterwand.
+    button('[data-watch-seat="control"]').click();
+    expect(document.querySelector('[data-flip]')).toBeNull();
+    expect(document.querySelector('.haunt__watch-panel')).not.toBeNull();
+    expect(ui.viewport()).toBeNull();
+
+    button('[data-watch-seat="scout"]').click();
+    expect(document.querySelector('.haunt__scout')).not.toBeNull();
+  });
+
+  it('folgt auf Wunsch dem Techniker oder dem Monster', () => {
+    const { ui } = crew('watch');
+    expect(ui.watchLens.follow).toBe('free');
+    button('[data-watch-follow="monster"]').click();
+    expect(ui.watchLens.follow).toBe('monster');
+    button('[data-watch-follow="technician"]').click();
+    expect(ui.watchLens.follow).toBe('technician');
+    // Die Frage „wem folgen?" gehört zum Deck; auf einem fremden Platz führt
+    // die Kamera nicht mehr der Zuschauer.
+    button('[data-watch-seat="archive"]').click();
+    expect(document.querySelector('[data-watch-follow]')).toBeNull();
+    expect(ui.watchLens.follow).toBe('technician');
+  });
+
+  it('gibt das Overlay „KI-Absichten" nur dem Zuschauer', () => {
+    const { ui } = crew('watch');
+    expect(ui.watchLens.insight).toBe(false);
+    button('[data-watch-insight]').click();
+    expect(ui.watchLens.insight).toBe(true);
+    expect(button('[data-watch-insight]').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('zeigt einem Spieler weder Rollenwahl noch Overlay-Schalter', () => {
+    crew('scout');
+    expect(document.querySelector('[data-watch-seat]')).toBeNull();
+    expect(document.querySelector('[data-watch-insight]')).toBeNull();
+  });
+});

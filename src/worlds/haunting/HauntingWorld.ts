@@ -58,10 +58,12 @@ import {
   buildShip,
   buildCorridorBeacons,
   buildCreature,
+  buildCrewmate,
   animateCreature,
   roomAccent,
   type StationBeacon,
 } from './shipArt';
+import type { WatchFollow, WatchLens } from './watchLens';
 import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
@@ -311,6 +313,15 @@ const SHOW_PITCH = (Math.PI / 180) * 80;
 const SHOW_FOV = 42;
 
 /**
+ * Wie viele Meter im Bild stehen, wenn der Zuschauer jemandem folgt.
+ *
+ * Ein Zimmer ist zweieinhalb Kacheln breit; neun Meter zeigen den Verfolgten
+ * mit seinen Türen und dem, was gerade um die Ecke kommt — enger wäre ein
+ * Guckloch, weiter wäre wieder das ganze Deck, und dafür gibt es „Frei".
+ */
+const WATCH_FOLLOW_SPAN = 9;
+
+/**
  * **Und wo ihm die Decke abgenommen wird.**
  *
  * Dieselbe Antwort wie in der Vorschau des Werkzeugkastens (`tools/worldCut.ts`):
@@ -323,6 +334,9 @@ const SHOW_CUT = PLAN_WALL_H - 0.4;
 
 /** Der Himmel über dem Zuschauer: heller Tag, nicht die Nacht der anderen. */
 const SHOW_SKY = 0x020711;
+
+/** Wohin die Zuschauerkamera gerade gezogen wird — ein Vektor, kein Müll je Bild. */
+const _showTarget = new THREE.Vector3();
 
 /** Wie nah man an eine Sache heran muss, um sie mitzunehmen. */
 
@@ -406,6 +420,21 @@ export class HauntingWorld extends GridWorld {
   private readonly navigationOverlay = new NavigationOverlay();
   private monsterNavigator: StationNpcNavigator | null = null;
   private monsterArt: THREE.Object3D | null = null;
+  /**
+   * **Der Körper des Technikers, der in 2D spielt.**
+   *
+   * Seine Stelle steht seit `STATION_PROTOCOL` 7 im Stand
+   * (`HauntState.technician`) — die Karte des Monster-Telefons zeichnet ihn
+   * daraus längst, die 3D-Welt aber gar nicht: Wer am Fernseher zusah, sah
+   * eine leere Station, in der Türen von selbst aufgingen. Ein einfacher
+   * Crewmate (`shipArt.buildCrewmate`) reicht; er läuft nicht, er steht dort,
+   * wo der Stand ihn hinsetzt.
+   */
+  private technicianArt: THREE.Object3D | null = null;
+  /** Worauf die Kamera des Zuschauers gerade zielt, wenn sie jemandem folgt. */
+  private readonly showFocus = new THREE.Vector3();
+  /** Ob sie schon einmal gezielt hat — der erste Sprung darf hart sein. */
+  private showAimed = false;
   /** Die Drehleuchten der Gänge — sichtbar nur bei Alarmbeleuchtung. */
   private beacons: StationBeacon[] = [];
   /** Die Gewichte beider Bots — aus dem Browser-Speicher, veränderbar im Test. */
@@ -657,6 +686,11 @@ export class HauntingWorld extends GridWorld {
   private ui: StationUi | null = null;
   /** Die laufende 2D-Runde (`map/flatMode.ts`), von „Bot-Runde", „Mission" oder „Test" gestartet. */
   private flat: FlatMode | null = null;
+  /**
+   * Ob diese 2D-Welt einer Runde im Netz **zusieht**, statt selbst eine zu
+   * rechnen. Dann kommt der Snapshot aus der 3D-Welt und nicht aus ihr.
+   */
+  private flatWatching = false;
   /**
    * Ob die laufende 2D-Runde **die gemeinsame Runde** ist (Mission und Test:
    * wer sie spielt, ist der Techniker und rechnet sie für alle Telefone —
@@ -1788,6 +1822,11 @@ export class HauntingWorld extends GridWorld {
       this.context = ctx;
       if (this.flatShared) this.stepFlat(dt, ctx);
       else this.flat.update(dt);
+      // **Der Zuschauer am Netz braucht die Türblätter.** Sein Bild kommt aus
+      // `worldSnapshot()`, und ob ein Blatt offen steht, weiß nur der
+      // Türautomat — der sonst im 3D-Pfad läuft, den die 2D-Welt stillstellt.
+      // Ohne diesen Schritt blieben für ihn alle Türen für immer zu.
+      if (this.flatWatching) this.applyDoors(dt);
       this.tickNet(dt, ctx, last);
       return;
     }
@@ -1859,8 +1898,13 @@ export class HauntingWorld extends GridWorld {
       this.monsterArt.visible = this.state.crew.venting <= 0;
       animateCreature(this.monsterArt, this.state.time);
     }
+    this.showTechnician();
     this.flyDrone(dt);
-    this.navigationOverlay.update(this.state.crew.simulation, [
+    // **Das Overlay läuft auch außerhalb der Simulation** (Paket U4/M4): Es
+    // war an die Bot-Runde gebunden, weil es dafür gebaut wurde — der
+    // Zuschauer braucht es aber gerade dann, wenn Menschen spielen.
+    const overlay = this.state.crew.simulation || this.insightWanted();
+    this.navigationOverlay.update(overlay, [
       this.experience?.botNavigation ?? null,
       this.monsterNavigator?.navigation ?? null,
       {
@@ -1870,8 +1914,9 @@ export class HauntingWorld extends GridWorld {
       },
     ]);
 
+    this.navigationOverlay.insight(this.insightWanted() ? (this.decision?.insight ?? null) : null);
     this.perceptionClock -= dt;
-    if (this.state.crew.simulation && this.perceptionClock <= 0) {
+    if (overlay && this.perceptionClock <= 0) {
       this.perceptionClock = 0.15;
       const bot = this.experience?.botPose;
       const monster = this.state.monster;
@@ -3145,11 +3190,18 @@ export class HauntingWorld extends GridWorld {
     // Phone dashboards keep their DOM/radar updates, but their optional 3D
     // camera needs at most 15 frames/s. Return before clear to retain the image.
     const now = clock();
-    const view = `${ui.station}:${ui.selected}:${this.spec.seed}:${ui.veiled}`;
+    // **Der Blick des Zuschauers gehört in den Schlüssel.** Ohne ihn blieb das
+    // Bild stehen, wenn er den Platz wechselte: Die Drossel sah dieselbe
+    // Station und dasselbe Zimmer und hielt das alte Bild für frisch.
+    const lens: Readonly<WatchLens> = ui.watchLens;
+    const view = `${ui.station}:${lens.seat}:${lens.follow}:${ui.selected}:${this.spec.seed}:${ui.veiled}`;
     if (view === this.phoneRenderView && now < this.nextPhoneRender) return true;
     this.phoneRenderView = view;
     this.nextPhoneRender = now + 1000 / 15;
-    const station = ui.station;
+    // **Welchen Platz das Bild zeigt** und nicht, an welchem man sitzt: Der
+    // Zuschauer schlüpft in die Rollen der anderen (`watchLens.ts`), und für
+    // die Kamera ist das dieselbe Frage wie bei einem, der wirklich dort sitzt.
+    const station = ui.shownStation;
     const archive = station === 'archive';
     const show = station === 'watch';
     this.veilView(ui.veiled);
@@ -3174,7 +3226,7 @@ export class HauntingWorld extends GridWorld {
     const camera = station === 'drone' ? this.droneCam : show ? this.showCam : this.topCam;
     if (!camera) return true;
     if (archive) this.aimArchive(ui.selected, aspect, head);
-    if (show) this.aimShow(aspect, head);
+    if (show) this.aimShow(aspect, head, ui.station === 'watch' ? lens.follow : 'free');
 
     // Der Archivar sieht **keine Lebewesen**: keinen Mitspieler, kein Monster,
     // keine Drohne. Sein Blatt ist ein Grundriss und keine Überwachung.
@@ -3253,9 +3305,35 @@ export class HauntingWorld extends GridWorld {
    * nach, und die schlimmere der beiden Zahlen gewinnt: Ein hochkantes Handy
    * hat quer zu wenig Platz, ein Fernseher der Länge nach.
    */
-  private aimShow(aspect: number, head: number): void {
+  private aimShow(aspect: number, head: number, follow: WatchFollow = 'free'): void {
     const camera = this.showCam;
     if (!camera) return;
+    const target =
+      follow === 'technician'
+        ? this.technicianFocus()
+        : follow === 'monster'
+          ? this.state.monster
+          : null;
+    if (target) {
+      // **Nachziehen, nicht springen.** Der Stand kommt zehnmal je Sekunde
+      // über die Leitung; eine Kamera, die auf jeden Punkt schnappt, ruckelt
+      // sichtbar — dieselbe Vorsicht wie beim Rumpf der Drohne.
+      this.showFocus.lerp(_showTarget.set(target.x, 0, target.z), this.showAimed ? 0.18 : 1);
+      this.showAimed = true;
+      const rise = Math.tan(((SHOW_FOV / 2) * Math.PI) / 180);
+      const deep = WATCH_FOLLOW_SPAN / Math.max(0.2, 1 - head);
+      const far = Math.max(deep / (2 * rise), WATCH_FOLLOW_SPAN / (2 * rise * aspect));
+      const look = this.showFocus.z - (head / 2) * deep;
+      camera.position.set(
+        this.showFocus.x,
+        Math.sin(SHOW_PITCH) * far,
+        look + Math.cos(SHOW_PITCH) * far,
+      );
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+      return;
+    }
+    this.showAimed = false;
     const bounds = stationBounds(this.spec);
     const cx = (bounds.x + bounds.w / 2) * TILE;
     const cz = (bounds.z + bounds.d / 2) * TILE;
@@ -3273,6 +3351,69 @@ export class HauntingWorld extends GridWorld {
     camera.position.set(cx, Math.sin(SHOW_PITCH) * far, look + Math.cos(SHOW_PITCH) * far);
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
+  }
+
+  /**
+   * **Wo der Techniker steht** — aus dem Stand, wenn er in 2D spielt, sonst
+   * aus dem Modelltechniker der Bot-Runde und zuletzt aus der Pose des
+   * Mitspielers im Headset. Drei Quellen für eine Person, weil dieselbe Rolle
+   * an drei Geräten hängen kann; ohne alle drei würde die Kamera des
+   * Zuschauers je nachdem, wer spielt, ins Leere zeigen.
+   */
+  private technicianFocus(): { x: number; z: number } | null {
+    const flat = this.state.technician;
+    if (flat) return { x: flat.x, z: flat.z };
+    const bot = this.experience?.botPose;
+    if (bot) return { x: bot.x, z: bot.z };
+    for (const peer of this.context?.net.peers.values() ?? [])
+      if (peer.world === 'haunting' && peer.role === 'vr' && peer.pose)
+        return { x: peer.pose.head[0]!, z: peer.pose.head[2]! };
+    return null;
+  }
+
+  /**
+   * **Ob gerade jemand zusieht und die Absichten des Monsters sehen will.**
+   *
+   * Es hängt an der Station und nicht an einer Einstellung der Welt: Das
+   * Overlay ist Zuschauerwissen (Paket M4), und wer mitspielt, darf es nie
+   * sehen — ein Techniker mit dem Glaubensbild vor sich weiß, welche Zimmer
+   * gerade sicher sind.
+   */
+  private insightWanted(): boolean {
+    const ui = this.ui;
+    return !!ui && ui.station === 'watch' && ui.watchLens.insight;
+  }
+
+  /**
+   * **Den Techniker aus der 2D-Welt in die 3D-Welt stellen.**
+   *
+   * Er hat kein Rig und keine Avatar-Pose; alles, was von ihm über die
+   * Leitung kommt, ist `HauntState.technician` — Stelle, Blick, und ob er
+   * geht. Genau daraus wird hier ein Körper. Ohne ihn war der Fernseher eine
+   * leere Station, in der Türen von selbst aufgingen, und der Zuschauer
+   * konnte der Runde nicht folgen, obwohl sie vor ihm lief.
+   */
+  private showTechnician(): void {
+    const at = this.state.technician;
+    if (!at) {
+      if (this.technicianArt) this.technicianArt.visible = false;
+      return;
+    }
+    if (!this.technicianArt) {
+      this.technicianArt = buildCrewmate();
+      this.technicianArt.name = 'flat-technician';
+      this.live.add(this.technicianArt);
+    }
+    const body = this.technicianArt;
+    // Im Schrank und im Schacht ist er weg — dasselbe, was die Karte tut.
+    body.visible = !this.state.crew.hidden && this.state.crew.venting <= 0;
+    body.position.set(at.x, 0, at.z);
+    // Der Crewmate schaut nach +z, die Welt rechnet Blickrichtungen nach -z
+    // (`map/mapSnapshot`, Kopf der Datei) — dieselbe halbe Drehung wie beim
+    // Modelltechniker der Bot-Runde (`ShipExperience`).
+    body.rotation.y = at.yaw + Math.PI;
+    if (at.moving) animateCreature(body, this.state.time);
+    else for (const limb of body.children) limb.rotation.x = 0;
   }
 
   /**
@@ -3820,11 +3961,12 @@ export class HauntingWorld extends GridWorld {
     const shared = options.role !== 'watch';
     // Ein Techniker je Raum — dieselbe Regel wie bei der Bot-Runde: Wer 2D
     // spielt, wird Gastgeber der gemeinsamen Runde, und zwei davon gäbe es nicht.
-    const occupied = [...ctx.net.peers.values()].some(
-      (peer) =>
-        peer.world === ctx.net.world &&
-        (peer.role === 'vr' || clock() - (this.technicians.get(peer.id) ?? -Infinity) < 3000),
-    );
+    const occupied = this.roomOccupied(ctx);
+    // **Und genau derselbe belegte Raum ist für den Zuschauer die gute
+    // Nachricht.** Spielt im Raum wirklich jemand, sieht er *dieser* Runde zu
+    // (`FlatModeHost.watchSnapshot`) statt einer Vorführung daneben; ist der
+    // Raum leer, bleibt es bei der lokalen Bot-Runde wie bisher.
+    const live = !shared && occupied;
     if (shared && occupied) {
       ctx.notify('2D-Welt nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
       return;
@@ -3848,10 +3990,22 @@ export class HauntingWorld extends GridWorld {
         // Telefone — ein anderer Same wäre eine andere Karte. Die lokale
         // Bot-Runde darf würfeln.
         this.flatShared = shared;
-        this.flat = new mode.FlatMode(shared ? this.spec.seed : rollSeed(), options, {
+        this.flatWatching = live;
+        this.flat = new mode.FlatMode(shared || live ? this.spec.seed : rollSeed(), options, {
           exit: () => this.closeFlat(),
           notify: (text) => ctx.notify(text),
+          // Nur beim Zusehen am Netz: Szene und Karte kommen aus dem Stand,
+          // den der Gastgeber ansagt. Das `insight` weiß nur, wer das Monster
+          // rechnet — alle anderen bekommen `null` und sehen die Runde ohne
+          // den Kopf des Gegners.
+          ...(live
+            ? {
+                watchSnapshot: (): MapSnapshot => this.worldSnapshot(),
+                insight: () => this.decision?.insight ?? null,
+              }
+            : {}),
         });
+        if (live) ctx.notify('Zuschauen: Du siehst die Runde, die in diesem Raum läuft.');
         // Die Werkzeuge einmal aus ihren 3D-Modellen rendern und puffern;
         // die 2D-Welt hängt die fertigen Bilder in ihren Knopf (`toolIcons.ts`).
         this.flatIcons ??= new icons.ToolIcons();
@@ -3878,6 +4032,7 @@ export class HauntingWorld extends GridWorld {
     if (!this.flat) return;
     this.flat.dispose();
     this.flat = null;
+    this.flatWatching = false;
     if (this.flatShared) {
       this.flatShared = false;
       this.state = freshState(this.spec.seed, this.state.crew.options);
@@ -3891,7 +4046,18 @@ export class HauntingWorld extends GridWorld {
 
   /** Der Stand der Station als Karte — reiner Lesezugriff (`map/extract.ts`). */
   mapSnapshot(): MapSnapshot {
-    if (this.flat) return this.flat.round.snapshot();
+    // Der Zuschauer am Netz rechnet keine Runde — seine eigene steht still,
+    // und ihr Snapshot wäre eine zweite, falsche Station.
+    if (this.flat && !this.flatWatching) return this.flat.round.snapshot();
+    return this.worldSnapshot();
+  }
+
+  /**
+   * **Die 3D-Welt als Karte** — auch dann, wenn eine 2D-Welt darüber liegt.
+   * Der Zuschauer in 2D zeichnet genau das: den Stand, den der Gastgeber
+   * ansagt (`map/worldSource.ts`), und nicht seine eigene stillstehende Runde.
+   */
+  private worldSnapshot(): MapSnapshot {
     return extractMapSnapshot(
       worldMapSource({
         spec: () => this.spec,

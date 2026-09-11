@@ -798,11 +798,52 @@ body.haunt-on .touch { display: none; }
 .haunt__switch.is-on .haunt__knob { background: rgba(120, 92, 24, 0.9); border-color: var(--haunt-warn); }
 .haunt__switch.is-on .haunt__knob i { transform: translateX(16px); background: var(--haunt-warn); }
 
+/* --- Der Zuschauer: wessen Platz, wem folgen, KI-Absichten --- */
+
+/* Die Wahl des Zuschauers ist kein Schalter, sondern eine Kachelreihe: Sie
+   sagt in einem Blick, welche Rollen es überhaupt gibt — genau das war die
+   Frage („in welche Rolle kann ich schlüpfen?"), und eine Antwort, die man
+   erst durchklickt, ist keine. */
+.haunt__watch-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+.haunt__watch-key {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
+  text-align: left;
+  min-height: 62px;
+}
+
+.haunt__watch-key strong { font-size: 14px; color: var(--haunt-ink); }
+.haunt__watch-key small { font-size: 11.5px; color: var(--haunt-faint); line-height: 1.35; }
+.haunt__watch-key--wide { grid-column: 1 / -1; }
+
+.haunt__watch-key.is-active {
+  border-color: var(--haunt-accent);
+  background: rgba(20, 48, 62, 0.92);
+}
+
+.haunt__watch-key.is-active strong { color: var(--haunt-accent); }
+
+/* Die Tafel als Auskunft und nicht als Schalterwand — der Zuschauer liest, was
+   an ist, und legt nichts um. */
+.haunt__watch-panel {
+  border-radius: 10px;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
+  overflow: hidden;
+}
+
 /* --- breiter --- */
 
 @media (min-width: 760px) {
   .haunt__body { padding: 16px 24px calc(32px + env(safe-area-inset-bottom)); gap: 10px; }
   .haunt__map, .haunt__switches { grid-template-columns: repeat(4, 1fr); }
+  .haunt__watch-grid { grid-template-columns: repeat(3, 1fr); }
   .haunt__cockpit { grid-template-columns: 1fr 1fr; align-items: start; }
   .haunt__rooms { gap: 8px; }
   .haunt__quest { padding: 8px 24px; }

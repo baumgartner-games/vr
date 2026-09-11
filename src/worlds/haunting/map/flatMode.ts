@@ -30,7 +30,9 @@ import {
 import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
 import { HauntingAudio, levelLabel } from '../audio';
-import type { MapNoise } from './mapSnapshot';
+import type { MapNoise, MapRound, MapSnapshot, MonsterInsight } from './mapSnapshot';
+import { computeVisibility, emptyField, LitCache, type VisibilityField } from './visibility';
+import { drawInsight } from './insightOverlay';
 import type { ToolIconSource } from './toolIcons';
 
 /**
@@ -47,10 +49,26 @@ import type { ToolIconSource } from './toolIcons';
  * (`registry/viewModes.ts`, Publikum `flat`).
  *
  * Drei Rollen (`FlatRole`): der Techniker am Stock, das Monster
- * (`monster/monsterSession.ts`) — und die **Bot-Runde**, in der niemand
- * spielt: Der Techniker aus Zahlen (`rules/technicianBot.ts`) läuft seine
- * Runde gegen das Monster, die Karte folgt ihm, Stock und Knöpfe sind weg.
- * Das ist das 2D-Gegenstück zu „Bot-Runde ansehen" im Van.
+ * (`monster/monsterSession.ts`) — und **Zuschauen**, bei dem niemand spielt.
+ * Zuschauen gibt es dabei in zwei Sorten, und welche es wird, entscheidet der
+ * Wirt und nicht die Rolle:
+ *
+ * - **Der Runde im Raum folgen.** Reicht der Wirt einen Stand herein
+ *   (`FlatModeHost.watchSnapshot`, gefüllt aus `map/worldSource.ts`), rechnet
+ *   diese Welt gar nichts mehr: kein Techniker aus Zahlen, keine Wege, keine
+ *   neue Runde am Ende — Szene und Karte zeichnen, was der Gastgeber ansagt.
+ *   Das war die offene Lücke: Spielten zwei Menschen (einer am Stock, einer am
+ *   Monster-Telefon), konnte ihnen in 2D niemand zusehen.
+ * - **Die Bot-Runde**, wenn im Raum nichts läuft: Der Techniker aus Zahlen
+ *   (`rules/technicianBot.ts`) läuft seine Runde gegen das Monster, die Karte
+ *   folgt ihm, Stock und Knöpfe sind weg. Das 2D-Gegenstück zu „Bot-Runde
+ *   ansehen" im Van.
+ *
+ * Beide sehen dasselbe: beide Sprungknöpfe („Zum Techniker", „Zum Monster"),
+ * den Modus „Alles sehen" — und darin das Overlay „KI-Absichten"
+ * (`map/insightOverlay.ts`), das Glaubensbild, Prognose und Abfangtür des
+ * Monsters über Szene und Karte legt. **Nur dort**: Wer mitspielt, sieht es
+ * nie.
  *
  * **Wer allein spielt, bekommt die Zentrale dazu** (`rules/roundSetup.ts`):
  * Jeder Platz, an dem ein Bot sitzt, gibt dem Techniker die Auskunft dieses
@@ -75,6 +93,22 @@ export interface FlatModeHost {
   exit(): void;
   /** Eine Zeile an den Chat oder das Menü, wenn die Welt eine hat. */
   notify?(text: string): void;
+  /**
+   * **Der Stand der Runde, die im Raum wirklich läuft** (`map/worldSource.ts`).
+   *
+   * Ohne ihn war „Zuschauen" in 2D immer die lokale Bot-Runde: Saß ein Mensch
+   * im Schiff am Stock und ein zweiter am Monster-Telefon, konnte ihnen von
+   * oben niemand folgen — man sah zwei Zahlenwesen eine andere Station
+   * ablaufen. Reicht der Wirt hier einen Snapshot herein, zeichnet die
+   * 2D-Welt **den** und rechnet gar nichts mehr selbst.
+   */
+  watchSnapshot?(): MapSnapshot | null;
+  /**
+   * **Was das Monster glaubt und vorhat** (`MonsterInsight`), wenn der Wirt es
+   * weiß. Nur der, der das Monster rechnet, weiß es; alle anderen bekommen
+   * `null` und sehen die Runde eben ohne Kopf des Gegners.
+   */
+  insight?(): MonsterInsight | null;
 }
 
 /** Wie lange eine Meldung stehen bleibt, in Sekunden. */
@@ -164,6 +198,25 @@ export class FlatMode {
   /** Das letzte Horchbild des Spähers: die Geräusche einer Probe, neu gestempelt. */
   private heard: MapNoise[] = [];
   private scoutClock = 0;
+  /**
+   * **Ob hier einer Runde im Netz zugesehen wird** statt einer eigenen.
+   *
+   * Steht der Wirt mit `watchSnapshot` bereit, rechnet diese 2D-Welt gar
+   * nichts: Kein Techniker aus Zahlen läuft los, die eigene Runde bleibt
+   * stehen, und gezeichnet wird der Stand, den der Gastgeber ansagt. Das ist
+   * der Unterschied zwischen „Zuschauen" und „Vorführung": Vorher gab es in
+   * 2D nur die Vorführung, egal wer im Raum wirklich spielte.
+   */
+  private readonly netWatch: boolean;
+  /** Der zuletzt gelesene Stand aus dem Netz — `null`, solange keiner kam. */
+  private netSnapshot: MapSnapshot | null = null;
+  private netField: VisibilityField = emptyField('omniscient');
+  /**
+   * Die Lampenflächen des Netz-Snapshots werden gepuffert wie in der eigenen
+   * Runde: Sieben Lampen je Bild neu gegen alle Wände zu strahlen, kostet mehr
+   * als alles andere in diesem Bauteil zusammen.
+   */
+  private readonly netLights = new LitCache();
 
   constructor(
     seed: number,
@@ -172,6 +225,10 @@ export class FlatMode {
   ) {
     this.seed = seed;
     this.options_ = options;
+    // Zuschauen am Netz braucht beides: die Rolle **und** einen Wirt, der den
+    // Stand der laufenden Runde hereinreicht. Fehlt einer davon, bleibt es bei
+    // der lokalen Bot-Runde.
+    this.netWatch = (options.role ?? 'technician') === 'watch' && !!host.watchSnapshot;
     this.setup = options.setup ?? setupFromOptions(options);
     this.powers = options.powers ?? (options.setup ? powersOf(options.setup) : NO_POWERS);
     this.routes = options.routes ?? false;
@@ -181,7 +238,7 @@ export class FlatMode {
     this.puzzle = new PuzzleOverlay(this.round);
     const onRoomClick = (id: string): void => this.tapRoom(id);
     const onEntityClick = (id: string): void =>
-      this.say(this.round.entities().find((e) => e.id === id)?.label ?? id);
+      this.say(this.view().entities.find((e) => e.id === id)?.label ?? id);
     const onItemClick = (id: string): void => this.tapItem(id);
     this.scene = new FlatScene({
       mode: this.mode.visibility,
@@ -204,13 +261,14 @@ export class FlatMode {
       maxScale: 60,
       edge: { top: 24, bottom: 24, left: 18, right: 18 },
       routes: () => this.routeLines(),
-      objectives: () => (this.session ? [] : this.round.objectives()),
+      objectives: () => (this.session || this.netWatch ? [] : this.round.objectives()),
       noises: () => this.mapNoises(),
       onRoomClick,
       onEntityClick,
       onItemClick,
       onDoorClick: (id) => this.tapDoor(id),
       onLightClick: (id) => this.tapLight(id),
+      overlay: (ctx, view) => this.drawMapOverlay(ctx, (x, z) => view.toScreen(x, z)),
     });
     this.map.follow(PLAYER_ID);
     this.map.setView({ scale: 22 });
@@ -311,7 +369,10 @@ export class FlatMode {
         this.options_.tuning?.technician,
       );
       this.element.insertBefore(this.session.element, this.hud);
-    } else if (role === 'watch') {
+    } else if (role === 'watch' && !this.netWatch) {
+      // Nur die **lokale** Vorführung braucht einen Techniker aus Zahlen. Wer
+      // einer echten Runde im Netz zusieht, hätte sonst zwei Techniker: einen
+      // gezeichneten aus dem Netz und einen, der daneben herläuft.
       this.bot = new TechnicianBot(this.round, this.options_.tuning?.technician, () =>
         this.dice.next(),
       );
@@ -328,7 +389,7 @@ export class FlatMode {
 
   /** Wer gerade spielt — für Tests und die Anzeige. */
   get role(): FlatRole {
-    return this.session ? 'monster' : this.bot ? 'watch' : 'technician';
+    return this.session ? 'monster' : this.bot || this.netWatch ? 'watch' : 'technician';
   }
 
   /** Der Modus, den die Karte gerade zeigt. */
@@ -383,19 +444,26 @@ export class FlatMode {
 
   /** Ein Bild: Stock lesen, Runde rechnen, Karte und Anzeigen nachführen. */
   update(dt: number): void {
-    if (this.session) this.session.update(dt);
+    if (this.netWatch) this.readNet();
+    else if (this.session) this.session.update(dt);
     else if (this.bot) this.bot.step(dt);
     else {
       const stick = this.stick.value;
       this.round.step(dt, { x: stick.x, z: stick.z, sprint: stick.sprint });
     }
-    for (const event of this.round.drain()) this.show(event);
+    // Die Meldungen der eigenen Runde gehören dem, der sie spielt. Der
+    // Zuschauer am Netz hat keine — seine Runde steht still, und was sie beim
+    // Anhalten noch in der Warteschlange hatte, ist nicht seine Nachricht.
+    if (!this.netWatch) for (const event of this.round.drain()) this.show(event);
+    const shown = this.view();
     this.audio.update(dt, {
-      snapshot: this.round.snapshot(),
+      snapshot: shown,
       // Wer das Monster spielt, hört mit dessen Ohren.
       listener: this.session ? MONSTER_ID : PLAYER_ID,
       kind: this.monsterKind,
-      active: this.round.state().monsterOn,
+      active: this.netWatch
+        ? shown.entities.some((entity) => entity.kind === 'monster')
+        : this.round.state().monsterOn,
     });
     this.toastLeft = Math.max(0, this.toastLeft - dt);
     if (this.toastLeft <= 0 && this.toast.textContent) {
@@ -404,12 +472,12 @@ export class FlatMode {
     }
     if (!this.session) {
       this.stepScout(dt);
-      this.scene.setSnapshot(this.round.snapshot());
-      this.scene.setVisibility(this.round.field);
+      this.scene.setSnapshot(shown);
+      this.scene.setVisibility(this.field());
       this.scene.draw();
       if (!this.mapOverlay.hidden) {
-        this.map.setSnapshot(this.round.snapshot());
-        this.map.setVisibility(this.round.field);
+        this.map.setSnapshot(shown);
+        this.map.setVisibility(this.field());
         this.map.draw();
       }
       // Ein offenes Rätsel liegt über allem: Optionsmenü und Akte gehen dabei zu.
@@ -420,7 +488,77 @@ export class FlatMode {
       this.refreshCorners();
     }
     this.renderHud();
-    if (this.round.phase !== 'running' && this.ending.hidden) this.renderEnding();
+    if (this.phaseNow() !== 'running' && this.ending.hidden) this.renderEnding();
+  }
+
+  // --- Zuschauen am Netz ---------------------------------------------------------
+
+  /**
+   * **Den Stand aus dem Netz holen** und das Sichtbarkeitsfeld dazu rechnen.
+   * Betrachter ist niemand (`viewerId: null`) — ein Zuschauer hat keinen
+   * Körper in der Station, und „Alles sehen" schneidet ohnehin nichts weg.
+   */
+  private readNet(): void {
+    const next = this.host.watchSnapshot?.() ?? null;
+    if (!next) return;
+    this.netSnapshot = next;
+    this.netField = computeVisibility(
+      { snapshot: next, mode: 'omniscient', viewerId: null },
+      this.netLights,
+    );
+  }
+
+  /** Der Stand, der gezeichnet wird: der aus dem Netz, sonst der eigene. */
+  private view(): MapSnapshot {
+    return this.netSnapshot ?? this.round.snapshot();
+  }
+
+  /** Und das Sichtbarkeitsfeld dazu. */
+  private field(): VisibilityField {
+    return this.netSnapshot ? this.netField : this.round.field;
+  }
+
+  /** Der Stand der Rundenregeln — aus dem Netz, wenn er von dort kommt. */
+  private roundNow(): MapRound {
+    return this.netSnapshot?.round ?? this.round.round();
+  }
+
+  /** Und die Phase; ohne Netz die der eigenen Runde. */
+  private phaseNow(): MapRound['phase'] {
+    return this.netSnapshot?.round?.phase ?? this.round.phase;
+  }
+
+  /** Ob überhaupt ein Monster in der gezeigten Runde herumläuft. */
+  private monsterAbout(): boolean {
+    return this.netWatch
+      ? this.view().entities.some((entity) => entity.kind === 'monster')
+      : this.round.state().monsterOn;
+  }
+
+  /**
+   * **Was das Monster glaubt und vorhat** — und nur für den, der alles sehen
+   * darf (Paket M4). Im realitätsnahen Modus gibt es das nie: Ein Techniker
+   * mit dem Glaubensbild vor sich weiß, welche Zimmer gerade sicher sind.
+   *
+   * Woher es kommt, hängt daran, wer rechnet: In der lokalen Vorführung steht
+   * es im letzten Beschluss der eigenen Runde, am Netz weiß es nur der
+   * Gastgeber — wer nur zusieht, bekommt dort `null` und sieht die Runde eben
+   * ohne den Kopf des Gegners.
+   */
+  private insight(): MonsterInsight | null {
+    if (this.mode.visibility !== 'omniscient') return null;
+    const shared = this.host.insight?.() ?? null;
+    if (shared) return shared;
+    return this.netWatch ? null : (this.round.decided?.insight ?? null);
+  }
+
+  /** Das Overlay auf der Kartenübersicht — dieselben Zahlen wie auf der Szene. */
+  private drawMapOverlay(
+    ctx: CanvasRenderingContext2D,
+    pen: (x: number, z: number) => { x: number; y: number },
+  ): void {
+    const insight = this.insight();
+    if (insight) drawInsight(ctx, insight, this.view(), pen);
   }
 
   /** Die Kartenübersicht ein- oder ausblenden — sie zeichnet nur, solange sie offen ist. */
@@ -481,6 +619,7 @@ export class FlatMode {
    * wahrnimmt, sieht er auf dem Boden der Szene.
    */
   private mapNoises(): readonly MapNoise[] {
+    if (this.netWatch) return this.view().noises ?? [];
     if (this.mode.visibility === 'omniscient') return this.round.noises();
     return this.powers.scout ? this.heard : [];
   }
@@ -494,7 +633,7 @@ export class FlatMode {
    * ganz weg: Man sieht sich nicht selbst zu.
    */
   private sceneNoiseInk(noise: MapNoise): string | null {
-    if (this.bot || this.mode.visibility === 'omniscient')
+    if (this.bot || this.netWatch || this.mode.visibility === 'omniscient')
       return noise.cause === 'monster' || noise.by === MONSTER_ID
         ? INK.noiseMonster
         : noise.by === PLAYER_ID
@@ -515,6 +654,11 @@ export class FlatMode {
     const { width: w, height: h } = scene.canvas.getBoundingClientRect();
     const width = w || 320,
       height = h || 320;
+    // **Zuerst die Absichten des Monsters** (Paket M4): Die Raumtönung gehört
+    // unter die Wege und Ziele, sonst deckt eine Fläche die Linien zu, für die
+    // sie den Hintergrund abgeben soll.
+    const insight = this.insight();
+    if (insight) drawInsight(ctx, insight, this.view(), (x, z) => scene.toScreen(x, z));
     for (const route of this.routeLines()) {
       ctx.strokeStyle = route.color;
       ctx.lineWidth = 3;
@@ -530,8 +674,11 @@ export class FlatMode {
     }
     const inset = { top: EDGE_TOP, right: 18, bottom: 130, left: 18 };
     const t = Date.now() / 1000;
-    for (const goal of this.round.objectives())
-      this.drawGoal(ctx, scene, goal, width, height, inset, t);
+    // Die Ziele sind die des Technikers dieser Runde — am Netz kennt sie das
+    // Gerät des Zuschauers nicht, und geratene Ziele wären eine Lüge im Bild.
+    if (!this.netWatch)
+      for (const goal of this.round.objectives())
+        this.drawGoal(ctx, scene, goal, width, height, inset, t);
   }
 
   private drawGoal(
@@ -614,7 +761,9 @@ export class FlatMode {
 
   /** Die Wege, wenn sie gewollt sind: das Monster rot, der Techniker cyan. */
   private routeLines(): MapRoute[] {
-    if (!this.routes || this.session) return [];
+    // Am Netz gibt es keine Wegsuche auf diesem Gerät — die Wege wären die der
+    // stillstehenden eigenen Runde und zeigten quer durch die Station.
+    if (!this.routes || this.session || this.netWatch) return [];
     const out: MapRoute[] = [];
     if (this.mode.visibility === 'omniscient' || this.powers.scout) {
       const monster = this.round.monsterRoute();
@@ -629,7 +778,7 @@ export class FlatMode {
   /** Ein Tipp auf eine Tür: mit der Schalttafel sperren oder freigeben, sonst nur benennen. */
   private tapDoor(id: string): void {
     if (!this.powers.panel || this.session) {
-      const door = this.round.snapshot().doors.find((d) => d.id === id);
+      const door = this.view().doors.find((d) => d.id === id);
       this.say(door ? (door.locked ? 'Tür gesperrt.' : 'Tür offen.') : id);
       return;
     }
@@ -640,7 +789,7 @@ export class FlatMode {
   /** Ein Tipp auf eine Lampe: mit der Schalttafel schalten. */
   private tapLight(id: string): void {
     if (!this.powers.panel || this.session) {
-      this.say(this.round.state().lit.includes(id) ? 'Licht an.' : 'Licht aus.');
+      this.say(this.view().lights.find((one) => one.id === id)?.on ? 'Licht an.' : 'Licht aus.');
       return;
     }
     const text = this.round.switchLight(id);
@@ -648,7 +797,7 @@ export class FlatMode {
   }
 
   private tapItem(id: string): void {
-    const item = this.round.items().find((i) => i.id === id);
+    const item = this.view().items.find((i) => i.id === id);
     if (!item) return;
     if (this.powers.archive && item.roomId && item.kind !== 'van') this.openSheet(item.roomId);
     else this.say(item.label);
@@ -657,7 +806,7 @@ export class FlatMode {
   /** Ein Tipp auf ein Zimmer: mit dem Archiv die Akte, sonst nur den Namen. */
   private tapRoom(id: string): void {
     if (this.powers.archive && !this.session) this.openSheet(id);
-    else this.say(this.round.snapshot().rooms.find((r) => r.id === id)?.name ?? id);
+    else this.say(this.view().rooms.find((r) => r.id === id)?.name ?? id);
   }
 
   /**
@@ -801,11 +950,15 @@ export class FlatMode {
    * verfolgen: Für ihn stehen beide Knöpfe immer da, auch der zum Monster.
    */
   private refreshCorners(): void {
-    const watching = !!this.bot;
+    const watching = !!this.bot || this.netWatch;
     const following = this.scene.current.following;
+    // Der Zuschauer springt nicht „zum Spieler" — er hat keinen. Er springt zu
+    // dem, der die Station repariert, und der heißt hier überall Techniker.
+    const centre = watching ? 'Zum Techniker' : 'Zum Spieler';
+    if (this.centreKey.textContent !== centre) this.centreKey.textContent = centre;
     this.centreKey.hidden = !watching && following === PLAYER_ID;
     this.centreKey.classList.toggle('is-active', following === PLAYER_ID);
-    this.monsterKey.hidden = !watching || !this.round.state().monsterOn;
+    this.monsterKey.hidden = !watching || !this.monsterAbout();
     this.monsterKey.classList.toggle('is-active', following === MONSTER_ID);
     this.jump.classList.toggle('is-empty', this.centreKey.hidden && this.monsterKey.hidden);
   }
@@ -829,20 +982,32 @@ export class FlatMode {
   private renderHud(): void {
     const state = this.round.state();
     const crew = state.crew;
-    const round = this.round.round();
+    const round = this.roundNow();
     // **Herzen statt Pips.** Zwei Reihen Punkte nebeneinander — der Balken
     // und der Anzug — hießen auf dem Telefon zweimal dasselbe Zeichen und
     // zweimal raten; ein Herz sagt von selbst, dass es ums Leben geht.
     const hp = '♥'.repeat(round.suit) + '♡'.repeat(Math.max(0, round.suitMax - round.suit));
-    const rooms = this.round.snapshot().rooms;
+    const shown = this.view();
+    const rooms = shown.rooms;
+    // **Am Netz zählen die Konsolen und nicht der eigene Stand.** Der Snapshot
+    // führt keine Aufgabenliste — er führt Gegenstände mit Zustand, und eine
+    // reparierte Konsole steht dort als `solved`. Das ist dieselbe Auskunft,
+    // nur von der anderen Seite gelesen; die eigene Runde steht still und
+    // wüsste gar nichts.
+    const done = this.netWatch
+      ? shown.items.filter((item) => item.kind === 'console' && item.state === 'solved')
+      : [];
     // Wie weit die Aufträge sind, rechnet `rules/roundHud.ts` — dieselbe
     // Rechnung wie im Streifen der Brille, damit beide dasselbe zählen.
+    const repairs = repairsFor(this.round.house);
     const lines = hudTasks({
-      repairs: repairsFor(this.round.house),
+      repairs,
       roomName: (id) => rooms.find((room) => room.id === id)?.name ?? id,
-      done: state.done,
-      taken: state.taken,
-      inventory: crew.inventory,
+      done: this.netWatch
+        ? repairs.filter((r) => done.some((item) => item.label === r.title)).map((r) => r.itemId)
+        : state.done,
+      taken: this.netWatch ? [] : state.taken,
+      inventory: this.netWatch ? [] : crew.inventory,
     });
     const key = [hp, clockText(round.oxygen), ...lines.map((l) => l.text)].join('|');
     if (this.hud.dataset['text'] === key) return;
@@ -912,14 +1077,25 @@ export class FlatMode {
           `${this.mode.label} · wer mitspielt, sieht so viel wie sein Anzug hergibt`,
         ),
       );
-    const routes = el('button', 'flat__option');
-    routes.dataset['routes'] = '';
-    routes.classList.toggle('is-active', this.routes);
-    routes.append(
-      el('strong', '', `Zielpfade: ${this.routes ? 'an' : 'aus'}`),
-      el('small', '', 'Der Weg des Technikers zum nächsten Ziel · der des Monsters in Rot'),
-    );
-    parts.push(routes);
+    if (this.netWatch)
+      parts.push(
+        el(
+          'small',
+          'flat__note',
+          'Du siehst die Runde, die im Raum wirklich läuft — Szene und Karte kommen über das Netz. ' +
+            'Solange sie läuft, gibt es hier keine Wege und keine neue Runde.',
+        ),
+      );
+    else {
+      const routes = el('button', 'flat__option');
+      routes.dataset['routes'] = '';
+      routes.classList.toggle('is-active', this.routes);
+      routes.append(
+        el('strong', '', `Zielpfade: ${this.routes ? 'an' : 'aus'}`),
+        el('small', '', 'Der Weg des Technikers zum nächsten Ziel · der des Monsters in Rot'),
+      );
+      parts.push(routes);
+    }
     // **Wessen Sicht?** Techniker und Monster hängen an den zwei Sprungknöpfen
     // rechts — die sind während der Runde da und brauchen kein Menü. Die
     // Plätze der Zentrale haben eigene Ansichten (Archiv, Einsatzkontrolle,
@@ -971,24 +1147,28 @@ export class FlatMode {
   }
 
   private renderEnding(): void {
-    const won = this.round.phase === 'won';
+    const won = this.phaseNow() === 'won';
     this.ending.hidden = false;
     const again = el('button', 'flat__option', 'Neue Runde');
     again.dataset['restart'] = '';
     const leave = el('button', 'flat__option flat__option--leave', '2D-Welt verlassen');
     leave.dataset['leave'] = '';
-    const ending = this.round.round().ending;
+    const ending = this.roundNow().ending;
     const headline = this.session
       ? won
         ? 'DER TECHNIKER ENTKOMMT'
         : 'DAS MONSTER GEWINNT'
-      : this.bot
+      : this.netWatch
         ? won
-          ? 'BOT-RUNDE: DER TECHNIKER GEWINNT'
-          : 'BOT-RUNDE: DAS MONSTER GEWINNT'
-        : won
-          ? 'MISSION ERFÜLLT'
-          : 'MISSION GESCHEITERT';
+          ? 'DER TECHNIKER ENTKOMMT'
+          : 'DAS MONSTER GEWINNT'
+        : this.bot
+          ? won
+            ? 'BOT-RUNDE: DER TECHNIKER GEWINNT'
+            : 'BOT-RUNDE: DAS MONSTER GEWINNT'
+          : won
+            ? 'MISSION ERFÜLLT'
+            : 'MISSION GESCHEITERT';
     this.ending.replaceChildren(
       el('strong', '', headline),
       el(
@@ -1000,7 +1180,10 @@ export class FlatMode {
             ? 'Der Sauerstoff ist aufgebraucht. Noch einmal?'
             : 'Anzug zerstört. Noch einmal?',
       ),
-      again,
+      // **Am Netz gibt es hier keine neue Runde.** Sie zu starten hieße, sie
+      // dem wegzunehmen, der sie gerade spielt; der Zuschauer geht zurück in
+      // die Lobby und sucht sich eine neue Rolle.
+      ...(this.netWatch ? [] : [again]),
       leave,
     );
   }
