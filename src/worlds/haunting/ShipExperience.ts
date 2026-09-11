@@ -318,6 +318,20 @@ export class ShipExperience {
    */
   private readonly droppedParts = new Map<string, THREE.Object3D>();
   private rightItem: 'flashlight' | 'medkit' | 'part' | 'off' = 'flashlight';
+  /**
+   * **Ob die Lampe in der rechten Hand brennt.** Bis hierher gab es dafür
+   * keinen Schalter: Die Lampe leuchtete, sobald sie in der Hand lag, und aus
+   * war sie nur, wenn man die Hand leerte (`cycleRight`). Wer wissen wollte,
+   * ob er gerade Licht macht, musste an die Wand schauen — und wer es
+   * ausmachen wollte (das Monster sieht eine brennende Lampe, `threat.ts`),
+   * verlor dabei das Gerät aus der Hand. Jetzt ist es ein eigener Zustand,
+   * und „Benutzen" legt ihn um, wenn nichts vor einem liegt.
+   */
+  private torchLit = true;
+  /** Bilder, die ein Druck auf „Benutzen" noch auf seinen Strahl wartet (`armUse`). */
+  private usePending = 0;
+  /** Ob dieser Druck etwas getroffen hat. */
+  private useHit = false;
   private labMirror: MirrorSurface | null = null;
   private visibleRooms: ReadonlySet<string> | null = null;
   private readonly crosshair = document.createElement('div');
@@ -547,6 +561,11 @@ export class ShipExperience {
           this.heal();
           return true;
         }
+        // **Auf nichts gezielt? Dann ist Benutzen der Lichtschalter.** Ob
+        // wirklich nichts vor einem liegt, sagt aber erst der Strahl, den
+        // `desktopControls` gleich darauf auslöst — also wird der Druck nur
+        // vorgemerkt (`armUse`) und zwei Bilder später abgerechnet.
+        this.armUse();
         return false;
       },
     });
@@ -582,9 +601,45 @@ export class ShipExperience {
       this.heal();
       return;
     }
+    // **Liegt nichts vor einem, macht dieser Knopf das Licht.** Der Besitzer
+    // hat es so bestellt: „Wenn ich auf keine Kiste oder Tür schaue, will ich
+    // mit Benutzen die Taschenlampe an- und ausmachen können." Auf dem
+    // Telefon ist das der einzige Lichtschalter, der nicht in einem Menü
+    // liegt; am Desktop tut `E` dasselbe.
+    this.armUse();
     const pointer = this.host.ctx.pointer;
     pointer.setKeyboardTrigger(true);
     pointer.setKeyboardTrigger(false);
+  }
+
+  /**
+   * **Einen Druck auf „Benutzen" vormerken.**
+   *
+   * Ob etwas vor einem liegt, weiß hier niemand: Der Zeiger malt seinen
+   * Strahl erst im nächsten Bild (`Pointer.update`), und der gemerkte
+   * Hover-Zustand (`focusedTarget`) hängt am Finger auf der Leinwand und ist
+   * nach dem Loslassen leer — ein zweiter Strahl nur zum Nachsehen wäre ein
+   * zweiter Weg, der irgendwann anders zielt als der erste.
+   *
+   * Also zählt dieser Druck zwei Bilder ab. Trifft der Strahl in dieser Zeit
+   * etwas (`bind`, `onSelect` setzt `useHit`), war es ein Handgriff und sonst
+   * nichts. Trifft er nichts, war „Benutzen" gemeint als Lichtschalter.
+   */
+  private armUse(): void {
+    if (this.crew.simulation || this.crew.hidden || this.crew.hp <= 0) return;
+    this.useHit = false;
+    this.usePending = 2;
+  }
+
+  /** Die Abrechnung dazu, einmal je Bild (`update`). */
+  private stepUse(): void {
+    if (this.usePending === 0) return;
+    this.usePending -= 1;
+    if (this.usePending > 0 || this.useHit) return;
+    // Ein Handgriff, der gerade läuft (eine Kiste geht auf), ist auch einer:
+    // Wer dabei noch einmal drückt, will nicht das Licht umlegen.
+    if (this.busy) return;
+    this.toggleTorch();
   }
 
   /**
@@ -626,11 +681,13 @@ export class ShipExperience {
     if (controls.hidden) return;
     const label = this.crosshair.dataset.label ?? '';
     controls.setLabels({
-      left: HAND_LABEL[this.sensorMode],
-      right: HAND_LABEL[this.rightItem],
+      left: this.keyLabel('left'),
+      right: this.keyLabel('right'),
       // „E: Benutzen" ist die Beschriftung des Fadenkreuzes; auf dem Knopf
       // steht das `E` nicht, denn dort drückt man mit dem Daumen.
       target: this.focusedTarget ? label.replace(/^E:\s*/, '') : '',
+      // Und wenn nichts vor einem liegt, steht auf dem Knopf, was er dann tut.
+      idle: this.rightItem === 'flashlight' && this.torchLit ? 'Licht aus' : 'Licht an',
     });
   }
 
@@ -695,12 +752,14 @@ export class ShipExperience {
       onSelect: (hit) => {
         this.host.ctx.rig.getHeadPosition(_head);
         object.getWorldPosition(_pos);
-        if (
-          this.interactionCooldown > 0 ||
-          _head.distanceTo(_pos) > PANEL_RANGE ||
-          (this.crew.simulation && !wearable)
-        )
-          return;
+        // Zu weit weg ist wie nichts: Was drei Meter entfernt im Strahl liegt,
+        // hat man nicht vor sich (`armUse` macht daraus den Lichtschalter).
+        if (_head.distanceTo(_pos) > PANEL_RANGE || (this.crew.simulation && !wearable)) return;
+        // **In Reichweite — also ein Handgriff.** Auch dann, wenn er gleich
+        // abgewiesen wird: Wer zweimal schnell auf dieselbe Tür drückt, meint
+        // beim zweiten Mal die Tür und nicht das Licht (`armUse`).
+        this.useHit = true;
+        if (this.interactionCooldown > 0) return;
         if (this.crew.hidden && !this.crew.simulation) {
           this.leaveLocker();
           this.paint();
@@ -1586,10 +1645,67 @@ ANTIPPEN: ZUM SAFE-RAUM`,
             ? `${lootLabel(this.host.spec(), carriedPart(this.host.spec(), this.host.state()))} in der Hand. G legt es ab.`
             : 'Taschenlampe eingeschaltet.',
     );
+    if (this.rightItem === 'flashlight') this.torchLit = true;
     if (this.host.ctx.renderer.xr.isPresenting)
       this.host.equip?.(this.rightItem === 'flashlight' ? 'flashlight' : 'off', 'right');
     this.stamp = '';
     this.paint();
+  }
+
+  /**
+   * **Licht an, Licht aus.**
+   *
+   * Die Lampe bleibt dabei in der Hand — das ist der Unterschied zu
+   * `cycleRight`, das die Hand *leert*, um es dunkel zu machen. Wer im Dunkeln
+   * steht, weil das Monster nahe ist (eine brennende Lampe sieht es weiter,
+   * `threat.ts`), will danach mit einem Druck wieder Licht und nicht erst
+   * zweimal durch die Hand blättern.
+   *
+   * Ist die Hand mit etwas anderem belegt, nimmt dieser Griff die Lampe
+   * zurück in die Hand und macht sie an: Ein Lichtschalter, der beim ersten
+   * Druck nichts tut, ist im Dunkeln keiner. Das Ersatzteil geht dabei nicht
+   * verloren — getragen wird, was im Inventar steht, `rightItem` sagt nur,
+   * was man sieht (`updateTools`).
+   */
+  private toggleTorch(): void {
+    if (this.rightItem === 'flashlight') this.torchLit = !this.torchLit;
+    else {
+      this.rightItem = 'flashlight';
+      this.torchLit = true;
+    }
+    this.host.say(this.torchLit ? 'Taschenlampe an.' : 'Taschenlampe aus.');
+    if (this.host.ctx.renderer.xr.isPresenting)
+      this.host.equip?.(this.torchLit ? 'flashlight' : 'off', 'right');
+    this.stamp = '';
+    this.paint();
+  }
+
+  /**
+   * **Was auf dem rechten Knopf steht.** Bei der Lampe gehört ihr Schalter
+   * dazu: „Taschenlampe an" oder „Taschenlampe aus" — vorher stand dort nur
+   * „Taschenlampe", und ob sie brennt, musste man an der Wand ablesen.
+   */
+  private get rightLabel(): string {
+    return this.rightItem === 'flashlight'
+      ? `Taschenlampe ${this.torchLit ? 'an' : 'aus'}`
+      : HAND_LABEL[this.rightItem];
+  }
+
+  /**
+   * **Dieselbe Auskunft, kurz genug für den runden Knopf.** Dort ist Platz
+   * für neun Zeichen, danach schneidet `flat.css` mit „…" ab — „Taschenlampe
+   * an" stand als „Taschenl…" da, und genau das Wort, um das es geht, fehlte.
+   * Auf den Knöpfen heißt sie deshalb „Lampe"; in der Tafel, wo eine ganze
+   * Zeile Platz ist, bleibt sie die Taschenlampe.
+   */
+  private keyLabel(side: 'left' | 'right'): string {
+    if (side === 'left')
+      // Die linke Lampe hat keinen eigenen Schalter: Sie brennt, solange sie
+      // in der Hand liegt (`updateTools`).
+      return this.sensorMode === 'flashlight' ? 'Lampe an' : HAND_LABEL[this.sensorMode];
+    return this.rightItem === 'flashlight'
+      ? `Lampe ${this.torchLit ? 'an' : 'aus'}`
+      : HAND_LABEL[this.rightItem];
   }
   private buildSuit(): void {
     const avatar = this.host.ctx.avatar;
@@ -1740,7 +1856,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (!part && this.rightItem === 'part') this.rightItem = 'flashlight';
     this.torch.visible = available && !immersive && this.rightItem !== 'off';
     this.heldLamp.visible = this.rightItem === 'flashlight';
-    this.heldLamp.setLit(this.torch.visible && this.rightItem === 'flashlight');
+    this.heldLamp.setLit(this.torch.visible && this.rightItem === 'flashlight' && this.torchLit);
     this.heldMedkit.visible = this.rightItem === 'medkit';
     // In der Brille hält die Hand selbst das Teil: Der Griff des rechten
     // Controllers ist die Hand, und das Modell hängt daran, solange es
@@ -1817,6 +1933,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.stepTraining();
     ctx.rig.getHeadPosition(_head);
     this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
+    this.stepUse();
     this.stepChore(dt, _head);
     this.stepArchiveRadio();
     this.updateTools(dt);
@@ -2418,7 +2535,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       ? this.followBot
         ? 'Kamera folgt dem Bot · Freie Kamera zum Erkunden wählen'
         : 'Freie Kamera · WASD fliegen · Leertaste ↑ · Strg ↓ · Umschalt schneller'
-      : `WASD · Strg ducken · E benutzen · 1: ${this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode]} · 2: ${this.rightItem === 'off' ? 'Hand frei' : HAND_LABEL[this.rightItem]}`;
+      : `WASD · Strg ducken · E benutzen (frei vor dir: Licht ${this.rightItem === 'flashlight' && this.torchLit ? 'aus' : 'an'}) · 1: ${this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode]} · 2: ${this.rightItem === 'off' ? 'Hand frei' : this.rightLabel}`;
     this.dom.append(hint);
     const panel = document.createElement('details');
     panel.dataset.main = '';
@@ -2459,7 +2576,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
     button(`Linke Hand: ${HAND_LABEL[this.sensorMode]}`, 'sensor');
-    button(`Rechte Hand: ${HAND_LABEL[this.rightItem]}`, 'right');
+    button(`Rechte Hand: ${this.rightLabel}`, 'right');
     button('Medkit', 'heal');
     // **Ablegen steht nur da, wenn etwas abzulegen ist.** Ein Knopf, der bei
     // leeren Händen nichts tut, ist einer, den man mitten in der Flucht trifft.

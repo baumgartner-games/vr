@@ -362,6 +362,7 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 | Linke Hand wechseln | `1`: Radar, Röntgengerät und freie Hand durchschalten |
 | Rechte Hand wechseln | `2`: Taschenlampe, gefundenes Medkit, freie Hand |
 | Medkit verwenden | Rechts auswählen und `E` drücken |
+| Taschenlampe an und aus | `E`, wenn nichts zum Benutzen vor dir liegt |
 | Ducken | `Ctrl` halten |
 | Simulationsflug | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller |
 | Leistungsanzeige | `F3` blendet FPS, Framezeit und Zeichenaufwand ein oder aus |
@@ -370,7 +371,14 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 unten, rechts unten drei Knöpfe. Die beiden kleinen sind die zwei Hände —
 **Linke Hand** (Radar, Röntgengerät, frei) und **Rechte Hand** (Taschenlampe,
 Medkit, frei), dieselben Reihen wie `1` und `2`. Der große trägt den Namen
-dessen, worauf man gerade zielt, und tut dasselbe wie `E`. Über den Stock geht
+dessen, worauf man gerade zielt, und tut dasselbe wie `E`.
+
+**Und wenn nichts vor dir liegt, ist derselbe Knopf der Lichtschalter.** Dann
+steht auf ihm **Licht an** oder **Licht aus** — also das, was der nächste Druck
+tun wird —, und auf dem rechten Handknopf **Lampe an** oder **Lampe aus**: Wie
+es gerade um dich herum ist, musst du nicht mehr an der Wand ablesen. Die Lampe
+bleibt dabei in der Hand; sie auszumachen ist eine Entscheidung, keine leere
+Hand, denn das Monster sieht eine brennende Lampe weiter als dich. Über den Stock geht
 es mit Arbeitstempo los; jenseits des äußeren Rings wird gerannt. Tastatur und
 Maus bleiben daneben, wie sie waren; in der Brille sind die Knöpfe weg, dort
 gibt es Zeiger und Trigger.

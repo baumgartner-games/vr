@@ -402,6 +402,18 @@ function aim(mesh: THREE.Mesh, u = 0.5, v = 0.5): void {
   frame(0.13);
 }
 
+/**
+ * **Den Blick ins Leere richten** — nach oben, wo nichts hängt, was der
+ * Zeiger greifen könnte. Danach ist kein Ziel in Reichweite, und „Benutzen"
+ * hat nichts zu benutzen.
+ */
+function lookAtNothing(): void {
+  const head = rig.getHeadPosition(new THREE.Vector3());
+  rig.camera.lookAt(head.x, head.y + 10, head.z - 0.01);
+  scene.updateMatrixWorld(true);
+  frame(0.13);
+}
+
 function button(text: string): HTMLButtonElement {
   const found = [...document.querySelectorAll('button')].find((b) => b.textContent === text);
   expect(found).toBeDefined();
@@ -1031,7 +1043,9 @@ describe('Die Steuerung der 2D-Welt über der 3D-Szene', () => {
     frame(0.13);
     const keys = [...document.querySelectorAll<HTMLButtonElement>('.flat.ship3d .flat__key')];
     const right = keys[1]!;
-    expect(right.textContent).toContain('Taschenlampe');
+    // Auf dem runden Knopf heißt sie „Lampe", samt ihrem Schalter: „Taschenlampe
+    // an" wäre dort abgeschnitten (`ShipExperience.keyLabel`).
+    expect(right.textContent).toContain('Lampe an');
     right.click();
     frame();
     expect(right.textContent).toContain('frei');
@@ -1058,6 +1072,83 @@ describe('Die Steuerung der 2D-Welt über der 3D-Szene', () => {
       rig.position.z - before.z,
     ).normalize();
     expect(moved.dot(look.setY(0).normalize())).toBeGreaterThan(0.7);
+  });
+
+  /**
+   * **Der große Knopf ist im Leeren der Lichtschalter.**
+   *
+   * „Wenn ich auf keine Kiste oder Tür schaue, will ich mit Benutzen die
+   * Taschenlampe an- und ausmachen können" — und auf dem Knopf steht dann
+   * auch, was er tut, denn ob die Lampe brennt, war vorher nirgends zu lesen.
+   * Die Lampe bleibt dabei in der Hand: `cycleRight` leert sie, dieser Griff
+   * nicht.
+   */
+  test('schaltet mit Benutzen das Licht, solange nichts vor einem liegt', () => {
+    lookAtNothing();
+    const keys = (): HTMLButtonElement[] => [
+      ...document.querySelectorAll<HTMLButtonElement>('.flat.ship3d .flat__key'),
+    ];
+    const act = (): HTMLButtonElement => keys()[2]!;
+    // Gelb leuchtet der Knopf nur mit einem Ziel — hier ist keines.
+    expect(act().classList.contains('is-ready')).toBe(false);
+    expect(act().textContent).toContain('Licht aus');
+    expect(keys()[1]!.textContent).toContain('Lampe an');
+    expect(experience.flashlightActive).toBe(true);
+
+    // **Der Druck wartet auf seinen Strahl** (`armUse`): Erst wenn der nichts
+    // getroffen hat, wird es der Lichtschalter — zwei Bilder später.
+    act().click();
+    frame();
+    frame();
+    expect(experience.flashlightActive).toBe(false);
+    expect(say).toHaveBeenCalledWith('Taschenlampe aus.');
+    expect(keys()[1]!.textContent).toContain('Lampe aus');
+    expect(act().textContent).toContain('Licht an');
+    // In der Hand liegt sie weiter — nur dunkel.
+    expect(rig.camera.getObjectByName('desktop-held-tool')?.visible).toBe(true);
+
+    act().click();
+    frame();
+    frame();
+    expect(experience.flashlightActive).toBe(true);
+    expect(say).toHaveBeenCalledWith('Taschenlampe an.');
+  });
+
+  test('holt die Lampe zurück in die leere Hand, statt nur zu blättern', () => {
+    lookAtNothing();
+    // Ohne Medkit im Inventar hat die rechte Hand zwei Stufen: Lampe und frei.
+    tap('Digit2');
+    frame(0.13);
+    expect(experience.flashlightActive).toBe(false);
+    expect(rig.camera.getObjectByName('desktop-held-tool')?.visible).toBe(false);
+    document.querySelectorAll<HTMLButtonElement>('.flat.ship3d .flat__key')[2]!.click();
+    frame();
+    frame();
+    expect(experience.flashlightActive).toBe(true);
+    expect(rig.camera.getObjectByName('desktop-held-tool')?.visible).toBe(true);
+  });
+
+  /** Vor einer Kiste bleibt Benutzen das, was es immer war. */
+  test('lässt das Ziel vor der Nase Vorrang haben', () => {
+    const cabinet = exhibits.cabinets.find((c) => c.id.startsWith('cargo-'))!;
+    aim(cabinet.leaf);
+    document.querySelectorAll<HTMLButtonElement>('.flat.ship3d .flat__key')[2]!.click();
+    for (let t = 0; t < CARGO_OPEN_SECONDS + 0.3; t += 0.1) frame(0.1);
+    expect(state.crew.opened).toContain(cabinet.id);
+    // Das Licht hat dabei nichts zu suchen.
+    expect(experience.flashlightActive).toBe(true);
+    expect(say).not.toHaveBeenCalledWith('Taschenlampe aus.');
+  });
+
+  /** Und `E` am Desktop tut dasselbe wie der Daumen auf dem Knopf. */
+  test('schaltet auch mit E das Licht', () => {
+    lookAtNothing();
+    tap('KeyE');
+    frame();
+    expect(experience.flashlightActive).toBe(false);
+    tap('KeyE');
+    frame();
+    expect(experience.flashlightActive).toBe(true);
   });
 
   /** In der Brille gibt es Controller; ein Knopf im DOM ist dort unsichtbar. */
