@@ -464,8 +464,14 @@ export function buildSafetyLocker(): CabinetModel {
   return cabinet(true);
 }
 
-/** Wie hoch das Farbband am Kasten sitzt, als Anteil seiner Höhe. */
-const BAND_AT = 0.66;
+/**
+ * Wie hoch das Farbband am Kasten sitzt, als Anteil seiner Höhe.
+ *
+ * Es saß einmal bei 0,66 — und damit genau auf dem Schild (`screenMount`,
+ * halbe Höhe plus 14 cm): Das Band verdeckte das Kennzeichen, das es
+ * eigentlich lesbar machen sollte. Unter dem Schild ist Platz.
+ */
+const BAND_AT = 0.4;
 /** Und wie breit es ist, in Metern. */
 const BAND_H = 0.1;
 

@@ -1,5 +1,5 @@
 import { atHome } from '../archiveView';
-import { lockerCode, repairsFor } from '../mission';
+import { repairsFor } from '../mission';
 import type { MapItem, MapPoint, MapSnapshot } from '../map/mapSnapshot';
 import { ALL_LAYERS, INK, MapView, type MapRoute } from '../map/mapView';
 import type { RoleHost, RoleView } from '../registry/roles';
@@ -358,7 +358,6 @@ class ArchiveView implements ArchiveRoleView {
   }
 
   private writeSheet(snapshot: MapSnapshot): void {
-    const spec = this.host.spec();
     const room = snapshot.rooms.find((one) => one.id === this.room);
     if (!room) {
       this.close();
@@ -393,8 +392,6 @@ class ArchiveView implements ArchiveRoleView {
     // undurchsichtige Fläche über der Leinwand, und genau dorthin zeichnet
     // die 3D-Welt ihr Zimmer (`role__hole`).
     const parts: HTMLElement[] = [];
-    const house = spec.rooms.find((one) => one.id === room.id);
-    if (house) parts.push(code('Schutzschrank-Code', lockerCode(spec.seed, house.id)));
     for (const job of jobs) {
       // **Was hier liegt**: die Kiste mit ihrem Kennzeichen und dem Teil darin.
       if (job.order.crate.roomId === room.id && job.order.step === 0)

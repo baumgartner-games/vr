@@ -1,39 +1,37 @@
 /**
- * **Wer spielt mit — und wer davon ist ein Mensch.**
+ * **Wer spielt mit — und was darf jeder.**
  *
- * Bevor eine Runde anfängt, in 2D wie in 3D, wird verteilt: der Techniker
- * (Mensch oder Bot — und **VR**, sobald jemand mit der Brille im Raum steht),
- * das Monster (Mensch, Bot oder aus — der sichere Test) und die drei
- * **Fähigkeiten** der Einsatzzentrale, jede für sich auf Bot, Mensch oder Aus.
+ * Eine Runde hat **fünf Plätze**: den Techniker im Anzug, drei Stühle in der
+ * Einsatzzentrale — **Rot, Gelb, Blau** — und das Monster. Jeder Platz ist
+ * für sich Mensch, Bot oder aus (`SeatWho`), und jeder außer dem Monster hält
+ * eine beliebige Auswahl der drei **Fähigkeiten** der Zentrale: Späher,
+ * Schalttafel, Archiv (`Seat.powers`).
  *
- * **Fähigkeiten statt Plätze — das ist die Änderung.** Vorher stand hier eine
- * Liste von Plätzen mit einem Knopf „+ Platz": Wer zwei Leute am Tisch hatte
- * und drei Aufgaben zu verteilen, musste einen Platz doppelt belegen oder eine
- * Aufgabe wegwerfen, und wie die entstandene Mischung *heißt*, stand nirgends.
- * Jetzt gibt es genau drei Fähigkeiten, die immer alle dastehen, und ein Mensch
- * in der Zentrale hält davon so viele, wie er sich nimmt. Wie sein Platz dann
- * heißt, rechnet `roleName` — und zwar nach dieser Tafel:
+ * **Warum Farben und keine Fähigkeiten als Plätze.** Bis hierher *waren* die
+ * drei Fähigkeiten die drei Stühle: Wer „Archiv" nahm, saß am Archiv, und ein
+ * Mensch, der Radar *und* Tafel wollte, saß auf zwei Stühlen zugleich. Was
+ * dabei fehlte, war der Techniker selbst: Ob **er** Türen sperren und Lampen
+ * schalten darf, ließ sich nirgends sagen — ein Bot an der Tafel gab ihm die
+ * Tafel, ein Mensch nahm sie ihm, und „aus" nahm sie allen. Jetzt hat jeder
+ * Platz seine Fähigkeiten, und der Techniker schaltet Lampen genau dann, wenn
+ * auf seinem Platz „Schalttafel" leuchtet (`powersOf`). Die Farben sind die
+ * Sitzplätze am Tisch der Zentrale — man ruft sich am Tisch „Rot, mach die Tür
+ * zu" zu und nicht „Schalttafel-Späher-Mischung".
  *
- * | Fähigkeiten                | Name            |
- * | -------------------------- | --------------- |
- * | Späher                     | Späher          |
- * | Schalttafel                | Schalttafel     |
- * | Archiv                     | Archiv          |
- * | Späher + Schalttafel       | Einsatzkontrolle|
- * | Archiv + Späher            | Aufklärung      |
- * | Archiv + Schalttafel       | Leitstand       |
- * | alle drei                  | Zentrale        |
+ * **Wer ich bin, steht nicht hier.** Die Tafel sagt, wer die Plätze hält; was
+ * *dieses Gerät* ist — einer der fünf Plätze oder einer der zwei Zuschauer
+ * (`MyRole`) —, ist eine Wahl je Gerät und steht in der Lobby
+ * (`rules/lobby.LobbyChoice.me`). Vorher stand dafür eine Spalte „Ich" in der
+ * Tafel; die ist weg, weil die Reiter oben dieselbe Frage beantworten und
+ * dabei zeigen, was man sieht.
  *
- * Die Namen sind nicht erfunden, sondern die, die am Tisch ohnehin gerufen
- * werden: „Einsatzkontrolle" heißt das Gerät mit Radar und Schaltern seit je
- * (`stations.ts`), und wer Akte und Radar hat, klärt auf.
- *
- * **Ein Bot auf einer Fähigkeit heißt: Der Techniker bekommt sie selbst.** Wer
- * allein spielt, hat sonst niemanden, der ihm zuruft, wo es rumort, welche Tür
- * zu ist und welcher Code am Schrank gilt — also sieht er es auf seiner Karte
- * (`map/flatMode.ts`, `SoloPowers`). Ein **Mensch** nimmt ihm die Auskunft
- * wieder ab: Dann sagt sie ihm ein Mitspieler. **Aus** heißt: niemand hat sie,
- * auch der Techniker nicht.
+ * **Was der Techniker selbst bekommt** (`powersOf`): seine eigenen
+ * Fähigkeiten — und dazu das Horchbild, wenn ein **Bot** auf einem Farbplatz
+ * Späher ist (der Bot meldet, was er hört; das ist seine ganze Arbeit). Das
+ * Archiv eines Bot-Platzes kommt dagegen als **Funk** (`rules/archiveRadio.ts`)
+ * und nicht als Ziel auf seiner Karte: Ziele auf der Karte und am Bildrand
+ * sieht nur, wer Archiv **selbst** hält (`goalPrecision`). Und die Tafel eines
+ * anderen Platzes gibt ihm gar nichts — schalten tut, wer sie hat.
  *
  * Reine Daten, ohne DOM: Die Tafel im Van (`roundSetupPanel.ts`), das
  * Optionsmenü der 2D-Welt und das Menü in der Brille lesen und schreiben
@@ -41,43 +39,62 @@
  */
 import type { FlatRole } from '../map/flatRound';
 
-export type Who = 'human' | 'bot';
-export type MonsterWho = Who | 'off';
-/** Wer eine Fähigkeit hält: ein Mensch, ein Bot — oder niemand. */
-export type AbilityWho = Who | 'off';
+/** Wer einen Platz hält: ein Mensch, ein Bot — oder niemand. */
+export type SeatWho = 'human' | 'bot' | 'off';
+/** Der alte Name für dieselbe Sache — ein paar Stellen kennen ihn noch. */
+export type Who = SeatWho;
+export type MonsterWho = SeatWho;
+export type AbilityWho = SeatWho;
 
-/**
- * Die drei Fähigkeiten der Einsatzzentrale. Sie hießen einmal „Rollen" und
- * waren Plätze; als Fähigkeit lassen sie sich mischen, und genau darum ging
- * es: Bei drei Spielern sitzen manchmal nur zwei in der Zentrale.
- */
+/** Die drei Fähigkeiten der Einsatzzentrale. */
 export type Ability = 'scout' | 'panel' | 'archive';
 
-export interface RoundSetup {
-  technician: Who;
-  monster: MonsterWho;
-  /** Jede Fähigkeit für sich: Bot, Mensch oder Aus. */
-  abilities: Record<Ability, AbilityWho>;
+/** Die drei Stühle der Zentrale — Farben, weil man sie sich am Tisch zuruft. */
+export type SeatColour = 'red' | 'yellow' | 'blue';
+/** Die fünf Plätze einer Runde. */
+export type SeatId = 'technician' | SeatColour | 'monster';
+
+export interface Seat {
+  who: SeatWho;
+  /** Welche Fähigkeiten dieser Platz hält. Das Monster hält nie eine. */
+  powers: Record<Ability, boolean>;
 }
 
-/** Welche Fähigkeiten der Techniker aus den Bot-Plätzen bekommt. */
+export interface RoundSetup {
+  seats: Record<SeatId, Seat>;
+}
+
+/**
+ * **Was dieses Gerät ist**: einer der fünf Plätze — oder ein Zuschauer, und
+ * davon gibt es zwei: einer sieht dem Techniker zu (in 3D durch dessen
+ * Augen, in 2D die Karte um ihn), einer sieht alles (die Station von oben,
+ * allwissend). Beide sitzen in der Zentrale am Fernseher (`stations.ts`,
+ * Station `watch`).
+ */
+export type MyRole = SeatId | 'watch:technician' | 'watch:all';
+
+/** Was der Techniker aus der Verteilung bekommt. */
 export interface SoloPowers {
-  /**
-   * Späher: das **Horchbild** der Station auf der Karte — die Geräusche der
-   * letzten Sekunden, als Probe alle paar Sekunden. Nicht die Stelle, an der
-   * das Monster steht: Wer die kennt, dem kann sich niemand mehr auflauern.
-   */
+  /** Späher: das **Horchbild** der Station auf seiner Karte. */
   scout: boolean;
   /** Schalttafel: Türen und Lampen per Tipp auf die Karte. */
   panel: boolean;
-  /** Archiv: Ein Tipp auf ein Zimmer schlägt die Akte mit den Codes auf. */
+  /** Archiv: Ziele auf Karte und Bildrand, die Akte per Tipp aufs Zimmer. */
   archive: boolean;
 }
 
-export const SETUP_STORAGE = 'bgvr.haunting.setup.v1';
+export const SETUP_STORAGE = 'bgvr.haunting.setup.v2';
+/** Der Schlüssel der Fassung davor — wird beim ersten Laden einmal übersetzt. */
+export const SETUP_STORAGE_V1 = 'bgvr.haunting.setup.v1';
 
 /** Die drei Fähigkeiten, in der Reihenfolge, in der sie überall stehen. */
 export const ABILITIES: readonly Ability[] = ['scout', 'panel', 'archive'];
+/** Die fünf Plätze, in der Reihenfolge der Tafel. */
+export const SEATS: readonly SeatId[] = ['technician', 'red', 'yellow', 'blue', 'monster'];
+/** Die drei Stühle der Zentrale. */
+export const COLOURS: readonly SeatColour[] = ['red', 'yellow', 'blue'];
+/** Die sieben Antworten auf „wer bin ich" — die fünf Plätze und die zwei Zuschauer. */
+export const MY_ROLES: readonly MyRole[] = [...SEATS, 'watch:technician', 'watch:all'];
 
 export const ABILITY_LABELS: Readonly<Record<Ability, string>> = {
   scout: 'Späher',
@@ -91,18 +108,48 @@ export const ABILITY_HINTS: Readonly<Record<Ability, string>> = {
   archive: 'Räume, Fundorte und Codes',
 };
 
-export const WHO_LABELS: Readonly<Record<AbilityWho, string>> = {
+export const SEAT_LABELS: Readonly<Record<SeatId, string>> = {
+  technician: 'Techniker',
+  red: 'Rot',
+  yellow: 'Gelb',
+  blue: 'Blau',
+  monster: 'Monster',
+};
+
+export const SEAT_HINTS: Readonly<Record<SeatId, string>> = {
+  technician: 'Im Anzug draußen — Stock und Knöpfe',
+  red: 'Platz Rot in der Zentrale',
+  yellow: 'Platz Gelb in der Zentrale',
+  blue: 'Platz Blau in der Zentrale',
+  monster: 'Die Gegenseite — Stock und ein Knopf',
+};
+
+export const MY_ROLE_LABELS: Readonly<Record<MyRole, string>> = {
+  ...SEAT_LABELS,
+  'watch:technician': 'Zuschauer: Techniker',
+  'watch:all': 'Zuschauer: Alles',
+};
+
+export const MY_ROLE_HINTS: Readonly<Record<MyRole, string>> = {
+  ...SEAT_HINTS,
+  'watch:technician': 'Sieht, was der Techniker sieht — in 3D durch seine Augen',
+  'watch:all': 'Die ganze Station von oben, allwissend',
+};
+
+export const WHO_LABELS: Readonly<Record<SeatWho, string>> = {
   human: 'Mensch',
   bot: 'Bot',
   off: 'Aus',
 };
 
+/** Die drei Antworten je Platz, in der Reihenfolge der Knöpfe. */
+export const WHOS: readonly SeatWho[] = ['human', 'bot', 'off'];
+
 /**
- * **Wie eine Mischung heißt.** Der Schlüssel ist die Menge der Fähigkeiten in
- * der Reihenfolge von `ABILITIES` — eine Menge und keine Liste: Wer erst das
- * Archiv nimmt und dann das Radar, sitzt an derselben Stelle wie der
- * umgekehrte Fall, und zwei Namen für denselben Platz wären der Anfang vom
- * alten Durcheinander.
+ * **Wie eine Mischung heißt** — der Name, der am Tisch gerufen wird, wenn
+ * ein Platz mehr als eine Fähigkeit hält. Der Schlüssel ist die Menge in der
+ * Reihenfolge von `ABILITIES`: Wer erst das Archiv nimmt und dann das Radar,
+ * sitzt an derselben Stelle wie der umgekehrte Fall.
  */
 export const ROLE_NAMES: Readonly<Record<string, string>> = {
   scout: 'Späher',
@@ -114,76 +161,152 @@ export const ROLE_NAMES: Readonly<Record<string, string>> = {
   'scout+panel+archive': 'Zentrale',
 };
 
-/** Der Satz für den, der noch nichts gewählt hat. Er steht an drei Stellen. */
-export const NO_ROLE_HINT = 'Bitte wähle über den Tab oben deine Rolle aus.';
+/** Der Satz für den, der noch nichts gewählt hat. */
+export const NO_ROLE_HINT = 'Bitte wähle über den Reiter oben deine Rolle aus.';
 
-/**
- * Wie ein Platz aus diesen Fähigkeiten heißt — `''`, wenn es keine gibt. Ist
- * nur eine aktiv, ist der Name die Fähigkeit selbst; das war die Vorgabe und
- * ist auch die einzige, die man niemandem erklären muss.
- */
+/** Wie ein Platz aus diesen Fähigkeiten heißt — `''`, wenn es keine gibt. */
 export function roleName(abilities: Iterable<Ability>): string {
   const set = new Set(abilities);
   const key = ABILITIES.filter((one) => set.has(one)).join('+');
   return ROLE_NAMES[key] ?? '';
 }
 
-/** Welche Fähigkeiten in dieser Verteilung Menschen gehören. */
-export function humanAbilities(setup: RoundSetup): Ability[] {
-  return ABILITIES.filter((one) => setup.abilities[one] === 'human');
+/** Die Fähigkeiten eines Platzes als Liste, in fester Reihenfolge. */
+export function seatAbilities(setup: RoundSetup, seat: SeatId): Ability[] {
+  return ABILITIES.filter((one) => setup.seats[seat].powers[one]);
 }
 
-/** Der Anfang: ein Mensch als Techniker, das Monster aus Zahlen, alles andere Bot. */
+/** Wie ein Platz heißt, wenn man ihn mit seinen Fähigkeiten ruft: „Rot · Leitstand". */
+export function seatTitle(setup: RoundSetup, seat: SeatId): string {
+  const name = roleName(seatAbilities(setup, seat));
+  return name ? `${SEAT_LABELS[seat]} · ${name}` : SEAT_LABELS[seat];
+}
+
+/** Ein Platz ohne Fähigkeiten. */
+function noPowers(): Record<Ability, boolean> {
+  return { scout: false, panel: false, archive: false };
+}
+
+/**
+ * **Der Anfang**: ein Mensch im Anzug mit allen drei Fähigkeiten, die drei
+ * Stühle leer, das Monster aus Zahlen. Wer allein spielt, sieht damit alles,
+ * was die Zentrale ihm sagen würde — und wer zu mehreren spielt, verteilt die
+ * Fähigkeiten vom Techniker weg auf die Farben. Alle Geräte fangen dabei als
+ * Zuschauer in der Zentrale an (`rules/lobby.defaultLobby`).
+ */
 export function defaultSetup(): RoundSetup {
   return {
-    technician: 'human',
-    monster: 'bot',
-    abilities: { scout: 'bot', panel: 'bot', archive: 'bot' },
+    seats: {
+      technician: { who: 'human', powers: { scout: true, panel: true, archive: true } },
+      red: { who: 'off', powers: noPowers() },
+      yellow: { who: 'off', powers: noPowers() },
+      blue: { who: 'off', powers: noPowers() },
+      monster: { who: 'bot', powers: noPowers() },
+    },
   };
+}
+
+/** Eine Abschrift, in der man schreiben darf, ohne die Vorlage anzufassen. */
+export function cloneSetup(setup: RoundSetup): RoundSetup {
+  const seats = {} as Record<SeatId, Seat>;
+  for (const seat of SEATS)
+    seats[seat] = { who: setup.seats[seat].who, powers: { ...setup.seats[seat].powers } };
+  return { seats };
+}
+
+/** Denselben Aufbau mit einem anderen Halter auf einem Platz. */
+export function withWho(setup: RoundSetup, seat: SeatId, who: SeatWho): RoundSetup {
+  const next = cloneSetup(setup);
+  next.seats[seat].who = who;
+  return next;
+}
+
+/** Denselben Aufbau mit einer Fähigkeit auf einem Platz an oder aus. Das Monster hält keine. */
+export function withPower(
+  setup: RoundSetup,
+  seat: SeatId,
+  ability: Ability,
+  on: boolean,
+): RoundSetup {
+  if (seat === 'monster') return setup;
+  const next = cloneSetup(setup);
+  next.seats[seat].powers[ability] = on;
+  return next;
+}
+
+function isWho(value: unknown): value is SeatWho {
+  return value === 'human' || value === 'bot' || value === 'off';
 }
 
 /**
  * Aus fremdem Text (Speicher) eine gültige Einstellung — Unbekanntes wird
  * ersetzt.
  *
- * **Die alten Plätze werden dabei übersetzt.** Im Speicher liegen bei vielen
- * noch `seats: [{role, who}, …]` aus der Zeit vor den Fähigkeiten; wer sie
- * wegwürfe, nähme dem Besitzer beim Update seine Verteilung weg. Ein Mensch
- * schlägt dabei einen Bot: „Da sitzt jemand" ist die stärkere Aussage, und
- * eine Rolle, die gar nicht vorkam, ist aus.
+ * **Die alte Fassung wird dabei übersetzt** (`{technician, monster,
+ * abilities}` — und davor `seats: [{role, who}]`). Wer das Update einspielt,
+ * soll seine Verteilung nicht verlieren: Ein Bot auf einer Fähigkeit hieß
+ * damals „der Techniker bekommt sie selbst", also landet sie auf seinem Platz;
+ * ein Mensch bekommt den ersten freien Farbplatz; „aus" bleibt aus.
  */
 export function readSetup(value: unknown): RoundSetup {
   const fallback = defaultSetup();
   if (!value || typeof value !== 'object') return fallback;
   const bag = value as Record<string, unknown>;
-  const who = (v: unknown, or: Who): Who => (v === 'human' || v === 'bot' ? v : or);
-  const abilities = { ...fallback.abilities };
+  const seats = bag['seats'];
+  if (seats && typeof seats === 'object' && !Array.isArray(seats)) {
+    const out = defaultSetup();
+    const from = seats as Record<string, unknown>;
+    for (const seat of SEATS) {
+      const read = from[seat];
+      if (!read || typeof read !== 'object') continue;
+      const one = read as Record<string, unknown>;
+      if (isWho(one['who'])) out.seats[seat].who = one['who'];
+      const powers = one['powers'];
+      if (seat !== 'monster' && powers && typeof powers === 'object')
+        for (const ability of ABILITIES)
+          out.seats[seat].powers[ability] = (powers as Record<string, unknown>)[ability] === true;
+    }
+    return out;
+  }
+  return readLegacy(bag);
+}
+
+/** Die zwei Fassungen davor — siehe `readSetup`. */
+function readLegacy(bag: Record<string, unknown>): RoundSetup {
+  const out = defaultSetup();
+  const technician = bag['technician'];
+  const monster = bag['monster'];
+  if (technician === 'human' || technician === 'bot') out.seats.technician.who = technician;
+  if (isWho(monster)) out.seats.monster.who = monster;
+  // Die Fähigkeiten der Fassung davor: erst als `abilities`, davor als Liste `seats`.
+  const abilities: Partial<Record<Ability, SeatWho>> = {};
   const read = bag['abilities'];
   if (read && typeof read === 'object') {
     const from = read as Record<string, unknown>;
-    for (const one of ABILITIES) {
-      const value_ = from[one];
-      if (value_ === 'human' || value_ === 'bot' || value_ === 'off') abilities[one] = value_;
-    }
+    for (const one of ABILITIES) if (isWho(from[one])) abilities[one] = from[one];
   } else if (Array.isArray(bag['seats'])) {
     for (const one of ABILITIES) abilities[one] = 'off';
     for (const seat of bag['seats'] as unknown[]) {
       if (!seat || typeof seat !== 'object') continue;
       const role = (seat as Record<string, unknown>)['role'];
       if (!ABILITIES.includes(role as Ability)) continue;
-      const holder = who((seat as Record<string, unknown>)['who'], 'bot');
-      const before = abilities[role as Ability];
-      abilities[role as Ability] = before === 'human' ? 'human' : holder;
+      const holder = (seat as Record<string, unknown>)['who'] === 'human' ? 'human' : 'bot';
+      abilities[role as Ability] = abilities[role as Ability] === 'human' ? 'human' : holder;
+    }
+  } else return out;
+  // Übersetzen: Der Techniker hält, was ein Bot hielt; Menschen bekommen Farben.
+  for (const ability of ABILITIES) out.seats.technician.powers[ability] = false;
+  let colour = 0;
+  for (const ability of ABILITIES) {
+    const who = abilities[ability] ?? 'off';
+    if (who === 'bot') out.seats.technician.powers[ability] = true;
+    else if (who === 'human' && colour < COLOURS.length) {
+      const seat = COLOURS[colour++]!;
+      out.seats[seat].who = 'human';
+      out.seats[seat].powers[ability] = true;
     }
   }
-  return {
-    technician: who(bag['technician'], fallback.technician),
-    monster:
-      bag['monster'] === 'off'
-        ? 'off'
-        : who(bag['monster'], fallback.monster === 'off' ? 'bot' : fallback.monster),
-    abilities,
-  };
+  return out;
 }
 
 export function loadSetup(
@@ -192,7 +315,7 @@ export function loadSetup(
     : localStorage,
 ): RoundSetup {
   try {
-    const raw = storage?.getItem(SETUP_STORAGE);
+    const raw = storage?.getItem(SETUP_STORAGE) ?? storage?.getItem(SETUP_STORAGE_V1);
     return readSetup(raw ? JSON.parse(raw) : null);
   } catch {
     return defaultSetup();
@@ -212,141 +335,160 @@ export function saveSetup(
   }
 }
 
-/** Was der Techniker selbst bekommt: jede Fähigkeit, an der ein Bot rechnet. */
-export function powersOf(setup: RoundSetup): SoloPowers {
-  const has = (one: Ability): boolean => setup.abilities[one] === 'bot';
-  return { scout: has('scout'), panel: has('panel'), archive: has('archive') };
+/** Ob irgendein Farbplatz mit diesem Halter diese Fähigkeit hält. */
+export function colourHolds(setup: RoundSetup, ability: Ability, who: SeatWho): boolean {
+  return COLOURS.some((seat) => setup.seats[seat].who === who && setup.seats[seat].powers[ability]);
 }
 
 /**
- * **Wie genau der Techniker sein Ziel sieht** — die eine Frage, an der die
- * Fähigkeit „Archiv" hängt.
- *
- * Solange die richtige Kiste immer hervorgehoben wurde, war der Archivar ein
- * Mensch, der vorliest, was der andere ohnehin sieht. Rechnet dort ein **Bot**,
- * gibt es niemanden zum Zurufen — dann darf die Kiste selbst leuchten
- * (`'crate'`). Sitzt dort ein **Mensch** (oder niemand), sieht der Techniker
- * nur noch den **Raum** (`'room'`); welche der zwei bis drei Kisten darin die
- * richtige ist, steht allein auf dessen Blatt, und er muss es sagen. Der
- * technische Ausweg bleibt das Röntgengerät.
+ * **Wer eine Fähigkeit in der Zentrale hält** — ein Mensch, ein Bot oder
+ * niemand. Ein Mensch schlägt einen Bot: „Da sitzt jemand" ist die stärkere
+ * Aussage. Der Techniker zählt hier nicht mit — die Frage ist, wer *ihm*
+ * etwas zuruft.
  */
-export type GoalPrecision = 'crate' | 'room';
+export function abilityWho(setup: RoundSetup, ability: Ability): SeatWho {
+  if (colourHolds(setup, ability, 'human')) return 'human';
+  if (colourHolds(setup, ability, 'bot')) return 'bot';
+  return 'off';
+}
+
+/**
+ * **Was der Techniker selbst bekommt.** Seine eigenen Fähigkeiten — und das
+ * Horchbild auch dann, wenn ein Bot in der Zentrale Späher ist: Der Bot
+ * meldet, was er hört, mehr kann er nicht. Das Archiv eines Bots kommt
+ * dagegen als Funk (`rules/archiveRadio.ts`), nicht als Ziel auf der Karte;
+ * und die Tafel eines anderen gibt ihm nichts — schalten tut, wer sie hat.
+ */
+export function powersOf(setup: RoundSetup): SoloPowers {
+  const mine = setup.seats.technician.powers;
+  return {
+    scout: mine.scout || colourHolds(setup, 'scout', 'bot'),
+    panel: mine.panel,
+    archive: mine.archive,
+  };
+}
+
+/** Ob ein Bot in der Zentrale das Archiv hält — dann funkt er dem Techniker. */
+export function botArchivist(setup: RoundSetup): boolean {
+  return colourHolds(setup, 'archive', 'bot');
+}
+
+/**
+ * **Wie genau der Techniker sein Ziel sieht.** Mit eigenem Archiv leuchtet die
+ * Kiste (`'crate'`); ohne sieht er **gar kein** Ziel — kein Dreieck am Rand,
+ * keine Liste im HUD. Es gab dazwischen einmal `'room'` (nur der Raum); das
+ * ist weg: Wer das Archiv nicht hat, hört, wo es liegt, oder sucht.
+ */
+export type GoalPrecision = 'crate' | 'none';
 
 export function goalPrecision(setup: RoundSetup): GoalPrecision {
-  return powersOf(setup).archive ? 'crate' : 'room';
+  return powersOf(setup).archive ? 'crate' : 'none';
+}
+
+/** Die Fähigkeiten, die Menschen in der Zentrale halten — für Anzeigen. */
+export function humanAbilities(setup: RoundSetup): Ability[] {
+  return ABILITIES.filter((one) => colourHolds(setup, one, 'human'));
 }
 
 /**
- * Wen der Spieler in der 2D-Welt spielt. Die 2D-Welt ist ein Gerät und ein
- * Mensch: Ein Techniker aus Fleisch gewinnt gegen ein Monster aus Fleisch,
- * weil der Stock nur einem gehören kann.
- *
- * Der dritte Fall hieß einmal `bot`, und das war die Sicht der Maschine: Ja,
- * der Techniker aus Zahlen läuft dann die Runde — aber der Mensch davor
- * **sieht zu**, und genau das steht jetzt auch dran (`watch`). Der Bot bleibt
- * innen drin (`rules/technicianBot.ts`), er ist nur keine Rolle mehr, die
- * jemand im Aufbau wählt: Zuschauen steht im Optionsmenü der Runde.
+ * **Wen dieses Gerät in der 2D-Welt spielt** — aus seiner Wahl, nicht aus
+ * der Tafel geraten: Wer „Monster" gewählt hat, hält den Stock des Monsters;
+ * wer „Techniker" gewählt hat und der Anzug ist ein Mensch, hält den des
+ * Technikers; alle anderen sehen zu.
  */
-export function flatRoleOf(setup: RoundSetup): FlatRole {
-  if (setup.technician === 'human') return 'technician';
-  if (setup.monster === 'human') return 'monster';
+export function flatRoleOf(setup: RoundSetup, me: MyRole = 'technician'): FlatRole {
+  if (me === 'monster') return 'monster';
+  if (me === 'technician' && setup.seats.technician.who === 'human') return 'technician';
   return 'watch';
 }
 
 /**
  * **Wie viele in einer Runde mitspielen** — der Techniker, das Monster (wenn
- * es eines gibt) und jede Fähigkeit, die nicht aus ist, ob Mensch oder Bot.
- * Zwei heißt: Techniker gegen Monster, sonst niemand. Ab drei läuft jede
- * Reaktion über eine Absprache, und die kostet Zeit (`rules/doorSeal.ts`) —
- * genau daran hängen die zwei Zielbänder des Trainings
- * (`botTraining.TRAINING_TARGETS`).
+ * es eines gibt) und jeder Farbplatz, der nicht aus ist. Ab drei läuft jede
+ * Reaktion über eine Absprache, und die kostet Zeit (`rules/doorSeal.ts`).
  */
 export function crewSize(setup: RoundSetup): number {
-  const staffed = ABILITIES.filter((one) => setup.abilities[one] !== 'off').length;
-  return 1 + (setup.monster === 'off' ? 0 : 1) + staffed;
+  const staffed = COLOURS.filter((seat) => setup.seats[seat].who !== 'off').length;
+  return 1 + (setup.seats.monster.who === 'off' ? 0 : 1) + staffed;
 }
 
 /** Die drei Rundenarten der 3D-Welt — dort steuert nur der Techniker aus Fleisch. */
 export function roundKindOf(setup: RoundSetup): 'bot' | 'mission' | 'test' {
-  if (setup.technician === 'bot') return 'bot';
-  return setup.monster === 'off' ? 'test' : 'mission';
+  if (setup.seats.technician.who !== 'human') return 'bot';
+  return setup.seats.monster.who === 'off' ? 'test' : 'mission';
 }
 
-/** Die Einstellung, die eine Rundenart meint — die Fähigkeiten bleiben, wie sie sind. */
+/** Die Einstellung, die eine Rundenart meint — die Farbplätze bleiben, wie sie sind. */
 export function presetFor(kind: 'bot' | 'mission' | 'test', setup: RoundSetup): RoundSetup {
-  return {
-    ...setup,
-    technician: kind === 'bot' ? 'bot' : 'human',
-    monster: kind === 'test' ? 'off' : setup.monster === 'off' ? 'bot' : setup.monster,
-  };
+  const monster = setup.seats.monster.who;
+  const next = withWho(setup, 'technician', kind === 'bot' ? 'bot' : 'human');
+  return withWho(next, 'monster', kind === 'test' ? 'off' : monster === 'off' ? 'bot' : monster);
 }
 
 /**
  * **Der Techniker gehört der Brille.** Steht jemand mit der Brille im Raum,
- * trägt er den Anzug — er ist der Einzige, der darin laufen kann, und ein
- * Knopf, der ihn zum Bot erklärt, nähme ihm mitten im Schiff die Runde weg.
- * Die Tafel zeigt an seiner Stelle „VR" und lässt sich dort nicht drücken.
+ * trägt er den Anzug; die Tafel zeigt „VR" und lässt sich dort nicht drücken.
  */
 export function technicianLabel(setup: RoundSetup, vr: boolean): string {
-  return vr ? 'VR' : WHO_LABELS[setup.technician];
+  return vr ? 'VR' : WHO_LABELS[setup.seats.technician.who];
 }
 
 /** Dieselbe Regel als Daten: Mit Brille im Raum ist der Techniker ein Mensch. */
 export function lockTechnician(setup: RoundSetup, vr: boolean): RoundSetup {
-  return vr && setup.technician !== 'human' ? { ...setup, technician: 'human' } : setup;
+  return vr && setup.seats.technician.who !== 'human'
+    ? withWho(setup, 'technician', 'human')
+    : setup;
 }
 
 /** Eine Zeile, die die Einstellung zusammenfasst — für Anzeigen. */
 export function describeSetup(setup: RoundSetup): string {
-  const abilities = ABILITIES.map(
-    (one) => `${ABILITY_LABELS[one]} (${WHO_LABELS[setup.abilities[one]]})`,
-  ).join(', ');
-  return `Techniker: ${WHO_LABELS[setup.technician]} · Monster: ${WHO_LABELS[setup.monster]} · Zentrale: ${abilities}`;
+  return SEATS.map((seat) => {
+    const one = setup.seats[seat];
+    const powers = seatAbilities(setup, seat).map((a) => ABILITY_LABELS[a]);
+    const tail = powers.length && one.who !== 'off' ? ` · ${powers.join(' + ')}` : '';
+    return `${SEAT_LABELS[seat]}: ${WHO_LABELS[one.who]}${tail}`;
+  }).join(' · ');
 }
 
-/** Das Monster durchschalten: Bot → Mensch → Aus → Bot. */
-export function cycleMonster(who: MonsterWho): MonsterWho {
-  return who === 'bot' ? 'human' : who === 'human' ? 'off' : 'bot';
+/** Einen Platz durchschalten: Mensch → Bot → Aus → Mensch. */
+export function cycleWho(who: SeatWho): SeatWho {
+  return who === 'human' ? 'bot' : who === 'bot' ? 'off' : 'human';
 }
 
-export function cycleWho(who: Who): Who {
-  return who === 'bot' ? 'human' : 'bot';
+/** Der Techniker kennt kein „Aus": Mensch ↔ Bot. */
+export function cycleTechnician(who: SeatWho): SeatWho {
+  return who === 'human' ? 'bot' : 'human';
 }
 
-/** Eine Fähigkeit durchschalten — dieselben drei Stufen wie beim Monster. */
-export function cycleAbility(who: AbilityWho): AbilityWho {
-  return who === 'bot' ? 'human' : who === 'human' ? 'off' : 'bot';
+/** Ob diese Wahl ein Zuschauer ist. */
+export function isWatcher(me: MyRole): me is 'watch:technician' | 'watch:all' {
+  return me === 'watch:technician' || me === 'watch:all';
+}
+
+/** Ob diese Wahl ein Stuhl in der Zentrale ist. */
+export function isColour(me: MyRole): me is SeatColour {
+  return me === 'red' || me === 'yellow' || me === 'blue';
 }
 
 /**
  * **Wer mitten in der Runde die Rolle wechseln darf.**
  *
- * Der Besitzer hat die Regel in drei Sätzen gesagt, und sie stehen hier als
- * Rechnung, damit nicht jede Oberfläche sie neu errät:
- *
- * - In einer **Test-Runde** darf jeder alles — dafür ist sie da. Wer eine
- *   Kombination ausprobieren will, soll nicht erst eine Runde neu aufbauen.
+ * - In einer **Test-Runde** darf jeder alles — dafür ist sie da.
  * - Sonst wechselt nur, wer **in der Einsatzzentrale** sitzt, und nur unter
- *   den Fähigkeiten der Zentrale. Wer draußen im Anzug steht, kann nicht
+ *   den Plätzen der Zentrale. Wer draußen im Anzug steht, kann nicht
  *   nebenbei ins Archiv greifen.
  * - Der **Techniker in der Brille** wechselt nie, und niemand nimmt ihm seine
  *   Rolle ab: Er ist der Einzige, der den Anzug tragen kann.
  */
 export interface SwitchState {
-  /** Ob die laufende Runde ein Test ist (`HauntState.crew.options.test`). */
   test: boolean;
-  /** Ob dieses Gerät in der Einsatzzentrale sitzt — am Telefon also. */
   inCentre: boolean;
-  /** Ob der Techniker dieser Runde in der Brille steckt. */
   vrTechnician: boolean;
 }
 
 export interface SwitchRights {
-  /** Ob dieses Gerät eine Fähigkeit der Zentrale nehmen darf. */
   abilities: boolean;
-  /** Und ob es den Techniker übernehmen darf. */
   technician: boolean;
-  /** Warum nicht — ein ganzer Satz für die Anzeige, sonst `''`. */
   why: string;
 }
 

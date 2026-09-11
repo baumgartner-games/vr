@@ -86,6 +86,7 @@ import {
   stepVitals,
   TROT,
   type StationOptions,
+  HIT_LULL,
 } from './mission';
 import { Rng, rollSeed } from './rng';
 import { StationUi } from './stationUi';
@@ -125,9 +126,8 @@ import { freshLamps, lampGlow, lampOut, stepLamps, switchLamp, type Lamps } from
 import {
   ABILITIES,
   ABILITY_LABELS,
-  cycleAbility,
-  type Ability,
-  cycleMonster,
+  COLOURS,
+  cycleTechnician,
   cycleWho,
   flatRoleOf,
   goalPrecision,
@@ -136,9 +136,16 @@ import {
   powersOf,
   roundKindOf,
   saveSetup,
+  SEAT_LABELS,
+  SEATS,
   technicianLabel,
+  VR_KEEPS_TECHNICIAN,
   WHO_LABELS,
+  withPower,
+  withWho,
+  type MyRole,
   type RoundSetup,
+  type SeatId,
 } from './rules/roundSetup';
 import {
   applyIntent,
@@ -171,6 +178,7 @@ import { NpcVentRide, VENTING_CEILING, VENTING_FLOOR } from './vents/npcVentRide
 import type { MonsterDriver } from './monster/monsterDriver';
 import { NetMonsterControl } from './monster/netMonsterControl';
 import { NetMonsterPort } from './monster/netMonsterPort';
+import { rescueHeight } from '../shared/fallRescue';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
 import type { FlatOptions } from './map/flatRound';
@@ -349,6 +357,11 @@ const _head = new THREE.Vector3();
 const _feet = new THREE.Vector3();
 /** Der Schlag eines Spielers am Steuer hat keine Richtung — `takeHit` liest keine. */
 const _strike = new THREE.Vector3();
+const _probe = new THREE.Vector3();
+const _landing = new THREE.Vector3();
+const _down = new THREE.Vector3(0, -1, 0);
+/** Wie hoch über der Stelle der Bodenstrahl beim Versetzen ansetzt, in Metern. */
+const RESPAWN_PROBE = 3;
 const _size = new THREE.Vector2();
 /** Die Schnittebene, die dem Zuschauer die Decke abnimmt — einmal gebaut. */
 const _lid = new THREE.Plane(new THREE.Vector3(0, -1, 0), SHOW_CUT);
@@ -375,6 +388,8 @@ export class HauntingWorld extends GridWorld {
   private experience: ShipExperience | null = null;
   private mountedRole = '';
   private flatTechnician = false;
+  /** Der Strahl, der beim Versetzen den Boden sucht (`movePlayerTo`). */
+  private readonly floorRay = new THREE.Raycaster();
   private pendingBotRound = false;
   private pendingRestart = false;
   private readonly automaticDoors = new AutomaticDoors();
@@ -800,6 +815,28 @@ export class HauntingWorld extends GridWorld {
     return new THREE.Vector3(COMMAND_HOME.x, 0, COMMAND_HOME.z);
   }
 
+  /**
+   * **Wer versetzt wird, landet auf dem Boden — nicht darin.** Das Schiff
+   * setzt den Spieler an vielen Stellen um (Zentrale, Schutzschrank, neue
+   * Runde, Testlabor), immer mit `y = 0`; wo der Boden dort nicht genau bei
+   * null liegt — eine Platte, ein Podest, das Labor —, steckte er bis zu den
+   * Knien darin und kam ohne Sprung nicht heraus. Deshalb wird vorher
+   * gemessen: ein Strahl von oben auf die festen Flächen, und die Füße kommen
+   * auf die höchste darunter (`fallRescue.rescueHeight`). Trifft er nichts,
+   * bleibt die Zahl, die jemand gesagt hat.
+   */
+  protected override movePlayerTo(ctx: WorldContext, at: THREE.Vector3, yaw?: number): void {
+    const probe = RESPAWN_PROBE;
+    this.floorRay.set(_probe.set(at.x, at.y + probe, at.z), _down);
+    this.floorRay.far = probe * 2;
+    const hits = this.floorRay
+      .intersectObjects(this.solids, false)
+      .map((hit) => hit.point.y)
+      .filter((y) => y <= at.y + 1.2);
+    const y = rescueHeight(hits, at.y, 0.02);
+    super.movePlayerTo(ctx, _landing.set(at.x, y, at.z), yaw);
+  }
+
   /** Portal-lab cubes and dominoes have no place in the station. */
   protected override buildProps(): void {}
 
@@ -936,6 +973,7 @@ export class HauntingWorld extends GridWorld {
       // Wer getroffen wird, blutet (`rules/blood.ts`) — auch der, den es im
       // Schrank erwischt hat: Er steigt aus und zieht die Spur hinter sich her.
       wound(this.blood, this.state.time);
+      this.routine?.rest(HIT_LULL, { x: at.x, z: at.z }, room);
       if (crew.hp === 0) {
         this.state.phase = 'lost';
         this.removeMonster();
@@ -1019,6 +1057,9 @@ export class HauntingWorld extends GridWorld {
         me: () => ctx.net.localId,
         technician: () => {
           this.flatTechnician = true;
+        },
+        leaveTechnician: () => {
+          this.flatTechnician = false;
         },
         menu: () => ctx.menu.toggle(),
         flatWanted: () => this.flatWanted,
@@ -1998,7 +2039,18 @@ export class HauntingWorld extends GridWorld {
       return;
     }
     const flip = readFlip(data);
-    if (flip && this.isHost && ['hack', 'scout'].includes(seatOf(this.currentClaims(), from) ?? ''))
+    // **Schalten darf, wer die Tafel hält** — ein Farbplatz mit „Schalttafel"
+    // auf der Tafel des Gastgebers (`rules/roundSetup.Seat.powers`). Vorher
+    // war es das Gerät `hack`; jetzt ist das Gerät ein Stuhl, und was darauf
+    // liegt, sagt die Verteilung.
+    const seat = seatOf(this.currentClaims(), from);
+    if (
+      flip &&
+      this.isHost &&
+      seat &&
+      COLOURS.includes(seat as SeatId as (typeof COLOURS)[number]) &&
+      this.setup.seats[seat as SeatId].powers.panel
+    )
       this.applyFlip(flip.id, flip.on);
     // Stock und Knöpfe der Monster-Station — nur vom Besitzer, wie der Schalter.
     const input = readMonsterInput(data);
@@ -2368,10 +2420,11 @@ export class HauntingWorld extends GridWorld {
     )
       return;
     if (!this.isHost || !takeCrewHit(this.state.crew, this.state.phase === 'running')) return;
-    // Der kurze Schub nach dem Treffer (`mission.HIT_BURST`): Drei Sekunden
-    // Unverwundbarkeit nützen nichts, wenn man sie im Griff des Monsters
-    // absteht.
+    // Der kurze Schub nach dem Treffer (`mission.HIT_BURST`): Die Schonfrist
+    // nützt nichts, wenn man sie im Griff des Monsters absteht — und das
+    // Monster hält dazu selbst inne (`monsterRoutine.rest`, `HIT_LULL`).
     grantBurst(this.stamina);
+    this.routine?.rest(HIT_LULL, { x: _head.x, z: _head.z });
     wound(this.blood, this.state.time);
     for (const hand of ['left', 'right'] as const) this.context?.input.get(hand)?.pulse(0.65, 120);
     playSwitch(false);
@@ -2992,9 +3045,9 @@ export class HauntingWorld extends GridWorld {
     // **Welchen Platz das Bild zeigt** und nicht, an welchem man sitzt: Der
     // Zuschauer schlüpft in die Rollen der anderen (`watchLens.ts`), und für
     // die Kamera ist das dieselbe Frage wie bei einem, der wirklich dort sitzt.
-    const station = ui.shownStation;
-    const archive = station === 'archive';
-    const show = station === 'watch';
+    const shown = ui.shownView;
+    const archive = shown === 'archive';
+    const show = shown === 'watch';
     // Die Decke bleibt nur dem Zuschauer weg, und sie geht nur bei Wechsel ab:
     // Eine Schnittebene, die je Bild kommt und geht, baut three.js jedes Mal
     // jeden Shader neu.
@@ -3461,41 +3514,58 @@ export class HauntingWorld extends GridWorld {
               ]!,
           }),
       ),
-      entry(
-        'haunt:setup-technician',
-        `Techniker: ${technicianLabel(setup, this.roomHasVr())}`,
-        'Wer den Anzug trägt — ein Mensch am Stock oder der Techniker aus Zahlen',
-        () => {
-          // **Mit Brille im Raum gehört der Techniker der Brille** — der
-          // Eintrag sagt es und tut sonst nichts, statt den Anzug wortlos an
-          // die Zahlen zu geben (`roundSetup.technicianLabel`).
-          if (this.roomHasVr()) {
-            this.context?.notify(
-              'Der Techniker steckt in der Brille — seine Rolle bleibt bei ihm.',
-            );
-            return;
-          }
-          this.applySetup({ ...setup, technician: cycleWho(setup.technician) });
-        },
-      ),
-      entry(
-        'haunt:setup-monster',
-        `Monster: ${WHO_LABELS[setup.monster]}`,
-        'Aus Zahlen, am Stock (nur 2D) oder aus — der sichere Test',
-        () => this.applySetup({ ...setup, monster: cycleMonster(setup.monster) }),
-      ),
-      // **Drei Einträge statt einem Zykler.** „Zentrale: Bot/Bot/Bot" schaltete
-      // alle drei zugleich weiter und war deshalb genau das, was der Besitzer
-      // nicht mehr wollte: Man konnte nicht mischen. Jede Fähigkeit hat jetzt
-      // ihren eigenen Eintrag mit Bot / Mensch / Aus.
-      ...ABILITIES.map((ability) =>
+      // **Die Tafel in der Brille: fünf Plätze, je ein Eintrag** — und die
+      // Fähigkeiten dahinter in einem Untermenü. Vorher standen hier
+      // Techniker, Monster und drei Fähigkeiten als Zykler; jetzt sind es die
+      // Plätze der Tafel (`rules/roundSetup.SEATS`), und wer mit der Brille
+      // spielt, stellt hier dasselbe ein wie am Telefon: ob ein Monster
+      // mitspielt und ob Bots das Archiv und die anderen Posten halten.
+      ...SEATS.map((seat) =>
         entry(
-          `haunt:setup-${ability}`,
-          `${ABILITY_LABELS[ability]}: ${WHO_LABELS[setup.abilities[ability]]}`,
-          'Bot rechnet · Mensch am Telefon · Aus: niemand hat sie',
-          () => this.cycleSeats(ability),
+          `haunt:seat-${seat}`,
+          `${SEAT_LABELS[seat]}: ${seat === 'technician' ? technicianLabel(setup, this.roomHasVr()) : WHO_LABELS[setup.seats[seat].who]}`,
+          seat === 'technician'
+            ? 'Wer den Anzug trägt — ein Mensch am Stock oder der Techniker aus Zahlen'
+            : seat === 'monster'
+              ? 'Aus Zahlen, am Stock (2D oder Telefon) oder aus — der sichere Test'
+              : `${describeSeat(setup, seat)} · Mensch am Telefon, Bot rechnet, Aus: leer`,
+          () => {
+            if (seat === 'technician') {
+              // **Mit Brille im Raum gehört der Techniker der Brille** — der
+              // Eintrag sagt es und tut sonst nichts (`roundSetup.technicianLabel`).
+              if (this.roomHasVr()) {
+                this.context?.notify(VR_KEEPS_TECHNICIAN);
+                return;
+              }
+              this.applySetup(withWho(setup, seat, cycleTechnician(setup.seats.technician.who)));
+              return;
+            }
+            this.applySetup(withWho(setup, seat, cycleWho(setup.seats[seat].who)));
+          },
         ),
       ),
+      {
+        id: 'haunt:powers',
+        label: 'Fähigkeiten der Plätze',
+        sub: 'Späher, Schalttafel, Archiv — je Platz an oder aus',
+        children: SEATS.filter((seat) => seat !== 'monster').flatMap((seat) =>
+          ABILITIES.map((ability) =>
+            entry(
+              `haunt:power-${seat}-${ability}`,
+              `${SEAT_LABELS[seat]} · ${ABILITY_LABELS[ability]}: ${setup.seats[seat].powers[ability] ? 'an' : 'aus'}`,
+              seat === 'technician' && ability === 'panel'
+                ? 'Nur damit schaltet der Techniker Lampen und Türen per Tipp'
+                : seat === 'technician' && ability === 'archive'
+                  ? 'Nur damit sieht der Techniker Ziele auf Karte und Kompass'
+                  : 'Antippen schaltet um',
+              () =>
+                this.applySetup(
+                  withPower(setup, seat, ability, !setup.seats[seat].powers[ability]),
+                ),
+            ),
+          ),
+        ),
+      },
       entry(
         'haunt:monster-kind',
         `Gegner: ${MONSTERS.find((m) => m.id === this.state.crew.options.monster)!.name}`,
@@ -3550,13 +3620,6 @@ export class HauntingWorld extends GridWorld {
     );
   }
 
-  /** Eine Fähigkeit der Zentrale im Menü der Brille weiterschalten: Bot → Mensch → Aus. */
-  private cycleSeats(ability: Ability): void {
-    const abilities = { ...this.setup.abilities };
-    abilities[ability] = cycleAbility(abilities[ability]);
-    this.applySetup({ ...this.setup, abilities });
-  }
-
   /**
    * Ob jemand mit der Brille im Raum ist — dann trägt er den Anzug. Dieselbe
    * Frage wie `roomOccupied`, nur ohne den Techniker am Desktop: Der ist ein
@@ -3594,15 +3657,19 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Welchen der beiden Plätze dieses Gerät hat** — für `applyIntent`. Wer
-   * in der Zentrale an der Station „Monster" sitzt, ist das Monster; alle
-   * anderen sind der Techniker, wie überall sonst in diesem Spiel.
+   * **Was dieses Gerät ist** — für `applyIntent` und die Rolle in 2D
+   * (`rules/roundSetup.MyRole`): die Wahl der Lobby, außer dort, wo das Gerät
+   * die Antwort selbst ist — die Brille trägt den Anzug, und wer an der
+   * Station „Monster" sitzt, ist das Monster.
    */
-  private myPlace(): 'technician' | 'monster' {
+  private myPlace(): MyRole {
     const ctx = this.context;
-    return ctx && seatOf(this.currentClaims(), ctx.net.localId) === 'monster'
-      ? 'monster'
-      : 'technician';
+    // Die Brille trägt den Anzug — immer; ein Desktop, der sich an den Stock
+    // gesetzt hat (`flatTechnician`), auch. Sonst gilt die Wahl der Lobby.
+    if (ctx?.role === 'vr') return 'technician';
+    if (ctx && seatOf(this.currentClaims(), ctx.net.localId) === 'monster') return 'monster';
+    if (this.flatTechnician) return 'technician';
+    return this.lobbyChoice.me;
   }
 
   /**
@@ -3630,13 +3697,22 @@ export class HauntingWorld extends GridWorld {
     // später die Brille aufsetzte, landete hier in `openFlat` — und das steigt
     // in einer XR-Sitzung wortlos wieder aus. Der Druck auf „Mission starten"
     // tat dann gar nichts. In der Brille gibt es das Schiff.
-    if (opensFlat(this.startState())) {
+    // **Wer das Monster spielt, spielt es auf der Karte** — auch dann, wenn
+    // die Ansicht auf „3D" steht und im Raum keine Brille ist: Im Schiff
+    // rechnet der Modelltechniker nur in einer Vorführung, und die läuft dort
+    // nur auf dem Gerät des Technikers. Ein Monster allein im Schiff hätte
+    // niemanden zu jagen. Steht eine Brille im Raum, bleibt es beim Steuer
+    // übers Netz (`monster/netMonsterPort.ts`).
+    const asMonster = this.myPlace() === 'monster' && !this.roomHasVr();
+    if (asMonster && !opensFlat(this.startState()) && !ctx.renderer.xr.isPresenting)
+      ctx.notify('Als Monster spielst du auf der Karte von oben.');
+    if (opensFlat(this.startState()) || (asMonster && !ctx.renderer.xr.isPresenting)) {
       const options = this.state.crew.options;
-      const role = flatRoleOf(setup);
+      const role = flatRoleOf(setup, this.myPlace());
       this.openFlat(ctx, {
         monster: options.monster,
         tuning: this.tuning,
-        test: setup.monster === 'off',
+        test: setup.seats.monster.who === 'off',
         role,
         setup,
         powers: powersOf(setup),
@@ -3655,7 +3731,7 @@ export class HauntingWorld extends GridWorld {
     // Falsch war nur, dass es niemand erfuhr: Man stellte „Mensch" ein, sah
     // ein Monster aus Zahlen und hielt den Knopf für kaputt. Also steht es
     // jetzt da, und zwar beim Start, wo die Verabredung getroffen wird.
-    if (setup.monster === 'human' && !ownerOf(this.currentClaims(), 'monster'))
+    if (setup.seats.monster.who === 'human' && !ownerOf(this.currentClaims(), 'monster'))
       ctx.notify(
         'Monster: Mensch — aber noch niemand am Steuer. Bis sich jemand auf den Platz setzt, rechnet die Routine.',
       );
@@ -3692,12 +3768,11 @@ export class HauntingWorld extends GridWorld {
   objectives(): MapGoal[] {
     const state = this.state;
     const layout = stationLayout(this.spec);
-    // **Wie genau ein Ziel benannt werden darf, entscheidet die Verteilung**
-    // (`rules/roundSetup.goalPrecision`): Sitzt ein Mensch am Archiv, bekommt
-    // der Techniker den Raum und nicht die Kiste — sonst läse der Archivar ihm
-    // vor, was er ohnehin vor sich leuchten sieht.
-    const precision = goalPrecision(this.setup);
+    // **Ziele sieht nur, wer das Archiv hält** (`rules/roundSetup.goalPrecision`):
+    // ohne die Fähigkeit kein Kompass, kein Saum, keine Liste. Wer sie nicht
+    // hat, hört, wo es liegt (`rules/archiveRadio.ts`), oder sucht.
     const out: MapGoal[] = [];
+    if (goalPrecision(this.setup) === 'none') return out;
     for (const repair of repairsFor(this.spec)) {
       // **Beide Schreibweisen von `done`**: Das Schiff schreibt `engine`, die
       // 2D-Runde `t0` (`rules/archiveGoals.orderDone`). Vorher stand hier nur
@@ -3727,26 +3802,14 @@ export class HauntingWorld extends GridWorld {
           precision: 'exact',
         });
       } else if (!carried && cargo) {
-        if (precision === 'crate')
-          out.push({
-            id: cargo.id,
-            at: { x: cargo.approach.x, z: cargo.approach.z },
-            label: task?.label ?? repair.item,
-            next: false,
-            kind: 'crate',
-            precision: 'exact',
-          });
-        else {
-          const centre = stationGraph(this.spec).centre(cargo.roomId);
-          out.push({
-            id: `room:${cargo.roomId}`,
-            at: { x: centre.x, z: centre.z },
-            label: roomOf(this.spec, cargo.roomId)?.name ?? cargo.roomId,
-            next: false,
-            kind: 'room',
-            precision: 'room',
-          });
-        }
+        out.push({
+          id: cargo.id,
+          at: { x: cargo.approach.x, z: cargo.approach.z },
+          label: task?.label ?? repair.item,
+          next: false,
+          kind: 'crate',
+          precision: 'exact',
+        });
       } else if (console)
         out.push({
           id: console.id,
@@ -4511,4 +4574,12 @@ function edgeCentre(x: number, z: number, dir: Dir): { x: number; z: number; alo
  */
 function framed(size: number): number {
   return size / 2 + Math.max(TILE * 0.25, size * 0.06);
+}
+
+/** Die Fähigkeiten eines Platzes als Zeile fürs Menü — „Späher + Archiv" oder „keine Fähigkeit". */
+function describeSeat(setup: RoundSetup, seat: SeatId): string {
+  const held = ABILITIES.filter((one) => setup.seats[seat].powers[one]).map(
+    (one) => ABILITY_LABELS[one],
+  );
+  return held.length ? held.join(' + ') : 'keine Fähigkeit';
 }

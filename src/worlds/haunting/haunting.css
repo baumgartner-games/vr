@@ -56,9 +56,9 @@
    Einsatzzentrale. Der Fernseher hat auch eine: Er ist kein Gerät, aber er
    steht in derselben Liste, und eine Kachel ohne eigene Farbe sieht aus wie
    ein Fehler. */
-.haunt[data-station="archive"] { --haunt-accent: #ffc857; }
-.haunt[data-station="scout"] { --haunt-accent: #ff6b6b; }
-.haunt[data-station="hack"] { --haunt-accent: #4aa8ff; }
+.haunt[data-station="red"] { --haunt-accent: #ff6b6b; }
+.haunt[data-station="yellow"] { --haunt-accent: #ffc857; }
+.haunt[data-station="blue"] { --haunt-accent: #4aa8ff; }
 .haunt[data-station="watch"] { --haunt-accent: #b98cff; }
 /* Die Gegenseite: dasselbe Rot wie die Monster-Ansicht selbst (`monster/monster.css`). */
 .haunt[data-station="monster"], .haunt [data-accent="monster"] { --haunt-accent: #ff4d55; }
@@ -327,8 +327,8 @@ body.haunt-on #hud { display: none; }
 
 /* ORBITAL: instruments readable on a phone, no blur/post-processing. */
 .haunt { --haunt-ink: #e0eff0; --haunt-dim: #a0b9c4; --haunt-faint: #7895a4; --haunt-card: rgba(13,32,43,.97); --haunt-card-hi: rgba(22,47,60,.98); --haunt-back: #06111b; --haunt-bar: #0a1a25; --haunt-line: #24414f; --haunt-line-strong: #476f7c; }
-.haunt[data-station="archive"] { --haunt-accent: #ffc58a; }
-.haunt[data-station="scout"] { --haunt-accent: #7de5cf; }
+.haunt[data-station="yellow"] { --haunt-accent: #ffc58a; }
+.haunt[data-station="red"] { --haunt-accent: #ff8a8a; }
 .haunt button { touch-action: manipulation; min-height: 44px; }
 .haunt__tile { border-radius: 10px; border-left: 3px solid var(--haunt-accent); }
 .haunt__body { scrollbar-width: thin; scrollbar-color: #375c6b #081823; }
@@ -368,7 +368,7 @@ body.haunt-on #hud { display: none; }
 .orbital-player__puzzle { border-top: 1px solid #365565; margin-top: 6px; padding-top: 3px; }
 .orbital-player details { padding-top: 8px; }
 .orbital-player summary { cursor: pointer; padding-block: 7px; color: #96eddb; }
-@media (min-width: 760px) { .haunt[data-station="scout"] .haunt__body { max-width: 800px; width: calc(100% - 32px); align-self: center; } }
+@media (min-width: 760px) { .haunt.is-view .haunt__body { max-width: 800px; width: calc(100% - 32px); align-self: center; } }
 @media (max-width: 480px) { .orbital-player { left: 8px; bottom: 8px; width: calc(100vw - 16px); } .orbital-player.is-keys { bottom: 212px; } }
 @media (prefers-reduced-motion: reduce) { .haunt *, .orbital-player * { animation: none !important; transition: none !important; } }
 
@@ -454,9 +454,25 @@ body.haunt-on #hud { display: none; }
 /* „Aus" ist eine Antwort und kein fehlender Eintrag — sie steht grau da und
    nicht rot: Eine Fähigkeit abzuschalten ist kein Fehler. */
 .setup__key--who.is-off { border-color: rgba(140, 170, 230, 0.25); color: #6b7690; }
-.setup__key--me { min-width: 54px; padding: 6px 10px; color: #97a3bd; border-style: dashed; }
-/* „Ich" leuchtet an genau einem Platz — deshalb darf es kräftig sein. */
-.setup__key--me.is-mine { border-style: solid; border-color: #ffd84a; background: rgba(255, 216, 74, 0.16); color: #ffe8a0; font-weight: 600; }
+/* Drei Knöpfe je Platz — Mensch, Bot, Aus — und einer leuchtet. Die Spalte
+   „Ich" ist weg (`roundSetupPanel.ts`). */
+.setup__seat { flex-wrap: wrap; }
+.setup__whos { display: flex; gap: 4px; }
+.setup__whos .setup__key--who { min-width: 0; padding: 6px 10px; font-size: 12px; opacity: 0.55; }
+.setup__whos .setup__key--who.is-active { opacity: 1; background: rgba(255, 216, 74, 0.16); border-color: #ffd84a; color: #ffe8a0; font-weight: 600; }
+.setup__whos .setup__key--who:disabled { opacity: 1; }
+/* Die Fähigkeiten als Lämpchen: gelb hält, grau hält nicht. */
+.setup__powers { display: flex; gap: 4px; flex-basis: 100%; padding-left: 2px; }
+.setup__lamp { min-height: 28px; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.25); background: rgba(28, 38, 62, 0.5); color: #6b7690; font: inherit; font-size: 11px; touch-action: manipulation; }
+.setup__lamp.is-on { border-color: #ffd84a; background: rgba(255, 216, 74, 0.2); color: #ffe8a0; font-weight: 600; }
+.setup__seat--red .setup__label strong::before, .setup__seat--yellow .setup__label strong::before, .setup__seat--blue .setup__label strong::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; vertical-align: -1px; }
+.setup__seat--red .setup__label strong::before { background: #ff5a5f; }
+.setup__seat--yellow .setup__label strong::before { background: #ffd84a; }
+.setup__seat--blue .setup__label strong::before { background: #6ea8ff; }
+/* Mehr als eine Karte auf dem Stuhl: die Zeile zum Blättern. */
+.haunt__subs { display: flex; gap: 6px; padding: 6px 10px 0; }
+.haunt__sub { padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.3); background: rgba(10, 15, 26, 0.9); color: #97a3bd; font: inherit; font-size: 12px; touch-action: manipulation; }
+.haunt__sub[aria-pressed='true'] { background: rgba(140, 170, 230, 0.18); border-color: rgba(140, 170, 230, 0.5); color: #e8ecf7; }
 .setup__holder { margin: -2px 0 2px 2px; font-size: 11px; color: #6b7690; }
 
 /* --- Der Aufbau: zwei Häkchen, die Verteilung, ein Startknopf (`stationUi.vanPage`) --- */

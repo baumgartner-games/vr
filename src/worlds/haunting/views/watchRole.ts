@@ -48,6 +48,12 @@ export function mountWatchView(host: RoleHost): WatchRoleView {
 export interface WatchRoleView extends RoleView {
   /** Was gerade angesehen wird — die Welt richtet ihre Kamera danach aus. */
   readonly lens: Readonly<WatchLens>;
+  /**
+   * **Die Linse von außen voreinstellen** — der Reiter „Zuschauer: Techniker"
+   * folgt ihm, „Zuschauer: Alles" sieht das Deck (`stationUi.ts`). Die
+   * Ansicht darf sie danach selbst umstellen; das hier ist nur der Anfang.
+   */
+  setLens(lens: Partial<WatchLens>): void;
 }
 
 class WatchView implements WatchRoleView {
@@ -79,6 +85,12 @@ class WatchView implements WatchRoleView {
 
   get lens(): Readonly<WatchLens> {
     return this.state;
+  }
+
+  setLens(lens: Partial<WatchLens>): void {
+    this.state = { ...this.state, ...lens };
+    this.drawn = '';
+    this.write();
   }
 
   update(dt: number): void {

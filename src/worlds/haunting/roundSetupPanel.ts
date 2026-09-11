@@ -2,89 +2,68 @@ import {
   ABILITIES,
   ABILITY_HINTS,
   ABILITY_LABELS,
+  SEAT_HINTS,
+  SEAT_LABELS,
+  SEATS,
   WHO_LABELS,
-  cycleAbility,
-  cycleMonster,
-  cycleWho,
-  humanAbilities,
-  powersOf,
+  WHOS,
   roleName,
   saveSetup,
-  technicianLabel,
+  seatAbilities,
+  withPower,
+  withWho,
   type Ability,
   type RoundSetup,
+  type SeatId,
+  type SeatWho,
 } from './rules/roundSetup';
 
 /**
- * **Die Tafel, an der eine Runde verteilt wird** — das Herz des Aufbaus, im
- * Van, in der Brille und überall, wo eine Runde vorbereitet wird.
+ * **Die Tafel, an der eine Runde verteilt wird** — im Van, in der Brille und
+ * überall, wo eine Runde vorbereitet wird.
  *
- * Fünf Zeilen: der Techniker (Mensch, Bot — oder **VR**, wenn jemand mit der
- * Brille im Raum steht, und dann nicht änderbar), das Monster (Mensch, Bot
- * oder aus) und die **drei Fähigkeiten** der Einsatzzentrale, jede mit
- * `Bot / Mensch / Aus`. Jeder Tipp schreibt die Einstellung sofort
- * (`saveSetup`) und ruft `onChange`; gestartet wird nicht hier, sondern mit
- * dem einen Knopf darunter. Reines DOM ohne Rahmen; die Farben kommen aus
- * `haunting.css` (`.setup`), damit die Tafel überall gleich aussieht.
+ * Fünf Zeilen, eine je Platz (`rules/roundSetup.SEATS`): Techniker, Rot,
+ * Gelb, Blau, Monster. In jeder Zeile stehen **drei Knöpfe** nebeneinander —
+ * Mensch, Bot, Aus —, und rechts daneben, außer beim Monster, die **drei
+ * Fähigkeiten** als Lämpchen: gelb, wenn der Platz sie hält, grau, wenn
+ * nicht. Jeder Tipp schreibt die Einstellung sofort (`saveSetup`) und ruft
+ * `onChange`; gestartet wird nicht hier, sondern mit dem einen Knopf darunter.
  *
- * **„+ Platz" ist weg, und mit ihm die Liste, die wachsen konnte.** Vorher
- * standen hier so viele Plätze, wie jemand angelegt hatte — zwei Archivare
- * waren möglich, keiner auch. Wer die Tafel las, wusste nicht, welche
- * Auskünfte es in dieser Runde überhaupt gibt. Jetzt stehen alle drei
- * Fähigkeiten immer da; „Aus" ist eine Antwort und kein fehlender Eintrag.
+ * **Die Spalte „Ich" ist weg.** Sie sagte, welches Gerät auf welchem Platz
+ * sitzt — dieselbe Frage, die die Reiter oben beantworten, nur ohne zu
+ * zeigen, was man dann sieht. Was dieses Gerät ist, steht jetzt allein dort
+ * (`stationUi.ts`, `rules/lobby.LobbyChoice.me`); die Tafel sagt nur noch,
+ * **wer** die Plätze hält und **was** jeder darf.
  *
- * **Und darunter steht, wie die Mischung heißt** (`roleName`): Wer als Mensch
- * Radar und Schalttafel hält, sitzt in der „Einsatzkontrolle", mit Akte und
- * Radar in der „Aufklärung". Der Besitzer wollte mischen können — dann muss
- * die Mischung auch einen Namen haben, sonst ruft man sich am Tisch Listen zu.
+ * **Und die Fähigkeiten hängen am Platz, nicht an einer Liste daneben.** Das
+ * war der Wunsch des Besitzers, und er löst nebenbei die Frage nach dem
+ * Licht: Der Techniker schaltet Lampen genau dann per Tipp, wenn in seiner
+ * Zeile „Schalttafel" leuchtet. Unter einer Zeile mit Fähigkeiten steht, wie
+ * die Mischung heißt (`roleName`) — Rot mit Radar und Tafel ist die
+ * „Einsatzkontrolle", und so ruft man es sich am Tisch zu.
  *
- * Die Spalte „Ich" bleibt: Ein Tipp darauf ist beides zugleich — die Zeile
- * wird „Mensch", und dieses Gerät setzt sich dorthin (`SetupPanelHost.claim`).
- * „Ich" gibt es genau einmal; wer es woanders hinsetzt, nimmt es dort weg.
+ * Reines DOM ohne Rahmen; die Farben kommen aus `haunting.css` (`.setup`).
  */
-
-/** Ein Platz der Runde, so wie „Ich" ihn benennt. */
-export type SetupSlot = 'technician' | 'monster' | `power:${Ability}`;
-
-/** Aus einer Fähigkeit den Platz machen, den „Ich" meint. */
-export function slotOf(ability: Ability): SetupSlot {
-  return `power:${ability}`;
-}
-
-/** Und wieder zurück — `null`, wenn dieser Platz keine Fähigkeit ist. */
-export function abilityOf(slot: SetupSlot): Ability | null {
-  if (!slot.startsWith('power:')) return null;
-  const rest = slot.slice(6) as Ability;
-  return ABILITIES.includes(rest) ? rest : null;
-}
-
 export interface SetupPanelHost {
   setup(): RoundSetup;
   onChange(setup: RoundSetup): void;
   /**
-   * Ob das Monster als Mensch hier überhaupt spielbar ist (nur in der 2D-Welt).
-   * Eine Frage und kein Wert: Die Ansicht wechselt über das Häkchen, während
-   * die Tafel schon steht — ein beim Bauen abgelesenes `true` bliebe stehen.
+   * Ob das Monster als Mensch hier überhaupt spielbar ist. Eine Frage und
+   * kein Wert: Die Ansicht wechselt über das Häkchen, während die Tafel schon
+   * steht — ein beim Bauen abgelesenes `true` bliebe stehen.
    */
   humanMonster?(): boolean;
   /**
    * Ob jemand mit der Brille im Raum ist. Dann trägt **er** den Anzug: Die
-   * Zeile heißt „VR" und lässt sich nicht drücken.
+   * Zeile des Technikers heißt „VR" und lässt sich nicht umstellen.
    */
   vr?(): boolean;
   /**
-   * Welchen Platz dieses Gerät hat — `null`, wenn keinen. Fehlt die Auskunft,
-   * hat die Tafel keine Spalte „Ich": Sie stünde dann an einem Ort, an dem es
-   * kein „ich" gibt, und ein Knopf ohne Wirkung ist schlimmer als keiner.
+   * Wer diesen Platz über das Netz hält, als Name — `null` heißt: niemand
+   * sitzt dort. Steht klein unter der Zeile, damit „Mensch" keine Behauptung
+   * bleibt: Wer sie liest, weiß, ob schon jemand am Telefon sitzt.
    */
-  mine?(): SetupSlot | null;
-  /** „Ich" auf diesen Platz setzen — der Wirt schreibt die Tafel und setzt sich hin. */
-  claim?(slot: SetupSlot): void;
-  /**
-   * Wer diesen Platz über das Netz hält, als Name — `null` heißt: niemand,
-   * dort rechnet ein Bot. Steht unter jeder Fähigkeit.
-   */
-  holder?(slot: SetupSlot): string | null;
+  holder?(seat: SeatId): string | null;
 }
 
 export class SetupPanel {
@@ -97,152 +76,110 @@ export class SetupPanel {
 
   render(): void {
     const setup = this.host.setup();
-    const powers = powersOf(setup);
-    const mine = this.host.mine?.() ?? null;
-    const claims = !!this.host.claim && !!this.host.mine;
     const vr = this.host.vr?.() ?? false;
     const parts: HTMLElement[] = [];
-    const technician = this.row(
-      'Techniker',
-      'setup-technician',
-      technicianLabel(setup, vr),
-      vr ? 'Der Spieler in der Brille — er trägt den Anzug' : 'Stock und Knöpfe · oder aus Zahlen',
-      claims && !vr ? 'technician' : null,
-      mine,
-    );
-    // **Ein Knopf, der nichts mehr tut, wird auch keiner.** Solange jemand die
-    // Brille auf hat, ist der Techniker vergeben; ein drückbares „VR" hieße,
-    // dass man ihn wegklicken kann, und genau das darf niemand.
-    if (vr) technician.querySelector('button')?.toggleAttribute('disabled', true);
-    parts.push(
-      technician,
-      this.row(
-        'Monster',
-        'setup-monster',
-        WHO_LABELS[setup.monster],
-        setup.monster === 'off'
-          ? 'Sicherer Test ohne Gegner'
-          : setup.monster === 'human' && this.host.humanMonster?.() === false
-            ? 'Am Stock nur in der 2D-Welt'
-            : 'Aus Zahlen · oder am Stock (2D)',
-        claims ? 'monster' : null,
-        mine,
-      ),
-    );
-    parts.push(head('Einsatzzentrale'));
-    for (const ability of ABILITIES) {
-      const slot = slotOf(ability);
-      const who = setup.abilities[ability];
-      const line = el('div', 'setup__seat');
-      const label = el('div', 'setup__label');
-      label.append(
-        el('strong', '', ABILITY_LABELS[ability]),
-        el('small', '', ABILITY_HINTS[ability]),
-      );
-      const key = el('button', `setup__key setup__key--who is-${who}`, WHO_LABELS[who]);
-      key.dataset['setupAbility'] = ability;
-      key.setAttribute(
-        'aria-label',
-        `${ABILITY_LABELS[ability]}: ${WHO_LABELS[who]} — antippen wechselt`,
-      );
-      line.append(label, key);
-      if (claims) line.append(meKey(slot, mine === slot));
-      // **Unter der Fähigkeit steht, wer sie wirklich hält** — der Name aus dem
-      // Netz oder „Bot". Ohne diese Zeile ist „Mensch" eine Behauptung: Wer sie
-      // liest, weiß nicht, ob schon jemand am Telefon sitzt oder ob nur jemand
-      // den Knopf umgestellt hat.
-      const held = this.host.holder?.(slot) ?? null;
-      parts.push(
-        line,
-        el(
-          'small',
-          'setup__holder',
-          held ?? (who === 'human' ? 'noch niemand am Telefon' : who === 'bot' ? 'Bot' : 'niemand'),
-        ),
-      );
+    for (const seat of SEATS) {
+      if (seat === 'red') parts.push(head('Einsatzzentrale'));
+      if (seat === 'monster') parts.push(head('Gegenseite'));
+      parts.push(this.row(setup, seat, vr));
     }
-    const humans = humanAbilities(setup);
     parts.push(
       el(
         'small',
         'setup__hint',
-        humans.length
-          ? `Mensch in der Zentrale: ${roleName(humans)} (${humans.map((one) => ABILITY_LABELS[one]).join(' + ')}).`
-          : 'Kein Mensch in der Zentrale — der Techniker ist auf sich und die Bots gestellt.',
-      ),
-    );
-    const granted = [
-      powers.scout ? 'Horchbild der Station' : '',
-      powers.panel ? 'Türen und Lampen per Tipp' : '',
-      powers.archive ? 'Raumakte mit Codes' : '',
-    ].filter(Boolean);
-    parts.push(
-      el(
-        'small',
-        'setup__hint',
-        granted.length
-          ? `Bot-Fähigkeiten gibt der Techniker sich selbst: ${granted.join(', ')}.`
-          : 'Ein Mensch sagt es dem Techniker — oder niemand.',
+        'Mensch: jemand am Gerät · Bot: rechnet die Runde · Aus: der Platz bleibt leer. ' +
+          'Die Lämpchen sagen, welche Fähigkeiten ein Platz hält — der Techniker schaltet ' +
+          'Lampen und Türen nur mit „Schalttafel", und Ziele sieht er nur mit „Archiv".',
       ),
     );
     this.element.replaceChildren(...parts);
   }
 
+  private row(setup: RoundSetup, seat: SeatId, vr: boolean): HTMLElement {
+    const one = setup.seats[seat];
+    const line = el('div', `setup__seat setup__seat--${seat}`);
+    line.dataset['seat'] = seat;
+    const label = el('div', 'setup__label');
+    const abilities = seatAbilities(setup, seat);
+    const name = roleName(abilities);
+    label.append(
+      el('strong', '', SEAT_LABELS[seat]),
+      el('small', '', name && one.who !== 'off' ? name : SEAT_HINTS[seat]),
+    );
+    line.append(label);
+
+    // **Drei Knöpfe, nicht ein Zykler.** Ein Knopf, der weiterzählt, ohne zu
+    // zeigen, was als Nächstes kommt, war der alte Fehler; drei Knöpfe zeigen
+    // alle Antworten auf einmal, und eine davon leuchtet.
+    const whos = el('div', 'setup__whos');
+    whos.setAttribute('role', 'group');
+    whos.setAttribute('aria-label', `${SEAT_LABELS[seat]}: wer hält den Platz`);
+    const lockedTechnician = seat === 'technician' && vr;
+    for (const who of WHOS) {
+      // Der Techniker kennt kein „Aus": Eine Runde ohne Anzug gibt es nicht.
+      if (seat === 'technician' && who === 'off') continue;
+      const active = lockedTechnician ? who === 'human' : one.who === who;
+      const key = el('button', `setup__key setup__key--who is-${who}${active ? ' is-active' : ''}`);
+      key.textContent = lockedTechnician && who === 'human' ? 'VR' : WHO_LABELS[who];
+      key.dataset['setupWho'] = who;
+      key.setAttribute('aria-pressed', active ? 'true' : 'false');
+      key.setAttribute(
+        'aria-label',
+        `${SEAT_LABELS[seat]}: ${lockedTechnician && who === 'human' ? 'VR — der Spieler in der Brille' : WHO_LABELS[who]}`,
+      );
+      // **Ein Knopf, der nichts mehr tut, wird auch keiner.** Solange jemand
+      // die Brille auf hat, ist der Techniker vergeben; ein drückbares „Bot"
+      // hieße, dass man ihn wegklicken kann, und genau das darf niemand.
+      if (lockedTechnician) key.toggleAttribute('disabled', true);
+      if (seat === 'monster' && who === 'human' && this.host.humanMonster?.() === false)
+        key.title = 'Am Stock nur in der 2D-Welt';
+      whos.append(key);
+    }
+    line.append(whos);
+
+    if (seat !== 'monster') {
+      // **Die Fähigkeiten als Lämpchen**: gelb hält, grau hält nicht. Sie
+      // stehen auch bei einem Platz, der aus ist — grau —, damit die Zeile
+      // ihre Form behält und niemand rät, ob da noch etwas käme.
+      const powers = el('div', 'setup__powers');
+      powers.setAttribute('role', 'group');
+      powers.setAttribute('aria-label', `${SEAT_LABELS[seat]}: Fähigkeiten`);
+      for (const ability of ABILITIES) {
+        const on = one.powers[ability];
+        const lamp = el('button', `setup__lamp${on ? ' is-on' : ''}`, ABILITY_LABELS[ability]);
+        lamp.dataset['setupPower'] = ability;
+        lamp.setAttribute('aria-pressed', on ? 'true' : 'false');
+        lamp.title = ABILITY_HINTS[ability];
+        powers.append(lamp);
+      }
+      line.append(powers);
+    }
+
+    const held = this.host.holder?.(seat) ?? null;
+    if (held || (one.who === 'human' && seat !== 'technician'))
+      line.append(el('small', 'setup__holder', held ?? 'noch niemand am Gerät'));
+    return line;
+  }
+
   private click(event: Event): void {
     const key = (event.target as HTMLElement | null)?.closest('button');
     if (!key || key.hasAttribute('disabled')) return;
-    const data = key.dataset;
-    // **„Ich" schreibt die Tafel nicht selbst.** Der Wirt weiß, was daran
-    // hängt — hinsetzen, den vorigen Platz wieder freigeben, in 3D den
-    // Techniker am Desktop übernehmen —, und zwei Stellen, die dieselbe Tafel
-    // schreiben, wären wieder zwei Wahrheiten über denselben Platz.
-    const slot = data['setupMe'];
-    if (slot !== undefined) {
-      event.stopPropagation();
-      this.host.claim?.(slot as SetupSlot);
-      this.render();
-      return;
-    }
+    const line = key.closest<HTMLElement>('[data-seat]');
+    const seat = line?.dataset['seat'] as SeatId | undefined;
+    if (!seat || !SEATS.includes(seat)) return;
     const read = this.host.setup();
-    const setup: RoundSetup = { ...read, abilities: { ...read.abilities } };
-    if (data['setupTechnician'] !== undefined) setup.technician = cycleWho(setup.technician);
-    else if (data['setupMonster'] !== undefined) setup.monster = cycleMonster(setup.monster);
-    else if (data['setupAbility'] !== undefined) {
-      const ability = data['setupAbility'] as Ability;
-      setup.abilities[ability] = cycleAbility(setup.abilities[ability]);
-    } else return;
+    let setup: RoundSetup;
+    const who = key.dataset['setupWho'] as SeatWho | undefined;
+    const power = key.dataset['setupPower'] as Ability | undefined;
+    if (who && WHOS.includes(who)) setup = withWho(read, seat, who);
+    else if (power && ABILITIES.includes(power))
+      setup = withPower(read, seat, power, !read.seats[seat].powers[power]);
+    else return;
     event.stopPropagation();
     saveSetup(setup);
     this.host.onChange(setup);
     this.render();
   }
-
-  private row(
-    label: string,
-    key: string,
-    value: string,
-    hint: string,
-    slot: SetupSlot | null,
-    mine: SetupSlot | null,
-  ): HTMLElement {
-    const line = el('div', 'setup__row');
-    const text = el('div', 'setup__label');
-    text.append(el('strong', '', label), el('small', '', hint));
-    const button = el('button', 'setup__key', value);
-    button.dataset[key.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())] = '';
-    line.append(text, button);
-    if (slot) line.append(meKey(slot, mine === slot));
-    return line;
-  }
-}
-
-/** Der Knopf „Ich" — er leuchtet an genau einem Platz. */
-function meKey(slot: SetupSlot, active: boolean): HTMLElement {
-  const key = el('button', `setup__key setup__key--me${active ? ' is-mine' : ''}`, 'Ich');
-  key.dataset['setupMe'] = slot;
-  key.setAttribute('aria-pressed', active ? 'true' : 'false');
-  key.setAttribute('aria-label', active ? 'Das ist mein Platz' : 'Diesen Platz übernehmen');
-  return key;
 }
 
 function head(text: string): HTMLElement {

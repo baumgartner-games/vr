@@ -1,7 +1,7 @@
 import { pickHost, type HostCandidate } from '../../net/host';
 
 /**
- * **Die Einsatzzentrale: mehr Stationen als Spieler.**
+ * **Die Einsatzzentrale: drei Stühle, ein Fernseher, ein Monster.**
  *
  * Das ist keine Sparmaßnahme, sondern die Spannungsquelle des ganzen
  * Web-Teils. Es gibt mehr Geräte als Leute davor; die
@@ -37,7 +37,17 @@ import { pickHost, type HostCandidate } from '../../net/host';
  * rechnet (`net.ts`, `monster/netMonsterControl.ts`). Ein Gerät, nicht
  * `shared` — ein Monster, nicht mehrere.
  */
-export type StationId = 'archive' | 'scout' | 'hack' | 'watch' | 'monster';
+export type StationId = 'red' | 'yellow' | 'blue' | 'watch' | 'monster';
+
+/**
+ * **Die Geräte heißen wie die Stühle** — Rot, Gelb, Blau — und nicht mehr
+ * wie die Fähigkeiten. Bis hierher *war* jede Fähigkeit ein Gerät
+ * (`archive`, `scout`, `hack`), und wer zwei hielt, saß auf zwei Geräten. Jetzt
+ * ist der Stuhl das Gerät, und welche Karten darauf liegen, sagt die Tafel
+ * (`rules/roundSetup.Seat.powers`). Das Wegschubsen bleibt als Regel bestehen
+ * — es ist eine Metapher für „einer je Stuhl", nicht mehr.
+ */
+export const COLOUR_STATIONS: readonly StationId[] = ['red', 'yellow', 'blue'];
 
 /**
  * **Was die Sitzordnung von einem Gerät wissen muss** — und mehr steht hier
@@ -64,9 +74,9 @@ export interface StationFacts {
 }
 
 export const STATIONS: readonly StationFacts[] = [
-  { id: 'archive' },
-  { id: 'scout' },
-  { id: 'hack' },
+  { id: 'red' },
+  { id: 'yellow' },
+  { id: 'blue' },
   { id: 'watch', shared: true },
   { id: 'monster' },
 ];

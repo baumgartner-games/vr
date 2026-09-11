@@ -18,7 +18,7 @@ import { TILE } from '../nav/navTile';
 import { freshCrew, repairsFor, stationOptions, type PuzzleState, type Repair } from './mission';
 import type { HauntState } from './net';
 import { freshGhosts } from './rules/ghosts';
-import { defaultSetup, saveSetup } from './rules/roundSetup';
+import { defaultSetup, saveSetup, withPower } from './rules/roundSetup';
 import { CARGO_OPEN_SECONDS } from './rules/chore';
 import {
   COMMAND_HOME,
@@ -69,7 +69,6 @@ interface ExhibitLocator {
     parts: THREE.Object3D[];
     wreck: THREE.Group | null;
   }>;
-  lockerEntries: Map<string, string>;
   /** Der Streifen im Blickfeld — `userData.paint` ist der Text, der darauf steht. */
   hud: { mesh: THREE.Mesh };
 }
@@ -516,18 +515,17 @@ test.each(['wires', 'sequence', 'tune'])(
   },
 );
 
-test('the teaching safe accepts its displayed code, hides the player, and E leaves without re-entering', () => {
+test('the teaching safe hides the player on one tap — no code — and E leaves without re-entering', () => {
   menu('orbital:lab:safe');
   const locker = exhibits.lockers.find((l) => l.id === 'training-safe')!;
   const keypad = locker.group.children.find(
     (o) => o.userData.locker === 'training-safe',
   )! as THREE.Mesh;
-  for (const digit of locker.code) {
-    const index = Number(digit) - 1;
-    aim(keypad, (index % 2) * 0.5 + 0.25, 0.75 - Math.floor(index / 2) * 0.5);
-    tap('KeyE');
-  }
-  expect(locker.open).toBe(true);
+  // Kein Code mehr: Das Tastenfeld ist eine Taste, und die Tafel zeigt keine Ziffern.
+  aim(keypad);
+  frame(0.13);
+  expect(document.querySelectorAll('[data-action^="locker:training-safe:"]')).toHaveLength(1);
+  expect(document.body.textContent).toContain('ohne Code');
   expect(state.crew.hidden).toBe('');
   const approach = rig.position.clone();
   tap('KeyE');
@@ -540,17 +538,16 @@ test('the teaching safe accepts its displayed code, hides the player, and E leav
   expect(rig.frozen).toBe(false);
   expect(rig.position.x).toBeCloseTo(approach.x);
   expect(rig.position.z).toBeCloseTo(approach.z);
-  expect(locker.open).toBe(true);
   key('KeyE', 'keyup');
 });
 
 /**
  * **Die zerstörte Kabine in 3D.** Sobald sie im Stand steht
- * (`HauntState.destroyed`), zeigt sie das Wrack, nimmt weder Code noch Gast,
+ * (`HauntState.destroyed`), zeigt sie das Wrack, nimmt keinen Gast auf,
  * sagt es einmal, funkt alle paar Sekunden — und wird mit der neuen Runde
  * wieder heil.
  */
-test('a wrecked locker swaps its model, refuses code and entry, sparks now and then, and heals with the round', () => {
+test('a wrecked locker swaps its model, refuses entry, sparks now and then, and heals with the round', () => {
   menu('orbital:lab:safe');
   const locker = exhibits.lockers.find((l) => l.id === 'training-safe')!;
   const keypad = locker.group.children.find(
@@ -563,21 +560,19 @@ test('a wrecked locker swaps its model, refuses code and entry, sparks now and t
   expect(locker.wreck!.parent).toBe(locker.group);
   expect(locker.parts.every((part) => !part.visible)).toBe(true);
   expect(keypad.visible).toBe(true);
-  // Code: abgelehnt, und es wird gesagt.
+  // Antippen: abgelehnt, und es wird gesagt.
   say.mockClear();
-  const index = Number(locker.code[0]) - 1;
-  aim(keypad, (index % 2) * 0.5 + 0.25, 0.75 - Math.floor(index / 2) * 0.5);
+  aim(keypad);
   tap('KeyE');
-  expect(locker.open).toBe(false);
   expect(state.crew.hidden).toBe('');
-  expect(exhibits.lockerEntries.get('training-safe') ?? '').toBe('');
+  expect(rig.frozen).toBe(false);
   expect(say.mock.calls.filter(([text]: [string]) => /zerstört/.test(text))).toHaveLength(1);
   // Auch ein Schrank, der offen war, nimmt niemanden mehr auf.
   locker.open = true;
   tap('KeyE');
   expect(state.crew.hidden).toBe('');
   expect(rig.frozen).toBe(false);
-  // Die Tafel am Bildschirm: Hinweis statt Ziffern.
+  // Die Tafel am Bildschirm: Hinweis statt Knopf.
   expect(document.querySelector('[data-action^="locker:training-safe:"]')).toBeNull();
   expect(document.body.textContent).toContain('Kabine zerstört');
   // Funken in unregelmäßigem Takt — in sieben Sekunden mindestens einmal, höchstens dreimal.
@@ -619,29 +614,22 @@ test('a locker cannot be entered or coded from the adjacent passage behind its w
     (object) => object.userData.locker === locker.id,
   )! as THREE.Mesh;
   aim(keypad);
-  const digitButton = document.querySelector<HTMLButtonElement>(
-    `[data-action="locker:${locker.id}:1"]`,
-  )!;
-  expect(digitButton).not.toBeNull();
-  // Move before the next DOM repaint: even a stale button must reject input.
-  rig.placeAt(at);
-  digitButton.click();
-  expect(exhibits.lockerEntries.get(locker.id)).toBeUndefined();
   frame(0.13);
-  expect(document.querySelector(`[data-action^="locker:${locker.id}:"]`)).toBeNull();
-
-  aim(keypad);
-  for (const digit of locker.code)
-    document
-      .querySelector<HTMLButtonElement>(`[data-action="locker:${locker.id}:${digit}"]`)!
-      .click();
-  expect(locker.open).toBe(true);
-  const enter = button('Verstecken');
+  const enter = document.querySelector<HTMLButtonElement>(`[data-action="locker:${locker.id}:1"]`)!;
+  expect(enter).not.toBeNull();
+  // Move before the next DOM repaint: even a stale button must reject input.
   rig.placeAt(at);
   enter.click();
   expect(state.crew.hidden).toBe('');
   expect(rig.position.x).toBeCloseTo(at.x);
   expect(rig.position.z).toBeCloseTo(at.z);
+  frame(0.13);
+  expect(document.querySelector(`[data-action^="locker:${locker.id}:"]`)).toBeNull();
+  // Auch die Taste am Schrank selbst nimmt von drüben niemanden auf.
+  aim(keypad);
+  rig.placeAt(at);
+  tap('KeyE');
+  expect(state.crew.hidden).toBe('');
 });
 
 test('the teaching locker accepts input only while the technician is in its own training room', () => {
@@ -651,14 +639,14 @@ test('the teaching locker accepts input only while the technician is in its own 
     (object) => object.userData.locker === locker.id,
   )! as THREE.Mesh;
   aim(keypad);
-  const digit = document.querySelector<HTMLButtonElement>(
+  frame(0.13);
+  const enter = document.querySelector<HTMLButtonElement>(
     '[data-action="locker:training-safe:1"]',
   )!;
-  expect(digit).not.toBeNull();
+  expect(enter).not.toBeNull();
   const otherRoom = trainingSpawn('tools');
   rig.placeAt(new THREE.Vector3(otherRoom.x, 0, otherRoom.z));
-  digit.click();
-  expect(exhibits.lockerEntries.get(locker.id)).toBeUndefined();
+  enter.click();
   expect(state.crew.hidden).toBe('');
 });
 
@@ -806,11 +794,7 @@ test('a shelter always presents an interior exit and ignores a second stale sele
   const keypad = locker.group.children.find(
     (object) => object.userData.locker === locker.id,
   )! as THREE.Mesh;
-  for (const digit of locker.code) {
-    const index = Number(digit) - 1;
-    aim(keypad, (index % 2) * 0.5 + 0.25, 0.75 - Math.floor(index / 2) * 0.5);
-    tap('KeyE');
-  }
+  aim(keypad);
   tap('KeyE');
   expect(state.crew.hidden).toBe(locker.id);
   expect(rig.camera.getObjectByName('mission-status-panel')?.visible).toBe(true);
@@ -1166,8 +1150,9 @@ test('der Streifen zeigt die Aufträge nur, wenn am Archiv ein Bot sitzt', () =>
   expect(solo).toContain('O₂');
   expect(solo).toContain(repairsFor(spec)[0]!.title);
 
-  const base = defaultSetup();
-  saveSetup({ ...base, abilities: { ...base.abilities, archive: 'human' } });
+  // Ohne eigenes Archiv keine Auftragszeile: Die Ziele gehören dem, der die
+  // Fähigkeit hält (`rules/roundSetup.powersOf`).
+  saveSetup(withPower(defaultSetup(), 'technician', 'archive', false));
   frame(0.3);
   const shared = String(exhibits.hud.mesh.userData.paint);
   expect(shared).toContain('O₂');

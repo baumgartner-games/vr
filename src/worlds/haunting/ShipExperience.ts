@@ -34,7 +34,7 @@ import {
 } from './botTuning';
 import { TrainingRun, TRAINING_DEFAULTS, inBand, type TrainingSide } from './botTraining';
 import { simulationSpeedLabel } from './simulationSpeed';
-import { describeSetup, loadSetup, powersOf } from './rules/roundSetup';
+import { botArchivist, describeSetup, loadSetup, powersOf } from './rules/roundSetup';
 import { intentOf, INTENT_HINTS, INTENT_LABELS, INTENTS } from './rules/lobby';
 import type { MonsterCue, MonsterPace } from './monsterRoutine';
 import {
@@ -288,7 +288,6 @@ export class ShipExperience {
   private readonly effects = new ShipEffects();
   private readonly audioHead = new THREE.Vector3();
   private hasAudioHead = false;
-  private readonly lockerEntries = new Map<string, string>();
   /** Wann welches Wrack Funken wirft (`rules/cabinWreck.ts`). */
   private readonly wreckClock = new CabinWreck();
   private readonly suit = new THREE.Group();
@@ -839,8 +838,8 @@ export class ShipExperience {
    * die Karte schlug die Akte auf. In der Brille schaut aber niemand auf eine
    * Karte, während hinter ihm eine Tür knarrt.
    *
-   * Gefunkt wird nur, wo der Archivar wirklich ein Bot ist
-   * (`powersOf(...).archive`): Sitzt dort ein Mensch, ist das Sagen sein Platz,
+   * Gefunkt wird nur, wo in der Zentrale ein Bot das Archiv hält
+   * (`rules/roundSetup.botArchivist`): Sitzt dort ein Mensch, ist das Sagen sein Platz,
    * und eine Stimme daneben nähme ihm seinen einzigen Beitrag weg. Und nur für
    * den, der die Runde spielt — in der Bot-Runde redet der Modelltechniker
    * selbst (`missionBot.ts`).
@@ -852,7 +851,7 @@ export class ShipExperience {
       !!this.player &&
       !this.crew.simulation &&
       state.phase === 'running' &&
-      powersOf(loadSetup()).archive;
+      botArchivist(loadSetup());
     if (!helping) {
       this.radioed = '';
       return;
@@ -1034,7 +1033,7 @@ export class ShipExperience {
     keypad.mesh.position.set(0, 1.4, 0.425);
     group.add(keypad.mesh);
     keypad.mesh.userData.locker = id;
-    keypad.mesh.userData.interactionLabel = 'E: Schutzcode wählen / offenen Schrank betreten';
+    keypad.mesh.userData.interactionLabel = 'E: In den Schutzschrank';
     group.userData.roomId = id;
     this.root.add(group);
     this.lockers.push({
@@ -1055,11 +1054,18 @@ export class ShipExperience {
         this.enterLocker(locker);
         return;
       }
-      const n = 1 + Math.floor(uv.x * 2) + Math.floor((1 - uv.y) * 2) * 2;
-      this.lockerDigit(id, Math.min(4, n));
+      this.lockerDigit(id, 0);
     });
   }
-  private lockerDigit(id: string, digit: number): void {
+  /**
+   * **Der Schutzschrank hat keinen Code mehr** — ein Tipp, und man ist drin;
+   * ein zweiter, und man ist draußen. Genau wie in der 2D-Welt. Der Code war
+   * eine Frage an den Archivar mitten auf der Flucht, und die Flucht hat
+   * dafür keine drei Sekunden: Wer vor der Kabine stand und die erste Ziffer
+   * suchte, war schon gestellt. `digit` bleibt in der Signatur, weil das
+   * Tastenfeld und das Panel ihn noch schicken; er sagt nichts mehr.
+   */
+  private lockerDigit(id: string, _digit: number): void {
     if (!this.active) return;
     if (this.crew.hidden) {
       this.leaveLocker();
@@ -1072,22 +1078,7 @@ export class ShipExperience {
       this.refuseWreck();
       return;
     }
-    if (locker.open) {
-      this.enterLocker(locker);
-      return;
-    }
-    const entered = (this.lockerEntries.get(id) ?? '') + digit;
-    this.lockerEntries.set(id, entered);
-    if (entered.length < 3) return;
-    this.lockerEntries.set(id, '');
-    if (entered !== locker.code) {
-      this.host.say('Code falsch. Das Archiv kennt den Schutzcode.');
-      this.sound('error');
-      return;
-    }
-    locker.open = true;
-    this.host.say('Schutzschrank offen. Display erneut betätigen: verstecken.');
-    this.sound('door');
+    this.enterLocker(locker);
   }
   private enterLocker(locker: Locker): void {
     if (this.crew.hidden) {
@@ -1133,7 +1124,6 @@ export class ShipExperience {
       locker.wreck = null;
     }
     locker.open = false;
-    this.lockerEntries.set(locker.id, '');
   }
   private inLockerRoom(id: string): boolean {
     this.host.ctx.rig.getHeadPosition(_head);
@@ -1873,8 +1863,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         const id = screen.mesh.userData.locker as string;
         const locker = this.lockers.find((l) => l.id === id);
         if (this.wrecked(id)) this.rows(screen, ['ZERSTÖRT', 'KEIN SCHUTZ']);
-        else if (locker?.open) this.rows(screen, ['OFFEN', 'ANTIPPEN: VERSTECKEN']);
-        else this.gridScreen(screen, this.lockerEntries.get(id) || 'CODE?', ['1', '2', '3', '4']);
+        else
+          this.rows(screen, ['SCHUTZ', locker?.open ? 'OFFEN' : 'BEREIT', 'ANTIPPEN: VERSTECKEN']);
       }
     for (const console of this.consoles) this.paintRepair(console);
     this.paintStatus();
@@ -1911,22 +1901,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       c.fillStyle = i === 2 ? '#a9ffdf' : '#dcebf0';
       c.font = `600 ${Math.min(34, (h / rows.length) * 0.43)}px system-ui`;
       c.fillText(row, w / 2, ((i + 0.5) * h) / rows.length, w - 35);
-    });
-    screen.texture.needsUpdate = true;
-  }
-  private gridScreen(screen: Screen, title: string, values: string[]): void {
-    const key = title + values.join('|');
-    if (screen.mesh.userData.paint === key) return;
-    screen.mesh.userData.paint = key;
-    const c = this.base(screen, title);
-    const w = screen.canvas.width,
-      h = screen.canvas.height;
-    values.forEach((n, i) => {
-      const x = (((i % 2) + 0.5) * w) / 2,
-        y = ((Math.floor(i / 2) + 0.5) * h) / 2;
-      c.fillStyle = '#d4f1ed';
-      c.font = '64px monospace';
-      c.fillText(n, x, y + h * 0.08);
     });
     screen.texture.needsUpdate = true;
   }
@@ -2209,7 +2183,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       near.door?.id,
       near.locker?.id,
       near.locker?.open,
-      near.locker ? this.lockerEntries.get(near.locker.id) : null,
       state.destroyed,
       this.messages,
     ]);
@@ -2393,14 +2366,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       const wrecked = this.wrecked(near.locker.id);
       caption.textContent = wrecked
         ? 'Kabine zerstört — kein Schutz mehr. '
-        : near.locker.open
-          ? 'Schrank offen. '
-          : `Schutzcode: ${this.lockerEntries.get(near.locker.id) ?? ''} `;
+        : 'Schutzschrank — ohne Code, einfach hinein. ';
       box.append(caption);
-      if (wrecked) {
-        // Keine Knöpfe: Ein Wrack nimmt keinen Code und keinen Gast.
-      } else if (near.locker.open) button('Verstecken', `locker:${near.locker.id}:1`, box);
-      else for (let i = 1; i <= 4; i++) button(String(i), `locker:${near.locker.id}:${i}`, box);
+      // Keine Knöpfe an einem Wrack: Es nimmt keinen Gast.
+      if (!wrecked) button('Verstecken', `locker:${near.locker.id}:1`, box);
     }
     if (crew.options.test) {
       const details = document.createElement('details');

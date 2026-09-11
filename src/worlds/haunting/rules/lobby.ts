@@ -31,7 +31,7 @@
  * gemerkt im Browser (`LOBBY_STORAGE`).
  */
 import type { PlayerRole } from '../../../core/types';
-import type { RoundSetup } from './roundSetup';
+import { MY_ROLES, withWho, type MyRole, type RoundSetup } from './roundSetup';
 
 /** Was ich vorhabe: spielen, zusehen oder ohne Monster üben. */
 export type Intent = 'play' | 'watch' | 'train';
@@ -42,6 +42,13 @@ export type View = '2d' | '3d';
 export interface LobbyChoice {
   intent: Intent;
   view: View;
+  /**
+   * **Was dieses Gerät ist** (`rules/roundSetup.MyRole`): einer der fünf
+   * Plätze oder einer der zwei Zuschauer. Eine Wahl je Gerät, nicht je Runde —
+   * deshalb hier und nicht auf der Tafel. Fehlt sie in einem alten Speicher,
+   * gilt der Anfang: Zuschauer des Technikers.
+   */
+  me: MyRole;
 }
 
 /**
@@ -123,9 +130,6 @@ export const INTENT_HINTS: Readonly<Record<Intent, string>> = {
  * verschieden nennen, waren der Befund, mit dem diese Datei angefangen hat.
  */
 export const FLAT_CHECK = '2D-Welt von oben';
-export const TEST_CHECK = 'Testen';
-export const TEST_CHECK_HINT =
-  'Ohne Monster · in einer Test-Runde darf jeder jederzeit jede Rolle wechseln';
 
 export const VIEW_LABELS: Readonly<Record<View, string>> = {
   '2d': '2D von oben',
@@ -139,7 +143,14 @@ export const VIEW_LABELS: Readonly<Record<View, string>> = {
  * Brille das Schiff.
  */
 export function defaultLobby(role: PlayerRole): LobbyChoice {
-  return { intent: 'play', view: role === 'handheld' ? '2d' : '3d' };
+  // **Alle fangen in der Zentrale an und sehen dem Techniker zu** — außer dem,
+  // der den Anzug trägt: Brille und Desktop sind der Techniker, denn dort
+  // gibt es das Schiff, und ein Schiff ohne Techniker ist eine Vorführung.
+  return {
+    intent: 'play',
+    view: role === 'handheld' ? '2d' : '3d',
+    me: role === 'handheld' ? 'watch:technician' : 'technician',
+  };
 }
 
 /**
@@ -157,6 +168,7 @@ export function readLobby(
   const bag = value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
   const intent = bag?.['intent'];
   const view = bag?.['view'];
+  const me = bag?.['me'];
   return {
     intent:
       intent === 'play' || intent === 'watch' || intent === 'train' ? intent : fallback.intent,
@@ -168,6 +180,7 @@ export function readLobby(
             ? '2d'
             : '3d'
           : fallback.view,
+    me: MY_ROLES.includes(me as MyRole) ? (me as MyRole) : fallback.me,
   };
 }
 
@@ -204,38 +217,45 @@ export function saveLobby(
  * **Die Absicht in die Verteilung schreiben** — die eine Stelle, an der aus
  * einer Kachel eine Runde wird.
  *
- * `me` sagt, welchen der beiden Plätze *dieses* Gerät hat; ohne Angabe ist es
- * der Techniker, wie überall sonst in diesem Spiel. Das ist der Grund, warum
- * „Zuschauen" nicht stumpf beide auf Bot stellt: Ein Mensch, der woanders am
- * Telefon sitzt und das Monster spielt, bleibt ein Mensch — sonst nähme ihm
- * mein Tipp auf „Zuschauen" die Runde weg. Die Fähigkeiten der Zentrale rührt
- * keine der drei Absichten an.
+ * `me` ist, was *dieses* Gerät ist (`rules/roundSetup.MyRole`). Zwei Plätze
+ * hängen daran: Wer sich als **Techniker** gewählt hat, trägt beim Spielen
+ * den Anzug; wer sich als **Monster** gewählt hat, hält dessen Stock, und der
+ * Techniker geht an die Zahlen. Alle anderen — die Farben und die Zuschauer —
+ * rühren an den beiden Plätzen nichts: Für sie sagt die Tafel, wer den Anzug
+ * trägt (ein Mensch an der Brille, sonst ein Bot). Die Farbplätze rührt keine
+ * der drei Absichten an.
+ *
+ * **„Trainieren" heißt nur: kein Monster.** Das Häkchen „Testen" dafür ist
+ * weg — auf der Tafel steht „Monster: Aus", und das ist dieselbe Aussage an
+ * der Stelle, an die sie gehört.
  */
 export function applyIntent(
   setup: RoundSetup,
   intent: Intent,
-  me: 'technician' | 'monster' | null = 'technician',
+  me: MyRole | null = 'technician',
 ): RoundSetup {
-  if (intent === 'train') {
-    // Trainieren heißt: kein Monster, und ich bin der, der übt.
-    return { ...setup, technician: 'human', monster: 'off' };
-  }
-  if (intent === 'watch') {
-    return {
-      ...setup,
-      technician: setup.technician === 'human' && me !== 'technician' ? 'human' : 'bot',
-      monster: setup.monster === 'human' && me !== 'monster' ? 'human' : 'bot',
-    };
-  }
-  // Spielen: Wer das Monster ist, überlässt den Techniker den Zahlen; alle
-  // anderen greifen selbst zum Stock. Ein ausgeschaltetes Monster kommt zurück
-  // — eine Mission ohne Monster wäre ein Training.
+  const asTechnician = me === 'technician';
   const asMonster = me === 'monster';
-  return {
-    ...setup,
-    technician: asMonster ? 'bot' : 'human',
-    monster: asMonster ? 'human' : setup.monster === 'off' ? 'bot' : setup.monster,
-  };
+  let next = setup;
+  if (asTechnician && setup.seats.technician.who !== 'human')
+    next = withWho(next, 'technician', 'human');
+  if (asMonster) {
+    next = withWho(next, 'monster', 'human');
+    if (next.seats.technician.who === 'human') next = withWho(next, 'technician', 'bot');
+  }
+  if (intent === 'train') return withWho(next, 'monster', 'off');
+  if (intent === 'watch') {
+    // Zusehen: Techniker und Monster aus Zahlen — es sei denn, ein anderer
+    // Mensch hält den Platz; den nimmt mein Tipp auf „Zuschauen" ihm nicht weg.
+    if (asTechnician || next.seats.technician.who !== 'human')
+      next = withWho(next, 'technician', 'bot');
+    if (asMonster || next.seats.monster.who !== 'human') next = withWho(next, 'monster', 'bot');
+    return next;
+  }
+  // Spielen: Ein ausgeschaltetes Monster kommt zurück — eine Mission ohne
+  // Monster wäre ein Training.
+  if (next.seats.monster.who === 'off') next = withWho(next, 'monster', 'bot');
+  return next;
 }
 
 /**
@@ -245,10 +265,10 @@ export function applyIntent(
  * nachgeben und nicht umgekehrt.
  */
 export function intentOf(setup: RoundSetup): Intent {
-  if (setup.monster === 'off') return 'train';
-  // Ein Techniker aus Zahlen heißt zusehen — es sei denn, ich selbst stehe
-  // als Monster auf der Tafel: Dann ist das eine Runde und kein Schauspiel.
-  if (setup.technician === 'bot' && setup.monster !== 'human') return 'watch';
+  if (setup.seats.monster.who === 'off') return 'train';
+  // Ein Techniker aus Zahlen heißt zusehen — es sei denn, ein Mensch spielt
+  // das Monster: Dann ist das eine Runde und kein Schauspiel.
+  if (setup.seats.technician.who !== 'human' && setup.seats.monster.who !== 'human') return 'watch';
   return 'play';
 }
 

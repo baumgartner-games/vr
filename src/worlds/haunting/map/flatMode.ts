@@ -1,6 +1,6 @@
 import './flat.css';
 import { MARKS, type HouseRoom } from '../house';
-import { lockerCode, repairsFor, type MonsterKind } from '../mission';
+import { repairsFor, type MonsterKind } from '../mission';
 import { viewModesFor, type ViewMode } from '../registry/viewModes';
 import './mapModes.register';
 import {
@@ -26,6 +26,7 @@ import {
   flatRoleOf,
   powersOf,
   switchRights,
+  withWho,
   type RoundSetup,
   type SoloPowers,
 } from '../rules/roundSetup';
@@ -206,11 +207,9 @@ const ROLE_LABELS: Record<FlatRole, string> = {
 /** Ohne Tafel: die Verteilung, die Rolle und Test der alten Optionen meinen. */
 function setupFromOptions(options: FlatOptions): RoundSetup {
   const role = options.role ?? 'technician';
-  return {
-    ...defaultSetup(),
-    technician: role === 'technician' ? 'human' : 'bot',
-    monster: options.test ? 'off' : role === 'monster' ? 'human' : 'bot',
-  };
+  let setup = withWho(defaultSetup(), 'technician', role === 'technician' ? 'human' : 'bot');
+  setup = withWho(setup, 'monster', options.test ? 'off' : role === 'monster' ? 'human' : 'bot');
+  return setup;
 }
 
 export class FlatMode {
@@ -1116,7 +1115,6 @@ export class FlatMode {
     };
     if (house) {
       line('Darin steht', MARKS[house.signature]);
-      line('Schutzschrank-Code', lockerCode(spec.seed, house.id));
     } else line('Bereich', room.circulation ? 'Gang' : room.safe ? 'sicher' : '');
     const doors = snapshot.doors.filter((d) => d.a === roomId || d.b === roomId);
     const locked = doors.filter((d) => d.locked).length;
@@ -1664,8 +1662,8 @@ export class FlatMode {
       // alten Stand weiter.
       resume: undefined,
       setup,
-      test: setup.monster === 'off',
-      role: flatRoleOf(setup),
+      test: setup.seats.monster.who === 'off',
+      role: flatRoleOf(setup, this.role === 'monster' ? 'monster' : 'technician'),
       powers: powersOf(setup),
       routes: this.routes,
     };

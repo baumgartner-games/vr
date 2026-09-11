@@ -836,6 +836,19 @@ export class MonsterRoutine {
     return 'walk';
   }
 
+  /**
+   * **Nach einem Treffer innehalten** (`mission.HIT_LULL`): dieselbe Pause
+   * wie nach einer aufgerissenen Kabine (`savour`), nur ausgelöst von außen —
+   * die Routine sieht den Schlag im Freien nicht selbst, den führt die Welt
+   * aus. Ohne diese Pause klebte das Vieh dem Techniker an den Fersen, bis
+   * seine Schonfrist abgelaufen war, und der nächste Treffer kam mit Anlauf.
+   * Die Spur bleibt: Danach geht die Jagd dort weiter, wo er stand.
+   */
+  rest(seconds: number, at: FloorPoint | null = null, room = ''): void {
+    if (at) this.trail = { point: at, room };
+    this.enter('savour', null, '', Math.max(this.timer, seconds));
+  }
+
   private enter(mode: MonsterMode, goal: FloorPoint | null, room: string, timer: number): void {
     this.mode = mode;
     this.goal = goal;

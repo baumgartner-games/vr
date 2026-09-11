@@ -1,5 +1,3 @@
-import type { StationId } from './stations';
-
 /**
  * **Wessen Platz der Zuschauer gerade einnimmt** — die Wahl, die es bisher
  * nicht gab.
@@ -69,14 +67,16 @@ export const WATCH_FOLLOWS: ReadonlyArray<{ id: WatchFollow; label: string; hint
  * **Welche Rolle hinter einem Blick steckt** — dieselben Kennungen wie in der
  * Registry (`registry/roles.ts`), damit der Zuschauer keine zweite Liste von
  * Ansichten braucht, sondern die angemeldete aufschlägt. Nur `deck` ist keine
- * fremde Rolle, sondern der Fernseher selbst.
+ * fremde Rolle, sondern der Fernseher selbst. Es sind **Ansichten**, keine
+ * Geräte: Seit die Stühle Farben heißen (`stations.ts`), sagt eine Kennung
+ * hier nur noch, welche Karte gezeichnet wird.
  *
  * Späher und Schalttafel waren einmal zwei Reiter eines Geräts; seit #93 sind
  * es zwei Rollen mit je einer eigenen Karte, und der Zuschauer wählt sie
  * einzeln.
  */
-export function seatStation(seat: WatchSeat): StationId {
-  return seat === 'deck' ? 'watch' : seat === 'panel' ? 'hack' : (seat as StationId);
+export function seatStation(seat: WatchSeat): string {
+  return seat === 'deck' ? 'watch' : seat === 'panel' ? 'hack' : seat;
 }
 
 /**

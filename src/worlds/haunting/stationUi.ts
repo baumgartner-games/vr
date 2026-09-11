@@ -2,16 +2,24 @@ import { repairsFor } from './mission';
 import './haunting.css';
 import './stationDashboard.css';
 import {
-  ABILITIES,
   ABILITY_LABELS,
+  COLOURS,
   describeSetup,
+  isColour,
+  isWatcher,
+  MY_ROLE_HINTS,
+  MY_ROLE_LABELS,
   NO_ROLE_HINT,
   roleName,
+  seatAbilities,
+  seatTitle,
   switchRights,
+  withWho,
   type Ability,
+  type MyRole,
   type RoundSetup,
 } from './rules/roundSetup';
-import { SetupPanel, abilityOf, slotOf, type SetupSlot } from './roundSetupPanel';
+import { SetupPanel } from './roundSetupPanel';
 // **Die Rollen melden sich selbst an**, jede aus ihrer eigenen Datei
 // (`BOUNDARIES.md`). Importiert werden sie hier und nicht über
 // `registry/discover.ts`: Der Glob dort ist Vite-eigen, und die Einsatzzentrale
@@ -31,16 +39,7 @@ import { seating, shoved, type Claim, type StationId } from './stations';
 import type { HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
-import {
-  applyIntent,
-  FLAT_CHECK,
-  intentOf,
-  startLabel,
-  TEST_CHECK,
-  TEST_CHECK_HINT,
-  type LobbyChoice,
-  type View,
-} from './rules/lobby';
+import { FLAT_CHECK, startLabel, type LobbyChoice, type View } from './rules/lobby';
 import type { MonsterPort } from './monster/monsterDriver';
 
 /**
@@ -89,6 +88,13 @@ export interface StationHost {
   link(): { peers: number; vr: boolean; room: string };
   /** Diesen Desktop an den Stock des Technikers setzen. */
   technician(): void;
+  /**
+   * **Und ihn wieder loslassen**: Wer sich am Desktop einen anderen Platz
+   * nimmt — das Monster, einen Stuhl, den Fernseher —, ist kein Techniker
+   * mehr. Ohne diesen Haken blieb der Desktop nach einem Ausflug an den Stock
+   * für immer der Techniker, und ein gewähltes Monster rechnete die Routine.
+   */
+  leaveTechnician?(): void;
   /** Das globale Spielmenü bleibt aus jeder Telefonrolle erreichbar. */
   menu?(): void;
   /**
@@ -159,43 +165,35 @@ export interface StationHost {
 const ROLE_TICK = 50;
 
 /**
- * **Welche Rolle zu welcher Fähigkeit gehört.**
+ * **Welche Ansicht zu welcher Fähigkeit gehört.**
  *
- * Späher und Schalttafel waren bis vor Kurzem dasselbe Gerät mit zwei Reitern
- * — die „Einsatzkontrolle" hieß so, weil sie Radar *und* Schalter hatte. Seit
- * #93 sind es zwei angemeldete Rollen mit je einer eigenen Karte, und die
- * Fähigkeit zeigt auf die Rolle, die sie zeichnet. Der Name der Mischung
- * bleibt derselbe (`roundSetup.roleName`): Wer beide hält, sitzt weiterhin in
- * der Einsatzkontrolle — nur blättert er jetzt zwischen zwei Karten statt
- * zwischen zwei Reitern eines Geräts.
- *
- * **Über das Netz sagt ein Telefon weiterhin ein Gerät an** (`Claim.station`,
- * `net.ts`) und nicht seine Fähigkeiten. Wer zwei hält, meldet die des zuletzt
- * gewählten Reiters; wer eine nimmt, die ein anderer hält, schubst ihn dabei
- * über dessen Gerät weg (`stations.ts`, Sitzdauer).
+ * Die drei Karten der Zentrale sind Rollen aus der Registry (`views/`), und
+ * sie heißen dort noch wie die Geräte, die sie einmal waren: `scout`, `hack`,
+ * `archive`. Die **Geräte** heißen inzwischen Rot, Gelb und Blau
+ * (`stations.ts`) — ein Stuhl ist das Gerät, und welche Karten darauf liegen,
+ * sagt die Tafel (`rules/roundSetup.Seat.powers`). Diese Tabelle ist der
+ * Übergang: Fähigkeit → Karte.
  */
-const ABILITY_STATIONS: Readonly<Record<Ability, StationId>> = {
+const ABILITY_VIEWS: Readonly<Record<Ability, string>> = {
   scout: 'scout',
   panel: 'hack',
   archive: 'archive',
 };
 
 /**
- * **Die Reiter ganz oben**, in dieser Reihenfolge: der Aufbau, die drei
- * Fähigkeiten der Zentrale, dann die Rollen, die keine Fähigkeit sind
- * (Fernseher, Monster).
- *
- * Sie sind der Ort, an dem eine Rolle gewählt wird. Vorher lag das in einer
- * eingeklappten Liste („Plätze und Geräte") unter der Verteilung, und in der
- * Verteilung stand daneben noch einmal dasselbe als „Ich" — zwei Listen über
- * dieselbe Frage. Ein Reiter ist beides in einem: Er sagt, was ich bin, und
- * zeigt, was ich sehe.
+ * **Die Reiter ganz oben**, in dieser Reihenfolge: der Aufbau, der Techniker,
+ * die drei Stühle der Zentrale (Rot, Gelb, Blau), das Monster, und die zwei
+ * Zuschauer. Sie sind die Antwort auf „wer bin ich" (`rules/lobby.
+ * LobbyChoice.me`) — die eine Stelle, an der dieses Gerät sich einen Platz
+ * nimmt. Die Spalte „Ich" in der Tafel ist dafür weg.
  */
-type PhoneTab = 'setup' | `power:${Ability}` | `sit:${StationId}`;
+type PhoneTab = 'setup' | MyRole;
 
-/** Welche Fähigkeit diese Rolle zeichnet — `null`, wenn sie keine ist. */
-function abilityFor(id: string): Ability | null {
-  return ABILITIES.find((one) => ABILITY_STATIONS[one] === id) ?? null;
+/** Welches Gerät zu einer Wahl gehört — `null` für den Techniker, der kein Gerät hat. */
+function stationFor(me: MyRole): StationId | null {
+  if (me === 'technician') return null;
+  if (isWatcher(me)) return 'watch';
+  return me;
 }
 
 export class StationUi {
@@ -207,14 +205,11 @@ export class StationUi {
   /** Welcher Reiter oben leuchtet — der Anfang ist der Aufbau. */
   private tab: PhoneTab = 'setup';
   /**
-   * **Welche Fähigkeiten dieses Telefon hält** — eine Menge, keine Rolle.
-   *
-   * Das ist die ganze Änderung an der Zentrale: Wer sich Radar *und*
-   * Schalttafel nimmt, sitzt in der Einsatzkontrolle; wer Akte und Radar
-   * nimmt, klärt auf (`roundSetup.roleName`). Leer heißt: noch keine Rolle,
-   * und dann steht der Satz da, der zu den Reitern schickt (`NO_ROLE_HINT`).
+   * **Welche Karte auf einem Farbplatz gerade aufgeschlagen ist.** Ein Stuhl
+   * kann zwei oder drei Fähigkeiten halten; dann blättert man zwischen ihren
+   * Karten, und das hier merkt sich die Seite. `null` heißt: die erste.
    */
-  private readonly held = new Set<Ability>();
+  private sub: Ability | null = null;
   /** Die Tafel der Verteilung — eine für die Lebensdauer der Seite, neu gefüllt bei jedem Schreiben. */
   private setupPanel: SetupPanel | null = null;
   /** Woran erkannt wird, dass die Seite neu geschrieben werden muss. */
@@ -255,25 +250,48 @@ export class StationUi {
     document.body.classList.remove('haunt-on');
   }
 
-  /** Welche Station gerade zu sehen ist — `null` heißt: der Aufbau. */
+  /** Welche Station gerade zu sehen ist — `null` heißt: der Aufbau oder der Techniker. */
   get station(): StationId | null {
     const seat = this.tabStation;
     return seat && this.host.arriving() <= 0 ? seat : null;
   }
 
-  /** Welche Rolle der offene Reiter meint — ohne die Frage, ob ich schon da bin. */
+  /** Welches Gerät der offene Reiter meint — ohne die Frage, ob ich schon da bin. */
   private get tabStation(): StationId | null {
     if (this.tab === 'setup') return null;
-    if (this.tab.startsWith('power:')) {
-      const ability = this.tab.slice(6) as Ability;
-      return this.held.has(ability) ? ABILITY_STATIONS[ability] : null;
-    }
-    return this.tab.slice(4) as StationId;
+    return stationFor(this.tab);
+  }
+
+  /** Was dieses Gerät ist — die Wahl der Lobby, sonst der Anfang: Zuschauer des Technikers. */
+  get me(): MyRole {
+    return this.host.lobby?.().me ?? 'watch:technician';
+  }
+
+  /**
+   * **Welche Fähigkeiten dieses Telefon hält** — die seines Farbplatzes, aus
+   * der Tafel gelesen. Keine zweite Liste hier: Wer sich auf Rot setzt, hält,
+   * was auf Rot liegt, und was auf Rot liegt, steht in der Verteilung.
+   */
+  get held(): ReadonlySet<Ability> {
+    const me = this.me;
+    const setup = this.host.setup?.();
+    if (!setup || !isColour(me)) return new Set();
+    return new Set(seatAbilities(setup, me));
   }
 
   /** Wie meine Rolle heißt — aus den Fähigkeiten gerechnet, sonst `''`. */
   get roleLabel(): string {
     return roleName(this.held);
+  }
+
+  /**
+   * **Welche Karte auf meinem Farbplatz offen ist** — die gewählte, sonst die
+   * erste, die der Platz hält; `null` ohne Fähigkeit.
+   */
+  private get subAbility(): Ability | null {
+    const held = this.held;
+    if (this.sub && held.has(this.sub)) return this.sub;
+    return [...held][0] ?? null;
   }
 
   /**
@@ -291,13 +309,18 @@ export class StationUi {
   }
 
   /**
-   * Welche Rolle hinter dem Bild steckt, das gerade zu sehen ist. Für alle
-   * Stationen ihre eigene — und für den Zuschauer die, in deren Ansicht er
-   * gerade hineinsieht.
+   * **Welche Ansicht hinter dem Bild steckt**, das gerade zu sehen ist — als
+   * Kennung der Registry (`registry/roles.ts`): auf einem Farbplatz die Karte
+   * der aufgeschlagenen Fähigkeit, beim Zuschauer die, in die er gerade
+   * hineinsieht, beim Monster seine eigene. `null` heißt: kein Bild.
    */
-  get shownStation(): StationId | null {
+  get shownView(): string | null {
     const station = this.station;
-    return station === 'watch' ? seatStation(this.watchLens.seat) : station;
+    if (!station) return null;
+    if (station === 'watch') return seatStation(this.watchLens.seat);
+    if (station === 'monster') return 'monster';
+    const ability = this.subAbility;
+    return ability ? ABILITY_VIEWS[ability] : null;
   }
 
   /**
@@ -333,7 +356,8 @@ export class StationUi {
       this.host.spec().seed,
       this.tab,
       station ?? 'van',
-      [...this.held].sort().join('+'),
+      this.me,
+      this.sub ?? '',
       // Von der Runde nur, was selten kippt: Leben, Kabinen, die Warnschwelle,
       // das Ende. Die Uhr selbst läuft unten in die Anzeige, ohne Neuschrift.
       round ? `${round.suit}/${round.cabinsDestroyed.length}/${lowOxygen(round.oxygen)}` : '',
@@ -399,7 +423,8 @@ export class StationUi {
   private write(): void {
     const state = this.host.state();
     const station = this.station;
-    const role = station ? roles.get(station) : undefined;
+    const view = this.shownView;
+    const role = view ? roles.get(view) : undefined;
 
     // Die Farbe der Station hängt am Wurzelelement und nicht an jeder Kachel
     // einzeln: Von hier aus färbt sie Kopfzeile, Rand und Knöpfe über eine
@@ -437,34 +462,49 @@ export class StationUi {
    */
   private writeBar(): void {
     const setup = this.host.setup?.() ?? null;
+    const me = this.me;
     const nav = el('nav', 'haunt__roles');
     nav.setAttribute('aria-label', 'Rolle und Ansicht');
     const tab = (id: PhoneTab, label: string, hint: string, mine: boolean): void => {
       const key = el('button', `haunt__role${mine ? ' is-mine' : ''}`, label);
       if (id === 'setup') key.dataset['tab'] = 'setup';
-      else if (id.startsWith('power:')) key.dataset['power'] = id.slice(6);
-      else key.dataset['sit'] = id.slice(4);
+      else key.dataset['me'] = id;
+      key.dataset['role'] = id;
       key.setAttribute('aria-pressed', String(this.tab === id));
       key.title = hint;
       nav.append(key);
     };
     tab('setup', 'Aufbau', 'Verteilung, Häkchen und der Startknopf', false);
-    for (const ability of ABILITIES) {
-      // Eine ausgeschaltete Fähigkeit steht trotzdem da — mit dem Hinweis, was
-      // sie wäre. Ein Reiter, der bei jeder Runde woanders sitzt, ist einer,
-      // den man jedes Mal sucht.
-      const off = setup?.abilities[ability] === 'off';
+    // **Die sieben Antworten auf „wer bin ich"** (`rules/roundSetup.MY_ROLES`):
+    // Techniker, die drei Stühle, das Monster, die zwei Zuschauer. Ein Stuhl
+    // trägt den Namen seiner Fähigkeiten mit („Rot · Leitstand"); einer ohne
+    // Fähigkeit steht trotzdem da — mit dem Hinweis, dass die Tafel ihm eine
+    // geben muss. Ein Reiter, der bei jeder Runde woanders sitzt, ist einer,
+    // den man jedes Mal sucht.
+    tab('technician', MY_ROLE_LABELS.technician, MY_ROLE_HINTS.technician, me === 'technician');
+    for (const seat of COLOURS) {
+      const title = setup ? seatTitle(setup, seat) : MY_ROLE_LABELS[seat];
+      const off = setup?.seats[seat].who === 'off';
+      const empty = setup ? seatAbilities(setup, seat).length === 0 : false;
       tab(
-        `power:${ability}`,
-        ABILITY_LABELS[ability],
-        off ? 'In dieser Runde aus' : 'Antippen übernimmt diese Fähigkeit',
-        this.held.has(ability),
+        seat,
+        title,
+        off
+          ? 'In dieser Runde aus — antippen setzt dich trotzdem hin'
+          : empty
+            ? 'Ohne Fähigkeit: im Aufbau eine zuweisen'
+            : MY_ROLE_HINTS[seat],
+        me === seat,
       );
     }
-    for (const role of listRoles()) {
-      if (abilityFor(role.id)) continue;
-      tab(`sit:${role.id as StationId}`, role.label, role.tagline, this.host.seat() === role.id);
-    }
+    tab('monster', MY_ROLE_LABELS.monster, MY_ROLE_HINTS.monster, me === 'monster');
+    tab(
+      'watch:technician',
+      MY_ROLE_LABELS['watch:technician'],
+      MY_ROLE_HINTS['watch:technician'],
+      me === 'watch:technician',
+    );
+    tab('watch:all', MY_ROLE_LABELS['watch:all'], MY_ROLE_HINTS['watch:all'], me === 'watch:all');
 
     const tools = el('span', 'haunt__tools');
     const tool = (key: string, label: string, title: string): void => {
@@ -534,6 +574,22 @@ export class StationUi {
       this.dropView();
       return this.vanPage();
     }
+    // **Der Techniker hat kein Gerät in der Zentrale.** Sein Reiter sagt, was
+    // er ist, und schickt ihn zum Startknopf — die Runde selbst spielt er am
+    // Stock (2D) oder im Schiff (3D), nicht auf dieser Seite.
+    if (this.tab === 'technician') {
+      this.dropView();
+      return [
+        note(
+          'live',
+          'Du bist der Techniker',
+          this.host.lobby?.().view === '2d'
+            ? 'Die Runde läuft für dich als Karte von oben — starten im Aufbau.'
+            : 'Die Runde läuft für dich im Schiff — starten im Aufbau.',
+        ),
+        ...this.vanPage(),
+      ];
+    }
     // **Unterwegs ist eine eigene Seite**, und zwar eine mit nur einem Satz:
     // Wer den Reiter wechselt, läuft in der Zentrale erst einmal hinüber
     // (`stations.MOVE_TIME`), und die alte Seite währenddessen stehen zu
@@ -549,15 +605,28 @@ export class StationUi {
         ),
       ];
     }
-    // Eine Fähigkeit, die dieses Telefon nicht hält, zeigt es auch nicht.
     if (station === null) {
       this.dropView();
       return [note('calm', 'Keine Rolle', NO_ROLE_HINT)];
     }
-    const role = roles.get(station);
+    const view = this.shownView;
+    // **Ein Stuhl ohne Fähigkeit ist ein Stuhl ohne Karte.** Das sagt die
+    // Seite, statt eine leere Karte zu zeigen: Die Fähigkeit kommt aus der
+    // Tafel, und dorthin führt der Satz.
+    if (!view) {
+      this.dropView();
+      return [
+        note(
+          'warn',
+          `${MY_ROLE_LABELS[this.me]}: keine Fähigkeit`,
+          'Dieser Platz hält keine Karte. Im Aufbau Späher, Schalttafel oder Archiv zuweisen.',
+        ),
+      ];
+    }
+    const role = roles.get(view);
     if (!role) {
       this.dropView();
-      return [note('warn', 'Unbekannte Rolle', `Für „${station}" ist keine Ansicht angemeldet.`)];
+      return [note('warn', 'Unbekannte Rolle', `Für „${view}" ist keine Ansicht angemeldet.`)];
     }
     if (!this.host.snapshot) {
       this.dropView();
@@ -567,6 +636,31 @@ export class StationUi {
       this.dropView();
       this.view = role.mount(this.roleHost());
       this.viewId = role.id;
+      // **Der Zuschauer bringt seine Linse mit**: „Zuschauer: Techniker" folgt
+      // ihm, „Zuschauer: Alles" sieht das Deck. Die Ansicht selbst darf sie
+      // danach umstellen; hier steht nur der Anfang.
+      const watch = this.view as Partial<WatchRoleView>;
+      if (isWatcher(this.me) && watch.setLens)
+        watch.setLens(
+          this.me === 'watch:technician'
+            ? { seat: 'deck', follow: 'technician' }
+            : { seat: 'deck', follow: 'free' },
+        );
+    }
+    // **Mehr als eine Karte auf dem Stuhl: eine Zeile zum Blättern.** Sie
+    // steht nur, wenn es etwas zu blättern gibt — ein Streifen mit einem
+    // einzigen Knopf ist ein Knopf, der nichts tut.
+    const held = [...this.held];
+    if (held.length > 1) {
+      const strip = el('nav', 'haunt__subs');
+      strip.setAttribute('aria-label', 'Karte');
+      for (const ability of held) {
+        const key = el('button', 'haunt__sub', ABILITY_LABELS[ability]);
+        key.dataset['sub'] = ability;
+        key.setAttribute('aria-pressed', String(ability === this.subAbility));
+        strip.append(key);
+      }
+      return [strip, this.view!.element];
     }
     return [this.view!.element];
   }
@@ -635,25 +729,29 @@ export class StationUi {
     // **Wer noch nichts ist, liest es hier zuerst.** Der Satz steht auch auf
     // jedem Reiter, den man ohne Fähigkeit öffnet — aber solange die Runde
     // läuft und dieses Telefon nichts hält, gehört er ganz nach oben.
-    if (!this.held.size && this.host.state().phase === 'running')
-      out.push(note('warn', 'Keine Rolle', NO_ROLE_HINT));
-
     if (setup && choice && this.host.setSetup && this.host.setLobby) {
+      // **Ein Häkchen, nicht zwei.** „Testen" ist weg — auf der Tafel steht
+      // „Monster: Aus", und das ist dieselbe Aussage an der Stelle, an die sie
+      // gehört.
       const checks = el('div', 'lobby__checks');
       checks.append(
         check('view', FLAT_CHECK, 'Die Karte von oben statt des Schiffs', choice.view === '2d'),
-        check('test', TEST_CHECK, TEST_CHECK_HINT, intentOf(setup) === 'train'),
       );
       out.push(checks);
+      out.push(
+        note(
+          'calm',
+          `Du bist: ${MY_ROLE_LABELS[this.me]}`,
+          MY_ROLE_HINTS[this.me] + ' · Wechseln über die Reiter oben.',
+        ),
+      );
 
       this.setupPanel ??= new SetupPanel({
         setup: () => this.host.setup!(),
         onChange: (next) => this.host.setSetup!(next),
         humanMonster: () => (this.host.lobby?.().view ?? '2d') === '2d',
         vr: () => this.host.vr?.() ?? this.host.link().vr,
-        mine: () => this.mineSlot(),
-        claim: (slot) => this.claimSlot(slot),
-        holder: (slot) => this.holderOf(slot),
+        holder: (seat) => this.holderOf(seat),
       });
       this.setupPanel.render();
       out.push(this.setupPanel.element);
@@ -709,141 +807,86 @@ export class StationUi {
   }
 
   /**
-   * **„Ich" auf einen Platz setzen** — und nur auf einen.
+   * **Einen Platz nehmen** — der eine Tipp, der „wer bin ich" beantwortet.
    *
-   * Der Tipp tut beides, was vorher zwei getrennte Listen taten: Er schreibt
-   * den Platz in der Verteilung auf „Mensch" **und** setzt dieses Gerät
-   * dorthin — bei einer Fähigkeit heißt das: sie halten und ihre Rolle
-   * aufschlagen (`ABILITY_STATIONS`). Der vorige Platz fällt an die Zahlen
-   * zurück: Ein Mensch, der nach dem Umsetzen an zwei Stellen als „Mensch"
-   * stünde, wäre eine Verteilung, die für drei Leute reicht und von einem
-   * gespielt wird.
-   */
-  private claimSlot(slot: SetupSlot): void {
-    const read = this.host.setup?.();
-    if (!read || !this.host.setSetup) return;
-    const next: RoundSetup = { ...read, abilities: { ...read.abilities } };
-    const put = (which: SetupSlot, who: 'human' | 'bot'): void => {
-      const ability = abilityOf(which);
-      if (ability) next.abilities[ability] = who;
-      else if (which === 'technician') next.technician = who;
-      else if (which === 'monster') next.monster = who;
-    };
-    const was = this.mineSlot();
-    if (was && was !== slot) put(was, 'bot');
-    put(slot, 'human');
-    this.host.setSetup(next);
-    // Und wirklich hinsetzen: Der Platz in der Verteilung ohne das Gerät
-    // darunter war genau die zweite Wahrheit, die hier verschwinden soll.
-    const ability = abilityOf(slot);
-    // **„Ich" wechselt den Platz, nicht die Seite** — deshalb `false`: Wer im
-    // Aufbau auf „Ich" tippt, will die Tafel schreiben und weiterlesen.
-    if (ability) this.take(ability, false);
-    else if (slot === 'monster') {
-      this.held.clear();
-      this.host.sit('monster');
-    } else if ((this.host.lobby?.().view ?? '2d') === '3d' && !this.host.link().vr) {
-      // Im Schiff heißt „Ich bin der Techniker": diesen Desktop an den Stock.
-      this.host.technician();
-    }
-  }
-
-  /**
-   * **Ein Reiter mit einer Fähigkeit darauf — darf ich den überhaupt drücken?**
+   * Er tut drei Dinge auf einmal, weil sie eines sind: Er merkt die Wahl in
+   * der Lobby (`LobbyChoice.me`), er schreibt den Platz in der Verteilung auf
+   * „Mensch" (ein Stuhl, auf dem jemand sitzt, ist kein Bot), und er setzt
+   * dieses Gerät an das Gerät, das dazugehört (`stationFor`). Der vorige
+   * Platz fällt zurück an das, was die Tafel dafür vorsieht — an einen Bot,
+   * wenn er einer war, sonst bleibt er, wie er ist: Ein Mensch, der nach dem
+   * Umsetzen an zwei Stellen als „Mensch" stünde, wäre eine Verteilung, die
+   * für drei Leute reicht und von einem gespielt wird.
    *
-   * Vor der Runde: immer. Mitten in einer Runde entscheidet
-   * `roundSetup.switchRights`, und es sind drei Sätze: In einer Test-Runde
-   * darf jeder alles; sonst wechselt nur, wer in der Zentrale sitzt; und den
-   * Techniker in der Brille rührt niemand an. Wer nicht darf, bekommt den
-   * Grund gesagt — ein Reiter, der beim Tippen wortlos nichts tut, war die
-   * Krankheit, an der schon das Brillenmenü litt (`rules/worldMenu.ts`).
+   * Mitten in einer Runde entscheidet `roundSetup.switchRights`, ob er darf:
+   * In einer Test-Runde jeder alles; sonst nur, wer in der Zentrale sitzt; den
+   * Techniker in der Brille rührt niemand an.
    */
-  private choose(ability: Ability): void {
+  private choose(me: MyRole): void {
+    const was = this.me;
     const running = this.host.state().phase === 'running';
-    if (running) {
+    if (running && was !== me) {
       const rights = switchRights({
         test: this.host.state().crew.options.test,
-        // Am Telefon sitzt man in der Zentrale — außer man spielt gerade das
-        // Monster, und das ist die Gegenseite und kein Platz an der Wand.
-        inCentre: this.host.seat() !== 'monster',
+        inCentre: was !== 'monster' && was !== 'technician',
         vrTechnician: this.host.link().vr,
       });
-      if (!rights.abilities) {
+      const allowed = me === 'technician' ? rights.technician : rights.abilities;
+      if (!allowed) {
         this.host.notify?.(rights.why);
         return;
       }
     }
-    this.take(ability);
-    // Und in der Verteilung steht sie jetzt bei einem Menschen: Wer sie hält,
-    // nimmt sie dem Techniker ab (`roundSetup.powersOf`).
-    const setup = this.host.setup?.();
-    if (setup && setup.abilities[ability] !== 'human')
-      this.host.setSetup?.({
-        ...setup,
-        abilities: { ...setup.abilities, [ability]: 'human' },
-      });
-  }
-
-  /**
-   * **Die zwei Häkchen des Aufbaus.** „2D-Welt von oben" ist die Ansicht,
-   * „Testen" die Absicht — beide schreiben dorthin, wo sie hingehören
-   * (`rules/lobby.ts`), und keines von beiden startet etwas.
-   */
-  private toggleCheck(which: 'view' | 'test'): void {
+    this.tab = me;
+    this.sub = null;
     const choice = this.host.lobby?.();
-    if (!choice) return;
-    if (which === 'view') {
-      this.host.setLobby?.({ ...choice, view: choice.view === '2d' ? '3d' : '2d' });
-      return;
-    }
+    if (choice && this.host.setLobby) this.host.setLobby({ ...choice, me });
     const setup = this.host.setup?.();
-    if (!setup) return;
-    const off = intentOf(setup) === 'train';
-    this.host.setSetup?.(
-      applyIntent(
-        setup,
-        off ? 'play' : 'train',
-        this.host.seat() === 'monster' ? 'monster' : 'technician',
-      ),
-    );
+    if (setup && this.host.setSetup) {
+      let next = setup;
+      // Der alte Platz fällt zurück: ein Stuhl wird leer, Techniker und
+      // Monster gehen an die Zahlen — eine Runde ohne Monster wäre ein Test,
+      // den niemand bestellt hat.
+      if (!isWatcher(was) && was !== me && setup.seats[was].who === 'human')
+        next = withWho(next, was, isColour(was) ? 'off' : 'bot');
+      if (!isWatcher(me) && next.seats[me].who !== 'human') next = withWho(next, me, 'human');
+      if (next !== setup) this.host.setSetup(next);
+    }
+    const station = stationFor(me);
+    if (station) {
+      if (this.host.seat() !== station) this.host.sit(station);
+      // **Von einem Zuschauer zum anderen bleibt der Fernseher stehen** — nur
+      // die Linse wechselt. Beim ersten Aufschlagen setzt `page()` sie; hier
+      // steht der Wechsel, während die Ansicht schon da ist.
+      const watch = this.view as Partial<WatchRoleView> | null;
+      if (isWatcher(me) && this.viewId === 'watch' && watch?.setLens)
+        watch.setLens(
+          me === 'watch:technician'
+            ? { seat: 'deck', follow: 'technician' }
+            : { seat: 'deck', follow: 'free' },
+        );
+    } else if ((this.host.lobby?.().view ?? '2d') === '3d' && !this.host.link().vr) {
+      // Im Schiff heißt „Ich bin der Techniker": diesen Desktop an den Stock.
+      this.host.technician();
+    }
+    if (me !== 'technician') this.host.leaveTechnician?.();
   }
 
   /**
-   * **Eine Fähigkeit nehmen.** Sie kommt zu den anderen dazu — genau darum
-   * ging es dem Besitzer: Bei drei Spielern sitzen manchmal nur zwei in der
-   * Zentrale, und dann hält einer eben Radar *und* Schalttafel. Über das Netz
-   * wird die Rolle angesagt, die dazugehört; wer einem anderen die Fähigkeit
-   * wegnimmt, schubst ihn dabei von dessen Gerät (`stations.ts`).
+   * **Das eine Häkchen des Aufbaus.** „2D-Welt von oben" ist die Ansicht —
+   * es schreibt dorthin, wo sie hingehört (`rules/lobby.ts`), und startet
+   * nichts.
    */
-  private take(ability: Ability, show = true): void {
-    this.held.add(ability);
-    if (show) this.tab = `power:${ability}`;
-    const station = ABILITY_STATIONS[ability];
-    if (this.host.seat() !== station) this.host.sit(station);
+  private toggleCheck(which: 'view'): void {
+    const choice = this.host.lobby?.();
+    if (!choice || which !== 'view') return;
+    this.host.setLobby?.({ ...choice, view: choice.view === '2d' ? '3d' : '2d' });
   }
 
-  /**
-   * **Welcher Platz „Ich" ist** — aus den Fähigkeiten, sonst aus dem Gerät.
-   *
-   * Der zweite Weg ist der wichtigere: Wer sich über einen Reiter ans Archiv
-   * setzt, ohne die Tafel anzufassen, soll dort trotzdem als „Ich" stehen.
-   * Vorher war genau das die zweite Wahrheit — der Reiter sagte „du sitzt
-   * hier", die Verteilung „Bot". Wer mehrere Fähigkeiten hält, steht bei der
-   * zuletzt genommenen: „Ich" ist eine Marke und keine Liste.
-   */
-  private mineSlot(): SetupSlot | null {
-    const ability = this.tab.startsWith('power:') ? (this.tab.slice(6) as Ability) : null;
-    if (ability && this.held.has(ability)) return slotOf(ability);
-    const first = ABILITIES.find((one) => this.held.has(one));
-    if (first) return slotOf(first);
-    return this.host.seat() === 'monster' ? 'monster' : null;
-  }
-
-  /** Wer die Rolle dieser Fähigkeit gerade über das Netz hält — als Name. */
-  private holderOf(slot: SetupSlot): string | null {
-    if (slot === 'technician') return null;
-    const ability = abilityOf(slot);
-    const station: StationId = ability ? ABILITY_STATIONS[ability] : 'monster';
+  /** Wer diesen Platz gerade über das Netz hält — als Name, `null` für niemanden. */
+  private holderOf(seat: MyRole): string | null {
+    const station = stationFor(seat);
+    if (!station || station === 'watch') return null;
     const owner = seating(this.host.claims()).get(station);
     if (!owner) return null;
     return owner === this.host.me() ? 'du' : this.host.nameOf(owner);
@@ -893,7 +936,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-tab],[data-power],[data-sit],[data-check],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],[data-restart],[data-start-setup]',
+      '[data-tab],[data-me],[data-sub],[data-check],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],[data-restart],[data-start-setup]',
     );
     if (!hit) return;
 
@@ -917,17 +960,13 @@ export class StationUi {
       this.host.technician();
       return;
     } else if (hit.dataset['check'] !== undefined) {
-      this.toggleCheck(hit.dataset['check'] as 'view' | 'test');
+      this.toggleCheck(hit.dataset['check'] as 'view');
     } else if (hit.dataset['tab'] !== undefined) {
       this.tab = 'setup';
-    } else if (hit.dataset['power'] !== undefined) {
-      this.choose(hit.dataset['power'] as Ability);
-    } else if (hit.dataset['sit']) {
-      // Fernseher und Monster sind keine Fähigkeiten der Zentrale: Wer dorthin
-      // geht, legt ab, was er in der Zentrale hielt.
-      this.held.clear();
-      this.tab = `sit:${hit.dataset['sit'] as StationId}`;
-      this.host.sit(hit.dataset['sit'] as StationId);
+    } else if (hit.dataset['me']) {
+      this.choose(hit.dataset['me'] as MyRole);
+    } else if (hit.dataset['sub']) {
+      this.sub = hit.dataset['sub'] as Ability;
     }
     this.drawn = '';
     this.refresh();

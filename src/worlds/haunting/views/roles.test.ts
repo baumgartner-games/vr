@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { FlatRound, PLAYER_ID } from '../map/flatRound';
-import { lockerCode, repairsFor } from '../mission';
+import { repairsFor } from '../mission';
 import { listRoles, roles, type RoleHost, type RoleView } from '../registry/roles';
 import type { ArchiveDesk } from './archiveDesk';
 import { mountArchiveView, type ArchiveRoleView } from './archiveRole';
@@ -339,8 +339,8 @@ describe('Der Archivar', () => {
   });
 
   /**
-   * **Ein Tipp auf ein Zimmer schlägt die Raumakte auf** — mit dem
-   * Schutzschrank-Code groß, damit man ihn durch den Raum ruft.
+   * **Ein Tipp auf ein Zimmer schlägt die Raumakte auf** — ohne
+   * Schutzschrank-Code: Den Schrank betritt man ohne einen, in beiden Welten.
    */
   it('öffnet die Raumakte mit den Codes und schließt sie wieder', () => {
     const { view, round } = open();
@@ -353,9 +353,7 @@ describe('Der Archivar', () => {
     // Unter dem Grundriss ließ sich die Akte nicht rollen.
     expect(view.element.classList.contains('is-sheet')).toBe(true);
     expect(sheet.textContent).toContain(room.name);
-    expect(sheet.querySelector('.role__code')?.textContent).toBe(
-      lockerCode(round.house.seed, room.id),
-    );
+    expect(sheet.textContent).not.toMatch(/Schutzschrank-Code/);
     sheet.querySelector<HTMLButtonElement>('[data-close]')!.click();
     expect(view.opened).toBe('');
     expect((sheet as HTMLElement).hidden).toBe(true);

@@ -5,6 +5,7 @@ import {
   freshStamina,
   grantBurst,
   HIT_BURST,
+  HIT_GRACE,
   lockerCode,
   PLAYER_SPRINT_SPEED,
   PLAYER_STAMINA,
@@ -93,14 +94,16 @@ describe('Orbital missions', () => {
     const c = freshCrew();
     expect(takeCrewHit(c, true)).toBe(true);
     expect(c.hp).toBe(2);
-    for (let n = 0; n < 29; n++) {
+    // Die Schonfrist (`HIT_GRACE`) hält bis zum letzten Zehntel.
+    const grace = Math.round(HIT_GRACE * 10);
+    for (let n = 0; n < grace - 1; n++) {
       stepVitals(c, 0.1, 0, 1);
       expect(takeCrewHit(c, true)).toBe(false);
     }
     for (let n = 0; n < 2; n++) stepVitals(c, 0.1, 0, 1);
     expect(takeCrewHit(c, true)).toBe(true);
     expect(c.hp).toBe(1);
-    for (let n = 0; n < 31; n++) stepVitals(c, 0.1, 0, 1);
+    for (let n = 0; n < grace + 1; n++) stepVitals(c, 0.1, 0, 1);
     expect(takeCrewHit(c, true)).toBe(true);
     expect(c.hp).toBe(0);
     expect(takeCrewHit(c, true)).toBe(false);

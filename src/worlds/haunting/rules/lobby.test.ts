@@ -11,7 +11,7 @@ import {
   startLabel,
   viewSwap,
 } from './lobby';
-import { defaultSetup, type RoundSetup } from './roundSetup';
+import { defaultSetup, withPower, withWho } from './roundSetup';
 
 /** Ein Speicher, der nur ein paar Zeilen hält — und einer, der kaputt ist. */
 function fakeStorage(
@@ -28,121 +28,150 @@ function fakeStorage(
 }
 
 describe('lobby', () => {
-  test('der Anfang: spielen, und die Ansicht hängt am Gerät', () => {
-    expect(defaultLobby('handheld')).toEqual({ intent: 'play', view: '2d' });
-    expect(defaultLobby('desktop')).toEqual({ intent: 'play', view: '3d' });
-    expect(defaultLobby('vr')).toEqual({ intent: 'play', view: '3d' });
+  test('der Anfang: spielen, die Ansicht hängt am Gerät — und das Telefon sieht zu', () => {
+    expect(defaultLobby('handheld')).toEqual({
+      intent: 'play',
+      view: '2d',
+      me: 'watch:technician',
+    });
+    expect(defaultLobby('desktop')).toEqual({ intent: 'play', view: '3d', me: 'technician' });
+    expect(defaultLobby('vr')).toEqual({ intent: 'play', view: '3d', me: 'technician' });
   });
 
-  test('spielen: ich am Stock, Monster an — ein ausgeschaltetes kommt zurück', () => {
-    const setup: RoundSetup = { ...defaultSetup(), technician: 'bot', monster: 'off' };
-    expect(applyIntent(setup, 'play')).toMatchObject({ technician: 'human', monster: 'bot' });
+  test('spielen als Techniker: ich am Stock, Monster an — ein ausgeschaltetes kommt zurück', () => {
+    const setup = withWho(withWho(defaultSetup(), 'technician', 'bot'), 'monster', 'off');
+    expect(applyIntent(setup, 'play').seats).toMatchObject({
+      technician: { who: 'human' },
+      monster: { who: 'bot' },
+    });
     // Ein Mensch am Monster-Telefon bleibt einer.
-    expect(applyIntent({ ...setup, monster: 'human' }, 'play')).toMatchObject({
-      technician: 'human',
-      monster: 'human',
+    expect(applyIntent(withWho(setup, 'monster', 'human'), 'play').seats).toMatchObject({
+      technician: { who: 'human' },
+      monster: { who: 'human' },
     });
   });
 
   test('spielen als Monster: der Techniker kommt aus Zahlen', () => {
-    expect(applyIntent(defaultSetup(), 'play', 'monster')).toMatchObject({
-      technician: 'bot',
-      monster: 'human',
+    expect(applyIntent(defaultSetup(), 'play', 'monster').seats).toMatchObject({
+      technician: { who: 'bot' },
+      monster: { who: 'human' },
     });
+  });
+
+  test('spielen aus der Zentrale: die Tafel sagt, wer den Anzug trägt', () => {
+    // Ein Telefon auf Rot rührt Techniker und Monster nicht an — wer den Anzug
+    // trägt, steht auf der Tafel (ein Mensch an der Brille, sonst ein Bot).
+    const setup = withWho(defaultSetup(), 'technician', 'bot');
+    expect(applyIntent(setup, 'play', 'red').seats.technician.who).toBe('bot');
+    expect(applyIntent(setup, 'play', 'watch:all').seats.technician.who).toBe('bot');
+    expect(applyIntent(defaultSetup(), 'play', 'red').seats.technician.who).toBe('human');
   });
 
   test('zuschauen: beide aus Zahlen — außer es sitzt jemand anders dort', () => {
-    expect(applyIntent(defaultSetup(), 'watch')).toMatchObject({
-      technician: 'bot',
-      monster: 'bot',
+    expect(applyIntent(defaultSetup(), 'watch').seats).toMatchObject({
+      technician: { who: 'bot' },
+      monster: { who: 'bot' },
     });
     // Der Mensch am Monster-Telefon ist nicht ich: Ihm nehme ich die Runde nicht weg.
-    expect(applyIntent({ ...defaultSetup(), monster: 'human' }, 'watch')).toMatchObject({
-      technician: 'bot',
-      monster: 'human',
-    });
-    // War ich selbst das Monster, stehe ich auf — der Techniker aus Fleisch
-    // spielt weiter, und genau seiner Runde sehe ich zu.
-    expect(applyIntent({ ...defaultSetup(), monster: 'human' }, 'watch', 'monster')).toMatchObject({
-      technician: 'human',
-      monster: 'bot',
+    expect(applyIntent(withWho(defaultSetup(), 'monster', 'human'), 'watch').seats).toMatchObject({
+      technician: { who: 'bot' },
+      monster: { who: 'human' },
     });
     // Ohne Monster gibt es nichts zu sehen — Zuschauen schaltet es wieder an.
-    expect(applyIntent({ ...defaultSetup(), monster: 'off' }, 'watch').monster).toBe('bot');
+    expect(applyIntent(withWho(defaultSetup(), 'monster', 'off'), 'watch').seats.monster.who).toBe(
+      'bot',
+    );
   });
 
-  test('trainieren: Monster aus, ich am Stock', () => {
-    const trained = applyIntent({ ...defaultSetup(), technician: 'bot' }, 'train');
-    expect(trained).toMatchObject({ technician: 'human', monster: 'off' });
+  test('trainieren heißt nur: kein Monster — das Häkchen „Testen" ist die Tafel', () => {
+    const trained = applyIntent(withWho(defaultSetup(), 'technician', 'bot'), 'train');
+    expect(trained.seats).toMatchObject({
+      technician: { who: 'human' },
+      monster: { who: 'off' },
+    });
   });
 
-  test('keine der drei Absichten rührt die Fähigkeiten der Zentrale an', () => {
-    const setup: RoundSetup = {
-      ...defaultSetup(),
-      abilities: { archive: 'human', scout: 'bot', panel: 'off' },
-    };
-    for (const intent of INTENTS)
-      expect(applyIntent(setup, intent).abilities).toEqual(setup.abilities);
+  test('keine der drei Absichten rührt die Stühle der Zentrale an', () => {
+    let setup = withWho(withPower(defaultSetup(), 'red', 'archive', true), 'red', 'human');
+    setup = withWho(withPower(setup, 'blue', 'scout', true), 'blue', 'bot');
+    for (const intent of INTENTS) {
+      const next = applyIntent(setup, intent);
+      expect(next.seats.red).toEqual(setup.seats.red);
+      expect(next.seats.yellow).toEqual(setup.seats.yellow);
+      expect(next.seats.blue).toEqual(setup.seats.blue);
+    }
   });
 
   test('die Absicht liest sich aus der Verteilung wieder heraus', () => {
     expect(intentOf(defaultSetup())).toBe('play');
-    expect(intentOf({ ...defaultSetup(), monster: 'off' })).toBe('train');
-    expect(intentOf({ ...defaultSetup(), technician: 'bot' })).toBe('watch');
+    expect(intentOf(withWho(defaultSetup(), 'monster', 'off'))).toBe('train');
+    expect(intentOf(withWho(defaultSetup(), 'technician', 'bot'))).toBe('watch');
     // Techniker aus Zahlen, Monster aus Fleisch: Das spielt jemand, das sieht niemand an.
-    expect(intentOf({ ...defaultSetup(), technician: 'bot', monster: 'human' })).toBe('play');
+    expect(
+      intentOf(withWho(withWho(defaultSetup(), 'technician', 'bot'), 'monster', 'human')),
+    ).toBe('play');
     for (const intent of INTENTS)
       expect(intentOf(applyIntent(defaultSetup(), intent))).toBe(intent);
   });
 
-  /**
-   * **Ohne Ansicht in Klammern.** „Mission starten (2D)" wiederholte das
-   * Häkchen zwei Zeilen darüber; der Besitzer wollte die Klammer weghaben, und
-   * seitdem kennt der Knopf die Ansicht gar nicht mehr.
-   */
   test('der Startknopf sagt, was die Verteilung tut — und nur das', () => {
     const setup = defaultSetup();
     expect(startLabel(setup)).toBe('Mission starten');
     expect(startLabel(applyIntent(setup, 'train'))).toBe('Test starten');
     expect(startLabel(applyIntent(setup, 'watch'))).toBe('Zuschauen');
-    // Das Häkchen ist aus, die Tafel hat kein Monster mehr: Die Tafel gewinnt.
-    expect(startLabel({ ...setup, monster: 'off' })).toBe('Test starten');
+    expect(startLabel(withWho(setup, 'monster', 'off'))).toBe('Test starten');
   });
 
   test('fremder Text wird gelesen, Unbekanntes ersetzt', () => {
-    expect(readLobby(null)).toEqual({ intent: 'play', view: '3d' });
-    expect(readLobby(null, null, 'handheld')).toEqual({ intent: 'play', view: '2d' });
-    expect(readLobby({ intent: 'watch', view: '2d' })).toEqual({ intent: 'watch', view: '2d' });
-    expect(readLobby({ intent: 'zuhause', view: '4d' })).toEqual({ intent: 'play', view: '3d' });
-    expect(readLobby('kein Objekt')).toEqual({ intent: 'play', view: '3d' });
+    expect(readLobby(null)).toEqual({ intent: 'play', view: '3d', me: 'technician' });
+    expect(readLobby(null, null, 'handheld')).toEqual({
+      intent: 'play',
+      view: '2d',
+      me: 'watch:technician',
+    });
+    expect(readLobby({ intent: 'watch', view: '2d', me: 'red' })).toEqual({
+      intent: 'watch',
+      view: '2d',
+      me: 'red',
+    });
+    expect(readLobby({ intent: 'zuhause', view: '4d', me: 'drone' })).toEqual({
+      intent: 'play',
+      view: '3d',
+      me: 'technician',
+    });
+    expect(readLobby('kein Objekt')).toEqual({ intent: 'play', view: '3d', me: 'technician' });
   });
 
   test('der alte Schalter zählt einmal — und nur, solange die Lobby nichts weiß', () => {
     expect(readLobby(null, '1').view).toBe('2d');
     expect(readLobby(null, '0', 'handheld').view).toBe('3d');
-    // Steht die Lobby erst einmal, ist der alte Schalter vergessen.
     expect(readLobby({ intent: 'play', view: '3d' }, '1').view).toBe('3d');
   });
 
   test('aus dem Speicher gelesen, in den Speicher geschrieben', () => {
     const storage = fakeStorage({ [FLAT_STORAGE]: '1' });
-    expect(loadLobby(storage)).toEqual({ intent: 'play', view: '2d' });
-    saveLobby({ intent: 'train', view: '3d' }, storage);
-    expect(loadLobby(storage)).toEqual({ intent: 'train', view: '3d' });
-    // Der alte Schlüssel wird nicht mehr angefasst.
+    expect(loadLobby(storage)).toEqual({ intent: 'play', view: '2d', me: 'technician' });
+    saveLobby({ intent: 'train', view: '3d', me: 'blue' }, storage);
+    expect(loadLobby(storage)).toEqual({ intent: 'train', view: '3d', me: 'blue' });
     expect(storage.store.get(FLAT_STORAGE)).toBe('1');
     expect(JSON.parse(storage.store.get(LOBBY_STORAGE) ?? 'null')).toEqual({
       intent: 'train',
       view: '3d',
+      me: 'blue',
     });
   });
 
   test('Speicher fehlt oder ist kaputt: dann eben von vorn', () => {
-    expect(loadLobby(null)).toEqual({ intent: 'play', view: '3d' });
-    expect(loadLobby(null, 'handheld')).toEqual({ intent: 'play', view: '2d' });
+    expect(loadLobby(null)).toEqual({ intent: 'play', view: '3d', me: 'technician' });
+    expect(loadLobby(null, 'handheld')).toEqual({
+      intent: 'play',
+      view: '2d',
+      me: 'watch:technician',
+    });
     expect(loadLobby(fakeStorage({ [LOBBY_STORAGE]: '{kaputt' }))).toEqual({
       intent: 'play',
       view: '3d',
+      me: 'technician',
     });
     const angry = {
       getItem() {
@@ -152,8 +181,12 @@ describe('lobby', () => {
         throw new Error('kein Speicher in diesem Fenster');
       },
     } as unknown as Storage;
-    expect(loadLobby(angry, 'handheld')).toEqual({ intent: 'play', view: '2d' });
-    expect(() => saveLobby({ intent: 'play', view: '2d' }, angry)).not.toThrow();
+    expect(loadLobby(angry, 'handheld')).toEqual({
+      intent: 'play',
+      view: '2d',
+      me: 'watch:technician',
+    });
+    expect(() => saveLobby({ intent: 'play', view: '2d', me: 'red' }, angry)).not.toThrow();
   });
 });
 
