@@ -75,6 +75,14 @@
 .flat__toast.is-good { border-color: #8ff0b0; color: #c8ffd9; }
 .flat__toast.is-bad { border-color: #ff5a5f; color: #ffd0d2; }
 .flat__toast.is-warn { border-color: #f0b64a; color: #ffe8bd; }
+/* Der Ladebalken eines Handgriffs (`rules/chore.ts`): über den Knöpfen, wo
+   die Daumen ohnehin hinsehen. Eine Zeile Text, ein Balken — und beide fangen
+   keinen Tipp ab, denn abgebrochen wird durch Loslaufen, nicht durch Tippen
+   auf den Balken. */
+.flat__chore { position: absolute; left: 50%; bottom: calc(var(--flat-bottom) + 240px); transform: translateX(-50%); width: min(78vw, 320px); display: flex; flex-direction: column; gap: 5px; padding: 8px 12px; border-radius: 12px; background: rgba(10, 16, 28, 0.9); border: 1px solid rgba(143, 240, 176, 0.45); pointer-events: none; z-index: 2; }
+.flat__chore-label { font-size: 12px; color: #c8ffd9; text-align: center; }
+.flat__chore-bar { height: 8px; border-radius: 999px; background: rgba(140, 170, 230, 0.18); overflow: hidden; }
+.flat__chore-fill { display: block; height: 100%; width: 0; border-radius: 999px; background: #8ff0b0; }
 /* Oben rechts das Zahnrad — der 🗺-Knopf daneben ist weg, die Karte steht als
    Eintrag darin (`flatMode.renderOptions`). */
 .flat__corner { width: 52px; height: 52px; flex: none; border-radius: 50%; border: 3px solid #2d3238; background: #d8dde3; color: #2a2e34; font: inherit; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; touch-action: manipulation; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }

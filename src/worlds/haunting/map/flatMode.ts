@@ -237,6 +237,14 @@ export class FlatMode {
   private readonly tab = el('button', 'flat__tab');
   private readonly pips = el('span', 'flat__pips');
   private readonly toast = el('div', 'flat__toast');
+  /**
+   * **Der Ladebalken eines Handgriffs** (`rules/chore.ts`): Er steht über den
+   * Knöpfen, dort, wo die Hände hinsehen, und sagt in einer Zeile, woran
+   * gearbeitet wird und dass Stillstehen dazugehört.
+   */
+  private readonly chore = el('div', 'flat__chore');
+  private readonly choreLabel = el('span', 'flat__chore-label');
+  private readonly choreFill = el('i', 'flat__chore-fill');
   private readonly buttons = el('div', 'flat__buttons');
   private readonly cycleKey = el('button', 'flat__key flat__key--cycle');
   private readonly useKey = el('button', 'flat__key flat__key--use');
@@ -418,6 +426,11 @@ export class FlatMode {
     this.ending.hidden = true;
     this.ending.addEventListener('click', (event) => this.optionClick(event));
     this.icon.hidden = true;
+    const bar = el('div', 'flat__chore-bar');
+    bar.append(this.choreFill);
+    this.chore.append(this.choreLabel, bar);
+    this.chore.hidden = true;
+    this.chore.setAttribute('role', 'progressbar');
     // **Der obere Rand als eine Spalte, drei Zeilen** (siehe `flat.css`):
     // oben die Rollen als Knöpfe in einem Panel und ganz rechts das Zahnrad,
     // darunter — links beginnend — der Kasten mit Auftrag und Uhr, und
@@ -468,6 +481,7 @@ export class FlatMode {
       this.scene.element,
       this.top,
       this.toast,
+      this.chore,
       this.stick.element,
       this.buttons,
       this.mapOverlay,
@@ -579,6 +593,7 @@ export class FlatMode {
     this.hudRow.hidden = role === 'monster' || guest;
     this.jump.hidden = role === 'monster' || guest;
     this.scene.element.hidden = open || guest || role === 'monster';
+    if (open || guest) this.chore.hidden = true;
     if (this.session) this.session.element.hidden = open || guest;
     for (const node of [this.stick.element, this.buttons])
       node.hidden = open || guest || role !== 'technician';
@@ -735,6 +750,7 @@ export class FlatMode {
       }
       this.puzzle.sync();
       this.refreshKeys();
+      this.renderChore();
       this.refreshCorners();
     }
     this.syncOverlay();
@@ -1161,6 +1177,23 @@ export class FlatMode {
     this.toast.className = `flat__toast is-${event.kind}`;
     this.toastLeft = TOAST_SECONDS;
     if (event.kind === 'good' || event.kind === 'bad') this.host.notify?.(event.text);
+  }
+
+  /**
+   * **Der Balken über den Knöpfen**, solange ein Handgriff läuft — und weg,
+   * sobald er fertig oder abgebrochen ist. Er steht nicht im Kasten oben:
+   * Wer eine Kiste aufklappt, sieht auf seine Hände und auf das, was hinter
+   * ihm passiert, nicht auf den Sauerstoffstand.
+   */
+  private renderChore(): void {
+    const chore = this.round.busy;
+    this.chore.hidden = !chore || this.overlay !== 'none' || !!this.strip.active;
+    if (!chore) return;
+    const done = Math.round(this.round.busyProgress * 100);
+    if (this.choreLabel.textContent !== chore.label) this.choreLabel.textContent = chore.label;
+    this.choreFill.style.width = `${done}%`;
+    this.chore.setAttribute('aria-valuenow', String(done));
+    this.chore.setAttribute('aria-label', `${chore.label} · stillstehen`);
   }
 
   private refreshKeys(): void {

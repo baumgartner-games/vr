@@ -42,6 +42,7 @@ import { COMMAND_HOME } from '../trainingLayout';
 import { Rng } from '../rng';
 import { RoundRules } from '../rules/roundRules';
 import { cargoKey, cargoLabel, cargoOf, type CargoMark, type CargoSlot } from '../rules/cargo';
+import { CARGO_OPEN_SECONDS, choreProgress, stepChore, type Chore } from '../rules/chore';
 import { CREW_SIZE, askSeal, dueSeal, freshSeal, type DoorSeal } from '../rules/doorSeal';
 import {
   HOLD_RANGE,
@@ -348,6 +349,11 @@ export class FlatRound implements MapSource {
   /** Das letzte Sichtbarkeitsfeld — aus `step`, für die Karte. */
   field: VisibilityField;
   private snapshotCache: MapSnapshot | null = null;
+  /**
+   * **Der Handgriff, der gerade läuft** (`rules/chore.ts`) — heute nur das
+   * Aufklappen einer Kiste. `null` heißt: Die Hände sind frei.
+   */
+  private chore: Chore | null = null;
   private readonly cargo: Cargo[] = [];
   private readonly consoles: Console[] = [];
   private readonly lockers: Locker[] = [];
@@ -911,6 +917,14 @@ export class FlatRound implements MapSource {
     }
     this.stepDoors();
 
+    // --- Der laufende Handgriff ---------------------------------------------
+    // **Vor der Bewegung.** Er wird an der Stelle gemessen, an der der Spieler
+    // beim letzten Bild stand; erst danach darf er einen Schritt tun. Käme der
+    // Griff nach dem Schritt, wäre ein Abbruch immer ein Bild zu spät — und
+    // ein Griff, der im letzten Bild fertig wird, wäre fertig, obwohl der
+    // Spieler schon losgelaufen ist.
+    this.stepChore(dt);
+
     // --- Spieler ------------------------------------------------------------
     const length = Math.hypot(input.x, input.z);
     const wants = length > 0.05 && !crew.hidden && !this.puzzle;
@@ -1473,7 +1487,12 @@ export class FlatRound implements MapSource {
       if (this.tools.length > 1) this.active = (this.active + 1) % this.tools.length;
       this.events.push({ kind: 'info', text: TOOL_LABELS[this.activeTool] ?? this.activeTool });
     } else if (action === 'use') this.use();
-    else this.interact();
+    else if (this.chore) {
+      // Derselbe Knopf bricht ab: Ein Balken, den man nur durch Weglaufen
+      // loswird, ist eine Falle.
+      this.events.push({ kind: 'warn', text: `${this.chore.label} abgebrochen.` });
+      this.chore = null;
+    } else this.interact();
   }
 
   private use(): void {
@@ -1620,6 +1639,47 @@ export class FlatRound implements MapSource {
     return best;
   }
 
+  /**
+   * **Den laufenden Handgriff weiterzählen** (`rules/chore.ts`): fertig,
+   * abgebrochen oder noch dabei. Abgebrochen wird, wer sich von der Stelle
+   * rührt — Umschauen ist erlaubt, Weggehen nicht —, und auch, wer sich
+   * währenddessen versteckt oder ein Rätsel aufschlägt.
+   */
+  private stepChore(dt: number): void {
+    const chore = this.chore;
+    if (!chore) return;
+    const step = stepChore(chore, dt, this.player, !this.haunt.crew.hidden && !this.puzzle);
+    if (step.kind === 'running') {
+      this.chore = step.chore;
+      return;
+    }
+    this.chore = null;
+    if (step.kind === 'broken') {
+      this.events.push({ kind: 'warn', text: `${chore.label} abgebrochen.` });
+      return;
+    }
+    const cargo = this.cargo.find((one) => one.id === chore.id);
+    if (!cargo) return;
+    const crew = this.haunt.crew;
+    if (!crew.opened.includes(cargo.id)) crew.opened.push(cargo.id);
+    // Der Deckel schlägt auf — und das hört man (`audio/cues.ts`).
+    this.noise(cargo.at, NOISE.interact, 'interact');
+    this.events.push({ kind: 'info', text: `${cargo.mark} geöffnet.` });
+  }
+
+  /**
+   * **Der Handgriff, an dem gerade gearbeitet wird** — für den Ladebalken und
+   * für alle, die währenddessen still halten müssen (`rules/technicianBot.ts`).
+   */
+  get busy(): Readonly<Chore> | null {
+    return this.chore;
+  }
+
+  /** Wie weit der Balken ist, von 0 bis 1 — `0`, wenn nichts läuft. */
+  get busyProgress(): number {
+    return this.chore ? choreProgress(this.chore) : 0;
+  }
+
   private interact(): void {
     const crew = this.haunt.crew;
     const near = this.nearest();
@@ -1648,8 +1708,16 @@ export class FlatRound implements MapSource {
     if (near.kind === 'cargo') {
       const cargo = this.cargo.find((c) => c.id === near.id)!;
       if (!crew.opened.includes(cargo.id)) {
-        crew.opened.push(cargo.id);
-        this.events.push({ kind: 'info', text: `${cargo.mark} geöffnet.` });
+        // **Aufklappen kostet Zeit** (`rules/chore.ts`). Erst wenn der Balken
+        // durch ist, steht der Deckel offen; ein Schritt dazwischen bricht ab.
+        this.chore = {
+          kind: 'cargo',
+          id: cargo.id,
+          label: `${cargo.mark} öffnen`,
+          at: { x: this.player.x, z: this.player.z },
+          left: CARGO_OPEN_SECONDS,
+          total: CARGO_OPEN_SECONDS,
+        };
         return;
       }
       // **Die leere Kiste kostet zwei Griffe**, nicht einen: aufmachen,

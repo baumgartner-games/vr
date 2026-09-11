@@ -5,6 +5,7 @@ import { puzzleFor, puzzleSolved, repairsFor, type Repair } from './mission';
 import type { HauntState } from './net';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { taskCargo } from './rules/cargo';
+import { CARGO_OPEN_SECONDS } from './rules/chore';
 import { COMMAND_HOME } from './trainingLayout';
 import { DEFAULT_TUNING, type TechnicianTuning } from './botTuning';
 
@@ -110,7 +111,10 @@ export class MissionBot {
       if (!cargo || !this.walk(cargo.approach, step)) return;
       this.host.say(`Techniker: ${repair.item} gefunden. Frachtschrank wird geöffnet.`);
       this.stage = 'open-cargo';
-      this.timer = 0.7 * this.bot.work;
+      // **Der Deckel kostet ihn dieselben fünf Sekunden wie einen Menschen**
+      // (`rules/chore.ts`). Ein Bot, der Kisten im Vorbeigehen aufklappt,
+      // spielt eine andere Runde als der, dem man dabei zusieht.
+      this.timer = CARGO_OPEN_SECONDS * this.bot.work;
     } else if (this.stage === 'open-cargo') {
       const id = taskCargo(this.host.spec, repair.itemId).id;
       if (!state.crew.opened.includes(id)) state.crew.opened.push(id);

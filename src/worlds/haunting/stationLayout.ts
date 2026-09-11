@@ -70,10 +70,30 @@ function roomMiddle(room: HouseRoom): FloorPoint {
   return { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 };
 }
 
-/** Both incident rooms independently reserve the entire doorway and a deep landing. */
-export function doorClearances(spec: HouseSpec, roomId: string): readonly FloorBounds[] {
+/**
+ * **Wie tief der Freiraum vor einer Kiste reicht**, in Metern.
+ *
+ * Eine Kiste ist kein Schrank an der Wand: Man steht davor, klappt sie auf und
+ * wühlt darin — und das, während hinter einem eine Tür aufgeht. Der übliche
+ * Türfreiraum (1,15 m) reicht dafür nicht: Er hält die *Möbel* aus der
+ * Türöffnung, nicht den *Menschen*, der vor ihnen steht. In „Lower Engine"
+ * stand die grüne Kiste damit genau so, dass man sie nur öffnen konnte, indem
+ * man die Tür blockierte. Zwei Kachelhälften plus Spieler sind die Tiefe, in
+ * der beides nebeneinander Platz hat.
+ */
+const CARGO_DOOR_DEPTH = 2.4;
+
+/**
+ * Both incident rooms independently reserve the entire doorway and a deep
+ * landing. `depth` sagt, wie weit die Landung in den Raum reicht — Kisten
+ * bekommen mehr (`CARGO_DOOR_DEPTH`).
+ */
+export function doorClearances(
+  spec: HouseSpec,
+  roomId: string,
+  depth = 1.15,
+): readonly FloorBounds[] {
   const width = PLAN_DOOR_W / 2 + STATION_PLAYER_RADIUS;
-  const depth = 1.15;
   return spec.doors
     .filter((d) => d.a === roomId || d.b === roomId)
     .map((d) => {
@@ -439,6 +459,16 @@ function packRoom(
       ...ventClearances(room.id),
       ...(spec.passages ? windowClearances(spec, room.id) : []),
     ],
+    // **Vor einer Tür steht keine Kiste.** Sie braucht die tiefere Landung
+    // (`CARGO_DOOR_DEPTH`), weil zu ihr ein Mensch gehört, der davor steht und
+    // sie durchwühlt — und der soll nicht im Türrahmen stehen.
+    cargoClearances = doorClearances(spec, room.id, CARGO_DOOR_DEPTH),
+    clear = (request: Request, bounds: FloorBounds): boolean =>
+      !clearances.some((one) => footprintsOverlap(bounds, one)) &&
+      // Die Deko-Kiste zählt mit: Vor der Tür sieht man ihr nicht an, dass in
+      // ihr nichts liegt — man läuft sie genauso an und steht genauso im Weg.
+      ((request.kind !== 'cargo' && request.markId !== 'kiste') ||
+        !cargoClearances.some((one) => footprintsOverlap(bounds, one))),
     routes = [
       ...roomDoorRoutes(spec, room),
       ...sharedWallLandings(spec, room.id),
@@ -448,7 +478,7 @@ function packRoom(
     request,
     positions: wallCandidates(room, request).filter(
       (p) =>
-        !clearances.some((clear) => footprintsOverlap(p.bounds, clear)) &&
+        clear(request, p.bounds) &&
         !routes.some((door) => routeBlocked(door, centre, p.bounds)) &&
         !routeBlocked(centre, centre, p.bounds, 0.7),
     ),
@@ -499,7 +529,7 @@ function packRoom(
       ...wallCandidates(room, request),
     ].find(
       (p) =>
-        !clearances.some((clear) => footprintsOverlap(p.bounds, clear)) &&
+        clear(request, p.bounds) &&
         !routes.some((door) => routeBlocked(door, centre, p.bounds)) &&
         !routeBlocked(centre, centre, p.bounds, 0.7) &&
         !placed.some(

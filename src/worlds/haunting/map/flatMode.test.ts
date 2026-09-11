@@ -174,7 +174,12 @@ describe('Die 2D-Welt', () => {
         input = walker.input(job.at, DT);
       }
       round.act('interact');
-      if (job.kind === 'cargo') round.act('interact');
+      if (job.kind === 'cargo') {
+        // Der Deckel kostet fünf Sekunden Stillstehen (`rules/chore.ts`);
+        // genommen wird erst danach.
+        while (round.busy) round.step(DT, { x: 0, z: 0, sprint: false });
+        round.act('interact');
+      }
     }
     expect(round.puzzle).not.toBeNull();
     flat.update(DT);

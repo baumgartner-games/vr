@@ -204,6 +204,55 @@ describe('station module placement', () => {
     );
   });
 
+  /**
+   * **Vor einer Tür steht keine Kiste.** Eine Kiste ist kein Schrank an der
+   * Wand: Man stellt sich davor und wühlt darin, und wer dabei im Türrahmen
+   * steht, steht im Weg — in „Lower Engine" war es die grüne. Geprüft wird
+   * deshalb nicht nur der Abdruck der Kiste, sondern der Platz davor
+   * (`CARGO_DOOR_DEPTH`): Die Türlandung bleibt frei.
+   */
+  test('keeps cargo crates out of every doorway landing', () => {
+    const depth = 2.4;
+    const width = PLAN_DOOR_W / 2 + 0.45;
+    for (const seed of [3, 87832, 4711, 12345]) {
+      const spec = generateHouse(seed, 14);
+      const crates = stationLayout(spec).filter(
+        (one) => one.kind === 'cargo' || one.markId === 'kiste',
+      );
+      expect(crates.length).toBeGreaterThan(0);
+      for (const door of spec.doors) {
+        const x = (door.x + 0.5 + dirX(door.dir) * 0.5) * TILE;
+        const z = (door.z + 0.5 + dirZ(door.dir) * 0.5) * TILE;
+        // Beide Seiten der Öffnung: Der Raum dahinter reserviert sie genauso.
+        for (const side of [-1, 1]) {
+          const nx = dirX(door.dir) * side,
+            nz = dirZ(door.dir) * side;
+          const landing = nx
+            ? {
+                minX: Math.min(x, x + nx * depth),
+                maxX: max(x, x + nx * depth),
+                minZ: z - width,
+                maxZ: z + width,
+              }
+            : {
+                minX: x - width,
+                maxX: x + width,
+                minZ: Math.min(z, z + nz * depth),
+                maxZ: max(z, z + nz * depth),
+              };
+          for (const crate of crates) {
+            const overlaps =
+              crate.bounds.minX < landing.maxX - 1e-6 &&
+              crate.bounds.maxX > landing.minX + 1e-6 &&
+              crate.bounds.minZ < landing.maxZ - 1e-6 &&
+              crate.bounds.maxZ > landing.minZ + 1e-6;
+            if (overlaps) throw new Error(`${crate.id} blocks door ${door.id} (seed ${seed})`);
+          }
+        }
+      }
+    }
+  });
+
   test('equivalent seeds create the same positions without mutating the shared specification', () => {
     const spec = generateHouse(87832, 12),
       before = JSON.stringify(spec);

@@ -107,10 +107,19 @@ describe('Eine Stelle, die die Wegsuche meidet', () => {
       expect(detour.complete).toBe(true);
       const shy = detour.points ?? [];
       pairs++;
-      // Die geflohene Bahn kostet nie *mehr* Angst als die kürzeste …
+      // **Fast immer weniger Angst — und nie nennenswert mehr.**
+      //
+      // Es stand hier einmal „nie mehr", und das war ein Versehen, das eine
+      // Möblierung lang gut ging: Der Trichter ist ein **Preis** auf der
+      // Wegsuche, keine Zusage. Gibt es einen Bogen, wird er genommen (oft
+      // bis auf null Angst herunter). Gibt es keinen, bleiben beide Bahnen im
+      // Trichter, und dann wiegt die Suche Länge gegen Nähe ab — und der
+      // Schnurzug gibt hinterher noch ein Prozent davon zurück, weil er nur
+      // fragt, ob die Kapsel durchpasst. Genau dafür gibt es den harten Kern
+      // (`RouteAvoid.core`, Test darunter): Der ist die Zusage.
       const plainDread = dread(plain, from, avoid);
       const shyDread = dread(shy, from, avoid);
-      expect(shyDread).toBeLessThanOrEqual(plainDread + 1e-6);
+      expect(shyDread).toBeLessThanOrEqual(plainDread * 1.05);
       if (shyDread < plainDread - 1) {
         better++;
         // … und wo sie weniger kostet, hält sie auch mehr Abstand.

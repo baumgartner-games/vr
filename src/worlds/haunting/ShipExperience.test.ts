@@ -19,6 +19,7 @@ import { freshCrew, repairsFor, stationOptions, type PuzzleState, type Repair } 
 import type { HauntState } from './net';
 import { freshGhosts } from './rules/ghosts';
 import { defaultSetup, saveSetup } from './rules/roundSetup';
+import { CARGO_OPEN_SECONDS } from './rules/chore';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -299,6 +300,17 @@ function tap(code: string): void {
   frame();
 }
 
+/**
+ * **Eine Kiste aufklappen dauert** (`rules/chore.ts`): einmal tippen, dann
+ * stillstehen, bis der Balken durch ist. Wer dabei losliefe, finge von vorn
+ * an — deshalb bewegt diese Hilfe nichts.
+ */
+function openCrate(leaf: THREE.Mesh): void {
+  aim(leaf);
+  tap('KeyE');
+  for (let t = 0; t < CARGO_OPEN_SECONDS + 0.3; t += 0.1) frame(0.1);
+}
+
 function entry(id: string, entries: MenuEntry[] = experience.menu()): MenuEntry | undefined {
   for (const candidate of entries) {
     if (candidate.id === id) return candidate;
@@ -344,6 +356,12 @@ test('E opens a physical cargo door once, then picks up its exposed kit without 
   aim(cabinet.leaf);
   key('KeyE');
   frame();
+  // Der Deckel braucht fünf Sekunden Stillstehen (`rules/chore.ts`).
+  expect(experience.busy?.id).toBe('training-kit');
+  expect(state.crew.opened).not.toContain('training-kit');
+  key('KeyE', 'keyup');
+  for (let t = 0; t < CARGO_OPEN_SECONDS + 0.3; t += 0.1) frame(0.1);
+  expect(experience.busy).toBeNull();
   expect(state.crew.opened).toContain('training-kit');
   frame();
   key('KeyE', 'keydown', true);
@@ -387,7 +405,7 @@ test('room culling disables the invisible cargo controls as well as their artwor
   expect(state.crew.opened).not.toContain(cabinet.id);
   experience.setVisibleRooms(null);
   frame();
-  tap('KeyE');
+  openCrate(cabinet.leaf);
   expect(state.crew.opened).toContain(cabinet.id);
 });
 
@@ -1081,15 +1099,13 @@ test('der Techniker bekommt kein zweites Ersatzteil in die Hand', () => {
   const parts = exhibits.cabinets.filter((one) => spec.tasks.some((t) => t.id === one.loot));
   expect(parts.length).toBeGreaterThan(1);
   const [first, second] = parts as [(typeof parts)[0], (typeof parts)[0]];
-  aim(first.leaf);
-  tap('KeyE');
+  openCrate(first.leaf);
   aim(first.lootMesh as THREE.Mesh);
   tap('KeyE');
   expect(state.crew.inventory).toContain(first.loot);
   expect(state.taken).toContain(first.loot);
 
-  aim(second.leaf);
-  tap('KeyE');
+  openCrate(second.leaf);
   expect(state.crew.opened).toContain(second.id);
   aim(second.lootMesh as THREE.Mesh);
   tap('KeyE');
@@ -1106,8 +1122,7 @@ test('der Techniker bekommt kein zweites Ersatzteil in die Hand', () => {
  */
 test('G legt das Ersatzteil im Gang ab, und E nimmt es wieder auf', () => {
   const crate = exhibits.cabinets.find((one) => spec.tasks.some((t) => t.id === one.loot))!;
-  aim(crate.leaf);
-  tap('KeyE');
+  openCrate(crate.leaf);
   aim(crate.lootMesh as THREE.Mesh);
   tap('KeyE');
   expect(state.crew.inventory).toContain(crate.loot);

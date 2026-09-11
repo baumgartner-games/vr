@@ -312,13 +312,20 @@ export class TechnicianBot {
       return;
     }
     round.step(dt, IDLE);
+    // **Ein laufender Handgriff wird abgewartet** (`FlatRound.busy`): Der
+    // Deckel einer Kiste braucht fünf Sekunden, und wer dabei weiterdrückt
+    // oder losläuft, bricht ihn ab (`rules/chore.ts`). Stillhalten ist hier
+    // dasselbe wie beim Menschen: nichts tun, bis er offen ist.
+    if (round.busy) return;
     this.work += dt;
     const needed = (target.kind === 'cargo' ? CARGO_SECONDS : CONSOLE_SECONDS) * this.tuning.work;
     if (this.work < needed) return;
     this.work = 0;
     if (target.kind === 'cargo') {
       round.act('interact');
-      round.act('interact');
+      // Läuft jetzt der Balken, ist die Kiste noch zu; genommen wird beim
+      // nächsten Anlauf.
+      if (round.busy) return;
       this.job++;
       return;
     }

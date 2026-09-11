@@ -58,6 +58,7 @@ import { stationLayout, safeRoomSpawn } from './stationLayout';
 import { buildBrokenLocker, buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
 import { CabinWreck } from './rules/cabinWreck';
 import { cargoKey, cargoLabel, cargoOf, type CargoMark } from './rules/cargo';
+import { CARGO_OPEN_SECONDS, choreProgress, stepChore, type Chore } from './rules/chore';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -255,6 +256,13 @@ export class ShipExperience {
   private readonly scanner = new THREE.Group();
   private floatingTorch: FlashlightTool | null = null;
   private interactionCooldown = 0;
+  /**
+   * **Der Handgriff, der gerade läuft** (`rules/chore.ts`) — heute nur das
+   * Aufklappen einer Kiste. Er steht hier und nicht im Stand der Runde: Ein
+   * halb offener Deckel ist nichts, was über die Leitung gehen müsste, und
+   * wer die Ansicht wechselt, fängt ihn ohnehin neu an.
+   */
+  private chore: Chore | null = null;
   private readonly heldMedkit = new THREE.Group();
   /** Das Ersatzteil in der Hand — sichtbar, solange der Techniker eines trägt. */
   private readonly heldPart = new THREE.Group();
@@ -740,15 +748,42 @@ export class ShipExperience {
       this.bind(lootMesh, () => this.takeLoot(id));
     }
   }
+  /**
+   * **Eine Kiste aufklappen kostet fünf Sekunden** (`rules/chore.ts`) — und
+   * wer dabei losgeht, hat sie umsonst getan. Umschauen ist erlaubt: Gemessen
+   * wird die Stelle, nicht der Blick.
+   *
+   * Zumachen und Hineinsehen kosten nichts: Der Deckel ist schon offen, und
+   * eine zweite Wartezeit vor „Leer." wäre nur eine Strafe fürs Nachsehen.
+   */
   private openCabinet(id: string): void {
     if (!this.active) return;
+    if (this.chore) {
+      // Derselbe Knopf bricht ab — sonst wird man den Balken nur los, indem
+      // man wegläuft.
+      const stopped = this.chore;
+      this.chore = null;
+      this.host.say(`${stopped.label} abgebrochen.`);
+      if (stopped.id === id) return;
+    }
     if ((id === 'test-supply' || id.startsWith('training')) && !this.crew.options.test) {
       this.host.say('Testschrank: zuerst TEST / OHNE MONSTER drücken.');
       return;
     }
     const box = this.cabinets.find((c) => c.id === id);
-    if (!this.crew.opened.includes(id)) this.crew.opened.push(id);
-    else if (box && !box.loot && !this.crew.inventory.includes(box.key)) {
+    if (!this.crew.opened.includes(id)) {
+      this.host.ctx.rig.getHeadPosition(_head);
+      this.chore = {
+        kind: 'cargo',
+        id,
+        label: `${box?.mark ?? 'Kiste'} öffnen`,
+        at: { x: _head.x, z: _head.z },
+        left: CARGO_OPEN_SECONDS,
+        total: CARGO_OPEN_SECONDS,
+      };
+      return;
+    }
+    if (box && !box.loot && !this.crew.inventory.includes(box.key)) {
       // **Die leere Kiste kostet zwei Griffe.** Aufmachen macht Geräusch,
       // Hineinsehen kostet den zweiten Moment — und erst danach ist sie
       // erledigt und leuchtet nirgends mehr als Ziel.
@@ -759,6 +794,35 @@ export class ShipExperience {
     } else this.crew.opened = this.crew.opened.filter((x) => x !== id);
     this.sound('door');
   }
+  /**
+   * **Den laufenden Handgriff weiterzählen** (`rules/chore.ts`). Abgebrochen
+   * wird, wer sich von der Stelle rührt — ein gedrehter Kopf zählt nicht —,
+   * und auch, wer sich versteckt oder die Runde verlässt.
+   */
+  private stepChore(dt: number, head: THREE.Vector3): void {
+    const chore = this.chore;
+    if (!chore) return;
+    const steady =
+      this.active && !!this.player && !this.crew.hidden && this.host.state().phase === 'running';
+    const step = stepChore(chore, dt, { x: head.x, z: head.z }, steady);
+    if (step.kind === 'running') {
+      this.chore = step.chore;
+      return;
+    }
+    this.chore = null;
+    if (step.kind === 'broken') {
+      this.host.say(`${chore.label} abgebrochen.`);
+      return;
+    }
+    if (!this.crew.opened.includes(chore.id)) this.crew.opened.push(chore.id);
+    this.sound('door');
+  }
+
+  /** Der Handgriff, an dem gerade gearbeitet wird — für den Streifen und Tests. */
+  get busy(): Readonly<Chore> | null {
+    return this.chore;
+  }
+
   private takeLoot(id: string): void {
     const c = this.cabinets.find((c) => c.id === id);
     if (!c || !this.active || !this.crew.opened.includes(id) || this.crew.inventory.includes(id))
@@ -1594,6 +1658,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.stepTraining();
     ctx.rig.getHeadPosition(_head);
     this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
+    this.stepChore(dt, _head);
     this.updateTools(dt);
     const lab = crew.options.test ? trainingRoomAt(_head.x, _head.z) : null;
     this.bay.visible = crew.options.test;
@@ -1700,7 +1765,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         state.phase === 'running' && !crew.simulation ? (this.host.round?.() ?? null) : null;
       this.hud.mesh.visible = !!round;
       this.hudTimer -= dt;
-      if (round && this.hudTimer <= 0) {
+      // **Der Ladebalken läuft schneller als die Uhr.** Ein Balken, der
+      // viermal je Sekunde springt, sieht aus wie ein Ruckeln; solange ein
+      // Handgriff läuft, wird deshalb jedes Bild gemalt.
+      if (round && (this.hudTimer <= 0 || this.chore)) {
         // Viermal je Sekunde nachsehen, aber nur malen, wenn sich der Text
         // geändert hat: Die Uhr springt einmal je Sekunde, ein erledigter
         // Auftrag soll aber nicht bis zur nächsten vollen Sekunde warten.
@@ -1955,7 +2023,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     // zurück in die Einsatzzentrale, und genau das steht dann dort.
     const next = tasks.find((task) => task.step < 2);
     const line = !orders ? '' : next ? `${next.room}: ${next.title}` : 'Zurück zur Einsatzzentrale';
-    const key = `${hud.oxygen}|${hud.suit}|${hud.color}|${pips}|${line}|${orders}`;
+    // **Der Handgriff kommt als dritte Zeile dazu** (`rules/chore.ts`): Er
+    // gehört in denselben Streifen und nicht in ein zweites Fenster — in der
+    // Brille gibt es kein zweites Fenster, und am Desktop sähe man ihn dort
+    // nicht, weil man auf die Kiste schaut.
+    const chore = this.chore;
+    const filled = chore ? Math.round(choreProgress(chore) * 40) : 0;
+    const key = `${hud.oxygen}|${hud.suit}|${hud.color}|${pips}|${line}|${orders}|${chore?.label ?? ''}|${filled}`;
     if (this.hud.mesh.userData.paint === key) return;
     this.hud.mesh.userData.paint = key;
     const c = this.hud.ctx;
@@ -1980,6 +2054,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     c.fillStyle = round.suit > 0 ? '#adffe8' : hud.color;
     c.fillText(hud.suit, w - pad, top / 2, w * 0.4);
     if (!orders) {
+      this.paintChore(chore, top, h);
       this.hud.texture.needsUpdate = true;
       return;
     }
@@ -1998,7 +2073,38 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     c.fillStyle = '#d8e7ec';
     c.font = `${Math.round(top * 0.42)}px system-ui`;
     c.fillText(line, pad + pipsWidth + pad * 0.7, top + (h - top) / 2, w - pipsWidth - pad * 3);
+    this.paintChore(chore, top, h);
     this.hud.texture.needsUpdate = true;
+  }
+
+  /**
+   * **Der Balken über dem Streifen**, solange ein Handgriff läuft: eine Zeile
+   * Text und ein Fortschritt, mehr nicht. Er liegt **über** dem Streifen und
+   * schiebt ihn nicht beiseite — wer eine Kiste aufklappt, will die Uhr nicht
+   * verlieren, und ein Streifen, der dabei die Höhe wechselt, springt im
+   * Blickfeld.
+   */
+  private paintChore(chore: Chore | null, top: number, h: number): void {
+    if (!chore) return;
+    const c = this.hud.ctx;
+    const { width: w } = this.hud.canvas;
+    const pad = h * 0.16;
+    c.fillStyle = 'rgba(8, 24, 35, 0.94)';
+    c.fillRect(0, 0, w, h);
+    c.strokeStyle = '#8ff0b0';
+    c.lineWidth = 4;
+    c.strokeRect(2, 2, w - 4, h - 4);
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = '#c8ffd9';
+    c.font = `${Math.round(top * 0.46)}px system-ui`;
+    c.fillText(`${chore.label} · stillstehen`, w / 2, h * 0.32, w - pad * 2);
+    const barY = h * 0.62;
+    const barH = Math.max(6, h * 0.16);
+    c.fillStyle = 'rgba(140, 170, 230, 0.24)';
+    c.fillRect(pad, barY, w - pad * 2, barH);
+    c.fillStyle = '#8ff0b0';
+    c.fillRect(pad, barY, (w - pad * 2) * choreProgress(chore), barH);
   }
 
   private nearby(): {
