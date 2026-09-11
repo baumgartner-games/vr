@@ -30,13 +30,12 @@ const MEASURE = { ...TRAINING_DEFAULTS, rounds: 400 };
  * in die Einsatzzentrale gehen** (`roomGraph.monsterGraph`). Bis dahin folgte
  * es dem Techniker auf den letzten Metern nach Hause und holte ihn dort —
  * das war ein guter Teil der verlorenen Runden. Jetzt ist die Zentrale das,
- * was sie sein soll: sicher. Die Zahlen hier sind nachgemessen und stehen
- * ehrlich da; die **Gewichte** (`botTuning.DEFAULT_TUNING`) sind dafür noch
- * nicht neu gelernt worden, und deshalb liegt `duo` jetzt 1,5 Punkte über
- * seinem Band. Das gehört mit `trainBots` nachgezogen — nicht dadurch, dass
- * hier ein Band aufgeht.
+ * was sie sein soll: sicher. Daraufhin wurden die **Gewichte neu gelernt**
+ * (`trainBots`, beide Seiten, 120 Schritte à 128 Runden, Samen 0x5eed) und
+ * gegen genau diese Zusagen gemessen: 0,455 / 0,3225 — beide im Band, das
+ * Duell knapp an seiner unteren Kante. Das Band ist dabei nicht aufgegangen.
  */
-const BOT_RATES = { duo: 0.565, crew: 0.38 } as const;
+const BOT_RATES = { duo: 0.455, crew: 0.3225 } as const;
 
 describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das Monster im Team', () => {
   /**
