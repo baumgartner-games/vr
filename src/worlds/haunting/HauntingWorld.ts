@@ -2792,7 +2792,11 @@ export class HauntingWorld extends GridWorld {
    *   Schalter gibt.
    */
   private panelSwitch(kind: 'door' | 'light', target: string): string {
-    if (this.state.phase !== 'running') return '';
+    // **Vor dem Start schaltet die Tafel nichts** — und sagt das, statt „kein
+    // Schalter": Wer in der Zentrale auf eine Tür tippt, während noch alle im
+    // Aufbau stehen, hielte die Karte sonst für kaputt.
+    if (this.state.phase !== 'running')
+      return 'Noch keine Runde — die Tafel schaltet erst mit dem Start.';
     const entry = visibleSwitches(this.spec.switches, this.state.fuse).find(
       (one) => one.kind === kind && one.target === target,
     );
@@ -4650,6 +4654,11 @@ export class HauntingWorld extends GridWorld {
   }
 
   private spawnMonster(at: { x: number; z: number }): void {
+    // **Ein Monster, nie zwei.** Wer hier ankommt, während noch eines steht
+    // (Gastgeberwechsel, 2D→3D, ein zweiter Start), ersetzte bisher nur die
+    // Referenz — der alte NPC lief als Geist weiter, schlug weiter zu, und
+    // beim Wegräumen griff der Direktor mit zwei Einträgen ins Leere.
+    if (this.monster) this.director?.clear();
     const kind = MONSTERS.find((m) => m.id === this.state.crew.options.monster)!;
     this.monster =
       this.director?.spawn({

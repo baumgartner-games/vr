@@ -66,6 +66,25 @@ der Brillenspieler sich am Handgelenk aus dem Boden holen können.
   50 ms) — der Herzschlag reißt dann ab. Der Test treibt `App.frame` deshalb
   per Timer.
 
+- **Nachtrag (dritter PR): Rot mit drei Karten, Absturz nach dem Treffer.**
+  Der Absturz kam aus `NpcDirector.update`: Der Schlag ruft
+  `HauntingWorld.takeHit` **in** der Schleife, und bei „Anzug 0" räumt der
+  `clear()` dort alle NPCs weg; mit zwei Einträgen (ein altes Monster, das
+  `spawnMonster` nur überschrieben statt weggeräumt hatte) griff der Rücklauf
+  ins Leere. Die Schleife läuft jetzt über eine Abschrift, `spawnMonster`
+  räumt vorher weg (`npcDirector.test.ts`: zwei Zombies, ein Schlag, der
+  alles wegräumt). Geprüft mit zwei Clients: drei Treffer bis „verloren",
+  keine Fehler auf beiden Seiten.
+  **Und ein Stuhl hat eine Karte** (`views/seatRole.ts`): Die Blätterzeile
+  zwischen Späher, Schalttafel und Archiv ist weg — der Besitzer wollte die
+  Fähigkeiten nicht wechseln, sondern zusammen auf der Karte haben. Die drei
+  Rollen bekommen die eine `MapView` gereicht (`mount*View(host, shared)`),
+  liegen als durchsichtige Schichten darüber, eine Zeile oben nennt sie; Tür-
+  und Lampen-Tipps gehen an die Schalttafel, Zimmer an die Akte, die Peilung
+  malt der Späher. Fracht hat keinen eigenen Griff (sie fing sonst die Türen
+  ab). Geprüft im Browser (Rot mit drei Fähigkeiten: Tür sperrt, Zimmer
+  öffnet die Akte, Tafel geht auf) und in `roles.test.ts`.
+
 ### Was offen bleibt
 
 - Die Welt liest die Lobby beim Aufbau aus dem Speicher. Käme sie einmal

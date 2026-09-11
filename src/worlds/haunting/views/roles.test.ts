@@ -6,6 +6,8 @@ import type { ArchiveDesk } from './archiveDesk';
 import { mountArchiveView, type ArchiveRoleView } from './archiveRole';
 import { mountPanelView, type PanelRoleView } from './panelRole';
 import { mountScoutView, PING_PERIOD, type ScoutRoleView } from './scoutRole';
+import { mountSeatView } from './seatRole';
+import type { MapSnapshot } from '../map/mapSnapshot';
 import { mountWatchView } from './watchRole';
 import { RoleStrip } from './roleStrip';
 import { visibleSwitches } from '../panel';
@@ -585,4 +587,109 @@ describe('Der Rollenstreifen über der 2D-Welt', () => {
 function routesOf(view: ArchiveRoleView): ReadonlyArray<{ points: unknown[] }> {
   const options = (view.map as unknown as { options: { routes?: () => unknown[] } }).options;
   return (options.routes?.() ?? []) as ReadonlyArray<{ points: unknown[] }>;
+}
+
+/**
+ * **Ein Stuhl, eine Karte** (`seatRole.ts`): Was der Stuhl hält, liegt
+ * zusammen auf einer `MapView` — die Schalttafel hört auf Türen und Lampen,
+ * der Archivar auf Zimmer, der Späher malt seine Peilung. Keine Zeile zum
+ * Blättern, keine drei Kästchen: eine Zeile oben, die alle nennt.
+ */
+describe('Ein Stuhl mit mehreren Fähigkeiten', () => {
+  it('legt Schalttafel und Archiv auf eine Karte — Tür sperrt, Zimmer öffnet die Akte', () => {
+    const round = new FlatRound(21, { test: true });
+    const host = hostFor(round);
+    const view = stage(mountSeatView(host, ['panel', 'archive']));
+    view.update(0);
+    expect(view.abilities).toEqual(['panel', 'archive']);
+    expect(view.element.querySelectorAll('.mapview__canvas')).toHaveLength(1);
+    expect(view.panel?.map).toBe(view.map);
+    expect(view.archive?.map).toBe(view.map);
+    expect(view.scout).toBeNull();
+    // Die Vereinigung: Lampen (Schalttafel), Fracht (Archiv) — und niemand.
+    expect(view.map.current.layers.lights).toBe(true);
+    expect(view.map.current.layers.items).toBe(true);
+    expect(view.map.current.layers.entities).toBe(false);
+    expect(view.map.stats.entities).toBe(0);
+    const bar = view.element.querySelector('.role__bar')?.textContent ?? '';
+    expect(bar).toContain('SCHALTTAFEL');
+    expect(bar).toContain('ARCHIV');
+    expect(bar).not.toContain('SPÄHER');
+    for (const hud of view.element.querySelectorAll<HTMLElement>('.role__hud'))
+      expect(hud.hidden).toBe(true);
+
+    const door = round.snapshot().doors[0]!;
+    const shut = round.state().shut.length;
+    tapAt(view, door.at);
+    expect(round.state().shut.length).not.toBe(shut);
+
+    // **Die Lampe sitzt in der Zimmermitte** — ein Tipp dort schaltet Licht
+    // (die Schalttafel ist dran); ein Tipp daneben öffnet die Akte.
+    const room = round.snapshot().rooms.find((one) => !one.circulation)!;
+    const lamp = round.snapshot().lights.find((one) => one.id === room.id)!;
+    const before = round.state().lit.includes(room.id);
+    tapAt(view, lamp.at);
+    expect(round.state().lit.includes(room.id)).toBe(!before);
+    expect(view.sheetOpen).toBe(false);
+    tapAt(view, freeSpot(view, round.snapshot(), room));
+    expect(view.archive?.opened).toBe(room.id);
+    expect(view.sheetOpen).toBe(true);
+    expect(view.element.querySelector('.role--archive.is-sheet')).not.toBeNull();
+  });
+
+  it('ohne Schalttafel sagt die Karte, dass Türen niemand schaltet — und ohne Archiv nur den Raumnamen', () => {
+    const round = new FlatRound(21, { test: true });
+    const host = hostFor(round);
+    const view = stage(mountSeatView(host, ['scout']));
+    view.update(0);
+    expect(view.map.current.layers.lights).toBe(false);
+    expect(view.map.current.layers.items).toBe(false);
+    const shut = round.state().shut.length;
+    tapAt(view, round.snapshot().doors[0]!.at);
+    expect(round.state().shut.length).toBe(shut);
+    expect(view.element.querySelector('.role--seat > .role__toast')?.textContent).toContain(
+      'Schalttafel',
+    );
+    const room = round.snapshot().rooms.find((one) => !one.circulation)!;
+    tapAt(view, freeSpot(view, round.snapshot(), room));
+    expect(view.sheetOpen).toBe(false);
+    expect(view.element.querySelector('.role--seat > .role__toast')?.textContent).toBe(room.name);
+    // Der Späher peilt auf der geteilten Karte wie auf seiner eigenen.
+    expect(view.scout?.pings.map((ping) => ping.label)).toContain('Techniker');
+  });
+});
+
+/**
+ * Ein Punkt im Zimmer, an dem nichts anderes im Fangradius liegt — keine
+ * Lampe, keine Tür, keine Fracht: Dort meint ein Tipp das Zimmer selbst.
+ */
+function freeSpot(
+  view: { map: { toScreen(x: number, z: number): { x: number; y: number } } },
+  snapshot: MapSnapshot,
+  room: MapSnapshot['rooms'][number],
+): { x: number; z: number } {
+  const busy = [...snapshot.lights, ...snapshot.doors, ...snapshot.items].map((one) =>
+    view.map.toScreen(one.at.x, one.at.z),
+  );
+  // Auf der kleinen Testkarte ist ein Meter ein paar Punkte: Die Kandidaten
+  // liegen deshalb auf einem Drittel des Wegs von der Mitte zu den Ecken.
+  const xs = room.polygon.map((point) => point.x);
+  const zs = room.polygon.map((point) => point.z);
+  const corners = [
+    [Math.min(...xs), Math.min(...zs)],
+    [Math.max(...xs), Math.min(...zs)],
+    [Math.min(...xs), Math.max(...zs)],
+    [Math.max(...xs), Math.max(...zs)],
+  ];
+  for (const share of [0.35, 0.55, 0.7]) {
+    for (const [cx, cz] of corners) {
+      const at = {
+        x: room.centre.x + (cx! - room.centre.x) * share,
+        z: room.centre.z + (cz! - room.centre.z) * share,
+      };
+      const p = view.map.toScreen(at.x, at.z);
+      if (busy.every((b) => Math.hypot(b.x - p.x, b.y - p.y) > 20)) return at;
+    }
+  }
+  return room.centre;
 }

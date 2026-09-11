@@ -8677,8 +8677,21 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   **Die Stühle heißen Farben** (`stations.StationId` = `red | yellow | blue |
   watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   seither **Ansichten** (`ABILITY_VIEWS`: `archive`, `hack`, `scout` in der
-  Registry), die ein Stuhl je nach seinen Lampen aufschlägt — mehr als eine,
-  und es gibt eine Zeile zum Blättern (`StationUi.shownView`, `data-sub`).
+  Registry), die ein Stuhl je nach seinen Lampen aufschlägt — **alle
+  zusammen auf einer Karte** (`views/seatRole.ts`, `mountSeatView`): Die
+  drei Ansichten bekommen die eine `MapView` gereicht statt je eine zu bauen,
+  zeichnen sie nicht selbst und verstecken ihr Kästchen; oben steht eine
+  Zeile (`.role__bar`) mit Name und Meldung je Fähigkeit. Türen und Lampen
+  hört die Schalttafel (`tapDoor`, `tapLight`), Zimmer der Archivar
+  (`open`), der Späher malt seine Peilung (`paint`); Fracht hat auf dieser
+  Karte keinen eigenen Griff, weil sie vor den Türen geprüft würde und an
+  vielen Türen eine Kiste im Fangradius steht — der Tipp fällt ins Zimmer
+  und öffnet dessen Akte. Gezeigt wird die Vereinigung (Lampen mit
+  Schalttafel, Fracht mit Archiv) und **nie ein Wesen**: ein heller Raum,
+  aber nicht, ob das Monster darin steht. Für die Welt zählt das Archiv, wenn
+  es dabei ist (`StationUi.shownView` → sein Loch für die Raumakte), sonst die
+  erste Fähigkeit. Eine Zeile zum Blättern (`data-sub`) gibt es nicht mehr;
+  der Besitzer wollte die Fähigkeiten nicht wechseln, sondern haben.
   `crewSize` zählt Techniker, Monster und jede Fähigkeit eines Platzes, der
   nicht auf „Aus" steht.
   **„Monster: Mensch" heißt: Wer den Platz nimmt, steuert es.** Auf der
@@ -8933,6 +8946,26 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     Technikers dann den Namen des Menschen im Anzug („du · im Anzug" bei sich
     selbst) statt „Ich · Mensch · Bot" — nur die Lämpchen der Fähigkeiten
     bleiben. Trägt ihn niemand, stehen die Knöpfe wie bei jedem Platz.
+  - **Ein Stuhl, eine Karte** (`views/seatRole.ts`, siehe oben bei den
+    Fähigkeiten). Der Weg dahin: Die Zeile zum Blättern lag erst unter der
+    absolut gesetzten Karte (jeder Tipp traf die Leinwand — Rot mit drei
+    Fähigkeiten sah nur den Späher), dann darüber; der Besitzer wollte sie
+    gar nicht: „Die Fähigkeits-Ansichten sollen nicht wechselbar sein,
+    sondern direkt auf der Karte." Also liegen die drei Rollen als
+    durchsichtige Schichten über der einen Karte (`views.css`,
+    `.role--seat > .role { pointer-events: none }`, ihre Knöpfe und Blätter
+    fangen wieder), ein Blatt nimmt die Karte wie bisher aus dem Bild, und der
+    Knopf „Tafel" oben rechts hat wieder Platz (`.has-corner`).
+  - **Ein Monster, nie zwei — und eine Schleife, die das aushält.**
+    `NpcDirector.update` läuft über eine Abschrift der NPC-Liste: Der Schlag
+    (`strike` → `world.strikePlayer` → `HauntingWorld.takeHit`) landet mitten
+    in der Schleife, und bei „Anzug 0" nimmt die Welt dort das Monster aus dem
+    Spiel (`removeMonster` → `clear`). Mit mehr als einem Eintrag griff der
+    Rücklauf danach ins Leere (`this.npcs[i]` undefined, „reading 'update'")
+    — der Absturz nach einem Treffer. Und `spawnMonster` räumt ein noch
+    stehendes Monster vorher weg (`director.clear()`): Gastgeberwechsel,
+    2D→3D und ein zweiter Start ersetzten bisher nur die Referenz, der alte
+    NPC lief als Geist weiter und schlug weiter zu.
   - **Feststecken? Zurück auf den Boden** (`HauntingWorld.unstickPlayer`,
     Eintrag `haunt:rescue` in jeder Lage des Weltmenüs, Brille wie
     Bildschirm): misst, wo die Füße stehen — in einem Zimmer der Station geht

@@ -382,19 +382,29 @@ describe('Die Einsatzzentrale baut ihre Rollen aus der Registry', () => {
   });
 
   /**
-   * **Zwei Karten auf einem Stuhl: eine Zeile zum Blättern.** Rot hält Archiv
-   * und Späher; die erste Karte ist offen, ein Tipp auf die Zeile blättert.
+   * **Zwei Karten auf einem Stuhl: eine Karte.** Rot hält Archiv und Späher —
+   * beides liegt auf derselben Karte (`views/seatRole.ts`), nichts wird
+   * geblättert: Der Besitzer wollte die Fähigkeiten nicht wechseln, sondern
+   * haben. Für die Welt zählt das Archiv (sein Loch für die Raumakte).
    */
-  it('blättert auf einem Stuhl mit zwei Fähigkeiten zwischen den Karten', () => {
+  it('legt auf einem Stuhl mit zwei Fähigkeiten beide auf eine Karte', () => {
     const game = crew(null);
     game.setSetup(withPower(game.setup, 'red', 'scout', true));
     open('red');
     expect(game.ui.roleLabel).toBe('Aufklärung');
-    expect(game.ui.shownView).toBe('scout');
-    expect(document.querySelectorAll('[data-sub]')).toHaveLength(2);
-    button('[data-sub="archive"]').click();
     expect(game.ui.shownView).toBe('archive');
-    expect(document.querySelector('.role--archive')).not.toBeNull();
+    expect(document.querySelectorAll('[data-sub]')).toHaveLength(0);
+    const seat = document.querySelector('.haunt__body .role--seat');
+    expect(seat).not.toBeNull();
+    expect(seat!.querySelectorAll('.mapview__canvas')).toHaveLength(1);
+    expect(seat!.querySelector('.role--archive')).not.toBeNull();
+    expect(seat!.querySelector('.role--scout')).not.toBeNull();
+    expect(seat!.querySelector('.role--panel')).toBeNull();
+    // Die eine Zeile oben nennt beide Fähigkeiten; die Kästchen der Rollen sind weg.
+    expect(seat!.querySelector('.role__bar')?.textContent).toContain('ARCHIV');
+    expect(seat!.querySelector('.role__bar')?.textContent).toContain('SPÄHER');
+    for (const hud of seat!.querySelectorAll<HTMLElement>('.role__hud'))
+      expect(hud.hidden).toBe(true);
   });
 
   it('reicht der Schalttafel nur die freigegebenen Schalter herein', () => {

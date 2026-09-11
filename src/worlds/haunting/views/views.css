@@ -145,3 +145,22 @@
 .role-stage .role__sheet { top: calc(var(--flat-top) + 118px); max-height: calc(100dvh - var(--flat-top) - 130px); }
 .role-stage .role__corner { top: var(--flat-top); }
 .role-stage .role.is-sheet .role__sheet { max-height: none; }
+
+/* **Ein Stuhl, eine Karte** (`seatRole.ts`). Die drei Rollen liegen als durchsichtige
+   Schichten über der einen Karte: Ihre Knöpfe, Meldungen und Blätter sind da, ihr Grund
+   und ihre eigene Karte nicht. Zeiger gehen durch die Schicht hindurch auf die Karte —
+   nur was in der Schicht steht, fängt sie. Ein aufgeschlagenes Blatt bekommt seinen Grund
+   zurück und nimmt die Karte darunter aus dem Bild, wie bei einer Rolle allein. */
+.role--seat > .role { background: none; pointer-events: none; }
+.role--seat > .role > * { pointer-events: auto; }
+.role--seat > .role.is-sheet { background: #070a10; pointer-events: auto; }
+.role--seat:has(> .role.is-sheet) > .role__map { visibility: hidden; }
+.role--seat:has(> .role--archive.is-hole) { background: none; }
+.role--seat:has(> .role--archive.is-hole) > .role.is-sheet { background: none; }
+/* Die eine Zeile oben statt drei Kästchen: je Fähigkeit Name und Meldung. */
+.role__bar { position: absolute; left: 0; right: 0; top: 0; z-index: 3; display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); background: rgba(7, 10, 16, 0.86); border-bottom: 1px solid rgba(140, 170, 230, 0.18); font-size: 12px; color: #97a3bd; pointer-events: none; }
+.role__bar-cell { display: inline-flex; gap: 6px; align-items: baseline; white-space: nowrap; }
+.role__bar strong { font-size: 11px; letter-spacing: .12em; color: #e8ecf7; }
+.role--seat.has-corner .role__bar { padding-right: 112px; }
+.role--seat .role__toast { top: 64px; }
+.role--seat > .role .role__toast { top: 64px; }
