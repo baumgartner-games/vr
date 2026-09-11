@@ -44,10 +44,38 @@ export const GRAPHICS_MODES = ['simple', 'comic'] as const;
 
 export interface GraphicsSettings {
   mode: GraphicsMode;
+  /**
+   * **Wie groß die Brille ihr Bild rechnet**, als Anteil dessen, was sie
+   * selbst vorschlägt (`XRWebGLLayer.framebufferScaleFactor`): 1 ist der
+   * Vorschlag, 0,85 rechnet gut ein Viertel weniger Bildpunkte, 0,7 die
+   * Hälfte. Das ist der eine Regler, der auf einer Quest **immer** zieht —
+   * eine dunkle Station voller Lichter ist am Füllen der Bildpunkte am
+   * teuersten, und ein Bild, das weicher ist, aber steht, ist in der Brille
+   * das bessere. Gilt nur dort; am Bildschirm ändert er nichts. Und er gilt
+   * **ab der nächsten Sitzung**: Die Brille nimmt die Puffergröße nur beim
+   * Aufsetzen entgegen (`GraphicsQuality.applyRenderer`).
+   */
+  xrScale: XrScale;
 }
 
+/** Die drei Rasten des Reglers, von scharf nach flüssig. */
+export type XrScale = 1 | 0.85 | 0.7;
+export const XR_SCALES: readonly XrScale[] = [1, 0.85, 0.7];
+
+export const XR_SCALE_LABELS: Readonly<Record<XrScale, string>> = {
+  1: 'Voll',
+  0.85: 'Mittel',
+  0.7: 'Flüssig',
+};
+
+export const XR_SCALE_SUBS: Readonly<Record<XrScale, string>> = {
+  1: 'So groß, wie die Brille es vorschlägt · schärfstes Bild',
+  0.85: 'Ein Viertel weniger Bildpunkte · kaum weicher, spürbar flüssiger',
+  0.7: 'Die Hälfte der Bildpunkte · weicher, aber die Bildrate steht',
+};
+
 /** Was ausgeliefert wird: das Bild von vorher, ohne alles Neue. */
-export const DEFAULT_GRAPHICS: GraphicsSettings = { mode: 'simple' };
+export const DEFAULT_GRAPHICS: GraphicsSettings = { mode: 'simple', xrScale: 1 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
   simple: 'Einfach',
@@ -143,7 +171,9 @@ export function graphicsProfile(settings: GraphicsSettings): GraphicsProfile {
     // Der Comic dämpft das Grundlicht nur mäßig: Zwei Stufen brauchen
     // Mitteltöne zwischen sich.
     ambientScale: comic ? 0.7 : 1,
-    framebufferScale: comic ? 1.2 : 1,
+    // Der Comic will ein schärferes Bild, der Regler ein flüssigeres — beides
+    // multipliziert sich, damit „Flüssig" auch im Comic flüssig ist.
+    framebufferScale: (comic ? 1.2 : 1) * settings.xrScale,
     // Eine Kontur von zwei Pixeln verträgt keine verwaschenen Bildränder.
     foveation: comic ? 0.3 : 1,
     toonBands: comic ? 3 : 0,
@@ -162,7 +192,10 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const mode = GRAPHICS_MODES.includes(raw.mode as GraphicsMode)
     ? (raw.mode as GraphicsMode)
     : DEFAULT_GRAPHICS.mode;
-  return { mode };
+  const xrScale = XR_SCALES.includes(raw.xrScale as XrScale)
+    ? (raw.xrScale as XrScale)
+    : DEFAULT_GRAPHICS.xrScale;
+  return { mode, xrScale };
 }
 
 /** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
@@ -171,9 +204,16 @@ export function nextGraphicsMode(mode: GraphicsMode): GraphicsMode {
   return GRAPHICS_MODES[(index + 1) % GRAPHICS_MODES.length]!;
 }
 
+/** Ein Druck auf den Regler: die nächste Raste, von scharf nach flüssig und wieder von vorn. */
+export function nextXrScale(scale: XrScale): XrScale {
+  const index = XR_SCALES.indexOf(scale);
+  return XR_SCALES[(index + 1) % XR_SCALES.length]!;
+}
+
 /** Wie die Seite im Menü unter ihrer Überschrift steht. */
 export function graphicsSummary(settings: GraphicsSettings): string {
-  return GRAPHICS_MODE_LABELS[settings.mode];
+  const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

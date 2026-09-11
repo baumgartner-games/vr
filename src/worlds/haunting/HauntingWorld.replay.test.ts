@@ -11,7 +11,17 @@ import { defaultLobby, type LobbyChoice } from './rules/lobby';
 import { StationTravelPlan } from './stationTravelPlan';
 import { VentNet } from './vents/ventGraph';
 import { VentTravel } from './vents/ventTravel';
-import { readHandover, stateMessage, type HauntBooks, type HauntState } from './net';
+import {
+  readHandover,
+  readSetupMessage,
+  readStart,
+  setupMessage,
+  startMessage,
+  stateMessage,
+  type HauntBooks,
+  type HauntState,
+} from './net';
+import { ROUND_RUNNING, START_SENT } from './HauntingWorld';
 import { FlatRound } from './map/flatRound';
 import { MonsterMemory } from './monster/monsterMemory';
 import { stationGraph } from './roomGraph';
@@ -21,7 +31,7 @@ import { freshLamps, type Lamps } from './rules/lamps';
 import { freshSpook, type Spook } from './haunt';
 import { freshGhosts, GHOST_LIVE, GHOST_TTL } from './rules/ghosts';
 import { HOST_BUSY, SHIP_NEEDS_TECHNICIAN, SHIP_OCCUPIED } from './rules/worldMenu';
-import { defaultSetup, type RoundSetup } from './rules/roundSetup';
+import { defaultSetup, withPower, withWho, type RoundSetup } from './rules/roundSetup';
 import type { Intent } from './rules/lobby';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
@@ -54,6 +64,9 @@ interface ReplayWorld {
   pendingBotRound: boolean;
   /** Die Tafel der nächsten Runde (`rules/roundSetup.ts`). */
   setup: RoundSetup;
+  /** Wann sie hier zuletzt selbst angefasst wurde — Schonfrist gegen den Stand des Gastgebers. */
+  setupTouchedAt: number;
+  applySetup(setup: RoundSetup, mine?: boolean): void;
   /** Eine Absicht, die noch auf den Anzug wartet (`rules/worldMenu.shipStart`). */
   pendingStart: Intent | null;
   startRound(what: Intent, ctx: unknown): void;
@@ -156,6 +169,9 @@ function replay(): ReplayWorld {
     // Die Wahl der Lobby (`rules/lobby.ts`) — ohne sie hat der Nachbau keine
     // Ansicht, und `flatWanted` liest sie aus.
     lobbyChoice: defaultLobby('desktop'),
+    // Die Tafel und ihre Schonfrist (`applySetup`, `SETUP_GRACE`).
+    setup: defaultSetup(),
+    setupTouchedAt: -Infinity,
   });
   return world;
 }
@@ -698,4 +714,109 @@ test('the start is refused while another technician wears the suit — with a re
   world.startRound('play', ctx);
   expect(world.flatTechnician).toBe(false);
   expect(ctx.notify).toHaveBeenCalledWith(SHIP_OCCUPIED);
+});
+
+/**
+ * **Die Zentrale startet die Runde der Brille.** Steckt der Techniker in der
+ * Brille, ist er der Gastgeber — und bis hierher hieß das für jedes Telefon:
+ * Tafel nur für sich, Startknopf gesperrt. Jetzt gehen Tafel und Start als
+ * Wunsch zu ihm (`net.setupMessage`, `net.startMessage`), er wendet sie an,
+ * und mit dem nächsten Stand steht die Tafel überall gleich.
+ */
+describe('Die Tafel und der Start über die Leitung', () => {
+  /** Ein Telefon in der Zentrale, eine Brille im Raum, die den Anzug trägt. */
+  function phone(): { world: ReplayWorld; ctx: ReturnType<typeof starterCtx> } {
+    const world = setupStarter();
+    world.hostId = 'remote';
+    world.lobbyChoice = { intent: 'play', view: '3d', me: 'red' };
+    const ctx = starterCtx(true);
+    world.context = ctx;
+    return { world, ctx };
+  }
+
+  /** Und die Brille selbst: Gastgeber, ein Telefon im Raum. */
+  function headset(): { world: ReplayWorld; ctx: ReturnType<typeof starterCtx> } {
+    const world = setupStarter();
+    const ctx = {
+      ...starterCtx(),
+      role: 'vr' as const,
+      renderer: { xr: { isPresenting: true } },
+    };
+    ctx.net.peers.set('phone', { id: 'phone', world: 'haunting', role: 'handheld' });
+    world.context = ctx;
+    Object.assign(world, { newRound: jest.fn(), announce: jest.fn() });
+    return { world, ctx };
+  }
+
+  it('schickt jeden Tipp auf die Tafel an den Gastgeber', () => {
+    const { world, ctx } = phone();
+    const next = withPower(withWho(world.setup, 'red', 'human'), 'red', 'panel', true);
+    world.applySetup(next);
+    const sent = ctx.net.emit.mock.calls.map(([, message]) => readSetupMessage(message));
+    expect(sent.filter((one) => one)).toEqual([next]);
+    // Und was vom Netz kam, geht nicht wieder hin.
+    ctx.net.emit.mockClear();
+    world.applySetup(withWho(next, 'yellow', 'bot'), false);
+    expect(ctx.net.emit).not.toHaveBeenCalled();
+  });
+
+  it('startet bei der Brille statt in SHIP_OCCUPIED zu enden', () => {
+    const { world, ctx } = phone();
+    world.startRound('play', ctx);
+    expect(world.flatTechnician).toBe(false);
+    expect(world.pendingStart).toBeNull();
+    expect(ctx.notify).not.toHaveBeenCalledWith(SHIP_OCCUPIED);
+    expect(ctx.notify).toHaveBeenCalledWith(START_SENT);
+    const starts = ctx.net.emit.mock.calls
+      .map(([, message]) => readStart(message))
+      .filter((one) => one);
+    expect(starts).toHaveLength(1);
+    expect(starts[0]!.intent).toBe('play');
+    // Die Tafel geht mit — mit dem Platz, den dieses Telefon sich genommen hat.
+    expect(starts[0]!.setup.seats.technician.who).toBe('human');
+  });
+
+  it('übernimmt beim Gastgeber die Tafel eines Telefons — und lässt der Brille den Anzug', () => {
+    const { world } = headset();
+    const wish = withWho(withWho(defaultSetup(), 'red', 'human'), 'technician', 'bot');
+    world.receive(JSON.parse(JSON.stringify(setupMessage(wish))), 'phone');
+    expect(world.setup.seats.red.who).toBe('human');
+    expect(world.setup.seats.technician.who).toBe('human');
+  });
+
+  it('fängt beim Gastgeber auf einen Startwunsch an — aber nicht mitten in der Runde', () => {
+    const { world, ctx } = headset();
+    const wish = withWho(defaultSetup(), 'monster', 'off');
+    world.receive(JSON.parse(JSON.stringify(startMessage('train', wish))), 'phone');
+    expect(world.state.phase).toBe('running');
+    expect(world.setup.seats.monster.who).toBe('off');
+    expect(ctx.menu.toggle).toHaveBeenCalledWith(false);
+    // Läuft die Runde, bricht ein zweiter Wunsch sie nicht ab.
+    ctx.notify.mockClear();
+    world.receive(JSON.parse(JSON.stringify(startMessage('play', defaultSetup()))), 'phone');
+    expect(world.setup.seats.monster.who).toBe('off');
+    expect(ctx.notify).toHaveBeenCalledWith(ROUND_RUNNING);
+  });
+
+  it('nimmt die Tafel des Gastgebers aus dem Stand — außer gleich nach dem eigenen Tipp', () => {
+    const { world, ctx } = phone();
+    world.state.phase = 'running';
+    const theirs = withWho(defaultSetup(), 'blue', 'bot');
+    const wire = JSON.parse(JSON.stringify(stateMessage({ ...world.state, time: 1 }, theirs)));
+    world.receive(wire, 'remote');
+    expect(world.setup).toEqual(theirs);
+    expect(ctx.refreshWorldMenu).toHaveBeenCalledTimes(1);
+    // Derselbe Stand noch einmal baut keine Anzeige neu.
+    world.receive(wire, 'remote');
+    expect(ctx.refreshWorldMenu).toHaveBeenCalledTimes(1);
+    // Ein eigener Tipp gilt, bis er vom Gastgeber zurückkommt.
+    const mine = withWho(theirs, 'yellow', 'human');
+    world.applySetup(mine);
+    world.receive(wire, 'remote');
+    expect(world.setup).toEqual(mine);
+    // Von einem, der nicht der Gastgeber ist, kommt keine Tafel.
+    world.setupTouchedAt = -Infinity;
+    world.receive(wire, 'someone');
+    expect(world.setup).toEqual(mine);
+  });
 });

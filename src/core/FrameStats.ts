@@ -63,6 +63,18 @@ export class FrameStats {
   private readonly sampler = new FrameSampler();
   private requested = false;
   private immersive = false;
+  /**
+   * **Die letzte Messung, auch in der Brille.** Die Anzeige hier ist DOM und
+   * in der Brille unsichtbar — gemessen wird trotzdem, damit das Menü am
+   * Handgelenk die Zahl zeigen kann (`App.graphicsMenu`). Ohne sie ließ sich
+   * eine Bildrate auf der Quest nur raten.
+   */
+  private last: FrameSample | null = null;
+
+  /** Die letzte halbe Sekunde, oder `null`, solange noch nichts gemessen ist. */
+  get latest(): FrameSample | null {
+    return this.last;
+  }
 
   constructor() {
     this.element.className = 'frame-stats';
@@ -84,14 +96,21 @@ export class FrameStats {
     this.refresh();
   }
 
-  update(time: number, cpuMs: number, render: { calls: number; triangles: number }): void {
-    if (this.element.hidden) return;
+  /** @returns die neue Messung, sobald eine halbe Sekunde voll ist — sonst `null`. */
+  update(
+    time: number,
+    cpuMs: number,
+    render: { calls: number; triangles: number },
+  ): FrameSample | null {
     const sample = this.sampler.sample(time, cpuMs, render.calls, render.triangles);
-    if (!sample) return;
+    if (!sample) return null;
+    this.last = sample;
+    if (this.element.hidden) return sample;
     this.element.textContent =
       `${sample.fps.toFixed(0)} FPS · ${sample.frameMs.toFixed(1)} ms · F3\n` +
       `CPU ${sample.cpuMs.toFixed(1)} ms · ${sample.calls.toFixed(0)} Draws · ` +
       `${(sample.triangles / 1000).toFixed(1)}k Dreiecke`;
+    return sample;
   }
 
   dispose(): void {
@@ -103,6 +122,7 @@ export class FrameStats {
     this.element.hidden = this.immersive || !this.requested;
     this.element.textContent = 'FPS wird gemessen … · F3';
     this.sampler.reset();
+    this.last = null;
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {

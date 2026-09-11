@@ -559,6 +559,29 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     expect(document.querySelector('.haunt__say')!.textContent).toContain(SHIP_OCCUPIED);
   });
 
+  /**
+   * **Die Zentrale startet die Runde der Brille.** Eine Brille im Raum sperrte
+   * den Knopf bisher immer; jetzt nur, solange ihre Runde wirklich läuft.
+   * Davor geht der Tipp als Wunsch an sie (`HauntingWorld.startRound`).
+   */
+  it('lässt die Zentrale die Runde der Brille starten, solange dort keine läuft', () => {
+    const game = crew('red', true, undefined, false);
+    game.state.phase = 'briefing';
+    game.ui.refresh();
+    button('[data-tab="setup"]').click();
+    const start = () => button('[data-start-setup]');
+    expect(start().disabled).toBe(false);
+    expect(start().textContent).toContain('Startet bei der Brille');
+    start().click();
+    expect(game.startSetup).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.haunt__say')!.textContent).not.toContain(SHIP_OCCUPIED);
+    // Läuft sie, ist der Knopf wieder zu.
+    game.state.phase = 'running';
+    game.ui.refresh();
+    button('[data-tab="setup"]').click();
+    expect(start().disabled).toBe(true);
+  });
+
   it('sperrt den Start im Schiff, solange ein anderer Techniker spielt — in 2D nicht', () => {
     const game = crew('red', true, undefined, false);
     button('[data-tab="setup"]').click();

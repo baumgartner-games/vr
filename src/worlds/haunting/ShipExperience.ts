@@ -215,6 +215,15 @@ interface Door {
   at: THREE.Vector3;
   panel: Screen;
   light: THREE.MeshBasicMaterial;
+  /** Alles, was zu dieser Tür gehört — zum Ausblenden mit ihren Räumen. */
+  group: THREE.Group;
+  /**
+   * Die Räume zu beiden Seiten. Eine Tür gehört zu zweien und trägt deshalb
+   * kein `userData.roomId` wie ein Schrank; sie bleibt zu sehen, solange
+   * einer der beiden zu sehen ist. `null` für die Übungsdeck-Türen, die immer
+   * stehen.
+   */
+  rooms: readonly string[] | null;
 }
 interface Console {
   repair: Repair;
@@ -232,6 +241,12 @@ const _head = new THREE.Vector3(),
   _side = new THREE.Vector3(),
   _wish = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+
+/** Ein Objekt mit Namen — damit ein Test es in der Szene findet. */
+function named<T extends THREE.Object3D>(object: T, name: string): T {
+  object.name = name;
+  return object;
+}
 /**
  * **Der Saum um die Zielkiste** (`core/outlineShell.ts`) — dasselbe Gelb wie
  * das Randdreieck auf der Karte und der Kompass, damit „das da vorn" und „das
@@ -430,7 +445,7 @@ export class ShipExperience {
   private readonly messages: string[] = [];
   private flatFlight = 0;
   private disposed = false;
-  private readonly bayLight = new THREE.PointLight(0xddefff, 0, 6, 2);
+  private readonly bayLight = named(new THREE.PointLight(0xddefff, 0, 6, 2), 'training-bay-light');
   private readonly suitColors = new Map<THREE.MeshStandardMaterial, THREE.Color>();
   private suitImmersive: boolean | null = null;
   private readonly lockerHome = new THREE.Vector3();
@@ -1471,6 +1486,7 @@ export class ShipExperience {
       ...(this.crew.options.test ? [TRAINING_DOOR] : []),
     ]) {
       const g = new THREE.Group();
+      g.name = `door-${d.id}`;
       g.position.set(
         (d.x + 0.5 + dirX(d.dir) * 0.5) * TILE,
         0,
@@ -1515,6 +1531,7 @@ export class ShipExperience {
       g.add(back);
       this.root.add(g);
       const at = g.position.clone();
+      const rooms = 'a' in d ? [d.a, ...(d.b ? [d.b] : [])] : null;
       this.doors.push({
         id: d.id,
         leaves,
@@ -1522,6 +1539,8 @@ export class ShipExperience {
         at,
         panel,
         light,
+        group: g,
+        rooms,
       });
       const action = (): void => {
         if (d.id === 'test-bay' || d.id === TRAINING_DOOR.id) {
@@ -1601,6 +1620,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       const roomId = object.userData.roomId as string | undefined;
       if (roomId && !roomId.startsWith('training')) object.visible = !ids || ids.has(roomId);
     }
+    // **Die Türen gehen mit ihren Räumen.** Jede ist ein Dutzend eigener
+    // Zeichenaufrufe — Gehäuse, zwei Blätter mit Griffen, zwei Tafeln —, und
+    // gut zwei Dutzend davon wurden bisher in jedem Bild gezeichnet, auch die
+    // am anderen Ende der Station hinter drei Wänden. Eine Tür steht, solange
+    // einer ihrer zwei Räume steht; die Übungsdeck-Türen immer.
+    for (const door of this.doors)
+      door.group.visible = !ids || !door.rooms || door.rooms.some((room) => ids.has(room));
   }
   get flashlightActive(): boolean {
     return (
@@ -1940,6 +1966,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const lab = crew.options.test ? trainingRoomAt(_head.x, _head.z) : null;
     this.bay.visible = crew.options.test;
     this.bayLight.intensity = this.player && lab ? 34 : 0;
+    // Außerhalb der Lehrzimmer ist die Deckenleuchte aus — und dann auch für
+    // den Shader (siehe `FlashlightTool.applyBeam`): Eine unsichtbare Lampe
+    // kostet in der Station keinen Bildpunkt.
+    this.bayLight.visible = this.bayLight.intensity > 0;
     if (lab) this.bayLight.position.set(_head.x, 2.6, _head.z);
     if (this.labMirror)
       this.labMirror.visible =
@@ -2410,6 +2440,12 @@ ANTIPPEN: ZUM SAFE-RAUM`,
   }
   private paintDom(): void {
     if (!this.player) return;
+    // **In der Brille gibt es dieses Panel nicht** (`dom.hidden`, `update`) —
+    // und trotzdem wurde es achtmal je Sekunde durchgerechnet, samt einer
+    // Signatur über den halben Stand als JSON. Wer es nicht sieht, malt es
+    // nicht; die Signatur sorgt dafür, dass es beim nächsten Aufschlagen
+    // nachgezogen wird.
+    if (this.dom.hidden) return;
     const state = this.host.state(),
       crew = this.crew,
       near = this.nearby();

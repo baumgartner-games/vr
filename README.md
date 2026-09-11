@@ -58,7 +58,10 @@ die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
 Unter **Menü → Grafik** steht ein experimenteller Schalter, der
 **Grafik-Modus**: _Einfach_ ist das Bild von bisher, _Comic_ zeichnet dieselbe
-Welt mit **schwarzen Konturen**, Licht in Stufen und Schatten. Daneben liegt
+Welt mit **schwarzen Konturen**, Licht in Stufen und Schatten. Darunter
+**Brille: Auflösung** — _Voll_, _Mittel_ oder _Flüssig_, für die Bildrate im
+Headset, ab der nächsten Sitzung — und ganz oben die **Bildrate** selbst, live,
+auch in der Brille. Daneben liegt
 **Aussehen** — sieben Kopfbedeckungen von der Basecap bis zur Krone, und alle
 im Raum sehen, was man aufhat.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
@@ -127,7 +130,12 @@ Reiter ganz oben, in der Brille der Knopf am Handgelenk. Er ist kurz:
    eine Zeile zu deiner und setzt dein Telefon zugleich an das Gerät dazu.
 3. **Ein Knopf**, und auf ihm steht, was gleich passiert: „Mission starten"
    oder „Test starten" — ohne Ansicht in Klammern, die steht ja als Häkchen
-   darüber.
+   darüber. **Steckt der Techniker schon in der Brille, drückt ihn die
+   Zentrale trotzdem**: Die Verteilung und der Start gehen dann als Wunsch zu
+   ihm, die Runde beginnt bei ihm, und die Tafel steht auf allen Geräten
+   gleich — er muss dafür nicht ans Handgelenk. Nur eine Runde, die schon
+   läuft, bricht der Knopf nicht ab. Und wer später dazukommt, bekommt Runde
+   und Tafel, wie sie gerade stehen, und nimmt sich einen freien Platz.
 
 **Die Rolle wählst du über die Reiter oben**: _Aufbau_, _Späher_,
 _Schalttafel_, _Archiv_, dann Zuschauer und Monster. Wer noch nichts
@@ -365,7 +373,7 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 | Taschenlampe an und aus | `E`, wenn nichts zum Benutzen vor dir liegt |
 | Ducken | `Ctrl` halten |
 | Simulationsflug | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller |
-| Leistungsanzeige | `F3` blendet FPS, Framezeit und Zeichenaufwand ein oder aus |
+| Leistungsanzeige | `F3` blendet FPS, Framezeit und Zeichenaufwand ein oder aus; in der Brille steht dieselbe Zahl unter Menü → Grafik |
 
 **Am Bildschirm liegt dieselbe Steuerung wie in der 2D-Welt**: der Stock links
 unten, rechts unten drei Knöpfe. Die beiden kleinen sind die zwei Hände —

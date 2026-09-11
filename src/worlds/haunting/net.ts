@@ -10,6 +10,8 @@ import type { MapPoint, MonsterInsight } from './map/mapSnapshot';
 import { MODE_LABELS, type MonsterMode } from './monsterRoutine';
 import { isStation, type Claim, type StationId } from './stations';
 import type { VentPhase } from './vents/ventTravel';
+import { readSetup, type RoundSetup } from './rules/roundSetup';
+import type { Intent } from './rules/lobby';
 
 /**
  * **Was zwischen Einsatzzentrale und Haus über die Leitung geht** — und wie wenig das ist.
@@ -38,6 +40,20 @@ import type { VentPhase } from './vents/ventTravel';
  *   als **Zähler** über die Leitung und nicht als Flanke: Bei zehn Ansagen
  *   je Sekunde ginge ein einzelnes `true` verloren oder käme doppelt an —
  *   eine Differenz im Zähler ist genau ein Druck, egal wie oft er ankommt.
+ * - `setup` — irgendein Gerät im Raum an den Gastgeber: **so soll die Tafel
+ *   stehen** (`rules/roundSetup.RoundSetup`). Die Tafel lag bis hierher nur
+ *   im Browser jedes Geräts, und der Gastgeber las nur seine eigene: Was ein
+ *   Telefon in der Lobby einstellte, sah die Brille nie — und wer in der
+ *   Brille steckt, stellt an einem Handgelenk-Menü nichts ein. Jetzt schickt
+ *   jeder Tipp die ganze Tafel hinüber, der Gastgeber übernimmt sie, und mit
+ *   dem nächsten Stand steht sie auf allen Geräten gleich (`stateMessage`
+ *   trägt sie als optionales Feld `setup` mit — ohne Protokollsprung, denn
+ *   ein Gerät ohne das Feld behält einfach seine eigene Tafel wie bisher).
+ * - `start` — irgendein Gerät im Raum an den Gastgeber: **fang an**, mit
+ *   dieser Absicht und dieser Tafel. Der Gastgeber ist der Techniker, und
+ *   wer im Anzug steckt, soll nicht am Handgelenk nach dem Startknopf suchen
+ *   müssen, während drei Leute in der Zentrale warten. Eine laufende Runde
+ *   bricht die Nachricht **nicht** ab — sie zählt nur, solange keine läuft.
  *
  * **Alles, was hereinkommt, ist fremder Text.** Jede Nachricht geht deshalb
  * durch einen Leser, der `null` zurückgibt, statt einem halb gefüllten Objekt
@@ -524,6 +540,36 @@ export function readState(data: unknown): HauntState | null {
   };
 }
 
+/**
+ * **Die Tafel, die der Gastgeber im Stand mitschickt** (`stateMessage`), oder
+ * `null`, wenn der Stand keine trägt — ein älteres Gerät oder gar kein Stand.
+ * Gelesen mit demselben Leser wie der Browser-Speicher (`readSetup`): fremder
+ * Text ist fremder Text, ob er über die Leitung kam oder von gestern ist.
+ */
+export function readSharedSetup(data: unknown): RoundSetup | null {
+  const it = bag(data);
+  if (!it || it['kind'] !== 'state' || it['version'] !== STATION_PROTOCOL) return null;
+  const setup = bag(it['setup']);
+  if (!setup || !bag(setup['seats'])) return null;
+  return readSetup(setup);
+}
+
+/** **Ein Wunsch an die Tafel** vom Netz — die ganze Tafel, oder `null`. */
+export function readSetupMessage(data: unknown): RoundSetup | null {
+  const it = bag(data);
+  if (!it || it['kind'] !== 'setup' || !bag(it['seats'])) return null;
+  return readSetup(it);
+}
+
+/** **Ein Startwunsch** vom Netz: die Absicht und die Tafel dazu, oder `null`. */
+export function readStart(data: unknown): { intent: Intent; setup: RoundSetup } | null {
+  const it = bag(data);
+  if (!it || it['kind'] !== 'start' || !bag(it['seats'])) return null;
+  const intent = it['intent'];
+  if (intent !== 'play' && intent !== 'watch' && intent !== 'train') return null;
+  return { intent, setup: readSetup(it) };
+}
+
 export function readClaim(data: unknown, from: string): Claim | null {
   const it = bag(data);
   if (!it || it['kind'] !== 'claim' || !isStation(it['station'])) return null;
@@ -764,8 +810,25 @@ export function loadMemory(
  * dem die Gegenseite abhängt (zuletzt `ghosts`), zählt `STATION_PROTOCOL`
  * hoch, sonst läse ein altes Gerät die Nachricht und übersähe die Hälfte.
  */
-export function stateMessage(state: HauntState): unknown {
-  return { kind: 'state', version: STATION_PROTOCOL, ...state };
+export function stateMessage(state: HauntState, setup?: RoundSetup): unknown {
+  return {
+    kind: 'state',
+    version: STATION_PROTOCOL,
+    ...state,
+    // Die Tafel des Gastgebers — optional, siehe oben: Wer sie nicht kennt,
+    // behält seine eigene.
+    ...(setup ? { setup: { seats: setup.seats } } : {}),
+  };
+}
+
+/** Die ganze Tafel an den Gastgeber: so soll sie stehen. */
+export function setupMessage(setup: RoundSetup): unknown {
+  return { kind: 'setup', seats: setup.seats };
+}
+
+/** Der Startwunsch an den Gastgeber: fang mit dieser Absicht und dieser Tafel an. */
+export function startMessage(intent: Intent, setup: RoundSetup): unknown {
+  return { kind: 'start', intent, seats: setup.seats };
 }
 
 export function claimMessage(station: StationId, seniority: number): unknown {

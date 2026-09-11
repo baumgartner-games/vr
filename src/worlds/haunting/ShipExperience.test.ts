@@ -467,6 +467,53 @@ test('1 and 2 cycle found hand items including genuinely empty hands', () => {
   expect(rig.camera.getObjectByName('desktop-held-tool')?.visible).toBe(false);
 });
 
+/**
+ * **Die Türen gehen mit ihren Räumen.** Ein Dutzend Zeichenaufrufe je Tür,
+ * gut zwei Dutzend Türen — die wurden bisher in jedem Bild gezeichnet, auch
+ * die hinter drei Wänden. Eine Tür steht, solange einer ihrer zwei Räume
+ * steht; die Übungsdeck-Türen immer.
+ */
+test('room culling hides the doors of hidden rooms and keeps those of a visible neighbour', () => {
+  const door = spec.doors.find((d) => d.b)!;
+  const group = scene.getObjectByName(`door-${door.id}`)!;
+  const bay = scene.getObjectByName('door-test-bay')!;
+  experience.setVisibleRooms(new Set());
+  expect(group.visible).toBe(false);
+  expect(bay.visible).toBe(true);
+  // Der Raum auf der anderen Seite reicht: Die Tür gehört zu beiden.
+  experience.setVisibleRooms(new Set([door.b!]));
+  expect(group.visible).toBe(true);
+  experience.setVisibleRooms(new Set([door.a]));
+  expect(group.visible).toBe(true);
+  experience.setVisibleRooms(null);
+  expect(group.visible).toBe(true);
+});
+
+/**
+ * **Eine Lampe, die aus ist, ist auch für den Shader aus.** three.js rechnet
+ * jede sichtbare Lichtquelle in jedem Bildpunkt mit, Stärke null hin oder her;
+ * unsichtbar zählt sie nicht. Die Deckenleuchte des Übungsdecks brennt nur
+ * dort — und ist überall sonst kein Licht mehr.
+ */
+test('the bay light leaves the shader while it is off', () => {
+  const light = scene.getObjectByName('training-bay-light') as THREE.PointLight | undefined;
+  expect(light).toBeDefined();
+  frame();
+  expect(light!.intensity).toBe(0);
+  expect(light!.visible).toBe(false);
+});
+
+test('a flashlight that is off takes its lights out of the shader', () => {
+  const torch = new FlashlightTool();
+  const lights = torch.children.filter((child) => (child as THREE.Light).isLight);
+  expect(lights.length).toBeGreaterThan(0);
+  expect(lights.every((light) => !light.visible)).toBe(true);
+  torch.setLit(true);
+  expect(lights.every((light) => light.visible)).toBe(true);
+  torch.setLit(false);
+  expect(lights.every((light) => !light.visible)).toBe(true);
+});
+
 test('room culling disables the invisible cargo controls as well as their artwork', () => {
   const cabinet = exhibits.cabinets.find((c) => c.id.startsWith('cargo-'))!;
   experience.setVisibleRooms(new Set());

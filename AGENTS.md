@@ -2529,7 +2529,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Nah Gefasstes doch holen           | dasselbe Zucken zum Körper                                                                                                                                            | –                                                                                               | –                    |
 | Nah Gefasstes zur anderen Hand     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                            | –                                                                                               | –                    |
 | Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
-| Grafik umstellen                   | Menü → Grafik: _Grafik-Modus_ schaltet im Kreis (Einfach → Comic)                                                                                                    | dito                                                                                            | dito                 |
+| Grafik umstellen                   | Menü → Grafik: _Grafik-Modus_ schaltet im Kreis (Einfach → Comic); _Brille: Auflösung_ (Voll → Mittel → Flüssig, ab der nächsten Sitzung); oben die **Bildrate** live | dito                                                                                            | dito                 |
 | Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
 | Werkzeug-Einstellungen             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                          | Linksklick auf den Pfeil                                                                        | tippen               |
 | Augenhöhe messen                   | Menü → Bewegung → Augenhöhe → _Jetzt messen_, oder die Knöpfe an der rechten Wand im Eingaberaum                                                                      | –                                                                                               | –                    |
@@ -2578,7 +2578,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Haunting: Simulationsflug | linker Stick fliegt, rechter steigt/sinkt | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller | – |
 | Haunting: VR-Komfort | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration | – | – |
 | Haunting: Raumakte | – | Zimmer auf der Archivkarte antippen; die Akte liegt ganzseitig darüber, „Karte" bringt den Grundriss zurück | dito |
-| Haunting: Leistungsanzeige | – | `F3`: FPS, Framezeit, Draw Calls und Dreiecke | mit F3 sichtbar |
+| Haunting: Leistungsanzeige | Menü → Grafik, erste Zeile: FPS, Framezeit, CPU, Draw Calls — alle halbe Sekunde nachgeschrieben, solange das Menü offen ist | `F3`: FPS, Framezeit, Draw Calls und Dreiecke | mit F3 sichtbar |
 | Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der linke Stick aus — der rechte dreht weiter, und die Anker gehen mit | –                                                                                               | –                    |
 | Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
 | Sprungkissen (Kletterhalle)        | vom Podest in eines der blauen Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                  | dito                                                                                            | dito                 |
@@ -4691,6 +4691,44 @@ kein Weltmenü, in das eine Grafikeinstellung passte.
 - **Die Schattenkarte wird einmal pro Bild bestellt** (`shadowMap.autoUpdate`
   aus, `needsUpdate` im Loop). Spiegel und Portalsichten zeichnen die Szene
   mehrmals; jede dieser Zeichnungen würde sie sonst neu bauen.
+- **Und in der einfachen Stufe wird die Szene nicht jede Sekunde abgelaufen**
+  (`GraphicsQuality.rescans`, `touched`): Der Durchlauf stellt dort nur
+  zurück, was der Comic einmal verändert hat — und wo der Comic in dieser
+  Sitzung nie an war, gibt es nichts zurückzustellen. Ein Gang über ein paar
+  tausend Objekte je Sekunde war ein Ruckler für nichts, in der Brille am
+  deutlichsten. Einmal je Welt läuft er trotzdem (`scanned`), und sobald der
+  Comic einmal an war, bleibt er an: Der Zombie, der im Käfig einen Saum bekam
+  und erst nach dem Umschalten herauskommt, soll ihn wieder loswerden.
+
+#### Die Brille rechnet kleiner, wenn man es sagt
+
+_Menü → Grafik → Brille: Auflösung_ (`GraphicsSettings.xrScale`, `XR_SCALES`:
+**Voll** 1 · **Mittel** 0,85 · **Flüssig** 0,7) ist der eine Regler, der auf
+einer Quest **immer** zieht: der Anteil dessen, was die Brille als Puffergröße
+vorschlägt (`XRWebGLLayer.framebufferScaleFactor`, angewendet in
+`GraphicsQuality.applyRenderer`, multipliziert mit dem 1,2 des Comics). Eine
+dunkle Station voller Lichter ist am Füllen der Bildpunkte am teuersten, und
+0,7 sind die halben Bildpunkte. Ausgeliefert wird **Voll** — wer nichts
+einstellt, sieht dasselbe Bild wie gestern —, und er gilt **ab der nächsten
+Sitzung**: Die Brille nimmt die Puffergröße nur beim Aufsetzen entgegen. Am
+Bildschirm ändert er nichts. Die Bildrate dazu steht als erste Zeile derselben
+Seite (`App.fpsEntry`, aus `FrameStats.latest` — gemessen wird auch in der
+Brille, wo das F3-Feld unsichtbar bleibt) und wird alle halbe Sekunde
+nachgeschrieben, solange das Menü offen ist (`WristMenus.refresh`, nur die
+Zeile, nicht das Menü).
+
+**Eine Lampe, die aus ist, ist auch für den Shader aus**
+(`FlashlightTool.applyBeam`, `beam.visible`/`glow.visible`): three.js rechnet
+jede *sichtbare* Lichtquelle in jedem Bildpunkt jedes beleuchteten Materials
+mit, Stärke null hin oder her. Zwei Lampen an den Hüften und die Ersatzlampe
+an der Wand waren so sechs Lichter, die nichts taten und trotzdem bezahlt
+wurden — in der Brille zweimal je Bild. Unsichtbar zählen sie nicht. Der
+Preis: Wechselt die Zahl der Lichter, baut three.js die Programme der
+Materialien neu — je Kombination **einmal**; danach liegen sie im Speicher
+des Materials (`materialProperties.programs`) und werden nur noch gewählt.
+Deshalb bleiben die zwei Raumleuchten des Schiffs (`lampPool`) immer
+sichtbar: Die schaltet die Tafel alle halbe Minute, und jeder Wechsel wäre ein
+neuer Programmbau.
 
 Im **Konfig-Code steht davon nichts** (`configCode.ts`). Was ein Gerät leisten
 kann, ist keine Einstellung, die man verschickt: Ein Code aus einer Brille darf
@@ -8595,7 +8633,23 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   ist überall dieselbe: `roundSetupPanel.ts` (`SetupPanel`) im Van, die
   Einträge `haunt:seat-<platz>` und das Untermenü `haunt:powers` in der
   Brille — so stellt auch der VR-Spieler ein, ob ein Monster mitspielt und
-  ob Bots das Archiv und die anderen Posten halten. **Wer ich bin, ist keine
+  ob Bots das Archiv und die anderen Posten halten.
+  **Und die Tafel, die gilt, ist die des Gastgebers** (`net.setupMessage`,
+  `net.readSharedSetup`, `HauntingWorld.applySetup`/`adoptSetup`): Jeder Tipp
+  auf einem Gerät, das die Runde nicht rechnet, geht als ganze Tafel an den
+  Gastgeber, der übernimmt sie (nur den Anzug lässt er der Brille,
+  `lockTechnician`), und mit dem nächsten Stand kommt sie als Feld `setup` an
+  alle zurück — ohne Protokollsprung, weil ein Gerät ohne das Feld einfach
+  seine eigene behält, wie bisher. Vorher lag die Tafel **nur** im Browser
+  jedes Geräts: Was ein Telefon in der Lobby einstellte, sah die Brille nie,
+  und der Gastgeber prüfte Schaltbefehle gegen eine Tafel, die nur er kannte.
+  Gegen das Zurückspringen — der eigene Tipp ist noch unterwegs, der alte
+  Stand kommt viermal je Sekunde — hält jedes Gerät nach einem Tipp
+  `SETUP_GRACE` = 1,5 s lang seine eigene Tafel (`setupTouchedAt`), und
+  übernommen wird nur, was sich unterscheidet (`sameSetup`), sonst baute sich
+  die Seite viermal je Sekunde neu und verschluckte jeden Tipp dazwischen.
+  Wer später dazukommt, sieht so die Verteilung, die gilt, und nicht seine
+  von gestern. **Wer ich bin, ist keine
   Spalte auf der Tafel mehr**, sondern die Wahl der Lobby (`LobbyChoice.me`,
   `MyRole` = ein Platz oder `watch:technician` / `watch:all`), je Gerät. Die
   **Reiterzeile** des Telefons ist diese Wahl (`stationUi.choose`): Wer einen
@@ -8762,6 +8816,20 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Schiffsrunde ohne einen Menschen im Anzug; der Satz sagt beide Auswege).
   Die Bot-Runde geht wie bisher vorher ab (`requestBotRound`): Sie macht das
   Gerät selbst zum Techniker ihrer Vorführung.
+
+  **Und steckt der Techniker in der Brille, startet ihn die Zentrale**
+  (`net.startMessage`, `START_SENT`): Ein Gerät, das nicht der Gastgeber ist,
+  während eine Brille im Raum den Anzug trägt, schickt Absicht und Tafel als
+  Startwunsch hinüber statt in `others` zu enden; der Gastgeber übernimmt die
+  Tafel und läuft durch dasselbe `startRound` — für ihn ist es `start`. Eine
+  **laufende** Runde bricht der Wunsch nicht ab (`ROUND_RUNNING`): Ein Tipp
+  aus der Zentrale ist kein Notschalter; der Knopf am Telefon ist dann auch
+  gesperrt (`StationUi.shipBusy`: Brille im Raum, Ansicht Schiff, **und** die
+  Runde läuft — vorher reichte die Brille allein, und genau das war der Fall,
+  in dem drei Leute in der Zentrale warteten, während der Techniker am
+  Handgelenk nach dem Knopf suchte). Ein Zuschauer bekommt nach dem Wunsch wie
+  bisher sein Bild von oben (`openFlat` als `watch`), ein Platz der Zentrale
+  bleibt an seiner Karte.
 
   **Was die Welt sagt, steht auf dem Telefon** (`StationUi.say`,
   `.haunt__say`, `HauntingWorld.say`): eine Zeile zwischen Auftragsstreifen
@@ -9142,7 +9210,20 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   selben Sekunde zum selben Schluss kommen.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
   Schalter nur vom Besitzer der Schalttafel, Monstersteuer nur vom Besitzer
-  der Monster-Station.
+  der Monster-Station. **Die Tafel und der Start dagegen von jedem im Raum**
+  (`setup`, `start` — `net.readSetupMessage`, `net.readStart`; beide gehen
+  durch `rules/roundSetup.readSetup`, denselben Leser wie der
+  Browser-Speicher): Wer in der Lobby sitzt, darf die Verteilung stellen und
+  die Runde anwerfen, das ist der Sinn der Lobby. Der Gastgeber wendet an, und
+  sein Stand trägt die Tafel als optionales Feld `setup` zurück
+  (`stateMessage(state, setup)`, `readSharedSetup`) — ohne Protokollsprung,
+  denn wer das Feld nicht kennt, behält seine eigene Tafel wie bisher.
+  **Später dazukommen geht immer**: Der Gastgeber sagt den ganzen Stand
+  viermal je Sekunde an alle, ein neues Gerät baut daraus Haus, Runde und
+  jetzt auch die Tafel und nimmt sich über die Reiter einen freien Platz
+  (`switchRights`: aus der Zentrale heraus jederzeit, den Techniker in der
+  Brille nie). Eine Brille, die später dazukommt, wird Gastgeber und bekommt
+  die Übergabe (`handover`).
 - **Spielhost: Gastgeber ist, wer Techniker ist** (`net.pickGameHost`) — in der
   Brille, am Desktop oder auf der Karte von oben, das ist dieselbe Rolle in drei
   Ansichten; unter mehreren Technikern entscheidet die Standzeit, ohne jeden
@@ -9233,6 +9314,23 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   mit maximal48Partikeln und acht Audio-Kanäle begrenzen den Aufwand.
   Haunting-Web-DPR≤1,25, Telefon-3D≤15Hz. FrameStats misst JS/Frames/DrawCalls,
   keinen GPU-Timer. Spiegel rendert nur in Reichweite und Blickrichtung.
+  **Die Türen gehen mit ihren Räumen** (`ShipExperience.setVisibleRooms`,
+  `Door.rooms`): Eine Tür ist ein Dutzend eigener Zeichenaufrufe — Gehäuse,
+  zwei Blätter mit Griffen, zwei Tafeln —, und gut zwei Dutzend davon wurden
+  bisher in jedem Bild gezeichnet, auch die hinter drei Wänden; sie tragen
+  kein `userData.roomId` wie ein Schrank, weil sie zu zwei Räumen gehören, und
+  stehen, solange einer der beiden steht (die Übungsdeck-Türen immer). Die
+  Deckenleuchte des Übungsdecks (`bayLight`) ist außerhalb der Lehrzimmer
+  unsichtbar statt nur auf null — eine unsichtbare Lampe kostet keinen
+  Bildpunkt (siehe „Die Brille rechnet kleiner"). Und das Desktop-Panel wird
+  in der Brille nicht mehr achtmal je Sekunde durchgerechnet
+  (`ShipExperience.paintDom`, `dom.hidden`): Wer es nicht sieht, malt es nicht.
+  **Was noch keiner gemessen hat:** eine Bildrate auf einer Quest. Die Zeile
+  dafür steht jetzt im Grafik-Menü; die nächsten Kandidaten, wenn sie nicht
+  reicht, stehen im Code: `Pointer.castAll` wirft je Hand und Bild einen
+  Strahl auf jedes angemeldete Ziel (Tafeln, Kisten, Konsolen — gut hundert),
+  `ShipExperience.mesh` baut je Klotz ein eigenes Material, und die Schilder
+  sind je eines eine 768 px breite Leinwand.
   `stationLighting` erlaubt im normalen eingeschalteten Deck `ambient=0.28`,
   stromlos und im dunklen Test `0`. Heller Test (`0.78`) und Simulation (`0.55`)
   haben eigene Werte; Trainingsräume verwenden lokale Beleuchtung.

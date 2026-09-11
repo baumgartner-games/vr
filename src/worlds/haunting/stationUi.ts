@@ -787,8 +787,11 @@ export class StationUi {
       if (this.host.startSetup) {
         // **Eine 2D-Runde ist lokal**: Sie stört keinen Techniker im Schiff,
         // deshalb sperrt ein spielender Techniker sie auch nicht. Im Schiff
-        // gibt es dagegen einen Techniker je Raum.
-        const busy = link.vr && choice.view === '3d';
+        // gibt es dagegen einen Techniker je Raum — **aber die Runde startet
+        // die Zentrale für ihn**: Solange dort noch keine läuft, geht der
+        // Tipp als Wunsch an die Brille (`HauntingWorld.startRound`). Gesperrt
+        // ist der Knopf nur, während seine Runde wirklich läuft.
+        const busy = this.shipBusy();
         const start = el('button', 'lobby__start');
         start.dataset['startSetup'] = '';
         start.append(
@@ -796,7 +799,11 @@ export class StationUi {
           el(
             'span',
             'haunt__tag',
-            busy ? 'Ein Techniker spielt bereits im Schiff.' : describeSetup(setup),
+            busy
+              ? 'Ein Techniker spielt bereits im Schiff.'
+              : link.vr && choice.view === '3d'
+                ? `Startet bei der Brille im Schiff · ${describeSetup(setup)}`
+                : describeSetup(setup),
           ),
         );
         start.toggleAttribute('disabled', busy);
@@ -832,6 +839,19 @@ export class StationUi {
     );
     out.push(help);
     return out;
+  }
+
+  /**
+   * **Ob der Start im Schiff gerade vergeben ist**: eine Brille im Raum, die
+   * Ansicht auf dem Schiff — und dort läuft schon eine Runde. Vorher reichte
+   * die Brille allein, und genau das war der tote Knopf: Wer in der Zentrale
+   * saß, konnte die Runde des Technikers nicht anwerfen, und der Techniker
+   * suchte sie am Handgelenk.
+   */
+  private shipBusy(): boolean {
+    const link = this.host.link();
+    const view = this.host.lobby?.().view ?? (this.host.flatWanted?.() ? '2d' : '3d');
+    return link.vr && view === '3d' && this.host.state().phase === 'running';
   }
 
   /**
@@ -983,8 +1003,9 @@ export class StationUi {
       return;
     } else if (hit.dataset['startSetup'] !== undefined) {
       // Im Schiff gibt es einen Techniker je Raum; die Karte von oben stört
-      // ihn nicht. Und wo es nicht geht, steht ab jetzt auch, warum.
-      if (!this.host.link().vr || this.host.flatWanted?.()) this.host.startSetup?.();
+      // ihn nicht, und eine Runde, die noch nicht läuft, startet die Zentrale
+      // bei ihm. Und wo es nicht geht, steht ab jetzt auch, warum.
+      if (!this.shipBusy()) this.host.startSetup?.();
       else this.say(SHIP_OCCUPIED);
       return;
     } else if (hit.dataset['restart'] !== undefined) {
