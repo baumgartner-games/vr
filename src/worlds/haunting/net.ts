@@ -1,4 +1,5 @@
 import { STATION_PROTOCOL, freshCrew, readCrew, type CrewState } from './mission';
+import { readDrops, type Drop } from './rules/blood';
 import { freshGhosts, type Ghost, type Ghosts } from './rules/ghosts';
 import { isStation, type Claim, type StationId } from './stations';
 import type { VentPhase } from './vents/ventTravel';
@@ -102,6 +103,26 @@ export interface HauntState {
    * auch die Alarmleiter kommt. Seit `STATION_PROTOCOL` 8.
    */
   ghosts: Ghosts;
+  /**
+   * **Die Blutspur des Technikers** (`rules/blood.ts`) — die Tropfen, in der
+   * Reihenfolge, in der sie gefallen sind. Ort und Zeit, mehr nicht: Wie
+   * lange die Wunde noch offen ist, geht niemanden etwas an außer den, der
+   * die Runde rechnet.
+   *
+   * **Und warum das Feld optional ist, obwohl `ghosts` es nicht war.** Die
+   * Version steigt für ein Feld, von dem die Gegenseite **abhängt**. Bei den
+   * Ghost-Markern war das so: Sie werden dort gerechnet, wo der Sichtkontakt
+   * feststeht — beim Gastgeber —, und ein Gerät ohne sie zeichnete einen
+   * Marker, den es nie bekommt, oder verlöre ihn bei jedem Stand. Die
+   * Blutspur ist anders: An ihr hängt **keine Regel** auf der Empfängerseite.
+   * Der Gastgeber sucht die Fährte in seiner eigenen Spur und entscheidet
+   * daraus das Verhalten des Monsters; alle anderen **malen** sie nur. Ein
+   * Gerät der Version 8 ohne das Feld sieht keine Tropfen und spielt
+   * ansonsten dieselbe Runde — das ist ein fehlendes Bild, kein Auseinander-
+   * laufen. Also bleibt `STATION_PROTOCOL` auf 8, und wer nichts schickt,
+   * schickt eben eine leere Spur.
+   */
+  blood?: Drop[];
 }
 
 /**
@@ -295,6 +316,8 @@ export function readState(data: unknown): HauntState | null {
     ghosts: ghosts
       ? { monster: ghost(ghosts['monster']), technician: ghost(ghosts['technician']) }
       : freshGhosts(),
+    // Und die Tropfen (`rules/blood.ts`): fehlen sie, blutet eben niemand.
+    blood: readDrops(it['blood']),
   };
 }
 

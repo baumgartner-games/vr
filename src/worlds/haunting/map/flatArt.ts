@@ -280,35 +280,7 @@ export function drawMonster(
   ctx.fill();
 
   ctx.fillStyle = ART.monster;
-  ctx.beginPath();
-  if (look.kind === 'crawler') {
-    // Flach und lang, mit Zacken auf dem Rücken.
-    ctx.moveTo(-u * 0.6, 0);
-    ctx.lineTo(-u * 0.55, -h * 0.5);
-    ctx.lineTo(-u * 0.35, -h * 0.75);
-    ctx.lineTo(-u * 0.2, -h * 0.5);
-    ctx.lineTo(-u * 0.05, -h);
-    ctx.lineTo(u * 0.1, -h * 0.55);
-    ctx.lineTo(u * 0.3, -h * 0.9);
-    ctx.lineTo(u * 0.45, -h * 0.5);
-    ctx.lineTo(u * 0.65, -h * 0.6);
-    ctx.lineTo(u * 0.6, 0);
-  } else {
-    // Aufrecht: schmaler Rumpf, gezackte Schultern, schiefer Kopf.
-    const w = look.kind === 'sentinel' ? 0.55 : 0.42;
-    ctx.moveTo(-u * w, 0);
-    ctx.lineTo(-u * (w + 0.08), -h * 0.45);
-    ctx.lineTo(-u * (w + 0.18), -h * 0.75);
-    ctx.lineTo(-u * (w - 0.1), -h * 0.7);
-    ctx.lineTo(-u * 0.15, -h * 0.98 - bob);
-    ctx.lineTo(u * 0.08, -h * 0.82 - bob);
-    ctx.lineTo(u * 0.3, -h - bob);
-    ctx.lineTo(u * (w - 0.05), -h * 0.72);
-    ctx.lineTo(u * (w + 0.15), -h * 0.8);
-    ctx.lineTo(u * (w + 0.05), -h * 0.4);
-    ctx.lineTo(u * w, 0);
-  }
-  ctx.closePath();
+  monsterSilhouette(ctx, u, look.kind, bob);
   ctx.fill();
   ctx.stroke();
 
@@ -912,5 +884,165 @@ export function drawName(
   ctx.strokeText(text, x, y);
   ctx.fillStyle = '#ffffff';
   ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+/**
+ * **Der Umriss des Monsters als reiner Pfad** — gemeinsame Sache von
+ * `drawMonster` und `drawGhost`.
+ *
+ * Zwei Umrisse für dasselbe Vieh wären zwei Viecher: Wer die gestrichelte
+ * Erinnerung anders zeichnet als das Original, lässt den Spieler raten, ob er
+ * dieselbe Sorte vor sich hat. Der Pfad wird nur gebaut, gefüllt und gestrichen
+ * wird beim Aufrufer.
+ */
+function monsterSilhouette(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  kind: string,
+  bob: number,
+): void {
+  const h = monsterHeight(kind) * u;
+  ctx.beginPath();
+  if (kind === 'crawler') {
+    // Flach und lang, mit Zacken auf dem Rücken.
+    ctx.moveTo(-u * 0.6, 0);
+    ctx.lineTo(-u * 0.55, -h * 0.5);
+    ctx.lineTo(-u * 0.35, -h * 0.75);
+    ctx.lineTo(-u * 0.2, -h * 0.5);
+    ctx.lineTo(-u * 0.05, -h);
+    ctx.lineTo(u * 0.1, -h * 0.55);
+    ctx.lineTo(u * 0.3, -h * 0.9);
+    ctx.lineTo(u * 0.45, -h * 0.5);
+    ctx.lineTo(u * 0.65, -h * 0.6);
+    ctx.lineTo(u * 0.6, 0);
+  } else {
+    // Aufrecht: schmaler Rumpf, gezackte Schultern, schiefer Kopf.
+    const w = kind === 'sentinel' ? 0.55 : 0.42;
+    ctx.moveTo(-u * w, 0);
+    ctx.lineTo(-u * (w + 0.08), -h * 0.45);
+    ctx.lineTo(-u * (w + 0.18), -h * 0.75);
+    ctx.lineTo(-u * (w - 0.1), -h * 0.7);
+    ctx.lineTo(-u * 0.15, -h * 0.98 - bob);
+    ctx.lineTo(u * 0.08, -h * 0.82 - bob);
+    ctx.lineTo(u * 0.3, -h - bob);
+    ctx.lineTo(u * (w - 0.05), -h * 0.72);
+    ctx.lineTo(u * (w + 0.15), -h * 0.8);
+    ctx.lineTo(u * (w + 0.05), -h * 0.4);
+    ctx.lineTo(u * w, 0);
+  }
+  ctx.closePath();
+}
+
+/** Und derselbe Umriss für einen Crewmate: Bohne, Rucksackbuckel, zwei Beine. */
+function crewSilhouette(ctx: CanvasRenderingContext2D, u: number): void {
+  ctx.beginPath();
+  ctx.moveTo(-u * 0.4, 0);
+  ctx.lineTo(-u * 0.4, -u * 0.8);
+  ctx.quadraticCurveTo(-u * 0.4, -u * 1.2, u * 0.02, -u * 1.2);
+  ctx.quadraticCurveTo(u * 0.42, -u * 1.2, u * 0.42, -u * 0.82);
+  ctx.lineTo(u * 0.42, 0);
+  ctx.closePath();
+}
+
+/** Die Farben der gestrichelten Erinnerung: der Techniker kalt, das Monster rot. */
+export const GHOST_INK: Readonly<Record<'crew' | 'monster', string>> = {
+  crew: '#9fd2ea',
+  monster: '#ff6b6b',
+};
+
+export interface GhostLook {
+  /** Bildpunkte je Meter. */
+  scale: number;
+  /** `'crew'` für den Techniker, sonst die Monstersorte (`MonsterKind`). */
+  kind: string;
+  facing: 1 | -1;
+  /** Deckkraft aus `rules/ghosts.ghostAlpha`. */
+  alpha: number;
+}
+
+/**
+ * **„Hier war er zuletzt"** — die gestrichelte Silhouette
+ * (`rules/ghosts.ts`, Paket M3b).
+ *
+ * Kein Körper, sondern eine Kontur: Ein gefüllter Ghost wäre auf einen Blick
+ * nicht von der echten Figur zu unterscheiden, und genau das darf er nicht
+ * sein. Gestrichelt, halbdurchsichtig, ohne Beine und ohne Augen — was fehlt,
+ * sagt mehr als was da ist.
+ *
+ * Wie kräftig er steht, entscheidet nicht diese Datei, sondern `ghostAlpha`:
+ * Vier Zeichner mit vier Meinungen über das Verblassen wären vier
+ * verschiedene Spiele.
+ */
+export function drawGhost(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  look: GhostLook,
+): void {
+  const u = look.scale;
+  ctx.save();
+  ctx.translate(x, y);
+  if (look.facing < 0) ctx.scale(-1, 1);
+  ctx.globalAlpha = Math.max(0, Math.min(1, look.alpha));
+  ctx.setLineDash([Math.max(3, u * 0.09), Math.max(3, u * 0.07)]);
+  ctx.lineWidth = Math.max(1.5, u * 0.05);
+  ctx.lineJoin = 'round';
+  if (look.kind === 'crew') {
+    ctx.strokeStyle = GHOST_INK.crew;
+    crewSilhouette(ctx, u);
+  } else {
+    ctx.strokeStyle = GHOST_INK.monster;
+    monsterSilhouette(ctx, u, look.kind, 0);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+/** Dunkles Blut auf Stationsblech, frisch und getrocknet. */
+export const BLOOD_INK = { fresh: '#7a0f16', dry: '#3d0a10' };
+
+/**
+ * **Ein Tropfen Blut auf dem Boden** (`rules/blood.ts`).
+ *
+ * Er liegt **flach**, anders als alles andere in dieser Datei: Kein Körper,
+ * der nach Norden wächst, sondern ein Fleck auf der Platte, also eine
+ * gedrückte Ellipse genau auf ihrem Punkt. `alpha` kommt aus `dropAlpha` —
+ * frisch ist er fast schwarzrot, alt nur noch ein Schatten.
+ *
+ * Die kleine Nase daneben macht aus dem Kreis einen Spritzer; ihre Richtung
+ * hängt am Zeitstempel und nicht am Zufall, damit jedes Gerät denselben
+ * Boden malt.
+ */
+export function drawBloodDrop(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  scale: number,
+  drop: { since: number },
+  alpha: number,
+): void {
+  const u = scale;
+  const wobble = Math.abs(Math.sin(drop.since * 12.9898));
+  const r = u * (0.07 + 0.05 * wobble);
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.fillStyle = alpha > 0.6 ? BLOOD_INK.fresh : BLOOD_INK.dry;
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * 0.62, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const angle = drop.since * 2.4;
+  ctx.beginPath();
+  ctx.ellipse(
+    x + Math.cos(angle) * r * 1.5,
+    y + Math.sin(angle) * r * 0.9,
+    r * 0.4,
+    r * 0.26,
+    0,
+    0,
+    Math.PI * 2,
+  );
+  ctx.fill();
   ctx.restore();
 }

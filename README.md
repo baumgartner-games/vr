@@ -183,6 +183,16 @@ Raumakten und nennt je Auftrag den Fundort in einer Zeile: Raum, Kennzeichen,
 Wand. Die Einsatzkontrolle hat **Radar & Anzug** und
 **Schalttafel**. Der Kopfbereich bietet einen sichtbaren Rollenwechsel.
 
+**Wer blutet, wird verfolgt.** Ein Treffer reißt eine Wunde, und die blutet
+zwei Minuten lang: Wer sich danach bewegt, hinterlässt alle anderthalb Meter
+einen dunkelroten Tropfen — in 2D auf dem Boden, in der Brille als flacher
+Fleck auf dem Blech. Nach gut einer halben Minute ist ein Tropfen verblasst,
+wer stehen bleibt, hinterlässt fast nichts. Das Monster **sieht nicht**, wo die
+Spur liegt; es findet sie nur, wenn es im selben Raum darüberläuft — dann
+allerdings liest es daraus, in welche Richtung es weitergehen muss, und sucht
+dort statt irgendwo. Nach einem Treffer lohnt sich also ein Umweg: Die Spur
+verrät nicht nur, dass man da war, sondern wohin man gelaufen ist.
+
 **Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
 Treffer gibt es drei Sekunden Schutz. Ein gefundenes Medkit heilt einen
 Treffer. Tod und Sieg zeigen eine klare Meldung mit **Neu starten**, auch im
@@ -318,6 +328,18 @@ die Jagd ohne Sichtabriss läuft, desto näher kommt es seinem Höchsttempo. Ein
 Monster **geht schneller als ein Spieler geht** und **rennt langsamer, als ein
 Spieler rennt** — wer nur spaziert, wird eingeholt; wer rennt, kommt davon,
 solange die Puste reicht.
+
+**„Zuletzt gesehen."** Beide Seiten spielen gegen jemanden, den sie fast nie
+sehen — deshalb merkt sich jede, wo sie den anderen zuletzt gesehen hat. Der
+Marker steht als **gestrichelte Silhouette** dort, wo der andere war, mit dem
+Blick, den er dabei hatte, und verblasst über eine knappe halbe Minute; in der
+Brille ist es eine halbdurchsichtige Kopie des Monsters, die wirklich im Raum
+steht. Er läuft **nicht mit**: Wer weiß, dass sein Verfolger einen alten Punkt
+hat, läuft woandershin. Man sieht immer nur den Marker des *anderen*, und nur
+solange man ihn nicht wirklich sieht; wer das Monster spielt, liest dazu auf
+der Karte „Zuletzt gesehen: Werkstatt · vor 6 s". Nur beim **Zuschauen**
+(„Alles sehen") stehen beide Marker blass neben den echten Figuren — dort will
+man ja gerade sehen, was die beiden voneinander glauben.
 
 **Eine fertige Reparatur bleibt nicht unbemerkt.** Die Konsole fährt hoch, die
 Sicherung fällt, im Modul flackert das Licht — das Monster weiß danach, in

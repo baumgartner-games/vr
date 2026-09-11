@@ -8,6 +8,7 @@ import {
   type Prediction,
 } from './monster/monsterIntercept';
 import type { MonsterMemory } from './monster/monsterMemory';
+import type { Scent } from './rules/blood';
 import type { MonsterInsight } from './map/mapSnapshot';
 import type { StationGraph } from './roomGraph';
 import type { MonsterTuning } from './botTuning';
@@ -168,6 +169,18 @@ export interface RoutineInput {
    * nicht sehen kann (`disturbed`, eine fertige Reparatur), und liest es aus.
    */
   memory?: MonsterMemory;
+  /**
+   * **Die Blutspur unter den eigenen Füßen** (`rules/blood.ts`) — was das
+   * Aufspüren gefunden hat, oder `null`.
+   *
+   * Gesucht hat sie der Aufrufer, denn nur er weiß, welche Tropfen im Raum
+   * des Monsters liegen (`sniff`); **eingetragen** wird sie hier, wie alles,
+   * was ins Gedächtnis geht. Sie zählt nur, solange nichts Besseres da ist:
+   * Wer den Verfolgten gerade sieht oder hört, braucht keine Fährte, und ein
+   * Tropfen von vor dreißig Sekunden würde ihn nur von der frischen Stelle
+   * wegziehen.
+   */
+  scent?: Scent | null;
   /** Die Reisezeitauskunft für die Abfangrechnung (Vertrag 4.4). */
   estimator?: Estimator;
   /**
@@ -712,6 +725,14 @@ export class MonsterRoutine {
     } else if (input.loud) memory.heard(input.loud, 1, now);
     else if ((input.alert ?? 0) >= 2 && this.lastAlert < 2 && input.facing)
       memory.heard(input.facing, 0.45, now);
+    // **Und ganz zuletzt das Blut** (`rules/blood.ts`): erst wenn es nichts
+    // sieht und nichts hört, hilft ihm die Fährte weiter. Andersherum
+    // sortiert, hätte ein alter Tropfen die frische Stelle überschrieben, an
+    // der der Verfolgte in dieser Sekunde wirklich steht.
+    else if (input.scent && !input.signal) {
+      const scent = input.scent;
+      memory.tracked(input.here, scent.at, scent.dir, scent.trust, now);
+    }
   }
 
   /**

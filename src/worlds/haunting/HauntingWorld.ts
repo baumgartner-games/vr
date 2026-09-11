@@ -132,7 +132,17 @@ import {
   toggleLock,
   type DoorLocks,
 } from './rules/doorLocks';
-import { freshGhosts, markGhost } from './rules/ghosts';
+import {
+  dropAlpha,
+  freshTrail,
+  sniff,
+  stepTrail,
+  wound,
+  SNIFF_EVERY,
+  type Scent,
+  type Trail,
+} from './rules/blood';
+import { freshGhosts, ghostAge, ghostAlpha, markGhost, GHOST_LIVE } from './rules/ghosts';
 import { freshLamps, lampGlow, lampOut, stepLamps, switchLamp, type Lamps } from './rules/lamps';
 import {
   cycleMonster,
@@ -499,6 +509,28 @@ export class HauntingWorld extends GridWorld {
   private setup: RoundSetup = loadSetup();
   /** Bei allen anderen nur ein Klotz an der angesagten Stelle. */
   private blob: THREE.Object3D | null = null;
+  /**
+   * **Die Blutspur des Technikers** (`rules/blood.ts`) — gerechnet dort, wo
+   * sein Körper ist, also hier beim Spieler im Anzug. Ihre Tropfenliste *ist*
+   * `state.blood`, damit die Spur, über die das Monster läuft, dieselbe ist
+   * wie die, die auf dem Boden liegt.
+   */
+  private readonly blood: Trail = freshTrail();
+  /** Die flachen Flecken auf dem Boden — Weltgeometrie, damit sie in der Brille steht. */
+  private bloodArt: THREE.Group | null = null;
+  /**
+   * **Der Ghost des Monsters** (`rules/ghosts.ts`): eine halbdurchsichtige
+   * Kopie des Monstermodells an der zuletzt gesehenen Stelle. Auch das ist
+   * Weltgeometrie und kein Bildschirmzeichen — sonst gäbe es sie im Headset
+   * nicht, und ausgerechnet dort braucht man sie am meisten.
+   */
+  private ghostArt: THREE.Object3D | null = null;
+  /** Für welche Sorte die Kopie gebaut wurde — wechselt die Sorte, wird sie neu gebaut. */
+  private ghostKind = '';
+  /** Wann das Monster zuletzt an der Blutspur geschnüffelt hat (`rules/blood.ts`). */
+  private sniffed = -Infinity;
+  /** Die eine Scheibe, aus der alle Blutflecken gemacht sind. */
+  private bloodShape: THREE.CircleGeometry | null = null;
 
   /**
    * **Das Licht, unter dem der Archivar liest.**
@@ -837,6 +869,19 @@ export class HauntingWorld extends GridWorld {
     if (crew.hidden && this.state.time - this.sawPlayerAt < 1.5) this.watchedLocker = crew.hidden;
     if (!crew.hidden) this.watchedLocker = '';
     const piloted = this.monsterDriver?.active() === true;
+    // **Die Blutspur unter seinen Füßen** (`rules/blood.ts`) — nur Tropfen in
+    // seinem eigenen Raum und in Schnüffelweite, und nur zweimal je Sekunde.
+    // Quer über die Station riecht niemand etwas. Ein Mensch am Steuer
+    // schnüffelt nicht: Er sieht die Tropfen selbst auf seiner Karte.
+    let scent: Scent | null = null;
+    if (!piloted && this.state.time - this.sniffed >= SNIFF_EVERY) {
+      this.sniffed = this.state.time;
+      const room = here?.id ?? '';
+      scent = sniff(this.blood, { x: at.x, z: at.z }, this.state.time, (drop) => {
+        const where = roomAt(this.spec, Math.floor(drop.x / TILE), Math.floor(drop.z / TILE));
+        return !!room && where?.id === room;
+      });
+    }
     const decision = piloted
       ? this.monsterDriver!.decide(dt)
       : this.routine.step(stationGraph(this.spec), {
@@ -849,6 +894,7 @@ export class HauntingWorld extends GridWorld {
           caught: this.watchedLocker,
           rng: () => this.routineDice.next(),
           memory: this.brain ?? undefined,
+          scent,
           estimator: this.estimator ?? undefined,
           base: MONSTERS.find((m) => m.id === crew.options.monster)!.speed,
           time: this.state.time,
@@ -901,6 +947,9 @@ export class HauntingWorld extends GridWorld {
     this.watchedLocker = '';
     if (takeCrewHit(crew, this.state.phase === 'running')) {
       grantBurst(this.stamina);
+      // Wer getroffen wird, blutet (`rules/blood.ts`) — auch der, den es im
+      // Schrank erwischt hat: Er steigt aus und zieht die Spur hinter sich her.
+      wound(this.blood, this.state.time);
       if (crew.hp === 0) {
         this.state.phase = 'lost';
         this.removeMonster();
@@ -1070,6 +1119,8 @@ export class HauntingWorld extends GridWorld {
     this.roomArt.clear();
     dispose(this.stage);
     dispose(this.live);
+    this.bloodShape?.dispose();
+    this.bloodShape = null;
     dispose(this.vanRig);
     dispose(this.paperMask);
     dispose(this.paperDoors);
@@ -1847,6 +1898,8 @@ export class HauntingWorld extends GridWorld {
     this.applyLights(dt);
     this.cullRoomArt(dt, ctx);
     this.applyBlob();
+    this.paintTrail();
+    this.paintGhost();
     this.experience?.update(dt);
     if (this.monsterArt && this.monster) {
       // Wer steht und horcht, dreht sich zur Richtung des Geräuschs.
@@ -2176,6 +2229,123 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
+   * **Die Blutspur auf dem Boden** (`rules/blood.ts`) — flache Flecken als
+   * **Weltgeometrie** und nicht als Zeichen auf dem Bildschirm.
+   *
+   * Das ist der ganze Unterschied: Ein Bildschirmzeichen gibt es in der
+   * Brille nicht, weil dort zwei Augen zwei Bilder bekommen und niemand ein
+   * Overlay dazwischenlegt. Was auf dem Boden liegt, liegt für beide Augen
+   * dort, wo es liegt — dieselbe Überlegung wie bei der schwarzen Kante
+   * (`core/outlineShell.ts`), die aus demselben Grund keine Nachbearbeitung
+   * ist.
+   *
+   * Die Scheiben werden **einmal gebaut und wiederverwendet**: höchstens
+   * `blood.DROP_LIMIT` Stück, überzählige werden unsichtbar geschaltet statt
+   * weggeworfen. Ein Fleck, der bei jedem Tropfen neu entsteht und beim
+   * nächsten Bild wieder zerfällt, kostet mehr als die ganze Spur wert ist.
+   */
+  private paintTrail(): void {
+    const drops = this.state.blood ?? [];
+    if (!this.bloodArt) {
+      if (!drops.length) return;
+      this.bloodArt = new THREE.Group();
+      this.bloodArt.name = 'blood';
+      this.live.add(this.bloodArt);
+    }
+    const art = this.bloodArt;
+    while (art.children.length < drops.length) art.add(this.bloodSpot());
+    for (let i = 0; i < art.children.length; i++) {
+      const spot = art.children[i] as THREE.Mesh;
+      const drop = drops[i];
+      const alpha = drop ? dropAlpha(drop, this.state.time) : 0;
+      spot.visible = alpha > 0;
+      if (!drop || alpha <= 0) continue;
+      // Jeder Fleck ist ein bisschen anders groß — sonst liegt dort eine Reihe
+      // gestanzter Punkte und keine Spur. Die Größe kommt aus dem Zeitstempel
+      // und nicht aus dem Zufall, damit jedes Gerät dieselben Flecken malt.
+      const size = 0.1 + 0.09 * Math.abs(Math.sin(drop.since * 12.9898));
+      spot.position.set(drop.x, BLOOD_Y, drop.z);
+      spot.scale.set(size, size, size);
+      const material = spot.material as THREE.MeshBasicMaterial;
+      material.opacity = BLOOD_OPACITY * alpha;
+    }
+  }
+
+  /** Eine Scheibe Blut: flach auf dem Boden, ohne Tiefenschrift, ohne Licht. */
+  private bloodSpot(): THREE.Mesh {
+    this.bloodShape ??= new THREE.CircleGeometry(1, 10);
+    const spot = new THREE.Mesh(
+      this.bloodShape,
+      new THREE.MeshBasicMaterial({
+        color: BLOOD_COLOR,
+        transparent: true,
+        opacity: BLOOD_OPACITY,
+        depthWrite: false,
+      }),
+    );
+    spot.rotation.x = -Math.PI / 2;
+    spot.renderOrder = -1;
+    return spot;
+  }
+
+  /**
+   * **Der Ghost des Monsters** (`rules/ghosts.ts`, Paket M3c): eine
+   * halbdurchsichtige Kopie des Monstermodells an der Stelle, an der der
+   * Techniker es zuletzt gesehen hat.
+   *
+   * **Und nur, solange er das echte nicht sieht.** Ein Ghost neben dem
+   * leibhaftigen Vieh ist keine Erinnerung, sondern ein zweiter Gegner — und
+   * er verriete obendrein, wie alt die Sichtung ist, die man gerade selbst
+   * hat. Ob er es sieht, steht schon im Marker: `markGhost` versetzt ihn bei
+   * jedem Sichtkontakt, also heißt ein Alter unter `GHOST_LIVE` genau „es
+   * steht gerade im Blick". Ein zweiter Sichttest hier wäre eine zweite
+   * Wahrheit.
+   */
+  private paintGhost(): void {
+    const ghost = this.state.monsterOn ? this.state.ghosts.monster : null;
+    const now = this.state.time;
+    const alpha = ghost ? ghostAlpha(ghost, now) : 0;
+    const show = !!ghost && alpha > 0 && ghostAge(ghost, now) >= GHOST_LIVE;
+    const kind = this.state.crew.options.monster;
+    if (this.ghostArt && this.ghostKind !== kind) {
+      this.ghostArt.removeFromParent();
+      dispose(this.ghostArt);
+      this.ghostArt = null;
+    }
+    if (show && !this.ghostArt) {
+      const art = buildCreature(kind);
+      art.name = `ghost-${kind}`;
+      // Eigene Materialien, sonst wäre das echte Monster gleich mit
+      // durchsichtig; `depthWrite: false`, damit die Kopie sich nicht selbst
+      // in Streifen zerschneidet.
+      art.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const material = (mesh.material as THREE.Material).clone() as THREE.MeshStandardMaterial;
+        material.transparent = true;
+        material.depthWrite = false;
+        material.emissive = new THREE.Color(GHOST_GLOW);
+        material.emissiveIntensity = 0.6;
+        mesh.material = material;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+      });
+      this.ghostArt = art;
+      this.ghostKind = kind;
+      this.live.add(art);
+    }
+    if (!this.ghostArt) return;
+    this.ghostArt.visible = show;
+    if (!show || !ghost) return;
+    this.ghostArt.position.set(ghost.x, 0, ghost.z);
+    this.ghostArt.rotation.y = ghost.yaw;
+    this.ghostArt.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh) (mesh.material as THREE.Material).opacity = GHOST_SOLID * alpha;
+    });
+  }
+
+  /**
    * **Aufheben, indem man hingeht.**
    *
    * Kein Griff, keine Physik: Was hier eingesammelt wird, sind keine Kisten,
@@ -2217,6 +2387,7 @@ export class HauntingWorld extends GridWorld {
     // Unverwundbarkeit nützen nichts, wenn man sie im Griff des Monsters
     // absteht.
     grantBurst(this.stamina);
+    wound(this.blood, this.state.time);
     for (const hand of ['left', 'right'] as const) this.context?.input.get(hand)?.pulse(0.65, 120);
     playSwitch(false);
     if (this.state.crew.hp === 0) {
@@ -2263,6 +2434,12 @@ export class HauntingWorld extends GridWorld {
     // hängt das hier am echten Gestell und nicht an ihm.
     const dash = stepStamina(this.stamina, dt, !bot && ctx.rig.sprinting && speed > 0.1);
     if (!bot) ctx.rig.sprintScale = dash;
+    // **Die Blutspur** (`rules/blood.ts`): nach Strecke, nicht nach Zeit, und
+    // in jedem Bild — auch ohne offene Wunde, damit alte Tropfen verschwinden.
+    // Die Liste ist dieselbe wie im Stand, also reist sie von hier aus über
+    // die Leitung zu allen, die sie zeichnen.
+    stepTrail(this.blood, { x: _head.x, z: _head.z }, this.state.time);
+    this.state.blood = this.blood.drops;
     this.sightTimer -= dt;
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.1;
@@ -4206,6 +4383,17 @@ function clock(): number {
   return typeof performance === 'undefined' ? Date.now() : performance.now();
 }
 
+/** Wie hoch über dem Boden ein Blutfleck liegt, in Metern — knapp darüber, sonst flimmert er mit ihm. */
+const BLOOD_Y = 0.012;
+/** Die Farbe getrockneten Bluts auf Stationsblech. */
+const BLOOD_COLOR = 0x6b0d13;
+/** Wie deckend ein ganz frischer Fleck ist. */
+const BLOOD_OPACITY = 0.8;
+/** Wie deckend der Ghost höchstens steht — eine Erinnerung ist kein Körper. */
+const GHOST_SOLID = 0.4;
+/** Das kalte Eigenleuchten, an dem man den Ghost auch im Dunkeln als Kopie erkennt. */
+const GHOST_GLOW = 0x4a6a8a;
+
 function freshState(seed: number, options: StationOptions = stationOptions(null)): HauntState {
   return {
     seed,
@@ -4224,6 +4412,7 @@ function freshState(seed: number, options: StationOptions = stationOptions(null)
     technician: null,
     ride: 'out',
     ghosts: freshGhosts(),
+    blood: [],
   };
 }
 

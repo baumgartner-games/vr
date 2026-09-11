@@ -2,6 +2,8 @@
 import { MapView, PANEL_LAYERS } from './mapView';
 import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
 import { defaultSetup, type RoundSetup } from '../rules/roundSetup';
+import { emptyField } from './visibility';
+import { DROP_FADE } from '../rules/blood';
 
 function fakeContext(): CanvasRenderingContext2D {
   const calls: string[] = [];
@@ -263,5 +265,56 @@ describe('MapView', () => {
     view.draw();
     expect(view.stats.noises).toBe(0);
     view.dispose();
+  });
+});
+
+describe('Spur und Erinnerung auf der Karte', () => {
+  /** Eine Runde mit zwei Tropfen und beiden Markern im Stand. */
+  function marked(): FlatRound {
+    // Ohne Testmodus, damit es ein Monster gibt: Wessen Karte das ist, liest
+    // die Ansicht an der Sorte des Betrachters ab.
+    const round = new FlatRound(5);
+    const s = round.state();
+    // In die Liste der Runde hineinschreiben und nicht daneben: `state().blood`
+    // *ist* `round.blood.drops` (`rules/blood.ts`).
+    round.blood.drops.push(
+      { x: round.player.x, z: round.player.z, since: s.time },
+      { x: round.player.x + 1.5, z: round.player.z, since: s.time },
+    );
+    s.ghosts.monster = { x: round.player.x + 3, z: round.player.z, yaw: 0, since: s.time };
+    s.ghosts.technician = { x: round.player.x - 3, z: round.player.z, yaw: 1, since: s.time };
+    // Ein Schritt, damit der Snapshot neu gerechnet wird.
+    round.step(1 / 30, { x: 0, z: 0, sprint: false });
+    return round;
+  }
+
+  function drawn(round: FlatRound, viewerId: string, mode: 'realistic' | 'omniscient'): MapView {
+    const view = new MapView({ mode, viewerId });
+    view.setSnapshot(round.snapshot());
+    // Ein leeres Sichtfeld heißt: Niemand ist gerade zu sehen — genau der
+    // Fall, für den es die Marker gibt.
+    view.setVisibility(emptyField(mode));
+    view.setView({ centreX: round.player.x, centreZ: round.player.z, scale: 20 });
+    view.draw();
+    return view;
+  }
+
+  it('malt die Tropfen der Spur und zählt sie', () => {
+    const round = marked();
+    expect(drawn(round, PLAYER_ID, 'omniscient').stats.drops).toBe(2);
+    // Verblasst ist verblasst: dieselben Tropfen, nur `DROP_FADE` älter.
+    for (const drop of round.blood.drops) drop.since -= DROP_FADE + 1;
+    expect(drawn(round, PLAYER_ID, 'omniscient').stats.drops).toBe(0);
+  });
+
+  /**
+   * Dieselbe Regel wie überall (`rules/ghosts.ghostsToDraw`): „Alles sehen"
+   * zeigt beide Marker, „Realitätsnah" nur den des anderen.
+   */
+  it('zeigt dem Zuschauer beide Marker und jedem Spieler nur den des anderen', () => {
+    const round = marked();
+    expect(drawn(round, PLAYER_ID, 'omniscient').stats.ghosts).toBe(2);
+    expect(drawn(round, MONSTER_ID, 'realistic').stats.ghosts).toBe(1);
+    expect(drawn(round, PLAYER_ID, 'realistic').stats.ghosts).toBe(1);
   });
 });

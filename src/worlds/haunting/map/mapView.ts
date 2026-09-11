@@ -9,6 +9,8 @@ import {
   type MapSnapshot,
 } from './mapSnapshot';
 import { CARGO_BAND_COLORS } from '../fixtureDimensions';
+import { dropAlpha } from '../rules/blood';
+import { ghostsToDraw, type GhostKind } from '../rules/ghosts';
 import { emptyField, type VisibilityField, type VisibilityMode } from './visibility';
 import { NOISE_TILE } from './noiseSpread';
 import { NoiseWaves, WAVE_LINGER, WAVE_SPEED, type NoiseInk } from './noiseWaves';
@@ -262,6 +264,12 @@ export const INK = {
   reachGlow: 'rgba(255, 177, 74, 0.18)',
   goal: '#ffd84a',
   goalDim: 'rgba(255, 216, 74, 0.55)',
+  /** Blut auf dem Boden (`rules/blood.ts`) — frisch und getrocknet. */
+  bloodFresh: '#8d1119',
+  bloodDry: '#4a0d13',
+  /** Und die gestrichelte Erinnerung (`rules/ghosts.ts`). */
+  ghostCrew: '#7fb6d8',
+  ghostMonster: '#ff6b6b',
 };
 
 const ENTITY_COLOR: Record<MapEntity['kind'], string> = {
@@ -301,7 +309,17 @@ export class MapView {
   /** Kachelfeld und geflutete Wellen, gemeinsam mit der Szene (`noiseWaves.ts`). */
   private readonly waves = new NoiseWaves();
   /** Was das letzte Bild gezeichnet hat — für Tests. */
-  stats = { entities: 0, items: 0, lit: 0, rooms: 0, fixtures: 0, noises: 0, goals: 0 };
+  stats = {
+    entities: 0,
+    items: 0,
+    lit: 0,
+    rooms: 0,
+    fixtures: 0,
+    noises: 0,
+    goals: 0,
+    drops: 0,
+    ghosts: 0,
+  };
 
   constructor(private readonly options: MapViewOptions = {}) {
     this.layers = { ...ALL_LAYERS, ...options.layers };
@@ -446,7 +464,17 @@ export class MapView {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = INK.ground;
     ctx.fillRect(0, 0, w, h);
-    this.stats = { entities: 0, items: 0, lit: 0, rooms: 0, fixtures: 0, noises: 0, goals: 0 };
+    this.stats = {
+      entities: 0,
+      items: 0,
+      lit: 0,
+      rooms: 0,
+      fixtures: 0,
+      noises: 0,
+      goals: 0,
+      drops: 0,
+      ghosts: 0,
+    };
 
     const s = this.snapshot;
     const f = this.field;
@@ -475,6 +503,9 @@ export class MapView {
     // Figuren liegen darüber. Eine Welle, die den Spieler überdeckt, nimmt ihm
     // genau das Bild, für das sie da ist.
     if (this.layers.visibility) this.drawNoise(ctx);
+
+    // --- Die Blutspur, ebenfalls direkt auf dem Boden -------------------------------
+    this.drawBlood(ctx, omniscient);
 
     // --- Licht ----------------------------------------------------------------
     if (this.layers.visibility) {
@@ -637,6 +668,8 @@ export class MapView {
         this.drawEntity(ctx, entity);
         this.stats.entities++;
       }
+      // --- Und was von ihnen in Erinnerung geblieben ist (`rules/ghosts.ts`) ---
+      this.drawGhosts(ctx, omniscient, visible);
     }
 
     // --- Ziele -----------------------------------------------------------------
@@ -746,6 +779,93 @@ export class MapView {
       toScreen: (x, z) => this.toScreen(x, z),
       scale: this.state.scale,
     });
+  }
+
+  /**
+   * **Die Blutspur auf der Karte** (`rules/blood.ts`): dunkelrote Punkte, die
+   * mit `dropAlpha` verblassen.
+   *
+   * Wer mitspielt, sieht nur, was im Hellen liegt — dieselbe Regel wie für
+   * Möbel und Requisiten (`seen`). Die Spur ist kein Ortungsgerät: Ein
+   * Monster, das die Tropfen quer durch die dunkle Station sähe, bräuchte
+   * weder Augen noch Ohren.
+   */
+  private drawBlood(ctx: CanvasRenderingContext2D, omniscient: boolean): void {
+    const drops = this.snapshot.blood ?? [];
+    if (!drops.length) return;
+    const scale = this.state.scale;
+    const r = Math.max(1.5, scale * 0.12);
+    for (const drop of drops) {
+      const alpha = dropAlpha(drop, this.snapshot.time);
+      if (alpha <= 0) continue;
+      if (!omniscient && !this.seen(drop)) continue;
+      const p = this.toScreen(drop.x, drop.z);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = alpha > 0.6 ? INK.bloodFresh : INK.bloodDry;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      this.stats.drops++;
+    }
+  }
+
+  /**
+   * **Die zuletzt gesehene Stelle** (`rules/ghosts.ts`, Paket M3b) — ein
+   * gestrichelter Ring mit einem Strich in die Blickrichtung.
+   *
+   * Nicht die Figur noch einmal: Auf einer Karte, auf der jedes Wesen ein
+   * kleiner Astronaut ist, wäre ein zweiter Astronaut ein zweites Wesen. Ein
+   * Ring ist eine Markierung, und genau das ist er.
+   *
+   * Wer welchen Marker sehen darf, entscheidet `ghostsToDraw` — für alle vier
+   * Ansichten dieselbe Regel: „Realitätsnah" zeigt nur den des anderen und
+   * nur, solange man den anderen nicht wirklich sieht; „Alles sehen" zeigt
+   * beide blass.
+   */
+  private drawGhosts(
+    ctx: CanvasRenderingContext2D,
+    omniscient: boolean,
+    visible: ReadonlySet<string>,
+  ): void {
+    const s = this.snapshot;
+    const viewer = this.options.viewerId ?? '';
+    const me: GhostKind = this.deafToSelf() ? 'monster' : 'technician';
+    const scale = this.state.scale;
+    for (const one of ghostsToDraw(s.ghosts, s.time, {
+      omniscient,
+      viewer: me,
+      visible: (kind) =>
+        s.entities.some(
+          (entity) =>
+            entity.id !== viewer &&
+            !entity.concealed &&
+            (kind === 'monster' ? entity.kind === 'monster' : entity.kind !== 'monster') &&
+            visible.has(entity.id),
+        ),
+    })) {
+      const p = this.toScreen(one.ghost.x, one.ghost.z);
+      const r = Math.max(5, scale * 0.36);
+      ctx.save();
+      ctx.globalAlpha = one.alpha;
+      ctx.strokeStyle = one.kind === 'monster' ? INK.ghostMonster : INK.ghostCrew;
+      ctx.lineWidth = Math.max(1.5, r * 0.16);
+      ctx.setLineDash([Math.max(3, r * 0.5), Math.max(3, r * 0.4)]);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      // Der Strich zeigt, wohin die Figur schaute, als man sie zuletzt sah —
+      // die halbe Auskunft des Markers steckt darin.
+      const heading = one.ghost.yaw + this.state.rotation;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - Math.sin(heading) * r * 1.5, p.y - Math.cos(heading) * r * 1.5);
+      ctx.stroke();
+      ctx.restore();
+      this.stats.ghosts++;
+    }
   }
 
   /**

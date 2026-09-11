@@ -7940,6 +7940,13 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   und ohne Spur gibt es keine Richtung, keine Prognose und kein Abfangen. Die
   Welt besitzt das Gedächtnis, meldet ihm, was die Routine nicht sehen kann
   (`disturbed`), und liest es aus.
+  **Die Fährte geht denselben Weg hinein** (`RoutineInput.scent`, seit dem
+  Paket „Spuren"): Gesucht wird sie **draußen** — nur die Welt weiß, welche
+  Tropfen im Raum des Monsters liegen (`rules/blood.sniff`) —, eingetragen
+  wird sie **hier**, wie alles, was ins Gedächtnis geht
+  (`MonsterMemory.tracked`). Sie zählt als Letztes: Wer eine Stelle hat
+  (`signal`) oder gerade etwas hört, schaut nicht auf den Boden; ein Tropfen
+  von vor dreißig Sekunden zöge ihn sonst von der frischen Stelle weg.
   **Blutrausch und Schub.** Je zehn Sekunden ununterbrochener Jagd steigt der
   Verfolgungsfaktor um `RAGE_STEP` 0,05, gedeckelt bei `RAGE_MAX` 0,2 und
   ohnehin bei `MONSTER_TOP_SPEED`; ein Sichtverlust setzt zurück. Dazu kommt
@@ -8005,6 +8012,66 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   steht sie unter `heard`. `shutPairs(spec.doors, state.shut)` übersetzt die
   Türkennungen des Bauplans (`d7`) in die Raumpaare, die der Konstruktor
   erwartet; die Haustür hängt dabei an `COMMAND`.
+  Dazu seit dem Paket „Spuren" `tracked(raum, punkt, richtung, trust, zeit)`:
+  **eine Blutspur auf dem Boden** (`rules/blood.ts`). Sie unterscheidet sich in
+  zwei Punkten von allem anderen. Erstens landet die Masse nicht in dem Raum,
+  in dem der Tropfen liegt, sondern in dem, auf den die Spur **zeigt**
+  (`SCENT_LEAD` 3 m voraus über `spaceAt`, sonst der Raum des Tropfens) — ein
+  Monster, das den Tropfen unter den eigenen Füßen für den Aufenthaltsort
+  hält, sucht dort, wo es schon steht. Zweitens **ersetzt** sie den Glauben
+  nicht, sie **mischt** sich hinein: `trust` Anteil Fährte, der Rest das alte
+  Bild. Bei `trust` 1 wäre ein Tropfen so viel wert wie eine Sichtung, und ein
+  einziger Treffer schenkte dem Monster den Rest der Runde; `blood.sniff`
+  liefert höchstens `SCENT_TRUST` 0,55, mit dem Alter des Tropfens fallend. In
+  die Spur der Sichtungen schreibt sie nichts, aus demselben Grund wie
+  `disturbed`; notiert wird unter `heard`.
+- **Die Blutspur** steht in `rules/blood.ts` — rein, ohne three.js, ohne DOM.
+  Ein Treffer öffnet eine **Wunde** für `BLEED_TIME` 120 s (`wound`, ein
+  zweiter Treffer setzt die Frist neu statt sie zu verlängern); solange sie
+  offen ist, fällt alle `DROP_SPACING` 1,5 m ein Tropfen — **nach Strecke, nicht
+  nach Zeit** (`stepTrail`), wer steht, blutet keinen Teppich. Ein Tropfen
+  verblasst linear über `DROP_FADE` 40 s (`dropAlpha`, länger als `GHOST_TTL`
+  25 s, sonst wäre die Spur nur eine umständliche zweite Erinnerung an dieselbe
+  Sichtung), mehr als `DROP_LIMIT` 48 liegen nie — sonst wächst die Liste eine
+  Runde lang und geht Bild für Bild über die Leitung. `stepTrail` läuft in
+  **jedem** Bild, auch ohne Wunde: Nur so verschwinden die alten Tropfen.
+  **Kein Hellsehen**: `sniff(spur, wo, jetzt, drin)` findet den jüngsten
+  Tropfen nur in `SNIFF_RANGE` 3 m **und** unter der Prüfung des Aufrufers
+  (überall: „liegt im Raum des Monsters"); die Richtung kommt aus den **zwei**
+  jüngsten Tropfen derselben Auswahl, also aus zwei Punkten, die beide hier
+  liegen. Geschnüffelt wird `SNIFF_EVERY` 0,5 s — eine Fährte liegt da, sie
+  trifft nicht ein; deshalb hängt `SNIFF_RANGE` daran: Ein jagendes Monster
+  macht in einer halben Sekunde gut zwei Meter und darf nicht über die eigene
+  Fährte hinwegspringen. Angeschlossen ist sie in `map/flatRound.ts` (Wunde in
+  `hit`, Spur im Schritt), in `HauntingWorld` (Wunde in `takeHit` und
+  `breakLocker`, Spur in `stepCrew`) und in `roundSim.ts` — im Prüfstand, weil
+  alles, was die Balance verschiebt, dort ausgespielt werden muss. **Gemessen**
+  (240 Runden, acht Stationen, `DEFAULT_TUNING`): ohne Spur 79 Siege,
+  589 Treffer, 881 Kontakte; mit Spur 79 Siege, 589 Treffer, 890 Kontakte. Die
+  Balance bleibt also stehen, das Monster nimmt den Verfolgten aber ein Prozent
+  häufiger wahr.
+- **Gezeichnet wird beides** (Pakete M3b und M3c). Die Regel, **wer welchen
+  Ghost sieht**, steht einmal in `rules/ghosts.ghostsToDraw` und nicht in den
+  vier Zeichnern: „Realitätsnah" zeigt nur den Marker des **anderen** und nur,
+  solange man den anderen nicht wirklich sieht (ein Marker neben der
+  leibhaftigen Figur ist keine Erinnerung, sondern ein zweiter Gegner);
+  „Alles sehen" zeigt **beide** blass (`GHOST_WATCH` 0,35) neben den echten
+  Figuren. In 2D malt `map/flatArt.drawGhost` eine **gestrichelte Silhouette** —
+  denselben Umriss wie die Figur (`monsterSilhouette` teilen sich `drawMonster`
+  und `drawGhost`), nur als Kontur; `map/flatScene.ts` hängt sie in die
+  z-Sortierung, `map/mapView.ts` zeichnet auf der Karte einen gestrichelten
+  Ring mit Blickstrich, und die Monster-Ansicht schreibt „Zuletzt gesehen:
+  Werkstatt · vor 6 s" in ihre Kopfzeile (`ghostAgeText`). In 3D ist es
+  **Weltgeometrie** und kein Bildschirmzeichen (`HauntingWorld.paintGhost`):
+  eine Kopie des Monstermodells mit eigenen Materialien, `transparent`,
+  `depthWrite: false`, an `state.ghosts.monster`. Sichtbar ist sie, sobald der
+  Marker älter als `GHOST_LIVE` 0,5 s ist — „gerade gesehen" steht schon im
+  Marker, ein zweiter Sichttest wäre eine zweite Wahrheit. Die Blutspur
+  dieselbe Bauart: `drawBloodDrop` (flache Ellipse mit Spritzer, dunkelrot,
+  Größe und Spritzerwinkel deterministisch aus dem Zeitstempel) in Szene und
+  Karte, `HauntingWorld.paintTrail` als flache Scheiben knapp über dem Blech,
+  einmal gebaut und wiederverwendet. In 2D liegen Tropfen **unter** der
+  Dunkelheit: Wer nicht hinsieht, sieht auch kein Blut.
 - **Prognose und Abfangen** liegen daneben in `monster/monsterIntercept.ts` und
   hängen seit M2 an der Routine. Was darin steht: `predictPlayer` verlängert die letzten
   Sichtungen geradeaus (Richtung und Tempo aus der Spur, Tempo notfalls
@@ -8490,6 +8557,15 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   niemand hat jemanden gesehen" gelesen, nicht als Fehler; die Deckkraft
   rechnet für alle Darstellungen dieselbe Formel (`ghostAlpha`, voll bis
   `GHOST_TTL` − `GHOST_FADE`, dann linear aus, ab `GHOST_TTL` = 25 s weg).
+  **Die Blutspur reist als optionales Feld mit** (`blood`, `rules/blood.ts`) —
+  **ohne** Versionssprung, und das ist eine Entscheidung und kein Versehen: Die
+  Version steigt für ein Feld, von dem die Gegenseite *abhängt*. Bei `ghosts`
+  war das so; an der Blutspur hängt beim Empfänger **keine Regel**. Der
+  Gastgeber sucht die Fährte in seiner eigenen Spur und entscheidet daraus das
+  Verhalten des Monsters, alle anderen **malen** sie nur. Ein Gerät der
+  Version 8 ohne das Feld sieht keine Tropfen und spielt ansonsten dieselbe
+  Runde — ein fehlendes Bild, kein Auseinanderlaufen. Über die Leitung gehen
+  nur Ort und Zeit je Tropfen, höchstens `DROP_LIMIT` 48 Stück.
   Alte Clients werden abgewiesen; nach Update **alle Geräte neu laden** —
   ein Telefon der Version 7 sieht sonst gar nichts mehr.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
