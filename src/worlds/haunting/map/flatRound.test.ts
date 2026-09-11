@@ -9,9 +9,21 @@ import { cargoOf } from '../rules/cargo';
 import { DROP_SPACING } from '../rules/blood';
 import { LOCK_COOLDOWN } from '../rules/doorLocks';
 import { LAMP_RANGE } from '../rules/lamps';
+import { CARGO_OPEN_SECONDS } from '../rules/chore';
 import type { FloorPoint } from '../stationLayout';
 
 const DT = 1 / 30;
+
+/**
+ * **Eine Kiste aufklappen dauert fünf Sekunden** (`rules/chore.ts`): tippen,
+ * dann stillstehen, bis der Balken durch ist. Wer dabei liefe, finge von vorn
+ * an — deshalb steht diese Hilfe still.
+ */
+function openCrate(round: FlatRound): void {
+  round.act('interact');
+  for (let t = 0; round.busy && t < CARGO_OPEN_SECONDS + 1; t += DT)
+    round.step(DT, { x: 0, z: 0, sprint: false });
+}
 
 function walkTo(round: FlatRound, goal: FloorPoint, limit = 120): boolean {
   const walker = new FlatWalker(round);
@@ -35,7 +47,7 @@ describe('Eine Runde in der 2D-Welt', () => {
     for (const job of jobs) {
       expect(walkTo(round, job.at)).toBe(true);
       if (job.kind === 'cargo') {
-        round.act('interact');
+        openCrate(round);
         expect(round.drain().at(-1)?.text).toMatch(/geöffnet/);
         round.act('interact');
         expect(round.drain().at(-1)?.text).toMatch(/mitgenommen/);
@@ -87,7 +99,7 @@ describe('Eine Runde in der 2D-Welt', () => {
     for (const box of [first, second]) {
       const item = round.items().find((i) => i.id === box.id)!;
       expect(walkTo(round, item.at)).toBe(true);
-      round.act('interact');
+      openCrate(round);
       round.act('interact');
     }
     const held = round.state().crew.inventory;
@@ -107,7 +119,7 @@ describe('Eine Runde in der 2D-Welt', () => {
     const box = cargoOf(round.house).find((slot) => slot.loot.kind === 'tool')!;
     const item = round.items().find((i) => i.id === box.id)!;
     expect(walkTo(round, item.at)).toBe(true);
-    round.act('interact');
+    openCrate(round);
     round.act('interact');
     expect(round.tools.length).toBe(2);
     round.act('cycle');
@@ -122,7 +134,7 @@ describe('Eine Runde in der 2D-Welt', () => {
     const item = round.items().find((i) => i.id === box.id)!;
     expect(walkTo(round, item.at)).toBe(true);
     const before = [...round.tools];
-    round.act('interact');
+    openCrate(round);
     expect(round.state().crew.opened).toContain(box.id);
     expect(round.items().find((i) => i.id === box.id)?.state).toBe('open');
     round.act('interact');

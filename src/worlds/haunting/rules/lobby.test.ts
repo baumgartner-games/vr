@@ -9,6 +9,7 @@ import {
   readLobby,
   saveLobby,
   startLabel,
+  viewSwap,
 } from './lobby';
 import { defaultSetup, type RoundSetup } from './roundSetup';
 
@@ -153,5 +154,48 @@ describe('lobby', () => {
     } as unknown as Storage;
     expect(loadLobby(angry, 'handheld')).toEqual({ intent: 'play', view: '2d' });
     expect(() => saveLobby({ intent: 'play', view: '2d' }, angry)).not.toThrow();
+  });
+});
+
+/**
+ * **Was ein Tipp auf „2D ↔ 3D" mitten in der Runde bedeutet** (`viewSwap`).
+ *
+ * Die zwei Fehler, wegen derer diese Rechnung eine eigene Funktion ist: Dem
+ * Zuschauer wurde der Knopf angeboten und dann abgewiesen, und solange die
+ * Bot-Runde in 2D lief, hielt die Welt sich für „schon in 3D".
+ */
+describe('viewSwap', () => {
+  const base = {
+    now: '2d' as const,
+    want: '3d' as const,
+    demo: false,
+    technician: true,
+    presenting: false,
+  };
+
+  it('tut nichts, wenn die Ansicht schon steht', () => {
+    expect(viewSwap({ ...base, want: '2d' })).toBe('same');
+  });
+
+  it('kennt in der Brille keine Karte von oben', () => {
+    expect(viewSwap({ ...base, now: '3d', want: '2d', presenting: true })).toBe('xr');
+  });
+
+  it('lässt den Techniker dieselbe Runde von der anderen Seite spielen', () => {
+    expect(viewSwap(base)).toBe('handover');
+    expect(viewSwap({ ...base, now: '3d', want: '2d' })).toBe('handover');
+  });
+
+  it('lässt den Zuschauer die Vorführung wechseln — in beide Richtungen', () => {
+    expect(viewSwap({ ...base, demo: true, technician: false })).toBe('demo');
+    expect(viewSwap({ ...base, now: '3d', want: '2d', demo: true, technician: false })).toBe(
+      'demo',
+    );
+  });
+
+  it('weist ab, wer weder Techniker noch Zuschauer einer Vorführung ist', () => {
+    // Das Monster am Stock und der Zuschauer einer **echten** Runde im Netz:
+    // Wer wechselte, sähe der Runde eines anderen von innen zu.
+    expect(viewSwap({ ...base, technician: false })).toBe('blocked');
   });
 });

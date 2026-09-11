@@ -576,12 +576,19 @@ export class FlatScene {
         },
       });
     }
-    // --- Die Erinnerungen, zwischen den Figuren --------------------------------
+    // --- Die Erinnerungen ------------------------------------------------------
     // Wer hinsieht, ist hier immer der Techniker — diese Szene ist sein Bild.
     // Ob er den Ghost des Monsters überhaupt sehen darf, entscheidet die Regel
     // an einer Stelle für alle vier Ansichten (`rules/ghosts.ghostsToDraw`).
+    //
+    // **Sie werden über der Dunkelheit gezeichnet, nicht darunter.** Eine
+    // Erinnerung ist nichts, was man *sieht* — sie steht im Kopf dessen, der
+    // hinsieht, und der weiß auch im Finstern noch, wo der andere zuletzt
+    // stand. Vorher lag sie zwischen den Figuren und damit unter dem
+    // Dunkelfeld: Genau dann, wenn sie gebraucht wurde — Licht aus, Monster
+    // weg —, war sie nicht zu sehen.
     const beast = s.entities.find((entity) => entity.kind === 'monster');
-    for (const one of ghostsToDraw(s.ghosts, s.time, {
+    const memories = ghostsToDraw(s.ghosts, s.time, {
       omniscient,
       viewer: 'technician',
       visible: (kind) =>
@@ -591,29 +598,7 @@ export class FlatScene {
             !entity.concealed &&
             visible.has(entity.id),
         ),
-    })) {
-      if (!inView(one.ghost.x - 1, one.ghost.z - 2, one.ghost.x + 1, one.ghost.z + 1)) continue;
-      const p = this.toScreen(one.ghost.x, one.ghost.z);
-      const kind =
-        one.kind === 'monster' && beast
-          ? this.monsterKind(beast)
-          : one.kind === 'monster'
-            ? 'stalker'
-            : 'crew';
-      layer.push({
-        z: one.ghost.z,
-        order: 2,
-        draw: () => {
-          drawGhost(ctx, p.x, p.y, {
-            scale: u,
-            kind,
-            facing: facingOf(one.ghost.yaw),
-            alpha: one.alpha,
-          });
-          this.stats.ghosts++;
-        },
-      });
-    }
+    }).filter((one) => inView(one.ghost.x - 1, one.ghost.z - 2, one.ghost.x + 1, one.ghost.z + 1));
     layer.sort((a, b) => a.z - b.z || a.order - b.order);
     for (const one of layer) one.draw();
 
@@ -629,6 +614,24 @@ export class FlatScene {
       }
     } else {
       this.drawDarkness(ctx, w, h, dpr);
+    }
+
+    // --- Erinnerungen, über der Dunkelheit ------------------------------------
+    for (const one of memories) {
+      const p = this.toScreen(one.ghost.x, one.ghost.z);
+      const kind =
+        one.kind === 'monster' && beast
+          ? this.monsterKind(beast)
+          : one.kind === 'monster'
+            ? 'stalker'
+            : 'crew';
+      drawGhost(ctx, p.x, p.y, {
+        scale: u,
+        kind,
+        facing: facingOf(one.ghost.yaw),
+        alpha: one.alpha,
+      });
+      this.stats.ghosts++;
     }
 
     // --- Namen, über der Dunkelheit ------------------------------------------------

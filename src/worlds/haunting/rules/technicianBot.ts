@@ -3,7 +3,8 @@ import { PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED, puzzleFor } from '../mission';
 import type { StationGraph } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
 import { FlatWalker } from '../map/flatWalk';
-import { FlatRound, type FlatInput } from '../map/flatRound';
+import { CONTACT, FlatRound, type FlatInput } from '../map/flatRound';
+import { TILE } from '../../nav/navTile';
 import { lockedDoorsBetween } from '../navmesh';
 import type { RouteAvoid } from '../stationNavigation';
 import { SUIT_LIVES } from './roundRules';
@@ -36,6 +37,19 @@ import { SUIT_LIVES } from './roundRules';
  * Vorbeigang bleibt möglich. Das ist wichtig: Unendliche Kosten wären eine
  * Wand, und eine Wand, die sich bewegt, sperrt ihn irgendwann in einer Ecke
  * ein, in der er dann stehen bleibt und stirbt.
+ *
+ * **Nur war der Preis zu billig.** Vier Kosten je Rasterschritt sind ein Meter
+ * Umweg, und wer flieht, zahlt einen Meter jederzeit — also lief er dem
+ * Monster regelmäßig durch die Arme. Um seine Schlagreichweite plus eine
+ * Kachel liegt deshalb ein **harter Kern** (`DREAD_CORE`), in dem ein Schritt
+ * `CORE_WEIGHT` kostet: zweihundertfünfzig Meter Umweg, mehr als die Station
+ * breit ist. Daneben herumgehen ist damit immer billiger, hindurch geht er nur
+ * noch, wenn es gar keinen Weg daneben gibt — und der Schnurzug zieht den
+ * Bogen hinterher auch nicht wieder gerade (`stationNavigation.coreCrossed`).
+ * Dazu prüft der Navigator bei jeder Verfolgung nach, ob die **laufende**
+ * Route inzwischen durch den Kern führt (`navmesh/flatNavigator.crossesCore`):
+ * Das Monster wandert, und ein Weg, der beim Planen gut war, ist es zwei
+ * Sekunden später nicht mehr.
  *
  * **Und der Preis steigt, je weniger Leben er hat.** Mit drei Leben geht er
  * knapp am Monster vorbei, wenn der Umweg lang ist; mit einem läuft er
@@ -85,6 +99,20 @@ const DREAD_HURT = 2.5;
  * in Sekunden. Danach hat er keinen Grund mehr, einen Umweg zu gehen.
  */
 const DREAD_MEMORY = 6;
+/**
+ * **Der harte Kern um das Monster**, in Metern: seine Schlagreichweite
+ * (`map/flatRound.CONTACT` = 1,7 m) plus eine Kachel (`TILE` = 2,5 m).
+ *
+ * Das ist die Antwort auf den Fehler, den man in jeder zweiten Runde sah: Der
+ * Techniker lief dem Monster durch die Arme, und zwar nicht aus Dummheit,
+ * sondern weil der weiche Trichter ihn nur vier Kosten je Rasterschritt
+ * kostete — einen Meter Umweg. Wer fliehen will, zahlt einen Meter jederzeit.
+ * Im Kern kostet ein Schritt jetzt `CORE_WEIGHT` (tausend, also 250 m Umweg);
+ * daneben herumzugehen ist damit immer billiger, und nur wenn es *gar* keinen
+ * Weg daneben gibt, geht er trotzdem hindurch. Eine Wand wäre er nicht: Die
+ * sperrte ihn in der Ecke ein, in der er dann stehen bliebe.
+ */
+const DREAD_CORE = CONTACT + TILE;
 /**
  * **Was eine gesperrte Tür auf dem Fluchtweg kostet**, in Metern Umweg, wenn
  * das Monster noch weit ist: Hingehen, ziehen, weiterlaufen — ungefähr ein
@@ -176,6 +204,7 @@ export class TechnicianBot {
       at: dread.at,
       radius: DREAD_RANGE,
       weight: DREAD_WEIGHT * (1 + hurt * DREAD_HURT),
+      core: DREAD_CORE,
     };
   }
 
@@ -283,13 +312,20 @@ export class TechnicianBot {
       return;
     }
     round.step(dt, IDLE);
+    // **Ein laufender Handgriff wird abgewartet** (`FlatRound.busy`): Der
+    // Deckel einer Kiste braucht fünf Sekunden, und wer dabei weiterdrückt
+    // oder losläuft, bricht ihn ab (`rules/chore.ts`). Stillhalten ist hier
+    // dasselbe wie beim Menschen: nichts tun, bis er offen ist.
+    if (round.busy) return;
     this.work += dt;
     const needed = (target.kind === 'cargo' ? CARGO_SECONDS : CONSOLE_SECONDS) * this.tuning.work;
     if (this.work < needed) return;
     this.work = 0;
     if (target.kind === 'cargo') {
       round.act('interact');
-      round.act('interact');
+      // Läuft jetzt der Balken, ist die Kiste noch zu; genommen wird beim
+      // nächsten Anlauf.
+      if (round.busy) return;
       this.job++;
       return;
     }

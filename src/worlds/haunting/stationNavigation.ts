@@ -17,6 +17,7 @@ import {
 import type { RoutePath, RoutePose } from './navmesh/route';
 import { missionExtent, type HouseSpec } from './house';
 import { SMOOTH_MARGIN, pullString } from './navmesh';
+import { pointSegmentDistance } from './navmesh/snapshotClearance';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
 
 /** Quarter-metre samples resolve the tight turn after a 1.2m doorway. */
@@ -102,11 +103,41 @@ const BUCKET_PAD = 0.75;
  * `radius` linear auf null. Ein Schritt kostet sonst 1, ein Meter also vier:
  * `weight = 4` heißt „ein Meter neben der Gefahr ist so teuer wie ein Meter
  * Umweg".
+ *
+ * **Und in der Mitte steht ein Kern** (`core`), in dem jeder Rasterschritt
+ * pauschal `coreWeight` kostet — voreingestellt tausend. Der weiche Trichter
+ * allein war zu wenig: Vier Kosten je Schritt sind ein Meter Umweg, und wer
+ * fliehen will, nimmt dafür jederzeit den Gang *durch* den Verfolger. Der Kern
+ * ist die Schlagreichweite plus eine Kachel; er bleibt endlich teuer und damit
+ * passierbar, denn eine Wand, die sich bewegt, sperrt irgendwann jemanden ein.
+ * Tausend Kosten sind dabei über zweihundert Meter Umweg — so weit ist keine
+ * Station, also wird der Kern nur betreten, wenn es *gar* keinen Weg daneben
+ * gibt.
+ *
+ * Der Kern gilt auch für den Schnurzug: Was der A* umgangen hat, darf die
+ * Glättung nicht wieder geradeziehen (`coreCrossed`).
  */
 export interface RouteAvoid {
   at: FloorPoint;
   radius: number;
   weight: number;
+  /** Der harte Kern in Metern — 0 oder fehlend heißt: nur der weiche Trichter. */
+  core?: number;
+  /** Was ein Rasterschritt im Kern kostet; ohne Angabe `CORE_WEIGHT`. */
+  coreWeight?: number;
+}
+
+/**
+ * **Was ein Rasterschritt im Kern kostet**, wenn niemand etwas anderes sagt.
+ * Ein Schritt ist 0,25 m und kostet sonst 1 — tausend sind also 250 m Umweg.
+ */
+export const CORE_WEIGHT = 1000;
+
+/** Ob die Strecke von `a` nach `b` durch den harten Kern führt. */
+export function coreCrossed(avoid: RouteAvoid | null, a: FloorPoint, b: FloorPoint): boolean {
+  const core = avoid?.core ?? 0;
+  if (!avoid || !(core > 0)) return false;
+  return pointSegmentDistance(avoid.at, a, b) < core;
 }
 
 export function stationRoute(
@@ -208,14 +239,29 @@ export function stationRoute(
   if (complete && points.length) points.push(target);
   // Replanning halfway along a segment must not send the actor backwards to
   // the nearest sample. Only skip it when the new segment is physically clear.
-  while (points.length > 1 && segmentClear(grid, graph, from, points[1]!)) points.shift();
+  while (
+    points.length > 1 &&
+    !coreCrossed(avoid, from, points[1]!) &&
+    segmentClear(grid, graph, from, points[1]!)
+  )
+    points.shift();
   if (points[0] && Math.hypot(points[0].x - from.x, points[0].z - from.z) < 0.001) points.shift();
+  // **Was der A* umgangen hat, zieht die Glättung nicht wieder gerade.** Der
+  // Schnurzug fragt nur, ob die Kapsel zwischen zwei Punkten durchpasst — und
+  // durch den Gang, in dem das Monster steht, passt sie natürlich. Genau so
+  // entstand der Bogen um den Verfolger und danach die Abkürzung quer
+  // hindurch. Der Kern ist deshalb für die Glättung eine Wand, obwohl er für
+  // die Suche nur teuer ist.
+  const free = (a: FloorPoint, b: FloorPoint): boolean => !coreCrossed(avoid, a, b);
   const pulled = smooth
-    ? pullString(from, points, (a, b) => segmentClear(grid, graph, a, b, radius + SMOOTH_MARGIN), {
-        tight: (a, b) => segmentClear(grid, graph, a, b),
-      })
+    ? pullString(
+        from,
+        points,
+        (a, b) => free(a, b) && segmentClear(grid, graph, a, b, radius + SMOOTH_MARGIN),
+        { tight: (a, b) => free(a, b) && segmentClear(grid, graph, a, b) },
+      )
     : points;
-  return { points: softenCorners(grid, graph, from, pulled), grounded: true, complete };
+  return { points: softenCorners(grid, graph, from, pulled, avoid), grounded: true, complete };
 }
 
 /**
@@ -229,6 +275,7 @@ function softenCorners(
   graph: NavGraph,
   from: FloorPoint,
   points: readonly FloorPoint[],
+  avoid: RouteAvoid | null = null,
 ): FloorPoint[] {
   const result: FloorPoint[] = [];
   for (let i = 0; i < points.length; i++) {
@@ -272,10 +319,13 @@ function softenCorners(
       let previous = result[result.length - 1] ?? from;
       const safe =
         samples.every((sample) => {
-          const clear = segmentClear(grid, graph, previous, sample);
+          const clear =
+            !coreCrossed(avoid, previous, sample) && segmentClear(grid, graph, previous, sample);
           previous = sample;
           return clear;
-        }) && segmentClear(grid, graph, end, after);
+        }) &&
+        !coreCrossed(avoid, end, after) &&
+        segmentClear(grid, graph, end, after);
       if (safe) {
         accepted = samples;
         break;
@@ -434,11 +484,17 @@ function buildGrid(spec: HouseSpec, graph: NavGraph, radius: number): RouteGrid 
 
 /** Der Aufschlag eines Rasterfelds, das in der Nähe der gemiedenen Stelle liegt. */
 function dread(grid: RouteGrid, avoid: RouteAvoid | null, index: number): number {
-  if (!avoid || !(avoid.radius > 0) || !(avoid.weight > 0)) return 0;
+  if (!avoid) return 0;
+  const core = avoid.core ?? 0;
+  if (!(avoid.radius > 0 && avoid.weight > 0) && !(core > 0)) return 0;
   const at = pointAt(grid, index);
   const d = Math.hypot(at.x - avoid.at.x, at.z - avoid.at.z);
-  if (d >= avoid.radius) return 0;
-  return avoid.weight * (1 - d / avoid.radius);
+  // **Der Kern zuerst.** Er ist keine Verschärfung des Trichters, sondern eine
+  // eigene Aussage: „hier steht das Monster" — und sie gilt auch dann, wenn
+  // der Trichter längst auf null abgefallen wäre.
+  const hard = core > 0 && d < core ? (avoid.coreWeight ?? CORE_WEIGHT) : 0;
+  const soft = d < avoid.radius && avoid.weight > 0 ? avoid.weight * (1 - d / avoid.radius) : 0;
+  return hard + soft;
 }
 
 function pointAt(grid: RouteGrid, index: number): FloorPoint {

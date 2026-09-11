@@ -1,7 +1,7 @@
 import { generateHouse } from '../house';
 import { stationGraph } from '../roomGraph';
 import { StationTravelPlan } from '../stationTravelPlan';
-import { stationRoute, type RouteAvoid } from '../stationNavigation';
+import { coreCrossed, stationRoute, type RouteAvoid } from '../stationNavigation';
 import type { FloorPoint } from '../stationLayout';
 
 /**
@@ -29,6 +29,7 @@ function route(
   from: FloorPoint,
   to: FloorPoint,
   avoid: RouteAvoid | null = null,
+  smooth = true,
 ) {
   return stationRoute(
     world.spec,
@@ -36,9 +37,26 @@ function route(
     { x: from.x, z: from.z, yaw: 0 },
     to,
     RADIUS,
-    true,
+    smooth,
     avoid,
   );
+}
+
+/**
+ * **Der Kern des fliehenden Technikers**, in Metern — Schlagreichweite
+ * (1,7 m) plus eine Kachel (2,5 m), wie `rules/technicianBot.DREAD_CORE`.
+ */
+const CORE = 4.2;
+
+/** Wie viele Abschnitte einer Bahn durch den harten Kern führen. */
+function crossings(points: readonly FloorPoint[], from: FloorPoint, avoid: RouteAvoid): number {
+  let hits = 0;
+  let last = from;
+  for (const point of points) {
+    if (coreCrossed(avoid, last, point)) hits++;
+    last = point;
+  }
+  return hits;
 }
 
 /** Wie nah eine Bahn einer Stelle kommt, in Metern. */
@@ -89,10 +107,19 @@ describe('Eine Stelle, die die Wegsuche meidet', () => {
       expect(detour.complete).toBe(true);
       const shy = detour.points ?? [];
       pairs++;
-      // Die geflohene Bahn kostet nie *mehr* Angst als die kürzeste …
+      // **Fast immer weniger Angst — und nie nennenswert mehr.**
+      //
+      // Es stand hier einmal „nie mehr", und das war ein Versehen, das eine
+      // Möblierung lang gut ging: Der Trichter ist ein **Preis** auf der
+      // Wegsuche, keine Zusage. Gibt es einen Bogen, wird er genommen (oft
+      // bis auf null Angst herunter). Gibt es keinen, bleiben beide Bahnen im
+      // Trichter, und dann wiegt die Suche Länge gegen Nähe ab — und der
+      // Schnurzug gibt hinterher noch ein Prozent davon zurück, weil er nur
+      // fragt, ob die Kapsel durchpasst. Genau dafür gibt es den harten Kern
+      // (`RouteAvoid.core`, Test darunter): Der ist die Zusage.
       const plainDread = dread(plain, from, avoid);
       const shyDread = dread(shy, from, avoid);
-      expect(shyDread).toBeLessThanOrEqual(plainDread + 1e-6);
+      expect(shyDread).toBeLessThanOrEqual(plainDread * 1.05);
       if (shyDread < plainDread - 1) {
         better++;
         // … und wo sie weniger kostet, hält sie auch mehr Abstand.
@@ -113,6 +140,49 @@ describe('Eine Stelle, die die Wegsuche meidet', () => {
     // Ein Gewicht, das jede Alternative schlagen müsste — und trotzdem kommt
     // er an: Die Stelle ist teuer, nicht gesperrt.
     const desperate = route(world, from, to, { at: middle, radius: 12, weight: 400 });
+    expect(desperate.complete).toBe(true);
+    expect((desperate.points ?? []).length).toBeGreaterThan(1);
+  });
+
+  it('führt nicht durch den harten Kern, solange es irgendwie anders geht', () => {
+    const world = station();
+    const spaces = world.rooms.spaces;
+    const core = CORE;
+    let clean = 0;
+    let pairs = 0;
+    for (let i = 0; i + 3 < spaces.length; i += 3) {
+      const from = world.rooms.centre(spaces[i]!);
+      const to = world.rooms.centre(spaces[i + 3]!);
+      const plain = route(world, from, to).points ?? [];
+      if (plain.length < 4) continue;
+      // Mitten auf die kürzeste Bahn: genau dort steht das Monster.
+      const middle = plain[Math.floor(plain.length / 2)]!;
+      const avoid: RouteAvoid = { at: middle, radius: 7, weight: 8, core };
+      // Der rohe Rasterweg (ohne Schnurzug) ist das Maß: Was der A* um den
+      // Kern herumgeführt hat, darf die Glättung nicht wieder geradeziehen.
+      const raw = route(world, from, to, avoid, false).points ?? [];
+      const shy = route(world, from, to, avoid).points ?? [];
+      if (!raw.length || !shy.length) continue;
+      pairs++;
+      expect(crossings(shy, from, avoid)).toBeLessThanOrEqual(crossings(raw, from, avoid));
+      if (crossings(raw, from, avoid) === 0) {
+        clean++;
+        expect(crossings(shy, from, avoid)).toBe(0);
+      }
+    }
+    expect(pairs).toBeGreaterThan(1);
+    // Und in der Regel gibt es einen Weg daneben — sonst prüfte der Test nichts.
+    expect(clean).toBeGreaterThan(0);
+  });
+
+  it('geht durch den Kern, wenn es keinen Weg daneben gibt', () => {
+    const world = station();
+    const spaces = world.rooms.spaces;
+    const from = world.rooms.centre(spaces[0]!);
+    const to = world.rooms.centre(spaces[spaces.length - 1]!);
+    const middle = (route(world, from, to).points ?? [])[2] ?? from;
+    // Ein Kern, der die halbe Station verschluckt — und er kommt trotzdem an.
+    const desperate = route(world, from, to, { at: middle, radius: 2, weight: 1, core: 30 });
     expect(desperate.complete).toBe(true);
     expect((desperate.points ?? []).length).toBeGreaterThan(1);
   });
