@@ -153,24 +153,33 @@ for (const name of browserNames) {
         const roomSelect = page.locator('[data-room-select]');
         const choices = await roomSelect.locator('option').allTextContents();
         assert(choices.length >= 6, 'Room names are available');
-        await roomSelect.selectOption({ index: Math.min(2, choices.length - 1) });
-        await page.locator('.haunt__sheet').waitFor();
-        const dossier = await page.locator('.haunt__sheet').innerText();
-        assert.match(dossier, /Schutzschrank-Code/);
-        assert.match(dossier, /[1-4]{3,}/);
-        await shot('archive-desktop');
+        // Auf der Karte: zoomen, schieben, zurückstellen — dort gibt es ein Bild.
         await page.getByRole('button', { name: 'Raumansicht vergrößern', exact: true }).click();
         await page.locator('.haunt__view').hover();
         await page.mouse.wheel(0, -80);
         await page.locator('.haunt__view').focus();
         await page.keyboard.press('Home');
+        // Ein Raum aufgeschlagen heißt: Akte ganzseitig, Karte weg.
+        await roomSelect.selectOption({ index: Math.min(2, choices.length - 1) });
+        await page.locator('.haunt__sheet').waitFor();
+        const dossier = await page.locator('.haunt__sheet').innerText();
+        assert.match(dossier, /Schutzschrank-Code/);
+        assert.match(dossier, /[1-4]{3,}/);
+        assert.equal(
+          await page.locator('.haunt__view:visible').count(),
+          0,
+          'Die Raumakte liegt nicht über der Karte',
+        );
+        await shot('archive-desktop');
+        await page.locator('[data-archive-back]').click();
         await page.locator('[data-archive-tab="orders"]').click();
         assert.equal(await page.locator('.haunt__task-row').count(), 3);
         await shot('orders-desktop');
         await page.locator('[data-dossier-room]').first().click();
+        await page.locator('[data-archive-back]').click();
 
         await page.setViewportSize({ width: 390, height: 844 });
-        await page.locator('[data-room-select]').selectOption({ index: 0 });
+        await page.locator('[data-room]').first().waitFor();
         const layout = await page.evaluate(() => {
           const rect = (selector) => {
             const r = document.querySelector(selector).getBoundingClientRect();
@@ -185,7 +194,7 @@ for (const name of browserNames) {
         assert(!layout.overflow, 'Mobile page fits the viewport');
         assert(
           layout.view.height > 120 && layout.body.height > 120,
-          'Scan and dossier both remain visible',
+          'Karte und Liste stehen beide auf dem Schirm — die Liste rollt darunter',
         );
         result.mobileLayout = layout;
         await shot('archive-mobile');

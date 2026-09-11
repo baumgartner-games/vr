@@ -72,6 +72,31 @@ describe('Eine Runde in der 2D-Welt', () => {
     expect(round.drain().at(-1)?.text).toMatch(/fehlt/);
   });
 
+  /**
+   * **Eine Hand, ein Ersatzteil** (`rules/archiveGoals.ts`) — dieselbe Regel
+   * wie im Schiff. Die zweite Kiste geht auf, das Teil bleibt darin.
+   */
+  it('lässt kein zweites Ersatzteil in die Hand', () => {
+    const round = new FlatRound(3, { test: true });
+    const parts = cargoOf(round.house).filter((slot) => slot.loot.kind === 'part');
+    expect(parts.length).toBeGreaterThan(1);
+    const [first, second] = parts as [(typeof parts)[0], (typeof parts)[0]];
+    for (const box of [first, second]) {
+      const item = round.items().find((i) => i.id === box.id)!;
+      expect(walkTo(round, item.at)).toBe(true);
+      round.act('interact');
+      round.act('interact');
+    }
+    const held = round.state().crew.inventory;
+    const taskOf = (box: (typeof parts)[0]): string =>
+      box.loot.kind === 'part' ? box.loot.taskId : '';
+    expect(held).toContain(taskOf(first));
+    expect(held).not.toContain(taskOf(second));
+    expect(round.drain().at(-1)?.text).toMatch(/Beide Hände voll/);
+    // Die zweite Kiste bleibt offen und unerledigt.
+    expect(round.items().find((i) => i.id === second.id)?.state).toBe('open');
+  });
+
   it('steckt Werkzeuge aus der Fracht ein und schaltet sie durch', () => {
     const round = new FlatRound(3, { test: true });
     // Nicht mehr „irgendeine Kiste, die kein Auftrag ist": Seit in jedem Raum

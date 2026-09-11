@@ -68,7 +68,9 @@ gebaut.
 
 Eine beschädigte Raumstation, eine Dreiercrew und drei ausgefallene Systeme.
 Der **Außentechniker** erkundet die Station in VR. Das **Archiv** kennt
-Raumnamen, Aufträge, Fundorte und Schutzcodes; eine Gesamtkarte bekommt es nicht. Die **Einsatzkontrolle** verfolgt
+Raumnamen, Aufträge, Fundorte und Schutzcodes; eine Gesamtkarte bekommt es
+nicht, und **wohin ein Ersatzteil muss, erfährt es erst, wenn der Techniker es
+in der Hand hat**. Die **Einsatzkontrolle** verfolgt
 das Monster auf dem Radar, sieht den simulierten Puls und bedient Licht,
 Schiebetüren und Geräuschköder. **Die Station ist dunkel**, und sie bleibt es,
 wenn niemand schaltet: Es geht nirgends von selbst Licht an. Die
@@ -137,6 +139,16 @@ Kabel nach Symbolen verbunden, eine Schaltfolge eingegeben oder drei Frequenzen
 eingestellt. Anschließend geht es zum nächsten Auftrag. Nach allen drei
 Reparaturen zur Zentrale zurückkehren.
 
+**Ein Ersatzteil auf einmal.** Der Techniker trägt es in der Hand — in der
+Brille wirklich in der rechten —, und solange er es hat, geht keine zweite
+Kiste mit einem Teil heraus: erst abliefern oder ablegen. Ablegen geht
+jederzeit (`G` am Schirm, Knopf im Panel); das Teil bleibt liegen, wo er
+stand, und lässt sich mit `E` wieder aufnehmen. Ohne Teil in der Hand bleibt
+die Abdeckung des Wartungskastens zu. **Die Taschenlampe kann er nie
+verlieren:** Sie hängt von Anfang an in beiden Holstern und steht in beiden
+Handkreisen (`1` links, `2` rechts) — ausmachen darf er sie, das macht ihn
+schwerer sichtbar.
+
 **Wer spielt mit:** Das „Wer?" der Lobby, in 2D wie in 3D — Techniker (Mensch
 oder Bot), Monster (Mensch, Bot oder aus) und beliebig viele Plätze der
 Einsatzzentrale (Archivar am Archiv, Schalttafel und Späher an der
@@ -172,15 +184,21 @@ _Zum Monster_, jederzeit umschaltbar. Die Sicht von Archiv, Einsatzkontrolle
 oder Drohne wählt man in der Lobby unter „Plätze und Geräte" — auch während
 eine Runde läuft.
 
-**Die Handyansichten:** Das Archiv wählt unter **Räume & Codes** einen
-Raumnamen und sieht nur dessen Akte: Schutzcode, Kennzeichen, Fracht- und
-Reparaturhinweise, **alle Kisten des Raums mit ihrem Kennzeichen und die
-richtige markiert** (was in den anderen liegt, steht dort nicht) sowie eine
-orthografische Draufsicht des tatsächlichen Raums mit abgenommener Decke. Ein
+**Die Handyansichten:** Das Archiv hat unter **Räume & Codes** oben die
+Draufsicht des aufgeschlagenen Raums (orthografisch, Decke ab, ohne Lampen),
+darunter alle Räume zum Antippen und die Liste, was gesucht wird. **Ein Tipp
+auf einen Raum schlägt dessen Akte auf — ganzseitig, ohne Karte dahinter**,
+mit einem Knopf zurück: Schutzcode, Kennzeichen, Türen und **alle Kisten des
+Raums mit ihrem Kennzeichen, die richtige markiert** (was in den anderen
+liegt, steht dort nicht). Die Seite rollt wie jede andere. Ein
 kühler Sci-Fi-Look ersetzt Sepia. Es gibt keinen Gesamtgrundriss und keine
-Live-Positionen in dieser Ansicht. **Aufträge** führt zu den passenden
-Raumakten und nennt je Auftrag den Fundort in einer Zeile: Raum, Kennzeichen,
-Wand. Die Einsatzkontrolle hat **Radar & Anzug** und
+Live-Positionen in dieser Ansicht. **Aufträge** nennt je Auftrag den Fundort
+in einer Zeile — Raum, Kennzeichen, Wand — und führt in die passende Raumakte.
+**Wohin das Teil muss, erfährt das Archiv erst, wenn der Techniker es in der
+Hand hat:** Reparaturraum, Hinweis und Freigabecode stehen vorher nicht auf
+dem Blatt. Legt er es irgendwo ab und lässt es länger als fünf Sekunden
+liegen, meldet das Archiv, in welchem Raum es liegt. Die Einsatzkontrolle hat
+**Radar & Anzug** und
 **Schalttafel**. Der Kopfbereich bietet einen sichtbaren Rollenwechsel.
 
 **Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
@@ -194,11 +212,15 @@ Reißt das Monster einen Schrank auf, ist er für den Rest der Runde ein
 funkendes Wrack: Niemand kommt mehr hinein, und es gibt ein Versteck weniger.
 Der Sauerstoff reicht zehn Minuten und läuft gleichmäßig ab; keine Reparatur
 füllt ihn auf. Uhr und Anzug-Leben stehen bei allen Mitspielern in der Leiste
-und beim Techniker im Blickfeld — dort in zwei Zeilen, wie in der 2D-Welt:
-oben Sauerstoff und Anzug, darunter drei Kreise für die Aufträge und der
-nächste offene im Klartext. In der Brille und am Desktop dasselbe.
+und beim Techniker im Blickfeld. **Die Aufträge stehen dort nur, wenn er
+allein spielt:** Sitzt am Archiv ein Mensch, sieht der Techniker im Blickfeld
+nur Uhr und Anzug — wohin er muss, sagt ihm der Archivar, und wo er ist, sagt
+er dem Archivar. Spielt niemand dort mit, übernimmt der Bot die Ansage, und
+dann steht unter der Uhr wieder die gewohnte Zeile: drei Kreise für die
+Aufträge und der nächste offene im Klartext.
 
-Die bestehende **Taschenlampe** liegt von Anfang an am Werkzeuggürtel. Die
+Die bestehende **Taschenlampe** hängt von Anfang an in **beiden** Holstern des
+Werkzeuggürtels und kann nicht verloren gehen. Die
 schwebende Ersatzlampe in der Zentrale kann auch am Desktop mit `E` oder Klick
 aufgenommen werden. **Radar** und **Röntgengerät** sind echte greifbare
 Werkzeuge mit demselben Scannergehäuse und seitlicher Gürtelablage. Radar zeigt

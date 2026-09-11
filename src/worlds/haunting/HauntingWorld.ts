@@ -118,6 +118,7 @@ import { StationUi } from './stationUi';
 import { extractMapSnapshot } from './map/extract';
 import { worldMapSource } from './map/worldSource';
 import { taskCargo } from './rules/cargo';
+import { orderDone } from './rules/archiveGoals';
 import { RoundRules } from './rules/roundRules';
 import {
   HOLD_RANGE,
@@ -765,9 +766,23 @@ export class HauntingWorld extends GridWorld {
     return true;
   }
 
-  /** Eine Hand bleibt frei — in diesem Haus will man eine Lampe halten. */
+  /**
+   * **An jeder Hüfte eine Taschenlampe** — und deshalb kann keine verloren
+   * gehen.
+   *
+   * Lange hing nur rechts eine, „damit eine Hand frei bleibt". Seit der
+   * Techniker in der rechten Hand ein Ersatzteil trägt, war genau das die
+   * Falle: Teil in der Hand, Lampe abgelegt, und der Weg zur Konsole ging
+   * durch ein dunkles Schiff. Zwei Lampen kosten nichts — eine Hüfte merkt
+   * sich ihre Bestückung und lässt nachwachsen, was von ihr kam
+   * (`PortalWorld.stowTool`), also ist auch eine hingeworfene Lampe nach dem
+   * nächsten Griff wieder da.
+   */
   protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
-    return [['flashlight', 'right']];
+    return [
+      ['flashlight', 'left'],
+      ['flashlight', 'right'],
+    ];
   }
 
   protected override welcome(): string {
@@ -3184,6 +3199,13 @@ export class HauntingWorld extends GridWorld {
     if (this.paperSun) this.paperSun.intensity = archive ? 1.4 : 0;
     this.paperMask.visible = archive;
     this.paperDoors.visible = archive;
+    // **Auf dem Blatt brennt kein Licht.** Die Deckenlampen liegen knapp
+    // unter der Schnittebene und standen deshalb als graue Scheiben mitten
+    // in jedem Zimmer — eine Auskunft, die der Archivar gar nicht geben
+    // soll: Ob es hell ist, sieht der Techniker selbst, und der Grundriss
+    // wird davon nur unruhig. Nur ausgeblendet, nicht abgebaut; die anderen
+    // Ansichten brauchen sie unverändert.
+    for (const lamp of this.lamps.values()) lamp.glass.visible = !archive;
     if (archive) this.markDoors(ui.selected);
     this.paperTint(archive);
     // **Der Zuschauer sieht Tag.** Der Nebel gehört zum Grusel derer, die
@@ -3225,6 +3247,7 @@ export class HauntingWorld extends GridWorld {
     ctx.scene.fog = fog;
     this.paperMask.visible = false;
     this.paperDoors.visible = false;
+    for (const lamp of this.lamps.values()) lamp.glass.visible = true;
     return true;
   }
 
@@ -3752,16 +3775,34 @@ export class HauntingWorld extends GridWorld {
     const precision = goalPrecision(this.setup);
     const out: MapGoal[] = [];
     for (const repair of repairsFor(this.spec)) {
-      if (state.done.includes(repair.itemId)) continue;
+      // **Beide Schreibweisen von `done`**: Das Schiff schreibt `engine`, die
+      // 2D-Runde `t0` (`rules/archiveGoals.orderDone`). Vorher stand hier nur
+      // die zweite, und im Schiff blieb ein erledigter Auftrag als Ziel stehen.
+      if (orderDone(state, repair)) continue;
       const task = this.spec.tasks.find((t) => t.id === repair.itemId);
       const carried = state.crew.inventory.includes(repair.itemId);
+      // **Ein abgelegtes Teil liegt da, wo es liegt** — und nicht mehr in
+      // seiner Kiste. Der Kompass schickte den Techniker sonst zu einer Kiste,
+      // die er selbst geleert hat. Dieselbe Sichtbarkeitsregel wie beim
+      // Archivar (`DROPPED_SEEN`) gilt hier **nicht**: Wer es abgelegt hat,
+      // weiß, wo — er braucht nicht zu warten, bis es jemand meldet.
+      const lying = state.dropped?.find((one) => one.id === repair.itemId) ?? null;
       // Seit jeder Raum zwei bis drei Kisten hat, heißt die richtige nicht mehr
       // `cargo-<raum>`, sondern steht in der einen Liste (`rules/cargo.ts`).
       // Vorher fand `find` hier nichts, und der Kompass zeigte für ein noch
       // gar nicht geholtes Teil schon auf die Konsole.
       const cargo = task ? layout.find((p) => p.id === taskCargo(this.spec, task.id).id) : null;
       const console = layout.find((p) => p.id === `console-${repair.id}`);
-      if (!carried && cargo) {
+      if (!carried && lying) {
+        out.push({
+          id: `dropped:${repair.itemId}`,
+          at: { x: lying.x, z: lying.z },
+          label: task?.label ?? repair.item,
+          next: false,
+          kind: 'crate',
+          precision: 'exact',
+        });
+      } else if (!carried && cargo) {
         if (precision === 'crate')
           out.push({
             id: cargo.id,

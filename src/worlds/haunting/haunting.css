@@ -405,6 +405,38 @@ body.haunt-on .touch { display: none; }
   background: rgba(6, 9, 16, 0.88);
 }
 
+/*
+ * **Das Archiv ist keine Station mit Vollbild.**
+ *
+ * Drohne und Fernseher zeigen ein Bild, über das die Bedienung auf Zuruf
+ * legt (`.is-view`); beim Archivar war genau das der Fehler. Seine Akte ist
+ * kein Überbau, sondern *die Seite* — und unter `.is-view` stand sie auf
+ * `display: none`, bis der Menüknopf sie holt. Den hat er nicht: Er saß vor
+ * einem Grundriss, ohne Reiter, ohne Liste und **ohne Rollbalken**. Genau
+ * das hat der Besitzer gemeldet.
+ *
+ * Jetzt ist der Grundriss eine **Kachel oben in der Seite** (`.is-chart`):
+ * feste Höhe, darunter läuft die Liste weiter und rollt wie jede andere. Und
+ * wer einen Raum antippt, bekommt dessen Akte ganzseitig — dann ist gar kein
+ * Bild mehr da (`StationUi.hasView`), und die Seite ist eine gewöhnliche
+ * Seite.
+ */
+.haunt.is-chart .haunt__view {
+  position: relative;
+  inset: auto;
+  flex: none;
+  /* Hoch genug, dass ein Zimmer mit seinen Kisten zu erkennen ist, niedrig
+     genug, dass darunter noch drei Zeilen Liste stehen. Auf dem Telefon ist
+     das die halbe Höhe; quer gehalten wäre die halbe Höhe ein Streifen,
+     deshalb der Deckel in Pixeln. */
+  height: min(46vh, 340px);
+  /* Kein Rahmen und keine runden Ecken: Was hier zu sehen ist, malt die Welt
+     in ein Rechteck der Leinwand *hinter* dieser Fläche (`viewport()`), und
+     eine runde Ecke im DOM schneidet davon nichts ab — sie stünde nur neben
+     der eckigen Wirklichkeit. Eine Linie darunter trennt genug. */
+  border-bottom: 1px solid var(--haunt-line);
+}
+
 .haunt__body {
   flex: 1;
   overflow-y: auto;
@@ -490,6 +522,10 @@ body.haunt-on .touch { display: none; }
 
 .haunt__chip--here { color: #0b1a14; background: var(--haunt-accent); border-color: transparent; }
 .haunt__chip--go { color: var(--haunt-accent); border-color: var(--haunt-accent); }
+/* Das Ziel eines Auftrags steht erst da, wenn der Techniker das Teil hat —
+   und dann soll man es finden, ohne die Zeile zu lesen. */
+.haunt__chip.is-live { color: var(--haunt-accent); border-color: var(--haunt-accent); }
+.haunt__chip.is-warn { color: var(--haunt-warn); border-color: var(--haunt-warn); }
 
 /* Ein Balken, der sich füllt — Anmarsch, Akku, was auch immer. */
 .haunt__rail {

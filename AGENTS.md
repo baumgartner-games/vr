@@ -7728,6 +7728,13 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Uhr und Anzug, `hudTasks`/`taskPips` für die Aufträge) — dieselbe Rechnung
   wie im 2D-HUD und auf den Telefonen, damit drei Anzeigen nicht drei
   verschiedene Stände zeigen. Gemalt wird nur, wenn sich der Text ändert.
+  **Die zweite Zeile gibt es nur solo** (`hudTasksVisible`, gespeist aus
+  `powersOf(setup).archive`): Sitzt am Archiv ein **Mensch**, ist das Wissen
+  dessen Platz — der Techniker sieht nur Uhr und Anzug und holt sich den Rest
+  am Funk, und der Streifen ist dann **eine** Zeile hoch statt einer halb
+  leeren Tafel. Sitzt dort ein **Bot**, sagt der ohnehin an, wohin es geht
+  (`ShipExperience.targetCall`, beim Aufnehmen des Teils), und was ein Bot
+  ansagt, darf auch dastehen.
 - `GridWorld.setSlidingGridDoor` verändert nur Türcollider und physische
   Navkante, nicht den ganzen Level. **Wege benutzen `StationTravelPlan`:**
   funktionale automatische Türen sind dort schon vor Annäherung passierbar,
@@ -7802,6 +7809,19 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   stehen — er nennt das Merkmal des Raums („bei der Werkbank") und hängt am
   Reparaturhinweis (`mission.ts`) und an der 2D-Raumakte (`map/flatMode.ts`),
   die beide noch auf ihn zeigen.
+- **Eine Hand, ein Ersatzteil** (`rules/archiveGoals.ts`, `carriedPart`,
+  `canCarryPart`): `crew.inventory` trägt höchstens **ein** Missionsteil;
+  Werkzeuge (Radar, Röntgen, Medkit) zählen nicht mit, die stecken am Gürtel.
+  Eine zweite Kiste geht auf, das Teil darin bleibt liegen — mit Ansage, und
+  die Kiste bleibt offen und unerledigt. Sonst sammelte man in Ruhe alle drei
+  ein und klapperte danach die Konsolen ab; der halbe Weg durch das Schiff
+  fiele weg. In 3D ist das Teil ein **Ding in der Hand**: am Schirm im
+  Streifen neben Lampe und Medkit (`rightItem === 'part'`), in der Brille am
+  Griff des rechten Controllers. **`G` legt es ab** (`ShipExperience.dropPart`,
+  Knopf im Panel), es liegt dann als Modell im Gang und wird mit `E` wieder
+  aufgenommen. **`taken` heißt „war einmal draußen", `inventory` heißt „ist in
+  der Hand"** — die Konsole prüft seit jetzt in **beiden** Welten das Zweite:
+  Wer sein Teil ablegt, sperrt damit auch die Abdeckung wieder zu.
 - **Wer wissen darf, welche Kiste die richtige ist** (`rules/roundSetup.ts`,
   `goalPrecision`): Sitzt am Archiv ein **Bot**, gibt es niemanden zum
   Zurufen — dann ist das Ziel die **Kiste** (`MapGoal.kind` `'crate'`,
@@ -7822,7 +7842,16 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `MapItem.goal` wird nur bei Kistengenauigkeit gesetzt. Das dauerhafte
   amberfarbene Inhaltsschild am Frachtschrank ist **weg** — es war das größte
   Leck; was drin liegt, sagt das Röntgengerät oder die offene Kiste.
-- Das vorhandene `FlashlightTool` ist Startausrüstung am rechten Gürtel.
+- Das vorhandene `FlashlightTool` hängt **an beiden Hüften** und kann deshalb
+  nicht verloren gehen (`HauntingWorld.beltLoadout`). Lange hing nur rechts
+  eine, „damit eine Hand frei bleibt" — seit der Techniker rechts ein
+  Ersatzteil trägt, war genau das die Falle: Teil in der Hand, Lampe abgelegt,
+  und der Weg zur Konsole ging durch ein dunkles Schiff. Eine Hüfte merkt sich
+  ihre Bestückung und lässt nachwachsen, was von ihr kam
+  (`PortalWorld.stowTool`), also ist auch eine hingeworfene Lampe nach dem
+  nächsten Griff wieder da. Am Schirm steht sie in **beiden** Handkreisen
+  (`1` links, `2` rechts); „frei" bleibt erreichbar, denn Dunkelheit ist in
+  diesem Haus eine Entscheidung (`threat.ts`) und kein Verlust.
   Webhände verwenden dieselbe Toolklasse. Die schwebende Ersatzlampe ist
   im Web anvisierbar; Aufnehmen entfernt ihren echten Physikkörper.
   Haunting deaktiviert mit `setBeamGuide(false)` den geometrischen Hilfskegel;
@@ -8462,18 +8491,38 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   der Knopf tut, bevor man ihn drückt. Kabinen darf das Monster überall
   aufreißen, nicht nur die, in der der Techniker steckt.
   Sichtbarer Header für Rollenwechsel; keine Navigation über die FPS-Anzeige.
-- Archiv hat **Räume & Codes** und **Aufträge**, nur Raumnamen auswählbar.
+- Archiv hat **Räume & Codes** und **Aufträge** — und **zwei Ebenen statt zwei
+  Größen**: oben die *Karte* (die Draufsicht des aufgeschlagenen Zimmers als
+  Kachel, darunter die Räume zum Antippen und die Liste „Gesucht"), und ein
+  Tipp auf einen Raum **ersetzt** die Karte durch dessen Akte, ganzseitig, mit
+  einem Knopf zurück. Vorher lag die Akte als Überbau über einem Vollbild —
+  und unter `.is-view` ist der Überbau ausgeblendet, bis der Menüknopf ihn
+  holt, den der Archivar nicht hat: Er saß vor einem Grundriss **ohne
+  Rollbalken** (Befund des Besitzers). Die Kachel hängt jetzt an `.is-chart`,
+  `viewport()` gibt es **nur auf der Karte**, `headroom()`=0.
   Ein Raum zeigt echte orthografische 3D-Geometrie ohne Decke als 2D-Draufsicht,
-  dazu Sci-Fi-Farbton, Codes, Fundorte und Reparaturhinweise. **Das Blatt
+  dazu Sci-Fi-Farbton, Codes, Fundorte und Reparaturhinweise — **aber keine
+  Lampen**: Die Deckenscheiben liegen knapp unter der Schnittebene und werden
+  für den Archivar ausgeblendet (`HauntingWorld`, `lamps`), denn ob es hell
+  ist, sieht der Techniker selbst. **Das Blatt
   führt alle Kisten des Raums** mit Kennzeichen und Wand (`CargoSlot.clue`),
   die richtige als „Fundort" markiert — den Inhalt der anderen nennt es
-  nicht, sonst hätte das Suchen kein Risiko mehr. Im Reiter **Aufträge** steht
+  nicht, sonst hätte das Suchen kein Risiko mehr.
+  **Was er wann weiß, ist eine Regel** (`rules/archiveGoals.ts`,
+  `archiveGoals(spec, state)`): Die **Kiste** steht von der ersten Sekunde an
+  auf dem Blatt, die **Konsole** — Raum, Reparaturhinweis, Freigabecode —
+  **erst, wenn der Techniker das Teil in der Hand hat**. So gibt es zweimal
+  etwas zu funken statt einmal, und das zweite Mal ist genau der Moment, in
+  dem der Techniker fragt. Im Reiter **Aufträge** steht
   der Fundort in einer Zeile (Raum · Kennzeichen · Wand): Sitzt hier ein
   Mensch, sieht der Techniker nur den Raum leuchten (`goalPrecision`), und
   diese Zeile ist das, was er ansagen muss. Das Kennzeichen ist auch in der
   Draufsicht zu sehen — Farbband und Nummer stehen am Modell selbst.
-  **Keine Gesamtkarte, keine Live-Kreaturen und kein Journal.** `viewport()`
-  ist nur im Raumreiter aktiv, `headroom()`=0. Masken grenzen Nachbarräume aus.
+  **Ein abgelegtes Ersatzteil meldet das Blatt erst nach `DROPPED_SEEN` = 5 s**
+  (`HauntState.dropped`) — wer es im Vorbeigehen umgreift, hat es nicht
+  verloren; wer es stehen lässt, schon.
+  **Keine Gesamtkarte, keine Live-Kreaturen und kein Journal.**
+  Masken grenzen Nachbarräume aus.
   `archiveMap.ts` bleibt ein unbenutztes Altmodul und darf nicht wieder in die
   Archiv-UI eingebaut werden.
 - Kontrolle hat **Radar & Anzug** und **Schalttafel**; Radar berücksichtigt
@@ -8492,6 +8541,12 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `GHOST_TTL` − `GHOST_FADE`, dann linear aus, ab `GHOST_TTL` = 25 s weg).
   Alte Clients werden abgewiesen; nach Update **alle Geräte neu laden** —
   ein Telefon der Version 7 sieht sonst gar nichts mehr.
+  **`dropped` kam ohne Sprung dazu** (`rules/archiveGoals.DroppedPart`): die
+  Ersatzteile, die im Gang liegen, je mit Ort und Zeitpunkt. Ein Stand ohne
+  das Feld heißt „es liegt nichts" — das ist die Wahrheit, die ein älteres
+  Gerät ohnehin annimmt, und kein Grund, es auszusperren. Die Schwelle
+  (`DROPPED_SEEN`) rechnet jedes Gerät selbst aus `state.time`, damit alle zur
+  selben Sekunde zum selben Schluss kommen.
   Nur Host-Snapshots übernehmen, endliche begrenzte Werte validieren.
   Schalter nur vom Kontrollbesitzer, Flug nur vom Drohnenbesitzer.
 - Spielhost: VR-Techniker, sonst ältester Peer. Desktop-Techniker meldet sich

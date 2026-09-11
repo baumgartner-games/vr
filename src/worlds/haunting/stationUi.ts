@@ -12,6 +12,7 @@ import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
   MARKS,
   namesakes,
+  roomCode,
   roomOf,
   spacesOf,
   VAN_ID,
@@ -34,7 +35,8 @@ import { atHome, type ArchiveView } from './archiveView';
 import type { DroneState, HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
-import { cargoOf, taskCargo } from './rules/cargo';
+import { cargoOf } from './rules/cargo';
+import { archiveGoals } from './rules/archiveGoals';
 import {
   applyIntent,
   intentOf,
@@ -201,6 +203,15 @@ export class StationUi {
   private readonly ecg = document.createElement('canvas');
   private lastRadar = 0;
   private archiveTab: 'orders' | 'rooms' = 'rooms';
+  /**
+   * **Welche Raumakte ganzseitig offen ist** — `''` heißt: die Karte.
+   *
+   * Getrennt von `selected`, und das ist der Punkt: `selected` ist das
+   * Zimmer, das die Welt ins Bild rechnet, und das gibt es immer. Ob der
+   * Archivar gerade *in* dessen Akte liest, ist eine zweite Frage — und nur
+   * daran hängt, ob es überhaupt ein Bild gibt (`hasView`).
+   */
+  private archiveRoom = '';
   private controlTab: 'radar' | 'switches' = 'radar';
   private readonly roomTitle = document.createElement('span');
   private readonly zoomOutKey = document.createElement('button');
@@ -361,6 +372,9 @@ export class StationUi {
       const select = event.target as HTMLSelectElement | null;
       if (!select?.matches('[data-room-select]') || !roomOf(this.host.spec(), select.value)) return;
       this.selected = select.value;
+      // Das Auswahlfeld tut dasselbe wie ein Tipp auf den Raum: Akte auf. Es
+      // ist der Weg für die Tastatur, nicht ein zweiter Weg mit anderem Ziel.
+      this.archiveRoom = select.value;
       this.host.archiveHome();
       this.drawn = '';
       this.refresh();
@@ -443,6 +457,18 @@ export class StationUi {
       round?.ending ?? '',
       this.selected,
       this.archiveTab,
+      this.archiveRoom,
+      // **Was der Archivar wissen darf, ändert sich im Lauf der Runde**
+      // (`rules/archiveGoals.ts`): Ein Teil wandert in die Hand, ein anderes
+      // liegt lange genug, um gemeldet zu werden. Beides steht in keiner der
+      // Zahlen darüber — `inventory.length` zählt nur, wie viel er trägt, und
+      // die Uhr läuft ohnehin außerhalb dieser Zeile. Gerechnet wird das nur
+      // am Archiv; sonst schriebe jede Station die Liste mit.
+      station === 'archive'
+        ? archiveGoals(spec, state)
+            .map((one) => `${one.step}${one.carried ? 'h' : ''}${one.dropped ? 'd' : ''}`)
+            .join('|')
+        : '',
       this.controlTab,
       state.phase,
       state.fuse,
@@ -532,13 +558,20 @@ export class StationUi {
     this.view.hidden = !this.hasView;
   }
 
-  /** Ob diese Station überhaupt ein Bild der Welt bekommt. */
+  /**
+   * Ob diese Station überhaupt ein Bild der Welt bekommt.
+   *
+   * Beim Archivar **nur auf der Karte**: Schlägt er eine Raumakte auf, ist das
+   * Bild weg und die Seite gehört der Auskunft. Ein Grundriss, der hinter der
+   * Akte weiterleuchtet, ist kein Hintergrund, sondern eine zweite Sache, auf
+   * die man hinsieht — und er hielte die Seite fest, die gerollt werden will.
+   */
   private get hasView(): boolean {
     const station = this.station;
     return (
       station === 'drone' ||
       station === 'watch' ||
-      (station === 'archive' && this.archiveTab === 'rooms')
+      (station === 'archive' && this.archiveTab === 'rooms' && !this.archiveRoom)
     );
   }
 
@@ -596,7 +629,7 @@ export class StationUi {
     // **Der Scrollstand bleibt, solange dieselbe Seite bleibt.** Ein Knopf
     // schreibt die Seite neu, und eine neu geschriebene Liste fängt oben an —
     // wer unten auf einen Schalter tippt, stünde danach wieder oben.
-    const page = `${station ?? 'van'}/${this.archiveTab}/${this.controlTab}/${this.vanOpen ? 'van' : 'seat'}`;
+    const page = `${station ?? 'van'}/${this.archiveTab}/${this.archiveRoom}/${this.controlTab}/${this.vanOpen ? 'van' : 'seat'}`;
     const keep = page === this.paged ? this.body.scrollTop : 0;
     this.paged = page;
     const focused =
@@ -627,22 +660,31 @@ export class StationUi {
   private writeShape(station: StationId | null): void {
     const drone = station === 'drone';
     const view = this.hasView;
+    const archive = station === 'archive';
     // Die offene Bedienung gehört zu dem Gerät, an dem sie aufgemacht wurde:
     // Wer aufsteht und sich woandershin setzt, sieht dort zuerst sein Bild.
-    if (!view || station === 'archive') this.panel = false;
-    this.root.classList.toggle('is-view', view);
-    this.root.classList.toggle('is-panel', view && this.panel);
-    this.panelKey.hidden = !view || station === 'archive';
+    if (!view || archive) this.panel = false;
+    // **Der Archivar bekommt kein Vollbild.** Bei Drohne und Fernseher liegt
+    // das Bild fest im Hintergrund und die Bedienung kommt auf Zuruf darüber;
+    // sein Grundriss ist dagegen eine **Kachel in der Seite**, mit der Liste
+    // darunter (`.is-chart`). Genau daran hing der Befund des Besitzers:
+    // Unter `.is-view` ist die Liste ausgeblendet, bis der Menüknopf sie
+    // holt — und den hat der Archivar nicht. Seine Akte war damit unsichtbar
+    // und erst recht nicht zu rollen.
+    this.root.classList.toggle('is-view', view && !archive);
+    this.root.classList.toggle('is-chart', view && archive);
+    this.root.classList.toggle('is-panel', view && !archive && this.panel);
+    this.panelKey.hidden = !view || archive;
     // **Was unter der offenen Bedienung läge, steht gar nicht erst da** — bis
     // auf den Menüknopf selbst, der sie wieder zumacht. Der Scheinwerfer steht
     // dann in der Schalttafel, der Zurück-Knopf hätte kein Bild zum Zurück.
     this.lampKey.hidden = !drone || this.panel;
     // Der Zurück-Knopf kommt erst, wenn es etwas zurückzustellen gibt: Ein
     // Knopf, der nie etwas tut, ist einer, den man beim Zielen trifft.
-    this.homeKey.hidden = station !== 'archive' || this.panel || atHome(this.host.archiveView());
-    this.roomTitle.hidden = station !== 'archive';
-    this.zoomOutKey.hidden = station !== 'archive';
-    this.zoomInKey.hidden = station !== 'archive';
+    this.homeKey.hidden = !view || !archive || atHome(this.host.archiveView());
+    this.roomTitle.hidden = !view || !archive;
+    this.zoomOutKey.hidden = !view || !archive;
+    this.zoomInKey.hidden = !view || !archive;
     this.roomTitle.textContent = roomOf(this.host.spec(), this.selected)?.name ?? 'Raumakte';
     this.view.setAttribute(
       'aria-label',
@@ -652,7 +694,7 @@ export class StationUi {
           ? 'Live-Kamera der Drohne'
           : 'Zuschaueransicht',
     );
-    if (view && station !== 'archive') this.writeKeys(drone);
+    if (view && !archive) this.writeKeys(drone);
     // Der Blickstock gehört dem Piloten — beim Archivar dreht sich nichts,
     // seine Kamera hängt senkrecht über dem aufgeschlagenen Zimmer.
     this.lookKey.hidden = !drone || this.panel;
@@ -1112,8 +1154,22 @@ export class StationUi {
     return nav;
   }
 
-  /** The archive selects room names; only one isolated room is rendered. */
+  /**
+   * **Das Archiv hat zwei Ebenen und nicht zwei Größen.**
+   *
+   * Oben die **Karte**: das aufgeschlagene Zimmer als Bild, darunter die
+   * Räume zum Antippen und die Liste dessen, was gesucht wird. Tippt der
+   * Archivar einen Raum an, **ersetzt** dessen Akte die Karte — kein Blatt
+   * über einem Bild, das darunter weiterleuchtet, sondern nur noch die
+   * Auskunft, und ein Knopf zurück.
+   *
+   * Vorher lag beides übereinander: Das Bild stand fest über dem ganzen
+   * Schirm, die Liste war ein Überbau darauf — und weil sie das war, ließ sie
+   * sich **nicht rollen**. Genau das war der Befund des Besitzers: „Wenn ich
+   * das Archiv habe, kann ich nicht scrollen."
+   */
   private archivePage(): HTMLElement[] {
+    if (this.archiveRoom) return this.archiveSheet();
     return [
       this.tabs('archive'),
       ...(this.archiveTab === 'orders' ? this.archiveOrders() : this.archiveRooms()),
@@ -1159,50 +1215,76 @@ export class StationUi {
     return [box];
   }
 
+  /**
+   * **Die Aufträge — die Kiste immer, die Konsole erst dann.**
+   *
+   * Bis eben stand hier die ganze Runde auf einmal: Fundort, Reparaturraum,
+   * Freigabecode, alles ab der ersten Sekunde. Damit war der Archivar ein
+   * Vorleser, der einmal alles durchgibt und danach nichts mehr zu sagen hat.
+   * Jetzt steht hier, was gesammelt werden muss — und **wohin damit** erst,
+   * wenn der Techniker es in der Hand hält (`rules/archiveGoals.ts`). So gibt
+   * es zweimal etwas zu funken statt einmal, und das zweite Mal ist genau der
+   * Moment, in dem der Techniker fragt.
+   */
   private archiveOrders(): HTMLElement[] {
     const spec = this.host.spec();
     const state = this.host.state();
+    const orders = archiveGoals(spec, state);
     const out: HTMLElement[] = [];
-    out.push(head('Reparaturaufträge', `${state.done.length} von 3 erledigt`));
+    out.push(
+      head('Reparaturaufträge', `${orders.filter((one) => one.step === 2).length} von 3 erledigt`),
+    );
     const tasks = el('div', 'haunt__tasks');
-    for (const repair of repairsFor(spec)) {
-      const done = state.done.includes(repair.id);
+    for (const order of orders) {
+      const done = order.step === 2;
       const row = el('div', `haunt__task-row${done ? ' is-done' : ''}`);
       row.append(
-        el('strong', '', `${done ? '✓ ' : ''}${repair.title}`),
-        el('span', '', repair.hint),
+        el('strong', '', `${done ? '✓ ' : ''}${order.title}`),
+        el('span', '', `Gesucht: ${order.item}`),
       );
-      if (repair.puzzle !== 'wires')
+      // **Der Fundort steht auf dem Auftrag, nicht nur im Raum.** Er ist seit
+      // den zwei bis drei Kisten je Raum die eigentliche Auskunft des
+      // Archivars: Raum, Kennzeichen, Wand — und der Techniker sieht selbst
+      // nur noch den Raum leuchten, wenn hier ein Mensch sitzt.
+      row.append(
+        el('span', 'haunt__chip', `Fundort: ${order.crate.roomName} · ${order.crate.clue}`),
+      );
+      if (order.dropped)
+        row.append(
+          el(
+            'span',
+            'haunt__chip is-warn',
+            `Liegt in ${order.dropped.roomName} · seit ${Math.round(order.dropped.seconds)} s`,
+          ),
+        );
+      if (order.console) {
+        row.append(
+          el('span', 'haunt__chip is-live', `Ziel: ${order.console.roomName} · ${order.title}`),
+        );
         row.append(
           el(
             'span',
             'haunt__chip',
-            `${repair.puzzle === 'sequence' ? 'Freigabefolge' : 'Zielfrequenzen'}: ${repair.code}`,
+            order.console.puzzle === 'wires'
+              ? 'Vier Kabel: jeweils dasselbe Symbol verbinden'
+              : `${order.console.puzzle === 'sequence' ? 'Freigabefolge' : 'Zielfrequenzen'}: ${order.console.code}`,
           ),
         );
-      else row.append(el('span', 'haunt__chip', 'Vier Kabel: jeweils dasselbe Symbol verbinden'));
-      if (state.taken.includes(repair.itemId))
-        row.append(el('span', 'haunt__chip', `${repair.item} beim Techniker`));
+      } else
+        row.append(
+          el('span', 'haunt__blind', 'Ziel und Code erst, wenn das Teil in der Hand ist.'),
+        );
+      if (order.carried) row.append(el('span', 'haunt__chip', `${order.item} beim Techniker`));
       const links = el('div', 'haunt__chart-tools');
-      const target = el('button', 'haunt__chart-key', 'Reparaturraum öffnen');
-      target.dataset['dossierRoom'] = repair.roomId;
-      links.append(target);
-      const task = spec.tasks.find((item) => item.id === repair.itemId);
-      if (task) {
-        // **Der Fundort steht auf dem Auftrag, nicht nur im Raum.** Er ist
-        // seit den zwei bis drei Kisten je Raum die eigentliche Auskunft des
-        // Archivars: Raum, Kennzeichen, Wand — und der Techniker sieht selbst
-        // nur noch den Raum leuchten, wenn hier ein Mensch sitzt.
-        row.append(
-          el(
-            'span',
-            'haunt__chip',
-            `Fundort: ${roomOf(spec, task.roomId)?.name ?? task.roomId} · ${taskCargo(spec, task.id).clue}`,
-          ),
-        );
+      if (order.crate.roomId) {
         const source = el('button', 'haunt__chart-key', 'Fundraum öffnen');
-        source.dataset['dossierRoom'] = task.roomId;
+        source.dataset['dossierRoom'] = order.crate.roomId;
         links.append(source);
+      }
+      if (order.console) {
+        const target = el('button', 'haunt__chart-key', 'Reparaturraum öffnen');
+        target.dataset['dossierRoom'] = order.console.roomId;
+        links.append(target);
       }
       row.append(links);
       tasks.append(row);
@@ -1219,12 +1301,22 @@ export class StationUi {
     return out;
   }
 
+  /**
+   * **Die Karte**: das aufgeschlagene Zimmer im Bild, darunter die Räume zum
+   * Antippen und die kurze Liste dessen, was gesucht wird.
+   *
+   * Die Räume stehen als **Knöpfe** da: Ein `select` ist eine Liste, die man
+   * aufklappt, einmal liest und wieder zuklappt — der Archivar sucht darin
+   * denselben Namen viermal in der Runde. Das Auswahlfeld steht daneben
+   * weiter, denn es ist der Weg für die Tastatur und für Vorleser; beide
+   * führen an dieselbe Stelle, in die Akte des Raums.
+   */
   private archiveRooms(): HTMLElement[] {
     const spec = this.host.spec();
     const state = this.host.state();
     const room = roomOf(spec, this.selected) ?? spec.rooms[0];
     const out: HTMLElement[] = [];
-    out.push(head('Raum auswählen', `${spec.rooms.length} Räume`));
+    out.push(head('Raum aufschlagen', `${spec.rooms.length} Räume`));
     const field = el('label', 'haunt__room-select');
     field.append(el('span', '', 'Welchen Raum beschreibt der Techniker?'));
     const select = document.createElement('select');
@@ -1239,85 +1331,151 @@ export class StationUi {
     field.append(select);
     out.push(field);
 
-    if (room) {
-      out.push(head(room.name, 'aufgeschlagen'));
-      const sheet = el('div', 'haunt__sheet');
-      sheet.append(
-        fact('Schutzschrank-Code', lockerCode(spec.seed, room.id), true),
-        fact('Darin steht', room.marks.map((m) => MARKS[m.id]).join(', ')),
-        fact('Licht', room.lamp ? 'Eine Lampe unter der Decke.' : 'Keine. Bleibt dunkel.'),
+    const grid = el('div', 'haunt__rooms');
+    spec.rooms.forEach((one, index) => {
+      const key = el(
+        'button',
+        `haunt__room${one.id === room?.id ? ' is-open' : ''}`,
+        `R${String(index + 1).padStart(2, '0')} · ${one.name}`,
       );
-      const doors = spec.doors.filter((door) => door.a === room.id || door.b === room.id);
-      // **Wie viele davon zu sind**, steht dabei. Das ist keine Auskunft aus
-      // dem Nichts: Es steht auf seinem Blatt, seit die Türen dort gezeichnet
-      // werden. Als Zahl daneben spart es das Abzählen im Bild — und es ist
-      // genau der Satz, mit dem er den Hacker anruft.
-      const closed = doors.filter((door) => state.shut.includes(door.id)).length;
-      sheet.append(
+      key.dataset['room'] = one.id;
+      key.setAttribute('aria-label', `Raumakte ${one.name} öffnen`);
+      grid.append(key);
+    });
+    out.push(grid);
+
+    // **Was gesammelt werden muss, steht schon auf der Karte** — ohne das
+    // wüsste der Archivar beim Aufschlagen nicht, wonach er suchen lässt.
+    // Wohin damit, steht hier bewusst *nicht*: Das kommt erst, wenn das Teil
+    // in der Hand ist, und dann drüben im Reiter „Aufträge".
+    const orders = archiveGoals(spec, state);
+    out.push(head('Gesucht', `${orders.filter((one) => one.step === 2).length} von 3 erledigt`));
+    const wanted = el('div', 'haunt__sheet');
+    for (const order of orders)
+      wanted.append(
         fact(
-          doors.length === 1 ? 'Tür' : 'Türen',
-          `${doors.length}${doors.some((door) => door.material === 'metal') ? ', eine davon aus Stahl' : ''}${
-            closed === 0 ? ' · alle freigegeben' : ` · ${closed} gesperrt`
-          }`,
+          order.step === 2 ? `✓ ${order.item}` : order.item,
+          order.dropped
+            ? `Liegt in ${order.dropped.roomName}`
+            : order.carried
+              ? 'Beim Techniker'
+              : `${order.crate.roomName} · ${order.crate.clue}`,
+          order.step !== 2,
         ),
       );
-      for (const repair of repairsFor(spec).filter((r) => r.roomId === room.id))
-        sheet.append(fact('Wartungskasten', repair.title, true));
-      out.push(sheet);
-      const tasks = spec.tasks.filter((task) => task.roomId === room.id);
-      for (const task of tasks) {
-        const repair = repairsFor(spec).find((one) => one.itemId === task.id);
-        // **Der Hinweis nennt die Kiste und nicht das Möbel.** Solange in
-        // jedem Raum eine Kiste stand, reichte „bei dem Frachtcontainer";
-        // jetzt stehen zwei bis drei nebeneinander, und der Archivar hat als
-        // Einziger, was sie unterscheidet: Nummer, Farbband und Wand.
-        sheet.append(
-          fact('Fracht / Fundhinweis', `${task.label} · ${taskCargo(spec, task.id).clue}`, true),
-        );
-        if (repair) sheet.append(fact('Benötigt für', repair.title));
-      }
-      // **Alle Kisten des Raums, die richtige markiert.** Der Techniker sieht
-      // nur ihre Kennzeichen; welche davon zählt, steht allein hier — und was
-      // in den anderen liegt, steht auch hier nicht: Ein Archivar, der „in der
-      // roten ist nur ein Medkit" vorliest, nimmt dem Suchen sein Risiko.
-      const crates = cargoOf(spec).filter((slot) => slot.roomId === room.id);
-      const wanted = new Set(
-        spec.tasks
-          .filter((task) => task.roomId === room.id)
-          .map((task) => taskCargo(spec, task.id).id),
+    out.push(wanted);
+    out.push(
+      el(
+        'p',
+        'haunt__chart-help',
+        'Archivscan · nur das aufgeschlagene Zimmer · keine Personen oder Live-Positionen. Raum antippen öffnet die Akte.',
+      ),
+    );
+    return out;
+  }
+
+  /**
+   * **Die Raumakte, ganzseitig — und die Karte ist weg.**
+   *
+   * Der Besitzer wollte es genau so: „wenn ich einen Raum anklicke, dass die
+   * Karte aus dem Hintergrund weg ist und dafür nur die Info über den Raum
+   * angezeigt wird". Das ist keine Geschmacksfrage: Solange das Bild darunter
+   * lag, war die Akte ein Überbau über einem Vollbild — und ein Überbau
+   * rollt nicht (`.haunt.is-view .haunt__body`). Ohne Bild ist sie wieder
+   * eine ganz gewöhnliche Seite mit einem ganz gewöhnlichen Rollbalken.
+   */
+  private archiveSheet(): HTMLElement[] {
+    const spec = this.host.spec();
+    const state = this.host.state();
+    const room = roomOf(spec, this.archiveRoom);
+    if (!room) {
+      this.archiveRoom = '';
+      return this.archivePage();
+    }
+    const out: HTMLElement[] = [];
+    const tools = el('div', 'haunt__chart-tools');
+    const back = el('button', 'haunt__chart-key', '← Karte');
+    back.dataset['archiveBack'] = '';
+    back.setAttribute('aria-label', 'Zurück zur Karte');
+    tools.append(back);
+    const show = el('button', 'haunt__chart-key', 'Auf der Karte zeigen');
+    show.dataset['archiveShow'] = room.id;
+    tools.append(show);
+    out.push(tools);
+    out.push(head(room.name, roomCode(room.id)));
+
+    const sheet = el('div', 'haunt__sheet');
+    sheet.append(
+      fact('Schutzschrank-Code', lockerCode(spec.seed, room.id), true),
+      fact('Darin steht', room.marks.map((m) => MARKS[m.id]).join(', ')),
+    );
+    const doors = spec.doors.filter((door) => door.a === room.id || door.b === room.id);
+    // **Wie viele davon zu sind**, steht dabei. Das ist keine Auskunft aus
+    // dem Nichts: Es steht auf seinem Blatt, seit die Türen dort gezeichnet
+    // werden. Als Zahl daneben spart es das Abzählen im Bild — und es ist
+    // genau der Satz, mit dem er den Hacker anruft.
+    const closed = doors.filter((door) => state.shut.includes(door.id)).length;
+    sheet.append(
+      fact(
+        doors.length === 1 ? 'Tür' : 'Türen',
+        `${doors.length}${doors.some((door) => door.material === 'metal') ? ', eine davon aus Stahl' : ''}${
+          closed === 0 ? ' · alle freigegeben' : ` · ${closed} gesperrt`
+        }`,
+      ),
+    );
+    // **Alle Kisten des Raums, die richtige markiert.** Der Techniker sieht
+    // nur ihre Kennzeichen; welche davon zählt, steht allein hier — und was
+    // in den anderen liegt, steht auch hier nicht: Ein Archivar, der „in der
+    // roten ist nur ein Medkit" vorliest, nimmt dem Suchen sein Risiko.
+    const orders = archiveGoals(spec, state);
+    const crates = cargoOf(spec).filter((slot) => slot.roomId === room.id);
+    const carrying = new Map(orders.map((order) => [order.crate.id, order]));
+    for (const slot of crates) {
+      const order = carrying.get(slot.id);
+      sheet.append(
+        fact(
+          order ? 'Fundort' : 'Kiste',
+          `${slot.clue}${order ? ` · hier liegt ${order.item}` : ''}`,
+          !!order,
+        ),
       );
-      for (const slot of crates)
-        sheet.append(
-          fact(
-            wanted.has(slot.id) ? 'Fundort' : 'Kiste',
-            `${slot.clue}${wanted.has(slot.id) ? ' · hier liegt das Ersatzteil' : ''}`,
-            wanted.has(slot.id),
-          ),
-        );
-      for (const repair of repairsFor(spec).filter((one) => one.roomId === room.id)) {
-        sheet.append(fact('Reparaturhinweis', repair.hint));
-        sheet.append(
-          fact(
-            repair.puzzle === 'wires'
-              ? 'Kabelplan'
-              : repair.puzzle === 'sequence'
-                ? 'Freigabefolge'
-                : 'Zielfrequenzen',
-            repair.puzzle === 'wires'
-              ? 'Verbinde jeweils zwei gleiche Symbole; die Anordnung kann abweichen.'
-              : repair.code,
-            true,
-          ),
-        );
-      }
-      out.push(
-        el(
-          'p',
-          'haunt__chart-help',
-          'Archivscan · nur dieser Raum · keine Personen oder Live-Positionen. Namen, Fundhinweise und Codes dem Techniker zurufen.',
+      if (order) sheet.append(fact('Benötigt für', order.title));
+    }
+    // **Was in diesem Raum zu tun ist, steht erst, wenn es zu tun ist.** Die
+    // Konsole gehört zur zweiten Hälfte eines Auftrags; solange das Teil noch
+    // in seiner Kiste liegt, ist sie ein Kasten an der Wand
+    // (`rules/archiveGoals.ts`).
+    for (const order of orders) {
+      if (order.console?.roomId !== room.id) continue;
+      sheet.append(fact('Wartungskasten', order.title, true));
+      sheet.append(fact('Reparaturhinweis', order.console.hint));
+      sheet.append(
+        fact(
+          order.console.puzzle === 'wires'
+            ? 'Kabelplan'
+            : order.console.puzzle === 'sequence'
+              ? 'Freigabefolge'
+              : 'Zielfrequenzen',
+          order.console.puzzle === 'wires'
+            ? 'Verbinde jeweils zwei gleiche Symbole; die Anordnung kann abweichen.'
+            : order.console.code,
+          true,
         ),
       );
     }
+    for (const order of orders)
+      if (order.dropped?.roomId === room.id)
+        sheet.append(
+          fact('Liegt hier', `${order.item} · seit ${Math.round(order.dropped.seconds)} s`, true),
+        );
+    out.push(sheet);
+    out.push(
+      el(
+        'p',
+        'haunt__chart-help',
+        'Namen, Fundhinweise und Codes dem Techniker zurufen. Ziel und Code stehen erst, wenn er das Teil in der Hand hat.',
+      ),
+    );
     return out;
   }
 
@@ -1804,7 +1962,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-dossier-room],[data-game-menu],[data-intent],[data-view],[data-restart],[data-start-setup]',
+      '[data-sit],[data-room],[data-fly],[data-flip],[data-van],[data-lamp],[data-home],[data-panel],[data-technician],[data-archive-tab],[data-control-tab],[data-archive-zoom],[data-archive-back],[data-archive-show],[data-dossier-room],[data-game-menu],[data-intent],[data-view],[data-restart],[data-start-setup]',
     );
     if (!hit) return;
 
@@ -1839,6 +1997,18 @@ export class StationUi {
     } else if (hit.dataset['archiveTab']) {
       const tab = hit.dataset['archiveTab'];
       if (tab === 'orders' || tab === 'rooms') this.archiveTab = tab;
+      // Ein Reiterwechsel schließt die Akte: Wer „Aufträge" antippt, will die
+      // Aufträge und nicht dieselbe Raumakte unter einer anderen Überschrift.
+      this.archiveRoom = '';
+    } else if (hit.dataset['archiveBack'] !== undefined) {
+      this.archiveRoom = '';
+    } else if (hit.dataset['archiveShow']) {
+      // **Auf der Karte zeigen** heißt: Akte zu, dieses Zimmer ins Bild. Der
+      // Ausschnitt fängt dabei ganz an — ein geerbter Zoom gehörte zu einem
+      // anderen Grundriss.
+      this.selected = hit.dataset['archiveShow'];
+      this.archiveRoom = '';
+      this.host.archiveHome();
     } else if (hit.dataset['controlTab']) {
       this.controlTab = hit.dataset['controlTab'] === 'switches' ? 'switches' : 'radar';
     } else if (hit.dataset['dossierRoom']) {
@@ -1846,6 +2016,9 @@ export class StationUi {
       if (room) {
         this.selected = room.id;
         this.archiveTab = 'rooms';
+        // Vom Auftrag in die Akte und nicht auf die Karte: Wer „Fundraum
+        // öffnen" drückt, will lesen, was dort steht.
+        this.archiveRoom = room.id;
         this.host.archiveHome();
       }
     } else if (hit.dataset['technician'] !== undefined) {
@@ -1867,6 +2040,9 @@ export class StationUi {
       this.host.archiveHome();
     } else if (hit.dataset['room']) {
       this.selected = hit.dataset['room'];
+      // **Ein Tipp auf den Raum schlägt seine Akte auf** — ganzseitig, ohne
+      // Karte dahinter. Genau das hat der Besitzer verlangt.
+      this.archiveRoom = hit.dataset['room'];
       // Der Ausschnitt steht wieder auf dem ganzen Zimmer statt im Zoom des
       // vorigen Blattes — ein geerbter Ausschnitt gehörte zu einem anderen
       // Grundriss. **Die Akte bleibt dabei offen**: Der Archivar blättert,

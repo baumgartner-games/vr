@@ -25,7 +25,7 @@ const FLIGHT_KEYS = new Set([
   'ShiftLeft',
   'ShiftRight',
 ]);
-const ACTION_KEYS = new Set(['KeyE', 'Digit1', 'Digit2', 'Numpad1', 'Numpad2']);
+const ACTION_KEYS = new Set(['KeyE', 'KeyG', 'Digit1', 'Digit2', 'Numpad1', 'Numpad2']);
 
 /** Metres per second. Pitch matters in free flight; diagonal input adds no speed. */
 export function desktopFlightVelocity(
@@ -72,6 +72,14 @@ export interface HauntingDesktopControlHost {
   cycleHand(hand: Handedness): void;
   /** Handles an equipped item or leaving cover before the aimed interaction. */
   interact?(): boolean;
+  /**
+   * **G legt das Ersatzteil in der Hand ab** (`ShipExperience.dropPart`).
+   *
+   * Eine eigene Taste und kein Umweg über den Handwechsel: Ablegen ist eine
+   * Entscheidung, die man mitten im Gang trifft, und ein Ding, das man nur
+   * loswird, indem man es durch drei Menüpunkte schaltet, legt niemand ab.
+   */
+  drop?(): void;
 }
 
 /**
@@ -143,6 +151,7 @@ export class HauntingDesktopControls {
     if (event.code === 'KeyE' && !this.host.interact?.()) {
       this.host.pointer.setKeyboardTrigger(true);
     }
+    if (event.code === 'KeyG') this.host.drop?.();
     if (event.code === 'Digit1' || event.code === 'Numpad1') this.host.cycleHand('left');
     if (event.code === 'Digit2' || event.code === 'Numpad2') this.host.cycleHand('right');
   };

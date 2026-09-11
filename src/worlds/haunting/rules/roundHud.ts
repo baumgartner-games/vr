@@ -88,8 +88,16 @@ export interface HudTask {
 }
 
 export interface HudTaskInput {
-  /** Die Reparaturen der Runde (`mission.ts`, `repairsFor`). */
-  repairs: readonly { itemId: string; title: string; roomId: string }[];
+  /**
+   * Die Reparaturen der Runde (`mission.ts`, `repairsFor`).
+   *
+   * `id` steht dabei, weil `HauntState.done` seit jeher **zwei** Schreibweisen
+   * kennt: Das Schiff schreibt die Kennung der Reparatur hinein (`engine`),
+   * die 2D-Runde die des Ersatzteils — `repairRoom` in `mission.ts` liest
+   * deshalb beide. Ohne die zweite blieb im Schiff jeder erledigte Auftrag im
+   * HUD auf „1/2" stehen.
+   */
+  repairs: readonly { id?: string; itemId: string; title: string; roomId: string }[];
   /** Wie ein Raum heißt — die 2D-Welt nimmt den Namen aus dem Schnappschuss, das Schiff aus dem Bauplan. */
   roomName: (roomId: string) => string;
   /** Was fertig ist (`HauntState.done`). */
@@ -112,13 +120,31 @@ export interface HudTaskInput {
  */
 export function hudTasks(input: HudTaskInput): HudTask[] {
   return input.repairs.map((repair) => {
-    const done = input.done.includes(repair.itemId);
+    const done =
+      input.done.includes(repair.itemId) || (!!repair.id && input.done.includes(repair.id));
     const carried =
       done || input.inventory.includes(repair.itemId) || input.taken.includes(repair.itemId);
     const step: TaskStep = done ? 2 : carried ? 1 : 0;
     const room = input.roomName(repair.roomId);
     return { text: `${room}: ${repair.title} (${step}/2)`, room, title: repair.title, step };
   });
+}
+
+/**
+ * **Ob der Techniker seine Aufträge überhaupt im Blickfeld sieht.**
+ *
+ * Nur, wenn er **allein** spielt. Sitzt am Archiv ein Mensch, hat der das
+ * Wissen — Kiste, Fundhinweis, später die Konsole —, und der Techniker
+ * bekommt es, indem er fragt. Eine zweite Zeile in seiner Brille, die
+ * dasselbe stumm mitschreibt, macht aus dem Gespräch eine Höflichkeit.
+ *
+ * Am Bot ändert sich nichts: Der sagt es ihm ohnehin an, und was ein Bot
+ * ansagt, darf auch dastehen (`powersOf(setup).archive`). Uhr und Anzug
+ * bleiben in jedem Fall stehen — das ist sein Anzug und nicht das Wissen
+ * eines anderen.
+ */
+export function hudTasksVisible(powers: { archive: boolean }): boolean {
+  return powers.archive;
 }
 
 /** Die Aufträge als Kreise: voll, halb, leer — so viel, wie man im Vorbeigehen liest. */
