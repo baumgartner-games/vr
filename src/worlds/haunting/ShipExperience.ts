@@ -59,6 +59,7 @@ import { buildBrokenLocker, buildCargoCabinet, buildSafetyLocker } from './fixtu
 import { CabinWreck } from './rules/cabinWreck';
 import { cargoKey, cargoLabel, cargoOf, type CargoMark } from './rules/cargo';
 import { CARGO_OPEN_SECONDS, choreProgress, stepChore, type Chore } from './rules/chore';
+import { archiveRadio } from './rules/archiveRadio';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -263,6 +264,12 @@ export class ShipExperience {
    * wer die Ansicht wechselt, fängt ihn ohnehin neu an.
    */
   private chore: Chore | null = null;
+  /**
+   * **Was der Archivar zuletzt gefunkt hat** (`rules/archiveRadio.ts`) — der
+   * Schlüssel seiner Lage, nicht der Satz. Ein Funkgerät, das alle zwei
+   * Sekunden dasselbe sagt, schalten Menschen ab.
+   */
+  private radioed = '';
   private readonly heldMedkit = new THREE.Group();
   /** Das Ersatzteil in der Hand — sichtbar, solange der Techniker eines trägt. */
   private readonly heldPart = new THREE.Group();
@@ -821,6 +828,39 @@ export class ShipExperience {
   /** Der Handgriff, an dem gerade gearbeitet wird — für den Streifen und Tests. */
   get busy(): Readonly<Chore> | null {
     return this.chore;
+  }
+
+  /**
+   * **Der Archivar funkt auch, wenn er ein Bot ist** (`rules/archiveRadio.ts`).
+   *
+   * Der Besitzer hat es in einem Satz gesagt: „Ich will in VR, wenn ich mit
+   * Bots spiele, auch die Hilfe-Kommunikation vom Archivar." Bis hierher
+   * bekam er dessen Auskunft **still** — die Zielkiste leuchtete, ein Tipp auf
+   * die Karte schlug die Akte auf. In der Brille schaut aber niemand auf eine
+   * Karte, während hinter ihm eine Tür knarrt.
+   *
+   * Gefunkt wird nur, wo der Archivar wirklich ein Bot ist
+   * (`powersOf(...).archive`): Sitzt dort ein Mensch, ist das Sagen sein Platz,
+   * und eine Stimme daneben nähme ihm seinen einzigen Beitrag weg. Und nur für
+   * den, der die Runde spielt — in der Bot-Runde redet der Modelltechniker
+   * selbst (`missionBot.ts`).
+   */
+  private stepArchiveRadio(): void {
+    const state = this.host.state();
+    const helping =
+      this.active &&
+      !!this.player &&
+      !this.crew.simulation &&
+      state.phase === 'running' &&
+      powersOf(loadSetup()).archive;
+    if (!helping) {
+      this.radioed = '';
+      return;
+    }
+    const call = archiveRadio(this.host.spec(), state);
+    if (!call || call.key === this.radioed) return;
+    this.radioed = call.key;
+    this.host.say(call.text);
   }
 
   private takeLoot(id: string): void {
@@ -1659,6 +1699,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     ctx.rig.getHeadPosition(_head);
     this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
     this.stepChore(dt, _head);
+    this.stepArchiveRadio();
     this.updateTools(dt);
     const lab = crew.options.test ? trainingRoomAt(_head.x, _head.z) : null;
     this.bay.visible = crew.options.test;
@@ -2036,7 +2077,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const { width: w, height: h } = this.hud.canvas;
     // Ohne Auftragszeile ist der Streifen **eine** Zeile hoch und nicht eine
     // halbleere Tafel: Die Uhr rückt in die Mitte, die Trennlinie fällt weg.
-    const top = orders ? h * 0.5 : h;
+    // Läuft ein Handgriff, braucht die zweite Zeile ihren Platz trotzdem — der
+    // Balken steht dort, und die Uhr bleibt darüber stehen: Wer eine Kiste
+    // aufklappt, verliert seinen Sauerstoffstand nicht aus den Augen.
+    const top = orders || chore ? h * 0.5 : h;
     const pad = h * 0.16;
     c.clearRect(0, 0, w, h);
     c.fillStyle = 'rgba(8, 24, 35, 0.78)';
@@ -2089,18 +2133,17 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const c = this.hud.ctx;
     const { width: w } = this.hud.canvas;
     const pad = h * 0.16;
-    c.fillStyle = 'rgba(8, 24, 35, 0.94)';
-    c.fillRect(0, 0, w, h);
-    c.strokeStyle = '#8ff0b0';
-    c.lineWidth = 4;
-    c.strokeRect(2, 2, w - 4, h - 4);
-    c.textAlign = 'center';
+    // Nur die untere Zeile gehört dem Balken — die Uhr darüber bleibt stehen.
+    c.fillStyle = 'rgba(8, 24, 35, 0.96)';
+    c.fillRect(2, top, w - 4, h - top - 2);
+    c.textAlign = 'left';
     c.textBaseline = 'middle';
     c.fillStyle = '#c8ffd9';
-    c.font = `${Math.round(top * 0.46)}px system-ui`;
-    c.fillText(`${chore.label} · stillstehen`, w / 2, h * 0.32, w - pad * 2);
-    const barY = h * 0.62;
-    const barH = Math.max(6, h * 0.16);
+    c.font = `${Math.round((h - top) * 0.42)}px system-ui`;
+    const text = `${chore.label} · stillstehen`;
+    c.fillText(text, pad, top + (h - top) * 0.34, w * 0.55);
+    const barY = top + (h - top) * 0.62;
+    const barH = Math.max(5, (h - top) * 0.24);
     c.fillStyle = 'rgba(140, 170, 230, 0.24)';
     c.fillRect(pad, barY, w - pad * 2, barH);
     c.fillStyle = '#8ff0b0';
@@ -2829,6 +2872,17 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.startBotRound();
       return;
     }
+    this.leaveBotRound();
+  }
+
+  /**
+   * **Die Vorführung im Schiff beenden** — ohne sie gleich wieder als die
+   * andere anzufangen. Die Welt braucht das, wenn der Zuschauer von innen nach
+   * oben wechselt (`HauntingWorld.swapDemo`): Erst muss der Modelltechniker
+   * weg, sonst läuft er unter der Karte weiter.
+   */
+  leaveBotRound(): void {
+    if (!this.crew.simulation) return;
     this.crew.hidden = '';
     this.crew.simulation = false;
     this.missionBot = null;

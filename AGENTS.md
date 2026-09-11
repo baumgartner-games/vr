@@ -7863,7 +7863,23 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   liegen drei Aufgabenteile — je eines im Raum aus `spec.tasks`, `taskCargo` —,
   vier Werkzeuge (radar, xray, medkit, medkit) und sonst nichts: **die leere
   Kiste ist der Preis fürs Suchen.** Sie kostet zwei Griffe, öffnen (Geräusch)
-  und hineinsehen („Leer."), und gilt danach als erledigt. Gewürfelt wird aus
+  und hineinsehen („Leer."), und gilt danach als erledigt.
+  **Und Aufmachen kostet Zeit** (`rules/chore.ts`, `CARGO_OPEN_SECONDS` = 5 s):
+  ein Ladebalken, während dessen man stillsteht. Umschauen ist erlaubt — gemessen
+  wird die Stelle (`CHORE_LEASH` = 0,25 m), nicht der Blick —, Weggehen bricht
+  ab, und derselbe Knopf bricht auch ab (ein Balken, den man nur durch Weglaufen
+  loswird, wäre eine Falle). Vorher war Aufmachen ein Knopfdruck und damit kein
+  Risiko: Man nahm eine Kiste im Vorbeigehen mit, während das Monster zwei Zimmer
+  weiter schon unterwegs war. Dieselbe Rechnung in beiden Welten — die 2D-Runde
+  zeichnet den Balken über den Knöpfen, das Schiff malt ihn in den Streifen an
+  der Kamera (also auch in der Brille) —, und **beide Bots zahlen sie**
+  (`rules/technicianBot.ts`, `missionBot.ts`): Einer, der Kisten im Vorbeigehen
+  aufklappt, spielt eine andere Runde als der, dem man dabei zusieht.
+  **Vor einer Tür steht keine Kiste** (`stationLayout.CARGO_DOOR_DEPTH` = 2,4 m
+  statt der üblichen 1,15 m, auch für die Deko-Kiste): Der übliche Türfreiraum
+  hält die *Möbel* aus der Öffnung, nicht den *Menschen*, der davorsteht und
+  wühlt — in „Lower Engine" konnte man die grüne Kiste nur öffnen, indem man die
+  Tür blockierte. Gewürfelt wird aus
   **eigenen Strömen** aus `spec.seed`, nie aus dem des Hauses: Die
   Wurfreihenfolge von `generateHouse` ist Vertrag. Der Archivar liest deshalb
   nicht mehr das Möbel vor („bei dem Frachtcontainer"), sondern die Kiste —
@@ -8339,6 +8355,21 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   dazwischen gewinnt damit von selbst; ist ringsum alles zu, geht er trotzdem.
   Unendliche Kosten wären dieselbe Ecke, in der er sonst stehen bleibt und
   stirbt — dieselbe Regel wie bei der Scheu vor dem Monster (`RouteAvoid`).
+- **Die Scheu hat einen harten Kern** (`RouteAvoid.core`, `CORE_WEIGHT` = 1000
+  je Rasterschritt, Radius `DREAD_CORE` = Schlagreichweite 1,7 m + eine Kachel
+  2,5 m). Der weiche Trichter allein kostete vier je Schritt — einen Meter
+  Umweg, und den zahlt ein Fliehender jederzeit: Der Techniker lief dem
+  Monster regelmäßig durch die Arme. Tausend sind 250 m Umweg, mehr als die
+  Station breit ist; hindurch geht er nur noch, wenn es gar keinen Weg daneben
+  gibt (endlich teuer, nicht gesperrt — eine Wand, die sich bewegt, sperrt
+  irgendwann jemanden ein). Zwei Löcher gehören dazu, ohne die der Kern nichts
+  täte: Der **Schnurzug** zog den Bogen hinterher wieder gerade (er fragt nur,
+  ob die Kapsel durchpasst — durch den Gang mit dem Monster passt sie), also
+  ist der Kern für die Glättung eine Wand (`coreCrossed`); und eine **einmal
+  geplante Route** blieb stehen, während das Monster weiterlief, also prüft der
+  Navigator bei jeder Verfolgung nach, ob die laufende Route inzwischen
+  hindurchführt (`navmesh/flatNavigator.crossesCore`, dazu engere Toleranzen
+  `CORE_TOLERANCE`/`CORE_HOLD`).
 - **Zeitraffer** (`simulationSpeed.ts`): ×1/×2/×4/×8 über die **Anzahl** der
   Bilder (`HauntingWorld.update` → `tick`), nie über die Länge eines Schritts;
   nur der letzte Durchgang sendet und frischt die Anzeigen auf. Lange echte
@@ -8415,10 +8446,16 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Verlassen so wiederhergestellt, wie er war; `--flat-top` rückt dafür in
   `.flat--world` um dessen Höhe nach oben (über der 3D-Szene, `.flat.ship3d`,
   bleibt es beim alten Maß). **Oben steht eine Spalte, keine Sammlung von
-  Abständen** (`.flat__top`): erste Zeile der Kasten und rechts daneben das
-  Zahnrad, zweite Zeile die Sprungknöpfe. Vorher hing jedes davon an
-  `--flat-top` plus einer geratenen Zahl und lag reihum vor dem nächsten —
-  „Zum Spieler" gab es, zu sehen war der Reiter davor. **Der eigene
+  Abständen** (`.flat__top`): erste Zeile die **Rollenknöpfe in einem Panel**
+  (`views/roleStrip.ts` — Station, Archiv, Schalttafel, Späher, Monster,
+  Zuschauer) und am Ende der Zeile das Zahnrad, zweite Zeile — links
+  beginnend — der Kasten mit Auftrag und Uhr, dritte Zeile die Sprungknöpfe.
+  Vorher hing jedes davon an `--flat-top` plus einer geratenen Zahl und lag
+  reihum vor dem nächsten — „Zum Spieler" gab es, zu sehen war der
+  Rollenstreifen davor. **„Zuschauer" ist dabei kein Reiter, sondern ein
+  Schalter** in derselben Zeile: Er gibt den Stock dem Techniker aus Zahlen
+  und macht die Karte allwissend, denn ein Zuschauer mit der Sicht des Anzugs
+  sähe ein schwarzes Bild. **Der eigene
   🗺-Knopf ist weg**; die Karte (das alte `MapView` als Overlay) steht als
   Eintrag im Zahnrad, zusammen mit „Menü" und „Verbindung", die die Knöpfe der
   abgeschalteten Kopfzeile drücken (`pressPageButton`) — „Menü" holt die
@@ -8431,8 +8468,9 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Balken mitten auf der Karte — über dem Spieler.
 - **Ein Overlay auf einmal** (`FlatOverlay`, `FlatMode.applyOverlay`): Karte,
   Rätsel, Raumakte und Optionsmenü wollen dieselbe Fläche. Solange eines
-  offen ist, sind HUD, Reiter, Zahnrad, Sprungknöpfe, Stock, Knöpfe **und die
-  Szene** weg — die Runde läuft weiter, sie ist nur nicht zu sehen. Das steht
+  offen ist, ist der **ganze Kopf** weg — Rollenknöpfe, Zahnrad, Kasten,
+  Sprungknöpfe — und dazu Stock, Knöpfe **und die
+  Szene** — die Runde läuft weiter, sie ist nur nicht zu sehen. Das steht
   an *einer* Stelle, weil vier Stellen, die je ein `hidden` umlegen, sich
   genau dann widersprechen, wenn zwei gleichzeitig zutreffen: Vorher stand die
   Aufgabenliste über dem Kabelrätsel und der Stock lief darunter weiter. Das
@@ -8531,6 +8569,15 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Fähigkeit, an der ein **Bot** rechnet; „Aus" heißt: niemand hat sie, auch er
   nicht. Alte `seats`-Einträge im Speicher werden beim Lesen übersetzt
   (`readSetup`: Mensch schlägt Bot, was nicht vorkam, ist aus).
+  **„Monster: Mensch" ist eine Verabredung und noch kein Mensch.** Auf der Tafel
+  steht, wem der Platz *gehört*; ob dort wirklich jemand sitzt, entscheidet
+  allein die Sitzordnung (`stations.ownerOf`), und solange niemand sitzt,
+  rechnet beim Gastgeber die Routine weiter
+  (`monster/netMonsterControl.ts`, `occupied`). Das ist richtig so — eine Runde,
+  die auf ein Telefon wartet, das niemand in die Hand nimmt, wäre keine Runde.
+  Falsch war nur, dass es niemand erfuhr: Man stellte „Mensch" ein, sah ein
+  Monster aus Zahlen und hielt den Knopf für kaputt. Seit `startRound` sagt es
+  ein Satz beim Start, dort, wo die Verabredung getroffen wird.
   **Die Spalte „Ich" verbindet Platz und Gerät**: Ein Tipp darauf macht die
   Zeile zum Menschen *und* setzt dieses Telefon an das Gerät, das dazugehört
   (Archiv → Archiv, Schalttafel → Schalttafel, Späher → Späher, Monster →
@@ -8571,7 +8618,21 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   nur mit dem Platz —, Konsole mit Code oder Kabelplan, Schacht mit Ziel; die
   Zuordnung läuft über die Id und nicht mehr über das Label, denn auf einer
   Kiste steht ihr Kennzeichen). Ein Mensch am Platz nimmt sie ihm wieder ab —
-  und mit ihr die Kistengenauigkeit des Ziels (`goalPrecision`). „Zielpfade" im
+  und mit ihr die Kistengenauigkeit des Ziels (`goalPrecision`).
+  **Und der Archivar aus Zahlen funkt jetzt auch** (`rules/archiveRadio.ts`):
+  Bis hierher bekam der Techniker dessen Auskunft *still* — die Zielkiste
+  leuchtete, ein Tipp aufs Zimmer schlug die Akte auf. In der Brille schaut aber
+  niemand auf eine Karte, während hinter ihm eine Tür knarrt; der Besitzer wollte
+  „die Hilfe-Kommunikation vom Archivar" ausdrücklich auch dort. Gesprochen
+  werden die zwei Sätze, die ein Mensch am Archiv ohnehin sagen würde: **wo es
+  liegt**, und sobald das Teil in der Hand ist, **wohin damit und welche Liste
+  dafür aufzuschlagen ist** (`SHEET_NAMES`: Kabelplan, Frequenzliste, Codetafel).
+  Gelesen wird dabei dasselbe Blatt wie auf dem Telefon des Archivars
+  (`archiveGoals`) — also gilt dieselbe Verschwiegenheit: die Konsole erst mit
+  dem Teil in der Hand, ein abgelegtes Teil erst nach `DROPPED_SEEN`. Gefunkt
+  wird nur bei Lagewechsel (`ArchiveCall.key`) und nur dort, wo am Archiv
+  wirklich ein Bot rechnet: Sitzt ein Mensch, ist das Sagen sein Platz, und eine
+  Stimme daneben nähme ihm seinen einzigen Beitrag weg. „Zielpfade" im
   Optionsmenü legt den Weg des Technikers zum nächsten Ziel
   (`FlatRound.playerRoute`, ein eigener `FlatNavigator` mit `PLAYER_RADIUS`)
   und den des Monsters (`monsterRoute`, `navigator.remaining`; nur mit Späher
@@ -8913,7 +8974,14 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Technikers, der Zuschauer beide. Ein Stand ohne `ghosts` wird als „noch
   niemand hat jemanden gesehen" gelesen, nicht als Fehler; die Deckkraft
   rechnet für alle Darstellungen dieselbe Formel (`ghostAlpha`, voll bis
-  `GHOST_TTL` − `GHOST_FADE`, dann linear aus, ab `GHOST_TTL` = 25 s weg).
+  `GHOST_TTL` − `GHOST_FADE`, dann linear aus, ab `GHOST_TTL` = **10 s** weg —
+  es waren einmal 25, und das war ungefähr die Zeit, in der jemand die halbe
+  Station durchquert: Der Punkt zeigte einen Gegner an einer Stelle, an der
+  schon zwei Zimmer lang keiner mehr war, und man gewöhnte sich an, ihm zu
+  glauben). **Gezeichnet wird er über der Dunkelheit**, nicht darunter: Eine
+  Erinnerung steht im Kopf dessen, der hinsieht, und der weiß auch im Finstern
+  noch, wo der andere zuletzt stand — vorher lag sie unter dem Dunkelfeld und
+  war genau dann unsichtbar, wenn sie gebraucht wurde.
   **Die Blutspur reist als optionales Feld mit** (`blood`, `rules/blood.ts`) —
   **ohne** Versionssprung, und das ist eine Entscheidung und kein Versehen: Die
   Version steigt für ein Feld, von dem die Gegenseite *abhängt*. Bei `ghosts`
@@ -8998,11 +9066,25 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     das NPC-Monster wird bei `state.monster` aufgestellt — **erst spawnen,
     dann `loadBooks`**, sonst schriebe man in ein Gedächtnis, das es noch
     nicht gibt.
-  - **Nur der Techniker**, und nur zwischen seinen zwei Ansichten. Zuschauer
-    und Telefone lesen den Stand ohnehin nur und merken vom Wechsel nichts;
-    `openFlat` reicht `switchView` nur an eine **geteilte** Runde weiter.
-    **In der Brille gibt es keine Karte von oben** (wie `opensFlat`) — der
-    Eintrag sagt das als Satz, statt wortlos nichts zu tun.
+  - **Was ein Tipp bedeutet, rechnet `rules/lobby.viewSwap`** — eine Zeile
+    statt einer Kette von `if`, und ohne Welt nachrechenbar (`same`, `xr`,
+    `demo`, `handover`, `blocked`). In der Kette steckten zwei Fehler, die man
+    ihr nicht ansah: Der Knopf wurde dem **Zuschauer angeboten** (im
+    Objektliteral von `openFlat` stand `switchView` zweimal — einmal so bedingt
+    wie der Kommentar darüber versprach, einmal darunter ohne Bedingung, und das
+    zweite gewann) und dann mit `NOT_TECHNICIAN` abgewiesen; und solange die
+    **Bot-Runde in 2D** lief, hielt `now = flatShared ? '2d' : '3d'` die Welt
+    für „schon in 3D", und der Wechsel tat gar nichts.
+  - **Der Techniker übergibt, der Zuschauer wechselt die Seite.** Wer einer
+    **Vorführung** zusieht (Bot-Runde, hier wie dort), darf ebenfalls wechseln —
+    sie gehört niemandem. Nur reist sie nicht: In 2D rechnet sie ein
+    `TechnicianBot` auf einer `FlatRound`, im Schiff ein `MissionBot` auf dem
+    NPC, also **fängt sie auf der anderen Seite von vorn an**
+    (`swapDemo`, `ShipExperience.leaveBotRound`/`startBotRound`), und der Satz
+    dazu sagt es. Wer dagegen einer **echten** Runde im Netz zusieht oder das
+    Monster am Stock spielt, wechselt nicht: Er sähe sonst der Runde eines
+    anderen von innen zu. **In der Brille gibt es keine Karte von oben** (wie
+    `opensFlat`) — der Eintrag sagt das als Satz, statt wortlos nichts zu tun.
   - Die Knöpfe: im Optionsmenü der 2D-Welt „Ansicht: 2D ↔ 3D"
     (`flatMode.renderOptions`, `data-switch-view`) und im Panel des Technikers
     im Schiff der eine Knopf „2D von oben" (`ShipExperience.paintDom`,

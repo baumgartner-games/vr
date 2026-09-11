@@ -54,6 +54,48 @@ export const INTENTS: readonly Intent[] = ['play', 'watch', 'train'];
 export const LOBBY_STORAGE = 'bgvr.haunting.lobby.v1';
 
 /**
+ * **Was ein Tipp auf „2D ↔ 3D" mitten in der Runde bedeutet** — die Rechnung
+ * dazu, ohne Welt und ohne Bild, damit ein Test sie nachrechnen kann.
+ *
+ * Sie stand als Kette von `if` in `HauntingWorld.switchView`, und in der Kette
+ * steckten zwei Fehler, die man ihr nicht ansah: Der Knopf wurde dem
+ * Zuschauer **angeboten** und dann mit „du bist nicht der Techniker"
+ * abgewiesen, und solange die Bot-Runde in 2D lief, hielt die Welt sich für
+ * „schon in 3D" und tat gar nichts. Beides ist hier eine Zeile.
+ */
+export interface ViewSwapState {
+  /** Was gerade zu sehen ist. */
+  now: View;
+  /** Wohin es gehen soll. */
+  want: View;
+  /** Ob hier einer **Vorführung** zugesehen wird — der Bot-Runde, eigener Rechnung. */
+  demo: boolean;
+  /** Ob dieses Gerät die Runde wirklich als Techniker spielt. */
+  technician: boolean;
+  /** Ob die Brille aufgesetzt ist — dort gibt es keine Karte von oben. */
+  presenting: boolean;
+}
+
+/**
+ * - `same` — nichts zu tun, die Ansicht steht schon.
+ * - `xr` — in der Brille gibt es die Karte von oben nicht.
+ * - `demo` — die Vorführung fängt auf der anderen Seite neu an.
+ * - `handover` — dieselbe Runde, andere Seite: Stand und Buchführung reisen mit.
+ * - `blocked` — wer weder Techniker noch Zuschauer einer Vorführung ist,
+ *   wechselt nicht: Er sähe sonst der Runde eines anderen von innen zu.
+ */
+export type ViewSwap = 'same' | 'xr' | 'demo' | 'handover' | 'blocked';
+
+export function viewSwap(state: ViewSwapState): ViewSwap {
+  if (state.want === state.now) return 'same';
+  if (state.want === '2d' && state.presenting) return 'xr';
+  // **Der Zuschauer darf vor dem Techniker.** Eine Vorführung gehört
+  // niemandem; sie von der anderen Seite anzusehen nimmt keinem etwas weg.
+  if (state.demo) return 'demo';
+  return state.technician ? 'handover' : 'blocked';
+}
+
+/**
  * Wo die alte Checkbox „2D-Welt von oben" ihren Stand aufhob. Sie wird beim
  * ersten Laden noch einmal gelesen — wer am Telefon spielte, soll nach dem
  * Update nicht plötzlich im Schiff stehen — und danach nie wieder

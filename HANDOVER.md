@@ -3,6 +3,76 @@
 Ein Abschnitt je Paket (`BOUNDARIES.md`). Beim Zusammenführen werden die
 Abschnitte untereinander gehängt.
 
+## Auftrag „Techniker-Wegsuche, Runden-Kopf, Kisten, Archiv-Funk"
+
+Branch `claude/techniker-bot-routing-ui-eq3tfd`. Eine Liste aus einer Session
+am Telefon: fünfzehn Punkte, von „der Bot läuft dem Monster durch die Arme" bis
+„die Rollenwahl ist unpraktisch". Abgearbeitet ist, was für sich steht; was an
+der Sitzordnung im Netz hängt, steht unter **Was offen bleibt** — mit dem
+Grund, warum es nicht nebenbei geht.
+
+### Was drin ist
+
+- **Die Scheu des fliehenden Technikers hat einen harten Kern**
+  (`stationNavigation.RouteAvoid.core`, `CORE_WEIGHT` = 1000;
+  `technicianBot.DREAD_CORE` = Schlagreichweite + eine Kachel). Der weiche
+  Trichter kostete vier je Rasterschritt — einen Meter Umweg, und den zahlt ein
+  Fliehender jederzeit. Dazu die zwei Löcher, ohne die der Kern nichts getan
+  hätte: Der **Schnurzug** zog den Bogen hinterher wieder gerade (`coreCrossed`
+  macht den Kern für die Glättung zur Wand), und eine einmal **geplante Route**
+  blieb stehen, während das Monster weiterlief
+  (`navmesh/flatNavigator.crossesCore`, `CORE_TOLERANCE`, `CORE_HOLD`).
+- **Der Kopf einer Runde ist eine Spalte aus drei Zeilen** (`.flat__top`):
+  Rollenknöpfe mit dem Zahnrad am Ende, darunter links Auftrag und Uhr,
+  darunter die Sprungknöpfe. Der Rollenstreifen (`views/roleStrip.ts`) hing
+  vorher an einem eigenen Abstand von oben und lag über „Zum Spieler"; er ist
+  jetzt die erste Zeile des Kopfs und verschwindet mit ihm, sobald ein Overlay
+  offen ist. Neu in der Zeile: **Zuschauer** (`RoleStripHost.extras`,
+  `FlatMode.setWatching`) — Bot am Stock, Karte allwissend.
+- **Die Erinnerung an die letzte Position** (`rules/ghosts.ts`) wird über der
+  Dunkelheit gezeichnet statt darunter und verfällt nach `GHOST_TTL` = 10 s
+  statt 25.
+- **Eine Kiste aufzuklappen kostet fünf Sekunden** (`rules/chore.ts`): Balken,
+  Stillstehen, Umschauen erlaubt, Weggehen bricht ab. In beiden Welten und für
+  beide Bots. **Und vor einer Tür steht keine Kiste mehr**
+  (`stationLayout.CARGO_DOOR_DEPTH`).
+- **Der Archivar aus Zahlen funkt** (`rules/archiveRadio.ts`) — wo das Teil
+  liegt, und mit dem Teil in der Hand, wohin damit und welche Liste dazugehört.
+  Nur, wo am Archiv wirklich ein Bot rechnet; nur bei Lagewechsel.
+- **Der Ansichtswechsel mitten in der Runde** (`rules/lobby.viewSwap`): Der
+  Knopf wurde dem Zuschauer angeboten und dann abgewiesen (`switchView` stand
+  zweimal im selben Objektliteral, das unbedingte gewann), und mit der
+  Bot-Runde in 2D hielt die Welt sich für „schon in 3D". Jetzt darf auch der
+  Zuschauer wechseln — die Vorführung fängt dabei auf der anderen Seite von
+  vorn an, weil sie kein Stand ist, der reist.
+- **„Monster: Mensch" sagt jetzt, wenn niemand am Steuer sitzt.** Die Routine
+  weiterzurechnen war richtig; dass es niemand erfuhr, war der Fehler.
+
+### Was offen bleibt
+
+- **Die Rollenwahl (Techniker / Rot / Gelb / Blau / Monster, je mit
+  Fähigkeiten und Mensch/Bot/Aus, dazu „Zuschauer: Techniker" und „Zuschauer:
+  Alles", ohne „Ich"-Spalte).** Das ist keine Panel-Änderung, sondern ein
+  anderer Sitz-Begriff: Die drei Fähigkeiten *sind* heute die drei Stationen
+  (`stations.StationId` = `archive | scout | hack | watch | monster`), und an
+  denen hängen Sitzordnung, Schubser und `STATION_PROTOCOL`. Farben als Plätze
+  heißen: `StationId` umbenennen, Fähigkeiten von der Station lösen, Protokoll
+  hochzählen, `stationUi` und `net` nachziehen. Dasselbe Paket erledigt zwei
+  weitere Punkte der Liste mit: **das Licht** („der Techniker schaltet nur mit
+  der Fähigkeit Schalter" — heute ist `powersOf` genau andersherum gemeint und
+  hängt an der Verteilung, nicht am Platz des Technikers) und **wer ich bin**
+  (das Monster blieb ein Bot, weil „Mensch" nur sagt, wem der Platz gehört).
+- **Zuschauer: Alles in 3D** — Karte von oben, Stick zum Fliegen, Pinch-Zoom,
+  und beim Zuschauer-Techniker dessen Live-Bild. Die freie Kamera der Bot-Runde
+  (`ShipExperience.stepSimulation`) ist der Anfang; es fehlen die Karten-Höhe,
+  die Gesten und die zweite Kameraquelle.
+- **Im Schrank versteckt** — nur der Lichtkreis um einen herum, in 3D in den
+  Schrank hineinteleportiert, Schrank als Geist mit Lüftungsschlitzen.
+- **Das Menü der 3D-Ansicht von oben soll das der 2D-Welt sein.** Das heißt:
+  `flatMode.renderOptions` als geteilte, datengetriebene Liste herausziehen und
+  `ShipExperience.paintDom` darauf umstellen — und dabei entscheiden, was von
+  „Mission, Ausrüstung & Testdeck" wirklich wegfällt.
+
 ## Auftrag „Einsatzzentrale nach dem Merge von #93"
 
 Branch `claude/3d-lighting-hud-0zbxk7`. Zwei Linien sind hier

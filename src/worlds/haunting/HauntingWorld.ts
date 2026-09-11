@@ -146,6 +146,7 @@ import {
   loadLobby,
   saveLobby,
   VIEW_LABELS,
+  viewSwap,
   type Intent,
   type LobbyChoice,
   type View,
@@ -3644,6 +3645,20 @@ export class HauntingWorld extends GridWorld {
       });
       return;
     }
+    // **„Monster: Mensch" ist eine Verabredung und noch kein Mensch.**
+    //
+    // Auf der Tafel steht, wem der Platz *gehört*; ob dort wirklich jemand
+    // sitzt, entscheidet allein die Sitzordnung (`stations.ownerOf`), und
+    // solange niemand sitzt, rechnet beim Gastgeber die Routine weiter
+    // (`monster/netMonsterControl.ts`). Das ist richtig so — eine Runde, die
+    // auf ein Telefon wartet, das niemand in die Hand nimmt, wäre keine Runde.
+    // Falsch war nur, dass es niemand erfuhr: Man stellte „Mensch" ein, sah
+    // ein Monster aus Zahlen und hielt den Knopf für kaputt. Also steht es
+    // jetzt da, und zwar beim Start, wo die Verabredung getroffen wird.
+    if (setup.monster === 'human' && !ownerOf(this.currentClaims(), 'monster'))
+      ctx.notify(
+        'Monster: Mensch — aber noch niemand am Steuer. Bis sich jemand auf den Platz setzt, rechnet die Routine.',
+      );
     // Im Schiff steuert nur der Techniker aus Fleisch; ein Monster aus Fleisch
     // gibt es dort (noch) nicht — es rechnet die Routine.
     const inShip = roundKindOf(setup);
@@ -3788,18 +3803,38 @@ export class HauntingWorld extends GridWorld {
   switchView(view: View): void {
     const ctx = this.context;
     if (!ctx || this.flatLoading) return;
-    const now: View = this.flatShared ? '2d' : '3d';
-    if (view === now) return;
-    // Wer in 2D das Monster spielt, ist **kein** Techniker: Im Schiff stünde er
-    // sonst plötzlich als einer da, und die Runde hätte zwei.
-    const technician =
-      now === '2d' ? this.flat?.role === 'technician' : ctx.role === 'vr' || this.flatTechnician;
-    if (!technician) {
-      ctx.notify(NOT_TECHNICIAN);
+    // `flatShared` ist die **gespielte** 2D-Runde; eine Vorführung daneben
+    // (Bot-Runde, `role: 'watch'`) liegt genauso über dem Schiff und zählt
+    // hier genauso als „jetzt 2D".
+    const now: View = this.flat ? '2d' : '3d';
+    // Was der Tipp bedeutet, rechnet `rules/lobby.viewSwap` — eine Zeile statt
+    // einer Kette von `if`, und nachrechenbar ohne Welt.
+    const swap = viewSwap({
+      now,
+      want: view,
+      demo: this.watchingBots(),
+      // Wer in 2D das Monster spielt, ist **kein** Techniker: Im Schiff stünde
+      // er sonst plötzlich als einer da, und die Runde hätte zwei.
+      technician:
+        now === '2d' ? this.flat?.role === 'technician' : ctx.role === 'vr' || this.flatTechnician,
+      presenting: ctx.renderer.xr.isPresenting,
+    });
+    if (swap === 'same') return;
+    if (swap === 'xr') {
+      ctx.notify(NO_FLAT_IN_XR);
       return;
     }
-    if (view === '2d' && ctx.renderer.xr.isPresenting) {
-      ctx.notify(NO_FLAT_IN_XR);
+    // **Zuschauen wechselt auch die Seite.** Wer der Bot-Runde zusieht, sieht
+    // dieselbe Vorführung von oben oder von innen — das ist keine Übernahme
+    // und nimmt niemandem etwas weg. Nur: Eine Vorführung ist kein Stand, der
+    // über die Leitung reist, also fängt sie auf der anderen Seite **von
+    // vorn** an. Das steht auch im Satz, den er dazu bekommt.
+    if (swap === 'demo') {
+      this.swapDemo(ctx, view);
+      return;
+    }
+    if (swap === 'blocked') {
+      ctx.notify(NOT_TECHNICIAN);
       return;
     }
     // Die Wahl der Lobby zieht mit: Wer mitten in der Runde umschaltet, will
@@ -3813,6 +3848,44 @@ export class HauntingWorld extends GridWorld {
     }
     if (view === '2d') this.enterFlat(ctx);
     else this.leaveFlat(ctx);
+  }
+
+  /**
+   * **Ob hier gerade einer Vorführung zugesehen wird** — der Bot-Runde in 2D
+   * oder derselben im Schiff. Nicht dasselbe wie „Zuschauen am Netz": Dort
+   * spielt jemand wirklich, und dessen Runde ist nicht zu wechseln.
+   */
+  private watchingBots(): boolean {
+    if (this.flat) return this.flat.role === 'watch' && !this.flatWatching;
+    return this.state.crew.simulation;
+  }
+
+  /**
+   * **Die Vorführung auf der anderen Seite.** Die Bot-Runde ist kein Stand,
+   * der reist: In 2D rechnet sie ein `TechnicianBot` auf einer `FlatRound`, im
+   * Schiff ein `MissionBot` auf dem NPC — zwei Rechnungen, nicht zwei Bilder
+   * derselben. Sie fängt deshalb neu an, und der Satz dazu sagt es, statt es
+   * den Zuschauer selbst merken zu lassen.
+   */
+  private swapDemo(ctx: WorldContext, view: View): void {
+    this.setLobby({ ...this.lobbyChoice, view });
+    if (view === '2d') {
+      this.experience?.leaveBotRound();
+      this.openFlat(ctx, {
+        monster: this.state.crew.options.monster,
+        tuning: this.tuning,
+        test: this.state.crew.options.test,
+        role: 'watch',
+        setup: this.setup,
+        powers: powersOf(this.setup),
+        mode: 'omniscient',
+      });
+    } else {
+      this.closeFlat();
+      this.state.crew.options.test = true;
+      this.experience?.startBotRound();
+    }
+    ctx.notify(`Zuschauen: ${VIEW_LABELS[view]} — die Bot-Runde fängt dabei von vorn an.`);
   }
 
   /**
@@ -3937,11 +4010,18 @@ export class HauntingWorld extends GridWorld {
         this.flat = new mode.FlatMode(shared || live ? this.spec.seed : rollSeed(), options, {
           exit: () => this.closeFlat(),
           notify: (text) => ctx.notify(text),
-          // **Der Wechsel steht nur dem Techniker offen.** Wer zusieht,
-          // wechselt nichts — seine Runde ist die eines anderen; und wer das
-          // Monster spielt, hat im Schiff gar keine zweite Ansicht, sondern
-          // wäre dort plötzlich der Techniker.
-          ...(shared && options.role !== 'monster'
+          // **Wer das Monster spielt, wechselt nicht.** Im Schiff gäbe es für
+          // ihn keine zweite Ansicht — er stünde dort plötzlich als Techniker
+          // in einer Runde, die schon einen hat. Der **Zuschauer** darf: Für
+          // ihn ist der Wechsel die Seite, von der er zusieht
+          // (`switchView`), und genau der Knopf tat bis eben nichts.
+          //
+          // Er stand hier zweimal im selben Objektliteral — einmal so
+          // bedingt, wie es der Kommentar darüber versprach, und einmal
+          // darunter ohne jede Bedingung. Das zweite gewann, der Knopf war da,
+          // und `switchView` wies ihn mit `NOT_TECHNICIAN` ab: ein Menüeintrag,
+          // der beim Tippen eine Absage sagt.
+          ...(options.role !== 'monster'
             ? { switchView: (view: View) => this.switchView(view) }
             : {}),
           // Nur beim Zusehen am Netz: Szene und Karte kommen aus dem Stand,
@@ -3954,7 +4034,6 @@ export class HauntingWorld extends GridWorld {
                 insight: () => this.state.insight ?? this.decision?.insight ?? null,
               }
             : {}),
-          switchView: (view) => this.switchView(view),
         });
         if (live) ctx.notify('Zuschauen: Du siehst die Runde, die in diesem Raum läuft.');
         // Die Werkzeuge einmal aus ihren 3D-Modellen rendern und puffern;

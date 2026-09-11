@@ -30,6 +30,7 @@ import {
   type SoloPowers,
 } from '../rules/roundSetup';
 import { visibleSwitches } from '../panel';
+import { archiveRadio } from '../rules/archiveRadio';
 import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
 import { RoleStrip } from '../views/roleStrip';
@@ -290,6 +291,8 @@ export class FlatMode {
   /** Das letzte Horchbild des Spähers: die Geräusche einer Probe, neu gestempelt. */
   private heard: MapNoise[] = [];
   private scoutClock = 0;
+  /** Der Schlüssel des letzten Archiv-Funkspruchs (`rules/archiveRadio.ts`). */
+  private radioed = '';
   /**
    * **Ob hier einer Runde im Netz zugesehen wird** statt einer eigenen.
    *
@@ -632,6 +635,23 @@ export class FlatMode {
     };
   }
 
+  /**
+   * **Der Archivar sagt es auch hier, wenn er ein Bot ist**
+   * (`rules/archiveRadio.ts`) — dieselben zwei Sätze wie im Schiff, damit die
+   * 2D-Runde nicht die stille Fassung derselben Runde ist. Ein Mensch am
+   * Archiv schweigt das Funkgerät: Dann ist das Sagen sein Platz.
+   */
+  private stepArchiveRadio(): void {
+    if (!this.powers.archive || this.netWatch || this.round.phase !== 'running') {
+      this.radioed = '';
+      return;
+    }
+    const call = archiveRadio(this.round.house, this.round.state());
+    if (!call || call.key === this.radioed) return;
+    this.radioed = call.key;
+    this.say(call.text);
+  }
+
   /** Wer gerade spielt — für Tests und die Anzeige. */
   get role(): FlatRole {
     return this.session ? 'monster' : this.bot || this.netWatch ? 'watch' : 'technician';
@@ -738,6 +758,7 @@ export class FlatMode {
     }
     this.strip.update(dt);
     if (!this.session && !this.strip.active) {
+      this.stepArchiveRadio();
       this.stepScout(dt);
       this.followPlayer();
       this.scene.setSnapshot(shown);
