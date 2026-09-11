@@ -135,14 +135,20 @@ import {
 import { freshGhosts, markGhost } from './rules/ghosts';
 import { freshLamps, lampGlow, lampOut, stepLamps, switchLamp, type Lamps } from './rules/lamps';
 import {
+  ABILITIES,
+  ABILITY_LABELS,
+  cycleAbility,
+  type Ability,
   cycleMonster,
   cycleWho,
   flatRoleOf,
   goalPrecision,
   loadSetup,
+  lockTechnician,
   powersOf,
   roundKindOf,
   saveSetup,
+  technicianLabel,
   WHO_LABELS,
   type RoundSetup,
 } from './rules/roundSetup';
@@ -154,6 +160,7 @@ import {
   VIEW_LABELS,
   type Intent,
   type LobbyChoice,
+  type View,
 } from './rules/lobby';
 import {
   asIntent,
@@ -988,11 +995,9 @@ export class HauntingWorld extends GridWorld {
           this.flatTechnician = true;
         },
         menu: () => ctx.menu.toggle(),
-        botRound: () => this.startRound('bot', ctx),
-        mission: () => this.startRound('mission', ctx),
-        test: () => this.startRound('test', ctx),
-        flatMode: () => this.toggleFlatWanted(),
         flatWanted: () => this.flatWanted,
+        vr: () => this.roomHasVr(),
+        switchView: (view) => this.switchView(view),
         lobby: () => this.lobbyChoice,
         setLobby: (choice) => this.setLobby(choice),
         setup: () => this.setup,
@@ -1019,7 +1024,6 @@ export class HauntingWorld extends GridWorld {
         }),
         nameOf: (peer) => ctx.net.peers.get(peer)?.name ?? 'jemand',
         seat: () => seatOf(this.currentClaims(), ctx.net.localId),
-        wanted: () => this.wanted,
         arriving: () => Math.max(0, MOVE_TIME - this.seated),
         sit: (station) => this.sit(station),
         flip: (id, on) => this.flip(id, on),
@@ -3560,9 +3564,20 @@ export class HauntingWorld extends GridWorld {
       ),
       entry(
         'haunt:setup-technician',
-        `Techniker: ${WHO_LABELS[setup.technician]}`,
+        `Techniker: ${technicianLabel(setup, this.roomHasVr())}`,
         'Wer den Anzug trägt — ein Mensch am Stock oder der Techniker aus Zahlen',
-        () => this.applySetup({ ...setup, technician: cycleWho(setup.technician) }),
+        () => {
+          // **Mit Brille im Raum gehört der Techniker der Brille** — der
+          // Eintrag sagt es und tut sonst nichts, statt den Anzug wortlos an
+          // die Zahlen zu geben (`roundSetup.technicianLabel`).
+          if (this.roomHasVr()) {
+            this.context?.notify(
+              'Der Techniker steckt in der Brille — seine Rolle bleibt bei ihm.',
+            );
+            return;
+          }
+          this.applySetup({ ...setup, technician: cycleWho(setup.technician) });
+        },
       ),
       entry(
         'haunt:setup-monster',
@@ -3570,11 +3585,17 @@ export class HauntingWorld extends GridWorld {
         'Aus Zahlen, am Stock (nur 2D) oder aus — der sichere Test',
         () => this.applySetup({ ...setup, monster: cycleMonster(setup.monster) }),
       ),
-      entry(
-        'haunt:setup-seats',
-        `Zentrale: ${setup.seats.length ? setup.seats.map((seat) => WHO_LABELS[seat.who]).join('/') : 'keine Plätze'}`,
-        'Archivar, Schalttafel, Späher · Bot-Plätze geben dem Techniker die Auskunft selbst',
-        () => this.cycleSeats(),
+      // **Drei Einträge statt einem Zykler.** „Zentrale: Bot/Bot/Bot" schaltete
+      // alle drei zugleich weiter und war deshalb genau das, was der Besitzer
+      // nicht mehr wollte: Man konnte nicht mischen. Jede Fähigkeit hat jetzt
+      // ihren eigenen Eintrag mit Bot / Mensch / Aus.
+      ...ABILITIES.map((ability) =>
+        entry(
+          `haunt:setup-${ability}`,
+          `${ABILITY_LABELS[ability]}: ${WHO_LABELS[setup.abilities[ability]]}`,
+          'Bot rechnet · Mensch am Telefon · Aus: niemand hat sie',
+          () => this.cycleSeats(ability),
+        ),
       ),
       entry(
         'haunt:monster-kind',
@@ -3630,16 +3651,42 @@ export class HauntingWorld extends GridWorld {
     );
   }
 
-  /** Die Plätze der Zentrale im Menü der Brille: alle Bot → alle Mensch → keine → alle Bot. */
-  private cycleSeats(): void {
-    const seats = this.setup.seats;
-    const allBot = seats.length > 0 && seats.every((seat) => seat.who === 'bot');
-    const next: RoundSetup['seats'] = allBot
-      ? seats.map((seat) => ({ ...seat, who: 'human' }))
-      : seats.length
-        ? []
-        : (['archive', 'panel', 'scout'] as const).map((role) => ({ role, who: 'bot' }));
-    this.applySetup({ ...this.setup, seats: next });
+  /** Eine Fähigkeit der Zentrale im Menü der Brille weiterschalten: Bot → Mensch → Aus. */
+  private cycleSeats(ability: Ability): void {
+    const abilities = { ...this.setup.abilities };
+    abilities[ability] = cycleAbility(abilities[ability]);
+    this.applySetup({ ...this.setup, abilities });
+  }
+
+  /**
+   * Ob jemand mit der Brille im Raum ist — dann trägt er den Anzug. Dieselbe
+   * Frage wie `roomOccupied`, nur ohne den Techniker am Desktop: Der ist ein
+   * Mensch wie jeder andere und darf seine Rolle abgeben.
+   */
+  private roomHasVr(): boolean {
+    const ctx = this.context;
+    if (!ctx) return false;
+    return (
+      ctx.role === 'vr' ||
+      [...ctx.net.peers.values()].some((peer) => peer.world === ctx.net.world && peer.role === 'vr')
+    );
+  }
+
+  /**
+   * **Die Ansicht mitten in der Runde wechseln** — 2D ↔ 3D, aus dem
+   * Optionsmenü der Karte und aus dem Telefon.
+   *
+   * Heute ein Stumpf mit einer Ansage: Der Wechsel bei laufender Runde heißt,
+   * den Stand einer 2D-Runde ins Schiff zu heben (oder umgekehrt), und das ist
+   * ein eigenes Paket. Er steht trotzdem schon hier, damit der Knopf im Menü
+   * einen Empfänger hat und nicht — wie das Brillenmenü einmal — wortlos ins
+   * Leere drückt.
+   */
+  switchView(view: View): void {
+    this.setLobby({ ...this.lobbyChoice, view });
+    this.context?.notify(
+      `Die Ansicht steht auf ${VIEW_LABELS[view]} — der Wechsel mitten in der Runde kommt gleich.`,
+    );
   }
 
   private joinTable(ctx: WorldContext): void {
@@ -3690,7 +3737,11 @@ export class HauntingWorld extends GridWorld {
     // **Wer selbst am Monster sitzt, bleibt das Monster**: „Zuschauen" darf
     // ihm die Runde nicht wegnehmen, und „Spielen" heißt für ihn, dass der
     // Techniker den Zahlen gehört.
-    this.applySetup(applyIntent(this.setup, asIntent(what), this.myPlace()));
+    // **Mit Brille im Raum ist der Techniker ein Mensch** — auch wenn auf der
+    // Tafel noch „Bot" steht, weil sie tagelang so lag (`lockTechnician`).
+    this.applySetup(
+      lockTechnician(applyIntent(this.setup, asIntent(what), this.myPlace()), this.roomHasVr()),
+    );
     const setup = this.setup;
     // **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht.** Sie steht
     // im Browser und überlebt Tage; wer sie irgendwann im Van angehakt hat und
@@ -3851,6 +3902,7 @@ export class HauntingWorld extends GridWorld {
         this.flat = new mode.FlatMode(shared ? this.spec.seed : rollSeed(), options, {
           exit: () => this.closeFlat(),
           notify: (text) => ctx.notify(text),
+          switchView: (view) => this.switchView(view),
         });
         // Die Werkzeuge einmal aus ihren 3D-Modellen rendern und puffern;
         // die 2D-Welt hängt die fertigen Bilder in ihren Knopf (`toolIcons.ts`).

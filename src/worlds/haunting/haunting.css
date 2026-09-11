@@ -80,6 +80,14 @@
 /* In der Einsatzzentrale wird nicht gelaufen: Der Touch-Stick des Handys hätte hier nichts zu
    steuern und läge quer über der Schalttafel. */
 body.haunt-on .touch { display: none; }
+/* **Das Telefon hat seine eigene Kopfzeile** (`stationUi.writeBar`): die
+   Reiter ganz oben. Die der Seite (`index.html`, `#hud`: Haunting · Menü ·
+   Verbindung · VR) wird deshalb ausgeblendet — zwei Kopfzeilen übereinander
+   waren auf einem 390 Punkte breiten Telefon ein halber Bildschirm. Sie wird
+   nur **versteckt** und nicht abgebaut: Verbindung und VR hängen an ihren
+   Knöpfen (`main.ts`), und die kleinen Knöpfe im Telefon drücken sie
+   stellvertretend. */
+body.haunt-on #hud { display: none; }
 
 /* Ein Doppeltipp auf einem Schalter soll ihn zweimal umlegen und nicht die
    Seite zoomen — und die graue Blitzfläche von Android gehört hier nicht hin.
@@ -113,79 +121,67 @@ body.haunt-on .touch { display: none; }
 
 /* --- Kopfzeile --- */
 
+/* **Die Kopfzeile ist die Rollenwahl.** Sie fängt oben an — die Kopfzeile der
+   Seite ist ausgeblendet, also braucht es keinen Streifen mehr für sie —, und
+   die Reiter scrollen waagerecht, wenn sieben davon nicht nebeneinander
+   passen. Ein Reiter, der umbricht, verschiebt bei jedem Rollenwechsel alles
+   darunter. */
 .haunt__bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  /* Oben schwebt das HUD der Seite (Menü, Verbindung, VR). Es bekommt seinen
-     Streifen, statt sich mit der Zeile hier zu überlagern. */
-  padding: calc(12px + max(46px, env(safe-area-inset-top))) 12px 10px;
+  gap: 8px;
+  padding: calc(6px + env(safe-area-inset-top)) 8px 6px;
   background: var(--haunt-bar);
   border-bottom: 1px solid var(--haunt-line);
 }
 
-.haunt__where {
+.haunt__roles {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex: 1;
+  gap: 6px;
   min-width: 0;
-  /* Der Punkt in der Farbe der Station, links am Namen. */
-  padding-left: 14px;
-  position: relative;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.haunt__where::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 6px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--haunt-accent);
-  box-shadow: 0 0 10px var(--haunt-accent);
-}
+.haunt__roles::-webkit-scrollbar { display: none; }
 
-.haunt__where strong { font-size: 16px; letter-spacing: 0.01em; }
-.haunt__where small {
-  font-size: 11px;
-  color: var(--haunt-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
+.haunt .haunt__role {
+  flex: none;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--haunt-line);
+  background: transparent;
+  color: var(--haunt-dim);
+  font: inherit;
+  font-size: 13px;
   white-space: nowrap;
 }
 
-.haunt__state {
-  margin-left: auto;
-  flex: none;
-  font-size: 11px;
-  color: var(--haunt-dim);
-  border: 1px solid var(--haunt-line);
-  border-radius: 999px;
-  padding: 5px 9px;
+/* Was ich **halte**, ist gelb umrandet; was gerade **offen** ist, leuchtet in
+   der Farbe der Station. Zwei Auskünfte, zwei Zeichen: Wer die Schalttafel
+   hält, aber das Archiv liest, sieht beides. */
+.haunt .haunt__role.is-mine { border-color: var(--haunt-warn); color: var(--haunt-ink); }
+.haunt .haunt__role[aria-pressed='true'] {
+  border-color: var(--haunt-accent);
+  background: var(--haunt-card-hi);
+  color: var(--haunt-ink);
+  font-weight: 650;
 }
 
-/* Wenn das Monster läuft, ist das die wichtigste Zeile auf dem Schirm. */
-.haunt__state.is-hot {
-  color: #ffd0d0;
-  border-color: rgba(255, 90, 90, 0.55);
-  background: rgba(90, 20, 24, 0.55);
-}
-
-.haunt__back {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.haunt__tools { display: flex; flex: none; gap: 6px; }
+.haunt .haunt__tool {
+  min-width: 40px;
   min-height: 40px;
-  border: 1px solid var(--haunt-line-strong);
-  background: rgba(24, 32, 52, 0.9);
+  padding: 6px 8px;
   border-radius: 10px;
-  padding: 8px 12px;
+  border: 1px solid var(--haunt-line);
+  background: var(--haunt-card);
+  color: var(--haunt-dim);
+  font: inherit;
   font-size: 13px;
 }
-
-.haunt__back-icon { color: var(--haunt-accent); font-size: 11px; }
 
 /* --- Auftragsstreifen --- */
 
@@ -199,6 +195,10 @@ body.haunt-on .touch { display: none; }
   font-size: 11px;
   color: var(--haunt-faint);
 }
+
+/* `display: flex` schlägt sonst das `hidden`-Attribut: Im Aufbau steht kein
+   Auftragsstreifen, weil dort noch nichts läuft (`stationUi.write`). */
+.haunt__quest[hidden] { display: none; }
 
 .haunt__quest-label { letter-spacing: 0.1em; text-transform: uppercase; }
 .haunt__quest-count { margin-left: auto; color: var(--haunt-dim); }
@@ -823,7 +823,8 @@ body.haunt-on .touch { display: none; }
  * Seite.
  */
 @media (orientation: landscape) and (max-height: 560px) {
-  .haunt__bar { padding-top: calc(8px + max(40px, env(safe-area-inset-top))); }
+  .haunt__bar { padding-top: calc(4px + env(safe-area-inset-top)); }
+  .haunt .haunt__role { min-height: 34px; padding-block: 4px; }
 }
 
 /* ORBITAL: instruments readable on a phone, no blur/post-processing. */
@@ -831,7 +832,6 @@ body.haunt-on .touch { display: none; }
 .haunt[data-station="archive"] { --haunt-accent: #ffc58a; }
 .haunt[data-station="scout"] { --haunt-accent: #7de5cf; }
 .haunt button { touch-action: manipulation; min-height: 44px; }
-.haunt__where small { max-width: 58vw; overflow-wrap: anywhere; }
 .haunt__tile { border-radius: 10px; border-left: 3px solid var(--haunt-accent); }
 .haunt__task-row { display: flex; flex-direction: column; gap: .55rem; line-height: 1.5; padding-block: 1rem; }
 .haunt__telemetry { border: 1px solid #28515a; border-radius: 12px; padding: 14px; background: #071b22; }
@@ -877,7 +877,7 @@ body.haunt-on .touch { display: none; }
 .orbital-player details { padding-top: 8px; }
 .orbital-player summary { cursor: pointer; padding-block: 7px; color: #96eddb; }
 @media (min-width: 760px) { .haunt[data-station="scout"] .haunt__body { max-width: 800px; width: calc(100% - 32px); align-self: center; } }
-@media (max-width: 480px) { .haunt__where strong { font-size: 14px; } .haunt__state { font-size: 10px; } .orbital-player { left: 8px; bottom: 8px; width: calc(100vw - 16px); } .orbital-player.is-keys { bottom: 212px; } }
+@media (max-width: 480px) { .orbital-player { left: 8px; bottom: 8px; width: calc(100vw - 16px); } .orbital-player.is-keys { bottom: 212px; } }
 @media (prefers-reduced-motion: reduce) { .haunt *, .orbital-player * { animation: none !important; transition: none !important; } }
 
 /* Compact desktop controls; VR uses only the wrist and physical displays. */
@@ -957,40 +957,34 @@ body.haunt-on .touch { display: none; }
 .setup__label strong { font-size: 13px; }
 .setup__label small, .setup__hint { font-size: 11px; color: #97a3bd; line-height: 1.4; }
 .setup__head { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6b7690; }
-.setup__key, .setup__add { min-height: 36px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(28, 38, 62, 0.8); color: #e8ecf7; font: inherit; font-size: 13px; touch-action: manipulation; }
-.setup__key--role { flex: 1; text-align: left; }
+.setup__key { min-height: 36px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(28, 38, 62, 0.8); color: #e8ecf7; font: inherit; font-size: 13px; touch-action: manipulation; }
 .setup__key--who { min-width: 84px; }
 .setup__key--who.is-human { border-color: #8ff0b0; color: #c8ffd9; }
 .setup__key--who.is-bot { border-color: #7ff0ff; color: #d8fbff; }
-.setup__key--remove { min-width: 36px; padding: 6px 0; color: #ff9a9e; border-color: rgba(255, 90, 95, 0.4); }
-.setup__add { font-size: 12px; letter-spacing: 0; text-transform: none; }
+/* „Aus" ist eine Antwort und kein fehlender Eintrag — sie steht grau da und
+   nicht rot: Eine Fähigkeit abzuschalten ist kein Fehler. */
+.setup__key--who.is-off { border-color: rgba(140, 170, 230, 0.25); color: #6b7690; }
 .setup__key--me { min-width: 54px; padding: 6px 10px; color: #97a3bd; border-style: dashed; }
 /* „Ich" leuchtet an genau einem Platz — deshalb darf es kräftig sein. */
 .setup__key--me.is-mine { border-style: solid; border-color: #ffd84a; background: rgba(255, 216, 74, 0.16); color: #ffe8a0; font-weight: 600; }
 .setup__holder { margin: -2px 0 2px 2px; font-size: 11px; color: #6b7690; }
 
-/* --- Die Lobby: Was? Wer? Wie? Start (`stationUi.vanPage`) --- */
-/* Drei Kacheln nebeneinander, sobald Platz ist; auf dem Telefon untereinander,
-   jede mindestens daumenhoch. Eine leuchtet — das ist die Absicht. */
+/* --- Der Aufbau: zwei Häkchen, die Verteilung, ein Startknopf (`stationUi.vanPage`) --- */
 .lobby__link { align-self: flex-start; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--haunt-line); font-size: 11px; color: var(--haunt-dim); }
 .lobby__link.is-live { border-color: rgba(143, 240, 176, 0.5); color: #c8ffd9; }
-.lobby__intents { display: grid; grid-template-columns: 1fr; gap: 8px; }
-@media (min-width: 560px) { .lobby__intents { grid-template-columns: repeat(3, 1fr); } }
-.lobby__intent { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 64px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--haunt-line-strong); background: var(--haunt-card); color: var(--haunt-ink); font: inherit; text-align: left; }
-.lobby__intent strong { font-size: 15px; }
-.lobby__intent.is-active { border-color: var(--haunt-warn); background: var(--haunt-card-hi); box-shadow: 0 0 0 1px var(--haunt-warn) inset; }
-.lobby__views { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.lobby__view { min-height: 44px; border-radius: 12px; border: 1px solid var(--haunt-line-strong); background: var(--haunt-card); color: var(--haunt-dim); font: inherit; font-size: 14px; }
-.lobby__view.is-active { border-color: var(--haunt-warn); color: var(--haunt-ink); background: var(--haunt-card-hi); }
+/* Zwei Häkchen, jedes daumenhoch: ein Kästchen links, Wort und Beisage rechts. */
+.lobby__checks { display: flex; flex-direction: column; gap: 8px; }
+.lobby__check { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--haunt-line-strong); background: var(--haunt-card); color: var(--haunt-dim); font: inherit; text-align: left; }
+.lobby__check.is-on { border-color: var(--haunt-warn); color: var(--haunt-ink); background: var(--haunt-card-hi); }
+.lobby__box { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--haunt-line-strong); font-size: 15px; color: var(--haunt-warn); }
+.lobby__check.is-on .lobby__box { border-color: var(--haunt-warn); }
+.lobby__check-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lobby__check-text strong { font-size: 15px; color: var(--haunt-ink); }
 /* Der eine Startknopf: die größte Fläche der Seite, und er sagt, was gleich passiert. */
 .lobby__start { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 60px; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(143, 240, 176, 0.55); background: rgba(24, 52, 42, 0.9); color: #e6fff0; font: inherit; text-align: left; }
 .lobby__start strong { font-size: 17px; }
-.lobby__seats, .lobby__help { border-radius: 12px; border: 1px solid var(--haunt-line); background: rgba(12, 17, 30, 0.7); padding: 4px 8px; }
-.lobby__seats > summary, .lobby__help > summary { padding: 10px 6px; cursor: pointer; font-size: 13px; color: var(--haunt-dim); }
-.lobby__seats-head { display: flex; flex-direction: column; gap: 2px; }
-.lobby__seats-head strong { color: var(--haunt-ink); }
-.lobby__seats[open] > summary { border-bottom: 1px solid var(--haunt-line); margin-bottom: 8px; }
-.lobby__seats .haunt__tile { margin-bottom: 8px; }
+.lobby__help { border-radius: 12px; border: 1px solid var(--haunt-line); background: rgba(12, 17, 30, 0.7); padding: 4px 8px; }
+.lobby__help > summary { padding: 10px 6px; cursor: pointer; font-size: 13px; color: var(--haunt-dim); }
 .lobby__help[open] > summary { border-bottom: 1px solid var(--haunt-line); margin-bottom: 8px; }
 .lobby__help .haunt__note { margin-bottom: 8px; }
 

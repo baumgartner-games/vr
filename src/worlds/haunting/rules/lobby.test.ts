@@ -75,15 +75,13 @@ describe('lobby', () => {
     expect(trained).toMatchObject({ technician: 'human', monster: 'off' });
   });
 
-  test('keine der drei Absichten rührt die Plätze der Zentrale an', () => {
+  test('keine der drei Absichten rührt die Fähigkeiten der Zentrale an', () => {
     const setup: RoundSetup = {
       ...defaultSetup(),
-      seats: [
-        { role: 'archive', who: 'human' },
-        { role: 'scout', who: 'bot' },
-      ],
+      abilities: { archive: 'human', scout: 'bot', panel: 'off' },
     };
-    for (const intent of INTENTS) expect(applyIntent(setup, intent).seats).toEqual(setup.seats);
+    for (const intent of INTENTS)
+      expect(applyIntent(setup, intent).abilities).toEqual(setup.abilities);
   });
 
   test('die Absicht liest sich aus der Verteilung wieder heraus', () => {
@@ -96,20 +94,18 @@ describe('lobby', () => {
       expect(intentOf(applyIntent(defaultSetup(), intent))).toBe(intent);
   });
 
-  test('der Startknopf sagt, was die Verteilung tut — samt Ansicht', () => {
+  /**
+   * **Ohne Ansicht in Klammern.** „Mission starten (2D)" wiederholte das
+   * Häkchen zwei Zeilen darüber; der Besitzer wollte die Klammer weghaben, und
+   * seitdem kennt der Knopf die Ansicht gar nicht mehr.
+   */
+  test('der Startknopf sagt, was die Verteilung tut — und nur das', () => {
     const setup = defaultSetup();
-    expect(startLabel({ intent: 'play', view: '2d' }, setup)).toBe('Mission starten (2D)');
-    expect(startLabel({ intent: 'play', view: '3d' }, setup)).toBe('Mission starten (3D)');
-    expect(startLabel({ intent: 'train', view: '3d' }, applyIntent(setup, 'train'))).toBe(
-      'Training starten (3D)',
-    );
-    expect(startLabel({ intent: 'watch', view: '2d' }, applyIntent(setup, 'watch'))).toBe(
-      'Zuschauen',
-    );
-    // Die Kachel sagt „Spielen", die Tafel hat kein Monster mehr: Die Tafel gewinnt.
-    expect(startLabel({ intent: 'play', view: '2d' }, { ...setup, monster: 'off' })).toBe(
-      'Training starten (2D)',
-    );
+    expect(startLabel(setup)).toBe('Mission starten');
+    expect(startLabel(applyIntent(setup, 'train'))).toBe('Test starten');
+    expect(startLabel(applyIntent(setup, 'watch'))).toBe('Zuschauen');
+    // Das Häkchen ist aus, die Tafel hat kein Monster mehr: Die Tafel gewinnt.
+    expect(startLabel({ ...setup, monster: 'off' })).toBe('Test starten');
   });
 
   test('fremder Text wird gelesen, Unbekanntes ersetzt', () => {

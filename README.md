@@ -96,21 +96,25 @@ Peers; restriktives NAT oder gesperrte öffentliche Dienste können ohne TURN
 eine Verbindung verhindern. `?net=local` verbindet ausschließlich mehrere Tabs
 desselben Browsers, keine getrennten Geräte im WLAN.
 
-**Die Mission:** Jede Runde fängt in der **Lobby** an, und sie sieht auf dem
-Handy, in der Brille und am Bildschirm gleich aus — drei Fragen und ein Knopf:
+**Die Mission:** Jede Runde fängt im **Aufbau** an — auf dem Handy der erste
+Reiter ganz oben, in der Brille der Knopf am Handgelenk. Er ist kurz:
 
-1. **Was?** _Spielen_ (die Mission mit Monster), _Zuschauen_ (der Runde im Raum
-   folgen; sonst spielt Bot gegen Bot) oder _Trainieren_ (ohne Monster, sicher
-   üben). Eine der drei Kacheln leuchtet — gestartet wird damit noch nichts.
-2. **Wer?** Techniker, Monster und die Plätze der Einsatzzentrale, jeder mit
-   einem Menschen oder einem Bot. Ein Tipp auf **Ich** macht einen Platz zu
-   deinem und setzt dein Telefon zugleich an das Gerät, das dazugehört.
-3. **Wie?** _2D von oben_ oder _3D Schiff_. Am Telefon ist 2D voreingestellt,
-   in der Brille gibt es immer das Schiff.
+1. **Zwei Häkchen.** _2D-Welt von oben_ (sonst das Schiff; am Telefon ist 2D
+   voreingestellt, in der Brille gibt es immer das Schiff) und _Testen_ (ohne
+   Monster — und in einer Test-Runde darf jeder jederzeit jede Rolle wechseln).
+2. **Die Verteilung.** Techniker, Monster und die drei Fähigkeiten der
+   Einsatzzentrale, jede auf Bot, Mensch oder Aus. Ein Tipp auf **Ich** macht
+   eine Zeile zu deiner und setzt dein Telefon zugleich an das Gerät dazu.
+3. **Ein Knopf**, und auf ihm steht, was gleich passiert: „Mission starten"
+   oder „Test starten" — ohne Ansicht in Klammern, die steht ja als Häkchen
+   darüber.
 
-Darunter steht **ein** Knopf, und auf ihm steht, was gleich passiert:
-„Mission starten (2D)", „Zuschauen", „Training starten (3D)". In der Brille
-geht dasselbe über den Knopf am Handgelenk. Geht gerade keine Runde los, weil
+**Die Rolle wählst du über die Reiter oben**: _Aufbau_, _Späher_,
+_Schalttafel_, _Archiv_, dann Drohne, Fernseher und Monster. Wer noch nichts
+gewählt hat, liest „Bitte wähle über den Tab oben deine Rolle aus."; wer eine
+Fähigkeit antippt, nimmt sie — auch mehrere, und dem, der sie hatte, wird sie
+abgenommen. Mitten in einer Runde darf das nur, wer in der Einsatzzentrale
+sitzt; der Techniker in der Brille behält seine Rolle immer. Geht gerade keine Runde los, weil
 ein anderes Gerät sie rechnet oder schon jemand als Techniker spielt, steht
 das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
 Anordnung der Vorlage: Cafeteria oben, Triebwerke/Reactor/Security links,
@@ -137,12 +141,17 @@ Kabel nach Symbolen verbunden, eine Schaltfolge eingegeben oder drei Frequenzen
 eingestellt. Anschließend geht es zum nächsten Auftrag. Nach allen drei
 Reparaturen zur Zentrale zurückkehren.
 
-**Wer spielt mit:** Das „Wer?" der Lobby, in 2D wie in 3D — Techniker (Mensch
-oder Bot), Monster (Mensch, Bot oder aus) und beliebig viele Plätze der
-Einsatzzentrale (Archivar am Archiv, Schalttafel und Späher an der
-Einsatzkontrolle), jeder mit einem Menschen am Telefon oder einem Bot. Unter
-jedem Platz steht, wer wirklich dort sitzt. **Ein Bot auf einem Platz gibt dem
-Techniker die Auskunft selbst:** Wer allein in der 2D-Welt spielt, sieht die
+**Wer spielt mit:** Die Tafel des Aufbaus, in 2D wie in 3D — Techniker (Mensch
+oder Bot; steht jemand mit der Brille im Raum, heißt die Zeile **VR** und
+gehört ihm), Monster (Mensch, Bot oder aus) und die **drei Fähigkeiten der
+Einsatzzentrale** — Späher, Schalttafel, Archiv —, jede auf **Bot, Mensch oder
+Aus**. Wer am Telefon sitzt, nimmt sich über die Reiter oben so viele davon,
+wie er mag; wie die Mischung heißt, steht daneben: Späher + Schalttafel ist die
+**Einsatzkontrolle**, Archiv + Späher die **Aufklärung**, Archiv + Schalttafel
+der **Leitstand**, alle drei die **Zentrale**. So passt die Runde auch zu
+dritt, wenn nur zwei in der Zentrale sitzen. Unter jeder Fähigkeit steht, wer
+sie wirklich hält. **Ein Bot auf einer Fähigkeit gibt sie dem Techniker
+selbst:** Wer allein in der 2D-Welt spielt, sieht die
 Peilung des Monsters alle paar Sekunden, sperrt Türen und schaltet Lampen per
 Tipp auf die Karte und schlägt mit einem Tipp aufs Zimmer die Akte mit den
 Codes auf. **Gewollt gesperrt ist immer nur eine Tür** — wer eine zweite
@@ -165,12 +174,12 @@ Oben links stehen zwei Zeilen und sonst nichts: **O₂** mit der Restzeit und de
 Anzug-Herzen, darunter **Aufgaben:** mit einem Kreis je Auftrag — voll
 erledigt, halb angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste
 mit den Namen auf, ein zweiter wieder zu. Das **Zahnrad** zeigt nur noch, was
-sich mitten in der Runde ändert — Ansicht, Zielpfade, Ton und **Zurück zur
-Lobby**; wer mitspielt und was die nächste Runde wird, steht dort. **Wer
+sich mitten in der Runde ändert — Ansicht, Zielpfade, Ton, **Zuschauen: an/aus**
+(immer möglich), **Ansicht: 3D Schiff** und **Runde verlassen**. **Wer
 zuschaut**, hat keinen Stock, dafür zwei Knöpfe rechts: _Zum Techniker_ und
 _Zum Monster_, jederzeit umschaltbar. Die Sicht von Archiv, Einsatzkontrolle
-oder Drohne wählt man in der Lobby unter „Plätze und Geräte" — auch während
-eine Runde läuft.
+oder Drohne wählt man über die Reiter am Telefon — auch während eine Runde
+läuft.
 
 **Die Handyansichten:** Das Archiv wählt unter **Räume & Codes** einen
 Raumnamen und sieht nur dessen Akte: Schutzcode, Kennzeichen, Fracht- und
@@ -286,8 +295,8 @@ separate Räume abseits der Missionskarte:
   Gegnerattrappen, Spiegel, Schacht und Funken-/Rauch-/Feuerprüfung.
 
 Jeder Übungsraum hat Rückkehr- und Wechselknöpfe. Testbesuche in Missionsräumen
-verwenden freie Ankunftsplätze. **Zuschauen** (in der Lobby, in jeder der drei
-Oberflächen) heißt ohne Mitspieler: Ein Techniker aus Zahlen läuft durch die echte Station, öffnet
+verwenden freie Ankunftsplätze. **Zuschauen** (im Optionsmenü der laufenden Runde, in der Brille auch im Menü)
+heißt ohne Mitspieler: Ein Techniker aus Zahlen läuft durch die echte Station, öffnet
 Frachtschränke, holt die drei Ersatzteile, löst die Reparaturen und kehrt zur
 Zentrale zurück. Lokale Meldungen erklären seine Schritte. Gesperrte Wege
 halten ihn auf, bis eine Route wieder möglich ist. Der Techniker priorisiert

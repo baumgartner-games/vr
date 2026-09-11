@@ -14,12 +14,6 @@
 .haunt[data-station="archive"], .haunt [data-accent="archive"] { --haunt-accent: #78dfe7; }
 .haunt[data-station="scout"], .haunt [data-accent="scout"] { --haunt-accent: #89edbe; }
 .haunt__bar { flex: none; gap: 8px; }
-.haunt__where { flex: 1; }
-.haunt__where strong { font-size: 15px; }
-.haunt__where small { color: #a0bbc8; }
-.haunt__back { min-height: 46px; padding-inline: 14px; font-weight: 650; }
-.haunt__menu { border-color: #456372; background: #112c39; }
-.haunt__state { margin-left: 0; }
 .haunt button:hover:not(:disabled) { border-color: var(--haunt-accent); }
 .haunt__body { min-height: 0; }
 .haunt[data-station="archive"], .haunt[data-station="scout"], .haunt[data-station="hack"] {
@@ -167,11 +161,8 @@
   background: #08151e;
 }
 @media (max-width: 580px) {
-  .haunt__state { display: none; }
-  .haunt__where small { max-width: 45vw; }
-  .haunt__where strong { font-size: 13px; }
-  .haunt__back { padding-inline: 10px; font-size: 13px; }
-  .haunt__bar { padding-inline: 12px; }
+  .haunt .haunt__role { font-size: 12px; padding-inline: 10px; }
+  .haunt__bar { padding-inline: 8px; }
   .haunt[data-station="archive"] .haunt__fact-key { width: 88px; }
 }
 @media (min-width: 860px), (orientation: landscape) and (min-width: 620px) and (max-height: 600px) {
