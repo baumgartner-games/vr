@@ -103,7 +103,9 @@ desselben Browsers, keine getrennten Geräte im WLAN.
 Reiter ganz oben, in der Brille der Knopf am Handgelenk. Er ist kurz:
 
 1. **Zwei Häkchen.** _2D-Welt von oben_ (sonst das Schiff; am Telefon ist 2D
-   voreingestellt, in der Brille gibt es immer das Schiff) und _Testen_ (ohne
+   voreingestellt, in der Brille gibt es immer das Schiff — **und diese eine
+   Frage darfst du dir mitten in der Runde anders beantworten**, siehe unten)
+   und _Testen_ (ohne
    Monster — und in einer Test-Runde darf jeder jederzeit jede Rolle wechseln).
 2. **Die Verteilung.** Techniker, Monster und die drei Fähigkeiten der
    Einsatzzentrale, jede auf Bot, Mensch oder Aus. Ein Tipp auf **Ich** macht
@@ -193,7 +195,7 @@ auf, ein zweiter wieder zu. Rechts daneben das **Zahnrad**, in der Zeile
 darunter die Sprungknöpfe — die sind damit nie verdeckt.
 
 Das **Zahnrad** zeigt, was sich mitten in der Runde ändert — Ansicht,
-Zielpfade, Ton, **Zuschauen: an/aus** (immer möglich), **Ansicht: 3D Schiff**
+Zielpfade, Ton, **Zuschauen: an/aus** (immer möglich), **Ansicht: 2D ↔ 3D**
 und **Runde verlassen** —, und darin unter **Aufmachen** die
 drei Wege nach draußen: **Karte** (die Übersicht der Station; den eigenen
 🗺-Knopf oben rechts gibt es nicht mehr), **Menü** und **Verbindung**, also
@@ -202,6 +204,21 @@ wird, steht in der Lobby. **Immer nur eines auf einmal:** Solange Karte,
 Rätsel, Raumakte oder Menü offen sind, ist der Rest weg — kein HUD, keine
 Reiter, keine Spielszene dahinter; ein Zurück bringt alles wieder, und die
 Runde ist unterdessen weitergelaufen.
+
+**2D ↔ 3D, mitten im Spiel.** Als Techniker musst du dich nicht vor der Runde
+entscheiden: Im Zahnrad der 2D-Welt steht **„Ansicht: 2D ↔ 3D"**, und im Panel
+des Technikers im Schiff steht der Knopf **„2D von oben"**. Beide schalten
+sofort um, und zwar **dieselbe Runde**: dieselbe Uhr und derselbe Sauerstoff,
+derselbe Anzug, dasselbe Ersatzteil in der Hand, dieselben gesperrten Türen und
+brennenden Lampen — und dasselbe Monster an derselben Stelle, das sich immer
+noch merkt, wo es dich zuletzt gesehen hat. Du stehst danach dort, wo du eben
+standest. Wer zusieht oder in der Zentrale sitzt, merkt von alledem nichts: Der
+Stand ist derselbe, nur das Bild ist ein anderes. **In der Brille gibt es keine
+Karte von oben** — dort bleibt es beim Schiff, und der Eintrag sagt es auch.
+Wandert die Technikerrolle mitten in der Runde zu jemand anderem, übergibt das
+alte Gerät dem neuen die ganze Runde, und zwar mitsamt allem, was sonst nur der
+eine Rechner wusste — Sperrfristen, Lampenrestzeiten und das Gedächtnis des
+Monsters.
 
 **Verschieben ist ein Blick zur Seite.** Die Szene lässt sich ziehen und mit
 zwei Fingern zoomen; dann steht oben **Zum Spieler**. Sobald du wieder einen

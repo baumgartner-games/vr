@@ -18,7 +18,7 @@ import {
   type MonsterKind,
   type Repair,
 } from '../mission';
-import type { HauntState } from '../net';
+import { loadMemory, packMemory, type HauntState, type MonsterBook, type TrailBook } from '../net';
 import { COMMAND, stationGraph, type StationGraph } from '../roomGraph';
 import { stationLayout, type FloorBounds, type FloorPoint } from '../stationLayout';
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from '../monsterRoutine';
@@ -214,6 +214,47 @@ export interface FlatOptions {
    * Zentrale gesagt hat (`rules/doorSeal.ts`). Ohne Angabe aus `setup`.
    */
   players?: number;
+  /**
+   * **Eine laufende Runde fortsetzen statt eine neue anfangen** — der Weg von
+   * 3D nach 2D mitten im Spiel (`HauntingWorld.switchView`). Siehe
+   * `FlatResume`.
+   */
+  resume?: FlatResume;
+}
+
+/**
+ * **Der laufende Stand samt Buchführung, aus dem diese Runde weiterläuft.**
+ *
+ * Ohne ihn baut der Konstruktor eine frische Runde: Techniker an der
+ * Einsatzzentrale, Monster am anderen Ende, alle Lampen an, Uhr auf null. Das
+ * ist richtig für jede Runde, die *anfängt* — und falsch für die eine, die
+ * schon läuft und nur die Ansicht wechselt. Wer hier etwas hereinreicht,
+ * bekommt dieselbe Runde weiter: dieselbe Uhr, derselbe Sauerstoff, dieselben
+ * Türen, dasselbe Monster an derselben Stelle.
+ *
+ * **Der Stand wird übernommen, nicht kopiert.** `haunt` *ist* danach das
+ * hereingereichte Objekt: Der Gastgeber hält denselben Stand in der Hand wie
+ * die Runde, sonst hätte er nach dem Wechsel zwei — einen, den er ansagt, und
+ * einen, in dem gespielt wird.
+ *
+ * Die Buchführung ist optional, weil sie beim Gastgeber liegt und nicht in
+ * jedem Fall zur Hand ist (ein Test, eine Übergabe aus einer älteren Version).
+ * Was fehlt, fängt eben von vorn an — eine Tür ohne Sperrfrist geht beim
+ * nächsten Schritt auf, und das ist ein Schaden, den man überlebt.
+ */
+export interface FlatResume {
+  /** Der laufende `HauntState` — er wird übernommen und weitergeschrieben. */
+  state: HauntState;
+  /** Wer welche Tür gesperrt hat (`rules/doorLocks.ts`). */
+  locks?: DoorLocks;
+  /** Wo das Monster wie lange steht (`haunt.ts`). */
+  spook?: Spook;
+  /** Die offene Wunde des Technikers (`rules/blood.ts`); die Tropfen stehen im Stand. */
+  trail?: TrailBook;
+  /** Was das Monster sich gemerkt hat (`net.MonsterBook`). */
+  memory?: MonsterBook;
+  /** Wohin der Techniker blickt, in Bogenmaß — ohne Angabe der Winkel aus dem Stand. */
+  yaw?: number;
 }
 
 interface Actor {
@@ -364,6 +405,7 @@ export class FlatRound implements MapSource {
   readonly precision: GoalPrecision;
 
   constructor(seed: number, options: FlatOptions = {}) {
+    const resume = options.resume ?? null;
     this.house = generateHouse(seed, 14);
     this.graph = stationGraph(this.house);
     this.blocks = fixtureBlocks(this.house);
@@ -375,11 +417,18 @@ export class FlatRound implements MapSource {
         : 'crate';
     this.tuning = options.tuning ?? DEFAULT_TUNING;
     this.mode = options.mode ?? 'realistic';
-    const crewOptions = stationOptions({
-      monster: options.monster ?? 'stalker',
-      test: !!options.test,
-    });
-    this.haunt = {
+    // **Der laufende Stand schlägt die Optionen.** Wer eine Runde fortsetzt,
+    // hat sein Monster und seinen Testmodus längst gewählt; die Optionen
+    // dieser Ansicht wären daneben eine zweite Wahrheit.
+    const crewOptions = resume
+      ? resume.state.crew.options
+      : stationOptions({
+          monster: options.monster ?? 'stalker',
+          test: !!options.test,
+        });
+    // Der Stand wird **übernommen** und nicht kopiert (`FlatResume`): Der
+    // Gastgeber schreibt danach denselben Stand fort, den die Runde rechnet.
+    this.haunt = resume?.state ?? {
       seed,
       phase: 'running',
       crew: freshCrew(crewOptions),
@@ -398,6 +447,30 @@ export class FlatRound implements MapSource {
       ghosts: freshGhosts(),
       blood: this.blood.drops,
     };
+    // **Eine Spur, nicht zwei.** Die Tropfenliste des Standes *ist* die der
+    // Buchführung — auch nach einer Übernahme, sonst malte die Karte eine
+    // Spur und das Monster liefe über eine andere.
+    if (resume) {
+      this.blood.drops = this.haunt.blood ?? [];
+      this.haunt.blood = this.blood.drops;
+      if (resume.trail) {
+        this.blood.until = resume.trail.until;
+        this.blood.from = resume.trail.from ? { ...resume.trail.from } : null;
+        this.blood.walked = resume.trail.walked;
+      }
+      if (resume.locks) {
+        this.locks.chosen = resume.locks.chosen;
+        this.locks.until = resume.locks.until;
+        this.locks.slams = resume.locks.slams.map((one) => ({ ...one }));
+        this.locks.pries = resume.locks.pries.map((one) => ({ ...one }));
+        this.locks.cooling = resume.locks.cooling.map((one) => ({ ...one }));
+      }
+      if (resume.spook) this.spook = { ...resume.spook };
+      // Die Werkzeuge stehen nicht im Stand, sondern im Gepäck: Was der
+      // Techniker aufgesammelt hat, hat er auch nach dem Wechsel in der Hand.
+      for (const id of this.haunt.crew.inventory)
+        if (id in TOOL_LABELS && !this.tools.includes(id)) this.tools.push(id);
+    }
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
     this.brain = new MonsterMemory(this.graph, () =>
@@ -413,11 +486,24 @@ export class FlatRound implements MapSource {
       MONSTERS.find((m) => m.id === crewOptions.monster)?.vent ?? 28,
       monsterBase(crewOptions.monster) * this.tuning.monster.speed,
     );
-    this.player = { x: COMMAND_HOME.x, z: COMMAND_HOME.z, yaw: 0, space: COMMAND };
-    const start = farthest(this.graph, this.player);
-    const centre = this.graph.centre(start);
+    // **Wo die beiden stehen.** Eine neue Runde setzt den Techniker vor die
+    // Zentrale und das Monster ans andere Ende; eine fortgesetzte stellt beide
+    // dorthin, wo sie im Augenblick des Wechsels standen.
+    const at = resume ? (this.haunt.technician ?? { x: COMMAND_HOME.x, z: COMMAND_HOME.z }) : null;
+    this.player = at
+      ? { x: at.x, z: at.z, yaw: resume?.yaw ?? this.haunt.technician?.yaw ?? 0, space: COMMAND }
+      : { x: COMMAND_HOME.x, z: COMMAND_HOME.z, yaw: 0, space: COMMAND };
+    if (at) this.player.space = this.graph.spaceAt(this.player) || COMMAND;
+    this.wasSpace = this.player.space;
+    const carried = resume ? this.haunt.monster : null;
+    const start = carried
+      ? this.graph.spaceAt(carried) || COMMAND
+      : farthest(this.graph, this.player);
+    const centre = carried ?? this.graph.centre(start);
     this.monster = { x: centre.x, z: centre.z, yaw: 0, space: start };
     if (this.haunt.monsterOn) this.haunt.monster = { x: centre.x, z: centre.z };
+    // Das Gedächtnis nachspielen, sobald es eines gibt (`net.loadMemory`).
+    if (resume?.memory) loadMemory(this.brain, resume.memory, (point) => this.graph.spaceAt(point));
 
     const layout = stationLayout(this.house);
     // Inhalt und Kennzeichen kommen aus `rules/cargo.ts` — dieselbe Liste, aus
@@ -451,6 +537,35 @@ export class FlatRound implements MapSource {
       { snapshot: this.snapshot(), mode: this.mode, viewerId: PLAYER_ID },
       this.litCache,
     );
+  }
+
+  /**
+   * **Die Buchführung dieser Runde, zum Mitnehmen** — die Gegenseite von
+   * `FlatResume`.
+   *
+   * Wer die Ansicht wechselt (2D → 3D) oder den Gastgeber übergibt, braucht
+   * genau das, was *nicht* im `HauntState` steht: Riegel, Spuk, Wunde und das
+   * Gedächtnis des Monsters. Die Sperren gehen dabei als **Abschrift** heraus
+   * und nicht als dasselbe Objekt: Wer weitergibt, gibt nicht auch noch einen
+   * Draht zurück in eine Runde, die er gerade schließt.
+   */
+  books(): { locks: DoorLocks; spook: Spook; trail: TrailBook; memory: MonsterBook } {
+    return {
+      locks: {
+        chosen: this.locks.chosen,
+        until: this.locks.until,
+        slams: this.locks.slams.map((one) => ({ ...one })),
+        pries: this.locks.pries.map((one) => ({ ...one })),
+        cooling: this.locks.cooling.map((one) => ({ ...one })),
+      },
+      spook: { ...this.spook },
+      trail: {
+        until: this.blood.until,
+        from: this.blood.from ? { ...this.blood.from } : null,
+        walked: this.blood.walked,
+      },
+      memory: packMemory(this.brain, this.graph.spaces),
+    };
   }
 
   get phase(): HauntState['phase'] {

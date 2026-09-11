@@ -18,6 +18,7 @@ import { goalRoomId, INK, MapView, type MapGoal, type MapRoute } from './mapView
 import { PuzzleOverlay, el } from './puzzleOverlay';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
+import { VIEW_LABELS, type View } from '../rules/lobby';
 import { cargoLabel, cargoOf, taskCargo } from '../rules/cargo';
 import { hudTasks } from '../rules/roundHud';
 import {
@@ -129,11 +130,13 @@ export interface FlatModeHost {
    */
   insight?(): MonsterInsight | null;
   /**
-   * **Mitten in der Runde die Ansicht wechseln** — 2D ↔ 3D. Der Knopf steht
-   * im Optionsmenü; was er auslöst, gehört der Welt
-   * (`HauntingWorld.switchView`), denn nur sie kennt das Schiff.
+   * **Die Ansicht mitten in der Runde wechseln** (`HauntingWorld.switchView`).
+   *
+   * Nur vorhanden, wenn dieser Mensch die Runde wirklich spielt: Wer zusieht,
+   * sieht der Runde eines anderen zu, und ein Knopf, der sie ins Schiff holte,
+   * nähme sie ihm weg. Fehlt der Haken, fehlt auch der Eintrag im Optionsmenü.
    */
-  switchView?(view: '2d' | '3d'): void;
+  switchView?(view: View): void;
 }
 
 /** Wie lange eine Meldung stehen bleibt, in Sekunden. */
@@ -1335,18 +1338,22 @@ export class FlatMode {
       );
       parts.push(key);
     }
-    // **2D ↔ 3D**, mitten in der Runde. Der Knopf steht hier, weil die Frage
-    // „von oben oder im Schiff?" keine Frage des Aufbaus ist: Man merkt erst
-    // beim Spielen, dass man lieber das andere hätte.
-    const swap = el('button', 'flat__option');
-    swap.dataset['switchView'] = '';
-    swap.append(
-      el('strong', '', 'Ansicht: 3D Schiff'),
-      el('small', '', 'Von der Karte von oben ins Schiff wechseln'),
-    );
-    parts.push(swap);
-    // Und der Weg hinaus: Er beendet die Runde und stellt den Aufbau wieder
-    // hin — dort steht, was eine *neue* Runde wird.
+    // **2D ↔ 3D, mitten in der Runde** (`HauntingWorld.switchView`). Kein
+    // Neustart und keine neue Rolle: derselbe Stand, dieselbe Uhr, dasselbe
+    // Monster — nur von oben statt von innen. Deshalb steht der Eintrag hier
+    // und nicht bei „Zurück zur Lobby", wo alles die Runde beendet.
+    if (this.host.switchView) {
+      const swap = el('button', 'flat__option');
+      swap.dataset['switchView'] = '3d';
+      swap.append(
+        el('strong', '', `Ansicht: 2D ↔ 3D — zu „${VIEW_LABELS['3d']}"`),
+        el('small', '', 'Mitten in der Runde · Stand, Uhr, Türen und Monster bleiben'),
+      );
+      parts.push(swap);
+    }
+    // Zurück zur Lobby: Dort steht, was eine *neue* Runde wird — Was, Wer,
+    // Wie. Genau die drei Knöpfe, die hier standen und jedes Mal eine halbe
+    // Lobby nachbauten.
     const leave = el('button', 'flat__option flat__option--leave');
     leave.dataset['leave'] = '';
     leave.append(
@@ -1422,9 +1429,11 @@ export class FlatMode {
       // nimmt ihn wieder — dieselbe Runde, dieselbe Karte, ein anderer Kopf.
       this.playRole(this.role === 'watch' ? 'technician' : 'watch');
       this.renderOptions();
-    } else if (data['switchView'] !== undefined) {
-      this.host.switchView?.('3d');
+    } else if (data['switchView'] === '2d' || data['switchView'] === '3d') {
+      // Das Menü geht zu: Der Wechsel nimmt diese ganze Ansicht mit, und ein
+      // offenes Panel über einem Schiff wäre ein Rest der alten.
       this.options.hidden = true;
+      this.host.switchView?.(data['switchView']);
     } else if (data['leave'] !== undefined) {
       this.host.exit();
     } else if (data['audio'] === 'effects' || data['audio'] === 'ambient') {
@@ -1477,6 +1486,11 @@ export class FlatMode {
     const next: FlatOptions = {
       ...this.options_,
       ...options,
+      // **Eine neue Runde setzt nichts fort.** `resume` kam einmal herein, um
+      // eine laufende Runde zu übernehmen (`FlatResume`); bliebe es stehen,
+      // würfelte „Noch einmal?" einen neuen Samen und spielte trotzdem den
+      // alten Stand weiter.
+      resume: undefined,
       setup,
       test: setup.monster === 'off',
       role: flatRoleOf(setup),

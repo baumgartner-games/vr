@@ -91,6 +91,8 @@ let restart: jest.Mock;
 let equip: jest.Mock;
 let testMission: jest.Mock;
 let stations: jest.Mock;
+/** Der eine Knopf „2D von oben" im Panel des Technikers (`HauntingWorld.switchView`). */
+let switchView: jest.Mock;
 let menuToggle: jest.Mock;
 let floating: FlashlightTool;
 /** Was der Kompass gerade ansagt — die Welt rechnet es sonst selbst (`HauntingWorld.objectives`). */
@@ -171,6 +173,7 @@ beforeEach(() => {
   equip = jest.fn();
   testMission = jest.fn();
   stations = jest.fn();
+  switchView = jest.fn();
   goals = [];
   round = null;
   floating = new FlashlightTool();
@@ -193,6 +196,7 @@ beforeEach(() => {
     objectives: () => goals,
     round: () => round,
     stations,
+    switchView,
     door: jest.fn(),
     travel: (at) => rig.placeAt(at),
     route: () => null,
@@ -1154,4 +1158,23 @@ test('der Streifen zeigt die Aufträge nur, wenn am Archiv ein Bot sitzt', () =>
   const shared = String(exhibits.hud.mesh.userData.paint);
   expect(shared).toContain('O₂');
   expect(shared).not.toContain(repairsFor(spec)[0]!.title);
+});
+
+/**
+ * **Dieselbe Runde von oben statt von innen** (`HauntingWorld.switchView`). Ein
+ * Knopf, und zwar genau einer: Er steht oben bei „Rolle wechseln", weil er
+ * dasselbe ist — eine Ansicht und kein Neustart — und nicht unten zwischen den
+ * Handgriffen, wo man ihn auf der Flucht trifft.
+ */
+test('der Techniker wechselt mit einem Knopf in die Karte von oben', () => {
+  const button = document.querySelector<HTMLButtonElement>('[data-action="flat-view"]')!;
+  expect(button).not.toBeNull();
+  expect(button.textContent).toBe('2D von oben');
+  expect(button.closest('details')).toBeNull();
+  button.click();
+  expect(switchView).toHaveBeenCalledWith('2d');
+  // Und nichts sonst: kein Neustart, kein Test, keine Rollenwahl.
+  expect(restart).not.toHaveBeenCalled();
+  expect(testMission).not.toHaveBeenCalled();
+  expect(stations).not.toHaveBeenCalled();
 });
