@@ -74,7 +74,10 @@ Station mit der Fracht, einer Linie von jeder Kiste zu ihrer Konsole und einer
 Raumakte je Zimmer (Codes groß) — aber **niemanden, der sich bewegt**. Die
 **Schalttafel** sieht die Station als Grundriss und schaltet darauf: Tür
 antippen sperrt oder gibt frei, Lampe antippen schaltet Licht — **Wesen zeigt sie keine**, wer eine
-Tür zuwirft, weiß also nicht, wen er einsperrt. Der **Späher** bekommt alle
+Tür zuwirft, weiß also nicht, wen er einsperrt. Dazu hat sie die **Tafel**:
+ein Blatt über der Karte mit einer Zeile je Schalter, so beschriftet, wie es
+an der Wand steht — „Licht Kombüse", „Tür 3", „X". Die Karte weiß, *wo* etwas
+ist; die Tafel weiß, *was* es überhaupt gibt. Der **Späher** bekommt alle
 dreieinhalb Sekunden **eine Peilung**: einen grünen Punkt für den Techniker,
 einen roten für das Monster, genau dort, wo sie in dem Moment waren —
 dazwischen verblassen sie, und niemand weiß, was inzwischen passiert.
@@ -127,7 +130,7 @@ Reiter ganz oben, in der Brille der Knopf am Handgelenk. Er ist kurz:
    darüber.
 
 **Die Rolle wählst du über die Reiter oben**: _Aufbau_, _Späher_,
-_Schalttafel_, _Archiv_, dann Drohne, Fernseher und Monster. Wer noch nichts
+_Schalttafel_, _Archiv_, dann Zuschauer und Monster. Wer noch nichts
 gewählt hat, liest „Bitte wähle über den Tab oben deine Rolle aus."; wer eine
 Fähigkeit antippt, nimmt sie — auch mehrere, und dem, der sie hatte, wird sie
 abgenommen. Mitten in einer Runde darf das nur, wer in der Einsatzzentrale
@@ -267,15 +270,20 @@ jede mit eigenen Schichten. Beim **Archiv** liegt die ganze Station darauf,
 mit Fracht und Konsolen. **Wohin das Teil muss, erfährt das Archiv erst, wenn
 der Techniker es in der Hand hat:** Dann führt eine gestrichelte Linie zur
 Konsole, und am Ziel steht „hierher". Legt er es irgendwo ab und lässt es länger
-als fünf Sekunden liegen, meldet das Archiv, in welchem Raum es liegt. Ein Tipp auf ein Zimmer schlägt die **Raumakte** auf: Codes
-groß, Fundhinweise, Türen, Licht — und ein Bild des Raums, in 3D die
-Draufsicht der wirklichen Welt mit Zoom und Wisch, in der 2D-Welt eine
-herangezoomte Karte. Live-Positionen zeigt es keine. Die **Schalttafel** zeigt
-den Grundriss ohne Wesen und schaltet Türen und Lampen per Tipp; der
-**Späher** zeigt zwei Punkte und sonst nichts. Der Kopfbereich bietet einen
+als fünf Sekunden liegen, meldet das Archiv, in welchem Raum es liegt. Ein Tipp auf ein Zimmer schlägt die **Raumakte** auf — ganzseitig, die Karte
+ist so lange weg, und „Karte" bringt sie zurück: Codes groß, Fundhinweise,
+Türen — und ein Bild des Raums, in 3D die Draufsicht der wirklichen Welt mit
+Zoom und Wisch, in der 2D-Welt eine herangezoomte Karte. Live-Positionen zeigt
+es keine, Lampen auch nicht. Die **Schalttafel** zeigt
+den Grundriss ohne Wesen und schaltet Türen und Lampen per Tipp; „Tafel" oben
+rechts schlägt ihre Schalterliste darüber auf, und ein Schott, das gerade
+abkühlt, steht darin grün und zählt herunter. Der **Späher** zeigt zwei Punkte
+und sonst nichts. Der Kopfbereich bietet einen
 sichtbaren Rollenwechsel. In der 2D-Welt liegt derselbe Wechsel als Streifen
 über der Szene: Wer dort eine Rolle aufschlägt, sieht **dieselbe laufende
-Runde** aus ihrer Sicht, ohne dass etwas neu gestartet wird.
+Runde** aus ihrer Sicht, ohne dass etwas neu gestartet wird — allerdings nur
+in einer **Test-Runde**: Mitten in einer Mission ist man dort der Techniker
+und steht im Anzug.
 
 **Wer blutet, wird verfolgt.** Ein Treffer reißt eine Wunde, und die blutet
 zwei Minuten lang: Wer sich danach bewegt, hinterlässt alle anderthalb Meter
@@ -404,10 +412,10 @@ Monster" und dem Modus „Alles sehen". Eingaben hast du keine; ein Zuruf von
 dir beendet die Runde schneller als das Monster.
 
 Am **Zuschauerplatz der Zentrale** wählst du dazu, **wessen Platz** du gerade
-ansiehst — Zuschauer (das ganze Deck von schräg oben, ohne Decke), Archiv,
-Einsatzkontrolle, Späher, Drohne oder Monster —, und das mitten in der Runde:
-Du siehst das Blatt des Archivars, das Bild der Drohne oder die Station aus
-Monstersicht, aber nie deren Knöpfe. Über dem Deck folgt die Kamera auf Wunsch
+ansiehst — Deck (das ganze Schiff von schräg oben, ohne Decke), Archiv,
+Schalttafel, Späher oder Monster —, und das mitten in der Runde: Du siehst
+genau das Bild, das der andere vor sich hat — seine Karte, seine Akte, seine
+Tafel —, aber nie seine Knöpfe. Über dem Deck folgt die Kamera auf Wunsch
 dem **Techniker** oder dem **Monster** oder bleibt frei. Ein Schalter
 **„KI-Absichten"** legt offen, was das Monster denkt: die Zimmer, in denen es
 dich vermutet, eingefärbt nach seiner Sicherheit, der gestrichelte Weg, den es

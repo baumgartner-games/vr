@@ -75,20 +75,30 @@ Gehört ihm:
 
 Andockstellen: `RoleDefinition.mount(host: RoleHost): RoleView`
 (`registry/roles.ts`); die Karte kommt aus `new MapView({...})`, der Stand
-aus `host.snapshot()`, der Grundriss aus `host.spec()`, die drei Griffe der
-Schalttafel aus `host.door/light/lure`. Was eine Rolle darüber hinaus braucht,
-kommt über `host.extra` — das Steuer des Monsters
+aus `host.snapshot()`, der Grundriss aus `host.spec()`, die **zwei** Griffe
+der Schalttafel aus `host.door/light` (der dritte, `lure`, ist mit dem
+Schallköder wieder gestrichen). Dazu zwei Auskünfte, die weder im Grundriss
+noch im Snapshot stehen können: `host.switches()` — die Tafel, so weit der
+Sicherungskasten sie freigibt — und `host.ledger()` — die Buchführung der
+Runde (`rules/archiveGoals.ArchiveState`: Uhr, geholte Teile, erledigte
+Aufträge, was der Techniker trägt, was im Gang liegt). Was eine Rolle darüber
+hinaus braucht, kommt über `host.extra` — das Steuer des Monsters
 (`monster/monsterDriver.monsterPortOf`) und der Tisch des Archivars
 (`views/archiveDesk.archiveDeskOf`).
+
+Der **Fernseher** (`views/watchRole.ts`) ist die einzige Rolle, die selbst
+andere Rollen aufschlägt: Über `watchLens.ts` wählt der Zuschauer einen Platz,
+und die Ansicht dieser Rolle wird aus der Registry gebaut — mit einem Wirt,
+dessen `door`/`light` `''` zurückgeben. Wer eine Rolle anmeldet, steht damit
+auch beim Zuschauer, ohne dort eine Zeile zu schreiben.
 
 **Die Drohne gibt es nicht mehr** (Rolle, Ansicht, Körper, Kamera, Flug,
 Netznachricht, CSS). Ihre Wegtypen leben als `navmesh/route.ts` im Paket
 `nav` weiter und tragen dort Modelltechniker und Monster.
 
-**Hinweis:** Das Paket `map` muss in Phase 1 in `stationUi.ts` **eine**
-Checkbox neben der Kachel „Bot-Runde ansehen" einbauen (Auftrag). Das ist
-die kleinste mögliche Änderung an einer fremden Grenzfall-Datei und steht in
-`HANDOVER.md` des Pakets `map`.
+**Hinweis:** Die Kachel „Bot-Runde ansehen" und die Checkbox daneben gibt es
+nicht mehr — der Aufbau ist heute zwei Häkchen, eine Verteilung und ein
+Startknopf (`rules/lobby.ts`, `roundSetupPanel.ts`).
 
 ### 3. Audio (Paket `audio`)
 

@@ -1962,10 +1962,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Der Außentechniker sucht Gegenstände, löst Reparaturaufträge und kann nach
   drei Treffern verlieren. Die drei Nicht-VR-Rollen zeichnen dieselbe Karte
   wie die 2D-Welt, jede mit eigenen Schichten (`views/`): das **Archiv** die
-  ganze Station mit Fracht und Zielräumen und einer Raumakte je Zimmer, die
-  **Schalttafel** die Station ohne Wesen mit schaltbaren Türen, Lampen und
-  Ködern, der **Späher** zwei Punkte alle dreieinhalb Sekunden. Zuschauer
-  (3D-Puppenhaus) und Monster bleiben daneben. Wählbar sind
+  ganze Station mit Fracht und einer Raumakte je Zimmer — wohin ein Teil
+  gehört, sieht es erst, wenn der Techniker es trägt —, die **Schalttafel**
+  die Station ohne Wesen mit schaltbaren Türen und Lampen, dazu ihre
+  Schalterliste als Blatt darüber, der **Späher** zwei Punkte alle
+  dreieinhalb Sekunden. Schallköder gibt es nicht mehr. Der Zuschauer
+  (3D-Puppenhaus) schlüpft auf Wunsch in jede dieser Ansichten, lesend;
+  das Monster bleibt daneben. Wählbar sind
   6/8/10/12 größere Räume mit Gängen und drei Entitäten mit eigener Wahrnehmung. Sichere Tests bleiben bei ausgeschaltetem Licht gegnerfrei;
   vier Lehrzimmer liegen abseits der Missionskarte. Ausführlich:
   _Haunting / Orbital: Raumstation für eine Quest und zwei Mobilgeräte_.
@@ -2560,9 +2563,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
-| Haunting: Station wählen | – | Archiv, Schalttafel, Späher, Zuschauer oder Monster in der Zentrale wählen | antippen |
+| Haunting: Rolle wählen | – | Reiterzeile ganz oben: _Aufbau_, die drei Fähigkeiten Späher / Schalttafel / Archiv, dann Zuschauer und Monster | antippen |
 | Haunting: Archiv | – | Zimmer auf der Karte antippen öffnet die Raumakte; Bild darin ziehen/zoomen | dito |
-| Haunting: Schalttafel | – | Tür oder Lampe antippen schaltet sie; die Tafel darunter ebenso | dito |
+| Haunting: Schalttafel | – | Tür oder Lampe auf der Karte antippen schaltet sie; „Tafel" oben rechts schlägt die Schalterliste darüber auf | dito |
 | Haunting: Zuschauer — wessen Platz / wem folgen / KI-Absichten | – | im Zuschauer-Panel wählen (Deck, Archiv, Schalttafel, Späher, Monster) | antippen |
 | Haunting: Schrank / Gegenstand / Rätsel | anvisieren + Trigger | anvisieren + `E` oder Linksklick | als Techniker über sichtbare Schaltflächen |
 | Haunting: linke / rechte Hand | Radar-/Röntgen-/Medkit-Menü; Objekte mit Trigger bedienen | `1` wechselt Sensor, `2` Lampe/Medkit; beide enthalten freie Hand | – |
@@ -2570,11 +2573,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Haunting: Schutzschrank | Code am Display eingeben, offenes Display zum Verstecken; beleuchteter Innenknopf zum Verlassen | Code mit `E`/Klick; `E` oder Menü zum Verlassen | – |
 | Haunting: Ducken | körperlich ducken | `Ctrl` halten | – |
 | Haunting: Mission / Test | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei | dito | Handys besetzen Archiv/Schalttafel |
-| Haunting: 2D-Welt, Rolle wechseln | – | Streifen über der Szene: Station, Archiv, Schalttafel, Späher, Monster | antippen |
+| Haunting: 2D-Welt, Rolle wechseln | – | Streifen über der Szene: Station, Archiv, Schalttafel, Späher, Monster — nur in einer Test-Runde | antippen |
 | Haunting: einzelne Lehrzimmer | Test → _Testdeck: einzelne Übungsräume_; Rückkehrknopf in jedem Raum | dito; mit `E` die echten Beispiele bedienen | – |
 | Haunting: Simulationsflug | linker Stick fliegt, rechter steigt/sinkt | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller | – |
 | Haunting: VR-Komfort | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration | – | – |
-| Haunting: Raumakte | – | Raumnamen auswählen; einzelne Draufsicht, Codes und Hinweise | dito |
+| Haunting: Raumakte | – | Zimmer auf der Archivkarte antippen; die Akte liegt ganzseitig darüber, „Karte" bringt den Grundriss zurück | dito |
 | Haunting: Leistungsanzeige | – | `F3`: FPS, Framezeit, Draw Calls und Dreiecke | mit F3 sichtbar |
 | Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der linke Stick aus — der rechte dreht weiter, und die Anker gehen mit | –                                                                                               | –                    |
 | Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
@@ -7705,9 +7708,9 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `MapSource.doorHold` liefert sie mit `cooling: true`, daraus wird
   `MapDoor.cooling` und derselbe Balken über der Tür wie beim Halten, nur grün
   statt rot (`map/mapView.ts`, `map/flatScene.ts` — auch bei
-  zurückgefahrenem Blatt). Auf der Tafel (`stationUi.hackPage`) steht die
-  Restzeit unter der Beschriftung, der Schalter ist grün und abgeschaltet
-  („noch warm · 27 s"). In 3D brauchte es dafür nichts: `doorLocked` liest
+  zurückgefahrenem Blatt). Auf der Tafel der Schalttafel-Rolle
+  (`views/panelRole.ts`) steht die Restzeit unter der Beschriftung, der
+  Schalter ist grün und abgeschaltet („noch warm · 27 s"). In 3D brauchte es dafür nichts: `doorLocked` liest
   `state.shut`, und eine abkühlende Tür steht dort nicht drin — ihre Leuchten
   sind ohnehin grün.
   **Und niemandem fällt die Tür auf den Kopf** (`haunt.slammable` mit
@@ -8530,9 +8533,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`readSetup`: Mensch schlägt Bot, was nicht vorkam, ist aus).
   **Die Spalte „Ich" verbindet Platz und Gerät**: Ein Tipp darauf macht die
   Zeile zum Menschen *und* setzt dieses Telefon an das Gerät, das dazugehört
-  (Archiv → Archiv, Schalttafel und Späher → Einsatzkontrolle, Monster →
+  (Archiv → Archiv, Schalttafel → Schalttafel, Späher → Späher, Monster →
   Monster; `stationUi.claimSlot`, `ABILITY_STATIONS`) — ohne dabei die Seite zu
-  wechseln. Unter jeder Fähigkeit steht, wer sie wirklich hält (Name aus dem
+  wechseln. Seit #93 ist jede Fähigkeit eine eigene angemeldete Rolle mit
+  eigener Karte; „Einsatzkontrolle" ist deshalb kein Gerät mehr, sondern nur
+  noch der **Name** dafür, beide zugleich zu halten. Unter jeder Fähigkeit steht, wer sie wirklich hält (Name aus dem
   Netz, „Bot" oder „niemand"). Über das Netz sagt ein Telefon weiterhin **ein
   Gerät** an (`Claim.station`); die Fähigkeiten sind lokal — die feinere Ansage
   gehört in `net.ts` und damit in ein eigenes Paket.
@@ -8653,13 +8658,15 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   mit denselben Worten:
   - **Van / Telefon** (`stationUi.vanPage`, Hochformat zuerst): ganz oben die
     **Reiterzeile als Rollenwahl** (`stationUi.writeBar`) — _Aufbau_, die drei
-    Fähigkeiten (`[data-power]`), dann Fernseher, Monster
-    (`[data-sit]`) — und rechts daneben drei kleine Knöpfe für Spielmenü,
+    Fähigkeiten (`[data-power]`), dann jede angemeldete Rolle, die keine
+    Fähigkeit ist: Fernseher, Monster (`[data-sit]`, aus `listRoles()`, also
+    ohne eine Liste in `stationUi.ts`) — und rechts daneben drei kleine Knöpfe für Spielmenü,
     Verbindung und VR. Darunter, im Reiter _Aufbau_: ein Statuschip, die zwei
     Häkchen (`[data-check="view"]`, `[data-check="test"]`), die Tafel mit der
     Spalte „Ich" und **der eine Startknopf** (`[data-start-setup]`, beschriftet
     aus `startLabel`, darunter `describeSetup`), zuletzt „Hilfe: Wer sieht
-    was?". Weg sind: der Titel „ORBITAL / EINSATZZENTRALE", der
+    was?" — ein Satz je Rolle, aus `RoleFacts.sees` und nicht aus einer Liste
+    hier: Wer sich anmeldet, bringt seinen Satz mit. Weg sind: der Titel „ORBITAL / EINSATZZENTRALE", der
     Auftragsstreifen mit Uhr und Anzug (im Aufbau zeigt er nichts an, was
     liefe), die Geräteliste `.lobby__seats`, das Segment 2D|3D, die
     Absichts-Kacheln und die Hilfe „Eure Dreiercrew". Auch die **Kopfzeile der
@@ -8726,11 +8733,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   **nicht** sieht, steht deshalb nicht in einem Kommentar, sondern in ihren
   Layern — mit Test:
   - **Archiv** (`views/archiveRole.ts`): die ganze Station mit Fracht,
-    Konsolen und Möbeln, `entities: false`. Je offener Reparatur eine
-    gestrichelte Linie von der Kiste zu ihrer Konsole; trägt der Techniker das
-    Teil schon, steht am Ziel „hierher". Ein Tipp auf ein Zimmer schlägt die
-    **Raumakte** auf: Codes groß, Fundhinweis, Türen, Licht — dazu ein Bild
-    des Raums. In 3D ist das ein **Loch**, in das `HauntingWorld.render` die
+    Konsolen und Möbeln, `entities: false` — und `lights: false`: Ob es
+    irgendwo hell ist, sieht der Techniker selbst. **Was er wann sehen darf,
+    rechnet `rules/archiveGoals.ts`**: die **Kiste immer**, mit dem Namen des
+    Teils daran; das **Ziel erst, wenn der Techniker das Teil trägt** — dann,
+    und nur dann, gibt es die gestrichelte Linie, das „hierher" an der Konsole
+    und den Freigabecode in der Akte; ein **abgelegtes Teil** erst nach
+    `DROPPED_SEEN` = 5 s (`HauntState.dropped`). Vorher zog die Karte von
+    jeder Kiste eine Linie zu ihrer Konsole, und der Archivar sagte die ganze
+    Runde in einem Satz an. Ein Tipp auf ein Zimmer schlägt die **Raumakte**
+    auf — **ganzseitig, ohne Karte dahinter** (`is-sheet`, „Karte" bringt sie
+    zurück), und sie rollt: Codes groß, Fundhinweis, Türen — dazu ein Bild des
+    Raums. In 3D ist das ein **Loch**, in das `HauntingWorld.render` die
     Draufsicht der wirklichen Welt zeichnet, mit Zoom und Wisch
     (`views/archiveDesk.ts` über `RoleHost.extra`, `archiveView.ts` für die
     Anschläge); in der 2D-Welt steht dort eine zweite, herangezoomte
@@ -8738,7 +8752,17 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     weg: Sie zählte auf, was die Karte zeigt.
   - **Schalttafel** (`views/panelRole.ts`, Kennung `hack`): der Grundriss
     ohne Wesen. Tür antippen sperrt oder gibt frei, Lampe antippen schaltet
-    Licht. Einen Schallköder gibt es nicht mehr. Geschaltet
+    Licht. Einen Schallköder gibt es nicht mehr. **Und dazu die Tafel selbst**
+    — die Schalterliste aus `panel.ts`, als Blatt über der Karte (`Tafel`
+    oben rechts, `is-sheet` wie beim Archiv; auf einem Telefon hochkant ist
+    beides nebeneinander entweder ein Grundriss von drei Zentimetern oder eine
+    halbe Liste). Sie kennt **alle** freigegebenen Schalter mit ihrer
+    Beschriftung, auch die in Zimmern, die gerade nicht im Bild sind — „Tür 3"
+    ist die halbe Sprache dieser Rolle. Welche das sind, sagt der Wirt
+    (`RoleHost.switches` → `visibleSwitches(spec.switches, state.fuse)`) und
+    nicht die Rolle: Vor dem Sicherungskasten ist die Hälfte nicht da. Ein
+    **abkühlendes Schott** steht dort grün, mit Restzeit und abgeschaltet
+    (`is-warm`, `MapDoor.cooling`, `LOCK_COOLDOWN` = 40 s). Geschaltet
     wird weiterhin über die Tafel aus `panel.ts` (`HauntingWorld.panelSwitch`
     sucht den Schalter mit diesem Ziel): Wofür es keinen Schalter gibt, sagt
     die Ansicht — sie schaltet nicht an der Tafel vorbei.
@@ -8748,14 +8772,27 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     **wandern nicht mit**: Ein interpolierter Punkt wäre eine Verfolgung, und
     damit wäre Verstecken kein Mittel mehr, sondern ein Umweg. Der alte
     Radarschirm mit dem laufenden Punkt ist genau deshalb weg.
-  Der **Zuschauer** (`views/watchRole.ts`) ist die einzige Rolle ohne Karte:
-  `surface: '3d'`, sein Bild bleibt das Puppenhaus aus der 3D-Welt.
+  Der **Zuschauer** (`views/watchRole.ts`) ist die einzige Rolle ohne eigene
+  Karte: `surface: '3d'`, sein Bild ist das Puppenhaus aus der 3D-Welt. Über
+  seine **Linse** (`watchLens.ts`) schlüpft er in jede andere Rolle — Deck,
+  Archiv, Schalttafel, Späher, Monster (keine Drohne) —, und zwar in **deren**
+  angemeldete Ansicht, nicht in einen Nachbau: Er schlägt sie aus der Registry
+  auf wie der Rollenstreifen der 2D-Welt, nur mit einem Wirt, dessen `door`
+  und `light` `''` zurückgeben und nichts tun. Dazu „wem folgen?" (Techniker /
+  Monster / frei, nur über dem Deck) und **KI-Absichten** an/aus — das Overlay
+  aus Paket M4, das es nur hier gibt (`HauntingWorld.insightWanted` fragt
+  `StationUi.watchLens`). `StationUi.shownStation` sagt der Welt, welche
+  Kamera sie ausrichten soll.
 - **Rollenwechsel in der 2D-Welt** (`views/roleStrip.ts`): ein Streifen über
   der Szene. Wer dort eine Rolle aufschlägt, bekommt sie über **dieselbe
   laufende `FlatRound`** — nichts wird gestartet, nichts verworfen; die Runde
   rechnet weiter, während jemand ihr beim Archiv zusieht. Der Wirt dafür ist
   `FlatMode.roleHost()`; die Schalttafel greift über `FlatRound.lockDoor` und
-  `switchLight` in dieselbe Runde.
+  `switchLight` in dieselbe Runde. **Gewechselt wird nur in einer Test-Runde**
+  (`RoleStripHost.rights` → `switchRights` mit `inCentre: false`): Wer in 2D
+  spielt, ist der Techniker und steht im Anzug — er greift nicht nebenbei ins
+  Archiv. Sonst stehen die Knöpfe abgeschaltet da, mit dem Grund als Titel;
+  zurück zur Szene geht immer.
 - **Die Drohne ist gestrichen** — Rolle, Ansicht, Körper, Kamera, Flug,
   Netznachricht (`kind: 'drone'`) und CSS. Übrig geblieben sind die
   **Wegtypen**: `droneRoute.ts` heißt heute `navmesh/route.ts` (Paket `nav`)
@@ -8831,26 +8868,27 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   der Runde fand ohne es statt. `STATION_PROTOCOL` bleibt trotzdem **8** — ein
   altes Gerät, das `loud` noch mitschickt, wird gelesen wie eines, das es
   weglässt: Der Leser kennt das Feld nicht mehr, und keine Regel hängt daran.
-  **Die Schalter sind doppelt so groß** (`stationDashboard.css`,
-  `.haunt__switch*`): eine ganze Zeile je Schalter statt zwei Spalten, ≥ 72 px
-  hoch, Kippschalter 62 × 34 px — das Maß ist ein hochkant gehaltenes Telefon
-  und ein Daumen, der im Dunkeln nicht den Nachbarn treffen soll. Ab 620 px
-  Breite wieder zwei Spalten.
+  **Die Schalter sind doppelt so groß** (`views/views.css`, `.role__switch*`):
+  eine ganze Zeile je Schalter statt zwei Spalten, ≥ 64 px hoch, Kippschalter
+  58 × 32 px — das Maß ist ein hochkant gehaltenes Telefon und ein Daumen, der
+  im Dunkeln nicht den Nachbarn treffen soll. Die Regeln stehen bei der Rolle
+  (`views/`) und nicht mehr im Telefon-Rahmen (`stationDashboard.css`): Die
+  Tafel läuft auch über der 2D-Welt, wo es keine Einsatzzentrale gibt.
 - **Der Zuschauer ist ein Platz und kein Fenster mehr** (`watchLens.ts`,
-  `stationUi.watchPage`). Er war das ganze Deck von schräg oben und sonst
+  `views/watchRole.ts`). Er war das ganze Deck von schräg oben und sonst
   nichts; jetzt stehen dort zwei Fragen und ein Schalter:
-  - **Wessen Platz?** — Zuschauer (Deck), Archiv, Einsatzkontrolle, Späher,
-    Drohne, Monster. Gewechselt wird **mitten in der Runde**, und gewechselt
-    wird nur das *Bild*: `StationUi.shownStation` sagt der Welt, welche Kamera
-    das Fenster füllt (`HauntingWorld.render`), der Platz bleibt `watch`.
-    Einsatzkontrolle und Späher sind dasselbe Gerät mit zwei Reitern, die
-    Tafel steht beim Zuschauer als **Auskunft** (`haunt__watch-panel`) und
-    nicht als Schalterwand, und die Monsteransicht bekommt **kein Steuer**
-    (`monsterPage(false)`) — der Gastgeber hörte ohnehin nicht auf sie, aber
-    ein Stock, der nichts bewegt, ist eine Zusage, die das Spiel nicht
-    einhält. Das Archivblatt folgt dem Zimmer, in dem der Techniker steht
-    (`followArchive`); ein Blatt zum Selberblättern wäre ein sechster Satz
-    Knöpfe für eine Rolle, die nichts bedient.
+  - **Wessen Platz?** — Deck, Archiv, Schalttafel, Späher, Monster (die
+    **Drohne ist gestrichen**). Gewechselt wird **mitten in der Runde**, und
+    gewechselt wird nur das *Bild*: `StationUi.shownStation` sagt der Welt,
+    welche Kamera das Fenster füllt (`HauntingWorld.render`), der Platz bleibt
+    `watch`. Gezeigt wird dabei **die angemeldete Ansicht dieser Rolle** aus
+    der Registry und kein Nachbau — es gibt keine zweite Schalterliste und kein
+    zweites Archivblatt, die auseinanderlaufen könnten. Bedienbar ist davon
+    nichts: Der Wirt, den sie bekommt, gibt auf `door` und `light` `''`
+    zurück, und das Steuer des Monsters bleibt `null` — ein Stock, der nichts
+    bewegt, ist eine Zusage, die das Spiel nicht einhält. Wie viel von der
+    Linse über dem fremden Bild liegt, entscheidet der Knopf „Blick" oben
+    rechts.
   - **Wem folgen?** — Frei, Techniker, Monster (`aimShow`,
     `WATCH_FOLLOW_SPAN` = 9 m). „Frei" ist das ganze Deck wie bisher; sonst
     zieht die Kamera weich nach (`showFocus`, `lerp` 0,18), weil der Stand nur
