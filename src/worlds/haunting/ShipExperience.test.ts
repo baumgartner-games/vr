@@ -213,9 +213,11 @@ afterEach(() => {
 });
 
 test('the desktop technician can return to station roles without opening the 3D menu', () => {
-  const button = document.querySelector<HTMLButtonElement>('[data-action="stations"]')!;
+  // Über das Optionsmenü der 2D-Welt (`map/optionsMenu.ts`): „Aufmachen →
+  // Zentrale" — und das Weltmenü der Seite bleibt dabei zu.
+  document.querySelector<HTMLButtonElement>('[data-action="options"]')!.click();
+  const button = document.querySelector<HTMLButtonElement>('.orbital-options [data-stations]')!;
   expect(button).not.toBeNull();
-  expect(button.closest('details')).toBeNull();
   button.click();
   expect(stations).toHaveBeenCalledTimes(1);
   expect(menuToggle).not.toHaveBeenCalled();
@@ -528,9 +530,27 @@ test('the teaching safe hides the player on one tap — no code — and E leaves
   expect(document.body.textContent).toContain('ohne Code');
   expect(state.crew.hidden).toBe('');
   const approach = rig.position.clone();
+  const meshes: THREE.Mesh[] = [];
+  for (const part of locker.parts)
+    part.traverse((node) => {
+      if (node instanceof THREE.Mesh) meshes.push(node);
+    });
+  const before = meshes.map((mesh) => mesh.material);
   tap('KeyE');
   expect(state.crew.hidden).toBe('training-safe');
   expect(rig.frozen).toBe(true);
+  // **Von innen ein Geist mit Schlitzen**: blasse Kopien der Materialien,
+  // die Originale (geteilt mit allen Möbeln) bleiben unangetastet.
+  const slits = locker.group.getObjectByName('locker-slits')!;
+  expect(slits.visible).toBe(true);
+  expect(slits.children.length).toBeGreaterThanOrEqual(4);
+  for (const mesh of meshes) {
+    const material = mesh.material as THREE.Material;
+    expect(material.transparent).toBe(true);
+    expect(material.opacity).toBeLessThan(0.5);
+    expect(material.side).toBe(THREE.DoubleSide);
+  }
+  expect(before.every((material) => !(material as THREE.Material).transparent)).toBe(true);
   key('KeyE');
   frame();
   frame();
@@ -538,6 +558,9 @@ test('the teaching safe hides the player on one tap — no code — and E leaves
   expect(rig.frozen).toBe(false);
   expect(rig.position.x).toBeCloseTo(approach.x);
   expect(rig.position.z).toBeCloseTo(approach.z);
+  // Draußen ist der Schrank wieder der alte: dieselben Materialien, keine Schlitze.
+  expect(meshes.map((mesh) => mesh.material)).toEqual(before);
+  expect(slits.visible).toBe(false);
   key('KeyE', 'keyup');
 });
 
@@ -1165,15 +1188,43 @@ test('der Streifen zeigt die Aufträge nur, wenn am Archiv ein Bot sitzt', () =>
  * dasselbe ist — eine Ansicht und kein Neustart — und nicht unten zwischen den
  * Handgriffen, wo man ihn auf der Flucht trifft.
  */
-test('der Techniker wechselt mit einem Knopf in die Karte von oben', () => {
-  const button = document.querySelector<HTMLButtonElement>('[data-action="flat-view"]')!;
-  expect(button).not.toBeNull();
-  expect(button.textContent).toBe('2D von oben');
-  expect(button.closest('details')).toBeNull();
-  button.click();
+test('der Techniker wechselt über das Optionsmenü der 2D-Welt in die Karte von oben', () => {
+  // **Dasselbe Zahnrad wie in 2D** (`map/optionsMenu.ts`): ein Knopf oben im
+  // Panel klappt es auf, und darin stehen dieselben Einträge mit denselben
+  // Worten — kein zweites Menü mit anderen Namen.
+  const gear = document.querySelector<HTMLButtonElement>('[data-action="options"]')!;
+  expect(gear).not.toBeNull();
+  expect(gear.closest('details')).toBeNull();
+  expect(document.querySelector('[data-action="flat-view"]')).toBeNull();
+  expect(document.querySelector('[data-action="stations"]')).toBeNull();
+  const panel = document.querySelector<HTMLElement>('.orbital-options')!;
+  expect(panel.hidden).toBe(true);
+  gear.click();
+  expect(panel.hidden).toBe(false);
+  const labels = [...panel.querySelectorAll('strong')].map((one) => one.textContent);
+  expect(labels).toEqual(
+    expect.arrayContaining([
+      'Ansicht',
+      'Zuschauen: aus',
+      'Aufmachen',
+      'Menü',
+      'Verbindung',
+      'Ton',
+      'Runde verlassen',
+    ]),
+  );
+  const swap = panel.querySelector<HTMLButtonElement>('[data-switch-view="2d"]')!;
+  expect(swap).not.toBeNull();
+  expect(swap.textContent).toContain('2D von oben');
+  swap.click();
   expect(switchView).toHaveBeenCalledWith('2d');
+  expect(panel.hidden).toBe(true);
   // Und nichts sonst: kein Neustart, kein Test, keine Rollenwahl.
   expect(restart).not.toHaveBeenCalled();
   expect(testMission).not.toHaveBeenCalled();
   expect(stations).not.toHaveBeenCalled();
+  // „Runde verlassen" führt in die Zentrale — dorthin, wo der Aufbau steht.
+  gear.click();
+  panel.querySelector<HTMLButtonElement>('[data-leave]')!.click();
+  expect(stations).toHaveBeenCalledTimes(1);
 });

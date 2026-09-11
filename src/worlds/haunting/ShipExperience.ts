@@ -3,6 +3,20 @@ import './haunting.css';
 import { playTone } from '../../core/Audio';
 import { ShipAudio, type ShipAudioFrame } from './shipAudio';
 import { HauntingAudio, NOISE, levelLabel } from './audio';
+import { pressPageButton } from '../../core/pageHud';
+import {
+  head,
+  key,
+  leaveKeys,
+  note,
+  renderOptions,
+  SHARED,
+  soundKeys,
+  switchViewKey,
+  watchKey,
+  type OptionItem,
+} from './map/optionsMenu';
+import { VIEW_LABELS } from './rules/lobby';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import type { MapGoal } from './map/mapView';
 import { ObjectiveCompass } from './objectiveCompass';
@@ -55,7 +69,12 @@ import { addOutline, removeOutline, type OutlineLook } from '../../core/outlineS
 import { RadarTool } from '../portal/tools/RadarTool';
 import type { Tool } from '../portal/tools/Tool';
 import { stationLayout, safeRoomSpawn } from './stationLayout';
-import { buildBrokenLocker, buildCargoCabinet, buildSafetyLocker } from './fixtureModels';
+import {
+  buildBrokenLocker,
+  buildCargoCabinet,
+  buildSafetyLocker,
+  LOCKER_SIZE,
+} from './fixtureModels';
 import { CabinWreck } from './rules/cabinWreck';
 import { cargoKey, cargoLabel, cargoOf, type CargoMark } from './rules/cargo';
 import { CARGO_OPEN_SECONDS, choreProgress, stepChore, type Chore } from './rules/chore';
@@ -170,7 +189,17 @@ interface Locker {
   parts: THREE.Object3D[];
   /** Das Wrack-Modell (`buildBrokenLocker`), solange die Kabine zerstört ist. */
   wreck: THREE.Group | null;
+  /**
+   * **Die Schlitze vor den Augen**, solange man drinsteckt — gebaut beim
+   * ersten Verstecken, danach nur noch ein- und ausgeblendet.
+   */
+  slits: THREE.Group | null;
+  /** Was den Geist wieder zum Schrank macht — `null`, solange niemand drinsteckt. */
+  ghost: (() => void) | null;
 }
+
+/** Wie durchsichtig der Schrank von innen ist — ein Geist, kein Glas. */
+const LOCKER_GHOST_OPACITY = 0.28;
 interface Door {
   id: string;
   leaves: [THREE.Mesh, THREE.Mesh];
@@ -308,6 +337,15 @@ export class ShipExperience {
    * Controller, und ein Knopf im DOM ist dort unsichtbar.
    */
   private controls: ShipControls | null = null;
+  /**
+   * **Das Optionsmenü der 2D-Welt, hier über dem Schiff** (`map/optionsMenu.ts`)
+   * — nur im Browser. In der Brille gibt es das Handgelenkmenü, und ein Panel
+   * im DOM ist dort unsichtbar. Der Rahmen trägt die Klassen der 2D-Welt,
+   * damit `flat.css` das Panel an dieselbe Stelle setzt wie dort.
+   */
+  private readonly optionsRoot = document.createElement('div');
+  private readonly optionsPanel = document.createElement('div');
+  private optionsOpen = false;
   /** Der Kompass am oberen Bildrand — nur am Desktop; in der Brille gibt es ihn (noch) nicht. */
   private compass: ObjectiveCompass | null = null;
   private sensorMode: 'off' | 'flashlight' | 'radar' | 'xray' = 'off';
@@ -439,7 +477,13 @@ export class ShipExperience {
       this.dom.addEventListener('click', this.domClick);
       this.crosshair.className = 'orbital-crosshair';
       this.crosshair.setAttribute('aria-hidden', 'true');
-      document.body.append(this.dom, this.crosshair);
+      this.optionsRoot.className = 'flat orbital-options';
+      this.optionsRoot.hidden = true;
+      this.optionsPanel.className = 'flat__panel';
+      this.optionsPanel.setAttribute('aria-label', 'Optionen');
+      this.optionsPanel.addEventListener('click', (event) => this.optionsClick(event));
+      this.optionsRoot.append(this.optionsPanel);
+      document.body.append(this.dom, this.crosshair, this.optionsRoot);
       if (host.objectives) {
         this.compass = new ObjectiveCompass();
         document.body.append(this.compass.element);
@@ -1046,6 +1090,8 @@ export class ShipExperience {
       open: false,
       parts,
       wreck: null,
+      slits: null,
+      ghost: null,
     });
     this.bind(keypad.mesh, (uv) => {
       if (!uv || !this.active) return;
@@ -1095,8 +1141,58 @@ export class ShipExperience {
     this.host.travel(locker.group.position.clone());
     this.crew.hidden = locker.id;
     locker.open = false;
+    this.ghostLocker(locker, true);
     this.host.say('Geschützt. AUSGANG vor dir antippen oder E drücken, um herauszutreten.');
     this.sound('door');
+  }
+  /**
+   * **Der Schrank als Geist, mit Lüftungsschlitzen.** Wer drinsteckt, stand
+   * vorher in einem Kasten, dessen Rückseiten der Renderer wegließ — der Raum
+   * schien durch die Wände, als gäbe es keinen Schrank. Jetzt bleibt er da,
+   * aber durchsichtig: Jedes Teil bekommt eine eigene, blasse Kopie seines
+   * Materials (die Originale teilen sich alle Möbel, also nie anfassen), und
+   * vor den Augen liegen dunkle Schlitze, durch die man hinaussieht. Beim
+   * Heraustreten kommt alles zurück, Kopien werden entsorgt.
+   */
+  private ghostLocker(locker: Locker, on: boolean): void {
+    if (on === !!locker.ghost) return;
+    if (!on) {
+      locker.ghost?.();
+      locker.ghost = null;
+      return;
+    }
+    const restores: Array<() => void> = [];
+    for (const part of locker.parts)
+      part.traverse((node) => {
+        if (!(node instanceof THREE.Mesh)) return;
+        const mesh = node as THREE.Mesh;
+        const original = mesh.material;
+        const pale = (Array.isArray(original) ? original : [original]).map((one) => {
+          const copy = one.clone();
+          copy.transparent = true;
+          copy.opacity = LOCKER_GHOST_OPACITY;
+          copy.side = THREE.DoubleSide;
+          copy.depthWrite = false;
+          return copy;
+        });
+        mesh.material = Array.isArray(original) ? pale : pale[0]!;
+        restores.push(() => {
+          mesh.material = original;
+          for (const copy of pale) copy.dispose();
+        });
+      });
+    if (!locker.slits) {
+      locker.slits = buildLockerSlits();
+      locker.group.add(locker.slits);
+    }
+    locker.slits.visible = true;
+    const slits = locker.slits;
+    restores.push(() => {
+      slits.visible = false;
+    });
+    locker.ghost = () => {
+      for (const restore of restores) restore();
+    };
   }
   /** Ob diese Kabine ein Wrack ist — die Liste steht im Stand (`HauntState.destroyed`). */
   private wrecked(id: string): boolean {
@@ -1148,7 +1244,10 @@ export class ShipExperience {
       this.host.travel(this.lockerHome);
     }
     const locker = this.lockers.find((l) => l.id === this.crew.hidden);
-    if (locker) locker.open = true;
+    if (locker) {
+      locker.open = true;
+      this.ghostLocker(locker, false);
+    }
     this.crew.hidden = '';
     this.host.say('Schutzschrank verlassen.');
     this.sound('door');
@@ -1784,6 +1883,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       // zu ist. Dieselbe Regel wie beim Fadenkreuz eine Zeile weiter.
       this.dom.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.crosshair.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
+      this.optionsRoot.hidden =
+        !this.optionsOpen || ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.paintControls();
       this.stepStick();
       this.dom.classList.toggle('is-keys', !this.controls?.hidden);
@@ -2211,22 +2312,14 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     oxygen.textContent = oxygenText;
     title.append(oxygen);
     this.dom.append(title);
-    if (this.host.stations) {
-      const roles = document.createElement('button');
-      roles.textContent = 'Rolle wechseln';
-      roles.dataset.action = 'stations';
-      this.dom.append(roles);
-    }
-    // **Ein Knopf, und zwar genau einer**: dieselbe Runde von oben statt von
-    // innen (`HauntingWorld.switchView`). Er steht oben bei „Rolle wechseln",
-    // weil er dasselbe ist — eine Ansicht und kein Neustart —, und nicht unten
-    // zwischen den Handgriffen, wo man ihn auf der Flucht trifft.
-    if (this.host.switchView && !crew.simulation) {
-      const flat = document.createElement('button');
-      flat.textContent = '2D von oben';
-      flat.dataset.action = 'flat-view';
-      this.dom.append(flat);
-    }
+    // **Das Zahnrad der 2D-Welt** (`showOptions`): Zentrale, 2D von oben,
+    // Menü, Verbindung, Ton, Runde verlassen — dieselben Einträge mit
+    // denselben Worten wie dort, statt loser Knöpfe, die dasselbe anders
+    // nannten. Oben, weil es eine Ansicht ist und kein Handgriff.
+    const options = document.createElement('button');
+    options.textContent = '⚙ Optionen';
+    options.dataset.action = 'options';
+    this.dom.append(options);
     if (crew.simulation) {
       const camera = document.createElement('button');
       camera.textContent = this.followBot ? 'Freie Kamera' : 'Bot folgen';
@@ -2312,7 +2405,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       button(`Skeld · ${crew.options.rooms} Räume`, 'rooms');
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
-    button('Missionsmenü', 'menu');
     button(`Linke Hand: ${HAND_LABEL[this.sensorMode]}`, 'sensor');
     button(`Rechte Hand: ${HAND_LABEL[this.rightItem]}`, 'right');
     button('Medkit', 'heal');
@@ -2608,6 +2700,81 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.audio.play('lamp', at);
   }
 
+  /**
+   * **Das Optionsmenü auf- oder zuklappen** und dabei neu schreiben — es
+   * ist klein, und ein Menü, das beim Aufmachen einen alten Stand zeigt,
+   * ist schlimmer als eines, das jedes Mal neu entsteht.
+   */
+  showOptions(open: boolean): void {
+    this.optionsOpen = open;
+    if (open) renderOptions(this.optionsPanel, this.shipOptions());
+    this.optionsRoot.hidden = !open;
+  }
+
+  /**
+   * **Die Einträge des Schiffs** — dieselben wie in der 2D-Welt
+   * (`FlatMode.renderOptions`), ohne die zwei, die es im Schiff nicht gibt
+   * (Zielpfade, die Sichtmodi des Zuschauers), und mit „Zentrale" statt
+   * „Karte" unter „Aufmachen": Die Karte von oben *ist* hier die andere
+   * Ansicht, und die steht als „2D ↔ 3D" weiter unten.
+   */
+  private shipOptions(): OptionItem[] {
+    const crew = this.crew;
+    const items: OptionItem[] = [
+      head(crew.simulation ? 'Zuschauer' : 'Techniker'),
+      head(SHARED.view),
+      note(`Realitätsnah · ${SHARED.playerView}`),
+      watchKey(crew.simulation),
+      head(SHARED.open),
+    ];
+    if (this.host.stations)
+      items.push(
+        key({ stations: '' }, 'Zentrale', 'Zurück in die Lobby · Rolle wechseln, Aufbau ändern'),
+      );
+    items.push(
+      key(
+        { pagemenu: '' },
+        SHARED.menu,
+        'Das Weltmenü der Seite: Welt wechseln, VR, Einstellungen',
+      ),
+      key({ pagenet: '' }, SHARED.net, SHARED.netHint),
+      ...soundKeys({
+        effects: this.audioOn ? levelLabel(this.hearingAudio.levels.effects) : 'aus',
+        ambient: this.audioOn ? levelLabel(this.hearingAudio.levels.ambient) : 'aus',
+      }),
+    );
+    if (this.host.switchView && !crew.simulation)
+      items.push(switchViewKey('2d', VIEW_LABELS['2d']));
+    items.push(...leaveKeys());
+    return items;
+  }
+
+  private optionsClick(event: Event): void {
+    const pressed = (event.target as HTMLElement | null)?.closest('button');
+    if (!pressed) return;
+    const data = pressed.dataset;
+    if (data['watch'] !== undefined) this.toggleSimulation();
+    else if (data['stations'] !== undefined) this.host.stations?.();
+    else if (data['pagemenu'] !== undefined) this.host.ctx.menu.toggle();
+    else if (data['pagenet'] !== undefined) pressPageButton('net');
+    else if (data['audio'] === 'effects' || data['audio'] === 'ambient') {
+      // Ein Regler, der auf „aus" steht, weil der ganze Ton aus ist, schaltet
+      // ihn erst wieder an — sonst dreht man an etwas, das man nicht hört.
+      if (!this.audioOn) {
+        this.audioOn = true;
+        this.audio.setEnabled(true);
+        this.hearingAudio.setEnabled(true);
+      } else this.hearingAudio.cycle(data['audio']);
+      renderOptions(this.optionsPanel, this.shipOptions());
+      return;
+    } else if (data['switchView'] === '2d') this.host.switchView?.('2d');
+    else if (data['leave'] !== undefined) this.host.stations?.();
+    else if (data['closeOptions'] === undefined) return;
+    this.showOptions(false);
+    this.stamp = '';
+    this.paint();
+  }
+
   private readonly domClick = (event: Event): void => {
     const action = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]')
       ?.dataset.action;
@@ -2624,6 +2791,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       else if (id === 'train') this.host.test();
       else this.host.start();
     } else if (kind === 'stations') this.host.stations?.();
+    else if (kind === 'options') this.showOptions(!this.optionsOpen);
     else if (kind === 'flat-view') this.host.switchView?.('2d');
     else if (kind === 'overview') {
       this.followBot = false;
@@ -3040,6 +3208,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.dom.removeEventListener('click', this.domClick);
     this.controls?.dispose();
     this.controls = null;
+    this.optionsRoot.remove();
     this.compass?.dispose();
     this.compass = null;
     for (const target of this.targets) this.host.ctx.pointer.remove(target);
@@ -3093,4 +3262,25 @@ function disposeObject(root: THREE.Object3D): void {
   geometries.forEach((g) => g.dispose());
   materials.forEach((m) => m.dispose());
   textures.forEach((t) => t.dispose());
+}
+
+/**
+ * **Die Lüftungsschlitze des Schrankgeists**: sechs dunkle Stäbe in
+ * Augenhöhe, innen an der Tür, mit Luft dazwischen. Sie sind das Einzige am
+ * Schrank, das von innen undurchsichtig bleibt — genau das, was man durch
+ * einen Spind sieht: Streifen von Licht.
+ */
+function buildLockerSlits(): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'locker-slits';
+  const material = new THREE.MeshBasicMaterial({ color: 0x0a0d12 });
+  const width = LOCKER_SIZE.width - 0.3;
+  const z = LOCKER_SIZE.depth / 2 - 0.03;
+  for (let i = 0; i < 6; i++) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(width, 0.035, 0.01), material);
+    bar.position.set(0, 1.42 + i * 0.075, z);
+    group.add(bar);
+  }
+  group.visible = false;
+  return group;
 }

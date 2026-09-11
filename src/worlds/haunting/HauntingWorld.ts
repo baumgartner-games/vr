@@ -35,7 +35,7 @@ import {
   roomAccent,
   type StationBeacon,
 } from './shipArt';
-import type { WatchFollow, WatchLens } from './watchLens';
+import { defaultLens, throughEyes, type WatchLens } from './watchLens';
 import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
@@ -310,6 +310,10 @@ const SHOW_PITCH = (Math.PI / 180) * 80;
 
 /** Der Öffnungswinkel dazu — eng genug, dass das Haus nicht gestaucht wirkt. */
 const SHOW_FOV = 42;
+/** Und der Öffnungswinkel, wenn der Zuschauer durch die Augen des Technikers sieht. */
+const EYES_FOV = 78;
+/** Augenhöhe für den Techniker, der nur Ort und Gierwinkel schickt (Bot, 2D), in Metern. */
+const EYES_HEIGHT = 1.6;
 
 /**
  * Wie viele Meter im Bild stehen, wenn der Zuschauer jemandem folgt.
@@ -3037,8 +3041,8 @@ export class HauntingWorld extends GridWorld {
     // **Der Blick des Zuschauers gehört in den Schlüssel.** Ohne ihn blieb das
     // Bild stehen, wenn er den Platz wechselte: Die Drossel sah dieselbe
     // Station und dasselbe Zimmer und hielt das alte Bild für frisch.
-    const lens: Readonly<WatchLens> = ui.watchLens;
-    const view = `${ui.station}:${lens.seat}:${lens.follow}:${this.archiveRoom}:${this.spec.seed}`;
+    const lens: Readonly<WatchLens> = ui.station === 'watch' ? ui.watchLens : defaultLens();
+    const view = `${ui.station}:${lens.seat}:${lens.follow}:${lens.eyes}:${lens.zoom}:${lens.pan.x}:${lens.pan.z}:${this.archiveRoom}:${this.spec.seed}`;
     if (view === this.phoneRenderView && now < this.nextPhoneRender) return true;
     this.phoneRenderView = view;
     this.nextPhoneRender = now + 1000 / 15;
@@ -3048,10 +3052,13 @@ export class HauntingWorld extends GridWorld {
     const shown = ui.shownView;
     const archive = shown === 'archive';
     const show = shown === 'watch';
+    // **Durch die Augen des Technikers** bleibt das Haus, wie er es sieht:
+    // mit Decke, mit Nebel, ohne das Tageslicht des Puppenhauses.
+    const eyes = show && throughEyes(lens);
     // Die Decke bleibt nur dem Zuschauer weg, und sie geht nur bei Wechsel ab:
     // Eine Schnittebene, die je Bild kommt und geht, baut three.js jedes Mal
     // jeden Shader neu.
-    this.liftLid(show);
+    this.liftLid(show && !eyes);
     const rect = ui.viewport();
     const renderer = ctx.renderer;
     renderer.getSize(_size);
@@ -3069,7 +3076,7 @@ export class HauntingWorld extends GridWorld {
     const camera = show ? this.showCam : this.topCam;
     if (!camera) return true;
     if (archive) this.aimArchive(this.archiveRoom, aspect, head);
-    if (show) this.aimShow(aspect, head, ui.station === 'watch' ? lens.follow : 'free');
+    if (show) this.aimShow(aspect, head, lens);
 
     // Der Archivar sieht **keine Lebewesen**: keinen Mitspieler, kein Monster,
     // keine Drohne. Sein Blatt ist ein Grundriss und keine Überwachung.
@@ -3091,11 +3098,11 @@ export class HauntingWorld extends GridWorld {
     // **Der Zuschauer sieht Tag.** Der Nebel gehört zum Grusel derer, die
     // drinstecken; über dem Puppenhaus wäre er nur eine Milchglasscheibe.
     const fog = ctx.scene.fog;
-    if (show || archive) ctx.scene.fog = null;
+    if ((show && !eyes) || archive) ctx.scene.fog = null;
     const creatureVisible = this.monster?.holder.visible;
     if (archive && this.monster) this.monster.holder.visible = false;
-    if (this.showLight) this.showLight.intensity = show ? 3.4 : 0;
-    if (this.showSun) this.showSun.intensity = show ? 2.2 : 0;
+    if (this.showLight) this.showLight.intensity = show && !eyes ? 3.4 : 0;
+    if (this.showSun) this.showSun.intensity = show && !eyes ? 2.2 : 0;
 
     const y = _size.y - rect.y - rect.h;
     renderer.setScissorTest(true);
@@ -3144,15 +3151,34 @@ export class HauntingWorld extends GridWorld {
    * nach, und die schlimmere der beiden Zahlen gewinnt: Ein hochkantes Handy
    * hat quer zu wenig Platz, ein Fernseher der Länge nach.
    */
-  private aimShow(aspect: number, head: number, follow: WatchFollow = 'free'): void {
+  private aimShow(aspect: number, head: number, lens: Readonly<WatchLens>): void {
     const camera = this.showCam;
     if (!camera) return;
+    const follow = lens.seat === 'deck' ? lens.follow : 'free';
+    // **Durch seine Augen**: Die Kamera steht im Kopf des Technikers — wo
+    // immer der gerade ist (`technicianEyes`). Gibt es keinen, bleibt es beim
+    // Fenster über ihm, damit das Bild nicht schwarz wird.
+    if (throughEyes(lens) && this.technicianEyes(camera)) {
+      camera.fov = EYES_FOV;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+      this.showAimed = false;
+      return;
+    }
+    // Zurück aufs Puppenhaus: der feste Blick von schräg oben.
+    camera.fov = SHOW_FOV;
+    camera.rotation.set(-SHOW_PITCH, 0, 0);
     const target =
       follow === 'technician'
         ? this.technicianFocus()
         : follow === 'monster'
           ? this.state.monster
           : null;
+    // **Zoom und Flug** (`watchLens.ts`): näher heißt ein kleineres Fenster,
+    // und die Verschiebung reist mit — neben dem Verfolgten her oder über
+    // das freie Deck.
+    const zoom = Math.max(1, lens.zoom);
+    const pan = lens.pan;
     if (target) {
       // **Nachziehen, nicht springen.** Der Stand kommt zehnmal je Sekunde
       // über die Leitung; eine Kamera, die auf jeden Punkt schnappt, ruckelt
@@ -3160,11 +3186,12 @@ export class HauntingWorld extends GridWorld {
       this.showFocus.lerp(_showTarget.set(target.x, 0, target.z), this.showAimed ? 0.18 : 1);
       this.showAimed = true;
       const rise = Math.tan(((SHOW_FOV / 2) * Math.PI) / 180);
-      const deep = WATCH_FOLLOW_SPAN / Math.max(0.2, 1 - head);
-      const far = Math.max(deep / (2 * rise), WATCH_FOLLOW_SPAN / (2 * rise * aspect));
-      const look = this.showFocus.z - (head / 2) * deep;
+      const span = WATCH_FOLLOW_SPAN / zoom;
+      const deep = span / Math.max(0.2, 1 - head);
+      const far = Math.max(deep / (2 * rise), span / (2 * rise * aspect));
+      const look = this.showFocus.z + pan.z - (head / 2) * deep;
       camera.position.set(
-        this.showFocus.x,
+        this.showFocus.x + pan.x,
         Math.sin(SHOW_PITCH) * far,
         look + Math.cos(SHOW_PITCH) * far,
       );
@@ -3174,19 +3201,19 @@ export class HauntingWorld extends GridWorld {
     }
     this.showAimed = false;
     const bounds = stationBounds(this.spec);
-    const cx = (bounds.x + bounds.w / 2) * TILE;
-    const cz = (bounds.z + bounds.d / 2) * TILE;
+    const cx = (bounds.x + bounds.w / 2) * TILE + pan.x;
+    const cz = (bounds.z + bounds.d / 2) * TILE + pan.z;
     // Ein Kachelrand ringsum: Das Haus soll im Bild stehen und nicht daran
     // kleben — und im Süden liegt der Vorplatz mit der Einsatzzentrale, die man gern
     // mitsieht, wenn die Drohne heimkommt.
-    const wide = (bounds.w + 1) * TILE;
+    const wide = ((bounds.w + 1) * TILE) / zoom;
     // Nach Süden ein Stück mehr: Dort liegen der Vorplatz und die Einsatzzentrale, und wer
     // zusieht, will sehen, wie die Drohne heimkommt und was auf dem Tisch
     // landet. Und oben der Streifen für die Zeilen, die über dem Bild liegen.
-    const deep = ((bounds.d + 3.4) * TILE) / Math.max(0.2, 1 - head);
+    const deep = ((bounds.d + 3.4) * TILE) / zoom / Math.max(0.2, 1 - head);
     const rise = Math.tan(((SHOW_FOV / 2) * Math.PI) / 180);
     const far = Math.max(deep / (2 * rise), wide / (2 * rise * aspect));
-    const look = cz + 1.2 * TILE - (head / 2) * deep;
+    const look = cz + (1.2 * TILE) / zoom - (head / 2) * deep;
     camera.position.set(cx, Math.sin(SHOW_PITCH) * far, look + Math.cos(SHOW_PITCH) * far);
     camera.aspect = aspect;
     // **Die hintere Kappe wandert mit.** Ein hochkant gehaltenes Telefon
@@ -3205,6 +3232,33 @@ export class HauntingWorld extends GridWorld {
    * an drei Geräten hängen kann; ohne alle drei würde die Kamera des
    * Zuschauers je nachdem, wer spielt, ins Leere zeigen.
    */
+  /**
+   * **Die Kamera in den Kopf des Technikers stellen** — für „Durch seine
+   * Augen" (`watchLens.throughEyes`). Dieselben drei Quellen wie
+   * `technicianFocus`, nur mit Blickrichtung: Die Brille schickt ihre ganze
+   * Kopfpose (`PeerPose.head`, Ort und Drehung), Modelltechniker und
+   * 2D-Techniker nur Ort und Gierwinkel — die stehen dann in Augenhöhe und
+   * schauen geradeaus. Gibt `false` zurück, wenn niemand da ist.
+   */
+  private technicianEyes(camera: THREE.PerspectiveCamera): boolean {
+    for (const peer of this.context?.net.peers.values() ?? [])
+      if (peer.world === 'haunting' && peer.role === 'vr' && peer.pose) {
+        const h = peer.pose.head;
+        camera.position.set(h[0], h[1], h[2]);
+        camera.quaternion.set(h[3], h[4], h[5], h[6]);
+        return true;
+      }
+    const bot = this.experience?.botPose;
+    const flat = this.state.technician;
+    const pose = bot ?? flat;
+    if (!pose) return false;
+    // Gierwinkel wie beim Crewmate (`showTechnician`): Der schaut nach +z,
+    // die Kamera nach -z — eine halbe Drehung dazwischen.
+    camera.position.set(pose.x, EYES_HEIGHT, pose.z);
+    camera.rotation.set(0, pose.yaw + Math.PI, 0);
+    return true;
+  }
+
   private technicianFocus(): { x: number; z: number } | null {
     const flat = this.state.technician;
     if (flat) return { x: flat.x, z: flat.z };

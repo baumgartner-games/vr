@@ -643,8 +643,8 @@ export class StationUi {
       if (isWatcher(this.me) && watch.setLens)
         watch.setLens(
           this.me === 'watch:technician'
-            ? { seat: 'deck', follow: 'technician' }
-            : { seat: 'deck', follow: 'free' },
+            ? { seat: 'deck', follow: 'technician', eyes: true }
+            : { seat: 'deck', follow: 'free', eyes: false },
         );
     }
     // **Mehr als eine Karte auf dem Stuhl: eine Zeile zum Blättern.** Sie
@@ -862,8 +862,8 @@ export class StationUi {
       if (isWatcher(me) && this.viewId === 'watch' && watch?.setLens)
         watch.setLens(
           me === 'watch:technician'
-            ? { seat: 'deck', follow: 'technician' }
-            : { seat: 'deck', follow: 'free' },
+            ? { seat: 'deck', follow: 'technician', eyes: true }
+            : { seat: 'deck', follow: 'free', eyes: false },
         );
     } else if ((this.host.lobby?.().view ?? '2d') === '3d' && !this.host.link().vr) {
       // Im Schiff heißt „Ich bin der Techniker": diesen Desktop an den Stock.

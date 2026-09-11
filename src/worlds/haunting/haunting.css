@@ -350,6 +350,10 @@ body.haunt-on #hud { display: none; }
    und nicht der Stock. */
 .flat.ship3d { pointer-events: none; z-index: 3; }
 .flat.ship3d .flat__stick, .flat.ship3d .flat__buttons { pointer-events: auto; }
+/* Das Optionsmenü der 2D-Welt über dem Schiff (`ShipExperience.showOptions`): derselbe Rahmen wie in 2D, nur ohne den schwarzen Grund und über dem Panel des Technikers. */
+.flat.orbital-options { pointer-events: none; background: none; z-index: 5; }
+.flat.orbital-options .flat__panel { pointer-events: auto; }
+.flat.orbital-options[hidden] { display: none; }
 .flat.ship3d .flat__stick { width: min(44vw, 240px); height: 200px; }
 /* Wo der Stock und die Knöpfe der 2D-Bedienung liegen, hört das Panel auf. */
 .orbital-player.is-keys { bottom: 212px; }

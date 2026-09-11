@@ -363,6 +363,11 @@ describe('Die Tür hinter dem Techniker', () => {
     round.monster.z = near.z;
     round.monster.space = door.a;
     round.state().monster = { x: near.x, z: near.z };
+    // **Kein Treffer in dieser Probe.** Es geht um die Tür und den Zuruf,
+    // nicht um den Schlag: Ein Monster, das trifft, hält danach inne
+    // (`monsterRoutine.rest`, `HIT_LULL`), und dann wäre die Tür längst zu,
+    // bevor es hindurch ist — das ist die Schonfrist und nicht der Zuruf.
+    round.state().crew.invulnerable = 60;
     expect(walkTo(round, far, 20)).toBe(true);
     const crossed = round.state().time;
     const texts: string[] = [];

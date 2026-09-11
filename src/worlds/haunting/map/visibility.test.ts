@@ -109,6 +109,26 @@ describe('Realitätsnah', () => {
     const field = computeVisibility({ snapshot: s, mode: 'realistic', viewerId: 'p' });
     expect(field.visibleEntities).toContain('m');
   });
+
+  /**
+   * **Im Schrank versteckt bleibt nur der Lichtkreis.** Die Lampen des Decks
+   * sind weg, der eigene Kreis bleibt — und durch die Schlitze sieht man,
+   * was direkt davor steht, sonst nichts. Wer alles sieht, behält die Lampen.
+   */
+  it('lässt dem Versteckten nur seinen Lichtkreis', () => {
+    const s = twoRooms();
+    const p = entity('p', 'player', 3, 5, -Math.PI / 2);
+    p.concealed = true;
+    s.entities = [p, entity('m', 'monster', 8, 5), entity('n', 'peer', 3.8, 5)];
+    s.lights = [{ id: 'l', roomId: 'a', at: { x: 5, z: 5 }, on: true, radius: 8, kind: 'lamp' }];
+    const hidden = computeVisibility({ snapshot: s, mode: 'realistic', viewerId: 'p' });
+    expect(hidden.lit).toEqual([]);
+    expect(hidden.cones).toEqual([]);
+    expect(hidden.self?.radius).toBe(SELF_RADIUS);
+    expect(hidden.visibleEntities).toEqual(['p', 'n']);
+    const all = computeVisibility({ snapshot: s, mode: 'omniscient', viewerId: 'p' });
+    expect(all.lit.map((one) => one.lightId)).toEqual(['l']);
+  });
 });
 
 describe('Alles sehen', () => {

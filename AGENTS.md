@@ -2563,17 +2563,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
-| Haunting: Rolle wählen | – | Reiterzeile ganz oben: _Aufbau_, die drei Fähigkeiten Späher / Schalttafel / Archiv, dann Zuschauer und Monster | antippen |
+| Haunting: Rolle wählen | Menü → _Techniker / Rot / Gelb / Blau / Monster_ (Mensch · Bot · Aus) und _Fähigkeiten der Plätze_ | Reiterzeile ganz oben: _Aufbau_, Techniker, Rot, Gelb, Blau, Monster, _Zuschauer: Techniker_, _Zuschauer: Alles_ — wer tippt, sitzt dort | antippen |
 | Haunting: Archiv | – | Zimmer auf der Karte antippen öffnet die Raumakte; Bild darin ziehen/zoomen | dito |
 | Haunting: Schalttafel | – | Tür oder Lampe auf der Karte antippen schaltet sie; „Tafel" oben rechts schlägt die Schalterliste darüber auf | dito |
-| Haunting: Zuschauer — wessen Platz / wem folgen / KI-Absichten | – | im Zuschauer-Panel wählen (Deck, Archiv, Schalttafel, Späher, Monster) | antippen |
+| Haunting: Zuschauer — wessen Platz / wem folgen / durch seine Augen / KI-Absichten | – | im Zuschauer-Panel wählen (Deck, Archiv, Schalttafel, Späher, Monster); über dem Deck: Stock links unten oder Finger fliegt, Mausrad oder zwei Finger zoomen, _Zurück über das Deck_ | antippen, ziehen, zwei Finger |
 | Haunting: Schrank / Gegenstand / Rätsel | anvisieren + Trigger | anvisieren + `E` oder Linksklick | als Techniker über sichtbare Schaltflächen |
 | Haunting: linke / rechte Hand | Radar-/Röntgen-/Medkit-Menü; Objekte mit Trigger bedienen | `1` wechselt Sensor, `2` Lampe/Medkit; beide enthalten freie Hand | – |
 | Haunting: Medkit | Missionsmenü → Medkit | rechts wählen + `E`, oder Missionsmenü | – |
-| Haunting: Schutzschrank | Code am Display eingeben, offenes Display zum Verstecken; beleuchteter Innenknopf zum Verlassen | Code mit `E`/Klick; `E` oder Menü zum Verlassen | – |
+| Haunting: Schutzschrank | Tastenfeld antippen = hinein (kein Code); beleuchteter Innenknopf zum Verlassen | `E` oder Klick auf das Tastenfeld; `E` oder Menü zum Verlassen | Kabine antippen, wie in 2D |
 | Haunting: Ducken | körperlich ducken | `Ctrl` halten | – |
 | Haunting: Mission / Test | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei | dito | Handys besetzen Archiv/Schalttafel |
-| Haunting: 2D-Welt, Rolle wechseln | – | Streifen über der Szene: Station, Archiv, Schalttafel, Späher, Monster — nur in einer Test-Runde | antippen |
+| Haunting: 2D-Welt, Rolle wechseln | – | Streifen über der Szene: Station, Archiv, Schalttafel, Späher, Monster — nur in einer Test-Runde; Zahnrad = Optionsmenü (dasselbe steht im Schiff im Browser hinter _⚙ Optionen_) | antippen |
 | Haunting: einzelne Lehrzimmer | Test → _Testdeck: einzelne Übungsräume_; Rückkehrknopf in jedem Raum | dito; mit `E` die echten Beispiele bedienen | – |
 | Haunting: Simulationsflug | linker Stick fliegt, rechter steigt/sinkt | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller | – |
 | Haunting: VR-Komfort | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration | – | – |
@@ -7835,9 +7835,22 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
 **Mission, Werkzeuge und Komfort**
 
 - `mission.ts` besitzt Optionen, drei Reparaturen, Kabel-/Folge-/Frequenzrätsel,
-  Fracht, Schutzcodes, HP, simulierten Puls und Anstrengung. Drei Treffer sind
+  Fracht, HP, simulierten Puls und Anstrengung. Drei Treffer sind
   `lost`, drei Reparaturen und Rückkehr `won`. Test, Schutzschrank und
-  Schachtpassage verhindern Treffer; Medkit heilt einen. Sichtbare Ergebnis-
+  Schachtpassage verhindern Treffer; Medkit heilt einen. **Nach einem Treffer
+  gibt es sechs Sekunden Schonfrist** (`HIT_GRACE`), und das Monster hält
+  davon vier selbst inne (`HIT_LULL`, `monsterRoutine.rest`) — in beiden
+  Welten; vorher klebte es dem Getroffenen an den Fersen, bis die Frist um
+  war, und der nächste Schlag kam mit Anlauf. **Der Schutzschrank hat
+  keinen Code mehr**: Ein Tipp auf das Tastenfeld, und man ist drin, wie in
+  2D. `lockerCode` gibt es noch für den Samen der Kabinen, aber keine Akte
+  und kein Panel zeigt ihn. Von innen ist der Schrank ein **Geist mit
+  Lüftungsschlitzen** (`ShipExperience.ghostLocker`): blasse Kopien der
+  Materialien je Teil (die Originale teilen sich alle Möbel), davor sechs
+  dunkle Stäbe in Augenhöhe; beim Heraustreten kommt alles zurück. In 2D
+  bleibt dem Versteckten **nur der Lichtkreis um sich herum**
+  (`map/visibility.ts`: Lampen weg, `self` bleibt, sichtbar ist, was in
+  anderthalb Metern davor steht). Sichtbare Ergebnis-
   Panels bieten Neustart im DOM und im Headset, auch per Zeiger-Trigger.
   **Die Runde hat eine Uhr** (`rules/roundRules.ts`): der Sauerstoff, zehn
   Minuten, läuft gleichmäßig durch und wird von keiner Reparatur angehalten
@@ -7960,8 +7973,9 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Suchposition. Simulations-Snapshots bewahren Versteck und Bedrohung.
   Erinnerung verfolgt die zuletzt wahrgenommene Position, keine Hellsicht.
 - Anstrengung steigt beim Sprint in 4s von 0 auf 1 und fällt in 5s ab.
-  `helmetCondensation.ts` lässt unten im Visier Atemwolken und Tropfen
-  erscheinen, die Mitte bleibt lesbar. Kein harter Sprinttimer.
+  `helmetCondensation.ts` legt dafür **eine weiße Fläche** über das Visier,
+  die von unten her weich einblendet — keine Punkte, kein Flackern; die
+  Mitte bleibt lesbar. Kein harter Sprinttimer.
 - `HauntingComfort` bietet lokale Snap-/Smooth-Drehung, Bewegungsrand und
   Haptik; reale Kopfbewegung löst keinen Rand aus. Dispose restauriert die
   gemeinsamen Rig-Einstellungen und räumt Pointer/Audio/GPU-Ressourcen auf.
@@ -8551,33 +8565,55 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Modus „Alles sehen", in der Monster-Ansicht immer. `overlay` malt zuletzt,
   was eine Ansicht selbst noch braucht. Im Modus „Realitätsnah"
   bleiben Möbel und Items im Dunkeln weg (`seen`).
-- **Wer allein spielt, bekommt die Zentrale dazu** (`rules/roundSetup.ts`):
-  Die Verteilung einer Runde — Techniker (Mensch/Bot, **VR**, sobald jemand mit
-  der Brille im Raum ist), Monster (Mensch/Bot/Aus) und die **drei Fähigkeiten**
-  der Zentrale (`Ability`: Späher, Schalttafel, Archiv), jede für sich auf
-  **Bot / Mensch / Aus** — liegt in `localStorage`
-  (`bgvr.haunting.setup.v1`) und ist die Tafel des Aufbaus: dieselbe
-  (`roundSetupPanel.ts`, `SetupPanel`) im Van und dieselben Einträge im Menü
-  der Brille. **Fähigkeiten statt Plätze:** Vorher stand hier eine Liste mit
-  „+ Platz" — wer zwei Leute am Tisch hatte und drei Aufgaben, musste eine
-  wegwerfen, und wie die entstandene Mischung heißt, stand nirgends. Jetzt
-  stehen alle drei immer da, und ein Mensch hält davon so viele, wie er sich
-  über die Reiter nimmt. **Wie eine Mischung heißt, rechnet `roleName`:**
-  Späher / Schalttafel / Archiv einzeln; Späher + Schalttafel =
-  **Einsatzkontrolle**, Archiv + Späher = **Aufklärung**, Archiv + Schalttafel =
-  **Leitstand**, alle drei = **Zentrale**. `powersOf` gibt dem Techniker jede
-  Fähigkeit, an der ein **Bot** rechnet; „Aus" heißt: niemand hat sie, auch er
-  nicht. Alte `seats`-Einträge im Speicher werden beim Lesen übersetzt
-  (`readSetup`: Mensch schlägt Bot, was nicht vorkam, ist aus).
-  **„Monster: Mensch" ist eine Verabredung und noch kein Mensch.** Auf der Tafel
-  steht, wem der Platz *gehört*; ob dort wirklich jemand sitzt, entscheidet
-  allein die Sitzordnung (`stations.ownerOf`), und solange niemand sitzt,
-  rechnet beim Gastgeber die Routine weiter
-  (`monster/netMonsterControl.ts`, `occupied`). Das ist richtig so — eine Runde,
-  die auf ein Telefon wartet, das niemand in die Hand nimmt, wäre keine Runde.
-  Falsch war nur, dass es niemand erfuhr: Man stellte „Mensch" ein, sah ein
-  Monster aus Zahlen und hielt den Knopf für kaputt. Seit `startRound` sagt es
-  ein Satz beim Start, dort, wo die Verabredung getroffen wird.
+- **Die Tafel der Runde hat fünf Plätze** (`rules/roundSetup.ts`, `SEATS`):
+  **Techniker, Rot, Gelb, Blau, Monster**. Jeder Platz sagt, wer ihn hält
+  (`SeatWho`: Mensch / Bot / Aus — der Techniker kennt kein „Aus", und mit
+  Brille im Raum steht er auf **VR**, `lockTechnician`), und jeder Platz außer
+  dem Monster trägt die **drei Fähigkeiten** (`Ability`: Späher, Schalttafel,
+  Archiv) als Lampen, die man je Platz an- oder ausschaltet (`withPower`).
+  Die Tafel liegt in `localStorage` (`bgvr.haunting.setup.v2`; v1 und die
+  noch ältere `seats:[{role,who}]`-Form übersetzt `readSetup` beim Lesen) und
+  ist überall dieselbe: `roundSetupPanel.ts` (`SetupPanel`) im Van, die
+  Einträge `haunt:seat-<platz>` und das Untermenü `haunt:powers` in der
+  Brille — so stellt auch der VR-Spieler ein, ob ein Monster mitspielt und
+  ob Bots das Archiv und die anderen Posten halten. **Wer ich bin, ist keine
+  Spalte auf der Tafel mehr**, sondern die Wahl der Lobby (`LobbyChoice.me`,
+  `MyRole` = ein Platz oder `watch:technician` / `watch:all`), je Gerät. Die
+  **Reiterzeile** des Telefons ist diese Wahl (`stationUi.choose`): Wer einen
+  Platz antippt, sitzt dort, der Platz wird „Mensch", der alte wird frei
+  (Farben → Aus, Techniker/Monster → Bot) — „das Wegschubsen ist nur eine
+  Metapher". Wer allein ist, sitzt als **Zuschauer: Techniker** in der
+  Zentrale (`defaultLobby` auf dem Telefon), und die Runde läuft mit Bots.
+  **Wie eine Mischung heißt, rechnet `roleName`:** Späher / Schalttafel /
+  Archiv einzeln; Späher + Schalttafel = **Einsatzkontrolle**, Archiv +
+  Späher = **Aufklärung**, Archiv + Schalttafel = **Leitstand**, alle drei =
+  **Zentrale** (`seatTitle` je Platz). `powersOf` sind die Fähigkeiten des
+  **Technikerplatzes** (Späher auch, wenn ein Bot-Platz ihn hält, denn der
+  funkt ihm die Punkte); ohne Archiv sieht der Techniker **keine Ziele** —
+  keinen Kompass, keinen Saum auf der Karte, keine Liste
+  (`goalPrecision === 'none'`, `FlatRound.objectives` und
+  `HauntingWorld.objectives` geben `[]`); er hört, wo es liegt, wenn am
+  Archiv ein Bot rechnet (`botArchivist`, `rules/archiveRadio.ts`), oder
+  sucht. Ohne Schalttafel schaltet er keine Tür und keine Lampe per Tipp;
+  Schaltbefehle nimmt die Welt nur von Farbplätzen an, die die Fähigkeit auf
+  der Tafel des Gastgebers halten (`applyFlip`).
+  **Die Stühle heißen Farben** (`stations.StationId` = `red | yellow | blue |
+  watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
+  seither **Ansichten** (`ABILITY_VIEWS`: `archive`, `hack`, `scout` in der
+  Registry), die ein Stuhl je nach seinen Lampen aufschlägt — mehr als eine,
+  und es gibt eine Zeile zum Blättern (`StationUi.shownView`, `data-sub`).
+  `crewSize` zählt Techniker, Monster und jede Fähigkeit eines Platzes, der
+  nicht auf „Aus" steht.
+  **„Monster: Mensch" heißt: Wer den Platz nimmt, steuert es.** Auf der
+  Tafel steht, wem der Platz gehört; wer ihn über den Reiter nimmt, sitzt an
+  der Station `monster` und schickt sein Steuer (`monster/netMonsterPort.ts`)
+  — auch als **Gastgeber**, dessen Port die eigene Runde speist (`receive`).
+  Ist keine Brille im Raum, spielt er das Monster **auf der Karte von oben**
+  (`startRound`: `flatRoleOf(setup, 'monster')`), denn im Schiff rechnet der
+  Modelltechniker nur auf dem Gerät des Technikers, und ein Monster allein im
+  Schiff hätte niemanden zu jagen. Sitzt niemand dort, rechnet beim Gastgeber
+  die Routine weiter (`monster/netMonsterControl.ts`, `occupied`), und ein
+  Satz beim Start sagt es.
   **Die Spalte „Ich" verbindet Platz und Gerät**: Ein Tipp darauf macht die
   Zeile zum Menschen *und* setzt dieses Telefon an das Gerät, das dazugehört
   (Archiv → Archiv, Schalttafel → Schalttafel, Späher → Späher, Monster →
@@ -8700,12 +8736,16 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   **Absicht** (`Intent`) sagt, *was* passiert, die **Ansicht** (`View`) nur,
   *wie* man dabei zusieht — 2D von oben oder 3D im Schiff (auf dem Telefon ist
   2D voreingestellt, `defaultLobby`; in der Brille ist die Ansicht
-  **wirkungslos**, siehe den Absatz darüber). Gewählt werden sie als **zwei
-  Häkchen**: „2D-Welt von oben" (die Ansicht) und „Testen" (die Absicht
-  `train` — ohne Monster, und **in einer Test-Runde darf jeder jederzeit jede
-  Rolle wechseln**). Die drei Kacheln _Spielen · Zuschauen · Trainieren_ sind
+  **wirkungslos**, siehe den Absatz darüber). Gewählt wird die Ansicht als
+  **ein Häkchen**, „2D-Welt von oben" (`[data-check="view"]`); das Häkchen
+  „Testen" ist weg — ohne Monster spielt man, indem man den Platz **Monster
+  auf „Aus"** stellt (`applyIntent('train')` tut genau das), und **in einer
+  Runde ohne Monster darf jeder jederzeit jede Rolle wechseln**. Die drei
+  Kacheln _Spielen · Zuschauen · Trainieren_ sind
   weg: „Zuschauen" baut man nicht auf, man schaltet es mitten in der Runde an
   (2D-Optionsmenü); die Absicht `watch` bleibt als Datum und im Brillenmenü.
+  `applyIntent(setup, intent, me)` kennt dabei, wer fragt: Ein Monster-Mensch
+  bleibt beim „Spielen" das Monster, und der Techniker gehört dann den Zahlen.
   Die Absicht ist keine zweite Wahrheit neben der Verteilung: `applyIntent`
   schreibt sie in die `RoundSetup` (die Fähigkeiten bleiben dabei stehen),
   `intentOf` liest sie wieder heraus, und `startLabel` beschriftet daraus den
@@ -8718,13 +8758,14 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   **Alle Oberflächen zeigen denselben Aufbau**, in derselben Reihenfolge und
   mit denselben Worten:
   - **Van / Telefon** (`stationUi.vanPage`, Hochformat zuerst): ganz oben die
-    **Reiterzeile als Rollenwahl** (`stationUi.writeBar`) — _Aufbau_, die drei
-    Fähigkeiten (`[data-power]`), dann jede angemeldete Rolle, die keine
-    Fähigkeit ist: Fernseher, Monster (`[data-sit]`, aus `listRoles()`, also
-    ohne eine Liste in `stationUi.ts`) — und rechts daneben drei kleine Knöpfe für Spielmenü,
-    Verbindung und VR. Darunter, im Reiter _Aufbau_: ein Statuschip, die zwei
-    Häkchen (`[data-check="view"]`, `[data-check="test"]`), die Tafel mit der
-    Spalte „Ich" und **der eine Startknopf** (`[data-start-setup]`, beschriftet
+    **Reiterzeile als Rollenwahl** (`stationUi.writeBar`, `[data-me]`) —
+    _Aufbau_, dann die fünf Plätze der Tafel (Techniker, Rot, Gelb, Blau,
+    Monster) und die zwei Zuschauer (_Zuschauer: Techniker_, _Zuschauer:
+    Alles_) — und rechts daneben drei kleine Knöpfe für Spielmenü,
+    Verbindung und VR. Darunter, im Reiter _Aufbau_: ein Statuschip, das
+    Häkchen „2D-Welt von oben" (`[data-check="view"]`), die Tafel (fünf
+    Zeilen, je Mensch/Bot/Aus und die drei Fähigkeitslampen, ohne Spalte
+    „Ich") und **der eine Startknopf** (`[data-start-setup]`, beschriftet
     aus `startLabel`, darunter `describeSetup`), zuletzt „Hilfe: Wer sieht
     was?" — ein Satz je Rolle, aus `RoleFacts.sees` und nicht aus einer Liste
     hier: Wer sich anmeldet, bringt seinen Satz mit. Weg sind: der Titel „ORBITAL / EINSATZZENTRALE", der
@@ -8734,21 +8775,36 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     Seite** (`index.html`, `#hud`) ist auf dem Telefon ausgeblendet
     (`haunting.css`, `body.haunt-on #hud`) — nur versteckt, nicht abgebaut:
     Die kleinen Knöpfe der Reiterzeile drücken ihre Knöpfe stellvertretend.
-  - **Rollenwechsel über die Reiter**: Ein Tipp auf eine Fähigkeit **nimmt**
-    sie (`stationUi.take`) — sie kommt zu den schon gehaltenen dazu, der Name
-    der Mischung steht in `StationUi.roleLabel`, und in der Verteilung wird sie
-    „Mensch". Mitten in der Runde entscheidet `switchRights`, ob das geht;
+  - **Rollenwechsel über die Reiter**: Ein Tipp auf einen Platz **nimmt**
+    ihn (`stationUi.choose`) — die Lobby merkt sich `me`, der Platz wird
+    „Mensch", man sitzt an seiner Station, der alte Platz wird frei; der Name
+    der Mischung seiner Fähigkeiten steht in `StationUi.roleLabel`
+    (`seatTitle`). Mitten in der Runde entscheidet `switchRights`, ob das geht;
     wer nicht darf, bekommt den Grund als Meldung. Wer nichts hält, liest
     „Bitte wähle über den Tab oben deine Rolle aus." (`NO_ROLE_HINT`). Fernseher und Monster sind keine Fähigkeiten — wer dorthin geht, legt die
     Zentrale ab.
   - **Brille** (`HauntingWorld.menu`): dieselben drei Absichten zuerst, dann
     „Zur Zentrale / Rolle wechseln", dann „Ansicht: 3D Schiff" (fest), dann die
-    Einstellungen (Testlicht, Räume, Techniker, Monster, die drei
-    Fähigkeiten, Gegner).
+    Einstellungen (Testlicht, Räume, die fünf Plätze `haunt:seat-<platz>`,
+    das Untermenü _Fähigkeiten der Plätze_ `haunt:power-<platz>-<fähigkeit>`,
+    Gegner).
   - **Techniker am Desktop** (`ShipExperience.paintDom`, `.orbital-player`):
     dieselben drei Absichten als Knöpfe (`data-action="intent:…"`), darunter
     `describeSetup`, dann Karte und Gegner. Das Panel sitzt oben links unter
-    `--flat-top` und weicht dem offenen Weltmenü (`dom.hidden`).
+    `--flat-top` und weicht dem offenen Weltmenü (`dom.hidden`). Oben im
+    Panel steht **⚙ Optionen** (`data-action="options"`,
+    `ShipExperience.showOptions`) und klappt **das Optionsmenü der 2D-Welt**
+    auf — nur im Browser, nie in der Brille.
+  - **Ein Optionsmenü für beide Welten** (`map/optionsMenu.ts`): Was ein
+    Optionsmenü *ist* — Überschriften, Hinweise, Knöpfe mit `data-*`-Schlüssel
+    (`OptionItem`) — und wie es gezeichnet wird (`renderOptions`, die Klassen
+    `.flat__panel` / `.flat__option` aus `flat.css`), steht einmal dort; die
+    geteilten Namen in `SHARED` (`watchKey`, `switchViewKey`, `soundKeys`,
+    `leaveKeys`). `FlatMode.renderOptions` baut daraus seine Liste, das
+    Schiff (`ShipExperience.shipOptions`) seine: Ansicht, Zuschauen an/aus
+    (= Bot-Runde), Aufmachen (Zentrale, Menü, Verbindung), Ton, „Ansicht: 2D
+    ↔ 3D", Runde verlassen, Weiterspielen. Die losen Knöpfe „Rolle wechseln",
+    „2D von oben" und „Missionsmenü" sind darin aufgegangen.
   - **2D-Optionsmenü** (`FlatMode.renderOptions`): nur noch, was sich *in* der
     Runde ändert — Ansicht (die zwei Modi nur für den Zuschauer; wer mitspielt,
     bekommt „Realitätsnah" als Zeile), Zielpfade, **„Zuschauen: an/aus"**
@@ -8954,6 +9010,24 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     `WATCH_FOLLOW_SPAN` = 9 m). „Frei" ist das ganze Deck wie bisher; sonst
     zieht die Kamera weich nach (`showFocus`, `lerp` 0,18), weil der Stand nur
     zehnmal je Sekunde ankommt.
+  - **Fliegen und Zoomen** (`WatchLens.zoom`, `WatchLens.pan`, `zoomedLens`,
+    `pannedLens`, `homedLens`): Über dem Deck fliegt der **Stock** links
+    unten (`map/joystick.ts`, `FLY_SPEED` = 14 m/s bei Zoom 1, herangezoomt
+    langsamer) oder **ein Finger** auf dem Loch, **zwei Finger** und das
+    **Mausrad** zoomen (`ZOOM_MIN` 1 = das ganze Deck bis `ZOOM_MAX` 8 = ein
+    Zimmer), „Zurück über das Deck" vergisst beides. Wer jemandem folgt,
+    fliegt neben ihm her und bleibt an ihm hängen. Die Gesten liegen auf dem
+    Loch (`role__hole`), die Knöpfe daneben behalten ihre Klicks.
+  - **Durch seine Augen** (`WatchLens.eyes`, `throughEyes`,
+    `HauntingWorld.technicianEyes`): das Live-Bild des Technikers, dem man
+    folgt — die Kamera steht in seinem Kopf. Drei Quellen wie bei
+    `technicianFocus`: die Brille schickt ihre ganze Kopfpose
+    (`PeerPose.head`, Ort **und** Drehung), Modelltechniker und 2D-Techniker
+    nur Ort und Gierwinkel (Augenhöhe `EYES_HEIGHT` 1,6 m, geradeaus). Dabei
+    bleibt die Decke dran, der Nebel an und das Tageslicht des Puppenhauses
+    aus — man sieht, was er sieht (`EYES_FOV` 78°). „Zuschauer: Techniker"
+    fängt damit an (`stationUi`: `{ follow: 'technician', eyes: true }`),
+    „Zuschauer: Alles" frei über dem Deck.
   - **KI-Absichten** — das Overlay aus M4, siehe oben. Nur hier, nie für einen
     Spieler.
   **Der Techniker aus der 2D-Welt bekommt dabei einen Körper**
