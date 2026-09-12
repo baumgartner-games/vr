@@ -1055,9 +1055,19 @@ export class MapView {
       pb = this.toScreen(b.x, b.z);
     const thick = Math.max(4, scale * 0.34);
     const post = Math.max(3, scale * 0.3);
+    // **Eine abkühlende Tür blinkt** (`rules/doorLocks.ts`): Vierzig Sekunden
+    // lang ist sie nicht zu haben, und ein grüner Balken allein ist auf einem
+    // Telefon leicht zu übersehen — das Blatt selbst wechselt deshalb im
+    // Sekundentakt in die Farbe der Abkühlung. Aus der Uhr gerechnet, damit
+    // alle Geräte dasselbe Zucken sehen.
+    const blink = !!door.cooling && !door.locked && Math.sin((this.now() / 1000) * 7) > 0;
     // Die Öffnung selbst: Boden statt Wand, damit die Lücke lesbar ist.
     ctx.lineCap = 'butt';
-    ctx.strokeStyle = door.open && !door.locked ? INK.roomLit : INK.roomGrey;
+    ctx.strokeStyle = blink
+      ? INK.doorCooling
+      : door.open && !door.locked
+        ? INK.roomLit
+        : INK.roomGrey;
     ctx.lineWidth = Math.max(3, scale * 0.3);
     ctx.beginPath();
     ctx.moveTo(pa.x, pa.y);
@@ -1071,7 +1081,7 @@ export class MapView {
       : door.material === 'wood'
         ? INK.doorWood
         : INK.doorSteel;
-    ctx.strokeStyle = door.open && !door.locked ? INK.doorOpen : leaf;
+    ctx.strokeStyle = blink ? INK.doorCooling : door.open && !door.locked ? INK.doorOpen : leaf;
     ctx.lineWidth = thick;
     ctx.beginPath();
     if (door.open && !door.locked) {

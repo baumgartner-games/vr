@@ -8,10 +8,17 @@
  * muss mehr etwas entscheiden. Deshalb gelten hier drei Regeln, und alle drei
  * sind reine Rechnung ohne three.js und ohne Netz:
  *
- * - **Gewollt gesperrt ist immer nur eine Tür.** Wer eine zweite wählt — an
- *   der Tafel, am Telefon oder vor Ort mit der Hand —, gibt die erste damit
- *   frei. Die Tafel ist damit keine Wand aus Riegeln, sondern *ein* Riegel,
- *   den man klug setzen muss.
+ * - **Gewollt gesperrt ist immer nur eine Tür — und sie hält, bis sie von
+ *   selbst fällt.** Wer eine zweite wählt — an der Tafel, am Telefon oder
+ *   vor Ort mit der Hand —, bekommt sie nicht (`'busy'`), solange die erste
+ *   noch zu ist; und die erste bekommt er auch nicht vorher wieder auf
+ *   (`'held'`). Lange gab die zweite Wahl die erste frei, und ein zweiter
+ *   Tipp öffnete sie sofort — damit war der Riegel ein Schalter, den man im
+ *   Takt umlegen konnte: sperren, freigeben, die nächste sperren, und das
+ *   Monster stand vor einer Wand aus Riegeln, die man von Tür zu Tür trug.
+ *   Der Besitzer wollte das nicht: Ein Riegel ist eine Entscheidung mit
+ *   Frist, und die nächste Entscheidung gibt es erst, wenn die Frist um ist.
+ *   Die Tafel ist damit *ein* Riegel, den man klug setzen muss.
  * - **Keine Sperre hält ewig.** Was das Monster zuschlägt (`haunt.ts`), hält
  *   `SLAM_HOLD` Sekunden; was ein Spieler von Hand sperrt, hält `HOLD_RANGE`
  *   — acht bis zehn Sekunden, leicht gewürfelt, damit niemand mitzählen kann.
@@ -29,7 +36,9 @@
  *   Sekunden lang genug sind, dass man sie für einen kaputten Schalter hält,
  *   **zeigt** die abkühlende Tür ihre Restzeit: offen und grün, auf der Tafel
  *   (`stationUi.hackPage`), auf der Karte und in der 2D-Szene — derselbe
- *   Balken wie beim Halten, nur in der anderen Farbe.
+ *   Balken wie beim Halten, nur in der anderen Farbe — und die Tür blinkt
+ *   dazu, damit man auch ohne Balken sieht, dass sie gerade nicht zu haben
+ *   ist.
  * - **Das Monster kann eine Sperre aufbrechen** (`pryLock`), und es lohnt
  *   sich: Der erste Versuch geht **nie** auf — ein Riegel gibt nicht beim
  *   ersten Zug nach —, danach steigt die Aussicht mit jedem weiteren
@@ -37,12 +46,14 @@
  *   Sekunden: **weniger, als das Warten kostet.** Genau das ist die Absicht.
  *   Wer wartet, verliert Zeit; wer zieht, macht Lärm — das ist der Handel.
  *
- * **Und im Test-Zustand gilt die erste Regel genauso** (`plainLock`): Vor der
- * Mission schaltet die Tafel ohne Frist, ohne Abkühlung, ohne Spuk — aber
- * nicht ohne den einen Riegel. Wer dort drei Türen nacheinander antippte,
- * hatte drei gesperrte Türen, und genau das war der Befund des Besitzers:
- * „Es darf nur eine Tür vom Spieler gesperrt sein." Die zweite gibt die
- * erste frei, im Test wie in der Mission.
+ * **Und im Test-Zustand gelten dieselben Regeln.** Vor der Mission ist die
+ * Station hell und ohne Spuk — aber die Riegel laufen mit denselben Fristen:
+ * Wer dort ohne Frist schalten durfte, sah nie den Balken und lernte ein
+ * anderes Spiel als das, das er gleich spielt. Genau das war der Befund des
+ * Besitzers („der Ladebalken fehlt noch").
+ *
+ * Was ein Schalter gerade nicht darf, sagt `lockBlock` — als Wort, nicht als
+ * stilles Nichts (`LockBlock`, `LOCK_BLOCK_TEXT`): gehalten, belegt, warm.
  *
  * Die Buchführung (`DoorLocks`) liegt beim Gastgeber und geht nicht über die
  * Leitung: Alle anderen sehen nur die Liste der zugefallenen Türen, und die
@@ -80,11 +91,7 @@ export const LOCK_COOLDOWN = 40;
 export interface DoorLocks {
   /** Die eine gewollt gesperrte Tür — `''`, wenn keine. */
   chosen: string;
-  /**
-   * Wann die gewollt gesperrte Tür von selbst aufgeht (Rundenzeit) — **0
-   * heißt: nie** (der Test-Zustand, `plainLock`): Sie hält, bis jemand sie
-   * freigibt oder eine andere wählt.
-   */
+  /** Wann die gewollt gesperrte Tür von selbst aufgeht (Rundenzeit); 0 ohne. */
   until: number;
   /** Die zugefallenen Türen und wann sie von selbst aufgehen (Rundenzeit). */
   slams: Array<{ id: string; until: number }>;
@@ -114,8 +121,7 @@ export function slamUntil(locks: DoorLocks, id: string): number | null {
  * der Tür (`map/mapView.ts`, `map/flatScene.ts`).
  */
 export function holdUntil(locks: DoorLocks, id: string): number | null {
-  // Ein Riegel ohne Frist (Test-Zustand) hat keinen Balken: `null`, nicht 0.
-  if (locks.chosen === id) return locks.until > 0 ? locks.until : null;
+  if (locks.chosen === id) return locks.until;
   return slamUntil(locks, id);
 }
 
@@ -128,11 +134,53 @@ export function coolingUntil(locks: DoorLocks, id: string): number | null {
   return locks.cooling.find((one) => one.id === id)?.until ?? null;
 }
 
-/** Ob diese Tür jetzt gesperrt werden darf — von Hand, von der Tafel oder vom Spuk. */
+/** Ob diese Tür gerade nicht mehr warm ist — die eine Frage, die auch der Spuk stellt. */
 export function mayLock(locks: DoorLocks, id: string, time: number): boolean {
   const until = coolingUntil(locks, id);
   return until === null || until <= time;
 }
+
+/** **Die Tür, die ein Spieler gerade hält** — `''`, wenn keine (oder sie längst anders aufging). */
+export function heldDoor(locks: Pick<DoorLocks, 'chosen'>, shut: readonly string[]): string {
+  return locks.chosen && shut.includes(locks.chosen) ? locks.chosen : '';
+}
+
+/**
+ * **Warum der Schalter dieser Tür gerade nichts tut** — oder `''`, wenn er
+ * etwas täte.
+ *
+ * - `'held'`: Die Tür ist die gehaltene. Sie geht erst auf, wenn ihre Frist
+ *   um ist — kein zweiter Tipp macht sie vorher frei.
+ * - `'busy'`: Eine andere Tür wird gerade gehalten. Erst wenn die von selbst
+ *   aufgeht, darf die nächste zu.
+ * - `'cooling'`: Diese Tür ist eben erst frei geworden und noch warm
+ *   (`LOCK_COOLDOWN`).
+ *
+ * Reine Auskunft, ohne die Buchführung anzufassen — deshalb reicht ihr auch
+ * das, was jedes Gerät vom Stand kennt (`HauntState.held`, `.cooling`), nicht
+ * nur die volle Buchführung des Gastgebers.
+ */
+export type LockBlock = '' | 'held' | 'busy' | 'cooling';
+
+export function lockBlock(
+  locks: Pick<DoorLocks, 'chosen' | 'cooling'>,
+  shut: readonly string[],
+  id: string,
+  time: number,
+): LockBlock {
+  const held = heldDoor(locks, shut);
+  if (shut.includes(id)) return held === id ? 'held' : '';
+  if (held) return 'busy';
+  const until = locks.cooling.find((one) => one.id === id)?.until ?? null;
+  return until === null || until <= time ? '' : 'cooling';
+}
+
+/** Die Sätze dazu — dieselben auf der Tafel, am Telefon und vor Ort. */
+export const LOCK_BLOCK_TEXT: Readonly<Record<Exclude<LockBlock, ''>, string>> = {
+  held: 'Der Riegel hält, bis er von selbst fällt.',
+  busy: 'Ein Schott ist schon gesperrt — erst geht es wieder auf.',
+  cooling: 'Der Riegel ist noch warm.',
+};
 
 /**
  * **Merken, dass diese Tür gerade frei geworden ist.** Jeder Weg aus einer
@@ -147,8 +195,9 @@ function cool(locks: DoorLocks, id: string, time: number): void {
 }
 
 /**
- * **Eine Tür gewollt sperren.** Die vorher gewählte geht dabei auf; war die
- * Tür nur zugefallen, wird sie zur gewählten und bekommt die Frist der Hand.
+ * **Eine Tür gewollt sperren.** Solange eine andere gehalten wird oder diese
+ * noch warm ist, passiert nichts (`lockBlock`); war die Tür nur zugefallen,
+ * wird sie zur gewählten und bekommt die Frist der Hand.
  *
  * @returns die neue Liste der zugefallenen Türen.
  */
@@ -159,48 +208,13 @@ export function chooseLock(
   time = 0,
   roll: () => number = Math.random,
 ): string[] {
-  // Eine eben freigewordene Tür bleibt frei (`LOCK_COOLDOWN`) — sonst steht
-  // der, der gerade hindurchwollte, vor demselben Riegel wie zuvor.
-  if (!mayLock(locks, id, time)) return [...shut];
-  const next = shut.filter((one) => one !== locks.chosen && one !== id);
+  if (lockBlock(locks, shut, id, time)) return [...shut];
+  const next = shut.filter((one) => one !== id);
   next.push(id);
   locks.chosen = id;
   locks.until = time + HOLD_RANGE[0] + roll() * (HOLD_RANGE[1] - HOLD_RANGE[0]);
   locks.slams = locks.slams.filter((slam) => slam.id !== id);
   return next;
-}
-
-/**
- * **Der Schalter des Test-Zustands**: zu, wenn offen; auf, wenn zu — ohne
- * Frist, ohne Abkühlung, ohne Würfel, aber mit dem einen Riegel: Wer eine
- * zweite Tür sperrt, gibt die erste damit frei. Vor der Mission soll man
- * sehen, ob der Tipp trifft, und ihn gleich zurücknehmen können; die Regel,
- * wie viele Türen ein Spieler halten darf, wird dabei nicht ausgesetzt.
- *
- * @returns die neue Liste, ob die Tür jetzt gesperrt ist, und welche Tür
- *   dafür aufgegangen ist (`''`, wenn keine).
- */
-export function plainLock(
-  locks: DoorLocks,
-  shut: readonly string[],
-  id: string,
-): { shut: string[]; locked: boolean; released: string } {
-  if (shut.includes(id)) {
-    if (locks.chosen === id) {
-      locks.chosen = '';
-      locks.until = 0;
-    }
-    locks.slams = locks.slams.filter((slam) => slam.id !== id);
-    locks.pries = locks.pries.filter((pry) => pry.id !== id);
-    return { shut: shut.filter((one) => one !== id), locked: false, released: '' };
-  }
-  const released = locks.chosen && shut.includes(locks.chosen) ? locks.chosen : '';
-  const next = shut.filter((one) => one !== locks.chosen);
-  next.push(id);
-  locks.chosen = id;
-  locks.until = 0;
-  locks.slams = locks.slams.filter((slam) => slam.id !== id);
-  return { shut: next, locked: true, released };
 }
 
 /** **Eine Tür freigeben** — gewollt oder zugefallen, für die Tafel ist das dasselbe. */
@@ -222,7 +236,10 @@ export function releaseLock(
 
 /**
  * **Gewollt sperren oder freigeben** — der Schalter, wie ihn Tafel und
- * Techniker bedienen: zu, wenn offen; auf, wenn zu.
+ * Techniker bedienen: zu, wenn offen; auf, wenn zugefallen. Die gehaltene
+ * Tür gibt er **nicht** frei, und eine zweite sperrt er nicht, solange die
+ * erste hält — ein Schalter, der wortlos nichts tut, gilt als kaputt,
+ * deshalb sagt `blocked`, warum (`LOCK_BLOCK_TEXT`).
  */
 export function toggleLock(
   locks: DoorLocks,
@@ -230,14 +247,12 @@ export function toggleLock(
   id: string,
   time = 0,
   roll: () => number = Math.random,
-): { shut: string[]; locked: boolean; blocked: boolean } {
+): { shut: string[]; locked: boolean; blocked: LockBlock } {
+  const blocked = lockBlock(locks, shut, id, time);
+  if (blocked) return { shut: [...shut], locked: shut.includes(id), blocked };
   if (shut.includes(id))
-    return { shut: releaseLock(locks, shut, id, time), locked: false, blocked: false };
-  // Ein Schalter, der wortlos nichts tut, gilt als kaputter Schalter. Deshalb
-  // sagt der Rückgabewert, dass die Tür noch warm ist, und die Oberfläche sagt
-  // es weiter.
-  if (!mayLock(locks, id, time)) return { shut: [...shut], locked: false, blocked: true };
-  return { shut: chooseLock(locks, shut, id, time, roll), locked: true, blocked: false };
+    return { shut: releaseLock(locks, shut, id, time), locked: false, blocked: '' };
+  return { shut: chooseLock(locks, shut, id, time, roll), locked: true, blocked: '' };
 }
 
 /** **Eine Tür fällt zu** (der Spuk): sie hält `SLAM_HOLD` Sekunden ab `time`. */
@@ -335,7 +350,7 @@ export function stepLocks(
   if (locks.chosen && !shut.includes(locks.chosen)) {
     locks.chosen = '';
     locks.until = 0;
-  } else if (locks.chosen && locks.until > 0 && locks.until <= time) {
+  } else if (locks.chosen && locks.until <= time) {
     opened.push(locks.chosen);
     locks.chosen = '';
     locks.until = 0;

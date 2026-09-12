@@ -3,7 +3,7 @@ import { FlatMode, SCOUT_PERIOD } from './flatMode';
 import { FlatRound, PLAYER_ID } from './flatRound';
 import { MapView } from './mapView';
 import { doorCentre } from './geometry';
-import { HOLD_RANGE, SLAM_HOLD, slamDoor } from '../rules/doorLocks';
+import { HOLD_RANGE, SLAM_HOLD, slamDoor, LOCK_BLOCK_TEXT } from '../rules/doorLocks';
 import { defaultSetup, withPower, withWho } from '../rules/roundSetup';
 
 jest.mock('./flat.css', () => ({}));
@@ -34,15 +34,22 @@ beforeEach(() => {
 });
 
 describe('Türen in der 2D-Runde', () => {
-  it('sperrt gewollt immer nur eine Tür — die zweite gibt die erste frei', () => {
+  it('sperrt gewollt immer nur eine Tür — die zweite wartet, die erste hält bis zum Ablauf', () => {
     const round = new FlatRound(7, { test: true });
     const [a, b] = round.house.doors.filter((d) => d.b !== null);
     expect(round.lockDoor(a!.id)).toMatch(/verriegelt/);
     expect(round.haunt.shut).toEqual([a!.id]);
-    expect(round.lockDoor(b!.id)).toMatch(/vorherige ist wieder offen/);
-    expect(round.haunt.shut).toEqual([b!.id]);
-    expect(round.lockDoor(b!.id)).toBe('Tür entriegelt.');
+    expect(round.lockDoor(b!.id)).toBe(LOCK_BLOCK_TEXT.busy);
+    expect(round.haunt.shut).toEqual([a!.id]);
+    expect(round.lockDoor(a!.id)).toBe(LOCK_BLOCK_TEXT.held);
+    expect(round.haunt.shut).toEqual([a!.id]);
+    // Die Frist läuft ab: a geht von selbst auf und ist warm, b darf jetzt zu.
+    for (let t = 0; t < HOLD_RANGE[1] + 0.5; t += 0.1)
+      round.step(0.1, { x: 0, z: 0, sprint: false });
     expect(round.haunt.shut).toEqual([]);
+    expect(round.lockDoor(a!.id)).toBe(LOCK_BLOCK_TEXT.cooling);
+    expect(round.lockDoor(b!.id)).toMatch(/verriegelt/);
+    expect(round.haunt.shut).toEqual([b!.id]);
   });
 
   it('lässt zugefallene Türen nach SLAM_HOLD Sekunden von selbst aufgehen', () => {

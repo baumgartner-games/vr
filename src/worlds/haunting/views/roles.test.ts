@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 import { FlatRound, PLAYER_ID } from '../map/flatRound';
+import { HOLD_RANGE } from '../rules/doorLocks';
 import { repairsFor } from '../mission';
 import { listRoles, roles, type RoleHost, type RoleView } from '../registry/roles';
 import type { ArchiveDesk } from './archiveDesk';
@@ -180,8 +181,13 @@ describe('Die Schalttafel', () => {
     const { view, round } = open();
     const door = round.snapshot().doors[0]!;
     round.lockDoor(door.id);
-    round.lockDoor(door.id);
-    round.step(0.1, { x: 0, z: 0, sprint: false });
+    // Gehalten: Der zweite Tipp gibt sie nicht frei, er sagt es.
+    tapAt(view, door.at);
+    expect(round.state().shut).toContain(door.id);
+    expect(view.element.querySelector('.role__toast')?.textContent).toContain('hält');
+    // Die Frist läuft ab, die Tür geht von selbst auf — und ist noch warm.
+    for (let t = 0; t < HOLD_RANGE[1] + 0.2; t += 0.1)
+      round.step(0.1, { x: 0, z: 0, sprint: false });
     view.update(0);
     tapAt(view, door.at);
     expect(round.state().shut).not.toContain(door.id);
