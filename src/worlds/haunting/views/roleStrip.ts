@@ -7,7 +7,7 @@ import {
   type RoundSetup,
 } from '../rules/roundSetup';
 import { roleTabKey, roleTabs } from './roleTabs';
-import { el } from './roleShell';
+import { clickedKey, el } from '../ui/dom';
 import { mountSeatView } from './seatRole';
 
 /**
@@ -76,8 +76,7 @@ export class RoleStrip {
     this.element.setAttribute('role', 'tablist');
     this.element.setAttribute('aria-label', 'Rolle');
     this.element.addEventListener('click', (event) => {
-      const key = (event.target as HTMLElement | null)?.closest('button');
-      const id = key?.dataset['roleStrip'];
+      const id = clickedKey(event)?.dataset['roleStrip'];
       if (id === undefined) return;
       this.show(id as '' | MyRole);
     });

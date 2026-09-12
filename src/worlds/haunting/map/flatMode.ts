@@ -15,7 +15,17 @@ import {
 import { Joystick } from './joystick';
 import { FlatScene, scaleForWidth } from './flatScene';
 import { goalRoomId, INK, MapView, type MapGoal, type MapRoute } from './mapView';
-import { PuzzleOverlay, el } from './puzzleOverlay';
+import { PuzzleOverlay } from './puzzleOverlay';
+import { clickedKey, el } from '../ui/dom';
+import {
+  Toast,
+  captioned,
+  fact,
+  head as uiHead,
+  labelled,
+  optionKey,
+  pillKey,
+} from '../ui/widgets';
 import {
   head,
   key,
@@ -170,8 +180,6 @@ export interface FlatModeHost {
   switchView?(view: View): void;
 }
 
-/** Wie lange eine Meldung stehen bleibt, in Sekunden. */
-const TOAST_SECONDS = 3.2;
 /** Wie oft der Späher ein neues Horchbild bekommt, in Sekunden. */
 export const SCOUT_PERIOD = 3.5;
 /**
@@ -248,7 +256,7 @@ export class FlatMode {
   /** Der Reiter „Aufgaben:": waagerecht, mit einem Kreis je Auftrag, und ein Knopf. */
   private readonly tab = el('button', 'flat__tab');
   private readonly pips = el('span', 'flat__pips');
-  private readonly toast = el('div', 'flat__toast');
+  private readonly toast = new Toast('flat__toast');
   /**
    * **Der Ladebalken eines Handgriffs** (`rules/chore.ts`): Er steht über den
    * Knöpfen, dort, wo die Hände hinsehen, und sagt in einer Zeile, woran
@@ -276,9 +284,9 @@ export class FlatMode {
    * dafür neu aufgebaut.
    */
   private readonly strip: RoleStrip;
-  private readonly options = el('div', 'flat__panel');
-  private readonly sheet = el('div', 'flat__panel flat__sheet');
-  private readonly ending = el('div', 'flat__ending');
+  private readonly options = el('div', 'ui-panel flat__panel');
+  private readonly sheet = el('div', 'ui-panel flat__panel flat__sheet');
+  private readonly ending = el('div', 'ui-panel flat__ending');
   /** Das gepufferte Comic-Bild des aktiven Werkzeugs (`toolIcons.ts`). */
   private readonly icon = el('canvas', 'flat__icon');
   private icons: ToolIconSource | null = null;
@@ -295,7 +303,6 @@ export class FlatMode {
    * Rand steht: Ein Bot spielt keinen Platz, der einem Menschen gehört.
    */
   private watching = false;
-  private toastLeft = 0;
   private mode: ViewMode;
   private seed: number;
   private readonly options_: FlatOptions;
@@ -393,7 +400,7 @@ export class FlatMode {
     this.map.follow(PLAYER_ID);
     this.map.setView({ scale: 22 });
     this.map.follow(PLAYER_ID);
-    const mapClose = el('button', 'flat__map-close', 'Schließen');
+    const mapClose = pillKey({ text: 'Schließen' }, 'flat__map-close');
     mapClose.addEventListener('click', () => this.showMap(false));
     this.mapOverlay.append(this.map.element, mapClose);
     this.mapOverlay.hidden = true;
@@ -419,8 +426,7 @@ export class FlatMode {
     this.actKey.dataset['action'] = 'interact';
     this.buttons.append(this.cycleKey, this.useKey, this.actKey);
     this.buttons.addEventListener('click', (event) => {
-      const key = (event.target as HTMLElement | null)?.closest('button');
-      const action = key?.dataset['action'];
+      const action = clickedKey(event)?.dataset['action'];
       if (action === 'cycle' || action === 'use' || action === 'interact') {
         this.round.act(action);
         this.refreshKeys();
@@ -507,7 +513,7 @@ export class FlatMode {
     this.element.append(
       this.scene.element,
       this.top,
-      this.toast,
+      this.toast.element,
       this.chore,
       this.stick.element,
       this.buttons,
@@ -799,11 +805,7 @@ export class FlatMode {
         ? shown.entities.some((entity) => entity.kind === 'monster')
         : this.round.state().monsterOn,
     });
-    this.toastLeft = Math.max(0, this.toastLeft - dt);
-    if (this.toastLeft <= 0 && this.toast.textContent) {
-      this.toast.textContent = '';
-      this.toast.className = 'flat__toast';
-    }
+    this.toast.step(dt);
     this.strip.update(dt);
     if (!this.session && !this.strip.active) {
       this.stepArchiveRadio();
@@ -1159,11 +1161,9 @@ export class FlatMode {
     const room = snapshot.rooms.find((r) => r.id === roomId);
     if (!room) return;
     const house: HouseRoom | undefined = spec.rooms.find((r) => r.id === roomId);
-    const parts: HTMLElement[] = [el('strong', '', `Akte · ${room.name}`)];
+    const parts: HTMLElement[] = [uiHead(`Akte · ${room.name}`)];
     const line = (key: string, value: string, warn = false) => {
-      const row = el('div', `flat__fact${warn ? ' is-warn' : ''}`);
-      row.append(el('span', '', key), el('b', '', value));
-      parts.push(row);
+      parts.push(fact(key, value, { warn }));
     };
     if (house) {
       line('Darin steht', MARKS[house.signature]);
@@ -1232,9 +1232,7 @@ export class FlatMode {
         'Archivscan · nur dieser Raum · keine Personen oder Live-Positionen',
       ),
     );
-    const close = el('button', 'flat__option', 'Zurück');
-    close.dataset['closeSheet'] = '';
-    parts.push(close);
+    parts.push(optionKey({ text: 'Zurück', data: { closeSheet: '' } }));
     this.sheet.replaceChildren(...parts);
     this.setOverlay('sheet');
   }
@@ -1244,9 +1242,7 @@ export class FlatMode {
   }
 
   private show(event: FlatEvent): void {
-    this.toast.textContent = event.text;
-    this.toast.className = `flat__toast is-${event.kind}`;
-    this.toastLeft = TOAST_SECONDS;
+    this.toast.say(event.text, event.kind);
     if (event.kind === 'good' || event.kind === 'bad') this.host.notify?.(event.text);
   }
 
@@ -1276,7 +1272,6 @@ export class FlatMode {
     );
     this.cycleKey.disabled = this.round.tools.length < 2;
     this.refreshIcon();
-    this.useKey.textContent = '';
     const use =
       tool === 'flashlight'
         ? this.round.torch
@@ -1289,10 +1284,9 @@ export class FlatMode {
             : tool === 'xray'
               ? 'Durchleuchten'
               : 'Benutzen';
-    this.useKey.append(el('small', '', 'Werkzeug'), el('strong', '', use));
+    this.useKey.replaceChildren(...captioned('Werkzeug', use));
     const target = this.round.target;
-    this.actKey.textContent = '';
-    this.actKey.append(el('strong', '', 'Benutzen'), el('small', '', target?.label ?? ''));
+    this.actKey.replaceChildren(...labelled('Benutzen', target?.label ?? ''));
     this.actKey.classList.toggle('is-ready', !!target);
   }
 
@@ -1556,10 +1550,8 @@ export class FlatMode {
   private renderEnding(): void {
     const won = this.phaseNow() === 'won';
     this.ending.hidden = false;
-    const again = el('button', 'flat__option', 'Neue Runde');
-    again.dataset['restart'] = '';
-    const leave = el('button', 'flat__option flat__option--leave', '2D-Welt verlassen');
-    leave.dataset['leave'] = '';
+    const again = optionKey({ text: 'Neue Runde', data: { restart: '' } });
+    const leave = optionKey({ text: '2D-Welt verlassen', data: { leave: '' }, tone: 'leave' });
     const ending = this.roundNow().ending;
     const headline = this.session
       ? won
@@ -1596,7 +1588,7 @@ export class FlatMode {
   }
 
   private optionClick(event: Event): void {
-    const key = (event.target as HTMLElement | null)?.closest('button');
+    const key = clickedKey(event);
     if (!key) return;
     const data = key.dataset;
     if (data['mode']) {

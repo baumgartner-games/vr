@@ -2,8 +2,11 @@
  * Die Nicht-VR-Rollen: Archiv, Schalttafel, Späher, Zuschauer. Dieselbe
  * Handschrift wie `map/flat.css` und `monster/monster.css`, damit der Wechsel
  * zwischen den Rollen auf dem Telefon nicht wie ein Wechsel der App aussieht.
- * Handgesetzt, einzeilig — CSS steht nicht unter Prettier.
+ * Die Bausteine — Kasten, Listenknopf, Pille, Kachel, Zeile, Meldung — kommen
+ * aus `ui/widgets.css`; hier steht nur, wo sie liegen und was an ihnen anders
+ * ist. Handgesetzt, einzeilig — CSS steht nicht unter Prettier.
  */
+@import '../ui/widgets.css';
 .role { position: absolute; inset: 0; background: #070a10; color: #e8ecf7; font: 14px system-ui, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; }
 .role [hidden] { display: none !important; }
 .role__map { position: absolute; inset: 0; }
@@ -14,8 +17,7 @@
 .role--panel .role__hud strong { color: #7fe0ff; }
 .role--scout .role__hud strong { color: #6fe39a; }
 .role--archive .role__hud strong { color: #ffd84a; }
-.role__toast { position: absolute; left: 50%; top: max(76px, calc(env(safe-area-inset-top) + 66px)); transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; background: rgba(12, 18, 32, 0.9); border: 1px solid rgba(140, 170, 230, 0.3); font-size: 13px; pointer-events: none; max-width: 86vw; text-align: center; transition: opacity .2s; }
-.role__toast:empty { opacity: 0; }
+.role__toast { position: absolute; left: 50%; top: max(76px, calc(env(safe-area-inset-top) + 66px)); transform: translateX(-50%); }
 
 /* Die Raumakte liegt über der Karte und lässt oben einen Streifen frei: Dort
    steht die Kopfzeile der Seite, und ein Blatt darunter wäre halb verdeckt.
@@ -25,14 +27,9 @@
    in die Leinwand (`role__hole`). Eine durchgehende Fläche darüber wäre ein
    schwarzes Rechteck statt eines Zimmers. */
 .role__sheet { position: absolute; left: 50%; top: max(60px, calc(env(safe-area-inset-top) + 52px)); transform: translateX(-50%); width: min(92vw, 400px); max-height: calc(100dvh - 76px); overflow: auto; display: flex; flex-direction: column; gap: 6px; z-index: 3; }
-.role__card { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 14px; background: rgba(10, 15, 26, 0.97); border: 1px solid rgba(140, 170, 230, 0.35); }
+.role__card { gap: 4px; padding: 12px 14px; border-radius: 14px; }
 .role__sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .role__sheet-head strong { font-size: 16px; }
-.role__key { padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; font-size: 12px; touch-action: manipulation; }
-.role__fact { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgba(140, 170, 230, 0.15); font-size: 13px; }
-.role__fact-key { color: #97a3bd; }
-.role__fact-value { text-align: right; font-weight: 600; }
-.role__fact.is-warn .role__fact-value { color: #ffe8bd; }
 /* Der Code ist die Sache, die durch den Raum gerufen wird: groß, breit
    gesperrt, in der Farbe, die auf der Karte das Ziel meint. */
 .role__code { font: 700 26px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .18em; color: #ffd84a; text-align: right; }
@@ -89,22 +86,19 @@
    Bilder übereinander wären beide unlesbar. */
 .role__stage { position: absolute; inset: 0; }
 .role--watch.is-guest { background: #070a10; }
-.role__h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 4px 0 0; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #8fb7ff; }
-.role__h-aside { font-size: 11px; letter-spacing: 0; text-transform: none; color: #6b7690; }
+/* Die Überschrift der Linse (`ui-head`) in der Farbe des Zuschauers. */
+.role__h { margin-top: 4px; letter-spacing: .1em; color: #8fb7ff; }
 .role__watch-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.role__watch-key { display: flex; flex-direction: column; gap: 2px; padding: 9px 11px; border-radius: 12px; border: 1px solid rgba(140, 170, 230, 0.3); background: rgba(18, 24, 40, 0.86); color: #97a3bd; font: inherit; text-align: left; touch-action: manipulation; }
+/* Die Wahlknöpfe der Linse: der Listenknopf (`ui-option`), etwas runder und mit dem gewählten in Cyan. */
+.role__watch-key { padding: 9px 11px; border-radius: 12px; border-color: rgba(140, 170, 230, 0.3); background: rgba(18, 24, 40, 0.86); color: #97a3bd; }
 .role__watch-key strong { font-size: 14px; color: #e8ecf7; }
-.role__watch-key small { font-size: 11.5px; color: #97a3bd; line-height: 1.35; }
+.role__watch-key small { font-size: 11.5px; line-height: 1.35; }
 .role__watch-key--wide { grid-column: 1 / -1; }
 .role__watch-key.is-active { border-color: #7fe0ff; background: rgba(20, 44, 60, 0.92); }
 .role__watch-key.is-active strong { color: #7fe0ff; }
 .role__notes { position: absolute; left: 0; right: 0; bottom: 0; max-height: 55%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); }
-.role__note { background: rgba(10, 15, 26, 0.9); }
-.role__note { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; background: rgba(18, 24, 40, 0.8); border-left: 3px solid #4a5876; }
-.role__note strong { font-size: 13px; }
-.role__note span { font-size: 12px; color: #97a3bd; }
-.role__note.is-warn { border-left-color: #ffb14a; }
-.role__note.is-live { border-left-color: #7fe0ff; }
+/* Die Kacheln (`ui-note`) liegen über dem Puppenhaus und decken es, wo sie stehen. */
+.role__notes .ui-note { background: rgba(10, 15, 26, 0.9); }
 
 /* **Die Rollen als Knöpfe in einem Panel** (`views/roleTabs.ts`) — derselbe
    Kopf über der 2D-Welt (`roleStrip.ts`) und über der Karte des Telefons

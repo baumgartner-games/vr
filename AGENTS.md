@@ -142,7 +142,10 @@ jedes Zimmer), der
 dass im ganzen Blatt gar nicht verschoben wird, dass der Ausschnitt genau bis
 an den Blattrand wandert und beim Herauszoomen wieder hereingezogen wird: die
 Vorzeichen und Anschläge einer Zange sieht man auf einem Telefon niemandem an,
-bevor sie schiefgehen), die
+bevor sie schiefgehen), die **Bausteine der Haunting-Oberfläche**
+(`src/worlds/haunting/ui/widgets.ts` — der eine Knopf, den fünf Stellen vorher
+je selbst bauten: Name und Zeile, `data-*`, `is-active`, `aria-pressed`,
+`disabled`, und die Meldung, die nach ihrer Zeit Text und Ton wieder ablegt), die
 Handhaltung
 (`src/core/handPose.ts` — samt der ausgelieferten Grundhaltung und ihrer
 Spiegelung auf die linke Hand), der **Versatz, mit dem eine bloße Hand hält**
@@ -9178,8 +9181,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     abbestellen (`.flat.ship3d`), sonst ist die Station schwarz.
   - **Ein Optionsmenü für beide Welten** (`map/optionsMenu.ts`): Was ein
     Optionsmenü *ist* — Überschriften, Hinweise, Knöpfe mit `data-*`-Schlüssel
-    (`OptionItem`) — und wie es gezeichnet wird (`renderOptions`, die Klassen
-    `.flat__panel` / `.flat__option` aus `flat.css`), steht einmal dort; die
+    (`OptionItem`) — und wie es gezeichnet wird (`renderOptions`, aus den
+    Bausteinen `ui-head` und `ui-option` in `ui/widgets.ts`), steht einmal dort; die
     geteilten Namen in `SHARED` (`watchKey`, `switchViewKey`, `soundKeys`,
     `leaveKeys`). `FlatMode.renderOptions` baut daraus seine Liste, das
     Schiff (`ShipExperience.shipOptions`) seine: Ansicht, Zuschauen an/aus
@@ -9225,6 +9228,43 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   2D-**Spielen** und 2D-**Trainieren** sind dagegen die gemeinsame Runde übers
   Netz (siehe unten) — wer sie spielt, ist der Techniker, und ein zweiter
   Techniker im Raum sperrt sie.
+- **Knöpfe und Panels sind Bausteine, keine Handarbeit** (`ui/dom.ts`,
+  `ui/widgets.ts`, `ui/widgets.css`). Haunting hat viele davon — das
+  Zahnrad-Menü der 2D-Welt, das der Zentrale, die Linse des Zuschauers, die
+  Tafel der Verteilung, die Rollenreiter, die Raumakte, das Rätsel, die Tafel
+  des Technikers im Schiff —, und lange baute jede Stelle ihren Knopf selbst:
+  sechs Kopien derselben `el()`-Hilfe, fünfmal `strong` + `small` + `data-*`
+  + `is-active` + `aria-pressed` von Hand, drei Toasts mit eigener Uhr, und im
+  CSS derselbe Kasten fünfmal. Jetzt steht jedes davon **einmal**:
+  - `ui/dom.ts`: `el(tag, klasse, text)` (immer `textContent`, nie
+    `innerHTML` — hier gehen Spielernamen durch), `clickedKey(event)` (der
+    `<button>` über dem Klickziel) und `setData(node, { switchView: '2d' })`.
+  - `ui/widgets.ts`: `key(klasse, spec)` — ein Knopf, entweder `{ text }` als
+    eine Zeile oder `{ label, sub }` als Name groß und Zeile klein, dazu
+    `data`, `active`, `pressed`, `disabled`, `title`, `ariaLabel`;
+    `optionKey` (der Listenknopf `ui-option`, mit `tone: 'go' | 'leave'` für
+    den grünen und den roten Rand) und `pillKey` (die Pille `ui-pill`);
+    `captioned(caption, value)` / `labelled(label, sub)` für die Knöpfe unter
+    dem Daumen (`flat__key`, `monster__key`); `note(ton, titel, text)` (die
+    Kachel `ui-note`, drei Töne), `fact(begriff, wert, { warn, valueClass })`
+    (die Zeile `ui-fact`), `head(titel, beisage)` (die Überschrift `ui-head`)
+    und `Toast` (`say(text, ton)`, `step(dt)`, leer unsichtbar).
+  - `ui/widgets.css`: die **Form** — `ui-panel`, `ui-head`, `ui-option`,
+    `ui-pill`, `ui-note`, `ui-fact`, `ui-toast`. Die **Lage** und der Ton einer
+    Stelle stehen weiter in ihrem Blatt, als zweite Klasse neben der von hier
+    (`ui-panel flat__panel`, `ui-toast monster__toast`); jedes dieser Blätter
+    (`flat.css`, `views.css`, `monster.css`, `haunting.css`) bindet
+    `widgets.css` per `@import` **zuerst** ein, damit bei gleicher Spezifität
+    die Zeile der Stelle gewinnt. Die Kachel nimmt in der Zentrale die Farben
+    der Station über `var(--haunt-*, fallback)`.
+
+  Die Regel daraus: Wer in Haunting einen Knopf, eine Kachel oder einen Kasten
+  braucht, nimmt ihn von hier und gibt ihm seine Lage-Klasse mit — und legt
+  keinen neuen `el()` und keinen neuen `.xy__option` an. Was im Test steht
+  (`ui/widgets.test.ts`): die beiden Bauweisen des Knopfs, dass ohne Zeile kein
+  leeres `small` entsteht, Schlüssel und Zustände, die Klassenlisten von
+  `optionKey`/`pillKey`, die Reihenfolge von `captioned`/`labelled`, und dass
+  der Toast nach `TOAST_SECONDS` Text **und** Ton wieder ablegt.
 - **Jede Rolle meldet sich selbst an** (`registry/roles.ts`,
   `views/*.register.ts`, `monster/monster.register.ts`). `stations.ts` ist
   seither nur noch die **Sitzordnung** — welche Stühle es gibt, wem einer

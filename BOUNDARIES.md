@@ -100,6 +100,17 @@ Netznachricht, CSS). Ihre Wegtypen leben als `navmesh/route.ts` im Paket
 nicht mehr — der Aufbau ist heute zwei Häkchen, eine Verteilung und ein
 Startknopf (`rules/lobby.ts`, `roundSetupPanel.ts`).
 
+### Gemeinsam: die Bausteine der Oberfläche (`ui`)
+
+- `src/worlds/haunting/ui/**` — `dom.ts` (`el`, `clickedKey`, `setData`),
+  `widgets.ts` (Knopf, Listenknopf, Pille, Kachel, Zeile, Überschrift,
+  Meldung) und `widgets.css` (ihre Form). Gehört **keinem** Paket allein:
+  `map` (2D-Welt, Optionsmenü, Rätsel), `views`, `monster` und die
+  Sammeldateien bauen ihre Knöpfe und Panels daraus. Wer hier etwas ändert,
+  ändert es für alle — deshalb gilt: **erweitern statt umbiegen**, mit Test
+  in `widgets.test.ts`, und die Lage eines Bausteins (absolut, oben rechts)
+  bleibt im Blatt der Stelle, nie hier.
+
 ### 3. Audio (Paket `audio`)
 
 Gehört ihm:

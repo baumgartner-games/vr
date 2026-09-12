@@ -1,3 +1,6 @@
+import { el } from '../ui/dom';
+import { head as uiHead, optionKey } from '../ui/widgets';
+
 /**
  * **Das Optionsmenü — eines für beide Welten.**
  *
@@ -10,8 +13,8 @@
  *
  * Deshalb steht hier, was ein Optionsmenü *ist* — Überschriften, Hinweise und
  * Knöpfe mit einem `data-*`-Schlüssel, an dem der Wirt erkennt, was gedrückt
- * wurde —, und wie es gezeichnet wird, mit den Klassen der 2D-Welt
- * (`flat.css`: `.flat__panel`, `.flat__option`, `.flat__note`). Welche
+ * wurde —, und wie es gezeichnet wird: aus den Bausteinen von `ui/widgets.ts`
+ * (`ui-head`, `ui-option`) und der Hinweiszeile der 2D-Welt (`flat__note`). Welche
  * Einträge darin stehen, sagt der Wirt: `FlatMode` seine, `ShipExperience`
  * die, die im Schiff einen Sinn haben. Die **Namen** der Einträge, die beide
  * haben, stehen hier (`SHARED`), damit sie in beiden Welten gleich heißen.
@@ -113,25 +116,15 @@ export function renderOptions(root: HTMLElement, items: readonly OptionItem[]): 
 }
 
 function build(item: OptionItem): HTMLElement {
-  if (item.kind === 'head') return el('strong', '', item.text);
+  if (item.kind === 'head') return uiHead(item.text);
   if (item.kind === 'note') return el('small', 'flat__note', item.text);
-  const node = el('button', `flat__option${item.leave ? ' flat__option--leave' : ''}`);
-  for (const [name, value] of Object.entries(item.data)) node.dataset[name] = value;
-  if (item.active) node.classList.add('is-active');
-  if (item.pressed !== undefined)
-    node.setAttribute('aria-pressed', item.pressed ? 'true' : 'false');
-  if (item.sub) node.append(el('strong', '', item.label), el('small', '', item.sub));
-  else node.textContent = item.label;
-  return node;
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className = '',
-  text = '',
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
-  return node;
+  const spec = {
+    data: item.data,
+    ...(item.active !== undefined ? { active: item.active } : {}),
+    ...(item.pressed !== undefined ? { pressed: item.pressed } : {}),
+    ...(item.leave ? { tone: 'leave' as const } : {}),
+  };
+  return item.sub
+    ? optionKey({ ...spec, label: item.label, sub: item.sub })
+    : optionKey({ ...spec, text: item.label });
 }

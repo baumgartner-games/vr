@@ -17,6 +17,8 @@ import { stepLoudness } from '../audio/cues';
 import { hearNoises } from '../threat';
 import { PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED } from '../mission';
 import { monsterPortOf, type MonsterPort } from './monsterDriver';
+import { clickedKey, el } from '../ui/dom';
+import { Toast, captioned, pillKey } from '../ui/widgets';
 
 /**
  * **Die Monster-Rolle** — die Station von oben, aber nur, was das Monster
@@ -60,10 +62,9 @@ class MonsterView implements MonsterRoleView {
   private readonly buttons = el('div', 'monster__buttons');
   private readonly actKey = el('button', 'monster__key monster__key--act');
   private readonly ventKeys = el('div', 'monster__vents');
-  private readonly toast = el('div', 'monster__toast');
+  private readonly toast = new Toast('monster__toast');
   private readonly port: MonsterPort | null;
   private readonly cache = new LitCache();
-  private toastLeft = 0;
   private hudText = '';
   private ventText = '';
 
@@ -93,14 +94,13 @@ class MonsterView implements MonsterRoleView {
     this.actKey.dataset['action'] = 'interact';
     this.buttons.append(this.actKey);
     this.buttons.addEventListener('click', (event) => {
-      const key = (event.target as HTMLElement | null)?.closest('button');
-      if (key?.dataset['action'] !== 'interact') return;
+      if (clickedKey(event)?.dataset['action'] !== 'interact') return;
       const answer = this.port?.act('interact') ?? '';
       if (answer) this.say(answer);
       this.refreshKeys();
     });
     this.ventKeys.addEventListener('click', (event) => {
-      const key = (event.target as HTMLElement | null)?.closest('button');
+      const key = clickedKey(event);
       if (!key || key.dataset['vent'] === undefined) return;
       this.port?.chooseVent(Number(key.dataset['vent']));
       this.refreshVents(true);
@@ -110,7 +110,7 @@ class MonsterView implements MonsterRoleView {
     this.element.append(
       this.map.element,
       this.hud,
-      this.toast,
+      this.toast.element,
       this.stick.element,
       this.ventKeys,
       this.buttons,
@@ -134,8 +134,7 @@ class MonsterView implements MonsterRoleView {
     this.map.setSnapshot(snapshot);
     this.map.setVisibility(field);
     this.map.draw();
-    this.toastLeft = Math.max(0, this.toastLeft - dt);
-    if (this.toastLeft <= 0 && this.toast.textContent) this.toast.textContent = '';
+    this.toast.step(dt);
     this.renderHud(snapshot, field);
     this.refreshKeys();
     this.refreshVents(false);
@@ -171,8 +170,7 @@ class MonsterView implements MonsterRoleView {
   }
 
   private say(text: string): void {
-    this.toast.textContent = text;
-    this.toastLeft = 3;
+    this.toast.say(text);
     this.host.notify(text);
   }
 
@@ -234,8 +232,7 @@ class MonsterView implements MonsterRoleView {
   private refreshKeys(): void {
     const status = this.port?.status();
     const prompt = status?.prompt ?? '';
-    this.actKey.textContent = '';
-    this.actKey.append(el('small', '', 'Interagieren'), el('strong', '', prompt || '—'));
+    this.actKey.replaceChildren(...captioned('Interagieren', prompt || '—'));
     this.actKey.disabled = !this.port || !prompt;
     this.actKey.classList.toggle('is-ready', !!prompt);
   }
@@ -248,11 +245,9 @@ class MonsterView implements MonsterRoleView {
     this.ventKeys.hidden = targets.length === 0;
     this.ventKeys.replaceChildren(
       el('small', '', 'Schacht nach'),
-      ...targets.map((target) => {
-        const key = el('button', 'monster__vent', target.label);
-        key.dataset['vent'] = String(target.index);
-        return key;
-      }),
+      ...targets.map((target) =>
+        pillKey({ text: target.label, data: { vent: String(target.index) } }, 'monster__vent'),
+      ),
     );
   }
 
@@ -262,15 +257,4 @@ class MonsterView implements MonsterRoleView {
     this.map.dispose();
     this.element.remove();
   }
-}
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className = '',
-  text = '',
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
-  return node;
 }

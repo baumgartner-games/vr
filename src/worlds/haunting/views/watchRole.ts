@@ -14,6 +14,8 @@ import {
   type WatchSeat,
 } from '../watchLens';
 import { Joystick } from '../map/joystick';
+import { clickedKey } from '../ui/dom';
+import { head, labelled, note, optionKey } from '../ui/widgets';
 import { el } from './roleShell';
 
 /** Wie viele Bildpunkte ein Meter hat, wenn ein Finger das Deck zieht — grob, aber gleichmäßig. */
@@ -260,7 +262,7 @@ class WatchView implements WatchRoleView {
   // --- die Linse ----------------------------------------------------------------
 
   private click(event: Event): void {
-    const key = (event.target as HTMLElement | null)?.closest('button');
+    const key = clickedKey(event);
     if (!key) return;
     // **Nur das Bild wechselt.** Der Platz bleibt der Fernseher — der
     // Zuschauer setzt sich nicht ans Archiv, er sieht dem Archivar zu.
@@ -292,14 +294,16 @@ class WatchView implements WatchRoleView {
     this.mount();
 
     this.corner.replaceChildren(
-      el('strong', '', this.open ? 'Blick zu' : 'Blick'),
-      el('small', '', WATCH_SEATS.find((one) => one.id === this.state.seat)?.label ?? ''),
+      ...labelled(
+        this.open ? 'Blick zu' : 'Blick',
+        WATCH_SEATS.find((one) => one.id === this.state.seat)?.label ?? '',
+      ),
     );
     this.corner.setAttribute('aria-pressed', this.open ? 'true' : 'false');
     this.notes.hidden = !this.open;
     if (!this.open) return;
 
-    const parts: HTMLElement[] = [head('Wessen Platz?', 'nur sehen')];
+    const parts: HTMLElement[] = [head('Wessen Platz?', 'nur sehen', 'role__h')];
     parts.push(
       grid(
         WATCH_SEATS.map((entry) => ({
@@ -312,7 +316,7 @@ class WatchView implements WatchRoleView {
     // **„Wem folgen?" gehört zum Deck.** Auf einem fremden Platz führt die
     // Kamera nicht mehr der Zuschauer, sondern die Rolle, der er zusieht.
     if (this.state.seat === 'deck') {
-      parts.push(head('Wem folgen?'));
+      parts.push(head('Wem folgen?', '', 'role__h'));
       parts.push(
         grid(
           WATCH_FOLLOWS.map((entry) => ({
@@ -323,58 +327,39 @@ class WatchView implements WatchRoleView {
         ),
       );
       // **Durch seine Augen** — das Live-Bild des Technikers, dem man folgt.
-      if (this.state.follow === 'technician') {
-        const eyes = el(
-          'button',
-          `role__watch-key role__watch-key--wide${this.state.eyes ? ' is-active' : ''}`,
-        );
-        eyes.dataset['watchEyes'] = '';
-        eyes.setAttribute('aria-pressed', this.state.eyes ? 'true' : 'false');
-        eyes.append(
-          el('strong', '', `Durch seine Augen: ${this.state.eyes ? 'an' : 'aus'}`),
-          el(
-            'small',
-            '',
-            this.state.eyes
+      if (this.state.follow === 'technician')
+        parts.push(
+          wideKey({
+            label: `Durch seine Augen: ${this.state.eyes ? 'an' : 'aus'}`,
+            sub: this.state.eyes
               ? 'Sein Live-Bild, so wie er es sieht — antippen holt dich zurück über das Deck'
               : 'Die Kamera in seinen Kopf: Brille, Desktop oder Karte, was er gerade hat',
-          ),
+            data: { watchEyes: '' },
+            active: this.state.eyes,
+            pressed: this.state.eyes,
+          }),
         );
-        parts.push(eyes);
-      }
-      if (this.steers) {
-        const home = el(
-          'button',
-          `role__watch-key role__watch-key--wide${flown ? '' : ' is-active'}`,
+      if (this.steers)
+        parts.push(
+          wideKey({
+            label: flown ? 'Zurück über das Deck' : 'Fliegen und Zoomen',
+            sub: 'Stock links unten oder ein Finger fliegt · zwei Finger oder das Mausrad zoomen',
+            data: { watchHome: '' },
+            active: !flown,
+          }),
         );
-        home.dataset['watchHome'] = '';
-        home.append(
-          el('strong', '', flown ? 'Zurück über das Deck' : 'Fliegen und Zoomen'),
-          el(
-            'small',
-            '',
-            'Stock links unten oder ein Finger fliegt · zwei Finger oder das Mausrad zoomen',
-          ),
-        );
-        parts.push(home);
-      }
     }
 
-    const insight = el(
-      'button',
-      `role__watch-key role__watch-key--wide${this.state.insight ? ' is-active' : ''}`,
+    parts.push(
+      head('KI-Absichten', 'nur für Zuschauer', 'role__h'),
+      wideKey({
+        label: `KI-Absichten: ${this.state.insight ? 'an' : 'aus'}`,
+        sub: 'Wo das Monster den Techniker vermutet, wohin es ihn laufen sieht und an welcher Tür es ihn abfangen will — mit beiden Ankunftszeiten.',
+        data: { watchInsight: '' },
+        active: this.state.insight,
+        pressed: this.state.insight,
+      }),
     );
-    insight.dataset['watchInsight'] = '';
-    insight.setAttribute('aria-pressed', this.state.insight ? 'true' : 'false');
-    insight.append(
-      el('strong', '', `KI-Absichten: ${this.state.insight ? 'an' : 'aus'}`),
-      el(
-        'small',
-        '',
-        'Wo das Monster den Techniker vermutet, wohin es ihn laufen sieht und an welcher Tür es ihn abfangen will — mit beiden Ankunftszeiten.',
-      ),
-    );
-    parts.push(head('KI-Absichten', 'nur für Zuschauer'), insight);
 
     parts.push(
       note(
@@ -401,31 +386,30 @@ class WatchView implements WatchRoleView {
   }
 }
 
+/** Ein Wahlknopf der Linse: der Listenknopf aus `ui/`, im Gitter der Linse (`role__watch-key`). */
+function watchKey(spec: Parameters<typeof optionKey>[0], wide = false): HTMLButtonElement {
+  return optionKey(spec, wide ? 'role__watch-key role__watch-key--wide' : 'role__watch-key');
+}
+
+/** Derselbe Knopf über die ganze Breite — die Schalter unter den Gittern. */
+function wideKey(spec: Parameters<typeof optionKey>[0]): HTMLButtonElement {
+  return watchKey(spec, true);
+}
+
 /** Eine Reihe Wahlknöpfe: Name groß, Zeile klein, einer davon leuchtet. */
 function grid(
   entries: ReadonlyArray<{ id: string; label: string; hint: string; key: string; on: boolean }>,
 ): HTMLElement {
   const box = el('div', 'role__watch-grid');
-  for (const entry of entries) {
-    const key = el('button', `role__watch-key${entry.on ? ' is-active' : ''}`);
-    key.dataset[entry.key] = entry.id;
-    key.setAttribute('aria-pressed', entry.on ? 'true' : 'false');
-    key.append(el('strong', '', entry.label), el('small', '', entry.hint));
-    box.append(key);
-  }
+  for (const entry of entries)
+    box.append(
+      watchKey({
+        label: entry.label,
+        sub: entry.hint,
+        data: { [entry.key]: entry.id },
+        active: entry.on,
+        pressed: entry.on,
+      }),
+    );
   return box;
-}
-
-/** Eine Zwischenüberschrift mit einer kleinen Beisage rechts. */
-function head(title: string, aside = ''): HTMLElement {
-  const node = el('h2', 'role__h');
-  node.append(el('span', '', title));
-  if (aside) node.append(el('span', 'role__h-aside', aside));
-  return node;
-}
-
-function note(tone: 'warn' | 'live' | 'calm', title: string, text: string): HTMLElement {
-  const node = el('div', `role__note is-${tone}`);
-  node.append(el('strong', '', title), el('span', '', text));
-  return node;
 }

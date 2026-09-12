@@ -8,6 +8,8 @@ import './haunting.css';
 // Menü zu Menü, Verbindung und VR — es darf nicht davon abhängen, wo man
 // vorher war.
 import './map/flat.css';
+import { clickedKey, el } from './ui/dom';
+import { key as uiKey } from './ui/widgets';
 import { playTone } from '../../core/Audio';
 import { ShipAudio, type ShipAudioFrame } from './shipAudio';
 import { HauntingAudio, NOISE, levelLabel } from './audio';
@@ -349,7 +351,7 @@ export class ShipExperience {
   private useHit = false;
   private labMirror: MirrorSurface | null = null;
   private visibleRooms: ReadonlySet<string> | null = null;
-  private readonly crosshair = document.createElement('div');
+  private readonly crosshair = el('div', 'orbital-crosshair');
   private readonly consoles: Console[] = [];
   private readonly effects = new ShipEffects();
   private readonly audioHead = new THREE.Vector3();
@@ -366,7 +368,7 @@ export class ShipExperience {
   /** Sauerstoff und Anzug-Leben, nur in der Brille (`paintHud`). */
   private readonly hud: Screen;
   private readonly command: Screen;
-  private readonly dom = document.createElement('section');
+  private readonly dom = el('section', 'orbital-player');
   /**
    * **Der Stock und die drei Knöpfe der 2D-Welt** über der 3D-Szene
    * (`world3d/shipControls.ts`) — dieselbe Steuerung, ob man die Station von
@@ -380,8 +382,8 @@ export class ShipExperience {
    * im DOM ist dort unsichtbar. Der Rahmen trägt die Klassen der 2D-Welt,
    * damit `flat.css` das Panel an dieselbe Stelle setzt wie dort.
    */
-  private readonly optionsRoot = document.createElement('div');
-  private readonly optionsPanel = document.createElement('div');
+  private readonly optionsRoot = el('div', 'flat orbital-options');
+  private readonly optionsPanel = el('div', 'ui-panel flat__panel');
   private optionsOpen = false;
   /**
    * **Ob die Tafel zugeklappt ist.** Sie steht links über der Station, und
@@ -430,7 +432,7 @@ export class ShipExperience {
    * richtig. Hier wäre es falsch: Ein Schieberegler, der beim Ziehen dreißigmal
    * je Sekunde durch einen neuen ersetzt wird, lässt sich nicht ziehen.
    */
-  private readonly tunePanel = document.createElement('details');
+  private readonly tunePanel = el('details');
   private tunePanelReady = false;
   private readonly tuneLabels = new Map<string, HTMLElement>();
   private readonly tuneInputs = new Map<string, HTMLInputElement>();
@@ -522,14 +524,10 @@ export class ShipExperience {
       host.ctx.camera.add(this.visor);
       this.buildSuit();
       host.ctx.wear('helmet');
-      this.dom.className = 'orbital-player';
       this.dom.setAttribute('aria-label', 'Haunting Spielsteuerung');
       this.dom.addEventListener('click', this.domClick);
-      this.crosshair.className = 'orbital-crosshair';
       this.crosshair.setAttribute('aria-hidden', 'true');
-      this.optionsRoot.className = 'flat orbital-options';
       this.optionsRoot.hidden = true;
-      this.optionsPanel.className = 'flat__panel';
       this.optionsPanel.setAttribute('aria-label', 'Optionen');
       this.optionsPanel.addEventListener('click', (event) => this.optionsClick(event));
       this.optionsRoot.append(this.optionsPanel);
@@ -2519,11 +2517,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.mainOpen = expanded;
     this.testsOpen = testsExpanded;
     this.dom.replaceChildren();
-    const title = document.createElement('strong');
-    title.textContent = `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : crew.simulation ? 'TEST / SICHERE BOT-RUNDE / MONSTER' : crew.options.test ? 'TEST / KEIN MONSTER' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`;
-    const oxygen = document.createElement('span');
+    const title = el(
+      'strong',
+      '',
+      `ORBITAL · ${state.phase === 'won' ? 'MISSION ERFÜLLT' : state.phase === 'lost' ? 'MISSION GESCHEITERT' : crew.simulation ? 'TEST / SICHERE BOT-RUNDE / MONSTER' : crew.options.test ? 'TEST / KEIN MONSTER' : 'MISSION'} · ANZUG ${crew.hp}/3 · ${state.done.length}/3 SYSTEME`,
+    );
+    const oxygen = el('span', '', oxygenText);
     oxygen.dataset['oxygen'] = '';
-    oxygen.textContent = oxygenText;
     title.append(oxygen);
     this.dom.append(title);
     // **Zuklappen.** Die Tafel steht über der Station, und auf dem Telefon
@@ -2531,9 +2531,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     // Titelzeile und diese zwei Knöpfe — wer sie wiederhaben will, drückt
     // denselben Knopf. Er steht vor dem Zahnrad, weil er häufiger gebraucht
     // wird als alles darunter.
-    const fold = document.createElement('button');
-    fold.textContent = this.folded ? '▾ Aufklappen' : '▴ Zuklappen';
-    fold.dataset.action = 'fold';
+    const fold = actionKey(this.folded ? '▾ Aufklappen' : '▴ Zuklappen', 'fold');
     fold.setAttribute('aria-expanded', String(!this.folded));
     this.dom.append(fold);
     // **Das Zahnrad der 2D-Welt** (`showOptions`): Zentrale, 2D von oben,
@@ -2541,74 +2539,59 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     // denselben Worten wie dort, statt loser Knöpfe, die dasselbe anders
     // nannten. Oben, weil es eine Ansicht ist und kein Handgriff — und
     // zugeklappt der einzige Weg nach draußen, deshalb bleibt es stehen.
-    const options = document.createElement('button');
-    options.textContent = '⚙ Optionen';
-    options.dataset.action = 'options';
-    this.dom.append(options);
+    this.dom.append(actionKey('⚙ Optionen', 'options'));
     this.dom.classList.toggle('is-folded', this.folded);
     if (this.folded) return;
     if (crew.simulation) {
-      const camera = document.createElement('button');
-      camera.textContent = this.followBot ? 'Freie Kamera' : 'Bot folgen';
-      camera.dataset.action = 'follow-bot';
-      this.dom.append(camera);
-      const overview = document.createElement('button');
-      overview.textContent = 'Kartenübersicht';
-      overview.dataset.action = 'overview';
-      this.dom.append(overview);
-      const legend = document.createElement('div');
-      legend.textContent =
-        'KI-Wege: Cyan = Techniker · Rot = Monster · Ring = Ziel · Flächen = Blickfelder · Orange = Hörbereich bei Sprint (Wände dämpfen) · FUNK = Standort / Gefahr / Auftrag';
-      this.dom.append(legend);
-      const intent = document.createElement('div');
+      const intent = el('div', '', intentText);
       intent.dataset.aiIntent = '';
-      intent.textContent = intentText;
-      this.dom.append(intent);
+      this.dom.append(
+        actionKey(this.followBot ? 'Freie Kamera' : 'Bot folgen', 'follow-bot'),
+        actionKey('Kartenübersicht', 'overview'),
+        el(
+          'div',
+          '',
+          'KI-Wege: Cyan = Techniker · Rot = Monster · Ring = Ziel · Flächen = Blickfelder · Orange = Hörbereich bei Sprint (Wände dämpfen) · FUNK = Standort / Gefahr / Auftrag',
+        ),
+        intent,
+      );
     }
     if (state.phase === 'lost' || state.phase === 'won') {
-      const result = document.createElement('div');
-      result.className = 'orbital-result';
+      const result = el('div', 'orbital-result');
       result.setAttribute('role', 'alert');
-      const message = document.createElement('p');
-      message.textContent =
-        state.phase === 'lost'
-          ? 'Dein Anzug wurde zerstört. Die Runde ist vorbei.'
-          : 'Alle Reparaturen abgeschlossen. Die Crew ist gerettet.';
-      const restart = document.createElement('button');
-      restart.textContent = 'Runde neu starten';
-      restart.dataset.action = 'start';
-      result.append(message, restart);
+      result.append(
+        el(
+          'p',
+          '',
+          state.phase === 'lost'
+            ? 'Dein Anzug wurde zerstört. Die Runde ist vorbei.'
+            : 'Alle Reparaturen abgeschlossen. Die Crew ist gerettet.',
+        ),
+        actionKey('Runde neu starten', 'start'),
+      );
       this.dom.append(result);
     }
-    if (crew.hidden) {
-      const exit = document.createElement('button');
-      exit.textContent = 'Schutzschrank verlassen';
-      exit.dataset.action = 'leave';
-      this.dom.append(exit);
-    }
-    const hint = document.createElement('div');
-    hint.className = 'orbital-player__keys';
-    hint.textContent = crew.simulation
-      ? this.followBot
-        ? 'Kamera folgt dem Bot · Freie Kamera zum Erkunden wählen'
-        : 'Freie Kamera · WASD fliegen · Leertaste ↑ · Strg ↓ · Umschalt schneller'
-      : `WASD · Strg ducken · E benutzen (frei vor dir: Licht ${this.rightItem === 'flashlight' && this.torchLit ? 'aus' : 'an'}) · 1: ${this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode]} · 2: ${this.rightItem === 'off' ? 'Hand frei' : this.rightLabel}`;
-    this.dom.append(hint);
-    const panel = document.createElement('details');
+    if (crew.hidden) this.dom.append(actionKey('Schutzschrank verlassen', 'leave'));
+    this.dom.append(
+      el(
+        'div',
+        'orbital-player__keys',
+        crew.simulation
+          ? this.followBot
+            ? 'Kamera folgt dem Bot · Freie Kamera zum Erkunden wählen'
+            : 'Freie Kamera · WASD fliegen · Leertaste ↑ · Strg ↓ · Umschalt schneller'
+          : `WASD · Strg ducken · E benutzen (frei vor dir: Licht ${this.rightItem === 'flashlight' && this.torchLit ? 'aus' : 'an'}) · 1: ${this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode]} · 2: ${this.rightItem === 'off' ? 'Hand frei' : this.rightLabel}`,
+      ),
+    );
+    const panel = el('details');
     panel.dataset.main = '';
     panel.open = expanded;
-    const heading = document.createElement('summary');
-    heading.textContent = 'Mission, Ausrüstung & Testdeck';
-    panel.append(heading);
+    panel.append(el('summary', '', 'Mission, Ausrüstung & Testdeck'));
     this.dom.append(panel);
-    const row = document.createElement('div');
-    row.className = 'orbital-player__actions';
+    const row = el('div', 'orbital-player__actions');
     panel.append(row);
     const button = (text: string, action: string, into: HTMLElement = row): void => {
-      const b = document.createElement('button');
-      b.textContent = text;
-      b.dataset.action = action;
-      into.append(b);
+      into.append(actionKey(text, action));
     };
     if ((!near.room && !crew.simulation) || crew.hp === 0) {
       // **Dieselben drei Absichten wie im Van und in der Brille**
@@ -2625,10 +2608,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
           `${intent === active ? '● ' : ''}${INTENT_LABELS[intent]} — ${INTENT_HINTS[intent]}`,
           `intent:${intent}`,
         );
-      const line = document.createElement('div');
-      line.className = 'orbital-player__setup';
-      line.textContent = describeSetup(setup);
-      row.append(line);
+      row.append(el('div', 'orbital-player__setup', describeSetup(setup)));
       button(`Skeld · ${crew.options.rooms} Räume`, 'rooms');
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
@@ -2655,12 +2635,15 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (near.console && !crew.hidden) {
       const r = near.console.repair,
         p = near.console.practice ?? puzzleFor(crew, r.id);
-      const box = document.createElement('div');
-      box.className = 'orbital-player__puzzle';
+      const box = el('div', 'orbital-player__puzzle');
       panel.append(box);
-      const caption = document.createElement('p');
-      caption.textContent = `${r.title} · ${p.open ? (r.puzzle === 'wires' ? 'Kabelstart → passendes Symbol' : 'Archiv nach dem Code fragen') : `Benötigt: ${r.item}`}`;
-      box.append(caption);
+      box.append(
+        el(
+          'p',
+          '',
+          `${r.title} · ${p.open ? (r.puzzle === 'wires' ? 'Kabelstart → passendes Symbol' : 'Archiv nach dem Code fragen') : `Benötigt: ${r.item}`}`,
+        ),
+      );
       if (near.console.training && near.console.solved)
         button('Übung geschafft — zurücksetzen', `repair:${r.id}:0.5:0.5`, box);
       else if (!p.open) button('Wartungskasten öffnen', `repair:${r.id}:0.5:0.5`, box);
@@ -2679,24 +2662,26 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       }
     }
     if (near.locker && !crew.hidden) {
-      const box = document.createElement('div');
+      const box = el('div');
       panel.append(box);
-      const caption = document.createElement('span');
       const wrecked = this.wrecked(near.locker.id);
-      caption.textContent = wrecked
-        ? 'Kabine zerstört — kein Schutz mehr. '
-        : 'Schutzschrank — ohne Code, einfach hinein. ';
-      box.append(caption);
+      box.append(
+        el(
+          'span',
+          '',
+          wrecked
+            ? 'Kabine zerstört — kein Schutz mehr. '
+            : 'Schutzschrank — ohne Code, einfach hinein. ',
+        ),
+      );
       // Keine Knöpfe an einem Wrack: Es nimmt keinen Gast.
       if (!wrecked) button('Verstecken', `locker:${near.locker.id}:1`, box);
     }
     if (crew.options.test) {
-      const details = document.createElement('details');
+      const details = el('details');
       details.dataset.tests = '';
       details.open = testsExpanded;
-      const summary = document.createElement('summary');
-      summary.textContent = 'Test / Räume / Simulation';
-      details.append(summary);
+      details.append(el('summary', '', 'Test / Räume / Simulation'));
       panel.append(details);
       button(crew.options.bright ? 'Testlicht aus' : 'Testlicht an', 'light', details);
       button(crew.simulation ? 'Bot-Runde beenden' : 'Bot-Runde anschauen', 'simulate', details);
@@ -2716,15 +2701,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       if (crew.simulation) {
         button('Höher fliegen', 'up', details);
         button('Tiefer fliegen', 'down', details);
-        const log = document.createElement('div');
-        log.className = 'orbital-radio';
+        const log = el('div', 'orbital-radio');
         log.setAttribute('role', 'log');
         log.setAttribute('aria-label', 'Simulierter Funkverkehr');
-        for (const message of this.messages) {
-          const row = document.createElement('div');
-          row.textContent = message;
-          log.append(row);
-        }
+        for (const message of this.messages) log.append(el('div', '', message));
         this.dom.append(log);
       }
     }
@@ -2753,14 +2733,15 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.tunePanelReady = true;
     const panel = this.tunePanel;
     panel.className = 'orbital-tuning';
-    const summary = document.createElement('summary');
-    summary.textContent = 'Bots justieren & trainieren';
-    panel.append(summary);
-    const hint = document.createElement('p');
-    hint.textContent =
-      'Dieselben Zahlen, mit denen die Runde läuft. Das Training sucht Gewichte, ' +
-      'mit denen der Techniker im Schnitt 60–70 % der Runden gewinnt.';
-    panel.append(hint);
+    panel.append(
+      el('summary', '', 'Bots justieren & trainieren'),
+      el(
+        'p',
+        '',
+        'Dieselben Zahlen, mit denen die Runde läuft. Das Training sucht Gewichte, ' +
+          'mit denen der Techniker im Schnitt 60–70 % der Runden gewinnt.',
+      ),
+    );
 
     const group = (
       title: string,
@@ -2774,24 +2755,19 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       }>,
       side: 'monster' | 'technician',
     ): void => {
-      const box = document.createElement('div');
-      box.className = 'orbital-tuning__group';
-      const heading = document.createElement('h4');
-      heading.textContent = title;
-      box.append(heading);
+      const box = el('div', 'orbital-tuning__group');
+      box.append(el('h4', '', title));
       for (const field of fields) {
         const key = `${side}:${field.id}`;
-        const row = document.createElement('label');
-        row.className = 'orbital-tuning__row';
-        const name = document.createElement('span');
-        name.textContent = field.label;
-        const input = document.createElement('input');
+        const row = el('label', 'orbital-tuning__row');
+        const name = el('span', '', field.label);
+        const input = el('input');
         input.type = 'range';
         input.min = String(field.min);
         input.max = String(field.max);
         input.step = String(field.step);
         input.dataset.tune = key;
-        const value = document.createElement('output');
+        const value = el('output');
         input.addEventListener('input', () => {
           const tuning = copyTuning(this.tuning());
           (tuning[side] as unknown as Record<string, number>)[field.id] = Number(input.value);
@@ -2807,12 +2783,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     group('Monster', MONSTER_FIELDS, 'monster');
     group('Techniker', TECHNICIAN_FIELDS, 'technician');
 
-    const actions = document.createElement('div');
-    actions.className = 'orbital-player__actions';
+    const actions = el('div', 'orbital-player__actions');
     const button = (text: string, run: () => void): void => {
-      const element = document.createElement('button');
-      element.type = 'button';
-      element.textContent = text;
+      const element = uiKey('', { text });
       element.addEventListener('click', run);
       actions.append(element);
     };
@@ -2830,8 +2803,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.applyTuning(clampTuning(null));
     });
     panel.append(actions);
-    const line = document.createElement('div');
-    line.className = 'orbital-tuning__status';
+    const line = el('div', 'orbital-tuning__status');
     line.setAttribute('role', 'status');
     this.trainingLine = line;
     panel.append(line);
@@ -2982,7 +2954,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
   }
 
   private optionsClick(event: Event): void {
-    const pressed = (event.target as HTMLElement | null)?.closest('button');
+    const pressed = clickedKey(event);
     if (!pressed) return;
     const data = pressed.dataset;
     if (data['watch'] !== undefined) this.toggleSimulation();
@@ -3520,4 +3492,9 @@ function buildLockerSlits(): THREE.Group {
   }
   group.visible = false;
   return group;
+}
+
+/** Ein Knopf der Tafel des Technikers: sein Text, und die Absicht als `data-action` (`onPanelClick`). */
+function actionKey(text: string, action: string): HTMLButtonElement {
+  return uiKey('', { text, data: { action } });
 }

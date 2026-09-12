@@ -1,14 +1,15 @@
 import type { MapSnapshot } from '../map/mapSnapshot';
 import type { RoleHost } from '../registry/roles';
+import { Toast as UiToast, fact } from '../ui/widgets';
 
 /**
  * **Das bisschen, das alle drei Nicht-VR-Rollen teilen.**
  *
  * Sie zeichnen dieselbe `MapView` wie die 2D-Welt, jede mit eigenen
  * Schichten — das ist die ganze Verwandtschaft, und sie steckt in der `MapView`
- * selbst. Was hier steht, ist der Rest: ein Element bauen, eine Zeile
- * einblenden, die nach ein paar Sekunden wieder geht, und die zwei bis drei
- * Fragen an den Snapshot, die sonst jede Rolle für sich beantworten müsste.
+ * selbst. Was hier steht, ist der Rest: die Bausteine aus `ui/` unter dem
+ * gewohnten Namen, die Codezeile der Akte und die zwei bis drei Fragen an den
+ * Snapshot, die sonst jede Rolle für sich beantworten müsste.
  *
  * Bewusst **keine Basisklasse**: Die drei Rollen sind sich in ihrer Form
  * ähnlich und in ihrer Sache überhaupt nicht — eine gemeinsame Oberklasse
@@ -16,52 +17,23 @@ import type { RoleHost } from '../registry/roles';
  * verschwinden.
  */
 
-/** Wie lange eine Zeile über der Karte stehen bleibt, in Sekunden. */
-export const TOAST_SECONDS = 3.2;
+/**
+ * Die Bausteine kommen aus `ui/` — hier stehen sie noch einmal, damit die
+ * Rollen ihren einen Import behalten: das Element, die Meldung, die Zeile.
+ */
+export { el } from '../ui/dom';
+export { TOAST_SECONDS, fact } from '../ui/widgets';
 
-export function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className = '',
-  text = '',
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  // `textContent` und nie `innerHTML`: Hier gehen Raumnamen und Spielernamen
-  // durch, und die hat sich niemand ausgesucht.
-  if (text) node.textContent = text;
-  return node;
+/** Die Meldung einer Rolle: der Baustein aus `ui/`, an der Stelle, die `views.css` ihr gibt. */
+export class Toast extends UiToast {
+  constructor(className = 'role__toast') {
+    super(className);
+  }
 }
 
-/** Eine Zeile mit Begriff und Auskunft — die Zeile der Raumakte. */
-export function fact(key: string, value: string, warn = false): HTMLElement {
-  const row = el('div', `role__fact${warn ? ' is-warn' : ''}`);
-  row.append(el('span', 'role__fact-key', key), el('b', 'role__fact-value', value));
-  return row;
-}
-
-/** Dieselbe Zeile, nur mit dem Wert so groß, dass man ihn durchs Zimmer ruft. */
+/** Die Zeile der Raumakte, nur mit dem Wert so groß, dass man ihn durchs Zimmer ruft. */
 export function code(key: string, value: string): HTMLElement {
-  const row = el('div', 'role__fact role__fact--code');
-  row.append(el('span', 'role__fact-key', key), el('b', 'role__code', value));
-  return row;
-}
-
-/** Eine Meldung, die von selbst wieder geht. */
-export class Toast {
-  readonly element = el('div', 'role__toast');
-  private left = 0;
-
-  say(text: string): void {
-    if (!text) return;
-    this.element.textContent = text;
-    this.left = TOAST_SECONDS;
-  }
-
-  step(dt: number): void {
-    if (this.left <= 0) return;
-    this.left = Math.max(0, this.left - dt);
-    if (this.left <= 0) this.element.textContent = '';
-  }
+  return fact(key, value, { valueClass: 'role__code' });
 }
 
 /** Der Raum unter einem Punkt — für die Karten, die auf Zimmer hören. */

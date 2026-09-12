@@ -1,0 +1,48 @@
+/*
+ * **Die Bausteine der Haunting-Oberfläche** (`widgets.ts`): der Kasten, der
+ * Listenknopf, die Pille, die Kachel, die Zeile, die Überschrift, die Meldung.
+ *
+ * Sie standen bis hierher in vier Blättern je einmal — `map/flat.css`,
+ * `views/views.css`, `monster/monster.css`, `haunting.css` —, mit denselben
+ * Farben und um ein Pixel verschiedenen Rändern. Was hier steht, ist die
+ * **Form**; die **Lage** (absolut, oben rechts, unter dem Kopf) und der Ton
+ * einer Stelle (das Rot der Monster-Rolle) stehen weiter in ihrem Blatt, als
+ * Klasse neben der Klasse von hier. Wer ein Blatt von dort einbindet, bindet
+ * dieses mit `@import` zuerst ein: Bei gleicher Spezifität gewinnt die
+ * spätere Zeile, und das soll die der Stelle sein.
+ *
+ * Handgesetzt, einzeilig — CSS steht nicht unter Prettier.
+ */
+/* Der Kasten, in dem Menüs, Blätter, Rätsel und Endkarten stehen. */
+.ui-panel { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid rgba(140, 170, 230, 0.35); color: #e8ecf7; box-sizing: border-box; }
+.ui-panel[hidden] { display: none; }
+/* Die Zwischenüberschrift: klein, gesperrt, Großbuchstaben — mit einer Beisage rechts, wenn es eine gibt. */
+.ui-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 6px 0 0; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #6b7690; }
+.ui-head-aside { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+/* Der Listenknopf: Name groß, Zeile klein, linksbündig — leuchtet, wenn er die gewählte Einstellung ist. */
+.ui-option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(140, 170, 230, 0.25); background: rgba(28, 38, 62, 0.6); color: #e8ecf7; font: inherit; text-align: left; touch-action: manipulation; }
+.ui-option small { color: #97a3bd; font-size: 12px; line-height: 1.4; }
+.ui-option.is-active { border-color: #7ff0ff; }
+.ui-option:disabled { opacity: .45; }
+/* Grün heißt „los", Rot heißt „hinaus" — in beiden Welten dieselben zwei Ränder. */
+.ui-option--go { border-color: rgba(143, 240, 176, 0.55); background: rgba(24, 52, 42, 0.9); color: #e6fff0; }
+.ui-option--leave { border-color: rgba(255, 90, 95, 0.5); }
+/* Die Pille: der kleine Knopf am Rand — Schließen, Karte, Zoom, ein Schachtziel. */
+.ui-pill { padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; font-size: 12px; touch-action: manipulation; }
+.ui-pill:disabled { opacity: .45; }
+/* Die Hinweiskachel: Titel und Satz, der Ton am linken Rand. In der Zentrale
+   nimmt sie die Farben der Station (`--haunt-*`), sonst ihre eigenen. */
+.ui-note { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--haunt-line, rgba(140, 170, 230, 0.2)); border-left: 3px solid var(--haunt-line-strong, rgba(140, 170, 230, 0.42)); background: rgba(14, 19, 32, 0.9); font-size: 13px; line-height: 1.45; color: #b9c3da; }
+.ui-note strong { font-size: 13px; color: var(--haunt-ink, #e8ecf7); }
+.ui-note span { font-size: 12px; color: #97a3bd; }
+.ui-note.is-live { border-left-color: var(--haunt-accent, #7fe0ff); }
+.ui-note.is-warn { border-left-color: var(--haunt-warn, #ffb14a); }
+.ui-note.is-warn strong { color: var(--haunt-warn, #ffb14a); }
+/* Die Zeile mit Begriff und Auskunft — die Zeile einer Akte. */
+.ui-fact { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgba(140, 170, 230, 0.15); font-size: 13px; }
+.ui-fact > span { color: #97a3bd; }
+.ui-fact > b { text-align: right; color: #e8ecf7; font-weight: 600; }
+.ui-fact.is-warn > b { color: #ffe8bd; }
+/* Die Meldung, die von selbst wieder geht: eine Pille, leer unsichtbar. */
+.ui-toast { padding: 8px 14px; border-radius: 999px; background: rgba(12, 18, 32, 0.9); border: 1px solid rgba(140, 170, 230, 0.3); color: #e8ecf7; font-size: 13px; pointer-events: none; max-width: 86vw; text-align: center; transition: opacity .2s; }
+.ui-toast:empty { opacity: 0; }
