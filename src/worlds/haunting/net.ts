@@ -581,6 +581,16 @@ export function readStart(data: unknown): { intent: Intent; setup: RoundSetup } 
   return { intent, setup: readSetup(it) };
 }
 
+/**
+ * **Ein Stoppwunsch** vom Netz: Die laufende Runde soll zurück in den Test —
+ * hell, ohne Uhr, ohne Treffer (`HauntingWorld.stopRound`). Wie der Start
+ * darf ihn jeder im Raum schicken; angewendet wird er beim Gastgeber.
+ */
+export function readStop(data: unknown): boolean {
+  const it = bag(data);
+  return !!it && it['kind'] === 'stop';
+}
+
 export function readClaim(data: unknown, from: string): Claim | null {
   const it = bag(data);
   if (!it || it['kind'] !== 'claim' || !isStation(it['station'])) return null;
@@ -840,6 +850,10 @@ export function setupMessage(setup: RoundSetup): unknown {
 /** Der Startwunsch an den Gastgeber: fang mit dieser Absicht und dieser Tafel an. */
 export function startMessage(intent: Intent, setup: RoundSetup): unknown {
   return { kind: 'start', intent, seats: setup.seats };
+}
+
+export function stopMessage(): unknown {
+  return { kind: 'stop' };
 }
 
 export function claimMessage(station: StationId, seniority: number): unknown {

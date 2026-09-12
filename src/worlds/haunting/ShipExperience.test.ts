@@ -1405,7 +1405,7 @@ test('der Techniker wechselt über das Optionsmenü der 2D-Welt in die Karte von
       'Menü',
       'Verbindung',
       'Ton',
-      'Runde verlassen',
+      'Zurück zu den Rollen',
     ]),
   );
   const swap = panel.querySelector<HTMLButtonElement>('[data-switch-view="2d"]')!;
@@ -1418,7 +1418,7 @@ test('der Techniker wechselt über das Optionsmenü der 2D-Welt in die Karte von
   expect(restart).not.toHaveBeenCalled();
   expect(testMission).not.toHaveBeenCalled();
   expect(stations).not.toHaveBeenCalled();
-  // „Runde verlassen" führt in die Zentrale — dorthin, wo der Aufbau steht.
+  // „Zurück zu den Rollen" führt in die Zentrale — dorthin, wo der Aufbau steht.
   gear.click();
   panel.querySelector<HTMLButtonElement>('[data-leave]')!.click();
   expect(stations).toHaveBeenCalledTimes(1);

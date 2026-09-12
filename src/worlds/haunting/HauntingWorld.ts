@@ -163,16 +163,19 @@ import {
 } from './rules/lobby';
 import {
   asIntent,
+  FLAT_NEEDS_TECHNICIAN,
   HOST_BUSY,
   NOT_TECHNICIAN,
   opensFlat,
   ROOM_BUSY,
+  ROUND_STOPPED,
   SHIP_NEEDS_TECHNICIAN,
   SHIP_OCCUPIED,
   shipStart,
   startBlocker,
   startedRound,
   startEntries,
+  STOP_SENT,
   type RoundKind,
   type WorldMenuState,
 } from './rules/worldMenu';
@@ -207,9 +210,11 @@ import {
   readSharedSetup,
   readStart,
   readState,
+  readStop,
   setupMessage,
   startMessage,
   stateMessage,
+  stopMessage,
   type HauntBooks,
   type HauntState,
   type MonsterBook,
@@ -1117,12 +1122,11 @@ export class HauntingWorld extends GridWorld {
         state: () => this.state,
         claims: () => this.currentClaims(),
         me: () => ctx.net.localId,
-        technician: () => {
-          this.flatTechnician = true;
-        },
+        technician: () => this.takeStick(ctx),
         leaveTechnician: () => {
           this.flatTechnician = false;
         },
+        stopRound: () => this.stopRound(ctx),
         menu: () => ctx.menu.toggle(),
         flatWanted: () => this.flatWanted,
         vr: () => this.roomHasVr(),
@@ -2145,6 +2149,12 @@ export class HauntingWorld extends GridWorld {
       this.startRound(start.intent, ctx);
       return;
     }
+    // **Und stoppen darf auch jeder** — zurück in den Test, beim Gastgeber.
+    if (readStop(data)) {
+      const ctx = this.context;
+      if (this.isHost && ctx && from !== ctx.net.localId) this.stopRound(ctx);
+      return;
+    }
     const flip = readFlip(data);
     // **Schalten darf, wer die Tafel hält** — ein Farbplatz mit „Schalttafel"
     // auf der Tafel des Gastgebers (`rules/roundSetup.Seat.powers`). Vorher
@@ -2737,10 +2747,15 @@ export class HauntingWorld extends GridWorld {
   }
 
   private manualDoor(id: string): void {
-    if (!this.isHost || this.context?.role !== 'vr' || this.state.phase !== 'running') return;
+    if (!this.isHost || this.context?.role !== 'vr' || !this.stepping) return;
     const door = this.spec.doors.find((d) => d.id === id);
     const trainingDoor = this.state.crew.options.test && id === TRAINING_DOOR.id;
     if (!door && !trainingDoor) return;
+    // Im Test ohne Buchführung: an, aus, und nichts läuft ab (`flipPlain`).
+    if (this.state.phase !== 'running') {
+      this.flipPlain('door', id);
+      return;
+    }
     // Gewollt gesperrt ist immer nur eine Tür — auch vor Ort (`rules/doorLocks.ts`).
     const out = toggleLock(this.locks, this.state.shut, id, this.state.time);
     this.state.shut = out.shut;
@@ -2754,6 +2769,20 @@ export class HauntingWorld extends GridWorld {
   private applyFlip(id: string, on: boolean): void {
     const entry = this.spec.switches.find((one) => one.id === id);
     if (!entry) return;
+
+    // **Im Test-Zustand ohne Buchführung** (`stepping`, aber nicht `running`):
+    // Vor und nach der Mission darf die Schalttafel Türen und Lampen
+    // ausprobieren — ohne Frist, ohne Budget, ohne Abkühlung, denn die Uhr
+    // dieser Bücher gehört der Mission, und ein Riegel, der im Test vierzig
+    // Sekunden warm bliebe, wäre dort nur ein kaputter Schalter.
+    if (this.state.phase !== 'running') {
+      const now =
+        entry.kind === 'door'
+          ? !this.state.shut.includes(entry.target)
+          : this.state.lit.includes(entry.target);
+      if (now !== on) this.flipPlain(entry.kind, entry.target);
+      return;
+    }
 
     // Licht: höchstens zwei Räume gleichzeitig, und die dritte Lampe macht die
     // älteste aus — derselbe Handel wie bei dem einen Riegel (`rules/lamps.ts`).
@@ -2792,11 +2821,11 @@ export class HauntingWorld extends GridWorld {
    *   Schalter gibt.
    */
   private panelSwitch(kind: 'door' | 'light', target: string): string {
-    // **Vor dem Start schaltet die Tafel nichts** — und sagt das, statt „kein
-    // Schalter": Wer in der Zentrale auf eine Tür tippt, während noch alle im
-    // Aufbau stehen, hielte die Karte sonst für kaputt.
-    if (this.state.phase !== 'running')
-      return 'Noch keine Runde — die Tafel schaltet erst mit dem Start.';
+    // **Auch vor dem Start schaltet die Tafel** — das ist der Test-Zustand, in
+    // dem die Rollen ausprobiert werden (`applyFlip`). Nur nach dem Ende einer
+    // Runde nicht mehr: Dann steht die Station, bis jemand sie stoppt oder
+    // neu startet.
+    if (!this.stepping) return 'Die Runde ist vorbei — erst stoppen oder neu starten.';
     const entry = visibleSwitches(this.spec.switches, this.state.fuse).find(
       (one) => one.kind === kind && one.target === target,
     );
@@ -2812,6 +2841,27 @@ export class HauntingWorld extends GridWorld {
   private flip(id: string, on: boolean): void {
     if (this.isHost) this.applyFlip(id, on);
     else this.context?.net.emit(HAUNT_CHANNEL, flipMessage(id, on));
+  }
+
+  /** Ob die Station gerade bespielt wird — Mission oder Test, nicht nach dem Ende. */
+  private get stepping(): boolean {
+    return this.state.phase === 'running' || this.state.phase === 'briefing';
+  }
+
+  /**
+   * **Ein Schalter ohne Buchführung** — der Test-Zustand kennt weder Riegel
+   * mit Frist noch Lampen mit Budget (`FlatRound.lockDoor`/`switchLight` tun
+   * dort dasselbe): Eine Tür ist zu oder auf, eine Lampe an oder aus.
+   */
+  private flipPlain(kind: 'door' | 'light', target: string): void {
+    if (kind === 'door')
+      this.state.shut = this.state.shut.includes(target)
+        ? this.state.shut.filter((one) => one !== target)
+        : [...this.state.shut, target];
+    else
+      this.state.lit = this.state.lit.includes(target)
+        ? this.state.lit.filter((one) => one !== target)
+        : [...this.state.lit, target];
   }
 
   /**
@@ -2961,7 +3011,12 @@ export class HauntingWorld extends GridWorld {
    * ausgeht.
    */
   private applyLights(dt = 1): void {
-    const bright = this.state.crew.options.test && this.state.crew.options.bright;
+    // **Vor der Mission ist die Station hell** — der Test-Zustand, in dem
+    // jeder herumläuft und Rollen ausprobiert; dunkel wird es mit dem Start
+    // (`startMission`). Das Testlicht des Trainings bleibt daneben bestehen.
+    const bright =
+      (this.state.crew.options.test && this.state.crew.options.bright) ||
+      this.state.phase === 'briefing';
     this.context?.rig.getHeadPosition(_head);
     const tileX = Math.floor(_head.x / TILE);
     const tileZ = Math.floor(_head.z / TILE);
@@ -3963,6 +4018,21 @@ export class HauntingWorld extends GridWorld {
       }
       return;
     }
+    // **Läuft hier schon die gemeinsame 2D-Runde im Test** — dieses Gerät
+    // steht am Stock oder am Steuer des Monsters —, dann startet die Mission
+    // **darin**, auf derselben Station (`FlatMode.startMission`), statt eine
+    // neue 2D-Welt darüberzulegen. So kommt der Startwunsch der Zentrale an:
+    // Die Tafel reist mit, die Rolle bleibt.
+    if (this.flat && this.flatShared) {
+      const started = this.flat.startMission({
+        setup,
+        test: setup.seats.monster.who === 'off',
+        powers: powersOf(setup),
+        role: flatRoleOf(setup, this.myPlace()),
+      });
+      if (started) ctx.menu.toggle(false);
+      return;
+    }
     // **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht.** Sie steht
     // im Browser und überlebt Tage; wer sie irgendwann im Van angehakt hat und
     // später die Brille aufsetzte, landete hier in `openFlat` — und das steigt
@@ -3980,6 +4050,19 @@ export class HauntingWorld extends GridWorld {
     if (opensFlat(this.startState()) || (asMonster && !ctx.renderer.xr.isPresenting)) {
       const options = this.state.crew.options;
       const role = flatRoleOf(setup, this.myPlace());
+      // **Kein Bot auf einem Menschenplatz.** Steht auf der Tafel „Techniker:
+      // Mensch" und niemand trägt den Anzug — dieses Gerät sieht nur zu —,
+      // dann läuft keine Vorführung mit einem Techniker aus Zahlen los. Die
+      // Mission wartet, bis jemand den Reiter „Techniker" nimmt, oder bis die
+      // Tafel den Platz einem Bot gibt; der Satz nennt beides.
+      if (
+        role === 'watch' &&
+        setup.seats.technician.who === 'human' &&
+        !this.roomHasTechnician(ctx)
+      ) {
+        this.say(FLAT_NEEDS_TECHNICIAN);
+        return;
+      }
       this.openFlat(ctx, {
         monster: options.monster,
         tuning: this.tuning,
@@ -4050,6 +4133,80 @@ export class HauntingWorld extends GridWorld {
     }
     const started = inShip === 'mission' ? this.startMission() : this.testMission();
     if (started) ctx.menu.toggle(false);
+  }
+
+  /**
+   * **Dieses Gerät an den Stock setzen** — der Reiter „Techniker" auf dem
+   * Telefon (`StationHost.technician`). Auf der Karte von oben heißt das: die
+   * 2D-Welt öffnet sich sofort, **im Test-Zustand** (`FlatOptions.phase`
+   * `'briefing'`): hell, ohne Uhr, ohne Monster-Routine, und man läuft los.
+   * Die Mission startet danach aus dem Optionsmenü oder aus der Zentrale. Im
+   * Schiff (Ansicht 3D) ist es wie bisher der Desktop-Techniker
+   * (`flatTechnician`), und der steht dort ohnehin im hellen Vorplatz. Die
+   * Brille rührt niemand an.
+   */
+  private takeStick(ctx: WorldContext): void {
+    if (this.roomHasVr()) {
+      this.say(VR_KEEPS_TECHNICIAN);
+      return;
+    }
+    if (!opensFlat(this.startState())) {
+      this.flatTechnician = true;
+      return;
+    }
+    if (this.flat?.role === 'technician') return;
+    const setup = this.setup;
+    this.openFlat(ctx, {
+      monster: this.state.crew.options.monster,
+      tuning: this.tuning,
+      test: setup.seats.monster.who === 'off',
+      role: 'technician',
+      setup,
+      powers: powersOf(setup),
+      mode: 'realistic',
+      phase: 'briefing',
+    });
+  }
+
+  /**
+   * **Die Runde stoppen — zurück in den Test.** Der Gastgeber setzt den Stand
+   * auf derselben Station zurück: Monster weg, Uhr auf null, Türen und Lampen
+   * frei, Phase `briefing` — hell, ohne Treffer, jeder darf jede Rolle. Läuft
+   * die gemeinsame 2D-Runde auf diesem Gerät, tut sie es selbst
+   * (`FlatMode.stopMission`). Wer nicht rechnet, schickt den Wunsch dem, der
+   * es tut (`net.stopMessage`) — derselbe Weg wie beim Start.
+   */
+  private stopRound(ctx: WorldContext): void {
+    if (!this.isHost) {
+      if (this.roomOccupied(ctx)) {
+        ctx.net.emit(HAUNT_CHANNEL, stopMessage());
+        this.say(STOP_SENT);
+      } else this.say(HOST_BUSY);
+      return;
+    }
+    if (this.flat && this.flatShared) {
+      this.flat.stopMission();
+      this.say(ROUND_STOPPED);
+      return;
+    }
+    // Eine lokale Vorführung (Bot-Runde in 2D) ist keine gemeinsame Runde:
+    // Sie geht einfach zu, und darunter steht die Station im Test.
+    if (this.flat) this.closeFlat();
+    if (this.state.crew.simulation) this.experience?.leaveBotRound();
+    this.removeMonster();
+    this.rules.reset();
+    this.spook = freshSpook();
+    this.locks = freshLocks();
+    this.lampBook = freshLamps();
+    this.automaticDoors.clear();
+    this.state = freshState(this.spec.seed, this.state.crew.options);
+    this.previousFeet = null;
+    this.sightTimer = 0;
+    this.monsterSeesPlayer = false;
+    ctx.net.emit(HAUNT_CHANNEL, stateMessage(this.state, this.setup));
+    this.announce(ROUND_STOPPED);
+    this.ui?.refresh();
+    ctx.refreshWorldMenu();
   }
 
   /**
@@ -4404,7 +4561,12 @@ export class HauntingWorld extends GridWorld {
         this.flatShared = shared;
         this.flatWatching = live;
         this.flat = new mode.FlatMode(shared || live ? this.spec.seed : rollSeed(), options, {
-          exit: () => this.closeFlat(),
+          // „Zurück zu den Rollen": Die 2D-Welt geht zu, und das Telefon
+          // steht wieder im Aufbau — dort, wo die Tafel und die Knöpfe sind.
+          exit: () => {
+            this.closeFlat();
+            this.ui?.goSetup();
+          },
           notify: (text) => ctx.notify(text),
           // **Wer das Monster spielt, wechselt nicht.** Im Schiff gäbe es für
           // ihn keine zweite Ansicht — er stünde dort plötzlich als Techniker

@@ -31,11 +31,11 @@ import {
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
 import { VIEW_LABELS, type View } from '../rules/lobby';
+import { FLAT_NEEDS_TECHNICIAN, ROUND_STOPPED } from '../rules/worldMenu';
 import { cargoLabel, cargoOf, taskCargo } from '../rules/cargo';
 import { hudTasks } from '../rules/roundHud';
 import {
   defaultSetup,
-  flatRoleOf,
   powersOf,
   switchRights,
   withWho,
@@ -216,6 +216,13 @@ const ROLE_LABELS: Record<FlatRole, string> = {
   watch: 'Du siehst zu',
 };
 
+/** Der erste Reiter im Kopf der 2D-Welt — wer man gerade ist. */
+const ROLE_TABS: Record<FlatRole, string> = {
+  technician: 'Techniker',
+  monster: 'Monster',
+  watch: 'Zuschauer',
+};
+
 /** Ohne Tafel: die Verteilung, die Rolle und Test der alten Optionen meinen. */
 function setupFromOptions(options: FlatOptions): RoundSetup {
   const role = options.role ?? 'technician';
@@ -288,6 +295,13 @@ export class FlatMode {
   private session: MonsterSession | null = null;
   /** In der Bot-Runde: der Techniker aus Zahlen am Stock statt des Spielers. */
   private bot: TechnicianBot | null = null;
+  /**
+   * **Ob hier zugesehen wird** — unabhängig davon, ob ein Techniker aus
+   * Zahlen läuft. Steht auf der Tafel „Techniker: Mensch" und niemand hat den
+   * Platz genommen, sieht man einer Station zu, in der der Techniker am
+   * Rand steht: Ein Bot spielt keinen Platz, der einem Menschen gehört.
+   */
+  private watching = false;
   private toastLeft = 0;
   private mode: ViewMode;
   private seed: number;
@@ -455,15 +469,19 @@ export class FlatMode {
     this.top.append(this.topRow, this.hudRow, this.jump);
     this.strip = new RoleStrip({
       roleHost: () => this.roleHost(),
-      homeLabel: () => 'Station',
+      // **Der erste Reiter heißt, wer man ist** — derselbe Kopf wie auf dem
+      // Telefon (`stationUi.ts`): Techniker, Monster oder Zuschauer, dann die
+      // drei Karten der Zentrale.
+      homeLabel: () => ROLE_TABS[this.role],
       onChange: () => this.applyOverlay(),
       // **Wer hier sitzt, ist der Techniker** — und der wechselt mitten in
       // einer Mission die Rolle nicht (`rules/roundSetup.switchRights`): Er
       // steht im Anzug und kann nicht nebenbei ins Archiv greifen. In einer
-      // Test-Runde darf er alles; genau dafür ist das Häkchen „Testen" da.
+      // Runde ohne Monster darf er alles — und **im Test-Zustand vor und
+      // nach der Mission** (`FlatRound.live`) sowieso: Dafür ist er da.
       rights: () => {
         const allowed = switchRights({
-          test: this.round.state().crew.options.test,
+          test: this.round.state().crew.options.test || !this.round.live,
           inCentre: false,
           vrTechnician: false,
         });
@@ -528,6 +546,7 @@ export class FlatMode {
     this.session?.dispose();
     this.session = null;
     this.bot = null;
+    this.watching = role === 'watch';
     if (role === 'monster') {
       this.session = new MonsterSession(
         this.round,
@@ -535,10 +554,15 @@ export class FlatMode {
         this.options_.tuning?.technician,
       );
       this.element.insertBefore(this.session.element, this.top);
-    } else if (role === 'watch' && !this.netWatch) {
+    } else if (role === 'watch' && !this.netWatch && this.setup.seats.technician.who !== 'human') {
       // Nur die **lokale** Vorführung braucht einen Techniker aus Zahlen. Wer
       // einer echten Runde im Netz zusieht, hätte sonst zwei Techniker: einen
       // gezeichneten aus dem Netz und einen, der daneben herläuft.
+      // **Und nur, wenn die Tafel den Platz einem Bot gibt.** Steht dort
+      // „Techniker: Mensch" und niemand hat den Reiter genommen, bleibt der
+      // Anzug leer — der Besitzer wollte keinen Bot, der einen Menschenplatz
+      // spielt; man sieht dann einer Station zu, in der der Techniker am
+      // Rand steht, bis jemand den Stock nimmt.
       this.bot = new TechnicianBot(this.round, this.options_.tuning?.technician, () =>
         this.dice.next(),
       );
@@ -552,6 +576,8 @@ export class FlatMode {
     this.scoutClock = 0;
     this.applyOverlay();
     this.refreshCorners();
+    // Der erste Reiter heißt, wer man jetzt ist (`ROLE_TABS`).
+    this.strip.refresh();
   }
 
   // --- Ein Overlay auf einmal ----------------------------------------------------
@@ -665,7 +691,12 @@ export class FlatMode {
 
   /** Wer gerade spielt — für Tests und die Anzeige. */
   get role(): FlatRole {
-    return this.session ? 'monster' : this.bot || this.netWatch ? 'watch' : 'technician';
+    return this.session ? 'monster' : this.watching || this.netWatch ? 'watch' : 'technician';
+  }
+
+  /** Ob ein Techniker aus Zahlen am Stock steht — nur in der Vorführung. */
+  get botPlays(): boolean {
+    return !!this.bot;
   }
 
   /**
@@ -681,6 +712,12 @@ export class FlatMode {
    */
   setWatching(watching: boolean): void {
     if ((this.role === 'watch') === watching) return;
+    // **Der Schalter gibt den Stock ausdrücklich ab** — „der Techniker aus
+    // Zahlen übernimmt", so steht es auf dem Knopf. Also steht es auch auf der
+    // Tafel: Der Techniker ist dann ein Bot, und zurück am Stock wieder ein
+    // Mensch. Ohne diese Zeile stünde nach dem Tipp ein leerer Anzug herum,
+    // weil ein Bot keinen Menschenplatz spielt (`playRole`).
+    this.setup = withWho(this.setup, 'technician', watching ? 'bot' : 'human');
     this.playRole(watching ? 'watch' : 'technician');
     const modes = viewModesFor('flat');
     const wanted = watching ? 'omniscient' : 'realistic';
@@ -787,7 +824,10 @@ export class FlatMode {
     }
     this.syncOverlay();
     this.renderHud();
-    if (this.phaseNow() !== 'running' && this.ending.hidden) this.renderEnding();
+    // Der Endbildschirm gehört einem Ende — nicht dem Test-Zustand davor,
+    // der auch keine laufende Mission ist (`FlatOptions.phase`).
+    const phase = this.phaseNow();
+    if ((phase === 'won' || phase === 'lost') && this.ending.hidden) this.renderEnding();
   }
 
   // --- Zuschauen am Netz ---------------------------------------------------------
@@ -1344,14 +1384,23 @@ export class FlatMode {
       taken: this.netWatch ? [] : state.taken,
       inventory: this.netWatch ? [] : crew.inventory,
     });
-    const key = [hp, clockText(round.oxygen), ...lines.map((l) => l.text)].join('|');
+    // **Die Uhr läuft nur in der Mission.** Im Test-Zustand davor steht an
+    // ihrer Stelle, dass keine Runde läuft — eine Uhr, die herunterzählt,
+    // während noch niemand gestartet hat, war der Befund des Besitzers.
+    const live = round.phase === 'running';
+    const clock = live
+      ? `O₂ ${clockText(round.oxygen)}`
+      : round.phase === 'briefing'
+        ? 'Test · keine Runde'
+        : 'Runde vorbei';
+    const key = [hp, clock, ...lines.map((l) => l.text)].join('|');
     if (this.hud.dataset['text'] === key) return;
     this.hud.dataset['text'] = key;
     this.vitals.replaceChildren(
-      el('strong', 'flat__oxygen', `O₂ ${clockText(round.oxygen)}`),
+      el('strong', `flat__oxygen${live ? '' : ' flat__oxygen--idle'}`, clock),
       el('strong', 'flat__suit', hp),
     );
-    this.vitals.classList.toggle('is-low', round.oxygen < 60);
+    this.vitals.classList.toggle('is-low', live && round.oxygen < 60);
     this.tasks.replaceChildren(
       ...lines.map((l) => {
         const node = el('div', 'flat__task', l.text);
@@ -1398,7 +1447,32 @@ export class FlatMode {
     // Überschriften, dieselben Worte, dieselbe Zeichnung. Was hier anders
     // ist, ist nur, was die 2D-Welt kann und das Schiff nicht — Zielpfade
     // und die zwei Sichtmodi des Zuschauers.
-    const items: OptionItem[] = [head(ROLE_LABELS[this.role]), head(SHARED.view)];
+    const items: OptionItem[] = [head(ROLE_LABELS[this.role])];
+    // **Mission starten und stoppen — hier, nicht im Aufbau.** Der Wunsch des
+    // Besitzers: Erst werden die Rollen ausprobiert (hell, ohne Uhr), dann
+    // startet einer die Mission aus diesem Menü, und „stoppen" führt zurück
+    // in den Test — auf derselben Station. Am Netz gibt es das nicht: Dort
+    // gehört die Runde dem, der sie rechnet.
+    if (!this.netWatch) {
+      items.push(head('Runde'));
+      items.push(
+        this.round.live
+          ? key(
+              { mission: 'stop' },
+              'Mission stoppen',
+              'Zurück in den Test: hell, ohne Uhr, ohne Treffer — dieselbe Station',
+              { leave: true },
+            )
+          : key(
+              { mission: 'start' },
+              'Mission starten',
+              this.round.phase === 'briefing'
+                ? 'Uhr läuft, Licht aus, Monster los — auf dieser Station'
+                : 'Noch einmal, auf dieser Station',
+            ),
+      );
+    }
+    items.push(head(SHARED.view));
     if (watching)
       for (const mode of viewModesFor('flat'))
         items.push(
@@ -1536,6 +1610,12 @@ export class FlatMode {
       // Nur noch der Knopf im Endbildschirm („Noch einmal?"). Im Optionsmenü
       // steht keine neue Runde mehr — die wird im Aufbau verteilt.
       this.restart();
+    } else if (data['mission'] === 'start') {
+      if (this.startMission()) this.setOverlay('none');
+      else this.renderOptions();
+    } else if (data['mission'] === 'stop') {
+      this.stopMission();
+      this.setOverlay('none');
     } else if (data['watch'] !== undefined) {
       this.setWatching(this.role !== 'watch');
       this.renderOptions();
@@ -1592,7 +1672,56 @@ export class FlatMode {
    * Verteilung, wie sie jetzt auf der Tafel steht.
    */
   restart(options?: FlatOptions): void {
-    const setup = options?.setup ?? this.setup;
+    this.rebuild({ ...options, phase: 'running' }, this.dice.int(0x7fffffff));
+  }
+
+  /**
+   * **Die Mission starten — auf dieser Station.** Aus dem Test-Zustand
+   * (`FlatOptions.phase`) heraus, oder nach einem Ende noch einmal: gleicher
+   * Same, frischer Stand, Uhr auf null, Licht aus, Monster am anderen Ende.
+   * Die Tafel darf dabei neu hereinkommen (`HauntingWorld.startRound` reicht
+   * sie durch, wenn ein Telefon sie umgestellt hat).
+   *
+   * **Ohne Menschen im Anzug läuft keine Mission.** Steht auf der Tafel
+   * „Techniker: Mensch" und dieses Gerät sieht nur zu, spielt niemand den
+   * Techniker — ein Bot täte es nicht (`playRole`), also wartet die Mission
+   * und sagt, was fehlt.
+   *
+   * @returns ob sie losgegangen ist.
+   */
+  startMission(options: Partial<FlatOptions> = {}): boolean {
+    const setup = options.setup ?? this.setup;
+    const role = options.role ?? this.role;
+    if (role === 'watch' && !this.netWatch && setup.seats.technician.who === 'human') {
+      this.say(FLAT_NEEDS_TECHNICIAN);
+      return false;
+    }
+    this.rebuild({ ...options, setup, role, phase: 'running' }, this.seed);
+    this.say(
+      this.round.state().monsterOn
+        ? 'Mission läuft. Licht macht die Schalttafel, das Monster ist unterwegs.'
+        : 'Mission läuft — ohne Monster.',
+    );
+    return true;
+  }
+
+  /**
+   * **Die Mission stoppen** — zurück in den Test-Zustand auf derselben
+   * Station: hell, ohne Uhr, ohne Treffer, jeder darf jede Rolle. Die Runde
+   * gilt danach als nie gelaufen; wer noch einmal will, startet neu.
+   */
+  stopMission(): void {
+    this.rebuild({ phase: 'briefing' }, this.seed);
+    this.say(ROUND_STOPPED);
+  }
+
+  /**
+   * Die Runde neu aufsetzen — mit diesem Samen und dieser Phase, sonst wie
+   * sie war: Werkzeuge und Karte von vorn, mit der Verteilung, wie sie jetzt
+   * auf der Tafel steht, und in der Rolle, die man gerade hat.
+   */
+  private rebuild(options: Partial<FlatOptions>, seed: number): void {
+    const setup = options.setup ?? this.setup;
     const next: FlatOptions = {
       ...this.options_,
       ...options,
@@ -1603,13 +1732,13 @@ export class FlatMode {
       resume: undefined,
       setup,
       test: setup.seats.monster.who === 'off',
-      role: flatRoleOf(setup, this.role === 'monster' ? 'monster' : 'technician'),
-      powers: powersOf(setup),
+      role: options.role ?? this.role,
+      powers: options.powers ?? powersOf(setup),
       routes: this.routes,
     };
     this.setup = setup;
     this.powers = next.powers!;
-    this.seed = this.dice.int(0x7fffffff);
+    this.seed = seed;
     this.round = new FlatRound(this.seed, { ...next, mode: this.mode.visibility });
     this.puzzle.element.remove();
     this.puzzle = new PuzzleOverlay(this.round);

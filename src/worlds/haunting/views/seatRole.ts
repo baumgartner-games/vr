@@ -23,8 +23,9 @@ import { Toast, el, roomName } from './roleShell';
  * nicht selbst (das tut diese Ansicht, einmal je Bild) und verstecken ihr
  * eigenes Kästchen oben links: Statt drei Panels steht **eine Zeile** oben,
  * die sagt, was der Stuhl kann und was jede Fähigkeit gerade zu melden hat.
- * Ihre Blätter — Raumakte, Tafel — bleiben ihre eigenen und liegen wie bisher
- * ganzseitig über der Karte (`views.css`, `.role--seat`).
+ * Das Blatt des Archivars — die Raumakte — bleibt sein eigenes und liegt wie
+ * bisher ganzseitig über der Karte (`views.css`, `.role--seat`); die
+ * Schalttafel hat kein Blatt mehr, sie ist die Karte selbst.
  *
  * **Was die Karte zeigt, ist die Vereinigung**: Lampen nur mit Schalttafel,
  * Fracht und Linien nur mit Archiv — und **niemanden, der sich bewegt**, nie:
@@ -43,7 +44,7 @@ export interface SeatRoleView extends RoleView {
   readonly scout: ScoutRoleView | null;
   readonly panel: PanelRoleView | null;
   readonly archive: ArchiveRoleView | null;
-  /** Ob gerade ein Blatt — Raumakte oder Tafel — über der Karte liegt. */
+  /** Ob gerade ein Blatt — die Raumakte — über der Karte liegt. */
   readonly sheetOpen: boolean;
   viewport(): { x: number; y: number; w: number; h: number } | null;
 }
@@ -109,7 +110,6 @@ class SeatView implements SeatRoleView {
     this.scout = has('scout') ? mountScoutView(host, this.map) : null;
     this.panel = has('panel') ? mountPanelView(host, this.map) : null;
     this.archive = has('archive') ? mountArchiveView(host, this.map) : null;
-    this.element.classList.toggle('has-corner', !!this.panel);
     this.element.append(this.map.element, this.bar, this.toast.element);
     for (const part of [this.scout, this.panel, this.archive])
       if (part) this.element.append(part.element);
@@ -117,7 +117,7 @@ class SeatView implements SeatRoleView {
   }
 
   get sheetOpen(): boolean {
-    return !!this.panel?.sheetOpen || !!this.archive?.opened;
+    return !!this.archive?.opened;
   }
 
   update(dt: number): void {

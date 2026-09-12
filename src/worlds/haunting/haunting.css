@@ -176,7 +176,11 @@ body.orbital-on #hud { display: none; }
   color: var(--haunt-ink);
   font-weight: 650;
 }
+/* Im Aufbau steht statt der Reiter eine Überschrift: Die Rollen wählt man
+   erst über der Karte (`stationUi.writeBar`). */
+.haunt__title { flex: 1; min-width: 0; padding-left: 6px; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--haunt-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .haunt__tools { display: flex; flex: none; gap: 6px; }
+.haunt .haunt__tool[aria-pressed='true'] { border-color: var(--haunt-accent); color: var(--haunt-ink); }
 .haunt .haunt__tool {
   min-width: 40px;
   min-height: 40px;
@@ -246,6 +250,8 @@ body.orbital-on #hud { display: none; }
  * jeder Station, also sieht es jeder, egal an welchem Gerät.
  */
 .haunt__quest-oxygen { font: 600 12px ui-monospace, monospace; color: var(--haunt-ink); letter-spacing: 0.04em; }
+/* Keine Uhr, solange keine Mission läuft: Der Test sagt das an ihrer Stelle. */
+.haunt__quest-idle { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--haunt-warn); white-space: nowrap; }
 .haunt__quest-cabins { color: var(--haunt-warn); }
 .haunt__quest.is-low .haunt__quest-oxygen { color: #ff7a8a; animation: haunt-low-oxygen 1s ease-in-out infinite; }
 .haunt__quest.is-low { border-bottom-color: rgba(255, 82, 103, 0.6); }
@@ -326,6 +332,17 @@ body.orbital-on #hud { display: none; }
   border-left: 4px solid var(--haunt-accent);
   background: var(--haunt-card);
 }
+
+/* --- Das Zahnrad-Menü über der Karte (`stationUi.writeMenu`) ---
+   Dieselbe Form wie das Optionsmenü der 2D-Welt (`map/flat.css`, `.flat__panel`):
+   ein Kasten unter dem Kopf, Überschriften klein, Knöpfe mit Zeile darunter. */
+.haunt__menu { position: absolute; left: 50%; top: calc(max(12px, env(safe-area-inset-top)) + 96px); transform: translateX(-50%); width: min(92vw, 380px); max-height: calc(100dvh - 120px - env(safe-area-inset-bottom)); overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 16px; background: rgba(12, 18, 32, 0.97); border: 1px solid var(--haunt-line-strong); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); z-index: 8; }
+.haunt__menu[hidden] { display: none; }
+.haunt__menu-head { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--haunt-faint); margin-top: 6px; }
+.haunt .haunt__option { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--haunt-line); background: var(--haunt-card); color: var(--haunt-ink); font: inherit; font-size: 13px; text-align: left; }
+.haunt .haunt__option small { color: var(--haunt-dim); font-size: 12px; line-height: 1.4; }
+.haunt .haunt__option--go { border-color: rgba(143, 240, 176, 0.55); background: rgba(24, 52, 42, 0.9); color: #e6fff0; }
+.haunt .haunt__option--leave { border-color: rgba(255, 90, 95, 0.5); }
 
 /* --- breiter --- */
 @media (min-width: 760px) {
@@ -501,17 +518,13 @@ body.orbital-on #hud { display: none; }
 .setup__suit span { font-size: 11px; color: #8ee6a8; }
 .setup__suit.is-mine { border-color: #4aa8ff; background: rgba(74, 168, 255, 0.14); color: #cfe6ff; }
 .setup__suit.is-mine span { color: #8fc4ff; }
-/* „Ich": der Platz, den dieses Gerät hält — ein Knopf je Zeile, blau wie der eigene Punkt in der Lobby. */
-.setup__key--me { min-width: 0; padding: 6px 12px; font-size: 12px; opacity: 0.7; }
-.setup__key--me.is-active { opacity: 1; background: rgba(74, 168, 255, 0.18); border-color: #4aa8ff; color: #cfe6ff; font-weight: 600; }
-.setup__key--me:disabled { opacity: 0.35; }
 .setup__key--who.is-human { border-color: #8ff0b0; color: #c8ffd9; }
 .setup__key--who.is-bot { border-color: #7ff0ff; color: #d8fbff; }
 /* „Aus" ist eine Antwort und kein fehlender Eintrag — sie steht grau da und
    nicht rot: Eine Fähigkeit abzuschalten ist kein Fehler. */
 .setup__key--who.is-off { border-color: rgba(140, 170, 230, 0.25); color: #6b7690; }
-/* Drei Knöpfe je Platz — Mensch, Bot, Aus — und einer leuchtet. Die Spalte
-   „Ich" ist weg (`roundSetupPanel.ts`). */
+/* Drei Knöpfe je Platz — Mensch, Bot, Aus — und einer leuchtet. Ein „Ich"
+   gibt es nicht (`roundSetupPanel.ts`): Die Rolle nimmt man über die Reiter der Karte. */
 .setup__seat { flex-wrap: wrap; }
 .setup__whos { display: flex; gap: 4px; }
 .setup__whos .setup__key--who { min-width: 0; padding: 6px 10px; font-size: 12px; opacity: 0.55; }
@@ -542,6 +555,8 @@ body.orbital-on #hud { display: none; }
 /* Der eine Startknopf: die größte Fläche der Seite, und er sagt, was gleich passiert. */
 .lobby__start { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 60px; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(143, 240, 176, 0.55); background: rgba(24, 52, 42, 0.9); color: #e6fff0; font: inherit; text-align: left; }
 .lobby__start strong { font-size: 17px; }
+/* „Rollen testen": der erste Weg auf die Karte — gelb, weil noch nichts losgeht. */
+.lobby__start--test { border-color: var(--haunt-warn); background: rgba(58, 46, 20, 0.85); color: #ffe8a0; }
 .lobby__help { border-radius: 12px; border: 1px solid var(--haunt-line); background: rgba(12, 17, 30, 0.7); padding: 4px 8px; }
 .lobby__help > summary { padding: 10px 6px; cursor: pointer; font-size: 13px; color: var(--haunt-dim); }
 .lobby__help[open] > summary { border-bottom: 1px solid var(--haunt-line); margin-bottom: 8px; }

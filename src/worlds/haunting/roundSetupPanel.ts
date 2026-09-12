@@ -30,11 +30,12 @@ import {
  * nicht. Jeder Tipp schreibt die Einstellung sofort (`saveSetup`) und ruft
  * `onChange`; gestartet wird nicht hier, sondern mit dem einen Knopf darunter.
  *
- * **Die Spalte „Ich" ist weg.** Sie sagte, welches Gerät auf welchem Platz
- * sitzt — dieselbe Frage, die die Reiter oben beantworten, nur ohne zu
- * zeigen, was man dann sieht. Was dieses Gerät ist, steht jetzt allein dort
- * (`stationUi.ts`, `rules/lobby.LobbyChoice.me`); die Tafel sagt nur noch,
- * **wer** die Plätze hält und **was** jeder darf.
+ * **Ein „Ich" gibt es auf der Tafel nicht.** Es stand zweimal hier — als
+ * Spalte, dann als Knopf je Zeile — und zweimal wieder weg, zuletzt auf
+ * Wunsch des Besitzers: Oben die Reiter, unten „Ich", das war dieselbe Frage
+ * an zwei Stellen. Die Tafel sagt, **wer** die Plätze hält und **was** jeder
+ * darf; welcher Platz der eigene ist, wählt man nach „Rollen testen" über
+ * die Reiter der Karte (`stationUi.ts`, `rules/lobby.LobbyChoice.me`).
  *
  * **Und die Fähigkeiten hängen am Platz, nicht an einer Liste daneben.** Das
  * war der Wunsch des Besitzers, und er löst nebenbei die Frage nach dem
@@ -66,14 +67,10 @@ export interface SetupPanelHost {
    */
   holder?(seat: SeatId): string | null;
   /**
-   * **Was dieses Gerät ist** (`rules/lobby.LobbyChoice.me`) — und der Tipp
-   * auf „Ich" in einer Zeile, der es zu diesem Platz macht. Die Reiterzeile
-   * oben tut dasselbe; aber wer auf der Tafel liest, wer wer ist, will an
-   * derselben Stelle sagen können „das bin ich" — der Wunsch des Besitzers,
-   * nachdem die alte Spalte „Ich" gestrichen war.
+   * **Was dieses Gerät ist** (`rules/lobby.LobbyChoice.me`) — nur zum Lesen:
+   * Die Zeile des Technikers sagt „du · im Anzug", wenn es der eigene ist.
    */
   me?(): MyRole;
-  choose?(seat: SeatId): void;
   /**
    * **Wer im Anzug steckt**, als Name — die Brille oder der Techniker am
    * Bildschirm („Web 3D"), der schon beim Betreten der Techniker ist. Steht
@@ -141,18 +138,6 @@ export class SetupPanel {
       return line;
     }
 
-    // **„Ich"**: dieser Platz ist meiner. Leuchtet auf der Zeile, die dieses
-    // Gerät hält; beim Techniker gesperrt, solange die Brille ihn trägt.
-    if (this.host.choose) {
-      const mine = this.host.me?.() === seat;
-      const me = el('button', `setup__key setup__key--me${mine ? ' is-active' : ''}`, 'Ich');
-      me.dataset['setupMe'] = '';
-      me.setAttribute('aria-pressed', mine ? 'true' : 'false');
-      me.setAttribute('aria-label', `${SEAT_LABELS[seat]}: das bin ich`);
-      if (seat === 'technician' && vr && !mine) me.toggleAttribute('disabled', true);
-      line.append(me);
-    }
-
     // **Drei Knöpfe, nicht ein Zykler.** Ein Knopf, der weiterzählt, ohne zu
     // zeigen, was als Nächstes kommt, war der alte Fehler; drei Knöpfe zeigen
     // alle Antworten auf einmal, und eine davon leuchtet.
@@ -216,13 +201,6 @@ export class SetupPanel {
     const line = key.closest<HTMLElement>('[data-seat]');
     const seat = line?.dataset['seat'] as SeatId | undefined;
     if (!seat || !SEATS.includes(seat)) return;
-    if (key.dataset['setupMe'] !== undefined) {
-      event.stopPropagation();
-      // Die Wahl schreibt selbst Lobby und Tafel (`stationUi.choose`) und
-      // zeichnet die Seite neu — hier bleibt nichts zu tun.
-      this.host.choose?.(seat);
-      return;
-    }
     const read = this.host.setup();
     let setup: RoundSetup;
     const who = key.dataset['setupWho'] as SeatWho | undefined;

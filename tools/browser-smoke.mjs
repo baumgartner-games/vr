@@ -124,10 +124,10 @@ for (const name of browserNames) {
         console.log(`[${prefix}] ${label}`);
         await summary();
       };
-      // Die Reiterzeile ganz oben ist die Rollenwahl (`[data-me]`): Die Stuehle
-      // heissen Farben (`stations.ts`), und welche Karte ein Stuhl aufschlaegt,
-      // sagt die Tafel im Aufbau (`rules/roundSetup.ts`) — die drei Faehigkeiten
-      // werden dort als Laempchen je Platz angeknipst, bevor jemand sich setzt.
+      // Zwei Seiten, ein Kopf (`stationUi.ts`): Im Aufbau steht die Tafel — die
+      // drei Faehigkeiten werden dort als Laempchen je Platz angeknipst —, und
+      // „Rollen testen" fuehrt auf die Karte; erst dort ist die Reiterzeile die
+      // Rollenwahl (`[data-me]`). Die Stuehle heissen Farben (`stations.ts`).
       const SEAT_OF = { archive: 'red', hack: 'yellow', scout: 'blue', watch: 'watch:all' };
       const POWER_OF = { archive: 'archive', hack: 'panel', scout: 'scout' };
       const role = async (id) => {
@@ -135,12 +135,23 @@ for (const name of browserNames) {
         await page.locator(`[data-me="${seat}"]`).click();
         await page.locator(`.haunt[data-station="${id === 'watch' ? 'watch' : seat}"]`).waitFor();
       };
+      // Zurueck in den Aufbau geht es ueber das Zahnrad — falls man auf der Karte steht.
+      const toSetup = async () => {
+        if (await page.locator('[data-options]').count()) {
+          await page.locator('[data-options]').click();
+          await page.locator('[data-setup]').click();
+        }
+        await page.locator('[data-test-roles]').waitFor();
+      };
       const assignPowers = async () => {
-        await page.locator('[data-tab="setup"]').click();
+        await toSetup();
         for (const [view, ability] of Object.entries(POWER_OF)) {
           const lamp = page.locator(`[data-seat="${SEAT_OF[view]}"] [data-setup-power="${ability}"]`);
           if ((await lamp.getAttribute('aria-pressed')) !== 'true') await lamp.click();
         }
+        // Und auf die Karte: Ohne Runde, hell — der Test-Zustand.
+        await page.locator('[data-test-roles]').click();
+        await page.locator('[data-me]').first().waitFor();
       };
       try {
         const url = new URL(base);
@@ -224,16 +235,13 @@ for (const name of browserNames) {
           'The switchboard is a map of the station',
         );
         await shot('panel-mobile');
-        // Und dazu die Tafel: ein Blatt über der Karte, eine Zeile je
-        // Schalter. Vor dem Sicherungskasten ist nur die Hälfte da.
-        await page.locator('[data-panel-sheet]').click();
-        await page.locator('.role--panel.is-sheet').waitFor();
-        assert(
-          (await page.locator('.role--panel [data-switch]').count()) > 0,
-          'The switchboard sheet lists the switches that are live',
+        // Und keine Schalterliste: Die Schalttafel ist die Karte — Tür und
+        // Lampe werden dort angetippt, ein Blatt gibt es nicht mehr.
+        assert.equal(
+          await page.locator('[data-panel-sheet], .role--panel [data-switch]').count(),
+          0,
+          'The switchboard has no switch list — doors and lamps are tapped on the map',
         );
-        await shot('panel-switches');
-        await page.locator('.role--panel .role__sheet [data-close]').click();
 
         await role('scout');
         await page.locator('.role--seat:has(.role--scout) .mapview__canvas').waitFor();
@@ -248,11 +256,13 @@ for (const name of browserNames) {
         // gestellt (`rules/lobby.arriveAs`). Der Techniker soll hier aber ins
         // Schiff — also erst das Häkchen „2D-Welt von oben" im Aufbau abwählen,
         // wie es ein Spieler tut, der vom Handy an den Stock will.
-        await page.locator('[data-tab="setup"]').click();
+        await toSetup();
         const flatCheck = page.locator('[data-check="view"]');
         if ((await flatCheck.getAttribute('aria-pressed')) === 'true') await flatCheck.click();
-        // „Ich bin der Techniker": der Reiter „Techniker" ganz oben — die
-        // Spalte „Ich" auf der Tafel ist weg, die Reiterzeile ist die Wahl.
+        // „Ich bin der Techniker": zurück auf die Karte, dann der Reiter
+        // „Techniker" — ein „Ich" auf der Tafel gibt es nicht, die Reiterzeile
+        // ist die Wahl.
+        await page.locator('[data-test-roles]').click();
         await page.locator('[data-me="technician"]').click();
         await page.locator('.orbital-player').waitFor();
         await page.waitForFunction(() => window.bgvr.world?.stationTorch?.visible);

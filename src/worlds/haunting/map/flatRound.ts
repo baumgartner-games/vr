@@ -241,6 +241,17 @@ export interface FlatOptions {
    * `FlatResume`.
    */
   resume?: FlatResume;
+  /**
+   * **Womit die Runde anfängt.** `'running'` (Voreinstellung) ist die Mission:
+   * Uhr, Dunkelheit, Monster, Treffer. `'briefing'` ist der **Test-Zustand**
+   * davor und danach: Der Techniker läuft in einer hellen Station herum, die
+   * Schalttafel schaltet, ein Mensch am Steuer darf das Monster bewegen — aber
+   * keine Uhr läuft, niemand wird getroffen, und die Routine steht still.
+   * Aus diesem Zustand heraus startet „Mission starten" die Runde auf
+   * derselben Station (`FlatMode.startMission`), und „Mission stoppen" führt
+   * wieder hierher.
+   */
+  phase?: 'briefing' | 'running';
 }
 
 /**
@@ -475,11 +486,16 @@ export class FlatRound implements MapSource {
           monster: options.monster ?? 'stalker',
           test: !!options.test,
         });
+    // **Der Test-Zustand** (`FlatOptions.phase`): keine Uhr, kein Treffer,
+    // und die ganze Station hell — jede Lampe steht in `lit`, ohne Buchführung
+    // und ohne Frist. Erst die Mission (`FlatMode.startMission`) macht das
+    // Licht aus und lässt die Uhr laufen.
+    const idle = !resume && options.phase === 'briefing';
     // Der Stand wird **übernommen** und nicht kopiert (`FlatResume`): Der
     // Gastgeber schreibt danach denselben Stand fort, den die Runde rechnet.
     this.haunt = resume?.state ?? {
       seed,
-      phase: 'running',
+      phase: idle ? 'briefing' : 'running',
       crew: freshCrew(crewOptions),
       time: 0,
       monsterOn: !options.test,
@@ -491,8 +507,8 @@ export class FlatRound implements MapSource {
       // Tafel zum Lichtschalter gemacht: Es gab nichts einzuschalten, nur
       // etwas auszuschalten. Licht macht jetzt auch hier, wer einen Schalter
       // umlegt, höchstens zwei Räume gleichzeitig und nicht für immer
-      // (`rules/lamps.ts`).
-      lit: [],
+      // (`rules/lamps.ts`). **Im Test dagegen ist alles hell.**
+      lit: idle ? spacesOf(this.house).map((room) => room.id) : [],
       fuse: false,
       taken: [],
       done: [],
@@ -631,6 +647,20 @@ export class FlatRound implements MapSource {
 
   get phase(): HauntState['phase'] {
     return this.haunt.phase;
+  }
+
+  /**
+   * **Ob die Mission läuft** — im Gegensatz zum Test-Zustand davor und danach
+   * (`FlatOptions.phase`): Dort rechnet der Schritt weiter (Laufen, Türen,
+   * ein Mensch am Steuer des Monsters), aber ohne Uhr, Spuk und Treffer.
+   */
+  get live(): boolean {
+    return this.haunt.phase === 'running';
+  }
+
+  /** Ob überhaupt gerechnet wird: Mission oder Test — nicht nach dem Ende. */
+  private get stepping(): boolean {
+    return this.haunt.phase === 'running' || this.haunt.phase === 'briefing';
   }
 
   get activeTool(): string {
@@ -889,7 +919,11 @@ export class FlatRound implements MapSource {
   }
 
   private tick(dt: number, input: FlatInput): void {
-    if (this.haunt.phase !== 'running') return;
+    if (!this.stepping) return;
+    // **Der Test ist kein Stillstand.** Die Uhr des Standes läuft auch dort
+    // weiter — Wellen, Türen und Spuren hängen an ihr —, nur zeigt sie
+    // niemand als Sauerstoff an, und `rules.step` beendet nur eine Mission.
+    const live = this.live;
     this.haunt.time += dt;
     const out = this.rules.step(this.haunt);
     if (out) {
@@ -974,7 +1008,7 @@ export class FlatRound implements MapSource {
     const gap = this.haunt.monsterOn
       ? Math.hypot(this.player.x - this.monster.x, this.player.z - this.monster.z)
       : Infinity;
-    this.stepSeal(gap);
+    if (live) this.stepSeal(gap);
     stepVitals(crew, dt, speed, gap);
 
     if (
@@ -986,37 +1020,9 @@ export class FlatRound implements MapSource {
       return;
     }
 
-    // --- Spuk ----------------------------------------------------------------
-    const spooked = stepHaunt(
-      this.spook,
-      {
-        spec: this.house,
-        monster: this.haunt.monsterOn ? this.haunt.monster : null,
-        lit: this.haunt.lit,
-        shut: this.haunt.shut,
-        // Keine Tür auf den Kopf: Wer im Durchgang steht, wird nicht
-        // eingeklemmt (`haunt.slammable`).
-        occupants:
-          this.haunt.monsterOn && this.haunt.monster
-            ? [this.player, this.haunt.monster]
-            : [this.player],
-      },
-      dt,
-    );
-    this.spook = spooked.spook;
-    // Auch der Spuk geht durch die Buchführung: Eine Lampe, die das Monster
-    // ausmacht, ist danach keine der zwei geschalteten mehr (`rules/lamps.ts`).
-    if (spooked.lightOut && this.haunt.lit.includes(spooked.lightOut)) {
-      this.haunt.lit = lampOut(this.lampBook, this.haunt.lit, spooked.lightOut);
-      if (spooked.lightOut === this.player.space)
-        this.events.push({ kind: 'warn', text: 'Das Licht geht aus.' });
-    }
-    if (spooked.doorShut && !this.haunt.shut.includes(spooked.doorShut)) {
-      this.haunt.shut = slamDoor(this.locks, this.haunt.shut, spooked.doorShut, this.haunt.time);
-      this.events.push({ kind: 'warn', text: 'Irgendwo fällt eine Tür zu.' });
-      const door = this.house.doors.find((d) => d.id === spooked.doorShut);
-      if (door) this.wave('', doorCentre(door), NOISE.slam, 'slam');
-    }
+    // --- Spuk — nur in der Mission. Im Test bleibt das Licht an und keine
+    // Tür fällt zu: Wer Rollen ausprobiert, soll die Station sehen.
+    if (live) this.stepSpook(dt);
 
     if (!this.haunt.monsterOn) return;
 
@@ -1027,6 +1033,27 @@ export class FlatRound implements MapSource {
       if (event === 'entered' || event === 'exited')
         this.wave(MONSTER_ID, this.monster, NOISE.monsterVent, 'vent');
       this.haunt.monster = { x: this.monster.x, z: this.monster.z };
+      return;
+    }
+
+    // **Im Test steht die Routine still.** Nur ein Mensch am Steuer bewegt das
+    // Monster — „wenn er will" —, und getroffen wird dabei niemand: Der
+    // Techniker läuft in derselben hellen Station herum und stirbt nicht.
+    if (!live) {
+      if (!piloted) {
+        this.decision = null;
+        return;
+      }
+      const decision = this.driver!.decide(dt);
+      this.decision = decision;
+      if (decision.goal)
+        this.stepMonster(
+          decision.goal,
+          paceSpeed(monsterBase(crew.options.monster), this.tuning.monster, decision.pace, 0),
+          dt,
+        );
+      this.haunt.monster = { x: this.monster.x, z: this.monster.z };
+      this.stepMonsterNoise(decision, dt);
       return;
     }
 
@@ -1186,30 +1213,73 @@ export class FlatRound implements MapSource {
         );
     }
     this.haunt.monster = { x: this.monster.x, z: this.monster.z };
-    // Die Schritte des Monsters als Wellen: leise beim Schleichen, weit beim Rennen.
-    if (decision.pace !== 'still') {
-      this.monsterPulse -= dt;
-      if (this.monsterPulse <= 0) {
-        const hunting = decision.pace === 'hunt';
-        this.monsterPulse = hunting ? SPRINT_PULSE : STEP_PULSE;
-        this.wave(
-          MONSTER_ID,
-          this.monster,
-          hunting
-            ? NOISE.monsterRun
-            : decision.mode === 'search'
-              ? NOISE.monsterStalk
-              : NOISE.monsterWalk,
-          'monster',
-        );
-      }
-    } else this.monsterPulse = 0;
+    this.stepMonsterNoise(decision, dt);
 
     // **Das Monster schlägt um sich.** Wer in Reichweite steht, wird
     // getroffen — von der KI wie von einem Spieler am Steuer. Ein eigener
     // Angriffsknopf verlangte, im Moment der Berührung zu tippen, und in
     // diesem Moment schaut niemand auf seine Knöpfe (`monster/monsterHelm.ts`).
     if (gap < CONTACT && !hidden && takeCrewHit(crew, true)) this.hit('Treffer.');
+  }
+
+  /**
+   * **Der Spuk der Mission** (`haunt.ts`): Das Monster macht Lampen aus und
+   * wirft Türen zu — beides durch dieselbe Buchführung wie die Schalttafel,
+   * damit eine gelöschte Lampe danach keine der zwei geschalteten mehr ist
+   * (`rules/lamps.ts`) und eine zugefallene Tür ihre Frist hat
+   * (`rules/doorLocks.ts`).
+   */
+  private stepSpook(dt: number): void {
+    const spooked = stepHaunt(
+      this.spook,
+      {
+        spec: this.house,
+        monster: this.haunt.monsterOn ? this.haunt.monster : null,
+        lit: this.haunt.lit,
+        shut: this.haunt.shut,
+        // Keine Tür auf den Kopf: Wer im Durchgang steht, wird nicht
+        // eingeklemmt (`haunt.slammable`).
+        occupants:
+          this.haunt.monsterOn && this.haunt.monster
+            ? [this.player, this.haunt.monster]
+            : [this.player],
+      },
+      dt,
+    );
+    this.spook = spooked.spook;
+    if (spooked.lightOut && this.haunt.lit.includes(spooked.lightOut)) {
+      this.haunt.lit = lampOut(this.lampBook, this.haunt.lit, spooked.lightOut);
+      if (spooked.lightOut === this.player.space)
+        this.events.push({ kind: 'warn', text: 'Das Licht geht aus.' });
+    }
+    if (spooked.doorShut && !this.haunt.shut.includes(spooked.doorShut)) {
+      this.haunt.shut = slamDoor(this.locks, this.haunt.shut, spooked.doorShut, this.haunt.time);
+      this.events.push({ kind: 'warn', text: 'Irgendwo fällt eine Tür zu.' });
+      const door = this.house.doors.find((d) => d.id === spooked.doorShut);
+      if (door) this.wave('', doorCentre(door), NOISE.slam, 'slam');
+    }
+  }
+
+  /** Die Schritte des Monsters als Wellen: leise beim Schleichen, weit beim Rennen. */
+  private stepMonsterNoise(decision: RoutineOutput, dt: number): void {
+    if (decision.pace === 'still') {
+      this.monsterPulse = 0;
+      return;
+    }
+    this.monsterPulse -= dt;
+    if (this.monsterPulse > 0) return;
+    const hunting = decision.pace === 'hunt';
+    this.monsterPulse = hunting ? SPRINT_PULSE : STEP_PULSE;
+    this.wave(
+      MONSTER_ID,
+      this.monster,
+      hunting
+        ? NOISE.monsterRun
+        : decision.mode === 'search'
+          ? NOISE.monsterStalk
+          : NOISE.monsterWalk,
+      'monster',
+    );
   }
 
   /**
@@ -1489,7 +1559,7 @@ export class FlatRound implements MapSource {
   // --- Knöpfe ---------------------------------------------------------------
 
   act(action: FlatAction): void {
-    if (this.haunt.phase !== 'running') return;
+    if (!this.stepping) return;
     if (action === 'cycle') {
       if (this.tools.length > 1) this.active = (this.active + 1) % this.tools.length;
       this.events.push({ kind: 'info', text: TOOL_LABELS[this.activeTool] ?? this.activeTool });
@@ -1783,7 +1853,17 @@ export class FlatRound implements MapSource {
    */
   lockDoor(id: string): string {
     const door = this.house.doors.find((d) => d.id === id);
-    if (!door || this.haunt.phase !== 'running') return '';
+    if (!door || !this.stepping) return '';
+    // **Im Test ohne Buchführung**: kein Riegel, der abläuft, keine Tür, die
+    // vierzig Sekunden warm bleibt — man will sehen, ob der Tipp trifft, und
+    // ihn gleich wieder zurücknehmen können.
+    if (!this.live) {
+      const locked = this.haunt.shut.includes(id);
+      this.haunt.shut = locked
+        ? this.haunt.shut.filter((one) => one !== id)
+        : [...this.haunt.shut, id];
+      return locked ? 'Tür entriegelt.' : 'Tür verriegelt.';
+    }
     const before = this.locks.chosen;
     const out = toggleLock(this.locks, this.haunt.shut, id, this.haunt.time, () => this.rng.next());
     this.haunt.shut = out.shut;
@@ -1806,7 +1886,15 @@ export class FlatRound implements MapSource {
    * ein anderes Licht als das Spiel, für das sie der Prüfstand ist.
    */
   switchLight(roomId: string): string {
-    if (this.haunt.phase !== 'running') return '';
+    if (!this.stepping) return '';
+    // Im Test ist Licht ein Schalter und kein Budget: an oder aus, für immer.
+    if (!this.live) {
+      const on = this.haunt.lit.includes(roomId);
+      this.haunt.lit = on
+        ? this.haunt.lit.filter((one) => one !== roomId)
+        : [...this.haunt.lit, roomId];
+      return on ? 'Licht aus.' : 'Licht an.';
+    }
     const out = switchLamp(this.lampBook, this.haunt.lit, roomId, this.haunt.time, () =>
       this.rng.next(),
     );

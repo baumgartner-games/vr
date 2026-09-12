@@ -586,17 +586,21 @@ export class MapView {
     if (this.layers.vents) this.drawVents(ctx);
 
     // --- Lichter ---------------------------------------------------------------
+    // **Eine Lampe ist ein Kreis**: gelb ausgefüllt, wenn sie brennt, sonst
+    // nur der graue Ring. Er ist der einzige Lichtschalter der Schalttafel —
+    // eine Schalterliste gibt es nicht mehr —, also groß genug für den Daumen
+    // und auch aus, wenn die Karte weit herausgezoomt ist.
     if (this.layers.lights) {
       for (const light of s.lights) {
         if (light.kind === 'torch' || light.kind === 'command') continue;
         const p = this.toScreen(light.at.x, light.at.z);
-        const r = Math.max(3, scale * 0.22);
+        const r = Math.max(5, scale * 0.28);
         ctx.beginPath();
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
         ctx.fillStyle = light.on ? INK.light : INK.lightOff;
         ctx.fill();
-        ctx.strokeStyle = INK.frame;
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = light.on ? INK.frame : INK.wallLight;
+        ctx.lineWidth = light.on ? 1 : 1.5;
         ctx.stroke();
         if (light.on) {
           ctx.strokeStyle = 'rgba(255, 210, 122, 0.45)';
