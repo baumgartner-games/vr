@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { AvatarBody, type AvatarLimb } from '../core/AvatarBody';
 import { SmoothPose } from './PoseSmoothing';
 import type { NetSession, Peer } from './NetSession';
-import type { PoseArray } from './types';
+import type { PeerPose, PoseArray } from './types';
 
 export type HandSide = 'left' | 'right';
 
@@ -51,6 +51,19 @@ export class RemoteAvatars extends THREE.Group {
    */
   isSpeaking: ((peerId: string) => boolean) | null = null;
 
+  /**
+   * **Wo ein Mitspieler gezeichnet wird, wenn nicht dort, wo er steht.**
+   *
+   * Eine Welt darf einem Mitspieler einen Platz zuweisen: Haunting setzt die
+   * Zentrale auf ihre Hocker (`world3d/commandSeats.ts`), weil ein Telefon
+   * im Schiff kein Rig bewegt und sonst als Spieler am Spawn stünde. `null`
+   * heißt: die Pose, die er selbst schickt. Eine zurückgegebene Pose mit
+   * `hidden` nimmt ihn aus dem Bild. Gefragt wird nur für Mitspieler, die
+   * in dieser Welt sind und eine Pose haben — wer nicht da ist, bekommt auch
+   * keinen Platz.
+   */
+  placement: ((peer: Peer) => PeerPose | null) | null = null;
+
   private readonly avatars = new Map<string, Avatar>();
   /** Tools hung into a peer's hand, keyed `peerId:side`. */
   private readonly attachments = new Map<string, THREE.Object3D>();
@@ -66,9 +79,10 @@ export class RemoteAvatars extends THREE.Group {
     }
 
     for (const peer of this.net.peers.values()) {
-      const inWorld = peer.world === this.net.world && peer.pose !== null && !peer.pose.hidden;
+      const sent = peer.world === this.net.world ? peer.pose : null;
+      const pose = sent ? (this.placement?.(peer) ?? sent) : null;
       const existing = this.avatars.get(peer.id);
-      if (!inWorld) {
+      if (!pose || pose.hidden) {
         if (existing) existing.body.visible = false;
         continue;
       }
@@ -90,7 +104,6 @@ export class RemoteAvatars extends THREE.Group {
         // sich wirklich etwas geändert hat.
         avatar.tag.setText(peer.name, speaking);
       }
-      const pose = peer.pose!;
 
       avatar.poses.head.setTarget(pose.head);
       avatar.poses.head.update(dt, SMOOTH_TAU);

@@ -7,6 +7,7 @@ import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { pickHost } from '../../net/host';
 import type { Peer } from '../../net/NetSession';
+import type { PeerPose } from '../../net/types';
 import {
   generateHouse,
   onApron,
@@ -39,6 +40,7 @@ import { defaultLens, throughEyes, type WatchLens } from './watchLens';
 import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
+import { COMMAND_STOOLS, COMMAND_TABLE, crewPlacement } from './world3d/commandSeats';
 import { stationLighting } from './stationLighting';
 import {
   stepThreat,
@@ -261,6 +263,18 @@ import type { Npc } from '../npc/Npc';
 /** Wie oft der Gastgeber den Stand verschickt, und jeder seinen Platz ansagt. */
 const STATE_RATE = 1 / 4;
 /**
+ * Wie oft die Sitzordnung der Zentrale im Schiff neu gerechnet wird, in
+ * Millisekunden (`crewPlace`) — so oft, wie die Plätze angesagt werden.
+ */
+const CREW_PLACE_RATE = 250;
+/** Die Pose, die einen Mitspieler aus dem Bild nimmt (`RemoteAvatars.placement`). */
+const HIDDEN_POSE: PeerPose = {
+  head: [0, 0, 0, 0, 0, 0, 1],
+  left: null,
+  right: null,
+  hidden: true,
+};
+/**
  * Wie lange nach einem eigenen Tipp auf die Tafel der Stand des Gastgebers
  * sie **nicht** überschreibt, in Millisekunden — genug für Hin- und Rückweg
  * über die Leitung, kurz genug, dass eine abgewiesene Änderung nicht stehen
@@ -448,6 +462,14 @@ export class HauntingWorld extends GridWorld {
   private perceptionClock = 0;
   private readonly travelPlan = new StationTravelPlan();
   private readonly technicians = new Map<string, number>();
+  /**
+   * **Wo die Zentrale im Schiff sitzt** (`world3d/commandSeats.ts`), je
+   * Mitspieler — für `RemoteAvatars.placement`. Ein paarmal in der Sekunde
+   * neu gerechnet (`crewPlace`), nicht je Bild und Mitspieler: Die Ansprüche
+   * ändern sich in Sekunden, nicht in Millisekunden.
+   */
+  private crewPlaces = new Map<string, PeerPose>();
+  private crewPlacedAt = -Infinity;
   private lampPool: THREE.PointLight[] = [];
   private testLight: THREE.AmbientLight | null = null;
   private commandLight: THREE.SpotLight | null = null;
@@ -1075,6 +1097,8 @@ export class HauntingWorld extends GridWorld {
     // einer zu viel.
     ctx.touchStick(false);
     this.joinTable(ctx);
+    // Die Zentrale steht nicht am Spawn, sie sitzt am Tisch (`crewPlace`).
+    ctx.avatars.placement = (peer) => this.crewPlace(peer);
 
     // **„Web 3D" heißt: am Stock, und zwar sofort.** Die Startseite hat der
     // Lobby gesagt, dass dieses Gerät der Techniker ist und das Schiff will
@@ -1187,6 +1211,10 @@ export class HauntingWorld extends GridWorld {
     this.navigationOverlay.dispose();
     ctx.net.off(HAUNT_CHANNEL);
     ctx.touchStick(true);
+    // Die Avatare gehören der Seite: In der nächsten Welt steht jeder wieder, wo er steht.
+    ctx.avatars.placement = null;
+    this.crewPlaces.clear();
+    this.crewPlacedAt = -Infinity;
     ctx.scene.fog = null;
     // Die Leinwand gehört der ganzen Seite und nicht dieser Welt: Was hier an
     // ihr verstellt wurde, geht hier auch wieder ab.
@@ -1423,10 +1451,11 @@ export class HauntingWorld extends GridWorld {
 
   /** Die Einsatzzentrale vor der Haustür: der Ablagetisch und die Monitore. */
   private buildVan(): void {
-    const x = -5;
     // Die Reihe an der Kantinenfront: Wer hier sitzt, schaut durch die
-    // Scheibe in den Raum, den die Drohne gleich abfliegt.
-    const z = (APRON_INNER + 0.05) * TILE;
+    // Scheibe in den Raum, den die Drohne gleich abfliegt. Wo Tisch und
+    // Hocker stehen, rechnet `world3d/commandSeats.ts` — dieselben Zahlen,
+    // mit denen die Mitspieler der Zentrale auf die Hocker gesetzt werden.
+    const { x, z } = COMMAND_TABLE;
     const metal = new THREE.MeshStandardMaterial({
       color: 0x39414f,
       roughness: 0.5,
@@ -1442,41 +1471,48 @@ export class HauntingWorld extends GridWorld {
       this.vanRig.add(leg);
     }
 
-    // Ein Monitor je Station. Sie zeigen (noch) nicht, was die Stationen sehen
-    // — aber sie sagen, wer gerade an welchem Gerät sitzt, und das ist die
-    // Auskunft, für die der VR-Spieler den Weg zurückgeht. Der fünfte ist der
-    // Fernseher: kein Gerät, sondern das Fenster für die, die zusehen.
-    const colors = [0xffc857, 0xff6b6b, 0x5ee0a0, 0xb98cff];
-    const step = 0.55;
-    colors.forEach((color, index) => {
+    // Ein Monitor je Gerät — Rot, Gelb, Blau und das Monster, in den Farben
+    // der Reiter am Telefon. Sie zeigen (noch) nicht, was die Geräte sehen —
+    // aber sie sagen, wer gerade an welchem sitzt, und das ist die Auskunft,
+    // für die der VR-Spieler den Weg zurückgeht. Der Fernseher hat keinen:
+    // kein Gerät, sondern das Fenster für die, die zusehen.
+    for (const { colour, x: stoolX, z: stoolZ } of COMMAND_STOOLS) {
       const screen = new THREE.Mesh(
         new THREE.PlaneGeometry(0.46, 0.32),
-        new THREE.MeshBasicMaterial({ color, toneMapped: false, opacity: 0.55, transparent: true }),
+        new THREE.MeshBasicMaterial({
+          color: colour,
+          toneMapped: false,
+          opacity: 0.55,
+          transparent: true,
+        }),
       );
-      screen.position.set(x + (index - (colors.length - 1) / 2) * step, 1.4, z - 0.5);
+      screen.position.set(stoolX, 1.4, z - 0.5);
       this.vanRig.add(screen);
 
       // **Und ein Platz davor, in derselben Farbe.** Vier Leute sitzen an
-      // diesem Tisch, und der VR-Spieler sieht von ihnen nichts als vier
+      // diesem Tisch, und der VR-Spieler sah von ihnen lange nichts als vier
       // Monitore — ein Hocker je Gerät macht aus der Ansage „ich hab den
-      // grünen" eine Stelle im Raum, an der jemand sitzt. Sie stehen hinter
-      // dem Tisch, also südlich davon: Wer die Brille aufsetzt, steht
-      // zwischen ihnen und dem Haus und läuft nicht durch sie hindurch.
+      // roten" eine Stelle im Raum, an der jemand sitzt. Und seit die Zentrale
+      // im Schiff nicht mehr am Spawn steht, sitzt dort wirklich jemand:
+      // `crewPlace` setzt den Besitzer des Geräts auf genau diesen Hocker.
+      // Sie stehen hinter dem Tisch, also südlich davon: Wer die Brille
+      // aufsetzt, steht zwischen ihnen und dem Haus und läuft nicht durch
+      // sie hindurch.
       const stool = new THREE.Mesh(
         new THREE.CylinderGeometry(0.19, 0.19, 0.08, 14),
         new THREE.MeshStandardMaterial({
-          color,
+          color: colour,
           roughness: 0.6,
-          emissive: color,
+          emissive: colour,
           emissiveIntensity: 0.25,
         }),
       );
-      stool.position.set(x - 0.9 + index * 0.6, 0.52, z + 1.3);
+      stool.position.set(stoolX, 0.52, stoolZ);
       this.vanRig.add(stool);
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.48, 0.07), metal);
-      post.position.set(x - 0.9 + index * 0.6, 0.24, z + 1.3);
+      post.position.set(stoolX, 0.24, stoolZ);
       this.vanRig.add(post);
-    });
+    }
 
     this.buildDusk();
   }
@@ -3933,6 +3969,41 @@ export class HauntingWorld extends GridWorld {
     if (ctx.role === 'vr' || this.flatTechnician) return ctx.net.name;
     for (const peer of ctx.net.peers.values()) if (this.wearsSuit(peer)) return peer.name;
     return null;
+  }
+
+  /**
+   * **Wo ein Mitspieler im Schiff gezeichnet wird** (`RemoteAvatars.placement`).
+   *
+   * Wer den Anzug trägt — Brille oder Techniker am Bildschirm —, läuft
+   * wirklich herum und wird dort gezeichnet, wo er ist (`null`). Alle anderen
+   * in dieser Welt sind die Zentrale: Telefone und Bildschirme, die kein Rig
+   * bewegen und deren Pose über die Leitung die Stelle vom Betreten ist, der
+   * Spawn. Der Besitzer stünde dann als Spieler mitten auf dem Vorplatz, mit
+   * jedem Telefon einer mehr in derselben Stelle. Stattdessen sitzen sie am
+   * Tisch: auf dem Hocker ihres Geräts, oder in der Reihe dahinter
+   * (`world3d/commandSeats.crewPlacement`, aus den Ansprüchen `seatOf`).
+   *
+   * Eine Ausnahme nimmt jemanden ganz aus dem Bild: **der Techniker der
+   * 2D-Runde.** Er trägt den Anzug, hat aber kein Rig — seine Stelle steht im
+   * Stand (`state.technician`), und daraus zeichnet `showTechnician` schon
+   * einen Körper. Sein Avatar am Spawn wäre ein zweiter Techniker.
+   */
+  private crewPlace(peer: Peer): PeerPose | null {
+    if (peer.world !== 'haunting') return null;
+    if (this.wearsSuit(peer)) {
+      return this.state.technician && peer.role !== 'vr' ? HIDDEN_POSE : null;
+    }
+    const now = clock();
+    if (now - this.crewPlacedAt > CREW_PLACE_RATE) {
+      this.crewPlacedAt = now;
+      const claims = this.currentClaims();
+      const me = this.context?.net.localId ?? '';
+      const crew = [...(this.context?.net.peers.values() ?? [])]
+        .filter((one) => one.id !== me && one.world === 'haunting' && !this.wearsSuit(one))
+        .map((one) => ({ id: one.id, station: seatOf(claims, one.id) }));
+      this.crewPlaces = crewPlacement(crew);
+    }
+    return this.crewPlaces.get(peer.id) ?? null;
   }
 
   /** Der Mitspieler im Anzug mit bekannter Pose — für Augen und Karte der Zentrale. */

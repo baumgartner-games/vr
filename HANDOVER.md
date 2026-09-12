@@ -1666,6 +1666,18 @@ Branch `feat/world-3d` — in dieser Session vom Harness als
 - **Registry**: `world3d/world3d.register.ts` meldet den Weltraum als
   `model`-Asset an. Eingebaut wird er trotzdem direkt in `shipArt.buildShip`,
   weil noch niemand Modelle aus der Registry abholt.
+- **Nachtrag: Die Zentrale sitzt im Schiff auf ihren Hockern**
+  (`world3d/commandSeats.ts`, reine Rechnung mit Test). Befund des
+  Besitzers: Die Web-Spieler der Einsatzzentrale standen in der Brille als
+  Spieler am Spawn. Jetzt gibt `HauntingWorld.crewPlace` jedem Mitspieler
+  ohne Anzug über `RemoteAvatars.placement` die Pose seines Hockers
+  (Besitzer eines Geräts, `seatOf`) oder einen Platz in der stehenden Reihe
+  dahinter; `buildVan` baut Tisch und Hocker aus denselben Konstanten
+  (`COMMAND_TABLE`, `COMMAND_STOOLS` — Rot, Gelb, Blau, Monster). Der
+  2D-Techniker, den `showTechnician` schon als Körper zeichnet, bekommt
+  `hidden`. Angefasst dafür: `net/RemoteAvatars.ts` (der Haken),
+  `HauntingWorld.ts` (Import, zwei Felder, ein Aufruf in `init`/`dispose`,
+  `buildVan`, `crewPlace`).
 
 ### Fremde Dateien, die ich angefasst habe
 
