@@ -1,4 +1,6 @@
 import { IDLE, Joystick, type StickValue } from '../map/joystick';
+import { clickedKey, el } from '../ui/dom';
+import { captioned, labelled } from '../ui/widgets';
 
 /**
  * **Die Steuerung der 2D-Welt, im Schiff.**
@@ -50,29 +52,23 @@ export interface ShipControlsLabels {
 }
 
 export class ShipControls {
-  readonly element = document.createElement('div');
+  // Dieselben Klassen wie in der 2D-Welt: `flat` setzt die Variablen,
+  // `flat__stick` und `flat__buttons` die Plätze für Daumen und Finger.
+  readonly element = el('div', 'flat ship3d');
   private readonly stick = new Joystick();
-  private readonly buttons = document.createElement('div');
-  private readonly leftKey = document.createElement('button');
-  private readonly rightKey = document.createElement('button');
-  private readonly actKey = document.createElement('button');
+  private readonly buttons = el('div', 'flat__buttons');
+  private readonly leftKey = el('button', 'flat__key flat__key--cycle');
+  private readonly rightKey = el('button', 'flat__key flat__key--use');
+  private readonly actKey = el('button', 'flat__key flat__key--act');
   private stamp = ' ';
 
   constructor(private readonly host: ShipControlsHost) {
-    // Dieselben Klassen wie in der 2D-Welt: `flat` setzt die Variablen,
-    // `flat__stick` und `flat__buttons` die Plätze für Daumen und Finger.
-    this.element.className = 'flat ship3d';
-    this.buttons.className = 'flat__buttons';
-    this.leftKey.className = 'flat__key flat__key--cycle';
-    this.rightKey.className = 'flat__key flat__key--use';
-    this.actKey.className = 'flat__key flat__key--act';
     this.leftKey.dataset['action'] = 'left';
     this.rightKey.dataset['action'] = 'right';
     this.actKey.dataset['action'] = 'interact';
     this.buttons.append(this.leftKey, this.rightKey, this.actKey);
     this.buttons.addEventListener('click', (event) => {
-      const key = (event.target as HTMLElement | null)?.closest('button');
-      const action = key?.dataset['action'];
+      const action = clickedKey(event)?.dataset['action'];
       if (action === 'left') this.host.cycleLeft();
       else if (action === 'right') this.host.cycleRight();
       else if (action === 'interact') this.host.interact();
@@ -99,9 +95,9 @@ export class ShipControls {
     const stamp = `${labels.left}|${labels.right}|${labels.target}|${labels.idle ?? ''}`;
     if (stamp === this.stamp) return;
     this.stamp = stamp;
-    fill(this.leftKey, 'Linke Hand', labels.left);
-    fill(this.rightKey, 'Rechte Hand', labels.right);
-    this.actKey.replaceChildren(strong('Benutzen'), small(labels.target || (labels.idle ?? '')));
+    this.leftKey.replaceChildren(...captioned('Linke Hand', labels.left));
+    this.rightKey.replaceChildren(...captioned('Rechte Hand', labels.right));
+    this.actKey.replaceChildren(...labelled('Benutzen', labels.target || (labels.idle ?? '')));
     this.actKey.classList.toggle('is-ready', !!labels.target);
   }
 
@@ -109,20 +105,4 @@ export class ShipControls {
     this.stick.dispose();
     this.element.remove();
   }
-}
-
-function fill(key: HTMLButtonElement, caption: string, value: string): void {
-  key.replaceChildren(small(caption), strong(value));
-}
-
-function small(text: string): HTMLElement {
-  const node = document.createElement('small');
-  node.textContent = text;
-  return node;
-}
-
-function strong(text: string): HTMLElement {
-  const node = document.createElement('strong');
-  node.textContent = text;
-  return node;
 }

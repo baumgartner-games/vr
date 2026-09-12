@@ -1,6 +1,8 @@
 import { puzzleFor, type Repair } from '../mission';
 import type { FlatRound } from './flatRound';
 import type { PuzzleAction } from './flatPuzzles';
+import { clickedKey, el } from '../ui/dom';
+import { pillKey } from '../ui/widgets';
 
 /** Die vier Symbole und Farben des Kabelrätsels — wie an der Konsole im Schiff. */
 export const WIRE_SYMBOLS = ['▲', '●', '■', '◆'] as const;
@@ -11,14 +13,13 @@ export const WIRE_COLORS = ['#f5aa71', '#70def0', '#dcb5ff', '#b3d57b'] as const
  * der Konsole im Schiff (`flatPuzzles.ts`), als Knöpfe für den Daumen.
  */
 export class PuzzleOverlay {
-  readonly element = document.createElement('div');
+  readonly element = el('div', 'ui-panel flat__puzzle');
   private selected = -1;
   private shown: Repair | null = null;
   /** Woraus das letzte Bild gebaut wurde — neu gebaut wird nur, wenn sich das ändert. */
   private drawn = '';
 
   constructor(private readonly round: FlatRound) {
-    this.element.className = 'flat__puzzle';
     this.element.hidden = true;
     this.element.addEventListener('click', (event) => this.click(event));
   }
@@ -56,9 +57,7 @@ export class PuzzleOverlay {
     const parts: HTMLElement[] = [];
     const head = el('header', 'flat__puzzle-head');
     head.append(el('strong', '', repair.title), el('span', 'flat__tag', repair.hint));
-    const close = el('button', 'flat__puzzle-close', 'Schließen');
-    close.dataset['close'] = '';
-    head.append(close);
+    head.append(pillKey({ text: 'Schließen', data: { close: '' } }, 'flat__puzzle-close'));
     parts.push(head);
     if (repair.puzzle === 'wires') {
       // Dieselben vier Symbole und Farben wie an der Konsole im Schiff
@@ -134,7 +133,7 @@ export class PuzzleOverlay {
   }
 
   private click(event: Event): void {
-    const target = (event.target as HTMLElement | null)?.closest('button');
+    const target = clickedKey(event);
     if (!target) return;
     const data = target.dataset;
     if (data['close'] !== undefined) {
@@ -158,15 +157,4 @@ export class PuzzleOverlay {
     }
     this.sync();
   }
-}
-
-export function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className = '',
-  text = '',
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
-  return node;
 }

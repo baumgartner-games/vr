@@ -5,6 +5,8 @@ import { ALL_LAYERS, INK, MapView, type MapRoute } from '../map/mapView';
 import type { RoleHost, RoleView } from '../registry/roles';
 import { archiveGoals, type ArchiveOrder } from '../rules/archiveGoals';
 import { archiveDeskOf, type ArchiveDesk } from './archiveDesk';
+import { clickedKey } from '../ui/dom';
+import { pillKey } from '../ui/widgets';
 import { Toast, code, el, fact } from './roleShell';
 
 /**
@@ -418,9 +420,7 @@ class ArchiveView implements ArchiveRoleView {
     this.sheetKey = key;
 
     const head = el('div', 'role__sheet-head');
-    const back = el('button', 'role__key', 'Karte');
-    back.dataset['close'] = '';
-    head.append(el('strong', '', room.name), back);
+    head.append(el('strong', '', room.name), pillKey({ text: 'Karte', data: { close: '' } }));
 
     // **Die Akte hat keinen eigenen Grund** — ihre zwei Karten haben einen,
     // und dazwischen liegt das Bild. Ein durchgehender Kasten wäre eine
@@ -434,7 +434,9 @@ class ArchiveView implements ArchiveRoleView {
       // **Wo es liegt, wenn es liegen geblieben ist** (`DROPPED_SEEN`).
       if (job.order.dropped?.roomId === room.id)
         parts.push(
-          fact(job.order.item, `Liegt hier seit ${Math.round(job.order.dropped.seconds)} s`, true),
+          fact(job.order.item, `Liegt hier seit ${Math.round(job.order.dropped.seconds)} s`, {
+            warn: true,
+          }),
         );
       // **Und das Ziel — erst mit dem Teil in der Hand.** Vorher steht der
       // Freigabecode dieses Raums nirgends, auch nicht klein am Rand.
@@ -467,11 +469,9 @@ class ArchiveView implements ArchiveRoleView {
         );
       } else if (item.kind === 'locker')
         parts.push(
-          fact(
-            'Schutzschrank',
-            item.state === 'destroyed' ? 'zerstört' : 'benutzbar',
-            item.state === 'destroyed',
-          ),
+          fact('Schutzschrank', item.state === 'destroyed' ? 'zerstört' : 'benutzbar', {
+            warn: item.state === 'destroyed',
+          }),
         );
     }
     const facts = parts.splice(0);
@@ -479,7 +479,7 @@ class ArchiveView implements ArchiveRoleView {
       fact(
         doors.length === 1 ? 'Tür' : 'Türen',
         `${doors.length}${locked ? ` · ${locked} gesperrt` : ' · alle frei'}`,
-        locked > 0,
+        { warn: locked > 0 },
       ),
       el(
         'small',
@@ -487,9 +487,9 @@ class ArchiveView implements ArchiveRoleView {
         'Archivscan · nur dieser Raum · keine Personen, keine Live-Positionen, kein Licht',
       ),
     );
-    const top = el('div', 'role__card');
+    const top = el('div', 'ui-panel role__card');
     top.append(head);
-    const bottom = el('div', 'role__card');
+    const bottom = el('div', 'ui-panel role__card');
     bottom.append(...facts);
     this.sheet.replaceChildren(top, this.picture(), bottom);
   }
@@ -509,9 +509,7 @@ class ArchiveView implements ArchiveRoleView {
       ['in', '+', 'Raumansicht vergrößern'],
       ['home', '⤢', 'Wieder das ganze Zimmer zeigen'],
     ] as const) {
-      const button = el('button', 'role__key', glyph);
-      button.dataset['picture'] = key;
-      button.setAttribute('aria-label', label);
+      const button = pillKey({ text: glyph, data: { picture: key }, ariaLabel: label });
       if (key === 'home') button.hidden = atHome(this.desk.view());
       tools.append(button);
     }
@@ -520,7 +518,7 @@ class ArchiveView implements ArchiveRoleView {
   }
 
   private sheetClick(event: Event): void {
-    const key = (event.target as HTMLElement | null)?.closest('button');
+    const key = clickedKey(event);
     if (!key) return;
     if (key.dataset['close'] !== undefined) {
       this.close();

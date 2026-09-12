@@ -595,7 +595,7 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     expect(lamp().getAttribute('aria-pressed')).toBe('false');
     lamp().click();
     expect(game.setup.seats.red.powers.scout).toBe(true);
-    expect(lamp().classList.contains('is-on')).toBe(true);
+    expect(lamp().classList.contains('is-active')).toBe(true);
     expect(document.querySelector('[data-seat="red"]')?.textContent).toContain('Aufklärung');
     lamp().click();
     expect(game.setup.seats.red.powers.scout).toBe(false);

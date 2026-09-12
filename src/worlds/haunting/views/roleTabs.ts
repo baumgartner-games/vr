@@ -10,7 +10,7 @@ import {
   type MyRole,
   type RoundSetup,
 } from '../rules/roundSetup';
-import { el } from './roleShell';
+import { key } from '../ui/widgets';
 
 /**
  * **Die sieben Reiter, die „wer bin ich" beantworten** — einmal gebaut, an
@@ -83,15 +83,16 @@ export interface RoleTabState {
  * Telefon, `data-role-strip` in der 2D-Welt).
  */
 export function roleTabKey(tab: RoleTab, state: RoleTabState): HTMLButtonElement {
-  const key = el('button', 'role-strip__key');
-  key.dataset['role'] = tab.id;
-  key.append(el('strong', '', tab.name));
-  if (tab.sub) key.append(el('small', '', tab.sub));
-  key.classList.toggle('is-mine', state.mine);
-  key.classList.toggle('is-active', state.open);
-  key.setAttribute('aria-pressed', String(state.open));
-  key.setAttribute('aria-label', tab.sub ? `${tab.name} · ${tab.sub}` : tab.name);
-  key.title = state.blocked ?? tab.hint;
-  if (state.blocked) key.disabled = true;
-  return key;
+  const node = key('role-strip__key', {
+    label: tab.name,
+    sub: tab.sub,
+    data: { role: tab.id },
+    active: state.open,
+    pressed: state.open,
+    ariaLabel: tab.sub ? `${tab.name} · ${tab.sub}` : tab.name,
+    title: state.blocked ?? tab.hint,
+    disabled: !!state.blocked,
+  });
+  node.classList.toggle('is-mine', state.mine);
+  return node;
 }

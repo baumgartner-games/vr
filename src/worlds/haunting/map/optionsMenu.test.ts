@@ -12,8 +12,8 @@ import {
 
 /**
  * **Ein Optionsmenü für beide Welten** (`map/optionsMenu.ts`): Aus einer
- * Liste wird DOM mit den Klassen der 2D-Welt, die `data-*`-Schlüssel bleiben
- * erhalten, und was in beiden Welten vorkommt, heißt gleich.
+ * Liste wird DOM aus den Bausteinen von `ui/widgets.ts`, die `data-*`-Schlüssel
+ * bleiben erhalten, und was in beiden Welten vorkommt, heißt gleich.
  */
 describe('Das geteilte Optionsmenü', () => {
   it('zeichnet Überschrift, Hinweis und Knöpfe mit ihren Schlüsseln', () => {
@@ -25,10 +25,10 @@ describe('Das geteilte Optionsmenü', () => {
       key({ closeOptions: '' }, 'Weiterspielen'),
       key({ leave: '' }, 'Runde verlassen', 'zurück', { leave: true, pressed: false }),
     ]);
-    expect(root.querySelector('strong')?.textContent).toBe('Ansicht');
+    expect(root.querySelector('.ui-head')?.textContent).toBe('Ansicht');
     expect(root.querySelector('.flat__note')?.textContent).toBe('nur sehen');
     const swap = root.querySelector<HTMLButtonElement>('[data-switch-view="2d"]')!;
-    expect(swap.classList.contains('flat__option')).toBe(true);
+    expect(swap.classList.contains('ui-option')).toBe(true);
     expect(swap.classList.contains('is-active')).toBe(true);
     expect(swap.querySelector('strong')?.textContent).toBe('Wechseln');
     expect(swap.querySelector('small')?.textContent).toBe('mitten in der Runde');
@@ -36,7 +36,7 @@ describe('Das geteilte Optionsmenü', () => {
       'Weiterspielen',
     );
     const leave = root.querySelector<HTMLButtonElement>('[data-leave]')!;
-    expect(leave.classList.contains('flat__option--leave')).toBe(true);
+    expect(leave.classList.contains('ui-option--leave')).toBe(true);
     expect(leave.getAttribute('aria-pressed')).toBe('false');
     // Neu zeichnen ersetzt, statt anzuhängen.
     renderOptions(root, [head('Ton')]);

@@ -18,6 +18,8 @@ import {
   type SeatId,
   type SeatWho,
 } from './rules/roundSetup';
+import { clickedKey, el } from './ui/dom';
+import { head, pillKey } from './ui/widgets';
 
 /**
  * **Die Tafel, an der eine Runde verteilt wird** — im Van, in der Brille und
@@ -44,7 +46,8 @@ import {
  * die Mischung heißt (`roleName`) — Rot mit Radar und Tafel ist die
  * „Einsatzkontrolle", und so ruft man es sich am Tisch zu.
  *
- * Reines DOM ohne Rahmen; die Farben kommen aus `haunting.css` (`.setup`).
+ * Reines DOM ohne Rahmen, aus den Bausteinen von `ui/widgets.ts`; die Farben
+ * kommen aus `haunting.css` (`.setup`).
  */
 export interface SetupPanelHost {
   setup(): RoundSetup;
@@ -149,21 +152,24 @@ export class SetupPanel {
       // Der Techniker kennt kein „Aus": Eine Runde ohne Anzug gibt es nicht.
       if (seat === 'technician' && who === 'off') continue;
       const active = lockedTechnician ? who === 'human' : one.who === who;
-      const key = el('button', `setup__key setup__key--who is-${who}${active ? ' is-active' : ''}`);
-      key.textContent = lockedTechnician && who === 'human' ? 'VR' : WHO_LABELS[who];
-      key.dataset['setupWho'] = who;
-      key.setAttribute('aria-pressed', active ? 'true' : 'false');
-      key.setAttribute(
-        'aria-label',
-        `${SEAT_LABELS[seat]}: ${lockedTechnician && who === 'human' ? 'VR — der Spieler in der Brille' : WHO_LABELS[who]}`,
+      const vrSuit = lockedTechnician && who === 'human';
+      const node = pillKey(
+        {
+          text: vrSuit ? 'VR' : WHO_LABELS[who],
+          data: { setupWho: who },
+          active,
+          pressed: active,
+          ariaLabel: `${SEAT_LABELS[seat]}: ${vrSuit ? 'VR — der Spieler in der Brille' : WHO_LABELS[who]}`,
+          // **Ein Knopf, der nichts mehr tut, wird auch keiner.** Solange jemand
+          // die Brille auf hat, ist der Techniker vergeben; ein drückbares „Bot"
+          // hieße, dass man ihn wegklicken kann, und genau das darf niemand.
+          disabled: lockedTechnician,
+        },
+        `setup__key setup__key--who is-${who}`,
       );
-      // **Ein Knopf, der nichts mehr tut, wird auch keiner.** Solange jemand
-      // die Brille auf hat, ist der Techniker vergeben; ein drückbares „Bot"
-      // hieße, dass man ihn wegklicken kann, und genau das darf niemand.
-      if (lockedTechnician) key.toggleAttribute('disabled', true);
       if (seat === 'monster' && who === 'human' && this.host.humanMonster?.() === false)
-        key.title = 'Am Stock nur in der 2D-Welt';
-      whos.append(key);
+        node.title = 'Am Stock nur in der 2D-Welt';
+      whos.append(node);
     }
     line.append(whos);
 
@@ -186,18 +192,25 @@ export class SetupPanel {
     powers.setAttribute('aria-label', `${SEAT_LABELS[seat]}: Fähigkeiten`);
     for (const ability of ABILITIES) {
       const on = one.powers[ability];
-      const lamp = el('button', `setup__lamp${on ? ' is-on' : ''}`, ABILITY_LABELS[ability]);
-      lamp.dataset['setupPower'] = ability;
-      lamp.setAttribute('aria-pressed', on ? 'true' : 'false');
-      lamp.title = ABILITY_HINTS[ability];
-      powers.append(lamp);
+      powers.append(
+        pillKey(
+          {
+            text: ABILITY_LABELS[ability],
+            data: { setupPower: ability },
+            active: on,
+            pressed: on,
+            title: ABILITY_HINTS[ability],
+          },
+          'setup__lamp',
+        ),
+      );
     }
     return powers;
   }
 
   private click(event: Event): void {
-    const key = (event.target as HTMLElement | null)?.closest('button');
-    if (!key || key.hasAttribute('disabled')) return;
+    const key = clickedKey(event);
+    if (!key || key.disabled) return;
     const line = key.closest<HTMLElement>('[data-seat]');
     const seat = line?.dataset['seat'] as SeatId | undefined;
     if (!seat || !SEATS.includes(seat)) return;
@@ -214,17 +227,4 @@ export class SetupPanel {
     this.host.onChange(setup);
     this.render();
   }
-}
-
-function head(text: string): HTMLElement {
-  const node = el('div', 'setup__head');
-  node.append(el('span', '', text));
-  return node;
-}
-
-function el(tag: string, className: string, text = ''): HTMLElement {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
-  return node;
 }

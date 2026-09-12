@@ -16,6 +16,8 @@ import {
   type RoundSetup,
 } from './rules/roundSetup';
 import { SetupPanel } from './roundSetupPanel';
+import { el } from './ui/dom';
+import { head, key, note, optionKey } from './ui/widgets';
 // **Die Rollen melden sich selbst an**, jede aus ihrer eigenen Datei
 // (`BOUNDARIES.md`). Importiert werden sie hier und nicht über
 // `registry/discover.ts`: Der Glob dort ist Vite-eigen, und die Einsatzzentrale
@@ -214,22 +216,22 @@ const IDLE_LABEL = 'Test · keine Runde';
 const OVER_LABEL = 'Runde vorbei';
 
 export class StationUi {
-  private readonly root = document.createElement('div');
-  private readonly bar = document.createElement('header');
-  private readonly quest = document.createElement('div');
+  private readonly root = el('div', 'haunt');
+  private readonly bar = el('header', 'haunt__bar');
+  private readonly quest = el('div', 'haunt__quest');
   /**
    * **Die Zeile, in der die Welt dem Telefon antwortet** (`say`). Sie steht
    * zwischen Auftragsstreifen und Seite und nicht in der rollenden Liste: Eine
    * Antwort, die man erst suchen muss, ist keine.
    */
-  private readonly says = document.createElement('div');
-  private readonly body = document.createElement('div');
+  private readonly says = el('div', 'haunt__say');
+  private readonly body = el('div', 'haunt__body');
   /**
    * **Das Zahnrad-Menü über der Karte** — Mission starten und stoppen, zurück
    * zu den Rollen, Menü, Verbindung, VR. Es liegt über der Rolle und nicht
    * in ihr, weil es für jede Rolle dasselbe ist.
    */
-  private readonly menu = document.createElement('div');
+  private readonly menu = el('div', 'ui-panel haunt__menu');
 
   /** Welche Seite zu sehen ist — der Anfang ist der Aufbau. */
   private tab: PhoneTab = 'setup';
@@ -259,17 +261,11 @@ export class StationUi {
   private viewAt = 0;
 
   constructor(private readonly host: StationHost) {
-    this.root.className = 'haunt';
-    this.bar.className = 'haunt__bar';
-    this.quest.className = 'haunt__quest';
-    this.says.className = 'haunt__say';
     this.says.hidden = true;
     // Nur `aria-live` und kein `role="status"`: Die Endkarte der Runde ist die
     // Statusmeldung dieser Seite (`roundResult`), und zwei davon übereinander
     // wären für einen Vorleser zwei gleich wichtige Stimmen.
     this.says.setAttribute('aria-live', 'polite');
-    this.body.className = 'haunt__body';
-    this.menu.className = 'haunt__menu';
     this.menu.hidden = true;
     this.menu.setAttribute('role', 'dialog');
     this.menu.setAttribute('aria-label', 'Optionen');
@@ -651,19 +647,12 @@ export class StationUi {
     const setup = this.host.setup?.() ?? null;
     const items: HTMLElement[] = [];
     const option = (
-      key: string,
+      id: string,
       label: string,
       sub: string,
       more: { tone?: 'go' | 'leave'; disabled?: boolean } = {},
-    ): HTMLElement => {
-      const node = el('button', `haunt__option${more.tone ? ` haunt__option--${more.tone}` : ''}`);
-      node.dataset[key] = '';
-      node.append(el('strong', '', label));
-      if (sub) node.append(el('small', '', sub));
-      node.toggleAttribute('disabled', !!more.disabled);
-      return node;
-    };
-    items.push(el('strong', 'haunt__menu-head', 'Runde'));
+    ): HTMLElement => optionKey({ label, sub, data: { [id]: '' }, ...more });
+    items.push(head('Runde'));
     if (state.phase === 'running') {
       items.push(
         option(
@@ -684,7 +673,7 @@ export class StationUi {
         ),
       );
     }
-    items.push(el('strong', 'haunt__menu-head', 'Aufmachen'));
+    items.push(head('Aufmachen'));
     items.push(
       option('setup', 'Zurück zu den Rollen', 'Aufbau: Tafel, Häkchen, Hilfe'),
       option('gameMenu', 'Menü', 'Das Spielmenü der Seite: Welten, Bewegung, Grafik'),
@@ -713,9 +702,11 @@ export class StationUi {
       this.dropView();
       const flat = (this.host.lobby?.().view ?? '2d') === '2d';
       const vr = this.host.vr?.() ?? this.host.link().vr;
-      const again = el('button', 'haunt__tile', 'An den Stock');
-      again.dataset['technician'] = '';
-      again.toggleAttribute('disabled', vr);
+      const again = key('haunt__tile', {
+        text: 'An den Stock',
+        data: { technician: '' },
+        disabled: vr,
+      });
       return [
         note(
           vr ? 'warn' : 'live',
@@ -881,20 +872,15 @@ export class StationUi {
       // wieder im Aufbau — und fand bisher nur einen Start, den der Gastgeber
       // mit „läuft schon" abwies, und ein „Testen", das nicht stimmte.
       const running = this.host.state().phase === 'running';
-      const test = el('button', 'lobby__start lobby__start--test');
-      test.dataset['testRoles'] = '';
-      if (running) test.dataset['join'] = '';
-      test.append(
-        el('strong', '', running ? 'Zur laufenden Runde' : 'Rollen testen'),
-        el(
-          'span',
-          'haunt__tag',
-          running
+      out.push(
+        key('lobby__start lobby__start--test', {
+          label: running ? 'Zur laufenden Runde' : 'Rollen testen',
+          sub: running
             ? `Die Mission läuft schon — auf die Karte als ${MY_ROLE_LABELS[this.me]}; die Rolle wechselst du dort über die Reiter.`
             : `Auf die Karte — hell, ohne Uhr, ohne Treffer. Rolle über die Reiter wählen · zuletzt: ${MY_ROLE_LABELS[this.me]}`,
-        ),
+          data: running ? { testRoles: '', join: '' } : { testRoles: '' },
+        }),
       );
-      out.push(test);
 
       if (this.host.startSetup) {
         // **Eine 2D-Runde ist lokal**: Sie stört keinen Techniker im Schiff,
@@ -904,29 +890,25 @@ export class StationUi {
         // Tipp als Wunsch an die Brille (`HauntingWorld.startRound`). Gesperrt
         // ist der Knopf nur, während seine Runde wirklich läuft.
         const busy = this.shipBusy();
-        const start = el('button', 'lobby__start');
-        start.dataset['startSetup'] = '';
-        start.append(
-          el('strong', '', startLabel(setup)),
-          el(
-            'span',
-            'haunt__tag',
-            busy
+        out.push(
+          key('lobby__start', {
+            label: startLabel(setup),
+            sub: busy
               ? 'Ein Techniker spielt bereits im Schiff.'
               : link.vr && choice.view === '3d'
                 ? `Startet bei der Brille im Schiff · ${describeSetup(setup)}`
                 : `Uhr, Dunkelheit, Monster — sofort · ${describeSetup(setup)}`,
-          ),
+            data: { startSetup: '' },
+            disabled: busy,
+          }),
         );
-        start.toggleAttribute('disabled', busy);
-        out.push(start);
       }
     } else if (!link.vr) {
       // Eine Welt ohne Aufbau-Anschluss (ältere Hosts, Tests): wenigstens der
       // Weg an den Stock bleibt erreichbar.
-      const test = el('button', 'haunt__tile', 'Als Techniker am Desktop testen');
-      test.dataset['technician'] = '';
-      out.push(test);
+      out.push(
+        key('haunt__tile', { text: 'Als Techniker am Desktop testen', data: { technician: '' } }),
+      );
     }
 
     if (shoved(claims, me)) {
@@ -1092,16 +1074,10 @@ export class StationUi {
           : endingText(ending),
       ),
     );
-    if (this.host.restart) {
-      const restart = el('button', 'haunt__chart-key', 'Neue Runde starten');
-      restart.dataset['restart'] = '';
-      box.append(restart);
-    }
-    if (this.host.stopRound) {
-      const stop = el('button', 'haunt__chart-key', 'Zurück in den Test');
-      stop.dataset['stopRound'] = '';
-      box.append(stop);
-    }
+    if (this.host.restart)
+      box.append(key('haunt__chart-key', { text: 'Neue Runde starten', data: { restart: '' } }));
+    if (this.host.stopRound)
+      box.append(key('haunt__chart-key', { text: 'Zurück in den Test', data: { stopRound: '' } }));
     return [box];
   }
 
@@ -1169,32 +1145,14 @@ export class StationUi {
 
 // --- Kleinkram ---------------------------------------------------------------
 
-function el(tag: string, className: string, text = ''): HTMLElement {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  // `textContent` und nie `innerHTML`: Durch hier gehen Spielernamen, und die
-  // hat sich niemand ausgesucht.
-  if (text) node.textContent = text;
-  return node;
-}
-
 /** Ein Häkchen des Aufbaus: Kästchen links, Name und Zeile rechts. */
 function check(id: string, label: string, hint: string, on: boolean): HTMLElement {
-  const key = el('button', `lobby__check${on ? ' is-on' : ''}`);
-  key.dataset['check'] = id;
-  key.setAttribute('aria-pressed', on ? 'true' : 'false');
-  key.append(el('span', 'lobby__box', on ? '✓' : ''), el('span', 'lobby__check-text'));
-  key.lastElementChild?.append(el('strong', '', label), el('span', 'haunt__tag', hint));
-  return key;
-}
-
-/**
- * Eine Kachel mit Ton: `warn` gelb, `live` in der Farbe der Station, `calm`
- * grau. Drei Töne und nicht fünf — eine Oberfläche, in der jede zweite Zeile
- * leuchtet, hat keine Betonung mehr.
- */
-function note(tone: 'warn' | 'live' | 'calm', title: string, text: string): HTMLElement {
-  const node = el('div', `haunt__note is-${tone}`);
-  node.append(el('strong', '', title), el('span', '', text));
+  const node = key(`lobby__check${on ? ' is-on' : ''}`, {
+    text: '',
+    data: { check: id },
+    pressed: on,
+  });
+  node.append(el('span', 'lobby__box', on ? '✓' : ''), el('span', 'lobby__check-text'));
+  node.lastElementChild?.append(el('strong', '', label), el('span', 'haunt__tag', hint));
   return node;
 }
