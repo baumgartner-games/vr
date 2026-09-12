@@ -469,15 +469,15 @@ export class FlatMode {
       setup: () => this.setup,
       me: () => this.myRole,
       onChange: () => this.applyOverlay(),
-      // **Wer hier sitzt, ist der Techniker** — und der wechselt mitten in
-      // einer Mission die Rolle nicht (`rules/roundSetup.switchRights`): Er
-      // steht im Anzug und kann nicht nebenbei ins Archiv greifen. In einer
-      // Runde ohne Monster darf er alles — und **im Test-Zustand vor und
-      // nach der Mission** (`FlatRound.live`) sowieso: Dafür ist er da.
+      // **Auf der Karte wechselt jeder, immer** (`rules/roundSetup.switchRights`
+      // — gesperrt ist nur, wer im Schiff den Anzug trägt, und das ist hier
+      // niemand): Ein Reiter schlägt eine andere Ansicht derselben laufenden
+      // Runde auf, die Runde rechnet derweil weiter. Bis hierher war das nur
+      // im Test erlaubt; der Besitzer wollte es außerhalb von VR und 3D immer.
       rights: () => {
         const allowed = switchRights({
           test: this.round.state().crew.options.test || !this.round.live,
-          inCentre: false,
+          inShip: false,
           vrTechnician: false,
         });
         return { allowed: allowed.abilities, why: allowed.why };

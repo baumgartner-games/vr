@@ -490,15 +490,23 @@ export function isColour(me: MyRole): me is SeatColour {
  * **Wer mitten in der Runde die Rolle wechseln darf.**
  *
  * - In einer **Test-Runde** darf jeder alles — dafür ist sie da.
- * - Sonst wechselt nur, wer **in der Einsatzzentrale** sitzt, und nur unter
- *   den Plätzen der Zentrale. Wer draußen im Anzug steht, kann nicht
- *   nebenbei ins Archiv greifen.
- * - Der **Techniker in der Brille** wechselt nie, und niemand nimmt ihm seine
- *   Rolle ab: Er ist der Einzige, der den Anzug tragen kann.
+ * - **Wer im Schiff den Anzug trägt** — in der Brille oder als Techniker am
+ *   Bildschirm (Web 3D) —, wechselt nicht: Er steht mitten in der Station,
+ *   und ein Archiv, das man nebenbei aus dem Anzug heraus aufschlägt, gäbe es
+ *   dort nicht. Für ihn stehen die Knöpfe abgeschaltet da.
+ * - **Alle anderen wechseln immer** — die Zentrale, das Monster am Telefon
+ *   und der Techniker auf der Karte von oben. Bis hierher wechselte mitten in
+ *   der Mission nur, wer in der Zentrale saß; der Besitzer wollte es anders:
+ *   „Wenn ich nicht VR oder 3D bin, will ich die Rollen immer wechseln
+ *   können." Auf der Karte ist ein Wechsel ohnehin nur ein anderer Blick auf
+ *   dieselbe Runde (`views/roleStrip.ts`).
+ * - Dem **Techniker in der Brille** nimmt dabei niemand seine Rolle ab: Er ist
+ *   der Einzige, der den Anzug tragen kann.
  */
 export interface SwitchState {
   test: boolean;
-  inCentre: boolean;
+  /** Ob dieses Gerät im Schiff den Anzug trägt — Brille oder Web 3D. */
+  inShip: boolean;
   vrTechnician: boolean;
 }
 
@@ -508,14 +516,14 @@ export interface SwitchRights {
   why: string;
 }
 
-export const NOT_IN_CENTRE =
-  'Mitten in der Runde wechselt nur die Rolle, wer in der Einsatzzentrale sitzt.';
+export const SHIP_KEEPS_ROLE =
+  'Wer im Schiff den Anzug trägt, wechselt mitten in der Runde nicht — von der Karte aus darf jeder.';
 export const VR_KEEPS_TECHNICIAN =
   'Der Techniker steckt in der Brille — seine Rolle bleibt bei ihm.';
 
 export function switchRights(state: SwitchState): SwitchRights {
   if (state.test) return { abilities: true, technician: true, why: '' };
-  if (!state.inCentre) return { abilities: false, technician: false, why: NOT_IN_CENTRE };
+  if (state.inShip) return { abilities: false, technician: false, why: SHIP_KEEPS_ROLE };
   return {
     abilities: true,
     technician: !state.vrTechnician,

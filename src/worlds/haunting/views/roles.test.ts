@@ -12,7 +12,7 @@ import type { MapSnapshot } from '../map/mapSnapshot';
 import { mountWatchView } from './watchRole';
 import { RoleStrip } from './roleStrip';
 import {
-  NOT_IN_CENTRE,
+  SHIP_KEEPS_ROLE,
   defaultSetup,
   switchRights,
   withPower,
@@ -594,12 +594,14 @@ describe('Der Rollenstreifen über der 2D-Welt', () => {
   });
 
   /**
-   * **Mitten in einer Mission wechselt hier niemand die Rolle**
-   * (`rules/roundSetup.switchRights`): Wer in 2D spielt, ist der Techniker und
-   * steht im Anzug. In einer Test-Runde darf er alles — dafür ist sie da.
-   * Zusehen und zurück an den Stock gehen immer.
+   * **Der Streifen hält sich an die Auskunft des Wirts**
+   * (`RoleStripHost.rights` → `rules/roundSetup.switchRights`): Sagt sie
+   * „nein" — hier für einen, der im Schiff den Anzug trägt —, stehen die
+   * Knöpfe abgeschaltet da, mit dem Grund als Titel; in einer Test-Runde darf
+   * er alles. Zusehen und zurück an den Stock gehen immer. (Die 2D-Welt selbst
+   * meldet nie „im Schiff": Auf der Karte wechselt jeder, `map/flatMode.ts`.)
    */
-  it('lässt nur in einer Test-Runde wechseln und sagt sonst, warum nicht', () => {
+  it('schaltet die Reiter ab, wenn der Wirt es sagt, und nennt den Grund', () => {
     const round = new FlatRound(21, { test: false });
     const host = hostFor(round);
     const strip = new RoleStrip({
@@ -610,7 +612,7 @@ describe('Der Rollenstreifen über der 2D-Welt', () => {
       rights: () => {
         const rights = switchRights({
           test: round.state().crew.options.test,
-          inCentre: false,
+          inShip: true,
           vrTechnician: false,
         });
         return { allowed: rights.abilities, why: rights.why };
@@ -621,7 +623,7 @@ describe('Der Rollenstreifen über der 2D-Welt', () => {
     const key = (id: string): HTMLButtonElement =>
       strip.element.querySelector<HTMLButtonElement>(`[data-role-strip="${id}"]`)!;
     expect(key('red').disabled).toBe(true);
-    expect(key('red').title).toBe(NOT_IN_CENTRE);
+    expect(key('red').title).toBe(SHIP_KEEPS_ROLE);
     expect(key('monster').disabled).toBe(true);
     expect(key('technician').disabled).toBe(false);
     expect(key('watch:technician').disabled).toBe(false);

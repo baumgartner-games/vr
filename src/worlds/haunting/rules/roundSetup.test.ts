@@ -1,5 +1,5 @@
 import {
-  NOT_IN_CENTRE,
+  SHIP_KEEPS_ROLE,
   SETUP_STORAGE,
   VR_KEEPS_TECHNICIAN,
   abilityWho,
@@ -120,22 +120,25 @@ describe('roundSetup', () => {
   });
 
   test('wer mitten in der Runde wechseln darf', () => {
-    expect(switchRights({ test: true, inCentre: false, vrTechnician: true })).toEqual({
+    // Im Test jeder alles — auch der im Schiff.
+    expect(switchRights({ test: true, inShip: true, vrTechnician: true })).toEqual({
       abilities: true,
       technician: true,
       why: '',
     });
-    expect(switchRights({ test: false, inCentre: false, vrTechnician: false })).toMatchObject({
+    // Wer im Schiff den Anzug trägt, bleibt darin.
+    expect(switchRights({ test: false, inShip: true, vrTechnician: false })).toMatchObject({
       abilities: false,
       technician: false,
-      why: NOT_IN_CENTRE,
+      why: SHIP_KEEPS_ROLE,
     });
-    expect(switchRights({ test: false, inCentre: true, vrTechnician: true })).toMatchObject({
+    // Alle anderen wechseln — nur den Techniker der Brille nimmt keiner.
+    expect(switchRights({ test: false, inShip: false, vrTechnician: true })).toMatchObject({
       abilities: true,
       technician: false,
       why: VR_KEEPS_TECHNICIAN,
     });
-    expect(switchRights({ test: false, inCentre: true, vrTechnician: false })).toEqual({
+    expect(switchRights({ test: false, inShip: false, vrTechnician: false })).toEqual({
       abilities: true,
       technician: true,
       why: '',

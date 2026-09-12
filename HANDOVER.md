@@ -254,10 +254,12 @@ und nicht wieder in `stationUi.ts`.
   könnte. `WatchSeat` hat `drone` verloren und `control` in `panel` umbenannt
   (`seatStation` zeigt jetzt auf Rollenkennungen).
 - **Der Rollenstreifen der 2D-Welt fragt `switchRights`**
-  (`RoleStripHost.rights`, `inCentre: false`): Wer in 2D spielt, ist der
-  Techniker und wechselt nur in einer Test-Runde. Die Knöpfe bleiben stehen
-  und werden abgeschaltet, mit dem Grund als Titel — ein Streifen, der in der
-  einen Runde da ist und in der nächsten fehlt, ist einer, den man sucht.
+  (`RoleStripHost.rights`, heute mit `inShip: false`): Seit dem Wunsch des
+  Besitzers, außerhalb von VR und 3D immer wechseln zu können, sagt die
+  Auskunft auf der Karte immer „ja" — gesperrt ist nur, wer im Schiff den
+  Anzug trägt. Die Knöpfe bleiben stehen und würden abgeschaltet, mit dem
+  Grund als Titel — ein Streifen, der in der einen Runde da ist und in der
+  nächsten fehlt, ist einer, den man sucht.
 - **Aufgeräumt**: der Drohnen-Block, `.haunt__view`/`.haunt__vtools`/
   `.haunt__vbtn*`, `.haunt__scout`, `.haunt__sheet`, `.haunt__rooms`,
   `.haunt__tasks`, `.haunt__fact*`, `.haunt__watch-*`, `.haunt__tabs` und die
