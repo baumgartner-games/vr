@@ -6,6 +6,7 @@ const _forward = new THREE.Vector3();
 const _strafe = new THREE.Vector3();
 const _move = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+const _euler = new THREE.Euler();
 
 /**
  * Keyboard/mouse and touch fallback so the worlds can also be visited without a
@@ -83,7 +84,11 @@ export class FlatControls {
   }
 
   private look(dx: number, dy: number): void {
-    this.yaw -= dx * this.lookSpeed;
+    // Von dort weiter, wo das Rig gerade hinschaut — nicht von der Zahl, die
+    // sich diese Klasse gemerkt hat. Wer versetzt und dabei gedreht wurde
+    // (`PortalWorld.movePlayerTo` mit `yaw`, ein Portal), sprang mit der
+    // ersten Mausbewegung sonst in die alte Richtung zurück.
+    this.yaw = _euler.setFromQuaternion(this.rig.quaternion, 'YXZ').y - dx * this.lookSpeed;
     this.pitch -= dy * this.lookSpeed;
     this.apply();
   }

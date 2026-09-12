@@ -1534,6 +1534,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   _Menü → Bewegung → Haltung_: „Sitzend" hebt die Sicht auf Stehhöhe an und
   lässt die Füße stehen — dieselbe Mechanik wie das Ducken, nur andersherum.
 
+  **Und wer versetzt wird, wird mit Anhebung versetzt** (`PlayerRig.placeAt`,
+  mit Test). Das Absetzen rechnete lange nur das Ducken heraus und nicht die
+  Sitz-Anhebung: Ein sitzender Spieler landete bei jedem `placeAt` und
+  `placeFeetAt` um seine ganze Anhebung **unter** dem Punkt — nach dem
+  Schutzschrank, beim Rundenstart, und der Rettungsknopf „Zurück auf den
+  Boden" setzte ihn genauso tief wieder hin. Am Bildschirm und im Stehen war
+  davon nichts zu sehen, denn dort ist die Anhebung null; der Befund hieß
+  deshalb „in der Brille buggt man wieder im Boden" und kam nie vom Desktop.
+
   **Wie hoch die beiden sind, weiß auch niemand von allein.** Der Ausgleich
   hing lange an einer einzigen getippten Zahl — 1,65 m Augenhöhe im Stehen,
   für alle. Wer kleiner ist, sitzt danach zu hoch; wer größer ist, zu tief,
@@ -4506,6 +4515,19 @@ der Hub gleitet frei über die Plattform, das Portal Labor hängt eine
 Rapier-Kapsel mit Schwerkraft, Kollision und Sprung ein. Die Physik-Engine
 (rund 1 MB gzip) liegt in einem eigenen Chunk und wird erst geladen, wenn eine
 Welt sie braucht.
+
+**Ein Fehler in einem Bild friert die Brille nicht mehr ein** (`App.frame`,
+`frameFailed`). `setAnimationLoop` bestellt das nächste Bild erst, wenn dieses
+durch ist; eine Ausnahme irgendwo im Bild — Welt, Rig, Physik — heißt also:
+kein nächstes Bild, nie wieder. Am Bildschirm steht der Fehler dann in der
+Konsole, in der Brille steht gar nichts: Das Bild bleibt stehen, und der Ton
+läuft weiter, weil Web Audio seinen eigenen Faden hat. Genau das war der
+Befund „Ton gehört, Bild eingefroren" in der Verfolgung. Jetzt fängt die
+Schleife den Fehler, schreibt ihn einmal in die Konsole und ans Handgelenk
+(`notify`, „Fehler im Bild: …") und macht weiter; ein Fehler, der jedes Bild
+wiederkommt, steht alle 300 Bilder noch einmal im Protokoll. Das ist keine
+Ursache, sondern ihre Sichtbarkeit — wer den Text am Handgelenk liest, kann
+ihn melden, wo vorher nur ein stehendes Bild war.
 
 **Alles, worauf jemand steht, braucht Dicke.** Ein Collider kommt aus der
 Bounding-Box der Geometrie, und eine `PlaneGeometry` hat keine — aus null wird
@@ -7906,7 +7928,13 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Route vor die Tür, und dort wird gezogen statt gelaufen. Der Techniker gibt
   keine Grenze mit und geht weiter jeden Umweg.
 - Weltreisen/Schrank-Ausgänge synchronisieren Rig und Physik über
-  `movePlayerTo`. `haunt.sealsOff` schützt Erreichbarkeit aller `spacesOf`.
+  `movePlayerTo`. **Mit `yaw` schaut danach der Kopf dorthin**
+  (`PlayerRig.turnHeadTo`, mit Test), nicht nur das Rig: In der Brille legt das
+  Headset seine eigene Drehung obendrauf, und wer im Spielraum nach links
+  gedreht stand, schaute nach dem Versetzen weiter nach links, egal was das
+  Rig sagte. Am Bildschirm liest `FlatControls.look` den Winkel seither vom
+  Rig statt aus seiner eigenen Zahl — sonst sprang die erste Mausbewegung in
+  die alte Richtung zurück. `haunt.sealsOff` schützt Erreichbarkeit aller `spacesOf`.
   **Schächte sind das Lüftungsnetz** (`vents/ventNet.data.ts`: vierzehn
   Klappen, eine je Raum, neun Verbindungen in getrennten Netzen; `VentNet`,
   `VentTravel`, `VentPilot`). In 3D fährt das Monster damit wie in 2D
@@ -7930,7 +7958,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   war, und der nächste Schlag kam mit Anlauf. **Der Schutzschrank hat
   keinen Code mehr**: Ein Tipp auf das Tastenfeld, und man ist drin, wie in
   2D. `lockerCode` gibt es noch für den Samen der Kabinen, aber keine Akte
-  und kein Panel zeigt ihn. Von innen ist der Schrank ein **Geist mit
+  und kein Panel zeigt ihn. **Hineingetippt wird mit dem Gesicht zur Tür**
+  (`enterLocker`: Drehung des Schranks plus π, denn seine Front liegt auf
+  lokal +z und ein Rig schaut entlang −z) — wer drinsteht, sieht durch die
+  Schlitze in den Raum und das Monster kommen, statt auf die Rückwand. Von
+  innen ist der Schrank ein **Geist mit
   Lüftungsschlitzen** (`ShipExperience.ghostLocker`): blasse Kopien der
   Materialien je Teil (die Originale teilen sich alle Möbel), davor sechs
   dunkle Stäbe in Augenhöhe; beim Heraustreten kommt alles zurück. In 2D

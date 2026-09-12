@@ -273,6 +273,19 @@ export class PlayerRig extends THREE.Group {
     return target.normalize();
   }
 
+  /**
+   * Turns the player around the head until the **head** looks along `yaw`.
+   *
+   * `placeAt` only turns the rig, and in VR the headset adds its own yaw on
+   * top: whoever stands turned left in the play space keeps looking left
+   * after the rig was pointed at a door. This measures where the head looks
+   * and takes the difference out around the head, so the feet stay put.
+   */
+  turnHeadTo(yaw: number): void {
+    this.getHeadForward(_forward);
+    this.rotateAroundHead(yaw - yawOfForward(_forward.x, _forward.z));
+  }
+
   /** Rotates the player around the head, so the world does not swing away. */
   rotateAroundHead(angle: number): void {
     this.getHeadPosition(_head);
@@ -303,9 +316,13 @@ export class PlayerRig extends THREE.Group {
    * player: whoever wants the player's feet on the point uses `placeFeetAt`.
    */
   placeAt(position: THREE.Vector3, yaw = 0): void {
-    // `position` is where the feet go; a crouching player sits below that.
+    // `position` is where the feet go; a crouching player sits below that, a
+    // seated one above it — exactly the two offsets `getFloorY()` takes back
+    // out. The seat used to be missing here, and a sitting player was set
+    // `seatLift` below every point he was moved to: knee-deep in the floor
+    // after the safety locker, the round start and even the rescue button.
     this.position.copy(position);
-    this.position.y -= this.crouchOffset;
+    this.position.y += this.seatLift - this.crouchOffset;
     this.quaternion.setFromEuler(_euler.set(0, yaw, 0));
     this.updateMatrixWorld(true);
   }

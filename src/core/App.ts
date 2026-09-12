@@ -1430,7 +1430,47 @@ export class App {
     this.hooks.onSessionChanged?.(false);
   };
 
+  /** Welche Fehler ein Bild schon geworfen hat, und wie oft (`frameFailed`). */
+  private readonly frameErrors = new Map<string, number>();
+
+  /**
+   * **Ein Fehler in einem Bild friert die Brille nicht mehr ein.**
+   *
+   * `setAnimationLoop` bestellt das nächste Bild erst, nachdem dieses
+   * durchgelaufen ist. Eine Ausnahme irgendwo im Bild — in der Welt, im Rig,
+   * in der Physik — heißt deshalb: kein nächstes Bild, nie wieder. Am
+   * Bildschirm steht dann der Fehler in der Konsole; in der Brille steht
+   * gar nichts, das Bild bleibt stehen, und der Ton (Web Audio, eigener
+   * Faden) läuft weiter, als wäre nichts. Genau so sah der Befund aus:
+   * „Ton gehört, Bild eingefroren".
+   *
+   * Hier wird der Fehler gefangen, einmal in die Konsole und ans Handgelenk
+   * geschrieben (`notify`), und die Schleife läuft weiter. Ein Fehler, der
+   * jedes Bild wiederkommt, kommt alle paar Sekunden noch einmal ins
+   * Protokoll, nicht siebzigmal je Sekunde. Das ersetzt keine Ursache — es
+   * macht sie sichtbar, wo vorher nur ein stehendes Bild war.
+   */
   private frame = (time: number): void => {
+    try {
+      this.step(time);
+    } catch (error) {
+      this.frameFailed(error);
+    }
+  };
+
+  private frameFailed(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    const seen = (this.frameErrors.get(message) ?? 0) + 1;
+    this.frameErrors.set(message, seen);
+    if (seen === 1) {
+      console.error('[app] Fehler im Bild — die Schleife läuft weiter', error);
+      this.notify(`Fehler im Bild: ${message}`);
+    } else if (seen % 300 === 0) {
+      console.error(`[app] Fehler im Bild, ${seen}× — ${message}`);
+    }
+  }
+
+  private step(time: number): void {
     const started = performance.now();
     this.renderer.info.reset();
     const seconds = time / 1000;
@@ -1518,7 +1558,7 @@ export class App {
       this.fpsEntry.label = fpsLabel(sample);
       this.wristMenu.refresh();
     }
-  };
+  }
 }
 
 /** Die Bildraten-Zeile des Grafik-Menüs. */
