@@ -7656,7 +7656,11 @@ Registry an, welche Rollen sie unterstützt. `NetSession` kümmert sich um
 Presence, Pose-Sync und freie Nachrichten-Kanäle für Welten-Events,
 `RemoteAvatars` zeichnet die anderen Spieler mit demselben `AvatarBody`, den
 auch der eigene Körper benutzt — Kopf plus zwei Hände reichen als Eingabe, mehr
-weiß ein Headset über seinen Träger nicht. Welten sehen nie, welcher
+weiß ein Headset über seinen Träger nicht. Eine Welt darf dabei einen
+Mitspieler **umsetzen** (`RemoteAvatars.placement`): Sie bekommt jeden, der in
+ihr ist und eine Pose hat, und gibt eine andere Pose zurück, `null` für seine
+eigene oder eine mit `hidden`, die ihn aus dem Bild nimmt — Haunting setzt so
+die Zentrale auf ihre Hocker statt an den Spawn. Welten sehen nie, welcher
 Transport darunter liegt — ein WebSocket-Transport ließe sich ohne Änderung an
 den Welten ergänzen, er muss nur `NetTransport` implementieren.
 
@@ -9053,6 +9057,28 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     `.role--seat > .role { pointer-events: none }`, ihre Knöpfe und Blätter
     fangen wieder), ein Blatt nimmt die Karte wie bisher aus dem Bild, und der
     Knopf „Tafel" oben rechts hat wieder Platz (`.has-corner`).
+  - **Die Zentrale sitzt im Schiff am Tisch, nicht am Spawn**
+    (`world3d/commandSeats.ts`, `HauntingWorld.crewPlace`,
+    `RemoteAvatars.placement`). Ein Telefon oder Bildschirm in der Zentrale
+    bewegt im Schiff kein Rig; seine Pose über die Leitung ist die Stelle vom
+    Betreten (`COMMAND_HOME`), und dort stand er für die Brille als Spieler
+    mitten auf dem Vorplatz — mit jedem weiteren Telefon einer mehr in
+    derselben Stelle. Der Wunsch des Besitzers: „nicht als Spieler gespawnt,
+    sondern direkt an die Sitzplätze". Also rechnet der **Empfänger** die
+    Pose: Wer kein Anzugträger ist (`wearsSuit`), ist die Zentrale; der
+    Besitzer eines Geräts (`stations.seatOf`) sitzt auf dem Hocker dieses
+    Geräts (`COMMAND_STOOLS` — Rot, Gelb, Blau, Monster, in den Farben der
+    Reiter; dieselben Zahlen baut `buildVan`), mit dem Gesicht zum Tisch und
+    sitzender Augenhöhe; wer vor dem Fernseher steht, weggeschubst ist oder
+    noch kein Gerät hat, steht in der Reihe dahinter, nach Kennung sortiert.
+    Vom Empfänger und nicht vom Sender, weil nur er den Tisch kennt und ein
+    älteres Telefon sonst wieder am Spawn stünde; alle 250 ms neu gerechnet
+    (`CREW_PLACE_RATE`), nicht je Bild. `RemoteAvatars.placement` ist der
+    Haken dafür: Eine Welt gibt je Mitspieler eine Pose zurück oder `null`
+    (die eigene), eine Pose mit `hidden` nimmt ihn aus dem Bild — so
+    verschwindet der Avatar des **2D-Technikers**, den `showTechnician` aus
+    `state.technician` ohnehin als Körper zeichnet; vorher stand er zweimal da.
+    Haunting hängt den Haken in `init` ein und in `dispose` wieder aus.
   - **Ein Monster, nie zwei — und eine Schleife, die das aushält.**
     `NpcDirector.update` läuft über eine Abschrift der NPC-Liste: Der Schlag
     (`strike` → `world.strikePlayer` → `HauntingWorld.takeHit`) landet mitten

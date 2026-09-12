@@ -245,6 +245,10 @@ solange jemand im Durchgang steht.
 **Die Einsatzzentrale ist sicher.** Das Monster kennt sie nicht — sie steht
 nicht auf seiner Karte: Es patrouilliert nicht dorthin, sucht dort nicht und
 folgt auch niemandem hinein. Der Techniker läuft weiter hinein und hinaus.
+Und wer die Brille trägt, sieht die Crew dort sitzen: jeder auf dem Hocker
+seines Geräts am Tisch vor der Scheibe — Rot, Gelb, Blau, das Monster —, die
+Zuschauer und wer noch keinen Platz hat in der Reihe dahinter. Niemand aus
+der Zentrale steht als Spieler mitten auf dem Vorplatz.
 
 **Die 2D-Welt** sieht aus wie ein Brettspiel von oben: helle Böden mit
 Kacheln, dicke Wände, Türen als Blätter mit Schloss, die Möbel aus dem Schiff
