@@ -90,10 +90,18 @@ import { pageHudShown, pressPageButton, showPageHud } from '../../../core/pageHu
  * 2. **Links beginnend der Kasten** mit Auftrag und Uhr: Sauerstoff mit
  *    Anzug-Leben, darunter der Reiter „Aufgaben" mit einem Kreis je Auftrag.
  * 3. **Die Sprungknöpfe**, im Fluss der Spalte und nicht an einer Ecke.
+ * 4. **Die Bühne der aufgeschlagenen Rolle** (`RoleStrip.stage`), die den
+ *    Rest der Höhe bekommt. Ein Farbplatz oder das Monster liegt damit
+ *    **unter** dem Rollenstreifen und nicht dahinter: Vorher war die Bühne
+ *    eine eigene Schicht über der ganzen Fläche, und ihre Kopfzeile („Späher
+ *    · Schalttafel · Archiv") stand halb hinter Rollen und Zahnrad — und das
+ *    Optionsmenü, das darunter liegt, war bei offener Rolle nicht zu sehen,
+ *    obwohl das Zahnrad es aufgemacht hatte.
  *
- * Vorher hing jedes dieser vier Dinge an einem eigenen, geratenen Abstand vom
+ * Vorher hing jedes dieser Dinge an einem eigenen, geratenen Abstand vom
  * oberen Rand und lag damit reihum vor dem nächsten: „Zum Spieler" gab es,
- * zu sehen war der Rollenstreifen davor.
+ * zu sehen war der Rollenstreifen davor. Was untereinander in einer Spalte
+ * steht, kann sich nicht überlagern — das ist die ganze Regel.
  *
  * **Und ist ein Overlay offen, ist die ganze Spalte weg** (`applyOverlay`).
  * Wer das Optionsmenü aufmacht, sieht das Menü — nicht daneben noch den Kopf
@@ -242,9 +250,10 @@ export class FlatMode {
   private readonly mapOverlay = el('div', 'flat__map');
   private readonly stick = new Joystick();
   /**
-   * **Der obere Rand als eine Spalte**, nicht als drei Dinge mit je einem
-   * Abstand von oben: erste Zeile HUD und Zahnrad, zweite Zeile die
-   * Sprungknöpfe. Wer untereinander steht, verdeckt sich nicht.
+   * **Der obere Rand als eine Spalte**, nicht als Dinge mit je einem Abstand
+   * von oben: Rollen und Zahnrad, der Kasten, die Sprungknöpfe — und zuletzt
+   * die Bühne der aufgeschlagenen Rolle, die den Rest der Höhe füllt. Wer
+   * untereinander steht, verdeckt sich nicht.
    */
   private readonly top = el('div', 'flat__top');
   private readonly topRow = el('div', 'flat__top-row');
@@ -458,12 +467,13 @@ export class FlatMode {
     this.chore.append(this.choreLabel, bar);
     this.chore.hidden = true;
     this.chore.setAttribute('role', 'progressbar');
-    // **Der obere Rand als eine Spalte, drei Zeilen** (siehe `flat.css`):
+    // **Der obere Rand als eine Spalte, vier Zeilen** (siehe `flat.css`):
     // oben die Rollen als Knöpfe in einem Panel und ganz rechts das Zahnrad,
-    // darunter — links beginnend — der Kasten mit Auftrag und Uhr, und
-    // darunter die Sprungknöpfe. Der Rollenstreifen hing vorher als eigenes
-    // Ding an einem geratenen Abstand von oben und lag damit über dem
-    // Sprungknopf: „Zum Spieler" gab es, zu sehen war der Reiter davor.
+    // darunter — links beginnend — der Kasten mit Auftrag und Uhr, darunter
+    // die Sprungknöpfe, und zuletzt die Bühne der aufgeschlagenen Rolle. Der
+    // Rollenstreifen hing vorher als eigenes Ding an einem geratenen Abstand
+    // von oben und lag damit über dem Sprungknopf: „Zum Spieler" gab es, zu
+    // sehen war der Reiter davor.
     this.hudRow.append(this.hud);
     this.top.append(this.topRow, this.hudRow, this.jump);
     this.strip = new RoleStrip({
@@ -510,6 +520,14 @@ export class FlatMode {
     // Schwebendes mehr — dadurch verschwindet er mit ihm, sobald ein Overlay
     // offen ist, und verdeckt nichts mehr.
     this.topRow.append(this.strip.element, this.optionsKey);
+    // **Und die Bühne der aufgeschlagenen Rolle ist die letzte Zeile.** Sie
+    // war eine eigene Schicht über der ganzen Fläche (`.role-stage`, inset 0)
+    // und lag damit unter dem Streifen — ihre Kopfzeile stand hinter den
+    // Rollenknöpfen — und **über** dem Optionsmenü: Wer bei offener Rolle das
+    // Zahnrad drückte, sah nichts, weil der Kopf wegging und die Rolle das
+    // Menü zudeckte. In der Spalte fängt sie unter den Sprungknöpfen an, und
+    // sie geht mit dem Kopf, sobald ein Overlay offen ist.
+    this.top.append(this.strip.stage);
     this.element.append(
       this.scene.element,
       this.top,
@@ -518,7 +536,6 @@ export class FlatMode {
       this.stick.element,
       this.buttons,
       this.mapOverlay,
-      this.strip.stage,
       this.puzzle.element,
       this.sheet,
       this.options,

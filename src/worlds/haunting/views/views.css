@@ -118,14 +118,24 @@
 .role-strip__key.is-active { background: rgba(140, 170, 230, 0.18); border-color: rgba(140, 170, 230, 0.5); color: #e8ecf7; font-weight: 650; }
 .role-strip__key.is-active small, .role-strip__key.is-mine small { color: #b8c4dd; }
 .role-strip__key:disabled { opacity: 0.45; }
-.role-stage { position: absolute; inset: 0; z-index: 5; }
-/* In der 2D-Welt rückt alles der Rolle unter das HUD der Seite und unter den
-   Streifen: Ein Kasten bei 10 px läge dort hinter Menü und Verbindung. */
-.role-stage .role__hud { top: var(--flat-top); }
-.role-stage .role__toast { top: calc(var(--flat-top) + 118px); }
-.role-stage .role__sheet { top: calc(var(--flat-top) + 118px); max-height: calc(100dvh - var(--flat-top) - 130px); }
-.role-stage .role__corner { top: var(--flat-top); }
+/* **Die Bühne der aufgeschlagenen Rolle ist eine Zeile der Spalte oben**
+   (`map/flat.css`, `.flat__top .role-stage`), keine Schicht über allem: Sie
+   fängt unter Rollenstreifen, Kasten und Sprungknöpfen an und füllt den Rest.
+   Vorher lag sie mit `inset: 0` über der ganzen Fläche — ihre Kopfzeile stand
+   hinter den Rollenknöpfen, und das Optionsmenü darunter war bei offener Rolle
+   nicht zu sehen. Die Rolle darin ist `absolute; inset: 0` und füllt die Bühne. */
+.role-stage { position: relative; }
+/* Was in der Rolle oben steht, rechnet nicht mehr mit dem Rand der Seite oder
+   dem Streifen: Beide liegen jetzt **über** der Bühne, nicht in ihr. Ein
+   Kasten bei 10 px ist ein Kasten 10 px unter den Sprungknöpfen. `--flat-top`
+   gilt für das Monster (`monster/monster.css`), das dieselbe Kante liest. */
+.role-stage { --flat-top: 10px; }
+.role-stage .role__hud { top: 10px; }
+.role-stage .role__toast { top: 64px; }
+.role-stage .role__sheet { top: 60px; max-height: calc(100% - 72px); }
+.role-stage .role__corner { top: 10px; }
 .role-stage .role.is-sheet .role__sheet { max-height: none; }
+.role-stage .role__bar { padding-top: 8px; }
 
 /* **Ein Stuhl, eine Karte** (`seatRole.ts`). Die drei Rollen liegen als durchsichtige
    Schichten über der einen Karte: Ihre Knöpfe, Meldungen und Blätter sind da, ihr Grund

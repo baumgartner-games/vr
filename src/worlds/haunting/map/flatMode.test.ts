@@ -582,7 +582,7 @@ describe('Die Sprungknöpfe rechts', () => {
     document.body.append(flat.element);
     const top = flat.element.querySelector<HTMLElement>('.flat__top')!;
     const rows = [...top.children].map((node) => node.classList[0]);
-    expect(rows).toEqual(['flat__top-row', 'flat__top-row', 'flat__jump']);
+    expect(rows).toEqual(['flat__top-row', 'flat__top-row', 'flat__jump', 'role-stage']);
     expect(top.children[1]!.classList.contains('flat__top-row--hud')).toBe(true);
     // Erste Zeile: die Rollenknöpfe, am Ende das Zahnrad — und sonst nichts.
     const row = top.querySelector<HTMLElement>('.flat__top-row')!;
@@ -617,6 +617,46 @@ describe('Die Sprungknöpfe rechts', () => {
     flat.element.querySelector<HTMLElement>('.flat__options')!.click();
     expect(flat.openOverlay).toBe('options');
     expect(top.hidden).toBe(true);
+    flat.dispose();
+  });
+
+  /**
+   * **Die aufgeschlagene Rolle ist die letzte Zeile der Spalte** — nicht eine
+   * Schicht über allem. Der Befund des Besitzers: Bei offenem Farbplatz stand
+   * dessen Kopfzeile („Späher · Schalttafel · Archiv") hinter dem
+   * Rollenstreifen, und das Zahnrad „tat nichts" — das Menü ging auf, lag aber
+   * hinter der Rolle. In der Spalte kann sich nichts überlagern, und mit dem
+   * Kopf geht die Rolle weg, sobald das Menü offen ist.
+   */
+  it('stellt die aufgeschlagene Rolle unter den Kopf und nimmt sie mit ihm weg', () => {
+    // Rot hält die Schalttafel — ein Platz ohne Fähigkeit schlägt nichts auf.
+    const setup = withPower(defaultSetup(), 'red', 'panel', true);
+    const flat = new FlatMode(3, { test: true, setup }, { exit: () => {} });
+    document.body.append(flat.element);
+    const top = flat.element.querySelector<HTMLElement>('.flat__top')!;
+    const stage = flat.element.querySelector<HTMLElement>('.role-stage')!;
+    expect(stage.parentElement).toBe(top);
+    expect(stage).toBe(top.lastElementChild);
+    expect(stage.hidden).toBe(true);
+    flat.element.querySelector<HTMLButtonElement>('[data-role-strip="red"]')!.click();
+    expect(stage.hidden).toBe(false);
+    expect(stage.querySelector('.role--seat')).not.toBeNull();
+    // Die erste Zeile — der Rückweg — steht, und zwar **vor** der Rolle.
+    expect(top.hidden).toBe(false);
+    const strip = flat.element.querySelector<HTMLElement>('.role-strip')!;
+    expect(strip.compareDocumentPosition(stage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Das Zahnrad öffnet das Menü, und die Rolle ist dann weg — nicht davor.
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    expect(flat.openOverlay).toBe('options');
+    const options = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    expect(options.hidden).toBe(false);
+    expect(top.hidden).toBe(true);
+    expect(stage.closest('[hidden]')).toBe(top);
+    // „Weiterspielen" bringt Kopf und Rolle zurück.
+    flat.element.querySelector<HTMLButtonElement>('[data-close-options]')!.click();
+    expect(top.hidden).toBe(false);
+    expect(stage.hidden).toBe(false);
+    expect(stage.closest('[hidden]')).toBeNull();
     flat.dispose();
   });
 
