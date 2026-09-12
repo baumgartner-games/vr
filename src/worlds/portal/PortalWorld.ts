@@ -4053,7 +4053,11 @@ export class PortalWorld implements World {
    * hält und dann rückgängig gemacht wird, sieht aus wie ein Fehler in der
    * Physik und ist einer in einer vergessenen Zeile.
    *
-   * Ohne `yaw` bleibt die Blickrichtung, die gerade gilt.
+   * Ohne `yaw` bleibt die Blickrichtung, die gerade gilt. Mit `yaw` schaut
+   * danach der **Kopf** dorthin (`PlayerRig.turnHeadTo`) — nicht nur das Rig:
+   * In der Brille legt das Headset seine eigene Drehung obendrauf, und wer im
+   * Spielraum nach links gedreht stand, schaute nach dem Versetzen weiter
+   * nach links, egal was hier stand.
    *
    * Versetzt werden die **Füße des Spielers** (`PlayerRig.placeFeetAt`), nicht
    * der Ursprung des Rigs: In der Brille liegen die beiden um so viel
@@ -4064,6 +4068,7 @@ export class PortalWorld implements World {
   protected movePlayerTo(ctx: WorldContext, at: THREE.Vector3, yaw?: number): void {
     _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
     ctx.rig.placeFeetAt(_point.copy(at), yaw ?? _euler.y);
+    if (yaw !== undefined) ctx.rig.turnHeadTo(yaw);
     this.locomotion?.resync(ctx.rig);
   }
 

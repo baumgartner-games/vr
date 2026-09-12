@@ -1331,7 +1331,7 @@ export class HauntingWorld extends GridWorld {
         id === 'test-bay' ? this.state.crew.options.test : this.automaticDoors.isOpen(id),
       doorLocked: (id) =>
         id === 'test-bay' ? !this.state.crew.options.test : this.state.shut.includes(id),
-      travel: (at) => this.movePlayerTo(ctx, at),
+      travel: (at, yaw) => this.movePlayerTo(ctx, at, yaw),
       equip: (id, hand) => {
         if (id === 'off') this.stowCarriedTool(hand);
         else {

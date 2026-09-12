@@ -135,7 +135,8 @@ interface ShipHost {
   door(id: string): void;
   doorOpen?(id: string): boolean;
   doorLocked?(id: string): boolean;
-  travel(at: THREE.Vector3): void;
+  /** Versetzt den Spieler; mit `yaw` schaut er danach dorthin (`movePlayerTo`). */
+  travel(at: THREE.Vector3, yaw?: number): void;
   route(from: RoutePose, room: HouseRoom): RoutePath | null;
   routeTo?(from: RoutePose, target: { x: number; z: number }): RoutePath | null;
   routeVersion?(): number;
@@ -1240,7 +1241,13 @@ export class ShipExperience {
     }
     this.host.ctx.rig.getHeadPosition(this.lockerHome);
     this.lockerHome.y = 0;
-    this.host.travel(locker.group.position.clone());
+    // **Mit dem Gesicht zur Tür.** Die Front des Schranks — Tastenfeld, Tür,
+    // Lüftungsschlitze — liegt auf seiner lokalen +z-Seite, ein Rig schaut
+    // entlang −z: also die Drehung des Schranks plus π. Wer hineintippt,
+    // schaut danach durch die Schlitze in den Raum und sieht das Monster
+    // kommen; vorher stand man so, wie man gerade gestanden hatte — nicht
+    // selten mit dem Rücken zur Tür, vor einer blassen Rückwand.
+    this.host.travel(locker.group.position.clone(), locker.group.rotation.y + Math.PI);
     this.crew.hidden = locker.id;
     locker.open = false;
     this.ghostLocker(locker, true);
