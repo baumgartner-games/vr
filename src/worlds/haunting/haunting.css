@@ -132,50 +132,23 @@ body.orbital-on #hud { display: none; }
 /* --- Kopfzeile --- */
 
 /* **Die Kopfzeile ist die Rollenwahl.** Sie fängt oben an — die Kopfzeile der
-   Seite ist ausgeblendet, also braucht es keinen Streifen mehr für sie —, und
-   die Reiter scrollen waagerecht, wenn sieben davon nicht nebeneinander
-   passen. Ein Reiter, der umbricht, verschiebt bei jedem Rollenwechsel alles
-   darunter. */
+   Seite ist ausgeblendet, also braucht es keinen Streifen mehr für sie. Die
+   Reiter sind **dieselben Knöpfe im selben Panel wie im Kopf der 2D-Welt**
+   (`views/roleTabs.ts`, `views/views.css`, `.role-strip`): Sie brechen um,
+   statt zu scrollen, und die zweizeiligen Pillen passen zu siebt in zwei
+   Zeilen. Vorher scrollte hier eine eigene Zeile aus Pillen, die anders
+   aussah als im Spiel — der Besitzer wollte einen Kopf, nicht zwei. */
 .haunt__bar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: calc(6px + env(safe-area-inset-top)) 8px 6px;
   background: var(--haunt-bar);
   border-bottom: 1px solid var(--haunt-line);
 }
-.haunt__roles {
-  display: flex;
-  flex: 1;
-  gap: 6px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.haunt__roles::-webkit-scrollbar { display: none; }
-.haunt .haunt__role {
-  flex: none;
-  min-height: 40px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--haunt-line);
-  background: transparent;
-  color: var(--haunt-dim);
-  font: inherit;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-/* Was ich **halte**, ist gelb umrandet; was gerade **offen** ist, leuchtet in
-   der Farbe der Station. Zwei Auskünfte, zwei Zeichen: Wer die Schalttafel
-   hält, aber das Archiv liest, sieht beides. */
-.haunt .haunt__role.is-mine { border-color: var(--haunt-warn); color: var(--haunt-ink); }
-.haunt .haunt__role[aria-pressed='true'] {
-  border-color: var(--haunt-accent);
-  background: var(--haunt-card-hi);
-  color: var(--haunt-ink);
-  font-weight: 650;
-}
+.haunt__roles { flex: 1; }
+/* `.haunt button` verlangt 44 px Mindesthöhe — für die Pillen im Panel gilt das Maß des Panels. */
+.haunt .haunt__roles .role-strip__key { min-height: 36px; }
 /* Im Aufbau steht statt der Reiter eine Überschrift: Die Rollen wählt man
    erst über der Karte (`stationUi.writeBar`). */
 .haunt__title { flex: 1; min-width: 0; padding-left: 6px; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--haunt-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -359,7 +332,6 @@ body.orbital-on #hud { display: none; }
  */
 @media (orientation: landscape) and (max-height: 560px) {
   .haunt__bar { padding-top: calc(4px + env(safe-area-inset-top)); }
-  .haunt .haunt__role { min-height: 34px; padding-block: 4px; }
 }
 
 /* ORBITAL: instruments readable on a phone, no blur/post-processing. */

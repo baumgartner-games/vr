@@ -316,14 +316,26 @@ describe('Die Einsatzzentrale baut ihre Rollen aus der Registry', () => {
       'watch:technician',
       'watch:all',
     ]);
-    expect(keys.map((key) => key.textContent)).toEqual([
+    // Dieselben Knöpfe im selben Panel wie im Kopf der 2D-Welt
+    // (`views/roleTabs.ts`): zweizeilig, der Platz und darunter, was er hält.
+    expect(document.querySelector('.haunt__roles')?.classList.contains('role-strip')).toBe(true);
+    expect(keys.map((key) => key.querySelector('strong')?.textContent)).toEqual([
       'Techniker',
-      'Rot · Archiv',
-      'Gelb · Späher',
-      'Blau · Schalttafel',
+      'Rot',
+      'Gelb',
+      'Blau',
       'Monster',
-      'Zuschauer: Techniker',
-      'Zuschauer: Alles',
+      'Zuschauer',
+      'Zuschauer',
+    ]);
+    expect(keys.map((key) => key.querySelector('small')?.textContent ?? '')).toEqual([
+      '',
+      'Archiv',
+      'Späher',
+      'Schalttafel',
+      '',
+      'Techniker',
+      'Alles',
     ]);
     // Der gemerkte Platz leuchtet: Zuschauer des Technikers, der Anfang.
     expect(button('[data-me="watch:technician"]').classList.contains('is-mine')).toBe(true);

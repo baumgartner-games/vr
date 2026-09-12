@@ -50,6 +50,7 @@ import {
   LOCK_COOLDOWN,
   SLAM_HOLD,
   chooseLock,
+  plainLock,
   coolingUntil,
   freshLocks,
   holdUntil,
@@ -1854,15 +1855,15 @@ export class FlatRound implements MapSource {
   lockDoor(id: string): string {
     const door = this.house.doors.find((d) => d.id === id);
     if (!door || !this.stepping) return '';
-    // **Im Test ohne Buchführung**: kein Riegel, der abläuft, keine Tür, die
-    // vierzig Sekunden warm bleibt — man will sehen, ob der Tipp trifft, und
-    // ihn gleich wieder zurücknehmen können.
+    // **Im Test ohne Frist**: kein Riegel, der abläuft, keine Tür, die vierzig
+    // Sekunden warm bleibt — man will sehen, ob der Tipp trifft, und ihn
+    // gleich wieder zurücknehmen können. Aber auch hier hält ein Spieler nur
+    // **eine** Tür (`rules/doorLocks.plainLock`): Die zweite gibt die erste frei.
     if (!this.live) {
-      const locked = this.haunt.shut.includes(id);
-      this.haunt.shut = locked
-        ? this.haunt.shut.filter((one) => one !== id)
-        : [...this.haunt.shut, id];
-      return locked ? 'Tür entriegelt.' : 'Tür verriegelt.';
+      const out = plainLock(this.locks, this.haunt.shut, id);
+      this.haunt.shut = out.shut;
+      if (!out.locked) return 'Tür entriegelt.';
+      return out.released ? 'Tür verriegelt · die vorherige ist wieder offen.' : 'Tür verriegelt.';
     }
     const before = this.locks.chosen;
     const out = toggleLock(this.locks, this.haunt.shut, id, this.haunt.time, () => this.rng.next());

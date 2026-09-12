@@ -28,10 +28,11 @@ import { Toast, el } from './roleShell';
  * den Techniker noch das Monster. Wer eine Tür zuwirft, weiß deshalb nach wie
  * vor nicht, wen er einsperrt, und muss fragen. Das ist die Rolle.
  *
- * **Die halbe Tafel bleibt tot, bis jemand den Sicherungskasten findet**
- * (`panel.ts`): Für jede Tür und jede Lampe gibt es einen Schalter, und die
- * Hälfte davon liegt hinter der Sicherung. Ein Tipp auf etwas ohne Schalter
- * sagt genau das — er ist keine stille Fehlbedienung.
+ * **Jede Tür und jede Lampe hat einen Schalter, und keiner versteckt sich**
+ * (`panel.ts`): Die Hälfte lag einmal hinter dem Sicherungskasten, und wer
+ * die Fähigkeit hielt, bekam für das Licht im Upper Engine „dafür gibt es
+ * keinen Schalter" — der Besitzer wollte das nicht. Ein Tipp auf etwas, das
+ * wirklich keinen Schalter hat, sagt es weiterhin, statt still nichts zu tun.
  */
 /**
  * @param shared eine Karte, die schon jemand hält (`seatRole.ts`): Dann baut

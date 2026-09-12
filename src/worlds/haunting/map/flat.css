@@ -47,9 +47,9 @@
 /* Der Rollenstreifen ist die erste Zeile des Kopfs (`flatMode.ts`) und nicht
    mehr ein eigenes Ding an einem geratenen Abstand von oben: Er nimmt den
    Platz links, das Zahnrad steht am Ende der Zeile, und beide verdecken
-   einander nicht mehr. Auf einem schmalen Telefon bricht er um, statt zu
-   scrollen — ein Knopf, den man erst herschieben muss, findet niemand. */
-.flat__top .role-strip { pointer-events: auto; position: static; transform: none; max-width: none; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; overflow: visible; z-index: auto; }
+   einander nicht mehr. Wie er aussieht, sagt `views/views.css` — derselbe
+   Kopf wie auf dem Telefon. */
+.flat__top .role-strip { pointer-events: auto; flex: 1 1 auto; }
 .flat__hud { width: max-content; max-width: min(58vw, 300px); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; border-radius: 6px; background: rgba(28, 32, 38, 0.86); border: 2px solid #6c7480; pointer-events: none; }
 .flat__vitals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; color: #d3dae6; text-shadow: 0 1px 2px #000; }
 .flat__vitals strong { font-size: 14px; color: #fff; font-variant-numeric: tabular-nums; }

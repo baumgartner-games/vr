@@ -296,9 +296,9 @@ Schritt gehst, springt die Kamera von selbst zurück. Ganz herausgezoomt passt
 die ganze Station ins Bild und lässt sich ein Stück nach unten ziehen, damit
 ihre obere Kante frei unter den Anzeigen steht. **Wer
 zuschaut**, hat keinen Stock, dafür zwei Knöpfe: _Zum Techniker_ und
-_Zum Monster_, jederzeit umschaltbar. Die Sicht von Archiv, Schalttafel
-oder Späher wählt man über die Reiter am Telefon — auch während eine Runde
-läuft.
+_Zum Monster_, jederzeit umschaltbar. Die Sicht der Plätze Rot, Gelb und Blau
+wählt man über die Reiter — dieselben sieben im Kopf der 2D-Welt wie über
+der Karte des Telefons — auch während eine Runde läuft.
 
 **Die Handyansichten:** Alle drei zeichnen dieselbe Karte wie die 2D-Welt,
 jede mit eigenen Schichten. Beim **Archiv** liegt die ganze Station darauf,

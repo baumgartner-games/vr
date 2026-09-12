@@ -37,6 +37,13 @@
  *   Sekunden: **weniger, als das Warten kostet.** Genau das ist die Absicht.
  *   Wer wartet, verliert Zeit; wer zieht, macht Lärm — das ist der Handel.
  *
+ * **Und im Test-Zustand gilt die erste Regel genauso** (`plainLock`): Vor der
+ * Mission schaltet die Tafel ohne Frist, ohne Abkühlung, ohne Spuk — aber
+ * nicht ohne den einen Riegel. Wer dort drei Türen nacheinander antippte,
+ * hatte drei gesperrte Türen, und genau das war der Befund des Besitzers:
+ * „Es darf nur eine Tür vom Spieler gesperrt sein." Die zweite gibt die
+ * erste frei, im Test wie in der Mission.
+ *
  * Die Buchführung (`DoorLocks`) liegt beim Gastgeber und geht nicht über die
  * Leitung: Alle anderen sehen nur die Liste der zugefallenen Türen, und die
  * bleibt, was sie war.
@@ -73,7 +80,11 @@ export const LOCK_COOLDOWN = 40;
 export interface DoorLocks {
   /** Die eine gewollt gesperrte Tür — `''`, wenn keine. */
   chosen: string;
-  /** Wann die gewollt gesperrte Tür von selbst aufgeht (Rundenzeit); 0 ohne. */
+  /**
+   * Wann die gewollt gesperrte Tür von selbst aufgeht (Rundenzeit) — **0
+   * heißt: nie** (der Test-Zustand, `plainLock`): Sie hält, bis jemand sie
+   * freigibt oder eine andere wählt.
+   */
   until: number;
   /** Die zugefallenen Türen und wann sie von selbst aufgehen (Rundenzeit). */
   slams: Array<{ id: string; until: number }>;
@@ -103,7 +114,8 @@ export function slamUntil(locks: DoorLocks, id: string): number | null {
  * der Tür (`map/mapView.ts`, `map/flatScene.ts`).
  */
 export function holdUntil(locks: DoorLocks, id: string): number | null {
-  if (locks.chosen === id) return locks.until;
+  // Ein Riegel ohne Frist (Test-Zustand) hat keinen Balken: `null`, nicht 0.
+  if (locks.chosen === id) return locks.until > 0 ? locks.until : null;
   return slamUntil(locks, id);
 }
 
@@ -156,6 +168,39 @@ export function chooseLock(
   locks.until = time + HOLD_RANGE[0] + roll() * (HOLD_RANGE[1] - HOLD_RANGE[0]);
   locks.slams = locks.slams.filter((slam) => slam.id !== id);
   return next;
+}
+
+/**
+ * **Der Schalter des Test-Zustands**: zu, wenn offen; auf, wenn zu — ohne
+ * Frist, ohne Abkühlung, ohne Würfel, aber mit dem einen Riegel: Wer eine
+ * zweite Tür sperrt, gibt die erste damit frei. Vor der Mission soll man
+ * sehen, ob der Tipp trifft, und ihn gleich zurücknehmen können; die Regel,
+ * wie viele Türen ein Spieler halten darf, wird dabei nicht ausgesetzt.
+ *
+ * @returns die neue Liste, ob die Tür jetzt gesperrt ist, und welche Tür
+ *   dafür aufgegangen ist (`''`, wenn keine).
+ */
+export function plainLock(
+  locks: DoorLocks,
+  shut: readonly string[],
+  id: string,
+): { shut: string[]; locked: boolean; released: string } {
+  if (shut.includes(id)) {
+    if (locks.chosen === id) {
+      locks.chosen = '';
+      locks.until = 0;
+    }
+    locks.slams = locks.slams.filter((slam) => slam.id !== id);
+    locks.pries = locks.pries.filter((pry) => pry.id !== id);
+    return { shut: shut.filter((one) => one !== id), locked: false, released: '' };
+  }
+  const released = locks.chosen && shut.includes(locks.chosen) ? locks.chosen : '';
+  const next = shut.filter((one) => one !== locks.chosen);
+  next.push(id);
+  locks.chosen = id;
+  locks.until = 0;
+  locks.slams = locks.slams.filter((slam) => slam.id !== id);
+  return { shut: next, locked: true, released };
 }
 
 /** **Eine Tür freigeben** — gewollt oder zugefallen, für die Tafel ist das dasselbe. */
@@ -290,7 +335,7 @@ export function stepLocks(
   if (locks.chosen && !shut.includes(locks.chosen)) {
     locks.chosen = '';
     locks.until = 0;
-  } else if (locks.chosen && locks.until <= time) {
+  } else if (locks.chosen && locks.until > 0 && locks.until <= time) {
     opened.push(locks.chosen);
     locks.chosen = '';
     locks.until = 0;

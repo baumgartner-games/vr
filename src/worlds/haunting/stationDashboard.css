@@ -49,7 +49,6 @@
 .haunt__round-result.is-lost strong { color: #ffc7ca; }
 
 @media (max-width: 580px) {
-  .haunt .haunt__role { font-size: 12px; padding-inline: 10px; }
   .haunt__bar { padding-inline: 8px; }
 }
 

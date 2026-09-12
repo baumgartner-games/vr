@@ -617,23 +617,37 @@ describe('Die Sprungknöpfe rechts', () => {
   });
 
   /**
-   * **Zuschauer steht in derselben Zeile wie die Rollen** und sieht alles: Ein
-   * Zuschauer mit der Sicht des Anzugs sähe ein schwarzes Bild.
+   * **Die Zuschauer stehen in derselben Zeile wie die Plätze** — dieselben
+   * sieben Reiter wie auf dem Telefon (`views/roleTabs.ts`) — und sehen
+   * alles: Ein Zuschauer mit der Sicht des Anzugs sähe ein schwarzes Bild.
+   * „Zuschauer: Alles" schlägt dazu die ganze Station als Karte auf;
+   * „Techniker" holt den Stock zurück.
    */
-  it('macht aus dem Zuschauer-Knopf eine Bot-Runde mit allwissender Karte', () => {
+  it('macht aus den Zuschauer-Reitern eine Bot-Runde mit allwissender Karte', () => {
     const flat = new FlatMode(3, { test: true }, { exit: () => {} });
     document.body.append(flat.element);
     expect(flat.role).toBe('technician');
-    const watch = (): HTMLButtonElement =>
-      flat.element.querySelector<HTMLButtonElement>('[data-role-extra="watch"]')!;
-    watch().click();
+    const key = (id: string): HTMLButtonElement =>
+      flat.element.querySelector<HTMLButtonElement>(`[data-role-strip="${id}"]`)!;
+    expect(
+      [...flat.element.querySelectorAll<HTMLElement>('[data-role-strip]')].map(
+        (one) => one.dataset['roleStrip'],
+      ),
+    ).toEqual(['technician', 'red', 'yellow', 'blue', 'monster', 'watch:technician', 'watch:all']);
+    expect(key('technician').classList.contains('is-mine')).toBe(true);
+    key('watch:technician').click();
     expect(flat.role).toBe('watch');
     expect(flat.visibilityMode).toBe('omniscient');
-    expect(watch().classList.contains('is-active')).toBe(true);
-    watch().click();
+    expect(flat.openOverlay).toBe('none');
+    expect(key('watch:technician').classList.contains('is-mine')).toBe(true);
+    expect(key('watch:technician').classList.contains('is-active')).toBe(true);
+    key('technician').click();
     expect(flat.role).toBe('technician');
     expect(flat.visibilityMode).toBe('realistic');
-    expect(watch().classList.contains('is-active')).toBe(false);
+    expect(key('watch:technician').classList.contains('is-active')).toBe(false);
+    key('watch:all').click();
+    expect(flat.role).toBe('watch');
+    expect(flat.openOverlay).toBe('map');
     flat.dispose();
   });
 

@@ -106,18 +106,24 @@
 .role__note.is-warn { border-left-color: #ffb14a; }
 .role__note.is-live { border-left-color: #7fe0ff; }
 
-/* Der Streifen über der 2D-Welt: Rollenwechsel, ohne dass die Runde neu
-   aufgebaut wird (`views/roleStrip.ts`).
-
-   **Eine Zeile tiefer als die Eckknöpfe**, und das ist keine Geschmacksfrage:
-   Über `--flat-top` schwebt das HUD der Seite mit z-index 5 (`style.css`) und
-   fängt jeden Klick ab; auf der Höhe von `--flat-top` selbst stehen links der
-   Aufgabenkasten und rechts Zahnrad und Karte. Also darunter — dort ist die
-   Zeile frei, solange keine Rolle offen ist, und wenn eine offen ist, ist
-   ohnehin alles andere weg. */
-.role-strip { position: absolute; left: 50%; top: calc(var(--flat-top) + 62px); transform: translateX(-50%); display: flex; gap: 6px; padding: 4px; border-radius: 999px; background: rgba(10, 15, 26, 0.92); border: 1px solid rgba(140, 170, 230, 0.3); z-index: 6; max-width: min(96vw, 430px); overflow-x: auto; }
-.role-strip__key { flex: 0 0 auto; padding: 6px 12px; border-radius: 999px; border: 1px solid transparent; background: none; color: #97a3bd; font: inherit; font-size: 12px; white-space: nowrap; touch-action: manipulation; }
-.role-strip__key.is-active { background: rgba(140, 170, 230, 0.18); border-color: rgba(140, 170, 230, 0.5); color: #e8ecf7; }
+/* **Die Rollen als Knöpfe in einem Panel** (`views/roleTabs.ts`) — derselbe
+   Kopf über der 2D-Welt (`roleStrip.ts`) und über der Karte des Telefons
+   (`stationUi.ts`). Sieben Reiter, und sie **brechen um**, statt zu scrollen:
+   Ein Knopf, den man erst herschieben muss, findet niemand — und genau das
+   war der Befund („oben passen die Rollen nicht in das Panel"). Damit sieben
+   in zwei Zeilen passen, ist jede Pille zweizeilig: oben der Platz, klein
+   darunter, was er hält. Wer sich hier einhängt, setzt selbst, wo das Panel
+   steht (`flat.css`, `haunting.css`); dieses Blatt sagt nur, wie es aussieht. */
+.role-strip { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; min-width: 0; border-radius: 14px; background: rgba(10, 15, 26, 0.92); border: 1px solid rgba(140, 170, 230, 0.3); }
+.role-strip__key { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 36px; padding: 4px 10px; border-radius: 10px; border: 1px solid transparent; background: none; color: #97a3bd; font: inherit; line-height: 1.15; text-align: left; white-space: nowrap; touch-action: manipulation; }
+.role-strip__key strong { font-size: 12px; font-weight: 600; }
+.role-strip__key small { font-size: 10px; color: #7c89a4; }
+/* Was ich **halte**, ist gelb umrandet; was gerade **offen** ist, leuchtet.
+   Zwei Auskünfte, zwei Zeichen: Wer am Stock steht und ins Archiv sieht, sieht beides. */
+.role-strip__key.is-mine { border-color: rgba(255, 196, 90, 0.75); color: #e8ecf7; }
+.role-strip__key.is-active { background: rgba(140, 170, 230, 0.18); border-color: rgba(140, 170, 230, 0.5); color: #e8ecf7; font-weight: 650; }
+.role-strip__key.is-active small, .role-strip__key.is-mine small { color: #b8c4dd; }
+.role-strip__key:disabled { opacity: 0.45; }
 .role-stage { position: absolute; inset: 0; z-index: 5; }
 /* In der 2D-Welt rückt alles der Rolle unter das HUD der Seite und unter den
    Streifen: Ein Kasten bei 10 px läge dort hinter Menü und Verbindung. */

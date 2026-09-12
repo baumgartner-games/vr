@@ -1,5 +1,4 @@
 import { generateHouse, MARKS } from './house';
-import { visibleSwitches } from './panel';
 
 const SEEDS = [11, 4711, 90210, 2024, 7];
 
@@ -56,17 +55,22 @@ describe('Die Schalttafel', () => {
         }
       });
 
-      it('lässt vor dem Sicherungskasten schon etwas übrig, das Licht macht', () => {
-        const before = visibleSwitches(spec.switches, false);
-        expect(before.length).toBeGreaterThan(0);
-        expect(before.filter((one) => one.kind === 'light').length).toBeGreaterThanOrEqual(1);
-      });
-
-      it('macht den Sicherungskasten zu einem Unterschied, den man merkt', () => {
-        const before = visibleSwitches(spec.switches, false).length;
-        const after = visibleSwitches(spec.switches, true).length;
-        expect(after).toBeGreaterThan(before);
-        expect(after).toBe(spec.switches.length);
+      /**
+       * **Nichts liegt mehr hinter dem Sicherungskasten.** Die Hälfte der
+       * Tafel war einmal versteckt, und in der 2D-Welt legte nie jemand den
+       * Kasten um: Wer die Schalttafel hielt, konnte das Licht im Upper Engine
+       * nicht anmachen. Jetzt hat jeder Schalter von Anfang an eine Wirkung.
+       */
+      it('versteckt keinen Schalter — jede Lampe und jede Tür ist von Anfang an schaltbar', () => {
+        for (const room of spec.rooms.filter((one) => one.lamp))
+          expect(spec.switches.some((one) => one.kind === 'light' && one.target === room.id)).toBe(
+            true,
+          );
+        for (const door of spec.doors)
+          expect(spec.switches.some((one) => one.kind === 'door' && one.target === door.id)).toBe(
+            true,
+          );
+        expect(spec.switches.some((one) => 'hidden' in one)).toBe(false);
       });
 
       /**
