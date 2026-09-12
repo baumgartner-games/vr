@@ -10,9 +10,13 @@
  * **Der obere Rand ist eine Spalte** (`.flat__top`) und keine Sammlung von
  * Dingen mit je einem eigenen Abstand von oben: erste Zeile die Rollenknöpfe
  * mit dem Zahnrad am Ende, zweite Zeile der Aufgabenkasten, dritte Zeile die
- * Sprungknöpfe. Vorher hing jedes davon an `--flat-top` plus einer geratenen
- * Zahl und lag damit reihum vor dem nächsten — „Zum Spieler" gab es, zu sehen
- * war der Rollenstreifen davor.
+ * Sprungknöpfe, und als letzte Zeile die Bühne der aufgeschlagenen Rolle
+ * (`.role-stage`, `views/views.css`), die den Rest der Höhe bekommt. Vorher
+ * hing jedes davon an `--flat-top` plus einer geratenen Zahl und lag damit
+ * reihum vor dem nächsten — „Zum Spieler" gab es, zu sehen war der
+ * Rollenstreifen davor; die Kopfzeile eines Farbplatzes stand hinter den
+ * Rollenknöpfen. Die Spalte reicht deshalb bis zum unteren Rand: Nur so hat
+ * die Bühne eine Höhe, die sie füllen kann.
  *
  * `--flat-top` ist die Kante, an der diese Spalte beginnt. In der gespielten
  * 2D-Welt (`.flat--world`) ist der Streifen der Seite abgeschaltet
@@ -43,8 +47,17 @@
 /* Die Spalte am oberen Rand: HUD und Zahnrad in einer Zeile, die Sprungknöpfe
    darunter. Sie fängt nichts ab, was sie nicht selbst bedient — sonst läge
    über der halben Szene eine unsichtbare Platte, durch die kein Tipp geht. */
-.flat__top { position: absolute; left: 12px; right: 12px; top: var(--flat-top); display: flex; flex-direction: column; gap: 8px; pointer-events: none; z-index: 6; }
+.flat__top { position: absolute; inset: var(--flat-top) 0 0; display: flex; flex-direction: column; gap: 8px; pointer-events: none; z-index: 6; }
+/* Die drei Zeilen halten den Rand von 12 px selbst; die Bühne darunter
+   reicht von Kante zu Kante wie die Szene. */
+.flat__top-row, .flat__jump { margin: 0 12px; }
 .flat__top-row { display: flex; align-items: flex-start; gap: 10px; }
+/* **Die Bühne der aufgeschlagenen Rolle ist die letzte Zeile der Spalte** und
+   keine Schicht über allem (`views/views.css`, `.role-stage`): Sie fängt an,
+   wo die Sprungknöpfe aufhören, füllt den Rest der Höhe und geht mit dem Kopf
+   weg, sobald ein Overlay offen ist. Dadurch steht ihre Kopfzeile nie hinter
+   dem Rollenstreifen, und das Optionsmenü liegt nie hinter ihr. */
+.flat__top .role-stage { position: relative; flex: 1 1 auto; min-height: 0; pointer-events: auto; }
 /* Zweite Zeile, links beginnend: der Kasten mit Auftrag und Uhr. */
 .flat__top-row--hud { justify-content: flex-start; }
 /* Der Rollenstreifen ist die erste Zeile des Kopfs (`flatMode.ts`) und nicht

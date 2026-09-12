@@ -8570,9 +8570,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Reiter wie über der Karte des Telefons**: Techniker, Rot, Gelb, Blau,
   Monster, Zuschauer: Techniker, Zuschauer: Alles) und am Ende der Zeile das
   Zahnrad, zweite Zeile — links beginnend — der Kasten mit Auftrag und Uhr,
-  dritte Zeile die Sprungknöpfe. Vorher hing jedes davon an `--flat-top` plus
-  einer geratenen Zahl und lag reihum vor dem nächsten — „Zum Spieler" gab es,
-  zu sehen war der Rollenstreifen davor. Und vorher standen im Panel die
+  dritte Zeile die Sprungknöpfe, **vierte Zeile die Bühne der aufgeschlagenen
+  Rolle** (`RoleStrip.stage`, `.role-stage`), die den Rest der Höhe füllt.
+  Vorher hing jedes davon an `--flat-top` plus einer geratenen Zahl und lag
+  reihum vor dem nächsten — „Zum Spieler" gab es, zu sehen war der
+  Rollenstreifen davor; und die Bühne war eine eigene Schicht über der ganzen
+  Fläche (`inset: 0`, z-index 5): Die Kopfzeile eines Farbplatzes stand hinter
+  den Rollenknöpfen, und das Optionsmenü (z-index 3) lag bei offener Rolle
+  **hinter** ihr — das Zahnrad „tat nichts". In der Spalte kann sich nichts
+  überlagern, und die Bühne geht mit dem Kopf weg, sobald ein Overlay offen
+  ist; was in der Rolle oben steht (Kasten, Meldung, Blatt, Eckknopf), rechnet
+  in der Bühne nicht mehr mit Seitenrand oder Streifen, denn beide liegen
+  darüber und nicht darin. Und vorher standen im Panel die
   **Karten** der Registry (Archiv, Schalttafel, Späher) statt der Plätze: In
   der Mission hieß die Zeile damit anders als im Test auf dem Telefon, und
   sieben einzeilige Pillen passten nicht hinein — der Besitzer wollte einen
