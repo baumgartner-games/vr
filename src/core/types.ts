@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { PlayerRig } from './PlayerRig';
+import type { FrameSample } from './FrameStats';
 import type { HeadgearKind } from './headgear';
 import type { XRInput } from './XRInput';
 import type { Pointer } from './Pointer';
@@ -36,6 +37,14 @@ export interface WorldContext {
   readonly role: PlayerRole;
   /** Seconds since the app started. */
   readonly elapsed: number;
+  /**
+   * **Die letzte Messung der Bildrate** (`FrameStats.latest`): Mittelwerte
+   * über eine halbe Sekunde, oder `null`, solange noch nichts gemessen ist.
+   * Für Anzeigen, die im Spiel bleiben sollen — der Streifen des Technikers
+   * zeigt sie neben dem Sauerstoff, weil ein Stottern auf der Quest sonst nur
+   * mit offenem Menü zu sehen war.
+   */
+  frame(): FrameSample | null;
   /** Switch to another world by id (safe to call from inside update). */
   goTo(worldId: string): void;
   /**

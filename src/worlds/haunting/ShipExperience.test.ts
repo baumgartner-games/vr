@@ -165,6 +165,7 @@ beforeEach(() => {
     menu: { isOpen: false, toggle: menuToggle },
     net: { peers: new Map() },
     elapsed: 0,
+    frame: () => null,
     wear: jest.fn(),
     refreshWorldMenu: refresh,
   } as unknown as WorldContext;

@@ -1,8 +1,8 @@
-import { PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED, type MonsterKind } from '../mission';
+import type { MonsterKind } from '../mission';
 import type { MonsterPace } from '../monsterRoutine';
 import { ENTITY_PROFILES } from '../threat';
 import { headingOf, type MapEntity, type MapPoint, type MapSnapshot } from '../map/mapSnapshot';
-import { AUDIO_CUES, NOISE, stepLoudness, type CueId } from './cues';
+import { AUDIO_CUES, NOISE, type CueId } from './cues';
 import { Hearing, hearingGain, reachOf, roomIdAt, type HearingWorld } from './hearing';
 
 /**
@@ -23,9 +23,15 @@ import { Hearing, hearingGain, reachOf, roomIdAt, type HearingWorld } from './he
  *
  * Was klingt:
  *
- * - **Eigene Schritte** aus dem Tempo des Spielers, am Ohr — außer, der
- *   Zuhörer *ist* das Monster: Wer es spielt, hört sich nicht selbst
- *   herankommen, weder als Schritt noch als Ruf noch als Herzschlag.
+ * - **Eigene Schritte** aus der **Strecke** des Spielers, nicht aus einer
+ *   Uhr: Gemerkt wird, wo der letzte Schritt fiel, und wer sich `STRIDE`
+ *   einen Meter davon entfernt hat, macht den nächsten — abwechselnd
+ *   `FOOT_OFFSET` links und rechts neben der Mitte, damit es zwei Füße sind.
+ *   Gehen und Rennen klingen gleich, Schleichen leise. Eine Uhr, die im
+ *   Stand weiterlief, holte beim Losgehen erst einmal alle versäumten
+ *   Schritte nach — das war das Stolpern. Außer, der Zuhörer *ist* das
+ *   Monster: Wer es spielt, hört sich nicht selbst herankommen, weder als
+ *   Schritt noch als Ruf noch als Herzschlag.
  * - **Monster schleicht, geht, rennt** — die Kadenz der Sorte
  *   (`ENTITY_PROFILES`), beim Schleichen länger, beim Rennen knapp die Hälfte,
  *   mit eigenem Cue. Alles durch das Hörmodell (`hearing.ts`).
@@ -45,7 +51,29 @@ import { Hearing, hearingGain, reachOf, roomIdAt, type HearingWorld } from './he
 export const CHASE_RANGE = 18;
 /** Ab hier klopft das Herz auch ohne Verfolgung, in Metern. */
 export const NEAR_RANGE = 8;
-/** Rennen: so viel kürzer ist der Schritt-Takt als beim Gehen; Schleichen so viel länger. */
+/**
+ * **Ein Schritt je Meter.** Erst wer sich so weit vom letzten Schritt entfernt
+ * hat, macht den nächsten — Gehen, Rennen und Schleichen unterscheiden sich
+ * nur darin, wie schnell diese Meter vergehen. Ein Taktgeber aus dem
+ * gemessenen Tempo stolperte: Das Tempo aus der Kopfbewegung springt, und
+ * eine Uhr, die im Stand ins Negative lief, spielte beim Losgehen drei
+ * Schritte in einer halben Sekunde.
+ */
+export const STRIDE = 1;
+/** Ab hier ist der Sprung seit dem letzten Schritt kein Schritt mehr, sondern ein Teleport: kein Ton. */
+export const STRIDE_JUMP = 3;
+/** Wie weit die Füße neben der Mitte auftreten, in Metern — links, rechts, links. */
+export const FOOT_OFFSET = 0.2;
+/**
+ * Wie weit ein Fuß in der Balance nach seiner Seite rückt (-1…1). Geometrisch
+ * wären 20 cm neben dem Kopf, 1,6 m unter dem Ohr, kaum zu hören; das hier
+ * ist bewusst mehr, weil es um den Wechsel geht und nicht um die Akustik.
+ */
+export const FOOT_PAN = 0.35;
+/** Eigene Schritte am Ohr: Gehen und Rennen gleich laut, Schleichen so viel leiser wie in `NOISE`. */
+export const STEP_GAIN = 0.8;
+export const SNEAK_GAIN = (STEP_GAIN * NOISE.sneak) / NOISE.walk;
+/** Rennen: so viel kürzer ist der Schritt-Takt des Monsters als beim Gehen; Schleichen so viel länger. */
 export const RUN_CADENCE = 0.55;
 export const STALK_CADENCE = 1.4;
 /** Sekunden zwischen zwei Rufen, mindestens und höchstens. */
@@ -61,8 +89,8 @@ export interface Listener {
   at: MapPoint;
   /** Wohin der Kopf schaut, in der Bodenebene; für die Balance. */
   forward: MapPoint;
-  /** Metersekunden echten Gehens; fehlt es, gilt `moving`/`sprinting` des Wesens. */
-  speed?: number;
+  /** Geduckt: Die eigenen Schritte sind leise. */
+  crouched?: boolean;
   /** Im Schrank oder im Schacht: keine eigenen Schritte. */
   concealed?: boolean;
 }
@@ -119,7 +147,10 @@ export class Soundscape {
   heartbeat = 0;
   /** Die Schleifen der Ambiente nach dem letzten Schritt. */
   readonly ambience: AmbienceLevels = { 'ambient-hum': 0, 'ambient-dark': 0 };
-  private stepClock = 0;
+  /** Wo der letzte eigene Schritt fiel — der nächste kommt `STRIDE` Meter weiter. */
+  private lastStep: MapPoint | null = null;
+  /** Welcher Fuß zuletzt auftrat: -1 links, 1 rechts. Der erste Schritt ist der linke. */
+  private foot = 1;
   private monsterClock = 0;
   private callClock = 0;
   private heartClock = 0;
@@ -141,14 +172,18 @@ export class Soundscape {
     const self = selfMonster(input);
 
     // --- Eigene Schritte -------------------------------------------------------
-    const speed = self || me.concealed ? 0 : (me.speed ?? 0);
-    this.stepClock -= step;
-    if (speed > 0.25) {
-      if (this.stepClock <= 0) {
-        this.stepClock += Math.max(0.28, 1.45 / speed);
-        out.push(atEar('player-step', me.at, 0.5 + 0.35 * (stepLoudness(speed) / NOISE.sprint)));
-      }
-    } else this.stepClock = Math.min(this.stepClock, 0.12);
+    // Ein Schritt je Meter Strecke seit dem letzten. Im Versteck und als
+    // Monster wandert die Marke stumm mit: Wer aus dem Schrank steigt, hat
+    // damit noch keinen Meter gemacht — und ein Teleport ist keine Strecke.
+    const gone = this.lastStep
+      ? Math.hypot(me.at.x - this.lastStep.x, me.at.z - this.lastStep.z)
+      : 0;
+    if (self || me.concealed || !this.lastStep || gone > STRIDE_JUMP) this.markStep(me.at);
+    else if (gone > STRIDE) {
+      this.markStep(me.at);
+      this.foot = -this.foot;
+      out.push(footstep(me, this.foot));
+    }
 
     // --- Ambiente ----------------------------------------------------------------
     this.ambient(step, input, me, rng, out);
@@ -257,6 +292,14 @@ export class Soundscape {
     return out;
   }
 
+  /** Die Marke des letzten Schritts setzen — ohne je Bild ein Objekt anzulegen. */
+  private markStep(at: MapPoint): void {
+    if (this.lastStep) {
+      this.lastStep.x = at.x;
+      this.lastStep.z = at.z;
+    } else this.lastStep = { x: at.x, z: at.z };
+  }
+
   /** Brummen, Dunkelheit und die Fehlalarme der Station. */
   private ambient(
     step: number,
@@ -319,7 +362,6 @@ export function listenerOf(input: SoundscapeInput): Listener | null {
   return {
     at: entity.at,
     forward: headingOf(entity.yaw),
-    speed: entity.moving ? (entity.sprinting ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED) : 0,
     concealed: entity.concealed,
   };
 }
@@ -340,6 +382,28 @@ function panOf(me: Listener, from: MapPoint): number {
   if (distance < 0.01 || length < 0.01) return 0;
   const pan = (dx * -me.forward.z + dz * me.forward.x) / (distance * length);
   return Math.min(1, Math.max(-1, pan));
+}
+
+/**
+ * Ein eigener Schritt: `FOOT_OFFSET` neben der Mitte, quer zum Blick — links
+ * oder rechts, je nach Fuß —, und in der Balance auf dieselbe Seite gerückt.
+ * Rechts ist, was `panOf` rechts nennt: quer zum Blick nach Norden liegt
+ * +x rechts. Am Ohr, ohne Entfernung: Es sind die eigenen Füße.
+ */
+function footstep(me: Listener, side: number): SoundEvent {
+  const length = Math.hypot(me.forward.x, me.forward.z);
+  const rx = length > 0.01 ? -me.forward.z / length : 1,
+    rz = length > 0.01 ? me.forward.x / length : 0;
+  const at = { x: me.at.x + rx * FOOT_OFFSET * side, z: me.at.z + rz * FOOT_OFFSET * side };
+  return {
+    cue: 'player-step',
+    at,
+    from: { x: at.x, z: at.z },
+    distance: 0,
+    gain: me.crouched ? SNEAK_GAIN : STEP_GAIN,
+    pan: FOOT_PAN * side,
+    delay: 0,
+  };
 }
 
 function atEar(cue: CueId, at: MapPoint, gain: number, delay = 0): SoundEvent {

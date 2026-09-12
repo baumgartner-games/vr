@@ -32,6 +32,12 @@ export { registerAudioCues, cueFiles } from './cues.register';
 export {
   Soundscape,
   listenerOf,
+  STRIDE,
+  STRIDE_JUMP,
+  FOOT_OFFSET,
+  FOOT_PAN,
+  STEP_GAIN,
+  SNEAK_GAIN,
   CHASE_RANGE,
   NEAR_RANGE,
   RUN_CADENCE,

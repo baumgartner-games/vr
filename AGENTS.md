@@ -7833,7 +7833,27 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   am Funk, und der Streifen ist dann **eine** Zeile hoch statt einer halb
   leeren Tafel. Sitzt dort ein **Bot**, sagt der ohnehin an, wohin es geht
   (`ShipExperience.targetCall`, beim Aufnehmen des Teils), und was ein Bot
-  ansagt, darf auch dastehen.
+  ansagt, darf auch dastehen. **In der ersten Zeile steht außerdem die
+  Bildrate** — dieselbe Messung wie im Grafik-Menü (`FrameStats.latest`,
+  halbe Sekunden, über `WorldContext.frame()`), klein zwischen Uhr und Anzug.
+  Ob die Quest stottert, sah man vorher nur mit offenem Menü, und ein offenes
+  Menü stottert anders als das Spiel.
+- **Die eigenen Schritte des Technikers zählen Meter, keine Uhr**
+  (`audio/soundscape.ts`, `STRIDE`): Die Regie merkt sich, wo der letzte
+  Schritt fiel, und wer sich einen Meter davon entfernt hat, macht den
+  nächsten — abwechselnd 20 cm links und rechts neben der Mitte
+  (`FOOT_OFFSET`), in der Balance auf dieselbe Seite gerückt (`FOOT_PAN`),
+  damit es zwei Füße sind und nicht ein Klopfen in der Kopfmitte. Gehen und
+  Rennen klingen gleich laut (`STEP_GAIN`), Geduckt leise (`SNEAK_GAIN`, das
+  Verhältnis aus `NOISE`); die Brille meldet dafür `rig.crouch`. Im Schrank,
+  im Schacht, in der Bot-Runde und nach einem Sprung von mehr als
+  `STRIDE_JUMP` 3 m (Teleport, Rundenstart) wandert die Marke stumm mit.
+  Vorher lief ein Taktgeber aus dem gemessenen Tempo, und der stolperte
+  doppelt: Das Tempo aus der Kopfbewegung springt von Bild zu Bild, und die
+  Uhr lief im Stand ins Negative — beim Losgehen holte sie drei Schritte in
+  einer halben Sekunde nach. Rein für die Immersion, nicht für das Gehör des
+  Monsters: Was das Monster hört, rechnet weiter `stepLoudness` in
+  `HauntingWorld`.
 - `GridWorld.setSlidingGridDoor` verändert nur Türcollider und physische
   Navkante, nicht den ganzen Level. **Wege benutzen `StationTravelPlan`:**
   funktionale automatische Türen sind dort schon vor Annäherung passierbar,
