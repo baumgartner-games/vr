@@ -78,8 +78,8 @@ Andockstellen: `RoleDefinition.mount(host: RoleHost): RoleView`
 aus `host.snapshot()`, der Grundriss aus `host.spec()`, die **zwei** Griffe
 der Schalttafel aus `host.door/light` (der dritte, `lure`, ist mit dem
 Schallköder wieder gestrichen). Dazu zwei Auskünfte, die weder im Grundriss
-noch im Snapshot stehen können: `host.switches()` — die Tafel, so weit der
-Sicherungskasten sie freigibt — und `host.ledger()` — die Buchführung der
+noch im Snapshot stehen können: `host.switches()` — die ganze Tafel, jede
+Tür und jede Lampe — und `host.ledger()` — die Buchführung der
 Runde (`rules/archiveGoals.ArchiveState`: Uhr, geholte Teile, erledigte
 Aufträge, was der Techniker trägt, was im Gang liegt). Was eine Rolle darüber
 hinaus braucht, kommt über `host.extra` — das Steuer des Monsters

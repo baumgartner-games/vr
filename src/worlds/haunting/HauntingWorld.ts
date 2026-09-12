@@ -24,7 +24,6 @@ import {
   type Rect,
 } from './house';
 import { housePlan } from './plan';
-import { visibleSwitches } from './panel';
 import { flickerLevel, freshSpook, stepHaunt, type Spook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
 import {
@@ -102,6 +101,7 @@ import {
   HOLD_RANGE,
   SLAM_HOLD,
   chooseLock,
+  plainLock,
   LOCK_COOLDOWN,
   freshLocks,
   holdUntil,
@@ -2807,10 +2807,12 @@ export class HauntingWorld extends GridWorld {
    * Schalterliste derselben Tafel (`views/panelRole.ts`).
    *
    * Geschaltet wird nach wie vor über die Tafel aus `panel.ts` und nicht an
-   * ihr vorbei: Wer eine Tür antippt, für die es keinen Schalter gibt, bekommt
-   * `''` zurück und die Ansicht sagt genau das. Damit bleibt die eine Regel,
-   * an der die halbe Rollenverzahnung hängt — nicht jede Tür der Station steht
-   * auf dieser Tafel.
+   * ihr vorbei: Wer etwas antippt, wofür es keinen Schalter gibt (eine Tür,
+   * die nicht im Grundriss steht), bekommt `''` zurück und die Ansicht sagt
+   * genau das. **Versteckt ist nichts mehr**: Die halbe Tafel lag lange hinter
+   * dem Sicherungskasten, und wer die Fähigkeit hielt, bekam für das Licht im
+   * Upper Engine „dafür gibt es keinen Schalter" — der Besitzer wollte das
+   * nicht. Was die Tafel knapp hält, sind Riegel und Lampenbudget.
    *
    * **Einen dritten Griff gab es einmal**: den Schallköder, ein Radio je zwei
    * Zimmer. Er ist gestrichen (`panel.ts`) — wer den richtigen Knopf gefunden
@@ -2826,9 +2828,7 @@ export class HauntingWorld extends GridWorld {
     // Runde nicht mehr: Dann steht die Station, bis jemand sie stoppt oder
     // neu startet.
     if (!this.stepping) return 'Die Runde ist vorbei — erst stoppen oder neu starten.';
-    const entry = visibleSwitches(this.spec.switches, this.state.fuse).find(
-      (one) => one.kind === kind && one.target === target,
-    );
+    const entry = this.spec.switches.find((one) => one.kind === kind && one.target === target);
     if (!entry) return '';
     const on =
       kind === 'door' ? !this.state.shut.includes(target) : this.state.lit.includes(target);
@@ -2849,15 +2849,14 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Ein Schalter ohne Buchführung** — der Test-Zustand kennt weder Riegel
-   * mit Frist noch Lampen mit Budget (`FlatRound.lockDoor`/`switchLight` tun
-   * dort dasselbe): Eine Tür ist zu oder auf, eine Lampe an oder aus.
+   * **Ein Schalter ohne Frist** — der Test-Zustand kennt weder Riegel, die
+   * ablaufen, noch Lampen mit Budget (`FlatRound.lockDoor`/`switchLight` tun
+   * dort dasselbe): Eine Lampe ist an oder aus, eine Tür zu oder auf — **und
+   * gesperrt ist trotzdem nur eine** (`rules/doorLocks.plainLock`): Die
+   * zweite gibt die erste frei, im Test wie in der Mission.
    */
   private flipPlain(kind: 'door' | 'light', target: string): void {
-    if (kind === 'door')
-      this.state.shut = this.state.shut.includes(target)
-        ? this.state.shut.filter((one) => one !== target)
-        : [...this.state.shut, target];
+    if (kind === 'door') this.state.shut = plainLock(this.locks, this.state.shut, target).shut;
     else
       this.state.lit = this.state.lit.includes(target)
         ? this.state.lit.filter((one) => one !== target)

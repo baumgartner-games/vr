@@ -2,16 +2,13 @@ import { repairsFor } from './mission';
 import './haunting.css';
 import './stationDashboard.css';
 import {
-  COLOURS,
   describeSetup,
   isColour,
   isWatcher,
-  MY_ROLE_HINTS,
   MY_ROLE_LABELS,
   NO_ROLE_HINT,
   roleName,
   seatAbilities,
-  seatTitle,
   switchRights,
   withWho,
   type Ability,
@@ -31,10 +28,10 @@ import './monster/monster.register';
 import { listRoles, roles, type RoleHost, type RoleView } from './registry/roles';
 import type { WatchRoleView } from './views/watchRole';
 import { mountSeatView } from './views/seatRole';
+import { roleTabKey, roleTabs } from './views/roleTabs';
 import { defaultLens, seatStation, type WatchLens } from './watchLens';
 import type { ArchiveDesk } from './views/archiveDesk';
 import type { HouseSpec } from './house';
-import { visibleSwitches } from './panel';
 import { seating, shoved, type Claim, type StationId } from './stations';
 import type { HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
@@ -566,40 +563,20 @@ export class StationUi {
 
     const setup = this.host.setup?.() ?? null;
     const me = this.me;
-    const nav = el('nav', 'haunt__roles');
+    // **Dieselben sieben Reiter wie im Kopf der 2D-Welt** (`views/roleTabs.ts`,
+    // `views/roleStrip.ts`): Techniker, die drei Stühle, das Monster, die zwei
+    // Zuschauer — in dieser Reihenfolge, immer alle, als Knöpfe in einem
+    // Panel. Ein Stuhl trägt klein darunter, was er hält („Rot / Archiv");
+    // einer ohne Fähigkeit steht trotzdem da, mit dem Hinweis, dass die Tafel
+    // ihm eine geben muss. Ein Reiter, der bei jeder Runde woanders sitzt, ist
+    // einer, den man jedes Mal sucht.
+    const nav = el('nav', 'haunt__roles role-strip');
     nav.setAttribute('aria-label', 'Rolle');
-    const tab = (id: MyRole, label: string, hint: string): void => {
-      const key = el('button', `haunt__role${me === id ? ' is-mine' : ''}`, label);
-      key.dataset['me'] = id;
-      key.dataset['role'] = id;
-      key.setAttribute('aria-pressed', String(this.tab === id));
-      key.title = hint;
+    for (const entry of roleTabs(setup)) {
+      const key = roleTabKey(entry, { mine: me === entry.id, open: this.tab === entry.id });
+      key.dataset['me'] = entry.id;
       nav.append(key);
-    };
-    // **Die sieben Antworten auf „wer bin ich"** (`rules/roundSetup.MY_ROLES`):
-    // Techniker, die drei Stühle, das Monster, die zwei Zuschauer. Ein Stuhl
-    // trägt den Namen seiner Fähigkeiten mit („Rot · Leitstand"); einer ohne
-    // Fähigkeit steht trotzdem da — mit dem Hinweis, dass die Tafel ihm eine
-    // geben muss. Ein Reiter, der bei jeder Runde woanders sitzt, ist einer,
-    // den man jedes Mal sucht.
-    tab('technician', MY_ROLE_LABELS.technician, MY_ROLE_HINTS.technician);
-    for (const seat of COLOURS) {
-      const title = setup ? seatTitle(setup, seat) : MY_ROLE_LABELS[seat];
-      const off = setup?.seats[seat].who === 'off';
-      const empty = setup ? seatAbilities(setup, seat).length === 0 : false;
-      tab(
-        seat,
-        title,
-        off
-          ? 'In dieser Runde aus — antippen setzt dich trotzdem hin'
-          : empty
-            ? 'Ohne Fähigkeit: im Aufbau eine zuweisen'
-            : MY_ROLE_HINTS[seat],
-      );
     }
-    tab('monster', MY_ROLE_LABELS.monster, MY_ROLE_HINTS.monster);
-    tab('watch:technician', MY_ROLE_LABELS['watch:technician'], MY_ROLE_HINTS['watch:technician']);
-    tab('watch:all', MY_ROLE_LABELS['watch:all'], MY_ROLE_HINTS['watch:all']);
 
     tool('options', '⚙', 'Optionen: Mission starten oder stoppen, zurück zu den Rollen');
     tools.firstElementChild?.setAttribute('aria-pressed', this.menuOpen ? 'true' : 'false');
@@ -835,11 +812,9 @@ export class StationUi {
       nameOf: (peer) => host.nameOf(peer),
       door: (id) => host.door(id),
       light: (id) => host.light(id),
-      // **Der Sicherungskasten entscheidet, was auf der Tafel steht**
-      // (`panel.ts`): Vor ihm ist die Hälfte der Schalter nicht da, und diese
-      // eine Zeile ist der ganze Grund, aus dem Archivar, Techniker und
-      // Schalttafel in dieser Reihenfolge dran sind.
-      switches: () => visibleSwitches(host.spec().switches, host.state().fuse),
+      // Die ganze Tafel: Jede Tür, jede Lampe hat ihren Schalter, und keiner
+      // liegt mehr hinter dem Sicherungskasten (`panel.ts`).
+      switches: () => host.spec().switches,
       notify: (text) => host.notify?.(text),
       extra: { monster: host.monsterPort?.() ?? null, archive: host.archiveDesk?.() ?? null },
     };

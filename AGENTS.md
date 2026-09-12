@@ -2577,7 +2577,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Haunting: Feststecken | Menü → _Feststecken? Zurück auf den Boden_ — mitten ins eigene Zimmer, draußen in die Zentrale | Menü, derselbe Eintrag | – |
 | Haunting: Ducken | körperlich ducken | `Ctrl` halten | – |
 | Haunting: Mission / Test | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei | dito | Handys besetzen Archiv/Schalttafel |
-| Haunting: 2D-Welt, Rolle wechseln | – | Streifen über der Szene: Station, Archiv, Schalttafel, Späher, Monster — nur in einer Test-Runde; Zahnrad = Optionsmenü (dasselbe steht im Schiff im Browser hinter _⚙ Optionen_) | antippen |
+| Haunting: 2D-Welt, Rolle wechseln | – | Panel über der Szene, dieselben sieben Reiter wie auf dem Telefon: Techniker, Rot, Gelb, Blau, Monster, Zuschauer: Techniker, Zuschauer: Alles — Farbplätze und Monster nur in einer Test-Runde; Zahnrad = Optionsmenü (dasselbe steht im Schiff im Browser hinter _⚙ Optionen_) | antippen |
 | Haunting: einzelne Lehrzimmer | Test → _Testdeck: einzelne Übungsräume_; Rückkehrknopf in jedem Raum | dito; mit `E` die echten Beispiele bedienen | – |
 | Haunting: Simulationsflug | linker Stick fliegt, rechter steigt/sinkt | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller | – |
 | Haunting: VR-Komfort | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration | – | – |
@@ -7721,7 +7721,10 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   `DoorLocks` beim Gastgeber, nichts davon auf der Leitung): **Gewollt
   gesperrt ist immer nur eine Tür** — Schalttafel (`applyFlip`), Techniker vor
   Ort (`manualDoor`) und die 2D-Runde (`FlatRound.lockDoor`) teilen sich
-  diesen einen Riegel; die zweite Wahl gibt die erste frei. **Keine Sperre
+  diesen einen Riegel; die zweite Wahl gibt die erste frei. **Auch im
+  Test-Zustand** (`plainLock`, `flipPlain`): ohne Frist, ohne Abkühlung, aber
+  ein Riegel — vorher ließen sich dort beliebig viele Türen sperren, und das
+  war der Befund des Besitzers. **Keine Sperre
   hält ewig:** Zugefallene Türen (der Spuk, `slamDoor`) halten `SLAM_HOLD` =
   20 s, von Hand gesperrte `HOLD_RANGE` = 8–10 s, leicht gewürfelt, damit
   niemand mitzählen kann; `stepLocks` lässt beides je Bild ablaufen, die Tafel
@@ -8522,15 +8525,25 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`main.ts`) und den Streifen sonst mitten in der Runde zurückholte; Kompass
   und Tafel rücken dafür an den oberen Rand (`--orbital-top`). **Oben steht eine Spalte, keine Sammlung von
   Abständen** (`.flat__top`): erste Zeile die **Rollenknöpfe in einem Panel**
-  (`views/roleStrip.ts` — Station, Archiv, Schalttafel, Späher, Monster,
-  Zuschauer) und am Ende der Zeile das Zahnrad, zweite Zeile — links
-  beginnend — der Kasten mit Auftrag und Uhr, dritte Zeile die Sprungknöpfe.
-  Vorher hing jedes davon an `--flat-top` plus einer geratenen Zahl und lag
-  reihum vor dem nächsten — „Zum Spieler" gab es, zu sehen war der
-  Rollenstreifen davor. **„Zuschauer" ist dabei kein Reiter, sondern ein
-  Schalter** in derselben Zeile: Er gibt den Stock dem Techniker aus Zahlen
-  und macht die Karte allwissend, denn ein Zuschauer mit der Sicht des Anzugs
-  sähe ein schwarzes Bild. **Der eigene
+  (`views/roleStrip.ts`, gebaut aus `views/roleTabs.ts` — **dieselben sieben
+  Reiter wie über der Karte des Telefons**: Techniker, Rot, Gelb, Blau,
+  Monster, Zuschauer: Techniker, Zuschauer: Alles) und am Ende der Zeile das
+  Zahnrad, zweite Zeile — links beginnend — der Kasten mit Auftrag und Uhr,
+  dritte Zeile die Sprungknöpfe. Vorher hing jedes davon an `--flat-top` plus
+  einer geratenen Zahl und lag reihum vor dem nächsten — „Zum Spieler" gab es,
+  zu sehen war der Rollenstreifen davor. Und vorher standen im Panel die
+  **Karten** der Registry (Archiv, Schalttafel, Späher) statt der Plätze: In
+  der Mission hieß die Zeile damit anders als im Test auf dem Telefon, und
+  sieben einzeilige Pillen passten nicht hinein — der Besitzer wollte einen
+  Kopf in der Optik des Spiels. Jetzt sind die Pillen **zweizeilig** (Platz,
+  darunter klein, was er hält) und brechen im Panel um. Ein **Farbplatz**
+  schlägt die eine Karte mit allem auf, was der Platz laut Tafel hält
+  (`views/seatRole.ts`), das **Monster** seine Ansicht; **die Zuschauer sind
+  Reiter, die nichts aufschlagen** (`RoleStripHost.pick`): „Zuschauer:
+  Techniker" gibt den Stock dem Techniker aus Zahlen, macht die Karte
+  allwissend (ein Zuschauer mit der Sicht des Anzugs sähe ein schwarzes Bild)
+  und folgt ihm, „Zuschauer: Alles" schlägt dazu die ganze Station als Karte
+  auf; „Techniker" holt den Stock zurück. **Der eigene
   🗺-Knopf ist weg**; die Karte (das alte `MapView` als Overlay) steht als
   Eintrag im Zahnrad, zusammen mit „Menü" und „Verbindung", die die Knöpfe der
   abgeschalteten Kopfzeile drücken (`pressPageButton`) — „Menü" holt die
@@ -8992,9 +9005,12 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
       testen will), zuletzt „Hilfe: Wer sieht was?" — ein Satz je Rolle aus
       `RoleFacts.sees`, und ein Absatz, was Test und Mission unterscheidet.
     - Die **Karte** (`data-page="live"`): erste Zeile **die Rollen als
-      Reiter** (`writeBar`, `[data-me]`) — Techniker, Rot, Gelb, Blau,
-      Monster, _Zuschauer: Techniker_, _Zuschauer: Alles_, immer alle, in
-      dieser Reihenfolge — und am Ende **das Zahnrad** (`[data-options]`);
+      Reiter** (`writeBar`, `[data-me]`, gebaut aus `views/roleTabs.ts` —
+      **dieselben Knöpfe im selben Panel wie im Kopf der 2D-Welt**,
+      `.role-strip`) — Techniker, Rot, Gelb, Blau, Monster, _Zuschauer:
+      Techniker_, _Zuschauer: Alles_, immer alle, in dieser Reihenfolge,
+      zweizeilig (Platz, darunter klein, was er hält) und umbrechend statt
+      scrollend — und am Ende **das Zahnrad** (`[data-options]`);
       zweite Zeile die Leiste mit Systemen, Anzug und Uhr (`writeQuest`),
       dieselbe wie beim Techniker in der 2D-Welt; darunter die Rolle aus der
       Registry. **Die Uhr läuft nur in der Mission**: Sonst steht dort
@@ -9033,9 +9049,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     `HauntState.phase === 'briefing'`): Der Techniker läuft in einer
     **hellen** Station herum (2D: jede Lampe steht in `lit`; 3D:
     `applyLights` behandelt `briefing` wie Testlicht), die Schalttafel
-    schaltet Türen und Lampen — **ohne Buchführung**: kein Riegel mit Frist,
+    schaltet Türen und Lampen — **ohne Frist**: kein Riegel, der abläuft,
     keine Abkühlung, kein Lampenbudget (`FlatRound.lockDoor`/`switchLight`,
-    `HauntingWorld.flipPlain`) —, ein Mensch am Steuer darf das Monster
+    `HauntingWorld.flipPlain`), **aber nur ein Riegel**
+    (`rules/doorLocks.plainLock`: die zweite Tür gibt die erste frei) —, ein
+    Mensch am Steuer darf das Monster
     bewegen (`FlatRound.driver`), aber die **Routine steht still**, niemand
     wird getroffen, kein Spuk, keine Uhr, und jeder darf jede Rolle
     (`RoleStripHost.rights`). Die Uhr des Standes (`time`) läuft trotzdem
@@ -9107,9 +9125,9 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     `HauntingWorld.switchView`) und **„Zurück zu den Rollen"**
     (`SHARED.leave`, `[data-leave]`: die 2D-Welt geht zu, das Telefon steht
     im Aufbau). Neue Runde, „Mit Monster", der dreistufige Rollenknopf und die
-    eingebettete Tafel sind dort weg. Der erste Reiter im Kopf heißt, wer man
-    ist (`ROLE_TABS`: Techniker, Monster, Zuschauer), dann Archiv,
-    Schalttafel, Späher — derselbe Kopf wie auf dem Telefon.
+    eingebettete Tafel sind dort weg. Im Kopf stehen dieselben sieben Reiter
+    wie auf dem Telefon (`views/roleTabs.ts`); gelb umrandet, wer man ist
+    (`FlatMode.myRole`: Techniker, Monster oder Zuschauer: Techniker).
   **Zuschauen in 2D ist eine eigene Rolle** (`FlatRole` `watch`, früher
   `bot`): kein Stock, keine Knöpfe, dafür **beide** Sprungknöpfe („Zum
   Techniker", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".
@@ -9123,10 +9141,10 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   leer, bleibt es bei der **lokalen Bot-Runde** mit dem Techniker aus Zahlen
   (`rules/technicianBot.ts`) — er ist nur keine Rolle mehr, die jemand im
   Aufbau wählt: Angeschaltet wird Zuschauen im Optionsmenü der Runde
-  („Zuschauen: an/aus"), und zwar immer. Wessen Sicht ein Zuschauer *sonst*
-  noch haben kann, steht in der Reiterzeile des Telefons: Archiv, Schalttafel,
-  Späher und der Fernseher sind eigene Ansichten, also führt die Wahl
-  dorthin.
+  („Zuschauen: an/aus", und als die zwei Zuschauer-Reiter im Kopf), und zwar
+  immer. Wessen Sicht ein Zuschauer *sonst* noch haben kann, steht in
+  derselben Reiterzeile: Rot, Gelb und Blau sind eigene Karten, also führt
+  die Wahl dorthin.
   Beides ist **lokal** und sperrt keinen Techniker im Schiff; deshalb
   bleibt Zuschauen auch dann wählbar, wenn im Raum schon jemand spielt.
   2D-**Spielen** und 2D-**Trainieren** sind dagegen die gemeinsame Runde übers
@@ -9176,10 +9194,17 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     (`rules/doorLocks.ts`, `LOCK_COOLDOWN` = 40 s), und wofür es keinen
     Schalter gibt, sagt die Ansicht ebenfalls. Geschaltet wird weiterhin über
     die Tafel aus `panel.ts` (`HauntingWorld.panelSwitch` sucht den Schalter
-    mit diesem Ziel; welche Schalter freigegeben sind, sagt weiter der Wirt
-    über `RoleHost.switches` → `visibleSwitches(spec.switches, state.fuse)`):
-    Vor dem Sicherungskasten ist die Hälfte nicht da, und die Karte schaltet
-    nicht an der Tafel vorbei.
+    mit diesem Ziel; die Liste gibt der Wirt über `RoleHost.switches`) — **und
+    die Tafel ist vollständig**: Jede Tür und jede Lampe hat ihren Schalter
+    von Anfang an. Die Hälfte lag lange hinter dem Sicherungskasten
+    (`hideHalf`, `visibleSwitches`, `HauntState.fuse`); in der 2D-Welt legte
+    ihn nie jemand um, im Schiff erst die erste Reparatur, und wer die
+    Fähigkeit hielt, bekam für das Licht im Upper Engine oder das Schott zum
+    Reaktor-Ostgang „dafür gibt es keinen Schalter". Der Besitzer nannte das
+    einen Fehler, und die Verzahnung ist weg: Knapp halten die Tafel jetzt
+    Riegel und Lampenbudget, nicht eine fehlende Hälfte. `HauntState.fuse`
+    bleibt im Protokoll stehen (die Sicherung ist weiter ein Gegenstand auf
+    der Karte), nur hängt kein Schalter mehr daran.
   - **Späher** (`views/scoutRole.ts`): alle `PING_PERIOD` = 3,5 s **eine
     Peilung** — ein grüner Punkt für den Techniker, ein roter für das Monster,
     genau dort, wo sie in dem Moment waren. Dazwischen verblassen sie und

@@ -9,6 +9,7 @@ import {
   pryChance,
   pryLock,
   pryTries,
+  plainLock,
   coolingUntil,
   mayLock,
   releaseLock,
@@ -26,6 +27,33 @@ describe('doorLocks', () => {
     shut = chooseLock(locks, shut, 'd2');
     expect(shut).toEqual(['d2']);
     expect(locks.chosen).toBe('d2');
+  });
+
+  /**
+   * **Auch im Test hält ein Spieler nur eine Tür.** Vor der Mission schaltet
+   * die Tafel ohne Frist und ohne Abkühlung — wer dort drei Türen antippte,
+   * hatte drei Riegel, und das war der Befund des Besitzers.
+   */
+  test('der Schalter des Tests: eine Tür, ohne Frist, und die zweite gibt die erste frei', () => {
+    const locks = freshLocks();
+    let out = plainLock(locks, [], 'd1');
+    expect(out).toEqual({ shut: ['d1'], locked: true, released: '' });
+    // Kein Balken und kein Ablauf: Der Riegel hält, bis jemand ihn löst.
+    expect(holdUntil(locks, 'd1')).toBeNull();
+    expect(stepLocks(locks, out.shut, 1000).opened).toEqual([]);
+    expect(locks.chosen).toBe('d1');
+    out = plainLock(locks, out.shut, 'd2');
+    expect(out).toEqual({ shut: ['d2'], locked: true, released: 'd1' });
+    // Zurücknehmen geht sofort — und die Tür ist danach nicht „warm".
+    out = plainLock(locks, out.shut, 'd2');
+    expect(out).toEqual({ shut: [], locked: false, released: '' });
+    expect(locks.chosen).toBe('');
+    expect(coolingUntil(locks, 'd2')).toBeNull();
+    expect(mayLock(locks, 'd2', 0)).toBe(true);
+    // Eine zugefallene Tür bleibt dabei zu — sie gehört dem Spuk, nicht dem Spieler.
+    let shut = slamDoor(locks, [], 'slammed', 10);
+    shut = plainLock(locks, shut, 'a').shut;
+    expect(shut.sort()).toEqual(['a', 'slammed']);
   });
 
   test('eine zugefallene Tür bleibt, wenn die Tafel eine andere wählt', () => {

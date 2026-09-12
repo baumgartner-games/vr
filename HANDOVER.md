@@ -269,9 +269,9 @@ und nicht wieder in `stationUi.ts`.
 
 ### Was offen bleibt
 
-- **Der Sicherungskasten wirkt in der 2D-Welt nie.** `FlatRound` setzt
-  `fuse: false` und legt ihn nie um; die Tafel zeigt dort also dauerhaft nur
-  die sichtbare Hälfte. In der 3D-Welt gibt es den Kasten als Gegenstand.
+- ~~**Der Sicherungskasten wirkt in der 2D-Welt nie.**~~ Erledigt: Die
+  Tafel versteckt nichts mehr (`panel.ts`), jede Tür und jede Lampe ist von
+  Anfang an schaltbar — Entscheidung des Besitzers.
 - **Über das Netz sagt ein Telefon weiterhin *eine* Rolle an**
   (`Claim.station`), nicht seine Fähigkeiten. Wer zwei hält, meldet die des
   zuletzt gewählten Reiters. Die feinere Ansage gehört in `net.ts`.
@@ -340,11 +340,9 @@ Branch `claude/non-vr-roles-mapview-m0gjby` (Claude Code im Browser).
 
 ### Was offen bleibt
 
-- **Der Sicherungskasten hat keine Wirkung mehr.** `visibleSwitches` wird in
-  `panelSwitch` mit `state.fuse` gefragt (vorher stand dort hart `true`),
-  also ist die halbe Tafel wieder erst nach dem Kasten schaltbar. Ob das so
-  gewollt ist oder ob die Karte alles schalten darf, entscheidet der
-  Auftraggeber.
+- ~~**Der Sicherungskasten hat keine Wirkung mehr.**~~ Entschieden: Die
+  Karte darf alles schalten. `visibleSwitches` und `PanelSwitch.hidden` sind
+  weg (`panel.ts`).
 - **`archiveMap.ts`** (Altmodul samt Test) ist weiterhin unbenutzt. Es war
   schon vorher tot; gelöscht wurde es nicht, weil es außerhalb dieses
   Auftrags liegt.

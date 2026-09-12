@@ -18,12 +18,17 @@ import type { HouseDoor, HouseRoom } from './house';
  * gleich mit. (Wenn später einmal ein Verräter mitspielt, ist genau **das**
  * seine Waffe. Bis dahin: keine Lügen.)
  *
- * **Die Hälfte der Tafel ist tot, bis jemand den Sicherungskasten findet.**
- * Vorher hat der Hacker vier Schalter und langweilt sich fast; danach hat er
- * zwölf und ist der wichtigste Mensch in der Einsatzzentrale. Der Weg dorthin führt über den
- * Archivar (er weiß, in welchem Zimmer der Kasten hängt) und über den
- * VR-Spieler (nur er kann ihn umlegen) — es ist die eine Stelle, an der drei
- * Rollen zwingend nacheinander dran sind.
+ * **Jede Tür und jede Lampe hat einen Schalter, und alle sind von Anfang an
+ * da.** Lange lag die Hälfte davon hinter dem Sicherungskasten: erst vier
+ * Schalter, nach dem Kasten zwölf. Das war als Verzahnung gedacht — Archivar,
+ * Techniker, Tafel nacheinander —, und es war im Spiel ein Fehler: In der
+ * 2D-Welt legte nie jemand den Kasten um, im Schiff erst nach der ersten
+ * Reparatur, und wer die Fähigkeit Schalttafel hielt, tippte auf das Licht im
+ * Upper Engine oder auf das Schott zum Reaktor-Ostgang und bekam „dafür gibt
+ * es keinen Schalter". Der Besitzer hat entschieden: Wer schalten darf, darf
+ * alles schalten. Was die Tafel knapp hält, sind seither die Regeln der
+ * Riegel und Lampen (`rules/doorLocks.ts`, `rules/lamps.ts`) — ein Riegel,
+ * zwei Lampen —, nicht eine Liste, die zur Hälfte fehlt.
  */
 export interface PanelSwitch {
   id: string;
@@ -32,8 +37,6 @@ export interface PanelSwitch {
   kind: 'light' | 'door';
   /** Die Zimmer- oder Tür-Kennung, auf die der Schalter wirkt. */
   target: string;
-  /** Ob er erst nach dem Sicherungskasten auftaucht. */
-  hidden: boolean;
   /** Der Anfangszustand: Licht aus, Türen offen. */
   on: boolean;
 }
@@ -67,7 +70,6 @@ export function buildPanel(
       label: '',
       kind: 'light',
       target: room.id,
-      hidden: false,
       on: false,
     });
   }
@@ -78,7 +80,6 @@ export function buildPanel(
       label: '',
       kind: 'door',
       target: door.id,
-      hidden: false,
       // Türen stehen zu Beginn offen: Ein Haus, das man erst aufschließen
       // muss, um es zu betreten, fängt mit Warten an.
       on: true,
@@ -87,7 +88,6 @@ export function buildPanel(
 
   const mixed = rng.shuffle(out);
   label(rng, mixed, rooms, doors);
-  hideHalf(rng, mixed);
   return mixed;
 }
 
@@ -134,28 +134,4 @@ function label(
 
 function sortLabel(kind: PanelSwitch['kind']): string {
   return kind === 'light' ? 'Licht' : 'Tür';
-}
-
-/**
- * Etwa die Hälfte liegt hinter dem Sicherungskasten — aber **nie alles
- * Licht**: Eine Tafel, auf der zu Beginn kein einziger Schalter etwas
- * Sichtbares tut, sieht kaputt aus und nicht spannend.
- */
-function hideHalf(rng: Rng, list: PanelSwitch[]): void {
-  let visibleLights = 0;
-  for (const entry of list) {
-    if (entry.kind === 'light' && visibleLights < 2) {
-      visibleLights++;
-      continue;
-    }
-    entry.hidden = rng.chance(0.5);
-  }
-}
-
-/** Was der Hacker gerade sehen darf. */
-export function visibleSwitches(
-  list: readonly PanelSwitch[],
-  fuseOn: boolean,
-): readonly PanelSwitch[] {
-  return fuseOn ? list : list.filter((entry) => !entry.hidden);
 }

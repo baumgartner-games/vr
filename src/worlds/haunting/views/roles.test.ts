@@ -10,8 +10,13 @@ import { mountSeatView } from './seatRole';
 import type { MapSnapshot } from '../map/mapSnapshot';
 import { mountWatchView } from './watchRole';
 import { RoleStrip } from './roleStrip';
-import { visibleSwitches } from '../panel';
-import { NOT_IN_CENTRE, switchRights } from '../rules/roundSetup';
+import {
+  NOT_IN_CENTRE,
+  defaultSetup,
+  switchRights,
+  withPower,
+  type RoundSetup,
+} from '../rules/roundSetup';
 import { DROPPED_SEEN } from '../rules/archiveGoals';
 import { TILE } from '../../nav/navTile';
 import './archive.register';
@@ -82,7 +87,7 @@ function hostFor(round: FlatRound, extra?: unknown): RoleHost & { said: string[]
     nameOf: (peer) => peer,
     door: (id) => round.lockDoor(id),
     light: (id) => round.switchLight(id),
-    switches: () => visibleSwitches(round.house.switches, round.state().fuse),
+    switches: () => round.house.switches,
     notify: (text) => said.push(text),
     ...(extra === undefined ? {} : { extra }),
   };
@@ -493,38 +498,92 @@ describe('Der Fernseher', () => {
 });
 
 describe('Der Rollenstreifen über der 2D-Welt', () => {
+  /** Eine Tafel: Rot hält die Schalttafel, Blau Archiv und Späher, Gelb nichts. */
+  const table = (): RoundSetup => {
+    let setup = withPower(defaultSetup(), 'red', 'panel', true);
+    setup = withPower(setup, 'blue', 'archive', true);
+    return withPower(setup, 'blue', 'scout', true);
+  };
+
   /**
-   * **Nichts wird neu aufgebaut.** Der Streifen legt eine Rollenansicht über
-   * die laufende Runde; dieselbe Runde rechnet weiter, und die Rolle liest
-   * ihren Snapshot.
+   * **Dieselben sieben Reiter wie auf dem Telefon** (`views/roleTabs.ts`):
+   * die Plätze, nicht die Karten. Ein Farbplatz schlägt die eine Karte mit
+   * allem auf, was er hält (`seatRole.ts`); **nichts wird neu aufgebaut** —
+   * dieselbe Runde rechnet weiter, und die Rolle liest ihren Snapshot.
    */
-  it('legt eine Rolle über dieselbe laufende Runde und nimmt sie wieder weg', () => {
+  it('zeigt die sieben Plätze und legt einen Farbplatz über dieselbe laufende Runde', () => {
     const round = new FlatRound(21, { test: true });
     const host = hostFor(round);
     const changes: string[] = [];
+    const picked: string[] = [];
     const strip = new RoleStrip({
       roleHost: () => host,
-      homeLabel: () => 'Station',
+      setup: table,
+      me: () => 'technician',
       onChange: (id) => changes.push(id),
+      pick: (id) => picked.push(id),
     });
     document.body.append(strip.element, strip.stage);
+    const keys = [...strip.element.querySelectorAll<HTMLButtonElement>('[data-role-strip]')];
+    expect(keys.map((key) => key.dataset['roleStrip'])).toEqual([
+      'technician',
+      'red',
+      'yellow',
+      'blue',
+      'monster',
+      'watch:technician',
+      'watch:all',
+    ]);
+    // Zweizeilig: der Platz, darunter, was er hält — so passen sieben ins Panel.
+    expect(keys.map((key) => key.querySelector('strong')?.textContent)).toEqual([
+      'Techniker',
+      'Rot',
+      'Gelb',
+      'Blau',
+      'Monster',
+      'Zuschauer',
+      'Zuschauer',
+    ]);
+    expect(keys[1]!.querySelector('small')?.textContent).toBe('Schalttafel');
+    expect(keys[3]!.querySelector('small')?.textContent).toBe('Aufklärung');
+    expect(keys[5]!.querySelector('small')?.textContent).toBe('Techniker');
+    expect(keys[6]!.querySelector('small')?.textContent).toBe('Alles');
+    expect(keys[0]!.classList.contains('is-mine')).toBe(true);
+    expect(keys[0]!.classList.contains('is-active')).toBe(true);
     expect(strip.active).toBe('');
-    expect(strip.roles.map((role) => role.id)).not.toContain('watch');
 
-    strip.show('hack');
-    expect(strip.active).toBe('hack');
-    expect(changes).toEqual(['hack']);
+    strip.show('red');
+    expect(strip.active).toBe('red');
+    expect(changes).toEqual(['red']);
     expect(strip.stage.hidden).toBe(false);
+    expect(strip.stage.querySelector('.role--seat')).not.toBeNull();
     expect(strip.stage.querySelector('.role--panel')).not.toBeNull();
+    expect(strip.stage.querySelector('.role--archive')).toBeNull();
     strip.update(0);
     const before = round.state().time;
     round.step(0.1, { x: 0, z: 0, sprint: false });
     expect(round.state().time).toBeGreaterThan(before);
 
-    strip.show('');
+    // Blau hält zwei Fähigkeiten — beide auf einer Karte, die von Rot ist weg.
+    strip.show('blue');
+    expect(strip.active).toBe('blue');
+    expect(strip.stage.querySelectorAll('.role--seat')).toHaveLength(1);
+    expect(strip.stage.querySelector('.role--archive')).not.toBeNull();
+    expect(strip.stage.querySelector('.role--scout')).not.toBeNull();
+    expect(strip.stage.querySelector('.role--panel')).toBeNull();
+
+    // Gelb hält nichts: kein leeres Blatt, sondern ein Satz.
+    strip.show('yellow');
+    expect(strip.active).toBe('blue');
+    expect(host.said.at(-1)).toContain('Gelb hält keine Fähigkeit');
+
+    // Techniker und Zuschauer schlagen nichts auf — sie gehen an den Wirt.
+    strip.show('watch:all');
     expect(strip.active).toBe('');
     expect(strip.stage.hidden).toBe(true);
-    expect(strip.stage.querySelector('.role--panel')).toBeNull();
+    expect(picked).toEqual(['watch:all']);
+    strip.show('technician');
+    expect(picked).toEqual(['watch:all', 'technician']);
     strip.dispose();
   });
 
@@ -532,13 +591,15 @@ describe('Der Rollenstreifen über der 2D-Welt', () => {
    * **Mitten in einer Mission wechselt hier niemand die Rolle**
    * (`rules/roundSetup.switchRights`): Wer in 2D spielt, ist der Techniker und
    * steht im Anzug. In einer Test-Runde darf er alles — dafür ist sie da.
+   * Zusehen und zurück an den Stock gehen immer.
    */
   it('lässt nur in einer Test-Runde wechseln und sagt sonst, warum nicht', () => {
     const round = new FlatRound(21, { test: false });
     const host = hostFor(round);
     const strip = new RoleStrip({
       roleHost: () => host,
-      homeLabel: () => 'Station',
+      setup: table,
+      me: () => 'technician',
       onChange: () => {},
       rights: () => {
         const rights = switchRights({
@@ -551,15 +612,19 @@ describe('Der Rollenstreifen über der 2D-Welt', () => {
     });
     document.body.append(strip.element, strip.stage);
     expect(strip.rights.allowed).toBe(false);
-    const key = strip.element.querySelector<HTMLButtonElement>('[data-role-strip="hack"]')!;
-    expect(key.disabled).toBe(true);
-    expect(key.title).toBe(NOT_IN_CENTRE);
-    strip.show('hack');
+    const key = (id: string): HTMLButtonElement =>
+      strip.element.querySelector<HTMLButtonElement>(`[data-role-strip="${id}"]`)!;
+    expect(key('red').disabled).toBe(true);
+    expect(key('red').title).toBe(NOT_IN_CENTRE);
+    expect(key('monster').disabled).toBe(true);
+    expect(key('technician').disabled).toBe(false);
+    expect(key('watch:technician').disabled).toBe(false);
+    strip.show('red');
     expect(strip.active).toBe('');
 
     round.state().crew.options.test = true;
-    strip.show('hack');
-    expect(strip.active).toBe('hack');
+    strip.show('red');
+    expect(strip.active).toBe('red');
     strip.dispose();
   });
 });

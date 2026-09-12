@@ -70,8 +70,8 @@ export interface RoleHost {
   nameOf(peer: string): string;
   /**
    * **Die zwei Griffe der Schalttafel**, jeder mit der Zeile, die er dem
-   * Spieler sagt — `''` heißt: dafür gibt es keinen Schalter (die Hälfte der
-   * Tafel liegt hinter dem Sicherungskasten, `panel.ts`).
+   * Spieler sagt — `''` heißt: dafür gibt es keinen Schalter (etwas, das gar
+   * nicht auf der Tafel steht, `panel.ts`; versteckt ist dort nichts mehr).
    *
    * Es waren einmal drei: Der dritte war der Schallköder, ein Radio je zwei
    * Zimmer, das das Monster anlockte. Er ist weg, und zwar überall — wer den
@@ -81,14 +81,11 @@ export interface RoleHost {
   door(doorId: string): string;
   light(roomId: string): string;
   /**
-   * **Die Tafel, so weit sie zu sehen ist** (`panel.visibleSwitches`) — keine
-   * Aktion, sondern die Auskunft, welche Schalter es überhaupt gibt und wie
-   * sie beschriftet sind.
-   *
-   * Sie steht hier und nicht im Grundriss, obwohl `spec().switches` alle
-   * kennt: Welche Hälfte davon vor dem Sicherungskasten sichtbar ist, weiß
-   * nur der Wirt (`HauntState.fuse`), und eine Rolle, die sich die Liste
-   * selbst zusammensuchte, verriete genau das, was der Kasten verbergen soll.
+   * **Die Tafel** (`panel.ts`) — keine Aktion, sondern die Auskunft, welche
+   * Schalter es gibt und wie sie beschriftet sind. Sie war einmal nur die
+   * sichtbare Hälfte (vor dem Sicherungskasten); heute ist es die ganze
+   * Liste, und der Griff bleibt hier, damit eine Rolle nicht selbst im
+   * Grundriss wühlt.
    */
   switches(): readonly import('../panel').PanelSwitch[];
   notify(message: string): void;

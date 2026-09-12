@@ -39,10 +39,10 @@ import {
   powersOf,
   switchRights,
   withWho,
+  type MyRole,
   type RoundSetup,
   type SoloPowers,
 } from '../rules/roundSetup';
-import { visibleSwitches } from '../panel';
 import { archiveRadio } from '../rules/archiveRadio';
 import { TechnicianBot } from '../rules/technicianBot';
 import { MonsterSession } from '../monster/monsterSession';
@@ -214,13 +214,6 @@ const ROLE_LABELS: Record<FlatRole, string> = {
   technician: 'Du spielst den Techniker',
   monster: 'Du spielst das Monster',
   watch: 'Du siehst zu',
-};
-
-/** Der erste Reiter im Kopf der 2D-Welt — wer man gerade ist. */
-const ROLE_TABS: Record<FlatRole, string> = {
-  technician: 'Techniker',
-  monster: 'Monster',
-  watch: 'Zuschauer',
 };
 
 /** Ohne Tafel: die Verteilung, die Rolle und Test der alten Optionen meinen. */
@@ -469,10 +462,12 @@ export class FlatMode {
     this.top.append(this.topRow, this.hudRow, this.jump);
     this.strip = new RoleStrip({
       roleHost: () => this.roleHost(),
-      // **Der erste Reiter heißt, wer man ist** — derselbe Kopf wie auf dem
-      // Telefon (`stationUi.ts`): Techniker, Monster oder Zuschauer, dann die
-      // drei Karten der Zentrale.
-      homeLabel: () => ROLE_TABS[this.role],
+      // **Dieselben sieben Reiter wie auf dem Telefon** (`views/roleTabs.ts`):
+      // Techniker, Rot, Gelb, Blau, Monster, die zwei Zuschauer. Gelb umrandet
+      // steht, wer man hier ist (`myRole`); ein Farbplatz schlägt die Karte
+      // mit den Fähigkeiten auf, die die Tafel ihm gibt.
+      setup: () => this.setup,
+      me: () => this.myRole,
       onChange: () => this.applyOverlay(),
       // **Wer hier sitzt, ist der Techniker** — und der wechselt mitten in
       // einer Mission die Rolle nicht (`rules/roundSetup.switchRights`): Er
@@ -487,22 +482,22 @@ export class FlatMode {
         });
         return { allowed: allowed.abilities, why: allowed.why };
       },
-      // **Zuschauer steht in derselben Zeile wie die Rollen.** Er beantwortet
-      // dieselbe Frage — wessen Bild sehe ich? —, schlägt aber nichts auf: Er
-      // gibt den Stock dem Techniker aus Zahlen und macht die Karte allwissend
-      // (`registry/viewModes.ts`, „Alles sehen"). Am Netz ist er ohnehin der
-      // Zustand; dort ist der Knopf nur die Anzeige davon.
-      extras: () => [
-        {
-          id: 'watch',
-          label: 'Zuschauer',
-          active: this.role === 'watch',
-          title: 'Alles sehen · der Techniker aus Zahlen spielt weiter',
-        },
-      ],
-      onExtra: (id) => {
-        if (id !== 'watch') return;
-        this.setWatching(this.role !== 'watch');
+      // **Techniker und Zuschauer schlagen nichts auf**, sie sagen, wer man
+      // jetzt ist: „Techniker" zurück an den Stock; „Zuschauer: Techniker"
+      // gibt den Stock dem Techniker aus Zahlen, macht die Karte allwissend
+      // (`registry/viewModes.ts`, „Alles sehen") und folgt ihm; „Zuschauer:
+      // Alles" dazu die ganze Station von oben — die Karte als Overlay. Am
+      // Netz ist Zusehen ohnehin der Zustand; dort ist der Reiter nur die
+      // Anzeige davon.
+      pick: (id) => {
+        if (id === 'technician') {
+          if (this.role === 'watch') this.setWatching(false);
+          return;
+        }
+        if (this.role !== 'watch') this.setWatching(true);
+        this.scene.follow(PLAYER_ID);
+        this.map.follow(PLAYER_ID);
+        if (id === 'watch:all') this.setOverlay('map');
       },
     });
     // Der Rollenstreifen ist die erste Zeile des Kopfs und kein eigenes
@@ -576,7 +571,7 @@ export class FlatMode {
     this.scoutClock = 0;
     this.applyOverlay();
     this.refreshCorners();
-    // Der erste Reiter heißt, wer man jetzt ist (`ROLE_TABS`).
+    // Gelb umrandet steht, wer man jetzt ist (`myRole`).
     this.strip.refresh();
   }
 
@@ -665,9 +660,8 @@ export class FlatMode {
       nameOf: (peer) => peer,
       door: (id) => this.round.lockDoor(id),
       light: (id) => this.round.switchLight(id),
-      // Die halbe Tafel liegt hinter dem Sicherungskasten (`panel.ts`) — auch
-      // hier, wo der Techniker sie sich selbst aufschlägt.
-      switches: () => visibleSwitches(this.round.house.switches, this.round.state().fuse),
+      // Die ganze Tafel — kein Sicherungskasten mehr davor (`panel.ts`).
+      switches: () => this.round.house.switches,
       notify: (text) => this.say(text),
     };
   }
@@ -692,6 +686,12 @@ export class FlatMode {
   /** Wer gerade spielt — für Tests und die Anzeige. */
   get role(): FlatRole {
     return this.session ? 'monster' : this.watching || this.netWatch ? 'watch' : 'technician';
+  }
+
+  /** Dieselbe Antwort als Reiter des gemeinsamen Kopfs (`views/roleTabs.ts`). */
+  private get myRole(): MyRole {
+    const role = this.role;
+    return role === 'watch' ? 'watch:technician' : role;
   }
 
   /** Ob ein Techniker aus Zahlen am Stock steht — nur in der Vorführung. */
