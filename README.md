@@ -219,14 +219,17 @@ sie wirklich hält. **Ein Bot auf einer Fähigkeit gibt sie dem Techniker
 selbst:** Wer allein in der 2D-Welt spielt, sieht die
 Peilung des Monsters alle paar Sekunden, sperrt Türen und schaltet Lampen per
 Tipp auf die Karte und schlägt mit einem Tipp aufs Zimmer die Akte mit den
-Codes auf. **Gewollt gesperrt ist immer nur eine Tür** — wer eine zweite
-wählt, gibt die erste frei; Türen, die das Monster zuschlägt, gehen nach
-zwanzig Sekunden von selbst wieder auf oder vorher durch die Schalttafel.
+Codes auf. **Gewollt gesperrt ist immer nur eine Tür, und sie hält, bis sie
+von selbst fällt** — acht bis zehn Sekunden, mit rotem Balken über der Tür;
+solange lässt sich weder sie wieder öffnen noch eine zweite sperren, und der
+Schalter sagt, warum. Das gilt im Test wie in der Mission. Türen, die das
+Monster zuschlägt, gehen nach zwanzig Sekunden von selbst wieder auf oder
+vorher durch die Schalttafel.
 
 **Ein Riegel, der gefallen ist, bleibt vierzig Sekunden offen.** Die Tür wird
-dabei **grün** und zählt herunter — auf der Schalttafel steht die Restzeit
-unter der Beschriftung („noch warm · 27 s"), auf der Karte und in der 2D-Szene
-läuft derselbe Balken wie beim Halten, nur grün statt rot. So lange lässt sie
+dabei **grün, blinkt** und zählt herunter — auf der Karte und in der 2D-Szene
+läuft derselbe Balken wie beim Halten, nur grün statt rot, und Blatt und
+Schwelle zucken im Sekundentakt in Grün. So lange lässt sie
 sich nicht wieder verriegeln, und das ist Absicht: Sonst wurde aus dem Riegel
 das Spiel „ich schließe immer die Tür vor dem Monster", und das Vieh stand
 fest. Dazu kommt, dass es lieber **zieht** als läuft: Steht ein Umweg von mehr

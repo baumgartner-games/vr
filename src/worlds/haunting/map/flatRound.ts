@@ -49,8 +49,8 @@ import {
   HOLD_RANGE,
   LOCK_COOLDOWN,
   SLAM_HOLD,
+  LOCK_BLOCK_TEXT,
   chooseLock,
-  plainLock,
   coolingUntil,
   freshLocks,
   holdUntil,
@@ -943,6 +943,7 @@ export class FlatRound implements MapSource {
     // kann (`HauntState.cooling`) — in 2D ist das derselbe Stand, den auch das
     // Telefon liest.
     this.haunt.cooling = this.locks.cooling;
+    this.haunt.held = this.locks.chosen;
     // Und die Lampen gehen von selbst wieder aus (`rules/lamps.ts`): erst das
     // Flackern als Vorwarnung, dann dunkel. Gemeldet wird nur, was im eigenen
     // Raum passiert — anderswo sieht der Techniker es ja nicht.
@@ -1847,34 +1848,23 @@ export class FlatRound implements MapSource {
 
   /**
    * **Eine Tür gewollt sperren oder freigeben** — vor Ort oder von der
-   * Schalttafel aus: Gewollt gesperrt ist immer nur eine; die vorherige geht
-   * dabei auf (`rules/doorLocks.ts`). Zugefallene darf man jederzeit freigeben.
+   * Schalttafel aus: Gewollt gesperrt ist immer nur eine, sie hält bis zum
+   * Ablauf, und die nächste wartet so lange (`rules/doorLocks.ts`).
+   * Zugefallene darf man jederzeit freigeben.
    *
    * @returns die Zeile für den Spieler.
    */
   lockDoor(id: string): string {
     const door = this.house.doors.find((d) => d.id === id);
     if (!door || !this.stepping) return '';
-    // **Im Test ohne Frist**: kein Riegel, der abläuft, keine Tür, die vierzig
-    // Sekunden warm bleibt — man will sehen, ob der Tipp trifft, und ihn
-    // gleich wieder zurücknehmen können. Aber auch hier hält ein Spieler nur
-    // **eine** Tür (`rules/doorLocks.plainLock`): Die zweite gibt die erste frei.
-    if (!this.live) {
-      const out = plainLock(this.locks, this.haunt.shut, id);
-      this.haunt.shut = out.shut;
-      if (!out.locked) return 'Tür entriegelt.';
-      return out.released ? 'Tür verriegelt · die vorherige ist wieder offen.' : 'Tür verriegelt.';
-    }
-    const before = this.locks.chosen;
+    // **Auch im Test mit Frist** — derselbe Riegel wie in der Mission: Er
+    // hält, bis er fällt, eine zweite Tür wartet, und eine eben freigewordene
+    // bleibt einen Moment frei (`rules/doorLocks.ts`). Wer im Test ohne Frist
+    // schalten durfte, sah nie den Balken und lernte ein anderes Spiel.
     const out = toggleLock(this.locks, this.haunt.shut, id, this.haunt.time, () => this.rng.next());
     this.haunt.shut = out.shut;
-    // Eine eben freigewordene Tür bleibt einen Moment frei (`LOCK_COOLDOWN`),
-    // sonst kommt niemand mehr hindurch, der davor steht.
-    if (out.blocked) return 'Der Riegel ist noch warm.';
-    if (!out.locked) return 'Tür entriegelt.';
-    return before && before !== id
-      ? 'Tür verriegelt · die vorherige ist wieder offen.'
-      : 'Tür verriegelt.';
+    if (out.blocked) return LOCK_BLOCK_TEXT[out.blocked];
+    return out.locked ? 'Tür verriegelt.' : 'Tür entriegelt.';
   }
 
   /**

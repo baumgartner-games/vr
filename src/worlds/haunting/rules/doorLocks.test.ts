@@ -9,8 +9,9 @@ import {
   pryChance,
   pryLock,
   pryTries,
-  plainLock,
   coolingUntil,
+  lockBlock,
+  LOCK_BLOCK_TEXT,
   mayLock,
   releaseLock,
   slamDoor,
@@ -20,49 +21,57 @@ import {
 } from './doorLocks';
 
 describe('doorLocks', () => {
-  test('gewollt gesperrt ist immer nur eine Tür — die zweite gibt die erste frei', () => {
-    const locks = freshLocks();
-    let shut = chooseLock(locks, [], 'd1');
-    expect(shut).toEqual(['d1']);
-    shut = chooseLock(locks, shut, 'd2');
-    expect(shut).toEqual(['d2']);
-    expect(locks.chosen).toBe('d2');
-  });
-
   /**
-   * **Auch im Test hält ein Spieler nur eine Tür.** Vor der Mission schaltet
-   * die Tafel ohne Frist und ohne Abkühlung — wer dort drei Türen antippte,
-   * hatte drei Riegel, und das war der Befund des Besitzers.
+   * **Ein Riegel, eine Frist, und die nächste Entscheidung erst danach.**
+   * Lange gab die zweite Wahl die erste frei und ein zweiter Tipp öffnete die
+   * gehaltene Tür sofort — ein Schalter im Takt, und das Monster stand vor
+   * einer Wand aus Riegeln, die man von Tür zu Tür trug. Der Besitzer wollte:
+   * gehalten bis zum Ablauf, keine zweite Tür solange, und danach dieselbe
+   * Tür erst einmal nicht wieder.
    */
-  test('der Schalter des Tests: eine Tür, ohne Frist, und die zweite gibt die erste frei', () => {
+  test('gewollt gesperrt ist immer nur eine Tür — die zweite wartet, bis die erste von selbst aufgeht', () => {
     const locks = freshLocks();
-    let out = plainLock(locks, [], 'd1');
-    expect(out).toEqual({ shut: ['d1'], locked: true, released: '' });
-    // Kein Balken und kein Ablauf: Der Riegel hält, bis jemand ihn löst.
-    expect(holdUntil(locks, 'd1')).toBeNull();
-    expect(stepLocks(locks, out.shut, 1000).opened).toEqual([]);
+    let shut = chooseLock(locks, [], 'd1', 0, () => 0);
+    expect(shut).toEqual(['d1']);
+    // Eine zweite Tür: nichts passiert, und der Grund heißt „belegt".
+    expect(lockBlock(locks, shut, 'd2', 1)).toBe('busy');
+    expect(chooseLock(locks, shut, 'd2', 1)).toEqual(['d1']);
+    expect(toggleLock(locks, shut, 'd2', 1)).toEqual({
+      shut: ['d1'],
+      locked: false,
+      blocked: 'busy',
+    });
     expect(locks.chosen).toBe('d1');
-    out = plainLock(locks, out.shut, 'd2');
-    expect(out).toEqual({ shut: ['d2'], locked: true, released: 'd1' });
-    // Zurücknehmen geht sofort — und die Tür ist danach nicht „warm".
-    out = plainLock(locks, out.shut, 'd2');
-    expect(out).toEqual({ shut: [], locked: false, released: '' });
-    expect(locks.chosen).toBe('');
-    expect(coolingUntil(locks, 'd2')).toBeNull();
-    expect(mayLock(locks, 'd2', 0)).toBe(true);
-    // Eine zugefallene Tür bleibt dabei zu — sie gehört dem Spuk, nicht dem Spieler.
-    let shut = slamDoor(locks, [], 'slammed', 10);
-    shut = plainLock(locks, shut, 'a').shut;
-    expect(shut.sort()).toEqual(['a', 'slammed']);
+    // Die gehaltene selbst: auch nicht — sie fällt, wenn ihre Frist um ist.
+    expect(lockBlock(locks, shut, 'd1', 1)).toBe('held');
+    expect(toggleLock(locks, shut, 'd1', 1)).toEqual({
+      shut: ['d1'],
+      locked: true,
+      blocked: 'held',
+    });
+    // Frist um: die Tür geht auf, die nächste darf zu — nur d1 ist noch warm.
+    const step = stepLocks(locks, shut, HOLD_RANGE[0]);
+    expect(step.opened).toEqual(['d1']);
+    shut = step.shut;
+    expect(lockBlock(locks, shut, 'd1', HOLD_RANGE[0])).toBe('cooling');
+    expect(lockBlock(locks, shut, 'd2', HOLD_RANGE[0])).toBe('');
+    expect(chooseLock(locks, shut, 'd2', HOLD_RANGE[0])).toEqual(['d2']);
+    expect(locks.chosen).toBe('d2');
+    // Und jeder Grund hat seinen Satz.
+    for (const block of ['held', 'busy', 'cooling'] as const)
+      expect(LOCK_BLOCK_TEXT[block].length).toBeGreaterThan(10);
   });
 
-  test('eine zugefallene Tür bleibt, wenn die Tafel eine andere wählt', () => {
+  test('eine zugefallene Tür bleibt, wenn die Tafel eine andere wählt — und darf freigegeben werden, während gehalten wird', () => {
     const locks = freshLocks();
     let shut = slamDoor(locks, [], 'slammed', 10);
-    shut = chooseLock(locks, shut, 'chosen');
+    shut = chooseLock(locks, shut, 'chosen', 10);
     expect(shut.sort()).toEqual(['chosen', 'slammed']);
-    shut = chooseLock(locks, shut, 'other');
-    expect(shut.sort()).toEqual(['other', 'slammed']);
+    // Eine dritte Tür wartet — die gehaltene hält sie auf, nicht die zugefallene.
+    expect(chooseLock(locks, shut, 'other', 10).sort()).toEqual(['chosen', 'slammed']);
+    // Die zugefallene gibt der Schalter trotzdem frei: Sie gehört dem Spuk, nicht dem Spieler.
+    const out = toggleLock(locks, shut, 'slammed', 11);
+    expect(out).toEqual({ shut: ['chosen'], locked: false, blocked: '' });
   });
 
   test('zugefallene Türen gehen nach SLAM_HOLD Sekunden von selbst auf', () => {
@@ -160,12 +169,13 @@ describe('doorLocks', () => {
     expect(locks.slams).toEqual([]);
   });
 
-  test('der Schalter: zu wenn offen, auf wenn zu', () => {
+  test('der Schalter: zu wenn offen — und die gehaltene Tür gibt er nicht wieder her', () => {
     const locks = freshLocks();
-    const first = toggleLock(locks, [], 'a');
-    expect(first).toEqual({ shut: ['a'], locked: true, blocked: false });
-    const second = toggleLock(locks, first.shut, 'a');
-    expect(second).toEqual({ shut: [], locked: false, blocked: false });
+    const first = toggleLock(locks, [], 'a', 0, () => 0);
+    expect(first).toEqual({ shut: ['a'], locked: true, blocked: '' });
+    const second = toggleLock(locks, first.shut, 'a', 1, () => 0);
+    expect(second).toEqual({ shut: ['a'], locked: true, blocked: 'held' });
+    expect(locks.chosen).toBe('a');
   });
 
   test('Buchführung räumt auf, was anderswo geöffnet wurde', () => {
@@ -249,10 +259,10 @@ describe('doorLocks', () => {
       let shut = chooseLock(locks, [], 'd1', 0, () => 0);
       shut = stepLocks(locks, shut, HOLD_RANGE[0]).shut;
       const blocked = toggleLock(locks, shut, 'd1', HOLD_RANGE[0], () => 0);
-      expect(blocked).toEqual({ shut: [], locked: false, blocked: true });
+      expect(blocked).toEqual({ shut: [], locked: false, blocked: 'cooling' });
       const later = toggleLock(locks, shut, 'd1', HOLD_RANGE[0] + LOCK_COOLDOWN, () => 0);
       expect(later.locked).toBe(true);
-      expect(later.blocked).toBe(false);
+      expect(later.blocked).toBe('');
     });
 
     /**
@@ -301,11 +311,26 @@ describe('doorLocks', () => {
       }
     });
 
-    test('entriegeln bleibt jederzeit erlaubt', () => {
+    /**
+     * **Freigeben darf man, was zugefallen ist — nicht, was man hält.** Die
+     * Abkühlung sperrt nur das Zusperren; eine zugefallene Tür des Spuks gibt
+     * der Schalter jederzeit frei. Die gehaltene Tür dagegen fällt erst mit
+     * ihrer Frist: Ein Riegel, den man sofort wieder zöge, wäre keiner.
+     */
+    test('entriegeln bleibt jederzeit erlaubt — bei zugefallenen Türen; die gehaltene hält', () => {
       const locks = freshLocks();
-      const shut = chooseLock(locks, [], 'd1', 0, () => 0);
-      const out = toggleLock(locks, shut, 'd1', 1, () => 0);
-      expect(out).toEqual({ shut: [], locked: false, blocked: false });
+      const slammed = slamDoor(locks, [], 'd1', 0);
+      expect(toggleLock(locks, slammed, 'd1', 1, () => 0)).toEqual({
+        shut: [],
+        locked: false,
+        blocked: '',
+      });
+      const shut = chooseLock(locks, [], 'd2', LOCK_COOLDOWN + 1, () => 0);
+      expect(toggleLock(locks, shut, 'd2', LOCK_COOLDOWN + 2, () => 0)).toEqual({
+        shut: ['d2'],
+        locked: true,
+        blocked: 'held',
+      });
     });
   });
 });

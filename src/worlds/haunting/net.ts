@@ -178,6 +178,14 @@ export interface HauntState {
    */
   cooling?: Array<{ id: string; until: number }>;
   /**
+   * **Die Tür, die ein Spieler gerade hält** (`rules/doorLocks.heldDoor`) —
+   * `''` oder fehlend heißt: keine. Optional aus demselben Grund wie
+   * `cooling`: Der Gastgeber entscheidet; jedes andere Gerät liest hieraus
+   * nur, warum sein Schalter gerade nichts täte (`lockBlock` → „Ein Schott ist
+   * schon gesperrt"), statt einmal umsonst zu drücken.
+   */
+  held?: string;
+  /**
    * **Die Ersatzteile, die im Gang liegen** (`rules/archiveGoals.ts`).
    *
    * Der Techniker trägt höchstens eines und kann es fallen lassen; wo es dann
@@ -543,6 +551,7 @@ export function readState(data: unknown): HauntState | null {
     // Und die abkühlenden Türen (`rules/doorLocks.ts`): fehlen sie, zeigt die
     // Tafel eben keine Uhr.
     cooling: coolings(it['cooling']),
+    ...(typeof it['held'] === 'string' ? { held: doorId(it['held']) } : {}),
     // Und die Tropfen (`rules/blood.ts`): fehlen sie, blutet eben niemand.
     blood: readDrops(it['blood']),
     dropped: droppedParts(it['dropped']),

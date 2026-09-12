@@ -7,7 +7,7 @@ import { FlatRound, MONSTER_ID, PLAYER_ID } from './flatRound';
 import { STILL } from '../monster/monsterHelm';
 import { cargoOf } from '../rules/cargo';
 import { DROP_SPACING } from '../rules/blood';
-import { LOCK_COOLDOWN } from '../rules/doorLocks';
+import { LOCK_COOLDOWN, HOLD_RANGE, LOCK_BLOCK_TEXT } from '../rules/doorLocks';
 import { LAMP_RANGE } from '../rules/lamps';
 import { CARGO_OPEN_SECONDS } from '../rules/chore';
 import type { FloorPoint } from '../stationLayout';
@@ -616,13 +616,20 @@ describe('Die abkühlende Tür in der 2D-Runde', () => {
     const round = new FlatRound(1, { test: true });
     const door = round.house.doors.find((one) => one.b)!;
     expect(round.lockDoor(door.id)).toMatch(/verriegelt/);
-    // Gesperrt: der rote Balken, keine Abkühlung.
+    // Gesperrt: der rote Balken, keine Abkühlung — und kein zweiter Tipp macht sie auf.
     expect(round.doorHold(door.id)!.cooling).toBeUndefined();
-    expect(round.lockDoor(door.id)).toBe('Tür entriegelt.');
+    expect(round.lockDoor(door.id)).toBe(LOCK_BLOCK_TEXT.held);
+    expect(round.state().shut).toContain(door.id);
+    // Die Frist läuft ab, die Tür geht von selbst auf: jetzt ist sie warm.
+    for (let t = 0; t < HOLD_RANGE[1] + DT; t += DT) round.step(DT, { x: 0, z: 0, sprint: false });
+    expect(round.state().shut).not.toContain(door.id);
     const warm = round.doorHold(door.id)!;
     expect(warm.cooling).toBe(true);
     expect(warm.total).toBe(LOCK_COOLDOWN);
-    expect(warm.left).toBeCloseTo(LOCK_COOLDOWN, 6);
+    // Aufgegangen irgendwo zwischen acht und zehn Sekunden — die Abkühlung
+    // zählt ab da, also fehlen ihr höchstens die zwei Sekunden Spielraum.
+    expect(warm.left).toBeGreaterThan(LOCK_COOLDOWN - (HOLD_RANGE[1] - HOLD_RANGE[0]) - 1);
+    expect(warm.left).toBeLessThanOrEqual(LOCK_COOLDOWN);
     // Und der Schalter sagt es, statt wortlos nichts zu tun.
     expect(round.lockDoor(door.id)).toBe('Der Riegel ist noch warm.');
     // Und die Karte zeichnet den grünen Balken: `MapDoor.cooling` statt `hold`.

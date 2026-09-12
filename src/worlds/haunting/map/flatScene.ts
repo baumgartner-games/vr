@@ -1031,6 +1031,24 @@ export class FlatScene {
   private drawOpenClock(ctx: CanvasRenderingContext2D, door: MapDoor): void {
     if (!door.cooling) return;
     const u = this.state.scale;
+    // **Und die Schwelle blinkt** (`rules/doorLocks.ts`): Vierzig Sekunden
+    // lang ist diese Tür nicht zu haben, und der Balken allein geht in einer
+    // dunklen Szene unter. Aus der Uhr gerechnet, damit alle dasselbe sehen.
+    if (Math.sin(this.snapshot.time * 7) > 0) {
+      const half = door.width / 2;
+      const a =
+        door.axis === 'x'
+          ? this.toScreen(door.at.x - half, door.at.z - BAND / 2)
+          : this.toScreen(door.at.x - BAND / 2, door.at.z - half);
+      const b =
+        door.axis === 'x'
+          ? this.toScreen(door.at.x + half, door.at.z + BAND / 2)
+          : this.toScreen(door.at.x + BAND / 2, door.at.z + half);
+      ctx.fillStyle = INK.lampGreen;
+      ctx.globalAlpha = 0.55;
+      ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+      ctx.globalAlpha = 1;
+    }
     const half = door.width / 2;
     if (door.axis === 'x') {
       const left = this.toScreen(door.at.x - half, 0).x,

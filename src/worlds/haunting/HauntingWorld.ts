@@ -101,7 +101,8 @@ import {
   HOLD_RANGE,
   SLAM_HOLD,
   chooseLock,
-  plainLock,
+  lockBlock,
+  LOCK_BLOCK_TEXT,
   LOCK_COOLDOWN,
   freshLocks,
   holdUntil,
@@ -2751,18 +2752,12 @@ export class HauntingWorld extends GridWorld {
     const door = this.spec.doors.find((d) => d.id === id);
     const trainingDoor = this.state.crew.options.test && id === TRAINING_DOOR.id;
     if (!door && !trainingDoor) return;
-    // Im Test ohne Buchführung: an, aus, und nichts läuft ab (`flipPlain`).
-    if (this.state.phase !== 'running') {
-      this.flipPlain('door', id);
-      return;
-    }
-    // Gewollt gesperrt ist immer nur eine Tür — auch vor Ort (`rules/doorLocks.ts`).
+    // Gewollt gesperrt ist immer nur eine Tür, sie hält bis zum Ablauf, und
+    // die nächste wartet — auch vor Ort, auch im Test (`rules/doorLocks.ts`).
     const out = toggleLock(this.locks, this.state.shut, id, this.state.time);
     this.state.shut = out.shut;
-    // Eine Tür, die gerade erst frei geworden ist, lässt sich nicht sofort
-    // wieder sperren. Wortlos wäre das ein kaputter Riegel — also sagen wir es.
-    if (out.blocked)
-      this.announce('Der Riegel ist noch warm. Diese Tür bleibt einen Moment offen.');
+    // Ein Riegel, der wortlos nichts tut, gilt als kaputt — also sagen wir, warum.
+    if (out.blocked) this.announce(LOCK_BLOCK_TEXT[out.blocked]);
   }
 
   /** Ein Schalter der Tafel, angewendet beim Gastgeber. */
@@ -2770,24 +2765,17 @@ export class HauntingWorld extends GridWorld {
     const entry = this.spec.switches.find((one) => one.id === id);
     if (!entry) return;
 
-    // **Im Test-Zustand ohne Buchführung** (`stepping`, aber nicht `running`):
-    // Vor und nach der Mission darf die Schalttafel Türen und Lampen
-    // ausprobieren — ohne Frist, ohne Budget, ohne Abkühlung, denn die Uhr
-    // dieser Bücher gehört der Mission, und ein Riegel, der im Test vierzig
-    // Sekunden warm bliebe, wäre dort nur ein kaputter Schalter.
-    if (this.state.phase !== 'running') {
-      const now =
-        entry.kind === 'door'
-          ? !this.state.shut.includes(entry.target)
-          : this.state.lit.includes(entry.target);
-      if (now !== on) this.flipPlain(entry.kind, entry.target);
-      return;
-    }
-
-    // Licht: höchstens zwei Räume gleichzeitig, und die dritte Lampe macht die
-    // älteste aus — derselbe Handel wie bei dem einen Riegel (`rules/lamps.ts`).
     if (entry.kind === 'light') {
       if (on === this.state.lit.includes(entry.target)) return;
+      // **Licht im Test-Zustand ohne Budget** (`stepping`, aber nicht
+      // `running`): Vor und nach der Mission ist die Station hell, und eine
+      // Lampe ist dort ein Schalter — an oder aus, ohne Frist.
+      if (this.state.phase !== 'running') {
+        this.flipLampPlain(entry.target);
+        return;
+      }
+      // Sonst höchstens zwei Räume gleichzeitig, und die dritte Lampe macht
+      // die älteste aus — derselbe Handel wie bei dem einen Riegel (`rules/lamps.ts`).
       const out = switchLamp(this.lampBook, this.state.lit, entry.target, this.state.time);
       this.state.lit = out.lit;
       if (out.dropped) this.lampSound(out.dropped);
@@ -2795,11 +2783,14 @@ export class HauntingWorld extends GridWorld {
     }
 
     // Türen: `on` heißt offen, und die Liste führt die geschlossenen. Gewollt
-    // gesperrt ist immer nur eine — die vorherige geht dabei auf; eine
-    // zugefallene darf die Tafel jederzeit freigeben (`rules/doorLocks.ts`).
-    this.state.shut = on
-      ? releaseLock(this.locks, this.state.shut, entry.target, this.state.time)
-      : chooseLock(this.locks, this.state.shut, entry.target, this.state.time);
+    // gesperrt ist immer nur eine, sie hält bis zum Ablauf, die nächste wartet
+    // — **im Test wie in der Mission**, sonst sähe der Test nie den Balken;
+    // eine zugefallene darf die Tafel jederzeit freigeben, die gehaltene nicht
+    // (`rules/doorLocks.ts`).
+    if (on) {
+      if (lockBlock(this.locks, this.state.shut, entry.target, this.state.time) === 'held') return;
+      this.state.shut = releaseLock(this.locks, this.state.shut, entry.target, this.state.time);
+    } else this.state.shut = chooseLock(this.locks, this.state.shut, entry.target, this.state.time);
   }
 
   /**
@@ -2832,9 +2823,22 @@ export class HauntingWorld extends GridWorld {
     if (!entry) return '';
     const on =
       kind === 'door' ? !this.state.shut.includes(target) : this.state.lit.includes(target);
+    // **Warum ein Schott gerade nicht geht, weiß jedes Gerät** — aus dem
+    // Stand (`held`, `cooling`), nicht nur der Gastgeber aus seiner
+    // Buchführung: gehalten, belegt, warm (`rules/doorLocks.lockBlock`).
+    if (kind === 'door') {
+      const block = lockBlock(this.doorBooks(), this.state.shut, target, this.state.time);
+      if (block) return LOCK_BLOCK_TEXT[block];
+    }
     this.flip(entry.id, !on);
     if (kind === 'door') return on ? 'Schott gesperrt.' : 'Schott freigegeben.';
     return on ? 'Licht aus.' : 'Licht an.';
+  }
+
+  /** Was über die Riegel bekannt ist: beim Gastgeber die Buchführung, sonst der Stand. */
+  private doorBooks(): Pick<DoorLocks, 'chosen' | 'cooling'> {
+    if (this.isHost) return this.locks;
+    return { chosen: this.state.held ?? '', cooling: this.state.cooling ?? [] };
   }
 
   /** Von der Schalttafel aus: bitten, nicht selbst tun. Gerechnet wird beim Gastgeber. */
@@ -2849,18 +2853,14 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Ein Schalter ohne Frist** — der Test-Zustand kennt weder Riegel, die
-   * ablaufen, noch Lampen mit Budget (`FlatRound.lockDoor`/`switchLight` tun
-   * dort dasselbe): Eine Lampe ist an oder aus, eine Tür zu oder auf — **und
-   * gesperrt ist trotzdem nur eine** (`rules/doorLocks.plainLock`): Die
-   * zweite gibt die erste frei, im Test wie in der Mission.
+   * **Eine Lampe ohne Budget** — der Test-Zustand kennt kein Lampenbudget
+   * (`FlatRound.switchLight` tut dort dasselbe): an oder aus, ohne Frist. Die
+   * Türen dagegen laufen auch im Test mit ihren Fristen (`applyFlip`).
    */
-  private flipPlain(kind: 'door' | 'light', target: string): void {
-    if (kind === 'door') this.state.shut = plainLock(this.locks, this.state.shut, target).shut;
-    else
-      this.state.lit = this.state.lit.includes(target)
-        ? this.state.lit.filter((one) => one !== target)
-        : [...this.state.lit, target];
+  private flipLampPlain(target: string): void {
+    this.state.lit = this.state.lit.includes(target)
+      ? this.state.lit.filter((one) => one !== target)
+      : [...this.state.lit, target];
   }
 
   /**
@@ -2906,7 +2906,10 @@ export class HauntingWorld extends GridWorld {
     // Buchführung bleibt beim Gastgeber; diese eine Liste daraus muss über
     // die Leitung, weil sonst der Hacker vierzig Sekunden lang einen Schalter
     // vor sich hat, der nichts tut und nicht sagt warum.
-    if (this.isHost) this.state.cooling = this.locks.cooling;
+    if (this.isHost) {
+      this.state.cooling = this.locks.cooling;
+      this.state.held = this.locks.chosen;
+    }
     // **Und ab und zu fährt ein Schott von selbst auf** (`rules/doorGlitch.ts`).
     // Gerechnet beim Gastgeber, angewendet über dieselbe Mechanik wie jedes
     // andere Auffahren: ein Bewohner, der keiner ist. Gesperrte Schotts sind

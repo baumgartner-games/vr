@@ -377,11 +377,15 @@ describe('Der Test-Zustand vor und nach der Mission', () => {
     const keys = [...flat.element.querySelectorAll<HTMLButtonElement>('[data-role-strip]')];
     expect(keys[0]!.textContent).toBe('Techniker');
     expect(keys.every((key) => !key.disabled)).toBe(true);
-    // Die Schalttafel schaltet auch jetzt — ohne Frist und ohne Budget.
+    // Die Schalttafel schaltet auch jetzt — die Riegel mit denselben Fristen
+    // wie in der Mission (gehalten bis zum Ablauf), die Lampen ohne Budget.
     const door = flat.round.house.doors[0]!;
     expect(flat.round.lockDoor(door.id)).toContain('verriegelt');
     expect(flat.round.state().shut).toContain(door.id);
-    expect(flat.round.lockDoor(door.id)).toContain('entriegelt');
+    expect(flat.round.lockDoor(door.id)).toContain('hält');
+    expect(flat.round.state().shut).toContain(door.id);
+    expect(flat.round.doorHold(door.id)?.cooling).toBeUndefined();
+    expect(flat.round.doorHold(door.id)?.left).toBeGreaterThan(0);
     const room = flat.round.snapshot().rooms[0]!.id;
     expect(flat.round.switchLight(room)).toBe('Licht aus.');
     expect(flat.round.switchLight(room)).toBe('Licht an.');

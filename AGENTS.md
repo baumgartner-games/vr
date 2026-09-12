@@ -7719,12 +7719,26 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   geschlossen wird wie immer.
 - **Wer sperrt, wie lange, und wie man es aufbekommt** (`rules/doorLocks.ts`,
   `DoorLocks` beim Gastgeber, nichts davon auf der Leitung): **Gewollt
-  gesperrt ist immer nur eine Tür** — Schalttafel (`applyFlip`), Techniker vor
-  Ort (`manualDoor`) und die 2D-Runde (`FlatRound.lockDoor`) teilen sich
-  diesen einen Riegel; die zweite Wahl gibt die erste frei. **Auch im
-  Test-Zustand** (`plainLock`, `flipPlain`): ohne Frist, ohne Abkühlung, aber
-  ein Riegel — vorher ließen sich dort beliebig viele Türen sperren, und das
-  war der Befund des Besitzers. **Keine Sperre
+  gesperrt ist immer nur eine Tür, und sie hält, bis sie von selbst fällt**
+  — Schalttafel (`applyFlip`), Techniker vor Ort (`manualDoor`) und die
+  2D-Runde (`FlatRound.lockDoor`) teilen sich diesen einen Riegel. Solange
+  er hält, tut der Schalter einer zweiten Tür nichts (`lockBlock` → `'busy'`),
+  und die gehaltene Tür gibt er auch nicht vorher wieder her (`'held'`);
+  danach ist dieselbe Tür `LOCK_COOLDOWN` lang warm (`'cooling'`). Lange gab
+  die zweite Wahl die erste frei und ein zweiter Tipp öffnete sie sofort — ein
+  Schalter im Takt, und das Monster stand vor einer Wand aus Riegeln, die man
+  von Tür zu Tür trug; der Besitzer wollte: gehalten bis zum Ablauf, keine
+  zweite Tür solange, dieselbe danach erst einmal nicht wieder, und alles
+  davon sichtbar. Jeder Grund hat seinen Satz (`LOCK_BLOCK_TEXT`), und jedes
+  Gerät kennt ihn: Die gehaltene Tür reist als optionales Feld
+  `HauntState.held` mit (wie `cooling`, ohne Protokollsprung), damit auch ein
+  Telefon, das nicht rechnet, beim Tipp „Ein Schott ist schon gesperrt" sagt
+  statt einmal umsonst zu drücken (`HauntingWorld.panelSwitch` →
+  `doorBooks`). **Auch im Test-Zustand mit denselben Fristen**: Vorher
+  schaltete die Tafel dort ohne Buchführung (beliebig viele Türen, kein
+  Balken) — wer im Test ohne Frist schalten durfte, sah nie den Balken und
+  lernte ein anderes Spiel; nur die Lampen bleiben im Test ein Schalter ohne
+  Budget (`flipLampPlain`). **Keine Sperre
   hält ewig:** Zugefallene Türen (der Spuk, `slamDoor`) halten `SLAM_HOLD` =
   20 s, von Hand gesperrte `HOLD_RANGE` = 8–10 s, leicht gewürfelt, damit
   niemand mitzählen kann; `stepLocks` lässt beides je Bild ablaufen, die Tafel
@@ -7743,17 +7757,21 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Sekunden waren dafür zu wenig: Sie reichten dem, der hindurch wollte, aber
   sie reichten auch der Tafel, die den Riegel gleich wieder setzte, und das
   Monster stand nach der dritten Runde immer noch vor derselben Tür.
-  Freigeben darf man jederzeit; `toggleLock` meldet `blocked`, damit der
-  Schalter sagen kann, dass der Riegel noch warm ist, statt wortlos nichts zu
-  tun.
-  **Und die Abkühlung ist sichtbar, in Grün.** Vierzig Sekunden hält man sonst
+  Freigeben darf man, was zugefallen ist — nicht, was man hält; `toggleLock`
+  meldet `blocked` mit dem Grund, damit der Schalter sagen kann, warum er
+  nichts tut, statt wortlos nichts zu tun.
+  **Und die Abkühlung ist sichtbar, in Grün — und sie blinkt.** Vierzig Sekunden hält man sonst
   für einen kaputten Schalter. Die Liste der abkühlenden Türen geht deshalb im
   Stand mit (`HauntState.cooling`, optional, `STATION_PROTOCOL` bleibt 8 — auf
   der Empfängerseite hängt keine Regel daran, gesperrt wird beim Gastgeber);
   `MapSource.doorHold` liefert sie mit `cooling: true`, daraus wird
   `MapDoor.cooling` und derselbe Balken über der Tür wie beim Halten, nur grün
   statt rot (`map/mapView.ts`, `map/flatScene.ts` — auch bei
-  zurückgefahrenem Blatt). Auf der Tafel der Schalttafel-Rolle
+  zurückgefahrenem Blatt); dazu wechselt das Blatt auf der Karte und die
+  Schwelle in der 2D-Szene im Sekundentakt in die Farbe der Abkühlung, aus
+  der Uhr gerechnet (`Math.sin(time · 7)`), weil ein Balken allein auf einem
+  Telefon leicht übersehen wird — „muss optisch gut angezeigt werden", so
+  der Besitzer. Auf der Tafel der Schalttafel-Rolle
   (`views/panelRole.ts`) steht die Restzeit unter der Beschriftung, der
   Schalter ist grün und abgeschaltet („noch warm · 27 s"). In 3D brauchte es dafür nichts: `doorLocked` liest
   `state.shut`, und eine abkühlende Tür steht dort nicht drin — ihre Leuchten
@@ -9069,11 +9087,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     `HauntState.phase === 'briefing'`): Der Techniker läuft in einer
     **hellen** Station herum (2D: jede Lampe steht in `lit`; 3D:
     `applyLights` behandelt `briefing` wie Testlicht), die Schalttafel
-    schaltet Türen und Lampen — **ohne Frist**: kein Riegel, der abläuft,
-    keine Abkühlung, kein Lampenbudget (`FlatRound.lockDoor`/`switchLight`,
-    `HauntingWorld.flipPlain`), **aber nur ein Riegel**
-    (`rules/doorLocks.plainLock`: die zweite Tür gibt die erste frei) —, ein
-    Mensch am Steuer darf das Monster
+    schaltet Türen und Lampen — die **Türen mit denselben Fristen wie in der
+    Mission** (`rules/doorLocks.ts`: ein Riegel, gehalten bis zum Ablauf, die
+    nächste wartet, danach Abkühlung mit Balken und Blinken), die **Lampen
+    ohne Budget** (`FlatRound.switchLight`, `HauntingWorld.flipLampPlain`)
+    —, ein Mensch am Steuer darf das Monster
     bewegen (`FlatRound.driver`), aber die **Routine steht still**, niemand
     wird getroffen, kein Spuk, keine Uhr, und jeder darf jede Rolle
     (`RoleStripHost.rights`). Die Uhr des Standes (`time`) läuft trotzdem
