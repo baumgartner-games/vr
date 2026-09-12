@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#05070d" />
+    <title>Werkzeuge — Baumgartner VR</title>
+    <meta name="description" content="Alles aus der VR-Spielwiese zum Ansehen: Werkzeuge, Welten und der magische Beutel — Übersicht, 3D-Ansicht zum Drehen und die Hand daran — in VR und in echt am Controller." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%94%A7%3C/text%3E%3C/svg%3E" />
+    <script type="module" crossorigin src="/vr/assets/tools-Bt8zEvNm.js"></script>
+    <link rel="modulepreload" crossorigin href="/vr/assets/navTile-vrMtUsDb.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/environment-DT9JPJ7E.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/navSwitches-D9ohgy-U.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/HubWorld-DKcfzbcv.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/handShare-llBzTe5x.js">
+    <link rel="stylesheet" crossorigin href="/vr/assets/tools-3gjqR6Qs.css">
+  </head>
+  <body class="page">
+    <!--
+      Eine Seite, drei Regale, zwei Zustände. Die Regale sind Werkzeuge, Welten
+      und der magische Beutel — die Schublade wechselt dazwischen. Jedes Regal
+      hat eine Übersicht und eine Einzelansicht; der Kopf bleibt derselbe und
+      tauscht nur sein linkes Symbol: Burger in der Übersicht, Pfeil zurück im
+      Einzelnen. Welcher Zustand gilt, steht im Hash, damit der Zurück-Knopf des
+      Browsers dasselbe tut wie der im Kopf.
+    -->
+    <header class="top">
+      <button id="nav" class="top__icon" type="button" aria-label="Menü" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+      <button id="back" class="top__icon" type="button" aria-label="Zurück zur Übersicht" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 6l-6 6 6 6" /></svg>
+      </button>
+      <h1 id="title" class="top__title">Werkzeuge</h1>
+      <!--
+        Zwei Hände, nicht zweimal dieselbe — und die Namen sagen, welche:
+        **Hand in VR** ist die gezeichnete Hand am Werkzeug, so wie sie in der
+        Brille aussieht. **Hand in echt** ist die eigene Hand am Gerät — nach
+        vorn ausgestreckt wie an einer Pistole, der Halterzylinder aufrecht
+        darin, der Zeigestrahl von seiner oberen Kante geradeaus auf die
+        Scheibe —, also nur eine Handhaltung; das Werkzeug steht dabei fest da,
+        wo es wäre. Werkzeug und Zielscheibe bleiben in beiden an derselben Stelle —
+        was wechselt, ist die Hand. Beim Pinsel sieht man erst dadurch beides:
+        echt hält man ihn wie die Waffe, gezeichnet wie einen Stift.
+      -->
+      <div id="hands" class="seg top__seg" role="group" aria-label="Hand" hidden>
+        <button type="button" data-hand="off" title="Nur das Werkzeug">Hand aus</button>
+        <button type="button" data-hand="vr" title="Die gezeichnete Hand am Werkzeug — so sieht es in der Brille aus">Hand in VR</button>
+        <button type="button" data-hand="controller" title="Die eigene Hand am Gerät, nach vorn ausgestreckt wie an einer Pistole — so hältst du in Wirklichkeit; das Werkzeug steht dabei, wo es wäre">Hand in echt</button>
+      </div>
+      <!--
+        Und **welche Hand** man ansieht. Eine eingemessene Haltung gehört einer
+        Hand — bei allem hier der rechten —, und die andere rechnet das Werkzeug
+        daraus: gespiegelt, oder bei der Stoppuhr um die eigene Hochachse
+        gedreht, weil ein gespiegeltes Zifferblatt rückwärts liefe. Genau das
+        soll man vergleichen können. Die beiden Controller hören nicht darauf:
+        ein linker Controller ist links, und der Schalter steht bei ihnen still.
+      -->
+      <div id="sides" class="seg top__seg" role="group" aria-label="Hand links oder rechts" hidden>
+        <button type="button" data-side="left" title="Wie es in der linken Hand liegt">Links</button>
+        <button type="button" data-side="right" title="Wie es in der rechten Hand liegt">Rechts</button>
+      </div>
+      <!--
+        Und die beiden Knöpfe am Controller, die Finger bewegen: der Griffknopf
+        hält (losgelassen öffnet sich die Hand), der Trigger zieht den Finger
+        am Abzug — an der Stoppuhr den Daumen auf die Krone. Beide sind
+        Schalter, kein Umschalter: sie gelten unabhängig voneinander.
+      -->
+      <div id="fingers" class="seg top__seg" role="group" aria-label="Knöpfe am Controller" hidden>
+        <button type="button" data-button="grab" aria-pressed="true">Grab</button>
+        <button type="button" data-button="trigger" aria-pressed="false">Trigger</button>
+      </div>
+      <!--
+        Mit Wort und nicht nur mit Stift: ein 38 Pixel großer Umriss in der Ecke
+        ist auf einem Telefon zwischen Titel und Umschalter schlicht nicht zu
+        finden — genau das war er auch nicht.
+      -->
+      <button id="edit" class="top__edit" type="button" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M14 6l4 4" /></svg>
+        <span id="edit-label">Bearbeiten</span>
+      </button>
+      <!--
+        Und derselbe Knopf für die Welten: eine Welt von außen sagt, wie sie
+        angelegt ist — wie sie sich anfühlt, sagt nur ein Flug hindurch. Er
+        trägt eine Drohne als Zeichen und sein Wort daneben, aus demselben
+        Grund wie der Stift: ein Umriss allein findet auf dem Telefon niemand.
+      -->
+      <button id="fly" class="top__edit" type="button" aria-pressed="false" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h6v6H9z" /><path d="M9 9L5 5M15 9l4-4M9 15l-4 4M15 15l4 4" /><path d="M3 5h4M17 5h4M3 19h4M17 19h4" /></svg>
+        <span id="fly-label">Freie Kamera</span>
+      </button>
+    </header>
+
+    <nav id="drawer" class="drawer" hidden>
+      <a class="drawer__link" href="#werkzeuge" data-section="tools">Werkzeuge</a>
+      <a class="drawer__link" href="#welten" data-section="worlds">Welten</a>
+      <a class="drawer__link" href="#beutel" data-section="bag">Magischer Beutel</a>
+      <a class="drawer__link" href="#npcs" data-section="npc">NPCs</a>
+      <!--
+        Und der Weg in die Brille von jemand anderem: derselbe Raum-Code wie
+        beim Zusammenspielen, aber ohne Spiel darin. Was ankommt, ist die eine
+        Hand, die drüben im Poseraum gerade gemessen wird — live, mit ihrem
+        Konfig-Code darunter.
+      -->
+      <a class="drawer__link" href="#verbinden" data-section="live">Verbinden</a>
+      <hr class="drawer__rule" />
+      <a class="drawer__link" href="./">VR Spielwiese</a>
+      <a class="drawer__link drawer__link--out" href="https://github.com/baumgartner-games/vr">Quellcode</a>
+      <hr class="drawer__rule" />
+      <!--
+        Dieselbe Einstellung wie im Handgelenk-Menü unter Hände → Handmodell:
+        Boxhand oder weißer Handschuh. Sie steht hier, weil man hier hinsieht.
+      -->
+      <button id="look" class="drawer__link drawer__link--toggle" type="button"></button>
+      <hr class="drawer__rule" />
+      <!--
+        Der Weg zurück auf null. Er gehört hierher und nicht neben den Regler:
+        „Zurücksetzen" dort meint eine Haltung, dieser hier meint alles, was je
+        auf diesem Gerät eingestellt wurde — und die beiden dürfen sich nicht
+        verwechseln lassen.
+      -->
+      <button id="wipe" class="drawer__link drawer__link--wipe" type="button">
+        Eigene Einstellungen löschen
+      </button>
+      <p id="wipe-note" class="drawer__note"></p>
+    </nav>
+
+    <main class="main">
+      <!--
+        Ein Satz über dem Regal, und zwar nur über diesem: der Weg in den
+        Justierer führt durch ein einzelnes Werkzeug, und wer das nicht weiß,
+        sucht den Knopf auf der Liste, wo es ihn nicht geben kann.
+      -->
+      <p id="lede" class="lede">Ein Werkzeug antippen: dort dreht man es, legt die Hand daran — und stellt mit <b>Bearbeiten</b> oben die Haltung ein.</p>
+      <ul id="grid-tools" class="grid" aria-label="Alle Werkzeuge"></ul>
+      <ul id="grid-worlds" class="grid" aria-label="Alle Welten" hidden></ul>
+      <ul id="grid-bag" class="grid" aria-label="Der magische Beutel" hidden></ul>
+      <ul id="grid-npc" class="grid" aria-label="Häute und Hirne der NPCs" hidden></ul>
+
+      <!--
+        Der Zuschauerplatz. Oben die Leitung — Raum-Code, Name, ein Knopf und
+        eine Zeile, die sagt, was gerade ist —, dazwischen die Bühne mit der
+        geteilten Hand, unten der Konfig-Code zum Herauskopieren. Mehr steht
+        hier nicht: es gibt genau eine Sache zu sehen und genau eine
+        mitzunehmen.
+      -->
+      <section id="live" class="live" hidden>
+        <p class="live__lede">
+          Im <b>Poseraum</b> des Eingaberaums <b>Handpose teilen</b> drücken — dann steht die Hand
+          der anderen Seite hier, und ihr Konfig-Code darunter.
+        </p>
+        <div class="live__row">
+          <label class="live__field">
+            <span>Raum-Code</span>
+            <input id="live-room" type="text" autocomplete="off" spellcheck="false" placeholder="mond-riff-47" />
+          </label>
+          <label class="live__field">
+            <span>Name</span>
+            <input id="live-name" type="text" autocomplete="off" placeholder="Werkzeugseite" />
+          </label>
+          <button id="live-connect" class="live__go" type="button">Verbinden</button>
+        </div>
+        <p id="live-status" class="live__status">Nicht verbunden</p>
+      </section>
+
+      <section id="detail" class="detail" hidden>
+        <!--
+          Der Justierer. Oben die Achse — immer nur eine —, unten der Regler
+          dazu, und dazwischen bleibt die Bühne: man zieht am Regler und sieht
+          im selben Bild, was daraus wird. Beides steht nur im Bearbeiten-Modus
+          da; wer nur schaut, soll eine Seite ohne Regler sehen.
+        -->
+        <div id="axes" class="axes" role="group" aria-label="Achse" hidden></div>
+        <div class="stage">
+          <canvas id="stage" class="stage__canvas"></canvas>
+          <!--
+            Die Knöpfe der freien Kamera, über dem Bild und nicht darunter: man
+            fliegt mit den Daumen und sieht dabei zu. Links das Kreuz für vor,
+            zurück und seitwärts, rechts hoch und runter — und beschriftet mit
+            W A S D, damit am Schreibtisch niemand raten muss, welche Tasten
+            dasselbe tun. Gedreht wird durch Wischen auf dem Bild dazwischen.
+          -->
+          <div id="pad" class="pad" hidden>
+            <div class="pad__move">
+              <button class="pad__key pad__key--w" type="button" data-fly="forward" aria-label="vorwärts">W</button>
+              <button class="pad__key pad__key--a" type="button" data-fly="left" aria-label="nach links">A</button>
+              <button class="pad__key pad__key--s" type="button" data-fly="back" aria-label="rückwärts">S</button>
+              <button class="pad__key pad__key--d" type="button" data-fly="right" aria-label="nach rechts">D</button>
+            </div>
+            <div class="pad__lift">
+              <button class="pad__key" type="button" data-fly="up" aria-label="höher">▲</button>
+              <button class="pad__key" type="button" data-fly="down" aria-label="tiefer">▼</button>
+            </div>
+          </div>
+        </div>
+        <!--
+          **Das Labor** — nur bei einer Welt, die läuft (`shared/livePreview.ts`).
+
+          Eine Vorschau ist sonst ein Bild: Man dreht eine Welt und sieht ihren
+          Grundriss. Das Navigationslabor besteht aber aus sechs Knöpfen und
+          dem, was danach passiert — und davon zeigt ein Bild genau nichts.
+          Hier steht deshalb dieselbe Welt in Betrieb: Knöpfe zum Drücken, die
+          Debug-Ebenen zum Ein- und Ausschalten und ein Ziel, dem die NPCs
+          nachlaufen. Auf dem Telefon ist das die ganze Brille, die man dafür
+          braucht.
+        -->
+        <section id="lab" class="lab" hidden>
+          <div class="lab__head">
+            <button id="lab-run" class="lab__run" type="button" aria-pressed="false">
+              Laufen lassen
+            </button>
+            <button id="lab-top" class="lab__view" type="button" hidden>Von oben</button>
+            <!--
+              Und die beiden Knöpfe, die aus dem Zuschauer einen Bewohner
+              machen. **Gehe zu** ist ein Modus wie in den Sims: Er ist an oder
+              aus, und solange er an ist, heißt ein Tipp auf den Boden nicht
+              „stell dich dorthin", sondern „geh dorthin" — über dasselbe
+              Gitter, das die NPCs benutzen. **Figur weg** nimmt sie ganz aus
+              der Welt: nicht unsichtbar, sondern nicht da, und dann hat auch
+              kein Zombie mehr jemanden, dem er nachläuft.
+            -->
+            <button id="lab-go" class="lab__view lab__view--go" type="button" aria-pressed="false" hidden>
+              Gehe zu
+            </button>
+            <button id="lab-me" class="lab__view" type="button" aria-pressed="false" hidden>
+              Figur weg
+            </button>
+            <!--
+              **Im Bereich** ist der dritte Tipp-Modus: Er legt einen Kreis auf
+              den Boden, und die Liste darunter zeigt dann nur noch, was darin
+              steht — plus das, was in demselben Kreis um die Figur herum
+              liegt. Auf einer Karte mit acht Buchten und zwanzig Knöpfen ist
+              das der Unterschied zwischen „was kann ich hier drücken" und
+              einer Liste, die man erst lesen muss.
+            -->
+            <button id="lab-near" class="lab__view" type="button" aria-pressed="false" hidden>
+              Im Bereich
+            </button>
+          </div>
+          <!--
+            Und die zwei Knöpfe für die Karte selbst. **Ziehen** schaltet um,
+            was ein Finger auf dem Bild tut: die Ansicht drehen und kippen (wie
+            bei jedem anderen Modell auf dieser Seite) oder die Karte schieben
+            (wie bei jeder anderen Karte). **Folgen** legt die Bildmitte auf die
+            Figur — dann tippt man sich mit Klicks durch die Welt, statt nach
+            jedem Schritt nachzuschieben.
+          -->
+          <div class="lab__head" id="lab-map" hidden>
+            <button id="lab-drag" class="lab__view" type="button" aria-pressed="false">
+              Ziehen: Drehen
+            </button>
+            <button id="lab-follow" class="lab__view" type="button" aria-pressed="false">
+              Folgen
+            </button>
+          </div>
+          <p id="lab-lede" class="lab__lede">
+            Startet die Welt wirklich — mit Physik, Gitter und NPCs. Auf den Boden tippen setzt
+            das <b>Ziel</b>, dem sie nachlaufen; mit <b>Gehe zu</b> geht deine Figur selbst
+            dorthin, mit <b>Im Bereich</b> siehst du, was an einer Stelle zu drücken ist.
+          </p>
+          <p id="lab-say" class="lab__say" aria-live="polite" hidden></p>
+          <div id="lab-keys" class="lab__keys" hidden></div>
+          <div id="lab-show" class="lab__show" hidden></div>
+        </section>
+
+        <div id="foot" class="detail__foot">
+          <p id="hint" class="detail__hint"></p>
+          <p id="note" class="detail__note" hidden></p>
+          <a id="enter" class="detail__enter" href="./" hidden>Welt betreten →</a>
+          <p id="help" class="detail__help">Ziehen dreht · zwei Finger schieben und zoomen · Rad zoomt · Doppeltipp stellt zurück</p>
+        </div>
+
+        <section id="editor" class="editor" hidden>
+          <!--
+            Kein zweiter Umschalter mehr für „was der Regler verschiebt": das
+            sagt die **Ansicht** oben im Kopf. In *Hand in VR* steht das
+            Werkzeug und die gezeichnete Hand wandert daran; in *Hand in echt*
+            steht die eigene Hand — an ihr gibt es nichts einzustellen — und
+            das Werkzeug wandert darin. Zwei Schalter, die dasselbe meinten,
+            musste man im Kopf zusammenhalten.
+
+            Geschoben und gedreht wird dabei in beiden Ansichten im **Rahmen
+            der echten Hand**: Nullpunkt der Griffpunkt, -Z die Blickrichtung,
+            also der weiße Zeigestrahl (`src/tools/handFrame.ts`). „X ein
+            Stück weiter" heißt damit an jedem Werkzeug dasselbe.
+          -->
+          <div class="editor__row">
+            <!--
+              Die Knöpfe stehen zusammen in einer eigenen Gruppe: die linken
+              sind nicht an jedem Werkzeug und nicht in jeder Ansicht da, und
+              ohne Gruppe hinge der Abstand an genau dem Knopf, der gerade
+              fehlt.
+            -->
+            <div class="editor__ghosts">
+              <!--
+                Der Halterzylinder trägt einen rosa Pfeil, der Zeigefinger eine
+                Richtung: wenn die beiden zur Deckung kommen, liegt die Hand am
+                Zylinder. Das sechsmal einzeln zu ziehen ist Arbeit für einen
+                Knopf.
+              -->
+              <button id="align" class="editor__ghost" type="button" hidden>Auf den Zylinder</button>
+              <!--
+                Und derselbe Handgriff für den violetten Zielpfeil: nur die
+                Richtung, die Fingerspitze bleibt liegen. Erst auf den Zylinder,
+                dann aufs Ziel — die beiden sind ein Weg und keine Alternative.
+              -->
+              <button id="aim" class="editor__ghost" type="button" hidden>In Zielrichtung</button>
+              <!--
+                Und der kürzeste Weg zu einer Haltung, die sicher passt: die
+                Faust, mit der die echte Hand das Gerät hält, als Haltung
+                dieses Werkzeugs. „So wie ich es wirklich halte."
+              -->
+              <button id="asreal" class="editor__ghost" type="button" hidden>Hand in echt übernehmen</button>
+              <button id="revert" class="editor__ghost" type="button">Zurücksetzen</button>
+            </div>
+          </div>
+          <div class="editor__slide">
+            <button class="editor__step" type="button" data-nudge="-1" aria-label="eine Raste zurück">−</button>
+            <input id="slider" class="editor__range" type="range" aria-label="Wert der gewählten Achse" />
+            <button class="editor__step" type="button" data-nudge="1" aria-label="eine Raste weiter">+</button>
+          </div>
+          <p id="reading" class="editor__reading"></p>
+          <p id="values" class="editor__values"></p>
+          <button id="code-tool" class="editor__code" type="button"></button>
+          <button id="code-all" class="editor__code" type="button"></button>
+        </section>
+      </section>
+
+      <!--
+        Ein echtes Textfeld und kein Knopf mit Schrift darauf: dieser Code wird
+        nicht angesehen, sondern mitgenommen — markiert, kopiert, in einen Chat
+        gehängt. Ein Feld kann man auch dort noch markieren, wo es keine
+        Zwischenablage gibt.
+      -->
+      <section id="live-out" class="live live--out" hidden>
+        <p id="live-what" class="live__what">Noch nichts angekommen</p>
+        <textarea id="live-code" class="live__code" rows="2" readonly spellcheck="false" aria-label="Konfig-Code der geteilten Handhaltung"></textarea>
+        <button id="live-copy" class="live__copy" type="button">Code kopieren</button>
+      </section>
+    </main>
+
+  </body>
+</html>

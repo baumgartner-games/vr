@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#05070d" />
+    <title>Baumgartner VR</title>
+    <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
+    <script type="module" crossorigin src="/vr/assets/main-BrO2SCao.js"></script>
+    <link rel="modulepreload" crossorigin href="/vr/assets/navTile-vrMtUsDb.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/host-BUAsTG75.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/WristMenu-BaSUfgc4.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/lobby-DgXi37So.js">
+    <link rel="stylesheet" crossorigin href="/vr/assets/main-Dtmdsrfs.css">
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="landing" class="landing">
+      <div class="landing__inner">
+        <p class="eyebrow">Baumgartner Games</p>
+        <!--
+          Die Startseite hat zwei Gesichter: die Spielwiese — und unter
+          `#haunting` die Startseite einer Runde. `main.ts` setzt dafür
+          `data-landing="haunting"` auf `#landing`; was nur zum einen gehört,
+          trägt `only-generic` beziehungsweise `only-haunting` (`style.css`).
+        -->
+        <h1 id="landing-title">VR Spielwiese</h1>
+        <p class="lead only-generic">
+          Eine WebXR-Basis für Experimente: Hub-Welt mit Händen, Weltenauswahl am linken
+          Handgelenk und ein experimenteller Portal-Prototyp.
+        </p>
+        <p class="lead only-haunting">
+          Eine Runde, ein Raum: Brille, Bildschirm und die Handys der Einsatzzentrale
+          tragen denselben Raum-Code ein. Verbinden — und dann den eigenen Weg hinein wählen.
+        </p>
+
+        <!--
+          The one thing a headset cannot measure for itself: it reports the head
+          above the floor of the room and has no idea whether there is a chair
+          under it. A seated player is otherwise simply a short one, and every
+          counter, kart seat and horizon in the game is suddenly built for
+          somebody taller. So it gets asked once, here — and can be changed at
+          any time under Menü → Bewegung → Haltung.
+        -->
+        <fieldset class="posture">
+          <legend>Spielst du im Sitzen oder im Stehen?</legend>
+          <div id="posture" class="seg seg--two">
+            <button type="button" data-posture="stand">Stehend</button>
+            <button type="button" data-posture="sit">Sitzend</button>
+          </div>
+          <p class="field__hint">
+            Sitzend wird die Sicht auf Stehhöhe angehoben, damit Tische, Karts und
+            der Horizont da sind, wo sie hingehören.
+          </p>
+        </fieldset>
+
+        <!--
+          Haunting: erst in die Lobby — Name und Raum-Code, Verbinden —, und erst
+          wer drin ist, sieht, wer noch da ist, und die drei Wege hinein: Brille,
+          Web 3D (Techniker am Bildschirm), 2D Einsatzzentrale. Alle drei bleiben
+          in diesem Raum. Ohne eigenen Code spielen alle im Raum `haunting`
+          (`worlds/haunting/net.ts`); ein eigener Code wandert als `?room=` in
+          die Adresse.
+        -->
+        <div id="haunt-start" class="haunt-start only-haunting">
+          <div class="field">
+            <label for="haunt-name">Dein Name</label>
+            <input id="haunt-name" type="text" autocomplete="nickname" placeholder="Späher" />
+          </div>
+          <div class="field">
+            <label for="haunt-room">Raum-Code</label>
+            <div class="field__row">
+              <input id="haunt-room" type="text" autocapitalize="none" autocorrect="off"
+                     spellcheck="false" placeholder="haunting" />
+              <button type="button" id="haunt-connect" class="btn--mini">Verbinden</button>
+            </div>
+            <p class="field__hint">
+              Alle Geräte einer Runde tragen denselben Code ein. Ohne eigenen Code spielt
+              ihr im Raum <code>haunting</code>.
+            </p>
+          </div>
+          <p id="haunt-status" class="status"></p>
+
+          <div id="haunt-lobby" class="haunt-lobby" hidden>
+            <h2 class="haunt-lobby__title">Lobby</h2>
+            <ul id="haunt-peers" class="haunt-peers" aria-live="polite"></ul>
+            <p class="field__hint">
+              Wer denselben Raum-Code eingibt, steht hier. Dann wählt jeder seinen Weg —
+              alle bleiben in diesem Raum.
+            </p>
+
+            <button id="haunt-vr" class="btn btn--primary" disabled>VR wird geprüft …</button>
+            <p class="haunt-start__hint">Die Brille: der Techniker im Anzug, draußen im Schiff.</p>
+            <button type="button" id="haunt-flat" class="btn btn--ghost">Web 3D</button>
+            <p class="haunt-start__hint">Techniker am Bildschirm, im Schiff — Tastatur und Maus oder Stock.</p>
+            <button type="button" id="haunt-centre" class="btn btn--ghost">2D Einsatzzentrale</button>
+            <p class="haunt-start__hint">
+              Am Handy oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster.
+            </p>
+            <p id="haunt-xr-status" class="status"></p>
+          </div>
+        </div>
+
+        <button id="enter-vr" class="btn btn--primary only-generic" disabled>VR wird geprüft …</button>
+        <button id="enter-flat" class="btn btn--ghost only-generic">Ohne VR starten (Desktop / Handy)</button>
+
+        <!--
+          Die Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es
+          gibt — Werkzeuge, Welten, den Beutel — und wie ein Werkzeug in der
+          Hand liegt. Deshalb steht sie hier neben den beiden Knöpfen und nicht
+          in einem Menü, das man erst öffnen muss.
+        -->
+        <p class="landing__more only-generic"><a href="./tools.html">Werkzeuge, Welten und Beutel ansehen →</a></p>
+
+        <p id="xr-status" class="status only-generic"></p>
+
+        <details id="net-setup" class="net only-generic">
+          <summary class="net__summary">
+            Zusammen spielen <span class="net__tag">experimentell</span>
+          </summary>
+          <p class="net__lead">
+            Beide Geräte tragen denselben Raum-Code ein. Die Verbindung läuft danach
+            direkt von Browser zu Browser (WebRTC) — ohne eigenen Server.
+          </p>
+          <div class="field">
+            <label for="net-name-landing">Dein Name</label>
+            <input id="net-name-landing" type="text" autocomplete="nickname" placeholder="VR-Spieler" />
+          </div>
+          <div class="field">
+            <label for="net-room-landing">Raum-Code</label>
+            <div class="field__row">
+              <input id="net-room-landing" type="text" autocapitalize="none" autocorrect="off"
+                     spellcheck="false" placeholder="mond-riff-47" />
+              <button type="button" id="net-dice-landing" class="btn--mini">Würfeln</button>
+            </div>
+          </div>
+          <div class="net__actions">
+            <button type="button" id="net-connect-landing" class="btn btn--ghost">
+              Verbinden &amp; Enter VR
+            </button>
+            <button type="button" id="net-connect-flat-landing" class="btn btn--ghost">
+              Verbinden &amp; ohne VR starten
+            </button>
+          </div>
+          <p id="net-status-landing" class="status"></p>
+          <!--
+            Haunting steht hier nicht mehr: Wer `#haunting` öffnet, bekommt die
+            Startseite der Runde oben — mit Raum-Code, weil eine zweite Gruppe
+            einen eigenen Raum braucht.
+          -->
+          <p class="net__lead">
+            Für <strong>Haunting / Orbital</strong> gibt es eine eigene Startseite:
+            <a href="#haunting">#haunting</a>.
+          </p>
+        </details>
+
+        <ul class="hints only-generic">
+          <li><strong>Beide Handgelenke:</strong> ein Button öffnet das Menü — offen ist immer nur eins.</li>
+          <li><strong>Andere Hand:</strong> Zeigen &amp; Trigger zum Auswählen.</li>
+          <li><strong>Portal-Welt:</strong> Werkzeuge hängen am Gürtel — Greifen nimmt sie,
+            woanders loslassen lässt sie fallen.</li>
+          <li><strong>Ohne Controller:</strong> drei Finger an die Handfläche = Greifen,
+            Zeigefinger = Trigger. Ausprobieren im <em>Eingaberaum</em>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="hud" class="hud" hidden>
+      <div class="hud__row">
+        <span id="hud-world" class="hud__world"></span>
+        <button id="hud-menu" class="hud__btn">Menü</button>
+        <button id="hud-net" class="hud__btn">Verbindung</button>
+        <button id="hud-vr" class="hud__btn">VR</button>
+      </div>
+    </div>
+
+    <section id="net-panel" class="panel" hidden aria-label="Verbindung und Kamera">
+      <header class="panel__head">
+        <strong>Verbindung</strong>
+        <button type="button" id="net-close" class="panel__x" aria-label="Schließen">×</button>
+      </header>
+
+      <p id="net-status" class="panel__status"></p>
+
+      <div class="field">
+        <label for="net-room">Raum-Code</label>
+        <div class="field__row">
+          <input id="net-room" type="text" autocapitalize="none" autocorrect="off"
+                 spellcheck="false" placeholder="mond-riff-47" />
+          <button type="button" id="net-dice" class="btn--mini">Würfeln</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="net-name">Dein Name</label>
+        <input id="net-name" type="text" autocomplete="nickname" placeholder="Desktop" />
+      </div>
+      <div class="field">
+        <label for="net-strategy">Vermittlung</label>
+        <select id="net-strategy">
+          <option value="nostr">Nostr-Relays (Standard)</option>
+          <option value="mqtt">Öffentliche MQTT-Broker</option>
+          <option value="torrent">BitTorrent-Tracker</option>
+        </select>
+        <p class="field__hint">
+          Nur für den Verbindungsaufbau. Klappt eine Variante im Netz nicht, hilft oft eine andere.
+        </p>
+      </div>
+      <div class="panel__row">
+        <button type="button" id="net-connect" class="btn--mini btn--grow">Verbinden</button>
+        <button type="button" id="net-link" class="btn--mini">Link kopieren</button>
+      </div>
+
+      <h3 class="panel__title">Sprache</h3>
+      <div class="panel__row">
+        <button type="button" id="net-voice" class="btn--mini btn--grow">Mikrofon an</button>
+      </div>
+      <p id="net-voice-hint" class="field__hint">
+        Aus. Antippen fragt nach dem Mikrofon; die Stimmen der anderen kommen aus der Richtung,
+        in der sie stehen.
+      </p>
+
+      <h3 class="panel__title">Zuschauen</h3>
+      <div id="net-peers" class="peers"></div>
+
+      <h3 class="panel__title">Chat</h3>
+      <div id="net-chat" class="chat" aria-live="polite"></div>
+      <div class="field__row">
+        <input id="net-chat-text" type="text" autocomplete="off" autocapitalize="sentences"
+               placeholder="Nachricht an den Raum" maxlength="2000" />
+        <button type="button" id="net-chat-send" class="btn--mini">Senden</button>
+      </div>
+      <div class="panel__row">
+        <button type="button" id="net-chat-copy" class="btn--mini btn--grow">Verlauf kopieren</button>
+        <button type="button" id="net-chat-clear" class="btn--mini">Leeren</button>
+      </div>
+      <p class="panel__hint">
+        Die Brille schickt Konfig-Codes hierher (<strong>Werkzeug senden</strong> im Schießgang):
+        Text markieren oder <strong>Kopieren</strong> am Eintrag drücken.
+      </p>
+
+      <h3 class="panel__title">Kamera</h3>
+      <div id="net-modes" class="seg">
+        <button type="button" data-mode="free">Frei</button>
+        <button type="button" data-mode="first">First Person</button>
+        <button type="button" data-mode="third">Third Person</button>
+      </div>
+
+      <div class="field" id="net-smooth-field">
+        <label for="net-smooth">Kamera-Glättung <output id="net-smooth-out"></output></label>
+        <input id="net-smooth" type="range" min="0" max="100" step="1" />
+        <p class="field__hint">Ganz links folgt die Kamera exakt, weiter rechts dreht sie träge nach.</p>
+      </div>
+
+      <div class="field" id="net-distance-field">
+        <label for="net-distance">Abstand <output id="net-distance-out"></output></label>
+        <input id="net-distance" type="range" min="60" max="800" step="10" />
+      </div>
+
+      <label class="check">
+        <input id="net-level" type="checkbox" /> Horizont stabilisieren
+      </label>
+
+      <button type="button" id="net-center" class="btn--mini btn--grow">Ansicht zentrieren</button>
+      <p class="panel__hint">Ziehen dreht die Kamera · Mausrad ändert den Abstand</p>
+      <p class="panel__hint">
+        Im Headset stehen dieselben Optionen unter <strong>Menü → Verbindung → Zuschauen</strong>.
+        Dort wird nur die Position des anderen Spielers übernommen, die Blickrichtung bleibt deine.
+      </p>
+    </section>
+
+    <div id="touch" class="touch" hidden>
+      <div id="touch-stick" class="touch__stick"><span></span></div>
+      <div class="touch__hint">Links ziehen = gehen · rechts wischen = umsehen</div>
+    </div>
+
+  </body>
+</html>
