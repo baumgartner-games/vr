@@ -965,7 +965,7 @@ export class PortalWorld implements World {
     this.clippingWasEnabled = ctx.renderer.localClippingEnabled;
     ctx.renderer.localClippingEnabled = true;
 
-    ctx.rig.placeAt(this.spawnPoint(), this.spawnYaw());
+    ctx.rig.placeFeetAt(this.spawnPoint(), this.spawnYaw());
     this.locomotion = new PhysicsLocomotion(this.physics, ctx.rig);
     ctx.rig.setLocomotion(this.locomotion);
     this.applyWorldPhysics();
@@ -4038,7 +4038,7 @@ export class PortalWorld implements World {
     // ihr fest, und der Controller schiebt einen erst im nächsten Bild heraus.
     _point.copy(point);
     _point.y += LANDING_CLEARANCE;
-    ctx.rig.placeAt(_point, _euler.y);
+    ctx.rig.placeFeetAt(_point, _euler.y);
     this.locomotion?.resync(ctx.rig);
     return true;
   }
@@ -4054,10 +4054,16 @@ export class PortalWorld implements World {
    * Physik und ist einer in einer vergessenen Zeile.
    *
    * Ohne `yaw` bleibt die Blickrichtung, die gerade gilt.
+   *
+   * Versetzt werden die **Füße des Spielers** (`PlayerRig.placeFeetAt`), nicht
+   * der Ursprung des Rigs: In der Brille liegen die beiden um so viel
+   * auseinander, wie man von der Mitte seines Spielraums entfernt steht —
+   * und genau um so viel landete man bisher neben dem Ziel, beim Start einer
+   * Runde auch schon einmal in einer Wand.
    */
   protected movePlayerTo(ctx: WorldContext, at: THREE.Vector3, yaw?: number): void {
     _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
-    ctx.rig.placeAt(_point.copy(at), yaw ?? _euler.y);
+    ctx.rig.placeFeetAt(_point.copy(at), yaw ?? _euler.y);
     this.locomotion?.resync(ctx.rig);
   }
 
@@ -4073,7 +4079,7 @@ export class PortalWorld implements World {
     const y = rescueHeight(hits, spawn.y);
 
     _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
-    ctx.rig.placeAt(_point.set(x, y, z), _euler.y);
+    ctx.rig.placeFeetAt(_point.set(x, y, z), _euler.y);
     this.locomotion?.resync(ctx.rig);
     this.hasLastGround = false;
     ctx.notify('Aus der Tiefe zurückgeholt');

@@ -3855,9 +3855,19 @@ export class HauntingWorld extends GridWorld {
    * Lehrzimmer, irgendwo im Nichts — zurück in die Einsatzzentrale. Die Höhe
    * misst `movePlayerTo` selbst gegen den Boden; ein Schutzschrank wird
    * vorher verlassen, sonst bliebe man am neuen Ort eingefroren.
+   *
+   * **Und die Füße kommen wirklich dorthin.** Bis hierher versetzte die
+   * Rettung den Ursprung des Rigs — in der Brille also den Mittelpunkt des
+   * Spielraums —, und der Kopf samt Physik-Kapsel blieb um den eigenen
+   * Abstand davon daneben: Wer beim Start in der Wand stand, stand nach der
+   * Rettung wieder darin. Der Befund „auch der Knopf hilft nicht" war genau
+   * das (`PortalWorld.movePlayerTo`, `PlayerRig.placeFeetAt`).
    */
   private unstickPlayer(ctx: WorldContext): void {
-    const feet = ctx.rig.position;
+    // Gemessen wird unter dem **Kopf**, nicht am Ursprung des Rigs: In der
+    // Brille steht man selten genau darüber, und das Zimmer, in dem man
+    // steckt, ist das unter den eigenen Füßen (`PlayerRig.placeFeetAt`).
+    const feet = ctx.rig.getHeadPosition(_head);
     const here = roomAt(this.spec, Math.floor(feet.x / TILE), Math.floor(feet.z / TILE));
     const at = here ? safeRoomSpawn(this.spec, here.id) : { x: COMMAND_HOME.x, z: COMMAND_HOME.z };
     this.experience?.leaveLocker();

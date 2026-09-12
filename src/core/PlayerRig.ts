@@ -297,12 +297,38 @@ export class PlayerRig extends THREE.Group {
     this.locomotion.teleport?.(this, transform);
   }
 
-  /** Places the player at a spawn point looking along `yaw` (radians). */
+  /**
+   * Places the **rig's origin** at a spawn point looking along `yaw`
+   * (radians). In VR that origin is the centre of the play space, not the
+   * player: whoever wants the player's feet on the point uses `placeFeetAt`.
+   */
   placeAt(position: THREE.Vector3, yaw = 0): void {
     // `position` is where the feet go; a crouching player sits below that.
     this.position.copy(position);
     this.position.y -= this.crouchOffset;
     this.quaternion.setFromEuler(_euler.set(0, yaw, 0));
+    this.updateMatrixWorld(true);
+  }
+
+  /**
+   * **Die Füße des Spielers auf den Punkt — nicht der Ursprung des Rigs.**
+   *
+   * In der Brille steht der Kopf selten über dem Ursprung des Spielraums:
+   * Wer einen Meter neben der Mitte seines Guardians steht, landete mit
+   * `placeAt` einen Meter neben dem Ziel — beim Missionsstart in der Wand
+   * oder in der Konsole der Einsatzzentrale, und die Physik-Kapsel, die unter
+   * dem Kopf sitzt (`PhysicsLocomotion.syncCapsuleToRig`), steckte damit fest.
+   * Die Rettung „Zurück auf den Boden" versetzte den Ursprung noch einmal
+   * genauso — und half deshalb nicht. Hier wird der Ursprung um den
+   * waagerechten Versatz des Kopfes zurückgeschoben, nach dem Drehen, weil
+   * der Versatz sich mitdreht; am Bildschirm sitzt die Kamera über dem
+   * Ursprung, und nichts ändert sich.
+   */
+  placeFeetAt(position: THREE.Vector3, yaw = 0): void {
+    this.placeAt(position, yaw);
+    this.getHeadPosition(_head);
+    this.position.x += position.x - _head.x;
+    this.position.z += position.z - _head.z;
     this.updateMatrixWorld(true);
   }
 

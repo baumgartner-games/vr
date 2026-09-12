@@ -9028,6 +9028,21 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     (`ShipExperience.leaveLocker`, deshalb öffentlich). Die automatische
     Fallrettung der `PortalWorld` (`rescuePlayer`) bleibt daneben bestehen;
     dieser Eintrag ist für den Fall, dass man drin steckt, ohne zu fallen.
+    **Versetzt werden die Füße, nicht der Ursprung des Rigs**
+    (`PlayerRig.placeFeetAt`, benutzt von `PortalWorld.movePlayerTo`,
+    `teleportPlayerTo`, `rescuePlayer` und dem Spawn beim Betreten): In der
+    Brille ist der Ursprung die Mitte des Spielraums, und der Kopf samt
+    Physik-Kapsel steht so weit daneben, wie man von dieser Mitte entfernt
+    steht. `placeAt` setzte nur den Ursprung — beim Missionsstart
+    (`newRound` → `movePlayerTo(spawnPoint)`) landete der Kopf damit einen
+    Meter neben der Einsatzzentrale, in Wand oder Konsole, die Kapsel steckte
+    fest, und die Rettung tat dasselbe noch einmal: „bugge ich im Boden fest,
+    auch der Knopf hilft nicht" (Befund des Besitzers). Der Versatz wird nach
+    dem Drehen zurückgerechnet, weil er sich mitdreht; am Bildschirm sitzt die
+    Kamera über dem Ursprung, und nichts ändert sich. Auch `unstickPlayer`
+    misst das Zimmer jetzt unter dem Kopf und nicht am Ursprung. Das Kart
+    setzt weiter den Ursprung (`placeAt`, jedes Bild in den Sitz): Dort soll
+    man sich im Sitz noch vorbeugen können.
   - **Van / Telefon** (`stationUi.ts`, Hochformat zuerst): **zwei Seiten,
     ein Kopf.** Der Ablauf, den der Besitzer wollte: Lobby beitreten, im
     **Aufbau** die Rollen einstellen, unten **„Rollen testen"** drücken —
