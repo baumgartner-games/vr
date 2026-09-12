@@ -9038,7 +9038,12 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
       das Häkchen „2D-Welt von oben" (`[data-check="view"]`), die Tafel (fünf
       Zeilen, je Mensch/Bot/Aus und die drei Fähigkeitslampen, **ohne „Ich"**),
       dann **„Rollen testen"** (`[data-test-roles]`: auf die Karte, ohne dass
-      etwas losgeht) und **der Startknopf** (`[data-start-setup]`, beschriftet
+      etwas losgeht — **läuft im Raum schon eine Mission, heißt derselbe Knopf
+      „Zur laufenden Runde"** (`[data-join]`): Wer die Seite mitten in der
+      Runde neu lädt, landet hier im Aufbau, und der Weg zurück auf die Karte
+      soll nicht „hell, ohne Uhr" versprechen; ein Start aus der Zentrale
+      sagt dann `ROUND_RUNNING` gleich am Telefon, statt ihn an den Gastgeber
+      zu schicken, der ihn nur sich selbst abwies) und **der Startknopf** (`[data-start-setup]`, beschriftet
       aus `startLabel`, darunter `describeSetup` — für den, der nicht erst
       testen will), zuletzt „Hilfe: Wer sieht was?" — ein Satz je Rolle aus
       `RoleFacts.sees`, und ein Absatz, was Test und Mission unterscheidet.
@@ -9078,8 +9083,25 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     `HauntingWorld.takeStick`): Auf der Karte von oben öffnet sich sofort die
     2D-Welt — **im Test-Zustand** (unten) —, im Schiff wird man der
     Desktop-Techniker; die Brille rührt niemand an (`VR_KEEPS_TECHNICIAN`).
+    **Läuft im Raum schon eine Mission, steigt der Reiter in sie ein**: Der
+    Stand, den der Gastgeber ansagt (`adopt`), reist als `FlatResume` in die
+    2D-Runde — derselbe Weg wie von 3D nach 2D —, und die Bücher (Riegel,
+    Spuk, Wunde, Gedächtnis) kommen mit der Übergabe des alten Gastgebers
+    nach (`flatResumed`, `takeFlatHandover` → `FlatRound.loadBooks`; das
+    Lampenbudget führt weiter die Welt). Bis hierher machte der Reiter aus
+    einer laufenden Mission einen frischen Test auf derselben Station, der
+    als neuer Stand an alle ging — wer mitten in der Runde die Seite neu
+    geladen hatte, konnte nicht zurück, sondern nur allen die Runde nehmen.
+    Trägt schon jemand anders den Anzug, gibt es dieselbe Absage wie beim
+    Öffnen (`FLAT_OCCUPIED`), bevor das Monster losgelassen wird.
     Mitten in der Mission entscheidet `switchRights`, ob das geht;
-    wer nicht darf, bekommt den Grund als Meldung. Wer nichts hält, liest
+    wer nicht darf, bekommt den Grund als Meldung. **Gesperrt ist nur, wer im
+    Schiff den Anzug trägt** (`inShip`: der Techniker am Bildschirm in der
+    Ansicht 3D, `SHIP_KEEPS_ROLE`) — die Zentrale, das Monster am Telefon und
+    der Techniker auf der Karte wechseln immer; bis hierher wechselte mitten
+    in der Mission nur die Zentrale, und der Besitzer wollte es anders: „Wenn
+    ich nicht VR oder 3D bin, will ich die Rollen immer wechseln können."
+    Wer nichts hält, liest
     „Bitte wähle über den Tab oben deine Rolle aus." (`NO_ROLE_HINT`). Fernseher und Monster sind keine Fähigkeiten — wer dorthin geht, legt die
     Zentrale ab.
   - **Der Test-Zustand** — vor der Mission und nach dem Stopp
@@ -9265,11 +9287,15 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   laufende `FlatRound`** — nichts wird gestartet, nichts verworfen; die Runde
   rechnet weiter, während jemand ihr beim Archiv zusieht. Der Wirt dafür ist
   `FlatMode.roleHost()`; die Schalttafel greift über `FlatRound.lockDoor` und
-  `switchLight` in dieselbe Runde. **Gewechselt wird nur in einer Test-Runde**
-  (`RoleStripHost.rights` → `switchRights` mit `inCentre: false`): Wer in 2D
-  spielt, ist der Techniker und steht im Anzug — er greift nicht nebenbei ins
-  Archiv. Sonst stehen die Knöpfe abgeschaltet da, mit dem Grund als Titel;
-  zurück zur Szene geht immer.
+  `switchLight` in dieselbe Runde. **Gewechselt wird immer** — auch mitten in
+  der Mission (`RoleStripHost.rights` → `switchRights` mit `inShip: false`:
+  gesperrt ist nur, wer im Schiff den Anzug trägt, und das ist auf der Karte
+  niemand). Bis hierher ging es nur in einer Test-Runde, mit der Begründung,
+  der 2D-Techniker stehe im Anzug; der Besitzer wollte außerhalb von VR und
+  3D immer wechseln können, und auf der Karte ist ein Reiter ohnehin nur ein
+  anderer Blick auf dieselbe Runde. Der Streifen kann weiterhin Knöpfe
+  abschalten, wenn der Wirt es sagt — mit dem Grund als Titel; zurück zur
+  Szene geht immer.
 - **Die Drohne ist gestrichen** — Rolle, Ansicht, Körper, Kamera, Flug,
   Netznachricht (`kind: 'drone'`) und CSS. Übrig geblieben sind die
   **Wegtypen**: `droneRoute.ts` heißt heute `navmesh/route.ts` (Paket `nav`)

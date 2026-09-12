@@ -12,7 +12,7 @@ import type { LobbyChoice } from './rules/lobby';
 import { SHIP_OCCUPIED } from './rules/worldMenu';
 import {
   defaultSetup,
-  NOT_IN_CENTRE,
+  SHIP_KEEPS_ROLE,
   VR_KEEPS_TECHNICIAN,
   withPower,
   type MyRole,
@@ -522,6 +522,7 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
    */
   it('hat kein „Ich" mehr — „Rollen testen" führt mit dem gemerkten Platz auf die Karte', () => {
     const game = crew('red', false);
+    game.state.phase = 'briefing';
     toSetup();
     expect(document.querySelector('[data-setup-me]')).toBeNull();
     expect(document.querySelectorAll('[data-seat]')).toHaveLength(5);
@@ -538,6 +539,31 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     expect(game.setup.seats.blue.who).toBe('human');
     expect(game.setup.seats.red.who).toBe('off');
     expect(document.querySelector('.haunt')?.getAttribute('data-station')).toBe('blue');
+  });
+
+  /**
+   * **Neu geladen, mitten in der Runde**: Wer wieder im Aufbau landet, während
+   * im Raum die Mission läuft, bekommt statt „Rollen testen" (hell, ohne Uhr —
+   * stimmt gerade nicht) den Einstieg in die laufende Runde — derselbe Tipp,
+   * mit dem gemerkten Platz.
+   */
+  it('bietet in der laufenden Runde den Einstieg statt „Rollen testen"', () => {
+    const game = crew('red', false);
+    toSetup();
+    expect(document.querySelector('[data-join]')).not.toBeNull();
+    const join = button('[data-test-roles]');
+    expect(join.textContent).toContain('Zur laufenden Runde');
+    expect(join.textContent).toContain('Rot');
+    expect(join.textContent).not.toContain('ohne Uhr');
+    join.click();
+    expect(game.ui.inSetup).toBe(false);
+    expect(game.ui.station).toBe('red');
+    // Steht die Runde, ist es wieder das Testen.
+    toSetup();
+    game.state.phase = 'briefing';
+    game.ui.refresh();
+    expect(document.querySelector('[data-join]')).toBeNull();
+    expect(button('[data-test-roles]').textContent).toContain('Rollen testen');
   });
 
   it('beschriftet den einen Startknopf ohne Ansicht in Klammern', () => {
@@ -720,15 +746,33 @@ describe('Rollen sind Plätze mit Fähigkeiten', () => {
   });
 
   /**
-   * **Ohne Rolle steht ein Satz da**, und mitten in einer Nicht-Test-Runde darf
-   * sie nicht jeder wechseln — wer das Monster spielt, bleibt das Monster
-   * (`roundSetup.switchRights`).
+   * **Auf dem Telefon wechselt jeder, immer** — auch das Monster mitten in der
+   * Mission (`roundSetup.switchRights`): Wer nicht VR oder 3D ist, soll die
+   * Rollen jederzeit wechseln können, sagte der Besitzer. Das Monster fällt
+   * dabei an die Zahlen.
    */
-  it('lässt das Monster mitten in der Mission nicht in die Zentrale', () => {
+  it('lässt das Monster mitten in der Mission in die Zentrale', () => {
     const game = crew('monster', false);
+    expect(game.setup.seats.monster.who).toBe('human');
     open('red');
-    expect(game.notify).toHaveBeenCalledWith(NOT_IN_CENTRE);
-    expect(game.ui.station).toBe('monster');
+    expect(game.notify).not.toHaveBeenCalled();
+    expect(game.ui.station).toBe('red');
+    expect(game.ui.roleLabel).toBe('Archiv');
+    expect(game.setup.seats.monster.who).toBe('bot');
+  });
+
+  /**
+   * **Nur wer im Schiff den Anzug trägt, bleibt darin**: der Techniker am
+   * Bildschirm (Ansicht 3D) mitten in der Mission. Der Grund steht auf der
+   * Seite; im Test darf auch er.
+   */
+  it('lässt den Techniker im Schiff mitten in der Mission nicht wechseln', () => {
+    const game = crew('technician', false, undefined, false);
+    expect(game.lobby.view).toBe('3d');
+    open('red');
+    expect(game.notify).toHaveBeenCalledWith(SHIP_KEEPS_ROLE);
+    expect(game.lobby.me).toBe('technician');
+    expect(game.ui.station).toBeNull();
     game.state.crew.options.test = true;
     game.ui.refresh();
     open('red');

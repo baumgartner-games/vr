@@ -876,14 +876,22 @@ export class StationUi {
       // **Rollen testen** — der Weg auf die Karte, ohne dass eine Runde
       // losgeht. Die Rolle nimmt man dort über die Reiter; bis dahin gilt die
       // gemerkte (`LobbyChoice.me`), und die steht als Zeile unter dem Knopf.
+      // **Läuft im Raum schon eine Mission**, ist derselbe Knopf der Einstieg
+      // in sie: Wer die Seite mitten in der Runde neu geladen hat, steht hier
+      // wieder im Aufbau — und fand bisher nur einen Start, den der Gastgeber
+      // mit „läuft schon" abwies, und ein „Testen", das nicht stimmte.
+      const running = this.host.state().phase === 'running';
       const test = el('button', 'lobby__start lobby__start--test');
       test.dataset['testRoles'] = '';
+      if (running) test.dataset['join'] = '';
       test.append(
-        el('strong', '', 'Rollen testen'),
+        el('strong', '', running ? 'Zur laufenden Runde' : 'Rollen testen'),
         el(
           'span',
           'haunt__tag',
-          `Auf die Karte — hell, ohne Uhr, ohne Treffer. Rolle über die Reiter wählen · zuletzt: ${MY_ROLE_LABELS[this.me]}`,
+          running
+            ? `Die Mission läuft schon — auf die Karte als ${MY_ROLE_LABELS[this.me]}; die Rolle wechselst du dort über die Reiter.`
+            : `Auf die Karte — hell, ohne Uhr, ohne Treffer. Rolle über die Reiter wählen · zuletzt: ${MY_ROLE_LABELS[this.me]}`,
         ),
       );
       out.push(test);
@@ -978,8 +986,9 @@ export class StationUi {
    * reicht und von einem gespielt wird.
    *
    * Mitten in einer Mission entscheidet `roundSetup.switchRights`, ob er darf:
-   * Im Test jeder alles; sonst nur, wer in der Zentrale sitzt; den Techniker
-   * in der Brille rührt niemand an.
+   * Im Test jeder alles; sonst jeder, der nicht im Schiff den Anzug trägt —
+   * der Techniker am Bildschirm (Ansicht 3D) bleibt, wo er ist, und den
+   * Techniker in der Brille rührt niemand an.
    */
   private choose(me: MyRole): void {
     const was = this.me;
@@ -987,7 +996,7 @@ export class StationUi {
     if (running && was !== me) {
       const rights = switchRights({
         test: this.host.state().crew.options.test,
-        inCentre: was !== 'monster' && was !== 'technician',
+        inShip: was === 'technician' && (this.host.lobby?.().view ?? '2d') === '3d',
         vrTechnician: this.host.link().vr,
       });
       const allowed = me === 'technician' ? rights.technician : rights.abilities;

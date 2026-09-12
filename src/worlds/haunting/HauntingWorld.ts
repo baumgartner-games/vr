@@ -191,7 +191,7 @@ import { NetMonsterPort } from './monster/netMonsterPort';
 import { rescueHeight } from '../shared/fallRescue';
 import type { MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
-import type { FlatOptions } from './map/flatRound';
+import type { FlatOptions, FlatResume } from './map/flatRound';
 import type { ToolIcons } from './map/toolIcons';
 import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './stations';
 import {
@@ -271,6 +271,9 @@ const SETUP_GRACE = 1500;
 export const START_SENT = 'Start geht an den Techniker im Schiff — die Runde beginnt bei ihm.';
 /** Und was der Gastgeber einem Startwunsch entgegnet, solange seine Runde läuft. */
 export const ROUND_RUNNING = 'Die Runde läuft schon — ein zweiter Start bricht sie nicht ab.';
+/** Die 2D-Welt gibt es je Raum einmal: Wer sie spielt, ist der Techniker. */
+export const FLAT_OCCUPIED =
+  '2D-Welt nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.';
 /**
  * **Wie lange ein frischer Gastgeber auf die Übergabe des alten wartet**, in
  * Sekunden.
@@ -729,6 +732,13 @@ export class HauntingWorld extends GridWorld {
    * Stand für andere, wie die 3D-Bot-Runde).
    */
   private flatShared = false;
+  /**
+   * Ob die gemeinsame 2D-Runde **eine laufende Mission fortsetzt**, deren
+   * Bücher noch unterwegs sind (`takeStick`, `receive` → `handover`): Der
+   * Stand kam vom Gastgeber, die Riegel, der Spuk und das Gedächtnis kommen
+   * erst mit seiner Übergabe — und die gehört dann in diese Runde.
+   */
+  private flatResumed = false;
   /** Die gepufferten Werkzeugbilder der 2D-Welt (`map/toolIcons.ts`). */
   private flatIcons: ToolIcons | null = null;
   private flatLoading = false;
@@ -2104,10 +2114,16 @@ export class HauntingWorld extends GridWorld {
     // solange dieses Gerät nicht selbst eine 2D-Runde spielt: Dort *ist* die
     // eigene Runde der Stand, und ein fremder wäre eine zweite Station unter
     // derselben Uhr.
+    // **Außer, die 2D-Runde hat die Mission eben erst übernommen**
+    // (`flatResumed`): Dann ist ihr Stand schon der des Gastgebers, und nur
+    // die Bücher fehlen ihr noch — die gehen in sie hinein, der Stand nicht.
     const handover = readHandover(data);
     if (handover) {
-      if (handover.to === this.context?.net.localId && this.isHost && !this.flatShared)
-        this.takeHandover(handover.state, handover.books);
+      if (handover.to === this.context?.net.localId && this.isHost) {
+        if (!this.flatShared) this.takeHandover(handover.state, handover.books);
+        else if (this.flatResumed && handover.state.seed === this.state.seed)
+          this.takeFlatHandover(handover.books);
+      }
       return;
     }
     const state = readState(data);
@@ -2293,6 +2309,22 @@ export class HauntingWorld extends GridWorld {
     if (!this.stale(state)) this.adopt(state);
     this.loadBooks(books);
     this.handoverUntil = 0;
+  }
+
+  /**
+   * **Die Bücher in die fortgesetzte 2D-Runde** (`FlatRound.loadBooks`): Der
+   * Stand bleibt der ihre — er *ist* schon der, den der alte Gastgeber
+   * ansagte —, das Lampenbudget führt wie immer dieser Wirt. Einmal, dann ist
+   * die Übernahme vollständig.
+   */
+  private takeFlatHandover(books: HauntBooks): void {
+    this.flatResumed = false;
+    this.handoverUntil = 0;
+    const round = this.flat?.round;
+    if (!round || round.phase !== 'running') return;
+    round.loadBooks(books);
+    this.locks = round.locks;
+    this.lampBook = books.lamps;
   }
 
   /** Riegel, Lampen, Spuk, Wunde und Gedächtnis übernehmen. */
@@ -4005,8 +4037,16 @@ export class HauntingWorld extends GridWorld {
     // und das Telefon in der Zentrale fing hier eine eigene Runde mit einem
     // Techniker aus Zahlen an. Jetzt zählt, wer den Anzug trägt (`wearsSuit`).
     if (!this.isHost && this.roomOccupied(ctx) && ctx.role !== 'vr') {
-      ctx.net.emit(HAUNT_CHANNEL, startMessage(asIntent(what), setup));
-      this.say(START_SENT);
+      // **Läuft seine Runde schon, geht kein Wunsch hinüber.** Der Gastgeber
+      // wiese ihn mit demselben Satz ab — nur sagte er ihn bisher sich selbst,
+      // und hier stand „Start geht an den Techniker": der tote Knopf nach
+      // einem Neuladen mitten in der Runde. Der Zuschauer bekommt sein Bild
+      // von oben trotzdem — es ist die Runde, die läuft.
+      if (this.state.phase === 'running') this.say(ROUND_RUNNING);
+      else {
+        ctx.net.emit(HAUNT_CHANNEL, startMessage(asIntent(what), setup));
+        this.say(START_SENT);
+      }
       if (opensFlat(this.startState()) && isWatcher(this.myPlace())) {
         this.openFlat(ctx, {
           monster: this.state.crew.options.monster,
@@ -4158,6 +4198,34 @@ export class HauntingWorld extends GridWorld {
     }
     if (this.flat?.role === 'technician') return;
     const setup = this.setup;
+    // **Läuft im Raum schon eine Mission, steigt er in sie ein** — statt sie
+    // durch einen frischen Test zu ersetzen. Der Fall ist das Neuladen: Wer
+    // mitten in der Runde die Seite neu lädt, kommt in der Zentrale an, kennt
+    // den Stand vom Gastgeber (`adopt`) und will an den Stock zurück. Bis
+    // hierher machte der Reiter daraus einen Test-Zustand auf derselben
+    // Station, der als neuer Stand an alle ging: Die Mission war weg. Jetzt
+    // reist der Stand in die 2D-Runde (`FlatResume`, derselbe Weg wie von 3D
+    // nach 2D), und die Bücher kommen mit der Übergabe des alten Gastgebers
+    // nach (`flatResumed`). Trägt schon jemand anders den Anzug, gibt es
+    // dieselbe Absage wie beim Öffnen — nur bevor das Monster losgelassen ist.
+    const running = this.state.phase === 'running' && !this.state.crew.simulation;
+    let resume: FlatResume | undefined;
+    if (running) {
+      if (this.flatLoading) return;
+      if (this.roomOccupied(ctx)) {
+        this.say(FLAT_OCCUPIED);
+        return;
+      }
+      const books = this.books();
+      this.releaseMonster();
+      resume = {
+        state: this.state,
+        locks: books.locks,
+        spook: books.spook,
+        trail: books.trail,
+        memory: books.memory,
+      };
+    }
     this.openFlat(ctx, {
       monster: this.state.crew.options.monster,
       tuning: this.tuning,
@@ -4166,8 +4234,12 @@ export class HauntingWorld extends GridWorld {
       setup,
       powers: powersOf(setup),
       mode: 'realistic',
-      phase: 'briefing',
+      phase: running ? 'running' : 'briefing',
+      resume,
     });
+    // Erst nach dem Öffnen: `openFlat` schließt eine 2D-Welt, die noch offen
+    // steht, und `closeFlat` setzt die Marke zurück.
+    this.flatResumed = running;
   }
 
   /**
@@ -4453,7 +4525,7 @@ export class HauntingWorld extends GridWorld {
     // das Monster loslässt und dann abgewiesen wird, steht danach in einer
     // Runde ohne Gegner.
     if (this.roomOccupied(ctx)) {
-      ctx.notify('2D-Welt nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
+      ctx.notify(FLAT_OCCUPIED);
       return;
     }
     // **Erst einpacken, dann loslassen**: `releaseMonster` wirft das Gedächtnis
@@ -4539,7 +4611,7 @@ export class HauntingWorld extends GridWorld {
     // Raum leer, bleibt es bei der lokalen Bot-Runde wie bisher.
     const live = !shared && occupied;
     if (shared && occupied) {
-      ctx.notify('2D-Welt nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.');
+      ctx.notify(FLAT_OCCUPIED);
       return;
     }
     this.flatLoading = true;
@@ -4628,6 +4700,7 @@ export class HauntingWorld extends GridWorld {
     this.flat.dispose();
     this.flat = null;
     this.flatWatching = false;
+    this.flatResumed = false;
     if (this.flatShared) {
       this.flatShared = false;
       if (!keepState) {

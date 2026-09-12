@@ -525,19 +525,8 @@ export class FlatRound implements MapSource {
     if (resume) {
       this.blood.drops = this.haunt.blood ?? [];
       this.haunt.blood = this.blood.drops;
-      if (resume.trail) {
-        this.blood.until = resume.trail.until;
-        this.blood.from = resume.trail.from ? { ...resume.trail.from } : null;
-        this.blood.walked = resume.trail.walked;
-      }
-      if (resume.locks) {
-        this.locks.chosen = resume.locks.chosen;
-        this.locks.until = resume.locks.until;
-        this.locks.slams = resume.locks.slams.map((one) => ({ ...one }));
-        this.locks.pries = resume.locks.pries.map((one) => ({ ...one }));
-        this.locks.cooling = resume.locks.cooling.map((one) => ({ ...one }));
-      }
-      if (resume.spook) this.spook = { ...resume.spook };
+      // Das Gedächtnis erst unten, wenn es steht (`loadMemory`).
+      this.loadBooks({ locks: resume.locks, spook: resume.spook, trail: resume.trail });
       // Die Werkzeuge stehen nicht im Stand, sondern im Gepäck: Was der
       // Techniker aufgesammelt hat, hat er auch nach dem Wechsel in der Hand.
       for (const id of this.haunt.crew.inventory)
@@ -581,7 +570,7 @@ export class FlatRound implements MapSource {
     this.monster = { x: centre.x, z: centre.z, yaw: 0, space: start };
     if (this.haunt.monsterOn) this.haunt.monster = { x: centre.x, z: centre.z };
     // Das Gedächtnis nachspielen, sobald es eines gibt (`net.loadMemory`).
-    if (resume?.memory) loadMemory(this.brain, resume.memory, (point) => this.graph.spaceAt(point));
+    if (resume?.memory) this.loadMemory(resume.memory);
 
     const layout = stationLayout(this.house);
     // Inhalt und Kennzeichen kommen aus `rules/cargo.ts` — dieselbe Liste, aus
@@ -615,6 +604,40 @@ export class FlatRound implements MapSource {
       { snapshot: this.snapshot(), mode: this.mode, viewerId: PLAYER_ID },
       this.litCache,
     );
+  }
+
+  /**
+   * **Die Buchführung nachträglich übernehmen** — Riegel, Spuk, Wunde und das
+   * Gedächtnis des Monsters (`FlatResume` ohne den Stand).
+   *
+   * Der Konstruktor ruft es für eine fortgesetzte Runde; die Welt ruft es noch
+   * einmal, wenn die Bücher **nach** dem Öffnen eintreffen: Wer die Seite
+   * mitten in der Mission neu lädt und wieder an den Stock geht, kennt den
+   * Stand vom Gastgeber (er reist alle paar Hundertstel über die Leitung), die
+   * Bücher aber nicht — die schickt der alte Gastgeber erst mit der Übergabe
+   * (`net.handoverMessage`), und die kommt, wenn diese Runde schon läuft.
+   * Was fehlt, fängt bis dahin von vorn an; was kommt, gilt.
+   */
+  loadBooks(books: Pick<FlatResume, 'locks' | 'spook' | 'trail' | 'memory'>): void {
+    if (books.trail) {
+      this.blood.until = books.trail.until;
+      this.blood.from = books.trail.from ? { ...books.trail.from } : null;
+      this.blood.walked = books.trail.walked;
+    }
+    if (books.locks) {
+      this.locks.chosen = books.locks.chosen;
+      this.locks.until = books.locks.until;
+      this.locks.slams = books.locks.slams.map((one) => ({ ...one }));
+      this.locks.pries = books.locks.pries.map((one) => ({ ...one }));
+      this.locks.cooling = books.locks.cooling.map((one) => ({ ...one }));
+    }
+    if (books.spook) this.spook = { ...books.spook };
+    if (books.memory) this.loadMemory(books.memory);
+  }
+
+  /** Das Gedächtnis des Monsters nachspielen (`net.loadMemory`). */
+  private loadMemory(memory: MonsterBook): void {
+    loadMemory(this.brain, memory, (point) => this.graph.spaceAt(point));
   }
 
   /**
