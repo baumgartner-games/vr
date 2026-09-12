@@ -11,9 +11,15 @@ import { DOOR_LOSS, HEARING, VENT_LOSS, reachOf } from './hearing';
 import {
   AMBIENT_GAP,
   CHASE_RANGE,
+  FOOT_OFFSET,
+  FOOT_PAN,
   RUN_CADENCE,
+  SNEAK_GAIN,
   STALK_CADENCE,
+  STEP_GAIN,
+  STRIDE,
   Soundscape,
+  type Listener,
   type SoundEvent,
   type SoundscapeInput,
 } from './soundscape';
@@ -131,6 +137,30 @@ function run(input: SoundscapeInput, seconds = 5, scape = new Soundscape()): Sou
   return out;
 }
 
+/**
+ * Dasselbe, nur in Bewegung: Der Zuhörer — ausdrücklich oder als Wesen im
+ * Snapshot — geht mit `speed` Metern je Sekunde nach Norden. Die Regie zählt
+ * Schritte nach der Strecke, ein stehender Zuhörer macht keine.
+ */
+function stroll(
+  input: SoundscapeInput,
+  speed: number,
+  seconds = 5,
+  scape = new Soundscape(),
+): SoundEvent[] {
+  const out: SoundEvent[] = [];
+  const rng = input.rng ?? (() => 0.5);
+  const at =
+    typeof input.listener === 'string'
+      ? input.snapshot.entities.find((e) => e.id === input.listener)?.at
+      : input.listener.at;
+  for (let t = 0; t < seconds; t += 0.05) {
+    if (at) at.z -= speed * 0.05;
+    out.push(...scape.tick(0.05, { ...input, rng }));
+  }
+  return out;
+}
+
 const count = (events: SoundEvent[], cue: SoundEvent['cue']) =>
   events.filter((e) => e.cue === cue).length;
 
@@ -139,44 +169,87 @@ const ofMonster = (events: SoundEvent[]) =>
   events.filter((e) => e.cue.startsWith('monster-') || e.cue === 'heartbeat');
 
 describe('Die Regie: eigene Schritte', () => {
-  it('hört den eigenen Schritt im Gehtakt, schneller beim Sprint, gar nicht im Stand', () => {
+  const steps = (events: SoundEvent[]) => events.filter((e) => e.cue === 'player-step');
+  const north = (x: number, z: number): Listener => ({ at: { x, z }, forward: { x: 0, z: -1 } });
+
+  it('macht einen Schritt je Meter — gehend wie rennend gleich laut, keinen im Stand', () => {
     const snapshot = twoRooms(true);
-    const listener = { at: { x: 5, z: 5 }, forward: { x: 0, z: -1 } };
-    const walking = run({
-      snapshot,
-      listener: { ...listener, speed: PLAYER_WALK_SPEED },
-      kind: 'stalker',
-    });
-    const sprinting = run({
-      snapshot,
-      listener: { ...listener, speed: PLAYER_SPRINT_SPEED },
-      kind: 'stalker',
-    });
-    const standing = run({ snapshot, listener: { ...listener, speed: 0 }, kind: 'stalker' });
-    expect(count(walking, 'player-step')).toBeCloseTo(5 / (1.45 / PLAYER_WALK_SPEED), -1);
+    const walking = stroll({ snapshot, listener: north(5, 5), kind: 'stalker' }, PLAYER_WALK_SPEED);
+    const sprinting = stroll(
+      { snapshot, listener: north(5, 5), kind: 'stalker' },
+      PLAYER_SPRINT_SPEED,
+    );
+    const standing = stroll({ snapshot, listener: north(5, 5), kind: 'stalker' }, 0);
+    expect(count(walking, 'player-step')).toBeCloseTo((5 * PLAYER_WALK_SPEED) / STRIDE, -1);
+    expect(count(sprinting, 'player-step')).toBeCloseTo((5 * PLAYER_SPRINT_SPEED) / STRIDE, -1);
     expect(count(sprinting, 'player-step')).toBeGreaterThan(count(walking, 'player-step') * 1.5);
     expect(count(standing, 'player-step')).toBe(0);
-    for (const step of walking.filter((e) => e.cue === 'player-step')) {
+    for (const step of steps(walking)) {
       expect(step.distance).toBe(0);
-      expect(step.pan).toBe(0);
-      expect(step.gain).toBeGreaterThan(0);
+      expect(step.gain).toBe(STEP_GAIN);
     }
-    // Sprint ist lauter als Gehen.
-    expect(sprinting.find((e) => e.cue === 'player-step')!.gain).toBeGreaterThan(
-      walking.find((e) => e.cue === 'player-step')!.gain,
+    // Rennen ist nicht lauter als Gehen — nur schneller.
+    expect(steps(sprinting)[0]!.gain).toBe(STEP_GAIN);
+  });
+
+  it('setzt links und rechts ab: 20 cm neben der Mitte, quer zum Blick, in der Balance dieselbe Seite', () => {
+    const snapshot = twoRooms(true);
+    const walked = steps(
+      stroll({ snapshot, listener: north(5, 5), kind: 'stalker' }, PLAYER_WALK_SPEED),
     );
+    expect(walked.length).toBeGreaterThan(4);
+    // Der erste Fuß ist der linke; nach Norden geblickt liegt links bei kleinerem x.
+    walked.forEach((step, i) => {
+      const side = i % 2 === 0 ? -1 : 1;
+      expect(step.pan).toBeCloseTo(FOOT_PAN * side, 6);
+      expect(step.at.x).toBeCloseTo(5 + FOOT_OFFSET * side, 6);
+      expect(step.from).toEqual(step.at);
+    });
+    // Ein Meter zwischen zwei Schritten, nicht ein Bild.
+    for (let i = 1; i < walked.length; i++)
+      expect(Math.abs(walked[i]!.at.z - walked[i - 1]!.at.z)).toBeGreaterThanOrEqual(STRIDE);
+  });
+
+  it('schleicht leise, stolpert beim Losgehen nicht und teleportiert lautlos', () => {
+    const snapshot = twoRooms(true);
+    const crouched = stroll(
+      { snapshot, listener: { ...north(5, 5), crouched: true }, kind: 'stalker' },
+      PLAYER_WALK_SPEED,
+    );
+    expect(count(crouched, 'player-step')).toBeCloseTo((5 * PLAYER_WALK_SPEED) / STRIDE, -1);
+    for (const step of steps(crouched)) expect(step.gain).toBe(SNEAK_GAIN);
+    expect(SNEAK_GAIN).toBeLessThan(STEP_GAIN);
+    // Lange stehen, dann losgehen: kein Nachholen versäumter Schritte.
+    const scape = new Soundscape();
+    const listener = north(5, 5);
+    expect(
+      count(stroll({ snapshot, listener, kind: 'stalker' }, 0, 20, scape), 'player-step'),
+    ).toBe(0);
+    const going = stroll({ snapshot, listener, kind: 'stalker' }, PLAYER_WALK_SPEED, 1, scape);
+    expect(count(going, 'player-step')).toBe(Math.floor(PLAYER_WALK_SPEED / STRIDE));
+    // Ein Sprung quer durch die Station ist kein Schritt — und der nächste
+    // Meter danach wieder einer.
+    listener.at.x += 10;
+    expect(count(scape.tick(0.05, { snapshot, listener, kind: 'stalker' }), 'player-step')).toBe(0);
+    const after = stroll({ snapshot, listener, kind: 'stalker' }, PLAYER_WALK_SPEED, 1, scape);
+    expect(count(after, 'player-step')).toBe(Math.floor(PLAYER_WALK_SPEED / STRIDE));
   });
 
   it('lässt das Monster sich selbst nicht hören — kein Schritt, kein Ruf, kein Herz', () => {
     const snapshot = twoRooms(true);
     snapshot.entities.push(player(5, 5, true), monster(6, 5, true, true));
     // Der Techniker hört sich und das Monster.
-    const heard = run({ snapshot, listener: 'player', kind: 'stalker' });
+    const heard = stroll({ snapshot, listener: 'player', kind: 'stalker' }, PLAYER_WALK_SPEED);
     expect(count(heard, 'player-step')).toBeGreaterThan(0);
     expect(ofMonster(heard).length).toBeGreaterThan(0);
     // Wer das Monster spielt, hört von sich selbst nichts.
     const own = new Soundscape();
-    const events = run({ snapshot, listener: 'monster', kind: 'stalker' }, 5, own);
+    const events = stroll(
+      { snapshot, listener: 'monster', kind: 'stalker' },
+      PLAYER_SPRINT_SPEED,
+      5,
+      own,
+    );
     expect(count(events, 'player-step')).toBe(0);
     expect(ofMonster(events)).toEqual([]);
     expect(own.heartbeat).toBe(0);
@@ -184,13 +257,19 @@ describe('Die Regie: eigene Schritte', () => {
     expect(own.ambience['ambient-hum']).toBeGreaterThan(0);
   });
 
-  it('nimmt Tempo und Versteck aus dem Snapshot, wenn der Zuhörer nur eine Kennung ist', () => {
+  it('nimmt Ort und Versteck aus dem Snapshot, wenn der Zuhörer nur eine Kennung ist', () => {
     const snapshot = twoRooms(true);
     snapshot.entities.push(player(5, 5, true, true));
-    const events = run({ snapshot, listener: 'player', kind: 'stalker' });
+    const events = stroll({ snapshot, listener: 'player', kind: 'stalker' }, PLAYER_SPRINT_SPEED);
     expect(count(events, 'player-step')).toBeGreaterThan(10);
+    // Im Schrank ist die Strecke keine: Wer darin „geht", macht keinen Schritt.
     snapshot.entities[0]!.concealed = true;
-    expect(count(run({ snapshot, listener: 'player', kind: 'stalker' }), 'player-step')).toBe(0);
+    expect(
+      count(
+        stroll({ snapshot, listener: 'player', kind: 'stalker' }, PLAYER_WALK_SPEED),
+        'player-step',
+      ),
+    ).toBe(0);
     expect(run({ snapshot, listener: 'nobody', kind: 'stalker' })).toHaveLength(0);
   });
 });

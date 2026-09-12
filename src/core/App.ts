@@ -317,6 +317,7 @@ export class App {
       avatars: this.avatars,
       role: this.role,
       elapsed: this.elapsed,
+      frame: () => this.frameStats.latest,
       goTo: (id: string) => void this.goTo(id),
       join: (room: string) => void this.joinRoom(room),
       touchStick: (on: boolean) => this.hooks.onTouchStick?.(on),

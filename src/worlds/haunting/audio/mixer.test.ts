@@ -345,19 +345,21 @@ describe('HauntingAudio', () => {
     const snapshot = emptySnapshot();
     const input = {
       snapshot,
-      listener: { at: { x: 0, z: 0 }, forward: { x: 0, z: -1 }, speed: 2.6 },
+      listener: { at: { x: 0, z: 0 }, forward: { x: 0, z: -1 } },
       kind: 'stalker' as const,
     };
-    // 72 Bilder je Sekunde, drei Sekunden: Schritte alle 0,56 s, also fünf oder
-    // sechs — dazu die eine Schleife des Brummens (Strom an, kein Raum: nicht dunkel).
+    // 72 Bilder je Sekunde, drei Sekunden bei 2,6 m/s: 7,8 m Strecke, ein
+    // Schritt je Meter, also sieben — dazu die eine Schleife des Brummens
+    // (Strom an, kein Raum: nicht dunkel).
     for (let i = 0; i < 72 * 3; i++) {
+      input.listener.at.z -= 2.6 / 72;
       audio.update(1 / 72, input);
       for (const source of scheduled) source.onended?.();
     }
     const loops = scheduled.filter((s) => s.type === 'triangle' || s.loop === true);
     expect(loops).toHaveLength(1);
-    expect(scheduled.length - loops.length).toBeGreaterThanOrEqual(5);
-    expect(scheduled.length - loops.length).toBeLessThanOrEqual(6);
+    expect(scheduled.length - loops.length).toBeGreaterThanOrEqual(6);
+    expect(scheduled.length - loops.length).toBeLessThanOrEqual(8);
     expect(AUDIO_HZ).toBe(20);
     expect(audio.heartbeat).toBe(0);
     expect(audio.levels).toEqual({ effects: 1, ambient: 0.5 });

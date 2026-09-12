@@ -2332,7 +2332,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     // nicht, weil man auf die Kiste schaut.
     const chore = this.chore;
     const filled = chore ? Math.round(choreProgress(chore) * 40) : 0;
-    const key = `${hud.oxygen}|${hud.suit}|${hud.color}|${pips}|${line}|${orders}|${chore?.label ?? ''}|${filled}`;
+    // **Die Bildrate steht mit in der ersten Zeile** — dieselbe Messung wie
+    // im Grafik-Menü (`FrameStats.latest`, halbe Sekunden), aber ohne dass
+    // man dafür das Menü aufmachen muss: Ob die Quest stottert, sieht man so
+    // beim Spielen, nicht erst danach.
+    const sample = this.host.ctx.frame();
+    const fps = sample ? `${sample.fps.toFixed(0)} FPS` : '';
+    const key = `${hud.oxygen}|${hud.suit}|${hud.color}|${fps}|${pips}|${line}|${orders}|${chore?.label ?? ''}|${filled}`;
     if (this.hud.mesh.userData.paint === key) return;
     this.hud.mesh.userData.paint = key;
     const c = this.hud.ctx;
@@ -2354,11 +2360,20 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     c.fillStyle = hud.color;
     c.textAlign = 'left';
     c.font = `bold ${Math.round(top * 0.56)}px system-ui`;
-    c.fillText(hud.oxygen, pad, top / 2, w * 0.55);
+    c.fillText(hud.oxygen, pad, top / 2, w * 0.5);
+    const oxygenEnd = pad + Math.min(c.measureText(hud.oxygen).width, w * 0.5);
     c.textAlign = 'right';
     c.font = `${Math.round(top * 0.5)}px system-ui`;
     c.fillStyle = round.suit > 0 ? '#adffe8' : hud.color;
-    c.fillText(hud.suit, w - pad, top / 2, w * 0.4);
+    c.fillText(hud.suit, w - pad, top / 2, w * 0.3);
+    const suitStart = w - pad - Math.min(c.measureText(hud.suit).width, w * 0.3);
+    // Die Bildrate nimmt, was zwischen Uhr und Anzug frei bleibt — klein und
+    // gedämpft, eine Auskunft und keine dritte Anzeige.
+    c.textAlign = 'left';
+    c.font = `${Math.round(top * 0.34)}px system-ui`;
+    c.fillStyle = '#8fb0bd';
+    const fpsX = oxygenEnd + pad * 0.8;
+    c.fillText(fps, fpsX, top / 2, Math.max(1, suitStart - fpsX - pad * 0.5));
     if (!orders) {
       this.paintChore(chore, top, h);
       this.hud.texture.needsUpdate = true;
@@ -3353,11 +3368,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       if (snapshot) {
         this.hearingAudio.update(step, {
           snapshot,
+          // Die Schritte zählt die Regie nach der Strecke des Kopfes; in
+          // der Bot-Runde fliegt der Kopf nur zu, da geht niemand.
           listener: {
             at: frame.listener,
             forward: frame.forward,
-            speed: frame.playerSpeed,
-            concealed: !!this.crew.hidden,
+            crouched: this.host.ctx.rig.crouch > 0.15,
+            concealed: !!this.crew.hidden || this.crew.simulation,
           },
           kind: frame.kind,
           active: frame.active,
