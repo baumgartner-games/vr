@@ -3,6 +3,7 @@ import { FlatMode } from './flatMode';
 import { FlatRound } from './flatRound';
 import { puzzleFor, repairsFor } from '../mission';
 import { FlatWalker } from './flatWalk';
+import { defaultSetup, withPower, withWho } from '../rules/roundSetup';
 
 jest.mock('./flat.css', () => ({}));
 
@@ -258,7 +259,11 @@ describe('Die 2D-Welt', () => {
     expect(panel.querySelector('[data-audio="effects"]')).not.toBeNull();
     expect(panel.querySelector('[data-watch]')?.textContent).toContain('Zuschauen: an');
     expect(panel.querySelector('[data-switch-view]')?.textContent).toContain('3D Schiff');
-    expect(panel.querySelector('[data-leave]')?.textContent).toContain('Runde verlassen');
+    expect(panel.querySelector('[data-leave]')?.textContent).toContain('Zurück zu den Rollen');
+    // Und die Runde selbst: Sie läuft, also lässt sie sich stoppen — starten
+    // steht erst wieder da, wenn sie steht (siehe „Der Test-Zustand").
+    expect(panel.querySelector('[data-mission="stop"]')).not.toBeNull();
+    expect(panel.querySelector('[data-mission="start"]')).toBeNull();
     // **Zuschauen geht immer** — an und wieder aus, mitten in der Runde.
     flat.element.querySelector<HTMLButtonElement>('[data-watch]')!.click();
     expect(flat.role).toBe('technician');
@@ -333,6 +338,101 @@ describe('Die 2D-Welt', () => {
     ending.querySelector<HTMLButtonElement>('[data-restart]')!.click();
     expect(flat.round.phase).toBe('running');
     expect(ending.hidden).toBe(true);
+    flat.dispose();
+  });
+});
+
+/**
+ * **Der Test-Zustand** (`FlatOptions.phase`): Vor der Mission läuft der
+ * Techniker in einer hellen Station herum, ohne Uhr und ohne Treffer; die
+ * Mission startet aus dem Zahnrad — auf derselben Station — und „stoppen"
+ * führt wieder hierher. So wollte es der Besitzer: erst Rollen ausprobieren,
+ * dann klar gesagt starten.
+ */
+describe('Der Test-Zustand vor und nach der Mission', () => {
+  it('lässt den Techniker hell und ohne Uhr laufen und startet erst aus dem Zahnrad', () => {
+    const flat = new FlatMode(3, { phase: 'briefing' }, { exit: () => {} });
+    document.body.append(flat.element);
+    expect(flat.round.phase).toBe('briefing');
+    expect(flat.round.live).toBe(false);
+    // Alles hell: jede Lampe steht in `lit` (die Zentrale hat keine, sie ist immer hell).
+    const rooms = flat.round.lamps().length;
+    expect(rooms).toBeGreaterThan(10);
+    expect(flat.round.state().lit.length).toBe(rooms);
+    // Das Monster steht bereit — aber die Routine rührt sich nicht.
+    expect(flat.round.state().monsterOn).toBe(true);
+    const monster = { ...flat.round.monster };
+    // Laufen geht; die Uhr sagt derweil, dass keine Runde läuft.
+    for (let i = 0; i < 30; i++) flat.round.step(DT, { x: 1, z: 0, sprint: false });
+    flat.update(DT);
+    expect(flat.round.player.x).not.toBeCloseTo(monster.x);
+    expect(flat.round.monster.x).toBe(monster.x);
+    expect(flat.round.monster.z).toBe(monster.z);
+    const hud = flat.element.querySelector<HTMLElement>('.flat__hud')!;
+    expect(hud.querySelector('.flat__oxygen')?.textContent).toBe('Test · keine Runde');
+    expect(hud.querySelector('.flat__suit')?.textContent).toBe('♥♥♥');
+    // Kein Endbildschirm: Ein Test ist keine verlorene Runde.
+    expect(flat.element.querySelector<HTMLElement>('.flat__ending')!.hidden).toBe(true);
+    // Der Rollenstreifen ist frei — im Test darf jeder jede Rolle.
+    const keys = [...flat.element.querySelectorAll<HTMLButtonElement>('[data-role-strip]')];
+    expect(keys[0]!.textContent).toBe('Techniker');
+    expect(keys.every((key) => !key.disabled)).toBe(true);
+    // Die Schalttafel schaltet auch jetzt — ohne Frist und ohne Budget.
+    const door = flat.round.house.doors[0]!;
+    expect(flat.round.lockDoor(door.id)).toContain('verriegelt');
+    expect(flat.round.state().shut).toContain(door.id);
+    expect(flat.round.lockDoor(door.id)).toContain('entriegelt');
+    const room = flat.round.snapshot().rooms[0]!.id;
+    expect(flat.round.switchLight(room)).toBe('Licht aus.');
+    expect(flat.round.switchLight(room)).toBe('Licht an.');
+    // Im Zahnrad steht „Mission starten" — und nach dem Tipp läuft die Uhr
+    // auf derselben Station: gleicher Same, Licht aus, Monster an.
+    const seed = flat.round.house.seed;
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    const panel = flat.element.querySelector<HTMLElement>('.flat__panel:not(.flat__sheet)')!;
+    expect(panel.querySelector('[data-mission="stop"]')).toBeNull();
+    panel.querySelector<HTMLButtonElement>('[data-mission="start"]')!.click();
+    expect(flat.round.phase).toBe('running');
+    expect(flat.round.house.seed).toBe(seed);
+    expect(flat.round.state().lit).toEqual([]);
+    expect(flat.round.state().time).toBe(0);
+    expect(flat.openOverlay).toBe('none');
+    flat.update(DT);
+    expect(hud.querySelector('.flat__oxygen')?.textContent).toMatch(/^O₂ \d+:\d\d$/);
+    // Und „Mission stoppen" führt zurück in den Test — hell, dieselbe Station.
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    flat.element.querySelector<HTMLButtonElement>('[data-mission="stop"]')!.click();
+    expect(flat.round.phase).toBe('briefing');
+    expect(flat.round.house.seed).toBe(seed);
+    expect(flat.round.state().lit.length).toBe(rooms);
+    flat.dispose();
+  });
+
+  /**
+   * **Kein Bot auf einem Menschenplatz.** Steht auf der Tafel „Techniker:
+   * Mensch" und dieses Gerät sieht nur zu, läuft kein Techniker aus Zahlen —
+   * und die Mission startet nicht, bis jemand den Stock nimmt.
+   */
+  it('lässt ohne Menschen am Stock keinen Bot laufen und keine Mission los', () => {
+    const setup = withPower(defaultSetup(), 'red', 'archive', true);
+    expect(setup.seats.technician.who).toBe('human');
+    const flat = new FlatMode(3, { role: 'watch', setup, phase: 'briefing' }, { exit: () => {} });
+    document.body.append(flat.element);
+    expect(flat.role).toBe('watch');
+    expect(flat.botPlays).toBe(false);
+    const start = { ...flat.round.player };
+    for (let i = 0; i < 60; i++) flat.update(DT);
+    expect(flat.round.player.x).toBe(start.x);
+    expect(flat.round.player.z).toBe(start.z);
+    expect(flat.startMission()).toBe(false);
+    expect(flat.round.phase).toBe('briefing');
+    expect(flat.element.querySelector('.flat__toast')?.textContent).toContain(
+      'niemand steht am Stock',
+    );
+    // Gibt die Tafel den Platz einem Bot, läuft er — und die Mission geht los.
+    expect(flat.startMission({ setup: withWho(setup, 'technician', 'bot') })).toBe(true);
+    expect(flat.botPlays).toBe(true);
+    expect(flat.round.phase).toBe('running');
     flat.dispose();
   });
 });

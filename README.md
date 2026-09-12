@@ -105,9 +105,9 @@ eingibt, steht dann bei allen in der Liste (Name und Gerät). Dann wählt jeder
 seinen Weg, und alle bleiben in diesem Raum: **Enter VR** (die Brille, der
 Techniker im Anzug), **Web 3D** (der Techniker am Bildschirm, im Schiff) und
 **2D Einsatzzentrale** (Handy oder Laptop: Archiv, Schalttafel, Späher,
-Zuschauer oder Monster — die Karte von oben). In der Zentrale dann Archiv
-beziehungsweise Schalttafel besetzen — auf der Tafel im Aufbau sagt ein
-**Ich** je Zeile, welcher Platz der eigene ist. Wer über **Enter VR** oder
+Zuschauer oder Monster — die Karte von oben). In der Zentrale erst die Tafel
+einstellen, dann **Rollen testen** — über der Karte nimmt man seinen Platz
+über die Reiter; ein **Ich** auf der Tafel gibt es nicht. Wer über **Enter VR** oder
 **Web 3D** kommt, steht sofort im Anzug: Die Techniker-Zeile der Tafel zeigt
 seinen Namen, die Zentrale sieht ihn auf der Karte, und ihr „Mission starten"
 schickt den Start zu ihm. Wer in der Quest im Hub **Haunting /
@@ -131,32 +131,45 @@ Peers; restriktives NAT oder gesperrte öffentliche Dienste können ohne TURN
 eine Verbindung verhindern. `?net=local` verbindet ausschließlich mehrere Tabs
 desselben Browsers, keine getrennten Geräte im WLAN.
 
-**Die Mission:** Jede Runde fängt im **Aufbau** an — auf dem Handy der erste
-Reiter ganz oben, in der Brille der Knopf am Handgelenk. Er ist kurz:
+**Die Mission:** Jede Runde fängt im **Aufbau** an — auf dem Handy die erste
+Seite, in der Brille der Knopf am Handgelenk. Er ist kurz:
 
-1. **Zwei Häkchen.** _2D-Welt von oben_ (sonst das Schiff; am Telefon ist 2D
+1. **Ein Häkchen.** _2D-Welt von oben_ (sonst das Schiff; am Telefon ist 2D
    voreingestellt, in der Brille gibt es immer das Schiff — **und diese eine
-   Frage darfst du dir mitten in der Runde anders beantworten**, siehe unten)
-   und _Testen_ (ohne
-   Monster — und in einer Test-Runde darf jeder jederzeit jede Rolle wechseln).
+   Frage darfst du dir mitten in der Runde anders beantworten**, siehe unten).
+   Ohne Monster spielt man, indem der Platz Monster auf „Aus" steht.
 2. **Die Verteilung.** Techniker, Monster und die drei Fähigkeiten der
-   Einsatzzentrale, jede auf Bot, Mensch oder Aus. Ein Tipp auf **Ich** macht
-   eine Zeile zu deiner und setzt dein Telefon zugleich an das Gerät dazu.
-3. **Ein Knopf**, und auf ihm steht, was gleich passiert: „Mission starten"
-   oder „Test starten" — ohne Ansicht in Klammern, die steht ja als Häkchen
-   darüber. **Steckt der Techniker schon in der Brille, drückt ihn die
-   Zentrale trotzdem**: Die Verteilung und der Start gehen dann als Wunsch zu
-   ihm, die Runde beginnt bei ihm, und die Tafel steht auf allen Geräten
-   gleich — er muss dafür nicht ans Handgelenk. Nur eine Runde, die schon
-   läuft, bricht der Knopf nicht ab. Und wer später dazukommt, bekommt Runde
-   und Tafel, wie sie gerade stehen, und nimmt sich einen freien Platz.
+   Einsatzzentrale, jede auf Bot, Mensch oder Aus. Wer *du* bist, steht hier
+   nicht — das wählst du über der Karte.
+3. **Rollen testen.** Der Knopf führt auf die Karte, **ohne dass eine Runde
+   losgeht**: Die Station ist hell, keine Uhr läuft, niemand wird getroffen,
+   und jeder darf jede Rolle. Über der Karte steht ein Kopf: die Rollen als
+   Reiter (Techniker, Rot, Gelb, Blau, Monster, Zuschauer), das Zahnrad, und
+   die Leiste mit Systemen, Anzug und — sobald sie läuft — der Uhr. Der
+   Reiter **Techniker** setzt dich an den Stock: Die 2D-Welt geht auf, und du
+   läufst los. Das Monster bewegt sich im Test nur, wenn ein Mensch es
+   steuert.
+4. **Mission starten** — im Zahnrad (über der Karte wie in der 2D-Welt) oder
+   gleich im Aufbau, für den, der nicht erst testen will. Erst dann läuft die
+   Uhr, das Licht geht aus, das Monster los — auf derselben Station.
+   **Mission stoppen** im selben Zahnrad führt zurück in den Test, **Zurück
+   zu den Rollen** in den Aufbau. **Steckt der Techniker schon in der Brille,
+   drückt ihn die Zentrale trotzdem**: Die Verteilung und der Start gehen
+   dann als Wunsch zu ihm, die Runde beginnt bei ihm, und die Tafel steht auf
+   allen Geräten gleich — er muss dafür nicht ans Handgelenk. Nur eine Runde,
+   die schon läuft, bricht der Knopf nicht ab. Und wer später dazukommt,
+   bekommt Runde und Tafel, wie sie gerade stehen, und nimmt sich einen freien
+   Platz. **Steht auf der Tafel „Techniker: Mensch" und niemand hat den
+   Reiter genommen, läuft kein Bot an seiner Stelle** — die Mission wartet,
+   bis jemand den Stock nimmt oder die Tafel den Platz einem Bot gibt.
 
-**Die Rolle wählst du über die Reiter oben**: _Aufbau_, _Späher_,
-_Schalttafel_, _Archiv_, dann Zuschauer und Monster. Wer noch nichts
-gewählt hat, liest „Bitte wähle über den Tab oben deine Rolle aus."; wer eine
-Fähigkeit antippt, nimmt sie — auch mehrere, und dem, der sie hatte, wird sie
-abgenommen. Mitten in einer Runde darf das nur, wer in der Einsatzzentrale
-sitzt; der Techniker in der Brille behält seine Rolle immer. Geht gerade keine Runde los, weil
+**Die Rolle wählst du über die Reiter über der Karte**: _Techniker_, _Rot_,
+_Gelb_, _Blau_ (jeder Stuhl mit dem Namen seiner Fähigkeiten), dann Monster
+und Zuschauer. Wer noch nichts
+gewählt hat, liest „Bitte wähle über den Tab oben deine Rolle aus."; wer einen
+Stuhl antippt, nimmt ihn — und dem, der ihn hatte, wird er
+abgenommen. Mitten in einer Mission darf das nur, wer in der Einsatzzentrale
+sitzt; im Test jeder; der Techniker in der Brille behält seine Rolle immer. Geht gerade keine Runde los, weil
 ein anderes Gerät sie rechnet oder schon jemand als Techniker spielt, steht
 das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
 Anordnung der Vorlage: Cafeteria oben, Triebwerke/Reactor/Security links,
@@ -297,9 +310,10 @@ ist so lange weg, und „Karte" bringt sie zurück: Codes groß, Fundhinweise,
 Türen — und ein Bild des Raums, in 3D die Draufsicht der wirklichen Welt mit
 Zoom und Wisch, in der 2D-Welt eine herangezoomte Karte. Live-Positionen zeigt
 es keine, Lampen auch nicht. Die **Schalttafel** zeigt
-den Grundriss ohne Wesen und schaltet Türen und Lampen per Tipp; „Tafel" oben
-rechts schlägt ihre Schalterliste darüber auf, und ein Schott, das gerade
-abkühlt, steht darin grün und zählt herunter. Der **Späher** zeigt zwei Punkte
+den Grundriss ohne Wesen und schaltet Türen und Lampen per Tipp — eine Lampe
+ist ein Kreis in der Zimmermitte, gelb, wenn sie brennt; eine Schalterliste
+gibt es nicht, und ein Schott, das gerade abkühlt, sagt es beim Tipp. Der
+**Späher** zeigt zwei Punkte
 und sonst nichts. Der Kopfbereich bietet einen
 sichtbaren Rollenwechsel. In der 2D-Welt liegt derselbe Wechsel als Streifen
 über der Szene: Wer dort eine Rolle aufschlägt, sieht **dieselbe laufende

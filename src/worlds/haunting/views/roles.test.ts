@@ -151,60 +151,36 @@ describe('Die Schalttafel', () => {
   });
 
   /**
-   * **Die Tafel gibt es weiterhin** — als Blatt über der Karte. Sie kennt
-   * alle freigegebenen Schalter mit ihrer Beschriftung, auch die in Zimmern,
-   * die gerade nicht im Bild sind; „Tür 3" ist die halbe Sprache dieser Rolle.
+   * **Die Schalterliste ist weg** — der Besitzer wollte sie nicht: Wer die
+   * Schalttafel hat, tippt Tür und Lampe auf der Karte an, und sonst nichts.
+   * Kein Blatt, kein Knopf oben rechts, keine Kippschalter.
    */
-  it('schlägt die Schalterliste über der Karte auf und schaltet daraus', () => {
-    const { view, round } = open();
-    expect(view.sheetOpen).toBe(false);
-    expect(view.element.querySelector('.role__switch')).toBeNull();
-    view.element.querySelector<HTMLButtonElement>('[data-panel-sheet]')!.click();
-    expect(view.sheetOpen).toBe(true);
-    // Karte weg, Blatt da — auf einem Telefon hochkant ist beides nebeneinander
-    // entweder ein Grundriss von drei Zentimetern oder eine halbe Liste.
-    expect(view.element.classList.contains('is-sheet')).toBe(true);
-    const visible = visibleSwitches(round.house.switches, round.state().fuse);
-    const keys = [...view.element.querySelectorAll<HTMLElement>('[data-switch]')];
-    expect(keys).toHaveLength(visible.length);
-    expect(keys.length).toBeGreaterThan(0);
-    for (const key of keys)
-      expect(key.textContent).toContain(
-        visible.find((one) => one.id === key.dataset['switch'])!.label,
-      );
-
-    const door = visible.find((one) => one.kind === 'door')!;
-    expect(round.state().shut).not.toContain(door.target);
-    view.element.querySelector<HTMLButtonElement>(`[data-switch="${door.id}"]`)!.click();
-    expect(round.state().shut).toContain(door.target);
-    expect(view.element.querySelector('.role__toast')?.textContent).toContain('verriegelt');
-
-    // Und wieder zurück zur Karte.
-    view.element.querySelector<HTMLButtonElement>('[data-close]')!.click();
-    expect(view.sheetOpen).toBe(false);
+  it('hat keine Schalterliste mehr — nur die Karte mit ihren Tipps', () => {
+    const { view } = open();
+    expect(view.element.querySelector('[data-panel-sheet]')).toBeNull();
+    expect(view.element.querySelector('.role__sheet')).toBeNull();
+    expect(view.element.querySelector('[data-switch]')).toBeNull();
+    expect(view.element.classList.contains('is-sheet')).toBe(false);
+    expect(view.element.querySelector('.role__hud')?.textContent).toContain(
+      'Tür oder Lampe antippen',
+    );
   });
 
   /**
    * **Ein Schott, das abkühlt, sagt es** (`rules/doorLocks.ts`): Vierzig
-   * Sekunden, in denen ein Schalter wortlos nichts tut, sind für den Hacker
-   * ein kaputter Schalter — und ab da traut er der ganzen Tafel nicht mehr.
+   * Sekunden, in denen ein Tipp wortlos nichts tut, sind für den Hacker eine
+   * kaputte Karte — und ab da traut er ihr nicht mehr. Also steht es im Toast.
    */
-  it('zeigt an einem abkühlenden Schott die Restzeit und lässt es nicht umlegen', () => {
+  it('sagt an einem abkühlenden Schott, dass der Riegel noch warm ist', () => {
     const { view, round } = open();
-    const door = visibleSwitches(round.house.switches, round.state().fuse).find(
-      (one) => one.kind === 'door',
-    )!;
-    round.lockDoor(door.target);
-    round.lockDoor(door.target);
+    const door = round.snapshot().doors[0]!;
+    round.lockDoor(door.id);
+    round.lockDoor(door.id);
     round.step(0.1, { x: 0, z: 0, sprint: false });
-    view.element.querySelector<HTMLButtonElement>('[data-panel-sheet]')!.click();
     view.update(0);
-    const key = view.element.querySelector<HTMLButtonElement>(`[data-switch="${door.id}"]`)!;
-    expect(key.className).toContain('is-warm');
-    expect(key.textContent).toContain('noch warm · 40 s');
-    expect(key.disabled).toBe(true);
-    key.click();
-    expect(round.state().shut).not.toContain(door.target);
+    tapAt(view, door.at);
+    expect(round.state().shut).not.toContain(door.id);
+    expect(view.element.querySelector('.role__toast')?.textContent).toContain('noch warm');
   });
 });
 
@@ -423,14 +399,19 @@ describe('Der Fernseher', () => {
     const { view, round } = open();
     view.element.querySelector<HTMLButtonElement>('[data-watch-seat="panel"]')!.click();
     expect(view.lens.seat).toBe('panel');
-    const panel = view.element.querySelector('.role--panel');
+    const panel = view.element.querySelector<HTMLElement>('.role--panel');
     expect(panel).not.toBeNull();
-    // Dieselbe Tafel, nur ohne Wirkung: Wer alles sieht und schalten dürfte,
-    // wäre der fünfte Spieler mit den besten Karten.
-    panel!.querySelector<HTMLButtonElement>('[data-panel-sheet]')!.click();
-    const key = panel!.querySelector<HTMLButtonElement>('[data-switch]')!;
+    // Dieselbe Karte, nur ohne Wirkung: Wer alles sieht und schalten dürfte,
+    // wäre der fünfte Spieler mit den besten Karten. Der Wirt des Gastes gibt
+    // auf `door` `''` zurück — ein Tipp auf die Karte sperrt nichts.
+    expect(panel!.querySelector('[data-panel-sheet]')).toBeNull();
     const shut = [...round.state().shut];
-    key.click();
+    const canvas = panel!.querySelector<HTMLElement>('.mapview__canvas')!;
+    for (const type of ['pointerdown', 'pointerup']) {
+      const event = new Event(type, { bubbles: true }) as PointerEvent;
+      Object.assign(event, { pointerId: 1, clientX: 200, clientY: 150, button: 0 });
+      canvas.dispatchEvent(event);
+    }
     expect(round.state().shut).toEqual(shut);
     // Und das Deck hat sein Bild verloren, solange ein fremder Platz offen ist.
     expect(view.element.classList.contains('is-guest')).toBe(true);

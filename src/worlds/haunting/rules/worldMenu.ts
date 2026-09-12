@@ -205,6 +205,21 @@ export const SHIP_NEEDS_TECHNICIAN =
 export const SHIP_OCCUPIED =
   'Im Schiff trägt schon jemand anders den Anzug — es gibt einen Techniker je Raum. ' +
   'Nimm die Karte von oben oder einen Platz in der Zentrale.';
+/**
+ * **Und auf der Karte von oben genauso**: Steht auf der Tafel „Techniker:
+ * Mensch" und niemand hat den Reiter genommen, läuft kein Techniker aus Zahlen
+ * an seiner Stelle — der Besitzer wollte ausdrücklich keinen Bot, der einen
+ * Platz spielt, der einem Menschen gehört. Die Mission wartet dann, und der
+ * Satz sagt die zwei Auswege.
+ */
+export const FLAT_NEEDS_TECHNICIAN =
+  'Techniker: Mensch — aber niemand steht am Stock. Nimm oben den Reiter „Techniker", ' +
+  'oder stell auf der Tafel „Techniker: Bot".';
+/** Was das Telefon sagt, wenn der Stopp an den Gastgeber geht. */
+export const STOP_SENT = 'Stopp geht an den Techniker — die Runde endet bei ihm.';
+/** Und was die Welt nach dem Stopp sagt: der Test-Zustand. */
+export const ROUND_STOPPED =
+  'Runde gestoppt · Test: Die Station ist hell, keine Uhr läuft, niemand wird getroffen.';
 
 /**
  * **Die drei Start-Einträge des Brillenmenüs** — dieselben drei Absichten, in

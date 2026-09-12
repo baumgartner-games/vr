@@ -59,7 +59,7 @@ describe('Das geteilte Optionsmenü', () => {
       'Ambiente: leise',
     ]);
     expect(leaveKeys().map((one) => (one.kind === 'key' ? one.label : ''))).toEqual([
-      'Runde verlassen',
+      'Zurück zu den Rollen',
       'Weiterspielen',
     ]);
   });

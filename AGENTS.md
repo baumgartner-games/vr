@@ -8934,12 +8934,14 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     wenn die Lobby Techniker + 3D sagt und keine Brille im Raum ist — vorher
     musste man erst den Reiter „Techniker" antippen, und bis dahin war man
     ein Telefon mit Schiff im Hintergrund.
-  - **„Ich" auf der Tafel** (`roundSetupPanel.ts`, `[data-setup-me]`,
-    `SetupPanelHost.me/choose`): ein Knopf je Zeile, der leuchtet, wo dieses
-    Gerät sitzt, und ein Tipp nimmt den Platz — derselbe Weg wie der Reiter
-    oben (`stationUi.choose`). Beim Techniker gesperrt, solange die Brille ihn
-    trägt. Die alte Spalte „Ich" war gestrichen; der Besitzer wollte an der
-    Stelle, an der man liest, wer wer ist, auch sagen können „das bin ich".
+  - **Kein „Ich" auf der Tafel** (`roundSetupPanel.ts`). Es stand zweimal
+    dort — als Spalte, dann als Knopf je Zeile — und ist zweimal wieder weg,
+    zuletzt auf ausdrücklichen Wunsch des Besitzers: „Oben die Tabs, unten
+    das ‚Ich'-Feld" war dieselbe Frage an zwei Stellen. Die Tafel sagt nur
+    noch, **wer** die Plätze hält und **was** jeder darf; welcher Platz der
+    eigene ist, nimmt man über die Reiter — und die stehen erst über der
+    Karte, nach **„Rollen testen"** (siehe „Van / Telefon"). `SetupPanelHost.me`
+    bleibt nur zum Lesen („du · im Anzug"); `choose` gibt es nicht mehr.
     **Und der Anzug hat einen Namen** (`SetupPanelHost.technician`,
     `[data-setup-suit]`, aus `HauntingWorld.suitName` über `link().technician`):
     Brille und „Web 3D" kommen als Techniker herein, also zeigt die Zeile des
@@ -8975,32 +8977,86 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     (`ShipExperience.leaveLocker`, deshalb öffentlich). Die automatische
     Fallrettung der `PortalWorld` (`rescuePlayer`) bleibt daneben bestehen;
     dieser Eintrag ist für den Fall, dass man drin steckt, ohne zu fallen.
-  - **Van / Telefon** (`stationUi.vanPage`, Hochformat zuerst): ganz oben die
-    **Reiterzeile als Rollenwahl** (`stationUi.writeBar`, `[data-me]`) —
-    _Aufbau_, dann die fünf Plätze der Tafel (Techniker, Rot, Gelb, Blau,
-    Monster) und die zwei Zuschauer (_Zuschauer: Techniker_, _Zuschauer:
-    Alles_) — und rechts daneben drei kleine Knöpfe für Spielmenü,
-    Verbindung und VR. Darunter, im Reiter _Aufbau_: ein Statuschip, das
-    Häkchen „2D-Welt von oben" (`[data-check="view"]`), die Tafel (fünf
-    Zeilen, je Mensch/Bot/Aus und die drei Fähigkeitslampen, ohne Spalte
-    „Ich") und **der eine Startknopf** (`[data-start-setup]`, beschriftet
-    aus `startLabel`, darunter `describeSetup`), zuletzt „Hilfe: Wer sieht
-    was?" — ein Satz je Rolle, aus `RoleFacts.sees` und nicht aus einer Liste
-    hier: Wer sich anmeldet, bringt seinen Satz mit. Weg sind: der Titel „ORBITAL / EINSATZZENTRALE", der
-    Auftragsstreifen mit Uhr und Anzug (im Aufbau zeigt er nichts an, was
-    liefe), die Geräteliste `.lobby__seats`, das Segment 2D|3D, die
-    Absichts-Kacheln und die Hilfe „Eure Dreiercrew". Auch die **Kopfzeile der
-    Seite** (`index.html`, `#hud`) ist auf dem Telefon ausgeblendet
-    (`haunting.css`, `body.haunt-on #hud`) — nur versteckt, nicht abgebaut:
-    Die kleinen Knöpfe der Reiterzeile drücken ihre Knöpfe stellvertretend.
+  - **Van / Telefon** (`stationUi.ts`, Hochformat zuerst): **zwei Seiten,
+    ein Kopf.** Der Ablauf, den der Besitzer wollte: Lobby beitreten, im
+    **Aufbau** die Rollen einstellen, unten **„Rollen testen"** drücken —
+    dann die Karte, und darüber genau ein Kopf.
+    - Der **Aufbau** (`vanPage`, `data-page="setup"`): oben nur eine
+      Überschrift („Aufbau · Rollen") und rechts drei kleine Knöpfe für
+      Spielmenü, Verbindung und VR — **keine Reiter**; darunter ein Statuschip,
+      das Häkchen „2D-Welt von oben" (`[data-check="view"]`), die Tafel (fünf
+      Zeilen, je Mensch/Bot/Aus und die drei Fähigkeitslampen, **ohne „Ich"**),
+      dann **„Rollen testen"** (`[data-test-roles]`: auf die Karte, ohne dass
+      etwas losgeht) und **der Startknopf** (`[data-start-setup]`, beschriftet
+      aus `startLabel`, darunter `describeSetup` — für den, der nicht erst
+      testen will), zuletzt „Hilfe: Wer sieht was?" — ein Satz je Rolle aus
+      `RoleFacts.sees`, und ein Absatz, was Test und Mission unterscheidet.
+    - Die **Karte** (`data-page="live"`): erste Zeile **die Rollen als
+      Reiter** (`writeBar`, `[data-me]`) — Techniker, Rot, Gelb, Blau,
+      Monster, _Zuschauer: Techniker_, _Zuschauer: Alles_, immer alle, in
+      dieser Reihenfolge — und am Ende **das Zahnrad** (`[data-options]`);
+      zweite Zeile die Leiste mit Systemen, Anzug und Uhr (`writeQuest`),
+      dieselbe wie beim Techniker in der 2D-Welt; darunter die Rolle aus der
+      Registry. **Die Uhr läuft nur in der Mission**: Sonst steht dort
+      „Test · keine Runde" (`[data-idle]`) oder „Runde vorbei" — eine Uhr, die
+      vor dem Start herunterzählte, war der Befund („Aktuell zeigt er an
+      ‚noch keine Runde', aber oben läuft der Timer"). Das **Zahnrad-Menü**
+      (`writeMenu`, `.haunt__menu`) hat, was sich über der Karte ändert:
+      **Mission starten** (`[data-start-setup]`, solange keine läuft) oder
+      **Mission stoppen** (`[data-stop-round]` → `StationHost.stopRound`),
+      **Zurück zu den Rollen** (`[data-setup]`: der Aufbau), und die drei
+      Knöpfe der Seite (Menü, Verbindung, VR). `StationUi.goSetup()` holt den
+      Aufbau von außen — die 2D-Welt ruft es, wenn sie mit „Zurück zu den
+      Rollen" zugeht.
+    - Weg sind: der Reiter _Aufbau_, das „Ich" der Tafel, die zweite Reihe
+      Werkzeugknöpfe über der Karte, der Titel „ORBITAL / EINSATZZENTRALE",
+      die Geräteliste `.lobby__seats`, das Segment 2D|3D, die
+      Absichts-Kacheln und die Hilfe „Eure Dreiercrew". Die **Kopfzeile der
+      Seite** (`index.html`, `#hud`) ist auf dem Telefon ausgeblendet
+      (`haunting.css`, `body.haunt-on #hud`) — nur versteckt, nicht abgebaut:
+      Die Knöpfe im Aufbau und im Zahnrad drücken ihre Knöpfe stellvertretend.
   - **Rollenwechsel über die Reiter**: Ein Tipp auf einen Platz **nimmt**
     ihn (`stationUi.choose`) — die Lobby merkt sich `me`, der Platz wird
     „Mensch", man sitzt an seiner Station, der alte Platz wird frei; der Name
     der Mischung seiner Fähigkeiten steht in `StationUi.roleLabel`
-    (`seatTitle`). Mitten in der Runde entscheidet `switchRights`, ob das geht;
+    (`seatTitle`). „Rollen testen" ist derselbe Tipp mit dem gemerkten Platz.
+    **Der Reiter „Techniker" setzt an den Stock** (`StationHost.technician` →
+    `HauntingWorld.takeStick`): Auf der Karte von oben öffnet sich sofort die
+    2D-Welt — **im Test-Zustand** (unten) —, im Schiff wird man der
+    Desktop-Techniker; die Brille rührt niemand an (`VR_KEEPS_TECHNICIAN`).
+    Mitten in der Mission entscheidet `switchRights`, ob das geht;
     wer nicht darf, bekommt den Grund als Meldung. Wer nichts hält, liest
     „Bitte wähle über den Tab oben deine Rolle aus." (`NO_ROLE_HINT`). Fernseher und Monster sind keine Fähigkeiten — wer dorthin geht, legt die
     Zentrale ab.
+  - **Der Test-Zustand** — vor der Mission und nach dem Stopp
+    (`FlatOptions.phase` `'briefing'`, `FlatRound.live`, in 3D
+    `HauntState.phase === 'briefing'`): Der Techniker läuft in einer
+    **hellen** Station herum (2D: jede Lampe steht in `lit`; 3D:
+    `applyLights` behandelt `briefing` wie Testlicht), die Schalttafel
+    schaltet Türen und Lampen — **ohne Buchführung**: kein Riegel mit Frist,
+    keine Abkühlung, kein Lampenbudget (`FlatRound.lockDoor`/`switchLight`,
+    `HauntingWorld.flipPlain`) —, ein Mensch am Steuer darf das Monster
+    bewegen (`FlatRound.driver`), aber die **Routine steht still**, niemand
+    wird getroffen, kein Spuk, keine Uhr, und jeder darf jede Rolle
+    (`RoleStripHost.rights`). Die Uhr des Standes (`time`) läuft trotzdem
+    weiter — Wellen und Spuren hängen an ihr —, gezeigt wird sie nur in der
+    Mission. **„Mission starten"** (Zahnrad in 2D und auf dem Telefon, oder
+    der Knopf im Aufbau) baut die Runde **auf derselben Station** neu
+    (`FlatMode.startMission` → `rebuild` mit gleichem Samen, `phase:
+    'running'`: Uhr null, Licht aus, Monster am anderen Ende); **„Mission
+    stoppen"** (`FlatMode.stopMission`, `HauntingWorld.stopRound`,
+    `net.stopMessage`/`readStop` für den, der nicht rechnet) führt zurück in
+    den Test. Läuft die gemeinsame 2D-Runde schon auf dem Gerät, startet ein
+    Startwunsch der Zentrale **darin** (`startRound` → `flat.startMission`)
+    statt eine zweite 2D-Welt darüberzulegen.
+    **Kein Bot auf einem Menschenplatz** (`FlatMode.playRole`,
+    `FLAT_NEEDS_TECHNICIAN`): Steht auf der Tafel „Techniker: Mensch" und
+    niemand hat den Reiter genommen, läuft kein Techniker aus Zahlen — man
+    sieht einer Station zu, in der der Anzug am Rand steht —, und die Mission
+    startet nicht, bis jemand den Stock nimmt oder die Tafel den Platz einem
+    Bot gibt; der Satz nennt beides. Der Schalter „Zuschauen" in der 2D-Welt
+    gibt den Stock dagegen ausdrücklich ab und schreibt dafür „Techniker:
+    Bot" auf seine Tafel (`setWatching`).
   - **Brille** (`HauntingWorld.menu`): dieselben drei Absichten zuerst, dann
     „Zur Zentrale / Rolle wechseln", dann „Ansicht: 3D Schiff" (fest), dann die
     Einstellungen (Testlicht, Räume, die fünf Plätze `haunt:seat-<platz>`,
@@ -9039,15 +9095,21 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     VR drücken die Knöpfe der ausgeblendeten Kopfzeile (`pressPageButton`) —
     seit sie im Schiff aus ist, ist dieses Menü der einzige Weg dorthin. Die losen Knöpfe „Rolle wechseln",
     „2D von oben" und „Missionsmenü" sind darin aufgegangen.
-  - **2D-Optionsmenü** (`FlatMode.renderOptions`): nur noch, was sich *in* der
-    Runde ändert — Ansicht (die zwei Modi nur für den Zuschauer; wer mitspielt,
+  - **2D-Optionsmenü** (`FlatMode.renderOptions`): zuerst die **Runde** —
+    **„Mission starten"** (`[data-mission="start"]`, solange keine läuft:
+    auf derselben Station) oder **„Mission stoppen"** (`[data-mission="stop"]`:
+    zurück in den Test), nicht am Netz —, dann, was sich *in* der Runde
+    ändert: Ansicht (die zwei Modi nur für den Zuschauer; wer mitspielt,
     bekommt „Realitätsnah" als Zeile), Zielpfade, **„Zuschauen: an/aus"**
     (`[data-watch]`, immer möglich), unter „Aufmachen" die drei Wege nach
     draußen (**Karte**, **Menü**, **Verbindung** — den 🗺-Knopf gibt es nicht
     mehr), Ton, **„Ansicht: 3D Schiff"** (`[data-switch-view]` →
-    `HauntingWorld.switchView`) und **„Runde verlassen"**. Neue Runde, „Mit
-    Monster", der dreistufige Rollenknopf und die eingebettete Tafel sind dort
-    weg.
+    `HauntingWorld.switchView`) und **„Zurück zu den Rollen"**
+    (`SHARED.leave`, `[data-leave]`: die 2D-Welt geht zu, das Telefon steht
+    im Aufbau). Neue Runde, „Mit Monster", der dreistufige Rollenknopf und die
+    eingebettete Tafel sind dort weg. Der erste Reiter im Kopf heißt, wer man
+    ist (`ROLE_TABS`: Techniker, Monster, Zuschauer), dann Archiv,
+    Schalttafel, Späher — derselbe Kopf wie auf dem Telefon.
   **Zuschauen in 2D ist eine eigene Rolle** (`FlatRole` `watch`, früher
   `bot`): kein Stock, keine Knöpfe, dafür **beide** Sprungknöpfe („Zum
   Techniker", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".
@@ -9102,21 +9164,22 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     `MapView`, und `RoleView.viewport()` bleibt `null`. Die Missionsliste ist
     weg: Sie zählte auf, was die Karte zeigt.
   - **Schalttafel** (`views/panelRole.ts`, Kennung `hack`): der Grundriss
-    ohne Wesen. Tür antippen sperrt oder gibt frei, Lampe antippen schaltet
-    Licht. Einen Schallköder gibt es nicht mehr. **Und dazu die Tafel selbst**
-    — die Schalterliste aus `panel.ts`, als Blatt über der Karte (`Tafel`
-    oben rechts, `is-sheet` wie beim Archiv; auf einem Telefon hochkant ist
-    beides nebeneinander entweder ein Grundriss von drei Zentimetern oder eine
-    halbe Liste). Sie kennt **alle** freigegebenen Schalter mit ihrer
-    Beschriftung, auch die in Zimmern, die gerade nicht im Bild sind — „Tür 3"
-    ist die halbe Sprache dieser Rolle. Welche das sind, sagt der Wirt
-    (`RoleHost.switches` → `visibleSwitches(spec.switches, state.fuse)`) und
-    nicht die Rolle: Vor dem Sicherungskasten ist die Hälfte nicht da. Ein
-    **abkühlendes Schott** steht dort grün, mit Restzeit und abgeschaltet
-    (`is-warm`, `MapDoor.cooling`, `LOCK_COOLDOWN` = 40 s). Geschaltet
-    wird weiterhin über die Tafel aus `panel.ts` (`HauntingWorld.panelSwitch`
-    sucht den Schalter mit diesem Ziel): Wofür es keinen Schalter gibt, sagt
-    die Ansicht — sie schaltet nicht an der Tafel vorbei.
+    ohne Wesen. **Tür antippen** sperrt oder gibt frei, **Lampe antippen**
+    schaltet Licht — die Lampe ist ein Kreis in der Zimmermitte, gelb
+    ausgefüllt, wenn sie brennt, sonst ein grauer Ring (`map/mapView.ts`,
+    mindestens fünf Punkte Radius, damit der Daumen ihn trifft). Einen
+    Schallköder gibt es nicht mehr. **Und keine Schalterliste mehr**: Das
+    Blatt „Tafel" mit den Kippschaltern ist gestrichen — der Besitzer wollte
+    es nicht („diese Ansicht direkt löschen"); wer die Fähigkeit hat, tippt
+    direkt auf die Karte. Was die Liste sagte, sagt jetzt der Tipp: Ein
+    **abkühlendes Schott** antwortet „Der Riegel ist noch warm."
+    (`rules/doorLocks.ts`, `LOCK_COOLDOWN` = 40 s), und wofür es keinen
+    Schalter gibt, sagt die Ansicht ebenfalls. Geschaltet wird weiterhin über
+    die Tafel aus `panel.ts` (`HauntingWorld.panelSwitch` sucht den Schalter
+    mit diesem Ziel; welche Schalter freigegeben sind, sagt weiter der Wirt
+    über `RoleHost.switches` → `visibleSwitches(spec.switches, state.fuse)`):
+    Vor dem Sicherungskasten ist die Hälfte nicht da, und die Karte schaltet
+    nicht an der Tafel vorbei.
   - **Späher** (`views/scoutRole.ts`): alle `PING_PERIOD` = 3,5 s **eine
     Peilung** — ein grüner Punkt für den Techniker, ein roter für das Monster,
     genau dort, wo sie in dem Moment waren. Dazwischen verblassen sie und
