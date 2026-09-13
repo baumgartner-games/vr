@@ -8003,7 +8003,16 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   ein Ladebalken, während dessen man stillsteht. Umschauen ist erlaubt — gemessen
   wird die Stelle (`CHORE_LEASH` = 0,25 m), nicht der Blick —, Weggehen bricht
   ab, und derselbe Knopf bricht auch ab (ein Balken, den man nur durch Weglaufen
-  loswird, wäre eine Falle). Vorher war Aufmachen ein Knopfdruck und damit kein
+  loswird, wäre eine Falle). **In der Brille ist die Leine länger**
+  (`CHORE_LEASH_HEADSET` = 0,6 m): Dort wird der Kopf gemessen, und wer sich zu
+  einer Kiste vorbeugt, trägt ihn ohne einen Schritt gut vierzig Zentimeter weit
+  — mit der kurzen Leine ging in VR keine Kiste auf. **Und die Kistentür hört
+  nur auf den Trigger** (`ShipExperience.bind`, `pokeable: false`): Eine
+  Berührung mit der Hand gilt dem Zeiger sonst als „Benutzen"
+  (`Pointer.updatePoke`, auch mit dem Controller), und wer vor einer Kiste
+  steht, hat die Hand ständig an ihrem Blatt — der Trigger fing den Balken an,
+  die Hand brach ihn gleich wieder ab. Tastenfeld, Konsole und das Ersatzteil
+  in der Kiste bleiben antippbar. Vorher war Aufmachen ein Knopfdruck und damit kein
   Risiko: Man nahm eine Kiste im Vorbeigehen mit, während das Monster zwei Zimmer
   weiter schon unterwegs war. Dieselbe Rechnung in beiden Welten — die 2D-Runde
   zeichnet den Balken über den Knöpfen, das Schiff malt ihn in den Streifen an

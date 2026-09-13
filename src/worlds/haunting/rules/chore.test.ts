@@ -1,5 +1,11 @@
 import { FlatRound } from '../map/flatRound';
-import { CARGO_OPEN_SECONDS, CHORE_LEASH, choreProgress, stepChore } from './chore';
+import {
+  CARGO_OPEN_SECONDS,
+  CHORE_LEASH,
+  CHORE_LEASH_HEADSET,
+  choreProgress,
+  stepChore,
+} from './chore';
 
 /**
  * **Fünf Sekunden stillstehen ist eine Entscheidung.** Eine Kiste, die auf
@@ -25,6 +31,18 @@ describe('Ein Handgriff, der Zeit kostet', () => {
     expect(stepChore(chore, 0.1, { x: at.x + CHORE_LEASH + 0.1, z: at.z }).kind).toBe('broken');
     // Und wer sich versteckt oder ein Rätsel aufschlägt, arbeitet auch nicht.
     expect(stepChore(chore, 0.1, at, false).kind).toBe('broken');
+  });
+
+  it('lässt in der Brille ein Vorbeugen durch, einen Schritt nicht', () => {
+    const chore = { kind: 'cargo' as const, id: 'c', label: 'Kiste', at, left: 2, total: 2 };
+    // Ein Kopf, der sich zur Kiste beugt, wandert gut vierzig Zentimeter —
+    // am Schirm wäre das ein Abbruch, im Headset ist es keiner.
+    const leaning = { x: at.x + 0.4, z: at.z };
+    expect(CHORE_LEASH_HEADSET).toBeGreaterThan(CHORE_LEASH);
+    expect(stepChore(chore, 0.1, leaning).kind).toBe('broken');
+    expect(stepChore(chore, 0.1, leaning, true, CHORE_LEASH_HEADSET).kind).toBe('running');
+    const step = { x: at.x + CHORE_LEASH_HEADSET + 0.1, z: at.z };
+    expect(stepChore(chore, 0.1, step, true, CHORE_LEASH_HEADSET).kind).toBe('broken');
   });
 });
 

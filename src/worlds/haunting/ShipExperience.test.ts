@@ -492,6 +492,88 @@ test('E opens a physical cargo door once, then picks up its exposed kit without 
   expect(state.crew.inventory.filter((id) => id === 'medkit')).toHaveLength(1);
 });
 
+/**
+ * **In der Brille zählt eine Berührung als „Benutzen"** (`Pointer.updatePoke`,
+ * auch mit dem Controller). Für die Kistentür war das die Falle: Der Trigger
+ * fing den Balken an, die Hand am Blatt brach ihn gleich wieder ab — derselbe
+ * Knopf bricht ab —, und die Kiste ging in VR nie auf. Die Tür hört deshalb
+ * nur auf den Trigger; das Ersatzteil dahinter darf man weiter greifen.
+ */
+test('a controller touching the cargo door neither opens it nor cancels the running chore', () => {
+  menu('orbital:lab:tools');
+  const cabinet = exhibits.cabinets.find((c) => c.id === 'training-kit')!;
+  const tip = new THREE.Vector3();
+  (input.controllers as unknown as object[]).push({
+    tracked: true,
+    handedness: 'right',
+    getFingertip: (target: THREE.Vector3) => target.copy(tip),
+  });
+  // Die Hand liegt mitten auf dem Türblatt.
+  cabinet.leaf.updateWorldMatrix(true, false);
+  cabinet.leaf.getWorldPosition(tip);
+  frame();
+  frame();
+  expect(experience.busy).toBeNull();
+  expect(state.crew.opened).not.toContain('training-kit');
+  // Der Trigger fängt an — und die Hand am Blatt nimmt es nicht wieder zurück.
+  aim(cabinet.leaf);
+  tap('KeyE');
+  expect(experience.busy?.id).toBe('training-kit');
+  (ctx.renderer.xr as unknown as { isPresenting: boolean }).isPresenting = true;
+  tip.set(0, 10, 0);
+  frame(0.1);
+  cabinet.leaf.getWorldPosition(tip);
+  for (let t = 0; t < CARGO_OPEN_SECONDS + 0.3; t += 0.1) frame(0.1);
+  expect(experience.busy).toBeNull();
+  expect(state.crew.opened).toContain('training-kit');
+  // Das Ersatzteil dahinter lässt sich weiterhin mit der Hand nehmen.
+  tip.set(0, 10, 0);
+  frame(0.1);
+  cabinet.lootMesh!.updateWorldMatrix(true, false);
+  cabinet.lootMesh!.getWorldPosition(tip);
+  frame(0.1);
+  expect(state.crew.inventory).toContain('training-kit');
+});
+
+/**
+ * **Im Headset ist der Kopf der Mensch** (`rules/chore.ts`,
+ * `CHORE_LEASH_HEADSET`): Wer sich zur Kiste vorbeugt, trägt ihn ohne einen
+ * Schritt gut vierzig Zentimeter weit. Am Schirm wäre das ein Abbruch — dort
+ * steht der Kopf, wo die Tastatur ihn hinstellt.
+ */
+test('leaning towards the crate in the headset keeps the chore running, a step breaks it', () => {
+  menu('orbital:lab:tools');
+  const cabinet = exhibits.cabinets.find((c) => c.id === 'training-kit')!;
+  const head = new THREE.Vector3();
+  const lean = (metres: number): void => {
+    rig.getHeadPosition(head);
+    rig.setHeadWorldPosition(head.clone().setX(head.x + metres));
+    scene.updateMatrixWorld(true);
+  };
+  aim(cabinet.leaf);
+  tap('KeyE');
+  expect(experience.busy?.id).toBe('training-kit');
+  (ctx.renderer.xr as unknown as { isPresenting: boolean }).isPresenting = true;
+  lean(0.4);
+  frame(0.1);
+  expect(experience.busy?.id).toBe('training-kit');
+  lean(0.3);
+  frame(0.1);
+  expect(experience.busy).toBeNull();
+  expect(say).toHaveBeenCalledWith(expect.stringContaining('abgebrochen'));
+  expect(state.crew.opened).not.toContain('training-kit');
+  // Am Schirm gilt weiter die kurze Leine.
+  (ctx.renderer.xr as unknown as { isPresenting: boolean }).isPresenting = false;
+  say.mockClear();
+  aim(cabinet.leaf);
+  tap('KeyE');
+  expect(experience.busy?.id).toBe('training-kit');
+  lean(0.4);
+  frame(0.1);
+  expect(experience.busy).toBeNull();
+  expect(say).toHaveBeenCalledWith(expect.stringContaining('abgebrochen'));
+});
+
 test('1 and 2 cycle found hand items including genuinely empty hands', () => {
   state.crew.inventory.push('radar', 'xray', 'medkit');
   // **Vier Schritte links, nicht drei**: frei, Taschenlampe, Radar, Röntgen.
