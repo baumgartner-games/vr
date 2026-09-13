@@ -77,6 +77,20 @@ export const AMBUSH_JITTER = 0.25;
  */
 export const AT_DOOR = 1.2;
 
+/**
+ * **So nah an der erinnerten Stelle ist die Verfolgung zu Ende**, in Metern.
+ *
+ * Ohne Sichtkontakt verfolgt `plan` die Stelle, an der die Prognose den
+ * Spieler vermutet (`prediction.path[0]`). Steht das Monster dort schon und
+ * sieht niemanden, dann ist dort niemand — und „verfolgen" hieße, jedes Bild
+ * aufs Neue die Stelle unter den eigenen Füßen anzulaufen: Aufholzeit null,
+ * also immer die schnellste Wahl, und das Vieh stand mit „Verfolgung" für
+ * den Rest der Runde im Raum (`rules/monsterStuck.test.ts`). Ab hier fällt
+ * die Entscheidung stattdessen auf Abfangen, Lauern oder Suchen. Dieselbe
+ * Weite, in der die Routine ein Ziel als erreicht zählt (`ARRIVED`).
+ */
+export const CAUGHT_UP = 1.6;
+
 /** Unter diesem gemessenen Tempo gilt der Spieler als stehend, in m/s. */
 const STILL = 0.2;
 
@@ -322,8 +336,11 @@ export function plan(input: {
 
   const quarry = input.playerAt ?? prediction?.path[0] ?? null;
   const chased = prediction?.speed ?? 0;
+  // Eine erinnerte Stelle, an der es schon steht, ist keine Beute mehr
+  // (`CAUGHT_UP`); eine gesehene ist es immer.
+  const empty = !input.playerAt && !!quarry && gap(input.monsterAt, quarry) <= CAUGHT_UP;
   const catchUp =
-    quarry && input.huntSpeed > chased
+    quarry && !empty && input.huntSpeed > chased
       ? gap(input.monsterAt, quarry) / (input.huntSpeed - chased)
       : Infinity;
   if (quarry && catchUp < (best ? best.etaMonster : Infinity)) return { kind: 'chase', at: quarry };

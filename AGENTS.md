@@ -7834,7 +7834,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   die Tür offen, und der nächste Riegel kostet eine neue Entscheidung.
   **Warten ist kein Feststecken**: Wer vor einem Riegel steht, führt seine
   Stilluhr mit (`FlatRound.hold`) — sonst ging das Monster nach dem
-  Aufziehen als Erstes den Notumweg über die Raummitte.
+  Aufziehen als Erstes den Notumweg über die Raummitte. **Und wer am Ende
+  seiner Route steht, auch nicht**: Beim Absuchen bleibt es in der Raummitte
+  stehen, bis die Frist um ist, und die Route hat dann keinen Wegpunkt mehr
+  vor ihm. Vorher galt das nach 0,6 s als festgelaufen, der Notumweg ging
+  „zurück in die Raummitte" — wo es schon stand —, bewegte nichts, die
+  Stilluhr lief weiter, und alle 1,2 s kam der nächste Notumweg. Die Wegsuche
+  wurde nie mehr gefragt; ein neues Ziel in einem anderen Raum lief es nie an,
+  und so stand es minutenlang mit Ziel im Raum, bis eine Sichtung es losriss
+  (in zwölf Bot-Runden fünfmal, bis zu 480 s). Festgelaufen ist seitdem nur,
+  wer noch Wegpunkte vor sich hat (`FlatNavigator.remaining`) und trotzdem
+  nicht vorankommt; `rules/monsterStuck.test.ts` spielt Seed 1 nach und
+  verlangt, dass kein Stillstand mit Ziel länger dauert als die Suchfrist.
 - **Licht ist knapp, und es ist eine Entscheidung** (`rules/lamps.ts`, `Lamps`
   beim Gastgeber, nichts davon auf der Leitung). **Beide Welten beginnen
   dunkel**: `startMission` setzt `state.lit = []`, und die 2D-Runde tut seit
@@ -8227,6 +8238,38 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Gedächtnis bleibt das alte Würfelverhalten stehen; das ist kein Notbehelf,
   sondern die Fassung, die ein Test aus fünf Zimmern in einer Reihe noch
   nachrechnen kann.
+  **Ein Ziel, dem es nicht näher kommt, gibt es auf** (`GIVE_UP` 10 s): Die
+  Routine kennt keine Wände, und ob ein Ziel erreichbar ist, weiß nur die
+  Welt — eine Stelle, die auf der Karte des Monsters in keinem Raum liegt,
+  läuft `FlatRound.moveMonster` gar nicht erst an, und eine Route kann vor
+  einer Wand enden. Patrouille, Seitenwechsel, Absuchen und Lauern führen
+  deshalb eine Uhr mit (`stranded`): Sinkt der Abstand zum Ziel zehn Sekunden
+  lang nicht mehr um `HEADWAY` 0,25 m, ist das Ziel keins, und `beginPatrol`
+  sucht das nächste — ohne den Raum als abgesucht zu notieren, denn erreicht
+  wurde er nie. Zehn Sekunden sind länger als jeder Riegel (Holz 2,5 s, Stahl
+  ein paar Züge zu 1,1 s), also wird niemand von einer Tür weggerufen; die
+  Verfolgung ist ausgenommen, ihr Ziel setzt jedes Bild neu. Vorher lief eine
+  Frist erst ab der Ankunft, und die Patrouille hatte gar keine: ein
+  unerreichbares Ziel hieß für den Rest der Runde „unterwegs".
+  **Und eine erinnerte Stelle, an der es schon steht, verfolgt es nicht mehr**
+  (`monsterIntercept.CAUGHT_UP` 1,6 m): Ohne Sichtkontakt ist die Beute der
+  Rechnung die Stelle aus der Prognose (`prediction.path[0]`), und wer dort
+  schon steht, holt in null Sekunden auf — also war „verfolgen" jedes Bild
+  aufs Neue die schnellste Wahl, die Routine trat aus `hunt` in `beginSearch`
+  und von dort wieder in `hunt`, und das Vieh stand mit der Ansage
+  „Verfolgung" für den Rest der Runde im Raum (Seed 7 der Bot-Runden: 560 s).
+  Jetzt fällt die Entscheidung dann auf Abfangen, Lauern oder Suchen; eine
+  **gesehene** Stelle bleibt Beute, auch unter den eigenen Füßen. In der
+  Trainingssimulation war der stehende Verfolger ein Wachposten, der dem
+  Techniker den Raum verstellte; ohne ihn stieg dessen Quote im Team von
+  0,32 auf 0,38, und die Monsterseite wurde deshalb neu gelernt (wie beim
+  Paket „Schalttafel": nur `'monster'`, 120 × 128 Runden mit Samen 0xbeef, 24 ×
+  192 zur Feinjustage). Übernommen wurden davon **Sicht 1,7, Schub 11 s und
+  Vorsprung 3 s**; das mitgelernte Grundtempo 1,2 nicht, denn einzeln
+  nachgemessen treibt Tempo die Teamquote sogar hoch, und der ganze Satz stand
+  mit 0,510 / 0,2975 am Bandrand. So nachgemessen 0,4825 / 0,341 — beide
+  Bandmitten, das Monster läuft nicht schneller als vorher
+  (`botTraining.test.ts`, dort steht die Messreihe).
   **Gefüttert wird das Gedächtnis in der Routine selbst** und nicht in den
   Welten (Abweichung von Plan M2): Sichtung, Geräusch und der eigene Raum
   gehen ohnehin durch `step`, und ein Gedächtnis, das 3D, 2D und Simulation

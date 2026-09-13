@@ -311,6 +311,27 @@ export const REPLAN = 1.5;
  */
 export const FAINT = 0.15;
 
+/**
+ * **Nach so vielen Sekunden ohne einen Schritt näher ans Ziel gibt es das
+ * Ziel auf.**
+ *
+ * Die Routine kennt keine Wände und keine Riegel; ob ein Ziel erreichbar
+ * ist, weiß nur die Welt. Vorher hieß das: Ein Ziel, das die Welt nicht
+ * anlaufen kann — eine Stelle, die auf der Karte des Monsters in keinem Raum
+ * liegt, eine Route, die vor einer Wand endet —, ließ Patrouille und
+ * Absuchen ewig „unterwegs" stehen, denn eine Frist läuft dort erst ab der
+ * Ankunft. Jetzt führt jede Haltung, die irgendwohin will, eine Uhr mit:
+ * Kommt es `GIVE_UP` Sekunden lang dem Ziel nicht näher, ist das Ziel keins,
+ * und es sucht sich das nächste. Zehn Sekunden sind mehr als jeder Riegel
+ * (`rules/doorLocks.ts`: Holz splittert nach 2,5 s, Stahl gibt nach ein paar
+ * Zügen zu je 1,1 s nach) — wer an einer Tür arbeitet, wird nicht
+ * weggerufen. Die Verfolgung ist ausgenommen: Ihr Ziel ist die Stelle, die
+ * es sieht oder hört, und die setzt sie ohnehin in jedem Bild neu.
+ */
+export const GIVE_UP = 10;
+/** So viel näher muss es dem Ziel kommen, damit das als Fortschritt zählt, in Metern. */
+const HEADWAY = 0.25;
+
 export class MonsterRoutine {
   private mode: MonsterMode = 'patrol';
   private goal: FloorPoint | null = null;
@@ -352,6 +373,11 @@ export class MonsterRoutine {
   private pictured = -Infinity;
   /** Ob dieser Schritt ein Gedächtnis gesehen hat; entscheidet über `insight`. */
   private thinking = false;
+  /** Die eigene Uhr, in Sekunden seit dem ersten Schritt — für `GIVE_UP`. */
+  private clock = 0;
+  /** Der kleinste Abstand zum laufenden Ziel bisher, und wann er erreicht war. */
+  private nearest = Infinity;
+  private nearedAt = 0;
 
   constructor(private tuning: MonsterTuning) {}
 
@@ -390,6 +416,7 @@ export class MonsterRoutine {
 
   step(world: RoutineWorld, input: RoutineInput): RoutineOutput {
     const dt = Math.max(0, Math.min(0.25, input.dt));
+    this.clock += dt;
     this.timer -= dt;
     this.klack -= dt;
     this.rush = Math.max(0, this.rush - dt);
@@ -537,7 +564,16 @@ export class MonsterRoutine {
     if (this.mode === 'search' || this.mode === 'stakeout' || this.mode === 'ambush') {
       const goal = this.goal;
       const there = !goal || distance(input.at, goal) < ARRIVED;
-      if (!there) return this.out('', false, '', this.mode === 'search' ? 'stalk' : 'walk');
+      if (!there) {
+        // Ein Ziel, dem es nicht näher kommt, ist keins (`GIVE_UP`): kein
+        // Absuchen, kein Lauern — der Raum wurde nie erreicht, also wird er
+        // auch nicht als abgesucht notiert.
+        if (this.stranded(input)) {
+          this.beginPatrol(world, input);
+          return this.out('', false, '', 'walk');
+        }
+        return this.out('', false, '', this.mode === 'search' ? 'stalk' : 'walk');
+      }
       if (this.mode === 'stakeout' || this.mode === 'ambush') {
         if (this.timer > 0) {
           // Angekommen heißt stehen: Das Ziel loszulassen macht aus dem Lauern
@@ -571,7 +607,7 @@ export class MonsterRoutine {
         if (this.lockerRoom === this.goalRoom && this.timer < this.tuning.search * 0.45) {
           const locker = world.locker(this.goalRoom);
           if (locker) {
-            this.goal = locker;
+            this.retarget(locker);
             if (distance(input.at, locker) < ARRIVED && cue === 'klack') {
               cue = 'sniff';
               this.resume = this.timer;
@@ -597,7 +633,13 @@ export class MonsterRoutine {
 
     // 5. Patrouille und Seitenwechsel.
     const goal = this.goal;
-    if (goal && distance(input.at, goal) >= ARRIVED) return this.out('', false, '', 'walk');
+    if (goal && distance(input.at, goal) >= ARRIVED) {
+      if (!this.stranded(input)) return this.out('', false, '', 'walk');
+      // Unerreichbar: das nächste Ziel, ohne dass das als Fehlschlag zählt —
+      // ein Seitenwechsel, der an einer Wand scheitert, ist kein leeres Zimmer.
+      this.beginPatrol(world, input);
+      return this.out('', false, '', 'walk');
+    }
     this.misses++;
     if (this.misses >= this.tuning.reposition) this.beginReposition(world, input);
     else this.beginPatrol(world, input);
@@ -849,12 +891,41 @@ export class MonsterRoutine {
     this.enter('savour', null, '', Math.max(this.timer, seconds));
   }
 
+  /**
+   * Ob es dem laufenden Ziel seit `GIVE_UP` Sekunden nicht mehr näher
+   * gekommen ist. Gemessen wird der Abstand und nicht die Bewegung: Ein Vieh,
+   * das vor einer Wand hin und her tritt, bewegt sich — und kommt nicht an.
+   * Jedes neue Ziel (`enter`) stellt die Uhr zurück.
+   */
+  private stranded(input: RoutineInput): boolean {
+    const goal = this.goal;
+    if (!goal) return false;
+    const gap = distance(input.at, goal);
+    if (gap < this.nearest - HEADWAY) {
+      this.nearest = gap;
+      this.nearedAt = this.clock;
+    }
+    return this.clock - this.nearedAt > GIVE_UP;
+  }
+
   private enter(mode: MonsterMode, goal: FloorPoint | null, room: string, timer: number): void {
     this.mode = mode;
-    this.goal = goal;
     this.goalRoom = room;
     this.timer = timer;
     this.face = null;
+    this.goal = null;
+    this.retarget(goal);
+  }
+
+  /** Ein neues Ziel in derselben Haltung — der Schrank nach der Raummitte — mit frischer `GIVE_UP`-Uhr. */
+  private retarget(goal: FloorPoint | null): void {
+    const same =
+      (!goal && !this.goal) ||
+      (!!goal && !!this.goal && goal.x === this.goal.x && goal.z === this.goal.z);
+    this.goal = goal;
+    if (same) return;
+    this.nearest = Infinity;
+    this.nearedAt = this.clock;
   }
 
   private out(cue: MonsterCue, strike: boolean, cabin: string, pace: MonsterPace): RoutineOutput {

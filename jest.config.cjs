@@ -27,6 +27,7 @@
  */
 const SLOW = [
   'worlds/haunting/rules/botRound.test.ts',
+  'worlds/haunting/rules/monsterStuck.test.ts',
   'worlds/haunting/map/flatRound.test.ts',
   'worlds/haunting/vents/flatVents.test.ts',
   'worlds/haunting/navmesh/stationSmoothing.test.ts',
