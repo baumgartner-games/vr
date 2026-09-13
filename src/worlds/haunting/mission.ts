@@ -37,6 +37,14 @@ export const STATION_PROTOCOL = 8;
 export const PLAYER_WALK_SPEED = 2.6;
 export const PLAYER_SPRINT_SPEED = 4.94;
 /**
+ * **Geduckt geht man halb so schnell — und deshalb leiser.** Ducken ist kein
+ * eigener Lautstärkeschalter mehr, sondern Tempo: `stepLoudness` liest die
+ * Schleichstufe aus dem Tempo, und damit kann die 2D-Runde es auch (ein
+ * Knopf, kein Rig). Sprint hebt das Ducken auf, wie am Stock der Brille.
+ */
+export const CROUCH_FACTOR = 0.5;
+export const PLAYER_CROUCH_SPEED = PLAYER_WALK_SPEED * CROUCH_FACTOR;
+/**
  * **Das Jagdtempo, das die Gewichte allein erreichen** — der Deckel *unter*
  * dem Deckel.
  *

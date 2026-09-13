@@ -205,7 +205,6 @@ beforeEach(() => {
     },
     door: jest.fn(),
     travel: (at) => rig.placeAt(at),
-    route: () => null,
   });
   exhibits = experience as unknown as ExhibitLocator;
   scene.add(experience.root);
@@ -1178,9 +1177,13 @@ test('overview frames the whole station and free flight can rise beyond the old 
 
 test('bot radio remains visible when mission and test menus are collapsed', () => {
   experience.startBotRound();
+  // Was der Techniker aus Zahlen der Runde meldet, kommt über die Welt
+  // (`HauntingWorld.relay` → `log`) im selben Bild — und steht dann hier.
+  experience.log('Techniker → Zentrale: Ersatzteil gefunden.');
   frame(0.13);
   const log = document.querySelector('[aria-label="Simulierter Funkverkehr"]')!;
   expect(log.closest('details')).toBeNull();
+  expect(log.textContent).toContain('BOT-RUNDE');
   expect(log.textContent).toContain('Techniker → Zentrale');
 });
 

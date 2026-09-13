@@ -122,7 +122,7 @@ export interface TuningField<T> {
 export const MONSTER_FIELDS: ReadonlyArray<TuningField<MonsterTuning>> = [
   { id: 'speed', label: 'Grundtempo', unit: '×', min: 0.95, max: 1.5, step: 0.05 },
   { id: 'hunt', label: 'Verfolgungstempo', unit: '×', min: 1.3, max: 1.55, step: 0.05 },
-  { id: 'stalk', label: 'Schleichtempo', unit: '×', min: 0.25, max: 1, step: 0.05 },
+  { id: 'stalk', label: 'Schleichtempo', unit: '×', min: 0.25, max: 0.95, step: 0.05 },
   { id: 'hearing', label: 'Gehör', unit: '×', min: 0.4, max: 2, step: 0.05 },
   { id: 'vision', label: 'Sicht', unit: '×', min: 0.4, max: 2, step: 0.05 },
   { id: 'memory', label: 'Gedächtnis', unit: '×', min: 0.4, max: 2, step: 0.05 },
@@ -155,32 +155,35 @@ export const TECHNICIAN_FIELDS: ReadonlyArray<TuningField<TechnicianTuning>> = [
  * Ziel „der Techniker gewinnt 60–70 % der Runden" (`botTraining.test.ts`
  * rechnet es bei jedem Lauf nach). Wer eine Zahl hier von Hand ändert, ändert
  * damit die Schwierigkeit der ganzen Bot-Runde — und der Test sagt es ihm.
+ * Zuletzt neu trainiert mit dem Paket „Rechenkern": eine Türbreite von 2 m in
+ * beiden Welten, Ducken als Tempo und die ablaufende Abfangprognose spielen
+ * eine andere Runde als vorher, und die alten Zahlen fielen aus dem Band.
  */
 export const DEFAULT_TUNING: BotTuning = {
   monster: {
     speed: 1,
     hunt: 1.55,
-    stalk: 0.9,
-    hearing: 0.9,
-    vision: 1.7,
+    stalk: 0.95,
+    hearing: 0.8,
+    vision: 1.6,
     memory: 0.95,
     search: 16,
-    locker: 0.5,
-    guess: 0.4,
+    locker: 0.3,
+    guess: 0.45,
     wander: 0.15,
     stakeout: 0.05,
-    reposition: 2,
-    savour: 3,
-    ambush: 0.4,
-    predict: 1,
+    reposition: 4,
+    savour: 1.5,
+    ambush: 0.25,
+    predict: 0.9,
     rush: 11,
   },
   technician: {
-    walk: 2.6,
-    sprint: 4.94,
-    stamina: 9.5,
+    walk: 2.35,
+    sprint: 4.7,
+    stamina: 11.25,
     caution: 7,
-    hide: 0.4,
+    hide: 0.5,
     work: 1.15,
     nerve: 10,
   },

@@ -1,5 +1,4 @@
 import { TILE, dirX, dirZ, type Dir } from '../../nav/navTile';
-import { PLAN_DOOR_W } from '../../editor/levelPlan';
 import {
   APRON,
   spacesOf,
@@ -26,27 +25,15 @@ import type { MapPoint, MapSegment, MapSnapshot } from './mapSnapshot';
 export const WALL_T = 0.25;
 
 /**
- * **Wie breit eine Türöffnung auf der Karte ist**, in Metern — eine Kachel
- * abzüglich Pfosten. Das ist die Öffnung des **Modells**: das Türblatt, das
- * Licht und Sicht aufhält, die Lücke in der Wand, durch die das Hörmodell
- * rechnet, und das gezeichnete Blatt — in 2D, 3D und der Trainingssimulation
- * dieselbe Zahl, und auf sie sind die Gewichte der Bots abgestimmt
- * (`botTraining.ts`). **Begangen** wird die schmalere Öffnung des Schiffs
- * (`DOOR_PASSAGE`).
+ * **Wie breit eine Türöffnung ist**, in Metern — eine Kachel abzüglich
+ * Pfosten, **in beiden Welten dieselbe Zahl** (`house.STATION_DOOR_W`, seit
+ * dem Paket „Eine Türbreite"): das Türblatt, das Licht und Sicht aufhält, die
+ * Lücke in der Wand, durch die das Hörmodell rechnet, das gezeichnete Blatt,
+ * die begehbare Öffnung — und im Schiff die Pfosten, das Blatt und der
+ * Collider (`plan.ts`). Vorher baute das Schiff 1,2 m, und der 2D-Spieler
+ * lief durch Pfosten, die er nicht sah.
  */
 export const DOOR_WIDTH = TILE - 2 * WALL_T;
-/**
- * **Und wie breit man hindurchkommt**: so breit wie im Schiff
- * (`editor/levelPlan.PLAN_DOOR_W`, 1,2 m zwischen zwei Pfosten von je 0,65 m).
- * Lange ließ `walkable` die ganze `DOOR_WIDTH` durch: Der 2D-Spieler lief
- * durch Pfosten, die es in 3D gibt, und die Wegsuche
- * (`stationNavigation.buildGrid`) rechnete längst mit der schmalen Öffnung —
- * die Figur auf der Karte konnte andere Wege gehen als den, den sie geplant
- * bekam. Für Sicht und Gehör bleibt es bei `DOOR_WIDTH`: Die sind an drei
- * Stellen auf diese Zahl abgestimmt, und die Pfosten hält dort ohnehin niemand
- * für Wand.
- */
-export const DOOR_PASSAGE = PLAN_DOOR_W;
 
 /** Ein Rechteck in Kacheln als Kontur in Metern, gegen den Uhrzeigersinn. */
 export function rectPolygon(rect: Rect): MapPoint[] {
@@ -391,7 +378,7 @@ export function walkable(
     if (shut.includes(door.id)) continue;
     const centre = doorCentre(door);
     const axis = doorAxis(door.dir);
-    const half = DOOR_PASSAGE / 2 - radius;
+    const half = DOOR_WIDTH / 2 - radius;
     const depth = inset + 0.05;
     const along = axis === 'x' ? at.x - centre.x : at.z - centre.z;
     const across = axis === 'x' ? at.z - centre.z : at.x - centre.x;

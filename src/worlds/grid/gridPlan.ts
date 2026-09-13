@@ -1,5 +1,5 @@
 import { planSolids } from '../editor/levelBuild';
-import { doorName, replacePlan } from '../editor/levelPlan';
+import { doorName, PLAN_DOOR_W, replacePlan } from '../editor/levelPlan';
 import { NavGraph, type TileFacts, type WallKind } from '../nav/navGraph';
 import { connect, fillRect, setDoor, setWindow, wallRect, type NavRect } from '../nav/navBuild';
 import {
@@ -376,8 +376,13 @@ export class GridPlan {
    * Liste in eine Physik gibt, will den Boden zuerst hinlegen, damit nichts
    * eine Wand berührt, bevor es Boden gibt.
    */
+  /** Wie breit die Türen dieses Plans sind — die Station überschreibt es (`haunting/plan.ts`). */
+  doorWidth(): number {
+    return PLAN_DOOR_W;
+  }
+
   solids(): PlanSolid[] {
-    const out = planSolids(this.graph);
+    const out = planSolids(this.graph, this.doorWidth());
     for (const one of this.stack) out.push(massSolid(this.graph, one));
     for (const one of this.placed) {
       out.push(

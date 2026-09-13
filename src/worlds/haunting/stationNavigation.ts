@@ -1,4 +1,4 @@
-import { PLAN_DOOR_W, PLAN_WALL_T } from '../editor/levelPlan';
+import { PLAN_WALL_T } from '../editor/levelPlan';
 import type { NavGraph } from '../nav/navGraph';
 import {
   TILE,
@@ -15,7 +15,7 @@ import {
   type TileKey,
 } from '../nav/navTile';
 import type { RoutePath, RoutePose } from './navmesh/route';
-import { missionExtent, type HouseSpec } from './house';
+import { missionExtent, STATION_DOOR_W, type HouseSpec } from './house';
 import { SMOOTH_MARGIN, pullString } from './navmesh';
 import { pointSegmentDistance } from './navmesh/snapshotClearance';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
@@ -389,8 +389,8 @@ function buildGrid(spec: HouseSpec, graph: NavGraph, radius: number): RouteGrid 
     const opening = wall.kind === 'door' && wall.open && !wall.barred;
     const spans = opening
       ? [
-          [-TILE / 2, -PLAN_DOOR_W / 2],
-          [PLAN_DOOR_W / 2, TILE / 2],
+          [-TILE / 2, -STATION_DOOR_W / 2],
+          [STATION_DOOR_W / 2, TILE / 2],
         ]
       : [[-TILE / 2, TILE / 2]];
     for (const [start, end] of spans)

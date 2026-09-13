@@ -291,6 +291,9 @@ export class FlatMode {
   private readonly cycleKey = el('button', 'flat__key flat__key--cycle');
   private readonly useKey = el('button', 'flat__key flat__key--use');
   private readonly actKey = el('button', 'flat__key flat__key--act');
+  /** **Ducken** — halbes Tempo, leise Schritte; ein Umschalter, wie der rechte Stick der Brille. */
+  private readonly crouchKey = el('button', 'flat__key flat__key--crouch');
+  private crouched = false;
   /** Die zwei Sprungknöpfe rechts: zum Spieler, und für Zuschauer zum Monster. */
   private readonly jump = el('div', 'flat__jump');
   private readonly centreKey = el('button', 'flat__corner flat__centre', 'Zum Spieler');
@@ -457,10 +460,14 @@ export class FlatMode {
     this.cycleKey.dataset['action'] = 'cycle';
     this.useKey.dataset['action'] = 'use';
     this.actKey.dataset['action'] = 'interact';
-    this.buttons.append(this.cycleKey, this.useKey, this.actKey);
+    this.crouchKey.dataset['action'] = 'crouch';
+    this.buttons.append(this.cycleKey, this.useKey, this.actKey, this.crouchKey);
     this.buttons.addEventListener('click', (event) => {
       const action = clickedKey(event)?.dataset['action'];
-      if (action === 'cycle' || action === 'use' || action === 'interact') {
+      if (action === 'crouch') {
+        this.crouched = !this.crouched;
+        this.refreshKeys();
+      } else if (action === 'cycle' || action === 'use' || action === 'interact') {
         this.round.act(action);
         this.refreshKeys();
       }
@@ -864,7 +871,12 @@ export class FlatMode {
       for (let i = 0; i < repeats; i++) this.bot.step(dt);
     } else {
       const stick = this.stick.value;
-      this.round.step(dt, { x: stick.x, z: stick.z, sprint: stick.sprint });
+      this.round.step(dt, {
+        x: stick.x,
+        z: stick.z,
+        sprint: stick.sprint,
+        crouch: this.crouched,
+      });
     }
     // Die Meldungen der eigenen Runde gehören dem, der sie spielt. Der
     // Zuschauer am Netz hat keine — seine Runde steht still, und was sie beim
@@ -1382,6 +1394,9 @@ export class FlatMode {
     const target = this.round.target;
     this.actKey.replaceChildren(...labelled('Benutzen', target?.label ?? ''));
     this.actKey.classList.toggle('is-ready', !!target);
+    this.crouchKey.replaceChildren(...captioned('Ducken', this.crouched ? 'Geduckt' : 'Aufrecht'));
+    this.crouchKey.classList.toggle('is-active', this.crouched);
+    this.crouchKey.setAttribute('aria-pressed', this.crouched ? 'true' : 'false');
   }
 
   /**

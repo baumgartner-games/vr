@@ -13,8 +13,9 @@ import { SUIT_LIVES } from './roundRules';
  * **Ein Techniker aus Zahlen für die 2D-Runde** — der Prüfstand der
  * Rundenregeln.
  *
- * Er tut, was der Modelltechniker der 3D-Welt tut (`missionBot.ts`) und was
- * die Trainingsrunde vereinfacht nachspielt (`roundSim.ts`): Ersatzteil
+ * Er spielt die Bot-Runde auf dem Telefon **und** im Schiff (über den Kern
+ * `flatKernel.ts`) und tut, was die Trainingsrunde vereinfacht nachspielt
+ * (`roundSim.ts`): Ersatzteil
  * holen, Konsole reparieren, dreimal, dann heim — und sobald das Monster
  * nahe kommt, die Arbeit abbrechen und in Deckung gehen, am liebsten in eine
  * Kabine. Genau dieses Verhalten hat die Runde in die Schleife getrieben:

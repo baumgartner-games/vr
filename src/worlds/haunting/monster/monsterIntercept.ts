@@ -241,6 +241,14 @@ export function predictPlayer(
     move.speed > STILL ? move.speed : last.sprinting ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED;
   const age = Math.min(Math.max(0, now - last.time), PREDICT_AGE);
   const at = advance(graph, last.at, heading, speed * age);
+  // **Eine alte Sichtung läuft ab.** Weiter als `PREDICT_AGE` wird die
+  // Stelle nicht vorgerückt — wo er danach ist, weiß niemand —, aber die
+  // Zeit läuft weiter: Was er seither an Sekunden hat, fehlt jeder Tür an
+  // Vorsprung. Sonst stünde eine Tür, durch die er längst hindurch ist, mit
+  // derselben Ankunftszeit in der Rechnung wie am Tag der Sichtung — und das
+  // Monster wartete davor, bis die Runde am Sauerstoff endet (`plan`
+  // übergeht Türen, deren `eta` nicht mehr positiv ist).
+  const overdue = Math.max(0, now - last.time - PREDICT_AGE);
   let here = graph.spaceAt(at) || graph.spaceAt(last.at);
   if (!here) return null;
 
@@ -263,7 +271,7 @@ export function predictPlayer(
     taken.add(door);
     path.push(point);
     doors.push(door);
-    eta.push(travelTime(walked, speed, stamina));
+    eta.push(travelTime(walked, speed, stamina) - overdue);
     heading = unit({ x: point.x - from.x, z: point.z - from.z }) ?? heading;
     const next = behindDoor(graph, here, door);
     if (!next) break;

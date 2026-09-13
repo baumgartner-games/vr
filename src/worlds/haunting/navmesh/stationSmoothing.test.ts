@@ -1,6 +1,6 @@
-import { PLAN_DOOR_H, PLAN_DOOR_W } from '../../editor/levelPlan';
+import { PLAN_DOOR_H } from '../../editor/levelPlan';
 import { TILE } from '../../nav/navTile';
-import { generateHouse, roomCentre, roomOf, type HouseSpec } from '../house';
+import { generateHouse, roomCentre, roomOf, STATION_DOOR_W, type HouseSpec } from '../house';
 import { WALL_T, doorAxis, doorCentre, wallSegments } from '../map/geometry';
 import { emptySnapshot } from '../map/mapSnapshot';
 import { housePlan } from '../plan';
@@ -223,9 +223,10 @@ describe('Geglättete Wege durch die Station', () => {
       for (const point of route.points!) {
         for (const door of spec.doors) {
           // Wo eine Strecke die Türlinie kreuzt, muss der Körper in der
-          // Öffnung Platz haben und die Strecke fast senkrecht durchgehen:
-          // Eine Abkürzung passt nur mit Radius plus Spielraum durch die
-          // 1,2 m, das lässt keinen schrägen Schnitt am Pfosten zu.
+          // Öffnung Platz haben: Der Schnittpunkt liegt mit Radius plus
+          // Spielraum innerhalb der Öffnung (`STATION_DOOR_W`, eine Kachel
+          // abzüglich Wand), nie am Pfosten. Seit die Öffnung zwei Meter
+          // breit ist, darf die Strecke dabei schräg durchgehen — Platz genug.
           const centre = doorCentre(door);
           const along = doorAxis(door.dir);
           const across = along === 'x' ? 'z' : 'x';
@@ -236,25 +237,13 @@ describe('Geglättete Wege durch die Station', () => {
           const hit = previous[along] + t * (point[along] - previous[along]);
           if (Math.abs(hit - centre[along]) > TILE / 2) continue;
           crossings++;
-          const slack = PLAN_DOOR_W / 2 - RADIUS;
-          const angle =
-            (Math.atan2(
-              Math.abs(point[along] - previous[along]),
-              Math.abs(point[across] - previous[across]),
-            ) *
-              180) /
-            Math.PI;
+          const slack = STATION_DOOR_W / 2 - RADIUS;
           expect({
             ...pair,
             door: door.id,
             hit,
             centred: Math.abs(hit - centre[along]) <= slack + 1e-6,
           }).toEqual({ ...pair, door: door.id, hit, centred: true });
-          expect({ ...pair, door: door.id, angle: Math.min(angle, 20) }).toEqual({
-            ...pair,
-            door: door.id,
-            angle,
-          });
         }
         previous = point;
       }

@@ -56,11 +56,21 @@ export const NOISE = {
   monsterVent: 2,
 } as const;
 
-/** Die Lautstärke eigener Schritte aus dem Tempo: unter 0,1 m/s still, geduckt leise, ab Sprinttempo laut. */
-export function stepLoudness(speed: number, crouched = false): number {
+/** Unter diesem Tempo ist ein Schritt ein Schleichen — Ducken halbiert das Gehtempo (`mission.CROUCH_FACTOR`). */
+export const SNEAK_LIMIT = 2;
+/** Ab diesem Tempo ist er ein Rennen. */
+export const SPRINT_LIMIT = 3.6;
+
+/**
+ * Die Lautstärke eigener Schritte **aus dem Tempo allein**: unter 0,1 m/s
+ * still, unter `SNEAK_LIMIT` leise (geduckt), ab `SPRINT_LIMIT` laut. Kein
+ * eigener Schalter fürs Ducken mehr — wer langsam geht, ist leise, in der
+ * Brille wie auf dem Telefon.
+ */
+export function stepLoudness(speed: number): number {
   if (!(speed > 0.1)) return 0;
-  if (crouched) return NOISE.sneak;
-  return speed > 3.6 ? NOISE.sprint : NOISE.walk;
+  if (speed < SNEAK_LIMIT) return NOISE.sneak;
+  return speed > SPRINT_LIMIT ? NOISE.sprint : NOISE.walk;
 }
 
 /** Ein Klang aus dem Nichts: Wellenform, Tonhöhe, Hüllkurve. */

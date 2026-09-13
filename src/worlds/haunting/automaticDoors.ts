@@ -1,4 +1,11 @@
+import { STATION_DOOR_W } from './house';
+
 type Position = { x: number; y?: number; z: number };
+
+/** So weit neben der Öffnung löst jemand die Tür noch aus, quer zur Wand gemessen. */
+const TRIGGER_CROSS = STATION_DOOR_W / 2 + 1.2;
+/** Und so weit neben der Öffnung gilt der Durchgang als belegt — das Blatt fällt nie um jemanden zu. */
+const OCCUPIED_CROSS = STATION_DOOR_W / 2 + 0.4;
 
 /** Logical locks are separate from the local, physically animated proximity doors. */
 export class AutomaticDoors {
@@ -22,7 +29,7 @@ export class AutomaticDoors {
         return false;
       const cross = Math.abs(at.alongX ? p.x - at.x : p.z - at.z);
       const normal = Math.abs(at.alongX ? p.z - at.z : p.x - at.x);
-      return cross < 1.8 && normal < 3.2;
+      return cross < TRIGGER_CROSS && normal < 3.2;
     });
     // An occupied threshold must never be closed around a capsule, even when
     // control locks the door at exactly the moment somebody walks through it.
@@ -30,7 +37,7 @@ export class AutomaticDoors {
       if (p.y !== undefined && (p.y < -0.5 || p.y > 3.3)) return false;
       const cross = Math.abs(at.alongX ? p.x - at.x : p.z - at.z);
       const normal = Math.abs(at.alongX ? p.z - at.z : p.x - at.x);
-      return cross < 1 && normal < 0.85;
+      return cross < OCCUPIED_CROSS && normal < 0.85;
     });
     const elapsed = Number.isFinite(dt) ? Math.max(0, Math.min(dt, 0.25)) : 0;
     state.hold = near && !locked ? 1.2 : Math.max(0, state.hold - elapsed);

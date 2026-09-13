@@ -2,6 +2,7 @@ import { TILE } from '../../nav/navTile';
 import { PLAYER_CAPSULE_RADIUS } from '../../../physics/playerClearance';
 import { generateHouse, onApron, spacesOf, type HouseDoor, type HouseSpec } from '../house';
 import {
+  CROUCH_FACTOR,
   freshCrew,
   freshStamina,
   grantBurst,
@@ -12,6 +13,7 @@ import {
   puzzleSolved,
   HIT_LULL,
   repairsFor,
+  repairRoom,
   stationOptions,
   stepStamina,
   stepVitals,
@@ -30,7 +32,6 @@ import { monsterSight } from '../monster/monsterSight';
 import { DEFAULT_TUNING, type BotTuning } from '../botTuning';
 import {
   ENTITY_PROFILES,
-  freshThreat,
   hearNoises,
   stepAwareness,
   takeAlert,
@@ -189,6 +190,20 @@ export interface FlatInput {
   x: number;
   z: number;
   sprint: boolean;
+  /** Geduckt: halbes Tempo, leise Schritte (`mission.CROUCH_FACTOR`); Sprint hebt es auf. */
+  crouch?: boolean;
+  /**
+   * Wohin der Techniker **schaut**, in Bogenmaß — die Brille bringt den Kopf
+   * mit; ohne Angabe schaut er dorthin, wohin er geht.
+   */
+  yaw?: number;
+  /**
+   * **Ein Schritt, den der Körper selbst getan hat**, in Metern: Wer im
+   * Spielraum der Brille einen Schritt zur Seite macht, hat sich bewegt, ohne
+   * den Stock zu halten. Die Runde nimmt ihn wie jeden Schritt — gleitend an
+   * Wänden, also nicht durch sie hindurch.
+   */
+  shift?: { x: number; z: number };
 }
 
 export type FlatAction = 'cycle' | 'use' | 'interact';
@@ -284,6 +299,8 @@ export interface FlatResume {
   trail?: TrailBook;
   /** Was das Monster sich gemerkt hat (`net.MonsterBook`). */
   memory?: MonsterBook;
+  /** Welche Lampen die Tafel angemacht hat und wann sie ausgehen (`rules/lamps.ts`). */
+  lamps?: Lamps;
   /** Wohin der Techniker blickt, in Bogenmaß — ohne Angabe der Winkel aus dem Stand. */
   yaw?: number;
 }
@@ -350,6 +367,14 @@ export class FlatRound implements MapSource {
   private readonly ventPilot: VentPilot;
   /** Ein Spieler am Steuer des Monsters (`monster/`); `null` oder inaktiv heißt: die Routine. */
   driver: MonsterDriver | null = null;
+  /**
+   * **Wer hören will, wenn eine Lampe flackert oder ausgeht** — die 3D-Welt,
+   * die daraus einen Klang im Raum macht (`HauntingWorld.lampSound`). Die
+   * Meldungen an den Spieler kommen weiter als Ereignisse.
+   */
+  onLamp: ((kind: 'flicker' | 'out', room: string) => void) | null = null;
+  /** Wie viele Reparaturen zuletzt fertig waren — daran hängt der Schub des Monsters (`noticeRepairs`). */
+  private repaired = 0;
   /** Welche Werkzeuge man hat, in Reihenfolge des Durchschaltens. */
   readonly tools: string[] = ['flashlight'];
   active = 0;
@@ -399,8 +424,13 @@ export class FlatRound implements MapSource {
    */
   private readonly walk: MonsterWalk;
   private decision: RoutineOutput | null = null;
-  /** Was das Monster wahrnimmt — dieselbe Leiter wie im Headset (`threat.ts`). */
-  private readonly memory: ThreatState = freshThreat();
+  /**
+   * **Was das Monster wahrnimmt** — die Alarmleiter aus `threat.ts`, und
+   * zwar **die im Stand** (`HauntState.crew.threat`): Das Schiff liest daraus
+   * Absicht und Jagd für Tafel und Zuschauer (`ShipExperience`), und über die
+   * Leitung geht sie mit dem Stand an alle Geräte. Eine Leiter, nicht zwei.
+   */
+  private readonly memory: ThreatState;
   /** Das Hörmodell (`audio/hearing.ts`) und die Geräusche des Spielers seit dem letzten Schritt. */
   private readonly hearing = new Hearing();
   private pendingNoises: NoiseSource[] = [];
@@ -421,7 +451,7 @@ export class FlatRound implements MapSource {
    * Regeln wie im Headset, aus derselben Datei. `switchLight` und der Spuk
    * gehen beide hier hindurch.
    */
-  private readonly lampBook: Lamps = freshLamps();
+  readonly lampBook: Lamps = freshLamps();
   /** Welches Schott gerade grundlos offen steht (`rules/doorGlitch.ts`). */
   private readonly glitch: DoorGlitch;
   /** Die Türautomatik des Schiffs — dasselbe Stück, dieselben Zahlen (`stepDoors`). */
@@ -443,8 +473,8 @@ export class FlatRound implements MapSource {
   /** Die Wegsuche des Spielers zum nächsten Ziel — nur, wenn jemand den Weg sehen will. */
   private playerNav: FlatNavigator | null = null;
   private readonly rng: Rng;
-  private readonly tuning: BotTuning;
-  private spook: Spook = freshSpook();
+  private tuning: BotTuning;
+  private spooking: Spook = freshSpook();
   private moving = false;
   private sprinting = false;
   private seen = false;
@@ -517,6 +547,7 @@ export class FlatRound implements MapSource {
       ghosts: freshGhosts(),
       blood: this.blood.drops,
     };
+    this.repaired = this.haunt.done.length;
     // **Eine Spur, nicht zwei.** Die Tropfenliste des Standes *ist* die der
     // Buchführung — auch nach einer Übernahme, sonst malte die Karte eine
     // Spur und das Monster liefe über eine andere.
@@ -524,12 +555,18 @@ export class FlatRound implements MapSource {
       this.blood.drops = this.haunt.blood ?? [];
       this.haunt.blood = this.blood.drops;
       // Das Gedächtnis erst unten, wenn es steht (`loadMemory`).
-      this.loadBooks({ locks: resume.locks, spook: resume.spook, trail: resume.trail });
+      this.loadBooks({
+        locks: resume.locks,
+        spook: resume.spook,
+        trail: resume.trail,
+        lamps: resume.lamps,
+      });
       // Die Werkzeuge stehen nicht im Stand, sondern im Gepäck: Was der
       // Techniker aufgesammelt hat, hat er auch nach dem Wechsel in der Hand.
       for (const id of this.haunt.crew.inventory)
         if (id in TOOL_LABELS && !this.tools.includes(id)) this.tools.push(id);
     }
+    this.memory = this.haunt.crew.threat;
     this.rng = new Rng((seed ^ ((options.roll ?? 0) * 0x9e3779b1)) >>> 0);
     this.routine = new MonsterRoutine(this.tuning.monster);
     // **Die Karte des Monsters** (`roomGraph.monsterGraph`): dieselbe Station
@@ -626,7 +663,7 @@ export class FlatRound implements MapSource {
    * (`net.handoverMessage`), und die kommt, wenn diese Runde schon läuft.
    * Was fehlt, fängt bis dahin von vorn an; was kommt, gilt.
    */
-  loadBooks(books: Pick<FlatResume, 'locks' | 'spook' | 'trail' | 'memory'>): void {
+  loadBooks(books: Pick<FlatResume, 'locks' | 'spook' | 'trail' | 'memory' | 'lamps'>): void {
     if (books.trail) {
       this.blood.until = books.trail.until;
       this.blood.from = books.trail.from ? { ...books.trail.from } : null;
@@ -639,7 +676,8 @@ export class FlatRound implements MapSource {
       this.locks.pries = books.locks.pries.map((one) => ({ ...one }));
       this.locks.cooling = books.locks.cooling.map((one) => ({ ...one }));
     }
-    if (books.spook) this.spook = { ...books.spook };
+    if (books.spook) this.spooking = { ...books.spook };
+    if (books.lamps) this.lampBook.on = books.lamps.on.map((one) => ({ ...one }));
     if (books.memory) this.loadMemory(books.memory);
   }
 
@@ -658,7 +696,7 @@ export class FlatRound implements MapSource {
    * und nicht als dasselbe Objekt: Wer weitergibt, gibt nicht auch noch einen
    * Draht zurück in eine Runde, die er gerade schließt.
    */
-  books(): { locks: DoorLocks; spook: Spook; trail: TrailBook; memory: MonsterBook } {
+  books(): { locks: DoorLocks; spook: Spook; trail: TrailBook; memory: MonsterBook; lamps: Lamps } {
     return {
       locks: {
         chosen: this.locks.chosen,
@@ -667,13 +705,14 @@ export class FlatRound implements MapSource {
         pries: this.locks.pries.map((one) => ({ ...one })),
         cooling: this.locks.cooling.map((one) => ({ ...one })),
       },
-      spook: { ...this.spook },
+      spook: { ...this.spooking },
       trail: {
         until: this.blood.until,
         from: this.blood.from ? { ...this.blood.from } : null,
         walked: this.blood.walked,
       },
       memory: packMemory(this.brain, this.graph.spaces),
+      lamps: { on: this.lampBook.on.map((one) => ({ ...one })) },
     };
   }
 
@@ -958,6 +997,24 @@ export class FlatRound implements MapSource {
 
   step(dt: number, input: FlatInput): void {
     let left = Math.max(0, Math.min(0.5, dt));
+    // Der Schritt des Körpers (Brille) einmal je Bild, nicht je Scheibe.
+    if (input.shift && this.stepping && !this.haunt.crew.hidden) {
+      const to = slide(
+        this.house,
+        this.closed,
+        this.player,
+        input.shift.x,
+        input.shift.z,
+        PLAYER_RADIUS,
+        this.blocks,
+      );
+      this.player.x = to.x;
+      this.player.z = to.z;
+      const space = spaceAtMetres(this.house, this.player, this.player.space, SPACE_MARGIN);
+      this.player.space =
+        space === null ? this.player.space : space === COMMAND ? COMMAND : space.id;
+    }
+    if (input.yaw !== undefined && Number.isFinite(input.yaw)) this.player.yaw = input.yaw;
     while (left > 0) {
       const slice = Math.min(MAX_STEP, left);
       left -= slice;
@@ -1001,14 +1058,17 @@ export class FlatRound implements MapSource {
     // Flackern als Vorwarnung, dann dunkel. Gemeldet wird nur, was im eigenen
     // Raum passiert — anderswo sieht der Techniker es ja nicht.
     const lamps = stepLamps(this.lampBook, this.haunt.lit, this.haunt.time);
+    for (const room of lamps.flicker) this.onLamp?.('flicker', room);
     if (lamps.flicker.includes(this.player.space))
       this.events.push({ kind: 'warn', text: 'Die Lampe flackert.' });
     if (lamps.out.length) {
       this.haunt.lit = lamps.lit;
+      for (const room of lamps.out) this.onLamp?.('out', room);
       if (lamps.out.includes(this.player.space))
         this.events.push({ kind: 'warn', text: 'Das Licht geht aus.' });
     }
     this.stepDoors(dt);
+    this.noticeRepairs();
 
     // --- Der laufende Handgriff ---------------------------------------------
     // **Vor der Bewegung.** Er wird an der Stelle gemessen, an der der Spieler
@@ -1031,10 +1091,12 @@ export class FlatRound implements MapSource {
     let speed = 0;
     if (wants) {
       const scale = Math.min(1, length);
-      speed = (input.sprint ? PLAYER_SPRINT_SPEED * dash : PLAYER_WALK_SPEED) * scale;
+      // Geduckt halb so schnell — Sprint hebt das Ducken auf (`mission.CROUCH_FACTOR`).
+      const crouch = !!input.crouch && !input.sprint ? CROUCH_FACTOR : 1;
+      speed = (input.sprint ? PLAYER_SPRINT_SPEED * dash : PLAYER_WALK_SPEED) * scale * crouch;
       const nx = input.x / length,
         nz = input.z / length;
-      this.player.yaw = Math.atan2(-nx, -nz);
+      if (input.yaw === undefined) this.player.yaw = Math.atan2(-nx, -nz);
       const to = slide(
         this.house,
         this.closed,
@@ -1286,7 +1348,7 @@ export class FlatRound implements MapSource {
    */
   private stepSpook(dt: number): void {
     const spooked = stepHaunt(
-      this.spook,
+      this.spooking,
       {
         spec: this.house,
         monster: this.haunt.monsterOn ? this.haunt.monster : null,
@@ -1301,7 +1363,7 @@ export class FlatRound implements MapSource {
       },
       dt,
     );
-    this.spook = spooked.spook;
+    this.spooking = spooked.spook;
     if (spooked.lightOut && this.haunt.lit.includes(spooked.lightOut)) {
       this.haunt.lit = lampOut(this.lampBook, this.haunt.lit, spooked.lightOut);
       if (spooked.lightOut === this.player.space)
@@ -1394,8 +1456,32 @@ export class FlatRound implements MapSource {
     return best;
   }
 
+  /**
+   * **Eine fertige Reparatur ist ein Ereignis der Station**, kein stiller
+   * Haken: Die Konsole fährt hoch, die Sicherung fällt, im Modul flackert es.
+   * Das Monster weiß danach, wo eben jemand stand — das steht im Gedächtnis
+   * als Aufruhr und nicht als Sichtung (`disturbed`) — und legt für
+   * `MonsterTuning.rush` Sekunden los. Gezählt wird am Stand (`done`), damit
+   * es auch die Konsole trifft, die das Schiff repariert hat, während diese
+   * Runde sein Rechenkern ist (`flatKernel.ts`).
+   */
+  private noticeRepairs(): void {
+    const done = this.haunt.done;
+    if (done.length <= this.repaired) {
+      this.repaired = done.length;
+      return;
+    }
+    for (const entry of done.slice(this.repaired)) {
+      const room = repairRoom(this.house, entry);
+      if (!room) continue;
+      this.brain.disturbed(room, this.graph.centre(room), this.haunt.time);
+      this.routine.hurry(this.tuning.monster.rush);
+    }
+    this.repaired = done.length;
+  }
+
   /** Ein Geräusch des Spielers für die Ohren des Monsters (`audio/cues.ts`, `NOISE`) — und als Welle auf die Karte. */
-  private noise(at: FloorPoint, loudness: number, cause: MapNoiseCause = 'interact'): void {
+  noise(at: FloorPoint, loudness: number, cause: MapNoiseCause = 'interact'): void {
     this.pendingNoises.push({ at: { x: at.x, z: at.z }, loudness });
     this.wave(PLAYER_ID, at, loudness, cause);
   }
@@ -1428,6 +1514,21 @@ export class FlatRound implements MapSource {
    * und für Tests, die den Unterschied zwischen „steht absichtlich" und
    * „hängt an einer Wand" brauchen; von außen nur zu lesen.
    */
+  /** Was das Monster gerade anstellt (`haunt.ts`) — für das Flackern der Lampen im Schiff. */
+  get spook(): Readonly<Spook> {
+    return this.spooking;
+  }
+
+  /**
+   * **Neue Gewichte im laufenden Spiel** (`botTuning.ts`): Die Routine des
+   * Monsters bekommt sie sofort; Tempo, Sicht und Gehör lesen sie ohnehin je
+   * Bild aus `tuning`. Die 3D-Welt ruft das, wenn der Test-Regler bewegt wird.
+   */
+  retune(tuning: BotTuning): void {
+    this.tuning = tuning;
+    this.routine.retune(tuning.monster);
+  }
+
   get decided(): Readonly<RoutineOutput> | null {
     return this.decision;
   }
@@ -1949,13 +2050,8 @@ export class FlatRound implements MapSource {
     this.noise(this.player, NOISE.click);
     if (outcome.solved && puzzleSolved(repair, puzzle)) {
       this.haunt.done.push(repair.itemId);
-      // **Eine fertige Reparatur ist ein Ereignis der Station**, kein stiller
-      // Haken: Die Konsole fährt hoch, die Sicherung fällt, im Modul flackert
-      // es. Das Monster weiß danach, wo eben jemand stand — das steht im
-      // Gedächtnis als Aufruhr und nicht als Sichtung (`disturbed`) — und legt
-      // für `MonsterTuning.rush` Sekunden los.
-      this.brain.disturbed(repair.roomId, this.graph.centre(repair.roomId), this.haunt.time);
-      this.routine.hurry(this.tuning.monster.rush);
+      // Das Monster erfährt es im nächsten Schritt (`noticeRepairs`) — auf
+      // demselben Weg wie von einer Konsole, die das Schiff repariert hat.
       const held = this.haunt.crew.inventory.indexOf(repair.itemId);
       if (held >= 0) this.haunt.crew.inventory.splice(held, 1);
       this.puzzle = null;
@@ -1975,6 +2071,11 @@ export class FlatRound implements MapSource {
   }
 
   /** Nur für Tests: den Spieler irgendwohin stellen, wo man stehen darf. */
+  /** Ob an dieser Stelle jemand stehen kann — Raum, Vorplatz oder Tür, nicht Wand und nicht Möbel. */
+  canStand(at: FloorPoint): boolean {
+    return walkable(this.house, this.closed, at, PLAYER_RADIUS, this.blocks);
+  }
+
   place(at: FloorPoint): boolean {
     if (!walkable(this.house, this.closed, at, PLAYER_RADIUS, this.blocks)) return false;
     this.player.x = at.x;

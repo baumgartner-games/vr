@@ -1,4 +1,16 @@
-import { DIR_E, DIR_N, DIR_S, DIR_W, type Dir } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, DIR_W, TILE, type Dir } from '../nav/navTile';
+import { PLAN_WALL_T } from '../editor/levelPlan';
+
+/**
+ * **Wie breit eine Tür der Station ist — eine Kachel abzüglich Wanddicke**,
+ * in beiden Welten. Der Bauplan des Schiffs baute lange `PLAN_DOOR_W` = 1,2 m
+ * mit Pfosten von 0,65 m, die 2D-Karte rechnete mit 2,0 m (`map/geometry.
+ * DOOR_WIDTH`, dieselbe Zahl): Der 2D-Spieler lief durch Pfosten, die es in
+ * 3D gab, und die Wegsuche kannte nur die schmale Öffnung. Jetzt baut die
+ * Station (`plan.ts`, `StationPlan.doorWidth`) mit dieser Zahl; die anderen
+ * Welten des Rasters behalten ihre 1,2 m.
+ */
+export const STATION_DOOR_W = TILE - 2 * PLAN_WALL_T;
 import { Rng } from './rng';
 import { buildPanel, type PanelSwitch } from './panel';
 

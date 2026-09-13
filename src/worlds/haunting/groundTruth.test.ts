@@ -1,9 +1,12 @@
 import { PLAYER_CAPSULE_RADIUS } from '../../physics/playerClearance';
 import { PLAN_DOOR_W } from '../editor/levelPlan';
-import { doorAxis, doorCentre, DOOR_PASSAGE, DOOR_WIDTH, walkable } from './map/geometry';
+import { doorAxis, doorCentre, DOOR_WIDTH, walkable } from './map/geometry';
+import { STATION_DOOR_W } from './house';
 import { FlatRound, PLAYER_RADIUS } from './map/flatRound';
 import { AutomaticDoors } from './automaticDoors';
-import { PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED } from './mission';
+import { CROUCH_FACTOR, PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED } from './mission';
+import { NOISE, stepLoudness } from './audio/cues';
+import { BOT_FOV } from './perception';
 import { PlayerRig } from '../../core/PlayerRig';
 import * as THREE from 'three';
 
@@ -20,24 +23,23 @@ describe('Eine Wahrheit für 2D und 3D', () => {
     expect(PLAYER_RADIUS).toBe(PLAYER_CAPSULE_RADIUS);
   });
 
-  it('lässt den Spieler auf der Karte nur so breit durch eine Tür wie im Schiff', () => {
-    expect(DOOR_PASSAGE).toBe(PLAN_DOOR_W);
+  it('baut die Tür im Schiff so breit wie auf der Karte — eine Kachel abzüglich Wand', () => {
+    expect(STATION_DOOR_W).toBe(DOOR_WIDTH);
+    expect(STATION_DOOR_W).toBeGreaterThan(PLAN_DOOR_W);
     const round = new FlatRound(2, { test: true });
     const door = round.house.doors.find((one) => one.b !== null)!;
     const at = doorCentre(door);
     const alongX = doorAxis(door.dir) === 'x';
     const beside = (metres: number) =>
       alongX ? { x: at.x + metres, z: at.z } : { x: at.x, z: at.z + metres };
-    // Mitten in der Öffnung geht es; neben dem Pfosten — noch innerhalb der
-    // gezeichneten Öffnung von `DOOR_WIDTH` — nicht mehr.
+    // Mitten in der Öffnung geht es; am Pfosten nicht mehr.
     expect(walkable(round.house, [], beside(0), PLAYER_RADIUS)).toBe(true);
     expect(
-      walkable(round.house, [], beside(DOOR_PASSAGE / 2 - PLAYER_RADIUS - 0.02), PLAYER_RADIUS),
+      walkable(round.house, [], beside(DOOR_WIDTH / 2 - PLAYER_RADIUS - 0.02), PLAYER_RADIUS),
     ).toBe(true);
     expect(
-      walkable(round.house, [], beside(DOOR_PASSAGE / 2 - PLAYER_RADIUS + 0.02), PLAYER_RADIUS),
+      walkable(round.house, [], beside(DOOR_WIDTH / 2 - PLAYER_RADIUS + 0.02), PLAYER_RADIUS),
     ).toBe(false);
-    expect(DOOR_WIDTH).toBeGreaterThan(DOOR_PASSAGE);
   });
 
   it('fährt die Türen der 2D-Runde mit der Türautomatik des Schiffs', () => {
@@ -66,7 +68,7 @@ describe('Eine Wahrheit für 2D und 3D', () => {
     expect(round.doorOpen(door.id)).toBe(false);
     expect(stand(approach(3.0), 0.5)).toBe(true);
     expect(round.doorOpen(door.id)).toBe(true);
-    expect(stand(approach(3.0, 2.2), 2)).toBe(false);
+    expect(stand(approach(3.0, 2.6), 2)).toBe(false);
     expect(round.doorOpen(door.id)).toBe(false);
     expect(stand(approach(-2.5), 0.2)).toBe(true);
     expect(round.doorOpen(door.id)).toBe(true);
@@ -79,6 +81,50 @@ describe('Eine Wahrheit für 2D und 3D', () => {
       expect(round.doorOpen(door.id)).toBe(expected);
     }
     expect(round.doorOpen(door.id)).toBe(false);
+  });
+
+  it('lässt Geduckte in 2D halb so schnell gehen — und deshalb leise', () => {
+    const round = new FlatRound(2, { test: true });
+    const from = { x: round.player.x, z: round.player.z };
+    const walk = (crouch: boolean, sprint = false) => {
+      round.player.x = from.x;
+      round.player.z = from.z;
+      const before = { x: round.player.x, z: round.player.z };
+      round.step(DT, { x: 0, z: -1, sprint, crouch });
+      return Math.hypot(round.player.x - before.x, round.player.z - before.z) / DT;
+    };
+    const upright = walk(false);
+    const crouched = walk(true);
+    expect(upright).toBeCloseTo(PLAYER_WALK_SPEED, 5);
+    expect(crouched).toBeCloseTo(PLAYER_WALK_SPEED * CROUCH_FACTOR, 5);
+    // Sprint hebt das Ducken auf, wie am Stock der Brille.
+    expect(walk(true, true)).toBeCloseTo(PLAYER_SPRINT_SPEED, 5);
+    // Die Lautstärke kommt aus dem Tempo allein: geduckt leise, gehend normal, rennend laut.
+    expect(stepLoudness(crouched)).toBe(NOISE.sneak);
+    expect(stepLoudness(upright)).toBe(NOISE.walk);
+    expect(stepLoudness(PLAYER_SPRINT_SPEED)).toBe(NOISE.sprint);
+    expect(stepLoudness(PLAYER_SPRINT_SPEED * 0.72)).toBe(NOISE.walk);
+    expect(stepLoudness(0)).toBe(0);
+  });
+
+  it('nimmt den Blick der Brille, wenn einer mitkommt, und den Schritt des Körpers', () => {
+    const round = new FlatRound(2, { test: true });
+    round.step(DT, { x: 0, z: -1, sprint: false, yaw: 1.25 });
+    expect(round.player.yaw).toBeCloseTo(1.25);
+    // Ohne Blickangabe schaut er dorthin, wohin er geht.
+    round.step(DT, { x: 0, z: -1, sprint: false });
+    expect(round.player.yaw).toBeCloseTo(0);
+    // Ein Schritt des Körpers versetzt ihn, ohne dass der Stock steht — und
+    // nicht durch eine Wand: weit hinaus bleibt er, wo er ist.
+    const before = { x: round.player.x, z: round.player.z };
+    round.step(DT, { x: 0, z: 0, sprint: false, shift: { x: 0.3, z: 0 } });
+    expect(round.player.x).toBeCloseTo(before.x + 0.3);
+    round.step(DT, { x: 0, z: 0, sprint: false, shift: { x: 500, z: 0 } });
+    expect(round.player.x).toBeCloseTo(before.x + 0.3);
+  });
+
+  it('gibt dem 2D-Techniker das Sichtfeld der Quest 3', () => {
+    expect((BOT_FOV * 180) / Math.PI).toBeCloseTo(110);
   });
 
   it('gibt dem Gestell die Tempo-Regel der Runde für Tastatur, Stock und Brille', () => {

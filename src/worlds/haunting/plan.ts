@@ -8,6 +8,7 @@ import {
   HOUSE,
   roomAt,
   spacesOf,
+  STATION_DOOR_W,
   tilesOf,
   type HouseSpec,
 } from './house';
@@ -16,6 +17,11 @@ import { TRAINING_DOOR, TRAINING_ROOMS } from './trainingLayout';
 
 /** Open station leaves retract into their frame instead of swinging into a route. */
 class StationPlan extends GridPlan {
+  /** Eine Kachel abzüglich Wanddicke — wie auf der Karte (`house.STATION_DOOR_W`). */
+  override doorWidth(): number {
+    return STATION_DOOR_W;
+  }
+
   override solids(): PlanSolid[] {
     const retracted = new Set<string>();
     for (const [, wall] of this.graph.wallEntries()) {

@@ -46,7 +46,7 @@ import type { MenuEntry } from '../../ui/menu';
 import { MirrorSurface } from '../shared/Mirror';
 import { ShipEffects } from './ShipEffects';
 import { CONDENSATION_FRAGMENT } from './helmetCondensation';
-import { PLAN_DOOR_H, PLAN_DOOR_W } from '../editor/levelPlan';
+import { PLAN_DOOR_H } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import { DEFAULT_LIGHTING, lightingPreset, type BotLighting } from './botLighting';
 import {
@@ -76,6 +76,7 @@ import {
   roomOf,
   type HouseRoom,
   type HouseSpec,
+  STATION_DOOR_W,
 } from './house';
 import { HauntingDesktopControls } from './desktopControls';
 import { HauntingComfort } from './HauntingComfort';
@@ -126,8 +127,6 @@ import {
 } from './mission';
 import { SHIP, animateCreature, buildCrewmate, label } from './shipArt';
 import type { HauntState } from './net';
-import type { RoutePath, RoutePose } from './navmesh/route';
-import { MissionBot } from './missionBot';
 import { ShipControls } from './world3d/shipControls';
 
 interface ShipHost {
@@ -150,11 +149,10 @@ interface ShipHost {
   doorLocked?(id: string): boolean;
   /** Versetzt den Spieler; mit `yaw` schaut er danach dorthin (`movePlayerTo`). */
   travel(at: THREE.Vector3, yaw?: number): void;
-  route(from: RoutePose, room: HouseRoom): RoutePath | null;
-  routeTo?(from: RoutePose, target: { x: number; z: number }): RoutePath | null;
-  routeVersion?(): number;
-  danger?(pose: RoutePose): { x: number; z: number } | null;
-  visible?(from: { x: number; z: number }, to: { x: number; z: number }): boolean;
+  /** Wo der Techniker aus Zahlen steht — `null`, solange keine Bot-Runde läuft (`flatKernel.ts`). */
+  botPose?(): { x: number; z: number; yaw: number } | null;
+  /** Was er gerade tut, für die Tafel: `cargo`, `console`, `home`, `flee`, `hide`. */
+  botStage?(): string;
   /** Die Gewichte beider Bots und ihr Zeitraffer — nur in der Bot-Runde. */
   tuning?(): BotTuning;
   retune?(tuning: BotTuning): void;
@@ -225,9 +223,22 @@ interface Locker {
 
 /** Wie durchsichtig der Schrank von innen ist — ein Geist, kein Glas. */
 const LOCKER_GHOST_OPACITY = 0.28;
+/** Ein Segment des Schiebeblatts: wo es zu steht und wie weit es beim Öffnen fährt. */
+interface DoorLeaf {
+  mesh: THREE.Mesh;
+  rest: number;
+  travel: number;
+}
 interface Door {
   id: string;
-  leaves: [THREE.Mesh, THREE.Mesh];
+  /**
+   * **Vier Segmente, zwei je Seite, teleskopisch** (Paket „Eine Türbreite"):
+   * Die Öffnung ist so breit wie eine Kachel abzüglich Wand
+   * (`STATION_DOOR_W`), der Pfosten daneben nur `PLAN_WALL_T` breit. Ein
+   * Blatt von halber Türbreite fände darin keinen Platz; zwei Viertel je
+   * Seite schieben sich übereinander und dann in Pfosten und Wand.
+   */
+  leaves: DoorLeaf[];
   amount: number;
   at: THREE.Vector3;
   panel: Screen;
@@ -439,7 +450,6 @@ export class ShipExperience {
   private stamp = '';
   private hiddenWas = false;
   private savedRigFrozen = false;
-  private missionBot: MissionBot | null = null;
   /**
    * Die Justage-Tafel wird **einmal** gebaut und danach nur noch umgehängt.
    *
@@ -1025,8 +1035,8 @@ export class ShipExperience {
    * Gefunkt wird nur, wo in der Zentrale ein Bot das Archiv hält
    * (`rules/roundSetup.botArchivist`): Sitzt dort ein Mensch, ist das Sagen sein Platz,
    * und eine Stimme daneben nähme ihm seinen einzigen Beitrag weg. Und nur für
-   * den, der die Runde spielt — in der Bot-Runde redet der Modelltechniker
-   * selbst (`missionBot.ts`).
+   * den, der die Runde spielt — in der Bot-Runde redet der Techniker aus
+   * Zahlen selbst (`rules/technicianBot.ts`, über den Kern `flatKernel.ts`).
    */
   private stepArchiveRadio(): void {
     const state = this.host.state();
@@ -1545,32 +1555,45 @@ export class ShipExperience {
       if (occupied.has(boundary)) continue;
       occupied.add(boundary);
       const light = new THREE.MeshBasicMaterial({ color: 0x91ffd0, toneMapped: false });
-      const housing = this.mesh([PLAN_DOOR_W + 0.2, 0.15, 0.2], SHIP.dark, g, [
+      const housing = this.mesh([STATION_DOOR_W + 0.2, 0.15, 0.2], SHIP.dark, g, [
         0,
         PLAN_DOOR_H + 0.12,
         0,
       ]);
       housing.name = `door-status-${d.id}`;
       for (const side of [-1, 1]) {
-        const bar = new THREE.Mesh(new THREE.BoxGeometry(PLAN_DOOR_W * 0.67, 0.065, 0.015), light);
+        const bar = new THREE.Mesh(
+          new THREE.BoxGeometry(STATION_DOOR_W * 0.67, 0.065, 0.015),
+          light,
+        );
         bar.position.set(0, 0, side * 0.109);
         housing.add(bar);
       }
-      const leaves = [-1, 1].map((side) => {
-        const m = this.mesh([PLAN_DOOR_W / 2, PLAN_DOOR_H - 0.04, 0.14], 0x617781, g, [
-          (side * PLAN_DOOR_W) / 4,
-          PLAN_DOOR_H / 2,
-          0,
-        ]);
-        this.mesh([0.035, PLAN_DOOR_H - 0.18, 0.16], SHIP.dark, m, [
-          (-side * PLAN_DOOR_W) / 4 + side * 0.05,
-          0,
-          0,
-        ]);
-        return m;
-      }) as [THREE.Mesh, THREE.Mesh];
+      const leaves: DoorLeaf[] = [];
+      const quarter = STATION_DOOR_W / 4;
+      for (const side of [-1, 1]) {
+        // Innen (an der Fuge) und außen (am Pfosten): Beide fahren beim
+        // Öffnen in den Pfosten — das innere die ganze Breite, das äußere die
+        // halbe — und liegen dann übereinander.
+        for (const [rest, travel, depth] of [
+          [side * quarter * 0.5, side * STATION_DOOR_W, 0],
+          [side * quarter * 1.5, side * (STATION_DOOR_W / 2), 0.03],
+        ] as const) {
+          const m = this.mesh([quarter, PLAN_DOOR_H - 0.04, 0.14 - depth * 2], 0x617781, g, [
+            rest,
+            PLAN_DOOR_H / 2,
+            depth,
+          ]);
+          this.mesh([0.035, PLAN_DOOR_H - 0.18, 0.16 - depth * 2], SHIP.dark, m, [
+            -side * (quarter / 2) + side * 0.05,
+            0,
+            0,
+          ]);
+          leaves.push({ mesh: m, rest, travel });
+        }
+      }
       const panel = this.screen(0.34, 0.36);
-      panel.mesh.position.set(PLAN_DOOR_W / 2 + 0.28, 1.25, 0.18);
+      panel.mesh.position.set(STATION_DOOR_W / 2 + 0.2, 1.25, 0.18);
       g.add(panel.mesh);
       panel.mesh.userData.interactionLabel = 'E: Schiebetür bedienen';
       const back = panel.mesh.clone();
@@ -2033,10 +2056,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       door.light.color.setHex(locked ? 0xff5267 : 0x78ffd0);
       const before = door.amount;
       door.amount += Math.sign(goal - before) * Math.min(Math.abs(goal - before), dt * 2.5);
-      door.leaves.forEach(
-        (leaf, i) =>
-          (leaf.position.x = (i ? 1 : -1) * (PLAN_DOOR_W / 4 + (door.amount * PLAN_DOOR_W) / 2)),
-      );
+      for (const leaf of door.leaves) leaf.mesh.position.x = leaf.rest + door.amount * leaf.travel;
     }
     // **Der Saum sitzt auf der Zielkiste** — aber nur, wenn die Kiste
     // überhaupt verraten werden darf: Bei einem Menschen am Archiv nennt
@@ -2537,7 +2557,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       state.destroyed,
       this.messages,
     ]);
-    const intentText = `Techniker: ${{ mission: 'Mission erfüllen', flee: 'Flucht vor Gefahr', hide: 'Leise im Schutzschrank' }[this.missionBot?.survival ?? 'mission']} · Monster: ${{ patrol: 'Patrouille', investigate: 'Geräusch untersuchen', hunt: 'Verfolgung', search: 'Letzte Position absuchen' }[crew.threat.mode]}`;
+    const stage = this.host.botStage?.() ?? '';
+    const intentText = `Techniker: ${stage === 'flee' ? 'Flucht vor Gefahr' : stage === 'hide' ? 'Leise im Schutzschrank' : 'Mission erfüllen'} · Monster: ${{ patrol: 'Patrouille', investigate: 'Geräusch untersuchen', hunt: 'Verfolgung', search: 'Letzte Position absuchen' }[crew.threat.mode]}`;
     const currentIntent = this.dom.querySelector('[data-ai-intent]');
     if (currentIntent) currentIntent.textContent = intentText;
     // Die Uhr läuft außerhalb der Signatur: Sie ändert sich jede Sekunde, und
@@ -3212,12 +3233,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.host.travel(new THREE.Vector3(COMMAND_HOME.x, 0, COMMAND_HOME.z));
   }
 
+  /** Wo der Techniker aus Zahlen steht — aus dem Kern der Welt (`flatKernel.ts`). */
   get botPose() {
-    return this.missionBot?.pose ?? null;
-  }
-
-  get botNavigation() {
-    return this.missionBot?.navigation ?? null;
+    return this.crew.simulation ? (this.host.botPose?.() ?? null) : null;
   }
 
   get botPosition(): THREE.Vector3 | null {
@@ -3254,17 +3272,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     }
     this.root.add(this.simulated);
     this.messages.length = 0;
-    this.missionBot = new MissionBot({
-      spec: this.host.spec(),
-      state,
-      route: (from, target) => this.host.routeTo?.(from, target) ?? null,
-      revision: () => this.host.routeVersion?.() ?? 0,
-      danger: (pose) => this.host.danger?.(pose) ?? null,
-      visible: (from, to) => this.host.visible?.(from, to) ?? false,
-      tuning: () => this.tuning().technician,
-      say: (text) => this.log(text),
-    });
-    this.simulated.position.set(this.missionBot.pose.x, 0, this.missionBot.pose.z);
+    // **Der Techniker aus Zahlen ist der der 2D-Runde** (`rules/technicianBot.ts`):
+    // Der Kern der Welt setzt ihn im nächsten Bild an den Stock
+    // (`HauntingWorld.stepKernel`, `crew.simulation`); hier wird nur gezeichnet.
+    this.log(
+      'BOT-RUNDE: Der Techniker sucht Ersatzteile, repariert drei Systeme und kehrt zurück.',
+    );
+    this.simulated.position.set(COMMAND_HOME.x, 0, COMMAND_HOME.z);
     if (this.host.ctx.renderer.xr.isPresenting)
       this.host.travel(new THREE.Vector3(COMMAND_HOME.x, 6, COMMAND_HOME.z + 5));
     else this.followBotCamera(0, true);
@@ -3291,7 +3305,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (!this.crew.simulation) return;
     this.crew.hidden = '';
     this.crew.simulation = false;
-    this.missionBot = null;
     this.simulated?.removeFromParent();
     this.host.ctx.rig.frozen = false;
     this.host.ctx.refreshWorldMenu();
@@ -3316,11 +3329,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     }
     const beforeX = this.simulated.position.x,
       beforeZ = this.simulated.position.z;
-    this.missionBot?.update(dt);
     this.simulated.visible = !this.crew.hidden;
-    if (this.missionBot) {
-      this.simulated.position.set(this.missionBot.pose.x, 0, this.missionBot.pose.z);
-      this.simulated.rotation.y = this.missionBot.pose.yaw + Math.PI;
+    const pose = this.botPose;
+    if (pose) {
+      this.simulated.position.set(pose.x, 0, pose.z);
+      this.simulated.rotation.y = pose.yaw + Math.PI;
     }
     if (
       Math.hypot(this.simulated.position.x - beforeX, this.simulated.position.z - beforeZ) > 0.001
@@ -3347,7 +3360,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     ctx.camera.lookAt(this.followTarget);
     ctx.rig.updateMatrixWorld(true);
   }
-  private log(text: string): void {
+  /** Eine Zeile ins Funkprotokoll der Bot-Runde — auch die Welt schreibt hinein (`HauntingWorld.relay`). */
+  log(text: string): void {
     this.messages.push(text);
     if (this.messages.length > 4) this.messages.shift();
     this.host.say(text);
@@ -3454,7 +3468,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     // change must release both before their state outlives those controllers.
     if (this.player) {
       this.leaveLocker();
-      if (this.missionBot && this.crew.simulation) this.toggleSimulation();
+      if (this.crew.simulation) this.toggleSimulation();
     }
     this.disposed = true;
     this.desktop.dispose();

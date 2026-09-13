@@ -78,7 +78,7 @@ describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das M
    * **Die Vorgeschichte gehört dazu, weil sie erklärt, warum hier zwei Zahlen
    * stehen und nicht eine.** Seit jeder Raum zwei bis drei Kisten hat
    * (`rules/cargo.ts`), sind die Wege länger — nicht, weil der Bot die Kisten
-   * durchwühlte (`missionBot` und `roundSim` gehen über `taskCargo` direkt an
+   * durchwühlte (`technicianBot` und `roundSim` gehen über `taskCargo` direkt an
    * die richtige), sondern weil jede Kiste ein weiteres Wandmodul ist und der
    * Packer daraufhin jedes Zimmer anders stellt. Gemessen fiel er dadurch von
    * 0,52 / 0,34 auf 0,44 / 0,25, und ein Trainingslauf, der ihn mit Gewalt
