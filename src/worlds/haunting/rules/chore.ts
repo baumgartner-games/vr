@@ -34,6 +34,20 @@ export const CARGO_OPEN_SECONDS = 5;
  */
 export const CHORE_LEASH = 0.25;
 
+/**
+ * **Dieselbe Leine in der Brille**, in Metern — länger, weil dort der Kopf
+ * gemessen wird und nicht ein Rig.
+ *
+ * Am Schirm steht der Kopf, wo die Tastatur ihn hinstellt; ein Vierteldezimeter
+ * ist dort jenseits jedes Zitterns. Im Headset gehört der Kopf dem Menschen:
+ * Wer sich zu einer Kiste vorbeugt, um hineinzusehen, trägt ihn dabei
+ * ohne einen Schritt gut vierzig Zentimeter weit — und bekam damit jeden
+ * Balken abgebrochen, den er gerade angefangen hatte. Sechzig Zentimeter sind
+ * mehr als ein Vorbeugen und weniger als ein Schritt; wer am Stock losläuft,
+ * hat sie in einem Viertel einer Sekunde hinter sich (`PLAYER_WALK_SPEED`).
+ */
+export const CHORE_LEASH_HEADSET = 0.6;
+
 /** Woran gerade gearbeitet wird. Heute gibt es genau eine Sorte. */
 export interface Chore {
   kind: 'cargo';
@@ -64,15 +78,23 @@ export type ChoreStep =
 /**
  * **Einen Handgriff weiterzählen.** `at` ist, wo der Spieler jetzt steht;
  * `steady` sagt, ob er überhaupt weiterarbeiten darf (nicht versteckt, nicht
- * mitten in einem Rätsel, Runde läuft).
+ * mitten in einem Rätsel, Runde läuft); `leash` ist, wie weit er sich dabei
+ * von der Stelle rühren darf — `CHORE_LEASH` am Schirm, `CHORE_LEASH_HEADSET`
+ * in der Brille.
  *
  * Die Reihenfolge ist die Regel: Erst wird gefragt, ob er noch da steht, dann
  * gezählt. Andersherum wäre ein Griff, der im letzten Bild fertig wird,
  * während der Spieler schon einen Schritt weit weg ist, trotzdem fertig — und
  * genau das soll er nicht sein.
  */
-export function stepChore(chore: Chore, dt: number, at: FloorPoint, steady = true): ChoreStep {
-  if (!steady || Math.hypot(at.x - chore.at.x, at.z - chore.at.z) > CHORE_LEASH)
+export function stepChore(
+  chore: Chore,
+  dt: number,
+  at: FloorPoint,
+  steady = true,
+  leash = CHORE_LEASH,
+): ChoreStep {
+  if (!steady || Math.hypot(at.x - chore.at.x, at.z - chore.at.z) > leash)
     return { kind: 'broken', chore };
   const left = chore.left - dt;
   if (left <= 0) return { kind: 'done', chore: { ...chore, left: 0 } };

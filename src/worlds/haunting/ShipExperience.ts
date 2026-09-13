@@ -87,7 +87,14 @@ import {
 } from './fixtureModels';
 import { CabinWreck } from './rules/cabinWreck';
 import { cargoKey, cargoLabel, cargoOf, type CargoMark } from './rules/cargo';
-import { CARGO_OPEN_SECONDS, choreProgress, stepChore, type Chore } from './rules/chore';
+import {
+  CARGO_OPEN_SECONDS,
+  CHORE_LEASH,
+  CHORE_LEASH_HEADSET,
+  choreProgress,
+  stepChore,
+  type Chore,
+} from './rules/chore';
 import { archiveRadio } from './rules/archiveRadio';
 import {
   COMMAND_HOME,
@@ -733,15 +740,25 @@ export class ShipExperience {
     this.screens.push(screen);
     return screen;
   }
+  /**
+   * Ein Ziel für den Zeiger — Strahl und Trigger, am Schirm `E` und Klick.
+   *
+   * `pokeable` sagt, ob auch die **Berührung** mit der Hand zählt
+   * (`Pointer.updatePoke`): Für ein Tastenfeld oder einen Knopf ist Antippen
+   * die natürliche Bedienung. Für eine Kistentür ist es eine Falle — siehe
+   * `cabinet`.
+   */
   private bind(
     object: THREE.Object3D,
     action: (uv: THREE.Vector2 | null) => void,
     wearable = false,
+    pokeable = true,
   ): void {
     if (!this.player) return;
     this.targets.push(object);
     this.host.ctx.pointer.add({
       object,
+      pokeable,
       ignore: (hand) => wearable && hand === 'left',
       onHover: () => {
         this.host.ctx.rig.getHeadPosition(_head);
@@ -896,7 +913,14 @@ export class ShipExperience {
     g.userData.roomId = room;
     this.root.add(g);
     leaf.userData.interactionLabel = 'E: Frachtschrank öffnen / schließen';
-    this.bind(leaf, () => this.openCabinet(id));
+    // **Die Tür reagiert auf den Trigger, nicht auf die Hand.** In der Brille
+    // gilt eine Berührung sonst als „Benutzen" (`Pointer.updatePoke`, auch mit
+    // dem Controller), und wer vor einer Kiste steht, hat die Hand ständig an
+    // ihrem Blatt: Der Trigger fing den Balken an, die Hand am Blatt brach ihn
+    // gleich wieder ab (`openCabinet` — derselbe Knopf bricht ab), und die
+    // Kiste ging in VR nie auf. Eine Tür von gut einem Meter ist kein Knopf,
+    // den man antippt; das Ersatzteil dahinter darf man weiter greifen.
+    this.bind(leaf, () => this.openCabinet(id), false, false);
     if (lootMesh) {
       lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
       this.bind(lootMesh, () => this.takeLoot(id));
@@ -958,7 +982,10 @@ export class ShipExperience {
     if (!chore) return;
     const steady =
       this.active && !!this.player && !this.crew.hidden && this.host.state().phase === 'running';
-    const step = stepChore(chore, dt, { x: head.x, z: head.z }, steady);
+    // In der Brille ist der Kopf der Mensch: Vorbeugen ist kein Weggehen
+    // (`rules/chore.ts`, `CHORE_LEASH_HEADSET`).
+    const leash = this.host.ctx.renderer.xr.isPresenting ? CHORE_LEASH_HEADSET : CHORE_LEASH;
+    const step = stepChore(chore, dt, { x: head.x, z: head.z }, steady, leash);
     if (step.kind === 'running') {
       this.chore = step.chore;
       return;
