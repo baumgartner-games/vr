@@ -1457,9 +1457,23 @@ export class FlatRound implements MapSource {
     // als Erstes den Umweg über die Raummitte, weil es sich für festgelaufen
     // hielt. Aufgefallen ist das erst, seit es den Riegel dem Umweg vorzieht
     // (`PRY_DETOUR`) — vorher wartete es kaum je lange genug.
-    if (Math.hypot(this.monster.x - this.stall.x, this.monster.z - this.stall.z) > 0.05) {
+    //
+    // **Und wer am Ende seiner Route steht, steht auch mit Absicht.** Beim
+    // Absuchen bleibt das Monster in der Raummitte stehen, bis die Frist um
+    // ist; die Route hat dann keinen Wegpunkt mehr vor ihm. Vorher galt das
+    // nach 0,6 s als festgelaufen, und der Notumweg ging „zurück in die
+    // Raummitte" — dorthin, wo es schon stand. Der bewegte nichts, also
+    // stand die Stilluhr weiter, nach 1,2 s kam der nächste Notumweg, und so
+    // fort: Die Wegsuche unten wurde nie mehr gefragt, und ein neues Ziel in
+    // einem anderen Raum lief es nie an. So stand es minutenlang mit einem
+    // Ziel im Raum, bis eine Sichtung es losriss (`rules/monsterStuck.test.ts`).
+    // Festgelaufen ist nur, wer noch Wegpunkte vor sich hat und trotzdem
+    // nicht vorankommt.
+    const stalled =
+      Math.hypot(this.monster.x - this.stall.x, this.monster.z - this.stall.z) <= 0.05;
+    if (!stalled) {
       this.stall = { x: this.monster.x, z: this.monster.z, since: this.haunt.time };
-    } else if (this.blocked) {
+    } else if (this.blocked || !this.navigator.remaining.length) {
       this.hold();
     } else if (this.haunt.time - this.stall.since > 0.6 && this.haunt.time > this.detourUntil) {
       this.detourUntil = this.haunt.time + 1.2;

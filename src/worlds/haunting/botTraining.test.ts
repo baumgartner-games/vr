@@ -38,8 +38,27 @@ const MEASURE = { ...TRAINING_DEFAULTS, rounds: 400 };
  * traf die Bänder ebenfalls, ließ das Monster aber **nie mehr abfangen** —
  * `rules/botRound.test.ts` hat ihn gefangen; deshalb zählt seither der
  * Wächter dort zur Abnahme mit. Das Band ist dabei nicht aufgegangen.
+ *
+ * **Und noch einmal verschoben** (Paket „Monster bleibt stehen"): 0,504 /
+ * 0,380 mit den alten Gewichten, nachdem die Abfangrechnung eine erinnerte
+ * Stelle, an der das Monster schon steht, nicht mehr „verfolgt"
+ * (`monsterIntercept.CAUGHT_UP`). Vorher blieb es dort stehen — im Spiel ein
+ * Fehler, in der Simulation ein Wachposten, der dem Techniker den Raum
+ * verstellte. Dieselbe Kur wie beim letzten Mal (nur die Monsterseite, ab den
+ * vorherigen Gewichten, 120 Schritte à 128 Runden mit Samen 0xbeef, 24 à 192
+ * zur Feinjustage) fand Sicht 1,7, Schub 11 s und Vorsprung 3 s — und dazu
+ * Grundtempo 1,2, Schleichen 0,65, Schrank 0,3, Riecher 0,3, die nachgemessen
+ * 0,510 / 0,2975 gaben, das Team am unteren Bandrand; eine Feinjustage mit
+ * 400 Runden je Schritt driftete auf Tempo 1,35 und 0,474 / 0,301, also ins
+ * Rauschen. Deshalb wurden die Felder einzeln nachgemessen (je vier Reihen
+ * à 400 Runden): Das Tempo allein treibt die Teamquote sogar hoch (1,1:
+ * 0,529 / 0,4375), Sicht und Schub allein treffen die Mitte. Geblieben sind
+ * genau die drei Felder, die das Training zuerst gefunden hatte — Sicht,
+ * Schub, Vorsprung —, das Monster läuft nicht schneller als vorher.
+ * Nachgemessen 0,4825 / 0,341 — beide Bandmitten. Der Techniker blieb
+ * wieder, wie er war.
  */
-const BOT_RATES = { duo: 0.49125, crew: 0.32125 } as const;
+const BOT_RATES = { duo: 0.4825, crew: 0.34125 } as const;
 
 describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das Monster im Team', () => {
   /**

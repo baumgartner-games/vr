@@ -297,6 +297,31 @@ describe('Verfolgen, abfangen, lauern oder suchen', () => {
   });
 
   /**
+   * Ohne Sichtkontakt ist die Beute die Stelle aus der Prognose. Steht das
+   * Monster dort schon und sieht niemanden, ist dort niemand — vorher war das
+   * die schnellste „Verfolgung" von allen (Aufholzeit null), jedes Bild aufs
+   * Neue, und das Vieh stand damit für den Rest der Runde im Raum.
+   */
+  it('verfolgt keine erinnerte Stelle, an der es schon steht', () => {
+    const graph = testGraph();
+    const prediction = predictPlayer(running(2.6), testMemory({ exits: EXITS }), graph, 1);
+    expect(prediction?.path[0]).toEqual({ x: 5, z: 5 });
+    const standing = decide({ monsterAt: { x: 5.5, z: 5 }, playerAt: null, prediction, now: 1 });
+    expect(standing.kind).not.toBe('chase');
+    // Von weiter weg ist dieselbe Stelle noch eine Beute …
+    const behind = decide({ monsterAt: { x: 1, z: 5 }, playerAt: null, prediction, now: 1 });
+    expect(behind.kind).toBe('chase');
+    // … und eine gesehene Stelle ist es auch unter den eigenen Füßen.
+    const seen = decide({
+      monsterAt: { x: 5.5, z: 5 },
+      playerAt: { x: 5, z: 5 },
+      prediction,
+      now: 1,
+    });
+    expect(seen.kind).toBe('chase');
+  });
+
+  /**
    * Der Fall, für den dieses Modul überhaupt gebaut ist: Ein Spieler mit
    * frischer Puste ist schneller als jedes Monster (`mission.ts`). Wer ihm
    * hinterherläuft, holt nie ein — und genau das hat die alte Routine getan.

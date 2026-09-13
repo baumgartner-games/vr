@@ -1,5 +1,6 @@
 import { DEFAULT_TUNING, type MonsterTuning } from './botTuning';
 import {
+  GIVE_UP,
   MODE_LABELS,
   MonsterRoutine,
   RAGE_STEP,
@@ -607,5 +608,60 @@ describe('Was das Monster aus einer Fährte macht', () => {
     expect(belief(0.25)).toBeGreaterThan(belief(null));
     expect(belief(0.55)).toBeGreaterThan(belief(0.25));
     expect(belief(0.55)).toBeLessThan(1);
+  });
+});
+
+describe('Ein Ziel, dem es nicht näher kommt', () => {
+  /**
+   * Die Routine kennt keine Wände; ob ein Ziel erreichbar ist, weiß nur die
+   * Welt. Hier bewegt sich das Monster deshalb gar nicht — was die Welt tut,
+   * wenn eine Route vor einer Wand endet oder das Ziel in keinem Raum liegt.
+   * Vorher stand es damit für den Rest der Runde „unterwegs".
+   */
+  it('gibt die Patrouille dorthin nach `GIVE_UP` Sekunden auf und nimmt das nächste Zimmer', () => {
+    const routine = new MonsterRoutine(tuned());
+    const frames = run(routine, GIVE_UP + 4, { at: { x: 0, z: 0 }, here: 'a' });
+    const at = (seconds: number): RoutineOutput => frames[Math.round(seconds / 0.25)]!;
+    expect(at(1).mode).toBe('patrol');
+    expect(at(1).goal).not.toBeNull();
+    // Bis zur Frist bleibt es bei seinem Ziel …
+    expect(at(GIVE_UP - 1).goal).toEqual(at(1).goal);
+    // … danach ist es ein anderes, und die Haltung bleibt die Patrouille.
+    expect(at(GIVE_UP + 3).mode).toBe('patrol');
+    expect(at(GIVE_UP + 3).goal).not.toEqual(at(1).goal);
+  });
+
+  it('bricht ein Absuchen ab, das nie im Raum ankommt, und geht auf Patrouille', () => {
+    const routine = new MonsterRoutine(tuned({ stakeout: 0, wander: 0, locker: 0 }));
+    // Gesehen in b, dann verloren: Es rät den Nachbarraum c und will hin.
+    run(routine, 1, {
+      at: { x: 0, z: 0 },
+      here: 'a',
+      signal: { x: 10, z: 0 },
+      seen: true,
+      quarry: 'b',
+    });
+    const frames = run(routine, GIVE_UP + 4, { at: { x: 0, z: 0 }, here: 'a', quarry: 'c' });
+    const at = (seconds: number): RoutineOutput => frames[Math.round(seconds / 0.25)]!;
+    expect(at(1).mode).toBe('search');
+    expect(at(GIVE_UP - 1).mode).toBe('search');
+    expect(at(GIVE_UP + 3).mode).toBe('patrol');
+    expect(at(GIVE_UP + 3).goal).not.toEqual(at(1).goal);
+  });
+
+  it('lässt ein Absuchen, das ankommt, seine ganze Frist lang laufen', () => {
+    const routine = new MonsterRoutine(tuned({ stakeout: 0, wander: 0, locker: 0, search: 16 }));
+    run(routine, 1, {
+      at: { x: 0, z: 0 },
+      here: 'a',
+      signal: { x: 10, z: 0 },
+      seen: true,
+      quarry: 'b',
+    });
+    const at = { x: 0, z: 0 };
+    const frames = run(routine, 15, { at, here: 'a', quarry: 'c', follow: true });
+    // Angekommen heißt stehen und klacken — bis die Frist um ist, und zwar
+    // auch länger als `GIVE_UP`.
+    expect(frames.every((frame) => frame.mode === 'search')).toBe(true);
   });
 });
