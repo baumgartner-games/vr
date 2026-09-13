@@ -77,6 +77,24 @@ export interface TrainingOptions {
  * das Training beides und bewertet den Abstand zu beiden Bändern zusammen.
  */
 export const TRAINING_TARGETS = { duo: 0.5, crew: 1 - 0.66 } as const;
+
+/**
+ * **Keiner gewinnt öfter als neun von zehn Runden.**
+ *
+ * Die Zielbänder sagen, wo die Suche hin soll; diese Grenze sagt, was sie
+ * **nie** abliefert. Das Training in der Tafel fängt bei den Reglern an, wie
+ * sie gerade stehen — und die kann jemand bis zum Anschlag gezogen haben. Ein
+ * Lauf, der nach vierzig Schritten das Beste aus einer aussichtslosen Lage
+ * herausholt, liefert dann einen Satz, mit dem eine Seite immer noch fast
+ * jede Runde gewinnt, und die Tafel übernimmt ihn, weil er „besser" war. Ab
+ * hier gilt: Ein Satz, mit dem der Techniker in einer der beiden Besetzungen
+ * öfter als `FAIR_LIMIT` gewinnt oder seltener als `1 − FAIR_LIMIT`, ist
+ * **unfair** — er schlägt keinen fairen, egal wie nah er den Bändern sonst
+ * kommt, und die Tafel spielt ihn nicht ein (`ShipExperience.stepTraining`).
+ * Unter unfairen Sätzen entscheidet weiter der Abstand, damit die Suche aus
+ * so einer Lage herausfindet.
+ */
+export const FAIR_LIMIT = 0.9;
 /** Wie viele Spieler die beiden gemessenen Besetzungen haben. */
 export const TRAINING_PLAYERS = { duo: 2, crew: CREW_SIZE } as const;
 export const TRAINING_BAND = 0.05;
@@ -101,6 +119,12 @@ export interface TrainingState {
   duo: number;
   /** Abstand zur Mitte beider Zielbänder. */
   score: number;
+  /**
+   * Ob mit diesem Satz keine Seite öfter als `FAIR_LIMIT` gewinnt (`fair`).
+   * Solange das nicht gilt, ist der Satz nur der beste unter schlechten —
+   * die Tafel übernimmt ihn nicht.
+   */
+  fair: boolean;
   /** Der Gleichstandsbrecher: wie weit der Techniker im Schnitt kam. */
   progress: number;
   /** Wie viele Schritte schon gelaufen sind. */
@@ -202,6 +226,47 @@ export function centreScore(rates: Pick<Measurement, 'duo' | 'crew'>): number {
   );
 }
 
+/**
+ * Ob keine Seite öfter als `limit` gewinnt — in **beiden** Besetzungen. Eine
+ * Quote des Technikers über `limit` heißt, das Monster ist chancenlos; eine
+ * unter `1 − limit`, der Techniker ist es.
+ */
+export function fair(rates: Pick<Measurement, 'duo' | 'crew'>, limit = FAIR_LIMIT): boolean {
+  const floor = 1 - limit;
+  const within = (rate: number): boolean => rate <= limit + 1e-9 && rate >= floor - 1e-9;
+  return within(rates.duo) && within(rates.crew);
+}
+
+/** Was von einem Satz in den Vergleich zweier Sätze eingeht. */
+export interface Ranked {
+  /** Abstand zur Mitte beider Zielbänder (`centreScore`). */
+  score: number;
+  /** Ob keine Seite öfter als `FAIR_LIMIT` gewinnt (`fair`). */
+  fair: boolean;
+  /** Der Gleichstandsbrecher: wie weit der Techniker im Schnitt kam. */
+  progress: number;
+}
+
+/**
+ * **Ob ein Vorschlag den bisher besten Satz ablöst.**
+ *
+ * Erst die Fairness, dann die Quote, dann der Fortschritt. Ein fairer Satz
+ * schlägt jeden unfairen, auch einen mit kleinerem Abstand zu den Bändern —
+ * ein Satz, mit dem eine Seite neun von zehn Runden gewinnt, ist kein
+ * Ergebnis, sondern eine Sackgasse mit guter Zahl. Unter Sätzen derselben
+ * Fairness zählt der Abstand, und bei Gleichstand der Fortschritt **in der
+ * Richtung, in der das Ziel liegt** (`wanted`: +1, wenn der Techniker unter
+ * dem Band steht, −1 darüber). Ohne dieses Vorzeichen schöbe der
+ * Gleichstandsbrecher ein übermächtiges Gespann noch weiter nach oben.
+ */
+export function outranks(candidate: Ranked, best: Ranked, wanted: 1 | -1): boolean {
+  if (candidate.fair !== best.fair) return candidate.fair;
+  return (
+    candidate.score < best.score ||
+    (candidate.score === best.score && candidate.progress * wanted > best.progress * wanted)
+  );
+}
+
 /** Ob beide Quoten ihr Band treffen — eine allein reicht nicht. */
 export function inBand(
   rates: Pick<Measurement, 'duo' | 'crew'>,
@@ -250,6 +315,7 @@ export class TrainingRun {
       rate: 0,
       duo: 0,
       score: Infinity,
+      fair: false,
       progress: 0,
       step: 0,
       improved: 0,
@@ -323,16 +389,11 @@ export class TrainingRun {
     const rate = this.won.crew / Math.max(1, this.played.crew);
     const progress = this.reached / rounds;
     const score = centreScore({ duo, crew: rate });
-    // Erst die Quote, und bei Gleichstand der Fortschritt — **in der
-    // Richtung, in der das Ziel liegt**: Steht der Techniker unter dem Band,
-    // ist weiter gekommen besser; steht er darüber, ist es schlechter. Ohne
-    // dieses Vorzeichen schiebt der Gleichstandsbrecher ein übermächtiges
-    // Gespann noch weiter nach oben.
+    const fairNow = fair({ duo, crew: rate });
+    // Erst die Fairness, dann die Quote, bei Gleichstand der Fortschritt —
+    // die Reihenfolge steht in `outranks`.
     const wanted = this.best.rate < TRAINING_TARGETS.crew ? 1 : -1;
-    const better =
-      this.first ||
-      score < this.best.score ||
-      (score === this.best.score && progress * wanted > this.best.progress * wanted);
+    const better = this.first || outranks({ score, fair: fairNow, progress }, this.best, wanted);
     const stuck = !better && this.best.stale >= 8;
     const step = this.best.step + (this.first ? 0 : 1);
     this.best = {
@@ -341,6 +402,7 @@ export class TrainingRun {
       rate: better ? rate : this.best.rate,
       duo: better ? duo : this.best.duo,
       score: better ? score : this.best.score,
+      fair: better ? fairNow : this.best.fair,
       progress: better ? progress : this.best.progress,
       step,
       improved: this.best.improved + (better && !this.first ? 1 : 0),

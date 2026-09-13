@@ -1,12 +1,15 @@
 import { DEFAULT_TUNING, clampTuning } from './botTuning';
 import {
+  FAIR_LIMIT,
   TRAINING_BAND,
   TRAINING_DEFAULTS,
   TRAINING_TARGETS,
   TrainingRun,
   centreScore,
+  fair,
   inBand,
   measure,
+  outranks,
   trainBots,
   winRate,
 } from './botTraining';
@@ -113,6 +116,9 @@ describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das M
     // Test hier und nicht erst jemand nach zwanzig Minuten im Headset.
     expect(inBand({ duo, crew })).toBe(true);
     expect(inBand(BOT_RATES)).toBe(true);
+    // Und keine Seite gewinnt öfter als neun von zehn Runden — was im Band
+    // liegt, ist auch fair; die Grenze ist für Läufe da, die es nicht sind.
+    expect(fair({ duo, crew })).toBe(true);
   }, 120000);
 
   it('misst dieselben Gewichte zweimal gleich', () => {
@@ -132,6 +138,38 @@ describe('Die zwei Trainingsziele: halbe-halbe zu zweit, zwei Drittel für das M
     );
     // Ein Band allein reicht nicht: Wer nur das Duell trifft, ist nicht fertig.
     expect(inBand({ ...TRAINING_TARGETS, crew: TRAINING_TARGETS.crew - 0.2 })).toBe(false);
+  });
+
+  /**
+   * **Keiner gewinnt öfter als neun von zehn Runden.** Die Grenze gilt für
+   * beide Besetzungen und in beide Richtungen: ein Techniker, der fast immer
+   * gewinnt, ist genauso unfair wie einer, der fast nie gewinnt.
+   */
+  it('nennt unfair, was eine Seite öfter als neun von zehn Malen gewinnen lässt', () => {
+    expect(FAIR_LIMIT).toBe(0.9);
+    expect(fair(TRAINING_TARGETS)).toBe(true);
+    expect(fair({ duo: FAIR_LIMIT, crew: 1 - FAIR_LIMIT })).toBe(true);
+    expect(fair({ duo: 0.91, crew: 0.34 })).toBe(false);
+    expect(fair({ duo: 0.5, crew: 0.09 })).toBe(false);
+    expect(fair({ duo: 0.05, crew: 0.34 })).toBe(false);
+    expect(fair({ duo: 0.5, crew: 0.95 })).toBe(false);
+  });
+
+  it('lässt einen fairen Satz jeden unfairen schlagen — und erst dann den Abstand zählen', () => {
+    const unfairClose = { score: 0.2, fair: false, progress: 0.5 };
+    const fairFar = { score: 0.3, fair: true, progress: 0.5 };
+    // Der unfaire Satz liegt näher an den Bändern und verliert trotzdem.
+    expect(outranks(fairFar, unfairClose, 1)).toBe(true);
+    expect(outranks(unfairClose, fairFar, 1)).toBe(false);
+    // Unter fairen Sätzen entscheidet der Abstand …
+    expect(outranks({ ...fairFar, score: 0.1 }, fairFar, 1)).toBe(true);
+    expect(outranks({ ...fairFar, score: 0.4 }, fairFar, 1)).toBe(false);
+    // … und bei Gleichstand der Fortschritt in Richtung des Ziels.
+    expect(outranks({ ...fairFar, progress: 0.6 }, fairFar, 1)).toBe(true);
+    expect(outranks({ ...fairFar, progress: 0.6 }, fairFar, -1)).toBe(false);
+    // Unter unfairen Sätzen zählt der Abstand weiter, damit die Suche herausfindet.
+    expect(outranks({ ...unfairClose, score: 0.1 }, unfairClose, 1)).toBe(true);
+    expect(outranks({ ...unfairClose, score: 0.3 }, unfairClose, 1)).toBe(false);
   });
 });
 
@@ -247,6 +285,15 @@ describe('Das Training selbst', () => {
     expect(trained.duo).toBeLessThan(before.duo - 0.1);
     expect(centreScore({ duo: trained.duo, crew: trained.rate })).toBeLessThan(centreScore(before));
   }, 180000);
+
+  it('sagt der Tafel, ob der beste Satz fair ist', () => {
+    // Die ausgelieferten Gewichte sind es nach dem ersten Schritt.
+    const run = new TrainingRun(DEFAULT_TUNING, 'both', 1, options, 7);
+    expect(run.state.fair).toBe(false);
+    run.advanceStep();
+    expect(run.state.fair).toBe(true);
+    expect(run.state.fair).toBe(fair({ duo: run.state.duo, crew: run.state.rate }));
+  }, 60000);
 
   it('rührt nur die Seite an, die trainiert wird', () => {
     const monster = new TrainingRun(DEFAULT_TUNING, 'monster', 6, options, 7);

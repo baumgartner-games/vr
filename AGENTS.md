@@ -8488,7 +8488,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Zentrale, die nicht auf „Aus" steht).
   `measure` teilt die Runden einer Messung deshalb auf beide Besetzungen auf
   statt sie zu verdoppeln, und `centreScore` bewertet den Abstand zu beiden
-  Bändern zusammen; `inBand` verlangt beide. Dazu wie bisher: feste Stichprobe
+  Bändern zusammen; `inBand` verlangt beide. **Und keiner gewinnt öfter als
+  neun von zehn Runden** (`FAIR_LIMIT` 0,9, `fair`): Die Bänder sagen, wohin
+  die Suche soll, die Grenze sagt, was sie nie abliefert. Das Training in der
+  Tafel fängt bei den Reglern an, wie sie gerade stehen — auch am Anschlag —,
+  und das Beste aus einer aussichtslosen Lage ist nach vierzig Schritten
+  immer noch eine Seite, die fast jede Runde gewinnt. `outranks` sortiert
+  deshalb erst nach Fairness, dann nach Abstand, dann nach Fortschritt: Ein
+  fairer Satz schlägt jeden unfairen, unter unfairen zählt weiter der Abstand,
+  damit die Suche herausfindet. `TrainingState.fair` sagt es der Tafel, und
+  `ShipExperience.stepTraining` spielt einen unfairen Satz **nicht** ein — die
+  Regler bleiben dann, wie sie waren, und die Statuszeile sagt es.
+  Dazu wie bisher: feste Stichprobe
   je Schritt (sonst klettert es auf Rauschen), Fortschritt als
   Gleichstandsbrecher mit Vorzeichen, wachsende Schrittweite in Sackgassen.
   `TrainingRun.advance(ms)` rechnet in Zeitscheiben, damit der Browser-Knopf
