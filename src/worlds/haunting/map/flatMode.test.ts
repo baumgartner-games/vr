@@ -57,13 +57,21 @@ describe('Die 2D-Welt', () => {
     for (let i = 0; i < 10; i++) flat.update(DT);
     expect(flat.round.player.z).toBe(z);
     const keys = [...flat.element.querySelectorAll<HTMLButtonElement>('.flat__buttons .flat__key')];
-    // Zwei kleine Knöpfe oben (Wechseln, Werkzeug), der große „Benutzen" darunter.
+    // Drei kleine Knöpfe oben (Wechseln, Werkzeug, Ducken), der große „Benutzen" darunter.
     expect(keys.map((k) => k.querySelector('small')?.textContent)).toEqual([
       'Wechseln',
       'Werkzeug',
       // Der große Knopf nennt klein, was in Reichweite liegt — oder nichts.
       flat.round.target?.label ?? '',
+      'Ducken',
     ]);
+    // Ducken ist ein Umschalter: geduckt geht es halb so schnell (`mission.CROUCH_FACTOR`).
+    expect(keys[3]!.getAttribute('aria-pressed')).toBe('false');
+    keys[3]!.click();
+    expect(keys[3]!.getAttribute('aria-pressed')).toBe('true');
+    expect(keys[3]!.classList.contains('is-active')).toBe(true);
+    keys[3]!.click();
+    expect(keys[3]!.getAttribute('aria-pressed')).toBe('false');
     expect(keys[2]!.querySelector('strong')?.textContent).toBe('Benutzen');
     expect(keys[2]!.classList.contains('is-ready')).toBe(!!flat.round.target);
     expect(keys[2]!.classList.contains('flat__key--act')).toBe(true);

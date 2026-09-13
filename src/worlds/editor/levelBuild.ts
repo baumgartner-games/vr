@@ -47,7 +47,7 @@ export const PLAN_LEAF_T = 0.1;
  * Kosmetik — wer die Liste in eine Physik gibt, will die Böden zuerst
  * hinlegen, damit nichts eine Wand berührt, bevor es Boden gibt.
  */
-export function planSolids(plan: NavGraph): PlanSolid[] {
+export function planSolids(plan: NavGraph, doorWidth = PLAN_DOOR_W): PlanSolid[] {
   const out: PlanSolid[] = [];
   for (const key of plan.tileKeys()) {
     const facts = plan.tile(key);
@@ -70,7 +70,7 @@ export function planSolids(plan: NavGraph): PlanSolid[] {
     const x = tileCentreX(key) + (alongX ? 0 : TILE / 2);
     const z = tileCentreZ(key) + (alongX ? -TILE / 2 : 0);
     if (facts.kind === 'door') {
-      out.push(...doorParts(x, base, z, alongX, facts.open, facts.id));
+      out.push(...doorParts(x, base, z, alongX, facts.open, facts.id, doorWidth));
       continue;
     }
     if (facts.kind === 'window') {
@@ -103,9 +103,11 @@ export function doorParts(
   alongX: boolean,
   open: boolean,
   id: string,
+  /** Wie breit die Öffnung ist — die Station baut breiter (`haunting/house.STATION_DOOR_W`). */
+  width = PLAN_DOOR_W,
 ): PlanSolid[] {
-  const post = (TILE - PLAN_DOOR_W) / 2;
-  const offset = (PLAN_DOOR_W + post) / 2;
+  const post = (TILE - width) / 2;
+  const offset = (width + post) / 2;
   const out: PlanSolid[] = [];
   for (const side of [-1, 1]) {
     out.push(
@@ -134,16 +136,16 @@ export function doorParts(
   // in den Raum hinein.
   const leaf = open
     ? slab(
-        x + (alongX ? -PLAN_DOOR_W / 2 : PLAN_DOOR_W / 2),
+        x + (alongX ? -width / 2 : width / 2),
         base + PLAN_DOOR_H / 2,
-        z + (alongX ? PLAN_DOOR_W / 2 : -PLAN_DOOR_W / 2),
+        z + (alongX ? width / 2 : -width / 2),
         !alongX,
-        PLAN_DOOR_W,
+        width,
         PLAN_DOOR_H,
         PLAN_LEAF_T,
         'door',
       )
-    : slab(x, base + PLAN_DOOR_H / 2, z, alongX, PLAN_DOOR_W, PLAN_DOOR_H, PLAN_LEAF_T, 'door');
+    : slab(x, base + PLAN_DOOR_H / 2, z, alongX, width, PLAN_DOOR_H, PLAN_LEAF_T, 'door');
   leaf.door = id;
   out.push(leaf);
   return out;

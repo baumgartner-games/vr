@@ -148,7 +148,9 @@ for (const name of browserNames) {
       const assignPowers = async () => {
         await toSetup();
         for (const [view, ability] of Object.entries(POWER_OF)) {
-          const lamp = page.locator(`[data-seat="${SEAT_OF[view]}"] [data-setup-power="${ability}"]`);
+          const lamp = page.locator(
+            `[data-seat="${SEAT_OF[view]}"] [data-setup-power="${ability}"]`,
+          );
           if ((await lamp.getAttribute('aria-pressed')) !== 'true') await lamp.click();
         }
         // Und auf die Karte: Ohne Runde, hell — der Test-Zustand.
@@ -189,9 +191,21 @@ for (const name of browserNames) {
         const openSheet = page.locator('.role__sheet:not([hidden])');
         let dossier = '';
         for (const [fx, fy] of [
-          [0.5, 0.5], [0.42, 0.46], [0.58, 0.46], [0.42, 0.56], [0.58, 0.56],
-          [0.34, 0.5], [0.66, 0.5], [0.5, 0.38], [0.5, 0.62], [0.28, 0.42],
-          [0.72, 0.58], [0.24, 0.56], [0.76, 0.44], [0.5, 0.3], [0.5, 0.7],
+          [0.5, 0.5],
+          [0.42, 0.46],
+          [0.58, 0.46],
+          [0.42, 0.56],
+          [0.58, 0.56],
+          [0.34, 0.5],
+          [0.66, 0.5],
+          [0.5, 0.38],
+          [0.5, 0.62],
+          [0.28, 0.42],
+          [0.72, 0.58],
+          [0.24, 0.56],
+          [0.76, 0.44],
+          [0.5, 0.3],
+          [0.5, 0.7],
         ]) {
           await chart.click({
             position: { x: chartBox.width * fx, y: chartBox.height * fy },
@@ -405,8 +419,8 @@ for (const name of browserNames) {
           return {
             monster: world.state.monster,
             hp: world.state.crew.hp,
-            monsterPath: world.monsterWalk?.remaining.length ?? 0,
-            botPath: world.experience.botNavigation?.points.length ?? 0,
+            monsterPath: world.kernel?.monsterNavigation.points.length ?? 0,
+            botPath: world.kernel?.botNavigation.points.length ?? 0,
             overlay: world.navigationOverlay.root.visible,
           };
         });

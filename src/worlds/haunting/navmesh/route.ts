@@ -6,8 +6,8 @@ import type { FloorPoint } from '../stationLayout';
  * Die Datei hieß `droneRoute.ts`, solange es eine Drohne gab: Sie war die
  * Einzige, die einen Weg *abflog*, und die Höhe ihrer Kuppel stand darin
  * neben der Bahn. Die Drohne ist weg, die Bahn nicht — sie trägt heute den
- * Modelltechniker (`missionBot.ts`, `rules/technicianBot.ts`) und das Monster
- * (`navmesh/flatNavigator.ts`, `stationNpcNavigator.ts`). Deshalb steht sie
+ * Techniker aus Zahlen (`rules/technicianBot.ts`) und das Monster
+ * (`navmesh/flatNavigator.ts`). Deshalb steht sie
  * jetzt im Paket `nav` und heißt nach dem, was sie ist: ein Weg und der
  * Schritt darauf.
  *

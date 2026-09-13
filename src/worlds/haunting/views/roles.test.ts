@@ -726,17 +726,24 @@ function freeSpot(
     view.map.toScreen(one.at.x, one.at.z),
   );
   // Auf der kleinen Testkarte ist ein Meter ein paar Punkte: Die Kandidaten
-  // liegen deshalb auf einem Drittel des Wegs von der Mitte zu den Ecken.
+  // liegen deshalb auf dem Weg von der Mitte zu den Ecken und Kantenmitten —
+  // wo die Kisten stehen, entscheidet der Packer (`stationLayout`), und der
+  // stellt sie mit jeder Türbreite anders.
   const xs = room.polygon.map((point) => point.x);
   const zs = room.polygon.map((point) => point.z);
-  const corners = [
-    [Math.min(...xs), Math.min(...zs)],
-    [Math.max(...xs), Math.min(...zs)],
-    [Math.min(...xs), Math.max(...zs)],
-    [Math.max(...xs), Math.max(...zs)],
+  const [x0, x1, z0, z1] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+  const rim = [
+    [x0, z0],
+    [x1, z0],
+    [x0, z1],
+    [x1, z1],
+    [room.centre.x, z0],
+    [room.centre.x, z1],
+    [x0, room.centre.z],
+    [x1, room.centre.z],
   ];
-  for (const share of [0.35, 0.55, 0.7]) {
-    for (const [cx, cz] of corners) {
+  for (const share of [0.35, 0.55, 0.7, 0.2, 0.85]) {
+    for (const [cx, cz] of rim) {
       const at = {
         x: room.centre.x + (cx! - room.centre.x) * share,
         z: room.centre.z + (cz! - room.centre.z) * share,
@@ -745,5 +752,5 @@ function freeSpot(
       if (busy.every((b) => Math.hypot(b.x - p.x, b.y - p.y) > 20)) return at;
     }
   }
-  return room.centre;
+  throw new Error(`Kein freier Fleck in ${room.id}`);
 }

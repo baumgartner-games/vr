@@ -7772,39 +7772,133 @@ ist, steht einmal und wird von beiden Welten gerufen:
   (`PlayerRig.pace`, siehe „Tempo ist eine Ungleichung").
 - **Die Zahlen**: `PLAYER_RADIUS` = `physics/playerClearance.PLAYER_CAPSULE_RADIUS`
   = 0,24 m (die 2D-Figur war 0,35 m dick und hielt elf Zentimeter mehr
-  Abstand zu jeder Wand), begehbare Türöffnung `geometry.DOOR_PASSAGE` =
-  `PLAN_DOOR_W` 1,2 m (die 2D-Figur lief durch Pfosten, die es in 3D gibt;
-  `DOOR_WIDTH` 2,0 m bleibt das **Modell** für Licht, Sicht und Gehör in allen
-  drei Welten, darauf sind die Gewichte abgestimmt — ein Versuch, auch das
-  auf 1,2 zu setzen, warf `botTraining.test.ts` aus dem Band), der Würfel der
+  Abstand zu jeder Wand), **eine Türbreite** `house.STATION_DOOR_W` =
+  `TILE − 2·PLAN_WALL_T` = 2,0 m in beiden Welten (siehe „Eine Türbreite"
+  unten), der Würfel der
   Routine im Headset aus dem Samen der Station wie in 2D (`routineDice`;
   vorher eine Konstante), `MONSTER_RADIUS` 0,4 als Wegbreite in beiden Welten
   (der Rapier-Zylinder ist mit 0,29 m schmaler und bleibt deshalb nirgends
   hängen, wo die 2D-Figur durchkommt).
 
+**Der Rechenkern: die 2D-Runde rechnet auch im Schiff** (`flatKernel.ts`,
+`kernelLocomotion.ts`, `HauntingWorld.stepKernel`)
+
+Der Wunsch des Besitzers dahinter, wörtlich: „die 2D-Welt als Basis nehmen,
+die Inputs bewegen nur den 2D-Charakter, und der 3D-Charakter wird daraus
+geupdated — auch mit den ganzen Navigationen." Genau so läuft es seit diesem
+Paket beim Gastgeber in der Brille:
+
+- **Ein Stand, eine Rechnung.** `FlatKernel` baut eine `FlatRound` auf dem
+  `HauntState` des Gastgebers (`FlatResume`, nicht kopiert): Was das Schiff am
+  Stand ändert (Kiste, Rätsel, Schrank), sieht die Runde im selben Bild; was
+  die Runde ändert (Uhr, Türen, Licht, Anzug, Phase, Treffer), sieht das
+  Schiff. `ensureKernel` stellt ihn im ersten Bild und neu, sobald der Stand
+  ein anderes Objekt ist oder das Haus einen anderen Samen hat (neue Runde,
+  2D→3D, Übergabe) — mit den Büchern, die bis dahin warteten
+  (`pendingBooks` ← `loadBooks`); `books()` liest die laufende Runde, sonst
+  die wartenden Bücher, sonst Riegel und Lampen der Tafel (`this.locks`,
+  `this.lampBook`, die mit Kern dessen Bücher *sind*). Die Lampen reisen
+  dafür jetzt in `FlatResume.lamps` mit, und `FlatRound` meldet Flackern und
+  Ausgehen über `onLamp`.
+- **Der Stock geht in die Runde, nicht in die Physik.** `KernelLocomotion`
+  hängt sich vor die `PhysicsLocomotion` des Gestells und hält den Wunsch nur
+  fest (`wish`); `kernelInput` macht daraus den `FlatInput` der Runde —
+  Richtung und Größe am Tempo des Gestells normiert (`rig.pace`), Sprint,
+  Ducken (`rig.crouch > 0,15`), Blick der Kamera als `yaw` und der Schritt,
+  den der Körper im Spielraum selbst getan hat, als `shift` (einmal je Bild,
+  gegen Wände und Kästen geglitten). Die Runde tut den Schritt in ihren
+  1/30-s-Scheiben, danach setzt `followKernel` das Gestell so, dass der Kopf
+  über der Figur steht, und zieht die Rapier-Kapsel nach (`resync`) —
+  Requisiten, Werkzeuge und Hände brauchen sie weiter. **Außerhalb der Karte**
+  (Übungslabor, `round.canStand` falsch) und im Schrank trägt wieder die
+  Physik (`KernelLocomotion.active = false`); beim Zurückkommen wird die Figur
+  dorthin gestellt, wo der Kopf steht (`kernel.place`), und `movePlayerTo`
+  (Zentrale, Schrank, Rettung) stellt sie ebenso um. `dash` bleibt 1: Die
+  Puste rechnet die Runde, der Wunsch wird nur normiert.
+- **Monster und Techniker aus Zahlen sind Figuren der Runde.** Es gibt keinen
+  NPC-Körper mehr im Schiff (`Npc`, `NpcDirector`, `NpcVentRide`,
+  `MissionBot`): Das Monstermodell (`blob`) steht bei allen — auch beim
+  Gastgeber — dort, wo `state.monster` es nennt, mit Blick und Gangart aus
+  der Runde (`round.monster.yaw`, `round.decided.pace`); getroffen wird, weil
+  die Runde trifft (`hit`, `CONTACT`), das Schiff spürt es als Puls und
+  Klick (`crew.hp` gefallen). Die **Bot-Runde** spielt der `TechnicianBot`
+  der 2D-Welt auf dem Kern (`FlatKernel.startBot`, von `COMMAND_HOME` aus,
+  mit Kollision); `ShipExperience.botPose`/`botStage` lesen ihn nur ab, und
+  seine Meldungen gehen ins Funkprotokoll (`relay` → `log`). Im Test bleiben
+  Anzug 3 und Monster an, wie vorher; das Gestell des Zuschauers liest der
+  Kern in der Bot-Runde gar nicht erst.
+- **Was das Schiff aus der Runde liest**, je Bild: `state.insight` (die
+  Absicht für Zuschauer), `state.ride` und `crew.venting` (Schacht),
+  `ventArt.setOpen`, Meldungen (`FlatEvent` → `relay`: `bad`/`good` als
+  Ansage, alles andere als Satz), die Türen (`applyDoors` fragt
+  `round.doorOpen`; nur `TRAINING_DOOR` hat noch die eigene Automatik, und die
+  Störung `glitchDice` würfelt nur ohne Kern), das Flackern des Spuks
+  (`round.spook`), der Lampen-Ton (`round.onLamp` → `lampSound`),
+  Geräuschwellen und Monsterkopf für den Snapshot (`round.noises()`,
+  `monsterYaw`, `monsterPace`), die Wege-Ebene (`kernel.botNavigation`,
+  `kernel.monsterNavigation` statt eigener Läufer) und das Steuer der
+  Monster-Station (`netMonster` als `round.driver`). **Die Alarmleiter ist die
+  im Stand**: `FlatRound.memory` *ist* `haunt.crew.threat` (vorher eine
+  eigene Leiter je Runde), damit `ShipExperience` Absicht und Jagd daraus
+  liest und sie mit dem Stand an alle Geräte geht. Neue Gewichte im Test gehen
+  an `round.retune`.
+- **Wer rechnet**: nur der Gastgeber in der Brille (`isHost`, Rolle `vr`,
+  keine wartende Übergabe). Wer die 2D-Ansicht offen hat, rechnet dort
+  (`flatShared`; `runningRound()` ist dann diese Runde); ein Desktop-Gastgeber
+  ohne Anzug lässt die Runde stehen — wie vorher. Übergabe und Ansichtswechsel
+  lassen den Kern los (`releaseMonster` → `kernel = null`) und stellen ihn
+  aus den Büchern neu; `stateMessage` und Snapshot ändern sich nicht.
+- **Weg ist damit** aus `HauntingWorld`: `stepCrew`, `stepLocks`, `stepLamps`,
+  `stepSpook`, `trackMonster`, `noticeRepairs`, `checkItems`, `stepTrail`,
+  das eigene Hörmodell samt Geräuschprotokoll, `LitCache`, `MonsterWalk`,
+  `MonsterRoutine`/`MonsterMemory`/`Estimator`, `StationTravelPlan`, die
+  Puste (`stamina`), der Schrank, in den das Monster jemanden flüchten sah
+  (`watchedLocker` — die Kabine reißt jetzt die Runde auf, `cabinStrike`),
+  `missionBot.ts` und `missionBot.test.ts`. Die Rundenregeln laufen in der
+  Runde (`RoundRules` in `FlatRound`); `HauntingWorld.rules` beantwortet nur
+  noch `status`. Tests: `flatKernel.test.ts`, `HauntingWorld.replay.test.ts`
+  (Kern statt NPC: Gastgeberwechsel, Bot-Runde, Wahrnehmung, Bücher),
+  `groundTruth.test.ts`; der Browser-Smoke liest `world.kernel`.
+
+**Eine Türbreite** (`house.STATION_DOOR_W` = `TILE − 2·PLAN_WALL_T` = 2,0 m)
+
+Bis hierher waren die Türen des Schiffs `PLAN_DOOR_W` 1,2 m breit, das Modell
+der 2D-Welt (`geometry.DOOR_WIDTH`) 2,0 m — die Gewichte von Sicht und Gehör
+sind darauf abgestimmt, und ein Versuch, das Modell auf 1,2 zu setzen, warf
+`botTraining.test.ts` aus dem Band. Seit diesem Paket ist die **Öffnung im
+Schiff** so breit wie das Modell: eine Kachel abzüglich der Wandstärke.
+`GridPlan.doorWidth()` ist der Haken dafür — `StationPlan` (`plan.ts`)
+überschreibt ihn, alle anderen Rasterwelten behalten 1,2 m
+(`levelBuild.planSolids`, `slidingDoor.ts` fragen den Plan). Das Schott hat
+dafür je Seite **zwei Teleskop-Blätter** (`ShipExperience`, `DoorLeaf` mit
+`rest`/`travel`), damit zwei Meter Tür in die 0,25-m-Pfostentasche passen;
+`stationNavigation`, `stationLayout` und `automaticDoors`
+(`TRIGGER_CROSS`/`OCCUPIED_CROSS`) rechnen mit `STATION_DOOR_W`, die 2D-Figur
+geht `DOOR_WIDTH / 2 − Radius` breit durch (`geometry.walkable`;
+`DOOR_PASSAGE` ist weg). Auf dem Blatt des Archivars bleibt der Türbogen
+symbolisch 1,2 m (`PAPER_ARC`). `groundTruth.test.ts` prüft, dass beide
+Zahlen dieselbe sind.
+
+**Ducken ist ein Tempo** (`mission.CROUCH_FACTOR` = 0,5, `PLAYER_CROUCH_SPEED`)
+
+In beiden Welten: Geduckt geht man halb so schnell, und leiser ist man, weil
+man langsamer ist — `audio/cues.stepLoudness(speed)` wählt die Stufe nach dem
+Tempo (`SNEAK_LIMIT` 2 m/s → `NOISE.sneak`, über `SPRINT_LIMIT` 3,6 →
+`NOISE.sprint`, dazwischen `NOISE.walk`), nicht nach einer Haltung. Sprint
+schlägt Ducken. In 3D kommt es aus `rig.crouch` (Stick, Ctrl, körperlich), in
+2D aus dem neuen Knopf **Ducken** (`FlatMode`, `flat__key--crouch`, ein
+Umschalter, `FlatInput.crouch`). Das Sichtfeld des 2D-Technikers ist das der
+Quest 3: `perception.BOT_FOV` = 110°.
+
 Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
 
-- **Der Schritt selbst**: 2D gleitet einen Punkt an Wänden und Möbelkästen
-  (`geometry.slide`), 3D trägt eine Rapier-Kapsel mit Stufen, Sprung und
-  Kollision gegen Requisiten, Schränke (in 3D begehbar, in 2D ein Kasten) und
-  den Monsterkörper. Beide bekommen dieselben Wegpunkte; die Haut ist eine
-  andere.
-- **Der Zeitschritt**: 2D rechnet in festen Scheiben von 1/30 s
-  (`FlatRound.MAX_STEP`), 3D mit der Bildzeit (≤ 0,05 s) und einer
-  1/60-s-Physik daneben.
-- **Ducken** gibt es nur in 3D (`rig.crouch`, leiser: `NOISE.sneak`); die
-  Sicht kümmert es seit dem gemeinsamen Sichtmodul nicht mehr.
-- **Die beiden Techniker aus Zahlen**: `rules/technicianBot.ts` spielt die
-  echte 2D-Runde mit Stock und Knöpfen (Furchtkern, Türpreis, Riegel
-  aufziehen), `missionBot.ts` läuft im Schiff auf `route.stepAlong` ohne
-  Kollision, ohne `RouteAvoid` und mit eigener Puste. Zwei Rechnungen, zwei
-  Runden — wer die Bot-Runde der Brille zur Analyse braucht, baut sie auf den
-  2D-Techniker um (die 2D-Runde als Wahrheit, das Schiff zeichnet sie); das
-  ist der eine große Rest dieses Pakets.
-- **Der Zufallsstrom** teilt sich in 2D eine Quelle für Routine, Riegel,
-  Störung und Lampen, in 3D würfeln Störung (`glitchDice`) und Routine
-  getrennt: Derselbe Same ergibt dieselbe Runde **innerhalb** einer Welt,
-  nicht über beide hinweg.
+- **Der Körper**: Die Rapier-Kapsel läuft unter der Figur mit und trägt
+  Requisiten, Werkzeuge, Stufen und Sprung; außerhalb der Karte
+  (Übungslabor) trägt sie allein. Schränke sind in 3D begehbar, in 2D ein
+  Kasten — die Runde weiß vom Verstecken nur über `crew.hidden`.
+- **Wer nicht rechnet**: Ein Gastgeber ohne Brille (Desktop, Telefon ohne
+  2D-Ansicht) hat keinen Kern; seine Runde steht, bis jemand mit Anzug oder
+  2D-Ansicht Gastgeber wird — wie vorher.
 - **Die Trainingssimulation** (`roundSim.ts`) bleibt die grobe Raumkarte
   ohne Wände, Licht und Türen — mit Absicht, siehe „Gewichte, Simulation,
   Training".
@@ -7946,7 +8040,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   letzten `LAMP_FLICKER` = 3 s davon **flackert** sie (`lampGlow`, dieselbe
   Kurve wie das Zucken des Spuks) und sirrt dabei (`ShipAudio` `'lamp'`, am Ort
   der Lampe — zweimal: beim Flackern und beim Ausgehen); und **was das Monster
-  auslöscht, zählt genauso** (`lampOut`, aus `stepSpook` wie aus
+  auslöscht, zählt genauso** (`lampOut`, aus `FlatRound.stepSpook` wie aus
   `FlatRound.tick`), damit für den Hacker beides gleich aussieht. `stepLamps`
   lässt die Uhr laufen. Alles, was schon hell war, ohne dass jemand geschaltet
   hat — der helle Test, die gezeichnete Station —, lässt die Buchführung in
@@ -8020,7 +8114,9 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Weg von ≈ 88 auf ≈ 14 ms gebracht. Die
   Bahn darauf (Beschleunigen, Bremsen, Drehen) steht in
   `navmesh/route.ts` — der Datei, die `droneRoute.ts` hieß, solange es eine
-  Drohne gab; sie trägt heute nur noch den Modelltechniker des Schiffs.
+  Drohne gab; ihre Typen (`RoutePath`, `RoutePose`) tragen heute die Wege von
+  Monster und Techniker der 2D-Runde, `stepAlong` hat seit dem Rechenkern
+  keinen Fahrer mehr im Schiff.
   **Das Monster wägt dabei ab** (`aim(..., detourLimit)`): Kostet der Umweg um
   eine gesperrte Tür mehr als `monsterWalk.PRY_DETOUR` = 4 s Laufzeit, führt die
   Route vor die Tür, und dort wird gezogen statt gelaufen. Der Techniker gibt
@@ -8032,14 +8128,12 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Stahlriegel ziehen (`rules/doorLocks.pryLock`, derselbe Würfel wie die
   Routine) — steht dort einmal, mit `MONSTER_RADIUS` als Wegbreite. Die
   2D-Runde ruft es aus `moveMonster` und gleitet die Wegpunkte mit `slide`
-  ab, das Headset hängt es als Navigator an den NPC (`Npc.setNavigator`) und
-  lässt Rapier den Körper tragen. Das Zombie-Hirn des NPC dreht dabei nicht
-  mehr mit (`turn` praktisch unendlich, keine Kosinusdrossel — in 2D dreht
-  das Monster im Bild) und schlägt nicht mehr zu (`reach` 0): Getroffen wird
-  in `stepCrew` ab `CONTACT` = 1,7 m wie in 2D, das Modell holt dazu aus
-  (`Npc.lunge`). `stationNpcNavigator.ts` — der alte Cursor des Headsets, der
-  alle 0,55 s neu plante, keinen Umweg abwog und **vor einer gesperrten Tür
-  für immer stand** — ist damit weg.
+  ab — und seit dem Rechenkern (`flatKernel.ts`, siehe „Der Rechenkern") ist
+  das auch der Schritt im Schiff: Dort gibt es keinen NPC-Körper mehr, das
+  Monstermodell steht, wo die Runde es hinsetzt, und der Schlag ist der der
+  Runde (`hit`, `CONTACT` = 1,7 m). `stationNpcNavigator.ts` — der alte Cursor
+  des Headsets, der alle 0,55 s neu plante, keinen Umweg abwog und **vor einer
+  gesperrten Tür für immer stand** — ist weg, ebenso der NPC, an dem er hing.
 - Weltreisen/Schrank-Ausgänge synchronisieren Rig und Physik über
   `movePlayerTo`. **Mit `yaw` schaut danach der Kopf dorthin**
   (`PlayerRig.turnHeadTo`, mit Test), nicht nur das Rig: In der Brille legt das
@@ -8125,8 +8219,8 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Risiko: Man nahm eine Kiste im Vorbeigehen mit, während das Monster zwei Zimmer
   weiter schon unterwegs war. Dieselbe Rechnung in beiden Welten — die 2D-Runde
   zeichnet den Balken über den Knöpfen, das Schiff malt ihn in den Streifen an
-  der Kamera (also auch in der Brille) —, und **beide Bots zahlen sie**
-  (`rules/technicianBot.ts`, `missionBot.ts`): Einer, der Kisten im Vorbeigehen
+  der Kamera (also auch in der Brille) —, und **der Bot zahlt sie** in beiden
+  Welten (`rules/technicianBot.ts`): Einer, der Kisten im Vorbeigehen
   aufklappt, spielt eine andere Runde als der, dem man dabei zusieht.
   **Vor einer Tür steht keine Kiste** (`stationLayout.CARGO_DOOR_DEPTH` = 2,4 m
   statt der üblichen 1,15 m, auch für die Deko-Kiste): Der übliche Türfreiraum
@@ -8256,12 +8350,14 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Leeren dasselbe Licht wie der große Knopf;
   1 wechselt Radar/Xray/frei, 2 Lampe/Medkit/frei. Ctrl duckt. Im Simulationsflug
   WASD/Space/Ctrl. Menüs, Texteingaben und Fokusverlust sperren gehaltene Tasten.
-- `MissionBot` führt eine echte, schadensfreie Runde mit aktiver Monster-KI aus: zu Fracht gehen,
-  öffnen, nehmen, zu Terminal gehen, Puzzle schrittweise lösen, nach drei
-  Aufträgen in die Zentrale zurückkehren. Nutzt reale Zustände und Wege.
-  `survival` unterbricht Missionsschritte für Flucht/Versteck. Erreichbare
-  Schutzschrankzugänge werden nach Deckung, Weglänge und Abstand zur zuletzt
-  wahrgenommenen Gefahr gewählt; Wege direkt durch die Gefahr werden verworfen.
+- Die **Bot-Runde im Schiff** spielt der Techniker aus Zahlen der 2D-Welt
+  (`rules/technicianBot.ts`) auf dem Rechenkern (`flatKernel.ts`,
+  `FlatKernel.startBot`): eine echte, schadensfreie Runde mit aktiver
+  Monster-KI, mit Kollision, Furchtkern und Türpreis — dieselbe Rechnung wie
+  auf dem Telefon. Das Schiff zeichnet nur nach, wo er steht
+  (`ShipExperience.botPose` ← `HauntingWorld.botPose`), und schreibt seine
+  Stufe (`botStage`) auf die Tafel. Der frühere Modelltechniker des Schiffs
+  (`missionBot.ts`, ohne Kollision auf eigener Bahn) ist weg.
   Tempo, Puste, Vorsicht, Versteckneigung, Handgriffe und Wartezeit kommen aus
   `botTuning.ts` (`TechnicianTuning`) und werden bei jedem Zugriff neu gelesen —
   ein Regler in der Schalttafel wirkt in der laufenden Runde. Ohne Puste trabt
@@ -8490,8 +8586,8 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   trifft nicht ein; deshalb hängt `SNIFF_RANGE` daran: Ein jagendes Monster
   macht in einer halben Sekunde gut zwei Meter und darf nicht über die eigene
   Fährte hinwegspringen. Angeschlossen ist sie in `map/flatRound.ts` (Wunde in
-  `hit`, Spur im Schritt), in `HauntingWorld` (Wunde in `takeHit` und
-  `breakLocker`, Spur in `stepCrew`) und in `roundSim.ts` — im Prüfstand, weil
+  `hit`, Spur im Schritt — seit dem Rechenkern auch für das Schiff) und in
+  `roundSim.ts` — im Prüfstand, weil
   alles, was die Balance verschiebt, dort ausgespielt werden muss. **Gemessen**
   (240 Runden, acht Stationen, `DEFAULT_TUNING`): ohne Spur 79 Siege,
   589 Treffer, 881 Kontakte; mit Spur 79 Siege, 589 Treffer, 890 Kontakte. Die
@@ -8524,7 +8620,14 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Sichtungen geradeaus (Richtung und Tempo aus der Spur, Tempo notfalls
   `PLAYER_SPRINT_SPEED`/`PLAYER_WALK_SPEED`, Puste eingerechnet) zu einer
   Polyline über **zwei** Türen — die erste nach dem Winkel zum Kurs, die zweite
-  nach dem Zufluss im Glaubensbild — mit einer Ankunftszeit je Tür. `plan`
+  nach dem Zufluss im Glaubensbild — mit einer Ankunftszeit je Tür. **Die
+  Ankunftszeit läuft ab**: Vorgerückt wird die Sichtung höchstens `PREDICT_AGE`
+  2 s, aber was seither an Sekunden vergangen ist, geht jeder Tür vom
+  Vorsprung ab (`overdue`), und eine Tür ohne positiven Vorsprung ist kein
+  Abfangpunkt mehr. Ohne das stand das Monster (Paket „Rechenkern",
+  `monsterStuck.test.ts` Seed 1) mit einer dreißig Sekunden alten Sichtung
+  vor derselben Tür, rechnete alle `REPLAN` 1,5 s dieselbe Tür aus und
+  wartete bis zum Ende der Runde. `plan`
   stellt dieser Zeit die des Monsters gegenüber (`Estimator`, heute
   `graphEstimator` über `roomGraph.distance`) und entscheidet: **abfangen**, wo
   das Monster mit `SLACK` 0,8 s Luft früher an der Tür ist (der Kandidat, an
@@ -8568,8 +8671,9 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   2D-Runde (`map/flatRound.tick`) und in 3D über `core/PlayerRig.pace`, die
   Tempo-Regel, die `HauntingWorld.setupRole` dem Gestell für **jeden Stock**
   einhängt — Brille, Tastatur (`FlatControls`) und Bildschirmstock
-  (`ShipExperience.stepStick`) fragen sie je Bild, und `stepCrew` zehrt an der
-  Puste, sobald jemand rennen will und dabei den Stock hält (`rig.sprinting`,
+  (`ShipExperience.stepStick`) fragen sie je Bild, und die Runde zehrt an der
+  Puste (`FlatRound.tick`, im Schiff über den Kern), sobald jemand rennen will
+  und dabei den Stock hält (`rig.sprinting`,
   `rig.wishing`). Vorher galt sie nur in der Brille: Die Tastatur ging mit
   3,2 m/s statt 2,6 und rannte 5,76 ohne Puste, der Bildschirmstock 4,94 ohne
   Puste — ein Tastaturspieler war damit schneller als jedes gehende Monster.
@@ -8610,11 +8714,18 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Gleichstandsbrecher mit Vorzeichen, wachsende Schrittweite in Sackgassen.
   `TrainingRun.advance(ms)` rechnet in Zeitscheiben, damit der Browser-Knopf
   den Tab nicht einfriert. `DEFAULT_TUNING` ist das Ergebnis dieses Trainings;
-  `botTraining.test.ts` misst 1600 Runden nach.
+  `botTraining.test.ts` misst 1600 Runden nach. **Mit dem Paket „Rechenkern"
+  neu trainiert**: Zwei Meter Tür in beiden Welten, Ducken als Tempo und die
+  ablaufende Abfangprognose spielen eine andere Runde, und die alten Zahlen
+  fielen mit 0,064 aus dem Band (0,05). Zwölf Schritte à 64 Runden von den
+  alten Gewichten aus (`TrainingRun(DEFAULT_TUNING, 'both', 12, {rounds: 64},
+  99)`) stehen bei **0,47 / 0,31**, Abstand 0,029 — und `Schleichtempo` ist
+  seither auf höchstens 0,95 gedeckelt: Der Lauf wollte 1,0, und ein
+  Schleichen, das so schnell ist wie Gehen, ist keins (`botTuning.test.ts`).
   **Der Abstand zwischen Messung und Zusage ist mit M2 zu.** Die
   Vorgeschichte: Seit jeder Raum zwei bis drei Kisten hat (`rules/cargo.ts`),
   sind die Wege länger — nicht, weil der Bot die Kisten durchwühlte
-  (`missionBot` und `roundSim` gehen über `taskCargo` **direkt** an die
+  (`technicianBot` und `roundSim` gehen über `taskCargo` **direkt** an die
   richtige), sondern weil jede Kiste ein weiteres Wandmodul ist und der Packer
   daraufhin jedes Zimmer anders stellt. Gemessen fiel er dadurch von
   0,52 / 0,34 auf 0,44 / 0,25, und ein Trainingslauf, der ihn mit Gewalt ins
@@ -9270,16 +9381,13 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     verschwindet der Avatar des **2D-Technikers**, den `showTechnician` aus
     `state.technician` ohnehin als Körper zeichnet; vorher stand er zweimal da.
     Haunting hängt den Haken in `init` ein und in `dispose` wieder aus.
-  - **Ein Monster, nie zwei — und eine Schleife, die das aushält.**
-    `NpcDirector.update` läuft über eine Abschrift der NPC-Liste: Der Schlag
-    (`strike` → `world.strikePlayer` → `HauntingWorld.takeHit`) landet mitten
-    in der Schleife, und bei „Anzug 0" nimmt die Welt dort das Monster aus dem
-    Spiel (`removeMonster` → `clear`). Mit mehr als einem Eintrag griff der
-    Rücklauf danach ins Leere (`this.npcs[i]` undefined, „reading 'update'")
-    — der Absturz nach einem Treffer. Und `spawnMonster` räumt ein noch
-    stehendes Monster vorher weg (`director.clear()`): Gastgeberwechsel,
-    2D→3D und ein zweiter Start ersetzten bisher nur die Referenz, der alte
-    NPC lief als Geist weiter und schlug weiter zu.
+  - **Ein Monster, nie zwei.** Seit dem Rechenkern (`flatKernel.ts`) gibt es
+    im Schiff keinen NPC mehr: Das Monster ist eine Figur der Runde, und
+    Gastgeberwechsel, 2D→3D und ein zweiter Start lassen nur den Kern los
+    (`releaseMonster`) und stellen ihn neu — ein Geist, der weiterläuft und
+    weiter zuschlägt, kann so nicht mehr entstehen. (`NpcDirector.update`
+    läuft trotzdem über eine Abschrift der NPC-Liste, für die Welten, die
+    noch NPCs haben.)
   - **Feststecken? Zurück auf den Boden** (`HauntingWorld.unstickPlayer`,
     Eintrag `haunt:rescue` in jeder Lage des Weltmenüs, Brille wie
     Bildschirm): misst, wo die Füße stehen — in einem Zimmer der Station geht
@@ -9866,9 +9974,10 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     für „schon in 3D", und der Wechsel tat gar nichts.
   - **Der Techniker übergibt, der Zuschauer wechselt die Seite.** Wer einer
     **Vorführung** zusieht (Bot-Runde, hier wie dort), darf ebenfalls wechseln —
-    sie gehört niemandem. Nur reist sie nicht: In 2D rechnet sie ein
-    `TechnicianBot` auf einer `FlatRound`, im Schiff ein `MissionBot` auf dem
-    NPC, also **fängt sie auf der anderen Seite von vorn an**
+    sie gehört niemandem. Nur reist sie nicht: Hier wie dort rechnet sie ein
+    `TechnicianBot` auf einer `FlatRound` (im Schiff auf dem Kern,
+    `flatKernel.ts`), aber auf einer zweiten Runde, also **fängt sie auf der
+    anderen Seite von vorn an**
     (`swapDemo`, `ShipExperience.leaveBotRound`/`startBotRound`), und der Satz
     dazu sagt es. Wer dagegen einer **echten** Runde im Netz zusieht oder das
     Monster am Stock spielt, wechselt nicht: Er sähe sonst der Runde eines

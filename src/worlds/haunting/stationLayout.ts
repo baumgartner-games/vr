@@ -1,6 +1,13 @@
-import { PLAN_DOOR_W, PLAN_WALL_T } from '../editor/levelPlan';
+import { PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
-import { roomOf, spacesOf, type HouseRoom, type HouseSpec, type MarkId } from './house';
+import {
+  roomOf,
+  spacesOf,
+  STATION_DOOR_W,
+  type HouseRoom,
+  type HouseSpec,
+  type MarkId,
+} from './house';
 import {
   CARGO_SIZE,
   CONSOLE_SIZE,
@@ -93,7 +100,7 @@ export function doorClearances(
   roomId: string,
   depth = 1.15,
 ): readonly FloorBounds[] {
-  const width = PLAN_DOOR_W / 2 + STATION_PLAYER_RADIUS;
+  const width = STATION_DOOR_W / 2 + STATION_PLAYER_RADIUS;
   return spec.doors
     .filter((d) => d.a === roomId || d.b === roomId)
     .map((d) => {

@@ -30,6 +30,7 @@ export function changeSlidingDoor(
       at.dir === DIR_N || at.dir === DIR_S,
       false,
       facts.id,
+      plan.doorWidth(),
     ).find((part) => part.door === facts.id)!;
     addLeaf(leaf);
   }

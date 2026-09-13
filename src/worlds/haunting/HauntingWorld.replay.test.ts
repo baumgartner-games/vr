@@ -2,16 +2,13 @@
 import * as THREE from 'three';
 import { HauntingWorld } from './HauntingWorld';
 import { generateHouse, type HouseSpec } from './house';
-import { freshCrew, freshStamina, stationOptions } from './mission';
+import { freshCrew, stationOptions } from './mission';
 import { AutomaticDoors } from './automaticDoors';
-import { LitCache } from './map/visibility';
-import { Hearing } from './audio/hearing';
 import { RoundRules } from './rules/roundRules';
 import { DEFAULT_TUNING } from './botTuning';
 import { DEFAULT_LIGHTING } from './botLighting';
 import { Rng } from './rng';
 import { defaultLobby, type LobbyChoice } from './rules/lobby';
-import { StationTravelPlan } from './stationTravelPlan';
 import { VentNet } from './vents/ventGraph';
 import { VentTravel } from './vents/ventTravel';
 import {
@@ -26,12 +23,14 @@ import {
 } from './net';
 import { ROUND_RUNNING, START_SENT } from './HauntingWorld';
 import { FlatRound } from './map/flatRound';
+import { FlatKernel } from './flatKernel';
+import { KernelLocomotion } from './kernelLocomotion';
 import { MonsterMemory } from './monster/monsterMemory';
 import { stationGraph } from './roomGraph';
-import { dropAlpha, freshTrail, type Trail } from './rules/blood';
+import { dropAlpha } from './rules/blood';
 import { freshLocks, type DoorLocks } from './rules/doorLocks';
 import { freshLamps, type Lamps } from './rules/lamps';
-import { freshSpook, type Spook } from './haunt';
+import { COMMAND_HOME } from './trainingLayout';
 import { freshGhosts, GHOST_LIVE, GHOST_TTL } from './rules/ghosts';
 import { HOST_BUSY, SHIP_NEEDS_TECHNICIAN, SHIP_OCCUPIED } from './rules/worldMenu';
 import { defaultSetup, withPower, withWho, type RoundSetup } from './rules/roundSetup';
@@ -49,7 +48,6 @@ interface ReplayWorld {
   state: HauntState;
   grid: { replaceWith: jest.Mock<void, [GridPlan]> };
   automaticDoors: AutomaticDoors;
-  travelPlan: StationTravelPlan;
   buildHouse: jest.Mock;
   parkDrone: jest.Mock;
   blob: THREE.Object3D | null;
@@ -73,21 +71,18 @@ interface ReplayWorld {
   /** Eine Absicht, die noch auf den Anzug wartet (`rules/worldMenu.shipStart`). */
   pendingStart: Intent | null;
   startRound(what: Intent, ctx: unknown): void;
-  stepCrew(dt: number, ctx: unknown): void;
-  npcTarget(target: THREE.Vector3): THREE.Vector3 | null;
-  monster: unknown;
-  monsterArt: THREE.Object3D | null;
+  /** Der Rechenkern (`flatKernel.ts`) und der Stock, der in ihn geht. */
+  kernel: FlatKernel | null;
+  kernelLoco: KernelLocomotion | null;
+  stepKernel(dt: number, ctx: unknown): void;
   technicianArt: THREE.Object3D | null;
   showTechnician(): void;
-  /** Die Blutspur und ihre Flecken auf dem Boden (`rules/blood.ts`). */
-  blood: Trail;
-  /** Das Gedächtnis des Monsters (`monster/monsterMemory.ts`) — beim Gastgeber. */
-  brain: MonsterMemory | null;
   readonly waitingHandover: boolean;
   /** Die Buchführung, die nur beim Gastgeber liegt — und beim Wechsel mitreisen muss. */
   locks: DoorLocks;
   lampBook: Lamps;
-  spook: Spook;
+  /** Bücher, die auf den nächsten Kern warten (`loadBooks`). */
+  pendingBooks: HauntBooks | null;
   handoverUntil: number;
   books(): HauntBooks;
   loadBooks(books: HauntBooks): void;
@@ -98,7 +93,6 @@ interface ReplayWorld {
   /** Und die halbdurchsichtige Kopie an der zuletzt gesehenen Stelle (`rules/ghosts.ts`). */
   ghostArt: THREE.Object3D | null;
   paintGhost(): void;
-  director: { clear: jest.Mock; spawn: jest.Mock };
 }
 
 function snapshot(seed = 391): HauntState {
@@ -129,7 +123,6 @@ function replay(): ReplayWorld {
     state: snapshot(),
     grid: { replaceWith: jest.fn() },
     automaticDoors: new AutomaticDoors(),
-    travelPlan: new StationTravelPlan(),
     buildHouse: jest.fn(),
     parkDrone: jest.fn(),
     live: new THREE.Group(),
@@ -138,51 +131,32 @@ function replay(): ReplayWorld {
     rules: new RoundRules(() => world.state),
     context: { net: { localId: 'local', peers: new Map() } },
     technicians: new Map(),
-    director: { clear: jest.fn(), spawn: jest.fn(() => null) },
     // Felder, die sonst der Konstruktor setzt — der Prototyp-Nachbau hat keinen.
     tuning: DEFAULT_TUNING,
-    // Die Puste des Technikers (`mission.ts`): `stepCrew` rechnet sie in jedem
-    // Bild weiter und setzt daraus `PlayerRig.sprintScale`.
-    stamina: freshStamina(),
     dash: 1,
-    // Die Wahrnehmung des Monsters rechnet seit dem Paket „Eine Wahrheit" je
-    // Bild auf dem Snapshot der Welt (`monster/monsterSight.ts`): Lampen,
-    // Lichtflächen, Hörmodell, Geräuschwellen und Rundenregeln muss der
-    // Nachbau deshalb mitbringen.
     lamps: new Map(),
-    litCache: new LitCache(),
-    hearingModel: new Hearing(),
-    noiseQueue: [],
-    noiseLog: [],
-    noiseSerial: 0,
-    stepPulse: 0,
-    monsterPulse: 0,
-    monsterSpace: '',
-    playerSpace: '',
-    // Und die Blutspur (`rules/blood.ts`), die `stepCrew` in jedem Bild
-    // fortschreibt — auch wenn niemand blutet.
-    blood: freshTrail(),
-    // Die Buchführung des Gastgebers (`net.HauntBooks`): Riegel, Lampen, Spuk.
-    // Sie geht beim Wechsel des Gastgebers als Übergabe über die Leitung und
-    // beim Ansichtswechsel von der einen Runde in die andere.
+    // **Der Rechenkern** (`flatKernel.ts`): Die 2D-Runde, die im Schiff des
+    // Gastgebers rechnet — Monster, Puste, Blutspur, Hörmodell, alles. Sie
+    // wird im ersten Bild gestellt (`ensureKernel`); der Nachbau bringt nur
+    // den Stock mit, der in sie geht.
+    kernel: null,
+    kernelLoco: new KernelLocomotion({ apply: () => {} }),
+    kernelHead: null,
+    pendingBooks: null,
+    // Die Buchführung, die Tafel und Techniker vor Ort ohne Kern führen
+    // (`net.HauntBooks`): Riegel und Lampen. Mit Kern sind es dessen Bücher.
     locks: freshLocks(),
     lampBook: freshLamps(),
-    spook: freshSpook(),
-    brain: null,
     handoverUntil: 0,
-    repaired: 0,
     routineDice: new Rng(0x4d4f4e53),
     beacons: [],
     botLighting: { ...DEFAULT_LIGHTING },
     simulationSpeed: 1,
-    monster: null,
-    monsterArt: null,
     technicianArt: null,
     flatTechnician: false,
     pendingBotRound: false,
     vents: vents,
     ventRide: new VentTravel(vents),
-    npcRide: null,
     ventArt: null,
     monsterDriver: null,
     // Die Wahl der Lobby (`rules/lobby.ts`) — ohne sie hat der Nachbau keine
@@ -282,39 +256,73 @@ function election(role: 'vr' | 'desktop', remote = false) {
   };
 }
 
-test('handing the host role to another technician stops the old local NPC without deleting the round snapshot', () => {
+/**
+ * **Der Rahmen eines Gastgebers in der Brille**: ein Gestell, dessen Kopf über
+ * der Zentrale steht, eine Kamera, die nach -z schaut, und Hände ohne Puls.
+ * Mehr braucht `stepKernel` nicht, um die Runde zu rechnen.
+ */
+function kernelCtx(
+  role: 'vr' | 'desktop' = 'vr',
+  head: { x: number; z: number } = { x: COMMAND_HOME.x, z: COMMAND_HOME.z },
+) {
+  const rig = new THREE.Group() as THREE.Group & {
+    getHeadPosition: (out: THREE.Vector3) => THREE.Vector3;
+    paused: boolean;
+    sprinting: boolean;
+    crouch: number;
+    pace: (sprint: boolean) => number;
+  };
+  rig.position.set(head.x, 0, head.z);
+  rig.getHeadPosition = (out) => out.set(rig.position.x, 1.6, rig.position.z);
+  rig.paused = false;
+  rig.sprinting = false;
+  rig.crouch = 0;
+  rig.pace = () => 2.6;
+  const camera = new THREE.PerspectiveCamera();
+  camera.rotation.set(0, 0, 0);
+  return {
+    ...election(role),
+    rig,
+    camera,
+    input: { get: () => undefined },
+    notify: jest.fn(),
+    refreshWorldMenu: jest.fn(),
+  };
+}
+
+test('handing the host role to another technician drops the local kernel without deleting the round snapshot', () => {
   const world = replay();
   world.hostId = 'local';
-  world.monster = {};
-  world.monsterArt = new THREE.Group();
-  const geometry = new THREE.BoxGeometry();
-  const disposed = jest.fn();
-  geometry.addEventListener('dispose', disposed);
-  world.monsterArt.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
-  world.live.add(world.monsterArt);
-  const model = world.monsterArt;
-  const at = world.state.monster;
-  const ctx = election('desktop', true);
+  const ctx = kernelCtx('desktop');
   world.context = ctx;
-  world.refreshHost(ctx);
+  world.stepKernel(0.05, ctx);
+  expect(world.kernel).not.toBeNull();
+  const at = world.state.monster;
+  const handover = election('desktop', true);
+  world.context = handover;
+  world.refreshHost(handover);
   expect(world.hostId).toBe('remote');
-  expect(world.director.clear).toHaveBeenCalledTimes(1);
-  expect(world.monster).toBeNull();
-  expect(model.parent).toBeNull();
-  expect(disposed).toHaveBeenCalledTimes(1);
+  // Der Kern ist weg — der Stand nicht: Der Nachfolger rechnet damit weiter.
+  expect(world.kernel).toBeNull();
   expect(world.state.monster).toBe(at);
   expect(world.state.monsterOn).toBe(true);
 });
 
-test('taking over an abandoned running mission recreates its monster at the last shared position', () => {
+test('taking over an abandoned running mission continues its monster from the last shared position', () => {
   const world = replay();
-  const ctx = election('vr');
+  const ctx = kernelCtx('vr');
   world.context = ctx;
   world.refreshHost(ctx);
   expect(world.hostId).toBe('local');
-  expect(world.director.spawn).toHaveBeenCalledWith(
-    expect.objectContaining({ at: new THREE.Vector3(1, 0, 2) }),
-  );
+  // Der neue Gastgeber stellt den Kern im nächsten Bild aus dem Stand: Das
+  // Monster steht dort, wo der alte es zuletzt ansagte, und der Stand bleibt
+  // dasselbe Objekt (`FlatResume`).
+  world.stepKernel(0.05, ctx);
+  const round = world.kernel!.round;
+  expect(round.haunt).toBe(world.state);
+  expect(round.monster.x).toBeCloseTo(1, 0);
+  expect(round.monster.z).toBeCloseTo(2, 0);
+  expect(world.state.monster).toEqual(expect.objectContaining({ x: expect.any(Number) }));
 });
 
 test('a former desktop technician gives up its host priority as soon as it returns to a station', () => {
@@ -409,41 +417,60 @@ test('returning to the station menu cancels a queued solo bot round', () => {
   expect(world.flatTechnician).toBe(false);
 });
 
-test('safe bot rounds spawn a real patrol without reading the observer camera or damaging the suit', () => {
+test('safe bot rounds run the 2D technician bot without reading the observer camera or damaging the suit', () => {
   const world = replay();
   world.state.crew.options.test = true;
   world.state.crew.simulation = true;
   world.state.crew.hp = 1;
-  // Deliberately no rig: the free camera must never become the demo's perceived player.
-  world.stepCrew(0.1, { role: 'vr' });
-  expect(world.director.spawn).toHaveBeenCalledTimes(1);
+  // Absichtlich kein brauchbares Gestell: Die freie Kamera des Zuschauers
+  // darf nie zur Figur der Vorführung werden.
+  const getHeadPosition = jest.fn(() => {
+    throw new Error('Observer is not the player');
+  });
+  const ctx = { ...kernelCtx('vr'), rig: { getHeadPosition } };
+  world.stepKernel(0.1, ctx);
+  expect(getHeadPosition).not.toHaveBeenCalled();
+  const kernel = world.kernel!;
+  expect(kernel.botActive).toBe(true);
   expect(world.state.monsterOn).toBe(true);
   expect(world.state.crew.hp).toBe(3);
-  expect(world.npcTarget(new THREE.Vector3())).not.toBeNull();
+  // Der Techniker aus Zahlen fängt in der Zentrale an — wie auf dem Telefon.
+  expect(kernel.pose.x).toBeCloseTo(COMMAND_HOME.x, 0);
+  expect(kernel.pose.z).toBeCloseTo(COMMAND_HOME.z, 0);
+  // Ohne Vorführung nimmt der Mensch den Stock wieder.
   world.state.crew.simulation = false;
-  expect(world.npcTarget(new THREE.Vector3())).toBeNull();
+  world.stepKernel(0.1, kernelCtx('vr'));
+  expect(kernel.botActive).toBe(false);
 });
 
 test('simulation perception reads the bot position and ignores the observer rig', () => {
   const world = replay();
-  // Zwei Meter vor dem Monster: Berührungsnähe (`monsterSight.CLOSE_SIGHT`),
-  // gesehen also auch ohne eine einzige Lampe.
-  const bot = { x: 0, z: -39, yaw: 0 };
   world.state.crew.options.test = true;
   world.state.crew.simulation = true;
+  // Zwei Meter vor dem Techniker aus Zahlen, im Gang vor der Zentrale:
+  // Berührungsnähe (`monsterSight.CLOSE_SIGHT`), gesehen also auch ohne
+  // eine einzige Lampe.
   world.state.monster = { x: 0, z: -37 };
-  Object.assign(world, {
-    experience: { botPose: bot },
-    hearing: new Map(),
-    sightTimer: 1,
-    monsterSeesPlayer: true,
-  });
   const getHeadPosition = jest.fn(() => {
     throw new Error('Observer is not the player');
   });
-  world.stepCrew(0.1, { role: 'vr', rig: { getHeadPosition } });
+  const ctx = { ...kernelCtx('vr'), rig: { getHeadPosition } };
+  world.context = ctx;
+  world.stepKernel(0.1, ctx);
+  expect(world.kernel!.place({ x: 0, z: -39 })).toBe(true);
+  world.stepKernel(0.1, ctx);
+  world.stepKernel(0.1, ctx);
   expect(getHeadPosition).not.toHaveBeenCalled();
-  expect(world.state.crew.threat.target).toEqual({ x: bot.x, z: bot.z });
+  // Die Alarmleiter im Stand (`threat.ts`) ist die der Runde: Was das Monster
+  // gehört oder gesehen hat, zeigt auf den Techniker aus Zahlen — nicht auf
+  // das Gestell des Zuschauers.
+  const bot = world.kernel!.pose;
+  const threat = world.state.crew.threat;
+  expect(threat).toBe(world.kernel!.round.threat);
+  expect(threat.awareness).toBeGreaterThan(0);
+  const noticed = threat.target ?? threat.facing;
+  expect(noticed).not.toBeNull();
+  expect(Math.hypot(noticed!.x - bot.x, noticed!.z - bot.z)).toBeLessThan(1);
   expect(world.state.crew.hp).toBe(3);
 });
 
@@ -537,7 +564,11 @@ test('die Blutflecken liegen flach auf dem Boden und werden wiederverwendet', ()
  * ein Spieler beim Umschalten verlöre.
  */
 describe('Ein Wechsel 3D → 2D → 3D', () => {
-  /** Eine Welt mitten in einer Runde: Uhr, Anzug, Gepäck, Türen, Licht, Monster. */
+  /**
+   * Eine Welt mitten in einer Runde: Uhr, Anzug, Gepäck, Türen, Licht,
+   * Monster — und ein Kern, der sie rechnet, mit Riegeln, Lampen, Spuk und
+   * Wunde in seinen Büchern.
+   */
   function midRound(): ReplayWorld {
     const world = replay();
     const state = world.state;
@@ -548,22 +579,30 @@ describe('Ein Wechsel 3D → 2D → 3D', () => {
     state.lit = ['r1'];
     state.done = ['t0'];
     state.monster = { x: 12, z: -30 };
-    state.technician = { x: 6.5, z: -9.5, yaw: 1.2, moving: false };
-    world.locks.chosen = 'd1';
-    world.locks.until = 104;
-    world.lampBook.on.push({ id: 'r1', until: 130, warned: false });
-    world.spook = { room: 'r3', since: 1.5, rest: 4 };
-    world.blood.until = 120;
-    world.blood.drops.push({ x: 6, z: -9, since: 90 });
-    state.blood = world.blood.drops;
+    state.blood = [{ x: 6, z: -9, since: 90 }];
+    world.hostId = 'local';
+    world.loadBooks({
+      locks: { chosen: 'd1', until: 104, slams: [], pries: [], cooling: [] },
+      lamps: { on: [{ id: 'r1', until: 130, warned: false }] },
+      spook: { room: 'r3', since: 1.5, rest: 4 },
+      trail: { until: 120, from: null, walked: 0 },
+      memory: { sightings: [], searched: [] },
+    });
+    world.stepKernel(0, kernelCtx('vr', { x: 6.5, z: -9.5 }));
     return world;
   }
 
   it('behält Zeit, Sauerstoff, Anzug, Inventar, Türen, Licht und das Monster', () => {
     const world = midRound();
     const before = world.state;
+    // Die Bücher, die beim Umschalten warteten, sind die des Kerns geworden.
+    expect(world.kernel!.round.locks.chosen).toBe('d1');
+    expect(world.locks).toBe(world.kernel!.round.locks);
     // --- 3D → 2D: die laufende Runde übernehmen statt eine neue würfeln.
     const books = world.books();
+    expect(books.spook.room).toBe('r3');
+    expect(books.trail.until).toBe(120);
+    before.technician = { x: 6.5, z: -9.5, yaw: 1.2, moving: false };
     const round = new FlatRound(before.seed, {
       resume: {
         state: before,
@@ -599,25 +638,37 @@ describe('Ein Wechsel 3D → 2D → 3D', () => {
     // Die Lampe brennt weiter mit ihrer Restzeit — sonst ginge beim Umschalten
     // von selbst das Licht an oder aus.
     expect(world.lampBook.on).toEqual([{ id: 'r1', until: 130, warned: false }]);
-    expect(world.blood.until).toBe(120);
-    // Eine Spur, nicht zwei (`rules/blood.ts`).
-    expect(world.blood.drops).toBe(world.state.blood);
+    expect(carried.trail.until).toBe(120);
+    // Der nächste Kern rechnet mit genau diesen Büchern weiter — und mit
+    // derselben Blutspur, nicht mit einer zweiten (`rules/blood.ts`).
+    world.stepKernel(0, kernelCtx('vr', { x: 6.5, z: -9.5 }));
+    expect(world.kernel!.round.books().trail.until).toBe(120);
+    expect(world.kernel!.round.books().locks.chosen).toBe('d1');
+    expect(world.state.blood).toBe(round.state().blood);
   });
 
   it('reicht das Gedächtnis des Monsters weiter, statt es zu vergessen', () => {
     const world = midRound();
     const graph = stationGraph(world.spec);
     const room = graph.spaces[3]!;
-    const brain = new MonsterMemory(graph, () => []);
-    brain.seen(room, graph.centre(room), 90);
-    world.brain = brain;
+    const centre = graph.centre(room);
+    // Was der alte Gastgeber wusste, kommt als Buch (`net.packMemory`) und
+    // wird zum Gedächtnis des nächsten Kerns (`FlatRound.loadBooks`).
+    world.loadBooks({
+      ...world.books(),
+      memory: {
+        sightings: [{ x: centre.x, z: centre.z, time: 90, sprinting: false }],
+        searched: [],
+      },
+    });
+    world.stepKernel(0, kernelCtx('vr', { x: 6.5, z: -9.5 }));
     const books = world.books();
     expect(books.memory.sightings).toHaveLength(1);
-    // Und andersherum: Ein frisches Gedächtnis nimmt die Spur wieder an.
+    expect(books.memory.sightings[0]).toEqual(expect.objectContaining({ time: 90 }));
+    // Und ein frisches Gedächtnis nimmt die Spur wieder an, so wie der Kern es tat.
     const next = new MonsterMemory(graph, () => []);
     expect(next.mostLikely()).not.toBe(room);
-    world.brain = next;
-    world.loadBooks(books);
+    next.seen(room, centre, 90);
     expect(next.mostLikely()).toBe(room);
   });
 });
@@ -631,6 +682,7 @@ describe('Der Wechsel des Gastgebers', () => {
     const world = replay();
     world.state.phase = 'running';
     world.hostId = 'local';
+    world.stepKernel(0.05, kernelCtx('vr'));
     world.locks.chosen = 'd1';
     const ctx = election('desktop', true);
     world.context = ctx;

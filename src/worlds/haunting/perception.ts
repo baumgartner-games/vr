@@ -3,7 +3,12 @@ import type { NavGraph } from '../nav/navGraph';
 import { DIRS, TILE, neighbour, tileKey, type TileKey } from '../nav/navTile';
 import type { SignalPoint } from './threat';
 
-export const BOT_FOV = Math.PI * 0.62;
+/**
+ * **Das Sichtfeld des Technikers — das der Quest 3**: 110° waagerecht. Die
+ * Figur auf dem Telefon sieht damit so weit zur Seite wie der Mensch in der
+ * Brille, und was der eine sieht, sieht auch der andere.
+ */
+export const BOT_FOV = (110 * Math.PI) / 180;
 export const MONSTER_FOV = Math.PI * 0.72;
 export const BOT_VISION = 16;
 export const pointKey = (p: SignalPoint): TileKey =>
