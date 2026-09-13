@@ -64,6 +64,8 @@ export class Npc {
   private dying: number | null = null;
   private speed = 0;
   private striking = false;
+  /** Wie lange das Modell noch ausholt, in Sekunden (`lunge`). */
+  private lunging = 0;
   /**
    * Sein Läufer (`worlds/nav/navAgent.ts`) — erst da, wenn er zum ersten Mal
    * einen Weg braucht.
@@ -210,11 +212,24 @@ export class Npc {
    * a perceived goal or patrol destination; attacks still use that final goal.
    * Other NPCs retain their existing navigation, sensing and turning behavior.
    */
-  setNavigator(navigator: NpcNavigator | null): void {
+  setNavigator(navigator: NpcNavigator | null, tuning: Partial<BrainTuning> = {}): void {
     this.navigator = navigator;
-    this.navigatorTuning = navigator ? { ...this.tuning, sense: Infinity } : null;
+    // `tuning` überschreibt einzelne Werte des Hirns nur auf diesem Weg —
+    // Haunting nimmt dem Monster damit Reichweite und Drehzeit, weil dort die
+    // Welt trifft und die Route lenkt (`monster/monsterWalk.ts`).
+    this.navigatorTuning = navigator ? { ...this.tuning, sense: Infinity, ...tuning } : null;
     this.externallyNavigated = false;
     this.agent?.clear();
+  }
+
+  /**
+   * **Ausholen, ohne dass das Hirn zuschlägt.** Wer die Reichweite auf null
+   * gesetzt hat (`setNavigator`), bekommt vom Hirn nie mehr die Gangart
+   * `strike`; die Welt sagt dann selbst, wann ein Schlag sitzt, und lässt
+   * das Modell hier für einen Augenblick ausholen.
+   */
+  lunge(seconds = 0.45): void {
+    this.lunging = Math.max(this.lunging, seconds);
   }
 
   setSpeed(speed: number): void {
@@ -360,7 +375,8 @@ export class Npc {
     this.speed = Math.hypot(step.vx, step.vz);
     // Er holt aus, wenn er zuschlägt — und auch dann, wenn das, was er
     // einschlägt, eine Tür ist und kein Spieler.
-    this.striking = step.gait === 'strike' || this.hammering;
+    this.lunging = Math.max(0, this.lunging - dt);
+    this.striking = step.gait === 'strike' || this.hammering || this.lunging > 0;
     this.model.update(dt, this.speed, this.striking);
     this.model.setAlert(step.sees);
     return step.attack;

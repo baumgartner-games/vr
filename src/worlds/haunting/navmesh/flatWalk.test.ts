@@ -25,7 +25,7 @@ const MONSTER_RADIUS = 0.4;
 const ROUTE_COMFORT = 0.05;
 /** Ein Schritt bei zwei Metern je Sekunde und dreißig Bildern. */
 const STRIDE = 0.07;
-/** Ab hier gilt ein Wegpunkt als erreicht (`StationNpcNavigator`). */
+/** Ab hier gilt ein Wegpunkt als erreicht — die Toleranz des alten Headset-Navigators. */
 const REACHED = 0.035;
 
 const SEEDS = [2, 9, 1009];

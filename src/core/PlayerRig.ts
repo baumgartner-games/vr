@@ -42,6 +42,21 @@ export class PlayerRig extends THREE.Group {
    */
   sprintScale = 1;
   /**
+   * **Die Tempo-Regel einer Welt** — Gehen und Sprint in m/s, gefragt je Bild,
+   * für Brille, Tastatur und Bildschirmstock gleichermaßen. `null` heißt: die
+   * Voreinstellung des Gestells (`moveSpeed`, `sprintFactor`) in der Brille
+   * und die der Tastatur (`FlatControls.speed`) am Schirm. Haunting hängt hier
+   * `mission.ts` ein, samt Puste — vorher lief der Tastaturspieler dort mit
+   * 3,2 m/s statt 2,6 und ohne jede Puste, und die Ungleichung „Monster
+   * schneller als ein gehender Spieler" galt nur in der Brille.
+   */
+  pace: ((sprint: boolean) => number) | null = null;
+  /** Ob Tastatur oder Bildschirmstock in diesem Bild sprinten wollten (`setIntent`). */
+  private intentSprint = false;
+  /** Was `sprinting` und `wishing` für dieses Bild sagen — festgehalten in `update`. */
+  private sprintedNow = false;
+  private wished = false;
+  /**
    * Sprint is held down by default (left stick pressed in). Switched over in
    * the settings it toggles instead — for anybody who does not want to keep a
    * stick pressed while crossing the whole map.
@@ -158,9 +173,15 @@ export class PlayerRig extends THREE.Group {
   }
 
   /** Movement wish for this frame, in m/s. Flat controls feed this too. */
-  setIntent(velocity: THREE.Vector3, jump = false): void {
+  setIntent(velocity: THREE.Vector3, jump = false, sprint = false): void {
     this.intent.copy(velocity);
     if (jump) this.intentJump = true;
+    if (sprint) this.intentSprint = true;
+  }
+
+  /** Das Tempo für einen Wunsch von Tastatur oder Bildschirmstock — die Regel der Welt, sonst `fallback`. */
+  walkSpeed(sprint: boolean, fallback: number): number {
+    return this.pace ? this.pace(sprint) : fallback;
   }
 
   requestJump(): void {
@@ -232,9 +253,14 @@ export class PlayerRig extends THREE.Group {
     this.updateCrouch(Math.max(0, Number.isFinite(dt) ? dt : 0));
   }
 
-  /** True while the player is sprinting. */
+  /** True while the player is sprinting — in the headset, at the keyboard or on the screen stick. */
   get sprinting(): boolean {
-    return this.sprintWanted;
+    return this.sprintedNow;
+  }
+
+  /** Ob in diesem Bild überhaupt jemand laufen wollte — Stock, Tastatur oder Bildschirmstock. */
+  get wishing(): boolean {
+    return this.wished;
   }
 
   /** Stands back up, e.g. when a world is left. */
@@ -359,6 +385,9 @@ export class PlayerRig extends THREE.Group {
     if (this.paused) {
       this.intent.set(0, 0, 0);
       this.intentJump = false;
+      this.intentSprint = false;
+      this.sprintedNow = false;
+      this.wished = false;
       return;
     }
 
@@ -391,9 +420,14 @@ export class PlayerRig extends THREE.Group {
       }
     }
 
+    // Was die Welt nach diesem Bild über den Wunsch wissen darf (Puste):
+    // festgehalten, bevor der Wunsch für das nächste Bild gelöscht wird.
+    this.wished = this.intent.lengthSq() > 0.0025;
+    this.sprintedNow = this.sprintWanted || this.intentSprint;
     this.locomotion.apply(this, this.intent, this.intentJump, dt);
     this.intent.set(0, 0, 0);
     this.intentJump = false;
+    this.intentSprint = false;
 
     if (presenting && !this.locked && this.menuStick !== 'right') {
       const turn = input.get('right')?.thumbstick.x ?? 0;
@@ -421,6 +455,7 @@ export class PlayerRig extends THREE.Group {
 
   /** Walking speed right now — sprinting is a factor on top of it. */
   private speedNow(): number {
+    if (this.pace) return this.pace(this.sprintWanted);
     // Nie unter Gehtempo: Wer den Sprintfaktor im Menü heruntergedreht hat,
     // soll durch eine leere Puste nicht **langsamer** werden als im Schritt.
     const sprint = Math.max(1, this.sprintFactor * Math.max(0, Math.min(1, this.sprintScale)));

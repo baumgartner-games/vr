@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PLAYER_CAPSULE_RADIUS } from './playerClearance';
 import type { Collider, KinematicCharacterController, RigidBody } from '@dimforge/rapier3d-compat';
 import type { Locomotion } from '../core/Locomotion';
 import type { PlayerRig } from '../core/PlayerRig';
@@ -11,7 +12,7 @@ import { ALL_GROUPS, GROUP_PLAYER, interactionGroups, type PhysicsWorld } from '
  */
 const PLAYER_FILTER = ALL_GROUPS & ~GROUP_PLAYER;
 
-const RADIUS = 0.24;
+const RADIUS = PLAYER_CAPSULE_RADIUS;
 const TERMINAL_VELOCITY = 32;
 
 /**

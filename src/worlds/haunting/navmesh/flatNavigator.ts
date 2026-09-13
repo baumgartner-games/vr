@@ -15,12 +15,14 @@ import { pointSegmentDistance } from './snapshotClearance';
  * Beide Welten stehen auf demselben Kachelgitter, also gibt es nur **eine**
  * Wegsuche: der A* mit 0,25-m-Schritt samt Schnurzug (`stationNavigation.ts`,
  * `navmesh/pathSmoothing.ts`) auf dem `NavGraph` aus `housePlan`. Was hier
- * dazukommt, ist das, was `StationNpcNavigator` für das Monster im Headset
- * tut — Route halten, Wegpunkte abhaken, bei Bedarf neu rechnen —, aber mit
- * der Sparsamkeit, die eine Runde braucht, die in Tests tausendfach ohne Bild
- * ausgespielt wird: Ein Weg kostet in Jest um die 90 ms, und der Navigator
- * des Headsets plant alle 0,55 s neu, was für eine 600-Sekunden-Runde nicht
- * zu bezahlen wäre. Hier wird neu geplant, wenn es **keine** Route gibt, wenn
+ * dazukommt, ist Route halten, Wegpunkte abhaken, bei Bedarf neu rechnen —
+ * mit der Sparsamkeit, die eine Runde braucht, die in Tests tausendfach ohne
+ * Bild ausgespielt wird: Ein Weg kostet in Jest um die 90 ms, und der alte
+ * Navigator des Headsets (`stationNpcNavigator.ts`, seit dem Paket „Eine
+ * Wahrheit" abgeschafft) plante alle 0,55 s neu, was für eine
+ * 600-Sekunden-Runde nicht zu bezahlen wäre. **Seit demselben Paket läuft
+ * auch das Monster im Headset hier** (`monster/monsterWalk.ts`) — derselbe
+ * Cursor, dieselben Zahlen. Hier wird neu geplant, wenn es **keine** Route gibt, wenn
  * sich eine **Sperre** geändert hat (`graph.version`), wenn das Ziel um mehr
  * als `GOAL_TOLERANCE` gewandert ist — und dann frühestens nach `HOLD` — oder
  * wenn der Läufer die Route verlassen hat (`OFF_ROUTE`).
@@ -88,6 +90,18 @@ export interface FlatLeg {
   planned: boolean;
 }
 
+/**
+ * Was die 3D-Welt dem Navigator zusätzlich sagt: ob der Test läuft (dann gibt
+ * es die Übungstür) und welche gesperrten Türen ein belegter Durchgang gerade
+ * noch offen hält (`automaticDoors`, `occupiedOpen`) — sonst sperrte das
+ * Monster beim Spuken seine eigene Startposition ein. Die 2D-Runde lässt
+ * beides weg.
+ */
+export interface FlatNavigatorOptions {
+  test?: () => boolean;
+  occupiedOpen?: () => readonly string[];
+}
+
 export class FlatNavigator {
   private readonly travel = new StationTravelPlan();
   private route: RoutePath | null = null;
@@ -111,6 +125,7 @@ export class FlatNavigator {
     private readonly spec: HouseSpec,
     private readonly rooms: StationGraph,
     private readonly radius: number,
+    private readonly options: FlatNavigatorOptions = {},
   ) {}
 
   /** Die Wegpunkte, die noch vor dem Läufer liegen. */
@@ -140,7 +155,12 @@ export class FlatNavigator {
     avoid: RouteAvoid | null = null,
     detourLimit = Infinity,
   ): FlatLeg {
-    const graph = this.travel.graph(this.spec, shut, false);
+    const graph = this.travel.graph(
+      this.spec,
+      shut,
+      this.options.test?.() ?? false,
+      this.options.occupiedOpen?.() ?? [],
+    );
     const wandered = Math.hypot(goal.x - this.wanted.x, goal.z - this.wanted.z);
     const stale =
       !this.route ||

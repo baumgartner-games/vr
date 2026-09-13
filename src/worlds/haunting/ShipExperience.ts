@@ -693,8 +693,11 @@ export class ShipExperience {
     _wish.set(0, 0, 0).addScaledVector(_walk, -stick.z).addScaledVector(_side, stick.x);
     if (_wish.lengthSq() > 1) _wish.normalize();
     rig.setIntent(
-      _wish.multiplyScalar(stick.sprint ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED),
+      _wish.multiplyScalar(
+        rig.walkSpeed(stick.sprint, stick.sprint ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED),
+      ),
       false,
+      stick.sprint,
     );
   }
 

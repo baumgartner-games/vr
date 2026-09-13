@@ -257,11 +257,18 @@ export function emptyField(mode: VisibilityMode): VisibilityField {
   return { mode, lit: [], self: null, cones: [], noise: [], visibleEntities: [], litRooms: [] };
 }
 
-/** Das Modell selbst. */
-export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId }, cache) => {
-  const field = emptyField(mode);
-  const viewer = viewerId ? (snapshot.entities.find((e) => e.id === viewerId) ?? null) : null;
+/**
+ * **Nur die hellen Flächen** — Lampen, Zentrale, Leuchtfeuer, Taschenlampe.
+ *
+ * Herausgelöst aus `computeVisibility`, weil das Monster genau diese Flächen
+ * braucht und sonst nichts: Ob es jemanden sieht, hängt daran, ob der im
+ * Licht steht (`monster/monsterSight.ts`). Die 2D-Runde rechnet das ganze
+ * Feld und nimmt `lit` daraus; die 3D-Welt rechnet nur dies hier — und beide
+ * bekommen dieselben Polygone aus derselben Rechnung.
+ */
+export function litRegions(snapshot: MapSnapshot, cache?: LitCache): LitRegion[] {
   const blockers = blockersOf(snapshot);
+  const lit: LitRegion[] = [];
   // Der Türstand in Reichweite einer Lampe — nur der entscheidet über ihre Fläche.
   const doorsKeyFor = (light: MapLight): string => {
     let key = '';
@@ -281,7 +288,7 @@ export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId 
     const doorsKey = still && cache ? doorsKeyFor(light) : '';
     const known = still && cache ? cache.take(doorsKey, light) : null;
     if (known) {
-      field.lit.push(known);
+      lit.push(known);
       continue;
     }
     const region: LitRegion = {
@@ -294,8 +301,17 @@ export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId 
       polygon: castPolygon(blockers, light.at, light.radius, light.yaw, light.fov),
     };
     if (still && cache) cache.keep(region, doorsKey);
-    field.lit.push(region);
+    lit.push(region);
   }
+  return lit;
+}
+
+/** Das Modell selbst. */
+export const computeVisibility: ComputeVisibility = ({ snapshot, mode, viewerId }, cache) => {
+  const field = emptyField(mode);
+  const viewer = viewerId ? (snapshot.entities.find((e) => e.id === viewerId) ?? null) : null;
+  const blockers = blockersOf(snapshot);
+  field.lit = litRegions(snapshot, cache);
   // **Im Schrank versteckt bleibt nur der Lichtkreis um einen herum.** Die
   // Lampen des Decks sieht man durch die Schlitze nicht mehr — realitätsnah
   // ist das Bild dann der eigene Kreis und sonst Schwarz. Wer alles sieht

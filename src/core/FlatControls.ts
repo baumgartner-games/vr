@@ -67,8 +67,10 @@ export class FlatControls {
     _strafe.copy(_forward).cross(UP).normalize();
     _move.set(0, 0, 0).addScaledVector(_forward, -z).addScaledVector(_strafe, x);
     if (_move.lengthSq() > 1) _move.normalize();
-    const boost = this.keys.has('ShiftLeft') ? 1.8 : 1;
-    this.rig.setIntent(_move.multiplyScalar(this.speed * boost), jump);
+    const sprint = this.keys.has('ShiftLeft');
+    // Die Welt darf das Tempo vorgeben (`PlayerRig.pace`); sonst gilt die Tastatur.
+    const speed = this.rig.walkSpeed(sprint, this.speed * (sprint ? 1.8 : 1));
+    this.rig.setIntent(_move.multiplyScalar(speed), jump, sprint);
   }
 
   dispose(): void {

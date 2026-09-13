@@ -131,7 +131,20 @@ draußen) und die **Türen desselben Hauses** (dass **kein Zimmer nur eine**
 hat, die Haustür mitgezählt — eine Sackgasse ist die Stelle, an der ein
 Verfolger einen wirklich stellt und eine zugefallene Tür jemanden einsperrt;
 dazu die Gegenprobe auf den Zuschnitt, weil zwei Türen zwei Nachbarn
-brauchen), der **Spuk des Monsters**
+brauchen), die **Augen des Monsters**
+(`src/worlds/haunting/monster/monsterSight.ts` — die eine Sichtrechnung für
+2D und 3D: Berührungsnähe sieht im Dunkeln, sonst nur, wer im Licht der Karte
+steht, im Kegel und ohne Wand dazwischen; und dass die 2D-Runde genau dann
+„Es hat dich gesehen." meldet, wenn das Modul es sagt), der **Läufer des
+Monsters** (`src/worlds/haunting/monster/monsterWalk.ts` — derselbe in
+beiden Welten: dass Holz nach `WOOD_DELAY` splittert, dass am Stahlriegel
+gezogen wird, bis er nachgibt, und dass ein Ziel, das auf der Karte des
+Monsters in keinem Raum liegt, ein Stehen mit Absicht ist), **eine Wahrheit
+für 2D und 3D** (`src/worlds/haunting/groundTruth.test.ts` — der Spieler auf
+der Karte so dick wie seine Kapsel, die Türöffnung so schmal wie im Schiff,
+die Türautomatik der 2D-Runde Bild für Bild dieselbe wie die des Schiffs, und
+das Gestell, das für Tastatur, Stock und Brille die Tempo-Regel der Runde
+nimmt), der **Spuk des Monsters**
 (`src/worlds/haunting/haunt.ts` — dass es das Licht des Zimmers ausmacht, in
 dem es steht, und keines daneben; dass es erst die Lampe holt und dann eine
 Tür; dass es nach jedem Streich Ruhe hält — und vor allem die eine Zusage, an
@@ -7726,6 +7739,76 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   (`room-identification`) hängen deshalb auf der türfreien Kachel nächst der
   Wandmitte (`shipArt.closedTileX`), nie über einer Tür.
 
+**Eine Wahrheit für 2D und 3D** (Paket „Eine Wahrheit")
+
+Der Besitzer will die Runde auf dem Telefon **analysieren und einstellen** und
+sich darauf verlassen, dass die Brille dasselbe Spiel spielt. Dafür muss die
+Ground Truth — die Welt, die die KI sieht, und die Bewegung von Monster und
+Spieler — in beiden Welten dieselbe sein. Was seit diesem Paket **geteilt**
+ist, steht einmal und wird von beiden Welten gerufen:
+
+- **Der Grundriss und die Karten**: `generateHouse`, `stationLayout`,
+  `roomGraph.stationGraph`/`monsterGraph` samt `earshot`, `map/extract.ts`
+  als der eine Snapshot (jetzt auch mit `noises`, mit den **gewichteten**
+  Kegel- und Hörweiten des Monsters und mit `moving`/`sprinting` aus dem
+  Beschluss — vorher zeigte der Späher einer Brillenrunde ein anderes Vieh
+  als der einer Telefonrunde).
+- **Die Augen des Monsters** (`monster/monsterSight.ts`): im Licht der Karte
+  (`map/visibility.litRegions`), im Kegel mit `Profil × Gewicht`, keine Wand
+  und kein Türblatt dazwischen (`geometry.lineOfSight`), oder Berührungsnähe
+  `CLOSE_SIGHT` 2,5 m. Das Headset rechnet das seit jetzt **je Bild** statt
+  alle 0,1 s und mit dem Snapshot statt mit einem Rapier-Strahl auf 24 m ohne
+  Kegel und ohne Licht; Möbel zählen damit in keiner Welt als Sichtschutz.
+  Das Gehör (`audio/hearing.ts`) war schon dasselbe, läuft in 3D jetzt aber
+  ebenfalls je Bild.
+- **Die Alarmleiter und das Gedächtnis** (`threat.stepAwareness`,
+  `monster/monsterMemory.ts`, `monsterIntercept.ts`), **die Routine**
+  (`monsterRoutine.ts`, `paceSpeed`) — mit `here`/`quarry` seit jetzt aus
+  `geometry.spaceAtMetres` mit `SPACE_MARGIN`, also mit derselben Trägheit wie
+  in 2D, statt von der Kachel abgelesen; die Fährte fragt `monsterGraph.spaceAt`.
+- **Der Läufer** (`monster/monsterWalk.ts`, siehe unten bei „Türen und
+  Navigation") und **die Türautomatik** (`automaticDoors.ts`, siehe „Die
+  2D-Welt"), **der Schlag** ab `CONTACT` 1,7 m, **das Spielertempo**
+  (`PlayerRig.pace`, siehe „Tempo ist eine Ungleichung").
+- **Die Zahlen**: `PLAYER_RADIUS` = `physics/playerClearance.PLAYER_CAPSULE_RADIUS`
+  = 0,24 m (die 2D-Figur war 0,35 m dick und hielt elf Zentimeter mehr
+  Abstand zu jeder Wand), begehbare Türöffnung `geometry.DOOR_PASSAGE` =
+  `PLAN_DOOR_W` 1,2 m (die 2D-Figur lief durch Pfosten, die es in 3D gibt;
+  `DOOR_WIDTH` 2,0 m bleibt das **Modell** für Licht, Sicht und Gehör in allen
+  drei Welten, darauf sind die Gewichte abgestimmt — ein Versuch, auch das
+  auf 1,2 zu setzen, warf `botTraining.test.ts` aus dem Band), der Würfel der
+  Routine im Headset aus dem Samen der Station wie in 2D (`routineDice`;
+  vorher eine Konstante), `MONSTER_RADIUS` 0,4 als Wegbreite in beiden Welten
+  (der Rapier-Zylinder ist mit 0,29 m schmaler und bleibt deshalb nirgends
+  hängen, wo die 2D-Figur durchkommt).
+
+Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
+
+- **Der Schritt selbst**: 2D gleitet einen Punkt an Wänden und Möbelkästen
+  (`geometry.slide`), 3D trägt eine Rapier-Kapsel mit Stufen, Sprung und
+  Kollision gegen Requisiten, Schränke (in 3D begehbar, in 2D ein Kasten) und
+  den Monsterkörper. Beide bekommen dieselben Wegpunkte; die Haut ist eine
+  andere.
+- **Der Zeitschritt**: 2D rechnet in festen Scheiben von 1/30 s
+  (`FlatRound.MAX_STEP`), 3D mit der Bildzeit (≤ 0,05 s) und einer
+  1/60-s-Physik daneben.
+- **Ducken** gibt es nur in 3D (`rig.crouch`, leiser: `NOISE.sneak`); die
+  Sicht kümmert es seit dem gemeinsamen Sichtmodul nicht mehr.
+- **Die beiden Techniker aus Zahlen**: `rules/technicianBot.ts` spielt die
+  echte 2D-Runde mit Stock und Knöpfen (Furchtkern, Türpreis, Riegel
+  aufziehen), `missionBot.ts` läuft im Schiff auf `route.stepAlong` ohne
+  Kollision, ohne `RouteAvoid` und mit eigener Puste. Zwei Rechnungen, zwei
+  Runden — wer die Bot-Runde der Brille zur Analyse braucht, baut sie auf den
+  2D-Techniker um (die 2D-Runde als Wahrheit, das Schiff zeichnet sie); das
+  ist der eine große Rest dieses Pakets.
+- **Der Zufallsstrom** teilt sich in 2D eine Quelle für Routine, Riegel,
+  Störung und Lampen, in 3D würfeln Störung (`glitchDice`) und Routine
+  getrennt: Derselbe Same ergibt dieselbe Runde **innerhalb** einer Welt,
+  nicht über beide hinweg.
+- **Die Trainingssimulation** (`roundSim.ts`) bleibt die grobe Raumkarte
+  ohne Wände, Licht und Türen — mit Absicht, siehe „Gewichte, Simulation,
+  Training".
+
 **Türen und Navigation**
 
 - `state.shut` beschreibt **Sperren**. `AutomaticDoors` steuert getrennt davon
@@ -7930,18 +8013,33 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   **Eine Navigation für beide Welten**: Auch das Monster und der Techniker der
   2D-Welt laufen auf demselben Rasterweg (`navmesh/flatNavigator.ts` über
   `stationRoute` auf dem `housePlan`-Graphen mit denselben Sperren), nicht mehr
-  Raum für Raum über Türwegpunkte. Der 2D-Adapter plant sparsam neu (Ziel
+  Raum für Raum über Türwegpunkte. Der Cursor plant sparsam neu (Ziel
   weiter als 0,75 m gewandert, von der Route abgekommen, Sperre geändert), wartet
   vor einer gesperrten Tür ohne Umweg 0,9 m davor und splittert Holz nach
   2,5 s; die Fächerindizierung der Wandquader in `segmentClear` hat dabei jeden
-  Weg von ≈ 88 auf ≈ 14 ms gebracht — für 3D-Monster und Bot genauso. Die
+  Weg von ≈ 88 auf ≈ 14 ms gebracht. Die
   Bahn darauf (Beschleunigen, Bremsen, Drehen) steht in
   `navmesh/route.ts` — der Datei, die `droneRoute.ts` hieß, solange es eine
-  Drohne gab.
+  Drohne gab; sie trägt heute nur noch den Modelltechniker des Schiffs.
   **Das Monster wägt dabei ab** (`aim(..., detourLimit)`): Kostet der Umweg um
-  eine gesperrte Tür mehr als `FlatRound.PRY_DETOUR` = 4 s Laufzeit, führt die
+  eine gesperrte Tür mehr als `monsterWalk.PRY_DETOUR` = 4 s Laufzeit, führt die
   Route vor die Tür, und dort wird gezogen statt gelaufen. Der Techniker gibt
   keine Grenze mit und geht weiter jeden Umweg.
+  **Und derselbe Läufer trägt das Monster in beiden Welten** (Paket „Eine
+  Wahrheit", `monster/monsterWalk.ts`): Alles zwischen dem Beschluss der
+  Routine und dem Schritt — Vorplatz-Riegel, Stillstand-Umweg über die
+  Raummitte (0,6 s / 1,2 s), Umwegabwägung, Wartepunkt, Holz splittern, am
+  Stahlriegel ziehen (`rules/doorLocks.pryLock`, derselbe Würfel wie die
+  Routine) — steht dort einmal, mit `MONSTER_RADIUS` als Wegbreite. Die
+  2D-Runde ruft es aus `moveMonster` und gleitet die Wegpunkte mit `slide`
+  ab, das Headset hängt es als Navigator an den NPC (`Npc.setNavigator`) und
+  lässt Rapier den Körper tragen. Das Zombie-Hirn des NPC dreht dabei nicht
+  mehr mit (`turn` praktisch unendlich, keine Kosinusdrossel — in 2D dreht
+  das Monster im Bild) und schlägt nicht mehr zu (`reach` 0): Getroffen wird
+  in `stepCrew` ab `CONTACT` = 1,7 m wie in 2D, das Modell holt dazu aus
+  (`Npc.lunge`). `stationNpcNavigator.ts` — der alte Cursor des Headsets, der
+  alle 0,55 s neu plante, keinen Umweg abwog und **vor einer gesperrten Tür
+  für immer stand** — ist damit weg.
 - Weltreisen/Schrank-Ausgänge synchronisieren Rig und Physik über
   `movePlayerTo`. **Mit `yaw` schaut danach der Kopf dorthin**
   (`PlayerRig.turnHeadTo`, mit Test), nicht nur das Rig: In der Brille legt das
@@ -8221,7 +8319,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Restfall „erinnerte Stelle liegt auf dem Vorplatz": `FlatRound.moveMonster`
   läuft kein Ziel an, das auf seiner Karte in keinem Raum liegt,
   `FlatRound.stepMonster` setzt keinen Schritt auf den Vorplatz (`onApron`),
-  und `StationNpcNavigator` mit `indoors: true` rechnet dorthin keinen Weg.
+  und beides steht seit dem Paket „Eine Wahrheit" in `monster/monsterWalk.ts`,
+  also auch für das Headset.
   Der Techniker läuft weiter hinein und hinaus; für ihn bleibt die Zentrale
   ein Knoten wie jeder andere. Nachgezählt wird es in hundert ausgespielten
   Runden (`RoundResult.atCommand`, `roundSim.test.ts`).
@@ -8466,8 +8565,15 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Wer geradeaus lief, kam immer davon, und es gab keinen Grund, eine Tür
   zuzuziehen oder eine Ecke zu brechen. Gerechnet wird sie in
   `mission.stepStamina` (rein, ohne Zustand außerhalb), angewandt in der
-  2D-Runde (`map/flatRound.tick`) und in 3D über `core/PlayerRig.sprintScale`,
-  das `HauntingWorld.stepCrew` je Bild setzt. Nachrechnung: Abstand 8 m,
+  2D-Runde (`map/flatRound.tick`) und in 3D über `core/PlayerRig.pace`, die
+  Tempo-Regel, die `HauntingWorld.setupRole` dem Gestell für **jeden Stock**
+  einhängt — Brille, Tastatur (`FlatControls`) und Bildschirmstock
+  (`ShipExperience.stepStick`) fragen sie je Bild, und `stepCrew` zehrt an der
+  Puste, sobald jemand rennen will und dabei den Stock hält (`rig.sprinting`,
+  `rig.wishing`). Vorher galt sie nur in der Brille: Die Tastatur ging mit
+  3,2 m/s statt 2,6 und rannte 5,76 ohne Puste, der Bildschirmstock 4,94 ohne
+  Puste — ein Tastaturspieler war damit schneller als jedes gehende Monster.
+  Nachrechnung: Abstand 8 m,
   fünf Sekunden Sprint bringen 2,7 m Vorsprung, danach holt das Monster
   0,85 m/s auf — Kontakt nach etwa 18 s gerader Flucht, mit einem Riegel
   dazwischen etwa 22 s, mit einem Sichtabriss gar nicht.
@@ -8646,8 +8752,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Tür, einem Mitspieler oder dem Monster kam. Nur **wer zusieht** (Rolle
   `watch`, „Alles sehen") darf sie auseinanderhalten. **Auch eine Tür, die auf- oder
   zufährt, macht eine Welle** (`FlatRound.stepDoors`, `MapNoiseCause` `door`);
-  dieselbe Stelle gibt den automatischen Türen einen **Nachlauf**, damit ein
-  Blatt an der Auslöseweite nicht je Bild auf- und zufährt.
+  gefahren wird seit dem Paket „Eine Wahrheit" mit **derselben Türautomatik
+  wie im Schiff** (`automaticDoors.ts`: Kasten 1,8 m quer und 3,2 m vor der
+  Tür, Nachlauf 1,2 s, ein belegter Durchgang fällt nie um jemanden zu), und
+  ein zugefahrenes Blatt ist für `slide` eine Wand — die alte eigene Rechnung
+  der 2D-Runde (Radius 2,2 m, Nachlauf bis 2,6 m) ist weg.
   Alles außerhalb der Sicht ist schwarz: eine schwarze Decke, aus
   der die Flächen des `VisibilityField` mit weichem Rand ausgeschnitten sind;
   „Alles sehen" dunkelt nur ab. **Der Schnitt wird dabei um `WALL_H` nach

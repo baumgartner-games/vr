@@ -300,13 +300,17 @@ describe('Das Monster in der 2D-Welt', () => {
       round.step(DT, input);
     }
     expect(round.blood.drops.length).toBeGreaterThan(2);
+    // Gemessen wird die Sehne zwischen zwei Tropfen; getropft wird nach dem
+    // Weg. Um eine Ecke — den Wechsel vom Geradeauslaufen auf die Route, seit
+    // der Spieler so schmal ist wie seine Kapsel und die Route enger biegt —
+    // ist die Sehne kürzer als der Weg, auf einer Geraden gleich lang.
     for (let i = 1; i < round.blood.drops.length; i++)
       expect(
         Math.hypot(
           round.blood.drops[i]!.x - round.blood.drops[i - 1]!.x,
           round.blood.drops[i]!.z - round.blood.drops[i - 1]!.z,
         ),
-      ).toBeGreaterThan(DROP_SPACING * 0.9);
+      ).toBeGreaterThan(DROP_SPACING * 0.8);
     // Dieselbe Liste in Stand und Snapshot — zwei Listen wären zwei Spuren.
     expect(round.state().blood).toBe(round.blood.drops);
     expect(round.snapshot().blood).toEqual(round.blood.drops);
