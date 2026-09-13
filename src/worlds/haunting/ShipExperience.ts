@@ -22,6 +22,7 @@ import {
   renderOptions,
   SHARED,
   soundKeys,
+  speedKeys,
   switchViewKey,
   watchKey,
   type OptionItem,
@@ -57,7 +58,6 @@ import {
   type BotTuning,
 } from './botTuning';
 import { TrainingRun, TRAINING_DEFAULTS, inBand, type TrainingSide } from './botTraining';
-import { simulationSpeedLabel } from './simulationSpeed';
 import { botArchivist, describeSetup, loadSetup, powersOf } from './rules/roundSetup';
 import { intentOf, INTENT_HINTS, INTENT_LABELS, INTENTS } from './rules/lobby';
 import type { MonsterCue, MonsterPace } from './monsterRoutine';
@@ -146,7 +146,8 @@ interface ShipHost {
   tuning?(): BotTuning;
   retune?(tuning: BotTuning): void;
   simulationSpeed?(): number;
-  cycleSimulationSpeed?(): number;
+  /** Die Stufe direkt einstellen (`simulationSpeed.ts` rastet sie ein). */
+  setSimulationSpeed?(speed: number): void;
   /** Wie das Deck in der Bot-Runde ausgeleuchtet ist. */
   lighting?(): BotLighting;
   setLighting?(lighting: Partial<BotLighting>): void;
@@ -2692,8 +2693,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       panel.append(details);
       button(crew.options.bright ? 'Testlicht aus' : 'Testlicht an', 'light', details);
       button(crew.simulation ? 'Bot-Runde beenden' : 'Bot-Runde anschauen', 'simulate', details);
+      // Das Tempo der Bot-Runde steht im Optionsmenü (`shipOptions`), nicht
+      // mehr hier: Der Besitzer wollte es dort, wo es die 2D-Welt auch hat.
       if (crew.simulation) {
-        button(simulationSpeedLabel(this.host.simulationSpeed?.() ?? 1), 'tempo', details);
         button(
           `Licht: ${lightingPreset(this.host.lighting?.() ?? DEFAULT_LIGHTING).label}`,
           'deck-light',
@@ -2834,7 +2836,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const run = this.training;
     if (!run) return;
     // Zehn Millisekunden **je echtem Bild** und nicht je gerechnetem: Im
-    // Zeitraffer läuft dieselbe Aktualisierung achtmal, und achtzig
+    // Zeitraffer läuft dieselbe Aktualisierung bis zu sechzehnmal, und achtzig
     // Millisekunden Training je Bild sind kein Training mehr, sondern ein
     // Ruckeln.
     const now = Date.now();
@@ -2922,7 +2924,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
    * (`FlatMode.renderOptions`), ohne die zwei, die es im Schiff nicht gibt
    * (Zielpfade, die Sichtmodi des Zuschauers), und mit „Zentrale" statt
    * „Karte" unter „Aufmachen": Die Karte von oben *ist* hier die andere
-   * Ansicht, und die steht als „2D ↔ 3D" weiter unten.
+   * Ansicht, und die steht als „2D ↔ 3D" weiter unten. **In der Bot-Runde
+   * dazu das Tempo** (`speedKeys`), mit denselben sechs Stufen wie in 2D.
    */
   private shipOptions(): OptionItem[] {
     const crew = this.crew;
@@ -2931,8 +2934,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       head(SHARED.view),
       note(`Realitätsnah · ${SHARED.playerView}`),
       watchKey(crew.simulation),
-      head(SHARED.open),
     ];
+    if (crew.simulation) items.push(...speedKeys(this.host.simulationSpeed?.() ?? 1));
+    items.push(head(SHARED.open));
     if (this.host.stations)
       items.push(
         key({ stations: '' }, 'Zentrale', 'Zurück in die Lobby · Rolle wechseln, Aufbau ändern'),
@@ -2965,7 +2969,14 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (!pressed) return;
     const data = pressed.dataset;
     if (data['watch'] !== undefined) this.toggleSimulation();
-    else if (data['stations'] !== undefined) this.host.stations?.();
+    else if (data['speed'] !== undefined) {
+      // Die Stufe wechselt, das Menü bleibt offen: Wer das Tempo stellt,
+      // will sehen, welche Pille jetzt leuchtet, und vielleicht gleich die
+      // nächste.
+      this.host.setSimulationSpeed?.(Number(data['speed']));
+      renderOptions(this.optionsPanel, this.shipOptions());
+      return;
+    } else if (data['stations'] !== undefined) this.host.stations?.();
     else if (data['pagemenu'] !== undefined) this.host.ctx.menu.toggle();
     else if (data['pagenet'] !== undefined) pressPageButton('net');
     else if (data['pagevr'] !== undefined) pressPageButton('vr');
@@ -3029,7 +3040,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     else if (kind === 'locker') this.lockerDigit(id!, Number(a));
     else if (kind === 'door') this.host.door(id!);
     else if (kind === 'simulate') this.toggleSimulation();
-    else if (kind === 'tempo') this.host.cycleSimulationSpeed?.();
     else if (kind === 'deck-light') this.host.setLighting?.({});
     else if (kind === 'up') this.flatFlight = 1;
     else if (kind === 'down') this.flatFlight = -1;

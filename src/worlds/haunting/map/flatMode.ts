@@ -34,10 +34,12 @@ import {
   renderOptions,
   SHARED,
   soundKeys,
+  speedKeys,
   switchViewKey,
   watchKey,
   type OptionItem,
 } from './optionsMenu';
+import { clampSimulationSpeed, simulationRepeats, type SimulationSpeed } from '../simulationSpeed';
 import { Rng } from '../rng';
 import { clockText } from '../rules/roundRules';
 import { VIEW_LABELS, type View } from '../rules/lobby';
@@ -146,7 +148,11 @@ import { pageHudShown, pressPageButton, showPageHud } from '../../../core/pageHu
  * Kartenübersicht, die Akte des Archivars als Tipp auf ein Zimmer. Ein
  * Mensch am Platz nimmt sie ihm wieder ab; dann sagt es ihm der Mitspieler,
  * oder niemand. Ziele stehen als gelbe Dreiecke am Rand der Szene, und
- * „Zielpfade" legt die Wege von Techniker und Monster darüber.
+ * „Zielpfade" legt die Wege von Techniker und Monster darüber — beim
+ * Zuschauen die des Technikers aus Zahlen (`TechnicianBot.route`, also auch
+ * seine Flucht in eine Kabine, nicht nur den Weg zur nächsten Kiste): als
+ * „Zuschauer: Alles" beide, als „Zuschauer: Einzeln" nur den dessen, dem die
+ * Kamera gerade folgt (`focus`).
  *
  * Kein three.js hier drin — auch nicht mehr für das Werkzeug in der Hand:
  * Dessen Bild ist ein **gepuffertes Icon**, das einmal aus dem 3D-Modell
@@ -186,6 +192,13 @@ export interface FlatModeHost {
    * nähme sie ihm weg. Fehlt der Haken, fehlt auch der Eintrag im Optionsmenü.
    */
   switchView?(view: View): void;
+  /**
+   * **Das Tempo der Bot-Runde** (`simulationSpeed.ts`), wenn der Wirt es
+   * hält — dann gilt dieselbe Stufe im Schiff wie hier. Ohne Wirt merkt sich
+   * die 2D-Welt die Stufe selbst.
+   */
+  simulationSpeed?(): number;
+  setSimulationSpeed?(speed: number): void;
 }
 
 /** Wie oft der Späher ein neues Horchbild bekommt, in Sekunden. */
@@ -322,6 +335,16 @@ export class FlatMode {
   private setup: RoundSetup;
   private powers: SoloPowers;
   private routes: boolean;
+  /** Die Zeitraffer-Stufe der Bot-Runde — nur der Techniker aus Zahlen läuft damit. */
+  private speed: SimulationSpeed;
+  /**
+   * **Welcher der zwei Zuschauer man ist**: „Zuschauer: Alles" (`watch:all`)
+   * sieht beide Wege, „Zuschauer: Einzeln" (`watch:technician`) nur den
+   * dessen, dem die Kamera folgt (`focus`) — gesetzt von den zwei
+   * Sprungknöpfen, damit ein zur Seite gezogenes Bild die Wahl nicht verliert.
+   */
+  private watchAll = false;
+  private focus: 'technician' | 'monster' = 'technician';
   /** Das letzte Horchbild des Spähers: die Geräusche einer Probe, neu gestempelt. */
   private heard: MapNoise[] = [];
   private scoutClock = 0;
@@ -368,6 +391,7 @@ export class FlatMode {
     this.setup = options.setup ?? setupFromOptions(options);
     this.powers = options.powers ?? (options.setup ? powersOf(options.setup) : NO_POWERS);
     this.routes = options.routes ?? false;
+    this.speed = clampSimulationSpeed(host.simulationSpeed?.() ?? 1);
     const modes = viewModesFor('flat');
     this.mode = modes.find((m) => m.visibility === (options.mode ?? 'realistic')) ?? modes[0]!;
     this.round = new FlatRound(seed, { ...options, mode: this.mode.visibility });
@@ -442,11 +466,13 @@ export class FlatMode {
       }
     });
     this.centreKey.addEventListener('click', () => {
+      this.focus = 'technician';
       this.scene.follow(PLAYER_ID);
       this.map.follow(PLAYER_ID);
       this.refreshCorners();
     });
     this.monsterKey.addEventListener('click', () => {
+      this.focus = 'monster';
       this.scene.follow(MONSTER_ID);
       this.map.follow(MONSTER_ID);
       this.refreshCorners();
@@ -499,18 +525,21 @@ export class FlatMode {
         return { allowed: allowed.abilities, why: allowed.why };
       },
       // **Techniker und Zuschauer schlagen nichts auf**, sie sagen, wer man
-      // jetzt ist: „Techniker" zurück an den Stock; „Zuschauer: Techniker"
+      // jetzt ist: „Techniker" zurück an den Stock; „Zuschauer: Einzeln"
       // gibt den Stock dem Techniker aus Zahlen, macht die Karte allwissend
       // (`registry/viewModes.ts`, „Alles sehen") und folgt ihm; „Zuschauer:
       // Alles" dazu die ganze Station von oben — die Karte als Overlay. Am
       // Netz ist Zusehen ohnehin der Zustand; dort ist der Reiter nur die
-      // Anzeige davon.
+      // Anzeige davon. Welcher der zwei man ist, bleibt gemerkt (`watchAll`):
+      // Daran hängt, wessen Zielpfad zu sehen ist.
       pick: (id) => {
         if (id === 'technician') {
           if (this.role === 'watch') this.setWatching(false);
           return;
         }
+        this.watchAll = id === 'watch:all';
         if (this.role !== 'watch') this.setWatching(true);
+        this.focus = 'technician';
         this.scene.follow(PLAYER_ID);
         this.map.follow(PLAYER_ID);
         if (id === 'watch:all') this.setOverlay('map');
@@ -714,7 +743,27 @@ export class FlatMode {
   /** Dieselbe Antwort als Reiter des gemeinsamen Kopfs (`views/roleTabs.ts`). */
   private get myRole(): MyRole {
     const role = this.role;
-    return role === 'watch' ? 'watch:technician' : role;
+    return role === 'watch' ? (this.watchAll ? 'watch:all' : 'watch:technician') : role;
+  }
+
+  /** Wem die Zielpfade beim Zuschauen gelten — für Tests und die Anzeige. */
+  get routeFocus(): 'both' | 'technician' | 'monster' {
+    return this.watchAll ? 'both' : this.focus;
+  }
+
+  /** Die Zeitraffer-Stufe der Bot-Runde (`simulationSpeed.ts`). */
+  get simulationSpeed(): SimulationSpeed {
+    return this.speed;
+  }
+
+  /**
+   * **Die Stufe einstellen** — hier und beim Wirt, der sie ins Schiff
+   * mitnimmt. Gerastet wird immer: Ein Wert, den es nicht gibt, fällt auf die
+   * Stufe darunter.
+   */
+  setSimulationSpeed(speed: number): void {
+    this.speed = clampSimulationSpeed(speed);
+    this.host.setSimulationSpeed?.(this.speed);
   }
 
   /** Ob ein Techniker aus Zahlen am Stock steht — nur in der Vorführung. */
@@ -799,12 +848,21 @@ export class FlatMode {
     this.icon.hidden = false;
   }
 
-  /** Ein Bild: Stock lesen, Runde rechnen, Karte und Anzeigen nachführen. */
+  /**
+   * Ein Bild: Stock lesen, Runde rechnen, Karte und Anzeigen nachführen.
+   *
+   * **Die Bot-Runde im Zeitraffer** rechnet mehrere Schritte je Bild
+   * (`simulationSpeed.ts`: mehr Bilder, nie längere), gezeichnet wird nur
+   * einmal. Nur der Techniker aus Zahlen läuft so — eine Runde, in der ein
+   * Mensch am Stock oder am Monster steht, hat kein Tempo zum Stellen.
+   */
   update(dt: number): void {
     if (this.netWatch) this.readNet();
     else if (this.session) this.session.update(dt);
-    else if (this.bot) this.bot.step(dt);
-    else {
+    else if (this.bot) {
+      const repeats = simulationRepeats(this.speed, dt);
+      for (let i = 0; i < repeats; i++) this.bot.step(dt);
+    } else {
       const stick = this.stick.value;
       this.round.step(dt, { x: stick.x, z: stick.z, sprint: stick.sprint });
     }
@@ -1116,19 +1174,38 @@ export class FlatMode {
     }
   }
 
-  /** Die Wege, wenn sie gewollt sind: das Monster rot, der Techniker cyan. */
-  private routeLines(): MapRoute[] {
+  /**
+   * **Die Wege, wenn sie gewollt sind**: das Monster rot, der Techniker cyan.
+   *
+   * **Beim Zuschauen ist der Weg des Technikers der seines Bots**
+   * (`TechnicianBot.route`) und nicht die Rechnung zur nächsten Kiste
+   * (`FlatRound.playerRoute`): Die war ohne Archiv leer — kein Ziel, kein
+   * Weg —, und selbst mit Archiv nicht das, was er gerade tut, wenn er vor
+   * dem Monster in eine Kabine läuft. Wer beide sieht („Zuschauer: Alles"),
+   * bekommt beide; wer einem folgt („Zuschauer: Einzeln"), nur dessen Weg —
+   * dem des Monsters, sobald der Sprungknopf dorthin gedrückt ist.
+   *
+   * **Wer selbst spielt**, sieht seinen eigenen Weg zum nächsten genannten
+   * Ziel, und den des Monsters nur, wenn er ihn wissen darf (Späher, oder
+   * die allwissende Ansicht).
+   */
+  routeLines(): MapRoute[] {
     // Am Netz gibt es keine Wegsuche auf diesem Gerät — die Wege wären die der
     // stillstehenden eigenen Runde und zeigten quer durch die Station.
     if (!this.routes || this.session || this.netWatch) return [];
     const out: MapRoute[] = [];
-    if (this.mode.visibility === 'omniscient' || this.powers.scout) {
+    const watching = this.role === 'watch';
+    const focus = watching ? this.routeFocus : 'both';
+    const monsterKnown = watching || this.mode.visibility === 'omniscient' || this.powers.scout;
+    if (focus !== 'technician' && monsterKnown) {
       const monster = this.round.monsterRoute();
       if (monster.length > 1)
         out.push({ id: 'monster', points: monster, color: INK.monster, goal: true });
     }
-    const player = this.round.playerRoute();
-    if (player.length > 1) out.push({ id: 'player', points: player, color: INK.player });
+    if (focus !== 'monster') {
+      const player = this.bot ? this.bot.route() : this.round.playerRoute();
+      if (player.length > 1) out.push({ id: 'player', points: player, color: INK.player });
+    }
     return out;
   }
 
@@ -1504,10 +1581,16 @@ export class FlatMode {
         key(
           { routes: '' },
           `Zielpfade: ${this.routes ? 'an' : 'aus'}`,
-          'Der Weg des Technikers zum nächsten Ziel · der des Monsters in Rot',
+          watching
+            ? 'Techniker cyan, Monster rot · „Zuschauer: Alles" zeigt beide, „Einzeln" den, dem du folgst'
+            : 'Der Weg des Technikers zum nächsten Ziel · der des Monsters in Rot',
           { active: this.routes },
         ),
       );
+      // **Das Tempo der Bot-Runde** — dieselben sechs Stufen wie im Schiff
+      // (`speedKeys`), und nur, solange wirklich ein Techniker aus Zahlen
+      // läuft: Eine Runde mit einem Menschen am Stock hat kein Tempo.
+      if (this.bot) items.push(...speedKeys(this.speed));
       // **Zuschauen ist keine Rundenart mehr, sondern ein Schalter.** Der
       // Besitzer wollte es ausdrücklich hier haben und „immer" — deshalb steht
       // er zwischen den zwei anderen Dingen, die man mitten in der Runde
@@ -1614,6 +1697,9 @@ export class FlatMode {
       this.renderOptions();
     } else if (data['routes'] !== undefined) {
       this.routes = !this.routes;
+      this.renderOptions();
+    } else if (data['speed'] !== undefined) {
+      this.setSimulationSpeed(Number(data['speed']));
       this.renderOptions();
     } else if (data['restart'] !== undefined) {
       // Nur noch der Knopf im Endbildschirm („Noch einmal?"). Im Optionsmenü
@@ -1756,6 +1842,7 @@ export class FlatMode {
     this.setOverlay('none');
     this.lastAt = { x: this.round.player.x, z: this.round.player.z };
     this.strip.show('');
+    this.focus = 'technician';
     this.scene.follow(PLAYER_ID);
     this.map.fit();
     this.map.follow(PLAYER_ID);

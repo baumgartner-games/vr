@@ -85,6 +85,11 @@ export class FlatWalker {
     return this.shutDoor;
   }
 
+  /** Die Wegpunkte, die noch vor dem Läufer liegen — für die Zielpfade der Karte. */
+  get remaining(): readonly FloorPoint[] {
+    return this.navigator.remaining;
+  }
+
   /** Für Spuren: wohin der Stock gerade will. */
   describe(goal: FloorPoint): string {
     const round = this.round;

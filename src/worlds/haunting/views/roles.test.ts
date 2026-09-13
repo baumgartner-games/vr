@@ -552,7 +552,7 @@ describe('Der Rollenstreifen über der 2D-Welt', () => {
     ]);
     expect(keys[1]!.querySelector('small')?.textContent).toBe('Schalttafel');
     expect(keys[3]!.querySelector('small')?.textContent).toBe('Aufklärung');
-    expect(keys[5]!.querySelector('small')?.textContent).toBe('Techniker');
+    expect(keys[5]!.querySelector('small')?.textContent).toBe('Einzeln');
     expect(keys[6]!.querySelector('small')?.textContent).toBe('Alles');
     expect(keys[0]!.classList.contains('is-mine')).toBe(true);
     expect(keys[0]!.classList.contains('is-active')).toBe(true);

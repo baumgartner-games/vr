@@ -93,6 +93,7 @@ let testMission: jest.Mock;
 let stations: jest.Mock;
 /** Der eine Knopf „2D von oben" im Panel des Technikers (`HauntingWorld.switchView`). */
 let switchView: jest.Mock;
+let speed: number;
 let menuToggle: jest.Mock;
 let floating: FlashlightTool;
 /** Was der Kompass gerade ansagt — die Welt rechnet es sonst selbst (`HauntingWorld.objectives`). */
@@ -174,6 +175,7 @@ beforeEach(() => {
   testMission = jest.fn();
   stations = jest.fn();
   switchView = jest.fn();
+  speed = 1;
   goals = [];
   round = null;
   floating = new FlashlightTool();
@@ -197,6 +199,10 @@ beforeEach(() => {
     round: () => round,
     stations,
     switchView,
+    simulationSpeed: () => speed,
+    setSimulationSpeed: (value) => {
+      speed = value;
+    },
     door: jest.fn(),
     travel: (at) => rig.placeAt(at),
     route: () => null,
@@ -325,6 +331,42 @@ test('die Tafel des Technikers lässt sich zuklappen und wieder auf', () => {
   fold().click();
   expect(panel.classList.contains('is-folded')).toBe(false);
   expect(panel.querySelector<HTMLDetailsElement>('details[data-main]')?.open).toBe(true);
+});
+
+/**
+ * **Das Tempo der Bot-Runde steht im Optionsmenü** — dort, wo es die 2D-Welt
+ * auch hat (`map/optionsMenu.speedKeys`): sechs Pillen, die gewählte leuchtet,
+ * und der Knopf, der reihum zählte, ist aus der Test-Tafel weg. Nur in der
+ * Bot-Runde: Wer selbst spielt, hat kein Tempo zu stellen.
+ */
+test('the bot round takes its speed from the options menu, one pill per step', () => {
+  // Die Tafel zeichnet sich nach jedem Druck neu — das Zahnrad also jedes Mal
+  // frisch nachschlagen.
+  const gear = (): HTMLButtonElement =>
+    document.querySelector<HTMLButtonElement>('[data-action="options"]')!;
+  gear().click();
+  const panel = document.querySelector<HTMLElement>('.orbital-options')!;
+  expect(panel.hidden).toBe(false);
+  expect(panel.querySelector('[data-speed]')).toBeNull();
+  gear().click();
+  expect(panel.hidden).toBe(true);
+  experience.startBotRound();
+  frame();
+  expect(document.querySelector('[data-action="tempo"]')).toBeNull();
+  gear().click();
+  expect(panel.hidden).toBe(false);
+  const pills = [...panel.querySelectorAll<HTMLButtonElement>('[data-speed]')];
+  expect(pills.map((pill) => pill.dataset['speed'])).toEqual(['1', '2', '4', '8', '12', '16']);
+  expect(panel.querySelector<HTMLButtonElement>('[data-speed].is-active')?.dataset['speed']).toBe(
+    '1',
+  );
+  panel.querySelector<HTMLButtonElement>('[data-speed="12"]')!.click();
+  expect(speed).toBe(12);
+  // Das Menü bleibt offen und zeigt die neue Stufe.
+  expect(panel.hidden).toBe(false);
+  expect(panel.querySelector<HTMLButtonElement>('[data-speed].is-active')?.dataset['speed']).toBe(
+    '12',
+  );
 });
 
 test('leaving the technician view ends its local demo and restores a safe standing position', () => {

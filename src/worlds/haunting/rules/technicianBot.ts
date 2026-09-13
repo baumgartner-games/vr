@@ -213,6 +213,23 @@ export class TechnicianBot {
     return this.avoid();
   }
 
+  /**
+   * **Der Weg, den er gerade geht** — vom Techniker bis zum Ende seiner
+   * Route, sei es die nächste Kiste oder die Kabine, in die er flieht. Leer,
+   * wenn er versteckt ist oder steht: Ein Weg, den niemand geht, gehört nicht
+   * auf die Karte.
+   */
+  route(): FloorPoint[] {
+    const round = this.round;
+    if (round.state().crew.hidden) return [];
+    const points = this.walker.remaining;
+    if (!points.length) return [];
+    return [
+      { x: round.player.x, z: round.player.z },
+      ...points.map((point) => ({ x: point.x, z: point.z })),
+    ];
+  }
+
   /** Ein Zeitschritt: Stock lesen, Knöpfe drücken, Runde rechnen. */
   step(dt: number): void {
     const round = this.round;

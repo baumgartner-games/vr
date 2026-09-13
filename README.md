@@ -259,7 +259,9 @@ sie dämpft sie: Was nebenan ankommt, kommt später und blasser an, und eine
 zugeworfene Tür macht einen Schritt leiser und nicht lautlos. Gelbe Dreiecke
 am Bildrand zeigen zum nächsten Ziel (am Desktop im Schiff ein Kompass am oberen Bildrand),
 „Zielpfade" im Optionsmenü legt die Wege von Techniker und Monster auf die
-Karte, und im Modus „Alles sehen" führen Bögen von Klappe zu Klappe mit dem
+Karte — beim Zuschauen als „Zuschauer: Alles" beide, als „Zuschauer: Einzeln"
+nur den dessen, zu dem der Sprungknopf zuletzt geführt hat —, und im Modus
+„Alles sehen" führen Bögen von Klappe zu Klappe mit dem
 Raum, in dem der Schacht endet. Wer das Monster spielt, steigt mit
 **Interagieren** in eine Klappe und wählt darunter den Zielraum.
 **Der obere Rand gehört in 2D dem Spiel.** Die Kopfzeile der Seite (Menü,
@@ -272,7 +274,8 @@ auf, ein zweiter wieder zu. Rechts daneben das **Zahnrad**, in der Zeile
 darunter die Sprungknöpfe — die sind damit nie verdeckt.
 
 Das **Zahnrad** zeigt, was sich mitten in der Runde ändert — Ansicht,
-Zielpfade, Ton, **Zuschauen: an/aus** (immer möglich), **Ansicht: 2D ↔ 3D**
+Zielpfade, Ton, **Zuschauen: an/aus** (immer möglich), beim Zuschauen die
+**Simulationsgeschwindigkeit** (×1 bis ×16), **Ansicht: 2D ↔ 3D**
 und **Runde verlassen** —, und darin unter **Aufmachen** die
 drei Wege nach draußen: **Karte** (die Übersicht der Station; den eigenen
 🗺-Knopf oben rechts gibt es nicht mehr), **Menü** und **Verbindung**, also
@@ -534,8 +537,9 @@ welchem Raum eben jemand gearbeitet hat, und legt für ein paar Sekunden
 merklich zu. Es sieht nicht durch Wände; es hat nur gehört, was die halbe
 Station gehört hat. Schächte durch gemeinsame Wände benutzt es weiterhin.
 
-**Zeitraffer, Regler und Training.** In der Bot-Runde laufen ×2, ×4 und ×8
-(beschleunigt wird über die Zahl der Bilder, nicht über ihre Länge). Die
+**Zeitraffer, Regler und Training.** In der Bot-Runde laufen ×2, ×4, ×8, ×12
+und ×16 (beschleunigt wird über die Zahl der Bilder, nicht über ihre Länge);
+eingestellt wird das im Optionsmenü, in 2D wie im Schiff. Die
 Beleuchtung schaltet zwischen voller Beleuchtung, Wachbetrieb,
 Alarmbeleuchtung und Notstrom — im Alarm drehen sich rote Leuchten in den
 Gängen. Unter **Bots justieren & trainieren** stehen alle Gewichte beider Bots

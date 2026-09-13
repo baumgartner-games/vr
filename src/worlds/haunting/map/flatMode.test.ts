@@ -721,6 +721,108 @@ describe('Die Sprungknöpfe rechts', () => {
  * ihren Stand herein (`FlatModeHost.watchSnapshot`) — dann rechnet die 2D-Welt
  * gar nichts mehr, sondern zeichnet, was der Gastgeber ansagt.
  */
+describe('Die Zielpfade und das Tempo beim Zuschauen', () => {
+  /**
+   * **Der Weg des Technikers ist der seines Bots.** Vorher fragte die Karte
+   * `playerRoute` — die Rechnung zur nächsten genannten Kiste —, und die war
+   * ohne Archiv leer: Zielpfade an, und nur das Monster hatte einen. Der
+   * Zuschauer sieht jetzt, wohin der Techniker aus Zahlen wirklich läuft.
+   */
+  it('zeigt dem Zuschauer den Weg des Technikers aus Zahlen — auch ohne Archiv', () => {
+    const flat = new FlatMode(
+      3,
+      { role: 'watch', routes: true, powers: { scout: false, panel: false, archive: false } },
+      { exit: () => {} },
+    );
+    document.body.append(flat.element);
+    for (let i = 0; i < 5; i++) flat.update(DT);
+    expect(flat.round.playerRoute()).toEqual([]);
+    const player = flat.routeLines().find((route) => route.id === 'player');
+    expect(player).toBeDefined();
+    expect(player!.points.length).toBeGreaterThan(1);
+    expect(player!.points[0]).toEqual({ x: flat.round.player.x, z: flat.round.player.z });
+    flat.dispose();
+  });
+
+  /**
+   * **„Zuschauer: Einzeln" zeigt den Weg dessen, dem die Kamera folgt**, und
+   * „Zuschauer: Alles" beide — der Besitzer wollte es genau so. Gemerkt wird
+   * die Wahl an den Sprungknöpfen, nicht an der Kamera: Ein zur Seite
+   * gezogenes Bild wechselt den Weg nicht.
+   */
+  it('folgt mit dem Weg dem Sprungknopf — und zeigt als „Zuschauer: Alles" beide', () => {
+    const flat = new FlatMode(3, { role: 'watch', routes: true }, { exit: () => {} });
+    document.body.append(flat.element);
+    flat.round.haunt.monsterOn = true;
+    for (let i = 0; i < 5; i++) flat.update(DT);
+    const ids = (): string[] => flat.routeLines().map((route) => route.id);
+    expect(flat.routeFocus).toBe('technician');
+    expect(ids()).toEqual(['player']);
+    flat.element.querySelector<HTMLButtonElement>('.flat__centre--monster')!.click();
+    expect(flat.routeFocus).toBe('monster');
+    expect(ids()).not.toContain('player');
+    // Zur Seite gezogen bleibt es beim Monster.
+    flat.scene.panBy(80, 0);
+    flat.update(DT);
+    expect(flat.routeFocus).toBe('monster');
+    flat.element
+      .querySelector<HTMLButtonElement>('.flat__centre:not(.flat__centre--monster)')!
+      .click();
+    expect(flat.routeFocus).toBe('technician');
+    expect(ids()).toEqual(['player']);
+    const key = (id: string): HTMLButtonElement =>
+      flat.element.querySelector<HTMLButtonElement>(`[data-role-strip="${id}"]`)!;
+    expect(key('watch:technician').classList.contains('is-mine')).toBe(true);
+    expect(key('watch:technician').querySelector('small')?.textContent).toBe('Einzeln');
+    key('watch:all').click();
+    expect(flat.routeFocus).toBe('both');
+    expect(ids()).toContain('player');
+    expect(ids().length).toBe(flat.round.monsterRoute().length > 1 ? 2 : 1);
+    expect(key('watch:all').classList.contains('is-mine')).toBe(true);
+    key('watch:technician').click();
+    expect(flat.routeFocus).toBe('technician');
+    expect(key('watch:technician').classList.contains('is-mine')).toBe(true);
+    flat.dispose();
+  });
+
+  /**
+   * **Das Tempo der Bot-Runde** steht im Optionsmenü, mit denselben Stufen
+   * wie im Schiff (`simulationSpeed.ts`), und rechnet mehr Schritte je Bild —
+   * nie längere. Der Wirt bekommt die Stufe, damit sie ins Schiff mitgeht.
+   */
+  it('stellt das Tempo der Bot-Runde im Optionsmenü ein und rechnet mehr Schritte je Bild', () => {
+    const setSimulationSpeed = jest.fn();
+    const flat = new FlatMode(
+      3,
+      { role: 'watch' },
+      { exit: () => {}, simulationSpeed: () => 2, setSimulationSpeed },
+    );
+    document.body.append(flat.element);
+    expect(flat.simulationSpeed).toBe(2);
+    flat.element.querySelector<HTMLButtonElement>('.flat__options')!.click();
+    const pills = [...flat.element.querySelectorAll<HTMLButtonElement>('[data-speed]')];
+    expect(pills.map((pill) => pill.dataset['speed'])).toEqual(['1', '2', '4', '8', '12', '16']);
+    expect(pills.find((pill) => pill.classList.contains('is-active'))?.dataset['speed']).toBe('2');
+    flat.element.querySelector<HTMLButtonElement>('[data-speed="8"]')!.click();
+    expect(flat.simulationSpeed).toBe(8);
+    expect(setSimulationSpeed).toHaveBeenCalledWith(8);
+    expect(
+      flat.element.querySelector<HTMLButtonElement>('[data-speed].is-active')?.dataset['speed'],
+    ).toBe('8');
+    const before = flat.round.state().time;
+    flat.update(DT);
+    expect(flat.round.state().time).toBeCloseTo(before + 8 * DT, 6);
+    // Wer selbst spielt, hat kein Tempo zu stellen.
+    flat.element.querySelector<HTMLButtonElement>('[data-watch]')!.click();
+    expect(flat.role).toBe('technician');
+    expect(flat.element.querySelector('[data-speed]')).toBeNull();
+    const again = flat.round.state().time;
+    flat.update(DT);
+    expect(flat.round.state().time).toBeCloseTo(again + DT, 6);
+    flat.dispose();
+  });
+});
+
 describe('Der Zuschauer am Netz', () => {
   /** Eine echte Runde als Quelle, ein paar Schritte weit gelaufen. */
   function liveRound(): FlatRound {
