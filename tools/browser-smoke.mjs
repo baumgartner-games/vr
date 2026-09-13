@@ -38,6 +38,8 @@ for (const name of browserNames) {
   try {
     browser = await { chromium, firefox }[name].launch({
       headless: args.has('headless') || Boolean(process.env.CI),
+      // Ein vorinstallierter Browser statt des Playwright-Downloads (Container ohne Netz).
+      ...(process.env.SMOKE_EXECUTABLE ? { executablePath: process.env.SMOKE_EXECUTABLE } : {}),
       ...(name === 'chromium'
         ? {
             args: args.has('software')
@@ -403,7 +405,7 @@ for (const name of browserNames) {
           return {
             monster: world.state.monster,
             hp: world.state.crew.hp,
-            monsterPath: world.monsterNavigator?.navigation.points.length ?? 0,
+            monsterPath: world.monsterWalk?.remaining.length ?? 0,
             botPath: world.experience.botNavigation?.points.length ?? 0,
             overlay: world.navigationOverlay.root.visible,
           };

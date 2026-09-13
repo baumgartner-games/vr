@@ -4,6 +4,9 @@ import { HauntingWorld } from './HauntingWorld';
 import { generateHouse, type HouseSpec } from './house';
 import { freshCrew, freshStamina, stationOptions } from './mission';
 import { AutomaticDoors } from './automaticDoors';
+import { LitCache } from './map/visibility';
+import { Hearing } from './audio/hearing';
+import { RoundRules } from './rules/roundRules';
 import { DEFAULT_TUNING } from './botTuning';
 import { DEFAULT_LIGHTING } from './botLighting';
 import { Rng } from './rng';
@@ -132,7 +135,8 @@ function replay(): ReplayWorld {
     live: new THREE.Group(),
     blob: null,
     hostId: 'remote',
-    context: { net: { localId: 'local' } },
+    rules: new RoundRules(() => world.state),
+    context: { net: { localId: 'local', peers: new Map() } },
     technicians: new Map(),
     director: { clear: jest.fn(), spawn: jest.fn(() => null) },
     // Felder, die sonst der Konstruktor setzt — der Prototyp-Nachbau hat keinen.
@@ -140,6 +144,21 @@ function replay(): ReplayWorld {
     // Die Puste des Technikers (`mission.ts`): `stepCrew` rechnet sie in jedem
     // Bild weiter und setzt daraus `PlayerRig.sprintScale`.
     stamina: freshStamina(),
+    dash: 1,
+    // Die Wahrnehmung des Monsters rechnet seit dem Paket „Eine Wahrheit" je
+    // Bild auf dem Snapshot der Welt (`monster/monsterSight.ts`): Lampen,
+    // Lichtflächen, Hörmodell, Geräuschwellen und Rundenregeln muss der
+    // Nachbau deshalb mitbringen.
+    lamps: new Map(),
+    litCache: new LitCache(),
+    hearingModel: new Hearing(),
+    noiseQueue: [],
+    noiseLog: [],
+    noiseSerial: 0,
+    stepPulse: 0,
+    monsterPulse: 0,
+    monsterSpace: '',
+    playerSpace: '',
     // Und die Blutspur (`rules/blood.ts`), die `stepCrew` in jedem Bild
     // fortschreibt — auch wenn niemand blutet.
     blood: freshTrail(),
@@ -407,7 +426,9 @@ test('safe bot rounds spawn a real patrol without reading the observer camera or
 
 test('simulation perception reads the bot position and ignores the observer rig', () => {
   const world = replay();
-  const bot = { x: 0, z: -40, yaw: 0 };
+  // Zwei Meter vor dem Monster: Berührungsnähe (`monsterSight.CLOSE_SIGHT`),
+  // gesehen also auch ohne eine einzige Lampe.
+  const bot = { x: 0, z: -39, yaw: 0 };
   world.state.crew.options.test = true;
   world.state.crew.simulation = true;
   world.state.monster = { x: 0, z: -37 };

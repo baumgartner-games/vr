@@ -54,9 +54,14 @@ import {
 import { Hearing } from './audio/hearing';
 import { stepLoudness } from './audio/cues';
 import { acousticField, pointKey, inView, BOT_FOV, BOT_VISION, MONSTER_FOV } from './perception';
+import { monsterSight } from './monster/monsterSight';
+import { LitCache, litRegions } from './map/visibility';
 import { visibleStationRooms } from './stationVisibility';
 import { stationRoute } from './stationNavigation';
-import { StationNpcNavigator } from './stationNpcNavigator';
+import { MonsterWalk, type WalkEvent } from './monster/monsterWalk';
+import { NOISE } from './audio/cues';
+import { reachOf } from './audio/hearing';
+import { doorCentre, spaceAtMetres } from './map/geometry';
 import { loadTuning, saveTuning, clampTuning, type BotTuning } from './botTuning';
 import {
   DEFAULT_LIGHTING,
@@ -69,7 +74,7 @@ import {
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from './monsterRoutine';
 import { MonsterMemory, shutPairs } from './monster/monsterMemory';
 import { graphEstimator, type Estimator } from './monster/monsterIntercept';
-import { monsterGraph, stationGraph } from './roomGraph';
+import { COMMAND, monsterGraph, stationGraph } from './roomGraph';
 import { clampSimulationSpeed, simulationRepeats, type SimulationSpeed } from './simulationSpeed';
 import { AutomaticDoors } from './automaticDoors';
 import { StationTravelPlan } from './stationTravelPlan';
@@ -79,6 +84,7 @@ import {
   grantBurst,
   MONSTERS,
   PLAYER_SPRINT_SPEED,
+  PLAYER_WALK_SPEED,
   ROOM_COUNTS,
   repairRoom,
   repairsFor,
@@ -109,6 +115,7 @@ import {
   freshLocks,
   holdUntil,
   isChosen,
+  pryLock,
   releaseLock,
   slamDoor,
   stepLocks,
@@ -191,9 +198,18 @@ import type { MonsterDriver } from './monster/monsterDriver';
 import { NetMonsterControl } from './monster/netMonsterControl';
 import { NetMonsterPort } from './monster/netMonsterPort';
 import { rescueHeight } from '../shared/fallRescue';
-import type { MapSnapshot } from './map/mapSnapshot';
+import type { MapNoise, MapNoiseCause, MapSnapshot } from './map/mapSnapshot';
 import type { FlatMode } from './map/flatMode';
-import type { FlatOptions, FlatResume } from './map/flatRound';
+import {
+  CONTACT,
+  MONSTER_ID,
+  MONSTER_RADIUS,
+  PLAYER_ID,
+  PLAYER_RADIUS,
+  SPACE_MARGIN,
+  type FlatOptions,
+  type FlatResume,
+} from './map/flatRound';
 import type { ToolIcons } from './map/toolIcons';
 import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './stations';
 import {
@@ -261,6 +277,11 @@ import type { Npc } from '../npc/Npc';
  */
 
 /** Wie oft der Gastgeber den Stand verschickt, und jeder seinen Platz ansagt. */
+/** Wie lange ein Geräusch für die Karte aufgehoben wird, in Sekunden — wie in der 2D-Runde. */
+const NOISE_MEMORY = 5;
+/** Wie oft ein Schritt als Welle auf die Karte kommt, in Sekunden — gehend und rennend. */
+const STEP_PULSE = 0.55;
+const SPRINT_PULSE = 0.35;
 const STATE_RATE = 1 / 4;
 /**
  * Wie oft die Sitzordnung der Zentrale im Schiff neu gerechnet wird, in
@@ -404,8 +425,6 @@ const _beaconOn = new THREE.Color(0xff4d55);
 const _lampOn = new THREE.Color(0xfff0cf);
 const _head = new THREE.Vector3();
 const _feet = new THREE.Vector3();
-/** Der Schlag eines Spielers am Steuer hat keine Richtung — `takeHit` liest keine. */
-const _strike = new THREE.Vector3();
 const _probe = new THREE.Vector3();
 const _landing = new THREE.Vector3();
 const _down = new THREE.Vector3(0, -1, 0);
@@ -479,6 +498,8 @@ export class HauntingWorld extends GridWorld {
   private phoneRenderView = '';
   private sightTimer = 0;
   private monsterSeesPlayer = false;
+  /** Die hellen Flächen der Karte, zwischengespeichert wie in der 2D-Runde (`map/visibility.ts`). */
+  private readonly litCache = new LitCache();
   private stationTorch: FlashlightTool | null = null;
   private torchImmersive = false;
   private readonly roomArt = new Map<string, THREE.Object3D>();
@@ -491,7 +512,23 @@ export class HauntingWorld extends GridWorld {
   private cullTimer = 0;
   private culledDoors = '';
   private readonly navigationOverlay = new NavigationOverlay();
-  private monsterNavigator: StationNpcNavigator | null = null;
+  /** Der Läufer des Monsters — derselbe wie in der 2D-Runde (`monster/monsterWalk.ts`). */
+  private monsterWalk: MonsterWalk | null = null;
+  /** Das Tempo, das die Routine dem Monster zuletzt gegeben hat (`paceSpeed`). */
+  private monsterSpeed = 0;
+  /** In welchem Raum das Monster steht — nach seiner eigenen Karte, träge wie in 2D. */
+  private monsterSpace = '';
+  /** Und der Techniker — dieselbe Trägheit (`SPACE_MARGIN`), `command` auf dem Vorplatz. */
+  private playerSpace = '';
+  /**
+   * **Die Geräusche der letzten Sekunden, für die Karte** (`MapNoise`) — wie
+   * `FlatRound.noiseLog`. Vorher hatte der Snapshot der 3D-Welt keine Wellen:
+   * Wer am Telefon einer Brillenrunde zusah, sah eine stumme Station.
+   */
+  private readonly noiseLog: MapNoise[] = [];
+  private noiseSerial = 0;
+  private stepPulse = 0;
+  private monsterPulse = 0;
   private monsterArt: THREE.Object3D | null = null;
   /**
    * **Der Körper des Technikers, der in 2D spielt.**
@@ -528,8 +565,15 @@ export class HauntingWorld extends GridWorld {
   private repaired = 0;
   /** Die Puste des Technikers (`mission.ts`) — in 3D wie in 2D. */
   private readonly stamina = freshStamina();
+  /** Was davon gerade übrig ist, 0…1 — die Zahl, die `PlayerRig.pace` je Bild liest. */
+  private dash = 1;
   private decision: RoutineOutput | null = null;
-  private readonly routineDice = new Rng(0x4d4f4e53);
+  /**
+   * **Der Würfel der Routine kommt aus dem Samen der Station** — wie in der
+   * 2D-Runde (`FlatRound`, `seed ^ roll`). Vorher stand hier eine Konstante,
+   * und eine Brillenrunde war aus ihrem Samen nicht nachzuspielen.
+   */
+  private routineDice = new Rng(0x4d4f4e53);
   /** Der Würfel der Stationsfehler — eigener Strom, damit er das Monster nicht verschiebt. */
   private readonly glitchDice = new Rng(0x53434854);
   /** Welches Schott gerade grundlos offen steht (`rules/doorGlitch.ts`) — beim Gastgeber. */
@@ -965,8 +1009,16 @@ export class HauntingWorld extends GridWorld {
     const crew = this.state.crew;
     if (!this.monster || !this.routine) return;
     const at = this.monster.feet(_feet);
-    const here = roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE));
-    const quarry = roomAt(this.spec, Math.floor(head.x / TILE), Math.floor(head.z / TILE));
+    // **Raumzuordnung mit derselben Trägheit wie in 2D** (`geometry.spaceAtMetres`,
+    // `SPACE_MARGIN`): Ein neuer Raum zählt erst, wenn man ein Stück tief darin
+    // steht. Vorher las das Headset die Kachel ab und wechselte auf der Linie
+    // zwischen Gang und Zimmer je Bild den Raum — und mit ihm das Ziel.
+    const space = spaceAtMetres(this.spec, at, this.monsterSpace, SPACE_MARGIN);
+    if (space && space !== COMMAND) this.monsterSpace = space.id;
+    const here = this.monsterSpace;
+    const stood = spaceAtMetres(this.spec, head, this.playerSpace, SPACE_MARGIN);
+    this.playerSpace = stood === null ? this.playerSpace : stood === COMMAND ? COMMAND : stood.id;
+    const quarry = this.playerSpace;
     if (this.monsterSeesPlayer) this.sawPlayerAt = this.state.time;
     // Ein Rückzug in den Schrank ist nur dann verraten, wenn eben noch
     // jemand hingesehen hat.
@@ -980,21 +1032,24 @@ export class HauntingWorld extends GridWorld {
     let scent: Scent | null = null;
     if (!piloted && this.state.time - this.sniffed >= SNIFF_EVERY) {
       this.sniffed = this.state.time;
-      const room = here?.id ?? '';
-      scent = sniff(this.blood, { x: at.x, z: at.z }, this.state.time, (drop) => {
-        const where = roomAt(this.spec, Math.floor(drop.x / TILE), Math.floor(drop.z / TILE));
-        return !!room && where?.id === room;
-      });
+      const room = here;
+      const prowl = monsterGraph(this.spec);
+      scent = sniff(
+        this.blood,
+        { x: at.x, z: at.z },
+        this.state.time,
+        (drop) => !!room && prowl.spaceAt(drop) === room,
+      );
     }
     const decision = piloted
       ? this.monsterDriver!.decide(dt)
       : this.routine.step(monsterGraph(this.spec), {
           dt,
           at: { x: at.x, z: at.z },
-          here: here?.id ?? '',
+          here,
           signal: threatTarget(crew),
           seen: this.monsterSeesPlayer,
-          quarry: quarry?.id ?? null,
+          quarry: quarry || null,
           caught: this.watchedLocker,
           rng: () => this.routineDice.next(),
           memory: this.brain ?? undefined,
@@ -1021,13 +1076,70 @@ export class HauntingWorld extends GridWorld {
     // damit ein Zuschauer sie sieht, der das Monster nicht selbst rechnet.
     this.state.insight = this.decision.insight ?? undefined;
     const base = MONSTERS.find((m) => m.id === crew.options.monster)!.speed;
-    this.monster.setSpeed(paceSpeed(base, this.tuning.monster, decision.pace, decision.boost));
+    this.monsterSpeed = paceSpeed(base, this.tuning.monster, decision.pace, decision.boost);
+    this.monster.setSpeed(this.monsterSpeed);
+    this.stepMonsterNoise(decision, dt, { x: at.x, z: at.z });
     if (decision.cue) this.experience?.monsterCue(decision.cue, { x: at.x, z: at.z });
-    // Ein Spieler am Steuer trifft den Techniker im Freien mit dem Knopf —
-    // `takeHit` prüft Abstand und Sichtlinie wie bei einem Schlag des NPC.
-    if (decision.strike && piloted && !decision.cabin) this.takeHit(_strike, 1);
-    else if (decision.strike)
+    // Die Kabine ist danach hin (`rules/roundRules.ts`) — getroffen wird nur,
+    // wer genau darin steckt. Ein Schlag ins Freie ist keiner: Das entscheidet
+    // der Abstand (`strikeCrew`), in 2D wie hier.
+    if (decision.strike && decision.cabin)
       this.breakLocker(decision.goal ?? { x: at.x, z: at.z }, decision.cabin);
+  }
+
+  /** Was das Monster an einer gesperrten Tür getan hat — Geräusch und Welle (`monster/monsterWalk.ts`). */
+  private doorWorked(event: WalkEvent): void {
+    const at = doorCentre(event.door);
+    if (event.kind === 'pull') {
+      this.wave(MONSTER_ID, at, NOISE.monsterWalk, 'door');
+      return;
+    }
+    this.wave(MONSTER_ID, at, NOISE.slam, 'slam');
+    const head = this.previousFeet;
+    if (head && Math.hypot(head.x - at.x, head.z - at.z) < 12) playSlam();
+  }
+
+  /** Eine Welle auf der Karte: wer, wo, wie weit (`reachOf`), wann — wie `FlatRound.wave`. */
+  private wave(
+    by: string,
+    at: { x: number; z: number },
+    loudness: number,
+    cause: MapNoiseCause,
+  ): void {
+    this.noiseLog.push({
+      id: `n${this.noiseSerial++}`,
+      by,
+      at: { x: at.x, z: at.z },
+      radius: reachOf(loudness),
+      cause,
+      since: this.state.time,
+    });
+  }
+
+  /** Die Schritte des Monsters als Wellen — derselbe Takt wie in der 2D-Runde. */
+  private stepMonsterNoise(
+    decision: RoutineOutput,
+    dt: number,
+    at: { x: number; z: number },
+  ): void {
+    if (decision.pace === 'still') {
+      this.monsterPulse = 0;
+      return;
+    }
+    this.monsterPulse -= dt;
+    if (this.monsterPulse > 0) return;
+    const hunting = decision.pace === 'hunt';
+    this.monsterPulse = hunting ? SPRINT_PULSE : STEP_PULSE;
+    this.wave(
+      MONSTER_ID,
+      at,
+      hunting
+        ? NOISE.monsterRun
+        : decision.mode === 'search'
+          ? NOISE.monsterStalk
+          : NOISE.monsterWalk,
+      'monster',
+    );
   }
 
   /** Das Monster als Reiter der Fahrt: Füße, Blick, Raum — `null` ohne Monster. */
@@ -1127,6 +1239,13 @@ export class HauntingWorld extends GridWorld {
     this.wanted = null;
     this.claims.delete(ctx.net.localId);
     ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician', active: ctx.role === 'vr' });
+    // **Das Tempo der Runde gilt für jeden Stock** (`mission.ts`, `PlayerRig.pace`):
+    // Brille, Tastatur und Bildschirmstock gehen 2,6 m/s und rennen 4,94 mal
+    // Puste — dieselben Zahlen wie in der 2D-Runde (`map/flatRound.ts`).
+    ctx.rig.pace =
+      ctx.role === 'vr'
+        ? (sprint) => (sprint ? PLAYER_SPRINT_SPEED * this.dash : PLAYER_WALK_SPEED)
+        : null;
     if (ctx.role === 'vr') {
       // Nur in der Brille schwebt eine eingeschaltete Taschenlampe in der Einsatzzentrale —
       // man muss sie im Dunkeln ja finden können.
@@ -1209,6 +1328,7 @@ export class HauntingWorld extends GridWorld {
 
   override dispose(ctx: WorldContext): void {
     this.navigationOverlay.dispose();
+    ctx.rig.pace = null;
     ctx.net.off(HAUNT_CHANNEL);
     ctx.touchStick(true);
     // Die Avatare gehören der Seite: In der nächsten Welt steht jeder wieder, wo er steht.
@@ -1376,6 +1496,7 @@ export class HauntingWorld extends GridWorld {
       monsterPace: () => this.decision?.pace ?? 'still',
       noise: (at, loudness) => {
         this.noiseQueue.push({ at: { x: at.x, z: at.z }, loudness });
+        this.wave(PLAYER_ID, at, loudness, 'interact');
       },
       floatingTorch: () => this.stationTorch,
       takeFloatingTorch: () => {
@@ -1422,10 +1543,18 @@ export class HauntingWorld extends GridWorld {
           (this.hearing.get(pointKey(pose)) ?? Infinity) < 8;
         return seen || heard ? monster : null;
       },
-      routeTo: (from, target) => stationRoute(this.spec, this.travelGraph(), from, target),
+      // Der Modelltechniker plant mit dem Radius des Spielers — wie `FlatWalker` in 2D.
+      routeTo: (from, target) =>
+        stationRoute(this.spec, this.travelGraph(), from, target, PLAYER_RADIUS),
       route: (from, room) => {
         const c = roomCentre(room);
-        return stationRoute(this.spec, this.travelGraph(), from, tileKey(c.x, c.z, 0));
+        return stationRoute(
+          this.spec,
+          this.travelGraph(),
+          from,
+          tileKey(c.x, c.z, 0),
+          PLAYER_RADIUS,
+        );
       },
     });
     this.stage.add(this.experience.root);
@@ -1908,6 +2037,8 @@ export class HauntingWorld extends GridWorld {
 
     if (this.isHost && !this.waitingHandover) {
       this.state.time += dt;
+      while (this.noiseLog.length && this.state.time - this.noiseLog[0]!.since > NOISE_MEMORY)
+        this.noiseLog.shift();
       // Zugefallene Türen gehen von selbst wieder auf (`rules/doorLocks.ts`).
       const locks = stepLocks(this.locks, this.state.shut, this.state.time);
       if (locks.opened.length) this.state.shut = locks.shut;
@@ -1960,7 +2091,9 @@ export class HauntingWorld extends GridWorld {
     const overlay = this.state.crew.simulation || this.insightWanted();
     this.navigationOverlay.update(overlay, [
       this.experience?.botNavigation ?? null,
-      this.monsterNavigator?.navigation ?? null,
+      this.monsterWalk && this.monster
+        ? this.monsterWalk.navigation(this.monster.feet(_feet))
+        : null,
     ]);
 
     // Der Gastgeber hat die Absichten aus seinem Beschluss, alle anderen aus
@@ -2417,7 +2550,7 @@ export class HauntingWorld extends GridWorld {
     for (const entry of done.slice(this.repaired)) {
       const room = repairRoom(this.spec, entry);
       if (!room) continue;
-      this.brain?.disturbed(room, stationGraph(this.spec).centre(room), this.state.time);
+      this.brain?.disturbed(room, monsterGraph(this.spec).centre(room), this.state.time);
       this.routine?.hurry(this.tuning.monster.rush);
     }
     this.repaired = done.length;
@@ -2589,27 +2722,24 @@ export class HauntingWorld extends GridWorld {
     }
   }
 
-  protected override takeHit(_direction: THREE.Vector3, _strength: number): void {
-    const ctx = this.context;
-    if (!ctx || !this.monster) return;
-    // Ein Spieler am Steuer trifft nur mit dem Knopf, nicht durch Berührung
-    // (`monster/monsterHelm.ts`); `stepRoutine` ruft dann selbst hierher.
-    if (this.monsterDriver?.active() && !this.decision?.strike) return;
-    ctx.rig.getHeadPosition(_head);
+  /**
+   * **Das Monster schlägt um sich — wie in der 2D-Runde.** Wer in `CONTACT`
+   * steht und nicht im Schrank, wird getroffen, von der KI wie von einem
+   * Spieler am Steuer; den Takt zwischen zwei Treffern hält `takeCrewHit`.
+   * Vorher entschied hier das Zombie-Hirn des NPC (Reichweite 1,15 m auf sein
+   * *Ziel*, nicht auf den Spieler), dazu ein Rapier-Strahl und 1,65 m — drei
+   * Zahlen, die es auf dem Telefon nicht gab.
+   */
+  private strikeCrew(): void {
+    if (!this.isHost || !this.monster) return;
+    if (!takeCrewHit(this.state.crew, this.state.phase === 'running')) return;
     const at = this.monster.feet(_feet);
-    if (
-      this.ventRide.busy ||
-      !roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)) ||
-      Math.hypot(at.x - _head.x, at.z - _head.z) > 1.65 ||
-      !this.monsterLineOfSight()
-    )
-      return;
-    if (!this.isHost || !takeCrewHit(this.state.crew, this.state.phase === 'running')) return;
+    this.monster.lunge();
     // Der kurze Schub nach dem Treffer (`mission.HIT_BURST`): Die Schonfrist
     // nützt nichts, wenn man sie im Griff des Monsters absteht — und das
     // Monster hält dazu selbst inne (`monsterRoutine.rest`, `HIT_LULL`).
     grantBurst(this.stamina);
-    this.routine?.rest(HIT_LULL, { x: _head.x, z: _head.z });
+    this.routine?.rest(HIT_LULL, { x: at.x, z: at.z }, this.monsterSpace);
     wound(this.blood, this.state.time);
     for (const hand of ['left', 'right'] as const) this.context?.input.get(hand)?.pulse(0.65, 120);
     playSwitch(false);
@@ -2625,6 +2755,9 @@ export class HauntingWorld extends GridWorld {
       );
     this.context?.refreshWorldMenu();
   }
+
+  /** Schläge des NPC-Hirns gibt es hier nicht mehr (`setNavigator`, `reach` 0): getroffen wird in `stepCrew`. */
+  protected override takeHit(): void {}
 
   private stepCrew(dt: number, ctx: WorldContext): void {
     if (ctx.role !== 'vr') return;
@@ -2655,7 +2788,10 @@ export class HauntingWorld extends GridWorld {
     // einen Schacht statt einer geraden Linie. Der Modelltechniker der
     // Bot-Runde hat seine eigene Puste (`rules/technicianBot.ts`), deshalb
     // hängt das hier am echten Gestell und nicht an ihm.
-    const dash = stepStamina(this.stamina, dt, !bot && ctx.rig.sprinting && speed > 0.1);
+    // Gezehrt wird, wenn jemand rennen **will** und dabei den Stock hält — wie
+    // in 2D (`wants && input.sprint`), nicht erst, wenn der Kopf sich bewegt.
+    const dash = stepStamina(this.stamina, dt, !bot && ctx.rig.sprinting && ctx.rig.wishing);
+    this.dash = dash;
     if (!bot) ctx.rig.sprintScale = dash;
     // **Die Blutspur** (`rules/blood.ts`): nach Strecke, nicht nach Zeit, und
     // in jedem Bild — auch ohne offene Wunde, damit alte Tropfen verschwinden.
@@ -2663,65 +2799,89 @@ export class HauntingWorld extends GridWorld {
     // die Leitung zu allen, die sie zeichnen.
     stepTrail(this.blood, { x: _head.x, z: _head.z }, this.state.time);
     this.state.blood = this.blood.drops;
+    // --- Die Wahrnehmung des Monsters, **je Bild und mit denselben Augen
+    // wie in der 2D-Runde** (`monster/monsterSight.ts`): im Licht der Karte,
+    // im Kegel mit der gewichteten Sichtweite, keine Wand dazwischen. Vorher
+    // schoss hier alle 0,1 s ein Rapier-Strahl auf 24 m ohne Kegel und ohne
+    // Licht — ein anderes Vieh als das, gegen das trainiert wurde.
+    const profile = ENTITY_PROFILES[this.state.crew.options.monster];
+    const snapshot = monster ? this.mapSnapshot() : null;
+    const sight =
+      monster && snapshot
+        ? monsterSight({
+            snapshot,
+            light: { lit: litRegions(snapshot, this.litCache), self: null },
+            monster: { x: monster.x, z: monster.z, yaw: this.monster?.model.rotation.y ?? 0 },
+            player: { x: _head.x, z: _head.z },
+            hidden: !!this.state.crew.hidden || this.state.crew.venting > 0,
+            range: profile.vision * this.tuning.monster.vision,
+          })
+        : null;
+    this.monsterSeesPlayer = sight?.seen ?? false;
+    // --- Die zuletzt gesehene Stelle, beide Richtungen (`rules/ghosts.ts`).
+    // Sie hängt an denselben Prüfungen wie Alarmleiter und Bot-Furcht: Ein
+    // eigener Sichttest daneben wäre eine zweite Wahrheit, und der Marker
+    // zeigte woandershin als das, was das Monster tut. Der Blick des
+    // Technikers kommt aus der Kamera (im Modelltechniker aus seiner Pose,
+    // deren Winkel wie bei der Drohne um π gedreht steht).
+    let facing = bot ? bot.yaw + Math.PI : 0;
+    if (!bot) {
+      ctx.camera.getWorldDirection(_feet);
+      facing = Math.atan2(-_feet.x, -_feet.z);
+    }
+    const ghosts = this.state.ghosts;
+    ghosts.technician = markGhost(
+      ghosts.technician,
+      this.monsterSeesPlayer,
+      { x: _head.x, z: _head.z },
+      facing,
+      this.state.time,
+    );
+    // Andersherum sieht der Techniker das Monster, wenn es in seinem Kegel
+    // steht und keine Wand dazwischen ist — dieselbe Rechnung, mit der der
+    // Modelltechniker vor ihm flieht (`danger`). Im Schacht sieht ihn
+    // niemand.
+    const sighted =
+      !!monster &&
+      this.state.crew.venting === 0 &&
+      inView(_head, facing, monster, BOT_VISION, BOT_FOV) &&
+      this.clearSight(
+        { x: _head.x, z: _head.z, y: _head.y },
+        { ...monster, y: this.state.crew.options.monster === 'crawler' ? 0.52 : 1.5 },
+      );
+    ghosts.monster = markGhost(
+      ghosts.monster,
+      sighted,
+      monster ?? { x: 0, z: 0 },
+      this.monster?.model.rotation.y ?? 0,
+      this.state.time,
+    );
+    // Das akustische Feld ist nur Anzeige (`navigationOverlay`) — es darf
+    // seltener laufen als die Wahrnehmung selbst.
     this.sightTimer -= dt;
     if (this.sightTimer <= 0) {
       this.sightTimer = 0.1;
-      this.monsterSeesPlayer = distance < 24 && this.monsterLineOfSight();
-      // --- Die zuletzt gesehene Stelle, beide Richtungen (`rules/ghosts.ts`).
-      // Sie hängt an denselben Prüfungen wie Alarmleiter und Bot-Furcht: Ein
-      // eigener Sichttest daneben wäre eine zweite Wahrheit, und der Marker
-      // zeigte woandershin als das, was das Monster tut. Der Blick des
-      // Technikers kommt aus der Kamera (im Modelltechniker aus seiner Pose,
-      // deren Winkel wie bei der Drohne um π gedreht steht).
-      let facing = bot ? bot.yaw + Math.PI : 0;
-      if (!bot) {
-        ctx.camera.getWorldDirection(_feet);
-        facing = Math.atan2(-_feet.x, -_feet.z);
-      }
-      const ghosts = this.state.ghosts;
-      ghosts.technician = markGhost(
-        ghosts.technician,
-        this.monsterSeesPlayer,
-        { x: _head.x, z: _head.z },
-        facing,
-        this.state.time,
-      );
-      // Andersherum sieht der Techniker das Monster, wenn es in seinem Kegel
-      // steht und keine Wand dazwischen ist — dieselbe Rechnung, mit der der
-      // Modelltechniker vor ihm flieht (`danger`). Im Schacht sieht ihn
-      // niemand.
-      const sighted =
-        !!monster &&
-        this.state.crew.venting === 0 &&
-        inView(_head, facing, monster, BOT_VISION, BOT_FOV) &&
-        this.clearSight(
-          { x: _head.x, z: _head.z, y: _head.y },
-          { ...monster, y: this.state.crew.options.monster === 'crawler' ? 0.52 : 1.5 },
-        );
-      ghosts.monster = markGhost(
-        ghosts.monster,
-        sighted,
-        monster ?? { x: 0, z: 0 },
-        this.monster?.model.rotation.y ?? 0,
-        this.state.time,
-      );
       this.hearing = monster && this.nav ? acousticField(this.nav, monster, 24) : new Map();
-      // Was das Monster hört, rechnet das Hörmodell der Karte (`audio/hearing.ts`):
-      // die eigenen Schritte nach Tempo, dazu das Hantieren aus `ShipExperience`.
-      const sources = this.noiseQueue.splice(0);
-      const loudness = stepLoudness(speed, !bot && ctx.rig.crouch > 0.15);
-      if (loudness > 0) sources.push({ at: { x: _head.x, z: _head.z }, loudness });
-      this.heard =
-        monster && sources.length
-          ? hearNoises(
-              this.hearingModel,
-              this.mapSnapshot(),
-              monster,
-              sources,
-              this.tuning.monster.hearing,
-            )
-          : [];
     }
+    // Was das Monster hört, rechnet das Hörmodell der Karte (`audio/hearing.ts`)
+    // — je Bild, wie die 2D-Runde je Schritt: die eigenen Schritte nach Tempo,
+    // dazu das Hantieren aus `ShipExperience`.
+    const sources = this.noiseQueue.splice(0);
+    const loudness = stepLoudness(speed, !bot && ctx.rig.crouch > 0.15);
+    if (loudness > 0) sources.push({ at: { x: _head.x, z: _head.z }, loudness });
+    // Jeder Schritt eine Welle auf der Karte — rennend öfter und weiter, wie in 2D.
+    if (loudness > 0 && !this.state.crew.hidden) {
+      this.stepPulse -= dt;
+      if (this.stepPulse <= 0) {
+        const sprinting = speed > 3.6;
+        this.stepPulse = sprinting ? SPRINT_PULSE : STEP_PULSE;
+        this.wave(PLAYER_ID, _head, loudness, sprinting ? 'sprint' : 'walk');
+      }
+    } else this.stepPulse = 0;
+    this.heard =
+      monster && sources.length
+        ? hearNoises(this.hearingModel, snapshot!, monster, sources, this.tuning.monster.hearing)
+        : [];
     stepThreat(
       this.state.crew,
       dt,
@@ -2731,9 +2891,10 @@ export class HauntingWorld extends GridWorld {
         noises: this.heard,
         crouched: !bot && ctx.rig.crouch > 0.15,
         flashlight: bot ? !this.state.crew.hidden : (this.experience?.flashlightActive ?? false),
-        inView:
-          !!monster && inView(monster, this.monster?.model.rotation.y ?? 0, _head, 24, MONSTER_FOV),
-        lineOfSight: this.monsterSeesPlayer,
+        // Gesehen oder nicht, sagt das gemeinsame Sichtmodul — `flashlight`,
+        // `inView` und die Sichtweite der Alarmleiter gelten dann nicht mehr.
+        seen: sight?.seen ?? false,
+        lineOfSight: sight?.lineOfSight ?? false,
         insideStation: !!roomAt(this.spec, Math.floor(_head.x / TILE), Math.floor(_head.z / TILE)),
       },
       // **Die Gewichte gehören auch hierher.** Ohne sie rechnete das Headset
@@ -2757,6 +2918,8 @@ export class HauntingWorld extends GridWorld {
     if (this.ventRide.busy && this.npcRide && rider)
       this.npcRide.step(dt, rider, this.monsterDriver?.active() !== true);
     else this.stepRoutine(dt, _head);
+    // **Ab `CONTACT` trifft es** — dieselbe Zahl und dieselbe Prüfung wie in 2D.
+    if (!this.ventRide.busy && distance < CONTACT && !this.state.crew.hidden) this.strikeCrew();
     // Das Signal für alle Leser von `venting`: Modell, Klotz, Bot-Wahrnehmung,
     // Karte, Treffer — gesetzt nach `stepVitals`, das jedes Bild `dt` abzieht.
     this.state.crew.venting = this.npcRide?.venting() ?? 0;
@@ -2787,33 +2950,6 @@ export class HauntingWorld extends GridWorld {
   }
 
   /** Fixed-collider ray: doors, walls and tall modules hide the player. */
-  private monsterLineOfSight(): boolean {
-    const physics = this.physics;
-    const monster = this.monster;
-    const ctx = this.context;
-    if (!physics || !monster || !ctx) return false;
-    const bot = this.state.crew.simulation ? this.experience?.botPose : null;
-    if (bot) _head.set(bot.x, 1.65, bot.z);
-    else ctx.rig.getHeadPosition(_head);
-    monster.feet(_feet);
-    const eye = this.state.crew.options.monster === 'crawler' ? 0.52 : 1.5;
-    const dx = _head.x - _feet.x;
-    const dy = _head.y - (Math.max(0, _feet.y) + eye);
-    const dz = _head.z - _feet.z;
-    const distance = Math.hypot(dx, dy, dz);
-    if (distance < 0.04) return true;
-    const ray = new physics.rapier.Ray(
-      { x: _feet.x, y: Math.max(0, _feet.y) + eye, z: _feet.z },
-      { x: dx / distance, y: dy / distance, z: dz / distance },
-    );
-    return !physics.world.castRay(
-      ray,
-      distance - 0.03,
-      true,
-      physics.rapier.QueryFilterFlags.ONLY_FIXED,
-    );
-  }
-
   private manualDoor(id: string): void {
     if (!this.isHost || this.context?.role !== 'vr' || !this.stepping) return;
     const door = this.spec.doors.find((d) => d.id === id);
@@ -4828,6 +4964,7 @@ export class HauntingWorld extends GridWorld {
             intensity: 1,
           })),
         doorOpen: (id) => this.automaticDoors.isOpen(id),
+        noises: () => this.noiseLog,
         // Wie lange die Sperre noch hält — der Balken über der Tür
         // (`rules/doorLocks.ts`, `map/mapView.ts`).
         doorHold: (id) => {
@@ -4875,10 +5012,18 @@ export class HauntingWorld extends GridWorld {
             x: _head.x,
             z: _head.z,
             yaw: Math.atan2(-_feet.x, -_feet.z),
-            moving: false,
-            sprinting: this.state.crew.exertion > 0.3,
+            moving: ctx.rig.wishing,
+            sprinting: ctx.rig.sprinting,
           };
         },
+        // Was auf der Karte um das Monster gezeichnet wird — Kegel und Hörweite
+        // **mit Gewichten**, wie in der 2D-Runde. Ohne sie zeigte der Späher
+        // einer Brillenrunde ein anderes Vieh als der einer Telefonrunde.
+        tuning: () => this.tuning.monster,
+        monsterPace: () => ({
+          moving: !this.ventRide.busy && (this.decision?.pace ?? 'still') !== 'still',
+          sprinting: this.decision?.pace === 'hunt',
+        }),
         torch: () => ({
           lit: !!this.stationTorch?.visible && this.experience?.flashlightActive === true,
           held: this.experience?.flashlightActive ? 'flashlight' : '',
@@ -4926,7 +5071,7 @@ export class HauntingWorld extends GridWorld {
       this.monsterArt = null;
     }
     this.director?.clear();
-    this.monsterNavigator = null;
+    this.monsterWalk = null;
     this.routine = null;
     this.brain = null;
     this.estimator = null;
@@ -5007,10 +5152,12 @@ export class HauntingWorld extends GridWorld {
     // genau so lange ohne Ziel herum, wie es dauert, bis die Wahrnehmung das
     // erste Mal läuft — und in einer Bot-Runde ohne Techniker wäre das für
     // immer.
+    this.monsterSpace =
+      roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE))?.id ?? '';
     this.decision = this.routine.step(monsterGraph(this.spec), {
       dt: 0,
       at,
-      here: roomAt(this.spec, Math.floor(at.x / TILE), Math.floor(at.z / TILE))?.id ?? '',
+      here: this.monsterSpace,
       signal: null,
       seen: false,
       quarry: null,
@@ -5018,23 +5165,59 @@ export class HauntingWorld extends GridWorld {
       rng: () => this.routineDice.next(),
     });
     if (this.monster) {
-      const navigator = new StationNpcNavigator(
-        () => this.spec,
-        () => this.travelGraph(),
-        0.1,
-        // Die Einsatzzentrale ist für das Monster nicht begehbar: Sie steht
-        // nicht in seiner Karte (`roomGraph.monsterGraph`), und seine Wegsuche
-        // führt auch dann nicht dorthin, wenn sein Ziel dort läge.
-        true,
+      // **Derselbe Läufer wie in der 2D-Runde** (`monster/monsterWalk.ts`):
+      // Rasterweg mit `MONSTER_RADIUS`, Umwegabwägung, Warten vor der Tür,
+      // Holz splittern, am Stahlriegel ziehen. Die Einsatzzentrale ist für das
+      // Monster nicht begehbar: Sie steht nicht in seiner Karte
+      // (`roomGraph.monsterGraph`), und ein Ziel dort ist kein Ziel.
+      const walk = new MonsterWalk(
+        this.spec,
+        monsterGraph(this.spec),
+        MONSTER_RADIUS,
+        {
+          shut: () => this.state.shut,
+          release: (door, time) => {
+            this.state.shut = releaseLock(this.locks, this.state.shut, door.id, time);
+          },
+          pry: (door, time) => {
+            const out = pryLock(this.locks, this.state.shut, door.id, time, () =>
+              this.routineDice.next(),
+            );
+            this.state.shut = out.shut;
+            return { tries: out.tries > 0, opened: out.opened };
+          },
+        },
+        {
+          test: () => this.state.crew.options.test,
+          // Eine durch Belegung noch physisch offen gehaltene Sperrtür bleibt
+          // bis zum Verlassen der Schwelle navigierbar (`automaticDoors`).
+          occupiedOpen: () => this.state.shut.filter((id) => this.automaticDoors.isOpen(id)),
+        },
       );
-      this.monsterNavigator = navigator;
+      this.monsterWalk = walk;
       // Ein Spieler am Steuer bekommt keinen Weg gesucht: Sein Ziel liegt
       // einen Meter voraus und wandert mit ihm — eine Rasterwegsuche je Bild
       // wäre Arbeit für nichts. Er läuft geradeaus, Rapier hält ihn an Wänden.
-      this.monster.setNavigator((input) =>
-        this.monsterDriver?.active()
-          ? { x: input.target.x, z: input.target.z }
-          : navigator.step(input),
+      //
+      // **Das Hirn des NPC dreht nicht mehr mit und schlägt nicht mehr zu**
+      // (`reach` 0, `turn` praktisch unendlich): In 2D dreht sich das Monster
+      // im Bild, geht mit vollem Tempo und trifft auf `CONTACT` (`stepCrew`).
+      // Mit 130°/s und der Kosinusdrossel des Hirns war es in der Brille um
+      // jede Ecke langsamer als auf dem Telefon.
+      this.monster.setNavigator(
+        (input) => {
+          if (this.monsterDriver?.active()) return { x: input.target.x, z: input.target.z };
+          const at = { x: input.at.x, z: input.at.z, space: this.monsterSpace };
+          const out = walk.step(
+            at,
+            { x: input.target.x, z: input.target.z },
+            this.state.time,
+            this.monsterSpeed,
+          );
+          for (const event of out.events) this.doorWorked(event);
+          return out.target;
+        },
+        { reach: 0, turn: 1e6 },
       );
       this.monster.model.visible = false;
       this.monsterArt = buildCreature(this.state.crew.options.monster);
@@ -5122,6 +5305,8 @@ export class HauntingWorld extends GridWorld {
     this.automaticDoors.clear();
     this.spec = generateHouse(rollSeed(), options.rooms);
     this.state = freshState(this.spec.seed, options);
+    this.routineDice = new Rng(this.spec.seed >>> 0);
+    this.playerSpace = '';
     this.previousFeet = null;
     this.sightTimer = 0;
     this.monsterSeesPlayer = false;

@@ -1,4 +1,5 @@
 import type { HouseSpec } from '../house';
+import type { MonsterTuning } from '../botTuning';
 import type { HauntState } from '../net';
 import { ENTITY_PROFILES } from '../threat';
 import { BOT_FOV, BOT_VISION, MONSTER_FOV } from '../perception';
@@ -30,6 +31,8 @@ export interface WorldHandles {
   state(): HauntState;
   lamps(): ReadonlyArray<{ id: string; x: number; z: number; color?: string; intensity: number }>;
   doorOpen(id: string): boolean;
+  /** Die Geräusche der letzten Sekunden als Wellen für die Karte — wie `FlatRound.noises`. */
+  noises?(): MapSnapshot['noises'];
   /** Die Uhr an dieser Tür (`rules/doorLocks.ts`): Sperre oder Abkühlung, siehe `MapSource.doorHold`. */
   doorHold?(id: string): { left: number; total: number; cooling?: boolean } | null;
   /** Der eigene Kopf — nur in der Technikerrolle; sonst `null`. */
@@ -40,6 +43,10 @@ export interface WorldHandles {
   bot(): { x: number; z: number; yaw: number } | null;
   /** Das Monster: Position aus dem Stand, Blick aus dem Modell. */
   monsterYaw(): number;
+  /** Die Gewichte des Monsters (`botTuning.ts`) — für Kegel und Hörweite auf der Karte, wie in 2D. */
+  tuning?(): MonsterTuning;
+  /** Ob das Monster gerade geht und ob es jagt — aus dem Beschluss der Routine. */
+  monsterPace?(): { moving: boolean; sprinting: boolean };
   /** Mitspieler, die als Techniker im Haus stehen. */
   peers(): ReadonlyArray<{ id: string; name: string; x: number; z: number; yaw: number }>;
   /** Der Stand der Rundenregeln (Paket Rundenregeln), wenn die Welt sie führt. */
@@ -58,6 +65,7 @@ export function worldMapSource(world: WorldHandles): MapSource {
     state: () => world.state(),
     lamps: () => world.lamps(),
     doorOpen: (id) => world.doorOpen(id),
+    noises: world.noises ? () => world.noises!() : undefined,
     doorHold: world.doorHold ? (id) => world.doorHold!(id) : undefined,
     round: world.round ? () => world.round!() : undefined,
     ventLinks: world.vents ? () => world.vents!().links : undefined,
@@ -99,6 +107,8 @@ export function worldMapSource(world: WorldHandles): MapSource {
       if (state.monsterOn && state.monster) {
         const kind = state.crew.options.monster;
         const profile = ENTITY_PROFILES[kind];
+        const tuning = world.tuning?.();
+        const pace = world.monsterPace?.() ?? { moving: true, sprinting: false };
         out.push({
           id: 'monster',
           kind: 'monster',
@@ -107,10 +117,14 @@ export function worldMapSource(world: WorldHandles): MapSource {
           yaw: world.monsterYaw(),
           roomId: spaceOf(spec, state.monster),
           concealed: state.crew.venting > 0,
-          moving: true,
-          sprinting: false,
+          moving: pace.moving,
+          sprinting: pace.sprinting,
           held: '',
-          sense: { fov: MONSTER_FOV, range: profile.vision, hearing: profile.hearing },
+          sense: {
+            fov: MONSTER_FOV,
+            range: profile.vision * (tuning?.vision ?? 1),
+            hearing: profile.hearing * (tuning?.hearing ?? 1),
+          },
         });
       }
       for (const peer of world.peers())

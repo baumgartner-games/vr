@@ -172,15 +172,21 @@ describe('Gesperrte Türen bleiben Spielregel', () => {
     const at = doorCentre(door);
     let arrived = -1;
     let split = -1;
+    // Wann es zuletzt **nicht** an der Tür stand: Die Routine darf es
+    // zwischendurch den eigenen Raum absuchen lassen (das Geräusch pendelt
+    // sie hin und her), und jedes Weggehen setzt die Arbeit an der Tür
+    // zurück. Gezählt werden die 2,5 s ab dem letzten Ankommen.
+    let away = 0;
     for (let t = 0; t < 30 && split < 0 && round.phase === 'running'; t += DT) {
       round.step(DT, pushing(round, door));
-      if (arrived < 0 && Math.hypot(round.monster.x - at.x, round.monster.z - at.z) < 1.6)
-        arrived = round.haunt.time;
+      const near = Math.hypot(round.monster.x - at.x, round.monster.z - at.z) < 1.6;
+      if (arrived < 0 && near) arrived = round.haunt.time;
+      if (!near) away = round.haunt.time;
       if (round.drain().some((e) => e.text === 'Holz splittert.')) split = round.haunt.time;
     }
     expect(arrived).toBeGreaterThan(0);
-    expect(split).toBeGreaterThan(arrived + 2.5 - DT);
-    expect(split).toBeLessThan(arrived + 2.5 + 1);
+    expect(split).toBeGreaterThan(away + 2.5 - DT);
+    expect(split).toBeLessThan(away + 2.5 + 1);
     expect(round.haunt.shut).not.toContain(door.id);
     expect(round.navigator.target).not.toBeNull();
   });

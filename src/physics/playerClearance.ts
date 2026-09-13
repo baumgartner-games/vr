@@ -1,4 +1,13 @@
 /**
+ * **Der Radius der Spielerkapsel**, in Metern (`PhysicsLocomotion`). Er steht
+ * hier und nicht dort, weil die 2D-Runde der Haunting-Welt dieselbe Zahl
+ * braucht (`map/flatRound.PLAYER_RADIUS`) und keine Physik importieren soll:
+ * Ein Spieler, der auf dem Telefon dicker ist als in der Brille, kommt dort
+ * durch eine Tür, an der er hier hängen bleibt.
+ */
+export const PLAYER_CAPSULE_RADIUS = 0.24;
+
+/**
  * Ob ein losgelassenes Ding noch **im Spieler steckt** — im Rumpf oder in einer
  * Hand.
  *
