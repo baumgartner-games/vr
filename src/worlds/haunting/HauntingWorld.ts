@@ -70,7 +70,7 @@ import { MonsterRoutine, paceSpeed, type RoutineOutput } from './monsterRoutine'
 import { MonsterMemory, shutPairs } from './monster/monsterMemory';
 import { graphEstimator, type Estimator } from './monster/monsterIntercept';
 import { monsterGraph, stationGraph } from './roomGraph';
-import { nextSimulationSpeed, simulationRepeats, type SimulationSpeed } from './simulationSpeed';
+import { clampSimulationSpeed, simulationRepeats, type SimulationSpeed } from './simulationSpeed';
 import { AutomaticDoors } from './automaticDoors';
 import { StationTravelPlan } from './stationTravelPlan';
 import {
@@ -1392,9 +1392,8 @@ export class HauntingWorld extends GridWorld {
         this.routine?.retune(this.tuning.monster);
       },
       simulationSpeed: () => this.simulationSpeed,
-      cycleSimulationSpeed: () => {
-        this.simulationSpeed = nextSimulationSpeed(this.simulationSpeed);
-        return this.simulationSpeed;
+      setSimulationSpeed: (speed) => {
+        this.simulationSpeed = clampSimulationSpeed(speed);
       },
       lighting: () => this.botLighting,
       setLighting: (lighting) => {
@@ -4723,6 +4722,13 @@ export class HauntingWorld extends GridWorld {
             this.ui?.goSetup();
           },
           notify: (text) => ctx.notify(text),
+          // **Dasselbe Tempo auf beiden Seiten.** Die Stufe gehört der Welt,
+          // nicht der Ansicht: Wer in 2D auf ×8 stellt und ins Schiff wechselt,
+          // sieht die Bot-Runde dort mit ×8 weiterlaufen — und umgekehrt.
+          simulationSpeed: () => this.simulationSpeed,
+          setSimulationSpeed: (speed) => {
+            this.simulationSpeed = clampSimulationSpeed(speed);
+          },
           // **Wer das Monster spielt, wechselt nicht.** Im Schiff gäbe es für
           // ihn keine zweite Ansicht — er stünde dort plötzlich als Techniker
           // in einer Runde, die schon einen hat. Der **Zuschauer** darf: Für

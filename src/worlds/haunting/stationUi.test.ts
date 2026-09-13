@@ -334,10 +334,10 @@ describe('Die Einsatzzentrale baut ihre Rollen aus der Registry', () => {
       'Späher',
       'Schalttafel',
       '',
-      'Techniker',
+      'Einzeln',
       'Alles',
     ]);
-    // Der gemerkte Platz leuchtet: Zuschauer des Technikers, der Anfang.
+    // Der gemerkte Platz leuchtet: Zuschauer: Einzeln, der Anfang.
     expect(button('[data-me="watch:technician"]').classList.contains('is-mine')).toBe(true);
     expect(document.querySelector('.haunt__bar')?.textContent).not.toContain('EINSATZZENTRALE');
     // Die Knöpfe der Seite sind ins Zahnrad gezogen: ein Kopf, nicht zwei.

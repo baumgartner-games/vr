@@ -778,7 +778,7 @@ export class StationUi {
       this.dropView();
       this.view = role.mount(this.roleHost());
       this.viewId = role.id;
-      // **Der Zuschauer bringt seine Linse mit**: „Zuschauer: Techniker" folgt
+      // **Der Zuschauer bringt seine Linse mit**: „Zuschauer: Einzeln" folgt
       // ihm, „Zuschauer: Alles" sieht das Deck. Die Ansicht selbst darf sie
       // danach umstellen; hier steht nur der Anfang.
       const watch = this.view as Partial<WatchRoleView>;

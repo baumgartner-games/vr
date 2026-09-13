@@ -62,7 +62,7 @@ export interface WatchRoleView extends RoleView {
   /** Was gerade angesehen wird — die Welt richtet ihre Kamera danach aus. */
   readonly lens: Readonly<WatchLens>;
   /**
-   * **Die Linse von außen voreinstellen** — der Reiter „Zuschauer: Techniker"
+   * **Die Linse von außen voreinstellen** — der Reiter „Zuschauer: Einzeln"
    * folgt ihm, „Zuschauer: Alles" sieht das Deck (`stationUi.ts`). Die
    * Ansicht darf sie danach selbst umstellen; das hier ist nur der Anfang.
    */

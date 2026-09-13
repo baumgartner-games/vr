@@ -23,7 +23,7 @@ import { mountSeatView } from './seatRole';
  * Szene darunter.
  *
  * **Angeboten werden die Plätze, nicht die Karten** (`roleTabs.ts`): Techniker,
- * Rot, Gelb, Blau, Monster, Zuschauer: Techniker, Zuschauer: Alles — dieselben
+ * Rot, Gelb, Blau, Monster, Zuschauer: Einzeln, Zuschauer: Alles — dieselben
  * sieben Reiter wie über der Karte des Telefons. Vorher standen hier Archiv,
  * Schalttafel und Späher, also die Karten der Registry, und in der Mission
  * hieß die Zeile damit anders als im Test auf dem Telefon; der Besitzer

@@ -44,7 +44,7 @@ export interface WatchLens {
   insight: boolean;
   /**
    * **Durch die Augen des Technikers** statt von oben über ihm — das
-   * Live-Bild, das „Zuschauer: Techniker" verspricht (`rules/roundSetup.ts`,
+   * Live-Bild, das „Zuschauer: Einzeln" verspricht (`rules/roundSetup.ts`,
    * `MY_ROLE_HINTS`). Zählt nur, solange die Kamera ihm folgt
    * (`follow === 'technician'`); über dem Deck oder dem Monster bleibt es
    * das Puppenhaus.

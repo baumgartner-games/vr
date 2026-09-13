@@ -6,6 +6,7 @@ import {
   note,
   renderOptions,
   soundKeys,
+  speedKeys,
   switchViewKey,
   watchKey,
 } from './optionsMenu';
@@ -53,14 +54,36 @@ describe('Das geteilte Optionsmenü', () => {
     expect(swap.kind === 'key' && swap.label).toContain('2D ↔ 3D');
     expect(swap.kind === 'key' && swap.data).toEqual({ switchView: '2d' });
     const sound = soundKeys({ effects: 'normal', ambient: 'leise' });
-    expect(sound.map((one) => (one.kind === 'key' ? one.label : one.text))).toEqual([
-      'Ton',
-      'Effekte: normal',
-      'Ambiente: leise',
-    ]);
+    expect(
+      sound.map((one) => (one.kind === 'key' ? one.label : one.kind === 'head' ? one.text : '')),
+    ).toEqual(['Ton', 'Effekte: normal', 'Ambiente: leise']);
     expect(leaveKeys().map((one) => (one.kind === 'key' ? one.label : ''))).toEqual([
       'Zurück zu den Rollen',
       'Weiterspielen',
     ]);
+  });
+
+  /**
+   * **Das Tempo ist eine Reihe, kein Zähler**: sechs Pillen, die gewählte
+   * leuchtet, jede trägt ihre Stufe als `data-speed`. Wer von ×16 auf ×2
+   * will, drückt einmal.
+   */
+  it('zeichnet die Stufen des Zeitraffers als Reihe mit der gewählten leuchtend', () => {
+    const root = document.createElement('div');
+    renderOptions(root, speedKeys(4));
+    expect(root.querySelector('.ui-head')?.textContent).toBe('Simulationsgeschwindigkeit');
+    const pills = [...root.querySelectorAll<HTMLButtonElement>('.ui-row [data-speed]')];
+    expect(pills.map((pill) => pill.dataset['speed'])).toEqual(['1', '2', '4', '8', '12', '16']);
+    expect(pills.map((pill) => pill.textContent)).toEqual(['×1', '×2', '×4', '×8', '×12', '×16']);
+    expect(
+      pills.filter((pill) => pill.classList.contains('is-active')).map((p) => p.dataset['speed']),
+    ).toEqual(['4']);
+    expect(pills[2]!.getAttribute('aria-pressed')).toBe('true');
+    expect(pills[0]!.getAttribute('aria-pressed')).toBe('false');
+    // Eine Stufe, die es nicht gibt, rastet auf die nächste darunter.
+    renderOptions(root, speedKeys(13));
+    expect(root.querySelector<HTMLButtonElement>('.ui-row .is-active')?.dataset['speed']).toBe(
+      '12',
+    );
   });
 });

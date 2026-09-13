@@ -27,7 +27,7 @@ import { key } from '../ui/widgets';
  *
  * **Zwei Zeilen je Pille**, damit sieben davon in ein Panel passen: oben der
  * Platz („Rot"), darunter klein, was er hält („Archiv") — und beim Zuschauer
- * oben „Zuschauer", darunter „Techniker" oder „Alles". „Rot · Archiv" in
+ * oben „Zuschauer", darunter „Einzeln" oder „Alles". „Rot · Archiv" in
  * einer Zeile war das, was auf dem Telefon nicht in den Kopf passte.
  */
 export interface RoleTab {
@@ -61,7 +61,7 @@ export function roleTabs(setup: RoundSetup | null): RoleTab[] {
       return {
         id,
         name: 'Zuschauer',
-        sub: id === 'watch:technician' ? 'Techniker' : 'Alles',
+        sub: id === 'watch:technician' ? 'Einzeln' : 'Alles',
         hint: MY_ROLE_HINTS[id],
       };
     return { id, name: MY_ROLE_LABELS[id], sub: '', hint: MY_ROLE_HINTS[id] };

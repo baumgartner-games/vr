@@ -1,5 +1,6 @@
 import { el } from '../ui/dom';
-import { head as uiHead, optionKey } from '../ui/widgets';
+import { head as uiHead, optionKey, pillKey } from '../ui/widgets';
+import { SIMULATION_SPEEDS, clampSimulationSpeed, simulationSpeedLabel } from '../simulationSpeed';
 
 /**
  * **Das Optionsmenü — eines für beide Welten.**
@@ -22,10 +23,27 @@ import { head as uiHead, optionKey } from '../ui/widgets';
  * Kein three.js, kein Rundenstand: eine Liste hinein, DOM heraus.
  */
 
-/** Ein Eintrag des Menüs: Überschrift, Hinweiszeile oder Knopf. */
+/** Ein Knopf in einer Reihe (`OptionItem` `row`): eine Wahl aus wenigen Werten. */
+export interface OptionChoice {
+  data: Record<string, string>;
+  label: string;
+  /** Leuchtet, wenn das der gewählte Wert ist. */
+  active?: boolean;
+}
+
+/** Ein Eintrag des Menüs: Überschrift, Hinweiszeile, Knopf — oder eine Reihe kleiner Knöpfe. */
 export type OptionItem =
   | { kind: 'head'; text: string }
   | { kind: 'note'; text: string }
+  | {
+      /**
+       * Eine Reihe Pillen nebeneinander, eine je Wert — für Wahlen wie das
+       * Tempo, bei denen sechs Listenknöpfe untereinander das halbe Menü
+       * wären und ein Knopf, der reihum zählt, fünf Drücke für einen Wechsel.
+       */
+      kind: 'row';
+      choices: OptionChoice[];
+    }
   | {
       kind: 'key';
       /** Der Schlüssel, an dem der Wirt den Druck erkennt — als `dataset`, also `switchView: '2d'` → `data-switch-view="2d"`. */
@@ -42,6 +60,7 @@ export type OptionItem =
 
 export const head = (text: string): OptionItem => ({ kind: 'head', text });
 export const note = (text: string): OptionItem => ({ kind: 'note', text });
+export const row = (choices: OptionChoice[]): OptionItem => ({ kind: 'row', choices });
 export const key = (
   data: Record<string, string>,
   label: string,
@@ -72,7 +91,30 @@ export const SHARED = {
   watchOff: 'Zuschauen: aus',
   watchOnHint: 'Der Techniker aus Zahlen spielt weiter — antippen holt dich zurück an den Stock',
   watchOffHint: 'Der Techniker aus Zahlen übernimmt, du siehst der Runde zu',
+  speed: 'Simulationsgeschwindigkeit',
+  speedHint: 'Die Bot-Runde im Zeitraffer — mehr Bilder je Bild, nie längere Schritte',
 } as const;
+
+/**
+ * **Das Tempo der Bot-Runde** (`simulationSpeed.ts`): eine Überschrift, ein
+ * Satz und die sechs Stufen als Reihe, die gewählte leuchtet. Der Wirt liest
+ * `data-speed` und stellt die Stufe ein. Nur in der Bot-Runde: Eine Runde,
+ * in der ein Mensch spielt, hat kein Tempo zum Einstellen.
+ */
+export function speedKeys(current: number): OptionItem[] {
+  const chosen = clampSimulationSpeed(current);
+  return [
+    head(SHARED.speed),
+    note(SHARED.speedHint),
+    row(
+      SIMULATION_SPEEDS.map((speed) => ({
+        data: { speed: String(speed) },
+        label: simulationSpeedLabel(speed),
+        active: speed === chosen,
+      })),
+    ),
+  ];
+}
 
 /** Der Zuschauer-Schalter, in beiden Welten mit denselben Worten. */
 export function watchKey(watching: boolean): OptionItem {
@@ -118,6 +160,21 @@ export function renderOptions(root: HTMLElement, items: readonly OptionItem[]): 
 function build(item: OptionItem): HTMLElement {
   if (item.kind === 'head') return uiHead(item.text);
   if (item.kind === 'note') return el('small', 'flat__note', item.text);
+  if (item.kind === 'row') {
+    const line = el('div', 'ui-row');
+    line.setAttribute('role', 'group');
+    line.append(
+      ...item.choices.map((choice) =>
+        pillKey({
+          text: choice.label,
+          data: choice.data,
+          active: !!choice.active,
+          pressed: !!choice.active,
+        }),
+      ),
+    );
+    return line;
+  }
   const spec = {
     data: item.data,
     ...(item.active !== undefined ? { active: item.active } : {}),

@@ -15,9 +15,14 @@
  * Und mit einem Deckel: Wird das echte Bild dabei lang, sinkt die Zahl der
  * Wiederholungen von selbst. Ein Zeitraffer, der die Bildrate auf sechs
  * drückt, hat nichts beschleunigt — er hat nur alles zäh gemacht.
+ *
+ * **Eingestellt wird die Stufe im Optionsmenü** (`map/optionsMenu.speedKeys`),
+ * in der 2D-Welt wie im Schiff, und zwar direkt: sechs Knöpfe, einer je
+ * Stufe, statt eines Knopfs, der reihum weiterzählt — wer von ×16 auf ×2
+ * will, drückt einmal und nicht fünfmal.
  */
 
-export const SIMULATION_SPEEDS = [1, 2, 4, 8] as const;
+export const SIMULATION_SPEEDS = [1, 2, 4, 8, 12, 16] as const;
 export type SimulationSpeed = (typeof SIMULATION_SPEEDS)[number];
 
 /**
@@ -32,12 +37,6 @@ export function clampSimulationSpeed(value: unknown): SimulationSpeed {
   let best: SimulationSpeed = 1;
   for (const speed of SIMULATION_SPEEDS) if (speed <= number) best = speed;
   return best;
-}
-
-/** Die nächste Stufe; nach der höchsten wieder Echtzeit. */
-export function nextSimulationSpeed(current: unknown): SimulationSpeed {
-  const at = SIMULATION_SPEEDS.indexOf(clampSimulationSpeed(current));
-  return SIMULATION_SPEEDS[(at + 1) % SIMULATION_SPEEDS.length]!;
 }
 
 /**
@@ -60,8 +59,7 @@ export function simulationRepeats(
   return Math.max(1, Math.min(wanted, Math.round(wanted * room)));
 }
 
-/** Wie die Stufe auf einer Schaltfläche steht. */
+/** Wie die Stufe auf einer Schaltfläche steht: „×1" ist Echtzeit. */
 export function simulationSpeedLabel(speed: unknown): string {
-  const value = clampSimulationSpeed(speed);
-  return value === 1 ? 'Echtzeit' : `Zeitraffer ×${value}`;
+  return `×${clampSimulationSpeed(speed)}`;
 }

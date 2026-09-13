@@ -126,14 +126,15 @@ export const SEAT_HINTS: Readonly<Record<SeatId, string>> = {
 
 export const MY_ROLE_LABELS: Readonly<Record<MyRole, string>> = {
   ...SEAT_LABELS,
-  'watch:technician': 'Zuschauer: Techniker',
+  'watch:technician': 'Zuschauer: Einzeln',
   'watch:all': 'Zuschauer: Alles',
 };
 
 export const MY_ROLE_HINTS: Readonly<Record<MyRole, string>> = {
   ...SEAT_HINTS,
-  'watch:technician': 'Sieht, was der Techniker sieht — in 3D durch seine Augen',
-  'watch:all': 'Die ganze Station von oben, allwissend',
+  'watch:technician':
+    'Folgt einem — Techniker oder Monster, mit seinem Zielpfad; in 3D durch die Augen des Technikers',
+  'watch:all': 'Die ganze Station von oben, allwissend — beide Zielpfade',
 };
 
 export const WHO_LABELS: Readonly<Record<SeatWho, string>> = {

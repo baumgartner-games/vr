@@ -2578,7 +2578,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
 | Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
 | Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
-| Haunting: Rolle wählen | Menü → _Techniker / Rot / Gelb / Blau / Monster_ (Mensch · Bot · Aus) und _Fähigkeiten der Plätze_ | Reiterzeile ganz oben: _Aufbau_, Techniker, Rot, Gelb, Blau, Monster, _Zuschauer: Techniker_, _Zuschauer: Alles_ — wer tippt, sitzt dort | antippen |
+| Haunting: Rolle wählen | Menü → _Techniker / Rot / Gelb / Blau / Monster_ (Mensch · Bot · Aus) und _Fähigkeiten der Plätze_ | Reiterzeile ganz oben: _Aufbau_, Techniker, Rot, Gelb, Blau, Monster, _Zuschauer: Einzeln_, _Zuschauer: Alles_ — wer tippt, sitzt dort | antippen |
 | Haunting: Archiv | – | Zimmer auf der Karte antippen öffnet die Raumakte; Bild darin ziehen/zoomen | dito |
 | Haunting: Schalttafel | – | Tür oder Lampe auf der Karte antippen schaltet sie; „Tafel" oben rechts schlägt die Schalterliste darüber auf | dito |
 | Haunting: Zuschauer — wessen Platz / wem folgen / durch seine Augen / KI-Absichten | – | im Zuschauer-Panel wählen (Deck, Archiv, Schalttafel, Späher, Monster); über dem Deck: Stock links unten oder Finger fliegt, Mausrad oder zwei Finger zoomen, _Zurück über das Deck_ | antippen, ziehen, zwei Finger |
@@ -2589,7 +2589,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Haunting: Feststecken | Menü → _Feststecken? Zurück auf den Boden_ — mitten ins eigene Zimmer, draußen in die Zentrale | Menü, derselbe Eintrag | – |
 | Haunting: Ducken | körperlich ducken | `Ctrl` halten | – |
 | Haunting: Mission / Test | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei | dito | Handys besetzen Archiv/Schalttafel |
-| Haunting: 2D-Welt, Rolle wechseln | – | Panel über der Szene, dieselben sieben Reiter wie auf dem Telefon: Techniker, Rot, Gelb, Blau, Monster, Zuschauer: Techniker, Zuschauer: Alles — Farbplätze und Monster nur in einer Test-Runde; Zahnrad = Optionsmenü (dasselbe steht im Schiff im Browser hinter _⚙ Optionen_) | antippen |
+| Haunting: 2D-Welt, Rolle wechseln | – | Panel über der Szene, dieselben sieben Reiter wie auf dem Telefon: Techniker, Rot, Gelb, Blau, Monster, Zuschauer: Einzeln, Zuschauer: Alles — Farbplätze und Monster nur in einer Test-Runde; Zahnrad = Optionsmenü (dasselbe steht im Schiff im Browser hinter _⚙ Optionen_; darin in der Bot-Runde die Simulationsgeschwindigkeit ×1 … ×16) | antippen |
 | Haunting: einzelne Lehrzimmer | Test → _Testdeck: einzelne Übungsräume_; Rückkehrknopf in jedem Raum | dito; mit `E` die echten Beispiele bedienen | – |
 | Haunting: Simulationsflug | linker Stick fliegt, rechter steigt/sinkt | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller | – |
 | Haunting: VR-Komfort | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration | – | – |
@@ -8521,10 +8521,18 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Navigator bei jeder Verfolgung nach, ob die laufende Route inzwischen
   hindurchführt (`navmesh/flatNavigator.crossesCore`, dazu engere Toleranzen
   `CORE_TOLERANCE`/`CORE_HOLD`).
-- **Zeitraffer** (`simulationSpeed.ts`): ×1/×2/×4/×8 über die **Anzahl** der
-  Bilder (`HauntingWorld.update` → `tick`), nie über die Länge eines Schritts;
-  nur der letzte Durchgang sendet und frischt die Anzeigen auf. Lange echte
-  Bilder nehmen die Stufe selbsttätig zurück.
+- **Zeitraffer** (`simulationSpeed.ts`): ×1/×2/×4/×8/×12/×16 über die
+  **Anzahl** der Bilder (`HauntingWorld.update` → `tick`; in der 2D-Welt
+  `FlatMode.update` um den `TechnicianBot`), nie über die Länge eines
+  Schritts; nur der letzte Durchgang sendet und frischt die Anzeigen auf.
+  Lange echte Bilder nehmen die Stufe selbsttätig zurück. **Eingestellt wird
+  sie im Optionsmenü beider Welten** (`map/optionsMenu.speedKeys`, Reihe
+  `ui-row` aus Pillen, `[data-speed]`, nur in der Bot-Runde) — der Besitzer
+  wollte die Stufen einzeln wählbar, nicht einen Knopf, der reihum zählt; der
+  „Tempo"-Knopf in der Test-Tafel des Schiffs ist deshalb weg. Die Stufe
+  gehört der Welt (`HauntingWorld.simulationSpeed`, an beide Ansichten als
+  `simulationSpeed`/`setSimulationSpeed` gereicht) und geht beim Wechsel
+  2D ↔ 3D mit.
 - **Beleuchtung der Bot-Runde** (`botLighting.ts`): vier Stellungen, dazu
   Drehleuchten in den Gängen (`shipArt.buildCorridorBeacons`,
   `HauntingWorld.applyBeacons`). Winkel und Puls laufen im Kreis statt
@@ -8604,7 +8612,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Abständen** (`.flat__top`): erste Zeile die **Rollenknöpfe in einem Panel**
   (`views/roleStrip.ts`, gebaut aus `views/roleTabs.ts` — **dieselben sieben
   Reiter wie über der Karte des Telefons**: Techniker, Rot, Gelb, Blau,
-  Monster, Zuschauer: Techniker, Zuschauer: Alles) und am Ende der Zeile das
+  Monster, Zuschauer: Einzeln, Zuschauer: Alles) und am Ende der Zeile das
   Zahnrad, zweite Zeile — links beginnend — der Kasten mit Auftrag und Uhr,
   dritte Zeile die Sprungknöpfe, **vierte Zeile die Bühne der aufgeschlagenen
   Rolle** (`RoleStrip.stage`, `.role-stage`), die den Rest der Höhe füllt.
@@ -8626,10 +8634,12 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   schlägt die eine Karte mit allem auf, was der Platz laut Tafel hält
   (`views/seatRole.ts`), das **Monster** seine Ansicht; **die Zuschauer sind
   Reiter, die nichts aufschlagen** (`RoleStripHost.pick`): „Zuschauer:
-  Techniker" gibt den Stock dem Techniker aus Zahlen, macht die Karte
+  Einzeln" (`watch:technician`, bis zur Umbenennung „Zuschauer: Techniker")
+  gibt den Stock dem Techniker aus Zahlen, macht die Karte
   allwissend (ein Zuschauer mit der Sicht des Anzugs sähe ein schwarzes Bild)
   und folgt ihm, „Zuschauer: Alles" schlägt dazu die ganze Station als Karte
-  auf; „Techniker" holt den Stock zurück. **Der eigene
+  auf; „Techniker" holt den Stock zurück. Welcher der zwei man ist, merkt
+  sich `FlatMode.watchAll` — daran hängen die Zielpfade (siehe unten). **Der eigene
   🗺-Knopf ist weg**; die Karte (das alte `MapView` als Overlay) steht als
   Eintrag im Zahnrad, zusammen mit „Menü" und „Verbindung", die die Knöpfe der
   abgeschalteten Kopfzeile drücken (`pressPageButton`) — „Menü" holt die
@@ -8758,7 +8768,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   **Reiterzeile** des Telefons ist diese Wahl (`stationUi.choose`): Wer einen
   Platz antippt, sitzt dort, der Platz wird „Mensch", der alte wird frei
   (Farben → Aus, Techniker/Monster → Bot) — „das Wegschubsen ist nur eine
-  Metapher". Wer allein ist, sitzt als **Zuschauer: Techniker** in der
+  Metapher". Wer allein ist, sitzt als **Zuschauer: Einzeln** in der
   Zentrale (`defaultLobby` auf dem Telefon), und die Runde läuft mit Bots.
   **Wie eine Mischung heißt, rechnet `roleName`:** Späher / Schalttafel /
   Archiv einzeln; Späher + Schalttafel = **Einsatzkontrolle**, Archiv +
@@ -8858,10 +8868,19 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   wird nur bei Lagewechsel (`ArchiveCall.key`) und nur dort, wo am Archiv
   wirklich ein Bot rechnet: Sitzt ein Mensch, ist das Sagen sein Platz, und eine
   Stimme daneben nähme ihm seinen einzigen Beitrag weg. „Zielpfade" im
-  Optionsmenü legt den Weg des Technikers zum nächsten Ziel
-  (`FlatRound.playerRoute`, ein eigener `FlatNavigator` mit `PLAYER_RADIUS`)
-  und den des Monsters (`monsterRoute`, `navigator.remaining`; nur mit Späher
-  oder „Alles sehen") auf Szene und Karte. Über der Szene malt
+  Optionsmenü (`FlatMode.routeLines`) legt den Weg des Technikers zum nächsten
+  Ziel (`FlatRound.playerRoute`, ein eigener `FlatNavigator` mit
+  `PLAYER_RADIUS`) und den des Monsters (`monsterRoute`, `navigator.remaining`;
+  für den Spieler nur mit Späher oder „Alles sehen") auf Szene und Karte.
+  **Beim Zuschauen ist der Weg des Technikers der seines Bots**
+  (`TechnicianBot.route` über `FlatWalker.remaining`): `playerRoute` war ohne
+  Archiv leer (`precision` `none` → kein Ziel), und mit Archiv nicht das, was
+  der Bot gerade tut, wenn er in eine Kabine flieht — „die Pfade des
+  Technikers fehlten". Wer man ist, entscheidet, wessen Weg liegt:
+  „Zuschauer: Alles" beide, „Zuschauer: Einzeln" nur den dessen, dem die
+  Kamera folgt (`FlatMode.focus`, gesetzt von den zwei Sprungknöpfen, nicht
+  von der Kamera — ein zur Seite gezogenes Bild wechselt den Weg nicht;
+  `routeFocus` sagt es für Tests). Über der Szene malt
   `FlatMode.drawSceneOverlay` (Haken `FlatSceneOptions.overlay`) Wege sowie das
   Randdreieck der Ziele; die Szene selbst weiß davon nichts.
 - **Das Kabelrätsel zeigt Symbole** (`map/puzzleOverlay.ts`, `WIRE_SYMBOLS`,
@@ -9264,7 +9283,9 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     zurück in den Test), nicht am Netz —, dann, was sich *in* der Runde
     ändert: Ansicht (die zwei Modi nur für den Zuschauer; wer mitspielt,
     bekommt „Realitätsnah" als Zeile), Zielpfade, **„Zuschauen: an/aus"**
-    (`[data-watch]`, immer möglich), unter „Aufmachen" die drei Wege nach
+    (`[data-watch]`, immer möglich), in der Bot-Runde die
+    **Simulationsgeschwindigkeit** (`speedKeys`, sechs Pillen ×1 … ×16),
+    unter „Aufmachen" die drei Wege nach
     draußen (**Karte**, **Menü**, **Verbindung** — den 🗺-Knopf gibt es nicht
     mehr), Ton, **„Ansicht: 3D Schiff"** (`[data-switch-view]` →
     `HauntingWorld.switchView`) und **„Zurück zu den Rollen"**
@@ -9272,7 +9293,8 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     im Aufbau). Neue Runde, „Mit Monster", der dreistufige Rollenknopf und die
     eingebettete Tafel sind dort weg. Im Kopf stehen dieselben sieben Reiter
     wie auf dem Telefon (`views/roleTabs.ts`); gelb umrandet, wer man ist
-    (`FlatMode.myRole`: Techniker, Monster oder Zuschauer: Techniker).
+    (`FlatMode.myRole`: Techniker, Monster, Zuschauer: Einzeln oder Zuschauer:
+    Alles — je nachdem, welchen Reiter man genommen hat, `watchAll`).
   **Zuschauen in 2D ist eine eigene Rolle** (`FlatRole` `watch`, früher
   `bot`): kein Stock, keine Knöpfe, dafür **beide** Sprungknöpfe („Zum
   Techniker", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".
@@ -9533,7 +9555,7 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     (`PeerPose.head`, Ort **und** Drehung), Modelltechniker und 2D-Techniker
     nur Ort und Gierwinkel (Augenhöhe `EYES_HEIGHT` 1,6 m, geradeaus). Dabei
     bleibt die Decke dran, der Nebel an und das Tageslicht des Puppenhauses
-    aus — man sieht, was er sieht (`EYES_FOV` 78°). „Zuschauer: Techniker"
+    aus — man sieht, was er sieht (`EYES_FOV` 78°). „Zuschauer: Einzeln"
     fängt damit an (`stationUi`: `{ follow: 'technician', eyes: true }`),
     „Zuschauer: Alles" frei über dem Deck.
   - **KI-Absichten** — das Overlay aus M4, siehe oben. Nur hier, nie für einen

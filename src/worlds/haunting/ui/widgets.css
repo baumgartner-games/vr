@@ -30,6 +30,9 @@
 /* Die Pille: der kleine Knopf am Rand — Schließen, Karte, Zoom, ein Schachtziel. */
 .ui-pill { padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(140, 170, 230, 0.35); background: rgba(18, 24, 40, 0.92); color: #e8ecf7; font: inherit; font-size: 12px; touch-action: manipulation; }
 .ui-pill:disabled { opacity: .45; }
+/* Eine Reihe Pillen als Wahl — das Tempo der Bot-Runde: die gewählte leuchtet wie ein gewählter Listenknopf. */
+.ui-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ui-row .ui-pill.is-active { border-color: #7ff0ff; color: #7ff0ff; }
 /* Die Hinweiskachel: Titel und Satz, der Ton am linken Rand. In der Zentrale
    nimmt sie die Farben der Station (`--haunt-*`), sonst ihre eigenen. */
 .ui-note { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--haunt-line, rgba(140, 170, 230, 0.2)); border-left: 3px solid var(--haunt-line-strong, rgba(140, 170, 230, 0.42)); background: rgba(14, 19, 32, 0.9); font-size: 13px; line-height: 1.45; color: #b9c3da; }
