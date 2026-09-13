@@ -57,7 +57,13 @@ import {
   fieldText,
   type BotTuning,
 } from './botTuning';
-import { TrainingRun, TRAINING_DEFAULTS, inBand, type TrainingSide } from './botTraining';
+import {
+  FAIR_LIMIT,
+  TrainingRun,
+  TRAINING_DEFAULTS,
+  inBand,
+  type TrainingSide,
+} from './botTraining';
 import { botArchivist, describeSetup, loadSetup, powersOf } from './rules/roundSetup';
 import { intentOf, INTENT_HINTS, INTENT_LABELS, INTENTS } from './rules/lobby';
 import type { MonsterCue, MonsterPace } from './monsterRoutine';
@@ -2871,16 +2877,26 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.trainedAt = now;
     run.advance(10);
     const state = run.state;
-    if (state.step > 0 || run.finished) this.host.retune?.(state.tuning);
+    // **Einen unfairen Satz spielt die Tafel nicht ein** (`botTraining.FAIR_LIMIT`):
+    // Wer bei Reglern am Anschlag anfängt, bekommt sonst nach vierzig
+    // Schritten das Beste aus einer aussichtslosen Lage — und damit immer noch
+    // eine Seite, die fast jede Runde gewinnt. Die Regler bleiben dann, wie
+    // sie waren.
+    if ((state.step > 0 || run.finished) && state.fair) this.host.retune?.(state.tuning);
     if (run.finished) {
       this.training = null;
-      this.trainingNote = `Training fertig: Techniker gewinnt ${Math.round(
-        state.duo * 100,
-      )} % zu zweit und ${Math.round(state.rate * 100)} % mit Zentrale (${
-        inBand({ duo: state.duo, crew: state.rate })
-          ? 'in beiden Zielbändern'
-          : 'noch neben einem Zielband'
-      }), ${state.step} Schritte.`;
+      const rates = `Techniker gewinnt ${Math.round(state.duo * 100)} % zu zweit und ${Math.round(
+        state.rate * 100,
+      )} % mit Zentrale`;
+      this.trainingNote = state.fair
+        ? `Training fertig: ${rates} (${
+            inBand({ duo: state.duo, crew: state.rate })
+              ? 'in beiden Zielbändern'
+              : 'noch neben einem Zielband'
+          }), ${state.step} Schritte.`
+        : `Training ohne fairen Satz beendet: ${rates} — eine Seite gewinnt öfter als ${Math.round(
+            FAIR_LIMIT * 100,
+          )} %. Die Gewichte bleiben, wie sie waren (${state.step} Schritte).`;
       this.log(`BOT-TRAINING: ${this.trainingNote}`);
     } else
       this.trainingNote = `Training ${Math.round(run.fraction * 100)} % · beste Quoten ${Math.round(
