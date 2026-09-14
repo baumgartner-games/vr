@@ -1,5 +1,6 @@
 import { GATE } from './gate';
 import { fixtureKind, fixtureKinds, registerKind, type FixtureKind } from './index';
+import { EMITTER } from './emitter';
 import { SIGN } from './sign';
 
 /**
@@ -22,6 +23,7 @@ import { SIGN } from './sign';
  */
 registerKind(SIGN);
 registerKind(GATE);
+registerKind(EMITTER);
 
 /** Die Art mit diesem Namen — `null`, wenn dieses Programm sie nicht kennt. */
 export function knownKind(kind: string): FixtureKind<unknown> | null {
@@ -33,4 +35,4 @@ export function paletteKinds(): readonly FixtureKind<unknown>[] {
   return fixtureKinds();
 }
 
-export { GATE, SIGN };
+export { EMITTER, GATE, SIGN };

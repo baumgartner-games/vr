@@ -60,26 +60,48 @@ export function planSolids(plan: NavGraph, doorWidth = PLAN_DOOR_W): PlanSolid[]
       w: TILE,
       h: PLAN_FLOOR_T,
       d: TILE,
+      // **Der Boden gehört der Etage, die auf ihm steht** — das ist zugleich
+      // die Decke des Stockwerks darunter, und von oben verschwindet sie mit
+      // ihrer Etage (`core/cutaway.ts`).
+      level: keyLevel(key),
     });
   }
   for (const [wall, facts] of plan.wallEntries()) {
     const key = wallTile(wall);
     const alongX = wallDir(wall) === DIR_N;
     const base = plan.levelY(keyLevel(key));
+    const level = keyLevel(key);
     // Die Mitte der Kante: eine halbe Kachel nach Norden bzw. nach Osten.
     const x = tileCentreX(key) + (alongX ? 0 : TILE / 2);
     const z = tileCentreZ(key) + (alongX ? -TILE / 2 : 0);
     if (facts.kind === 'door') {
-      out.push(...doorParts(x, base, z, alongX, facts.open, facts.id, doorWidth));
+      out.push(...onLevel(doorParts(x, base, z, alongX, facts.open, facts.id, doorWidth), level));
       continue;
     }
     if (facts.kind === 'window') {
-      out.push(...windowParts(x, base, z, alongX));
+      out.push(...onLevel(windowParts(x, base, z, alongX), level));
       continue;
     }
-    out.push(slab(x, base + PLAN_WALL_H / 2, z, alongX, TILE, PLAN_WALL_H, PLAN_WALL_T, 'wall'));
+    const plain = slab(
+      x,
+      base + PLAN_WALL_H / 2,
+      z,
+      alongX,
+      TILE,
+      PLAN_WALL_H,
+      PLAN_WALL_T,
+      'wall',
+    );
+    plain.level = level;
+    out.push(plain);
   }
   return out;
+}
+
+/** Dieselben Quader, alle auf dieser Etage — die Marke fürs Aufschneiden. */
+function onLevel(solids: PlanSolid[], level: number): PlanSolid[] {
+  for (const one of solids) one.level = level;
+  return solids;
 }
 
 /**

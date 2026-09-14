@@ -863,13 +863,39 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     ihr; der Gürtel bleibt dabei unberührt. Und der **Strahl vom Schirm ruht**
     so lange (`Pointer.topDown`): Er käme aus der Kamera im Rig, die von oben
     niemand ansieht, und nähme dem Werkzeug seinen Trigger weg.
-  - **Was heute noch fehlt: das Aufschneiden.** In einer Welt mit Dach steht
-    die Kamera unter der Decke und sieht sie von unten — im Interaktionslabor,
-    im Portal-Labor und in den Häusern von Dust ist das Bild deshalb die Decke.
-    Alles, dessen Ebene über der des Spielers liegt, muss vor dem Zeichnen
-    verschwinden (Plan, E8); das braucht die Ebene als Marke am Objekt
-    (`userData.level`) und gehört deshalb zu Paket P7, zusammen mit den
-    Treppen.
+  - **Aufgeschnitten wird, was über einem liegt** (`core/cutaway.ts` mit Test,
+    Plan E8). Eine Kamera schräg über der Szene hat ein Problem, das eine
+    Kamera in der Brille nie hatte: Sie steht **unter** dem Dach. Im
+    Dunkelhaus war das Bild von oben die Decke, in Dust waren es die Dächer.
+    Also verschwindet vor jedem Bild alles, dessen Ebene **über** der des Rigs
+    liegt, und kommt danach wieder (`TopDownCamera.cut` / `.uncut`, gerufen in
+    `App.step` — vor den Spiegeln und Portalsichten, die dieselbe Szene ja
+    gleich noch einmal zeichnen). In der Brille und _Aus den Augen_ ändert sich
+    dadurch nichts.
+    - **Die Ebene hängt am Objekt** (`userData.level`) und wird nicht geraten:
+      Ein Hochbett steht höher als eine Türklinke und ist trotzdem im selben
+      Zimmer. `GridWorld` setzt sie beim Bauen aus dem Grundriss — Kacheln und
+      Wände aus ihrer Etage, Bausteine und Einbauten aus ihrer Kachel, Massen
+      aus ihrer Unterkante. Die **Decke** ist dabei der Sonderfall, und es ist
+      der wichtige: Sie gehört dem Stockwerk **darüber**, denn sie ist dessen
+      Boden — sonst sähe man in kein Zimmer hinein, dessen Haus nur eine Etage
+      hat. Wer ohne Gitter baut, kann dieselbe Marke von Hand setzen; das
+      Interaktionslabor tut genau das für seinen Deckel (`InteractWorld`,
+      `viewLevel`), und mehr braucht es dort nicht.
+    - **Welche Ebene das Rig ist, sagt die Kachel unter den Füßen**
+      (`NavGraph.at`, `keyLevel`) — und die Höhe hat ein Wörtchen mitzureden:
+      Ein Treppenlauf gehört ganz der unteren Etage (die Kachel darüber ist
+      sein Loch), also zählt ab der **halben Stockwerkshöhe** schon die obere
+      (`levelAtHeight`). Darüber liegt eine **Hysterese** an derselben Linie:
+      Umgeschaltet wird beim Hinauf- wie beim Hinabgehen an derselben Höhe,
+      sonst flackerte das ganze Stockwerk, sobald jemand auf der obersten Stufe
+      einen halben Schritt zurücktritt (`levelStep`, rein, mit Test). Eine Welt
+      ohne Antwort (`World.viewLevel` → `null`, Portal-Labor, Alpen) wird gar
+      nicht aufgeschnitten und sieht aus wie eh und je.
+    - **Und die Kamera hebt sich mit der Ebene**, nicht mit den Füßen: Ihre
+      Zielhöhe ist der Boden der Etage (`NavGraph.levelY`), weich nachgezogen
+      von derselben Glättung wie die Figur. Mit den Füßen führe das Bild jede
+      Treppenstufe einzeln mit.
   - **Umgeschaltet wird unter _Menü → Ansicht_** und auf der Startseite; die
     Wörter heißen _Von oben_ und _Aus den Augen_ und stehen an einer Stelle
     (`core/screenView.SCREEN_VIEW_LABELS`). Die **Kennungen** bleiben `2d` und
@@ -2634,6 +2660,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Bildfehler. „Größer" heißt dabei mehr, dickere, schnellere und länger
   lebende Partikel bis zu einer festen Obergrenze — die Physik dahinter bleibt
   gleich: eine doppelt so große Explosion fällt nicht doppelt so schnell.
+  **Und dieselben Zahlen stehen jetzt auch in einer Welt, in der man läuft**:
+  In der Südostecke der Straßenküche stehen vier Düsen nebeneinander — Rauch,
+  Feuer, Funken, Wasser —, jede mit einem Knopf davor
+  (`grid/fixtures/emitter.ts`, `street/stampEffects.ts`). Sie ist derselbe
+  Einbau in zwei Betriebsarten: mit `burst` ein Einmalschuss, ohne ein
+  Dauerläufer, den der Auslöser an- und ausschaltet. Sie **baut die Wolke
+  nicht selbst**, sondern meldet ein `effect`-Ereignis, und `GridWorld` lässt
+  es laufen — genauso, wie ein Geräusch an `core/Audio` geht. Damit bleibt ihre
+  Logik ohne three.js prüfbar, und es gibt **eine** Stelle, die weiß, wie viele
+  Wolken gleichzeitig noch vertretbar sind; vier Düsen in einer Ecke schaffen
+  es sonst schnell, aus Effekten Nebel zu machen. Jede trägt die Farbe ihres
+  Effekts im Auge — von oben sieht man auf einen Blick, welche die
+  Wasserfontäne ist.
 - **Interaktionslabor** (experimentell): eine helle Halle (32 × 22 m) im Geist
   der Testkammern aus _Portal_ und der großen Testzelle, die in Oblivion hinter
   der Karte liegt — ein Raum ohne Geschichte, in dem einmal aufgebaut steht,
@@ -7501,7 +7540,10 @@ NPC nicht existiert; das sieht danach aus wie ein kaputter Character-Controller.
 `GridPlan.stairs()` macht alle drei. Und ein Treppenhaus wechselt zwischen
 **zwei** Kacheln hin und her: Alle Läufe übereinander ginge nicht, weil jeder
 Lauf das Loch für seinen eigenen Kopf schlägt — genau darin müsste der nächste
-stehen.
+stehen. **Und von oben ist sie die vierte Sache**: Wer sie hinaufgeht, nimmt
+auf halber Höhe die Ebene darüber mit ins Bild, und die darunter bleibt stehen
+— eine Treppe ist der einzige Ort, an dem man beide Stockwerke gleichzeitig
+sieht (`core/cutaway.ts`, siehe _Von oben: dieselbe Welt, eine Kamera_).
 
 #### Einbauten: was auf dem Gitter einen Zustand hat
 
@@ -7538,8 +7580,11 @@ Zweck:
 
 **Ein Einbau kennt niemanden.** Er ruft nichts auf; er meldet vier Sachen, und
 `GridWorld` verteilt sie: `trigger` an eine Kennung, `goto` an den Weltkontext
-(genau das, was das Hub-Tor tut), `sound` an `core/Audio`, `effect` an die
-Effekte (P7). Das ist der Unterschied zwischen einem Knopf, den ein Test in
+(genau das, was das Hub-Tor tut), `sound` an `core/Audio`, `effect` an eine
+Wolke an seiner Kachel (`effects/Burst.ts` mit den Zahlen aus
+`effects/effectKinds.ts` — Tür-Staub beim Aufgehen, Funken, wenn eine Kugel
+einen Knopf trifft, Rauch aus der Effektquelle). Das ist der Unterschied
+zwischen einem Knopf, den ein Test in
 einer Millisekunde prüft, und einem, der eine Tür in der Hand hält. Und
 **ausgelöst wird im nächsten Bild**: Die Ereignisse eines Bildes werden
 gesammelt und danach zugestellt, sonst hinge es an der Reihenfolge einer Liste,
@@ -7614,6 +7659,13 @@ Sachen sind daran entschieden:
   ein **zweites, flaches** Schild, das nach Norden oben liest, egal wohin das
   Tor gedreht ist. Das aufrechte zur Kamera zu neigen hieße, es gegen sein
   eigenes Tor zu verdrehen — in der Brille sähe man ein schief hängendes Brett.
+
+Das dritte ist die **Effektquelle** (`fixtures/emitter.ts`): eine Düse auf
+einer Kachel, die Rauch, Feuer, Funken oder Wasser macht — dieselben Zahlen wie
+im Effektlabor, importiert und nicht abgeschrieben (`effects/effectKinds.ts`).
+Sie ist das Kind, an dem man sieht, wozu die vier Ereignisse gut sind: Ihre
+ganze Logik ist ein Zähler und eine Wartezeit, die Wolke baut `GridWorld`. Mehr
+dazu steht beim Effektlabor unter _Was drin ist_.
 
 **Fünf Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust, die
 Hülle der Kletterhalle und das Gokart — und seit P4 auch der **Hub** selbst

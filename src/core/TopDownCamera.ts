@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SmoothPose, weight } from '../net/PoseSmoothing';
 import type { PoseArray } from '../net/types';
+import { bringBack, cutAway, type ViewLevel } from './cutaway';
 import type { PlayerRig } from './PlayerRig';
 import { viewLayers } from './viewLayers';
 import {
@@ -38,14 +39,19 @@ import {
  * Kamera die Ebene dazu (`core/viewLayers.ts`, dieselbe Regel wie Spiegel und
  * Portalsichten).
  *
- * **Was hier noch fehlt: das Aufschneiden.** In einer Welt mit Dach steht die
- * Kamera unter der Decke und sieht sie von unten — im Interaktionslabor, im
- * Portal-Labor und in den Häusern von Dust ist das Bild deshalb heute die
- * Decke. Die Lösung steht im Plan (`docs/plan-2d-hub-interaktion.md`, E8) und
- * gehört Paket P7: Alles, dessen Ebene über der des Rigs liegt, wird vor dem
- * Zeichnen ausgeblendet. Dafür braucht es die Ebene als Marke am Objekt
- * (`userData.level`), und die bringen erst die Gitterwelten mit — nach der
- * Höhe zu raten hieße, jedes Hochbett für ein Dach zu halten.
+ * **Aufgeschnitten wird vor dem Zeichnen** (`core/cutaway.ts`). In einer Welt
+ * mit Dach steht diese Kamera unter der Decke und sähe sie von unten; also
+ * verschwindet alles, dessen Ebene über der des Rigs liegt, und kommt nach
+ * dem Bild wieder (`cut`/`uncut`, gerufen von `App.step`). Die Ebene sagt die
+ * Welt (`World.viewLevel`) — sie kennt die Kachel unter den Füßen, die Kamera
+ * kennt sie nicht. Eine Welt, die nichts sagt, wird nicht aufgeschnitten:
+ * nach der Höhe zu raten hieße, jedes Hochbett für ein Dach zu halten.
+ *
+ * **Und die Kamera hebt sich mit der Ebene, nicht mit den Füßen.** Ihre
+ * Zielhöhe ist der Boden der Etage und nicht der Boden unter dem Spieler —
+ * sonst führe das ganze Bild jede Treppenstufe einzeln mit, und eine Rampe
+ * wäre eine Fahrt im Aufzug. Weich wird beides von derselben Glättung, die
+ * auch der Figur hinterherzieht.
  */
 export class TopDownCamera {
   /**
@@ -65,6 +71,16 @@ export class TopDownCamera {
   private readonly pose: PoseArray = [0, 0, 0, 0, 0, 0, 1];
   private wheelAcc = 0;
   private disposers: Array<() => void> = [];
+  /**
+   * Auf welcher Ebene das Rig zuletzt stand — die Schnittkante (`cut`).
+   *
+   * `null` heißt: Diese Welt führt keine Ebenen, und dann wird auch nichts
+   * aufgeschnitten. Nicht `0`: Eine Welt ohne Marken hätte damit jedes
+   * Vordach verloren, das jemand später einmal markiert.
+   */
+  private level: number | null = null;
+  /** Was für dieses Bild ausgeblendet ist. Nach dem Zeichnen wieder her damit. */
+  private readonly hidden: THREE.Object3D[] = [];
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.camera.name = 'top-down-camera';
@@ -85,10 +101,15 @@ export class TopDownCamera {
   /**
    * **Ein Bild weiter.** Ziel ist die Mitte des Rigs; die Kamera steht danach
    * schräg darüber und sieht es an.
+   *
+   * @param ground Auf welcher Ebene das Rig steht (`World.viewLevel`) — `null`
+   *   in jeder Welt ohne Stockwerke. Dann zielt die Kamera wie bisher auf den
+   *   Boden unter den Füßen und schneidet nichts auf.
    */
-  update(dt: number, rig: PlayerRig): void {
+  update(dt: number, rig: PlayerRig, ground: ViewLevel | null = null): void {
+    this.level = ground?.level ?? null;
     this.pose[0] = rig.position.x;
-    this.pose[1] = rig.getFloorY() + TOP_DOWN_FOCUS;
+    this.pose[1] = (ground?.floorY ?? rig.getFloorY()) + TOP_DOWN_FOCUS;
     this.pose[2] = rig.position.z;
     this.focus.setTarget(this.pose);
     this.focus.update(dt, FOLLOW_TAU);
@@ -97,6 +118,31 @@ export class TopDownCamera {
     this.distance += (topDownDistance(this.step) - this.distance) * weight(dt, ZOOM_TAU);
     topDownPosition(this.focus.position, this.distance, this.camera.position);
     this.camera.updateMatrixWorld(true);
+  }
+
+  /**
+   * **Aufschneiden, kurz vor dem Bild.**
+   *
+   * Alles, dessen Ebene über der des Rigs liegt, wird unsichtbar — Decken,
+   * Böden, Wände und Einbauten des Stockwerks darüber. Gerufen wird das
+   * unmittelbar vor dem Zeichnen und **vor** den Spiegeln und Portalsichten:
+   * Die zeichnen dieselbe Szene noch einmal, und ein Spiegel, in dem die Decke
+   * steht, die daneben fehlt, ist schlimmer als gar kein Spiegel.
+   */
+  cut(root: THREE.Object3D): void {
+    if (this.level === null) return;
+    cutAway(root, this.level, this.hidden);
+  }
+
+  /**
+   * **Und wieder her damit**, sobald das Bild steht.
+   *
+   * Ohne Bedingung zu rufen: Wer die Ansicht mitten im Bild umschaltet, hätte
+   * sonst eine Welt, deren Obergeschoss in der Brille fehlt. Eingeblendet wird
+   * genau das, was `cut` ausgeblendet hat.
+   */
+  uncut(): void {
+    bringBack(this.hidden);
   }
 
   /**

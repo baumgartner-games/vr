@@ -71,6 +71,19 @@ export interface PlanSolid {
   /** Bei einer Tür: ihr Name im Plan — daran erkennt man das Blatt wieder. */
   door?: string;
   /**
+   * **Auf welcher Etage er steht** — die Marke, an der von oben aufgeschnitten
+   * wird (`core/cutaway.ts`, Plan E8).
+   *
+   * Sie hängt am Quader und nicht an seiner Höhe, denn geraten wäre sie falsch:
+   * Ein Hochbett steht höher als eine Türklinke und ist trotzdem im selben
+   * Zimmer. Wer sie setzt, weiß es — die Kachel kennt ihre Etage
+   * (`keyLevel`), die Masse ihre Unterkante, und eine **Decke** gehört zu dem
+   * Stockwerk, das auf ihr steht, und nicht zu dem darunter.
+   *
+   * Ohne Angabe: keine Meinung, und dann wird der Quader nie ausgeblendet.
+   */
+  level?: number;
+  /**
    * Ob ein Portal daran haftet.
    *
    * Ohne Angabe entscheidet die Sorte: helle Tafeln ja, alles andere nein.

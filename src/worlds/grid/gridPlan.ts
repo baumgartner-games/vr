@@ -82,6 +82,16 @@ export interface Mass {
   to: number;
   /** Ob ein Portal daran haftet — siehe `PlanSolid.portal`. */
   portal?: boolean;
+  /**
+   * **Zu welcher Etage sie fürs Aufschneiden zählt** (`core/cutaway.ts`).
+   *
+   * Ohne Angabe die Etage ihrer **Unterkante**, und das ist fast immer
+   * richtig: Der Kugelfang steht im Erdgeschoss, die Felswand auch. Die
+   * Ausnahme ist die **Decke** — sie ist der Boden des Stockwerks darüber und
+   * verschwindet von oben mit ihm, nicht mit dem Raum darunter. `room()` trägt
+   * das für ihre Decke selbst ein; wer eine von Hand baut, sagt es hier.
+   */
+  level?: number;
 }
 
 /** Was ein Zimmer außer Boden noch bekommt. */
@@ -196,7 +206,12 @@ export class GridPlan {
       wallRect(this.graph, at, options.walls === true ? 'solid' : options.walls);
     }
     if (options.ceiling !== undefined) {
-      this.mass('wall', at, options.ceiling, options.ceiling + 0.3);
+      // **Die Decke gehört dem Stockwerk darüber.** Von oben sieht man in ein
+      // Zimmer nur hinein, wenn sein Deckel mit der Etage verschwindet, auf
+      // der er liegt — und das ist die nächste, auch wenn es sie in dieser
+      // Welt gar nicht gibt (das Dunkelhaus hat genau ein Geschoss und
+      // trotzdem ein Dach).
+      this.mass('wall', at, options.ceiling, options.ceiling + 0.3, { level: level + 1 });
     }
     return this;
   }
@@ -552,7 +567,7 @@ export class GridPlan {
     rect: NavRect,
     from: number,
     to: number,
-    options: { portal?: boolean } = {},
+    options: { portal?: boolean; level?: number } = {},
   ): this {
     this.stack.push({ kind, rect, from, to, ...options });
     return this;
@@ -577,15 +592,20 @@ export class GridPlan {
     const out = planSolids(this.graph, this.doorWidth());
     for (const one of this.stack) out.push(massSolid(this.graph, one));
     for (const one of this.placed) {
-      out.push(
-        ...blockSolids(one.kind, {
-          x: tileCentreX(one.tile),
-          z: tileCentreZ(one.tile),
-          base: this.graph.levelY(keyLevel(one.tile)),
-          dir: one.dir,
-          ...(one.height === undefined ? {} : { height: one.height }),
-        }),
-      );
+      // **Ein Baustein steht auf der Ebene seiner Kachel** — die Brüstung auf
+      // dem Podest verschwindet von oben mit dem Podest, die Treppe darunter
+      // bleibt stehen (`core/cutaway.ts`).
+      const level = keyLevel(one.tile);
+      for (const solid of blockSolids(one.kind, {
+        x: tileCentreX(one.tile),
+        z: tileCentreZ(one.tile),
+        base: this.graph.levelY(level),
+        dir: one.dir,
+        ...(one.height === undefined ? {} : { height: one.height }),
+      })) {
+        solid.level = level;
+        out.push(solid);
+      }
     }
     return out;
   }
@@ -761,7 +781,25 @@ function massSolid(graph: NavGraph, mass: Mass): PlanSolid {
     Math.max(0.01, mass.to - mass.from),
     rect.d * TILE,
   );
+  solid.level = mass.level ?? levelUnder(graph, base + mass.from);
   return mass.portal === undefined ? solid : { ...solid, portal: mass.portal };
+}
+
+/**
+ * **Auf welcher Etage eine Höhe liegt** — die oberste, deren Boden nicht
+ * darüber ist.
+ *
+ * Für Massen, die nichts anderes sagen: Was auf dem Boden des Obergeschosses
+ * aufsetzt, gehört dorthin; alles darunter zum Geschoss darunter. Eine
+ * Handbreit Luft, weil eine Brüstung auch zwei Zentimeter über ihrem Boden
+ * anfangen darf, ohne deshalb ein Stockwerk tiefer zu gehören.
+ */
+function levelUnder(graph: NavGraph, y: number): number {
+  let level = 0;
+  for (let index = 1; index < graph.levels.length; index++) {
+    if (graph.levelY(index) <= y + 0.1) level = index;
+  }
+  return level;
 }
 
 /** Die vier Richtungen, damit eine Welt sie nicht aus dem Kachelmodul holen muss. */
