@@ -102,7 +102,7 @@ export interface FixtureSpot {
 /**
  * **Was ein Einbau nach außen meldet.**
  *
- * Vier Sachen, und mehr sollen es nicht werden. Ein Einbau ruft nichts auf und
+ * Fünf Sachen, und mehr sollen es nicht werden. Ein Einbau ruft nichts auf und
  * kennt niemanden — er sagt, was passiert ist, und `GridWorld` verteilt es.
  * Das ist der Unterschied zwischen einem Knopf, den man ohne Welt prüfen kann,
  * und einem, der eine Tür in der Hand hält.
@@ -126,7 +126,17 @@ export type FixtureEvent =
    * Boden (`EFFECT_LIFT`). Ein Einbau rechnet nämlich in Kacheln und kennt
    * seine Weltmeter gar nicht.
    */
-  | { type: 'effect'; effect: string; at?: FixtureSpot; size?: number };
+  | { type: 'effect'; effect: string; at?: FixtureSpot; size?: number }
+  /**
+   * **Mach die Umkleide auf** (`ui/WardrobeMenu.ts`, `WorldContext.openWardrobe`).
+   *
+   * Das einzige Ereignis ohne Inhalt, und das ist Absicht: Der Kleiderschrank
+   * weiß nicht, wer davorsteht, was der gerade anhat und ob es am Bildschirm
+   * eine Seite oder in der Brille eine Menüseite wird. Er weiß, dass jemand
+   * ihn aufgemacht hat — alles andere gehört dem, der die Umkleide besitzt
+   * (`App`), und geht über den Weltkontext dorthin.
+   */
+  | { type: 'wardrobe' };
 
 /**
  * Die Geräusche, die es gibt — Namen und keine Frequenzen.

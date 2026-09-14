@@ -7,6 +7,7 @@ import { LAMP } from './lamp';
 import { LEVER } from './lever';
 import { PLATE } from './plate';
 import { SIGN } from './sign';
+import { WARDROBE } from './wardrobe';
 
 /**
  * **Die Anmeldung** — eine Zeile je Art, und sonst steht hier nichts.
@@ -34,6 +35,7 @@ registerKind(BUTTON);
 registerKind(LEVER);
 registerKind(PLATE);
 registerKind(LAMP);
+registerKind(WARDROBE);
 
 /** Die Art mit diesem Namen — `null`, wenn dieses Programm sie nicht kennt. */
 export function knownKind(kind: string): FixtureKind<unknown> | null {
@@ -45,4 +47,4 @@ export function paletteKinds(): readonly FixtureKind<unknown>[] {
   return fixtureKinds();
 }
 
-export { BUTTON, DOOR, EMITTER, GATE, LAMP, LEVER, PLATE, SIGN };
+export { BUTTON, DOOR, EMITTER, GATE, LAMP, LEVER, PLATE, SIGN, WARDROBE };
