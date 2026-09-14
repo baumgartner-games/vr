@@ -53,7 +53,8 @@ describe('die Karte in der Hand', () => {
       const plot = plotMap(room(), WINDOW);
       expect(plot.tiles).toHaveLength(16);
       expect(plot.scanned).toBe(16);
-      // Eine Kachel ist 2,5 m breit, der Ausschnitt 20 m — also ein Achtel.
+      // Eine Kachel ist einen Meter breit, der Ausschnitt zwanzig — also ein
+      // Zwanzigstel.
       expect(plot.tiles[0]!.size).toBeCloseTo(TILE / WINDOW.span);
     });
 
@@ -85,10 +86,10 @@ describe('die Karte in der Hand', () => {
 
     it('legt die Nordwand an die Oberkante des Zimmers', () => {
       const plot = plotMap(room(), WINDOW);
-      // Das Zimmer geht von z = −5 bis +5; die Nordwand liegt also bei −5,
-      // und das ist auf dem Blatt 0,25 von oben.
+      // Das Zimmer geht über die Kacheln −2 bis 1, also von z = −2 · TILE bis
+      // +2 · TILE; die Nordwand liegt an seiner oberen Kante.
       const top = Math.min(...plot.walls.map((wall) => wall.from.v));
-      expect(top).toBeCloseTo(toSheet(WINDOW, 0, -5).v);
+      expect(top).toBeCloseTo(toSheet(WINDOW, 0, -2 * TILE).v);
     });
 
     it('sagt, welche Tür offen steht', () => {
