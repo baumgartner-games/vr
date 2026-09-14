@@ -254,6 +254,7 @@ import {
   SHOT_MARGIN,
   USE_CHEST,
   USE_RADIUS,
+  aimForward,
   markUsable,
   pickUsable,
   shotHitsUsable,
@@ -261,6 +262,7 @@ import {
   type Usable,
 } from '../../core/usable';
 import { ScreenHand } from './screenHand';
+import { Highlight } from '../../core/highlight';
 import { topDownPitch } from '../../core/topDownPose';
 import { overBudget, type LooseEntry } from './tools/looseBudget';
 import { findMaterial, isTransparent } from './tools/materials';
@@ -284,6 +286,18 @@ const USE_PROMPT_Y = 2.15;
 /** Zwischenlagen fürs Benutzen — Ort und Blickrichtung der Figur (`core/usable.ts`). */
 const _useAt = new THREE.Vector3();
 const _useForward = new THREE.Vector3();
+/** Wohin Figur und Kopf zeigen — `usable.aimForward` wählt aus beidem. */
+const _useRigAhead = new THREE.Vector3();
+const _useHeadAhead = new THREE.Vector3();
+/** Wo der Hinweis aus den Augen steht: vor dem Gesicht statt über dem Kopf. */
+const _promptAt = new THREE.Vector3();
+const _promptAhead = new THREE.Vector3();
+/**
+ * Wie weit vor dem Auge der Hinweis steht und wie weit unter der Blickachse,
+ * in Metern — tief genug, dass er nicht vor dem steht, worum es geht.
+ */
+const USE_PROMPT_AHEAD = 1.4;
+const USE_PROMPT_DROP = 0.4;
 const _useCentre = new THREE.Vector3();
 const _useFlight = new THREE.Vector3();
 const _useBox = new THREE.Box3();
@@ -769,6 +783,13 @@ export class PortalWorld implements World {
   /** Der Hinweis über der Figur (_E · Knopf drücken_), solange einer ansteht. */
   private usePromptPlane: TextPlane | null = null;
   private usePromptText = '';
+  /**
+   * **Der gelbe Saum um das, was `A` gerade meint** (`core/highlight.ts`).
+   *
+   * Er hängt an der Welt und nicht am Ding: Genau eines leuchtet, und wer
+   * die Welt verlässt, nimmt ihn mit (`dispose`).
+   */
+  private readonly highlighter = new Highlight(this.root);
   /** Keyed by hand, plus a `:far` probe for the half that is through a portal. */
   private readonly probes = new Map<string, HandProbe>();
   private readonly grabs = new Map<Handedness, HandGrab>();
@@ -1098,7 +1119,7 @@ export class PortalWorld implements World {
     this.portalRed.setTime(this.time);
 
     this.updateTools(dt, ctx);
-    this.updateUsables(ctx);
+    this.updateUsables(dt, ctx);
     this.updateGrabs(dt, ctx);
     this.updateFoam(dt);
     this.updateGhosts(ctx);
@@ -3347,6 +3368,9 @@ export class PortalWorld implements World {
     this.screenHand = null;
     ctx.avatar.screenHand = null;
     for (const entry of [...this.usables]) this.removeUsable(entry.object);
+    // Der Saum hängt an einem Ding der Welt und darf ihr nicht folgen.
+    this.highlighter.dispose();
+    ctx.rig.useCandidate = false;
     this.usePromptPlane?.dispose();
     this.usePromptPlane?.removeFromParent();
     this.usePromptPlane = null;
@@ -7431,29 +7455,50 @@ export class PortalWorld implements World {
     return pick.candidate.usable.use({ kind: 'player', at: _useAt, forward: _useForward });
   }
 
-  /** Wo die Figur steht und wohin sie schaut — die zwei Zahlen hinter E5. */
+  /**
+   * **Wo die Figur steht und wohin sie schaut** — die zwei Zahlen hinter E5,
+   * und die zweite hängt an der Ansicht (`usable.aimForward`).
+   *
+   * Von oben dreht die Steuerung die ganze Figur zum Ziel, also zeigt das Rig.
+   * Aus den Augen und in der Brille steht sie still und sieht sich um, also
+   * zeigt der Kopf — wer dort einen Knopf ansieht, meint ihn und nicht das,
+   * wohin seine Füße stehen.
+   */
   private aimUse(ctx: WorldContext): void {
     ctx.rig.updateMatrixWorld(true);
     _useAt.set(ctx.rig.position.x, ctx.rig.getFloorY() + USE_CHEST, ctx.rig.position.z);
-    _useForward.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_quaternion));
+    _useRigAhead.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_quaternion));
+    ctx.rig.getHeadForward(_useHeadAhead);
+    aimForward(ctx.topDown, _useRigAhead, _useHeadAhead, _useForward);
   }
 
   /**
-   * Je Bild einmal: die Anforderung des Rigs abholen und den Hinweis über der
-   * Figur nachführen.
+   * **Je Bild einmal**: die Anforderung des Rigs abholen, das Gewählte
+   * hervorheben und den Hinweis nachführen.
+   *
+   * Und dem Gestell sagen, **ob** etwas dasteht (`PlayerRig.useCandidate`):
+   * Daran hängt, ob `A` benutzt oder springt — in der Brille wie am Schirm.
+   * Ohne diese eine Zeile spränge man in der Brille vor jeder Tür, statt sie
+   * aufzumachen.
    */
-  private updateUsables(ctx: WorldContext): void {
+  private updateUsables(dt: number, ctx: WorldContext): void {
     if (ctx.rig.takeUse()) this.useForward(ctx);
     this.aimUse(ctx);
 
-    // Der Hinweis gibt es nur von oben: Aus den Augen sieht man, was man
-    // anfasst, und in der Brille liegt die Hand darauf.
-    if (!ctx.topDown || this.usables.length === 0) {
-      this.showUsePrompt(ctx, '');
-      return;
-    }
-    const pick = pickUsable(this.collectUsables(), _useAt, _useForward);
-    this.showUsePrompt(ctx, pick?.candidate.usable.usePrompt?.() ?? '');
+    const pick =
+      this.usables.length > 0 ? pickUsable(this.collectUsables(), _useAt, _useForward) : null;
+    ctx.rig.useCandidate = pick !== null;
+
+    // **Hervorgehoben wird überall** — auch in der Brille: Dort ist der Saum
+    // die ganze Auskunft, denn einen Hinweis über dem eigenen Kopf liest
+    // niemand, der selbst in der Welt steht.
+    this.highlighter.highlight(pick?.candidate.object ?? null);
+    this.highlighter.update(dt);
+
+    // Der Hinweis dagegen gehört den Bildschirmansichten: von oben über der
+    // Figur, aus den Augen vor dem Gesicht (`showUsePrompt`).
+    const prompt = ctx.renderer.xr.isPresenting ? '' : (pick?.candidate.usable.usePrompt?.() ?? '');
+    this.showUsePrompt(ctx, prompt);
   }
 
   /** Die Liste als Kandidaten für die Auswahl — Weltpositionen, je Bild frisch. */
@@ -7492,7 +7537,6 @@ export class PortalWorld implements World {
     if (!plane) {
       plane = new TextPlane({ width: 1.1, height: 0.26, title: '', align: 'center' });
       plane.name = 'use-prompt';
-      plane.rotation.set(topDownPitch(), 0, 0);
       this.root.add(plane);
       this.usePromptPlane = plane;
     }
@@ -7502,7 +7546,27 @@ export class PortalWorld implements World {
       this.usePromptText = label;
     }
     plane.visible = true;
-    plane.position.set(ctx.rig.position.x, ctx.rig.getFloorY() + USE_PROMPT_Y, ctx.rig.position.z);
+    if (ctx.topDown) {
+      plane.rotation.set(topDownPitch(), 0, 0);
+      plane.position.set(
+        ctx.rig.position.x,
+        ctx.rig.getFloorY() + USE_PROMPT_Y,
+        ctx.rig.position.z,
+      );
+      return;
+    }
+    // **Aus den Augen steht er vor dem Gesicht.** Über dem eigenen Kopf hinge
+    // er dort, wo man als Einziger nicht hinsieht — der eigene Körper ist das
+    // Einzige in der Welt, das man nie zu sehen bekommt. Also eine
+    // Handbreit unter der Blickachse, gut einen Meter voraus, dem Auge
+    // zugewandt.
+    ctx.rig.getHeadPosition(_promptAt);
+    ctx.rig.getHeadForward(_promptAhead);
+    plane.position
+      .copy(_promptAt)
+      .addScaledVector(_promptAhead, USE_PROMPT_AHEAD)
+      .setY(_promptAt.y - USE_PROMPT_DROP);
+    plane.lookAt(_promptAt);
   }
 
   /**
