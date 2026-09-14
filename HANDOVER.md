@@ -42,7 +42,9 @@ der Brillenspieler sich am Handgelenk aus dem Boden holen können.
   Vorplatz auf `COMMAND_HOME`.
 - `App.setPlayerName` ist öffentlich: verbunden und den Namen doch noch
   geändert heißt umbenennen, nicht neu verbinden.
-- Der Browser-Smoke betritt die Welt über Verbinden → `#haunt-centre`.
+- Der Browser-Smoke betritt die Welt über Verbinden → „2D" wählen
+  (`#screen-view`) → `#haunt-flat` (seit dem Menü-Umbau: ein Knopf für den
+  Bildschirm, die Wahl 2D/3D steht oben auf der Startseite).
 
 - **Nachtrag (zweiter PR): Der Techniker am Bildschirm zählt.** Befund des
   Besitzers: Client 1 „Web 3D", Client 2 „2D Einsatzzentrale" — beim Start aus

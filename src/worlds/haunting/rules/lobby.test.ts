@@ -39,6 +39,28 @@ describe('lobby', () => {
     expect(defaultLobby('vr')).toEqual({ intent: 'play', view: '3d', me: 'technician' });
   });
 
+  test('was die Startseite unter „2D oder 3D" gemerkt hat, schlägt die Regel nach Gerät', () => {
+    // Ein Schreibtisch, der 2D will, sieht dem Techniker zu — wie ein Telefon.
+    expect(defaultLobby('desktop', '2d')).toEqual({
+      intent: 'play',
+      view: '2d',
+      me: 'watch:technician',
+    });
+    // Ein Telefon, das 3D will, ist der Techniker im Schiff.
+    expect(defaultLobby('handheld', '3d')).toEqual({
+      intent: 'play',
+      view: '3d',
+      me: 'technician',
+    });
+    // Nichts gemerkt: die Regel nach Gerät.
+    expect(defaultLobby('handheld', null)).toEqual(defaultLobby('handheld'));
+    // Und ein gemerkter Stand der Lobby geht immer vor.
+    expect(readLobby({ intent: 'play', view: '3d', me: 'red' }, null, 'desktop', '2d').view).toBe(
+      '3d',
+    );
+    expect(loadLobby(null, 'desktop', '2d').view).toBe('2d');
+  });
+
   test('spielen als Techniker: ich am Stock, Monster an — ein ausgeschaltetes kommt zurück', () => {
     const setup = withWho(withWho(defaultSetup(), 'technician', 'bot'), 'monster', 'off');
     expect(applyIntent(setup, 'play').seats).toMatchObject({

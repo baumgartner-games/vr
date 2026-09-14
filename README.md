@@ -103,9 +103,11 @@ zu besetzen.
 **Lobby**: Name und Raum-Code eintragen, **Verbinden**; wer denselben Code
 eingibt, steht dann bei allen in der Liste (Name und Gerät). Dann wählt jeder
 seinen Weg, und alle bleiben in diesem Raum: **Enter VR** (die Brille, der
-Techniker im Anzug), **Web 3D** (der Techniker am Bildschirm, im Schiff) und
-**2D Einsatzzentrale** (Handy oder Laptop: Archiv, Schalttafel, Späher,
-Zuschauer oder Monster — die Karte von oben). In der Zentrale erst die Tafel
+Techniker im Anzug) oder **Am Bildschirm starten** — und ob das **Web 3D**
+(der Techniker am Bildschirm, im Schiff) oder die **2D Einsatzzentrale**
+(Handy oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die
+Karte von oben) ist, sagt die Wahl **„Am Bildschirm: 2D oder 3D?"** oben auf
+der Seite; am Handy ist 2D vorbelegt. In der Zentrale erst die Tafel
 einstellen, dann **Rollen testen** — über der Karte nimmt man seinen Platz
 über die Reiter; ein **Ich** auf der Tafel gibt es nicht. Wer über **Enter VR** oder
 **Web 3D** kommt, steht sofort im Anzug: Die Techniker-Zeile der Tafel zeigt
@@ -761,7 +763,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Bewegen | linker Stick (reindrücken = Sprint) | `WASD`, `Shift` | linker Touch-Stick |
 | Umsehen | Kopf, rechter Stick = Snap-Turn | Maus (Klick = Pointer-Lock) | wischen |
 | Springen / Ducken | `A` rechts / rechten Stick reindrücken | `Leertaste` | – |
-| Menü | Button an beiden Händen (immer nur eins offen) | `Menü` im HUD | `Menü` im HUD |
+| Menü | Button an beiden Händen (immer nur eins offen) | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links |
 | Auswählen | zielen + Trigger oder `A` | Linksklick | tippen |
 | Werkzeug nehmen/ablegen | Grip an der Hüfte; woanders loslassen lässt es fallen | – | – |
 | Hüften verschieben | Gürtel-Justierer: Hüfte anzielen, Trigger, mit der anderen Hand schieben | – | – |

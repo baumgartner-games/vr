@@ -155,23 +155,62 @@ h1 {
 
 .hints strong { color: var(--fg); font-weight: 600; }
 
-/* ---------- HUD (2D fallback) ---------- */
+/* ---------- HUD (Web) ----------
+   Oben links der Knopf zum Menü, oben rechts Weltname, Verbindung und VR. Der
+   Streifen selbst fängt keine Tipps ab — nur seine Knöpfe, damit die Welt
+   dazwischen bedienbar bleibt. Mobile first: 44 Punkte Knopf, und auf einem
+   schmalen Telefon fällt der Weltname weg, bevor ein Knopf es tut. */
 
 .hud {
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
   z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
 }
 
 .hud[hidden] { display: none; }
+.hud > * { pointer-events: auto; }
+
+/* Der runde Menü-Knopf — derselbe auf der Startseite (`.landing__menu`). */
+.hud__menu {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+}
+
+.hud__menu svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.hud__menu:hover { background: rgba(140, 170, 230, 0.22); }
+.hud__menu[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.hud__menu:disabled { opacity: 0.45; cursor: default; }
+
+.landing__menu {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  z-index: 11;
+}
 
 .hud__row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  padding: 8px 8px 8px 14px;
+  min-height: 44px;
+  padding: 5px 5px 5px 14px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -179,6 +218,11 @@ h1 {
 }
 
 .hud__world { font-size: 13px; color: var(--muted); }
+
+@media (max-width: 480px) {
+  .hud__world { display: none; }
+  .hud__row { padding-left: 5px; }
+}
 
 .hud__btn {
   font: inherit;
@@ -626,6 +670,10 @@ input[type="range"] {
 }
 
 .seg--two { grid-template-columns: repeat(2, 1fr); margin-bottom: 8px; }
+
+/* 2D oder 3D am Bildschirm: dieselbe Frage-Form wie die Haltung, darunter die
+   Zeile, was der Knopf „Am Bildschirm starten" damit tut (`main.ts`). */
+.screen-view { margin-bottom: 20px; }
 
 /* The two ways out of the room-code form: headset on, or straight to flat. */
 .net__actions {

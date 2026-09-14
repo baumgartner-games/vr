@@ -141,15 +141,21 @@ export const VIEW_LABELS: Readonly<Record<View, string>> = {
  * ist die Karte von oben die Voreinstellung (3D bleibt möglich, aber ein
  * Schiff auf 390 Punkten Breite ist keine Einladung); am Desktop und in der
  * Brille das Schiff.
+ *
+ * @param view was die Startseite unter „2D oder 3D am Bildschirm" gemerkt hat
+ *             (`core/screenView.ts`), wenn sie etwas gemerkt hat — dann
+ *             gilt das statt der Regel nach Gerät. Wer dort 2D gewählt hat,
+ *             kommt auch aus dem Hub-Menü heraus in der Zentrale an.
  */
-export function defaultLobby(role: PlayerRole): LobbyChoice {
+export function defaultLobby(role: PlayerRole, view?: View | null): LobbyChoice {
   // **Alle fangen in der Zentrale an und sehen dem Techniker zu** — außer dem,
   // der den Anzug trägt: Brille und Desktop sind der Techniker, denn dort
   // gibt es das Schiff, und ein Schiff ohne Techniker ist eine Vorführung.
+  const picked = view ?? (role === 'handheld' ? '2d' : '3d');
   return {
     intent: 'play',
-    view: role === 'handheld' ? '2d' : '3d',
-    me: role === 'handheld' ? 'watch:technician' : 'technician',
+    view: picked,
+    me: picked === '2d' ? 'watch:technician' : 'technician',
   };
 }
 
@@ -189,8 +195,9 @@ export function readLobby(
   value: unknown,
   legacyFlat?: string | null,
   role: PlayerRole = 'desktop',
+  wanted?: View | null,
 ): LobbyChoice {
-  const fallback = defaultLobby(role);
+  const fallback = defaultLobby(role, wanted);
   const bag = value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
   const intent = bag?.['intent'];
   const view = bag?.['view'];
@@ -215,14 +222,15 @@ export function loadLobby(
     ? null
     : localStorage,
   role: PlayerRole = 'desktop',
+  view?: View | null,
 ): LobbyChoice {
   try {
     const raw = storage?.getItem(LOBBY_STORAGE);
-    return readLobby(raw ? JSON.parse(raw) : null, storage?.getItem(FLAT_STORAGE), role);
+    return readLobby(raw ? JSON.parse(raw) : null, storage?.getItem(FLAT_STORAGE), role, view);
   } catch {
     // Kein Speicher (privates Fenster, jsdom ohne Origin) oder Bruch darin:
     // dann eben von vorn. Eine kaputte Zeile darf niemanden aussperren.
-    return defaultLobby(role);
+    return defaultLobby(role, view);
   }
 }
 

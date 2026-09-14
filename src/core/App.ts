@@ -7,6 +7,7 @@ import { HandVisuals } from './HandVisuals';
 import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
+import { PageMenu } from '../ui/PageMenu';
 import { NetSession } from '../net/NetSession';
 import { CHAT_LIMIT, ChatLog, type ChatEntry } from '../net/chat';
 import { RemoteAvatars } from '../net/RemoteAvatars';
@@ -62,6 +63,11 @@ import type { TurnServerConfig } from '@trystero-p2p/core';
 export interface AppHooks {
   onWorldChanged?(id: string, title: string): void;
   onSessionChanged?(presenting: boolean): void;
+  /**
+   * Das Menü als Seite ging auf oder zu (`ui/PageMenu.ts`) — der Knopf oben
+   * links auf der Seite sagt es mit `aria-expanded` nach.
+   */
+  onMenuChanged?(open: boolean): void;
   onNotify?(message: string): void;
   /**
    * Eine Welt möchte den Bordstock der Seite loswerden oder wiederhaben
@@ -122,6 +128,11 @@ export class App {
   readonly input: XRInput;
   readonly pointer: Pointer;
   readonly wristMenu: WristMenus;
+  /**
+   * Dasselbe Menü als Seite aus DOM, für alles ohne Brille — hinter dem Knopf
+   * oben links. Welches der beiden gerade gilt, entscheidet `WristMenus`.
+   */
+  readonly pageMenu: PageMenu;
   readonly net = new NetSession();
   readonly spectator: SpectatorCamera;
 
@@ -244,6 +255,12 @@ export class App {
       footer: 'Andere Hand: zielen + Trigger/A',
     });
     this.rig.add(this.wristMenu);
+    this.pageMenu = new PageMenu({
+      title: 'Menü',
+      nav: this.wristMenu.nav,
+      onToggle: (open) => this.hooks.onMenuChanged?.(open),
+    });
+    this.wristMenu.attachPage(this.pageMenu);
     this.refreshMenu();
 
     // Der Name gilt ab sofort und nicht erst ab dem Verbinden: er steht im
@@ -597,6 +614,7 @@ export class App {
     this.flat.dispose();
     this.avatar.dispose();
     this.wristMenu.dispose();
+    this.pageMenu.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
     this.voice.dispose();
@@ -1257,6 +1275,10 @@ export class App {
 
   /** Legt die Tastatur eine Armlänge vor den Kopf und macht sie auf. */
   private openKeys(request: KeyPanelRequest): void {
+    // Ohne Brille trägt die Seite das Menü, und die läge über der Tastatur in
+    // der Szene — am Telefon über der ganzen unteren Hälfte. Also geht das
+    // Menü zu; die Tastatur steht danach frei vor der Kamera.
+    if (!this.renderer.xr.isPresenting) this.wristMenu.toggle(false);
     this.rig.getHeadMatrix(_head);
     _keyPosition.setFromMatrixPosition(_head);
     _keyRotation.setFromRotationMatrix(_head);
@@ -1398,6 +1420,8 @@ export class App {
   private onSessionStart = (): void => {
     this.frameStats.setImmersive(true);
     this.role = 'vr';
+    // Ab jetzt tragen die Handgelenke das Menü, nicht die Seite.
+    this.wristMenu.presenting = true;
     // Ab jetzt darf eine Texteingabe die Tastatur des Geräts anfordern: Im
     // Browserfenster gibt es dafür die echte Tastatur, in der Brille nicht.
     setImmersive(true);
@@ -1417,6 +1441,7 @@ export class App {
     this.frameStats.setImmersive(false);
     this.resizeWebBuffer();
     this.role = detectFlatRole();
+    this.wristMenu.presenting = false;
     setImmersive(false);
     if (this.rig.paused) {
       // Spectating in VR carried the rig around; the body has to catch up.

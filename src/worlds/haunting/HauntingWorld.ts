@@ -5,6 +5,7 @@ import { PLAN_DOOR_H, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 import { DIRS, DIR_E, DIR_N, DIR_S, TILE, dirX, dirZ, type Dir } from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { playSlam, playSwitch } from '../../core/Audio';
+import { storedScreenView } from '../../core/screenView';
 import { pickHost } from '../../net/host';
 import type { Peer } from '../../net/NetSession';
 import type { PeerPose } from '../../net/types';
@@ -712,7 +713,7 @@ export class HauntingWorld extends GridWorld {
    * nicht jedes Mal neu. Der alte Schalter „2D-Welt von oben" wird dabei
    * einmal mitgelesen und danach vergessen.
    */
-  private lobbyChoice: LobbyChoice = loadLobby();
+  private lobbyChoice: LobbyChoice = loadLobby(undefined, undefined, storedScreenView());
   /**
    * **„2D-Welt von oben"** — nur noch die Ansicht dieser Wahl. Eine
    * Einstellung und kein Start: Sie sagt, wie die *nächste* Runde aussieht,
