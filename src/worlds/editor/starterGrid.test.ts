@@ -50,6 +50,15 @@ describe('Das Startzimmer', () => {
     }
   });
 
+  /**
+   * **Kein Dach**, und das ist hier keine Kleinigkeit: Von oben sieht man in
+   * ein gedeckeltes Zimmer nicht hinein, und der Bauplatz ist die Welt, in der
+   * man von oben baut.
+   */
+  it('baut keine Decke', () => {
+    expect(plan.masses()).toHaveLength(0);
+  });
+
   it('lässt jede Kachel vom Startplatz aus erreichen', () => {
     // Der Startpunkt der Welt liegt auf der südlichsten Kachelreihe
     // (`EditorWorld.spawnPoint`); von dort muss man überall hinkommen, auch

@@ -140,6 +140,18 @@ describe('Der Hub als Grundriss', () => {
     for (const key of hub.plan.graph.tileKeys()) expect(field.cost.has(key)).toBe(true);
   });
 
+  /**
+   * **Kein Dach**, weder über der Halle noch über den Gängen.
+   *
+   * Von oben wäre ein gedeckelter Gang ein schwarzer Balken. Aufgeschnitten
+   * wird zwar (`core/cutaway.ts`), aber ein Deckel, den man ohnehin jedes Bild
+   * wieder wegnimmt, muss gar nicht erst stehen — und über dem Hub ist Himmel
+   * das Erste, was man beim Ankommen sieht.
+   */
+  it('baut kein Dach', () => {
+    expect(hub.plan.masses()).toHaveLength(0);
+  });
+
   it('hält jeden Gang mindestens zwei Kacheln breit', () => {
     // Zwei ist die Untergrenze: Ein Gang mit einer Kachel wäre einer, in dem
     // ein Tor den Weg versperrt. Gebaut sind es drei.
