@@ -14,6 +14,9 @@ import {
 } from './level';
 import { sampleLevel } from './sample';
 import { SOLID_TILES, TILES } from './tiles';
+import { Object3D } from 'three';
+import { renderModelSprite } from './modelSprite';
+import { WORLDS } from '../worlds';
 
 /**
  * **Die 2D-Welt als Daten** (`level.ts`) — die Wahrheit, aus der später die
@@ -105,18 +108,80 @@ describe('Der Kachelkatalog', () => {
     expect(TILE_M).toBe(1);
     expect(TILE_PX).toBe(16);
   });
+
+  /**
+   * **Die Kachel, die aus 3D kommt.** Sie steht im Katalog wie jede andere —
+   * mit Kennung, Ebene und „fest" —, obwohl ihr Bild erst beim Zeichnen aus
+   * einem `THREE.Mesh` entsteht (`modelSprite.ts`). Hier läuft weder ein
+   * Browser noch WebGL, und genau das ist die Prüfung: Der Katalog ist auch
+   * dann vollständig, und das Ablichten gibt `null` zurück statt zu krachen —
+   * die Zusage, an der die flache Ersatzkachel hängt.
+   */
+  it('hat den Companion Cube — auch ohne WebGL, dann eben ohne Bild', () => {
+    const cube = TILES.find((tile) => tile.name === 'Companion Cube');
+    expect(cube).toBeDefined();
+    expect(cube!.layer).toBe('objects');
+    expect(SOLID_TILES.has(cube!.id)).toBe(true);
+    expect(renderModelSprite(new Object3D())).toBeNull();
+  });
 });
 
-describe('Die Lichtung', () => {
+describe('Der Anfangsplan einer Welt', () => {
+  const water = TILES.find((t) => t.name === 'Wasser')!.id;
+  const bridge = TILES.find((t) => t.name === 'Brücke')!.id;
+  const cube = TILES.find((t) => t.name === 'Companion Cube')!.id;
+  /** Wo eine Kachel auf einer Ebene überhaupt vorkommt. */
+  const cells = (level: ReturnType<typeof sampleLevel>, layer: string, tile: number) => {
+    const data = layerOf(level, layer)!;
+    const found: Array<[number, number]> = [];
+    for (let row = 0; row < level.rows; row++)
+      for (let col = 0; col < level.cols; col++)
+        if (tileAt(level, data, col, row) === tile) found.push([col, row]);
+    return found;
+  };
+
   it('hat Wasser unter der Brücke, damit man nicht drumherum muss', () => {
     const level = sampleLevel('hub', 'Hub');
+    const planks = cells(level, 'objects', bridge);
+    expect(planks.length).toBeGreaterThan(2);
+    // Die Brücke fängt und endet am Ufer; dazwischen steht sie über Wasser.
     const ground = layerOf(level, 'ground')!;
-    const objects = layerOf(level, 'objects')!;
-    const water = TILES.find((t) => t.name === 'Wasser')!.id;
-    const bridge = TILES.find((t) => t.name === 'Brücke')!.id;
-    expect(tileAt(level, objects, 9, 6)).toBe(bridge);
-    expect(tileAt(level, ground, 8, 6)).toBe(water);
-    // Und der Start steht auf freiem Boden.
-    expect(isSolidAt(level, SOLID_TILES, level.spawn.col, level.spawn.row)).toBe(false);
+    const overWater = planks.filter(([col, row]) => tileAt(level, ground, col, row) === water);
+    expect(overWater.length).toBeGreaterThan(0);
+  });
+
+  it('stellt den Helden auf freien Boden', () => {
+    for (const world of WORLDS) {
+      const level = sampleLevel(world.id, world.title);
+      expect(isSolidAt(level, SOLID_TILES, level.spawn.col, level.spawn.row)).toBe(false);
+    }
+  });
+
+  it('stellt Companion Cubes in jede Welt', () => {
+    for (const world of WORLDS) {
+      const level = sampleLevel(world.id, world.title);
+      expect(cells(level, 'objects', cube).length).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * **Der Grund, warum es diese Datei gibt.** Vorher bekam jede Welt dieselbe
+   * Lichtung: Der Wechsel im Menü lief, aber von oben sah man Bild für Bild
+   * dasselbe — „die Welten lassen sich nicht wechseln". Zwei Welten sind jetzt
+   * zwei Orte, und dieselbe Welt bleibt dieselbe.
+   */
+  it('gibt jeder Welt ihren eigenen Plan — und derselben Welt immer denselben', () => {
+    const plan = (id: string): string =>
+      layerOf(sampleLevel(id, id), 'ground')!.tiles.join(',') +
+      '|' +
+      layerOf(sampleLevel(id, id), 'objects')!.tiles.join(',');
+    const seen = new Map<string, string>();
+    for (const world of WORLDS) {
+      const mine = plan(world.id);
+      const twin = [...seen.entries()].find(([, other]) => other === mine);
+      expect(twin?.[0] ?? null).toBeNull();
+      seen.set(world.id, mine);
+    }
+    expect(plan('moon')).toBe(plan('moon'));
   });
 });
