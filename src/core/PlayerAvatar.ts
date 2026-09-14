@@ -38,10 +38,34 @@ export class PlayerAvatar extends AvatarBody {
   };
   private detached = false;
 
+  /**
+   * **Von oben schaut der Kopf, wohin die Figur steht** — und nicht, wohin die
+   * Desktop-Kamera zeigt.
+   *
+   * Sonst hängt die Sache schief: Die Ansicht von oben hat eine eigene Kamera
+   * (`core/TopDownCamera.ts`), die Rig-Kamera bleibt stehen, wo die Maus sie
+   * zuletzt hingedreht hat — und der Kopf des eigenen Körpers schaute dann
+   * beim Laufen starr in eine Richtung von vorhin. Mit diesem Schalter steht
+   * der Kopf gerade im Rig, also in die Richtung, in die auch die Figur läuft
+   * (`FlatControls.walkNorthUp`).
+   */
+  headFollowsRig = false;
+
   constructor(color = 0x3f6fb5) {
-    super({ color });
+    // Fäuste am Ende der Arme — von oben sieht man sich selbst, und eine Figur
+    // ohne Hände sieht von dort aus abgesägt aus. Gezeigt werden sie nur, wo
+    // sie gebraucht werden (`showHands`): In der Brille sind die eigenen Hände
+    // die getrackten, und eine zweite Faust an derselben Stelle wäre im
+    // Spiegel eine zu viel.
+    super({ color, hands: true });
     this.name = 'player-avatar';
+    this.setHandsVisible(false);
     this.setLayer(LAYER_SELF_ONLY);
+  }
+
+  /** Ob die Fäuste mitgezeichnet werden — von oben ja, sonst nicht. */
+  set showHands(on: boolean) {
+    this.setHandsVisible(on);
   }
 
   /**
@@ -99,7 +123,10 @@ export class PlayerAvatar extends AvatarBody {
     }
 
     _head.position.setFromMatrixPosition(headLocal);
-    _head.quaternion!.setFromRotationMatrix(headLocal);
+    // Die Höhe kommt auch von oben aus der Kamera — Ducken und Sitzen sollen
+    // die Figur ja kleiner machen. Nur ihre Drehung nicht.
+    if (this.headFollowsRig) _head.quaternion!.identity();
+    else _head.quaternion!.setFromRotationMatrix(headLocal);
     void rig;
 
     const left = handOf(input, 'left', _left);

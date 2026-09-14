@@ -703,22 +703,26 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 - **Startseite: eine Frage, ein Knopf** (`core/screenView.startOptions`, mit
   Test). Welche Frage dasteht, entscheidet **eine** Eigenschaft des Geräts —
   ob der Browser eine immersive Sitzung starten kann:
-  - **Mit Brille** gibt es „2D oder 3D" nicht (in der Brille ist nur das eine
-    zu haben); gefragt wird nach **Sitzen oder Stehen** (`core/posture.ts`),
-    und der Knopf heißt **Enter VR**.
+  - **Mit Brille** gibt es „von oben oder aus den Augen" nicht (in der Brille
+    ist nur das eine zu haben); gefragt wird nach **Sitzen oder Stehen**
+    (`core/posture.ts`), und der Knopf heißt **Enter VR**.
   - **Ohne Brille** ist es umgekehrt: Die Haltung ändert am Bildschirm nichts,
-    gefragt wird **2D oder 3D** (`core/screenView.ts`, vorbelegt nach Gerät —
-    **Handy: 2D**, sonst 3D), und der Knopf heißt **Beitreten**.
+    gefragt wird **Von oben oder Aus den Augen** (`core/screenView.ts`,
+    vorbelegt nach Gerät — **Handy: von oben**, sonst aus den Augen), und der
+    Knopf heißt **Beitreten**. Die Kennungen dahinter heißen weiter `2d` und
+    `3d`, weil sie so im Speicher stehen; die Wörter stehen in
+    `SCREEN_VIEW_LABELS`.
 
   Bis `detectXRSupport` antwortet, gilt „keine Brille": Das stimmt für fast
   jedes Gerät, der Knopf steht sofort da, und die Brille schreibt sich
   Millisekunden später selbst hinein — besser als ein toter Knopf „VR wird
   geprüft …", auf den jeder Schreibtisch wartet.
-  **Die Wahl ist eine Zusage**: „2D" führt in die Kachelwelt von oben, und die
-  gibt es in **jeder** Welt (`src/world2d/`, siehe „Jede Welt von oben") —
-  „Beitreten" öffnet also die Welt, in der man ohnehin steht, nur flach. Vorher
-  stand der Schalter da und die Spielwiese startete trotzdem den Hub in 3D:
-  eine Wahl, die keine war. Umgeschaltet wird auch mitten im Spiel, unter
+  **Die Wahl ist eine Zusage**: _Von oben_ führt in dieselbe Welt, nur aus der
+  Kamera darüber, und die gibt es in **jeder** Welt (`core/TopDownCamera.ts`,
+  siehe „Von oben: dieselbe Welt, eine Kamera") — „Beitreten" öffnet also die
+  Welt, in der man ohnehin steht, nur von woanders angesehen. Vorher stand der
+  Schalter da und die Spielwiese startete trotzdem den Hub in 3D: eine Wahl,
+  die keine war. Umgeschaltet wird auch mitten im Spiel, unter
   **Menü → Ansicht**.
   Oben links derselbe **Menü-Knopf** wie im Spiel (`#landing-menu`): Welten,
   Bewegung, Aussehen, Grafik schon vor dem Start, als Seite (`ui/PageMenu.ts`).
@@ -729,114 +733,65 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   — Name, Raum-Code, Verbinden, und derselbe eine Knopf in denselben Raum
   (`main.ts`, `data-landing="haunting"`; siehe [Haunting](#haunting--orbital-raumstation-für-eine-quest-und-zwei-mobilgeräte)).
 
-- **Jede Welt von oben** (`src/world2d/`, mit Tests) — eine **Kachelwelt** wie
-  auf dem SNES, gezeichnet von [Phaser](https://phaser.io), mit Ebenen, einem
-  Helden, einem Raster und einem kleinen Editor. Das ist die Richtung: Die
-  Kachelwelt soll die **Ground Truth** werden, aus der die 3D-Welt gebaut wird
-  — heute führt sie schon den Spieler, morgen stellt sie die Wände.
-  - **Daten zuerst** (`level.ts`, ohne Phaser, ohne DOM): Ein Plan ist
-    `cols × rows` Kacheln und darauf **Ebenen** von unten nach oben — `ground`
-    (Boden), `objects` (Dinge; hier wohnt die Kollision), `overlay` (Darüber:
-    Dächer, Baumkronen, unter denen der Held verschwindet). Jede Ebene ist eine
-    Liste von Kennungen, `0` ist leer. **Eine Kachel ist ein Meter** (`TILE_M`),
-    gezeichnet mit sechzehn Bildpunkten (`TILE_PX`): Spalte und Zeile hier sind
-    x und z in 3D. Gespeichert wird je Welt im Browser
-    (`bgvr.level2d.v1.<welt>`, Format `baumgartner-level2d` mit Fassung); wer
-    keinen Plan hat, bekommt den **Anfangsplan seiner Welt** aus `sample.ts`.
-  - **Jede Welt ihr eigener Ort** (`sample.ts`, mit Test). Bis dahin bekam
-    **jede** Welt dieselbe Lichtung, und das war der Befund „ich kann die
-    Welten nicht wechseln": Der Wechsel lief, `App.goTo` lud die neue Welt, der
-    Name oben rechts änderte sich — und die Karte darunter war Bild für Bild
-    dieselbe. Ein Wechsel, den man nicht sieht, ist für den, der davorsitzt,
-    keiner. Jetzt kommt der Plan aus der **Kennung** der Welt, und zwar zweimal:
-    ein **Anstrich** aus einer kleinen Tabelle (`THEMES`, `THEME_OF`: Wiese,
-    Sand, Stein, Halle, Nacht — Mond bekommt graue Platten, Dust Sand mit
-    Steinstraße, die Pizzeria Dielen) und die **Anordnung** aus einem gesäten
-    Zufallsgeber (`mulberry32(hashText(id))`): Teich, Brücke, Haus, Weg,
-    Wäldchen, Streugut stehen in jeder Welt woanders. Gesät heißt **stabil**:
-    Derselbe Name gibt denselben Plan, „Plan zurücksetzen" holt die eigene
-    Welt zurück und nicht eine neue. Eine Welt ohne Eintrag in `THEME_OF`
-    bekommt trotzdem einen Anstrich — eine neue Welt in `worlds/index.ts`
-    erzwingt hier nichts.
-  - **Der Katalog** (`tiles.ts`): neunzehn Kacheln — Gras, Weg, Wasser, Mauer,
-    Baum, Kiste, Tür, Dach … —, jede mit Farbe, Ebene und **ob sie fest ist**
-    (`SOLID_TILES`). Gemalt werden sie beim Start auf eine Leinwand, wie der
-    Held (`hero.ts`: vier Richtungen, zwei Schritte, grüne Tunika). Wer echte
-    Grafik will, tauscht die Leinwand gegen ein Bild und lässt alles andere
-    stehen.
-  - **Eine Kachel wird nicht gemalt, sondern abgelichtet: der Companion Cube**
-    (`modelSprite.ts`, Kachel 19). Phaser zeichnet Sprites und keine Netze, und
-    ein zweiter three.js-Renderer, der jedes Bild mitliefe, wäre für sechzehn
-    Bildpunkte eine groteske Rechnung. Also wird das Modell **einmal**
-    abgelichtet: `renderModelSprite(object, { size, frames, tilt, turn })` baut
-    einen kleinen eigenen `WebGLRenderer`, stellt eine orthografische Kamera
-    schräg darüber (55°), rechnet den Ausschnitt aus den acht Ecken der Hülle
-    über **alle** Drehungen (die Hüllkugel verschenkte bei einem Würfel ein
-    Drittel der Kantenlänge), rendert vierfach überabgetastet auf
-    durchsichtigen Grund und gibt eine **Leinwand** zurück — `frames` Bilder
-    nebeneinander, also auch ein Sprite-Blatt für eine Drehung. Der Renderer
-    wird danach sofort abgeräumt (`dispose`, `forceContextLoss`): Ein Browser
-    gibt nur eine Handvoll Kontexte her, und das hier ist Werkzeug für den
-    **Aufbau**, nicht für die Bildschleife. Das Modell wird kurz ausgehängt und
-    dorthin zurückgehängt, wo es stand. Ohne WebGL (jsdom, abgeschaltete
-    Beschleunigung) kommt `null` statt eines Absturzes, und `tiles.ts` malt
-    einen flachen Ersatzwürfel. Der Würfel selbst steht weiter genau einmal im
-    Code (`worlds/portal/props.createCompanionCube`) — ein Modell, zwei Welten,
-    **kein Bild im Repository**.
-  - **Phaser zeichnet und bewegt** (`World2D.ts`): Phaser wird erst geholt,
-    wenn 2D das erste Mal aufgeht (eigener Brocken, `import('phaser')`), baut
-    eine leere Tilemap mit einer Ebene je Plan-Ebene (Tiefe 0/5/20), den Helden
-    als Arcade-Körper (10 × 8 unter den Füßen) mit Kollision gegen alles Feste,
-    und die Kamera folgt ihm mit einem Zoom, der den Plan ins Fenster passt.
-    Phasers eigene Tastatur und der Ton sind aus — Tasten liest der Kern.
-  - **Warum es ruckelte, und was jetzt gilt.** Gemessen (Held-y je Bild):
-    Schritte von 1,6 und 2,4 Bildpunkten im Wechsel, und auf dem Schirm sprang
-    der Held mal −1,6, mal +2,4 — nach unten am deutlichsten. Drei Ursachen,
-    drei Regeln. **Die Physik rechnet mit der echten Bildzeit**
-    (`fixedStep: false`): Phasers fester 60-Hz-Schritt gab einem Bild mal
-    zwei, mal drei Schritte, auf 90- und 120-Hz-Schirmen erst recht. **Der
-    Körper rechnet, die Figur zeigt** (`player` unsichtbar, `heroSprite`
-    sichtbar): Die Physik läuft mit Bruchteilen, gezeichnet wird auf
-    Schirmpunkten. **Figur und Kamera setzt `place` selbst**, nach jedem
-    Physikschritt (`postupdate`), beide gerundet auf **Bruchteile 1/Zoom** —
-    beim Zoom 4 auf Viertel: Jeder Texel liegt so auf ganzen Schirmpunkten
-    (scharf), ein Schritt von 0,8 Weltpunkten wird zu 3-3-3-4 Schirmpunkten
-    statt zu 1-1-1-1-0, und weil beide gleich gerundet sind, steht die Figur
-    still in der Mitte. Kein `startFollow`, kein `roundPixels`: Phaser
-    rundet die Kamera auf ganze Weltpunkte (`Math.floor`) und die Figur auf
-    Schirmpunkte, und ein Lerp lässt sie obendrein nachlaufen — das war das
-    Zittern. Der **Zoom geht in ganzen Stufen** (Rad, gesammelt ab 50
-    Einheiten), damit die Viertel Viertel bleiben. Ob es steht, sieht man mit
-    **Menü → Grafik → Bildrate im Bild**: In 2D steht dort als dritte Zeile,
-    was Phasers eigene Schleife misst (`World2D.fps`, `game.loop.actualFps`).
-  - **2D ist der Beweger.** `FlatControls.topDown` schreibt nur noch einen
-    **Wunsch** (`wish`: x, z, Sprint) aus Tasten und Bordstock, Phaser läuft
-    damit (`WALK_SPEED` 3 Kacheln/s, Sprint 5,2), und das 3D-Rig **folgt dem
-    Helden** (`App.followHero`: x, z und Blickrichtung). Oben ist Norden,
-    rechts Osten; die Figur schaut, wohin sie geht. Wer auf 3D schaltet, steht
-    dort, wo der Held zuletzt stand.
-  - **Menü → Ansicht**: **Raster** (Kachellinien), **Ebenen** (jede einzeln
-    ein- und ausblenden — eine ausgeblendete Mauer hält niemanden auf, das ist
-    der Sinn), **Editor** und **Plan zurücksetzen** (zurück auf die Lichtung).
-  - **Der Editor** (`Editor.ts`, `.w2d-editor`, mobile first, rechts am Rand):
-    Malen oder Radieren, die Ebene wählen, eine Kachel aus der Palette, ein
-    Auge je Ebene. Gemalt wird mit Zeiger oder Finger direkt auf die Welt, und
-    jede Änderung landet sofort im Speicher (`saveLevel`). Nur im Editor nimmt
-    die Leinwand Zeiger an (`.is-editing`); sonst bleibt sie **durchlässig**
-    (`world2d.css`, `pointer-events: none`), weil darunter der Bordstock des
-    Telefons liegt — das Rad zum Zoomen hört im Spiel deshalb das Fenster ab.
-  - **Die Szene wird nicht gezeichnet** (`App.step`): In 2D wird das WebGL-Bild
-    nur geleert, und Spiegel wie Portalsichten bleiben aus.
-  - **Eine Welt hat ihre eigene**: Haunting (`World.ownsFlat`) bringt Räume,
-    Türen, Licht und eine ganze Runde von oben mit — da malt der Kern nicht
-    darüber. Seine Crewmate-Figur liegt weiter in `core/flat/crewmate.ts`.
-  - **Was das (noch) nicht ist**: aus der 3D-Welt gelesen. Der Vorgänger las
-    die Hüllen der Netze und malte daraus Klötze (`core/flat/`, bis auf die
-    Figur weg); der Plan kommt jetzt aus dem Namen der Welt (`sample.ts`) und
-    aus dem Editor, und die 3D-Welt wird noch nicht aus ihm gebaut. Ein Ding
-    aus 3D findet aber schon herüber — der Companion Cube als abgelichtete
-    Kachel (`modelSprite.ts`); derselbe Weg trägt jedes andere Modell, das
-    einmal eine Kachel werden soll.
+- **Von oben: dieselbe Welt, eine Kamera** (`core/TopDownCamera.ts`,
+  `core/topDownPose.ts` mit Test). Die Ansicht _Von oben_ ist kein zweites
+  Spiel, sondern ein **Blickwinkel** auf die three.js-Szene, in der ein anderer
+  gerade mit der Brille steht: eine feste Kamera schräg darüber, 55° geneigt,
+  Norden oben, eng im Öffnungswinkel (30°) — die Optik von _Overcooked_. Man
+  sieht dieselben Wände, dieselben Türen, dieselben Kisten wie in 3D, nur von
+  woanders.
+  - **Die Vorgeschichte in zwei Sätzen.** Bis September 2026 malte
+    [Phaser](https://phaser.io) dafür eine eigene Kachelwelt auf eine Leinwand
+    über dem WebGL-Bild (`src/world2d/`), und das WebGL-Bild wurde dabei nur
+    geleert: zwei Welten, zwei Wahrheiten, und was man von oben umwarf, stand
+    in 3D noch. Der Code liegt noch da und wird nicht mehr erreicht — Paket P8
+    aus [dem Plan](docs/plan-2d-hub-interaktion.md) räumt ihn samt Phaser weg.
+  - **Wie die Kamera steht** (`topDownPose.ts`, ohne three.js, mit Test): Ziel
+    ist die **Mitte des Rigs** und nicht der Kopf — sonst schöbe jedes Ducken
+    das Bild —, die Kamera steht im Süden darüber (`topDownPosition`) und nickt
+    genau so weit, dass sie das Ziel ansieht (`topDownPitch`). Der **Zoom**
+    geht in vier Stufen als Abstand: 12 · 16 · 22 · 30 m, Vorgabe 16, das Rad
+    sammelt wie in der alten Kachelwelt 50 Einheiten je Stufe. Beides läuft
+    **weich** nach (`net/PoseSmoothing.SmoothPose`, 0,12 s): Ein Rig, das an
+    jeder Fuge einen Zentimeter versetzt wird, zitterte sonst im ganzen Bild.
+    Perspektivisch und nicht orthografisch, weil ein Podest und der Boden
+    darunter sonst auf denselben Fleck fielen.
+  - **Man sieht sich selbst.** Der eigene Körper liegt auf `LAYER_SELF_ONLY`
+    und wird vom eigenen Auge nie gezeichnet; von oben ist dieses Auge aber ein
+    Blick **auf** die Figur, also nimmt die Maske dieser Kamera die Ebene dazu
+    (`core/viewLayers.ts` — dieselbe Regel wie Spiegel und Portalsichten). Der
+    Kopf folgt dabei dem **Rig** und nicht der Desktop-Kamera
+    (`PlayerAvatar.headFollowsRig`), sonst schaute er beim Laufen starr in eine
+    Richtung von vorhin; und die Figur bekommt Fäuste (`AvatarBody`, `hands`),
+    weil eine Figur ohne Hände von oben abgesägt aussieht — in der Brille
+    bleiben sie aus, da sind die eigenen Hände die getrackten.
+  - **Gelaufen wird in Weltrichtungen** (`FlatControls.walkNorthUp`): W ist
+    Norden (−z) und bleibt Norden, auch wenn die Figur nach Süden schaut, D ist
+    Osten (+x). Über dieselbe Physik wie am Schreibtisch (`rig.setIntent`,
+    `PhysicsLocomotion`) — eine feste Kamera ist ein Blickwinkel und kein
+    zweiter Antrieb. Shift sprintet, Leertaste springt, die **Maus dreht
+    nichts** und fängt keinen Zeiger. Die Figur schaut, wohin sie läuft, weich
+    gedreht (Twin-Stick-Regel ohne zweiten Stick); den rechten Stick und das
+    Zielen mit der Maus bringt Paket P1 — dafür liegen
+    `TopDownCamera.project(rig)` (wo die Figur auf dem Schirm steht) und
+    `topDownPose.groundDirection` (aus einem Weg auf dem Schirm eine Richtung
+    auf dem Boden, samt der Stauchung nach Norden) schon bereit.
+  - **Was heute noch fehlt: das Aufschneiden.** In einer Welt mit Dach steht
+    die Kamera unter der Decke und sieht sie von unten — im Interaktionslabor,
+    im Portal-Labor und in den Häusern von Dust ist das Bild deshalb die Decke.
+    Alles, dessen Ebene über der des Spielers liegt, muss vor dem Zeichnen
+    verschwinden (Plan, E8); das braucht die Ebene als Marke am Objekt
+    (`userData.level`) und gehört deshalb zu Paket P7, zusammen mit den
+    Treppen.
+  - **Umgeschaltet wird unter _Menü → Ansicht_** und auf der Startseite; die
+    Wörter heißen _Von oben_ und _Aus den Augen_ und stehen an einer Stelle
+    (`core/screenView.SCREEN_VIEW_LABELS`). Die **Kennungen** bleiben `2d` und
+    `3d`: So stehen sie im Speicher jedes Browsers, der hier schon einmal offen
+    war. In der Brille gibt es die Ansicht nicht — man steht darin —, und
+    Haunting bringt seine eigene Runde von oben mit (`World.ownsFlat`), die
+    schaltet ihr eigenes Zahnrad. _Raster_, _Ebenen_, _Editor_ und _Plan
+    zurücksetzen_ standen in diesem Menü, solange es eine Kachelwelt zu malen
+    gab; gebaut wird jetzt im Bauplatz (`worlds/editor/WorldEditor.ts`).
 - **Hub-Welt**: runde Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
   Ist ein Gang voll, kommt der nächste dazu und alle verteilen sich neu über
@@ -2709,13 +2664,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
 |                                                                                    | VR                                                                                                                                                                                                                                                            | Desktop                                                                                                                                                                                                                                                                                                                                        | Handy                                      |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| Bewegen                                                                            | linker Stick                                                                                                                                                                                                                                                  | `WASD` (`Shift` = schneller)                                                                                                                                                                                                                                                                                                                   | linker Touch-Stick                         |
+| Bewegen                                                                            | linker Stick                                                                                                                                                                                                                                                  | `WASD` (`Shift` = schneller) — in der Blickrichtung; **von oben** in Weltrichtungen: `W` = Norden, `D` = Osten, und die Figur dreht sich dorthin, wohin sie läuft                                                                                                                                                                              | linker Touch-Stick                         |
 | Sprinten                                                                           | linken Stick reindrücken                                                                                                                                                                                                                                      | `Shift`                                                                                                                                                                                                                                                                                                                                        | –                                          |
 | Ducken                                                                             | rechten Stick reindrücken                                                                                                                                                                                                                                     | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
-| Umsehen                                                                            | Kopf, rechter Stick = Snap-Turn                                                                                                                                                                                                                               | Maus (Klick = Pointer-Lock)                                                                                                                                                                                                                                                                                                                    | wischen                                    |
+| Umsehen                                                                            | Kopf, rechter Stick = Snap-Turn                                                                                                                                                                                                                               | Maus (Klick = Pointer-Lock); **von oben** dreht die Maus nichts — die Kamera steht fest, Norden ist oben                                                                                                                                                                                                                                       | wischen                                    |
 | Springen                                                                           | `A` rechts                                                                                                                                                                                                                                                    | `Leertaste`                                                                                                                                                                                                                                                                                                                                    | –                                          |
 | Menü                                                                               | Button an **beiden** Händen (immer nur eins offen)                                                                                                                                                                                                            | Knopf ☰ oben links — dasselbe Menü als Seite (`ui/PageMenu.ts`), auch auf der Startseite                                                                                                                                                                                                                                                      | Knopf ☰ oben links; Blatt von unten       |
-| 2D von oben ↔ 3D                                                                   | – (in der Brille steht man in der Welt)                                                                                                                                                                                                                       | Startseite oder Menü → _Ansicht_ — dort auch Raster, Ebenen, Editor; Rad zoomt                                                                                                                                                                                                                                                                 | dito                                       |
+| _Von oben_ ↔ _Aus den Augen_                                                       | – (in der Brille steht man in der Welt)                                                                                                                                                                                                                       | Startseite oder Menü → _Ansicht_ (`core/TopDownCamera.ts`)                                                                                                                                                                                                                                                                                     | dito                                       |
+| Zoom (von oben)                                                                    | –                                                                                                                                                                                                                                                             | Mausrad — vier Stufen als Abstand: 12 · 16 · 22 · 30 m                                                                                                                                                                                                                                                                                         | – (kommt mit Paket P1)                     |
 | Auswählen                                                                          | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl; im Handgelenkmenü löst der Trigger beim **Loslassen** aus, damit Wischen nichts drückt                                                                                                        | Linksklick                                                                                                                                                                                                                                                                                                                                     | tippen                                     |
 | Werkzeug nehmen                                                                    | Grip an der Hüfte halten (jede Hand, jedes Werkzeug)                                                                                                                                                                                                          | – (immer bereit)                                                                                                                                                                                                                                                                                                                               | –                                          |
 | Werkzeug ablegen                                                                   | Grip über der Hüfte loslassen                                                                                                                                                                                                                                 | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
@@ -2789,7 +2745,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Haunting: Simulationsflug                                                          | linker Stick fliegt, rechter steigt/sinkt                                                                                                                                                                                                                     | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller                                                                                                                                                                                                                                                                                         | –                                          |
 | Haunting: VR-Komfort                                                               | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration                                                                                                                                                                                                          | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
 | Haunting: Raumakte                                                                 | –                                                                                                                                                                                                                                                             | Zimmer auf der Archivkarte antippen; die Akte liegt ganzseitig darüber, „Karte" bringt den Grundriss zurück                                                                                                                                                                                                                                    | dito                                       |
-| Haunting: Leistungsanzeige                                                         | Menü → Grafik, erste Zeile: FPS, Framezeit, CPU, Draw Calls — alle halbe Sekunde nachgeschrieben, solange das Menü offen ist                                                                                                                                  | `F3` oder Menü → Grafik → _Bildrate im Bild_: FPS, Framezeit, Draw Calls und Dreiecke; in 2D dazu Phasers eigene Zahl                                                                                                                                                                                                                          | Menü → Grafik → _Bildrate im Bild_         |
+| Haunting: Leistungsanzeige                                                         | Menü → Grafik, erste Zeile: FPS, Framezeit, CPU, Draw Calls — alle halbe Sekunde nachgeschrieben, solange das Menü offen ist                                                                                                                                  | `F3` oder Menü → Grafik → _Bildrate im Bild_: FPS, Framezeit, Draw Calls und Dreiecke                                                                                                                                                                                                                                                          | Menü → Grafik → _Bildrate im Bild_         |
 | Klettern (Kletterhalle)                                                            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der linke Stick aus — der rechte dreht weiter, und die Anker gehen mit | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
 | Verspreizen (Kamin)                                                                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                                                                                                         | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
 | Sprungkissen (Kletterhalle)                                                        | vom Podest in eines der blauen Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                                                                                                          | dito                                                                                                                                                                                                                                                                                                                                           | dito                                       |
@@ -7803,6 +7759,12 @@ du erst einen Spieler und dann die Ansicht:
 - **Third Person** — die Kamera schwebt hinter dem Spieler. Sie bleibt immer
   waagerecht; nur die Drehung zieht weich nach, damit das Bild nicht bei jedem
   Kopfruck mitzuckt.
+
+**Zuschauen sticht _Von oben_.** Beides sind Kameras, und es kann nur eine das
+Bild sein: Wer über die Schulter eines anderen sieht, will dessen Bild und
+nicht sich selbst von oben. Solange zugesehen wird, ist `App.topDown` deshalb
+falsch; hört es auf, kommt die Ansicht von selbst zurück — dieselbe Regel wie
+für die Brille.
 
 **Wer zusieht, geht mit.** Steht der gewählte Spieler in einer anderen Welt,
 wechselst du beim Aussuchen automatisch dorthin — und genauso, wenn er sie

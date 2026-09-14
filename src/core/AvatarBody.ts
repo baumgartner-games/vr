@@ -72,6 +72,12 @@ export class AvatarBody extends THREE.Group {
   /** Follows the tracked hands — hang a tool here to show what is being held. */
   readonly handAnchors: [THREE.Object3D, THREE.Object3D];
 
+  /**
+   * Die Fäuste selbst (`options.hands`) — getrennt vom Anker, weil an dem
+   * auch ein Werkzeug hängen darf, das mit der Faust nichts zu tun hat.
+   */
+  private readonly handMeshes: THREE.Mesh[] = [];
+
   private readonly torso: THREE.Mesh;
   private readonly neck: THREE.Mesh;
   private readonly hips: THREE.Mesh;
@@ -140,7 +146,9 @@ export class AvatarBody extends THREE.Group {
       const anchor = new THREE.Object3D();
       anchor.name = i === 0 ? 'hand-left' : 'hand-right';
       if (options.hands) {
-        anchor.add(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.11), suit));
+        const fist = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.11), suit);
+        anchor.add(fist);
+        this.handMeshes.push(fist);
       }
       this.add(anchor);
       anchors.push(anchor);
@@ -154,6 +162,14 @@ export class AvatarBody extends THREE.Group {
     // Der Hut trägt die Anzugfarbe, wo er eine trägt — also neu bauen, sonst
     // hätte ein Spieler, der die Rolle wechselt, einen Helm von vorhin auf.
     if (this.hat !== 'none') this.setHeadgear(this.hat, true);
+  }
+
+  /**
+   * Ob die Fäuste gezeichnet werden. Ein Körper ohne `options.hands` hat
+   * keine, und dann tut das hier nichts.
+   */
+  protected setHandsVisible(on: boolean): void {
+    for (const fist of this.handMeshes) fist.visible = on;
   }
 
   /**

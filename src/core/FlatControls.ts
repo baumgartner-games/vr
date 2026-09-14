@@ -1,12 +1,16 @@
 import * as THREE from 'three';
 import type { PlayerRig } from './PlayerRig';
 import { isTyping } from './textEntry';
+import { yawFromDirection } from './topDownPose';
+import { smoothAngle } from '../net/PoseSmoothing';
 
 const _forward = new THREE.Vector3();
 const _strafe = new THREE.Vector3();
 const _move = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const _euler = new THREE.Euler();
+/** Sekunden, in denen sich die Figur von oben in ihre Laufrichtung dreht. */
+const TURN_TAU = 0.07;
 
 /**
  * Keyboard/mouse and touch fallback so the worlds can also be visited without a
@@ -17,19 +21,26 @@ export class FlatControls {
   speed = 3.2;
   lookSpeed = 0.0024;
   /**
-   * **Von oben gesteuert** — die 2D-Welt (`world2d/World2D.ts`).
+   * **Von oben gesteuert** — die Ansicht _Von oben_ (`core/TopDownCamera.ts`).
    *
-   * Dann bewegt diese Klasse **nichts** mehr: Sie liest nur noch Tasten und
-   * Bordstock und legt den Wunsch in `wish` ab, und Phaser lässt damit den
-   * Helden laufen — gegen die Kacheln, die dort fest sind. Das Rig folgt dem
-   * Helden hinterher (`App.step`), nicht umgekehrt. Ein Weg für die Eingabe,
-   * ein Körper, der sich stößt: die 2D-Welt.
+   * Dann laufen die Tasten in **Weltrichtungen**: oben ist Norden (−z), rechts
+   * ist Osten (+x), und zwar unabhängig davon, wohin die Figur gerade schaut.
+   * Gelaufen wird über dieselbe Physik wie am Schreibtisch
+   * (`PlayerRig.setIntent`) — eine feste Kamera ist ein Blickwinkel und kein
+   * zweiter Antrieb.
    *
-   * Die Tasten laufen dabei in **Bildrichtungen** — oben ist Norden, rechts
-   * ist Osten —, und die Maus dreht nichts und fängt keinen Zeiger ein.
+   * Die Maus dreht in dieser Ansicht **nichts** und fängt keinen Zeiger ein;
+   * die Figur schaut vorerst dorthin, wohin sie läuft. Den rechten Stick und
+   * das Zielen mit der Maus bringt Paket P1.
    */
   topDown = false;
-  /** Der Wunsch dieses Bildes, wenn `topDown` gilt — für die 2D-Welt. */
+  /**
+   * Der Wunsch dieses Bildes für die alte Kachelwelt (`world2d/`).
+   *
+   * Ausgehängt: Von oben läuft jetzt das Rig selbst, niemand liest hier mehr
+   * etwas heraus. Das Feld steht noch, weil `World2D` es als Rückruf
+   * verlangt — mit dem Rest von Phaser fällt es weg (Paket P8).
+   */
   readonly wish = { x: 0, z: 0, sprint: false };
 
   private readonly keys = new Set<string>();
@@ -59,8 +70,13 @@ export class FlatControls {
     this.apply();
   }
 
-  /** Turns keys and the touch stick into a movement wish for the rig. */
-  update(): void {
+  /**
+   * Turns keys and the touch stick into a movement wish for the rig.
+   *
+   * @param dt Bildzeit in Sekunden — nur die Ansicht von oben braucht sie, um
+   *           die Figur weich in ihre Laufrichtung zu drehen.
+   */
+  update(dt = 1 / 60): void {
     if (!this.enabled) return;
 
     let x = this.stick.x;
@@ -74,12 +90,7 @@ export class FlatControls {
     this.jumpQueued = false;
 
     if (this.topDown) {
-      // Nur lesen, nicht bewegen: Von oben läuft Phaser den Helden, und das
-      // Rig folgt ihm. Ein zweiter Antrieb am Rig zöge ihn durch die Wand,
-      // gegen die der Held gerade steht.
-      this.wish.x = Math.max(-1, Math.min(1, x));
-      this.wish.z = Math.max(-1, Math.min(1, z));
-      this.wish.sprint = this.keys.has('ShiftLeft');
+      this.walkNorthUp(dt, x, z, jump);
       return;
     }
 
@@ -101,6 +112,39 @@ export class FlatControls {
   dispose(): void {
     for (const off of this.disposers) off();
     this.disposers = [];
+  }
+
+  /**
+   * **Laufen in Weltrichtungen** — die Ansicht von oben.
+   *
+   * W ist Norden und bleibt Norden, auch wenn die Figur nach Süden schaut: Bei
+   * einer festen Kamera ist die Taste eine Richtung auf dem Schirm, und nichts
+   * anderes erwartet jemand, der von oben spielt. Deshalb steht hier kein
+   * `getHeadForward` wie im Zweig darunter.
+   *
+   * **Und die Figur dreht sich dorthin, wo sie hinläuft** — weich, sonst
+   * ruckte sie bei jedem Tastenwechsel um 45°. Das ist die Twin-Stick-Regel
+   * ohne zweiten Stick; sobald P1 den rechten Stick liest, gilt dessen
+   * Richtung stattdessen, und diese hier nur noch, solange niemand zielt.
+   */
+  private walkNorthUp(dt: number, x: number, z: number, jump: boolean): void {
+    _move.set(x, 0, z);
+    if (_move.lengthSq() > 1) _move.normalize();
+    const sprint = this.keys.has('ShiftLeft');
+    if (_move.lengthSq() === 0) {
+      if (jump) this.rig.requestJump();
+      return;
+    }
+    this.yaw = smoothAngle(
+      _euler.setFromQuaternion(this.rig.quaternion, 'YXZ').y,
+      yawFromDirection(_move.x, _move.z),
+      dt,
+      TURN_TAU,
+    );
+    this.rig.rotation.set(0, this.yaw, 0);
+    this.rig.updateMatrixWorld(true);
+    const speed = this.rig.walkSpeed(sprint, this.speed * (sprint ? 1.8 : 1));
+    this.rig.setIntent(_move.multiplyScalar(speed), jump, sprint);
   }
 
   private apply(): void {

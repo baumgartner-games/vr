@@ -64,17 +64,20 @@
         </fieldset>
 
         <!--
-          Und am Bildschirm: 2D oder 3D. Ein Telefon ist ein Gerät für die Karte
-          von oben, ein Schreibtisch für die Welt — deshalb ist die Wahl nach
-          Gerät vorbelegt (Handy: 2D) und wird nur einmal getroffen
-          (`core/screenView.ts`). **Sie entscheidet, wohin „Beitreten" führt**,
-          und die Zeile darunter sagt es vorher.
+          Und am Bildschirm: von oben oder aus den Augen. Ein Telefon ist ein
+          Gerät für die Sicht von oben, ein Schreibtisch für die Welt — deshalb
+          ist die Wahl nach Gerät vorbelegt (Handy: von oben) und wird nur
+          einmal getroffen (`core/screenView.ts`). Die Kennungen heißen weiter
+          `2d`/`3d`, weil sie so im Speicher jedes Browsers stehen; die Wörter
+          setzt `showScreenView` aus `SCREEN_VIEW_LABELS`.
+          **Sie entscheidet, wohin „Beitreten" führt**, und die Zeile darunter
+          sagt es vorher.
         -->
         <fieldset id="screen-view-field" class="posture screen-view" hidden>
-          <legend>Am Bildschirm: 2D oder 3D?</legend>
+          <legend>Am Bildschirm: von oben oder aus den Augen?</legend>
           <div id="screen-view" class="seg seg--two">
-            <button type="button" data-view="2d">2D</button>
-            <button type="button" data-view="3d">3D</button>
+            <button type="button" data-view="2d">Von oben</button>
+            <button type="button" data-view="3d">Aus den Augen</button>
           </div>
           <p id="screen-view-hint" class="field__hint"></p>
         </fieldset>
