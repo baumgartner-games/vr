@@ -6,7 +6,14 @@ import { normalizeRoomCode, rememberName, rememberedName } from './net/room';
 import { HAUNT_ROOM, hauntRoomFrom } from './worlds/haunting/net';
 import { arriveAs, loadLobby, saveLobby, type Entry } from './worlds/haunting/rules/lobby';
 import { playerPosture, savePlayerPosture, type Posture } from './core/posture';
-import { onScreenViewChange, screenView, startOptions, type ScreenView } from './core/screenView';
+import {
+  SCREEN_VIEW_LABELS,
+  SCREEN_VIEW_SUBS,
+  onScreenViewChange,
+  screenView,
+  startOptions,
+  type ScreenView,
+} from './core/screenView';
 import { DEFAULT_WORLD, findWorld } from './worlds';
 import { isStaleModuleError, shouldReload } from './core/staleBuild';
 
@@ -207,23 +214,26 @@ postureSeg.addEventListener('click', (event) => {
 });
 
 /**
- * 2D oder 3D am Bildschirm — gefragt, wo keine Brille ist, und vorbelegt nach
- * Gerät (Handy: 2D; `core/screenView.ts`).
+ * _Von oben_ oder _Aus den Augen_ — gefragt, wo keine Brille ist, und
+ * vorbelegt nach Gerät (Handy: von oben; `core/screenView.ts`).
  *
- * Die Zeile darunter sagt **vorher**, wohin „Beitreten" damit führt. Auf der
- * Spielwiese ist das die Stelle, an der man es wissen muss: Die Karte von oben
- * gibt es nur in Haunting / Orbital, jede andere Welt ist 3D und nichts sonst
- * — also führt „2D" dorthin, statt die Wahl still zu verschlucken.
+ * Die Zeile darunter sagt **vorher**, wohin „Beitreten" damit führt. Die
+ * Kennungen `2d`/`3d` bleiben im Speicher und in der Auszeichnung stehen
+ * (`data-view`), die **Wörter** stehen an einer Stelle
+ * (`SCREEN_VIEW_LABELS`) — sonst hieße dieselbe Ansicht auf der Startseite
+ * anders als im Menü.
  */
 function showScreenView(view: ScreenView): void {
   for (const button of screenSeg.querySelectorAll<HTMLButtonElement>('button')) {
-    button.classList.toggle('is-active', button.dataset['view'] === view);
+    const id = button.dataset['view'];
+    if (id === '2d' || id === '3d') button.textContent = SCREEN_VIEW_LABELS[id];
+    button.classList.toggle('is-active', id === view);
   }
   screenHint.textContent = hauntLanding
     ? ENTRY_HINTS[view]
     : view === '2d'
-      ? 'Die Kachelwelt von oben — Ebenen, ein Held, ein Editor. Umschalten geht auch im Spiel: Menü → Ansicht.'
-      : 'Die Welt durch die eigenen Augen — Tastatur und Maus oder Stock.';
+      ? `${SCREEN_VIEW_SUBS['2d']} Umschalten geht auch im Spiel: Menü → Ansicht.`
+      : SCREEN_VIEW_SUBS['3d'];
 }
 
 /** Was auf den einen Knopf folgt, in einer Zeile — je nachdem, wohin er führt. */
@@ -272,11 +282,12 @@ screenSeg.addEventListener('click', (event) => {
  * in die Brille — oder an den Bildschirm, in die Welt, die ohnehin schon
  * geladen ist.
  *
- * Ob die dort flach oder räumlich aussieht, entscheidet nicht dieser Knopf,
- * sondern die Ansicht (`App.setScreenView`): **Jede** Welt kann von oben
- * (`world2d/World2D.ts`), und die Wahl gilt für die, in der man steht.
- * Vorher führte „2D" hier nach Haunting, weil es die Karte von oben nur dort
- * gab — ein Umweg, den es jetzt nicht mehr braucht.
+ * Ob man sie von oben oder aus den Augen sieht, entscheidet nicht dieser
+ * Knopf, sondern die Ansicht (`App.setScreenView`): **Jede** Welt kann von
+ * oben (`core/TopDownCamera.ts` — dieselbe Szene, eine Kamera darüber), und
+ * die Wahl gilt für die, in der man steht. Vorher führte „2D" hier nach
+ * Haunting, weil es die Karte von oben nur dort gab — ein Umweg, den es jetzt
+ * nicht mehr braucht.
  */
 enterButton.addEventListener('click', () => {
   if (startOptions(headset, screenView(detectFlatRole())).way === 'vr') void startVR();

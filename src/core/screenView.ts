@@ -12,15 +12,37 @@ import type { PlayerRole } from './types';
  * Browser, wie die Haltung (`posture.ts`), und die Startseite der Runde liest
  * sie, um den Weg in Haunting zu wählen (`rules/lobby.arriveAs`).
  *
- * Bisher gibt es die Karte von oben nur in Haunting / Orbital; jede andere
- * Welt läuft am Bildschirm in 3D. Die Wahl ist trotzdem nicht an Haunting
- * gebunden, sondern an das Gerät: Sie sagt, wie jemand am Bildschirm spielen
- * **will**, und eine Welt, die beides kann, richtet sich danach.
+ * _Von oben_ gibt es in **jeder** Welt: Es ist dieselbe Szene aus einer festen
+ * Kamera darüber (`core/TopDownCamera.ts`) und keine zweite Welt. Nur Haunting
+ * bringt seine eigene Runde von oben mit (`World.ownsFlat`) und richtet sich
+ * selbst danach.
  *
  * Reine Daten und ein bisschen Speicher, kein DOM, kein three.js.
  */
 
 export type ScreenView = '2d' | '3d';
+
+/**
+ * **Wie die beiden Ansichten heißen** — an einer Stelle, für Startseite und
+ * Menü.
+ *
+ * Die **Kennungen** bleiben `'2d'` und `'3d'`: Im Speicher jedes Browsers, der
+ * hier schon einmal offen war, steht genau das, und eine Umbenennung hätte
+ * jedem seine Wahl genommen. Die **Wörter** sind neu, weil die Sache es ist:
+ * „2D" hieß einmal eine eigene Kachelwelt in Phaser. Jetzt ist es dieselbe
+ * Welt aus einer festen Kamera darüber (`core/TopDownCamera.ts`) — und dafür
+ * ist _Von oben_ der ehrliche Name, mit _Aus den Augen_ als Gegenstück.
+ */
+export const SCREEN_VIEW_LABELS: Record<ScreenView, string> = {
+  '2d': 'Von oben',
+  '3d': 'Aus den Augen',
+};
+
+/** Die Zeile darunter — dieselbe Erklärung, wo immer die Wahl steht. */
+export const SCREEN_VIEW_SUBS: Record<ScreenView, string> = {
+  '2d': 'Dieselbe Welt, schräg von oben — die eigene Figur läuft nach Norden, Süden, Osten, Westen.',
+  '3d': 'Die Welt durch die eigenen Augen — Tastatur und Maus oder Stock.',
+};
 
 const KEY = 'bgvr.screenView';
 

@@ -11,7 +11,14 @@ import { PageMenu } from '../ui/PageMenu';
 import { World2D } from '../world2d/World2D';
 import { loadLevel, saveLevel, forgetLevel, type Level } from '../world2d/level';
 import { sampleLevel } from '../world2d/sample';
-import { saveScreenView, screenView, type ScreenView } from './screenView';
+import { TopDownCamera } from './TopDownCamera';
+import {
+  SCREEN_VIEW_LABELS,
+  SCREEN_VIEW_SUBS,
+  saveScreenView,
+  screenView,
+  type ScreenView,
+} from './screenView';
 import { NetSession } from '../net/NetSession';
 import { CHAT_LIMIT, ChatLog, type ChatEntry } from '../net/chat';
 import { RemoteAvatars } from '../net/RemoteAvatars';
@@ -100,7 +107,6 @@ export interface ConnectOptions extends TrysteroOptions {
 }
 
 const _head = new THREE.Matrix4();
-const _flatEuler = new THREE.Euler();
 const _headLocal = new THREE.Matrix4();
 const _headPos = new THREE.Vector3();
 const _keyPosition = new THREE.Vector3();
@@ -146,6 +152,12 @@ export class App {
   readonly world2d: World2D;
   /** Die Pläne der 2D-Welt, je Welt, solange die Seite offen ist. */
   private readonly levels = new Map<string, Level>();
+  /**
+   * **Die Ansicht _Von oben_** (`core/TopDownCamera.ts`) — dieselbe Szene, nur
+   * aus einer festen Kamera schräg darüber. Wann sie das Bild ist, sagt
+   * `topDown`.
+   */
+  private readonly topDownCamera: TopDownCamera;
   readonly net = new NetSession();
   readonly spectator: SpectatorCamera;
 
@@ -265,6 +277,7 @@ export class App {
     this.input = new XRInput(this.renderer, this.rig);
     this.pointer = new Pointer(this.rig, canvas);
     this.flat = new FlatControls(this.rig, canvas, stickEl);
+    this.topDownCamera = new TopDownCamera(canvas);
 
     this.handVisuals = new HandVisuals(this.input);
     this.rig.add(this.handVisuals);
@@ -438,8 +451,9 @@ export class App {
       this.hooks.onWorldChanged?.(definition.id, definition.title);
       this.notify(definition.title);
       if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
-      // Eine neue Welt heißt eine neue Karte von oben — gelesen wird sie erst,
-      // wenn sie auch gezeigt wird (`applyView`).
+      // Eine neue Welt heißt einen neuen Standort — die Kamera von oben setzt
+      // sich dabei neu auf, statt quer über die Karte dorthin zu fliegen
+      // (`applyView` → `TopDownCamera.reset`).
       this.applyView();
     } catch (error) {
       console.error(`[app] Welt "${id}" konnte nicht geladen werden`, error);
@@ -646,34 +660,47 @@ export class App {
     saveScreenView(view);
     this.applyView();
     this.menuDirty = true;
-    this.notify(view === '2d' ? 'Ansicht: 2D von oben' : 'Ansicht: 3D');
+    this.notify(`Ansicht: ${SCREEN_VIEW_LABELS[view]}`);
   }
 
   /**
-   * **Ob die Karte von oben gerade das Bild ist.**
+   * **Ob die Ansicht von oben gerade das Bild ist.**
    *
-   * Drei Dinge müssen zusammenkommen: Es ist 2D gewählt, die Brille ist ab
-   * (darin gibt es nur die eine Ansicht), und die Welt bringt keine eigene mit
-   * — Haunting hat seine Runde von oben schon (`World.ownsFlat`).
+   * Vier Dinge müssen zusammenkommen: Es ist _Von oben_ gewählt, die Brille
+   * ist ab (darin gibt es nur die eine Ansicht), die Welt bringt keine eigene
+   * mit (Haunting hat seine Runde von oben schon — `World.ownsFlat`), und man
+   * schaut niemandem zu. **Zuschauen ist selbst eine Kamera**
+   * (`net/SpectatorCamera.ts`): Wer über die Schulter eines anderen sieht,
+   * will dessen Bild und nicht sich selbst von oben; solange das läuft, hat
+   * diese Ansicht Pause und kommt danach von allein zurück.
    */
   get topDown(): boolean {
-    return this.view === '2d' && !this.renderer.xr.isPresenting && !this.world?.ownsFlat;
+    return (
+      this.view === '2d' &&
+      !this.renderer.xr.isPresenting &&
+      !this.world?.ownsFlat &&
+      !this.spectating
+    );
   }
 
   /**
-   * Die Ansicht anwenden: Leinwand zeigen oder verstecken, die Tasten auf
-   * Bildrichtungen umstellen, und die Karte lesen, falls das für diese Welt
-   * noch nicht geschehen ist.
+   * Die Ansicht anwenden: die Kamera von oben aufsetzen oder absetzen, die
+   * Tasten auf Weltrichtungen umstellen und den eigenen Körper dazuschalten.
+   *
+   * Der Zweig für die alte Kachelwelt ist **ausgehängt**: `world2d.hide()`
+   * bleibt stehen, damit eine Leinwand, die vor diesem Umbau noch offen war,
+   * auch wieder zugeht — gezeigt wird sie nie mehr. Der Rest von Phaser fällt
+   * mit Paket P8.
    */
   private applyView(): void {
     const on = this.topDown;
     this.flat.topDown = on;
-    if (on && this.worldId) {
-      void this.world2d.show(this.levelFor(this.worldId));
-    } else {
-      this.world2d.hide();
-      if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
-    }
+    // Von oben sieht man sich selbst — Kopf nach vorn und Fäuste dran.
+    this.avatar.headFollowsRig = on;
+    this.avatar.showHands = on;
+    this.world2d.hide();
+    if (on) this.topDownCamera.reset();
+    else if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
   }
 
   /**
@@ -712,6 +739,7 @@ export class App {
     this.unloadWorld();
     this.keys.dispose();
     this.flat.dispose();
+    this.topDownCamera.dispose();
     this.avatar.dispose();
     this.wristMenu.dispose();
     this.pageMenu.dispose();
@@ -812,51 +840,33 @@ export class App {
   }
 
   /**
-   * **2D oder 3D** — dieselbe Welt, andere Ansicht, mitten im Spiel
-   * umschaltbar.
+   * **Von oben oder aus den Augen** — dieselbe Welt, andere Kamera, mitten im
+   * Spiel umschaltbar.
    *
    * Zu wählen gibt es nur, wo es etwas zu wählen gibt: In der Brille steht man
-   * in der Welt, da ist eine Karte von oben kein Blickwinkel, sondern ein
+   * in der Welt, da ist eine Kamera von oben kein Blickwinkel, sondern ein
    * Widerspruch. Und Haunting bringt seine eigene mit (`World.ownsFlat`) —
    * die schaltet dort das Zahnrad der Runde um, nicht dieses Menü.
+   *
+   * **Raster, Ebenen, Editor und _Plan zurücksetzen_ standen hier**, solange
+   * von oben eine eigene Kachelwelt in Phaser lief. Was man von oben sieht,
+   * ist jetzt die Welt selbst — die hat keine Ebenen zum Ausblenden, und
+   * gebaut wird sie im Bauplatz (`editor/WorldEditor.ts`).
    */
   private viewMenu(): MenuEntry {
     const flat = this.view === '2d';
     const available = !this.renderer.xr.isPresenting && !this.world?.ownsFlat;
-    const level = this.worldId ? this.levelFor(this.worldId) : null;
-    const world2d = this.world2d;
-    // Die Ebenen des Plans, von oben nach unten — jede ein Schalter.
-    const layers: MenuEntry[] = level
-      ? [...level.layers].reverse().map((layer) => ({
-          id: `view:layer:${layer.id}`,
-          label: layer.name,
-          sub:
-            layer.kind === 'ground'
-              ? 'Der Boden, auf dem man geht'
-              : layer.kind === 'objects'
-                ? 'Was darauf steht — hier stößt man sich'
-                : 'Was über dem Kopf hängt',
-          icon: 'plank',
-          accent: 0x9fe3ff,
-          checked: layer.visible,
-          run: () => world2d.setLayerVisible(layer.id, !layer.visible),
-        }))
-      : [];
     return {
       id: 'view',
       label: 'Ansicht',
-      sub: available
-        ? flat
-          ? `2D — Kachelwelt${world2d.editing ? ' · Editor' : ''}${world2d.grid ? ' · Raster' : ''}`
-          : '3D — durch die eigenen Augen'
-        : 'Hier gibt es nur die eine',
+      sub: available ? SCREEN_VIEW_LABELS[this.view] : 'Hier gibt es nur die eine',
       icon: 'worlds',
       accent: 0x9fe3ff,
       children: [
         {
           id: 'view:3d',
-          label: '3D',
-          sub: 'Durch die eigenen Augen',
+          label: SCREEN_VIEW_LABELS['3d'],
+          sub: SCREEN_VIEW_SUBS['3d'],
           icon: 'worlds',
           accent: 0x4aa8ff,
           selected: !flat,
@@ -864,52 +874,14 @@ export class App {
         },
         {
           id: 'view:2d',
-          label: '2D von oben',
+          label: SCREEN_VIEW_LABELS['2d'],
           sub: available
-            ? 'Die Kachelwelt — Ebenen, Held, Editor'
+            ? SCREEN_VIEW_SUBS['2d']
             : 'Hier nicht: die Brille ist auf, oder die Welt hat eine eigene',
           icon: 'worlds',
           accent: 0x5ee0a0,
           selected: flat,
           run: () => this.setScreenView('2d'),
-        },
-        {
-          id: 'view:grid',
-          label: 'Raster',
-          sub: 'Die Kacheln als Linien über der Welt',
-          icon: 'gizmo',
-          accent: 0x9fe3ff,
-          checked: world2d.grid,
-          run: () => world2d.setGrid(!world2d.grid),
-        },
-        {
-          id: 'view:editor',
-          label: 'Editor',
-          sub: 'Kacheln malen — die Leiste rechts',
-          icon: 'brush',
-          accent: 0xffc857,
-          checked: world2d.editing,
-          run: () => {
-            if (!flat) this.setScreenView('2d');
-            world2d.setEditing(!world2d.editing);
-            this.wristMenu.toggle(false);
-          },
-        },
-        {
-          id: 'view:layers',
-          label: 'Ebenen',
-          sub: level ? level.layers.map((l) => l.name).join(' · ') : 'Noch keine Welt',
-          icon: 'plank',
-          accent: 0x9fe3ff,
-          children: layers,
-        },
-        {
-          id: 'view:reset',
-          label: 'Plan zurücksetzen',
-          sub: 'Zurück auf die Lichtung, mit der jede Welt anfängt',
-          icon: 'reset',
-          accent: 0xff8f8f,
-          run: () => this.resetLevel(),
         },
       ],
     };
@@ -1626,6 +1598,7 @@ export class App {
     const height = window.innerHeight;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.topDownCamera.setAspect(width / height);
     this.resizeWebBuffer();
   };
 
@@ -1734,7 +1707,7 @@ export class App {
     // One frame behind the spectator on purpose: the flat controls run before
     // the world, the spectator after it.
     this.flat.enabled = !presenting && !this.spectating;
-    if (!presenting) this.flat.update();
+    if (!presenting) this.flat.update(dt);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
     this.rig.menuStick = this.wristMenu.scrollHand;
@@ -1767,7 +1740,12 @@ export class App {
     this.net.visible = !following;
 
     if (this.spectating && !this.spectator.following) this.releaseCamera();
-    this.spectating = this.spectator.following;
+    if (this.spectating !== this.spectator.following) {
+      this.spectating = this.spectator.following;
+      // Zuschauen schaltet die Ansicht von oben ab und danach wieder an
+      // (`topDown`) — die Figur muss ihren Kopf entsprechend nachdrehen.
+      this.applyView();
+    }
     // In VR the rig itself is carried around, so freeze walking and gravity
     // while it is — otherwise the character controller fights the camera.
     // A world may freeze the body too (the drone flies the view away).
@@ -1789,31 +1767,29 @@ export class App {
     // Portalsichten zeichnen die Szene ja gleich noch mehrmals.
     this.quality.update(dt, _headPos.setFromMatrixPosition(_head));
 
-    // **In der 2D-Welt wird die Szene gar nicht gezeichnet.** Das Bild macht
-    // Phaser (`world2d/World2D.ts`) auf einer Leinwand darüber; das WebGL-Bild
-    // wird nur geleert, damit kein altes Einzelbild darunter stehen bleibt.
-    // Spiegel und Portalsichten bleiben dann ebenfalls aus — sie zeichnen in
-    // Bilder, die niemand ansieht. Und **das Rig folgt dem Helden**: Die
-    // Kachelwelt ist die Wahrheit, die 3D-Welt steht, wo sie sagt.
-    if (this.topDown) {
-      this.followHero();
-      this.renderer.setScissorTest(false);
-      this.renderer.setClearColor(0x1a2a1c, 1);
-      this.renderer.clear();
-    } else {
-      // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
-      // sich die Welt gleich selbst zeichnet.
-      this.mirrors.render(this.scene, this.camera);
-      const rendered = this.world?.render?.(context) ?? false;
-      if (!rendered) this.renderer.render(this.scene, this.camera);
-    }
-    // In 2D zeichnet Phaser in seiner eigenen Schleife; seine Zahl steht als
-    // dritte Zeile im Feld, die ersten beiden messen weiter diese Schleife.
+    // **Von oben ist dieselbe Szene, nur aus einer anderen Kamera.** Früher
+    // wurde hier gar nichts gezeichnet, weil Phaser auf einer Leinwand darüber
+    // sein eigenes Bild malte (`world2d/`); jetzt gibt es nur noch die eine
+    // Welt, und die Kamera schräg darüber ist ihr Blickwinkel.
+    //
+    // Sie wandert deshalb auch durch den Weltkontext: Eine Welt, die ihr Bild
+    // selbst zeichnet (`World.render` — die Portalwelt mit ihren Sichten und
+    // Werkzeugbildern), soll **diese** Kamera zeichnen und nicht die erste
+    // Person. Sonst stünde von oben ein Portal voller Aussicht aus einem
+    // Blickwinkel, den gerade niemand hat.
+    if (this.topDown) this.topDownCamera.update(dt, this.rig);
+    const view = this.topDown ? this.topDownCamera.camera : this.camera;
+    const viewContext = this.topDown ? { ...context, camera: view } : context;
+    // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
+    // sich die Welt gleich selbst zeichnet.
+    this.mirrors.render(this.scene, view);
+    const rendered = this.world?.render?.(viewContext) ?? false;
+    if (!rendered) this.renderer.render(this.scene, view);
     const sample = this.frameStats.update(
       time,
       performance.now() - started,
       this.renderer.info.render,
-      this.topDown ? phaserLine(this.world2d.fps()) : '',
+      '',
     );
     // Die Zeile im Grafik-Menü nachschreiben, solange jemand hinsieht — nur
     // die Zeile, nicht das Menü: Ein Neubau je halbe Sekunde wäre selbst ein
@@ -1823,26 +1799,6 @@ export class App {
       this.wristMenu.refresh();
     }
   }
-
-  /**
-   * **Das Rig dorthin, wo der Held steht.** Spalte und Zeile der Kachelwelt
-   * sind x und z der 3D-Welt (`level.TILE_M`); die Höhe bleibt, was die Physik
-   * der Welt daraus macht. Die anderen im Raum sehen einen also dort, wo man
-   * auf der Karte ist — und wer zurück auf 3D schaltet, steht genau da.
-   */
-  private followHero(): void {
-    const hero = this.world2d.hero();
-    if (!hero) return;
-    this.rig.position.x = hero.x;
-    this.rig.position.z = hero.z;
-    this.rig.quaternion.setFromEuler(_flatEuler.set(0, hero.yaw, 0));
-    this.rig.updateMatrixWorld(true);
-  }
-}
-
-/** Die dritte Zeile des F3-Felds in der 2D-Welt: was Phaser selbst misst. */
-function phaserLine(fps: number | null): string {
-  return fps === null ? '2D: wird gemessen …' : `2D: ${fps.toFixed(0)} FPS (Phaser)`;
 }
 
 /** Die Bildraten-Zeile des Grafik-Menüs. */

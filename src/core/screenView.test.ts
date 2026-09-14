@@ -1,4 +1,10 @@
-import { defaultScreenView, readScreenView, startOptions } from './screenView';
+import {
+  SCREEN_VIEW_LABELS,
+  SCREEN_VIEW_SUBS,
+  defaultScreenView,
+  readScreenView,
+  startOptions,
+} from './screenView';
 
 /**
  * Zwei Werte und eine Voreinstellung — und trotzdem die Stelle, an der ein
@@ -22,6 +28,31 @@ describe('2D oder 3D am Bildschirm', () => {
     expect(readScreenView(null, 'handheld')).toBe('2d');
     expect(readScreenView('flat', 'desktop')).toBe('3d');
     expect(readScreenView(2, 'handheld')).toBe('2d');
+  });
+});
+
+/**
+ * **Die Kennung bleibt, das Wort ändert sich.** „2D" hieß einmal eine eigene
+ * Kachelwelt in Phaser; jetzt ist es dieselbe Welt aus einer Kamera darüber.
+ * Der Speicher darf das nicht merken — in jedem Browser, der hier schon offen
+ * war, steht `2d`, und wer die Kennung umbenennt, nimmt allen ihre Wahl.
+ */
+describe('Wie die beiden Ansichten heißen', () => {
+  it('heißt von oben und aus den Augen', () => {
+    expect(SCREEN_VIEW_LABELS['2d']).toBe('Von oben');
+    expect(SCREEN_VIEW_LABELS['3d']).toBe('Aus den Augen');
+  });
+
+  it('hat zu jeder Ansicht eine Zeile, und keine heißt mehr Kachelwelt', () => {
+    for (const view of ['2d', '3d'] as const) {
+      expect(SCREEN_VIEW_SUBS[view].length).toBeGreaterThan(20);
+      expect(SCREEN_VIEW_SUBS[view]).not.toMatch(/Kachel|Phaser|Editor/);
+    }
+  });
+
+  it('lässt die Kennungen, wie sie im Speicher stehen', () => {
+    expect(Object.keys(SCREEN_VIEW_LABELS).sort()).toEqual(['2d', '3d']);
+    expect(readScreenView('2d', 'desktop')).toBe('2d');
   });
 });
 
