@@ -625,7 +625,10 @@ export class FlatControls {
    * @returns ob gerade einer angefangen hat
    */
   private startPinch(): boolean {
-    if (this.pinchGap !== null || this.freeTouches.size !== 2 || !this.view) return false;
+    // Nur von oben: Aus den Augen gibt es nichts zu zoomen, und zwei Finger
+    // dürften dort nicht heimlich das Umsehen abstellen.
+    if (!this.topDownOn || !this.view) return false;
+    if (this.pinchGap !== null || this.freeTouches.size !== 2) return false;
     const half = this.canvas.getBoundingClientRect();
     const middle = half.top + half.height / 2;
     for (const at of this.freeTouches.values()) {
