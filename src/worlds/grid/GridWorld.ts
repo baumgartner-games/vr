@@ -13,6 +13,7 @@ import {
 import type { NavGraph } from '../nav/navGraph';
 import { DIRS, NO_TILE, TILE, keyLevel, tileCentreX, tileCentreZ, type Dir } from '../nav/navTile';
 import { changeSlidingDoor } from './slidingDoor';
+import { blocksView, boxesBetween, type GhostCandidate } from './wallGhost';
 import { fixtureTile, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
 import { EFFECT_LIFT } from './fixtures/index';
@@ -100,6 +101,19 @@ export abstract class GridWorld extends PortalWorld {
   private readonly gridLines: THREE.LineSegments[] = [];
   /** Ihr Material — eines für alle, und über den Umbau hinweg dasselbe. */
   private gridLineSkin: THREE.Material | null = null;
+  /**
+   * **Was der Kamera die Figur verdecken kann** — Wände, Massen, Bausteine
+   * (`wallGhost.ts`).
+   *
+   * Eine eigene Liste neben `slabs`, weil sie eine andere Frage beantwortet:
+   * Dort steht **jeder** Quader, hier nur der, der überhaupt etwas verdeckt
+   * (kein Boden, höher als ein Knie) — und daneben sein Kasten in Metern,
+   * damit die Auswahl nicht jedes Bild aus der Geometrie zurückgerechnet
+   * werden muss.
+   */
+  private readonly wallGhosts: GhostSlab[] = [];
+  /** Die zweite Palette: dieselben Farben, durchsichtig (`ghostFor`). */
+  private readonly ghostPalette = new Map<PlanSolidKind, THREE.Material>();
   /**
    * **Auf welcher Ebene das Rig steht** — die Schnittkante der Ansicht von
    * oben (`core/cutaway.ts`, `viewLevel`).
@@ -204,6 +218,9 @@ export abstract class GridWorld extends PortalWorld {
     // einer Kachel, von denen eines in keinem Plan mehr steht.
     this.clearFixtures();
     this.dropGridLines();
+    // Die Quader sind gleich alle weg; was hier stehen bliebe, wäre eine Wand,
+    // die es nicht mehr gibt und die trotzdem durchsichtig wird.
+    this.wallGhosts.length = 0;
     for (const batch of this.batches) {
       batch.geometry.dispose();
       batch.removeFromParent();
@@ -524,6 +541,7 @@ export abstract class GridWorld extends PortalWorld {
    */
   private setFixtureSolid(run: FixtureRun, on: boolean): void {
     run.hard = on;
+    this.forgetGhosts(run.meshes);
     for (const mesh of run.meshes) this.dropSlab(mesh);
     run.meshes.length = 0;
     const group = this.group;
@@ -543,6 +561,10 @@ export abstract class GridWorld extends PortalWorld {
       // Marke daran ist der Name der Tür (`PlanSolid.door`); sichtbar stünde
       // das Blatt zweimal da — einmal starr, einmal fahrend.
       if (one.door) mesh.visible = false;
+      // **Auch ein Einbau verdeckt.** Ein Schrank, ein geschlossenes Türblatt,
+      // ein Tor: Was `slabs` führt, gehört ins Ghosting — das unsichtbare
+      // Blatt einer Einbau-Tür allerdings nicht, das verdeckt ohnehin nichts.
+      if (mesh.visible) this.rememberGhost(mesh, one);
       run.meshes.push(mesh);
     }
   }
@@ -866,8 +888,108 @@ export abstract class GridWorld extends PortalWorld {
       mesh.visible = this.gridDoorVisible();
     }
     this.slabs.push(mesh);
+    this.rememberGhost(mesh, solid);
   }
 
+  // --- Wand-Ghosting --------------------------------------------------------
+
+  /**
+   * **Einen Quader für das Ghosting vormerken** — wenn er überhaupt etwas
+   * verdecken kann (`wallGhost.blocksView`).
+   *
+   * Der Kasten wird hier festgehalten und nicht jedes Bild aus der Geometrie
+   * geholt: Er ändert sich nie (ein Umbau baut neu), und die Auswahl läuft
+   * sechzigmal in der Sekunde über die ganze Liste.
+   */
+  private rememberGhost(mesh: THREE.Mesh, solid: PlanSolid): void {
+    const one: GhostSlab = {
+      mesh,
+      kind: solid.kind,
+      floor: solid.kind === 'floor',
+      box: { x: solid.x, y: solid.y, z: solid.z, w: solid.w, h: solid.h, d: solid.d },
+      on: false,
+    };
+    if (!blocksView(one)) return;
+    this.wallGhosts.push(one);
+  }
+
+  /** Diese Quader sind weg — sie dürfen in keiner Auswahl mehr vorkommen. */
+  private forgetGhosts(meshes: readonly THREE.Object3D[]): void {
+    if (meshes.length === 0 || this.wallGhosts.length === 0) return;
+    const gone = new Set(meshes);
+    for (let i = this.wallGhosts.length - 1; i >= 0; i--) {
+      if (gone.has(this.wallGhosts[i]!.mesh)) this.wallGhosts.splice(i, 1);
+    }
+  }
+
+  /**
+   * **Was zwischen Kamera und Figur steht, wird für dieses Bild durchsichtig.**
+   *
+   * Das Aufschneiden (`core/cutaway.ts`) nimmt nur weg, was **über** der Ebene
+   * des Rigs liegt — Decken und Dächer. Eine Wand auf derselben Ebene bleibt
+   * stehen, und aus der Schrägsicht von Süden steht sie genau dann im Weg,
+   * wenn man gerade hinter ihr steht. Overcooked und die Sims beantworten das
+   * seit jeher gleich: Die Wand bleibt stehen und wird durchsichtig.
+   *
+   * Drei Sachen sind daran entschieden:
+   *
+   * - **Nur von oben.** In der Brille steht man *in* der Welt; eine Wand, die
+   *   dort durchsichtig würde, weil der Kopf gerade dahintersteht, wäre ein
+   *   Fehler und kein Hilfsmittel. Beim Umschalten kommt deshalb alles zurück.
+   * - **Gezielt wird auf die Mitte der Figur** (`GHOST_AIM`) und nicht auf
+   *   ihre Füße: Der Strahl zu den Füßen streift jede Bodenplatte und jede
+   *   Schwelle davor.
+   * - **Getauscht wird nur, was sich geändert hat.** Ein Material jedes Bild
+   *   neu zuzuweisen ist für three.js ein neuer Zustand — und bei tausend
+   *   Quadern eine Liste, die nichts tut außer Arbeit zu machen.
+   */
+  private stepWallGhosts(ctx: WorldContext): void {
+    if (this.wallGhosts.length === 0) return;
+    if (!ctx.topDown) {
+      this.clearWallGhosts();
+      return;
+    }
+    const rig = ctx.rig.position;
+    const aim = { x: rig.x, y: rig.y + GHOST_AIM, z: rig.z };
+    const hidden = new Set(boxesBetween(ctx.camera.position, aim, this.wallGhosts));
+    for (const one of this.wallGhosts) this.setGhost(one, hidden.has(one));
+  }
+
+  /** Alles zurück auf sein eigenes Material. */
+  private clearWallGhosts(): void {
+    for (const one of this.wallGhosts) this.setGhost(one, false);
+  }
+
+  private setGhost(one: GhostSlab, on: boolean): void {
+    if (one.on === on) return;
+    one.on = on;
+    one.mesh.material = on ? this.ghostFor(one.kind) : this.materialFor(one.kind);
+  }
+
+  /**
+   * Das durchsichtige Zwillingsmaterial einer Sorte — dieselbe Farbe, ein
+   * Viertel Deckkraft, und ohne in den Tiefenpuffer zu schreiben.
+   *
+   * Eine zweite Palette und kein Umschalten am Material selbst: `transparent`
+   * an einem geteilten Material umzulegen, machte jede Wand der Welt
+   * durchsichtig, und three.js baut den Shader dabei jedes Mal neu.
+   */
+  private ghostFor(kind: PlanSolidKind): THREE.Material {
+    const had = this.ghostPalette.get(kind);
+    if (had) return had;
+    const made = this.buildMaterial(kind, true);
+    this.ghostPalette.set(kind, made);
+    return made;
+  }
+
+  /**
+   * **Ob die Quader zu Bündeln zusammengefasst werden** (`InstancedMesh`).
+   *
+   * Aus, und das bleibt so: Ein Bündel hat **ein** Material, und damit fällt
+   * das Wand-Ghosting weg — durchsichtig würde nicht die eine Wand, sondern
+   * jede Wand derselben Sorte auf derselben Ebene. Wer eine Welt mit
+   * zehntausend Kacheln baut, schaltet es an und verzichtet dafür darauf.
+   */
   protected batchGridGeometry(): boolean {
     return false;
   }
@@ -913,13 +1035,24 @@ export abstract class GridWorld extends PortalWorld {
   private materialFor(kind: PlanSolidKind): THREE.Material {
     const had = this.palette.get(kind);
     if (had) return had;
-    const color = this.tint()[kind] ?? GRID_COLORS[kind];
-    const made =
-      kind === 'glow'
-        ? new THREE.MeshBasicMaterial({ color, toneMapped: false })
-        : new THREE.MeshStandardMaterial({ color, ...GRID_FINISH[kind] });
+    const made = this.buildMaterial(kind, false);
     this.palette.set(kind, made);
     return made;
+  }
+
+  /**
+   * Das Material einer Sorte bauen — normal oder als durchsichtiger Zwilling.
+   *
+   * Beide aus **derselben** Zeile, damit sie dieselbe Farbe haben: Ein Ghost,
+   * der ein bisschen anders aussieht als die Wand, die er ersetzt, sieht aus
+   * wie ein Fehler im Bild.
+   */
+  private buildMaterial(kind: PlanSolidKind, ghost: boolean): THREE.Material {
+    const color = this.tint()[kind] ?? GRID_COLORS[kind];
+    const soft = ghost ? { transparent: true, opacity: GHOST_OPACITY, depthWrite: false } : {};
+    return kind === 'glow'
+      ? new THREE.MeshBasicMaterial({ color, toneMapped: false, ...soft })
+      : new THREE.MeshStandardMaterial({ color, ...GRID_FINISH[kind], ...soft });
   }
 
   // --- der Bearbeitungsmodus ------------------------------------------------
@@ -1032,6 +1165,7 @@ export abstract class GridWorld extends PortalWorld {
     this.stepBursts(dt);
     this.trackLevel(ctx);
     this.showGridLines();
+    this.stepWallGhosts(ctx);
     // **Erst die Einbauten, dann der Umbau.** Sie laufen auch, während gebaut
     // wird — ein Schild, das man eben gesetzt hat, soll etwas sagen, sobald
     // die Karte wieder an der Hüfte hängt.
@@ -1219,6 +1353,9 @@ export abstract class GridWorld extends PortalWorld {
     this.dropGridLines();
     this.gridLineSkin?.dispose();
     this.gridLineSkin = null;
+    this.wallGhosts.length = 0;
+    for (const material of this.ghostPalette.values()) material.dispose();
+    this.ghostPalette.clear();
     this.rigLevel = 0;
     this.clearFixtures();
     this.editor?.dispose();
@@ -1366,6 +1503,19 @@ const STAND_HEAD = 2;
  */
 const GRID_LINE_LIFT = 0.01;
 
+/**
+ * Worauf das Ghosting zielt: die **Mitte** der Figur über dem Rig, in Metern.
+ *
+ * Neun Zehntel — Brusthöhe. Auf die Füße zu zielen hieße, jede Bodenplatte und
+ * jede Schwelle davor zu streifen; auf den Kopf zu zielen hieße, dass eine
+ * Brüstung vor der Figur stehen bleibt, hinter der von ihr nichts mehr zu
+ * sehen ist.
+ */
+const GHOST_AIM = 0.9;
+
+/** Wie durchsichtig eine Wand wird, die im Weg steht. */
+const GHOST_OPACITY = 0.25;
+
 const _target = new THREE.Vector3();
 const _feet = new THREE.Vector3();
 const _spot = new THREE.Vector3();
@@ -1374,6 +1524,16 @@ const _spot = new THREE.Vector3();
  * **Ein gebauter Einbau**: seine Art, sein Zustand, sein Bild, seine Körper —
  * und die drei Marken, die genau ein Bild lang gelten.
  */
+/**
+ * **Ein Quader, der jemanden verdecken kann** — sein Bild, seine Sorte, sein
+ * Kasten in Metern und ob er gerade durchsichtig ist (`wallGhost.ts`).
+ */
+interface GhostSlab extends GhostCandidate {
+  mesh: THREE.Mesh;
+  kind: PlanSolidKind;
+  on: boolean;
+}
+
 interface FixtureRun {
   place: FixturePlacement;
   kind: FixtureKind<unknown>;
