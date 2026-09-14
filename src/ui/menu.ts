@@ -12,6 +12,9 @@ export type MenuIcon =
   | 'domino'
   | 'portal'
   | 'settings'
+  // Die offene Hand: kein Werkzeug, sondern der Verzicht darauf. Erste Zeile
+  // der Werkzeugliste am Bildschirm (`ui/ToolButton.ts`, `#hud-tool`).
+  | 'hand'
   | 'sphere'
   | 'pyramid'
   | 'plank'
@@ -409,6 +412,34 @@ export function drawMenuIcon(
       ctx.lineTo(-s * 0.55, s * 0.78);
       ctx.moveTo(s * 0.55, s * 0.62);
       ctx.lineTo(s * 0.55, s * 0.78);
+      ctx.stroke();
+      break;
+    }
+    case 'hand': {
+      // Eine offene Hand von vorn: Handfläche, vier Finger, Daumen. Sie steht
+      // für „nichts in der Hand" — und nichts sagt das so kurz wie eine Hand,
+      // die man sieht.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.38, s * 0.1);
+      ctx.quadraticCurveTo(-s * 0.42, s * 0.78, s * 0.06, s * 0.78);
+      ctx.quadraticCurveTo(s * 0.5, s * 0.78, s * 0.46, s * 0.1);
+      ctx.stroke();
+      for (const [x, top] of [
+        [-s * 0.38, -s * 0.34],
+        [-s * 0.12, -s * 0.62],
+        [s * 0.14, -s * 0.66],
+        [s * 0.4, -s * 0.36],
+      ] as const) {
+        ctx.beginPath();
+        ctx.moveTo(x, s * 0.2);
+        ctx.lineTo(x, top);
+        ctx.stroke();
+      }
+      // Der Daumen steht seitlich ab — daran erkennt man eine Hand und keinen
+      // Rechen.
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.38, s * 0.28);
+      ctx.lineTo(-s * 0.82, -s * 0.06);
       ctx.stroke();
       break;
     }

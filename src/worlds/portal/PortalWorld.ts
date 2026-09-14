@@ -263,6 +263,7 @@ import {
 } from '../../core/usable';
 import { ScreenHand } from './screenHand';
 import { Highlight } from '../../core/highlight';
+import type { ToolChoice, ToolOption } from '../../core/types';
 import { topDownPitch } from '../../core/topDownPose';
 import { overBudget, type LooseEntry } from './tools/looseBudget';
 import { findMaterial, isTransparent } from './tools/materials';
@@ -790,6 +791,22 @@ export class PortalWorld implements World {
    * die Welt verlässt, nimmt ihn mit (`dispose`).
    */
   private readonly highlighter = new Highlight(this.root);
+  /**
+   * **Was der Spieler am Bildschirm gewählt hat** (`#hud-tool`).
+   *
+   * `undefined` heißt: noch nichts gewählt — dann gilt, was die Welt vorsieht
+   * (`defaultScreenTool`), und für alles Bestehende ändert sich nichts.
+   * `null` ist eine Wahl und heißt leere Hand.
+   */
+  private toolPick: string | null | undefined = undefined;
+  /**
+   * Die Liste hinter dem Knopf, einmal gebaut.
+   *
+   * Einmal, weil sie Werkzeuge baut, um an Beschriftung und Ikone zu kommen
+   * (`tool`) — dasselbe tut das Regal am Handgelenk beim Weltstart auch. Je
+   * Bild neu wäre es ein Ruckler pro Bild.
+   */
+  private toolOptions: ToolOption[] | null = null;
   /** Keyed by hand, plus a `:far` probe for the half that is through a portal. */
   private readonly probes = new Map<string, HandProbe>();
   private readonly grabs = new Map<Handedness, HandGrab>();
@@ -7582,17 +7599,9 @@ export class PortalWorld implements World {
     const hand = this.screenHand;
     if (!wanted) {
       if (!hand) return;
-      // Was in dieser Hand lag, ist mit ihr entstanden und geht mit ihr — **nicht**
-      // an den Gürtel: Dort hängt schon, was die Welt dort haben will
-      // (`beltLoadout`), und eine Pistole, die sich beim Umschalten der Ansicht
-      // auf eine Hüfte drängt, schiebt das Schild des Labors ins Nichts.
-      const tool = this.held.get('right');
-      if (tool) {
-        this.held.delete('right');
-        tool.heldBy = null;
-        if (this.host) tool.onStow(this.host);
-        this.retireTool(tool);
-      }
+      // Was in dieser Hand lag, ist mit ihr entstanden und geht mit ihr
+      // (`dropScreenTool`).
+      this.dropScreenTool();
       hand.dispose();
       this.screenHand = null;
       ctx.avatar.screenHand = null;
@@ -7610,15 +7619,107 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Was am Schirm in der rechten Hand liegt**, von oben — die Id eines
-   * Werkzeugs oder `null` für leere Hände.
+   * **Was am Schirm in der rechten Hand liegt** — die Id eines Werkzeugs oder
+   * `null` für die leere Hand.
    *
-   * Die Pistole, weil der Linksklick der Trigger dieser Hand ist und ein
-   * Trigger ohne Waffe nichts bedeutet (Plan, E5). Eine Welt, in der geschossen
-   * nichts zu suchen hat, sagt hier etwas anderes oder `null`.
+   * Das ist jetzt die **Wahl des Spielers** (`#hud-tool`, `toolChoice`), und
+   * nur solange er keine getroffen hat, die Vorgabe der Welt. So bleibt alles
+   * wie es war, bis jemand den Knopf drückt.
    */
   protected screenTool(): string | null {
+    return this.toolPick === undefined ? this.defaultScreenTool() : this.toolPick;
+  }
+
+  /**
+   * **Womit die Bildschirmhand anfängt.**
+   *
+   * Die Pistole, weil der Linksklick der Trigger dieser Hand ist und ein
+   * Trigger ohne Waffe nichts bedeutet (Plan, E5). Eine Welt, in der
+   * geschossen nichts zu suchen hat, sagt hier etwas anderes oder `null`.
+   */
+  protected defaultScreenTool(): string | null {
     return 'pistol';
+  }
+
+  /**
+   * **Die Werkzeugwahl am Bildschirm** (`core/types.ToolChoice`) — was `App`
+   * in den runden Knopf unten rechts schreibt.
+   *
+   * Angeboten wird, was die Welt an den Gürtel hängt (`beltLoadout`), und
+   * davor das, was ohnehin in der Hand liegt; eine Welt ganz ohne Gürtel
+   * bekommt das ganze Regal (`TOOL_IDS`). Beschriftung und Ikone kommen vom
+   * Werkzeug selbst — dieselben wie im Regal am Handgelenk.
+   */
+  toolChoice(): ToolChoice | null {
+    const options = (this.toolOptions ??= this.buildToolOptions());
+    if (options.length === 0) return null;
+    this.choice.options = options;
+    this.choice.current = this.screenTool();
+    return this.choice;
+  }
+
+  /** Das Ding, das `App` jedes Bild liest — eines und nicht jedes Bild ein neues. */
+  private readonly choice: ToolChoice = {
+    current: null,
+    options: [],
+    choose: (id) => this.chooseScreenTool(id),
+  };
+
+  private buildToolOptions(): ToolOption[] {
+    const ids: string[] = [];
+    const add = (id: string | null): void => {
+      if (id && !ids.includes(id)) ids.push(id);
+    };
+    // Was schon in der Hand liegt, steht oben: Es ist die Zeile, auf die man
+    // zurückkommt, wenn man die Hand wieder füllen will.
+    add(this.defaultScreenTool());
+    for (const [id] of this.beltLoadout()) add(id);
+    if (ids.length === 0) for (const id of TOOL_IDS) add(id);
+
+    const options: ToolOption[] = [];
+    for (const id of ids) {
+      const tool = this.tool(id);
+      options.push({
+        id,
+        label: tool?.label ?? id,
+        ...(tool?.icon ? { icon: tool.icon } : {}),
+        ...(tool?.accent !== undefined ? { accent: tool.accent } : {}),
+      });
+    }
+    return options;
+  }
+
+  /**
+   * **Ein Tipp in der Liste** — das Werkzeug wechselt sofort.
+   *
+   * Sofort, weil ein Knopf, dessen Wirkung erst beim nächsten
+   * Ansichtswechsel eintritt, kaputt aussieht. Liegt gerade keine
+   * Bildschirmhand auf (aus den Augen, in der Brille), wird die Wahl nur
+   * gemerkt und gilt, sobald es wieder eine gibt.
+   */
+  private chooseScreenTool(id: string | null): void {
+    if (this.toolPick !== undefined && id === this.toolPick) return;
+    this.toolPick = id;
+    const ctx = this.context;
+    const hand = this.screenHand;
+    if (!ctx || !hand) return;
+    this.dropScreenTool();
+    const tool = id ? this.freshTool(id) : null;
+    if (tool) this.takeTool(ctx, hand.state, tool);
+  }
+
+  /**
+   * Was in der Bildschirmhand lag, geht weg — **nicht** an den Gürtel: Dort
+   * hängt schon, was die Welt dort haben will, und eine Pistole, die sich beim
+   * Ablegen auf eine Hüfte drängt, schiebt das Schild des Labors ins Nichts.
+   */
+  private dropScreenTool(): void {
+    const tool = this.held.get('right');
+    if (!tool) return;
+    this.held.delete('right');
+    tool.heldBy = null;
+    if (this.host) tool.onStow(this.host);
+    this.retireTool(tool);
   }
 
   /**

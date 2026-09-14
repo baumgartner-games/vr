@@ -32,6 +32,10 @@ const touch = document.querySelector<HTMLElement>('#touch')!;
  * Die vier Zeigerflächen auf dem Glas (`core/FlatControls.TouchPads`): links
  * der Stock zum Laufen, rechts Zielstock und die Knöpfe `A`/`B`. Die rechte
  * Hälfte gehört der Ansicht von oben und blendet sich selbst ein und aus.
+ *
+ * Dazu die beiden **echten** Knöpfe, Werkzeug und Menü: Sie werden hier nicht
+ * gedrückt, sie werden ausgespart — zwei Finger zoomen nur, solange keiner
+ * von ihnen auf einem Knopf liegt.
  */
 const pads = {
   stick: document.querySelector<HTMLElement>('#touch-stick'),
@@ -39,6 +43,8 @@ const pads = {
   use: document.querySelector<HTMLElement>('#touch-a'),
   fire: document.querySelector<HTMLElement>('#touch-b'),
   right: document.querySelector<HTMLElement>('#touch-right'),
+  tool: document.querySelector<HTMLElement>('#hud-tool'),
+  menu: document.querySelector<HTMLElement>('#hud-menu'),
 };
 const postureSeg = document.querySelector<HTMLElement>('#posture')!;
 const postureField = document.querySelector<HTMLElement>('#posture-field')!;
