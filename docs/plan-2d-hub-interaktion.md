@@ -15,6 +15,38 @@ Datei ganz, dann `AGENTS.md` (mindestens _Arbeitsregeln_, _Welten auf dem
 Kachelgitter_, _Eine neue Welt hinzufügen_, _Zuschauen_), dann den Code, der
 im Paket steht.
 
+## Stand
+
+**Fertig.** Alle neun Pakete sind auf `main`: P0 (#127), P1 (#128), P3 (#129),
+P2 (#130), P5 (#131), P4 (#132), P7 (#133), P6 (#134) und dieses Aufräumen
+(#135). _Von oben_ ist eine Kamera über der echten Szene (E1), es gibt nur das
+eine Kachelgitter (E2), Phaser und `src/world2d/` sind weg (E3), gelaufen wird
+in Weltrichtungen (E4), `A`/`E` benutzt über `core/usable.ts` (E5), alles mit
+Zustand ist ein Einbau in `grid/fixtures/` (E6), der Hub ist eine Gitterwelt
+mit Toren als Einbauten (E7), Ebenen über dem Spieler werden aufgeschnitten
+(E8), und keine einzige Bilddatei ist dazugekommen (E9). Beschrieben ist das
+alles in AGENTS.md — _Von oben: dieselbe Welt, eine Kamera_, _Welten auf dem
+Kachelgitter → Einbauten_, _Was drin ist → Straßenküche_ —, nicht hier. Dieses
+Dokument bleibt als Dokument der **Entscheidungen** liegen.
+
+**Was bewusst offen blieb**, aus den Meldungen der Pakete:
+
+- **Passanten über den Zebrastreifen** (P5, Punkt 5): weggelassen. Ein
+  Wegpunkt-Hirn für Passanten ist mehr als die Stunde, die dafür stand; NPCs
+  lassen sich in jeder Welt über das Menü setzen.
+- **Vom Einbau lässt sich im Bauplatz nur `target` eintippen** (P3). Die
+  übrigen Eigenschaften (`mode`, `hold`, `effect`, `burst`, …) stehen im
+  Weltformat und im Quelltext der Welten, aber noch nicht in der Palette.
+- **Die Kochmechanik von _Overcooked_** war nie gemeint (siehe _Das
+  Referenzbild, in Worten_): Aus dem Bild zählt die Anordnung und der Ton, und
+  die Straßenküche ist eine Testwelt für Türen, Knöpfe, Treppen und Effekte.
+- **Haunting behält seine eigene Runde von oben** (`World.ownsFlat`) und wurde
+  von keinem Paket angefasst — so stand es in der Aufgabe und so ist es
+  geblieben.
+- **Der Zoom hat vier Stufen und keinen stufenlosen Weg dazwischen** (P0, E1);
+  ob perspektivisch richtig war, ist entschieden (ja, sonst fielen Podest und
+  Boden darunter auf denselben Fleck) und braucht keine zweite Runde.
+
 ## Was gewünscht ist, in vier Sätzen
 
 1. **Overcooked-Optik heißt 3D von oben.** Feste Kamera schräg über der Szene

@@ -19,8 +19,8 @@ import {
 /**
  * **Die Ansicht _Von oben_ — eine Kamera, keine zweite Welt.**
  *
- * Früher malte Phaser dafür eine eigene Kachelwelt über das WebGL-Bild
- * (`world2d/`), und wer von oben spielte, spielte in einer zweiten Wahrheit:
+ * Früher lag dafür eine eigene, gemalte Kachelwelt über dem WebGL-Bild, und
+ * wer von oben spielte, spielte in einer zweiten Wahrheit:
  * andere Wände, andere Türen, andere Kisten. Jetzt ist es dieselbe Szene, in
  * der ein anderer gerade mit der Brille steht — nur aus einer festen
  * Schrägsicht darüber. Was hier steht, ist deshalb kurz: eine Kamera, ihr
@@ -218,7 +218,7 @@ export class TopDownCamera {
 const FOLLOW_TAU = 0.12;
 /** Dasselbe für den Zoom — etwas träger, weil er seltener und größer springt. */
 const ZOOM_TAU = 0.18;
-/** Wie viel Rad eine Stufe ist (`world2d/World2D.ts` sammelt genauso). */
+/** Wie viel Rad eine Stufe ist — so viel sammelte auch die alte Kachelwelt. */
 const WHEEL_NOTCH = 50;
 
 const _target = new THREE.Vector3();

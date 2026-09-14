@@ -173,8 +173,8 @@ export interface World {
   /**
    * **Diese Welt bringt ihre Ansicht von oben selbst mit.**
    *
-   * Der Normalfall ist die 2D-Welt des Kerns (`world2d/World2D.ts`): Kacheln
-   * in Ebenen, in Phaser, mit Editor — für jede Welt gleich. Genau eine hat
+   * Der Normalfall ist die Kamera des Kerns (`core/TopDownCamera.ts`):
+   * dieselbe Szene, schräg von oben — für jede Welt gleich. Genau eine hat
    * eine eigene — Haunting, mit Räumen, Türen, Licht und einer ganzen Runde
    * darin —, und die soll der Kern nicht übermalen.
    */

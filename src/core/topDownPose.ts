@@ -32,7 +32,7 @@ export interface Vec2 {
 
 /**
  * **Neigung über der Waagerechten, in Grad.** 55° ist der Winkel, unter dem
- * schon der Companion Cube abgelichtet wird (`world2d/modelSprite.ts`) — flach
+ * schon der Companion Cube gezeichnet wurde, als es ihn nur von oben gab — flach
  * genug, dass man die Gesichter der Dinge sieht, steil genug, dass die Kacheln
  * unter ihnen ein Raster bleiben.
  */

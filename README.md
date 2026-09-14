@@ -12,10 +12,18 @@ in _Overcooked_. Dieselben Wände, dieselben Türen, dieselben Kisten, an denen
 gerade jemand anders mit der Brille steht; man sieht dabei seine eigene Figur.
 Gelaufen wird in Weltrichtungen — `W` ist Norden, `D` ist Osten, und die Figur
 dreht sich dorthin, wohin sie läuft —, `Shift` sprintet, die Leertaste springt,
-und das Rad zoomt in vier Stufen. Am Handy ist _Von oben_ vorbelegt.
+und das Rad zoomt in vier Stufen. `E` **benutzt**, was vor der Figur steht
+(Knöpfe, Hebel, Türen, Tore), der Linksklick **schießt** mit dem Werkzeug in
+der rechten Hand. **Mit dem Gamepad wie auf der Konsole**: linker Stick läuft,
+rechter zielt, `A` benutzt, `B` oder RT schießt, die Bumper zoomen — der
+Hinweis über der Figur nennt dann auch `A` statt `E`. Am Handy ist _Von oben_
+vorbelegt, mit zwei Stöcken und den Flächen `A` und `B` auf dem Glas.
 
-Vorher war „2D" eine eigene Kachelwelt in [Phaser](https://phaser.io) über dem
-Bild — zwei Welten, zwei Wahrheiten. Der Weg dorthin und zurück steht in
+Vorher war „2D" eine **eigene**, gemalte Kachelwelt über dem Bild — zwei
+Welten, zwei Wahrheiten: Was man von oben umwarf, stand in 3D noch. Die ist
+samt ihrer Spiele-Bibliothek weg; geblieben ist der Gedanke, dass ein Gitter
+sagt, wo alles steht, und der wohnt im Kachelgitter der Welten. Der Weg dorthin
+und zurück steht in
 [docs/plan-2d-hub-interaktion.md](docs/plan-2d-hub-interaktion.md).
 
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
@@ -783,6 +791,8 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Springen / Ducken             | `A` rechts / rechten Stick reindrücken                                                                                                                                     | `Leertaste`                                                            | –                        |
 | Menü                          | Button an beiden Händen (immer nur eins offen)                                                                                                                             | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links      |
 | 2D von oben ↔ 3D              | –                                                                                                                                                                          | Startseite oder Menü → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger zoomen |
+| Benutzen (von oben)           | – (die Hand fasst selbst an)                                                                                                                                               | `E` oder Enter — ein Hinweis über der Figur sagt, was da ist           | Knopf `A`                |
+| Zielen / Schießen (von oben)  | Trigger der Hand mit der Waffe                                                                                                                                             | Maus zielt, Linksklick schießt                                         | rechter Stick, Knopf `B` |
 | Auswählen                     | zielen + Trigger oder `A`                                                                                                                                                  | Linksklick                                                             | tippen                   |
 | Werkzeug nehmen/ablegen       | Grip an der Hüfte; woanders loslassen lässt es fallen                                                                                                                      | –                                                                      | –                        |
 | Hüften verschieben            | Gürtel-Justierer: Hüfte anzielen, Trigger, mit der anderen Hand schieben                                                                                                   | –                                                                      | –                        |

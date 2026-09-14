@@ -33,7 +33,7 @@ describe('2D oder 3D am Bildschirm', () => {
 
 /**
  * **Die Kennung bleibt, das Wort ändert sich.** „2D" hieß einmal eine eigene
- * Kachelwelt in Phaser; jetzt ist es dieselbe Welt aus einer Kamera darüber.
+ * Kachelwelt; jetzt ist es dieselbe Welt aus einer Kamera darüber.
  * Der Speicher darf das nicht merken — in jedem Browser, der hier schon offen
  * war, steht `2d`, und wer die Kennung umbenennt, nimmt allen ihre Wahl.
  */

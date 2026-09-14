@@ -8,9 +8,6 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { PageMenu } from '../ui/PageMenu';
-import { World2D } from '../world2d/World2D';
-import { loadLevel, saveLevel, forgetLevel, type Level } from '../world2d/level';
-import { sampleLevel } from '../world2d/sample';
 import { TopDownCamera } from './TopDownCamera';
 import {
   SCREEN_VIEW_LABELS,
@@ -144,14 +141,6 @@ export class App {
    * oben links. Welches der beiden gerade gilt, entscheidet `WristMenus`.
    */
   readonly pageMenu: PageMenu;
-  /**
-   * **Die 2D-Welt** (`world2d/World2D.ts`) — Kacheln in Ebenen, in Phaser, mit
-   * einem Helden, der dagegenläuft, und einem Editor. Wann sie das Bild ist,
-   * sagt `topDown`; dann folgt das Rig dem Helden (`step`).
-   */
-  readonly world2d: World2D;
-  /** Die Pläne der 2D-Welt, je Welt, solange die Seite offen ist. */
-  private readonly levels = new Map<string, Level>();
   /**
    * **Die Ansicht _Von oben_** (`core/TopDownCamera.ts`) — dieselbe Szene, nur
    * aus einer festen Kamera schräg darüber. Wann sie das Bild ist, sagt
@@ -303,13 +292,6 @@ export class App {
       onToggle: (open) => this.hooks.onMenuChanged?.(open),
     });
     this.wristMenu.attachPage(this.pageMenu);
-    this.world2d = new World2D({
-      controls: () => this.flat.wish,
-      onEdit: (level) => saveLevel(level),
-      onState: () => {
-        this.menuDirty = true;
-      },
-    });
     this.view = screenView(this.role);
     this.refreshMenu();
 
@@ -694,11 +676,6 @@ export class App {
   /**
    * Die Ansicht anwenden: die Kamera von oben aufsetzen oder absetzen, die
    * Tasten auf Weltrichtungen umstellen und den eigenen Körper dazuschalten.
-   *
-   * Der Zweig für die alte Kachelwelt ist **ausgehängt**: `world2d.hide()`
-   * bleibt stehen, damit eine Leinwand, die vor diesem Umbau noch offen war,
-   * auch wieder zugeht — gezeigt wird sie nie mehr. Der Rest von Phaser fällt
-   * mit Paket P8.
    */
   private applyView(): void {
     const on = this.topDown;
@@ -709,32 +686,8 @@ export class App {
     // Von oben sieht man sich selbst — Kopf nach vorn und Fäuste dran.
     this.avatar.headFollowsRig = on;
     this.avatar.showHands = on;
-    this.world2d.hide();
     if (on) this.topDownCamera.reset();
     else if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
-  }
-
-  /**
-   * **Der Plan einer Welt** — der gemerkte aus dem Browser, sonst die Lichtung,
-   * mit der jede Welt anfängt (`world2d/sample.ts`). Einmal geholt, dann
-   * gehalten, damit der Editor nicht gegen eine Kopie malt.
-   */
-  private levelFor(worldId: string): Level {
-    let level = this.levels.get(worldId);
-    if (!level) {
-      level = loadLevel(worldId) ?? sampleLevel(worldId, findWorld(worldId)?.title ?? worldId);
-      this.levels.set(worldId, level);
-    }
-    return level;
-  }
-
-  /** Den Plan dieser Welt auf die Lichtung zurücksetzen — vergessen und neu zeigen. */
-  resetLevel(): void {
-    if (!this.worldId) return;
-    forgetLevel(this.worldId);
-    this.levels.delete(this.worldId);
-    if (this.topDown) void this.world2d.show(this.levelFor(this.worldId));
-    this.notify('Plan zurückgesetzt');
   }
 
   notify(message: string): void {
@@ -754,7 +707,6 @@ export class App {
     this.avatar.dispose();
     this.wristMenu.dispose();
     this.pageMenu.dispose();
-    this.world2d.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
     this.voice.dispose();
@@ -860,9 +812,9 @@ export class App {
    * die schaltet dort das Zahnrad der Runde um, nicht dieses Menü.
    *
    * **Raster, Ebenen, Editor und _Plan zurücksetzen_ standen hier**, solange
-   * von oben eine eigene Kachelwelt in Phaser lief. Was man von oben sieht,
-   * ist jetzt die Welt selbst — die hat keine Ebenen zum Ausblenden, und
-   * gebaut wird sie im Bauplatz (`editor/WorldEditor.ts`).
+   * von oben eine eigene Kachelwelt lag, die man malen konnte. Was man von
+   * oben sieht, ist jetzt die Welt selbst, und gebaut wird sie im Bauplatz
+   * (`editor/WorldEditor.ts`).
    */
   private viewMenu(): MenuEntry {
     const flat = this.view === '2d';
@@ -1194,7 +1146,7 @@ export class App {
         {
           id: 'gfx:fps-hud',
           label: 'Bildrate im Bild',
-          sub: 'Das kleine Feld unten rechts, auch am Telefon · in 2D mit Phasers eigener Zahl',
+          sub: 'Das kleine Feld unten rechts, auch am Telefon',
           caption: 'Am Schreibtisch auch mit F3',
           icon: 'settings',
           accent: 0x6f7d99,
@@ -1779,9 +1731,9 @@ export class App {
     this.quality.update(dt, _headPos.setFromMatrixPosition(_head));
 
     // **Von oben ist dieselbe Szene, nur aus einer anderen Kamera.** Früher
-    // wurde hier gar nichts gezeichnet, weil Phaser auf einer Leinwand darüber
-    // sein eigenes Bild malte (`world2d/`); jetzt gibt es nur noch die eine
-    // Welt, und die Kamera schräg darüber ist ihr Blickwinkel.
+    // wurde hier gar nichts gezeichnet, weil eine zweite, gemalte Welt auf
+    // einer Leinwand darüber ihr eigenes Bild hatte; jetzt gibt es nur noch
+    // die eine Welt, und die Kamera schräg darüber ist ihr Blickwinkel.
     //
     // Sie wandert deshalb auch durch den Weltkontext: Eine Welt, die ihr Bild
     // selbst zeichnet (`World.render` — die Portalwelt mit ihren Sichten und
