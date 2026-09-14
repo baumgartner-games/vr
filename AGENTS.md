@@ -2634,6 +2634,62 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     tut es (`core/usable.ts`, siehe _Benutzen von oben_). Der rote Knopf hat
     dazu einen Kollisionskörper und lässt sich **anschießen** — die Portal-Regel,
     und im Labor die Vorlage für die Einbauten auf dem Gitter.
+- **Straßenküche** (experimentell, `src/worlds/street/`): die Testwelt für das
+  Spielen **von oben** — eine Straßenkreuzung im Geist der Straßenlevel aus
+  _Overcooked_: eine Fahrbahn mit doppelter gelber Mittellinie quer durch die
+  Karte, ein breiter **Zebrastreifen** in der Mitte, links und rechts davon
+  **Küchenzeilen** mit zwei Herdplatten, am Rand **Marktstände** mit
+  gestreiften Markisen (blau-weiß und rot-weiß), Bänke, Verkehrshüte,
+  Blumenkübel und vier Kisten zum Schieben. Sie steht auf dem **Kachelgitter**
+  (24 × 16 Kacheln, `street/streetPlan.ts`), und sie ist der Ort, an dem die
+  Türen, Knöpfe, Platten, Treppen und Effekte der nächsten Pakete ausprobiert
+  werden ([der Plan](docs/plan-2d-hub-interaktion.md), P6 und P7).
+  - **Die Karte ist eine Zeichnung im Quelltext** (`MAP`): eine Zeile je
+    Kachelreihe, ein Zeichen je Kachel — `B` Bordstein, `S` Straße, `Z`
+    Zebrastreifen, `K` Küchenzeile, `H` Herd, `M` Marktstand, `b` Bank, `k`
+    Kiste, `T` Tor, `P` Podest, `^` Treppe. Sie ist nicht die Abschrift des
+    Plans, sondern der Plan: Was dort als Buchstabe steht, wird darunter zu
+    Boden, Baustein oder Masse. Eine Karte, die einmal als Bild im Kommentar
+    und einmal als Aufrufe darunter steht, passt nach dem dritten Verschieben
+    nicht mehr zusammen. Was die Zeichnung **nicht** sagen kann, ist die
+    Blickrichtung einer Zeile — die steht in einer kleinen Tabelle daneben,
+    und ein Test hält beide aneinander.
+  - **Zwei Sachen liegen anders als in der Skizze des Plans**, und beide, weil
+    man darin läuft: Der Zebrastreifen liegt **quer** über der Fahrbahn statt
+    längs darin (längs wäre ein Mittelstreifen und keine Querung), und das
+    **Tor zum Hub** steht neben der Fahrbahn statt darauf, drei Kacheln vom
+    Startplatz weg — ein Tor neben dem Spawn ist eines, durch das man beim
+    ersten Schritt fällt, bevor man die Welt gesehen hat.
+  - **Keine Bilddateien** (Entscheidung E9 des Plans): Asphalt, Zebrastreifen,
+    Mittellinie und Markisenstreifen sind Farbe und flache Quader. Eine Textur
+    wäre hier kein Gewinn — ein Streifen aus zwei Quadern liegt richtig, sobald
+    der Stand steht.
+  - **Was ein Körper ist und was eine Kachel**: Küchenzeilen und Bänke sind
+    Bausteine (`counter`, `bench`) und machen ihre Kachel teuer; die
+    Marktstände sind **Massen ohne Boden darunter** — ein Kasten mit Markise
+    ist kein Möbel auf einer Kachel, sondern ein kleines Haus über dreien, und
+    wer dort Boden legte, hätte begehbare Stände. Kisten, Hüte und Kübel sind
+    dagegen **Gegenstände** mit eigenem Körper: Was man schieben können soll,
+    gehört in die Physik und nicht in die Karte. _Welt zurücksetzen_ stellt sie
+    an ihren Platz.
+  - **Geprüft, bevor jemand hineinläuft** (`streetPlan.test.ts`): Maße, der
+    Bordstein ringsherum, der freie Startplatz, das Tor, der leere
+    Zebrastreifen — und vor allem die **Erreichbarkeit jeder freien Kachel vom
+    Startplatz aus**, über ein Strömungsfeld (`nav/navPath.flowField`), das
+    ohnehin alle auf einen Schlag durchrechnet. Eine Ecke, in die man nicht
+    kommt, merkt man sonst erst nach dem Laden, nach dem Aufsetzen, nach dem
+    Hinlaufen.
+  - **Drei leere Dateien warten** (`stampDoors.ts`, `stampStairs.ts`,
+    `stampEffects.ts`), aufgerufen am Ende von `streetPlan()`. Wer Türen (P6)
+    oder Treppen und Effekte (P7) hineinstellt, schreibt in **seine** Datei und
+    nicht in die Komponistin — so können die Pakete nebeneinander laufen, ohne
+    sich in derselben Zeile zu treffen. Die zweite Etage für das Podest im
+    Nordwesten steht schon im Graphen und ist noch leer.
+  - **Das Tor zurück in den Hub** ist ein Einbau der Art `gate` und steht im
+    Grundriss. Die Art selbst gehört P4; solange dieses Programm sie nicht
+    kennt, meldet `GridWorld` sie beim Bauen und überspringt sie — genau dafür
+    ist die Registry so gebaut, und der Rückweg ist bis dahin das
+    Handgelenkmenü.
 - **Schilder** (`src/worlds/signs/`, Werkzeug `tools/SignTool.ts`): Tafeln, die
   man irgendwo hinstellt und beschriftet. Sie sind das Gegenstück zur
   Staffelei — die stellt eine Fläche zum _Malen_ hin, das Schild eine zum

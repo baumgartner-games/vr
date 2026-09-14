@@ -25,7 +25,10 @@ Dunkelhaus zum Ausprobieren von Licht, eine **Kletterhalle**, in der Greifen
 dich an der Wand hält — der Halt wird gerechnet, aus Material, Form,
 Körperhaltung und dem Verspreizen im Kamin, schlechte Griffe kosten Ausdauer,
 und hinunter geht es in **Sprungkissen**, die den Fall abfedern statt ihn
-anzuhalten —, ein **Effektlabor** mit einem großen
+anzuhalten —, eine **Straßenküche** — die Kreuzung aus dem Overcooked-Geist
+mit Küchenzeilen, Marktständen unter gestreiften Markisen und einem
+Zebrastreifen in der Mitte, die Testwelt für das Spielen von oben —, ein
+**Effektlabor** mit einem großen
 roten Knopf für Rauch, Feuer, Funken und Explosionen und
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
 Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoomen,
