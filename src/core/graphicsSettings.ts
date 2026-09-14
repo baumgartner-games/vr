@@ -56,6 +56,12 @@ export interface GraphicsSettings {
    * Aufsetzen entgegen (`GraphicsQuality.applyRenderer`).
    */
   xrScale: XrScale;
+  /**
+   * **Die Bildrate im Bild** — das kleine Feld unten rechts (`FrameStats`),
+   * das sonst nur F3 hervorholt. Als Häkchen unter Grafik, damit es auch am
+   * Telefon geht, wo es kein F3 gibt; F3 schaltet dasselbe Häkchen.
+   */
+  showFps: boolean;
 }
 
 /** Die drei Rasten des Reglers, von scharf nach flüssig. */
@@ -75,7 +81,7 @@ export const XR_SCALE_SUBS: Readonly<Record<XrScale, string>> = {
 };
 
 /** Was ausgeliefert wird: das Bild von vorher, ohne alles Neue. */
-export const DEFAULT_GRAPHICS: GraphicsSettings = { mode: 'simple', xrScale: 1 };
+export const DEFAULT_GRAPHICS: GraphicsSettings = { mode: 'simple', xrScale: 1, showFps: false };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
   simple: 'Einfach',
@@ -158,7 +164,9 @@ export interface GraphicsProfile {
  * den `App` schon immer gesetzt hat** — die Stufe darf nichts kosten und nichts
  * verändern, sonst ist „wie bisher" gelogen.
  */
-export function graphicsProfile(settings: GraphicsSettings): GraphicsProfile {
+export function graphicsProfile(
+  settings: Pick<GraphicsSettings, 'mode' | 'xrScale'>,
+): GraphicsProfile {
   const comic = settings.mode === 'comic';
   return {
     // Schatten hat der Comic: Ein gezeichnetes Bild ohne sie sieht aus, als
@@ -195,7 +203,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const xrScale = XR_SCALES.includes(raw.xrScale as XrScale)
     ? (raw.xrScale as XrScale)
     : DEFAULT_GRAPHICS.xrScale;
-  return { mode, xrScale };
+  const showFps = raw.showFps === true;
+  return { mode, xrScale, showFps };
 }
 
 /** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
@@ -211,7 +220,7 @@ export function nextXrScale(scale: XrScale): XrScale {
 }
 
 /** Wie die Seite im Menü unter ihrer Überschrift steht. */
-export function graphicsSummary(settings: GraphicsSettings): string {
+export function graphicsSummary(settings: Pick<GraphicsSettings, 'mode' | 'xrScale'>): string {
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
   return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}`;
 }

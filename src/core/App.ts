@@ -250,6 +250,13 @@ export class App {
     this.mirrors = new MirrorRenderer(this.renderer);
     this.quality = new GraphicsQuality(this.renderer, this.scene);
     this.frameStats = new FrameStats();
+    // Das Feld unten rechts hängt am Häkchen im Grafik-Menü — und F3 schaltet
+    // dasselbe Häkchen, damit beide dasselbe sagen.
+    this.frameStats.visible = graphics().showFps;
+    this.frameStats.onToggle = (on) => {
+      saveGraphics({ showFps: on });
+      this.menuDirty = true;
+    };
     // One reset per complete frame, so diagnostics include mirrors and portals.
     this.renderer.info.autoReset = false;
     this.rig = new PlayerRig(this.renderer, this.camera);
@@ -1202,6 +1209,20 @@ export class App {
       children: [
         this.fpsEntry,
         {
+          id: 'gfx:fps-hud',
+          label: 'Bildrate im Bild',
+          sub: 'Das kleine Feld unten rechts, auch am Telefon · in 2D mit Phasers eigener Zahl',
+          caption: 'Am Schreibtisch auch mit F3',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.showFps,
+          run: () => {
+            const next = saveGraphics({ showFps: !graphics().showFps });
+            this.frameStats.visible = next.showFps;
+            this.menuDirty = true;
+          },
+        },
+        {
           id: 'gfx:mode',
           label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
           sub: GRAPHICS_MODE_SUBS[settings.mode],
@@ -1786,10 +1807,13 @@ export class App {
       const rendered = this.world?.render?.(context) ?? false;
       if (!rendered) this.renderer.render(this.scene, this.camera);
     }
+    // In 2D zeichnet Phaser in seiner eigenen Schleife; seine Zahl steht als
+    // dritte Zeile im Feld, die ersten beiden messen weiter diese Schleife.
     const sample = this.frameStats.update(
       time,
       performance.now() - started,
       this.renderer.info.render,
+      this.topDown ? phaserLine(this.world2d.fps()) : '',
     );
     // Die Zeile im Grafik-Menü nachschreiben, solange jemand hinsieht — nur
     // die Zeile, nicht das Menü: Ein Neubau je halbe Sekunde wäre selbst ein
@@ -1814,6 +1838,11 @@ export class App {
     this.rig.quaternion.setFromEuler(_flatEuler.set(0, hero.yaw, 0));
     this.rig.updateMatrixWorld(true);
   }
+}
+
+/** Die dritte Zeile des F3-Felds in der 2D-Welt: was Phaser selbst misst. */
+function phaserLine(fps: number | null): string {
+  return fps === null ? '2D: wird gemessen …' : `2D: ${fps.toFixed(0)} FPS (Phaser)`;
 }
 
 /** Die Bildraten-Zeile des Grafik-Menüs. */

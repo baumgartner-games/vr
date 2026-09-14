@@ -125,8 +125,24 @@ export class World2D {
    */
   private readonly onWheel = (event: WheelEvent): void => {
     if (this.element.hidden || this.editOn) return;
-    this.zoomBy(Math.exp(-event.deltaY * 0.0016));
+    this.wheel(event.deltaY);
   };
+
+  /** Gesammelte Radwege; ein Trackpad liefert viele kleine, ein Rad wenige große. */
+  private wheelAcc = 0;
+
+  /** Das Rad in ganze Zoomstufen übersetzen — die Szene und das Fenster rufen das. */
+  wheel(deltaY: number): void {
+    this.wheelAcc += deltaY;
+    if (Math.abs(this.wheelAcc) < 50) return;
+    this.zoomBy(this.wheelAcc < 0 ? 2 : 0.5);
+    this.wheelAcc = 0;
+  }
+
+  /** Phasers eigene Bildrate — die Leinwand hat ihre eigene Schleife. */
+  fps(): number | null {
+    return this.game && !this.element.hidden ? this.game.loop.actualFps : null;
+  }
 
   get hidden(): boolean {
     return this.element.hidden;
@@ -276,7 +292,11 @@ export class World2D {
         pixelArt: true,
         backgroundColor: '#1a2a1c',
         scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.NO_CENTER },
-        physics: { default: 'arcade', arcade: { debug: false } },
+        // **Echte Bildzeit statt fester 60-Hz-Schritte**: Mit `fixedStep`
+        // bekäme ein Bild mal zwei, mal drei Schritte — der Held ginge in
+        // Schüben, auf 90- und 120-Hz-Schirmen erst recht (gemessen: Schritte
+        // von 1,6 und 2,4 Bildpunkten im Wechsel).
+        physics: { default: 'arcade', arcade: { debug: false, fixedStep: false } },
         // Die Tastatur gehört `FlatControls`, der Ton dem Rest der Seite.
         input: { keyboard: false },
         audio: { noAudio: true },
@@ -301,7 +321,10 @@ function sceneClass(Phaser: typeof import('phaser'), host: World2D) {
     private level!: Level;
     private map!: Phaser.Tilemaps.Tilemap;
     private readonly layers = new Map<string, Phaser.Tilemaps.TilemapLayer>();
+    /** Der Körper: rechnet, sieht man nicht. */
     private player!: Phaser.Physics.Arcade.Sprite;
+    /** Die Figur: sieht man, rechnet nicht — sie steht auf Schirmpunkten. */
+    private heroSprite!: Phaser.GameObjects.Sprite;
     private gridGfx!: Phaser.GameObjects.Graphics;
     private dir: HeroDir = 'down';
     private moving = false;
@@ -328,6 +351,13 @@ function sceneClass(Phaser: typeof import('phaser'), host: World2D) {
       this.drawGrid();
       this.listen();
       this.setEditing(this.editing);
+      // Nach der Physik, vor dem Bild: Figur und Kamera auf den Körper setzen.
+      // Arcade schreibt den Körper im selben Ereignis zurück, hat sich aber
+      // beim Start eingetragen und kommt deshalb vorher dran.
+      const place = (): void => this.place();
+      this.events.on('postupdate', place);
+      this.events.once('shutdown', () => this.events.off('postupdate', place));
+      place();
     }
 
     override update(_time: number, delta: number): void {
@@ -346,13 +376,27 @@ function sceneClass(Phaser: typeof import('phaser'), host: World2D) {
       this.dir = heroDir(x, z, this.dir);
       this.walkClock = this.moving ? this.walkClock + dt : 0;
       const step: 0 | 1 = this.moving && Math.floor(this.walkClock * STEP_HZ) % 2 === 1 ? 1 : 0;
-      this.player.setFrame(heroFrame(this.dir, step));
-      // Die Mitte der Füße bleibt auf ganzen Bildpunkten — sonst flimmern
-      // die Kanten der Kacheln beim Gehen.
-      this.cameras.main.setScroll(
-        Math.round(this.cameras.main.scrollX),
-        Math.round(this.cameras.main.scrollY),
-      );
+      this.heroSprite.setFrame(heroFrame(this.dir, step));
+    }
+
+    /**
+     * **Figur und Kamera auf Schirmpunkte.** Der Körper läuft, wohin die Physik
+     * ihn rechnet, mit Bruchteilen von Bildpunkten. Gezeichnet wird auf dem
+     * Schirm, und der hat beim Zoom 4 vier Punkte je Weltpunkt — also wird auf
+     * **Viertel** gerundet, nicht auf ganze Weltpunkte: Die Kanten bleiben
+     * scharf (jeder Texel liegt auf ganzen Schirmpunkten), und ein Schritt von
+     * 0,8 Weltpunkten wird zu 3-3-3-4 Schirmpunkten statt zu 1-1-1-1-0. Figur
+     * und Kamera werden **gleich** gerundet, darum steht die Figur still in
+     * der Mitte, und nur die Welt läuft unter ihr durch.
+     */
+    private place(): void {
+      const zoom = this.zoom;
+      const q = (v: number): number => Math.round(v * zoom) / zoom;
+      const x = q(this.player.x);
+      const y = q(this.player.y);
+      this.heroSprite.setPosition(x, y);
+      const camera = this.cameras.main;
+      camera.setScroll(q(x - camera.width / 2), q(y - camera.height / 2));
     }
 
     hero(): HeroState {
@@ -383,8 +427,14 @@ function sceneClass(Phaser: typeof import('phaser'), host: World2D) {
       if (this.input) this.input.enabled = on;
     }
 
+    /**
+     * Eine Stufe näher (`factor > 1`) oder weiter weg — in **ganzen** Stufen,
+     * denn Phaser rundet nur bei ganzzahligem Zoom auf Bildpunkte
+     * (`Camera.renderRoundPixels`); bei 2,7 schimmern die Kachelkanten.
+     */
     zoomBy(factor: number): void {
-      this.zoom = Math.min(8, Math.max(1, this.zoom * factor));
+      const next = factor > 1 ? this.zoom + 1 : this.zoom - 1;
+      this.zoom = Math.min(8, Math.max(1, Math.round(next)));
       this.cameras.main.setZoom(this.zoom);
     }
 
@@ -456,7 +506,9 @@ function sceneClass(Phaser: typeof import('phaser'), host: World2D) {
         'hero',
         heroFrame('down', 0),
       );
-      this.player.setDepth(10);
+      this.player.setVisible(false);
+      this.heroSprite = this.add.sprite(this.player.x, this.player.y, 'hero', heroFrame('down', 0));
+      this.heroSprite.setDepth(10);
       const body = this.player.body as Phaser.Physics.Arcade.Body;
       // Der Körper ist der Kreis der Füße, nicht die ganze Figur: Der Kopf
       // darf über eine Mauer ragen, die Füße nicht hinein.
@@ -469,9 +521,14 @@ function sceneClass(Phaser: typeof import('phaser'), host: World2D) {
     private buildCamera(): void {
       const camera = this.cameras.main;
       camera.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
-      camera.setRoundPixels(true);
+      // **Kein `startFollow`, kein `roundPixels`.** Phasers Verfolgung rundet
+      // die Kamera auf ganze Weltpunkte (`Math.floor`), die Figur aber auf
+      // Schirmpunkte — beim Zoom 4 sprang der Held so um bis zu drei Punkte
+      // gegen die Kacheln, und ein Lerp obendrein ließ ihn nachlaufen; nach
+      // unten war es am deutlichsten. `place` setzt beides selbst, gleich
+      // gerundet, nach jedem Physikschritt.
+      camera.setRoundPixels(false);
       this.fitZoom();
-      camera.startFollow(this.player, true, 0.2, 0.2);
       this.scale.on('resize', () => this.fitZoom());
     }
 
@@ -505,9 +562,7 @@ function sceneClass(Phaser: typeof import('phaser'), host: World2D) {
       this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
         if (pointer.isDown) paint(pointer);
       });
-      this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) =>
-        this.zoomBy(Math.exp(-dy * 0.0016)),
-      );
+      this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => host.wheel(dy));
     }
   };
 }

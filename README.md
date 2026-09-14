@@ -70,8 +70,9 @@ Unter **Menü → Grafik** steht ein experimenteller Schalter, der
 **Grafik-Modus**: _Einfach_ ist das Bild von bisher, _Comic_ zeichnet dieselbe
 Welt mit **schwarzen Konturen**, Licht in Stufen und Schatten. Darunter
 **Brille: Auflösung** — _Voll_, _Mittel_ oder _Flüssig_, für die Bildrate im
-Headset, ab der nächsten Sitzung — und ganz oben die **Bildrate** selbst, live,
-auch in der Brille. Daneben liegt
+Headset, ab der nächsten Sitzung — ganz oben die **Bildrate** selbst, live,
+auch in der Brille, und als Häkchen **Bildrate im Bild** das kleine Feld unten
+rechts, auch am Handy. Daneben liegt
 **Aussehen** — sieben Kopfbedeckungen von der Basecap bis zur Krone, und alle
 im Raum sehen, was man aufhat.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
@@ -414,17 +415,17 @@ Temperatur, Audio-Logger und ein Anomalienjournal ist vorerst gestrichen.**
 testen** wählen. Zum Umsehen ins Bild klicken; `Esc` gibt den Mauszeiger frei.
 Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 
-| Aktion                                                   | Tastatur / Maus                                                                                                    |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Laufen und umsehen                                       | `WASD` und Maus; `Shift` zum Rennen                                                                                |
-| Schrank öffnen, Sache aufnehmen, Taste am Rätsel drücken | Anvisieren und `E` oder Linksklick                                                                                 |
-| Linke Hand wechseln                                      | `1`: Radar, Röntgengerät und freie Hand durchschalten                                                              |
-| Rechte Hand wechseln                                     | `2`: Taschenlampe, gefundenes Medkit, freie Hand                                                                   |
-| Medkit verwenden                                         | Rechts auswählen und `E` drücken                                                                                   |
-| Taschenlampe an und aus                                  | `E`, wenn nichts zum Benutzen vor dir liegt                                                                        |
-| Ducken                                                   | `Ctrl` halten                                                                                                      |
-| Simulationsflug                                          | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller                                            |
-| Leistungsanzeige                                         | `F3` blendet FPS, Framezeit und Zeichenaufwand ein oder aus; in der Brille steht dieselbe Zahl unter Menü → Grafik |
+| Aktion                                                   | Tastatur / Maus                                                                                                     |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Laufen und umsehen                                       | `WASD` und Maus; `Shift` zum Rennen                                                                                 |
+| Schrank öffnen, Sache aufnehmen, Taste am Rätsel drücken | Anvisieren und `E` oder Linksklick                                                                                  |
+| Linke Hand wechseln                                      | `1`: Radar, Röntgengerät und freie Hand durchschalten                                                               |
+| Rechte Hand wechseln                                     | `2`: Taschenlampe, gefundenes Medkit, freie Hand                                                                    |
+| Medkit verwenden                                         | Rechts auswählen und `E` drücken                                                                                    |
+| Taschenlampe an und aus                                  | `E`, wenn nichts zum Benutzen vor dir liegt                                                                         |
+| Ducken                                                   | `Ctrl` halten                                                                                                       |
+| Simulationsflug                                          | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller                                             |
+| Leistungsanzeige                                         | `F3` oder Menü → Grafik → _Bildrate im Bild_ (auch am Handy); in der Brille steht dieselbe Zahl unter Menü → Grafik |
 
 **Am Bildschirm liegt dieselbe Steuerung wie in der 2D-Welt**: der Stock links
 unten, rechts unten drei Knöpfe. Die beiden kleinen sind die zwei Hände —

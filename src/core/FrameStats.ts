@@ -70,6 +70,8 @@ export class FrameStats {
    * eine Bildrate auf der Quest nur raten.
    */
   private last: FrameSample | null = null;
+  /** Wer wissen will, wenn F3 die Anzeige umschaltet — das Grafik-Menü. */
+  onToggle: ((on: boolean) => void) | null = null;
 
   /** Die letzte halbe Sekunde, oder `null`, solange noch nichts gemessen ist. */
   get latest(): FrameSample | null {
@@ -87,6 +89,17 @@ export class FrameStats {
     window.addEventListener('keydown', this.onKeyDown);
   }
 
+  /** Ob die Anzeige gewünscht ist (F3 oder die Zeile im Grafik-Menü). */
+  get visible(): boolean {
+    return this.requested;
+  }
+
+  set visible(on: boolean) {
+    if (this.requested === on) return;
+    this.requested = on;
+    this.refresh();
+  }
+
   setWorld(_id: string): void {
     this.refresh();
   }
@@ -101,6 +114,7 @@ export class FrameStats {
     time: number,
     cpuMs: number,
     render: { calls: number; triangles: number },
+    extra = '',
   ): FrameSample | null {
     const sample = this.sampler.sample(time, cpuMs, render.calls, render.triangles);
     if (!sample) return null;
@@ -109,7 +123,8 @@ export class FrameStats {
     this.element.textContent =
       `${sample.fps.toFixed(0)} FPS · ${sample.frameMs.toFixed(1)} ms · F3\n` +
       `CPU ${sample.cpuMs.toFixed(1)} ms · ${sample.calls.toFixed(0)} Draws · ` +
-      `${(sample.triangles / 1000).toFixed(1)}k Dreiecke`;
+      `${(sample.triangles / 1000).toFixed(1)}k Dreiecke` +
+      (extra ? `\n${extra}` : '');
     return sample;
   }
 
@@ -130,5 +145,6 @@ export class FrameStats {
     event.preventDefault();
     this.requested = !this.requested;
     this.refresh();
+    this.onToggle?.(this.requested);
   };
 }
