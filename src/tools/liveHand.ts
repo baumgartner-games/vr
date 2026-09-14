@@ -57,7 +57,11 @@ export class LiveLink {
     private readonly onStatus: (status: NetStatus, detail: string) => void,
   ) {
     this.session.role = ROLE;
-    this.session.world = 'tune';
+    // Keine Welt der Registry: Die Werkzeugseite ist keine, und der Eingaberaum,
+    // dessen Kennung hier stand, ist mit dem Umbau gegangen. Das Feld ist ein
+    // Etikett im Raum — wer in keiner Welt steht, taucht in keiner Nachbarliste
+    // auf, und genau das soll ein Zuschauer.
+    this.session.world = 'tools';
     this.session.onStatus((status, detail) => this.onStatus(status, detail));
     // Der Kanal wird **einmal** abonniert und überlebt jedes Verbinden: die
     // Sitzung merkt sich ihre Zuhörer, der Transport wechselt darunter.
