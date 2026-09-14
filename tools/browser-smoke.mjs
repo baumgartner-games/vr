@@ -158,6 +158,28 @@ for (const name of browserNames) {
         await page.locator('[data-me]').first().waitFor();
       };
       try {
+        // **Die Spielwiese von oben** — die Ansicht _Von oben_ ist seit dem
+        // Umbau (`docs/plan-2d-hub-interaktion.md`) dieselbe three.js-Szene aus
+        // einer festen Kamera darüber und keine gemalte Kachelwelt mehr. Also
+        // wird sie auch so geprüft: Startseite, _Von oben_, _Beitreten_, und
+        // dann muss ein Bild da sein — der Hub auf dem Gitter, die Kamera oben,
+        // und keine Fehler in der Konsole.
+        await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 90000 });
+        await page.locator('#screen-view [data-view="2d"]').click();
+        await page.locator('#enter').click();
+        await page.waitForFunction(() => window.bgvr?.topDown && window.bgvr.currentWorldId);
+        result.topDown = await page.evaluate(() => ({
+          world: window.bgvr.currentWorldId,
+          rig: { x: window.bgvr.rig.position.x, z: window.bgvr.rig.position.z },
+        }));
+        assert.equal(result.topDown.world, 'hub', 'Von oben startet man im Hub');
+        await shot('hub-top-down');
+        assert.equal(
+          result.pageErrors.length,
+          0,
+          `Die Ansicht von oben läuft ohne Fehler: ${result.pageErrors.join(' | ')}`,
+        );
+
         const url = new URL(base);
         url.searchParams.set('net', 'local');
         url.searchParams.set('room', `smoke-${name}-${Date.now()}`);

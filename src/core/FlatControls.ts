@@ -60,14 +60,6 @@ export class FlatControls {
   enabled = true;
   speed = 3.2;
   lookSpeed = 0.0024;
-  /**
-   * Der Wunsch dieses Bildes für die alte Kachelwelt (`world2d/`).
-   *
-   * Ausgehängt: Von oben läuft jetzt das Rig selbst, niemand liest hier mehr
-   * etwas heraus. Das Feld steht noch, weil `World2D` es als Rückruf
-   * verlangt — mit dem Rest von Phaser fällt es weg (Paket P8).
-   */
-  readonly wish = { x: 0, z: 0, sprint: false };
 
   private readonly keys = new Set<string>();
   private jumpQueued = false;
@@ -97,6 +89,12 @@ export class FlatControls {
    * sich. Erst eine echte Mausbewegung holt das Zielen zurück.
    */
   private aimedWithStick = false;
+  /**
+   * Ob zuletzt ein **Knopf am Pad oder auf dem Glas** gedrückt wurde und nicht
+   * eine Taste — daraus wird der Name im Hinweis über der Figur
+   * (`PlayerRig.useLabel`). Eine Taste holt ihn wieder zurück.
+   */
+  private padSpoke = false;
   private topDownOn = false;
   private readonly pads: TouchPads;
   /** Die Flanken des Gamepads — Knöpfe eines Pads kommen als Zustand, nicht als Ereignis. */
@@ -285,6 +283,8 @@ export class FlatControls {
    * bei der Kamera, denn sie ist das Einzige, was er ändert.
    */
   private applyTopDownButtons(pad: GamepadFrame): void {
+    if (pad.use || pad.fire || pad.zoomIn || pad.zoomOut) this.padSpoke = true;
+    this.rig.useLabel = this.padSpoke ? 'A' : 'E';
     if (this.useQueued || this.padUse.justPressed) this.rig.requestUse();
     this.useQueued = false;
 
@@ -393,6 +393,8 @@ export class FlatControls {
       if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat && !this.keys.has(e.code)) {
         this.useQueued = true;
       }
+      // Wer tippt, spielt an der Tastatur: der Hinweis heißt wieder `E`.
+      this.padSpoke = false;
       this.keys.add(e.code);
     });
     this.on(window, 'keyup', (e: KeyboardEvent) => this.keys.delete(e.code));
@@ -429,9 +431,11 @@ export class FlatControls {
       } else if (this.topDownOn && hitsElement(pads.use, event)) {
         this.usePointer = event.pointerId;
         this.useQueued = true;
+        this.padSpoke = true;
         this.setPressed(pads.use, true);
       } else if (this.topDownOn && hitsElement(pads.fire, event)) {
         this.firePointer = event.pointerId;
+        this.padSpoke = true;
         this.setPressed(pads.fire, true);
       } else if (this.lookPointer === null) {
         this.lookPointer = event.pointerId;

@@ -29,7 +29,7 @@ export type ScreenView = '2d' | '3d';
  * Die **Kennungen** bleiben `'2d'` und `'3d'`: Im Speicher jedes Browsers, der
  * hier schon einmal offen war, steht genau das, und eine Umbenennung hätte
  * jedem seine Wahl genommen. Die **Wörter** sind neu, weil die Sache es ist:
- * „2D" hieß einmal eine eigene Kachelwelt in Phaser. Jetzt ist es dieselbe
+ * „2D" hieß einmal eine eigene, gemalte Kachelwelt. Jetzt ist es dieselbe
  * Welt aus einer festen Kamera darüber (`core/TopDownCamera.ts`) — und dafür
  * ist _Von oben_ der ehrliche Name, mit _Aus den Augen_ als Gegenstück.
  */

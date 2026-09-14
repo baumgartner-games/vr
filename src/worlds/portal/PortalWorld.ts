@@ -7477,6 +7477,10 @@ export class PortalWorld implements World {
    *
    * Sie liegt in der Neigung der Kamera von oben (`topDownPitch`), steht also
    * gerade im Bild, ohne dass sie jedes Bild neu ausgerichtet werden müsste.
+   *
+   * Wie der Knopf heißt, sagt das Gestell (`PlayerRig.useLabel`): `E` an der
+   * Tastatur, `A` am Pad und auf dem Glas. Ein Hinweis, der mit einem Pad in
+   * der Hand `E` zeigt, nennt eine Taste, die dort niemand hat.
    */
   private showUsePrompt(ctx: WorldContext, text: string): void {
     if (!text) {
@@ -7492,7 +7496,7 @@ export class PortalWorld implements World {
       this.root.add(plane);
       this.usePromptPlane = plane;
     }
-    const label = `E · ${text}`;
+    const label = `${ctx.rig.useLabel} · ${text}`;
     if (label !== this.usePromptText) {
       plane.setText(label);
       this.usePromptText = label;

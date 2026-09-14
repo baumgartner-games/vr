@@ -321,18 +321,7 @@ niemanden in den Boden drückt, der sitzend höher ist als stehend), der
 Kapsel, samt der beiden Kugelkappen, dem Radius des Dings und dem Zentimeter
 Luft, ohne den der Zustand an der Grenze flackert — **oder in einer Hand**, denn
 der fallengelassene Gegenstand steckt in der Faust, aus der er fällt, und die
-Kapsel ist dort längst geräumt), der
-**Die 2D-Welt als Daten**
-(`src/world2d/level.test.ts` — dass ein Plan mit drei leeren Ebenen und einer
-Mitte als Start anfängt, dass Setzen sagt, ob sich etwas geändert hat, dass
-fest ist, was auf irgendeiner **sichtbaren** Ebene fest ist und außerhalb
-alles, dass die Reise durch JSON nichts verändert und fremder Text keinen
-Absturz macht, dass je Welt ein Plan gemerkt wird; dazu der Katalog — jede
-Kennung einmal, Wasser und Mauer fest, Gras und Brücke nicht, eine Kachel ein
-Meter — und der Anfangsplan: Wasser unter der Brücke, der Held auf freiem
-Boden, Companion Cubes in jeder Welt, und vor allem, dass **keine zwei Welten
-denselben Plan bekommen**, dieselbe aber immer denselben — genau der Befund,
-der sich als „die Welten lassen sich nicht wechseln" zeigte), **Menü als Seite** (`src/ui/PageMenu.ts` — in jsdom: dass eine Zeile mit
+Kapsel ist dort längst geräumt), **Menü als Seite** (`src/ui/PageMenu.ts` — in jsdom: dass eine Zeile mit
 Kindern absteigt und eine ohne läuft, dass der Weg mit den Handgelenken
 geteilt ist, dass ein Neubau des Baums die Seite nicht verlässt und eine
 Nimm-Seite beim Antippen nimmt), **2D oder 3D am Bildschirm**
@@ -741,18 +730,27 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Norden oben, eng im Öffnungswinkel (30°) — die Optik von _Overcooked_. Man
   sieht dieselben Wände, dieselben Türen, dieselben Kisten wie in 3D, nur von
   woanders.
-  - **Die Vorgeschichte in zwei Sätzen.** Bis September 2026 malte
-    [Phaser](https://phaser.io) dafür eine eigene Kachelwelt auf eine Leinwand
-    über dem WebGL-Bild (`src/world2d/`), und das WebGL-Bild wurde dabei nur
-    geleert: zwei Welten, zwei Wahrheiten, und was man von oben umwarf, stand
-    in 3D noch. Der Code liegt noch da und wird nicht mehr erreicht — Paket P8
-    aus [dem Plan](docs/plan-2d-hub-interaktion.md) räumt ihn samt Phaser weg.
+  - **Die Vorgeschichte in einem Absatz.** Bis September 2026 malte eine
+    Spiele-Bibliothek (Phaser) dafür eine **eigene** Kachelwelt auf eine
+    Leinwand über dem WebGL-Bild, und das WebGL-Bild wurde dabei nur geleert:
+    1-m-Kacheln, gemalte 16-px-Sprites, ein eigener Held, ein eigener Editor.
+    Das war ein Umweg, und zwar aus einem Missverständnis heraus — die Optik,
+    die gemeint war (_Overcooked_), ist gar keine Pixelwelt, sondern eine
+    3D-Szene aus fester Schrägsicht. Der Preis waren **zwei Wahrheiten**: Was
+    man von oben umwarf, stand in 3D noch, eine Tür kannte nur ihre Hälfte,
+    und wer in der Brille danebenstand, sah einen Spieler von oben gar nicht.
+    Geblieben ist der richtige Gedanke darin — **dass ein 2D-Gitter sagt, wo
+    alles steht** —, und der wohnt längst woanders, nämlich im Kachelgitter
+    (`worlds/grid/`, 2,5-m-Kacheln, Ebenen, Bausteine, Einbauten) mit dem
+    Bauplatz als Editor (`worlds/editor/WorldEditor.ts`). Phaser und
+    `src/world2d/` sind damit ersatzlos weg; der Weg dorthin und zurück steht
+    in [dem Plan](docs/plan-2d-hub-interaktion.md).
   - **Wie die Kamera steht** (`topDownPose.ts`, ohne three.js, mit Test): Ziel
     ist die **Mitte des Rigs** und nicht der Kopf — sonst schöbe jedes Ducken
     das Bild —, die Kamera steht im Süden darüber (`topDownPosition`) und nickt
     genau so weit, dass sie das Ziel ansieht (`topDownPitch`). Der **Zoom**
     geht in vier Stufen als Abstand: 12 · 16 · 22 · 30 m, Vorgabe 16, das Rad
-    sammelt wie in der alten Kachelwelt 50 Einheiten je Stufe. Beides läuft
+    sammelt 50 Einheiten je Stufe wie schon in der alten Kachelwelt. Beides läuft
     **weich** nach (`net/PoseSmoothing.SmoothPose`, 0,12 s): Ein Rig, das an
     jeder Fuge einen Zentimeter versetzt wird, zitterte sonst im ganzen Bild.
     Perspektivisch und nicht orthografisch, weil ein Podest und der Boden
@@ -903,8 +901,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     war. In der Brille gibt es die Ansicht nicht — man steht darin —, und
     Haunting bringt seine eigene Runde von oben mit (`World.ownsFlat`), die
     schaltet ihr eigenes Zahnrad. _Raster_, _Ebenen_, _Editor_ und _Plan
-    zurücksetzen_ standen in diesem Menü, solange es eine Kachelwelt zu malen
-    gab; gebaut wird jetzt im Bauplatz (`worlds/editor/WorldEditor.ts`).
+    zurücksetzen_ standen in diesem Menü, solange es eine eigene, gemalte
+    Kachelwelt zu bemalen gab; gebaut wird jetzt im Bauplatz
+    (`worlds/editor/WorldEditor.ts`).
 - **Hub-Welt**: eine Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
   Ausgelegt wird das aus nichts als der Länge der Weltenliste
@@ -927,8 +926,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   eingedreht, sodass man vom Eingang aus alle vier Schilder auf einmal liest;
   und die Halle ist ein **Quadrat** aus sieben mal sieben Kacheln, deren
   Rundung nur noch der Leuchtring auf dem Boden ist. Kein Dach über den Gängen,
-  wie vorher auch: Von oben wäre ein gedeckelter Gang ein schwarzer Balken, und
-  das Aufschneiden der Ebenen kommt erst später.
+  wie vorher auch: Von oben wäre ein gedeckelter Gang ein schwarzer Balken —
+  aufgeschnitten wird zwar seit P7 (`core/cutaway.ts`), aber ein Deckel, den
+  man ohnehin jedes Bild wieder wegnimmt, muss gar nicht erst stehen.
 
   **Ein Tor ist ein Einbau** (`fixtures/gate.ts`, siehe _Einbauten_) und kein
   Möbel mit einem Zeigerziel daran: Man **geht hindurch**, statt darauf zu
@@ -2995,7 +2995,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Schild lesen und ändern                                                            | mit **leerer Hand** hinzeigen + Trigger öffnet die Tastatur; Daumenstick derselben Hand rollt den Text                                                                                                                                                        | anklicken (gerollt wird in der Brille)                                                                                                                                                                                                                                                                                                         | –                                                           | tippen                                     |
 | Tastatur (mehrzeilig)                                                              | Tasten anzielen + Trigger; in der Brille kommt, wo es sie gibt, die Systemtastatur des Geräts dazu; `⏎ Zeile` macht eine neue Zeile, `Fertig` übernimmt                                                                                                       | echte Tastatur, `Strg`+`Eingabe` übernimmt, `Esc` bricht ab                                                                                                                                                                                                                                                                                    | –                                                           | tippen                                     |
 | Interaktionslabor                                                                  | roter Knopf öffnet die Schiebetür (sechs Sekunden), Hebel rastet die Flügeltür, Kiste oder Fuß auf der Druckplatte hält die dritte auf; Kippschalter an der Westwand macht das Licht                                                                          | anklicken; **von oben** davorstellen und benutzen — oder auf den Knopf schießen                                                                                                                                                                                                                                                                | –                                                           | tippen                                     |
-| Straßenküche: Türwand                                                              | Knopf drücken, Hebel umlegen oder eine Kiste auf die Druckplatte schieben — die Tür dahinter fährt; die Lampe darüber ist gelb in Bewegung und grün offen                                                                                                     | **von oben** davorstellen und `E`; den Knopf trifft auch die Pistole (Linksklick)                                                                                                                                                                                                                                                              | –                                                           | A-Fläche, bzw. B zum Schießen              |
+| Straßenküche: Türwand                                                              | Knopf drücken, Hebel umlegen oder eine Kiste auf die Druckplatte schieben — die Tür dahinter fährt; die Lampe darüber ist gelb in Bewegung und grün offen                                                                                                     | **von oben** davorstellen und `E`; den Knopf trifft auch die Pistole (Linksklick)                                                                                                                                                                                                                                                              | davorstellen und `A`; `B`/RT schießt auf den Knopf          | A-Fläche, bzw. B zum Schießen              |
 | Effektlabor                                                                        | roter Knopf löst aus; links Kachel wählen und den Schieber ziehen (Trigger halten)                                                                                                                                                                            | anklicken / ziehen                                                                                                                                                                                                                                                                                                                             | –                                                           | tippen                                     |
 | Duplizier-Waffe                                                                    | zielen + Trigger legt eine Kopie daneben                                                                                                                                                                                                                      | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Inspektor                                                                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
