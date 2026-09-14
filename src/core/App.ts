@@ -812,6 +812,11 @@ export class App {
     this.world = null;
     this.worldId = '';
     this.worldMenu = [];
+    // Was in der alten Welt in Reichweite stand, steht in der neuen nicht
+    // mehr da: Sonst benutzte `A` beim Ankommen ins Leere, statt zu springen.
+    this.rig.useCandidate = false;
+    this.toolMenu.toggle(false);
+    this.toolShown = undefined;
 
     // **Die Hände gehören keiner Welt.** Zwei Dinge blenden sie aus — die
     // Drohne, die die Sicht aus dem Körper trägt, und der Kreis im
