@@ -1,43 +1,51 @@
 import { GridPlan } from '../grid/gridPlan';
-import { DIR_E, DIR_N, DIR_S, DIR_W } from '../nav/navTile';
-import { KART_FIELD, PIT_BAYS, PIT_BOXES, PIT_LANE } from './kartCourse';
+import { DIR_N, DIR_S, DIR_W } from '../nav/navTile';
+import { PIT_BAYS, PIT_BOXES, PIT_LANE } from './kartCourse';
 
 /**
- * **Die Boxengasse als Grundriss** — und der Boden, auf dem die ganze Anlage
- * steht.
+ * **Die Boxengasse als Grundriss** — Asphalt, Buchten, Mauern.
  *
- * Die Grenze ist dieselbe wie in der Kletterhalle (`climb/climbHall.ts`): Was
- * Kachelform hat, kommt aufs Gitter, und was keine hat, bleibt draußen. Eine
- * **Kurve ist kein Kachelrechteck**, der Asphalt der Strecke ist deshalb
- * weiterhin ein Band entlang der Mittellinie (`KartWorld.ribbon`) — aber die
- * Mittellinie selbst liegt jetzt auf dem Raster, weil sie aus Kachel-Teilen
- * gelegt wird (`kartCourse.ts`). Alles andere hier ist gerastert, und das ist
- * mehr, als es klingt: Wiese, Gasse, Boxen, Dach, Säulen, Mauern und die
- * Tafeln, an denen ein Portal haftet.
+ * Die Grenze ist dieselbe wie überall auf dem Gitter: Was Kachelform hat, kommt
+ * aufs Raster, und was keine hat, bleibt draußen. Eine **Kurve ist kein
+ * Kachelrechteck**, der Asphalt der Strecke ist deshalb weiterhin ein Band
+ * entlang der Mittellinie (`test/zones/kart.ts`) — aber die Mittellinie selbst
+ * liegt auf dem Raster, weil sie aus Kachel-Teilen gelegt wird
+ * (`kartCourse.ts`). Alles hier ist gerastert: Gasse, Buchten, Säulen, Mauern
+ * und die Tafeln, an denen ein Portal haftet.
  *
- * **Böden sind Massen und keine tausend Kacheln** — derselbe Grund wie im
- * Schießstand (`range/rangeStand.ts`): Tausend Bodenplatten wären tausend
- * Körper in der Physik für eine Wiese, über die man geradeaus fährt, und
- * portalfähig kann ohnehin nur eine große Fläche sein. Die Navigationskarte
- * kostet das nichts — sie wird ohnehin aus der gebauten Geometrie abgetastet
- * (`PortalWorld.bakeNavigation`), und eine Masse ist Geometrie wie jede andere.
+ * **Sie stempelt in einen Plan, den sie nicht selbst anlegt.** Solange das
+ * Gokart eine eigene Welt war, baute diese Datei deren ganzen Grundriss samt
+ * Wiese und Rücktor. Seit sie eine **Zone der Testwelt** ist (`worlds/test/`),
+ * gehören Boden und Tor dem Gelände: Der Boden ist **eine** Masse unter allen
+ * Zonen (eine Portalfläche je Welt), und das Tor steht neben dem Startplatz in
+ * der Mitte. Übrig bleibt genau das, was die Gasse ausmacht.
+ *
+ * **Und kein Dach.** Von oben ist ein gedeckelter Boxenplatz ein schwarzer
+ * Balken, unter dem ausgerechnet die Karts stehen, die man sucht. Die Säulen
+ * zwischen den Buchten bleiben — sie sagen, wo eine Bucht aufhört und die
+ * nächste anfängt, und dafür braucht es nichts darüber.
  */
 
-/** Wie hoch das Dach über den Boxen hängt. */
-export const BOX_ROOF = 3.2;
-/** Wo die Oberkante des Asphalts liegt — knapp über der Wiese. */
+/** Wie hoch die Säulen zwischen den Buchten stehen. */
+export const PIT_POST = 2.6;
+/** Wo die Oberkante des Asphalts liegt — knapp über dem Gelände. */
 export const TARMAC_TOP = 0.02;
 
-export function kartPit(): GridPlan {
-  const plan = new GridPlan([0]);
+/**
+ * Gasse und Boxen in einen bestehenden Grundriss stempeln.
+ *
+ * @returns denselben Plan, damit sich Aufrufe aneinanderreihen lassen.
+ */
+export function stampPit(plan: GridPlan): GridPlan {
+  // **Gelaufen wird hier auch**, nicht nur gefahren: Wer zu seinem Kart geht,
+  // geht über die Gasse, und ein NPC soll den Weg dorthin kennen. Also
+  // Kacheln und nicht bloß eine Masse — es sind vierzig Stück, und die
+  // Strecke daneben bleibt ein Band.
+  plan.floor(PIT_LANE);
+  plan.floor(PIT_BOXES);
 
-  // Die Wiese, auf der alles steht: eine Masse, portalfähig, mit der Oberkante
-  // knapp unter null, damit sie sich mit dem Asphalt darüber nicht um jedes
-  // Pixel streitet.
-  plan.mass('floor', KART_FIELD, -0.4, -0.02, { portal: true });
-
-  // Der Asphalt der Gasse. Er stößt kachelbündig an den Streckenkorridor —
-  // was man sieht, ist genau die Fläche, auf der ein Kart fahren darf
+  // Der Asphalt. Er stößt kachelbündig an den Streckenkorridor — was man
+  // sieht, ist genau die Fläche, auf der ein Kart fahren darf
   // (`kartCourse.ts`, `PIT_APRON`).
   plan.mass('stone', PIT_LANE, -0.06, TARMAC_TOP);
   plan.mass('stone', PIT_BOXES, -0.06, TARMAC_TOP);
@@ -49,25 +57,22 @@ export function kartPit(): GridPlan {
   plan.run(PIT_BOXES.x, PIT_BOXES.z, PIT_BOXES.w, 'x', (x, z) => plan.wall(x, z, DIR_N));
   plan.run(PIT_BOXES.x, boxEnd, PIT_BOXES.w, 'x', (x, z) => plan.wall(x, z, DIR_S));
 
-  // Ein Dach über beide Kachelreihen, auf Säulen an der offenen Seite. Die
-  // Säulen stehen **zwischen** den Buchten und nicht darin — genau dafür ist
-  // zwischen zwei Buchten eine Kachel Luft.
-  plan.mass('wood', PIT_BOXES, BOX_ROOF, BOX_ROOF + 0.22);
+  // Die Säulen stehen **zwischen** den Buchten und nicht darin — genau dafür
+  // ist zwischen zwei Buchten eine Kachel Luft.
   const front = PIT_BOXES.x + PIT_BOXES.w - 1;
   for (let z = PIT_BOXES.z; z <= boxEnd; z++) {
     if (PIT_BAYS.includes(z)) {
-      // In der Bucht selbst: die helle Tafel an der Rückwand. Sie ist das
-      // Einzige neben dem Boden, woran hier ein Portal haftet — und sie hängt
-      // dort, wo man ohnehin hinschaut, wenn man zu seinem Kart geht.
+      // In der Bucht selbst: die helle Tafel an der Rückwand. Sie hängt dort,
+      // wo man ohnehin hinschaut, wenn man zu seinem Kart geht.
       plan.put('panel', PIT_BOXES.x, z, DIR_W);
       continue;
     }
-    plan.put('pillar', front, z, DIR_N, 0, BOX_ROOF);
+    plan.put('pillar', front, z, DIR_N, 0, PIT_POST);
   }
 
   // Ein Regal und eine Bank an der Rückwand, in zwei der Trennkacheln: das,
-  // was in einer Box herumsteht — und dieselben Bausteine, die im Schießstand
-  // und im Dunkelhaus auch stehen.
+  // was in einer Box herumsteht — und dieselben Bausteine, die anderswo in
+  // dieser Welt auch stehen.
   plan.put('shelf', PIT_BOXES.x, PIT_BOXES.z + 1, DIR_W);
   plan.put('bench', PIT_BOXES.x, boxEnd - 1, DIR_W);
 
@@ -85,16 +90,10 @@ export function kartPit(): GridPlan {
     plan.put('parapet', PIT_LANE.x, z, DIR_W);
   }
 
-  // **Der Weg zurück**: ein Tor neben dem Startpunkt (`grid/fixtures/gate.ts`).
-  // Eine Zeile, und die Welt hängt am Hub — ohne dass jemand das
-  // Handgelenkmenü kennen muss.
-  plan.putFixture({
-    kind: 'gate',
-    x: PIT_LANE.x,
-    z: PIT_LANE.z + PIT_LANE.d - 1,
-    dir: DIR_E,
-    props: { world: 'hub', label: '→ Hub' },
-  });
-
   return plan;
+}
+
+/** Dieselbe Gasse allein auf einem frischen Plan — für den Test daneben. */
+export function kartPit(): GridPlan {
+  return stampPit(new GridPlan([0]));
 }

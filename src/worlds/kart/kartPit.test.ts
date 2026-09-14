@@ -1,23 +1,26 @@
-import { solidBounds } from '../grid/solids';
 import { TILE, tileKey } from '../nav/navTile';
-import { KART_FIELD, PIT_APRON, PIT_BAYS, PIT_BOXES, PIT_LANE, pitSpots } from './kartCourse';
-import { BOX_ROOF, TARMAC_TOP, kartPit } from './kartPit';
+import { PIT_APRON, PIT_BAYS, PIT_BOXES, PIT_LANE, pitSpots } from './kartCourse';
+import { TARMAC_TOP, kartPit } from './kartPit';
 
 const plan = kartPit();
 
 describe('Die Boxengasse als Grundriss', () => {
   /**
-   * **Der Boden ist eine einzige Masse.** Tausend Bodenkacheln wären tausend
-   * Körper in der Physik für eine Wiese, über die man geradeaus fährt — und
-   * portalfähig kann nur eine große sein: Jede Portalfläche bekommt eine
-   * eigene Kollisionsgruppe, und davon gibt es zehn.
+   * **Der Boden des Geländes gehört der Welt und nicht der Gasse.**
+   *
+   * Die Gasse ist eine Zone unter neun (`worlds/test/`), und unter allen
+   * zusammen liegt **eine** portalfähige Masse: Jede Portalfläche bekommt eine
+   * eigene Kollisionsgruppe, davon gibt es zehn, und neun Zonen mit je einer
+   * eigenen wären neun davon für nichts.
    */
-  it('legt einen einzigen portalfähigen Boden über das ganze Gelände', () => {
-    const ground = plan.solids().filter((one) => one.portal && one.kind === 'floor');
-    expect(ground).toHaveLength(1);
-    expect(ground[0]!.w).toBeCloseTo(KART_FIELD.w * TILE);
-    expect(ground[0]!.d).toBeCloseTo(KART_FIELD.d * TILE);
-    expect(ground[0]!.y + ground[0]!.h / 2).toBeCloseTo(-0.02);
+  it('bringt keinen eigenen portalfähigen Boden mit', () => {
+    expect(plan.solids().filter((one) => one.portal)).toHaveLength(0);
+  });
+
+  it('macht die Gasse begehbar, damit man zu seinem Kart läuft', () => {
+    for (const bay of PIT_BAYS) {
+      expect(plan.graph.has(tileKey(PIT_LANE.x, bay, 0))).toBe(true);
+    }
   });
 
   it('asphaltiert die Gasse genau dort, wo ein Kart fahren darf', () => {
@@ -46,12 +49,16 @@ describe('Die Boxengasse als Grundriss', () => {
     }
   });
 
-  it('hängt das Dach über beide Kachelreihen und über Kopfhöhe', () => {
-    const roof = plan.solids().find((one) => one.kind === 'wood')!;
-    expect(roof.y - roof.h / 2).toBeCloseTo(BOX_ROOF);
-    expect(roof.w).toBeCloseTo(PIT_BOXES.w * TILE);
-    expect(roof.d).toBeCloseTo(PIT_BOXES.d * TILE);
-    expect(BOX_ROOF).toBeGreaterThan(2.2);
+  /**
+   * **Kein Dach**, hier so wenig wie sonst irgendwo in dieser Welt: Von oben
+   * wäre ein gedeckelter Boxenplatz ein schwarzer Balken über genau den Karts,
+   * die man gerade sucht.
+   */
+  it('baut kein Dach über die Boxen', () => {
+    const over = plan
+      .solids()
+      .filter((one) => one.kind !== 'floor' && one.y - one.h / 2 > 2.4 && one.w > 1.5 * TILE);
+    expect(over).toHaveLength(0);
   });
 
   /**
@@ -71,21 +78,12 @@ describe('Die Boxengasse als Grundriss', () => {
     expect(walls.filter((one) => one.dir === 1)).toHaveLength(0);
   });
 
-  it('lässt jedes Kart unter dem Dach und vor seiner Box stehen', () => {
-    const roof = plan.solids().find((one) => one.kind === 'wood')!;
+  it('lässt jedes Kart auf der Höhe seiner Bucht und vor ihr stehen', () => {
     for (const spot of pitSpots()) {
-      expect(spot.z).toBeGreaterThan(roof.z - roof.d / 2);
-      expect(spot.z).toBeLessThan(roof.z + roof.d / 2);
+      expect(spot.z).toBeGreaterThan(PIT_BOXES.z * TILE);
+      expect(spot.z).toBeLessThan((PIT_BOXES.z + PIT_BOXES.d) * TILE);
       // Östlich der Boxen, also in der Gasse davor.
       expect(spot.x).toBeGreaterThan((PIT_BOXES.x + PIT_BOXES.w) * TILE);
     }
-  });
-
-  it('bleibt mit allem im Gelände', () => {
-    const box = solidBounds(plan.solids())!;
-    expect(box.minX).toBeGreaterThanOrEqual(KART_FIELD.x * TILE - 0.2);
-    expect(box.maxX).toBeLessThanOrEqual((KART_FIELD.x + KART_FIELD.w) * TILE + 0.2);
-    expect(box.minZ).toBeGreaterThanOrEqual(KART_FIELD.z * TILE - 0.2);
-    expect(box.maxZ).toBeLessThanOrEqual((KART_FIELD.z + KART_FIELD.d) * TILE + 0.2);
   });
 });
