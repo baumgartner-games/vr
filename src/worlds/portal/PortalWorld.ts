@@ -7651,6 +7651,9 @@ export class PortalWorld implements World {
    * Werkzeug selbst — dieselben wie im Regal am Handgelenk.
    */
   toolChoice(): ToolChoice | null {
+    // Erst wenn die Welt steht: Die Liste baut Werkzeuge, um an Beschriftung
+    // und Ikone zu kommen, und `App` fragt schon, während `init` noch läuft.
+    if (!this.context) return null;
     const options = (this.toolOptions ??= this.buildToolOptions());
     if (options.length === 0) return null;
     this.choice.options = options;
