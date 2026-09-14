@@ -1158,6 +1158,23 @@ export class App {
           },
         },
         {
+          // **Die Gitterlinien der eigenen Ebene** — gezeichnet von
+          // `worlds/grid/GridWorld.ts`, und nur dort: Eine Welt ohne Kacheln
+          // hat keine Kanten zu zeigen, und das Häkchen bleibt dort ohne
+          // Wirkung, statt eine zweite Erklärung zu brauchen.
+          id: 'gfx:grid-lines',
+          label: 'Gitterlinien',
+          sub: 'Die Kacheln der Ebene, auf der du stehst',
+          caption: 'Hilft beim Bauen — in Welten ohne Gitter passiert nichts',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.gridLines,
+          run: () => {
+            saveGraphics({ gridLines: !graphics().gridLines });
+            this.menuDirty = true;
+          },
+        },
+        {
           id: 'gfx:mode',
           label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
           sub: GRAPHICS_MODE_SUBS[settings.mode],

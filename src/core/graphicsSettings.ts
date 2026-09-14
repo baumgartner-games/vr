@@ -62,6 +62,20 @@ export interface GraphicsSettings {
    * Telefon geht, wo es kein F3 gibt; F3 schaltet dasselbe Häkchen.
    */
   showFps: boolean;
+  /**
+   * **Die Gitterlinien der Ebene, auf der man steht** — die Kanten der
+   * Bodenkacheln, halbtransparent darübergelegt (`worlds/grid/GridWorld.ts`).
+   *
+   * Ab Werk **aus**: Ein Gitter über dem Boden ist eine Bauhilfe und keine
+   * Welt. Wer aber eine Küche auf Kacheln von einem Meter baut, will sehen,
+   * wo die Kachel aufhört — und in der Ansicht _Von oben_ ist genau das die
+   * Frage, die man sonst durch Probieren beantwortet.
+   *
+   * Sie steht hier neben der Bildrate und nicht in einem Weltmenü, aus
+   * demselben Grund wie alles auf dieser Seite: Eine Welt darf den Boden unter
+   * dem Spieler ändern, nie aber seine Augen.
+   */
+  gridLines: boolean;
 }
 
 /** Die drei Rasten des Reglers, von scharf nach flüssig. */
@@ -81,7 +95,12 @@ export const XR_SCALE_SUBS: Readonly<Record<XrScale, string>> = {
 };
 
 /** Was ausgeliefert wird: das Bild von vorher, ohne alles Neue. */
-export const DEFAULT_GRAPHICS: GraphicsSettings = { mode: 'simple', xrScale: 1, showFps: false };
+export const DEFAULT_GRAPHICS: GraphicsSettings = {
+  mode: 'simple',
+  xrScale: 1,
+  showFps: false,
+  gridLines: false,
+};
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
   simple: 'Einfach',
@@ -204,7 +223,8 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     ? (raw.xrScale as XrScale)
     : DEFAULT_GRAPHICS.xrScale;
   const showFps = raw.showFps === true;
-  return { mode, xrScale, showFps };
+  const gridLines = raw.gridLines === true;
+  return { mode, xrScale, showFps, gridLines };
 }
 
 /** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
@@ -219,10 +239,20 @@ export function nextXrScale(scale: XrScale): XrScale {
   return XR_SCALES[(index + 1) % XR_SCALES.length]!;
 }
 
-/** Wie die Seite im Menü unter ihrer Überschrift steht. */
-export function graphicsSummary(settings: Pick<GraphicsSettings, 'mode' | 'xrScale'>): string {
+/**
+ * Wie die Seite im Menü unter ihrer Überschrift steht.
+ *
+ * Genannt wird nur, was **vom Auslieferungszustand abweicht**: Eine Zeile, in
+ * der „keine Gitterlinien" steht, sagt niemandem etwas — eine, in der
+ * „Gitterlinien" steht, erklärt das Gitter auf dem Boden.
+ */
+export function graphicsSummary(
+  settings: Pick<GraphicsSettings, 'mode' | 'xrScale'> &
+    Partial<Pick<GraphicsSettings, 'gridLines'>>,
+): string {
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}`;
+  const grid = settings.gridLines ? ' · Gitterlinien' : '';
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

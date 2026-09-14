@@ -28,6 +28,7 @@ import type {
 import { Burst } from '../effects/Burst';
 import { findEffect, scaleEffect } from '../effects/effectKinds';
 import { levelStep, type ViewLevel } from '../../core/cutaway';
+import { graphics } from '../../core/graphicsSettings';
 import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/Audio';
 import { disposeShapes } from '../shared/environment';
 import type { PlanSolid, PlanSolidKind } from './solids';
@@ -95,6 +96,10 @@ export abstract class GridWorld extends PortalWorld {
   private readonly fixtures: FixtureRun[] = [];
   /** Die laufenden Wolken (`effects/Burst.ts`) — was ein `effect`-Ereignis macht. */
   private readonly bursts: Burst[] = [];
+  /** Je Etage ein Netz aus Kachelkanten (`buildGridLines`). */
+  private readonly gridLines: THREE.LineSegments[] = [];
+  /** Ihr Material — eines für alle, und über den Umbau hinweg dasselbe. */
+  private gridLineSkin: THREE.Material | null = null;
   /**
    * **Auf welcher Ebene das Rig steht** — die Schnittkante der Ansicht von
    * oben (`core/cutaway.ts`, `viewLevel`).
@@ -198,6 +203,7 @@ export abstract class GridWorld extends PortalWorld {
     // Umbau stehen ließe, hätte nach dem dritten Handgriff zwei Schilder auf
     // einer Kachel, von denen eines in keinem Plan mehr steht.
     this.clearFixtures();
+    this.dropGridLines();
     for (const batch of this.batches) {
       batch.geometry.dispose();
       batch.removeFromParent();
@@ -257,6 +263,133 @@ export abstract class GridWorld extends PortalWorld {
     // Einbau hat ein eigenes Bild und eigene Körper, und in eine
     // `InstancedMesh` gehört er nicht — er bewegt sich.
     this.buildFixtures();
+    this.buildGridLines();
+  }
+
+  // --- die Gitterlinien -----------------------------------------------------
+
+  /**
+   * **Die Kanten der Bodenkacheln, je Etage ein Netz** (_Menü → Grafik →
+   * Gitterlinien_, `core/graphicsSettings.ts`).
+   *
+   * Seit eine Kachel einen Meter misst, baut man auf diesem Gitter feine
+   * Sachen — eine Küche, in der die Spüle neben dem Herd steht. Dabei ist die
+   * Frage „wo hört die Kachel auf" ständig da, und ohne Antwort beantwortet
+   * man sie durch Probieren. Ein halbtransparentes Netz beantwortet sie in
+   * einem Bild.
+   *
+   * Vier Entscheidungen stecken darin:
+   *
+   * - **Je Etage eines**, mit `userData.level`. Damit nimmt das Aufschneiden
+   *   sie mit (`core/cutaway.ts`), und sichtbar ist ohnehin immer nur die
+   *   Ebene, auf der das Rig steht (`showGridLines`).
+   * - **Einen Zentimeter über dem Boden**, und zwar über dem der jeweiligen
+   *   Kachel samt ihrer Anhebung (`rise`): Eine Linie im Boden flackert
+   *   (Z-Fighting), eine über dem Podest liegt auf dem Podest.
+   * - **Nur die Kanten, die es gibt.** Gezeichnet wird je Kachel ihr Quadrat;
+   *   dass benachbarte Kacheln sich eine Kante teilen, kostet eine doppelte
+   *   Linie und spart die Buchhaltung, welche schon da war.
+   * - **Gebaut beim Umbau und nicht jedes Bild.** Ein Netz über tausend
+   *   Kacheln ist eine Geometrie mit achttausend Punkten; die entsteht einmal
+   *   je Grundriss und nicht sechzigmal in der Sekunde.
+   */
+  private buildGridLines(): void {
+    const plan = this.grid;
+    const group = this.group;
+    if (!plan || !group) return;
+    const points = new Map<number, number[]>();
+    for (const key of plan.graph.tileKeys()) {
+      const level = keyLevel(key);
+      const y = plan.graph.levelY(level) + (plan.graph.tile(key)?.rise ?? 0) + GRID_LINE_LIFT;
+      const x0 = tileCentreX(key) - TILE / 2;
+      const x1 = x0 + TILE;
+      const z0 = tileCentreZ(key) - TILE / 2;
+      const z1 = z0 + TILE;
+      const into = points.get(level) ?? [];
+      into.push(
+        x0,
+        y,
+        z0,
+        x1,
+        y,
+        z0,
+        x1,
+        y,
+        z0,
+        x1,
+        y,
+        z1,
+        x1,
+        y,
+        z1,
+        x0,
+        y,
+        z1,
+        x0,
+        y,
+        z1,
+        x0,
+        y,
+        z0,
+      );
+      points.set(level, into);
+    }
+    for (const [level, list] of points) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(list, 3));
+      const lines = new THREE.LineSegments(geometry, this.gridLineMaterial());
+      lines.name = `grid-lines:${level}`;
+      lines.userData.level = level;
+      // Bis zum ersten `showGridLines` unsichtbar: Das Häkchen ist ab Werk aus,
+      // und ein Netz, das für ein Bild aufblitzt, sieht aus wie ein Fehler.
+      lines.visible = false;
+      group.add(lines);
+      this.gridLines.push(lines);
+    }
+  }
+
+  /**
+   * Das Material der Linien — halbtransparent, ohne Tiefe zu schreiben.
+   *
+   * Eines für alle Etagen und über den Umbau hinweg dasselbe: Ein Material je
+   * Netz wäre bei jedem Pinselstrich ein neues, und die alten blieben auf der
+   * Grafikkarte liegen.
+   */
+  private gridLineMaterial(): THREE.Material {
+    this.gridLineSkin ??= new THREE.LineBasicMaterial({
+      color: 0x9ec4ff,
+      transparent: true,
+      opacity: 0.35,
+      // Sonst schneidet die Linie Löcher in alles, was hinter ihr steht — sie
+      // liegt ja einen Zentimeter über dem Boden und nicht darin.
+      depthWrite: false,
+    });
+    return this.gridLineSkin;
+  }
+
+  /**
+   * **Sichtbar genau für die Ebene, auf der das Rig steht** — und nur, wenn
+   * das Häkchen an ist.
+   *
+   * Jedes Bild, weil beides sich jedes Bild ändern kann: Man geht eine Treppe
+   * hinauf, oder jemand setzt das Häkchen im Menü. Die Frage kostet einen
+   * Vergleich je Etage, und das ist billiger als jede Buchhaltung darüber, ob
+   * sich etwas geändert hat.
+   */
+  private showGridLines(): void {
+    if (this.gridLines.length === 0) return;
+    const on = graphics().gridLines;
+    for (const lines of this.gridLines)
+      lines.visible = on && lines.userData.level === this.rigLevel;
+  }
+
+  /** Die Netze wieder weg — Formen einzeln, das geteilte Material zum Schluss. */
+  private dropGridLines(): void {
+    for (const lines of this.gridLines) {
+      lines.geometry.dispose();
+      lines.removeFromParent();
+    }
+    this.gridLines.length = 0;
   }
 
   // --- die Einbauten --------------------------------------------------------
@@ -898,6 +1031,7 @@ export abstract class GridWorld extends PortalWorld {
     this.editor?.update(ctx);
     this.stepBursts(dt);
     this.trackLevel(ctx);
+    this.showGridLines();
     // **Erst die Einbauten, dann der Umbau.** Sie laufen auch, während gebaut
     // wird — ein Schild, das man eben gesetzt hat, soll etwas sagen, sobald
     // die Karte wieder an der Hüfte hängt.
@@ -1082,6 +1216,9 @@ export abstract class GridWorld extends PortalWorld {
     if (this.editor?.editing) this.saveWorld(true);
     for (const burst of this.bursts) burst.dispose();
     this.bursts.length = 0;
+    this.dropGridLines();
+    this.gridLineSkin?.dispose();
+    this.gridLineSkin = null;
     this.rigLevel = 0;
     this.clearFixtures();
     this.editor?.dispose();
@@ -1219,6 +1356,15 @@ const MAX_BURSTS = 8;
  * steht, und nicht mehr die Kachelgröße.
  */
 const STAND_HEAD = 2;
+
+/**
+ * Wie weit die Gitterlinien über dem Boden liegen, in Metern.
+ *
+ * Ein Zentimeter: genug, dass die Linie nicht mit der Bodenplatte um dieselben
+ * Bildpunkte streitet (Z-Fighting), und wenig genug, dass sie auf dem Boden
+ * liegt und nicht darüber schwebt.
+ */
+const GRID_LINE_LIFT = 0.01;
 
 const _target = new THREE.Vector3();
 const _feet = new THREE.Vector3();
