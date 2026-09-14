@@ -1,6 +1,7 @@
 import { GridPlan } from './gridPlan';
 import { DIR_E, DIR_N, DIR_S, TILE, tileKey } from '../nav/navTile';
 import { BLOCKS } from './blocks';
+import { solidBounds } from './solids';
 // Damit „sign" eine bekannte Art ist — der Rest der Datei prüft eine unbekannte.
 import './fixtures/kinds';
 import {
@@ -55,7 +56,7 @@ describe('Eine Welt als Datei', () => {
   it('trägt Format und Versionsnummer', () => {
     const file = writeWorld(house(), { world: 'test', saved: '2026-09-07T10:00:00.000Z' });
     expect(file.format).toBe(WORLD_FORMAT);
-    expect(file.version).toBe('0.2.0');
+    expect(file.version).toBe('0.3.0');
     expect(file.world).toBe('test');
     expect(file.saved).toBe('2026-09-07T10:00:00.000Z');
   });
@@ -124,6 +125,45 @@ describe('Eine Welt als Datei', () => {
     const file = writeWorld(house());
     expect(file.blocks[0]).toMatchObject({ kind: 'counter', x: 0, z: 0, dir: DIR_N });
     expect(file.blocks[0]).not.toHaveProperty('tile');
+  });
+});
+
+/**
+ * **Der Fuß eines Bausteins kam mit Fassung `0.3`** — und er ist ihr einziger
+ * Inhalt. Ohne ihn läge jede gespeicherte Treppe flach auf dem Boden: vier
+ * Keile nebeneinander statt eines Laufs.
+ */
+describe('Angehobene Bausteine in der Datei', () => {
+  /** Eine Treppe über vier Kacheln, von Ebene 0 nach Ebene 1. */
+  function withStairs(): GridPlan {
+    const plan = new GridPlan([0, 2.8]);
+    plan.floor({ x: 0, z: 0, w: 1, d: 5 });
+    plan.floor({ x: 0, z: 0, w: 1, d: 5, level: 1 });
+    plan.stairs(0, 4, DIR_N, 0);
+    return plan;
+  }
+
+  it('schreibt den Fuß als `y` und lässt ihn weg, wo er null ist', () => {
+    const file = writeWorld(withStairs());
+    const lifts = file.blocks.map((one) => one.y);
+    expect(lifts).toEqual([undefined, 0.7, 1.4, 2.1]);
+  });
+
+  it('bringt jeden Lauf wieder auf seine Höhe', () => {
+    const after = roundTrip(withStairs());
+    const lifts = after.blocks().map((one) => one.lift ?? 0);
+    expect(lifts).toEqual([0, 0.7, 1.4, 2.1]);
+    // Und damit steht die Treppe auch wieder als Keil da und nicht als Fläche.
+    const stone = solidBounds(after.solids().filter((one) => one.kind === 'stone'))!;
+    expect(stone.maxY).toBeCloseTo(2.8);
+  });
+
+  /** Eine Datei aus `0.2` kennt das Feld nicht — und dort steht alles am Boden. */
+  it('liest eine Welt aus Fassung 0.2 weiter', () => {
+    const file = writeWorld(house()) as unknown as Record<string, unknown>;
+    const old: Record<string, unknown> = { ...file, version: '0.2.0' };
+    const read = readWorld(old);
+    expect(read.blocks.every((one) => one.lift === undefined)).toBe(true);
   });
 });
 

@@ -120,26 +120,34 @@ describe('Was ein Profil hochkommt', () => {
   it('trennt die Stufe von der Steigung', () => {
     // **Der Kern der Sache, in vier Zeilen.** Dieselben 1,2 m hinauf: einmal in
     // einer Kante, einmal als Rampe aus 12-cm-Stufen. Die Kante zieht ein
-    // Mensch sich hoch (`jumpUp`), die Rampe ist ihm mit 25,6° zu steil — und
-    // umgekehrt käme er die Rampe hinauf, wäre sie flacher, während ihm dieselbe
-    // Kante dann immer noch zu hoch wäre, wenn sie höher als `jumpUp` ist.
+    // Mensch sich hoch (`jumpUp`), die Rampe ist ihm über eine Kachel von einem
+    // Meter mit 50° zu steil — und umgekehrt käme er die Rampe hinauf, wäre sie
+    // flacher (0,24 m auf die Kachel sind 13,5°), während ihm dieselbe Kante
+    // dann immer noch zu hoch wäre, wenn sie höher als `jumpUp` ist.
     expect(canTraverse(HUMAN_PROFILE, 'drop', edge(1.2, 1.2))).toBe(true);
     expect(canTraverse(HUMAN_PROFILE, 'stairs', edge(1.2, 0.12))).toBe(false);
-    expect(canTraverse(HUMAN_PROFILE, 'stairs', edge(0.6, 0.12))).toBe(true);
+    expect(canTraverse(HUMAN_PROFILE, 'stairs', edge(0.24, 0.12))).toBe(true);
     expect(canTraverse(HUMAN_PROFILE, 'drop', edge(1.6, 1.6))).toBe(false);
   });
 
   it('lässt niemanden eine Rampe hinauf, deren Stufen er nicht tritt', () => {
     // Eine flache Rampe mit einem Absatz mittendrin ist keine Rampe: Was der
     // Winkel erlaubt, verbietet die Stufe.
-    expect(canTraverse(HUMAN_PROFILE, 'stairs', edge(0.6, 0.12))).toBe(true);
-    expect(canTraverse(HUMAN_PROFILE, 'stairs', edge(0.6, 0.55))).toBe(false);
+    //
+    // Gefragt ist das Kleintier und nicht der Mensch: Über eine Kachel von
+    // einem Meter lässt der Mensch mit 20° höchstens 0,36 m Anstieg zu, und in
+    // so wenig Höhe passt gar keine Stufe mehr, die über seine 0,4 m ginge.
+    // Das Kleintier steigt 32° und tritt nur 0,32 m hoch — bei ihm klaffen die
+    // beiden Grenzen weit genug auseinander, dass man sie auseinanderhalten
+    // kann.
+    expect(canTraverse(CRITTER_PROFILE, 'stairs', edge(0.6, 0.15))).toBe(true);
+    expect(canTraverse(CRITTER_PROFILE, 'stairs', edge(0.6, 0.35))).toBe(false);
   });
 
   it('lässt das Kleintier steiler hinauf als den Menschen', () => {
     // Vier Beine kommen eine Böschung hinauf, die ein Mensch umgeht — und die
     // Behauptung steht in einer Zeile Tabelle, nicht in einer Zeile Code.
-    const bank = edge(1, 0.1);
+    const bank = edge(0.4, 0.1);
     expect(CRITTER_PROFILE.maxSlope).toBeGreaterThan(HUMAN_PROFILE.maxSlope);
     expect(canTraverse(CRITTER_PROFILE, 'stairs', bank)).toBe(true);
     expect(canTraverse(HUMAN_PROFILE, 'stairs', bank)).toBe(false);

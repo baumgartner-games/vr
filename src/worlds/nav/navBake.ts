@@ -145,14 +145,25 @@ export const BAKE_DEFAULTS = {
   band: 1.6,
   /**
    * Schulterbreite. Ein Zombie ist 0,58 m dick (`npcKinds.ts`), ein Mensch
-   * kaum weniger — 0,7 lässt beiden eine Handbreit Luft und erklärt jede
-   * Lücke darunter für das, was sie ist: keine.
+   * kaum weniger — alles darunter ist keine Lücke, sondern eine Ritze.
+   *
+   * **0,62 und nicht mehr**, seit die Kachel einen Meter misst: Eine Tür des
+   * Gitters ist 0,8 m breit (`PLAN_DOOR_W`), und abgetastet wird in Schritten
+   * von `EDGE_STEP` — gemessen kommen davon 0,7 an. Wer hier 0,7 fordert,
+   * erklärt jede Tür für zu schmal, sobald das Raster einmal ungünstig fällt.
    */
-  width: 0.7,
+  width: 0.62,
 } as const;
 
-/** Wie fein eine Kachelgrenze abgetastet wird, in Metern (`edgeOpen`). */
-const EDGE_STEP = 0.1;
+/**
+ * Wie fein eine Kachelgrenze abgetastet wird, in Metern (`edgeOpen`).
+ *
+ * Fünf Zentimeter: Auf 2,5-m-Kacheln waren zehn fein genug, auf einem Meter
+ * sind sie ein Zehntel der Kante — und jeder Messschritt geht als Verlust in
+ * die gemessene Lücke ein, weil bis zum letzten *sicher* freien Punkt gezählt
+ * wird.
+ */
+const EDGE_STEP = 0.05;
 
 /** Was beim Abtasten herauskam — für die Meldung im Menü und die Debug-Ansicht. */
 export interface BakeReport {
@@ -169,8 +180,9 @@ export interface BakeReport {
 /**
  * Tastet eine Welt ab und gibt den Graphen zurück.
  *
- * Läuft einmal beim Laden der Welt. Für Dust sind das bei 2,5 m Kacheln rund
- * tausend Säulen — das ist eine Sache von Millisekunden, und deshalb stellt
+ * Läuft einmal beim Laden der Welt. Eine Halle von hundert mal hundert Metern
+ * sind auf dem 1-m-Gitter zehntausend Säulen — das ist eine Sache von
+ * Millisekunden, und deshalb stellt
  * sich die Frage „wo speichere ich die Navdaten" hier gar nicht erst. Erst
  * wenn eine Welt quadratkilometergroß wird, lohnt sich `navSerial.ts`.
  */

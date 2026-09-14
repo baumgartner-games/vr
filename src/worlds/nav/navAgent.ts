@@ -293,9 +293,8 @@ export class NavAgent {
    * der zehn Kacheln weit weg, die Tür aber an der eigenen Kachel.
    *
    * Und gesucht wird nur **in Reichweite**: Gemessen wird der Abstand zur
-   * Wandlinie, nicht zur Kachelmitte. Eine Kachel ist 2,5 m breit, und eine
-   * Tür, die aufgeht, während man noch am anderen Ende der Kachel steht, sieht
-   * aus wie ein Gespenst.
+   * Wandlinie, nicht zur Kachelmitte. Eine Tür, die aufgeht, während man noch
+   * am anderen Ende der Kachel steht, sieht aus wie ein Gespenst.
    *
    * **Und hier erfährt er sie auch.** Wer so dicht davorsteht, sieht, ob sie
    * offen ist und ob sie verriegelt ist — das kommt in seine Meinung

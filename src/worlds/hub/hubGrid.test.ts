@@ -1,4 +1,3 @@
-import { WORLDS } from '../index';
 import { flowField, findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
 import { fixtureTile } from '../grid/gridPlan';
@@ -14,8 +13,17 @@ import {
   hubGrid,
 } from './hubGrid';
 
-/** So viele Tore hat der Hub wirklich: jede Welt außer ihm selbst. */
-const TARGETS = WORLDS.filter((world) => world.id !== 'hub').length;
+/**
+ * So viele Tore prüft dieser Test — **eine feste Zahl und nicht die Länge der
+ * Weltenliste**.
+ *
+ * Geprüft wird hier die Auslegung und nicht die Registry: Ein Grundriss, der
+ * bei fünf Welten stimmt und bei sechs nicht, ist ohnehin kaputt, und dafür
+ * gibt es den Test weiter unten, der die Zahl hochzählt. Dass die Zahl fest
+ * ist, hält diese Datei davon ab, bei jeder gelöschten oder neuen Welt rot zu
+ * werden — und genau das ist hier gerade zweimal passiert.
+ */
+const TARGETS = 6;
 
 describe('Die Hub-Auslegung auf dem Gitter', () => {
   it('kommt mit gar keiner Welt zurecht', () => {
@@ -132,11 +140,26 @@ describe('Der Hub als Grundriss', () => {
     for (const key of hub.plan.graph.tileKeys()) expect(field.cost.has(key)).toBe(true);
   });
 
+  /**
+   * **Kein Dach**, weder über der Halle noch über den Gängen.
+   *
+   * Von oben wäre ein gedeckelter Gang ein schwarzer Balken. Aufgeschnitten
+   * wird zwar (`core/cutaway.ts`), aber ein Deckel, den man ohnehin jedes Bild
+   * wieder wegnimmt, muss gar nicht erst stehen — und über dem Hub ist Himmel
+   * das Erste, was man beim Ankommen sieht.
+   */
+  it('baut kein Dach', () => {
+    expect(hub.plan.masses()).toHaveLength(0);
+  });
+
   it('hält jeden Gang mindestens zwei Kacheln breit', () => {
     // Zwei ist die Untergrenze: Ein Gang mit einer Kachel wäre einer, in dem
     // ein Tor den Weg versperrt. Gebaut sind es drei.
     expect(CORRIDOR_WIDTH).toBeGreaterThanOrEqual(2);
-    expect(CORRIDOR_WIDTH * TILE).toBeGreaterThanOrEqual(5);
+    // Und in Metern: drei Kacheln zu einem Meter, davon eine Handbreit für die
+    // Wände — es bleiben 2,8 m lichte Weite, in denen zwei aneinander
+    // vorbeikommen.
+    expect(CORRIDOR_WIDTH * TILE).toBeGreaterThanOrEqual(2.5);
   });
 
   it('mauert die Anlage zu, lässt aber jede Gangmündung offen', () => {
@@ -155,8 +178,10 @@ describe('Der Hub als Grundriss', () => {
   it('wächst mit der Weltenliste, ohne dass jemand eine Zahl anfasst', () => {
     // Genau der Punkt der Sache: Eine neue Welt in `worlds/index.ts` ist ein
     // Eintrag in der Registry und sonst nichts.
-    expect(hubGrid(TARGETS + 1).gates).toHaveLength(TARGETS + 1);
-    expect(hubGrid(TARGETS + 1).plan.fixtures()).toHaveLength(TARGETS + 1);
+    for (const count of [2, 3, 4, 5, 6, 7]) {
+      expect(hubGrid(count).gates).toHaveLength(count);
+      expect(hubGrid(count).plan.fixtures()).toHaveLength(count);
+    }
   });
 });
 

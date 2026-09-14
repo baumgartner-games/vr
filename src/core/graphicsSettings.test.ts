@@ -16,7 +16,12 @@ import {
 
 describe('Grafikeinstellungen', () => {
   it('liefert das Bild von vorher aus', () => {
-    expect(DEFAULT_GRAPHICS).toEqual({ mode: 'simple', xrScale: 1, showFps: false });
+    expect(DEFAULT_GRAPHICS).toEqual({
+      mode: 'simple',
+      xrScale: 1,
+      showFps: false,
+      gridLines: false,
+    });
   });
 
   /**
@@ -34,9 +39,8 @@ describe('Grafikeinstellungen', () => {
     expect(graphicsProfile({ mode: 'comic', xrScale: 0.7 }).framebufferScale).toBeCloseTo(0.84);
     expect(clampGraphics({ xrScale: 0.5 as never })).toEqual(DEFAULT_GRAPHICS);
     expect(clampGraphics({ xrScale: 0.85 })).toEqual({
-      mode: 'simple',
+      ...DEFAULT_GRAPHICS,
       xrScale: 0.85,
-      showFps: false,
     });
     expect(graphicsSummary({ mode: 'simple', xrScale: 0.85 })).toBe('Einfach · Brille Mittel');
   });
@@ -105,11 +109,31 @@ describe('Grafikeinstellungen', () => {
     expect(graphicsSummary({ mode: 'simple', xrScale: 1 })).toBe('Einfach');
   });
 
+  /**
+   * **Die Gitterlinien stehen in der Zeile nur, wenn sie an sind.**
+   *
+   * Eine Überschrift, die aufzählt, was alles *nicht* an ist, sagt niemandem
+   * etwas — und die Zeile hat Platz für das, was vom Auslieferungszustand
+   * abweicht.
+   */
+  it('merkt sich die Gitterlinien nur als echtes Ja und nennt sie nur, wenn sie an sind', () => {
+    expect(DEFAULT_GRAPHICS.gridLines).toBe(false);
+    expect(clampGraphics({ gridLines: true })).toEqual({ ...DEFAULT_GRAPHICS, gridLines: true });
+    expect(clampGraphics({ gridLines: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, gridLines: false })).toBe('Einfach');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, gridLines: true })).toBe(
+      'Einfach · Gitterlinien',
+    );
+    expect(graphicsSummary({ mode: 'comic', xrScale: 0.7, gridLines: true })).toBe(
+      'Comic · Brille Flüssig · Gitterlinien',
+    );
+  });
+
   it('überlebt einen Speicher, den es nicht gibt', () => {
     // Kein localStorage im Node-Testlauf: gelesen wird trotzdem, gespeichert
     // auch, und zurück kommt, was angekommen wäre.
     expect(graphics()).toEqual(DEFAULT_GRAPHICS);
-    expect(saveGraphics({ mode: 'comic' })).toEqual({ mode: 'comic', xrScale: 1, showFps: false });
+    expect(saveGraphics({ mode: 'comic' })).toEqual({ ...DEFAULT_GRAPHICS, mode: 'comic' });
     expect(clearGraphics()).toEqual(DEFAULT_GRAPHICS);
   });
 

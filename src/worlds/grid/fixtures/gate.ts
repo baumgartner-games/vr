@@ -163,17 +163,16 @@ export const GATE: FixtureKind<GateState> = {
     group.name = `fixture:${place.id}`;
     group.position.set(ctx.at.x, ctx.at.y, ctx.at.z);
     group.rotation.y = yaw;
-    // **Das Tor ist drei Meter breit, eine Kachel zweieinhalb.** Auf dem
-    // Gitter steht es deshalb ein Sechstel kleiner: Sonst ragte sein Sockel in
-    // die Nachbarkachel und, im Gang, in die Wand dahinter. Kleiner machen und
-    // nicht neu bauen, damit die Werkzeugseite dasselbe Tor zeigt wie das
-    // Spiel — dort steht es frei und darf seine volle Größe haben.
+    // **Das Tor ist genau eine Kachel breit** (`GATE_WIDTH`), seit die Kachel
+    // einen Meter misst — es wird also nicht mehr geschrumpft, sondern steht,
+    // wie es gebaut ist. Der Maßstab bleibt trotzdem stehen: Wer die Kachel
+    // eines Tages anders bemisst, soll hier nichts suchen müssen.
     group.scale.setScalar(TILE / GATE_WIDTH);
 
     // Die flache Tafel liegt vorn auf dem Podest und liest nach Norden oben,
     // egal wohin das Tor schaut — das ist die Ansicht _Von oben_.
     const floor = gateFloorSign(label, accent);
-    floor.position.set(0, 0.17, 0.55);
+    floor.position.set(0, 0.13, 0.28);
     layFlatNorthUp(floor, yaw);
     group.add(floor);
 

@@ -13,6 +13,7 @@ import {
 import type { NavGraph } from '../nav/navGraph';
 import { DIRS, NO_TILE, TILE, keyLevel, tileCentreX, tileCentreZ, type Dir } from '../nav/navTile';
 import { changeSlidingDoor } from './slidingDoor';
+import { blocksView, boxesBetween, type GhostCandidate } from './wallGhost';
 import { fixtureTile, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
 import { EFFECT_LIFT } from './fixtures/index';
@@ -28,6 +29,7 @@ import type {
 import { Burst } from '../effects/Burst';
 import { findEffect, scaleEffect } from '../effects/effectKinds';
 import { levelStep, type ViewLevel } from '../../core/cutaway';
+import { graphics } from '../../core/graphicsSettings';
 import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/Audio';
 import { disposeShapes } from '../shared/environment';
 import type { PlanSolid, PlanSolidKind } from './solids';
@@ -95,6 +97,23 @@ export abstract class GridWorld extends PortalWorld {
   private readonly fixtures: FixtureRun[] = [];
   /** Die laufenden Wolken (`effects/Burst.ts`) — was ein `effect`-Ereignis macht. */
   private readonly bursts: Burst[] = [];
+  /** Je Etage ein Netz aus Kachelkanten (`buildGridLines`). */
+  private readonly gridLines: THREE.LineSegments[] = [];
+  /** Ihr Material — eines für alle, und über den Umbau hinweg dasselbe. */
+  private gridLineSkin: THREE.Material | null = null;
+  /**
+   * **Was der Kamera die Figur verdecken kann** — Wände, Massen, Bausteine
+   * (`wallGhost.ts`).
+   *
+   * Eine eigene Liste neben `slabs`, weil sie eine andere Frage beantwortet:
+   * Dort steht **jeder** Quader, hier nur der, der überhaupt etwas verdeckt
+   * (kein Boden, höher als ein Knie) — und daneben sein Kasten in Metern,
+   * damit die Auswahl nicht jedes Bild aus der Geometrie zurückgerechnet
+   * werden muss.
+   */
+  private readonly wallGhosts: GhostSlab[] = [];
+  /** Die zweite Palette: dieselben Farben, durchsichtig (`ghostFor`). */
+  private readonly ghostPalette = new Map<PlanSolidKind, THREE.Material>();
   /**
    * **Auf welcher Ebene das Rig steht** — die Schnittkante der Ansicht von
    * oben (`core/cutaway.ts`, `viewLevel`).
@@ -198,6 +217,10 @@ export abstract class GridWorld extends PortalWorld {
     // Umbau stehen ließe, hätte nach dem dritten Handgriff zwei Schilder auf
     // einer Kachel, von denen eines in keinem Plan mehr steht.
     this.clearFixtures();
+    this.dropGridLines();
+    // Die Quader sind gleich alle weg; was hier stehen bliebe, wäre eine Wand,
+    // die es nicht mehr gibt und die trotzdem durchsichtig wird.
+    this.wallGhosts.length = 0;
     for (const batch of this.batches) {
       batch.geometry.dispose();
       batch.removeFromParent();
@@ -257,6 +280,133 @@ export abstract class GridWorld extends PortalWorld {
     // Einbau hat ein eigenes Bild und eigene Körper, und in eine
     // `InstancedMesh` gehört er nicht — er bewegt sich.
     this.buildFixtures();
+    this.buildGridLines();
+  }
+
+  // --- die Gitterlinien -----------------------------------------------------
+
+  /**
+   * **Die Kanten der Bodenkacheln, je Etage ein Netz** (_Menü → Grafik →
+   * Gitterlinien_, `core/graphicsSettings.ts`).
+   *
+   * Seit eine Kachel einen Meter misst, baut man auf diesem Gitter feine
+   * Sachen — eine Küche, in der die Spüle neben dem Herd steht. Dabei ist die
+   * Frage „wo hört die Kachel auf" ständig da, und ohne Antwort beantwortet
+   * man sie durch Probieren. Ein halbtransparentes Netz beantwortet sie in
+   * einem Bild.
+   *
+   * Vier Entscheidungen stecken darin:
+   *
+   * - **Je Etage eines**, mit `userData.level`. Damit nimmt das Aufschneiden
+   *   sie mit (`core/cutaway.ts`), und sichtbar ist ohnehin immer nur die
+   *   Ebene, auf der das Rig steht (`showGridLines`).
+   * - **Einen Zentimeter über dem Boden**, und zwar über dem der jeweiligen
+   *   Kachel samt ihrer Anhebung (`rise`): Eine Linie im Boden flackert
+   *   (Z-Fighting), eine über dem Podest liegt auf dem Podest.
+   * - **Nur die Kanten, die es gibt.** Gezeichnet wird je Kachel ihr Quadrat;
+   *   dass benachbarte Kacheln sich eine Kante teilen, kostet eine doppelte
+   *   Linie und spart die Buchhaltung, welche schon da war.
+   * - **Gebaut beim Umbau und nicht jedes Bild.** Ein Netz über tausend
+   *   Kacheln ist eine Geometrie mit achttausend Punkten; die entsteht einmal
+   *   je Grundriss und nicht sechzigmal in der Sekunde.
+   */
+  private buildGridLines(): void {
+    const plan = this.grid;
+    const group = this.group;
+    if (!plan || !group) return;
+    const points = new Map<number, number[]>();
+    for (const key of plan.graph.tileKeys()) {
+      const level = keyLevel(key);
+      const y = plan.graph.levelY(level) + (plan.graph.tile(key)?.rise ?? 0) + GRID_LINE_LIFT;
+      const x0 = tileCentreX(key) - TILE / 2;
+      const x1 = x0 + TILE;
+      const z0 = tileCentreZ(key) - TILE / 2;
+      const z1 = z0 + TILE;
+      const into = points.get(level) ?? [];
+      into.push(
+        x0,
+        y,
+        z0,
+        x1,
+        y,
+        z0,
+        x1,
+        y,
+        z0,
+        x1,
+        y,
+        z1,
+        x1,
+        y,
+        z1,
+        x0,
+        y,
+        z1,
+        x0,
+        y,
+        z1,
+        x0,
+        y,
+        z0,
+      );
+      points.set(level, into);
+    }
+    for (const [level, list] of points) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(list, 3));
+      const lines = new THREE.LineSegments(geometry, this.gridLineMaterial());
+      lines.name = `grid-lines:${level}`;
+      lines.userData.level = level;
+      // Bis zum ersten `showGridLines` unsichtbar: Das Häkchen ist ab Werk aus,
+      // und ein Netz, das für ein Bild aufblitzt, sieht aus wie ein Fehler.
+      lines.visible = false;
+      group.add(lines);
+      this.gridLines.push(lines);
+    }
+  }
+
+  /**
+   * Das Material der Linien — halbtransparent, ohne Tiefe zu schreiben.
+   *
+   * Eines für alle Etagen und über den Umbau hinweg dasselbe: Ein Material je
+   * Netz wäre bei jedem Pinselstrich ein neues, und die alten blieben auf der
+   * Grafikkarte liegen.
+   */
+  private gridLineMaterial(): THREE.Material {
+    this.gridLineSkin ??= new THREE.LineBasicMaterial({
+      color: 0x9ec4ff,
+      transparent: true,
+      opacity: 0.35,
+      // Sonst schneidet die Linie Löcher in alles, was hinter ihr steht — sie
+      // liegt ja einen Zentimeter über dem Boden und nicht darin.
+      depthWrite: false,
+    });
+    return this.gridLineSkin;
+  }
+
+  /**
+   * **Sichtbar genau für die Ebene, auf der das Rig steht** — und nur, wenn
+   * das Häkchen an ist.
+   *
+   * Jedes Bild, weil beides sich jedes Bild ändern kann: Man geht eine Treppe
+   * hinauf, oder jemand setzt das Häkchen im Menü. Die Frage kostet einen
+   * Vergleich je Etage, und das ist billiger als jede Buchhaltung darüber, ob
+   * sich etwas geändert hat.
+   */
+  private showGridLines(): void {
+    if (this.gridLines.length === 0) return;
+    const on = graphics().gridLines;
+    for (const lines of this.gridLines)
+      lines.visible = on && lines.userData.level === this.rigLevel;
+  }
+
+  /** Die Netze wieder weg — Formen einzeln, das geteilte Material zum Schluss. */
+  private dropGridLines(): void {
+    for (const lines of this.gridLines) {
+      lines.geometry.dispose();
+      lines.removeFromParent();
+    }
+    this.gridLines.length = 0;
   }
 
   // --- die Einbauten --------------------------------------------------------
@@ -391,6 +541,7 @@ export abstract class GridWorld extends PortalWorld {
    */
   private setFixtureSolid(run: FixtureRun, on: boolean): void {
     run.hard = on;
+    this.forgetGhosts(run.meshes);
     for (const mesh of run.meshes) this.dropSlab(mesh);
     run.meshes.length = 0;
     const group = this.group;
@@ -410,6 +561,10 @@ export abstract class GridWorld extends PortalWorld {
       // Marke daran ist der Name der Tür (`PlanSolid.door`); sichtbar stünde
       // das Blatt zweimal da — einmal starr, einmal fahrend.
       if (one.door) mesh.visible = false;
+      // **Auch ein Einbau verdeckt.** Ein Schrank, ein geschlossenes Türblatt,
+      // ein Tor: Was `slabs` führt, gehört ins Ghosting — das unsichtbare
+      // Blatt einer Einbau-Tür allerdings nicht, das verdeckt ohnehin nichts.
+      if (mesh.visible) this.rememberGhost(mesh, one);
       run.meshes.push(mesh);
     }
   }
@@ -498,10 +653,15 @@ export abstract class GridWorld extends PortalWorld {
     const over = (px: number, py: number, pz: number): boolean =>
       Math.abs(px - x) <= TILE / 2 &&
       Math.abs(pz - z) <= TILE / 2 &&
-      // Nach oben eine Kachelhöhe, nach unten eine Handbreit: Was im Stockwerk
+      // **Nach oben zwei Meter, nach unten eine Handbreit**: Was im Stockwerk
       // darüber steht, steht nicht auf dieser Platte.
+      //
+      // Eine feste Höhe und nicht mehr die Kachelgröße. Solange eine Kachel
+      // 2,5 m maß, war das dasselbe; auf einem Meter zählte plötzlich niemand
+      // mehr als „darauf", der auf einer Kiste steht oder springt — und eine
+      // Druckplatte, die unter einem Sprung aufgeht, hält niemand für Absicht.
       py >= floor - 0.3 &&
-      py <= floor + TILE;
+      py <= floor + STAND_HEAD;
     let count = 0;
     const rig = ctx.rig.position;
     const player = over(rig.x, rig.y, rig.z);
@@ -728,8 +888,108 @@ export abstract class GridWorld extends PortalWorld {
       mesh.visible = this.gridDoorVisible();
     }
     this.slabs.push(mesh);
+    this.rememberGhost(mesh, solid);
   }
 
+  // --- Wand-Ghosting --------------------------------------------------------
+
+  /**
+   * **Einen Quader für das Ghosting vormerken** — wenn er überhaupt etwas
+   * verdecken kann (`wallGhost.blocksView`).
+   *
+   * Der Kasten wird hier festgehalten und nicht jedes Bild aus der Geometrie
+   * geholt: Er ändert sich nie (ein Umbau baut neu), und die Auswahl läuft
+   * sechzigmal in der Sekunde über die ganze Liste.
+   */
+  private rememberGhost(mesh: THREE.Mesh, solid: PlanSolid): void {
+    const one: GhostSlab = {
+      mesh,
+      kind: solid.kind,
+      floor: solid.kind === 'floor',
+      box: { x: solid.x, y: solid.y, z: solid.z, w: solid.w, h: solid.h, d: solid.d },
+      on: false,
+    };
+    if (!blocksView(one)) return;
+    this.wallGhosts.push(one);
+  }
+
+  /** Diese Quader sind weg — sie dürfen in keiner Auswahl mehr vorkommen. */
+  private forgetGhosts(meshes: readonly THREE.Object3D[]): void {
+    if (meshes.length === 0 || this.wallGhosts.length === 0) return;
+    const gone = new Set(meshes);
+    for (let i = this.wallGhosts.length - 1; i >= 0; i--) {
+      if (gone.has(this.wallGhosts[i]!.mesh)) this.wallGhosts.splice(i, 1);
+    }
+  }
+
+  /**
+   * **Was zwischen Kamera und Figur steht, wird für dieses Bild durchsichtig.**
+   *
+   * Das Aufschneiden (`core/cutaway.ts`) nimmt nur weg, was **über** der Ebene
+   * des Rigs liegt — Decken und Dächer. Eine Wand auf derselben Ebene bleibt
+   * stehen, und aus der Schrägsicht von Süden steht sie genau dann im Weg,
+   * wenn man gerade hinter ihr steht. Overcooked und die Sims beantworten das
+   * seit jeher gleich: Die Wand bleibt stehen und wird durchsichtig.
+   *
+   * Drei Sachen sind daran entschieden:
+   *
+   * - **Nur von oben.** In der Brille steht man *in* der Welt; eine Wand, die
+   *   dort durchsichtig würde, weil der Kopf gerade dahintersteht, wäre ein
+   *   Fehler und kein Hilfsmittel. Beim Umschalten kommt deshalb alles zurück.
+   * - **Gezielt wird auf die Mitte der Figur** (`GHOST_AIM`) und nicht auf
+   *   ihre Füße: Der Strahl zu den Füßen streift jede Bodenplatte und jede
+   *   Schwelle davor.
+   * - **Getauscht wird nur, was sich geändert hat.** Ein Material jedes Bild
+   *   neu zuzuweisen ist für three.js ein neuer Zustand — und bei tausend
+   *   Quadern eine Liste, die nichts tut außer Arbeit zu machen.
+   */
+  private stepWallGhosts(ctx: WorldContext): void {
+    if (this.wallGhosts.length === 0) return;
+    if (!ctx.topDown) {
+      this.clearWallGhosts();
+      return;
+    }
+    const rig = ctx.rig.position;
+    const aim = { x: rig.x, y: rig.y + GHOST_AIM, z: rig.z };
+    const hidden = new Set(boxesBetween(ctx.camera.position, aim, this.wallGhosts));
+    for (const one of this.wallGhosts) this.setGhost(one, hidden.has(one));
+  }
+
+  /** Alles zurück auf sein eigenes Material. */
+  private clearWallGhosts(): void {
+    for (const one of this.wallGhosts) this.setGhost(one, false);
+  }
+
+  private setGhost(one: GhostSlab, on: boolean): void {
+    if (one.on === on) return;
+    one.on = on;
+    one.mesh.material = on ? this.ghostFor(one.kind) : this.materialFor(one.kind);
+  }
+
+  /**
+   * Das durchsichtige Zwillingsmaterial einer Sorte — dieselbe Farbe, ein
+   * Viertel Deckkraft, und ohne in den Tiefenpuffer zu schreiben.
+   *
+   * Eine zweite Palette und kein Umschalten am Material selbst: `transparent`
+   * an einem geteilten Material umzulegen, machte jede Wand der Welt
+   * durchsichtig, und three.js baut den Shader dabei jedes Mal neu.
+   */
+  private ghostFor(kind: PlanSolidKind): THREE.Material {
+    const had = this.ghostPalette.get(kind);
+    if (had) return had;
+    const made = this.buildMaterial(kind, true);
+    this.ghostPalette.set(kind, made);
+    return made;
+  }
+
+  /**
+   * **Ob die Quader zu Bündeln zusammengefasst werden** (`InstancedMesh`).
+   *
+   * Aus, und das bleibt so: Ein Bündel hat **ein** Material, und damit fällt
+   * das Wand-Ghosting weg — durchsichtig würde nicht die eine Wand, sondern
+   * jede Wand derselben Sorte auf derselben Ebene. Wer eine Welt mit
+   * zehntausend Kacheln baut, schaltet es an und verzichtet dafür darauf.
+   */
   protected batchGridGeometry(): boolean {
     return false;
   }
@@ -775,13 +1035,24 @@ export abstract class GridWorld extends PortalWorld {
   private materialFor(kind: PlanSolidKind): THREE.Material {
     const had = this.palette.get(kind);
     if (had) return had;
-    const color = this.tint()[kind] ?? GRID_COLORS[kind];
-    const made =
-      kind === 'glow'
-        ? new THREE.MeshBasicMaterial({ color, toneMapped: false })
-        : new THREE.MeshStandardMaterial({ color, ...GRID_FINISH[kind] });
+    const made = this.buildMaterial(kind, false);
     this.palette.set(kind, made);
     return made;
+  }
+
+  /**
+   * Das Material einer Sorte bauen — normal oder als durchsichtiger Zwilling.
+   *
+   * Beide aus **derselben** Zeile, damit sie dieselbe Farbe haben: Ein Ghost,
+   * der ein bisschen anders aussieht als die Wand, die er ersetzt, sieht aus
+   * wie ein Fehler im Bild.
+   */
+  private buildMaterial(kind: PlanSolidKind, ghost: boolean): THREE.Material {
+    const color = this.tint()[kind] ?? GRID_COLORS[kind];
+    const soft = ghost ? { transparent: true, opacity: GHOST_OPACITY, depthWrite: false } : {};
+    return kind === 'glow'
+      ? new THREE.MeshBasicMaterial({ color, toneMapped: false, ...soft })
+      : new THREE.MeshStandardMaterial({ color, ...GRID_FINISH[kind], ...soft });
   }
 
   // --- der Bearbeitungsmodus ------------------------------------------------
@@ -893,6 +1164,8 @@ export abstract class GridWorld extends PortalWorld {
     this.editor?.update(ctx);
     this.stepBursts(dt);
     this.trackLevel(ctx);
+    this.showGridLines();
+    this.stepWallGhosts(ctx);
     // **Erst die Einbauten, dann der Umbau.** Sie laufen auch, während gebaut
     // wird — ein Schild, das man eben gesetzt hat, soll etwas sagen, sobald
     // die Karte wieder an der Hüfte hängt.
@@ -1077,6 +1350,12 @@ export abstract class GridWorld extends PortalWorld {
     if (this.editor?.editing) this.saveWorld(true);
     for (const burst of this.bursts) burst.dispose();
     this.bursts.length = 0;
+    this.dropGridLines();
+    this.gridLineSkin?.dispose();
+    this.gridLineSkin = null;
+    this.wallGhosts.length = 0;
+    for (const material of this.ghostPalette.values()) material.dispose();
+    this.ghostPalette.clear();
     this.rigLevel = 0;
     this.clearFixtures();
     this.editor?.dispose();
@@ -1208,6 +1487,35 @@ const GRID_FINISH: Readonly<Record<PlanSolidKind, { roughness?: number; metalnes
  */
 const MAX_BURSTS = 8;
 
+/**
+ * Wie hoch über dem Boden einer Kachel noch zählt, wer **darauf** steht
+ * (`standingOn`) — zwei Meter, also eine Person samt der Kiste, auf der sie
+ * steht, und nicht mehr die Kachelgröße.
+ */
+const STAND_HEAD = 2;
+
+/**
+ * Wie weit die Gitterlinien über dem Boden liegen, in Metern.
+ *
+ * Ein Zentimeter: genug, dass die Linie nicht mit der Bodenplatte um dieselben
+ * Bildpunkte streitet (Z-Fighting), und wenig genug, dass sie auf dem Boden
+ * liegt und nicht darüber schwebt.
+ */
+const GRID_LINE_LIFT = 0.01;
+
+/**
+ * Worauf das Ghosting zielt: die **Mitte** der Figur über dem Rig, in Metern.
+ *
+ * Neun Zehntel — Brusthöhe. Auf die Füße zu zielen hieße, jede Bodenplatte und
+ * jede Schwelle davor zu streifen; auf den Kopf zu zielen hieße, dass eine
+ * Brüstung vor der Figur stehen bleibt, hinter der von ihr nichts mehr zu
+ * sehen ist.
+ */
+const GHOST_AIM = 0.9;
+
+/** Wie durchsichtig eine Wand wird, die im Weg steht. */
+const GHOST_OPACITY = 0.25;
+
 const _target = new THREE.Vector3();
 const _feet = new THREE.Vector3();
 const _spot = new THREE.Vector3();
@@ -1216,6 +1524,16 @@ const _spot = new THREE.Vector3();
  * **Ein gebauter Einbau**: seine Art, sein Zustand, sein Bild, seine Körper —
  * und die drei Marken, die genau ein Bild lang gelten.
  */
+/**
+ * **Ein Quader, der jemanden verdecken kann** — sein Bild, seine Sorte, sein
+ * Kasten in Metern und ob er gerade durchsichtig ist (`wallGhost.ts`).
+ */
+interface GhostSlab extends GhostCandidate {
+  mesh: THREE.Mesh;
+  kind: PlanSolidKind;
+  on: boolean;
+}
+
 interface FixtureRun {
   place: FixturePlacement;
   kind: FixtureKind<unknown>;

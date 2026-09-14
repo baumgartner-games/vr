@@ -160,14 +160,19 @@ export const DEFAULT_RADIUS = 0.3;
  *
  * Auf der Karte ist eine Wand eine **Linie** zwischen zwei Kacheln; in der
  * Welt ist sie ein Klotz mit Dicke, und der steht zur Hälfte auf jeder Seite
- * dieser Linie (im Labor 40 cm, außen herum 50). Wer an einer Ecke nur um
- * seinen eigenen Halbmesser einzieht, plant seinen Weg deshalb in die Wand
- * hinein: Von 29 cm Abstand zur Linie bleiben neun zum Klotz, und der Zombie
- * steht am Wandende und kommt weder vor noch zurück. Genau das war der Fehler,
- * wegen dem diese Zeile hier steht — die halbe Wandstärke kommt zum
- * Halbmesser dazu.
+ * dieser Linie. Wer an einer Ecke nur um seinen eigenen Halbmesser einzieht,
+ * plant seinen Weg deshalb in die Wand hinein: Von 29 cm Abstand zur Linie
+ * bleiben neunzehn zum Klotz, und der Zombie steht am Wandende und kommt weder
+ * vor noch zurück. Genau das war der Fehler, wegen dem diese Zeile hier steht —
+ * die halbe Wandstärke kommt zum Halbmesser dazu.
+ *
+ * **Zehn Zentimeter** — die halbe Wandstärke des Gitters (`PLAN_WALL_T` = 0,2).
+ * Als Zahl und nicht als Import: Die Wegsuche ist die untere Schicht und soll
+ * nichts vom Bauplan wissen. Seit die Kachel einen Meter misst, sind die Wände
+ * dünn, und die Zahl von damals (25 cm, eine halbe Laborwand) zöge jeden Weg
+ * zu weit ein — auf einem Gang von 0,8 m lichter Weite wäre das die halbe Luft.
  */
-export const WALL_SKIN = 0.25;
+export const WALL_SKIN = 0.1;
 
 /**
  * **Wie viel Luft ein Weg zur Wand hält**, über den eigenen Umfang hinaus, in
