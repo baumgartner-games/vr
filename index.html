@@ -12,6 +12,14 @@
     <canvas id="scene"></canvas>
 
     <div id="landing" class="landing">
+      <!--
+        Derselbe Knopf wie im Spiel (`#hud-menu`): oben links, und dahinter
+        dasselbe Menü als Seite (`ui/PageMenu.ts`) — Welten, Bewegung,
+        Aussehen, Grafik, schon vor dem Start. Auf dem Handy zuerst gedacht.
+      -->
+      <button id="landing-menu" class="hud__menu landing__menu" type="button" aria-label="Menü" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
       <div class="landing__inner">
         <p class="eyebrow">Baumgartner Games</p>
         <!--
@@ -51,9 +59,26 @@
         </fieldset>
 
         <!--
+          Und für alle ohne Brille: 2D oder 3D am Bildschirm. Ein Telefon ist
+          ein Gerät für die Karte von oben, ein Schreibtisch für die Welt —
+          deshalb ist die Wahl nach Gerät vorbelegt (Handy: 2D) und wird nur
+          einmal getroffen (`core/screenView.ts`). Die Startseite der Runde
+          wählt damit den Weg in Haunting; der Knopf darunter sagt, was er tut.
+        -->
+        <fieldset class="posture screen-view">
+          <legend>Am Bildschirm: 2D oder 3D?</legend>
+          <div id="screen-view" class="seg seg--two">
+            <button type="button" data-view="2d">2D</button>
+            <button type="button" data-view="3d">3D</button>
+          </div>
+          <p id="screen-view-hint" class="field__hint"></p>
+        </fieldset>
+
+        <!--
           Haunting: erst in die Lobby — Name und Raum-Code, Verbinden —, und erst
           wer drin ist, sieht, wer noch da ist, und die drei Wege hinein: Brille,
-          Web 3D (Techniker am Bildschirm), 2D Einsatzzentrale. Alle drei bleiben
+          und am Bildschirm — je nach „2D oder 3D" oben — Web 3D (Techniker am
+          Bildschirm) oder 2D Einsatzzentrale. Alle drei bleiben
           in diesem Raum. Ohne eigenen Code spielen alle im Raum `haunting`
           (`worlds/haunting/net.ts`); ein eigener Code wandert als `?room=` in
           die Adresse.
@@ -87,18 +112,19 @@
 
             <button id="haunt-vr" class="btn btn--primary" disabled>VR wird geprüft …</button>
             <p class="haunt-start__hint">Die Brille: der Techniker im Anzug, draußen im Schiff.</p>
-            <button type="button" id="haunt-flat" class="btn btn--ghost">Web 3D</button>
-            <p class="haunt-start__hint">Techniker am Bildschirm, im Schiff — Tastatur und Maus oder Stock.</p>
-            <button type="button" id="haunt-centre" class="btn btn--ghost">2D Einsatzzentrale</button>
-            <p class="haunt-start__hint">
-              Am Handy oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster.
-            </p>
+            <!--
+              Ein Knopf für den Bildschirm; ob er in die 2D Einsatzzentrale
+              oder als Techniker ins Schiff (Web 3D) führt, sagt die Wahl
+              „2D oder 3D" weiter oben — `main.ts` schreibt es in Knopf und Zeile.
+            -->
+            <button type="button" id="haunt-flat" class="btn btn--ghost">Am Bildschirm starten</button>
+            <p id="haunt-flat-hint" class="haunt-start__hint"></p>
             <p id="haunt-xr-status" class="status"></p>
           </div>
         </div>
 
         <button id="enter-vr" class="btn btn--primary only-generic" disabled>VR wird geprüft …</button>
-        <button id="enter-flat" class="btn btn--ghost only-generic">Ohne VR starten (Desktop / Handy)</button>
+        <button id="enter-flat" class="btn btn--ghost only-generic">Am Bildschirm starten</button>
 
         <!--
           Die Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es
@@ -152,6 +178,7 @@
 
         <ul class="hints only-generic">
           <li><strong>Beide Handgelenke:</strong> ein Button öffnet das Menü — offen ist immer nur eins.</li>
+          <li><strong>Am Bildschirm:</strong> der Knopf oben links (☰) öffnet dasselbe Menü als Seite.</li>
           <li><strong>Andere Hand:</strong> Zeigen &amp; Trigger zum Auswählen.</li>
           <li><strong>Portal-Welt:</strong> Werkzeuge hängen am Gürtel — Greifen nimmt sie,
             woanders loslassen lässt sie fallen.</li>
@@ -161,10 +188,18 @@
       </div>
     </div>
 
+    <!--
+      Die Kopfzeile im Web: oben links der Knopf zum Menü (dasselbe Menü wie
+      am Handgelenk, als Seite — `ui/PageMenu.ts`), oben rechts Weltname,
+      Verbindung und VR. Welten, die den oberen Rand selbst brauchen, schalten
+      sie ab (`core/pageHud.ts`) und drücken ihre Knöpfe stellvertretend.
+    -->
     <div id="hud" class="hud" hidden>
+      <button id="hud-menu" class="hud__menu" type="button" aria-label="Menü" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
       <div class="hud__row">
         <span id="hud-world" class="hud__world"></span>
-        <button id="hud-menu" class="hud__btn">Menü</button>
         <button id="hud-net" class="hud__btn">Verbindung</button>
         <button id="hud-vr" class="hud__btn">VR</button>
       </div>

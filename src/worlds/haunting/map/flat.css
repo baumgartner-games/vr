@@ -22,8 +22,8 @@
  * 2D-Welt (`.flat--world`) ist der Streifen der Seite abgeschaltet
  * (`core/pageHud.ts`), und die Kante rückt um dessen Höhe nach oben; über der
  * 3D-Szene (`.flat.ship3d`) steht der Streifen weiter da, und dort bleibt es
- * beim alten Maß. Holt ihn jemand über das Zahnrad zurück (`.is-paged`),
- * rückt die Kante wieder unter ihn.
+ * beim alten Maß. Das Menü der Seite braucht den Streifen nicht mehr: Es ist
+ * eine Seite aus DOM (`ui/PageMenu.ts`) und liegt über allem.
  *
  * `[hidden]` gewinnt gegen jedes `display` hier drin: Ein Panel mit
  * `display: flex` und dem Attribut `hidden` stand sonst als leerer Balken
@@ -37,7 +37,6 @@
 .flat { background: #000; }
 /* Ohne Streifen der Seite fängt der obere Rand gleich am Gerät an. */
 .flat--world { --flat-top: max(12px, env(safe-area-inset-top)); }
-.flat--world.is-paged { --flat-top: calc(max(12px, env(safe-area-inset-top)) + 58px); }
 .flat__scene { position: absolute; inset: 0; }
 .flat__scene .flatscene__canvas { width: 100%; height: 100%; display: block; }
 /* Der Aufgabenkasten: zwei Zeilen — Uhr mit Anzug, darunter der Reiter mit

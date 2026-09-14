@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WristMenu, type MenuModelFactory, type WristMenuOptions } from './WristMenu';
 import { MenuNav } from './menuNav';
 import type { MenuEntry } from './menu';
+import type { PageMenu } from './PageMenu';
 import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
 
@@ -23,20 +24,39 @@ import type { Handedness, XRInput } from '../core/XRInput';
  * liegt deshalb einmal da (`menuNav.ts`) und wird von beiden gelesen, samt der
  * Zeile, in der man war.
  *
+ * **Und ohne Brille ist es eine Seite.** Im Browserfenster gibt es kein
+ * Handgelenk, an dem ein Panel hängen könnte, und ein Panel, das stattdessen
+ * vor der Kamera schwebt, ist am Telefon ein Bild von einem Menü. Deshalb
+ * trägt dasselbe Menü dort ein drittes Gesicht aus DOM (`PageMenu.ts`), hinter
+ * dem Knopf oben links — und **diese Klasse entscheidet, welches gilt**: mit
+ * aufgesetzter Brille die Handgelenke, sonst die Seite. Alle drei lesen
+ * denselben Weg und denselben Baum, und jede Welt ruft weiter nur `toggle`,
+ * `openSubmenu`, `isOpen`, ohne zu wissen, wo das Menü gerade steht.
+ *
  * Everything a world used to do to *the* menu it does to this instead — same
- * calls, passed on to both halves.
+ * calls, passed on to whichever face is up.
  */
 export class WristMenus extends THREE.Group {
   readonly left: WristMenu;
   readonly right: WristMenu;
+  /** Der geteilte Weg durch den Baum — Handgelenke und Seite lesen denselben. */
+  readonly nav: MenuNav;
   /** The wrist the player used last — where "open the menu" goes by default. */
   private preferred: Handedness = 'left';
+  /** Das Menü als Seite, für alles ohne Brille — oder `null`, dann immer der Arm. */
+  private page: PageMenu | null = null;
+  /** Ob die Brille aufgesetzt ist (`App`, Sitzungsbeginn und -ende). */
+  private immersive = false;
 
-  constructor(pointer: Pointer, options: Omit<WristMenuOptions, 'hand' | 'onToggle'> = {}) {
+  constructor(
+    pointer: Pointer,
+    options: Omit<WristMenuOptions, 'hand' | 'onToggle'> & { nav?: MenuNav } = {},
+  ) {
     super();
     this.name = 'wrist-menus';
     const onToggle = (menu: WristMenu, open: boolean): void => this.onToggle(menu, open);
-    const nav = new MenuNav();
+    const nav = options.nav ?? new MenuNav();
+    this.nav = nav;
     this.left = new WristMenu(pointer, { ...options, hand: 'left', nav, onToggle });
     this.right = new WristMenu(pointer, { ...options, hand: 'right', nav, onToggle });
     this.add(this.left, this.right);
@@ -51,8 +71,38 @@ export class WristMenus extends THREE.Group {
     return this.left.isOpen ? this.left : this.right.isOpen ? this.right : null;
   }
 
+  /** Ob irgendein Gesicht des Menüs offen ist — Handgelenk oder Seite. */
   get isOpen(): boolean {
-    return this.open !== null;
+    return this.open !== null || (this.page?.isOpen ?? false);
+  }
+
+  /**
+   * Die Seite dazuhängen. Sie muss denselben Weg lesen wie die Handgelenke
+   * (`nav`), sonst fängt sie beim Aufsetzen der Brille wieder oben an.
+   */
+  attachPage(page: PageMenu): void {
+    this.page = page;
+  }
+
+  /**
+   * Brille auf oder ab. Beim Aufsetzen geht die Seite zu, beim Absetzen das
+   * Handgelenk — ein offenes Menü, das man nicht mehr sehen kann, hielte
+   * sonst weiter die Welt an (`ShipExperience` fragt `isOpen`).
+   */
+  set presenting(on: boolean) {
+    if (on === this.immersive) return;
+    this.immersive = on;
+    if (on) this.page?.toggle(false);
+    else this.closeWrists();
+  }
+
+  get presenting(): boolean {
+    return this.immersive;
+  }
+
+  /** Ob gerade die Seite das Menü trägt und nicht die Handgelenke. */
+  private get onPage(): boolean {
+    return this.page !== null && !this.immersive;
   }
 
   menu(hand: Handedness): WristMenu {
@@ -70,32 +120,45 @@ export class WristMenus extends THREE.Group {
   /**
    * Opens or closes the menu. Closing shuts both; opening uses the wrist that
    * was used last, so "menu" from a HUD button or a hotkey lands where the
-   * player left it.
+   * player left it — or, without a headset, the page.
    */
   toggle(force?: boolean): void {
-    if (force === false || (force === undefined && this.isOpen)) {
-      this.left.toggle(false);
-      this.right.toggle(false);
+    if (this.onPage) {
+      this.closeWrists();
+      this.page!.toggle(force);
+      return;
+    }
+    this.page?.toggle(false);
+    if (force === false || (force === undefined && this.open !== null)) {
+      this.closeWrists();
       return;
     }
     this.menu(this.preferred).toggle(true);
   }
 
   openSubmenu(id: string): void {
+    if (this.onPage) {
+      this.closeWrists();
+      this.page!.openSubmenu(id);
+      return;
+    }
     this.menu(this.preferred).openSubmenu(id);
   }
 
   setRoot(entries: MenuEntry[], title?: string): void {
     for (const menu of this.menus) menu.setRoot(entries, title);
+    this.page?.setRoot(entries, title);
   }
 
   setStatus(status: string): void {
     for (const menu of this.menus) menu.setStatus(status);
+    this.page?.setStatus(status);
   }
 
   /** Repaints whichever page is up — a row whose label changed underneath. */
   refresh(): void {
     this.open?.refresh();
+    this.page?.refresh();
   }
 
   attachPointer(): void {
@@ -119,11 +182,19 @@ export class WristMenus extends THREE.Group {
     this.removeFromParent();
   }
 
+  private closeWrists(): void {
+    this.left.toggle(false);
+    this.right.toggle(false);
+  }
+
   /** One panel at a time: whichever just opened wins, the other one shuts. */
   private onToggle(menu: WristMenu, open: boolean): void {
     if (!open) return;
     this.preferred = menu.hand;
     const other = menu === this.left ? this.right : this.left;
     if (other.isOpen) other.toggle(false);
+    // Der runde Knopf am Arm geht auch ohne Brille — dann aber nur so, dass
+    // das Menü nicht zweimal offen ist.
+    this.page?.toggle(false);
   }
 }

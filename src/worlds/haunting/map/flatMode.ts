@@ -68,7 +68,7 @@ import { computeVisibility, emptyField, LitCache, type VisibilityField } from '.
 import { drawInsight } from './insightOverlay';
 import type { RoleHost } from '../registry/roles';
 import type { ToolIconSource } from './toolIcons';
-import { pageHudShown, pressPageButton, showPageHud } from '../../../core/pageHud';
+import { pressPageButton, showPageHud } from '../../../core/pageHud';
 
 /**
  * **Die 2D-Welt** — die Station als gezeichnete Szene, gespielt mit dem Daumen.
@@ -1633,16 +1633,12 @@ export class FlatMode {
     items.push(
       head(SHARED.open),
       key({ map: '' }, 'Karte', 'Die Übersicht der Station über der Szene'),
+      // Das Menü der Seite ist eine Seite aus DOM (`ui/PageMenu.ts`) und liegt
+      // über der 2D-Welt — derselbe Text wie im Schiff (`ShipExperience`).
       key(
         { pagemenu: '' },
         SHARED.menu,
-        // Das Menü der Seite ist ein Panel in der 3D-Szene und liegt damit
-        // **hinter** der 2D-Welt. Es allein aufzumachen hieße, auf ein
-        // schwarzes Bild zu tippen — deshalb kommt der Streifen der Seite
-        // dafür zurück, und der nächste Tipp nimmt ihn wieder weg.
-        pageHudShown()
-          ? 'Kopfzeile der Seite wieder ausblenden'
-          : 'Menü, Verbindung und VR am oberen Rand der Seite',
+        'Das Weltmenü der Seite: Welt wechseln, VR, Einstellungen',
       ),
       key({ pagenet: '' }, SHARED.net, SHARED.netHint),
       ...soundKeys({
@@ -1742,15 +1738,9 @@ export class FlatMode {
     } else if (data['map'] !== undefined) {
       this.showMap(true);
     } else if (data['pagemenu'] !== undefined) {
-      // Erst den Streifen der Seite zurückholen (oder wieder wegnehmen),
-      // dann drücken: Das Menü ist ein Panel in der 3D-Szene und läge sonst
-      // hinter der 2D-Welt.
-      const back = !pageHudShown();
-      showPageHud(back);
-      // Steht der Streifen wieder da, rückt der obere Rand der 2D-Welt unter
-      // ihn — sonst wäre er genau das, was er vorher war: ein fremder Knopf
-      // über dem Aufgabenkasten.
-      this.element.classList.toggle('is-paged', back);
+      // Das Menü der Seite ist im Browser eine Seite aus DOM (`ui/PageMenu.ts`)
+      // und liegt über der 2D-Welt — der Streifen bleibt, wo er ist, es wird
+      // nur sein Knopf gedrückt.
       pressPageButton('menu');
       this.setOverlay('none');
     } else if (data['pagenet'] !== undefined) {

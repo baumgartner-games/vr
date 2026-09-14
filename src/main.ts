@@ -6,6 +6,13 @@ import { normalizeRoomCode, rememberName, rememberedName } from './net/room';
 import { HAUNT_ROOM, hauntRoomFrom } from './worlds/haunting/net';
 import { arriveAs, loadLobby, saveLobby, type Entry } from './worlds/haunting/rules/lobby';
 import { playerPosture, savePlayerPosture, type Posture } from './core/posture';
+import {
+  SCREEN_VIEW_SUBS,
+  onScreenViewChange,
+  saveScreenView,
+  screenView,
+  type ScreenView,
+} from './core/screenView';
 import { DEFAULT_WORLD, findWorld } from './worlds';
 import { isStaleModuleError, shouldReload } from './core/staleBuild';
 
@@ -19,16 +26,19 @@ const hud = document.querySelector<HTMLElement>('#hud')!;
 const hudWorld = document.querySelector<HTMLElement>('#hud-world')!;
 const hudMenu = document.querySelector<HTMLButtonElement>('#hud-menu')!;
 const hudVr = document.querySelector<HTMLButtonElement>('#hud-vr')!;
+const landingMenu = document.querySelector<HTMLButtonElement>('#landing-menu')!;
 const touch = document.querySelector<HTMLElement>('#touch')!;
 const stick = document.querySelector<HTMLElement>('#touch-stick')!;
 const postureSeg = document.querySelector<HTMLElement>('#posture')!;
+const screenSeg = document.querySelector<HTMLElement>('#screen-view')!;
+const screenHint = document.querySelector<HTMLElement>('#screen-view-hint')!;
 const hauntName = document.querySelector<HTMLInputElement>('#haunt-name')!;
 const hauntRoom = document.querySelector<HTMLInputElement>('#haunt-room')!;
 const hauntConnect = document.querySelector<HTMLButtonElement>('#haunt-connect')!;
 const hauntStatus = document.querySelector<HTMLElement>('#haunt-status')!;
 const hauntVr = document.querySelector<HTMLButtonElement>('#haunt-vr')!;
 const hauntFlat = document.querySelector<HTMLButtonElement>('#haunt-flat')!;
-const hauntCentre = document.querySelector<HTMLButtonElement>('#haunt-centre')!;
+const hauntFlatHint = document.querySelector<HTMLElement>('#haunt-flat-hint')!;
 const hauntXrStatus = document.querySelector<HTMLElement>('#haunt-xr-status')!;
 const hauntLobby = document.querySelector<HTMLElement>('#haunt-lobby')!;
 const hauntPeers = document.querySelector<HTMLElement>('#haunt-peers')!;
@@ -44,7 +54,8 @@ const startWorld = findWorld(requested)?.id ?? DEFAULT_WORLD;
  * **Die Startseite einer Runde statt der Spielwiese.** Wer `#haunting` öffnet,
  * wurde eingeladen und will in zwei Schritten hinein: erst in die **Lobby**
  * (Name, Raum-Code der Gruppe, Verbinden — und sehen, wer schon da ist), dann
- * einen von drei Wegen (Brille, Web 3D, 2D Einsatzzentrale). Alles andere auf
+ * einen von drei Wegen (Brille — oder am Bildschirm, und dort 2D oder 3D, wie
+ * es oben auf der Seite gewählt ist: Web 3D, 2D Einsatzzentrale). Alles andere auf
  * der Seite ist für ihn Rauschen und wird versteckt (`style.css`,
  * `only-generic`).
  */
@@ -77,6 +88,12 @@ const app = (() => {
           netPanel?.toggle(false);
           hideLanding();
         }
+      },
+      // Der Knopf oben links sagt, ob das Menü dahinter offen ist — auf der
+      // Startseite und im Spiel derselbe Knopf, dasselbe Menü.
+      onMenuChanged: (open) => {
+        for (const button of [hudMenu, landingMenu])
+          button.setAttribute('aria-expanded', open ? 'true' : 'false');
       },
       // Eine Welt mit eigener Steuerung nimmt den Bordstock weg; `true` heißt,
       // dass wieder die Seite entscheidet (`WorldContext.touchStick`).
@@ -185,9 +202,45 @@ postureSeg.addEventListener('click', (event) => {
   showPosture(picked);
 });
 
+/**
+ * 2D oder 3D am Bildschirm — gefragt auf der Startseite, vorbelegt nach
+ * Gerät (Handy: 2D; `core/screenView.ts`). Die Startseite der Runde wählt
+ * damit den Weg in Haunting (`startHaunting`), und Knopf und Zeile darunter
+ * sagen jedes Mal, was ein Druck gerade tut. Auf der Spielwiese gibt es die
+ * Karte von oben bisher nur in Haunting; die Zeile sagt auch das.
+ */
+function showScreenView(view: ScreenView): void {
+  for (const button of screenSeg.querySelectorAll<HTMLButtonElement>('button')) {
+    button.classList.toggle('is-active', button.dataset['view'] === view);
+  }
+  const twoD = view === '2d';
+  screenHint.textContent = hauntLanding
+    ? `${SCREEN_VIEW_SUBS[view]}. Die Wahl gilt für „Am Bildschirm starten"; die Brille fragt nicht.`
+    : `${SCREEN_VIEW_SUBS[view]}. Die Karte von oben gibt es bisher in Haunting / Orbital — jede andere Welt läuft am Bildschirm in 3D.`;
+  hauntFlat.textContent = twoD
+    ? 'Am Bildschirm starten · 2D Einsatzzentrale'
+    : 'Am Bildschirm starten · Web 3D';
+  hauntFlatHint.textContent = twoD
+    ? 'Am Handy oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die Karte von oben.'
+    : 'Techniker am Bildschirm, im Schiff — Tastatur und Maus oder Stock.';
+}
+
+showScreenView(screenView(detectFlatRole()));
+onScreenViewChange(() => showScreenView(screenView(detectFlatRole())));
+screenSeg.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  const picked = button?.dataset['view'];
+  if (picked !== '2d' && picked !== '3d') return;
+  saveScreenView(picked);
+});
+
 enterVrButton.addEventListener('click', () => void startVR());
 
 enterFlatButton.addEventListener('click', () => startFlat());
+
+// Dasselbe Menü wie im Spiel, schon auf der Startseite: Welten, Bewegung,
+// Aussehen, Grafik — als Seite (`ui/PageMenu.ts`), weil hier keine Brille auf ist.
+landingMenu.addEventListener('click', () => app.toggleMenu());
 
 async function startVR(button: HTMLButtonElement = enterVrButton): Promise<void> {
   button.disabled = true;
@@ -242,7 +295,7 @@ function refreshHaunt(): void {
   hauntStatus.classList.toggle('is-error', Boolean(hauntError) && !hauntBusy);
   hauntStatus.classList.toggle('is-online', !hauntError && !hauntBusy && net.connected);
   hauntConnect.textContent = hauntBusy ? '…' : net.connected ? 'Neu verbinden' : 'Verbinden';
-  for (const button of [hauntConnect, hauntFlat, hauntCentre]) button.disabled = hauntBusy;
+  for (const button of [hauntConnect, hauntFlat]) button.disabled = hauntBusy;
   hauntLobby.hidden = !net.connected;
   if (net.connected) renderHauntPeers();
 }
@@ -355,8 +408,10 @@ for (const input of [hauntName, hauntRoom]) {
   });
 }
 hauntVr.addEventListener('click', () => void startHaunting('vr'));
-hauntFlat.addEventListener('click', () => void startHaunting('technician'));
-hauntCentre.addEventListener('click', () => void startHaunting('centre'));
+// Ein Knopf für den Bildschirm; welcher der zwei Web-Wege, sagt „2D oder 3D".
+hauntFlat.addEventListener('click', () => {
+  void startHaunting(screenView(detectFlatRole()) === '2d' ? 'centre' : 'technician');
+});
 
 hudMenu.addEventListener('click', () => app.toggleMenu());
 

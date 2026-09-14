@@ -322,6 +322,12 @@ Kapsel, samt der beiden Kugelkappen, dem Radius des Dings und dem Zentimeter
 Luft, ohne den der Zustand an der Grenze flackert — **oder in einer Hand**, denn
 der fallengelassene Gegenstand steckt in der Faust, aus der er fällt, und die
 Kapsel ist dort längst geräumt), der
+**Menü als Seite** (`src/ui/PageMenu.ts` — in jsdom: dass eine Zeile mit
+Kindern absteigt und eine ohne läuft, dass der Weg mit den Handgelenken
+geteilt ist, dass ein Neubau des Baums die Seite nicht verlässt und eine
+Nimm-Seite beim Antippen nimmt), **2D oder 3D am Bildschirm**
+(`src/core/screenView.ts` — Handy 2D, sonst 3D, und ein kaputter Speicher wird
+die Voreinstellung), der
 **Menüweg** (`src/ui/menuNav.ts` — dass beide Handgelenke denselben Weg lesen
 und dass ein Weg zu einer verschwundenen Seite bei deren Elternseite endet),
 die **Welt-Physik**
@@ -683,7 +689,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
 ## Was drin ist
 
-- **Startseite** mit großem `Enter VR`-Button (plus Flat-Modus für Desktop/Handy).
+- **Startseite** mit großem `Enter VR`-Button und **Am Bildschirm starten**
+  (Desktop/Handy). Davor zwei Fragen, beide einmal gestellt und im Browser
+  gemerkt: **Sitzen oder Stehen** (`core/posture.ts`) und **2D oder 3D am
+  Bildschirm** (`core/screenView.ts`, mit Test) — vorbelegt nach Gerät,
+  **Handy: 2D**, alles andere 3D. Die Karte von oben gibt es bisher nur in
+  Haunting; die Zeile unter der Wahl sagt das, und die Startseite der Runde
+  wählt damit ihren Web-Weg (siehe unten). Oben links derselbe **Menü-Knopf**
+  wie im Spiel (`#landing-menu`): Welten, Bewegung, Aussehen, Grafik schon vor
+  dem Start, als Seite (`ui/PageMenu.ts`).
   Unter `#haunting` hat sie ein zweites Gesicht: die **Startseite der Runde**
   — Name, Raum-Code, Verbinden, und drei Wege in denselben Raum (`main.ts`,
   `data-landing="haunting"`; siehe [Haunting](#haunting--orbital-raumstation-für-eine-quest-und-zwei-mobilgeräte)).
@@ -711,6 +725,34 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Ausgewählt wird mit der anderen Hand: zielen und **Trigger oder `A`** drücken
   — Hovern allein löst nichts aus, und angetippt wird auch nichts. Ohne
   getrackte Hand hängt dasselbe Menü an der Blickrichtung.
+  **Ohne Brille ist es eine Seite** (`ui/PageMenu.ts`, mit Test): Im
+  Browserfenster — Startseite, Desktop, Handy — öffnet der runde Knopf **oben
+  links** (`#hud-menu`, auf der Startseite `#landing-menu`) dasselbe Menü als
+  DOM, mobile first: auf dem Telefon ein Blatt von unten mit Zeilen, die ein
+  Daumen trifft, ab 640 Punkten Breite ein Kasten unter dem Knopf
+  (`ui/pageMenu.css`, `z-index` 20, über allem). Es liest **denselben Baum**
+  (`MenuEntry`) mit denselben Ikonen (`drawMenuIcon`) und **denselben Weg**
+  (`menuNav.ts`): wer im Browser drei Ebenen tief steht und die Brille
+  aufsetzt, steht dort auf derselben Seite. Zurück über den Pfeil im Kopf,
+  Schließen über ×, Escape oder einen Tipp daneben; Schalter, Punkt,
+  Abzeichen und Raster (Kacheln, Bildunterschrift darunter) wie am Arm; auf
+  einer Nimm-Seite nimmt ein Tipp, und der Pfeil daneben öffnet die
+  Einstellungen. Die kleinen Modelle (`preview`) gibt es dort nicht, die Ikone
+  steht dafür. **Gezeichnet wird an Ort und Stelle**: Der Baum wird zweimal
+  die Sekunde neu gebaut (Bildraten-Zeile), und `replaceChildren` riss dabei
+  den Knopf unter dem Finger aus dem DOM — ein Tipp, der auf dem alten
+  anfängt und auf dem neuen endet, ist kein Klick. Also werden frische Zeilen
+  mit den stehenden verglichen (`data-key`, `outerHTML`) und nur geänderte
+  getauscht; die Blätterstellung bleibt. **Welches Gesicht gilt, entscheidet
+  `WristMenus`**: `presenting` (von `App` bei Sitzungsbeginn und -ende
+  gesetzt) schickt `toggle`, `openSubmenu`, `isOpen`, `refresh` und
+  `setStatus` an die Handgelenke oder an die Seite; beim Aufsetzen geht die
+  Seite zu, beim Absetzen der Arm. Keine Welt weiß davon — `ctx.menu` ist
+  dieselbe Klasse mit denselben Aufrufen. Öffnet ein Eintrag die Tastatur
+  (`App.openKeys`), geht die Seite zu, weil die Tastatur ein Panel in der
+  Szene ist und sonst dahinter läge. Die Kopfzeile im Web (`#hud`) ist damit
+  **oben links der Menü-Knopf, oben rechts** Weltname, Verbindung und VR; auf
+  einem schmalen Telefon fällt der Weltname weg, bevor ein Knopf es tut.
   Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
   Mond, Alpen, Dunkelhaus, Kletterhalle, Effektlabor, Interaktionslabor,
   Eingaberaum, Spiel Haunting),
@@ -2533,7 +2575,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Ducken                             | rechten Stick reindrücken                                                                                                                                             | –                                                                                               | –                    |
 | Umsehen                            | Kopf, rechter Stick = Snap-Turn                                                                                                                                       | Maus (Klick = Pointer-Lock)                                                                     | wischen              |
 | Springen                           | `A` rechts                                                                                                                                                            | `Leertaste`                                                                                     | –                    |
-| Menü                               | Button an **beiden** Händen (immer nur eins offen)                                                                                                                    | Button `Menü` im HUD                                                                            | Button `Menü` im HUD |
+| Menü                               | Button an **beiden** Händen (immer nur eins offen)                                                                                                                    | Knopf ☰ oben links — dasselbe Menü als Seite (`ui/PageMenu.ts`), auch auf der Startseite         | Knopf ☰ oben links; Blatt von unten |
 | Auswählen                          | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl; im Handgelenkmenü löst der Trigger beim **Loslassen** aus, damit Wischen nichts drückt                | Linksklick                                                                                      | tippen               |
 | Werkzeug nehmen                    | Grip an der Hüfte halten (jede Hand, jedes Werkzeug)                                                                                                                  | – (immer bereit)                                                                                | –                    |
 | Werkzeug ablegen                   | Grip über der Hüfte loslassen                                                                                                                                         | –                                                                                               | –                    |
@@ -8925,9 +8967,10 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   sich `FlatMode.watchAll` — daran hängen die Zielpfade (siehe unten). **Der eigene
   🗺-Knopf ist weg**; die Karte (das alte `MapView` als Overlay) steht als
   Eintrag im Zahnrad, zusammen mit „Menü" und „Verbindung", die die Knöpfe der
-  abgeschalteten Kopfzeile drücken (`pressPageButton`) — „Menü" holt die
-  Kopfzeile dafür zurück (`.is-paged`), weil das Weltmenü ein Panel in der
-  3D-Szene ist und sonst hinter der 2D-Welt läge. Unten rechts der große Knopf
+  abgeschalteten Kopfzeile drücken (`pressPageButton`) — das Weltmenü ist im
+  Browser eine Seite aus DOM (`ui/PageMenu.ts`) und liegt über der 2D-Welt;
+  die Kopfzeile muss dafür nicht mehr zurückgeholt werden (das alte
+  `.is-paged` ist weg). Unten rechts der große Knopf
   „Benutzen" mit „Werkzeug" und „Wechseln" darüber. Stock links. Der Stock hat eine **sichtbare
   Ruhestellung** unten links und springt beim Aufsetzen unter den Daumen
   (`map/joystick.ts`). `.flat [hidden] { display: none !important }` ist
@@ -9294,8 +9337,17 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     **Verbinden** — und dann eine Liste, wer im Raum steht (ich zuerst, dann
     jeder andere mit Name und Gerät: Brille, Bildschirm, Handy; „schon drin",
     wer die Welt schon betreten hat). Die drei Wege stehen **nur in der
-    Lobby** (`#haunt-lobby`, sichtbar erst mit der Verbindung): **Enter VR**,
-    **Web 3D** (Techniker am Bildschirm, im Schiff) und **2D Einsatzzentrale**.
+    Lobby** (`#haunt-lobby`, sichtbar erst mit der Verbindung): **Enter VR**
+    und **Am Bildschirm starten** (`#haunt-flat`) — und ob der zweite Knopf
+    in **Web 3D** (Techniker am Bildschirm, im Schiff) oder in die **2D
+    Einsatzzentrale** führt, sagt die Wahl **„Am Bildschirm: 2D oder 3D?"**
+    weiter oben auf der Seite (`core/screenView.ts`; Handy: 2D vorbelegt).
+    Knopf und Zeile darunter schreiben die Wahl jedes Mal mit
+    (`main.ts`, `showScreenView`); der Browser-Smoke wählt „2D" und drückt
+    dann den Knopf. Und wer Haunting nicht über diese Seite, sondern aus dem
+    Menü betritt, bekommt dieselbe Wahl als Voreinstellung der Lobby
+    (`rules/lobby.defaultLobby(role, view)` über `storedScreenView`), solange
+    die Lobby selbst noch nichts gemerkt hat.
     Alle drei bleiben im Raum: `joinHaunting` läuft vor jedem noch einmal —
     wer schon im richtigen Raum steht, bekommt höchstens den Namen
     nachgetragen (`App.setPlayerName`), wer den Code inzwischen geändert hat,
