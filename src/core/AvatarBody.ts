@@ -1,68 +1,72 @@
 import * as THREE from 'three';
 import { buildHeadgear, type HeadgearKind } from './headgear';
+import { DEFAULT_APPEARANCE, type Appearance } from './appearance';
+import {
+  buildBody,
+  buildHead,
+  skinTone,
+  HEAD_RADIUS,
+  type BodyKind,
+  type BodyShape,
+  type HeadKind,
+} from './avatarLook';
 
-/** Head + hand pose used to drive the skeleton, in the body's parent space. */
+/** Head + hand pose used to drive the body, in the body's parent space. */
 export interface AvatarLimb {
   position: THREE.Vector3;
   quaternion?: THREE.Quaternion;
 }
 
 export interface AvatarBodyOptions {
-  /** Colour of the suit (torso, arms, head). */
+  /** Colour of the suit (apron and neckerchief — what has no colour of its own). */
   color?: number;
-  /** Draw blocks at the tracked hand poses — off for the local body, which
-   *  already has `HandVisuals`. */
+  /** Draw balls at the hand poses — off for the local body, which already has
+   *  `HandVisuals`. */
   hands?: boolean;
 }
 
-/** Alles, was drei Ebenen tief unter einem Hut hängt, samt seiner Materialien. */
-function disposeTree(root: THREE.Object3D): void {
+/**
+ * Alles unterhalb von `root`, samt seiner Materialien — außer denen, die dem
+ * Körper selbst gehören und die nächste Jacke überleben sollen (`keep`).
+ */
+function disposeTree(root: THREE.Object3D, keep?: ReadonlySet<THREE.Material>): void {
   root.traverse((object) => {
     const mesh = object as THREE.Mesh;
     if (!mesh.isMesh) return;
     mesh.geometry.dispose();
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
-      material?.dispose();
+      if (material && !keep?.has(material)) material.dispose();
     }
   });
 }
 
-const _world = new THREE.Vector3();
 const _forward = new THREE.Vector3();
-const _shoulder = new THREE.Vector3();
 const _hand = new THREE.Vector3();
-const _hip = new THREE.Vector3();
-const _foot = new THREE.Vector3();
-const _joint = new THREE.Vector3();
-const _axis = new THREE.Vector3();
-const _bend = new THREE.Vector3();
-const _dir = new THREE.Vector3();
-const _perpendicular = new THREE.Vector3();
-const _up = new THREE.Vector3(0, 1, 0);
-const _down = new THREE.Vector3(0, -1, 0);
+const _world = new THREE.Vector3();
 
-/** A capsule segment between two points. */
-class Bone extends THREE.Mesh<THREE.CapsuleGeometry, THREE.Material> {
-  constructor(radius: number, material: THREE.Material) {
-    super(new THREE.CapsuleGeometry(radius, 1, 4, 10), material);
-    this.frustumCulled = false;
-  }
-
-  stretch(from: THREE.Vector3, to: THREE.Vector3): void {
-    _dir.copy(to).sub(from);
-    const length = Math.max(_dir.length(), 0.02);
-    this.position.copy(from).add(to).multiplyScalar(0.5);
-    this.quaternion.setFromUnitVectors(_up, _dir.divideScalar(length));
-    this.scale.set(1, length / 1.2, 1);
-  }
-}
+/** Wie weit die Kopfmitte hinter den Augen sitzt — dort steht auch der Rumpf. */
+const NECK_BACK = 0.055;
 
 /**
- * A simple humanoid driven by three poses: head plus both hands. That is all
- * a headset knows about its player — and all that travels over the network —
- * so the same skeleton serves the local body and every remote one.
+ * Wie weit die freie Hand neben der Mitte des Rumpfes schwebt — gerade so
+ * weit, dass die Kugel die Tonne streift und nicht in ihr steckt.
+ */
+const BODY_HALF = 0.3;
+
+/**
+ * **Die Figur** — ein Koch nach dem Vorbild von Overcooked, angetrieben von
+ * drei Posen: Kopf plus beide Hände. Mehr weiß ein Headset über seinen Träger
+ * nicht, mehr geht auch über das Netz nicht, und deshalb bedient derselbe
+ * Körper den eigenen Spieler wie jeden Mitspieler.
  *
- * Everything is computed in the group's parent space with the floor at y = 0.
+ * Kein Skelett mehr, sondern vier Teile: ein **Rumpf** wie eine Tonne mit
+ * rundem Boden, ein großer runder **Kopf** mit Augen und Nase, und zwei
+ * **Hände**, die ohne Arme daneben schweben. Das ist keine Vereinfachung aus
+ * Bequemlichkeit: Aus der Ansicht von oben, in der hier gespielt wird, waren
+ * Ober- und Unterarm zwei graue Striche, und die Blickrichtung sah man
+ * überhaupt nicht. Eine Nase sieht man.
+ *
+ * Gerechnet wird alles im Raum des Elternteils, mit dem Boden auf y = 0.
  */
 export class AvatarBody extends THREE.Group {
   /** Yaw of the torso; follows the head with a dead zone, like a real body. */
@@ -73,21 +77,27 @@ export class AvatarBody extends THREE.Group {
   readonly handAnchors: [THREE.Object3D, THREE.Object3D];
 
   /**
-   * Die Fäuste selbst (`options.hands`) — getrennt vom Anker, weil an dem
-   * auch ein Werkzeug hängen darf, das mit der Faust nichts zu tun hat.
+   * Die Handkugeln (`options.hands`) — Kinder des Körpers und **nicht** des
+   * Ankers. Der Anker sagt mit seiner Sichtbarkeit, ob diese Hand getrackt
+   * ist (daran hängt, ob ein Werkzeug darin liegt); die Kugel schwebt auch
+   * dann neben dem Rumpf, wenn niemand sie trackt.
    */
   private readonly handMeshes: THREE.Mesh[] = [];
 
-  private readonly torso: THREE.Mesh;
-  private readonly neck: THREE.Mesh;
-  private readonly hips: THREE.Mesh;
-  private readonly arms: Array<[Bone, Bone]> = [];
-  private readonly legs: Array<[Bone, Bone]> = [];
-  private readonly materials: THREE.Material[] = [];
-  private readonly suit: THREE.MeshStandardMaterial;
-  /** Was gerade auf dem Kopf sitzt, und das Ding dazu. */
-  private hat: HeadgearKind = 'none';
+  /** Der Rumpf: eine Gruppe, damit Drehung und Höhe getrennt bleiben. */
+  private readonly torso: THREE.Group;
+  private shape: BodyShape | null = null;
+  private face: THREE.Group | null = null;
   private headgear: THREE.Group | null = null;
+
+  /** Die Anzugfarbe der Rolle und der Hautton — beide geteilt, beide bleiben. */
+  private readonly suit: THREE.MeshStandardMaterial;
+  private readonly skin: THREE.MeshStandardMaterial;
+  private readonly kept: Set<THREE.Material>;
+
+  /** Was diese Figur gerade trägt (`core/appearance.ts`). */
+  private look: Appearance = { ...DEFAULT_APPEARANCE };
+
   private readonly previous = new THREE.Vector3();
   private hasPrevious = false;
   private walkPhase = 0;
@@ -97,63 +107,59 @@ export class AvatarBody extends THREE.Group {
     super();
     this.name = 'avatar-body';
 
-    const suit = new THREE.MeshStandardMaterial({
+    this.suit = new THREE.MeshStandardMaterial({
       color: options.color ?? 0x3f6fb5,
       roughness: 0.6,
       metalness: 0.15,
     });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x1d2434, roughness: 0.7 });
-    this.suit = suit;
-    this.materials.push(suit, dark);
+    this.skin = new THREE.MeshStandardMaterial({
+      color: skinTone(DEFAULT_APPEARANCE.head),
+      roughness: 0.85,
+    });
+    this.kept = new Set<THREE.Material>([this.suit, this.skin]);
 
-    // Tapered and oval: reads as a chest, also when looking straight down.
-    this.torso = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.14, 1, 12), suit);
-    this.torso.frustumCulled = false;
+    this.torso = new THREE.Group();
+    this.torso.name = 'avatar-torso';
     this.add(this.torso);
 
-    this.neck = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 0.12, 8), dark);
-    this.neck.frustumCulled = false;
-    this.add(this.neck);
-
-    this.hips = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.2), dark);
-    this.hips.frustumCulled = false;
-    this.add(this.hips);
-
-    for (let i = 0; i < 2; i++) {
-      const upper = new Bone(0.048, suit);
-      const lower = new Bone(0.042, suit);
-      this.add(upper, lower);
-      this.arms.push([upper, lower]);
-
-      const thigh = new Bone(0.075, dark);
-      const shin = new Bone(0.06, dark);
-      this.add(thigh, shin);
-      this.legs.push([thigh, shin]);
-    }
-
     this.head = new THREE.Group();
-    const skull = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.21, 0.22), suit);
-    const visor = new THREE.Mesh(
-      new THREE.BoxGeometry(0.16, 0.06, 0.02),
-      new THREE.MeshBasicMaterial({ color: 0x0a0f1c }),
-    );
-    visor.position.set(0, 0.01, -0.115);
-    this.head.add(skull, visor);
+    this.head.name = 'avatar-head';
     this.add(this.head);
 
     const anchors: THREE.Object3D[] = [];
     for (let i = 0; i < 2; i++) {
       const anchor = new THREE.Object3D();
       anchor.name = i === 0 ? 'hand-left' : 'hand-right';
-      if (options.hands) {
-        const fist = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.11), suit);
-        anchor.add(fist);
-        this.handMeshes.push(fist);
-      }
       this.add(anchor);
       anchors.push(anchor);
+      if (!options.hands) continue;
+      // Ø 12 cm, wie im Plan — groß genug, dass man von oben sieht, wohin
+      // jemand greift, und klein genug, dass sie nicht wie Fäustlinge wirken.
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 10), this.skin);
+      ball.frustumCulled = false;
+      this.add(ball);
+      this.handMeshes.push(ball);
     }
     this.handAnchors = [anchors[0]!, anchors[1]!];
+
+    this.buildFace(this.look.head);
+    this.buildTorso(this.look.body);
+  }
+
+  /**
+   * **Wie diese Figur aussieht** — Kopf, Hut und Körper auf einmal
+   * (`core/appearance.ts`).
+   *
+   * Eine Methode und nicht drei, weil die drei zusammen ankommen: aus der
+   * Einstellung, aus der Umkleide oder mit der Anmeldung eines Mitspielers.
+   * Gebaut wird trotzdem nur, was sich wirklich geändert hat — das hier läuft
+   * je Mitspieler in jedem Bild.
+   */
+  setLook(look: Appearance): void {
+    if (look.head !== this.look.head) this.buildFace(look.head);
+    if (look.body !== this.look.body) this.buildTorso(look.body);
+    this.look = { ...this.look, head: look.head, body: look.body };
+    this.setHeadgear(look.hat);
   }
 
   setColor(color: number): void {
@@ -161,15 +167,16 @@ export class AvatarBody extends THREE.Group {
     this.suit.emissive.setHex(color).multiplyScalar(0.12);
     // Der Hut trägt die Anzugfarbe, wo er eine trägt — also neu bauen, sonst
     // hätte ein Spieler, der die Rolle wechselt, einen Helm von vorhin auf.
-    if (this.hat !== 'none') this.setHeadgear(this.hat, true);
+    // Schürze und Halstuch teilen sich dieses Material und folgen von selbst.
+    if (this.look.hat !== 'none') this.setHeadgear(this.look.hat, true);
   }
 
   /**
-   * Ob die Fäuste gezeichnet werden. Ein Körper ohne `options.hands` hat
+   * Ob die Handkugeln gezeichnet werden. Ein Körper ohne `options.hands` hat
    * keine, und dann tut das hier nichts.
    */
   protected setHandsVisible(on: boolean): void {
-    for (const fist of this.handMeshes) fist.visible = on;
+    for (const ball of this.handMeshes) ball.visible = on;
   }
 
   /**
@@ -184,11 +191,11 @@ export class AvatarBody extends THREE.Group {
    *   einem Farbwechsel des Anzugs.
    */
   setHeadgear(kind: HeadgearKind, force = false): void {
-    if (kind === this.hat && !force) return;
-    this.hat = kind;
+    if (kind === this.look.hat && !force) return;
+    this.look = { ...this.look, hat: kind };
     if (this.headgear) {
       this.headgear.removeFromParent();
-      disposeTree(this.headgear);
+      disposeTree(this.headgear, this.kept);
       this.headgear = null;
     }
     const built = buildHeadgear(kind, this.suit.color.getHex());
@@ -208,16 +215,6 @@ export class AvatarBody extends THREE.Group {
     const visible = !self;
     this.head.visible = visible;
     this.torso.visible = visible;
-    this.neck.visible = visible;
-    this.hips.visible = visible;
-    for (const [upper, lower] of this.arms) {
-      upper.visible = visible;
-      lower.visible = visible;
-    }
-    for (const [thigh, shin] of this.legs) {
-      thigh.visible = visible;
-      shin.visible = visible;
-    }
   }
 
   /**
@@ -227,14 +224,10 @@ export class AvatarBody extends THREE.Group {
    */
   update(dt: number, head: AvatarLimb, left: AvatarLimb | null, right: AvatarLimb | null): void {
     const headPos = head.position;
-    const height = Math.max(headPos.y, 0.8);
 
     // Torso yaw trails the head; it only catches up past a dead zone.
-    if (head.quaternion) {
-      _forward.set(0, 0, -1).applyQuaternion(head.quaternion);
-    } else {
-      _forward.set(0, 0, -1);
-    }
+    if (head.quaternion) _forward.set(0, 0, -1).applyQuaternion(head.quaternion);
+    else _forward.set(0, 0, -1);
     const headYaw = Math.atan2(-_forward.x, -_forward.z);
     const difference = wrapAngle(headYaw - this.bodyYaw);
     const slack = THREE.MathUtils.degToRad(38);
@@ -244,86 +237,89 @@ export class AvatarBody extends THREE.Group {
       this.bodyYaw += difference * Math.min(1, dt * 4);
     }
 
-    this.head.position.copy(headPos);
+    // Die Pose kommt von den **Augen**; die Kugel, die man sieht, hat ihren
+    // Mittelpunkt ein Stück dahinter — sonst stünde der halbe Kopf vor dem
+    // Gesicht in der Luft und der Rumpf schöbe sich nach vorn unter ihm weg.
+    const headSin = Math.sin(headYaw);
+    const headCos = Math.cos(headYaw);
+    this.head.position.set(
+      headPos.x + headSin * NECK_BACK,
+      headPos.y,
+      headPos.z + headCos * NECK_BACK,
+    );
     if (head.quaternion) this.head.quaternion.copy(head.quaternion);
 
-    const neckY = headPos.y - 0.3;
-    const hipY = height * 0.53;
+    // Der Rumpf steht unter dem Kopf, vom Boden bis knapp unter die Kugel.
+    // Ducken staucht ihn: Seine Höhe ist die des Kopfes, nicht seine eigene.
     const sin = Math.sin(this.bodyYaw);
     const cos = Math.cos(this.bodyYaw);
-    const side = (offset: number, forward: number, target: THREE.Vector3, y: number) =>
-      target.set(
-        headPos.x + cos * offset + sin * forward,
-        y,
-        headPos.z - sin * offset + cos * forward,
-      );
-
-    // The spine sits behind the eyes, otherwise the chest fills the whole view.
-    side(0, 0.1, _joint, neckY);
-    side(0, 0.07, _hip, hipY);
-    this.hips.position.copy(_hip);
-    this.hips.rotation.set(0, this.bodyYaw, 0);
-    this.torso.position.copy(_hip).add(_joint).multiplyScalar(0.5);
+    const baseX = headPos.x + sin * NECK_BACK;
+    const baseZ = headPos.z + cos * NECK_BACK;
+    const height = Math.max(headPos.y - HEAD_RADIUS * 0.68, 0.3);
+    this.torso.position.set(baseX, 0, baseZ);
     this.torso.rotation.set(0, this.bodyYaw, 0);
-    this.torso.scale.set(1, Math.max(_joint.y - _hip.y, 0.1), 0.62);
-    // The neck bridges whatever is left between the shoulders and the chin,
-    // instead of a fixed stub that leaves the head floating.
-    const chin = headPos.y - 0.09;
-    const span = Math.max(chin - _joint.y, 0.06);
-    this.neck.position.set(
-      (_joint.x + headPos.x) / 2,
-      (_joint.y + chin) / 2,
-      (_joint.z + headPos.z) / 2,
-    );
-    this.neck.scale.set(1, span / 0.12, 1);
-    this.neck.rotation.set(0, this.bodyYaw, 0);
+    this.shape?.setHeight(height);
 
-    // Walking pushes the legs; standing still lets them rest.
+    // Tempo treibt das Pendeln der freien Hände; im Stehen hängen sie ruhig.
     this.speed += (this.travelSpeed(headPos, dt) - this.speed) * Math.min(1, dt * 8);
     this.walkPhase += dt * Math.min(this.speed, 3) * 4.4;
-    const swing = Math.min(this.speed * 0.22, 0.55);
+    const swing = Math.min(this.speed * 0.05, 0.09);
 
     for (let i = 0; i < 2; i++) {
       const sign = i === 0 ? -1 : 1;
       const limb = i === 0 ? left : right;
       const anchor = this.handAnchors[i]!;
 
-      // Arms: reach for the hand when it is tracked, otherwise hang down.
-      side(sign * 0.2, 0.09, _shoulder, neckY - 0.05);
       if (limb) {
         _hand.copy(limb.position);
       } else {
-        side(sign * 0.26, 0.02, _hand, hipY + 0.06);
+        // Ohne Arme gibt es nichts zu lösen: Die Hand schwebt seitlich neben
+        // dem Rumpf und pendelt beim Laufen, damit die Figur nicht rutscht.
+        const phase = this.walkPhase + (i === 0 ? 0 : Math.PI);
+        const offset = sign * (0.005 + BODY_HALF);
+        const back = 0.02 + Math.sin(phase) * swing * 1.8;
+        _hand.set(
+          baseX + cos * offset + sin * back,
+          height * 0.5 + Math.abs(Math.cos(phase)) * swing * 0.6,
+          baseZ - sin * offset + cos * back,
+        );
       }
+
       anchor.visible = limb !== null;
       anchor.position.copy(_hand);
       if (limb?.quaternion) anchor.quaternion.copy(limb.quaternion);
-
-      solveTwoBone(_shoulder, _hand, 0.29, _bend.set(0, -1, 0), _joint);
-      this.arms[i]![0].stretch(_shoulder, _joint);
-      this.arms[i]![1].stretch(_joint, _hand);
-
-      // Legs: a plain pendulum walk cycle, feet on the floor when standing.
-      side(sign * 0.1, 0.05, _hip, hipY);
-      const phase = this.walkPhase + (i === 0 ? 0 : Math.PI);
-      const stride = Math.sin(phase) * swing;
-      const lift = Math.max(0, Math.cos(phase)) * swing * 0.35;
-      _foot
-        .set(_hip.x + sin * stride * hipY, lift, _hip.z + cos * stride * hipY)
-        .addScaledVector(_down, -0.02);
-      solveTwoBone(_hip, _foot, hipY * 0.54, _bend.set(sin, 0, cos), _joint);
-      this.legs[i]![0].stretch(_hip, _joint);
-      this.legs[i]![1].stretch(_joint, _foot);
+      this.handMeshes[i]?.position.copy(_hand);
     }
   }
 
   dispose(): void {
-    this.traverse((object) => {
-      const mesh = object as THREE.Mesh;
-      if (mesh.isMesh) mesh.geometry.dispose();
-    });
-    for (const material of this.materials) material.dispose();
+    disposeTree(this);
+    for (const material of this.kept) material.dispose();
     this.removeFromParent();
+  }
+
+  /** Baut das Gesicht neu — nur bei einem Wechsel, nicht je Bild. */
+  private buildFace(kind: HeadKind): void {
+    if (this.face) {
+      this.face.removeFromParent();
+      disposeTree(this.face, this.kept);
+    }
+    this.face = buildHead(kind);
+    this.head.add(this.face);
+    // Hände und Gesicht gehören zusammen: Es ist derselbe Mensch.
+    this.skin.color.setHex(skinTone(kind));
+    this.face.traverse((object) => (object.layers.mask = this.head.layers.mask));
+  }
+
+  /** Dasselbe für die Jacke. Die Anzugfarbe bleibt dabei, wo sie ist. */
+  private buildTorso(kind: BodyKind): void {
+    if (this.shape) {
+      this.shape.group.removeFromParent();
+      disposeTree(this.shape.group, this.kept);
+    }
+    this.shape = buildBody(kind, this.suit);
+    this.torso.add(this.shape.group);
+    this.shape.group.traverse((object) => (object.layers.mask = this.torso.layers.mask));
   }
 
   /** Horizontal speed of the head in world space — drives the walk cycle. */
@@ -339,36 +335,6 @@ export class AvatarBody extends THREE.Group {
     this.previous.set(_world.x, 0, _world.z);
     return dt > 0 ? Math.min(distance / dt, 8) : 0;
   }
-}
-
-/**
- * Places the middle joint of a two bone chain of equal length, bending towards
- * `preferred`.
- */
-export function solveTwoBone(
-  from: THREE.Vector3,
-  to: THREE.Vector3,
-  boneLength: number,
-  preferred: THREE.Vector3,
-  target: THREE.Vector3,
-): void {
-  _axis.copy(to).sub(from);
-  const distance = Math.min(_axis.length(), boneLength * 2 - 0.001);
-  if (distance < 1e-4) {
-    target.copy(from).addScaledVector(preferred, boneLength);
-    return;
-  }
-  _axis.normalize();
-  _perpendicular.copy(preferred).addScaledVector(_axis, -preferred.dot(_axis));
-  if (_perpendicular.lengthSq() < 1e-6) {
-    _perpendicular.set(0, 0, 1).addScaledVector(_axis, -_axis.z);
-  }
-  _perpendicular.normalize();
-  const offset = Math.sqrt(Math.max(0, boneLength * boneLength - (distance / 2) ** 2));
-  target
-    .copy(from)
-    .addScaledVector(_axis, distance / 2)
-    .addScaledVector(_perpendicular, offset);
 }
 
 function wrapAngle(angle: number): number {
