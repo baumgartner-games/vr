@@ -27,36 +27,38 @@ function room(): NavGraph {
 }
 
 describe('Worauf jemand zeigt', () => {
+  /** Die Mitte der Kachel (0,0) — eine halbe Kachel in jeder Richtung. */
+  const MID = TILE / 2;
+
   it('trifft in der Mitte einer Kachel die Kachel', () => {
-    // Mitte von Kachel (0,0) ist (1,25 | 1,25).
-    expect(spotAt(1.25, 1.25)).toEqual({ tile: tileKey(0, 0, 0), dir: null });
+    expect(spotAt(MID, MID)).toEqual({ tile: tileKey(0, 0, 0), dir: null });
   });
 
   it('trifft nah an einer Kante die Kante', () => {
-    // Zehn Zentimeter vor der Nordkante von Kachel (0,0).
-    expect(spotAt(1.25, 0.1)).toEqual({ tile: tileKey(0, 0, 0), dir: DIR_N });
-    expect(spotAt(1.25, 2.4)).toEqual({ tile: tileKey(0, 0, 0), dir: DIR_S });
-    expect(spotAt(0.1, 1.25)).toEqual({ tile: tileKey(0, 0, 0), dir: DIR_W });
-    expect(spotAt(2.4, 1.25)).toEqual({ tile: tileKey(0, 0, 0), dir: DIR_E });
+    // Vier Zentimeter vor der Nordkante von Kachel (0,0).
+    expect(spotAt(MID, 0.04)).toEqual({ tile: tileKey(0, 0, 0), dir: DIR_N });
+    expect(spotAt(MID, TILE - 0.04)).toEqual({ tile: tileKey(0, 0, 0), dir: DIR_S });
+    expect(spotAt(0.04, MID)).toEqual({ tile: tileKey(0, 0, 0), dir: DIR_W });
+    expect(spotAt(TILE - 0.04, MID)).toEqual({ tile: tileKey(0, 0, 0), dir: DIR_E });
   });
 
   it('nimmt in einer Ecke die nähere der beiden Kanten', () => {
-    // Näher an der Nordkante als an der Westkante: 0,1 gegen 0,3.
-    expect(spotAt(0.3, 0.1).dir).toBe(DIR_N);
-    expect(spotAt(0.1, 0.3).dir).toBe(DIR_W);
+    // Näher an der Nordkante als an der Westkante: 0,04 gegen 0,12.
+    expect(spotAt(0.12, 0.04).dir).toBe(DIR_N);
+    expect(spotAt(0.04, 0.12).dir).toBe(DIR_W);
   });
 
   it('lässt den Streifen an der Kante einstellen', () => {
     // Mit einem breiteren Streifen wird aus derselben Stelle eine Kante.
-    expect(spotAt(1.25, 0.8).dir).toBeNull();
-    expect(spotAt(1.25, 0.8, 0, TILE / 2).dir).toBe(DIR_N);
+    expect(spotAt(MID, TILE * 0.32).dir).toBeNull();
+    expect(spotAt(MID, TILE * 0.32, 0, TILE / 2).dir).toBe(DIR_N);
   });
 
   it('legt eine Kante genau zwischen zwei Kachelmitten', () => {
     const north = edgeAt(tileKey(0, 0, 0), DIR_N);
-    expect(north).toEqual({ x: 1.25, z: 0, alongX: true });
+    expect(north).toEqual({ x: MID, z: 0, alongX: true });
     const east = edgeAt(tileKey(0, 0, 0), DIR_E);
-    expect(east).toEqual({ x: 2.5, z: 1.25, alongX: false });
+    expect(east).toEqual({ x: TILE, z: MID, alongX: false });
   });
 
   it('nennt dieselbe Kante von beiden Seiten', () => {
@@ -204,10 +206,11 @@ describe('Der Ausschnitt', () => {
 describe('Der Startgrundriss', () => {
   it('ist ein Zimmer mit Wänden und einer Tür', () => {
     const plan = starterPlan();
-    expect(plan.size).toBe(36);
+    // Acht mal acht Kacheln, also acht Meter im Quadrat.
+    expect(plan.size).toBe(64);
     // Rings herum eine Wand.
-    expect(plan.wall(tileKey(-3, -3, 0), DIR_N)?.kind).toBe('solid');
-    expect(plan.wall(tileKey(2, 2, 0), DIR_E)?.kind).toBe('solid');
+    expect(plan.wall(tileKey(-4, -4, 0), DIR_N)?.kind).toBe('solid');
+    expect(plan.wall(tileKey(3, 3, 0), DIR_E)?.kind).toBe('solid');
     // Und genau eine Tür darin.
     const doors = [...plan.doorIds()];
     expect(doors).toHaveLength(1);

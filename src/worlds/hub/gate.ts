@@ -34,15 +34,18 @@ export interface Gate {
 /**
  * **Wie breit ein Tor baut**, in Metern: der Durchmesser seines Sockels.
  *
- * Die Zahl steht hier, weil das Gitter sie braucht: Eine Kachel ist 2,5 m, das
- * Tor ist 3 m breit, und auf einer Kachel steht es deshalb ein Stück kleiner
- * (`fixtures/gate.ts`) — sonst ragte sein Sockel in die Nachbarkachel und in
- * die Wand dahinter.
+ * **Eine Kachel**, seit die Kachel einen Meter misst. Vorher war das Tor drei
+ * Meter breit und wurde auf der Kachel um ein Sechstel geschrumpft; dieselbe
+ * Rechnung auf einem Meter ergäbe ein Tor von einem Drittel — einen leuchtenden
+ * Ring in Kniehöhe, über den man steigt statt hindurchzugehen. Also ist es
+ * gleich so gebaut, wie es dasteht: ein Sockel von einer Kachel, ein Durchgang
+ * darüber und ein Schild in Lesehöhe. Auf der Werkzeugseite (`tools/main.ts`)
+ * steht damit genau dasselbe Tor wie im Hub, und das ist der Sinn dieser Datei.
  */
-export const GATE_WIDTH = 3;
+export const GATE_WIDTH = 1;
 
 /** Wie hoch das Schild über dem Podest hängt. */
-const SIGN_Y = 2.55;
+const SIGN_Y = 1.95;
 
 /**
  * Um wie viel ein Tor gegenüber der Gitterregel verdreht ist — eine halbe
@@ -61,14 +64,14 @@ export function buildGate(title: string, description: string, accent: number): G
   group.name = `gate:${title}`;
 
   const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.3, GATE_WIDTH / 2, 0.16, 32),
+    new THREE.CylinderGeometry(GATE_WIDTH * 0.43, GATE_WIDTH / 2, 0.12, 32),
     new THREE.MeshStandardMaterial({ color: 0x1a2338, roughness: 0.7 }),
   );
-  base.position.y = 0.08;
+  base.position.y = 0.06;
   group.add(base);
 
   const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(1.05, 0.07, 12, 64),
+    new THREE.TorusGeometry(0.42, 0.05, 12, 64),
     new THREE.MeshStandardMaterial({
       color: accent,
       emissive: new THREE.Color(accent).multiplyScalar(0.6),
@@ -76,11 +79,11 @@ export function buildGate(title: string, description: string, accent: number): G
       metalness: 0.4,
     }),
   );
-  ring.position.y = 1.35;
+  ring.position.y = 1.15;
   group.add(ring);
 
   const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(1.02, 48),
+    new THREE.CircleGeometry(0.4, 48),
     new THREE.ShaderMaterial({
       transparent: true,
       side: THREE.DoubleSide,
@@ -111,10 +114,10 @@ export function buildGate(title: string, description: string, accent: number): G
       `,
     }),
   );
-  disc.position.y = 1.35;
+  disc.position.y = 1.15;
   group.add(disc);
 
-  const sign = new TextPlane({ width: 1.9, height: 0.62, title, body: description, accent });
+  const sign = new TextPlane({ width: 0.95, height: 0.31, title, body: description, accent });
   sign.position.set(0, SIGN_Y, 0.02);
   group.add(sign);
 
@@ -160,8 +163,8 @@ export function spinGate(gate: Gate, time: number, index = 0): void {
  */
 export function gateFloorSign(title: string, accent: number): TextPlane {
   return new TextPlane({
-    width: 1.9,
-    height: 0.62,
+    width: 0.9,
+    height: 0.3,
     title,
     align: 'center',
     accent,

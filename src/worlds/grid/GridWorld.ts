@@ -498,10 +498,15 @@ export abstract class GridWorld extends PortalWorld {
     const over = (px: number, py: number, pz: number): boolean =>
       Math.abs(px - x) <= TILE / 2 &&
       Math.abs(pz - z) <= TILE / 2 &&
-      // Nach oben eine Kachelhöhe, nach unten eine Handbreit: Was im Stockwerk
+      // **Nach oben zwei Meter, nach unten eine Handbreit**: Was im Stockwerk
       // darüber steht, steht nicht auf dieser Platte.
+      //
+      // Eine feste Höhe und nicht mehr die Kachelgröße. Solange eine Kachel
+      // 2,5 m maß, war das dasselbe; auf einem Meter zählte plötzlich niemand
+      // mehr als „darauf", der auf einer Kiste steht oder springt — und eine
+      // Druckplatte, die unter einem Sprung aufgeht, hält niemand für Absicht.
       py >= floor - 0.3 &&
-      py <= floor + TILE;
+      py <= floor + STAND_HEAD;
     let count = 0;
     const rig = ctx.rig.position;
     const player = over(rig.x, rig.y, rig.z);
@@ -1207,6 +1212,13 @@ const GRID_FINISH: Readonly<Record<PlanSolidKind, { roughness?: number; metalnes
  * das schneller, als man denkt.
  */
 const MAX_BURSTS = 8;
+
+/**
+ * Wie hoch über dem Boden einer Kachel noch zählt, wer **darauf** steht
+ * (`standingOn`) — zwei Meter, also eine Person samt der Kiste, auf der sie
+ * steht, und nicht mehr die Kachelgröße.
+ */
+const STAND_HEAD = 2;
 
 const _target = new THREE.Vector3();
 const _feet = new THREE.Vector3();

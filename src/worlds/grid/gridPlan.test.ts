@@ -148,9 +148,11 @@ describe('Bausteine gehen in die Kachel ein', () => {
     const plan = new GridPlan().room({ x: 0, z: 0, w: 4, d: 2 });
     plan.putRun('counter', 0, 0, 3, 'x', DIR_N);
     expect(plan.blocks()).toHaveLength(3);
-    // Drei Kacheln nebeneinander, alle an derselben Kante.
+    // Drei Kacheln nebeneinander, alle an derselben Kante — und die Zeile
+    // läuft durch: Eine Küchenzeile ist so lang wie ihre Kacheln und hat
+    // zwischen zweien keine Fuge.
     const box = solidBounds(plan.solids().filter((one) => one.kind === 'steel'))!;
-    expect(box.maxX - box.minX).toBeCloseTo(3 * TILE - 0.25);
+    expect(box.maxX - box.minX).toBeCloseTo(3 * TILE);
   });
 
   it('stellt einen Baustein an die Kachelmitte, in der er steht', () => {

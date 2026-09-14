@@ -136,7 +136,10 @@ describe('Der Hub als Grundriss', () => {
     // Zwei ist die Untergrenze: Ein Gang mit einer Kachel wäre einer, in dem
     // ein Tor den Weg versperrt. Gebaut sind es drei.
     expect(CORRIDOR_WIDTH).toBeGreaterThanOrEqual(2);
-    expect(CORRIDOR_WIDTH * TILE).toBeGreaterThanOrEqual(5);
+    // Und in Metern: drei Kacheln zu einem Meter, davon eine Handbreit für die
+    // Wände — es bleiben 2,8 m lichte Weite, in denen zwei aneinander
+    // vorbeikommen.
+    expect(CORRIDOR_WIDTH * TILE).toBeGreaterThanOrEqual(2.5);
   });
 
   it('mauert die Anlage zu, lässt aber jede Gangmündung offen', () => {

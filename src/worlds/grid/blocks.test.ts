@@ -1,6 +1,16 @@
 import { PLAN_WALL_T } from '../editor/levelPlan';
 import { DIR_E, DIR_N, DIR_S, DIR_W, TILE, type Dir } from '../nav/navTile';
-import { BLOCKS, BLOCK_KINDS, blockRise, blockSolids, turned, type BlockKind } from './blocks';
+import {
+  BLOCKS,
+  BLOCK_KINDS,
+  STAIR_LIFT,
+  STEP_RISE,
+  STEP_RUN,
+  blockRise,
+  blockSolids,
+  turned,
+  type BlockKind,
+} from './blocks';
 import { solidBounds, type PlanSolid } from './solids';
 
 /** Ein Baustein auf der Kachel um den Ursprung, nach Norden schauend. */
@@ -115,17 +125,19 @@ describe('Gedreht wird um die Kachelmitte', () => {
 describe('Die Küchenzeile', () => {
   it('steht an der Kante, in die sie zeigt', () => {
     const box = solidBounds(at('counter', DIR_N))!;
-    // Sie klebt an der Nordkante und ragt nicht in die halbe Kachel hinein.
+    // Sie klebt an der Nordkante und lässt vor sich ein Viertel der Kachel
+    // frei — 0,6 m tief auf einer Kachel von einem Meter heißt, dass sie über
+    // die Mitte hinausreicht, und das ist eine Küchenzeile auch.
     expect(box.minZ).toBeCloseTo(-TILE / 2 + PLAN_WALL_T / 2, 2);
-    expect(box.maxZ).toBeLessThan(0);
+    expect(box.maxZ).toBeLessThan(TILE / 2 - TILE / 4);
   });
 
   it('steht an der Ostkante genauso, nur quer', () => {
     const box = solidBounds(at('counter', DIR_E))!;
     expect(box.maxX).toBeCloseTo(TILE / 2 - PLAN_WALL_T / 2, 2);
-    expect(box.minX).toBeGreaterThan(0);
+    expect(box.minX).toBeGreaterThan(-TILE / 2 + TILE / 4);
     // Und über die ganze Kachellänge, wie an der Nordkante auch.
-    expect(box.maxZ - box.minZ).toBeCloseTo(TILE - PLAN_WALL_T);
+    expect(box.maxZ - box.minZ).toBeCloseTo(TILE);
   });
 
   it('hat eine Arbeitsplatte auf Arbeitshöhe und eine Nische darunter', () => {
@@ -146,36 +158,60 @@ describe('Die Küchenzeile', () => {
 
 describe('Treppe und Rampe', () => {
   /**
-   * **Die Zahl, wegen der es diesen Test gibt: 0,32 m.** So hoch steigt der
-   * Character-Controller (`PhysicsLocomotion`), und eine Stufe darüber ist eine
-   * Wand mit einer Kante obendrauf. Man merkt es nicht beim Bauen, sondern beim
-   * Hochlaufen — und dann steht man davor und weiß nicht, warum.
+   * **Die zwei Zahlen, wegen denen es diesen Test gibt: 0,2 m und 0,25 m.**
+   *
+   * So hoch darf eine Stufe höchstens und so tief muss sie mindestens sein
+   * (`STEP_RISE`, `STEP_RUN`). Der Character-Controller steigt zwar 0,32 m
+   * (`PhysicsLocomotion`), aber eine Stufe, auf die kein Fuß passt, nützt ihm
+   * nichts — die Treppe der Straßenküche hatte 0,19 m tiefe Stufen, und man
+   * blieb an jeder zweiten hängen. Eine Kachel nimmt deshalb höchstens
+   * `STAIR_LIFT` Anstieg; für eine ganze Etage legt `GridPlan.stairs()`
+   * mehrere hintereinander.
    */
-  it('macht keine Stufe höher als der Spieler steigt', () => {
-    for (const height of [1.2, 2.8, 3.1, 4]) {
-      const steps = at('stairs', DIR_N, height)
-        .map((one) => one.y + one.h / 2)
-        .sort((a, b) => a - b);
+  it('macht keine Stufe höher und keine flacher als erlaubt', () => {
+    for (const lift of [0.2, 0.35, 0.5, STAIR_LIFT]) {
+      const parts = at('stairs', DIR_N, lift);
+      const steps = parts.map((one) => one.y + one.h / 2).sort((a, b) => a - b);
       let last = 0;
       for (const top of steps) {
-        expect(top - last).toBeLessThanOrEqual(0.32);
+        expect(top - last).toBeLessThanOrEqual(STEP_RISE + 1e-9);
         last = top;
       }
       // Und oben kommt sie wirklich an.
-      expect(last).toBeCloseTo(height);
+      expect(last).toBeCloseTo(lift);
+      // Jede Stufe ist tief genug, dass ein Fuß daraufpasst.
+      for (const one of parts) expect(one.d).toBeGreaterThanOrEqual(STEP_RUN - 1e-9);
     }
   });
 
   it('steigt nach vorn — die unterste Stufe liegt hinten', () => {
-    const steps = at('stairs', DIR_N, 2.8);
+    const steps = at('stairs', DIR_N, STAIR_LIFT);
     const lowest = steps.reduce((a, b) => (a.h < b.h ? a : b));
     const highest = steps.reduce((a, b) => (a.h > b.h ? a : b));
     // Vorne ist Norden, also −Z: die hohe Stufe liegt nördlicher.
     expect(highest.z).toBeLessThan(lowest.z);
   });
 
+  it('fängt dort an, wo ihr Fuß steht', () => {
+    // **Die Zahl, die eine Treppe über mehrere Kacheln erst möglich macht.**
+    // Die zweite Kachel eines Laufs steigt nicht von null auf 0,7, sondern von
+    // 0,7 auf 1,4 — ohne `lift` stünden vier Treppenkacheln nebeneinander
+    // statt hintereinander.
+    const raised = blockSolids('stairs', {
+      x: 0,
+      base: 0,
+      z: 0,
+      dir: DIR_N,
+      height: STAIR_LIFT,
+      lift: STAIR_LIFT,
+    });
+    const box = solidBounds(raised)!;
+    expect(box.minY).toBeCloseTo(STAIR_LIFT);
+    expect(box.maxY).toBeCloseTo(2 * STAIR_LIFT);
+  });
+
   it('steigt nach Osten, wenn sie nach Osten zeigt', () => {
-    const steps = at('stairs', DIR_E, 2.8);
+    const steps = at('stairs', DIR_E, STAIR_LIFT);
     const lowest = steps.reduce((a, b) => (a.h < b.h ? a : b));
     const highest = steps.reduce((a, b) => (a.h > b.h ? a : b));
     expect(highest.x).toBeGreaterThan(lowest.x);
@@ -188,11 +224,15 @@ describe('Treppe und Rampe', () => {
   });
 
   it('macht die Rampe flacher als die Treppe', () => {
+    // Beide auf ihrer Vorgabehöhe: Eine Rampenkachel nimmt halb so viel
+    // Anstieg wie eine Treppenkachel — dafür legt man eben mehr davon
+    // hintereinander.
     const rise = (kind: BlockKind): number => {
-      const parts = at(kind, DIR_N, 1.2);
-      return 1.2 / parts.length;
+      const parts = at(kind);
+      return BLOCKS[kind].height / parts.length;
     };
     expect(rise('ramp')).toBeLessThan(rise('stairs'));
+    expect(BLOCKS.ramp.height).toBeLessThan(BLOCKS.stairs.height);
   });
 });
 
@@ -224,7 +264,7 @@ describe('Geländer und Brüstung', () => {
 
   it('gibt dem Geländer einen Knieholm zwischen Boden und Handlauf', () => {
     const parts = at('railing', DIR_N, 1);
-    const middle = parts.filter((one) => one.y > 0.3 && one.y < 0.8 && one.w > 1);
+    const middle = parts.filter((one) => one.y > 0.3 && one.y < 0.8 && one.w > TILE / 2);
     expect(middle.length).toBeGreaterThan(0);
   });
 });

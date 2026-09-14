@@ -202,11 +202,14 @@ export const DOOR: FixtureKind<DoorState> = {
     } else {
       // **Zwei Halbflügel, die zur Seite auseinanderfahren**, und nicht ein
       // ganzer, der nach links verschwindet. Der Grund ist eine Kachel breit:
-      // Ein ganzes Blatt (1,2 m) müsste 1,2 m zur Seite, träte damit über die
-      // Kachelkante und stünde in der **Nachbartür** — und in einer Wand mit
-      // drei Türen nebeneinander ist die Nachbartür genau das, was daneben
-      // liegt. Zwei Halbe fahren je 0,62 m und bleiben beide im Pfosten ihrer
-      // eigenen Kachel.
+      // Ein ganzes Blatt (`PLAN_DOOR_W`, heute 0,8 m) müsste um seine volle
+      // Breite zur Seite, träte damit über die Kachelkante und stünde in der
+      // **Nachbartür** — und in einer Wand mit drei Türen nebeneinander ist
+      // die Nachbartür genau das, was daneben liegt. Zwei Halbe fahren je eine
+      // halbe Türbreite und bleiben beide im Pfosten ihrer eigenen Kachel.
+      // Gerechnet wird aus `PLAN_DOOR_W` und nicht aus einer festen Zahl:
+      // Eine Türbreite, die an zwei Stellen steht, ist eine, die nach dem
+      // nächsten Umbau an einer davon falsch ist.
       const half = PLAN_DOOR_W / 2;
       for (const side of [-1, 1]) {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(half, PLAN_DOOR_H, PLAN_LEAF_T), board);

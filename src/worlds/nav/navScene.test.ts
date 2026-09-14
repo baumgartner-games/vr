@@ -58,19 +58,25 @@ describe('Aus der Welt in Kästen', () => {
 describe('Aus Kästen ein Gitter — und zurück in die Welt', () => {
   /** Ein Häuschen: Bodenplatte, vier Wände, eine Lücke als Tür. */
   function cottage(): THREE.Object3D[] {
-    const parts: THREE.Object3D[] = [slab([5 * TILE, 0.4, 5 * TILE], [6.25, -0.2, 6.25])];
+    const half = 2.5 * TILE;
+    const parts: THREE.Object3D[] = [slab([5 * TILE, 0.4, 5 * TILE], [half, -0.2, half])];
     // Nordwand mit einer Lücke in der Mitte.
-    parts.push(slab([TILE, 3, 0.3], [1.25, 1.5, 0]));
-    parts.push(slab([TILE * 3, 3, 0.3], [8.75, 1.5, 0]));
-    parts.push(slab([0.3, 3, 5 * TILE], [0, 1.5, 6.25]));
-    parts.push(slab([0.3, 3, 5 * TILE], [12.5, 1.5, 6.25]));
-    parts.push(slab([5 * TILE, 3, 0.3], [6.25, 1.5, 12.5]));
+    parts.push(slab([TILE, 3, 0.3], [0.5 * TILE, 1.5, 0]));
+    parts.push(slab([TILE * 3, 3, 0.3], [3.5 * TILE, 1.5, 0]));
+    parts.push(slab([0.3, 3, 5 * TILE], [0, 1.5, half]));
+    parts.push(slab([0.3, 3, 5 * TILE], [5 * TILE, 1.5, half]));
+    parts.push(slab([5 * TILE, 3, 0.3], [half, 1.5, 5 * TILE]));
     return parts;
   }
 
   it('macht aus einem gebauten Häuschen ein begehbares Gitter', () => {
     const report = bakeNav(boxesFrom(cottage()), {
-      bounds: { minX: 0.1, minZ: 0.1, maxX: 12.4, maxZ: 12.4 },
+      bounds: {
+        minX: 0.1,
+        minZ: 0.1,
+        maxX: 5 * TILE - 0.1,
+        maxZ: 5 * TILE - 0.1,
+      },
       levels: [0],
     });
     expect(report.tiles).toBe(25);
@@ -82,7 +88,7 @@ describe('Aus Kästen ein Gitter — und zurück in die Welt', () => {
   it('findet die Kachel unter einem Punkt in der Welt', () => {
     const graph = new NavGraph([0]);
     fillRect(graph, { x: 0, z: 0, w: 4, d: 4 });
-    const point = new THREE.Vector3(2 * TILE + 1, 0.2, 1 * TILE + 1);
+    const point = new THREE.Vector3(2 * TILE + TILE / 2, 0.2, 1 * TILE + TILE / 2);
     expect(tileUnder(graph, point)).toBe(tileKey(2, 1, 0));
   });
 });

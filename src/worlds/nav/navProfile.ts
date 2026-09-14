@@ -162,10 +162,10 @@ export interface CostProfile {
   /**
    * **Wie steil ein Weg noch sein darf**, in Grad.
    *
-   * Gemessen wird über eine **Kachel** (2,5 m waagerecht, `navTile.ts`), denn
-   * feiner löst diese Karte nicht auf: Was zwischen zwei Kachelmitten an
+   * Gemessen wird über eine **Kachel** (einen Meter waagerecht, `navTile.ts`),
+   * denn feiner löst diese Karte nicht auf: Was zwischen zwei Kachelmitten an
    * Höhe liegt, ist die Steigung dieses Stücks, egal wie die Rampe darunter
-   * gebaut ist. Eine Zahl von 20° heißt hier also „einen halben Meter je
+   * gebaut ist. Eine Zahl von 20° heißt hier also „gut ein Drittel Meter je
    * Kachel" — das ist weniger, als ein Mensch klettern kann, und genau so viel,
    * wie ein Mensch **läuft**.
    *

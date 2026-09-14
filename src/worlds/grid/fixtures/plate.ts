@@ -33,8 +33,14 @@ export interface PlateState {
   down: boolean;
 }
 
-/** Halbmesser der Scheibe und wie tief sie eintaucht. */
-const PLATE_R = 0.62;
+/**
+ * Halbmesser der Scheibe und wie tief sie eintaucht.
+ *
+ * 0,38 m, damit die Scheibe samt ihrem Ring (11 cm) in eine Kachel von einem
+ * Meter passt: Eine Platte, die über ihre Kachel ragt, löst aus, wenn jemand
+ * daneben steht.
+ */
+const PLATE_R = 0.38;
 const DROP = 0.035;
 
 /** Wie hoch sie über dem Boden liegt, wenn niemand darauf steht. */

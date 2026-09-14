@@ -13,10 +13,19 @@
  * darum ist die Formatversion daran gekoppelt und nicht bloß eine Zahl, die
  * man beim Laden hoffentlich beachtet.
  *
- * **2,5 Meter**, und das ist eine Entscheidung mit zwei Seiten: grob genug,
- * dass eine Karte wie Dust ein paar hundert Kacheln hat statt zehntausend
- * (fünfzig NPCs sollen darauf gleichzeitig denken), und fein genug, dass ein
- * Zimmer, ein Gang und eine Tür sich unterscheiden lassen. Was zwischen zwei
+ * **Ein Meter**, und das ist die Entscheidung vom September 2026. Vorher waren
+ * es 2,5 m — grob genug für eine Karte mit ein paar hundert statt zehntausend
+ * Kacheln, aber viel zu grob für die Welten, die hier gebaut werden sollen: In
+ * einer Küche wie bei Overcooked steht der Herd neben der Spüle und nicht drei
+ * Schritte weiter, und eine Kachel, in die ein ganzer Tisch *und* der Weg
+ * daran vorbei passen, kann so etwas nicht beschreiben. Mit einem Meter ist
+ * eine Kachel das, was ein Mensch mit einem Schritt überquert — und ein
+ * Grundriss liest sich in Metern, ohne dass jemand mal zweieinhalb rechnet.
+ *
+ * Der Preis ist die Kachelzahl: Dieselbe Halle hat jetzt sechsmal so viele
+ * Kacheln. Das ist vertretbar, weil die Welten dafür kleiner ausgelegt werden
+ * (der Hub misst elf mal elf Kacheln und nicht mehr siebzehneinhalb Meter),
+ * und weil die Wegsuche über ganze Zahlen läuft. Was zwischen zwei
  * Kachelmitten passiert, ist ausdrücklich **nicht** Sache des Gitters, sondern
  * der Fortbewegung: sie glättet den Weg und weicht dem aus, was gerade
  * herumsteht (`locomotion.ts`).
@@ -30,7 +39,7 @@
  */
 
 /** Die Kantenlänge einer Kachel in Metern. Siehe oben: fix, nicht einstellbar. */
-export const TILE = 2.5;
+export const TILE = 1;
 
 /**
  * Ein Kachelschlüssel: `x`, `z` und die Etage in **einer** Zahl.
@@ -45,7 +54,7 @@ export type TileKey = number;
 /** „Keine Kachel" — was `neighbour` außerhalb des Gitters zurückgibt. */
 export const NO_TILE: TileKey = -1;
 
-/** Die Grenzen des Gitters: ±1024 Kacheln sind ±2560 Meter in jede Richtung. */
+/** Die Grenzen des Gitters: ±1024 Kacheln sind ±1024 Meter in jede Richtung. */
 export const TILE_MIN = -1024;
 export const TILE_MAX = 1023;
 /** So viele Etagen passen in den Schlüssel. */

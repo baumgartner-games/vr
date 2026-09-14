@@ -47,10 +47,12 @@ import { standing, type PlanSolid, type PlanSolidKind } from './solids';
  *   Eine große Welt entsteht aus Blöcken, die einzeln geprüft sind, statt aus
  *   einem einzigen Stück, das man nur am Stück ausprobieren kann.
  *
- * **Gezählt wird in Kacheln, nicht in Metern.** Kachel `0` reicht von 0 bis
- * 2,5 m; ein Zimmer bei `x: -4, w: 8` steht also symmetrisch um die Null. Das
- * ist die eine Umgewöhnung — und sie ist es wert, denn sie ist der Grund,
- * warum eine Wand nie mehr einen halben Meter neben dem Boden steht.
+ * **Gezählt wird in Kacheln, nicht in Metern.** Seit eine Kachel einen Meter
+ * misst, ist das fast dasselbe: Kachel `0` reicht von 0 bis 1 m, ein Zimmer bei
+ * `x: -4, w: 8` steht symmetrisch um die Null und ist acht Meter breit. Der
+ * Unterschied bleibt trotzdem wichtig — eine Kachel ist ganz oder gar nicht,
+ * und das ist der Grund, warum eine Wand nie mehr einen halben Meter neben dem
+ * Boden steht.
  */
 
 /** Ein Baustein an seinem Platz. */

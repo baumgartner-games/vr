@@ -49,8 +49,15 @@ const PRESS = 0.35;
 /** Und wie tief er dabei eintaucht. */
 const DEPTH = 0.035;
 
-/** Wie weit die Säule von der Kante weg in die Kachel hineinrückt. */
-const STANDOFF = 0.45;
+/**
+ * Wie weit die Säule von der Kante weg in die Kachel hineinrückt.
+ *
+ * 0,3 m auf einer Kachel von einem Meter: Der Teller der Säule misst 0,6 m,
+ * damit steht sie mit ihrer Rückseite genau auf der Kante und ragt nicht
+ * darüber hinaus. Weiter herein gerückt stünde sie in der Kachelmitte — also
+ * genau dort, wo der steht, der sie drückt.
+ */
+const STANDOFF = 0.3;
 
 /** Der Nachlauf dieses Knopfes, in Sekunden. */
 export function buttonHold(place: FixturePlacement): number {
@@ -70,17 +77,18 @@ export const BUTTON: FixtureKind<ButtonState> = {
   accent: 0xff3b2f,
   // An eine Kante, und das hat einen sehr handfesten Grund: Ein Knopf in der
   // Kachelmitte ist einer, in dem die Figur **steht**, wenn sie ihn drückt —
-  // sie hat ja nur zweieinhalb Meter, und die Mitte ist genau der Platz, auf
-  // den sie tritt. An der Kante steht er *vor* ihr, dort, wo ein Knopf hingehört.
+  // die Kachel hat einen Meter, und ihre Mitte ist genau der Platz, auf den
+  // die Figur tritt. An der Kante steht er *vor* ihr, dort, wo ein Knopf
+  // hingehört.
   edge: true,
 
   init(): ButtonState {
     return { press: 0 };
   },
 
-  // Die Säule ist dünn und die Kachel zweieinhalb Meter breit: Wer hier einen
-  // Quader hinstellte, hätte einen Knopf, um den ein NPC einen Bogen macht und
-  // vor den man sich nicht mehr stellen kann.
+  // Die Säule steht an der Kante und lässt die halbe Kachel frei: Wer hier
+  // einen Quader hinstellte, hätte einen Knopf, um den ein NPC einen Bogen
+  // macht und vor den man sich nicht mehr stellen kann.
   solid(): boolean {
     return false;
   },

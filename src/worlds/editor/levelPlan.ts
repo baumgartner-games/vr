@@ -55,16 +55,25 @@ import {
 
 /** Wie hoch eine Wand im Bauplan ist, in Metern. */
 export const PLAN_WALL_H = 2.8;
-/** Und wie dick — deutlich dünner als eine halbe Kachel. */
-export const PLAN_WALL_T = 0.25;
+/**
+ * Und wie dick: **0,2 m**, je 10 cm in jede der beiden Kacheln, zwischen denen
+ * sie steht.
+ *
+ * Auf dem 1-m-Gitter ist das die Zahl, an der ein Gang steht oder fällt: Ein
+ * Gang von einer Kachel hat damit 0,8 m lichte Weite, und die Spielerkapsel
+ * misst 0,24 m im Halbmesser (`physics/playerClearance.ts`) — es bleibt eine
+ * Handbreit auf jeder Seite. Dicker wäre hübscher und würde denselben Gang
+ * zumauern.
+ */
+export const PLAN_WALL_T = 0.2;
 /** Wie dick eine Bodenplatte ist. */
 export const PLAN_FLOOR_T = 0.3;
-/** Wie breit eine Tür ist. */
-export const PLAN_DOOR_W = 1.2;
+/** Wie breit eine Tür ist: die Kachel minus zwei Pfosten von 10 cm. */
+export const PLAN_DOOR_W = 0.8;
 /** Und wie hoch. */
 export const PLAN_DOOR_H = 2.1;
 /** Ein Fenster: wie breit, und zwischen welchen beiden Höhen es offen ist. */
-export const PLAN_WINDOW_W = 1.4;
+export const PLAN_WINDOW_W = 0.8;
 export const PLAN_WINDOW_SILL = 0.95;
 export const PLAN_WINDOW_HEAD = 2.1;
 
@@ -371,10 +380,13 @@ export function planCentre(plan: NavGraph): { x: number; z: number } {
  */
 export function starterPlan(): NavGraph {
   const plan = new NavGraph([0]);
-  fillRect(plan, { x: -3, z: -3, w: 6, d: 6 });
-  wallRect(plan, { x: -3, z: -3, w: 6, d: 6 });
+  // Acht mal acht Kacheln sind auf dem 1-m-Gitter ein Zimmer von acht Metern —
+  // dieselbe Stube wie früher bei sechs Kacheln zu 2,5 m, nur eben in Metern
+  // gerechnet statt in Zweieinhalbteln.
+  fillRect(plan, { x: -4, z: -4, w: 8, d: 8 });
+  wallRect(plan, { x: -4, z: -4, w: 8, d: 8 });
   // Eine Tür in der Südwand, damit man beides einmal gesehen hat.
-  const doorTile = tileKey(0, 2, 0);
+  const doorTile = tileKey(0, 3, 0);
   setDoor(plan, doorTile, DIR_S, doorName(doorTile, DIR_S), true);
   return plan;
 }

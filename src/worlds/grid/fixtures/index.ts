@@ -188,7 +188,7 @@ export interface FixtureBuild {
  *
  * Ohne Angabe misst die Welt das Bild aus, und für die meisten Arten ist das
  * richtig. Es gibt zwei Fälle, in denen es das nicht ist, und beide kommen
- * gleich beim ersten Dutzend vor: eine **Tür**, die zweieinhalb Meter breit ist
+ * gleich beim ersten Dutzend vor: eine **Tür**, die eine ganze Kachel breit ist
  * und trotzdem keine Kugel schlucken soll (`shot: 0`), und ein **Knopf**, der
  * von oben großzügig anzuvisieren und aus der Ferne knapp zu treffen ist.
  */
@@ -255,8 +255,8 @@ export interface FixtureKind<S = unknown> {
   /**
    * Was seine Kachel kostet, solange er fest ist. Ohne Angabe `FIXTURE_COST`.
    *
-   * Kein „blockiert ja/nein", genau wie beim Baustein: Eine Kachel ist
-   * zweieinhalb Meter breit, und ein Knopf darin lässt reichlich Platz.
+   * Kein „blockiert ja/nein", genau wie beim Baustein: Ein Knopf steht an der
+   * Kante seiner Kachel und lässt den Rest davon frei.
    */
   cost?: number;
   /**
