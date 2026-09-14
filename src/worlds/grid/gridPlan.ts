@@ -18,6 +18,7 @@ import {
   type TileKey,
 } from '../nav/navTile';
 import { BLOCKS, blockRise, blockSolids, type BlockKind } from './blocks';
+import { FIXTURE_COST, fixtureKind, type FixturePlacement, type Props } from './fixtures/index';
 import { standing, type PlanSolid, type PlanSolidKind } from './solids';
 
 /**
@@ -103,6 +104,18 @@ export class GridPlan {
    */
   readonly graph: NavGraph;
   private readonly placed: BlockPlacement[] = [];
+  /**
+   * Die Einbauten — was auf dem Gitter einen Zustand hat
+   * (`fixtures/index.ts`).
+   *
+   * Eine eigene Liste neben den Bausteinen und nicht dieselbe, obwohl beide
+   * auf einer Kachel stehen und in eine Richtung schauen. Der Unterschied ist
+   * die **Kennung**: Ein Einbau hat einen Namen, weil ein anderer auf ihn
+   * zeigt (`props.target`), und er hat Eigenschaften, die niemand sonst
+   * versteht. Beides in `BlockPlacement` zu schieben hieße, jeder Küchenzeile
+   * ein leeres Eigenschaftsfach mitzugeben.
+   */
+  private readonly fitted: FixturePlacement[] = [];
   /** Die Massen. Heißt `stack`, weil `masses()` sie herausgibt. */
   private readonly stack: Mass[] = [];
   /**
@@ -138,11 +151,16 @@ export class GridPlan {
    * unbegehbar. Eine Welt, die ihren Kacheln von Hand Kosten gibt, lädt sie
    * deshalb nicht über diesen Weg.
    */
-  static from(graph: NavGraph, blocks: readonly BlockPlacement[] = []): GridPlan {
+  static from(
+    graph: NavGraph,
+    blocks: readonly BlockPlacement[] = [],
+    fixtures: readonly FixturePlacement[] = [],
+  ): GridPlan {
     const plan = new GridPlan(graph.levels);
     replacePlan(plan.graph, graph);
     for (const key of plan.graph.tileKeys()) plan.base.set(key, { cost: 1, rise: 0 });
     plan.loadBlocks(blocks);
+    plan.loadFixtures(fixtures);
     return plan;
   }
 
@@ -289,6 +307,171 @@ export class GridPlan {
     return this.placed.filter((one) => one.tile === tile);
   }
 
+  // --- die Einbauten ------------------------------------------------------
+
+  /** Die gesetzten Einbauten. */
+  fixtures(): readonly FixturePlacement[] {
+    return this.fitted;
+  }
+
+  /** Der Einbau mit dieser Kennung — `null`, wenn es ihn hier nicht gibt. */
+  fixture(id: string): FixturePlacement | null {
+    return this.fitted.find((one) => one.id === id) ?? null;
+  }
+
+  /** Was auf dieser Kachel eingebaut ist. */
+  fixturesOn(tile: TileKey): FixturePlacement[] {
+    return this.fitted.filter((one) => fixtureTile(one) === tile);
+  }
+
+  /**
+   * **Einen Einbau setzen** — und er zählt im Graphen wie ein Baustein.
+   *
+   * Zwei Fälle, und der zweite ist der, dessentwegen das hier steht:
+   *
+   * - Was **fest** ist (`solid`), macht seine Kachel teuer, genau wie ein
+   *   Tisch. Ein NPC geht dann außen herum, ohne dass jemand die Karte von
+   *   Hand nachpinselt.
+   * - Was eine **Tür** ist (`door`), wird zur Tür-Kante im Graphen
+   *   (`door(..., open)`) und nicht zu teurem Boden. Erst damit weiß ein NPC,
+   *   dass es dort durchgeht, wenn sie offen ist — und erst damit kann sich
+   *   eine Meinung über sie irren (`nav/navBelief.ts`). Ohne diesen Zweig
+   *   hätte man eine Tür, die man selbst aufdrücken kann und die für jeden
+   *   NPC eine Wand ist.
+   *
+   * Die **Kennung** wird vergeben, wenn keine dabeisteht (`sign-1`, `sign-2`).
+   * Wer auf einen Einbau zeigen will, gibt sie selbst an — eine gewachsene
+   * Nummer ist kein Ziel, auf das man sich in einer `layout()` verlassen kann.
+   */
+  putFixture(request: FixtureRequest): FixturePlacement {
+    const place: FixturePlacement = {
+      id: request.id && request.id.length > 0 ? request.id : this.fixtureId(request.kind),
+      kind: request.kind,
+      x: request.x,
+      z: request.z,
+      dir: request.dir,
+      level: request.level ?? 0,
+      props: { ...(request.props ?? {}) },
+    };
+    // Zweimal dieselbe Kennung wäre ein Ziel, das zwei Türen aufmacht — die
+    // ältere geht.
+    const had = this.fitted.findIndex((one) => one.id === place.id);
+    if (had >= 0) this.takeFixture(place.id);
+    this.fitted.push(place);
+    this.edits++;
+    this.fitDoor(place);
+    this.refresh(fixtureTile(place));
+    return place;
+  }
+
+  /**
+   * **Einen Einbau wieder wegnehmen.** Gibt zurück, was weg ist — damit die
+   * Meldung sagen kann, *was* verschwunden ist.
+   *
+   * Eine Türkante geht dabei ganz weg und wird nicht wieder zur Wand: Der
+   * Einbau *war* die Kante. Wer dort eine Wand will, malt eine.
+   */
+  takeFixture(id: string): FixturePlacement | null {
+    const index = this.fitted.findIndex((one) => one.id === id);
+    if (index < 0) return null;
+    const [gone] = this.fitted.splice(index, 1);
+    if (!gone) return null;
+    this.edits++;
+    if (fixtureKind(gone.kind)?.door) {
+      this.graph.clearWall(fixtureTile(gone), gone.dir);
+    }
+    this.refresh(fixtureTile(gone));
+    return gone;
+  }
+
+  /** Den zuletzt gesetzten Einbau dieser Kachel wegnehmen — der Radiergummi. */
+  takeFixtureOn(tile: TileKey): FixturePlacement | null {
+    for (let i = this.fitted.length - 1; i >= 0; i--) {
+      const one = this.fitted[i]!;
+      if (fixtureTile(one) === tile) return this.takeFixture(one.id);
+    }
+    return null;
+  }
+
+  /** Eine freie Kennung für diese Art — `sign-1`, `sign-2`, … */
+  fixtureId(kind: string): string {
+    for (let n = this.fitted.length + 1; ; n++) {
+      const id = `${kind}-${n}`;
+      if (!this.fitted.some((one) => one.id === id)) return id;
+    }
+  }
+
+  /**
+   * **Eine Türkante mit dem Zustand ihres Einbaus nachziehen** — das tut
+   * `GridWorld` jedes Bild, in dem sich etwas bewegt hat.
+   *
+   * Sie steht hier und nicht dort, weil der Name der Tür aus der Kante kommt
+   * (`doorName`) und damit dem Grundriss gehört: Wer ihn in der Welt noch
+   * einmal ausrechnete, hätte zwei Stellen, die sich einig sein müssen.
+   */
+  setFixtureDoor(place: FixturePlacement, open: boolean): void {
+    const tile = fixtureTile(place);
+    const facts = this.graph.wall(tile, place.dir);
+    if (!facts || facts.kind !== 'door' || facts.open === open) return;
+    this.graph.setWall(tile, place.dir, { ...facts, open });
+  }
+
+  /** Die Einbauten zum Speichern — wie die Bausteine, getrennt vom Graphen. */
+  saveFixtures(): FixturePlacement[] {
+    return this.fitted.map((one) => ({ ...one, props: { ...one.props } }));
+  }
+
+  /** Und wieder zurück. Was auf einer Kachel steht, die es nicht gibt, fällt weg. */
+  loadFixtures(list: readonly FixturePlacement[]): this {
+    const touched = new Set<TileKey>(this.fitted.map((one) => fixtureTile(one)));
+    this.fitted.length = 0;
+    for (const one of list) {
+      const tile = safeFixtureTile(one);
+      if (tile === null || !this.graph.has(tile)) continue;
+      if (this.fitted.some((had) => had.id === one.id)) continue;
+      const place: FixturePlacement = { ...one, props: { ...one.props } };
+      this.fitted.push(place);
+      this.fitDoor(place);
+      touched.add(tile);
+    }
+    this.edits++;
+    for (const tile of touched) this.refresh(tile);
+    return this;
+  }
+
+  /**
+   * **Ein Klotz je Einbau, für die Miniatur.**
+   *
+   * Nicht in `solids()`: Was ein Einbau in der Welt ist, baut seine Art
+   * (`build`), und derselbe Quader zweimal wäre ein Schild im Schild. Auf dem
+   * Tischmodell dagegen steht nichts, wenn hier nichts steht — und ein Editor,
+   * in dem das Gesetzte unsichtbar bleibt, ist einer, in dem man zweimal
+   * setzt.
+   */
+  fixtureMarks(): PlanSolid[] {
+    return this.fitted.map((one) =>
+      standing(
+        'glow',
+        tileCentreX(fixtureTile(one)),
+        this.graph.levelY(one.level),
+        tileCentreZ(fixtureTile(one)),
+        0.5,
+        1.4,
+        0.5,
+      ),
+    );
+  }
+
+  /** Die Türkante eines Einbaus anlegen, wenn seine Art eine ist. */
+  private fitDoor(place: FixturePlacement): void {
+    const kind = fixtureKind(place.kind);
+    if (!kind?.door) return;
+    const tile = fixtureTile(place);
+    if (!this.graph.has(tile)) return;
+    const open = kind.open ? kind.open(kind.init(place)) : true;
+    setDoor(this.graph, tile, place.dir, doorName(tile, place.dir), open);
+  }
+
   /**
    * Die Kacheldaten neu rechnen: Grundwert mal die Aufschläge dessen, was
    * darauf steht, plus deren Anhebung.
@@ -306,6 +489,15 @@ export class GridPlan {
       if (one.tile !== tile) continue;
       cost *= BLOCKS[one.kind].cost;
       rise += blockRise(one.kind, one.height);
+    }
+    // **Ein fester Einbau zählt wie ein Baustein.** Eine Türkante zählt
+    // dagegen gar nicht auf der Kachel — sie steht zwischen zweien, und ihre
+    // Kosten sind die der Tür im Graphen (`DOOR_COST`).
+    for (const one of this.fitted) {
+      if (fixtureTile(one) !== tile) continue;
+      const kind = fixtureKind(one.kind);
+      if (!kind || kind.door) continue;
+      if (kind.solid(kind.init(one))) cost *= kind.cost ?? FIXTURE_COST;
     }
     this.graph.setTile(tile, { cost, rise });
   }
@@ -446,7 +638,12 @@ export class GridPlan {
    * danach werden die Bausteine angewendet. Wer das umdreht, zählt wieder
    * doppelt.
    */
-  restore(graph: NavGraph, blocks: readonly BlockPlacement[], masses: readonly Mass[] = []): this {
+  restore(
+    graph: NavGraph,
+    blocks: readonly BlockPlacement[],
+    masses: readonly Mass[] = [],
+    fixtures: readonly FixturePlacement[] = [],
+  ): this {
     replacePlan(this.graph, graph);
     this.base.clear();
     for (const key of this.graph.tileKeys()) {
@@ -457,6 +654,7 @@ export class GridPlan {
     for (const mass of masses) this.stack.push({ ...mass, rect: { ...mass.rect } });
     this.placed.length = 0;
     this.loadBlocks(blocks);
+    this.loadFixtures(fixtures);
     return this;
   }
 
@@ -508,7 +706,45 @@ export class GridPlan {
     this.stack.length = 0;
     for (const mass of source.stack) this.stack.push({ ...mass, rect: { ...mass.rect } });
     this.loadBlocks(source.saveBlocks());
+    this.loadFixtures(source.saveFixtures());
     return this;
+  }
+}
+
+/**
+ * **Was zum Setzen eines Einbaus angegeben wird.**
+ *
+ * Kennung und Eigenschaften dürfen fehlen: Ein Schild an der Wand braucht
+ * keinen Namen, solange niemand auf es zeigt, und der Plan vergibt dann einen.
+ * Alles andere ist Pflicht — eine geratene Kachel gibt es nicht.
+ */
+export interface FixtureRequest {
+  id?: string;
+  kind: string;
+  x: number;
+  z: number;
+  dir: Dir;
+  level?: number;
+  props?: Props;
+}
+
+/** Auf welcher Kachel ein Einbau steht. */
+export function fixtureTile(place: FixturePlacement): TileKey {
+  return tileKey(place.x, place.z, place.level);
+}
+
+/**
+ * Dasselbe für etwas Gelesenes — `null` statt eines Wurfs.
+ *
+ * `tileKey` wirft für alles außerhalb des Gitters, und das ist beim Bauen
+ * richtig und beim Laden falsch: Eine fremde Datei mit einer Zahl aus der Luft
+ * soll einen Einbau kosten und nicht die ganze Welt.
+ */
+function safeFixtureTile(place: FixturePlacement): TileKey | null {
+  try {
+    return fixtureTile(place);
+  } catch {
+    return null;
   }
 }
 

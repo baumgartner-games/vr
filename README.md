@@ -40,8 +40,8 @@ Spielfigur steht mit im Modell und wird einfach woandershin gestellt, drumherum
 ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum.
 **Und es bleibt**: Unter _Welt sichern_ liegt eine
 gebaute Welt im Browser, geht als Datei herunter (`bauplatz-2026-09-07.welt.json`,
-Format `baumgartner-welt` in der Fassung `0.1.0`, mit Kacheln, Wänden, Türen,
-Möbeln und Dächern darin) und kommt so auch wieder zurück. Wer in einer
+Format `baumgartner-welt` in der Fassung `0.2.0`, mit Kacheln, Wänden, Türen,
+Möbeln, Einbauten und Dächern darin) und kommt so auch wieder zurück. Wer in einer
 fertigen Welt nur wissen will, wo er gerade ist, nimmt statt eines Grundrisses
 die **Karte** aus dem Werkzeugregal: ein Blatt in der Hand mit der Umgebung von
 oben, Norden oben, ein Pfeil für einen selbst und ein Punkt je Mitspieler — der

@@ -5,8 +5,9 @@ import {
   type PlanSpot,
   type PlanTool,
 } from '../editor/levelPlan';
-import { DIR_N } from '../nav/navTile';
+import { DIR_N, keyLevel, keyX, keyZ } from '../nav/navTile';
 import { BLOCKS, type BlockKind } from './blocks';
+import { fixtureKind, type Props } from './fixtures/index';
 import type { GridPlan } from './gridPlan';
 
 /**
@@ -38,7 +39,32 @@ import type { GridPlan } from './gridPlan';
  */
 
 /** Was der Pinsel gerade trägt. */
-export type GridTool = PlanTool | BlockKind;
+export type GridTool = PlanTool | BlockKind | FixtureTool;
+
+/**
+ * **Ein Einbau als Werkzeug** — `fixture:sign`, `fixture:door`, …
+ *
+ * Mit Vorsilbe und nicht bloß mit dem Namen der Art: Die Arten kommen aus
+ * einer Registry, die jedes Paket erweitert (`fixtures/kinds.ts`), und eine
+ * Art, die eines Tages `table` heißt, wäre sonst still derselbe Pinsel wie der
+ * Baustein Tisch. Zwei Werkzeuge mit einer Kennung sind eines zu viel.
+ */
+export type FixtureTool = `fixture:${string}`;
+
+const FIXTURE_TOOL = 'fixture:';
+
+export function isFixtureTool(tool: string): tool is FixtureTool {
+  return tool.startsWith(FIXTURE_TOOL);
+}
+
+/** Welche Art dieses Werkzeug setzt. */
+export function fixtureTool(kind: string): FixtureTool {
+  return `${FIXTURE_TOOL}${kind}`;
+}
+
+export function toolFixtureKind(tool: string): string {
+  return isFixtureTool(tool) ? tool.slice(FIXTURE_TOOL.length) : '';
+}
 
 /** Die Bausteine, die es im Bauplatz zu setzen gibt. */
 export const PALETTE_BLOCKS: readonly BlockKind[] = [
@@ -106,6 +132,25 @@ export interface GridToolSpec {
 }
 
 export function gridToolSpec(id: string): GridToolSpec {
+  if (isFixtureTool(id)) {
+    const kind = fixtureKind(toolFixtureKind(id));
+    if (!kind) {
+      return {
+        id: id as GridTool,
+        label: toolFixtureKind(id),
+        sub: 'Unbekannte Art',
+        accent: 0x8892a6,
+      };
+    }
+    return {
+      id: id as GridTool,
+      label: kind.label,
+      sub: kind.edge
+        ? 'Auf eine Kante zeigen — dort hängt er dann'
+        : 'Auf eine Kachel zeigen; die Kante gibt ihm die Blickrichtung',
+      accent: kind.accent,
+    };
+  }
   if (isBlockTool(id)) {
     return {
       id,
@@ -124,11 +169,24 @@ export function gridToolSpec(id: string): GridToolSpec {
  * **Ein Handgriff auf dem Grundriss** — dieselbe Rolle wie `applyTool`, nur
  * für einen Plan mit Bausteinen darauf.
  */
-export function applyGridTool(plan: GridPlan, tool: GridTool, spot: PlanSpot): PlanEdit {
+export function applyGridTool(
+  plan: GridPlan,
+  tool: GridTool,
+  spot: PlanSpot,
+  props: Props = {},
+): PlanEdit {
+  if (isFixtureTool(tool)) return setFixture(plan, tool, spot, props);
+
   if (!isBlockTool(tool)) {
     if (tool === 'erase') {
-      // Erst der Baustein: Wer eine Küchenzeile löschen will, will nicht den
-      // Boden darunter los.
+      // **Erst der Einbau, dann der Baustein, dann das Bauliche.** Wer ein
+      // Schild löschen will, will nicht die Wand los, an der es hängt — und
+      // wer eine Küchenzeile löscht, nicht den Boden darunter.
+      const fixture = plan.takeFixtureOn(spot.tile);
+      if (fixture) {
+        const kind = fixtureKind(fixture.kind);
+        return { changed: true, says: `${kind?.label ?? fixture.kind} weg` };
+      }
       const gone = plan.takeBlock(spot.tile);
       if (gone) return { changed: true, says: `${BLOCKS[gone.kind].label} weg` };
     }
@@ -150,4 +208,35 @@ export function applyGridTool(plan: GridPlan, tool: GridTool, spot: PlanSpot): P
 
   plan.putAt(tool, spot.tile, dir);
   return { changed: true, says: BLOCKS[tool].label };
+}
+
+/**
+ * **Einen Einbau setzen** — dieselben zwei Regeln wie beim Baustein.
+ *
+ * Was an eine Kante gehört, will eine Kante (`kind.edge`); was frei steht,
+ * nimmt sie als Blickrichtung. Und zweimal dasselbe an dieselbe Kante ist kein
+ * Fehler, sondern die häufigste Handbewegung überhaupt — es soll nur nicht
+ * zweimal dastehen.
+ */
+function setFixture(plan: GridPlan, tool: FixtureTool, spot: PlanSpot, props: Props): PlanEdit {
+  const name = toolFixtureKind(tool);
+  const kind = fixtureKind(name);
+  if (!kind) return { changed: false, says: `„${name}" kennt dieses Programm nicht` };
+  if (!plan.graph.has(spot.tile)) return { changed: false, says: 'Erst Boden legen' };
+  if (kind.edge && spot.dir === null) {
+    return { changed: false, says: `${kind.label} braucht eine Kante` };
+  }
+  const dir = spot.dir ?? DIR_N;
+  const had = plan.fixturesOn(spot.tile).find((one) => one.kind === name && one.dir === dir);
+  if (had) return { changed: false, says: '' };
+
+  plan.putFixture({
+    kind: name,
+    x: keyX(spot.tile),
+    z: keyZ(spot.tile),
+    level: keyLevel(spot.tile),
+    dir,
+    props,
+  });
+  return { changed: true, says: kind.label };
 }
