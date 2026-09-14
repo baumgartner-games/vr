@@ -9,6 +9,7 @@ import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { PageMenu } from '../ui/PageMenu';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
+import { WardrobeMenu } from '../ui/WardrobeMenu';
 import { TopDownCamera } from './TopDownCamera';
 import {
   SCREEN_VIEW_LABELS,
@@ -151,6 +152,15 @@ export class App {
    * großen: Es gehört zum Knopf unten rechts und nicht in die Einstellungen.
    */
   readonly toolMenu: PageMenu;
+  /**
+   * **Die Umkleide** — die Seite vor dem Kleiderschrank (`ui/WardrobeMenu.ts`).
+   *
+   * Sie gehört `App` und keiner Welt, genau wie das Aussehen selbst
+   * (`core/appearance.ts`): Wer sich in der Testwelt umzieht, läuft im Hub
+   * ebenso herum. Eine Welt macht sie über den Weltkontext auf
+   * (`WorldContext.openWardrobe`) und weiß sonst nichts von ihr.
+   */
+  readonly wardrobe: WardrobeMenu;
   /** Der runde Knopf unten rechts (`index.html`, `#hud-tool`). */
   private readonly toolButton: ToolButton | null;
   /**
@@ -314,6 +324,7 @@ export class App {
       title: 'Werkzeug',
       onToggle: (open) => this.toolButton?.setOpen(open),
     });
+    this.wardrobe = new WardrobeMenu();
     const toolEl =
       typeof document === 'undefined'
         ? null
@@ -409,6 +420,7 @@ export class App {
       },
       say: (text, options) => void this.say(text, options),
       wear: (kind) => this.wear(kind),
+      openWardrobe: () => this.openWardrobe(),
     };
   }
 
@@ -788,6 +800,7 @@ export class App {
     this.wristMenu.dispose();
     this.pageMenu.dispose();
     this.toolMenu.dispose();
+    this.wardrobe.dispose();
     this.toolButton?.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
@@ -1198,6 +1211,26 @@ export class App {
    * das an zwei Stellen setzte, hätte irgendwann einen Spieler mit zwei
    * verschiedenen Hüten, je nachdem, wen man fragt.
    */
+  /**
+   * **Die Umkleide aufmachen** — je Ansicht auf einem anderen Weg
+   * (`WorldContext.openWardrobe`, `worlds/grid/fixtures/wardrobe.ts`).
+   *
+   * Am Bildschirm ist es die Seite mit der Figur daneben
+   * (`ui/WardrobeMenu.ts`). **In der Brille nicht**: Dort steht der Spiegel am
+   * Schrank und zeigt einen selbst, und die drei Zeilen gibt es längst — unter
+   * _Aussehen_ am Handgelenk. Ein zweites Canvas mit einer zweiten Figur davor
+   * wäre ein Bild von einem Spiegel neben einem Spiegel, und es kostete einen
+   * ganzen zweiten Renderer in der Sitzung, in der die Bilder am knappsten
+   * sind.
+   */
+  private openWardrobe(): void {
+    if (this.renderer.xr.isPresenting) {
+      this.wristMenu.openSubmenu('look');
+      return;
+    }
+    this.wardrobe.toggle(true);
+  }
+
   private wear(kind: HeadgearKind | null): void {
     this.worn = kind;
     this.applyAppearance();
@@ -1795,7 +1828,11 @@ export class App {
 
     // One frame behind the spectator on purpose: the flat controls run before
     // the world, the spectator after it.
-    this.flat.enabled = !presenting && !this.spectating;
+    // **Die offene Umkleide hält die Beine an.** Sie liegt über dem Bild, und
+    // wer darin mit den Pfeiltasten blättert, soll nicht nebenbei durch die
+    // Wand laufen — die Seite fängt Finger und Maus ohnehin ab, die Tastatur
+    // hört aber am Fenster mit (`FlatControls`).
+    this.flat.enabled = !presenting && !this.spectating && !this.wardrobe.isOpen;
     if (!presenting) this.flat.update(dt);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.

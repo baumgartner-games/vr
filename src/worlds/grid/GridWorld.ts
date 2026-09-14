@@ -725,7 +725,25 @@ export abstract class GridWorld extends PortalWorld {
         // und werden nicht neu erfunden.
         this.fireEffect(from, event.effect, event.size ?? 1, event.at ?? null);
         break;
+      case 'wardrobe':
+        this.openWardrobe(ctx);
+        break;
     }
+  }
+
+  /**
+   * **Die Umkleide** — der Abnehmer für `wardrobe`-Ereignisse
+   * (`fixtures/wardrobe.ts`).
+   *
+   * Drei Zeilen, und alle drei sind eine Weitergabe: Die Welt besitzt die
+   * Umkleide nicht, sie kennt sie nicht einmal. Wer sich vor dem Schrank
+   * umzieht, läuft auch in der nächsten Welt so herum — das Aussehen hängt am
+   * Spieler (`core/appearance.ts`), also hängt auch das Menü dazu an `App`
+   * und nicht hier. Eine Methode und kein direkter Aufruf im `switch`, damit
+   * eine Welt sie überschreiben kann, die etwas anderes vorhat.
+   */
+  protected openWardrobe(ctx: WorldContext): void {
+    ctx.openWardrobe();
   }
 
   // --- die Effekte ----------------------------------------------------------

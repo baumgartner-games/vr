@@ -101,6 +101,20 @@ export interface WorldContext {
    * wieder seinen eigenen Hut auf.
    */
   wear(kind: HeadgearKind | null): void;
+  /**
+   * **Die Umkleide aufmachen** (`ui/WardrobeMenu.ts`).
+   *
+   * Sie gehört `App` und keiner Welt, aus demselben Grund wie das Aussehen
+   * selbst: Wer sich vor dem Schrank in der Testwelt umzieht, läuft auch im
+   * Hub so herum. Eine Welt sagt deshalb nur, **dass** jemand davorsteht und
+   * gedrückt hat — der Kleiderschrank meldet `{ type: 'wardrobe' }`, und
+   * `GridWorld` reicht es hierher weiter. Später ruft Haunting dieselbe Zeile.
+   *
+   * Wie sie aussieht, entscheidet die Ansicht: am Bildschirm eine Seite mit
+   * der Figur in Nahaufnahme, in der Brille die Seite _Aussehen_ am
+   * Handgelenk — dort steht die Figur ja schon im Spiegel am Schrank.
+   */
+  openWardrobe(): void;
 }
 
 /**
