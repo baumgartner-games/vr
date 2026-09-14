@@ -205,7 +205,13 @@ export abstract class GridWorld extends PortalWorld {
     this.batches.length = 0;
     for (const mesh of this.slabs) this.dropSlab(mesh);
     this.slabs.length = 0;
+    // **Das Blatt einer Einbau-Tür baut ihre Art selbst** (`fixtures/door.ts`):
+    // Es fährt, und ein zweites, starres an derselben Stelle wäre eine Tür, die
+    // aufgeht und trotzdem zu bleibt. Pfosten und Sturz kommen weiter aus dem
+    // Plan — die stehen ja und bewegen sich nie.
+    const owned = this.fixtureDoors();
     for (const solid of plan.solids()) {
+      if (solid.door && owned.has(solid.door)) continue;
       if (solid.door && this.slidingGridDoors() && plan.graph.door(solid.door)?.open) continue;
       this.build(group, solid);
     }
@@ -256,6 +262,26 @@ export abstract class GridWorld extends PortalWorld {
   // --- die Einbauten --------------------------------------------------------
 
   /**
+   * **Welche Türkanten des Plans einem Einbau gehören.**
+   *
+   * Die Namen und nicht die Kacheln, denn danach fragt der Quader
+   * (`PlanSolid.door`). Eine Tür, die als Einbau dasteht, bringt ihr Blatt
+   * selbst mit; alles andere an ihr — Pfosten, Sturz — kommt weiter aus dem
+   * Grundriss.
+   */
+  private fixtureDoors(): ReadonlySet<string> {
+    const out = new Set<string>();
+    const plan = this.grid;
+    if (!plan) return out;
+    for (const place of plan.fixtures()) {
+      if (!knownKind(place.kind)?.door) continue;
+      const facts = plan.graph.wall(fixtureTile(place), place.dir);
+      if (facts?.kind === 'door') out.add(facts.id);
+    }
+    return out;
+  }
+
+  /**
    * **Die Einbauten des Plans bauen** — jeden über seine Art
    * (`fixtures/index.ts`).
    *
@@ -301,6 +327,7 @@ export abstract class GridWorld extends PortalWorld {
         // unten nicht zu sehen (`core/cutaway.ts`).
         view.object.userData.level = place.level;
       }
+      this.attachUsable(place, kind, view);
       const state = kind.init(place);
       const run: FixtureRun = {
         place,
@@ -317,6 +344,41 @@ export abstract class GridWorld extends PortalWorld {
       this.setFixtureSolid(run, kind.solid(state));
       kind.apply(view, state);
     }
+  }
+
+  /**
+   * **Die eine Zeile, mit der jeder Einbau benutzbar wird** (`core/usable.ts`,
+   * Plan E5/P2).
+   *
+   * Sie steht hier und nicht in den Arten, und das ist der Unterschied zwischen
+   * einer Registry und einer Sammlung von Sonderfällen: Ein Knopf, ein Hebel,
+   * ein Schild, ein Tor — sie alle werden auf dieselbe Art angefasst, und was
+   * dabei passiert, entscheidet ihr `step` und nicht ihr Anschluss. Wer statt
+   * dessen je Art eine eigene Anmeldung schriebe, hätte beim fünften Einbau
+   * fünf Wege zum selben `markUsed`.
+   *
+   * **Die Kugel zählt wie die Hand** (Portal-Regel): Ein Treffer wird zu `hit`,
+   * ein Druck zu `used`, und beides steht im nächsten `step`. Welche Art damit
+   * etwas anfängt, ist ihre Sache — der Knopf tut es, die Platte nicht.
+   */
+  private attachUsable(
+    place: FixturePlacement,
+    kind: FixtureKind<unknown>,
+    view: FixtureView,
+  ): void {
+    const object = view.handle ?? view.object;
+    if (!object) return;
+    object.userData.fixture = place.id;
+    this.addUsable(
+      object,
+      {
+        use: (by) => (by.kind === 'bullet' ? this.markHit(place.id) : this.markUsed(place.id)),
+        // Der Hinweis über der Figur sagt, wovor sie steht — mehr weiß die
+        // Welt nicht, und mehr braucht es nicht: `E · Knopf`.
+        usePrompt: () => kind.label,
+      },
+      view.use ?? {},
+    );
   }
 
   /**
@@ -344,6 +406,10 @@ export abstract class GridWorld extends PortalWorld {
       );
       mesh.userData.fixture = run.place.id;
       mesh.userData.level = run.place.level;
+      // **Ein Blatt, das seine Art selbst zeichnet, ist hier nur Körper.** Die
+      // Marke daran ist der Name der Tür (`PlanSolid.door`); sichtbar stünde
+      // das Blatt zweimal da — einmal starr, einmal fahrend.
+      if (one.door) mesh.visible = false;
       run.meshes.push(mesh);
     }
   }
@@ -353,6 +419,11 @@ export abstract class GridWorld extends PortalWorld {
     for (const run of this.fixtures) {
       for (const mesh of run.meshes) this.dropSlab(mesh);
       run.meshes.length = 0;
+      // Abgemeldet wird, was angemeldet wurde: Ein benutzbares Ding, das nach
+      // dem Umbau in der Liste der Welt stehen bliebe, wäre ein Knopf, der
+      // nicht mehr da ist und trotzdem die Tür aufmacht.
+      const handle = run.view.handle ?? run.view.object;
+      if (handle) this.removeUsable(handle);
       run.view.dispose?.();
       // **Nur die Formen.** Die Materialien kommen aus der Palette der Welt
       // und werden geteilt; wer sie hier freigäbe, nähme sie allen anderen weg.

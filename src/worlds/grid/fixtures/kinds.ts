@@ -1,6 +1,11 @@
+import { BUTTON } from './button';
+import { DOOR } from './door';
+import { EMITTER } from './emitter';
 import { GATE } from './gate';
 import { fixtureKind, fixtureKinds, registerKind, type FixtureKind } from './index';
-import { EMITTER } from './emitter';
+import { LAMP } from './lamp';
+import { LEVER } from './lever';
+import { PLATE } from './plate';
 import { SIGN } from './sign';
 
 /**
@@ -24,6 +29,11 @@ import { SIGN } from './sign';
 registerKind(SIGN);
 registerKind(GATE);
 registerKind(EMITTER);
+registerKind(DOOR);
+registerKind(BUTTON);
+registerKind(LEVER);
+registerKind(PLATE);
+registerKind(LAMP);
 
 /** Die Art mit diesem Namen — `null`, wenn dieses Programm sie nicht kennt. */
 export function knownKind(kind: string): FixtureKind<unknown> | null {
@@ -35,4 +45,4 @@ export function paletteKinds(): readonly FixtureKind<unknown>[] {
   return fixtureKinds();
 }
 
-export { EMITTER, GATE, SIGN };
+export { BUTTON, DOOR, EMITTER, GATE, LAMP, LEVER, PLATE, SIGN };

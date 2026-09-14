@@ -38,6 +38,12 @@ import { stampStairs } from './stampStairs';
  *   Spalte 9) statt mitten darauf und damit drei Kacheln vom Startplatz
  *   entfernt. Ein Tor direkt neben dem Spawn ist eines, durch das man beim
  *   ersten Schritt fällt, bevor man die Welt gesehen hat.
+ *
+ * **Zwei Kisten sind später dazugekommen** (Zeilen 13 und 14, Spalte 5): Sie
+ * liegen neben der Druckplatte der Türwand (`stampDoors.ts`) und sind das, was
+ * man daraufschiebt, damit die Drucktür offen bleibt. Sie stehen hier und nicht
+ * dort, weil eine Kiste ein **Gegenstand** ist — sie bekommt einen Körper von
+ * der Welt (`StreetWorld.buildProps`), und die baut sie aus dieser Zeichnung.
  */
 
 /** Die Legende der Zeichnung — ein Zeichen, eine Sache. */
@@ -90,8 +96,8 @@ export const MAP: readonly string[] = [
   'B.........SSSS.........B', // 10
   'B...MMM...SSSS....MMM..B', // 11
   'B.........SSSS.........B', // 12  Startplatz: Spalte 12
-  'B........TSSSS.........B', // 13  Tor → Hub
-  'Bb........SSSS.......b.B', // 14
+  'B....k...TSSSS.........B', // 13  Kiste für die Druckplatte, Tor → Hub
+  'Bb...k....SSSS.......b.B', // 14
   'BBBBBBBBBBBBBBBBBBBBBBBB', // 15
 ];
 

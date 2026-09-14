@@ -2710,9 +2710,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   **Küchenzeilen** mit zwei Herdplatten, am Rand **Marktstände** mit
   gestreiften Markisen (blau-weiß und rot-weiß), Bänke, Verkehrshüte,
   Blumenkübel und vier Kisten zum Schieben. Sie steht auf dem **Kachelgitter**
-  (24 × 16 Kacheln, `street/streetPlan.ts`), und sie ist der Ort, an dem die
-  Türen, Knöpfe, Platten, Treppen und Effekte der nächsten Pakete ausprobiert
-  werden ([der Plan](docs/plan-2d-hub-interaktion.md), P6 und P7).
+  (24 × 16 Kacheln, `street/streetPlan.ts`), und sie ist der Ort, an dem
+  **Türen, Knöpfe, Platten, Treppen und Effekte** wirklich ausprobiert werden
+  ([der Plan](docs/plan-2d-hub-interaktion.md)) — eine Welt, in der man dabei
+  läuft, und kein Labor, in dem man davorsteht.
   - **Die Karte ist eine Zeichnung im Quelltext** (`MAP`): eine Zeile je
     Kachelreihe, ein Zeichen je Kachel — `B` Bordstein, `S` Straße, `Z`
     Zebrastreifen, `K` Küchenzeile, `H` Herd, `M` Marktstand, `b` Bank, `k`
@@ -2748,17 +2749,34 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     ohnehin alle auf einen Schlag durchrechnet. Eine Ecke, in die man nicht
     kommt, merkt man sonst erst nach dem Laden, nach dem Aufsetzen, nach dem
     Hinlaufen.
-  - **Drei leere Dateien warten** (`stampDoors.ts`, `stampStairs.ts`,
-    `stampEffects.ts`), aufgerufen am Ende von `streetPlan()`. Wer Türen (P6)
-    oder Treppen und Effekte (P7) hineinstellt, schreibt in **seine** Datei und
-    nicht in die Komponistin — so können die Pakete nebeneinander laufen, ohne
-    sich in derselben Zeile zu treffen. Die zweite Etage für das Podest im
-    Nordwesten steht schon im Graphen und ist noch leer.
-  - **Das Tor zurück in den Hub** ist ein Einbau der Art `gate` und steht im
-    Grundriss. Die Art selbst gehört P4; solange dieses Programm sie nicht
-    kennt, meldet `GridWorld` sie beim Bauen und überspringt sie — genau dafür
-    ist die Registry so gebaut, und der Rückweg ist bis dahin das
-    Handgelenkmenü.
+  - **Die Türwand im Südwesten** (`stampDoors.ts`): in der Ecke liegt ein
+    kleiner **Hof**, und davor steht eine kurze Wand mit den drei Türen des
+    Interaktionslabors — Schiebetür, Flügeltür, Drucktür —, jede mit ihrem
+    Auslöser eine Kachel davor: **roter Knopf**, **Hebel**, **Druckplatte**,
+    und neben der Platte zwei Kisten, die man daraufschiebt. Dazu eine
+    **Lampe** an der Kreuzung mit ihrem **Kippschalter** — die kürzeste Kette,
+    die es gibt: Hebel umlegen, Licht geht an, und dazwischen liegt nichts als
+    ein `trigger` durch die Registry (`grid/fixtures/`, siehe _Einbauten_).
+    Dieselbe Lampe schaltet der Hebel oben auf dem Podest; ihre Kennung ist
+    deshalb eine Konstante (`stampStairs.LAMP_ID`) und keine Zeichenkette an
+    zwei Stellen. Ein **Hof** und keine Wand quer über den Platz, denn eine
+    Tür, an der man vorbeigehen kann, ist ein Möbelstück; und weil hier
+    wirklich getrennt wird, lässt es sich auch **prüfen**
+    (`streetDoors.test.ts`): Mit geschlossenen Türen kommt vom Startplatz aus
+    niemand hinter die Wand, mit einer geöffneten alle neun Kacheln — ein
+    Strömungsfeld, in Millisekunden, statt dass es jemand im Headset nachläuft.
+    Der **Südwesten** und nicht der Osten, weil dort die Effektecke steht: Zwei
+    Pakete auf denselben Kacheln wären zwei Einbauten ineinander. Rechts hängt
+    in dieser Welt deshalb die **Pistole** statt der zweiten Portalpistole:
+    Draußen hält kein Portal, und der Knopf lässt sich anschießen.
+  - **Drei Dateien hängen am Ende von `streetPlan()`** (`stampDoors.ts`,
+    `stampStairs.ts`, `stampEffects.ts`) — Türen, Treppen, Effekte, je eine
+    Datei und je ein Eigentümer. Die Komponistin sagt nur, *was*
+    zusammenkommt; so konnten die Pakete nebeneinander laufen, ohne sich in
+    derselben Zeile zu treffen.
+  - **Das Tor zurück in den Hub** ist ein Einbau der Art `gate`
+    (`grid/fixtures/gate.ts`) und steht im Grundriss: eine Kachel, auf der man
+    steht, um woanders zu sein — kein selbstgebautes Gebilde daneben.
 - **Schilder** (`src/worlds/signs/`, Werkzeug `tools/SignTool.ts`): Tafeln, die
   man irgendwo hinstellt und beschriftet. Sie sind das Gegenstück zur
   Staffelei — die stellt eine Fläche zum _Malen_ hin, das Schild eine zum
@@ -2977,6 +2995,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Schild lesen und ändern                                                            | mit **leerer Hand** hinzeigen + Trigger öffnet die Tastatur; Daumenstick derselben Hand rollt den Text                                                                                                                                                        | anklicken (gerollt wird in der Brille)                                                                                                                                                                                                                                                                                                         | –                                                           | tippen                                     |
 | Tastatur (mehrzeilig)                                                              | Tasten anzielen + Trigger; in der Brille kommt, wo es sie gibt, die Systemtastatur des Geräts dazu; `⏎ Zeile` macht eine neue Zeile, `Fertig` übernimmt                                                                                                       | echte Tastatur, `Strg`+`Eingabe` übernimmt, `Esc` bricht ab                                                                                                                                                                                                                                                                                    | –                                                           | tippen                                     |
 | Interaktionslabor                                                                  | roter Knopf öffnet die Schiebetür (sechs Sekunden), Hebel rastet die Flügeltür, Kiste oder Fuß auf der Druckplatte hält die dritte auf; Kippschalter an der Westwand macht das Licht                                                                          | anklicken; **von oben** davorstellen und benutzen — oder auf den Knopf schießen                                                                                                                                                                                                                                                                | –                                                           | tippen                                     |
+| Straßenküche: Türwand                                                              | Knopf drücken, Hebel umlegen oder eine Kiste auf die Druckplatte schieben — die Tür dahinter fährt; die Lampe darüber ist gelb in Bewegung und grün offen                                                                                                     | **von oben** davorstellen und `E`; den Knopf trifft auch die Pistole (Linksklick)                                                                                                                                                                                                                                                              | –                                                           | A-Fläche, bzw. B zum Schießen              |
 | Effektlabor                                                                        | roter Knopf löst aus; links Kachel wählen und den Schieber ziehen (Trigger halten)                                                                                                                                                                            | anklicken / ziehen                                                                                                                                                                                                                                                                                                                             | –                                                           | tippen                                     |
 | Duplizier-Waffe                                                                    | zielen + Trigger legt eine Kopie daneben                                                                                                                                                                                                                      | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Inspektor                                                                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
@@ -7666,6 +7685,71 @@ im Effektlabor, importiert und nicht abgeschrieben (`effects/effectKinds.ts`).
 Sie ist das Kind, an dem man sieht, wozu die vier Ereignisse gut sind: Ihre
 ganze Logik ist ein Zähler und eine Wartezeit, die Wolke baut `GridWorld`. Mehr
 dazu steht beim Effektlabor unter _Was drin ist_.
+
+##### Türen, Knöpfe, Platten
+
+Seit P6 stehen die fünf Arten daneben, die das Interaktionslabor bisher allein
+hatte — **Tür**, **Knopf**, **Hebel**, **Platte**, **Lampe** —, und zwar auf
+dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
+
+- **Die Türmathematik wird importiert, nicht abgeschrieben.** `fixtures/door.ts`
+  rechnet mit `interact/doorMotion.ts` — derselbe Zustand (`open` zwischen 0
+  und 1, `wanted`, `hold`), dieselbe weiche Kurve, dieselbe Schwelle, ab der
+  man hindurchpasst. Eine zweite Türmathematik neben der ersten wäre eine, die
+  nach dem dritten Umbau anders aussieht als die, an der sie eingestellt wurde.
+  Drei Betriebsarten stecken in `props.mode`: `slide` (Nachlauf, sechs
+  Sekunden), `swing` (rastet, zwei Flügel an Scharnieren am Rahmen) und `plate`
+  (kurzer Nachlauf).
+- **Die Schiebetür hat zwei Halbflügel.** Nicht Geschmack, sondern eine
+  Kachelbreite: Ein ganzes Blatt (1,2 m) müsste 1,2 m zur Seite fahren, träte
+  damit über die Kachelkante und stünde in der Nachbartür — und in einer Wand
+  mit drei Türen nebeneinander ist die Nachbartür genau das, was daneben liegt.
+  Zwei Halbe fahren je 62 cm und bleiben im Pfosten ihrer eigenen Kachel.
+- **Das Blatt gehört der Art, der Rahmen dem Grundriss.** Pfosten und Sturz
+  baut `planSolids` wie bei jeder Türkante; das Blatt lässt `GridWorld` für
+  Einbau-Türen weg und überlässt es der Art, die es fahren lässt. Der Quader,
+  der aufhält, solange sie zu ist, steht in `view.solids` — **unsichtbar**, nur
+  Körper, erkennbar am Namen der Tür (`PlanSolid.door`). Sichtbar stünde das
+  Blatt zweimal da: einmal starr, einmal fahrend.
+- **Benutzbar wird ein Einbau in genau einer Zeile**, und die steht in
+  `GridWorld.buildFixtures` und nicht in den Arten
+  (`addUsable` → `markUsed`/`markHit`, `core/usable.ts`). Ein Knopf, ein Hebel,
+  ein Schild, ein Tor werden alle gleich angefasst; *was* dabei passiert,
+  entscheidet ihr `step`. Wer statt dessen je Art eine eigene Anmeldung
+  schriebe, hätte beim fünften Einbau fünf Wege zum selben Haken. Der Hinweis
+  über der Figur ist der Name der Art (_E · Knopf_). Wo man anfasst, darf die
+  Art sagen (`view.handle`): Der rote Knopf gibt seine **Kuppel** an, denn eine
+  Kugel auf Hüfthöhe soll den roten Punkt treffen und nicht die Säule darunter,
+  und der Hebel seinen **Sockel**, denn sein Knauf wandert beim Umlegen und ein
+  Ziel, das sich mit seinem eigenen Zustand verschiebt, erwischt man nach dem
+  ersten Mal nicht mehr.
+- **Die Portal-Regel gilt auch hier**: Was man drücken kann, kann man auch
+  treffen. Beim Knopf sind `used` und `hit` derselbe Weg; dass er dabei einen
+  **Nachlauf** hat, ist kein Schmuck, sondern die Bremse gegen das Dauerfeuer —
+  ohne sie drückte es ihn sechzigmal in der Sekunde und eine rastende Tür
+  stünde danach auf einer zufälligen Seite.
+- **Staub und Funken sind gemeldet, nicht gebaut.** Eine Tür, die losfährt oder
+  zufällt, gibt `effect('dust')` zurück, ein Knopf, den eine **Kugel** erwischt,
+  `effect('sparks')` — und eine Hand, die denselben Knopf drückt, eben nicht.
+  Gebaut wird beides von `GridWorld` aus den Zahlen des Effektlabors
+  (`effects/effectKinds.ts`); eine Art, die ihre eigene Wolke zeichnete, wäre
+  eine, die man ohne Bildschirm nicht mehr prüfen kann.
+- **Die Platte löst in jedem Bild neu aus**, in dem etwas auf ihr steht, und
+  nicht nur beim Betreten. Nur so setzt die Tür dahinter ihre Uhr zurück und
+  fällt anderthalb Sekunden nach dem *Verlassen* zu statt unter dem, der in ihr
+  steht. Gezählt wird das Gewicht als **Zahl** (`weightOn`): zwei Kisten sind
+  zwei, und wer eine wegnimmt, hat immer noch eine.
+- **Knopf, Hebel, Platte und Lampe halten niemanden auf** (`solid()` ist
+  falsch). Eine Kachel ist zweieinhalb Meter breit und eine Knopfsäule eine
+  Handbreit dick; ein Quader darum wäre ein Knopf, um den ein NPC einen Bogen
+  macht und vor den man sich nicht mehr stellen kann. Sie rücken dafür an die
+  **Kante** ihrer Kachel statt in die Mitte — in der Mitte stünde die Figur in
+  ihnen, sobald sie drückt.
+- **Die Schiebetür des Gitters (`slidingDoor.ts`) bleibt, wie sie ist.** Sie
+  schaltet ein Blatt zwischen auf und zu und baut es dabei neu; eine Tür, die
+  *fährt*, braucht ein Blatt, das jedes Bild woanders steht. Beides in einem
+  Handgriff hieße, den einen umzubauen, damit der andere hineinpasst — und
+  hinterher hätte die Station eine Tür, die sich anders öffnet als vorher.
 
 **Fünf Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust, die
 Hülle der Kletterhalle und das Gokart — und seit P4 auch der **Hub** selbst
