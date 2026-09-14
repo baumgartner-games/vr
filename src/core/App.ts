@@ -383,6 +383,7 @@ export class App {
       net: this.net,
       avatars: this.avatars,
       role: this.role,
+      topDown: this.topDown,
       elapsed: this.elapsed,
       frame: () => this.frameStats.latest,
       goTo: (id: string) => void this.goTo(id),
@@ -702,6 +703,9 @@ export class App {
   private applyView(): void {
     const on = this.topDown;
     this.flat.topDown = on;
+    // Und der Strahl vom Schirm ruht: Von oben ist der Klick der Trigger der
+    // rechten Hand und kein Zeiger aus dem Kopf (`core/Pointer.topDown`).
+    this.pointer.topDown = on;
     // Von oben sieht man sich selbst — Kopf nach vorn und Fäuste dran.
     this.avatar.headFollowsRig = on;
     this.avatar.showHands = on;

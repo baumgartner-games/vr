@@ -35,6 +35,15 @@ export interface WorldContext {
   /** The other players' bodies — a world may hang tools into their hands. */
   readonly avatars: RemoteAvatars;
   readonly role: PlayerRole;
+  /**
+   * **Ob gerade von oben gespielt wird** (`core/TopDownCamera.ts`, `App.topDown`).
+   *
+   * Eine Welt braucht das für alles, was es nur in dieser Ansicht gibt: den
+   * Hinweis über der Figur, was sie benutzen kann, und die Hand, in der am
+   * Schirm das Werkzeug liegt (`core/usable.ts`, Plan E5). In der Brille und
+   * aus den Augen ist es falsch — dort sind es die echten Hände.
+   */
+  readonly topDown: boolean;
   /** Seconds since the app started. */
   readonly elapsed: number;
   /**

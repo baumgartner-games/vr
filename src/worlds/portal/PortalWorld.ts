@@ -250,6 +250,18 @@ import {
   type SupermanField,
   type SupermanSettings,
 } from './tools/supermanSettings';
+import {
+  SHOT_MARGIN,
+  USE_CHEST,
+  USE_RADIUS,
+  markUsable,
+  pickUsable,
+  shotHitsUsable,
+  type UseCandidate,
+  type Usable,
+} from '../../core/usable';
+import { ScreenHand } from './screenHand';
+import { topDownPitch } from '../../core/topDownPose';
 import { overBudget, type LooseEntry } from './tools/looseBudget';
 import { findMaterial, isTransparent } from './tools/materials';
 import { PullMeter, pullTension, pullTriggered } from './pullGesture';
@@ -267,6 +279,15 @@ const SHAPE_LABELS: Record<string, string> = {
   hull: 'Hülle',
 };
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
+/** Wie hoch über den Füßen der Hinweis _E · …_ über der Figur schwebt, in Metern. */
+const USE_PROMPT_Y = 2.15;
+/** Zwischenlagen fürs Benutzen — Ort und Blickrichtung der Figur (`core/usable.ts`). */
+const _useAt = new THREE.Vector3();
+const _useForward = new THREE.Vector3();
+const _useCentre = new THREE.Vector3();
+const _useFlight = new THREE.Vector3();
+const _useBox = new THREE.Box3();
+const _useSize = new THREE.Vector3();
 /** So viel Licht hat auch die dunkelste Welt, wenn man sie nur ansieht. */
 const PREVIEW_LIGHT = 0.45;
 
@@ -447,9 +468,40 @@ function gripOf(controller: ControllerState): THREE.Object3D {
   return controller.hold;
 }
 
+/**
+ * **Wie breit etwas ist**, waagerecht, in Metern — der Halbmesser, mit dem es
+ * beim Benutzen und beim Treffen zählt (`core/usable.ts`).
+ *
+ * Einmal beim Anmelden gemessen und nicht in jedem Bild: Eine Kuppel, die sich
+ * beim Drücken drei Zentimeter senkt, ist danach nicht schmaler.
+ */
+function objectRadius(object: THREE.Object3D): number {
+  object.updateWorldMatrix(true, true);
+  const box = _useBox.setFromObject(object);
+  if (box.isEmpty()) return 0;
+  box.getSize(_useSize);
+  return Math.max(_useSize.x, _useSize.z) / 2;
+}
+
 interface HandProbe {
   object: THREE.Object3D;
   entry: PhysicsBody;
+}
+
+/** Ein angemeldetes benutzbares Ding und seine Maße (`PortalWorld.addUsable`). */
+interface UsableEntry {
+  object: THREE.Object3D;
+  usable: Usable;
+  /** Halbmesser seines stehenden Zylinders, in Metern. */
+  radius: number;
+  /**
+   * Halbmesser für **Kugeln**, oder 0 — die Portal-Regel: Was man drücken
+   * kann, kann man auch treffen. Absichtlich getrennt vom Halbmesser oben: Ein
+   * Knopf will großzügig zu bedienen und knapp zu treffen sein.
+   */
+  shot: number;
+  /** Wie weit der Zylinder über und unter seiner Mitte reicht — nur fürs Treffen. */
+  half: number;
 }
 
 /** Was der Pinsel an einem Objekt ändern darf. */
@@ -692,6 +744,31 @@ export class PortalWorld implements World {
     THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>
   >();
   private readonly bullets: Bullet[] = [];
+  /**
+   * **Alles, was benutzt werden kann** (`core/usable.ts`, Plan E5) — die
+   * Gruppe, gegen die `useForward` prüft.
+   *
+   * Eine eigene Liste und keine Suche durch die Szene: Ein Raum hat tausend
+   * Objekte und ein halbes Dutzend Knöpfe, und die Frage „was ist hier
+   * benutzbar" steht in **jedem** Bild an, weil der Hinweis über der Figur
+   * daran hängt. Angemeldet wird mit `addUsable`, abgemeldet mit
+   * `removeUsable`; am Objekt selbst hängt dieselbe Auskunft als
+   * `userData.usable`, für jeden, der die Liste nicht kennt.
+   */
+  private readonly usables: UsableEntry[] = [];
+  /** Zwischenlage für `pickUsable` — je Bild neu gefüllt, nie neu angelegt. */
+  private readonly useCandidates: UseCandidate[] = [];
+  /**
+   * **Die Hand am Schirm** (`screenHand.ts`) — nur in der Ansicht von oben.
+   *
+   * Sie hält das Werkzeug, dessen Trigger der Linksklick ist. In der Brille
+   * und aus den Augen gibt es sie nicht: Dort sind die Hände die getrackten,
+   * beziehungsweise gar keine.
+   */
+  private screenHand: ScreenHand | null = null;
+  /** Der Hinweis über der Figur (_E · Knopf drücken_), solange einer ansteht. */
+  private usePromptPlane: TextPlane | null = null;
+  private usePromptText = '';
   /** Keyed by hand, plus a `:far` probe for the half that is through a portal. */
   private readonly probes = new Map<string, HandProbe>();
   private readonly grabs = new Map<Handedness, HandGrab>();
@@ -1021,6 +1098,7 @@ export class PortalWorld implements World {
     this.portalRed.setTime(this.time);
 
     this.updateTools(dt, ctx);
+    this.updateUsables(ctx);
     this.updateGrabs(dt, ctx);
     this.updateFoam(dt);
     this.updateGhosts(ctx);
@@ -3263,6 +3341,16 @@ export class PortalWorld implements World {
   dispose(ctx: WorldContext): void {
     for (const foam of this.foams) foam.dispose();
     this.foams.length = 0;
+    // Die Hand am Schirm hängt am **Rig** und nicht an der Welt: Sie überlebte
+    // den Weltwechsel, wenn sie hier nicht abgenommen würde.
+    this.screenHand?.dispose();
+    this.screenHand = null;
+    ctx.avatar.screenHand = null;
+    for (const entry of [...this.usables]) this.removeUsable(entry.object);
+    this.usePromptPlane?.dispose();
+    this.usePromptPlane?.removeFromParent();
+    this.usePromptPlane = null;
+    this.usePromptText = '';
     if (this.canvas) {
       if (this.flatFire) this.canvas.removeEventListener('mousedown', this.flatFire);
       if (this.blockContextMenu) {
@@ -4722,6 +4810,9 @@ export class PortalWorld implements World {
     const host = this.host;
     if (!belt || !host) return;
 
+    // Vor allem anderen: Die Hand am Schirm ist selbst eine Hand, und was in
+    // ihr liegt, will gleich mit dem Rest der Werkzeuge nachgeführt werden.
+    this.updateScreenHand(ctx);
     this.trackHands(dt, ctx);
 
     // The hips light up for whichever hand is carrying something.
@@ -4802,6 +4893,17 @@ export class PortalWorld implements World {
       if (controller.primary.justPressed) tool.onPrimary(controller, host);
     }
 
+    // **Und derselbe Trigger für die Hand am Schirm.** Dieselben zwei Zeilen
+    // wie oben und kein zweiter Weg zum Schießen: Was der Linksklick auslöst,
+    // entscheidet das Werkzeug (`PlayerRig.setTrigger` → `ScreenHand`). Zeigt
+    // der Zeiger gerade auf ein Panel, gehört der Klick dem Panel.
+    const screen = this.screenHand;
+    const screenTool = screen ? this.held.get('right') : null;
+    if (screen && screenTool && !screenTool.parked && !ctx.pointer.hovering) {
+      if (screen.state.trigger.justPressed) screenTool.onTrigger(screen.state, host);
+      if (screen.state.trigger.justReleased) screenTool.onTriggerUp(screen.state, host);
+    }
+
     // Every tool there is: on a hip, in a hand, or lying on the floor. A
     // stowed or loose one gets its frame too — `applyHold` steps aside for
     // both, because the belt and the physics own where those are.
@@ -4812,7 +4914,7 @@ export class PortalWorld implements World {
       // dabei ausgemustert wurde, ist hier aber weg und wird nicht mehr
       // angefasst: ein weggeräumtes Werkzeug beantwortet keine Frage mehr.
       if (!this.liveTools.has(tool)) continue;
-      const controller = tool.heldBy ? ctx.input.get(tool.heldBy) : null;
+      const controller = tool.heldBy ? this.handOf(ctx, tool.heldBy) : null;
       // Every held tool is turned out of the grip and onto the pointing ray
       // before it runs — one place, so no tool can aim 30° high again.
       tool.applyHold(controller);
@@ -5976,7 +6078,30 @@ export class PortalWorld implements World {
    * @returns true when the round was used up by whatever it ran into
    */
   protected bulletTravelled(from: THREE.Vector3, to: THREE.Vector3, damage?: number): boolean {
+    if (this.shootUsable(from, to)) return true;
     return this.director?.shoot(from, to, damage) ?? false;
+  }
+
+  /**
+   * **Die Portal-Regel: eine Kugel drückt einen Knopf.**
+   *
+   * Was man mit `A` bedienen kann, kann man auch treffen — das ist der Satz,
+   * aus dem die halbe Testkammer besteht: Der Knopf steht hinter Glas, und man
+   * kommt nicht hin. Angemeldet wird das beim Anmelden des Knopfes selbst
+   * (`addUsable`, `shot`); die Kugel ist danach aufgebraucht, sonst flöge sie
+   * weiter und drückte den nächsten gleich mit.
+   */
+  private shootUsable(from: THREE.Vector3, to: THREE.Vector3): boolean {
+    for (const entry of this.usables) {
+      if (entry.shot <= 0 || !entry.object.visible) continue;
+      entry.object.getWorldPosition(_useCentre);
+      if (!shotHitsUsable(from, to, _useCentre, entry.shot, entry.half)) continue;
+      _useFlight.copy(to).sub(from);
+      if (_useFlight.lengthSq() > 0) _useFlight.normalize();
+      entry.usable.use({ kind: 'bullet', at: to, forward: _useFlight });
+      return true;
+    }
+    return false;
   }
 
   private clearBullets(): void {
@@ -7246,6 +7371,201 @@ export class PortalWorld implements World {
     ghosts.update([this.portalBlue, this.portalRed]);
   }
 
+  // --- benutzen -----------------------------------------------------------
+
+  /**
+   * **Etwas als benutzbar anmelden** (`core/usable.ts`).
+   *
+   * Der Weg für jede Welt und jeden Einbau: ein Objekt, eine Wirkung, fertig.
+   * Das Objekt bleibt, wo es hängt — angemeldet wird es, nicht umgehängt; ein
+   * Knopf, der zum Drücken erst die Säule verlassen müsste, wäre keiner.
+   *
+   * @param radius Halbmesser fürs Zielen; ohne Angabe die Ausdehnung des
+   *               Objekts, mindestens aber `USE_RADIUS` — auf vier Zentimeter
+   *               Kippschalter zielt von oben niemand.
+   * @param shot   Halbmesser fürs **Treffen** (Portal-Regel), 0 = nicht
+   *               schießbar. Ohne Angabe die Ausdehnung des Objekts, denn eine
+   *               Kugel soll genau dorthin gehen, wo man hinsieht.
+   * @param half   wie weit der Trefferzylinder über und unter der Mitte reicht
+   */
+  protected addUsable(
+    object: THREE.Object3D,
+    usable: Usable,
+    options: { radius?: number; shot?: number; half?: number } = {},
+  ): void {
+    this.removeUsable(object);
+    const size = objectRadius(object);
+    this.usables.push({
+      object,
+      usable,
+      radius: Math.max(options.radius ?? size, USE_RADIUS),
+      shot: options.shot ?? size + SHOT_MARGIN,
+      half: options.half ?? Math.max(size, 0.3),
+    });
+    markUsable(object, usable);
+  }
+
+  /** Wieder abmelden — beim Abräumen, und wenn ein Einbau verschwindet. */
+  protected removeUsable(object: THREE.Object3D): void {
+    const index = this.usables.findIndex((entry) => entry.object === object);
+    if (index < 0) return;
+    this.usables.splice(index, 1);
+    markUsable(object, null);
+  }
+
+  /**
+   * **Was vor der Figur steht, benutzen** — der Haken, den `A` (am Schirm
+   * `E`) auslöst.
+   *
+   * Der Strahl kommt aus der Brust und zeigt dorthin, wohin die Figur schaut;
+   * was er trifft, sticht das, worauf man steht (`core/usable.pickUsable`,
+   * Plan E5). Wer eine eigene Regel braucht, überschreibt das hier — die
+   * Auswahl selbst bleibt dieselbe für alle.
+   *
+   * @returns ob wirklich etwas passiert ist
+   */
+  protected useForward(ctx: WorldContext): boolean {
+    this.aimUse(ctx);
+    const pick = pickUsable(this.collectUsables(), _useAt, _useForward);
+    if (!pick) return false;
+    return pick.candidate.usable.use({ kind: 'player', at: _useAt, forward: _useForward });
+  }
+
+  /** Wo die Figur steht und wohin sie schaut — die zwei Zahlen hinter E5. */
+  private aimUse(ctx: WorldContext): void {
+    ctx.rig.updateMatrixWorld(true);
+    _useAt.set(ctx.rig.position.x, ctx.rig.getFloorY() + USE_CHEST, ctx.rig.position.z);
+    _useForward.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_quaternion));
+  }
+
+  /**
+   * Je Bild einmal: die Anforderung des Rigs abholen und den Hinweis über der
+   * Figur nachführen.
+   */
+  private updateUsables(ctx: WorldContext): void {
+    if (ctx.rig.takeUse()) this.useForward(ctx);
+    this.aimUse(ctx);
+
+    // Der Hinweis gibt es nur von oben: Aus den Augen sieht man, was man
+    // anfasst, und in der Brille liegt die Hand darauf.
+    if (!ctx.topDown || this.usables.length === 0) {
+      this.showUsePrompt(ctx, '');
+      return;
+    }
+    const pick = pickUsable(this.collectUsables(), _useAt, _useForward);
+    this.showUsePrompt(ctx, pick?.candidate.usable.usePrompt?.() ?? '');
+  }
+
+  /** Die Liste als Kandidaten für die Auswahl — Weltpositionen, je Bild frisch. */
+  private collectUsables(): readonly UseCandidate[] {
+    this.useCandidates.length = 0;
+    for (const entry of this.usables) {
+      if (!entry.object.visible) continue;
+      const candidate: UseCandidate = {
+        usable: entry.usable,
+        position: entry.object.getWorldPosition(new THREE.Vector3()),
+        radius: entry.radius,
+        object: entry.object,
+      };
+      this.useCandidates.push(candidate);
+    }
+    return this.useCandidates;
+  }
+
+  /**
+   * Der Hinweis über der Figur — eine Tafel im Raum, keine Meldung.
+   *
+   * Sie liegt in der Neigung der Kamera von oben (`topDownPitch`), steht also
+   * gerade im Bild, ohne dass sie jedes Bild neu ausgerichtet werden müsste.
+   */
+  private showUsePrompt(ctx: WorldContext, text: string): void {
+    if (!text) {
+      if (this.usePromptPlane) this.usePromptPlane.visible = false;
+      this.usePromptText = '';
+      return;
+    }
+    let plane = this.usePromptPlane;
+    if (!plane) {
+      plane = new TextPlane({ width: 1.1, height: 0.26, title: '', align: 'center' });
+      plane.name = 'use-prompt';
+      plane.rotation.set(topDownPitch(), 0, 0);
+      this.root.add(plane);
+      this.usePromptPlane = plane;
+    }
+    const label = `E · ${text}`;
+    if (label !== this.usePromptText) {
+      plane.setText(label);
+      this.usePromptText = label;
+    }
+    plane.visible = true;
+    plane.position.set(ctx.rig.position.x, ctx.rig.getFloorY() + USE_PROMPT_Y, ctx.rig.position.z);
+  }
+
+  /**
+   * **Die Bildschirmhand auf- und wieder absetzen** (`screenHand.ts`).
+   *
+   * Sie entsteht mit der Ansicht von oben und vergeht mit ihr; was sie hielt,
+   * geht dabei an den Gürtel zurück. Damit ändert sich für die Brille und für
+   * die Sicht aus den Augen nichts — dort war noch nie eine Hand am Schirm,
+   * und es soll auch keine erscheinen.
+   */
+  private updateScreenHand(ctx: WorldContext): void {
+    const wanted = ctx.topDown && !ctx.renderer.xr.isPresenting;
+    const hand = this.screenHand;
+    if (!wanted) {
+      if (!hand) return;
+      // Was in dieser Hand lag, ist mit ihr entstanden und geht mit ihr — **nicht**
+      // an den Gürtel: Dort hängt schon, was die Welt dort haben will
+      // (`beltLoadout`), und eine Pistole, die sich beim Umschalten der Ansicht
+      // auf eine Hüfte drängt, schiebt das Schild des Labors ins Nichts.
+      const tool = this.held.get('right');
+      if (tool) {
+        this.held.delete('right');
+        tool.heldBy = null;
+        if (this.host) tool.onStow(this.host);
+        this.retireTool(tool);
+      }
+      hand.dispose();
+      this.screenHand = null;
+      ctx.avatar.screenHand = null;
+      return;
+    }
+    if (!hand) {
+      const fresh = new ScreenHand(ctx.rig);
+      this.screenHand = fresh;
+      const id = this.screenTool();
+      const tool = id ? this.freshTool(id) : null;
+      if (tool) this.takeTool(ctx, fresh.state, tool);
+    }
+    this.screenHand!.update();
+    ctx.avatar.screenHand = this.screenHand!.at;
+  }
+
+  /**
+   * **Was am Schirm in der rechten Hand liegt**, von oben — die Id eines
+   * Werkzeugs oder `null` für leere Hände.
+   *
+   * Die Pistole, weil der Linksklick der Trigger dieser Hand ist und ein
+   * Trigger ohne Waffe nichts bedeutet (Plan, E5). Eine Welt, in der geschossen
+   * nichts zu suchen hat, sagt hier etwas anderes oder `null`.
+   */
+  protected screenTool(): string | null {
+    return 'pistol';
+  }
+
+  /**
+   * Die Hand dieser Seite — die getrackte, sonst die am Schirm.
+   *
+   * Ein Werkzeug will jedes Bild wissen, wer es hält (`Tool.update`): Ohne
+   * diese Zeile liefe die Pistole am Schirm ohne Hand, und Dauerfeuer, Salve
+   * und das Loslassen des Triggers hätten dort niemanden, der sie meldet.
+   */
+  private handOf(ctx: WorldContext, hand: Handedness): ControllerState | null {
+    const tracked = ctx.input.get(hand);
+    if (tracked) return tracked;
+    return this.screenHand?.state.handedness === hand ? this.screenHand.state : null;
+  }
+
   // --- shooting -----------------------------------------------------------
 
   private bindFlatInput(ctx: WorldContext): void {
@@ -7254,6 +7574,10 @@ export class PortalWorld implements World {
     // keeps both portals: left blue, right red.
     this.flatFire = (event: MouseEvent) => {
       if (ctx.renderer.xr.isPresenting || ctx.pointer.hovering) return;
+      // **Von oben gehört der Klick der Hand**, nicht dem Fadenkreuz: Dort ist
+      // er der Trigger der rechten Hand (Plan, E5), und ein Portal, das dabei
+      // aus dem Kopf der Figur schießt, wäre ein zweiter, unsichtbarer Schuss.
+      if (this.screenHand) return;
       if (event.button === 0) this.flatShoot(ctx, 'a');
       else if (event.button === 2) this.flatShoot(ctx, 'b');
     };

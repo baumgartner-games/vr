@@ -140,6 +140,18 @@ export class Pointer {
   enabled = true;
 
   /**
+   * **Von oben zeigt die Maus nicht** (`core/TopDownCamera.ts`).
+   *
+   * Der Strahl vom Schirm kommt aus der Kamera *im Rig* — der Sicht aus den
+   * Augen. In der Ansicht von oben schaut die aber niemand an: Der Klick ist
+   * dort der **Trigger der rechten Hand** (Plan, E5), und ein Strahl, der
+   * nebenbei quer durch die Halle auf irgendeine Tafel fällt, drückte sie mit
+   * und nähme dem Werkzeug seinen Trigger weg. Also steht er still, solange
+   * von oben gespielt wird; `App.applyView` schaltet ihn um.
+   */
+  topDown = false;
+
+  /**
    * Hands that are holding something with both fists instead of pointing — the
    * drone's display is carried that way. Such a hand has no laser at all: a ray
    * that rests on a menu swallows the trigger of whatever is holding it.
@@ -233,7 +245,13 @@ export class Pointer {
       for (const hand of HANDS) this.updateXrRay(input, hand);
     } else {
       for (const hand of HANDS) this.blank(this.beam(hand));
-      this.updateScreenRay();
+      if (this.topDown) {
+        this.blank(this.beam(null));
+        this.screenClick = false;
+        this.keyboardClick = false;
+      } else {
+        this.updateScreenRay();
+      }
     }
   }
 

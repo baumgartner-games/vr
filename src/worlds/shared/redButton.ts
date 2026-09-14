@@ -18,8 +18,15 @@ import { TextPlane } from '../../ui/TextPlane';
 
 /** Höhe der Säule: der Knopf liegt damit auf Hüfthöhe. */
 const PEDESTAL_H = 0.95;
-/** Halbmesser der Kuppel. */
-const DOME_R = 0.17;
+/**
+ * Halbmesser der Kuppel.
+ *
+ * Wird mit ausgeliefert, weil eine Welt, die ihr einen **Kollisionskörper**
+ * gibt, ihn genau so groß machen will wie das, was man sieht (Portal-Regel:
+ * was man drücken kann, kann man auch treffen).
+ */
+export const BUTTON_DOME_R = 0.17;
+const DOME_R = BUTTON_DOME_R;
 /** Wie tief der Knopf beim Drücken eintaucht und wie lange er unten bleibt. */
 const PRESS_DEPTH = 0.035;
 const PRESS_TIME = 0.14;

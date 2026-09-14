@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PortalWorld } from '../portal/PortalWorld';
-import { buildRedButton, type RedButton } from '../shared/redButton';
+import { BUTTON_DOME_R, buildRedButton, type RedButton } from '../shared/redButton';
 import { TextPlane } from '../../ui/TextPlane';
 import { playSwitch, playTone } from '../../core/Audio';
 import { GRAB_TINT } from '../../core/colors';
@@ -140,12 +140,42 @@ export class InteractWorld extends PortalWorld {
   override async init(ctx: WorldContext): Promise<void> {
     await super.init(ctx);
 
+    // **Dieselbe Wirkung, drei Wege dorthin**: die Hand in der Brille, der
+    // Zeiger am Schirm — und seit Paket P2 die Figur, die davorsteht und `A`
+    // drückt (`core/usable.ts`, Plan E5). Angemeldet wird jeweils genau das,
+    // was `pointerTarget` schon kennt, mit derselben Methode dahinter; eine
+    // zweite Knopfmechanik gibt es nicht.
     if (this.button) {
       this.pointerTarget(ctx, this.button.dome, () => this.pressButton());
       this.button.group.userData.hover = true;
+      this.addUsable(this.button.dome, {
+        use: () => {
+          this.pressButton();
+          return true;
+        },
+        usePrompt: () => 'Knopf drücken',
+      });
     }
-    if (this.lever) this.pointerTarget(ctx, this.lever, () => this.pullLever());
-    if (this.lightSwitch) this.pointerTarget(ctx, this.lightSwitch, () => this.toggleLights());
+    if (this.lever) {
+      this.pointerTarget(ctx, this.lever, () => this.pullLever());
+      this.addUsable(this.lever, {
+        use: () => {
+          this.pullLever();
+          return true;
+        },
+        usePrompt: () => (this.leverOn ? 'Hebel zurücklegen' : 'Hebel umlegen'),
+      });
+    }
+    if (this.lightSwitch) {
+      this.pointerTarget(ctx, this.lightSwitch, () => this.toggleLights());
+      this.addUsable(this.lightSwitch, {
+        use: () => {
+          this.toggleLights();
+          return true;
+        },
+        usePrompt: () => (this.lightsOn ? 'Licht aus' : 'Licht an'),
+      });
+    }
 
     this.buildSigns();
     this.applyLights();
@@ -398,6 +428,17 @@ export class InteractWorld extends PortalWorld {
     this.button.group.position.set(SLIDE_X, 0, 5.2);
     this.button.group.rotation.y = Math.PI;
     hall.add(this.button.group);
+    // **Ein Körper an der Kuppel**, damit eine Kugel sie trifft, statt durch
+    // sie hindurchzufliegen — die Portal-Regel, hier als Vorlage für die
+    // Einbauten auf dem Gitter (Plan, P6). Was der Treffer *auslöst*, steht
+    // nicht hier, sondern bei der Anmeldung als `Usable` in `init`.
+    this.button.group.updateWorldMatrix(true, true);
+    this.physics?.addStatic(this.button.dome, {
+      shape: { kind: 'ball' },
+      halfExtents: new THREE.Vector3(BUTTON_DOME_R, BUTTON_DOME_R, BUTTON_DOME_R),
+      membership: GROUP_WORLD,
+      filter: ALL_GROUPS,
+    });
 
     // Der Hebel vor der Flügeltür: er rastet, er fällt nicht zurück.
     const lever = new THREE.Group();

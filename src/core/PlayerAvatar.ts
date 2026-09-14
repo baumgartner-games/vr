@@ -51,6 +51,16 @@ export class PlayerAvatar extends AvatarBody {
    */
   headFollowsRig = false;
 
+  /**
+   * **Wo die rechte Hand liegt, wenn keine getrackt wird** — im Raum des Rigs.
+   *
+   * Von oben hält die Figur ihr Werkzeug an einer festen Stelle vor der
+   * rechten Schulter (`PortalWorld`, die Bildschirmhand). Ohne diese Zeile
+   * hinge der Arm daneben herunter und die Pistole schwebte allein in der
+   * Luft. `null` heißt: nichts in der Hand, der Arm hängt wie bisher.
+   */
+  screenHand: THREE.Vector3 | null = null;
+
   constructor(color = 0x3f6fb5) {
     // Fäuste am Ende der Arme — von oben sieht man sich selbst, und eine Figur
     // ohne Hände sieht von dort aus abgesägt aus. Gezeigt werden sie nur, wo
@@ -130,7 +140,11 @@ export class PlayerAvatar extends AvatarBody {
     void rig;
 
     const left = handOf(input, 'left', _left);
-    const right = handOf(input, 'right', _right);
+    let right = handOf(input, 'right', _right);
+    if (!right && this.screenHand) {
+      _right.position.copy(this.screenHand);
+      right = _right;
+    }
     this.update(dt, _head, left, right);
   }
 
