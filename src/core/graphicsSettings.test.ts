@@ -16,7 +16,7 @@ import {
 
 describe('Grafikeinstellungen', () => {
   it('liefert das Bild von vorher aus', () => {
-    expect(DEFAULT_GRAPHICS).toEqual({ mode: 'simple', xrScale: 1 });
+    expect(DEFAULT_GRAPHICS).toEqual({ mode: 'simple', xrScale: 1, showFps: false });
   });
 
   /**
@@ -33,7 +33,11 @@ describe('Grafikeinstellungen', () => {
     // Auch der Comic wird damit flüssiger — beides multipliziert sich.
     expect(graphicsProfile({ mode: 'comic', xrScale: 0.7 }).framebufferScale).toBeCloseTo(0.84);
     expect(clampGraphics({ xrScale: 0.5 as never })).toEqual(DEFAULT_GRAPHICS);
-    expect(clampGraphics({ xrScale: 0.85 })).toEqual({ mode: 'simple', xrScale: 0.85 });
+    expect(clampGraphics({ xrScale: 0.85 })).toEqual({
+      mode: 'simple',
+      xrScale: 0.85,
+      showFps: false,
+    });
     expect(graphicsSummary({ mode: 'simple', xrScale: 0.85 })).toBe('Einfach · Brille Mittel');
   });
 
@@ -89,6 +93,13 @@ describe('Grafikeinstellungen', () => {
     expect(profile.shadowDistance).toBeGreaterThan(profile.shadowRange);
   });
 
+  it('merkt sich die Bildrate im Bild nur als echtes Ja', () => {
+    // Das Häkchen ist ab Werk aus, und aus einem alten Speicher ohne den
+    // Schlüssel wird kein Feld, das plötzlich jedem im Bild steht.
+    expect(clampGraphics({ showFps: true })).toEqual({ ...DEFAULT_GRAPHICS, showFps: true });
+    expect(clampGraphics({ showFps: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
+  });
+
   it('schreibt die Stufe in eine Zeile', () => {
     expect(graphicsSummary({ mode: 'comic', xrScale: 1 })).toBe('Comic');
     expect(graphicsSummary({ mode: 'simple', xrScale: 1 })).toBe('Einfach');
@@ -98,7 +109,7 @@ describe('Grafikeinstellungen', () => {
     // Kein localStorage im Node-Testlauf: gelesen wird trotzdem, gespeichert
     // auch, und zurück kommt, was angekommen wäre.
     expect(graphics()).toEqual(DEFAULT_GRAPHICS);
-    expect(saveGraphics({ mode: 'comic' })).toEqual({ mode: 'comic', xrScale: 1 });
+    expect(saveGraphics({ mode: 'comic' })).toEqual({ mode: 'comic', xrScale: 1, showFps: false });
     expect(clearGraphics()).toEqual(DEFAULT_GRAPHICS);
   });
 
