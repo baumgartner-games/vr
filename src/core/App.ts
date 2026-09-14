@@ -37,7 +37,8 @@ import { detectFlatRole } from './device';
 import { GraphicsQuality } from './GraphicsQuality';
 import { FrameStats } from './FrameStats';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
-import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS, type HeadgearKind } from './headgear';
+import { HEADGEAR_LABELS, HEADGEAR_SUBS, nextHeadgear, type HeadgearKind } from './headgear';
+import { BODY_LABELS, BODY_SUBS, HEAD_LABELS, HEAD_SUBS, nextBody, nextHead } from './avatarLook';
 import {
   GRAPHICS_MODE_LABELS,
   GRAPHICS_MODE_SUBS,
@@ -1047,17 +1048,34 @@ export class App {
   /**
    * **Aussehen** — was die anderen von einem sehen.
    *
-   * Sie steht neben *Bewegung* und *Grafik* und aus demselben Grund: Ein Hut
-   * gehört dem Spieler und keiner Welt. Wer im Hub einen aufsetzt, trägt ihn
-   * im Gokart auch, und alle im Raum sehen ihn (`net/NetSession.ts`).
+   * Sie steht neben *Bewegung* und *Grafik* und aus demselben Grund: Eine
+   * Figur gehört dem Spieler und keiner Welt. Wer im Hub eine Kochmütze
+   * aufsetzt, trägt sie im Gokart auch, und alle im Raum sehen sie
+   * (`net/NetSession.ts`).
    *
-   * Eine Zeile je Kopfbedeckung statt einer, die durchschaltet: Es sind
-   * sieben, und wer den Zylinder sucht, soll ihn sehen und nicht sechsmal
-   * weiterdrücken.
+   * **Drei Zeilen, jede schaltet im Kreis** — Kopf, Hut, Körper. Vorher war es
+   * eine Zeile je Hut, was bei sieben Hüten noch ging; mit Köpfen und Jacken
+   * dazu wären es zwanzig gewesen, und das ist keine Seite mehr, sondern eine
+   * Liste. Was gewählt ist, steht im Untertitel, und in aller Kürze noch
+   * einmal unter der Überschrift (`appearanceSummary`). Dieselben drei Zeilen
+   * zeigt die Umkleide vor dem Spiegel, dort mit der Figur daneben.
    */
   private appearanceMenu(): MenuEntry {
     const accent = 0x5ee0a0;
     const look = appearance();
+
+    const cycle = (id: string, label: string, sub: string, step: () => string): MenuEntry => ({
+      id,
+      label,
+      sub,
+      icon: 'npc',
+      accent,
+      run: () => {
+        const chosen = step();
+        this.menuDirty = true;
+        this.notify(`${label}: ${chosen}`);
+      },
+    });
 
     return {
       id: 'look',
@@ -1065,19 +1083,23 @@ export class App {
       sub: appearanceSummary(look),
       icon: 'npc',
       accent,
-      children: HEADGEAR_KINDS.map((kind) => ({
-        id: `look:hat:${kind}`,
-        label: HEADGEAR_LABELS[kind],
-        sub: HEADGEAR_SUBS[kind],
-        icon: 'npc',
-        accent,
-        selected: look.hat === kind,
-        run: () => {
-          saveAppearance({ hat: kind });
-          this.menuDirty = true;
-          this.notify(kind === 'none' ? 'Kopfbedeckung ab' : `Auf: ${HEADGEAR_LABELS[kind]}`);
-        },
-      })),
+      children: [
+        cycle('look:head', 'Kopf', HEAD_SUBS[look.head], () => {
+          const head = nextHead(look.head);
+          saveAppearance({ head });
+          return HEAD_LABELS[head];
+        }),
+        cycle('look:hat', 'Hut', HEADGEAR_SUBS[look.hat], () => {
+          const hat = nextHeadgear(look.hat);
+          saveAppearance({ hat });
+          return HEADGEAR_LABELS[hat];
+        }),
+        cycle('look:body', 'Körper', BODY_SUBS[look.body], () => {
+          const body = nextBody(look.body);
+          saveAppearance({ body });
+          return BODY_LABELS[body];
+        }),
+      ],
     };
   }
 
@@ -1096,12 +1118,13 @@ export class App {
   }
 
   private applyAppearance(): void {
-    const hat = this.worn ?? appearance().hat;
-    this.avatar.setHeadgear(hat);
-    if (this.net.hat === hat) return;
-    this.net.hat = hat;
-    // Der Hut steht in der Vorstellung und nicht in der Pose: einmal ansagen
-    // reicht, zwanzigmal in der Sekunde wäre Unfug.
+    const look = { ...appearance(), hat: this.worn ?? appearance().hat };
+    this.avatar.setLook(look);
+    const known = this.net.look;
+    if (known.hat === look.hat && known.head === look.head && known.body === look.body) return;
+    this.net.look = look;
+    // Das Aussehen steht in der Vorstellung und nicht in der Pose: einmal
+    // ansagen reicht, zwanzigmal in der Sekunde wäre Unfug.
     this.net.announce();
   }
 

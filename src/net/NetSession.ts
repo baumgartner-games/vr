@@ -10,14 +10,14 @@ import type {
 } from './types';
 import type { PlayerRig } from '../core/PlayerRig';
 import type { XRInput } from '../core/XRInput';
-import { asHeadgear, type HeadgearKind } from '../core/headgear';
+import { clampAppearance, DEFAULT_APPEARANCE, type Appearance } from '../core/appearance';
 
 export interface Peer {
   id: string;
   role: PlayerRole;
   name: string;
-  /** Was dieser Spieler auf dem Kopf trägt (`core/headgear.ts`). */
-  hat: HeadgearKind;
+  /** Wie dieser Spieler aussieht — Hut, Kopf, Körper (`core/appearance.ts`). */
+  look: Appearance;
   world: string;
   pose: PeerPose | null;
   lastSeen: number;
@@ -70,13 +70,13 @@ export class NetSession {
   role: PlayerRole = 'desktop';
   name = 'Spieler';
   /**
-   * Die eigene Kopfbedeckung, so wie sie angesagt wird.
+   * Das eigene Aussehen, so wie es angesagt wird (`core/appearance.ts`).
    *
-   * Sie steht hier und nicht in der Pose: Ein Hut ändert sich einmal am Abend,
-   * eine Pose zwanzigmal in der Sekunde. Wer sie ändert, sagt sich neu an
-   * (`announce`) — das ist eine Nachricht und kein Strom.
+   * Es steht hier und nicht in der Pose: Ein Aussehen ändert sich einmal am
+   * Abend, eine Pose zwanzigmal in der Sekunde. Wer es ändert, sagt sich neu
+   * an (`announce`) — das ist eine Nachricht und kein Strom.
    */
-  hat: HeadgearKind = 'none';
+  look: Appearance = { ...DEFAULT_APPEARANCE };
   world = 'hub';
   connected = false;
   room = '';
@@ -168,7 +168,9 @@ export class NetSession {
       name: this.name,
       world: this.world,
       since: this.localSeniority,
-      hat: this.hat,
+      hat: this.look.hat,
+      head: this.look.head,
+      body: this.look.body,
     });
   }
 
@@ -318,7 +320,13 @@ export class NetSession {
         const peer = this.touchPeer(message.from, stamp);
         peer.role = message.role;
         peer.name = message.name;
-        peer.hat = asHeadgear(message.hat);
+        // Fremder Text: Was niemand kennt, wird zur Vorgabe, statt einen
+        // Körper zu bauen, den es nicht gibt.
+        peer.look = clampAppearance({
+          hat: message.hat as Appearance['hat'],
+          head: message.head as Appearance['head'],
+          body: message.body as Appearance['body'],
+        });
         peer.world = message.world;
         setSeniority(peer, message.since);
         // Answer so the newcomer learns about us too — but only once, otherwise
@@ -373,7 +381,7 @@ export class NetSession {
         id,
         role: 'desktop',
         name: id,
-        hat: 'none',
+        look: { ...DEFAULT_APPEARANCE },
         world: 'hub',
         pose: null,
         lastSeen: now,

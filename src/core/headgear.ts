@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HEAD_RADIUS } from './avatarLook';
 
 /**
  * **Was man auf dem Kopf trägt** — die erste Sorte Kleidung in diesem Projekt.
@@ -26,15 +27,25 @@ import * as THREE from 'three';
  *   innen, an der Kamera. Es gibt ihn nur zum Helm, denn eine Mütze hat keinen
  *   Rand im Blickfeld.
  *
- * Maße im Rahmen des Kopfes: Der Schädel ist ein Quader von 19 × 21 × 22 cm um
- * den Ursprung, und **−z ist vorn**. Wer hier etwas anbaut, rechnet von dort.
+ * Maße im Rahmen des Kopfes: Der Kopf ist eine **Kugel** von 32 cm Durchmesser
+ * um den Ursprung (`avatarLook.HEAD_RADIUS`), und **−z ist vorn**. Wer hier
+ * etwas anbaut, rechnet von dort — und zwar mit `dome()`, statt drei Zahlen zu
+ * raten: Auf einer Kugel ist der Halbmesser eine Funktion der Höhe, und ein
+ * Hut, der das nicht mitrechnet, lässt den Kopf an den Seiten herausschauen.
+ *
+ * Nichts sitzt tiefer als **7 cm über der Kopfmitte**, außer der Helm, der den
+ * ganzen Kopf einschließt: Darunter liegen die Augen, und eine Mütze, die
+ * jemandem über die Augen rutscht, sieht nicht nach Mütze aus, sondern nach
+ * Fehler.
  */
 
 /** Was es zu tragen gibt. `none` ist ausdrücklich einer davon. */
-export type HeadgearKind = 'none' | 'cap' | 'helmet' | 'hardhat' | 'beanie' | 'tophat' | 'crown';
+export type HeadgearKind =
+  'none' | 'chef' | 'cap' | 'helmet' | 'hardhat' | 'beanie' | 'tophat' | 'crown';
 
 export const HEADGEAR_KINDS: readonly HeadgearKind[] = [
   'none',
+  'chef',
   'cap',
   'helmet',
   'hardhat',
@@ -45,6 +56,7 @@ export const HEADGEAR_KINDS: readonly HeadgearKind[] = [
 
 export const HEADGEAR_LABELS: Record<HeadgearKind, string> = {
   none: 'Ohne',
+  chef: 'Kochmütze',
   cap: 'Basecap',
   helmet: 'Helm',
   hardhat: 'Bauhelm',
@@ -55,6 +67,7 @@ export const HEADGEAR_LABELS: Record<HeadgearKind, string> = {
 
 export const HEADGEAR_SUBS: Record<HeadgearKind, string> = {
   none: 'Barhäuptig — so war es immer',
+  chef: 'Hoch, weiß, mit Wulst — das Vorbild',
   cap: 'Schirm nach vorn',
   helmet: 'Integralhelm mit Visier — im Gokart auch von innen zu sehen',
   hardhat: 'Gelb, mit Krempe ringsum',
@@ -74,11 +87,38 @@ export function asHeadgear(value: unknown): HeadgearKind {
   return HEADGEAR_KINDS.includes(value as HeadgearKind) ? (value as HeadgearKind) : 'none';
 }
 
-/** Halbe Kantenlängen des Schädels, an denen hier alles ausgerichtet wird. */
-const SKULL = { w: 0.095, h: 0.105, d: 0.11 };
-
 function solid(color: number, roughness = 0.7, metalness = 0.05): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
+}
+
+/**
+ * **Die Kuppe, die dem runden Kopf ab der Höhe `base` aufsitzt.**
+ *
+ * Auf einer Kugel hängt der Halbmesser von der Höhe ab: Wer eine Mütze mit
+ * einem festen Halbmesser auf einen runden Kopf setzt, hat entweder unten eine
+ * Lücke oder oben eine Beule. Hier wird der Halbmesser an der Ansatzhöhe
+ * ausgerechnet und `margin` dazugegeben — die Halbkugel liegt dann überall
+ * über dem Kopf, weil sie von ihrer Ansatzhöhe an schneller fällt als er.
+ */
+function dome(base: number, margin: number): { radius: number; y: number } {
+  const radius = Math.sqrt(Math.max(HEAD_RADIUS * HEAD_RADIUS - base * base, 1e-4)) + margin;
+  return { radius, y: base };
+}
+
+/** Eine solche Halbkugel als Netz. */
+function domeMesh(
+  base: number,
+  margin: number,
+  material: THREE.Material,
+  theta = Math.PI / 2,
+): THREE.Mesh {
+  const { radius, y } = dome(base, margin);
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 18, 12, 0, Math.PI * 2, 0, theta),
+    material,
+  );
+  mesh.position.y = y;
+  return mesh;
 }
 
 /**
@@ -97,99 +137,97 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
   group.name = `headgear-${kind}`;
 
   switch (kind) {
+    case 'chef': {
+      // Die Kochmütze: Band, Rohr, Wulst. Sie ist absichtlich hoch — von
+      // schräg oben ist sie das, was eine Figur als Koch erkennbar macht,
+      // und sie überragt dabei jeden anderen Hut im Regal.
+      const linen = solid(0xf7f5ef, 0.9);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.155, 0.055, 22), linen);
+      band.position.y = 0.1;
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.128, 0.142, 0.12, 22), linen);
+      tube.position.y = 0.185;
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.135, 20, 14), linen);
+      puff.scale.set(1.15, 0.85, 1.15);
+      puff.position.y = 0.275;
+      group.add(band, tube, puff);
+      break;
+    }
     case 'cap': {
-      const shell = new THREE.Mesh(
-        new THREE.SphereGeometry(SKULL.w + 0.015, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-        solid(tint, 0.8),
-      );
-      shell.scale.set(1, 0.85, 1.12);
-      shell.position.y = SKULL.h - 0.03;
-      const peak = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.012, 0.09), solid(tint, 0.8));
-      peak.position.set(0, SKULL.h - 0.025, -(SKULL.d + 0.03));
-      peak.rotation.x = 0.12;
+      const cloth = solid(tint, 0.8);
+      const shell = domeMesh(0.085, 0.012, cloth);
+      shell.scale.set(1, 1, 1.06);
+      const peak = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.014, 0.105), cloth);
+      peak.position.set(0, 0.095, -0.205);
+      peak.rotation.x = 0.14;
       group.add(shell, peak);
       break;
     }
     case 'helmet': {
-      // Der Integralhelm: eine Schale, die tiefer sitzt als der Schädel, und
-      // vorn ein Ausschnitt, in dem das dunkle Visier steht.
-      const shell = new THREE.Mesh(new THREE.SphereGeometry(0.135, 20, 14), solid(tint, 0.35, 0.3));
-      shell.scale.set(1, 1.05, 1.08);
-      shell.position.y = SKULL.h - 0.085;
+      // Der Integralhelm schließt den ganzen Kopf ein — er ist der einzige,
+      // der unter die Augen reicht, und muss deshalb über Nase und Augen
+      // hinauskommen, die aus der Kugel herausstehen.
+      const paint = solid(tint, 0.35, 0.3);
+      const shell = new THREE.Mesh(new THREE.SphereGeometry(0.205, 22, 16), paint);
+      shell.scale.set(1, 1.03, 1.04);
+      shell.position.y = -0.012;
       const visor = new THREE.Mesh(
-        new THREE.SphereGeometry(0.138, 20, 10, -0.9, 1.8, 1.05, 0.62),
-        new THREE.MeshStandardMaterial({
-          color: 0x121722,
-          roughness: 0.12,
-          metalness: 0.6,
-        }),
+        new THREE.SphereGeometry(0.208, 22, 12, -0.9, 1.8, 1.05, 0.62),
+        new THREE.MeshStandardMaterial({ color: 0x121722, roughness: 0.12, metalness: 0.6 }),
       );
-      visor.scale.set(1, 1.05, 1.08);
-      visor.position.y = SKULL.h - 0.085;
+      visor.scale.copy(shell.scale);
+      visor.position.y = shell.position.y;
       visor.rotation.y = Math.PI;
-      const chin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.05), solid(tint, 0.35, 0.3));
-      chin.position.set(0, SKULL.h - 0.215, -(SKULL.d + 0.015));
+      const chin = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.055, 0.055), paint);
+      chin.position.set(0, -0.145, -0.175);
       group.add(shell, visor, chin);
       break;
     }
     case 'hardhat': {
-      const shell = new THREE.Mesh(
-        new THREE.SphereGeometry(SKULL.w + 0.022, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-        solid(0xffc857, 0.55),
-      );
-      shell.scale.set(1, 0.95, 1.05);
-      shell.position.y = SKULL.h - 0.035;
-      const brim = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.155, 0.155, 0.012, 20),
-        solid(0xffc857, 0.55),
-      );
-      brim.position.y = SKULL.h - 0.03;
-      const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.03, 0.19), solid(0xe8a92f, 0.55));
-      ridge.position.y = SKULL.h + 0.055;
+      const plastic = solid(0xffc857, 0.55);
+      const shell = domeMesh(0.075, 0.026, plastic);
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.225, 0.014, 24), plastic);
+      brim.position.y = 0.079;
+      const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.036, 0.26), solid(0xe8a92f, 0.55));
+      ridge.position.y = 0.215;
       group.add(shell, brim, ridge);
       break;
     }
     case 'beanie': {
-      const shell = new THREE.Mesh(
-        new THREE.SphereGeometry(SKULL.w + 0.02, 16, 10, 0, Math.PI * 2, 0, Math.PI / 1.7),
-        solid(0xc2543f, 0.95),
-      );
-      shell.scale.set(1, 0.95, 1.08);
-      shell.position.y = SKULL.h - 0.05;
+      const knit = solid(0xc2543f, 0.95);
+      const shell = domeMesh(0.075, 0.014, knit);
       const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(SKULL.w + 0.024, SKULL.w + 0.024, 0.035, 18),
+        new THREE.CylinderGeometry(0.16, 0.16, 0.042, 20),
         solid(0xa8422f, 0.95),
       );
-      band.scale.set(1, 1, 1.08);
-      band.position.y = SKULL.h - 0.05;
-      const bobble = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 8), solid(0xf0e6d2, 0.95));
-      bobble.position.y = SKULL.h + 0.075;
+      band.position.y = 0.086;
+      const bobble = new THREE.Mesh(new THREE.SphereGeometry(0.034, 12, 8), solid(0xf0e6d2, 0.95));
+      bobble.position.y = 0.252;
       group.add(shell, band, bobble);
       break;
     }
     case 'tophat': {
       const felt = solid(0x14161d, 0.85);
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.014, 22), felt);
-      brim.position.y = SKULL.h - 0.005;
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.105, 0.19, 22), felt);
-      tube.position.y = SKULL.h + 0.09;
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.215, 0.016, 24), felt);
+      brim.position.y = 0.1;
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.15, 0.21, 24), felt);
+      tube.position.y = 0.215;
       const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.106, 0.108, 0.032, 22),
+        new THREE.CylinderGeometry(0.151, 0.153, 0.036, 24),
         solid(0x8c2f3c, 0.8),
       );
-      band.position.y = SKULL.h + 0.02;
+      band.position.y = 0.125;
       group.add(brim, tube, band);
       break;
     }
     case 'crown': {
       const gold = solid(0xe8c14a, 0.3, 0.75);
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.108, 0.108, 0.05, 18), gold);
-      ring.position.y = SKULL.h + 0.015;
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.155, 0.055, 20), gold);
+      ring.position.y = 0.118;
       group.add(ring);
       for (let i = 0; i < 6; i++) {
         const angle = (i / 6) * Math.PI * 2;
-        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.06, 8), gold);
-        spike.position.set(Math.sin(angle) * 0.095, SKULL.h + 0.065, Math.cos(angle) * 0.095);
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.07, 8), gold);
+        spike.position.set(Math.sin(angle) * 0.135, 0.18, Math.cos(angle) * 0.135);
         group.add(spike);
       }
       break;

@@ -24,7 +24,7 @@ export class PlayerAvatar extends AvatarBody {
   /**
    * The rig pose the body was standing in when the view left, in world space.
    *
-   * Not the head: the skeleton is built in this group's parent space with the
+   * Not the head: the body is built in this group's parent space with the
    * floor at y = 0, so what has to be held still is the *frame*, not a point
    * inside it. While the view is away the group is put back into this frame
    * every frame, and the head keeps the pose it had inside it — which is why
@@ -56,16 +56,16 @@ export class PlayerAvatar extends AvatarBody {
    *
    * Von oben hält die Figur ihr Werkzeug an einer festen Stelle vor der
    * rechten Schulter (`PortalWorld`, die Bildschirmhand). Ohne diese Zeile
-   * hinge der Arm daneben herunter und die Pistole schwebte allein in der
-   * Luft. `null` heißt: nichts in der Hand, der Arm hängt wie bisher.
+   * schwebte die Hand am Rumpf und die Pistole allein in der Luft. `null`
+   * heißt: nichts in der Hand, die Hand schwebt wie sonst neben dem Rumpf.
    */
   screenHand: THREE.Vector3 | null = null;
 
   constructor(color = 0x3f6fb5) {
-    // Fäuste am Ende der Arme — von oben sieht man sich selbst, und eine Figur
+    // Die beiden Handkugeln — von oben sieht man sich selbst, und eine Figur
     // ohne Hände sieht von dort aus abgesägt aus. Gezeigt werden sie nur, wo
     // sie gebraucht werden (`showHands`): In der Brille sind die eigenen Hände
-    // die getrackten, und eine zweite Faust an derselben Stelle wäre im
+    // die getrackten, und eine zweite Kugel an derselben Stelle wäre im
     // Spiegel eine zu viel.
     super({ color, hands: true });
     this.name = 'player-avatar';
@@ -73,7 +73,7 @@ export class PlayerAvatar extends AvatarBody {
     this.setLayer(LAYER_SELF_ONLY);
   }
 
-  /** Ob die Fäuste mitgezeichnet werden — von oben ja, sonst nicht. */
+  /** Ob die Handkugeln mitgezeichnet werden — von oben ja, sonst nicht. */
   set showHands(on: boolean) {
     this.setHandsVisible(on);
   }
@@ -127,7 +127,7 @@ export class PlayerAvatar extends AvatarBody {
       _local.copy(rig.matrixWorld).invert().multiply(this.anchor);
       _local.decompose(this.position, this.quaternion, _scale);
       this.updateMatrixWorld(true);
-      // The hands went with you; the body left behind just lets its arms hang.
+      // The hands went with you; the body left behind just lets them float.
       this.update(dt, this.frozenHead, null, null);
       return;
     }
