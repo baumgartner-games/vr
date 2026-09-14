@@ -288,7 +288,7 @@ den **Griff der Drohne**, die **Kante der Stoppuhr**, den **Saum des Beutels**,
 die **Querstange des Hängegleiters** und den **Handgriff des Controllers** (aus dem
 Modell des Herstellers abgelesen: entlang der Z-Achse des Griffraums), an beiden
 Händen; dass Messer und Sektflaschenhals in derselben Faust liegen wie die
-Pistole; dass die Hand am **Pinsel** gerade *keine* Faust ist, sondern ihn wie
+Pistole; dass die Hand am **Pinsel** gerade _keine_ Faust ist, sondern ihn wie
 einen **Stift** kneift — vier Berührungen auf der Oberfläche des Stiels, rings
 um ihn herum, der Zeigefinger den Stiel entlang zur Spitze und die Handachse
 deutlich quer zur Stielachse, an beiden Händen —; dass Handschuhe die
@@ -322,11 +322,14 @@ Kapsel, samt der beiden Kugelkappen, dem Radius des Dings und dem Zentimeter
 Luft, ohne den der Zustand an der Grenze flackert — **oder in einer Hand**, denn
 der fallengelassene Gegenstand steckt in der Faust, aus der er fällt, und die
 Kapsel ist dort längst geräumt), der
-**Die Welt von oben**
-(`src/core/flat/flatModel.ts` — was aus einer Hülle ein Boden, eine Wand oder
-ein Möbelstück wird, dass die Decke über dem Kopf und der Himmel wegfallen,
-dass unter den Böden der größte zuerst kommt und Südliches zuletzt, und die
-Kamera samt Anhebung), **Menü als Seite** (`src/ui/PageMenu.ts` — in jsdom: dass eine Zeile mit
+**Die 2D-Welt als Daten**
+(`src/world2d/level.test.ts` — dass ein Plan mit drei leeren Ebenen und einer
+Mitte als Start anfängt, dass Setzen sagt, ob sich etwas geändert hat, dass
+fest ist, was auf irgendeiner **sichtbaren** Ebene fest ist und außerhalb
+alles, dass die Reise durch JSON nichts verändert und fremder Text keinen
+Absturz macht, dass je Welt ein Plan gemerkt wird; dazu der Katalog — jede
+Kennung einmal, Wasser und Mauer fest, Gras und Brücke nicht, eine Kachel ein
+Meter — und dass die Lichtung unter ihrer Brücke Wasser hat), **Menü als Seite** (`src/ui/PageMenu.ts` — in jsdom: dass eine Zeile mit
 Kindern absteigt und eine ohne läuft, dass der Weg mit den Handgelenken
 geteilt ist, dass ein Neubau des Baums die Seite nicht verlässt und eine
 Nimm-Seite beim Antippen nimmt), **2D oder 3D am Bildschirm**
@@ -520,7 +523,7 @@ das eine Horde keine Klippe hochlaufen lässt), die **Ecke**, an der er Abstand
 hält (`cornerBlocked` — und zwar auch am **Kopfende** einer Wand, wo alle vier
 Seiten der Nachbarkachel frei sind und die Stirnseite des Klotzes trotzdem in
 ihrer Ecke steht; dieselbe Frage beantwortet die Debug-Ansicht, und dass es
-*eine* Frage ist, ist der Zweck), die **Meinung** (`navBelief.ts` — dass ein NPC gegen eine inzwischen
+_eine_ Frage ist, ist der Zweck), die **Meinung** (`navBelief.ts` — dass ein NPC gegen eine inzwischen
 verschlossene Tür läuft und erst dort umplant: das ist das Ziel und nicht der
 Fehler, und der Test hält es fest, damit es niemand später „repariert"; dazu
 die **Freiraum-Annahme**: eine Tür, die er nie gesehen hat, hält er für offen,
@@ -603,7 +606,7 @@ Strich abgemeldet wird), das **Weltformat**
 durch JSON und wieder zurück dieselbe ist; dass der Aufschlag einer Küchenzeile
 über **drei** Runden konstant bleibt, statt sich zu verdoppeln; dass eine Datei
 ohne Version, mit fremdem Format oder aus der Zukunft abgelehnt wird — und mit
-zwei *verschiedenen* Meldungen, weil „zu neu" und „zu alt" verschiedene Sachen
+zwei _verschiedenen_ Meldungen, weil „zu neu" und „zu alt" verschiedene Sachen
 sind; dass ein Baustein ohne Boden stillschweigend wegfällt, eine kaputte Masse
 dagegen abbricht) und der **Speicher dahinter**
 (`grid/worldStore.ts` — dass jede Welt ihren eigenen Schlüssel hat, dass Müll im
@@ -629,13 +632,13 @@ allem, dass ohne sie jede Zeile wörtlich stehen bleibt: wer eine Liste von
 Namen mit `*` davor tippt, will Sternchen und keine Aufzählung), wie es
 umbrochen wird (`signLayout.ts` — gemessen wird von außen, im Test von einer
 Funktion, die Buchstaben zählt; geprüft werden der Umbruch, das zu lange Wort,
-das *nicht* zerhackt wird, der Punkt links vor dem eingerückten Text und die
+das _nicht_ zerhackt wird, der Punkt links vor dem eingerückten Text und die
 gedeckelte Höhe eines Bildes), wie es **rollt** (`signScroll.ts` — dass was
 hineinpasst gar nicht rollt, dass oben und unten gewartet wird, und die tote
 Zone, ohne die ein ruhender Stick ein Schild in einer Minute quer durch seinen
 Text schöbe), wie es **aussieht** (`signSettings.ts` — Grenzen, Rasten, und die
 Umrechnung, um die es eigentlich geht: die Schriftgröße steht in Zentimetern
-*auf dem Schild*, damit „4 cm" auf der kleinen Tafel dasselbe heißt wie auf der
+_auf dem Schild_, damit „4 cm" auf der kleinen Tafel dasselbe heißt wie auf der
 großen), und was davon **über das Netz** geht (`signShare.ts` — dass ein
 fremdes Schild geprüft wird, bevor es gezeichnet wird, und dass bei gleicher
 Fassung das Bekannte stehen bleibt: beim Begrüßen antworten mehrere, und ohne
@@ -644,12 +647,12 @@ die **Tastaturwahl** (`core/systemKeyboard.ts` — die Tabelle aus drei
 Einstellungen mal „in der Brille" mal „auf so einem Gerät", in der man sich
 sonst vertut) und die **Türen des Interaktionslabors**
 (`worlds/interact/doorMotion.ts` — dass eine Tür mit Nachlauf beim zweiten
-Druck *nicht* zufällt, sondern die Uhr neu setzt: eine Tür, die zugeht, während
+Druck _nicht_ zufällt, sondern die Uhr neu setzt: eine Tür, die zugeht, während
 man in ihr steht, ist eine Falle und kein Schalter) und der **alte Build**
 (`core/staleBuild.ts` — die drei Sätze, mit denen die drei Browser-Familien
 ein nicht mehr vorhandenes Modul melden, wörtlich, damit ein Tippfehler in der
 Liste auffällt und nicht erst dann, wenn nach einem Deploy niemand mehr die
-Welt wechseln kann; und die Bremse, die daraus höchstens *ein* Neuladen macht).
+Welt wechseln kann; und die Bremse, die daraus höchstens _ein_ Neuladen macht).
 
 Diese Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht
 Jest weder WebGL noch WebXR noch wasm.
@@ -708,8 +711,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   jedes Gerät, der Knopf steht sofort da, und die Brille schreibt sich
   Millisekunden später selbst hinein — besser als ein toter Knopf „VR wird
   geprüft …", auf den jeder Schreibtisch wartet.
-  **Die Wahl ist eine Zusage**: „2D" führt in die Karte von oben, und die gibt
-  es seit dem Paket „Jede Welt von oben" in **jeder** Welt (`core/flat/`) —
+  **Die Wahl ist eine Zusage**: „2D" führt in die Kachelwelt von oben, und die
+  gibt es in **jeder** Welt (`src/world2d/`, siehe „Jede Welt von oben") —
   „Beitreten" öffnet also die Welt, in der man ohnehin steht, nur flach. Vorher
   stand der Schalter da und die Spielwiese startete trotzdem den Hub in 3D:
   eine Wahl, die keine war. Umgeschaltet wird auch mitten im Spiel, unter
@@ -722,57 +725,60 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Unter `#haunting` hat sie ein zweites Gesicht: die **Startseite der Runde**
   — Name, Raum-Code, Verbinden, und derselbe eine Knopf in denselben Raum
   (`main.ts`, `data-landing="haunting"`; siehe [Haunting](#haunting--orbital-raumstation-für-eine-quest-und-zwei-mobilgeräte)).
-- **Jede Welt von oben** (`src/core/flat/`, mit Tests) — dieselbe Welt, flach
-  gelesen und flach gezeichnet, mit der Crewmate-Figur aus Haunting. Eine
-  **Ansicht**, kein zweites Spiel: Gelaufen wird mit demselben Körper durch
-  dieselben Wände, nur das Bild kommt woanders her. Damit kann die Karte gar
-  nicht von der Welt abweichen — sie ist die Welt.
-  - **Gelesen statt gezeichnet** (`flatScan.scanScene`): Jede Welt baut Netze,
-    jedes Netz hat eine Hülle, und eine Hülle von oben ist ein Rechteck mit
-    einer Höhe. Was daraus ein **Boden**, eine **Wand** oder ein **Möbelstück**
-    wird, entscheidet allein die Form (`flatModel.classify`, mit Test): flach
-    und breit ist Boden, hoch und in einer Richtung dünn ist Wand, alles
-    dazwischen steht herum. Für vierzehn Welten eine Karte von Hand zu pflegen
-    wären vierzehn Listen, die nach der dritten Änderung lügen.
-  - **Die Karte ist ein Schnitt**, kein Blick von der Decke: Was über dem Kopf
-    hängt (`CUT_HEIGHT` 2,6 m über dem Boden, auf dem der Spieler steht),
-    gehört nicht darauf — sonst sieht man das Dach und sonst nichts. Und was
-    größer als `MAX_SPAN` 400 m ist, ist der Himmel und kein Stück Welt.
-  - **Pseudo-3D wie in der Vorlage** (`worlds/haunting/map/flatScene.ts`):
-    Norden oben, die Oberseite eines Klotzes um `liftOf(Höhe)` nach Norden
-    verschoben, darunter eine Vorderseite nach Süden. Was weiter südlich steht,
-    wird später gezeichnet und verdeckt das dahinter. **Unter den Böden zuerst
-    der größte** — sonst deckt die Wüste die Häuser zu, die auf ihr stehen.
-  - **Die Figur ist die aus der 2D-Welt** (`core/flat/crewmate.ts`). Sie stand
-    bei Haunting (`map/flatArt.ts`) und liegt jetzt im Kern; Haunting reicht sie
-    von dort weiter, damit es sie nur **einmal** gibt. **Gerechnet wird mit
-    einem Kreis** (`physics/playerClearance.PLAYER_CAPSULE_RADIUS` 0,24 m — die
-    Zahl, die 2D und 3D schon teilen), gezeichnet wird die Bohne. „Geht" und
-    „rennt" liest `App.drawFlat` aus dem Weg, den der Körper wirklich
-    zurückgelegt hat: Wer an einer Wand steht und drückt, läuft auch nicht.
-  - **Gelesen wird einmal je Welt**, nicht je Bild (eine Hülle auszurechnen
-    heißt, Ecken durch eine Matrix zu schieben; für ein paar tausend Netze ist
-    das ein Ruckler). Ein zweiter Blick kommt 1,5 s nach dem Betreten, weil
-    manche Welt ihre Sachen erst in den ersten Bildern hinstellt; von Hand geht
-    es über **Menü → Ansicht → Karte neu lesen**. Deckel: `SCAN_LIMIT` 4000
-    Netze.
-  - **Die Tasten laufen in Bildrichtungen** (`FlatControls.topDown`): oben ist
-    Norden, rechts ist Osten, unabhängig davon, wohin die Figur schaut — und
-    die Figur schaut dorthin, wo sie hingeht, denn hier dreht sie sonst
-    niemand. Die Maus dreht nichts und fängt keinen Zeiger ein.
-  - **Das Bild liegt über der Szene, die gar nicht gezeichnet wird**
-    (`App.step`): In dieser Ansicht wird das WebGL-Bild nur geleert, und
-    Spiegel wie Portalsichten bleiben aus — sie zeichneten in Bilder, die
-    niemand ansieht. Die Leinwand **nimmt keine Zeiger an**
-    (`flatView.css`, `pointer-events: none`), sonst käme der Bordstock des
-    Telefons nicht mehr durch; Rad und Kneifen hört sie am Fenster ab.
+
+- **Jede Welt von oben** (`src/world2d/`, mit Tests) — eine **Kachelwelt** wie
+  auf dem SNES, gezeichnet von [Phaser](https://phaser.io), mit Ebenen, einem
+  Helden, einem Raster und einem kleinen Editor. Das ist die Richtung: Die
+  Kachelwelt soll die **Ground Truth** werden, aus der die 3D-Welt gebaut wird
+  — heute führt sie schon den Spieler, morgen stellt sie die Wände.
+  - **Daten zuerst** (`level.ts`, ohne Phaser, ohne DOM): Ein Plan ist
+    `cols × rows` Kacheln und darauf **Ebenen** von unten nach oben — `ground`
+    (Boden), `objects` (Dinge; hier wohnt die Kollision), `overlay` (Darüber:
+    Dächer, Baumkronen, unter denen der Held verschwindet). Jede Ebene ist eine
+    Liste von Kennungen, `0` ist leer. **Eine Kachel ist ein Meter** (`TILE_M`),
+    gezeichnet mit sechzehn Bildpunkten (`TILE_PX`): Spalte und Zeile hier sind
+    x und z in 3D. Gespeichert wird je Welt im Browser
+    (`bgvr.level2d.v1.<welt>`, Format `baumgartner-level2d` mit Fassung); wer
+    keinen Plan hat, bekommt die **Lichtung** aus `sample.ts` — Teich mit
+    Brücke, Haus mit Dach, Kisten, Zaun, Bäume am Rand.
+  - **Der Katalog** (`tiles.ts`): achtzehn Kacheln — Gras, Weg, Wasser, Mauer,
+    Baum, Kiste, Tür, Dach … —, jede mit Farbe, Ebene und **ob sie fest ist**
+    (`SOLID_TILES`). Gemalt werden sie beim Start auf eine Leinwand, wie der
+    Held (`hero.ts`: vier Richtungen, zwei Schritte, grüne Tunika). Wer echte
+    Grafik will, tauscht die Leinwand gegen ein Bild und lässt alles andere
+    stehen.
+  - **Phaser zeichnet und bewegt** (`World2D.ts`): Phaser wird erst geholt,
+    wenn 2D das erste Mal aufgeht (eigener Brocken, `import('phaser')`), baut
+    eine leere Tilemap mit einer Ebene je Plan-Ebene (Tiefe 0/5/20), den Helden
+    als Arcade-Körper (10 × 8 unter den Füßen) mit Kollision gegen alles Feste,
+    und die Kamera folgt ihm mit einem Zoom, der den Plan ins Fenster passt.
+    Phasers eigene Tastatur und der Ton sind aus — Tasten liest der Kern.
+  - **2D ist der Beweger.** `FlatControls.topDown` schreibt nur noch einen
+    **Wunsch** (`wish`: x, z, Sprint) aus Tasten und Bordstock, Phaser läuft
+    damit (`WALK_SPEED` 3 Kacheln/s, Sprint 5,2), und das 3D-Rig **folgt dem
+    Helden** (`App.followHero`: x, z und Blickrichtung). Oben ist Norden,
+    rechts Osten; die Figur schaut, wohin sie geht. Wer auf 3D schaltet, steht
+    dort, wo der Held zuletzt stand.
+  - **Menü → Ansicht**: **Raster** (Kachellinien), **Ebenen** (jede einzeln
+    ein- und ausblenden — eine ausgeblendete Mauer hält niemanden auf, das ist
+    der Sinn), **Editor** und **Plan zurücksetzen** (zurück auf die Lichtung).
+  - **Der Editor** (`Editor.ts`, `.w2d-editor`, mobile first, rechts am Rand):
+    Malen oder Radieren, die Ebene wählen, eine Kachel aus der Palette, ein
+    Auge je Ebene. Gemalt wird mit Zeiger oder Finger direkt auf die Welt, und
+    jede Änderung landet sofort im Speicher (`saveLevel`). Nur im Editor nimmt
+    die Leinwand Zeiger an (`.is-editing`); sonst bleibt sie **durchlässig**
+    (`world2d.css`, `pointer-events: none`), weil darunter der Bordstock des
+    Telefons liegt — das Rad zum Zoomen hört im Spiel deshalb das Fenster ab.
+  - **Die Szene wird nicht gezeichnet** (`App.step`): In 2D wird das WebGL-Bild
+    nur geleert, und Spiegel wie Portalsichten bleiben aus.
   - **Eine Welt hat ihre eigene**: Haunting (`World.ownsFlat`) bringt Räume,
     Türen, Licht und eine ganze Runde von oben mit — da malt der Kern nicht
-    darüber.
-  - **Was das (noch) nicht ist**: die Ground Truth. In Haunting rechnet die
-    2D-Runde und die Brille folgt (`flatKernel.ts`); hier rechnet weiter die
-    3D-Welt, und die flache Ansicht liest sie. Sie kann deshalb nicht von ihr
-    abweichen, aber sie führt sie auch nicht.
+    darüber. Seine Crewmate-Figur liegt weiter in `core/flat/crewmate.ts`.
+  - **Was das (noch) nicht ist**: aus der 3D-Welt gelesen. Der Vorgänger las
+    die Hüllen der Netze und malte daraus Klötze (`core/flat/`, bis auf die
+    Figur weg); der Plan ist jetzt von Hand — heute für jede Welt dieselbe
+    Lichtung —, und die 3D-Welt wird noch nicht aus ihm gebaut. Das ist der
+    nächste Schritt, nicht dieser.
 - **Hub-Welt**: runde Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
   Ist ein Gang voll, kommt der nächste dazu und alle verteilen sich neu über
@@ -1285,6 +1291,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     wird nur auf null gedreht: three.js baut jeden Shader im Raum neu, wenn
     sich die _Anzahl_ der Lichter ändert, und ein Schalter ist kein Ruckler
     wert.
+
   - **Greifhaken**: Trigger schießt den Haken, Halten zieht dich hin; trifft
     er ein Objekt, kommt stattdessen das Objekt.
   - **Gravitationshandschuh**: Trigger zieht das anvisierte Objekt geradewegs
@@ -1818,7 +1825,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   der Raum des Geräts im Zimmer steht. Die Farben sind die üblichen — **X rot,
   Y grün, Z blau**, wie in three.js und Blender —, und dazu kommt der vierte
   Pfeil, um den es eigentlich geht: **-Z in Weiß**. Vorne ist überall in diesem
-  Spiel das *negative* Z; ein Kreuz, das nur +Z zeigt, zeigt genau dorthin, wo
+  Spiel das _negative_ Z; ein Kreuz, das nur +Z zeigt, zeigt genau dorthin, wo
   nichts ist. Die Legende an der Wand schreibt es aus.
 
   **Greifen friert die Lage ein**, ein zweites Greifen gibt sie wieder frei —
@@ -2239,12 +2246,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
   Zwei Zahlen daran waren lange falsch, und beide sieht man erst in der Brille.
   **Das Vorzeichen der Drehung**: Ein positives `rotation.x` kippt die Normale
-  einer Tafel nach *unten* und damit vom Auge weg — die Tafel hing also nicht
+  einer Tafel nach _unten_ und damit vom Auge weg — die Tafel hing also nicht
   um 24° zurückgedreht, sondern um 24° weiter nach vorn, knapp 50° schräg im
   Blick statt null. Und **die Reihenfolge**: Sie liegt ohne Tiefentest auf dem
   Glas (sonst verschwände sie hinter jeder Wand, an der man gerade hängt), und
   dann entscheidet allein die Zeichenreihenfolge, wer über wem liegt. Mit den
-  60 von vorher lag sie über *allem*, auch über dem aufgeklappten
+  60 von vorher lag sie über _allem_, auch über dem aufgeklappten
   Handgelenkmenü (`UIPanel`, Reihenfolge 10). Jetzt wird sie **davor**
   gezeichnet (4) statt darüber: Drei Balken, die quer durch eine Menüseite
   laufen, sind schlimmer als drei Balken, die man kurz nicht sieht.
@@ -2312,6 +2319,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
      6,50 m: Man stieß mit den Knien gegen das Blech, statt sich darunter
      hinüberzuhangeln. Jetzt ist es die Armlänge plus eine Handbreit Luft
      (`TOPOUT_CLEAR`).
+
   2. **Eine schräge Leiter steht im eigenen Weg.** Zuerst lehnte sie nach
      außen, über den Schacht — also über genau die Strecke, die der Kletterer
      nach oben nimmt —, und man stieß von unten gegen ihre Unterseite. Deshalb
@@ -2409,6 +2417,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Hallendecke wäre der kürzeste Weg nach oben und damit das Ende dieser Welt.
   Geklettert wird mit **Controllern oder getrackten Händen**; am Schreibtisch
   kann man die Halle ansehen und durchlaufen, aber nicht hinauf.
+
 - **Mond** (experimentell): die Welt, die es wegen der Schwerkraft gibt —
   1,62 m/s². Ein Sprung dauert dreimal so lange, ein geworfener Stein fliegt
   bis zum nächsten Krater, ein Stapel fällt in Zeitlupe zusammen, ohne dass
@@ -2508,19 +2517,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Flügeltür**, zwei Blätter an ihren Scharnieren, geschaltet vom **Hebel**,
     der **rastet**: auf bleibt auf.
   - **Drucktür**, offen nur, solange etwas auf der **Druckplatte** liegt — man
-    selbst, oder die Kiste, die daneben steht. Die Platte löst in *jedem* Bild
+    selbst, oder die Kiste, die daneben steht. Die Platte löst in _jedem_ Bild
     neu aus, in dem sie gedrückt ist; deshalb fällt die Tür anderthalb Sekunden
     nach dem Verlassen zu und nicht unter dem, der darin steht
     (`interact/doorMotion.ts`, mit Test).
-  Dazu ein **Kippschalter** an der Westwand für das Deckenlicht, über jeder Tür
-  eine Lampe (aus, gelb in Bewegung, grün offen) und hinter der Wand die
-  **Schildergalerie**: drei Tafeln, die zeigen, was ein Schild kann — Markdown,
-  ein langer Aushang, der von selbst rollt, und der Text, den man selbst
-  hineinschreibt. Die Türblätter sind **kinematische** Körper: sie schieben,
-  was ihnen im Weg liegt, und niemand schiebt sie. Im Gürtel liegt statt der
-  zweiten Portalpistole das **Schild** — in einem Raum, in dem es ums Bedienen
-  geht, ist das Werkzeug, das etwas aufschreibt, wichtiger als das zweite, das
-  Löcher in Wände schießt.
+    Dazu ein **Kippschalter** an der Westwand für das Deckenlicht, über jeder Tür
+    eine Lampe (aus, gelb in Bewegung, grün offen) und hinter der Wand die
+    **Schildergalerie**: drei Tafeln, die zeigen, was ein Schild kann — Markdown,
+    ein langer Aushang, der von selbst rollt, und der Text, den man selbst
+    hineinschreibt. Die Türblätter sind **kinematische** Körper: sie schieben,
+    was ihnen im Weg liegt, und niemand schiebt sie. Im Gürtel liegt statt der
+    zweiten Portalpistole das **Schild** — in einem Raum, in dem es ums Bedienen
+    geht, ist das Werkzeug, das etwas aufschreibt, wichtiger als das zweite, das
+    Löcher in Wände schießt.
 - **Schilder** (`src/worlds/signs/`, Werkzeug `tools/SignTool.ts`): Tafeln, die
   man irgendwo hinstellt und beschriftet. Sie sind das Gegenstück zur
   Staffelei — die stellt eine Fläche zum _Malen_ hin, das Schild eine zum
@@ -2640,130 +2649,130 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
 ## Steuerung
 
-|                                    | VR                                                                                                                                                                    | Desktop                                                                                         | Handy                |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------- |
-| Bewegen                            | linker Stick                                                                                                                                                          | `WASD` (`Shift` = schneller)                                                                    | linker Touch-Stick   |
-| Sprinten                           | linken Stick reindrücken                                                                                                                                              | `Shift`                                                                                         | –                    |
-| Ducken                             | rechten Stick reindrücken                                                                                                                                             | –                                                                                               | –                    |
-| Umsehen                            | Kopf, rechter Stick = Snap-Turn                                                                                                                                       | Maus (Klick = Pointer-Lock)                                                                     | wischen              |
-| Springen                           | `A` rechts                                                                                                                                                            | `Leertaste`                                                                                     | –                    |
-| Menü                               | Button an **beiden** Händen (immer nur eins offen)                                                                                                                    | Knopf ☰ oben links — dasselbe Menü als Seite (`ui/PageMenu.ts`), auch auf der Startseite         | Knopf ☰ oben links; Blatt von unten |
-| 2D von oben ↔ 3D                   | – (in der Brille steht man in der Welt)                                                                                                                              | Startseite oder Menü → _Ansicht_; Rad zoomt                                                     | dito; zwei Finger zoomen |
-| Auswählen                          | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl; im Handgelenkmenü löst der Trigger beim **Loslassen** aus, damit Wischen nichts drückt                | Linksklick                                                                                      | tippen               |
-| Werkzeug nehmen                    | Grip an der Hüfte halten (jede Hand, jedes Werkzeug)                                                                                                                  | – (immer bereit)                                                                                | –                    |
-| Werkzeug ablegen                   | Grip über der Hüfte loslassen                                                                                                                                         | –                                                                                               | –                    |
-| Werkzeug weiterreichen             | die leere Hand an den **Griff** der vollen führen (sie leuchtet und öffnet sich), dann greifen                                                                        | –                                                                                               | –                    |
-| Werkzeug fallen lassen             | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht)                                                      | –                                                                                               | –                    |
-| Hüften verschieben                 | Gürtel-Justierer nehmen, Hüfte anzielen, Trigger, mit der anderen Hand greifen und schieben (`A`/`X` setzt zurück)                                                    | –                                                                                               | –                    |
-| Messer werfen                      | im Schwung loslassen; es fliegt weiter und bleibt stecken                                                                                                             | –                                                                                               | –                    |
-| Aufnahme im Eingaberaum            | Knopf auf der Tafelwand startet und beendet sie; **Greifen** setzt währenddessen eine Marke                                                                            | Linksklick auf den Knopf                                                                        | –                    |
-| Großer Hammer                      | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf                         | –                                                                                               | –                    |
-| Laufrichtung                       | voreingestellt beim Loslaufen gemerkt (Kopfdrehen ändert den Weg nicht mehr); Menü → Bewegung → _Laufrichtung_ schaltet auf Blickrichtung zurück                                                                                                                            | dito                                                                                            | dito                 |
-| Haltung (sitzen/stehen)            | Startseite (nur mit Brille gefragt) oder Menü → Bewegung → Haltung                                                                                                    | Menü → Bewegung → Haltung                                                                       | dito                 |
-| Greifen ohne Controller            | Mittel-, Ring- und kleiner Finger an die Handfläche                                                                                                                   | –                                                                                               | –                    |
-| Trigger ohne Controller            | Zeigefinger an die Handfläche                                                                                                                                         | –                                                                                               | –                    |
-| Portal schießen                    | Trigger der Hand mit der Waffe                                                                                                                                        | Links-/Rechtsklick                                                                              | –                    |
-| Zweites Portal (Doppel-Waffe)      | Greifen                                                                                                                                                               | Rechtsklick                                                                                     | –                    |
-| Aufheben / werfen                  | Grip mit leerer Hand am Objekt                                                                                                                                        | –                                                                                               | –                    |
-| Weitergeben                        | mit der freien Hand danach greifen                                                                                                                                    | –                                                                                               | –                    |
-| Anfassen                           | Hand ans Ding, Grip — die Hand leuchtet, wenn sie dran ist                                                                                                            | –                                                                                               | –                    |
-| Nahgreifen                         | zielen, Grip: der Gegenstand bleibt liegen und folgt der Hand (Geisterhand zeigt, wo)                                                                                 | –                                                                                               | –                    |
-| Ferngreifen                        | zielen, Grip drücken (rastet ein), Hand zum Körper zucken (ab _Zugtempo_, ab Werk 1,25 m/s — _mittel_)                                                                              | –                                                                                               | –                    |
-| Nah Gefasstes doch holen           | dasselbe Zucken zum Körper                                                                                                                                            | –                                                                                               | –                    |
-| Nah Gefasstes zur anderen Hand     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                            | –                                                                                               | –                    |
-| Reichweiten einstellen             | Menü → Einstellungen → Greifen                                                                                                                                        | dito                                                                                            | dito                 |
-| Grafik umstellen                   | Menü → Grafik: _Grafik-Modus_ schaltet im Kreis (Einfach → Comic); _Brille: Auflösung_ (Voll → Mittel → Flüssig, ab der nächsten Sitzung); oben die **Bildrate** live | dito                                                                                            | dito                 |
-| Menüseite blättern                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                   | –                                                                                               | –                    |
-| Werkzeug-Einstellungen             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                          | Linksklick auf den Pfeil                                                                        | tippen               |
-| Augenhöhe messen                   | Menü → Bewegung → Augenhöhe → _Jetzt messen_, oder die Knöpfe an der rechten Wand im Eingaberaum                                                                      | –                                                                                               | –                    |
-| Werkzeug einmessen (Schießgang)    | Werkzeug in den Halter halten — es rastet auf die Scheibe gerichtet ein —, die Hand daran führen und **Greifen oder Trigger**; `A` legt es unverändert zurück         | –                                                                                               | –                    |
-| Haltung feinjustieren (Schießgang) | _Feinjustieren_ an der rechten Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab                         | –                                                                                               | –                    |
-| Werkzeug wählen (Schießgang)       | Schild am Halter drücken, dann im Panel vor dir eine Zeile mit **Trigger oder Greifen** — es landet direkt im Halter und **bleibt dort**, bis die Hand wieder aufgeht | –                                                                                               | –                    |
-| Verbinden (in der Brille)          | Menü → _Verbindung_ → _Raum betreten_ (Code tippen) oder _Neuen Raum aufmachen_; _Name_ ändert den eigenen Namen — beides geht mitten im Spiel                        | Raum-Code auf der Startseite                                                                    | –                    |
-| Chat                               | Menü → _Verbindung_ → _Chat_: letzte Zeilen lesen, _Schreiben_ macht die Tastatur auf; eine Zeile mit Konfig-Code auswählen übernimmt ihn                             | Panel _Verbindung_ → **Chat**: tippen, _Kopieren_ und _Übernehmen_ je Zeile, _Verlauf kopieren_ | dito                 |
-| Einstellungen verschicken          | _Werkzeug senden_ / _Alles senden_ an der Wand des Gangs — der Code geht als Chat-Zeile an alle im Raum und steht am PC mit _Kopieren_ daneben                        | –                                                                                               | –                    |
-| AR an/aus (Schießgang)             | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf _AR_ an der rechten Wand                                                   | –                                                                                               | –                    |
-| Griff einmessen (Schießgang)       | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt sie **zurück ans Werkzeug**     | –                                                                                               | –                    |
-| Handschuh an blanken Händen        | Knopf _Handschuh_ an der Wand im **Poseraum**, oder Menü → Hände → _Blanke Hände_                                                                                     | –                                                                                               | –                    |
-| Knochenfarben                      | Knopf _Knochenfarben_ an der Wand im **Poseraum**, oder Menü → Hände → _Knochenfarben_                                                                                | –                                                                                               | –                    |
-| Handpose teilen (Poseraum)         | Werkzeug im **Schwebekasten** loslassen, blanke Hand daran, mit der **Controller-Hand** auf _Handpose teilen_ zeigen; **deren Trigger** speichert                     | –                                                                                               | –                    |
-| Schwebekasten feststellen          | Knopf _Schwebe_ an der Wand im **Poseraum** — was darin hängt, steht still und lässt sich nicht greifen; nochmal drücken gibt es frei                                 | –                                                                                               | –                    |
-| Geteilte Handpose ansehen          | –                                                                                                                                                                     | `tools.html` → Menü → _Verbinden_, Raum-Code eintragen                                          | dito                 |
-| Grundhaltung einmessen             | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger**                                                      | –                                                                                               | –                    |
-| Stand stellen (beide)              | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert                                                                      | –                                                                                               | –                    |
-| Vibration ausprobieren             | Griff auf der Bank links greifen und halten                                                                                                                           | –                                                                                               | –                    |
-| Greifhaken                         | Trigger (halten zieht)                                                                                                                                                | –                                                                                               | –                    |
-| Gravitationshandschuh              | Trigger zieht, Greifen stößt ab                                                                                                                                       | –                                                                                               | –                    |
-| Supermanhandschuh                  | Greifen schwebt, Trigger fliegt; Hand zur Seite oder Kopf drehen = Kurve. Tempo je Richtung und wer welche Achse lenkt: _Einstellungen → Supermanhandschuh_           | –                                                                                               | –                    |
-| Translationshandschuh              | Trigger hält aus der Ferne, `A` wechselt Modus                                                                                                                        | –                                                                                               | –                    |
-| Größe & Position                   | Trigger wählt, `A` holt die Griffe vor dich                                                                                                                           | –                                                                                               | –                    |
-| Griff ziehen                       | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand                                                                                                         | –                                                                                               | –                    |
-| Wert eintippen                     | auf eine Taste zielen + Trigger, oder mit dem Finger antippen                                                                                                         | echte Tastatur oder Klick                                                                       | tippen               |
-| Lötkolben                          | Trigger setzt Punkte, andere Hand wechselt Modus                                                                                                                      | –                                                                                               | –                    |
-| Drohne                             | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate)                                                                   | –                                                                                               | –                    |
-| Hängegleiter                       | Trigger oder `A` = Anlauf; Stange ziehen = schneller, drücken = langsamer, kippen = Kurve (eine Hand tiefer, oder das Handgelenk); zweite Hand greift ans andere Ende; am Boden loslassen lässt ihn fallen | –                                                                                               | –                    |
-| Flügel                             | beide Arme schlagen = Start und Schub; ausbreiten = gleiten, anlegen = Sturzflug; eine Hand tiefer = Kurve, Hände vor = Nase runter                                   | –                                                                                               | –                    |
-| Taschenlampe                       | Trigger schaltet an/aus                                                                                                                                               | –                                                                                               | –                    |
-| Lichtkegel stellen                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                          | –                                                                                               | –                    |
-| Dimmer (Dunkelhaus)                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                              | anklicken                                                                                       | tippen               |
-| Haunting: Rolle wählen | Menü → _Techniker / Rot / Gelb / Blau / Monster_ (Mensch · Bot · Aus) und _Fähigkeiten der Plätze_ | Reiterzeile ganz oben: _Aufbau_, Techniker, Rot, Gelb, Blau, Monster, _Zuschauer: Einzeln_, _Zuschauer: Alles_ — wer tippt, sitzt dort | antippen |
-| Haunting: Archiv | – | Zimmer auf der Karte antippen öffnet die Raumakte; Bild darin ziehen/zoomen | dito |
-| Haunting: Schalttafel | – | Tür oder Lampe auf der Karte antippen schaltet sie; „Tafel" oben rechts schlägt die Schalterliste darüber auf | dito |
-| Haunting: Zuschauer — wessen Platz / wem folgen / durch seine Augen / KI-Absichten | – | im Zuschauer-Panel wählen (Deck, Archiv, Schalttafel, Späher, Monster); über dem Deck: Stock links unten oder Finger fliegt, Mausrad oder zwei Finger zoomen, _Zurück über das Deck_ | antippen, ziehen, zwei Finger |
-| Haunting: Schrank / Gegenstand / Rätsel | anvisieren + Trigger | anvisieren + `E` oder Linksklick | als Techniker über sichtbare Schaltflächen |
-| Haunting: linke / rechte Hand | Radar-/Röntgen-/Medkit-Menü; Objekte mit Trigger bedienen | `1` wechselt Sensor, `2` Lampe/Medkit; beide enthalten freie Hand | – |
-| Haunting: Medkit | Missionsmenü → Medkit | rechts wählen + `E`, oder Missionsmenü | – |
-| Haunting: Schutzschrank | Tastenfeld antippen = hinein (kein Code); beleuchteter Innenknopf zum Verlassen | `E` oder Klick auf das Tastenfeld; `E` oder Menü zum Verlassen | Kabine antippen, wie in 2D |
-| Haunting: Feststecken | Menü → _Feststecken? Zurück auf den Boden_ — mitten ins eigene Zimmer, draußen in die Zentrale | Menü, derselbe Eintrag | – |
-| Haunting: Ducken | körperlich ducken | `Ctrl` halten | – |
-| Haunting: Mission / Test | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei | dito | Handys besetzen Archiv/Schalttafel |
-| Haunting: 2D-Welt, Rolle wechseln | – | Panel über der Szene, dieselben sieben Reiter wie auf dem Telefon: Techniker, Rot, Gelb, Blau, Monster, Zuschauer: Einzeln, Zuschauer: Alles — Farbplätze und Monster nur in einer Test-Runde; Zahnrad = Optionsmenü (dasselbe steht im Schiff im Browser hinter _⚙ Optionen_; darin in der Bot-Runde die Simulationsgeschwindigkeit ×1 … ×16) | antippen |
-| Haunting: einzelne Lehrzimmer | Test → _Testdeck: einzelne Übungsräume_; Rückkehrknopf in jedem Raum | dito; mit `E` die echten Beispiele bedienen | – |
-| Haunting: Simulationsflug | linker Stick fliegt, rechter steigt/sinkt | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller | – |
-| Haunting: VR-Komfort | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration | – | – |
-| Haunting: Raumakte | – | Zimmer auf der Archivkarte antippen; die Akte liegt ganzseitig darüber, „Karte" bringt den Grundriss zurück | dito |
-| Haunting: Leistungsanzeige | Menü → Grafik, erste Zeile: FPS, Framezeit, CPU, Draw Calls — alle halbe Sekunde nachgeschrieben, solange das Menü offen ist | `F3`: FPS, Framezeit, Draw Calls und Dreiecke | mit F3 sichtbar |
-| Klettern (Kletterhalle)            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der linke Stick aus — der rechte dreht weiter, und die Anker gehen mit | –                                                                                               | –                    |
-| Verspreizen (Kamin)                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                 | –                                                                                               | –                    |
-| Sprungkissen (Kletterhalle)        | vom Podest in eines der blauen Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                  | dito                                                                                            | dito                 |
-| Halt-Anzeige (Kletterhalle)        | Menü → _Halt-Anzeige_ schaltet die drei Balken ab; _Zurück auf die Matte_ setzt dich mit voller Ausdauer auf den Boden                                                | dito                                                                                            | dito                 |
-| Messband                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                      | –                                                                                               | –                    |
-| Stoppuhr                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                    | –                                                                                               | –                    |
-| Pinsel                             | Palette antippen **oder** anzielen + Trigger; Regler (RGB, Breite) gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                  | –                                                                                               | –                    |
-| Staffelei                          | Trigger stellt sie hin (Kreis am Boden zeigt wohin) und die Hand ist danach frei; **Griff an der Ablage + Greifen** nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel                                                          | –                                                                                               | –                    |
-| Schild                             | Trigger stellt es hin (Umriss zeigt wohin: Pfosten am Boden, flach an der Wand); `A`/`X` beschriftet das anvisierte Schild, sonst den Entwurf in der Hand; **Traggriff + Greifen** nimmt ein aufgestelltes wieder auf                                    | –                                                                                               | –                    |
-| Schild lesen und ändern            | mit **leerer Hand** hinzeigen + Trigger öffnet die Tastatur; Daumenstick derselben Hand rollt den Text                                                                | anklicken (gerollt wird in der Brille)                                                          | tippen               |
-| Tastatur (mehrzeilig)              | Tasten anzielen + Trigger; in der Brille kommt, wo es sie gibt, die Systemtastatur des Geräts dazu; `⏎ Zeile` macht eine neue Zeile, `Fertig` übernimmt                | echte Tastatur, `Strg`+`Eingabe` übernimmt, `Esc` bricht ab                                     | tippen               |
-| Interaktionslabor                  | roter Knopf öffnet die Schiebetür (sechs Sekunden), Hebel rastet die Flügeltür, Kiste oder Fuß auf der Druckplatte hält die dritte auf; Kippschalter an der Westwand macht das Licht | anklicken                                                                                       | tippen               |
-| Effektlabor                        | roter Knopf löst aus; links Kachel wählen und den Schieber ziehen (Trigger halten)                                                                                    | anklicken / ziehen                                                                              | tippen               |
-| Duplizier-Waffe                    | zielen + Trigger legt eine Kopie daneben                                                                                                                              | –                                                                                               | –                    |
-| Inspektor                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                    | –                                                                                               | –                    |
-| Teleporter                         | zielen, grüner Kreis, Trigger setzt dich dorthin                                                                                                                      | –                                                                                               | –                    |
-| Radiergummi                        | Trigger löscht                                                                                                                                                        | –                                                                                               | –                    |
-| Sektflasche (aus dem Beutel)       | greifen: sie rastet am Hals in die Faust wie ein Pistolengriff, aufrecht oder über Kopf; kräftig schütteln, und der Korken knallt heraus                              | –                                                                                               | –                    |
-| Hirn                               | Knopf/`A` öffnet das Panel (Haut, Hirn, Tempo, Leben, Käfig); zielen + Trigger setzt, was in _Setzen_ steht — oder nimmt weg, worauf du zeigst                          | –                                                                                               | –                    |
-| Magischer Beutel                   | in der einen Hand halten, mit der anderen ins Raster fassen oder darauf zeigen: Greifen holt das Ding heraus; geblättert wird mit dem **Trigger** der haltenden Hand, oder über einen der beiden Pfeile (Greifen oder Trigger) | –                                                                                               | –                    |
-| Kart: einsteigen                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                              | Lenkrad anklicken                                                                               | –                    |
-| Kart: aus der Box fahren           | Gas geben und nach rechts auf die Gerade ziehen                                                                                                                       | `W`, dann `D`                                                                                   | –                    |
-| Kart: Gas / Bremse                 | rechter / linker Trigger                                                                                                                                              | `W` / `S`                                                                                       | –                    |
-| Kart: lenken                       | linker Stick — oder das Lenkrad greifen und drehen                                                                                                                    | `A` / `D`                                                                                       | –                    |
-| Kart: aussteigen                   | `A`/`X` halten (Balken läuft voll)                                                                                                                                    | `E` halten                                                                                      | –                    |
-| Kart: Klemmbrett                   | anzielen + Trigger, Stick blättert                                                                                                                                    | anklicken                                                                                       | –                    |
-| Karte holen (Bauplatz)             | Greifen an der Hüfte, an der sie hängt                                                                                                                                | –                                                                                               | –                    |
-| Karte (Werkzeug, jede Welt)        | aus dem Regal in die Hand nehmen; **Trigger** schaltet den Maßstab weiter (20 → 40 → 80 → 160 m)                                                                       | –                                                                                               | –                    |
-| Grundriss malen                    | an der Palette eintunken, dann Trigger auf der Miniatur **halten** und ziehen — was der Zeiger überstreicht, wird gesetzt                                              | Linkstaste halten und den Blick schwenken                                                       | –                    |
-| Fläche füllen                      | Tafel am Modell → _Fläche_, dann zwei Ecken: aufziehen und loslassen, **oder** zweimal tippen. Boden füllt die Fläche, Wand zieht ihren Rand                          | dito                                                                                            | –                    |
-| Karte weglegen (Bauplatz)          | über der Hüfte loslassen, oder Menü → _Karte weglegen_ — erst dann steht das Gebaute fest da, und erst dann ist es gespeichert                                        | Menü → _Karte weglegen_                                                                         | dito                 |
-| Welt speichern / mitnehmen         | Bauplatz, Menü → _Welt sichern_: im Browser speichern, als Datei exportieren, eine Datei importieren, Gespeichertes verwerfen                                          | dito — Export und Import gehen nur hier sinnvoll                                                | dito                 |
-| Kopfbedeckung                      | Menü → _Aussehen_: ohne, Basecap, Helm, Bauhelm, Mütze, Zylinder, Krone — alle im Raum sehen sie                                                                       | dito                                                                                            | dito                 |
-| Kart: Helm                         | Klemmbrett → _Helm_: Visierrand steht fest im Blick, gegen Übelkeit                                                                                                    | dito                                                                                            | –                    |
-| Kart: Werte eintippen              | Klemmbrett → _Werte eingeben_ → Zeile, dann der Zifferblock vor dem Kopf                                                                                               | dito, mit der echten Tastatur                                                                   | –                    |
-| Pizza: Teig kneten                 | Faust auf den liegenden Teig schlagen                                                                                                                                 | –                                                                                               | –                    |
-| Pizza: Soße / Käse                 | Kelle bzw. Streuer greifen, Trigger halten                                                                                                                            | –                                                                                               | –                    |
-| Zurücksetzen                       | `B` / `Y` oder Menü                                                                                                                                                   | `R` oder Menü                                                                                   | Menü                 |
-| Zuschauen                          | Menü → Verbindung → Zuschauen                                                                                                                                         | Panel _Verbindung_ → _Zuschauen_                                                                | dito                 |
-| Zuschauer-Kamera drehen            | – (Kopf bleibt deiner)                                                                                                                                                | ziehen mit der Maus                                                                             | wischen              |
-| Zuschauer-Abstand                  | Menüeintrag _Abstand_                                                                                                                                                 | Mausrad oder Regler                                                                             | Regler               |
+|                                                                                    | VR                                                                                                                                                                                                                                                            | Desktop                                                                                                                                                                                                                                                                                                                                        | Handy                                      |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Bewegen                                                                            | linker Stick                                                                                                                                                                                                                                                  | `WASD` (`Shift` = schneller)                                                                                                                                                                                                                                                                                                                   | linker Touch-Stick                         |
+| Sprinten                                                                           | linken Stick reindrücken                                                                                                                                                                                                                                      | `Shift`                                                                                                                                                                                                                                                                                                                                        | –                                          |
+| Ducken                                                                             | rechten Stick reindrücken                                                                                                                                                                                                                                     | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Umsehen                                                                            | Kopf, rechter Stick = Snap-Turn                                                                                                                                                                                                                               | Maus (Klick = Pointer-Lock)                                                                                                                                                                                                                                                                                                                    | wischen                                    |
+| Springen                                                                           | `A` rechts                                                                                                                                                                                                                                                    | `Leertaste`                                                                                                                                                                                                                                                                                                                                    | –                                          |
+| Menü                                                                               | Button an **beiden** Händen (immer nur eins offen)                                                                                                                                                                                                            | Knopf ☰ oben links — dasselbe Menü als Seite (`ui/PageMenu.ts`), auch auf der Startseite                                                                                                                                                                                                                                                      | Knopf ☰ oben links; Blatt von unten       |
+| 2D von oben ↔ 3D                                                                   | – (in der Brille steht man in der Welt)                                                                                                                                                                                                                       | Startseite oder Menü → _Ansicht_ — dort auch Raster, Ebenen, Editor; Rad zoomt                                                                                                                                                                                                                                                                 | dito                                       |
+| Auswählen                                                                          | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl; im Handgelenkmenü löst der Trigger beim **Loslassen** aus, damit Wischen nichts drückt                                                                                                        | Linksklick                                                                                                                                                                                                                                                                                                                                     | tippen                                     |
+| Werkzeug nehmen                                                                    | Grip an der Hüfte halten (jede Hand, jedes Werkzeug)                                                                                                                                                                                                          | – (immer bereit)                                                                                                                                                                                                                                                                                                                               | –                                          |
+| Werkzeug ablegen                                                                   | Grip über der Hüfte loslassen                                                                                                                                                                                                                                 | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Werkzeug weiterreichen                                                             | die leere Hand an den **Griff** der vollen führen (sie leuchtet und öffnet sich), dann greifen                                                                                                                                                                | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Werkzeug fallen lassen                                                             | Grip woanders loslassen — es fällt, der Gürtel füllt nach (Budget pro Hüfte, links und rechts stören sich nicht)                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Hüften verschieben                                                                 | Gürtel-Justierer nehmen, Hüfte anzielen, Trigger, mit der anderen Hand greifen und schieben (`A`/`X` setzt zurück)                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Messer werfen                                                                      | im Schwung loslassen; es fliegt weiter und bleibt stecken                                                                                                                                                                                                     | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Aufnahme im Eingaberaum                                                            | Knopf auf der Tafelwand startet und beendet sie; **Greifen** setzt währenddessen eine Marke                                                                                                                                                                   | Linksklick auf den Knopf                                                                                                                                                                                                                                                                                                                       | –                                          |
+| Großer Hammer                                                                      | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf                                                                                                                 | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Laufrichtung                                                                       | voreingestellt beim Loslaufen gemerkt (Kopfdrehen ändert den Weg nicht mehr); Menü → Bewegung → _Laufrichtung_ schaltet auf Blickrichtung zurück                                                                                                              | dito                                                                                                                                                                                                                                                                                                                                           | dito                                       |
+| Haltung (sitzen/stehen)                                                            | Startseite (nur mit Brille gefragt) oder Menü → Bewegung → Haltung                                                                                                                                                                                            | Menü → Bewegung → Haltung                                                                                                                                                                                                                                                                                                                      | dito                                       |
+| Greifen ohne Controller                                                            | Mittel-, Ring- und kleiner Finger an die Handfläche                                                                                                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Trigger ohne Controller                                                            | Zeigefinger an die Handfläche                                                                                                                                                                                                                                 | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Portal schießen                                                                    | Trigger der Hand mit der Waffe                                                                                                                                                                                                                                | Links-/Rechtsklick                                                                                                                                                                                                                                                                                                                             | –                                          |
+| Zweites Portal (Doppel-Waffe)                                                      | Greifen                                                                                                                                                                                                                                                       | Rechtsklick                                                                                                                                                                                                                                                                                                                                    | –                                          |
+| Aufheben / werfen                                                                  | Grip mit leerer Hand am Objekt                                                                                                                                                                                                                                | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Weitergeben                                                                        | mit der freien Hand danach greifen                                                                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Anfassen                                                                           | Hand ans Ding, Grip — die Hand leuchtet, wenn sie dran ist                                                                                                                                                                                                    | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Nahgreifen                                                                         | zielen, Grip: der Gegenstand bleibt liegen und folgt der Hand (Geisterhand zeigt, wo)                                                                                                                                                                         | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Ferngreifen                                                                        | zielen, Grip drücken (rastet ein), Hand zum Körper zucken (ab _Zugtempo_, ab Werk 1,25 m/s — _mittel_)                                                                                                                                                        | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Nah Gefasstes doch holen                                                           | dasselbe Zucken zum Körper                                                                                                                                                                                                                                    | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Nah Gefasstes zur anderen Hand                                                     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                                                                                                                   | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Reichweiten einstellen                                                             | Menü → Einstellungen → Greifen                                                                                                                                                                                                                                | dito                                                                                                                                                                                                                                                                                                                                           | dito                                       |
+| Grafik umstellen                                                                   | Menü → Grafik: _Grafik-Modus_ schaltet im Kreis (Einfach → Comic); _Brille: Auflösung_ (Voll → Mittel → Flüssig, ab der nächsten Sitzung); oben die **Bildrate** live                                                                                         | dito                                                                                                                                                                                                                                                                                                                                           | dito                                       |
+| Menüseite blättern                                                                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Werkzeug-Einstellungen                                                             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                                                                                                                  | Linksklick auf den Pfeil                                                                                                                                                                                                                                                                                                                       | tippen                                     |
+| Augenhöhe messen                                                                   | Menü → Bewegung → Augenhöhe → _Jetzt messen_, oder die Knöpfe an der rechten Wand im Eingaberaum                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Werkzeug einmessen (Schießgang)                                                    | Werkzeug in den Halter halten — es rastet auf die Scheibe gerichtet ein —, die Hand daran führen und **Greifen oder Trigger**; `A` legt es unverändert zurück                                                                                                 | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Haltung feinjustieren (Schießgang)                                                 | _Feinjustieren_ an der rechten Wand drücken, dann mit der **anderen** Hand ziehen (1/10 der Bewegung); deren Trigger legt fest, `A` bricht ab                                                                                                                 | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Werkzeug wählen (Schießgang)                                                       | Schild am Halter drücken, dann im Panel vor dir eine Zeile mit **Trigger oder Greifen** — es landet direkt im Halter und **bleibt dort**, bis die Hand wieder aufgeht                                                                                         | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Verbinden (in der Brille)                                                          | Menü → _Verbindung_ → _Raum betreten_ (Code tippen) oder _Neuen Raum aufmachen_; _Name_ ändert den eigenen Namen — beides geht mitten im Spiel                                                                                                                | Raum-Code auf der Startseite                                                                                                                                                                                                                                                                                                                   | –                                          |
+| Chat                                                                               | Menü → _Verbindung_ → _Chat_: letzte Zeilen lesen, _Schreiben_ macht die Tastatur auf; eine Zeile mit Konfig-Code auswählen übernimmt ihn                                                                                                                     | Panel _Verbindung_ → **Chat**: tippen, _Kopieren_ und _Übernehmen_ je Zeile, _Verlauf kopieren_                                                                                                                                                                                                                                                | dito                                       |
+| Einstellungen verschicken                                                          | _Werkzeug senden_ / _Alles senden_ an der Wand des Gangs — der Code geht als Chat-Zeile an alle im Raum und steht am PC mit _Kopieren_ daneben                                                                                                                | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| AR an/aus (Schießgang)                                                             | in den **Kreis** am Halter treten (Hand wird unsichtbar, Welt durchsichtig) oder der Knopf _AR_ an der rechten Wand                                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Griff einmessen (Schießgang)                                                       | Boxhand am **zweiten** Stand greifen, hinlegen wie sie das Werkzeug umfassen soll, loslassen; `A` bricht ab, der Knopf darunter setzt sie **zurück ans Werkzeug**                                                                                             | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Handschuh an blanken Händen                                                        | Knopf _Handschuh_ an der Wand im **Poseraum**, oder Menü → Hände → _Blanke Hände_                                                                                                                                                                             | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Knochenfarben                                                                      | Knopf _Knochenfarben_ an der Wand im **Poseraum**, oder Menü → Hände → _Knochenfarben_                                                                                                                                                                        | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Handpose teilen (Poseraum)                                                         | Werkzeug im **Schwebekasten** loslassen, blanke Hand daran, mit der **Controller-Hand** auf _Handpose teilen_ zeigen; **deren Trigger** speichert                                                                                                             | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Schwebekasten feststellen                                                          | Knopf _Schwebe_ an der Wand im **Poseraum** — was darin hängt, steht still und lässt sich nicht greifen; nochmal drücken gibt es frei                                                                                                                         | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Geteilte Handpose ansehen                                                          | –                                                                                                                                                                                                                                                             | `tools.html` → Menü → _Verbinden_, Raum-Code eintragen                                                                                                                                                                                                                                                                                         | dito                                       |
+| Grundhaltung einmessen                                                             | Boxhand aus dem Werkzeug-Menü nehmen, in den Halter legen, die echte Hand danebenlegen, **Greifen oder Trigger**                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Stand stellen (beide)                                                              | Griffe am Ausleger greifen und ziehen: **oben** die Höhe, **unten** der Ort; Loslassen speichert                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Vibration ausprobieren                                                             | Griff auf der Bank links greifen und halten                                                                                                                                                                                                                   | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Greifhaken                                                                         | Trigger (halten zieht)                                                                                                                                                                                                                                        | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Gravitationshandschuh                                                              | Trigger zieht, Greifen stößt ab                                                                                                                                                                                                                               | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Supermanhandschuh                                                                  | Greifen schwebt, Trigger fliegt; Hand zur Seite oder Kopf drehen = Kurve. Tempo je Richtung und wer welche Achse lenkt: _Einstellungen → Supermanhandschuh_                                                                                                   | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Translationshandschuh                                                              | Trigger hält aus der Ferne, `A` wechselt Modus                                                                                                                                                                                                                | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Größe & Position                                                                   | Trigger wählt, `A` holt die Griffe vor dich                                                                                                                                                                                                                   | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Griff ziehen                                                                       | Trigger der Werkzeughand oder Trigger/Greifen der freien Hand                                                                                                                                                                                                 | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Wert eintippen                                                                     | auf eine Taste zielen + Trigger, oder mit dem Finger antippen                                                                                                                                                                                                 | echte Tastatur oder Klick                                                                                                                                                                                                                                                                                                                      | tippen                                     |
+| Lötkolben                                                                          | Trigger setzt Punkte, andere Hand wechselt Modus                                                                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Drohne                                                                             | beide Griffe halten, dann ein Trigger; Sticks fliegen, `A` öffnet das Menü (Modus, Tempo, Drehrate)                                                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Hängegleiter                                                                       | Trigger oder `A` = Anlauf; Stange ziehen = schneller, drücken = langsamer, kippen = Kurve (eine Hand tiefer, oder das Handgelenk); zweite Hand greift ans andere Ende; am Boden loslassen lässt ihn fallen                                                    | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Flügel                                                                             | beide Arme schlagen = Start und Schub; ausbreiten = gleiten, anlegen = Sturzflug; eine Hand tiefer = Kurve, Hände vor = Nase runter                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Taschenlampe                                                                       | Trigger schaltet an/aus                                                                                                                                                                                                                                       | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Lichtkegel stellen                                                                 | mit der anderen Hand vorne an die Linse greifen und nach links/rechts ziehen                                                                                                                                                                                  | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Dimmer (Dunkelhaus)                                                                | anzielen + Trigger, oder antippen — eine Stufe pro Druck                                                                                                                                                                                                      | anklicken                                                                                                                                                                                                                                                                                                                                      | tippen                                     |
+| Haunting: Rolle wählen                                                             | Menü → _Techniker / Rot / Gelb / Blau / Monster_ (Mensch · Bot · Aus) und _Fähigkeiten der Plätze_                                                                                                                                                            | Reiterzeile ganz oben: _Aufbau_, Techniker, Rot, Gelb, Blau, Monster, _Zuschauer: Einzeln_, _Zuschauer: Alles_ — wer tippt, sitzt dort                                                                                                                                                                                                         | antippen                                   |
+| Haunting: Archiv                                                                   | –                                                                                                                                                                                                                                                             | Zimmer auf der Karte antippen öffnet die Raumakte; Bild darin ziehen/zoomen                                                                                                                                                                                                                                                                    | dito                                       |
+| Haunting: Schalttafel                                                              | –                                                                                                                                                                                                                                                             | Tür oder Lampe auf der Karte antippen schaltet sie; „Tafel" oben rechts schlägt die Schalterliste darüber auf                                                                                                                                                                                                                                  | dito                                       |
+| Haunting: Zuschauer — wessen Platz / wem folgen / durch seine Augen / KI-Absichten | –                                                                                                                                                                                                                                                             | im Zuschauer-Panel wählen (Deck, Archiv, Schalttafel, Späher, Monster); über dem Deck: Stock links unten oder Finger fliegt, Mausrad oder zwei Finger zoomen, _Zurück über das Deck_                                                                                                                                                           | antippen, ziehen, zwei Finger              |
+| Haunting: Schrank / Gegenstand / Rätsel                                            | anvisieren + Trigger                                                                                                                                                                                                                                          | anvisieren + `E` oder Linksklick                                                                                                                                                                                                                                                                                                               | als Techniker über sichtbare Schaltflächen |
+| Haunting: linke / rechte Hand                                                      | Radar-/Röntgen-/Medkit-Menü; Objekte mit Trigger bedienen                                                                                                                                                                                                     | `1` wechselt Sensor, `2` Lampe/Medkit; beide enthalten freie Hand                                                                                                                                                                                                                                                                              | –                                          |
+| Haunting: Medkit                                                                   | Missionsmenü → Medkit                                                                                                                                                                                                                                         | rechts wählen + `E`, oder Missionsmenü                                                                                                                                                                                                                                                                                                         | –                                          |
+| Haunting: Schutzschrank                                                            | Tastenfeld antippen = hinein (kein Code); beleuchteter Innenknopf zum Verlassen                                                                                                                                                                               | `E` oder Klick auf das Tastenfeld; `E` oder Menü zum Verlassen                                                                                                                                                                                                                                                                                 | Kabine antippen, wie in 2D                 |
+| Haunting: Feststecken                                                              | Menü → _Feststecken? Zurück auf den Boden_ — mitten ins eigene Zimmer, draußen in die Zentrale                                                                                                                                                                | Menü, derselbe Eintrag                                                                                                                                                                                                                                                                                                                         | –                                          |
+| Haunting: Ducken                                                                   | körperlich ducken                                                                                                                                                                                                                                             | `Ctrl` halten                                                                                                                                                                                                                                                                                                                                  | –                                          |
+| Haunting: Mission / Test                                                           | Command-Panel oder Missionsmenü; Test bleibt gegnerfrei                                                                                                                                                                                                       | dito                                                                                                                                                                                                                                                                                                                                           | Handys besetzen Archiv/Schalttafel         |
+| Haunting: 2D-Welt, Rolle wechseln                                                  | –                                                                                                                                                                                                                                                             | Panel über der Szene, dieselben sieben Reiter wie auf dem Telefon: Techniker, Rot, Gelb, Blau, Monster, Zuschauer: Einzeln, Zuschauer: Alles — Farbplätze und Monster nur in einer Test-Runde; Zahnrad = Optionsmenü (dasselbe steht im Schiff im Browser hinter _⚙ Optionen_; darin in der Bot-Runde die Simulationsgeschwindigkeit ×1 … ×16) | antippen                                   |
+| Haunting: einzelne Lehrzimmer                                                      | Test → _Testdeck: einzelne Übungsräume_; Rückkehrknopf in jedem Raum                                                                                                                                                                                          | dito; mit `E` die echten Beispiele bedienen                                                                                                                                                                                                                                                                                                    | –                                          |
+| Haunting: Simulationsflug                                                          | linker Stick fliegt, rechter steigt/sinkt                                                                                                                                                                                                                     | `WASD`, `Space` hoch, `Ctrl` runter, `Shift` schneller                                                                                                                                                                                                                                                                                         | –                                          |
+| Haunting: VR-Komfort                                                               | Menü → _VR-Komfort_: Drehung, Komfortrand, Vibration                                                                                                                                                                                                          | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Haunting: Raumakte                                                                 | –                                                                                                                                                                                                                                                             | Zimmer auf der Archivkarte antippen; die Akte liegt ganzseitig darüber, „Karte" bringt den Grundriss zurück                                                                                                                                                                                                                                    | dito                                       |
+| Haunting: Leistungsanzeige                                                         | Menü → Grafik, erste Zeile: FPS, Framezeit, CPU, Draw Calls — alle halbe Sekunde nachgeschrieben, solange das Menü offen ist                                                                                                                                  | `F3`: FPS, Framezeit, Draw Calls und Dreiecke                                                                                                                                                                                                                                                                                                  | mit F3 sichtbar                            |
+| Klettern (Kletterhalle)                                                            | **Greifen** an einem Griff hält dich daran fest (die Hand muss leer sein); Hand herunterziehen = Körper hinauf, loslassen = fallen, mit Schwung im letzten Zug. Solange du hängst, ist der linke Stick aus — der rechte dreht weiter, und die Anker gehen mit | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Verspreizen (Kamin)                                                                | eine Hand links, eine rechts an den gegenüberliegenden Wänden — und **nah beieinander**, sonst kann man nicht drücken                                                                                                                                         | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Sprungkissen (Kletterhalle)                                                        | vom Podest in eines der blauen Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                                                                                                          | dito                                                                                                                                                                                                                                                                                                                                           | dito                                       |
+| Halt-Anzeige (Kletterhalle)                                                        | Menü → _Halt-Anzeige_ schaltet die drei Balken ab; _Zurück auf die Matte_ setzt dich mit voller Ausdauer auf den Boden                                                                                                                                        | dito                                                                                                                                                                                                                                                                                                                                           | dito                                       |
+| Messband                                                                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Stoppuhr                                                                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Pinsel                                                                             | Palette antippen **oder** anzielen + Trigger; Regler (RGB, Breite) gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                                                                     | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Staffelei                                                                          | Trigger stellt sie hin (Kreis am Boden zeigt wohin) und die Hand ist danach frei; **Griff an der Ablage + Greifen** nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel                                                             | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Schild                                                                             | Trigger stellt es hin (Umriss zeigt wohin: Pfosten am Boden, flach an der Wand); `A`/`X` beschriftet das anvisierte Schild, sonst den Entwurf in der Hand; **Traggriff + Greifen** nimmt ein aufgestelltes wieder auf                                         | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Schild lesen und ändern                                                            | mit **leerer Hand** hinzeigen + Trigger öffnet die Tastatur; Daumenstick derselben Hand rollt den Text                                                                                                                                                        | anklicken (gerollt wird in der Brille)                                                                                                                                                                                                                                                                                                         | tippen                                     |
+| Tastatur (mehrzeilig)                                                              | Tasten anzielen + Trigger; in der Brille kommt, wo es sie gibt, die Systemtastatur des Geräts dazu; `⏎ Zeile` macht eine neue Zeile, `Fertig` übernimmt                                                                                                       | echte Tastatur, `Strg`+`Eingabe` übernimmt, `Esc` bricht ab                                                                                                                                                                                                                                                                                    | tippen                                     |
+| Interaktionslabor                                                                  | roter Knopf öffnet die Schiebetür (sechs Sekunden), Hebel rastet die Flügeltür, Kiste oder Fuß auf der Druckplatte hält die dritte auf; Kippschalter an der Westwand macht das Licht                                                                          | anklicken                                                                                                                                                                                                                                                                                                                                      | tippen                                     |
+| Effektlabor                                                                        | roter Knopf löst aus; links Kachel wählen und den Schieber ziehen (Trigger halten)                                                                                                                                                                            | anklicken / ziehen                                                                                                                                                                                                                                                                                                                             | tippen                                     |
+| Duplizier-Waffe                                                                    | zielen + Trigger legt eine Kopie daneben                                                                                                                                                                                                                      | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Inspektor                                                                          | zielen — das Display liest mit, Trigger sagt es an                                                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Teleporter                                                                         | zielen, grüner Kreis, Trigger setzt dich dorthin                                                                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Radiergummi                                                                        | Trigger löscht                                                                                                                                                                                                                                                | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Sektflasche (aus dem Beutel)                                                       | greifen: sie rastet am Hals in die Faust wie ein Pistolengriff, aufrecht oder über Kopf; kräftig schütteln, und der Korken knallt heraus                                                                                                                      | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Hirn                                                                               | Knopf/`A` öffnet das Panel (Haut, Hirn, Tempo, Leben, Käfig); zielen + Trigger setzt, was in _Setzen_ steht — oder nimmt weg, worauf du zeigst                                                                                                                | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Magischer Beutel                                                                   | in der einen Hand halten, mit der anderen ins Raster fassen oder darauf zeigen: Greifen holt das Ding heraus; geblättert wird mit dem **Trigger** der haltenden Hand, oder über einen der beiden Pfeile (Greifen oder Trigger)                                | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Kart: einsteigen                                                                   | Lenkrad greifen, oder anzielen + Trigger                                                                                                                                                                                                                      | Lenkrad anklicken                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Kart: aus der Box fahren                                                           | Gas geben und nach rechts auf die Gerade ziehen                                                                                                                                                                                                               | `W`, dann `D`                                                                                                                                                                                                                                                                                                                                  | –                                          |
+| Kart: Gas / Bremse                                                                 | rechter / linker Trigger                                                                                                                                                                                                                                      | `W` / `S`                                                                                                                                                                                                                                                                                                                                      | –                                          |
+| Kart: lenken                                                                       | linker Stick — oder das Lenkrad greifen und drehen                                                                                                                                                                                                            | `A` / `D`                                                                                                                                                                                                                                                                                                                                      | –                                          |
+| Kart: aussteigen                                                                   | `A`/`X` halten (Balken läuft voll)                                                                                                                                                                                                                            | `E` halten                                                                                                                                                                                                                                                                                                                                     | –                                          |
+| Kart: Klemmbrett                                                                   | anzielen + Trigger, Stick blättert                                                                                                                                                                                                                            | anklicken                                                                                                                                                                                                                                                                                                                                      | –                                          |
+| Karte holen (Bauplatz)                                                             | Greifen an der Hüfte, an der sie hängt                                                                                                                                                                                                                        | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Karte (Werkzeug, jede Welt)                                                        | aus dem Regal in die Hand nehmen; **Trigger** schaltet den Maßstab weiter (20 → 40 → 80 → 160 m)                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Grundriss malen                                                                    | an der Palette eintunken, dann Trigger auf der Miniatur **halten** und ziehen — was der Zeiger überstreicht, wird gesetzt                                                                                                                                     | Linkstaste halten und den Blick schwenken                                                                                                                                                                                                                                                                                                      | –                                          |
+| Fläche füllen                                                                      | Tafel am Modell → _Fläche_, dann zwei Ecken: aufziehen und loslassen, **oder** zweimal tippen. Boden füllt die Fläche, Wand zieht ihren Rand                                                                                                                  | dito                                                                                                                                                                                                                                                                                                                                           | –                                          |
+| Karte weglegen (Bauplatz)                                                          | über der Hüfte loslassen, oder Menü → _Karte weglegen_ — erst dann steht das Gebaute fest da, und erst dann ist es gespeichert                                                                                                                                | Menü → _Karte weglegen_                                                                                                                                                                                                                                                                                                                        | dito                                       |
+| Welt speichern / mitnehmen                                                         | Bauplatz, Menü → _Welt sichern_: im Browser speichern, als Datei exportieren, eine Datei importieren, Gespeichertes verwerfen                                                                                                                                 | dito — Export und Import gehen nur hier sinnvoll                                                                                                                                                                                                                                                                                               | dito                                       |
+| Kopfbedeckung                                                                      | Menü → _Aussehen_: ohne, Basecap, Helm, Bauhelm, Mütze, Zylinder, Krone — alle im Raum sehen sie                                                                                                                                                              | dito                                                                                                                                                                                                                                                                                                                                           | dito                                       |
+| Kart: Helm                                                                         | Klemmbrett → _Helm_: Visierrand steht fest im Blick, gegen Übelkeit                                                                                                                                                                                           | dito                                                                                                                                                                                                                                                                                                                                           | –                                          |
+| Kart: Werte eintippen                                                              | Klemmbrett → _Werte eingeben_ → Zeile, dann der Zifferblock vor dem Kopf                                                                                                                                                                                      | dito, mit der echten Tastatur                                                                                                                                                                                                                                                                                                                  | –                                          |
+| Pizza: Teig kneten                                                                 | Faust auf den liegenden Teig schlagen                                                                                                                                                                                                                         | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Pizza: Soße / Käse                                                                 | Kelle bzw. Streuer greifen, Trigger halten                                                                                                                                                                                                                    | –                                                                                                                                                                                                                                                                                                                                              | –                                          |
+| Zurücksetzen                                                                       | `B` / `Y` oder Menü                                                                                                                                                                                                                                           | `R` oder Menü                                                                                                                                                                                                                                                                                                                                  | Menü                                       |
+| Zuschauen                                                                          | Menü → Verbindung → Zuschauen                                                                                                                                                                                                                                 | Panel _Verbindung_ → _Zuschauen_                                                                                                                                                                                                                                                                                                               | dito                                       |
+| Zuschauer-Kamera drehen                                                            | – (Kopf bleibt deiner)                                                                                                                                                                                                                                        | ziehen mit der Maus                                                                                                                                                                                                                                                                                                                            | wischen                                    |
+| Zuschauer-Abstand                                                                  | Menüeintrag _Abstand_                                                                                                                                                                                                                                         | Mausrad oder Regler                                                                                                                                                                                                                                                                                                                            | Regler                                     |
 
 Die Seite einer prozeduralen Hand hängt an genau einer Konstante — `mirror` in
 `src/core/HandVisuals.ts`. Sieht die linke Hand im Headset nach einer rechten
@@ -3141,7 +3150,7 @@ standardmäßig um, Sprint wird gehalten), dazu Sprint-Tempo und Duck-Tiefe.
 
 **Die Laufrichtung wird beim Loslaufen gemerkt** (`core/walkFrame.ts`, mit
 Test), und das ist die Voreinstellung. Der Stick schob seit jeher entlang der
-Blickrichtung, und beim *Losgehen* ist das auch genau richtig: Man schaut hin,
+Blickrichtung, und beim _Losgehen_ ist das auch genau richtig: Man schaut hin,
 wo man hinwill, und drückt nach vorn. Falsch wird es im nächsten Moment, beim
 Weitergehen — wer über die Schulter zurückschaut, ob ihm jemand folgt, oder
 beim Laufen nach links auf ein Schild sieht, dreht damit seinen ganzen Weg mit.
@@ -3244,7 +3253,7 @@ anhängen, eine Kurve enger machen, eine Gerade kürzen.
 Buchten unter einem Dach, dazwischen je eine Säule, an jeder Rückwand eine
 Portaltafel, davor der Asphalt der Gasse — und darauf die vier Karts, mit der
 Nase in Fahrtrichtung. **Eine Ein- und eine Ausfahrt gibt es nicht**, und das
-ist keine Auslassung: Die Ostkante der Gasse *ist* der Westrand des
+ist keine Auslassung: Die Ostkante der Gasse _ist_ der Westrand des
 Streckenkorridors, die beiden Flächen berühren sich also, und wer in einer von
 beiden ist, wird nicht zurückgeschoben (`confineToCourse`). Losfahren heißt
 damit schlicht: das Lenkrad nach rechts. Nach vorn hört die Gasse auf, und dort
@@ -3281,7 +3290,7 @@ gebaut ist. Jetzt läuft die Welt über einen eigenen Kanal (`kart`):
 - **Was noch fehlt:** zwei Karts fahren durcheinander hindurch. Beide sind für
   die Physik kinematisch, und zwei kinematische Körper stoßen sich in Rapier
   nicht — Kegel und Kisten schieben sie weiterhin beide.
-- **Und noch etwas:** Beim Lenken mit dem *Lenkrad in der Hand* wandert die
+- **Und noch etwas:** Beim Lenken mit dem _Lenkrad in der Hand_ wandert die
   virtuelle Hand um den Kranz, solange der Kopf nachzieht — das Lenkrad hängt
   am Kart, die Hand am Rig, und die beiden drehen sich nicht mehr im selben
   Bild. Die **Eingabe** stimmt trotzdem, weil sie gegen den Blick gemessen wird
@@ -3954,7 +3963,7 @@ Wer die dort abgelesene Zahl hier einträgt, verschiebt allerdings auch
 `GRIP_HOLD_POSITION`, `STANDARD_GRIP_IN_HAND` und jede daran gerechnete Faust —
 `core/gripFist.test.ts` sagt, welche.
 
-Deshalb ist ein *gemessener Roll* an der Hand nicht die Antwort auf einen
+Deshalb ist ein _gemessener Roll_ an der Hand nicht die Antwort auf einen
 schiefen Strahl. Kam der Vorschlag auf, der rechten Hand −100° Roll statt −90°
 zu geben, damit der Strahl geradeaus geht: die −90° sind die Vierteldrehung aus
 `fistOnGrip`, mit der die Faust überhaupt erst quadratisch auf dem Zylinder
@@ -3968,9 +3977,9 @@ irgendetwas fest — die Portalwaffen an einem selbstgebauten Kasten, der 0,2 ra
 nach hinten lehnte, Pinsel, Messband, Radiergummi, Stoppuhr und Röntgen-Scanner
 an gar nichts. Jetzt tragen sie alle den Standardgriff:
 
-| Griff             | Werkzeuge                                                                                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| der Standardgriff | Halterzylinder, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Handspiegel, Lötkolben, Messer       |
+| Griff             | Werkzeuge                                                                                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| der Standardgriff | Halterzylinder, Pistole, Duplizierer, Inspektor, Teleporter, Größe & Position, Holster, Greifhaken, die drei Portalwaffen, Messband, Radiergummi, Röntgen-Scanner, Handspiegel, Lötkolben, Messer |
 
 Siebzehn Werkzeuge, ein Griff, eine Faust, eine `holdPosition` — die Liste
 dazu ist `STANDARD_GRIP_TOOLS` in `core/handPose.ts`, und `gripMount.test.ts`
@@ -4876,7 +4885,7 @@ Zeile, nicht das Menü).
 
 **Eine Lampe, die aus ist, ist auch für den Shader aus**
 (`FlashlightTool.applyBeam`, `beam.visible`/`glow.visible`): three.js rechnet
-jede *sichtbare* Lichtquelle in jedem Bildpunkt jedes beleuchteten Materials
+jede _sichtbare_ Lichtquelle in jedem Bildpunkt jedes beleuchteten Materials
 mit, Stärke null hin oder her. Zwei Lampen an den Hüften und die Ersatzlampe
 an der Wand waren so sechs Lichter, die nichts taten und trotzdem bezahlt
 wurden — in der Brille zweimal je Bild. Unsichtbar zählen sie nicht. Der
@@ -5125,14 +5134,14 @@ bewusst keine von beiden — was hier herauskommt, läuft von selbst weiter.
 
 Warum getrennt: Zwei mal vier ist acht, und eine Liste von acht Sorten NPC
 wäre beim nächsten Modell zwölf und beim übernächsten vierundzwanzig. Vor
-allem aber sind es zwei verschiedene Fragen — *wie sieht der aus* und *was
-macht der* —, und wer sie zusammenlegt, kann keine davon mehr einzeln
+allem aber sind es zwei verschiedene Fragen — _wie sieht der aus_ und _was
+macht der_ —, und wer sie zusammenlegt, kann keine davon mehr einzeln
 beantworten. Eine Übungspuppe mit einem Verfolger-Hirn ist ein Trainingsgegner,
 ein Zombie mit „Stehen" eine grüne Zielscheibe; beides fällt ab, ohne dass
 jemand etwas dafür gebaut hätte.
 
 **Bedient wird es zweimal, und beide lesen denselben Speicher** — genau wie
-beim Beutel, den es als Rasterseite *und* als Werkzeug gibt. Im Menü unter
+beim Beutel, den es als Rasterseite _und_ als Werkzeug gibt. Im Menü unter
 **NPC** stehen die Häute als Zeilen (`Zombie setzen`), dazu das eingestellte
 Hirn als Unterseite, _Spawnpunkt hier_, _Brutkäfig hier_ und _Alles
 wegräumen_. In der Hand tut dasselbe das **Hirn** (`tools/BrainTool.ts`): ein
@@ -5228,7 +5237,7 @@ Zahl (25, also vier Rumpftreffer für einen Zombie), das Messer 50, der große
 Hammer 100 — und der Kopf zählt überall vierfach (`HEAD_FACTOR`). Hier stand
 einmal eine feste Zahl je Zone, und das hieß: Ein Messer tut genau so weh wie
 ein Gewehr. Dass der Kopf, den man
-*sieht*, auch der ist, auf den man *zielt*, hält `npcBody.test.ts` fest —
+_sieht_, auch der ist, auf den man _zielt_, hält `npcBody.test.ts` fest —
 Modell und Trefferzone rechnen dieselbe Zahl (`HEAD_SHARE`), und zwei
 Rechnungen, die dasselbe meinen, laufen sonst irgendwann auseinander; dasselbe
 misst er inzwischen für Rumpf und Beine nach. Wer
@@ -5258,13 +5267,13 @@ Kamera, ohne dass jemand es dorthin drehen müsste, und das ist genau, was ein
 Balken braucht, den man von vorn, von der Seite **und von oben** liest. Die
 Füllung schrumpft nach links (`center`) und geht dabei von Grün über Gelb nach
 Rot. **Die Balkengruppe dreht sich nicht mit ihm**: Ein Sprite steht zwar immer
-quer zur Kamera, seine *Stelle* aber kommt aus der Kette darüber — und bei
+quer zur Kamera, seine _Stelle_ aber kommt aus der Kette darüber — und bei
 einem, der einen ansieht (Gierwinkel um 180°), war der linke Rand plötzlich der
 rechte, die Füllung stand **neben** ihrem Rahmen statt darin. Also nimmt die
 Gruppe die Drehung des Modells wieder heraus. Zu sehen ist er voreingestellt **bei Schaden** — ein Balken über einem
 unversehrten Zombie ist eine Zeile, die immer dasselbe sagt, und dreißig davon
-sind dreißig. Unter **Menü → NPC → Lebensbalken** steht *immer* (zum Nachprüfen
-der Zahlen) und *aus*; dasselbe schaltet die laufende Vorschau auf der
+sind dreißig. Unter **Menü → NPC → Lebensbalken** steht _immer_ (zum Nachprüfen
+der Zahlen) und _aus_; dasselbe schaltet die laufende Vorschau auf der
 Werkzeugseite.
 
 **Und andersherum:** ein Schlag, der sitzt, **schiebt den Spieler** und
@@ -5276,7 +5285,7 @@ einer Stelle ein (`PortalWorld.takeHit`).
 **Woher einer kommt, dafür gibt es zwei Antworten** (`worlds/npc/npcSpawn.ts`,
 mit Test), und beide sind reine Rechnung:
 
-- Ein **Spawnpunkt** ist eine Stelle, an der jemand auftauchen *darf* — ein
+- Ein **Spawnpunkt** ist eine Stelle, an der jemand auftauchen _darf_ — ein
   Kreis auf dem Boden, durch den man hindurchläuft. Wer einen braucht, bekommt
   einen ausgewürfelt, und zwar nach derselben Regel, nach der ein Spieler nach
   dem Tod wieder ins Spiel kommt: **möglichst nicht direkt vor der Nase
@@ -5316,7 +5325,7 @@ läuft zu dem Körper, den er sehen kann.
 
 **Durch ein Portal fällt er wie eine Kiste.** Dieselbe Kollisionsmaske,
 dieselbe Traversal-Matrix, dasselbe geschnittene Abbild — nachzulesen oben bei
-den Portalen. Was dabei **nicht** passiert: Er *plant* keinen Weg hindurch. Die
+den Portalen. Was dabei **nicht** passiert: Er _plant_ keinen Weg hindurch. Die
 Navigationskarte kennt Portale zwar als Verbindung (`navBuild.addPortal`, und
 das Navigationslabor stellt eines hin), die beiden geschossenen stehen aber
 nicht darin. Ein Zombie fällt also durch ein Bodenportal, das auf seinem Weg
@@ -5362,8 +5371,8 @@ verschwindet — dieselbe Bauart, die Quake III 1999 „teleporter reachability"
 nannte. Welche Art wer benutzen darf, steht im Kostenprofil: Ein Zombie nimmt
 keine Leiter, ein Fahrzeug keine Treppe.
 
-**Dieselbe Karte liest jede Sorte anders.** Eine Kachel trägt nur, *was* dort
-ist (Stacheln, Wasser, freies Feld); was das *kostet*, entscheidet erst das
+**Dieselbe Karte liest jede Sorte anders.** Eine Kachel trägt nur, _was_ dort
+ist (Stacheln, Wasser, freies Feld); was das _kostet_, entscheidet erst das
 Profil dessen, der darüberläuft (`navProfile.ts`). Der Zombie hat für Stacheln
 keinen Eintrag und fällt hinein, der Mensch hat dort `Infinity` und geht außen
 herum. `Infinity` heißt dabei „niemals" und nicht „sehr teuer" — wer „lieber
@@ -5371,19 +5380,19 @@ nicht, aber im Notfall doch" will, schreibt eine große endliche Zahl hin.
 
 **Und dasselbe Gelände liest auch jede Sorte anders.** Das ist derselbe
 Gedanke, eine Etage tiefer, und er hat das Abtasten umgebaut: Eine Verbindung
-trägt nicht mehr die *Antwort* („das ist eine Treppe"), sondern die **Form** —
+trägt nicht mehr die _Antwort_ („das ist eine Treppe"), sondern die **Form** —
 wie viel es hinaufgeht (`rise`), wie hoch die größte einzelne Stufe darin ist
 (`step`) und wie weit es waagerecht ist (`gap`). Fünf Zahlen im Profil machen
 daraus ein Ja oder ein Nein:
 
-- **`stepUp`** — was er *tritt*, ohne etwas dafür zu tun. Die Bordsteinkante.
-- **`jumpUp`** — was er sich *hochzieht*. Das ist die Zahl, an der eine
+- **`stepUp`** — was er _tritt_, ohne etwas dafür zu tun. Die Bordsteinkante.
+- **`jumpUp`** — was er sich _hochzieht_. Das ist die Zahl, an der eine
   60-cm-Stufe für einen Zombie ein Weg ist und für einen Hamster eine Wand.
 - **`maxSlope`** — wie steil ein Weg noch sein darf, in Grad, gemessen über
   eine Kachel. Sie gilt nur, wo der Boden **durchläuft**; eine einzelne Kante
   ist keine Steigung, sonst wäre jede Bordsteinkante eine 9°-Rampe und jede
   Mauer eine 45°.
-- **`dropDown`** — wie tief er *freiwillig* springt.
+- **`dropDown`** — wie tief er _freiwillig_ springt.
 - **`leapOver`** — wie weit er über eine Lücke setzt.
 
 Dazu kommt der **Fallschaden** (`navFall.ts`) als sechste Zahl, und er ist die
@@ -5421,12 +5430,12 @@ sieht nicht durch eine Tür, nur weil man sie für offen hält.
 **Und was er nie gesehen hat, hält er für offen** (`hopeful`). Das ist die
 Freiraum-Annahme, mit der Roboter seit je durch unbekannte Gänge fahren, und
 sie schließt die Lücke, die „wo nichts eingetragen ist, gilt die Welt" offen
-ließ: Für eine Tür, an der noch nie jemand stand, *war* die Welt eingetragen —
+ließ: Für eine Tür, an der noch nie jemand stand, _war_ die Welt eingetragen —
 also wusste ein Zombie schon dreißig Meter vor einer Metalltür, dass sie zu
 ist, und bog ab, ohne je dagewesen zu sein. Dieselbe Hellsicht wie oben, nur an
 der Stelle, an der niemand sie vermutet. Jetzt läuft er hin, steht davor, sieht
 sie an (`navAgent.doorAhead` trägt sie in dem Moment ein, in dem sie in
-Reichweite ist) und plant *dort* um — außen herum bei Metall, mit den Fäusten
+Reichweite ist) und plant _dort_ um — außen herum bei Metall, mit den Fäusten
 bei Holz. Das **Material** ist davon ausgenommen und kommt weiter aus der Welt:
 Ob eine Tür aus Brettern oder aus Blech ist, sieht man ihr an; ob sie
 abgeschlossen ist, nicht.
@@ -5481,7 +5490,7 @@ eine Treppe, ein Absprung oder eine Wand ist. `PortalWorld` ruft das einmal nach
 der Hub, alle.
 
 **Eine Welt auf dem Kachelgitter wird trotzdem abgetastet** (`grid/GridWorld.ts`),
-und das ist kein Versehen. Sie *hätte* ihren Graphen ja schon; ihn hier
+und das ist kein Versehen. Sie _hätte_ ihren Graphen ja schon; ihn hier
 einzusetzen statt abzutasten wäre bequem und würde genau eine Sache verlieren:
 die Probe. Das Abtasten liest, was wirklich gebaut wurde, und wenn dabei die
 Karte des Plans herauskommt, stimmen Plan und Welt überein. Danach wird
@@ -5498,18 +5507,18 @@ Eindruck aus der Brille, den niemand erklären konnte:
   links und rechts davon je einen Meter weit eine Mauer stand und der Schlitz
   dazwischen zwanzig Zentimeter breit war. Auf der Karte war das ein Durchgang,
   in der Welt eine Wand mit einem Guckloch, und der Zombie davor lief so lange
-  dagegen, bis jemandem auffiel, dass er durch eine Wand *wollte*. Jetzt wird
+  dagegen, bis jemandem auffiel, dass er durch eine Wand _wollte_. Jetzt wird
   quer zur Laufrichtung abgetastet, vom Mittelpunkt nach beiden Seiten, und was
   frei bleibt, muss die **Schulterbreite** tragen (`BAKE_DEFAULTS.width`, 70 cm
   — ein Zombie ist 58 dick). Gemessen wird nur der Streifen um die Mitte: Eine
   freie Ecke am Rand der Kachelgrenze nützt niemandem, der von Kachelmitte zu
   Kachelmitte läuft.
 - **Ein Boden, auf dem etwas steht, ist keiner.** „Vergraben" hieß bis dahin,
-  dass ein anderer Kasten den Deckel *überspannt* — ein Klotz, der bei y = 0
+  dass ein anderer Kasten den Deckel _überspannt_ — ein Klotz, der bei y = 0
   anfängt, saß aber genau darauf und überspannte ihn nicht. Damit blieb unter
   jedem Klotz und in jeder aufsitzenden Wand eine Kachel übrig, die es nicht
   gibt. Zugemauert war sie von allen Seiten, also lief niemand hinein — sichtbar
-  gemacht (Ebene *Betretbar*) sieht man aber sofort, dass die Karte dort Boden
+  gemacht (Ebene _Betretbar_) sieht man aber sofort, dass die Karte dort Boden
   behauptet, wo Beton ist.
 - **Ein Absatz ist derselbe, von welcher Seite man ihn ansieht.** Abgetastet
   werden nur zwei der vier Richtungen (Nord und Ost) — jede Grenze gehört genau
@@ -5543,7 +5552,7 @@ alles andere rechnet mit Zahlen und läuft im Test.
 Buchhaltung zwischen einer Wegsuche, die einmal antwortet, und einem NPC, der
 sechzigmal je Sekunde fragt: Geplant wird alle halbe Sekunde, gelaufen jedes
 Bild. Kommt er eine Weile nicht voran, **sieht er nach**, was ihn aufhält
-(`observe`) — in die *Laufrichtung*, nicht auf den Wegpunkt, denn nach der
+(`observe`) — in die _Laufrichtung_, nicht auf den Wegpunkt, denn nach der
 Glättung liegt der oft zehn Kacheln weit weg —, trägt es in seine Meinung ein
 und plant von dort neu. Das Hirn bekommt davon nur den nächsten Wegpunkt
 (`npcBrain.ts`, `sense.waypoint`); **gesehen und geschlagen wird trotzdem der
@@ -5569,7 +5578,7 @@ stimmt.
 Die beiden neuen sind es wert, einzeln erklärt zu werden, weil beide aus
 derselben Beschwerde entstanden sind — „einige Zombies wollen durch eine Wand":
 
-- **Betretbar** ist die Kachel als *Fläche* und nicht als Umriss. Ein Raster aus
+- **Betretbar** ist die Kachel als _Fläche_ und nicht als Umriss. Ein Raster aus
   dünnen Linien zeigt, wo Kacheln liegen; aus dreißig Metern Höhe sieht man
   darin aber nicht, wo **keine** liegt — und das ist die Frage, wenn ein NPC in
   eine Lücke plant, die es nicht gibt. Sie ist die einzige Ebene, die
@@ -5593,6 +5602,7 @@ derselben Beschwerde entstanden sind — „einige Zombies wollen durch eine Wan
   bis zu neun Felder eines 3 × 3-Rasters — die übrigen werden wieder
   zusammengefasst, sonst wären ein paar hundert Kacheln ein paar tausend
   Dreiecke, wo ein Rechteck je Kachel reicht.
+
 - **Wege** zeichnen die **Wegpunkte** und nicht die Kachelmitten
   (`navAgent.points`). Der Unterschied ist der ganze Zweck der Ebene: Eine Linie
   durch Kachelmitten schneidet jede Hausecke, um die der Läufer in Wirklichkeit
@@ -5615,19 +5625,19 @@ derselben Beschwerde entstanden sind — „einige Zombies wollen durch eine Wan
 **Und daneben drei Schalter, die etwas anderes tun** (`nav/navSwitches.ts`).
 Der Unterschied zu den Ebenen ist der ganze Punkt und steht deshalb auch im
 Menü in einer eigenen Zeile („Navigation schalten"): Eine **Ebene** macht etwas
-*sichtbar*, ein **Schalter** macht es *wirksam*. „Hindernisse aus" heißt nicht,
+_sichtbar_, ein **Schalter** macht es _wirksam_. „Hindernisse aus" heißt nicht,
 dass die Kiste verschwindet — es heißt, dass die Wegsuche sie nicht mehr
 beachtet, der Zombie mitten hindurchplant und dagegenrennt. Es sind dieselben
 drei, die eine Unity-Navmesh ausmachen:
 
-- **Fläche** (*NavMesh Surface*) — das Gitter selbst. Aus heißt: niemand sucht
+- **Fläche** (_NavMesh Surface_) — das Gitter selbst. Aus heißt: niemand sucht
   mehr einen Weg, die Hirne laufen stur auf den Spieler zu. Der einzige
   Schalter, an dem man in einem Bild sieht, was die Wegsuche den ganzen Tag
   leistet. Er hängt in der Welt (`PortalWorld.navForAgents`) und nicht im
-  Graphen, denn er schaltet nichts *am* Gitter ab, sondern das Gitter selbst.
-- **Hindernisse** (*NavMesh Obstacle*) — was zur Laufzeit im Weg steht
+  Graphen, denn er schaltet nichts _am_ Gitter ab, sondern das Gitter selbst.
+- **Hindernisse** (_NavMesh Obstacle_) — was zur Laufzeit im Weg steht
   (`setBlocked`): die Kiste, die jemand abstellt.
-- **Verbindungen** (*Off-Mesh Links*) — Treppe, Absprung, Leiter, Portal. Aus
+- **Verbindungen** (_Off-Mesh Links_) — Treppe, Absprung, Leiter, Portal. Aus
   heißt: nur noch Nachbarkacheln, und der kurze Weg ist auf einmal der lange.
 
 Die beiden letzten sitzen im Graphen (`NavGraph.features`) und schalten das
@@ -5687,7 +5697,7 @@ Fünf von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
   der **Welt** passt ein Zombie nicht hindurch (58 cm dick, `npcKinds.ts`), und
   auf der **Karte** steht dort deshalb auch keine Lücke. Wo die zweite Hälfte
   fehlte, plante er hindurch und rannte für immer dagegen — das war der Zombie,
-  der durch eine Wand *wollte*. Möglich macht es `edgeOpen` (siehe unten).
+  der durch eine Wand _wollte_. Möglich macht es `edgeOpen` (siehe unten).
 - **Podest und Sprung.** Eine Treppe aus drei Stufen führt auf ein Podest; einen
   Gang weiter steht ein zweites, freistehend, auf 2,4 m. Wer springen kann
   (`HUMAN_PROFILE`, `link.jump`), nimmt die Sprungverbindung und steht drüben;
@@ -5709,14 +5719,14 @@ Fünf von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
   die Bucht ging, wurde verfolgt statt vorgeführt. Was er dabei kann, hängt
   weiter an je einer Zahl seines Profils:
   - Die **flache** besteht aus vier Stufen von 60 cm, eine je Kachel. Sechzig
-    Zentimeter *tritt* keiner (`stepUp`), aber jeder hier zieht sich hinauf
+    Zentimeter _tritt_ keiner (`stepUp`), aber jeder hier zieht sich hinauf
     (`jumpUp`) — man sieht vier Sätze, und dann steht er oben.
   - Die **steile** ist eine richtige Rampe aus 12-cm-Stufen, die sogar ein
     Hamster tritt — nur eben 1,32 m Höhe je Kachel, und das sind 28°.
     Bei jedem hier ist vorher Schluss (`maxSlope`), und deshalb bleibt er davor
     stehen: nicht an der Stufe, sondern am **Winkel**. Er stellt sich dabei so
     nah an das Podest, wie die Karte ihn lässt, und bleibt dort — genau das
-    ist „er merkt, dass er nicht hochkommt". Dass er dabei *hinaufwill* und
+    ist „er merkt, dass er nicht hochkommt". Dass er dabei _hinaufwill_ und
     nicht bloß herumsteht, ist der Grund, warum auch diese Bucht das
     Auftrags-Hirn bekommt: Beide wollen hinauf, und beide bleiben unten — erst
     dann sagt die Bucht etwas.
@@ -5724,7 +5734,7 @@ Fünf von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
     beiden: nämlich, dass es an der **Stufe** liegt und nicht am Winkel. 2,4 m
     über fünf Kacheln sind 10,9°, flacher als alles hier — und ihre Stufen sind
     acht Zentimeter hoch. Damit ist sie auf der Karte keine Kante mehr, sondern
-    eine *Steigung* (`navProfile.canTraverse`), und in ihrem Weg steht kein
+    eine _Steigung_ (`navProfile.canTraverse`), und in ihrem Weg steht kein
     einziger Sprung. Man sieht zwei NPCs, die die Rampe **hinaufgehen**.
 
   Dass ausgerechnet die flache Bucht die groben Stufen hat, ist keine
@@ -5733,7 +5743,7 @@ Fünf von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
   hinaufhebt, gehört dem Spieler allein; ein Zylinder, den man waagerecht gegen
   eine Kante schiebt, bleibt daran stehen. Das ist inzwischen **gemessen und
   nicht mehr behauptet** (`labPhysics.test.ts`): Bei Stufen von 30, 15 und
-  fünf Zentimetern kommt er *null* Zentimeter hinauf — bei jeder Höhe. Eine
+  fünf Zentimetern kommt er _null_ Zentimeter hinauf — bei jeder Höhe. Eine
   flache Rampe aus zwanzig feinen Stufen wäre deshalb genau das, was die Karte
   für begehbar hält und die Welt für eine Wand.
 
@@ -5748,6 +5758,7 @@ Fünf von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
   ihn mit. Dass er die Stufen nirgends durchstechen lässt, hält ein Test ohne
   Brille fest — steht auch nur eine einen Zentimeter durch ihn hindurch, ist
   das wieder die Kante, an der ein Zylinder stehen bleibt.
+
 - **Und auf dem Dach steht jetzt ein Hamster** (`npcKinds.ts`,
   `CRITTER_PROFILE`). Er sieht denselben Spieler wie der Zombie neben ihm, hat
   dieselbe Karte und denselben Weg — und bleibt oben, weil ihn die einzige
@@ -5766,18 +5777,18 @@ Bucht am anderen Ende, das Dach über der Treppe) und etwas abschießen, wenn ei
 Zombie aus seinem Käfig kommt.
 
 **Die Tür lässt sich auch einfach auf- und zumachen.** Sie hat drei gelbe
-Knöpfe: *Tür auf/zu* ist ein Schalter, den man beliebig oft umlegt, auch ohne
+Knöpfe: _Tür auf/zu_ ist ein Schalter, den man beliebig oft umlegt, auch ohne
 dass ein Szenario läuft (`ScenarioAct.once` steht dort auf `false`);
-*Holz/Metall* wechselt das Material; *Tür verriegeln* ist die Wendung des
+_Holz/Metall_ wechselt das Material; _Tür verriegeln_ ist die Wendung des
 Szenarios und gilt einmal je Durchlauf. Das Türblatt hängt dabei **jedes Bild**
 am Zustand der Karte (`syncDoor`) und nicht mehr nur am Knopfdruck: Inzwischen
 macht die Attrappe die Tür selbst auf und ein Zombie schlägt sie ein, und ein
-Blatt, das dabei stehen bliebe, *ist* der Zombie, der durch die Tür läuft.
+Blatt, das dabei stehen bliebe, _ist_ der Zombie, der durch die Tür läuft.
 
 **Und das Blatt steht wirklich im Weg.** Lange war es eine bemalte Fläche und
-sonst nichts: gebaut in `decorate()`, wo alles hinkommt, was *keinen* Weg
+sonst nichts: gebaut in `decorate()`, wo alles hinkommt, was _keinen_ Weg
 versperrt — und damit stand auf der Karte eine geschlossene Tür, durch die in
-der Welt jeder mitten hindurchlief. Genau der Zombie, den diese Bucht *nicht*
+der Welt jeder mitten hindurchlief. Genau der Zombie, den diese Bucht _nicht_
 zeigen soll, nur unfreiwillig. Es hat jetzt einen **kinematischen Körper**, wie
 jedes Türblatt in diesem Projekt (`interact/InteractWorld`), und `syncDoor`
 zieht ihn jedes Bild nach; eingeschlagen wird sein Collider abgeschaltet, denn
@@ -5841,7 +5852,7 @@ nächsten Bild schon außen herum unterwegs.
 ihr auftritt (`cast`) und wo der Spieler dabei steht (`stand`). Inzwischen gilt
 das für **jeden Quader**: `labSolids()` gibt das ganze Labor als Liste von
 Kästen heraus, und `NavLabWorld` gibt jedem nur noch seine Farbe. Genauso steht
-alles, was in *keinem* Quader steckt, an einer Stelle (`applyLabMap`): der
+alles, was in _keinem_ Quader steckt, an einer Stelle (`applyLabMap`): der
 **Boden über der Stachelgrube**, die Tür und der Sprung zwischen den Podesten.
 
 **Die Stachelgrube ist eine Falle und kein Anstrich.** In der Welt ist sie ein
@@ -5926,7 +5937,7 @@ Bucht: Vorher hätte ein Hamster die Dachkante genommen wie ein Zombie, denn die
 Karte kannte nur eine Sorte Bein.
 
 **Und hinauf kommt er inzwischen doch — er springt.** Ein NPC ist ein
-dynamischer Zylinder ohne Schrittautomatik: Er *steigt* keine Stufe, er kann nur
+dynamischer Zylinder ohne Schrittautomatik: Er _steigt_ keine Stufe, er kann nur
 fallen oder fliegen. Also fliegt er. Der Läufer meldet zwei Sorten von
 Absprung getrennt (`navAgent.ts`, `AgentStep`): `jump` ist das **Portal** —
 Versetzen, denn dazwischen gibt es keinen Weg —, `leap` ist der **Sprung**, und
@@ -5969,7 +5980,7 @@ Der schärfere Prüfstein ist die **Überquerung** (`crossedAt`): nicht „wie n
 kam er der Mitte einer Lücke", sondern „**an welcher Stelle** hat er die
 Wandlinie überschritten". Genau daran hängt die Behauptung der Tür-Bucht, seit
 es Material gibt: Bei einer **Metalltür** liegt die Stelle in der Lücke ganz
-außen — er *muss* außen herum, es gibt keinen zweiten Weg. Bei einer
+außen — er _muss_ außen herum, es gibt keinen zweiten Weg. Bei einer
 **Holztür** liegt sie in der Türöffnung, und daneben steht, dass er dort
 wirklich drei Sekunden gestanden hat (`SimRunner.atDoor`) und die Tür hinterher
 hin ist (`broke`). Wer nur „angekommen" prüfte, sähe zwischen beiden Läufen
@@ -6028,7 +6039,7 @@ sie tragen ihr „aus" im Namen: an ist der Normalfall und soll ruhig sein) und
 ein **Ziel**, das ein Tipp auf den Boden versetzt.
 
 **Die Ebene „Wege" zeigt dabei auch den eigenen.** Bis dahin zeigte sie nur, was
-die *anderen* laufen — wer von oben seine Figur losschickt, schaltete sie ein
+die _anderen_ laufen — wer von oben seine Figur losschickt, schaltete sie ein
 und sah in einem leeren Labor gar nichts. Der eigene Weg ist derselbe Weg, den
 ein NPC bekäme (`PreviewWalk.path`), und er hat eine **eigene Farbe**, denn er
 beantwortet eine andere Frage: nicht „wie kommen sie zu mir", sondern „wie komme
@@ -6056,7 +6067,7 @@ kippen (wie bei jedem anderen Modell auf dieser Seite) oder die Karte schieben
 (wie bei jeder anderen Karte). **Folgen** legt die Bildmitte auf die Figur und schaltet
 dabei auf **Gehe zu** um; dann tippt man sich mit Klicks durch die Welt, statt
 nach jedem Schritt nachzuschieben. Die beiden gehören zusammen: Wer die
-Bildmitte an die Figur hängt und sie dann per Tipp *versetzt*, sieht nichts —
+Bildmitte an die Figur hängt und sie dann per Tipp _versetzt_, sieht nichts —
 die Mitte springt im selben Bild mit. Ein Labor läuft deshalb ab jetzt als **Karte** an: Der Finger
 schiebt, die Mitte hängt an der Figur. Wer die Welt drehen will, sagt es — das
 ist ein Griff; nach jedem Schritt nachzuschieben sind zwanzig.
@@ -6068,8 +6079,8 @@ selbst schiebt, nimmt der Mitte damit das Folgen ab — man will dorthin sehen,
 wohin man geschoben hat.
 
 Das ist die Vogelperspektive aus „was noch fehlt", ohne Brille und ohne Editor;
-wie sie funktioniert, steht bei der Werkzeugseite unter *Eine Welt laufen
-lassen*.
+wie sie funktioniert, steht bei der Werkzeugseite unter _Eine Welt laufen
+lassen_.
 
 **Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, zerstörbare
 Hindernisse samt „schlag drauf, wenn kein Weg da ist" — und der
@@ -6086,9 +6097,9 @@ der Brille steht er davor.
 (`worlds/editor/WorldEditor.ts`). Das war einmal eine eigene Welt — der
 **Bauplatz** —, und als erste Fassung war das richtig: Man probiert eine
 Bedienung an einem Ort aus, bevor man sie überall hinhängt. Es war aber auch
-die Antwort auf die falsche Frage. Die Frage lautet nicht *wo baue ich ein
-Level?*, sondern *warum kann ich das Haus, in dem ich gerade stehe, nicht
-umbauen?* Wer im Dunkelhaus merkt, dass der Gang zu eng ist, will ihn **dort**
+die Antwort auf die falsche Frage. Die Frage lautet nicht _wo baue ich ein
+Level?_, sondern _warum kann ich das Haus, in dem ich gerade stehe, nicht
+umbauen?_ Wer im Dunkelhaus merkt, dass der Gang zu eng ist, will ihn **dort**
 verbreitern und nicht in einer zweiten Welt nachbauen.
 
 Also hängt die Bedienung an keiner Welt mehr, sondern an einem **Grundriss**
@@ -6129,7 +6140,7 @@ Vier Entscheidungen tragen das Ganze:
   letzte Bild — sonst liegt die Geste nach zwei Sekunden Zittern um zehn
   Prozent daneben. Dass ein Grundriss dabei schief hängen darf, ist kein
   Versehen, sondern der Zweck: Wer eine Wand von unten sehen will, kippt das
-  Modell, statt sich darunter zu bücken. Gerade legt es *ein* Griff wieder —
+  Modell, statt sich darunter zu bücken. Gerade legt es _ein_ Griff wieder —
   „Zu mir" ist gleichzeitig die Wasserwaage.
 - **Die Welt tritt zur Seite, solange die Karte draußen ist.** Ihre Quader
   werden unsichtbar und kommen aus der Physik heraus, und was in ihr
@@ -6148,7 +6159,7 @@ Vier Entscheidungen tragen das Ganze:
 **Ausgesucht wird an einer Palette** (`editor/Palette.ts`). Drei Antworten
 standen zur Wahl, wie man in der Brille ein Bauteil aussucht: ein Menü (dreimal
 Aufklappen je Wechsel — die Sorte Bedienung, nach der man aufhört zu bauen),
-ein magischer Beutel (der gibt *Gegenstände* heraus, einen nach dem anderen;
+ein magischer Beutel (der gibt _Gegenstände_ heraus, einen nach dem anderen;
 beim Bauen setzt man dasselbe zwanzigmal hintereinander) — und eine Palette mit
 einem Pinsel: einmal eintunken, beliebig oft setzen, den Pinsel zurück in die
 Mulde, wenn man fertig ist. Genau das ist der Rhythmus eines Kacheleditors.
@@ -6157,18 +6168,18 @@ dann darf man darin herumfassen, ohne aus Versehen eine Wand zu setzen.
 
 **Werkzeuge sind vier, und der Radiergummi ist eines davon**: Boden, Wand, Tür,
 Löschen. Was ein Druck tut, hängt an zwei Sachen — am Werkzeug und daran, worauf
-man zeigt —, und diese Kreuzung steht an *einer* Stelle (`applyTool`,
-`applyGridTool`). Zwei Handgriffe daran sind eingebaute Nachsicht: Wer *Boden*
+man zeigt —, und diese Kreuzung steht an _einer_ Stelle (`applyTool`,
+`applyGridTool`). Zwei Handgriffe daran sind eingebaute Nachsicht: Wer _Boden_
 gewählt hat und auf eine **Kante** zeigt, baut die Kachel dahinter (so malt man
 einen Raum von seinem Rand aus weiter, ohne die Mitte der nächsten Kachel zu
-treffen); und wer *Tür* auf eine freie Kante setzt, bekommt eine Wand mit einer
+treffen); und wer _Tür_ auf eine freie Kante setzt, bekommt eine Wand mit einer
 Tür darin statt einer Fehlermeldung.
 
 **Und dann gibt es die zweite Reihe der Palette: die Bausteine**
 (`grid/gridTool.ts`, `grid/blocks.ts`). Küchenzeile, Regal, Tisch, Bank, Kisten,
 Säule, Geländer, Brüstung, Podest — eintunken, auf die Miniatur tippen, fertig.
 Ohne sie ist ein Zimmer ein leerer Kasten mit einer Tür, und genau daran merkt
-man beim Bauen *nicht*, ob ein Raum funktioniert. Zwei Regeln erklären das
+man beim Bauen _nicht_, ob ein Raum funktioniert. Zwei Regeln erklären das
 Setzen ganz:
 
 - **Was an eine Wand gehört, will eine Kante.** Küchenzeile, Regal, Bank,
@@ -6177,7 +6188,7 @@ Setzen ganz:
   Kachel, sagt der Editor das — eine geratene Küchenzeile steht in drei von vier
   Fällen falsch herum, und man sieht es erst, wenn man davorsteht.
 - **Was frei steht, nimmt die Kante als Blickrichtung.** Tisch, Kiste, Säule,
-  Podest: Die Kachel entscheidet, *wo* sie stehen, die Kante nur, *wohin* sie
+  Podest: Die Kachel entscheidet, _wo_ sie stehen, die Kante nur, _wohin_ sie
   schauen; wer auf die Mitte zeigt, bekommt Norden.
 
 Die zwei Reihen auf der Palette sind kein Ordnungssinn, sondern die Reihenfolge,
@@ -6269,7 +6280,7 @@ auf.** Deshalb sucht sich der Editor beim Aufmachen die **freien** Haken: Hier
 sind es beide, also hängt die Karte an der einen und die Palette an der
 anderen, und man zieht sie mit dem Greifknopf heraus wie jedes Werkzeug. Wo
 keiner frei wäre, hingen sie an gar keinem und schwebten vor einem, statt sich
-zu verstecken — der Fall kommt seit dem Wegfall der Seite *Bauen* aus dem
+zu verstecken — der Fall kommt seit dem Wegfall der Seite _Bauen_ aus dem
 Handgelenkmenü nicht mehr vor (`GridWorld.editable`), die Vorsorge steht
 trotzdem. Zwei Sachen an demselben Haken hieße, dass ein Griff dorthin eine von
 beiden verschluckt, und welche, wüsste niemand.
@@ -6312,8 +6323,8 @@ gibt dafür zwei Wege, und sie sind mit Absicht nicht dasselbe
 (`grid/worldStore.ts`):
 
 - **Der Speicher** (`localStorage`, ein Eintrag je Welt unter `vr-welt:<id>`)
-  ist kein Archiv, sondern die Antwort auf eine einzige Frage: *Wer zwanzig
-  Minuten baut und die Brille absetzt, soll seine Welt wiederfinden.*
+  ist kein Archiv, sondern die Antwort auf eine einzige Frage: _Wer zwanzig
+  Minuten baut und die Brille absetzt, soll seine Welt wiederfinden._
   Geschrieben wird beim **Weglegen der Karte** — das ist der Augenblick, in dem
   jemand fertig ist, und der einzige, an dem ein Schreiben weder sechzigmal in
   der Sekunde passiert noch zu spät kommt — und beim Verlassen der Welt, falls
@@ -6332,9 +6343,9 @@ immer das, das eine Kleinigkeit vergisst.
 Im Menü liegen die vier Handgriffe unter **Welt sichern**, und zwar ganz
 oben — und nur im Bauplatz, denn nur dort wird gebaut (`GridWorld.editable`):
 Speichern und Mitnehmen ist keine Fußnote unter den Werkzeugen, und eine Welt,
-die man nicht ändern kann, hat auch nichts aufzuheben. Die erste Zeile heißt *Im Browser speichern* und nicht „Welt
+die man nicht ändern kann, hat auch nichts aufzuheben. Die erste Zeile heißt _Im Browser speichern_ und nicht „Welt
 speichern" — so heißt schon der Knopf der Stoppuhr, und der merkt sich etwas
-ganz anderes (wo die Kisten gerade liegen, für diese Sitzung). *Gespeichertes verwerfen* leert den Eintrag **und** baut die Welt
+ganz anderes (wo die Kisten gerade liegen, für diese Sitzung). _Gespeichertes verwerfen_ leert den Eintrag **und** baut die Welt
 im selben Augenblick aus ihrem `layout()` neu — das eine ohne das andere wäre
 eine Welt, die erst beim nächsten Laden wieder die richtige ist, und bis dahin
 fragt man sich, ob der Knopf kaputt ist.
@@ -6346,7 +6357,7 @@ sich widersprechen.
 
 **Unter welchem Namen eine Welt liegt, sagt sie selbst** (`worldId()`,
 abstrakt). Naheliegend wäre `ctx.net.world` gewesen — der steht beim Bauen aber
-noch auf der *vorigen* Welt (`App.loadWorld` setzt ihn erst nach `init`), und
+noch auf der _vorigen_ Welt (`App.loadWorld` setzt ihn erst nach `init`), und
 zwei Welten, die sich still denselben Speicherplatz teilen, sind der Fehler, den
 man erst bemerkt, wenn im Dunkelhaus plötzlich Dust steht.
 
@@ -6365,7 +6376,7 @@ war deshalb genau so lange brauchbar, wie die Welt keine hatte.
 
 Vier Entscheidungen tragen das Format:
 
-- **Der Graph bleibt der Graph.** Die Weltdatei *enthält* eine `nav`-Datei, sie
+- **Der Graph bleibt der Graph.** Die Weltdatei _enthält_ eine `nav`-Datei, sie
   ersetzt sie nicht. Damit erbt sie jede Prüfung, die dort schon steht
   (Kachelgröße, Version, Kachelläufe), und wer nur die Karte braucht, greift
   sich `nav` heraus.
@@ -6413,7 +6424,7 @@ Boxengasse, die Kisten zum Herumwerfen. Und sie kennt keine Farben — welchen
 Ton eine Wand hat, entscheidet die Welt, in der sie steht (`GridWorld.tint`),
 und genau deshalb sieht ein ins Bauplatz importiertes Dunkelhaus aus wie ein
 Bauplan und nicht wie ein Haus. Das ist die Grenze, und sie ist gezogen und
-nicht vergessen: Ein Format, das *alles* speichert, ist eines, das bei jeder
+nicht vergessen: Ein Format, das _alles_ speichert, ist eines, das bei jeder
 neuen Lampe eine neue Version braucht.
 
 Der **Dateiname** ist der Name der Welt plus das Datum plus `.welt.json` — die
@@ -6433,13 +6444,13 @@ nicht ihr Ende. Drei Sachen unterscheiden sie vom Umbauen einer fertigen Welt:
 
 - **Sie fängt bei einem Zimmer an** (`starterGrid.ts`) und nicht bei einem Haus,
   das schon steht. Eine leere Ebene beantwortet die erste Frage nicht, die jeder
-  hat — *wie sieht denn eine Wand hier aus?*
+  hat — _wie sieht denn eine Wand hier aus?_
 - **Er schreibt auch beim Bauen** und nicht nur beim Weglegen der Karte
   (`planEdited`, höchstens alle zwei Sekunden). Hier baut man von Grund auf, oft
   eine halbe Stunde am Stück und ohne die Karte dazwischen wegzulegen — und wer
   dabei die Brille absetzt, hätte sonst nichts. Alles Übrige am Speichern ist
-  seit dem Weltformat für jede Gitterwelt dasselbe (*Speichern, exportieren,
-  importieren*). Den **alten Eintrag** aus der Zeit davor (`vr-bauplatz-plan`:
+  seit dem Weltformat für jede Gitterwelt dasselbe (_Speichern, exportieren,
+  importieren_). Den **alten Eintrag** aus der Zeit davor (`vr-bauplatz-plan`:
   die nackte Karte plus Mobiliar, ohne Version und ohne Massen) liest er noch
   einmal, schreibt ihn im neuen Format und räumt ihn weg — wer zwei Wochen an
   einem Grundriss gebaut hat, verliert ihn nicht, weil das Programm inzwischen
@@ -6501,7 +6512,7 @@ mit — das Werkzeug wird dadurch kleiner, dafür gibt es das Zoomen
 dessen -Z, `GRIP_TO_RAY`, und in der Ansicht _In VR_ bei
 `Lage-im-Griff⁻¹`).
 
-**Und die Hand steht bei jedem Werkzeug gleich.** Lange stand das *Werkzeug*
+**Und die Hand steht bei jedem Werkzeug gleich.** Lange stand das _Werkzeug_
 aufrecht in seinem eigenen Raum und die Hand lag daran, wie dieses Werkzeug
 eben gehalten wird — damit brachte jede Seite ihre eigene Schräge mit: an der
 Pistole zeigte die Hand waagerecht nach vorn und die Scheibe stand ordentlich
@@ -6599,8 +6610,8 @@ steht da und **geht auf der Stelle** — ein NPC, der still steht, ist ein
 Kleiderständer, und das Einzige, was man an ihm ansehen will, ist sein Gang —,
 daneben liegen die **Hirne** als eigene Kacheln mit ihren Zahlen: Tempo,
 Drehrate, Sichtweite, Reichweite und Wartezeit. Eine Liste aus sechs
-Kombinationen beantwortete keine der beiden Fragen, die man hier stellt (*wie
-sieht ein Zombie aus* und *was macht „Verfolgen"*). Gedreht steht die Haut im
+Kombinationen beantwortete keine der beiden Fragen, die man hier stellt (_wie
+sieht ein Zombie aus_ und _was macht „Verfolgen"_). Gedreht steht die Haut im
 **Dreiviertelprofil**: genau auf die Kamera zu sind die ausgestreckten Arme
 eines Zombies zwei Stummel, und die Silhouette ist bei ihm die Auskunft. Beide Listen kommen aus dem Spiel (`WORLDS`,
 `BAG_ITEMS` — die Beutel-Liste ist dafür aus `PortalWorld` nach `props.ts`
@@ -6742,8 +6753,8 @@ will, nimmt weiter `preview()` und wartet auf nichts.
 **An die Stelle des Spielers tritt eine Attrappe** — ein Ring auf dem Boden mit
 einem Stab darin (`createGhostTarget`). Sie ist nicht Kosmetik, sondern der
 Grund, warum eine laufende Vorschau überhaupt etwas zeigt: Ein Zombie geht
-*jemandem* nach, und in einer Vorschau steht niemand. `playerFeet()` gibt sie
-zurück, wenn es keinen Kontext gibt; für Hirne, Wegsuche und Spawnpunkte *ist*
+_jemandem_ nach, und in einer Vorschau steht niemand. `playerFeet()` gibt sie
+zurück, wenn es keinen Kontext gibt; für Hirne, Wegsuche und Spawnpunkte _ist_
 sie der Spieler. Ein Tipp auf den Boden versetzt sie — und genau das macht die
 Draufsicht zum Werkzeug: Man setzt das Ziel und sieht, welchen Weg das Gitter
 hergibt. Wie im Spiel gilt dabei die **Sichtweite** des Hirns: Wer sein Ziel
@@ -6751,7 +6762,7 @@ quer über die Karte setzt, sieht einen Zombie, der stehen bleibt, weil er
 nichts bemerkt hat.
 
 Zwei Knöpfe machen aus dem Ziel mehr als ein Ziel, und beide beantworten
-dieselbe Frage von zwei Seiten — *stehe ich eigentlich in dieser Welt?*
+dieselbe Frage von zwei Seiten — _stehe ich eigentlich in dieser Welt?_
 
 - **Gehe zu** ist ein **Modus** wie in den Sims und kein Druck: Solange er an
   ist, heißt ein Tipp auf den Boden nicht „stell dich dorthin", sondern „geh
@@ -6766,7 +6777,7 @@ dieselbe Frage von zwei Seiten — *stehe ich eigentlich in dieser Welt?*
   den Graphen, wie er ist. Und sie hat **keine Physik**: Ihre Höhe holt sie
   sich von der Kachel, auf der sie steht, statt sich schieben zu lassen.
   Führt kein Weg ans Ziel, geht sie den Teilweg bis vor das Hindernis und
-  meldet dort *„Da komme ich nicht hin"* — eine Figur, die ohne Grund stehen
+  meldet dort _„Da komme ich nicht hin"_ — eine Figur, die ohne Grund stehen
   bleibt, sieht kaputt aus.
 - **Figur weg** nimmt sie ganz heraus, und zwar wörtlich: nicht unsichtbar,
   sondern **nicht da**. `playerFeet()` gibt danach `null` zurück, und damit hat
@@ -6873,10 +6884,10 @@ Ansicht an derselben Stelle — das Werkzeug aufrecht in seinem eigenen Raum, di
 Scheibe davor auf dem Zeigestrahl —, und die Kamera passt sich nur an die
 beiden an (`fit`, `placeTarget` messen das Werkzeug, nicht die Hand). Was sich
 beim Umschalten bewegt, ist die Hand und sonst nichts. Vorher lag in der
-Ansicht *in echt* der Griffraum in der Bühne selbst, das Werkzeug war ganz weg
+Ansicht _in echt_ der Griffraum in der Bühne selbst, das Werkzeug war ganz weg
 und die Zielscheibe stand plötzlich schräg unten links: zwei Bilder, die man
 nicht vergleichen konnte. Jetzt steht der Griffraum dort, wo der Controller
-beim Halten *dieses* Werkzeugs wirklich stünde (`Lage-im-Griff⁻¹`), und der
+beim Halten _dieses_ Werkzeugs wirklich stünde (`Lage-im-Griff⁻¹`), und der
 rote Zylinder liegt genau im grünen Halterzylinder des Geists.
 
 Der grüne **Halterzylinder** gehört dabei zum Werkzeug und bleibt, wo er ist:
@@ -7238,13 +7249,13 @@ Vier Dateien, alle **ohne three.js**:
   Ein Baustein ist genau das, was er bei Minecraft ist — **eine Kachel, eine
   Sorte, eine Blickrichtung** —, und mehr braucht niemand anzugeben.
 - **`grid/gridPlan.ts` — der Grundriss.** Zimmer, Wände, Türen, Fenster,
-  Bausteine und **Massen**. Der Plan *ist* der Navigationsgraph
+  Bausteine und **Massen**. Der Plan _ist_ der Navigationsgraph
   (`nav/navGraph.ts`), also weiß ein NPC von der Küchenzeile, bevor er
   losläuft.
 - **`grid/GridWorld.ts` — die Basis.** Sie baut den Plan, führt die gemeinsame
   Palette und entscheidet einmal für alle, woran ein Portal haftet — **und sie
   gibt jeder Gitterwelt den Bearbeitungsmodus** (`editor/WorldEditor.ts`, siehe
-  *Bauen, während man darin steht*): Der Grundriss liegt ohnehin da, und der
+  _Bauen, während man darin steht_): Der Grundriss liegt ohnehin da, und der
   Editor kann nichts anderes, als daran zu arbeiten.
 
 Vier Sachen sind daran wichtig, und drei davon merkt man erst hinterher.
@@ -7912,7 +7923,7 @@ Paket beim Gastgeber in der Brille:
   2D→3D, Übergabe) — mit den Büchern, die bis dahin warteten
   (`pendingBooks` ← `loadBooks`); `books()` liest die laufende Runde, sonst
   die wartenden Bücher, sonst Riegel und Lampen der Tafel (`this.locks`,
-  `this.lampBook`, die mit Kern dessen Bücher *sind*). Die Lampen reisen
+  `this.lampBook`, die mit Kern dessen Bücher _sind_). Die Lampen reisen
   dafür jetzt in `FlatResume.lamps` mit, und `FlatRound` meldet Flackern und
   Ausgehen über `onLamp`.
 - **Der Stock geht in die Runde, nicht in die Physik.** `KernelLocomotion`
@@ -7953,7 +7964,7 @@ Paket beim Gastgeber in der Brille:
   `monsterYaw`, `monsterPace`), die Wege-Ebene (`kernel.botNavigation`,
   `kernel.monsterNavigation` statt eigener Läufer) und das Steuer der
   Monster-Station (`netMonster` als `round.driver`). **Die Alarmleiter ist die
-  im Stand**: `FlatRound.memory` *ist* `haunt.crew.threat` (vorher eine
+  im Stand**: `FlatRound.memory` _ist_ `haunt.crew.threat` (vorher eine
   eigene Leiter je Runde), damit `ShipExperience` Absicht und Jagd daraus
   liest und sie mit dem Stand an alle Geräte geht. Neue Gewichte im Test gehen
   an `round.retune`.
@@ -8027,7 +8038,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
 - **Ab und zu fährt ein Schott von selbst auf** (`rules/doorGlitch.ts`): alle
   `GLITCH_RANGE` = 35–70 s für `GLITCH_HOLD` = 1,8–3,2 s eine beliebige
   **nicht gesperrte** Tür, gewürfelt. Der Grund ist nicht Kulisse, sondern
-  Auskunft: Ein fahrendes Blatt hieß bisher immer *jemand ist da*, und wer das
+  Auskunft: Ein fahrendes Blatt hieß bisher immer _jemand ist da_, und wer das
   einmal begriffen hatte, las die halbe Station aus dem Augenwinkel ab — der
   Techniker die Position des Monsters, das Monster die des Technikers.
   Angewendet wird es über dieselbe Mechanik wie jedes andere Auffahren
@@ -8339,7 +8350,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   aufklappt, spielt eine andere Runde als der, dem man dabei zusieht.
   **Vor einer Tür steht keine Kiste** (`stationLayout.CARGO_DOOR_DEPTH` = 2,4 m
   statt der üblichen 1,15 m, auch für die Deko-Kiste): Der übliche Türfreiraum
-  hält die *Möbel* aus der Öffnung, nicht den *Menschen*, der davorsteht und
+  hält die _Möbel_ aus der Öffnung, nicht den _Menschen_, der davorsteht und
   wühlt — in „Lower Engine" konnte man die grüne Kiste nur öffnen, indem man die
   Tür blockierte. Gewürfelt wird aus
   **eigenen Strömen** aus `spec.seed`, nie aus dem des Hauses: Die
@@ -8432,7 +8443,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   (`world3d/shipControls.ts`): Stock links unten, drei Knöpfe rechts unten,
   dieselbe Klasse und dasselbe CSS wie in 2D (`map/joystick.ts`,
   `map/flat.css`) — nur ohne den schwarzen Grund (`.flat.ship3d { background:
-  none }`; ohne diese Zeile malt `flat.css` die ganze Station zu, sobald
+none }`; ohne diese Zeile malt `flat.css` die ganze Station zu, sobald
   jemand die Datei lädt — das Schiff tut das seit dem Optionsmenü selbst) und
   nur dort bedienbar, wo Stock und Knöpfe liegen; dazwischen geht jeder Finger an die Leinwand
   durch, sonst ließe sich nicht mehr umsehen. Neu ist an den Knöpfen nur der
@@ -8451,7 +8462,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   legt er `torchLit` um. Auf den runden Knöpfen heißt die Lampe „Lampe an" /
   „Lampe aus" und nicht „Taschenlampe": Dort ist Platz für neun Zeichen, und
   abgeschnitten wurde bisher genau das Wort, um das es geht (`keyLabel`); auf
-  dem großen Knopf steht dafür „Licht an" / „Licht aus" — was er *tun* wird,
+  dem großen Knopf steht dafür „Licht an" / „Licht aus" — was er _tun_ wird,
   wenn nichts vor einem liegt. Der Stock schiebt das Rig mit `PLAYER_WALK_SPEED` und jenseits des
   Sprintrings mit `PLAYER_SPRINT_SPEED` — nur solange der Daumen liegt, sonst
   nähme er der Tastatur jedes Bild ihren Wunsch weg. Nicht in der Brille
@@ -8500,7 +8511,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   auf dem Boden — damit ist es auch in der Brille richtig herum. Die Zahlen
   kommen aus `RoutineOutput.insight` (`monsterRoutine.ts`) und werden nirgends
   zweimal gerechnet; gezeichnet wird in 2D dasselbe aus `map/insightOverlay.ts`
-  (Szene *und* Kartenübersicht, `FlatMode.drawSceneOverlay` /
+  (Szene _und_ Kartenübersicht, `FlatMode.drawSceneOverlay` /
   `MapViewOptions.overlay`). **Nur im Modus „Alles sehen"**: Ein Techniker mit
   dem Glaubensbild vor sich weiß, welche Zimmer gerade sicher sind, und die
   halbe Runde ist vorbei. **Über die Leitung geht es als optionales Feld**
@@ -8763,13 +8774,13 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Gelauert wurde immer an der ersten Tür des Raums, und die Prognose lief
   hinter der ersten statt hinter der wahrscheinlichsten weiter. M2 übersetzt
   jetzt (Raumpaar → Nachbarraum → gemeinsame Tür); `likelyExit(graph, memory,
-  raum)` gibt dieselbe Auskunft nach außen, und `monsterRoutine` stellt seinen
+raum)` gibt dieselbe Auskunft nach außen, und `monsterRoutine` stellt seinen
   Lauerposten damit an dieselbe Tür wie `plan()`.
 - **Tempo ist eine Ungleichung und kein Geschmack** (`mission.ts`):
   `PLAYER_WALK_SPEED` 2,6 < Monstertempo (2,8/2,95/3,2) und Jagdtempo
   ≤ `MONSTER_TOP_SPEED` 4,55 < `PLAYER_SPRINT_SPEED` 4,94. Tests in
   `botTuning.test.ts` rechnen beide Enden nach, auch an den Reglergrenzen.
-  **Und sie gilt seit M2 auch *getunt*** — daran war sie vorher gescheitert:
+  **Und sie gilt seit M2 auch _getunt_** — daran war sie vorher gescheitert:
   Geprüft wurde das Grundtempo der Sorte, gelaufen wurde `Grundtempo × speed`,
   und weil das Training `speed` auf 0,75 heruntergedreht hatte, ging das
   Monster in Wahrheit mit 2,21 m/s, also langsamer als ein spazierender
@@ -8834,7 +8845,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   ablaufende Abfangprognose spielen eine andere Runde, und die alten Zahlen
   fielen mit 0,064 aus dem Band (0,05). Zwölf Schritte à 64 Runden von den
   alten Gewichten aus (`TrainingRun(DEFAULT_TUNING, 'both', 12, {rounds: 64},
-  99)`) stehen bei **0,47 / 0,31**, Abstand 0,029 — und `Schleichtempo` ist
+99)`) stehen bei **0,47 / 0,31**, Abstand 0,029 — und `Schleichtempo` ist
   seither auf höchstens 0,95 gedeckelt: Der Lauf wollte 1,0, und ein
   Schleichen, das so schnell ist wie Gehen, ist keins (`botTuning.test.ts`).
   **Der Abstand zwischen Messung und Zusage ist mit M2 zu.** Die
@@ -8853,7 +8864,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   gelernt (45 Schritte à 128 Runden, `trainBots(…, 'both')`) und über
   1600 Runden nachgemessen steht `DEFAULT_TUNING` bei **0,54 / 0,315**, also
   **beide Quoten im Band**. `botTraining.test.ts` prüft weiter die Messung
-  (`BOT_RATES`) *und* jetzt zusätzlich, dass `inBand` für sie gilt — eine
+  (`BOT_RATES`) _und_ jetzt zusätzlich, dass `inBand` für sie gilt — eine
   abgelesene Zahl fällt auf, wenn sie sich verschiebt, ein gerade noch
   getroffenes Band nicht.
   **Zwei Vorrichtungen im Test mussten dafür nachgezogen werden, und beide
@@ -9054,7 +9065,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   offen ist, ist der **ganze Kopf** weg — Rollenknöpfe, Zahnrad, Kasten,
   Sprungknöpfe — und dazu Stock, Knöpfe **und die
   Szene** — die Runde läuft weiter, sie ist nur nicht zu sehen. Das steht
-  an *einer* Stelle, weil vier Stellen, die je ein `hidden` umlegen, sich
+  an _einer_ Stelle, weil vier Stellen, die je ein `hidden` umlegen, sich
   genau dann widersprechen, wenn zwei gleichzeitig zutreffen: Vorher stand die
   Aufgabenliste über dem Kabelrätsel und der Stock lief darunter weiter. Das
   Rätsel gehört dabei der Runde und keinem Knopf — `syncOverlay` zieht den
@@ -9183,7 +9194,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Schaltbefehle nimmt die Welt nur von Farbplätzen an, die die Fähigkeit auf
   der Tafel des Gastgebers halten (`applyFlip`).
   **Die Stühle heißen Farben** (`stations.StationId` = `red | yellow | blue |
-  watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
+watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   seither **Ansichten** (`ABILITY_VIEWS`: `archive`, `hack`, `scout` in der
   Registry), die ein Stuhl je nach seinen Lampen aufschlägt — **alle
   zusammen auf einer Karte** (`views/seatRole.ts`, `mountSeatView`): Die
@@ -9213,7 +9224,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   die Routine weiter (`monster/netMonsterControl.ts`, `occupied`), und ein
   Satz beim Start sagt es.
   **Die Spalte „Ich" verbindet Platz und Gerät**: Ein Tipp darauf macht die
-  Zeile zum Menschen *und* setzt dieses Telefon an das Gerät, das dazugehört
+  Zeile zum Menschen _und_ setzt dieses Telefon an das Gerät, das dazugehört
   (Archiv → Archiv, Schalttafel → Schalttafel, Späher → Späher, Monster →
   Monster; `stationUi.claimSlot`, `ABILITY_STATIONS`) — ohne dabei die Seite zu
   wechseln. Seit #93 ist jede Fähigkeit eine eigene angemeldete Rolle mit
@@ -9254,7 +9265,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Kiste steht ihr Kennzeichen). Ein Mensch am Platz nimmt sie ihm wieder ab —
   und mit ihr die Kistengenauigkeit des Ziels (`goalPrecision`).
   **Und der Archivar aus Zahlen funkt jetzt auch** (`rules/archiveRadio.ts`):
-  Bis hierher bekam der Techniker dessen Auskunft *still* — die Zielkiste
+  Bis hierher bekam der Techniker dessen Auskunft _still_ — die Zielkiste
   leuchtete, ein Tipp aufs Zimmer schlug die Akte auf. In der Brille schaut aber
   niemand auf eine Karte, während hinter ihm eine Tür knarrt; der Besitzer wollte
   „die Hilfe-Kommunikation vom Archivar" ausdrücklich auch dort. Gesprochen
@@ -9307,7 +9318,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   (Testlicht, Station, Techniker, Monster, **je ein Eintrag für Späher,
   Schalttafel und Archiv** mit Bot / Mensch / Aus, Gegner). Ein Druck genügt, es gibt kein Untermenü, und das Panel klappt
   zu — **nur wenn wirklich etwas losgeht**: Eine Absage muss offen bleiben,
-  weil `App.notify` in der Brille die Statuszeile *des Panels* schreibt und die
+  weil `App.notify` in der Brille die Statuszeile _des Panels_ schreibt und die
   Meldung mit ihm verschwände. Danach läuft die Runde
   (`phase === 'running'`); beim Spielen ist das Monster an, Zuschauen und
   Trainieren sind der sichere Stand mit Testlicht (`startedRound`).
@@ -9379,10 +9390,11 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   eine laufende Runde damit endet. Der alte Eintrag `haunt:flat` („2D-Welt von
   oben: an/aus") heißt `haunt:view` und zeigt die Ansicht als Namen
   (`VIEW_LABELS`); in der Brille steht sie fest und sagt das auch.
+
 - **Der Aufbau ist zwei Häkchen, eine Tafel und ein Knopf** (`rules/lobby.ts`,
   `LobbyChoice`, in `localStorage` unter `bgvr.haunting.lobby.v1`). Die
-  **Absicht** (`Intent`) sagt, *was* passiert, die **Ansicht** (`View`) nur,
-  *wie* man dabei zusieht — 2D von oben oder 3D im Schiff (auf dem Telefon ist
+  **Absicht** (`Intent`) sagt, _was_ passiert, die **Ansicht** (`View`) nur,
+  _wie_ man dabei zusieht — 2D von oben oder 3D im Schiff (auf dem Telefon ist
   2D voreingestellt, `defaultLobby`; in der Brille ist die Ansicht
   **wirkungslos**, siehe den Absatz darüber). Gewählt wird die Ansicht als
   **ein Häkchen**, „2D-Welt von oben" (`[data-check="view"]`); das Häkchen
@@ -9630,7 +9642,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     Mission. **„Mission starten"** (Zahnrad in 2D und auf dem Telefon, oder
     der Knopf im Aufbau) baut die Runde **auf derselben Station** neu
     (`FlatMode.startMission` → `rebuild` mit gleichem Samen, `phase:
-    'running'`: Uhr null, Licht aus, Monster am anderen Ende); **„Mission
+'running'`: Uhr null, Licht aus, Monster am anderen Ende); **„Mission
     stoppen"** (`FlatMode.stopMission`, `HauntingWorld.stopRound`,
     `net.stopMessage`/`readStop` für den, der nicht rechnet) führt zurück in
     den Test. Läuft die gemeinsame 2D-Runde schon auf dem Gerät, startet ein
@@ -9671,7 +9683,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     — die Bedien-Ebene über der Szene muss sie deshalb ausdrücklich wieder
     abbestellen (`.flat.ship3d`), sonst ist die Station schwarz.
   - **Ein Optionsmenü für beide Welten** (`map/optionsMenu.ts`): Was ein
-    Optionsmenü *ist* — Überschriften, Hinweise, Knöpfe mit `data-*`-Schlüssel
+    Optionsmenü _ist_ — Überschriften, Hinweise, Knöpfe mit `data-*`-Schlüssel
     (`OptionItem`) — und wie es gezeichnet wird (`renderOptions`, aus den
     Bausteinen `ui-head` und `ui-option` in `ui/widgets.ts`), steht einmal dort; die
     geteilten Namen in `SHARED` (`watchKey`, `switchViewKey`, `soundKeys`,
@@ -9685,7 +9697,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   - **2D-Optionsmenü** (`FlatMode.renderOptions`): zuerst die **Runde** —
     **„Mission starten"** (`[data-mission="start"]`, solange keine läuft:
     auf derselben Station) oder **„Mission stoppen"** (`[data-mission="stop"]`:
-    zurück in den Test), nicht am Netz —, dann, was sich *in* der Runde
+    zurück in den Test), nicht am Netz —, dann, was sich _in_ der Runde
     ändert: Ansicht (die zwei Modi nur für den Zuschauer; wer mitspielt,
     bekommt „Realitätsnah" als Zeile), Zielpfade, **„Zuschauen: an/aus"**
     (`[data-watch]`, immer möglich), in der Bot-Runde die
@@ -9700,40 +9712,40 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     wie auf dem Telefon (`views/roleTabs.ts`); gelb umrandet, wer man ist
     (`FlatMode.myRole`: Techniker, Monster, Zuschauer: Einzeln oder Zuschauer:
     Alles — je nachdem, welchen Reiter man genommen hat, `watchAll`).
-  **Zuschauen in 2D ist eine eigene Rolle** (`FlatRole` `watch`, früher
-  `bot`): kein Stock, keine Knöpfe, dafür **beide** Sprungknöpfe („Zum
-  Techniker", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".
-  **Was dabei zu sehen ist, hängt am Raum**: Läuft dort wirklich eine Runde
-  (`HauntingWorld.roomOccupied` — ein Mensch im Headset oder ein 2D-Techniker,
-  der sich meldet), sieht der Zuschauer **diese** Runde. Szene und Karte
-  kommen dann aus dem Stand, den der Gastgeber ansagt: `HauntingWorld`
-  reicht `map/worldSource.ts` als `FlatModeHost.watchSnapshot` herein, die
-  2D-Welt rechnet gar nichts mehr (kein Techniker aus Zahlen, keine Wege,
-  keine neue Runde im Endbildschirm) und zeichnet nur noch. Ist der Raum
-  leer, bleibt es bei der **lokalen Bot-Runde** mit dem Techniker aus Zahlen
-  (`rules/technicianBot.ts`) — er ist nur keine Rolle mehr, die jemand im
-  Aufbau wählt: Angeschaltet wird Zuschauen im Optionsmenü der Runde
-  („Zuschauen: an/aus", und als die zwei Zuschauer-Reiter im Kopf), und zwar
-  immer. Wessen Sicht ein Zuschauer *sonst* noch haben kann, steht in
-  derselben Reiterzeile: Rot, Gelb und Blau sind eigene Karten, also führt
-  die Wahl dorthin.
-  Beides ist **lokal** und sperrt keinen Techniker im Schiff; deshalb
-  bleibt Zuschauen auch dann wählbar, wenn im Raum schon jemand spielt.
-  2D-**Spielen** und 2D-**Trainieren** sind dagegen die gemeinsame Runde übers
-  Netz (siehe unten) — wer sie spielt, ist der Techniker, und ein zweiter
-  Techniker im Raum sperrt sie.
+    **Zuschauen in 2D ist eine eigene Rolle** (`FlatRole` `watch`, früher
+    `bot`): kein Stock, keine Knöpfe, dafür **beide** Sprungknöpfe („Zum
+    Techniker", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".
+    **Was dabei zu sehen ist, hängt am Raum**: Läuft dort wirklich eine Runde
+    (`HauntingWorld.roomOccupied` — ein Mensch im Headset oder ein 2D-Techniker,
+    der sich meldet), sieht der Zuschauer **diese** Runde. Szene und Karte
+    kommen dann aus dem Stand, den der Gastgeber ansagt: `HauntingWorld`
+    reicht `map/worldSource.ts` als `FlatModeHost.watchSnapshot` herein, die
+    2D-Welt rechnet gar nichts mehr (kein Techniker aus Zahlen, keine Wege,
+    keine neue Runde im Endbildschirm) und zeichnet nur noch. Ist der Raum
+    leer, bleibt es bei der **lokalen Bot-Runde** mit dem Techniker aus Zahlen
+    (`rules/technicianBot.ts`) — er ist nur keine Rolle mehr, die jemand im
+    Aufbau wählt: Angeschaltet wird Zuschauen im Optionsmenü der Runde
+    („Zuschauen: an/aus", und als die zwei Zuschauer-Reiter im Kopf), und zwar
+    immer. Wessen Sicht ein Zuschauer _sonst_ noch haben kann, steht in
+    derselben Reiterzeile: Rot, Gelb und Blau sind eigene Karten, also führt
+    die Wahl dorthin.
+    Beides ist **lokal** und sperrt keinen Techniker im Schiff; deshalb
+    bleibt Zuschauen auch dann wählbar, wenn im Raum schon jemand spielt.
+    2D-**Spielen** und 2D-**Trainieren** sind dagegen die gemeinsame Runde übers
+    Netz (siehe unten) — wer sie spielt, ist der Techniker, und ein zweiter
+    Techniker im Raum sperrt sie.
 - **Knöpfe und Panels sind Bausteine, keine Handarbeit** (`ui/dom.ts`,
   `ui/widgets.ts`, `ui/widgets.css`). Haunting hat viele davon — das
   Zahnrad-Menü der 2D-Welt, das der Zentrale, die Linse des Zuschauers, die
   Tafel der Verteilung, die Rollenreiter, die Raumakte, das Rätsel, die Tafel
   des Technikers im Schiff —, und lange baute jede Stelle ihren Knopf selbst:
   sechs Kopien derselben `el()`-Hilfe, fünfmal `strong` + `small` + `data-*`
-  + `is-active` + `aria-pressed` von Hand, drei Toasts mit eigener Uhr, und im
-  CSS derselbe Kasten fünfmal. Jetzt steht jedes davon **einmal**:
-  - `ui/dom.ts`: `el(tag, klasse, text)` (immer `textContent`, nie
+  - `is-active` + `aria-pressed` von Hand, drei Toasts mit eigener Uhr, und im
+    CSS derselbe Kasten fünfmal. Jetzt steht jedes davon **einmal**:
+  * `ui/dom.ts`: `el(tag, klasse, text)` (immer `textContent`, nie
     `innerHTML` — hier gehen Spielernamen durch), `clickedKey(event)` (der
     `<button>` über dem Klickziel) und `setData(node, { switchView: '2d' })`.
-  - `ui/widgets.ts`: `key(klasse, spec)` — ein Knopf, entweder `{ text }` als
+  * `ui/widgets.ts`: `key(klasse, spec)` — ein Knopf, entweder `{ text }` als
     eine Zeile oder `{ label, sub }` als Name groß und Zeile klein, dazu
     `data`, `active`, `pressed`, `disabled`, `title`, `ariaLabel`;
     `optionKey` (der Listenknopf `ui-option`, mit `tone: 'go' | 'leave'` für
@@ -9743,7 +9755,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     Kachel `ui-note`, drei Töne), `fact(begriff, wert, { warn, valueClass })`
     (die Zeile `ui-fact`), `head(titel, beisage)` (die Überschrift `ui-head`)
     und `Toast` (`say(text, ton)`, `step(dt)`, leer unsichtbar).
-  - `ui/widgets.css`: die **Form** — `ui-panel`, `ui-head`, `ui-option`,
+  * `ui/widgets.css`: die **Form** — `ui-panel`, `ui-head`, `ui-option`,
     `ui-pill`, `ui-note`, `ui-fact`, `ui-toast`. Die **Lage** und der Ton einer
     Stelle stehen weiter in ihrem Blatt, als zweite Klasse neben der von hier
     (`ui-panel flat__panel`, `ui-toast monster__toast`); jedes dieser Blätter
@@ -9759,6 +9771,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   leeres `small` entsteht, Schlüssel und Zustände, die Klassenlisten von
   `optionKey`/`pillKey`, die Reihenfolge von `captioned`/`labelled`, und dass
   der Toast nach `TOAST_SECONDS` Text **und** Ton wieder ablegt.
+
 - **Jede Rolle meldet sich selbst an** (`registry/roles.ts`,
   `views/*.register.ts`, `monster/monster.register.ts`). `stations.ts` ist
   seither nur noch die **Sitzordnung** — welche Stühle es gibt, wem einer
@@ -9820,17 +9833,17 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     **wandern nicht mit**: Ein interpolierter Punkt wäre eine Verfolgung, und
     damit wäre Verstecken kein Mittel mehr, sondern ein Umweg. Der alte
     Radarschirm mit dem laufenden Punkt ist genau deshalb weg.
-  Der **Zuschauer** (`views/watchRole.ts`) ist die einzige Rolle ohne eigene
-  Karte: `surface: '3d'`, sein Bild ist das Puppenhaus aus der 3D-Welt. Über
-  seine **Linse** (`watchLens.ts`) schlüpft er in jede andere Rolle — Deck,
-  Archiv, Schalttafel, Späher, Monster (keine Drohne) —, und zwar in **deren**
-  angemeldete Ansicht, nicht in einen Nachbau: Er schlägt sie aus der Registry
-  auf wie der Rollenstreifen der 2D-Welt, nur mit einem Wirt, dessen `door`
-  und `light` `''` zurückgeben und nichts tun. Dazu „wem folgen?" (Techniker /
-  Monster / frei, nur über dem Deck) und **KI-Absichten** an/aus — das Overlay
-  aus Paket M4, das es nur hier gibt (`HauntingWorld.insightWanted` fragt
-  `StationUi.watchLens`). `StationUi.shownStation` sagt der Welt, welche
-  Kamera sie ausrichten soll.
+    Der **Zuschauer** (`views/watchRole.ts`) ist die einzige Rolle ohne eigene
+    Karte: `surface: '3d'`, sein Bild ist das Puppenhaus aus der 3D-Welt. Über
+    seine **Linse** (`watchLens.ts`) schlüpft er in jede andere Rolle — Deck,
+    Archiv, Schalttafel, Späher, Monster (keine Drohne) —, und zwar in **deren**
+    angemeldete Ansicht, nicht in einen Nachbau: Er schlägt sie aus der Registry
+    auf wie der Rollenstreifen der 2D-Welt, nur mit einem Wirt, dessen `door`
+    und `light` `''` zurückgeben und nichts tun. Dazu „wem folgen?" (Techniker /
+    Monster / frei, nur über dem Deck) und **KI-Absichten** an/aus — das Overlay
+    aus Paket M4, das es nur hier gibt (`HauntingWorld.insightWanted` fragt
+    `StationUi.watchLens`). `StationUi.shownStation` sagt der Welt, welche
+    Kamera sie ausrichten soll.
 - **Rollenwechsel in der 2D-Welt** (`views/roleStrip.ts`): ein Streifen über
   der Szene. Wer dort eine Rolle aufschlägt, bekommt sie über **dieselbe
   laufende `FlatRound`** — nichts wird gestartet, nichts verworfen; die Runde
@@ -9877,7 +9890,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   aufreißen, nicht nur die, in der der Techniker steckt.
   Sichtbarer Header für Rollenwechsel; keine Navigation über die FPS-Anzeige.
 - Archiv hat **Räume & Codes** und **Aufträge** — und **zwei Ebenen statt zwei
-  Größen**: oben die *Karte* (die Draufsicht des aufgeschlagenen Zimmers als
+  Größen**: oben die _Karte_ (die Draufsicht des aufgeschlagenen Zimmers als
   Kachel, darunter die Räume zum Antippen und die Liste „Gesucht"), und ein
   Tipp auf einen Raum **ersetzt** die Karte durch dessen Akte, ganzseitig, mit
   einem Knopf zurück. Vorher lag die Akte als Überbau über einem Vollbild —
@@ -9931,7 +9944,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   nichts; jetzt stehen dort zwei Fragen und ein Schalter:
   - **Wessen Platz?** — Deck, Archiv, Schalttafel, Späher, Monster (die
     **Drohne ist gestrichen**). Gewechselt wird **mitten in der Runde**, und
-    gewechselt wird nur das *Bild*: `StationUi.shownStation` sagt der Welt,
+    gewechselt wird nur das _Bild_: `StationUi.shownStation` sagt der Welt,
     welche Kamera das Fenster füllt (`HauntingWorld.render`), der Platz bleibt
     `watch`. Gezeigt wird dabei **die angemeldete Ansicht dieser Rolle** aus
     der Registry und kein Nachbau — es gibt keine zweite Schalterliste und kein
@@ -9965,13 +9978,13 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     „Zuschauer: Alles" frei über dem Deck.
   - **KI-Absichten** — das Overlay aus M4, siehe oben. Nur hier, nie für einen
     Spieler.
-  **Der Techniker aus der 2D-Welt bekommt dabei einen Körper**
-  (`HauntingWorld.showTechnician`, `shipArt.buildCrewmate`): Seine Pose steht
-  seit Protokoll 7 im Stand (`HauntState.technician`), gezeichnet wurde sie in
-  3D nie — am Fernseher sah man eine leere Station, in der Türen von selbst
-  aufgingen. Er steht dort, wo der Stand ihn hinsetzt, läuft die
-  Schrittanimation nur bei `moving` und verschwindet im Schutzschrank und im
-  Schacht.
+    **Der Techniker aus der 2D-Welt bekommt dabei einen Körper**
+    (`HauntingWorld.showTechnician`, `shipArt.buildCrewmate`): Seine Pose steht
+    seit Protokoll 7 im Stand (`HauntState.technician`), gezeichnet wurde sie in
+    3D nie — am Fernseher sah man eine leere Station, in der Türen von selbst
+    aufgingen. Er steht dort, wo der Stand ihn hinsetzt, läuft die
+    Schrittanimation nur bei `moving` und verschwindet im Schutzschrank und im
+    Schacht.
 - **STATION_PROTOCOL=8**: der Stand trägt jetzt die zerstörten Kabinen
   (`destroyed`, seit 6), die Fahrtphase des Monsters (`ride`) und den
   2D-Techniker (`technician`, seit 7); dazu die Nachricht `monster`. **Seit 8
@@ -9993,7 +10006,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   war genau dann unsichtbar, wenn sie gebraucht wurde.
   **Die Blutspur reist als optionales Feld mit** (`blood`, `rules/blood.ts`) —
   **ohne** Versionssprung, und das ist eine Entscheidung und kein Versehen: Die
-  Version steigt für ein Feld, von dem die Gegenseite *abhängt*. Bei `ghosts`
+  Version steigt für ein Feld, von dem die Gegenseite _abhängt_. Bei `ghosts`
   war das so; an der Blutspur hängt beim Empfänger **keine Regel**. Der
   Gastgeber sucht die Fährte in seiner eigenen Spur und entscheidet daraus das
   Verhalten des Monsters, alle anderen **malen** sie nur. Ein Gerät der
@@ -10076,7 +10089,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     Stand (`HauntState.technician` — in 2D hat er kein Rig), dann wird die
     2D-Runde aus dem **laufenden** Stand aufgebaut (`FlatRound`, Option
     `resume: FlatResume`) statt aus einem frischen. Der Stand wird dabei
-    **übernommen, nicht kopiert**: `round.haunt` *ist* `world.state`. Das
+    **übernommen, nicht kopiert**: `round.haunt` _ist_ `world.state`. Das
     NPC-Monster im Schiff hört auf (`releaseMonster`), das der 2D-Runde steht
     an seiner Stelle und erbt sein Gedächtnis. Werkzeuge kommen aus
     `crew.inventory`, Uhr, Anzug, Sauerstoff, `shut`, `lit` und die Riegel aus

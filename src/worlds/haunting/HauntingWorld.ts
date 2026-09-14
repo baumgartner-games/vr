@@ -399,7 +399,7 @@ export class HauntingWorld extends GridWorld {
   /**
    * **Diese Welt hat ihre eigene Ansicht von oben** (`map/flatMode.ts`): mit
    * Räumen, Türen, Licht, Rollen und einer ganzen Runde darin. Die des Kerns
-   * (`core/flat/FlatView.ts`) liest jede andere Welt aus ihren Netzen und
+   * (`world2d/World2D.ts`, Kacheln in Ebenen) gilt für jede andere Welt und
    * soll hier nicht darüberzeichnen.
    */
   readonly ownsFlat = true;

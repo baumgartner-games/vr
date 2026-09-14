@@ -163,10 +163,10 @@ export interface World {
   /**
    * **Diese Welt bringt ihre Ansicht von oben selbst mit.**
    *
-   * Der Normalfall ist die des Kerns (`core/flat/FlatView.ts`): Sie liest die
-   * Welt aus ihren Netzen und zeichnet sie flach, für jede Welt gleich. Genau
-   * eine hat eine eigene — Haunting, mit Räumen, Türen, Licht und einer ganzen
-   * Runde darin —, und die soll der Kern nicht übermalen.
+   * Der Normalfall ist die 2D-Welt des Kerns (`world2d/World2D.ts`): Kacheln
+   * in Ebenen, in Phaser, mit Editor — für jede Welt gleich. Genau eine hat
+   * eine eigene — Haunting, mit Räumen, Türen, Licht und einer ganzen Runde
+   * darin —, und die soll der Kern nicht übermalen.
    */
   readonly ownsFlat?: boolean;
   /** Entries this world adds to the wrist menu. Read once after `init`. */
