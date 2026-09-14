@@ -114,8 +114,19 @@ export type FixtureEvent =
   | { type: 'goto'; world: string }
   /** Mach ein Geräusch (`core/Audio.ts`). */
   | { type: 'sound'; name: FixtureSound }
-  /** Lass einen Effekt laufen (`worlds/effects/`) — zuhören wird dem jemand in P7. */
-  | { type: 'effect'; effect: string; at?: FixtureSpot };
+  /**
+   * **Lass einen Effekt laufen** (`worlds/effects/`) — Rauch, Feuer, Funken,
+   * Wasser, Staub.
+   *
+   * `effect` ist eine Kennung aus `effects/effectKinds.ts` und keine Zahl:
+   * Wie grau der Rauch ist, entscheidet diese eine Liste, und ein Einbau mit
+   * eigenen Partikelzahlen wäre ein zweiter Rauch neben dem ersten. `size`
+   * ist der Faktor des Schiebers im Effektlabor (`scaleEffect`), `at` der Ort
+   * — ohne Angabe die Kachel dessen, der es meldet, eine Handbreit über dem
+   * Boden (`EFFECT_LIFT`). Ein Einbau rechnet nämlich in Kacheln und kennt
+   * seine Weltmeter gar nicht.
+   */
+  | { type: 'effect'; effect: string; at?: FixtureSpot; size?: number };
 
 /**
  * Die Geräusche, die es gibt — Namen und keine Frequenzen.
@@ -138,9 +149,20 @@ export function sound(name: FixtureSound): FixtureEvent {
   return { type: 'sound', name };
 }
 
-export function effect(kind: string, at?: FixtureSpot): FixtureEvent {
-  return at === undefined ? { type: 'effect', effect: kind } : { type: 'effect', effect: kind, at };
+export function effect(kind: string, size = 1, at?: FixtureSpot): FixtureEvent {
+  const event: FixtureEvent = { type: 'effect', effect: kind, size };
+  return at === undefined ? event : { ...event, at };
 }
+
+/**
+ * **Wie hoch über dem Kachelboden ein Effekt losgeht**, in Metern.
+ *
+ * Eine Wolke, die im Boden anfängt, ist zur Hälfte darunter, und eine, die in
+ * Brusthöhe anfängt, schwebt. Eine Handbreit über dem Boden ist der Kompromiss
+ * — und er steht hier, weil `GridWorld` ihn beim Zeichnen braucht und eine
+ * Art (`fixtures/emitter.ts`) ihre Düse auf dieselbe Höhe baut.
+ */
+export const EFFECT_LIFT = 0.55;
 
 /**
  * **Was eine Art beim Bauen bekommt** — und mehr nicht.

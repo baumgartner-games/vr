@@ -1788,14 +1788,21 @@ export class App {
     // Werkzeugbildern), soll **diese** Kamera zeichnen und nicht die erste
     // Person. Sonst stünde von oben ein Portal voller Aussicht aus einem
     // Blickwinkel, den gerade niemand hat.
-    if (this.topDown) this.topDownCamera.update(dt, this.rig);
+    if (this.topDown) this.topDownCamera.update(dt, this.rig, this.world?.viewLevel?.() ?? null);
     const view = this.topDown ? this.topDownCamera.camera : this.camera;
     const viewContext = this.topDown ? { ...context, camera: view } : context;
+    // **Und von oben wird aufgeschnitten** (`core/cutaway.ts`, Plan E8): Was
+    // über der Ebene des Rigs liegt, ist für dieses eine Bild unsichtbar —
+    // sonst sähe die Kamera schräg darüber nur Decken und Dächer. Danach kommt
+    // alles wieder her, und zwar **immer**: In der Brille und aus den Augen
+    // soll nichts fehlen, auch wenn mitten im Bild umgeschaltet wurde.
+    if (this.topDown) this.topDownCamera.cut(this.scene);
     // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
     // sich die Welt gleich selbst zeichnet.
     this.mirrors.render(this.scene, view);
     const rendered = this.world?.render?.(viewContext) ?? false;
     if (!rendered) this.renderer.render(this.scene, view);
+    this.topDownCamera.uncut();
     const sample = this.frameStats.update(
       time,
       performance.now() - started,

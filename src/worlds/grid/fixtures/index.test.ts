@@ -98,10 +98,11 @@ describe('Die Ereignisse', () => {
     expect(trigger('lampe')).toEqual({ type: 'trigger', target: 'lampe' });
     expect(goto('street')).toEqual({ type: 'goto', world: 'street' });
     expect(sound('slam')).toEqual({ type: 'sound', name: 'slam' });
-    expect(effect('smoke')).toEqual({ type: 'effect', effect: 'smoke' });
-    expect(effect('fire', { x: 1, y: 2, z: 3 })).toEqual({
+    expect(effect('smoke')).toEqual({ type: 'effect', effect: 'smoke', size: 1 });
+    expect(effect('fire', 2, { x: 1, y: 2, z: 3 })).toEqual({
       type: 'effect',
       effect: 'fire',
+      size: 2,
       at: { x: 1, y: 2, z: 3 },
     });
   });

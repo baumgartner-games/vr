@@ -121,6 +121,11 @@ export interface WorldMassEntry extends TileRef {
   to: number;
   /** Ob ein Portal daran haftet — fehlt, wenn die Sorte entscheidet. */
   portal?: boolean;
+  /**
+   * Zu welcher Etage sie fürs Aufschneiden zählt (`Mass.level`) — fehlt, wenn
+   * es die ihrer Unterkante ist. Eine Decke sagt es, alles andere nicht.
+   */
+  cut?: number;
 }
 
 /**
@@ -255,6 +260,7 @@ function massEntry(one: Mass): WorldMassEntry {
   };
   if (one.rect.level) entry.l = one.rect.level;
   if (one.portal !== undefined) entry.portal = one.portal;
+  if (one.level !== undefined) entry.cut = one.level;
   return entry;
 }
 
@@ -467,6 +473,7 @@ function readMasses(list: unknown): Mass[] {
       to: one.to!,
     };
     if (typeof one.portal === 'boolean') mass.portal = one.portal;
+    if (typeof one.cut === 'number' && Number.isFinite(one.cut)) mass.level = one.cut;
     return mass;
   });
 }

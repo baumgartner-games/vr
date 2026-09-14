@@ -186,9 +186,15 @@ describe('Die Straßenküche als Grundriss', () => {
     }
   });
 
-  it('hält eine zweite Etage für das Podest bereit — noch leer', () => {
+  /**
+   * Die zweite Etage stand hier als leere Zusage, bis P7 sie gefüllt hat
+   * (`stampStairs.ts`) — was darauf steht und dass man hinaufkommt, prüft
+   * `stampStairs.test.ts`. Hier bleibt die Zusage selbst: Die Etage gehört dem
+   * Grundriss und nicht der Möblierung.
+   */
+  it('hält eine zweite Etage für das Podest bereit — und sie ist bezogen', () => {
     expect(plan.graph.levels).toHaveLength(2);
-    expect([...plan.graph.tileKeys()].some((key) => keyLevel(key) === 1)).toBe(false);
+    expect([...plan.graph.tileKeys()].some((key) => keyLevel(key) === 1)).toBe(true);
   });
 
   it('legt einen einzigen portalfähigen Boden über die ganze Karte', () => {

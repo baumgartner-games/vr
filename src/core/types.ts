@@ -11,6 +11,7 @@ import type { MenuEntry } from '../ui/menu';
 import type { NetSession } from '../net/NetSession';
 import type { RemoteAvatars } from '../net/RemoteAvatars';
 import type { LivePreview } from '../worlds/shared/livePreview';
+import type { ViewLevel } from './cutaway';
 
 /**
  * How a player takes part. The engine detects a sensible default, but worlds
@@ -178,6 +179,19 @@ export interface World {
    * darin —, und die soll der Kern nicht übermalen.
    */
   readonly ownsFlat?: boolean;
+  /**
+   * **Auf welcher Ebene das Rig gerade steht** — für die Ansicht von oben.
+   *
+   * Von dort aus wird aufgeschnitten (`core/cutaway.ts`): Alles über dieser
+   * Ebene verschwindet, sonst sähe die Kamera schräg darüber nur Decken und
+   * Dächer. Die Antwort kommt aus der Kachel unter den Füßen und kann deshalb
+   * nur von der Welt kommen — die Kamera kennt kein Gitter.
+   *
+   * Optional, und `null` ist eine gültige Antwort: Eine Welt ohne Stockwerke
+   * (Portal-Labor, Interaktionslabor, die Alpen) wird nicht aufgeschnitten und
+   * sieht von oben aus wie eh und je.
+   */
+  viewLevel?(): ViewLevel | null;
   /** Entries this world adds to the wrist menu. Read once after `init`. */
   menu?(): MenuEntry[];
   /**

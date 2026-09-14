@@ -11,18 +11,23 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
-import { DIRS, TILE, tileCentreX, tileCentreZ, type Dir } from '../nav/navTile';
+import { DIRS, NO_TILE, TILE, keyLevel, tileCentreX, tileCentreZ, type Dir } from '../nav/navTile';
 import { changeSlidingDoor } from './slidingDoor';
 import { fixtureTile, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
+import { EFFECT_LIFT } from './fixtures/index';
 import type {
   FixtureEvent,
   FixtureInput,
   FixtureKind,
   FixturePlacement,
   FixtureSound,
+  FixtureSpot,
   FixtureView,
 } from './fixtures/index';
+import { Burst } from '../effects/Burst';
+import { findEffect, scaleEffect } from '../effects/effectKinds';
+import { levelStep, type ViewLevel } from '../../core/cutaway';
 import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/Audio';
 import { disposeShapes } from '../shared/environment';
 import type { PlanSolid, PlanSolidKind } from './solids';
@@ -88,6 +93,18 @@ export abstract class GridWorld extends PortalWorld {
   private readonly frozen: PhysicsBody[] = [];
   /** Die gebauten Einbauten — Zustand, Bild und Körper (`fixtures/index.ts`). */
   private readonly fixtures: FixtureRun[] = [];
+  /** Die laufenden Wolken (`effects/Burst.ts`) — was ein `effect`-Ereignis macht. */
+  private readonly bursts: Burst[] = [];
+  /**
+   * **Auf welcher Ebene das Rig steht** — die Schnittkante der Ansicht von
+   * oben (`core/cutaway.ts`, `viewLevel`).
+   *
+   * Sie wird geführt und nicht jedes Mal frisch gefragt, weil zwischen zwei
+   * Etagen eine **Hysterese** liegt: Auf einer Treppe wechselt die Kachel
+   * unter den Füßen schlagartig, und ohne Gedächtnis flackerte das Stockwerk
+   * darüber beim Hin- und Hertreten.
+   */
+  private rigLevel = 0;
 
   /**
    * **Der Grundriss dieser Welt.** Das Einzige, was eine Gitterwelt wirklich
@@ -193,20 +210,29 @@ export abstract class GridWorld extends PortalWorld {
       this.build(group, solid);
     }
     if (this.batchGridGeometry()) {
-      const byMaterial = new Map<THREE.Material, THREE.Mesh<THREE.BoxGeometry>[]>();
+      // **Zusammengefasst wird je Material *und* je Ebene.** Ein Bündel über
+      // zwei Stockwerke ließe sich von oben nicht mehr aufschneiden — es ist
+      // ein Objekt, und ein Objekt hat eine Sichtbarkeit.
+      const byMaterial = new Map<
+        string,
+        { material: THREE.Material; level: number; meshes: THREE.Mesh<THREE.BoxGeometry>[] }
+      >();
       for (const object of this.slabs) {
         const mesh = object as THREE.Mesh<THREE.BoxGeometry>;
         if (!mesh.visible || Array.isArray(mesh.material)) continue;
-        const list = byMaterial.get(mesh.material) ?? [];
-        list.push(mesh);
-        byMaterial.set(mesh.material, list);
+        const level = typeof mesh.userData.level === 'number' ? mesh.userData.level : -1;
+        const key = `${mesh.material.uuid}:${level}`;
+        const group = byMaterial.get(key) ?? { material: mesh.material, level, meshes: [] };
+        group.meshes.push(mesh);
+        byMaterial.set(key, group);
       }
-      for (const [material, meshes] of byMaterial) {
+      for (const { material, level, meshes } of byMaterial.values()) {
         const batch = new THREE.InstancedMesh(
           new THREE.BoxGeometry(1, 1, 1),
           material,
           meshes.length,
         );
+        if (level >= 0) batch.userData.level = level;
         const matrix = new THREE.Matrix4();
         const scale = new THREE.Vector3();
         meshes.forEach((mesh, i) => {
@@ -269,7 +295,12 @@ export abstract class GridWorld extends PortalWorld {
       });
       // Woran ein Strahl ihn wiedererkennt — der Haken für `use` (P2) und für
       // die Kugel, die den Knopf trifft (P6).
-      if (view.object) view.object.userData.fixture = place.id;
+      if (view.object) {
+        view.object.userData.fixture = place.id;
+        // Und auf welcher Ebene er steht: Der Hebel auf dem Podest ist von
+        // unten nicht zu sehen (`core/cutaway.ts`).
+        view.object.userData.level = place.level;
+      }
       const state = kind.init(place);
       const run: FixtureRun = {
         place,
@@ -312,6 +343,7 @@ export abstract class GridWorld extends PortalWorld {
         this.solid,
       );
       mesh.userData.fixture = run.place.id;
+      mesh.userData.level = run.place.level;
       run.meshes.push(mesh);
     }
   }
@@ -456,8 +488,65 @@ export abstract class GridWorld extends PortalWorld {
         playFixtureSound(event.name);
         break;
       case 'effect':
-        // Noch hört niemand zu: Die Effekte kommen mit P7 (`fixtures/emitter.ts`).
+        // **Eine Wolke an der Kachel dessen, der sie meldet** — Rauch aus der
+        // Effektquelle, Staub beim Aufgehen einer Tür, Funken, wenn eine Kugel
+        // einen Knopf trifft. Die Zahlen dazu kommen aus `effects/effectKinds`
+        // und werden nicht neu erfunden.
+        this.fireEffect(from, event.effect, event.size ?? 1, event.at ?? null);
         break;
+    }
+  }
+
+  // --- die Effekte ----------------------------------------------------------
+
+  /**
+   * **Eine Wolke an einer Kachel** — der Abnehmer für `effect`-Ereignisse.
+   *
+   * Sie steht hier und nicht in den Arten, und das ist dieselbe Trennung wie
+   * beim Ton: Ein Einbau **meldet** einen Effekt, er baut ihn nicht. Dadurch
+   * bleibt seine Logik prüfbar (kein three.js in `step`), und es gibt genau
+   * eine Stelle, die weiß, wie viele Wolken gleichzeitig noch vertretbar sind
+   * — bei vier Emittern in einer Ecke ist das der Unterschied zwischen sechzig
+   * Bildern und einem Nebel.
+   *
+   * Die Zahlen sind die des Effektlabors (`effects/effectKinds.ts`), gezeichnet
+   * von derselben Klasse (`effects/Burst.ts`). Neue Zahlen gibt es hier keine:
+   * Zwei Sorten Rauch in einem Programm sind eine zu viel.
+   */
+  private fireEffect(from: FixtureRun, id: string, size: number, at: FixtureSpot | null): void {
+    const plan = this.grid;
+    if (!plan) return;
+    const tile = fixtureTile(from.place);
+    const floor = plan.graph.levelY(from.place.level) + (plan.graph.tile(tile)?.rise ?? 0);
+    const spot = at ?? {
+      x: tileCentreX(tile),
+      // Nicht auf dem Boden: Eine Wolke, die im Boden anfängt, ist zur Hälfte
+      // darunter (`fixtures/index.ts`, `EFFECT_LIFT`).
+      y: floor + EFFECT_LIFT,
+      z: tileCentreZ(tile),
+    };
+    const burst = new Burst(
+      scaleEffect(findEffect(id), size),
+      _spot.set(spot.x, spot.y, spot.z),
+      floor + 0.05,
+    );
+    burst.userData.level = from.place.level;
+    this.root.add(burst);
+    this.bursts.push(burst);
+    while (this.bursts.length > MAX_BURSTS) this.bursts.shift()?.dispose();
+  }
+
+  /** Die Wolken einen Schritt weiter; was durch ist, geht. */
+  private stepBursts(dt: number): void {
+    if (this.bursts.length === 0) return;
+    // In der Zeit der Welt und nicht in der der Uhr an der Wand: Wer die
+    // Stoppuhr auf Zeitlupe stellt, will genau *das* langsam sehen.
+    const step = dt * this.worldTimeScale;
+    for (let i = this.bursts.length - 1; i >= 0; i--) {
+      const burst = this.bursts[i]!;
+      if (burst.update(step)) continue;
+      burst.dispose();
+      this.bursts.splice(i, 1);
     }
   }
 
@@ -558,6 +647,11 @@ export abstract class GridWorld extends PortalWorld {
       solid.portal ?? solid.kind === 'panel',
       this.solid,
     );
+    // **Die Ebene bleibt am Quader hängen** (`core/cutaway.ts`, Plan E8): Von
+    // oben verschwindet alles, was über der Ebene des Rigs liegt, und geraten
+    // würde das falsch — ein Hochbett steht höher als eine Türklinke und ist
+    // trotzdem im selben Zimmer. Der Plan weiß es, also sagt er es.
+    if (solid.level !== undefined) mesh.userData.level = solid.level;
     if (solid.door) {
       mesh.userData.door = solid.door;
       mesh.visible = this.gridDoorVisible();
@@ -726,6 +820,8 @@ export abstract class GridWorld extends PortalWorld {
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     this.editor?.update(ctx);
+    this.stepBursts(dt);
+    this.trackLevel(ctx);
     // **Erst die Einbauten, dann der Umbau.** Sie laufen auch, während gebaut
     // wird — ein Schild, das man eben gesetzt hat, soll etwas sagen, sobald
     // die Karte wieder an der Hüfte hängt.
@@ -908,6 +1004,9 @@ export abstract class GridWorld extends PortalWorld {
     // wird nur dieser Fall: Sonst bekäme jede Welt, die man einmal betreten
     // hat, einen gespeicherten Stand, den niemand angelegt hat.
     if (this.editor?.editing) this.saveWorld(true);
+    for (const burst of this.bursts) burst.dispose();
+    this.bursts.length = 0;
+    this.rigLevel = 0;
     this.clearFixtures();
     this.editor?.dispose();
     this.editor = null;
@@ -934,6 +1033,31 @@ export abstract class GridWorld extends PortalWorld {
   override menu(): MenuEntry[] {
     if (!this.editor) return super.menu();
     return [this.storeMenu(), ...super.menu()];
+  }
+
+  // --- welche Etage von oben zu sehen ist -----------------------------------
+
+  /**
+   * **Auf welcher Ebene das Rig steht** — die Antwort für die Kamera von oben
+   * (`core/types.World.viewLevel`, `core/cutaway.ts`).
+   *
+   * Die Kachel unter den Füßen weiß es (`NavGraph.at`, `keyLevel`), und der
+   * Umweg über sie ist der Punkt: Nach der **Höhe** zu entscheiden hieße, dass
+   * jeder, der auf einer Kiste steht, das Stockwerk über sich verliert.
+   */
+  private trackLevel(ctx: WorldContext): void {
+    const graph = this.grid?.graph;
+    if (!graph || graph.levels.length < 2) return;
+    const feet = ctx.rig.getFloorY();
+    const tile = graph.at(ctx.rig.position.x, ctx.rig.position.z, feet);
+    const under = tile === NO_TILE ? this.rigLevel : keyLevel(tile);
+    this.rigLevel = levelStep(this.rigLevel, under, feet, graph.levels);
+  }
+
+  viewLevel(): ViewLevel | null {
+    const graph = this.grid?.graph;
+    if (!graph) return null;
+    return { level: this.rigLevel, floorY: graph.levelY(this.rigLevel) };
   }
 
   /**
@@ -1004,8 +1128,18 @@ const GRID_FINISH: Readonly<Record<PlanSolidKind, { roughness?: number; metalnes
   glow: {},
 };
 
+/**
+ * Wie viele Wolken gleichzeitig laufen dürfen.
+ *
+ * Dieselbe Überlegung wie im Effektlabor (`EffectsWorld.MAX_BURSTS`): Mehr sind
+ * keine Wolken mehr, sondern Nebel — und vier Emitter in einer Ecke schaffen
+ * das schneller, als man denkt.
+ */
+const MAX_BURSTS = 8;
+
 const _target = new THREE.Vector3();
 const _feet = new THREE.Vector3();
+const _spot = new THREE.Vector3();
 
 /**
  * **Ein gebauter Einbau**: seine Art, sein Zustand, sein Bild, seine Körper —

@@ -17,6 +17,7 @@ import {
   type DoorState,
 } from './doorMotion';
 import { clampSign } from '../signs/signSettings';
+import type { ViewLevel } from '../../core/cutaway';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 
@@ -199,6 +200,18 @@ export class InteractWorld extends PortalWorld {
     return new THREE.Vector3(0, 0, 8.5);
   }
 
+  /**
+   * **Ebene 0, immer** — und deshalb fällt von oben die Decke weg.
+   *
+   * Eine Antwort ist nötig, damit überhaupt aufgeschnitten wird
+   * (`core/cutaway.ts`); eine gerechnete wäre hier falsch, weil diese Halle
+   * keine Stockwerke hat. Sie hat genau eines, man steht darin, und der Deckel
+   * darüber trägt die Marke `1` (`buildShell`).
+   */
+  viewLevel(): ViewLevel {
+    return { level: 0, floorY: 0 };
+  }
+
   protected override skyColor(): number {
     return 0x141a26;
   }
@@ -237,7 +250,13 @@ export class InteractWorld extends PortalWorld {
     const width = (HALF_X + WALL) * 2;
     const depth = (HALF_Z + WALL) * 2;
     this.slab(hall, this.floorMaterial, [width, WALL, depth], [0, -WALL / 2, 0], true);
-    this.slab(hall, this.panel, [width, WALL, depth], [0, HEIGHT + WALL / 2, 0], false);
+    const lid = this.slab(hall, this.panel, [width, WALL, depth], [0, HEIGHT + WALL / 2, 0], false);
+    // **Von oben ist die Decke im Weg** (`core/cutaway.ts`, Plan E8). Diese
+    // Halle steht in Metern und nicht auf dem Kachelgitter, hat also keine
+    // Etagen — die eine Marke, die es braucht, ist trotzdem billig: Die Decke
+    // gehört dem Stockwerk darüber, und das gibt es hier nicht. Also ist sie
+    // weg, sobald jemand von oben hineinsieht, und alles andere bleibt stehen.
+    lid.userData.level = 1;
     this.roof = HEIGHT;
 
     for (const [size, at] of [
