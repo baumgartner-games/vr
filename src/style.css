@@ -274,8 +274,16 @@ h1 {
 
 .touch__btn.is-down { background: rgba(140, 170, 230, 0.5); }
 
-.touch__btn--a { right: max(24px, env(safe-area-inset-right)); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 150px); }
-.touch__btn--b { right: calc(max(24px, env(safe-area-inset-right)) + 84px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 96px); }
+/*
+  `A` und `B` stehen **nebeneinander über dem Zielstock**, `B` links von `A`.
+  Der Stock misst 128 px und sitzt 28 px über dem unteren Rand; die Knöpfe
+  fangen 12 px über seiner Oberkante an (28 + 128 + 12 = 168). Vorher lag `B`
+  auf halber Höhe daneben — und damit mitten auf dem Stock, den es freigeben
+  sollte. Auf einem 360 px breiten Telefon belegt das Paar 24…170 px von
+  rechts, der linke Stock 24…152 px von links: dazwischen bleiben 38 px Luft.
+*/
+.touch__btn--a { right: max(24px, env(safe-area-inset-right)); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 168px); }
+.touch__btn--b { right: calc(max(24px, env(safe-area-inset-right)) + 80px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 168px); }
 
 /* Der Hinweis unten rechts ist der Platz des Zielstocks, sobald es einen gibt. */
 .touch__right:not([hidden]) ~ .touch__hint { display: none; }
@@ -288,6 +296,38 @@ h1 {
   color: var(--muted);
   opacity: 0.7;
 }
+
+/* ---------- Werkzeug-Knopf (`#hud-tool`) ---------- */
+
+/*
+  Er steht über `A`/`B` (168 + 66 + 12 = 246 px über dem unteren Rand) und in
+  derselben Spalte wie `A`, damit der Daumen sie als eine Reihe findet. Ein
+  echter Knopf und keine Zeigerfläche: Er gehört der Seite und nicht der
+  Steuerung, und ein Finger darauf soll die Leinwand gar nicht erst erreichen.
+  In der Brille ist er weg, in Welten ohne Werkzeuge auch (`core/App.ts`).
+*/
+.hud-tool {
+  position: fixed;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: calc(max(28px, env(safe-area-inset-bottom)) + 246px);
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  padding: 0;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+}
+
+.hud-tool[hidden] { display: none; }
+.hud-tool:hover { background: rgba(140, 170, 230, 0.22); }
+.hud-tool[aria-expanded="true"] { border-color: var(--accent); }
+.hud-tool__icon { width: 38px; height: 38px; }
 
 /* ---------- Networking: landing form ---------- */
 

@@ -216,6 +216,21 @@ export class PlayerRig extends THREE.Group {
    */
   useLabel: 'E' | 'A' = 'E';
 
+  /**
+   * **Ob gerade etwas in Reichweite steht, das man benutzen kann.**
+   *
+   * Gesetzt von der Welt, jedes Bild (`PortalWorld.updateUsables` →
+   * `core/usable.pickUsable`), gelesen von allem, was auf `A` liegt. Denn
+   * `A` ist **ein** Knopf für zwei Dinge, und das ist Absicht: Steht ein Ding
+   * vor der Figur, benutzt `A` es; steht keines da, springt es. So macht es
+   * jedes Spiel mit einem Knopf, und so muss niemand wissen, welcher Knopf
+   * gerade welchen Sinn hat.
+   *
+   * Die Welt setzt es und niemand sonst; wer keine benutzbaren Dinge hat,
+   * lässt es auf `false`, und `A` springt wie eh und je.
+   */
+  useCandidate = false;
+
   /** Den Zettel lesen und wegnehmen — je Bild höchstens einmal wahr. */
   takeUse(): boolean {
     const wanted = this.useWanted;
@@ -315,6 +330,7 @@ export class PlayerRig extends THREE.Group {
   /** Stands back up, e.g. when a world is left. */
   standUp(): void {
     this.locked = false;
+    this.useCandidate = false;
     this.sprintScale = 1;
     this.position.y -= this.crouchOffset - this.seatLift;
     this.crouchOffset = 0;
@@ -464,8 +480,14 @@ export class PlayerRig extends THREE.Group {
         this.intent.copy(_head.multiplyScalar(this.speedNow()));
       }
       // A also confirms menu entries, so it must not jump while pointing at one.
+      //
+      // **Und in der Brille benutzt derselbe Knopf**, sobald etwas in
+      // Reichweite steht (`useCandidate`): Die Hand auf den Knopf zu legen
+      // geht weiter, aber wer drei Schritte entfernt vor einer Tür steht,
+      // drückt `A` und ist durch — statt davor zu hüpfen.
       if (!uiActive && !this.locked && input.get('right')?.primary.justPressed) {
-        this.intentJump = true;
+        if (this.useCandidate) this.useWanted = true;
+        else this.intentJump = true;
       }
     }
 

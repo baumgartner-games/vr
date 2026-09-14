@@ -12,7 +12,8 @@ import {
   topDownDistance,
   topDownPitch,
   topDownPosition,
-  zoomStep,
+  stepFromDistance,
+  zoomScaled,
   type Vec2,
 } from './topDownPose';
 
@@ -63,9 +64,17 @@ export class TopDownCamera {
    */
   readonly camera = new THREE.PerspectiveCamera(TOP_DOWN_FOV, 1, 0.1, 600);
 
-  /** Welche Zoomstufe gerade gilt (`topDownPose.TOP_DOWN_DISTANCES`). */
-  private step = TOP_DOWN_ZOOM;
-  /** Der Abstand, der gerade wirklich gilt — er zieht zur Stufe hin. */
+  /**
+   * **Der Abstand, den die Kamera haben soll**, in Metern.
+   *
+   * Eine Zahl und keine Stufennummer: Das Rad rastet zwar weiter auf die vier
+   * Stufen (`zoomBy`), der Pinch auf dem Glas aber steht irgendwo dazwischen
+   * (`zoomScale`). Wer sich stattdessen die zuletzt gerastete Stufe merkte,
+   * spränge nach einem Pinch beim ersten Radklick dorthin zurück, wo er vor
+   * dem Pinch war.
+   */
+  private target = topDownDistance(TOP_DOWN_ZOOM);
+  /** Der Abstand, der gerade wirklich gilt — er zieht zum Ziel hin. */
   private distance = topDownDistance(TOP_DOWN_ZOOM);
   private readonly focus = new SmoothPose();
   private readonly pose: PoseArray = [0, 0, 0, 0, 0, 0, 1];
@@ -115,7 +124,7 @@ export class TopDownCamera {
     this.focus.update(dt, FOLLOW_TAU);
     // Der Zoom rastet in Stufen, fährt aber nicht hart: Ein Sprung von 16 auf
     // 22 m ist derselbe Ruck, gegen den die Glättung oben steht.
-    this.distance += (topDownDistance(this.step) - this.distance) * weight(dt, ZOOM_TAU);
+    this.distance += (this.target - this.distance) * weight(dt, ZOOM_TAU);
     topDownPosition(this.focus.position, this.distance, this.camera.position);
     this.camera.updateMatrixWorld(true);
   }
@@ -152,12 +161,36 @@ export class TopDownCamera {
    */
   reset(): void {
     this.focus.reset();
-    this.distance = topDownDistance(this.step);
+    this.distance = this.target;
   }
 
-  /** Eine Stufe näher (`-1`) oder ferner (`+1`). */
+  /**
+   * **Eine Stufe näher (`-1`) oder ferner (`+1`)** — Rad und Bumper.
+   *
+   * Gerastet wird ab dem Abstand, der **gerade gilt**, und nicht ab einer
+   * gemerkten Nummer: Nach einem Pinch auf 18 m ist „eine Stufe zurück" die
+   * 22er-Stufe und nicht die, die vor dem Pinch dran war.
+   */
   zoomBy(direction: number): void {
-    this.step = zoomStep(this.step, direction);
+    this.target = stepFromDistance(this.target, direction);
+  }
+
+  /**
+   * **Stufenlos zoomen** — zwei Finger auf dem Glas (`FlatControls`).
+   *
+   * Der Abstand wird mit `factor` malgenommen und zwischen die äußeren Stufen
+   * geklemmt (`topDownPose.zoomScaled`). Anders als die Raste zieht das nicht
+   * weich nach: Ein Pinch ist direktes Anfassen, und ein Bild, das dem Finger
+   * eine Fünftelsekunde hinterherhinkt, fühlt sich kaputt an.
+   */
+  zoomScale(factor: number): void {
+    this.target = zoomScaled(this.target, factor);
+    this.distance = this.target;
+  }
+
+  /** Wie weit die Kamera gerade weg steht, in Metern — für Tests und Anzeigen. */
+  get zoomDistance(): number {
+    return this.distance;
   }
 
   /**

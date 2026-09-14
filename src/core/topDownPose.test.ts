@@ -1,11 +1,16 @@
 import {
   TOP_DOWN_DISTANCES,
+  TOP_DOWN_MAX,
+  TOP_DOWN_MIN,
   TOP_DOWN_TILT,
   groundDirection,
+  pinchFactor,
+  stepFromDistance,
   topDownDistance,
   topDownPitch,
   topDownPosition,
   yawFromDirection,
+  zoomScaled,
   zoomStep,
 } from './topDownPose';
 
@@ -144,5 +149,65 @@ describe('Die Drehung aus der Laufrichtung', () => {
       expect(-Math.sin(yaw)).toBeCloseTo(x! / length, 6);
       expect(-Math.cos(yaw)).toBeCloseTo(z! / length, 6);
     }
+  });
+});
+
+/**
+ * **Der Zoom kennt zwei Bedienungen und eine Zahl.** Rad und Bumper rasten auf
+ * die vier Stufen, zwei Finger auf dem Glas ziehen stufenlos — und beides
+ * landet auf demselben Abstand in Metern. Der Fehler, gegen den diese Suite
+ * steht, ist der naheliegende: eine Raste, die sich ihre Stufennummer merkt
+ * und nach einem Pinch dorthin zurückspringt, wo niemand mehr war.
+ */
+describe('Der Zoom von oben', () => {
+  it('klemmt den stufenlosen Zoom auf die äußeren Stufen', () => {
+    expect(zoomScaled(16, 1)).toBe(16);
+    expect(zoomScaled(16, 0.5)).toBe(12);
+    expect(zoomScaled(16, 2)).toBe(30);
+    expect(zoomScaled(16, 1.1)).toBeCloseTo(17.6, 6);
+    expect(zoomScaled(12, 0.01)).toBe(TOP_DOWN_MIN);
+    expect(zoomScaled(30, 100)).toBe(TOP_DOWN_MAX);
+    expect(TOP_DOWN_MIN).toBe(TOP_DOWN_DISTANCES[0]);
+    expect(TOP_DOWN_MAX).toBe(TOP_DOWN_DISTANCES[TOP_DOWN_DISTANCES.length - 1]);
+  });
+
+  it('lässt einen unmöglichen Faktor den Abstand in Ruhe', () => {
+    expect(zoomScaled(16, 0)).toBe(16);
+    expect(zoomScaled(16, -2)).toBe(16);
+    expect(zoomScaled(16, Number.NaN)).toBe(16);
+  });
+
+  it('rechnet den Pinch als Verhältnis — auseinander heißt heran', () => {
+    // Finger auseinander (100 auf 200 Punkte): der Abstand halbiert sich.
+    expect(pinchFactor(100, 200)).toBeCloseTo(0.5, 6);
+    // Zusammen: doppelt so weit weg.
+    expect(pinchFactor(200, 100)).toBeCloseTo(2, 6);
+    expect(pinchFactor(0, 100)).toBe(1);
+    expect(pinchFactor(100, 0)).toBe(1);
+  });
+
+  it('rastet vom Abstand aus, den man gerade sieht — nicht von einer Nummer', () => {
+    // Mitten zwischen 16 und 22 (nach einem Pinch): heran ist 16, zurück 22.
+    expect(stepFromDistance(18, -1)).toBe(16);
+    expect(stepFromDistance(18, 1)).toBe(22);
+    // Genau auf einer Stufe: die nächste, nicht dieselbe noch einmal.
+    expect(stepFromDistance(16, 1)).toBe(22);
+    expect(stepFromDistance(16, -1)).toBe(12);
+    // An den Enden rastet es.
+    expect(stepFromDistance(12, -1)).toBe(12);
+    expect(stepFromDistance(30, 1)).toBe(30);
+    expect(stepFromDistance(9, -1)).toBe(12);
+    expect(stepFromDistance(40, 1)).toBe(30);
+    // Keine Richtung heißt: nur klemmen.
+    expect(stepFromDistance(18, 0)).toBe(18);
+    expect(stepFromDistance(99, 0)).toBe(30);
+  });
+
+  it('bringt Radklicks von ganz nah nach ganz fern und zurück', () => {
+    let distance: number = TOP_DOWN_MIN;
+    for (let i = 0; i < 10; i++) distance = stepFromDistance(distance, 1);
+    expect(distance).toBe(TOP_DOWN_MAX);
+    for (let i = 0; i < 10; i++) distance = stepFromDistance(distance, -1);
+    expect(distance).toBe(TOP_DOWN_MIN);
   });
 });

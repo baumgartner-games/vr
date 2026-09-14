@@ -8,6 +8,7 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { PageMenu } from '../ui/PageMenu';
+import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { TopDownCamera } from './TopDownCamera';
 import {
   SCREEN_VIEW_LABELS,
@@ -64,8 +65,9 @@ import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
 import { applyGearConfig, parseGearCode } from '../worlds/portal/tools/gearConfig';
 import { MirrorRenderer } from '../worlds/shared/Mirror';
 import { setImmersive } from './systemKeyboard';
-import type { PlayerRole, World, WorldContext } from './types';
+import type { PlayerRole, ToolChoice, World, WorldContext } from './types';
 import type { MenuEntry } from '../ui/menu';
+import { cssColor } from '../ui/PageMenu';
 import type { Peer } from '../net/NetSession';
 import type { TurnServerConfig } from '@trystero-p2p/core';
 
@@ -142,6 +144,20 @@ export class App {
    * oben links. Welches der beiden gerade gilt, entscheidet `WristMenus`.
    */
   readonly pageMenu: PageMenu;
+  /**
+   * **Die Werkzeugliste am Bildschirm** — derselbe Seitenmenü-Baustein wie
+   * oben links, nur mit einem sehr kurzen Baum: die Hand und die Werkzeuge
+   * dieser Welt (`World.toolChoice`). Ein eigenes Menü und kein Ast im
+   * großen: Es gehört zum Knopf unten rechts und nicht in die Einstellungen.
+   */
+  readonly toolMenu: PageMenu;
+  /** Der runde Knopf unten rechts (`index.html`, `#hud-tool`). */
+  private readonly toolButton: ToolButton | null;
+  /**
+   * Welches Werkzeug der Knopf gerade zeigt — `undefined`, solange er gar
+   * nichts zeigt. Ohne diesen Merker zeichnete er sich jedes Bild neu.
+   */
+  private toolShown: string | null | undefined = undefined;
   /**
    * **Die Ansicht _Von oben_** (`core/TopDownCamera.ts`) — dieselbe Szene, nur
    * aus einer festen Kamera schräg darüber. Wann sie das Bild ist, sagt
@@ -293,6 +309,20 @@ export class App {
       onToggle: (open) => this.hooks.onMenuChanged?.(open),
     });
     this.wristMenu.attachPage(this.pageMenu);
+    // Die Werkzeugliste: eigener Baum, eigener Weg, eigener Knopf.
+    this.toolMenu = new PageMenu({
+      title: 'Werkzeug',
+      onToggle: (open) => this.toolButton?.setOpen(open),
+    });
+    const toolEl =
+      typeof document === 'undefined'
+        ? null
+        : document.querySelector<HTMLButtonElement>('#hud-tool');
+    this.toolButton = toolEl ? new ToolButton(toolEl, () => this.toggleToolMenu()) : null;
+    this.toolButton?.show(false);
+    // `Tab` und `Y` am Pad machen dieselbe Liste auf — abgehört wird beides an
+    // der einen Stelle, an der Eingabe zusammenläuft (`FlatControls`).
+    this.flat.onTools = () => this.toggleToolMenu();
     this.view = screenView(this.role);
     this.refreshMenu();
 
@@ -691,6 +721,55 @@ export class App {
     else if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
   }
 
+  /**
+   * **Den Werkzeug-Knopf nachziehen** — jedes Bild, aber gezeichnet nur, wenn
+   * sich wirklich etwas geändert hat.
+   *
+   * Er steht in **jeder** Bildschirmansicht, sobald die Welt Werkzeuge
+   * anbietet, und in der Brille nie: Dort ist das Regal am Handgelenk, und
+   * ein zweiter Weg zum selben Ding wäre ein zweiter Ort, an dem man sucht.
+   */
+  private updateToolButton(presenting: boolean): void {
+    const button = this.toolButton;
+    if (!button) return;
+    const choice = presenting ? null : (this.world?.toolChoice?.() ?? null);
+    if (!choice) {
+      button.show(false);
+      if (this.toolMenu.isOpen) this.toolMenu.toggle(false);
+      this.toolShown = undefined;
+      return;
+    }
+    button.show(true);
+    if (choice.current === this.toolShown) return;
+    this.toolShown = choice.current;
+    const option = choice.options.find((entry) => entry.id === choice.current);
+    button.set(option?.icon ?? null, option?.label ?? HAND_LABEL, cssColor(option?.accent));
+    // Steht die Liste offen, wandert der Punkt mit — sonst zeigte sie noch
+    // auf das, was eben abgelegt wurde.
+    if (this.toolMenu.isOpen) this.toolMenu.setRoot(this.toolPage(choice), 'Werkzeug');
+  }
+
+  /** Die Zeilen der Liste, samt dem, was ein Tipp auslöst (`ui/ToolButton.ts`). */
+  private toolPage(choice: ToolChoice): MenuEntry[] {
+    return toolEntries(choice, (id) => {
+      choice.choose(id);
+      this.toolShown = undefined;
+      this.toolMenu.toggle(false);
+    });
+  }
+
+  /** Den Knopf drücken: auf oder zu (`Tab`, `Y`, Tipp auf `#hud-tool`). */
+  private toggleToolMenu(): void {
+    if (this.toolMenu.isOpen) {
+      this.toolMenu.toggle(false);
+      return;
+    }
+    const choice = this.world?.toolChoice?.();
+    if (!choice) return;
+    this.toolMenu.setRoot(this.toolPage(choice), 'Werkzeug');
+    this.toolMenu.toggle(true);
+  }
+
   notify(message: string): void {
     this.wristMenu.setStatus(message);
     this.hooks.onNotify?.(message);
@@ -708,6 +787,8 @@ export class App {
     this.avatar.dispose();
     this.wristMenu.dispose();
     this.pageMenu.dispose();
+    this.toolMenu.dispose();
+    this.toolButton?.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
     this.voice.dispose();
@@ -732,6 +813,11 @@ export class App {
     this.world = null;
     this.worldId = '';
     this.worldMenu = [];
+    // Was in der alten Welt in Reichweite stand, steht in der neuen nicht
+    // mehr da: Sonst benutzte `A` beim Ankommen ins Leere, statt zu springen.
+    this.rig.useCandidate = false;
+    this.toolMenu.toggle(false);
+    this.toolShown = undefined;
 
     // **Die Hände gehören keiner Welt.** Zwei Dinge blenden sie aus — die
     // Drohne, die die Sicht aus dem Körper trägt, und der Kreis im
@@ -1752,6 +1838,7 @@ export class App {
     // Schattenkarte wird einmal fürs ganze Bild bestellt — Spiegel und
     // Portalsichten zeichnen die Szene ja gleich noch mehrmals.
     this.quality.update(dt, _headPos.setFromMatrixPosition(_head));
+    this.updateToolButton(presenting);
 
     // **Von oben ist dieselbe Szene, nur aus einer anderen Kamera.** Früher
     // wurde hier gar nichts gezeichnet, weil eine zweite, gemalte Welt auf

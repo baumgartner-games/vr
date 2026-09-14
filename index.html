@@ -297,6 +297,14 @@
       </p>
     </section>
 
+    <!--
+      Der Werkzeug-Knopf: unten rechts, über den Knöpfen `A`/`B`. Er zeigt,
+      was am Bildschirm in der Hand liegt, und klappt die Liste auf
+      (`ui/ToolButton.ts`, `core/App.ts`; auch `Tab` und `Y` am Pad). In der
+      Brille gibt es ihn nicht — dort hängt das Regal am Handgelenk.
+    -->
+    <button id="hud-tool" class="hud-tool" type="button" aria-label="Werkzeug" aria-expanded="false" hidden></button>
+
     <div id="touch" class="touch" hidden>
       <div id="touch-stick" class="touch__stick"><span></span></div>
       <!-- Zielstock und A/B gehören der Ansicht von oben; FlatControls blendet sie dort ein. -->
