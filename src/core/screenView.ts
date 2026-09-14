@@ -22,18 +22,6 @@ import type { PlayerRole } from './types';
 
 export type ScreenView = '2d' | '3d';
 
-export const SCREEN_VIEWS: readonly ScreenView[] = ['2d', '3d'];
-
-export const SCREEN_VIEW_LABELS: Readonly<Record<ScreenView, string>> = {
-  '2d': '2D',
-  '3d': '3D',
-};
-
-export const SCREEN_VIEW_SUBS: Readonly<Record<ScreenView, string>> = {
-  '2d': 'Die Karte von oben — fürs Handy gemacht',
-  '3d': 'Die Welt am Bildschirm — Tastatur und Maus oder Stock',
-};
-
 const KEY = 'bgvr.screenView';
 
 type Listener = () => void;
@@ -78,4 +66,41 @@ export function saveScreenView(view: ScreenView): void {
     // Privater Modus, kein Speicher: dann gilt die Wahl für diese Sitzung.
   }
   for (const listener of listeners) listener();
+}
+
+/**
+ * **Was die Startseite fragt — und was auf ihrem einen Knopf steht.**
+ *
+ * Zwei Fragen und ein Knopf, und welche der beiden Fragen überhaupt gestellt
+ * wird, hängt an genau einer Eigenschaft des Geräts: ob dieser Browser eine
+ * immersive Sitzung starten kann.
+ *
+ * - **Mit Brille** ist „2D oder 3D am Bildschirm" gar keine Frage — in der
+ *   Brille gibt es nur die eine Ansicht. Gefragt wird dort nach der **Haltung**,
+ *   und zwar als einzige: Sie ist das eine, was kein Headset selbst messen kann
+ *   (`core/posture.ts`).
+ * - **Ohne Brille** ist es umgekehrt. Sitzen oder Stehen ändert am Bildschirm
+ *   nichts — die Sicht sitzt ohnehin, wo die Maus sie hindreht —, die Wahl der
+ *   Ansicht dagegen alles.
+ *
+ * Und der Knopf ist **einer**, weil es auch nur einen Weg gibt: mit Brille
+ * hinein („Enter VR"), sonst an den Bildschirm („Beitreten") — dort in die
+ * Ansicht, die eine Zeile darüber steht. Zwei Knöpfe nebeneinander, von denen
+ * einer auf jedem Gerät der falsche ist, waren genau die Frage, die sich
+ * niemand stellen wollte.
+ */
+export interface StartOptions {
+  /** Ob nach 2D oder 3D gefragt wird — nur ohne Brille. */
+  askView: boolean;
+  /** Ob nach Sitzen oder Stehen gefragt wird — nur mit Brille. */
+  askPosture: boolean;
+  /** Was auf dem einen Knopf steht. */
+  label: string;
+  /** Wohin er führt: in die Brille, oder an den Bildschirm in diese Ansicht. */
+  way: 'vr' | ScreenView;
+}
+
+export function startOptions(headset: boolean, view: ScreenView): StartOptions {
+  if (headset) return { askView: false, askPosture: true, label: 'Enter VR', way: 'vr' };
+  return { askView: true, askPosture: false, label: 'Beitreten', way: view };
 }

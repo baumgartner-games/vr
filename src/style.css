@@ -140,21 +140,6 @@ h1 {
 
 .status.is-error { color: #ff8f8f; }
 
-.hints {
-  margin: 28px 0 0;
-  padding: 16px 18px;
-  list-style: none;
-  text-align: left;
-  font-size: 13px;
-  line-height: 1.9;
-  color: var(--muted);
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-}
-
-.hints strong { color: var(--fg); font-weight: 600; }
-
 /* ---------- HUD (Web) ----------
    Oben links der Knopf zum Menü, oben rechts Weltname, Verbindung und VR. Der
    Streifen selbst fängt keine Tipps ab — nur seine Knöpfe, damit die Welt
@@ -672,8 +657,15 @@ input[type="range"] {
 .seg--two { grid-template-columns: repeat(2, 1fr); margin-bottom: 8px; }
 
 /* 2D oder 3D am Bildschirm: dieselbe Frage-Form wie die Haltung, darunter die
-   Zeile, was der Knopf „Am Bildschirm starten" damit tut (`main.ts`). */
+   Zeile, wohin „Beitreten" damit führt (`main.ts`). */
 .screen-view { margin-bottom: 20px; }
+
+/* **Immer nur eine der beiden Fragen** (`core/screenView.startOptions`): mit
+   Brille die Haltung, am Bildschirm die Ansicht. Die andere wird versteckt und
+   nicht abgebaut — `main.ts` hängt an beiden Knopfreihen. Ein `fieldset` bekäme
+   sein `display: none` zwar schon vom Browser, aber darauf soll sich hier
+   niemand verlassen müssen. */
+.posture[hidden] { display: none; }
 
 /* The two ways out of the room-code form: headset on, or straight to flat. */
 .net__actions {

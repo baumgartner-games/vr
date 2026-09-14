@@ -7,10 +7,10 @@ import { HAUNT_ROOM, hauntRoomFrom } from './worlds/haunting/net';
 import { arriveAs, loadLobby, saveLobby, type Entry } from './worlds/haunting/rules/lobby';
 import { playerPosture, savePlayerPosture, type Posture } from './core/posture';
 import {
-  SCREEN_VIEW_SUBS,
   onScreenViewChange,
   saveScreenView,
   screenView,
+  startOptions,
   type ScreenView,
 } from './core/screenView';
 import { DEFAULT_WORLD, findWorld } from './worlds';
@@ -19,8 +19,7 @@ import { isStaleModuleError, shouldReload } from './core/staleBuild';
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;
 const landingTitle = document.querySelector<HTMLElement>('#landing-title')!;
-const enterVrButton = document.querySelector<HTMLButtonElement>('#enter-vr')!;
-const enterFlatButton = document.querySelector<HTMLButtonElement>('#enter-flat')!;
+const enterButton = document.querySelector<HTMLButtonElement>('#enter')!;
 const statusLine = document.querySelector<HTMLElement>('#xr-status')!;
 const hud = document.querySelector<HTMLElement>('#hud')!;
 const hudWorld = document.querySelector<HTMLElement>('#hud-world')!;
@@ -30,15 +29,16 @@ const landingMenu = document.querySelector<HTMLButtonElement>('#landing-menu')!;
 const touch = document.querySelector<HTMLElement>('#touch')!;
 const stick = document.querySelector<HTMLElement>('#touch-stick')!;
 const postureSeg = document.querySelector<HTMLElement>('#posture')!;
+const postureField = document.querySelector<HTMLElement>('#posture-field')!;
 const screenSeg = document.querySelector<HTMLElement>('#screen-view')!;
+const screenField = document.querySelector<HTMLElement>('#screen-view-field')!;
 const screenHint = document.querySelector<HTMLElement>('#screen-view-hint')!;
 const hauntName = document.querySelector<HTMLInputElement>('#haunt-name')!;
 const hauntRoom = document.querySelector<HTMLInputElement>('#haunt-room')!;
 const hauntConnect = document.querySelector<HTMLButtonElement>('#haunt-connect')!;
 const hauntStatus = document.querySelector<HTMLElement>('#haunt-status')!;
-const hauntVr = document.querySelector<HTMLButtonElement>('#haunt-vr')!;
-const hauntFlat = document.querySelector<HTMLButtonElement>('#haunt-flat')!;
-const hauntFlatHint = document.querySelector<HTMLElement>('#haunt-flat-hint')!;
+const hauntEnter = document.querySelector<HTMLButtonElement>('#haunt-enter')!;
+const hauntEnterHint = document.querySelector<HTMLElement>('#haunt-enter-hint')!;
 const hauntXrStatus = document.querySelector<HTMLElement>('#haunt-xr-status')!;
 const hauntLobby = document.querySelector<HTMLElement>('#haunt-lobby')!;
 const hauntPeers = document.querySelector<HTMLElement>('#haunt-peers')!;
@@ -54,10 +54,10 @@ const startWorld = findWorld(requested)?.id ?? DEFAULT_WORLD;
  * **Die Startseite einer Runde statt der Spielwiese.** Wer `#haunting` öffnet,
  * wurde eingeladen und will in zwei Schritten hinein: erst in die **Lobby**
  * (Name, Raum-Code der Gruppe, Verbinden — und sehen, wer schon da ist), dann
- * einen von drei Wegen (Brille — oder am Bildschirm, und dort 2D oder 3D, wie
- * es oben auf der Seite gewählt ist: Web 3D, 2D Einsatzzentrale). Alles andere auf
- * der Seite ist für ihn Rauschen und wird versteckt (`style.css`,
- * `only-generic`).
+ * mit **einem Knopf** hinein. Wohin der führt, sagt das Gerät und die Wahl
+ * darüber: mit Brille hinein, sonst an den Bildschirm — und dort in die 2D
+ * Einsatzzentrale oder als Techniker ins Schiff. Alles andere auf der Seite ist
+ * für ihn Rauschen und wird versteckt (`style.css`, `only-generic`).
  */
 const hauntLanding = startWorld === 'haunting';
 if (hauntLanding) {
@@ -115,8 +115,7 @@ const app = (() => {
       true,
     );
     for (const line of [statusLine, hauntXrStatus]) line.setAttribute('role', 'alert');
-    enterVrButton.textContent = '3D-Start nicht verfügbar';
-    hauntVr.textContent = '3D-Start nicht verfügbar';
+    for (const button of [enterButton, hauntEnter]) button.textContent = '3D-Start nicht verfügbar';
     for (const button of landing.querySelectorAll<HTMLButtonElement>('button'))
       button.disabled = true;
     throw error;
@@ -128,10 +127,11 @@ app.preferLocal = params.get('net') === 'local';
 netPanel = new NetPanel(app, {
   local: app.preferLocal,
   // Joining a room from the landing page also starts the game — the two
-  // buttons there say which way.
+  // buttons there say which way. „Ohne VR" heißt dabei dasselbe wie oben auf
+  // der Seite: in die Ansicht, die dort gewählt ist (`startScreen`).
   onStart: (mode) => {
     if (mode === 'vr') void startVR();
-    else startFlat();
+    else void startScreen();
   },
 });
 
@@ -158,11 +158,21 @@ hauntName.value = rememberedName();
 hauntRoom.value = hauntRoomFrom(window.location.search);
 refreshHaunt();
 
+/**
+ * **Ob dieses Gerät eine Brille ist** — die eine Eigenschaft, an der die ganze
+ * Startseite hängt (`core/screenView.startOptions`).
+ *
+ * Bis `detectXRSupport` geantwortet hat, gilt „keine Brille". Das ist die
+ * Antwort für fast jedes Gerät, und sie kostet niemanden etwas: Der Knopf steht
+ * sofort da und heißt „Beitreten", die Brille schreibt sich Millisekunden
+ * später selbst hinein. Andersherum — erst „VR wird geprüft …" und ein toter
+ * Knopf — wartet jeder Schreibtisch auf eine Antwort, die ihn nichts angeht.
+ */
+let headset = false;
+
 void detectXRSupport().then((support) => {
-  for (const button of [enterVrButton, hauntVr]) {
-    button.textContent = 'Enter VR';
-    button.disabled = !support.immersiveVR;
-  }
+  headset = support.immersiveVR;
+  showStart();
   setXrStatus(
     support.immersiveVR ? 'VR-Gerät erkannt.' : (support.reason ?? 'Kein VR-Gerät gefunden.'),
   );
@@ -203,30 +213,56 @@ postureSeg.addEventListener('click', (event) => {
 });
 
 /**
- * 2D oder 3D am Bildschirm — gefragt auf der Startseite, vorbelegt nach
- * Gerät (Handy: 2D; `core/screenView.ts`). Die Startseite der Runde wählt
- * damit den Weg in Haunting (`startHaunting`), und Knopf und Zeile darunter
- * sagen jedes Mal, was ein Druck gerade tut. Auf der Spielwiese gibt es die
- * Karte von oben bisher nur in Haunting; die Zeile sagt auch das.
+ * 2D oder 3D am Bildschirm — gefragt, wo keine Brille ist, und vorbelegt nach
+ * Gerät (Handy: 2D; `core/screenView.ts`).
+ *
+ * Die Zeile darunter sagt **vorher**, wohin „Beitreten" damit führt. Auf der
+ * Spielwiese ist das die Stelle, an der man es wissen muss: Die Karte von oben
+ * gibt es nur in Haunting / Orbital, jede andere Welt ist 3D und nichts sonst
+ * — also führt „2D" dorthin, statt die Wahl still zu verschlucken.
  */
 function showScreenView(view: ScreenView): void {
   for (const button of screenSeg.querySelectorAll<HTMLButtonElement>('button')) {
     button.classList.toggle('is-active', button.dataset['view'] === view);
   }
-  const twoD = view === '2d';
   screenHint.textContent = hauntLanding
-    ? `${SCREEN_VIEW_SUBS[view]}. Die Wahl gilt für „Am Bildschirm starten"; die Brille fragt nicht.`
-    : `${SCREEN_VIEW_SUBS[view]}. Die Karte von oben gibt es bisher in Haunting / Orbital — jede andere Welt läuft am Bildschirm in 3D.`;
-  hauntFlat.textContent = twoD
-    ? 'Am Bildschirm starten · 2D Einsatzzentrale'
-    : 'Am Bildschirm starten · Web 3D';
-  hauntFlatHint.textContent = twoD
-    ? 'Am Handy oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die Karte von oben.'
-    : 'Techniker am Bildschirm, im Schiff — Tastatur und Maus oder Stock.';
+    ? ENTRY_HINTS[view]
+    : view === '2d'
+      ? 'Die Karte von oben, fürs Handy gemacht — es gibt sie in Haunting / Orbital: „Beitreten" öffnet dort die Einsatzzentrale.'
+      : 'Die Welt am Bildschirm — Tastatur und Maus oder Stock.';
 }
 
-showScreenView(screenView(detectFlatRole()));
-onScreenViewChange(() => showScreenView(screenView(detectFlatRole())));
+/** Was auf den einen Knopf folgt, in einer Zeile — je nachdem, wohin er führt. */
+const ENTRY_HINTS: Record<'vr' | ScreenView, string> = {
+  vr: 'Die Brille: der Techniker im Anzug, draußen im Schiff.',
+  '2d': 'Am Handy oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die Karte von oben.',
+  '3d': 'Techniker am Bildschirm, im Schiff — Tastatur und Maus oder Stock.',
+};
+
+/**
+ * **Was die Startseite zeigt: eine Frage und einen Knopf.**
+ *
+ * Welche der beiden Fragen überhaupt dasteht, entscheidet das Gerät
+ * (`core/screenView.startOptions`, mit Test): In der Brille ist „2D oder 3D"
+ * keine Frage, am Bildschirm ist es die Haltung nicht. Übrig bleibt ein Knopf,
+ * der sagt, wohin er führt — und eine Zeile, die es ausschreibt.
+ *
+ * Läuft bei jeder Änderung: wenn die XR-Antwort kommt, und bei jedem Tipp auf
+ * 2D oder 3D.
+ */
+function showStart(): void {
+  const view = screenView(detectFlatRole());
+  const options = startOptions(headset, view);
+  postureField.hidden = !options.askPosture;
+  screenField.hidden = !options.askView;
+  for (const button of [enterButton, hauntEnter]) button.textContent = options.label;
+  hauntEnterHint.textContent = ENTRY_HINTS[options.way];
+  showPosture(playerPosture());
+  showScreenView(view);
+}
+
+showStart();
+onScreenViewChange(showStart);
 screenSeg.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   const picked = button?.dataset['view'];
@@ -234,15 +270,54 @@ screenSeg.addEventListener('click', (event) => {
   saveScreenView(picked);
 });
 
-enterVrButton.addEventListener('click', () => void startVR());
+/**
+ * **Der eine Knopf der Spielwiese.** Wohin er führt, steht eine Zeile darüber:
+ * in die Brille, an den Bildschirm in die gewählte Welt — oder, wenn 2D
+ * gewählt ist, in die **Einsatzzentrale von Haunting / Orbital**.
+ *
+ * Denn die Karte von oben gibt es genau dort. Hub, Portal und die anderen sind
+ * 3D und nichts sonst, und ein Schalter, der „2D" anbietet und dann doch die
+ * 3D-Welt aufmacht, ist keine Wahl, sondern Zierat — genau der Fehler, den
+ * dieser Knopf beseitigt.
+ */
+enterButton.addEventListener('click', () => {
+  if (startOptions(headset, screenView(detectFlatRole())).way === 'vr') void startVR();
+  else void startScreen();
+});
 
-enterFlatButton.addEventListener('click', () => startFlat());
+/**
+ * **An den Bildschirm — in die Ansicht, die auf der Startseite steht.**
+ *
+ * Die eine Stelle, an der aus der Wahl ein Start wird, und deshalb auch die,
+ * die das Verbindungs-Formular benutzt („Verbinden & ohne VR starten"): Ein
+ * zweiter Weg an den Bildschirm, der die Wahl nicht liest, wäre genau derselbe
+ * Fehler noch einmal.
+ */
+async function startScreen(): Promise<void> {
+  if (screenView(detectFlatRole()) === '2d') await startCentre();
+  else startFlat();
+}
+
+/**
+ * **Die Karte von oben, ohne den Umweg über die Startseite der Runde.**
+ *
+ * Sie gehört zu Haunting / Orbital, und die Welt liest beim Aufbau aus dem
+ * Speicher, auf welcher Seite des Tisches dieses Gerät sitzt
+ * (`rules/lobby.arriveAs`) — also wird das **vor** dem Laden geschrieben, wie
+ * auf der Startseite der Runde auch. Einen Raum sucht sich die Welt selbst,
+ * wenn sie in keinem steht (`joinTable`).
+ */
+async function startCentre(): Promise<void> {
+  saveLobby(arriveAs(loadLobby(undefined, detectFlatRole()), 'centre'));
+  startFlat();
+  await app.goTo('haunting');
+}
 
 // Dasselbe Menü wie im Spiel, schon auf der Startseite: Welten, Bewegung,
 // Aussehen, Grafik — als Seite (`ui/PageMenu.ts`), weil hier keine Brille auf ist.
 landingMenu.addEventListener('click', () => app.toggleMenu());
 
-async function startVR(button: HTMLButtonElement = enterVrButton): Promise<void> {
+async function startVR(button: HTMLButtonElement = enterButton): Promise<void> {
   button.disabled = true;
   try {
     await app.enterVR();
@@ -295,7 +370,7 @@ function refreshHaunt(): void {
   hauntStatus.classList.toggle('is-error', Boolean(hauntError) && !hauntBusy);
   hauntStatus.classList.toggle('is-online', !hauntError && !hauntBusy && net.connected);
   hauntConnect.textContent = hauntBusy ? '…' : net.connected ? 'Neu verbinden' : 'Verbinden';
-  for (const button of [hauntConnect, hauntFlat]) button.disabled = hauntBusy;
+  for (const button of [hauntConnect, hauntEnter]) button.disabled = hauntBusy;
   hauntLobby.hidden = !net.connected;
   if (net.connected) renderHauntPeers();
 }
@@ -377,7 +452,9 @@ function writeRoomToAddress(code: string): void {
 }
 
 /**
- * **Einer der drei Wege aus der Lobby hinein** — alle bleiben im Raum.
+ * **Einer der drei Wege aus der Lobby hinein** — alle bleiben im Raum, und
+ * welcher es ist, hat der eine Knopf schon entschieden
+ * (`core/screenView.startOptions`).
  *
  * - `vr`: die Brille. Die XR-Sitzung wird **zuerst** angefragt, noch aus dem
  *   Klick heraus: Ein Browser gibt eine immersive Sitzung nur auf eine frische
@@ -387,13 +464,13 @@ function writeRoomToAddress(code: string): void {
  *   sieht (`arriveAs`), **bevor** die Welt geladen wird — sie liest die Wahl
  *   beim Aufbau aus dem Speicher.
  *
- * Die Knöpfe stehen nur in der Lobby, man ist also verbunden; `joinHaunting`
+ * Der Knopf steht nur in der Lobby, man ist also verbunden; `joinHaunting`
  * läuft trotzdem noch einmal — wer den Code nach dem Verbinden geändert hat,
  * zieht damit um. Scheitert das, geht es trotzdem hinein: Die Welt versucht
  * es beim Betreten noch einmal (`joinTable`) und sagt dort, woran es hängt.
  */
 async function startHaunting(way: 'vr' | Entry): Promise<void> {
-  const session = way === 'vr' ? startVR(hauntVr) : null;
+  const session = way === 'vr' ? startVR(hauntEnter) : null;
   if (way !== 'vr') saveLobby(arriveAs(loadLobby(undefined, detectFlatRole()), way));
   await joinHaunting();
   if (way !== 'vr') startFlat();
@@ -407,10 +484,11 @@ for (const input of [hauntName, hauntRoom]) {
     if (event.key === 'Enter') void joinHaunting();
   });
 }
-hauntVr.addEventListener('click', () => void startHaunting('vr'));
-// Ein Knopf für den Bildschirm; welcher der zwei Web-Wege, sagt „2D oder 3D".
-hauntFlat.addEventListener('click', () => {
-  void startHaunting(screenView(detectFlatRole()) === '2d' ? 'centre' : 'technician');
+// **Ein Knopf, drei Wege.** Welcher, sagt das Gerät und die Wahl darüber —
+// dieselbe Rechnung wie auf der Spielwiese (`core/screenView.startOptions`).
+hauntEnter.addEventListener('click', () => {
+  const way = startOptions(headset, screenView(detectFlatRole())).way;
+  void startHaunting(way === 'vr' ? 'vr' : way === '2d' ? 'centre' : 'technician');
 });
 
 hudMenu.addEventListener('click', () => app.toggleMenu());

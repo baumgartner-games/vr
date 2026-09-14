@@ -39,14 +39,19 @@
         </p>
 
         <!--
-          The one thing a headset cannot measure for itself: it reports the head
-          above the floor of the room and has no idea whether there is a chair
-          under it. A seated player is otherwise simply a short one, and every
-          counter, kart seat and horizon in the game is suddenly built for
-          somebody taller. So it gets asked once, here — and can be changed at
-          any time under Menü → Bewegung → Haltung.
+          **Eine Frage, und zwar die, die dieses Gerät nicht schon beantwortet**
+          (`core/screenView.startOptions`): Mit Brille die Haltung, ohne Brille
+          die Ansicht. Welche der beiden steht, entscheidet `main.ts`, sobald
+          `detectXRSupport` geantwortet hat.
+
+          Die Haltung ist das eine, was ein Headset nicht selbst messen kann: Es
+          meldet den Kopf über dem Zimmerboden und weiß nichts von dem Stuhl
+          darunter. Ein Sitzender ist sonst einfach ein sehr kleiner Stehender,
+          und jede Theke, jeder Kartsitz und jeder Horizont ist plötzlich für
+          jemand Größeren gebaut. Später umzustellen geht unter
+          Menü → Bewegung → Haltung.
         -->
-        <fieldset class="posture">
+        <fieldset id="posture-field" class="posture" hidden>
           <legend>Spielst du im Sitzen oder im Stehen?</legend>
           <div id="posture" class="seg seg--two">
             <button type="button" data-posture="stand">Stehend</button>
@@ -59,13 +64,13 @@
         </fieldset>
 
         <!--
-          Und für alle ohne Brille: 2D oder 3D am Bildschirm. Ein Telefon ist
-          ein Gerät für die Karte von oben, ein Schreibtisch für die Welt —
-          deshalb ist die Wahl nach Gerät vorbelegt (Handy: 2D) und wird nur
-          einmal getroffen (`core/screenView.ts`). Die Startseite der Runde
-          wählt damit den Weg in Haunting; der Knopf darunter sagt, was er tut.
+          Und am Bildschirm: 2D oder 3D. Ein Telefon ist ein Gerät für die Karte
+          von oben, ein Schreibtisch für die Welt — deshalb ist die Wahl nach
+          Gerät vorbelegt (Handy: 2D) und wird nur einmal getroffen
+          (`core/screenView.ts`). **Sie entscheidet, wohin „Beitreten" führt**,
+          und die Zeile darunter sagt es vorher.
         -->
-        <fieldset class="posture screen-view">
+        <fieldset id="screen-view-field" class="posture screen-view" hidden>
           <legend>Am Bildschirm: 2D oder 3D?</legend>
           <div id="screen-view" class="seg seg--two">
             <button type="button" data-view="2d">2D</button>
@@ -76,10 +81,10 @@
 
         <!--
           Haunting: erst in die Lobby — Name und Raum-Code, Verbinden —, und erst
-          wer drin ist, sieht, wer noch da ist, und die drei Wege hinein: Brille,
-          und am Bildschirm — je nach „2D oder 3D" oben — Web 3D (Techniker am
-          Bildschirm) oder 2D Einsatzzentrale. Alle drei bleiben
-          in diesem Raum. Ohne eigenen Code spielen alle im Raum `haunting`
+          wer drin ist, sieht, wer noch da ist, und den einen Knopf hinein. Wohin
+          er führt, sagt das Gerät und die Wahl oben: Brille, oder am Bildschirm
+          die 2D Einsatzzentrale beziehungsweise der Techniker im Schiff. Alle
+          drei bleiben in diesem Raum. Ohne eigenen Code spielen alle im Raum `haunting`
           (`worlds/haunting/net.ts`); ein eigener Code wandert als `?room=` in
           die Adresse.
         -->
@@ -110,27 +115,26 @@
               alle bleiben in diesem Raum.
             </p>
 
-            <button id="haunt-vr" class="btn btn--primary" disabled>VR wird geprüft …</button>
-            <p class="haunt-start__hint">Die Brille: der Techniker im Anzug, draußen im Schiff.</p>
             <!--
-              Ein Knopf für den Bildschirm; ob er in die 2D Einsatzzentrale
-              oder als Techniker ins Schiff (Web 3D) führt, sagt die Wahl
-              „2D oder 3D" weiter oben — `main.ts` schreibt es in Knopf und Zeile.
+              **Ein Knopf, drei Wege** — welcher, sagt das Gerät und die Wahl
+              darüber: mit Brille der Techniker im Anzug (`Enter VR`), sonst am
+              Bildschirm die 2D Einsatzzentrale oder der Techniker im Schiff.
+              Die Zeile darunter schreibt `main.ts` bei jeder Änderung mit.
             -->
-            <button type="button" id="haunt-flat" class="btn btn--ghost">Am Bildschirm starten</button>
-            <p id="haunt-flat-hint" class="haunt-start__hint"></p>
+            <button type="button" id="haunt-enter" class="btn btn--primary">Beitreten</button>
+            <p id="haunt-enter-hint" class="haunt-start__hint"></p>
             <p id="haunt-xr-status" class="status"></p>
           </div>
         </div>
 
-        <button id="enter-vr" class="btn btn--primary only-generic" disabled>VR wird geprüft …</button>
-        <button id="enter-flat" class="btn btn--ghost only-generic">Am Bildschirm starten</button>
+        <!-- Derselbe eine Knopf wie in der Lobby der Runde, siehe oben. -->
+        <button type="button" id="enter" class="btn btn--primary only-generic">Beitreten</button>
 
         <!--
           Die Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es
           gibt — Werkzeuge, Welten, den Beutel — und wie ein Werkzeug in der
-          Hand liegt. Deshalb steht sie hier neben den beiden Knöpfen und nicht
-          in einem Menü, das man erst öffnen muss.
+          Hand liegt. Deshalb steht sie hier neben dem Knopf und nicht in einem
+          Menü, das man erst öffnen muss.
         -->
         <p class="landing__more only-generic"><a href="./tools.html">Werkzeuge, Welten und Beutel ansehen →</a></p>
 
@@ -176,15 +180,6 @@
           </p>
         </details>
 
-        <ul class="hints only-generic">
-          <li><strong>Beide Handgelenke:</strong> ein Button öffnet das Menü — offen ist immer nur eins.</li>
-          <li><strong>Am Bildschirm:</strong> der Knopf oben links (☰) öffnet dasselbe Menü als Seite.</li>
-          <li><strong>Andere Hand:</strong> Zeigen &amp; Trigger zum Auswählen.</li>
-          <li><strong>Portal-Welt:</strong> Werkzeuge hängen am Gürtel — Greifen nimmt sie,
-            woanders loslassen lässt sie fallen.</li>
-          <li><strong>Ohne Controller:</strong> drei Finger an die Handfläche = Greifen,
-            Zeigefinger = Trigger. Ausprobieren im <em>Eingaberaum</em>.</li>
-        </ul>
       </div>
     </div>
 
