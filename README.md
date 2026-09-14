@@ -8,12 +8,22 @@
 **Jede Welt lässt sich auch von oben spielen.** Auf der Startseite steht „2D
 oder 3D", im Spiel steht es unter _Menü → Ansicht_ — und 2D heißt: eine
 Kachelwelt wie auf dem SNES, gezeichnet von [Phaser](https://phaser.io), mit
-einem kleinen Helden in grüner Tunika. Die Welt liegt in **Ebenen** — Boden,
+einem kleinen Helden in grüner Tunika. **Jede Welt hat dabei ihre eigene**:
+Der Hub liegt auf einer Wiese, der Mond auf grauen Platten mit einer sandigen
+Spur, Dust im Sand mit einer Steinstraße, die Pizzeria auf Dielen — Anstrich
+und Anordnung kommen aus dem Namen der Welt, und derselbe Name gibt immer
+denselben Ort. Die Welt liegt in **Ebenen** — Boden,
 Dinge, Darüber —, die sich einzeln ein- und ausblenden lassen, ein **Raster**
 zeigt die Kacheln, und ein kleiner **Editor** malt Gras, Wasser, Mauern und
 Bäume direkt in die Welt; was du malst, bleibt im Browser. Eine Kachel ist ein
 Meter, und wer auf 3D schaltet, steht dort, wo der Held zuletzt stand. Norden
 ist oben, das Rad zoomt. Am Handy ist 2D vorbelegt.
+
+**Und der Companion Cube steht auch in 2D herum.** Er ist dasselbe 3D-Modell
+wie im Portal Labor — Phaser kann keine Netze zeichnen, also wird das Modell
+beim Start **abgelichtet**: ein kleiner, eigener Renderer nimmt es einmal von
+schräg oben auf, und das Bildchen wird die Kachel. Im Repository liegt dafür
+kein einziges Bild; wer den Würfel im Code ändert, ändert ihn in beiden Welten.
 
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
 Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond

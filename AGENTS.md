@@ -329,7 +329,10 @@ fest ist, was auf irgendeiner **sichtbaren** Ebene fest ist und außerhalb
 alles, dass die Reise durch JSON nichts verändert und fremder Text keinen
 Absturz macht, dass je Welt ein Plan gemerkt wird; dazu der Katalog — jede
 Kennung einmal, Wasser und Mauer fest, Gras und Brücke nicht, eine Kachel ein
-Meter — und dass die Lichtung unter ihrer Brücke Wasser hat), **Menü als Seite** (`src/ui/PageMenu.ts` — in jsdom: dass eine Zeile mit
+Meter — und der Anfangsplan: Wasser unter der Brücke, der Held auf freiem
+Boden, Companion Cubes in jeder Welt, und vor allem, dass **keine zwei Welten
+denselben Plan bekommen**, dieselbe aber immer denselben — genau der Befund,
+der sich als „die Welten lassen sich nicht wechseln" zeigte), **Menü als Seite** (`src/ui/PageMenu.ts` — in jsdom: dass eine Zeile mit
 Kindern absteigt und eine ohne läuft, dass der Weg mit den Handgelenken
 geteilt ist, dass ein Neubau des Baums die Seite nicht verlässt und eine
 Nimm-Seite beim Antippen nimmt), **2D oder 3D am Bildschirm**
@@ -739,14 +742,47 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     gezeichnet mit sechzehn Bildpunkten (`TILE_PX`): Spalte und Zeile hier sind
     x und z in 3D. Gespeichert wird je Welt im Browser
     (`bgvr.level2d.v1.<welt>`, Format `baumgartner-level2d` mit Fassung); wer
-    keinen Plan hat, bekommt die **Lichtung** aus `sample.ts` — Teich mit
-    Brücke, Haus mit Dach, Kisten, Zaun, Bäume am Rand.
-  - **Der Katalog** (`tiles.ts`): achtzehn Kacheln — Gras, Weg, Wasser, Mauer,
+    keinen Plan hat, bekommt den **Anfangsplan seiner Welt** aus `sample.ts`.
+  - **Jede Welt ihr eigener Ort** (`sample.ts`, mit Test). Bis dahin bekam
+    **jede** Welt dieselbe Lichtung, und das war der Befund „ich kann die
+    Welten nicht wechseln": Der Wechsel lief, `App.goTo` lud die neue Welt, der
+    Name oben rechts änderte sich — und die Karte darunter war Bild für Bild
+    dieselbe. Ein Wechsel, den man nicht sieht, ist für den, der davorsitzt,
+    keiner. Jetzt kommt der Plan aus der **Kennung** der Welt, und zwar zweimal:
+    ein **Anstrich** aus einer kleinen Tabelle (`THEMES`, `THEME_OF`: Wiese,
+    Sand, Stein, Halle, Nacht — Mond bekommt graue Platten, Dust Sand mit
+    Steinstraße, die Pizzeria Dielen) und die **Anordnung** aus einem gesäten
+    Zufallsgeber (`mulberry32(hashText(id))`): Teich, Brücke, Haus, Weg,
+    Wäldchen, Streugut stehen in jeder Welt woanders. Gesät heißt **stabil**:
+    Derselbe Name gibt denselben Plan, „Plan zurücksetzen" holt die eigene
+    Welt zurück und nicht eine neue. Eine Welt ohne Eintrag in `THEME_OF`
+    bekommt trotzdem einen Anstrich — eine neue Welt in `worlds/index.ts`
+    erzwingt hier nichts.
+  - **Der Katalog** (`tiles.ts`): neunzehn Kacheln — Gras, Weg, Wasser, Mauer,
     Baum, Kiste, Tür, Dach … —, jede mit Farbe, Ebene und **ob sie fest ist**
     (`SOLID_TILES`). Gemalt werden sie beim Start auf eine Leinwand, wie der
     Held (`hero.ts`: vier Richtungen, zwei Schritte, grüne Tunika). Wer echte
     Grafik will, tauscht die Leinwand gegen ein Bild und lässt alles andere
     stehen.
+  - **Eine Kachel wird nicht gemalt, sondern abgelichtet: der Companion Cube**
+    (`modelSprite.ts`, Kachel 19). Phaser zeichnet Sprites und keine Netze, und
+    ein zweiter three.js-Renderer, der jedes Bild mitliefe, wäre für sechzehn
+    Bildpunkte eine groteske Rechnung. Also wird das Modell **einmal**
+    abgelichtet: `renderModelSprite(object, { size, frames, tilt, turn })` baut
+    einen kleinen eigenen `WebGLRenderer`, stellt eine orthografische Kamera
+    schräg darüber (55°), rechnet den Ausschnitt aus den acht Ecken der Hülle
+    über **alle** Drehungen (die Hüllkugel verschenkte bei einem Würfel ein
+    Drittel der Kantenlänge), rendert vierfach überabgetastet auf
+    durchsichtigen Grund und gibt eine **Leinwand** zurück — `frames` Bilder
+    nebeneinander, also auch ein Sprite-Blatt für eine Drehung. Der Renderer
+    wird danach sofort abgeräumt (`dispose`, `forceContextLoss`): Ein Browser
+    gibt nur eine Handvoll Kontexte her, und das hier ist Werkzeug für den
+    **Aufbau**, nicht für die Bildschleife. Das Modell wird kurz ausgehängt und
+    dorthin zurückgehängt, wo es stand. Ohne WebGL (jsdom, abgeschaltete
+    Beschleunigung) kommt `null` statt eines Absturzes, und `tiles.ts` malt
+    einen flachen Ersatzwürfel. Der Würfel selbst steht weiter genau einmal im
+    Code (`worlds/portal/props.createCompanionCube`) — ein Modell, zwei Welten,
+    **kein Bild im Repository**.
   - **Phaser zeichnet und bewegt** (`World2D.ts`): Phaser wird erst geholt,
     wenn 2D das erste Mal aufgeht (eigener Brocken, `import('phaser')`), baut
     eine leere Tilemap mit einer Ebene je Plan-Ebene (Tiefe 0/5/20), den Helden
@@ -796,9 +832,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     darüber. Seine Crewmate-Figur liegt weiter in `core/flat/crewmate.ts`.
   - **Was das (noch) nicht ist**: aus der 3D-Welt gelesen. Der Vorgänger las
     die Hüllen der Netze und malte daraus Klötze (`core/flat/`, bis auf die
-    Figur weg); der Plan ist jetzt von Hand — heute für jede Welt dieselbe
-    Lichtung —, und die 3D-Welt wird noch nicht aus ihm gebaut. Das ist der
-    nächste Schritt, nicht dieser.
+    Figur weg); der Plan kommt jetzt aus dem Namen der Welt (`sample.ts`) und
+    aus dem Editor, und die 3D-Welt wird noch nicht aus ihm gebaut. Ein Ding
+    aus 3D findet aber schon herüber — der Companion Cube als abgelichtete
+    Kachel (`modelSprite.ts`); derselbe Weg trägt jedes andere Modell, das
+    einmal eine Kachel werden soll.
 - **Hub-Welt**: runde Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
   Ist ein Gang voll, kommt der nächste dazu und alle verteilen sich neu über

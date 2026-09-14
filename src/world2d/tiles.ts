@@ -1,4 +1,7 @@
+import type { MeshStandardMaterial } from 'three';
 import { TILE_PX, type TileId } from './level';
+import { renderModelSprite } from './modelSprite';
+import { createCompanionCube } from '../worlds/portal/props';
 
 /**
  * **Der Kachelkatalog** — was es in der 2D-Welt zu bauen gibt, und wie es
@@ -11,6 +14,12 @@ import { TILE_PX, type TileId } from './level';
  * einer Stunde nachmalen kann, sind Kacheln, die jemand später gegen echte
  * tauscht, ohne dass sich sonst etwas ändert: Der Katalog bleibt derselbe,
  * nur `draw` wird zum Bild.
+ *
+ * **Eine Kachel wird nicht gemalt, sondern abgelichtet**: der Companion Cube.
+ * Er steht als 3D-Modell im Code (`worlds/portal/props.createCompanionCube`),
+ * und `modelSprite.ts` macht daraus beim ersten Zeichnen ein Bildchen — ein
+ * Modell, zwei Welten, keine Bilddatei im Repository. Ohne WebGL bleibt eine
+ * flach gemalte Ersatzkachel, damit der Katalog auch in jsdom vollständig ist.
  *
  * **Fest oder nicht** steht hier, bei der Kachel, und nirgends sonst: Eine
  * Mauer hält auf, Gras nicht, Wasser hält auf (bis es eine Brücke gibt).
@@ -298,7 +307,71 @@ export const TILES: readonly TileDef[] = [
       px(ctx, x + s - 2, y, '#6b4423', 2, s);
     },
   },
+  {
+    id: 19,
+    name: 'Companion Cube',
+    color: '#c9d2e0',
+    solid: true,
+    layer: 'objects',
+    draw(ctx, x, y, s) {
+      const sprite = companionCubeSprite(s);
+      if (!sprite) {
+        drawFlatCube(ctx, x, y, s);
+        return;
+      }
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sprite, x, y, s, s);
+    },
+  },
 ];
+
+// --- Der eine Würfel, der aus 3D kommt --------------------------------------
+
+/**
+ * Das abgelichtete Modell, je Kantenlänge einmal. `null` heißt: Dieser Browser
+ * kann kein WebGL — dann bleibt es bei der flachen Ersatzkachel, und zwar
+ * dauerhaft, statt es bei jeder Kachel neu zu versuchen.
+ */
+const cubeSprites = new Map<number, HTMLCanvasElement | null>();
+
+function companionCubeSprite(size: number): HTMLCanvasElement | null {
+  const known = cubeSprites.get(size);
+  if (known !== undefined) return known;
+  // Kantenlänge 1: Der Ausschnitt wird aus der Hülle des Modells gerechnet,
+  // die Zahl selbst ist dem Bildchen also egal.
+  const cube = createCompanionCube(1);
+  const sprite = renderModelSprite(cube, { size, margin: 0.02 });
+  // Das Modell hat seinen Zweck erfüllt: Geometrie, Material und die Leinwand
+  // seiner Textur wieder hergeben, sonst bleibt für ein Bildchen von sechzehn
+  // Punkten ein ganzes Netz im Speicher liegen.
+  cube.geometry.dispose();
+  const material = cube.material as MeshStandardMaterial;
+  material.map?.dispose();
+  material.dispose();
+  cubeSprites.set(size, sprite);
+  return sprite;
+}
+
+/** Der Würfel flach gemalt — für jeden Browser ohne WebGL. */
+function drawFlatCube(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+  const inset = Math.max(1, Math.round(s / 8));
+  const side = s - inset * 2;
+  px(ctx, x + inset, y + inset, '#c9d2e0', side, side);
+  px(ctx, x + inset, y + inset, '#eef2f8', side, 1);
+  px(ctx, x + inset, y + s - inset - 1, '#7f8ea6', side, 1);
+  const plate = Math.max(1, Math.round(s / 6));
+  for (const [cx, cy] of [
+    [x + inset, y + inset],
+    [x + s - inset - plate, y + inset],
+    [x + inset, y + s - inset - plate],
+    [x + s - inset - plate, y + s - inset - plate],
+  ] as const) {
+    px(ctx, cx, cy, '#7f8ea6', plate, plate);
+  }
+  const heart = Math.max(2, Math.round(s / 4));
+  const at = Math.round((s - heart) / 2);
+  px(ctx, x + at, y + at, '#ff6ea3', heart, heart);
+}
 
 /** Die Kennungen, durch die man nicht hindurchkommt. */
 export const SOLID_TILES: ReadonlySet<TileId> = new Set(
