@@ -396,6 +396,14 @@ const _noLid: THREE.Plane[] = [];
 const _lidOn = [_lid];
 
 export class HauntingWorld extends GridWorld {
+  /**
+   * **Diese Welt hat ihre eigene Ansicht von oben** (`map/flatMode.ts`): mit
+   * Räumen, Türen, Licht, Rollen und einer ganzen Runde darin. Die des Kerns
+   * (`core/flat/FlatView.ts`) liest jede andere Welt aus ihren Netzen und
+   * soll hier nicht darüberzeichnen.
+   */
+  readonly ownsFlat = true;
+
   /** Der Bauplan dieser Runde. Steht vor dem ersten `layout()` fest. */
   private spec: HouseSpec = generateHouse(rollSeed(), 8);
   private state: HauntState = freshState(this.spec.seed);

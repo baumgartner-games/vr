@@ -5,6 +5,15 @@
 
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
+**Jede Welt lässt sich auch von oben spielen.** Auf der Startseite steht „2D
+oder 3D", im Spiel steht es unter *Menü → Ansicht* — und 2D heißt: dieselbe
+Welt, flach gezeichnet, mit der Crewmate-Figur aus Haunting. Das ist eine
+Ansicht und kein zweites Spiel: Gelaufen wird mit demselben Körper durch
+dieselben Wände, und die Karte wird aus der Welt selbst gelesen, kann also gar
+nicht etwas anderes zeigen als das, worin man steht. Norden ist oben, Wände
+haben eine Höhe, das Rad zoomt (auf dem Telefon zwei Finger). Am Handy ist 2D
+vorbelegt.
+
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
 Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
 mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
@@ -765,6 +774,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Umsehen | Kopf, rechter Stick = Snap-Turn | Maus (Klick = Pointer-Lock) | wischen |
 | Springen / Ducken | `A` rechts / rechten Stick reindrücken | `Leertaste` | – |
 | Menü | Button an beiden Händen (immer nur eins offen) | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links |
+| 2D von oben ↔ 3D | – | Startseite oder Menü → *Ansicht*; Mausrad zoomt | dito; zwei Finger zoomen |
 | Auswählen | zielen + Trigger oder `A` | Linksklick | tippen |
 | Werkzeug nehmen/ablegen | Grip an der Hüfte; woanders loslassen lässt es fallen | – | – |
 | Hüften verschieben | Gürtel-Justierer: Hüfte anzielen, Trigger, mit der anderen Hand schieben | – | – |

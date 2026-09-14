@@ -8,6 +8,9 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { PageMenu } from '../ui/PageMenu';
+import { FlatView, type FlatActor } from './flat/FlatView';
+import { scanScene } from './flat/flatScan';
+import { saveScreenView, screenView, type ScreenView } from './screenView';
 import { NetSession } from '../net/NetSession';
 import { CHAT_LIMIT, ChatLog, type ChatEntry } from '../net/chat';
 import { RemoteAvatars } from '../net/RemoteAvatars';
@@ -96,6 +99,14 @@ export interface ConnectOptions extends TrysteroOptions {
 }
 
 const _head = new THREE.Matrix4();
+const _flatEuler = new THREE.Euler();
+const _flatQuat = new THREE.Quaternion();
+/** Ab welchem Tempo die Figur auf der Karte läuft statt zu stehen, in m/s. */
+const MOVING_SPEED = 0.25;
+/** Und ab welchem sie rennt — knapp unter dem Sprinttempo des Rigs. */
+const SPRINT_SPEED = 4.2;
+/** Wie lange nach dem Betreten die Karte ein zweites Mal gelesen wird, in Sekunden. */
+const RESCAN_DELAY = 1.5;
 const _headLocal = new THREE.Matrix4();
 const _headPos = new THREE.Vector3();
 const _keyPosition = new THREE.Vector3();
@@ -133,6 +144,11 @@ export class App {
    * oben links. Welches der beiden gerade gilt, entscheidet `WristMenus`.
    */
   readonly pageMenu: PageMenu;
+  /**
+   * **Jede Welt von oben** (`core/flat/FlatView.ts`) — dieselbe Welt, flach
+   * gelesen und flach gezeichnet. Wann sie das Bild ist, sagt `topDown`.
+   */
+  readonly flatView: FlatView;
   readonly net = new NetSession();
   readonly spectator: SpectatorCamera;
 
@@ -143,6 +159,15 @@ export class App {
    * `null` — dann gilt die Einstellung (`core/appearance.ts`).
    */
   private worn: HeadgearKind | null = null;
+  /** 2D oder 3D am Bildschirm (`core/screenView.ts`). */
+  private view: ScreenView = '3d';
+  /** Für welche Welt die Karte von oben zuletzt gelesen wurde. */
+  private scannedWorld = '';
+  /** Wann noch einmal gelesen wird, in Sekunden seit dem Start — 0 heißt nie. */
+  private rescanAt = 0;
+  /** Wo der Spieler im letzten Bild stand — daraus wird „geht" und „rennt". */
+  private readonly lastFoot = new THREE.Vector2();
+  private footSpeed = 0;
   readonly avatars: RemoteAvatars;
   /** Die Stimmen der anderen, räumlich am Kopf ihres Sprechers (`net/Voice.ts`). */
   readonly voice: Voice;
@@ -261,6 +286,8 @@ export class App {
       onToggle: (open) => this.hooks.onMenuChanged?.(open),
     });
     this.wristMenu.attachPage(this.pageMenu);
+    this.flatView = new FlatView();
+    this.view = screenView(this.role);
     this.refreshMenu();
 
     // Der Name gilt ab sofort und nicht erst ab dem Verbinden: er steht im
@@ -408,6 +435,11 @@ export class App {
       this.hooks.onWorldChanged?.(definition.id, definition.title);
       this.notify(definition.title);
       if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
+      // Eine neue Welt heißt eine neue Karte von oben — gelesen wird sie erst,
+      // wenn sie auch gezeigt wird (`applyView`).
+      this.scannedWorld = '';
+      this.rescanAt = this.elapsed + RESCAN_DELAY;
+      this.applyView();
     } catch (error) {
       console.error(`[app] Welt "${id}" konnte nicht geladen werden`, error);
       this.notify(`Fehler beim Laden von ${definition.title}`);
@@ -599,6 +631,61 @@ export class App {
     this.wristMenu.toggle(force);
   }
 
+  /**
+   * **2D oder 3D am Bildschirm** — die Wahl der Startseite
+   * (`core/screenView.ts`), hier als Zustand.
+   */
+  get screenView(): ScreenView {
+    return this.view;
+  }
+
+  setScreenView(view: ScreenView): void {
+    if (this.view === view) return;
+    this.view = view;
+    saveScreenView(view);
+    this.applyView();
+    this.menuDirty = true;
+    this.notify(view === '2d' ? 'Ansicht: 2D von oben' : 'Ansicht: 3D');
+  }
+
+  /**
+   * **Ob die Karte von oben gerade das Bild ist.**
+   *
+   * Drei Dinge müssen zusammenkommen: Es ist 2D gewählt, die Brille ist ab
+   * (darin gibt es nur die eine Ansicht), und die Welt bringt keine eigene mit
+   * — Haunting hat seine Runde von oben schon (`World.ownsFlat`).
+   */
+  get topDown(): boolean {
+    return this.view === '2d' && !this.renderer.xr.isPresenting && !this.world?.ownsFlat;
+  }
+
+  /**
+   * Die Ansicht anwenden: Leinwand zeigen oder verstecken, die Tasten auf
+   * Bildrichtungen umstellen, und die Karte lesen, falls das für diese Welt
+   * noch nicht geschehen ist.
+   */
+  private applyView(): void {
+    const on = this.topDown;
+    this.flatView.show(on);
+    this.flat.topDown = on;
+    if (on && this.scannedWorld !== this.worldId) this.scanFlat();
+    if (!on && !this.renderer.xr.isPresenting) this.flat.syncFromRig();
+  }
+
+  /**
+   * **Die Welt von oben lesen** — einmal je Welt, nicht je Bild.
+   *
+   * Ausgelassen wird, was keine Welt ist: der Spieler samt Händen, Menü und
+   * Werkzeugen (alles hängt am Rig), die Körper der anderen, die Tastatur im
+   * Raum. Der Schnitt liegt über dem, worauf der Spieler steht.
+   */
+  scanFlat(): void {
+    this.flatView.setScan(
+      scanScene(this.scene, [this.rig, this.avatars, this.keys], this.rig.position.y),
+    );
+    this.scannedWorld = this.worldId;
+  }
+
   notify(message: string): void {
     this.wristMenu.setStatus(message);
     this.hooks.onNotify?.(message);
@@ -615,6 +702,7 @@ export class App {
     this.avatar.dispose();
     this.wristMenu.dispose();
     this.pageMenu.dispose();
+    this.flatView.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
     this.voice.dispose();
@@ -688,6 +776,7 @@ export class App {
         accent: 0x4aa8ff,
         children: worlds,
       },
+      this.viewMenu(),
       this.networkMenu(),
       this.movementMenu(),
       this.appearanceMenu(),
@@ -707,6 +796,64 @@ export class App {
     // spectator switches change under the player's nose. The menu keeps the
     // page and the scroll position through it, open or closed.
     this.wristMenu.setRoot(root);
+  }
+
+  /**
+   * **2D oder 3D** — dieselbe Welt, andere Ansicht, mitten im Spiel
+   * umschaltbar.
+   *
+   * Zu wählen gibt es nur, wo es etwas zu wählen gibt: In der Brille steht man
+   * in der Welt, da ist eine Karte von oben kein Blickwinkel, sondern ein
+   * Widerspruch. Und Haunting bringt seine eigene mit (`World.ownsFlat`) —
+   * die schaltet dort das Zahnrad der Runde um, nicht dieses Menü.
+   */
+  private viewMenu(): MenuEntry {
+    const flat = this.view === '2d';
+    const available = !this.renderer.xr.isPresenting && !this.world?.ownsFlat;
+    return {
+      id: 'view',
+      label: 'Ansicht',
+      sub: available
+        ? flat
+          ? '2D von oben — die Welt flach, mit der Figur'
+          : '3D — durch die eigenen Augen'
+        : 'Hier gibt es nur die eine',
+      icon: 'worlds',
+      accent: 0x9fe3ff,
+      children: [
+        {
+          id: 'view:3d',
+          label: '3D',
+          sub: 'Durch die eigenen Augen',
+          icon: 'worlds',
+          accent: 0x4aa8ff,
+          selected: !flat,
+          run: () => this.setScreenView('3d'),
+        },
+        {
+          id: 'view:2d',
+          label: '2D von oben',
+          sub: available
+            ? 'Dieselbe Welt, flach gelesen — Norden oben'
+            : 'Hier nicht: die Brille ist auf, oder die Welt hat eine eigene',
+          icon: 'worlds',
+          accent: 0x5ee0a0,
+          selected: flat,
+          run: () => this.setScreenView('2d'),
+        },
+        {
+          id: 'view:rescan',
+          label: 'Karte neu lesen',
+          sub: 'Wenn sich die Welt seit dem Betreten verändert hat',
+          icon: 'reset',
+          accent: 0x9fe3ff,
+          run: () => {
+            this.scanFlat();
+            this.notify('Karte neu gelesen');
+          },
+        },
+      ],
+    };
   }
 
   /**
@@ -1422,6 +1569,8 @@ export class App {
     this.role = 'vr';
     // Ab jetzt tragen die Handgelenke das Menü, nicht die Seite.
     this.wristMenu.presenting = true;
+    // Und in der Brille gibt es die Karte von oben nicht: Man steht darin.
+    this.applyView();
     // Ab jetzt darf eine Texteingabe die Tastatur des Geräts anfordern: Im
     // Browserfenster gibt es dafür die echte Tastatur, in der Brille nicht.
     setImmersive(true);
@@ -1442,6 +1591,7 @@ export class App {
     this.resizeWebBuffer();
     this.role = detectFlatRole();
     this.wristMenu.presenting = false;
+    this.applyView();
     setImmersive(false);
     if (this.rig.paused) {
       // Spectating in VR carried the rig around; the body has to catch up.
@@ -1566,11 +1716,23 @@ export class App {
     // Portalsichten zeichnen die Szene ja gleich noch mehrmals.
     this.quality.update(dt, _headPos.setFromMatrixPosition(_head));
 
-    // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
-    // sich die Welt gleich selbst zeichnet.
-    this.mirrors.render(this.scene, this.camera);
-    const rendered = this.world?.render?.(context) ?? false;
-    if (!rendered) this.renderer.render(this.scene, this.camera);
+    // **Von oben wird die Szene gar nicht gezeichnet.** Das Bild ist eine
+    // Leinwand darüber (`core/flat/FlatView.ts`); das WebGL-Bild wird nur
+    // geleert, damit kein altes Einzelbild darunter stehen bleibt. Spiegel und
+    // Portalsichten bleiben dann ebenfalls aus — sie zeichnen in Bilder, die
+    // niemand ansieht.
+    if (this.topDown) {
+      this.renderer.setScissorTest(false);
+      this.renderer.setClearColor(0x0a0e16, 1);
+      this.renderer.clear();
+      this.drawFlat(dt);
+    } else {
+      // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
+      // sich die Welt gleich selbst zeichnet.
+      this.mirrors.render(this.scene, this.camera);
+      const rendered = this.world?.render?.(context) ?? false;
+      if (!rendered) this.renderer.render(this.scene, this.camera);
+    }
     const sample = this.frameStats.update(
       time,
       performance.now() - started,
@@ -1583,6 +1745,61 @@ export class App {
       this.fpsEntry.label = fpsLabel(sample);
       this.wristMenu.refresh();
     }
+  }
+
+  /**
+   * **Wer auf der Karte von oben steht** — ich und alle, die in derselben Welt
+   * sind.
+   *
+   * „Geht" und „rennt" stehen nirgends geschrieben: Beides wird aus dem Weg
+   * gelesen, den der Körper im letzten Bild wirklich zurückgelegt hat. Das ist
+   * die ehrlichste Quelle, die es gibt — wer an einer Wand steht und drückt,
+   * bewegt sich nicht, und die Figur soll dann auch nicht laufen.
+   */
+  private drawFlat(dt: number): void {
+    // **Ein zweiter Blick, kurz nach dem Betreten.** Manche Welt stellt ihre
+    // Sachen erst in den ersten Bildern hin — Physikkörper, nachgeladene
+    // Stücke, ein Aufbau über mehrere Bilder. Wer nur einmal liest, hat davon
+    // eine leere Karte.
+    if (this.rescanAt > 0 && this.elapsed >= this.rescanAt) {
+      this.rescanAt = 0;
+      this.scanFlat();
+    }
+    const foot = this.rig.position;
+    const step = Math.hypot(foot.x - this.lastFoot.x, foot.z - this.lastFoot.y);
+    this.lastFoot.set(foot.x, foot.z);
+    const speed = dt > 0 ? step / dt : 0;
+    // Ein wenig geglättet: Ein einzelnes stehendes Bild soll die Figur nicht
+    // mitten im Schritt einfrieren.
+    this.footSpeed += (speed - this.footSpeed) * Math.min(1, dt * 8);
+
+    const actors: FlatActor[] = [
+      {
+        id: this.net.localId || 'me',
+        name: this.net.name,
+        x: foot.x,
+        z: foot.z,
+        yaw: _flatEuler.setFromQuaternion(this.rig.quaternion, 'YXZ').y,
+        moving: this.footSpeed > MOVING_SPEED,
+        sprinting: this.footSpeed > SPRINT_SPEED,
+        player: true,
+      },
+    ];
+    for (const peer of this.net.peers.values()) {
+      const head = peer.pose?.head;
+      if (!head || peer.world !== this.worldId || peer.pose?.hidden) continue;
+      _flatQuat.set(head[3], head[4], head[5], head[6]);
+      actors.push({
+        id: peer.id,
+        name: peer.name,
+        // Der Kopf steht über den Füßen — von oben ist das derselbe Punkt.
+        x: head[0],
+        z: head[2],
+        yaw: _flatEuler.setFromQuaternion(_flatQuat, 'YXZ').y,
+        moving: false,
+      });
+    }
+    this.flatView.draw({ time: this.elapsed, actors });
   }
 }
 

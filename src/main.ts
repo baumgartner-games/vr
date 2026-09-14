@@ -6,13 +6,7 @@ import { normalizeRoomCode, rememberName, rememberedName } from './net/room';
 import { HAUNT_ROOM, hauntRoomFrom } from './worlds/haunting/net';
 import { arriveAs, loadLobby, saveLobby, type Entry } from './worlds/haunting/rules/lobby';
 import { playerPosture, savePlayerPosture, type Posture } from './core/posture';
-import {
-  onScreenViewChange,
-  saveScreenView,
-  screenView,
-  startOptions,
-  type ScreenView,
-} from './core/screenView';
+import { onScreenViewChange, screenView, startOptions, type ScreenView } from './core/screenView';
 import { DEFAULT_WORLD, findWorld } from './worlds';
 import { isStaleModuleError, shouldReload } from './core/staleBuild';
 
@@ -127,11 +121,11 @@ app.preferLocal = params.get('net') === 'local';
 netPanel = new NetPanel(app, {
   local: app.preferLocal,
   // Joining a room from the landing page also starts the game — the two
-  // buttons there say which way. „Ohne VR" heißt dabei dasselbe wie oben auf
-  // der Seite: in die Ansicht, die dort gewählt ist (`startScreen`).
+  // buttons there say which way. Ob die Welt dabei flach oder räumlich
+  // aussieht, sagt die Ansicht und nicht dieser Knopf.
   onStart: (mode) => {
     if (mode === 'vr') void startVR();
-    else void startScreen();
+    else startFlat();
   },
 });
 
@@ -228,8 +222,8 @@ function showScreenView(view: ScreenView): void {
   screenHint.textContent = hauntLanding
     ? ENTRY_HINTS[view]
     : view === '2d'
-      ? 'Die Karte von oben, fürs Handy gemacht — es gibt sie in Haunting / Orbital: „Beitreten" öffnet dort die Einsatzzentrale.'
-      : 'Die Welt am Bildschirm — Tastatur und Maus oder Stock.';
+      ? 'Die Welt von oben, mit der Figur — jede Welt kann das. Umschalten geht auch im Spiel: Menü → Ansicht.'
+      : 'Die Welt durch die eigenen Augen — Tastatur und Maus oder Stock.';
 }
 
 /** Was auf den einen Knopf folgt, in einer Zeile — je nachdem, wohin er führt. */
@@ -267,51 +261,27 @@ screenSeg.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   const picked = button?.dataset['view'];
   if (picked !== '2d' && picked !== '3d') return;
-  saveScreenView(picked);
+  // Die App merkt sich die Wahl selbst und schaltet die laufende Welt um; die
+  // Startseite liegt ja nur davor. `setScreenView` schreibt sie auch in den
+  // Speicher, deshalb hier kein zweites `saveScreenView`.
+  app.setScreenView(picked);
 });
 
 /**
  * **Der eine Knopf der Spielwiese.** Wohin er führt, steht eine Zeile darüber:
- * in die Brille, an den Bildschirm in die gewählte Welt — oder, wenn 2D
- * gewählt ist, in die **Einsatzzentrale von Haunting / Orbital**.
+ * in die Brille — oder an den Bildschirm, in die Welt, die ohnehin schon
+ * geladen ist.
  *
- * Denn die Karte von oben gibt es genau dort. Hub, Portal und die anderen sind
- * 3D und nichts sonst, und ein Schalter, der „2D" anbietet und dann doch die
- * 3D-Welt aufmacht, ist keine Wahl, sondern Zierat — genau der Fehler, den
- * dieser Knopf beseitigt.
+ * Ob die dort flach oder räumlich aussieht, entscheidet nicht dieser Knopf,
+ * sondern die Ansicht (`App.setScreenView`): **Jede** Welt kann von oben
+ * (`core/flat/FlatView.ts`), und die Wahl gilt für die, in der man steht.
+ * Vorher führte „2D" hier nach Haunting, weil es die Karte von oben nur dort
+ * gab — ein Umweg, den es jetzt nicht mehr braucht.
  */
 enterButton.addEventListener('click', () => {
   if (startOptions(headset, screenView(detectFlatRole())).way === 'vr') void startVR();
-  else void startScreen();
-});
-
-/**
- * **An den Bildschirm — in die Ansicht, die auf der Startseite steht.**
- *
- * Die eine Stelle, an der aus der Wahl ein Start wird, und deshalb auch die,
- * die das Verbindungs-Formular benutzt („Verbinden & ohne VR starten"): Ein
- * zweiter Weg an den Bildschirm, der die Wahl nicht liest, wäre genau derselbe
- * Fehler noch einmal.
- */
-async function startScreen(): Promise<void> {
-  if (screenView(detectFlatRole()) === '2d') await startCentre();
   else startFlat();
-}
-
-/**
- * **Die Karte von oben, ohne den Umweg über die Startseite der Runde.**
- *
- * Sie gehört zu Haunting / Orbital, und die Welt liest beim Aufbau aus dem
- * Speicher, auf welcher Seite des Tisches dieses Gerät sitzt
- * (`rules/lobby.arriveAs`) — also wird das **vor** dem Laden geschrieben, wie
- * auf der Startseite der Runde auch. Einen Raum sucht sich die Welt selbst,
- * wenn sie in keinem steht (`joinTable`).
- */
-async function startCentre(): Promise<void> {
-  saveLobby(arriveAs(loadLobby(undefined, detectFlatRole()), 'centre'));
-  startFlat();
-  await app.goTo('haunting');
-}
+});
 
 // Dasselbe Menü wie im Spiel, schon auf der Startseite: Welten, Bewegung,
 // Aussehen, Grafik — als Seite (`ui/PageMenu.ts`), weil hier keine Brille auf ist.

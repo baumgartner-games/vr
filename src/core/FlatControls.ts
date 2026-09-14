@@ -16,6 +16,21 @@ export class FlatControls {
   enabled = true;
   speed = 3.2;
   lookSpeed = 0.0024;
+  /**
+   * **Von oben gesteuert** — die Ansicht, in der die Welt flach vor einem
+   * liegt (`core/flat/FlatView.ts`).
+   *
+   * Zwei Dinge sind dann anders, und beide folgen daraus, dass es keine
+   * Blickrichtung gibt, die man drehen könnte. Erstens laufen die Tasten in
+   * **Bildrichtungen**: oben ist Norden, rechts ist Osten — und zwar
+   * unabhängig davon, wohin die Figur gerade schaut. Zweitens **schaut die
+   * Figur dorthin, wo sie hingeht**, denn niemand dreht sie sonst.
+   *
+   * Die Maus dreht hier nichts und fängt auch keinen Zeiger mehr ein: Ein
+   * Pointer-Lock in einer Ansicht, in der es nichts zu drehen gibt, nimmt nur
+   * den Mauszeiger weg.
+   */
+  topDown = false;
 
   private readonly keys = new Set<string>();
   private jumpQueued = false;
@@ -63,10 +78,20 @@ export class FlatControls {
       return;
     }
 
-    this.rig.getHeadForward(_forward);
-    _strafe.copy(_forward).cross(UP).normalize();
-    _move.set(0, 0, 0).addScaledVector(_forward, -z).addScaledVector(_strafe, x);
+    if (this.topDown) {
+      // Bildrichtungen statt Blickrichtung: oben ist Norden, rechts ist Osten.
+      _move.set(x, 0, z);
+    } else {
+      this.rig.getHeadForward(_forward);
+      _strafe.copy(_forward).cross(UP).normalize();
+      _move.set(0, 0, 0).addScaledVector(_forward, -z).addScaledVector(_strafe, x);
+    }
     if (_move.lengthSq() > 1) _move.normalize();
+    // Die Figur schaut, wohin sie geht — von oben dreht sie sonst niemand.
+    if (this.topDown) {
+      this.yaw = Math.atan2(-_move.x, -_move.z);
+      this.apply();
+    }
     const sprint = this.keys.has('ShiftLeft');
     // Die Welt darf das Tempo vorgeben (`PlayerRig.pace`); sonst gilt die Tastatur.
     const speed = this.rig.walkSpeed(sprint, this.speed * (sprint ? 1.8 : 1));
@@ -86,6 +111,7 @@ export class FlatControls {
   }
 
   private look(dx: number, dy: number): void {
+    if (this.topDown) return;
     // Von dort weiter, wo das Rig gerade hinschaut — nicht von der Zahl, die
     // sich diese Klasse gemerkt hat. Wer versetzt und dabei gedreht wurde
     // (`PortalWorld.movePlayerTo` mit `yaw`, ein Portal), sprang mit der
@@ -125,7 +151,7 @@ export class FlatControls {
     this.on(this.canvas, 'pointerdown', (event: PointerEvent) => {
       if (!this.enabled) return;
       if (event.pointerType === 'mouse') {
-        if (!this.pointerLocked) void this.canvas.requestPointerLock?.();
+        if (!this.pointerLocked && !this.topDown) void this.canvas.requestPointerLock?.();
         return;
       }
       const inStick = this.stickEl ? hitsElement(this.stickEl, event) : false;
