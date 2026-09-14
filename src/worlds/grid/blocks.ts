@@ -98,6 +98,14 @@ export interface BlockFacts {
    * der Bank ist das gleichzeitig die Oberkante — die Lehne steht darüber.
    */
   height: number;
+  /**
+   * **Ob man auf ihm hinaufgeht** — Treppe und Rampe, und sonst nichts.
+   *
+   * Sie sind die beiden Bausteine, die über ihre Kachel hinweg steigen, und
+   * deshalb die beiden, deren Anhebung ihr **Fuß** ist und nicht ihre Höhe
+   * (`blockRise`, `BlockSite.lift`).
+   */
+  steps?: boolean;
 }
 
 /**
@@ -140,8 +148,8 @@ export const BLOCKS: Readonly<Record<BlockKind, BlockFacts>> = {
   parapet: { label: 'Brüstung', rise: 0, cost: 1, height: 0.9 },
   // **Die Höhe einer Treppenkachel ist ihr Teilanstieg** und nicht mehr die
   // ganze Etage: Sie liegt zu mehreren hintereinander (`GridPlan.stairs`).
-  stairs: { label: 'Treppe', rise: 0, cost: 1.8, height: STAIR_LIFT },
-  ramp: { label: 'Rampe', rise: 0, cost: 1.2, height: RAMP_LIFT },
+  stairs: { label: 'Treppe', rise: 0, cost: 1.8, height: STAIR_LIFT, steps: true },
+  ramp: { label: 'Rampe', rise: 0, cost: 1.2, height: RAMP_LIFT, steps: true },
   // Ein Podest **ist** der Boden, auf dem man dort steht — deshalb hebt es ihn
   // an, statt ein Hindernis darauf zu sein.
   platform: { label: 'Podest', rise: 1.2, cost: 1, height: 1.2 },
@@ -158,11 +166,19 @@ export function blockHeight(kind: BlockKind, height?: number): number {
 /**
  * Um wie viel ein Baustein den Boden der Kachel anhebt.
  *
- * Beim Podest ist das seine Höhe und nicht die Zahl aus der Tabelle: Wer ein
- * Podest zwei Meter hoch baut, steht zwei Meter höher darauf.
+ * Drei Fälle, und der dritte kam mit der Treppe über mehrere Kacheln:
+ *
+ * - Ein Möbel hebt gar nichts an.
+ * - Beim **Podest** ist es seine Höhe und nicht die Zahl aus der Tabelle: Wer
+ *   ein Podest zwei Meter hoch baut, steht zwei Meter höher darauf.
+ * - Bei **Treppe und Rampe** ist es ihr `lift`, also ihr **Fuß**. Ein Lauf
+ *   steigt über seine Kachel hinweg; wer auf ihr steht, steht irgendwo
+ *   zwischen Fuß und Oberkante, und der Fuß ist die Zahl, die nicht lügt —
+ *   die Oberkante wäre die der Kachel *davor*.
  */
-export function blockRise(kind: BlockKind, height?: number): number {
+export function blockRise(kind: BlockKind, height?: number, lift = 0): number {
   const facts = BLOCKS[kind];
+  if (facts.steps) return lift;
   if (facts.rise === 0) return 0;
   return blockHeight(kind, height);
 }

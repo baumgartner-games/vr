@@ -1,5 +1,7 @@
 import { bakeNav, type NavBox } from '../nav/navBake';
-import { DIR_E, DIR_N, DIR_S, DIR_W, TILE, tileKey } from '../nav/navTile';
+import { findPath } from '../nav/navPath';
+import { HUMAN_PROFILE } from '../nav/navProfile';
+import { DIR_E, DIR_N, DIR_S, DIR_W, TILE, keyZ, tileKey } from '../nav/navTile';
 import { GridPlan } from './gridPlan';
 import { registerKind, type FixtureKind, type FixtureView } from './fixtures/index';
 import { solidBounds, type PlanSolid } from './solids';
@@ -335,9 +337,95 @@ describe('Hin und zurück', () => {
   it('macht aus einer Treppe einen begehbaren Weg nach oben', () => {
     const plan = new GridPlan([0, 2.8]);
     plan.floor({ x: 0, z: 0, w: 1, d: 3 });
-    plan.put('stairs', 0, 0, DIR_S, 0, 2.8);
+    plan.put('stairs', 0, 0, DIR_S, 0, 0.7);
     const solids = plan.solids();
     const top = solidBounds(solids.filter((one) => one.kind === 'stone'))!;
-    expect(top.maxY).toBeCloseTo(2.8);
+    expect(top.maxY).toBeCloseTo(0.7);
+  });
+});
+
+/**
+ * **Die Treppe über mehrere Kacheln** — der Grund, warum eine Kachel von einem
+ * Meter überhaupt gehbar ist.
+ *
+ * Eine ganze Etage auf einer Kachel wären Stufen von sieben Zentimetern Tiefe:
+ * eine Leiter, an der man hängen bleibt. Also legt `stairs()` so viele
+ * Kacheln, wie es braucht, und jede bekommt ihren Teilanstieg, ihren Fuß, ihr
+ * Loch — und die letzte die Verbindung nach oben.
+ */
+describe('Treppen über mehrere Kacheln', () => {
+  /** Zwei Etagen übereinander, Treppe von Süden nach Norden. */
+  function twoFloors(): GridPlan {
+    const plan = new GridPlan([0, 2.8]);
+    plan.floor({ x: 0, z: 0, w: 1, d: 6 });
+    plan.floor({ x: 0, z: 0, w: 1, d: 6, level: 1 });
+    return plan;
+  }
+
+  it('legt so viele Kacheln, wie der Anstieg braucht', () => {
+    const plan = twoFloors();
+    plan.stairs(0, 5, DIR_N, 0);
+    // 2,8 m Etagenhöhe, 0,7 m je Kachel: vier.
+    expect(plan.blocks()).toHaveLength(4);
+    expect(plan.blocks().every((one) => one.kind === 'stairs')).toBe(true);
+    // Und sie laufen in die Richtung, in die sie zeigen — nach Norden, also
+    // in kleinere z.
+    expect(plan.blocks().map((one) => keyZ(one.tile))).toEqual([5, 4, 3, 2]);
+  });
+
+  it('gibt jeder Kachel ihren Teilanstieg und ihren Fuß', () => {
+    const plan = twoFloors();
+    plan.stairs(0, 5, DIR_N, 0);
+    for (const [i, one] of plan.blocks().entries()) {
+      expect(one.height).toBeCloseTo(0.7);
+      expect(one.lift ?? 0).toBeCloseTo(i * 0.7);
+      // Im Graphen zählt der **Fuß**: Wer auf der Kachel steht, steht dort und
+      // nicht auf ihrer Oberkante.
+      expect(plan.graph.tile(one.tile)!.rise).toBeCloseTo(i * 0.7);
+    }
+    // Der Keil steigt lückenlos von null auf die Etagenhöhe.
+    const stone = solidBounds(plan.solids().filter((one) => one.kind === 'stone'))!;
+    expect(stone.minY).toBeCloseTo(0);
+    expect(stone.maxY).toBeCloseTo(2.8);
+  });
+
+  it('schlägt über jeder Treppenkachel ein Loch', () => {
+    const plan = twoFloors();
+    plan.stairs(0, 5, DIR_N, 0);
+    for (const z of [5, 4, 3, 2]) expect(plan.graph.has(tileKey(0, z, 1))).toBe(false);
+    // Und nicht mehr als das: Die Landekachel bleibt.
+    expect(plan.graph.has(tileKey(0, 1, 1))).toBe(true);
+  });
+
+  it('verbindet die letzte Kachel mit der Landekachel darüber', () => {
+    const plan = twoFloors();
+    plan.stairs(0, 5, DIR_N, 0);
+    const links = [...plan.graph.links()];
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({
+      from: tileKey(0, 2, 0),
+      to: tileKey(0, 1, 1),
+      kind: 'stairs',
+    });
+    // Womit oben auch wirklich jemand ankommt.
+    const path = findPath(plan.graph, tileKey(0, 5, 0), tileKey(0, 0, 1), {
+      profile: HUMAN_PROFILE,
+    });
+    expect(path.complete).toBe(true);
+  });
+
+  it('nimmt eine gewünschte Länge und verteilt den Anstieg darauf', () => {
+    const plan = twoFloors();
+    plan.stairs(0, 5, DIR_N, 0, 2);
+    expect(plan.blocks()).toHaveLength(2);
+    expect(plan.blocks()[1]!.height).toBeCloseTo(1.4);
+  });
+
+  it('macht die Rampe länger als die Treppe', () => {
+    const treppe = twoFloors();
+    treppe.stairs(0, 5, DIR_N, 0);
+    const rampe = twoFloors();
+    rampe.ramp(0, 5, DIR_N, 0);
+    expect(rampe.blocks().length).toBeGreaterThan(treppe.blocks().length);
   });
 });

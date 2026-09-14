@@ -73,19 +73,26 @@ export const WORLD_FORMAT = 'baumgartner-welt';
  * **abgelehnt** und nicht halb geladen: Eine Welt, der beim Laden die Hälfte
  * fehlt, sieht aus wie eine kaputte Welt und nicht wie eine zu neue.
  */
-export const WORLD_VERSION = '0.2.0';
+export const WORLD_VERSION = '0.3.0';
 
 /**
  * Welche Fassungen dieses Programm lesen kann.
  *
- * **`0.1` steht weiter darin**, obwohl eine neue Nebennummer vor 1.0 als Bruch
- * gilt: Der Bruch geht nur in eine Richtung. Eine Welt aus `0.1` hat keine
- * Einbauten, und eine Liste, die fehlt, ist eine leere Liste — mehr ist beim
- * Sprung auf `0.2` nicht passiert. Andersherum stimmt es nicht: Wer eine
- * `0.2`-Welt in ein altes Programm lädt, verlöre die Tore und Türen darin
- * still, und genau deshalb lehnt das alte Programm sie ab.
+ * **`0.1` und `0.2` stehen weiter darin**, obwohl eine neue Nebennummer vor
+ * 1.0 als Bruch gilt: Der Bruch geht nur in eine Richtung. Eine Welt aus `0.1`
+ * hat keine Einbauten, eine aus `0.2` keine angehobenen Bausteine — und was
+ * fehlt, ist eine leere Liste beziehungsweise eine Null. Andersherum stimmt es
+ * nicht: Wer eine `0.3`-Welt in ein altes Programm lädt, bekäme eine Treppe,
+ * deren vier Läufe alle auf dem Boden anfangen, und ein altes Programm kann
+ * das nicht wissen — deshalb lehnt es sie ab.
+ *
+ * **Die Kacheln sind mit `0.3` einen Meter groß** und nicht mehr 2,5 m. Das
+ * fällt hier gar nicht auf, weil es im Kopf der Navigationsdatei steht und
+ * dort geprüft wird (`nav/navSerial.ts`): Eine Karte mit fremder Kachelgröße
+ * wird abgelehnt, mit klarer Meldung. Zwei Prüfungen für dieselbe Zahl wären
+ * eine zu viel.
  */
-const READABLE: readonly string[] = ['0.1', '0.2'];
+const READABLE: readonly string[] = ['0.1', '0.2', '0.3'];
 
 /** Eine Kachel in der Datei: Spalte, Zeile, Etage. */
 interface TileRef {
@@ -102,6 +109,17 @@ export interface WorldBlockEntry extends TileRef {
   dir: number;
   /** Eigene Höhe in Metern — fehlt bei allem, was seine Normhöhe behält. */
   h?: number;
+  /**
+   * **Wie weit über dem Boden seiner Etage er anfängt**, in Metern — fehlt bei
+   * allem, was auf dem Boden steht (also bei fast allem).
+   *
+   * Seit Fassung `0.3`, und der Grund ist die Treppe über mehrere Kacheln
+   * (`BlockPlacement.lift`): Ohne diese Zahl läge ein gespeicherter Lauf
+   * hinterher flach auf dem Boden — vier Keile nebeneinander statt einer
+   * Treppe. Sie heißt `y` und nicht `lift`, weil in dieser Datei `x` und `z`
+   * schon so heißen.
+   */
+  y?: number;
 }
 
 /**
@@ -236,6 +254,9 @@ function blockEntry(one: BlockPlacement): WorldBlockEntry {
   const level = keyLevel(one.tile);
   if (level !== 0) entry.l = level;
   if (one.height !== undefined) entry.h = tidy(one.height);
+  // Eine Null ist keine Auskunft: Fast jeder Baustein steht auf dem Boden, und
+  // `"y": 0` hinter jedem von ihnen wäre eine Zeile, die niemand liest.
+  if (one.lift) entry.y = tidy(one.lift);
   return entry;
 }
 
@@ -376,6 +397,9 @@ function readBlocks(list: unknown, graph: NavGraph): BlockPlacement[] {
     if (!Number.isInteger(dir) || dir < 0 || dir > 3) continue;
     const placed: BlockPlacement = { kind: one.kind as BlockKind, tile, dir: dir as Dir };
     if (typeof one.h === 'number' && Number.isFinite(one.h)) placed.height = one.h;
+    // Fehlt sie (jede Datei aus `0.2` und fast jeder Baustein), steht er auf
+    // dem Boden.
+    if (typeof one.y === 'number' && Number.isFinite(one.y)) placed.lift = one.y;
     out.push(placed);
   }
   return out;
