@@ -4,7 +4,7 @@ import type { TopDownCamera } from './TopDownCamera';
 import { ButtonState } from './XRInput';
 import { firstGamepad, readGamepad, type GamepadFrame } from './gamepad';
 import { isTyping } from './textEntry';
-import { yawFromDirection, type Vec2 } from './topDownPose';
+import { pinchFactor, yawFromDirection, type Vec2 } from './topDownPose';
 import { smoothAngle } from '../net/PoseSmoothing';
 
 const _forward = new THREE.Vector3();
@@ -43,6 +43,16 @@ export interface TouchPads {
   fire: HTMLElement | null;
   /** Der Block mit Zielstock und Knöpfen — steht nur in der Ansicht von oben. */
   right: HTMLElement | null;
+  /**
+   * Der Werkzeug-Knopf (`#hud-tool`) und der Menü-Knopf (`#hud-menu`).
+   *
+   * Sie werden hier nicht **gedrückt** — beides sind echte Knöpfe, ihre
+   * Ereignisse kommen nie an der Leinwand an. Gebraucht werden sie für den
+   * Pinch: Zwei Finger zoomen nur, solange keiner von ihnen auf einem Knopf
+   * liegt.
+   */
+  tool?: HTMLElement | null;
+  menu?: HTMLElement | null;
 }
 
 /**
@@ -58,12 +68,26 @@ export interface TouchPads {
  */
 export class FlatControls {
   enabled = true;
+  /**
+   * **Die Werkzeugliste aufmachen** — `Tab` und `Y` am Pad (`App`).
+   *
+   * Der Knopf dafür steht auf der Seite (`#hud-tool`), die Liste ist eine
+   * Menüseite; beides gehört `App`. Hier liegt nur der Draht, damit die
+   * Tasten an **einer** Stelle abgehört werden und keine Welt eine eigene
+   * Taste dafür mitbringt.
+   */
+  onTools: (() => void) | null = null;
   speed = 3.2;
   lookSpeed = 0.0024;
 
   private readonly keys = new Set<string>();
   private jumpQueued = false;
+  /** `E` oder Enter — die Tastatur benutzt und springt nie damit. */
   private useQueued = false;
+  /** Der Knopf `A` auf dem Glas — derselbe Knopf wie `A` am Pad. */
+  private aQueued = false;
+  /** `Tab` — die Werkzeugliste (`App`, `#hud-tool`). */
+  private toolsQueued = false;
   private yaw = 0;
   private pitch = 0;
   private pointerLocked = false;
@@ -101,6 +125,15 @@ export class FlatControls {
   private readonly padUse = new ButtonState();
   private readonly padZoomIn = new ButtonState();
   private readonly padZoomOut = new ButtonState();
+  private readonly padTools = new ButtonState();
+  /**
+   * Die Finger, die gerade frei auf dem Glas liegen — weder auf einem Stock
+   * noch auf einem Knopf —, mit dem Ort, an dem sie zuletzt waren. Zwei davon
+   * in der oberen Hälfte sind ein Pinch (`pinching`).
+   */
+  private readonly freeTouches = new Map<number, { x: number; y: number }>();
+  /** Der Fingerabstand des letzten Bildes, in Punkten — `null`: kein Pinch. */
+  private pinchGap: number | null = null;
   private disposers: Array<() => void> = [];
 
   constructor(
@@ -117,7 +150,7 @@ export class FlatControls {
     this.pads =
       pads && 'stick' in pads
         ? pads
-        : { stick: pads, aim: null, use: null, fire: null, right: null };
+        : { stick: pads, aim: null, use: null, fire: null, right: null, tool: null, menu: null };
     this.bind();
   }
 
@@ -151,6 +184,8 @@ export class FlatControls {
     this.setPressed(this.pads.fire, false);
     this.aimStick.set(0, 0);
     this.updateStickVisual(this.pads.aim, 0, 0);
+    this.freeTouches.clear();
+    this.pinchGap = null;
     this.rig.setTrigger(0);
   }
 
@@ -179,7 +214,11 @@ export class FlatControls {
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) x -= 1;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) x += 1;
 
-    const jump = this.jumpQueued;
+    // **Benutzen und Springen liegen auf `A`**, und zwar in jeder
+    // Bildschirmansicht (Plan, _Interaktion und Steuerung_): Steht etwas in
+    // Reichweite, benutzt der Knopf es; sonst springt er. Die Leertaste
+    // springt daneben immer.
+    const jump = this.applyUse(pad) || this.jumpQueued;
     this.jumpQueued = false;
     const sprint = this.keys.has('ShiftLeft') || pad.sprint;
 
@@ -189,21 +228,19 @@ export class FlatControls {
     }
 
     // Außerhalb von _Von oben_ darf der Gamepad mitspielen: linker Stick
-    // läuft, rechter sieht sich um, `A` springt. Erlaubt, nicht verlangt — die
-    // Ansicht aus den Augen gehört Maus und Tastatur, und wer kein Pad
-    // angeschlossen hat, merkt von diesen drei Zeilen nichts.
+    // läuft, rechter sieht sich um, `A` benutzt oder springt. Erlaubt, nicht
+    // verlangt — die Ansicht aus den Augen gehört Maus und Tastatur, und wer
+    // kein Pad angeschlossen hat, merkt von diesen Zeilen nichts.
     if (pad.aim.x !== 0 || pad.aim.y !== 0) {
       this.look(pad.aim.x * PAD_LOOK_SPEED * dt, pad.aim.y * PAD_LOOK_SPEED * dt, 1);
     }
-    const jumpNow = jump || this.padUse.justPressed;
     // Der Trigger gehört von oben der Figur; aus den Augen schießt weiter, was
     // schon immer geschossen hat (die Maus, über die Welt) — ein zweiter Weg
     // dorthin wäre ein zweiter Schuss.
     this.rig.setTrigger(0);
-    this.useQueued = false;
 
     if (x === 0 && z === 0) {
-      if (jumpNow) this.rig.requestJump();
+      if (jump) this.rig.requestJump();
       return;
     }
 
@@ -213,7 +250,7 @@ export class FlatControls {
     if (_move.lengthSq() > 1) _move.normalize();
     // Die Welt darf das Tempo vorgeben (`PlayerRig.pace`); sonst gilt die Tastatur.
     const speed = this.rig.walkSpeed(sprint, this.speed * (sprint ? 1.8 : 1));
-    this.rig.setIntent(_move.multiplyScalar(speed), jumpNow, sprint);
+    this.rig.setIntent(_move.multiplyScalar(speed), jump, sprint);
   }
 
   dispose(): void {
@@ -275,19 +312,52 @@ export class FlatControls {
   }
 
   /**
-   * **Benutzen, Schießen, Zoom** — alles, was von oben kein Weg ist.
+   * **Ein Knopf für zwei Dinge** — `A` benutzt, was in Reichweite steht, und
+   * springt sonst (Plan, _Interaktion und Steuerung_).
    *
-   * Beides geht ans Rig und nicht an die Welt (`PlayerRig.requestUse`,
-   * `setTrigger`): Was vor der Figur steht und was in ihrer rechten Hand
-   * liegt, weiß die Welt, und die fragt dort nach (Paket P2). Der Zoom bleibt
-   * bei der Kamera, denn sie ist das Einzige, was er ändert.
+   * Das gilt in **jeder** Bildschirmansicht und nicht mehr nur von oben: Aus
+   * den Augen sprang `A` am Pad bisher immer, und ein Knopf am Gerät, der in
+   * einer Ansicht etwas anderes tut als in der anderen, ist ein Knopf, den man
+   * zweimal lernen muss. Ob etwas in Reichweite steht, sagt die Welt
+   * (`PlayerRig.useCandidate`).
+   *
+   * Zwei Geber meinen ausdrücklich **nur** benutzen: `E` und Enter. Zum
+   * Springen gibt es am Schreibtisch die Leertaste, und die springt immer —
+   * auch direkt vor einem Knopf.
+   *
+   * @returns ob in diesem Bild gesprungen werden soll
    */
-  private applyTopDownButtons(pad: GamepadFrame): void {
-    if (pad.use || pad.fire || pad.zoomIn || pad.zoomOut) this.padSpoke = true;
+  private applyUse(pad: GamepadFrame): boolean {
+    if (pad.use || pad.fire || pad.zoomIn || pad.zoomOut || pad.tools) this.padSpoke = true;
     this.rig.useLabel = this.padSpoke ? 'A' : 'E';
-    if (this.useQueued || this.padUse.justPressed) this.rig.requestUse();
+
+    if (this.toolsQueued || this.padTools.justPressed) this.onTools?.();
+    this.toolsQueued = false;
+
+    let use = this.useQueued;
     this.useQueued = false;
 
+    const buttonA = this.aQueued || this.padUse.justPressed;
+    this.aQueued = false;
+    let jump = false;
+    if (buttonA) {
+      if (this.rig.useCandidate) use = true;
+      else jump = true;
+    }
+    if (use) this.rig.requestUse();
+    return jump;
+  }
+
+  /**
+   * **Schießen und Zoom** — was es nur von oben gibt.
+   *
+   * Der Trigger geht ans Rig und nicht an die Welt (`PlayerRig.setTrigger`):
+   * Was in der rechten Hand der Figur liegt, weiß die Welt, und die fragt dort
+   * nach. Der Zoom bleibt bei der Kamera, denn sie ist das Einzige, was er
+   * ändert. Das Benutzen steht eine Ebene höher (`applyUse`) — es gilt in
+   * jeder Ansicht und nicht nur hier.
+   */
+  private applyTopDownButtons(pad: GamepadFrame): void {
     const trigger = Math.max(
       pad.trigger,
       this.mouseFire ? 1 : 0,
@@ -344,6 +414,7 @@ export class FlatControls {
     edge(this.padUse, frame.use);
     edge(this.padZoomIn, frame.zoomIn);
     edge(this.padZoomOut, frame.zoomOut);
+    edge(this.padTools, frame.tools);
     return frame;
   }
 
@@ -393,6 +464,13 @@ export class FlatControls {
       if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat && !this.keys.has(e.code)) {
         this.useQueued = true;
       }
+      // `Tab` klappt die Werkzeugliste auf. Der Browser schöbe damit sonst den
+      // Fokus durch die Kopfzeile, und wer danach `WASD` drückt, tippt in einen
+      // Knopf statt zu laufen.
+      if (e.code === 'Tab' && !e.repeat) {
+        e.preventDefault();
+        this.toolsQueued = true;
+      }
       // Wer tippt, spielt an der Tastatur: der Hinweis heißt wieder `E`.
       this.padSpoke = false;
       this.keys.add(e.code);
@@ -428,18 +506,27 @@ export class FlatControls {
         this.aimPointer = event.pointerId;
         this.aimOrigin.set(event.clientX, event.clientY);
         this.canvas.setPointerCapture(event.pointerId);
-      } else if (this.topDownOn && hitsElement(pads.use, event)) {
+      } else if (hitsElement(pads.use, event)) {
+        // Derselbe Knopf wie `A` am Pad: benutzen, wenn etwas dasteht, sonst
+        // springen (`applyUse`).
         this.usePointer = event.pointerId;
-        this.useQueued = true;
+        this.aQueued = true;
         this.padSpoke = true;
         this.setPressed(pads.use, true);
-      } else if (this.topDownOn && hitsElement(pads.fire, event)) {
+      } else if (hitsElement(pads.fire, event)) {
         this.firePointer = event.pointerId;
         this.padSpoke = true;
         this.setPressed(pads.fire, true);
-      } else if (this.lookPointer === null) {
-        this.lookPointer = event.pointerId;
-        this.lookLast.set(event.clientX, event.clientY);
+      } else if (this.freeHit(event)) {
+        // Ein Finger, der auf nichts liegt: Er sieht sich um — bis ein zweiter
+        // dazukommt, dann zoomen die beiden (`updatePinch`).
+        this.freeTouches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (this.startPinch()) {
+          this.lookPointer = null;
+        } else if (this.lookPointer === null) {
+          this.lookPointer = event.pointerId;
+          this.lookLast.set(event.clientX, event.clientY);
+        }
       }
     });
 
@@ -463,9 +550,19 @@ export class FlatControls {
         const dy = clampStick(event.clientY - this.aimOrigin.y);
         this.aimStick.set(dx, dy);
         this.updateStickVisual(this.pads.aim, dx * 32, dy * 32);
-      } else if (event.pointerId === this.lookPointer) {
-        this.look(event.clientX - this.lookLast.x, event.clientY - this.lookLast.y);
-        this.lookLast.set(event.clientX, event.clientY);
+      } else if (this.freeTouches.has(event.pointerId)) {
+        const at = this.freeTouches.get(event.pointerId)!;
+        at.x = event.clientX;
+        at.y = event.clientY;
+        // Zwei Finger oben zoomen; solange sie liegen, sieht sich niemand um.
+        if (this.pinchGap !== null) {
+          this.updatePinch();
+          return;
+        }
+        if (event.pointerId === this.lookPointer) {
+          this.look(event.clientX - this.lookLast.x, event.clientY - this.lookLast.y);
+          this.lookLast.set(event.clientX, event.clientY);
+        }
       }
     });
 
@@ -490,9 +587,69 @@ export class FlatControls {
         this.setPressed(this.pads.fire, false);
       }
       if (event.pointerId === this.lookPointer) this.lookPointer = null;
+      if (this.freeTouches.delete(event.pointerId) && this.freeTouches.size < 2) {
+        this.pinchGap = null;
+      }
     };
     this.on(this.canvas, 'pointerup', end);
     this.on(this.canvas, 'pointercancel', end);
+  }
+
+  /**
+   * **Ein Finger, der auf nichts liegt.** Stöcke und Knöpfe haben ihre eigenen
+   * Zweige; hier bleibt, was auf der blanken Leinwand aufsetzt — und auch der
+   * Werkzeug- und der Menü-Knopf werden ausdrücklich ausgenommen, obwohl ihre
+   * Ereignisse ohnehin nie hier ankommen. Eine Regel, die sich auf
+   * `pointer-events` verlässt, ist eine Regel, die beim nächsten CSS bricht.
+   */
+  private freeHit(event: PointerEvent): boolean {
+    const pads = this.pads;
+    return !(
+      hitsElement(pads.stick, event) ||
+      hitsElement(pads.aim, event) ||
+      hitsElement(pads.use, event) ||
+      hitsElement(pads.fire, event) ||
+      hitsElement(pads.tool ?? null, event) ||
+      hitsElement(pads.menu ?? null, event)
+    );
+  }
+
+  /**
+   * **Zwei Finger in der oberen Hälfte sind ein Pinch** (Plan, _Pinch-Zoom_).
+   *
+   * Die obere Hälfte, weil unten die Stöcke und die Knöpfe liegen: Wer dort
+   * mit zwei Daumen arbeitet, läuft und schießt — und hätte die Kamera sonst
+   * bei jedem zweiten Schritt neu eingestellt. Und weil ein Pinch keine
+   * Wischbewegung ist, gibt der Blick währenddessen Ruhe.
+   *
+   * @returns ob gerade einer angefangen hat
+   */
+  private startPinch(): boolean {
+    if (this.pinchGap !== null || this.freeTouches.size !== 2 || !this.view) return false;
+    const half = this.canvas.getBoundingClientRect();
+    const middle = half.top + half.height / 2;
+    for (const at of this.freeTouches.values()) {
+      if (at.y > middle) return false;
+    }
+    this.pinchGap = this.touchGap();
+    return this.pinchGap !== null;
+  }
+
+  /** Der neue Fingerabstand gegen den alten — und die Kamera fährt mit. */
+  private updatePinch(): void {
+    const gap = this.touchGap();
+    if (gap === null || this.pinchGap === null) return;
+    this.view?.zoomScale(pinchFactor(this.pinchGap, gap));
+    this.pinchGap = gap;
+  }
+
+  /** Wie weit die zwei Finger auseinanderliegen, in Punkten — sonst `null`. */
+  private touchGap(): number | null {
+    if (this.freeTouches.size !== 2) return null;
+    const [a, b] = [...this.freeTouches.values()];
+    if (!a || !b) return null;
+    const gap = Math.hypot(a.x - b.x, a.y - b.y);
+    return gap > 0 ? gap : null;
   }
 
   private updateStickVisual(el: HTMLElement | null, x: number, y: number): void {
