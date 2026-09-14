@@ -28,7 +28,18 @@ const hudMenu = document.querySelector<HTMLButtonElement>('#hud-menu')!;
 const hudVr = document.querySelector<HTMLButtonElement>('#hud-vr')!;
 const landingMenu = document.querySelector<HTMLButtonElement>('#landing-menu')!;
 const touch = document.querySelector<HTMLElement>('#touch')!;
-const stick = document.querySelector<HTMLElement>('#touch-stick')!;
+/**
+ * Die vier Zeigerflächen auf dem Glas (`core/FlatControls.TouchPads`): links
+ * der Stock zum Laufen, rechts Zielstock und die Knöpfe `A`/`B`. Die rechte
+ * Hälfte gehört der Ansicht von oben und blendet sich selbst ein und aus.
+ */
+const pads = {
+  stick: document.querySelector<HTMLElement>('#touch-stick'),
+  aim: document.querySelector<HTMLElement>('#touch-aim'),
+  use: document.querySelector<HTMLElement>('#touch-a'),
+  fire: document.querySelector<HTMLElement>('#touch-b'),
+  right: document.querySelector<HTMLElement>('#touch-right'),
+};
 const postureSeg = document.querySelector<HTMLElement>('#posture')!;
 const postureField = document.querySelector<HTMLElement>('#posture-field')!;
 const screenSeg = document.querySelector<HTMLElement>('#screen-view')!;
@@ -74,7 +85,7 @@ let netPanel: NetPanel | null = null;
 
 const app = (() => {
   try {
-    return new App(canvas, stick, {
+    return new App(canvas, pads, {
       onWorldChanged: (id, title) => {
         hudWorld.textContent = title;
         if (window.location.hash.slice(1) !== id) {
