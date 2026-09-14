@@ -42,7 +42,13 @@ function place(kind: string): FixturePlacement {
   return { id: `${kind}-1`, kind, x: 0, z: 0, dir: DIR_N, level: 0, props: {} };
 }
 
-const NOTHING: FixtureInput = { used: false, hit: false, weightOn: 0, triggered: false };
+const NOTHING: FixtureInput = {
+  used: false,
+  hit: false,
+  weightOn: 0,
+  playerOn: false,
+  triggered: false,
+};
 
 beforeEach(() => clearKinds());
 

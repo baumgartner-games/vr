@@ -409,9 +409,10 @@ die falsche Richtung geflogen ist: dass vorwärts dorthin geht, wohin man sieht,
 dass seitwärts waagerecht bleibt, auch wenn der Blick zum Himmel geht, dass
 hoch die Welt-Y ist und nicht die eigene, dass schräg nicht schneller ist als
 geradeaus, und die Grenze beim Nicken, ohne die die Ansicht überkopf umkippt) und die **Hub-Auslegung**
-(`src/worlds/hub/hubLayout.ts` — dass ein voller Gang
-einen neuen aufmacht, dass jedes Tor in seinem Gang steht und dass keine zwei
-aufeinander stehen), die **Flächen der Würfel**
+(`src/worlds/hub/hubGrid.ts` — dass ein voller Gang
+einen neuen aufmacht, dass jedes Tor in seinem Gang steht, dass keine zwei
+aufeinander stehen, dass der Startpunkt frei bleibt und dass jedes Tor vom
+Startpunkt aus wirklich zu erreichen ist), die **Flächen der Würfel**
 (`src/worlds/portal/diceFaces.ts` — dass aus zwölf Dreiecken sechs Seiten
 werden, dass jede Augenzahl genau einmal vorkommt und dass gegenüberliegende
 Flächen `n + 1` ergeben, wie auf einem echten Würfel), die **beiden Listen
@@ -878,19 +879,48 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     schaltet ihr eigenes Zahnrad. _Raster_, _Ebenen_, _Editor_ und _Plan
     zurücksetzen_ standen in diesem Menü, solange es eine Kachelwelt zu malen
     gab; gebaut wird jetzt im Bauplatz (`worlds/editor/WorldEditor.ts`).
-- **Hub-Welt**: runde Halle, und von ihr gehen **Gänge** ab, an deren Wänden
+- **Hub-Welt**: eine Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
-  Ist ein Gang voll, kommt der nächste dazu und alle verteilen sich neu über
-  den Kreis. Ausgelegt wird das aus nichts als der Länge der Weltenliste
-  (`src/worlds/hub/hubLayout.ts`, mit Test): eine neue Welt bleibt damit das,
+  Ausgelegt wird das aus nichts als der Länge der Weltenliste
+  (`src/worlds/hub/hubGrid.ts`, mit Test): eine neue Welt bleibt damit das,
   was sie sein soll — ein Eintrag in der Registry. Der alte 90°-Bogen war für
-  vier Welten hübsch und für zehn ein Gedränge. Gebaut wird ein Gang entlang
-  −Z und dann gedreht — und zwar um den **negativen** Winkel
-  (`corridorYaw`, mit Test): eine Drehung um φ legt −Z auf (−sin φ, −cos φ),
-  die Tore stehen aber auf `corridorDirection`. Mit dem Winkel selbst lagen
-  Gang und Tore gespiegelt zueinander, und ab dem dritten Gang stand das
-  letzte Tor (die Alpen) hinter der Rückwand eines fremden Gangs im Freien —
-  aus dem Gang heraus war die Welt schlicht nicht da.
+  vier Welten hübsch und für zehn ein Gedränge.
+
+  **Der Hub steht seit P4 auf dem Kachelgitter** (`GridWorld`, siehe _Welten
+  auf dem Kachelgitter_), und das ist die Entscheidung, an der alles Weitere
+  hängt: In der Brille und in der Ansicht _Von oben_ steht man im **selben**
+  Raum, weil die Kamera ein Blickwinkel ist und keine zweite Welt. Boden,
+  Wände und Navigationskarte kommen aus dem Grundriss; was `HubWorld` selbst
+  baut, ist die Ausstattung — Himmel, Nebel, der Leuchtring auf dem
+  Hallenboden, die Lichtbänder in den Gängen und die beiden Tafeln.
+
+  Drei Sachen sind beim Umzug anders geworden, und alle drei, weil eine Kachel
+  2,5 m misst und es genau vier Richtungen gibt: Es gibt **vier Gänge** (Nord,
+  Ost, Süd, West) statt beliebig vieler auf einem Kreis — sind sie voll, werden
+  sie **länger** statt mehr; die Tore schauen **zurück zur Halle** statt quer
+  eingedreht, sodass man vom Eingang aus alle vier Schilder auf einmal liest;
+  und die Halle ist ein **Quadrat** aus sieben mal sieben Kacheln, deren
+  Rundung nur noch der Leuchtring auf dem Boden ist. Kein Dach über den Gängen,
+  wie vorher auch: Von oben wäre ein gedeckelter Gang ein schwarzer Balken, und
+  das Aufschneiden der Ebenen kommt erst später.
+
+  **Ein Tor ist ein Einbau** (`fixtures/gate.ts`, siehe _Einbauten_) und kein
+  Möbel mit einem Zeigerziel daran: Man **geht hindurch**, statt darauf zu
+  zeigen. Wer auf seine Kachel tritt und vier Zehntelsekunden stehen bleibt,
+  ist drüben. Das Bild dazu — Podest, Ring in der Akzentfarbe, wirbelnde
+  Scheibe, Schild — steht in `hub/gate.ts`, weil die Werkzeugseite dasselbe
+  Tor zeigt; dort steht es frei und in voller Größe, auf einer Kachel ein
+  Sechstel kleiner, damit sein Sockel nicht in die Nachbarkachel ragt. Was
+  hinter einem Tor liegt, trägt `HubWorld` beim Bauen aus `WORLDS` ein und
+  nicht eine gespeicherte Datei — deshalb ist der Hub auch die eine Gitterwelt,
+  an der **nicht** gebaut wird: Ein gespeicherter Hub wäre einer, in dem die
+  Tore von letzter Woche stehen.
+
+  **Der Rückweg**: Jede Gitterwelt setzt sich mit **einer Zeile** in `layout()`
+  ein Tor `→ Hub` neben ihren Startpunkt (Dunkelhaus, Schießstand, Dust,
+  Kletterhalle, Gokart, Bauplatz). Die Welten ohne Gitter — Alpen, Mond,
+  Pizzeria, Portal Labor, die Labore — bleiben beim Handgelenkmenü, das ohnehin
+  überall dasselbe kann.
 - **Handgelenk-Menü**: an **beiden** Händen schwebt ein Button; ein Druck öffnet ein
   Panel, das der Hand folgt — inklusive Neigung, es kippt mit dem Handgelenk.
   Es ist zweimal dasselbe Menü, und immer nur **eins offen**: das zweite geht
@@ -7555,8 +7585,39 @@ Zeilen Logik, mit Absicht — eine Registry, deren erstes Kind schon fünf Zust�
 hat, ist eine, bei der man beim ersten Fehler nicht weiß, ob die Art oder die
 Registry schuld ist.
 
+Das zweite ist das **Tor** (`fixtures/gate.ts`), und es ist das, wegen dem der
+Hub aufs Gitter gezogen ist: eine Kachel, auf der man steht, um woanders zu
+sein. Seine Eigenschaften sind `world` (die Kennung aus `worlds/index.ts`),
+`label` und `accent` — die Farbe als **Zahl**, damit `Props` flach bleibt, also
+das, was in eine Datei passt. Es ist **nicht fest**: Ein Tor, gegen das man
+läuft statt hindurch, wäre das Gegenteil von dem, was es sein soll. Vier
+Sachen sind daran entschieden:
+
+- **Betreten, nicht benutzen.** Wer auf der Kachel **steht** — `GATE_DWELL`,
+  vier Zehntelsekunden —, geht hinüber. Das Tor war immer der Weg für die, die
+  nicht wissen, dass es ein Handgelenkmenü gibt; ein Knopf davor wäre einer
+  mehr. Benutzt oder von einem anderen Einbau ausgelöst geht es trotzdem
+  sofort.
+- **Frisch gebaut ist es taub** (`GATE_ARM`, eine Sekunde). Man kommt in einer
+  Welt an, neben dem Startpunkt steht ihr Rücktor — und ohne die Sperre
+  schickte einen das erste Bild der neuen Welt zurück. Die zweite Hälfte
+  derselben Regel steht im Grundriss: **Der Startpunkt liegt nie auf einer
+  Torkachel**, und der Test des Hubs prüft es.
+- **Nur der Spieler zählt**, nicht das Gewicht auf der Kachel. Dafür gibt es
+  `FixtureInput.playerOn` neben `weightOn`: Eine Druckplatte will das Gewicht
+  (zwei Kisten halten sie so gut wie ein Mensch), ein Tor nimmt jemanden mit —
+  und eine Kiste, die man darauf schiebt, soll niemanden in eine andere Welt
+  schicken.
+- **Von oben lesbar.** Die Ansicht _Von oben_ schaut immer aus derselben
+  Richtung, das Tor steht aber in einer von vieren: Wer nach Norden schaut,
+  zeigt der Kamera die Rückseite seines Schildes. Deshalb liegt auf dem Podest
+  ein **zweites, flaches** Schild, das nach Norden oben liest, egal wohin das
+  Tor gedreht ist. Das aufrechte zur Kamera zu neigen hieße, es gegen sein
+  eigenes Tor zu verdrehen — in der Brille sähe man ein schief hängendes Brett.
+
 **Fünf Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust, die
-Hülle der Kletterhalle und das Gokart. Der Bauplatz ist seit der dritten
+Hülle der Kletterhalle und das Gokart — und seit P4 auch der **Hub** selbst
+(siehe _Hub-Welt_). Der Bauplatz ist seit der dritten
 Fassung selbst eine davon — er baute ohnehin schon aus derselben Liste, und was
 ihn noch ausmacht, sind ein Startzimmer, ein Speicher und ein weißer Raum. Die
 Alpen und der Mond stehen weiter auf ihrem Höhenfeld — ein Berg ist keine
@@ -7591,7 +7652,12 @@ erarbeiten musste:
   wollten (von oben sehen, wo man ist), ist jetzt ein Werkzeug im Regal
   (_Die Karte in der Hand_) und in jeder Welt zu haben. Mit `editable()` hängt
   auch der **Speicher** zusammen (`applyStored`): eine Welt, die man nicht
-  ändern kann, hat keinen eigenen Stand aufzuheben. Zwei Sachen macht die Basis
+  ändern kann, hat keinen eigenen Stand aufzuheben. Und weil ein gespeicherter
+  Stand den ganzen Grundriss ersetzt, gibt es daneben `planLoaded()` — den
+  Haken für das, was **auch danach** noch gelten muss. Der Bauplatz setzt dort
+  sein Tor zurück in den Hub: eines, das nur in `layout()` stünde, wäre beim
+  ersten Besuch da und ab dem zweiten weg, und dann säße man in der
+  selbstgebauten Welt ohne Ausgang. Zwei Sachen macht die Basis
   dabei selbst: den **Umbau** (alte Quader vollständig zurücknehmen, `dropSlab`, und
   aus der Liste neu bauen — höchstens einmal je Bild, egal wie viele Kacheln
   ein Strich gesetzt hat) und das **Abtasten danach** (`rebake`), damit NPCs

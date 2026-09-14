@@ -10,7 +10,7 @@ import { BRAINS } from '../worlds/npc/npcBrains';
 import { NpcBody } from '../worlds/npc/NpcBody';
 import { createBrainShape } from '../worlds/npc/brainShape';
 import { WORLDS } from '../worlds';
-import { buildGate } from '../worlds/hub/HubWorld';
+import { buildGate, spinGate } from '../worlds/hub/gate';
 import { drawMenuIcon, type MenuIcon } from '../ui/menu';
 import {
   GRIP_POSE_ID,
@@ -330,10 +330,7 @@ async function showWorld(definition: WorldDefinition): Promise<void> {
 function showGate(definition: WorldDefinition): void {
   const gate = buildGate(definition.title, definition.description, definition.accent);
   viewer.showObject(gate.group, {
-    animate: (time) => {
-      gate.disc.material.uniforms.uTime!.value = time;
-      gate.ring.rotation.z = time * 0.25;
-    },
+    animate: (time) => spinGate(gate, time),
     dispose: () => gate.sign.dispose(),
   });
 }

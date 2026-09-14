@@ -211,6 +211,17 @@ export function dustTown(): GridPlan {
   plan.floor({ x: 11, z: -9, w: 1, d: 1 });
   plan.put('ramp', 11, -9, DIR_N, 0, STOREY);
 
+  // **Der Weg zurück**: ein Tor neben dem Startpunkt (`grid/fixtures/gate.ts`).
+  // Eine Zeile, und die Welt hängt am Hub — ohne dass jemand das
+  // Handgelenkmenü kennen muss.
+  plan.putFixture({
+    kind: 'gate',
+    x: -4,
+    z: 13,
+    dir: DIR_E,
+    props: { world: 'hub', label: '→ Hub' },
+  });
+
   // Die hellen Tafeln: das Einzige neben dem Sand, woran ein Portal haftet.
   // Zwei hängen an den Wänden der großen Blöcke, vier stehen frei herum.
   plan.put('panel', -5, -5, DIR_W, 0);

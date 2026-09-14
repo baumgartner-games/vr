@@ -78,6 +78,16 @@ export interface FixtureInput {
   hit: boolean;
   /** Was gerade auf seiner Kachel steht: Spieler, NPCs, Kisten. `0` heißt: nichts. */
   weightOn: number;
+  /**
+   * **Ob der Spieler selbst darauf steht** — und nicht bloß irgendetwas.
+   *
+   * Neben `weightOn` und nicht darin, weil die beiden Fragen verschiedene
+   * Antworten verlangen. Eine Druckplatte will das **Gewicht**: Zwei Kisten
+   * halten sie genauso gedrückt wie ein Spieler, und das ist der ganze Witz an
+   * ihr. Ein Tor dagegen bringt jemanden in eine andere Welt — und eine Kiste,
+   * die jemand darauf schiebt, soll ihn nicht mitnehmen.
+   */
+  playerOn: boolean;
   /** Ein anderer Einbau hat ihn ausgelöst (`trigger`). */
   triggered: boolean;
 }

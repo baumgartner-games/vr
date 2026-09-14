@@ -75,6 +75,17 @@ export function darkHouse(): GridPlan {
   // Und das Nordwestzimmer bleibt leer. Es ist das Zimmer ohne Lampe, und
   // ein leeres dunkles Zimmer ist unheimlicher als ein volles.
 
+  // **Der Weg zurück**: ein Tor neben dem Startpunkt (`grid/fixtures/gate.ts`).
+  // Eine Zeile, und die Welt hängt am Hub — ohne dass jemand das
+  // Handgelenkmenü kennen muss.
+  plan.putFixture({
+    kind: 'gate',
+    x: -2,
+    z: 1,
+    dir: DIR_S,
+    props: { world: 'hub', label: '→ Hub' },
+  });
+
   // Die hellen Tafeln: das Einzige neben dem Boden, woran ein Portal haftet.
   plan.put('panel', -2, HALL_Z, DIR_N);
   plan.put('panel', 0, HALL_Z, DIR_S);

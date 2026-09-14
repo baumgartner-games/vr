@@ -91,6 +91,17 @@ export function rangeStand(): GridPlan {
   plan.put('bench', STAND.x, STAND.z + 2, DIR_S);
   plan.put('shelf', STAND.x + STAND.w - 1, STAND.z + 2, DIR_S);
 
+  // **Der Weg zurück**: ein Tor neben dem Startpunkt (`grid/fixtures/gate.ts`).
+  // Eine Zeile, und die Welt hängt am Hub — ohne dass jemand das
+  // Handgelenkmenü kennen muss.
+  plan.putFixture({
+    kind: 'gate',
+    x: STAND.x + 1,
+    z: STAND.z + 2,
+    dir: DIR_N,
+    props: { world: 'hub', label: '→ Hub' },
+  });
+
   // Die hellen Tafeln an den Seitenwänden: das Einzige neben dem Boden, woran
   // ein Portal haftet. An den Scheiben wäre eines das Ende der Übung.
   plan.put('panel', STAND.x, STAND.z + 1, DIR_W);
