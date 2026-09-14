@@ -326,8 +326,9 @@ Kapsel ist dort längst geräumt), der
 Kindern absteigt und eine ohne läuft, dass der Weg mit den Handgelenken
 geteilt ist, dass ein Neubau des Baums die Seite nicht verlässt und eine
 Nimm-Seite beim Antippen nimmt), **2D oder 3D am Bildschirm**
-(`src/core/screenView.ts` — Handy 2D, sonst 3D, und ein kaputter Speicher wird
-die Voreinstellung), der
+(`src/core/screenView.ts` — Handy 2D, sonst 3D, ein kaputter Speicher wird die
+Voreinstellung; dazu `startOptions`: welche der beiden Fragen die Startseite
+stellt und wohin ihr einer Knopf führt), der
 **Menüweg** (`src/ui/menuNav.ts` — dass beide Handgelenke denselben Weg lesen
 und dass ein Weg zu einer verschwundenen Seite bei deren Elternseite endet),
 die **Welt-Physik**
@@ -689,18 +690,33 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 
 ## Was drin ist
 
-- **Startseite** mit großem `Enter VR`-Button und **Am Bildschirm starten**
-  (Desktop/Handy). Davor zwei Fragen, beide einmal gestellt und im Browser
-  gemerkt: **Sitzen oder Stehen** (`core/posture.ts`) und **2D oder 3D am
-  Bildschirm** (`core/screenView.ts`, mit Test) — vorbelegt nach Gerät,
-  **Handy: 2D**, alles andere 3D. Die Karte von oben gibt es bisher nur in
-  Haunting; die Zeile unter der Wahl sagt das, und die Startseite der Runde
-  wählt damit ihren Web-Weg (siehe unten). Oben links derselbe **Menü-Knopf**
-  wie im Spiel (`#landing-menu`): Welten, Bewegung, Aussehen, Grafik schon vor
-  dem Start, als Seite (`ui/PageMenu.ts`).
+- **Startseite: eine Frage, ein Knopf** (`core/screenView.startOptions`, mit
+  Test). Welche Frage dasteht, entscheidet **eine** Eigenschaft des Geräts —
+  ob der Browser eine immersive Sitzung starten kann:
+  - **Mit Brille** gibt es „2D oder 3D" nicht (in der Brille ist nur das eine
+    zu haben); gefragt wird nach **Sitzen oder Stehen** (`core/posture.ts`),
+    und der Knopf heißt **Enter VR**.
+  - **Ohne Brille** ist es umgekehrt: Die Haltung ändert am Bildschirm nichts,
+    gefragt wird **2D oder 3D** (`core/screenView.ts`, vorbelegt nach Gerät —
+    **Handy: 2D**, sonst 3D), und der Knopf heißt **Beitreten**.
+
+  Bis `detectXRSupport` antwortet, gilt „keine Brille": Das stimmt für fast
+  jedes Gerät, der Knopf steht sofort da, und die Brille schreibt sich
+  Millisekunden später selbst hinein — besser als ein toter Knopf „VR wird
+  geprüft …", auf den jeder Schreibtisch wartet.
+  **Die Wahl ist eine Zusage**: „2D" führt in die Karte von oben, und die gibt
+  es genau in Haunting / Orbital — „Beitreten" öffnet dort also die
+  **Einsatzzentrale** (`main.ts`, `startCentre`; die Zeile unter der Wahl sagt
+  es vorher). Vorher stand der Schalter da und die Spielwiese startete
+  trotzdem den Hub in 3D: eine Wahl, die keine war.
+  Oben links derselbe **Menü-Knopf** wie im Spiel (`#landing-menu`): Welten,
+  Bewegung, Aussehen, Grafik schon vor dem Start, als Seite (`ui/PageMenu.ts`).
+  Einen **Hinweiskasten** mit fünf Zeilen Steuerung gab es hier auch einmal; er
+  ist weg — was darin stand, steht im Menü, in dieser Datei und in der README,
+  und auf einer Startseite liest es niemand.
   Unter `#haunting` hat sie ein zweites Gesicht: die **Startseite der Runde**
-  — Name, Raum-Code, Verbinden, und drei Wege in denselben Raum (`main.ts`,
-  `data-landing="haunting"`; siehe [Haunting](#haunting--orbital-raumstation-für-eine-quest-und-zwei-mobilgeräte)).
+  — Name, Raum-Code, Verbinden, und derselbe eine Knopf in denselben Raum
+  (`main.ts`, `data-landing="haunting"`; siehe [Haunting](#haunting--orbital-raumstation-für-eine-quest-und-zwei-mobilgeräte)).
 - **Hub-Welt**: runde Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
   Ist ein Gang voll, kommt der nächste dazu und alle verteilen sich neu über
@@ -2586,7 +2602,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Aufnahme im Eingaberaum            | Knopf auf der Tafelwand startet und beendet sie; **Greifen** setzt währenddessen eine Marke                                                                            | Linksklick auf den Knopf                                                                        | –                    |
 | Großer Hammer                      | irgendwo am türkisen Stiel greifen; zweite Hand dazu = zweihändig; **Trigger halten** schiebt die Hand am Stiel; geschlagen wird mit dem Kopf                         | –                                                                                               | –                    |
 | Laufrichtung                       | voreingestellt beim Loslaufen gemerkt (Kopfdrehen ändert den Weg nicht mehr); Menü → Bewegung → _Laufrichtung_ schaltet auf Blickrichtung zurück                                                                                                                            | dito                                                                                            | dito                 |
-| Haltung (sitzen/stehen)            | Startseite oder Menü → Bewegung → Haltung                                                                                                                             | dito                                                                                            | dito                 |
+| Haltung (sitzen/stehen)            | Startseite (nur mit Brille gefragt) oder Menü → Bewegung → Haltung                                                                                                    | Menü → Bewegung → Haltung                                                                       | dito                 |
 | Greifen ohne Controller            | Mittel-, Ring- und kleiner Finger an die Handfläche                                                                                                                   | –                                                                                               | –                    |
 | Trigger ohne Controller            | Zeigefinger an die Handfläche                                                                                                                                         | –                                                                                               | –                    |
 | Portal schießen                    | Trigger der Hand mit der Waffe                                                                                                                                        | Links-/Rechtsklick                                                                              | –                    |
@@ -9336,16 +9352,16 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     `#haunting`), in zwei Schritten. **Erst die Lobby**: Name, Raum-Code,
     **Verbinden** — und dann eine Liste, wer im Raum steht (ich zuerst, dann
     jeder andere mit Name und Gerät: Brille, Bildschirm, Handy; „schon drin",
-    wer die Welt schon betreten hat). Die drei Wege stehen **nur in der
-    Lobby** (`#haunt-lobby`, sichtbar erst mit der Verbindung): **Enter VR**
-    und **Am Bildschirm starten** (`#haunt-flat`) — und ob der zweite Knopf
-    in **Web 3D** (Techniker am Bildschirm, im Schiff) oder in die **2D
-    Einsatzzentrale** führt, sagt die Wahl **„Am Bildschirm: 2D oder 3D?"**
-    weiter oben auf der Seite (`core/screenView.ts`; Handy: 2D vorbelegt).
-    Knopf und Zeile darunter schreiben die Wahl jedes Mal mit
-    (`main.ts`, `showScreenView`); der Browser-Smoke wählt „2D" und drückt
-    dann den Knopf. Und wer Haunting nicht über diese Seite, sondern aus dem
-    Menü betritt, bekommt dieselbe Wahl als Voreinstellung der Lobby
+    wer die Welt schon betreten hat). Hinein geht es mit **einem Knopf**
+    (`#haunt-enter`, nur in der Lobby, sichtbar erst mit der Verbindung), und
+    welcher der drei Wege das ist, hat die Startseite schon entschieden
+    (`core/screenView.startOptions`): mit Brille **Enter VR** (der Techniker im
+    Anzug), sonst **Beitreten** — und dort, je nach „Am Bildschirm: 2D oder
+    3D?", die **2D Einsatzzentrale** oder **Web 3D** (Techniker am Bildschirm,
+    im Schiff). Die Zeile unter dem Knopf (`#haunt-enter-hint`) schreibt jede
+    Änderung mit (`main.ts`, `showStart`); der Browser-Smoke wählt „2D" und
+    drückt dann den Knopf. Und wer Haunting nicht über diese Seite, sondern aus
+    dem Menü betritt, bekommt dieselbe Wahl als Voreinstellung der Lobby
     (`rules/lobby.defaultLobby(role, view)` über `storedScreenView`), solange
     die Lobby selbst noch nichts gemerkt hat.
     Alle drei bleiben im Raum: `joinHaunting` läuft vor jedem noch einmal —
@@ -9364,7 +9380,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     bleibt stehen, nur aus einem gemerkten Techniker wird der Zuschauer des
     Technikers. Für **Enter VR** wird die XR-Sitzung noch aus dem Klick heraus
     angefragt — ein Browser gibt sie nur auf eine frische Geste. Der Rest der
-    Startseite (Spielwiese-Knöpfe, „Zusammen spielen", Hinweise) ist dann
+    Startseite (Spielwiese-Knopf, „Zusammen spielen") ist dann
     versteckt, nicht abgebaut (`only-generic`/`only-haunting` in `style.css`):
     `NetPanel` hängt an den Feldern. Der alte Block „In der Zentrale
     mitspielen" (nur der Name, fester Raum `haunting`) ist damit weg — eine

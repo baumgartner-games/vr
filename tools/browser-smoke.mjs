@@ -164,11 +164,12 @@ for (const name of browserNames) {
         url.hash = 'haunting';
         await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 90000 });
         // Die Startseite der Runde (`#haunting`): erst in die Lobby (Raum-Code
-        // aus `?room=`, Verbinden), dann der Weg in die 2D Einsatzzentrale —
-        // „2D" wählen (am Schreibtisch ist 3D vorbelegt) und am Bildschirm starten.
+        // aus `?room=`, Verbinden), dann der eine Knopf hinein — „2D" wählen
+        // (am Schreibtisch ist 3D vorbelegt), und `Beitreten` führt in die
+        // Einsatzzentrale.
         await page.locator('#haunt-connect').click();
         await page.locator('#screen-view [data-view="2d"]').click();
-        await page.locator('#haunt-flat').click();
+        await page.locator('#haunt-enter').click();
         await page.locator('.haunt').waitFor();
         await shot('roles');
 

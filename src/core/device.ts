@@ -25,7 +25,7 @@ export async function detectXRSupport(): Promise<XRSupport> {
     return {
       available: true,
       immersiveVR,
-      reason: immersiveVR ? undefined : 'Kein VR-Gerät gefunden – der Flat-Modus geht trotzdem.',
+      reason: immersiveVR ? undefined : 'Kein VR-Gerät gefunden — am Bildschirm geht es trotzdem.',
     };
   } catch (err) {
     return { available: true, immersiveVR: false, reason: String(err) };

@@ -101,13 +101,14 @@ zu besetzen.
 **Gemeinsam starten:** Auf allen Geräten dieselbe Adresse mit `#haunting`
 öffnen — sie zeigt die **Startseite der Runde**, in zwei Schritten. Erst die
 **Lobby**: Name und Raum-Code eintragen, **Verbinden**; wer denselben Code
-eingibt, steht dann bei allen in der Liste (Name und Gerät). Dann wählt jeder
-seinen Weg, und alle bleiben in diesem Raum: **Enter VR** (die Brille, der
-Techniker im Anzug) oder **Am Bildschirm starten** — und ob das **Web 3D**
-(der Techniker am Bildschirm, im Schiff) oder die **2D Einsatzzentrale**
-(Handy oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die
-Karte von oben) ist, sagt die Wahl **„Am Bildschirm: 2D oder 3D?"** oben auf
-der Seite; am Handy ist 2D vorbelegt. In der Zentrale erst die Tafel
+eingibt, steht dann bei allen in der Liste (Name und Gerät). Dann drückt jeder
+denselben Knopf, und alle bleiben in diesem Raum. Wohin er führt, steht schon
+oben auf der Seite: **mit Brille** heißt er **Enter VR** (der Techniker im
+Anzug), **am Bildschirm** heißt er **Beitreten** — und ob das **Web 3D** ist
+(der Techniker am Bildschirm, im Schiff) oder die **2D Einsatzzentrale** (Handy
+oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die Karte
+von oben), sagt die Wahl **„Am Bildschirm: 2D oder 3D?"**; am Handy ist 2D
+vorbelegt. Die Zeile unter dem Knopf sagt es vor dem Drücken. In der Zentrale erst die Tafel
 einstellen, dann **Rollen testen** — über der Karte nimmt man seinen Platz
 über die Reiter; ein **Ich** auf der Tafel gibt es nicht. Wer über **Enter VR** oder
 **Web 3D** kommt, steht sofort im Anzug: Die Techniker-Zeile der Tafel zeigt
@@ -768,7 +769,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Werkzeug nehmen/ablegen | Grip an der Hüfte; woanders loslassen lässt es fallen | – | – |
 | Hüften verschieben | Gürtel-Justierer: Hüfte anzielen, Trigger, mit der anderen Hand schieben | – | – |
 | Ohne Controller | 3 Finger an die Handfläche = Greifen, Zeigefinger = Trigger | – | – |
-| Sitzen oder stehen | Startseite oder Menü → Bewegung → Haltung | dito | dito |
+| Sitzen oder stehen | Startseite (nur dort gefragt) oder Menü → Bewegung → Haltung | Menü → Bewegung → Haltung | dito |
 | Verbinden | Menü → Verbindung → *Raum betreten*; geht mitten im Spiel, ohne die Sitzung zu verlassen | Raum-Code auf der Startseite | dito |
 | Chat | Menü → Verbindung → Chat (lesen, *Schreiben* öffnet die Tastatur) | Panel *Verbindung*: tippen, je Zeile *Kopieren* und *Übernehmen* | dito |
 | Sprechen | Menü → Verbindung → *Mikrofon* — die Stimmen kommen aus der Richtung, in der die anderen stehen | Panel *Verbindung* → *Sprache* | dito |
