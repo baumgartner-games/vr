@@ -29,7 +29,7 @@ import {
  * Koordinaten zurecht.
  *
  * **Drei Sachen sind beim Umzug aufs Gitter anders geworden**, und alle drei
- * aus demselben Grund — eine Kachel ist 2,5 m, und es gibt vier Richtungen:
+ * aus demselben Grund — es gibt vier Richtungen und keine krummen Winkel:
  *
  * - **Vier Gänge und nicht beliebig viele.** Der alte Hub verteilte seine
  *   Gänge über den Kreis (drei Gänge zu 120°, fünf zu 72°); auf einem
@@ -43,16 +43,16 @@ import {
  *   mehr als die Kante des Rings sah. Einen Fünftelkreis gibt es auf dem
  *   Gitter nicht, also schauen sie gleich ganz zurück zum Eingang: Wer aus der
  *   Halle in einen Gang blickt, liest alle vier Schilder auf einmal.
- * - **Die Halle ist ein Quadrat.** Sieben mal sieben Kacheln statt eines
- *   Kreises mit sieben Metern Halbmesser — rund ist auf einem Gitter eine
- *   Treppe. Ihre Rundung kommt aus der Welt und nicht aus dem Grundriss
- *   (`HubWorld` legt die Scheibe und den Ring darauf).
+ * - **Die Halle ist ein Quadrat.** Elf mal elf Kacheln statt eines Kreises mit
+ *   sieben Metern Halbmesser — rund ist auf einem Gitter eine Treppe. Ihre
+ *   Rundung kommt aus der Welt und nicht aus dem Grundriss (`HubWorld` legt
+ *   die Scheibe und den Ring darauf).
  *
  * **Und kein Dach**, wie im alten Hub auch: Die Gänge haben Wände und Lampen,
  * aber nichts darüber. Von oben wäre ein gedeckelter Gang ein schwarzer
- * Balken — man sähe die Tore erst, wenn man mit der Nase daran steht, und das
- * Aufschneiden der Ebenen (E8) kommt erst mit P7. Oben ist deshalb Himmel, und
- * der ist beim Ankommen ohnehin das Erste, was man sieht.
+ * Balken — aufgeschnitten wird zwar (`core/cutaway.ts`), aber ein Deckel, den
+ * man ohnehin jedes Bild wieder wegnimmt, muss gar nicht erst stehen. Oben ist
+ * deshalb Himmel, und der ist beim Ankommen ohnehin das Erste, was man sieht.
  *
  * Reine Rechnung, kein three.js — deshalb steht der Test daneben, und deshalb
  * fällt ein Tor, das man vom Startpunkt aus nicht erreicht, in einer
@@ -60,14 +60,18 @@ import {
  */
 
 /**
- * Halbe Kantenlänge der Halle in Kacheln — 3 heißt sieben mal sieben.
+ * Halbe Kantenlänge der Halle in Kacheln — 5 heißt elf mal elf.
  *
  * Ungerade, damit es eine **Mittelkachel** gibt: Dort steht der Startpunkt,
- * und dort trifft sich, was aus vier Gängen kommt. Sieben Kacheln sind 17,5 m;
- * der alte Kreis hatte 14 m Durchmesser, und der Unterschied ist genau der
- * Platz, den die vier Gangmündungen brauchen.
+ * und dort trifft sich, was aus vier Gängen kommt.
+ *
+ * **Elf Kacheln sind elf Meter**, seit eine Kachel einen Meter misst. Sieben
+ * waren es vorher, und das waren 17,5 m — eine Halle, durch die man zehn
+ * Sekunden läuft, bevor der erste Gang anfängt. Elf Meter sind ungefähr der
+ * alte Kreis von 14 m Durchmesser, und vier Gangmündungen von drei Metern
+ * haben darin bequem Platz.
  */
-export const HALL_HALF = 3;
+export const HALL_HALF = 5;
 
 /**
  * Lichte Breite eines Gangs in Kacheln.
@@ -89,10 +93,11 @@ export const FIRST_GATE = 2;
  * Wie viele Kacheln zwischen zwei Toren liegen.
  *
  * Zwei — und weil sich die Seiten abwechseln, sind es zwischen zwei Toren
- * **derselben** Seite vier Kacheln (10 m). Der alte Hub stellte sie 7,5 m
- * auseinander; auf dem Gitter ist das die nächste ganze Zahl nach oben, und
- * enger will man es nicht: Zwei Schilder, die man nicht auseinanderhalten
- * kann, sind der Fehler, wegen dem der Bogen damals aufgegeben wurde.
+ * **derselben** Seite vier Kacheln, also vier Meter. Ein Tor ist eine Kachel
+ * breit; dazwischen bleiben drei Meter Wand, und das ist genau so viel, dass
+ * zwei Schilder nicht ineinanderlaufen. Zwei Schilder, die man nicht
+ * auseinanderhalten kann, sind der Fehler, wegen dem der Bogen damals
+ * aufgegeben wurde.
  */
 export const GATE_STEP = 2;
 

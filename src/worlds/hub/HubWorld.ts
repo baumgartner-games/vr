@@ -147,7 +147,11 @@ export class HubWorld extends GridWorld {
     await super.init(ctx);
     // Tiefe frisst Farbe: Ohne Nebel liegt der letzte Gang so klar da wie die
     // Halle, und die Anlage sieht nach Plan aus statt nach Raum.
-    ctx.scene.fog = new THREE.Fog(0x0a1020, 40, 260);
+    // In Metern und nicht in Kacheln gedacht: Die Halle misst elf Meter, ein
+    // Gang ist fünfzehn lang. Ein Nebel, der erst bei vierzig Metern anfängt
+    // (so stand es hier, als eine Kachel 2,5 m maß), fängt hinter der ganzen
+    // Anlage an und ist damit keiner.
+    ctx.scene.fog = new THREE.Fog(0x0a1020, 14, 90);
   }
 
   override dispose(ctx: WorldContext): void {
@@ -192,26 +196,30 @@ export class HubWorld extends GridWorld {
     group.name = 'hub-signs';
 
     const title = new TextPlane({
-      width: 4.4,
-      height: 1.3,
+      // Drei Meter breit und nicht mehr 4,4: Der Gang darunter ist drei
+      // Kacheln breit, und ein Schild, das über seine Mündung hinausragt,
+      // hängt vor der Wand daneben.
+      width: 3,
+      height: 0.9,
       title: 'Baumgartner VR',
       body: 'Wähle eine Welt – auf ein Tor im Gang stellen oder über den Button an deiner Hand.',
       align: 'center',
       accent: 0x4aa8ff,
     });
-    // Über der Mündung des ersten Gangs: hoch genug, um über den Toren zu
-    // stehen, tief genug, um beim Blick geradeaus im Bild zu sein.
-    title.position.set(middle.x, 3.6, middle.z - (HALL_HALF + 0.5) * TILE + 0.2);
+    // Über der Mündung des ersten Gangs: knapp über der Wandkrone (2,8 m), also
+    // hoch genug, um über den Toren zu stehen, und tief genug, um beim Blick
+    // geradeaus im Bild zu sein.
+    title.position.set(middle.x, 3.2, middle.z - (HALL_HALF + 0.5) * TILE + 0.1);
     group.add(title);
 
     const hint = new TextPlane({
-      width: 2.4,
-      height: 0.78,
+      width: 1.8,
+      height: 0.58,
       title: 'Steuerung',
       body: 'Beide Hände: Menü-Button. Zielen + Trigger wählt. Stick: gehen, rechts: drehen.',
       accent: 0x9d7bff,
     });
-    hint.position.set(middle.x - (HALL_HALF - 0.6) * TILE, 1.6, middle.z + HALL_HALF * TILE);
+    hint.position.set(middle.x - (HALL_HALF - 2) * TILE, 1.6, middle.z + HALL_HALF * TILE);
     hint.rotation.y = Math.PI / 4.5;
     group.add(hint);
 
@@ -234,6 +242,16 @@ function hallCentre(): THREE.Vector3 {
   return new THREE.Vector3(tileCentreX(middle), 0, tileCentreZ(middle));
 }
 
+/**
+ * Wie weit eine Ganglampe leuchtet, in Metern.
+ *
+ * Acht: gut zwei Gangbreiten, und damit die Strecke, nach der die nächste
+ * übernimmt. In Metern und nicht in Kacheln, weil Licht in Metern abnimmt —
+ * eine Zahl aus Kachelbreiten war genau so lange richtig, wie eine Kachel
+ * 2,5 m maß.
+ */
+const LAMP_RANGE = 8;
+
 /** Jede Welt außer dem Hub selbst, in der Reihenfolge der Registry. */
 export function hubTargets(): WorldDefinition[] {
   return WORLDS.filter((world) => world.id !== 'hub');
@@ -248,7 +266,9 @@ export function hubTargets(): WorldDefinition[] {
  */
 function buildHallRing(middle: THREE.Vector3): THREE.Mesh {
   const ring = new THREE.Mesh(
-    new THREE.TorusGeometry((HALL_HALF + 0.5) * TILE - 0.6, 0.06, 8, 96),
+    // Eine Handbreit innerhalb der Hallenwand: Der Ring sagt, wo die Halle
+    // aufhört, und darf deshalb nicht in ihr stecken.
+    new THREE.TorusGeometry((HALL_HALF + 0.5) * TILE - 0.4, 0.06, 8, 96),
     new THREE.MeshBasicMaterial({ color: 0x4aa8ff, toneMapped: false }),
   );
   ring.name = 'hall-ring';
@@ -258,10 +278,14 @@ function buildHallRing(middle: THREE.Vector3): THREE.Mesh {
 }
 
 /**
- * **Licht in einem Gang**: zwei Bänder an den Wänden und zwei Lampen dazwischen.
+ * **Licht in einem Gang**: zwei Bänder an den Wänden und drei Lampen dazwischen.
  *
  * Ein Gang ohne eigenes Licht ist ein schwarzes Loch, in das niemand
- * hineingeht — und seit er ein Dach hat, gilt das doppelt.
+ * hineingeht.
+ *
+ * Drei Lampen und nicht mehr zwei: Ein Gang ist fünfzehn Meter lang (auf
+ * 2,5-m-Kacheln waren dieselben Kachelzahlen fast vierzig), und eine Lampe
+ * leuchtet acht Meter weit — zwei ließen zwischen sich ein dunkles Stück.
  */
 function buildCorridorLights(corridor: HubCorridor, middle: THREE.Vector3): THREE.Group {
   const group = new THREE.Group();
@@ -292,8 +316,8 @@ function buildCorridorLights(corridor: HubCorridor, middle: THREE.Vector3): THRE
     group.add(strip);
   }
 
-  for (const part of [0.3, 0.75]) {
-    const lamp = new THREE.PointLight(0xbcd8ff, 26, CORRIDOR_WIDTH * TILE * 2, 2);
+  for (const part of [0.2, 0.5, 0.8]) {
+    const lamp = new THREE.PointLight(0xbcd8ff, 26, LAMP_RANGE, 2);
     const place = at(from + run * part, 0);
     lamp.position.set(place.x, 2.3, place.z);
     group.add(lamp);
