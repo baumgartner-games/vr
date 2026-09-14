@@ -5,3 +5,6 @@ dist/
 .vite/
 
 .artifacts/
+
+# Worktrees der Agenten-Sessions (Claude Code) — nie einchecken.
+.claude/worktrees/
