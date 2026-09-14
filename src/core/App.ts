@@ -8,8 +8,9 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { PageMenu } from '../ui/PageMenu';
-import { FlatView, type FlatActor } from './flat/FlatView';
-import { scanScene } from './flat/flatScan';
+import { World2D } from '../world2d/World2D';
+import { loadLevel, saveLevel, forgetLevel, type Level } from '../world2d/level';
+import { sampleLevel } from '../world2d/sample';
 import { saveScreenView, screenView, type ScreenView } from './screenView';
 import { NetSession } from '../net/NetSession';
 import { CHAT_LIMIT, ChatLog, type ChatEntry } from '../net/chat';
@@ -100,13 +101,6 @@ export interface ConnectOptions extends TrysteroOptions {
 
 const _head = new THREE.Matrix4();
 const _flatEuler = new THREE.Euler();
-const _flatQuat = new THREE.Quaternion();
-/** Ab welchem Tempo die Figur auf der Karte läuft statt zu stehen, in m/s. */
-const MOVING_SPEED = 0.25;
-/** Und ab welchem sie rennt — knapp unter dem Sprinttempo des Rigs. */
-const SPRINT_SPEED = 4.2;
-/** Wie lange nach dem Betreten die Karte ein zweites Mal gelesen wird, in Sekunden. */
-const RESCAN_DELAY = 1.5;
 const _headLocal = new THREE.Matrix4();
 const _headPos = new THREE.Vector3();
 const _keyPosition = new THREE.Vector3();
@@ -145,10 +139,13 @@ export class App {
    */
   readonly pageMenu: PageMenu;
   /**
-   * **Jede Welt von oben** (`core/flat/FlatView.ts`) — dieselbe Welt, flach
-   * gelesen und flach gezeichnet. Wann sie das Bild ist, sagt `topDown`.
+   * **Die 2D-Welt** (`world2d/World2D.ts`) — Kacheln in Ebenen, in Phaser, mit
+   * einem Helden, der dagegenläuft, und einem Editor. Wann sie das Bild ist,
+   * sagt `topDown`; dann folgt das Rig dem Helden (`step`).
    */
-  readonly flatView: FlatView;
+  readonly world2d: World2D;
+  /** Die Pläne der 2D-Welt, je Welt, solange die Seite offen ist. */
+  private readonly levels = new Map<string, Level>();
   readonly net = new NetSession();
   readonly spectator: SpectatorCamera;
 
@@ -161,13 +158,6 @@ export class App {
   private worn: HeadgearKind | null = null;
   /** 2D oder 3D am Bildschirm (`core/screenView.ts`). */
   private view: ScreenView = '3d';
-  /** Für welche Welt die Karte von oben zuletzt gelesen wurde. */
-  private scannedWorld = '';
-  /** Wann noch einmal gelesen wird, in Sekunden seit dem Start — 0 heißt nie. */
-  private rescanAt = 0;
-  /** Wo der Spieler im letzten Bild stand — daraus wird „geht" und „rennt". */
-  private readonly lastFoot = new THREE.Vector2();
-  private footSpeed = 0;
   readonly avatars: RemoteAvatars;
   /** Die Stimmen der anderen, räumlich am Kopf ihres Sprechers (`net/Voice.ts`). */
   readonly voice: Voice;
@@ -286,7 +276,13 @@ export class App {
       onToggle: (open) => this.hooks.onMenuChanged?.(open),
     });
     this.wristMenu.attachPage(this.pageMenu);
-    this.flatView = new FlatView();
+    this.world2d = new World2D({
+      controls: () => this.flat.wish,
+      onEdit: (level) => saveLevel(level),
+      onState: () => {
+        this.menuDirty = true;
+      },
+    });
     this.view = screenView(this.role);
     this.refreshMenu();
 
@@ -437,8 +433,6 @@ export class App {
       if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
       // Eine neue Welt heißt eine neue Karte von oben — gelesen wird sie erst,
       // wenn sie auch gezeigt wird (`applyView`).
-      this.scannedWorld = '';
-      this.rescanAt = this.elapsed + RESCAN_DELAY;
       this.applyView();
     } catch (error) {
       console.error(`[app] Welt "${id}" konnte nicht geladen werden`, error);
@@ -666,24 +660,36 @@ export class App {
    */
   private applyView(): void {
     const on = this.topDown;
-    this.flatView.show(on);
     this.flat.topDown = on;
-    if (on && this.scannedWorld !== this.worldId) this.scanFlat();
-    if (!on && !this.renderer.xr.isPresenting) this.flat.syncFromRig();
+    if (on && this.worldId) {
+      void this.world2d.show(this.levelFor(this.worldId));
+    } else {
+      this.world2d.hide();
+      if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
+    }
   }
 
   /**
-   * **Die Welt von oben lesen** — einmal je Welt, nicht je Bild.
-   *
-   * Ausgelassen wird, was keine Welt ist: der Spieler samt Händen, Menü und
-   * Werkzeugen (alles hängt am Rig), die Körper der anderen, die Tastatur im
-   * Raum. Der Schnitt liegt über dem, worauf der Spieler steht.
+   * **Der Plan einer Welt** — der gemerkte aus dem Browser, sonst die Lichtung,
+   * mit der jede Welt anfängt (`world2d/sample.ts`). Einmal geholt, dann
+   * gehalten, damit der Editor nicht gegen eine Kopie malt.
    */
-  scanFlat(): void {
-    this.flatView.setScan(
-      scanScene(this.scene, [this.rig, this.avatars, this.keys], this.rig.position.y),
-    );
-    this.scannedWorld = this.worldId;
+  private levelFor(worldId: string): Level {
+    let level = this.levels.get(worldId);
+    if (!level) {
+      level = loadLevel(worldId) ?? sampleLevel(worldId, findWorld(worldId)?.title ?? worldId);
+      this.levels.set(worldId, level);
+    }
+    return level;
+  }
+
+  /** Den Plan dieser Welt auf die Lichtung zurücksetzen — vergessen und neu zeigen. */
+  resetLevel(): void {
+    if (!this.worldId) return;
+    forgetLevel(this.worldId);
+    this.levels.delete(this.worldId);
+    if (this.topDown) void this.world2d.show(this.levelFor(this.worldId));
+    this.notify('Plan zurückgesetzt');
   }
 
   notify(message: string): void {
@@ -702,7 +708,7 @@ export class App {
     this.avatar.dispose();
     this.wristMenu.dispose();
     this.pageMenu.dispose();
-    this.flatView.dispose();
+    this.world2d.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
     this.voice.dispose();
@@ -810,12 +816,31 @@ export class App {
   private viewMenu(): MenuEntry {
     const flat = this.view === '2d';
     const available = !this.renderer.xr.isPresenting && !this.world?.ownsFlat;
+    const level = this.worldId ? this.levelFor(this.worldId) : null;
+    const world2d = this.world2d;
+    // Die Ebenen des Plans, von oben nach unten — jede ein Schalter.
+    const layers: MenuEntry[] = level
+      ? [...level.layers].reverse().map((layer) => ({
+          id: `view:layer:${layer.id}`,
+          label: layer.name,
+          sub:
+            layer.kind === 'ground'
+              ? 'Der Boden, auf dem man geht'
+              : layer.kind === 'objects'
+                ? 'Was darauf steht — hier stößt man sich'
+                : 'Was über dem Kopf hängt',
+          icon: 'plank',
+          accent: 0x9fe3ff,
+          checked: layer.visible,
+          run: () => world2d.setLayerVisible(layer.id, !layer.visible),
+        }))
+      : [];
     return {
       id: 'view',
       label: 'Ansicht',
       sub: available
         ? flat
-          ? '2D von oben — die Welt flach, mit der Figur'
+          ? `2D — Kachelwelt${world2d.editing ? ' · Editor' : ''}${world2d.grid ? ' · Raster' : ''}`
           : '3D — durch die eigenen Augen'
         : 'Hier gibt es nur die eine',
       icon: 'worlds',
@@ -834,7 +859,7 @@ export class App {
           id: 'view:2d',
           label: '2D von oben',
           sub: available
-            ? 'Dieselbe Welt, flach gelesen — Norden oben'
+            ? 'Die Kachelwelt — Ebenen, Held, Editor'
             : 'Hier nicht: die Brille ist auf, oder die Welt hat eine eigene',
           icon: 'worlds',
           accent: 0x5ee0a0,
@@ -842,15 +867,42 @@ export class App {
           run: () => this.setScreenView('2d'),
         },
         {
-          id: 'view:rescan',
-          label: 'Karte neu lesen',
-          sub: 'Wenn sich die Welt seit dem Betreten verändert hat',
-          icon: 'reset',
+          id: 'view:grid',
+          label: 'Raster',
+          sub: 'Die Kacheln als Linien über der Welt',
+          icon: 'gizmo',
           accent: 0x9fe3ff,
+          checked: world2d.grid,
+          run: () => world2d.setGrid(!world2d.grid),
+        },
+        {
+          id: 'view:editor',
+          label: 'Editor',
+          sub: 'Kacheln malen — die Leiste rechts',
+          icon: 'brush',
+          accent: 0xffc857,
+          checked: world2d.editing,
           run: () => {
-            this.scanFlat();
-            this.notify('Karte neu gelesen');
+            if (!flat) this.setScreenView('2d');
+            world2d.setEditing(!world2d.editing);
+            this.wristMenu.toggle(false);
           },
+        },
+        {
+          id: 'view:layers',
+          label: 'Ebenen',
+          sub: level ? level.layers.map((l) => l.name).join(' · ') : 'Noch keine Welt',
+          icon: 'plank',
+          accent: 0x9fe3ff,
+          children: layers,
+        },
+        {
+          id: 'view:reset',
+          label: 'Plan zurücksetzen',
+          sub: 'Zurück auf die Lichtung, mit der jede Welt anfängt',
+          icon: 'reset',
+          accent: 0xff8f8f,
+          run: () => this.resetLevel(),
         },
       ],
     };
@@ -1716,16 +1768,17 @@ export class App {
     // Portalsichten zeichnen die Szene ja gleich noch mehrmals.
     this.quality.update(dt, _headPos.setFromMatrixPosition(_head));
 
-    // **Von oben wird die Szene gar nicht gezeichnet.** Das Bild ist eine
-    // Leinwand darüber (`core/flat/FlatView.ts`); das WebGL-Bild wird nur
-    // geleert, damit kein altes Einzelbild darunter stehen bleibt. Spiegel und
-    // Portalsichten bleiben dann ebenfalls aus — sie zeichnen in Bilder, die
-    // niemand ansieht.
+    // **In der 2D-Welt wird die Szene gar nicht gezeichnet.** Das Bild macht
+    // Phaser (`world2d/World2D.ts`) auf einer Leinwand darüber; das WebGL-Bild
+    // wird nur geleert, damit kein altes Einzelbild darunter stehen bleibt.
+    // Spiegel und Portalsichten bleiben dann ebenfalls aus — sie zeichnen in
+    // Bilder, die niemand ansieht. Und **das Rig folgt dem Helden**: Die
+    // Kachelwelt ist die Wahrheit, die 3D-Welt steht, wo sie sagt.
     if (this.topDown) {
+      this.followHero();
       this.renderer.setScissorTest(false);
-      this.renderer.setClearColor(0x0a0e16, 1);
+      this.renderer.setClearColor(0x1a2a1c, 1);
       this.renderer.clear();
-      this.drawFlat(dt);
     } else {
       // Vor dem Bild, in dem sie zu sehen sind — und vor den Portalsichten, die
       // sich die Welt gleich selbst zeichnet.
@@ -1748,58 +1801,18 @@ export class App {
   }
 
   /**
-   * **Wer auf der Karte von oben steht** — ich und alle, die in derselben Welt
-   * sind.
-   *
-   * „Geht" und „rennt" stehen nirgends geschrieben: Beides wird aus dem Weg
-   * gelesen, den der Körper im letzten Bild wirklich zurückgelegt hat. Das ist
-   * die ehrlichste Quelle, die es gibt — wer an einer Wand steht und drückt,
-   * bewegt sich nicht, und die Figur soll dann auch nicht laufen.
+   * **Das Rig dorthin, wo der Held steht.** Spalte und Zeile der Kachelwelt
+   * sind x und z der 3D-Welt (`level.TILE_M`); die Höhe bleibt, was die Physik
+   * der Welt daraus macht. Die anderen im Raum sehen einen also dort, wo man
+   * auf der Karte ist — und wer zurück auf 3D schaltet, steht genau da.
    */
-  private drawFlat(dt: number): void {
-    // **Ein zweiter Blick, kurz nach dem Betreten.** Manche Welt stellt ihre
-    // Sachen erst in den ersten Bildern hin — Physikkörper, nachgeladene
-    // Stücke, ein Aufbau über mehrere Bilder. Wer nur einmal liest, hat davon
-    // eine leere Karte.
-    if (this.rescanAt > 0 && this.elapsed >= this.rescanAt) {
-      this.rescanAt = 0;
-      this.scanFlat();
-    }
-    const foot = this.rig.position;
-    const step = Math.hypot(foot.x - this.lastFoot.x, foot.z - this.lastFoot.y);
-    this.lastFoot.set(foot.x, foot.z);
-    const speed = dt > 0 ? step / dt : 0;
-    // Ein wenig geglättet: Ein einzelnes stehendes Bild soll die Figur nicht
-    // mitten im Schritt einfrieren.
-    this.footSpeed += (speed - this.footSpeed) * Math.min(1, dt * 8);
-
-    const actors: FlatActor[] = [
-      {
-        id: this.net.localId || 'me',
-        name: this.net.name,
-        x: foot.x,
-        z: foot.z,
-        yaw: _flatEuler.setFromQuaternion(this.rig.quaternion, 'YXZ').y,
-        moving: this.footSpeed > MOVING_SPEED,
-        sprinting: this.footSpeed > SPRINT_SPEED,
-        player: true,
-      },
-    ];
-    for (const peer of this.net.peers.values()) {
-      const head = peer.pose?.head;
-      if (!head || peer.world !== this.worldId || peer.pose?.hidden) continue;
-      _flatQuat.set(head[3], head[4], head[5], head[6]);
-      actors.push({
-        id: peer.id,
-        name: peer.name,
-        // Der Kopf steht über den Füßen — von oben ist das derselbe Punkt.
-        x: head[0],
-        z: head[2],
-        yaw: _flatEuler.setFromQuaternion(_flatQuat, 'YXZ').y,
-        moving: false,
-      });
-    }
-    this.flatView.draw({ time: this.elapsed, actors });
+  private followHero(): void {
+    const hero = this.world2d.hero();
+    if (!hero) return;
+    this.rig.position.x = hero.x;
+    this.rig.position.z = hero.z;
+    this.rig.quaternion.setFromEuler(_flatEuler.set(0, hero.yaw, 0));
+    this.rig.updateMatrixWorld(true);
   }
 }
 

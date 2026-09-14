@@ -17,20 +17,20 @@ export class FlatControls {
   speed = 3.2;
   lookSpeed = 0.0024;
   /**
-   * **Von oben gesteuert** — die Ansicht, in der die Welt flach vor einem
-   * liegt (`core/flat/FlatView.ts`).
+   * **Von oben gesteuert** — die 2D-Welt (`world2d/World2D.ts`).
    *
-   * Zwei Dinge sind dann anders, und beide folgen daraus, dass es keine
-   * Blickrichtung gibt, die man drehen könnte. Erstens laufen die Tasten in
-   * **Bildrichtungen**: oben ist Norden, rechts ist Osten — und zwar
-   * unabhängig davon, wohin die Figur gerade schaut. Zweitens **schaut die
-   * Figur dorthin, wo sie hingeht**, denn niemand dreht sie sonst.
+   * Dann bewegt diese Klasse **nichts** mehr: Sie liest nur noch Tasten und
+   * Bordstock und legt den Wunsch in `wish` ab, und Phaser lässt damit den
+   * Helden laufen — gegen die Kacheln, die dort fest sind. Das Rig folgt dem
+   * Helden hinterher (`App.step`), nicht umgekehrt. Ein Weg für die Eingabe,
+   * ein Körper, der sich stößt: die 2D-Welt.
    *
-   * Die Maus dreht hier nichts und fängt auch keinen Zeiger mehr ein: Ein
-   * Pointer-Lock in einer Ansicht, in der es nichts zu drehen gibt, nimmt nur
-   * den Mauszeiger weg.
+   * Die Tasten laufen dabei in **Bildrichtungen** — oben ist Norden, rechts
+   * ist Osten —, und die Maus dreht nichts und fängt keinen Zeiger ein.
    */
   topDown = false;
+  /** Der Wunsch dieses Bildes, wenn `topDown` gilt — für die 2D-Welt. */
+  readonly wish = { x: 0, z: 0, sprint: false };
 
   private readonly keys = new Set<string>();
   private jumpQueued = false;
@@ -73,25 +73,25 @@ export class FlatControls {
     const jump = this.jumpQueued;
     this.jumpQueued = false;
 
+    if (this.topDown) {
+      // Nur lesen, nicht bewegen: Von oben läuft Phaser den Helden, und das
+      // Rig folgt ihm. Ein zweiter Antrieb am Rig zöge ihn durch die Wand,
+      // gegen die der Held gerade steht.
+      this.wish.x = Math.max(-1, Math.min(1, x));
+      this.wish.z = Math.max(-1, Math.min(1, z));
+      this.wish.sprint = this.keys.has('ShiftLeft');
+      return;
+    }
+
     if (x === 0 && z === 0) {
       if (jump) this.rig.requestJump();
       return;
     }
 
-    if (this.topDown) {
-      // Bildrichtungen statt Blickrichtung: oben ist Norden, rechts ist Osten.
-      _move.set(x, 0, z);
-    } else {
-      this.rig.getHeadForward(_forward);
-      _strafe.copy(_forward).cross(UP).normalize();
-      _move.set(0, 0, 0).addScaledVector(_forward, -z).addScaledVector(_strafe, x);
-    }
+    this.rig.getHeadForward(_forward);
+    _strafe.copy(_forward).cross(UP).normalize();
+    _move.set(0, 0, 0).addScaledVector(_forward, -z).addScaledVector(_strafe, x);
     if (_move.lengthSq() > 1) _move.normalize();
-    // Die Figur schaut, wohin sie geht — von oben dreht sie sonst niemand.
-    if (this.topDown) {
-      this.yaw = Math.atan2(-_move.x, -_move.z);
-      this.apply();
-    }
     const sprint = this.keys.has('ShiftLeft');
     // Die Welt darf das Tempo vorgeben (`PlayerRig.pace`); sonst gilt die Tastatur.
     const speed = this.rig.walkSpeed(sprint, this.speed * (sprint ? 1.8 : 1));

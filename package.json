@@ -22,6 +22,7 @@
     "@dimforge/rapier3d-compat": "^0.20.0",
     "@trystero-p2p/mqtt": "^0.25.4",
     "@trystero-p2p/torrent": "^0.25.4",
+    "phaser": "^3.90.0",
     "three": "^0.185.1",
     "trystero": "^0.25.4"
   },

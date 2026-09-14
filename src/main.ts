@@ -222,7 +222,7 @@ function showScreenView(view: ScreenView): void {
   screenHint.textContent = hauntLanding
     ? ENTRY_HINTS[view]
     : view === '2d'
-      ? 'Die Welt von oben, mit der Figur — jede Welt kann das. Umschalten geht auch im Spiel: Menü → Ansicht.'
+      ? 'Die Kachelwelt von oben — Ebenen, ein Held, ein Editor. Umschalten geht auch im Spiel: Menü → Ansicht.'
       : 'Die Welt durch die eigenen Augen — Tastatur und Maus oder Stock.';
 }
 
@@ -274,7 +274,7 @@ screenSeg.addEventListener('click', (event) => {
  *
  * Ob die dort flach oder räumlich aussieht, entscheidet nicht dieser Knopf,
  * sondern die Ansicht (`App.setScreenView`): **Jede** Welt kann von oben
- * (`core/flat/FlatView.ts`), und die Wahl gilt für die, in der man steht.
+ * (`world2d/World2D.ts`), und die Wahl gilt für die, in der man steht.
  * Vorher führte „2D" hier nach Haunting, weil es die Karte von oben nur dort
  * gab — ein Umweg, den es jetzt nicht mehr braucht.
  */

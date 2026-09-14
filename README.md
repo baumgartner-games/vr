@@ -6,13 +6,14 @@
 [![Baumgartner VR](public/banner.svg)](https://baumgartner-games.github.io/vr/)
 
 **Jede Welt lässt sich auch von oben spielen.** Auf der Startseite steht „2D
-oder 3D", im Spiel steht es unter *Menü → Ansicht* — und 2D heißt: dieselbe
-Welt, flach gezeichnet, mit der Crewmate-Figur aus Haunting. Das ist eine
-Ansicht und kein zweites Spiel: Gelaufen wird mit demselben Körper durch
-dieselben Wände, und die Karte wird aus der Welt selbst gelesen, kann also gar
-nicht etwas anderes zeigen als das, worin man steht. Norden ist oben, Wände
-haben eine Höhe, das Rad zoomt (auf dem Telefon zwei Finger). Am Handy ist 2D
-vorbelegt.
+oder 3D", im Spiel steht es unter _Menü → Ansicht_ — und 2D heißt: eine
+Kachelwelt wie auf dem SNES, gezeichnet von [Phaser](https://phaser.io), mit
+einem kleinen Helden in grüner Tunika. Die Welt liegt in **Ebenen** — Boden,
+Dinge, Darüber —, die sich einzeln ein- und ausblenden lassen, ein **Raster**
+zeigt die Kacheln, und ein kleiner **Editor** malt Gras, Wasser, Mauern und
+Bäume direkt in die Welt; was du malst, bleibt im Browser. Eine Kachel ist ein
+Meter, und wer auf 3D schaltet, steht dort, wo der Held zuletzt stand. Norden
+ist oben, das Rad zoomt. Am Handy ist 2D vorbelegt.
 
 WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
 Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
@@ -34,7 +35,7 @@ und füllt die Fläche dazwischen — ein Zimmer sind damit zwei Gesten statt
 sechzig Trigger. Die eigene
 Spielfigur steht mit im Modell und wird einfach woandershin gestellt, drumherum
 ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum.
-**Und es bleibt**: Unter *Welt sichern* liegt eine
+**Und es bleibt**: Unter _Welt sichern_ liegt eine
 gebaute Welt im Browser, geht als Datei herunter (`bauplatz-2026-09-07.welt.json`,
 Format `baumgartner-welt` in der Fassung `0.1.0`, mit Kacheln, Wänden, Türen,
 Möbeln und Dächern darin) und kommt so auch wieder zurück. Wer in einer
@@ -88,8 +89,8 @@ Raumakte je Zimmer (Codes groß) — aber **niemanden, der sich bewegt**. Die
 antippen sperrt oder gibt frei, Lampe antippen schaltet Licht — **Wesen zeigt sie keine**, wer eine
 Tür zuwirft, weiß also nicht, wen er einsperrt. Dazu hat sie die **Tafel**:
 ein Blatt über der Karte mit einer Zeile je Schalter, so beschriftet, wie es
-an der Wand steht — „Licht Kombüse", „Tür 3", „X". Die Karte weiß, *wo* etwas
-ist; die Tafel weiß, *was* es überhaupt gibt. Der **Späher** bekommt alle
+an der Wand steht — „Licht Kombüse", „Tür 3", „X". Die Karte weiß, _wo_ etwas
+ist; die Tafel weiß, _was_ es überhaupt gibt. Der **Späher** bekommt alle
 dreieinhalb Sekunden **eine Peilung**: einen grünen Punkt für den Techniker,
 einen roten für das Monster, genau dort, wo sie in dem Moment waren —
 dazwischen verblassen sie, und niemand weiß, was inzwischen passiert.
@@ -151,7 +152,7 @@ Seite, in der Brille der Knopf am Handgelenk. Er ist kurz:
    Frage darfst du dir mitten in der Runde anders beantworten**, siehe unten).
    Ohne Monster spielt man, indem der Platz Monster auf „Aus" steht.
 2. **Die Verteilung.** Techniker, Monster und die drei Fähigkeiten der
-   Einsatzzentrale, jede auf Bot, Mensch oder Aus. Wer *du* bist, steht hier
+   Einsatzzentrale, jede auf Bot, Mensch oder Aus. Wer _du_ bist, steht hier
    nicht — das wählst du über der Karte.
 3. **Rollen testen.** Der Knopf führt auf die Karte, **ohne dass eine Runde
    losgeht**: Die Station ist hell, keine Uhr läuft, niemand wird getroffen,
@@ -413,17 +414,17 @@ Temperatur, Audio-Logger und ein Anomalienjournal ist vorerst gestrichen.**
 testen** wählen. Zum Umsehen ins Bild klicken; `Esc` gibt den Mauszeiger frei.
 Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 
-| Aktion | Tastatur / Maus |
-| --- | --- |
-| Laufen und umsehen | `WASD` und Maus; `Shift` zum Rennen |
-| Schrank öffnen, Sache aufnehmen, Taste am Rätsel drücken | Anvisieren und `E` oder Linksklick |
-| Linke Hand wechseln | `1`: Radar, Röntgengerät und freie Hand durchschalten |
-| Rechte Hand wechseln | `2`: Taschenlampe, gefundenes Medkit, freie Hand |
-| Medkit verwenden | Rechts auswählen und `E` drücken |
-| Taschenlampe an und aus | `E`, wenn nichts zum Benutzen vor dir liegt |
-| Ducken | `Ctrl` halten |
-| Simulationsflug | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller |
-| Leistungsanzeige | `F3` blendet FPS, Framezeit und Zeichenaufwand ein oder aus; in der Brille steht dieselbe Zahl unter Menü → Grafik |
+| Aktion                                                   | Tastatur / Maus                                                                                                    |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Laufen und umsehen                                       | `WASD` und Maus; `Shift` zum Rennen                                                                                |
+| Schrank öffnen, Sache aufnehmen, Taste am Rätsel drücken | Anvisieren und `E` oder Linksklick                                                                                 |
+| Linke Hand wechseln                                      | `1`: Radar, Röntgengerät und freie Hand durchschalten                                                              |
+| Rechte Hand wechseln                                     | `2`: Taschenlampe, gefundenes Medkit, freie Hand                                                                   |
+| Medkit verwenden                                         | Rechts auswählen und `E` drücken                                                                                   |
+| Taschenlampe an und aus                                  | `E`, wenn nichts zum Benutzen vor dir liegt                                                                        |
+| Ducken                                                   | `Ctrl` halten                                                                                                      |
+| Simulationsflug                                          | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller                                            |
+| Leistungsanzeige                                         | `F3` blendet FPS, Framezeit und Zeichenaufwand ein oder aus; in der Brille steht dieselbe Zahl unter Menü → Grafik |
 
 **Am Bildschirm liegt dieselbe Steuerung wie in der 2D-Welt**: der Stock links
 unten, rechts unten drei Knöpfe. Die beiden kleinen sind die zwei Hände —
@@ -507,11 +508,11 @@ halten ihn auf, bis eine Route wieder möglich ist. Der Techniker priorisiert
 versteckt sich ungesehen in einem Schutzschrank und setzt anschließend die Mission fort.
 Der sichere Test bleibt dabei ohne Schaden.
 
-**Das Monster hat sechs Haltungen** und darüber die Verfolgung: *Patrouille*
+**Das Monster hat sechs Haltungen** und darüber die Verfolgung: _Patrouille_
 (zügig von Raum zu Raum — und zwar dorthin, wo es am längsten nicht war),
-*Seitenwechsel* (nach mehreren erfolglosen Zielen quer über die Karte),
-*Auflauern* (stehen bleiben und warten, an einer **Tür** statt mitten im
-Raum), *Absuchen*, *Abfangen* und *An der Tür lauern*. Es **rät nicht mehr**,
+_Seitenwechsel_ (nach mehreren erfolglosen Zielen quer über die Karte),
+_Auflauern_ (stehen bleiben und warten, an einer **Tür** statt mitten im
+Raum), _Absuchen_, _Abfangen_ und _An der Tür lauern_. Es **rät nicht mehr**,
 wohin sein Gegenüber verschwunden ist: Es führt ein Bild davon, wo es ihn
 vermutet, streicht die Räume heraus, die es selbst abgesucht hat, rechnet
 Geräusche ein und sucht dort, wo es am wahrscheinlichsten ist. Aus den letzten
@@ -537,7 +538,7 @@ Marker steht als **gestrichelte Silhouette** dort, wo der andere war, mit dem
 Blick, den er dabei hatte, und verblasst über eine knappe halbe Minute; in der
 Brille ist es eine halbdurchsichtige Kopie des Monsters, die wirklich im Raum
 steht. Er läuft **nicht mit**: Wer weiß, dass sein Verfolger einen alten Punkt
-hat, läuft woandershin. Man sieht immer nur den Marker des *anderen*, und nur
+hat, läuft woandershin. Man sieht immer nur den Marker des _anderen_, und nur
 solange man ihn nicht wirklich sieht; wer das Monster spielt, liest dazu auf
 der Karte „Zuletzt gesehen: Werkstatt · vor 6 s". Nur beim **Zuschauen**
 („Alles sehen") stehen beide Marker blass neben den echten Figuren — dort will
@@ -555,8 +556,8 @@ eingestellt wird das im Optionsmenü, in 2D wie im Schiff. Die
 Beleuchtung schaltet zwischen voller Beleuchtung, Wachbetrieb,
 Alarmbeleuchtung und Notstrom — im Alarm drehen sich rote Leuchten in den
 Gängen. Unter **Bots justieren & trainieren** stehen alle Gewichte beider Bots
-als Regler, dazu drei Knöpfe: *Monster trainieren*, *Techniker trainieren*,
-*beide*. Das Training spielt hunderte Runden ohne Bild aus und sucht Gewichte, mit
+als Regler, dazu drei Knöpfe: _Monster trainieren_, _Techniker trainieren_,
+_beide_. Das Training spielt hunderte Runden ohne Bild aus und sucht Gewichte, mit
 denen eine Runde so ausgeht, wie sie ausgehen soll: **zu zweit** (Techniker
 gegen Monster) halbe-halbe, **ab drei Spielern** zwei von drei Runden für das
 Monster. Den Unterschied macht die Tür hinter dem Techniker — allein schlägt
@@ -707,16 +708,16 @@ Rest bleibt Verdrahtung.
 
 Neben dem Spiel steht **[`/tools.html`](https://baumgartner-games.github.io/vr/tools.html)**:
 alle Werkzeuge als Liste, jedes einzeln in 3D zum Drehen, und die Hand dazu
-ein- und ausschaltbar — als zwei verschiedene Hände: *Hand in VR* (die
-gezeichnete Hand am Werkzeug, so sieht es in der Brille aus) und *Hand in echt*
+ein- und ausschaltbar — als zwei verschiedene Hände: _Hand in VR_ (die
+gezeichnete Hand am Werkzeug, so sieht es in der Brille aus) und _Hand in echt_
 (die eigene Hand am roten Handgriff des Geräts, mit dem Werkzeug als Geist
 daneben). Werkzeug und Zielscheibe bleiben dabei an derselben Stelle; was
 wechselt, ist die Hand. Aus ihr läuft die **weiße Linie** des Zeigestrahls
 sauber nach vorn auf die Zielscheibe, genau wie in der Brille. Der Knopf **Bearbeiten** oben in der Ecke (an einem
 einzelnen Werkzeug) macht daraus einen Justierstand fürs Telefon: oben die Achse (X, Y, Z, Yaw, Pitch, Roll — immer
 nur eine), unten der Regler. Bewegt wird dabei die **Hand** — das Werkzeug steht
-still —, und ein Umschalter sagt, wohin die Haltung übernommen wird: als *Lage
-in der Hand* oder als *Griffhaltung am Griff*. Wohin ein Werkzeug **zielt**,
+still —, und ein Umschalter sagt, wohin die Haltung übernommen wird: als _Lage
+in der Hand_ oder als _Griffhaltung am Griff_. Wohin ein Werkzeug **zielt**,
 sagt ein violetter Pfeil an allem, was zielt. Zwei Knöpfe legen die Hand mit
 einem Tipp an eine dieser Richtungen: **Auf den Zylinder** (Richtung und
 Ursprung — die Fingerspitze landet im Halter) und **In Zielrichtung** (nur die Richtung, die
@@ -757,50 +758,50 @@ Konfig-Code steht darunter in einem Feld zum Herauskopieren. Details in
 
 ## Query-/Hash-Parameter
 
-| Parameter | Wirkung |
-| --- | --- |
-| `#portal` | startet direkt in dieser Welt (jede Welt-ID funktioniert) |
-| `?world=portal` | dasselbe als Query-Parameter |
+| Parameter            | Wirkung                                                                                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#portal`            | startet direkt in dieser Welt (jede Welt-ID funktioniert)                                                                                                         |
+| `?world=portal`      | dasselbe als Query-Parameter                                                                                                                                      |
 | `?room=mond-riff-47` | trägt den Raum-Code ins Verbindungs-Formular ein (Einladungslink) — unter `#haunting` in die Startseite der Runde, die ihn beim Verbinden auch selbst hier ablegt |
-| `?net=local` | nutzt `BroadcastChannel` statt WebRTC — zwei Tabs auf einem Rechner |
+| `?net=local`         | nutzt `BroadcastChannel` statt WebRTC — zwei Tabs auf einem Rechner                                                                                               |
 
 Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 
 ## Steuerung
 
-| | VR | Desktop | Handy |
-| --- | --- | --- | --- |
-| Bewegen | linker Stick (reindrücken = Sprint) | `WASD`, `Shift` | linker Touch-Stick |
-| Umsehen | Kopf, rechter Stick = Snap-Turn | Maus (Klick = Pointer-Lock) | wischen |
-| Springen / Ducken | `A` rechts / rechten Stick reindrücken | `Leertaste` | – |
-| Menü | Button an beiden Händen (immer nur eins offen) | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links |
-| 2D von oben ↔ 3D | – | Startseite oder Menü → *Ansicht*; Mausrad zoomt | dito; zwei Finger zoomen |
-| Auswählen | zielen + Trigger oder `A` | Linksklick | tippen |
-| Werkzeug nehmen/ablegen | Grip an der Hüfte; woanders loslassen lässt es fallen | – | – |
-| Hüften verschieben | Gürtel-Justierer: Hüfte anzielen, Trigger, mit der anderen Hand schieben | – | – |
-| Ohne Controller | 3 Finger an die Handfläche = Greifen, Zeigefinger = Trigger | – | – |
-| Sitzen oder stehen | Startseite (nur dort gefragt) oder Menü → Bewegung → Haltung | Menü → Bewegung → Haltung | dito |
-| Verbinden | Menü → Verbindung → *Raum betreten*; geht mitten im Spiel, ohne die Sitzung zu verlassen | Raum-Code auf der Startseite | dito |
-| Chat | Menü → Verbindung → Chat (lesen, *Schreiben* öffnet die Tastatur) | Panel *Verbindung*: tippen, je Zeile *Kopieren* und *Übernehmen* | dito |
-| Sprechen | Menü → Verbindung → *Mikrofon* — die Stimmen kommen aus der Richtung, in der die anderen stehen | Panel *Verbindung* → *Sprache* | dito |
-| Werkzeug benutzen | Trigger (Greifen = zweite Funktion) | Links-/Rechtsklick | – |
-| Großer Hammer | irgendwo am Stiel greifen, zweite Hand dazu; Trigger halten schiebt die Hand am Stiel | – | – |
-| Hängegleiter (Alpen) | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; loslassen am Boden lässt ihn fallen | – | – |
-| Flügel (Alpen) | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve | – | – |
-| Taschenlampe | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal | – | – |
-| Pinsel | Palette an der anderen Hand: antippen **oder** anzielen + Trigger; Regler für RGB und Strichbreite gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie | Linksklick | – |
-| Staffelei | Trigger stellt sie auf den Boden und die Hand ist danach frei; Griff an der Ablage + Greifen nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel | – | – |
-| Aufheben / werfen | Grip mit leerer Hand am Objekt | – | – |
-| Ferngreifen | zielen, Grip, Hand zum Körper zucken (ab 8 m/s, einstellbar) | – | – |
-| Kart: einsteigen | Lenkrad greifen (oder anzielen + Trigger) | Lenkrad anklicken | – |
-| Kart: fahren | rechter Trigger Gas, linker bremst, linker Stick lenkt | `W`/`S`, `A`/`D` | – |
-| Kart: aussteigen | `A`/`X` halten | `E` halten | – |
-| Kart: zu zweit | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge | dito | – |
-| Pizza: kneten | Faust auf den Teig auf dem Tisch schlagen | – | – |
-| Pizza: belegen | Kelle/Streuer greifen, Trigger halten | – | – |
-| Handpose einmessen (Poseraum) | Werkzeug im Schwebekasten loslassen, blanke Hand daran, mit der Controller-Hand auf *Handpose teilen* zeigen; deren Trigger speichert | – | – |
-| Schwebekasten feststellen | Knopf *Schwebe* an der Wand im Poseraum — was darin hängt, steht still und lässt sich nicht greifen | – | – |
-| Zurücksetzen | `B` / `Y` oder Menü | `R` oder Menü | Menü |
+|                               | VR                                                                                                                                                                         | Desktop                                                                | Handy                    |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------ |
+| Bewegen                       | linker Stick (reindrücken = Sprint)                                                                                                                                        | `WASD`, `Shift`                                                        | linker Touch-Stick       |
+| Umsehen                       | Kopf, rechter Stick = Snap-Turn                                                                                                                                            | Maus (Klick = Pointer-Lock)                                            | wischen                  |
+| Springen / Ducken             | `A` rechts / rechten Stick reindrücken                                                                                                                                     | `Leertaste`                                                            | –                        |
+| Menü                          | Button an beiden Händen (immer nur eins offen)                                                                                                                             | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links      |
+| 2D von oben ↔ 3D              | –                                                                                                                                                                          | Startseite oder Menü → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger zoomen |
+| Auswählen                     | zielen + Trigger oder `A`                                                                                                                                                  | Linksklick                                                             | tippen                   |
+| Werkzeug nehmen/ablegen       | Grip an der Hüfte; woanders loslassen lässt es fallen                                                                                                                      | –                                                                      | –                        |
+| Hüften verschieben            | Gürtel-Justierer: Hüfte anzielen, Trigger, mit der anderen Hand schieben                                                                                                   | –                                                                      | –                        |
+| Ohne Controller               | 3 Finger an die Handfläche = Greifen, Zeigefinger = Trigger                                                                                                                | –                                                                      | –                        |
+| Sitzen oder stehen            | Startseite (nur dort gefragt) oder Menü → Bewegung → Haltung                                                                                                               | Menü → Bewegung → Haltung                                              | dito                     |
+| Verbinden                     | Menü → Verbindung → _Raum betreten_; geht mitten im Spiel, ohne die Sitzung zu verlassen                                                                                   | Raum-Code auf der Startseite                                           | dito                     |
+| Chat                          | Menü → Verbindung → Chat (lesen, _Schreiben_ öffnet die Tastatur)                                                                                                          | Panel _Verbindung_: tippen, je Zeile _Kopieren_ und _Übernehmen_       | dito                     |
+| Sprechen                      | Menü → Verbindung → _Mikrofon_ — die Stimmen kommen aus der Richtung, in der die anderen stehen                                                                            | Panel _Verbindung_ → _Sprache_                                         | dito                     |
+| Werkzeug benutzen             | Trigger (Greifen = zweite Funktion)                                                                                                                                        | Links-/Rechtsklick                                                     | –                        |
+| Großer Hammer                 | irgendwo am Stiel greifen, zweite Hand dazu; Trigger halten schiebt die Hand am Stiel                                                                                      | –                                                                      | –                        |
+| Hängegleiter (Alpen)          | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; loslassen am Boden lässt ihn fallen                                                    | –                                                                      | –                        |
+| Flügel (Alpen)                | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve                                                                                      | –                                                                      | –                        |
+| Taschenlampe                  | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal                                                                                                    | –                                                                      | –                        |
+| Pinsel                        | Palette an der anderen Hand: antippen **oder** anzielen + Trigger; Regler für RGB und Strichbreite gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie          | Linksklick                                                             | –                        |
+| Staffelei                     | Trigger stellt sie auf den Boden und die Hand ist danach frei; Griff an der Ablage + Greifen nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel | –                                                                      | –                        |
+| Aufheben / werfen             | Grip mit leerer Hand am Objekt                                                                                                                                             | –                                                                      | –                        |
+| Ferngreifen                   | zielen, Grip, Hand zum Körper zucken (ab 8 m/s, einstellbar)                                                                                                               | –                                                                      | –                        |
+| Kart: einsteigen              | Lenkrad greifen (oder anzielen + Trigger)                                                                                                                                  | Lenkrad anklicken                                                      | –                        |
+| Kart: fahren                  | rechter Trigger Gas, linker bremst, linker Stick lenkt                                                                                                                     | `W`/`S`, `A`/`D`                                                       | –                        |
+| Kart: aussteigen              | `A`/`X` halten                                                                                                                                                             | `E` halten                                                             | –                        |
+| Kart: zu zweit                | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge                                                                                           | dito                                                                   | –                        |
+| Pizza: kneten                 | Faust auf den Teig auf dem Tisch schlagen                                                                                                                                  | –                                                                      | –                        |
+| Pizza: belegen                | Kelle/Streuer greifen, Trigger halten                                                                                                                                      | –                                                                      | –                        |
+| Handpose einmessen (Poseraum) | Werkzeug im Schwebekasten loslassen, blanke Hand daran, mit der Controller-Hand auf _Handpose teilen_ zeigen; deren Trigger speichert                                      | –                                                                      | –                        |
+| Schwebekasten feststellen     | Knopf _Schwebe_ an der Wand im Poseraum — was darin hängt, steht still und lässt sich nicht greifen                                                                        | –                                                                      | –                        |
+| Zurücksetzen                  | `B` / `Y` oder Menü                                                                                                                                                        | `R` oder Menü                                                          | Menü                     |
 
 Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#steuerung).
 
@@ -809,7 +810,7 @@ Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#st
 Werkzeug-Posen, Handhaltungen, Anbauteile und Waffenwerte passen zusammen in
 eine kopierbare Zeile (`BG3…`) — und ein einzelnes Werkzeug an einer einzelnen
 Hand in eine so kurze, dass man sie abtippt. In VR unter
-*Einstellungen → Konfig-Code*,
+_Einstellungen → Konfig-Code_,
 am Rechner über die Kommandozeile:
 
 ```bash
