@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { EditorPanel, type PanelKey } from './EditorPanel';
-import { Palette } from './Palette';
+import { Palette, type PaletteDab } from './Palette';
 import { PlayerPin } from './PlayerPin';
 import { grabbedAt, HIP_REACH, type Target } from './reach';
 import { disposeShapes, disposeTree } from '../shared/environment';
@@ -41,7 +41,15 @@ import {
   type Model,
   type Spot,
 } from './miniature';
-import { PALETTE_BLOCKS, applyGridTool, gridToolSpec, type GridTool } from '../grid/gridTool';
+import {
+  PALETTE_BLOCKS,
+  applyGridTool,
+  fixtureTool,
+  gridToolSpec,
+  type GridTool,
+} from '../grid/gridTool';
+import { paletteKinds } from '../grid/fixtures/kinds';
+import type { Props } from '../grid/fixtures/index';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolid } from '../grid/solids';
 import type { ControllerState, Handedness } from '../../core/XRInput';
@@ -119,6 +127,21 @@ export interface EditorHost {
   say(message: string): void;
   /** Jemanden versetzen — auf eine Kachel des Plans. */
   goTo(at: { x: number; y: number; z: number }): void;
+  /**
+   * **Eine Zeile eintippen lassen** (`ui/KeyPanel.ts`) — für das Ziel eines
+   * Einbaus.
+   *
+   * Optional, weil die Tastatur der Welt gehört: Sie hängt vor dem Kopf des
+   * Spielers und ist beim Zeiger angemeldet, und es darf immer nur eine offen
+   * sein. Wo es keine gibt (die stille Vorschau), gibt es eben kein Ziel.
+   */
+  ask?(options: {
+    title: string;
+    sub?: string;
+    value: string;
+    hint?: string;
+    commit(text: string): void;
+  }): void;
   /** Am Plan hat sich etwas getan: die Welt in Lebensgröße nachziehen. */
   planChanged(): void;
   /** Die Karte ist heraus (oder wieder weg) — die Kulisse zieht nach. */
@@ -193,6 +216,17 @@ export class WorldEditor {
   private brush: GridTool | 'go' | null = null;
   /** In welcher Hand der Pinsel liegt — `null`, solange er in der Mulde steckt. */
   private brushHand: Handedness | null = null;
+  /**
+   * **Worauf ein neu gesetzter Einbau zeigt** (`props.target`).
+   *
+   * Die einzige Eigenschaft, die man vorerst im Spiel einstellen kann, und sie
+   * gilt für das nächste Setzen und nicht für das letzte: Wer eine Reihe
+   * Knöpfe auf dieselbe Tür setzt, tippt den Namen einmal. Alles andere —
+   * Text, Nachlauf, Farbe — steht bis auf Weiteres in `layout()`, und das ist
+   * ehrlicher als eine Tafel mit acht Feldern, durch die man in der Brille
+   * blättert.
+   */
+  private fixtureTarget = '';
   /** Ob ein Druck einen Strich malt oder eine Fläche aufzieht. */
   private mode: PaintMode = 'paint';
 
@@ -307,7 +341,7 @@ export class WorldEditor {
     root.add(panel);
     this.panel = panel;
 
-    const palette = new Palette(PALETTE_DABS);
+    const palette = new Palette(paletteDabs());
     root.add(palette);
     this.palette = palette;
 
@@ -985,8 +1019,13 @@ export class WorldEditor {
       return;
     }
     this.stroke = { last: spot };
-    this.change(applyGridTool(this.host.plan(), brush, spot));
+    this.change(applyGridTool(this.host.plan(), brush, spot, this.fixtureProps()));
     this.drawGhost();
+  }
+
+  /** Was ein Einbau mitbekommt, der gerade gesetzt wird. */
+  private fixtureProps(): Props {
+    return this.fixtureTarget ? { target: this.fixtureTarget } : {};
   }
 
   /**
@@ -1013,7 +1052,7 @@ export class WorldEditor {
     }
     const spots = strokeSpots(stroke.last, spot);
     stroke.last = spot;
-    this.change(applySpots(this.host.plan(), brush, spots));
+    this.change(applySpots(this.host.plan(), brush, spots, this.fixtureProps()));
     this.drawGhost();
   }
 
@@ -1038,7 +1077,9 @@ export class WorldEditor {
 
   /** Die Fläche zwischen zwei Ecken mit dem Pinsel füllen. */
   private fill(brush: GridTool, from: PlanSpot, to: PlanSpot): void {
-    this.change(applySpots(this.host.plan(), brush, areaSpots(brush, from, to)));
+    this.change(
+      applySpots(this.host.plan(), brush, areaSpots(brush, from, to), this.fixtureProps()),
+    );
   }
 
   /**
@@ -1281,6 +1322,13 @@ export class WorldEditor {
         box(solid, solid.kind === 'floor' ? this.miniFloorMat : this.miniWallMat, this.centre),
       );
     }
+    // **Und ein Klotz je Einbau** (`GridPlan.fixtureMarks`). Was ein Einbau in
+    // der Welt ist, baut seine Art selbst; auf dem Tischmodell stünde sonst
+    // nichts, und ein Editor, in dem das Gesetzte unsichtbar bleibt, ist
+    // einer, in dem man zweimal setzt.
+    for (const mark of plan.fixtureMarks()) {
+      this.content.add(box(mark, this.miniWallMat, this.centre));
+    }
     this.layOut();
     this.drawGhost();
   }
@@ -1420,6 +1468,40 @@ export class WorldEditor {
         }),
       },
       {
+        id: 'plan-fixtures',
+        label: 'Einbauten',
+        sub: 'Was einen Zustand hat: Schilder, Türen, Knöpfe, Tore',
+        icon: 'cube',
+        accent: 0xe4c56a,
+        children: [
+          ...paletteKinds().map((kind) => {
+            const id = fixtureTool(kind.kind);
+            const spec = gridToolSpec(id);
+            return {
+              id: `plan-${id}`,
+              label: spec.label,
+              sub: spec.sub,
+              icon: 'cube' as const,
+              accent: spec.accent,
+              checked: this.brush === id,
+              run: () => this.pick(id),
+            };
+          }),
+          {
+            id: 'plan-fixture-target',
+            label: 'Ziel',
+            // Der Wert steht in der Zeile: In der Brille ist eine Einstellung,
+            // die man aufmachen muss, um sie zu sehen, keine.
+            sub: this.fixtureTarget
+              ? `Neue Einbauten schalten „${this.fixtureTarget}"`
+              : 'Kein Ziel — neue Einbauten schalten nichts',
+            icon: 'cube' as const,
+            accent: 0x39d0ff,
+            run: () => this.askTarget(),
+          },
+        ],
+      },
+      {
         id: 'plan-go',
         label: 'Hingehen',
         sub: 'Auf eine Kachel der Miniatur tippen und dort stehen',
@@ -1465,6 +1547,31 @@ export class WorldEditor {
     ];
   }
 
+  /**
+   * **Das Ziel eintippen** — die Kennung des Einbaus, den die nächsten
+   * schalten sollen.
+   *
+   * Leer eingegeben heißt „keins": Ein Knopf ohne Ziel ist ein Knopf, der
+   * klickt, und das ist ein brauchbarer Zwischenstand beim Bauen.
+   */
+  private askTarget(): void {
+    const host = this.host;
+    if (!host.ask) {
+      host.say('Hier gibt es keine Tastatur');
+      return;
+    }
+    host.ask({
+      title: 'Ziel',
+      sub: 'Die Kennung des Einbaus, den neue Einbauten schalten',
+      value: this.fixtureTarget,
+      hint: 'Leer lassen heißt: schaltet nichts',
+      commit: (text: string) => {
+        this.fixtureTarget = text.trim();
+        host.say(this.fixtureTarget ? `Ziel: ${this.fixtureTarget}` : 'Kein Ziel mehr');
+      },
+    });
+  }
+
   /** Ein Werkzeug aus dem Menü — dasselbe wie Eintunken, nur ohne Palette. */
   private pick(id: GridTool | 'go'): void {
     this.brush = id;
@@ -1475,22 +1582,40 @@ export class WorldEditor {
 }
 
 /**
- * **Die Näpfe der Palette**, in zwei Reihen: oben die vier Bauwerkzeuge und
- * das Hingehen, darunter das Mobiliar.
+ * **Die Näpfe der Palette**, in drei Reihen: oben die vier Bauwerkzeuge und
+ * das Hingehen, darunter das Mobiliar, ganz unten die **Einbauten**.
  *
  * Die Trennung ist keine Ordnungsliebe, sondern die Reihenfolge, in der man
- * baut: erst der Grundriss, dann das, was darin steht. Wer eine Küchenzeile
- * setzen will, hat vorher Boden und Wände gelegt — und wer sie in derselben
- * Reihe suchte, käme beim Wandmalen aus Versehen daran.
+ * baut: erst der Grundriss, dann das, was darin steht, dann das, was darin
+ * etwas tut. Wer eine Küchenzeile setzen will, hat vorher Boden und Wände
+ * gelegt — und wer sie in derselben Reihe suchte, käme beim Wandmalen aus
+ * Versehen daran.
+ *
+ * Eine **Funktion** und keine Konstante: Die Einbauten stehen in einer
+ * Registry, die beim Laden der Arten wächst (`grid/fixtures/kinds.ts`). Eine
+ * Liste, die beim Übersetzen dieser Datei festgelegt würde, wäre je nach
+ * Ladereihenfolge halb leer.
  */
-const PALETTE_DABS = [
-  ...PLAN_TOOLS.map((tool) => ({ id: tool.id, label: tool.label, color: tool.accent, row: 0 })),
-  { id: 'go', label: GO_SPEC.label, color: GO_COLOR, row: 0 },
-  ...PALETTE_BLOCKS.map((kind) => {
-    const spec = gridToolSpec(kind);
-    return { id: kind, label: spec.label, color: spec.accent, row: 1 };
-  }),
-];
+function paletteDabs(): PaletteDab[] {
+  return [
+    ...PLAN_TOOLS.map((tool) => ({ id: tool.id, label: tool.label, color: tool.accent, row: 0 })),
+    { id: 'go', label: GO_SPEC.label, color: GO_COLOR, row: 0 },
+    ...PALETTE_BLOCKS.map((kind) => {
+      const spec = gridToolSpec(kind);
+      return { id: kind, label: spec.label, color: spec.accent, row: 1 };
+    }),
+    // **Die dritte Reihe kommt aus der Registry** und nicht aus einer Liste
+    // hier: Wer eine Art anlegt (`fixtures/kinds.ts`), hat ihren Napf, ohne
+    // den Editor anzufassen. Eine zweite Liste neben der Registry wäre die,
+    // die beim nächsten Tor vergessen wird.
+    ...paletteKinds().map((kind) => ({
+      id: fixtureTool(kind.kind),
+      label: kind.label,
+      color: kind.accent,
+      row: 2,
+    })),
+  ];
+}
 
 /**
  * Die Tafel am Modell: was mit dem Modell selbst passiert — und **wie**

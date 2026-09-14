@@ -1,7 +1,17 @@
 import { spotAt } from '../editor/levelPlan';
 import { DIR_N, DIR_S, TILE, tileKey } from '../nav/navTile';
 import { GridPlan } from './gridPlan';
-import { PALETTE_BLOCKS, applyGridTool, gridToolSpec, isBlockTool } from './gridTool';
+import {
+  PALETTE_BLOCKS,
+  applyGridTool,
+  fixtureTool,
+  gridToolSpec,
+  isBlockTool,
+  isFixtureTool,
+  toolFixtureKind,
+} from './gridTool';
+// Damit die Arten angemeldet sind — der Pinsel kennt sie über die Registry.
+import './fixtures/kinds';
 
 function room(): GridPlan {
   return new GridPlan().room({ x: 0, z: 0, w: 3, d: 3 });
@@ -195,5 +205,72 @@ describe('Die Palette', () => {
     const [x, z] = middle(1, 1);
     applyGridTool(plan, 'crate', spotAt(x, z + TILE / 2 - 0.1));
     expect(plan.blocksOn(tileKey(1, 1, 0))[0]!.dir).toBe(DIR_S);
+  });
+});
+
+describe('Einbauten setzen', () => {
+  it('erkennt ein Einbau-Werkzeug an seiner Vorsilbe', () => {
+    expect(isFixtureTool(fixtureTool('sign'))).toBe(true);
+    expect(isFixtureTool('table')).toBe(false);
+    expect(toolFixtureKind(fixtureTool('sign'))).toBe('sign');
+  });
+
+  it('nimmt Name und Farbe aus der Registry', () => {
+    const spec = gridToolSpec(fixtureTool('sign'));
+    expect(spec.label).toBe('Schild');
+    expect(spec.sub).toContain('Kante');
+  });
+
+  it('hängt ein Schild an die Kante, auf die gezeigt wird', () => {
+    const plan = room();
+    const [x, z] = middle(1, 1);
+    const edit = applyGridTool(plan, fixtureTool('sign'), spotAt(x, z - TILE / 2 + 0.1), {
+      target: 'tuer-1',
+    });
+    expect(edit.changed).toBe(true);
+    const [one] = plan.fixturesOn(tileKey(1, 1, 0));
+    expect(one!.dir).toBe(DIR_N);
+    expect(one!.props.target).toBe('tuer-1');
+  });
+
+  it('weist ein Schild ohne Kante zurück', () => {
+    const plan = room();
+    const edit = applyGridTool(plan, fixtureTool('sign'), spotAt(...middle(1, 1)));
+    expect(edit.changed).toBe(false);
+    expect(edit.says).toContain('Kante');
+  });
+
+  /**
+   * Beim Malen erwischt man eine Kachel doppelt — das ist die häufigste
+   * Handbewegung überhaupt und kein Grund, zwei Schilder ineinanderzustellen.
+   */
+  it('setzt dasselbe an dieselbe Kante nicht zweimal', () => {
+    const plan = room();
+    const [x, z] = middle(1, 1);
+    const spot = spotAt(x, z - TILE / 2 + 0.1);
+    applyGridTool(plan, fixtureTool('sign'), spot);
+    expect(applyGridTool(plan, fixtureTool('sign'), spot).changed).toBe(false);
+    expect(plan.fixtures()).toHaveLength(1);
+  });
+
+  /**
+   * **Erst der Einbau, dann der Baustein, dann das Bauliche.** Wer ein Schild
+   * löscht, will nicht die Wand los, an der es hängt.
+   */
+  it('räumt mit dem Radiergummi zuerst den Einbau weg', () => {
+    const plan = room();
+    const [x, z] = middle(1, 1);
+    applyGridTool(plan, 'table', spotAt(x, z));
+    applyGridTool(plan, fixtureTool('sign'), spotAt(x, z - TILE / 2 + 0.1));
+    expect(applyGridTool(plan, 'erase', spotAt(x, z)).says).toContain('Schild');
+    expect(plan.fixtures()).toHaveLength(0);
+    expect(plan.blocksOn(tileKey(1, 1, 0))).toHaveLength(1);
+  });
+
+  it('sagt es, statt eine unbekannte Art zu setzen', () => {
+    const plan = room();
+    const edit = applyGridTool(plan, fixtureTool('tor'), spotAt(...middle(1, 1)));
+    expect(edit.changed).toBe(false);
+    expect(plan.fixtures()).toHaveLength(0);
   });
 });

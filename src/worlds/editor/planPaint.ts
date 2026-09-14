@@ -1,6 +1,14 @@
 import { NO_TILE, keyLevel, keyX, keyZ, tileKey, DIR_E, DIR_N, DIR_S, DIR_W } from '../nav/navTile';
 import type { PlanEdit, PlanSpot } from './levelPlan';
-import { EDGE_BLOCKS, applyGridTool, isBlockTool, type GridTool } from '../grid/gridTool';
+import {
+  EDGE_BLOCKS,
+  applyGridTool,
+  isBlockTool,
+  isFixtureTool,
+  toolFixtureKind,
+  type GridTool,
+} from '../grid/gridTool';
+import { fixtureKind, type Props } from '../grid/fixtures/index';
 import type { GridPlan } from '../grid/gridPlan';
 
 /**
@@ -77,6 +85,7 @@ export function paintModeSpec(id: PaintMode): PaintModeSpec {
  */
 export function wantsEdge(tool: GridTool): boolean {
   if (tool === 'wall' || tool === 'door') return true;
+  if (isFixtureTool(tool)) return fixtureKind(toolFixtureKind(tool))?.edge === true;
   return isBlockTool(tool) && EDGE_BLOCKS.has(tool);
 }
 
@@ -148,7 +157,7 @@ export function areaSpots(tool: GridTool, a: PlanSpot, b: PlanSpot): PlanSpot[] 
   if (!wantsEdge(tool)) {
     // Die Blickrichtung kommt aus der zweiten Ecke — das ist die, an der die
     // Hand beim Loslassen stand, und damit die, an die man zuletzt gedacht hat.
-    const dir = isBlockTool(tool) ? b.dir : null;
+    const dir = isBlockTool(tool) || isFixtureTool(tool) ? b.dir : null;
     for (let z = z0; z <= z1; z++) {
       for (let x = x0; x <= x1; x++) out.push({ tile: tileKey(x, z, level), dir });
     }
@@ -183,12 +192,13 @@ export function applySpots(
   plan: GridPlan,
   tool: GridTool,
   spots: readonly PlanSpot[],
+  props: Props = {},
 ): PlanEdit & { count: number } {
   let count = 0;
   let says = '';
   let last = '';
   for (const spot of spots) {
-    const edit = applyGridTool(plan, tool, spot);
+    const edit = applyGridTool(plan, tool, spot, props);
     if (edit.says) last = edit.says;
     if (!edit.changed) continue;
     count++;

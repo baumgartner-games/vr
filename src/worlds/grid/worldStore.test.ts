@@ -1,6 +1,7 @@
 import { GridPlan } from './gridPlan';
 import { DIR_N, tileKey } from '../nav/navTile';
 import { forgetWorld, hasStoredWorld, keepWorld, storedWorld, worldKey } from './worldStore';
+import { WORLD_VERSION } from './worldFile';
 
 /** Ein Speicher, wie ein Browser ihn hat — und einer, der kaputt sein darf. */
 function fakeStorage(broken = false) {
@@ -48,7 +49,7 @@ describe('Der Speicher im Browser', () => {
 
     const back = storedWorld('dark')!;
     expect(back.file.world).toBe('dark');
-    expect(back.file.version).toBe('0.1.0');
+    expect(back.file.version).toBe(WORLD_VERSION);
     expect(back.graph.has(tileKey(1, 1, 0))).toBe(true);
     expect(back.masses).toHaveLength(1);
     expect(back.blocks).toHaveLength(1);

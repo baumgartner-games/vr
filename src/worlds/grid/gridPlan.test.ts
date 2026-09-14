@@ -1,7 +1,42 @@
 import { bakeNav, type NavBox } from '../nav/navBake';
 import { DIR_E, DIR_N, DIR_S, DIR_W, TILE, tileKey } from '../nav/navTile';
 import { GridPlan } from './gridPlan';
+import { registerKind, type FixtureKind, type FixtureView } from './fixtures/index';
 import { solidBounds, type PlanSolid } from './solids';
+
+/**
+ * Zwei Arten, die es nur hier gibt: eine, die fest im Weg steht, und eine
+ * Tür. Die echten kommen erst mit P6 — geprüft werden soll aber der Plan und
+ * nicht, was eine Tür sonst noch kann.
+ */
+const CRATE: FixtureKind<{ open: boolean }> = {
+  kind: 'test-kiste',
+  label: 'Prüfkiste',
+  accent: 0x000000,
+  cost: 4,
+  init: () => ({ open: false }),
+  step: () => [],
+  solid: () => true,
+  build: () => ({}) as FixtureView,
+  apply: () => {},
+};
+
+const DOOR: FixtureKind<{ open: boolean }> = {
+  kind: 'test-tuer',
+  label: 'Prüftür',
+  accent: 0x000000,
+  edge: true,
+  door: true,
+  open: (state) => state.open,
+  init: (place) => ({ open: place.props.open === true }),
+  step: () => [],
+  solid: (state) => !state.open,
+  build: () => ({}) as FixtureView,
+  apply: () => {},
+};
+
+registerKind(CRATE);
+registerKind(DOOR);
 
 function boxesOf(solids: readonly PlanSolid[]): NavBox[] {
   return solids.map((one) => ({
@@ -125,6 +160,98 @@ describe('Bausteine gehen in die Kachel ein', () => {
     const pillar = plan.solids().find((one) => one.kind === 'stone')!;
     expect(pillar.x).toBeCloseTo(2.5 * TILE);
     expect(pillar.z).toBeCloseTo(-2.5 * TILE);
+  });
+});
+
+describe('Einbauten', () => {
+  it('macht eine Kachel teuer, solange der Einbau fest ist', () => {
+    const plan = new GridPlan().room({ x: 0, z: 0, w: 2, d: 2 });
+    plan.putFixture({ kind: 'test-kiste', x: 1, z: 1, dir: DIR_N });
+    expect(plan.graph.tile(tileKey(1, 1, 0))!.cost).toBeCloseTo(4);
+    // Und daneben bleibt alles, wie es war.
+    expect(plan.graph.tile(tileKey(0, 0, 0))!.cost).toBeCloseTo(1);
+  });
+
+  it('gibt die Kachel wieder frei, wenn der Einbau weg ist', () => {
+    const plan = new GridPlan().room({ x: 0, z: 0, w: 2, d: 2 });
+    const one = plan.putFixture({ kind: 'test-kiste', x: 0, z: 1, dir: DIR_N });
+    expect(plan.takeFixture(one.id)?.kind).toBe('test-kiste');
+    expect(plan.graph.tile(tileKey(0, 1, 0))!.cost).toBeCloseTo(1);
+    expect(plan.fixtures()).toHaveLength(0);
+  });
+
+  /**
+   * **Eine Tür ist eine Kante und kein teurer Boden.** Erst damit weiß ein
+   * NPC, dass es dort durchgeht — und erst damit kann sich eine Meinung über
+   * sie irren (`nav/navBelief.ts`).
+   */
+  it('trägt eine Tür als Tür-Kante in den Graphen ein', () => {
+    const plan = new GridPlan().room({ x: 0, z: 0, w: 2, d: 2 }, { walls: true });
+    plan.putFixture({ id: 'tuer-1', kind: 'test-tuer', x: 0, z: 0, dir: DIR_N });
+    const wall = plan.graph.wall(tileKey(0, 0, 0), DIR_N)!;
+    expect(wall.kind).toBe('door');
+    expect(wall.open).toBe(false);
+    // Die Kachel selbst bleibt billig: Die Tür steht dazwischen.
+    expect(plan.graph.tile(tileKey(0, 0, 0))!.cost).toBeCloseTo(1);
+
+    plan.setFixtureDoor(plan.fixture('tuer-1')!, true);
+    expect(plan.graph.wall(tileKey(0, 0, 0), DIR_N)!.open).toBe(true);
+
+    plan.takeFixture('tuer-1');
+    expect(plan.graph.wall(tileKey(0, 0, 0), DIR_N)).toBeUndefined();
+  });
+
+  it('vergibt eine Kennung, wenn keine dabeisteht — und nie zweimal dieselbe', () => {
+    const plan = new GridPlan().room({ x: 0, z: 0, w: 3, d: 1 });
+    const a = plan.putFixture({ kind: 'test-kiste', x: 0, z: 0, dir: DIR_N });
+    const b = plan.putFixture({ kind: 'test-kiste', x: 1, z: 0, dir: DIR_N });
+    expect(a.id).not.toBe(b.id);
+    // Wer dieselbe Kennung noch einmal setzt, meint dieselbe Sache: Die
+    // ältere geht, sonst schaltete ein Ziel zwei Türen.
+    plan.putFixture({ id: a.id, kind: 'test-kiste', x: 2, z: 0, dir: DIR_N });
+    expect(plan.fixtures()).toHaveLength(2);
+    expect(plan.fixture(a.id)!.x).toBe(2);
+  });
+
+  it('nimmt Einbauten in einen anderen Plan mit', () => {
+    const source = new GridPlan().room({ x: 0, z: 0, w: 2, d: 2 });
+    source.putFixture({ id: 'schild-1', kind: 'test-kiste', x: 1, z: 0, dir: DIR_E });
+    const target = new GridPlan().room({ x: 5, z: 5, w: 1, d: 1 });
+    target.replaceWith(source);
+    expect(target.fixtures()).toHaveLength(1);
+    expect(target.fixture('schild-1')!.dir).toBe(DIR_E);
+    // Und zwar als Abschrift: Der neue Plan hält keine Zeiger in den alten.
+    expect(target.fixture('schild-1')).not.toBe(source.fixture('schild-1'));
+  });
+
+  it('lässt weg, was auf einer Kachel steht, die es nicht gibt', () => {
+    const plan = new GridPlan().room({ x: 0, z: 0, w: 2, d: 2 });
+    plan.loadFixtures([
+      { id: 'a', kind: 'test-kiste', x: 0, z: 0, dir: DIR_N, level: 0, props: {} },
+      { id: 'b', kind: 'test-kiste', x: 40, z: 40, dir: DIR_N, level: 0, props: {} },
+    ]);
+    expect(plan.fixtures().map((one) => one.id)).toEqual(['a']);
+  });
+
+  it('zeigt jeden Einbau als Klotz auf dem Tischmodell', () => {
+    const plan = new GridPlan().room({ x: 0, z: 0, w: 2, d: 2 });
+    plan.putFixture({ kind: 'test-kiste', x: 1, z: 1, dir: DIR_N });
+    const [mark] = plan.fixtureMarks();
+    expect(plan.fixtureMarks()).toHaveLength(1);
+    expect(mark!.x).toBeCloseTo(1.5 * TILE);
+    expect(mark!.z).toBeCloseTo(1.5 * TILE);
+    // In `solids()` steht er nicht: Sein Bild baut seine Art.
+    expect(plan.solids().some((one) => one.kind === 'glow')).toBe(false);
+  });
+
+  it('merkt sich, dass sich am Plan etwas getan hat', () => {
+    const plan = new GridPlan().room({ x: 0, z: 0, w: 2, d: 2 });
+    const before = plan.version;
+    const one = plan.putFixture({ kind: 'test-kiste', x: 0, z: 0, dir: DIR_N });
+    expect(plan.version).toBeGreaterThan(before);
+    const between = plan.version;
+    plan.takeFixture(one.id);
+    expect(plan.version).toBeGreaterThan(between);
   });
 });
 

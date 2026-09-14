@@ -6425,7 +6425,7 @@ man erst bemerkt, wenn im Dunkelhaus plötzlich Dust steht.
 #### Das Weltformat
 
 **Eine Welt als Datei** (`grid/worldFile.ts`), Format `baumgartner-welt`,
-Version **`0.1.0`**.
+Version **`0.2.0`**.
 
 Bis hierher gab es zwei Hälften und keine Naht dazwischen. Der
 Navigationsgraph hatte längst ein sauberes, versioniertes Format
@@ -6456,18 +6456,26 @@ Vier Entscheidungen tragen das Format:
   sähe es, weil die Datei weiterhin gültig aussieht.
 - **Die Version ist Semver, als Zeichenkette.** Solange die Hauptnummer `0`
   ist, gilt eine neue Nebennummer als Bruch — so liest man Semver vor 1.0.
-  Gelesen wird die Zeile `0.1.x`; eine Datei aus der Zukunft wird **abgelehnt**
-  und nicht halb geladen, denn eine Welt, der beim Laden die Hälfte fehlt,
-  sieht aus wie eine kaputte Welt und nicht wie eine zu neue. „Zu neu" und „zu
+  Gelesen werden die Zeilen `0.1.x` und `0.2.x` — `0.1` blieb lesbar, weil der
+  Sprung auf `0.2` nur eine Liste hinzugefügt hat (die **Einbauten**), und eine
+  fehlende Liste ist eine leere. Andersherum gilt das nicht: Wer eine
+  `0.2`-Welt in ein altes Programm lädt, verlöre ihre Tore und Türen still.
+  Eine Datei aus der Zukunft wird **abgelehnt** und nicht halb geladen, denn
+  eine Welt, der beim Laden die Hälfte fehlt, sieht aus wie eine kaputte Welt
+  und nicht wie eine zu neue. „Zu neu" und „zu
   alt" bekommen deshalb zwei verschiedene Meldungen: Sie sind das Einzige,
   woran jemand sieht, ob er ein Programm oder eine Datei aktualisieren muss.
 
 **Streng und nachsichtig an den richtigen Stellen.** Ein Baustein auf einer
 Kachel, die es nicht gibt, fällt weg; eine unbekannte Baustein-Sorte fällt weg
 (wer eine Welt aus einer neueren Fassung öffnet, will sein Haus sehen und nicht
-eine Fehlermeldung über einen Schrank). Bei den **Massen** ist es andersherum:
-Dort wird abgebrochen. Ein fehlendes Dach ist eine Welt, in die es hineinregnet,
-und eine fehlende Felswand eine, aus der man hinausläuft.
+eine Fehlermeldung über einen Schrank). Bei einem **Einbau** fällt die
+unbekannte Art dagegen _nicht_ weg — sie hat eine Kennung, auf die andere
+zeigen, und ein Tor, das beim Speichern verschwände, nähme jedem Knopf sein
+Ziel; übersprungen wird sie erst beim Bauen, und dann mit einer Meldung. Bei
+den **Massen** ist es andersherum: Dort wird abgebrochen. Ein fehlendes Dach ist
+eine Welt, in die es hineinregnet, und eine fehlende Felswand eine, aus der man
+hinausläuft.
 
 Und noch ein Unterschied, der leicht als Schlamperei durchginge: Eine kaputte
 Zeile im **Speicher** wird weggeworfen und nicht gemeldet — sie kommt aus einer
@@ -6478,8 +6486,8 @@ Nichts wäre die schlechteste aller Antworten.
 
 **Was bewusst nicht in der Datei steht**, damit niemand es sucht: Eine
 Weltdatei ist ein **Grundriss** und kein Spielstand. Sie kennt Kacheln, Wände,
-Türen, Verbindungen, Bausteine und Massen — alles, was `GridPlan` führt. Sie
-kennt **nicht**, was eine Welt darüber hinaus von Hand hinstellt
+Türen, Verbindungen, Bausteine, Einbauten und Massen — alles, was `GridPlan`
+führt. Sie kennt **nicht**, was eine Welt darüber hinaus von Hand hinstellt
 (`buildProps`): die Lampen und den Dimmer des Dunkelhauses, die Karts in der
 Boxengasse, die Kisten zum Herumwerfen. Und sie kennt keine Farben — welchen
 Ton eine Wand hat, entscheidet die Welt, in der sie steht (`GridWorld.tint`),
@@ -7358,6 +7366,88 @@ NPC nicht existiert; das sieht danach aus wie ein kaputter Character-Controller.
 **zwei** Kacheln hin und her: Alle Läufe übereinander ginge nicht, weil jeder
 Lauf das Loch für seinen eigenen Kopf schlägt — genau darin müsste der nächste
 stehen.
+
+#### Einbauten: was auf dem Gitter einen Zustand hat
+
+Ein Baustein ist **still**. Das ist seine Stärke — eine Kachel, eine Sorte, eine
+Blickrichtung, und daraus werden Quader —, und es ist genau die Grenze, an der
+das Gitter lange aufhörte. Eine Tür ist halb offen, ein Knopf hat Nachlauf, eine
+Platte ist gedrückt, solange eine Kiste darauf liegt, ein Tor führt in eine
+andere Welt. Für all das gab es bisher genau einen Ort, und der stand in Metern
+neben dem Gitter statt darauf: das Interaktionslabor (`worlds/interact/`). Wer
+in einer Gitterwelt eine Tür wollte, baute sie noch einmal.
+
+Seit P3 gibt es die zweite Sorte Ding auf der Kachel: den **Einbau**
+(`grid/fixtures/`). Dieselbe Kachel, dieselbe Blickrichtung wie ein Baustein,
+dazu eine **Art** (`sign`, später `gate`, `door`, `button`, `plate`, `lamp`,
+`emitter`), eine **Kennung** und ein paar **Eigenschaften** (`target`, `hold`,
+`text`, …). Er steht im Grundriss, im Weltformat und in der Palette des
+Editors — und `GridWorld` kennt dabei keine einzige Art beim Namen, sondern nur
+die Registry.
+
+**Eine Art ist fünf Handgriffe**, und die Trennung dazwischen ist der ganze
+Zweck:
+
+- `init` und `step` sind **rein**: kein three.js, kein Weltkontext, keine
+  Physik. Sie schreiben einen Zustand fort und geben zurück, was dabei nach
+  außen geht. Deshalb hat jede Art einen Test, der in Millisekunden läuft —
+  die Türmathematik (`interact/doorMotion.ts`) wird importiert und nicht
+  abgeschrieben.
+- `solid` sagt, ob die Kachel gerade aufhält. Gefragt und nicht gespeichert:
+  Eine Tür ist fest, solange sie zu ist, und das ist eine Ableitung aus dem
+  Zustand und keine zweite Wahrheit daneben.
+- `build` und `apply` sind das Bild — einmal bauen, jedes Bild den Zustand
+  hineinschieben. Wer beides in einem machte, baute die Tür sechzigmal in der
+  Sekunde neu.
+
+**Ein Einbau kennt niemanden.** Er ruft nichts auf; er meldet vier Sachen, und
+`GridWorld` verteilt sie: `trigger` an eine Kennung, `goto` an den Weltkontext
+(genau das, was das Hub-Tor tut), `sound` an `core/Audio`, `effect` an die
+Effekte (P7). Das ist der Unterschied zwischen einem Knopf, den ein Test in
+einer Millisekunde prüft, und einem, der eine Tür in der Hand hält. Und
+**ausgelöst wird im nächsten Bild**: Die Ereignisse eines Bildes werden
+gesammelt und danach zugestellt, sonst hinge es an der Reihenfolge einer Liste,
+ob ein Knopf seine Tür noch in diesem Bild erwischt.
+
+**Im Graphen zählt ein Einbau wie ein Baustein** — mit einer Ausnahme, und die
+ist der Grund für den ganzen Umweg über den Plan. Was **fest** ist, macht seine
+Kachel teuer wie eine Kiste; was eine **Tür** ist (`kind.door`), wird zur
+Tür-Kante (`door(..., open)`) und nicht zu teurem Boden. Erst damit weiß ein NPC
+von ihr, bevor er losläuft, und erst damit kann sich eine Meinung über sie irren
+(`nav/navBelief.ts`). Ohne diesen Zweig hätte man eine Tür, die man selbst
+aufdrücken kann und die für jeden NPC eine Wand ist.
+
+**Die Kennung steht in der Datei und wird nicht neu vergeben.** Ein Knopf zeigt
+über `props.target` auf eine Tür; eine Welt, die ihre Namen beim Laden
+durchnummerierte, ist eine, in der nach dem Speichern die falsche Tür aufgeht.
+Aus demselben Grund fällt eine **unbekannte Art beim Lesen nicht weg** (anders
+als ein unbekannter Baustein): Sie bleibt in der Welt stehen und wird nur beim
+**Bauen** übersprungen und gemeldet (`console.warn`). Ein Tor, das ein altes
+Programm still verschluckt, nimmt jedem Knopf sein Ziel.
+
+**Wo die Arten stehen**: jede in einer eigenen Datei, angemeldet mit einer Zeile
+in `fixtures/kinds.ts`; der Vertrag daneben in `fixtures/index.ts`. Zwei Dateien
+und nicht eine, weil eine Art three.js baut und der Grundriss ohne auskommen
+muss — `gridPlan.ts` fragt den Vertrag nach Kosten und Türkanten, und ein
+Grundriss-Test soll dafür nicht die halbe Grafikbibliothek laden.
+
+Im **Editor** ist das die dritte Reihe der Palette (_Einbauten_), gefüllt aus
+der Registry: Wer eine Art anlegt, hat ihren Napf, ohne den Editor anzufassen.
+Gesetzt wird wie ein Baustein — was an eine Kante gehört, will eine Kante —, der
+Radiergummi räumt **erst den Einbau** weg (wer ein Schild löscht, will nicht die
+Wand los, an der es hängt), und auf dem Tischmodell steht je Einbau ein Klotz
+(`fixtureMarks`), damit man sieht, was man gesetzt hat. Von den Eigenschaften
+lässt sich vorerst genau eine im Spiel eintippen: das **Ziel**
+(_Einbauten → Ziel_, `ui/KeyPanel.ts`). Es gilt für das nächste Setzen und nicht
+für das letzte — wer eine Reihe Knöpfe auf dieselbe Tür setzt, tippt den Namen
+einmal. Alles andere steht in `layout()`, und das ist ehrlicher als eine Tafel
+mit acht Feldern, durch die man in der Brille blättert.
+
+Das erste Kind ist das **Schild** (`fixtures/sign.ts`): Es hält eine Zeile an
+einer Wand, und wer davor steht und benutzt, liest sie am Handgelenk. Zwei
+Zeilen Logik, mit Absicht — eine Registry, deren erstes Kind schon fünf Zustände
+hat, ist eine, bei der man beim ersten Fehler nicht weiß, ob die Art oder die
+Registry schuld ist.
 
 **Fünf Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust, die
 Hülle der Kletterhalle und das Gokart. Der Bauplatz ist seit der dritten

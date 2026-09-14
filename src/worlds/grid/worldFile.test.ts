@@ -1,6 +1,8 @@
 import { GridPlan } from './gridPlan';
 import { DIR_E, DIR_N, DIR_S, TILE, tileKey } from '../nav/navTile';
 import { BLOCKS } from './blocks';
+// Damit „sign" eine bekannte Art ist — der Rest der Datei prüft eine unbekannte.
+import './fixtures/kinds';
 import {
   WORLD_FORMAT,
   WORLD_VERSION,
@@ -26,6 +28,14 @@ function house(): GridPlan {
   plan.mass('wood', { x: 0, z: 0, w: 4, d: 4 }, 2.8, 3.1);
   plan.put('counter', 0, 0, DIR_N);
   plan.put('table', 2, 2, DIR_E);
+  plan.putFixture({
+    id: 'schild-1',
+    kind: 'sign',
+    x: 1,
+    z: 0,
+    dir: DIR_N,
+    props: { text: 'Küche' },
+  });
   return plan;
 }
 
@@ -33,14 +43,19 @@ function house(): GridPlan {
 function roundTrip(plan: GridPlan): GridPlan {
   const text = JSON.stringify(writeWorld(plan, { world: 'test', name: 'Testhaus' }));
   const read = readWorld(JSON.parse(text));
-  return new GridPlan(read.graph.levels).restore(read.graph, read.blocks, read.masses);
+  return new GridPlan(read.graph.levels).restore(
+    read.graph,
+    read.blocks,
+    read.masses,
+    read.fixtures,
+  );
 }
 
 describe('Eine Welt als Datei', () => {
   it('trägt Format und Versionsnummer', () => {
     const file = writeWorld(house(), { world: 'test', saved: '2026-09-07T10:00:00.000Z' });
     expect(file.format).toBe(WORLD_FORMAT);
-    expect(file.version).toBe('0.1.0');
+    expect(file.version).toBe('0.2.0');
     expect(file.world).toBe('test');
     expect(file.saved).toBe('2026-09-07T10:00:00.000Z');
   });
@@ -109,6 +124,87 @@ describe('Eine Welt als Datei', () => {
     const file = writeWorld(house());
     expect(file.blocks[0]).toMatchObject({ kind: 'counter', x: 0, z: 0, dir: DIR_N });
     expect(file.blocks[0]).not.toHaveProperty('tile');
+  });
+});
+
+/**
+ * **Die Einbauten kamen mit Fassung `0.2`** — und sie sind ihr einziger
+ * Inhalt. Deshalb steht hier beides: dass sie heil hin und zurück kommen, und
+ * dass eine Datei ohne sie weiter aufgeht.
+ */
+describe('Einbauten in der Datei', () => {
+  it('schreibt Kennung, Art, Kachel, Richtung und Eigenschaften', () => {
+    const file = writeWorld(house());
+    expect(file.fixtures).toHaveLength(1);
+    expect(file.fixtures[0]).toEqual({
+      id: 'schild-1',
+      kind: 'sign',
+      x: 1,
+      z: 0,
+      dir: DIR_N,
+      props: { text: 'Küche' },
+    });
+  });
+
+  it('bringt sie vollständig zurück', () => {
+    const after = roundTrip(house());
+    const sign = after.fixture('schild-1')!;
+    expect(sign).toMatchObject({ kind: 'sign', x: 1, z: 0, dir: DIR_N, level: 0 });
+    expect(sign.props.text).toBe('Küche');
+  });
+
+  /**
+   * **Eine Datei aus `0.1` hat die Liste nicht** — und eine fehlende Liste ist
+   * eine leere. Genau daran hängt, dass niemand seine gebaute Welt verliert,
+   * nur weil ein Schild dazugekommen ist.
+   */
+  it('liest eine Welt aus Fassung 0.1 weiter', () => {
+    const file = writeWorld(house()) as unknown as Record<string, unknown>;
+    const old: Record<string, unknown> = { ...file, version: '0.1.0' };
+    delete old.fixtures;
+    const read = readWorld(old);
+    expect(read.fixtures).toEqual([]);
+    expect(read.blocks).toHaveLength(2);
+  });
+
+  /**
+   * **Eine unbekannte Art bleibt stehen**, anders als ein unbekannter
+   * Baustein. Der Unterschied ist die Kennung: Ein Tor, das beim Speichern
+   * verschwände, ließe jeden Knopf, der darauf zeigt, ins Leere zeigen. Wer
+   * *baut*, überspringt es und sagt es.
+   */
+  it('behält eine Art, die dieses Programm nicht kennt', () => {
+    const file = writeWorld(house());
+    file.fixtures.push({
+      id: 'tor-1',
+      kind: 'gate',
+      x: 2,
+      z: 0,
+      dir: DIR_S,
+      props: { world: 'dust' },
+    });
+    const read = readWorld(JSON.parse(JSON.stringify(file)));
+    expect(read.fixtures.map((one) => one.kind)).toEqual(['sign', 'gate']);
+  });
+
+  it('wirft Kaputtes weg, statt die ganze Welt hinzuwerfen', () => {
+    const file = writeWorld(house()) as unknown as { fixtures: unknown[] };
+    file.fixtures.push(
+      { kind: 'sign', x: 0, z: 0, dir: 0 },
+      { id: 'schild-1', kind: 'sign', x: 0, z: 0, dir: 0 },
+      { id: 'weit-weg', kind: 'sign', x: 4000, z: 0, dir: 0 },
+      { id: 'schief', kind: 'sign', x: 0, z: 0, dir: 9 },
+      { id: 'ganz-ok', kind: 'sign', x: 0, z: 1, dir: 0, props: { tief: { a: 1 }, text: 'ja' } },
+    );
+    const read = readWorld(JSON.parse(JSON.stringify(file)));
+    expect(read.fixtures.map((one) => one.id)).toEqual(['schild-1', 'ganz-ok']);
+    // Verschachteltes fällt aus den Eigenschaften heraus.
+    expect(read.fixtures[1]!.props).toEqual({ text: 'ja' });
+  });
+
+  it('meldet eine „fixtures"-Zeile, die keine Liste ist', () => {
+    const file = { ...writeWorld(house()), fixtures: 'viele' };
+    expect(() => readWorld(file)).toThrow(WorldFormatError);
   });
 });
 

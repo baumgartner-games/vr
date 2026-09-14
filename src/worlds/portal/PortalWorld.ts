@@ -2915,7 +2915,16 @@ export class PortalWorld implements World {
     });
   }
 
-  private askText(options: {
+  /**
+   * Dieselbe Tastatur für **eine Zeile** — eine Zahl ist es nicht, ein Aushang
+   * auch nicht: ein Name, eine Kennung, ein Ziel.
+   *
+   * `protected`, seit der Bauplatz sie braucht: Das Ziel eines Einbaus
+   * (`editor/WorldEditor.ts`, `grid/fixtures/`) wird im Spiel eingetippt, und
+   * die Tastatur gehört der Welt — sie hängt vor dem Kopf und ist beim Zeiger
+   * angemeldet, und es darf immer nur eine offen sein.
+   */
+  protected askText(options: {
     title: string;
     sub?: string;
     value: string;

@@ -2,6 +2,7 @@ import { NavGraph } from '../nav/navGraph';
 import { NavFormatError, readNav, writeNav, type NavFile } from '../nav/navSerial';
 import { TILE, keyLevel, keyX, keyZ, tileKey, type Dir } from '../nav/navTile';
 import { BLOCKS, type BlockKind } from './blocks';
+import type { FixturePlacement, Props } from './fixtures/index';
 import { GRID_KINDS, type PlanSolidKind } from './solids';
 import type { BlockPlacement, GridPlan, Mass } from './gridPlan';
 
@@ -39,7 +40,8 @@ import type { BlockPlacement, GridPlan, Mass } from './gridPlan';
  *
  * **Was hier bewusst nicht drinsteht**, damit niemand es sucht: Eine Weltdatei
  * ist ein **Grundriss** und kein Spielstand. Sie kennt Kacheln, Wände, Türen,
- * Verbindungen, Bausteine und Massen — also alles, was `GridPlan` führt. Sie
+ * Verbindungen, Bausteine, Einbauten und Massen — also alles, was `GridPlan`
+ * führt. Sie
  * kennt **nicht**, was eine Welt darüber hinaus von Hand hinstellt
  * (`buildProps`): die Lampen und den Dimmer des Dunkelhauses, die Karts in der
  * Boxengasse, die Kisten zum Herumwerfen. Und sie kennt keine Farben — welchen
@@ -71,10 +73,19 @@ export const WORLD_FORMAT = 'baumgartner-welt';
  * **abgelehnt** und nicht halb geladen: Eine Welt, der beim Laden die Hälfte
  * fehlt, sieht aus wie eine kaputte Welt und nicht wie eine zu neue.
  */
-export const WORLD_VERSION = '0.1.0';
+export const WORLD_VERSION = '0.2.0';
 
-/** Welche Fassungen dieses Programm lesen kann. */
-const READABLE: readonly string[] = ['0.1'];
+/**
+ * Welche Fassungen dieses Programm lesen kann.
+ *
+ * **`0.1` steht weiter darin**, obwohl eine neue Nebennummer vor 1.0 als Bruch
+ * gilt: Der Bruch geht nur in eine Richtung. Eine Welt aus `0.1` hat keine
+ * Einbauten, und eine Liste, die fehlt, ist eine leere Liste — mehr ist beim
+ * Sprung auf `0.2` nicht passiert. Andersherum stimmt es nicht: Wer eine
+ * `0.2`-Welt in ein altes Programm lädt, verlöre die Tore und Türen darin
+ * still, und genau deshalb lehnt das alte Programm sie ab.
+ */
+const READABLE: readonly string[] = ['0.1', '0.2'];
 
 /** Eine Kachel in der Datei: Spalte, Zeile, Etage. */
 interface TileRef {
@@ -112,6 +123,25 @@ export interface WorldMassEntry extends TileRef {
   portal?: boolean;
 }
 
+/**
+ * **Ein Einbau** — was auf dem Gitter einen Zustand hat
+ * (`fixtures/index.ts`): Schild, Tür, Knopf, Tor, Effektquelle.
+ *
+ * Er kam mit Fassung `0.2` hinzu, und er ist der Grund für sie. Seine
+ * **Kennung** steht mit in der Datei und wird nicht neu vergeben: Ein Knopf
+ * zeigt über `props.target` auf eine Tür, und eine Welt, die ihre Namen beim
+ * Laden neu durchnummeriert, ist eine, in der nach dem Speichern die falsche
+ * Tür aufgeht.
+ */
+export interface WorldFixtureEntry extends TileRef {
+  id: string;
+  kind: string;
+  /** Blickrichtung, 0 = Norden (`navTile.ts`). */
+  dir: number;
+  /** Was an ihm eingestellt ist — fehlt, wenn nichts. */
+  props?: Props;
+}
+
 /** Eine Welt, so wie sie in der Datei steht. */
 export interface WorldFile {
   format: typeof WORLD_FORMAT;
@@ -132,6 +162,8 @@ export interface WorldFile {
   nav: NavFile;
   blocks: WorldBlockEntry[];
   masses: WorldMassEntry[];
+  /** Die Einbauten — seit Fassung `0.2`. Eine ältere Datei hat die Zeile nicht. */
+  fixtures: WorldFixtureEntry[];
 }
 
 /** Was schiefgehen kann, wenn eine Datei nicht das ist, wofür sie sich ausgibt. */
@@ -172,6 +204,7 @@ export function writeWorld(plan: GridPlan, meta: WorldMeta = {}): WorldFile {
     nav: writeNav(plan.bare(), meta.name),
     blocks: plan.blocks().map(blockEntry),
     masses: plan.masses().map(massEntry),
+    fixtures: plan.fixtures().map(fixtureEntry),
   };
 }
 
@@ -201,6 +234,15 @@ function blockEntry(one: BlockPlacement): WorldBlockEntry {
   return entry;
 }
 
+function fixtureEntry(one: FixturePlacement): WorldFixtureEntry {
+  const entry: WorldFixtureEntry = { id: one.id, kind: one.kind, x: one.x, z: one.z, dir: one.dir };
+  if (one.level !== 0) entry.l = one.level;
+  // Ein leeres Fach ist eine Zeile, die niemand liest — und in einer Welt mit
+  // vierzig Schildern sind es vierzig.
+  if (Object.keys(one.props).length > 0) entry.props = { ...one.props };
+  return entry;
+}
+
 function massEntry(one: Mass): WorldMassEntry {
   const entry: WorldMassEntry = {
     kind: one.kind,
@@ -225,6 +267,8 @@ export interface WorldContents {
   graph: NavGraph;
   blocks: BlockPlacement[];
   masses: Mass[];
+  /** Die Einbauten — bei einer Datei aus Fassung `0.1` eine leere Liste. */
+  fixtures: FixturePlacement[];
 }
 
 /**
@@ -265,6 +309,7 @@ export function readWorld(data: unknown): WorldContents {
     graph,
     blocks: readBlocks(raw.blocks, graph),
     masses: readMasses(raw.masses),
+    fixtures: readFixtures(raw.fixtures, graph),
   };
 }
 
@@ -326,6 +371,69 @@ function readBlocks(list: unknown, graph: NavGraph): BlockPlacement[] {
     const placed: BlockPlacement = { kind: one.kind as BlockKind, tile, dir: dir as Dir };
     if (typeof one.h === 'number' && Number.isFinite(one.h)) placed.height = one.h;
     out.push(placed);
+  }
+  return out;
+}
+
+/**
+ * Die Einbauten.
+ *
+ * **Eine fehlende Liste ist eine leere Liste** — genau daran lesen sich Dateien
+ * aus Fassung `0.1` weiter, und mehr war der Sprung auf `0.2` nicht.
+ *
+ * Und hier gilt die Regel der Bausteine **nicht**: Eine unbekannte Art fällt
+ * *nicht* weg, sie bleibt stehen. Der Unterschied ist die Kennung. Ein Schrank,
+ * den dieses Programm nicht kennt, ist ein Möbel weniger; ein Tor, das es nicht
+ * kennt, ist ein Ziel weniger — und wenn es beim nächsten Speichern fehlte,
+ * zeigten sämtliche Knöpfe, die darauf zeigen, ins Leere. Wer **baut**,
+ * überspringt es und sagt es (`GridWorld`, `console.warn`); wer es nur
+ * durchreicht, reicht es durch.
+ *
+ * Was ohne Kachel, ohne Kennung oder ohne Richtung dasteht, fällt trotzdem
+ * weg: Das ist kein Einbau aus der Zukunft, sondern kaputt.
+ */
+function readFixtures(list: unknown, graph: NavGraph): FixturePlacement[] {
+  if (list === undefined) return [];
+  if (!Array.isArray(list)) throw new WorldFormatError('„fixtures" ist keine Liste');
+  const out: FixturePlacement[] = [];
+  const taken = new Set<string>();
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') continue;
+    const one = raw as Partial<WorldFixtureEntry>;
+    if (typeof one.id !== 'string' || one.id.length === 0 || taken.has(one.id)) continue;
+    if (typeof one.kind !== 'string' || one.kind.length === 0) continue;
+    const tile = safeTile(one);
+    if (tile === null || !graph.has(tile)) continue;
+    const dir = Number(one.dir);
+    if (!Number.isInteger(dir) || dir < 0 || dir > 3) continue;
+    taken.add(one.id);
+    out.push({
+      id: one.id,
+      kind: one.kind,
+      x: keyX(tile),
+      z: keyZ(tile),
+      dir: dir as Dir,
+      level: keyLevel(tile),
+      props: readProps(one.props),
+    });
+  }
+  return out;
+}
+
+/**
+ * Die Eigenschaften eines Einbaus: Text, Zahl, Schalter — und sonst nichts.
+ *
+ * Verschachteltes fällt weg statt die Datei mitzunehmen. Was eine Art nicht
+ * versteht, fragt sie ohnehin nicht ab (`propText`, `propNumber`, `propFlag`);
+ * was hier durchkäme, wäre ein Objekt, das beim nächsten Schreiben wieder in
+ * der Datei stünde, ohne dass irgendwer es je gelesen hat.
+ */
+function readProps(raw: unknown): Props {
+  const out: Props = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'string' || typeof value === 'boolean') out[key] = value;
+    else if (typeof value === 'number' && Number.isFinite(value)) out[key] = value;
   }
   return out;
 }

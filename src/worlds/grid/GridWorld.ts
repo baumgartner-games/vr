@@ -11,9 +11,20 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
-import { DIRS, type Dir } from '../nav/navTile';
+import { DIRS, TILE, tileCentreX, tileCentreZ, type Dir } from '../nav/navTile';
 import { changeSlidingDoor } from './slidingDoor';
-import type { GridPlan } from './gridPlan';
+import { fixtureTile, type GridPlan } from './gridPlan';
+import { knownKind } from './fixtures/kinds';
+import type {
+  FixtureEvent,
+  FixtureInput,
+  FixtureKind,
+  FixturePlacement,
+  FixtureSound,
+  FixtureView,
+} from './fixtures/index';
+import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/Audio';
+import { disposeShapes } from '../shared/environment';
 import type { PlanSolid, PlanSolidKind } from './solids';
 import type { WorldContext } from '../../core/types';
 import type { MenuEntry } from '../../ui/menu';
@@ -75,6 +86,8 @@ export abstract class GridWorld extends PortalWorld {
   private solid = true;
   /** Was beim Bauen eingefroren wurde — und deshalb hinterher aufzutauen ist. */
   private readonly frozen: PhysicsBody[] = [];
+  /** Die gebauten Einbauten — Zustand, Bild und Körper (`fixtures/index.ts`). */
+  private readonly fixtures: FixtureRun[] = [];
 
   /**
    * **Der Grundriss dieser Welt.** Das Einzige, was eine Gitterwelt wirklich
@@ -145,6 +158,11 @@ export abstract class GridWorld extends PortalWorld {
     const group = this.group;
     if (!plan || !group) return;
     this.builtVersion = plan.version;
+    // **Einbauten werden wie Bausteine zurückgenommen.** Sie hängen in
+    // derselben Gruppe und haben Körper in derselben Physik; wer sie beim
+    // Umbau stehen ließe, hätte nach dem dritten Handgriff zwei Schilder auf
+    // einer Kachel, von denen eines in keinem Plan mehr steht.
+    this.clearFixtures();
     for (const batch of this.batches) {
       batch.geometry.dispose();
       batch.removeFromParent();
@@ -185,6 +203,275 @@ export abstract class GridWorld extends PortalWorld {
         this.batches.push(batch);
       }
     }
+    // **Nach den Bausteinen**, und zwar auch nach dem Zusammenfassen: Ein
+    // Einbau hat ein eigenes Bild und eigene Körper, und in eine
+    // `InstancedMesh` gehört er nicht — er bewegt sich.
+    this.buildFixtures();
+  }
+
+  // --- die Einbauten --------------------------------------------------------
+
+  /**
+   * **Die Einbauten des Plans bauen** — jeden über seine Art
+   * (`fixtures/index.ts`).
+   *
+   * Die Welt kennt dabei keine einzige Art beim Namen. Sie fragt die Registry,
+   * gibt der Art eine Gruppe, ihre Kachelmitte und die Palette, und bekommt
+   * ein Bild zurück. Das ist der ganze Zweck der Sache: Ein neues Tor, eine
+   * neue Tür, eine neue Effektquelle sind eine Datei und eine Zeile in
+   * `fixtures/kinds.ts` — und kein zusätzlicher `if`-Zweig hier.
+   *
+   * **Eine unbekannte Art wird übersprungen und gemeldet.** Eine Welt aus
+   * einer neueren Fassung soll aufmachen; ein Absturz beim Laden ist die
+   * schlechteste aller Antworten, und stillschweigend fehlen ist die
+   * zweitschlechteste.
+   */
+  private buildFixtures(): void {
+    const plan = this.grid;
+    const group = this.group;
+    if (!plan || !group) return;
+    for (const place of plan.fixtures()) {
+      const kind = knownKind(place.kind);
+      if (!kind) {
+        console.warn(`Einbau „${place.id}": die Art „${place.kind}" kennt dieses Programm nicht`);
+        continue;
+      }
+      const tile = fixtureTile(place);
+      const view = kind.build(place, {
+        group,
+        at: {
+          x: tileCentreX(tile),
+          // Auf dem Boden, den es dort gibt: Ein Schild auf einem Podest hängt
+          // um dessen Höhe höher.
+          y: plan.graph.levelY(place.level) + (plan.graph.tile(tile)?.rise ?? 0),
+          z: tileCentreZ(tile),
+        },
+        material: (sort: PlanSolidKind) => this.materialFor(sort),
+        notify: (message: string) => this.announce(message),
+      });
+      // Woran ein Strahl ihn wiedererkennt — der Haken für `use` (P2) und für
+      // die Kugel, die den Knopf trifft (P6).
+      if (view.object) view.object.userData.fixture = place.id;
+      const state = kind.init(place);
+      const run: FixtureRun = {
+        place,
+        kind,
+        state,
+        view,
+        hard: false,
+        meshes: [],
+        used: false,
+        hit: false,
+        triggered: false,
+      };
+      this.fixtures.push(run);
+      this.setFixtureSolid(run, kind.solid(state));
+      kind.apply(view, state);
+    }
+  }
+
+  /**
+   * **Die Quader eines Einbaus stehen, solange er fest ist.**
+   *
+   * Aufgefahren heißt: weg — dasselbe, was das Gitter mit seinen Türblättern
+   * längst macht (`slidingDoor.ts`). Ein Körper, den man abschaltet und dessen
+   * Blatt stehen bleibt, ist eine Tür, durch die man hindurchgeht, ohne dass
+   * sie aufgegangen ist.
+   */
+  private setFixtureSolid(run: FixtureRun, on: boolean): void {
+    run.hard = on;
+    for (const mesh of run.meshes) this.dropSlab(mesh);
+    run.meshes.length = 0;
+    const group = this.group;
+    if (!on || !group) return;
+    for (const one of run.view.solids ?? []) {
+      const mesh = this.slab(
+        group,
+        this.materialFor(one.kind),
+        [one.w, one.h, one.d],
+        [one.x, one.y, one.z],
+        one.portal ?? false,
+        this.solid,
+      );
+      mesh.userData.fixture = run.place.id;
+      run.meshes.push(mesh);
+    }
+  }
+
+  /** Alles wieder herausnehmen — Körper, Bild, Zustand. */
+  private clearFixtures(): void {
+    for (const run of this.fixtures) {
+      for (const mesh of run.meshes) this.dropSlab(mesh);
+      run.meshes.length = 0;
+      run.view.dispose?.();
+      // **Nur die Formen.** Die Materialien kommen aus der Palette der Welt
+      // und werden geteilt; wer sie hier freigäbe, nähme sie allen anderen weg.
+      if (run.view.object) disposeShapes(run.view.object);
+    }
+    this.fixtures.length = 0;
+  }
+
+  /**
+   * **Ein Bild Einbauten** — Eingaben sammeln, `step` rufen, Ereignisse
+   * verteilen.
+   *
+   * Zwei Sachen daran sind entschieden und nicht so herausgekommen:
+   *
+   * - **Ein Auslöser wirkt im nächsten Bild.** Die Ereignisse eines Bildes
+   *   werden gesammelt und erst danach zugestellt. Sonst hinge es an der
+   *   Reihenfolge der Liste, ob ein Knopf seine Tür noch in diesem Bild
+   *   erwischt — und dieselbe Welt liefe nach dem Speichern anders als davor.
+   * - **Benutzt, getroffen und ausgelöst gelten genau ein Bild.** Sie werden
+   *   beim Lesen gelöscht; was länger gilt, ist ein Zustand und gehört der Art
+   *   (`hold` bei der Tür).
+   */
+  private stepFixtures(dt: number, ctx: WorldContext): void {
+    if (this.fixtures.length === 0) return;
+    const pending: { from: FixtureRun; event: FixtureEvent }[] = [];
+    for (const run of this.fixtures) {
+      const input: FixtureInput = {
+        used: run.used,
+        hit: run.hit,
+        triggered: run.triggered,
+        weightOn: this.weightOn(run, ctx),
+      };
+      run.used = false;
+      run.hit = false;
+      run.triggered = false;
+      for (const event of run.kind.step(run.state, run.place, input, dt)) {
+        pending.push({ from: run, event });
+      }
+      run.kind.apply(run.view, run.state);
+      const hard = run.kind.solid(run.state);
+      if (hard !== run.hard) {
+        this.setFixtureSolid(run, hard);
+        this.physics?.syncColliders();
+      }
+      if (run.kind.door) this.syncFixtureDoor(run);
+    }
+    for (const one of pending) this.fixtureEvent(one.from, one.event, ctx);
+  }
+
+  /**
+   * **Was auf der Kachel eines Einbaus steht** — Spieler, NPCs, Kisten.
+   *
+   * Eine Zahl und kein Schalter: Eine Druckplatte, die unter zwei Kisten
+   * genauso weit gedrückt ist wie unter einer, ist in Ordnung; eine, die nach
+   * dem Wegnehmen der einen aufgeht, obwohl die andere noch daraufliegt, ist
+   * es nicht.
+   */
+  private weightOn(run: FixtureRun, ctx: WorldContext): number {
+    const plan = this.grid;
+    if (!plan) return 0;
+    const tile = fixtureTile(run.place);
+    const x = tileCentreX(tile);
+    const z = tileCentreZ(tile);
+    const floor = plan.graph.levelY(run.place.level);
+    const over = (px: number, py: number, pz: number): boolean =>
+      Math.abs(px - x) <= TILE / 2 &&
+      Math.abs(pz - z) <= TILE / 2 &&
+      // Nach oben eine Kachelhöhe, nach unten eine Handbreit: Was im Stockwerk
+      // darüber steht, steht nicht auf dieser Platte.
+      py >= floor - 0.3 &&
+      py <= floor + TILE;
+    let count = 0;
+    const rig = ctx.rig.position;
+    if (over(rig.x, rig.y, rig.z)) count++;
+    for (const npc of this.director?.crowd ?? []) {
+      if (!npc.alive) continue;
+      npc.feet(_feet);
+      if (over(_feet.x, _feet.y, _feet.z)) count++;
+    }
+    for (const body of this.props) {
+      const at = body.object.position;
+      if (over(at.x, at.y, at.z)) count++;
+    }
+    return count;
+  }
+
+  /**
+   * Die Türkante eines Einbaus mit seinem Zustand nachziehen — im Plan **und**
+   * in der abgetasteten Karte, auf der die NPCs gerade laufen.
+   *
+   * Und danach gilt die Welt als gebaut: Eine Tür, die aufgeht, ändert im
+   * Graphen ein Flag und an der Geometrie nichts — wer daraufhin die ganze
+   * Welt neu bauen ließe (`builtVersion`), baute sie bei jeder Tür einmal neu.
+   */
+  private syncFixtureDoor(run: FixtureRun): void {
+    const plan = this.grid;
+    if (!plan || !run.kind.open) return;
+    const open = run.kind.open(run.state);
+    const tile = fixtureTile(run.place);
+    const facts = plan.graph.wall(tile, run.place.dir);
+    if (!facts || facts.kind !== 'door' || facts.open === open) return;
+    plan.setFixtureDoor(run.place, open);
+    this.nav?.setWall(tile, run.place.dir, { ...facts, open });
+    this.builtVersion = plan.version;
+  }
+
+  /** Ein Ereignis eines Einbaus an seinen Abnehmer. */
+  private fixtureEvent(from: FixtureRun, event: FixtureEvent, ctx: WorldContext): void {
+    switch (event.type) {
+      case 'trigger': {
+        if (!event.target) break;
+        const target = this.fixtures.find((one) => one.place.id === event.target);
+        if (target) target.triggered = true;
+        // Mit dem Absender: „Kein Einbau ‚tuer-2'" allein sagt nicht, wer ihn
+        // gesucht hat — und gesucht hat ihn der, an dem das Ziel falsch steht.
+        else this.announce(`${from.place.id}: kein Einbau „${event.target}"`);
+        break;
+      }
+      case 'goto':
+        // Genau das, was das Tor des Hubs heute tut — über den Weltkontext und
+        // nicht über einen eigenen Weg in die App.
+        if (event.world) ctx.goTo(event.world);
+        break;
+      case 'sound':
+        playFixtureSound(event.name);
+        break;
+      case 'effect':
+        // Noch hört niemand zu: Die Effekte kommen mit P7 (`fixtures/emitter.ts`).
+        break;
+    }
+  }
+
+  /**
+   * **Jemand hat diesen Einbau benutzt.**
+   *
+   * Der Haken, an dem das Benutzen hängt, solange es das kurze Strahlen nach
+   * vorn noch nicht gibt (P2, `core/usable.ts`): Wer einen Einbau anfasst,
+   * sagt es hier, und im nächsten `step` steht `used` auf wahr. Eine eigene
+   * Benutz-Schnittstelle daneben wäre die zweite neben der, die gerade
+   * entsteht.
+   */
+  markUsed(id: string): boolean {
+    const run = this.fixtures.find((one) => one.place.id === id);
+    if (!run) return false;
+    run.used = true;
+    return true;
+  }
+
+  /** Etwas hat ihn getroffen — die Kugel auf dem roten Knopf (P6). */
+  markHit(id: string): boolean {
+    const run = this.fixtures.find((one) => one.place.id === id);
+    if (!run) return false;
+    run.hit = true;
+    return true;
+  }
+
+  /**
+   * Zu welchem Einbau ein getroffenes Objekt gehört — `null`, wenn zu keinem.
+   *
+   * Die Marke hängt am Objekt und an jedem seiner Körper (`userData.fixture`),
+   * und gesucht wird nach oben: Ein Strahl trifft das Brett eines Schildes und
+   * nicht das Schild.
+   */
+  fixtureIdOf(object: THREE.Object3D | null): string | null {
+    for (let one = object; one; one = one.parent) {
+      const id = one.userData.fixture;
+      if (typeof id === 'string') return id;
+    }
+    return null;
   }
 
   /**
@@ -383,6 +670,9 @@ export abstract class GridWorld extends PortalWorld {
       beltSlot: (side: Handedness) => this.host?.beltSlot(side) ?? null,
       hipFree: (side: Handedness) => this.beltFree(side),
       say: (message: string) => this.announce(message),
+      // Die einzige neue Zeile, die der Editor von der Welt braucht: die
+      // Tastatur der Welt, für das Ziel eines Einbaus.
+      ask: (options) => this.askText(options),
       goTo: (at) => {
         const ctx = this.context;
         if (ctx) this.movePlayerTo(ctx, _target.set(at.x, at.y, at.z));
@@ -410,6 +700,10 @@ export abstract class GridWorld extends PortalWorld {
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     this.editor?.update(ctx);
+    // **Erst die Einbauten, dann der Umbau.** Sie laufen auch, während gebaut
+    // wird — ein Schild, das man eben gesetzt hat, soll etwas sagen, sobald
+    // die Karte wieder an der Hüfte hängt.
+    this.stepFixtures(dt, ctx);
     // Der Umbau läuft **einmal je Bild**, egal wie viele Kacheln in diesem Bild
     // gesetzt wurden. Ein gemalter Strich sind zwanzig Handgriffe und ein
     // Neubau, nicht zwanzig.
@@ -450,7 +744,7 @@ export abstract class GridWorld extends PortalWorld {
     if (!this.editable()) return;
     const saved = storedWorld(this.worldId());
     if (!saved) return;
-    plan.restore(saved.graph, saved.blocks, saved.masses);
+    plan.restore(saved.graph, saved.blocks, saved.masses, saved.fixtures);
   }
 
   /** Den Stand in den Browser schreiben. Sagt, ob es geklappt hat. */
@@ -477,7 +771,7 @@ export abstract class GridWorld extends PortalWorld {
     forgetWorld(this.worldId());
     const fresh = this.layout();
     this.planReady(fresh);
-    plan.restore(fresh.bare(), fresh.blocks(), fresh.masses());
+    plan.restore(fresh.bare(), fresh.blocks(), fresh.masses(), fresh.saveFixtures());
     this.announce(`Wieder ${this.originalName()}`);
   }
 
@@ -510,7 +804,7 @@ export abstract class GridWorld extends PortalWorld {
         );
         return;
       }
-      plan.restore(result.graph, result.blocks, result.masses);
+      plan.restore(result.graph, result.blocks, result.masses, result.fixtures);
       this.saveWorld(true);
       this.announce(`Geladen: ${result.file.name ?? result.file.world ?? 'Welt'}`);
     });
@@ -587,6 +881,7 @@ export abstract class GridWorld extends PortalWorld {
     // wird nur dieser Fall: Sonst bekäme jede Welt, die man einmal betreten
     // hat, einen gespeicherten Stand, den niemand angelegt hat.
     if (this.editor?.editing) this.saveWorld(true);
+    this.clearFixtures();
     this.editor?.dispose();
     this.editor = null;
     this.grid = null;
@@ -683,3 +978,54 @@ const GRID_FINISH: Readonly<Record<PlanSolidKind, { roughness?: number; metalnes
 };
 
 const _target = new THREE.Vector3();
+const _feet = new THREE.Vector3();
+
+/**
+ * **Ein gebauter Einbau**: seine Art, sein Zustand, sein Bild, seine Körper —
+ * und die drei Marken, die genau ein Bild lang gelten.
+ */
+interface FixtureRun {
+  place: FixturePlacement;
+  kind: FixtureKind<unknown>;
+  state: unknown;
+  view: FixtureView;
+  /** Ob seine Quader gerade stehen (`solid`). */
+  hard: boolean;
+  meshes: THREE.Object3D[];
+  used: boolean;
+  hit: boolean;
+  triggered: boolean;
+}
+
+/**
+ * Ein Name wird ein Geräusch (`core/Audio.ts`).
+ *
+ * Die Übersetzung steht hier und nicht in den Arten: Wie ein Schalter klingt,
+ * ist eine Entscheidung fürs ganze Haus, und eine Tür, die ihre eigenen Töne
+ * mitbrächte, klänge nach zwei Wochen anders als alles andere.
+ */
+function playFixtureSound(name: FixtureSound): void {
+  switch (name) {
+    case 'switch-on':
+      playSwitch(true);
+      break;
+    case 'switch-off':
+      playSwitch(false);
+      break;
+    case 'slam':
+      playSlam();
+      break;
+    case 'pop':
+      playPop();
+      break;
+    case 'pick':
+      playPick(true);
+      break;
+    case 'drop':
+      playPick(false);
+      break;
+    case 'empty':
+      playEmpty();
+      break;
+  }
+}
