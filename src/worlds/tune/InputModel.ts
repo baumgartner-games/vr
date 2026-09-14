@@ -236,7 +236,7 @@ export class InputModel extends THREE.Group {
      * Beides gehört hierher: Ein halb gezogener Trigger stand vorher gar nicht
      * da, und ein Trigger, der nach Gefühl bis zum Anschlag geht, aber bei 80 %
      * aufhört, war nicht zu erkennen. Der Leuchtpunkt bleibt das Drücken, die
-     * Zahl ist der Zug — und ein Balken daneben zeichnet ihn (`PullGauge.ts`).
+     * Zahl ist der Zug — im Eingaberaum zeichnete ein Balken daneben ihn mit.
      *
      * Gerundet auf fünf Prozent: Die Tafel wird neu gemalt, sobald sich diese
      * Zeile ändert, und eine Zahl, die bei jeder Handbewegung um ein Prozent
