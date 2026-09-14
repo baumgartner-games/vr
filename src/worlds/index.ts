@@ -125,6 +125,17 @@ export const WORLDS: WorldDefinition[] = [
     load: async () => new (await import('./editor/EditorWorld')).EditorWorld(),
   },
   {
+    id: 'street',
+    title: 'Straßenküche',
+    tagline: 'Türen, Knöpfe, Treppen — von oben',
+    description:
+      'Eine Straßenkreuzung auf dem Kachelgitter: Küchenzeilen mit Herdplatten, Marktstände mit gestreiften Markisen, ein Zebrastreifen in der Mitte und Kisten, Hüte und Kübel zum Schieben.',
+    accent: 0xe07a3c,
+    roles: ['vr', 'desktop', 'handheld'],
+    experimental: true,
+    load: async () => new (await import('./street/StreetWorld')).StreetWorld(),
+  },
+  {
     id: 'interact',
     title: 'Interaktionslabor',
     tagline: 'Knöpfe, Türen, Schilder',
