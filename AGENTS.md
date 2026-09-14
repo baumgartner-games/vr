@@ -7220,6 +7220,109 @@ erarbeiten musste:
   sonst erst, wenn man davorsteht — nach dem Laden, nach dem Aufsetzen, nach
   dem Hinlaufen.
 
+### Die flache Welt: jede Welt von oben, auf einem Raster
+
+Der Besitzer will „wirklich alles in ein Grid-System umbauen": eine 2D-Welt
+aus Kacheln als Grundlage, auf der Wege und Kollision sauber zu rechnen sind,
+jede Welt auch im Browser und auf dem Telefon von oben begehbar, und mit
+**Ebenen** — wer auf einer Kiste steht oder im ersten Stock, sieht die
+Ebenen darunter leicht verschwommen. Das Paket dafür ist `src/worlds/flat/`
+(Paket „Die flache Welt"), three.js-frei bis auf das DOM:
+
+- **Das Raster gab es schon.** Jede Welt tastet ihre Quader zu einem
+  `NavGraph` ab (`nav/navBake.ts`), die Rasterwelten *sind* ihr Plan
+  (`grid/GridWorld.ts`), und der Graph kennt Etagen (`levels`,
+  `tileKey(x, z, level)`), Feinhöhen (`rise`), Wände, Fenster, Türen und
+  Verbindungen (`NavLink`: Treppe, Leiter, Sprung, Absprung, Portal). Neu ist
+  der **Schritt einer Figur** darauf.
+- **Das Bodenmodell** (`flatFloor.ts`, `FloorModel`): `walkable`, `slide`
+  (gleitend an Wänden, Kästen, Kanten), `height`, `lineOfSight`,
+  `nearestDoor`. Wände sind die Kanten des Graphen, mit halber Wandstärke
+  (`WALL_HALF`); eine offene Tür ist eine Öffnung von `doorWidth` Metern
+  (der Plan nennt sie, `GridPlan.doorWidth()`), eine Kante ins Leere ist eine
+  Wand, eine Stufe über `STEP_LIMIT` = 0,32 m (dieselbe Zahl wie
+  `enableAutostep` der Kapsel) auch. **Etagen wechselt man über
+  Verbindungen**: Wer über die vordere Kante der Treppenkachel geht, steht
+  auf der Landekachel darüber (`crossing`), zurück ebenso; eine Verbindung
+  gewinnt über den Boden derselben Etage unter der Landekachel. Rampen und
+  Treppen sind schräge Kacheln (`FloorRamp`): Die Höhe steigt in ihrer
+  Richtung, ihre Seiten sind Kanten, ihr Kopf zählt so hoch wie ihr Ende
+  (`edgeRise`) — und **eine Kante wird von der eigenen Kachel aus
+  beurteilt**: vom Treppenkopf aus ist sie die Treppe, vom Boden darunter
+  aus eine Wand. Kästen (`FloorBox`) sind Tisch, Kiste, Säule, Geländer aus
+  dem Plan (`GridWorld.flatBoxes`, Massen ab Bodenhöhe) und je Bild die
+  Requisiten, die gerade herumstehen (`FloorModel.dynamic`,
+  `PortalWorld.flatDynamicBoxes`). Ein Gelände kann statt der Kachelmitte
+  sein Höhenfeld nennen (`heightAt`).
+- **Die Figur** (`flatFigure.ts`): derselbe Stock wie in der Haunting-Runde
+  (`FlatInput`: Richtung, Sprint, Ducken, Blick, Körperschritt), Tempi des
+  Gestells (2,6 m/s, ×1,9 Sprint, ×0,5 geduckt), Halbmesser der Kapsel
+  (0,24 m), Scheiben von 1/30 s.
+- **Das Bild** (`flatSnapshot.ts`, `snapshotOf`): je Etage Kacheln mit
+  Feinhöhe, Wände als Strecken, Türen mit Blatt, Kästen, Treppenpfeile;
+  Figuren kommen je Bild dazu. Neu nur, wenn `graph.version` sich ändert.
+- **Die Ebenen-Karte** (`levelMap.ts`, `LevelMap`): ein Canvas. Gezeichnet
+  werden die Etagen **unter** der des Betrachters weich (`ctx.filter =
+  blur(2,2 px × Abstand)`) und blass (`FADE_PER_LEVEL` 0,4 je Etage,
+  höchstens zwei Etagen tief), die eigene scharf, die darüber gar nicht —
+  deren Boden ist die Decke. Boden als Höhenschichten (`shade`), Kästen mit
+  Deckel, Treppen als Pfeile mit `↑ E2`. Schieben, zoomen (Rad, zwei
+  Finger), tippen, einer Figur folgen (`follow`), wie die Haunting-Karte,
+  nur ohne deren Vokabular. jsdom hat kein Canvas — `levelMap.test.ts`
+  stellt den Kontext nach und liest beim `restore` ab, womit gezeichnet wurde.
+- **Der Bildschirm** (`flatWorldMode.ts`, `FlatWorldMode`, `flatWorld.css`):
+  Karte, Kopfzeile mit Etage und Höhe, Stock (`flat/joystick.ts`, dorthin
+  umgezogen samt `flat/controls.css`; in `haunting/map/` stehen nur noch
+  Türen), WASD/Pfeile, Umschalt rennt, Strg duckt, `E`/Leertaste
+  „Benutzen" (die Tür in `USE_REACH` 1,6 m umlegen), `F` alles ins Bild,
+  ein Tipp auf die Karte geht dorthin — Weg über `nav/navPath.findPath` +
+  `pullString` mit `HUMAN_PROFILE`, zum Punkt selbst, wenn er begehbar ist.
+  „Zurück in 3D" (nicht auf dem Telefon) gibt der Welt die Figur.
+- **In jeder Welt** (`PortalWorld`): `openFlatWorld`/`closeFlatWorld`, der
+  Menüeintrag „2D von oben" (`flatWorldMenu`, Id `flat:world`), und ein
+  **Telefon** (`role === 'handheld'`) betritt jede Welt von selbst von oben
+  — dafür stehen jetzt alle Welten in `index.ts` mit `'handheld'`. Offen
+  heißt: `update` tut nur noch die flache Welt, `render` malt nichts, das
+  Gestell ist `paused`, der Touch-Stock der Seite aus. Beim Zurückkommen
+  steht das Gestell auf der Figur, auf ihrer Höhe (`placeFeetAt` +
+  `resync`). `flatFloor()`/`flatSnapshot()` sind je Fassung des Graphen
+  gepuffert; `flatBoxes`, `flatRamps`, `flatDoorWidth`, `flatDoor`,
+  `flatEntities` (die NPCs des Regisseurs, `NpcDirector.all`, `Npc.facing`)
+  und `flatTitle` sind die Haken. Haunting sagt `flatWorldAvailable()`
+  nein — es hat seine eigene 2D-Welt samt Lobby.
+- **Die 3D-Figur läuft auf dem Raster** (`gridDriver.ts`, `GridDriver`):
+  Was in Haunting die 2D-Runde für das Schiff tut, tut der Fahrer für die
+  Rasterwelten (`GridWorld.gridDrivesPlayer()` ja; Kletterhalle, Kartbahn
+  und Haunting nein, `PortalWorld` voreingestellt nein — eine abgetastete
+  Welt kennt den Tresen im Laden nicht). `KernelLocomotion` legt den Wunsch
+  ab, der Fahrer macht daraus den Stock, die Figur tut den Schritt, und das
+  Gestell wird dorthin gesetzt — samt Höhe: Etage, Feinhöhe, die Strecke auf
+  der Treppe. **Die Physik trägt, wo das Raster nicht trägt**: außerhalb der
+  Karte, nach Portal oder Teleport (`forget`, `STRAY` 1,2 m), im Sprung
+  (0,6 s), im Fall, und im Bauplatz mit ausgezogener Karte
+  (`gridCarries()`). Springen gibt es auf dem Raster nicht.
+- **Ein Gelände als Raster** (`terrainGraph.ts`): Die Alpen sind kein Quader
+  — als einer genommen lag „Boden" auf dem Deckel bis zum Gipfel. Sie werden
+  abgetastet, wie sie sind (`PortalWorld.navTerrain()` →
+  `AlpsWorld`, `alpsHeight`, ±160/−200…300 m): eine Etage, die Höhe der
+  Kachelmitte als Feinhöhe, der Hang bis `TERRAIN_STEP` 1,5 m je Kachel
+  begehbar, darüber eine Kante. Der Mond bleibt bei den Kästen — seine
+  Horizontfläche zählt als Boden.
+
+Was **noch nicht** im Raster ist: der Hub (ein Menü aus Toren, kein
+`PortalWorld`), das Klettern (Griffe sind keine Kacheln) und das Kart (ein
+Fahrzeug). Sie öffnen sich trotzdem von oben — auf dem Graphen, den sie
+haben —, nur trägt in 3D dort die Physik. Tests: `flatFloor.test.ts`,
+`flatSnapshot.test.ts`, `levelMap.test.ts`, `flatWorldMode.test.ts`,
+`gridDriver.test.ts`, `terrainGraph.test.ts`; der Browser-Smoke betritt
+Dust, Dark, Alps und Shop von oben (`visitFlatWorlds`, auf derselben Seite
+nacheinander — ein zweiter Tab bekäme im Hintergrund keine Bilder), lässt
+die Figur mit den Tasten gehen und läuft in Dust danach in 3D auf dem
+Raster. Zwei Fallen aus dem Aufbau: `PlayerRig.setLocomotion` räumt die
+vorige Fortbewegung ab (die Kapsel unter dem Fahrer war schon weg — jetzt
+wird genau einmal eingehängt), und `rig.paused` faltet das Gestell jedes
+Bild aus `rig.frozen` — die flache Welt setzt deshalb `frozen`.
+
 ### Eine neue Welt hinzufügen
 
 1. `src/worlds/<name>/<Name>World.ts` anlegen und `World` implementieren
@@ -7781,7 +7884,7 @@ ist, steht einmal und wird von beiden Welten gerufen:
   hängen, wo die 2D-Figur durchkommt).
 
 **Der Rechenkern: die 2D-Runde rechnet auch im Schiff** (`flatKernel.ts`,
-`kernelLocomotion.ts`, `HauntingWorld.stepKernel`)
+`flat/kernelLocomotion.ts`, `HauntingWorld.stepKernel`)
 
 Der Wunsch des Besitzers dahinter, wörtlich: „die 2D-Welt als Basis nehmen,
 die Inputs bewegen nur den 2D-Charakter, und der 3D-Charakter wird daraus
@@ -8315,7 +8418,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   gemeinsamen Rig-Einstellungen und räumt Pointer/Audio/GPU-Ressourcen auf.
 - **Die Steuerung der 2D-Welt gilt auch im Schiff**
   (`world3d/shipControls.ts`): Stock links unten, drei Knöpfe rechts unten,
-  dieselbe Klasse und dasselbe CSS wie in 2D (`map/joystick.ts`,
+  dieselbe Klasse und dasselbe CSS wie in 2D (`flat/joystick.ts`,
   `map/flat.css`) — nur ohne den schwarzen Grund (`.flat.ship3d { background:
   none }`; ohne diese Zeile malt `flat.css` die ganze Station zu, sobald
   jemand die Datei lädt — das Schiff tut das seit dem Optionsmenü selbst) und
@@ -8930,7 +9033,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   3D-Szene ist und sonst hinter der 2D-Welt läge. Unten rechts der große Knopf
   „Benutzen" mit „Werkzeug" und „Wechseln" darüber. Stock links. Der Stock hat eine **sichtbare
   Ruhestellung** unten links und springt beim Aufsetzen unter den Daumen
-  (`map/joystick.ts`). `.flat [hidden] { display: none !important }` ist
+  (`flat/joystick.ts`). `.flat [hidden] { display: none !important }` ist
   Pflicht: Panels mit `display: flex` und `hidden` standen sonst als leerer
   Balken mitten auf der Karte — über dem Spieler.
 - **Ein Overlay auf einmal** (`FlatOverlay`, `FlatMode.applyOverlay`): Karte,
@@ -9822,7 +9925,7 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
     zehnmal je Sekunde ankommt.
   - **Fliegen und Zoomen** (`WatchLens.zoom`, `WatchLens.pan`, `zoomedLens`,
     `pannedLens`, `homedLens`): Über dem Deck fliegt der **Stock** links
-    unten (`map/joystick.ts`, `FLY_SPEED` = 14 m/s bei Zoom 1, herangezoomt
+    unten (`flat/joystick.ts`, `FLY_SPEED` = 14 m/s bei Zoom 1, herangezoomt
     langsamer) oder **ein Finger** auf dem Loch, **zwei Finger** und das
     **Mausrad** zoomen (`ZOOM_MIN` 1 = das ganze Deck bis `ZOOM_MAX` 8 = ein
     Zimmer), „Zurück über das Deck" vergisst beides. Wer jemandem folgt,

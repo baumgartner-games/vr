@@ -21,7 +21,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Waffen am Gürtel greifen: links schießt blau, rechts rot. Springen, fallen, werfen.',
     accent: 0xff3b2f,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./portal/PortalWorld')).PortalWorld(),
   },
@@ -32,7 +32,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Überdachte Schießlinie, Scheiben in der Ferne und Stahlplatten. Pistole im Menü einstellen.',
     accent: 0xffc857,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./range/RangeWorld')).RangeWorld(),
   },
@@ -43,7 +43,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'In der Boxengasse einsteigen und nach rechts auf die Gerade. Rechter Trigger Gas, linker bremst, Klemmbrett stellt alles ein — jede Zahl auch getippt, dazu Helm und wie weit, wie langsam und ab wie viel Grad der Kopf der Lenkung nachzieht.',
     accent: 0x5ee0a0,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./kart/KartWorld')).KartWorld(),
   },
@@ -54,7 +54,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Küche, Thresen und Gastraum. Teig mit der Faust flach kneten, Soße, Käse, Ofen — Mülleimer löscht.',
     accent: 0xff8a2f,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./shop/ShopWorld')).ShopWorld(),
   },
@@ -76,7 +76,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Zwei Plätze, ein Tunnel und begehbare Häuser. Alle Werkzeuge, Portale haften an den hellen Tafeln.',
     accent: 0xffc857,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./dust/DustWorld')).DustWorld(),
   },
@@ -87,7 +87,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Graue Ebene bis zum Horizont, Krater, Felsen und ein Lander. Springen dauert dreimal so lange.',
     accent: 0xd7dce8,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./moon/MoonWorld')).MoonWorld(),
   },
@@ -98,7 +98,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Großer Berg mit Startrampe, Tal mit Landewiese. Hängegleiter links, Flügel rechts — Trigger ist der Anlauf.',
     accent: 0x9fd8ff,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./alps/AlpsWorld')).AlpsWorld(),
   },
@@ -109,7 +109,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Großer roter Knopf, daneben Effekt und Größe: Rauch, Feuer, Funken, Explosion, Staub, Zauber, Wasser. Stoppuhr für Zeitlupe.',
     accent: 0xff5a4a,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./effects/EffectsWorld')).EffectsWorld(),
   },
@@ -120,7 +120,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Der Grundriss steht als Miniatur vor dir: greifen und schieben, zwei Hände drehen und zoomen. Gedrückt halten malt eine ganze Reihe, zwei Ecken füllen eine Fläche — und alles wächst in Lebensgröße um dich herum. Karte und Palette hängen am Gürtel. Gebaute Welten bleiben im Browser und lassen sich als Datei mitnehmen.',
     accent: 0x39d0ff,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./editor/EditorWorld')).EditorWorld(),
   },
@@ -131,7 +131,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Helle Halle mit einer Wand voller Türen: roter Knopf, Hebel und eine Druckplatte, auf die eine Kiste gehört. Dahinter die Schildergalerie — Tafeln, die man selbst beschriftet und aufstellt.',
     accent: 0x9fd0ff,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./interact/InteractWorld')).InteractWorld(),
   },
@@ -142,7 +142,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Wegsuche zum Ansehen: langer Gang, Stachelgrube, Kiste im Weg, zu enger Gang, Tür fällt zu, Portal, Dachkante und der Sprung aufs freistehende Podest. Roter Knopf startet, gelbe machen es schwer. Gitter, Flächen, Sichtkegel und Wege im NPC-Menü.',
     accent: 0x39d0ff,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./navlab/NavLabWorld')).NavLabWorld(),
   },
@@ -153,7 +153,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Leiterwand, rauer Fels, Glattwand, Überhang, Riss und ein Kamin zum Verspreizen. Der Halt wird gerechnet — schlechte Griffe kosten Ausdauer.',
     accent: 0x1e9a84,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./climb/ClimbWorld')).ClimbWorld(),
   },
@@ -164,7 +164,7 @@ export const WORLDS: WorldDefinition[] = [
     description:
       'Kleines Haus ohne Fenster: Lichtschalter im Startraum, schwebende Taschenlampe, Leuchtkugel, Laterne und Knicklichter.',
     accent: 0xffd88a,
-    roles: ['vr', 'desktop'],
+    roles: ['vr', 'desktop', 'handheld'],
     experimental: true,
     load: async () => new (await import('./dark/DarkWorld')).DarkWorld(),
   },

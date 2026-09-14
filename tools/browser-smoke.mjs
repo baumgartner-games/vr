@@ -32,6 +32,117 @@ const results = [];
 const summary = () =>
   writeFile(path.join(output, 'report.json'), JSON.stringify({ base, output, results }, null, 2));
 
+/**
+ * Die flache Welt (`src/worlds/flat/`): jede Welt von oben. Vier Welten
+ * werden betreten — zwei Rasterwelten (Dust mit fünf Etagen, Dark), ein
+ * Gelände (Alps) und eine abgetastete Kastenwelt (Shop) —, die Figur muss
+ * sich mit der Tastatur bewegen, und in Dust läuft danach auch die
+ * 3D-Figur auf dem Raster.
+ */
+const FLAT_WORLDS = ['dust', 'dark', 'alps', 'shop'];
+
+async function visitFlatWorlds(page, result, prefix, base) {
+  // Dieselbe Seite wie die Station, nacheinander neu geladen: Ein zweiter
+  // Tab bekäme im Hintergrund keine Bilder, und die Figur stünde still.
+  result.flatWorlds = {};
+  {
+    for (const id of FLAT_WORLDS) {
+      console.log(`[${prefix}] flat world ${id}`);
+      const url = new URL(base);
+      url.searchParams.set('net', 'local');
+      url.hash = id;
+      await page.goto(url.toString(), { waitUntil: 'domcontentloaded' });
+      // Fertig ist die Welt erst, wenn ihr Raster steht (nach der Physik)
+      // und das erste Bild gerechnet ist.
+      await page.waitForFunction(
+        (wanted) =>
+          window.bgvr?.world &&
+          typeof window.bgvr.world.openFlatWorld === 'function' &&
+          window.bgvr.world.context &&
+          window.bgvr.world.nav &&
+          window.bgvr.world.time > 0 &&
+          window.location.hash.slice(1) === wanted,
+        id,
+      );
+      const opened = await page.evaluate(() => {
+        const world = window.bgvr.world;
+        return world.flatWorldOpen || world.openFlatWorld(world.context);
+      });
+      assert(opened, `${id}: the flat world opens`);
+      await page.locator('.flat--world').waitFor({ state: 'visible' });
+      // Die Welt kann die Seite einmal neu laden (`bgvr:stale-reload`) —
+      // dann ist die flache Welt weg und muss noch einmal geöffnet werden.
+      await page.waitForFunction(
+        () =>
+          window.bgvr?.world?.flatWorld ||
+          window.bgvr?.world?.openFlatWorld?.(window.bgvr.world.context),
+      );
+      const before = await page.evaluate(() => ({
+        ...window.bgvr.world.flatWorld.figure,
+        navigation: performance.getEntriesByType('navigation')[0]?.type,
+      }));
+      result.flatWorlds[id] = { navigation: before.navigation };
+      // Irgendeine Richtung führt weg von der Startstelle — nicht jede, an
+      // einer Wand geht es nicht weiter.
+      let moved = 0;
+      for (const key of ['KeyW', 'KeyD', 'KeyS', 'KeyA']) {
+        await page.keyboard.down(key);
+        await page.waitForTimeout(1000);
+        await page.keyboard.up(key);
+        const now = await page.evaluate(() => ({ ...window.bgvr.world.flatWorld.figure }));
+        moved = Math.hypot(now.x - before.x, now.z - before.z);
+        if (moved > 0.3) break;
+      }
+      const facts = await page.evaluate(() => {
+        const world = window.bgvr.world;
+        const snapshot = world.flatSnapshot();
+        return {
+          levels: snapshot.levels.length,
+          tiles: snapshot.levels.reduce((sum, level) => sum + level.tiles.length, 0),
+          level: document.querySelector('.flat__level')?.textContent ?? '',
+          figure: { ...world.flatWorld.figure },
+        };
+      });
+      result.flatWorlds[id] = { ...result.flatWorlds[id], ...facts, moved };
+      assert(moved > 0.3, `${id}: the figure walks on the grid`);
+      assert(facts.tiles > 4, `${id}: the grid has floor`);
+      if (id === 'dust') assert(facts.levels >= 5, 'Dust shows its storeys as levels');
+      await page.evaluate(() => {
+        const world = window.bgvr.world;
+        world.closeFlatWorld(world.context);
+      });
+      await page.locator('.flat--world').waitFor({ state: 'detached' });
+      if (id === 'dust') {
+        // Zurück in 3D trägt in Dust das Raster: Der Stock bewegt die Figur,
+        // das Gestell folgt ihr.
+        const start = await page.evaluate(() => {
+          const rig = window.bgvr.world.context.rig;
+          return { x: rig.position.x, z: rig.position.z };
+        });
+        await page.keyboard.down('KeyW');
+        await page.waitForTimeout(1200);
+        await page.keyboard.up('KeyW');
+        const grid = await page.evaluate(() => {
+          const world = window.bgvr.world;
+          const rig = world.context.rig;
+          return {
+            x: rig.position.x,
+            z: rig.position.z,
+            active: world.gridDriver?.loco.active ?? false,
+            figure: world.gridDriver?.figure ? { ...world.gridDriver.figure } : null,
+          };
+        });
+        result.flatWorlds[id].grid = grid;
+        assert(grid.active && grid.figure, 'Dust: the grid drives the 3D figure');
+        assert(
+          Math.hypot(grid.x - start.x, grid.z - start.z) > 0.3,
+          'Dust: the rig follows the figure on the grid',
+        );
+      }
+    }
+  }
+}
+
 for (const name of browserNames) {
   assert(name === 'chromium' || name === 'firefox', `Unknown browser ${name}`);
   let browser;
@@ -496,6 +607,8 @@ for (const name of browserNames) {
               requestAnimationFrame(frame);
             }),
         );
+        result.activeStep = 'flat-worlds';
+        await visitFlatWorlds(page, result, prefix, base);
         assert.equal(result.pageErrors.length, 0, 'No uncaught browser errors');
         result.passed = true;
       } catch (error) {

@@ -253,6 +253,11 @@ export class Npc {
    * `RuntimeError: unreachable`). Deshalb merkt er sich beim Abbau, wo er
    * zuletzt stand, und antwortet von da an von dort.
    */
+  /** Wohin er schaut, in Bogenmaß — für die Karte von oben. */
+  get facing(): number {
+    return this.yaw;
+  }
+
   feet(target: THREE.Vector3): THREE.Vector3 {
     if (!this.bodied) return target.copy(this.resting);
     const t = this.entry.body.translation();

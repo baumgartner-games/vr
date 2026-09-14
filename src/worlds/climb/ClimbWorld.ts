@@ -238,6 +238,11 @@ const _drop = new THREE.Vector3();
 const _cushion = new THREE.Vector3();
 
 export class ClimbWorld extends GridWorld {
+  /** Die Kletterhalle: Wände, Griffe und Decks stehen nicht im Plan — die Physik trägt. */
+  protected override gridDrivesPlayer(): boolean {
+    return false;
+  }
+
   private readonly holds: Hold[] = [];
   private readonly grasps = new Map<Handedness, Grasp>();
   private readonly drive = new THREE.Vector3();

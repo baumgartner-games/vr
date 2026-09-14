@@ -11,7 +11,9 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
-import { DIRS, type Dir } from '../nav/navTile';
+import { DIRS, TILE, keyLevel, keyX, keyZ, wallDir, wallTile, type Dir } from '../nav/navTile';
+import { BLOCKS, blockHeight, blockSolids } from './blocks';
+import { STEP_LIMIT, type FlatBox, type FloorRamp } from '../flat';
 import { changeSlidingDoor } from './slidingDoor';
 import type { GridPlan } from './gridPlan';
 import type { PlanSolid, PlanSolidKind } from './solids';
@@ -612,6 +614,113 @@ export abstract class GridWorld extends PortalWorld {
   override menu(): MenuEntry[] {
     if (!this.editor) return super.menu();
     return [this.storeMenu(), ...super.menu()];
+  }
+
+  // --- die 3D-Figur auf dem Raster -------------------------------------------
+
+  /** Eine Rasterwelt *ist* ihr Plan: Der Stock bewegt die Figur darauf, das Gestell folgt. */
+  protected override gridDrivesPlayer(): boolean {
+    return true;
+  }
+
+  /** Mit ausgezogener Karte (Bauplatz) trägt die Physik — die Karte ändert sich gerade. */
+  protected override gridCarries(): boolean {
+    return this.solid;
+  }
+
+  // --- die flache Welt --------------------------------------------------------
+
+  /**
+   * **Was auf dem Boden steht, steht auch auf der Karte.** Die Bausteine des
+   * Plans, die man nicht betritt (Tisch, Kiste, Säule, Geländer …), werden
+   * Kästen; Podest, Rampe und Treppe nicht — auf denen steht man. Massen
+   * zählen, wenn sie am Boden anfangen: der Kugelfang, die Felswand — nicht
+   * das Dach.
+   */
+  protected override flatBoxes(): FlatBox[] {
+    const plan = this.grid;
+    if (!plan) return [];
+    const out: FlatBox[] = [];
+    for (const block of plan.blocks()) {
+      if (block.kind === 'platform' || block.kind === 'ramp' || block.kind === 'stairs') continue;
+      const level = keyLevel(block.tile);
+      const site = {
+        x: (keyX(block.tile) + 0.5) * TILE,
+        z: (keyZ(block.tile) + 0.5) * TILE,
+        base: 0,
+        dir: block.dir,
+        ...(block.height !== undefined ? { height: block.height } : {}),
+      };
+      let minX = Infinity,
+        minZ = Infinity,
+        maxX = -Infinity,
+        maxZ = -Infinity;
+      for (const solid of blockSolids(block.kind, site)) {
+        minX = Math.min(minX, solid.x - solid.w / 2);
+        maxX = Math.max(maxX, solid.x + solid.w / 2);
+        minZ = Math.min(minZ, solid.z - solid.d / 2);
+        maxZ = Math.max(maxZ, solid.z + solid.d / 2);
+      }
+      if (!Number.isFinite(minX)) continue;
+      out.push({
+        level,
+        minX,
+        minZ,
+        maxX,
+        maxZ,
+        kind: block.kind,
+        label: BLOCKS[block.kind].label,
+        height: blockHeight(block.kind, block.height),
+      });
+    }
+    for (const mass of plan.masses()) {
+      // Nur, was vom Boden aus im Weg steht: nicht die Bodenplatte darunter,
+      // nicht die Decke darüber, nicht die Bordsteinkante, über die man geht.
+      if (mass.from > 1 || mass.to <= STEP_LIMIT) continue;
+      const level = mass.rect.level ?? 0;
+      out.push({
+        level,
+        minX: mass.rect.x * TILE,
+        minZ: mass.rect.z * TILE,
+        maxX: (mass.rect.x + mass.rect.w) * TILE,
+        maxZ: (mass.rect.z + mass.rect.d) * TILE,
+        kind: mass.kind,
+        height: mass.to,
+      });
+    }
+    return out;
+  }
+
+  /** Treppen und Rampen: Die Höhe steigt in ihrer Richtung — die Treppe bis zur Etage darüber. */
+  protected override flatRamps(): FloorRamp[] {
+    const plan = this.grid;
+    if (!plan) return [];
+    const out: FloorRamp[] = [];
+    for (const block of plan.blocks()) {
+      if (block.kind !== 'stairs' && block.kind !== 'ramp') continue;
+      const level = keyLevel(block.tile);
+      const rise =
+        block.kind === 'stairs'
+          ? plan.graph.levelY(level + 1) - plan.graph.levelY(level)
+          : blockHeight(block.kind, block.height);
+      out.push({ level, tx: keyX(block.tile), tz: keyZ(block.tile), dir: block.dir, rise });
+    }
+    return out;
+  }
+
+  protected override flatDoorWidth(): number {
+    return this.grid?.doorWidth() ?? super.flatDoorWidth('');
+  }
+
+  /** Eine Tür der Karte ist eine Tür des Plans — und damit auch die im Schiff. */
+  protected override flatDoor(id: string, open: boolean): boolean {
+    const plan = this.grid;
+    if (!plan) return super.flatDoor(id, open);
+    const wall = plan.graph.doorWall(id);
+    if (wall < 0) return false;
+    const tile = wallTile(wall);
+    this.setSlidingGridDoor(keyX(tile), keyZ(tile), wallDir(wall), open, keyLevel(tile));
+    return true;
   }
 
   /**

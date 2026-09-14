@@ -395,6 +395,11 @@ const _noLid: THREE.Plane[] = [];
 const _lidOn = [_lid];
 
 export class HauntingWorld extends GridWorld {
+  /** Haunting hat seinen eigenen Kern: die 2D-Runde (`flatKernel.ts`). */
+  protected override gridDrivesPlayer(): boolean {
+    return false;
+  }
+
   /** Der Bauplan dieser Runde. Steht vor dem ersten `layout()` fest. */
   private spec: HouseSpec = generateHouse(rollSeed(), 8);
   private state: HauntState = freshState(this.spec.seed);
@@ -3315,6 +3320,11 @@ export class HauntingWorld extends GridWorld {
   }
 
   // --- das Menü in der Brille ------------------------------------------------
+
+  /** Haunting hat seine eigene 2D-Welt (`map/flatMode.ts`) — die flache Welt des Pakets bleibt zu. */
+  protected override flatWorldAvailable(): boolean {
+    return false;
+  }
 
   override menu(): MenuEntry[] {
     // Ein nachgebautes Weltobjekt (Replay-Tests) hat die Tafel nicht; dann gilt der Anfang.

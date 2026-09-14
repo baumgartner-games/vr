@@ -181,6 +181,11 @@ interface Rival {
 }
 
 export class KartWorld extends GridWorld {
+  /** Die Kartbahn: Das Kart ist ein Fahrzeug der Physik, die Bahn kein Kachelboden. */
+  protected override gridDrivesPlayer(): boolean {
+    return false;
+  }
+
   /** Die Mittellinie, aus den Streckenteilen gelegt (`kartCourse.ts`). */
   private readonly path = KART_COURSE.centre;
   private readonly lapLength = pathLength(this.path);

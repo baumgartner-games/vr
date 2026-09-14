@@ -200,7 +200,21 @@ import {
 import type { LivePreview, PreviewButton } from '../shared/livePreview';
 import { PreviewWalk } from '../shared/previewWalk';
 import type { NavGraph } from '../nav/navGraph';
-import { TILE } from '../nav/navTile';
+import {
+  FloorModel,
+  FlatWorldMode,
+  GridDriver,
+  snapshotOf,
+  terrainGraph,
+  type Terrain,
+  type FlatBox,
+  type FlatEntity,
+  type FlatFigure,
+  type FlatSnapshot,
+  type FloorBox,
+  type FloorRamp,
+} from '../flat';
+import { TILE, keyLevel } from '../nav/navTile';
 import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
 import { BODY_DAMAGE } from '../npc/npcHit';
 import { NPC_BAR_MODES, type BarMode } from '../npc/NpcBody';
@@ -416,6 +430,9 @@ const _rotationMatrix = new THREE.Matrix4();
 const _rotation = new THREE.Quaternion();
 const _normalMatrix = new THREE.Matrix3();
 const _ray = new THREE.Ray();
+const _flatHead = new THREE.Vector3();
+const _flatLook = new THREE.Vector3();
+const _flatFeet = new THREE.Vector3();
 const _aimRay = new THREE.Ray();
 const _quaternion = new THREE.Quaternion();
 const _hitPoint = new THREE.Vector3();
@@ -872,6 +889,23 @@ export class PortalWorld implements World {
    * gebaut wurde oder das Abtasten nichts gefunden hat.
    */
   protected nav: NavGraph | null = null;
+  /**
+   * **Die flache Welt** (`flat/flatWorldMode.ts`): dieselbe Welt von oben,
+   * auf dem Telefon von selbst, im Browser über das Menü. Solange sie offen
+   * ist, steht die 3D-Szene still — das Gestell wird beim Zurückkommen
+   * dorthin gesetzt, wo die Figur auf der Karte steht.
+   */
+  protected flatWorld: FlatWorldMode | null = null;
+  /**
+   * **Der Fahrer auf dem Raster** (`flat/gridDriver.ts`): In Welten, deren
+   * Plan der Boden ist, bewegt der Stock die Figur auf dem Raster und das
+   * Gestell folgt ihr — Kollision, Türen und Treppen aus einer Rechnung, in
+   * 2D wie in 3D. `null`, wo die Physik den Spieler trägt.
+   */
+  protected gridDriver: GridDriver | null = null;
+  private flatFloorCache: { model: FloorModel; graph: NavGraph; version: number } | null = null;
+  private flatSnapshotCache: { snapshot: FlatSnapshot; graph: NavGraph; version: number } | null =
+    null;
   private navReport: BakeReport | null = null;
   private navDebug: THREE.Group | null = null;
   /** Die Wege, die gerade gelaufen werden — eigene Ebene, weil sie sich ändern. */
@@ -967,7 +1001,11 @@ export class PortalWorld implements World {
 
     ctx.rig.placeFeetAt(this.spawnPoint(), this.spawnYaw());
     this.locomotion = new PhysicsLocomotion(this.physics, ctx.rig);
-    ctx.rig.setLocomotion(this.locomotion);
+    // Das Gestell räumt beim Einhängen die vorige Fortbewegung ab
+    // (`PlayerRig.setLocomotion`) — deshalb genau einmal einhängen: den
+    // Fahrer auf dem Raster mit der Kapsel darunter, oder die Kapsel allein.
+    if (this.gridDrivesPlayer()) this.gridDriver = new GridDriver(this.locomotion);
+    ctx.rig.setLocomotion(this.gridDriver ? this.gridDriver.loco : this.locomotion);
     this.applyWorldPhysics();
     this.unsubscribePhysics = onWorldPhysicsChange(() => this.applyWorldPhysics());
     this.grabConfig = grabSettings();
@@ -1010,11 +1048,262 @@ export class PortalWorld implements World {
     ctx.menu.setModelFactory((id) => this.tool(id));
 
     ctx.notify(this.welcome());
+    // Ein Telefon betritt die Welt von oben: Es hat weder Brille noch Maus,
+    // aber einen Daumen — und jede Welt hat ein Raster.
+    if (ctx.role === 'handheld' && this.flatWorldAvailable()) this.openFlatWorld(ctx);
+  }
+
+  // --- die flache Welt ------------------------------------------------------
+
+  /**
+   * Ob diese Welt die flache Welt anbietet — im Menü, und einem Telefon von
+   * selbst. Haunting hat seine eigene 2D-Welt samt Lobby und sagt nein.
+   */
+  protected flatWorldAvailable(): boolean {
+    return true;
+  }
+
+  /** Wie die Welt in der flachen Welt heißt. */
+  protected flatTitle(): string {
+    return this.welcome();
+  }
+
+  /** Kästen, die auf dem Boden stehen und die man nicht betritt — die Rasterwelten kennen sie aus ihrem Plan. */
+  protected flatBoxes(): FlatBox[] {
+    return [];
+  }
+
+  /** Schräge Kacheln — Treppen und Rampen aus dem Plan. */
+  protected flatRamps(): FloorRamp[] {
+    return [];
+  }
+
+  /** Wie breit eine Tür ist, für Kollision und Bild. */
+  protected flatDoorWidth(_id: string): number {
+    return 1.2;
+  }
+
+  /** Eine Tür umlegen. Ohne Plan kann der Graph nur seine Meinung ändern — und die reicht für die flache Welt. */
+  protected flatDoor(id: string, open: boolean): boolean {
+    const graph = this.nav;
+    if (!graph || !graph.door(id)) return false;
+    return graph.mendDoor(id, open);
+  }
+
+  /** Wer außer dem Spieler auf der Karte steht: die NPCs der Welt. */
+  protected flatEntities(): FlatEntity[] {
+    const graph = this.nav;
+    if (!graph || !this.director) return [];
+    const out: FlatEntity[] = [];
+    let index = 0;
+    for (const npc of this.director.all) {
+      if (!npc.alive) continue;
+      const feet = npc.feet(_flatFeet);
+      const key = graph.at(feet.x, feet.z, feet.y);
+      out.push({
+        id: `npc-${index++}`,
+        x: feet.x,
+        z: feet.z,
+        level: key >= 0 ? keyLevel(key) : 0,
+        yaw: npc.facing,
+        kind: 'npc',
+      });
+    }
+    return out;
+  }
+
+  /** Das Bodenmodell der Welt — aus dem abgetasteten Graphen, einmal je Fassung. */
+  protected flatFloor(): FloorModel | null {
+    const graph = this.nav;
+    if (!graph) return null;
+    const cached = this.flatFloorCache;
+    if (cached && cached.graph === graph && cached.version === graph.version) return cached.model;
+    const terrain = this.navTerrain();
+    const model = new FloorModel(graph, {
+      obstacles: this.flatBoxes(),
+      ramps: this.flatRamps(),
+      doorWidth: (id) => this.flatDoorWidth(id),
+      ...(terrain
+        ? {
+            heightAt: (x: number, z: number) => terrain.heightAt(x, z),
+            ...(terrain.step !== undefined ? { step: terrain.step } : {}),
+          }
+        : {}),
+    });
+    this.flatFloorCache = { model, graph, version: graph.version };
+    return model;
+  }
+
+  /** Das Bild der Welt für die Ebenen-Karte — neu nur, wenn der Graph sich geändert hat. */
+  protected flatSnapshot(): FlatSnapshot | null {
+    const graph = this.nav;
+    if (!graph) return null;
+    const cached = this.flatSnapshotCache;
+    if (cached && cached.graph === graph && cached.version === graph.version)
+      return cached.snapshot;
+    const snapshot = snapshotOf(graph, {
+      boxes: this.flatBoxes(),
+      ramps: this.flatRamps(),
+      doorWidth: (id) => this.flatDoorWidth(id),
+    });
+    this.flatSnapshotCache = { snapshot, graph, version: graph.version };
+    return snapshot;
+  }
+
+  // --- die 3D-Figur auf dem Raster -------------------------------------------
+
+  /**
+   * Ob in dieser Welt der Stock die Figur auf dem Raster bewegt und das
+   * Gestell ihr folgt. Voreingestellt nein: Eine abgetastete Welt kennt nur
+   * die Kästen, die eine Kachelmitte treffen — der Tresen im Laden fehlt ihr,
+   * und wer daran vorbeiginge, ginge hindurch. Die Rasterwelten sagen ja.
+   */
+  protected gridDrivesPlayer(): boolean {
+    return false;
+  }
+
+  /** Ob das Raster gerade trägt — im Bauplatz mit ausgezogener Karte nicht. */
+  protected gridCarries(): boolean {
+    return true;
+  }
+
+  /** Requisiten, die gerade auf dem Boden stehen: Kisten, Fässer — als Kästen für einen Bildmoment. */
+  protected flatDynamicBoxes(): FloorBox[] {
+    const graph = this.nav;
+    if (!graph) return [];
+    const out: FloorBox[] = [];
+    for (const prop of this.props) {
+      if (prop.carried || !prop.object.visible) continue;
+      const half = prop.halfExtents;
+      if (half.y * 2 < 0.35) continue;
+      prop.object.getWorldPosition(_flatFeet);
+      const key = graph.at(_flatFeet.x, _flatFeet.z, _flatFeet.y - half.y);
+      if (key < 0) continue;
+      const reach = Math.max(half.x, half.z);
+      out.push({
+        level: keyLevel(key),
+        minX: _flatFeet.x - reach,
+        maxX: _flatFeet.x + reach,
+        minZ: _flatFeet.z - reach,
+        maxZ: _flatFeet.z + reach,
+      });
+    }
+    return out;
+  }
+
+  /** Ein Bild des Fahrers: Figur bewegen, Gestell nachziehen — oder der Physik überlassen. */
+  private stepGridPlayer(dt: number, ctx: WorldContext): void {
+    const driver = this.gridDriver;
+    if (!driver) return;
+    const floor = this.gridCarries() ? this.flatFloor() : null;
+    if (floor) floor.dynamic = this.flatDynamicBoxes();
+    driver.step(ctx.rig, ctx.camera, floor, dt, driver.loco.jump);
+  }
+
+  /** Ob die flache Welt gerade offen ist. */
+  get flatWorldOpen(): boolean {
+    return this.flatWorld !== null;
+  }
+
+  /**
+   * **Die Welt von oben öffnen.** Die Figur fängt dort an, wo das Gestell
+   * steht — auf der Etage, deren Boden dem Kopf am nächsten liegt.
+   */
+  openFlatWorld(ctx: WorldContext): boolean {
+    if (this.flatWorld) return true;
+    if (ctx.renderer.xr.isPresenting) return false;
+    const floor = this.flatFloor();
+    const snapshot = this.flatSnapshot();
+    if (!floor || !snapshot) {
+      ctx.notify('Für diese Welt gibt es kein Raster.');
+      return false;
+    }
+    const graph = floor.graph;
+    ctx.rig.getHeadPosition(_flatHead);
+    const feetY = ctx.rig.getFloorY();
+    let key = graph.nearest(_flatHead.x, _flatHead.z, feetY);
+    if (key < 0) key = floor.anyTile(0);
+    if (key < 0) {
+      ctx.notify('Für diese Welt gibt es kein Raster.');
+      return false;
+    }
+    const at = graph.worldOf(key);
+    const level = keyLevel(key);
+    ctx.camera.getWorldDirection(_flatLook);
+    const start = floor.walkable({ x: _flatHead.x, z: _flatHead.z, level }, 0.24)
+      ? { x: _flatHead.x, z: _flatHead.z, level }
+      : { x: at.x, z: at.z, level };
+    const leave =
+      ctx.role === 'handheld'
+        ? undefined
+        : (figure: FlatFigure) => this.closeFlatWorld(ctx, figure);
+    this.flatWorld = new FlatWorldMode({
+      title: this.flatTitle(),
+      floor: () => this.flatFloor() ?? floor,
+      snapshot: () => this.flatSnapshot() ?? snapshot,
+      entities: () => this.flatEntities(),
+      start: { ...start, yaw: Math.atan2(-_flatLook.x, -_flatLook.z) },
+      door: (id, open) => this.flatDoor(id, open),
+      ...(leave ? { leave } : {}),
+      notify: (text) => ctx.notify(text),
+    });
+    document.body.append(this.flatWorld.element);
+    // `frozen`, nicht `paused`: Das Gestell faltet `paused` jedes Bild selbst aus
+    // `frozen` (`PlayerRig`); eine direkt gesetzte Pause hielte nur ein Bild.
+    ctx.rig.frozen = true;
+    ctx.touchStick(false);
+    ctx.menu.toggle(false);
+    ctx.refreshWorldMenu();
+    return true;
+  }
+
+  /** Zurück in 3D: das Gestell dorthin, wo die Figur steht, auf ihrer Höhe. */
+  closeFlatWorld(ctx: WorldContext, figure?: FlatFigure): void {
+    const flat = this.flatWorld;
+    if (!flat) return;
+    const floor = this.flatFloor();
+    const at = figure ?? flat.figure;
+    flat.dispose();
+    this.flatWorld = null;
+    ctx.rig.frozen = false;
+    if (floor) {
+      _flatFeet.set(at.x, floor.height(at) + 0.02, at.z);
+      ctx.rig.placeFeetAt(_flatFeet, at.yaw);
+      this.locomotion?.resync(ctx.rig);
+      this.gridDriver?.forget();
+    }
+    ctx.touchStick(true);
+    ctx.refreshWorldMenu();
+  }
+
+  /** Der Menüeintrag: hin und zurück. */
+  protected flatWorldMenu(): MenuEntry {
+    const ctx = this.context;
+    const open = this.flatWorld !== null;
+    return {
+      id: 'flat:world',
+      label: open ? 'Zurück in 3D' : '2D von oben',
+      sub: open ? 'Die Szene wieder um sich haben' : 'Die Welt als Karte begehen',
+      icon: 'worlds',
+      accent: 0x4aa8ff,
+      run: () => {
+        if (!ctx) return;
+        if (this.flatWorld) this.closeFlatWorld(ctx);
+        else this.openFlatWorld(ctx);
+      },
+    };
   }
 
   update(dt: number, ctx: WorldContext): void {
     this.context = ctx;
     if (!this.physics || !this.locomotion) return;
+    // Von oben begangen steht die Szene: Die Figur läuft auf dem Raster, und
+    // was das Gestell derweil täte, wäre ein zweiter Spieler.
+    if (this.flatWorld) {
+      this.flatWorld.update(dt);
+      return;
+    }
+    this.stepGridPlayer(dt, ctx);
 
     this.time += dt;
     this.portalBlue.setTime(this.time);
@@ -1079,6 +1368,7 @@ export class PortalWorld implements World {
     };
 
     return [
+      ...(this.flatWorldAvailable() ? [this.flatWorldMenu()] : []),
       {
         id: 'tools',
         label: 'Werkzeuge',
@@ -1174,6 +1464,13 @@ export class PortalWorld implements World {
   }
 
   /**
+   * Ein Höhenfeld statt Quadern — die Alpen. `null` bei allen Welten aus Kästen.
+   */
+  protected navTerrain(): Terrain | null {
+    return null;
+  }
+
+  /**
    * Der Ausschnitt, der abgetastet wird.
    *
    * Der Umriss aller gebauten Quader, aber **ohne die Fläche bis zum
@@ -1213,6 +1510,15 @@ export class PortalWorld implements World {
    * nichts gespeichert und nichts von Hand gepflegt werden muss.
    */
   private bakeNavigation(): void {
+    // Ein Gelände ist kein Quader: Es wird abgetastet, wie es ist
+    // (`flat/terrainGraph.ts`), statt als Klotz bis zum Gipfel.
+    const terrain = this.navTerrain();
+    if (terrain) {
+      this.navReport = null;
+      this.nav = terrainGraph(terrain);
+      this.navReady(this.nav);
+      return;
+    }
     const bounds = this.navBounds();
     if (!bounds) return;
     const levels = this.navLevels();
@@ -3236,6 +3542,8 @@ export class PortalWorld implements World {
   }
 
   render(ctx: WorldContext): boolean {
+    // Die flache Welt liegt als DOM über allem — die 3D-Szene braucht kein Bild.
+    if (this.flatWorld) return true;
     // The drone's display is a camera in the room, so it is drawn before the
     // frame it appears in — same order as the portal views.
     for (const tool of this.held.values()) {
@@ -3252,6 +3560,14 @@ export class PortalWorld implements World {
   }
 
   dispose(ctx: WorldContext): void {
+    if (this.flatWorld) {
+      this.flatWorld.dispose();
+      this.flatWorld = null;
+      ctx.rig.frozen = false;
+      ctx.touchStick(true);
+    }
+    this.flatFloorCache = null;
+    this.flatSnapshotCache = null;
     for (const foam of this.foams) foam.dispose();
     this.foams.length = 0;
     if (this.canvas) {
@@ -4040,6 +4356,7 @@ export class PortalWorld implements World {
     _point.y += LANDING_CLEARANCE;
     ctx.rig.placeFeetAt(_point, _euler.y);
     this.locomotion?.resync(ctx.rig);
+    this.gridDriver?.forget();
     return true;
   }
 
@@ -4070,6 +4387,7 @@ export class PortalWorld implements World {
     ctx.rig.placeFeetAt(_point.copy(at), yaw ?? _euler.y);
     if (yaw !== undefined) ctx.rig.turnHeadTo(yaw);
     this.locomotion?.resync(ctx.rig);
+    this.gridDriver?.forget();
   }
 
   /** Setzt den Spieler auf die Oberfläche über der Stelle, an der er fiel. */
@@ -4086,6 +4404,7 @@ export class PortalWorld implements World {
     _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
     ctx.rig.placeFeetAt(_point.set(x, y, z), _euler.y);
     this.locomotion?.resync(ctx.rig);
+    this.gridDriver?.forget();
     this.hasLastGround = false;
     ctx.notify('Aus der Tiefe zurückgeholt');
   }
@@ -5730,6 +6049,7 @@ export class PortalWorld implements World {
     ctx.rig.quaternion.copy(this.bodyHomeRotation);
     ctx.rig.updateMatrixWorld(true);
     this.locomotion?.resync(ctx.rig);
+    this.gridDriver?.forget();
     this.hasPreviousHead = false;
   }
 

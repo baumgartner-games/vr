@@ -169,6 +169,11 @@ interface Cage {
 
 export class NpcDirector implements NpcControl {
   private readonly npcs: Npc[] = [];
+
+  /** Alle NPCs, die es gerade gibt — für die Karte von oben (`flat/`). */
+  get all(): readonly Npc[] {
+    return this.npcs;
+  }
   private readonly points: SpawnMark[] = [];
   private readonly cages: Cage[] = [];
   private time = 0;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PortalWorld } from '../portal/PortalWorld';
+import { TERRAIN_STEP, type Terrain } from '../flat';
 import { createPropShape } from '../portal/props';
 import { GROUND_THICKNESS, GROUND_TOP, createSky } from '../shared/environment';
 import { buildRedButton, type RedButton } from '../shared/redButton';
@@ -113,6 +114,19 @@ export class AlpsWorld extends PortalWorld {
   protected override spawnYaw(): number {
     // Mit dem Rücken zum Gipfel, Blick über die Rampe ins Tal (+Z).
     return Math.PI;
+  }
+
+  /**
+   * **Die Alpen als Raster**: das Höhenfeld abgetastet, von der Startrampe
+   * bis über die Wiese hinaus — für die Karte von oben und den Weg darauf.
+   * Steile Hänge sind Kanten, sanfte geht man hinauf (`TERRAIN_STEP`).
+   */
+  protected override navTerrain(): Terrain {
+    return {
+      heightAt: (x, z) => alpsHeight(x, z),
+      bounds: { minX: -160, minZ: -200, maxX: 160, maxZ: 300 },
+      step: TERRAIN_STEP,
+    };
   }
 
   protected override welcome(): string {
