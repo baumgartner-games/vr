@@ -23,10 +23,14 @@ export type NetMessage =
    * Uhrzeit nie einig sind, über die Länge einer Minute aber schon.
    */
   /**
-   * `hat` ist die Kopfbedeckung, die dieser Spieler trägt
-   * (`core/headgear.ts`) — das Einzige an seinem Aussehen, was er selbst
-   * wählt. Optional, weil eine ältere Fassung sie nicht mitschickt: Wer
-   * nichts sagt, geht barhäuptig.
+   * `hat`, `head` und `body` sind das **Aussehen** dieses Spielers
+   * (`core/appearance.ts`): was er auf dem Kopf trägt, welchen Kopf er hat und
+   * welche Kochjacke. Es steht in der Anmeldung und nicht in der Pose — ein
+   * Aussehen ändert sich einmal am Abend, eine Pose zwanzigmal in der Sekunde.
+   *
+   * Alle drei sind optional, weil eine ältere Fassung sie nicht mitschickt,
+   * und alle drei sind **fremder Text**: Was hereinkommt, geht durch
+   * `asHeadgear`/`asHead`/`asBody`, unbekannte Werte werden zur Vorgabe.
    */
   | {
       type: 'hello';
@@ -36,6 +40,8 @@ export type NetMessage =
       world: string;
       since: number;
       hat?: string;
+      head?: string;
+      body?: string;
     }
   | { type: 'bye'; from: string }
   | { type: 'world'; from: string; world: string; since: number }
