@@ -91,12 +91,18 @@ export interface Model {
  * Die Grenzen des Maßstabs.
  *
  * Nach unten so, dass ein Zimmer noch ein Zimmer ist und keine Briefmarke;
- * nach oben so, dass das Modell einem nicht um die Ohren wächst — bei 1:6 ist
- * ein Zimmer von 15 Metern schon zweieinhalb Meter breit und damit größer als
- * die Armspanne, mit der man es anfasst.
+ * nach oben so, dass das Modell einem nicht um die Ohren wächst — bei 1:3 ist
+ * ein Zimmer von acht Metern schon zweieinhalb Meter breit und damit größer
+ * als die Armspanne, mit der man es anfasst.
+ *
+ * **Beide Grenzen sind seit den 1-m-Kacheln großzügiger**, und zwar um genau
+ * den Faktor, um den die Welt geschrumpft ist: Ein Grundriss aus zehn Kacheln
+ * war fünfundzwanzig Meter lang und ist jetzt zehn. Mit den alten Zahlen läge
+ * dasselbe Zimmer als Untertasse in der Hand, und eine einzelne Kachel — auf
+ * die man **zeigen** können muss — wäre vier Zentimeter groß.
  */
-export const SCALE_MIN = 1 / 60;
-export const SCALE_MAX = 1 / 6;
+export const SCALE_MIN = 1 / 24;
+export const SCALE_MAX = 1 / 3;
 
 /** Wie weit über dem Boden ein Modell mindestens und höchstens schwebt. */
 export const HOVER_MIN = 0.35;
@@ -110,7 +116,10 @@ export const NEAR_DROP = 0.42;
 const IDENTITY_TURN: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
 export function newModel(): Model {
-  return { at: { x: 0, y: 1, z: -1 }, turn: { ...IDENTITY_TURN }, scale: 1 / 24 };
+  // 1:10 — eine Kachel ist damit zehn Zentimeter groß, also genau so viel, wie
+  // ein Finger trifft. Vor den 1-m-Kacheln stand hier 1:24, und das war
+  // dieselbe Handbreit je Kachel.
+  return { at: { x: 0, y: 1, z: -1 }, turn: { ...IDENTITY_TURN }, scale: 1 / 10 };
 }
 
 /** Die Drehung um die Hochachse als Quaternion — für alles, was gerade steht. */
