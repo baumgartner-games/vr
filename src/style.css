@@ -254,6 +254,32 @@ h1 {
   transition: transform 60ms linear;
 }
 
+/* Rechts unten: Zielstock und die beiden Knöpfe — nur in der Ansicht von oben. */
+.touch__right[hidden] { display: none; }
+
+.touch__stick--aim { left: auto; right: max(24px, env(safe-area-inset-right)); }
+
+.touch__btn {
+  position: absolute;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(140, 170, 230, 0.18);
+  color: var(--fg);
+  font: 600 20px/1 system-ui, sans-serif;
+  display: grid;
+  place-items: center;
+}
+
+.touch__btn.is-down { background: rgba(140, 170, 230, 0.5); }
+
+.touch__btn--a { right: max(24px, env(safe-area-inset-right)); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 150px); }
+.touch__btn--b { right: calc(max(24px, env(safe-area-inset-right)) + 84px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 96px); }
+
+/* Der Hinweis unten rechts ist der Platz des Zielstocks, sobald es einen gibt. */
+.touch__right:not([hidden]) ~ .touch__hint { display: none; }
+
 .touch__hint {
   position: absolute;
   right: 16px;

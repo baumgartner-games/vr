@@ -140,6 +140,10 @@ export class PlayerRig extends THREE.Group {
 
   private readonly intent = new THREE.Vector3();
   private intentJump = false;
+  /** Ob `requestUse` seit dem letzten `takeUse` gedrückt wurde. */
+  private useWanted = false;
+  /** Der zuletzt gesetzte Triggerwert der rechten Hand (`setTrigger`). */
+  private triggerValue = 0;
   private snapArmed = true;
   /** Die Richtung, die beim Loslaufen gemerkt wurde — siehe `walkFrame.ts`. */
   private readonly walkFrame = newWalkFrame();
@@ -186,6 +190,42 @@ export class PlayerRig extends THREE.Group {
 
   requestJump(): void {
     this.intentJump = true;
+  }
+
+  /**
+   * **Benutzen, einmal** — `A`, `E`, Enter, der Touch-Knopf `A`
+   * (`FlatControls`). Eine Flanke und keine Taste, die liegen bleibt: Wer
+   * einen Knopf drückt, drückt ihn einmal, auch wenn der Finger länger auf
+   * `A` bleibt.
+   *
+   * Der Empfänger ist die Welt und nicht das Gestell — sie weiß, was vor der
+   * Figur steht (`useForward`, Paket P2 aus
+   * `docs/plan-2d-hub-interaktion.md`). Hier liegt nur der Zettel dazwischen,
+   * damit die Eingabe **einen** Weg hat und keine Welt eigene Tasten abhört.
+   */
+  requestUse(): void {
+    this.useWanted = true;
+  }
+
+  /** Den Zettel lesen und wegnehmen — je Bild höchstens einmal wahr. */
+  takeUse(): boolean {
+    const wanted = this.useWanted;
+    this.useWanted = false;
+    return wanted;
+  }
+
+  /**
+   * **Der Trigger der rechten Hand**, 0…1 — vom Bildschirm aus gesetzt
+   * (`B`, RT, Linksklick, Touch-`B`), damit die Pistole von oben genauso
+   * feuert wie in der Brille und nicht über einen zweiten Weg.
+   */
+  setTrigger(value: number): void {
+    this.triggerValue = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+  }
+
+  /** Was zuletzt gesetzt wurde — `0`, solange niemand drückt. */
+  get trigger(): number {
+    return this.triggerValue;
   }
 
   /** Head pose in world space. Fresh, even before the frame has been rendered. */

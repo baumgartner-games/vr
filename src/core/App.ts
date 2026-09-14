@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PlayerRig } from './PlayerRig';
 import { XRInput } from './XRInput';
 import { Pointer } from './Pointer';
-import { FlatControls } from './FlatControls';
+import { FlatControls, type TouchPads } from './FlatControls';
 import { HandVisuals } from './HandVisuals';
 import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
@@ -229,7 +229,11 @@ export class App {
    */
   private watchedWorld = '';
 
-  constructor(canvas: HTMLCanvasElement, stickEl: HTMLElement | null, hooks: AppHooks = {}) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    pads: TouchPads | HTMLElement | null,
+    hooks: AppHooks = {},
+  ) {
     this.hooks = hooks;
     this.role = detectFlatRole();
 
@@ -276,8 +280,11 @@ export class App {
 
     this.input = new XRInput(this.renderer, this.rig);
     this.pointer = new Pointer(this.rig, canvas);
-    this.flat = new FlatControls(this.rig, canvas, stickEl);
     this.topDownCamera = new TopDownCamera(canvas);
+    // Die Kamera von oben kennt zwei Dinge, die die Eingabe braucht: wo die
+    // Figur auf dem Schirm steht (dahin zielt die Maus) und den Zoom auf den
+    // Bumpern. Deshalb steht sie eine Zeile früher als die Steuerung.
+    this.flat = new FlatControls(this.rig, canvas, pads, this.topDownCamera);
 
     this.handVisuals = new HandVisuals(this.input);
     this.rig.add(this.handVisuals);
