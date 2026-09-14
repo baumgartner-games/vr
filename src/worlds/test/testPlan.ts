@@ -1,0 +1,95 @@
+import { GridPlan } from '../grid/gridPlan';
+import {
+  EFFECTS,
+  FIELD,
+  INTERACT,
+  LEVELS,
+  NAVIGATION,
+  PATHS,
+  PODIUM,
+  RANGE,
+  START,
+  CLIMB,
+} from './layout';
+import { stampClimb } from './zones/climb';
+import { stampEffects } from './zones/effects';
+import { stampInteract } from './zones/interact';
+import { stampKart } from './zones/kart';
+import { stampNavigation } from './zones/navigation';
+import { stampPodium } from './zones/podium';
+import { stampPortals } from './zones/portals';
+import { stampRange } from './zones/range';
+import { stampStart } from './zones/start';
+
+/**
+ * **Die Testwelt als Grundriss** — ein Gelände, neun Zonen, ein Boden.
+ *
+ * Sie ist das, was von vierzehn gelöschten Welten übrig geblieben ist: nicht
+ * deren Summe, sondern ihr **Prüfstand**. Alles, was diese Engine kann, steht
+ * hier auf einem Gelände nebeneinander und ist in einer Minute zu Fuß
+ * abzulaufen — Türen, Effekte, eine Treppe, Wegsuche, ein Schießstand, eine
+ * Kartbahn, eine Kletterwand und drei Portaltafeln. Wer etwas am Kern ändert,
+ * sieht hier in einem Rundgang, was davon kaputtgegangen ist, statt vierzehn
+ * Welten der Reihe nach zu laden.
+ *
+ * **Norden ist oben und die Mitte ist der Startplatz.** Der Grundriss liegt um
+ * die Null herum: Vom Startplatz geht es nach Norden zu den Effekten, nach
+ * Nordwesten zu den Türen, nach Nordosten auf das Podest, nach Westen in die
+ * Navigation, nach Osten auf den Schießstand, nach Süden auf die Kartbahn und
+ * nach Südosten an die Kletterwand. Die Himmelsrichtung ist die Wegbeschreibung
+ * — wer eine Zone sucht, sucht eine Richtung.
+ *
+ * **Diese Datei ist die Komponistin.** Sie sagt, *was* zusammenkommt und in
+ * welcher Reihenfolge; *wo* eine Zone liegt, steht in `layout.ts`, und *was*
+ * darin steht, sagt die Zone selbst (`zones/<name>.ts`). Neun Dateien und nicht
+ * eine, weil eine Zone ohne die anderen zu verstehen sein muss — und weil eine
+ * Datei mit neun Zonen darin nach dem dritten Umbau eine Datei mit neun halben
+ * Zonen ist.
+ *
+ * **Kein three.js**, wie bei jedem Grundriss auf dem Gitter. Deshalb steht der
+ * Test daneben und rechnet in Millisekunden nach, was man sonst nur mit
+ * aufgesetzter Brille merkt: dass jede Zone vom Startplatz aus erreichbar ist,
+ * dass die Treppe wirklich auf das Podest führt und dass die Welt eine Runde
+ * durch eine Datei unverändert übersteht.
+ */
+
+/**
+ * **Der Grundriss.**
+ *
+ * Die Reihenfolge ist keine Kosmetik. Erst der Boden unter allem, dann die
+ * Kacheln, auf denen gelaufen wird, dann die Zonen — und die Zonen zuletzt,
+ * weil jede von ihnen Wände auf Kanten setzt, die es erst geben muss, und weil
+ * die Treppe im Nordosten ein Loch in ein Obergeschoss schlägt, das vorher
+ * gelegt sein will (`GridPlan.stairs`).
+ */
+export function testPlan(): GridPlan {
+  const plan = new GridPlan(LEVELS);
+
+  // Der Boden des Geländes, zwei Zentimeter unter null, damit er sich mit den
+  // Bodenkacheln darüber nicht um jedes Pixel streitet.
+  plan.mass('floor', FIELD, -0.5, -0.02, { portal: true });
+
+  // Die begehbaren Flächen: die Zonen und die Gänge dazwischen. Was hier nicht
+  // steht, ist Gelände — man steht darauf (die Masse trägt), aber es ist kein
+  // Weg, den ein NPC kennt.
+  for (const rect of [START, INTERACT, EFFECTS, PODIUM, NAVIGATION, RANGE, CLIMB, ...PATHS]) {
+    plan.floor(rect);
+  }
+
+  stampStart(plan);
+  stampInteract(plan);
+  stampEffects(plan);
+  stampNavigation(plan);
+  stampRange(plan);
+  stampKart(plan);
+  stampClimb(plan);
+  // Nach dem Boden des Obergeschosses, und deshalb als vorletzte: Die Treppe
+  // schlägt das Loch über sich selbst, und was danach noch Boden legt, legt es
+  // wieder zu.
+  stampPodium(plan);
+  // Und die Portaltafeln zuletzt: Eine davon steht auf dem Podest, das es
+  // vorher nicht gab.
+  stampPortals(plan);
+
+  return plan;
+}
