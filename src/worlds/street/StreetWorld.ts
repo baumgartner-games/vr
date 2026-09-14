@@ -18,6 +18,7 @@ import {
 } from './streetPlan';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
+import type { Handedness } from '../../core/XRInput';
 
 /**
  * **Die Straßenküche** — die Kreuzung aus dem Referenzbild, von oben gespielt.
@@ -122,6 +123,23 @@ export class StreetWorld extends GridWorld {
 
   protected override welcome(): string {
     return 'Straßenküche · Kisten schieben, Hüte umwerfen · Menü → Ansicht schaltet von oben';
+  }
+
+  /**
+   * **Rechts die Pistole und nicht die zweite Portalpistole.**
+   *
+   * Draußen hält kein Portal — portalfähig ist hier nur der Boden, und ein
+   * Portal darin führt in den Boden daneben. Was diese Welt dagegen wirklich
+   * braucht, ist der Abzug: Der Knopf an der Türwand lässt sich **anschießen**
+   * (Portal-Regel, `grid/fixtures/button.ts`), und das ist von oben mit `B`
+   * beziehungsweise dem Linksklick genau der Weg, für den die Steuerung
+   * gemacht ist.
+   */
+  protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
+    return [
+      ['gun-dual', 'left'],
+      ['pistol', 'right'],
+    ];
   }
 
   /**

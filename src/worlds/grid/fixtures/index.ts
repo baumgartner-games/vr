@@ -182,10 +182,41 @@ export interface FixtureBuild {
   notify(message: string): void;
 }
 
+/**
+ * **Wie großzügig ein Einbau zu bedienen und wie knapp er zu treffen ist**
+ * (`PortalWorld.addUsable`).
+ *
+ * Ohne Angabe misst die Welt das Bild aus, und für die meisten Arten ist das
+ * richtig. Es gibt zwei Fälle, in denen es das nicht ist, und beide kommen
+ * gleich beim ersten Dutzend vor: eine **Tür**, die zweieinhalb Meter breit ist
+ * und trotzdem keine Kugel schlucken soll (`shot: 0`), und ein **Knopf**, der
+ * von oben großzügig anzuvisieren und aus der Ferne knapp zu treffen ist.
+ */
+export interface FixtureReach {
+  /** Halbmesser fürs Zielen, in Metern. */
+  radius?: number;
+  /** Halbmesser fürs Treffen; `0` heißt: keine Kugel hält hier an. */
+  shot?: number;
+  /** Wie weit der Trefferzylinder über und unter der Mitte reicht. */
+  half?: number;
+}
+
 /** Was beim Bauen herauskommt. */
 export interface FixtureView {
   /** Das Bild — hängt in der Gruppe der Welt und wird beim Umbau weggeräumt. */
   object?: THREE.Object3D | null;
+  /**
+   * **Wo man ihn anfasst** — und wo eine Kugel ihn trifft.
+   *
+   * Ohne Angabe die Gruppe selbst, und das ist meistens richtig. Der rote Knopf
+   * gibt seine **Kuppel** an: Was man drücken kann, kann man auch treffen
+   * (Portal-Regel), und getroffen werden soll der rote Punkt und nicht die
+   * Säule darunter — die steht einen halben Meter tiefer, und eine Kugel auf
+   * Hüfthöhe flöge sonst daran vorbei.
+   */
+  handle?: THREE.Object3D | null;
+  /** Seine Maße fürs Bedienen und fürs Treffen. */
+  use?: FixtureReach;
   /**
    * Seine Quader, **solange er fest ist** (`solid`).
    *
