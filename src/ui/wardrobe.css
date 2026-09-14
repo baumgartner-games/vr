@@ -1,0 +1,194 @@
+/* ---------- Die Umkleide (`WardrobeMenu.ts`) ----------
+
+   Denselben Schnitt wie das Menü als Seite (`pageMenu.css`), und mit Absicht:
+   Wer den Kleiderschrank aufmacht, soll dasselbe Blatt wiedererkennen, das
+   oben links aus dem Menü kommt. Mobile first — auf dem Telefon ein Blatt von
+   unten über die ganze Breite, ab 640 Punkten ein Kasten in der Mitte des
+   Bildes. Derselbe `z-index` wie das Menü (20): über der Startseite, über dem
+   Verbindungs-Panel, über jeder Welt.
+
+   Der Unterschied ist die rechte Hälfte: Dort steht die Figur in einem
+   eigenen Canvas. Sie bekommt auf dem Telefon eine eigene Zeile über den
+   Zeilen und am Schreibtisch die Spalte daneben — ein Bild, das auf dem Handy
+   40 % der Breite bekäme, wäre daumenbreit. */
+
+.wrobe {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(2, 4, 10, 0.55);
+}
+
+.wrobe[hidden] { display: none; }
+
+.wrobe__sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(88dvh, 100%);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: rgba(10, 14, 26, 0.96);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(14px);
+  outline: none;
+}
+
+.wrobe__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wrobe__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.wrobe__close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  color: var(--fg);
+  background: rgba(140, 170, 230, 0.12);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.wrobe__close:hover { background: rgba(140, 170, 230, 0.24); }
+.wrobe__close svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+/* Auf dem Telefon untereinander: die Figur oben, die Zeilen darunter. */
+.wrobe__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Die Bühne: ein Kasten mit festem Seitenverhältnis, damit das Bild beim
+   Aufklappen nicht springt. Ohne WebGL bleibt sie leer und fällt weg. */
+.wrobe__stage {
+  position: relative;
+  flex: none;
+  min-height: 180px;
+  border-radius: 14px;
+  background: radial-gradient(circle at 50% 35%, rgba(90, 130, 200, 0.22), rgba(6, 9, 18, 0.9));
+  border: 1px solid var(--border);
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+
+.wrobe__stage:active { cursor: grabbing; }
+.wrobe__stage[hidden] { display: none; }
+.wrobe__stage canvas { display: block; width: 100%; height: 100%; }
+
+.wrobe__rows {
+  flex: 1;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+/* Eine Zeile: ‹ , was gewählt ist, › — die Pfeile sind die Knöpfe. */
+.wrobe__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(140, 170, 230, 0.08);
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+
+.wrobe__arrow {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--fg);
+  background: rgba(140, 170, 230, 0.14);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.wrobe__arrow:hover { background: rgba(140, 170, 230, 0.28); }
+
+.wrobe__pick {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  text-align: center;
+}
+
+.wrobe__pick strong { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.wrobe__pick small { font-size: 12px; line-height: 1.35; color: var(--muted); }
+.wrobe__pick .wrobe__label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+
+.wrobe__foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 10px 12px;
+}
+
+.wrobe__done {
+  padding: 10px 22px;
+  font: inherit;
+  font-weight: 600;
+  color: #061018;
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+/* Am Schreibtisch: ein Kasten in der Mitte, die Figur rechts daneben. */
+@media (min-width: 640px) {
+  .wrobe {
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(2, 4, 10, 0.35);
+  }
+
+  .wrobe__sheet {
+    width: 620px;
+    max-height: 100%;
+    padding-bottom: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+  }
+
+  .wrobe__body {
+    flex-direction: row-reverse;
+    align-items: stretch;
+  }
+
+  /* Gut 40 % der Breite, wie im Plan — und nie schmaler als ein Kopf. */
+  .wrobe__stage {
+    flex: 0 0 40%;
+    min-height: 300px;
+  }
+}
