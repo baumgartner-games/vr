@@ -50,6 +50,10 @@ async function visitFlatWorlds(page, result, prefix, base) {
       console.log(`[${prefix}] flat world ${id}`);
       const url = new URL(base);
       url.searchParams.set('net', 'local');
+      // Ein anderer Hash allein ist keine neue Seite: Die App bliebe in der
+      // alten Welt und wechselte erst gleich — und der Test öffnete die
+      // flache Welt der falschen. Ein eigener Parameter je Welt lädt neu.
+      url.searchParams.set('visit', id);
       url.hash = id;
       await page.goto(url.toString(), { waitUntil: 'domcontentloaded' });
       // Fertig ist die Welt erst, wenn ihr Raster steht (nach der Physik)
