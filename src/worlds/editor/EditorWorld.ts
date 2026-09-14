@@ -10,6 +10,7 @@ import { readNav } from '../nav/navSerial';
 import { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
 import { starterGrid } from './starterGrid';
+import { DIR_W } from '../nav/navTile';
 
 /**
  * **Der Bauplatz** — ein Level bauen, während man darin steht.
@@ -91,6 +92,29 @@ export class EditorWorld extends GridWorld {
     const old = oldSaved();
     this.migrated = old !== null;
     return old ?? starterGrid();
+  }
+
+  /**
+   * **Der Rückweg in den Hub — und er steht hier und nicht im Startzimmer.**
+   *
+   * Der Bauplatz ist die eine Welt, deren Grundriss aus dem Speicher kommt
+   * (`editable()`): Ein Tor, das nur in `starterGrid()` stünde, wäre beim
+   * ersten Besuch da und ab dem zweiten weg — und dann säße man in einer
+   * selbstgebauten Welt ohne Ausgang. `planLoaded` läuft **nach** dem Speicher
+   * und nach einer importierten Datei, also immer.
+   *
+   * Es steht an der Ostwand des Startzimmers; wer das Zimmer wegbaut, baut
+   * auch das Tor weg, und das ist in Ordnung — hier wird schließlich gebaut.
+   */
+  protected override planLoaded(plan: GridPlan): void {
+    plan.putFixture({
+      id: 'gate-hub',
+      kind: 'gate',
+      x: 2,
+      z: 1,
+      dir: DIR_W,
+      props: { world: 'hub', label: '→ Hub' },
+    });
   }
 
   /**

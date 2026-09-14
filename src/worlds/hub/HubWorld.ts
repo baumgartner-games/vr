@@ -1,73 +1,208 @@
 import * as THREE from 'three';
-import type { World, WorldContext, WorldPreview } from '../../core/types';
+import type { WorldContext, WorldDefinition, WorldPreview } from '../../core/types';
 import { WORLDS } from '../index';
 import { TextPlane } from '../../ui/TextPlane';
-import { createGround, createLighting, createSky, disposeTree } from '../shared/environment';
-import { FreeLocomotion } from '../../core/Locomotion';
-import { corridorYaw, layoutHub, type HubLayout } from './hubLayout';
+import { createSky } from '../shared/environment';
+import { GridWorld } from '../grid/GridWorld';
+import type { GridPlan } from '../grid/gridPlan';
+import type { PlanSolidKind } from '../grid/solids';
+import type { Props } from '../grid/fixtures/index';
+import type { Handedness } from '../../core/XRInput';
+import { TILE, dirX, dirZ, tileCentreX, tileCentreZ, tileKey } from '../nav/navTile';
+import { gatesIn, spinGate } from './gate';
+import { CORRIDOR_WIDTH, HALL_HALF, hubGrid, type HubCorridor } from './hubGrid';
 
 /**
- * Ein Tor, wie es im Hub steht — und wie es die Werkzeugseite als Bild einer
- * Welt zeigt: dasselbe Podest, derselbe Ring in der Akzentfarbe, dasselbe
- * Schild. Eine Seite mit eigenen, hübscheren Bildern zeigte irgendwann etwas
- * anderes als das Spiel.
- */
-export interface Gate {
-  group: THREE.Group;
-  ring: THREE.Mesh;
-  disc: THREE.Mesh<THREE.CircleGeometry, THREE.ShaderMaterial>;
-  sign: TextPlane;
-  worldId: string;
-}
-
-const SPAWN = new THREE.Vector3(0, 0, 4.5);
-/** Höhe der Gangwände. */
-const WALL_HEIGHT = 3.4;
-
-/**
- * Der Hub: hell, ruhig, und jede andere Welt ist ein Tor weit weg.
+ * **Der Hub: hell, ruhig, und jede andere Welt ist ein Tor weit weg.**
  *
- * Die Tore stehen nicht mehr auf einem Bogen, sondern in **Gängen**, die von
- * der Halle abgehen — vier Tore je Gang, und ist einer voll, kommt der
- * nächste dazu. Wo genau, rechnet `hubLayout.ts` (mit Test) aus der Länge der
- * Weltenliste aus: eine neue Welt bleibt damit das, was sie sein soll — ein
- * Eintrag in der Registry, und niemand rückt hier Koordinaten zurecht.
+ * Er steht seit P4 auf dem **Kachelgitter** (`grid/GridWorld.ts`) wie das
+ * Dunkelhaus, der Schießstand und Dust. Vorher war er eine Welt aus
+ * handgerechneten Metern, die ihre Halle, ihre Gänge und ihre Tore selbst
+ * baute — und die Tore waren Zeigerziele, die es nur hier gab. Der Umzug
+ * bringt drei Sachen, die vorher nicht zu haben waren:
  *
- * Das Handgelenk-Menü kann dasselbe; die Tore sind die begehbare Variante.
+ * - **Dieselbe Halle für alle.** Wer in der Brille steht und wer _von oben_
+ *   spielt, stehen im selben Raum; die Kamera ist ein Blickwinkel und keine
+ *   zweite Welt (E1).
+ * - **Ein Tor ist ein Einbau** (`grid/fixtures/gate.ts`) und kein Möbel. Man
+ *   geht hindurch, statt darauf zu zeigen — und jede andere Gitterwelt setzt
+ *   sich mit **einer Zeile** ein Rücktor neben ihren Startpunkt.
+ * - **Wände, Boden und Navigationskarte kommen aus dem Grundriss**
+ *   (`hubGrid.ts`, mit Test). Ein Gang, den man nicht betreten kann, fällt in
+ *   einer Millisekunde auf statt nach dem Aufsetzen.
+ *
+ * **Die Tore kommen beim Bau aus `WORLDS`** und nicht aus einer gespeicherten
+ * Datei (E7). Deshalb ist der Hub auch die eine Gitterwelt, an der **nicht**
+ * gebaut wird (`editable()` bleibt falsch): Ein gespeicherter Hub wäre einer,
+ * in dem die Tore von letzter Woche stehen, und die neue Welt in der Registry
+ * hätte keines.
+ *
+ * Was von Hand bleibt, ist die **Ausstattung**: Himmel, Nebel, der Ring auf
+ * dem Hallenboden, die Lichtbänder in den Gängen und die beiden Tafeln. Das
+ * ist der Teil, der eine Halle von einem Grundriss unterscheidet.
  */
-export class HubWorld implements World {
-  private readonly root = new THREE.Group();
-  private readonly gates: Gate[] = [];
-  private time = 0;
+export class HubWorld extends GridWorld {
+  /** Die Welten hinter den Toren — dieselbe Liste, aus der `layout()` baut. */
+  private readonly targets: WorldDefinition[] = hubTargets();
+  /** Die beiden Tafeln in der Halle: eigene Textur, also eigenes Aufräumen. */
+  private readonly panels: TextPlane[] = [];
 
-  init(ctx: WorldContext): void {
-    this.root.name = 'hub-world';
-    ctx.scene.add(this.root);
-    ctx.scene.fog = new THREE.Fog(0x0a1020, 40, 260);
+  protected override worldId(): string {
+    return 'hub';
+  }
+
+  protected override editorTitle(): string {
+    return 'Hub';
+  }
+
+  protected override layout(): GridPlan {
+    return hubGrid(this.targets.length, (index) => this.gateProps(index)).plan;
+  }
+
+  /**
+   * Was an einem Tor eingestellt ist: die Welt dahinter, ihr Name, ihre Farbe.
+   *
+   * Flach und aus drei Feldern, damit `Props` bleibt, was es ist — was in eine
+   * Datei passt. Die Farbe ist eine **Zahl** und kein `#rrggbb`: Sie kommt aus
+   * der Registry als Zahl, und eine Übersetzung hin und zurück wäre zwei
+   * Stellen, an denen sie schiefgehen kann.
+   */
+  private gateProps(index: number): Props {
+    const world = this.targets[index]!;
+    return {
+      world: world.id,
+      label: world.title,
+      accent: world.accent,
+      // Die Zeile unter dem Namen, wie sie schon immer am Tor stand.
+      note: world.description,
+    };
+  }
+
+  protected override skyColor(): number {
+    return 0x0a1020;
+  }
+
+  protected override lightIntensity(): number {
+    return 1.15;
+  }
+
+  protected override welcome(): string {
+    return 'Wähle eine Welt — auf ein Tor im Gang stellen, oder der Button an deiner Hand';
+  }
+
+  /**
+   * **Leere Hände.** Der Hub ist der Ort, an dem man ankommt, und nicht der,
+   * an dem man schießt; die Werkzeuge hängen in den Welten dahinter.
+   */
+  protected override beltLoadout(): ReadonlyArray<readonly [string, Handedness]> {
+    return [];
+  }
+
+  /** Im Hub steht nichts herum, was umfallen könnte. */
+  protected override buildProps(): void {}
+
+  /** Die Töne von früher: blaue Halle, dunkle Wände, helle Kanten. */
+  protected override tint(): Partial<Record<PlanSolidKind, number>> {
+    return {
+      floor: 0x3a4666,
+      wall: 0x2f3b5e,
+      steel: 0x9aa6bd,
+      glow: 0x9ec4ff,
+    };
+  }
+
+  protected override horizonColor(): number {
+    return 0x1d2740;
+  }
+
+  protected override horizonLine(): number {
+    return 0x4aa8ff;
+  }
+
+  protected override spawnPoint(): THREE.Vector3 {
+    // Die Mittelkachel der Halle — nie eine Torkachel, dafür sorgt der
+    // Grundriss (`hubGrid.ts`, mit Test).
+    return hallCentre();
+  }
+
+  protected override spawnYaw(): number {
+    // Nach Norden, also in den ersten Gang hinein: Was man beim Ankommen sieht,
+    // sind vier Schilder.
+    return 0;
+  }
+
+  protected override buildEnvironment(): void {
+    super.buildEnvironment();
 
     this.root.add(createSky(0x1b3358, 0x05070d));
-    this.root.add(createLighting(1.15));
-    // Auch der Hub steht auf der Fläche, die es überall gibt: man kann aus
-    // den Gängen heraustreten und die Anlage von außen ansehen.
-    this.root.add(createGround(0x1d2740, { line: 0x4aa8ff, tile: 6 }));
 
-    const targets = WORLDS.filter((world) => world.id !== 'hub');
-    const layout = layoutHub(targets.length);
-    this.root.add(buildHall(layout));
-    for (const corridor of layout.corridors) this.root.add(buildCorridor(corridor));
+    const hub = hubGrid(this.targets.length);
+    const middle = hallCentre();
+    this.root.add(buildHallRing(middle));
+    for (const corridor of hub.corridors) this.root.add(buildCorridorLights(corridor, middle));
+    this.root.add(this.buildSigns(middle));
+  }
+
+  override async init(ctx: WorldContext): Promise<void> {
+    await super.init(ctx);
+    // Tiefe frisst Farbe: Ohne Nebel liegt der letzte Gang so klar da wie die
+    // Halle, und die Anlage sieht nach Plan aus statt nach Raum.
+    ctx.scene.fog = new THREE.Fog(0x0a1020, 40, 260);
+  }
+
+  override dispose(ctx: WorldContext): void {
+    ctx.scene.fog = null;
+    for (const panel of this.panels) panel.dispose();
+    this.panels.length = 0;
+    super.dispose(ctx);
+  }
+
+  /**
+   * **Der Hub zum Ansehen** — dieselbe Halle, dieselben Gänge, dieselben Tore,
+   * nur ohne Spieler (`tools.html`).
+   *
+   * Gebaut wird er von `PortalWorld.preview()` mit **denselben Zeilen** wie im
+   * Spiel; was hier dazukommt, ist die Bewegung. Die Tore finden sich dabei
+   * über ihren eigenen Baum (`gatesIn`) und nicht über die Einbauten: Die
+   * Vorschau hat keinen `update`-Takt, und eine Welt, die ihre Registry für ein
+   * Bild anwirft, ist eine, die in der Vorschau anders läuft als im Spiel.
+   */
+  override preview(): WorldPreview {
+    const view = super.preview();
+    const gates = gatesIn(this.root);
+    return {
+      ...view,
+      animate: (time) => gates.forEach((gate, index) => spinGate(gate, time, index)),
+      // **Tafeln zuerst.** Die Vorschau räumt sonst nur Formen und Materialien
+      // weg (`disposeTree`); eine Tafel hat darüber hinaus eine Leinwand und
+      // eine Textur, und davon gibt es hier eine je Tor.
+      dispose: () => {
+        this.root.traverse((one) => {
+          if (one instanceof TextPlane) one.dispose();
+        });
+        this.panels.length = 0;
+        view.dispose?.();
+      },
+    };
+  }
+
+  /** Die Überschrift über dem ersten Gang und der Hinweis an der Wand. */
+  private buildSigns(middle: THREE.Vector3): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'hub-signs';
 
     const title = new TextPlane({
       width: 4.4,
       height: 1.3,
       title: 'Baumgartner VR',
-      body: 'Wähle eine Welt – am Tor im Gang oder über den Button an deiner Hand.',
+      body: 'Wähle eine Welt – auf ein Tor im Gang stellen oder über den Button an deiner Hand.',
       align: 'center',
       accent: 0x4aa8ff,
     });
-    // Über dem Eingang des ersten Gangs: hoch genug, um über den Toren zu
+    // Über der Mündung des ersten Gangs: hoch genug, um über den Toren zu
     // stehen, tief genug, um beim Blick geradeaus im Bild zu sein.
-    title.position.set(0, 4.3, -1.5);
-    this.root.add(title);
+    title.position.set(middle.x, 3.6, middle.z - (HALL_HALF + 0.5) * TILE + 0.2);
+    group.add(title);
 
     const hint = new TextPlane({
       width: 2.4,
@@ -76,270 +211,93 @@ export class HubWorld implements World {
       body: 'Beide Hände: Menü-Button. Zielen + Trigger wählt. Stick: gehen, rechts: drehen.',
       accent: 0x9d7bff,
     });
-    hint.position.set(-3.8, 1.6, 3.2);
+    hint.position.set(middle.x - (HALL_HALF - 0.6) * TILE, 1.6, middle.z + HALL_HALF * TILE);
     hint.rotation.y = Math.PI / 4.5;
-    this.root.add(hint);
+    group.add(hint);
 
-    layout.gates.forEach((placement) => {
-      const definition = targets[placement.index]!;
-      const gate = buildGate(definition.title, definition.description, definition.accent);
-      gate.group.position.set(placement.x, 0, placement.z);
-      gate.group.rotation.y = placement.yaw;
-      gate.worldId = definition.id;
-      this.root.add(gate.group);
-      this.gates.push(gate);
+    this.panels.push(title, hint);
+    return group;
+  }
+}
 
-      const enter = () => ctx.goTo(definition.id);
-      ctx.pointer.add({ object: gate.sign, onSelect: enter, pokeable: false });
-      ctx.pointer.add({ object: gate.disc, onSelect: enter, pokeable: false });
-    });
+/**
+ * **Die Mitte der Halle in Metern.**
+ *
+ * Über den Kachelschlüssel und nicht über die Kachelzahl: `tileCentreX` nimmt
+ * einen **Schlüssel** (`nav/navTile.ts`), und wer ihm die blanke 0 gibt,
+ * bekommt die Kachel −1024 — also den Rand des Gitters, 2,5 km weit weg. Das
+ * ist keine krumme Zahl, die man sähe, sondern ein Spieler, der beim Start ins
+ * Leere fällt.
+ */
+function hallCentre(): THREE.Vector3 {
+  const middle = tileKey(0, 0, 0);
+  return new THREE.Vector3(tileCentreX(middle), 0, tileCentreZ(middle));
+}
 
-    ctx.rig.placeAt(SPAWN, 0);
-    // Weit genug, um die Anlage zu umrunden — und eng genug, um nicht in der
-    // leeren Fläche verloren zu gehen.
-    const reach = layout.extent + 12;
-    ctx.rig.setLocomotion(
-      new FreeLocomotion(
-        new THREE.Box3(new THREE.Vector3(-reach, 0, -reach), new THREE.Vector3(reach, 0, reach)),
-      ),
+/** Jede Welt außer dem Hub selbst, in der Reihenfolge der Registry. */
+export function hubTargets(): WorldDefinition[] {
+  return WORLDS.filter((world) => world.id !== 'hub');
+}
+
+/**
+ * Der leuchtende Ring auf dem Hallenboden.
+ *
+ * Das Einzige, was vom alten runden Saal übrig ist — und das Einzige, was von
+ * ihm gebraucht wird: Er sagt, wo die Halle aufhört und ein Gang anfängt, und
+ * er tut es in einem Bild statt in einer Zeile.
+ */
+function buildHallRing(middle: THREE.Vector3): THREE.Mesh {
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry((HALL_HALF + 0.5) * TILE - 0.6, 0.06, 8, 96),
+    new THREE.MeshBasicMaterial({ color: 0x4aa8ff, toneMapped: false }),
+  );
+  ring.name = 'hall-ring';
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(middle.x, 0.04, middle.z);
+  return ring;
+}
+
+/**
+ * **Licht in einem Gang**: zwei Bänder an den Wänden und zwei Lampen dazwischen.
+ *
+ * Ein Gang ohne eigenes Licht ist ein schwarzes Loch, in das niemand
+ * hineingeht — und seit er ein Dach hat, gilt das doppelt.
+ */
+function buildCorridorLights(corridor: HubCorridor, middle: THREE.Vector3): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'corridor-lights';
+
+  const ahead = new THREE.Vector3(dirX(corridor.dir), 0, dirZ(corridor.dir));
+  const side = new THREE.Vector3(-ahead.z, 0, ahead.x);
+  const from = (corridor.from - 0.5) * TILE;
+  const to = (corridor.to + 0.5) * TILE;
+  const run = to - from;
+  const across = (CORRIDOR_WIDTH / 2) * TILE;
+  const at = (along: number, offset: number): THREE.Vector3 =>
+    new THREE.Vector3(
+      middle.x + ahead.x * along + side.x * offset,
+      0,
+      middle.z + ahead.z * along + side.z * offset,
     );
-  }
 
-  update(dt: number, ctx: WorldContext): void {
-    this.time += dt;
-    for (const [index, gate] of this.gates.entries()) {
-      gate.disc.material.uniforms.uTime!.value = this.time;
-      gate.ring.rotation.z = this.time * 0.25 * (index % 2 === 0 ? 1 : -1);
-      gate.sign.position.y = 2.55 + Math.sin(this.time * 1.2 + index) * 0.03;
-    }
-    void ctx;
-  }
-
-  /**
-   * Der Hub zum Ansehen: dieselbe Halle, dieselben Gänge, dieselben Tore —
-   * nur ohne Zeiger, ohne Weg hinein und ohne Spieler. Von schräg oben ist er
-   * das, was er ist: ein Rad mit Speichen, an deren Enden die Welten hängen.
-   *
-   * Gebaut wird mit denselben Funktionen wie oben; was hier fehlt, sind die
-   * beiden Zeilen, die aus einem Tor einen Knopf machen. Die Tore wirbeln
-   * trotzdem: dafür ist `animate` da.
-   */
-  preview(): WorldPreview {
-    this.root.name = 'hub-preview';
-    this.root.add(createSky(0x1b3358, 0x05070d));
-    this.root.add(createLighting(1.15));
-    this.root.add(createGround(0x1d2740, { line: 0x4aa8ff, tile: 6 }));
-
-    const targets = WORLDS.filter((world) => world.id !== 'hub');
-    const layout = layoutHub(targets.length);
-    this.root.add(buildHall(layout));
-    for (const corridor of layout.corridors) this.root.add(buildCorridor(corridor));
-
-    layout.gates.forEach((placement) => {
-      const definition = targets[placement.index]!;
-      const gate = buildGate(definition.title, definition.description, definition.accent);
-      gate.group.position.set(placement.x, 0, placement.z);
-      gate.group.rotation.y = placement.yaw;
-      gate.worldId = definition.id;
-      this.root.add(gate.group);
-      this.gates.push(gate);
-    });
-
-    return {
-      object: this.root,
-      animate: (time) => {
-        for (const [index, gate] of this.gates.entries()) {
-          gate.disc.material.uniforms.uTime!.value = time;
-          gate.ring.rotation.z = time * 0.25 * (index % 2 === 0 ? 1 : -1);
-        }
-      },
-      dispose: () => {
-        for (const gate of this.gates) gate.sign.dispose();
-        this.gates.length = 0;
-        disposeTree(this.root);
-      },
-    };
-  }
-
-  dispose(ctx: WorldContext): void {
-    for (const gate of this.gates) {
-      ctx.pointer.remove(gate.sign);
-      ctx.pointer.remove(gate.disc);
-      gate.sign.dispose();
-    }
-    this.gates.length = 0;
-    disposeTree(this.root);
-  }
-}
-
-/** Die runde Halle in der Mitte, aus der die Gänge abgehen. */
-function buildHall(layout: HubLayout): THREE.Group {
-  const group = new THREE.Group();
-  group.name = 'hall';
-
-  const radius = layout.hallRadius + 1;
-  const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(radius, 64),
-    new THREE.MeshStandardMaterial({ color: 0x3a4666, roughness: 0.85, metalness: 0.05 }),
-  );
-  disc.rotation.x = -Math.PI / 2;
-  disc.position.y = 0.01;
-  group.add(disc);
-
-  const grid = new THREE.GridHelper(radius * 2, 16, 0x4aa8ff, 0x243b5a);
-  (grid.material as THREE.Material).opacity = 0.28;
-  (grid.material as THREE.Material).transparent = true;
-  grid.position.y = 0.02;
-  group.add(grid);
-
-  const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(radius, 0.06, 8, 96),
-    new THREE.MeshBasicMaterial({ color: 0x4aa8ff }),
-  );
-  rim.rotation.x = -Math.PI / 2;
-  rim.position.y = 0.03;
-  group.add(rim);
-
-  // Ein Ring aus Pfeilern: er macht aus der Scheibe einen Raum, ohne die
-  // Sicht in die Gänge zu verstellen.
-  const pillar = new THREE.MeshStandardMaterial({ color: 0x2a3550, roughness: 0.7 });
-  const openings = layout.corridors.map((corridor) => corridor.angle);
-  for (let i = 0; i < 16; i++) {
-    const angle = (i / 16) * Math.PI * 2;
-    // Kein Pfeiler dort, wo ein Gang abgeht.
-    if (openings.some((opening) => angularGap(angle, opening) < 0.5)) continue;
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 4.2, 10), pillar);
-    post.position.set(Math.sin(angle) * radius, 2.1, -Math.cos(angle) * radius);
-    group.add(post);
-  }
-
-  return group;
-}
-
-/** Ein Gang: Boden, zwei Wände, ein Lichtband und eine Rückwand. */
-function buildCorridor(corridor: HubLayout['corridors'][number]): THREE.Group {
-  const group = new THREE.Group();
-  group.name = 'corridor';
-  // Nicht `corridor.angle`: der Gang wird entlang −Z gebaut, und eine Drehung
-  // um diesen Winkel legte ihn spiegelverkehrt hin — siehe `corridorYaw`.
-  group.rotation.y = corridorYaw(corridor.angle);
-
-  const half = corridor.width / 2;
-  // Der Gang fängt am Rand der Halle an und geht von dort nach außen; die
-  // Mitte des Bauteils liegt also zwischen Anfang und Ende, nicht im Zentrum.
-  const run = corridor.length - corridor.start;
-  const middle = -(corridor.start + run / 2);
-  const floorMaterial = new THREE.MeshStandardMaterial({
-    color: 0x3b4a70,
-    roughness: 0.9,
-    metalness: 0.05,
-  });
-  const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x2f3b5e, roughness: 0.85 });
-
-  // Der Gang liegt entlang −Z; die Gruppe dreht ihn an seinen Platz.
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(corridor.width, run), floorMaterial);
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, 0.012, middle);
-  group.add(floor);
-
-  for (const side of [-1, 1] as const) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.3, WALL_HEIGHT, run), wallMaterial);
-    wall.position.set(side * (half + 0.15), WALL_HEIGHT / 2, middle);
-    group.add(wall);
-
+  for (const sign of [-1, 1] as const) {
     const strip = new THREE.Mesh(
-      new THREE.BoxGeometry(0.06, 0.06, run - 0.6),
+      // Gebaut entlang der Gangachse: `run` in die Länge, ein Handbreit in die
+      // Quere — was quer liegt, ist ein Streifen an der Decke und kein Band.
+      new THREE.BoxGeometry(Math.abs(ahead.x) * run + 0.06, 0.06, Math.abs(ahead.z) * run + 0.06),
       new THREE.MeshBasicMaterial({ color: 0x9ec4ff, toneMapped: false }),
     );
-    strip.position.set(side * half, WALL_HEIGHT - 0.25, middle);
+    const place = at(from + run / 2, sign * (across - 0.08));
+    strip.position.set(place.x, 2.45, place.z);
     group.add(strip);
   }
 
-  // Zwei Lampen je Gang: ein Gang ohne eigenes Licht ist ein schwarzes Loch,
-  // in das niemand hineingeht.
-  for (const at of [0.35, 0.8]) {
-    const lamp = new THREE.PointLight(0xbcd8ff, 26, corridor.width * 4, 2);
-    lamp.position.set(0, WALL_HEIGHT - 0.5, -(corridor.start + run * at));
+  for (const part of [0.3, 0.75]) {
+    const lamp = new THREE.PointLight(0xbcd8ff, 26, CORRIDOR_WIDTH * TILE * 2, 2);
+    const place = at(from + run * part, 0);
+    lamp.position.set(place.x, 2.3, place.z);
     group.add(lamp);
   }
 
-  const end = new THREE.Mesh(
-    new THREE.BoxGeometry(corridor.width + 0.6, WALL_HEIGHT, 0.3),
-    wallMaterial,
-  );
-  end.position.set(0, WALL_HEIGHT / 2, -corridor.length);
-  group.add(end);
-
   return group;
-}
-
-/** Kleinster Winkel zwischen zwei Richtungen. */
-function angularGap(a: number, b: number): number {
-  const difference = Math.abs(a - b) % (Math.PI * 2);
-  return Math.min(difference, Math.PI * 2 - difference);
-}
-
-export function buildGate(title: string, description: string, accent: number): Gate {
-  const group = new THREE.Group();
-  group.name = `gate:${title}`;
-
-  const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.3, 1.5, 0.16, 32),
-    new THREE.MeshStandardMaterial({ color: 0x1a2338, roughness: 0.7 }),
-  );
-  base.position.y = 0.08;
-  group.add(base);
-
-  const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(1.05, 0.07, 12, 64),
-    new THREE.MeshStandardMaterial({
-      color: accent,
-      emissive: new THREE.Color(accent).multiplyScalar(0.6),
-      roughness: 0.3,
-      metalness: 0.4,
-    }),
-  );
-  ring.position.y = 1.35;
-  group.add(ring);
-
-  const disc = new THREE.Mesh(
-    new THREE.CircleGeometry(1.02, 48),
-    new THREE.ShaderMaterial({
-      transparent: true,
-      side: THREE.DoubleSide,
-      uniforms: {
-        uTime: { value: 0 },
-        uColor: { value: new THREE.Color(accent) },
-      },
-      vertexShader: /* glsl */ `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: /* glsl */ `
-        uniform float uTime;
-        uniform vec3 uColor;
-        varying vec2 vUv;
-        void main() {
-          vec2 p = vUv * 2.0 - 1.0;
-          float r = length(p);
-          float a = atan(p.y, p.x);
-          float swirl = sin(a * 3.0 + uTime * 1.4 - r * 7.0) * 0.5 + 0.5;
-          float glow = smoothstep(1.0, 0.25, r);
-          float alpha = glow * (0.35 + swirl * 0.45);
-          gl_FragColor = vec4(uColor * (0.6 + swirl * 0.8), alpha);
-        }
-      `,
-    }),
-  );
-  disc.position.y = 1.35;
-  group.add(disc);
-
-  const sign = new TextPlane({ width: 1.9, height: 0.62, title, body: description, accent });
-  sign.position.set(0, 2.55, 0.02);
-  group.add(sign);
-
-  return { group, ring, disc, sign, worldId: '' };
 }

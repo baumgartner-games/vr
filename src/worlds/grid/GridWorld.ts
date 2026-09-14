@@ -130,11 +130,29 @@ export abstract class GridWorld extends PortalWorld {
    */
   protected planReady(_plan: GridPlan): void {}
 
+  /**
+   * **Was auch dann noch gilt, wenn ein gespeicherter Stand den Grundriss
+   * ersetzt hat.**
+   *
+   * `planReady` läuft auf dem frisch gebauten Plan aus `layout()` — und damit
+   * vor dem Speicher: Was im Browser liegt, gewinnt und **ganz**
+   * (`applyStored`), und ein Stand von letzter Woche kennt weder das Tor
+   * zurück in den Hub noch sonst etwas, das inzwischen dazugekommen ist. Wer
+   * eine Welt umbauen darf, hätte sonst genau einmal umgebaut und säße
+   * danach ohne Rückweg darin.
+   *
+   * Läuft deshalb **nach jedem Austausch des Grundrisses**: nach dem Speicher
+   * beim Bauen und nach einer importierten Datei. Beim Zurücksetzen nicht —
+   * dort kommt der Plan aus `layout()` und bringt alles selbst mit.
+   */
+  protected planLoaded(_plan: GridPlan): void {}
+
   protected override buildEnvironment(): void {
     const plan = this.layout();
     this.grid = plan;
     this.planReady(plan);
     this.applyStored(plan);
+    this.planLoaded(plan);
 
     const group = new THREE.Group();
     group.name = 'grid';
@@ -329,11 +347,13 @@ export abstract class GridWorld extends PortalWorld {
     if (this.fixtures.length === 0) return;
     const pending: { from: FixtureRun; event: FixtureEvent }[] = [];
     for (const run of this.fixtures) {
+      const on = this.standingOn(run, ctx);
       const input: FixtureInput = {
         used: run.used,
         hit: run.hit,
         triggered: run.triggered,
-        weightOn: this.weightOn(run, ctx),
+        weightOn: on.weight,
+        playerOn: on.player,
       };
       run.used = false;
       run.hit = false;
@@ -359,10 +379,15 @@ export abstract class GridWorld extends PortalWorld {
    * genauso weit gedrückt ist wie unter einer, ist in Ordnung; eine, die nach
    * dem Wegnehmen der einen aufgeht, obwohl die andere noch daraufliegt, ist
    * es nicht.
+   *
+   * **Und daneben die eine Ausnahme**: ob der *Spieler* dabei ist. Beides fällt
+   * in derselben Schleife an, und ein Tor braucht genau diesen Unterschied —
+   * eine Kiste auf einer Torkachel darf niemanden in eine andere Welt schicken
+   * (`fixtures/gate.ts`).
    */
-  private weightOn(run: FixtureRun, ctx: WorldContext): number {
+  private standingOn(run: FixtureRun, ctx: WorldContext): { weight: number; player: boolean } {
     const plan = this.grid;
-    if (!plan) return 0;
+    if (!plan) return { weight: 0, player: false };
     const tile = fixtureTile(run.place);
     const x = tileCentreX(tile);
     const z = tileCentreZ(tile);
@@ -376,7 +401,8 @@ export abstract class GridWorld extends PortalWorld {
       py <= floor + TILE;
     let count = 0;
     const rig = ctx.rig.position;
-    if (over(rig.x, rig.y, rig.z)) count++;
+    const player = over(rig.x, rig.y, rig.z);
+    if (player) count++;
     for (const npc of this.director?.crowd ?? []) {
       if (!npc.alive) continue;
       npc.feet(_feet);
@@ -386,7 +412,7 @@ export abstract class GridWorld extends PortalWorld {
       const at = body.object.position;
       if (over(at.x, at.y, at.z)) count++;
     }
-    return count;
+    return { weight: count, player };
   }
 
   /**
@@ -805,6 +831,7 @@ export abstract class GridWorld extends PortalWorld {
         return;
       }
       plan.restore(result.graph, result.blocks, result.masses, result.fixtures);
+      this.planLoaded(plan);
       this.saveWorld(true);
       this.announce(`Geladen: ${result.file.name ?? result.file.world ?? 'Welt'}`);
     });

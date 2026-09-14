@@ -1,5 +1,5 @@
 import { GridPlan } from '../grid/gridPlan';
-import { DIR_N, DIR_S, DIR_W } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, DIR_W } from '../nav/navTile';
 import { KART_FIELD, PIT_BAYS, PIT_BOXES, PIT_LANE } from './kartCourse';
 
 /**
@@ -84,6 +84,17 @@ export function kartPit(): GridPlan {
     if (z >= PIT_BOXES.z && z <= boxEnd) continue;
     plan.put('parapet', PIT_LANE.x, z, DIR_W);
   }
+
+  // **Der Weg zurück**: ein Tor neben dem Startpunkt (`grid/fixtures/gate.ts`).
+  // Eine Zeile, und die Welt hängt am Hub — ohne dass jemand das
+  // Handgelenkmenü kennen muss.
+  plan.putFixture({
+    kind: 'gate',
+    x: PIT_LANE.x,
+    z: PIT_LANE.z + PIT_LANE.d - 1,
+    dir: DIR_E,
+    props: { world: 'hub', label: '→ Hub' },
+  });
 
   return plan;
 }

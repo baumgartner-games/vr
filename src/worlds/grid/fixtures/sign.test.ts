@@ -6,7 +6,13 @@ function board(props: Record<string, string> = {}): FixturePlacement {
   return { id: 'sign-1', kind: 'sign', x: 2, z: 3, dir: DIR_S, level: 0, props };
 }
 
-const NOTHING: FixtureInput = { used: false, hit: false, weightOn: 0, triggered: false };
+const NOTHING: FixtureInput = {
+  used: false,
+  hit: false,
+  weightOn: 0,
+  playerOn: false,
+  triggered: false,
+};
 
 describe('Das Schild', () => {
   it('zeigt, was auf ihm steht — und sonst, dass es ein Schild ist', () => {

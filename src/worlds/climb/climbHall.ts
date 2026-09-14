@@ -1,6 +1,6 @@
 import { GridPlan } from '../grid/gridPlan';
 import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
-import { TILE } from '../nav/navTile';
+import { DIR_N, TILE } from '../nav/navTile';
 
 /**
  * **Die Kletterhalle als Grundriss** — aber nur die Halle.
@@ -97,5 +97,16 @@ export function climbHall(): GridPlan {
    * eine zweite Fläche daneben. Was sie zur Matte macht, ist ihre Farbe
    * (`ClimbWorld.tint`).
    */
+  // **Der Weg zurück**: ein Tor neben dem Startpunkt (`grid/fixtures/gate.ts`).
+  // Eine Zeile, und die Welt hängt am Hub — ohne dass jemand das
+  // Handgelenkmenü kennen muss.
+  plan.putFixture({
+    kind: 'gate',
+    x: -2,
+    z: 3,
+    dir: DIR_N,
+    props: { world: 'hub', label: '→ Hub' },
+  });
+
   return plan;
 }
