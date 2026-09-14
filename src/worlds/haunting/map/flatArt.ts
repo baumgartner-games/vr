@@ -8,6 +8,23 @@ import {
 } from '../fixtureDimensions';
 import type { MarkId } from '../house';
 import type { MapEntityKind, MapFixture, MapItem } from './mapSnapshot';
+import { CREW_ART, CREW_COLORS, crewColor as crewColorOf } from '../../../core/flat/crewmate';
+
+// **Die Figur steht im Kern** (`core/flat/crewmate.ts`): Jede Welt hat jetzt
+// eine Ansicht von oben, und durch alle läuft dieselbe Bohne. Hier wird sie
+// nur weitergereicht, damit Szene und Karte sie wie bisher von `flatArt`
+// holen — zwei gezeichnete Crewmates nebeneinander wären zwei, die nach der
+// dritten Änderung verschieden aussehen.
+export {
+  CREW_COLORS,
+  SPRITE_H,
+  SPRITE_W,
+  drawCrewmate,
+  facingOf,
+  legLift,
+  walkPhase,
+  type CrewmateLook,
+} from '../../../core/flat/crewmate';
 
 /**
  * **Die gezeichneten Figuren und Requisiten der 2D-Welt** — Vektorbilder in
@@ -27,32 +44,9 @@ import type { MapEntityKind, MapFixture, MapItem } from './mapSnapshot';
  * Bildpunkten je Meter rund 100 Bildpunkte groß ist.
  */
 
-/** Wie hoch eine Figur auf dem Bild ist, in Metern der Station. */
-export const SPRITE_H = 1.2;
-/** Und wie breit — für Trefferflächen beim Tippen. */
-export const SPRITE_W = 0.8;
-
-/** Die Farben der Crew, wie man sie kennt; die erste ist die des Spielers. */
-export const CREW_COLORS: ReadonlyArray<readonly [name: string, fill: string, shade: string]> = [
-  ['green', '#3fbd45', '#1f7a2b'],
-  ['red', '#c8232c', '#7a1018'],
-  ['blue', '#2a4bd8', '#172a86'],
-  ['yellow', '#f0d541', '#a88f14'],
-  ['orange', '#ef7f1c', '#9c4d0c'],
-  ['pink', '#e85fbf', '#963577'],
-  ['cyan', '#4fe0d8', '#248f8a'],
-  ['purple', '#7a3fc8', '#46217a'],
-  ['white', '#dfe6ee', '#8a96a4'],
-  ['lime', '#8ff05a', '#4f9a2a'],
-];
-
-/** Kontur- und Grundfarben, die alle Zeichnungen teilen. */
+/** Kontur- und Grundfarben, die alle Zeichnungen teilen — die der Figur aus dem Kern. */
 export const ART = {
-  ink: '#0e1116',
-  visor: '#9fd2ea',
-  visorShade: '#4f8fb3',
-  glint: '#e6f6ff',
-  shadow: 'rgba(0, 0, 0, 0.35)',
+  ...CREW_ART,
   metal: '#5c6773',
   metalDark: '#343c46',
   metalLight: '#8b97a4',
@@ -108,135 +102,12 @@ export function radialGradient(
   return gradient;
 }
 
-/** Die Farbe eines Wesens — der Spieler grün, alle anderen stabil je Kennung. */
+/**
+ * Die Farbe eines Wesens, in der Sprache der Karte: Wer `player` ist, ist
+ * grün; alle anderen bekommen stabil je Kennung eine aus dem Rest.
+ */
 export function crewColor(id: string, kind: MapEntityKind): (typeof CREW_COLORS)[number] {
-  if (kind === 'player') return CREW_COLORS[0]!;
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  // Nie die Spielerfarbe: die anderen teilen sich den Rest der Palette.
-  return CREW_COLORS[1 + (hash % (CREW_COLORS.length - 1))]!;
-}
-
-/**
- * Wohin die Figur schaut, als Vorzeichen: `1` nach rechts (Osten), `-1` nach
- * links. Wer genau nach Norden oder Süden läuft, behält die letzte Seite —
- * sonst flackerte das Sprite bei jedem Wackeln des Stocks.
- */
-export function facingOf(yaw: number, previous: 1 | -1 = 1): 1 | -1 {
-  const dx = -Math.sin(yaw);
-  if (dx > 0.2) return 1;
-  if (dx < -0.2) return -1;
-  return previous;
-}
-
-/** Schritte je Sekunde beim Gehen und beim Rennen. */
-const WALK_HZ = 2.4;
-const SPRINT_HZ = 3.6;
-
-/** Die Phase der Gehanimation in [0, 1): steht die Figur, ist sie 0 (beide Beine unten). */
-export function walkPhase(time: number, moving: boolean, sprinting = false): number {
-  if (!moving) return 0;
-  const cycles = time * (sprinting ? SPRINT_HZ : WALK_HZ);
-  return cycles - Math.floor(cycles);
-}
-
-/** Wie hoch die Beine gerade sind, in Anteilen der Schrittweite — abwechselnd. */
-export function legLift(phase: number): { left: number; right: number } {
-  const swing = Math.sin(phase * Math.PI * 2);
-  return { left: Math.max(0, swing), right: Math.max(0, -swing) };
-}
-
-export interface CrewmateLook {
-  /** Bildpunkte je Meter. */
-  scale: number;
-  fill: string;
-  shade: string;
-  facing: 1 | -1;
-  /** Phase der Gehanimation, siehe `walkPhase`. */
-  phase: number;
-  /** Im Schrank oder im Schacht: nur ein blasser Umriss. */
-  concealed?: boolean;
-}
-
-/**
- * Ein Crewmate: runder Körper, Visier, Rucksack, zwei Beine. `x`/`y` ist der
- * Fußpunkt in Bildpunkten. Gezeichnet wird immer nach rechts schauend; der
- * Kontext wird für den Blick nach links gespiegelt.
- */
-export function drawCrewmate(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  look: CrewmateLook,
-): void {
-  const u = look.scale;
-  const legs = legLift(look.phase);
-  ctx.save();
-  ctx.translate(x, y);
-  if (look.facing < 0) ctx.scale(-1, 1);
-  if (look.concealed) ctx.globalAlpha = 0.35;
-  ctx.lineWidth = Math.max(1.5, u * 0.045);
-  ctx.strokeStyle = ART.ink;
-  ctx.lineJoin = 'round';
-
-  // Schatten unter den Füßen.
-  ctx.fillStyle = ART.shadow;
-  ctx.beginPath();
-  ctx.ellipse(0, u * 0.03, u * 0.42, u * 0.12, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Rucksack, hinten (links, weil die Figur nach rechts schaut).
-  ctx.fillStyle = look.shade;
-  ctx.beginPath();
-  ctx.roundRect(-u * 0.56, -u * 0.86, u * 0.26, u * 0.5, u * 0.09);
-  ctx.fill();
-  ctx.stroke();
-
-  // Beine: das gehobene ist kürzer und ein Stück nach oben verschoben.
-  for (const [side, lift] of [
-    [-0.3, legs.left],
-    [0.02, legs.right],
-  ] as const) {
-    const raise = lift * u * 0.12;
-    ctx.fillStyle = look.fill;
-    ctx.beginPath();
-    ctx.roundRect(side * u, -u * 0.34 - raise, u * 0.28, u * 0.34, u * 0.08);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  // Körper: oben rund, unten gerade — die Bohne.
-  ctx.fillStyle = look.fill;
-  ctx.beginPath();
-  ctx.moveTo(-u * 0.4, -u * 0.3);
-  ctx.lineTo(-u * 0.4, -u * 0.8);
-  ctx.quadraticCurveTo(-u * 0.4, -u * 1.2, u * 0.02, -u * 1.2);
-  ctx.quadraticCurveTo(u * 0.42, -u * 1.2, u * 0.42, -u * 0.82);
-  ctx.lineTo(u * 0.42, -u * 0.3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // Ein Schatten auf der Rückseite, damit der Körper rund wirkt.
-  ctx.fillStyle = look.shade;
-  ctx.beginPath();
-  ctx.roundRect(-u * 0.34, -u * 0.72, u * 0.12, u * 0.36, u * 0.06);
-  ctx.fill();
-
-  // Visier, nach vorn, mit Glanz.
-  ctx.fillStyle = ART.visor;
-  ctx.beginPath();
-  ctx.roundRect(u * 0.02, -u * 1.06, u * 0.5, u * 0.3, u * 0.14);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = ART.visorShade;
-  ctx.beginPath();
-  ctx.roundRect(u * 0.1, -u * 0.9, u * 0.36, u * 0.1, u * 0.05);
-  ctx.fill();
-  ctx.fillStyle = ART.glint;
-  ctx.beginPath();
-  ctx.roundRect(u * 0.12, -u * 1.01, u * 0.2, u * 0.07, u * 0.035);
-  ctx.fill();
-  ctx.restore();
+  return crewColorOf(id, kind === 'player');
 }
 
 export interface MonsterLook {

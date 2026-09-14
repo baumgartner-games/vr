@@ -322,7 +322,11 @@ Kapsel, samt der beiden Kugelkappen, dem Radius des Dings und dem Zentimeter
 Luft, ohne den der Zustand an der Grenze flackert — **oder in einer Hand**, denn
 der fallengelassene Gegenstand steckt in der Faust, aus der er fällt, und die
 Kapsel ist dort längst geräumt), der
-**Menü als Seite** (`src/ui/PageMenu.ts` — in jsdom: dass eine Zeile mit
+**Die Welt von oben**
+(`src/core/flat/flatModel.ts` — was aus einer Hülle ein Boden, eine Wand oder
+ein Möbelstück wird, dass die Decke über dem Kopf und der Himmel wegfallen,
+dass unter den Böden der größte zuerst kommt und Südliches zuletzt, und die
+Kamera samt Anhebung), **Menü als Seite** (`src/ui/PageMenu.ts` — in jsdom: dass eine Zeile mit
 Kindern absteigt und eine ohne läuft, dass der Weg mit den Handgelenken
 geteilt ist, dass ein Neubau des Baums die Seite nicht verlässt und eine
 Nimm-Seite beim Antippen nimmt), **2D oder 3D am Bildschirm**
@@ -705,10 +709,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Millisekunden später selbst hinein — besser als ein toter Knopf „VR wird
   geprüft …", auf den jeder Schreibtisch wartet.
   **Die Wahl ist eine Zusage**: „2D" führt in die Karte von oben, und die gibt
-  es genau in Haunting / Orbital — „Beitreten" öffnet dort also die
-  **Einsatzzentrale** (`main.ts`, `startCentre`; die Zeile unter der Wahl sagt
-  es vorher). Vorher stand der Schalter da und die Spielwiese startete
-  trotzdem den Hub in 3D: eine Wahl, die keine war.
+  es seit dem Paket „Jede Welt von oben" in **jeder** Welt (`core/flat/`) —
+  „Beitreten" öffnet also die Welt, in der man ohnehin steht, nur flach. Vorher
+  stand der Schalter da und die Spielwiese startete trotzdem den Hub in 3D:
+  eine Wahl, die keine war. Umgeschaltet wird auch mitten im Spiel, unter
+  **Menü → Ansicht**.
   Oben links derselbe **Menü-Knopf** wie im Spiel (`#landing-menu`): Welten,
   Bewegung, Aussehen, Grafik schon vor dem Start, als Seite (`ui/PageMenu.ts`).
   Einen **Hinweiskasten** mit fünf Zeilen Steuerung gab es hier auch einmal; er
@@ -717,6 +722,57 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Unter `#haunting` hat sie ein zweites Gesicht: die **Startseite der Runde**
   — Name, Raum-Code, Verbinden, und derselbe eine Knopf in denselben Raum
   (`main.ts`, `data-landing="haunting"`; siehe [Haunting](#haunting--orbital-raumstation-für-eine-quest-und-zwei-mobilgeräte)).
+- **Jede Welt von oben** (`src/core/flat/`, mit Tests) — dieselbe Welt, flach
+  gelesen und flach gezeichnet, mit der Crewmate-Figur aus Haunting. Eine
+  **Ansicht**, kein zweites Spiel: Gelaufen wird mit demselben Körper durch
+  dieselben Wände, nur das Bild kommt woanders her. Damit kann die Karte gar
+  nicht von der Welt abweichen — sie ist die Welt.
+  - **Gelesen statt gezeichnet** (`flatScan.scanScene`): Jede Welt baut Netze,
+    jedes Netz hat eine Hülle, und eine Hülle von oben ist ein Rechteck mit
+    einer Höhe. Was daraus ein **Boden**, eine **Wand** oder ein **Möbelstück**
+    wird, entscheidet allein die Form (`flatModel.classify`, mit Test): flach
+    und breit ist Boden, hoch und in einer Richtung dünn ist Wand, alles
+    dazwischen steht herum. Für vierzehn Welten eine Karte von Hand zu pflegen
+    wären vierzehn Listen, die nach der dritten Änderung lügen.
+  - **Die Karte ist ein Schnitt**, kein Blick von der Decke: Was über dem Kopf
+    hängt (`CUT_HEIGHT` 2,6 m über dem Boden, auf dem der Spieler steht),
+    gehört nicht darauf — sonst sieht man das Dach und sonst nichts. Und was
+    größer als `MAX_SPAN` 400 m ist, ist der Himmel und kein Stück Welt.
+  - **Pseudo-3D wie in der Vorlage** (`worlds/haunting/map/flatScene.ts`):
+    Norden oben, die Oberseite eines Klotzes um `liftOf(Höhe)` nach Norden
+    verschoben, darunter eine Vorderseite nach Süden. Was weiter südlich steht,
+    wird später gezeichnet und verdeckt das dahinter. **Unter den Böden zuerst
+    der größte** — sonst deckt die Wüste die Häuser zu, die auf ihr stehen.
+  - **Die Figur ist die aus der 2D-Welt** (`core/flat/crewmate.ts`). Sie stand
+    bei Haunting (`map/flatArt.ts`) und liegt jetzt im Kern; Haunting reicht sie
+    von dort weiter, damit es sie nur **einmal** gibt. **Gerechnet wird mit
+    einem Kreis** (`physics/playerClearance.PLAYER_CAPSULE_RADIUS` 0,24 m — die
+    Zahl, die 2D und 3D schon teilen), gezeichnet wird die Bohne. „Geht" und
+    „rennt" liest `App.drawFlat` aus dem Weg, den der Körper wirklich
+    zurückgelegt hat: Wer an einer Wand steht und drückt, läuft auch nicht.
+  - **Gelesen wird einmal je Welt**, nicht je Bild (eine Hülle auszurechnen
+    heißt, Ecken durch eine Matrix zu schieben; für ein paar tausend Netze ist
+    das ein Ruckler). Ein zweiter Blick kommt 1,5 s nach dem Betreten, weil
+    manche Welt ihre Sachen erst in den ersten Bildern hinstellt; von Hand geht
+    es über **Menü → Ansicht → Karte neu lesen**. Deckel: `SCAN_LIMIT` 4000
+    Netze.
+  - **Die Tasten laufen in Bildrichtungen** (`FlatControls.topDown`): oben ist
+    Norden, rechts ist Osten, unabhängig davon, wohin die Figur schaut — und
+    die Figur schaut dorthin, wo sie hingeht, denn hier dreht sie sonst
+    niemand. Die Maus dreht nichts und fängt keinen Zeiger ein.
+  - **Das Bild liegt über der Szene, die gar nicht gezeichnet wird**
+    (`App.step`): In dieser Ansicht wird das WebGL-Bild nur geleert, und
+    Spiegel wie Portalsichten bleiben aus — sie zeichneten in Bilder, die
+    niemand ansieht. Die Leinwand **nimmt keine Zeiger an**
+    (`flatView.css`, `pointer-events: none`), sonst käme der Bordstock des
+    Telefons nicht mehr durch; Rad und Kneifen hört sie am Fenster ab.
+  - **Eine Welt hat ihre eigene**: Haunting (`World.ownsFlat`) bringt Räume,
+    Türen, Licht und eine ganze Runde von oben mit — da malt der Kern nicht
+    darüber.
+  - **Was das (noch) nicht ist**: die Ground Truth. In Haunting rechnet die
+    2D-Runde und die Brille folgt (`flatKernel.ts`); hier rechnet weiter die
+    3D-Welt, und die flache Ansicht liest sie. Sie kann deshalb nicht von ihr
+    abweichen, aber sie führt sie auch nicht.
 - **Hub-Welt**: runde Halle, und von ihr gehen **Gänge** ab, an deren Wänden
   die Tore stehen — vier je Gang, zwei pro Seite und gegeneinander versetzt.
   Ist ein Gang voll, kommt der nächste dazu und alle verteilen sich neu über
@@ -2592,6 +2648,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Umsehen                            | Kopf, rechter Stick = Snap-Turn                                                                                                                                       | Maus (Klick = Pointer-Lock)                                                                     | wischen              |
 | Springen                           | `A` rechts                                                                                                                                                            | `Leertaste`                                                                                     | –                    |
 | Menü                               | Button an **beiden** Händen (immer nur eins offen)                                                                                                                    | Knopf ☰ oben links — dasselbe Menü als Seite (`ui/PageMenu.ts`), auch auf der Startseite         | Knopf ☰ oben links; Blatt von unten |
+| 2D von oben ↔ 3D                   | – (in der Brille steht man in der Welt)                                                                                                                              | Startseite oder Menü → _Ansicht_; Rad zoomt                                                     | dito; zwei Finger zoomen |
 | Auswählen                          | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl; im Handgelenkmenü löst der Trigger beim **Loslassen** aus, damit Wischen nichts drückt                | Linksklick                                                                                      | tippen               |
 | Werkzeug nehmen                    | Grip an der Hüfte halten (jede Hand, jedes Werkzeug)                                                                                                                  | – (immer bereit)                                                                                | –                    |
 | Werkzeug ablegen                   | Grip über der Hüfte loslassen                                                                                                                                         | –                                                                                               | –                    |
