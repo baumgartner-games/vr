@@ -343,3 +343,59 @@ describe('der Hinweis über der Figur', () => {
     }
   });
 });
+
+/**
+ * **Eine Kiste ist keine Ablage** — und genau daran hing ein Fehler, den erst
+ * der Durchgang im Browser zeigte.
+ *
+ * Wer mit der Pfanne voll gebratenem Patty an die Brötchenausgabe trat, bekam
+ * ein Brötchen mit Patty darauf, das nirgendwohin gehörte: Die Kiste hat keine
+ * Fläche, auf der es liegen bleiben könnte, und in der Hand lag die Pfanne.
+ * Ergebnis war ein spurlos verschwundenes Patty.
+ */
+describe('an der Kiste', () => {
+  it('gibt in die leere Hand', () => {
+    expect(kitchenDeed(null, { kind: 'box', gives: 'bun' })).toEqual({
+      do: 'take',
+      dish: dish('bun'),
+    });
+  });
+
+  it('legt in einen Träger, den die Hand hält', () => {
+    const deed = kitchenDeed(dish('plate'), { kind: 'box', gives: 'bun' });
+    expect(deed).toEqual({
+      do: 'combine',
+      held: dish('plate', ['bun']),
+      target: null,
+      moved: ['bun'],
+    });
+    // Und die leere Pfanne nimmt das rohe Patty auf.
+    const pan = kitchenDeed(dish('pan'), { kind: 'box', gives: 'patty' });
+    expect(pan.do).toBe('combine');
+    expect(pan.do === 'combine' && pan.held).toEqual(dish('pan', ['patty']));
+  });
+
+  /**
+   * **Der frische Teller nimmt den Burger auf.** Wer mit einem belegten
+   * Brötchen an die Tellerausgabe tritt, will ihn anrichten und nicht erst
+   * irgendwo ablegen — bei _Overcooked_ ist genau das der letzte Handgriff vor
+   * der Theke.
+   */
+  it('nimmt den Burger auf den Teller, den es hergibt', () => {
+    const deed = kitchenDeed(dish('bun', ['patty-cooked']), { kind: 'box', gives: 'plate' });
+    expect(deed).toEqual({
+      do: 'combine',
+      held: dish('plate', ['bun', 'patty-cooked']),
+      target: null,
+      moved: ['bun', 'patty-cooked'],
+    });
+  });
+
+  it('gibt nichts heraus, was niemand halten kann', () => {
+    // Die Pfanne gäbe ihr Patty an ein frisches Brötchen ab — und das Brötchen
+    // hätte danach keinen Platz. Lieber gar nichts tun und es sagen.
+    const deed = kitchenDeed(dish('pan', ['patty-cooked']), { kind: 'box', gives: 'bun' });
+    expect(deed.do).toBe('refuse');
+    expect(deed.do === 'refuse' && deed.why).toContain('Hände frei');
+  });
+});

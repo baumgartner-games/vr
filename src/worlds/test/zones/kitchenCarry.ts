@@ -246,10 +246,22 @@ function fromBox(held: Dish | null, gives?: KitchenItem): KitchenDeed {
   if (!isCarrier(held.item)) return { do: 'refuse', why: 'Erst die Hände frei machen' };
   const both = combine(held, dish(gives));
   if (!both.ok) return { do: 'refuse', why: both.why };
-  // Die Kiste selbst behält nichts und verliert nichts — was sie hergibt, ist
-  // eine Kopie, und `target` bleibt deshalb leer.
-  if (!both.held) return { do: 'refuse', why: 'Erst die Hände frei machen' };
-  return { do: 'combine', held: both.held, target: null, moved: both.moved };
+  // **Was nicht in die Hand geht, wäre weg.** Eine Kiste ist keine Ablage: Sie
+  // hat keine Fläche, auf der etwas liegen bleiben könnte. Wer mit der Pfanne
+  // voll gebratenem Patty an die Brötchenausgabe tritt, bekäme sonst ein
+  // Brötchen mit Patty, das im selben Atemzug niemandem gehört — im Browser
+  // nachgestellt: Das Patty war spurlos weg, und in der Hand lag eine leere
+  // Pfanne. Also gilt hier nur der eine Fall, in dem die **Hand** das Neue
+  // aufnimmt (Teller an der Brötchenausgabe, leere Pfanne an der Pattykiste).
+  // Welche der beiden Seiten hinterher in der Hand liegt, entscheidet, wer wen
+  // aufgenommen hat: Die Pfanne nimmt das rohe Patty (`held`), der frische
+  // Teller nimmt den Burger aus der Hand (`target`). Beides ist derselbe
+  // Handgriff, nur andersherum gelesen.
+  const one = both.target && !both.held ? both.target : both.held;
+  if (!one || (both.held && both.target)) {
+    return { do: 'refuse', why: 'Erst die Hände frei machen' };
+  }
+  return { do: 'combine', held: one, target: null, moved: both.moved };
 }
 
 /** Der Mülleimer: Inhalt weg, Träger behalten, Gerät gar nicht erst hinein. */

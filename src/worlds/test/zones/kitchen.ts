@@ -1,28 +1,54 @@
 import * as THREE from 'three';
-import type { GridPlan } from '../../grid/gridPlan';
-import { DIR_E, DIR_N, DIR_W, TILE } from '../../nav/navTile';
 import {
-  KITCHEN_PIECES,
+  KITCHEN_SCALE,
   kitchenDeck,
   kitchenPiece,
   type KitchenPiece,
 } from '../../../core/kitchenFit';
 import { canLoadModels, CHEF_CARRY } from '../../../core/chefFit';
+import { USE_REACH } from '../../../core/usable';
+import { TILE } from '../../nav/navTile';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
 import type { PlayerAvatar } from '../../../core/PlayerAvatar';
 import type { WorldContext } from '../../../core/types';
 import { TextPlane } from '../../../ui/TextPlane';
 import { KITCHEN } from '../layout';
 import {
+  COLD_STOVE,
+  EMPTY_BOARD,
   ITEM_LABELS,
+  advanceChop,
+  advanceStove,
+  chopProgress,
+  dish,
+  dishLabel,
+  douse,
   kitchenDeed,
   kitchenPrompt,
+  layered,
+  onBoard,
+  onStove,
+  stovePhase,
+  stoveProgress,
+  type ChopState,
+  type Dish,
   type KitchenItem,
   type Station as StationFacts,
   type StationKind,
+  type StovePhase,
+  type StoveState,
 } from './kitchenCarry';
-import { CHOPS, FRY_SECONDS, chopped, fried, missing, recipeOf } from './kitchenRecipes';
-import { BOX_HEIGHT, BOX_SIZE, FoodKit, PLATE_HEIGHT } from './kitchenProps';
+import { FoodKit } from './kitchenProps';
+import { GAUGE_LIFT, KitchenGauges, WARN_LIFT } from './kitchenGauge';
+import { IconOven } from './kitchenIcon';
+import {
+  KITCHEN_FLOOR,
+  KITCHEN_SPOTS,
+  footprint,
+  stationKind,
+  type Spot,
+  type Turn,
+} from './kitchenPlan';
 import type { TestZone, ZoneHost } from './zone';
 
 /**
@@ -38,25 +64,29 @@ import type { TestZone, ZoneHost } from './zone';
  *
  * - **Die Küche selbst** (Westen): drei Bänder, wie in jeder Küche dieses
  *   Spiels — die Geräte an der Wand, eine Insel zum Schnippeln, vorn die
- *   Ausgabe. Hier wird angefasst: Töpfe und Pfannen kommen vom Herd in die
- *   Hand, Brötchen aus der Kiste, und beides wieder irgendwohin.
+ *   Ausgabe. Hier wird gekocht: Zutaten kommen aus den Ausgaben an der
+ *   Westwand, das Patty in die Pfanne, Salat und Tomate auf das Brett, und
+ *   alles zusammen auf ein Brötchen.
  * - **Der Schauraum** (Osten): **jedes** der dreizehn Möbel noch einmal, frei
  *   stehend und beschriftet. In einer Zeile aus acht Schränken sieht man ein
  *   einzelnes Möbel nicht; wer wissen will, wie die Spüle aussieht, will sie
  *   allein sehen und nicht zwischen zwei Herden. Der Katalog ist damit nicht
  *   mehr eine Liste in einer Datei, sondern ein Rundgang.
  *
- * **Warum eine Zone und kein Baustein.** Ein Baustein (`grid/blocks.ts`) ist
- * ein Quader aus der Palette der Welt: eine Farbe, eine Höhe, ein Körper. Ein
- * Herd mit einem Topf darauf ist keiner. Er ist eine Datei, sie kommt
- * asynchron, und sie kommt womöglich gar nicht — genau wie die Figur
- * (`core/chefModel.ts`). Eine Zone darf warten; ein Grundriss darf es nicht.
+ * **Wo was steht, steht nebenan** (`kitchenPlan.ts`): Der Grundriss wird
+ * gestempelt, lange bevor ein Modell geladen ist, und ein Test rechnet ihn
+ * nach — beides braucht die Zahlen und nicht diese Klasse. Von hier aus wird
+ * alles davon weitergereicht (`export *`), damit `testPlan.ts` und die Welt
+ * ihre Importe behalten.
  *
- * **Der Grundriss weiß trotzdem, wo sie stehen.** Jedes Stück belegt seine
- * Kacheln mit einem hohen Weg-Aufschlag (`stampKitchen`), und damit geht ein
- * NPC um den Tresen herum statt hindurch — auch dann, wenn die Datei fehlt und
- * gar nichts zu sehen ist. Ein Möbel, das nur im Bild existiert, ist ein Möbel,
- * durch das gelaufen wird.
+ * **Diese Datei ist der Rest**: Netze umhängen, Körper bauen, Uhren laufen
+ * lassen, Anzeigen setzen. Die **Regeln** stehen in drei Dateien daneben und
+ * werden hier nicht noch einmal gerechnet — was `A` bewirkt, sagt
+ * `kitchenCarry.kitchenDeed`; woraus ein Burger besteht, `kitchenRecipes.ts`;
+ * wie lange etwas dauert, `kitchenClock.ts`. Die Zone **setzt nur um**, was
+ * dort herauskommt. Jede Zeile, die hier selbst nachrechnet, ob ein Patty
+ * gebraten genug ist, wäre die zweite Wahrheit, die beim nächsten Umbau
+ * auseinanderläuft.
  *
  * **Und die Kochfigur passt dazu.** Sie ist 1,60 m hoch und ihre Augen liegen
  * bei 0,91 m (`core/chefFit.ts`) — genau deshalb wurde sie so skaliert und
@@ -64,152 +94,7 @@ import type { TestZone, ZoneHost } from './zone';
  * stehen und kein Riese im Puppenhaus. Hier steht die Probe darauf.
  */
 
-/** Wie viele Viertelumdrehungen ein Möbel gedreht wird. */
-type Turn = 0 | 1 | 2 | 3;
-
-/** Ein Stück in der Küche: welches, wo, und wie herum. */
-interface Spot {
-  /** Der Name im Katalog (`core/kitchenFit.KITCHEN_PIECES`). */
-  readonly name: string;
-  /** Die nordwestliche Kachel seiner Grundfläche, relativ zur Zone. */
-  readonly x: number;
-  readonly z: number;
-  /** Viertelumdrehungen um die Hochachse; 0 ist wie geliefert. */
-  readonly turn?: Turn;
-  /**
-   * **Wie hoch über dem Boden es steht**, in Metern — 0 für alles, was auf
-   * dem Boden steht.
-   *
-   * Es gibt genau einen Fall, und der ist der Grund für dieses Feld: Das
-   * **Ausgaberegal** mit den beiden Wärmeschirmen gehört über die
-   * Ausgabetheke und nicht dahinter. Es stand eine Kachel nördlich davon —
-   * zwei rote Schirme, die auf nichts zeigten. Jetzt steht es auf **derselben
-   * Kachel eine Ebene höher**, also dort, wo die Schirme das beleuchten, was
-   * auf der Theke liegt.
-   */
-  readonly lift?: number;
-  /**
-   * **Ob es im Schauraum steht** statt in der Küche.
-   *
-   * Ein Schaustück wird beschriftet, gibt nichts her und nimmt nichts an —
-   * und es bekommt **keine Sperre über sich** (`BLOCK_HEIGHT`): Wer durch
-   * einen Schauraum geht, soll nicht gegen Luft laufen, die dort steht, damit
-   * niemand auf eine Arbeitsplatte springt.
-   */
-  readonly show?: boolean;
-}
-
-/**
- * **Der Aufbau der Küche** — drei Bänder, wie in jeder Küche dieses Spiels.
- *
- * Die Zahlen sind Kacheln **innerhalb** der Zone (`layout.KITCHEN`), damit sich
- * die ganze Küche verschieben lässt, ohne dreißig Zeilen nachzurechnen. Wie
- * groß ein Stück ist, steht nicht hier, sondern im Katalog — gemessen und
- * nicht geschätzt.
- *
- * **Die beiden Schneidebretter stehen jetzt gleich.** Vorher stand eines
- * zwischen zwei Küchenzeilen und das andere zwischen zwei Arbeitstischen, und
- * das sieht man: Eine Zeile ist 1,06 m tief, ein Tisch 1,00 m, ein Brett
- * ebenfalls 1,00 m — in der Zeile sprang das Brett also vorn und hinten drei
- * Zentimeter zurück, auf der Insel schloss es bündig ab. Zwei Bretter, die
- * verschieden stehen, sind ein Fehler, den man sieht und nicht erklären kann.
- * Beide stehen deshalb in derselben Nachbarschaft: Zeile, Brett, Zeile.
- */
-export const KITCHEN_SPOTS: readonly Spot[] = [
-  // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ----------------
-  { name: 'counter', x: 0, z: 0 },
-  { name: 'stove', x: 1, z: 0 },
-  { name: 'stove-pot', x: 2, z: 0 },
-  { name: 'stove-pan', x: 3, z: 0 },
-  { name: 'counter', x: 4, z: 0 },
-  // Zwei Kacheln breit — sie ist das einzige Stück, das die Zeile unterbricht.
-  { name: 'sink', x: 5, z: 0 },
-  { name: 'counter', x: 7, z: 0 },
-  { name: 'board', x: 8, z: 0 },
-  { name: 'counter', x: 9, z: 0 },
-  { name: 'plate-counter', x: 10, z: 0 },
-
-  // --- die Ecke nach Osten: sie trennt die Küche vom Schauraum ----------------
-  { name: 'counter', x: 11, z: 1 },
-  { name: 'counter', x: 11, z: 2 },
-  { name: 'bin', x: 11, z: 3 },
-
-  // --- die Insel in der Mitte ------------------------------------------------
-  // Zeile, Brett, Zeile — dieselbe Nachbarschaft wie an der Nordwand.
-  { name: 'counter', x: 3, z: 4 },
-  { name: 'board', x: 4, z: 4 },
-  { name: 'counter', x: 5, z: 4 },
-  { name: 'bin', x: 6, z: 4 },
-  { name: 'table', x: 7, z: 4 },
-
-  // --- und vorn die Ausgabe, zum Gang hin gedreht -----------------------------
-  { name: 'serve-counter', x: 3, z: 9, turn: 2 },
-  { name: 'plate-counter', x: 4, z: 9, turn: 2 },
-  { name: 'pass', x: 5, z: 9, turn: 2 },
-  // Die Wärmeschirme: **dieselbe Kachel, eine Ebene höher** — auf der Theke
-  // und nicht dahinter.
-  { name: 'plate-rack', x: 5, z: 9, turn: 2, lift: PASS_TOP() },
-  { name: 'serve-counter', x: 7, z: 9, turn: 2 },
-  { name: 'extinguisher', x: 0, z: 9 },
-
-  // --- der Schauraum: jedes Möbel einmal, einzeln und beschriftet -------------
-  { name: 'plate-counter', x: 13, z: 1, show: true },
-  { name: 'extinguisher', x: 15, z: 1, show: true },
-  { name: 'sink', x: 17, z: 1, show: true },
-  { name: 'bin', x: 20, z: 1, show: true },
-  { name: 'table', x: 22, z: 1, show: true },
-
-  { name: 'serve-counter', x: 13, z: 4, show: true },
-  { name: 'board', x: 15, z: 4, show: true },
-  { name: 'plate-rack', x: 17, z: 4, show: true },
-  { name: 'pass', x: 20, z: 4, show: true },
-
-  { name: 'counter', x: 13, z: 7, show: true },
-  { name: 'stove', x: 15, z: 7, show: true },
-  { name: 'stove-pot', x: 17, z: 7, show: true },
-  { name: 'stove-pan', x: 19, z: 7, show: true },
-];
-
-/**
- * Die Höhe der Ausgabetheke — die Ebene, auf der das Regal steht.
- *
- * Eine Funktion und keine Konstante, weil sie **vor** `KITCHEN_SPOTS`
- * gebraucht wird und aus dem Katalog kommt: Wer die Theke im Katalog ändert,
- * soll das Regal nicht nachmessen müssen.
- */
-function PASS_TOP(): number {
-  return kitchenPiece('pass')?.height ?? 0.53;
-}
-
-/**
- * **Die Kisten mit dem Nachschub** — westlich der Insel, eine Reihe für sich.
- *
- * Vier statt einer, seit es Rezepte gibt (`kitchenRecipes.ts`): Brötchen,
- * Patty, Salat, Tomate. Sie stehen **nebeneinander an der Westwand** und nicht
- * verteilt in der Küche, und das ist kein Geschmack, sondern der Weg: Wer für
- * einen Deluxe vier Zutaten holt, läuft sonst viermal quer durch den Raum,
- * bevor überhaupt etwas in der Pfanne liegt.
- *
- * Nicht auf der Ankunftskachel (`layout.SPAWNS.kitchen`, x = 1, z = 7): In
- * eine Kiste hineingesetzt zu werden ist ein Anfang, den niemand versteht.
- */
-export const CRATES: readonly {
-  readonly item: KitchenItem;
-  readonly label: string;
-  readonly x: number;
-  readonly z: number;
-}[] = [
-  { item: 'bun', label: 'Brötchenkiste', x: 1, z: 3 },
-  { item: 'patty', label: 'Pattykiste', x: 1, z: 4 },
-  { item: 'lettuce', label: 'Salatkiste', x: 1, z: 5 },
-  { item: 'tomato', label: 'Tomatenkiste', x: 1, z: 6 },
-];
-
-/** Wie weit ein Möbel eine Kachel verteuert — teurer als eine Kiste. */
-const FURNITURE_COST = 8;
-
-/** Wo die Oberkante des Küchenbodens liegt — knapp über dem Gelände. */
-export const KITCHEN_FLOOR = 0.02;
+export * from './kitchenPlan';
 
 /**
  * **Wie hoch ein Küchenmöbel für die Füße mindestens ist**, in Metern.
@@ -236,214 +121,138 @@ const BLOCK_HEIGHT = 1.4;
 const CARRY_POINT = new THREE.Vector3(CHEF_CARRY.x, CHEF_CARRY.y, CHEF_CARRY.z);
 
 /**
- * **Wie hoch das Patty in der Pfanne liegt**, über der Herdplatte.
+ * **Wie hoch der Belag in der Pfanne liegt**, über deren Fuß.
  *
- * Die Pfanne ist 13 cm hoch (`public/models/kitchen.glb`, halbiert), ihr
- * Boden liegt knapp darüber. Ohne diese Fingerbreit steckt das Patty im
- * Pfannenboden statt darin.
+ * Die Pfanne ist 13 cm hoch (Herd 0,55 m, Herd mit Pfanne 0,68 m —
+ * `core/kitchenFit.KITCHEN_PIECES`), ihr Boden liegt knapp darüber. Ohne
+ * diese Fingerbreit steckt das Patty im Pfannenboden statt darin.
+ *
+ * Die Zahl gilt im Raum des **geladenen Netzes** und nicht in dem der Welt:
+ * `FoodKit.topping` bekommt sie und hängt den Belag genau dorthin
+ * (`kitchenProps.ts`) — wie hoch der Rand einer geladenen Pfanne liegt, weiß
+ * nur, wer sie gemessen hat.
  */
 const PAN_RIM = 0.04;
 
-/** Die Grundfläche eines Stücks in Kacheln, gedreht wie es steht. */
-function footprint(piece: KitchenPiece, turn: Turn): { w: number; d: number } {
-  const [w, d] = piece.tiles;
-  return turn % 2 === 0 ? { w, d } : { w: d, d: w };
-}
+/**
+ * **Wie weit die Figur vom Brett weg sein darf**, damit noch geschnitten
+ * wird, in Metern.
+ *
+ * Gemessen von der **Mitte des Möbels** zur Figur, waagerecht. `USE_REACH`
+ * ist die Reichweite, mit der `A` überhaupt etwas erwischt (`core/usable.ts`)
+ * — wer schneiden lassen will, muss also ungefähr so nah stehen, wie er zum
+ * Auflegen stand.
+ *
+ * **Warum nicht `Station.live`.** Es liegt nahe, dafür den Zustand zu nehmen,
+ * den `refreshStations` ohnehin führt — aber der sagt etwas anderes: Er heißt
+ * „diese Station hätte gerade etwas zu tun" und nicht „jemand steht davor".
+ * Ein Brett mit einem Salatkopf darauf ist auch dann angemeldet, wenn die
+ * Figur am anderen Ende der Küche steht; das Schneiden liefe weiter, und
+ * genau das soll es nicht (Spezifikation §4). Welches benutzbare Ding gerade
+ * **gemeint** ist, rechnet `pickUsable` aus und behält es für sich — also
+ * rechnet die Zone den Abstand selbst, mit derselben Zahl.
+ */
+const CHOP_REACH = USE_REACH;
 
 /**
- * **Der Grundriss der Zone** — drei Wände und die Kacheln, auf denen Möbel
- * stehen.
+ * **Wie lange die Tafel an der Ausgabetheke stehen bleibt**, in Sekunden, und
+ * wie hoch über der Theke sie schwebt, in Metern.
  *
- * Nach Süden bleibt sie offen: Dort kommt man herein, und eine Küche mit einer
- * Tür wäre eine Küche, in der zwei Köche sich im Durchgang begegnen.
+ * Vier Sekunden sind lang genug, um sie im Vorbeigehen zu lesen, und kurz
+ * genug, dass beim nächsten Gericht nicht noch das vorige dasteht.
+ *
+ * 0,95 m über der Arbeitsplatte heißt: **über** dem Ausgaberegal, dessen
+ * Oberkante 0,68 m über der Theke liegt (`kitchenPlan.rackLift` + 0,56 m).
+ * Tiefer steckte die Tafel zwischen den Wärmeschirmen.
  */
-export function stampKitchen(plan: GridPlan): void {
-  const east = KITCHEN.x + KITCHEN.w - 1;
-  const south = KITCHEN.z + KITCHEN.d - 1;
+const TICKET_SECONDS = 4;
+const TICKET_LIFT = 0.95;
 
-  // **Ein Boden aus Stein.** Ohne ihn steht die Küche auf der Wiese des
-  // Geländes, und eine Spüle im Gras sieht aus wie ein Versehen. Er liegt
-  // knapp über dem Gelände, damit sich die beiden nicht um jedes Pixel
-  // streiten — dieselbe Handbreit wie der Asphalt der Boxengasse.
-  plan.mass('stone', KITCHEN, -0.06, KITCHEN_FLOOR);
-
-  plan.run(KITCHEN.x, KITCHEN.z, KITCHEN.w, 'x', (x, z) => plan.wall(x, z, DIR_N));
-  for (let z = KITCHEN.z; z <= south; z++) {
-    plan.wall(KITCHEN.x, z, DIR_W);
-    plan.wall(east, z, DIR_E);
-  }
-
-  // **Was ein Möbel belegt, ist teuer zu begehen** — und zwar im Graphen und
-  // nicht bloß im Bild. Ohne diese Schleife liefe ein NPC durch den Herd.
-  //
-  // Ein **gehobenes** Stück zählt nicht mit: Das Ausgaberegal steht auf der
-  // Theke, und deren Kacheln sind schon teuer. Zweimal derselbe Aufschlag auf
-  // dieselbe Kachel wäre eine Kachel, um die ein NPC grundlos weiter
-  // herumginge.
-  for (const spot of KITCHEN_SPOTS) {
-    const piece = kitchenPiece(spot.name);
-    if (!piece || piece.hanging || spot.lift) continue;
-    const size = footprint(piece, spot.turn ?? 0);
-    for (let dz = 0; dz < size.d; dz++) {
-      for (let dx = 0; dx < size.w; dx++) {
-        plan.floor(
-          { x: KITCHEN.x + spot.x + dx, z: KITCHEN.z + spot.z + dz, w: 1, d: 1 },
-          { cost: FURNITURE_COST },
-        );
-      }
-    }
-  }
-
-  // Und die Kisten: Sie kommen nicht aus dem Katalog, stehen aber genauso im
-  // Weg (`kitchenProps.ts`).
-  for (const crate of CRATES) {
-    plan.floor(
-      { x: KITCHEN.x + crate.x, z: KITCHEN.z + crate.z, w: 1, d: 1 },
-      { cost: FURNITURE_COST },
-    );
-  }
-}
-
-/**
- * **Die Einbauten dieser Zone** — und nur sie.
- *
- * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
- * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
- * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
- * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
- * weggebaut.
- *
- * **Das Schild hier ist zugleich die Probe auf den Aushang** (`fixtures/sign.ts`):
- * Es trägt mehr als eine Zeile, mit Überschrift und Aufzählung, und wer es
- * benutzt, schlägt es im Menü auf. Ein Schild mit einer Zeile beweist nicht,
- * dass Markdown ankommt.
- */
-export function fitKitchen(plan: GridPlan): void {
-  plan.putFixture({
-    id: 'schild-kueche',
-    kind: 'sign',
-    x: KITCHEN.x + 1,
-    z: KITCHEN.z + KITCHEN.d - 1,
-    dir: DIR_W,
-    props: {
-      text: [
-        '# Die Küche',
-        '',
-        'Möbel aus *Overcooked Kitchen Assets (Fan Art)* von Arun Kumar S,',
-        'CC-BY-4.0 — siehe `public/models/CREDITS.md`.',
-        '',
-        '- An der Westwand: die vier Kisten — Brötchen, Patty, Salat, Tomate',
-        '- An der Nordwand: Zeile, zwei Herde, Spüle, Tellerausgabe',
-        '- In der Mitte: Schneidebrett, Mülleimer, Anrichte',
-        '- Vorn: Ausgabe mit den Wärmeschirmen darüber',
-        '- Im Osten: der Schauraum — jedes Möbel einmal, beschriftet',
-        '',
-        '## Ein Burger',
-        '',
-        '1. **Patty** aus der Kiste in die **Pfanne** auf dem Herd — vier Sekunden.',
-        '2. **Salat** und **Tomate** auf das **Schneidebrett**, dreimal `A`.',
-        '3. **Brötchen** und alles Fertige auf die **Anrichte** legen.',
-        '4. **Teller** von der Ausgabe holen und an der Anrichte anrichten.',
-        '',
-        'Vier Rezepte: Hamburger, Salatburger, Tomatenburger, Deluxe.',
-        'Am Mülleimer wird der Burger vom Teller gekratzt — der Teller bleibt.',
-        '',
-        '`A` nimmt und legt ab; getragen wird mit beiden Händen vor dem Bauch.',
-        'Was in der Hand liegt, lässt jede Ablage leuchten.',
-        '',
-        '---',
-        '',
-        '> Der Koch ist 1,60 m hoch. Der Tresen ist einen Meter hoch.',
-        '> Genau dafür wurde er so skaliert.',
-      ].join('\n'),
-    },
-  });
-}
+/** Die Kamera, einmal je Bild geholt — ein Vektor für die ganze Zone. */
+const _eye = new THREE.Vector3();
+/** Und die Stelle, an der eine Anzeige schweben soll. */
+const _at = new THREE.Vector3();
 
 // --- und was darin steht ----------------------------------------------------
 
-/** Eine Stelle, an der `A` etwas bewirkt. */
+/**
+ * **Eine Stelle, an der `A` etwas bewirkt.**
+ *
+ * Alles, was hier liegt, ist **ein** `Dish` (`kitchenRecipes.ts`) — die Pfanne
+ * mit dem Patty darin, der Teller mit dem halben Burger darauf, der Salatkopf
+ * auf dem Brett. Vorher hatte diese Struktur je Stationsart ein eigenes Feld
+ * (`chops`, `pan`, `cook`, `done`, `stack`), und die liefen mit jeder neuen
+ * Art auseinander: Eine Anrichte mit halbem Stapel meldete sich nicht, weil
+ * sie nach der Zählung des Herdes leer war.
+ *
+ * Geblieben sind zwei Zustände, und beide gehören einer Uhr und nicht dieser
+ * Datei: `StoveState` und `ChopState` (`kitchenClock.ts`). Sie stehen an der
+ * Station, weil sie **dort** hingehören — nimmt jemand die Pfanne mit, bleibt
+ * ihr Fortschritt am Herd zurück, und das ist der Grund, warum es in der Hand
+ * nicht weiterbrät.
+ */
 interface Station {
   readonly kind: StationKind;
-  /** Wie sie im Hinweis heißt — _Küchenzeile_, _Mülleimer_. */
+  /** Wie sie im Hinweis heißt — _Küchenzeile_, _Mülleimer_, _Salatausgabe_. */
   readonly label: string;
   /** Woran der gelbe Saum hängt und worauf gezielt wird. */
   readonly object: THREE.Object3D;
   /** Wo etwas darauf liegt, in Weltkoordinaten. */
   readonly deck: THREE.Vector3;
-  /** Was die Kiste hergibt. */
+  /** Was die Ausgabe hergibt. */
   readonly gives?: KitchenItem;
+  /** Der Schlüssel ihrer Anzeigen (`kitchenGauge.KitchenGauges`). */
+  readonly key: string;
   /** Was gerade darauf liegt — beim Herd ist das die Pfanne. */
   on: Carried | null;
-  /** Wie oft auf dem Brett schon geschnitten wurde. */
-  chops: number;
-  /** Was in der Pfanne liegt, und wie lange es schon brät. */
-  pan: Carried | null;
-  cook: number;
-  done: boolean;
-  /** Was auf der Anrichte schon aufgeschichtet ist — und wie es aussieht. */
-  readonly stack: KitchenItem[];
-  view: THREE.Object3D | null;
+  /** Die Uhr am Herd; `COLD_STOVE` überall sonst. */
+  stove: StoveState;
+  /** Die Uhr am Brett; `EMPTY_BOARD` überall sonst. */
+  chop: ChopState;
   /** Ob sie gerade als benutzbar angemeldet ist. */
   live: boolean;
+  /** Was ihre Anzeigen zuletzt gezeigt haben — siehe `showGauges`. */
+  shown: StovePhase | 'chop' | null;
 }
 
 /**
- * **Welches Möbel welche Rolle spielt** — und alles, was hier nicht steht, ist
- * eine gewöhnliche Ablage (`KitchenPiece.worktop`).
+ * **Ein Ding in der Hand oder auf einer Fläche.**
  *
- * Eine Tabelle und keine Kette aus `if`: Sie ist die eine Stelle, an der
- * _Arbeitstisch_ und _Anrichte_ dasselbe Möbel sind — wer den Burger lieber
- * auf der Ausgabetheke bauen lassen will, ändert genau eine Zeile.
+ * Es hat **zwei** Quellen für sein Netz, und das ist die Stelle, an der man
+ * sich beim Bauen verheddert:
  *
- * Die **Tellerausgabe** ist dabei keine Ablage, sondern eine Kiste: Sie gibt
- * Teller aus, so oft man will, genau wie die Kisten an der Westwand. Ein
- * Stapel Teller, der nach dem dritten Gast leer ist, wäre bei _Overcooked_ der
- * Punkt, an dem eine Runde stehenbleibt.
+ * - Zutaten, Brötchen und Teller **baut** der Zutatensatz (`FoodKit.view`),
+ *   und zwar jedes Mal neu, wenn sich das Gericht ändert. Ein geschnittener
+ *   Salat ist ein anderes Netz als ein Salatkopf.
+ * - Topf, Pfanne und Feuerlöscher kommen aus dem **Möbelmodell**
+ *   (`core/kitchenModel.takeUtensil`) und **müssen wiederverwendet werden**:
+ *   Es gibt genau eine Pfanne in dieser Küche. Für sie gibt `FoodKit.view`
+ *   `null` zurück, und der Belag kommt als eigenes Netz daneben
+ *   (`FoodKit.topping`).
+ *
+ * Deshalb steht hier `loose` neben `object`: `object` ist, was in der Szene
+ * hängt — bei einem Gerät ein **Träger**, in dem das geladene Netz und sein
+ * Belag nebeneinander sitzen (siehe `addStation`, dort steht, warum nicht
+ * ineinander) —, und `loose` das geladene Netz selbst, wenn es eines gibt.
+ * Zusammengebaut wird beides an **einer** Stelle (`restyle`); eine zweite
+ * hätte beim nächsten Handgriff eine Pfanne verdoppelt.
  */
-const STATION_KINDS: Readonly<Record<string, StationKind>> = {
-  bin: 'bin',
-  board: 'board',
-  table: 'build',
-  'stove-pan': 'stove',
-  'plate-counter': 'box',
-};
-
-/**
- * **Wie ein Möbel im Hinweis heißt, wenn es in dieser Küche etwas anderes
- * ist** als im Katalog.
- *
- * Zwei Fälle: Der _Arbeitstisch_ ist hier die **Anrichte** — dort entsteht der
- * Burger —, und die _Tellerausgabe_ heißt, was sie tut. Der Katalog bleibt
- * davon unberührt: Er beschreibt das gekaufte Möbel, nicht seine Rolle in
- * einem Aufbau (`core/kitchenFit.ts`).
- */
-const STATION_LABELS: Readonly<Record<string, string>> = {
-  table: 'Anrichte',
-  'plate-counter': 'Tellerausgabe',
-};
-
-/** Eine frische Station — die Felder, die keine Stelle je selbst setzt. */
-function station(
-  base: Omit<Station, 'chops' | 'pan' | 'cook' | 'done' | 'stack' | 'view'>,
-): Station {
-  return { ...base, chops: 0, pan: null, cook: 0, done: false, stack: [], view: null };
-}
-
-/** Ein Ding in der Hand oder auf einer Fläche. */
 interface Carried {
   /**
    * **Was es ist — und das ändert sich.** Ein rohes Patty wird in der Pfanne
-   * zum gebratenen, ein Salatkopf auf dem Brett zum geschnittenen: Dasselbe
-   * getragene Ding, nur mit anderem Namen und anderem Netz (`reshape`). Ein
-   * zweites Ding daraus zu machen hieße, den Griff der Figur nachzuführen.
+   * zum gebratenen, ein Salatkopf auf dem Brett zum geschnittenen, ein
+   * Brötchen mit dem Patty zum Burger. Dasselbe getragene Ding, nur mit einem
+   * anderen `Dish` und einem anderen Netz.
    */
-  item: KitchenItem;
+  dish: Dish;
+  /** Was in der Szene hängt — der Träger des Geräts oder das gebaute Gericht. */
   object: THREE.Object3D;
+  /** Das geladene Netz, wenn es eines ist; sonst `null`. */
+  readonly loose: THREE.Object3D | null;
+  /** Der Belag, der gerade neben dem geladenen Netz im Träger hängt. */
+  topping: THREE.Object3D | null;
   /** Wohin `B` es zurückstellt — der Herd, von dem es kommt. */
   readonly home: Station | null;
-  /** Woraus ein Burger besteht — nur bei `burger` und `plate-burger`. */
-  parts?: KitchenItem[];
 }
 
 /**
@@ -452,12 +261,15 @@ interface Carried {
  * Sie kommen asynchron und womöglich gar nicht (kein Netz, kein WebGL, keine
  * Datei). Dann bleibt die Küche ein leerer Raum mit drei Wänden, und das ist
  * kein Fehlerfall: Der Grundriss stimmt trotzdem, die Wege stimmen trotzdem,
- * und niemand steht vor einer Welt, die nicht lädt.
+ * und niemand steht vor einer Welt, die nicht lädt. Seit auch die
+ * Zutatenausgaben Möbel aus dem Katalog sind, hängt daran **alles**, was man
+ * anfassen kann — vorher standen vier gebaute Kisten in einer sonst leeren
+ * Küche.
  *
  * **Angefasst wird mit `A`** (`core/usable.ts`), und die Regel dahinter steht
- * in `kitchenCarry.ts` — neun Fälle, die ein Test nachrechnet, statt dass man
- * sie im Headset durchspielt. Diese Klasse ist der Teil, den ein Test nicht
- * lesen kann: Netze umhängen, Körper bauen, Schilder schreiben.
+ * in `kitchenCarry.ts` — ein paar Dutzend Fälle, die ein Test nachrechnet,
+ * statt dass man sie im Headset durchspielt. Diese Klasse ist der Teil, den
+ * ein Test nicht lesen kann: Netze umhängen, Körper bauen, Schilder schreiben.
  */
 export class KitchenZone implements TestZone {
   private world: ZoneHost | null = null;
@@ -482,23 +294,27 @@ export class KitchenZone implements TestZone {
   private hidden: THREE.MeshBasicMaterial | null = null;
   private readonly labels: TextPlane[] = [];
   private readonly stations: Station[] = [];
-  /** Zutaten, Teller und Kisten — ein Satz für die ganze Zone. */
+  /** Zutaten und Teller — ein Satz für die ganze Zone. */
   private readonly food = new FoodKit();
+  /** Balken, Warndreieck und Flammen — ebenfalls einer für die ganze Zone. */
+  private gauges: KitchenGauges | null = null;
+  /** Der Ofen für die Bilder an den Ausgaben (`kitchenIcon.ts`). */
+  private oven: IconOven | null = null;
   /** Was die Figur gerade trägt. */
   private carried: Carried | null = null;
+  /** Die Tafel an der Ausgabetheke und wie lange sie noch steht. */
+  private ticket: TextPlane | null = null;
+  private ticketLeft = 0;
 
   build(ctx: WorldContext, world: ZoneHost): void {
     this.world = world;
     this.rig = ctx.rig;
     this.avatar = ctx.avatar;
     this.gone = false;
-
-    // Die Kisten sind gebaut und nicht geladen — sie stehen sofort da, auch
-    // wenn die Datei nie ankommt (`kitchenProps.ts`).
-    for (const crate of CRATES) this.buildCrate(world, crate);
-    // Sie antwortet auch dann, wenn die Datei nie ankommt — deshalb hier und
-    // nicht erst hinter dem Lader.
-    this.refreshStations();
+    this.gauges = new KitchenGauges(world.root);
+    // Der Ofen braucht den Renderer und gibt ohne WebGL und in der Brille
+    // `null` zurück (`IconOven.bake`) — dann eben kein Schild an der Ausgabe.
+    this.oven = new IconOven(ctx.renderer);
 
     // Dieselbe Frage wie bei der Figur, und aus demselben Grund: `GLTFLoader`
     // und `import.meta` bringen einen Jest-Lauf zum Stehen, also wird das
@@ -518,8 +334,133 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Jedes Bild**: die Pfanne brät weiter, und was getragen wird, hängt vor
-   * dem Bauch.
+   * **Jedes Bild**: Die Pfanne brät, das Brett schneidet, die Anzeigen sagen
+   * es, und was getragen wird, hängt vor dem Bauch.
+   *
+   * In dieser Reihenfolge, und die ist keine Geschmacksfrage: Erst laufen die
+   * Uhren (`kitchenClock.ts`), dann werden die Anzeigen danach gesetzt. Wer
+   * die Anzeigen vorher setzte, zeigte immer das Bild von gestern — ein Balken
+   * hinge ein Bild lang noch da, nachdem das Feuer schon brennt.
+   */
+  update(dt: number, ctx: WorldContext): void {
+    this.cook(dt, ctx);
+    this.gauges?.update(dt, ctx.camera);
+    this.fadeTicket(dt);
+    this.carryInHands(ctx);
+  }
+
+  /**
+   * **Was von selbst passiert** — der Herd und das Brett, je Bild einmal.
+   *
+   * Beide Uhren rechnen nebenan (`kitchenClock.advanceStove`, `advanceChop`)
+   * und geben einen neuen Zustand zurück, dazu das, was in diesem Bild fertig
+   * geworden ist. Die Zone tut damit genau zwei Dinge: das Netz tauschen und
+   * es sagen.
+   */
+  private cook(dt: number, ctx: WorldContext): void {
+    if (!this.stations.length) return;
+    ctx.camera.getWorldPosition(_eye);
+    for (const spot of this.stations) {
+      if (spot.kind === 'stove') this.stoveFrame(spot, dt);
+      else if (spot.kind === 'board') this.boardFrame(spot, dt);
+      else continue;
+      this.showGauges(spot);
+    }
+  }
+
+  /**
+   * **Ein Bild am Herd** — und das Patty in der Pfanne wechselt seine Stufe.
+   *
+   * Es wechselt sie **in der Pfanne** und nicht auf dem Herd: Was hier liegt,
+   * ist das `Dish` der Pfanne, und das Patty ist ihr Inhalt. Die Uhr weiß von
+   * der Pfanne nichts — sie kennt nur die Stufe —, und deshalb ist dies die
+   * einzige Stelle, an der beides zusammenkommt.
+   */
+  private stoveFrame(spot: Station, dt: number): void {
+    const tick = advanceStove(spot.stove, dt);
+    spot.stove = tick.state;
+    if (tick.turned) {
+      const pan = spot.on;
+      // Genau ein Patty in der Pfanne (`kitchenRecipes.TAKES`), also ersetzt
+      // die neue Stufe den ganzen Inhalt.
+      if (pan) this.restyle(pan, dish(pan.dish.item, [tick.turned]));
+      this.world?.notify(`${ITEM_LABELS[tick.turned]} in der Pfanne`);
+      this.refreshStations();
+    }
+    if (tick.lit) {
+      this.world?.notify('Der Herd brennt — Feuerlöscher holen!');
+      this.refreshStations();
+    }
+  }
+
+  /**
+   * **Ein Bild am Brett** — geschnitten wird nur, solange jemand davorsteht.
+   *
+   * Der Fortschritt bleibt stehen, wenn die Figur weggeht, und läuft weiter,
+   * wenn sie zurückkommt; das rechnet die Uhr (`advanceChop`, `live`). Hier
+   * steht nur, **wer** davorsteht — siehe `CHOP_REACH`.
+   */
+  private boardFrame(spot: Station, dt: number): void {
+    const near = Math.hypot(_eye.x - spot.deck.x, _eye.z - spot.deck.z) <= CHOP_REACH;
+    const tick = advanceChop(spot.chop, dt, near);
+    if (tick.state === spot.chop) return;
+    spot.chop = tick.state;
+    if (!tick.cut) return;
+    const on = spot.on;
+    // Was geschnitten wird, trägt nichts (`kitchenRecipes.CHOPS`) — aus dem
+    // Salatkopf wird geschnittener Salat und sonst nichts.
+    if (on) this.restyle(on, dish(tick.cut));
+    this.world?.notify(`${ITEM_LABELS[tick.cut]} fertig`);
+    this.refreshStations();
+  }
+
+  /**
+   * **Was über dieser Station in der Luft steht** (`kitchenGauge.ts`).
+   *
+   * Ein Schlüssel je Station, und darunter alles auf einmal: Balken, Dreieck,
+   * Flammen. Gewechselt wird nur beim **Phasenwechsel** (`shown`) — ein
+   * `clear` je Bild hinge die Anzeigen sechzigmal in der Sekunde ab und
+   * wieder an, und der brennende Herd bekäme seinen Balken, den er gerade
+   * nicht mehr hat, jedes Bild neu.
+   */
+  private showGauges(spot: Station): void {
+    const gauges = this.gauges;
+    if (!gauges) return;
+    const part = spot.kind === 'stove' ? stoveProgress(spot.stove) : chopProgress(spot.chop);
+    const phase: StovePhase | 'chop' =
+      spot.kind === 'stove' ? stovePhase(spot.stove) : part > 0 ? 'chop' : 'cold';
+    if (phase !== spot.shown) {
+      gauges.clear(spot.key);
+      spot.shown = phase;
+    }
+    if (phase === 'cold') return;
+    if (phase === 'chop') {
+      gauges.bar(spot.key, this.hover(spot, GAUGE_LIFT), part, 'chop');
+      return;
+    }
+    // Im Feuer gibt es nichts mehr zu messen: Der Balken ist weg (das `clear`
+    // beim Phasenwechsel hat ihn abgehängt), es lodert nur noch.
+    if (phase !== 'fire') {
+      gauges.bar(
+        spot.key,
+        this.hover(spot, GAUGE_LIFT),
+        part,
+        phase === 'frying' ? 'cook' : 'burn',
+      );
+    }
+    gauges.warn(spot.key, phase === 'igniting' ? this.hover(spot, WARN_LIFT) : null);
+    // Die Flamme steht mit dem **Fuß** auf der Platte und schwebt nicht
+    // darüber (`KitchenGauges.flame`).
+    gauges.flame(spot.key, spot.deck, phase === 'fire' ? 'fire' : 'cook');
+  }
+
+  /** Die Stelle über der Arbeitsplatte, an der eine Anzeige schwebt. */
+  private hover(spot: Station, lift: number): THREE.Vector3 {
+    return _at.set(spot.deck.x, spot.deck.y + lift, spot.deck.z);
+  }
+
+  /**
+   * **Was getragen wird, hängt vor dem Bauch.**
    *
    * Es hängt am **Rig** und nicht an der Hand des Avatars, und das hat einen
    * einfachen Grund: Die Hand gibt es nur von oben und am Schreibtisch
@@ -539,8 +480,7 @@ export class KitchenZone implements TestZone {
    * eine Kamera, die im Takt der Schritte nickt, kein Gefühl von Gehen,
    * sondern Übelkeit.
    */
-  update(dt: number, ctx: WorldContext): void {
-    this.fry(dt);
+  private carryInHands(ctx: WorldContext): void {
     const held = this.carried;
     if (!held) {
       ctx.avatar.carry = null;
@@ -563,58 +503,37 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Die Pfanne** — das einzige in dieser Küche, das von selbst passiert.
-   *
-   * Ein Patty braucht `FRY_SECONDS`, und danach ist es gebraten und bleibt es:
-   * Verbrennen wäre eine zweite Uhr und ein zweiter Zustand, und beides ohne
-   * Runde, die daraus etwas machte. Der Hinweis über dem Herd ändert sich
-   * mit — `refreshStations` fragt die Regel neu, und die sagt jetzt _nehmen_
-   * statt _brät noch_.
-   */
-  private fry(dt: number): void {
-    for (const spot of this.stations) {
-      const pan = spot.pan;
-      if (!pan || spot.done) continue;
-      spot.cook += dt;
-      if (spot.cook < FRY_SECONDS) continue;
-      spot.done = true;
-      const ready = fried(pan.item);
-      if (ready) this.reshape(pan, ready, spot.deck.y + PAN_RIM);
-      this.world?.notify(`${ITEM_LABELS[pan.item]} ist fertig`);
-      this.refreshStations();
-    }
-  }
-
-  /**
-   * `B`/`Y`: Hände auf, Töpfe zurück auf ihren Herd, Essen in den Müll.
+   * `B`/`Y`: Hände auf, Geräte zurück an ihren Platz, Essen in den Müll.
    *
    * **Auch die halb fertigen Sachen** — das Patty in der Pfanne, der halbe
-   * Schnitt auf dem Brett, der begonnene Stapel auf der Anrichte. Eine Küche,
-   * in der nach dem Aufräumen noch ein Brötchen auf der Anrichte liegt, ist
-   * nicht aufgeräumt, und der Nächste sucht den Fehler bei sich.
+   * Schnitt auf dem Brett, der begonnene Burger auf der Zeile. Eine Küche, in
+   * der nach dem Aufräumen noch ein Brötchen herumliegt, ist nicht aufgeräumt,
+   * und der Nächste sucht den Fehler bei sich.
+   *
+   * Topf, Pfanne und Feuerlöscher gehen dabei **leer** zurück: Sie sind das
+   * einzige, was diese Küche nicht nachbauen kann, und ein Patty, das in der
+   * zurückgestellten Pfanne weiterbrutzelt, wäre kein Aufräumen.
    */
   reset(): void {
-    const loose = [
-      this.carried,
-      ...this.stations.map((spot) => spot.on),
-      ...this.stations.map((spot) => spot.pan),
-    ];
+    const loose = [this.carried, ...this.stations.map((spot) => spot.on)];
     this.carried = null;
     if (this.avatar) this.avatar.carry = null;
     for (const spot of this.stations) {
       spot.on = null;
-      spot.pan = null;
-      spot.chops = 0;
-      spot.cook = 0;
-      spot.done = false;
-      spot.stack.length = 0;
-      this.showStack(spot);
+      this.settle(spot);
+      this.gauges?.clear(spot.key);
+      spot.shown = null;
     }
     for (const thing of loose) {
       if (!thing) continue;
-      if (thing.home) this.layOn(thing.home, thing);
-      else this.discard(thing);
+      if (!thing.home) {
+        this.discard(thing);
+        continue;
+      }
+      this.restyle(thing, dish(thing.dish.item));
+      this.layOn(thing.home, thing);
     }
+    this.hideTicket();
     this.refreshStations();
   }
 
@@ -630,12 +549,19 @@ export class KitchenZone implements TestZone {
     this.shapes.length = 0;
     for (const material of this.owned) material.dispose();
     this.owned.length = 0;
-    // Zutaten, Teller und Kisten hängen an **einem** Satz und nicht an jedem
-    // Brötchen einzeln (`kitchenProps.FoodKit`).
+    // Zutaten und Teller hängen an **einem** Satz und nicht an jedem Brötchen
+    // einzeln (`kitchenProps.FoodKit`); dasselbe gilt für die Anzeigen und
+    // für die Bilder an den Ausgaben.
     this.food.dispose();
+    this.gauges?.dispose();
+    this.gauges = null;
+    this.oven?.dispose();
+    this.oven = null;
     this.stations.length = 0;
     this.bodies.length = 0;
     this.carried = null;
+    this.ticket = null;
+    this.ticketLeft = 0;
     this.hidden = null;
     // Die Hände der Figur wieder freigeben — sie überlebt diese Zone.
     if (this.avatar) this.avatar.carry = null;
@@ -669,7 +595,7 @@ export class KitchenZone implements TestZone {
   ): void {
     const world = this.world;
     if (!world) return;
-    const turn = spot.turn ?? 0;
+    const turn: Turn = spot.turn ?? 0;
     const size = footprint(piece, turn);
     const angle = (turn * Math.PI) / 2;
     const [ax, az] = piece.align ?? [0, 0];
@@ -687,8 +613,12 @@ export class KitchenZone implements TestZone {
     this.placed.push(model);
 
     if (!piece.hanging && !spot.lift) this.addBody(world, piece, spot, size, centreX, centreZ);
-    if (spot.show) this.addLabel(world, piece, size, centreX, centreZ);
-    else this.addStations(model, piece, foot, takeUtensil);
+    if (spot.show) {
+      this.addLabel(world, piece, size, centreX, centreZ);
+      return;
+    }
+    this.addIcon(model, piece, spot);
+    this.addStation(model, piece, spot, foot, takeUtensil);
   }
 
   /**
@@ -795,75 +725,122 @@ export class KitchenZone implements TestZone {
     this.labels.push(plate);
   }
 
-  /** Eine Kiste: gebaut, fest, und die Quelle für alles, was daraus kommt. */
-  private buildCrate(world: ZoneHost, crate: (typeof CRATES)[number]): void {
-    const box = this.food.crate(crate.item);
-    const x = (KITCHEN.x + crate.x + 0.5) * TILE;
-    const z = (KITCHEN.z + crate.z + 0.5) * TILE;
-    box.position.set(x, KITCHEN_FLOOR, z);
-    world.root.add(box);
-    box.updateWorldMatrix(true, false);
-    this.placed.push(box);
-
-    const body = this.boxAt(BOX_SIZE, BOX_HEIGHT, BOX_SIZE, x, KITCHEN_FLOOR, z);
-    world.root.add(body);
-    body.updateWorldMatrix(true, false);
-    this.placed.push(body);
-    this.bodies.push(world.addSolid(body));
-
-    this.stations.push(
-      station({
-        kind: 'box',
-        label: crate.label,
-        object: box,
-        deck: new THREE.Vector3(x, KITCHEN_FLOOR + BOX_HEIGHT, z),
-        gives: crate.item,
-        on: null,
-        live: false,
-      }),
+  /**
+   * **Das Bild an der Ausgabe** — was sie hergibt, gerendert und vorn
+   * angeklebt (`kitchenIcon.IconOven`).
+   *
+   * Ein Bild je Zutat und nicht je Möbel: Der Ofen merkt sich, was er schon
+   * gebacken hat, und zwei Brötchenausgaben zeigen dieselbe Textur.
+   *
+   * **Ohne Bild bleibt das Möbel, was es ist.** In Jest gibt es kein WebGL und
+   * in der Brille keinen freien Durchgang, also gibt `bake` dort `null` — dann
+   * steht eine Ausgabe ohne Schild da, gibt aber genauso aus. Ein Schild, das
+   * eine Welt zum Stehen bringt, wäre der teuerste Zierrat der Küche.
+   */
+  private addIcon(model: THREE.Object3D, piece: KitchenPiece, spot: Spot): void {
+    const gives = spot.gives;
+    const oven = this.oven;
+    if (!gives || !oven) return;
+    // Was `build` liefert, gehört weiter dem Zutatensatz: Der Ofen hängt es
+    // kurz in seine Szene und gibt nichts davon frei (`IconOven.bake`).
+    const texture = oven.bake(
+      `gives:${gives}`,
+      () => this.food.view(dish(gives)) ?? new THREE.Group(),
     );
+    if (!texture) return;
+    // **Das Möbel ist halbiert, das Schild darf es nicht sein.** Ein geladenes
+    // Stück kommt mit `scale = KITCHEN_SCALE` (0,5) aus dem Lader
+    // (`core/kitchenModel.ts`); ein Schild direkt daran wäre halb so groß und
+    // hinge auf halber Höhe — im Browser nachgesehen: 18 cm statt 36, auf 10 cm
+    // über dem Boden. Es hängt deshalb in einer Gruppe, die den Maßstab wieder
+    // aufhebt, und rechnet damit in Metern wie alles andere hier.
+    const holder = new THREE.Group();
+    holder.name = 'kitchen-icon-holder';
+    holder.scale.setScalar(1 / KITCHEN_SCALE);
+    // **Zweimal dasselbe Bild, oben und vorn** — weil man aus zwei Richtungen
+    // darauf schaut. Von oben (`core/TopDownCamera.ts`, die Hauptansicht am
+    // Schirm) sieht man von einem Möbel fast nur den Deckel, und der trägt im
+    // gekauften Modell überall denselben weißen Teller: Vier Ausgaben
+    // nebeneinander waren dort nicht zu unterscheiden. Aus den Augen und in
+    // der Brille wiederum ist ein liegendes Schild ein Strich.
+    //
+    // Dass beides geht, ist der Unterschied zwischen einer Ausgabe und einer
+    // Ablage: Auf eine Kiste legt niemand etwas ab (sie hat gar keine Fläche
+    // in der Regel, `kitchenCarry.Station`), also verdeckt das liegende Schild
+    // auch nichts.
+    holder.add(oven.counterSign(texture, { piece, where: 'top' }));
+    holder.add(oven.counterSign(texture, { piece, where: 'front' }));
+    model.add(holder);
   }
 
   /**
-   * **Was an einem Möbel geht** — abstellen, herunternehmen, wegwerfen.
+   * **Was an einem Möbel geht** — abstellen, herunternehmen, wegwerfen,
+   * ausgeben.
    *
-   * Der Mülleimer ist ein Mülleimer, jede Arbeitsfläche ist eine Ablage
-   * (`KitchenPiece.worktop`), und wo im Modell ein Topf steht
-   * (`KitchenPiece.holds`), wird er gleich hier abgenommen: Er hängt danach
-   * als eigenes Ding auf seiner Fläche, und der Herd darunter ist ein leerer
-   * Herd. Ohne diesen Schritt wäre „den Topf nehmen" ein Sonderfall im
-   * Nehmen; so ist es derselbe Griff wie bei allem anderen.
+   * Welche Rolle ein Möbel spielt, steht im Aufbau und nicht hier
+   * (`kitchenPlan.stationKind`): Der Mülleimer ist ein Mülleimer, eine Ausgabe
+   * gibt aus, und jede andere Arbeitsfläche ist eine Ablage.
+   *
+   * Wo im Modell ein Gerät steht (`KitchenPiece.holds`), wird es gleich hier
+   * abgenommen: Es hängt danach als eigenes Ding auf seiner Fläche, und der
+   * Herd darunter ist ein leerer Herd. Ohne diesen Schritt wäre „den Topf
+   * nehmen" ein Sonderfall im Nehmen; so ist es derselbe Griff wie bei allem
+   * anderen — und dasselbe gilt für den Feuerlöscher auf seinem Hocker.
    */
-  private addStations(
+  private addStation(
     model: THREE.Object3D,
     piece: KitchenPiece,
+    spot: Spot,
     foot: number,
     takeUtensil: (model: THREE.Object3D) => THREE.Object3D | null,
   ): void {
+    const kind = stationKind(piece.name, spot.gives);
+    if (!kind) return;
     // **Die Ablage liegt über dem Möbel und nicht über seiner Kachel.** Wo
     // beides auseinanderfällt, ist der Herd mit der Pfanne (`align`): Seine
     // Platte steht 7,8 cm südlich der Kachelmitte, und dort gehört die Pfanne
     // hin und nicht daneben.
     const deck = new THREE.Vector3(model.position.x, foot + kitchenDeck(piece), model.position.z);
-    const kind = STATION_KINDS[piece.name];
-    if (!kind && !piece.worktop) return;
-
-    const spot = station({
-      kind: kind ?? 'top',
-      label: STATION_LABELS[piece.name] ?? piece.label,
+    const station: Station = {
+      kind,
+      label: spot.label ?? piece.label,
       object: model,
       deck,
-      ...(piece.name === 'plate-counter' ? { gives: 'plate' as KitchenItem } : {}),
+      gives: spot.gives,
+      // Die Kachel steht im Schlüssel, nicht der Möbelname: Es gibt zwei
+      // Bretter und drei Herde, und zwei Balken unter demselben Schlüssel
+      // wären einer.
+      key: `${piece.name}@${spot.x},${spot.z}`,
       on: null,
+      stove: COLD_STOVE,
+      chop: EMPTY_BOARD,
       live: false,
-    });
-    this.stations.push(spot);
+      shown: null,
+    };
+    this.stations.push(station);
 
     if (!piece.holds) return;
     const loose = takeUtensil(model);
     if (!loose) return;
-    this.placed.push(loose);
-    this.layOn(spot, { item: piece.holds, object: loose, home: spot });
+    // **Ein Träger darum herum**, und das ist die Stelle, an der ich mich beim
+    // Bauen verrannt habe: Was `takeUtensil` zurückgibt, trägt den **Maßstab
+    // des Modells** (`core/kitchenModel.KITCHEN_SCALE`, also 0,5). Ein Patty,
+    // das man direkt in die Pfanne hängt, wäre damit halb so groß und läge
+    // halb so hoch — zwei Zentimeter statt vier über ihrem Boden, und der
+    // Fehler sieht aus wie ein zu kleines Patty und nicht wie ein falscher
+    // Maßstab. Der Träger steht auf 1, die Pfanne hängt darin, und der Belag
+    // kommt daneben (`restyle`).
+    const holder = new THREE.Group();
+    holder.name = `kitchen-${piece.holds}`;
+    holder.add(loose);
+    this.placed.push(holder);
+    this.layOn(station, {
+      dish: dish(piece.holds),
+      object: holder,
+      loose,
+      topping: null,
+      home: station,
+    });
   }
 
   // --- anfassen -------------------------------------------------------------
@@ -886,10 +863,9 @@ export class KitchenZone implements TestZone {
     for (const spot of this.stations) {
       // **Die Regel selbst sagt, ob es hier etwas zu tun gibt.** Vorher stand
       // hier eine zweite Liste je Stationsart — und die lief mit jeder neuen
-      // Art auseinander: Eine Anrichte mit halbem Stapel meldete sich nicht,
-      // weil sie nach der alten Zählung leer war. `nothing` ist der einzige
-      // Fall ohne etwas zu sagen; `refuse` hat einen Satz und meldet sich.
-      const wanted = kitchenDeed(this.carried?.item ?? null, facts(spot)).do !== 'nothing';
+      // Art auseinander. `nothing` ist der einzige Fall ohne etwas zu sagen;
+      // `refuse` hat einen Satz und meldet sich.
+      const wanted = kitchenDeed(this.held(), facts(spot)).do !== 'nothing';
       if (wanted === spot.live) continue;
       spot.live = wanted;
       if (!wanted) {
@@ -900,12 +876,7 @@ export class KitchenZone implements TestZone {
         spot.object,
         {
           use: () => this.act(spot),
-          usePrompt: () =>
-            kitchenPrompt(
-              kitchenDeed(this.carried?.item ?? null, facts(spot)),
-              spot.label,
-              CHOPS - spot.chops,
-            ),
+          usePrompt: () => kitchenPrompt(kitchenDeed(this.held(), facts(spot)), spot.label),
         },
         // **Nicht schießbar**: Eine Kugel, die den Topf vom Herd holt, ist ein
         // Scherz und keine Regel (`PortalWorld.shootUsable`).
@@ -914,25 +885,59 @@ export class KitchenZone implements TestZone {
     }
   }
 
-  /** Was `A` an dieser Station bewirkt (`kitchenCarry.kitchenDeed`). */
+  /** Was die Figur trägt, so wie die Regel es sehen will. */
+  private held(): Dish | null {
+    return this.carried?.dish ?? null;
+  }
+
+  /**
+   * **Was `A` an dieser Station bewirkt** (`kitchenCarry.kitchenDeed`).
+   *
+   * Die Regel liefert **fertige Stände** — was danach in der Hand ist und was
+   * an der Station liegt —, und hier wird nichts davon noch einmal
+   * nachgerechnet. Deshalb ist jeder Fall zwei bis vier Zeilen lang: Netz
+   * umbauen, hinlegen oder wegnehmen, es sagen.
+   */
   private act(spot: Station): boolean {
     const world = this.world;
     if (!world) return false;
-    const deed = kitchenDeed(this.carried?.item ?? null, facts(spot));
+    const deed = kitchenDeed(this.held(), facts(spot));
     switch (deed.do) {
       case 'take': {
-        const thing = this.pickUp(spot, deed.item);
+        const thing = this.pickUp(spot, deed.dish);
         if (!thing) return false;
         this.takeInHand(thing);
-        world.notify(`${ITEM_LABELS[thing.item]} in der Hand`);
+        world.notify(`${dishLabel(deed.dish)} in der Hand`);
         break;
       }
-      case 'place': {
+      case 'place':
+      case 'chop': {
         const thing = this.carried;
         if (!thing) return false;
         this.carried = null;
         this.layOn(spot, thing);
-        world.notify(`${ITEM_LABELS[thing.item]} auf ${spot.label}`);
+        // Am Brett fängt das Schneiden sofort an — `layOn` legt die Uhr an
+        // (`settle`), gesagt wird es hier.
+        world.notify(
+          deed.do === 'chop'
+            ? `${ITEM_LABELS[deed.dish.item]} wird geschnitten`
+            : `${dishLabel(deed.dish)} auf ${spot.label}`,
+        );
+        break;
+      }
+      case 'combine': {
+        this.merge(spot, deed.held, deed.target);
+        // **Wer hat bekommen?** Zusammengelegt wird in beide Richtungen
+        // (`kitchenRecipes.combine`), und die Meldung muss mitgehen: Wer mit
+        // dem Teller zur Tomate läuft, hat sie aufgenommen und nicht
+        // abgelegt. Die Antwort steht in der Tat — liegt das Gewanderte
+        // hinterher in der Hand, ging es dorthin.
+        const names = layered(deed.moved)
+          .map((item) => ITEM_LABELS[item])
+          .join(', ');
+        const gained = deed.held?.on ?? [];
+        const toHand = deed.moved.every((item) => gained.includes(item));
+        world.notify(toHand ? `${names} aufgenommen` : `${names} auf ${spot.label}`);
         break;
       }
       case 'trash': {
@@ -940,69 +945,39 @@ export class KitchenZone implements TestZone {
         if (!thing) return false;
         this.carried = null;
         this.discard(thing);
-        world.notify(`${ITEM_LABELS[deed.item]} weggeworfen`);
+        world.notify(`${dishLabel(deed.dish)} weggeworfen`);
         break;
       }
       case 'scrape': {
-        // **Der Teller bleibt in der Hand.** Wer einen misslungenen Burger
-        // wegwirft, will nicht auch noch zur Tellerausgabe laufen.
-        const plate = this.carried;
-        if (!plate) return false;
-        this.scrape(plate);
-        world.notify('Burger weggekratzt, der Teller bleibt');
+        // **Der Träger bleibt in der Hand.** Wer einen misslungenen Burger
+        // wegwirft, will nicht auch noch zur Tellerausgabe laufen. Was
+        // danach in der Hand ist, steht in der Tat — der leere Träger.
+        const thing = this.carried;
+        if (!thing) return false;
+        this.restyle(thing, deed.dish);
+        world.notify(`${ITEM_LABELS[deed.dish.item]} abgeräumt`);
         break;
       }
-      case 'chop': {
-        const on = spot.on;
-        if (!on) return false;
-        spot.chops += 1;
-        const cut = chopped(on.item);
-        if (spot.chops < CHOPS || !cut) {
-          world.notify(`${ITEM_LABELS[on.item]}: noch ${CHOPS - spot.chops}`);
-          break;
+      case 'serve': {
+        const thing = this.carried;
+        if (!thing) return false;
+        if (deed.held) this.restyle(thing, deed.held);
+        else {
+          this.carried = null;
+          this.discard(thing);
         }
-        spot.chops = 0;
-        this.reshape(on, cut, spot.deck.y);
-        world.notify(`${ITEM_LABELS[cut]} fertig`);
+        this.showTicket(spot, deed.recipe.label);
+        world.notify(`${deed.recipe.label} serviert`);
         break;
       }
-      case 'fry': {
-        const thing = this.carried;
-        if (!thing) return false;
-        this.carried = null;
-        spot.pan = thing;
-        spot.cook = 0;
-        spot.done = false;
-        // In die Pfanne und nicht auf den Herd: Das Patty liegt eine
-        // Fingerbreit höher als der Rand, sonst steckt es im Boden der Pfanne.
-        thing.object.rotation.set(0, 0, 0);
-        world.root.add(thing.object);
-        thing.object.position.set(spot.deck.x, spot.deck.y + PAN_RIM, spot.deck.z);
-        world.notify(`${ITEM_LABELS[thing.item]} brät`);
-        break;
-      }
-      case 'stack': {
-        const thing = this.carried;
-        if (!thing) return false;
-        this.carried = null;
-        // Die Zutat geht im Stapel auf: Der Burger wird als **ein** Netz aus
-        // dem Stapel gebaut (`FoodKit.burger`), und zwei Salatscheiben
-        // übereinander — eine gelegte und eine gebaute — wären eine zu viel.
-        this.drop(thing);
-        spot.stack.push(thing.item);
-        this.showStack(spot);
-        const recipe = recipeOf(spot.stack);
-        world.notify(recipe ? `${recipe.label} fertig` : missing(spot.stack));
-        break;
-      }
-      case 'dish': {
-        const plate = this.carried;
-        if (!plate) return false;
-        const parts = [...spot.stack];
-        spot.stack.length = 0;
-        this.showStack(spot);
-        this.dishUp(plate, parts);
-        world.notify(`${recipeOf(parts)?.label ?? 'Burger'} angerichtet`);
+      case 'douse': {
+        spot.stove = douse(spot.stove);
+        // Die Pfanne bleibt, ihr Inhalt ist verkohlt und weg. `settle` gleich
+        // danach setzt die Uhr auf den neuen Inhalt — also auf kalt und leer.
+        const pan = spot.on;
+        if (pan) this.restyle(pan, dish(pan.dish.item));
+        this.settle(spot);
+        world.notify('Feuer gelöscht');
         break;
       }
       case 'refuse':
@@ -1016,103 +991,117 @@ export class KitchenZone implements TestZone {
   }
 
   /**
+   * **Zusammengelegt** — die Hand bekommt ihren neuen Stand, die Station den
+   * ihren.
+   *
+   * Beide stehen fertig in der Tat (`KitchenDeed.combine`), `null` heißt leer.
+   * Vier Fälle, und jeder ist eine Zeile:
+   *
+   * - Die Hand wird leer: Die Zutat ist auf die Station gewandert.
+   * - Die Station wird frei: Sie ist in die Hand gewandert.
+   * - Beide bleiben: Die Pfanne gibt ihr Patty her und bleibt stehen, wo sie
+   *   war — der eine Fall, für den es `offer` in `kitchenRecipes.ts` gibt.
+   * - An einer **Ausgabe** gibt es nichts zu ändern: Sie hatte nie etwas
+   *   liegen und behält trotzdem alles (`target` ist dort immer `null`).
+   *
+   * **Ein geladenes Gerät verschwindet dabei nie.** Eine Pfanne gibt ihren
+   * Inhalt ab und bleibt, ein Topf und ein Feuerlöscher nehmen gar nichts an
+   * — es gibt also keinen Weg, auf dem hier das einzige Exemplar eines Netzes
+   * weggeworfen würde. Gäbe es ihn, stünde die Küche danach ohne Pfanne da.
+   */
+  private merge(spot: Station, held: Dish | null, target: Dish | null): void {
+    const hand = this.carried;
+    if (hand) {
+      if (held) this.restyle(hand, held);
+      else {
+        this.carried = null;
+        this.discard(hand);
+      }
+    }
+    if (spot.kind === 'box') return;
+    const on = spot.on;
+    if (!target) {
+      if (on) {
+        spot.on = null;
+        this.discard(on);
+      }
+    } else if (on) {
+      this.restyle(on, target);
+    }
+    this.settle(spot);
+  }
+
+  /**
    * **Was man an dieser Station in die Hand bekommt.**
    *
-   * Drei Quellen, und alle drei geben dasselbe zurück: eine Kiste baut neu,
-   * die Pfanne gibt her, was in ihr liegt, und jede andere Station gibt, was
-   * auf ihr liegt. Die Anrichte ist der Sonderfall — dort **entsteht** der
-   * Burger erst beim Nehmen, aus dem Stapel, der darauf liegt.
+   * Zwei Quellen: Eine **Ausgabe** baut neu, so oft man will — ein Stapel
+   * Teller, der nach dem dritten Gast leer ist, wäre bei _Overcooked_ der
+   * Punkt, an dem eine Runde stehenbleibt. Jede andere Station gibt her, was
+   * auf ihr liegt, und ist danach leer.
    */
-  private pickUp(spot: Station, item: KitchenItem): Carried | null {
-    if (spot.kind === 'box') return this.makeItem(item);
-    if (spot.kind === 'build') {
-      const parts = [...spot.stack];
-      spot.stack.length = 0;
-      this.showStack(spot);
-      const object = this.food.burger(parts);
-      this.placed.push(object);
-      return { item: 'burger', object, home: null, parts };
-    }
-    if (spot.kind === 'stove' && spot.pan) {
-      const thing = spot.pan;
-      spot.pan = null;
-      spot.cook = 0;
-      spot.done = false;
-      return thing;
-    }
+  private pickUp(spot: Station, want: Dish): Carried | null {
+    if (spot.kind === 'box') return this.make(want);
     const on = spot.on;
     spot.on = null;
-    if (on) spot.chops = 0;
+    this.settle(spot);
     return on;
   }
 
-  /** Ein neues Ding aus einer Kiste — Zutaten und Teller kennt der Satz. */
-  private makeItem(item: KitchenItem): Carried | null {
-    const object = this.food.item(item);
+  /** Ein neues Ding aus einer Ausgabe — Zutaten und Teller baut der Satz. */
+  private make(want: Dish): Carried | null {
+    const object = this.food.view(want);
+    // `null` gibt es nur für Topf, Pfanne und Feuerlöscher, und die kommen aus
+    // dem Möbelmodell: Eine Ausgabe, die Pfannen ausgäbe, gibt es nicht.
     if (!object) return null;
     this.placed.push(object);
-    return { item, object, home: null };
+    return { dish: want, object, loose: null, topping: null, home: null };
   }
 
   /**
-   * **Aus einem Ding wird ein anderes** — das rohe Patty wird gebraten, der
-   * Salatkopf geschnitten.
+   * **Aus einem Gericht wird ein anderes** — und das Netz zieht nach.
    *
-   * Getauscht wird das **Netz** und nicht das getragene Ding: Wer stattdessen
-   * ein zweites `Carried` bauen ließe, müsste an jeder Stelle nachziehen, die
-   * gerade eines in der Hand oder in der Pfanne hält.
+   * **Die eine Stelle**, an der ein getragenes Ding sein Aussehen wechselt:
+   * gebraten, geschnitten, belegt, abgeräumt. Alles andere ruft hier an, statt
+   * selbst Netze zu bauen — sonst hätte jeder neue Handgriff seine eigene
+   * kleine Fassung davon, und eine davon vergäße den Belag.
+   *
+   * Zwei Wege, je nachdem, woher das Netz kommt (siehe `Carried`):
+   *
+   * - **Geladenes Gerät**: Es bleibt hängen, wo es hängt, und **nur der
+   *   Belag** wird getauscht (`FoodKit.topping`). Es gibt genau eine Pfanne in
+   *   dieser Küche; sie hier wegzuwerfen und neu zu bauen hieße, sie zu
+   *   verlieren. Der Belag kommt dabei an den **Träger** und nicht in das
+   *   geladene Netz — siehe `Carried.loose`, dort steht, warum.
+   * - **Gebautes Gericht**: Ein neues Netz an dieselbe Stelle, das alte weg.
+   *   Ein Burger wird nicht ergänzt, sondern neu geschichtet — wer die Tomate
+   *   zuletzt auflegt, will sie nicht über der Haube liegen sehen
+   *   (`kitchenRecipes.layered`).
    */
-  private reshape(thing: Carried, item: KitchenItem, deck: number): void {
-    const fresh = this.food.item(item);
-    if (!fresh) return;
-    const parent = thing.object.parent;
-    fresh.position.copy(thing.object.position);
-    fresh.position.y = deck;
-    this.drop(thing);
+  private restyle(thing: Carried, next: Dish): void {
+    thing.dish = next;
+    if (thing.loose) {
+      if (thing.topping) {
+        thing.topping.removeFromParent();
+        thing.topping = null;
+      }
+      const top = this.food.topping(next, PAN_RIM);
+      if (top) thing.object.add(top);
+      thing.topping = top;
+      return;
+    }
+    const old = thing.object;
+    const parent = old.parent;
+    // `view` gibt nur für Gerät `null`, und Gerät hat ein `loose` — hier kann
+    // es also nicht leer ausgehen. Eine leere Gruppe statt eines Absturzes
+    // ist trotzdem billiger als eine Küche, die beim Umbau stehenbleibt.
+    const fresh = this.food.view(next) ?? new THREE.Group();
+    fresh.position.copy(old.position);
+    fresh.rotation.copy(old.rotation);
+    old.removeFromParent();
+    this.forget(old);
     parent?.add(fresh);
     this.placed.push(fresh);
     thing.object = fresh;
-    thing.item = item;
-  }
-
-  /**
-   * **Der Stapel auf der Anrichte, wie er gerade aussieht.**
-   *
-   * Er wird bei jeder Schicht neu gebaut und nicht ergänzt: Ein Burger ist
-   * unten das Brötchen und oben die Haube (`FoodKit.burger`), und wer die
-   * Tomate zuletzt auflegt, will sie nicht über der Haube liegen sehen.
-   * Formen und Farben sind geteilt, ein neuer Aufbau kostet also ein paar
-   * Knoten und keine Geometrie.
-   */
-  private showStack(spot: Station): void {
-    if (spot.view) {
-      spot.view.removeFromParent();
-      this.forget(spot.view);
-      spot.view = null;
-    }
-    if (!spot.stack.length || !this.world) return;
-    const view = this.food.burger(spot.stack);
-    view.position.copy(spot.deck);
-    this.world.root.add(view);
-    this.placed.push(view);
-    spot.view = view;
-  }
-
-  /** Der fertige Stapel auf den Teller in der Hand — der Teller trägt ihn. */
-  private dishUp(plate: Carried, parts: KitchenItem[]): void {
-    const burger = this.food.burger(parts);
-    burger.position.y = PLATE_HEIGHT;
-    plate.object.add(burger);
-    plate.item = 'plate-burger';
-    plate.parts = parts;
-  }
-
-  /** Und wieder herunter: Der Burger fliegt, der Teller bleibt. */
-  private scrape(plate: Carried): void {
-    const burger = plate.object.getObjectByName('kitchen-burger');
-    burger?.removeFromParent();
-    plate.item = 'plate';
-    plate.parts = undefined;
   }
 
   /** In die Hand: ans Rig hängen, den Rest macht `update`. */
@@ -1124,14 +1113,39 @@ export class KitchenZone implements TestZone {
     else thing.object.removeFromParent();
   }
 
-  /** Auf eine Fläche: in die Welt hängen, mittig auf die Arbeitsplatte. */
+  /**
+   * **Auf eine Fläche**: in die Welt hängen, mittig auf die Arbeitsplatte —
+   * und die Uhr der Station auf das setzen, was jetzt darauf steht.
+   */
   private layOn(spot: Station, thing: Carried): void {
     const world = this.world;
     spot.on = thing;
-    spot.chops = 0;
     thing.object.rotation.set(0, 0, 0);
     if (world) world.root.add(thing.object);
     thing.object.position.copy(spot.deck);
+    this.settle(spot);
+  }
+
+  /**
+   * **Die Uhren dieser Station auf ihren Inhalt setzen.**
+   *
+   * Gerufen wird das **nur**, wenn sich der Inhalt geändert hat — nehmen,
+   * hinlegen, zusammenlegen, löschen. Beide Uhren fangen dabei von vorn an,
+   * und das ist ihre Regel und nicht diese Zeile: Was auf den Herd kommt,
+   * kommt frisch darauf (`kitchenClock.onStove`), und was aufs Brett gelegt
+   * wird, wird von vorn geschnitten (`onBoard`). Je Bild gerufen wäre es der
+   * Fehler, den man erst im Headset sieht: Ein Patty, das nie fertig wird.
+   */
+  private settle(spot: Station): void {
+    const on = spot.on?.dish ?? null;
+    if (spot.kind === 'stove') {
+      // Auf dem Herd steht die Pfanne, **in** ihr liegt das Patty. Liegt dort
+      // etwas anderes (ein Teller, ein Brötchen), brät nichts — und genau das
+      // sagt `onStove(null)`.
+      spot.stove = onStove(on?.item === 'pan' ? (on.on[0] ?? null) : null);
+      return;
+    }
+    if (spot.kind === 'board') spot.chop = onBoard(on?.item ?? null);
   }
 
   /**
@@ -1143,11 +1157,6 @@ export class KitchenZone implements TestZone {
    * abgeräumt werden.
    */
   private discard(thing: Carried): void {
-    this.drop(thing);
-  }
-
-  /** Ein Objekt aus der Szene und aus `placed` nehmen. */
-  private drop(thing: Carried): void {
     thing.object.removeFromParent();
     this.forget(thing.object);
   }
@@ -1157,36 +1166,80 @@ export class KitchenZone implements TestZone {
     if (at >= 0) this.placed.splice(at, 1);
   }
 
+  // --- die Tafel an der Ausgabetheke -----------------------------------------
+
+  /**
+   * **„Hamburger serviert"** — kurz, an der Theke, und dann wieder weg.
+   *
+   * Dieselbe Tafel wie an den Schaustücken (`ui/TextPlane.ts`) und dieselbe
+   * Neigung: Sie schaut nach Süden und lehnt sich zurück, weil die Hauptansicht
+   * die Kamera von oben ist und die von dort kommt. Eine Meldung am Handgelenk
+   * gibt es auch, aber die sieht man nur, wenn man hinschaut — und wer gerade
+   * etwas über eine Theke schiebt, schaut auf die Theke.
+   *
+   * **Eine für die ganze Zone**, mit neuem Text statt einer zweiten Tafel: Wer
+   * drei Burger hintereinander ausgibt, soll nicht drei Schilder übereinander
+   * stehen haben, und eine Leinwand je Gericht wäre eine Textur je Gericht.
+   */
+  private showTicket(spot: Station, label: string): void {
+    const world = this.world;
+    if (!world || typeof document === 'undefined') return;
+    let plate = this.ticket;
+    if (!plate) {
+      plate = new TextPlane({
+        width: 1.3,
+        height: 0.36,
+        title: `${label} serviert`,
+        accent: 0x7de88a,
+        align: 'center',
+      });
+      plate.rotation.x = -0.35;
+      this.ticket = plate;
+      this.labels.push(plate);
+      this.placed.push(plate);
+    } else {
+      plate.setText(`${label} serviert`);
+    }
+    plate.position.set(spot.deck.x, spot.deck.y + TICKET_LIFT, spot.deck.z);
+    plate.visible = true;
+    world.root.add(plate);
+    this.ticketLeft = TICKET_SECONDS;
+  }
+
+  /** Nach ein paar Sekunden wieder ab — die Tafel selbst bleibt liegen. */
+  private fadeTicket(dt: number): void {
+    if (this.ticketLeft <= 0) return;
+    this.ticketLeft -= dt;
+    if (this.ticketLeft > 0) return;
+    this.hideTicket();
+  }
+
+  private hideTicket(): void {
+    this.ticketLeft = 0;
+    if (!this.ticket) return;
+    this.ticket.visible = false;
+    this.ticket.removeFromParent();
+  }
+
   private own<T extends THREE.Material>(material: T): T {
     this.owned.push(material);
     return material;
   }
 }
 
-/** Die Station, so viel wie die Regel davon braucht (`kitchenCarry.ts`). */
+/**
+ * **Die Station, so viel wie die Regel davon braucht** (`kitchenCarry.ts`).
+ *
+ * Vier Felder, und keines davon rechnet die Zone selbst aus: Ob der Herd
+ * brennt, weiß seine Uhr (`StoveState.fire`), was darauf liegt, ist das
+ * `Dish` des getragenen Dings. Die Regel bekommt damit genau das, was sie
+ * lesen darf — und nicht die halbe Zone.
+ */
 function facts(spot: Station): StationFacts {
   return {
     kind: spot.kind,
-    on: spot.on?.item ?? null,
-    ...(spot.gives ? { gives: spot.gives } : {}),
-    chops: spot.chops,
-    pan: spot.pan?.item ?? null,
-    done: spot.done,
-    stack: spot.stack,
+    on: spot.on?.dish ?? null,
+    gives: spot.gives,
+    fire: spot.stove.fire,
   };
 }
-
-/** Die Namen, die dieser Aufbau benutzt — für den Test daneben. */
-export const KITCHEN_USED: readonly string[] = KITCHEN_SPOTS.map((spot) => spot.name);
-
-/** Und die, die er (noch) nicht benutzt — dieselbe Liste, andersherum gelesen. */
-export function unusedKitchenPieces(): readonly string[] {
-  return KITCHEN_PIECES.filter((piece) => !KITCHEN_USED.includes(piece.name)).map(
-    (piece) => piece.name,
-  );
-}
-
-/** Die Möbel, die der Schauraum einzeln zeigt — jedes genau einmal. */
-export const KITCHEN_SHOWN: readonly string[] = KITCHEN_SPOTS.filter((spot) => spot.show).map(
-  (spot) => spot.name,
-);

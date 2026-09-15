@@ -1,0 +1,417 @@
+import type { GridPlan } from '../../grid/gridPlan';
+import { DIR_E, DIR_N, DIR_W } from '../../nav/navTile';
+import { KITCHEN_PIECES, kitchenPiece, type KitchenPiece } from '../../../core/kitchenFit';
+import { KITCHEN } from '../layout';
+import type { KitchenItem, StationKind } from './kitchenCarry';
+import { PLATE_HEIGHT } from './kitchenProps';
+
+/**
+ * **Der Aufbau der Küche** — welches Möbel wo steht, was es im Grundriss
+ * belegt und welche Rolle es im Spiel übernimmt. Ohne Szene, ohne Netz, ohne
+ * Zone.
+ *
+ * **Warum eine eigene Datei neben `kitchen.ts`.** Diese Zahlen werden an zwei
+ * Stellen gebraucht, und nur eine davon spielt: `worlds/test/testPlan.ts`
+ * stempelt den Grundriss, lange bevor irgendein Modell geladen ist, und
+ * `testPlan.test.ts` rechnet ihn nach — beide wollen den Aufbau und nicht die
+ * Küche. Die Zone daneben ist der andere Fall: Sie hängt Netze um, baut
+ * Körper, backt Icons und führt Uhren. Zusammen waren das anderthalbtausend
+ * Zeilen, in denen die Frage „wo steht der Herd?" zwischen zwei Absätzen über
+ * Trefferkästen stand.
+ *
+ * Die Zone reicht alles hier weiter (`kitchen.ts`, `export *`), damit niemand
+ * seine Importe umschreiben muss — und damit es **keinen Ringschluss** gibt:
+ * Der Aufbau kennt die Zone nicht, die Zone kennt den Aufbau.
+ */
+
+/** Wie viele Viertelumdrehungen ein Möbel gedreht wird. */
+export type Turn = 0 | 1 | 2 | 3;
+
+/** Ein Stück in der Küche: welches, wo, wie herum — und wofür. */
+export interface Spot {
+  /** Der Name im Katalog (`core/kitchenFit.KITCHEN_PIECES`). */
+  readonly name: string;
+  /** Die nordwestliche Kachel seiner Grundfläche, relativ zur Zone. */
+  readonly x: number;
+  readonly z: number;
+  /**
+   * Viertelumdrehungen um die Hochachse; 0 ist wie geliefert, und **vorn ist
+   * dann Norden** (−z). Eine Umdrehung dreht nach Westen, zwei nach Süden
+   * (zum Gang hin), drei nach Osten.
+   */
+  readonly turn?: Turn;
+  /**
+   * **Wie hoch über dem Boden es steht**, in Metern — 0 für alles, was auf
+   * dem Boden steht.
+   *
+   * Es gibt genau einen Fall, und der ist der Grund für dieses Feld: Das
+   * **Ausgaberegal** mit den beiden Wärmeschirmen gehört über die
+   * Ausgabetheke und nicht dahinter. Es stand eine Kachel nördlich davon —
+   * zwei rote Schirme, die auf nichts zeigten. Jetzt steht es auf **derselben
+   * Kachel eine Ebene höher**, also dort, wo die Schirme das beleuchten, was
+   * auf der Theke liegt (`rackLift`).
+   */
+  readonly lift?: number;
+  /**
+   * **Was dieses Möbel ausgibt** — und damit zugleich, dass es eine Ausgabe
+   * ist (`stationKind`).
+   *
+   * Die vier Zutaten und die Teller kommen nicht mehr aus gebauten Holzkisten,
+   * sondern aus dem Möbel `serve-counter` des Katalogs, mit einem gerenderten
+   * Bild der Zutat an der Vorderseite (`kitchenIcon.IconOven`). Eine Kiste,
+   * die es nur in dieser einen Küche gibt, war ein Möbel, das nirgends im
+   * Schauraum stand und in keiner Liste auftauchte.
+   */
+  readonly gives?: KitchenItem;
+  /**
+   * **Wie die Station im Hinweis heißt**, wenn der Katalogname nicht passt.
+   *
+   * Vier Ausgaben nebeneinander heißen im Katalog alle _Ausgabe_ — vor der
+   * Salatausgabe soll aber _Salatausgabe_ stehen und nicht dreimal dasselbe
+   * Wort. Der Katalog bleibt davon unberührt: Er beschreibt das gekaufte
+   * Möbel, nicht seine Rolle in einem Aufbau (`core/kitchenFit.ts`).
+   */
+  readonly label?: string;
+  /**
+   * **Ob es im Schauraum steht** statt in der Küche.
+   *
+   * Ein Schaustück wird beschriftet, gibt nichts her und nimmt nichts an —
+   * und es bekommt **keine Sperre über sich** (`BLOCK_HEIGHT`): Wer durch
+   * einen Schauraum geht, soll nicht gegen Luft laufen, die dort steht, damit
+   * niemand auf eine Arbeitsplatte springt.
+   */
+  readonly show?: boolean;
+}
+
+/**
+ * Die Höhe der Ausgabetheke — die Ebene, **auf** der das Regal stünde.
+ *
+ * Eine Funktion und keine Konstante, weil sie **vor** `KITCHEN_SPOTS`
+ * gebraucht wird und aus dem Katalog kommt: Wer die Theke im Katalog ändert,
+ * soll das Regal nicht nachmessen müssen.
+ */
+export function passTop(): number {
+  return kitchenPiece('pass')?.height ?? 0.53;
+}
+
+/**
+ * **Wie viel Luft zwischen Theke und Regal bleibt**, in Metern.
+ *
+ * Das Regal stand bis eben mit seinem Fuß genau auf der Theke — zwei Möbel,
+ * die sich berühren, und darunter passte nichts, nicht einmal ein Blatt
+ * Papier. Ein Ausgaberegal ist aber kein Deckel: Unter den Wärmeschirmen soll
+ * ein Teller stehen können.
+ *
+ * Die Rechnung, gemessen und nicht geraten:
+ *
+ * - Die Ausgabetheke ist **0,53 m** hoch (`core/kitchenFit.KITCHEN_PIECES`,
+ *   `pass`), das Regal selbst 0,56 m.
+ * - Ein Teller ist **0,05 m** hoch (`kitchenProps.PLATE_HEIGHT`, nachgebaut
+ *   aus dem Modell).
+ * - 0,12 m Luft heißt also: Der Teller schiebt sich mit **7 cm Rest** unter
+ *   das Regal, und man sieht von der Seite, dass da eine Fuge ist.
+ * - Ein **Burger** passt nicht darunter, und das ist Absicht: Ein Hamburger
+ *   trägt schon 0,46 m auf, der Deluxe 0,59 m (`kitchenProps.stackHeight`).
+ *   Ein Regal, unter das ein Burger passt, stünde mit seiner Oberkante über
+ *   dem Kopf des Kochs (1,60 m, `core/chefFit.CHEF_HEIGHT`) und leuchtete auf
+ *   den Boden. Das fertige Gericht steht **vor** dem Regal auf der Theke, wo
+ *   die Schirme hinzeigen — nicht darin.
+ *
+ * So bleibt die Oberkante des Regals bei 0,53 + 0,12 + 0,56 = **1,21 m**: über
+ * der Theke, unter dem Kopf, und von oben sieht man beides.
+ */
+export const RACK_AIR = PLATE_HEIGHT + 0.07;
+
+/** Wie hoch der Fuß des Ausgaberegals über dem Boden steht, in Metern. */
+export function rackLift(): number {
+  return passTop() + RACK_AIR;
+}
+
+/**
+ * **Der Aufbau der Küche** — drei Bänder, wie in jeder Küche dieses Spiels,
+ * und die Ausgaben an der Westwand.
+ *
+ * Die Zahlen sind Kacheln **innerhalb** der Zone (`layout.KITCHEN`), damit sich
+ * die ganze Küche verschieben lässt, ohne dreißig Zeilen nachzurechnen. Wie
+ * groß ein Stück ist, steht nicht hier, sondern im Katalog — gemessen und
+ * nicht geschätzt.
+ *
+ * **Die beiden Schneidebretter stehen jetzt gleich.** Vorher stand eines
+ * zwischen zwei Küchenzeilen und das andere zwischen zwei Arbeitstischen, und
+ * das sieht man: Eine Zeile ist 1,06 m tief, ein Tisch 1,00 m, ein Brett
+ * ebenfalls 1,00 m — in der Zeile sprang das Brett also vorn und hinten drei
+ * Zentimeter zurück, auf der Insel schloss es bündig ab. Zwei Bretter, die
+ * verschieden stehen, sind ein Fehler, den man sieht und nicht erklären kann.
+ * Beide stehen deshalb in derselben Nachbarschaft: Zeile, Brett, Zeile.
+ *
+ * **Nachtrag: die Delle ist weg, und zwar im Katalog.** Inzwischen rückt
+ * `KitchenPiece.align` das Brett um die gemessenen 3,07 cm nach Süden, womit
+ * seine **Vorderkante** mit der der Zeile fluchtet (`core/kitchenFit.ts`);
+ * hinten wächst die Lücke dafür auf 6,1 cm und zeigt zur Wand. Die gleiche
+ * Nachbarschaft bleibt trotzdem: Sie kostet nichts, und ein Brett zwischen
+ * zwei verschieden tiefen Möbeln hätte wieder zwei verschiedene Fugen.
+ *
+ * **Die Anrichte ist abgeschafft.** Der Arbeitstisch ist eine Ablage wie jede
+ * andere — kombiniert wird überall (`kitchenCarry.ts`), und ein Möbel, auf dem
+ * als einzigem ein Burger entsteht, gibt es bei _Overcooked_ nicht.
+ */
+export const KITCHEN_SPOTS: readonly Spot[] = [
+  // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ----------------
+  { name: 'counter', x: 0, z: 0 },
+  { name: 'stove', x: 1, z: 0 },
+  { name: 'stove-pot', x: 2, z: 0 },
+  // Der **einzige** Herd mit Pfanne, und damit der einzige, auf dem etwas
+  // brät: Es gibt genau eine Pfanne in dieser Küche (`kitchen.ts`).
+  { name: 'stove-pan', x: 3, z: 0 },
+  { name: 'counter', x: 4, z: 0 },
+  // Zwei Kacheln breit — sie ist das einzige Stück, das die Zeile unterbricht.
+  { name: 'sink', x: 5, z: 0 },
+  { name: 'counter', x: 7, z: 0 },
+  { name: 'board', x: 8, z: 0 },
+  { name: 'counter', x: 9, z: 0 },
+  { name: 'plate-counter', x: 10, z: 0, gives: 'plate' },
+
+  // --- die Ecke nach Osten: sie trennt die Küche vom Schauraum ----------------
+  { name: 'counter', x: 11, z: 1 },
+  { name: 'counter', x: 11, z: 2 },
+  { name: 'bin', x: 11, z: 3 },
+
+  // --- die Ausgaben an der Westwand, zur Küche hin gedreht --------------------
+  // Vier nebeneinander und nicht verteilt, seit es Rezepte gibt
+  // (`kitchenRecipes.ts`): Wer für einen Deluxe vier Zutaten holt, läuft sonst
+  // viermal quer durch den Raum, bevor überhaupt etwas in der Pfanne liegt.
+  // Nicht auf der Ankunftskachel (`layout.SPAWNS.kitchen`, x = 1, z = 7): In
+  // eine Ausgabe hineingesetzt zu werden ist ein Anfang, den niemand versteht.
+  { name: 'serve-counter', x: 1, z: 3, turn: 3, gives: 'bun', label: 'Brötchenausgabe' },
+  { name: 'serve-counter', x: 1, z: 4, turn: 3, gives: 'patty', label: 'Pattyausgabe' },
+  { name: 'serve-counter', x: 1, z: 5, turn: 3, gives: 'lettuce', label: 'Salatausgabe' },
+  { name: 'serve-counter', x: 1, z: 6, turn: 3, gives: 'tomato', label: 'Tomatenausgabe' },
+
+  // --- die Insel in der Mitte ------------------------------------------------
+  // Zeile, Brett, Zeile — dieselbe Nachbarschaft wie an der Nordwand.
+  { name: 'counter', x: 3, z: 4 },
+  { name: 'board', x: 4, z: 4 },
+  { name: 'counter', x: 5, z: 4 },
+  { name: 'bin', x: 6, z: 4 },
+  { name: 'table', x: 7, z: 4 },
+
+  // --- und vorn die Ausgabe, zum Gang hin gedreht -----------------------------
+  { name: 'serve-counter', x: 3, z: 9, turn: 2 },
+  { name: 'plate-counter', x: 4, z: 9, turn: 2, gives: 'plate' },
+  { name: 'pass', x: 5, z: 9, turn: 2 },
+  // Die Wärmeschirme: **dieselbe Kachel, eine Ebene höher** — auf der Theke
+  // und nicht dahinter, mit Luft dazwischen (`rackLift`).
+  { name: 'plate-rack', x: 5, z: 9, turn: 2, lift: rackLift() },
+  { name: 'serve-counter', x: 7, z: 9, turn: 2 },
+  // Der Hocker mit dem Feuerlöscher steht am Weg nach draußen: Wer vom Gang
+  // hereinkommt, läuft daran vorbei, und wenn es brennt, weiß er, wohin.
+  { name: 'extinguisher', x: 0, z: 9 },
+
+  // --- der Schauraum: jedes Möbel einmal, einzeln und beschriftet -------------
+  { name: 'plate-counter', x: 13, z: 1, show: true },
+  { name: 'extinguisher', x: 15, z: 1, show: true },
+  { name: 'sink', x: 17, z: 1, show: true },
+  { name: 'bin', x: 20, z: 1, show: true },
+  { name: 'table', x: 22, z: 1, show: true },
+
+  { name: 'serve-counter', x: 13, z: 4, show: true },
+  { name: 'board', x: 15, z: 4, show: true },
+  { name: 'plate-rack', x: 17, z: 4, show: true },
+  { name: 'pass', x: 20, z: 4, show: true },
+
+  { name: 'counter', x: 13, z: 7, show: true },
+  { name: 'stove', x: 15, z: 7, show: true },
+  { name: 'stove-pot', x: 17, z: 7, show: true },
+  { name: 'stove-pan', x: 19, z: 7, show: true },
+];
+
+/** Wie weit ein Möbel eine Kachel verteuert — teurer als ein Baustein. */
+const FURNITURE_COST = 8;
+
+/** Wo die Oberkante des Küchenbodens liegt — knapp über dem Gelände. */
+export const KITCHEN_FLOOR = 0.02;
+
+/** Die Grundfläche eines Stücks in Kacheln, gedreht wie es steht. */
+export function footprint(piece: KitchenPiece, turn: Turn): { w: number; d: number } {
+  const [w, d] = piece.tiles;
+  return turn % 2 === 0 ? { w, d } : { w: d, d: w };
+}
+
+/**
+ * **Der Grundriss der Zone** — drei Wände und die Kacheln, auf denen Möbel
+ * stehen.
+ *
+ * Nach Süden bleibt sie offen: Dort kommt man herein, und eine Küche mit einer
+ * Tür wäre eine Küche, in der zwei Köche sich im Durchgang begegnen.
+ */
+export function stampKitchen(plan: GridPlan): void {
+  const east = KITCHEN.x + KITCHEN.w - 1;
+  const south = KITCHEN.z + KITCHEN.d - 1;
+
+  // **Ein Boden aus Stein.** Ohne ihn steht die Küche auf der Wiese des
+  // Geländes, und eine Spüle im Gras sieht aus wie ein Versehen. Er liegt
+  // knapp über dem Gelände, damit sich die beiden nicht um jedes Pixel
+  // streiten — dieselbe Handbreit wie der Asphalt der Boxengasse.
+  plan.mass('stone', KITCHEN, -0.06, KITCHEN_FLOOR);
+
+  plan.run(KITCHEN.x, KITCHEN.z, KITCHEN.w, 'x', (x, z) => plan.wall(x, z, DIR_N));
+  for (let z = KITCHEN.z; z <= south; z++) {
+    plan.wall(KITCHEN.x, z, DIR_W);
+    plan.wall(east, z, DIR_E);
+  }
+
+  // **Was ein Möbel belegt, ist teuer zu begehen** — und zwar im Graphen und
+  // nicht bloß im Bild. Ohne diese Schleife liefe ein NPC durch den Herd.
+  //
+  // Seit die Zutatenausgaben Möbel aus dem Katalog sind, steht hier **eine**
+  // Schleife und nicht mehr zwei: Die vier Kisten an der Westwand brauchten
+  // vorher ihren eigenen Aufschlag, weil sie in keiner Möbelliste standen.
+  //
+  // Ein **gehobenes** Stück zählt nicht mit: Das Ausgaberegal steht über der
+  // Theke, und deren Kacheln sind schon teuer. Zweimal derselbe Aufschlag auf
+  // dieselbe Kachel wäre eine Kachel, um die ein NPC grundlos weiter
+  // herumginge.
+  for (const spot of KITCHEN_SPOTS) {
+    const piece = kitchenPiece(spot.name);
+    if (!piece || piece.hanging || spot.lift) continue;
+    const size = footprint(piece, spot.turn ?? 0);
+    for (let dz = 0; dz < size.d; dz++) {
+      for (let dx = 0; dx < size.w; dx++) {
+        plan.floor(
+          { x: KITCHEN.x + spot.x + dx, z: KITCHEN.z + spot.z + dz, w: 1, d: 1 },
+          { cost: FURNITURE_COST },
+        );
+      }
+    }
+  }
+}
+
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
+ * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
+ * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
+ * weggebaut.
+ *
+ * **Das Schild hier ist zugleich die Probe auf den Aushang** (`fixtures/sign.ts`):
+ * Es trägt mehr als eine Zeile, mit Überschrift und Aufzählung, und wer es
+ * benutzt, schlägt es im Menü auf. Ein Schild mit einer Zeile beweist nicht,
+ * dass Markdown ankommt.
+ *
+ * **Und es beschreibt den Weg, den es wirklich gibt.** Es stand hier lange ein
+ * Rezept mit Anrichte und dreimal Drücken — beides gibt es nicht mehr, und ein
+ * Aushang, der einen abgeschafften Handgriff erklärt, ist schlimmer als keiner:
+ * Wer ihn liest, sucht danach ein Möbel, das nirgends steht.
+ */
+export function fitKitchen(plan: GridPlan): void {
+  plan.putFixture({
+    id: 'schild-kueche',
+    kind: 'sign',
+    x: KITCHEN.x + 1,
+    z: KITCHEN.z + KITCHEN.d - 1,
+    dir: DIR_W,
+    props: {
+      text: [
+        '# Die Küche',
+        '',
+        'Möbel aus *Overcooked Kitchen Assets (Fan Art)* von Arun Kumar S,',
+        'CC-BY-4.0 — siehe `public/models/CREDITS.md`.',
+        '',
+        '- An der Westwand: vier Ausgaben — Brötchen, Patty, Salat, Tomate',
+        '- An der Nordwand: Zeile, drei Herde, Spüle, Tellerausgabe',
+        '- In der Mitte: Schneidebrett, Mülleimer, Arbeitstisch',
+        '- Vorn: die Ausgabetheke mit den Wärmeschirmen darüber',
+        '- Im Osten: der Schauraum — jedes Möbel einmal, beschriftet',
+        '',
+        '## Ein Burger',
+        '',
+        '1. **Patty** an der Ausgabe holen und in die **Pfanne** auf dem Herd',
+        '   legen. Der Balken darüber zeigt, wie weit es ist — und er läuft',
+        '   weiter: Aus gebraten wird verbrannt, aus verbrannt wird Feuer.',
+        '2. **Salat** und **Tomate** auf ein **Schneidebrett** legen. Es',
+        '   schneidet von selbst, solange jemand davorsteht; wer weggeht,',
+        '   findet den Fortschritt wieder, wo er ihn gelassen hat.',
+        '3. Alles Fertige auf ein **Brötchen** oder einen **Teller** legen —',
+        '   die Reihenfolge ist egal, und kombiniert wird überall: in der Hand,',
+        '   auf der Zeile, am Brett, an der Ausgabe.',
+        '4. Den Burger über die **Ausgabetheke** schieben. Der Teller bleibt in',
+        '   der Hand, an der Theke steht kurz, was es geworden ist.',
+        '',
+        'Fünf Rezepte: Hamburger, Salatburger, Tomatenburger, Suppenburger,',
+        'Burger Deluxe — wer etwas anderes zusammenstellt, serviert es als',
+        '*Burger nach Art des Hauses*.',
+        '',
+        '## Wenn es brennt',
+        '',
+        'Ein vergessenes Patty qualmt erst (rotes Warndreieck) und brennt dann.',
+        'Ein brennender Herd nimmt nichts mehr an: Den **Feuerlöscher** vom',
+        'Hocker an der Westwand holen und damit `A` auf dem Herd drücken.',
+        '',
+        'Am Mülleimer fliegt weg, was auf dem Träger liegt — der Teller bleibt',
+        'in der Hand. Topf, Pfanne und Feuerlöscher gehören nicht hinein.',
+        '',
+        '`A` nimmt, legt ab und legt zusammen; getragen wird mit beiden Händen',
+        'vor dem Bauch. Was in der Hand liegt, lässt jede Ablage leuchten.',
+        '',
+        '---',
+        '',
+        '> Der Koch ist 1,60 m hoch. Der Tresen ist einen halben Meter hoch.',
+        '> Genau dafür wurde er so skaliert.',
+      ].join('\n'),
+    },
+  });
+}
+
+/**
+ * **Welches Möbel welche Rolle spielt** — und alles, was hier nicht steht, ist
+ * eine gewöhnliche Ablage (`KitchenPiece.worktop`).
+ *
+ * Eine Tabelle und keine Kette aus `if`: Sie ist die eine Stelle, an der ein
+ * gekauftes Möbel zu einer Spielregel wird. Wer den Mülleimer gegen die Spüle
+ * tauschen will, ändert genau eine Zeile.
+ *
+ * Die **Ausgaben** stehen nicht darin, und das ist der Unterschied zwischen
+ * Möbel und Aufbau: Ob ein `serve-counter` Brötchen ausgibt oder bloß eine
+ * Ablage vor der Theke ist, entscheidet `Spot.gives` — dasselbe Möbel steht in
+ * dieser Küche in beiden Rollen.
+ */
+const STATION_KINDS: Readonly<Record<string, StationKind>> = {
+  bin: 'bin',
+  board: 'board',
+  'stove-pan': 'stove',
+  pass: 'serve',
+  extinguisher: 'rack',
+};
+
+/**
+ * **Was dieses Möbel an dieser Stelle ist** — oder `null`, wenn `A` daran
+ * nichts bewirkt (Spüle, Ausgaberegal).
+ *
+ * Die Reihenfolge ist die Entscheidung: Was ausgibt, ist eine **Ausgabe**,
+ * egal welches Möbel darunter steht; danach zählt die Tabelle; und alles, was
+ * im Katalog eine Arbeitsfläche ist, ist eine **Ablage**. Genau ein Möbel
+ * wechselt damit seine Rolle je nach Platz, und genau dafür ist es gedacht.
+ */
+export function stationKind(name: string, gives?: KitchenItem): StationKind | null {
+  if (gives) return 'box';
+  const kind = STATION_KINDS[name];
+  if (kind) return kind;
+  return kitchenPiece(name)?.worktop ? 'top' : null;
+}
+
+/** Die Namen, die dieser Aufbau benutzt — für den Test daneben. */
+export const KITCHEN_USED: readonly string[] = KITCHEN_SPOTS.map((spot) => spot.name);
+
+/** Und die, die er (noch) nicht benutzt — dieselbe Liste, andersherum gelesen. */
+export function unusedKitchenPieces(): readonly string[] {
+  return KITCHEN_PIECES.filter((piece) => !KITCHEN_USED.includes(piece.name)).map(
+    (piece) => piece.name,
+  );
+}
+
+/** Die Möbel, die der Schauraum einzeln zeigt — jedes genau einmal. */
+export const KITCHEN_SHOWN: readonly string[] = KITCHEN_SPOTS.filter((spot) => spot.show).map(
+  (spot) => spot.name,
+);
