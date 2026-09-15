@@ -143,7 +143,7 @@ describe('der Möbelkatalog', () => {
    */
   it('gibt jedem Möbel mit losem Gerät eine Fläche darunter', () => {
     const holding = KITCHEN_PIECES.filter((piece) => piece.holds);
-    expect(holding.map((piece) => piece.name)).toEqual(['stove-pot', 'stove-pan']);
+    expect(holding.map((piece) => piece.name)).toEqual(['extinguisher', 'stove-pot', 'stove-pan']);
     for (const piece of holding) {
       expect({ name: piece.name, worktop: piece.worktop === true }).toEqual({
         name: piece.name,
@@ -155,13 +155,14 @@ describe('der Möbelkatalog', () => {
 
   /**
    * **Der Versatz bleibt in der Kachel.** Er gleicht einen überstehenden Griff
-   * aus (`KitchenPiece.align`, der Pfannenstiel) und ist damit ein paar
+   * aus (`KitchenPiece.align`, der Pfannenstiel) oder ein Möbel, das flacher
+   * ist als seine Nachbarn (das Schneidebrett), und ist damit ein paar
    * Zentimeter — wer hier einen halben Meter einträgt, stellt ein Möbel auf
    * die Nachbarkachel, ohne dass der Grundriss davon wüsste.
    */
   it('rückt kein Möbel weiter als eine halbe Kachel aus der Mitte', () => {
     const shifted = KITCHEN_PIECES.filter((piece) => piece.align);
-    expect(shifted.map((piece) => piece.name)).toEqual(['stove-pan']);
+    expect(shifted.map((piece) => piece.name)).toEqual(['board', 'stove-pan']);
     for (const piece of KITCHEN_PIECES) {
       const [x, z] = piece.align ?? [0, 0];
       expect(Math.max(Math.abs(x), Math.abs(z))).toBeLessThan(0.5);
@@ -169,5 +170,56 @@ describe('der Möbelkatalog', () => {
     // Gemessen an der Datei: Der Korpus reicht von z = −0,610 bis z = +0,453,
     // seine Mitte liegt also bei −0,078 — genau so weit rückt er zurück.
     expect(kitchenPiece('stove-pan')!.align).toEqual([0, 0.078]);
+  });
+
+  /**
+   * **Die Vorderkante des Schneidebretts fluchtet mit der Küchenzeile.**
+   *
+   * Es ist flacher als sie — 2,00 m gegen 2,12 m in der Quelle —, und
+   * mittig auf derselben Kachelmitte sprang es vorn wie hinten drei
+   * Zentimeter zurück. Sichtbar ist davon nur die **Vorderkante**: Dort steht
+   * die Figur, dort greift sie zu. Der Versatz ist deshalb der **ganze**
+   * halbe Tiefenunterschied nach Süden und nicht die Hälfte davon — hinten
+   * wird die Lücke dafür doppelt so groß, und die zeigt zur Wand.
+   *
+   * Gerechnet aus `SOURCE` und nicht abgeschrieben: Wer die Quelle
+   * austauscht, sieht hier, dass der Versatz nachzumessen ist.
+   */
+  it('stellt das Schneidebrett vorn bündig zur Küchenzeile', () => {
+    const board = kitchenPiece('board')!;
+    const counter = kitchenPiece('counter')!;
+    const front = (name: string) => (SOURCE[name]![2] * KITCHEN_SCALE) / 2;
+    const [ax, az] = board.align!;
+    expect(ax).toBe(0);
+    // Nach Süden, also auf die Seite, an der die Figur steht.
+    expect(az).toBeGreaterThan(0);
+    // Auf den halben Zentimeter genau wie überall in diesem Katalog: Die
+    // Quellmaße daneben sind auf zwei Stellen gerundet.
+    expect(Math.abs(front('board') + az - front('counter'))).toBeLessThanOrEqual(0.005 + 1e-9);
+    // Und hinten bleibt genau die doppelte Lücke stehen — kein Versehen,
+    // sondern der Preis für die bündige Vorderkante.
+    const gap = front('counter') - front('board') + az;
+    expect(gap).toBeCloseTo(2 * az, 2);
+    expect(board.tiles).toEqual(counter.tiles);
+  });
+
+  /**
+   * **Der Feuerlöscher steht auf einem Hocker, und der Hocker ist die
+   * Ablage.** In der Datei ist `extinguisher` zweigeteilt wie ein Herd mit
+   * Topf: ein Korpus bis 1,00 m (Quellmaß) und darüber ein eigenes Netz aus
+   * `Kitchen_Utensils` bis 2,50 m. `height` ist die Oberkante des Löschers,
+   * `deck` die des Hockers — wer beides verwechselt, stellt den Löscher beim
+   * Zurückstellen auf seine eigene Kappe.
+   */
+  it('nimmt den Feuerlöscher vom Hocker und legt ihn auf den Hocker zurück', () => {
+    const piece = kitchenPiece('extinguisher')!;
+    expect(piece.holds).toBe('extinguisher');
+    // Ohne Ablage meldet sich die Stelle nicht, und dann wird auch nichts
+    // abgenommen (`worlds/test/zones/kitchen.ts`, `addStations`).
+    expect(piece.worktop).toBe(true);
+    // Der Hocker: halbe Höhe des Korpus aus der Quelle (1,00 m).
+    expect(kitchenDeck(piece)).toBeCloseTo(1 * KITCHEN_SCALE, 2);
+    // Der Löscher darüber: gut drei Viertel Meter hoch.
+    expect(piece.height - kitchenDeck(piece)).toBeCloseTo(0.75, 2);
   });
 });

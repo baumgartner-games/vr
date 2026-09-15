@@ -74,24 +74,55 @@ export interface KitchenPiece {
    * Ob man auf diesem Möbel **etwas ablegen** kann.
    *
    * Nicht jede waagerechte Fläche ist eine: In den Mülleimer wird geworfen
-   * und nicht gelegt, auf einem Feuerlöscher steht nichts, und das
-   * Ausgaberegal hängt über der Theke (`worlds/test/zones/kitchen.ts`).
+   * und nicht gelegt, und das Ausgaberegal steht über der Theke
+   * (`worlds/test/zones/kitchen.ts`).
+   *
+   * **Umgekehrt ist jedes Möbel mit `holds` eine.** Der Hocker unter dem
+   * Feuerlöscher sah lange nach keiner Ablage aus — bis der Löscher in die
+   * Hand soll: Wohin er zurückgestellt wird, ist eine Fläche. Ohne dieses
+   * Feld meldet sich die Stelle gar nicht erst, und dann wird auch nichts
+   * abgenommen (`worlds/test/zones/kitchen.ts`, `addStations`: Ein Möbel
+   * ohne Stationsart und ohne `worktop` wird übersprungen, `holds` hin oder
+   * her).
    */
   readonly worktop?: boolean;
 
   /**
-   * **Was man von diesem Möbel herunternehmen kann** — der Topf, die Pfanne.
+   * **Was man von diesem Möbel herunternehmen kann** — der Topf, die Pfanne,
+   * der Feuerlöscher.
    *
    * Das Stück ist im Modell ein **eigenes Netz** (Material `Kitchen_Utensils`,
    * `core/kitchenModel.ts`): Ein Herd mit Topf ist eine Gruppe aus Korpus und
    * Topf, und wer den Topf nimmt, lässt einen leeren Herd stehen. Ohne dieses
    * Feld wüsste die Küche nicht, dass es dort überhaupt etwas zu greifen gibt.
+   *
+   * **Der Feuerlöscher gehört dazu, und das ist nachgemessen und nicht
+   * angenommen.** In der Datei ist `extinguisher` genau dieselbe Bauart wie
+   * ein Herd mit Topf: ein Korpus aus `Kitchen_Cabins` von y = 0,000 bis
+   * 1,000 (Quellmaß, halbiert 0,500 m) — das ist der **Hocker** — und darüber
+   * **ein einziges** Netz aus `Kitchen_Utensils` von y = 1,002 bis 2,497
+   * (halbiert 0,501 bis 1,249 m), der Löscher selbst.
+   * `core/kitchenModel.takeUtensil` nimmt das erste Netz dieses Materials und
+   * findet damit ohne eine Zeile Sonderfall den Löscher — und lässt den
+   * Hocker stehen, auf den er zurückgehört.
+   *
+   * Die Namen sind die der **getragenen Dinge**
+   * (`worlds/test/zones/kitchenRecipes.KitchenItem`) und keine zweite Liste:
+   * Was hier steht, legt die Küche unverändert als getragenes Ding auf die
+   * Fläche darunter (`worlds/test/zones/kitchen.ts`, `addStations`).
    */
-  readonly holds?: 'pot' | 'pan';
+  readonly holds?: 'pot' | 'pan' | 'extinguisher';
 
   /**
    * **Wie weit das Möbel aus der Mitte seiner Kachel rückt**, in Metern
-   * (x, z) — der Ausgleich für einen Griff, der übersteht.
+   * (x, z) — der Ausgleich dafür, dass die Kachelmitte nicht immer die Mitte
+   * dessen ist, was man sieht. Zwei Gründe dafür sind gemessen, und beide
+   * stehen unten: ein Griff, der übersteht, und ein Möbel, das flacher ist
+   * als seine Nachbarn.
+   *
+   * **Positiv ist nach Süden und nach Osten**, in der eigenen Drehung des
+   * Möbels (`worlds/test/zones/kitchen.ts`, `place`) — ein um 180° gedrehter
+   * Herd rückt nach der anderen Seite.
    *
    * Der Ursprung eines Möbels liegt in der Mitte seiner **ganzen** Hülle
    * (`tools/kitchen-model.mjs`), und beim Herd mit der Pfanne gehört der
@@ -102,6 +133,21 @@ export interface KitchenPiece {
    * Gemessen und nicht geschätzt: Der Korpus (Material `Kitchen_Cabins`)
    * reicht in der Datei von z = −0,610 bis z = +0,453, seine Mitte liegt also
    * bei −0,078.
+   *
+   * **Und beim Schneidebrett steht gar nichts über — es ist zu flach.** Die
+   * Küchenzeile ist 1,0612 m tief (Quelle 2,1224 m), das Brett 0,9999 m
+   * (Quelle 1,9998 m), und beide sitzen in ihrer eigenen Datei mittig um
+   * z = 0. Auf einer gemeinsamen Kachelmitte sprang das Brett deshalb **vorn
+   * und hinten je 3,07 cm zurück** — sichtbar als Delle in einer Zeile aus
+   * Zeile, Brett, Zeile (`worlds/test/zones/kitchen.ts`, beide Bretter stehen
+   * so).
+   *
+   * Auszugleichen ist nur **eine** Seite, denn ein flaches Möbel bleibt flach:
+   * 0,5306 − 0,4999 = **0,0307 m nach Süden**. Die Vorderkante gewinnt, weil
+   * man nur sie sieht — davor steht die Figur, dort greift sie zu, und eine
+   * Kante, die um drei Zentimeter versetzt durchläuft, fällt sofort auf.
+   * Hinten wächst die Lücke dafür auf 6,1 cm; die zeigt zur Wand und ist von
+   * keinem Standpunkt aus im Bild.
    */
   readonly align?: readonly [x: number, z: number];
 }
@@ -130,12 +176,33 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     deck: 0.5,
     worktop: true,
   },
-  { name: 'extinguisher', label: 'Feuerlöscher', tiles: [1, 1], height: 1.25 },
+  {
+    name: 'extinguisher',
+    label: 'Feuerlöscher',
+    tiles: [1, 1],
+    // 1,25 m ist die Oberkante des **Löschers**, 0,50 m die des Hockers
+    // darunter — dieselbe Teilung wie beim Herd mit Topf, und aus demselben
+    // Grund getrennt: Wer den Löscher abnimmt und wieder hinstellt, stellt
+    // ihn auf den Hocker und nicht auf seine eigene Kappe.
+    height: 1.25,
+    deck: 0.5,
+    worktop: true,
+    holds: 'extinguisher',
+  },
   { name: 'sink', label: 'Spüle', tiles: [2, 1], height: 1.15 },
   { name: 'bin', label: 'Mülleimer', tiles: [1, 1], height: 0.45 },
   { name: 'table', label: 'Arbeitstisch', tiles: [1, 1], height: 0.5, worktop: true },
   { name: 'serve-counter', label: 'Ausgabe', tiles: [1, 1], height: 0.46, worktop: true },
-  { name: 'board', label: 'Schneidebrett', tiles: [1, 1], height: 0.57, worktop: true },
+  {
+    name: 'board',
+    label: 'Schneidebrett',
+    tiles: [1, 1],
+    height: 0.57,
+    worktop: true,
+    // 3,07 cm nach Süden: Das Brett ist 0,9999 m tief, die Küchenzeile neben
+    // ihm 1,0612 m — so fluchtet die Vorderkante (`KitchenPiece.align`).
+    align: [0, 0.031],
+  },
   { name: 'plate-rack', label: 'Ausgaberegal', tiles: [2, 1], height: 0.56 },
   { name: 'pass', label: 'Ausgabetheke', tiles: [2, 1], height: 0.53, worktop: true },
   { name: 'counter', label: 'Küchenzeile', tiles: [1, 1], height: 0.5, worktop: true },
