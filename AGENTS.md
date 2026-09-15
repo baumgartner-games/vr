@@ -1087,7 +1087,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   (`App.openKeys`), geht die Seite zu, weil die Tastatur ein Panel in der
   Szene ist und sonst dahinter läge. Die Kopfzeile im Web (`#hud`) ist damit
   **oben links der Menü-Knopf, oben rechts** Weltname, Verbindung und VR; auf
-  einem schmalen Telefon fällt der Weltname weg, bevor ein Knopf es tut.
+  einem schmalen Telefon fällt der Weltname weg, bevor ein Knopf es tut. Unten
+  rechts steht der zweite runde Knopf, der **Werkzeug-Knopf** (`#hud-tool`) —
+  er öffnet eine eigene Seite mit einem eigenen Baum und nicht einen Ast dieses
+  Menüs, denn er beantwortet eine Frage, die man mitten im Zielen stellt
+  (_Von oben_, „Die Hand am Schirm").
   Aufbau: **Welten** (Hub, Bauplatz, Testwelt, Spiel Haunting),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
@@ -4329,9 +4333,9 @@ object", `RuntimeError: unreachable`), und das Spiel ist weg. Aufräumer gibt es
 mehr als einen: der Bestand räumt seine NPCs weg, die Welt ihre Requisiten, ein
 geworfenes Werkzeug ist beides. Also merkt sich jeder Eintrag, dass er weg ist
 (`PhysicsBody.removed`), und die Welt merkt sich, dass sie freigegeben ist —
-das zweite Mal passiert dann einfach nichts. `labPhysics.test.ts` hält es fest,
-und zwar so, wie man es nur mit echter Engine festhalten kann: ohne die Sperre
-stürzt derselbe Test mit genau dieser Meldung ab.
+das zweite Mal passiert dann einfach nichts. Festgehalten hat das ein Test mit
+**echter Engine**, denn anders geht es nicht: ohne die Sperre stürzt derselbe
+Test mit genau dieser Meldung ab.
 
 Der `App`-Loop ist bewusst schlank: Input → Locomotion → `world.update()` →
 UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern;
@@ -4339,8 +4343,9 @@ UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern
 
 ### Wie schön es aussieht
 
-_Menü → Grafik_, und die Seite trägt ein **EXP** im Abzeichen: Beides hier ist
-ein Experiment, beides kostet Bildrate, und keines ist ab Werk an.
+_Menü → Grafik_, und die Seite trägt ein **EXP** im Abzeichen: Der Grafik-Modus
+und die Auflösung der Brille sind Experimente, beide kosten Bildrate, und
+keines ist ab Werk an.
 
 Das Bild, das dieses Projekt immer hatte, ist **eine** von zwei Stufen und
 heißt jetzt so:
@@ -4507,25 +4512,81 @@ kann, ist keine Einstellung, die man verschickt: Ein Code aus einer Brille darf
 einem PC nicht die Schatten abschalten und einer vom PC einer Brille keine
 aufzwingen.
 
+#### Die Gitterlinien
+
+Das dritte Häkchen auf derselben Seite ist kein Grafikprofil, sondern eine
+**Auskunft**: _Menü → Grafik → Gitterlinien_ (`GraphicsSettings.gridLines`, ab
+Werk aus) legt das Kachelnetz der Ebene über den Boden, auf der man gerade
+steht. Es steht hier und nicht im Editor, weil es keine Bedienung ist: Man baut
+damit nichts, man **sieht** damit — wo eine Kachel anfängt, wie breit ein Gang
+wirklich ist, ob eine Wand auf der Kante liegt oder eine daneben. Auf einem
+Metergitter ist das die Frage, die man beim Bauen alle zwei Minuten hat, und
+ein Netz, für das man erst die Karte vom Gürtel ziehen muss, beantwortet sie
+nicht.
+
+Vier Sachen sind daran entschieden (`GridWorld`, `buildGridLines`):
+
+- **Je Etage ein Netz und nicht eines für alles.** Gezeichnet wird ein
+  `LineSegments` über die Kanten aller Bodenkacheln dieser Ebene, einen
+  Zentimeter über dem Boden. Sichtbar ist nur das der Ebene, auf der das Rig
+  steht (`rigLevel`) — alle übereinander wären ein Knäuel, das sagt, dass es
+  Kacheln gibt, und sonst nichts.
+- **`userData.level` steht dran**, damit das Aufschneiden es mitnimmt
+  (`core/cutaway.ts`). Ein Netz, das über der eigenen Ebene liegen bliebe, wäre
+  ein Gitter im Himmel.
+- **Ein Material für alle Etagen**, halbtransparent und ohne Tiefe zu schreiben
+  (`depthWrite: false`) — sonst schneidet die Linie Löcher in alles, was hinter
+  ihr steht, denn sie liegt ja _über_ dem Boden und nicht darin. Und es
+  überlebt den Umbau: Ein Material je Netz wäre bei jedem Pinselstrich ein
+  neues, und die alten blieben auf der Grafikkarte liegen.
+- **Umgeschaltet wird die Sichtbarkeit und nicht die Geometrie.** Die Netze
+  entstehen beim Bauen und stehen danach unsichtbar da; ein Häkchen, das ein
+  paar tausend Linien neu baut, blitzt beim ersten Bild auf und sieht aus wie
+  ein Fehler.
+
 ### Wie man aussieht
 
-_Menü → Aussehen_, und es ist die erste Sorte **Kleidung** in diesem Projekt
-(`core/appearance.ts`, `core/headgear.ts`).
+_Menü → Aussehen_ und der **Kleiderschrank** — drei Zeilen, und dahinter die
+ganze Figur (`core/AvatarBody.ts`, `core/avatarLook.ts`, `core/appearance.ts`,
+`core/headgear.ts`).
 
-Bis hierher sahen alle gleich aus: derselbe Körper aus Kapseln, dieselbe Farbe
-nach Gerät, ein schwarzes Visier vorn (`core/AvatarBody.ts`). Für eine
-Werkstatt geht das, für eine Sitzung mit drei Leuten nicht — wer sich
-unterscheiden will, hat sonst nur seinen Namen dafür.
+**Die Figur ist ein Koch**, seit September 2026: ein **Rumpf** wie eine Tonne
+(0,5 m breit, vom Boden bis unter den Kopf, oben etwas schmaler), ein runder
+**Kopf** (Ø 32 cm, `HEAD_RADIUS`) mit zwei Augen und einer Nase, zwei
+**Handkugeln** (Ø 12 cm), die daneben schweben — und **keine Arme und keine
+Beine**. Das Vorbild sind die Köche aus _Overcooked_, und der Grund ist die
+Kamera: In diesem Projekt schaut man aus zwölf Metern schräg von oben auf
+Figuren, und ein Skelett mit Armen und Beinen ist von dort zwei graue Striche,
+an denen man nicht einmal erkennt, wohin jemand sieht. Ein runder Kopf mit
+Augen und Nase erkennt man, ein Rumpf ohne Gliedmaßen liest sich als
+Blickrichtung, und zwei Kugeln daneben sind Hände.
 
-Angefangen wird **oben**, und zwar aus zwei Gründen. Der einfache: Ein Kopf ist
-das, was man von einem anderen Spieler zuerst sieht, und in VR schaut man
-ohnehin ständig auf Köpfe. Der bessere: Ein **Helm ist nicht nur Schmuck**,
-sondern ein Mittel gegen Übelkeit — siehe das Klemmbrett der Kartzone.
+**Der Antrieb ist derselbe geblieben**: `update(dt, head, left, right)` mit Kopf
+und Händen, wie ihn ein Headset über seinen Träger nun einmal weiß. Der Rumpf
+steht unter dem Kopf, dreht mit `bodyYaw` (mit derselben Totzone wie vorher) und
+folgt der Kopfhöhe — wer sich duckt, wird kleiner. Nicht getrackte Hände
+schweben seitlich neben dem Rumpf und pendeln beim Laufen leicht. Was andere
+daran hängen haben, ist unverändert: `head`, `handAnchors`, `setColor`,
+`setHeadgear`, `setSelfView`, `setHandsVisible`, `update`, `dispose`, `bodyYaw`
+— dazu neu `setLook(look)`.
 
-Sieben Sorten, aus Zylindern, Kugeln und Quadern wie alles hier: **ohne**
-(die Auslieferung), **Basecap**, **Helm**, **Bauhelm**, **Mütze**, **Zylinder**
-und **Krone**. Was eine Anzugfarbe trägt, trägt die des Trägers — ein Spieler
-hat eine Farbe und nicht drei.
+**Drei Zeilen, drei Listen** (`core/avatarLook.ts`). Vorher gab es nur den Hut,
+und alle sahen darunter gleich aus: derselbe Körper aus Kapseln, dieselbe Farbe
+nach Gerät, ein schwarzes Visier vorn. Für eine Werkstatt geht das, für eine
+Sitzung mit drei Leuten nicht — wer sich unterscheiden will, hat sonst nur
+seinen Namen dafür. Jetzt sind es drei:
+
+- **Kopf** — vier Sorten, Hautton plus ein Merkmal im Gesicht: `round` (die
+  Auslieferung), `freckles`, `beard`, `moustache`. Den Hautton tragen die
+  **Hände** mit, es sind ja seine (`skinTone`).
+- **Hut** — acht Sorten aus Zylindern, Kugeln und Quadern wie alles hier:
+  **ohne** (die Auslieferung), **Kochmütze**, **Basecap**, **Helm**,
+  **Bauhelm**, **Mütze**, **Zylinder**, **Krone**. Die Kochmütze ist die neue
+  und das Vorbild für alles andere: hoch, weiß, mit Wulst.
+- **Körper** — fünf Kochjacken: weiß, rot, blau, grün, gestreift.
+
+Was eine **Anzugfarbe** trägt und keine eigene hat — Schürze, Halstuch —, trägt
+die des Trägers: Ein Spieler hat eine Farbe und nicht drei.
 
 Drei Regeln stecken darin, und alle drei sind es wert, aufgeschrieben zu
 werden:
@@ -4535,18 +4596,28 @@ werden:
   Augen steckt, und nimmt den Hut damit von selbst mit. Man sieht seinen
   eigenen im Spiegel und durch ein Portal — so wie man auch seinen eigenen
   Körper nur dort sieht.
-- **Er gehört dem Spieler und keiner Welt.** Gespeichert wird er wie die
-  Augenhöhe und die Grafikstufe, also im Browser und nicht in einer Welt; wer
-  ihn im Hub aufsetzt, trägt ihn in der Testwelt auch. Eine Welt darf ihn
-  **ausleihen** (`WorldContext.wear`) — das Kart tut es für den Helm —, und
-  `null` gibt den Kopf wieder der Einstellung zurück. Wer aussteigt, hat wieder
-  seinen eigenen Hut auf.
-- **Er geht über das Netz**, und zwar in der **Anmeldung** und nicht in der
-  Pose (`net/NetSession.ts`, Feld `hat` im `hello`). Ein Hut ändert sich einmal
-  am Abend, eine Pose zwanzigmal in der Sekunde: Wer ihn wechselt, sagt sich
-  neu an. Das Feld ist optional — eine ältere Fassung schickt es nicht mit, und
-  wer nichts sagt, geht barhäuptig. Was hereinkommt, ist fremder Text und geht
-  durch `asHeadgear`.
+- **Das Aussehen gehört dem Spieler und keiner Welt.** Gespeichert wird es wie
+  die Augenhöhe und die Grafikstufe, also im Browser (`bgvr.look`) und nicht in
+  einer Welt; wer im Hub eine Kochmütze aufsetzt, trägt sie in der Testwelt
+  auch. Eine Welt darf den **Hut** dabei **ausleihen** (`WorldContext.wear`) —
+  das Kart tut es für den Helm —, und `null` gibt den Kopf wieder der
+  Einstellung zurück. Wer aussteigt, hat wieder seinen eigenen Hut auf.
+- **Es geht über das Netz**, und zwar in der **Anmeldung** und nicht in der
+  Pose (`net/NetSession.ts`, Felder `hat`, `head`, `body` im `hello`). Ein
+  Aussehen ändert sich einmal am Abend, eine Pose zwanzigmal in der Sekunde:
+  Wer etwas wechselt, sagt sich neu an (`App.applyAppearance` schickt erst,
+  wenn sich wirklich etwas geändert hat). Alle drei Felder sind **optional** —
+  eine ältere Fassung schickt sie nicht mit —, und was hereinkommt, ist fremder
+  Text und geht durch `asHeadgear`, `asHead` und `asBody`; ein unbekannter Wert
+  wird zur Vorgabe und nicht zu `undefined`.
+
+**Geändert wird an zwei Stellen, und beide lesen denselben Speicher**: die Seite
+_Aussehen_ im Menü (drei Zeilen, jede schaltet im Kreis, die Überschrift zeigt
+die Wahl gleich mit — `appearanceSummary`) und die **Umkleide** am
+Kleiderschrank (dieselben drei Zeilen neben der Figur in Nahaufnahme, siehe
+_Der Kleiderschrank und die Umkleide_). Gespeichert wird sofort
+(`saveAppearance`), und wer zuhören will, hängt sich an `onAppearanceChange` —
+der eigene Körper und das Netz tun genau das.
 
 **Von innen ist ein Helm etwas anderes als von außen.** Außen eine Schale,
 innen ein **Rahmen**: ein Kreisring vor dem Auge (`visorFrame`), dessen Loch
@@ -4954,10 +5025,11 @@ heraus kommen Wege, Sichtlinien und Geschwindigkeiten — deshalb ist sie
 vollständig geprüft, und deshalb kann derselbe Graph eine Welt, eine
 Debug-Ansicht und einen Test bedienen.
 
-**Die Karte ist ein Kachelgitter mit Etagenindex.** Eine Kachel ist 2,5 m breit
-(`TILE`), und diese Zahl ist eine Konstante und keine Einstellung: Sie steht in
-jeder gespeicherten Karte im Kopf, und wer sie ändert, macht jede davon
-ungültig. Die Höhe ist ein **Index** und keine Zahl — Dach, Erdgeschoss und
+**Die Karte ist ein Kachelgitter mit Etagenindex.** Eine Kachel ist **einen
+Meter** breit (`TILE`, seit September 2026 — vorher 2,5 m, siehe _Welten auf
+dem Kachelgitter_), und diese Zahl ist eine Konstante und keine Einstellung:
+Sie steht in jeder gespeicherten Karte im Kopf, und wer sie ändert, macht jede
+davon ungültig. Die Höhe ist ein **Index** und keine Zahl — Dach, Erdgeschoss und
 Tunnel darunter liegen übereinander, ohne dass irgendeine Rechnung entscheiden
 müsste, ob zwei Kacheln noch dieselbe Ebene sind. Was zwischen zwei
 Kachelmitten passiert, ist ausdrücklich nicht Sache des Gitters, sondern der
@@ -6246,7 +6318,7 @@ und geflogen, und jede dieser Bewegungen fängt mit einem Finger auf dem Glas
 an. Als Tipp zählt deshalb nur, was an einer Stelle anfängt und aufhört
 (`TAP_SLOP`, `TAP_TIME`) — alles andere war eine Drehung.
 
-Geladen wird eine Welt erst beim Antippen — eine Liste mit zehn Welten wäre
+Geladen wird eine Welt erst beim Antippen — eine Liste voller Welten wäre
 sonst das ganze Spiel auf einmal —, und weil das ein `import()` ist, entscheidet
 eine laufende Nummer, wessen Antwort noch jemand sehen will: wer weiterblättert,
 bekommt nicht die vorherige Welt nachgeschoben. Lässt eine Welt sich nicht ohne
@@ -6607,7 +6679,9 @@ Eine Sache konnte die Seite bis hierher nicht: sagen, wie eine Hand **gerade
 jetzt** an einem Werkzeug liegt. Sie zeigt die eingestellte Haltung aus dem
 eigenen Speicher, und das ist die Haltung von zuletzt — wer in der Brille daran
 arbeitet, sah hier nichts davon. Der Menüpunkt **Verbinden** (`#verbinden`,
-`tools/liveHand.ts`) schließt genau diese Lücke.
+`tools/liveHand.ts`) schloss genau diese Lücke — **bis der Sender wegfiel**.
+Er steht hier trotzdem: Empfänger, Format und Bühne sind unangetastet, und
+wenn wieder jemand eine Hand teilt, tut die Seite, was hier steht.
 
 Es ist **dieselbe Sitzung** wie beim Zusammenspielen: derselbe Raum-Code,
 dasselbe Trystero, dieselben Nachrichten (`net/`). Was hereinkommt, ist der
@@ -7220,9 +7294,19 @@ dreieinhalb Zentimeter hohe **Miniatur** im Fach, und ohne sie zeichnete der
 Beutel die ganze Welt in jede dieser Briefmarken.
 
 Die Flächen werden **in der Szene gesucht** und tragen sich nicht in eine Liste
-ein: Spiegel stecken in Werkzeugen, in Beutel-Objekten und in Miniaturen davon,
-und die wandern zwischen Hand, Gürtel, Regal und Papierkorb. Eine Liste, die
-davon nichts mitbekommt, zeigt irgendwann auf etwas, das längst weg ist.
+ein: Spiegel stecken in Werkzeugen, in Beutel-Objekten, in Miniaturen davon und
+seit dem **Kleiderschrank** auch in einem Einbau auf dem Gitter, und die wandern
+zwischen Hand, Gürtel, Regal, Wand und Papierkorb. Eine Liste, die davon nichts
+mitbekommt, zeigt irgendwann auf etwas, das längst weg ist.
+
+**Genau deshalb kostet ein Spiegel im Grundriss keine Zeile Vertrag.** Der
+Kleiderschrank (`grid/fixtures/wardrobe.ts`) hängt eine `MirrorSurface` in die
+Gruppe der Welt, und mehr tut er nicht: Der Renderer steht einmal in `App`,
+läuft über die ganze Szene und findet sie. Ein Haken für Spiegel in
+`FixtureBuild` hätte jeder Art Renderer, Szene und Kamera in die Hand gegeben,
+damit eine einzige eine Fläche aufhängen kann. Was er dafür verlangt, ist das
+**Freigeben**: Das Glas hält ein eigenes Material, und erst dessen `dispose`
+meldet dem Zähler, dass es einen Spiegel weniger gibt.
 Gezählt wird trotzdem mit — solange es gar keinen Spiegel gibt, entfällt auch
 das Durchsuchen. Der Zähler hängt an der **Material-Entsorgung** und nicht an
 einer eigenen `dispose`-Methode, denn weggeräumt wird mit `disposeTree` und
