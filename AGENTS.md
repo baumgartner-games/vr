@@ -5256,146 +5256,72 @@ an ist: Unsichtbare Linien kosten in der Brille genauso viel wie sichtbare. Die
 Wege werden fünfmal je Sekunde neu gezeichnet, nicht sechzigmal — ein Weg
 ändert sich, wenn neu geplant wird.
 
-Im Labor hängen dafür **zwei Konsolen an den Seitenwänden** der mittleren
-Buchten (`navlab/NavConsole.ts`), dort, wo man beim Zusehen steht — mit
-**zwei Blöcken**: oben zeigen, unten schalten, dazwischen eine eigene
-Überschrift. Stünden sie in derselben Reihe, hielte man die Schalter für Ebenen
-und wunderte sich, warum ein Zombie plötzlich durch eine Kiste läuft; und
-„Verbindungen" stünde zweimal darauf und meinte zweierlei. Deshalb tragen die
-Schalter auch intern ein Präfix (`sw:`) — zwei Tasten, die dasselbe heißen und
-Verschiedenes tun, sind der Fehler, den man in der Brille am schwersten findet.
+Die Schalter und die sieben Ebenen hingen im **Navigationslabor** an zwei
+Wandkonsolen, dort, wo man beim Zusehen stand: oben zeigen, unten schalten,
+dazwischen eine eigene Überschrift. Stünden sie in derselben Reihe, hielte man
+die Schalter für Ebenen und wunderte sich, warum ein Zombie plötzlich durch
+eine Kiste läuft; und „Verbindungen" stünde zweimal darauf und meinte
+zweierlei. Deshalb trugen die Schalter intern ein Präfix (`sw:`) — zwei Tasten,
+die dasselbe heißen und Verschiedenes tun, sind der Fehler, den man in der
+Brille am schwersten findet. Die Welt ist seit September 2026 gelöscht;
+geschaltet wird jetzt am Handgelenk und auf der Werkzeugseite, und die eine
+Zahl daraus, die man sonst wieder falsch macht, steht hier: **Eine Tafel schaut
+nach +Z**, ein Körper nach −Z. Wer eine Konsole wie einen NPC ausrichtet, hängt
+sie mit dem Rücken zum Raum an die Wand und sieht eine schwarze Platte.
 
-Jede Taste trägt die Farbe ihrer Ebene, damit niemand die Beschriftung lesen
-muss: Man drückt Violett und sieht Violett. Was an ist, leuchtet — ohne diese
-Rückmeldung drückt man in der Brille zweimal.
+**Was das Labor war und wozu es gut war.** Elf Buchten, elf rote Knöpfe, und in
+jeder eine Behauptung, die man nachprüfen konnte — langer Gang um zwei Ecken,
+Stachelgrube, Kiste im Weg, zu enger Gang, Tür fällt hinter dem Verfolger zu,
+Portal, von dem nur einer weiß, Dachkante, Podest und Sprung, drei Steigungen.
+Es war der einzige Ort, an dem eine Wegsuche nicht als Zahl, sondern als
+**Eindruck** geprüft wurde: „der Zombie läuft durch die verriegelte Tür" ist
+keine falsche Zahl, sondern ein Weg, den man erst sieht, wenn man ihn abläuft.
+Was es an Einsichten gebracht hat, steht heute dort, wo es hingehört — in
+`navBake.ts`, `navProfile.ts`, `navDoor.ts` und `PhysicsWorld.ts` —, und die
+**Navigationszone der Testwelt** stellt vier seiner Fragen wieder auf: enger
+Gang mit Kiste, Tür, Stachelfeld, ein NPC von A nach B.
 
-**Wo welche Taste sitzt, ist gerechnet und nicht abgemessen**
-(`navlab/consoleLayout.ts`) — und weil es eine Rechnung ist, kann ein Test
-nachmessen, dass nichts aus der Platte hängt, auch wenn eine achte Ebene
-dazukommt. Vier Tasten je Reihe und nicht drei: Mit dreien wäre die Platte
-2,3 m hoch und ragte oben aus der 2,4 m hohen Wand heraus, an der sie hängt.
-Breiter statt höher — eine Bucht ist zehn Kacheln breit, Platz nach oben hat
-sie keinen.
+Die drei Zahlen, an denen es zweimal gescheitert ist, gelten weiter:
 
-Eine Zahl, die man dabei falsch macht: **Eine Tafel schaut nach +Z**, ein
-Körper nach −Z. Wer eine Konsole wie einen NPC ausrichtet, hängt sie mit dem
-Rücken zum Raum an die Wand und sieht eine schwarze Platte.
+- **Jedes Maß ist ein Vielfaches der Kachel** (`nav/navTile.ts`, seit September
+  2026 ein Meter). Das Abtasten fragt zwischen zwei Kachelmitten genau **einen**
+  Punkt: die Grenze dazwischen (`navBake.ts`, `joinTiles`). Eine Wand einen
+  halben Meter daneben steht in der Welt, aber nicht auf der Karte — der NPC
+  plant seelenruhig einen Weg mitten hindurch und bleibt daran hängen. Genau so
+  war das Labor lange gebaut (22 × 16 Meter im Raster von 2,5), und von den
+  Wänden jeder Bucht kannte die Wegsuche zwei: die Rückwand fehlte, die
+  Stirnwände fehlten, und ein Zombie im langen Gang lief hinten aus seiner Bucht
+  heraus und um das ganze Labor herum. Wer eine Wand danebenstellt, sieht es im
+  Test und nicht in der Brille.
+- **Die Kachelmitte entscheidet, auch beim Anmalen** (`navBuild.paintRect`,
+  `coverRect`). Eine Kachel gehört zu einem Rechteck in Weltmetern, wenn ihre
+  **Mitte** darin liegt — dieselbe Regel, nach der das Abtasten Boden findet.
+  Hier lief einmal eine Schleife bis einschließlich der Rechteckkante, und die
+  gehört schon zur nächsten Kachel: Ein Stachelfeld von sechs Kacheln war auf
+  der Karte sieben breit, und zwar nur nach Osten und nach Süden. Zu sehen war
+  davon nichts als ein Mensch, der einen viel zu großen Bogen darum lief — die
+  Kachel daneben galt ihm ja als Grube. Ein Anmalen, das eine Kachel zu weit
+  reicht, sieht man nie an der Karte, sondern immer nur an einem Weg, der
+  komisch aussieht.
+- **Ein Zombie bemerkt einen Spieler auf 22 Meter** (`npcBrains.ts`, `sense`).
+  Im Labor waren es vom Mittelgang zu den äußeren Buchten fast vierzig, und
+  fünf von sechs roten Knöpfen starteten damit ein Szenario, in dem niemand
+  einen Schritt tat — das sah nicht nach einer zu großen Zahl aus, sondern nach
+  kaputter Wegsuche. Wer etwas vorführen will, stellt den Zuschauer in
+  Sichtweite oder gibt dem NPC einen **Auftrag** (Hirn _Zum Ziel_) statt eines
+  Spielers.
 
-**Das Navigationslabor** (`worlds/navlab/`) ist die Welt dazu: elf Buchten,
-elf rote Knöpfe, und in jeder eine Behauptung, die man nachprüfen kann —
-langer Gang um zwei Ecken, Stachelgrube (Zombie hinein und liegen bleiben,
-Puppe dicht daran vorbei), Kiste im
-Weg, **zu enger Gang**, Tür fällt hinter dem Verfolger zu, Portal, von dem nur
-einer weiß, die Dachkante, **Podest und Sprung** und die drei **Steigungen**.
-Der Grundriss ist geprüft
-(`scenarios.test.ts`), bevor er gebaut ist: Zwei Buchten, die sich überlappen,
-sieht man in der Brille erst daran, dass ein Zombie durch eine Wand kommt.
-
-Fünf von ihnen beantworten je eine Frage, die vorher keine Bucht stellte:
-
-- **Zu enger Gang.** Eine Wand mit einer Lücke von einer Kachel, in die zwei
-  Pfosten hineinragen, bis 45 cm übrig sind. Beide Hälften müssen stimmen: In
-  der **Welt** passt ein Zombie nicht hindurch (58 cm dick, `npcKinds.ts`), und
-  auf der **Karte** steht dort deshalb auch keine Lücke. Wo die zweite Hälfte
-  fehlte, plante er hindurch und rannte für immer dagegen — das war der Zombie,
-  der durch eine Wand _wollte_. Möglich macht es `edgeOpen` (siehe unten).
-- **Podest und Sprung.** Eine Treppe aus drei Stufen führt auf ein Podest; einen
-  Gang weiter steht ein zweites, freistehend, auf 2,4 m. Wer springen kann
-  (`HUMAN_PROFILE`, `link.jump`), nimmt die Sprungverbindung und steht drüben;
-  der Zombie hat dort `Infinity` stehen und bleibt unten im Gang, so nah am
-  Podest, wie die Karte ihn lässt. Dazwischen liegt der Gang, durch den man
-  hindurchgeht, wenn man unten ist. **Diese Verbindung trug einmal die Bucht
-  selbst ein**, mit zwei Kachelmitten in `applyLabMap`; heute findet das
-  Abtasten sie (`navBake.joinGap`), und wer das Podest um eine Kachel
-  verschiebt, verschiebt den Sprung mit.
-- **Flache**, **steile** und **sanfte Steigung**, drei Buchten, die dieselbe
-  Höhe hinaufführen — 2,4 m auf ein Podest, auf dem der Spieler steht. Der NPC will hier **nicht** zuschlagen, sondern nach
-  oben, und seit der zweiten Fassung steht das auch so in den Daten
-  (`BayCast.brain`, `BayCast.goal`): Die drei Buchten, die vorführen, dass man
-  irgendwo hinaufkommt — beide Steigungen und das Podest —, bekommen das Hirn
-  **Zum Ziel** und eine Kachel, auf die sie wollen. Vorher hing beides am
-  Spieler, und das war in der Brille kaputt: Ein NPC plant nur, wenn jemand in
-  Sichtweite ist (22 m), und der Knopf stellt in der Brille niemanden hin — wer
-  im Mittelgang stand und zusah, sah zwei NPCs, die sich nicht rührten; wer in
-  die Bucht ging, wurde verfolgt statt vorgeführt. Was er dabei kann, hängt
-  weiter an je einer Zahl seines Profils:
-  - Die **flache** besteht aus vier Stufen von 60 cm, eine je Kachel. Sechzig
-    Zentimeter _tritt_ keiner (`stepUp`), aber jeder hier zieht sich hinauf
-    (`jumpUp`) — man sieht vier Sätze, und dann steht er oben.
-  - Die **steile** ist eine richtige Rampe aus 12-cm-Stufen, die sogar ein
-    Hamster tritt — nur eben 1,32 m Höhe je Kachel, und das sind 28°.
-    Bei jedem hier ist vorher Schluss (`maxSlope`), und deshalb bleibt er davor
-    stehen: nicht an der Stufe, sondern am **Winkel**. Er stellt sich dabei so
-    nah an das Podest, wie die Karte ihn lässt, und bleibt dort — genau das
-    ist „er merkt, dass er nicht hochkommt". Dass er dabei _hinaufwill_ und
-    nicht bloß herumsteht, ist der Grund, warum auch diese Bucht das
-    Auftrags-Hirn bekommt: Beide wollen hinauf, und beide bleiben unten — erst
-    dann sagt die Bucht etwas.
-  - Die **sanfte** ist die dritte, und sie behauptet etwas ganz anderes als die
-    beiden: nämlich, dass es an der **Stufe** liegt und nicht am Winkel. 2,4 m
-    über fünf Kacheln sind 10,9°, flacher als alles hier — und ihre Stufen sind
-    acht Zentimeter hoch. Damit ist sie auf der Karte keine Kante mehr, sondern
-    eine _Steigung_ (`navProfile.canTraverse`), und in ihrem Weg steht kein
-    einziger Sprung. Man sieht zwei NPCs, die die Rampe **hinaufgehen**.
-
-  Dass ausgerechnet die flache Bucht die groben Stufen hat, ist keine
-  Nachlässigkeit, sondern die Engine: **Ein NPC ist ein dynamischer Zylinder
-  ohne Schrittautomatik.** Der Character-Controller, der den Spieler 32 cm
-  hinaufhebt, gehört dem Spieler allein; ein Zylinder, den man waagerecht gegen
-  eine Kante schiebt, bleibt daran stehen. Das ist inzwischen **gemessen und
-  nicht mehr behauptet** (`labPhysics.test.ts`): Bei Stufen von 30, 15 und
-  fünf Zentimetern kommt er _null_ Zentimeter hinauf — bei jeder Höhe. Eine
-  flache Rampe aus zwanzig feinen Stufen wäre deshalb genau das, was die Karte
-  für begehbar hält und die Welt für eine Wand.
-
-  **Deshalb hat die sanfte Rampe einen Belag** (`scenarios.rampDeck`): einen
-  gekippten Quader, dessen Oberseite genau auf den Nasen ihrer Stufen liegt.
-  Dieselbe Messung sagt nämlich auch die andere Hälfte: Eine **schiefe Ebene**
-  geht derselbe Zylinder mühelos hinauf, bei 9° wie bei 25°. Die Stufen sind
-  damit die **Karte** — achsenparallel, und nur das findet das Abtasten —, der
-  Belag ist der **Boden**, auf dem wirklich gelaufen wird. Er ist der einzige
-  Quader dieses Labors, der nicht achsenparallel steht, und er kommt aus
-  denselben Zahlen wie die Stufen darunter: Wer die Rampe flacher macht, macht
-  ihn mit. Dass er die Stufen nirgends durchstechen lässt, hält ein Test ohne
-  Brille fest — steht auch nur eine einen Zentimeter durch ihn hindurch, ist
-  das wieder die Kante, an der ein Zylinder stehen bleibt.
-
-- **Und auf dem Dach steht jetzt ein Hamster** (`npcKinds.ts`,
-  `CRITTER_PROFILE`). Er sieht denselben Spieler wie der Zombie neben ihm, hat
-  dieselbe Karte und denselben Weg — und bleibt oben, weil ihn die einzige
-  Kante nach unten umbrächte: 2,4 m kosten 36 Leben (`navFall.ts`), er hat 20.
-  Wer ihm das Profil eines Zombies gibt, sieht in derselben Bucht das Gegenteil:
-  Er springt und bleibt unten liegen. Genau diese Gegenprobe steht als Test da
-  (`labSim.test.ts`) — sie ist der Unterschied zwischen „die Sorte bleibt oben"
-  und „die Rechnung hält ihn oben".
-
-**Am Gürtel hängt hier keine Portalkanone**, sondern ein **Teleporter** links
-und eine **Pistole** rechts (`NavLabWorld.beltLoadout`). Ein Labor, in dem man
-zusieht, wie NPCs Wege gehen, hat für Portale keine Verwendung — sie sind der
-eine Weg durch das Gitter, den kein NPC kennt, und wer sie hier benutzt, misst
-nichts mehr. Was man dagegen dauernd braucht: schnell woanders stehen (die
-Bucht am anderen Ende, das Dach über der Treppe) und etwas abschießen, wenn ein
-Zombie aus seinem Käfig kommt.
-
-**Die Tür lässt sich auch einfach auf- und zumachen.** Sie hat drei gelbe
-Knöpfe: _Tür auf/zu_ ist ein Schalter, den man beliebig oft umlegt, auch ohne
-dass ein Szenario läuft (`ScenarioAct.once` steht dort auf `false`);
-_Holz/Metall_ wechselt das Material; _Tür verriegeln_ ist die Wendung des
-Szenarios und gilt einmal je Durchlauf. Das Türblatt hängt dabei **jedes Bild**
-am Zustand der Karte (`syncDoor`) und nicht mehr nur am Knopfdruck: Inzwischen
-macht die Attrappe die Tür selbst auf und ein Zombie schlägt sie ein, und ein
-Blatt, das dabei stehen bliebe, _ist_ der Zombie, der durch die Tür läuft.
-
-**Und das Blatt steht wirklich im Weg.** Lange war es eine bemalte Fläche und
-sonst nichts: gebaut in `decorate()`, wo alles hinkommt, was _keinen_ Weg
-versperrt — und damit stand auf der Karte eine geschlossene Tür, durch die in
-der Welt jeder mitten hindurchlief. Genau der Zombie, den diese Bucht _nicht_
-zeigen soll, nur unfreiwillig. Es hat jetzt einen **kinematischen Körper**, wie
-jedes Türblatt in diesem Projekt (`interact/InteractWorld`), und `syncDoor`
-zieht ihn jedes Bild nach; eingeschlagen wird sein Collider abgeschaltet, denn
-wo das Blatt hing, ist ein Loch. Ein Quader aus `labSolids()` durfte es dabei
-**nicht** werden: Das Abtasten sieht die — für die Karte ist die Tür eine Tür
-und keine Wand.
+**Die Stachelgrube war eine Falle und kein Anstrich**, und daran hängt die eine
+Stelle, an der eine Karte mit Absicht etwas anderes sagt als die Geometrie: In
+der Welt war sie ein Loch, über dem das Abtasten keinen Boden findet — ohne eine
+Zeile dagegen plante niemand mehr hindurch, und aus der Falle wäre eine Wand
+geworden, um die beide Sorten herumgehen. Also liegt auf der Karte an derselben
+Stelle ein ganz normaler Weg, auf dem Stacheln stehen (`navBuild.coverRect`).
+Die Grube muss dafür **tiefer sein als das Band**, mit dem das Abtasten Böden
+einer Etage zuschlägt (`BAKE_DEFAULTS.band`, 1,6 m) — sonst wäre sie für die
+Karte bloß eine tiefergelegte Kachel mit einer Treppe hinein und wieder heraus.
+Das Stachelfeld der Testwelt macht es sich einfacher: Es ist eine
+**Kachelnotiz** auf ebenem Boden (`TileFacts.hazard`) und braucht kein Loch.
 
 **Eine Tür ist kein Wahrheitswert mehr, sondern ein Ding aus einem Material**
 (`nav/navDoor.ts`). Vorher gab es nur „offen" und „zu" und dazu die Frage, ob
@@ -5447,95 +5373,17 @@ verlangt gar nichts (er macht sie nicht auf und bekommt sie nicht klein), und
 ohne diese Zeile stünde er davor und drückte dagegen, bis das Festfahren ihn
 nachsehen lässt (`observe`). Jetzt sieht er hin, sobald er dort ist, und ist im
 nächsten Bild schon außen herum unterwegs.
-
-**Der Grundriss steht als Daten und nicht als Zeilen in einer three.js-Methode**
-(`scenarios.ts`): wo eine Bucht liegt, wo ihre Wände stehen (`bayWalls`), wer in
-ihr auftritt (`cast`) und wo der Spieler dabei steht (`stand`). Inzwischen gilt
-das für **jeden Quader**: `labSolids()` gibt das ganze Labor als Liste von
-Kästen heraus, und `NavLabWorld` gibt jedem nur noch seine Farbe. Genauso steht
-alles, was in _keinem_ Quader steckt, an einer Stelle (`applyLabMap`): der
-**Boden über der Stachelgrube**, die Tür und der Sprung zwischen den Podesten.
-
-**Die Stachelgrube ist eine Falle und kein Anstrich.** In der Welt ist sie ein
-Loch: Der Laborboden besteht aus vier Streifen um sie herum (`labFloor`), 2,6 m
-dick, damit das Loch Wände hat, und unten liegt eine rote Platte mit Stacheln
-darauf. Wer hineinläuft, fällt 2,2 m tief, kommt nicht mehr heraus und ist nach
-knapp zwei Sekunden hin (`PIT_DEPTH`, `PIT_DAMAGE`, `labHarm` — dieselbe
-Rechnung für die Brille wie für den Test). Auf der **Karte** liegt an derselben
-Stelle ein ganz normaler Weg, auf dem Stacheln stehen (`navBuild.coverRect`):
-Das Abtasten findet über einem Loch keinen Boden, und ohne diese Zeile plante
-niemand mehr hindurch — aus der Falle würde eine Wand, um die beide Sorten
-herumgehen. Es ist die einzige Stelle im Labor, an der die Karte mit Absicht
-etwas anderes sagt als die Geometrie, und genau das ist eine Falle.
-
-Zwei Sachen hängen daran. Die Grube muss **tiefer sein als das Band**, mit dem
-das Abtasten Böden einer Etage zuschlägt (`BAKE_DEFAULTS.band`, 1,6 m) — sonst
-wäre sie für die Karte bloß eine tiefergelegte Kachel mit einer Treppe hinein
-und wieder heraus. Und das Labor lässt die **Fläche bis zum Horizont** weg
-(`horizonColor(): null`): Die ist eine einzige Platte fünf Zentimeter unter
-null und zöge sich quer durch jedes Loch. Dass der Test dieselben Kästen
-abtastet wie die Brille, gilt damit sogar genauer als vorher.
-
-Der Grund für beides ist die Testbank (unten): Ein Test, der das Labor
-**abtastet**, muss dieselben Kästen und dieselbe Karte bekommen wie die Brille.
-Baute die Welt ihre Wände selbst und der Test seine eigenen, prüfte er eine
-zweite Welt, die zufällig ähnlich aussieht — und der erste Unterschied zwischen
-beiden wäre genau der Fehler, den er finden sollte.
-
-Weiter gilt, dass ein Test die zwei Zahlen nachrechnen kann, an denen dieses
-Labor zweimal gescheitert ist:
-
-- **Jedes Maß ist ein Vielfaches der Kachel** (2,5 m, `nav/navTile.ts`). Das
-  Abtasten fragt zwischen zwei Kachelmitten genau **einen** Punkt: die Grenze
-  dazwischen (`navBake.ts`, `joinTiles`). Eine Wand einen halben Meter daneben
-  steht in der Welt, aber nicht auf der Karte — der NPC plant seelenruhig einen
-  Weg mitten hindurch und bleibt daran hängen. Genau so war das Labor lange
-  gebaut (22 × 16 Meter im Raster von 2,5), und von den Wänden jeder Bucht
-  kannte die Wegsuche zwei: die Rückwand fehlte, die Stirnwände fehlten, und
-  ein Zombie im langen Gang lief hinten aus seiner Bucht heraus und um das
-  ganze Labor herum. Jetzt sind es 25 × 15 Meter, der Gang 5, der Abstand der
-  Buchten 2,5 — und wer eine Wand danebenstellt, sieht es im Test und nicht in
-  der Brille.
-- **Die Kachelmitte entscheidet, auch beim Anmalen** (`navBuild.paintRect`,
-  `coverRect`). Eine Kachel gehört zu einem Rechteck in Weltmetern, wenn ihre
-  **Mitte** darin liegt — dieselbe Regel, nach der das Abtasten Boden findet.
-  Hier lief einmal eine Schleife bis einschließlich der Rechteckkante, und die
-  gehört schon zur nächsten Kachel: Die sechs Kacheln breite Stachelgrube war
-  auf der Karte sieben breit, und zwar nur nach Osten und nach Süden. Zu sehen
-  war davon nichts als ein Mensch, der einen viel zu großen Bogen um die Grube
-  lief, an der Wand der Bucht entlang — die Kachel daneben galt ihm ja als
-  Grube. Ein Anmalen, das eine Kachel zu weit reicht, sieht man nie an der
-  Karte, sondern immer nur an einem Weg, der komisch aussieht.
-- **Der Spieler steht in der Bucht, nicht im Mittelgang.** Ein Zombie bemerkt
-  einen Spieler auf **22 Meter** (`npcBrains.ts`, `sense`); vom Mittelgang zu
-  den äußeren Buchten sind es fast vierzig. Fünf der sechs roten Knöpfe
-  starteten damit ein Szenario, in dem niemand einen Schritt tat — und das sah
-  nicht nach einer zu großen Zahl aus, sondern nach kaputter Wegsuche. Jeder
-  rote Knopf stellt die Attrappe deshalb an den Platz seiner Bucht: vorne, mit
-  dem Hindernis zwischen sich und dem Auftritt. Ein Knopf räumt dabei auch die
-  anderen fünf Buchten ab — zwei Szenarien gleichzeitig sind zwei, von denen
-  keines mehr zeigt, was es behauptet.
-
-Außen an den Buchten steht die **Bande** dicht an ihnen und nicht am Rand des
-Bodens: Der Boden steht ein Stück über, damit die Bande auf etwas steht, und
-läge sie dort, liefe zwischen ihr und den Buchten ein Rundgang um das ganze
-Labor — den findet die Wegsuche, und dann geht ein Zombie außen herum statt
-durch die Bucht, um die es gerade geht.
-
-**Eine Zahl daraus ist keine Geschmacksfrage**: Das Dach in der Etagen-Bucht
-liegt auf 2,4 m — über dem, was sich der Beweglichste hier noch **hochzieht**
-(`jumpUp`, 1,2 m), und unter dem, was ein Zombie **hinunterspringt** und
-überlebt (vier Meter, `navFall.safeFall`). Damit ist diese Bucht ein Weg nach
-unten und keiner nach oben — und für den Hamster daneben, der zwei Meter
-überlebt, gar keiner. Dieselben Zahlen halten in der Podest-Bucht das
-freistehende Podest unerreichbar für alle, die nicht springen können.
-
 **Diese Zahlen standen einmal im Abtasten** (`climb` 2,2 m, `drop` 2,6 m) und
 galten damit für jeden. Sie stehen jetzt im **Profil**, und das Abtasten hat
 nur noch eine einzige Grenze (`reach`, sechs Meter): ab wann eine Kante keine
-Kante mehr ist, sondern eine Hauswand. Was das ändert, sieht man an dieser
-Bucht: Vorher hätte ein Hamster die Dachkante genommen wie ein Zombie, denn die
-Karte kannte nur eine Sorte Bein.
+Kante mehr ist, sondern eine Hauswand. Was das ändert, sieht man an einer
+Dachkante: Vorher hätte ein Hamster sie genommen wie ein Zombie, denn die Karte
+kannte nur eine Sorte Bein. Und die eine Zahl, die dabei keine Geschmacksfrage
+ist: Ein Dach auf **2,4 m** liegt über dem, was sich der Beweglichste noch
+**hochzieht** (`jumpUp`, 1,2 m), und unter dem, was ein Zombie
+**hinunterspringt** und überlebt (vier Meter, `navFall.safeFall`) — es ist damit
+ein Weg nach unten und keiner nach oben, und für einen Hamster, der zwei Meter
+überlebt, gar keiner.
 
 **Und hinauf kommt er inzwischen doch — er springt.** Ein NPC ist ein
 dynamischer Zylinder ohne Schrittautomatik: Er _steigt_ keine Stufe, er kann nur
@@ -5545,103 +5393,48 @@ Versetzen, denn dazwischen gibt es keinen Weg —, `leap` ist der **Sprung**, un
 den rechnet `Npc.launch` als schrägen Wurf aus: aus der gewünschten Steighöhe
 folgt die Absprunggeschwindigkeit, daraus die Flugzeit bis zur Zielhöhe, daraus
 die waagerechte Geschwindigkeit. Die Schwerkraft kommt aus der **Welt** und
-nicht aus einer Konstante — auf dem Mond springt er weiter, und das soll er
-auch. Solange er fliegt, hat das Hirn nichts zu sagen: Eine Wurfparabel, in die
-jedes Bild eine waagerechte Wunschgeschwindigkeit geschrieben wird, ist keine
-mehr, sondern ein Schweben.
+nicht aus einer Konstante — bei wenig Schwerkraft springt er weiter, und das
+soll er auch. Solange er fliegt, hat das Hirn nichts zu sagen: Eine Wurfparabel,
+in die jedes Bild eine waagerechte Wunschgeschwindigkeit geschrieben wird, ist
+keine mehr, sondern ein Schweben.
 
-Gesprungen wird über **Sprungverbindungen** (die Lücke zwischen den Podesten)
+Gesprungen wird über **Sprungverbindungen** (die Lücke zwischen zwei Dächern)
 und über **Stufen, die zu hoch zum Hinauftreten sind** — gemessen an der
 größten einzelnen Stufe der Verbindung (`NavLink.step`) und nicht an ihrem
-Höhenunterschied. Der Unterschied ist genau der zwischen den beiden
-Steigungs-Buchten: Vier Stufen von 60 cm sind vier Sprünge; zwanzig von zwölf
-Zentimetern sind ein Gang, auch wenn beide 2,4 m hoch enden. Wer für zwölf
-Zentimeter hüpft, sieht aus wie ein Frosch — und wer sie geht, ohne einen
-Character-Controller zu haben, steht davor. Der bleibt deshalb der sauberere
-Weg und steht weiter auf der Liste.
+Höhenunterschied. Der Unterschied ist der zwischen zwei Rampen, die gleich hoch
+enden: Vier Stufen von 60 cm sind vier Sprünge; zwanzig von zwölf Zentimetern
+sind ein Gang. Wer für zwölf Zentimeter hüpft, sieht aus wie ein Frosch — und
+wer sie geht, ohne einen Character-Controller zu haben, steht davor. Der bleibt
+deshalb der sauberere Weg und steht weiter auf der Liste.
 
-**Das Labor läuft auch ohne Brille** — und zwar zweimal, auf zwei ganz
-verschiedene Arten.
+**Eine gebrochene Kante, wegen eines Zwanzigstelmillimeters.** Ein Zylinder
+sinkt beim Aufliegen ein wenig in seine Unterlage ein, und damit steht die
+**senkrechte Seitenfläche des Nachbarkastens** vor seiner scharfen Bodenkante:
+Zwei gleich hohe Klötze, die aneinanderstoßen — die oberste Rampenstufe und das
+Podest daneben —, sind für ihn keine ebene Fläche, sondern eine Wand. Ein
+Zylinder steigt keine Stufe, auch keine von zwanzig Mikrometern. In der Brille
+sah das so aus: Die Puppe nahm die Rampe, stand oben, ihr Weg zeigte quer über
+den Gang — und sie rührte sich nicht mehr; Karte, Weg, Sprungverbindung und
+Absprunghöhe waren alle im Recht. Die Abhilfe: Jeder Zylinder-Collider bekommt
+sechs Zentimeter Rundung (`PhysicsWorld.CYLINDER_BEVEL`, `roundCylinder`,
+Außenmaße bleiben gleich) — hoch genug für jede Fuge und jede Schwelle, die auf
+der Karte als eben gilt, klein genug, dass niemand damit eine Stufe
+hinaufspaziert, die er springen müsste. Der Test dazu ist so klein wie der
+Fehler: zwei Klötze, ein Zylinder, 1,5 m/s geradeaus über die Naht. Das ist auch
+der Grund, warum eine Bank mit **echter Physik** hier nicht durch eine Rechnung
+zu ersetzen ist: Ein nachgebauter Körper zeigt so etwas nie.
 
-Die eine ist ein **Test**: `navlab/labSim.ts` tastet das Labor ab (`bakeLab`,
-dieselben Kästen und dieselbe Karte wie in der Brille) und lässt einen NPC
-darin laufen — mit **Umfang** (Zylinder, 29 cm Halbmesser aus `npcKinds.ts`),
-mit **Drehrate** (`npcBrain.ts`, `aheadFactor`), mit **Sprung und Fall**, und
-mit Wänden, an denen er entlangrutscht statt hindurchzugehen. Was er nicht hat,
-ist Rapier: keine Trägheit, keine Reibung, kein Anschieben — ein Test, der eine
-Physik-Engine startet, ist kein Test mehr, sondern ein Ladebildschirm.
-
-Der Punkt daran ist die Art der Behauptung. `labSim.test.ts` prüft nie bloß, ob
-einer **ankommt** — durch die verriegelte Tür kommt man auch an. Geprüft wird
-ein **Kontrollpunkt**: „war er dabei an der Stelle, an der er vorbeigekommen
-sein muss?" (`passedNear`). Vor der verriegelten Tür ist das die Lücke ganz
-außen; bei der Kiste der zweite Durchgang; im langen Gang beide Ecken des Z.
-
-Der schärfere Prüfstein ist die **Überquerung** (`crossedAt`): nicht „wie nah
-kam er der Mitte einer Lücke", sondern „**an welcher Stelle** hat er die
-Wandlinie überschritten". Genau daran hängt die Behauptung der Tür-Bucht, seit
-es Material gibt: Bei einer **Metalltür** liegt die Stelle in der Lücke ganz
-außen — er _muss_ außen herum, es gibt keinen zweiten Weg. Bei einer
-**Holztür** liegt sie in der Türöffnung, und daneben steht, dass er dort
-wirklich drei Sekunden gestanden hat (`SimRunner.atDoor`) und die Tür hinterher
-hin ist (`broke`). Wer nur „angekommen" prüfte, sähe zwischen beiden Läufen
-keinen Unterschied.
-
-**Und eine Bank mit echter Physik gibt es jetzt auch** — eine einzige Datei,
-und sie hat sich verdient (`navlab/labPhysics.test.ts`, rund eine Sekunde). Sie
-startet Rapier wirklich, baut dieselben Quader (`labSolids`) und lässt den
-Auftritt einer Bucht darin laufen. Der Grund ist ein Fehler, den kein
-nachgebauter Körper zeigt, weil er in der Engine steckt: In der Brille nahm die
-Puppe die Rampe, stand oben auf dem nahen Podest, ihr Weg zeigte quer über den
-Gang — und sie rührte sich nicht mehr. Karte, Weg, Sprungverbindung und
-Absprunghöhe waren alle im Recht, `labSim` lief die Bucht grün.
-
-Falsch war ein Zwanzigstelmillimeter. Ein Zylinder sinkt beim Aufliegen ein
-wenig in seine Unterlage ein, und damit steht die **senkrechte Seitenfläche des
-Nachbarkastens** vor seiner scharfen Bodenkante: Zwei gleich hohe Klötze, die
-aneinanderstoßen — die oberste Rampenstufe und das Podest daneben —, sind für
-ihn keine ebene Fläche, sondern eine Wand. Ein Zylinder steigt keine Stufe,
-auch keine von zwanzig Mikrometern. Die Abhilfe ist eine **gebrochene Kante**:
-Jeder Zylinder-Collider bekommt sechs Zentimeter Rundung
-(`PhysicsWorld.CYLINDER_BEVEL`, `roundCylinder`, Außenmaße bleiben gleich) —
-hoch genug für jede Fuge und jede Schwelle, die auf der Karte als eben gilt,
-klein genug, dass niemand damit eine Stufe hinaufspaziert, die er springen
-müsste. Der Test dazu ist so klein wie der Fehler: zwei Klötze, ein Zylinder,
-1,5 m/s geradeaus über die Naht.
-
-Dieselbe Bank prüft, was der Zylinder ohne sie nie täte: dass die Puppe am Ende
-wirklich **auf dem freistehenden Podest** steht (nicht bloß irgendwo auf 2,4 m
-Höhe — auf das nahe kommt man auch die Treppe hinauf), und dass der Zombie in
-die Grube fällt und darin liegen bleibt.
-
-Und seit es die beiden **Steigungen** gibt, prüft sie auch die: dass beide die
-flache wirklich hinaufkommen und beide vor der steilen stehen bleiben. Das ist
-genau die Frage, die kein nachgebauter Körper beantwortet — `labSim.ts` setzt
-einen Läufer auf jeden Boden, der nicht höher liegt als sein Tritt, und ob der
-Zylinder dort in Rapier hinaufkommt, weiß er nicht. (Er kommt es nicht: Ein
-dynamischer Zylinder steigt auch keine Stufe von vier Zentimetern. Nur was
-gesprungen wird, geht hinauf.) Dazu die Dachkante mit beiden Sorten: dass der
-Zombie springt und dabei wirklich Leben verliert (`Npc.land`), und dass der
-Hamster oben und unversehrt stehen bleibt.
-
-Dieselbe Bank prüft auch die **Schalter**: Ohne Verbindungen springt die Puppe
-nicht mehr auf das freistehende Podest, ohne Hindernisse plant der Zombie mitten
-durch die Kiste und rennt dagegen. Eine Ansicht, die man an- und ausknipsen
-kann, beweist gar nichts; ein Verhalten, das sich dabei ändert, schon.
-Dazu misst `wander()` die gelaufene Strecke geteilt durch die Luftlinie — die
-Zahl hinter „läuft Manhattan-mäßig".
-
-Die andere ist die **Werkzeugseite**: Auf `tools.html#welt/navlab` steht unter
-dem Bild der Knopf **Laufen lassen**. Er baut dieselbe Welt mit echter Physik,
-kippt die Ansicht senkrecht nach unten und legt die elf Buchten samt ihren
-Knöpfen als Zeilen daneben — dazu die sieben Debug-Ebenen als Schalter, die
-**drei Schalter der Navigation** in derselben Reihe (gestrichelt umrandet, und
-sie tragen ihr „aus" im Namen: an ist der Normalfall und soll ruhig sein) und
-ein **Ziel**, das ein Tipp auf den Boden versetzt.
+**Zusehen ohne Brille: die Werkzeugseite.** Bei jeder Welt, die es kann, steht
+unter dem Bild der Knopf **Laufen lassen** (`tools.html#welt/test`). Er baut
+dieselbe Welt mit echter Physik, kippt die Ansicht senkrecht nach unten und
+legt die Knöpfe der Welt als Zeilen daneben — dazu die sieben Debug-Ebenen als
+Schalter, die **drei Schalter der Navigation** in derselben Reihe (gestrichelt
+umrandet, und sie tragen ihr „aus" im Namen: an ist der Normalfall und soll
+ruhig sein) und ein **Ziel**, das ein Tipp auf den Boden versetzt.
 
 **Die Ebene „Wege" zeigt dabei auch den eigenen.** Bis dahin zeigte sie nur, was
 die _anderen_ laufen — wer von oben seine Figur losschickt, schaltete sie ein
-und sah in einem leeren Labor gar nichts. Der eigene Weg ist derselbe Weg, den
+und sah in einer leeren Welt gar nichts. Der eigene Weg ist derselbe Weg, den
 ein NPC bekäme (`PreviewWalk.path`), und er hat eine **eigene Farbe**, denn er
 beantwortet eine andere Frage: nicht „wie kommen sie zu mir", sondern „wie komme
 ich dorthin".
@@ -5669,9 +5462,10 @@ kippen (wie bei jedem anderen Modell auf dieser Seite) oder die Karte schieben
 dabei auf **Gehe zu** um; dann tippt man sich mit Klicks durch die Welt, statt
 nach jedem Schritt nachzuschieben. Die beiden gehören zusammen: Wer die
 Bildmitte an die Figur hängt und sie dann per Tipp _versetzt_, sieht nichts —
-die Mitte springt im selben Bild mit. Ein Labor läuft deshalb ab jetzt als **Karte** an: Der Finger
-schiebt, die Mitte hängt an der Figur. Wer die Welt drehen will, sagt es — das
-ist ein Griff; nach jedem Schritt nachzuschieben sind zwanzig.
+die Mitte springt im selben Bild mit. Eine laufende Welt fängt deshalb als
+**Karte** an: Der Finger schiebt, die Mitte hängt an der Figur. Wer die Welt
+drehen will, sagt es — das ist ein Griff; nach jedem Schritt nachzuschieben sind
+zwanzig.
 
 Geschoben wird dabei die **Kamera** und nicht die Bühne (`panX`, `panY` in
 `tools/viewer.ts`): Verschöbe man die Bühne, wanderte der Drehpunkt mit,
@@ -5684,7 +5478,8 @@ wie sie funktioniert, steht bei der Werkzeugseite unter _Eine Welt laufen
 lassen_.
 
 **Was noch fehlt**: das lokale Ausweichen (RVO) für Engstellen, zerstörbare
-Hindernisse samt „schlag drauf, wenn kein Weg da ist" — und der
+Hindernisse samt „schlag drauf, wenn kein Weg da ist", ein **Prüfstand**, der
+wieder einen Eindruck prüft statt einer Rechnung (siehe _Tests_) — und der
 Character-Controller oben, der inzwischen der teuerste offene Punkt ist: Solange
 ein NPC ein dynamischer Zylinder ist, kommt er keine Stufe hinauf, die er nicht
 springt, und jede Rampe muss deshalb aus Stufen bestehen, die groß genug zum
