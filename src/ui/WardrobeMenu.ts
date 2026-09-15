@@ -51,13 +51,36 @@ const SPIN = 0.35;
 /** Und wie weit ein Wisch über die ganze Bühne sie dreht. */
 const DRAG_TURN = Math.PI * 2;
 
-/** Wo die Kamera steht und wohin sie schaut — eine Figur, ganz im Bild. */
-const CAMERA_FOV = 36;
-const CAMERA_AT = new THREE.Vector3(0, 1.1, 3);
-const CAMERA_LOOK = new THREE.Vector3(0, 1, 0);
+/**
+ * Wo die Kamera steht und wohin sie schaut.
+ *
+ * **Nicht die ganze Figur, sondern ihre obere Hälfte**: Was man hier aussucht,
+ * sind Kopf, Hut und Jacke, und eine Figur, die ganz ins Bild passt, zeigt
+ * davon zu wenig. Die Kamera steht deshalb dicht und auf Kopfhöhe und zielt
+ * zwischen Kopf und Hände — der Rumpf läuft unten aus dem Bild. Oben bleibt
+ * Platz bis gut 2,2 m: So hoch ragt die Kochmütze, und ein Hut, dessen Spitze
+ * man nicht sieht, ist in einer Umkleide wertlos.
+ */
+const CAMERA_FOV = 34;
+const CAMERA_AT = new THREE.Vector3(0, 1.62, 2.7);
+const CAMERA_LOOK = new THREE.Vector3(0, 1.42, 0);
 
 /** Die Kopfpose, aus der die Figur gebaut wird: aufrecht, zur Kamera gedreht. */
 const HEAD_Y = 1.62;
+
+/**
+ * Wie der Drehteller beim Öffnen steht.
+ *
+ * **−z ist vorn** am Avatar, die Kamera steht bei +z — ungedreht zeigte die
+ * Figur also ihren Rücken, und man suchte ein Gesicht aus, das man nicht sah.
+ * Eine halbe Umdrehung, und sie schaut einen an.
+ *
+ * Die 0,6 rad **davor** sind Absicht: Der Teller dreht weiter (`SPIN`), und
+ * wer bei π anfängt, hat die Figur nach drei Sekunden wieder im Halbprofil.
+ * So dreht sie in der ersten Sekunde ins Gesicht hinein und bleibt ein paar
+ * Sekunden dort — lange genug, um einen Kopf auszusuchen.
+ */
+const FACING = Math.PI - 0.6;
 
 export class WardrobeMenu {
   /** Das Ganze: Hintergrund zum Wegtippen und das Blatt darauf. */
@@ -258,7 +281,7 @@ export class WardrobeMenu {
 class PreviewScene {
   readonly body: AvatarBody;
   /** Wie weit der Teller gedreht ist, in Bogenmaß. */
-  turn = 0;
+  turn = FACING;
   /** Ob er sich von selbst weiterdreht — beim Wischen nicht. */
   spinning = true;
 

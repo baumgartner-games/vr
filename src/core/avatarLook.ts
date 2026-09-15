@@ -20,11 +20,29 @@ import * as THREE from 'three';
  * verstreut in den Funktionen — wer den Kopf größer macht, findet den Hut.
  */
 
-/** Halbmesser des runden Kopfes (Ø 32 cm). Alles am Kopf rechnet von hier. */
-export const HEAD_RADIUS = 0.16;
+/**
+ * Halbmesser des runden Kopfes (Ø 46 cm). Alles am Kopf rechnet von hier —
+ * Augen, Nase und jeder Hut in `core/headgear.ts`.
+ *
+ * So ein Kopf ist **fast so breit wie der Rumpf**, und das ist der Punkt: Ein
+ * Koch aus Overcooked ist kein Mensch in klein, sondern ein Kopf mit einem
+ * Bauch darunter. Ø 32 cm sahen von oben aus wie ein Knauf auf einer Säule.
+ */
+export const HEAD_RADIUS = 0.23;
 
-/** Halbmesser des Rumpfes an seiner dicksten Stelle — eine halbe Kachel breit. */
-export const BODY_RADIUS = 0.25;
+/**
+ * Halbmesser des Rumpfes an seiner dicksten Stelle (Ø 84 cm) — knapp über der
+ * Mitte, denn dort sitzt bei diesen Figuren das Volumen.
+ *
+ * Die Höhe der Figur ist **vorgegeben**: Der Kopf steht, wo die Augen des
+ * Spielers stehen, sonst sehen sich zwei Leute in der Brille nicht in die
+ * Augen. Gedrungen wird sie deshalb über die **Breite** und darüber, wo das
+ * Volumen liegt — viel oben, wenig unten, wie ein Ei mit der dicken Seite oben.
+ */
+export const BODY_RADIUS = 0.42;
+
+/** Halbmesser der Handkugeln (Ø 19 cm) — große Fäuste, von oben gut zu sehen. */
+export const HAND_RADIUS = 0.095;
 
 // --- Köpfe -----------------------------------------------------------------
 
@@ -134,7 +152,7 @@ function solid(color: number, roughness = 0.75, metalness = 0.04): THREE.MeshSta
  * aus drei geratenen Zahlen zu bestehen, die beim nächsten Kopfmaß danebenliegen.
  */
 function onHead(x: number, y: number, z: number, distance: number): THREE.Vector3 {
-  return new THREE.Vector3(x, y, z).normalize().multiplyScalar(distance);
+  return new THREE.Vector3(x, y, z).normalize().multiplyScalar(distance * HEAD_RADIUS);
 }
 
 /**
@@ -143,6 +161,10 @@ function onHead(x: number, y: number, z: number, distance: number): THREE.Vector
  * **−z ist vorn**, wie überall am Avatar. Augen und Nase stehen weit genug
  * hervor, dass man aus zwölf Metern Höhe sieht, wohin die Figur schaut; das
  * ist ihre eigentliche Aufgabe und nicht die Ähnlichkeit mit einem Gesicht.
+ *
+ * **Alle Maße sind Vielfache von `HEAD_RADIUS`** — Abstand vom Mittelpunkt wie
+ * Größe der Teile. Wer den Kopf größer macht, ändert eine Zahl, und Augen,
+ * Nase, Backen und Bart gehen von selbst mit.
  */
 export function buildHead(kind: HeadKind): THREE.Group {
   const group = new THREE.Group();
@@ -154,21 +176,29 @@ export function buildHead(kind: HeadKind): THREE.Group {
   group.add(skull);
 
   // Die Augen sind Kugeln, die aus dem Kopf herausschauen — flach aufgemalte
-  // Augen verschwinden von oben, sobald die Figur den Kopf senkt. Sie sitzen
-  // knapp unter 6,5 cm über der Kopfmitte: Darüber fangen die Hutränder an
-  // (`headgear.ts`), und eine Mütze, die durch ein Auge schneidet, sieht man.
+  // Augen verschwinden von oben, sobald die Figur den Kopf senkt. Ihr oberer
+  // Rand liegt bei gut 0,4 Kopfhalbmessern über der Kopfmitte: Darüber fangen
+  // die Hutränder an (`headgear.ts`), und eine Mütze, die durch ein Auge
+  // schneidet, sieht man.
   const white = new THREE.MeshStandardMaterial({ color: 0xfbfbf7, roughness: 0.4 });
   const pupil = new THREE.MeshStandardMaterial({ color: 0x18202e, roughness: 0.3 });
   for (const sign of [-1, 1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.046, 14, 10), white);
-    eye.position.copy(onHead(sign * 0.42, 0.12, -0.88, 0.15));
-    const iris = new THREE.Mesh(new THREE.SphereGeometry(0.021, 12, 8), pupil);
-    iris.position.copy(onHead(sign * 0.42, 0.12, -0.88, 0.182));
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(HEAD_RADIUS * 0.3, 14, 10), white);
+    eye.position.copy(onHead(sign * 0.42, 0.12, -0.88, 0.92));
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(HEAD_RADIUS * 0.135, 12, 8), pupil);
+    iris.position.copy(onHead(sign * 0.42, 0.12, -0.88, 1.13));
     group.add(eye, iris);
   }
 
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.036, 14, 10), solid(SKIN[kind], 0.85));
-  nose.position.copy(onHead(0, -0.1, -1, 0.152));
+  // Die Nase ist der Kompass der Figur: Von schräg oben sagt allein sie, wohin
+  // jemand schaut. Sie steht deshalb einen Vierteldurchmesser weit heraus und
+  // ist nach vorn gezogen statt eine Kugel auf dem Gesicht zu sein.
+  const nose = new THREE.Mesh(
+    new THREE.SphereGeometry(HEAD_RADIUS * 0.33, 14, 10),
+    solid(SKIN[kind], 0.85),
+  );
+  nose.position.copy(onHead(0, -0.34, -1, 0.97));
+  nose.scale.set(0.82, 0.82, 1.5);
   group.add(nose);
 
   switch (kind) {
@@ -176,8 +206,8 @@ export function buildHead(kind: HeadKind): THREE.Group {
       // Backen: zwei flache Flecken, sonst sähe der runde Kopf aus wie ein Ei.
       const blush = solid(0xe08a7a, 0.9);
       for (const sign of [-1, 1]) {
-        const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), blush);
-        cheek.position.copy(onHead(sign * 0.82, -0.3, -0.49, 0.15));
+        const cheek = new THREE.Mesh(new THREE.SphereGeometry(HEAD_RADIUS * 0.26, 12, 8), blush);
+        cheek.position.copy(onHead(sign * 0.82, -0.3, -0.49, 0.94));
         cheek.scale.set(1, 0.75, 0.45);
         group.add(cheek);
       }
@@ -194,16 +224,16 @@ export function buildHead(kind: HeadKind): THREE.Group {
         [0.62, 0.02],
       ];
       for (const [x, y] of spots) {
-        const freckle = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), dot);
-        freckle.position.copy(onHead(x, y, -0.95, 0.157));
+        const freckle = new THREE.Mesh(new THREE.SphereGeometry(HEAD_RADIUS * 0.068, 8, 6), dot);
+        freckle.position.copy(onHead(x, y, -0.95, 0.98));
         group.add(freckle);
       }
       break;
     }
     case 'beard': {
       const dark = solid(0x3a2a1e, 0.9);
-      const chin = new THREE.Mesh(new THREE.SphereGeometry(0.098, 16, 12), dark);
-      chin.position.copy(onHead(0, -0.8, -0.6, 0.115));
+      const chin = new THREE.Mesh(new THREE.SphereGeometry(HEAD_RADIUS * 0.62, 16, 12), dark);
+      chin.position.copy(onHead(0, -0.8, -0.6, 0.72));
       chin.scale.set(1.02, 0.94, 0.96);
       group.add(chin, ...whiskers(dark));
       break;
@@ -220,8 +250,8 @@ export function buildHead(kind: HeadKind): THREE.Group {
 /** Der Balken unter der Nase — Vollbart und Schnauzer teilen ihn sich. */
 function whiskers(material: THREE.Material): THREE.Mesh[] {
   return [-1, 1].map((sign) => {
-    const half = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), material);
-    half.position.copy(onHead(sign * 0.26, -0.28, -0.92, 0.152));
+    const half = new THREE.Mesh(new THREE.SphereGeometry(HEAD_RADIUS * 0.19, 12, 8), material);
+    half.position.copy(onHead(sign * 0.26, -0.28, -0.92, 0.95));
     half.scale.set(1.25, 0.55, 0.7);
     return half;
   });
@@ -242,29 +272,85 @@ export interface BodyShape {
 }
 
 /**
- * Die Drehform des Rumpfes, als Halbmesser über der Höhe von 0 bis 1: unten
- * rund wie eine Tonne, in der Mitte am dicksten, nach oben schmaler, oben
- * geschlossen. Gebaut wird sie einmal in Einheitshöhe und dann gestreckt —
- * eine Geometrie je Bild wäre Müll für den Sammler.
+ * **Die Kartoffel** — die Drehform des Rumpfes als Halbmesser in Metern über
+ * einer Höhe von 0 bis 1.
+ *
+ * Der Halbmesser ist absolut, die Höhe ein **Anteil**: Gebaut wird die Form
+ * einmal und dann nur in y gestreckt (`setHeight`), damit Ducken den Rumpf
+ * staucht, ohne ihn dünn zu machen — und ohne je Bild eine Geometrie für den
+ * Sammler zu hinterlassen.
+ *
+ * Die Kurve macht die Figur **gedrungen**, obwohl ihre Höhe feststeht: unten
+ * rund und schmal (Ø 56 cm), ab einem Drittel schnell ausladend, am dicksten
+ * knapp über der Mitte (Ø 84 cm), darüber zum Kopf hin auf Ø 51 cm eingezogen
+ * und über 1,0 zu einer Schulter geschlossen, in der der Kopf sitzt. Das ist
+ * ein Ei mit der dicken Seite oben: Wo das Volumen liegt, sieht das Auge die
+ * Masse, und der schlanke Fuß darunter liest sich als kurzer Rock, nicht als
+ * Säule.
  */
 const BARREL: ReadonlyArray<readonly [number, number]> = [
-  [0.0, 0.0],
-  [0.085, 0.004],
-  [0.15, 0.022],
-  [0.2, 0.058],
-  [0.232, 0.11],
-  [0.248, 0.185],
-  [BODY_RADIUS, 0.3],
-  [0.249, 0.43],
-  [0.244, 0.56],
-  [0.236, 0.68],
-  [0.223, 0.79],
-  [0.206, 0.88],
-  [0.186, 0.945],
-  [0.15, 0.99],
-  [0.08, 1.005],
-  [0.0, 1.012],
+  [0.0, 0.03],
+  [0.12, 0.032],
+  [0.196, 0.044],
+  [0.252, 0.066],
+  [0.282, 0.1],
+  [0.312, 0.155],
+  [0.34, 0.225],
+  [0.369, 0.305],
+  [0.396, 0.395],
+  [0.413, 0.475],
+  [BODY_RADIUS, 0.55],
+  [0.416, 0.62],
+  [0.404, 0.69],
+  [0.384, 0.765],
+  [0.353, 0.835],
+  [0.311, 0.9],
+  [0.274, 0.955],
+  [0.255, 1.0],
+  [0.236, 1.035],
+  [0.188, 1.065],
+  [0.112, 1.085],
+  [0.0, 1.095],
 ];
+
+/**
+ * Wie dick der Rumpf auf der Höhe `fraction` ist, in Metern — zwischen den
+ * Stützstellen linear.
+ *
+ * Alles, was sich an den Rumpf anlegt (Schürze, Knöpfe, Ringe, Halstuch),
+ * fragt hier statt eine Zahl zu raten. Sonst schwebt beim nächsten Umbau der
+ * Kurve ein Knopf vor dem Bauch oder steckt darin.
+ */
+/** Von wo bis wo die Schürze reicht, als Anteil der Rumpfhöhe. */
+const APRON_BOTTOM = 0.15;
+const APRON_TOP = 0.74;
+
+/**
+ * Wie weit die Schürze um den Rumpf greift, im Bogenmaß. 1,45 rad sind gut 83°
+ * — an der dicksten Stelle also gut 53 cm Stoff vorn: breit genug, dass man
+ * sie aus 16 m Höhe als Schürze und nicht als Streifen sieht, schmal genug,
+ * dass links und rechts die Jacke stehen bleibt. Eine Schürze, die um den
+ * halben Rumpf geht, ist keine Schürze mehr, sondern die Jacke in einer
+ * zweiten Farbe.
+ */
+const APRON_WIDTH = 1.45;
+
+/** Auf welcher Höhe der Wulst des Halstuchs liegt, als Anteil der Rumpfhöhe. */
+const COLLAR = 0.975;
+
+function barrelRadius(fraction: number): number {
+  const first = BARREL[0]!;
+  if (fraction <= first[1]) return first[0];
+  for (let i = 1; i < BARREL.length; i++) {
+    const [radius, y] = BARREL[i]!;
+    if (fraction > y) continue;
+    const [previousRadius, previousY] = BARREL[i - 1]!;
+    const span = y - previousY;
+    const t = span > 0 ? (fraction - previousY) / span : 0;
+    return previousRadius + (radius - previousRadius) * t;
+  }
+  return BARREL[BARREL.length - 1]![0];
+}
 
 /**
  * **Der Rumpf** — Tonne, Schürze mit Knopfleiste, Halstuch.
@@ -283,41 +369,53 @@ export function buildBody(kind: BodyKind, suit: THREE.Material): BodyShape {
   const trim = solid(look.trim, 0.7);
 
   const points = BARREL.map(([r, y]) => new THREE.Vector2(r, y));
-  const shell = new THREE.Mesh(new THREE.LatheGeometry(points, 22), jacket);
+  const shell = new THREE.Mesh(new THREE.LatheGeometry(points, 26), jacket);
   shell.frustumCulled = false;
   group.add(shell);
 
-  // Die Schürze ist ein flacher Quader vorn; ihr Rücken steckt im Rumpf, damit
-  // sie sich bei jeder Rumpfhöhe anlegt statt in der Luft zu schweben.
-  const apron = new THREE.Mesh(new THREE.BoxGeometry(0.26, 1, 0.045), suit);
-  apron.position.z = -0.245;
+  // **Die Schürze ist dieselbe Drehform**, nur ein Stück davon und minimal
+  // weiter außen: ein Quader vorn stünde bei dieser Kartoffel unten in der
+  // Luft und oben im Bauch. So legt sie sich bei jeder Rumpfhöhe an, weil sie
+  // mit demselben Faktor mitwächst. `phiStart` zählt von +z (hinten) herum,
+  // also liegt die Mitte der Schürze bei π — vorn.
+  const apronPoints = BARREL.filter(([, y]) => y >= APRON_BOTTOM && y <= APRON_TOP).map(
+    ([r, y]) => new THREE.Vector2(r * 1.022, y),
+  );
+  const apron = new THREE.Mesh(
+    new THREE.LatheGeometry(apronPoints, 14, Math.PI - APRON_WIDTH / 2, APRON_WIDTH),
+    suit,
+  );
+  apron.frustumCulled = false;
   group.add(apron);
 
   // Die Knopfleiste sitzt auf der Schürze — sie trägt die Farbe der Jacke,
-  // damit man an einer Figur immer beide Farben sieht.
-  const buttons = [0.3, 0.46, 0.62].map((fraction) => {
-    const button = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.018, 12), trim);
+  // damit man an einer Figur immer beide Farben sieht. Wie weit vorn ein Knopf
+  // steht, sagt die Kurve, nicht eine geratene Zahl.
+  const buttons = [0.36, 0.5, 0.64].map((fraction) => {
+    const button = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.02, 14), trim);
     button.rotation.x = Math.PI / 2;
-    button.position.z = -0.272;
+    button.position.z = -(barrelRadius(fraction) * 1.022 + 0.012);
     return { button, fraction };
   });
   for (const { button } of buttons) group.add(button);
 
-  // Das Halstuch: ein offener Kragen um den Hals, wieder in der Anzugfarbe.
-  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.185, 0.215, 0.075, 20, 1, true), suit);
-  const knot = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.06, 0.05), suit);
-  knot.position.z = -0.195;
+  // **Das Halstuch ist ein Wulst**, kein Kragen: ein dicker Ring unter dem
+  // Kopf, der die Schulter abschließt. Er ist das, was den Kopf aufsitzen
+  // lässt, statt ihn auf einem Hals schweben zu lassen — einen Hals hat diese
+  // Figur nicht.
+  const collarRadius = barrelRadius(COLLAR) + 0.01;
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(collarRadius, 0.055, 10, 26), suit);
+  collar.rotation.x = Math.PI / 2;
+  const knot = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), suit);
+  knot.scale.set(1.3, 0.85, 0.85);
+  knot.position.z = -(collarRadius + 0.03);
   group.add(collar, knot);
 
-  const stripes: ReadonlyArray<readonly [number, number]> = [
-    [0.26, 0.253],
-    [0.46, 0.251],
-    [0.66, 0.242],
-  ];
   const rings = look.stripes
-    ? stripes.map(([fraction, radius]) => {
+    ? [0.34, 0.52, 0.7].map((fraction) => {
+        const radius = barrelRadius(fraction) * 1.012;
         const ring = new THREE.Mesh(
-          new THREE.CylinderGeometry(radius, radius, 0.05, 22, 1, true),
+          new THREE.CylinderGeometry(radius, radius, 0.07, 26, 1, true),
           trim,
         );
         return { ring, fraction };
@@ -329,12 +427,12 @@ export function buildBody(kind: BodyKind, suit: THREE.Material): BodyShape {
     group,
     setHeight(height: number): void {
       shell.scale.set(1, height, 1);
-      apron.scale.set(1, height * 0.52, 1);
-      apron.position.y = height * 0.42;
+      // Dieselbe Streckung wie die Hülle — die Schürze ist ja ihr Ausschnitt.
+      apron.scale.set(1, height, 1);
       for (const { button, fraction } of buttons) button.position.y = height * fraction;
       for (const { ring, fraction } of rings) ring.position.y = height * fraction;
-      collar.position.y = height * 0.93;
-      knot.position.y = height * 0.885;
+      collar.position.y = height * COLLAR;
+      knot.position.y = height * COLLAR;
     },
   };
 }

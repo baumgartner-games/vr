@@ -5,6 +5,7 @@ import {
   buildBody,
   buildHead,
   skinTone,
+  HAND_RADIUS,
   HEAD_RADIUS,
   type BodyKind,
   type BodyShape,
@@ -44,14 +45,29 @@ const _forward = new THREE.Vector3();
 const _hand = new THREE.Vector3();
 const _world = new THREE.Vector3();
 
-/** Wie weit die Kopfmitte hinter den Augen sitzt — dort steht auch der Rumpf. */
-const NECK_BACK = 0.055;
+/**
+ * Wie weit die Kopfmitte hinter den Augen sitzt — dort steht auch der Rumpf.
+ * Ein Drittel des Kopfhalbmessers: Die Augen sitzen vorn auf der Kugel, nicht
+ * in ihrer Mitte, und mit einem größeren Kopf wandert die Mitte weiter zurück.
+ */
+const NECK_BACK = HEAD_RADIUS * 0.34;
 
 /**
- * Wie weit die freie Hand neben der Mitte des Rumpfes schwebt — gerade so
- * weit, dass die Kugel die Tonne streift und nicht in ihr steckt.
+ * **Wo eine Hand liegt, die niemand trackt** — im Raum des Rumpfes: seitlich
+ * versetzt, deutlich **vor** dem Bauch, auf Brusthöhe.
+ *
+ * Die beiden Zahlen ziehen gegeneinander, und beide werden gebraucht. **Vor**
+ * dem Bauch liegen die Hände, weil die Figur dann aussieht, als trüge sie
+ * etwas — was sie meistens auch tut. **Seitlich** liegen sie weit genug, dass
+ * sie über die 84 cm breite Silhouette hinausragen: Aus 16 m Höhe und unter
+ * 55° (`core/topDownPose.ts`) verschwindet alles hinter diesem Rumpf, was
+ * nicht neben ihm vorbeischaut, und eine Figur, die von hinten keine Hände
+ * hat, greift für den Zuschauer ins Leere.
  */
-const BODY_HALF = 0.3;
+const HAND_SIDE = 0.42;
+const HAND_FRONT = 0.24;
+/** Auf welchem Anteil der Rumpfhöhe — knapp über der dicksten Stelle. */
+const HAND_LIFT = 0.66;
 
 /**
  * **Die Figur** — ein Koch nach dem Vorbild von Overcooked, angetrieben von
@@ -59,9 +75,9 @@ const BODY_HALF = 0.3;
  * nicht, mehr geht auch über das Netz nicht, und deshalb bedient derselbe
  * Körper den eigenen Spieler wie jeden Mitspieler.
  *
- * Kein Skelett mehr, sondern vier Teile: ein **Rumpf** wie eine Tonne mit
+ * Kein Skelett mehr, sondern vier Teile: ein **Rumpf** wie eine Kartoffel mit
  * rundem Boden, ein großer runder **Kopf** mit Augen und Nase, und zwei
- * **Hände**, die ohne Arme daneben schweben. Das ist keine Vereinfachung aus
+ * **Hände**, die ohne Arme davor schweben. Das ist keine Vereinfachung aus
  * Bequemlichkeit: Aus der Ansicht von oben, in der hier gespielt wird, waren
  * Ober- und Unterarm zwei graue Striche, und die Blickrichtung sah man
  * überhaupt nicht. Eine Nase sieht man.
@@ -80,7 +96,7 @@ export class AvatarBody extends THREE.Group {
    * Die Handkugeln (`options.hands`) — Kinder des Körpers und **nicht** des
    * Ankers. Der Anker sagt mit seiner Sichtbarkeit, ob diese Hand getrackt
    * ist (daran hängt, ob ein Werkzeug darin liegt); die Kugel schwebt auch
-   * dann neben dem Rumpf, wenn niemand sie trackt.
+   * dann vor dem Rumpf, wenn niemand sie trackt.
    */
   private readonly handMeshes: THREE.Mesh[] = [];
 
@@ -133,9 +149,9 @@ export class AvatarBody extends THREE.Group {
       this.add(anchor);
       anchors.push(anchor);
       if (!options.hands) continue;
-      // Ø 12 cm, wie im Plan — groß genug, dass man von oben sieht, wohin
-      // jemand greift, und klein genug, dass sie nicht wie Fäustlinge wirken.
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 10), this.skin);
+      // Ø 19 cm: Zu einem Kopf von 46 cm gehören Fäuste und keine Perlen —
+      // von oben ist die Hand das, woran man sieht, wohin jemand greift.
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(HAND_RADIUS, 16, 12), this.skin);
       ball.frustumCulled = false;
       this.add(ball);
       this.handMeshes.push(ball);
@@ -255,7 +271,9 @@ export class AvatarBody extends THREE.Group {
     const cos = Math.cos(this.bodyYaw);
     const baseX = headPos.x + sin * NECK_BACK;
     const baseZ = headPos.z + cos * NECK_BACK;
-    const height = Math.max(headPos.y - HEAD_RADIUS * 0.68, 0.3);
+    // Der Kopf sitzt **auf** dem Rumpf, ohne Hals: Die Schulter endet ein
+    // Stück über der Kopfunterkante, und die Kugel steckt darin.
+    const height = Math.max(headPos.y - HEAD_RADIUS * 0.62, 0.3);
     this.torso.position.set(baseX, 0, baseZ);
     this.torso.rotation.set(0, this.bodyYaw, 0);
     this.shape?.setHeight(height);
@@ -273,15 +291,16 @@ export class AvatarBody extends THREE.Group {
       if (limb) {
         _hand.copy(limb.position);
       } else {
-        // Ohne Arme gibt es nichts zu lösen: Die Hand schwebt seitlich neben
-        // dem Rumpf und pendelt beim Laufen, damit die Figur nicht rutscht.
+        // Ohne Arme gibt es nichts zu lösen: Die Hand schwebt vor dem Bauch
+        // und pendelt beim Laufen, damit die Figur nicht rutscht. `cos/-sin`
+        // ist die Rechte des Rumpfes, `-sin/-cos` seine Blickrichtung.
         const phase = this.walkPhase + (i === 0 ? 0 : Math.PI);
-        const offset = sign * (0.005 + BODY_HALF);
-        const back = 0.02 + Math.sin(phase) * swing * 1.8;
+        const side = sign * HAND_SIDE;
+        const ahead = HAND_FRONT + Math.sin(phase) * swing * 2.2;
         _hand.set(
-          baseX + cos * offset + sin * back,
-          height * 0.5 + Math.abs(Math.cos(phase)) * swing * 0.6,
-          baseZ - sin * offset + cos * back,
+          baseX + cos * side - sin * ahead,
+          height * HAND_LIFT + Math.abs(Math.cos(phase)) * swing * 0.6,
+          baseZ - sin * side - cos * ahead,
         );
       }
 

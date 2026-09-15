@@ -27,16 +27,19 @@ import { HEAD_RADIUS } from './avatarLook';
  *   innen, an der Kamera. Es gibt ihn nur zum Helm, denn eine Mütze hat keinen
  *   Rand im Blickfeld.
  *
- * Maße im Rahmen des Kopfes: Der Kopf ist eine **Kugel** von 32 cm Durchmesser
- * um den Ursprung (`avatarLook.HEAD_RADIUS`), und **−z ist vorn**. Wer hier
- * etwas anbaut, rechnet von dort — und zwar mit `dome()`, statt drei Zahlen zu
- * raten: Auf einer Kugel ist der Halbmesser eine Funktion der Höhe, und ein
- * Hut, der das nicht mitrechnet, lässt den Kopf an den Seiten herausschauen.
+ * Maße im Rahmen des Kopfes: Der Kopf ist eine **Kugel** von 46 cm Durchmesser
+ * um den Ursprung (`avatarLook.HEAD_RADIUS`), und **−z ist vorn**. Jede Zahl
+ * hier ist deshalb ein **Vielfaches von `HEAD_RADIUS`** (`r()`) und keine
+ * Länge in Metern: Der Kopf ist in diesem Projekt schon einmal gewachsen, und
+ * beim nächsten Mal sollen die Hüte von selbst mitwachsen statt acht Mal neu
+ * geraten zu werden. Wo etwas auf der Rundung aufsitzt, rechnet `dome()` den
+ * Halbmesser aus der Ansatzhöhe aus — ein Hut mit festem Halbmesser lässt den
+ * Kopf an den Seiten herausschauen.
  *
- * Nichts sitzt tiefer als **7 cm über der Kopfmitte**, außer der Helm, der den
- * ganzen Kopf einschließt: Darunter liegen die Augen, und eine Mütze, die
- * jemandem über die Augen rutscht, sieht nicht nach Mütze aus, sondern nach
- * Fehler.
+ * Nichts sitzt tiefer als **0,45 Halbmesser über der Kopfmitte**, außer der
+ * Helm, der den ganzen Kopf einschließt: Darunter liegen die Augen, und eine
+ * Mütze, die jemandem über die Augen rutscht, sieht nicht nach Mütze aus,
+ * sondern nach Fehler.
  */
 
 /** Was es zu tragen gibt. `none` ist ausdrücklich einer davon. */
@@ -91,6 +94,11 @@ function solid(color: number, roughness = 0.7, metalness = 0.05): THREE.MeshStan
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
 }
 
+/** `k` Kopfhalbmesser in Metern — die Einheit, in der diese Datei rechnet. */
+function r(k: number): number {
+  return HEAD_RADIUS * k;
+}
+
 /**
  * **Die Kuppe, die dem runden Kopf ab der Höhe `base` aufsitzt.**
  *
@@ -138,26 +146,32 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
 
   switch (kind) {
     case 'chef': {
-      // Die Kochmütze: Band, Rohr, Wulst. Sie ist absichtlich hoch — von
+      // Die Kochmütze: Wulst, Rohr, Haube. Sie ist absichtlich hoch — von
       // schräg oben ist sie das, was eine Figur als Koch erkennbar macht,
-      // und sie überragt dabei jeden anderen Hut im Regal.
+      // und sie überragt dabei jeden anderen Hut im Regal. Der Wulst unten
+      // ist der Ring, der sie auf dem runden Kopf hält; ohne ihn säße oben
+      // ein Zylinder auf einer Kugel.
       const linen = solid(0xf7f5ef, 0.9);
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.155, 0.055, 22), linen);
-      band.position.y = 0.1;
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.128, 0.142, 0.12, 22), linen);
-      tube.position.y = 0.185;
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.135, 20, 14), linen);
-      puff.scale.set(1.15, 0.85, 1.15);
-      puff.position.y = 0.275;
+      const band = new THREE.Mesh(new THREE.TorusGeometry(r(0.9), r(0.2), 10, 26), linen);
+      band.rotation.x = Math.PI / 2;
+      band.position.y = r(0.66);
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(r(0.82), r(0.95), r(0.95), 24), linen);
+      tube.position.y = r(1.12);
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(r(0.95), 20, 14), linen);
+      puff.scale.set(1.2, 0.92, 1.2);
+      puff.position.y = r(1.78);
       group.add(band, tube, puff);
       break;
     }
     case 'cap': {
+      // Das Basecap: flache Schale, **breiter** Schirm. Von schräg oben ist
+      // der Schirm das ganze Erkennungszeichen — ein schmaler verschwindet
+      // unter dem Kopf, der über ihm steht.
       const cloth = solid(tint, 0.8);
-      const shell = domeMesh(0.085, 0.012, cloth);
+      const shell = domeMesh(r(0.53), r(0.08), cloth);
       shell.scale.set(1, 1, 1.06);
-      const peak = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.014, 0.105), cloth);
-      peak.position.set(0, 0.095, -0.205);
+      const peak = new THREE.Mesh(new THREE.BoxGeometry(r(1.34), r(0.085), r(0.86)), cloth);
+      peak.position.set(0, r(0.58), -r(1.4));
       peak.rotation.x = 0.14;
       group.add(shell, peak);
       break;
@@ -167,67 +181,76 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
       // der unter die Augen reicht, und muss deshalb über Nase und Augen
       // hinauskommen, die aus der Kugel herausstehen.
       const paint = solid(tint, 0.35, 0.3);
-      const shell = new THREE.Mesh(new THREE.SphereGeometry(0.205, 22, 16), paint);
+      const shell = new THREE.Mesh(new THREE.SphereGeometry(r(1.3), 22, 16), paint);
       shell.scale.set(1, 1.03, 1.04);
-      shell.position.y = -0.012;
+      shell.position.y = -r(0.075);
       const visor = new THREE.Mesh(
-        new THREE.SphereGeometry(0.208, 22, 12, -0.9, 1.8, 1.05, 0.62),
+        new THREE.SphereGeometry(r(1.32), 22, 12, -0.9, 1.8, 1.05, 0.62),
         new THREE.MeshStandardMaterial({ color: 0x121722, roughness: 0.12, metalness: 0.6 }),
       );
       visor.scale.copy(shell.scale);
       visor.position.y = shell.position.y;
       visor.rotation.y = Math.PI;
-      const chin = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.055, 0.055), paint);
-      chin.position.set(0, -0.145, -0.175);
+      const chin = new THREE.Mesh(new THREE.BoxGeometry(r(1.26), r(0.34), r(0.34)), paint);
+      chin.position.set(0, -r(0.92), -r(1.12));
       group.add(shell, visor, chin);
       break;
     }
     case 'hardhat': {
       const plastic = solid(0xffc857, 0.55);
-      const shell = domeMesh(0.075, 0.026, plastic);
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.225, 0.014, 24), plastic);
-      brim.position.y = 0.079;
-      const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.036, 0.26), solid(0xe8a92f, 0.55));
-      ridge.position.y = 0.215;
+      const shell = domeMesh(r(0.47), r(0.16), plastic);
+      const brim = new THREE.Mesh(
+        new THREE.CylinderGeometry(r(1.42), r(1.42), r(0.09), 26),
+        plastic,
+      );
+      brim.position.y = r(0.5);
+      const ridge = new THREE.Mesh(
+        new THREE.BoxGeometry(r(0.19), r(0.23), r(1.64)),
+        solid(0xe8a92f, 0.55),
+      );
+      ridge.position.y = r(1.34);
       group.add(shell, brim, ridge);
       break;
     }
     case 'beanie': {
       const knit = solid(0xc2543f, 0.95);
-      const shell = domeMesh(0.075, 0.014, knit);
+      const shell = domeMesh(r(0.47), r(0.09), knit);
       const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.16, 0.16, 0.042, 20),
+        new THREE.CylinderGeometry(r(1.0), r(1.0), r(0.27), 22),
         solid(0xa8422f, 0.95),
       );
-      band.position.y = 0.086;
-      const bobble = new THREE.Mesh(new THREE.SphereGeometry(0.034, 12, 8), solid(0xf0e6d2, 0.95));
-      bobble.position.y = 0.252;
+      band.position.y = r(0.54);
+      const bobble = new THREE.Mesh(
+        new THREE.SphereGeometry(r(0.22), 12, 8),
+        solid(0xf0e6d2, 0.95),
+      );
+      bobble.position.y = r(1.58);
       group.add(shell, band, bobble);
       break;
     }
     case 'tophat': {
       const felt = solid(0x14161d, 0.85);
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.215, 0.215, 0.016, 24), felt);
-      brim.position.y = 0.1;
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.15, 0.21, 24), felt);
-      tube.position.y = 0.215;
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(r(1.36), r(1.36), r(0.1), 26), felt);
+      brim.position.y = r(0.62);
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(r(0.91), r(0.94), r(1.32), 26), felt);
+      tube.position.y = r(1.36);
       const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.151, 0.153, 0.036, 24),
+        new THREE.CylinderGeometry(r(0.95), r(0.96), r(0.23), 26),
         solid(0x8c2f3c, 0.8),
       );
-      band.position.y = 0.125;
+      band.position.y = r(0.79);
       group.add(brim, tube, band);
       break;
     }
     case 'crown': {
       const gold = solid(0xe8c14a, 0.3, 0.75);
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.155, 0.055, 20), gold);
-      ring.position.y = 0.118;
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(r(0.98), r(0.98), r(0.36), 22), gold);
+      ring.position.y = r(0.74);
       group.add(ring);
       for (let i = 0; i < 6; i++) {
         const angle = (i / 6) * Math.PI * 2;
-        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.07, 8), gold);
-        spike.position.set(Math.sin(angle) * 0.135, 0.18, Math.cos(angle) * 0.135);
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(r(0.17), r(0.45), 8), gold);
+        spike.position.set(Math.sin(angle) * r(0.85), r(1.14), Math.cos(angle) * r(0.85));
         group.add(spike);
       }
       break;

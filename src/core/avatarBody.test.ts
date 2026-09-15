@@ -1,16 +1,19 @@
 import * as THREE from 'three';
 import { AvatarBody } from './AvatarBody';
-import { BODY_KINDS, HEAD_KINDS } from './avatarLook';
+import { BODY_KINDS, BODY_RADIUS, HEAD_KINDS, HEAD_RADIUS } from './avatarLook';
 import { HEADGEAR_KINDS } from './headgear';
 import type { Appearance } from './appearance';
 
 /**
  * Der Körper selbst ist Geometrie, und wie er aussieht, entscheidet kein Test.
- * Drei Sachen an ihm sind trotzdem Rechnung, und alle drei fielen schon einmal
+ * Vier Sachen an ihm sind trotzdem Rechnung, und alle vier fielen schon einmal
  * auf: dass der Rumpf **unter** dem Kopf steht und beim Ducken mitgeht, dass
  * `setSelfView` genau das ausblendet, was man in den eigenen Augen nicht sehen
- * darf (und die Hände stehen lässt), und dass ein Wechsel des Aussehens nicht
- * jedes Mal einen zweiten Rumpf im Körper zurücklässt.
+ * darf (und die Hände stehen lässt), dass ein Wechsel des Aussehens nicht jedes
+ * Mal einen zweiten Rumpf im Körper zurücklässt — und die **Proportionen**:
+ * Die erste Fassung dieser Figur war 1,7 m hoch und 0,5 m breit und sah von
+ * oben aus wie eine Säule. Breit und gedrungen ist hier kein Geschmack,
+ * sondern die Bedingung, unter der man aus 16 m Höhe erkennt, wer da läuft.
  */
 function pose(y: number): { position: THREE.Vector3; quaternion: THREE.Quaternion } {
   return { position: new THREE.Vector3(0, y, 0), quaternion: new THREE.Quaternion() };
@@ -36,26 +39,49 @@ describe('die Figur', () => {
     body.dispose();
   });
 
-  it('stellt den Rumpf vom Boden bis unter den Kopf', () => {
+  it('stellt den Rumpf knapp über dem Boden bis in den Kopf hinein', () => {
     const body = new AvatarBody();
     body.update(1 / 60, pose(1.6), null, null);
     const box = new THREE.Box3().setFromObject(torsoOf(body));
-    expect(box.min.y).toBeCloseTo(0, 2);
-    expect(box.max.y).toBeGreaterThan(1.4);
+    // Unten rund und ein Fingerbreit über dem Boden — nicht schwebend, aber
+    // auch nicht abgeschnitten.
+    expect(box.min.y).toBeGreaterThan(0.02);
+    expect(box.min.y).toBeLessThan(0.08);
+    // Oben schließt die Schulter **über** der Kopfunterkante: Der Kopf sitzt
+    // auf dem Rumpf, es gibt keinen Hals, an dem eine Lücke klaffen könnte.
+    expect(box.max.y).toBeGreaterThan(1.6 - HEAD_RADIUS);
     expect(box.max.y).toBeLessThan(1.6);
-    // Eine halbe Kachel breit, wie im Plan.
-    expect(box.max.x - box.min.x).toBeCloseTo(0.5, 1);
+    body.dispose();
+  });
+
+  it('ist breit genug, dass die Figur von oben gedrungen wirkt', () => {
+    // Das Maß, an dem die erste Fassung scheiterte: eine Säule von einer
+    // halben Kachel Breite über 1,7 m Höhe. Ein Koch ist eine Tonne.
+    const body = new AvatarBody();
+    body.update(1 / 60, pose(1.6), null, null);
+    const box = new THREE.Box3().setFromObject(torsoOf(body));
+    // Ein Vieleck aus 26 Seiten bleibt knapp unter dem Kreis, den es meint —
+    // deshalb ein Fenster und keine Gleichheit.
+    expect(box.max.x - box.min.x).toBeGreaterThan(BODY_RADIUS * 2 - 0.02);
+    expect(box.max.x - box.min.x).toBeLessThanOrEqual(BODY_RADIUS * 2);
+    expect(box.max.x - box.min.x).toBeGreaterThan(0.75);
+    // Der Kopf ist fast so breit wie der Rumpf — das macht den Koch aus.
+    expect(HEAD_RADIUS * 2).toBeGreaterThan((box.max.x - box.min.x) * 0.5);
     body.dispose();
   });
 
   it('staucht ihn beim Ducken, statt ihn abheben zu lassen', () => {
     const body = new AvatarBody();
     body.update(1 / 60, pose(1.6), null, null);
-    const tall = new THREE.Box3().setFromObject(torsoOf(body)).max.y;
+    const tall = new THREE.Box3().setFromObject(torsoOf(body));
     body.update(1 / 60, pose(0.9), null, null);
     const ducked = new THREE.Box3().setFromObject(torsoOf(body));
-    expect(ducked.max.y).toBeLessThan(tall - 0.6);
-    expect(ducked.min.y).toBeCloseTo(0, 2);
+    expect(ducked.max.y).toBeLessThan(tall.max.y - 0.6);
+    // Der Boden bleibt der Boden: Der Rumpf wird kürzer, er hebt nicht ab.
+    expect(ducked.min.y).toBeLessThan(tall.min.y);
+    expect(ducked.min.y).toBeLessThan(0.05);
+    // Und schmaler wird er dabei nicht.
+    expect(ducked.max.x - ducked.min.x).toBeCloseTo(tall.max.x - tall.min.x, 5);
     body.dispose();
   });
 
@@ -69,15 +95,26 @@ describe('die Figur', () => {
     body.dispose();
   });
 
-  it('lässt die Hände neben dem Rumpf schweben, wenn keine getrackt wird', () => {
+  it('lässt die Hände vor dem Rumpf schweben, wenn keine getrackt wird', () => {
     const body = new AvatarBody({ hands: true });
     body.update(1 / 60, pose(1.6), null, null);
     const [left, right] = body.handAnchors;
     // Der Anker sagt „diese Hand ist getrackt" — die Kugel schwebt trotzdem.
     expect(left.visible).toBe(false);
     expect(right.visible).toBe(false);
-    expect(left.position.x).toBeLessThan(-0.25);
-    expect(right.position.x).toBeGreaterThan(0.25);
+    // Seitlich weit genug, dass sie von schräg oben neben dem 84 cm breiten
+    // Rumpf vorbeischauen …
+    expect(left.position.x).toBeLessThan(-BODY_RADIUS * 0.9);
+    expect(right.position.x).toBeGreaterThan(BODY_RADIUS * 0.9);
+    // … und **vor** ihm, nicht neben ihm: −z ist vorn, der Rumpf steht bei
+    // z = 0 plus dem Versatz des Nackens.
+    const torso = torsoOf(body).position.z;
+    for (const hand of [left, right]) expect(hand.position.z).toBeLessThan(torso - 0.2);
+    // Auf Brusthöhe, nicht am Boden und nicht am Kinn.
+    for (const hand of [left, right]) {
+      expect(hand.position.y).toBeGreaterThan(0.8);
+      expect(hand.position.y).toBeLessThan(1.2);
+    }
     body.dispose();
   });
 
