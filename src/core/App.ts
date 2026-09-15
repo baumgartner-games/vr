@@ -1317,6 +1317,24 @@ export class App {
           },
         },
         {
+          // **Der Schalter, den der Besitzer wollte**: Schatten wie in
+          // Overcooked, ohne dafür die ganze Zeichnung dazuzunehmen. Er steht
+          // über dem Modus, weil er der ist, an dem man wirklich dreht —
+          // hinauf für das Bild, hinunter für die Bildrate.
+          id: 'gfx:shadows',
+          label: 'Schatten',
+          sub: 'Die Sonne wirft sie · das Grundlicht geht dafür etwas herunter',
+          caption: 'Der erste Regler, wenn die Bildrate klemmt',
+          icon: 'settings',
+          accent,
+          checked: settings.shadows,
+          run: () => {
+            const next = saveGraphics({ shadows: !graphics().shadows });
+            this.menuDirty = true;
+            this.notify(next.shadows ? 'Schatten an' : 'Schatten aus');
+          },
+        },
+        {
           id: 'gfx:mode',
           label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
           sub: GRAPHICS_MODE_SUBS[settings.mode],

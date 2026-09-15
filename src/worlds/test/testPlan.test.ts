@@ -13,6 +13,7 @@ import {
   EFFECTS,
   FIELD,
   INTERACT,
+  KITCHEN,
   NAVIGATION,
   PODIUM,
   RANGE,
@@ -27,6 +28,8 @@ import { EMITTERS } from './zones/effects';
 import { HUB_GATE, GATE_TILE } from './zones/start';
 import { SPIKES } from './zones/navigation';
 import { BERM } from './zones/range';
+import { KITCHEN_SPOTS } from './zones/kitchen';
+import { kitchenPiece } from '../../core/kitchenFit';
 
 /** Einmal gebaut und von allen Behauptungen geteilt: er ändert sich nicht. */
 const plan = testPlan();
@@ -90,7 +93,7 @@ describe('Das Gelände der Testwelt', () => {
   });
 
   it('hält jede Zone in ihrem eigenen Rechteck', () => {
-    const rects = { START, INTERACT, EFFECTS, PODIUM, NAVIGATION, RANGE, CLIMB };
+    const rects = { START, INTERACT, EFFECTS, PODIUM, NAVIGATION, RANGE, CLIMB, KITCHEN };
     const pairs = Object.entries(rects);
     for (let i = 0; i < pairs.length; i++) {
       for (let j = i + 1; j < pairs.length; j++) {
@@ -291,6 +294,67 @@ describe('Die Zonen dazwischen', () => {
   it('legt die Boxengasse an die Zielgerade und macht sie begehbar', () => {
     expect(PIT_LANE.x + PIT_LANE.w).toBe(KART_START.x - 2);
     expect(plan.graph.has(tileKey(PIT_LANE.x, PIT_LANE.z, 0))).toBe(true);
+  });
+
+  /**
+   * **Die Küche steht im Grundriss und nicht bloß im Bild.**
+   *
+   * Ihre Möbel sind ein Modell, das asynchron kommt und womöglich gar nicht
+   * (`zones/kitchen.ts`). Der Weg eines NPC darf davon nicht abhängen: Was ein
+   * Möbel belegt, ist teuer zu begehen, und zwar in jedem Fall. Ohne diese
+   * Behauptung liefe ein NPC durch den Herd, sobald die Datei fehlt — und mit
+   * Datei liefe er hinein.
+   */
+  it('verteuert jede Kachel, auf der ein Küchenmöbel steht', () => {
+    let checked = 0;
+    for (const spot of KITCHEN_SPOTS) {
+      const piece = kitchenPiece(spot.name);
+      expect({ name: spot.name, known: piece !== undefined }).toEqual({
+        name: spot.name,
+        known: true,
+      });
+      if (!piece || piece.hanging) continue;
+      const [w, d] = piece.tiles;
+      const turned = (spot.turn ?? 0) % 2 === 1;
+      for (let dz = 0; dz < (turned ? w : d); dz++) {
+        for (let dx = 0; dx < (turned ? d : w); dx++) {
+          const x = KITCHEN.x + spot.x + dx;
+          const z = KITCHEN.z + spot.z + dz;
+          const facts = plan.graph.tile(tileKey(x, z, 0));
+          expect({ x, z, cost: (facts?.cost ?? 0) > 1 }).toEqual({ x, z, cost: true });
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  /** Jedes Möbel bleibt in seiner Zone — sonst steht ein Herd im Freien. */
+  it('hält jedes Küchenmöbel innerhalb der Küche', () => {
+    for (const spot of KITCHEN_SPOTS) {
+      const piece = kitchenPiece(spot.name)!;
+      const turned = (spot.turn ?? 0) % 2 === 1;
+      const [w, d] = piece.tiles;
+      const wide = turned ? d : w;
+      const deep = turned ? w : d;
+      expect({ name: spot.name, fits: spot.x >= 0 && spot.x + wide <= KITCHEN.w }).toEqual({
+        name: spot.name,
+        fits: true,
+      });
+      expect({ name: spot.name, fits: spot.z >= 0 && spot.z + deep <= KITCHEN.d }).toEqual({
+        name: spot.name,
+        fits: true,
+      });
+    }
+  });
+
+  /** Und der Aushang dort ist mehrzeilig — die Probe auf das Schild als Seite. */
+  it('hängt in die Küche ein Schild mit mehr als einer Zeile', () => {
+    const sign = plan.fixture('schild-kueche');
+    expect(sign?.kind).toBe('sign');
+    const text = String(sign?.props.text ?? '');
+    expect(text.split('\n').length).toBeGreaterThan(5);
+    expect(text).toContain('# Die Küche');
   });
 
   it('setzt drei Portaltafeln, eine davon auf dem Podest', () => {

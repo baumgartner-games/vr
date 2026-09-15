@@ -741,11 +741,18 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     ist die **Mitte des Rigs** und nicht der Kopf — sonst schöbe jedes Ducken
     das Bild —, die Kamera steht im Süden darüber (`topDownPosition`) und nickt
     genau so weit, dass sie das Ziel ansieht (`topDownPitch`). Der **Zoom**
-    geht in vier Stufen als Abstand: 12 · 16 · 22 · 30 m, Vorgabe 16, das Rad
+    geht in **sechs** Stufen als Abstand: 12 · 16 · 22 · 30 · 42 · 60 m,
+    Vorgabe 16, das Rad
     sammelt 50 Einheiten je Stufe wie schon in der alten Kachelwelt — und die
     nächste Stufe wird **vom Abstand aus gerechnet, der gerade gilt**, nicht
     von der zuletzt gerasterten: Sonst spränge das Bild nach einem Pinch beim
-    ersten Radklick dorthin zurück, wo es vor dem Pinch stand. Beides läuft
+    ersten Radklick dorthin zurück, wo es vor dem Pinch stand. **Die beiden
+    obersten Stufen sind nachgetragen worden**, und der Grund ist die
+    Testwelt: Ihr Gelände misst 64 × 80 m, und bei 30 m Abstand sieht man
+    davon einen Ausschnitt — wer wissen wollte, wo die Kartbahn relativ zur
+    Kletterwand liegt, musste hinlaufen. 60 m fassen das Gelände als Ganzes;
+    darüber hinaus wird die Figur zum Punkt, und ein Blickwinkel, in dem man
+    sich selbst sucht, ist keiner mehr. Beides läuft
     **weich** nach (`net/PoseSmoothing.SmoothPose`, 0,12 s): Ein Rig, das an
     jeder Fuge einen Zentimeter versetzt wird, zitterte sonst im ganzen Bild.
     Perspektivisch und nicht orthografisch, weil ein Podest und der Boden
@@ -1104,9 +1111,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   **NPC** (wer hier herumläuft — Haut und Hirn getrennt, dazu Spawnpunkte und
   Brutkäfige; siehe _Wer hier herumläuft_),
   **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Aussehen** (drei
-  Zeilen: Kopf, Hut, Körper — siehe _Wie man aussieht_), **Grafik** (die
-  experimentelle Seite: Einfach oder Comic, dazu die Gitterlinien — siehe
-  _Wie schön es aussieht_),
+  Zeilen: Kopf, Hut, Körper — siehe _Wie man aussieht_), **Grafik** (Schatten,
+  Einfach oder Comic, dazu die Gitterlinien — siehe _Wie schön es aussieht_),
   **Einstellungen** und die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
   `A`** den Eintrag in genau die zeigende Hand, damit der Zieltrigger nicht
@@ -1954,7 +1960,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Kopfhöhe — Vorbeugen im Sessel hob vorher die halbe Welt mit an
   (`core/posture.ts`, mit Test).
 
-- **Die Testwelt** (`src/worlds/test/`): der Prüfstand — **neun Zonen auf einem
+- **Die Testwelt** (`src/worlds/test/`): der Prüfstand — **zehn Zonen auf einem
   Gelände**, in einer Minute zu Fuß abzulaufen.
 
   Bis September 2026 gab es siebzehn Welten, und jede prüfte eine Sache: eine
@@ -2011,6 +2017,18 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Kartzone_.
   - **Klettern** (Südosten): eine Wand mit Griffen aus drei Materialien und
     zwei Sprungkissen davor. Ausführlich unter _Klettern_.
+  - **Küche** (ganz im Norden, hinter dem Podest): zwölf mal elf Kacheln mit
+    den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe _Modelle im
+    Repository_) — Zeile, zwei Herde und Spüle an der Wand, eine Insel aus
+    Arbeitstisch, Schneidebrett und Mülleimer, vorn die Ausgabe mit dem Regal
+    darüber. Sie ist der Grund, warum das Gelände nach Norden gewachsen ist
+    (`FIELD` ist jetzt 64 × 80 m): Die Möbel sind groß — eine Spüle misst
+    4 × 3 m —, und in eine Lücke zwischen zwei bestehenden Zonen passt davon
+    keine Reihe. Hinter dem Podest und nicht neben dem Schießstand, weil
+    dessen Bahnen quer über den ganzen Osten bis zum Kugelfang laufen und eine
+    Küche in der Schusslinie eine Küche mit Löchern ist. Ihr Schild ist
+    zugleich die Probe auf den **Aushang**: Es trägt Überschrift, Aufzählung
+    und Zitat, und wer es benutzt, schlägt es im Menü auf.
   - **Portaltafeln**: drei helle Tafeln — am Startplatz, auf dem Podest und an
     der Westwand der Navigation. Drei und nicht eine, weil ein Portal erst zu
     zweit etwas ist; die auf dem Podest ist der kürzeste Weg, die Treppe zu
@@ -2041,7 +2059,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Portale, das Menü und die Physik-Einstellungen. Nach dem dritten Umbau hätte
   eine davon etwas daran verstellt, und niemand wüsste welche. Sie dürfen
   bauen, anmelden und melden, und sonst nichts; dieselbe Entscheidung wie bei
-  den Einbauten und aus demselben Grund. Fünf von neun haben überhaupt Leben
+  den Einbauten und aus demselben Grund. Sechs von zehn haben überhaupt Leben
   darin (Interaktionen, Navigation, Schießstand, Kart, Klettern), die anderen
   vier sind ein **Stempel** auf dem Grundriss und fertig
   (`stamp<Name>(plan)`).
@@ -2320,6 +2338,17 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   (`LAYER_SELF_ONLY`), und sie steht dort, wo der Spieler steht — nicht vor
   einem Vorhang, in den man hineinschaut.
 
+  **Die Kamera hängt an den Maßen der Figur** (`CHEF_HEIGHT`) und nicht an
+  denen des Spielers, und genau das war hier einmal falsch: Die Zahlen stammten
+  aus der Zeit, in der der Avatar so hoch war wie sein Spieler — Kamera auf
+  1,62 m, Blick auf 1,42 m. Seit die Figur ein Modell ist, ist sie 1,60 m hoch
+  und ihre Augen liegen bei 0,91 m; die Kamera schaute damit einen halben Meter
+  über ihren Hut hinweg, und in der Umkleide stand eine Mütze am unteren
+  Bildrand. Man suchte Köpfe aus, die man nicht sah. Gezeigt wird jetzt die
+  **ganze** Figur: Sie ist gedrungen genug, dass sie ins Bild passt, ohne dass
+  der Kopf klein wird, und Jacke und Hände gehören zu dem, was man hier
+  aussucht.
+
   **In der Brille gibt es diese Seite nicht.** Dort zeigt der Spiegel am Schrank
   einen selbst, und die drei Zeilen gibt es längst — unter _Aussehen_ am
   Handgelenk, und genau dorthin springt `A`. Ein zweites Canvas mit einer
@@ -2420,6 +2449,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Platte, und an deren Rand war Schluss — genau die Grenze, die eine Sandkiste
   nicht haben darf. Jetzt läuft man um das Labor herum, sieht sich die
   Kartbahn von außen an und kommt wieder zurück.
+
+  Das Raster darauf ist ein **Schachbrett mit einem Meter je Feld**
+  (`CHECKER_TILE`) — derselbe Meter, in dem gebaut wird (`nav/navTile.TILE`).
+  Vorher war es eine einzelne Fläche mit einem Strich darum, alle vier Meter:
+  eine Kachelgröße, die es in keiner Welt dieses Projekts gibt. Ein Raster, das
+  nicht zu dem passt, in dem man Wände setzt, ist schlimmer als keines. Zwei
+  abwechselnde Töne statt eines: Eine große einfarbige Ebene ist in der Brille
+  kaum von Nebel zu unterscheiden, und ein Raster, dessen Felder man nicht
+  **zählen** kann, sagt einem nicht, wie weit man gelaufen ist. Die zweite
+  Farbe kommt ohne Angabe eine Spur heller als die erste heraus, damit jede
+  Welt ihr Brett bekommt, ohne ihren Ton zu verlieren; wer es wie in **Portal**
+  will — grau und weiß —, nennt sie (`horizonChecker()`, so macht es die
+  Testwelt).
 - **Rettung aus der Tiefe**: wer trotzdem unter die Welt fällt — durch ein
   Bodenportal, durch eine Ritze, durch einen Handschuh — kommt an derselben
   Stelle wieder heraus, auf dem **höchsten** Punkt, der dort steht. Von unten
@@ -2467,7 +2509,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Schießen (von oben)                                                                | Trigger der Hand mit der Waffe                                                                                                                                                                                                                                | Linksklick                                                                                                                                                                                                                                                                                                                                     | `B` oder RT (analog, 0…1)                                   | Knopf `B`                                  |
 | Menü                                                                               | Button an **beiden** Händen (immer nur eins offen)                                                                                                                                                                                                            | Knopf ☰ oben links — dasselbe Menü als Seite (`ui/PageMenu.ts`), auch auf der Startseite                                                                                                                                                                                                                                                      | –                                                           | Knopf ☰ oben links; Blatt von unten       |
 | _Von oben_ ↔ _Aus den Augen_                                                       | – (in der Brille steht man in der Welt)                                                                                                                                                                                                                       | Startseite oder Menü → _Ansicht_ (`core/TopDownCamera.ts`)                                                                                                                                                                                                                                                                                     | –                                                           | dito                                       |
-| Zoom (von oben)                                                                    | –                                                                                                                                                                                                                                                             | Mausrad — vier Stufen als Abstand: 12 · 16 · 22 · 30 m, gerastet ab dem Abstand, den man gerade sieht                                                                                                                                                                                                                                          | LB heran · RB zurück                                        | zwei Finger in der **oberen** Hälfte ziehen stufenlos (`TopDownCamera.zoomScale`) |
+| Zoom (von oben)                                                                    | –                                                                                                                                                                                                                                                             | Mausrad — sechs Stufen als Abstand: 12 · 16 · 22 · 30 · 42 · 60 m, gerastet ab dem Abstand, den man gerade sieht                                                                                                                                                                                                                                          | LB heran · RB zurück                                        | zwei Finger in der **oberen** Hälfte ziehen stufenlos (`TopDownCamera.zoomScale`) |
 | Auswählen                                                                          | zielen + Trigger oder `A` — **beide Hände** haben einen Strahl; im Handgelenkmenü löst der Trigger beim **Loslassen** aus, damit Wischen nichts drückt                                                                                                        | Linksklick — **aus den Augen**; von oben gehört er der Waffe (Zeile _Schießen_)                                                                                                                                                                                                                                                                | –                                                           | tippen                                     |
 | Werkzeug wählen                                                                    | – (das Regal hängt am Handgelenk)                                                                                                                                                                                                                             | Knopf `#hud-tool` unten rechts oder `Tab` — Liste mit **Hand (leer)** zuerst                                                                                                                                                                                                                                                                   | `Y`                                                         | Knopf mit der Ikone des Werkzeugs, unten rechts über `A`/`B` |
 | Werkzeug nehmen                                                                    | Grip an der Hüfte halten (jede Hand, jedes Werkzeug)                                                                                                                                                                                                          | – (immer bereit)                                                                                                                                                                                                                                                                                                                               | –                                                           | –                                          |
@@ -2491,7 +2533,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Nah Gefasstes doch holen                                                           | dasselbe Zucken zum Körper                                                                                                                                                                                                                                    | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Nah Gefasstes zur anderen Hand                                                     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                                                                                                                   | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Reichweiten einstellen                                                             | Menü → Einstellungen → Greifen                                                                                                                                                                                                                                | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
-| Grafik umstellen                                                                   | Menü → Grafik: _Grafik-Modus_ schaltet im Kreis (Einfach → Comic); _Brille: Auflösung_ (Voll → Mittel → Flüssig, ab der nächsten Sitzung); oben die **Bildrate** live; _Bildrate im Bild_ (Häkchen = F3)                                                      | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
+| Grafik umstellen                                                                   | Menü → Grafik: _Schatten_ (Häkchen, ab Werk an); _Grafik-Modus_ schaltet im Kreis (Einfach → Comic); _Brille: Auflösung_ (Voll → Mittel → Flüssig, ab der nächsten Sitzung); oben die **Bildrate** live; _Bildrate im Bild_ (Häkchen = F3)                                                      | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Gitterlinien                                                                       | Menü → Grafik → _Gitterlinien_ — die Kacheln der Ebene, auf der man steht, ab Werk aus                                                                                                                                                                        | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Menüseite blättern                                                                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Werkzeug-Einstellungen                                                             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                                                                                                                  | Linksklick auf den Pfeil                                                                                                                                                                                                                                                                                                                       | –                                                           | tippen                                     |
@@ -3061,7 +3103,7 @@ Boxenplatz ein schwarzer Balken über ausgerechnet den Karts, die man sucht.
 **Der Boden ist eine Masse und keine tausend Kacheln.** Tausend Bodenplatten
 wären tausend Körper in der Physik für eine Fläche, über die man geradeaus
 fährt, und portalfähig kann ohnehin nur eine große Fläche sein. Im Gelände der
-Testwelt ist das die eine Masse unter allen neun Zonen. Die Navigationskarte
+Testwelt ist das die eine Masse unter allen zehn Zonen. Die Navigationskarte
 kostet das nichts — sie wird aus der gebauten Geometrie abgetastet, und eine
 Masse ist Geometrie wie jede andere.
 
@@ -3075,6 +3117,19 @@ der Brille geht der alte Weg weiter: die Hand ums Lenkrad schließen.
 steht es die ganze Zeit auf einem Schild direkt über dem Lenkrad — `A`/`X`
 halten, mit einem Balken, der währenddessen vollläuft. Kein Tastendruck: bei
 Tempo 60 ist ein Druck zu leicht danebengegriffen. Am Rechner tut `E` dasselbe.
+
+**Gefragt werden alle drei Geber**, und das ist die Lehre aus einem Kart, aus
+dem man nicht mehr herauskam: In der Brille der Controller (`primary.pressed`),
+am Schreibtisch `E` — und **auf dem Telefon der Knopf `A` auf dem Glas**. Der
+fehlte. `PlayerRig.requestUse` ist eine **Flanke**, und für Knöpfe, Türen und
+Schilder ist das richtig; ein Halten gab es dort gar nicht, also war der
+Ausstieg ohne Tastatur schlicht nicht erreichbar, und das Klemmbrett half auch
+nicht weiter, weil es am Zeiger hängt und den gibt es ohne Brille nicht. Dafür
+gibt es jetzt `PlayerRig.useHeld` neben der Flanke: was gerade **liegt**,
+gesetzt von `FlatControls` aus allen Gebern zusammen. Dazu eine kleine Regel,
+die man erst merkt, wenn sie fehlt: Der Knopf muss nach dem **Einsteigen**
+einmal losgelassen werden (`exitArmed`) — sonst steigt aus, wer beim Einsteigen
+den Finger liegen lässt, und auf dem Glas ist das der Normalfall.
 
 **Das Fahrmodell** ist bewusst klein und arkadig: Gelenkt wird wie beim
 Fahrrad — Gierrate = Tempo · tan(Einschlag) / Radstand, also dreht ein
@@ -4346,22 +4401,34 @@ UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern
 ### Wie schön es aussieht
 
 _Menü → Grafik_, und die Seite trägt ein **EXP** im Abzeichen: Der Grafik-Modus
-und die Auflösung der Brille sind Experimente, beide kosten Bildrate, und
-keines ist ab Werk an.
+und die Auflösung der Brille sind Experimente, und beide kosten Bildrate.
 
-Das Bild, das dieses Projekt immer hatte, ist **eine** von zwei Stufen und
-heißt jetzt so:
+**Schatten sind ein eigener Schalter** (`GraphicsSettings.shadows`) und ab Werk
+**an**. Das war einmal anders, und die Änderung ist eine Antwort auf eine
+Beschwerde: Sie hingen am Comic, also am Bild mit schwarzen Konturen und Licht
+in Stufen — wer nur Schatten wollte, bekam eine Zeichnung dazu, und wer die
+Zeichnung nicht wollte, bekam eine Welt, in der alles einen Zentimeter über dem
+Boden schwebt. Das sind zwei Fragen, also sind es zwei Schalter. Das Vorbild
+ist Overcooked: Dort sitzt jede Figur und jeder Tresen in einem weichen
+Schlagschatten, und er ist es, der aus einer Ansicht von schräg oben einen
+**Raum** macht und nicht eine Collage. Wem das in der Brille zu teuer ist,
+macht ihn aus — er ist der erste Regler, an dem man dreht, wenn die Bildrate
+klemmt.
 
-- **Einfach** — flache Farben, ein Himmelsverlauf, drei Lichter, keine
-  Schatten. Nicht „sparsam", sondern _identisch_ mit vorher: Wer nichts
-  einstellt, sieht Pixel für Pixel dasselbe Bild wie gestern. Das ist keine
-  Behauptung, sondern eine Prüfbedingung — jede Zahl im einfachen Profil ist
-  der Wert, den `App` ohnehin setzt (`graphicsSettings.test.ts`).
+Daneben stehen **zwei Stufen**:
+
+- **Einfach** — flache Farben, ein Himmelsverlauf, drei Lichter, keine Kontur
+  und keine Farbstufen.
 - **Comic** — dieselbe Welt als Zeichnung: eine **schwarze Kontur** um jedes
   Ding, Licht, das in **Stufen** auf den Flächen liegt statt in einem Verlauf,
-  **Schatten** von der hellsten Sonne der Welt (ohne sie schwebt in einer
-  Zeichnung alles) und ein **schärferes Bild** in der Brille
-  (`framebufferScale` 1,2, Foveation 0,3 statt 1).
+  und ein **schärferes Bild** in der Brille (`framebufferScale` 1,2, Foveation
+  0,3 statt 1).
+
+**Was „Einfach ist, was bisher war" heute noch heißt.** Der Satz stand hier
+lange als Prüfbedingung, und an genau einer Stelle stimmt er nicht mehr: an
+den Schatten. Alles andere gilt weiter, und der Test daneben prüft es — mit
+`shadows: false` ist jede Zahl im einfachen Profil der Wert, den `App` ohnehin
+setzt (`graphicsSettings.test.ts`).
 
 **Es waren einmal drei.** Dazwischen stand **Schön** — Schatten,
 Spiegelungen aus einem Umgebungsbild des Weltenhimmels, schärferes Bild —, und
@@ -4448,7 +4515,7 @@ gar kein Weltmenü, in das eine Grafikeinstellung passte.
   beide würden die halbe Welt verdunkeln. Empfangen dürfen sie ihn. Genauso
   wenig wirft Durchsichtiges einen — ein Fenster mit einem Brett als Schatten
   ist schlimmer als eines ohne.
-- **Der Schattenkasten wandert mit dem Kopf.** Eine Karte deckt 28 Meter ab,
+- **Der Schattenkasten wandert mit dem Kopf.** Eine Karte deckt 32 Meter ab,
   die Welten reichen bis zum Horizont: Die Sonne behält exakt ihre Richtung
   (sonst wanderten die Schatten beim Gehen), nur Lampe und Ziel rücken hinter
   den Spieler, eingerastet auf zwei Meter — ohne das kriechen die Ränder bei
@@ -4457,18 +4524,32 @@ gar kein Weltmenü, in das eine Grafikeinstellung passte.
   wird in Weltkoordinaten, weil die Schattenkarte genau so liest; das Ziel eines
   Richtungslichts hängt an keiner Szene, also wird seine Weltmatrix von Hand
   gerechnet.
-- **Das Grundlicht geht mit herunter** (Hemisphären- und Umgebungslicht auf
-  0,7). Das ist der unscheinbarste Wert und der wichtigste: Ein Schatten ist
-  nur so dunkel, wie das Licht daneben hell ist, und diese Welten leuchten mit
-  1,5 aus — auf voller Stärke war der schönste Schatten ein Hauch. Weiter
-  herunter geht es nicht: Zwei Farbstufen brauchen Mitteltöne zwischen sich.
-  Lampen bleiben unangetastet: Ein Dimmer an der Wand, die Lampe über einer
-  Tür und der Blitz einer Explosion stellen ihre Stärke selbst ein.
+- **Das Grundlicht geht mit herunter**, sobald Schatten an sind (Hemisphären-
+  und Umgebungslicht auf 0,76, im Comic auf 0,7). Das ist der unscheinbarste
+  Wert und der wichtigste: Ein Schatten ist nur so dunkel, wie das Licht
+  daneben hell ist, und diese Welten leuchten mit 1,5 aus — auf voller Stärke
+  war der schönste Schatten ein Hauch. Weiter herunter geht es nicht: Zwei
+  Farbstufen brauchen Mitteltöne zwischen sich. Ohne Schatten bleibt es, wo es
+  war — ein dunkleres Bild ohne Gegenleistung wäre ein Rückschritt.
+
+  **Lampen bleiben unangetastet**: Ein Dimmer an der Wand, die Lampe über einer
+  Tür und der Blitz einer Explosion stellen ihre Stärke selbst ein. Wer ein
+  Grundlicht hat, dessen Stärke **das Spiel** setzt, markiert es mit
+  `userData.dynamicIntensity = true` — sonst merkt sich der Durchlauf den Wert,
+  auf dem es gerade steht, als seine Grundhelligkeit. Bei einem Licht, das beim
+  Bauen auf 0 steht und erst später angeht (Archivtisch und Fernseher im
+  Haunting), heißt das: Es geht sekündlich wieder aus. Solange Schatten am
+  Comic hingen, fiel das niemandem auf, weil der Durchlauf in der einfachen
+  Stufe gar nicht lief.
+- **Der Rand ist weich** (`shadowRadius`, 1,5 Texel). Das Vorbild hat keine
+  harten Kanten, und eine scharfe Silhouette auf einem Kachelboden sieht aus
+  wie ein Aufkleber. Weiter weich geht nicht: Bei 2,5 Texeln blieb von einem
+  Tisch nur noch ein Hauch übrig — das wurde gebaut und angesehen.
 - **Die Schattenkarte wird einmal pro Bild bestellt** (`shadowMap.autoUpdate`
   aus, `needsUpdate` im Loop). Spiegel und Portalsichten zeichnen die Szene
   mehrmals; jede dieser Zeichnungen würde sie sonst neu bauen.
-- **Und in der einfachen Stufe wird die Szene nicht jede Sekunde abgelaufen**
-  (`GraphicsQuality.rescans`, `touched`): Der Durchlauf stellt dort nur
+- **Und ohne Schatten, Kontur und Farbstufen wird die Szene nicht jede Sekunde
+  abgelaufen** (`GraphicsQuality.rescans`, `touched`): Der Durchlauf stellt dann nur
   zurück, was der Comic einmal verändert hat — und wo der Comic in dieser
   Sitzung nie an war, gibt es nichts zurückzustellen. Ein Gang über ein paar
   tausend Objekte je Sekunde war ein Ruckler für nichts, in der Brille am
@@ -4573,10 +4654,55 @@ sonst jedes Möbel an seinen Kanten) und dann wieder gebündelt über
 am Unterschrank darunter fest, ein „Möbel" von 2,50 m mit anderthalb Metern
 Luft in der Mitte.
 
-Die Möbel sind in **Metern** gebaut und bleiben es. Ein Tresen ist dort
-2 × 2 m und belegt damit vier Kacheln des Meterrasters
-(`worlds/nav/navTile.TILE`) — die Namen und Maße stehen in `kitchenFit.ts`,
-das weder three.js noch `import.meta` anfasst, damit Jest sie lesen kann.
+Die Möbel sind in **Metern** gebaut — und zwar in den falschen. Nachgemessen
+an der Datei ist eine Spüle dort 4 × 2,1 m groß und 2,3 m hoch, ein
+Feuerlöscher 2 × 2 m und 2,5 m hoch, und der schmalste Unterschrank belegt
+2 × 2 m. Das ist keine Küche, das ist eine Turnhalle: Neben einem Koch von
+1,60 m (`core/chefFit.ts`) reichte ein Tresen bis über die Augen, und ein
+einzelner Schrank war fünfmal so breit wie die Figur davor.
+
+Also **halbiert** (`KITCHEN_SCALE`). Ein Unterschrank belegt damit **eine**
+Kachel des Meterrasters (`worlds/nav/navTile.TILE`) und ist einen halben Meter
+hoch; beim Vorbild liegt die Arbeitsplatte auf einem guten Drittel der
+Figurenhöhe, und dort liegt sie jetzt auch. Der Faktor sitzt am **Lader**
+(`core/kitchenModel.ts`) und nicht in der Quelldatei: Die ist fremde Arbeit und
+wird nicht angefasst, und ein zweites Aufbereiten für eine Zahl wären 32 MB
+Rohdaten für einen Faktor. Die Maße im Katalog sind die **fertigen** — was dort
+steht, ist, wie groß ein Möbel im Spiel ist.
+
+Die Kachelzahl ist dabei die **gerundete** Grundfläche und nicht die
+aufgerundete: Ein Unterschrank ist einen Meter breit und 1,06 m tief, und wer
+daraus zwei Kacheln macht, stellt eine ganze Zeile davon mit einem Meter Luft
+dazwischen auf. Ein Möbel darf ein paar Zentimeter über seine Kachel
+hinausragen; eine Küche mit Lücken darin ist keine Küche.
+
+Die Namen und Maße stehen in `kitchenFit.ts`, das weder three.js noch
+`import.meta` anfasst, damit Jest sie lesen kann.
+
+**Aufgestellt sind sie in der Küche der Testwelt** (`worlds/test/zones/kitchen.ts`).
+Der Katalog lag nach seinem Import ein halbes Jahr ungenutzt da: dreizehn
+vermessene Möbel, eine Ladefunktion und keine Welt, die sie hinstellt. Jetzt
+gibt es eine — drei Bänder wie in jeder Küche dieses Spiels (Geräte an der
+Wand, eine Insel, die Ausgabe), und daneben die Probe darauf, dass die
+Kochfigur wirklich zu diesen Möbeln passt. Drei Dinge sind daran wichtig genug,
+um sie hier zu nennen:
+
+- **Der Grundriss weiß, wo ein Möbel steht**, auch wenn die Datei nie ankommt.
+  Jedes Stück verteuert seine Kacheln (`stampKitchen`), und damit geht ein NPC
+  um den Tresen herum statt hindurch. Ein Möbel, das nur im Bild existiert, ist
+  ein Möbel, durch das gelaufen wird — ein Jest-Test hält das fest.
+- **Ein Name darf mehrmals vorkommen.** Eine Küche hat mehr als einen
+  Unterschrank, und seit die Möbel auf ihr richtiges Maß halbiert sind, passt
+  auch eine **durchgehende Zeile** an die Wand — eine, an der man entlanggeht,
+  ohne zwischen zwei Schränken ins Freie zu treten. Jedes Exemplar ist ohnehin
+  eine eigene Kopie (`core/kitchenModel.ts`).
+- **Ein hängendes Stück bekommt keinen Körper** (`KitchenPiece.hanging`):
+  Darunter läuft man durch, und eine Kachel, die es teuer machte, wäre eine
+  Kachel, um die ein NPC grundlos herumginge. **In dieser Fassung der Quelle
+  tut es keines** — das Ausgaberegal stand im Katalog als hängendes Stück von
+  3,52 m, und die Datei sagt etwas anderes: Es fängt wie jedes andere Möbel
+  bei y = 0 an. Das war kein Schönheitsfehler, sondern ein Loch, durch das man
+  mitten hindurchlief.
 
 ### Wie man aussieht
 
@@ -4639,6 +4765,23 @@ sie eine Kopfhöhe unter ihren. Derselbe Faktor sitzt auf den Handankern, damit
 ein Werkzeug darin mit der Figur kleiner wird, statt in ihrer Faust zu stecken
 wie ein Balken.
 
+**Und die Bildschirmhand rechnet rückwärts** (`worlds/portal/screenHand.ts`).
+Sie hing an einer festen Höhe von 1,20 m — der Höhe, auf der ein
+ausgestreckter Menschenarm eine Waffe hält —, und der **Griff**, an dem das
+Werkzeug wirklich hängt, machte die Stauchung gar nicht erst mit: Die Pistole
+schwebte über dem Kopf der Figur und hatte obendrein Spielergröße. Jetzt steht
+die Stelle an der **Figur** fest (`CHEF_TOOL`), und `at` ist die Pose, aus der
+der Avatar wieder genau diese Stelle macht. Eine Zahl, zwei Abnehmer — die Hand
+und das Werkzeug darin landen an derselben Stelle, statt getrennt geraten zu
+werden.
+
+**Wo eine ungetrackte Hand ruht, wird am Modell gemessen** und nicht an seiner
+Hülle: `spanAt` fragt den Rumpf nach seiner Breite **auf der Höhe, auf der die
+Hand hängt**. Der Rumpf ist ein Ei, seine dickste Stelle liegt unter den
+Händen, und wer die Hand nach der Hülle danebensetzt, lässt sie eine Handbreit
+im Nichts schweben. Dazu kommt die halbe Breite der **Hand selbst** — ohne sie
+steckte ihre Innenseite in der Jacke.
+
 **Wie die Datei entsteht**, steht in `tools/chef-model.mjs`, und zwar
 vollständig: Die Quelle ist ein Standbild-Sculpt mit 550 000 Dreiecken (allein
 die Mütze 352 000), ohne Skelett, ohne Animation, und ihre Teile liegen nicht
@@ -4692,6 +4835,35 @@ seinen Namen dafür. Jetzt sind es drei:
   Kugel, und ohne diese Zahl blitzt dort die Haut durch (`around()` in
   `core/headgear.ts`).
 - **Körper** — fünf Kochjacken: weiß, rot, blau, grün, gestreift.
+
+**Alle drei Zeilen wirken auch auf das Modell**, und das ist nachgetragen
+worden: Es hat **einen** Kopf und **einen** Stoff für alle Sorten, und damit
+war die halbe Umkleide wirkungslos — wer _Kochjacke rot_ wählte, lief weiter in
+der Farbe seiner Rolle herum, und drei der vier Köpfe sahen aus wie der erste.
+Drei Zeilen richten das:
+
+- **Die Jacke trägt die Farbe aus der Umkleide** (`avatarLook.bodyJacket`) und
+  nicht mehr die der Rolle. Das Modell hat genau einen Stoff, beide wollten
+  ihn, und die Rolle gewann — jetzt gewinnt, was einem selbst gehört
+  (dieselbe Regel wie beim geliehenen Helm im Kart). Die Rollenfarbe bleibt am
+  Hut, der sie ohnehin schon trug.
+- **Bart, Schnauzer, Sommersprossen, Zöpfe und Haar werden aufgesetzt**
+  (`core/chefFace.ts`). Sie sind in den **gemessenen** Maßen genau dieses
+  Kopfes gebaut und nicht aus der gebauten Figur abgezweigt: Deren Schädel ist
+  ein gefaster Würfel, der des Modells eine rundere, flachere Kugel, ihre Augen
+  sitzen unter der Mitte, seine genau darauf. Ein Bart mit dem Maß der einen
+  auf der anderen ist ein schwarzer Klumpen über dem halben Gesicht — das
+  wurde gebaut und angesehen. Was auf der **Haut** liegt (Wangen,
+  Sommersprossen), wird über `onSkull` auf ein Ellipsoid gelegt und nicht auf
+  die vorderste Ebene des Kopfes; sonst schweben die Wangen am Rand des
+  Gesichts acht Zentimeter davor.
+- **`none` heißt barhäuptig, auch mit Modell.** Bis dahin behielt die Figur
+  bei `none` die modellierte Kochmütze auf — die Zeile im Schrank heißt aber
+  _Ohne · Barhäuptig_, und von acht Hüten taten damit zwei dasselbe. Das
+  **Haar auf dem Schädel** (`FaceMarks.crown`) ist genau dann sichtbar und
+  weicht jedem Hut: Bei der gebauten Figur steckte es von selbst unter der
+  Mütze, auf dem runderen Kopf des Modells ragte es als brauner Fladen über
+  deren Rand.
 
 Was eine **Anzugfarbe** trägt und keine eigene hat — Schürze, Halstuch —, trägt
 die des Trägers: Ein Spieler hat eine Farbe und nicht drei.
@@ -7019,12 +7191,13 @@ Zweck:
   hineinschieben. Wer beides in einem machte, baute die Tür sechzigmal in der
   Sekunde neu.
 
-**Ein Einbau kennt niemanden.** Er ruft nichts auf; er meldet **fünf** Sachen,
+**Ein Einbau kennt niemanden.** Er ruft nichts auf; er meldet **sechs** Sachen,
 und `GridWorld` verteilt sie: `trigger` an eine Kennung, `goto` an den
 Weltkontext (genau das, was das Hub-Tor tut), `sound` an `core/Audio`, `effect`
 an eine Wolke an seiner Kachel (`effects/Burst.ts` mit den Zahlen aus
 `effects/effectKinds.ts` — Tür-Staub beim Aufgehen, Funken, wenn eine Kugel
-einen Knopf trifft, Rauch aus der Düse) — und `wardrobe` an `ctx.openWardrobe()`.
+einen Knopf trifft, Rauch aus der Düse), `read` an eine **Menüseite** (siehe
+_Das Schild ist ein Aushang_) — und `wardrobe` an `ctx.openWardrobe()`.
 Das letzte ist das einzige **ohne Inhalt**, und das ist Absicht: Der
 Kleiderschrank weiß nicht, wer davorsteht und was daraus wird, er weiß nur,
 dass jemand ihn aufgemacht hat (siehe _Der Kleiderschrank und die Umkleide_).
@@ -7050,6 +7223,39 @@ Aus demselben Grund fällt eine **unbekannte Art beim Lesen nicht weg** (anders
 als ein unbekannter Baustein): Sie bleibt in der Welt stehen und wird nur beim
 **Bauen** übersprungen und gemeldet (`console.warn`). Ein Tor, das ein altes
 Programm still verschluckt, nimmt jedem Knopf sein Ziel.
+
+##### Das Schild ist ein Aushang
+
+Das **Schild** (`fixtures/sign.ts`) war der erste Einbau und lange der
+kleinste: eine Zeile an einer Wand, und wer `A` drückte, bekam sie als
+**Meldung** am Handgelenk — vier Sekunden, dann war sie weg. Damit passte auf
+ein Schild genau ein Satz. Ein Wegweiser mit drei Zielen, eine Hausordnung, die
+Regeln eines Spiels passten nicht hinein.
+
+Jetzt wird er **aufgeschlagen**: `step` meldet `read`, und `GridWorld` macht
+daraus eine Seite im Weltmenü (`GridWorld.readAloud`, Zeilen aus
+`fixtures/signRows.ts`). Am Bildschirm ist das ein Blatt von unten, in der
+Brille das Panel am Handgelenk — **derselbe Baum** wie überall, und keine
+zweite Art, Text zu zeigen. Gelesen wird derselbe kleine Markdown-Dialekt, den
+auch die Schildwelt kann (`worlds/signs/signMarkup.ts`): Überschriften,
+Aufzählungen, Zitat, Trennlinie, Code, Bild. `props.markdown: false` schaltet
+ihn ab — wer eine Liste von Namen mit `*` davor aufschreibt, will Sternchen.
+
+Drei Feinheiten stecken darin:
+
+- **Auf der Tafel steht die erste Zeile**, nicht der ganze Aushang
+  (`signSummary`). Sie ist ein Wegweiser und keine Wand voller Text.
+- **Die Tafel dreht sich zum Spieler** (`FixtureView.face`, gerufen von
+  `stepFixtures` mit dem Kopf). Von schräg oben — der Ansicht, in der hier
+  gespielt wird — ist eine Tafel, die nach Süden schaut, ein Strich. Gedreht
+  wird nur um die Hochachse und nur die **Tafel**; der Pfosten bleibt, wo er
+  steht.
+- **Aufgeschlagen wird ein Bild später** (`GridWorld.openReading`).
+  `WorldContext.refreshWorldMenu` merkt sich nur, dass der Baum neu zu bauen
+  ist, und baut ihn am Ende des Bildes (`App.step`, `menuDirty`). Wer im selben
+  Atemzug `openSubmenu` ruft, sucht eine Seite, die es noch gar nicht gibt —
+  das Menü blieb dann einfach zu, und ein Schild, das man benutzt und das
+  nichts tut, sieht aus wie ein kaputtes Schild.
 
 **Wo die Arten stehen**: jede in einer eigenen Datei, angemeldet mit einer Zeile
 in `fixtures/kinds.ts`; der Vertrag daneben in `fixtures/index.ts`. Zwei Dateien
@@ -7228,7 +7434,7 @@ erarbeiten musste:
   ändern kann, hat keinen eigenen Stand aufzuheben. Und weil ein gespeicherter
   Stand den ganzen Grundriss ersetzt, gibt es daneben `planLoaded()` — den
   Haken für das, was **auch danach** noch gelten muss. Der Bauplatz setzt dort
-  sein Tor zurück in den Hub, die Testwelt alle Einbauten ihrer neun Zonen
+  sein Tor zurück in den Hub, die Testwelt alle Einbauten ihrer zehn Zonen
   (`fitTest`): eines, das nur in `layout()` stünde, wäre beim ersten Besuch da
   und ab dem zweiten weg, und dann säße man in der selbstgebauten Welt ohne
   Ausgang. **Er läuft deshalb zweimal** — einmal beim Bauen, einmal nach dem

@@ -13,6 +13,7 @@ import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
 import { KartZone } from './zones/kart';
+import { KitchenZone } from './zones/kitchen';
 import { NavigationZone } from './zones/navigation';
 import { RangeZone } from './zones/range';
 import type { TestZone, ZoneHost } from './zones/zone';
@@ -46,12 +47,14 @@ export class TestWorld extends GridWorld {
   private readonly range = new RangeZone();
   private readonly kart = new KartZone();
   private readonly climb = new ClimbZone();
+  private readonly kitchen = new KitchenZone();
   private readonly zones: readonly TestZone[] = [
     this.interact,
     this.navigation,
     this.range,
     this.kart,
     this.climb,
+    this.kitchen,
   ];
 
   protected override worldId(): string {
@@ -122,12 +125,28 @@ export class TestWorld extends GridWorld {
     return 0x9dbfe4;
   }
 
+  /**
+   * **Draußen ist ein Schachbrett**, grau und weiß im Wechsel, ein Meter je
+   * Feld (`shared/environment.createGround`).
+   *
+   * Vorher lag hier eine olivgrüne Wiese mit einem Raster von vier Metern —
+   * eine Kachelgröße, die es in dieser Welt gar nicht gibt: Gebaut wird auf
+   * einem **Metergitter** (`worlds/grid/`), und wer eine Wand setzen will,
+   * zählt Kacheln. Ein Raster daneben, das nicht dazu passt, ist schlimmer
+   * als keines. Das Vorbild ist der Prüfkammerboden aus Portal — es ist
+   * dasselbe, aus dem auch die Portalflächen dieses Projekts kommen, und es
+   * sagt auf einen Blick, wie weit etwas weg ist.
+   */
   protected override horizonColor(): number {
-    return 0x6c7a5c;
+    return 0x9aa0a8;
+  }
+
+  protected override horizonChecker(): number {
+    return 0xe8ebef;
   }
 
   protected override horizonLine(): number {
-    return 0x8b9a78;
+    return 0x6c727a;
   }
 
   protected override lightIntensity(): number {
@@ -135,7 +154,7 @@ export class TestWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'Testwelt · A benutzt alles · Norden Effekte, Osten Schießstand, Süden Gokart';
+    return 'Testwelt · A benutzt alles · Norden Effekte und Küche, Osten Schießstand, Süden Gokart';
   }
 
   /**

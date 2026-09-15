@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { KITCHEN_SCALE } from './kitchenFit';
 
 /**
  * **Die Küchenmöbel als Modell** — derselbe Weg wie beim Koch
@@ -12,7 +13,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
  * in seiner Mitte** — dorthin stellt das Spiel sie.
  *
  * Was der Katalog an Zahlen hergibt, steht in `core/kitchenFit.ts` und wird
- * hier nicht wiederholt.
+ * hier nicht wiederholt — bis auf eine: Jedes Stück kommt **halbiert** heraus
+ * (`KITCHEN_SCALE`). Die Quelle ist doppelt so groß, wie eine Küche neben
+ * einem Koch von 1,60 m sein darf, und der Faktor sitzt hier statt in der
+ * Datei, weil die fremde Arbeit ist und nicht angefasst wird.
  */
 
 /** Wo die Datei liegt: unter uns, nie auf einem fremden Server. */
@@ -49,6 +53,10 @@ export async function kitchenModel(name: string): Promise<THREE.Object3D | null>
   const found = source?.getObjectByName(name);
   if (!found) return null;
   const copy = found.clone(true);
+  // **Halbiert, und zwar hier.** Ein Aufrufer, der das selbst täte, wäre ein
+  // Aufrufer, der es beim nächsten Möbel vergisst — und der Katalog daneben
+  // nennt schon die halbierten Maße (`core/kitchenFit.ts`).
+  copy.scale.setScalar(KITCHEN_SCALE);
   copy.traverse((object) => {
     const mesh = object as THREE.Mesh;
     if (mesh.isMesh) mesh.castShadow = true;

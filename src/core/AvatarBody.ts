@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildHeadgear, type HeadgearKind } from './headgear';
 import { DEFAULT_APPEARANCE, type Appearance } from './appearance';
 import {
+  bodyJacket,
   bodyRadius,
   buildBody,
   buildHand,
@@ -12,6 +13,7 @@ import {
   type BodyShape,
   type HeadKind,
 } from './avatarLook';
+import { faceMarks, headBox } from './chefFace';
 import { cloth, skin as skinMaterial } from './chefStyle';
 import { canLoadModels, CHEF_EYE, POSE_SCALE } from './chefFit';
 import type { ChefParts } from './chefModel';
@@ -43,6 +45,48 @@ function disposeTree(root: THREE.Object3D, keep?: ReadonlySet<THREE.Material>): 
       if (material && !keep?.has(material)) material.dispose();
     }
   });
+}
+
+/**
+ * **Die Hülle eines Modellteils**, aus seiner **Geometrie** gerechnet.
+ *
+ * Nicht `Box3.setFromObject`: Das rechnet mit Weltmatrizen, und die stimmen
+ * beim Zusammensetzen der Figur noch nicht — die Teile hängen in diesem Moment
+ * gerade erst am Rig. Die Geometrie dagegen steht schon da.
+ */
+function measure(root: THREE.Object3D): THREE.Box3 {
+  const box = new THREE.Box3();
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.computeBoundingBox();
+    if (mesh.geometry.boundingBox) box.union(mesh.geometry.boundingBox);
+  });
+  return box;
+}
+
+/**
+ * **Wie breit ein Teil auf einer bestimmten Höhe ist** — der halbe Abstand
+ * seiner äußersten Punkte in einem schmalen Band um `y`.
+ *
+ * Gebraucht für die Hände: Der Rumpf ist ein Ei, und seine Hülle sagt nur, wie
+ * breit er an seiner **dicksten** Stelle ist. Eine Hand, die nach dieser
+ * Breite neben die Schulter gesetzt wird, schwebt eine Handbreit im Nichts —
+ * genau so sah es aus. Gefragt ist die Breite **dort, wo die Hand hängt**.
+ */
+function spanAt(root: THREE.Object3D, y: number, band: number): number {
+  let widest = 0;
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const position = mesh.geometry.getAttribute('position');
+    if (!position) return;
+    for (let i = 0; i < position.count; i++) {
+      if (Math.abs(position.getY(i) - y) > band) continue;
+      widest = Math.max(widest, Math.abs(position.getX(i)));
+    }
+  });
+  return widest;
 }
 
 const _forward = new THREE.Vector3();
@@ -112,6 +156,28 @@ export class AvatarBody extends THREE.Group {
 
   /** Die Hände des Modells, sobald es da ist — sonst leer. */
   private readonly modelHands: THREE.Object3D[] = [];
+
+  /**
+   * Der Kopf des Modells und die Merkmale, die darauf sitzen.
+   *
+   * Das Modell hat **einen** Kopf für alle vier Sorten — Schädel, Augen, Nase,
+   * Mund sind jedes Mal dieselben. Was sie unterscheidet, wird darauf gesetzt
+   * (`core/chefFace.ts`), gebaut in den gemessenen Maßen genau dieses Kopfes.
+   * Ohne das zeigte die Umkleide vier Köpfe zur Auswahl, von denen drei
+   * aussahen wie der erste.
+   */
+  private modelFace: THREE.Object3D | null = null;
+  private modelMarks: THREE.Group | null = null;
+  /** Das Haar auf dem Schädel — es weicht jeder Mütze (`chefFace.ts`). */
+  private modelCrown: THREE.Group | null = null;
+  /**
+   * Für welche Sorte die Merkmale gebaut sind.
+   *
+   * `setLook` läuft je Mitspieler in **jedem Bild** — ohne diesen Vergleich
+   * entstünde vierzigmal je Sekunde ein neuer Bart, und der alte läge beim
+   * Sammler.
+   */
+  private marksKind: HeadKind | null = null;
 
   /** Die Mütze des Modells. Sie weicht jeder anderen Kopfbedeckung. */
   private modelHat: THREE.Object3D | null = null;
@@ -239,6 +305,7 @@ export class AvatarBody extends THREE.Group {
     this.model = parts;
 
     this.head.add(parts.parts.head);
+    this.modelFace = parts.parts.head;
     this.modelHat = parts.parts.hat;
     this.head.add(this.modelHat);
     // **Der Rumpf des Modells watschelt mit.** `BodyShape.setStride` schreibt
@@ -273,15 +340,20 @@ export class AvatarBody extends THREE.Group {
     // über `setFromObject`: Das rechnet mit Weltmatrizen, und die stimmen in
     // diesem Moment noch nicht, weil die Figur gerade erst zusammengesetzt
     // wird.
-    const box = new THREE.Box3();
-    parts.parts.body.traverse((object) => {
-      const mesh = object as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      mesh.geometry.computeBoundingBox();
-      if (mesh.geometry.boundingBox) box.union(mesh.geometry.boundingBox);
-    });
-    this.idleSide = (box.max.x - box.min.x) / 2 + HAND_GAP * POSE_SCALE;
-    this.idleLift = box.max.y * 0.62;
+    const torso = measure(parts.parts.body);
+    const fist = measure(parts.parts.handLeft);
+    this.idleLift = torso.max.y * HAND_LIFT;
+    // **Die Hand steht _neben_ dem Rumpf, und zwar neben der Stelle, an der
+    // sie wirklich hängt.** Vorher war es die halbe Hülle des ganzen Rumpfes
+    // plus eine Lücke: Der Rumpf ist ein Ei, seine dickste Stelle liegt
+    // unterhalb der Hände, und die schwebten damit eine Handbreit im Nichts.
+    // Dazu kam, dass die Hand selbst zehn Zentimeter breit ist und gar nicht
+    // mitgerechnet wurde — ihre Innenseite steckte in der Jacke. Beides
+    // zusammen war „die Hände sitzen komisch".
+    this.idleSide =
+      spanAt(parts.parts.body, this.idleLift, torso.max.y * 0.06) +
+      (fist.max.x - fist.min.x) / 2 +
+      HAND_GAP * POSE_SCALE;
 
     // **Kein Nackenversatz mehr.** Er schob den Kopf hinter die Augen, aus
     // denen die Pose kam — sinnvoll, solange der Kopf an der Kamera hing. Die
@@ -302,11 +374,47 @@ export class AvatarBody extends THREE.Group {
     }
   }
 
-  /** Jacke und Haut des Modells auf die Wahl dieser Figur bringen. */
+  /**
+   * **Jacke, Haut und Gesicht des Modells auf die Wahl dieser Figur bringen.**
+   *
+   * Die Jacke trägt die Farbe aus der **Umkleide** und nicht mehr die der
+   * Rolle. Das ist eine Entscheidung und kein Versehen: Das Modell hat genau
+   * einen Stoff, beide wollten ihn, und die Rolle gewann — damit war die ganze
+   * Zeile _Körper_ im Schrank wirkungslos, und wer _Kochjacke rot_ wählte,
+   * lief weiter in Blau herum. Was einem selbst gehört, gewinnt (dieselbe
+   * Regel wie beim Helm im Kart, `WorldContext.wear`); die Farbe der Rolle
+   * bleibt am Hut, der sie ohnehin schon trug.
+   */
   private applyModelLook(): void {
     if (!this.model) return;
-    this.model.jacket.color.copy(this.suit.color);
+    this.model.jacket.color.setHex(bodyJacket(this.look.body));
     this.model.skin.color.setHex(skinTone(this.look.head));
+    this.applyModelMarks();
+  }
+
+  /**
+   * **Bart, Schnauzer, Sommersprossen und Haar auf den Kopf des Modells.**
+   *
+   * Sie werden aus der **gemessenen** Hülle des Modellkopfes gebaut
+   * (`core/chefFace.ts`): Sein Ursprung liegt zwischen den Augen und nicht in
+   * seiner Mitte, und seine Gesichtsebene liegt woanders als die der gebauten
+   * Figur. Geratene Zahlen ergaben hier einen Bart über dem halben Gesicht.
+   */
+  private applyModelMarks(): void {
+    const face = this.modelFace;
+    if (!face || this.marksKind === this.look.head) return;
+    this.marksKind = this.look.head;
+    if (this.modelMarks) {
+      this.modelMarks.removeFromParent();
+      disposeTree(this.modelMarks, this.kept);
+      this.modelMarks = null;
+    }
+    const built = faceMarks(this.look.head, headBox(measure(face)));
+    face.add(built.group);
+    built.group.traverse((object) => (object.layers.mask = this.head.layers.mask));
+    this.modelMarks = built.group;
+    this.modelCrown = built.crown;
+    built.crown.visible = this.look.hat === 'none';
   }
 
   /**
@@ -328,7 +436,6 @@ export class AvatarBody extends THREE.Group {
 
   setColor(color: number): void {
     this.suit.color.setHex(color);
-    this.model?.jacket.color.setHex(color);
     this.suit.emissive.setHex(color).multiplyScalar(0.12);
     // Der Hut trägt die Anzugfarbe, wo er eine trägt — also neu bauen, sonst
     // hätte ein Spieler, der die Rolle wechselt, einen Helm von vorhin auf.
@@ -371,7 +478,16 @@ export class AvatarBody extends THREE.Group {
     // modellierte; wer etwas anderes wählt, nimmt sie ab und bekommt die
     // gebaute (`core/headgear.ts`). Ohne diese Zeile säße auf jedem Bauhelm
     // noch eine Mütze darunter.
-    if (this.modelHat) this.modelHat.visible = kind === 'chef' || kind === 'none';
+    // **`none` heißt barhäuptig, auch mit Modell.** Bis hierher behielt die
+    // Figur bei `none` die modellierte Kochmütze auf — die Zeile im Schrank
+    // heißt aber _Ohne · Barhäuptig_, und wer sie wählte, sah keinen
+    // Unterschied zu _Kochmütze_. Von acht Hüten taten damit zwei dasselbe,
+    // und der erste war der, den man wieder loswerden wollte.
+    if (this.modelHat) this.modelHat.visible = kind === 'chef';
+    // **Haar weicht jedem Hut.** Bei der gebauten Figur steckte der Schopf von
+    // selbst unter der Mütze; auf dem runderen Kopf des Modells ragte er als
+    // brauner Fladen über deren Rand.
+    if (this.modelCrown) this.modelCrown.visible = kind === 'none';
 
     // Und mit Modell braucht die Kochmütze keine zweite: Das Modell bringt
     // seine eigene mit.

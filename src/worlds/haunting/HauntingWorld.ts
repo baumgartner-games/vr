@@ -1384,6 +1384,12 @@ export class HauntingWorld extends GridWorld {
     this.buildDoorMarks();
 
     const paper = new THREE.AmbientLight(0xc7ecff, 0);
+    // **Dieses Licht gehört der Ansicht und nicht der Grafikstufe.** Es steht
+    // beim Bauen auf 0 und geht erst an, wenn jemand den Archivtisch
+    // aufschlägt; ohne diese Marke merkte sich der Durchlauf über die Szene
+    // die 0 als seine Grundhelligkeit und drehte es sekündlich wieder aus
+    // (`core/graphicsScene.dimAmbient`).
+    paper.userData.dynamicIntensity = true;
     this.root.add(paper);
     this.paperLight = paper;
     const sun = new THREE.DirectionalLight(0xffffff, 0);
@@ -1410,6 +1416,8 @@ export class HauntingWorld extends GridWorld {
     this.showCam = show;
 
     const day = new THREE.AmbientLight(0xeaf2ff, 0);
+    // Dieselbe Marke wie beim Archivlicht darüber, aus demselben Grund.
+    day.userData.dynamicIntensity = true;
     this.root.add(day);
     this.showLight = day;
     const noon = new THREE.DirectionalLight(0xfff6e6, 0);

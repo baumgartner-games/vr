@@ -51,6 +51,24 @@ const PLAYER_EYE = 1.62;
  */
 export const POSE_SCALE = CHEF_EYE / PLAYER_EYE;
 
+/**
+ * **Wo die Figur ihr Werkzeug hält**, wenn kein Controller es führt — in ihrem
+ * eigenen Raum, mit dem Boden auf y = 0 und −z nach vorn.
+ *
+ * Die Zahlen sind an ihr gemessen: Der Rumpf ist an seiner dicksten Stelle
+ * 0,35 m im Halbmesser, seine Vorderkante liegt bei −0,33 m, und die Hände
+ * ruhen auf gut 0,39 m Höhe. Das hier ist eine Handbreit davor und knapp
+ * darüber — also dort, wo eine Hand ein Ding hält, das nach vorn zeigt.
+ *
+ * **Sie stehen hier und nicht in der Bildschirmhand** (`worlds/portal/screenHand.ts`),
+ * weil zwei Dinge sie brauchen und beide dieselbe Stelle meinen müssen: die
+ * **Hand** der Figur (`core/AvatarBody.ts`) und das **Werkzeug** darin. Genau
+ * das lief auseinander: Die Hand rechnete sich auf Figurenmaß herunter, das
+ * Werkzeug blieb in Spielergröße auf 1,20 m stehen — und schwebte damit einen
+ * halben Meter über der Faust, die es halten sollte.
+ */
+export const CHEF_TOOL = { x: 0.3, y: 0.46, z: -0.45 } as const;
+
 /** Die Teile, in die `tools/chef-model.mjs` das Modell zerlegt. */
 export type ChefPart = 'hat' | 'head' | 'body' | 'handLeft' | 'handRight';
 

@@ -36,7 +36,7 @@ export const LEVELS: readonly number[] = [0, STOREY];
  * portalfähige Bodenkacheln hießen, dass ein Bodenportal nebenbei die Wand
  * gegenüber aufmacht. Also genau eine Fläche je Welt, und das ist diese.
  */
-export const FIELD: NavRect = { x: -27, z: -22, w: 64, d: 68 };
+export const FIELD: NavRect = { x: -27, z: -34, w: 64, d: 80 };
 
 /** Wo man ankommt: die Mitte des Startplatzes. */
 export const SPAWN = { x: 0, z: 0 } as const;
@@ -63,6 +63,21 @@ export const RANGE: NavRect = { x: 6, z: -3, w: 6, d: 7 };
  * hereingekommen wird von Westen.
  */
 export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
+
+/**
+ * **Die Küche** — ganz im Norden, hinter dem Podest.
+ *
+ * Sie ist die jüngste Zone und der Grund, warum das Gelände nach Norden
+ * gewachsen ist (`FIELD`): Die Möbel aus dem Katalog sind **groß** — eine
+ * Spüle misst 4 × 3 m, ein Herd 3 × 3 (`core/kitchenFit.ts`) —, und in eine
+ * Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe. Zwölf mal elf
+ * Kacheln sind drei Bänder: Geräte an der Wand, eine Insel, die Ausgabe.
+ *
+ * Hinter dem Podest und nicht neben dem Schießstand: Dessen Bahnen laufen
+ * quer über den ganzen Osten bis zum Kugelfang (`zones/range.ts`, `BERM`), und
+ * eine Küche in der Schusslinie ist eine Küche mit Löchern.
+ */
+export const KITCHEN: NavRect = { x: 12, z: -31, w: 12, d: 11 };
 
 /**
  * **Die Gänge zwischen den Zonen**, drei Kacheln breit, wo es geht.
@@ -99,6 +114,10 @@ export const PATHS: readonly NavRect[] = [
   // Und das letzte Stück zur Kletterwand: von Westen herein, denn im Norden
   // steht ihre Wand.
   { x: 21, z: 8, w: 3, d: 2 },
+  // Podest → Küche (ganz im Norden). **Westlich am Podest vorbei**: Über
+  // dessen Mitte stünde man unter dem Deck, und von oben verschwindet dann
+  // genau das Stück Weg, das man gerade geht (`core/cutaway.ts`).
+  { x: 12, z: -21, w: 3, d: 4 },
 ];
 
 /**
@@ -118,6 +137,8 @@ export const ZONE_TILES: Readonly<Record<string, { x: number; z: number; level: 
   range: { x: RANGE.x + 3, z: 0, level: 0 },
   kart: { x: -20, z: 22, level: 0 },
   climb: { x: CLIMB.x + 5, z: CLIMB.z + 4, level: 0 },
+  // Die Mitte des Gangs zwischen Insel und Ausgabe — dort, wo ein Koch steht.
+  kitchen: { x: KITCHEN.x + 1, z: KITCHEN.z + 7, level: 0 },
 };
 
 /** Die Mitte einer Kachel in Weltmetern — Zonen rechnen damit ihre Requisiten aus. */

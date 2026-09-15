@@ -186,6 +186,23 @@ const BODY_LOOKS: Record<BodyKind, BodyLook> = {
   striped: { jacket: 0xe9e3d6, trim: 0x2f5aa8, stripes: true },
 };
 
+/**
+ * **Die Farbe einer Jacke** — dieselbe Zahl, die auch die gebaute Figur trägt.
+ *
+ * Sie steht hier und nicht nur in `BODY_LOOKS`, weil das **Modell**
+ * (`core/chefModel.ts`) sie genauso braucht: Sein Stoff ist ein einziges
+ * Material, und ohne diese Zeile hätte die Umkleide fünf Jacken zur Auswahl,
+ * von denen man keine einzige sieht — genau das war der Fehler.
+ */
+export function bodyJacket(kind: BodyKind): number {
+  return BODY_LOOKS[kind].jacket;
+}
+
+/** Und die Farbe, die sich davon absetzt: Knopfleiste, Ringe, Kragen. */
+export function bodyTrim(kind: BodyKind): number {
+  return BODY_LOOKS[kind].trim;
+}
+
 /** Ob eine Zeichenkette einen Körper benennt — alles andere ist die Vorgabe. */
 export function asBody(value: unknown): BodyKind {
   return BODY_KINDS.includes(value as BodyKind) ? (value as BodyKind) : 'white';

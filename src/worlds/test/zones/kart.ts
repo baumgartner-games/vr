@@ -155,6 +155,14 @@ export class KartZone implements TestZone {
   private driving: Kart | null = null;
   private visor: THREE.Mesh | null = null;
   private exitHeld = 0;
+  /**
+   * Ob der Knopf seit dem Einsteigen einmal losgelassen wurde.
+   *
+   * Eingestiegen wird mit demselben Knopf, mit dem man aussteigt — wer ihn
+   * beim Einsteigen eine Sekunde liegen lässt (auf dem Glas der Normalfall),
+   * säße sonst und stünde im selben Atemzug wieder daneben.
+   */
+  private exitArmed = false;
   private wheelGrab: { hand: Handedness; angle: number } | null = null;
   /** Die Stick-Lenkung, geglättet — das Lenkrad führt seinen Winkel selbst. */
   private steer = 0;
@@ -352,6 +360,7 @@ export class KartZone implements TestZone {
     if (this.driving) return false;
     this.driving = kart;
     this.exitHeld = 0;
+    this.exitArmed = false;
     this.steer = 0;
     this.wheelGrab = null;
     // Beim Einsteigen schaut man dorthin, wohin das Kart schaut; erst ab dem
@@ -378,6 +387,7 @@ export class KartZone implements TestZone {
     this.driving = null;
     this.wheelGrab = null;
     this.exitHeld = 0;
+    this.exitArmed = false;
     kart.setSeated(false);
     kart.setBraking(0);
     kart.setExitProgress(0);
@@ -578,6 +588,13 @@ export class KartZone implements TestZone {
    * getroffen, also ist es ein kurzes Halten — und das Schild vor dem Fahrer
    * füllt sich, solange es läuft. Das macht die Regel sichtbar, statt sie
    * aufzuschreiben.
+   *
+   * **Gefragt werden alle drei Geber**, und das ist die Lehre aus einem Kart,
+   * aus dem man nicht mehr herauskam: In der Brille der Controller, am
+   * Schreibtisch `E`, und auf dem Telefon der Knopf `A` auf dem Glas
+   * (`PlayerRig.useHeld`). Der letzte fehlte — dort war der Ausstieg damit
+   * schlicht nicht erreichbar, und das Klemmbrett half auch nicht weiter, weil
+   * es am Zeiger hängt und den gibt es ohne Brille nicht.
    */
   private updateExit(dt: number, ctx: WorldContext): void {
     const kart = this.driving;
@@ -590,8 +607,11 @@ export class KartZone implements TestZone {
           controller.tracked &&
           controller.primary.pressed &&
           !ctx.pointer.hoveringWith(controller.handedness),
-      ) || this.pressedIs('exit');
-    this.exitHeld = held ? this.exitHeld + dt : 0;
+      ) ||
+      this.pressedIs('exit') ||
+      ctx.rig.useHeld;
+    if (!held) this.exitArmed = true;
+    this.exitHeld = held && this.exitArmed ? this.exitHeld + dt : 0;
     kart.setExitProgress(this.exitHeld / EXIT_HOLD);
     if (this.exitHeld >= EXIT_HOLD) this.leave(ctx);
   }

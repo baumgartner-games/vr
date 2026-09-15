@@ -150,11 +150,18 @@ export function disposeTree(root: THREE.Object3D): void {
  */
 export function createGround(
   color: number,
-  options: { line?: number; radius?: number; tile?: number } = {},
+  options: { line?: number; radius?: number; tile?: number; checker?: number } = {},
 ): THREE.Mesh {
   const radius = options.radius ?? WORLD_RADIUS;
-  const tile = options.tile ?? 4;
-  const texture = new THREE.CanvasTexture(gridCanvas(color, options.line ?? 0x000000));
+  // **Ein Meter je Feld**, und die Zeichenfläche trägt zwei mal zwei davon:
+  // Ein Schachbrett braucht vier Felder, damit sich das Muster beim Kacheln
+  // fortsetzt. Vorher waren es vier Meter je Kachel und ein einzelnes Feld
+  // darin — draußen stand damit ein Raster, das mit dem Metergitter, auf dem
+  // gebaut wird (`worlds/grid/`), nichts zu tun hatte.
+  const tile = options.tile ?? CHECKER_TILE * 2;
+  const texture = new THREE.CanvasTexture(
+    gridCanvas(color, options.line ?? 0x000000, options.checker ?? mixed(color)),
+  );
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
@@ -177,17 +184,57 @@ export function createGround(
   return markBackdrop(ground);
 }
 
-/** Eine Kachel des Bodenrasters: Fläche plus zwei Linien am Rand. */
-function gridCanvas(color: number, line: number): HTMLCanvasElement {
+/**
+ * **Wie groß ein Feld des Schachbretts ist**, in Metern.
+ *
+ * Ein Meter, und zwar derselbe Meter, in dem gebaut wird (`nav/navTile.TILE`).
+ * Draußen sieht man damit dieselbe Einteilung wie drinnen: Wer eine Wand
+ * setzen will, zählt Felder, und die Felder stimmen.
+ */
+export const CHECKER_TILE = 1;
+
+/**
+ * Das Feld daneben — eine Spur heller als die Grundfarbe.
+ *
+ * Damit bekommt **jede** Welt ihr Schachbrett, ohne eine zweite Farbe angeben
+ * zu müssen: Der Hof bleibt ein Hof, der Hangar ein Hangar. Wer es wie in
+ * Portal will (grau und weiß), gibt `checker` an.
+ */
+function mixed(color: number): number {
+  const lift = (shift: number): number => {
+    const channel = (color >> shift) & 0xff;
+    return Math.min(255, Math.round(channel + (255 - channel) * 0.18)) << shift;
+  };
+  return lift(16) | lift(8) | lift(0);
+}
+
+/**
+ * **Zwei mal zwei Felder eines Schachbretts**, mit einer Linie um jedes.
+ *
+ * Ein Schachbrett und nicht mehr eine einzelne Fläche: Eine große einfarbige
+ * Ebene mit einem Netz darauf ist in der Brille kaum von Nebel zu
+ * unterscheiden — und ein Raster, dessen Felder man nicht **zählen** kann,
+ * sagt einem nicht, wie weit man gelaufen ist. Zwei abwechselnde Töne sagen es.
+ * Das Vorbild sind die Bodenplatten in Portal, und es ist dasselbe Vorbild,
+ * aus dem die Portalflächen dieses Projekts kommen.
+ */
+function gridCanvas(color: number, line: number, checker: number): HTMLCanvasElement {
+  const cell = 128;
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
+  canvas.width = cell * 2;
+  canvas.height = cell * 2;
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
-  ctx.fillRect(0, 0, 128, 128);
-  ctx.strokeStyle = `#${line.toString(16).padStart(6, '0')}`;
+  const hex = (value: number): string => `#${value.toString(16).padStart(6, '0')}`;
+  ctx.fillStyle = hex(color);
+  ctx.fillRect(0, 0, cell * 2, cell * 2);
+  ctx.fillStyle = hex(checker);
+  ctx.fillRect(cell, 0, cell, cell);
+  ctx.fillRect(0, cell, cell, cell);
+  ctx.strokeStyle = hex(line);
   ctx.globalAlpha = 0.22;
   ctx.lineWidth = 2;
-  ctx.strokeRect(1, 1, 126, 126);
+  for (let x = 0; x < 2; x++) {
+    for (let z = 0; z < 2; z++) ctx.strokeRect(x * cell + 1, z * cell + 1, cell - 2, cell - 2);
+  }
   return canvas;
 }
