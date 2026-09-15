@@ -128,6 +128,17 @@ export type FixtureEvent =
    */
   | { type: 'effect'; effect: string; at?: FixtureSpot; size?: number }
   /**
+   * **Schlag diesen Text als Menüseite auf** (`fixtures/signRows.ts`).
+   *
+   * Der Weg eines Schildes nach draußen. Bis hierher meldete es seine Zeile
+   * als `notify`, also als Hinweis am Handgelenk — vier Sekunden, dann weg.
+   * Ein Aushang ist aber kein Hinweis: Er hat eine Überschrift, drei Punkte
+   * und vielleicht einen Link, und den will man lesen und nicht erwischen.
+   * `GridWorld` macht daraus eine Seite im Menü, mit Markdown und mit einem
+   * Zurück (`GridWorld.readAloud`).
+   */
+  | { type: 'read'; title: string; text: string; markdown: boolean }
+  /**
    * **Mach die Umkleide auf** (`ui/WardrobeMenu.ts`, `WorldContext.openWardrobe`).
    *
    * Das einzige Ereignis ohne Inhalt, und das ist Absicht: Der Kleiderschrank
@@ -157,6 +168,11 @@ export function goto(world: string): FixtureEvent {
 
 export function sound(name: FixtureSound): FixtureEvent {
   return { type: 'sound', name };
+}
+
+/** Diesen Text als Menüseite aufschlagen — der Aushang eines Schildes. */
+export function read(title: string, text: string, markdown = true): FixtureEvent {
+  return { type: 'read', title, text, markdown };
 }
 
 export function effect(kind: string, size = 1, at?: FixtureSpot): FixtureEvent {
@@ -236,6 +252,19 @@ export interface FixtureView {
    * seinen Türblättern heute schon (`slidingDoor.ts`).
    */
   solids?: readonly PlanSolid[];
+  /**
+   * **Jedes Bild: wo der Kopf des Spielers gerade steht**, in Weltmetern.
+   *
+   * Für alles, was sich zum Betrachter dreht. Genau eine Art braucht es
+   * bisher, und sie ist der Grund: Ein **Schild** an einer Wand ist von der
+   * Seite ein Strich, und von oben — der Ansicht, in der hier gespielt wird —
+   * ist eine Tafel, die nach Süden schaut, schlicht nicht zu lesen. Eine
+   * Tafel, die sich mitdreht, ist immer zu lesen.
+   *
+   * Sie steht in der **Ansicht** und nicht in `step`: Eine Drehung ist Bild
+   * und kein Zustand, und `step` soll ohne three.js prüfbar bleiben.
+   */
+  face?(head: FixtureSpot): void;
   /** Was beim Abräumen freizugeben ist, wenn `object` dafür nicht reicht. */
   dispose?(): void;
 }

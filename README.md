@@ -42,7 +42,7 @@ vergessen zu haben. Geblieben sind der **Hub**, der **Bauplatz**, die
 Rechnung mitbrachten — Kartphysik, Trefferwertung, Kletterhalt, Effektzahlen,
 Türmathematik —, steht weiter als Modul da und wird von der Testwelt benutzt.
 
-Die **Testwelt** ist der Prüfstand: neun Zonen auf einem Gelände, in einer
+Die **Testwelt** ist der Prüfstand: zehn Zonen auf einem Gelände, in einer
 Minute zu Fuß abzulaufen. Vom Startplatz mit Tor und Kleiderschrank geht es
 nach Norden zu vier **Effektquellen** (Rauch, Feuer, Funken, Wasser, je ein
 Knopf davor), nach Nordwesten an eine **Türwand** mit Schiebetür, Flügeltür und
@@ -54,7 +54,11 @@ Süden auf eine **Kartbahn** mit zwei Karts in der Box — eingestiegen wird mit
 `A` —, und nach Südosten an eine **Kletterwand**, an der Greifen dich hält: Der
 Halt wird gerechnet, aus Material, Form, Körperhaltung und dem Verspreizen,
 schlechte Griffe kosten Ausdauer, und hinunter geht es in **Sprungkissen**, die
-den Fall abfedern statt ihn anzuhalten. Dazu drei **Portaltafeln**, eine davon
+den Fall abfedern statt ihn anzuhalten. Ganz im Norden, hinter dem Podest,
+steht eine **Küche** aus den Fan-Art-Möbeln: Zeile, zwei Herde und Spüle an der
+Wand, eine Insel aus Arbeitstisch, Schneidebrett und Mülleimer, vorn die
+Ausgabe mit dem Regal darüber — und daneben der Beweis, dass die Kochfigur zu
+diesen Tresen passt. Dazu drei **Portaltafeln**, eine davon
 oben auf dem Podest.
 
 Dazu kommt
@@ -673,9 +677,10 @@ Hammers samt seiner zweihändigen Lage, die Fahrphysik,
 Streckenführung und Rundenzählung der Karts, die Welt-Physik, die Rettung aus
 der Tiefe, die **Bausteine auf dem Kachelgitter** (dass jeder in jeder der vier
 Richtungen auf seiner Kachel bleibt, dass keine Treppenstufe höher wird als der
-Spieler steigt) samt dem **Grundriss der Testwelt** (dass jede der neun Zonen
-vom Startplatz aus zu erreichen ist und die Treppe wirklich auf dem Podest
-endet), das **Wand-Ghosting** (was zwischen Kamera und Figur steht und was
+Spieler steigt) samt dem **Grundriss der Testwelt** (dass jede der zehn Zonen
+vom Startplatz aus zu erreichen ist, dass die Treppe wirklich auf dem Podest
+endet und dass jedes Küchenmöbel seine Kacheln verteuert, auch wenn seine Datei
+nie ankommt), das **Wand-Ghosting** (was zwischen Kamera und Figur steht und was
 nicht), die Stoppuhr-Einstellungen, den Markdown-Umbruch der Schilder samt
 ihrem Rollen und dem, was von ihnen über das Netz geht, die Türmathematik
 (dass eine Tür mit Nachlauf beim zweiten Druck die Uhr neu setzt statt

@@ -334,6 +334,17 @@ export class FlatControls {
     if (this.toolsQueued || this.padTools.justPressed) this.onTools?.();
     this.toolsQueued = false;
 
+    // **Und was gerade _liegt_** (`PlayerRig.useHeld`). Die Flanke darunter
+    // ist für Knöpfe; was ein Halten verlangt — der Ausstieg aus dem Kart —,
+    // fragte bisher nur den Controller und war damit ohne Brille gar nicht zu
+    // bedienen. Alle vier Geber zusammen, weil alle vier dasselbe meinen.
+    this.rig.useHeld =
+      this.usePointer !== null ||
+      pad.use ||
+      this.keys.has('KeyE') ||
+      this.keys.has('Enter') ||
+      this.keys.has('NumpadEnter');
+
     let use = this.useQueued;
     this.useQueued = false;
 
@@ -479,6 +490,7 @@ export class FlatControls {
     this.on(window, 'blur', () => {
       this.keys.clear();
       this.mouseFire = false;
+      this.rig.useHeld = false;
     });
 
     this.on(document, 'pointerlockchange', () => {

@@ -163,10 +163,10 @@ describe('Der Zoom von oben', () => {
   it('klemmt den stufenlosen Zoom auf die äußeren Stufen', () => {
     expect(zoomScaled(16, 1)).toBe(16);
     expect(zoomScaled(16, 0.5)).toBe(12);
-    expect(zoomScaled(16, 2)).toBe(30);
+    expect(zoomScaled(16, 2)).toBe(32);
     expect(zoomScaled(16, 1.1)).toBeCloseTo(17.6, 6);
     expect(zoomScaled(12, 0.01)).toBe(TOP_DOWN_MIN);
-    expect(zoomScaled(30, 100)).toBe(TOP_DOWN_MAX);
+    expect(zoomScaled(60, 100)).toBe(TOP_DOWN_MAX);
     expect(TOP_DOWN_MIN).toBe(TOP_DOWN_DISTANCES[0]);
     expect(TOP_DOWN_MAX).toBe(TOP_DOWN_DISTANCES[TOP_DOWN_DISTANCES.length - 1]);
   });
@@ -195,12 +195,13 @@ describe('Der Zoom von oben', () => {
     expect(stepFromDistance(16, -1)).toBe(12);
     // An den Enden rastet es.
     expect(stepFromDistance(12, -1)).toBe(12);
-    expect(stepFromDistance(30, 1)).toBe(30);
+    expect(stepFromDistance(30, 1)).toBe(42);
+    expect(stepFromDistance(60, 1)).toBe(60);
     expect(stepFromDistance(9, -1)).toBe(12);
-    expect(stepFromDistance(40, 1)).toBe(30);
+    expect(stepFromDistance(70, 1)).toBe(60);
     // Keine Richtung heißt: nur klemmen.
     expect(stepFromDistance(18, 0)).toBe(18);
-    expect(stepFromDistance(99, 0)).toBe(30);
+    expect(stepFromDistance(99, 0)).toBe(60);
   });
 
   it('bringt Radklicks von ganz nah nach ganz fern und zurück', () => {

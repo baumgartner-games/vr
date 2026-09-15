@@ -1,33 +1,43 @@
 import * as THREE from 'three';
 import { TextPlane } from '../../../ui/TextPlane';
 import { TILE } from '../../nav/navTile';
+import { signSummary } from '../../signs/signMarkup';
 import {
   fixtureYaw,
+  propFlag,
   propText,
+  read,
   sound,
   type FixtureBuild,
   type FixtureEvent,
   type FixtureInput,
   type FixtureKind,
   type FixturePlacement,
+  type FixtureSpot,
   type FixtureView,
 } from './index';
 
 /**
- * **Das Schild** — der erste Einbau, und mit Absicht der kleinste.
+ * **Das Schild** — der erste Einbau, und lange der kleinste.
  *
- * Es hält eine Zeile Text an einer Wand, und wer davor steht und `A` drückt,
- * liest sie am Handgelenk. Mehr tut es nicht, und das ist der Zweck: Es ist
- * der Beweis, dass die Schleife rund läuft — Palette, Kachel, Datei, Bau,
- * `use`, Meldung —, bevor Türen, Knöpfe und Tore darauf gesetzt werden (P4,
- * P6, P7). Eine Registry, deren erstes Kind schon fünf Zustände hat, ist eine,
- * bei der man beim ersten Fehler nicht weiß, ob die Art oder die Registry
- * schuld ist.
+ * Es hält Text an einer Wand, und wer davorsteht und `A` drückt, **schlägt ihn
+ * auf**: als Seite im Menü, mit Markdown, so lange man will (`signRows.ts`,
+ * `GridWorld.readAloud`). Das ist die eine Sache, die sich hier geändert hat,
+ * und sie kam als Beschwerde: Bis dahin war die Zeile eine **Meldung** am
+ * Handgelenk — vier Sekunden, dann weg. Damit passte auf ein Schild genau ein
+ * Satz, und ein Wegweiser mit drei Zielen, eine Hausordnung oder die Regeln
+ * eines Spiels passten gar nicht.
  *
- * Seine ganze Logik sind zwei Zeilen: Wer es benutzt, hat es einmal mehr
- * gelesen. Dass daraus eine Meldung wird, passiert im Bild (`apply`) und nicht
- * im Zustand — ein `notify` in `step` wäre genau die Verdrahtung mit der Welt,
- * die den Rest hier unprüfbar machte.
+ * **Und die Tafel dreht sich zum Spieler.** Sie stand nach der Richtung, in
+ * der sie gesetzt wurde, und das ist genau die falsche Regel für die Ansicht,
+ * in der hier gespielt wird: Von schräg oben ist eine Tafel, die nach Süden
+ * schaut, ein Strich. Jetzt schaut sie dorthin, wo der Kopf ist
+ * (`FixtureView.face`) — der Pfosten bleibt, wo er steht.
+ *
+ * Seine ganze Logik sind weiterhin zwei Zeilen: Wer es benutzt, hat es einmal
+ * mehr gelesen. Dass daraus eine Seite wird, passiert im Bild (`apply`) und
+ * nicht im Zustand — ein Aufruf ins Menü aus `step` heraus wäre genau die
+ * Verdrahtung mit der Welt, die den Rest hier unprüfbar machte.
  */
 
 export interface SignState {
@@ -40,13 +50,25 @@ export function signText(place: FixturePlacement): string {
   return propText(place.props, 'text', 'Schild');
 }
 
+/**
+ * Ob sein Text als Markdown gelesen wird.
+ *
+ * An, solange niemand widerspricht: Ein Schild mit einer Zeile sieht so aus
+ * wie vorher, und eines mit einer Überschrift bekommt eine. Wer eine Liste von
+ * Namen mit `*` davor aufschreibt, will Sternchen und setzt `markdown` auf
+ * `false` (dieselbe Frage wie in `worlds/signs/signSettings.ts`).
+ */
+export function signMarkdown(place: FixturePlacement): boolean {
+  return propFlag(place.props, 'markdown', true);
+}
+
 /** Das Bild dazu — ein Pfosten, ein Brett, und das Brett kann Text. */
 interface SignView extends FixtureView {
   board: TextPlane;
-  notify(message: string): void;
-  text: string;
-  /** Wie oft die Meldung schon draußen war — der Vergleich mit `reads`. */
-  shown: number;
+  /** Wo die Tafel in der Welt hängt — sie dreht sich um diesen Punkt. */
+  at: THREE.Vector3;
+  /** Wie weit ihre Gruppe schon gedreht ist; die Tafel dreht dagegen. */
+  yaw: number;
 }
 
 /** Wie hoch das Brett hängt und wie breit es ist. */
@@ -69,10 +91,18 @@ export const SIGN: FixtureKind<SignState> = {
     return { reads: 0 };
   },
 
-  step(state: SignState, _place: FixturePlacement, input: FixtureInput): FixtureEvent[] {
+  /**
+   * Benutzt heißt gelesen — und gelesen heißt: Der Aushang geht auf.
+   *
+   * Beide Ereignisse zusammen, und beide aus reiner Rechnung: Was auf dem
+   * Schild steht, steht in seinen Eigenschaften, und wie daraus eine Seite
+   * wird, ist die Sache dessen, der sie aufschlägt (`GridWorld.readAloud`).
+   */
+  step(state: SignState, place: FixturePlacement, input: FixtureInput): FixtureEvent[] {
     if (!input.used && !input.triggered) return [];
     state.reads++;
-    return [sound('pick')];
+    const text = signText(place);
+    return [sound('pick'), read(signSummary(text, 48) || 'Schild', text, signMarkdown(place))];
   },
 
   // Ein Schild hält niemanden auf — es hängt an der Wand, die das schon tut.
@@ -84,7 +114,8 @@ export const SIGN: FixtureKind<SignState> = {
     const group = new THREE.Group();
     group.name = `fixture:${place.id}`;
     group.position.set(ctx.at.x, ctx.at.y, ctx.at.z);
-    group.rotation.y = fixtureYaw(place.dir);
+    const yaw = fixtureYaw(place.dir);
+    group.rotation.y = yaw;
 
     // Gebaut wird nach Norden: Der Pfosten steht an der Nordkante, das Brett
     // schaut nach Süden in den Raum.
@@ -93,33 +124,63 @@ export const SIGN: FixtureKind<SignState> = {
     post.position.set(0, POST_H / 2, edge);
     group.add(post);
 
+    // **Auf der Tafel steht die erste Zeile**, nicht der ganze Aushang: Sie ist
+    // ein Wegweiser und keine Wand voller Text — was mehr ist als eine Zeile,
+    // liest man aufgeschlagen (`signRows.ts`).
     const text = signText(place);
     const board = new TextPlane({
       width: BOARD_W,
       height: BOARD_W * 0.42,
-      title: text,
+      title: signSummary(text, 48) || 'Schild',
       align: 'center',
       accent: SIGN.accent,
     });
-    board.position.set(0, POST_H + BOARD_W * 0.21, edge + 0.05);
+    const lift = POST_H + BOARD_W * 0.21;
+    board.position.set(0, lift, edge + 0.05);
     group.add(board);
 
     ctx.group.add(group);
+    const at = new THREE.Vector3(ctx.at.x, ctx.at.y + lift, ctx.at.z);
+    // Die Tafel hängt am Pfosten und nicht in der Kachelmitte; ohne diesen
+    // Versatz drehte sie sich um einen Punkt, an dem sie gar nicht steht.
+    at.x += Math.sin(yaw) * edge;
+    at.z += Math.cos(yaw) * edge;
     const view: SignView = {
       object: group,
       board,
-      text,
-      shown: 0,
-      notify: (message: string) => ctx.notify(message),
+      at,
+      yaw,
+      face: (head: FixtureSpot) => faceViewer(board, at, yaw, head),
       dispose: () => board.dispose(),
     };
     return view;
   },
 
-  apply(view: FixtureView, state: SignState): void {
-    const one = view as SignView;
-    if (one.shown === state.reads) return;
-    one.shown = state.reads;
-    one.notify(one.text);
-  },
+  /**
+   * **Nichts.** Ein Schild hat kein Bild, das sich mit seinem Zustand ändert:
+   * Was es sagt, sagt es beim Lesen, und das ist ein Ereignis (`step`). Die
+   * eine Bewegung, die es macht, ist die Drehung zum Betrachter, und die hängt
+   * am Kopf des Spielers und nicht am Zustand (`FixtureView.face`).
+   */
+  apply(): void {},
 };
+
+/**
+ * **Die Tafel dreht sich zum Kopf** — um die Hochachse und sonst nirgendwohin.
+ *
+ * Nur um y: Eine Tafel, die sich auch nach oben neigt, kippt von oben gesehen
+ * flach auf den Boden, und das ist genau die Ansicht, für die das hier gemacht
+ * ist. Gerechnet wird gegen die Drehung ihrer Gruppe, damit ein Schild an der
+ * Ostwand nicht um neunzig Grad danebensteht.
+ */
+function faceViewer(
+  board: THREE.Object3D,
+  at: THREE.Vector3,
+  yaw: number,
+  head: FixtureSpot,
+): void {
+  const dx = head.x - at.x;
+  const dz = head.z - at.z;
+  if (dx === 0 && dz === 0) return;
+  board.rotation.y = Math.atan2(dx, dz) - yaw;
+}

@@ -3,6 +3,7 @@ import {
   EFFECTS,
   FIELD,
   INTERACT,
+  KITCHEN,
   LEVELS,
   NAVIGATION,
   PATHS,
@@ -15,6 +16,7 @@ import { fitClimb, stampClimb } from './zones/climb';
 import { fitEffects, stampEffects } from './zones/effects';
 import { fitInteract, stampInteract } from './zones/interact';
 import { fitKart, stampKart } from './zones/kart';
+import { fitKitchen, stampKitchen } from './zones/kitchen';
 import { fitNavigation, stampNavigation } from './zones/navigation';
 import { fitPodium, stampPodium } from './zones/podium';
 import { fitPortals, stampPortals } from './zones/portals';
@@ -72,7 +74,17 @@ export function testPlan(): GridPlan {
   // Die begehbaren Flächen: die Zonen und die Gänge dazwischen. Was hier nicht
   // steht, ist Gelände — man steht darauf (die Masse trägt), aber es ist kein
   // Weg, den ein NPC kennt.
-  for (const rect of [START, INTERACT, EFFECTS, PODIUM, NAVIGATION, RANGE, CLIMB, ...PATHS]) {
+  for (const rect of [
+    START,
+    INTERACT,
+    EFFECTS,
+    PODIUM,
+    NAVIGATION,
+    RANGE,
+    CLIMB,
+    KITCHEN,
+    ...PATHS,
+  ]) {
     plan.floor(rect);
   }
 
@@ -83,6 +95,7 @@ export function testPlan(): GridPlan {
   stampRange(plan);
   stampKart(plan);
   stampClimb(plan);
+  stampKitchen(plan);
   // Nach dem Boden des Obergeschosses, und deshalb als vorletzte: Die Treppe
   // schlägt das Loch über sich selbst, und was danach noch Boden legt, legt es
   // wieder zu.
@@ -114,6 +127,7 @@ export function fitTest(plan: GridPlan): void {
   fitRange(plan);
   fitKart(plan);
   fitClimb(plan);
+  fitKitchen(plan);
   fitPodium(plan);
   fitPortals(plan);
 }

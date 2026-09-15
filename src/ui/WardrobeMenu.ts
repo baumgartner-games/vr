@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { AvatarBody, type AvatarLimb } from '../core/AvatarBody';
 import { appearance, appearanceSummary, onAppearanceChange } from '../core/appearance';
+import { CHEF_HEIGHT } from '../core/chefFit';
 import { createLighting } from '../worlds/shared/environment';
 import { cssColor } from './PageMenu';
 import { wardrobeRows } from './wardrobeRows';
@@ -54,18 +55,38 @@ const DRAG_TURN = Math.PI * 2;
 /**
  * Wo die Kamera steht und wohin sie schaut.
  *
- * **Nicht die ganze Figur, sondern ihre obere Hälfte**: Was man hier aussucht,
- * sind Kopf, Hut und Jacke, und eine Figur, die ganz ins Bild passt, zeigt
- * davon zu wenig. Die Kamera steht deshalb dicht und auf Kopfhöhe und zielt
- * zwischen Kopf und Hände — der Rumpf läuft unten aus dem Bild. Oben bleibt
- * Platz bis gut 2,2 m: So hoch ragt die Kochmütze, und ein Hut, dessen Spitze
- * man nicht sieht, ist in einer Umkleide wertlos.
+ * **Sie hängt an den Maßen der Figur und nicht an denen des Spielers** — und
+ * genau das war hier falsch. Die Zahlen stammten aus der Zeit, in der der
+ * Avatar so hoch war wie sein Spieler: Kamera auf 1,62 m, Blick auf 1,42 m.
+ * Seit die Figur ein Modell ist (`core/chefFit.ts`), ist sie 1,60 m hoch und
+ * ihre Augen liegen bei 0,91 m — die Kamera schaute also gut einen halben
+ * Meter über ihren Hut hinweg, und in der Umkleide stand eine Mütze am unteren
+ * Bildrand. Man suchte Köpfe aus, die man nicht sah.
+ *
+ * **Die ganze Figur, nicht ihre obere Hälfte.** Sie ist gedrungen genug, dass
+ * sie ganz ins Bild passt, ohne dass der Kopf klein wird — und die Jacke und
+ * die Hände gehören zu dem, was man hier aussucht. Gezielt wird auf die Mitte
+ * zwischen Fuß und Mützenspitze, die Kamera steht leicht darüber.
  */
 const CAMERA_FOV = 34;
-const CAMERA_AT = new THREE.Vector3(0, 1.62, 2.7);
-const CAMERA_LOOK = new THREE.Vector3(0, 1.42, 0);
+/** Wie viel Luft über und unter der Figur bleibt, als Anteil ihrer Höhe. */
+const CAMERA_MARGIN = 1.18;
+/** Auf halber Höhe der Figur, und von dort aus so weit weg, dass sie hineinpasst. */
+const CAMERA_LOOK = new THREE.Vector3(0, CHEF_HEIGHT / 2, 0);
+const CAMERA_AT = new THREE.Vector3(
+  0,
+  CHEF_HEIGHT * 0.62,
+  (CHEF_HEIGHT * CAMERA_MARGIN) / 2 / Math.tan((CAMERA_FOV / 2) * (Math.PI / 180)),
+);
 
-/** Die Kopfpose, aus der die Figur gebaut wird: aufrecht, zur Kamera gedreht. */
+/**
+ * Die Kopfpose, aus der die Figur gebaut wird: aufrecht, zur Kamera gedreht.
+ *
+ * Es ist die Augenhöhe des **Spielers** und nicht die der Figur: `AvatarBody`
+ * setzt den Kopf auf seine eigene feste Höhe (`CHEF_EYE`) und liest aus dieser
+ * Pose nur noch Ort und Blickrichtung. Eine Figurenhöhe hier wäre eine Zahl,
+ * die zufällig auch stimmt.
+ */
 const HEAD_Y = 1.62;
 
 /**

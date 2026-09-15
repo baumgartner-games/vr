@@ -4067,6 +4067,17 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Das zweite Feld des Schachbretts** draußen (`shared/environment.ts`).
+   *
+   * `null` heißt: eine Spur heller als die Grundfarbe, und damit hat jede Welt
+   * ihr Brett, ohne eine Farbe zu nennen. Wer es wie in Portal will — grau und
+   * weiß im Wechsel —, nennt sie.
+   */
+  protected horizonChecker(): number | null {
+    return null;
+  }
+
+  /**
    * Höhe der Oberfläche der Fläche. Von hier aus wird gemessen, ob jemand aus
    * der Welt gefallen ist — eine Karte, die tief unter der Null anfängt, ist
    * keine, aus der man gefallen ist.
@@ -4088,7 +4099,11 @@ export class PortalWorld implements World {
   private buildHorizonFloor(): void {
     const color = this.horizonColor();
     if (color === null) return;
-    const mesh = createGround(color, { line: this.horizonLine() });
+    const checker = this.horizonChecker();
+    const mesh = createGround(color, {
+      line: this.horizonLine(),
+      ...(checker === null ? {} : { checker }),
+    });
     this.root.add(mesh);
     mesh.updateWorldMatrix(true, false);
     this.horizonFloor = mesh;

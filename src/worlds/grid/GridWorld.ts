@@ -17,6 +17,8 @@ import { blocksView, boxesBetween, type GhostCandidate } from './wallGhost';
 import { fixtureTile, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
 import { EFFECT_LIFT } from './fixtures/index';
+import { signRows } from './fixtures/signRows';
+import { SIGN } from './fixtures/sign';
 import type {
   FixtureEvent,
   FixtureInput,
@@ -97,6 +99,27 @@ export abstract class GridWorld extends PortalWorld {
   private readonly fixtures: FixtureRun[] = [];
   /** Die laufenden Wolken (`effects/Burst.ts`) — was ein `effect`-Ereignis macht. */
   private readonly bursts: Burst[] = [];
+  /**
+   * **Der Aushang, der gerade aufgeschlagen ist** (`fixtures/signRows.ts`).
+   *
+   * Er hängt als Seite im Weltmenü, und zwar als **eine** Seite: Es wird immer
+   * das gelesen, was zuletzt benutzt wurde. Zwanzig Schilder als zwanzig
+   * stehende Menüzeilen wären ein Menü, in dem man das Spiel nicht mehr
+   * findet — und ein Aushang, den man nicht aufgeschlagen hat, will auch
+   * niemand in der Liste haben.
+   */
+  private reading: { title: string; rows: MenuEntry[] } | null = null;
+  /**
+   * Ob die Seite dazu im **nächsten** Bild aufzuschlagen ist.
+   *
+   * Ein Bild später und nicht sofort, und das ist kein Schönheitsfehler:
+   * `WorldContext.refreshWorldMenu` merkt sich nur, dass der Baum neu zu bauen
+   * ist, und baut ihn am Ende des Bildes (`App.step`, `menuDirty`). Wer im
+   * selben Atemzug `openSubmenu` ruft, sucht eine Seite, die es noch gar nicht
+   * gibt — das Menü blieb dann einfach zu, und ein Schild, das man benutzt und
+   * das nichts tut, sieht aus wie ein kaputtes Schild.
+   */
+  private openReading = false;
   /** Je Etage ein Netz aus Kachelkanten (`buildGridLines`). */
   private readonly gridLines: THREE.LineSegments[] = [];
   /** Ihr Material — eines für alle, und über den Umbau hinweg dasselbe. */
@@ -603,6 +626,9 @@ export abstract class GridWorld extends PortalWorld {
    */
   private stepFixtures(dt: number, ctx: WorldContext): void {
     if (this.fixtures.length === 0) return;
+    // Einmal für alle: Wohin sich drehen soll, was sich zum Betrachter dreht
+    // (`FixtureView.face`) — heute genau die Tafeln der Schilder.
+    ctx.rig.getHeadPosition(_head);
     const pending: { from: FixtureRun; event: FixtureEvent }[] = [];
     for (const run of this.fixtures) {
       const on = this.standingOn(run, ctx);
@@ -620,6 +646,7 @@ export abstract class GridWorld extends PortalWorld {
         pending.push({ from: run, event });
       }
       run.kind.apply(run.view, run.state);
+      run.view.face?.(_head);
       const hard = run.kind.solid(run.state);
       if (hard !== run.hard) {
         this.setFixtureSolid(run, hard);
@@ -725,10 +752,34 @@ export abstract class GridWorld extends PortalWorld {
         // und werden nicht neu erfunden.
         this.fireEffect(from, event.effect, event.size ?? 1, event.at ?? null);
         break;
+      case 'read':
+        this.readAloud(event.title, event.text, event.markdown, ctx);
+        break;
       case 'wardrobe':
         this.openWardrobe(ctx);
         break;
     }
+  }
+
+  /**
+   * **Einen Aushang aufschlagen** — der Abnehmer für `read`-Ereignisse
+   * (`fixtures/sign.ts`).
+   *
+   * Aus dem Text werden Zeilen (`fixtures/signRows.ts`), aus den Zeilen wird
+   * eine Seite im Weltmenü, und die Seite wird aufgeschlagen. Genau derselbe
+   * Baum wie überall: am Bildschirm ein Blatt von unten, in der Brille das
+   * Panel am Handgelenk (`ui/WristMenus.ts`) — eine zweite Art, Text zu
+   * zeigen, gibt es hier nicht.
+   *
+   * Die Reihenfolge ist die ganze Feinheit: Erst muss der Baum **stehen**,
+   * sonst sucht `openSubmenu` eine Seite, die es noch nicht gibt. Und er steht
+   * erst am Ende des Bildes (`App.step`, `menuDirty`) — deshalb wird hier nur
+   * vorgemerkt und im nächsten Bild aufgeschlagen (`openReading`).
+   */
+  protected readAloud(title: string, text: string, markdown: boolean, ctx: WorldContext): void {
+    this.reading = { title, rows: signRows(text, SIGN.accent, markdown) };
+    ctx.refreshWorldMenu();
+    this.openReading = true;
   }
 
   /**
@@ -1184,6 +1235,12 @@ export abstract class GridWorld extends PortalWorld {
     this.trackLevel(ctx);
     this.showGridLines();
     this.stepWallGhosts(ctx);
+    // **Vor den Einbauten**, damit ein Schild, das in diesem Bild gelesen
+    // wird, sein Bild zum Aufbauen des Menüs bekommt (siehe `openReading`).
+    if (this.openReading) {
+      this.openReading = false;
+      ctx.menu.openSubmenu(SIGN_PAGE);
+    }
     // **Erst die Einbauten, dann der Umbau.** Sie laufen auch, während gebaut
     // wird — ein Schild, das man eben gesetzt hat, soll etwas sagen, sobald
     // die Karte wieder an der Hüfte hängt.
@@ -1399,8 +1456,22 @@ export abstract class GridWorld extends PortalWorld {
    * können. Wer nicht, hat nichts zu sichern.
    */
   override menu(): MenuEntry[] {
-    if (!this.editor) return super.menu();
-    return [this.storeMenu(), ...super.menu()];
+    const rows = super.menu();
+    const base = this.editor ? [this.storeMenu(), ...rows] : rows;
+    const open = this.reading;
+    if (!open) return base;
+    // **Ganz oben**, weil es der Grund ist, aus dem das Menü gerade aufging.
+    return [
+      {
+        id: SIGN_PAGE,
+        label: open.title,
+        sub: 'Was auf dem Schild steht',
+        icon: 'sign',
+        accent: SIGN.accent,
+        children: open.rows,
+      },
+      ...base,
+    ];
   }
 
   // --- welche Etage von oben zu sehen ist -----------------------------------
@@ -1534,6 +1605,16 @@ const GHOST_AIM = 0.9;
 /** Wie durchsichtig eine Wand wird, die im Weg steht. */
 const GHOST_OPACITY = 0.25;
 
+/**
+ * Die Kennung der Seite, auf der ein aufgeschlagenes Schild steht.
+ *
+ * Eine feste und keine je Schild: Aufgeschlagen ist immer das zuletzt
+ * benutzte, und eine Seite, deren Id sich ändert, verliert bei jedem Wechsel
+ * ihre Blätterstellung (`ui/menuNav.ts`).
+ */
+const SIGN_PAGE = 'grid:sign';
+
+const _head = new THREE.Vector3();
 const _target = new THREE.Vector3();
 const _feet = new THREE.Vector3();
 const _spot = new THREE.Vector3();

@@ -43,11 +43,18 @@ export const TOP_DOWN_FOV = 30;
 
 /**
  * **Die Zoomstufen als Abstand in Metern.** Nicht als Faktor: Der Abstand ist
- * das, was man sieht, und vier gerastete Werte lassen sich mit Rad und Bumper
- * blind durchklicken. 16 m ist die Vorgabe — rund zwölf Kacheln Breite auf
- * einem 16:9-Schirm, also ein Raum und seine Nachbarn.
+ * das, was man sieht, und eine Handvoll gerasteter Werte lässt sich mit Rad
+ * und Bumper blind durchklicken. 16 m ist die Vorgabe — rund zwölf Kacheln
+ * Breite auf einem 16:9-Schirm, also ein Raum und seine Nachbarn.
+ *
+ * **Oben sind zwei Stufen dazugekommen**, und der Grund ist die Testwelt: Ihr
+ * Gelände ist 64 × 68 m groß (`worlds/test/layout.ts`, `FIELD`), und bei 30 m
+ * Abstand sieht man davon einen Ausschnitt. Wer wissen will, wo die Kartbahn
+ * relativ zur Kletterwand liegt, musste bisher hinlaufen. 60 m fassen das
+ * Gelände als Ganzes; darüber hinaus wird die Figur zum Punkt, und ein
+ * Blickwinkel, in dem man sich selbst sucht, ist keiner mehr.
  */
-export const TOP_DOWN_DISTANCES: readonly number[] = [12, 16, 22, 30];
+export const TOP_DOWN_DISTANCES: readonly number[] = [12, 16, 22, 30, 42, 60];
 
 /** Womit angefangen wird: 16 m. */
 export const TOP_DOWN_ZOOM = 1;

@@ -231,6 +231,22 @@ export class PlayerRig extends THREE.Group {
    */
   useCandidate = false;
 
+  /**
+   * **Ob der Benutzen-Knopf gerade _liegt_** — nicht die Flanke, die Taste.
+   *
+   * `requestUse` ist eine Flanke, und das ist für Knöpfe, Türen und Schilder
+   * genau richtig: Wer drückt, drückt einmal. Es gibt aber Dinge, die ein
+   * **Halten** verlangen, und das aus gutem Grund — aus einem Kart bei Tempo
+   * 60 steigt man nicht aus Versehen aus (`worlds/test/zones/kart.ts`). In der
+   * Brille fragt so etwas den Controller (`primary.pressed`); am Schreibtisch
+   * und am Telefon gab es gar nichts zu fragen, und **deshalb kam man aus dem
+   * Kart nicht mehr heraus**, sobald keine Tastatur dabei war.
+   *
+   * Gesetzt von `FlatControls` jedes Bild, aus allen Gebern zusammen: `E`,
+   * Enter, der Knopf `A` auf dem Glas und `A` am Pad.
+   */
+  useHeld = false;
+
   /** Den Zettel lesen und wegnehmen — je Bild höchstens einmal wahr. */
   takeUse(): boolean {
     const wanted = this.useWanted;

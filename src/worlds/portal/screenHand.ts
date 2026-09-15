@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ControllerState } from '../../core/XRInput';
+import { CHEF_EYE, CHEF_TOOL, POSE_SCALE } from '../../core/chefFit';
 import type { PlayerRig } from '../../core/PlayerRig';
 
 /**
@@ -24,15 +25,6 @@ import type { PlayerRig } from '../../core/PlayerRig';
  * Desktop-Kamera bleibt außen vor: Wohin die Maus zuletzt geschaut hat, hat
  * mit der Figur von oben nichts zu tun.
  */
-
-/**
- * Wo die Hand sitzt, im Raum des Rigs: rechts vor der Schulter, in Metern.
- *
- * Eine Figur ist 1,8 m hoch; das hier ist die Höhe, auf der ein ausgestreckter
- * Arm eine Waffe hält, eine Handbreit rechts der Mitte und eine vor dem
- * Körper. Weiter vorn steckte der Lauf in jeder Wand, an der man steht.
- */
-const HAND_AT = { x: 0.24, y: 1.2, z: -0.26 } as const;
 
 /** Ab wann der Trigger als gedrückt gilt — dieselbe Schwelle wie am Controller. */
 const TRIGGER_DOWN = 0.5;
@@ -97,13 +89,40 @@ export class ScreenHand {
   }
 
   /**
-   * Ducken senkt das Rig und lässt die Füße stehen (`PlayerRig.getFloorY`) —
-   * die Hand rechnet denselben Versatz mit, sonst wüchse sie beim Ducken aus
-   * dem Kopf heraus.
+   * **Die Hand an ihren Platz** — und der ist eine Stelle an der **Figur**
+   * (`core/chefFit.CHEF_TOOL`) und keine am Spieler.
+   *
+   * Hier stand eine feste Höhe von 1,20 m: die Höhe, auf der ein ausgestreckter
+   * Menschenarm eine Waffe hält. Die Figur, die man von oben sieht, ist aber
+   * 1,60 m hoch und ihre Augen liegen bei 0,91 m (`core/chefFit.ts`) — die
+   * Pistole schwebte damit über ihrer Faust, und sie hatte obendrein
+   * Spielergröße, war in dieser Hand also ein Balken. Genau das war gemeint
+   * mit „die Werkzeuge sitzen zu hoch".
+   *
+   * Gerechnet wird deshalb **andersherum**: Die Stelle an der Figur steht
+   * fest, und `at` ist die Pose, aus der der Avatar wieder genau diese Stelle
+   * macht. Er staucht jede Handpose auf Figurenmaß (`AvatarBody.update`,
+   * `POSE_SCALE`) — hier steht die Umkehrung davon und keine zweite geratene
+   * Zahl, die beim nächsten Umbau danebenläge.
    */
   private place(): void {
-    this.at.set(HAND_AT.x, HAND_AT.y + this.rig.crouch - this.rig.seated, HAND_AT.z);
-    this.grip.position.copy(this.at);
+    // Der Kopf im Raum des Rigs — ohne Brille sitzt die Kamera genau dort, und
+    // sie bleibt dort: Ducken senkt das **Rig** und nicht die Kamera darin
+    // (`PlayerRig.getFloorY`), und der Avatar hängt am Rig.
+    const headY = this.rig.camera.position.y;
+    // **Die Pose, aus der der Avatar wieder `CHEF_TOOL` macht.** Er staucht
+    // jede Handpose auf Figurenmaß (`AvatarBody.update`, `POSE_SCALE`); damit
+    // die Hand genau dort landet, wo das Werkzeug liegt, wird hier die
+    // Umkehrung gerechnet und nicht eine zweite Zahl geraten.
+    this.at.set(
+      CHEF_TOOL.x / POSE_SCALE,
+      headY + (CHEF_TOOL.y - CHEF_EYE) / POSE_SCALE,
+      CHEF_TOOL.z / POSE_SCALE,
+    );
+    // Und der Griff selbst steht direkt an der Stelle — in Figurengröße, damit
+    // ein Werkzeug in dieser Faust kein Balken ist.
+    this.grip.position.set(CHEF_TOOL.x, CHEF_TOOL.y, CHEF_TOOL.z);
+    this.grip.scale.setScalar(POSE_SCALE);
     this.grip.updateMatrixWorld(true);
   }
 }
