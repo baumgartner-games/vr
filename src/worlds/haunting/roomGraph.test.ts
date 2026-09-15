@@ -1,6 +1,13 @@
 import { DOOR_LOSS, WALL_LOSS } from './audio/hearing';
 import { generateHouse, spacesOf, type HouseSpec, type Rect } from './house';
-import { COMMAND, monsterGraph, stationGraph, type StationGraph } from './roomGraph';
+import {
+  COMMAND,
+  monsterGraph,
+  portalPoint,
+  stationGraph,
+  walkingGap,
+  type StationGraph,
+} from './roomGraph';
 import { COMMAND_HOME } from './trainingLayout';
 
 /**
@@ -231,5 +238,59 @@ describe('Die Karte des Monsters', () => {
     expect(all.spaces).toContain(COMMAND);
     expect(all.neighbours(COMMAND).length).toBeGreaterThan(0);
     expect(Number.isFinite(all.distance(all.rooms[0]!, COMMAND))).toBe(true);
+  });
+});
+
+/**
+ * **Wie weit es zu Fuß ist** (`walkingGap`): über die Türen, nicht über die
+ * Mitten. Ein Monster sechs Meter hinter der Tür der Cafeteria ist nah — auch
+ * wenn die Mitte der Cafeteria zwölf Meter von dieser Tür entfernt liegt.
+ */
+describe('Der Weg zu Fuß über die Türen', () => {
+  it('misst im selben Raum die Luftlinie und beim Nachbarn über die gemeinsame Tür', () => {
+    const spec = generateHouse(2, 14);
+    const graph = stationGraph(spec);
+    const room = spec.rooms[0]!;
+    const next = graph.neighbours(room.id).find((id) => id !== COMMAND)!;
+    const door = portalPoint(graph, room.id, next)!;
+    expect(door).not.toBeNull();
+    // Je zwei Meter diesseits und jenseits der Tür: vier Meter zu Fuß.
+    const c = graph.centre(room.id);
+    // Senkrecht zur Türkante hinein und hinaus.
+    const dx = c.x - door.x,
+      dz = c.z - door.z;
+    const towards =
+      Math.abs(dx) > Math.abs(dz) ? { x: Math.sign(dx), z: 0 } : { x: 0, z: Math.sign(dz) };
+    const inside = { x: door.x + towards.x * 2, z: door.z + towards.z * 2, space: room.id };
+    const outside = { x: door.x - towards.x * 2, z: door.z - towards.z * 2, space: next };
+    expect(walkingGap(graph, inside, outside)).toBeCloseTo(4);
+    expect(walkingGap(graph, inside, { ...c, space: room.id })).toBeCloseTo(
+      Math.hypot(inside.x - c.x, inside.z - c.z),
+    );
+    // Die Mitten sind weiter auseinander als die zwei Stellen an der Tür.
+    expect(graph.distance(room.id, next)).toBeGreaterThan(4);
+  });
+
+  it('geht zwei Knoten weit über beide Türen, sonst über die Mitten', () => {
+    const spec = generateHouse(2, 14);
+    const graph = stationGraph(spec);
+    const room = spec.rooms[0]!;
+    const mid = graph.neighbours(room.id).find((id) => id !== COMMAND)!;
+    const beyond = graph.neighbours(mid).find((id) => id !== room.id && id !== COMMAND)!;
+    const a = portalPoint(graph, room.id, mid)!,
+      b = portalPoint(graph, mid, beyond)!;
+    const from = { ...a, space: room.id };
+    const to = { ...b, space: beyond };
+    expect(walkingGap(graph, from, to)).toBeCloseTo(Math.hypot(a.x - b.x, a.z - b.z));
+    // Ohne gemeinsame Tür in zwei Schritten bleibt die Weglänge der Mitten.
+    const far = graph.spaces.find(
+      (id) =>
+        id !== room.id &&
+        !graph.neighbours(room.id).includes(id) &&
+        !graph.neighbours(room.id).some((n) => graph.neighbours(n).includes(id)),
+    )!;
+    expect(walkingGap(graph, from, { ...graph.centre(far), space: far })).toBe(
+      graph.distance(room.id, far),
+    );
   });
 });

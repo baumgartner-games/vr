@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PLAN_DOOR_H, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
-import { DIRS, TILE, dirX, dirZ } from '../nav/navTile';
+import { DIRS, TILE, dirX, dirZ, type Dir } from '../nav/navTile';
 import {
   APRON,
   MARKS,
@@ -289,36 +289,60 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
         y,
         z - Math.sin(yaw) * u + Math.cos(yaw) * v,
       ];
-      const opening =
+      const openingAt = (side: Dir): boolean =>
         spec.doors.some(
           (door) =>
-            (door.x === tile.x && door.z === tile.z && door.dir === dir) ||
+            (door.x === tile.x && door.z === tile.z && door.dir === side) ||
             (door.x + dirX(door.dir) === tile.x &&
               door.z + dirZ(door.dir) === tile.z &&
-              (door.dir + 2) % 4 === dir),
+              (door.dir + 2) % 4 === side),
         ) ||
         spec.windows.some(
-          (window) => window.x === tile.x && window.z === tile.z && window.dir === dir,
+          (window) => window.x === tile.x && window.z === tile.z && window.dir === side,
         );
+      const opening = openingAt(dir);
+      // **Die Ecke an einer Tür bleibt frei.** Seit die Tür eine ganze
+      // Kachelkante breit ist (`STATION_DOOR_W`), reicht ihre Öffnung bis in
+      // die Ecke; was an der Wand daneben hängt, ragte sonst in den
+      // Durchgang. `u` läuft für Wand `dir` auf die Ecke mit Wand `dir + 1`
+      // zu (`local`), also wird dort und am anderen Ende je ein Stück
+      // ausgelassen, wenn an dieser Ecke eine Tür steht.
+      const cut = 0.34;
+      const cutPlus = openingAt(((dir + 1) % 4) as Dir) ? cut : 0,
+        cutMinus = openingAt(((dir + 3) % 4) as Dir) ? cut : 0;
+      const span = (length: number): [number, number] => [
+        length - cutMinus - cutPlus,
+        (cutMinus - cutPlus) / 2,
+      ];
       // Ein Pfosten je Meter Wand, an der Kante der Kachel: Die Pfosten der
       // Nachbarkacheln stoßen aneinander und werden zusammen zu einem.
       const face = PLAN_WALL_T / 2,
         post = TILE / 2 - 0.05;
-      for (const u of [-post, post]) {
+      for (const u of [-post + cutMinus, post - cutPlus]) {
         batch.box(SHIP.trim, [0.1, 2.2, 0.11], local(u, 1.15, face + 0.065), false, yaw);
         // Angled shoulders and rounded conduit break the rectangular wall silhouette.
         batch.box(SHIP.trim, [0.1, 0.28, 0.1], local(u, 2.42, face + 0.1), false, yaw, Math.PI / 5);
       }
       if (!opening) {
-        batch.box(SHIP.hull, [TILE - 0.2, 1.41, 0.032], local(0, 1.365, face + 0.021), false, yaw);
+        const panel = (colour: number, size: Triplet, y: number, depth: number): void => {
+          const [length, centre] = span(size[0]);
+          batch.box(colour, [length, size[1], size[2]], local(centre, y, face + depth), false, yaw);
+        };
+        panel(SHIP.hull, [TILE - 0.2, 1.41, 0.032], 1.365, 0.021);
         // Broad department colour, inset seams and a kick plate make the ship's
         // rooms readable at a glance, without adding decorative floor obstacles.
-        batch.box(accent, [TILE - 0.2, 0.29, 0.037], local(0, 0.705, face + 0.044), false, yaw);
-        batch.box(SHIP.dark, [TILE - 0.16, 0.2, 0.051], local(0, 0.18, face + 0.032), false, yaw);
-        batch.box(SHIP.trim, [TILE - 0.18, 0.11, 0.043], local(0, 0.42, face + 0.03), false, yaw);
-        batch.box(SHIP.dark, [TILE - 0.3, 0.075, 0.044], local(0, 1.84, face + 0.044), false, yaw);
+        panel(accent, [TILE - 0.2, 0.29, 0.037], 0.705, 0.044);
+        panel(SHIP.dark, [TILE - 0.16, 0.2, 0.051], 0.18, 0.032);
+        panel(SHIP.trim, [TILE - 0.18, 0.11, 0.043], 0.42, 0.03);
+        panel(SHIP.dark, [TILE - 0.3, 0.075, 0.044], 1.84, 0.044);
         // One small low-level status marker is visible during a total blackout.
-        batch.box(accent, [0.17, 0.015, 0.012], local(-post + 0.23, 0.31, face + 0.055), true, yaw);
+        batch.box(
+          accent,
+          [0.17, 0.015, 0.012],
+          local(-post + cutMinus + 0.23, 0.31, face + 0.055),
+          true,
+          yaw,
+        );
       }
       // Everything crossing the wall segment is above the actual door head.
       batch.box(
@@ -359,9 +383,15 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
   for (const side of [0, 1]) {
     const tileX = closedTileX(spec, room, side ? 2 : 0);
     if (tileX === null) continue;
-    const sign = label(signText, 2.25, 0.42, accent);
+    // Nicht breiter als die Wand, und ganz im Raum: Ein Gang von zwei Kacheln
+    // trägt ein kürzeres Schild, statt eines, das um die Ecke ragt.
+    const width = Math.min(2.25, room.rect.w * TILE - 0.3);
+    if (width < 0.8) continue;
+    const sign = label(signText, width, 0.42, accent);
+    const left = room.rect.x * TILE + width / 2 + 0.05,
+      right = (room.rect.x + room.rect.w) * TILE - width / 2 - 0.05;
     sign.position.set(
-      (tileX + 0.5) * TILE,
+      Math.max(left, Math.min(right, (tileX + 0.5) * TILE)),
       2.39,
       (room.rect.z + (side ? room.rect.d : 0)) * TILE + (side ? -1 : 1) * (PLAN_WALL_T / 2 + 0.24),
     );

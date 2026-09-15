@@ -503,6 +503,35 @@ Messreihe in den Test) — die Ungleichung der Tempi (`botTuning.test`) bleibt
 dabei unangetastet. Dazu `npm test` ganz, `npm run build`, und die Liste der
 Stellen in AGENTS.md/README, die nicht mehr stimmen.
 
+**Was H4 gefunden hat:**
+
+- `stationSmoothing.test`/`flatWalk.test` maßen mit 0,45 bzw. 0,4 + 0,05 —
+  durch eine 1-m-Tür auf dem 0,25-m-Raster passt das nicht; die Tests messen
+  jetzt mit `MONSTER_RADIUS` (0,3). Die Wandlinien des Snapshots werden für
+  die Prüfung an den Enden um die halbe Dicke gekürzt (am Pfosten ist eine
+  Wand nicht dicker), und Türen zwischen zwei Gängen (ganze Kante offen)
+  haben keine Mitte, an der eine Strecke vorbeimüsste.
+- `shipArt`: Wanddekor lässt an einer Ecke mit Tür 0,34 m frei (die Öffnung
+  reicht bis in die Ecke), Raumschilder sind nie breiter als die Wand, eine
+  Deckplatte je Kachel.
+- `roundSim.move` lief auf die Mitte des Nachbarraums zu und schnitt dabei
+  die Ecke eines dritten Raums — der Techniker pendelte bis zum Rundenende
+  (`timeout` ohne einen einzigen Kontakt). Jetzt geht er durch die Tür
+  (`roomGraph.portalPoint`).
+- Die Gefahr des Technikers (`roundSim`, `rules/technicianBot.ts`) maß über
+  die Raummitten (`graph.distance` < 1,5 · Vorsicht); in der zwanzig Meter
+  breiten Cafeteria fühlte er ein Monster sechs Meter hinter der Tür nie.
+  Jetzt zählt der Weg zu Fuß über die Türen (`roomGraph.walkingGap`).
+- Nachgelernt: `trainBots('both')` fand mit 96 Runden je Schritt einen Satz,
+  der auf 4 × 400 Runden nicht hielt (0,61 / 0,24) — der Abstand zwischen zu
+  zweit und im Team hängt am Zuruf (`commandLag`) und nicht an den Gewichten
+  des Monsters. Ein Raster über Vorsicht und Wartezeit fand
+  `caution` 13 m, `nerve` 5 s (Techniker; Monster unverändert); gemessen wie
+  im Test treffen beide Bänder. `roundSim.test` prüft die Handgriffe seither
+  über die Dauer gewonnener Runden: Schneller arbeiten heißt auf dieser
+  Station schneller fertig, nicht öfter gewinnen (Laufen ist die Zeit, in der
+  man gehört wird).
+
 ## Regeln für jedes Paket
 
 - Vor dem Commit: `npm run typecheck`, `npm run lint`, `npm run format:check`

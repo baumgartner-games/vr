@@ -1,6 +1,6 @@
 import { DEFAULT_TUNING, type TechnicianTuning } from '../botTuning';
 import { PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED, puzzleFor } from '../mission';
-import type { StationGraph } from '../roomGraph';
+import { walkingGap, type StationGraph } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
 import { FlatWalker } from '../map/flatWalk';
 import { CONTACT, FlatRound, type FlatInput } from '../map/flatRound';
@@ -242,11 +242,15 @@ export class TechnicianBot {
     const gap = state.monsterOn
       ? Math.hypot(round.player.x - round.monster.x, round.player.z - round.monster.z)
       : Infinity;
+    // **Gefahr ist, was zu Fuß nah ist** (`roomGraph.walkingGap`): im selben
+    // Raum immer, sonst über die Türen gemessen — nicht über die Mitten der
+    // Räume, die seit dem 1-m-Gitter in der Cafeteria zwölf Meter von jeder
+    // Tür entfernt liegen.
     const danger =
       state.monsterOn &&
       !hidden &&
-      (gap < this.tuning.caution || round.monster.space === round.player.space) &&
-      graph.distance(round.monster.space, round.player.space) < this.tuning.caution * 1.5;
+      (round.monster.space === round.player.space ||
+        walkingGap(graph, round.player, round.monster) < this.tuning.caution);
     this.calm = danger ? 0 : this.calm + dt;
     // Solange es nah ist, weiß er, wo es steht; danach verblasst es.
     if (danger)
