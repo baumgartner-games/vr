@@ -121,8 +121,12 @@ Welt mit **schwarzen Konturen** und Licht in Stufen. Darunter
 **Brille: Auflösung** — _Voll_, _Mittel_ oder _Flüssig_, für die Bildrate im
 Headset, ab der nächsten Sitzung — ganz oben die **Bildrate** selbst, live,
 auch in der Brille, und als Häkchen **Bildrate im Bild** das kleine Feld unten
-rechts, auch am Handy — und das Häkchen **Gitterlinien**, das die Kacheln der
-Ebene einblendet, auf der man gerade steht. Daneben liegt
+rechts, auch am Handy —, das Häkchen **Gitterlinien**, das die Kacheln der
+Ebene einblendet, auf der man gerade steht, und das Häkchen **Hitboxen**, das
+die Körper der Physik als Drahtgitter **über** alles andere legt: jeden Kasten,
+jede Kapsel, jede Wand — und, in Grün, den Kreis um den Spieler, der von oben
+zeigt, wie breit er wirklich ist. Was man sieht, ist nämlich nicht, woran man
+hängen bleibt. Daneben liegt
 **Aussehen**: Die Figur ist ein **Koch wie bei Overcooked** — runder Rumpf,
 großer Kopf mit Augen und Nase, zwei schwebende Hände, keine Arme und keine
 Beine, weil von zwölf Metern Höhe ein Skelett nur zwei graue Striche ist. Drei
@@ -818,6 +822,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Kart: aussteigen              | `A`/`X` halten                                                                                                                                                             | `E` halten                                                             | –                        |
 | Kart: zu zweit                | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge                                                                                           | dito                                                                   | –                        |
 | Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`                                                                                         | dito; der Schrank öffnet die Umkleide mit der Figur daneben            | dito                     |
+| Hitboxen                      | Menü → Grafik → _Hitboxen_ — die Körper der Physik über allem, mit dem Spielerkreis                                                                                                             | dito                                                                   | dito                     |
 | Gitterlinien                  | Menü → Grafik → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |
 | Zurücksetzen                  | `B` / `Y` oder Menü                                                                                                                                                        | `R` oder Menü                                                          | Menü                     |
 

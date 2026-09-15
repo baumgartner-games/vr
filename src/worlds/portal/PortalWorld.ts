@@ -236,6 +236,8 @@ import {
   type PhysicsBody,
 } from '../../physics/PhysicsWorld';
 import { PhysicsLocomotion } from '../../physics/PhysicsLocomotion';
+import { HitboxView } from '../../physics/HitboxView';
+import { graphics } from '../../core/graphicsSettings';
 import { silentPhysics } from '../../physics/silentPhysics';
 import { FreeLocomotion } from '../../core/Locomotion';
 import { GRAB_GLOW, GRAB_GLOW_LOCKED, GRAB_GLOW_PICKED } from '../../core/colors';
@@ -791,6 +793,17 @@ export class PortalWorld implements World {
    * die Welt verlässt, nimmt ihn mit (`dispose`).
    */
   private readonly highlighter = new Highlight(this.root);
+
+  /**
+   * **Die Umrisse der Physik** — das Häkchen _Hitboxen_ unter *Grafik*
+   * (`physics/HitboxView.ts`).
+   *
+   * Sie hängt hier und nicht in einer einzelnen Welt: Eine Kapsel, eine
+   * Kiste und eine Wand gibt es überall, wo es Physik gibt, und das ist genau
+   * diese Klasse. Sie entsteht erst beim ersten Häkchen — wer sie nie
+   * anschaltet, bezahlt sie auch nicht.
+   */
+  private hitboxes: HitboxView | null = null;
   /**
    * **Was der Spieler am Bildschirm gewählt hat** (`#hud-tool`).
    *
@@ -1180,6 +1193,7 @@ export class PortalWorld implements World {
     this.updateAim(ctx);
     this.applyViewOverride(ctx);
     this.updateFallRescue(ctx);
+    this.updateHitboxes();
     // Zuletzt: was die Welt für sich selbst tut. Dieselbe Zeile läuft in der
     // laufenden Vorschau ohne alles darüber (`stepPreview`).
     this.simulate(dt);
@@ -3387,6 +3401,8 @@ export class PortalWorld implements World {
     for (const entry of [...this.usables]) this.removeUsable(entry.object);
     // Der Saum hängt an einem Ding der Welt und darf ihr nicht folgen.
     this.highlighter.dispose();
+    this.hitboxes?.dispose();
+    this.hitboxes = null;
     ctx.rig.useCandidate = false;
     this.usePromptPlane?.dispose();
     this.usePromptPlane?.removeFromParent();
@@ -7095,6 +7111,29 @@ export class PortalWorld implements World {
    * Glow on everything a hand could grab right now — yours or somebody else's.
    * Locked props glow warmer.
    */
+  /**
+   * **Das Drahtgitter der Körper** — an, aus, und einmal je Bild nachgezogen.
+   *
+   * Nach dem Schritt und nicht davor: Gezeigt wird, wo die Körper **jetzt**
+   * stehen, und nicht, wo sie vor der Rechnung standen. Gebaut wird erst beim
+   * ersten Häkchen; wieder weggeräumt wird nicht, wenn es ausgeht — ein
+   * Häkchen, das man zweimal umlegt, soll nicht zweimal einen Puffer anlegen,
+   * und ein unsichtbares `LineSegments` kostet nichts (`HitboxView.update`
+   * fragt als Erstes danach).
+   */
+  private updateHitboxes(): void {
+    const physics = this.physics;
+    if (!physics) return;
+    const on = graphics().hitBoxes;
+    if (!on && !this.hitboxes) return;
+    if (!this.hitboxes) {
+      this.hitboxes = new HitboxView();
+      this.root.add(this.hitboxes.object);
+    }
+    this.hitboxes.visible = on;
+    this.hitboxes.update(physics);
+  }
+
   private updateHighlights(reachable: Set<PhysicsBody>): void {
     for (const entry of this.remoteBusy) reachable.add(entry);
     for (const entry of this.selected) reachable.add(entry);

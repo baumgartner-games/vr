@@ -2540,6 +2540,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Nah Gefasstes zur anderen Hand                                                     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                                                                                                                   | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Reichweiten einstellen                                                             | Menü → Einstellungen → Greifen                                                                                                                                                                                                                                | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Grafik umstellen                                                                   | Menü → Grafik: _Schatten_ (Häkchen, ab Werk an); _Grafik-Modus_ schaltet im Kreis (Einfach → Comic); _Brille: Auflösung_ (Voll → Mittel → Flüssig, ab der nächsten Sitzung); oben die **Bildrate** live; _Bildrate im Bild_ (Häkchen = F3)                                                      | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
+| Hitboxen                                                                           | Menü → Grafik → _Hitboxen_ — die Körper der Physik als Drahtgitter über allem, mit dem Kreis um den Spieler, ab Werk aus                                                                                                                                                                        | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Gitterlinien                                                                       | Menü → Grafik → _Gitterlinien_ — die Kacheln der Ebene, auf der man steht, ab Werk aus                                                                                                                                                                        | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Menüseite blättern                                                                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Werkzeug-Einstellungen                                                             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                                                                                                                  | Linksklick auf den Pfeil                                                                                                                                                                                                                                                                                                                       | –                                                           | tippen                                     |
@@ -4633,6 +4634,51 @@ Vier Sachen sind daran entschieden (`GridWorld`, `buildGridLines`):
   paar tausend Linien neu baut, blitzt beim ersten Bild auf und sieht aus wie
   ein Fehler.
 
+#### Die Hitboxen
+
+Das vierte Häkchen ist die zweite Auskunft und die ehrlichste: _Menü → Grafik →
+**Hitboxen**_ (`GraphicsSettings.hitBoxes`, ab Werk aus) legt die **Körper der
+Physik** als Drahtgitter über die Welt (`physics/HitboxView.ts`). Was man sieht,
+ist nämlich nicht, woran man hängen bleibt — ein Tresen ist einen halben Meter
+hoch und hat eine unsichtbare Sperre von 1,40 m über sich
+(`worlds/test/zones/kitchen.ts`), der Spieler ist von oben eine Figur und in der
+Physik eine Kapsel, und ein geladenes Möbel war lange ein Würfelchen von 20 cm,
+das niemand sah. Genau diese Lücke macht das Häkchen auf.
+
+Vier Sachen sind daran entschieden:
+
+- **Gezeichnet wird, was Rapier selbst zeichnet** (`World.debugRender`). Die
+  Umrisse aus den Formen nachzubauen hieße, jede Form ein zweites Mal zu kennen
+  — Kasten, Kapsel, Zylinder, Kegel, konvexe Hülle, Höhenfeld —, und die zweite
+  Fassung liefe beim ersten neuen Collider auseinander. Die Engine gibt es als
+  zwei Zahlenfelder heraus: Punkte und Farben, je zwei Punkte eine Strecke.
+- **Ohne Tiefenprüfung**, und das ist der Sinn der Sache: Die Linien liegen über
+  allem, auch über dem Möbel, zu dem sie gehören. Ein Umriss, den das Ding
+  verdeckt, dessen Umriss er ist, beantwortet keine Frage — in der Ansicht von
+  oben schon gar nicht.
+- **Die Achsenkreuze fliegen raus.** `debugRender` malt zu **jedem** Körper sein
+  Koordinatenkreuz aus drei Strichen; in einer Welt mit anderthalbtausend
+  Körpern ist das ein Teppich aus bunten Strichen, durch den man die Umrisse
+  nicht mehr sieht. Abschalten lässt es sich nicht — der Modus der Pipeline
+  kommt in dieser Fassung der Bindung nicht durch. Erkannt werden sie deshalb an
+  ihrer **Farbe**: Ein Achsenstrich hat genau einen Farbkanal, ein Umriss nie.
+  Die Schwelle dafür ist nicht die Null, sondern ein Fünfzigstel, und auch das
+  ist nachgemessen: Der rote Strich kommt glatt heraus, der grüne und der blaue
+  mit einem Millionstel in den Nebenkanälen — mit der Null blieben zwei von drei
+  Kreuzen stehen.
+- **Der Kreis um den Spieler wird zusätzlich gezeichnet**, flach auf dem Boden
+  und in einem Grün, das sonst nirgends vorkommt. Rapier zeichnet die
+  Spielerkapsel längst mit, aber sie ist eine von tausend gelben Umrissen, und
+  in einer Küche voller Tresen findet man sie nicht wieder. Der Kreis beantwortet
+  die Frage, für die man von oben spielt: **Wie breit bin ich, und passe ich da
+  durch?** Er kommt aus `PhysicsWorld.playerCapsule`, also aus derselben
+  Meldung, mit der die Physik jedes Bild sagt, wo der Spieler steht.
+
+Es kostet Bildrate, und das steht auch so in der Zeile: `debugRender` läuft über
+jeden Collider der Welt und legt dabei zwei frische Zahlenfelder an. Die Frage
+nach dem Häkchen steht deshalb **vor** dem Aufruf und nicht danach — wer es aus
+hat, merkt von der Datei nichts, und der `LineSegments` entsteht überhaupt erst
+beim ersten Mal Anschalten.
 ### Modelle im Repository
 
 `public/models` ist der Ordner, in dem **fremde Arbeit** liegt: die Spielfigur
