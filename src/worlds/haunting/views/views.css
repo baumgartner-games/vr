@@ -1,6 +1,6 @@
 /*
  * Die Nicht-VR-Rollen: Archiv, Schalttafel, Späher, Zuschauer. Dieselbe
- * Handschrift wie `map/flat.css` und `monster/monster.css`, damit der Wechsel
+ * Handschrift wie `haunting.css` und `monster/monster.css`, damit der Wechsel
  * zwischen den Rollen auf dem Telefon nicht wie ein Wechsel der App aussieht.
  * Die Bausteine — Kasten, Listenknopf, Pille, Kachel, Zeile, Meldung — kommen
  * aus `ui/widgets.css`; hier steht nur, wo sie liegen und was an ihnen anders
@@ -80,7 +80,7 @@
    dieser Stelle wäre ein schwarzes Rechteck statt eines Puppenhauses. */
 .role--watch { background: none; }
 .role--watch .role__hole--full { position: absolute; inset: 0; touch-action: none; }
-/* Der Stock zum Fliegen — das Bauteil der 2D-Welt (`map/controls.css`), hier über dem Loch. */
+/* Der Stock zum Fliegen (`map/joystick.css`), hier über dem Loch. */
 .role--watch .role__watch-stick { z-index: 3; --flat-bottom: max(14px, env(safe-area-inset-bottom)); }
 /* Die fremde Rollenansicht liegt über dem Puppenhaus und deckt es zu: Zwei
    Bilder übereinander wären beide unlesbar. */
@@ -107,7 +107,7 @@
    war der Befund („oben passen die Rollen nicht in das Panel"). Damit sieben
    in zwei Zeilen passen, ist jede Pille zweizeilig: oben der Platz, klein
    darunter, was er hält. Wer sich hier einhängt, setzt selbst, wo das Panel
-   steht (`flat.css`, `haunting.css`); dieses Blatt sagt nur, wie es aussieht. */
+   steht (`haunting.css`); dieses Blatt sagt nur, wie es aussieht. */
 .role-strip { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; min-width: 0; border-radius: 14px; background: rgba(10, 15, 26, 0.92); border: 1px solid rgba(140, 170, 230, 0.3); }
 .role-strip__key { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 36px; padding: 4px 10px; border-radius: 10px; border: 1px solid transparent; background: none; color: #97a3bd; font: inherit; line-height: 1.15; text-align: left; white-space: nowrap; touch-action: manipulation; }
 .role-strip__key strong { font-size: 12px; font-weight: 600; }
@@ -118,12 +118,9 @@
 .role-strip__key.is-active { background: rgba(140, 170, 230, 0.18); border-color: rgba(140, 170, 230, 0.5); color: #e8ecf7; font-weight: 650; }
 .role-strip__key.is-active small, .role-strip__key.is-mine small { color: #b8c4dd; }
 .role-strip__key:disabled { opacity: 0.45; }
-/* **Die Bühne der aufgeschlagenen Rolle ist eine Zeile der Spalte oben**
-   (`map/flat.css`, `.flat__top .role-stage`), keine Schicht über allem: Sie
-   fängt unter Rollenstreifen, Kasten und Sprungknöpfen an und füllt den Rest.
-   Vorher lag sie mit `inset: 0` über der ganzen Fläche — ihre Kopfzeile stand
-   hinter den Rollenknöpfen, und das Optionsmenü darunter war bei offener Rolle
-   nicht zu sehen. Die Rolle darin ist `absolute; inset: 0` und füllt die Bühne. */
+/* **Die Bühne der aufgeschlagenen Rolle** — keine Schicht über allem: Sie
+   fängt unter dem Rollenstreifen an und füllt den Rest. Die Rolle darin ist
+   `absolute; inset: 0` und füllt die Bühne. */
 .role-stage { position: relative; }
 /* Was in der Rolle oben steht, rechnet nicht mehr mit dem Rand der Seite oder
    dem Streifen: Beide liegen jetzt **über** der Bühne, nicht in ihr. Ein

@@ -19,9 +19,9 @@
  *
  * Handgesetzt wie `style.css` und `tools.css`, deshalb in `.prettierignore`.
  */
-/* Der Stock und die Knöpfe der 2D-Welt liegen auch über der 3D-Szene
-   (`world3d/shipControls.ts`) — dieselbe Datei, einmal gesetzt. */
-@import './map/controls.css';
+/* Der Stock der Karten-Rollen (`map/joystick.ts`): Monster und Zuschauer
+   steuern damit ihre Karte auf dem Telefon. */
+@import './map/joystick.css';
 /* Kasten, Listenknopf, Pille, Kachel und Überschrift sind die Bausteine aller
    Haunting-Oberflächen (`ui/widgets.css`); hier steht, wo sie liegen und was
    die Zentrale an ihnen anders färbt. */
@@ -328,36 +328,34 @@ body.orbital-on #hud { display: none; }
 .haunt button { touch-action: manipulation; min-height: 44px; }
 .haunt__tile { border-radius: 10px; border-left: 3px solid var(--haunt-accent); }
 .haunt__body { scrollbar-width: thin; scrollbar-color: #375c6b #081823; }
-/* Die Steuerung der 2D-Welt über der 3D-Szene (`world3d/shipControls.ts`):
-   dieselben Klassen wie dort, nur ohne den schwarzen Grund — hier liegt die
-   Station darunter. Bedienbar sind allein Stock und Knöpfe; dazwischen geht
-   jeder Finger an die Leinwand durch, sonst ließe sich nicht mehr umsehen.
-
-   **Die Tafel des Technikers steht unten links — genau dort, wo in 2D der
-   Stock liegt.** Beide zugleich geht nur, wenn sie sich nicht berühren, und
-   „nicht berühren" heißt hier eine Zahl: 200 Punkte, so hoch wie der Block
-   der Knöpfe (104 + 10 + 72 + Rand). So hoch ist die Fläche des Stocks, und
-   darüber fängt die Tafel an. Ohne das lag die Fläche des Stocks über der
-   unteren Kante der Tafel und verschluckte jeden Klick, der dort hinging —
-   im Browser-Smoke war es der Knopf „Rolle wechseln".
-
-   Dazu der Gürtel und die Hosenträger: Die Steuerung liegt eine Stufe unter
-   der Tafel. Sollte je wieder etwas überlappen, gewinnt die Tafel den Klick
-   und nicht der Stock. */
-/* **Und ohne den schwarzen Grund der 2D-Welt** (`flat.css`, `.flat { background: #000 }`).
-   Diese Ebene liegt mit `inset: 0` über der 3D-Szene: Solange `flat.css` nur in
-   der 2D-Welt geladen war, fiel das nicht auf — seit das Schiff die Datei für
-   sein Optionsmenü selbst einbindet, hätte sie die ganze Station schwarz
-   übermalt. Dieselbe Zeile wie bei `.flat.orbital-options` weiter unten. */
-.flat.ship3d { pointer-events: none; background: none; z-index: 3; }
-.flat.ship3d .flat__stick, .flat.ship3d .flat__buttons { pointer-events: auto; }
-/* Das Optionsmenü der 2D-Welt über dem Schiff (`ShipExperience.showOptions`): derselbe Rahmen wie in 2D, nur ohne den schwarzen Grund und über dem Panel des Technikers. */
+/* **Das Optionsmenü über dem Schiff** (`ShipExperience.showOptions`,
+   `map/optionsMenu.ts`): der Rahmen `.flat` (aus `map/joystick.css`) ohne
+   Grund, über der Tafel des Technikers; bedienbar ist allein das Panel, durch
+   den Rest geht jeder Finger an die Leinwand. Panel und Hinweiszeile standen
+   bis zum 1-m-Gitter in `map/flat.css`, dem Blatt der gemalten 2D-Welt. */
 .flat.orbital-options { pointer-events: none; background: none; z-index: 5; }
 .flat.orbital-options .flat__panel { pointer-events: auto; }
 .flat.orbital-options[hidden] { display: none; }
-.flat.ship3d .flat__stick { width: min(44vw, 240px); height: 200px; }
-/* Wo der Stock und die Knöpfe der 2D-Bedienung liegen, hört das Panel auf. */
-.orbital-player.is-keys { --orbital-gap: 212px; }
+.flat__panel { position: absolute; left: 50%; top: calc(var(--flat-top) + 60px); transform: translateX(-50%); width: min(92vw, 380px); max-height: calc(100vh - var(--flat-top) - 60px - var(--flat-bottom) - 8px); max-height: calc(100dvh - var(--flat-top) - 60px - var(--flat-bottom) - 8px); overflow: auto; z-index: 3; }
+/* Eine Zeile im Optionsmenü, die nur Auskunft gibt und kein Knopf ist. */
+.flat__note { color: #9aa6c0; font-size: 12px; line-height: 1.45; }
+/* **Der Streifen des Technikers am Bildschirm** (`ShipExperience.paintHudDom`):
+   Sauerstoff, Bildrate und Anzug in einer Zeile, darunter die Aufträge und
+   der Balken eines Handgriffs — dieselben Zeilen wie an der Kamera in der
+   Brille, nur im DOM, weil die Kamera von oben eine andere ist. Unten in der
+   Mitte, über dem Bordstock der Seite und unter der Tafel. */
+.orbital-hud { position: fixed; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 96px); transform: translateX(-50%); width: min(420px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-radius: 10px; border: 1px solid #33556a; background: rgba(8, 24, 35, 0.86); color: #d8e7ec; font: 12px system-ui, sans-serif; pointer-events: none; z-index: 4; }
+.orbital-hud[hidden] { display: none; }
+.orbital-hud__row { display: flex; align-items: baseline; gap: 10px; }
+.orbital-hud__row.is-low { border-color: #ff5a5f; }
+.orbital-hud__oxygen { font-size: 15px; font-variant-numeric: tabular-nums; }
+.orbital-hud__fps { flex: 1 1 auto; color: #8fb0bd; font-size: 10px; }
+.orbital-hud__suit { font-size: 12px; letter-spacing: .06em; }
+.orbital-hud__tasks { border-top: 1px solid #1e3a4a; padding-top: 4px; color: #d8e7ec; }
+.orbital-hud__pips { color: #7de9ec; letter-spacing: .1em; }
+.orbital-hud__chore { position: relative; display: flex; flex-direction: column; gap: 3px; padding-top: 4px; color: #c8ffd9; }
+.orbital-hud__chore span { font-size: 11px; }
+.orbital-hud__fill { display: block; height: 6px; border-radius: 999px; background: #8ff0b0; }
 .orbital-player.has-compass { --orbital-head: 44px; }
 /* **Die Kante, an der die Anzeigen des Schiffs anfangen.** Bis hierher waren
    das 58 px mehr, weil darüber die Kopfzeile der Seite lag (`#hud`). Die ist
@@ -392,7 +390,7 @@ body.orbital-on #hud { display: none; }
 .orbital-player details { padding-top: 8px; }
 .orbital-player summary { cursor: pointer; padding-block: 7px; color: #96eddb; }
 @media (min-width: 760px) { .haunt.is-view .haunt__body { max-width: 800px; width: calc(100% - 32px); align-self: center; } }
-@media (max-width: 480px) { .orbital-player { left: 8px; width: calc(100vw - 16px); --orbital-gap: 8px; } .orbital-player.is-keys { --orbital-gap: 212px; } }
+@media (max-width: 480px) { .orbital-player { left: 8px; width: calc(100vw - 16px); --orbital-gap: 8px; } }
 @media (prefers-reduced-motion: reduce) { .haunt *, .orbital-player * { animation: none !important; transition: none !important; } }
 
 /* Compact desktop controls; VR uses only the wrist and physical displays. */

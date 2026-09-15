@@ -3,22 +3,16 @@ import { head as uiHead, optionKey, pillKey } from '../ui/widgets';
 import { SIMULATION_SPEEDS, clampSimulationSpeed, simulationSpeedLabel } from '../simulationSpeed';
 
 /**
- * **Das Optionsmenü — eines für beide Welten.**
+ * **Das Optionsmenü des Schiffs im Browser** (`ShipExperience.shipOptions`).
  *
- * Die 2D-Welt hatte ihr Zahnrad (`flatMode.renderOptions`): Ansicht, Zuschauen,
- * Aufmachen, Ton, Ansichtswechsel, Runde verlassen. Das Schiff im Browser
- * hatte stattdessen ein Panel mit „Rolle wechseln", „2D von oben" und
- * „Missionsmenü" als lose Knöpfe — dieselben Dinge, anders benannt, anders
- * sortiert. Der Besitzer wollte **ein** Menü: „Das Menü der 3D-Ansicht soll
- * das der 2D-Welt sein, nur im Web, nicht in der Brille."
- *
- * Deshalb steht hier, was ein Optionsmenü *ist* — Überschriften, Hinweise und
- * Knöpfe mit einem `data-*`-Schlüssel, an dem der Wirt erkennt, was gedrückt
- * wurde —, und wie es gezeichnet wird: aus den Bausteinen von `ui/widgets.ts`
- * (`ui-head`, `ui-option`) und der Hinweiszeile der 2D-Welt (`flat__note`). Welche
- * Einträge darin stehen, sagt der Wirt: `FlatMode` seine, `ShipExperience`
- * die, die im Schiff einen Sinn haben. Die **Namen** der Einträge, die beide
- * haben, stehen hier (`SHARED`), damit sie in beiden Welten gleich heißen.
+ * Es war einmal das Zahnrad der gemalten 2D-Welt und wurde dann das eine Menü
+ * für beide Welten — der Besitzer wollte kein zweites mit anderen Namen. Die
+ * 2D-Welt ist weg (`docs/plan-haunting-1m.md`); geblieben ist die Form:
+ * Überschriften, Hinweise und Knöpfe mit einem `data-*`-Schlüssel, an dem der
+ * Wirt erkennt, was gedrückt wurde, gezeichnet aus den Bausteinen von
+ * `ui/widgets.ts` (`ui-head`, `ui-option`) und der Hinweiszeile (`flat__note`,
+ * `haunting.css`). Welche Einträge darin stehen, sagt der Wirt; die Namen der
+ * festen Einträge stehen hier (`SHARED`).
  *
  * Kein three.js, kein Rundenstand: eine Liste hinein, DOM heraus.
  */
@@ -46,7 +40,7 @@ export type OptionItem =
     }
   | {
       kind: 'key';
-      /** Der Schlüssel, an dem der Wirt den Druck erkennt — als `dataset`, also `switchView: '2d'` → `data-switch-view="2d"`. */
+      /** Der Schlüssel, an dem der Wirt den Druck erkennt — als `dataset`, also `watch: ''` → `data-watch`. */
       data: Record<string, string>;
       label: string;
       sub?: string;
@@ -123,15 +117,6 @@ export function watchKey(watching: boolean): OptionItem {
     watching ? SHARED.watchOn : SHARED.watchOff,
     watching ? SHARED.watchOnHint : SHARED.watchOffHint,
     { active: watching, pressed: watching },
-  );
-}
-
-/** „Ansicht: 2D ↔ 3D — zu …" — der Wechsel mitten in der Runde, ohne Neustart. */
-export function switchViewKey(to: '2d' | '3d', label: string): OptionItem {
-  return key(
-    { switchView: to },
-    `${SHARED.view}: 2D ↔ 3D — zu „${label}"`,
-    'Mitten in der Runde · Stand, Uhr, Türen und Monster bleiben',
   );
 }
 

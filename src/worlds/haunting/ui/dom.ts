@@ -1,7 +1,7 @@
 /**
  * **Das bisschen DOM, das jede Haunting-Oberfläche braucht** — und das bis
  * hierher in sechs Dateien je einmal stand (`stationUi`, `roundSetupPanel`,
- * `optionsMenu`, `puzzleOverlay`, `monsterView`, `roleShell`), jedes Mal
+ * `optionsMenu`, `monsterView`, `roleShell`, der gemalten 2D-Welt), jedes Mal
  * dieselben fünf Zeilen mit einem anderen Kommentar darüber.
  *
  * Kein Rahmen, keine Klasse: ein Element bauen, den gedrückten Knopf finden.

@@ -181,7 +181,7 @@ import {
 } from './net';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
-import type { WorldContext } from '../../core/types';
+import type { ToolChoice, WorldContext } from '../../core/types';
 import type { PlanSolidKind } from '../grid/solids';
 import type { Handedness } from '../../core/XRInput';
 
@@ -803,6 +803,41 @@ export class HauntingWorld extends GridWorld {
     ];
   }
 
+  /**
+   * **Die Bildschirmhand des Kerns bleibt leer.** Was der Techniker am
+   * Bildschirm in den Händen hält — Lampe, Radar, Röntgen, Medkit —, zeichnet
+   * das Schiff selbst vor der Kamera (`ShipExperience.updateTools`); eine
+   * zweite Lampe in der Hand des Kerns wäre eine zu viel.
+   */
+  protected override defaultScreenTool(): string | null {
+    return null;
+  }
+
+  /**
+   * **Der Werkzeug-Knopf** (`#hud-tool`): die Liste des Schiffs — Hand (leer)
+   * vom Kern, Taschenlampe, Radar, Röntgen, Medkit (`ShipExperience.toolChoice`).
+   * Ohne Schiff (in der Zentrale) gibt es keinen Knopf.
+   */
+  override toolChoice(): ToolChoice | null {
+    if (!this.context || !this.experience || this.context.role !== 'vr') return null;
+    return this.experience.toolChoice();
+  }
+
+  /**
+   * **`A` benutzt** (am Schreibtisch `E`, `PlayerRig.requestUse`): erst die
+   * Sonderfälle des Schiffs — Runde vorbei, im Schrank, Medkit in der Hand
+   * (`ShipExperience.useSpecial`) —, dann das Ding vor der Figur über den
+   * Kern (`pickUsable`), und liegt nichts vor einem, ist der Druck der
+   * Lichtschalter (`ShipExperience.useEmpty`), wie der Besitzer es bestellt
+   * hat.
+   */
+  protected override useForward(ctx: WorldContext): boolean {
+    const experience = this.experience;
+    if (experience?.useSpecial()) return true;
+    if (super.useForward(ctx)) return true;
+    return experience?.useEmpty() ?? false;
+  }
+
   protected override welcome(): string {
     return 'HAUNTING / ORBITAL · Sichere Einsatzzentrale. Mission oder Test am Terminal wählen. Archiv + Schalttafel auf zwei Handys.';
   }
@@ -1148,6 +1183,10 @@ export class HauntingWorld extends GridWorld {
         ctx.menu.toggle(false);
       },
       door: (id) => this.manualDoor(id),
+      // Was im Schiff `bind` bekommt, ist auch beim Kern benutzbar
+      // (`PortalWorld.addUsable`): `A`, Saum und Hinweis über der Figur.
+      usable: (object, usable, options) => this.addUsable(object, usable, options),
+      unusable: (object) => this.removeUsable(object),
       round: () => this.rules.status(this.state),
       doorOpen: (id) =>
         id === 'test-bay' ? this.state.crew.options.test : this.automaticDoors.isOpen(id),

@@ -478,6 +478,18 @@ Werkzeug-Knopf, Pinch; kein eigener Stock, keine eigenen Tasten außer
 `Ctrl` (Ducken); HUD als DOM-Streifen; Konsolen von oben über das
 Rätsel-DOM; alle Tests dieser Liste grün, dazu die vier Prüfungen.
 
+**Abweichungen bei der Umsetzung:** Das Rätsel-DOM ist die **Tafel des
+Technikers** (`ShipExperience.paint`, `near.console`), die die Knöpfe des
+Rätsels schon immer hatte — `A` an der Konsole öffnet den Wartungskasten
+und klappt die Tafel auf (`useConsole`); `map/puzzleOverlay.ts` (an eine
+`FlatRound` gebunden) ist damit ohne Nutzer und weg. `A` vor der **offenen**
+Kiste nimmt das Teil statt die Kiste zu schließen (das Blatt liegt vor dem
+Teil, `pickUsable` nähme sonst immer das Blatt). Die Bildschirmhand des
+Kerns bleibt leer (`defaultScreenTool` → `null`): Was in den Händen liegt,
+zeichnet das Schiff weiter selbst vor der Kamera. Die Lampe der Zentrale
+meldet sich mit eigenem Halbmesser an (`BindExtra.radius`) — die Ausdehnung
+einer Lampe ist ihr Lichtkegel.
+
 ### H4 — Nacharbeit
 
 Alles, was danach noch rot ist, insbesondere `npm run test:slow`

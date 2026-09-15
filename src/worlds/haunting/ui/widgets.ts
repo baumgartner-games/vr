@@ -13,7 +13,7 @@ import { el, setData } from './dom';
  *
  * Hier steht er einmal. **Was ein Baustein ist, steht hier; wo er steht,
  * sagt der, der ihn einhängt.** Deshalb nimmt jeder Baustein eine eigene
- * Klasse dazu (`role__watch-key`, `flat__toast`): Die Form kommt aus
+ * Klasse dazu (`role__watch-key`, `orbital-options`): Die Form kommt aus
  * `widgets.css`, die Lage aus dem Blatt der Stelle. Kein three.js, kein
  * Rundenstand — Text hinein, DOM heraus.
  */

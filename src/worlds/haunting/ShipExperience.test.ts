@@ -5,6 +5,14 @@ import { PlayerAvatar, LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import { Pointer } from '../../core/Pointer';
 import { ControllerState, type XRInput } from '../../core/XRInput';
 import type { WorldContext } from '../../core/types';
+import {
+  aimForward,
+  pickUsable,
+  USE_CHEST,
+  USE_RADIUS,
+  type Usable,
+  type UseCandidate,
+} from '../../core/usable';
 import type { MenuEntry } from '../../ui/menu';
 import { ShipExperience } from './ShipExperience';
 import type { MapGoal } from './map/mapView';
@@ -37,6 +45,11 @@ jest.mock('../../core/Audio', () => ({ playTone: jest.fn(), sharedAudio: () => n
  * generated objects, positions, selected targets and game state stay real.
  * The harness only locates existing teaching exhibits, never calls private
  * interaction methods or sets a puzzle to its solved state.
+ *
+ * **Benutzen geht durch den Kern** (Plan H, `core/usable.ts`): Das Schiff
+ * meldet dem Wirt an, was benutzbar ist (`ShipHost.usable`), und `E` tut,
+ * was `HauntingWorld.useForward` tut — Sonderfälle, dann `pickUsable` über
+ * die angemeldeten Dinge, sonst das Licht. Genau das spielt `pressUse` nach.
  */
 interface ExhibitLocator {
   doors: Array<{
@@ -96,6 +109,10 @@ let menuToggle: jest.Mock;
 let floating: FlashlightTool;
 /** Was der Kompass gerade ansagt — die Welt rechnet es sonst selbst (`HauntingWorld.objectives`). */
 let goals: MapGoal[];
+/** Was das Schiff beim Wirt als benutzbar angemeldet hat (`ShipHost.usable`). */
+let usables: Map<THREE.Object3D, Usable>;
+/** Und die Halbmesser, die es dabei selbst genannt hat (`BindExtra.radius`). */
+let radii: Map<THREE.Object3D, number>;
 
 beforeAll(() => {
   const gradient = { addColorStop: () => {} };
@@ -175,6 +192,8 @@ beforeEach(() => {
   speed = 1;
   goals = [];
   round = null;
+  usables = new Map();
+  radii = new Map();
   floating = new FlashlightTool();
   floating.position.set(COMMAND_HOME.x + 1, 1.4, COMMAND_HOME.z - 1);
   scene.add(floating);
@@ -200,6 +219,15 @@ beforeEach(() => {
       speed = value;
     },
     door: jest.fn(),
+    usable: (object, usable, options) => {
+      usables.set(object, usable);
+      if (options?.radius !== undefined) radii.set(object, options.radius);
+      else radii.delete(object);
+    },
+    unusable: (object) => {
+      usables.delete(object);
+      radii.delete(object);
+    },
     travel: (at) => rig.placeAt(at),
   });
   exhibits = experience as unknown as ExhibitLocator;
@@ -385,8 +413,55 @@ function frame(dt = 1 / 60): void {
   pointer.update(input, ctx.renderer.xr.isPresenting);
 }
 
+/**
+ * Eine Taste. `E` läuft nicht mehr über ein Fenster-Ereignis dieser Welt,
+ * sondern über den Kern (`FlatControls` → `PlayerRig.requestUse` →
+ * `HauntingWorld.useForward`); hier steht dafür `pressUse` — einmal je Druck,
+ * nie beim Wiederholen. `Strg` bleibt das Fenster-Ereignis, das das Schiff
+ * selbst hört (Ducken).
+ */
 function key(code: string, type = 'keydown', repeat = false): void {
+  if (code === 'KeyE') {
+    if (type === 'keydown' && !repeat) pressUse();
+    return;
+  }
   window.dispatchEvent(new KeyboardEvent(type, { code, repeat, bubbles: true, cancelable: true }));
+}
+
+/** Die angemeldeten Dinge als Kandidaten — wie `PortalWorld.collectUsables`. */
+function candidates(): UseCandidate[] {
+  const out: UseCandidate[] = [];
+  for (const [object, usable] of usables) {
+    if (!object.visible) continue;
+    const box = new THREE.Box3().setFromObject(object);
+    const size = box.isEmpty() ? 0 : Math.max(box.max.x - box.min.x, box.max.z - box.min.z) / 2;
+    out.push({
+      usable,
+      position: object.getWorldPosition(new THREE.Vector3()),
+      radius: Math.max(radii.get(object) ?? size, USE_RADIUS),
+      object,
+    });
+  }
+  return out;
+}
+
+/** Was `HauntingWorld.useForward` tut, ohne Welt: Sonderfälle, das Ding vor der Figur, sonst das Licht. */
+function pressUse(): void {
+  if (experience.useSpecial()) return;
+  rig.updateMatrixWorld(true);
+  const at = new THREE.Vector3(rig.position.x, rig.getFloorY() + USE_CHEST, rig.position.z);
+  const rigAhead = new THREE.Vector3(0, 0, -1).applyQuaternion(
+    rig.getWorldQuaternion(new THREE.Quaternion()),
+  );
+  const forward = aimForward(
+    false,
+    rigAhead,
+    rig.getHeadForward(new THREE.Vector3()),
+    new THREE.Vector3(),
+  );
+  const pick = pickUsable(candidates(), at, forward);
+  if (pick && pick.candidate.usable.use({ kind: 'player', at, forward })) return;
+  experience.useEmpty();
 }
 
 function tap(code: string): void {
@@ -423,8 +498,12 @@ function menu(id: string): void {
   frame(0.13);
 }
 
-/** Place the eye in front of an existing surface and aim at its actual UV. */
-function aim(mesh: THREE.Mesh, u = 0.5, v = 0.5): void {
+/**
+ * Place the eye in front of an existing surface and aim at its actual UV.
+ * `side` −1 steht auf der anderen Seite der Fläche — für ein Ding, das man
+ * von dort erreicht, wo man es abgelegt hat.
+ */
+function aim(mesh: THREE.Mesh, u = 0.5, v = 0.5, side = 1): void {
   mesh.updateWorldMatrix(true, false);
   mesh.geometry.computeBoundingBox();
   const bounds = mesh.geometry.boundingBox!;
@@ -434,7 +513,8 @@ function aim(mesh: THREE.Mesh, u = 0.5, v = 0.5): void {
     bounds.max.z,
   ).applyMatrix4(mesh.matrixWorld);
   const normal = new THREE.Vector3(0, 0, 1).transformDirection(mesh.matrixWorld);
-  rig.setHeadWorldPosition(target.clone().addScaledVector(normal, 1.5));
+  // Eine Armlänge und noch eine halbe davor (`USE_REACH`): so weit reicht `A`.
+  rig.setHeadWorldPosition(target.clone().addScaledVector(normal, 1.2 * side));
   rig.camera.lookAt(target);
   scene.updateMatrixWorld(true);
   frame(0.13);
@@ -569,18 +649,30 @@ test('leaning towards the crate in the headset keeps the chore running, a step b
   expect(say).toHaveBeenCalledWith(expect.stringContaining('abgebrochen'));
 });
 
-test('1 and 2 cycle found hand items including genuinely empty hands', () => {
+test('the tool button offers found hand items and genuinely empty hands', () => {
   state.crew.inventory.push('radar', 'xray', 'medkit');
-  // **Vier Schritte links, nicht drei**: frei, Taschenlampe, Radar, Röntgen.
-  // Die Lampe hängt seit dem Ersatzteil in der rechten Hand an *beiden*
-  // Hüften (`HauntingWorld.beltLoadout`) und steht deshalb auch links im
-  // Kreis. „Frei" bleibt erreichbar — Dunkelheit ist eine Entscheidung.
-  for (let i = 0; i < 4; i++) tap('Digit1');
-  tap('Digit2');
-  tap('Digit2');
+  // **Der Werkzeug-Knopf des Kerns** (`core/types.ToolChoice`): Lampe, Radar,
+  // Röntgen — und Medkit, sobald eines im Inventar liegt. Die Tasten `1` und
+  // `2` sind mit der gemalten Karte gegangen (Plan H).
+  const choice = experience.toolChoice();
+  expect(choice.options.map((one) => one.id)).toEqual(['flashlight', 'radar', 'xray', 'medkit']);
+  expect(choice.current).toBe('flashlight');
+  choice.choose('radar');
   frame(0.13);
-  expect(document.querySelector('.orbital-player__keys')?.textContent).toContain('1: Hand frei');
-  expect(document.querySelector('.orbital-player__keys')?.textContent).toContain('2: Hand frei');
+  expect(experience.toolChoice().current).toBe('radar');
+  expect(rig.camera.getObjectByName('desktop-held-scanner')?.visible).toBe(true);
+  choice.choose('medkit');
+  expect(experience.toolChoice().current).toBe('medkit');
+  // „Frei" bleibt erreichbar — Dunkelheit ist eine Entscheidung.
+  choice.choose(null);
+  frame(0.13);
+  expect(experience.toolChoice().current).toBeNull();
+  expect(document.querySelector('.orbital-player__keys')?.textContent).toContain(
+    'links: Hand frei',
+  );
+  expect(document.querySelector('.orbital-player__keys')?.textContent).toContain(
+    'rechts: Hand frei',
+  );
   expect(experience.flashlightActive).toBe(false);
   expect(scene.getObjectByName('mission-wrist-scanner')).toBeUndefined();
   expect(rig.camera.getObjectByName('desktop-held-scanner')?.visible).toBe(false);
@@ -646,18 +738,18 @@ test('room culling disables the invisible cargo controls as well as their artwor
   expect(state.crew.opened).toContain(cabinet.id);
 });
 
-test('simulation WASD/Ctrl moves the frozen web camera and visiting a teaching room restores walking', () => {
+test('the free camera in the bot round is the walking figure, and a teaching room ends the round', () => {
   menu('orbital:simulation');
+  // Solange die Kamera dem Bot folgt, steht das Gestell still; „Freie
+  // Kamera" gibt es frei — die Figur läuft dann selbst durch das Schiff
+  // (der Freiflug ist mit der gemalten Karte gegangen, Plan H).
   expect(rig.frozen).toBe(true);
   button('Freie Kamera').click();
-  const before = rig.position.clone();
-  key('KeyW');
-  key('ControlLeft');
-  frame(0.05);
-  expect(rig.position.z).toBeLessThan(before.z);
-  expect(rig.position.y).toBeLessThan(before.y);
-  key('KeyW', 'keyup');
-  key('ControlLeft', 'keyup');
+  expect(rig.frozen).toBe(false);
+  expect(document.querySelector('[data-action="overview"]')).toBeNull();
+  expect(document.querySelector('[data-action="up"]')).toBeNull();
+  button('Bot folgen').click();
+  expect(rig.frozen).toBe(true);
   menu('orbital:lab:safe');
   expect(state.crew.simulation).toBe(false);
   expect(rig.frozen).toBe(false);
@@ -696,6 +788,22 @@ test('the bot starts framed from above, follows smoothly, and allows a free came
   const following = rig.getHeadPosition(new THREE.Vector3());
   expect(following.x).toBeLessThan(free.x);
   expect(following.x).toBeGreaterThan(eye.x);
+});
+
+test('from above the rig stands on the bot, because the top-down camera follows the rig', () => {
+  (ctx as { topDown: boolean }).topDown = true;
+  experience.startBotRound();
+  frame(0.13);
+  const bot = experience.botPosition!;
+  expect(rig.position.x).toBeCloseTo(bot.x);
+  expect(rig.position.z).toBeCloseTo(bot.z);
+  expect(rig.position.y).toBeCloseTo(0);
+  // Der Bot geht weiter — das Gestell zieht nach, ohne die Kamera zu drehen.
+  const before = rig.camera.quaternion.clone();
+  bot.x += 3;
+  for (let i = 0; i < 40; i++) frame(0.05);
+  expect(rig.position.x).toBeCloseTo(bot.x, 1);
+  expect(rig.camera.quaternion.angleTo(before)).toBeCloseTo(0);
 });
 
 test('bot observation never redirects the VR headset', () => {
@@ -958,24 +1066,29 @@ test('disposing restores stance and removes input, HUD, targets and camera attac
   expect(rig.camera.getObjectByName('haunting-vr-comfort-border')).toBeUndefined();
   expect(rig.camera.getObjectByName('desktop-held-tool')).toBeUndefined();
   expect(experience.root.parent).toBeNull();
-  const notifications = say.mock.calls.length;
-  key('Digit2');
-  key('KeyE');
+  expect(document.querySelector('.orbital-hud')).toBeNull();
+  // Beim Kern ist nichts mehr angemeldet, und `Strg` duckt niemanden mehr.
+  expect(usables.size).toBe(0);
+  key('ControlLeft');
+  for (let i = 0; i < 10; i++) rig.update(0.05, input, false);
+  expect(rig.crouch).toBe(0);
+  key('ControlLeft', 'keyup');
   pointer.update(input, false);
-  expect(say.mock.calls).toHaveLength(notifications);
   expect(pointer.hovering).toBe(false);
 });
 
 test('desktop and VR use real tools; there is no persistent scanner or status HUD in a living VR view', () => {
   expect(rig.camera.getObjectByName('desktop-flashlight')).toBeInstanceOf(FlashlightTool);
   state.crew.inventory.push('radar', 'xray');
-  // Der erste Schritt der linken Hand ist die zweite Taschenlampe.
-  tap('Digit1');
+  // Der erste Schritt der linken Hand am Handgelenk ist die zweite Taschenlampe.
+  menu('orbital:sensor');
   expect(rig.camera.getObjectByName('desktop-flashlight-left')?.visible).toBe(true);
-  tap('Digit1');
+  experience.toolChoice().choose('radar');
+  frame(0.13);
   expect(rig.camera.getObjectByName('desktop-held-scanner')?.visible).toBe(true);
   expect(rig.camera.getObjectByName('tool-radar')).toBeInstanceOf(RadarTool);
-  tap('Digit1');
+  experience.toolChoice().choose('xray');
+  frame(0.13);
   expect(rig.camera.getObjectByName('tool-xray')).toBeInstanceOf(XrayTool);
   (ctx.renderer.xr as unknown as { isPresenting: boolean }).isPresenting = true;
   frame(0.13);
@@ -990,7 +1103,8 @@ test('desktop and VR use real tools; there is no persistent scanner or status HU
 });
 
 test('the floating world flashlight is pickable with an ordinary web E interaction', () => {
-  tap('Digit2');
+  experience.toolChoice().choose(null);
+  frame(0.13);
   expect(experience.flashlightActive).toBe(false);
   const casing = floating.children.find((object) => object instanceof THREE.Mesh)! as THREE.Mesh;
   aim(casing);
@@ -1159,18 +1273,6 @@ test.each(['lost', 'hidden'])(
   },
 );
 
-test('overview frames the whole station and free flight can rise beyond the old 14m ceiling', () => {
-  experience.startBotRound();
-  frame(0.13);
-  button('Kartenübersicht').click();
-  frame(0.05);
-  expect(rig.getHeadPosition(new THREE.Vector3()).y).toBeCloseTo(90);
-  key('Space');
-  for (let i = 0; i < 20; i++) frame(0.05);
-  key('Space', 'keyup');
-  expect(rig.getHeadPosition(new THREE.Vector3()).y).toBeGreaterThan(90);
-});
-
 test('bot radio remains visible when mission and test menus are collapsed', () => {
   experience.startBotRound();
   // Was der Techniker aus Zahlen der Runde meldet, kommt über die Welt
@@ -1184,117 +1286,58 @@ test('bot radio remains visible when mission and test menus are collapsed', () =
 });
 
 /**
- * **Dieselbe Steuerung wie in der 2D-Welt, im Schiff.** Wer die Station von
- * oben gespielt hat, findet dieselben drei Knöpfe und denselben Stock wieder,
- * wenn er sie von innen läuft — die zwei kleinen sind hier die zwei Hände,
- * der große ist das, was am Desktop das `E` tut.
+ * **Benutzen geht durch den Kern** (`core/usable.ts`, Plan H): Was im Schiff
+ * `bind` bekommt, ist beim Wirt als `Usable` angemeldet — `A` von oben und
+ * `E` am Schreibtisch finden es über `pickUsable`, der Saum des Kerns und der
+ * Hinweis über der Figur kommen mit. Einen eigenen Stock und eigene Knöpfe
+ * hat das Schiff nicht mehr; der Bordstock der Seite und der Werkzeug-Knopf
+ * des Kerns tun das.
  */
-describe('Die Steuerung der 2D-Welt über der 3D-Szene', () => {
-  function stickTo(dx: number, dy: number): void {
-    const zone = document.querySelector<HTMLElement>('.flat.ship3d .flat__stick')!;
-    const at = (type: string, x: number, y: number): void => {
-      zone.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, bubbles: true }));
-    };
-    at('pointerdown', 100, 100);
-    at('pointermove', 100 + dx, 100 + dy);
-  }
-
-  test('hängt Stock und drei Knöpfe über die Station', () => {
-    frame(0.13);
-    const keys = [...document.querySelectorAll<HTMLElement>('.flat.ship3d .flat__key')];
-    expect(keys).toHaveLength(3);
-    expect(keys[0]!.textContent).toContain('Linke Hand');
-    expect(keys[1]!.textContent).toContain('Rechte Hand');
-    expect(keys[2]!.textContent).toContain('Benutzen');
-    // Die Tafel des Technikers rückt darüber, statt darunter zu liegen.
-    expect(document.querySelector('.orbital-player')?.classList.contains('is-keys')).toBe(true);
-  });
-
-  test('schaltet mit den kleinen Knöpfen dieselben Hände wie 1 und 2', () => {
-    frame(0.13);
-    const keys = [...document.querySelectorAll<HTMLButtonElement>('.flat.ship3d .flat__key')];
-    const right = keys[1]!;
-    // Auf dem runden Knopf heißt sie „Lampe", samt ihrem Schalter: „Taschenlampe
-    // an" wäre dort abgeschnitten (`ShipExperience.keyLabel`).
-    expect(right.textContent).toContain('Lampe an');
-    right.click();
-    frame();
-    expect(right.textContent).toContain('frei');
-    expect(say).toHaveBeenCalledWith('Rechte Hand frei.');
-  });
-
-  test('schiebt den Spieler mit dem Stock — waagerecht und nach vorn', () => {
-    frame(0.13);
-    // Ohne Daumen bewegt sich waagerecht nichts; die Höhe gehört der Schwerkraft.
-    const start = rig.position.clone();
-    for (let i = 0; i < 6; i++) frame();
-    const idle = Math.hypot(rig.position.x - start.x, rig.position.z - start.z);
-    expect(idle).toBeLessThan(0.05);
-    const before = rig.position.clone();
-    stickTo(0, -60);
-    for (let i = 0; i < 6; i++) frame();
-    const walked = Math.hypot(rig.position.x - before.x, rig.position.z - before.z);
-    expect(walked).toBeGreaterThan(0.2);
-    // Nach vorn heißt: in die Richtung, in die der Kopf schaut.
-    const look = rig.getHeadForward(new THREE.Vector3());
-    const moved = new THREE.Vector3(
-      rig.position.x - before.x,
-      0,
-      rig.position.z - before.z,
-    ).normalize();
-    expect(moved.dot(look.setY(0).normalize())).toBeGreaterThan(0.7);
+describe('Benutzen über den Kern', () => {
+  test('meldet Klappen, Teile, Konsolen, Tastenfelder und Türtafeln als benutzbar an', () => {
+    const cabinet = exhibits.cabinets.find((c) => c.id.startsWith('cargo-') && c.loot)!;
+    expect(usables.get(cabinet.leaf)?.usePrompt?.()).toBe('Frachtschrank öffnen / schließen');
+    expect(usables.get(cabinet.lootMesh)?.usePrompt?.()).toMatch(/ nehmen$/);
+    const console = exhibits.consoles.find((c) => !c.training)!;
+    expect(usables.get(console.screen.mesh)?.usePrompt?.()).toBe(console.repair.title);
+    const door = exhibits.doors.find((d) => d.id !== 'test-bay' && d.id !== 'training-door')!;
+    expect(usables.get(door.panel.mesh)?.usePrompt?.()).toBe('Schiebetür bedienen');
+    const locker = exhibits.lockers[0]!;
+    const keypad = locker.group.children.find((o) => o.userData.locker === locker.id)!;
+    expect(usables.get(keypad)?.usePrompt?.()).toBe('In den Schutzschrank');
+    // Der Hinweis über der Figur trägt kein „E: " — die Taste sagt der Kern.
+    for (const usable of usables.values()) expect(usable.usePrompt?.() ?? '').not.toMatch(/^E:/);
+    // Kein eigener Stock, keine eigenen Knöpfe über der Szene.
+    expect(document.querySelector('.flat.ship3d')).toBeNull();
+    expect(document.querySelector('.flat__key')).toBeNull();
+    expect(document.querySelector('.flat__stick')).toBeNull();
   });
 
   /**
-   * **Der große Knopf ist im Leeren der Lichtschalter.**
-   *
-   * „Wenn ich auf keine Kiste oder Tür schaue, will ich mit Benutzen die
-   * Taschenlampe an- und ausmachen können" — und auf dem Knopf steht dann
-   * auch, was er tut, denn ob die Lampe brennt, war vorher nirgends zu lesen.
-   * Die Lampe bleibt dabei in der Hand: `cycleRight` leert sie, dieser Griff
-   * nicht.
+   * **Im Leeren ist Benutzen der Lichtschalter.** „Wenn ich auf keine Kiste
+   * oder Tür schaue, will ich mit Benutzen die Taschenlampe an- und ausmachen
+   * können." Der Kern hat nichts gefunden, also gilt der Druck der Lampe — und
+   * sie bleibt dabei in der Hand.
    */
   test('schaltet mit Benutzen das Licht, solange nichts vor einem liegt', () => {
     lookAtNothing();
-    const keys = (): HTMLButtonElement[] => [
-      ...document.querySelectorAll<HTMLButtonElement>('.flat.ship3d .flat__key'),
-    ];
-    const act = (): HTMLButtonElement => keys()[2]!;
-    // Gelb leuchtet der Knopf nur mit einem Ziel — hier ist keines.
-    expect(act().classList.contains('is-ready')).toBe(false);
-    expect(act().textContent).toContain('Licht aus');
-    expect(keys()[1]!.textContent).toContain('Lampe an');
     expect(experience.flashlightActive).toBe(true);
-
-    // **Der Druck wartet auf seinen Strahl** (`armUse`): Erst wenn der nichts
-    // getroffen hat, wird es der Lichtschalter — zwei Bilder später.
-    act().click();
-    frame();
-    frame();
+    tap('KeyE');
     expect(experience.flashlightActive).toBe(false);
     expect(say).toHaveBeenCalledWith('Taschenlampe aus.');
-    expect(keys()[1]!.textContent).toContain('Lampe aus');
-    expect(act().textContent).toContain('Licht an');
-    // In der Hand liegt sie weiter — nur dunkel.
     expect(rig.camera.getObjectByName('desktop-held-tool')?.visible).toBe(true);
-
-    act().click();
-    frame();
-    frame();
+    tap('KeyE');
     expect(experience.flashlightActive).toBe(true);
     expect(say).toHaveBeenCalledWith('Taschenlampe an.');
   });
 
   test('holt die Lampe zurück in die leere Hand, statt nur zu blättern', () => {
     lookAtNothing();
-    // Ohne Medkit im Inventar hat die rechte Hand zwei Stufen: Lampe und frei.
-    tap('Digit2');
+    experience.toolChoice().choose(null);
     frame(0.13);
     expect(experience.flashlightActive).toBe(false);
     expect(rig.camera.getObjectByName('desktop-held-tool')?.visible).toBe(false);
-    document.querySelectorAll<HTMLButtonElement>('.flat.ship3d .flat__key')[2]!.click();
-    frame();
-    frame();
+    tap('KeyE');
     expect(experience.flashlightActive).toBe(true);
     expect(rig.camera.getObjectByName('desktop-held-tool')?.visible).toBe(true);
   });
@@ -1303,36 +1346,110 @@ describe('Die Steuerung der 2D-Welt über der 3D-Szene', () => {
   test('lässt das Ziel vor der Nase Vorrang haben', () => {
     const cabinet = exhibits.cabinets.find((c) => c.id.startsWith('cargo-'))!;
     aim(cabinet.leaf);
-    document.querySelectorAll<HTMLButtonElement>('.flat.ship3d .flat__key')[2]!.click();
+    tap('KeyE');
     for (let t = 0; t < CARGO_OPEN_SECONDS + 0.3; t += 0.1) frame(0.1);
     expect(state.crew.opened).toContain(cabinet.id);
-    // Das Licht hat dabei nichts zu suchen.
+    // Das Licht hat dabei nichts zu suchen — auch nicht beim zweiten Druck
+    // in die Sperrfrist hinein.
+    tap('KeyE');
     expect(experience.flashlightActive).toBe(true);
     expect(say).not.toHaveBeenCalledWith('Taschenlampe aus.');
   });
 
-  /** Und `E` am Desktop tut dasselbe wie der Daumen auf dem Knopf. */
-  test('schaltet auch mit E das Licht', () => {
-    lookAtNothing();
+  /**
+   * **Vor der offenen Kiste nimmt `A` das Teil.** Das Blatt liegt vor dem
+   * Teil, und `pickUsable` nähme sonst immer das Blatt — die Kiste ginge zu,
+   * statt dass man bekäme, wofür man sie aufgemacht hat.
+   */
+  test('nimmt aus der offenen Kiste das Teil, statt sie zu schließen', () => {
+    const cabinet = exhibits.cabinets.find((one) => spec.tasks.some((t) => t.id === one.loot))!;
+    openCrate(cabinet.leaf);
+    expect(usables.get(cabinet.leaf)?.usePrompt?.()).toMatch(/ nehmen$/);
     tap('KeyE');
-    frame();
-    expect(experience.flashlightActive).toBe(false);
-    tap('KeyE');
-    frame();
-    expect(experience.flashlightActive).toBe(true);
+    expect(state.crew.inventory).toContain(cabinet.loot);
+    expect(state.crew.opened).toContain(cabinet.id);
+    expect(usables.get(cabinet.leaf)?.usePrompt?.()).toBe('Frachtschrank öffnen / schließen');
   });
 
-  /** In der Brille gibt es Controller; ein Knopf im DOM ist dort unsichtbar. */
-  test('bleibt in der Brille weg', () => {
-    frame(0.13);
-    const root = document.querySelector<HTMLElement>('.flat.ship3d')!;
-    expect(root.hidden).toBe(false);
+  /**
+   * **`A` an der Konsole** öffnet den Wartungskasten; das Rätsel selbst steht
+   * als Knöpfe in der Tafel — von oben zielt niemand auf eine Stelle der
+   * Konsolentafel.
+   */
+  test('öffnet an der Konsole den Wartungskasten und verweist auf die Tafel', () => {
+    menu('orbital:lab:repairs');
+    const console = exhibits.consoles.find((c) => c.training && c.repair.puzzle === 'wires')!;
+    aim(console.screen.mesh);
+    const panel = document.querySelector<HTMLDetailsElement>('details[data-main]')!;
+    panel.open = false;
+    tap('KeyE');
+    expect(console.practice?.open).toBe(true);
+    expect(document.querySelector<HTMLDetailsElement>('details[data-main]')!.open).toBe(true);
+    expect(button('Start ▲')).toBeDefined();
+    tap('KeyE');
+    expect(say).toHaveBeenCalledWith(expect.stringContaining('Rätsel in der Tafel'));
+    expect(console.practice?.open).toBe(true);
+  });
+
+  test('bietet nur an, was in der Fracht war', () => {
+    const choice = experience.toolChoice();
+    expect(choice.options.map((one) => one.id)).toEqual(['flashlight', 'radar', 'xray']);
+    choice.choose('radar');
+    expect(say).toHaveBeenCalledWith(expect.stringContaining('liegt noch in der Fracht'));
+    expect(experience.toolChoice().current).toBe('flashlight');
+    choice.choose('medkit');
+    expect(say).toHaveBeenCalledWith('Kein Medkit im Inventar.');
+    expect(experience.toolChoice().current).toBe('flashlight');
+  });
+
+  /**
+   * **Ducken bleibt** — die eine Taste dieser Welt neben dem Kern, weil das
+   * Spiel an der Lautstärke hängt (`mission.CROUCH_FACTOR`): `Strg` gehalten,
+   * oder der Umschalter in der Tafel.
+   */
+  test('duckt sich mit Strg und mit dem Umschalter in der Tafel', () => {
+    key('ControlLeft');
+    for (let i = 0; i < 10; i++) frame(0.05);
+    expect(rig.crouch).toBeGreaterThan(0.5);
+    key('ControlLeft', 'keyup');
+    for (let i = 0; i < 40; i++) frame(0.05);
+    expect(rig.crouch).toBeLessThan(0.2);
+    const toggle = (): HTMLButtonElement =>
+      document.querySelector<HTMLButtonElement>('[data-action="crouch"]')!;
+    expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    toggle().click();
+    for (let i = 0; i < 10; i++) frame(0.05);
+    expect(rig.crouch).toBeGreaterThan(0.5);
+    expect(toggle().getAttribute('aria-pressed')).toBe('true');
+    toggle().click();
+    for (let i = 0; i < 40; i++) frame(0.05);
+    expect(rig.crouch).toBeLessThan(0.2);
+  });
+
+  /**
+   * **Der Streifen am Bildschirm ist DOM** (`.orbital-hud`), in der Brille
+   * hängt er an der Kamera: Die Kamera von oben ist eine andere, und einen
+   * Streifen an der Rig-Kamera sähe man dort nie.
+   */
+  test('zeigt den Streifen am Bildschirm als DOM und in der Brille an der Kamera', () => {
+    round = {
+      phase: 'running',
+      oxygen: 300,
+      limit: 600,
+      suit: 3,
+      suitMax: 3,
+      cabinsDestroyed: [],
+      ending: '',
+    };
+    frame(0.3);
+    const strip = document.querySelector<HTMLElement>('.orbital-hud')!;
+    expect(strip.hidden).toBe(false);
+    expect(strip.textContent).toContain('O₂');
+    expect(exhibits.hud.mesh.visible).toBe(false);
     (ctx.renderer.xr as unknown as { isPresenting: boolean }).isPresenting = true;
-    frame();
-    expect(root.hidden).toBe(true);
-    (ctx.renderer.xr as unknown as { isPresenting: boolean }).isPresenting = false;
-    frame();
-    expect(root.hidden).toBe(false);
+    frame(0.3);
+    expect(strip.hidden).toBe(true);
+    expect(exhibits.hud.mesh.visible).toBe(true);
   });
 });
 
@@ -1443,10 +1560,11 @@ test('der Techniker bekommt kein zweites Ersatzteil in die Hand', () => {
 });
 
 /**
- * **G legt das Teil ab** — und wo es liegt, steht im Stand, damit der Archivar
- * es melden kann (`HauntState.dropped`, sichtbar erst nach `DROPPED_SEEN`).
+ * **„Ablegen" in der Tafel legt das Teil ab** — und wo es liegt, steht im
+ * Stand, damit der Archivar es melden kann (`HauntState.dropped`, sichtbar
+ * erst nach `DROPPED_SEEN`). Die Taste `G` ist mit der gemalten Karte gegangen.
  */
-test('G legt das Ersatzteil im Gang ab, und E nimmt es wieder auf', () => {
+test('Ablegen legt das Ersatzteil im Gang ab, und E nimmt es wieder auf', () => {
   const crate = exhibits.cabinets.find((one) => spec.tasks.some((t) => t.id === one.loot))!;
   openCrate(crate.leaf);
   aim(crate.lootMesh as THREE.Mesh);
@@ -1454,7 +1572,8 @@ test('G legt das Ersatzteil im Gang ab, und E nimmt es wieder auf', () => {
   expect(state.crew.inventory).toContain(crate.loot);
 
   state.time = 42;
-  tap('KeyG');
+  frame(0.13);
+  document.querySelector<HTMLButtonElement>('[data-action="drop"]')!.click();
   expect(state.crew.inventory).not.toContain(crate.loot);
   expect(state.dropped).toEqual([
     { id: crate.loot, x: expect.any(Number), z: expect.any(Number), since: 42 },
@@ -1466,7 +1585,8 @@ test('G legt das Ersatzteil im Gang ab, und E nimmt es wieder auf', () => {
   frame();
   const lying = experience.root.getObjectByName(`dropped-${crate.loot}`) as THREE.Mesh;
   expect(lying).toBeDefined();
-  aim(lying);
+  // Von der Kiste weg: Zwischen Teil und Kiste stünde man in deren Blatt.
+  aim(lying, 0.5, 0.5, -1);
   tap('KeyE');
   expect(state.crew.inventory).toContain(crate.loot);
   expect(state.dropped).toEqual([]);

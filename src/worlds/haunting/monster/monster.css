@@ -1,6 +1,6 @@
 /*
  * Die Monster-Rolle: Karte aus Monstersicht, Stock links, zwei Knöpfe rechts.
- * Dieselbe Handschrift wie `map/flat.css`, damit der Wechsel zwischen den
+ * Dieselbe Handschrift wie `views/views.css`, damit der Wechsel zwischen den
  * Rollen auf dem Telefon nicht wie ein Wechsel der App aussieht.
  * Meldung und Pille kommen aus `ui/widgets.css`; hier steht ihre Lage und ihr Rot.
  * Handgesetzt, einzeilig — CSS steht nicht unter Prettier.
@@ -11,10 +11,8 @@
 .monster__map { position: absolute; inset: 0; }
 .monster__map .mapview__canvas { width: 100%; height: 100%; display: block; }
 /* **An derselben Kante wie alles andere oben: `--flat-top`.** Die Rolle läuft
-   in der 2D-Welt (`map/flat.css`) und in der Einsatzzentrale, und beide sagen
-   selbst, wo ihr oberer Rand anfängt — in der 2D-Welt ganz oben, seit der
-   Streifen der Seite dort abgeschaltet ist (`core/pageHud.ts`), in der
-   Zentrale unter deren Kopfzeile. Vorher rechnete diese Zeile nur mit dem
+   in der Einsatzzentrale, und die sagt selbst, wo ihr oberer Rand anfängt —
+   unter ihrer Kopfzeile (`haunting.css`). Vorher rechnete diese Zeile nur mit dem
    Sicherheitsabstand des Geräts und stand deshalb halb unter Menü, Verbindung
    und VR-Knopf — „Nichts zu hören." war auf dem Telefon abgeschnitten. */
 .monster__hud { position: absolute; left: 12px; top: var(--flat-top, calc(max(10px, env(safe-area-inset-top)) + 58px)); display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: 10px; background: rgba(28, 10, 14, 0.8); border: 1px solid rgba(255, 77, 85, 0.35); pointer-events: none; max-width: 60vw; }
