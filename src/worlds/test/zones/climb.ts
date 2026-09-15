@@ -98,6 +98,8 @@ const MAX_LAUNCH_SPEED = 6;
 const DRIVE_BLEND = 18;
 /** Wie tief der Strahl unter den Füßen nach einem Tritt sucht. */
 const FOOT_PROBE = 0.35;
+/** Wie weit um die Zone herum sie überhaupt zuhört, in Metern (`nearby`). */
+const NEAR = 4;
 
 export function stampClimb(plan: GridPlan): void {
   // **Die Wand ist eine Masse.** Acht Meter hoch über eine Kachelreihe — als
@@ -274,14 +276,43 @@ export class ClimbZone implements TestZone {
     for (const spot of HOLDS) this.buildHold(world, spot);
     this.buildPad(world);
 
+    // **Der Streifen mit Ausdauer und Halt** hängt in der Kamera, aber nur
+    // sichtbar, wenn man an der Wand ist: Ein Ausdauerbalken über dem
+    // Schießstand wäre eine Anzeige für etwas, das dort niemand tut.
     this.hud = new ClimbHud();
     this.hud.mount(ctx.camera);
+    this.hud.visible = false;
     this.hud.setValues(this.stamina.value, null, null);
   }
 
+  /**
+   * **Nur, wenn jemand in der Nähe ist** — und das ist keine Sparmaßnahme.
+   *
+   * Das Klettern nimmt den Greifknopf, das Leuchten der Hand
+   * (`ctx.hands.setGlow`) und den linken Stick für sich. In einer eigenen Halle
+   * war das richtig, denn dort tat man nichts anderes; in einer Welt mit neun
+   * Zonen wäre es eine Zone, die einem am anderen Ende des Geländes das Greifen
+   * wegnimmt. Also hört sie erst zu, wenn man vor ihrer Wand steht — und wer
+   * hängt, wird ohnehin weiter geführt.
+   */
   update(dt: number, ctx: WorldContext): void {
+    const near = this.nearby(ctx);
+    if (this.hud) this.hud.visible = near;
+    if (!near) return;
     this.updateClimb(dt, ctx);
     this.updatePad(dt, ctx);
+  }
+
+  /** Steht der Spieler im Bereich der Zone — oder hängt er gerade an ihr? */
+  private nearby(ctx: WorldContext): boolean {
+    if (this.grasps.size > 0 || this.landing !== null) return true;
+    ctx.rig.getHeadPosition(_head);
+    return (
+      _head.x > CLIMB.x - NEAR &&
+      _head.x < CLIMB.x + CLIMB.w + NEAR &&
+      _head.z > CLIMB.z - NEAR &&
+      _head.z < CLIMB.z + CLIMB.d + NEAR
+    );
   }
 
   /** `B`/`Y`: Hände auf, Ausdauer voll, Kissen in Ruhe. */
