@@ -12,12 +12,19 @@ in _Overcooked_. Dieselben Wände, dieselben Türen, dieselben Kisten, an denen
 gerade jemand anders mit der Brille steht; man sieht dabei seine eigene Figur.
 Gelaufen wird in Weltrichtungen — `W` ist Norden, `D` ist Osten, und die Figur
 dreht sich dorthin, wohin sie läuft —, `Shift` sprintet, die Leertaste springt,
-und das Rad zoomt in vier Stufen. `E` **benutzt**, was vor der Figur steht
-(Knöpfe, Hebel, Türen, Tore), der Linksklick **schießt** mit dem Werkzeug in
-der rechten Hand. **Mit dem Gamepad wie auf der Konsole**: linker Stick läuft,
-rechter zielt, `A` benutzt, `B` oder RT schießt, die Bumper zoomen — der
-Hinweis über der Figur nennt dann auch `A` statt `E`. Am Handy ist _Von oben_
-vorbelegt, mit zwei Stöcken und den Flächen `A` und `B` auf dem Glas.
+und das Rad zoomt in vier Stufen. **`A` benutzt — überall**: was vor der Figur
+steht (Knöpfe, Hebel, Türen, Tore, ein Kart zum Einsteigen), bekommt einen
+**gelben Saum**, und derselbe Knopf springt nur dann, wenn nichts in Reichweite
+ist. Am Schreibtisch heißt `A` schlicht `E` oder Enter, in der Brille ist es
+`A` der rechten Hand. Der Linksklick **schießt** mit dem Werkzeug in der
+rechten Hand — und **welches das ist, wählt man selbst**: Der runde
+**Werkzeug-Knopf** unten rechts zeigt, was gerade in der Hand liegt, ein Druck
+(oder `Tab`, am Pad `Y`) klappt die Liste auf, und ganz oben steht die **Hand
+(leer)**. **Mit dem Gamepad wie auf der Konsole**: linker Stick läuft, rechter
+zielt, `A` benutzt, `B` oder RT schießt, die Bumper zoomen. Am Handy ist _Von
+oben_ vorbelegt, mit zwei Stöcken und den Flächen `A` und `B` nebeneinander
+über dem rechten Stock — und zwei Finger in der oberen Hälfte des Schirms
+zoomen stufenlos.
 
 Vorher war „2D" eine **eigene**, gemalte Kachelwelt über dem Bild — zwei
 Welten, zwei Wahrheiten: Was man von oben umwarf, stand in 3D noch. Die ist
@@ -26,18 +33,31 @@ sagt, wo alles steht, und der wohnt im Kachelgitter der Welten. Der Weg dorthin
 und zurück steht in
 [docs/plan-2d-hub-interaktion.md](docs/plan-2d-hub-interaktion.md).
 
-WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
-Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
-mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
-Dunkelhaus zum Ausprobieren von Licht, eine **Kletterhalle**, in der Greifen
-dich an der Wand hält — der Halt wird gerechnet, aus Material, Form,
-Körperhaltung und dem Verspreizen im Kamin, schlechte Griffe kosten Ausdauer,
-und hinunter geht es in **Sprungkissen**, die den Fall abfedern statt ihn
-anzuhalten —, eine **Straßenküche** — die Kreuzung aus dem Overcooked-Geist
-mit Küchenzeilen, Marktständen unter gestreiften Markisen und einem
-Zebrastreifen in der Mitte, die Testwelt für das Spielen von oben —, ein
-**Effektlabor** mit einem großen
-roten Knopf für Rauch, Feuer, Funken und Explosionen und
+WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente. Seit dem
+Umbau vom September 2026 stehen vier Welten darin, und das ist Absicht: Es
+waren siebzehn, jede prüfte eine Sache, und wer am Kern etwas änderte, lud
+siebzehn Welten hintereinander und hatte danach den Verdacht, die entscheidende
+vergessen zu haben. Geblieben sind der **Hub**, der **Bauplatz**, die
+**Testwelt** und **Haunting / Orbital**; alles, was die gelöschten Welten an
+Rechnung mitbrachten — Kartphysik, Trefferwertung, Kletterhalt, Effektzahlen,
+Türmathematik —, steht weiter als Modul da und wird von der Testwelt benutzt.
+
+Die **Testwelt** ist der Prüfstand: neun Zonen auf einem Gelände, in einer
+Minute zu Fuß abzulaufen. Vom Startplatz mit Tor und Kleiderschrank geht es
+nach Norden zu vier **Effektquellen** (Rauch, Feuer, Funken, Wasser, je ein
+Knopf davor), nach Nordwesten an eine **Türwand** mit Schiebetür, Flügeltür und
+Drucktür samt Knopf, Hebel und Druckplatte, nach Nordosten eine **Treppe** auf
+ein Podest mit Brüstung, nach Westen in die **Navigation** (enger Gang mit
+Kiste, Tür, Stachelfeld und ein roter Knopf, der einen NPC losschickt), nach
+Osten auf einen **Schießstand ohne Dach** mit Scheiben auf 5, 10 und 20 m, nach
+Süden auf eine **Kartbahn** mit zwei Karts in der Box — eingestiegen wird mit
+`A` —, und nach Südosten an eine **Kletterwand**, an der Greifen dich hält: Der
+Halt wird gerechnet, aus Material, Form, Körperhaltung und dem Verspreizen,
+schlechte Griffe kosten Ausdauer, und hinunter geht es in **Sprungkissen**, die
+den Fall abfedern statt ihn anzuhalten. Dazu drei **Portaltafeln**, eine davon
+oben auf dem Podest.
+
+Dazu kommt
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
 Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoomen,
 und sie fällt nicht; an einer Palette tunkt man Boden, Wand oder Tür ein und
@@ -51,15 +71,16 @@ Spielfigur steht mit im Modell und wird einfach woandershin gestellt, drumherum
 ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum.
 **Und es bleibt**: Unter _Welt sichern_ liegt eine
 gebaute Welt im Browser, geht als Datei herunter (`bauplatz-2026-09-07.welt.json`,
-Format `baumgartner-welt` in der Fassung `0.2.0`, mit Kacheln, Wänden, Türen,
-Möbeln, Einbauten und Dächern darin) und kommt so auch wieder zurück. Wer in einer
+Format `baumgartner-welt` in der Fassung `0.3.0`, mit Kacheln, Wänden, Türen,
+Möbeln, Einbauten und Massen darin) und kommt so auch wieder zurück. Gebaut
+wird dabei auf **Kacheln von einem Meter** — fein genug für eine Küche, in der
+der Herd neben der Spüle steht —, Wände stehen auf den Kanten dazwischen, und
+eine Treppe zieht sich über mehrere Kacheln, damit ihre Stufen 17,5 cm hoch und
+25 cm tief bleiben. Wer in einer
 fertigen Welt nur wissen will, wo er gerade ist, nimmt statt eines Grundrisses
 die **Karte** aus dem Werkzeugregal: ein Blatt in der Hand mit der Umgebung von
 oben, Norden oben, ein Pfeil für einen selbst und ein Punkt je Mitspieler — der
-Trigger zoomt. Dazu kommt
-ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
-**Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
-damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
+Trigger zoomt. Dazu kommt ein Werkzeuggürtel
 voller Spielzeug — darunter ein **magischer Beutel** zum Hineingreifen, aus dem
 Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen, und ein **Schild**,
 das man irgendwo hinstellt und mit Markdown beschriftet (Überschriften, Listen,
@@ -76,8 +97,10 @@ für den anderen eine Wand, und wer den Sturz nicht überlebt, bleibt oben
 stehen — und durch ein **Portal** fallen sie wie jede Kiste: halb hier, halb
 drüben, und aus einem Sturz ins Bodenportal wird der Schwung aus der Wand) und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
-räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Die meisten Testwelten
-stehen auf einer Fläche bis zum Horizont; Orbital schwebt mit sichtbaren Deckplatten im Weltraum, die Schwerkraft steht im Menü, und
+räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Hub,
+Bauplatz und Testwelt stehen auf einer Fläche bis zum Horizont und **ohne
+Dach**, damit die Kamera von oben hineinsieht; steht die Figur hinter einer
+Wand, wird die Wand für dieses Bild durchsichtig. Orbital schwebt mit sichtbaren Deckplatten im Weltraum, die Schwerkraft steht im Menü, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
 Unter **Menü → Grafik** steht ein experimenteller Schalter, der
@@ -86,9 +109,16 @@ Welt mit **schwarzen Konturen**, Licht in Stufen und Schatten. Darunter
 **Brille: Auflösung** — _Voll_, _Mittel_ oder _Flüssig_, für die Bildrate im
 Headset, ab der nächsten Sitzung — ganz oben die **Bildrate** selbst, live,
 auch in der Brille, und als Häkchen **Bildrate im Bild** das kleine Feld unten
-rechts, auch am Handy. Daneben liegt
-**Aussehen** — sieben Kopfbedeckungen von der Basecap bis zur Krone, und alle
-im Raum sehen, was man aufhat.
+rechts, auch am Handy — und das Häkchen **Gitterlinien**, das die Kacheln der
+Ebene einblendet, auf der man gerade steht. Daneben liegt
+**Aussehen**: Die Figur ist ein **Koch wie bei Overcooked** — runder Rumpf,
+großer Kopf mit Augen und Nase, zwei schwebende Hände, keine Arme und keine
+Beine, weil von zwölf Metern Höhe ein Skelett nur zwei graue Striche ist. Drei
+Zeilen stellen sie ein: vier **Köpfe**, acht **Hüte** von der Kochmütze bis zur
+Krone und fünf **Kochjacken**. Alle drei gehen über das Netz, alle im Raum
+sehen, als was man herumläuft — und wer lieber vor einem Spiegel wechselt,
+stellt sich an den **Kleiderschrank**: Ein Druck auf `A` öffnet die Umkleide
+mit der Figur in Nahaufnahme daneben.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
@@ -600,8 +630,8 @@ Die Station verwendet vermessene Einrichtungsmodelle mit reservierten Tür- und
 Laufwegen, abgerundeten Gehäusen, Rohren und raumspezifischen Aggregaten.
 Zusammengefasste Geometrie, das Ausblenden verdeckter Räume, wenige Lichter und
 begrenzte Effekt- und Audiopools halten den Aufwand klein. Die Web-Auflösung ist
-für Haunting begrenzt; der Übungsspiegel rendert nur in seiner Nähe. Hub und
-andere Testwelten bleiben erhalten.
+für Haunting begrenzt; der Übungsspiegel rendert nur in seiner Nähe. Hub,
+Bauplatz und Testwelt bleiben erhalten.
 
 90–120 Hz auf Quest 3 sind ein Leistungsziel, keine hier gemessene Zusage.
 Automatisierte Logik-, Physik- und DOM-Tests ersetzen weder die Prüfung der
@@ -672,49 +702,49 @@ Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
 Spiegelung beider Hüften, die Portaltiefe, den Durchtritt durch ein Portal, die Grafikstufen, das Aussehen,
 den Ausschnitt der Karte in der Hand, die Lichtstufen
-des Dunkelhauses, den Halt an der Kletterwand samt Ausdauer und der Vibration
+eines Dimmers, den Halt an der Kletterwand samt Ausdauer und der Vibration
 dazu, die **Federung der Sprungkissen** (dass ein Sturz aus sieben Metern nicht
 durchschlägt und der Blick trotzdem nicht in einem Bild stehen bleibt),
 die Blätterposition der Menüs und den Weg durch sie, die
-Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
-der Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
+Augenhöhen, die Vibrationsmuster, die Feinjustage und
+die Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
 Haltung an derselben Stelle in der Faust landet, die Faust am Griff (eine
 Einstellung für alle Werkzeuge mit demselben Griff), die Räumung nach dem
 Loslassen (ob ein Ding noch im Spieler steckt), den Griff am Stiel des großen
 Hammers samt seiner zweihändigen Lage, die Fahrphysik,
-Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
+Streckenführung und Rundenzählung der Karts, die Welt-Physik, die Rettung aus
 der Tiefe, die **Bausteine auf dem Kachelgitter** (dass jeder in jeder der vier
 Richtungen auf seiner Kachel bleibt, dass keine Treppenstufe höher wird als der
-Spieler steigt) samt den Grundrissen der vier Welten, die darauf stehen (dass
-man vom Startzimmer in jedes Zimmer kommt und in Dust jedes Haus vom
-Erdgeschoss aufs Dach), die Stoppuhr-Einstellungen, den Markdown-Umbruch der Schilder samt
-ihrem Rollen und dem, was von ihnen über das Netz geht, die Türen des
-Interaktionslabors, die Pinselwerte (Breite, Art und die eigene
+Spieler steigt) samt dem **Grundriss der Testwelt** (dass jede der neun Zonen
+vom Startplatz aus zu erreichen ist und die Treppe wirklich auf dem Podest
+endet), das **Wand-Ghosting** (was zwischen Kamera und Figur steht und was
+nicht), die Stoppuhr-Einstellungen, den Markdown-Umbruch der Schilder samt
+ihrem Rollen und dem, was von ihnen über das Netz geht, die Türmathematik
+(dass eine Tür mit Nachlauf beim zweiten Druck die Uhr neu setzt statt
+zuzufallen), die Pinselwerte (Breite, Art und die eigene
 Farbreihe), die Materialien, die Dicke der Bodenplatte, den
 Kurzcode für ein einzelnes Werkzeug (samt der Zahlen, an denen seine Länge
-hängt), die Zuordnung von Stand zu Zielscheibe im Schießgang, den Chat-Verlauf
+hängt), die Trefferwertung des Schießstands, den Chat-Verlauf
 samt Putzen fremden Textes, die Wahl des Gastgebers einer geteilten Welt, die
 Auslegung der Hub-Gänge, die Flächen der Würfel (dass gegenüberliegende
 Seiten zusammen `n + 1` ergeben, wie auf einem echten Würfel), die Passung des
 Handschuhs auf die Knochen einer getrackten Hand, die **Messung dieser Knochen**
 (eine Hand aus bekannten Winkeln bauen und nachsehen, ob die Messung sie wieder
 herausgibt), die **Knochenfarben**, die geteilte Handhaltung auf
-dem Weg über die Leitung, die Maße des Poseraums, den **Bauplan des Editors**
+dem Weg über die Leitung, den **Bauplan des Editors**
 (worauf ein Zeiger trifft — Kachel oder Kante —, was die vier Werkzeuge daraus
 machen, und dass die gebauten Quader vom Abtasten wiedergefunden werden) samt
 der **Miniatur** (Hin und Zurück ohne Drift, und dass der Punkt zwischen den
 Fingern beim Ziehen liegen bleibt), dem **Malen** (dass zwischen zwei
 Bildern keine Lücke bleibt, und dass ein Rechteck aus Boden seine Fläche füllt,
 eines aus Wänden dagegen nur seinen Rand — sonst wäre es ein Klotz und kein
-Zimmer) und dem **Weltformat** (dass eine Welt mit Dach und Möbeln durch die
-Datei und wieder zurück dieselbe ist, dass der Aufschlag einer Küchenzeile
-dabei nicht jedes Mal mitwächst, und dass eine Datei aus der Zukunft abgelehnt
-statt halb geladen wird), **was ein NPC an einer Kante anfängt**
+Zimmer) und dem **Weltformat** (dass eine Welt mit Massen und Möbeln durch die
+Datei und wieder zurück dieselbe ist, dass der Fuß einer Treppenkachel dabei
+mitreist, dass der Aufschlag einer Küchenzeile
+nicht jedes Mal mitwächst, und dass eine Datei aus der Zukunft abgelehnt
+statt halb geladen wird) und **was ein NPC an einer Kante anfängt**
 (wie hoch er tritt, wie hoch er sich hochzieht, wie steil ein Weg für ihn noch
-einer ist und ab welcher Höhe ein Sprung nach unten ihn umbrächte) und das
-**ganze Navigationslabor auf einmal**
-(ein Körper mit Umfang und Drehrate läuft jede Bucht ab, und je Bucht prüft ein
-Kontrollpunkt, dass er den richtigen Weg genommen hat). Diese
+einer ist und ab welcher Höhe ein Sprung nach unten ihn umbrächte). Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.
@@ -758,25 +788,26 @@ NPCs, durch dieselben Türen und Portale —, mit **Im Bereich** legt ein Tipp
 einen Kreis hin und die Liste zeigt nur noch, was darin (oder in Reichweite der
 Figur) zu drücken ist, und mit **Figur weg** steht man gar nicht erst in der
 Welt. Die Karte selbst hat zwei eigene Knöpfe: **Ziehen** schaltet zwischen
-Drehen und Schieben um, **Folgen** legt die Bildmitte auf die Figur. Im
-[Navigationslabor](https://baumgartner-games.github.io/vr/tools.html#welt/navlab)
+Drehen und Schieben um, **Folgen** legt die Bildmitte auf die Figur. In der
+[Testwelt](https://baumgartner-games.github.io/vr/tools.html#welt/test)
 ist das die ganze Brille, die man zum Zusehen braucht. Dazu der
 **Magische Beutel** (jedes Objekt mit Masse und Maßen) und die **NPCs** (jede
 Haut geht auf der Stelle, jedes Hirn mit seinen Zahlen daneben). Keine Brille
 nötig, das Telefon reicht.
 
 Und **Verbinden**: derselbe Raum-Code wie beim Zusammenspielen, aber ohne Spiel
-darin. Wer in der Brille im **Poseraum** _Handpose teilen_ drückt, dessen Hand
-steht hier live am Werkzeug — nur die eine Hand, nichts drumherum —, und ihr
-Konfig-Code steht darunter in einem Feld zum Herauskopieren. Details in
+darin — eine einzelne Hand am Werkzeug, live über die Leitung, mit ihrem
+Konfig-Code darunter in einem Feld zum Herauskopieren. Die Gegenstelle dazu war
+der Poseraum des Eingaberaums, und den gibt es seit dem Umbau nicht mehr;
+diese Seite hört weiter zu, es schickt bloß gerade niemand. Details in
 [AGENTS.md](AGENTS.md#die-werkzeugseite).
 
 ## Query-/Hash-Parameter
 
 | Parameter            | Wirkung                                                                                                                                                           |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `#portal`            | startet direkt in dieser Welt (jede Welt-ID funktioniert)                                                                                                         |
-| `?world=portal`      | dasselbe als Query-Parameter                                                                                                                                      |
+| `#test`              | startet direkt in dieser Welt (jede Welt-ID funktioniert: `hub`, `editor`, `test`, `haunting`)                                                                    |
+| `?world=test`        | dasselbe als Query-Parameter                                                                                                                                      |
 | `?room=mond-riff-47` | trägt den Raum-Code ins Verbindungs-Formular ein (Einladungslink) — unter `#haunting` in die Startseite der Runde, die ihn beim Verbinden auch selbst hier ablegt |
 | `?net=local`         | nutzt `BroadcastChannel` statt WebRTC — zwei Tabs auf einem Rechner                                                                                               |
 
@@ -788,10 +819,11 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------ |
 | Bewegen                       | linker Stick (reindrücken = Sprint)                                                                                                                                        | `WASD`, `Shift`                                                        | linker Touch-Stick       |
 | Umsehen                       | Kopf, rechter Stick = Snap-Turn                                                                                                                                            | Maus (Klick = Pointer-Lock)                                            | wischen                  |
-| Springen / Ducken             | `A` rechts / rechten Stick reindrücken                                                                                                                                     | `Leertaste`                                                            | –                        |
+| Springen / Ducken             | `A` rechts (springt nur, wenn nichts in Reichweite ist) / rechten Stick reindrücken                                                                                        | `Leertaste`                                                            | Knopf `A`, siehe links   |
 | Menü                          | Button an beiden Händen (immer nur eins offen)                                                                                                                             | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links      |
-| 2D von oben ↔ 3D              | –                                                                                                                                                                          | Startseite oder Menü → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger zoomen |
-| Benutzen (von oben)           | – (die Hand fasst selbst an)                                                                                                                                               | `E` oder Enter — ein Hinweis über der Figur sagt, was da ist           | Knopf `A`                |
+| Von oben ↔ Aus den Augen      | –                                                                                                                                                                          | Startseite oder Menü → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger in der oberen Hälfte zoomen |
+| Benutzen                      | `A` rechts — was in Reichweite steht, bekommt einen gelben Saum                                                                                                            | `E` oder Enter — ein Hinweis über der Figur sagt, was da ist           | Knopf `A`                |
+| Werkzeug wählen               | – (das Regal hängt am Handgelenk)                                                                                                                                          | Knopf unten rechts oder `Tab` — die Liste fängt mit _Hand (leer)_ an   | derselbe Knopf, antippen |
 | Zielen / Schießen (von oben)  | Trigger der Hand mit der Waffe                                                                                                                                             | Maus zielt, Linksklick schießt                                         | rechter Stick, Knopf `B` |
 | Auswählen                     | zielen + Trigger oder `A`                                                                                                                                                  | Linksklick                                                             | tippen                   |
 | Werkzeug nehmen/ablegen       | Grip an der Hüfte; woanders loslassen lässt es fallen                                                                                                                      | –                                                                      | –                        |
@@ -803,21 +835,19 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Sprechen                      | Menü → Verbindung → _Mikrofon_ — die Stimmen kommen aus der Richtung, in der die anderen stehen                                                                            | Panel _Verbindung_ → _Sprache_                                         | dito                     |
 | Werkzeug benutzen             | Trigger (Greifen = zweite Funktion)                                                                                                                                        | Links-/Rechtsklick                                                     | –                        |
 | Großer Hammer                 | irgendwo am Stiel greifen, zweite Hand dazu; Trigger halten schiebt die Hand am Stiel                                                                                      | –                                                                      | –                        |
-| Hängegleiter (Alpen)          | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; loslassen am Boden lässt ihn fallen                                                    | –                                                                      | –                        |
-| Flügel (Alpen)                | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve                                                                                      | –                                                                      | –                        |
+| Hängegleiter                  | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; loslassen am Boden lässt ihn fallen                                                    | –                                                                      | –                        |
+| Flügel                        | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve                                                                                      | –                                                                      | –                        |
 | Taschenlampe                  | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal                                                                                                    | –                                                                      | –                        |
 | Pinsel                        | Palette an der anderen Hand: antippen **oder** anzielen + Trigger; Regler für RGB und Strichbreite gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie          | Linksklick                                                             | –                        |
 | Staffelei                     | Trigger stellt sie auf den Boden und die Hand ist danach frei; Griff an der Ablage + Greifen nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel | –                                                                      | –                        |
 | Aufheben / werfen             | Grip mit leerer Hand am Objekt                                                                                                                                             | –                                                                      | –                        |
 | Ferngreifen                   | zielen, Grip, Hand zum Körper zucken (ab 8 m/s, einstellbar)                                                                                                               | –                                                                      | –                        |
-| Kart: einsteigen              | Lenkrad greifen (oder anzielen + Trigger)                                                                                                                                  | Lenkrad anklicken                                                      | –                        |
+| Kart: einsteigen              | davorstellen und `A` — oder das Lenkrad greifen                                                                                                                            | davorstellen und `E`                                                   | Knopf `A`                |
 | Kart: fahren                  | rechter Trigger Gas, linker bremst, linker Stick lenkt                                                                                                                     | `W`/`S`, `A`/`D`                                                       | –                        |
 | Kart: aussteigen              | `A`/`X` halten                                                                                                                                                             | `E` halten                                                             | –                        |
 | Kart: zu zweit                | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge                                                                                           | dito                                                                   | –                        |
-| Pizza: kneten                 | Faust auf den Teig auf dem Tisch schlagen                                                                                                                                  | –                                                                      | –                        |
-| Pizza: belegen                | Kelle/Streuer greifen, Trigger halten                                                                                                                                      | –                                                                      | –                        |
-| Handpose einmessen (Poseraum) | Werkzeug im Schwebekasten loslassen, blanke Hand daran, mit der Controller-Hand auf _Handpose teilen_ zeigen; deren Trigger speichert                                      | –                                                                      | –                        |
-| Schwebekasten feststellen     | Knopf _Schwebe_ an der Wand im Poseraum — was darin hängt, steht still und lässt sich nicht greifen                                                                        | –                                                                      | –                        |
+| Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`                                                                                         | dito; der Schrank öffnet die Umkleide mit der Figur daneben            | dito                     |
+| Gitterlinien                  | Menü → Grafik → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |
 | Zurücksetzen                  | `B` / `Y` oder Menü                                                                                                                                                        | `R` oder Menü                                                          | Menü                     |
 
 Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#steuerung).
