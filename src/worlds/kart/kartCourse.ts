@@ -20,10 +20,18 @@ import type { Apron, Vec2 } from './kartTrack';
  * anhängen, eine Kurve enger machen, eine Gerade kürzen.
  *
  * **Gerechnet wird in Kacheln, gefahren wird in Metern.** Eine Kachel ist
- * 2,5 m (`nav/navTile.ts`), und alle Maße hier sind ganze Kacheln — deshalb
- * liegt jede Mittellinie auf einer Kachelkante und jede Kurve endet wieder
- * darauf. Das ist der ganze Grund, warum Boxengasse, Asphalt und Grundriss
- * ohne einen einzigen krummen Zwischenwert zusammenpassen.
+ * seit September 2026 ein Meter (`nav/navTile.ts`), und alle Maße hier sind
+ * ganze Kacheln — deshalb liegt jede Mittellinie auf einer Kachelkante und
+ * jede Kurve endet wieder darauf. Das ist der ganze Grund, warum Boxengasse,
+ * Asphalt und Grundriss ohne einen einzigen krummen Zwischenwert
+ * zusammenpassen.
+ *
+ * **Auf dem Metergitter sind die Zahlen andere geworden, die Rechnung nicht.**
+ * Vorher maß eine Zelle vier Kacheln und damit zehn Meter, eine Kurve von
+ * sechs Kacheln hatte fünfzehn Meter Radius — die Bahn war ein
+ * Autobahnkreuz. Jetzt ist eine Zelle fünf Meter, die Fahrbahn vier Meter
+ * breit und die engste Kurve vier Meter eng: eine Kartbahn, wie sie in eine
+ * Halle passt (siehe `KART_PIECES`).
  *
  * **Die Kurve ist ein Viertelkreis, und ihr Radius ist ihr Versatz.** Wer mit
  * Radius `r` abbiegt, kommt `r` Kacheln weiter vorn und `r` Kacheln weiter zur
@@ -31,8 +39,8 @@ import type { Apron, Vec2 } from './kartTrack';
  * folgt, ob ein Kurs sich schließt.
  */
 
-/** Eine Zelle: vier Kacheln, zehn Meter — die Länge einer Geraden. */
-export const CELL = 4;
+/** Eine Zelle: fünf Kacheln, fünf Meter — die Länge einer Geraden. */
+export const CELL = 5;
 /** Wie breit die Fahrbahn ist, in Kacheln. */
 export const LANE = 4;
 /** Der Radius einer Kurve, wenn keiner dabeisteht, in Kacheln. */
@@ -258,31 +266,45 @@ export function grownRect(rect: TileRect, tiles: number): TileRect {
 
 // --- die Strecke, die in der Welt steht -----------------------------------
 
-/** Wo die Start-und-Ziel-Gerade anfängt: Kachel 0/0, es geht nach Norden. */
-export const KART_START: Cursor = { x: 0, z: 0, dir: DIR_N };
+/**
+ * **Wo die Start-und-Ziel-Gerade anfängt** — im Süden der Testwelt, und es
+ * geht nach Norden.
+ *
+ * Die Bahn ist keine eigene Welt mehr, sondern eine **Zone** in der Testwelt
+ * (`worlds/test/zones/kart.ts`); also steht hier, wo sie dort liegt. Eine
+ * Strecke, die immer bei null anfinge und von der Welt verschoben würde,
+ * hätte zwei Koordinatensysteme — und die Boxengasse, die kachelbündig an ihr
+ * klebt, müsste beide kennen.
+ */
+export const KART_START: Cursor = { x: -16, z: 28, dir: DIR_N };
 
 /**
  * **Die Bahn**: vier Kurven, vier Geraden — und keine zwei Kurven gleich.
  *
  * Ein Oval wäre in vier Zeilen zu haben und in zwei Runden auswendig gelernt.
- * Die Radien sind deshalb verschieden (6, 6, 4 und 8 Kacheln, also 15, 15, 10
- * und 20 m): eine, die man voll fährt, zwei mittlere und eine enge, in der ein
- * Kart mit wenig Traktion quersteht. Dass die Runde sich am Ende trotzdem
- * wieder schließt, ist keine Kunst, sondern eine Rechnung — und ein Test.
+ * Die Radien sind deshalb verschieden (4, 6, 9 und 11 Kacheln, also 4, 6, 9
+ * und 11 m): eine enge Kehre, in der ein Kart mit wenig Traktion quersteht,
+ * zwei mittlere und eine weite, die man voll fährt. Dass die Runde sich am
+ * Ende trotzdem wieder schließt, ist keine Kunst, sondern eine Rechnung — und
+ * ein Test.
+ *
+ * **Und sie misst 35 × 25 m**, nicht mehr 90 × 60 wie auf den alten
+ * 2,5-m-Kacheln: Sie liegt jetzt neben acht anderen Zonen auf einem Gelände
+ * und nicht allein auf einer Wiese. Eine Runde sind rund 110 m.
  */
 export const KART_PIECES: readonly Piece[] = [
   // Start und Ziel, mit der Boxengasse daneben.
-  { kind: 'straight', cells: 3 },
-  { kind: 'right' },
   { kind: 'straight', cells: 2 },
-  { kind: 'right' },
-  // Die Gegengerade, die längste der Runde.
-  { kind: 'straight', cells: 4 },
-  // Die enge Kehre am Ende davon.
+  // Die enge Kehre gleich am Ende der Zielgeraden.
   { kind: 'right', radius: 4 },
+  // Die Gegengerade, die längste der Runde.
+  { kind: 'straight', cells: 5 },
+  { kind: 'right', radius: 6 },
   { kind: 'straight', cells: 2 },
+  { kind: 'right', radius: 9 },
   // Und die weite Schlusskurve auf die Zielgerade.
-  { kind: 'right', radius: 8 },
+  { kind: 'straight', cells: 3 },
+  { kind: 'right', radius: 11 },
 ];
 
 /** Die ausgelegte Bahn — einmal gerechnet, von allen benutzt. */
@@ -298,27 +320,41 @@ export const KART_COURSE: Course = layoutCourse(KART_PIECES, KART_START);
  * Wer in einer der beiden Flächen ist, wird nicht zurückgeschoben, und die
  * beiden Flächen berühren sich. Ausfahrt ist überall, wo man das Lenkrad nach
  * rechts dreht; nach vorn hört die Gasse auf, und dort steht eine Mauer.
+ *
+ * Die Zahlen hängen an `KART_START`: Ostkante = Startgerade minus halbe
+ * Fahrbahn, Länge = die Gerade selbst. Wer die Bahn verschiebt, verschiebt die
+ * Gasse mit.
  */
-export const PIT_LANE: TileRect = { x: -5, z: -11, w: 3, d: 12 };
+export const PIT_LANE: TileRect = {
+  x: KART_START.x - LANE / 2 - 3,
+  z: KART_START.z - 9,
+  w: 3,
+  d: 10,
+};
 
 /** Die Boxen dahinter: zwei Kacheln tief, mit einer Säule zwischen je zweien. */
-export const PIT_BOXES: TileRect = { x: -7, z: -8, w: 2, d: 7 };
+export const PIT_BOXES: TileRect = { x: PIT_LANE.x - 2, z: PIT_LANE.z + 2, w: 2, d: 5 };
 
-/** Die Kachelreihen, in denen wirklich ein Kart steht — dazwischen die Säulen. */
-export const PIT_BAYS: readonly number[] = [-8, -6, -4, -2];
+/**
+ * Die Kachelreihen, in denen wirklich ein Kart steht — dazwischen die Säulen.
+ *
+ * **Zwei Buchten und nicht vier**: In der Testwelt stehen zwei Karts, und eine
+ * Bucht ohne Kart ist eine Reihe Säulen mit einer Lücke darin.
+ */
+export const PIT_BAYS: readonly number[] = [PIT_BOXES.z, PIT_BOXES.z + 2];
 
 /** Die Gasse als Fläche in Metern — daran hält sich ein Kart, das darin steht. */
 export const PIT_APRON: Apron = rectApron(PIT_LANE);
 
 /** Wo ein Kart in der Box steht: Kachelmitte der Bucht, Nase nach Norden. */
 export function pitSpots(): { x: number; z: number; yaw: number }[] {
-  // Eine Kachel von der Ostkante weg: vorn bleibt die Gasse frei, damit man
-  // an einem stehenden Kart vorbeikommt.
+  // Eine Kachel von der Westkante weg: östlich bleibt die Gasse frei, damit
+  // man an einem stehenden Kart vorbeikommt.
   const x = (PIT_LANE.x + 0.5) * TILE;
   return PIT_BAYS.map((tile) => ({ x, z: (tile + 0.5) * TILE, yaw: 0 }));
 }
 
-/** Das ganze Gelände: Strecke, Boxengasse und ein Streifen Wiese ringsum. */
+/** Das ganze Gelände: Strecke, Boxengasse und ein Streifen Rand ringsum. */
 export const KART_FIELD: TileRect = grownRect(
   unionRect(KART_COURSE.bounds, unionRect(PIT_LANE, PIT_BOXES)),
   3,
