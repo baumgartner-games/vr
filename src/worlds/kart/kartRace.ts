@@ -11,7 +11,8 @@ import { lapDelta } from './kartTrack';
  *
  * Hier steht die Buchführung dazu, und nur die: die Runden eines Fahrers, die
  * Reihenfolge, in der die Fahrer liegen, und die Zeilen, die daraus auf der
- * Tafel stehen. Kein three.js, kein Netz — beides kommt in `KartWorld` dazu.
+ * Tafel stehen. Kein three.js, kein Netz — beides kommt in der Kartzone der
+ * Testwelt dazu (`worlds/test/zones/kart.ts`).
  * Die Vorzeichen einer Rundenzählung merkt man sonst erst, wenn jemand
  * rückwärts über die Ziellinie rollt und dabei eine Runde gewinnt.
  */

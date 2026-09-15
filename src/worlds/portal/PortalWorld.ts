@@ -4527,10 +4527,12 @@ export class PortalWorld implements World {
    * Ein **Raumstück ohne Schwerkraft**: was darin losgelassen wird, bleibt
    * hängen.
    *
-   * Der Poseraum im Eingaberaum stellt eines auf (`tune/HoverBox.ts`), und der
-   * Grund dafür ist eine Messung: eine Handhaltung an einem Werkzeug stellt
-   * man ein, indem man die Hand daran legt — und dazu muss das Werkzeug
-   * stillstehen, und zwar dort, wo man es haben will, nicht auf dem Boden.
+   * Gebaut wurde das für den Poseraum des Eingaberaums, und der Grund dafür
+   * war eine Messung: eine Handhaltung an einem Werkzeug stellt man ein,
+   * indem man die Hand daran legt — und dazu muss das Werkzeug stillstehen,
+   * und zwar dort, wo man es haben will, nicht auf dem Boden. Die Welt ist
+   * seit September 2026 gelöscht; die Zone steht weiter da, weil sie keine
+   * Welt kennt und jede sie aufmachen darf.
    *
    * Eine **Zone** und kein Sonderfall im Loslassen, weil es sonst zwei wären:
    * ein Werkzeug fliegt über `releaseTool` aus der Hand, ein Gegenstand über

@@ -586,7 +586,8 @@ export class NpcDirector implements NpcControl {
    * steht: Er fragt für jeden, der noch steht, und teilt aus. Deshalb ist es
    * eine Funktion und keine Liste von Gruben — eine Welt mit einem Lavasee
    * schreibt hier keine Zeile Code hinein, sondern rechnet ihren See selbst
-   * aus (`navlab/scenarios.ts`, `labHarm`).
+   * aus — so wie die Navigationszone der Testwelt ihr Stachelfeld
+   * (`worlds/test/zones/navigation.ts`).
    *
    * Wer daran fällt, wird im selben Zug aus der Physik genommen, genau wie bei
    * einem Treffer (`hit`): Was liegt, ist ein Bild und kein Hindernis mehr.

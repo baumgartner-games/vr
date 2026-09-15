@@ -19,7 +19,7 @@
  * wieder herausgeschoben. Aus dem einen Bild werden gut acht Zehntelsekunden,
  * und keines davon ist ein Ruck.
  *
- * **Warum die Zahlen hier stehen und nicht in `ClimbWorld`.** Alles unten ist
+ * **Warum die Zahlen hier stehen und nicht in der Kletterzone.** Alles unten ist
  * reine Rechnung: eine Feder, ein Rechteck und ein paar Schwellen, ohne
  * three.js und ohne Rapier. Ob ein Sturz aus 6,50 m das Kissen wirklich
  * abfängt, statt es durchzuschlagen, und wie lange der Blick dabei in Bewegung

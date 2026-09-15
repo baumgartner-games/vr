@@ -376,9 +376,9 @@ function unwind(cameFrom: Map<TileKey, TileKey>, end: TileKey): TileKey[] {
  * Wandstärke und Sehne (`shrinkFor`). Das ist der Unterschied zwischen einer
  * Linie und einem Weg: Ein NPC ist ein Zylinder mit 29 cm Halbmesser, und eine
  * Linie, die die Hausecke um zwanzig Zentimeter verfehlt, ist für ihn eine
- * Wand. Ohne den Einzug blieb der Zombie im langen Gang des Labors an der
- * Wandkante hängen — sein Weg schickte ihn nie den einen Schritt nach Osten,
- * den sein Körper gebraucht hätte (`navlab/labSim.ts`).
+ * Wand. Ohne den Einzug blieb der Zombie im langen Gang des alten
+ * Navigationslabors an der Wandkante hängen — sein Weg schickte ihn nie den
+ * einen Schritt nach Osten, den sein Körper gebraucht hätte.
  *
  * **Über eine Verbindung hinweg wird nicht gezogen.** Wer eine Treppe abkürzt,
  * kürzt durch die Decke ab. Jeder Schritt, der kein Schritt ist — eine andere

@@ -58,7 +58,7 @@ import {
  * **Und über eine Lücke wird gesprungen.** Zwei Kacheln, zwischen denen auf
  * dieser Etage kein Boden liegt, bekommen eine Sprungverbindung — das ist der
  * Gang zwischen zwei Dächern, und bis hierher musste ihn jede Welt von Hand
- * eintragen (`navlab/scenarios.ts`). Wer springen kann, nimmt ihn; wer nicht,
+ * eintragen. Wer springen kann, nimmt ihn; wer nicht,
  * sieht ihn gar nicht erst.
  *
  * **Eine Kante ist für die Navigation dasselbe wie ein Fenster.** Über eine
@@ -433,8 +433,8 @@ function nearestFloor(floors: readonly number[], want: number): number | null {
  * Etage kein Boden liegt.
  *
  * Das ist der Gang zwischen zwei Dächern, und bis hierher musste ihn jede Welt
- * von Hand eintragen: Im Labor stand dafür eine eigene Zeile mit zwei
- * Kachelmitten darin (`navlab/scenarios.ts`), und wer das Podest um eine
+ * von Hand eintragen: Im alten Navigationslabor stand dafür eine eigene Zeile
+ * mit zwei Kachelmitten darin, und wer das Podest um eine
  * Kachel verschob, verschob den Sprung nicht mit. Gefunden wird er jetzt beim
  * Abtasten — genauso, wie Recast seine Off-Mesh-Links findet.
  *

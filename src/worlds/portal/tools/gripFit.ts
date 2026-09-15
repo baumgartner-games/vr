@@ -127,10 +127,10 @@ export const STANDARD_GRIP: GripPose = {
  * gibt (so weit schossen früher alle Werkzeuge zu hoch, `aim.ts`; so weit steht
  * der Griff einer Quest gegen ihren Zeigestrahl; so weit war die am
  * Justierstand eingemessene Taschenlampe gedreht) — drei Wege, eine Zahl, und
- * keiner davon eine Messung am Gerät. Die gibt es im **Eingaberaum**: dessen
- * Tafelwand schreibt „Griff→Strahl" fortlaufend mit und daneben in
- * Klammern, was hier steht (`worlds/tune/TuneWorld.ts`). Stehen die beiden
- * Zahlen auseinander, ist die gemessene die richtige — wer sie hier einträgt,
+ * keiner davon eine Messung am Gerät. Eine solche Messung schrieb die
+ * Tafelwand des Eingaberaums mit („Griff→Strahl", daneben in Klammern, was
+ * hier steht); die Welt ist gelöscht, die Zahl bleibt eine Schätzung. Kommt
+ * eine echte Messung, ist sie die richtige — wer sie hier einträgt,
  * verschiebt allerdings auch `GRIP_HOLD_POSITION`, `STANDARD_GRIP_IN_HAND` und
  * jede daran gerechnete Faust, und `core/gripFist.test.ts` sagt, welche.
  */

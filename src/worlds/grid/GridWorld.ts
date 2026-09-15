@@ -1499,9 +1499,9 @@ const GRID_FINISH: Readonly<Record<PlanSolidKind, { roughness?: number; metalnes
 /**
  * Wie viele Wolken gleichzeitig laufen dürfen.
  *
- * Dieselbe Überlegung wie im Effektlabor (`EffectsWorld.MAX_BURSTS`): Mehr sind
- * keine Wolken mehr, sondern Nebel — und vier Emitter in einer Ecke schaffen
- * das schneller, als man denkt.
+ * Dieselbe Überlegung, die schon im Effektlabor galt: Mehr sind keine Wolken
+ * mehr, sondern Nebel — und vier Düsen in einer Ecke schaffen das schneller,
+ * als man denkt.
  */
 const MAX_BURSTS = 8;
 

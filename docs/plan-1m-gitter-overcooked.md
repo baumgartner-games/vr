@@ -8,6 +8,48 @@ Ausgangsstand: Commit `3678f32` (P8, „Phaser raus"). Wer etwas aus einer
 gelöschten Welt nachlesen will, holt es sich mit
 `git show 3678f32:src/worlds/<welt>/<Datei>.ts`.
 
+## Stand
+
+**Umgesetzt ist alles außer Haunting** (Paket H läuft noch); Paket X hat
+AGENTS.md, README und die Quellkommentare nachgezogen. Was davon im Spiel
+steht:
+
+- **Welten** (D): Es gibt `hub`, `editor`, `test` und `haunting`. Die vierzehn
+  anderen sind gelöscht, ihre wiederverwendbaren Module stehen (`kart/`,
+  `range/scoring`, `climb/`, `effects/`, `interact/doorMotion`,
+  `dark/lightLevels`, `signs/`, `tune/` ohne seine Welt).
+- **Gitter** (G): `TILE` 1, `PLAN_WALL_T` 0,2, `PLAN_DOOR_W` und
+  `PLAN_WINDOW_W` 0,8, Bausteine ≤ 1 m, Treppen über mehrere Kacheln
+  (`GridPlan.stairs(…, length?)`, `lift`, 0,7 m je Kachel, Stufen
+  0,175 × 0,25), `ramp`, Autostep-Mindestbreite 0,1, Weltformat `0.3.0` mit
+  dem Feld `y`, Hub 11 × 11, Bauplatz-Startzimmer 8 × 8, Gitterlinien unter
+  _Menü → Grafik_, Wand-Ghosting (`grid/wallGhost.ts`), kein Dach in Hub,
+  Bauplatz und Testwelt.
+- **Interaktion** (I): `A` benutzt überall (in der Brille `primary` rechts, und
+  springt nur, wenn nichts in Reichweite ist — `PlayerRig.useCandidate`),
+  Auswahl in jeder Ansicht (`usable.aimForward`), gelber Saum
+  (`core/highlight.ts`), Hinweis über der Figur in beiden Bildschirmansichten,
+  Werkzeug-Knopf `#hud-tool` mit Liste (`ui/ToolButton.ts`, `World.toolChoice`,
+  Hand = leer, `Tab`/`Y`), `screenTool()` als Wahl und `defaultScreenTool()`
+  als Vorgabe, stufenloser Pinch-Zoom (`TopDownCamera.zoomScale`), Touch-`A`
+  und `B` nebeneinander über dem Zielstock.
+- **Figur** (C): der Overcooked-Koch (`core/AvatarBody.ts`,
+  `core/avatarLook.ts`) — Rumpf, Kopf, Handkugeln, keine Arme und Beine;
+  Aussehen `{ hat, head, body }` mit vier Köpfen, acht Hüten (samt Kochmütze)
+  und fünf Jacken, im `hello` über das Netz, Menü → Aussehen mit drei Zeilen.
+- **Testwelt** (W): `src/worlds/test/` mit neun Zonen in `zones/`, Grundriss in
+  `testPlan.ts`, Rechtecke in `layout.ts`, Vertrag in `zones/zone.ts`,
+  `editable()` wahr, Einbauten getrennt in `fitTest` (weil `planLoaded`
+  zweimal läuft).
+- **Umkleide** (U): Einbau `wardrobe` mit Spiegel (`grid/fixtures/wardrobe.ts`),
+  Ereignis `wardrobe`, `ctx.openWardrobe()`, `ui/WardrobeMenu.ts`, in der
+  Brille die Menüseite _Aussehen_.
+
+**Offen:** Haunting (Paket H, eigener Plan `docs/plan-haunting-1m.md`). Und
+eine Lücke, die der Umbau gerissen hat und die keinem Paket gehört: Mit dem
+Navigationslabor ist der einzige Test gefallen, der einen **Eindruck** prüfte
+statt einer Rechnung (siehe AGENTS.md, _Tests_).
+
 ## Was der Besitzer will (wörtlich zusammengefasst)
 
 1. **Figuren wie bei Overcooked**: runder Unterkörper, Kopf, zwei schwebende
