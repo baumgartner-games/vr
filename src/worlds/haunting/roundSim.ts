@@ -13,7 +13,14 @@ import { MonsterRoutine, paceSpeed, type MonsterMode } from './monsterRoutine';
 import { MonsterMemory } from './monster/monsterMemory';
 import { graphEstimator } from './monster/monsterIntercept';
 import { Rng } from './rng';
-import { monsterGraph, stationGraph, COMMAND, type StationGraph } from './roomGraph';
+import {
+  monsterGraph,
+  stationGraph,
+  COMMAND,
+  type StationGraph,
+  portalPoint,
+  walkingGap,
+} from './roomGraph';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { taskCargo } from './rules/cargo';
 import { freshTrail, sniff, stepTrail, wound, SNIFF_EVERY, type Scent } from './rules/blood';
@@ -399,10 +406,13 @@ export function simulateRound(seed: number, options: RoundOptions = {}): RoundRe
     );
 
     // --- Der Techniker ------------------------------------------------------
+    // **Gefahr ist, was zu Fuß nah ist** (`roomGraph.walkingGap`): im selben
+    // Raum immer, sonst über die Türen gemessen — nicht über die Mitten der
+    // Räume, die in der Cafeteria zwölf Meter von jeder Tür entfernt liegen.
     const danger =
       !hidden &&
-      (gap < tuning.technician.caution || monster.space === technician.space) &&
-      graph.distance(monster.space, technician.space) < tuning.technician.caution * 1.5;
+      (monster.space === technician.space ||
+        walkingGap(graph, technician, monster) < tuning.technician.caution);
     calm = danger ? 0 : calm + DT;
     // **Die Reibung des Teams.** Allein merkt der Techniker die Gefahr und
     // rennt. Mit einer Zentrale im Rücken hängt er über seiner Arbeit und
@@ -646,6 +656,9 @@ function chooseCover(
   return best ?? { at: graph.centre(technician.space), space: technician.space, locker: false };
 }
 
+/** Ab so nah an der Tür zielt der Schritt auf den Raum dahinter, in Metern. */
+const DOOR_PASSED = 0.35;
+
 /** Ein Türpaar als Schlüssel — die Tür zwischen zwei Räumen, richtungslos. */
 function pairKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
@@ -669,9 +682,23 @@ function move(
   const known = graph.spaceAt(goal);
   if (!known && strict) return;
   const goalSpace = known || actor.space;
-  if (goalSpace !== actor.space && barred?.(actor.space, graph.next(actor.space, goalSpace)))
-    return;
-  const step = goalSpace === actor.space ? goal : graph.centre(graph.next(actor.space, goalSpace));
+  const next = goalSpace === actor.space ? actor.space : graph.next(actor.space, goalSpace);
+  if (goalSpace !== actor.space && barred?.(actor.space, next)) return;
+  // **Durch die Tür, nicht auf die Mitte des Nachbarn zu.** Die Räume sind
+  // Rechtecke, also erreicht man die eigene Tür auf gerader Linie, ohne einen
+  // dritten Raum zu streifen. Wer stattdessen auf die Mitte des Nachbarn
+  // zuhielt, schnitt seit dem 1-m-Gitter (Gänge von zwei Metern, Räume ohne
+  // gemeinsame Wand) die Ecke eines dritten Raums, stand dann dort, plante
+  // von dort zurück — und pendelte bis zum Rundenende zwischen zwei Räumen.
+  // Hinter der Tür geht es auf die Mitte des Nachbarn weiter: Der liegt
+  // gleich dahinter, und die Strecke bleibt in seinem Rechteck.
+  const door = goalSpace === actor.space ? null : portalPoint(graph, actor.space, next);
+  const step =
+    goalSpace === actor.space
+      ? goal
+      : door && Math.hypot(door.x - actor.x, door.z - actor.z) > DOOR_PASSED
+        ? door
+        : graph.centre(next);
   const dx = step.x - actor.x,
     dz = step.z - actor.z;
   const distance = Math.hypot(dx, dz);

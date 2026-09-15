@@ -2,7 +2,7 @@
  * **Die Bausteine der Haunting-Oberfläche** (`widgets.ts`): der Kasten, der
  * Listenknopf, die Pille, die Kachel, die Zeile, die Überschrift, die Meldung.
  *
- * Sie standen bis hierher in vier Blättern je einmal — `map/flat.css`,
+ * Sie standen bis hierher in vier Blättern je einmal — der gemalten 2D-Welt,
  * `views/views.css`, `monster/monster.css`, `haunting.css` —, mit denselben
  * Farben und um ein Pixel verschiedenen Rändern. Was hier steht, ist die
  * **Form**; die **Lage** (absolut, oben rechts, unter dem Kopf) und der Ton

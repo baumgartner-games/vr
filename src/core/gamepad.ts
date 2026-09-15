@@ -2,7 +2,8 @@
  * **Das Gamepad, als reine Rechnung.**
  *
  * Von oben gespielt wird mit zwei Sticks (`docs/plan-2d-hub-interaktion.md`,
- * E4): links laufen, rechts zielen, `A` benutzen, `B` schießen. Das Browser-API
+ * E4): links laufen, rechts zielen, `A` benutzen, `B` schießen, `Y` die
+ * Werkzeugliste. Das Browser-API
  * dafür ist eine einzige Zeile — `navigator.getGamepads()` —, und alles, was
  * danach kommt, sind Zahlen: Welche Achse ist welcher Stick, ab wann ist ein
  * Stick wirklich ausgelenkt, und was davon bleibt übrig, wenn ein Pad weniger
@@ -13,7 +14,7 @@
  *
  * **Kein Plugin, keine Abstraktionsschicht.** Das Standard-Mapping
  * (`gamepad.mapping === 'standard'`) liegt bei Xbox- wie PlayStation-Pads
- * gleich, und die sechs Knöpfe, die diese Spielwiese braucht, stehen unten als
+ * gleich, und die Knöpfe, die diese Spielwiese braucht, stehen unten als
  * benannte Konstanten. Wer ein exotisches Pad anschließt, bekommt das, was
  * dessen Treiber unter diesen Nummern meldet — das ist mehr, als ein
  * Mapping-Tabellenwerk je aktuell halten könnte.
@@ -55,6 +56,8 @@ export interface GamepadFrame {
   zoomIn: boolean;
   /** RB: eine Zoomstufe **zurück**. */
   zoomOut: boolean;
+  /** `Y`: die Werkzeugliste auf- und zuklappen (`#hud-tool`). */
+  tools: boolean;
 }
 
 /**
@@ -71,6 +74,11 @@ export const TRIGGER_THRESHOLD = 0.35;
 /** Standard-Mapping: Knopfnummern, die diese Spielwiese benutzt. */
 export const BUTTON_A = 0;
 export const BUTTON_B = 1;
+/**
+ * `Y` (oben) — die Werkzeugliste. Der vierte Knopf der Raute ist der einzige,
+ * der noch frei war: `A` benutzt, `B` schießt, `X` gehört keinem.
+ */
+export const BUTTON_Y = 3;
 export const BUTTON_LB = 4;
 export const BUTTON_RB = 5;
 export const BUTTON_RT = 7;
@@ -94,6 +102,7 @@ export function emptyFrame(): GamepadFrame {
     sprint: false,
     zoomIn: false,
     zoomOut: false,
+    tools: false,
   };
 }
 
@@ -111,6 +120,7 @@ export function readGamepad(pad: GamepadLike | null | undefined): GamepadFrame {
   frame.sprint = pressed(pad, BUTTON_LS);
   frame.zoomIn = pressed(pad, BUTTON_LB);
   frame.zoomOut = pressed(pad, BUTTON_RB);
+  frame.tools = pressed(pad, BUTTON_Y);
   // Der Trigger ist analog, `B` ist es nicht: Wer mit `B` schießt, drückt ganz
   // durch. So kommt aus beiden Wegen **eine** Zahl heraus, und die Waffe muss
   // nicht wissen, woher sie kam.

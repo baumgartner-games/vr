@@ -102,7 +102,7 @@ export const LAMP: FixtureKind<LampState> = {
     // Der Mast steht am Rand der Kachel und der Ausleger trägt die Leuchte in
     // die Mitte: Ein Mast mitten auf der Kachel stünde genau dort, wo man
     // stehen will.
-    const foot = -TILE / 2 + 0.35;
+    const foot = -TILE / 2 + 0.2;
     const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, height, 14), steel);
     mast.position.set(0, height / 2, foot);
     group.add(mast);

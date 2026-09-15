@@ -141,8 +141,10 @@ export class EditorWorld extends GridWorld {
   // --- was die Welt ausmacht ------------------------------------------------
 
   protected override spawnPoint(): THREE.Vector3 {
-    // Im Startzimmer, mit Blick auf seine Nordwand.
-    return new THREE.Vector3(0, 0, 4);
+    // Im Startzimmer, mit Blick auf seine Nordwand — auf der Mitte der
+    // südlichsten Kachel. Vier Meter waren bei 2,5-m-Kacheln die halbe Stube
+    // und sind heute die Südwand selbst.
+    return new THREE.Vector3(0, 0, 3.5);
   }
 
   protected override spawnYaw(): number {
@@ -240,7 +242,10 @@ export class EditorWorld extends GridWorld {
       body: 'Karte von der Hüfte ziehen. Eine Hand trägt, zwei drehen und zoomen.',
       accent: 0x39d0ff,
     });
-    sign.position.set(0, 2.6, -12.5);
+    // Ein paar Schritte vor dem Startzimmer und nicht mehr zwölfeinhalb Meter
+    // davor: Das Zimmer misst acht Meter, und ein Schild dahinter stünde in
+    // der Ferne statt vor der Nase.
+    sign.position.set(0, 2.6, -7);
     this.root.add(sign);
     this.sign = sign;
 

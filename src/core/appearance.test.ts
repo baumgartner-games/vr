@@ -8,38 +8,56 @@ import {
 } from './appearance';
 import { HEADGEAR_KINDS, HEADGEAR_LABELS, asHeadgear, nextHeadgear } from './headgear';
 
-describe('was man auf dem Kopf trägt', () => {
-  it('liefert barhäuptig aus', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ hat: 'none' });
+describe('wie man aussieht', () => {
+  it('liefert als barhäuptigen Koch in Weiß aus', () => {
+    expect(DEFAULT_APPEARANCE).toEqual({ hat: 'none', head: 'round', body: 'white' });
   });
 
-  it('macht aus Unsinn barhäuptig', () => {
-    // Der Hut kommt auch über das Netz herein (`net/NetSession.ts`), und was
-    // von dort kommt, ist fremder Text.
+  it('macht aus Unsinn die Vorgabe', () => {
+    // Das Aussehen kommt auch über das Netz herein (`net/NetSession.ts`), und
+    // was von dort kommt, ist fremder Text.
     expect(clampAppearance(undefined)).toEqual(DEFAULT_APPEARANCE);
     expect(clampAppearance({ hat: 'sombrero' as never })).toEqual(DEFAULT_APPEARANCE);
+    expect(clampAppearance({ head: 'schnabel' as never, body: 'frack' as never })).toEqual(
+      DEFAULT_APPEARANCE,
+    );
     expect(asHeadgear(42)).toBe('none');
     expect(asHeadgear('helmet')).toBe('helmet');
   });
 
-  it('kennt jede Sorte mit Namen', () => {
+  it('lässt jedes Stück einzeln stehen', () => {
+    expect(clampAppearance({ hat: 'chef', head: 'beard', body: 'striped' })).toEqual({
+      hat: 'chef',
+      head: 'beard',
+      body: 'striped',
+    });
+  });
+
+  it('kennt jede Kopfbedeckung mit Namen', () => {
     for (const kind of HEADGEAR_KINDS) expect(HEADGEAR_LABELS[kind]).toBeTruthy();
   });
 
-  it('schaltet im Kreis weiter', () => {
+  it('schaltet die Kopfbedeckungen im Kreis weiter', () => {
     let kind = HEADGEAR_KINDS[0]!;
     for (let i = 0; i < HEADGEAR_KINDS.length; i++) kind = nextHeadgear(kind);
     expect(kind).toBe(HEADGEAR_KINDS[0]);
   });
 
-  it('schreibt die Wahl in eine Zeile', () => {
-    expect(appearanceSummary({ hat: 'none' })).toBe('Ohne Kopfbedeckung');
-    expect(appearanceSummary({ hat: 'helmet' })).toBe('Kopf: Helm');
+  it('kennt die Kochmütze — sie ist das Vorbild', () => {
+    expect(HEADGEAR_KINDS).toContain('chef');
+    expect(asHeadgear('chef')).toBe('chef');
+  });
+
+  it('schreibt alle drei Stücke in eine Zeile', () => {
+    expect(appearanceSummary(DEFAULT_APPEARANCE)).toBe('Rund · ohne Hut · Kochjacke weiß');
+    expect(appearanceSummary({ hat: 'chef', head: 'beard', body: 'red' })).toBe(
+      'Vollbart · Kochmütze · Kochjacke rot',
+    );
   });
 
   it('überlebt einen Speicher, den es nicht gibt', () => {
     expect(appearance()).toEqual(DEFAULT_APPEARANCE);
-    expect(saveAppearance({ hat: 'crown' })).toEqual({ hat: 'crown' });
+    expect(saveAppearance({ hat: 'crown' })).toEqual({ ...DEFAULT_APPEARANCE, hat: 'crown' });
   });
 
   it('sagt Bescheid, wenn sich etwas ändert', () => {
@@ -48,9 +66,9 @@ describe('was man auf dem Kopf trägt', () => {
     const seen: number[] = [];
     const stop = onAppearanceChange(() => seen.push(1));
     saveAppearance({ hat: 'cap' });
-    saveAppearance({ hat: 'none' });
+    saveAppearance({ head: 'freckles' });
     stop();
-    saveAppearance({ hat: 'tophat' });
+    saveAppearance({ body: 'green' });
     expect(seen).toHaveLength(2);
   });
 });

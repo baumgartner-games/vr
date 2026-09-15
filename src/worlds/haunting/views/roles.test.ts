@@ -598,8 +598,7 @@ describe('Der Rollenstreifen über der 2D-Welt', () => {
    * (`RoleStripHost.rights` → `rules/roundSetup.switchRights`): Sagt sie
    * „nein" — hier für einen, der im Schiff den Anzug trägt —, stehen die
    * Knöpfe abgeschaltet da, mit dem Grund als Titel; in einer Test-Runde darf
-   * er alles. Zusehen und zurück an den Stock gehen immer. (Die 2D-Welt selbst
-   * meldet nie „im Schiff": Auf der Karte wechselt jeder, `map/flatMode.ts`.)
+   * er alles. Zusehen und zurück an den Stock gehen immer.
    */
   it('schaltet die Reiter ab, wenn der Wirt es sagt, und nennt den Grund', () => {
     const round = new FlatRound(21, { test: false });

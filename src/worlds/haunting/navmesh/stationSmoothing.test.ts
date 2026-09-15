@@ -3,6 +3,7 @@ import { TILE } from '../../nav/navTile';
 import { generateHouse, roomCentre, roomOf, STATION_DOOR_W, type HouseSpec } from '../house';
 import { WALL_T, doorAxis, doorCentre, wallSegments } from '../map/geometry';
 import { emptySnapshot } from '../map/mapSnapshot';
+import { MONSTER_RADIUS } from '../map/flatRound';
 import { housePlan } from '../plan';
 import { stationRoute } from '../stationNavigation';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from '../stationLayout';
@@ -30,7 +31,14 @@ import {
 
 const SEEDS = [2, 9, 1009];
 const ROOMS = 14;
-const RADIUS = 0.45;
+/**
+ * Der Halbmesser des Monsters (`map/flatRound.MONSTER_RADIUS`, 0,3 seit dem
+ * 1-m-Gitter): Durch eine Tür von einer Kachelkante (1 m) auf dem
+ * 0,25-m-Raster passt ein Körper von 0,45 rechnerisch nicht mehr — der
+ * Streifen in der Mitte wäre zehn Zentimeter breit, und kein Rasterpunkt
+ * liegt darin.
+ */
+const RADIUS = MONSTER_RADIUS;
 
 function poseFor(spec: HouseSpec, id: string): RoutePose {
   const centre = roomCentre(roomOf(spec, id)!);
@@ -70,9 +78,27 @@ function clearOfMapWalls(
   radius: number,
 ): boolean {
   // Der Snapshot hält die Wandmitte; die Wegsuche hält den Radius zur
-  // Wandfläche, also zur Mitte den Radius plus die halbe Dicke.
+  // Wandfläche, also zur Mitte den Radius plus die halbe Dicke. **An ihren
+  // Enden** ist eine Wand nicht dicker: Am Türpfosten endet sie bündig mit
+  // der Öffnung, also wird jede Linie dort um die halbe Dicke gekürzt — sonst
+  // trüge sie am Ende eine runde Kappe, die es in der Station nicht gibt, und
+  // ein Körper, der mit seinem Halbmesser durch die 1-m-Tür passt, fiele an
+  // der Kappe durch.
+  const shortened = wallSegments(spec).map((wall) => {
+    const dx = wall.b.x - wall.a.x,
+      dz = wall.b.z - wall.a.z;
+    const length = Math.hypot(dx, dz);
+    const cut = Math.min(WALL_T / 2, length / 2);
+    const ux = length > 0 ? dx / length : 0,
+      uz = length > 0 ? dz / length : 0;
+    return {
+      ...wall,
+      a: { x: wall.a.x + ux * cut, z: wall.a.z + uz * cut },
+      b: { x: wall.b.x - ux * cut, z: wall.b.z - uz * cut },
+    };
+  });
   const clear = snapshotSegmentClear(
-    { ...emptySnapshot(), walls: wallSegments(spec) },
+    { ...emptySnapshot(), walls: shortened },
     radius + WALL_T / 2 - 1e-6,
   );
   let previous = from;
@@ -193,7 +219,10 @@ describe('Geglättete Wege durch die Station', () => {
     }
     // Die gelieferten Punkte sind zum großen Teil Bogenstützen des
     // Kurvenschleifers (alle 12 cm); die verschwinden nicht, nur die Treppen.
-    expect(after.points).toBeLessThan(before.points * 0.7);
+    // Und jede 1-m-Tür bleibt eine Rasterkette von ein paar Punkten, durch
+    // die keine Gerade mit Spielraum passt — deshalb drei Viertel statt sieben
+    // Zehntel.
+    expect(after.points).toBeLessThan(before.points * 0.75);
     expect(after.turn).toBeLessThan(before.turn * 0.5);
     expect(after.length).toBeLessThan(before.length);
   });
@@ -220,13 +249,16 @@ describe('Geglättete Wege durch die Station', () => {
       const route = stationRoute(spec, graph, pair.start, pair.goal, RADIUS);
       let previous: FloorPoint = pair.start;
       let crossings = 0;
+      const passages = new Set((spec.passages ?? []).map((one) => one.id));
       for (const point of route.points!) {
         for (const door of spec.doors) {
           // Wo eine Strecke die Türlinie kreuzt, muss der Körper in der
           // Öffnung Platz haben: Der Schnittpunkt liegt mit Radius plus
-          // Spielraum innerhalb der Öffnung (`STATION_DOOR_W`, eine Kachel
-          // abzüglich Wand), nie am Pfosten. Seit die Öffnung zwei Meter
-          // breit ist, darf die Strecke dabei schräg durchgehen — Platz genug.
+          // Spielraum innerhalb der Öffnung (`STATION_DOOR_W`, eine ganze
+          // Kachelkante), nie am Pfosten. **Zwischen zwei Gängen** steht die
+          // ganze gemeinsame Kante offen (`plan.ts`, Kreuzung): Dort gibt es
+          // keinen Pfosten, an dem die Strecke vorbeimüsste.
+          if (passages.has(door.a) && door.b !== null && passages.has(door.b)) continue;
           const centre = doorCentre(door);
           const along = doorAxis(door.dir);
           const across = along === 'x' ? 'z' : 'x';

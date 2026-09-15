@@ -195,7 +195,17 @@ export class PhysicsLocomotion implements Locomotion {
     const { rapier, world } = physics;
 
     this.controller = world.createCharacterController(CHARACTER_SKIN);
-    this.controller.enableAutostep(0.32, 0.18, true);
+    // **Höchstens 0,32 m hoch, mindestens 0,1 m breit.**
+    //
+    // Die zweite Zahl war 0,18 und war der Grund, warum die Treppe der
+    // Straßenküche sich nicht begehen ließ: Sie verlangt, dass die Trittfläche
+    // *über* der Stufe so breit ist, und die Stufen dort waren 0,19 m tief —
+    // eine Handbreit Toleranz zu wenig, und schon steht man davor statt
+    // darauf. Die Treppen des Gitters treten heute 0,25 m tief auf
+    // (`grid/blocks.STEP_RUN`), aber eine Welt darf auch feinere Stufen
+    // bauen; 0,1 lässt sie zu und hält den Schritt trotzdem davon ab, auf
+    // jeder Kante zu klettern.
+    this.controller.enableAutostep(0.32, 0.1, true);
     this.controller.enableSnapToGround(GROUND_SNAP);
     this.controller.setApplyImpulsesToDynamicBodies(this.pushes);
     this.controller.setCharacterMass(72);

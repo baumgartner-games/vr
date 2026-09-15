@@ -6,7 +6,7 @@
  * und drei Kopien davon auseinanderlaufen: die **Wegsuche** fragt sie, bevor
  * sie einen Absprung in einen Weg einbaut (`navProfile.canTraverse`), der
  * **Körper** wendet sie an, wenn er unten aufkommt (`npc/Npc.ts`), und der
- * **Test ohne Brille** rechnet sie genauso (`navlab/labSim.ts`). Wüsste die
+ * **Test ohne Brille** rechnet sie genauso. Wüsste die
  * Wegsuche etwas anderes als der Boden, hätte man einen NPC, der springt und
  * stirbt, oder einen, der stehen bleibt, obwohl nichts passiert wäre.
  *

@@ -47,10 +47,12 @@ import { standing, type PlanSolid, type PlanSolidKind } from './solids';
  *   Eine große Welt entsteht aus Blöcken, die einzeln geprüft sind, statt aus
  *   einem einzigen Stück, das man nur am Stück ausprobieren kann.
  *
- * **Gezählt wird in Kacheln, nicht in Metern.** Kachel `0` reicht von 0 bis
- * 2,5 m; ein Zimmer bei `x: -4, w: 8` steht also symmetrisch um die Null. Das
- * ist die eine Umgewöhnung — und sie ist es wert, denn sie ist der Grund,
- * warum eine Wand nie mehr einen halben Meter neben dem Boden steht.
+ * **Gezählt wird in Kacheln, nicht in Metern.** Seit eine Kachel einen Meter
+ * misst, ist das fast dasselbe: Kachel `0` reicht von 0 bis 1 m, ein Zimmer bei
+ * `x: -4, w: 8` steht symmetrisch um die Null und ist acht Meter breit. Der
+ * Unterschied bleibt trotzdem wichtig — eine Kachel ist ganz oder gar nicht,
+ * und das ist der Grund, warum eine Wand nie mehr einen halben Meter neben dem
+ * Boden steht.
  */
 
 /** Ein Baustein an seinem Platz. */
@@ -59,6 +61,17 @@ export interface BlockPlacement {
   tile: TileKey;
   dir: Dir;
   height?: number;
+  /**
+   * **Wie weit über dem Boden seiner Etage er anfängt**, in Metern — fehlt,
+   * wenn er auf dem Boden steht (`BlockSite.lift`).
+   *
+   * Die Zahl, die eine Treppe über mehrere Kacheln erst möglich macht: Die
+   * dritte Kachel eines Laufs steigt von 1,4 auf 2,1 und nicht von null auf
+   * 0,7. Sie steht auch in der Datei (`worldFile.ts`, Feld `y`) — ein Lauf,
+   * der nach dem Speichern flach auf dem Boden läge, wäre keine Treppe mehr,
+   * sondern vier Keile nebeneinander.
+   */
+  lift?: number;
 }
 
 /**
@@ -273,13 +286,27 @@ export class GridPlan {
    * Wer das trennte, hätte eine Karte, auf der NPCs durch Küchenzeilen laufen —
    * der Klassiker, und er fällt erst auf, wenn schon fünfzig davon herumstehen.
    */
-  put(kind: BlockKind, x: number, z: number, dir: Dir, level = 0, height?: number): this {
-    return this.putAt(kind, tileKey(x, z, level), dir, height);
+  put(
+    kind: BlockKind,
+    x: number,
+    z: number,
+    dir: Dir,
+    level = 0,
+    height?: number,
+    lift?: number,
+  ): this {
+    return this.putAt(kind, tileKey(x, z, level), dir, height, lift);
   }
 
   /** Dasselbe für eine Kachel, die man schon in der Hand hat. */
-  putAt(kind: BlockKind, tile: TileKey, dir: Dir, height?: number): this {
-    this.placed.push({ kind, tile, dir, ...(height === undefined ? {} : { height }) });
+  putAt(kind: BlockKind, tile: TileKey, dir: Dir, height?: number, lift?: number): this {
+    this.placed.push({
+      kind,
+      tile,
+      dir,
+      ...(height === undefined ? {} : { height }),
+      ...(lift === undefined || lift === 0 ? {} : { lift }),
+    });
     this.edits++;
     this.refresh(tile);
     return this;
@@ -503,7 +530,7 @@ export class GridPlan {
     for (const one of this.placed) {
       if (one.tile !== tile) continue;
       cost *= BLOCKS[one.kind].cost;
-      rise += blockRise(one.kind, one.height);
+      rise += blockRise(one.kind, one.height, one.lift);
     }
     // **Ein fester Einbau zählt wie ein Baustein.** Eine Türkante zählt
     // dagegen gar nicht auf der Kachel — sie steht zwischen zweien, und ihre
@@ -534,8 +561,8 @@ export class GridPlan {
   }
 
   /**
-   * **Eine Treppe von einer Etage in die nächste** — und alles drei, was dazu
-   * gehört.
+   * **Eine Treppe von einer Etage in die nächste** — über **mehrere Kacheln**,
+   * und mit allem drei, was dazu gehört.
    *
    * Eine Treppe ist nie nur der Baustein. Sie braucht ein **Loch** in der Decke
    * darüber (sonst stößt man beim dritten Schritt mit dem Kopf an) und einen
@@ -547,17 +574,68 @@ export class GridPlan {
    *
    * **Nach dem Stockwerk darüber aufrufen**: Das Loch wird hier geschlagen,
    * und was danach noch Boden legt, legt ihn wieder zu.
+   *
+   * **Und sie ist mehrere Kacheln lang.** Solange eine Kachel 2,5 m maß, ging
+   * eine ganze Etage in eine einzige; auf einem Meter wären das Stufen von
+   * sieben Zentimetern Tiefe, also eine Leiter. `length` sagt, über wie viele
+   * Kacheln sie läuft — ohne Angabe so viele, dass keine mehr als
+   * `STAIR_LIFT` steigt (bei 2,8 m Etagenhöhe also vier). `x, z` ist die
+   * **unterste** Kachel, gestiegen wird nach `dir`.
    */
-  stairs(x: number, z: number, dir: Dir, level = 0): this {
-    const below = tileKey(x, z, level);
-    const above = tileKey(x, z, level + 1);
+  stairs(x: number, z: number, dir: Dir, level = 0, length?: number): this {
+    return this.flight('stairs', x, z, dir, level, length);
+  }
+
+  /**
+   * **Dieselbe Sache flacher**: eine Rampe von einer Etage in die nächste.
+   *
+   * Sie nimmt je Kachel halb so viel Anstieg wie eine Treppe (`RAMP_LIFT`) und
+   * wird dafür doppelt so lang. Wer sie kürzer will, sagt `length` — und
+   * bekommt dann eben steilere Stufen darin.
+   */
+  ramp(x: number, z: number, dir: Dir, level = 0, length?: number): this {
+    return this.flight('ramp', x, z, dir, level, length);
+  }
+
+  /**
+   * **Ein Lauf über mehrere Kacheln** — der gemeinsame Kern von Treppe und
+   * Rampe.
+   *
+   * Die Länge kommt aus dem Anstieg und der Kachelhöhe des Bausteins
+   * (`BLOCKS[kind].height`): 2,8 m Etagenhöhe sind bei 0,7 m je Treppenkachel
+   * genau vier Kacheln. Wer selbst eine Länge angibt, bekommt sie — eine
+   * flachere Treppe ist ein gestalterischer Wunsch und kein Fehler.
+   *
+   * Jede Kachel bekommt ihren **Teilanstieg** (`height`) und ihren **Fuß**
+   * (`lift`), im Graphen ihre Feinhöhe (`rise = lift`) und das Loch über sich.
+   * Verbunden wird erst die **letzte**: Sie mündet auf der Kachel vor ihr, und
+   * dort steht man auf der Etage darüber.
+   */
+  private flight(
+    kind: 'stairs' | 'ramp',
+    x: number,
+    z: number,
+    dir: Dir,
+    level: number,
+    length?: number,
+  ): this {
     const rise = this.graph.levelY(level + 1) - this.graph.levelY(level);
-    this.put('stairs', x, z, dir, level, rise);
-    this.graph.removeTile(above);
-    // Sie mündet auf der Kachel **vor** ihr: Die letzte Stufe liegt an der
-    // vorderen Kante, und dort steht man dann auf der Etage darüber.
-    const landing = tileKey(x + dirX(dir), z + dirZ(dir), level + 1);
-    connect(this.graph, `treppe:${below}`, below, landing, 'stairs', { cost: rise * 1.6 });
+    const steps = Math.max(1, length ?? Math.ceil(rise / BLOCKS[kind].height - 1e-9));
+    const each = rise / steps;
+    let last = tileKey(x, z, level);
+    for (let i = 0; i < steps; i++) {
+      const tx = x + dirX(dir) * i;
+      const tz = z + dirZ(dir) * i;
+      last = tileKey(tx, tz, level);
+      this.put(kind, tx, tz, dir, level, each, each * i);
+      // **Über jeder Stufe ein Loch**, nicht nur über der ersten: Wer den Lauf
+      // hinaufgeht, stößt sonst auf halber Höhe mit dem Kopf an den Boden des
+      // Stockwerks darüber — und ein Boden, unter dem eine Treppe durchführt,
+      // ist genau der, den es dort nicht geben darf.
+      this.graph.removeTile(tileKey(tx, tz, level + 1));
+    }
+    const landing = tileKey(x + dirX(dir) * steps, z + dirZ(dir) * steps, level + 1);
+    connect(this.graph, `treppe:${last}`, last, landing, 'stairs', { cost: rise * 1.6 });
     return this;
   }
 
@@ -602,6 +680,7 @@ export class GridPlan {
         base: this.graph.levelY(level),
         dir: one.dir,
         ...(one.height === undefined ? {} : { height: one.height }),
+        ...(one.lift === undefined ? {} : { lift: one.lift }),
       })) {
         solid.level = level;
         out.push(solid);

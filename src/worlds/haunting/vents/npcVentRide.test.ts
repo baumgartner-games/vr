@@ -86,7 +86,9 @@ describe('Die Fahrt des NPC-Monsters durch das Netz', () => {
     const admin = ride.net.flap('vent-admin')!;
     const goal = graph.centre(admin.roomId);
     // Weit weg von der Klappe: Der Lotse zeigt erst einmal zur Klappe.
-    rider.x = flap.approach.x + 6;
+    // Drei Meter neben der Klappe: Weit genug, dass der Lotse erst zur Klappe
+    // zeigt, nah genug, dass die Fahrt sich gegen die 33 m zu Fuß noch lohnt.
+    rider.x = flap.approach.x + 3;
     const steered = ride.steer(patrolTo(goal), rider, 100, graph);
     expect(steered.goal).toEqual(flap.approach);
     expect(ride.ride.busy).toBe(false);

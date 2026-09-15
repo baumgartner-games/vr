@@ -293,16 +293,16 @@ for (const name of browserNames) {
         await page.locator('.role--watch').waitFor();
         await shot('watch');
 
-        // Der Weg „2D Einsatzzentrale" hat die Ansicht auf die Karte von oben
-        // gestellt (`rules/lobby.arriveAs`). Der Techniker soll hier aber ins
-        // Schiff — also erst das Häkchen „2D-Welt von oben" im Aufbau abwählen,
-        // wie es ein Spieler tut, der vom Handy an den Stock will.
+        // **Und jetzt auf die andere Seite des Tisches: der Techniker.** Ein
+        // Häkchen „2D-Welt von oben" gab es hier einmal — solange die Station
+        // eine gemalte Kachelwelt mitbrachte, musste man es abwählen, um in
+        // das Schiff zu kommen. Die Welt ist weg (`World.ownsFlat` ist falsch,
+        // von oben schaut die Kamera des Kerns), und damit auch das Häkchen:
+        // Der Techniker steht immer im Schiff, und _Von oben_ ist nur noch ein
+        // Blickwinkel darauf. Übrig bleibt die Wahl des Platzes — zurück auf
+        // die Karte, dann der Reiter „Techniker"; ein „Ich" auf der Tafel gibt
+        // es nicht, die Reiterzeile ist die Wahl.
         await toSetup();
-        const flatCheck = page.locator('[data-check="view"]');
-        if ((await flatCheck.getAttribute('aria-pressed')) === 'true') await flatCheck.click();
-        // „Ich bin der Techniker": zurück auf die Karte, dann der Reiter
-        // „Techniker" — ein „Ich" auf der Tafel gibt es nicht, die Reiterzeile
-        // ist die Wahl.
         await page.locator('[data-test-roles]').click();
         await page.locator('[data-me="technician"]').click();
         await page.locator('.orbital-player').waitFor();
@@ -462,25 +462,39 @@ for (const name of browserNames) {
           );
           assert(result.simulation.monsterPath > 0, 'Monster has a visible real route');
         }
-        await page.getByRole('button', { name: 'Kartenübersicht', exact: true }).click();
-        await page.waitForTimeout(250);
-        await shot('skeld-overview');
-        result.cameraStartY = await page.evaluate(() => window.bgvr.world.context.rig.position.y);
-        await page.keyboard.down('Space');
-        try {
-          await page.waitForFunction(
-            (startY) => window.bgvr.world.context.rig.position.y > startY + 0.1,
-            result.cameraStartY,
-            { timeout: 30000 },
-          );
-        } finally {
-          await page.keyboard.up('Space');
-        }
-        result.cameraEndY = await page.evaluate(() => window.bgvr.world.context.rig.position.y);
-        assert(
-          result.cameraStartY > 80 && result.cameraEndY > result.cameraStartY + 0.1,
-          'Free camera rises from the overview position',
+        // **Und dieselbe Runde von oben.** Bis zum Umzug auf das 1-m-Gitter
+        // hatte die Station dafür ihr eigenes Gerät: ein Knopf
+        // _Kartenübersicht_ hob die Kamera achtzig Meter über das Schiff, die
+        // Leertaste flog sie höher. Beides ist weg, und zwar ersatzlos — von
+        // oben schaut jetzt die Kamera des Kerns (`core/TopDownCamera.ts`),
+        // dieselbe wie in jeder anderen Welt, und umgeschaltet wird im Menü
+        // (_Ansicht_). Genau das wird hier geklickt: Der Techniker bleibt im
+        // Schiff, es wechselt nur der Blickwinkel — und die Runde läuft weiter.
+        // **Der Weg ins Menü ist im Schiff ein anderer.** Die Kopfzeile der
+        // Seite ist dort aus (`haunting.css`, `body.orbital-on #hud`), weil sie
+        // über dem Rand lag, den Kompass und Tafel brauchen; Menü, Verbindung
+        // und VR stehen stattdessen im Zahnrad des Technikers
+        // (`ShipExperience.shipOptions`, `pagemenu`) und drücken die Knöpfe der
+        // Seite stellvertretend. Also wird hier genau dieser Weg geklickt.
+        await page.locator('button[data-action="options"]').click();
+        await page.locator('[data-pagemenu]').click();
+        await page.locator('[data-key="row:view"]').click();
+        await page.locator('[data-key="row:view:2d"]').click();
+        await page.waitForFunction(() => window.bgvr.topDown === true);
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(500);
+        result.hauntingTopDown = await page.evaluate(() => ({
+          world: window.bgvr.currentWorldId,
+          topDown: window.bgvr.topDown,
+          rig: { x: window.bgvr.rig.position.x, z: window.bgvr.rig.position.z },
+        }));
+        assert.equal(
+          result.hauntingTopDown.world,
+          'haunting',
+          'Von oben bleibt man in der Station',
         );
+        assert(result.hauntingTopDown.topDown, 'Die Station wird von der Kamera des Kerns gezeigt');
+        await shot('haunting-top-down');
         result.botText = await page.locator('.orbital-player').innerText();
         result.webgl = await page.locator('#scene').evaluate((canvas) => {
           const gl = canvas.getContext('webgl2');

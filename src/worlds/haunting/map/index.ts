@@ -1,5 +1,10 @@
 /**
- * **2D-Kern + Sichtbarkeit** — die eine Tür in dieses Paket.
+ * **Rechenkern + Karte + Sichtbarkeit** — die eine Tür in dieses Paket.
+ *
+ * Die gemalte 2D-Welt (`flatMode.ts`, `flatScene.ts`) ist seit dem
+ * 1-m-Gitter weg (`docs/plan-haunting-1m.md`); geblieben sind die Runde
+ * (`flatRound.ts`), die die Brille und der Bildschirm im Schiff rechnen, und
+ * die Karte (`mapView.ts`), die die Telefone der Zentrale zeichnen.
  *
  * Andere Pakete importieren von hier und nicht aus den Einzeldateien; was
  * hier nicht exportiert ist, ist nicht Vertrag (`BOUNDARIES.md`).
@@ -86,7 +91,6 @@ export {
   type FlatOptions,
 } from './flatRound';
 export { FlatWalker } from './flatWalk';
-export { FlatMode, type FlatModeHost } from './flatMode';
 export { applyPuzzle, type PuzzleAction } from './flatPuzzles';
 export {
   NOISE_TILE,
@@ -97,10 +101,3 @@ export {
   type TileGrid,
   type TileLink,
 } from './noiseSpread';
-// **`toolIcons.ts` steht mit Absicht nicht hier.** Es ist die einzige Datei
-// des Pakets, die three.js braucht, und `HauntingWorld` lädt sie dynamisch
-// neben `flatMode` (`import('./map/toolIcons')`). Stünde sie in dieser Tür,
-// zöge jeder Wert-Import aus `map/` den Renderer mit herein — und die 2D-Welt
-// ist genau deshalb headless prüfbar, weil sie das nicht tut. Nur der Vertrag,
-// den die Ansicht dafür braucht, gehört hierher:
-export type { ToolIconSource } from './toolIcons';

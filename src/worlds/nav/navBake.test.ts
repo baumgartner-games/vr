@@ -123,19 +123,22 @@ describe('Das Abtasten', () => {
   });
 
   it('misst an einer Rampe die kleine Stufe und die große Höhe', () => {
-    // Dieselben 1,2 m, aber in zehn Stufen von zwölf Zentimetern über zwei
+    // Dieselben 1,2 m, aber in zehn Stufen von zwölf Zentimetern über vier
     // Kacheln. Die Karte muss beides auseinanderhalten: Der Höhenunterschied
     // ist derselbe wie an der Kante, die **Stufe** ist es nicht — und nur
     // daran kann ein Profil erkennen, dass es hier gehen und dort klettern
     // müsste.
+    const tread = 0.4;
     const steps = [FIELD];
     for (let i = 0; i < 10; i++) {
       const top = 0.12 * (i + 1);
-      steps.push(box(4 * TILE + i * 0.5, 0, 4 * TILE + (i + 1) * 0.5, 10 * TILE, -1, top));
+      steps.push(box(4 * TILE + i * tread, 0, 4 * TILE + (i + 1) * tread, 10 * TILE, -1, top));
     }
-    steps.push(box(4 * TILE + 5, 0, 10 * TILE, 10 * TILE, -1, 1.2));
+    steps.push(box(4 * TILE + 10 * tread, 0, 10 * TILE, 10 * TILE, -1, 1.2));
     const graph = bake(steps, [0]).graph;
-    const uphill = [...graph.links()].filter((link) => Math.abs(link.rise ?? 0) > 0.3);
+    // Über eine Kachel von einem Meter steigt diese Rampe zweieinhalb Stufen
+    // weit. Gesucht ist also alles, was mehr als eine Stufe hoch geht.
+    const uphill = [...graph.links()].filter((link) => Math.abs(link.rise ?? 0) > 0.2);
     expect(uphill.length).toBeGreaterThan(0);
     for (const link of uphill) {
       expect(link.kind).toBe('stairs');
@@ -180,7 +183,7 @@ describe('Das Abtasten', () => {
     const west = box(0, 0, 4 * TILE, 10 * TILE, 2, 2.4);
     const east = box(5 * TILE, 0, 10 * TILE, 10 * TILE, 2, 2.4);
     // Eine Mauer im Gang, die bis über die Dächer reicht.
-    const wall = box(4 * TILE + 1, 0, 5 * TILE - 1, 10 * TILE, 0, 4);
+    const wall = box(4 * TILE + TILE * 0.4, 0, 5 * TILE - TILE * 0.4, 10 * TILE, 0, 4);
     const graph = bake([west, east, wall], [2.4]).graph;
     expect([...graph.links()].some((link) => link.kind === 'jump')).toBe(false);
   });

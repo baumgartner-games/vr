@@ -20,8 +20,8 @@
  *   die Kraft geht fast doppelt so schnell weg.
  *
  * Die Zahlen stehen hier und nirgends sonst: `gripQuality.ts` rechnet damit,
- * `ClimbWorld.ts` baut damit, und wer an der Schwierigkeit der Halle dreht,
- * dreht an dieser Datei.
+ * die Kletterzone der Testwelt (`worlds/test/zones/climb.ts`) baut damit, und
+ * wer an der Schwierigkeit der Wand dreht, dreht an dieser Datei.
  *
  * Kein three.js — die Farben sind Zahlen aus `core/colors.ts`, damit ein
  * Griff dieselbe Farbe trägt wie jeder andere Griff im Spiel.
@@ -37,8 +37,8 @@ export type HoldMaterial = 'perfect' | 'rough' | 'smooth';
  *
  * Der **Holm** ist der Sonderfall unter ihnen: keine Stelle, sondern eine
  * ganze Strecke. Er hängt nicht an einer Wand, sondern ist die Strebe einer
- * Ausstiegshilfe (`ClimbWorld.bar`) — man fasst ihn an, wo man gerade ist, und
- * zieht sich an ihm entlang.
+ * Ausstiegshilfe — man fasst ihn an, wo man gerade ist, und zieht sich an ihm
+ * entlang.
  */
 export type HoldFeature = 'rung' | 'rail' | 'jug' | 'crack' | 'edge' | 'sloper' | 'flat';
 

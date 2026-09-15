@@ -100,7 +100,10 @@ describe('Die Scheu des Technikers', () => {
     // Schlagreichweite (`flatRound.CONTACT` = 1,7 m).
     expect(gap).toBeGreaterThan(start + 2);
     expect(closest).toBeGreaterThan(2);
-    expect(bot.stage === 'flee' || bot.stage === 'hide' || bot.stage === 'mission').toBe(true);
+    // Danach flieht er noch, steckt im Schrank — oder ist, weil das Monster
+    // hinter den Türen zurückblieb, nach `nerve` Sekunden Ruhe wieder bei
+    // seiner Arbeit (`stage` nennt dann den Auftrag, nicht „mission").
+    expect(['flee', 'hide', 'cargo', 'console', 'home']).toContain(bot.stage);
   });
 
   it('macht den Weg durch eine gesperrte Tür teurer, je näher das Monster steht', () => {

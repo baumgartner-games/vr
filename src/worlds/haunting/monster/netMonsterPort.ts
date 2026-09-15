@@ -16,8 +16,8 @@ import { CABIN_REACH, DOOR_REACH, monsterLabel } from './monsterHelm';
  * **Das Steuer auf dem Telefon** — die Seite der Monster-Rolle, die nichts
  * rechnet, sondern nur sagt, was sie will.
  *
- * Die Ansicht (`monsterView.ts`) kennt nur einen `MonsterPort`; in der
- * 2D-Welt steckt dahinter die Runde selbst (`flatMonsterControl.ts`), in der
+ * Die Ansicht (`monsterView.ts`) kennt nur einen `MonsterPort`; in den
+ * Tests steckt dahinter die Runde selbst (`flatMonsterControl.ts`), in der
  * Einsatzzentrale dieser Port. Er sammelt Stock und Knöpfe und gibt sie als
  * `monster`-Nachricht heraus (`net.ts`), zehnmal je Sekunde, solange man die
  * Station besitzt. Die Knöpfe sind **Zähler**: Jeder Druck zählt hoch, und

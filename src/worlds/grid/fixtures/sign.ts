@@ -51,7 +51,10 @@ interface SignView extends FixtureView {
 
 /** Wie hoch das Brett hängt und wie breit es ist. */
 const POST_H = 1.35;
-const BOARD_W = TILE * 0.62;
+// Fast die ganze Kachel breit: Auf 2,5 m waren 62 % davon ein stattliches
+// Brett, auf einem Meter wären dieselben 62 % ein Schildchen, das man nicht
+// mehr liest.
+const BOARD_W = TILE * 0.9;
 
 export const SIGN: FixtureKind<SignState> = {
   kind: 'sign',

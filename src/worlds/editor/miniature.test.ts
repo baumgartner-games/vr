@@ -236,10 +236,10 @@ describe('Zu mir holen', () => {
   });
 
   it('passt den Maßstab an, damit ein großer Grundriss in die Arme passt', () => {
-    // Ein Zimmer von zehn Metern darf groß kommen, ein Feld von zweihundert
-    // nicht — sonst steht man beim Heranholen mittendrin.
+    // Ein Kämmerchen von zwei Metern darf so groß kommen, wie es darf, ein
+    // Feld von zweihundert nicht — sonst steht man beim Heranholen mittendrin.
     const head = at(0, 1.6, 0);
-    const small = bringNear(head, 0, 4);
+    const small = bringNear(head, 0, 2);
     const big = bringNear(head, 0, 200);
     expect(small.scale).toBeCloseTo(SCALE_MAX);
     expect(big.scale).toBeLessThan(small.scale);

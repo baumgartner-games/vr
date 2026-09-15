@@ -164,9 +164,18 @@ describe('die Bahn selbst', () => {
   });
 
   it('ist lang genug für eine Runde und kurz genug für eine kurze', () => {
+    // Auf dem Metergitter ist die Bahn eine Kartbahn und keine Rennstrecke:
+    // rund 110 m, also eine gute halbe Minute je Runde.
     const length = pathLength(KART_COURSE.centre);
-    expect(length).toBeGreaterThan(150);
-    expect(length).toBeLessThan(400);
+    expect(length).toBeGreaterThan(80);
+    expect(length).toBeLessThan(200);
+  });
+
+  it('passt in die Ecke, die ihr die Testwelt lässt', () => {
+    // Ungefähr 40 × 25 m — mehr gibt der Süden des Geländes nicht her
+    // (`worlds/test/testPlan.ts`).
+    expect(KART_COURSE.bounds.w).toBeLessThanOrEqual(44);
+    expect(KART_COURSE.bounds.d).toBeLessThanOrEqual(32);
   });
 
   it('fährt in beide Richtungen und nicht nur geradeaus', () => {
@@ -184,12 +193,14 @@ describe('die Boxengasse', () => {
   it('stößt kachelbündig an den Streckenkorridor', () => {
     // Die eine Zahl, an der alles hängt: Ostkante der Gasse = Westrand der
     // Fahrbahn. Klafft dort eine Lücke, kommt niemand aus der Box heraus.
-    expect(PIT_APRON.x1).toBeCloseTo(-TRACK_HALF, 9);
+    expect(PIT_APRON.x1).toBeCloseTo(KART_START.x * TILE - TRACK_HALF, 9);
   });
 
   it('lässt keinen Streifen zwischen Gasse und Strecke frei', () => {
-    // Ein Punkt knapp östlich der Gassenkante liegt schon auf der Strecke.
-    const hit = nearestOnPath(KART_COURSE.centre, PIT_APRON.x1 + 0.01, -10);
+    // Ein Punkt knapp östlich der Gassenkante liegt schon auf der Strecke —
+    // gemessen auf halber Höhe der Gasse, also neben der Zielgeraden.
+    const middle = (PIT_APRON.z0 + PIT_APRON.z1) / 2;
+    const hit = nearestOnPath(KART_COURSE.centre, PIT_APRON.x1 + 0.01, middle);
     expect(Math.abs(hit.lateral)).toBeLessThanOrEqual(TRACK_HALF);
   });
 
@@ -204,6 +215,8 @@ describe('die Boxengasse', () => {
   it('gibt jeder Bucht genau ein Kart', () => {
     expect(pitSpots()).toHaveLength(PIT_BAYS.length);
     expect(new Set(pitSpots().map((spot) => spot.z)).size).toBe(PIT_BAYS.length);
+    // Zwei Karts stehen in der Testwelt in der Box — nicht mehr vier.
+    expect(PIT_BAYS).toHaveLength(2);
   });
 
   it('lässt zwischen zwei Buchten eine Kachel für die Säule', () => {
@@ -220,6 +233,13 @@ describe('die Boxengasse', () => {
 
   it('legt die Boxen hinter die Gasse und nicht hinein', () => {
     expect(PIT_BOXES.x + PIT_BOXES.w).toBe(PIT_LANE.x);
+  });
+
+  it('legt die Gasse längs neben die Start-und-Ziel-Gerade', () => {
+    // Sie ist so lang wie die Gerade selbst: eine Gasse, die über die Kurve
+    // hinausliefe, hätte am Ende eine Mauer mitten im Scheitelpunkt.
+    expect(PIT_APRON.z0).toBeLessThanOrEqual(KART_START.z * TILE);
+    expect(PIT_APRON.z1).toBeGreaterThanOrEqual(KART_START.z * TILE);
   });
 });
 

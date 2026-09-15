@@ -230,3 +230,41 @@ export function usableOf(object: THREE.Object3D | null): Usable | null {
   }
   return null;
 }
+
+/**
+ * **Wohin die Figur schaut, wenn sie `A` drückt** — je Ansicht eine andere
+ * Auskunft (Plan, _Interaktion und Steuerung_).
+ *
+ * Von oben ist es die **Rig-Richtung**: Dort dreht die Steuerung die ganze
+ * Figur zum Ziel, und der Kopf hat keine eigene Meinung. Aus den Augen und in
+ * der Brille ist es die **Kopfrichtung**, waagerecht projiziert
+ * (`PlayerRig.getHeadForward`) — da steht die Figur still und sieht sich um,
+ * und wer einen Knopf ansieht, meint ihn.
+ *
+ * Waagerecht, weil die Auswahl auf dem Boden rechnet (siehe oben). Und wer
+ * senkrecht nach unten schaut, hat keine waagerechte Richtung mehr; dann gilt
+ * wieder die Figur, sonst zeigte `A` beim Blick auf die eigenen Füße
+ * irgendwohin.
+ *
+ * @param topDown ob gerade von oben gespielt wird (`WorldContext.topDown`)
+ */
+export function aimForward<T extends THREE.Vector3>(
+  topDown: boolean,
+  rigForward: THREE.Vector3,
+  headForward: THREE.Vector3,
+  out: T,
+): T {
+  const wanted = topDown ? rigForward : headForward;
+  const flat = Math.hypot(wanted.x, wanted.z);
+  if (flat > 1e-4) {
+    out.set(wanted.x / flat, 0, wanted.z / flat);
+    return out;
+  }
+  const fallback = Math.hypot(rigForward.x, rigForward.z);
+  if (fallback > 1e-4) {
+    out.set(rigForward.x / fallback, 0, rigForward.z / fallback);
+    return out;
+  }
+  out.set(0, 0, -1);
+  return out;
+}

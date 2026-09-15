@@ -12,12 +12,19 @@ in _Overcooked_. Dieselben Wände, dieselben Türen, dieselben Kisten, an denen
 gerade jemand anders mit der Brille steht; man sieht dabei seine eigene Figur.
 Gelaufen wird in Weltrichtungen — `W` ist Norden, `D` ist Osten, und die Figur
 dreht sich dorthin, wohin sie läuft —, `Shift` sprintet, die Leertaste springt,
-und das Rad zoomt in vier Stufen. `E` **benutzt**, was vor der Figur steht
-(Knöpfe, Hebel, Türen, Tore), der Linksklick **schießt** mit dem Werkzeug in
-der rechten Hand. **Mit dem Gamepad wie auf der Konsole**: linker Stick läuft,
-rechter zielt, `A` benutzt, `B` oder RT schießt, die Bumper zoomen — der
-Hinweis über der Figur nennt dann auch `A` statt `E`. Am Handy ist _Von oben_
-vorbelegt, mit zwei Stöcken und den Flächen `A` und `B` auf dem Glas.
+und das Rad zoomt in vier Stufen. **`A` benutzt — überall**: was vor der Figur
+steht (Knöpfe, Hebel, Türen, Tore, ein Kart zum Einsteigen), bekommt einen
+**gelben Saum**, und derselbe Knopf springt nur dann, wenn nichts in Reichweite
+ist. Am Schreibtisch heißt `A` schlicht `E` oder Enter, in der Brille ist es
+`A` der rechten Hand. Der Linksklick **schießt** mit dem Werkzeug in der
+rechten Hand — und **welches das ist, wählt man selbst**: Der runde
+**Werkzeug-Knopf** unten rechts zeigt, was gerade in der Hand liegt, ein Druck
+(oder `Tab`, am Pad `Y`) klappt die Liste auf, und ganz oben steht die **Hand
+(leer)**. **Mit dem Gamepad wie auf der Konsole**: linker Stick läuft, rechter
+zielt, `A` benutzt, `B` oder RT schießt, die Bumper zoomen. Am Handy ist _Von
+oben_ vorbelegt, mit zwei Stöcken und den Flächen `A` und `B` nebeneinander
+über dem rechten Stock — und zwei Finger in der oberen Hälfte des Schirms
+zoomen stufenlos.
 
 Vorher war „2D" eine **eigene**, gemalte Kachelwelt über dem Bild — zwei
 Welten, zwei Wahrheiten: Was man von oben umwarf, stand in 3D noch. Die ist
@@ -26,18 +33,31 @@ sagt, wo alles steht, und der wohnt im Kachelgitter der Welten. Der Weg dorthin
 und zurück steht in
 [docs/plan-2d-hub-interaktion.md](docs/plan-2d-hub-interaktion.md).
 
-WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente: Hub-Welt,
-Portal Labor, Schießstand, Dust, eine Gokart-Strecke, eine Pizzeria, der Mond
-mit einem Sechstel Schwerkraft, die Alpen mit Hängegleiter und Flügeln, ein
-Dunkelhaus zum Ausprobieren von Licht, eine **Kletterhalle**, in der Greifen
-dich an der Wand hält — der Halt wird gerechnet, aus Material, Form,
-Körperhaltung und dem Verspreizen im Kamin, schlechte Griffe kosten Ausdauer,
-und hinunter geht es in **Sprungkissen**, die den Fall abfedern statt ihn
-anzuhalten —, eine **Straßenküche** — die Kreuzung aus dem Overcooked-Geist
-mit Küchenzeilen, Marktständen unter gestreiften Markisen und einem
-Zebrastreifen in der Mitte, die Testwelt für das Spielen von oben —, ein
-**Effektlabor** mit einem großen
-roten Knopf für Rauch, Feuer, Funken und Explosionen und
+WebXR-Spielwiese als Basis für weitere VR-Spiele und Experimente. Seit dem
+Umbau vom September 2026 stehen vier Welten darin, und das ist Absicht: Es
+waren siebzehn, jede prüfte eine Sache, und wer am Kern etwas änderte, lud
+siebzehn Welten hintereinander und hatte danach den Verdacht, die entscheidende
+vergessen zu haben. Geblieben sind der **Hub**, der **Bauplatz**, die
+**Testwelt** und **Haunting / Orbital**; alles, was die gelöschten Welten an
+Rechnung mitbrachten — Kartphysik, Trefferwertung, Kletterhalt, Effektzahlen,
+Türmathematik —, steht weiter als Modul da und wird von der Testwelt benutzt.
+
+Die **Testwelt** ist der Prüfstand: neun Zonen auf einem Gelände, in einer
+Minute zu Fuß abzulaufen. Vom Startplatz mit Tor und Kleiderschrank geht es
+nach Norden zu vier **Effektquellen** (Rauch, Feuer, Funken, Wasser, je ein
+Knopf davor), nach Nordwesten an eine **Türwand** mit Schiebetür, Flügeltür und
+Drucktür samt Knopf, Hebel und Druckplatte, nach Nordosten eine **Treppe** auf
+ein Podest mit Brüstung, nach Westen in die **Navigation** (enger Gang mit
+Kiste, Tür, Stachelfeld und ein roter Knopf, der einen NPC losschickt), nach
+Osten auf einen **Schießstand ohne Dach** mit Scheiben auf 5, 10 und 20 m, nach
+Süden auf eine **Kartbahn** mit zwei Karts in der Box — eingestiegen wird mit
+`A` —, und nach Südosten an eine **Kletterwand**, an der Greifen dich hält: Der
+Halt wird gerechnet, aus Material, Form, Körperhaltung und dem Verspreizen,
+schlechte Griffe kosten Ausdauer, und hinunter geht es in **Sprungkissen**, die
+den Fall abfedern statt ihn anzuhalten. Dazu drei **Portaltafeln**, eine davon
+oben auf dem Podest.
+
+Dazu kommt
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
 Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoomen,
 und sie fällt nicht; an einer Palette tunkt man Boden, Wand oder Tür ein und
@@ -51,15 +71,16 @@ Spielfigur steht mit im Modell und wird einfach woandershin gestellt, drumherum
 ein weißer Raum — und weggelegt steht alles in Lebensgröße um einen herum.
 **Und es bleibt**: Unter _Welt sichern_ liegt eine
 gebaute Welt im Browser, geht als Datei herunter (`bauplatz-2026-09-07.welt.json`,
-Format `baumgartner-welt` in der Fassung `0.2.0`, mit Kacheln, Wänden, Türen,
-Möbeln, Einbauten und Dächern darin) und kommt so auch wieder zurück. Wer in einer
+Format `baumgartner-welt` in der Fassung `0.3.0`, mit Kacheln, Wänden, Türen,
+Möbeln, Einbauten und Massen darin) und kommt so auch wieder zurück. Gebaut
+wird dabei auf **Kacheln von einem Meter** — fein genug für eine Küche, in der
+der Herd neben der Spüle steht —, Wände stehen auf den Kanten dazwischen, und
+eine Treppe zieht sich über mehrere Kacheln, damit ihre Stufen 17,5 cm hoch und
+25 cm tief bleiben. Wer in einer
 fertigen Welt nur wissen will, wo er gerade ist, nimmt statt eines Grundrisses
 die **Karte** aus dem Werkzeugregal: ein Blatt in der Hand mit der Umgebung von
 oben, Norden oben, ein Pfeil für einen selbst und ein Punkt je Mitspieler — der
-Trigger zoomt. Dazu kommt
-ein Eingaberaum zum Einstellen von Händen und Werkzeugen — mit einem
-**Poseraum**, in dem ein Schwebekasten losgelassene Werkzeuge in der Luft hält,
-damit man die blanke Hand daran einmessen kann — samt jedem einzelnen Gelenk —, ein Werkzeuggürtel
+Trigger zoomt. Dazu kommt ein Werkzeuggürtel
 voller Spielzeug — darunter ein **magischer Beutel** zum Hineingreifen, aus dem
 Klötze, Rampen, Murmeln und ein ganzer Satz Würfel kommen, und ein **Schild**,
 das man irgendwo hinstellt und mit Markdown beschriftet (Überschriften, Listen,
@@ -76,8 +97,10 @@ für den anderen eine Wand, und wer den Sturz nicht überlebt, bleibt oben
 stehen — und durch ein **Portal** fallen sie wie jede Kiste: halb hier, halb
 drüben, und aus einem Sturz ins Bodenportal wird der Schwung aus der Wand) und
 Peer-to-Peer-Sitzungen ohne eigenen Server — mit
-räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Die meisten Testwelten
-stehen auf einer Fläche bis zum Horizont; Orbital schwebt mit sichtbaren Deckplatten im Weltraum, die Schwerkraft steht im Menü, und
+räumlichem Sprach-Chat und Karts, die man gegeneinander fahren kann. Hub,
+Bauplatz und Testwelt stehen auf einer Fläche bis zum Horizont und **ohne
+Dach**, damit die Kamera von oben hineinsieht; steht die Figur hinter einer
+Wand, wird die Wand für dieses Bild durchsichtig. Orbital schwebt mit sichtbaren Deckplatten im Weltraum, die Schwerkraft steht im Menü, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
 Unter **Menü → Grafik** steht ein experimenteller Schalter, der
@@ -86,9 +109,16 @@ Welt mit **schwarzen Konturen**, Licht in Stufen und Schatten. Darunter
 **Brille: Auflösung** — _Voll_, _Mittel_ oder _Flüssig_, für die Bildrate im
 Headset, ab der nächsten Sitzung — ganz oben die **Bildrate** selbst, live,
 auch in der Brille, und als Häkchen **Bildrate im Bild** das kleine Feld unten
-rechts, auch am Handy. Daneben liegt
-**Aussehen** — sieben Kopfbedeckungen von der Basecap bis zur Krone, und alle
-im Raum sehen, was man aufhat.
+rechts, auch am Handy — und das Häkchen **Gitterlinien**, das die Kacheln der
+Ebene einblendet, auf der man gerade steht. Daneben liegt
+**Aussehen**: Die Figur ist ein **Koch wie bei Overcooked** — runder Rumpf,
+großer Kopf mit Augen und Nase, zwei schwebende Hände, keine Arme und keine
+Beine, weil von zwölf Metern Höhe ein Skelett nur zwei graue Striche ist. Drei
+Zeilen stellen sie ein: vier **Köpfe**, acht **Hüte** von der Kochmütze bis zur
+Krone und fünf **Kochjacken**. Alle drei gehen über das Netz, alle im Raum
+sehen, als was man herumläuft — und wer lieber vor einem Spiegel wechselt,
+stellt sich an den **Kleiderschrank**: Ein Druck auf `A` öffnet die Umkleide
+mit der Figur in Nahaufnahme daneben.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
@@ -132,8 +162,8 @@ oben auf der Seite: **mit Brille** heißt er **Enter VR** (der Techniker im
 Anzug), **am Bildschirm** heißt er **Beitreten** — und ob das **Web 3D** ist
 (der Techniker am Bildschirm, im Schiff) oder die **2D Einsatzzentrale** (Handy
 oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die Karte
-von oben), sagt die Wahl **„Am Bildschirm: 2D oder 3D?"**; am Handy ist 2D
-vorbelegt. Die Zeile unter dem Knopf sagt es vor dem Drücken. In der Zentrale erst die Tafel
+der Station), sagt die Wahl **„Von oben"** oder **„Aus den Augen"**; am Handy
+ist _Von oben_ vorbelegt. Die Zeile unter dem Knopf sagt es vor dem Drücken. In der Zentrale erst die Tafel
 einstellen, dann **Rollen testen** — über der Karte nimmt man seinen Platz
 über die Reiter; ein **Ich** auf der Tafel gibt es nicht. Wer über **Enter VR** oder
 **Web 3D** kommt, steht sofort im Anzug: Die Techniker-Zeile der Tafel zeigt
@@ -146,8 +176,8 @@ Ein weiteres Telefon kann das **Monster** spielen:
 Es sieht nur, was das Monster sieht und hört, und steuert es mit Stock und
 einem Knopf — zugeschlagen wird von selbst, wer in Reichweite steht; der Knopf
 gilt dem nächsten Ding, das die Karte hervorhebt (Klappe, Kabine, gesperrte
-Tür) — auch dann, wenn der Techniker die Station in der 2D-Welt von
-oben spielt. Für eine eigene Gruppe auf allen Geräten denselben Raum-Code
+Tür) — auch dann, wenn der Techniker die Station am Bildschirm spielt. Für
+eine eigene Gruppe auf allen Geräten denselben Raum-Code
 eintragen — oder gleich den Link `?room=euer-gruppenname#haunting` teilen, der
 ihn vorausfüllt; ein getippter Code wandert beim Verbinden selbst in die Adresse.
 Ohne Code ist der Raum `haunting`. Die Verbindungsanzeige nennt Raum und Gegenstellen. Nach einem
@@ -162,10 +192,11 @@ desselben Browsers, keine getrennten Geräte im WLAN.
 **Die Mission:** Jede Runde fängt im **Aufbau** an — auf dem Handy die erste
 Seite, in der Brille der Knopf am Handgelenk. Er ist kurz:
 
-1. **Ein Häkchen.** _2D-Welt von oben_ (sonst das Schiff; am Telefon ist 2D
-   voreingestellt, in der Brille gibt es immer das Schiff — **und diese eine
-   Frage darfst du dir mitten in der Runde anders beantworten**, siehe unten).
-   Ohne Monster spielt man, indem der Platz Monster auf „Aus" steht.
+1. **Kein Häkchen.** Ob du das Schiff von oben oder aus den Augen siehst,
+   ist keine Frage des Aufbaus: Das ist _Menü → Ansicht_, wie in jeder Welt,
+   und du darfst es dir mitten in der Runde anders überlegen (in der Brille
+   gibt es immer das Schiff). Ohne Monster spielt man, indem der Platz
+   Monster auf „Aus" steht.
 2. **Die Verteilung.** Techniker, Monster und die drei Fähigkeiten der
    Einsatzzentrale, jede auf Bot, Mensch oder Aus. Wer _du_ bist, steht hier
    nicht — das wählst du über der Karte.
@@ -174,11 +205,13 @@ Seite, in der Brille der Knopf am Handgelenk. Er ist kurz:
    und jeder darf jede Rolle. Über der Karte steht ein Kopf: die Rollen als
    Reiter (Techniker, Rot, Gelb, Blau, Monster, Zuschauer), das Zahnrad, und
    die Leiste mit Systemen, Anzug und — sobald sie läuft — der Uhr. Der
-   Reiter **Techniker** setzt dich an den Stock: Die 2D-Welt geht auf, und du
+   Reiter **Techniker** setzt dich an den Stock: Du stehst im Schiff am
+   Bildschirm — von oben oder aus den Augen, wie _Menü → Ansicht_ steht — und
    läufst los. Das Monster bewegt sich im Test nur, wenn ein Mensch es
    steuert.
-4. **Mission starten** — im Zahnrad (über der Karte wie in der 2D-Welt) oder
-   gleich im Aufbau, für den, der nicht erst testen will. Erst dann läuft die
+4. **Mission starten** — im Zahnrad über der Karte des Telefons, in der
+   Tafel des Technikers oder gleich im Aufbau, für den, der nicht erst
+   testen will. Erst dann läuft die
    Uhr, das Licht geht aus, das Monster los — auf derselben Station.
    **Mission stoppen** im selben Zahnrad führt zurück in den Test, **Zurück
    zu den Rollen** in den Aufbau. **Steckt der Techniker schon in der Brille,
@@ -202,9 +235,10 @@ ein anderes Gerät sie rechnet oder schon jemand als Techniker spielt, steht
 das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
 Anordnung der Vorlage: Cafeteria oben, Triebwerke/Reactor/Security links,
 Weapons/O2/Navigation rechts, Storage unten und die dazwischenliegenden
-Nebenräume. Die meisten Räume messen 4 × 4 Rasterfelder (10 × 10 Meter);
-Cafeteria und Storage sind größer. Gänge verbinden die Module über echte
-Rasterböden. Die Konturen sind rechtwinklig, noch ohne 45°-Wandelemente.
+Nebenräume. Eine Kachel ist ein Meter: Die meisten Räume messen 10 × 10
+Meter, Cafeteria (20 × 18) und Storage (15 × 12) sind größer, die Gänge sind
+zwei Meter breit, und jede Tür ist eine ganze Kachelkante (1 m) ohne Pfosten.
+Die Konturen sind rechtwinklig, noch ohne 45°-Wandelemente.
 Seeds verändern Aufgaben und Einrichtung, nicht Raumnamen oder Grundriss.
 Modelle und Raumgestaltung verwenden eigene Assets.
 Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. In jedem
@@ -212,8 +246,8 @@ Raum stehen **zwei bis drei Frachtkisten**, jede mit Farbband und Nummer
 beschriftet („Kiste 2 · blau") — am Modell wie auf der Karte, immer lesbar.
 Die drei Ersatzteile liegen in dreien davon, vier weitere halten Werkzeug, und
 der Rest ist leer. **Wer weiß, welche die richtige ist, hängt daran, wer am
-Archiv sitzt:** Ist es ein Bot, leuchtet die richtige Kiste selbst — im Schiff
-mit einem gelben Saum, in der 2D-Welt mit Schein, Umriss und Puls. Sitzt dort
+Archiv sitzt:** Ist es ein Bot, leuchtet die richtige Kiste selbst — mit einem
+gelben Saum. Sitzt dort
 ein **Mensch**, sieht der Techniker nur noch den **Raum** leuchten; welche
 Kiste darin es ist, weiß das Archiv als Einziges und sagt es an: „Kiste 2,
 blaues Band · Nordwand". Wer ohne diese Ansage sucht, öffnet Kisten — oder
@@ -227,14 +261,14 @@ Reparaturen zur Zentrale zurückkehren.
 **Ein Ersatzteil auf einmal.** Der Techniker trägt es in der Hand — in der
 Brille wirklich in der rechten —, und solange er es hat, geht keine zweite
 Kiste mit einem Teil heraus: erst abliefern oder ablegen. Ablegen geht
-jederzeit (`G` am Schirm, Knopf im Panel); das Teil bleibt liegen, wo er
-stand, und lässt sich mit `E` wieder aufnehmen. Ohne Teil in der Hand bleibt
-die Abdeckung des Wartungskastens zu. **Die Taschenlampe kann er nie
-verlieren:** Sie hängt von Anfang an in beiden Holstern und steht in beiden
-Handkreisen (`1` links, `2` rechts) — ausmachen darf er sie, das macht ihn
-schwerer sichtbar.
+jederzeit (Knopf **Ablegen** in der Tafel des Technikers); das Teil bleibt
+liegen, wo er stand, und lässt sich mit Benutzen (`A` am Pad, `E` an der
+Tastatur) wieder aufnehmen. Ohne Teil in der Hand bleibt die Abdeckung des
+Wartungskastens zu. **Die Taschenlampe kann er nie verlieren:** Sie hängt von
+Anfang an in beiden Holstern und steht im Werkzeug-Knopf unten rechts —
+ausmachen darf er sie, das macht ihn schwerer sichtbar.
 
-**Wer spielt mit:** Die Tafel des Aufbaus, in 2D wie in 3D — Techniker (Mensch
+**Wer spielt mit:** Die Tafel des Aufbaus, am Telefon wie in der Brille — Techniker (Mensch
 oder Bot; steht jemand mit der Brille im Raum, heißt die Zeile **VR** und
 gehört ihm), Monster (Mensch, Bot oder aus) und die **drei Fähigkeiten der
 Einsatzzentrale** — Späher, Schalttafel, Archiv —, jede auf **Bot, Mensch oder
@@ -244,10 +278,8 @@ wie er mag; wie die Mischung heißt, steht daneben: Späher + Schalttafel ist di
 der **Leitstand**, alle drei die **Zentrale**. So passt die Runde auch zu
 dritt, wenn nur zwei in der Zentrale sitzen. Unter jeder Fähigkeit steht, wer
 sie wirklich hält. **Ein Bot auf einer Fähigkeit gibt sie dem Techniker
-selbst:** Wer allein in der 2D-Welt spielt, sieht die
-Peilung des Monsters alle paar Sekunden, sperrt Türen und schaltet Lampen per
-Tipp auf die Karte und schlägt mit einem Tipp aufs Zimmer die Akte mit den
-Codes auf. **Gewollt gesperrt ist immer nur eine Tür, und sie hält, bis sie
+selbst:** Der Archivar aus Zahlen funkt ihm Fundort und Ziel, die richtige
+Kiste leuchtet, und der Kompass zeigt hin. **Gewollt gesperrt ist immer nur eine Tür, und sie hält, bis sie
 von selbst fällt** — acht bis zehn Sekunden, mit rotem Balken über der Tür;
 solange lässt sich weder sie wieder öffnen noch eine zweite sperren, und der
 Schalter sagt, warum. Das gilt im Test wie in der Mission. Türen, die das
@@ -255,9 +287,9 @@ Monster zuschlägt, gehen nach zwanzig Sekunden von selbst wieder auf oder
 vorher durch die Schalttafel.
 
 **Ein Riegel, der gefallen ist, bleibt vierzig Sekunden offen.** Die Tür wird
-dabei **grün, blinkt** und zählt herunter — auf der Karte und in der 2D-Szene
-läuft derselbe Balken wie beim Halten, nur grün statt rot, und Blatt und
-Schwelle zucken im Sekundentakt in Grün. So lange lässt sie
+dabei **grün, blinkt** und zählt herunter — auf der Karte läuft derselbe
+Balken wie beim Halten, nur grün statt rot, und das Blatt zuckt im
+Sekundentakt in Grün. So lange lässt sie
 sich nicht wieder verriegeln, und das ist Absicht: Sonst wurde aus dem Riegel
 das Spiel „ich schließe immer die Tür vor dem Monster", und das Vieh stand
 fest. Dazu kommt, dass es lieber **zieht** als läuft: Steht ein Umweg von mehr
@@ -278,91 +310,49 @@ seines Geräts am Tisch vor der Scheibe — Rot, Gelb, Blau, das Monster —, di
 Zuschauer und wer noch keinen Platz hat in der Reihe dahinter. Niemand aus
 der Zentrale steht als Spieler mitten auf dem Vorplatz.
 
-**Die 2D-Welt** sieht aus wie ein Brettspiel von oben: helle Böden mit
-Kacheln, dicke Wände, Türen als Blätter mit Schloss, die Möbel aus dem Schiff
-als Klötze, kleine Astronauten mit Händen, das Monster als Klumpen mit Augen.
-Geräusche laufen als Wellen über die Kacheln — die eigenen blau, die des
-Monsters rot, Türen und Fracht orange. Eine Wand hält eine Welle nicht auf,
-sie dämpft sie: Was nebenan ankommt, kommt später und blasser an, und eine
-zugeworfene Tür macht einen Schritt leiser und nicht lautlos. Gelbe Dreiecke
-am Bildrand zeigen zum nächsten Ziel (am Desktop im Schiff ein Kompass am oberen Bildrand),
-„Zielpfade" im Optionsmenü legt die Wege von Techniker und Monster auf die
-Karte — beim Zuschauen als „Zuschauer: Alles" beide, als „Zuschauer: Einzeln"
-nur den dessen, zu dem der Sprungknopf zuletzt geführt hat —, und im Modus
-„Alles sehen" führen Bögen von Klappe zu Klappe mit dem
-Raum, in dem der Schacht endet. Wer das Monster spielt, steigt mit
-**Interagieren** in eine Klappe und wählt darunter den Zielraum.
-**Der obere Rand gehört in 2D dem Spiel.** Die Kopfzeile der Seite (Menü,
-Verbindung, VR) ist dort ausgeblendet und kommt beim Verlassen zurück; was
-oben steht, steht untereinander statt voreinander. Ganz oben links zwei
-Zeilen und sonst nichts: **O₂** mit der Restzeit und den Anzug-Herzen,
-darunter **Aufgaben:** mit einem Kreis je Auftrag — voll erledigt, halb
-angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste mit den Namen
-auf, ein zweiter wieder zu. Rechts daneben das **Zahnrad**, in der Zeile
-darunter die Sprungknöpfe — die sind damit nie verdeckt.
-
-Das **Zahnrad** zeigt, was sich mitten in der Runde ändert — Ansicht,
-Zielpfade, Ton, **Zuschauen: an/aus** (immer möglich), beim Zuschauen die
-**Simulationsgeschwindigkeit** (×1 bis ×16), **Ansicht: 2D ↔ 3D**
-und **Runde verlassen** —, und darin unter **Aufmachen** die
-drei Wege nach draußen: **Karte** (die Übersicht der Station; den eigenen
-🗺-Knopf oben rechts gibt es nicht mehr), **Menü** und **Verbindung**, also
-das, was sonst in der Kopfzeile steht. Wer mitspielt und was die nächste Runde
-wird, steht in der Lobby. **Immer nur eines auf einmal:** Solange Karte,
-Rätsel, Raumakte oder Menü offen sind, ist der Rest weg — kein HUD, keine
-Reiter, keine Spielszene dahinter; ein Zurück bringt alles wieder, und die
-Runde ist unterdessen weitergelaufen.
-
-**2D ↔ 3D, mitten im Spiel.** Als Techniker musst du dich nicht vor der Runde
-entscheiden: Im Zahnrad der 2D-Welt steht **„Ansicht: 2D ↔ 3D"**, und im Panel
-des Technikers im Schiff steht der Knopf **„2D von oben"**. Beide schalten
-sofort um, und zwar **dieselbe Runde**: dieselbe Uhr und derselbe Sauerstoff,
-derselbe Anzug, dasselbe Ersatzteil in der Hand, dieselben gesperrten Türen und
-brennenden Lampen — und dasselbe Monster an derselben Stelle, das sich immer
-noch merkt, wo es dich zuletzt gesehen hat. Du stehst danach dort, wo du eben
-standest. Wer zusieht oder in der Zentrale sitzt, merkt von alledem nichts: Der
-Stand ist derselbe, nur das Bild ist ein anderes. **In der Brille gibt es keine
-Karte von oben** — dort bleibt es beim Schiff, und der Eintrag sagt es auch.
+**Von oben ist dasselbe Schiff.** _Menü → Ansicht_ schaltet jederzeit
+zwischen _Von oben_ und _Aus den Augen_ um, ohne Neustart und ohne neue
+Rolle: dieselbe Runde, dieselbe Uhr, derselbe Anzug, dasselbe Monster. Von
+oben hängt die Kamera schräg über der Figur, schneidet die Decke ab, macht
+Wände vor der Figur durchsichtig und zeichnet auf Wunsch die Kacheln; die
+Figur läuft in Weltrichtungen, zwei Finger zoomen, und `A` benutzt, was vor
+ihr steht. **In der Brille gibt es nur das Schiff.** Die gemalte 2D-Welt —
+das Brettspiel von oben mit eigener Runde darin — gibt es seit dem
+1-m-Gitter nicht mehr; die Zentrale am Telefon zeichnet weiter ihre Karte.
 Wandert die Technikerrolle mitten in der Runde zu jemand anderem, übergibt das
 alte Gerät dem neuen die ganze Runde, und zwar mitsamt allem, was sonst nur der
 eine Rechner wusste — Sperrfristen, Lampenrestzeiten und das Gedächtnis des
 Monsters.
 
-**Verschieben ist ein Blick zur Seite.** Die Szene lässt sich ziehen und mit
-zwei Fingern zoomen; dann steht oben **Zum Spieler**. Sobald du wieder einen
-Schritt gehst, springt die Kamera von selbst zurück. Ganz herausgezoomt passt
-die ganze Station ins Bild und lässt sich ein Stück nach unten ziehen, damit
-ihre obere Kante frei unter den Anzeigen steht. **Wer
-zuschaut**, hat keinen Stock, dafür zwei Knöpfe: _Zum Techniker_ und
-_Zum Monster_, jederzeit umschaltbar. Die Sicht der Plätze Rot, Gelb und Blau
-wählt man über die Reiter — dieselben sieben im Kopf der 2D-Welt wie über
-der Karte des Telefons — auch während eine Runde läuft.
+**Wer zuschaut**, sieht im Schiff der Bot-Runde zu: Die Kamera folgt dem
+Techniker aus Zahlen (von oben steht die Figur auf ihm), **Freie Kamera**
+lässt einen selbst durch das Schiff laufen, **Bot folgen** holt einen zurück.
+Am Telefon hat der Zuschauer seine Linse mit einem Stock zum Fliegen und
+kann in jeden Platz hineinsehen. Die Sicht der Plätze Rot, Gelb und Blau
+wählt man über die Reiter über der Karte des Telefons — auch während eine
+Runde läuft.
 
-**Die Handyansichten:** Alle drei zeichnen dieselbe Karte wie die 2D-Welt,
+**Die Handyansichten:** Alle drei zeichnen dieselbe Karte der Station,
 jede mit eigenen Schichten. Beim **Archiv** liegt die ganze Station darauf,
 mit Fracht und Konsolen. **Wohin das Teil muss, erfährt das Archiv erst, wenn
 der Techniker es in der Hand hat:** Dann führt eine gestrichelte Linie zur
 Konsole, und am Ziel steht „hierher". Legt er es irgendwo ab und lässt es länger
 als fünf Sekunden liegen, meldet das Archiv, in welchem Raum es liegt. Ein Tipp auf ein Zimmer schlägt die **Raumakte** auf — ganzseitig, die Karte
 ist so lange weg, und „Karte" bringt sie zurück: Codes groß, Fundhinweise,
-Türen — und ein Bild des Raums, in 3D die Draufsicht der wirklichen Welt mit
-Zoom und Wisch, in der 2D-Welt eine herangezoomte Karte. Live-Positionen zeigt
+Türen — und ein Bild des Raums, die Draufsicht der wirklichen Welt mit
+Zoom und Wisch. Live-Positionen zeigt
 es keine, Lampen auch nicht. Die **Schalttafel** zeigt
 den Grundriss ohne Wesen und schaltet Türen und Lampen per Tipp — eine Lampe
 ist ein Kreis in der Zimmermitte, gelb, wenn sie brennt; eine Schalterliste
 gibt es nicht, und ein Schott, das gerade abkühlt, sagt es beim Tipp. Der
 **Späher** zeigt zwei Punkte
 und sonst nichts. Der Kopfbereich bietet einen
-sichtbaren Rollenwechsel. In der 2D-Welt liegt derselbe Wechsel als Streifen
-über der Szene: Wer dort eine Rolle aufschlägt, sieht **dieselbe laufende
-Runde** aus ihrer Sicht, ohne dass etwas neu gestartet wird — allerdings nur
-in einer **Test-Runde**: Mitten in einer Mission ist man dort der Techniker
-und steht im Anzug.
+sichtbaren Rollenwechsel.
 
 **Wer blutet, wird verfolgt.** Ein Treffer reißt eine Wunde, und die blutet
 zwei Minuten lang: Wer sich danach bewegt, hinterlässt alle anderthalb Meter
-einen dunkelroten Tropfen — in 2D auf dem Boden, in der Brille als flacher
-Fleck auf dem Blech. Nach gut einer halben Minute ist ein Tropfen verblasst,
+einen dunkelroten Tropfen, einen flachen Fleck auf dem Blech. Nach gut einer
+halben Minute ist ein Tropfen verblasst,
 wer stehen bleibt, hinterlässt fast nichts. Das Monster **sieht nicht**, wo die
 Spur liegt; es findet sie nur, wenn es im selben Raum darüberläuft — dann
 allerdings liest es daraus, in welche Richtung es weitergehen muss, und sucht
@@ -372,9 +362,9 @@ verrät nicht nur, dass man da war, sondern wohin man gelaufen ist.
 **Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
 Treffer gibt es drei Sekunden Schutz. Ein gefundenes Medkit heilt einen
 Treffer. Tod und Sieg zeigen eine klare Meldung mit **Neu starten**, auch im
-Headset. Ein Schutzschrank lässt sich mit dem Code aus dem Archiv öffnen und
-betreten. Ein beleuchteter Knopf im Inneren führt wieder hinaus; am Desktop
-funktioniert auch `E`. Die Bedienung setzt voraus, dass man sich im Raum des
+Headset. Ein Schutzschrank lässt sich ohne Code betreten — ein Druck auf das
+Tastenfeld hinein, ein zweiter heraus; am Bildschirm ist das Benutzen (`A`,
+`E`). Die Bedienung setzt voraus, dass man sich im Raum des
 Schranks befindet; durch eine Nachbarwand lässt er sich nicht benutzen.
 Reißt das Monster einen Schrank auf, ist er für den Rest der Runde ein
 funkendes Wrack: Niemand kommt mehr hinein, und es gibt ein Versteck weniger.
@@ -432,35 +422,33 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 | Aktion                                                   | Tastatur / Maus                                                                                                     |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Laufen und umsehen                                       | `WASD` und Maus; `Shift` zum Rennen                                                                                 |
-| Schrank öffnen, Sache aufnehmen, Taste am Rätsel drücken | Anvisieren und `E` oder Linksklick                                                                                  |
-| Linke Hand wechseln                                      | `1`: Radar, Röntgengerät und freie Hand durchschalten                                                               |
-| Rechte Hand wechseln                                     | `2`: Taschenlampe, gefundenes Medkit, freie Hand                                                                    |
-| Medkit verwenden                                         | Rechts auswählen und `E` drücken                                                                                    |
+| Schrank öffnen, Sache aufnehmen, Konsole aufmachen      | `E` (am Pad `A`) — der gelbe Saum zeigt, was gemeint ist; Anvisieren und Linksklick gehen daneben weiter           |
+| Werkzeug wechseln                                        | `Tab` oder der runde Knopf unten rechts: Taschenlampe, Radar, Röntgengerät, Medkit, leere Hand                     |
+| Medkit verwenden                                         | Im Werkzeug-Knopf wählen und `E` drücken                                                                            |
 | Taschenlampe an und aus                                  | `E`, wenn nichts zum Benutzen vor dir liegt                                                                         |
-| Ducken                                                   | `Ctrl` halten                                                                                                       |
-| Simulationsflug                                          | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller                                             |
+| Ducken                                                   | `Ctrl` halten oder **Ducken** in der Tafel                                                                          |
+| Ersatzteil ablegen                                       | **Ablegen** in der Tafel                                                                                            |
 | Leistungsanzeige                                         | `F3` oder Menü → Grafik → _Bildrate im Bild_ (auch am Handy); in der Brille steht dieselbe Zahl unter Menü → Grafik |
 
-**Am Bildschirm liegt dieselbe Steuerung wie in der 2D-Welt**: der Stock links
-unten, rechts unten drei Knöpfe. Die beiden kleinen sind die zwei Hände —
-**Linke Hand** (Radar, Röntgengerät, frei) und **Rechte Hand** (Taschenlampe,
-Medkit, frei), dieselben Reihen wie `1` und `2`. Der große trägt den Namen
-dessen, worauf man gerade zielt, und tut dasselbe wie `E`.
+**Am Bildschirm ist die Steuerung die der Seite, wie in jeder Welt**: auf dem
+Handy der Bordstock links und `A`/`B` rechts, am Laptop `WASD`, Maus, `E`.
+Was `A` gerade meint — Kistenklappe, Konsole, Tastenfeld, Türtafel, das
+liegende Teil —, trägt einen gelben Saum und einen Hinweis über der Figur;
+der runde Werkzeug-Knopf unten rechts wählt Taschenlampe, Radar,
+Röntgengerät oder Medkit. Über den Stock geht es mit Arbeitstempo los;
+jenseits des äußeren Rings wird gerannt. In der Brille gibt es Zeiger,
+Trigger und `A`.
 
-**Und wenn nichts vor dir liegt, ist derselbe Knopf der Lichtschalter.** Dann
-steht auf ihm **Licht an** oder **Licht aus** — also das, was der nächste Druck
-tun wird —, und auf dem rechten Handknopf **Lampe an** oder **Lampe aus**: Wie
-es gerade um dich herum ist, musst du nicht mehr an der Wand ablesen. Die Lampe
+**Und wenn nichts vor dir liegt, ist Benutzen der Lichtschalter.** Die Lampe
 bleibt dabei in der Hand; sie auszumachen ist eine Entscheidung, keine leere
-Hand, denn das Monster sieht eine brennende Lampe weiter als dich. Über den Stock geht
-es mit Arbeitstempo los; jenseits des äußeren Rings wird gerannt. Tastatur und
-Maus bleiben daneben, wie sie waren; in der Brille sind die Knöpfe weg, dort
-gibt es Zeiger und Trigger.
+Hand, denn das Monster sieht eine brennende Lampe weiter als dich. In der
+Tafel steht, ob sie gerade brennt.
 
 **Der obere Rand gehört auch im Schiff dem Spiel.** Die Kopfzeile der Seite
-(Menü, Verbindung, VR) ist hier ausgeblendet wie in der 2D-Welt und kommt beim
-Verlassen zurück; oben stehen der Kompass und darunter die Tafel des
-Technikers. Die Tafel ist nur so hoch wie das, was darin steht, und
+(Menü, Verbindung, VR) ist hier ausgeblendet und kommt beim Verlassen zurück;
+oben stehen der Kompass und darunter die Tafel des Technikers, unten in der
+Mitte der Streifen mit Sauerstoff, Anzug und Aufträgen. Die Tafel ist nur so
+hoch wie das, was darin steht, und
 **lässt sich zuklappen**: „Zuklappen" räumt sie weg bis auf die Titelzeile mit
 Anzug, Systemen und Sauerstoff — daneben bleibt das **⚙ Optionen** stehen, und
 darin führen **Menü**, **Verbindung** und **VR** dorthin, wo sonst die
@@ -496,11 +484,11 @@ Jeder Übungsraum hat Rückkehr- und Wechselknöpfe. Testbesuche in Missionsräu
 verwenden freie Ankunftsplätze.
 
 **Zuschauen** (im Optionsmenü der laufenden Runde, in der Brille auch im Menü —
-und zwar immer) heißt: der Runde folgen, die im Raum wirklich läuft. Spielt jemand — im Schiff oder von einem
-anderen Gerät aus in 2D —, siehst du **ihn**: dieselbe Station, dieselben
-Türen, dasselbe Monster, mit zwei Sprungknöpfen „Zum Techniker" und „Zum
-Monster" und dem Modus „Alles sehen". Eingaben hast du keine; ein Zuruf von
-dir beendet die Runde schneller als das Monster.
+und zwar immer) heißt: der Runde folgen, die im Raum wirklich läuft. Spielt
+jemand im Schiff, siehst du **ihn** auf der Karte des Telefons: dieselbe
+Station, dieselben Türen, dasselbe Monster, mit der Linse des Zuschauers und
+dem Modus „Alles sehen". Eingaben hast du keine; ein Zuruf von dir beendet
+die Runde schneller als das Monster.
 
 Am **Zuschauerplatz der Zentrale** wählst du dazu, **wessen Platz** du gerade
 ansiehst — Deck (das ganze Schiff von schräg oben, ohne Decke), Archiv,
@@ -567,7 +555,7 @@ Station gehört hat. Schächte durch gemeinsame Wände benutzt es weiterhin.
 
 **Zeitraffer, Regler und Training.** In der Bot-Runde laufen ×2, ×4, ×8, ×12
 und ×16 (beschleunigt wird über die Zahl der Bilder, nicht über ihre Länge);
-eingestellt wird das im Optionsmenü, in 2D wie im Schiff. Die
+eingestellt wird das im Optionsmenü des Schiffs. Die
 Beleuchtung schaltet zwischen voller Beleuchtung, Wachbetrieb,
 Alarmbeleuchtung und Notstrom — im Alarm drehen sich rote Leuchten in den
 Gängen. Unter **Bots justieren & trainieren** stehen alle Gewichte beider Bots
@@ -588,10 +576,10 @@ und Ducken sind leiser. Aktuelle KI-Absichten stehen unter der Legende. Die Lini
 verwendeten Navigationswege. Das lokale Funkprotokoll zeigt Raumwechsel des
 Technikers an die Zentrale sowie die Archivhinweise. Es ist keine autonome
 Dreiercrew und kein zusätzlicher Sprachchat.
-**Simulation / Flugmodus** hebt die Decke ab. Am Desktop folgt die Kamera
-zunächst dem Bot; **Freie Kamera** gibt `WASD`, `Space` und `Ctrl` zum Erkunden
-frei, bis 120 Meter Höhe. **Kartenübersicht** zeigt die Station direkt von oben.
-**Bot folgen** schaltet zurück. Im XR-Headset gibt es keine automatische
+**Bot-Runde.** Am Bildschirm folgt die Kamera dem Bot — von oben steht die
+Figur auf ihm, aus den Augen schwebt sie schräg darüber; **Freie Kamera**
+lässt dich selbst durch das Schiff laufen, die Übersicht ist von oben der
+Zoom. **Bot folgen** schaltet zurück. Im XR-Headset gibt es keine automatische
 Blicknachführung. Zum Verlassen **Simulation beenden** oder **Zur Einsatzzentrale**
 wählen. Techniker-Bot und Monster folgen geprüften Kurven mit Beschleunigung
 und sanftem Abbremsen (`navmesh/route.ts`).
@@ -600,8 +588,8 @@ Die Station verwendet vermessene Einrichtungsmodelle mit reservierten Tür- und
 Laufwegen, abgerundeten Gehäusen, Rohren und raumspezifischen Aggregaten.
 Zusammengefasste Geometrie, das Ausblenden verdeckter Räume, wenige Lichter und
 begrenzte Effekt- und Audiopools halten den Aufwand klein. Die Web-Auflösung ist
-für Haunting begrenzt; der Übungsspiegel rendert nur in seiner Nähe. Hub und
-andere Testwelten bleiben erhalten.
+für Haunting begrenzt; der Übungsspiegel rendert nur in seiner Nähe. Hub,
+Bauplatz und Testwelt bleiben erhalten.
 
 90–120 Hz auf Quest 3 sind ein Leistungsziel, keine hier gemessene Zusage.
 Automatisierte Logik-, Physik- und DOM-Tests ersetzen weder die Prüfung der
@@ -672,49 +660,49 @@ Werkzeug-Pose, Handhaltung, Handgesten, Waffenwerte, Zielrichtung,
 Konfig-Code, den Lichtkegel der Taschenlampe, die Gürtel-Position samt der
 Spiegelung beider Hüften, die Portaltiefe, den Durchtritt durch ein Portal, die Grafikstufen, das Aussehen,
 den Ausschnitt der Karte in der Hand, die Lichtstufen
-des Dunkelhauses, den Halt an der Kletterwand samt Ausdauer und der Vibration
+eines Dimmers, den Halt an der Kletterwand samt Ausdauer und der Vibration
 dazu, die **Federung der Sprungkissen** (dass ein Sturz aus sieben Metern nicht
 durchschlägt und der Blick trotzdem nicht in einem Bild stehen bleibt),
 die Blätterposition der Menüs und den Weg durch sie, die
-Augenhöhen, die Vibrationsmuster, die beiden Justierstände im Eingaberaum samt
-der Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
+Augenhöhen, die Vibrationsmuster, die Feinjustage und
+die Rechnung hinter der Boxhand am Werkzeug, den Standardgriff, der bei jeder
 Haltung an derselben Stelle in der Faust landet, die Faust am Griff (eine
 Einstellung für alle Werkzeuge mit demselben Griff), die Räumung nach dem
 Loslassen (ob ein Ding noch im Spieler steckt), den Griff am Stiel des großen
 Hammers samt seiner zweihändigen Lage, die Fahrphysik,
-Streckenführung und Rundenzählung der Karts, das Pizza-Rezept, die Welt-Physik, die Rettung aus
+Streckenführung und Rundenzählung der Karts, die Welt-Physik, die Rettung aus
 der Tiefe, die **Bausteine auf dem Kachelgitter** (dass jeder in jeder der vier
 Richtungen auf seiner Kachel bleibt, dass keine Treppenstufe höher wird als der
-Spieler steigt) samt den Grundrissen der vier Welten, die darauf stehen (dass
-man vom Startzimmer in jedes Zimmer kommt und in Dust jedes Haus vom
-Erdgeschoss aufs Dach), die Stoppuhr-Einstellungen, den Markdown-Umbruch der Schilder samt
-ihrem Rollen und dem, was von ihnen über das Netz geht, die Türen des
-Interaktionslabors, die Pinselwerte (Breite, Art und die eigene
+Spieler steigt) samt dem **Grundriss der Testwelt** (dass jede der neun Zonen
+vom Startplatz aus zu erreichen ist und die Treppe wirklich auf dem Podest
+endet), das **Wand-Ghosting** (was zwischen Kamera und Figur steht und was
+nicht), die Stoppuhr-Einstellungen, den Markdown-Umbruch der Schilder samt
+ihrem Rollen und dem, was von ihnen über das Netz geht, die Türmathematik
+(dass eine Tür mit Nachlauf beim zweiten Druck die Uhr neu setzt statt
+zuzufallen), die Pinselwerte (Breite, Art und die eigene
 Farbreihe), die Materialien, die Dicke der Bodenplatte, den
 Kurzcode für ein einzelnes Werkzeug (samt der Zahlen, an denen seine Länge
-hängt), die Zuordnung von Stand zu Zielscheibe im Schießgang, den Chat-Verlauf
+hängt), die Trefferwertung des Schießstands, den Chat-Verlauf
 samt Putzen fremden Textes, die Wahl des Gastgebers einer geteilten Welt, die
 Auslegung der Hub-Gänge, die Flächen der Würfel (dass gegenüberliegende
 Seiten zusammen `n + 1` ergeben, wie auf einem echten Würfel), die Passung des
 Handschuhs auf die Knochen einer getrackten Hand, die **Messung dieser Knochen**
 (eine Hand aus bekannten Winkeln bauen und nachsehen, ob die Messung sie wieder
 herausgibt), die **Knochenfarben**, die geteilte Handhaltung auf
-dem Weg über die Leitung, die Maße des Poseraums, den **Bauplan des Editors**
+dem Weg über die Leitung, den **Bauplan des Editors**
 (worauf ein Zeiger trifft — Kachel oder Kante —, was die vier Werkzeuge daraus
 machen, und dass die gebauten Quader vom Abtasten wiedergefunden werden) samt
 der **Miniatur** (Hin und Zurück ohne Drift, und dass der Punkt zwischen den
 Fingern beim Ziehen liegen bleibt), dem **Malen** (dass zwischen zwei
 Bildern keine Lücke bleibt, und dass ein Rechteck aus Boden seine Fläche füllt,
 eines aus Wänden dagegen nur seinen Rand — sonst wäre es ein Klotz und kein
-Zimmer) und dem **Weltformat** (dass eine Welt mit Dach und Möbeln durch die
-Datei und wieder zurück dieselbe ist, dass der Aufschlag einer Küchenzeile
-dabei nicht jedes Mal mitwächst, und dass eine Datei aus der Zukunft abgelehnt
-statt halb geladen wird), **was ein NPC an einer Kante anfängt**
+Zimmer) und dem **Weltformat** (dass eine Welt mit Massen und Möbeln durch die
+Datei und wieder zurück dieselbe ist, dass der Fuß einer Treppenkachel dabei
+mitreist, dass der Aufschlag einer Küchenzeile
+nicht jedes Mal mitwächst, und dass eine Datei aus der Zukunft abgelehnt
+statt halb geladen wird) und **was ein NPC an einer Kante anfängt**
 (wie hoch er tritt, wie hoch er sich hochzieht, wie steil ein Weg für ihn noch
-einer ist und ab welcher Höhe ein Sprung nach unten ihn umbrächte) und das
-**ganze Navigationslabor auf einmal**
-(ein Körper mit Umfang und Drehrate läuft jede Bucht ab, und je Bucht prüft ein
-Kontrollpunkt, dass er den richtigen Weg genommen hat). Diese
+einer ist und ab welcher Höhe ein Sprung nach unten ihn umbrächte). Diese
 Module kommen ohne three.js und Rapier aus, deshalb braucht Jest weder WebGL
 noch WebXR. Was schwer zu testen ist, gehört möglichst in so ein Modul — der
 Rest bleibt Verdrahtung.
@@ -758,25 +746,26 @@ NPCs, durch dieselben Türen und Portale —, mit **Im Bereich** legt ein Tipp
 einen Kreis hin und die Liste zeigt nur noch, was darin (oder in Reichweite der
 Figur) zu drücken ist, und mit **Figur weg** steht man gar nicht erst in der
 Welt. Die Karte selbst hat zwei eigene Knöpfe: **Ziehen** schaltet zwischen
-Drehen und Schieben um, **Folgen** legt die Bildmitte auf die Figur. Im
-[Navigationslabor](https://baumgartner-games.github.io/vr/tools.html#welt/navlab)
+Drehen und Schieben um, **Folgen** legt die Bildmitte auf die Figur. In der
+[Testwelt](https://baumgartner-games.github.io/vr/tools.html#welt/test)
 ist das die ganze Brille, die man zum Zusehen braucht. Dazu der
 **Magische Beutel** (jedes Objekt mit Masse und Maßen) und die **NPCs** (jede
 Haut geht auf der Stelle, jedes Hirn mit seinen Zahlen daneben). Keine Brille
 nötig, das Telefon reicht.
 
 Und **Verbinden**: derselbe Raum-Code wie beim Zusammenspielen, aber ohne Spiel
-darin. Wer in der Brille im **Poseraum** _Handpose teilen_ drückt, dessen Hand
-steht hier live am Werkzeug — nur die eine Hand, nichts drumherum —, und ihr
-Konfig-Code steht darunter in einem Feld zum Herauskopieren. Details in
+darin — eine einzelne Hand am Werkzeug, live über die Leitung, mit ihrem
+Konfig-Code darunter in einem Feld zum Herauskopieren. Die Gegenstelle dazu war
+der Poseraum des Eingaberaums, und den gibt es seit dem Umbau nicht mehr;
+diese Seite hört weiter zu, es schickt bloß gerade niemand. Details in
 [AGENTS.md](AGENTS.md#die-werkzeugseite).
 
 ## Query-/Hash-Parameter
 
 | Parameter            | Wirkung                                                                                                                                                           |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `#portal`            | startet direkt in dieser Welt (jede Welt-ID funktioniert)                                                                                                         |
-| `?world=portal`      | dasselbe als Query-Parameter                                                                                                                                      |
+| `#test`              | startet direkt in dieser Welt (jede Welt-ID funktioniert: `hub`, `editor`, `test`, `haunting`)                                                                    |
+| `?world=test`        | dasselbe als Query-Parameter                                                                                                                                      |
 | `?room=mond-riff-47` | trägt den Raum-Code ins Verbindungs-Formular ein (Einladungslink) — unter `#haunting` in die Startseite der Runde, die ihn beim Verbinden auch selbst hier ablegt |
 | `?net=local`         | nutzt `BroadcastChannel` statt WebRTC — zwei Tabs auf einem Rechner                                                                                               |
 
@@ -788,10 +777,11 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------ |
 | Bewegen                       | linker Stick (reindrücken = Sprint)                                                                                                                                        | `WASD`, `Shift`                                                        | linker Touch-Stick       |
 | Umsehen                       | Kopf, rechter Stick = Snap-Turn                                                                                                                                            | Maus (Klick = Pointer-Lock)                                            | wischen                  |
-| Springen / Ducken             | `A` rechts / rechten Stick reindrücken                                                                                                                                     | `Leertaste`                                                            | –                        |
+| Springen / Ducken             | `A` rechts (springt nur, wenn nichts in Reichweite ist) / rechten Stick reindrücken                                                                                        | `Leertaste`                                                            | Knopf `A`, siehe links   |
 | Menü                          | Button an beiden Händen (immer nur eins offen)                                                                                                                             | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links      |
-| 2D von oben ↔ 3D              | –                                                                                                                                                                          | Startseite oder Menü → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger zoomen |
-| Benutzen (von oben)           | – (die Hand fasst selbst an)                                                                                                                                               | `E` oder Enter — ein Hinweis über der Figur sagt, was da ist           | Knopf `A`                |
+| Von oben ↔ Aus den Augen      | –                                                                                                                                                                          | Startseite oder Menü → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger in der oberen Hälfte zoomen |
+| Benutzen                      | `A` rechts — was in Reichweite steht, bekommt einen gelben Saum                                                                                                            | `E` oder Enter — ein Hinweis über der Figur sagt, was da ist           | Knopf `A`                |
+| Werkzeug wählen               | – (das Regal hängt am Handgelenk)                                                                                                                                          | Knopf unten rechts oder `Tab` — die Liste fängt mit _Hand (leer)_ an   | derselbe Knopf, antippen |
 | Zielen / Schießen (von oben)  | Trigger der Hand mit der Waffe                                                                                                                                             | Maus zielt, Linksklick schießt                                         | rechter Stick, Knopf `B` |
 | Auswählen                     | zielen + Trigger oder `A`                                                                                                                                                  | Linksklick                                                             | tippen                   |
 | Werkzeug nehmen/ablegen       | Grip an der Hüfte; woanders loslassen lässt es fallen                                                                                                                      | –                                                                      | –                        |
@@ -803,21 +793,19 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Sprechen                      | Menü → Verbindung → _Mikrofon_ — die Stimmen kommen aus der Richtung, in der die anderen stehen                                                                            | Panel _Verbindung_ → _Sprache_                                         | dito                     |
 | Werkzeug benutzen             | Trigger (Greifen = zweite Funktion)                                                                                                                                        | Links-/Rechtsklick                                                     | –                        |
 | Großer Hammer                 | irgendwo am Stiel greifen, zweite Hand dazu; Trigger halten schiebt die Hand am Stiel                                                                                      | –                                                                      | –                        |
-| Hängegleiter (Alpen)          | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; loslassen am Boden lässt ihn fallen                                                    | –                                                                      | –                        |
-| Flügel (Alpen)                | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve                                                                                      | –                                                                      | –                        |
+| Hängegleiter                  | Trigger = Anlauf; Bügel ziehen = schneller, drücken = langsamer, zur Seite = Kurve; loslassen am Boden lässt ihn fallen                                                    | –                                                                      | –                        |
+| Flügel                        | beide Arme schlagen = Start und Schub; ausbreiten = gleiten; eine Hand tiefer = Kurve                                                                                      | –                                                                      | –                        |
 | Taschenlampe                  | Trigger schaltet; andere Hand an der Linse zieht den Kegel breit/schmal                                                                                                    | –                                                                      | –                        |
 | Pinsel                        | Palette an der anderen Hand: antippen **oder** anzielen + Trigger; Regler für RGB und Strichbreite gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie          | Linksklick                                                             | –                        |
 | Staffelei                     | Trigger stellt sie auf den Boden und die Hand ist danach frei; Griff an der Ablage + Greifen nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel | –                                                                      | –                        |
 | Aufheben / werfen             | Grip mit leerer Hand am Objekt                                                                                                                                             | –                                                                      | –                        |
 | Ferngreifen                   | zielen, Grip, Hand zum Körper zucken (ab 8 m/s, einstellbar)                                                                                                               | –                                                                      | –                        |
-| Kart: einsteigen              | Lenkrad greifen (oder anzielen + Trigger)                                                                                                                                  | Lenkrad anklicken                                                      | –                        |
+| Kart: einsteigen              | davorstellen und `A` — oder das Lenkrad greifen                                                                                                                            | davorstellen und `E`                                                   | Knopf `A`                |
 | Kart: fahren                  | rechter Trigger Gas, linker bremst, linker Stick lenkt                                                                                                                     | `W`/`S`, `A`/`D`                                                       | –                        |
 | Kart: aussteigen              | `A`/`X` halten                                                                                                                                                             | `E` halten                                                             | –                        |
 | Kart: zu zweit                | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge                                                                                           | dito                                                                   | –                        |
-| Pizza: kneten                 | Faust auf den Teig auf dem Tisch schlagen                                                                                                                                  | –                                                                      | –                        |
-| Pizza: belegen                | Kelle/Streuer greifen, Trigger halten                                                                                                                                      | –                                                                      | –                        |
-| Handpose einmessen (Poseraum) | Werkzeug im Schwebekasten loslassen, blanke Hand daran, mit der Controller-Hand auf _Handpose teilen_ zeigen; deren Trigger speichert                                      | –                                                                      | –                        |
-| Schwebekasten feststellen     | Knopf _Schwebe_ an der Wand im Poseraum — was darin hängt, steht still und lässt sich nicht greifen                                                                        | –                                                                      | –                        |
+| Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`                                                                                         | dito; der Schrank öffnet die Umkleide mit der Figur daneben            | dito                     |
+| Gitterlinien                  | Menü → Grafik → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |
 | Zurücksetzen                  | `B` / `Y` oder Menü                                                                                                                                                        | `R` oder Menü                                                          | Menü                     |
 
 Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#steuerung).

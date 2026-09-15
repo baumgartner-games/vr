@@ -17,8 +17,8 @@ import { TextPlane } from '../../ui/TextPlane';
  * zwei Hände nimmt und im flachen Modus keine hat — größer, kleiner, drehen —
  * und der Weg zurück ins Level.
  *
- * Gebaut wie die Wandkonsole des Navigationslabors (`navlab/NavConsole.ts`) und
- * aus demselben Grund: Jede Taste trägt die Farbe dessen, was sie tut, groß
+ * Gebaut wie die Wandkonsolen, die früher im Navigationslabor hingen, und aus
+ * demselben Grund: Jede Taste trägt die Farbe dessen, was sie tut, groß
  * genug, dass man sie in der Brille trifft.
  */
 

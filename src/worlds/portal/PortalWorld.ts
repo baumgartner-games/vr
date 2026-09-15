@@ -254,6 +254,7 @@ import {
   SHOT_MARGIN,
   USE_CHEST,
   USE_RADIUS,
+  aimForward,
   markUsable,
   pickUsable,
   shotHitsUsable,
@@ -261,6 +262,8 @@ import {
   type Usable,
 } from '../../core/usable';
 import { ScreenHand } from './screenHand';
+import { Highlight } from '../../core/highlight';
+import type { ToolChoice, ToolOption } from '../../core/types';
 import { topDownPitch } from '../../core/topDownPose';
 import { overBudget, type LooseEntry } from './tools/looseBudget';
 import { findMaterial, isTransparent } from './tools/materials';
@@ -284,6 +287,18 @@ const USE_PROMPT_Y = 2.15;
 /** Zwischenlagen fürs Benutzen — Ort und Blickrichtung der Figur (`core/usable.ts`). */
 const _useAt = new THREE.Vector3();
 const _useForward = new THREE.Vector3();
+/** Wohin Figur und Kopf zeigen — `usable.aimForward` wählt aus beidem. */
+const _useRigAhead = new THREE.Vector3();
+const _useHeadAhead = new THREE.Vector3();
+/** Wo der Hinweis aus den Augen steht: vor dem Gesicht statt über dem Kopf. */
+const _promptAt = new THREE.Vector3();
+const _promptAhead = new THREE.Vector3();
+/**
+ * Wie weit vor dem Auge der Hinweis steht und wie weit unter der Blickachse,
+ * in Metern — tief genug, dass er nicht vor dem steht, worum es geht.
+ */
+const USE_PROMPT_AHEAD = 1.4;
+const USE_PROMPT_DROP = 0.4;
 const _useCentre = new THREE.Vector3();
 const _useFlight = new THREE.Vector3();
 const _useBox = new THREE.Box3();
@@ -769,6 +784,29 @@ export class PortalWorld implements World {
   /** Der Hinweis über der Figur (_E · Knopf drücken_), solange einer ansteht. */
   private usePromptPlane: TextPlane | null = null;
   private usePromptText = '';
+  /**
+   * **Der gelbe Saum um das, was `A` gerade meint** (`core/highlight.ts`).
+   *
+   * Er hängt an der Welt und nicht am Ding: Genau eines leuchtet, und wer
+   * die Welt verlässt, nimmt ihn mit (`dispose`).
+   */
+  private readonly highlighter = new Highlight(this.root);
+  /**
+   * **Was der Spieler am Bildschirm gewählt hat** (`#hud-tool`).
+   *
+   * `undefined` heißt: noch nichts gewählt — dann gilt, was die Welt vorsieht
+   * (`defaultScreenTool`), und für alles Bestehende ändert sich nichts.
+   * `null` ist eine Wahl und heißt leere Hand.
+   */
+  private toolPick: string | null | undefined = undefined;
+  /**
+   * Die Liste hinter dem Knopf, einmal gebaut.
+   *
+   * Einmal, weil sie Werkzeuge baut, um an Beschriftung und Ikone zu kommen
+   * (`tool`) — dasselbe tut das Regal am Handgelenk beim Weltstart auch. Je
+   * Bild neu wäre es ein Ruckler pro Bild.
+   */
+  private toolOptions: ToolOption[] | null = null;
   /** Keyed by hand, plus a `:far` probe for the half that is through a portal. */
   private readonly probes = new Map<string, HandProbe>();
   private readonly grabs = new Map<Handedness, HandGrab>();
@@ -1098,7 +1136,7 @@ export class PortalWorld implements World {
     this.portalRed.setTime(this.time);
 
     this.updateTools(dt, ctx);
-    this.updateUsables(ctx);
+    this.updateUsables(dt, ctx);
     this.updateGrabs(dt, ctx);
     this.updateFoam(dt);
     this.updateGhosts(ctx);
@@ -3347,6 +3385,9 @@ export class PortalWorld implements World {
     this.screenHand = null;
     ctx.avatar.screenHand = null;
     for (const entry of [...this.usables]) this.removeUsable(entry.object);
+    // Der Saum hängt an einem Ding der Welt und darf ihr nicht folgen.
+    this.highlighter.dispose();
+    ctx.rig.useCandidate = false;
     this.usePromptPlane?.dispose();
     this.usePromptPlane?.removeFromParent();
     this.usePromptPlane = null;
@@ -4486,10 +4527,12 @@ export class PortalWorld implements World {
    * Ein **Raumstück ohne Schwerkraft**: was darin losgelassen wird, bleibt
    * hängen.
    *
-   * Der Poseraum im Eingaberaum stellt eines auf (`tune/HoverBox.ts`), und der
-   * Grund dafür ist eine Messung: eine Handhaltung an einem Werkzeug stellt
-   * man ein, indem man die Hand daran legt — und dazu muss das Werkzeug
-   * stillstehen, und zwar dort, wo man es haben will, nicht auf dem Boden.
+   * Gebaut wurde das für den Poseraum des Eingaberaums, und der Grund dafür
+   * war eine Messung: eine Handhaltung an einem Werkzeug stellt man ein,
+   * indem man die Hand daran legt — und dazu muss das Werkzeug stillstehen,
+   * und zwar dort, wo man es haben will, nicht auf dem Boden. Die Welt ist
+   * seit September 2026 gelöscht; die Zone steht weiter da, weil sie keine
+   * Welt kennt und jede sie aufmachen darf.
    *
    * Eine **Zone** und kein Sonderfall im Loslassen, weil es sonst zwei wären:
    * ein Werkzeug fliegt über `releaseTool` aus der Hand, ein Gegenstand über
@@ -7431,29 +7474,50 @@ export class PortalWorld implements World {
     return pick.candidate.usable.use({ kind: 'player', at: _useAt, forward: _useForward });
   }
 
-  /** Wo die Figur steht und wohin sie schaut — die zwei Zahlen hinter E5. */
+  /**
+   * **Wo die Figur steht und wohin sie schaut** — die zwei Zahlen hinter E5,
+   * und die zweite hängt an der Ansicht (`usable.aimForward`).
+   *
+   * Von oben dreht die Steuerung die ganze Figur zum Ziel, also zeigt das Rig.
+   * Aus den Augen und in der Brille steht sie still und sieht sich um, also
+   * zeigt der Kopf — wer dort einen Knopf ansieht, meint ihn und nicht das,
+   * wohin seine Füße stehen.
+   */
   private aimUse(ctx: WorldContext): void {
     ctx.rig.updateMatrixWorld(true);
     _useAt.set(ctx.rig.position.x, ctx.rig.getFloorY() + USE_CHEST, ctx.rig.position.z);
-    _useForward.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_quaternion));
+    _useRigAhead.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_quaternion));
+    ctx.rig.getHeadForward(_useHeadAhead);
+    aimForward(ctx.topDown, _useRigAhead, _useHeadAhead, _useForward);
   }
 
   /**
-   * Je Bild einmal: die Anforderung des Rigs abholen und den Hinweis über der
-   * Figur nachführen.
+   * **Je Bild einmal**: die Anforderung des Rigs abholen, das Gewählte
+   * hervorheben und den Hinweis nachführen.
+   *
+   * Und dem Gestell sagen, **ob** etwas dasteht (`PlayerRig.useCandidate`):
+   * Daran hängt, ob `A` benutzt oder springt — in der Brille wie am Schirm.
+   * Ohne diese eine Zeile spränge man in der Brille vor jeder Tür, statt sie
+   * aufzumachen.
    */
-  private updateUsables(ctx: WorldContext): void {
+  private updateUsables(dt: number, ctx: WorldContext): void {
     if (ctx.rig.takeUse()) this.useForward(ctx);
     this.aimUse(ctx);
 
-    // Der Hinweis gibt es nur von oben: Aus den Augen sieht man, was man
-    // anfasst, und in der Brille liegt die Hand darauf.
-    if (!ctx.topDown || this.usables.length === 0) {
-      this.showUsePrompt(ctx, '');
-      return;
-    }
-    const pick = pickUsable(this.collectUsables(), _useAt, _useForward);
-    this.showUsePrompt(ctx, pick?.candidate.usable.usePrompt?.() ?? '');
+    const pick =
+      this.usables.length > 0 ? pickUsable(this.collectUsables(), _useAt, _useForward) : null;
+    ctx.rig.useCandidate = pick !== null;
+
+    // **Hervorgehoben wird überall** — auch in der Brille: Dort ist der Saum
+    // die ganze Auskunft, denn einen Hinweis über dem eigenen Kopf liest
+    // niemand, der selbst in der Welt steht.
+    this.highlighter.highlight(pick?.candidate.object ?? null);
+    this.highlighter.update(dt);
+
+    // Der Hinweis dagegen gehört den Bildschirmansichten: von oben über der
+    // Figur, aus den Augen vor dem Gesicht (`showUsePrompt`).
+    const prompt = ctx.renderer.xr.isPresenting ? '' : (pick?.candidate.usable.usePrompt?.() ?? '');
+    this.showUsePrompt(ctx, prompt);
   }
 
   /** Die Liste als Kandidaten für die Auswahl — Weltpositionen, je Bild frisch. */
@@ -7492,7 +7556,6 @@ export class PortalWorld implements World {
     if (!plane) {
       plane = new TextPlane({ width: 1.1, height: 0.26, title: '', align: 'center' });
       plane.name = 'use-prompt';
-      plane.rotation.set(topDownPitch(), 0, 0);
       this.root.add(plane);
       this.usePromptPlane = plane;
     }
@@ -7502,7 +7565,27 @@ export class PortalWorld implements World {
       this.usePromptText = label;
     }
     plane.visible = true;
-    plane.position.set(ctx.rig.position.x, ctx.rig.getFloorY() + USE_PROMPT_Y, ctx.rig.position.z);
+    if (ctx.topDown) {
+      plane.rotation.set(topDownPitch(), 0, 0);
+      plane.position.set(
+        ctx.rig.position.x,
+        ctx.rig.getFloorY() + USE_PROMPT_Y,
+        ctx.rig.position.z,
+      );
+      return;
+    }
+    // **Aus den Augen steht er vor dem Gesicht.** Über dem eigenen Kopf hinge
+    // er dort, wo man als Einziger nicht hinsieht — der eigene Körper ist das
+    // Einzige in der Welt, das man nie zu sehen bekommt. Also eine
+    // Handbreit unter der Blickachse, gut einen Meter voraus, dem Auge
+    // zugewandt.
+    ctx.rig.getHeadPosition(_promptAt);
+    ctx.rig.getHeadForward(_promptAhead);
+    plane.position
+      .copy(_promptAt)
+      .addScaledVector(_promptAhead, USE_PROMPT_AHEAD)
+      .setY(_promptAt.y - USE_PROMPT_DROP);
+    plane.lookAt(_promptAt);
   }
 
   /**
@@ -7518,17 +7601,9 @@ export class PortalWorld implements World {
     const hand = this.screenHand;
     if (!wanted) {
       if (!hand) return;
-      // Was in dieser Hand lag, ist mit ihr entstanden und geht mit ihr — **nicht**
-      // an den Gürtel: Dort hängt schon, was die Welt dort haben will
-      // (`beltLoadout`), und eine Pistole, die sich beim Umschalten der Ansicht
-      // auf eine Hüfte drängt, schiebt das Schild des Labors ins Nichts.
-      const tool = this.held.get('right');
-      if (tool) {
-        this.held.delete('right');
-        tool.heldBy = null;
-        if (this.host) tool.onStow(this.host);
-        this.retireTool(tool);
-      }
+      // Was in dieser Hand lag, ist mit ihr entstanden und geht mit ihr
+      // (`dropScreenTool`).
+      this.dropScreenTool();
       hand.dispose();
       this.screenHand = null;
       ctx.avatar.screenHand = null;
@@ -7546,15 +7621,110 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Was am Schirm in der rechten Hand liegt**, von oben — die Id eines
-   * Werkzeugs oder `null` für leere Hände.
+   * **Was am Schirm in der rechten Hand liegt** — die Id eines Werkzeugs oder
+   * `null` für die leere Hand.
    *
-   * Die Pistole, weil der Linksklick der Trigger dieser Hand ist und ein
-   * Trigger ohne Waffe nichts bedeutet (Plan, E5). Eine Welt, in der geschossen
-   * nichts zu suchen hat, sagt hier etwas anderes oder `null`.
+   * Das ist jetzt die **Wahl des Spielers** (`#hud-tool`, `toolChoice`), und
+   * nur solange er keine getroffen hat, die Vorgabe der Welt. So bleibt alles
+   * wie es war, bis jemand den Knopf drückt.
    */
   protected screenTool(): string | null {
+    return this.toolPick === undefined ? this.defaultScreenTool() : this.toolPick;
+  }
+
+  /**
+   * **Womit die Bildschirmhand anfängt.**
+   *
+   * Die Pistole, weil der Linksklick der Trigger dieser Hand ist und ein
+   * Trigger ohne Waffe nichts bedeutet (Plan, E5). Eine Welt, in der
+   * geschossen nichts zu suchen hat, sagt hier etwas anderes oder `null`.
+   */
+  protected defaultScreenTool(): string | null {
     return 'pistol';
+  }
+
+  /**
+   * **Die Werkzeugwahl am Bildschirm** (`core/types.ToolChoice`) — was `App`
+   * in den runden Knopf unten rechts schreibt.
+   *
+   * Angeboten wird, was die Welt an den Gürtel hängt (`beltLoadout`), und
+   * davor das, was ohnehin in der Hand liegt; eine Welt ganz ohne Gürtel
+   * bekommt das ganze Regal (`TOOL_IDS`). Beschriftung und Ikone kommen vom
+   * Werkzeug selbst — dieselben wie im Regal am Handgelenk.
+   */
+  toolChoice(): ToolChoice | null {
+    // Erst wenn die Welt steht: Die Liste baut Werkzeuge, um an Beschriftung
+    // und Ikone zu kommen, und `App` fragt schon, während `init` noch läuft.
+    if (!this.context) return null;
+    const options = (this.toolOptions ??= this.buildToolOptions());
+    if (options.length === 0) return null;
+    this.choice.options = options;
+    this.choice.current = this.screenTool();
+    return this.choice;
+  }
+
+  /** Das Ding, das `App` jedes Bild liest — eines und nicht jedes Bild ein neues. */
+  private readonly choice: ToolChoice = {
+    current: null,
+    options: [],
+    choose: (id) => this.chooseScreenTool(id),
+  };
+
+  private buildToolOptions(): ToolOption[] {
+    const ids: string[] = [];
+    const add = (id: string | null): void => {
+      if (id && !ids.includes(id)) ids.push(id);
+    };
+    // Was schon in der Hand liegt, steht oben: Es ist die Zeile, auf die man
+    // zurückkommt, wenn man die Hand wieder füllen will.
+    add(this.defaultScreenTool());
+    for (const [id] of this.beltLoadout()) add(id);
+    if (ids.length === 0) for (const id of TOOL_IDS) add(id);
+
+    const options: ToolOption[] = [];
+    for (const id of ids) {
+      const tool = this.tool(id);
+      options.push({
+        id,
+        label: tool?.label ?? id,
+        ...(tool?.icon ? { icon: tool.icon } : {}),
+        ...(tool?.accent !== undefined ? { accent: tool.accent } : {}),
+      });
+    }
+    return options;
+  }
+
+  /**
+   * **Ein Tipp in der Liste** — das Werkzeug wechselt sofort.
+   *
+   * Sofort, weil ein Knopf, dessen Wirkung erst beim nächsten
+   * Ansichtswechsel eintritt, kaputt aussieht. Liegt gerade keine
+   * Bildschirmhand auf (aus den Augen, in der Brille), wird die Wahl nur
+   * gemerkt und gilt, sobald es wieder eine gibt.
+   */
+  private chooseScreenTool(id: string | null): void {
+    if (this.toolPick !== undefined && id === this.toolPick) return;
+    this.toolPick = id;
+    const ctx = this.context;
+    const hand = this.screenHand;
+    if (!ctx || !hand) return;
+    this.dropScreenTool();
+    const tool = id ? this.freshTool(id) : null;
+    if (tool) this.takeTool(ctx, hand.state, tool);
+  }
+
+  /**
+   * Was in der Bildschirmhand lag, geht weg — **nicht** an den Gürtel: Dort
+   * hängt schon, was die Welt dort haben will, und eine Pistole, die sich beim
+   * Ablegen auf eine Hüfte drängt, schiebt das Schild des Labors ins Nichts.
+   */
+  private dropScreenTool(): void {
+    const tool = this.held.get('right');
+    if (!tool) return;
+    this.held.delete('right');
+    tool.heldBy = null;
+    if (this.host) tool.onStow(this.host);
+    this.retireTool(tool);
   }
 
   /**

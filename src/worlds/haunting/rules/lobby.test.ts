@@ -1,5 +1,4 @@
 import {
-  FLAT_STORAGE,
   INTENTS,
   LOBBY_STORAGE,
   applyIntent,
@@ -10,7 +9,6 @@ import {
   readLobby,
   saveLobby,
   startLabel,
-  viewSwap,
 } from './lobby';
 import { defaultSetup, withPower, withWho } from './roundSetup';
 
@@ -29,36 +27,10 @@ function fakeStorage(
 }
 
 describe('lobby', () => {
-  test('der Anfang: spielen, die Ansicht hängt am Gerät — und das Telefon sieht zu', () => {
-    expect(defaultLobby('handheld')).toEqual({
-      intent: 'play',
-      view: '2d',
-      me: 'watch:technician',
-    });
-    expect(defaultLobby('desktop')).toEqual({ intent: 'play', view: '3d', me: 'technician' });
-    expect(defaultLobby('vr')).toEqual({ intent: 'play', view: '3d', me: 'technician' });
-  });
-
-  test('was die Startseite unter „2D oder 3D" gemerkt hat, schlägt die Regel nach Gerät', () => {
-    // Ein Schreibtisch, der 2D will, sieht dem Techniker zu — wie ein Telefon.
-    expect(defaultLobby('desktop', '2d')).toEqual({
-      intent: 'play',
-      view: '2d',
-      me: 'watch:technician',
-    });
-    // Ein Telefon, das 3D will, ist der Techniker im Schiff.
-    expect(defaultLobby('handheld', '3d')).toEqual({
-      intent: 'play',
-      view: '3d',
-      me: 'technician',
-    });
-    // Nichts gemerkt: die Regel nach Gerät.
-    expect(defaultLobby('handheld', null)).toEqual(defaultLobby('handheld'));
-    // Und ein gemerkter Stand der Lobby geht immer vor.
-    expect(readLobby({ intent: 'play', view: '3d', me: 'red' }, null, 'desktop', '2d').view).toBe(
-      '3d',
-    );
-    expect(loadLobby(null, 'desktop', '2d').view).toBe('2d');
+  test('der Anfang: spielen — und das Telefon sieht zu', () => {
+    expect(defaultLobby('handheld')).toEqual({ intent: 'play', me: 'watch:technician' });
+    expect(defaultLobby('desktop')).toEqual({ intent: 'play', me: 'technician' });
+    expect(defaultLobby('vr')).toEqual({ intent: 'play', me: 'technician' });
   });
 
   test('spielen als Techniker: ich am Stock, Monster an — ein ausgeschaltetes kommt zurück', () => {
@@ -145,55 +117,37 @@ describe('lobby', () => {
     expect(startLabel(withWho(setup, 'monster', 'off'))).toBe('Test starten');
   });
 
-  test('fremder Text wird gelesen, Unbekanntes ersetzt', () => {
-    expect(readLobby(null)).toEqual({ intent: 'play', view: '3d', me: 'technician' });
-    expect(readLobby(null, null, 'handheld')).toEqual({
-      intent: 'play',
-      view: '2d',
-      me: 'watch:technician',
-    });
+  test('fremder Text wird gelesen, Unbekanntes ersetzt — und ein altes Feld für die Ansicht vergessen', () => {
+    expect(readLobby(null)).toEqual({ intent: 'play', me: 'technician' });
+    expect(readLobby(null, 'handheld')).toEqual({ intent: 'play', me: 'watch:technician' });
+    // Die Karte von oben ist weg; ein gemerktes `view` reist nicht mehr mit.
     expect(readLobby({ intent: 'watch', view: '2d', me: 'red' })).toEqual({
       intent: 'watch',
-      view: '2d',
       me: 'red',
     });
     expect(readLobby({ intent: 'zuhause', view: '4d', me: 'drone' })).toEqual({
       intent: 'play',
-      view: '3d',
       me: 'technician',
     });
-    expect(readLobby('kein Objekt')).toEqual({ intent: 'play', view: '3d', me: 'technician' });
-  });
-
-  test('der alte Schalter zählt einmal — und nur, solange die Lobby nichts weiß', () => {
-    expect(readLobby(null, '1').view).toBe('2d');
-    expect(readLobby(null, '0', 'handheld').view).toBe('3d');
-    expect(readLobby({ intent: 'play', view: '3d' }, '1').view).toBe('3d');
+    expect(readLobby('kein Objekt')).toEqual({ intent: 'play', me: 'technician' });
   });
 
   test('aus dem Speicher gelesen, in den Speicher geschrieben', () => {
-    const storage = fakeStorage({ [FLAT_STORAGE]: '1' });
-    expect(loadLobby(storage)).toEqual({ intent: 'play', view: '2d', me: 'technician' });
-    saveLobby({ intent: 'train', view: '3d', me: 'blue' }, storage);
-    expect(loadLobby(storage)).toEqual({ intent: 'train', view: '3d', me: 'blue' });
-    expect(storage.store.get(FLAT_STORAGE)).toBe('1');
+    const storage = fakeStorage();
+    expect(loadLobby(storage)).toEqual({ intent: 'play', me: 'technician' });
+    saveLobby({ intent: 'train', me: 'blue' }, storage);
+    expect(loadLobby(storage)).toEqual({ intent: 'train', me: 'blue' });
     expect(JSON.parse(storage.store.get(LOBBY_STORAGE) ?? 'null')).toEqual({
       intent: 'train',
-      view: '3d',
       me: 'blue',
     });
   });
 
   test('Speicher fehlt oder ist kaputt: dann eben von vorn', () => {
-    expect(loadLobby(null)).toEqual({ intent: 'play', view: '3d', me: 'technician' });
-    expect(loadLobby(null, 'handheld')).toEqual({
-      intent: 'play',
-      view: '2d',
-      me: 'watch:technician',
-    });
+    expect(loadLobby(null)).toEqual({ intent: 'play', me: 'technician' });
+    expect(loadLobby(null, 'handheld')).toEqual({ intent: 'play', me: 'watch:technician' });
     expect(loadLobby(fakeStorage({ [LOBBY_STORAGE]: '{kaputt' }))).toEqual({
       intent: 'play',
-      view: '3d',
       me: 'technician',
     });
     const angry = {
@@ -204,85 +158,42 @@ describe('lobby', () => {
         throw new Error('kein Speicher in diesem Fenster');
       },
     } as unknown as Storage;
-    expect(loadLobby(angry, 'handheld')).toEqual({
-      intent: 'play',
-      view: '2d',
-      me: 'watch:technician',
-    });
-    expect(() => saveLobby({ intent: 'play', view: '2d', me: 'red' }, angry)).not.toThrow();
+    expect(loadLobby(angry, 'handheld')).toEqual({ intent: 'play', me: 'watch:technician' });
+    expect(() => saveLobby({ intent: 'play', me: 'red' }, angry)).not.toThrow();
   });
 });
 
 /**
- * **Was ein Tipp auf „2D ↔ 3D" mitten in der Runde bedeutet** (`viewSwap`).
- *
- * Die zwei Fehler, wegen derer diese Rechnung eine eigene Funktion ist: Dem
- * Zuschauer wurde der Knopf angeboten und dann abgewiesen, und solange die
- * Bot-Runde in 2D lief, hielt die Welt sich für „schon in 3D".
+ * **Die zwei Web-Wege der Startseite** (`arriveAs`): „Web 3D" heißt Techniker
+ * im Schiff, „2D Einsatzzentrale" heißt ein Platz in der Zentrale. Eine
+ * Ansicht wählt die Lobby seit dem 1-m-Gitter nicht mehr — von oben oder aus
+ * den Augen ist _Menü → Ansicht_, wie in jeder Welt.
  */
 describe('arriveAs', () => {
   test('„Web 3D" macht dieses Gerät zum Techniker im Schiff — egal, was es war', () => {
     expect(arriveAs({ ...defaultLobby('handheld') }, 'technician')).toMatchObject({
       me: 'technician',
-      view: '3d',
     });
     expect(arriveAs({ ...defaultLobby('desktop'), me: 'red' }, 'technician').me).toBe('technician');
   });
 
-  test('die 2D-Zentrale lässt einen gemerkten Platz stehen — und ist die Karte von oben', () => {
+  test('die 2D-Zentrale lässt einen gemerkten Platz stehen', () => {
     expect(arriveAs({ ...defaultLobby('handheld'), me: 'red' }, 'centre').me).toBe('red');
     expect(arriveAs({ ...defaultLobby('handheld'), me: 'monster' }, 'centre').me).toBe('monster');
     expect(arriveAs({ ...defaultLobby('desktop'), me: 'watch:all' }, 'centre')).toMatchObject({
       me: 'watch:all',
-      view: '2d',
     });
   });
 
   test('wer als Techniker gemerkt war, fängt in der Zentrale wie ein Telefon an', () => {
     const choice = defaultLobby('desktop');
     expect(choice.me).toBe('technician');
-    expect(arriveAs(choice, 'centre')).toEqual({ ...choice, me: 'watch:technician', view: '2d' });
+    expect(arriveAs(choice, 'centre')).toEqual({ ...choice, me: 'watch:technician' });
   });
 
   test('die Absicht bleibt, wie sie war', () => {
-    const choice = { ...defaultLobby('desktop'), intent: 'train' as const, view: '2d' as const };
-    expect(arriveAs(choice, 'technician')).toEqual({ ...choice, me: 'technician', view: '3d' });
+    const choice = { ...defaultLobby('desktop'), intent: 'train' as const };
+    expect(arriveAs(choice, 'technician')).toEqual({ ...choice, me: 'technician' });
     expect(arriveAs(choice, 'centre')).toEqual({ ...choice, me: 'watch:technician' });
-  });
-});
-
-describe('viewSwap', () => {
-  const base = {
-    now: '2d' as const,
-    want: '3d' as const,
-    demo: false,
-    technician: true,
-    presenting: false,
-  };
-
-  it('tut nichts, wenn die Ansicht schon steht', () => {
-    expect(viewSwap({ ...base, want: '2d' })).toBe('same');
-  });
-
-  it('kennt in der Brille keine Karte von oben', () => {
-    expect(viewSwap({ ...base, now: '3d', want: '2d', presenting: true })).toBe('xr');
-  });
-
-  it('lässt den Techniker dieselbe Runde von der anderen Seite spielen', () => {
-    expect(viewSwap(base)).toBe('handover');
-    expect(viewSwap({ ...base, now: '3d', want: '2d' })).toBe('handover');
-  });
-
-  it('lässt den Zuschauer die Vorführung wechseln — in beide Richtungen', () => {
-    expect(viewSwap({ ...base, demo: true, technician: false })).toBe('demo');
-    expect(viewSwap({ ...base, now: '3d', want: '2d', demo: true, technician: false })).toBe(
-      'demo',
-    );
-  });
-
-  it('weist ab, wer weder Techniker noch Zuschauer einer Vorführung ist', () => {
-    // Das Monster am Stock und der Zuschauer einer **echten** Runde im Netz:
-    // Wer wechselte, sähe der Runde eines anderen von innen zu.
-    expect(viewSwap({ ...base, technician: false })).toBe('blocked');
   });
 });

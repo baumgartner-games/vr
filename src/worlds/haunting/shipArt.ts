@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PLAN_DOOR_H, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
-import { DIRS, TILE, dirX, dirZ } from '../nav/navTile';
+import { DIRS, TILE, dirX, dirZ, type Dir } from '../nav/navTile';
 import {
   APRON,
   MARKS,
@@ -117,7 +117,7 @@ export function roomAccent(kind: string): number {
   return colors[kind] ?? SHIP.cyan;
 }
 
-/** Physical floor, hull and equipment all share the same 2.5-metre tile system. */
+/** Physical floor, hull and equipment all share the same one-metre tile system. */
 export function buildShip(spec: HouseSpec): THREE.Group {
   const group = new THREE.Group();
   group.name = 'station-hull-details';
@@ -155,20 +155,16 @@ function floor(batch: ShipBatch, rect: Rect, accent = SHIP.cyan, circulation = f
   for (const tile of tilesOf(rect)) {
     const x = (tile.x + 0.5) * TILE,
       z = (tile.z + 0.5) * TILE;
-    // The navigation grid is 2.5m; visible deck plates are human-scale 0.83m.
+    // Eine Kachel ist ein Meter, und das ist die Deckplatte: eine je Kachel,
+    // im Schachbrett gefärbt. Neun Platten je Kachel (0,83 m auf dem alten
+    // 2,5-m-Gitter) wären auf viereinhalbtausend Kacheln vierzigtausend
+    // Quader in einem Netz — für ein Bild, das aus Augenhöhe niemand sieht.
     batch.box(SHIP.dark, [TILE - 0.025, 0.018, TILE - 0.025], [x, 0.017, z]);
-    const plate = TILE / 3;
-    for (let column = 0; column < 3; column++)
-      for (let row = 0; row < 3; row++) {
-        const px = x + (column - 1) * plate,
-          pz = z + (row - 1) * plate;
-        batch.box(
-          (column + row + tile.x + tile.z) % 2 === 0 ? SHIP.deck : SHIP.trim,
-          [plate - 0.025, 0.013, plate - 0.025],
-          [px, 0.033, pz],
-        );
-      }
-    batch.box(SHIP.hull, [0.17, 0.008, 0.015], [x, 0.043, z + TILE / 2 - 0.1]);
+    batch.box(
+      (tile.x + tile.z) % 2 === 0 ? SHIP.deck : SHIP.trim,
+      [TILE - 0.06, 0.013, TILE - 0.06],
+      [x, 0.033, z],
+    );
     const edge = tile.z === rect.z || tile.z === rect.z + rect.d - 1;
     if (edge) {
       const toward = tile.z === rect.z ? -1 : 1;
@@ -293,42 +289,65 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
         y,
         z - Math.sin(yaw) * u + Math.cos(yaw) * v,
       ];
-      const opening =
+      const openingAt = (side: Dir): boolean =>
         spec.doors.some(
           (door) =>
-            (door.x === tile.x && door.z === tile.z && door.dir === dir) ||
+            (door.x === tile.x && door.z === tile.z && door.dir === side) ||
             (door.x + dirX(door.dir) === tile.x &&
               door.z + dirZ(door.dir) === tile.z &&
-              (door.dir + 2) % 4 === dir),
+              (door.dir + 2) % 4 === side),
         ) ||
         spec.windows.some(
-          (window) => window.x === tile.x && window.z === tile.z && window.dir === dir,
+          (window) => window.x === tile.x && window.z === tile.z && window.dir === side,
         );
+      const opening = openingAt(dir);
+      // **Die Ecke an einer Tür bleibt frei.** Seit die Tür eine ganze
+      // Kachelkante breit ist (`STATION_DOOR_W`), reicht ihre Öffnung bis in
+      // die Ecke; was an der Wand daneben hängt, ragte sonst in den
+      // Durchgang. `u` läuft für Wand `dir` auf die Ecke mit Wand `dir + 1`
+      // zu (`local`), also wird dort und am anderen Ende je ein Stück
+      // ausgelassen, wenn an dieser Ecke eine Tür steht.
+      const cut = 0.34;
+      const cutPlus = openingAt(((dir + 1) % 4) as Dir) ? cut : 0,
+        cutMinus = openingAt(((dir + 3) % 4) as Dir) ? cut : 0;
+      const span = (length: number): [number, number] => [
+        length - cutMinus - cutPlus,
+        (cutMinus - cutPlus) / 2,
+      ];
+      // Ein Pfosten je Meter Wand, an der Kante der Kachel: Die Pfosten der
+      // Nachbarkacheln stoßen aneinander und werden zusammen zu einem.
       const face = PLAN_WALL_T / 2,
-        post = TILE / 2 - 0.19;
-      for (const u of [-post, post]) {
+        post = TILE / 2 - 0.05;
+      for (const u of [-post + cutMinus, post - cutPlus]) {
         batch.box(SHIP.trim, [0.1, 2.2, 0.11], local(u, 1.15, face + 0.065), false, yaw);
         // Angled shoulders and rounded conduit break the rectangular wall silhouette.
         batch.box(SHIP.trim, [0.1, 0.28, 0.1], local(u, 2.42, face + 0.1), false, yaw, Math.PI / 5);
       }
       if (!opening) {
-        batch.box(SHIP.hull, [TILE - 0.48, 1.41, 0.032], local(0, 1.365, face + 0.021), false, yaw);
+        const panel = (colour: number, size: Triplet, y: number, depth: number): void => {
+          const [length, centre] = span(size[0]);
+          batch.box(colour, [length, size[1], size[2]], local(centre, y, face + depth), false, yaw);
+        };
+        panel(SHIP.hull, [TILE - 0.2, 1.41, 0.032], 1.365, 0.021);
         // Broad department colour, inset seams and a kick plate make the ship's
         // rooms readable at a glance, without adding decorative floor obstacles.
-        batch.box(accent, [TILE - 0.48, 0.29, 0.037], local(0, 0.705, face + 0.044), false, yaw);
-        batch.box(SHIP.dark, [TILE - 0.42, 0.2, 0.051], local(0, 0.18, face + 0.032), false, yaw);
-        for (const u of [-0.64, 0.64])
-          batch.box(SHIP.trim, [0.026, 0.64, 0.018], local(u, 1.35, face + 0.047), false, yaw);
-        batch.box(SHIP.hull, [0.24, 0.065, 0.021], local(0.62, 1.92, face + 0.066), false, yaw);
-        batch.box(SHIP.trim, [TILE - 0.46, 0.11, 0.043], local(0, 0.42, face + 0.03), false, yaw);
-        batch.box(SHIP.dark, [TILE - 0.63, 0.075, 0.044], local(0, 1.84, face + 0.044), false, yaw);
+        panel(accent, [TILE - 0.2, 0.29, 0.037], 0.705, 0.044);
+        panel(SHIP.dark, [TILE - 0.16, 0.2, 0.051], 0.18, 0.032);
+        panel(SHIP.trim, [TILE - 0.18, 0.11, 0.043], 0.42, 0.03);
+        panel(SHIP.dark, [TILE - 0.3, 0.075, 0.044], 1.84, 0.044);
         // One small low-level status marker is visible during a total blackout.
-        batch.box(accent, [0.17, 0.015, 0.012], local(-post + 0.23, 0.31, face + 0.055), true, yaw);
+        batch.box(
+          accent,
+          [0.17, 0.015, 0.012],
+          local(-post + cutMinus + 0.23, 0.31, face + 0.055),
+          true,
+          yaw,
+        );
       }
       // Everything crossing the wall segment is above the actual door head.
       batch.box(
         SHIP.hull,
-        [TILE - 0.32, 0.13, 0.12],
+        [TILE - 0.12, 0.13, 0.12],
         local(0, PLAN_WALL_H - 0.19, face + 0.085),
         false,
         yaw,
@@ -337,7 +356,7 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
       batch.pipe(
         SHIP.trim,
         0.032,
-        TILE - 0.39,
+        TILE - 0.14,
         local(0, PLAN_WALL_H - 0.42, face + 0.09),
         dirX(dir) === 0,
       );
@@ -364,9 +383,15 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
   for (const side of [0, 1]) {
     const tileX = closedTileX(spec, room, side ? 2 : 0);
     if (tileX === null) continue;
-    const sign = label(signText, 2.25, 0.42, accent);
+    // Nicht breiter als die Wand, und ganz im Raum: Ein Gang von zwei Kacheln
+    // trägt ein kürzeres Schild, statt eines, das um die Ecke ragt.
+    const width = Math.min(2.25, room.rect.w * TILE - 0.3);
+    if (width < 0.8) continue;
+    const sign = label(signText, width, 0.42, accent);
+    const left = room.rect.x * TILE + width / 2 + 0.05,
+      right = (room.rect.x + room.rect.w) * TILE - width / 2 - 0.05;
     sign.position.set(
-      (tileX + 0.5) * TILE,
+      Math.max(left, Math.min(right, (tileX + 0.5) * TILE)),
       2.39,
       (room.rect.z + (side ? room.rect.d : 0)) * TILE + (side ? -1 : 1) * (PLAN_WALL_T / 2 + 0.24),
     );
@@ -458,17 +483,20 @@ function buildCommandHull(): THREE.Group {
   const south = (APRON.z + APRON.d) * TILE,
     centreX = (APRON.x + APRON.w / 2) * TILE,
     centreZ = (APRON.z + APRON.d / 2) * TILE;
-  for (let column = 0; column < APRON.w; column++) {
-    const x = (APRON.x + column + 0.5) * TILE;
+  // Die Fensterfront in Feldern von zweieinhalb Metern — dem Maß der alten
+  // Kachel, das für Pfosten und Sturzstücke das richtige geblieben ist.
+  const bay = 2.5;
+  for (let left = APRON.x * TILE; left < (APRON.x + APRON.w) * TILE - 1e-6; left += bay) {
+    const x = left + bay / 2;
     batch.box(
       SHIP.hull,
-      [TILE - 0.25, 0.15, 0.18],
+      [bay - 0.25, 0.15, 0.18],
       [x, PLAN_WALL_H - 0.18, south - PLAN_WALL_T / 2 - 0.1],
     );
     batch.pipe(
       SHIP.trim,
       0.034,
-      TILE - 0.2,
+      bay - 0.2,
       [x, PLAN_WALL_H - 0.39, south - PLAN_WALL_T / 2 - 0.1],
       true,
     );
@@ -476,7 +504,7 @@ function buildCommandHull(): THREE.Group {
       batch.box(
         SHIP.trim,
         [0.09, PLAN_WALL_H - 0.12, 0.13],
-        [x + side * (TILE / 2 - 0.19), PLAN_WALL_H / 2, south - PLAN_WALL_T / 2 - 0.09],
+        [x + side * (bay / 2 - 0.19), PLAN_WALL_H / 2, south - PLAN_WALL_T / 2 - 0.09],
       );
   }
   // Ceiling service rail remains inside the deck; no old 3-metre bay offsets.

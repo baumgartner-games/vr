@@ -7,7 +7,7 @@ import type { Pointer } from './Pointer';
 import type { PlayerAvatar } from './PlayerAvatar';
 import type { HandVisuals } from './HandVisuals';
 import type { WristMenus } from '../ui/WristMenus';
-import type { MenuEntry } from '../ui/menu';
+import type { MenuEntry, MenuIcon } from '../ui/menu';
 import type { NetSession } from '../net/NetSession';
 import type { RemoteAvatars } from '../net/RemoteAvatars';
 import type { LivePreview } from '../worlds/shared/livePreview';
@@ -101,6 +101,20 @@ export interface WorldContext {
    * wieder seinen eigenen Hut auf.
    */
   wear(kind: HeadgearKind | null): void;
+  /**
+   * **Die Umkleide aufmachen** (`ui/WardrobeMenu.ts`).
+   *
+   * Sie gehört `App` und keiner Welt, aus demselben Grund wie das Aussehen
+   * selbst: Wer sich vor dem Schrank in der Testwelt umzieht, läuft auch im
+   * Hub so herum. Eine Welt sagt deshalb nur, **dass** jemand davorsteht und
+   * gedrückt hat — der Kleiderschrank meldet `{ type: 'wardrobe' }`, und
+   * `GridWorld` reicht es hierher weiter. Später ruft Haunting dieselbe Zeile.
+   *
+   * Wie sie aussieht, entscheidet die Ansicht: am Bildschirm eine Seite mit
+   * der Figur in Nahaufnahme, in der Brille die Seite _Aussehen_ am
+   * Handgelenk — dort steht die Figur ja schon im Spiegel am Schrank.
+   */
+  openWardrobe(): void;
 }
 
 /**
@@ -136,6 +150,40 @@ export interface WorldPreview {
   live?: LivePreview;
   /** Gibt frei, was gebaut wurde. */
   dispose(): void;
+}
+
+/**
+ * **Ein Werkzeug zur Wahl** — eine Zeile in der Liste hinter `#hud-tool`.
+ *
+ * `id` ist die Werkzeug-Id der Welt; `null` gibt es hier nicht, die **Hand**
+ * setzt die Liste selbst davor (`App`). Beschriftung und Ikone sind dieselben
+ * wie im Regal am Handgelenk — zwei Namen für dasselbe Ding wären zwei Dinge.
+ */
+export interface ToolOption {
+  id: string;
+  label: string;
+  icon?: MenuIcon;
+  accent?: number;
+}
+
+/**
+ * **Was am Bildschirm in der Hand liegt, und was darin liegen könnte.**
+ *
+ * In der Brille greift man ins Regal am Handgelenk; am Bildschirm gibt es
+ * keine Hand, die irgendwo hingreift — dafür steht unten rechts ein runder
+ * Knopf mit der Ikone des gewählten Werkzeugs (`#hud-tool`, `Tab`, `Y`), und
+ * dahinter diese Liste. `current` ist `null`, wenn die Hand leer ist: Dann
+ * tut der Trigger nichts, und das ist eine gültige Wahl und kein Fehler.
+ *
+ * Eine Welt ohne Werkzeuge hat diesen Haken nicht; dann bleibt der Knopf weg.
+ */
+export interface ToolChoice {
+  /** Die Id des gewählten Werkzeugs, oder `null` für die leere Hand. */
+  current: string | null;
+  /** Was die Welt anbietet — ohne die Hand, die steht immer zuerst. */
+  options: ToolOption[];
+  /** Ein Tipp in der Liste. `null` heißt: nichts in die Hand. */
+  choose(id: string | null): void;
 }
 
 export interface World {
@@ -194,6 +242,16 @@ export interface World {
   viewLevel?(): ViewLevel | null;
   /** Entries this world adds to the wrist menu. Read once after `init`. */
   menu?(): MenuEntry[];
+  /**
+   * **Die Werkzeugwahl am Bildschirm** (`#hud-tool`) — oder gar keine.
+   *
+   * Gelesen von `App`, jedes Bild: Der Knopf zeigt die Ikone dessen, was
+   * gerade in der Bildschirmhand liegt, und ein Druck klappt die Liste auf.
+   * Eine Welt ohne Werkzeuge lässt den Haken weg, und dann gibt es den Knopf
+   * dort auch nicht — ein Knopf, hinter dem nichts steht, ist schlimmer als
+   * keiner.
+   */
+  toolChoice?(): ToolChoice | null;
   /**
    * Ein Konfig-Code ist in die Speicher eingetragen worden — was schon gebaut
    * ist, muss ihn nachlesen.

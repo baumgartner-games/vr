@@ -131,20 +131,24 @@ export function doorParts(
   const post = (TILE - width) / 2;
   const offset = (width + post) / 2;
   const out: PlanSolid[] = [];
-  for (const side of [-1, 1]) {
-    out.push(
-      slab(
-        x + (alongX ? side * offset : 0),
-        base + PLAN_WALL_H / 2,
-        z + (alongX ? 0 : side * offset),
-        alongX,
-        post,
-        PLAN_WALL_H,
-        PLAN_WALL_T,
-        'wall',
-      ),
-    );
-  }
+  // **Eine Tür über die ganze Kante hat keine Pfosten** — die Station baut so
+  // (`haunting/house.STATION_DOOR_W` = `TILE`): Ein Pfosten von null Metern
+  // wäre ein Quader ohne Ausdehnung, mit Körper und Zeichenaufruf.
+  if (post > 0.01)
+    for (const side of [-1, 1]) {
+      out.push(
+        slab(
+          x + (alongX ? side * offset : 0),
+          base + PLAN_WALL_H / 2,
+          z + (alongX ? 0 : side * offset),
+          alongX,
+          post,
+          PLAN_WALL_H,
+          PLAN_WALL_T,
+          'wall',
+        ),
+      );
+    }
   // Der Sturz: von der Türhöhe bis unter die Decke, über die ganze Kante.
   const lintel = PLAN_WALL_H - PLAN_DOOR_H;
   if (lintel > 0.01) {

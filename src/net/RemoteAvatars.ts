@@ -31,9 +31,13 @@ interface Avatar {
 }
 
 /**
- * Draws the other players with the same body the local player has — head,
- * torso, arms and legs — so you can tell from across the room where somebody
+ * Draws the other players with the same body the local player has — Rumpf,
+ * Kopf und zwei Hände — so you can tell from across the room where somebody
  * is looking, where they point their portal gun and what they are holding.
+ *
+ * Auch das **Aussehen** kommt von ihnen selbst: Hut, Kopf und Kochjacke stehen
+ * in ihrer Anmeldung (`net/types.ts`, `hello`), und was hier daraus gebaut
+ * wird, ist dieselbe Figur, die sie bei sich sehen.
  */
 export class RemoteAvatars extends THREE.Group {
   /**
@@ -93,9 +97,9 @@ export class RemoteAvatars extends THREE.Group {
         avatar.role = peer.role;
         avatar.body.setColor(ROLE_COLORS[peer.role] ?? 0xffffff);
       }
-      // Der Hut kommt mit der Anmeldung und ändert sich fast nie; gebaut wird
-      // er nur, wenn wirklich ein anderer angesagt wurde.
-      avatar.body.setHeadgear(peer.hat);
+      // Das Aussehen kommt mit der Anmeldung und ändert sich fast nie; gebaut
+      // wird nur, was wirklich anders angesagt wurde (`AvatarBody.setLook`).
+      avatar.body.setLook(peer.look);
       const speaking = this.isSpeaking?.(peer.id) ?? false;
       if (avatar.name !== peer.name || avatar.speaking !== speaking) {
         avatar.name = peer.name;
@@ -177,6 +181,7 @@ export class RemoteAvatars extends THREE.Group {
     const body = new AvatarBody({ color: ROLE_COLORS[peer.role] ?? 0xffffff, hands: true });
     body.name = `avatar:${peer.id}`;
     body.setColor(ROLE_COLORS[peer.role] ?? 0xffffff);
+    body.setLook(peer.look);
     this.add(body);
 
     const tag = new NameTag(peer.name);

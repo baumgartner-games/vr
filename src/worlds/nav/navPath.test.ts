@@ -333,11 +333,15 @@ describe('Der Schnurzug', () => {
     // Gemessen wird die **Strecke** und nicht der Wegpunkt: Zwischen zwei
     // Punkten neben derselben Ecke liegt die Sehne, und die kommt ihr näher
     // als beide (`shrinkFor`).
-    const points = pull(graph, at(0, 0), at(5, 0), 0.3);
-    expect(closestTo(points, tip.x, tip.z)).toBeGreaterThanOrEqual(0.3);
+    // Die Halbmesser sind klein, und das ist keine Willkür: Auf einer Kachel
+    // von einem Meter deckelt `shrinkFor` den Einzug bei einer halben Kachel —
+    // wer dicker ist als der Durchlass, bekommt den Abstand, der übrig ist,
+    // und nicht den, den er gern hätte.
+    const points = pull(graph, at(0, 0), at(5, 0), 0.05);
+    expect(closestTo(points, tip.x, tip.z)).toBeGreaterThanOrEqual(0.05);
     // Und wer dicker ist, geht weiter außen herum.
-    const wide = pull(graph, at(0, 0), at(5, 0), 0.5);
-    expect(closestTo(wide, tip.x, tip.z)).toBeGreaterThanOrEqual(0.5);
+    const wide = pull(graph, at(0, 0), at(5, 0), 0.1);
+    expect(closestTo(wide, tip.x, tip.z)).toBeGreaterThanOrEqual(0.1);
     expect(closestTo(wide, tip.x, tip.z)).toBeGreaterThan(closestTo(points, tip.x, tip.z));
     expect(walked(wide)).toBeGreaterThan(walked(points));
   });
@@ -356,7 +360,7 @@ describe('Der Schnurzug', () => {
     for (const z of [0, 1, 2]) graph.setWall(at(2, z), DIR_E, { kind: 'solid' });
     const tip = { x: 3 * TILE, z: 3 * TILE };
 
-    const options = { ...human, radius: 0.3 };
+    const options = { ...human, radius: 0.1 };
     const tiles = findPath(graph, at(0, 0), at(5, 0), options).tiles;
     const roomy = pullString(graph, tiles, options);
     const bare = pullString(graph, tiles, { ...options, clearance: 0 });
@@ -364,7 +368,7 @@ describe('Der Schnurzug', () => {
     // Und was am Ende zählt, ist der Abstand zum **Klotz** und nicht zur Linie:
     // Eine Wand steht zur Hälfte auf jeder Seite ihrer Kachelgrenze
     // (`WALL_SKIN`), und erst dahinter fängt die Luft an.
-    expect(closestTo(roomy, tip.x, tip.z)).toBeGreaterThan(0.3 + WALL_SKIN);
+    expect(closestTo(roomy, tip.x, tip.z)).toBeGreaterThan(0.1 + WALL_SKIN);
   });
 
   it('bleibt in den Kacheln, die die Suche gefunden hat', () => {
@@ -377,10 +381,10 @@ describe('Der Schnurzug', () => {
     for (const point of points) {
       expect(graph.tile(point.tile)?.hazard ?? 0).toBe(0);
       // Und nicht nur nicht **auf** der Grube: Wer mit einem Fuß hineinragt,
-      // steht in ihr. Die drei Stachelkacheln liegen zwischen x = 5 und
-      // x = 12,5, z = 2,5 und z = 5.
-      const dx = Math.max(5 - point.x, point.x - 12.5, 0);
-      const dz = Math.max(2.5 - point.z, point.z - 5, 0);
+      // steht in ihr. Die drei Stachelkacheln liegen zwischen x = 2 und
+      // x = 5 Kacheln, z = 1 und z = 2.
+      const dx = Math.max(2 * TILE - point.x, point.x - 5 * TILE, 0);
+      const dz = Math.max(1 * TILE - point.z, point.z - 2 * TILE, 0);
       expect(Math.hypot(dx, dz)).toBeGreaterThanOrEqual(0.3);
     }
   });

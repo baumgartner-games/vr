@@ -152,7 +152,7 @@ export const REACH = 1.6;
  */
 export const PLAYER_RADIUS = PLAYER_CAPSULE_RADIUS;
 /** Und der des Monsters — auch der Radius seiner Wegsuche. */
-export const MONSTER_RADIUS = 0.4;
+export const MONSTER_RADIUS = 0.3;
 /**
  * **Ab hier trifft das Monster** — und genau so weit reicht auch der harte
  * Kern, den die Wegsuche des fliehenden Technikers um es herum legt

@@ -1,7 +1,11 @@
 node_modules/
+node_modules
 dist/
 *.local
 .DS_Store
 .vite/
 
 .artifacts/
+
+# Worktrees der Agenten-Sessions (Claude Code) — nie einchecken.
+.claude/worktrees/

@@ -1,6 +1,6 @@
 import { PLAN_WALL_T } from '../../editor/levelPlan';
 import { TILE, dirX, dirZ, type Dir } from '../../nav/navTile';
-import { spacesOf, type HouseRoom, type HouseSpec } from '../house';
+import { APRON, spacesOf, type HouseRoom, type HouseSpec } from '../house';
 import { roomsOf } from '../map/extract';
 import { COMMAND } from '../roomGraph';
 
@@ -147,8 +147,11 @@ export function wayfindingSigns(spec: HouseSpec): Signpost[] {
   };
 
   for (const opening of openings) {
+    // Eine Kreuzung ist so breit wie ihre Kanten — bei zwei Metern Gang zwei
+    // Kacheln —, und das Schild darf breiter sein als die Öffnung, denn es
+    // hängt über ihr und nicht in ihr.
     const width = opening.junction
-      ? Math.min(JUNCTION_SIGN_WIDTH, opening.edges.length * TILE - 0.7)
+      ? Math.max(DOOR_SIGN_WIDTH, Math.min(JUNCTION_SIGN_WIDTH, opening.edges.length * TILE + 0.7))
       : DOOR_SIGN_WIDTH;
     const sides: Array<{ here: string; there: string; edges: Edge[] }> = [
       { here: opening.a, there: opening.b, edges: opening.edges },
@@ -166,6 +169,21 @@ export function wayfindingSigns(spec: HouseSpec): Signpost[] {
       z /= side.edges.length;
       const dir = side.edges[0]!.dir;
       const target = spaces.get(side.there);
+      // **Das Schild bleibt zwischen den Raumecken.** Über einer Tür am Ende
+      // eines zwei Meter breiten Gangs stünde es sonst halb vor der Wand des
+      // Nachbarn; also rückt es an der Wand entlang, bis es hineinpasst.
+      const rect = side.here === COMMAND ? APRON : spaces.get(side.here)?.rect;
+      let fitted = width;
+      if (rect) {
+        const alongX = dirX(dir) === 0;
+        // Und nie breiter als die Wand selbst: In einem Gang von zwei Metern
+        // ist das Kreuzungsschild zwei Meter breit.
+        fitted = Math.min(width, (alongX ? rect.w : rect.d) * TILE);
+        const from = (alongX ? rect.x : rect.z) * TILE + fitted / 2;
+        const to = (alongX ? rect.x + rect.w : rect.z + rect.d) * TILE - fitted / 2;
+        if (alongX) x = Math.min(Math.max(x, from), to);
+        else z = Math.min(Math.max(z, from), to);
+      }
       signs.push({
         spaceId: side.here,
         targetId: side.there,
@@ -174,7 +192,7 @@ export function wayfindingSigns(spec: HouseSpec): Signpost[] {
         z: z - dirZ(dir) * SIGN_CLEARANCE,
         dir,
         yaw: YAW[dir]!,
-        width,
+        width: fitted,
         title: (names.get(side.there) ?? side.there).toUpperCase(),
         detail: detailFor(side.there, side.here),
         circulation: !!target?.circulation,

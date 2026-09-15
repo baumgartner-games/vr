@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   USE_REACH,
+  aimForward,
   USE_TOUCH,
   markUsable,
   pickUsable,
@@ -126,5 +127,73 @@ describe('Benutzen: die Ablage am Objekt', () => {
     expect(usableOf(child)).toBe(button);
     markUsable(group, null);
     expect(usableOf(child)).toBeNull();
+  });
+});
+
+/**
+ * **Wohin `A` zeigt, hängt an der Ansicht** (`aimForward`).
+ *
+ * Von oben dreht die Steuerung die ganze Figur zum Ziel — dort ist die
+ * Rig-Richtung die Absicht. Aus den Augen und in der Brille steht die Figur
+ * still und sieht sich um; wer dort den Kopf zum Knopf dreht, meint den Knopf.
+ * Beides einmal falsch herum, und `A` öffnet die Tür hinter einem.
+ */
+describe('Die Richtung beim Benutzen', () => {
+  const rig = new THREE.Vector3(0, 0, -1);
+  const head = new THREE.Vector3(1, 0, 0);
+
+  it('nimmt von oben die Figur und sonst den Kopf', () => {
+    const top = aimForward(true, rig, head, new THREE.Vector3());
+    expect(top.x).toBeCloseTo(0, 6);
+    expect(top.z).toBeCloseTo(-1, 6);
+
+    const eyes = aimForward(false, rig, head, new THREE.Vector3());
+    expect(eyes.x).toBeCloseTo(1, 6);
+    expect(eyes.z).toBeCloseTo(0, 6);
+  });
+
+  it('legt die Richtung flach auf den Boden und normiert sie', () => {
+    const steep = new THREE.Vector3(0, -3, -3);
+    const out = aimForward(false, rig, steep, new THREE.Vector3());
+    expect(out.y).toBe(0);
+    expect(out.length()).toBeCloseTo(1, 6);
+    expect(out.z).toBeCloseTo(-1, 6);
+  });
+
+  it('fällt auf die Figur zurück, wenn der Kopf senkrecht schaut', () => {
+    // Blick auf die eigenen Füße: waagerecht bleibt nichts übrig.
+    const down = new THREE.Vector3(0, -1, 0);
+    const out = aimForward(false, rig, down, new THREE.Vector3());
+    expect(out.z).toBeCloseTo(-1, 6);
+    expect(out.x).toBeCloseTo(0, 6);
+  });
+
+  it('zeigt nach Norden, wenn gar nichts eine Richtung hat', () => {
+    const none = new THREE.Vector3(0, 1, 0);
+    const out = aimForward(true, none, none, new THREE.Vector3());
+    expect(out.x).toBe(0);
+    expect(out.y).toBe(0);
+    expect(out.z).toBe(-1);
+  });
+
+  it('findet damit, was vor der Figur steht — in beiden Ansichten dasselbe Ding', () => {
+    const north = at(0, -1);
+    const east = at(1, 0);
+    const candidates = [north, east];
+    const origin = new THREE.Vector3(0, 1.2, 0);
+
+    const fromAbove = pickUsable(
+      candidates,
+      origin,
+      aimForward(true, rig, head, new THREE.Vector3()),
+    );
+    expect(fromAbove?.candidate).toBe(north);
+
+    const fromEyes = pickUsable(
+      candidates,
+      origin,
+      aimForward(false, rig, head, new THREE.Vector3()),
+    );
+    expect(fromEyes?.candidate).toBe(east);
   });
 });

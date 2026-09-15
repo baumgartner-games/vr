@@ -156,8 +156,12 @@ export interface EditorHost {
  * zwischen „ich kann eine Kachel anbauen" und „ich kann hier einen zweiten
  * Flügel hinziehen" — und in einer Welt, in der an dieser Stelle noch gar
  * nichts steht, ist es der Unterschied zwischen bauen und nicht bauen können.
+ *
+ * **Zehn und nicht mehr fünf**, seit eine Kachel einen Meter misst: Fünf
+ * Kacheln waren zwölfeinhalb Meter Rand und wären heute fünf — zu wenig für
+ * ein Zimmer, das man daneben aufzieht.
  */
-const FIELD_MARGIN = 5;
+const FIELD_MARGIN = 10;
 
 /**
  * **Das Licht über dem Modell**: wie hoch es hängt, wie weit es reicht und wie
@@ -596,7 +600,10 @@ export class WorldEditor {
       out.push({
         id: 'figure',
         at: { x: _pin.x, y: _pin.y + 0.9 * this.model.scale, z: _pin.z },
-        reach: Math.max(0.05, 2.4 * this.model.scale),
+        // Eine Kachel weit, gemessen im Maßstab des Modells: So groß ist das
+        // Feld, auf dem die Figur steht, und größer darf ihre Blase nicht
+        // sein. (Hier stand 2,4 — eine Kachel, als eine Kachel 2,5 m maß.)
+        reach: Math.max(0.05, TILE * this.model.scale),
       });
     }
     return out;

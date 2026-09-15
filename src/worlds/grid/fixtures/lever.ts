@@ -41,8 +41,14 @@ const TILT = 0.55;
 /** Wie hoch er steht — klein und rund, damit er von oben ein Punkt und kein Möbel ist. */
 const COLUMN_H = 0.9;
 
-/** Wie weit der Sockel von der Kante weg in die Kachel hineinrückt. */
-const STANDOFF = 0.55;
+/**
+ * Wie weit der Sockel von der Kante weg in die Kachel hineinrückt.
+ *
+ * Auf einer Kachel von einem Meter ist eine halbe Armlänge zu viel: Der Sockel
+ * stünde mitten darauf, und wer davor steht, stünde in ihm. 0,25 m lassen ihn
+ * an der Kante und trotzdem vor dem Türrahmen statt darin.
+ */
+const STANDOFF = 0.25;
 
 interface LeverView extends FixtureView {
   arm: THREE.Group;
@@ -80,7 +86,7 @@ export const LEVER: FixtureKind<LeverState> = {
     group.rotation.y = fixtureYaw(place.dir);
 
     // Gebaut nach Norden, wie jeder Einbau: Der Sockel steht nahe der Kante,
-    // der Bügel kippt in den Raum davor. Eine halbe Armlänge Abstand zur Kante,
+    // der Bügel kippt in den Raum davor. Ein Viertelmeter Abstand zur Kante,
     // und nicht weniger — vor einer Tür ist die Kante der Türrahmen, und ein
     // Hebel, der darin klemmt, sieht aus wie ein Fehler.
     const edge = -TILE / 2 + STANDOFF;

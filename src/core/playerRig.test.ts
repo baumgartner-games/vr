@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PlayerRig } from './PlayerRig';
+import { ButtonState, type XRInput } from './XRInput';
 
 /**
  * **Versetzt werden die Füße, nicht der Ursprung** (`PlayerRig.placeFeetAt`).
@@ -130,5 +131,61 @@ describe('PlayerRig.turnHeadTo', () => {
     player.placeFeetAt(new THREE.Vector3(0, 0, 0), 0.4);
     player.turnHeadTo(0.4);
     expect(new THREE.Euler().setFromQuaternion(player.quaternion, 'YXZ').y).toBeCloseTo(0.4);
+  });
+});
+
+/**
+ * **`A` ist ein Knopf für zwei Dinge** (`PlayerRig.useCandidate`).
+ *
+ * In der Brille sprang `A` bisher immer — auch direkt vor einer Tür, einem
+ * Knopf oder einem Kart, in das man einsteigen wollte. Jetzt sagt die Welt
+ * jedes Bild, ob etwas in Reichweite steht, und dieselbe Taste tut das
+ * Naheliegende: benutzen, wenn es etwas zu benutzen gibt, sonst springen. Wer
+ * das verwechselt, hüpft vor jeder Tür oder springt nie wieder.
+ */
+describe('Der A-Knopf in der Brille', () => {
+  /** Ein Eingabegerät mit genau einem Knopf: `A` der rechten Hand. */
+  function pressedInput(): { input: XRInput; a: ButtonState } {
+    const a = new ButtonState();
+    a.press();
+    a.beginFrame();
+    const right = { primary: a, stick: new ButtonState(), thumbstick: { x: 0, y: 0 } };
+    const input = {
+      get: (hand: string) => (hand === 'right' ? right : null),
+      controllers: [],
+    } as unknown as XRInput;
+    return { input, a };
+  }
+
+  it('springt, solange nichts in Reichweite steht', () => {
+    const player = rig();
+    const { input } = pressedInput();
+    let jumped = false;
+    player.locomotion = { apply: (_rig, _intent, jump) => void (jumped = jump) };
+
+    player.update(1 / 60, input, true);
+    expect(jumped).toBe(true);
+    expect(player.takeUse()).toBe(false);
+  });
+
+  it('benutzt, sobald etwas dasteht — und springt dann nicht', () => {
+    const player = rig();
+    const { input } = pressedInput();
+    let jumped = false;
+    player.locomotion = { apply: (_rig, _intent, jump) => void (jumped = jump) };
+    player.useCandidate = true;
+
+    player.update(1 / 60, input, true);
+    expect(jumped).toBe(false);
+    // Eine Flanke: einmal gelesen, einmal weg.
+    expect(player.takeUse()).toBe(true);
+    expect(player.takeUse()).toBe(false);
+  });
+
+  it('vergisst die Auskunft beim Aufstehen — sie gehört der Welt von eben', () => {
+    const player = rig();
+    player.useCandidate = true;
+    player.standUp();
+    expect(player.useCandidate).toBe(false);
   });
 });

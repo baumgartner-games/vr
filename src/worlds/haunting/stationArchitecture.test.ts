@@ -1,6 +1,6 @@
 import { findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
-import { TILE, dirX, dirZ, tileKey } from '../nav/navTile';
+import { dirX, dirZ, tileKey } from '../nav/navTile';
 import {
   APRON,
   generateHouse,
@@ -13,6 +13,7 @@ import {
   tilesOf,
 } from './house';
 import { housePlan } from './plan';
+import { STATION_BOUNDS } from './house';
 import { stationLayout } from './stationLayout';
 
 /** Architecture regressions: the ship must really have transit floor and empty hull cavities. */
@@ -85,7 +86,7 @@ describe('separated orbital ship modules', () => {
       }
       const area = spaces.reduce((sum, room) => sum + room.rect.w * room.rect.d, 0);
       expect([...plan.graph.tileKeys()]).toHaveLength(area + APRON.w * APRON.d);
-      expect((stationBounds(spec).x + stationBounds(spec).w) * TILE).toBe(50);
+      expect(stationBounds(spec)).toEqual(STATION_BOUNDS);
     }
   });
 });

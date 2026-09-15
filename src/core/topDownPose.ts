@@ -151,3 +151,71 @@ export function groundDirection(
 export function yawFromDirection(x: number, z: number): number {
   return Math.atan2(-x, -z);
 }
+
+/** Der nächste Abstand, der überhaupt erlaubt ist — die engste Stufe. */
+export const TOP_DOWN_MIN = TOP_DOWN_DISTANCES[0]!;
+/** Und der fernste. Zwischen beiden darf ein Pinch stufenlos stehen bleiben. */
+export const TOP_DOWN_MAX = TOP_DOWN_DISTANCES[TOP_DOWN_DISTANCES.length - 1]!;
+
+/**
+ * **Stufenlos zoomen** — zwei Finger auf dem Glas (Plan, _Pinch-Zoom_).
+ *
+ * Gerechnet wird als **Faktor auf den Abstand** und nicht als Stufe: Ein Pinch
+ * ist eine Bewegung und keine Raste, und wer die Finger halb so weit
+ * auseinanderzieht, will halb so weit weg stehen. Geklemmt wird auf dieselben
+ * Enden, die auch das Rad hat — ein Zoom, der bis in die Kacheln hineinfährt,
+ * ist kein Blickwinkel mehr, und einer, der die Welt zum Punkt macht, auch
+ * nicht.
+ */
+export function zoomScaled(distance: number, factor: number): number {
+  const scaled = Number.isFinite(factor) && factor > 0 ? distance * factor : distance;
+  return Math.max(TOP_DOWN_MIN, Math.min(TOP_DOWN_MAX, scaled));
+}
+
+/**
+ * **Wie weit zwei Finger den Abstand ändern**, als Faktor.
+ *
+ * Auseinanderziehen heißt heranzoomen: Der Ausschnitt wird größer, die Kamera
+ * kommt näher, der Abstand wird **kleiner**. Also der alte Fingerabstand
+ * geteilt durch den neuen. Ein Finger, der aufsetzt und im selben Bild
+ * weiterrutscht, hat manchmal noch keinen Abstand — dann bleibt alles, wie es
+ * ist (Faktor 1), statt durch null zu teilen.
+ */
+export function pinchFactor(previousGap: number, currentGap: number): number {
+  if (!(previousGap > 0) || !(currentGap > 0)) return 1;
+  return previousGap / currentGap;
+}
+
+/**
+ * **Die nächste Raste vom aktuellen Abstand aus** — Rad und Bumper.
+ *
+ * Nach dem Pinch steht der Abstand irgendwo zwischen zwei Stufen, und eine
+ * Raste, die sich die zuletzt gewählte Stufe merkt, spränge von dort aus
+ * irgendwohin. Gefragt ist deshalb die nächste Stufe **oberhalb** (zurück)
+ * bzw. **unterhalb** (heran) dessen, was man gerade sieht. An den Enden
+ * rastet es wie eh und je.
+ *
+ * @param direction `-1` heran (näher), `+1` zurück (weiter weg)
+ */
+export function stepFromDistance(distance: number, direction: number): number {
+  const sign = Math.sign(direction);
+  if (sign < 0) {
+    for (let i = TOP_DOWN_DISTANCES.length - 1; i >= 0; i--) {
+      if (TOP_DOWN_DISTANCES[i]! < distance - NOTCH_EPS) return TOP_DOWN_DISTANCES[i]!;
+    }
+    return TOP_DOWN_MIN;
+  }
+  if (sign > 0) {
+    for (let i = 0; i < TOP_DOWN_DISTANCES.length; i++) {
+      if (TOP_DOWN_DISTANCES[i]! > distance + NOTCH_EPS) return TOP_DOWN_DISTANCES[i]!;
+    }
+    return TOP_DOWN_MAX;
+  }
+  return Math.max(TOP_DOWN_MIN, Math.min(TOP_DOWN_MAX, distance));
+}
+
+/**
+ * Wie nah an einer Stufe „auf der Stufe" heißt, in Metern. Ohne diese
+ * Kleinigkeit bliebe ein Rad, das bei 16,0000001 m steht, bei 16 m stehen.
+ */
+const NOTCH_EPS = 1e-3;

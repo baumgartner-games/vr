@@ -8,6 +8,8 @@ import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
 import { PageMenu } from '../ui/PageMenu';
+import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
+import { WardrobeMenu } from '../ui/WardrobeMenu';
 import { TopDownCamera } from './TopDownCamera';
 import {
   SCREEN_VIEW_LABELS,
@@ -37,7 +39,8 @@ import { detectFlatRole } from './device';
 import { GraphicsQuality } from './GraphicsQuality';
 import { FrameStats } from './FrameStats';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
-import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS, type HeadgearKind } from './headgear';
+import { HEADGEAR_LABELS, HEADGEAR_SUBS, nextHeadgear, type HeadgearKind } from './headgear';
+import { BODY_LABELS, BODY_SUBS, HEAD_LABELS, HEAD_SUBS, nextBody, nextHead } from './avatarLook';
 import {
   GRAPHICS_MODE_LABELS,
   GRAPHICS_MODE_SUBS,
@@ -63,8 +66,9 @@ import { DEFAULT_WORLD, WORLDS, findWorld } from '../worlds';
 import { applyGearConfig, parseGearCode } from '../worlds/portal/tools/gearConfig';
 import { MirrorRenderer } from '../worlds/shared/Mirror';
 import { setImmersive } from './systemKeyboard';
-import type { PlayerRole, World, WorldContext } from './types';
+import type { PlayerRole, ToolChoice, World, WorldContext } from './types';
 import type { MenuEntry } from '../ui/menu';
+import { cssColor } from '../ui/PageMenu';
 import type { Peer } from '../net/NetSession';
 import type { TurnServerConfig } from '@trystero-p2p/core';
 
@@ -141,6 +145,29 @@ export class App {
    * oben links. Welches der beiden gerade gilt, entscheidet `WristMenus`.
    */
   readonly pageMenu: PageMenu;
+  /**
+   * **Die Werkzeugliste am Bildschirm** — derselbe Seitenmenü-Baustein wie
+   * oben links, nur mit einem sehr kurzen Baum: die Hand und die Werkzeuge
+   * dieser Welt (`World.toolChoice`). Ein eigenes Menü und kein Ast im
+   * großen: Es gehört zum Knopf unten rechts und nicht in die Einstellungen.
+   */
+  readonly toolMenu: PageMenu;
+  /**
+   * **Die Umkleide** — die Seite vor dem Kleiderschrank (`ui/WardrobeMenu.ts`).
+   *
+   * Sie gehört `App` und keiner Welt, genau wie das Aussehen selbst
+   * (`core/appearance.ts`): Wer sich in der Testwelt umzieht, läuft im Hub
+   * ebenso herum. Eine Welt macht sie über den Weltkontext auf
+   * (`WorldContext.openWardrobe`) und weiß sonst nichts von ihr.
+   */
+  readonly wardrobe: WardrobeMenu;
+  /** Der runde Knopf unten rechts (`index.html`, `#hud-tool`). */
+  private readonly toolButton: ToolButton | null;
+  /**
+   * Welches Werkzeug der Knopf gerade zeigt — `undefined`, solange er gar
+   * nichts zeigt. Ohne diesen Merker zeichnete er sich jedes Bild neu.
+   */
+  private toolShown: string | null | undefined = undefined;
   /**
    * **Die Ansicht _Von oben_** (`core/TopDownCamera.ts`) — dieselbe Szene, nur
    * aus einer festen Kamera schräg darüber. Wann sie das Bild ist, sagt
@@ -231,7 +258,7 @@ export class App {
       antialias: true,
       powerPreference: 'high-performance',
       // Durchsichtig **können** muss der Puffer, sonst liegt im
-      // Passthrough-Bild ein schwarzes Tuch über dem Zimmer (`seeThrough.ts`).
+      // Passthrough-Bild einer AR-Sitzung ein schwarzes Tuch über dem Zimmer.
       // Sein soll er es nicht: `alpha: true` stellt die Löschfarbe sonst auf
       // durchsichtig, und dann scheint zwischen zwei Welten die Webseite
       // durch.
@@ -292,6 +319,21 @@ export class App {
       onToggle: (open) => this.hooks.onMenuChanged?.(open),
     });
     this.wristMenu.attachPage(this.pageMenu);
+    // Die Werkzeugliste: eigener Baum, eigener Weg, eigener Knopf.
+    this.toolMenu = new PageMenu({
+      title: 'Werkzeug',
+      onToggle: (open) => this.toolButton?.setOpen(open),
+    });
+    this.wardrobe = new WardrobeMenu();
+    const toolEl =
+      typeof document === 'undefined'
+        ? null
+        : document.querySelector<HTMLButtonElement>('#hud-tool');
+    this.toolButton = toolEl ? new ToolButton(toolEl, () => this.toggleToolMenu()) : null;
+    this.toolButton?.show(false);
+    // `Tab` und `Y` am Pad machen dieselbe Liste auf — abgehört wird beides an
+    // der einen Stelle, an der Eingabe zusammenläuft (`FlatControls`).
+    this.flat.onTools = () => this.toggleToolMenu();
     this.view = screenView(this.role);
     this.refreshMenu();
 
@@ -378,6 +420,7 @@ export class App {
       },
       say: (text, options) => void this.say(text, options),
       wear: (kind) => this.wear(kind),
+      openWardrobe: () => this.openWardrobe(),
     };
   }
 
@@ -690,6 +733,55 @@ export class App {
     else if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
   }
 
+  /**
+   * **Den Werkzeug-Knopf nachziehen** — jedes Bild, aber gezeichnet nur, wenn
+   * sich wirklich etwas geändert hat.
+   *
+   * Er steht in **jeder** Bildschirmansicht, sobald die Welt Werkzeuge
+   * anbietet, und in der Brille nie: Dort ist das Regal am Handgelenk, und
+   * ein zweiter Weg zum selben Ding wäre ein zweiter Ort, an dem man sucht.
+   */
+  private updateToolButton(presenting: boolean): void {
+    const button = this.toolButton;
+    if (!button) return;
+    const choice = presenting ? null : (this.world?.toolChoice?.() ?? null);
+    if (!choice) {
+      button.show(false);
+      if (this.toolMenu.isOpen) this.toolMenu.toggle(false);
+      this.toolShown = undefined;
+      return;
+    }
+    button.show(true);
+    if (choice.current === this.toolShown) return;
+    this.toolShown = choice.current;
+    const option = choice.options.find((entry) => entry.id === choice.current);
+    button.set(option?.icon ?? null, option?.label ?? HAND_LABEL, cssColor(option?.accent));
+    // Steht die Liste offen, wandert der Punkt mit — sonst zeigte sie noch
+    // auf das, was eben abgelegt wurde.
+    if (this.toolMenu.isOpen) this.toolMenu.setRoot(this.toolPage(choice), 'Werkzeug');
+  }
+
+  /** Die Zeilen der Liste, samt dem, was ein Tipp auslöst (`ui/ToolButton.ts`). */
+  private toolPage(choice: ToolChoice): MenuEntry[] {
+    return toolEntries(choice, (id) => {
+      choice.choose(id);
+      this.toolShown = undefined;
+      this.toolMenu.toggle(false);
+    });
+  }
+
+  /** Den Knopf drücken: auf oder zu (`Tab`, `Y`, Tipp auf `#hud-tool`). */
+  private toggleToolMenu(): void {
+    if (this.toolMenu.isOpen) {
+      this.toolMenu.toggle(false);
+      return;
+    }
+    const choice = this.world?.toolChoice?.();
+    if (!choice) return;
+    this.toolMenu.setRoot(this.toolPage(choice), 'Werkzeug');
+    this.toolMenu.toggle(true);
+  }
+
   notify(message: string): void {
     this.wristMenu.setStatus(message);
     this.hooks.onNotify?.(message);
@@ -707,6 +799,9 @@ export class App {
     this.avatar.dispose();
     this.wristMenu.dispose();
     this.pageMenu.dispose();
+    this.toolMenu.dispose();
+    this.wardrobe.dispose();
+    this.toolButton?.dispose();
     this.handVisuals.dispose();
     this.avatars.dispose();
     this.voice.dispose();
@@ -731,6 +826,11 @@ export class App {
     this.world = null;
     this.worldId = '';
     this.worldMenu = [];
+    // Was in der alten Welt in Reichweite stand, steht in der neuen nicht
+    // mehr da: Sonst benutzte `A` beim Ankommen ins Leere, statt zu springen.
+    this.rig.useCandidate = false;
+    this.toolMenu.toggle(false);
+    this.toolShown = undefined;
 
     // **Die Hände gehören keiner Welt.** Zwei Dinge blenden sie aus — die
     // Drohne, die die Sicht aus dem Körper trägt, und der Kreis im
@@ -1047,17 +1147,34 @@ export class App {
   /**
    * **Aussehen** — was die anderen von einem sehen.
    *
-   * Sie steht neben *Bewegung* und *Grafik* und aus demselben Grund: Ein Hut
-   * gehört dem Spieler und keiner Welt. Wer im Hub einen aufsetzt, trägt ihn
-   * im Gokart auch, und alle im Raum sehen ihn (`net/NetSession.ts`).
+   * Sie steht neben *Bewegung* und *Grafik* und aus demselben Grund: Eine
+   * Figur gehört dem Spieler und keiner Welt. Wer im Hub eine Kochmütze
+   * aufsetzt, trägt sie im Gokart auch, und alle im Raum sehen sie
+   * (`net/NetSession.ts`).
    *
-   * Eine Zeile je Kopfbedeckung statt einer, die durchschaltet: Es sind
-   * sieben, und wer den Zylinder sucht, soll ihn sehen und nicht sechsmal
-   * weiterdrücken.
+   * **Drei Zeilen, jede schaltet im Kreis** — Kopf, Hut, Körper. Vorher war es
+   * eine Zeile je Hut, was bei sieben Hüten noch ging; mit Köpfen und Jacken
+   * dazu wären es zwanzig gewesen, und das ist keine Seite mehr, sondern eine
+   * Liste. Was gewählt ist, steht im Untertitel, und in aller Kürze noch
+   * einmal unter der Überschrift (`appearanceSummary`). Dieselben drei Zeilen
+   * zeigt die Umkleide vor dem Spiegel, dort mit der Figur daneben.
    */
   private appearanceMenu(): MenuEntry {
     const accent = 0x5ee0a0;
     const look = appearance();
+
+    const cycle = (id: string, label: string, sub: string, step: () => string): MenuEntry => ({
+      id,
+      label,
+      sub,
+      icon: 'npc',
+      accent,
+      run: () => {
+        const chosen = step();
+        this.menuDirty = true;
+        this.notify(`${label}: ${chosen}`);
+      },
+    });
 
     return {
       id: 'look',
@@ -1065,19 +1182,23 @@ export class App {
       sub: appearanceSummary(look),
       icon: 'npc',
       accent,
-      children: HEADGEAR_KINDS.map((kind) => ({
-        id: `look:hat:${kind}`,
-        label: HEADGEAR_LABELS[kind],
-        sub: HEADGEAR_SUBS[kind],
-        icon: 'npc',
-        accent,
-        selected: look.hat === kind,
-        run: () => {
-          saveAppearance({ hat: kind });
-          this.menuDirty = true;
-          this.notify(kind === 'none' ? 'Kopfbedeckung ab' : `Auf: ${HEADGEAR_LABELS[kind]}`);
-        },
-      })),
+      children: [
+        cycle('look:head', 'Kopf', HEAD_SUBS[look.head], () => {
+          const head = nextHead(look.head);
+          saveAppearance({ head });
+          return HEAD_LABELS[head];
+        }),
+        cycle('look:hat', 'Hut', HEADGEAR_SUBS[look.hat], () => {
+          const hat = nextHeadgear(look.hat);
+          saveAppearance({ hat });
+          return HEADGEAR_LABELS[hat];
+        }),
+        cycle('look:body', 'Körper', BODY_SUBS[look.body], () => {
+          const body = nextBody(look.body);
+          saveAppearance({ body });
+          return BODY_LABELS[body];
+        }),
+      ],
     };
   }
 
@@ -1090,18 +1211,39 @@ export class App {
    * das an zwei Stellen setzte, hätte irgendwann einen Spieler mit zwei
    * verschiedenen Hüten, je nachdem, wen man fragt.
    */
+  /**
+   * **Die Umkleide aufmachen** — je Ansicht auf einem anderen Weg
+   * (`WorldContext.openWardrobe`, `worlds/grid/fixtures/wardrobe.ts`).
+   *
+   * Am Bildschirm ist es die Seite mit der Figur daneben
+   * (`ui/WardrobeMenu.ts`). **In der Brille nicht**: Dort steht der Spiegel am
+   * Schrank und zeigt einen selbst, und die drei Zeilen gibt es längst — unter
+   * _Aussehen_ am Handgelenk. Ein zweites Canvas mit einer zweiten Figur davor
+   * wäre ein Bild von einem Spiegel neben einem Spiegel, und es kostete einen
+   * ganzen zweiten Renderer in der Sitzung, in der die Bilder am knappsten
+   * sind.
+   */
+  private openWardrobe(): void {
+    if (this.renderer.xr.isPresenting) {
+      this.wristMenu.openSubmenu('look');
+      return;
+    }
+    this.wardrobe.toggle(true);
+  }
+
   private wear(kind: HeadgearKind | null): void {
     this.worn = kind;
     this.applyAppearance();
   }
 
   private applyAppearance(): void {
-    const hat = this.worn ?? appearance().hat;
-    this.avatar.setHeadgear(hat);
-    if (this.net.hat === hat) return;
-    this.net.hat = hat;
-    // Der Hut steht in der Vorstellung und nicht in der Pose: einmal ansagen
-    // reicht, zwanzigmal in der Sekunde wäre Unfug.
+    const look = { ...appearance(), hat: this.worn ?? appearance().hat };
+    this.avatar.setLook(look);
+    const known = this.net.look;
+    if (known.hat === look.hat && known.head === look.head && known.body === look.body) return;
+    this.net.look = look;
+    // Das Aussehen steht in der Vorstellung und nicht in der Pose: einmal
+    // ansagen reicht, zwanzigmal in der Sekunde wäre Unfug.
     this.net.announce();
   }
 
@@ -1154,6 +1296,23 @@ export class App {
           run: () => {
             const next = saveGraphics({ showFps: !graphics().showFps });
             this.frameStats.visible = next.showFps;
+            this.menuDirty = true;
+          },
+        },
+        {
+          // **Die Gitterlinien der eigenen Ebene** — gezeichnet von
+          // `worlds/grid/GridWorld.ts`, und nur dort: Eine Welt ohne Kacheln
+          // hat keine Kanten zu zeigen, und das Häkchen bleibt dort ohne
+          // Wirkung, statt eine zweite Erklärung zu brauchen.
+          id: 'gfx:grid-lines',
+          label: 'Gitterlinien',
+          sub: 'Die Kacheln der Ebene, auf der du stehst',
+          caption: 'Hilft beim Bauen — in Welten ohne Gitter passiert nichts',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.gridLines,
+          run: () => {
+            saveGraphics({ gridLines: !graphics().gridLines });
             this.menuDirty = true;
           },
         },
@@ -1669,7 +1828,11 @@ export class App {
 
     // One frame behind the spectator on purpose: the flat controls run before
     // the world, the spectator after it.
-    this.flat.enabled = !presenting && !this.spectating;
+    // **Die offene Umkleide hält die Beine an.** Sie liegt über dem Bild, und
+    // wer darin mit den Pfeiltasten blättert, soll nicht nebenbei durch die
+    // Wand laufen — die Seite fängt Finger und Maus ohnehin ab, die Tastatur
+    // hört aber am Fenster mit (`FlatControls`).
+    this.flat.enabled = !presenting && !this.spectating && !this.wardrobe.isOpen;
     if (!presenting) this.flat.update(dt);
     // Zeigt eine Hand aufs offene Menü und blättert dort, gehört ihr Stick
     // dem Menü — sonst läuft man beim Suchen einer Zeile durch den Raum.
@@ -1729,6 +1892,7 @@ export class App {
     // Schattenkarte wird einmal fürs ganze Bild bestellt — Spiegel und
     // Portalsichten zeichnen die Szene ja gleich noch mehrmals.
     this.quality.update(dt, _headPos.setFromMatrixPosition(_head));
+    this.updateToolButton(presenting);
 
     // **Von oben ist dieselbe Szene, nur aus einer anderen Kamera.** Früher
     // wurde hier gar nichts gezeichnet, weil eine zweite, gemalte Welt auf
