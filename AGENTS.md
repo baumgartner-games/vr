@@ -2995,7 +2995,7 @@ Die Pose eines **Anbauteils** liegt im Raum **des Werkzeugs** (nicht der Hand),
 deshalb bleibt ein einmal ausgerichteter Rotpunkt ausgerichtet, egal wie die
 Waffe später gehalten wird.
 
-### Das Gokart
+### Die Kartzone
 
 Ein Kart ist sieben reine Module und ein bisschen Verdrahtung:
 `kartSettings.ts` (die Werte samt Bereich, Raste und Einheit — dieselbe Idee
@@ -3003,8 +3003,9 @@ wie `weaponSettings.ts`), `kartDynamics.ts` (ein Schritt Fahren),
 `kartCourse.ts` (die Strecke als Liste von Bauteilen), `kartTrack.ts` (die
 Mittellinie plus halbe Breite plus die Fläche der Boxengasse), `kartPit.ts`
 (der Grundriss der Gasse), `kartView.ts` (der Nachlauf des Kopfes) und
-`kartRace.ts` (Runden, Reihenfolge, Tafel). Alle sieben ohne
-three.js und mit Jest-Test; `Kart.ts` und `KartWorld.ts` sind nur noch Blech.
+`kartRace.ts` (Runden, Reihenfolge, Tafel). Alle sieben ohne three.js und mit
+Jest-Test; `Kart.ts` und die Zone im Süden der Testwelt
+(`test/zones/kart.ts`) sind nur noch Blech.
 
 **Die Strecke ist gebaut und nicht gezeichnet.** Sie war einmal ein Dutzend
 Kontrollpunkte in Metern mit einem Catmull-Rom-Spline darüber — eine hübsche
@@ -3015,9 +3016,8 @@ Punkte zu verschieben und zu hoffen. Jetzt ist sie eine **Liste von Teilen**
 rechts), wie lang bzw. wie eng es ist, und wo es aufhört. Daraus folgt alles
 Übrige — Mittellinie, Ausmaße, Rundenlänge, Asphalt, Randsteine, Reifenstapel.
 
-Drei Zahlen tragen das Ganze, und alle drei sind Kacheln:
+Zwei Zahlen tragen das Ganze, und beide sind Kacheln:
 
-- **Eine Zelle sind vier Kacheln** (10 m) — so lang ist eine Gerade.
 - **Die Fahrbahn ist vier Kacheln breit**, und der Asphalt ist **genau** so
   breit wie der Korridor. Wäre er schmaler, läge zwischen ihm und dem Rand ein
   Streifen, der auf dem Raster zur Strecke gehört und beim Fahren nicht — und
@@ -3030,59 +3030,41 @@ Drei Zahlen tragen das Ganze, und alle drei sind Kacheln:
 
 Weil alle Maße ganze Kacheln sind, liegt **jede Naht auf einer Kachelkante** —
 und genau deshalb passen Strecke, Boxengasse und Grundriss ohne einen einzigen
-krummen Zwischenwert zusammen. Die gefahrene Bahn hat vier Kurven mit vier
-verschiedenen Radien (15, 15, 10 und 20 m): eine, die man voll fährt, zwei
-mittlere und eine enge, in der ein Kart mit wenig Traktion querstellt. Das
-Format ist bewusst das, was eine spätere **Bauwelt** bearbeiten kann: ein Teil
-anhängen, eine Kurve enger machen, eine Gerade kürzen.
+krummen Zwischenwert zusammen. Auf dem Metergitter misst die Runde 35 × 25 m
+mit vier Kurven in vier verschiedenen Radien: eine, die man voll fährt, zwei
+mittlere und eine enge, in der ein Kart mit wenig Traktion querstellt.
 
-**Die Boxengasse** liegt kachelbündig an der Zielgeraden (`kartPit.ts`): vier
-Buchten unter einem Dach, dazwischen je eine Säule, an jeder Rückwand eine
-Portaltafel, davor der Asphalt der Gasse — und darauf die vier Karts, mit der
-Nase in Fahrtrichtung. **Eine Ein- und eine Ausfahrt gibt es nicht**, und das
-ist keine Auslassung: Die Ostkante der Gasse _ist_ der Westrand des
-Streckenkorridors, die beiden Flächen berühren sich also, und wer in einer von
-beiden ist, wird nicht zurückgeschoben (`confineToCourse`). Losfahren heißt
-damit schlicht: das Lenkrad nach rechts. Nach vorn hört die Gasse auf, und dort
-steht eine Mauer — eine Grenze, die man nicht sieht, ist eine, in die man
-fährt.
+**Die Boxengasse** liegt kachelbündig an der Zielgeraden (`kartPit.ts`): zwei
+Buchten mit einer Säule dazwischen, an jeder Rückwand eine Portaltafel, davor
+der Asphalt der Gasse — und darauf die Karts, mit der Nase in Fahrtrichtung.
+**Eine Ein- und eine Ausfahrt gibt es nicht**, und das ist keine Auslassung:
+Die Ostkante der Gasse _ist_ der Westrand des Streckenkorridors, die beiden
+Flächen berühren sich also, und wer in einer von beiden ist, wird nicht
+zurückgeschoben (`confineToCourse`). Losfahren heißt damit schlicht: das
+Lenkrad nach rechts. Nach vorn hört die Gasse auf, und dort steht eine Mauer —
+eine Grenze, die man nicht sieht, ist eine, in die man fährt. Ihre Nordmauer
+hat dafür in der Mitte eine **Lücke**, weil hier nicht nur gefahren, sondern
+auch hingelaufen wird; der Gang aus der Navigationszone endet genau darin.
+**Kein Dach**, wie nirgends in dieser Welt: Von oben wäre ein gedeckelter
+Boxenplatz ein schwarzer Balken über ausgerechnet den Karts, die man sucht.
 
-**Der Boden ist eine Masse und keine tausend Kacheln**, aus demselben Grund wie
-im Schießstand: Tausend Bodenplatten wären tausend Körper in der Physik für
-eine Wiese, über die man geradeaus fährt, und portalfähig kann ohnehin nur eine
-große Fläche sein. Die Navigationskarte kostet das nichts — sie wird aus der
-gebauten Geometrie abgetastet, und eine Masse ist Geometrie wie jede andere.
+**Der Boden ist eine Masse und keine tausend Kacheln.** Tausend Bodenplatten
+wären tausend Körper in der Physik für eine Fläche, über die man geradeaus
+fährt, und portalfähig kann ohnehin nur eine große Fläche sein. Im Gelände der
+Testwelt ist das die eine Masse unter allen neun Zonen. Die Navigationskarte
+kostet das nichts — sie wird aus der gebauten Geometrie abgetastet, und eine
+Masse ist Geometrie wie jede andere.
 
-**Zu zweit fahren.** Vier Karts standen auf dem Start, aber jeder bewegte nur
-seine eigenen: zwei Leute konnten nebeneinander herfahren, ohne voneinander
-etwas zu sehen — bei einer Rennstrecke ungefähr das Gegenteil dessen, wofür sie
-gebaut ist. Jetzt läuft die Welt über einen eigenen Kanal (`kart`):
-
-- **Wer einsteigt, beansprucht den Platz** (`seat`), und über einem fremden
-  Kart steht _Besetzt · Name_ statt „Lenkrad greifen zum Einsteigen". Greifen
-  zwei im selben Moment zu, gewinnt die kleinere Peer-Id — dieselbe Antwort auf
-  beiden Rechnern, ohne Wahl und ohne Server.
-- **Gerechnet wird ein Kart nur dort, wo jemand darin sitzt.** Das ist die
-  einzige Stelle, an der Gas, Bremse und Lenkung wirklich bekannt sind; alle
-  anderen bekommen zwanzigmal in der Sekunde die Pose und laufen ihr weich
-  hinterher. Ein verlorenes Paket ist damit ein Ruckler und kein Kart, das
-  durch die Leitplanke kriecht. Das ist bewusst **nicht** das Wirt-Modell der
-  Props (`PortalSync`): dort rechnet einer für alle, hier rechnet jeder sein
-  eigenes Kart, weil die Eingaben nun einmal an der Hand hängen.
-- **Die Tafel wird zur Zeitnahme**: allein zeigt sie die eigene letzte und
-  beste Runde, im Feld die Reihenfolge — mehr Runden zuerst, bei gleicher
-  Runde der weiter Gekommene, die eigene Zeile mit einem Pfeil markiert
-  (`kartRace.ts`, mit Test). Eine gefahrene Runde meldet danach nicht nur die
-  Zeit, sondern auch den Platz: im Rennen ist das die eigentliche Auskunft.
-- **Was noch fehlt:** zwei Karts fahren durcheinander hindurch. Beide sind für
-  die Physik kinematisch, und zwei kinematische Körper stoßen sich in Rapier
-  nicht — Kegel und Kisten schieben sie weiterhin beide.
-- **Und noch etwas:** Beim Lenken mit dem _Lenkrad in der Hand_ wandert die
-  virtuelle Hand um den Kranz, solange der Kopf nachzieht — das Lenkrad hängt
-  am Kart, die Hand am Rig, und die beiden drehen sich nicht mehr im selben
-  Bild. Die **Eingabe** stimmt trotzdem, weil sie gegen den Blick gemessen wird
-  (`Kart.handAngle`); es sieht nur aus, als rutschte die Hand. Wer lieber am
-  Lenkrad lenkt, stellt den Nachlauf auf `0`, und die Frage stellt sich nicht.
+**Eingestiegen wird mit `A`.** Jedes Kart meldet sich als `Usable` an
+(`core/usable.ts`, `usePrompt` „Einsteigen"), und damit geht es von oben, aus
+den Augen und in der Brille mit demselben Knopf, mit dem man auch eine Tür
+aufmacht — das war der Punkt der Sache: Ein Fahrzeug, in das man nur steigt,
+indem man ein Lenkrad greift, ist eines, das am Bildschirm niemand fährt. In
+der Brille geht der alte Weg weiter: die Hand ums Lenkrad schließen.
+**Aussteigen** ist das Einzige, was ein neuer Fahrer nicht erraten kann, also
+steht es die ganze Zeit auf einem Schild direkt über dem Lenkrad — `A`/`X`
+halten, mit einem Balken, der währenddessen vollläuft. Kein Tastendruck: bei
+Tempo 60 ist ein Druck zu leicht danebengegriffen. Am Rechner tut `E` dasselbe.
 
 **Das Fahrmodell** ist bewusst klein und arkadig: Gelenkt wird wie beim
 Fahrrad — Gierrate = Tempo · tan(Einschlag) / Radstand, also dreht ein
@@ -3101,12 +3083,11 @@ blockiert. Genau das ist der **Reifenschlupf** (`slip`, 0 bis 1). Das Gas
 dreht die Reifen dabei nur durch, _solange der Motor noch zieht_ — bei Tempo
 null am schlimmsten, bei Höchstgeschwindigkeit gar nicht mehr, weil die Kraft
 dort längst im Luftwiderstand steckt; die Bremse blockiert bei jedem Tempo
-gleich. Beides ist analog, es zählt also, wie weit der Trigger gezogen ist.
-
-Und **die Traktion reicht jetzt tiefer**: bis 0,02 statt bis 0,15. Bei 0,15
-_rutschte_ ein Kart noch nicht, es fuhr nur unpräzise; was man eigentlich will
-— eines, das die ganze Kurve quer nimmt — fängt eine Zehnerpotenz tiefer an.
-Der _Drifter_ steht dort und fährt mit vollem Schlupf.
+gleich. Beides ist analog, es zählt also, wie weit der Trigger gezogen ist. Und
+**die Traktion reicht tief**: bis 0,02 statt bis 0,15. Bei 0,15 _rutschte_ ein
+Kart noch nicht, es fuhr nur unpräzise; was man eigentlich will — eines, das
+die ganze Kurve quer nimmt — fängt eine Zehnerpotenz tiefer an. Der _Drifter_
+steht dort und fährt mit vollem Schlupf.
 
 **Der Kopf ist nicht am Kart festgeschraubt** (`kartView.ts`). Vorher drehten
 sich Kart und Rig im selben Bild: physikalisch richtig — ein Kopf, der in einem
@@ -3138,7 +3119,13 @@ Zwei Dinge hängen daran, und beide stehen im Code:
 
 - **Der Sitz kommt vom Kart, die Richtung vom Blick.** `seatDriver` schiebt den
   Rig jeden Frame auf den Augpunkt — sofort, sonst säße man neben dem Kart —
-  und dreht ihn auf den nachlaufenden Winkel.
+  und dreht ihn auf den nachlaufenden Winkel. Und zwar in **allen drei
+  Achsen**: Früher landeten die _Füße_ auf einer festen Tiefe und das Auge
+  dort, wohin die eigene Körpergröße es trug — für jemanden im Stehen genau
+  richtig, für jemanden auf einem Stuhl vierzig Zentimeter zu tief, und genau
+  das ist das „ich sitze auf dem Kart statt darin". `Kart.seat` ist deshalb der
+  **Augpunkt** (1,02 m über dem Boden, wie in einem echten Kart) und nicht mehr
+  die Fußstelle.
 - **Ein Deckel von 25°** (`MAX_LAG`), und der ist **keine** Einstellung: In
   einer langen Kurve käme der Blick sonst quer zur Fahrtrichtung zu stehen, und
   dann fährt man seitwärts durch die Gegend. Er ist die Grenze, an der auch ein
@@ -3156,34 +3143,13 @@ ein Kart, das über den Rand ist, exakt auf die Kante zurück, nimmt den Teil de
 Geschwindigkeit weg, der in die Planke zeigte, und schrubbt den Rest ein wenig.
 So rutscht man an der Bande entlang statt daran zu kleben. Steht man einmal
 stumpf davor, hilft die Bremse: sie ist zugleich der Rückwärtsgang, und rückwärts
-lenkt es wieder.
-
-Darüber liegt `confineToCourse` mit **einer** Regel: Wer in irgendeiner der
-Flächen ist — Strecke oder Boxengasse —, wird nicht angefasst; wer draußen ist,
-kommt auf die **nächstgelegene** zurück. Nicht immer auf die Strecke, denn dann
-schöbe die Box einen quer über die Wiese, sobald man in ihr an die Mauer kommt.
-Die Gasse ist dabei bewusst ein **Rechteck** und keine zweite Mittellinie: Eine
-offene Linie hat zwei Enden, und dort weiß `nearestOnPath` nicht mehr, ob man
-noch daneben oder schon dahinter steht — wer zehn Meter über das Ende
-hinausfährt, hat weiter den Abstand null und rollt fröhlich über die Wiese.
-
-**Einsteigen** ist ein Griff ans Lenkrad — der Rig wird eingefroren
-(`rig.frozen`) und jeden Frame auf den Sitz gesetzt, wobei der _Kopf_ über den
-Sitz geschoben wird und nicht der Rig-Ursprung: in VR steht der Spieler in
-seinem Zimmer irgendwo, nur nicht dort, wo die Brille es gern hätte.
-
-Und zwar in **allen drei Achsen**. Früher landeten die _Füße_ auf einer festen
-Tiefe und das Auge dort, wohin die eigene Körpergröße es trug — für jemanden im
-Stehen genau richtig, für jemanden auf einem Stuhl vierzig Zentimeter zu tief,
-und genau das ist das „ich sitze auf dem Kart statt darin". `Kart.seat` ist
-deshalb der **Augpunkt** (1,02 m über dem Boden, wie in einem echten Kart) und
-nicht mehr die Fußstelle; der Rest des Rigs richtet sich danach.
-
-**Aussteigen** ist das Einzige, was ein neuer Fahrer nicht erraten kann, also
-steht es die ganze Zeit auf einem Schild direkt über dem Lenkrad — `A`/`X`
-halten, mit einem Balken, der währenddessen vollläuft. Kein Tastendruck: bei
-Tempo 60 ist ein Druck zu leicht danebengegriffen. Dieselbe Zeile steht oben
-auf dem Klemmbrett, für alle, die lieber zielen. Am Rechner tut `E` dasselbe.
+lenkt es wieder. Darüber liegt `confineToCourse` mit **einer** Regel: Wer in
+irgendeiner der Flächen ist — Strecke oder Boxengasse —, wird nicht angefasst;
+wer draußen ist, kommt auf die **nächstgelegene** zurück. Nicht immer auf die
+Strecke, denn dann schöbe die Box einen quer über die Wiese, sobald man in ihr
+an die Mauer kommt. Die Gasse ist dabei bewusst ein **Rechteck** und keine
+zweite Mittellinie: Eine offene Linie hat zwei Enden, und dort weiß
+`nearestOnPath` nicht mehr, ob man noch daneben oder schon dahinter steht.
 
 Das **Klemmbrett** ist ein `UIPanel` am Kart: Lenkart, Beschleunigung,
 Höchstgeschwindigkeit, Bremskraft, Traktion, Reifenschlupf, Kopfnachlauf,
@@ -3197,58 +3163,31 @@ rohe Zahl daneben. Darunter zwei Zeilen, die keine Raste sind:
   der eigentliche Zweck: Übelkeit kommt daher, dass das Auge eine Bewegung
   sieht, die das Innenohr nicht meldet, und das bewährteste Gegenmittel ist
   etwas im Bild, das sich **nicht** bewegt. Der Rand hängt an der Kamera und
-  liegt auf `LAYER_HUD` — wie die Trefferanzeige, und aus demselben Grund: Ein
-  Rahmen, der dem Kopf ein Bild hinterherläuft, wäre das Gegenteil dessen,
-  wofür es ihn gibt, und einer, den auch die Portalkameras zeichnen, schwebte
-  als schwarzer Ring im Raum.
+  liegt auf `LAYER_HUD` — wie die Trefferanzeige, und aus demselben Grund.
 - **Werte eingeben** — dieselben Zahlen, aber **getippt** statt
-  durchgeschaltet, auf dem Zifferblock vor dem Kopf (`PortalWorld.askNumber`,
+  durchgeschaltet, auf dem Zifferblock vor dem Kopf (`ZoneHost.askNumber`,
   derselbe wie bei Pistole und Greifen). Rasten sind zum Ausprobieren da: Man
   tippt eine Zeile an und merkt am nächsten Bogen, ob es besser wurde. Was sie
   nicht können, ist das Ende davon — wer weiß, dass sein Kart 0,62 Traktion
   haben soll, will nicht siebenmal weiterschalten und dabei daran vorbei.
-  Dieselbe Grenze (`clampKartField`), andere Eingabe.
 
 Weil mehr Zeilen als Platz da sind, blättert der Stick der
-zeigenden Hand — dieselbe Geste wie im Handgelenk-Menü, und wie dort bleibt das
-Brett beim Weiterschalten stehen, wo es stand. Liegt der Strahl einer
+zeigenden Hand — dieselbe Geste wie im Handgelenk-Menü. Liegt der Strahl einer
 Hand auf dem Brett, gehört _ihr_ Trigger dem Brett und nicht dem Gas — pro
 Hand, damit Lesen mit der einen der anderen nicht das Gas wegnimmt. Das
 Lenkrad selbst hört, sobald jemand sitzt, gar nicht mehr auf den Strahl
 (`PointerTarget.ignore`): es gibt dann nichts mehr auszuwählen, und ein Strahl,
 der darauf ruht, würde nur den Gastrigger schlucken.
 
-Der Gürtel ist hier **leer**: beide Trigger haben in dieser Welt einen Job.
-
-### Die Pizzeria
-
-Das Rezept steht in `src/worlds/shop/pizza.ts` — vier Zahlen (Schläge, Soße,
-Käse, Ofenzeit) und daraus abgeleitet Stufe, Beschriftung, Farbe und Punkte.
-Wieder ohne three.js, wieder mit Test; `ShopWorld.ts` ist der Raum drumherum.
-
-- **Kneten ohne Knopf.** Ein Teig, der auf dem Arbeitstisch zur Ruhe kommt,
-  wird kinematisch und bleibt liegen; danach knetet ihn jede Hand, die schnell
-  genug und in seine Richtung hineinfährt. Bewusst _ohne_ Taste: Greifen ist
-  schon vergeben — mit gedrücktem Griff hebt man ihn auf. Genau das ist der
-  Unterschied zwischen den beiden Gesten, und er muss nirgends erklärt werden.
-- **Werkzeuge mit festem Platz.** Kelle und Streuer sind normale Props, aber
-  sobald sie niemand hält, stehen sie wieder auf ihrem Fleck. Sie können also
-  nicht verloren gehen, und der Platz ist nie leer, wenn man zurückkommt.
-  Wer eins in der Hand hat, drückt den Trigger und schüttet über den Boden, der
-  darunter liegt. Käse hält nur auf Soße.
-- **Der Ofen** hat keine Klappe, nur ein Loch: was in dem Kasten liegt, backt.
-  Golden ist fertig, schwarz ist zu spät, beides sagt ein Ton an.
-- **Der Mülleimer** ist ein Kasten mit Boden — was hineinfällt, wird gelöscht.
-- **An der Wand** hinter jeder Station steht in zwei Zeilen, was sie will. Ein
-  `TextPlane` bemisst seine Schrift an seiner _Höhe_, ein höheres Schild fasst
-  also weniger Text, nicht mehr — die Schilder sind deshalb breit und flach.
-- **Arbeitshöhe** ist 90 cm, wie in einer echten Küche. Wer sich hier zu klein
-  vorkommt, sitzt in aller Regel auf einem Stuhl; dagegen hilft nicht die
-  Arbeitsplatte, sondern _Menü → Bewegung → Haltung_.
-- **Grenze:** Pizzen entstehen zur Laufzeit und bekommen laufende IDs; zwei
-  Küchen in derselben Sitzung meinen mit `pizza-3` nicht dasselbe. Gelöscht
-  wird deshalb nur lokal. Der Raum, die Werkzeuge und alles Geworfene sind
-  geteilt wie überall.
+**Was mit der Gokart-Welt gegangen ist: das Rennen gegen andere.** Sie schickte
+ihre Kart-Posen zwanzigmal je Sekunde über einen eigenen Netzkanal, beanspruchte
+Plätze (`seat`, bei gleichzeitigem Griff gewann die kleinere Peer-Id — dieselbe
+Antwort auf beiden Rechnern, ohne Wahl und ohne Server), rechnete ein Kart nur
+dort, wo jemand darin saß, und führte eine Rangliste an der Zielgeraden. Das ist
+eine halbe Welt für sich und nicht, was eine Testwelt prüft: Hier soll man
+merken, ob Lenkung, Traktion, Rundenzeit und Einsteigen noch tun. Die
+Buchführung dazu (`kartRace.ts`) ist unangetastet geblieben, samt Test — falls
+es wieder ein Rennen geben soll, fehlt nur der Kanal.
 
 ### Controller-Modelle
 
@@ -4226,22 +4165,20 @@ anderen Bereichen, und ein zweiter Leser dafür wäre mehr Ballast als Nutzen.
 
 #### Über die Leitung
 
-Im Eingaberaum stehen zwei Knöpfe an der Wand: **Werkzeug senden** und **Alles
-senden**. Sie schicken den Code an alle, die gerade im Raum verbunden sind
-(`NetSession.emit` auf dem Kanal `gear`), und drüben wird er wie jeder andere
-gelesen, geprüft und eingetragen — inklusive der Werkzeuge, die schon in einer
-Hand liegen (`applyStoredConfig`). Verschickt wird die **Zeile** und nicht der
-Datensatz: dieselbe, die auch auf der Tafel steht, mit derselben Prüfsumme
-davor. Damit gibt es einen Weg hinein statt zweier, die auseinanderlaufen
-können. Und das ist der Punkt, an dem der Kurzcode sich auszahlt: ein Werkzeug
-sind 25 Zeichen, also ein Paket.
+**Ein Code reist als Chat-Zeile** (`NetSession.emit` auf dem Kanal `gear`), und
+drüben wird er wie jeder andere gelesen, geprüft und eingetragen — inklusive
+der Werkzeuge, die schon in einer Hand liegen (`applyStoredConfig`).
+Verschickt wird die **Zeile** und nicht der Datensatz: dieselbe, die auch auf
+einer Tafel steht, mit derselben Prüfsumme davor. Damit gibt es einen Weg
+hinein statt zweier, die auseinanderlaufen können. Und das ist der Punkt, an
+dem der Kurzcode sich auszahlt: ein Werkzeug sind 25 Zeichen, also ein Paket.
+Die Knöpfe dazu standen an der Wand des Eingaberaums (_Werkzeug senden_,
+_Alles senden_); der Weg ist geblieben, die Wand nicht.
 
 In VR liegt der große Code unter _Einstellungen → Konfig-Code_: **Code anzeigen**
 legt ihn gleich in die Zwischenablage (und in die Browser-Konsole), **Code
-laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Die
-**Werte-Tafeln im Eingaberaum** zeigen außerdem unter jeder Messung den Code
-für genau das gemessene Werkzeug an genau dieser Hand. Am Rechner geht
-dasselbe auf der Kommandozeile:
+laden** nimmt ihn wieder entgegen — eingefügt oder Zeichen für Zeichen. Am
+Rechner geht dasselbe auf der Kommandozeile:
 
 ```bash
 npm run config -- decode BG3…        # zeigt die Einstellungen als JSON
@@ -4260,140 +4197,14 @@ Ferngreifen_. Ferngreifen schaltet sich außerdem selbst ab, solange beide Händ
 dicht beieinander sind und eine davon schon etwas hält — dann will man den
 Gegenstand übergeben und nicht quer durch den Raum zielen.
 
-### Der Poseraum
-
-Rechts hinter dem Schießgang liegt seit dieser Runde ein dritter Arbeitsplatz,
-und er beantwortet eine Frage, die die beiden Stände nicht können. Halter und
-Griffstand messen beide die Hand **am Controller** — und eine Hand am
-Controller ist eine Faust um einen Zylinder. Wie eine Hand einen Gegenstand
-wirklich anfasst, sieht anders aus. Wer eine Handhaltung _realistischer_ haben
-will, muss die **blanke** Hand messen, und das ging erst, seit sie einen
-Handschuh tragen kann (siehe _Handmodell_).
-
-**Der Gang ist dafür rechts breiter geworden, und nur rechts.** `LANE` hat
-seither zwei halbe Breiten (`tune/lane.ts`, mit Test): links 2,2 m wie immer,
-rechts 4,2 m. Die alte rechte Wand ist nicht verschwunden, sondern zur
-**Trennwand mit Tür** geworden — ihre Gangseite liegt exakt dort, wo die Wand
-stand, also hängen die acht Knöpfe und die Werte-Tafel keinen Zentimeter weiter
-weg. Den ganzen Gang zu verbreitern wäre die naheliegende Änderung gewesen und
-die falsche: eine Tafel wird nicht dadurch lesbarer, dass der Raum größer wird.
-Die Tür sitzt hinter der zweiten Knopfspalte und vor der Werte-Tafel; die Tafel
-ist dafür ein Stück weiter nach hinten gewandert, denn eine Tür, die eine Tafel
-halbiert, ist eine Tafel weniger.
-
-Fünf Dinge stehen darin:
-
-- **Der Schwebekasten** (`tune/HoverBox.ts`): eine durchsichtige Kiste in der
-  Luft, in der die Schwerkraft aufhört. Man hält ein Werkzeug hinein, lässt es
-  los, und es bleibt liegen — samt der Lage, in der man es gehalten hat.
-  Justiert wird danach, indem man es wieder anfasst und anders hinlegt. Der
-  Griffstand nebenan löst dasselbe mit einer **Kopie** in einer Aufnahme, und
-  das ist genau richtig, solange man vorher weiß, welches Werkzeug man ansehen
-  will; hier geht es andersherum.
-
-  Er hat **keinen Körper**: er hält nichts auf, er sagt nur, wo die Schwerkraft
-  aufhört. Ein Kasten mit Wänden wäre eine Vitrine, und in eine Vitrine legt man
-  nichts hinein, ohne die Tür zu öffnen. Gebaut ist er als **Kanten plus Hauch**
-  (sechs Flächen bei 6 %) — sechs halbdurchsichtige Wände vor einem Werkzeug
-  sind sechs Schleier, und dahinter beurteilt man nichts mehr.
-
-  Was er tut, steht in `PortalWorld.floatZone`: eine **Zone** und kein Sonderfall
-  im Loslassen. Sonst wären es zwei — ein Werkzeug fliegt über `releaseTool` aus
-  der Hand, ein Gegenstand über `release` —, und hineingeworfen werden kann
-  ohnehin von überall. Eine Zone, die jedes Bild nachsieht, kennt keinen dieser
-  Wege und trifft trotzdem alle. Gemerkt wird dabei der **Zustand vor dem
-  Eintritt** und nicht „Schwerkraft 1": ein geworfenes Messer fliegt mit
-  abgeschalteter Schwerkraft geradeaus, und wer es beim Verlassen auf 1 setzte,
-  ließe es mitten im Flug fallen. Gedämpft wird kräftig (4,5), damit ein
-  losgelassenes Ding steht, wo man es hingelegt hat, statt langsam durch den
-  Kasten zu driften.
-
-- **Der Feststeller** (_Schwebe: frei_ / _festgestellt_) hält an, was im Kasten
-  hängt, bis er wieder ausgeht. Schwerelos ist nämlich nicht dasselbe wie
-  unbeweglich, und das ist beim Messen der Unterschied zwischen einer Zahl und
-  einer Nachbewegung: das Werkzeug hängt weich, die Hand, die man daran legt,
-  stupst es an, man rückt nach — und gemessen hat man am Ende, wie es
-  ausgewichen ist. Schlimmer noch: die blanke Hand, die man zum Messen um ein
-  Werkzeug schließt, _ist_ die Greifgeste (`handGestures.ts`), und sie nahm es
-  einem bei jedem zweiten Versuch wieder aus dem Kasten.
-
-  Festgestellt steht es wie angeschraubt **und lässt sich nicht mehr greifen**
-  (`PortalWorld.setFloatFixed`, gesperrt in `aimGrab`). Gesperrt werden dabei
-  Verschiebung und Drehung des Körpers (`lockTranslations`/`lockRotations`) und
-  nicht die Schwerkraft: die ist in der Zone ohnehin aus, und ein Körper ohne
-  Schwerkraft behält trotzdem jeden Stoß. Beim Freigeben steht er da, wo er
-  stand, statt mit dem alten Schwung weiterzuziehen. Der Kasten sagt es in
-  Bernstein statt in Grün — ein Kasten, in dem sich nichts mehr bewegt, sieht
-  sonst aus wie einer, in dem sich gerade nichts bewegt, und die gesperrte Hand
-  hielte man für einen Fehler. Wer den Raum verlässt, nimmt den Schalter nicht
-  mit: er geht mit der Zone aus.
-
-- **Der Schalter an der Wand** zieht getrackten Händen den Handschuh an. Er
-  steht hier und nicht nur im Menü, weil man ihn genau hier braucht.
-
-- **Der Knopf _Knochenfarben_** daneben färbt jeden Knochen einzeln ein
-  (siehe _Knochenfarben_ oben). Ein- und ausschaltbar wie der Handschuh, und
-  aus demselben Grund an derselben Wand: hier stellt man eine Zahl je Knochen
-  ein, und fünf gleich weiße Röhren sagen nicht, welcher gerade gemeint ist.
-
-- **Der Knopf _Handpose teilen_** schickt die Haltung der **anderen** Hand live
-  an alle im Raum. Gezeigt hat die Hand mit dem Controller, geteilt wird die
-  daneben, und das ist keine Höflichkeit, sondern die einzige Aufteilung, die
-  aufgeht: die gemessene Hand liegt am Gegenstand und darf sich nicht rühren,
-  also muss die andere drücken — und die andere ist die mit dem Gerät darin.
-  Ihr **Trigger** hält die Haltung dann fest; ein Knopf an der Wand ginge auch,
-  nur müsste man dafür die Hand vom Gegenstand nehmen.
-
-**Gemessen wird mit derselben Kette wie am Griffstand** (`tune/handGrip.ts`):
-die Lage der gezeichneten Hand im Raum des Werkzeugs, und daraus über
-`handFromGhost` die Haltung im Griffraum. Der Griff kürzt sich heraus, und
-genau das ist hier der Punkt — in der messenden Hand steckt kein Controller.
-Hängt **nichts** im Kasten, bleibt die nützlichere Hälfte übrig: die **Finger**.
-Eine blanke Hand misst das Headset ohnehin (`foldCurls`), und bis hierher
-landete das nirgends; die Grundhaltung behält damit ihre Lage und bekommt die
-Krümmung der echten Hand.
-
-**Und jede Kugel einzeln.** Was gespeichert wird, sind nicht mehr nur fünf
-Krümmungen und eine Spreizung, sondern der ganze Gelenkteil einer Haltung
-(`HandPose.joints`, `core/handBones.ts`): je Finger **drei Beugungen und eine
-Fächerung**, in Grad — zwanzig Zahlen, genau die, mit denen die gezeichnete
-Hand ihre Knochen dreht. Die Krümmungen bleiben daneben stehen und passen dazu:
-sie sind die Zusammenfassung, die auf der Tafel steht, in den Kurzcode geht und
-ein Modell mit weniger Knochen bedient. Wo eine Haltung Gelenke hat, **gewinnen
-sie**; wer im Menü eine Krümmung tippt, wirft sie weg (`setHandPoseField`) —
-sonst änderte man eine Zahl und sähe an der Hand nichts passieren.
-
-Gespeichert werden sie hinten an derselben Zahlenreihe, in der eine Haltung
-schon immer lag (`handPoseToArray`, ab Feld 12): angehängt und nicht
-dazwischengeschoben, damit jeder alte Leser weiter dieselbe Haltung liest. Der
-große **Konfig-Code** liest genau zwölf Felder — mehr passen nicht in seine
-Maske — und trägt sie deshalb **nicht**; die Krümmungen daneben sagen dieselbe
-Haltung so genau, wie ein Modell mit fünf Zahlen sie sagen kann. Der Speicher im
-Browser trägt sie, und dort werden sie gemessen.
-
-Am Werkzeug überleben sie die Knöpfe: über eine gemessene Haltung legt sich nur
-noch die Ebene der Finger, die ein Knopf wirklich bewegt (`buttonCurlLayer`) —
-der Trigger zieht den Zeigefinger, und die anderen vier stehen weiter dort, wo
-die Messung sie gefunden hat.
-
-**Sieht die Brille die Hand gerade nicht** — sie liegt hinter dem Werkzeug, der
-Handschuh ist aus —, dann steht statt der Messung die **eingestellte** Haltung
-da, und die Tafel sagt das im Titel („— eingestellt"), denn die Zahlen sehen in
-beiden Fällen gleich aus. Sie geht trotzdem über die Leitung: damit sieht ein
-Zuschauer das Werkzeug im Kasten auch dann, und genau dafür ist der Kasten da.
-Gespeichert wird sie nicht — eine Haltung auf sich selbst zu schreiben ist
-keine Messung.
-
-Der **Konfig-Code** dazu wird an Ort und Stelle gebaut (`packShortGear`) und
-nicht aus dem Speicher geholt: was auf der Tafel steht, soll die Haltung sein,
-die man gerade sieht, und nicht die, die zuletzt gespeichert wurde. Auf der
-Tafel steht er unter den zwölf Zahlen, der Knopf _Pose senden_ schickt ihn als
-Chat-Zeile an alle (siehe _Über die Leitung_).
-
 #### Live auf die Werkzeugseite
 
-Über der Leitung geht dabei **mehr als der Code** (`tune/handShare.ts`, mit
-Test, ohne three.js). Ein Zuschauer im Browser hat keinen Griff, keine
+Eine **gemessene Handhaltung** ging über dieselbe Leitung, und zwar als
+**mehr als der Code** (`tune/handShare.ts`, mit Test, ohne three.js). Geschickt
+hat sie der Poseraum des Eingaberaums, empfangen die Werkzeugseite unter
+_Verbinden_ — den Sender gibt es nicht mehr, der Empfänger und das Format
+stehen weiter da, und deshalb steht hier auch weiter, wie es gedacht war.
+Ein Zuschauer im Browser hat keinen Griff, keine
 Zielkorrektur und keinen Speicher, gegen den er eine Haltung aus dem Griffraum
 verrechnen könnte; er müsste die halbe Kette nachbauen, und stünde die Hand
 dann ein Grad anders als in der Brille, wüsste niemand, welche der beiden
@@ -4412,7 +4223,7 @@ stimmt. Also gehen **beide** Formen hinaus und keine wird nachgerechnet:
 
 Zwanzigmal je Sekunde, auf dem Kanal `hpose` — derselbe Weg, den auch Portale
 und Gegenstände nehmen (`NetSession.emit`). Das Bild, das der Trigger festhält,
-trägt `saved` und geht sofort hinaus, ohne auf den nächsten Takt zu warten.
+trug `saved` und ging sofort hinaus, ohne auf den nächsten Takt zu warten.
 
 ## Architektur
 
