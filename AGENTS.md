@@ -1111,9 +1111,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   **NPC** (wer hier herumläuft — Haut und Hirn getrennt, dazu Spawnpunkte und
   Brutkäfige; siehe _Wer hier herumläuft_),
   **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Aussehen** (drei
-  Zeilen: Kopf, Hut, Körper — siehe _Wie man aussieht_), **Grafik** (die
-  experimentelle Seite: Einfach oder Comic, dazu die Gitterlinien — siehe
-  _Wie schön es aussieht_),
+  Zeilen: Kopf, Hut, Körper — siehe _Wie man aussieht_), **Grafik** (Schatten,
+  Einfach oder Comic, dazu die Gitterlinien — siehe _Wie schön es aussieht_),
   **Einstellungen** und die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
   `A`** den Eintrag in genau die zeigende Hand, damit der Zieltrigger nicht
@@ -2534,7 +2533,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Nah Gefasstes doch holen                                                           | dasselbe Zucken zum Körper                                                                                                                                                                                                                                    | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Nah Gefasstes zur anderen Hand                                                     | mit der freien Hand daraufzielen und Grip — die zweite Geisterhand zeigt, dass sie es nimmt                                                                                                                                                                   | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Reichweiten einstellen                                                             | Menü → Einstellungen → Greifen                                                                                                                                                                                                                                | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
-| Grafik umstellen                                                                   | Menü → Grafik: _Grafik-Modus_ schaltet im Kreis (Einfach → Comic); _Brille: Auflösung_ (Voll → Mittel → Flüssig, ab der nächsten Sitzung); oben die **Bildrate** live; _Bildrate im Bild_ (Häkchen = F3)                                                      | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
+| Grafik umstellen                                                                   | Menü → Grafik: _Schatten_ (Häkchen, ab Werk an); _Grafik-Modus_ schaltet im Kreis (Einfach → Comic); _Brille: Auflösung_ (Voll → Mittel → Flüssig, ab der nächsten Sitzung); oben die **Bildrate** live; _Bildrate im Bild_ (Häkchen = F3)                                                      | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Gitterlinien                                                                       | Menü → Grafik → _Gitterlinien_ — die Kacheln der Ebene, auf der man steht, ab Werk aus                                                                                                                                                                        | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Menüseite blättern                                                                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Werkzeug-Einstellungen                                                             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                                                                                                                  | Linksklick auf den Pfeil                                                                                                                                                                                                                                                                                                                       | –                                                           | tippen                                     |
@@ -4402,22 +4401,34 @@ UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern
 ### Wie schön es aussieht
 
 _Menü → Grafik_, und die Seite trägt ein **EXP** im Abzeichen: Der Grafik-Modus
-und die Auflösung der Brille sind Experimente, beide kosten Bildrate, und
-keines ist ab Werk an.
+und die Auflösung der Brille sind Experimente, und beide kosten Bildrate.
 
-Das Bild, das dieses Projekt immer hatte, ist **eine** von zwei Stufen und
-heißt jetzt so:
+**Schatten sind ein eigener Schalter** (`GraphicsSettings.shadows`) und ab Werk
+**an**. Das war einmal anders, und die Änderung ist eine Antwort auf eine
+Beschwerde: Sie hingen am Comic, also am Bild mit schwarzen Konturen und Licht
+in Stufen — wer nur Schatten wollte, bekam eine Zeichnung dazu, und wer die
+Zeichnung nicht wollte, bekam eine Welt, in der alles einen Zentimeter über dem
+Boden schwebt. Das sind zwei Fragen, also sind es zwei Schalter. Das Vorbild
+ist Overcooked: Dort sitzt jede Figur und jeder Tresen in einem weichen
+Schlagschatten, und er ist es, der aus einer Ansicht von schräg oben einen
+**Raum** macht und nicht eine Collage. Wem das in der Brille zu teuer ist,
+macht ihn aus — er ist der erste Regler, an dem man dreht, wenn die Bildrate
+klemmt.
 
-- **Einfach** — flache Farben, ein Himmelsverlauf, drei Lichter, keine
-  Schatten. Nicht „sparsam", sondern _identisch_ mit vorher: Wer nichts
-  einstellt, sieht Pixel für Pixel dasselbe Bild wie gestern. Das ist keine
-  Behauptung, sondern eine Prüfbedingung — jede Zahl im einfachen Profil ist
-  der Wert, den `App` ohnehin setzt (`graphicsSettings.test.ts`).
+Daneben stehen **zwei Stufen**:
+
+- **Einfach** — flache Farben, ein Himmelsverlauf, drei Lichter, keine Kontur
+  und keine Farbstufen.
 - **Comic** — dieselbe Welt als Zeichnung: eine **schwarze Kontur** um jedes
   Ding, Licht, das in **Stufen** auf den Flächen liegt statt in einem Verlauf,
-  **Schatten** von der hellsten Sonne der Welt (ohne sie schwebt in einer
-  Zeichnung alles) und ein **schärferes Bild** in der Brille
-  (`framebufferScale` 1,2, Foveation 0,3 statt 1).
+  und ein **schärferes Bild** in der Brille (`framebufferScale` 1,2, Foveation
+  0,3 statt 1).
+
+**Was „Einfach ist, was bisher war" heute noch heißt.** Der Satz stand hier
+lange als Prüfbedingung, und an genau einer Stelle stimmt er nicht mehr: an
+den Schatten. Alles andere gilt weiter, und der Test daneben prüft es — mit
+`shadows: false` ist jede Zahl im einfachen Profil der Wert, den `App` ohnehin
+setzt (`graphicsSettings.test.ts`).
 
 **Es waren einmal drei.** Dazwischen stand **Schön** — Schatten,
 Spiegelungen aus einem Umgebungsbild des Weltenhimmels, schärferes Bild —, und
@@ -4504,7 +4515,7 @@ gar kein Weltmenü, in das eine Grafikeinstellung passte.
   beide würden die halbe Welt verdunkeln. Empfangen dürfen sie ihn. Genauso
   wenig wirft Durchsichtiges einen — ein Fenster mit einem Brett als Schatten
   ist schlimmer als eines ohne.
-- **Der Schattenkasten wandert mit dem Kopf.** Eine Karte deckt 28 Meter ab,
+- **Der Schattenkasten wandert mit dem Kopf.** Eine Karte deckt 32 Meter ab,
   die Welten reichen bis zum Horizont: Die Sonne behält exakt ihre Richtung
   (sonst wanderten die Schatten beim Gehen), nur Lampe und Ziel rücken hinter
   den Spieler, eingerastet auf zwei Meter — ohne das kriechen die Ränder bei
@@ -4513,18 +4524,32 @@ gar kein Weltmenü, in das eine Grafikeinstellung passte.
   wird in Weltkoordinaten, weil die Schattenkarte genau so liest; das Ziel eines
   Richtungslichts hängt an keiner Szene, also wird seine Weltmatrix von Hand
   gerechnet.
-- **Das Grundlicht geht mit herunter** (Hemisphären- und Umgebungslicht auf
-  0,7). Das ist der unscheinbarste Wert und der wichtigste: Ein Schatten ist
-  nur so dunkel, wie das Licht daneben hell ist, und diese Welten leuchten mit
-  1,5 aus — auf voller Stärke war der schönste Schatten ein Hauch. Weiter
-  herunter geht es nicht: Zwei Farbstufen brauchen Mitteltöne zwischen sich.
-  Lampen bleiben unangetastet: Ein Dimmer an der Wand, die Lampe über einer
-  Tür und der Blitz einer Explosion stellen ihre Stärke selbst ein.
+- **Das Grundlicht geht mit herunter**, sobald Schatten an sind (Hemisphären-
+  und Umgebungslicht auf 0,76, im Comic auf 0,7). Das ist der unscheinbarste
+  Wert und der wichtigste: Ein Schatten ist nur so dunkel, wie das Licht
+  daneben hell ist, und diese Welten leuchten mit 1,5 aus — auf voller Stärke
+  war der schönste Schatten ein Hauch. Weiter herunter geht es nicht: Zwei
+  Farbstufen brauchen Mitteltöne zwischen sich. Ohne Schatten bleibt es, wo es
+  war — ein dunkleres Bild ohne Gegenleistung wäre ein Rückschritt.
+
+  **Lampen bleiben unangetastet**: Ein Dimmer an der Wand, die Lampe über einer
+  Tür und der Blitz einer Explosion stellen ihre Stärke selbst ein. Wer ein
+  Grundlicht hat, dessen Stärke **das Spiel** setzt, markiert es mit
+  `userData.dynamicIntensity = true` — sonst merkt sich der Durchlauf den Wert,
+  auf dem es gerade steht, als seine Grundhelligkeit. Bei einem Licht, das beim
+  Bauen auf 0 steht und erst später angeht (Archivtisch und Fernseher im
+  Haunting), heißt das: Es geht sekündlich wieder aus. Solange Schatten am
+  Comic hingen, fiel das niemandem auf, weil der Durchlauf in der einfachen
+  Stufe gar nicht lief.
+- **Der Rand ist weich** (`shadowRadius`, 1,5 Texel). Das Vorbild hat keine
+  harten Kanten, und eine scharfe Silhouette auf einem Kachelboden sieht aus
+  wie ein Aufkleber. Weiter weich geht nicht: Bei 2,5 Texeln blieb von einem
+  Tisch nur noch ein Hauch übrig — das wurde gebaut und angesehen.
 - **Die Schattenkarte wird einmal pro Bild bestellt** (`shadowMap.autoUpdate`
   aus, `needsUpdate` im Loop). Spiegel und Portalsichten zeichnen die Szene
   mehrmals; jede dieser Zeichnungen würde sie sonst neu bauen.
-- **Und in der einfachen Stufe wird die Szene nicht jede Sekunde abgelaufen**
-  (`GraphicsQuality.rescans`, `touched`): Der Durchlauf stellt dort nur
+- **Und ohne Schatten, Kontur und Farbstufen wird die Szene nicht jede Sekunde
+  abgelaufen** (`GraphicsQuality.rescans`, `touched`): Der Durchlauf stellt dann nur
   zurück, was der Comic einmal verändert hat — und wo der Comic in dieser
   Sitzung nie an war, gibt es nichts zurückzustellen. Ein Gang über ein paar
   tausend Objekte je Sekunde war ein Ruckler für nichts, in der Brille am

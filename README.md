@@ -107,9 +107,12 @@ Dach**, damit die Kamera von oben hineinsieht; steht die Figur hinter einer
 Wand, wird die Wand für dieses Bild durchsichtig. Orbital schwebt mit sichtbaren Deckplatten im Weltraum, die Schwerkraft steht im Menü, und
 die Stoppuhr hält die Zeit an, spult Einzelbilder vor oder lädt eine
 gespeicherte Aufstellung zurück.
-Unter **Menü → Grafik** steht ein experimenteller Schalter, der
-**Grafik-Modus**: _Einfach_ ist das Bild von bisher, _Comic_ zeichnet dieselbe
-Welt mit **schwarzen Konturen**, Licht in Stufen und Schatten. Darunter
+Unter **Menü → Grafik** steht das Häkchen **Schatten** — ab Werk an: Die
+hellste Sonne der Welt wirft sie, weich und über den Kopf mitwandernd, und das
+Grundlicht geht dafür etwas herunter. Es ist der erste Regler, wenn die
+Bildrate klemmt. Darunter der experimentelle
+**Grafik-Modus**: _Einfach_ sind flache Farben, _Comic_ zeichnet dieselbe
+Welt mit **schwarzen Konturen** und Licht in Stufen. Darunter
 **Brille: Auflösung** — _Voll_, _Mittel_ oder _Flüssig_, für die Bildrate im
 Headset, ab der nächsten Sitzung — ganz oben die **Bildrate** selbst, live,
 auch in der Brille, und als Häkchen **Bildrate im Bild** das kleine Feld unten

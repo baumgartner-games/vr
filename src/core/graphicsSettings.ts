@@ -76,6 +76,25 @@ export interface GraphicsSettings {
    * dem Spieler ändern, nie aber seine Augen.
    */
   gridLines: boolean;
+  /**
+   * **Ob die Sonne Schatten wirft.**
+   *
+   * Ein eigener Schalter und keine Eigenschaft der Stufe, und das ist
+   * nachgetragen worden: Schatten hingen am **Comic**, also am Bild mit
+   * schwarzen Konturen und Licht in Stufen — wer nur Schatten wollte, bekam
+   * eine Zeichnung dazu, und wer die Zeichnung nicht wollte, bekam eine Welt,
+   * in der alles einen Zentimeter über dem Boden schwebt. Das sind zwei
+   * Fragen, also sind es jetzt zwei Schalter.
+   *
+   * **Ab Werk an.** Das ist die eine Stelle, an der „Einfach ist, was bisher
+   * war" nicht mehr stimmt, und zwar mit Absicht: Das Vorbild dieses Projekts
+   * ist Overcooked, und dort sitzt jede Figur und jeder Tresen in einem
+   * weichen Schlagschatten — er ist es, der aus einer Ansicht von schräg oben
+   * einen Raum macht und nicht eine Collage. Wem das in der Brille zu teuer
+   * ist, macht ihn hier aus; er ist der erste Regler, an dem man dreht, wenn
+   * die Bildrate klemmt.
+   */
+  shadows: boolean;
 }
 
 /** Die drei Rasten des Reglers, von scharf nach flüssig. */
@@ -100,6 +119,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   xrScale: 1,
   showFps: false,
   gridLines: false,
+  shadows: true,
 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
@@ -108,7 +128,7 @@ export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
 };
 
 export const GRAPHICS_MODE_SUBS: Record<GraphicsMode, string> = {
-  simple: 'Wie bisher · flache Farben, keine Schatten',
+  simple: 'Flache Farben ohne Konturen',
   comic: 'Schwarze Konturen und Licht in Stufen · zeichnet alles zweimal',
 };
 
@@ -135,6 +155,16 @@ export interface GraphicsProfile {
   shadowRange: number;
   /** Wie weit die Sonne für die Schattenrechnung hinter den Spieler rückt. */
   shadowDistance: number;
+  /**
+   * **Wie weich der Rand eines Schattens ist**, in Texeln der Schattenkarte
+   * (`DirectionalLightShadow.radius`).
+   *
+   * Das Vorbild hat **keine** harten Kanten: In Overcooked liegt unter jeder
+   * Figur ein weicher Fleck, und eine scharfe Silhouette auf dem Kachelboden
+   * sähe daneben aus wie ein Aufkleber. Der Wert kostet nichts an Karte,
+   * sondern nur ein paar Abtastungen beim Zeichnen.
+   */
+  shadowRadius: number;
   /**
    * Womit Hemisphären- und Umgebungslicht multipliziert werden.
    *
@@ -184,20 +214,32 @@ export interface GraphicsProfile {
  * verändern, sonst ist „wie bisher" gelogen.
  */
 export function graphicsProfile(
-  settings: Pick<GraphicsSettings, 'mode' | 'xrScale'>,
+  settings: Pick<GraphicsSettings, 'mode' | 'xrScale'> & Partial<Pick<GraphicsSettings, 'shadows'>>,
 ): GraphicsProfile {
   const comic = settings.mode === 'comic';
+  // Ein alter gespeicherter Stand kennt das Feld nicht; ohne Angabe gilt die
+  // Vorgabe und nicht „aus".
+  const shadows = settings.shadows ?? DEFAULT_GRAPHICS.shadows;
   return {
-    // Schatten hat der Comic: Ein gezeichnetes Bild ohne sie sieht aus, als
-    // schwebte alles einen Zentimeter über dem Boden — und in Stufen gerechnet
-    // wird aus dem weichen Rand ohnehin eine harte Fläche.
-    shadows: comic,
+    shadows,
     shadowMapSize: 2048,
-    shadowRange: 14,
-    shadowDistance: 24,
-    // Der Comic dämpft das Grundlicht nur mäßig: Zwei Stufen brauchen
-    // Mitteltöne zwischen sich.
-    ambientScale: comic ? 0.7 : 1,
+    // **Sechzehn Meter um den Kopf**, also ein Kasten von zweiunddreißig.
+    // Vierzehn waren es, solange es nur die Brille gab; von oben reicht der
+    // Blick weiter. Weiter als das geht nicht ohne Preis: 2048 Pixel auf
+    // vierzig Meter sind zwei Zentimeter je Texel, und daran verliert eine
+    // Figur von 1,60 m ihren Schatten — das wurde gebaut und angesehen.
+    shadowRange: 16,
+    shadowDistance: 26,
+    // Weich, aber nicht verwaschen: Bei 2,5 Texeln blieb von einem Tisch nur
+    // noch ein Hauch übrig.
+    shadowRadius: 1.5,
+    // **Ein Schatten ist nur so dunkel, wie das Licht daneben hell ist**, und
+    // diese Welten leuchten ihr Grundlicht mit 1,5 aus. Auf voller Stärke war
+    // der schönste Schatten ein Hauch. Der Comic dämpft dabei etwas stärker:
+    // Zwei Stufen brauchen Mitteltöne zwischen sich. Ohne Schatten bleibt
+    // alles, wie es war — ein dunkleres Bild ohne Gegenleistung wäre ein
+    // Rückschritt.
+    ambientScale: shadows ? (comic ? 0.7 : 0.76) : comic ? 0.7 : 1,
     // Der Comic will ein schärferes Bild, der Regler ein flüssigeres — beides
     // multipliziert sich, damit „Flüssig" auch im Comic flüssig ist.
     framebufferScale: (comic ? 1.2 : 1) * settings.xrScale,
@@ -224,7 +266,11 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     : DEFAULT_GRAPHICS.xrScale;
   const showFps = raw.showFps === true;
   const gridLines = raw.gridLines === true;
-  return { mode, xrScale, showFps, gridLines };
+  // **Nicht `=== true`**, anders als die beiden darüber: Die Schatten sind ab
+  // Werk **an**, und ein gespeicherter Stand von gestern kennt das Feld noch
+  // gar nicht. Wer sie ausmacht, hat `false` gespeichert und bekommt `false`.
+  const shadows = raw.shadows ?? DEFAULT_GRAPHICS.shadows;
+  return { mode, xrScale, showFps, gridLines, shadows };
 }
 
 /** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
@@ -248,11 +294,14 @@ export function nextXrScale(scale: XrScale): XrScale {
  */
 export function graphicsSummary(
   settings: Pick<GraphicsSettings, 'mode' | 'xrScale'> &
-    Partial<Pick<GraphicsSettings, 'gridLines'>>,
+    Partial<Pick<GraphicsSettings, 'gridLines' | 'shadows'>>,
 ): string {
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
   const grid = settings.gridLines ? ' · Gitterlinien' : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}`;
+  // Genannt wird die Abweichung: „mit Schatten" sagt niemandem etwas, „ohne
+  // Schatten" erklärt ein Bild, in dem alles zu schweben scheint.
+  const shade = settings.shadows === false ? ' · ohne Schatten' : '';
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${shade}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

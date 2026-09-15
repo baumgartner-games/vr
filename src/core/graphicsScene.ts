@@ -213,7 +213,14 @@ function tuneSuns(
     // schon einmal gestellt: `bias` gegen das Moiré auf ebenen Flächen,
     // `normalBias` gegen den Spalt zwischen Körper und eigenem Schatten.
     light.shadow.bias = -0.0004;
-    light.shadow.normalBias = 0.035;
+    // **Nur zwei Zentimeter**: `normalBias` schiebt die Abtastung an der
+    // Normalen entlang aus dem Körper heraus, und je größer er ist, desto
+    // weiter rückt der Schatten vom Fuß weg. An einer Wand fällt das nicht
+    // auf, an einem Tisch von einem Meter hebt es ihn vom Boden ab.
+    light.shadow.normalBias = 0.02;
+    // Und der weiche Rand: Er streut die Abtastung über ein paar Texel, und
+    // genau das unterscheidet einen Schlagschatten von einem Aufkleber.
+    light.shadow.radius = profile.shadowRadius;
   }
 
   return sun;

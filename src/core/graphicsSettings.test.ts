@@ -15,12 +15,13 @@ import {
 } from './graphicsSettings';
 
 describe('Grafikeinstellungen', () => {
-  it('liefert das Bild von vorher aus', () => {
+  it('liefert das Bild von vorher aus — mit Schatten', () => {
     expect(DEFAULT_GRAPHICS).toEqual({
       mode: 'simple',
       xrScale: 1,
       showFps: false,
       gridLines: false,
+      shadows: true,
     });
   });
 
@@ -71,10 +72,11 @@ describe('Grafikeinstellungen', () => {
     }
   });
 
-  it('kostet in der einfachen Stufe nichts', () => {
-    // Der ganze Sinn der unteren Stufe: Sie ist das Bild, das dieses Projekt
-    // immer hatte. Jede Zahl hier ist der Wert, den `App` ohnehin setzt.
-    const profile = graphicsProfile({ mode: 'simple', xrScale: 1 });
+  it('zeichnet in der einfachen Stufe weder Konturen noch Stufen', () => {
+    // Der Sinn der unteren Stufe: flache Farben ohne Zeichnung. Was sie nicht
+    // mehr ist, ist „das Bild von vorher" — Schatten gibt es jetzt auch hier,
+    // und die haben ihren eigenen Schalter.
+    const profile = graphicsProfile({ mode: 'simple', xrScale: 1, shadows: false });
     expect(profile.shadows).toBe(false);
     expect(profile.framebufferScale).toBe(1);
     expect(profile.foveation).toBe(1);
@@ -83,12 +85,46 @@ describe('Grafikeinstellungen', () => {
     expect(profile.toonBands).toBe(0);
   });
 
+  /**
+   * **Schatten sind ein eigener Schalter, keine Eigenschaft der Stufe.**
+   *
+   * Vorher hingen sie am Comic: Wer nur Schatten wollte, bekam schwarze
+   * Konturen dazu, und wer die Konturen nicht wollte, bekam eine Welt, in der
+   * alles einen Zentimeter über dem Boden schwebt.
+   */
+  it('wirft Schatten ab Werk, auch ohne Comic — und dämpft dafür das Grundlicht', () => {
+    const plain = graphicsProfile({ mode: 'simple', xrScale: 1 });
+    expect(plain.shadows).toBe(true);
+    expect(plain.outlines).toBe(false);
+    // Ein Schatten ist nur so dunkel, wie das Licht daneben hell ist.
+    expect(plain.ambientScale).toBeLessThan(1);
+    // Und ohne Schatten bleibt das Grundlicht, wo es war.
+    expect(graphicsProfile({ mode: 'simple', xrScale: 1, shadows: false }).ambientScale).toBe(1);
+    // Auch der Comic darf sie loswerden, wenn die Bildrate klemmt.
+    expect(graphicsProfile({ mode: 'comic', xrScale: 1, shadows: false }).shadows).toBe(false);
+  });
+
+  /**
+   * Ein gespeicherter Stand von gestern kennt das Feld nicht — und bekommt
+   * Schatten, nicht das Gegenteil. Deshalb steht in `clampGraphics` an dieser
+   * einen Stelle kein `=== true`.
+   */
+  it('gibt einem alten Speicher ohne den Schlüssel die Schatten', () => {
+    expect(clampGraphics({ mode: 'simple' }).shadows).toBe(true);
+    expect(clampGraphics({ shadows: false }).shadows).toBe(false);
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, shadows: false })).toBe(
+      'Einfach · ohne Schatten',
+    );
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, shadows: true })).toBe('Einfach');
+  });
+
   it('zeichnet im Comic Konturen, Stufen und Schatten', () => {
     const profile = graphicsProfile({ mode: 'comic', xrScale: 1 });
     expect(profile.outlines).toBe(true);
     expect(profile.toonBands).toBeGreaterThan(1);
     expect(profile.outlineWidth).toBeGreaterThan(0);
-    // Ohne Schatten schwebt in einer Zeichnung alles.
+    // Ohne Schatten schwebt in einer Zeichnung alles — der Schalter daneben
+    // ist ab Werk an.
     expect(profile.shadows).toBe(true);
     expect(profile.framebufferScale).toBeGreaterThan(1);
     expect(profile.foveation).toBeLessThan(1);
