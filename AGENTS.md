@@ -4552,16 +4552,86 @@ _Menü → Aussehen_ und der **Kleiderschrank** — drei Zeilen, und dahinter di
 ganze Figur (`core/AvatarBody.ts`, `core/avatarLook.ts`, `core/appearance.ts`,
 `core/headgear.ts`).
 
-**Die Figur ist ein Koch**, seit September 2026: ein **Rumpf** wie eine Tonne
-(0,5 m breit, vom Boden bis unter den Kopf, oben etwas schmaler), ein runder
-**Kopf** (Ø 32 cm, `HEAD_RADIUS`) mit zwei Augen und einer Nase, zwei
-**Handkugeln** (Ø 12 cm), die daneben schweben — und **keine Arme und keine
-Beine**. Das Vorbild sind die Köche aus _Overcooked_, und der Grund ist die
-Kamera: In diesem Projekt schaut man aus zwölf Metern schräg von oben auf
-Figuren, und ein Skelett mit Armen und Beinen ist von dort zwei graue Striche,
-an denen man nicht einmal erkennt, wohin jemand sieht. Ein runder Kopf mit
-Augen und Nase erkennt man, ein Rumpf ohne Gliedmaßen liest sich als
-Blickrichtung, und zwei Kugeln daneben sind Hände.
+**Die Figur ist ein Koch**, seit September 2026 — und seit dem zweiten Anlauf
+sieht sie auch nach einem aus. Das Vorbild sind die Köche aus _Overcooked_, und
+der Grund ist die Kamera: Hier schaut man aus **16 m** schräg von oben unter
+55° auf Figuren (`core/topDownPose.ts`), und ein Skelett mit Armen und Beinen
+ist von dort zwei graue Striche, an denen man nicht einmal erkennt, wohin
+jemand sieht.
+
+Was die Figur ist, in Maßen (`core/avatarLook.ts`, alles oben in der Datei):
+
+| Teil | Maß | |
+| --- | --- | --- |
+| **Kopf** | Ø 64 cm (`HEAD_RADIUS = 0.32`) | eine **gefaste Kiste**, keine Kugel (`HEAD_BOX = 0.58`) |
+| **Jacke** | Ø 74 cm an der breitesten Stelle (`BODY_RADIUS`) | eine Glocke, unten am breitesten |
+| **Saum** | bei 28 % der Rumpfhöhe (`HEM`) | darunter die karierte Hose |
+| **Hose** | knapp 80 % der Jackenbreite | **ein** Stück, ohne Beine, ohne Füße |
+| **Hände** | Ø 23 cm (`HAND_RADIUS`) | fingerlose Klumpen, schweben **mit Lücke** |
+| **Mütze** | so hoch wie der Kopf | fünf Lappen, dunkles Stirnband, nach hinten gekippt |
+
+**Die vier Fehler der ersten Fassung** stehen hier, weil sie sich sonst
+wiederholen. Sie war nicht falsch gebaut, sie war nur zu wenig: Aus einer
+Drehform vom Boden bis unter den Kopf, einer Kugel darauf und zwei Perlen
+daneben wird von schräg oben ein **Bowlingpin mit einem Knauf**.
+
+1. **Der Kopf war zu schmal für den Rumpf.** Er maß 55 % der Rumpfbreite;
+   nachgemessen sind es an den Vorbildern **91 %**, hier 86 %. Das ist das
+   eigentliche Maß dieses Stils — nicht der breite Rumpf macht die Figur
+   gedrungen, sondern der **Kopf, der ihn oben fast einholt** und über der
+   Schulter überkragt. Er versank obendrein im Kragen (Rumpfhöhe aus
+   `HEAD_RADIUS * 0.62`, heute `0.86`). Wer den Rumpf breiter macht, ohne den
+   Kopf mitzunehmen, dreht genau das zurück — ein Jest-Test hält das Verhältnis
+   deshalb fest.
+2. **Es bewegte sich beim Laufen nichts**, und die Figur rutschte über den
+   Boden. Beine sind nicht die Antwort: Die Vorbilder haben keine, und ein
+   Zwischenstand mit zwei karierten Beinen und Schuhen las sich zwar als Koch,
+   traf den Stil aber nicht. Eine Figur ohne Beine **watschelt**
+   (`BodyShape.setStride`): heben, stauchen, seitlich rollen, in die
+   Laufrichtung legen. Der **Kopf macht das nicht mit** — der sitzt, wo die
+   Augen sitzen, und ein Kopf, der wippt, ist Übelkeit in der Brille.
+3. **Die Hände waren Kugeln**, dann Bündel Bananen, dann hingen sie an
+   Ärmelstummeln. Alle drei daneben: Nachgemessen ist eine Hand ein glatter,
+   **fingerloser** Klumpen, und zwischen ihr und dem Rumpf ist **Luft**
+   (`AvatarBody.HAND_GAP`). Keine Schulter, kein Ärmel, kein Arm. Diese Lücke
+   ist neben der Mütze das unverwechselbarste an diesen Figuren, und der
+   Ärmelstummel schloss genau sie. Der Daumen ist die einzige Zutat gegenüber
+   dem Vorbild, und zwar weil diese Hände Werkzeug halten.
+4. **Alles war glatt.** Kein Stirnband, keine Lappen an der Mütze, keine
+   Brauen, keine Ohren, kein Karo, drei Knöpfe in einer Reihe. Die Vorbilder
+   wirken detailliert, weil sie ein Dutzend solcher Kleinteile haben — nicht,
+   weil ihre Netze fein wären. Die Knöpfe sind **vier in zwei versetzten
+   Spalten**: Eine Kochjacke ist doppelreihig, drei in einer Reihe waren ein
+   Hemd. Und die weiße Blende ist ein **Trapez** (`placketGeometry`), oben
+   schmaler als unten — diese schräge Kante ist die Revers-Linie, und ein
+   Streifen mit parallelen Kanten sah aus wie aufgeklebtes Papier.
+
+**Die eine Stelle, an der bewusst vom Vorbild abgewichen wird, ist die Höhe.**
+Ein Overcooked-Koch ist ohne Mütze **1,8 Kopfhöhen** groß und seine Augen
+sitzen bei 1,24 — bei einer Figur auf Augenhöhe eines Menschen wäre der Kopf
+einen Meter groß. Der Kopf steht hier aber auf **Augenhöhe des Spielers**,
+sonst sehen sich zwei Leute in der Brille nicht in die Augen. Die Figur ist
+damit gut doppelt so hoch wie ihr Vorbild, und diese Höhe muss irgendwohin:
+Sie geht in die **karierte Hose** unter dem Saum. Die Jacke darüber behält ihr
+gedrungenes Maß, und was darunter übrig bleibt, ist dunkel und tritt zurück.
+Ein Rumpf, der die ganze Höhe als Jacke nimmt, ist wieder der Bowlingpin —
+ausprobiert, angesehen, verworfen.
+
+**Das Material ist nachgemessen und steht an einer Stelle**
+(`core/chefStyle.ts`): matter Stoff (`roughness 0.88`), etwas glattere Haut
+(`0.62`), **`metalness: 0` überall**. Vorher hatte jede der drei Dateien ihr
+eigenes `solid(...)` mit anderen Zahlen, und in der Brille glänzte genau ein
+Teil der Figur. Dort stehen auch die Palette (`CHEF`), das Kochkaro als
+`CanvasTexture` und `squarish()` — die gefaste Kiste, aus der der Kopf ist.
+
+**Keine Kontur und keine Farbstufen.** Overcooked ist nicht cel-schattiert: Die
+Figuren haben keinen schwarzen Strich um sich und keine Lichtbänder, sie leben
+von Hell-Dunkel großer Flächen. Die Vorgabe (`mode: 'simple'`) ist damit die
+richtige für diesen Stil; wer **Comic** einschaltet, bekommt beides dazu und
+sieht dann nach Zeichentrick aus statt nach Knetfigur (siehe
+[Wie schön es aussieht](#wie-schön-es-aussieht)). Das ist eine Entscheidung
+für die ganze Welt und nicht für die Figur, und deshalb bleibt sie eine
+Einstellung.
 
 **Der Antrieb ist derselbe geblieben**: `update(dt, head, left, right)` mit Kopf
 und Händen, wie ihn ein Headset über seinen Träger nun einmal weiß. Der Rumpf
@@ -4570,7 +4640,12 @@ folgt der Kopfhöhe — wer sich duckt, wird kleiner. Nicht getrackte Hände
 schweben seitlich neben dem Rumpf und pendeln beim Laufen leicht. Was andere
 daran hängen haben, ist unverändert: `head`, `handAnchors`, `setColor`,
 `setHeadgear`, `setSelfView`, `setHandsVisible`, `update`, `dispose`, `bodyYaw`
-— dazu neu `setLook(look)`.
+— dazu `setLook(look)`.
+
+**`BodyShape` hat zwei Methoden** (`core/avatarLook.ts`), und beide ändern je
+Bild nur `scale`, `position` und `rotation` — **niemals Geometrie**, sonst läge
+je Bild ein Netz für den Sammler da: `setHeight` stellt die Figur auf ihre
+Höhe, `setStride` watschelt.
 
 **Drei Zeilen, drei Listen** (`core/avatarLook.ts`). Vorher gab es nur den Hut,
 und alle sahen darunter gleich aus: derselbe Körper aus Kapseln, dieselbe Farbe
@@ -4583,12 +4658,41 @@ seinen Namen dafür. Jetzt sind es drei:
   **Hände** mit, es sind ja seine (`skinTone`).
 - **Hut** — acht Sorten aus Zylindern, Kugeln und Quadern wie alles hier:
   **ohne** (die Auslieferung), **Kochmütze**, **Basecap**, **Helm**,
-  **Bauhelm**, **Mütze**, **Zylinder**, **Krone**. Die Kochmütze ist die neue
-  und das Vorbild für alles andere: hoch, weiß, mit Wulst.
+  **Bauhelm**, **Mütze**, **Zylinder**, **Krone**. Die Kochmütze ist das
+  Vorbild für alles andere: **dunkles Stirnband**, schmaler Rand, darüber eine
+  Haube aus **fünf Lappen**, die über den Rand hinauskragt, das Ganze so hoch
+  wie der Kopf und gut zehn Grad nach hinten gekippt. Jedes dieser Stücke ist
+  nachgemessen, und jedes einzelne fehlte in der ersten Fassung — die war ein
+  Marshmallow auf einem Kegel.
+
+  Wer einen Hut baut, der den Kopf **umfasst**, rechnet mit `HEAD_SPREAD`: An
+  seinen vier Ecken ist die gefaste Kiste ein Viertel weiter draußen als eine
+  Kugel, und ohne diese Zahl blitzt dort die Haut durch (`around()` in
+  `core/headgear.ts`).
 - **Körper** — fünf Kochjacken: weiß, rot, blau, grün, gestreift.
 
 Was eine **Anzugfarbe** trägt und keine eigene hat — Schürze, Halstuch —, trägt
 die des Trägers: Ein Spieler hat eine Farbe und nicht drei.
+
+**Wie man die Figur ansieht, bevor man sie ändert.** Die Optik ist das eine
+hier, was kein Jest-Test abnehmen kann — `avatarBody.test.ts` prüft
+Proportionen und Rechnung, aber ob eine Figur nach Koch aussieht, entscheidet
+das Auge. Dafür gibt es den **Musterbogen**:
+
+```
+npm run dev                # in einem Fenster laufen lassen
+npm run avatar             # schießt vier Ansichten nach .artifacts/avatar
+npm run avatar -- --tag=nachher --walk   # zum Vergleichen, und in Bewegung
+```
+
+Die Seite ist `avatar-preview.html` (`src/preview/avatarPreview.ts`) und wird
+**nicht mitgebaut** — `vite.config.ts` kennt nur `index.html` und `tools.html`,
+also gibt es sie nur im Entwicklungsserver. Sie stellt alle Sorten
+nebeneinander und rendert vier Ansichten: von vorn, halb schräg, von der Seite
+und **die Kamera, unter der wirklich gespielt wird** (16 m, 55°, 30°
+Öffnung). Was dort nicht lesbar ist, ist es nirgends. `?hat=all` geht statt
+der Kochmütze das Hutregal durch, `?walk=1` lässt die Figuren laufen — daran
+sieht man das Watscheln, und im Stand sieht man das nie.
 
 Drei Regeln stecken darin, und alle drei sind es wert, aufgeschrieben zu
 werden:
