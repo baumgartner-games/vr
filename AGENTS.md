@@ -1164,8 +1164,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Handgelenks über den eigenen Knopf streichen.
 - **Türkis heißt anfassen**: alles, was eine Hand nehmen darf, hat dieselbe
   Farbe — die Griffe der Werkzeuge, der Ring um die Linse der Taschenlampe,
-  die Plätze am Gürtel, die Griffe an den Justierständen im Eingaberaum, der
-  Kreis auf dem Boden davor. Eine Spülmaschine
+  die Plätze am Gürtel, die Griffe an einem Kletterfelsen, das Lenkrad eines
+  Karts. Eine Spülmaschine
   sagt einem auch nie, wo der Griff ist; sie färbt ihn, und danach greift
   jeder beim ersten Mal richtig. In VR wiegt das schwerer als daheim, weil ein
   Werkzeug ein Klotz aus Dreiecken ist und man ihm nicht ansieht, ob man es am
@@ -1264,7 +1264,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Atemzug zurücknehmen. Die Übergabe geht **vor** dem Gürtel — über einer Hüfte
   stehen die Hände nun einmal beieinander, und wer beide zusammenführt, meint
   das Werkzeug und nicht das Regal dahinter. Ein **geparktes** Werkzeug
-  (Justierstand) bleibt liegen, und eines, das diese Hand ohnehin beansprucht
+  (in einer Schwerelos-Zone) bleibt liegen, und eines, das diese Hand ohnehin
+  beansprucht
   (`claimsHand` — das Drohnendeck, ein Fach im Beutel), wird bedient statt
   genommen. Wie viele Exemplare gleichzeitig
   _außerhalb des Gürtels_ sein dürfen — herumliegend und in Händen zusammen —,
@@ -1750,12 +1751,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     gezeichnete Hand mit Controllern, liegt genau dort, wo diese liegt, und
     **zielt nicht** — eine Hand sitzt in der Faust und schießt nirgendwohin.
     Damit ist ihre Lage im Griff dieselbe Zahlenreihe, mit der `HandVisuals`
-    die Hand zeichnet: legt man sie im Schießgang in den Halter und misst sie
-    ein wie eine Pistole, landet das Ergebnis in der **Grundhaltung** dieser
-    Hand und nicht im Werkzeug-Speicher (`tools/HandTool.ts`). Zu holen ist sie
-    dort, wo man sie braucht: aus dem Werkzeug-Menü an der Wand des Gangs. Sie ersetzt den
-    das alte Justier-Werkzeug und den Tisch mit der Geisterhand: ein Weg statt
-    dreier, und der, den man ohnehin kennt.
+    die Hand zeichnet: misst man sie ein wie eine Pistole, landet das Ergebnis
+    in der **Grundhaltung** dieser Hand und nicht im Werkzeug-Speicher
+    (`tools/HandTool.ts`) — auf der Werkzeugseite schreibt der Regler für
+    `hand-box` deshalb in `saveIdleHandPose`. Sie ersetzt das alte
+    Justier-Werkzeug und den Tisch mit der Geisterhand: ein Weg statt dreier,
+    und der, den man ohnehin kennt.
   - **Controller links / Controller rechts**: das echte Gerät als Werkzeug,
     eines je Hand (`tools/ControllerTool.ts`). Gezeigt wird das Modell aus dem
     Repository (siehe _Controller-Modelle_), bis es geladen ist der selbst
@@ -1937,11 +1938,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   hing lange an einer einzigen getippten Zahl — 1,65 m Augenhöhe im Stehen,
   für alle. Wer kleiner ist, sitzt danach zu hoch; wer größer ist, zu tief,
   und man merkt es nicht am Horizont, sondern an der eigenen Hand: ein
-  Justierstand auf Ellbogenhöhe steht dann irgendwo anders, weil der Boden
+  Knopf auf Ellbogenhöhe steht dann irgendwo anders, weil der Boden
   unter dem Spieler um die Differenz falsch liegt. Also
   sind es **zwei eigene Zahlen**, stehend und sitzend, in Zentimetern und
-  beide **messbar**: unter _Menü → Bewegung → Augenhöhe_ (und an der Wand im
-  Eingaberaum) hinstellen bzw. hinsetzen, _Jetzt messen_ drücken, und die
+  beide **messbar**: unter _Menü → Bewegung → Augenhöhe_ hinstellen bzw.
+  hinsetzen, _Jetzt messen_ drücken, und die
   Brille schreibt ihre eigene Zahl hinein. Die Anhebung ist danach die
   Differenz der beiden und nicht mehr der Abstand zu einer _gerade gemessenen_
   Kopfhöhe — Vorbeugen im Sessel hob vorher die halbe Welt mit an
@@ -2386,7 +2387,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Welt (`signStore.ts`) — die der anderen kommen über das Netz, wenn die
   anderen da sind; sie mitzuschreiben hieße, dass ein längst abgeräumtes Schild
   beim nächsten Besuch wieder an der Wand hängt. Schilder, die zu einer **Welt**
-  gehören (die Galerie im Interaktionslabor), gehören niemandem: feste Kennung,
+  gehören (eine Galerie, die zum Aufbau zählt), gehören niemandem: feste Kennung,
   nicht gespeichert, nicht verschickt — jeder baut dieselbe Halle.
 - **Tastatur des Geräts** (`src/core/systemKeyboard.ts`): In der Brille kann
   eine Texteingabe die **Systemtastatur** anfordern — der Meta-Quest-Browser
@@ -2422,8 +2423,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   (schwerelos, Mond, Mars, Erde, schwer — oder getippt), **Sprungkraft**,
   **Reibung** und **Rückprall**, alles sofort wirksam und im Browser gemerkt
   (`src/core/worldPhysics.ts`, mit Test). _Welt-Standard_ ist eine eigene
-  Zeile: der Mond bringt seine 1,62 mit, und eine einmal getippte Zahl darf
-  nicht für immer über jeder Welt stehen. Reibung und Rückprall fassen die
+  Zeile: Eine Welt darf ihre eigene Schwerkraft mitbringen (`worldGravity()` —
+  ein Mond sagte dort 1,62), und eine einmal getippte Zahl darf nicht für immer
+  über jeder Welt stehen. Reibung und Rückprall fassen die
   Objekte erst an, wenn jemand sie wirklich verstellt — sonst überschriebe der
   Start jede im Code eingestellte Kleinigkeit (alles aus dem Beutel 0,7, die
   Companion Cubes des Labors 0,8).
@@ -2589,8 +2591,9 @@ dieselbe Zahl für eine große und eine kleine Hand, was der ganze Grund dafür
 ist, dass es ein Verhältnis ist. Zwei Schwellen (0,78 zu / 1,0 auf) verhindern,
 dass ein halb gekrümmter Finger den Trigger flattern lässt. Damit gibt es
 `squeeze` auf beiden Eingabearten, und der ganze Rest des Codes muss Hand und
-Controller nicht mehr auseinanderhalten. Zum Ausprobieren gibt es den
-**Eingaberaum**.
+Controller nicht mehr auseinanderhalten. Zum Ausprobieren gab es den
+**Eingaberaum**; seit er gelöscht ist, sieht man es an der Hand, die eine
+Kiste greift.
 
 **Jedes** Werkzeug zielt entlang des Pointing-Rays des Controllers, nicht
 entlang der Griffachse. Die beiden Posen liegen auf der Quest gut 30°
@@ -2618,12 +2621,13 @@ Ein Griff für alle Werkzeuge_.
 schiebt ihr Deck zur Seite, damit der Griff _dieser_ Hand auf dem Ursprung
 sitzt, der Hammer schiebt seinen Stiel entlang der Achse. Der Ursprung des
 Werkzeugs bleibt dabei, wo er ist — verschoben wird nur, was man ansieht. Nötig
-ist die eigene Methode, weil es **drei** Orte gibt, an denen so ein Modell
+ist die eigene Methode, weil es **mehrere** Orte gibt, an denen so ein Modell
 gestellt werden muss und nur einer davon eine Hand ist: die Hand
-(`applyHold`), der **Halter** am ersten Justierstand (`TuneWorld.mountTool`)
-und die **Kopie** am Griffstand (`TuneWorld.placeGripHand`). Die beiden
-Letzteren hält niemand, also läuft `applyHold` dort nie — und genau daran ist es
-einmal schiefgegangen: siehe _Eingemessene Griffe_.
+(`applyHold`), die **Bühne der Werkzeugseite** und der **Avatar der
+Mitspieler**. Dazu kamen der Halter und die Kopie an den beiden Justierständen
+des Eingaberaums. Was hingestellt wird, hält niemand, also läuft `applyHold`
+dort nie — und genau daran ist es einmal schiefgegangen: siehe
+_Eingemessene Griffe_.
 
 Jede Waffe in der Hand zeigt ihre eigene Vorschau in ihrer Farbe; auf Boden
 und Decke richtet sich das Portal nach der Waffe, mit der du zielst.
@@ -2975,15 +2979,15 @@ möglich, ohne dass der Pfeil dafür in eine andere Richtung zeigt als er aussie
 Skaliert wird über das _Verhältnis_ zweier Abstände zur Mitte statt über eine
 Differenz — wo genau die Hand die Kugel erwischt hat, ist damit egal.
 
-Die **Werkzeug-Pose** (`holdPosition`, `holdRotation`) wird nicht mehr geraten,
-sondern im **Schießgang des Eingaberaums** gemessen: das Werkzeug rastet im
-Halter auf die Scheibe gerichtet ein, du führst die Hand daran, wie sie es
-halten soll, und beim Trigger rechnet `src/worlds/portal/tools/toolPose.ts`
-(mit Test) die Pose aus, die genau das ergibt — abzüglich der Aim-Korrektur,
-die jedes Werkzeug ohnehin bekommt. Die Zahlen erscheinen auf der Werte-Tafel
-und in der Meldung, so wie sie in den Konstruktor gehören; bis dahin merkt sich
-der Browser sie (_Einstellungen → Werkzeug-Posen zurücksetzen_ wirft sie wieder
-weg).
+Die **Werkzeug-Pose** (`holdPosition`, `holdRotation`) wird nicht geraten,
+sondern **gemessen**: Das Werkzeug steht auf die Scheibe gerichtet still, die
+Hand kommt daran, wie sie es halten soll, und
+`src/worlds/portal/tools/toolPose.ts` (mit Test) rechnet die Pose aus, die
+genau das ergibt — abzüglich der Aim-Korrektur, die jedes Werkzeug ohnehin
+bekommt. Der Stand dafür war der Schießgang des Eingaberaums; heute zieht man
+dieselben sechs Zahlen auf der Werkzeugseite (_Bearbeiten_). Bis sie im
+Konstruktor stehen, merkt sich der Browser sie
+(_Einstellungen → Werkzeug-Posen zurücksetzen_ wirft sie wieder weg).
 
 Ein **Justier-Werkzeug**, das dasselbe in der Luft tat, gab es einmal und gibt
 es nicht mehr. Es konnte alles — Werkzeuge, Hände, Anbauteile —, aber gegen
@@ -3191,8 +3195,8 @@ es wieder ein Rennen geben soll, fehlt nur der Kanal.
 
 ### Controller-Modelle
 
-Der Controller, den man im Eingaberaum ansieht, ist das **echte Modell** des
-Geräts: dieselben Dateien, die jede WebXR-Seite benutzt
+Der Controller, den das Spiel in der Hand zeichnet, ist das **echte Modell**
+des Geräts: dieselben Dateien, die jede WebXR-Seite benutzt
 (`@webxr-input-profiles/assets` der Immersive Web Community Group, MIT), mit
 beweglichem Trigger, Griff und Stick, gebunden über das Profil, das der Browser
 für das Gerät meldet.
@@ -3215,7 +3219,8 @@ gestutzt: es darf nichts darin stehen, was nicht danebenliegt, sonst sucht
 `fetchProfile` es und bekommt einen 404. Auch die generischen Profile fehlen
 mit Absicht — sie wären fast 30 MB und nur ein schlechterer Ersatz für den
 Ersatz, den es schon gibt: der **selbst gebaute Controller** aus
-`worlds/tune/InputModel.ts` steht immer da, wenn kein Modell kommt.
+`worlds/tune/InputModel.ts` steht immer da, wenn kein Modell kommt — das eine
+Stück des Eingaberaums, das ihn überlebt hat.
 
 Geholt werden sie von Hand, nicht beim Bauen:
 
@@ -3255,7 +3260,7 @@ von 0.6 sagt auf dem Papier nichts.
 Die **ausgelieferte Grundhaltung** ist nicht die gebaute. Gebaut ist die Hand
 auf dem Griffpunkt und geradeaus schauend (`IDLE_HAND_POSE`) — so hat aber noch
 nie eine Hand einen Controller gehalten. Der liegt schräg in der Faust, und wie
-schräg, sagt nur eine Messung im Eingaberaum. Gemessen wurde zweimal, einmal je
+schräg, sagt nur eine Messung am Gerät. Gemessen wurde zweimal, einmal je
 Hand, und **die beiden Messungen sind nicht dasselbe**: rechts kam x 0,5 · y
 -0,4 · z 1,2 cm bei Pitch -90°, Yaw 45°, Roll 0° heraus, links später x -0,3 ·
 y 2,7 · z 3,8 cm bei Pitch 75°, Yaw -45°, Roll 5°. Quer, Yaw und Roll passen
@@ -3358,9 +3363,8 @@ Messung —, und _Eigene Einstellungen löschen_ räumt es mit weg.
 Eine Hand **ohne Controller** war bisher das, was die Brille misst: fünfundzwanzig
 Gelenke, an jedem eine Kugel. Ehrlich, und es sieht nach Messgerät aus. Seit
 dieser Runde gibt es daneben den Schalter **Blanke Hände: Handschuh** — unter
-_Einstellungen → Hände_ und, wo man ihn wirklich braucht, an der Wand im
-Poseraum. Ab Werk aus; die Kugeln sind das, was gemessen wurde, und wer eine
-Geste einstellt, will genau das sehen.
+_Einstellungen → Hände_. Ab Werk aus; die Kugeln sind das, was gemessen wurde,
+und wer eine Geste einstellt, will genau das sehen.
 
 Angeschaltet liegt ein Handschuh auf den echten Knochen. **Wo** die Hand steht,
 sagt eine Rechnung über vier Gelenke (`core/gloveFit.ts`, mit Test, ohne
@@ -3416,18 +3420,17 @@ Schlechteste von beidem —, und eine Geisterhand daneben zieht sich mit an
 (`lookOf`): verglichen wird nur ehrlich, wenn das Vergleichsstück so aussieht
 wie das, was man in der Brille sieht.
 
-Gemessen wird übrigens **immer**, auch mit ausgeschaltetem Handschuh: der
-Poseraum speichert die Gelenke einer blanken Hand, und ob dabei Kugeln oder
+Gemessen wird übrigens **immer**, auch mit ausgeschaltetem Handschuh: Was
+gespeichert wird, sind die Gelenke einer blanken Hand, und ob dabei Kugeln oder
 Stoff zu sehen sind, ändert an der Messung nichts.
 
-Wozu das gut ist, steht unter _Der Poseraum_: eine Reihe Kugeln hat keine
-Handfläche, an die man einen Gegenstand legen könnte, und ohne Handfläche gibt
-es nichts zu messen.
+Wozu das gut ist: Eine Reihe Kugeln hat keine Handfläche, an die man einen
+Gegenstand legen könnte, und ohne Handfläche gibt es nichts zu messen.
 
 #### Knochenfarben
 
-Der dritte Schalter daneben (_Einstellungen → Hände → Knochenfarben_, und der
-Knopf im Poseraum): **jeder Knochen in seiner eigenen Farbe**
+Der dritte Schalter daneben (_Einstellungen → Hände → Knochenfarben_):
+**jeder Knochen in seiner eigenen Farbe**
 (`core/bonePalette.ts`). Ab Werk aus — eine Hand ist einfarbig, und beim
 Spielen soll ein Handschuh ein Handschuh sein und kein Farbfächer. Beim
 **Justieren** ist genau das im Weg: fünf gleich weiße Röhren sagen nicht,
@@ -3481,10 +3484,10 @@ gedreht: der Versatz sitzt am Knoten, an dem die Sachen hängen, und nicht an
 der gezeichneten Hand. Wer die Hand selbst anders stellen will, ändert eine
 `HandPose` — das hier ist der Raum, in dem sie gilt.
 
-Daran hängen zwei Stellen, und beide dieselbe: die **Portalwelt** (`gripOf` —
-Werkzeuge, Gegenstände, der Gürtel) und der **Eingaberaum** (`handAnchor` —
-was dort gemessen wird, ist die Lage eines Werkzeugs gegen die Hand, und gegen
-eine andere Hand gemessen wäre jede Zahl um genau diesen Versatz daneben). Ein
+Daran hängt die **Portalwelt** (`gripOf` — Werkzeuge, Gegenstände, der
+Gürtel), und dieselbe Zahl hing am Eingaberaum: Was dort gemessen wurde, ist
+die Lage eines Werkzeugs gegen die Hand, und gegen eine andere Hand gemessen
+wäre jede Zahl um genau diesen Versatz daneben. Ein
 Werkzeug bekommt seine Zielkorrektur weiterhin nur, wenn es einen Griffraum
 gibt (`aimQuaternion`); bei einer bloßen Hand trägt der Halteknoten sie schon.
 
@@ -3684,8 +3687,9 @@ einen anderen Winkel, zielt das Werkzeug trotzdem dorthin, wohin gezeigt wird.
 alles, was gebaut wird, bevor eine Brille aufgesetzt wird: die Lage eines
 Griffs im Werkzeug, die Faust darum, das Bild auf der Werkzeugseite. Und
 Ersatz heißt geschätzt: keiner der drei Wege oben ist eine Messung am Gerät.
-Die gibt es im **Eingaberaum**, auf der Tafel der Hand, Zeile „Griff→Strahl".
-Wer die dort abgelesene Zahl hier einträgt, verschiebt allerdings auch
+Eine solche Messung schrieb die Tafelwand des Eingaberaums mit
+(Zeile „Griff→Strahl"); die Welt ist gelöscht, die Zahl bleibt eine Schätzung.
+Wer eine abgelesene Zahl hier einträgt, verschiebt allerdings auch
 `GRIP_HOLD_POSITION`, `STANDARD_GRIP_IN_HAND` und jede daran gerechnete Faust —
 `core/gripFist.test.ts` sagt, welche.
 
@@ -3914,10 +3918,10 @@ wonach geschossen und geleuchtet wird, und er hängt an dem, was wirklich zielt
 (`alignToAim`): Boxhand, Controller, Flügel und Beutel zeigen nirgendwohin und
 bekommen keinen.
 
-Eine Grenze bleibt: was hier entsteht, ist die **gebaute** Lage. Wer ein
-Werkzeug am ersten Justierstand nachmisst, verschiebt es samt Griff gegen die
-Hand — der Griff ist Geometrie und wandert nicht hinterher. Genau dafür gibt es
-den zweiten Stand.
+Eine Grenze bleibt: was hier entsteht, ist die **gebaute** Lage. Wer die Lage
+eines Werkzeugs im Griff nachmisst, verschiebt es samt Griff gegen die Hand —
+der Griff ist Geometrie und wandert nicht hinterher. Genau dafür gibt es die
+zweite Messung, die der Faust.
 
 Der Speicher legt sich darüber, sobald jemand selbst justiert
 (`handPoseStore.ts`); wer zurücksetzt, landet wieder hier. Im Speicher steht
@@ -3969,8 +3973,8 @@ der Avatar der Mitspieler. Für alles mit **Standardgriff** ist die Umrechnung
 ein Nullschritt: dessen Haltung hat weder Versatz zur Seite noch Gier oder
 Roll. Es ändert sich also nur dort etwas, wo wirklich etwas schief lag.
 
-Wer eine Haltung einmisst, schreibt die Hand mit dazu — Justierstand,
-Werkzeugseite und `applyStoredPose` setzen `holdHand` zusammen mit den Zahlen.
+Wer eine Haltung einmisst, schreibt die Hand mit dazu — Werkzeugseite und
+`applyStoredPose` setzen `holdHand` zusammen mit den Zahlen.
 Ohne das spränge ein links gemessenes Werkzeug in dem Moment weg, in dem die
 Messung fertig ist. Zwei Werkzeuge rechnen gar nicht um: ein **angezogenes**
 (die Handschuhe), dessen Lage _die_ Haltung der Hand ist und die schon je Hand
@@ -4005,13 +4009,13 @@ weil die genau diese Zeile schon hatte. Die Zeile steht jetzt in
 `StopwatchTool.applyHold`, wo Hammer und Drohne sie aus demselben Grund auch
 haben, und `core/gripFist.test.ts` hält beide Zahlen fest.
 
-**Der Nullpunkt am zweiten Stand sitzt am Werkzeug.** Eine Handhaltung ist ein
-Versatz im _Griffraum_, und die Null darin ist der Griffpunkt des Controllers,
-nicht das Werkzeug — auf Null zurückgesetzt sprang die Boxhand deshalb um den
-Versatz _und_ um die 30° zwischen Faust und Zeigestrahl weg und lag sichtbar
-neben der Lampe. _Zurücksetzen_ schreibt jetzt die Lage des Werkzeugs im Griff
-selbst (`TuneWorld.gripHomePose`), und die Hand steht danach exakt in der
-Kopie; von dort justiert man nach außen, statt sich erst wieder heranzutasten.
+**Und der Nullpunkt einer Faust sitzt am Werkzeug, nicht bei null.** Eine
+Handhaltung ist ein Versatz im _Griffraum_, und die Null darin ist der
+Griffpunkt des Controllers, nicht das Werkzeug — auf Null zurückgesetzt sprang
+die Boxhand um den Versatz _und_ um die 30° zwischen Faust und Zeigestrahl weg
+und lag sichtbar neben der Lampe. _Zurücksetzen_ schreibt deshalb die Lage des
+Werkzeugs im Griff selbst, und die Hand steht danach exakt daran; von dort
+justiert man nach außen, statt sich erst wieder heranzutasten.
 
 ### Konfig-Code
 
@@ -4028,7 +4032,7 @@ und keine Anführungszeichen mit), `src/core/configCode.ts` komprimiert das
 Ergebnis mit einem winzigen LZSS-Verfahren (Wörterbuch im Datenstrom, deshalb
 ohne Bibliothek und ohne `CompressionStream`) und packt es in base64url mit
 einer Prüfsumme hinten dran. Der Code eines einzelnen Werkzeugs ist deshalb
-kurz genug für die Werte-Tafel im Eingaberaum, und der einer einzelnen
+kurz genug für eine Tafel in der Brille, und der einer einzelnen
 Handhaltung kurz genug zum Abtippen:
 
 ```
@@ -4055,12 +4059,12 @@ vorher 66 Zeichen und kostet jetzt 27, aus drei Gründen:
   messbar. Nebenbei weiß ein Leser vor dem ersten Byte, wie er zu lesen hat.
 - Vor jeder Pose steht **noch eine Maske**, eine Ebene tiefer: welche ihrer
   Zahlen überhaupt verstellt sind. Eine Handhaltung hat zwölf Werte, von denen
-  eine Messung im Eingaberaum genau sechs anfasst — die anderen sechs kosten
+  eine Messung am Werkzeug genau sechs anfasst — die anderen sechs kosten
   jetzt ein Bit statt eines Bytes. Verglichen wird auf dem Raster, auf dem
   geschrieben wird, sonst stünde eine 0.0000001 aus einer Quaternion-Rechnung
   für immer im Code.
-- `toolGearCode` nimmt eine **Hand** entgegen. Die Stände im Eingaberaum geben
-  die durch, an der sie gemessen haben; die andere steht nicht mehr als
+- `toolGearCode` nimmt eine **Hand** entgegen. Wer messen lässt, gibt die
+  durch, an der gemessen wurde; die andere steht nicht mehr als
   Behauptung im Code und macht ihn nicht mehr doppelt so lang.
 
 **Version 4** ist eine einzige Zahl: der **Schaden** der Waffe. Angehängt
@@ -4239,15 +4243,16 @@ src/
   net/       Transport-Interface, WebRTC/BroadcastChannel, Presence, Avatare,
              Zuschauer-Kamera
   worlds/    Weltenregistry + je eine Welt pro Ordner (inkl. `PortalSync`,
-             dem geteilten Zustand des Portal Labors)
+             dem geteilten Zustand der Props und Portale)
              — darin `npc/`, alles, was in einer Welt herumläuft: Haut, Hirn,
              Körper und der Regisseur, der sie zusammenhält
 tools/     Kommandozeile: `npm run config` liest und schreibt Konfig-Codes
 ```
 
 Wie sich der Spieler bewegt, entscheidet ein austauschbares `Locomotion`:
-der Hub gleitet frei über die Plattform, das Portal Labor hängt eine
-Rapier-Kapsel mit Schwerkraft, Kollision und Sprung ein. Die Physik-Engine
+Eine Welt ohne Physik gleitet frei über ihren Boden, eine Welt mit Kisten und
+Treppen hängt eine Rapier-Kapsel mit Schwerkraft, Kollision und Sprung ein.
+Die Physik-Engine
 (rund 1 MB gzip) liegt in einem eigenen Chunk und wird erst geladen, wenn eine
 Welt sie braucht.
 
@@ -4330,7 +4335,7 @@ stürzt derselbe Test mit genau dieser Meldung ab.
 
 Der `App`-Loop ist bewusst schlank: Input → Locomotion → `world.update()` →
 UI → Netzwerk → Render. Eine Welt darf über `world.render()` selbst rendern;
-das Portal Labor nutzt das für seine Zusatzdurchgänge.
+`PortalWorld` nutzt das für die Zusatzdurchgänge ihrer Portale.
 
 ### Wie schön es aussieht
 
@@ -4374,7 +4379,8 @@ Comic-Spiele seit zwanzig Jahren gehen: **die umgestülpte Hülle**
 (`core/outlineShell.ts`). Jedes Ding wird ein zweites Mal gezeichnet, in
 Schwarz, ein wenig aufgeblasen, mit den **Rückseiten** nach vorn — sichtbar
 bleibt nur der Saum, der ringsum darüber hinausragt. Kostet einen zweiten
-Zeichenaufruf pro Ding (Dust: 869 → 1824) und funktioniert in beiden Augen.
+Zeichenaufruf pro Ding (in einer großen Außenwelt gemessen: 869 → 1824) und
+funktioniert in beiden Augen.
 
 Vier Dinge daran sind Erfahrung und keine Theorie:
 
@@ -4383,10 +4389,10 @@ Vier Dinge daran sind Erfahrung und keine Theorie:
   auseinander und die Kontur bekommt an jeder Ecke eine Lücke. Also liegt neben
   jeder Geometrie einmalig eine **gemittelte** Normale (`bgvrOutlineNormal`) —
   ohne die Geometrie selbst anzufassen. Über 24 000 Ecken wird das
-  übersprungen: Am Alpen-Hang fällt eine Ecke nicht auf, ein Ruckler schon.
+  übersprungen: An einem Berghang fällt eine Ecke nicht auf, ein Ruckler schon.
 - **Gedeckelt auf einen Anteil des Dings.** Ein gleich breiter Saum auf dem
   Bildschirm heißt: in der Nähe schmal, in der Ferne (in Metern) breit. Der
-  erste Versuch machte aus der **Dominoreihe im Portallabor eine Reihe
+  erste Versuch machte aus einer **Dominoreihe eine Reihe
   schwarzer Klötze** — ein Domino ist zwei Zentimeter breit, und ein Zentimeter
   Kante ringsherum ist keine Kante mehr, sondern eine Füllung. Jetzt bekommt
   jedes Ding höchstens ein Achtel seines eigenen Radius.
@@ -4411,8 +4417,8 @@ Und die **Farbstufen** (`materialLook.ts`) rechnen nicht auf der fertigen
 Farbe, sondern auf dem Licht **ohne** sie: `directDiffuse` ist Beleuchtung mal
 Grundfarbe, und wer das rundet, gibt einer dunklen Kiste eine einzige Stufe und
 einer weißen fünf. Die unterste Stufe ist dabei ausdrücklich **nicht** die
-Null — mit ihr war das Portallabor, in dem das Licht aus zwei Deckenlampen
-kommt, zur Hälfte stockschwarz. Ein Boden von 60 % lässt eine dunkle Fläche
+Null — mit ihr war ein Zimmer, dessen Licht aus zwei Deckenlampen kommt, zur
+Hälfte stockschwarz. Ein Boden von 60 % lässt eine dunkle Fläche
 dunkel bleiben, ohne sie auszulöschen. Die Stufenzahl steht als **Zahl im
 Quelltext** und nicht als Uniform: An ihr hängt der Programmschlüssel, und eine
 Uniform ändert den nicht. Die `#include`-Zeile von three.js, an der der Umbau
@@ -4421,12 +4427,12 @@ erst in der Brille auf.
 
 Und was in der Szene passiert, steht in `core/graphicsScene.ts` — angewendet
 von `core/GraphicsQuality.ts`, das bei der **App** hängt und nicht bei einer
-Welt: Ein Schatten ist keine Eigenschaft des Portallabors, und der Hub hat gar
-kein Weltmenü, in das eine Grafikeinstellung passte.
+Welt: Ein Schatten ist keine Eigenschaft einer einzelnen Welt, und der Hub hat
+gar kein Weltmenü, in das eine Grafikeinstellung passte.
 
-- **Die Szene wird abgelaufen, nicht die Welten geändert.** Es gibt fünfzehn
-  davon, sie werden nachgeladen, und jede müsste sonst dieselben vier Zeilen
-  selbst schreiben — die sechzehnte würde sie vergessen. Der Durchlauf ist
+- **Die Szene wird abgelaufen, nicht die Welten geändert.** Sie werden
+  nachgeladen, und jede müsste sonst dieselben vier Zeilen selbst schreiben —
+  die nächste würde sie vergessen. Der Durchlauf ist
   **idempotent und umkehrbar** (jeder überschriebene Wert liegt vorher unter
   `userData`) und läuft **jede Sekunde erneut**: Ein Zombie, der nach dem
   Umschalten aus dem Käfig kommt, hätte sonst als Einziger keinen Schatten.
@@ -4449,9 +4455,8 @@ kein Weltmenü, in das eine Grafikeinstellung passte.
   nur so dunkel, wie das Licht daneben hell ist, und diese Welten leuchten mit
   1,5 aus — auf voller Stärke war der schönste Schatten ein Hauch. Weiter
   herunter geht es nicht: Zwei Farbstufen brauchen Mitteltöne zwischen sich.
-  Lampen bleiben unangetastet: Der Dimmer im Dunkelhaus, die Deckenlampen im
-  Interaktionslabor und der Blitz einer Explosion stellen ihre Stärke selbst
-  ein.
+  Lampen bleiben unangetastet: Ein Dimmer an der Wand, die Lampe über einer
+  Tür und der Blitz einer Explosion stellen ihre Stärke selbst ein.
 - **Die Schattenkarte wird einmal pro Bild bestellt** (`shadowMap.autoUpdate`
   aus, `needsUpdate` im Loop). Spiegel und Portalsichten zeichnen die Szene
   mehrmals; jede dieser Zeichnungen würde sie sonst neu bauen.
@@ -4515,7 +4520,7 @@ unterscheiden will, hat sonst nur seinen Namen dafür.
 Angefangen wird **oben**, und zwar aus zwei Gründen. Der einfache: Ein Kopf ist
 das, was man von einem anderen Spieler zuerst sieht, und in VR schaut man
 ohnehin ständig auf Köpfe. Der bessere: Ein **Helm ist nicht nur Schmuck**,
-sondern ein Mittel gegen Übelkeit — siehe das Klemmbrett im Gokart.
+sondern ein Mittel gegen Übelkeit — siehe das Klemmbrett der Kartzone.
 
 Sieben Sorten, aus Zylindern, Kugeln und Quadern wie alles hier: **ohne**
 (die Auslieferung), **Basecap**, **Helm**, **Bauhelm**, **Mütze**, **Zylinder**
@@ -4532,8 +4537,8 @@ werden:
   Körper nur dort sieht.
 - **Er gehört dem Spieler und keiner Welt.** Gespeichert wird er wie die
   Augenhöhe und die Grafikstufe, also im Browser und nicht in einer Welt; wer
-  ihn im Hub aufsetzt, trägt ihn im Gokart auch. Eine Welt darf ihn
-  **ausleihen** (`WorldContext.wear`) — das Gokart tut es für den Helm —, und
+  ihn im Hub aufsetzt, trägt ihn in der Testwelt auch. Eine Welt darf ihn
+  **ausleihen** (`WorldContext.wear`) — das Kart tut es für den Helm —, und
   `null` gibt den Kopf wieder der Einstellung zurück. Wer aussteigt, hat wieder
   seinen eigenen Hut auf.
 - **Er geht über das Netz**, und zwar in der **Anmeldung** und nicht in der
@@ -4572,8 +4577,9 @@ auf der Karte, und eine Tür, die aufgeht, geht auch dort auf.
 Vier Entscheidungen:
 
 - **Ein Ausschnitt und keine Übersicht.** Ein Kasten um den Träger, der mit ihm
-  wandert. Eine Karte, die immer die ganze Welt zeigt, ist in Dust ein grauer
-  Fleck und in der Kletterhalle ein Punkt. Der **Trigger** schaltet den Maßstab
+  wandert. Eine Karte, die immer die ganze Welt zeigt, ist auf einem Gelände
+  von siebzig Metern ein grauer Fleck und in einem Zimmer ein Punkt. Der
+  **Trigger** schaltet den Maßstab
   weiter: 20 → 40 → 80 → 160 m, im Kreis. Mehr Bedienung hat sie nicht.
 - **Norden ist oben, immer.** Das Blatt dreht sich nicht mit, der **Pfeil**
   darauf schon. Die Alternative wäre verführerisch, aber wer die Karte in der
@@ -4581,9 +4587,9 @@ Vier Entscheidungen:
   Karte, die sich beim Gehen unter der Hand mitdreht, ist ein Kreisel. In der
   Umrechnung steckt die eine Zeile, an der sich eine Karte verrät: In three.js
   zeigt −z nach vorn, auf dem Blatt zeigt kleines _v_ nach oben.
-- **Ein Stockwerk und nicht vier übereinander.** In Dust liegen vier Etagen
-  aufeinander; übereinandergelegt wären sie ein Knäuel aus Wänden, das nichts
-  mehr sagt. Genommen wird die, auf deren Boden der Kopf am ehesten steht
+- **Ein Stockwerk und nicht alle übereinander.** Wo Etagen aufeinander liegen,
+  wären sie übereinandergelegt ein Knäuel aus Wänden, das nichts mehr sagt.
+  Genommen wird die, auf deren Boden der Kopf am ehesten steht
   (`nearestLevel`).
 - **Was sie zeigt, sagt etwas.** Boden als helle Felder, gesperrte Kacheln rot
   (`NavGraph.isBlocked` — die eine Auskunft, die eine Karte geben kann und ein
@@ -4927,9 +4933,8 @@ läuft zu dem Körper, den er sehen kann.
 **Durch ein Portal fällt er wie eine Kiste.** Dieselbe Kollisionsmaske,
 dieselbe Traversal-Matrix, dasselbe geschnittene Abbild — nachzulesen oben bei
 den Portalen. Was dabei **nicht** passiert: Er _plant_ keinen Weg hindurch. Die
-Navigationskarte kennt Portale zwar als Verbindung (`navBuild.addPortal`, und
-das Navigationslabor stellt eines hin), die beiden geschossenen stehen aber
-nicht darin. Ein Zombie fällt also durch ein Bodenportal, das auf seinem Weg
+Navigationskarte kennt Portale zwar als Verbindung (`navBuild.addPortal`), die
+beiden geschossenen stehen aber nicht darin. Ein Zombie fällt also durch ein Bodenportal, das auf seinem Weg
 liegt, und er läuft durch ein Wandportal, hinter dem er den Spieler sieht — den
 Umweg durch das Portal am anderen Ende der Halle nimmt er nicht. Das ist der
 nächste Schritt in dieser Ecke, und er hängt an einer Frage, die die Karte
@@ -5087,8 +5092,8 @@ Tunnel und der Sand darüber zwei Kacheln, und deshalb entsteht unter einem zu
 niedrigen Vordach gar keine. Zwischen zwei Kacheln wird gefragt, ob dort in
 Kopfhöhe etwas steht; sonst entscheidet der Höhenunterschied, ob es eine Stufe,
 eine Treppe, ein Absprung oder eine Wand ist. `PortalWorld` ruft das einmal nach
-`buildEnvironment()`, und damit hat **jede** Welt ihr Gitter — Dust, das Labor,
-der Hub, alle.
+`buildEnvironment()`, und damit hat **jede** Welt ihr Gitter — der Hub, der
+Bauplatz, die Testwelt, alle.
 
 **Eine Welt auf dem Kachelgitter wird trotzdem abgetastet** (`grid/GridWorld.ts`),
 und das ist kein Versehen. Sie _hätte_ ihren Graphen ja schon; ihn hier
@@ -5132,10 +5137,10 @@ Eindruck aus der Brille, den niemand erklären konnte:
   Wegsuche, weil das Gitter ja eine Verbindung zeigte. Entschieden wird jetzt
   nach der **Höhe**: Was man hinaufkommt, geht in beide Richtungen.
 
-Eine Welt darf zwei Dinge dazu sagen: `navLevels()` nennt ihre Stockwerke
-(Dust tut das, sonst würde eine Etage zu viel geraten — die Bodenplatten liegen
-`WALL` über dem Stockwerk, und die Kistenpodeste bei 1,2 m sähen aus wie eine
-eigene Ebene), und `navBounds()` sagt, was abgetastet wird. Voreingestellt ist
+Eine Welt darf zwei Dinge dazu sagen: `navLevels()` nennt ihre Stockwerke —
+eine Welt mit Podesten tut das, sonst würde eine Etage zu viel geraten, weil
+ein Podest bei 1,2 m aussieht wie eine eigene Ebene —, und `navBounds()` sagt,
+was abgetastet wird. Voreingestellt ist
 der Umriss aller gebauten Quader **ohne** die Fläche bis zum Horizont: Die ist
 absichtlich riesig, und wer sie mitzählte, tastete einen halben
 Quadratkilometer leeren Sand ab. Als Boden zählt sie trotzdem — sie steckt in
@@ -5495,15 +5500,14 @@ der Brille steht er davor.
 Bedienung an einem Ort aus, bevor man sie überall hinhängt. Es war aber auch
 die Antwort auf die falsche Frage. Die Frage lautet nicht _wo baue ich ein
 Level?_, sondern _warum kann ich das Haus, in dem ich gerade stehe, nicht
-umbauen?_ Wer im Dunkelhaus merkt, dass der Gang zu eng ist, will ihn **dort**
-verbreitern und nicht in einer zweiten Welt nachbauen.
+umbauen?_ Wer beim Durchlaufen merkt, dass ein Gang zu eng ist, will ihn
+**dort** verbreitern und nicht in einer zweiten Welt nachbauen.
 
 Also hängt die Bedienung an keiner Welt mehr, sondern an einem **Grundriss**
 (`grid/gridPlan.ts`) und an einem Wirt (`EditorHost`), der drei Sachen kann:
 die Welt neu bauen, jemanden versetzen und etwas sagen. Jede Gitterwelt hat
-beides — Dunkelhaus, Schießstand, Dust, Kletterhalle, Gokart und der Bauplatz
-selbst — und bekommt den Editor damit geschenkt (`grid/GridWorld.ts`,
-`editable()`).
+beides und bekommt den Editor damit geschenkt (`grid/GridWorld.ts`,
+`editable()`); gesagt haben es heute der **Bauplatz** und die **Testwelt**.
 
 Vier Entscheidungen tragen das Ganze:
 
@@ -5700,9 +5704,9 @@ das Modell größer ist und deshalb immer zuerst antwortet.
 halben Meter darüber, und sie hängt **neben** dem Modell in der Welt statt
 darin: Ein Licht in einer Gruppe, die auf ein Zwanzigstel geschrumpft ist,
 leuchtet auch nur ein Zwanzigstel weit. Sie muss sein, seit der Editor nicht
-mehr nur im hellen Bauplatz steht — im Dunkelhaus ist die Umgebung mit Absicht
-fast schwarz, und ein Grundriss, den man nur mit der Taschenlampe lesen kann,
-ist keiner.
+mehr nur im hellen Bauplatz steht — in einer dunklen Welt ist die Umgebung mit
+Absicht fast schwarz, und ein Grundriss, den man nur mit der Taschenlampe lesen
+kann, ist keiner.
 
 **Das fünfte Werkzeug, das keines ist: Hingehen.** Auf eine Kachel der Miniatur
 tippen und dort stehen. Es ändert nichts am Plan und steht deshalb neben den Werkzeugen und
@@ -5755,18 +5759,18 @@ sich widersprechen.
 abstrakt). Naheliegend wäre `ctx.net.world` gewesen — der steht beim Bauen aber
 noch auf der _vorigen_ Welt (`App.loadWorld` setzt ihn erst nach `init`), und
 zwei Welten, die sich still denselben Speicherplatz teilen, sind der Fehler, den
-man erst bemerkt, wenn im Dunkelhaus plötzlich Dust steht.
+man erst bemerkt, wenn im Bauplatz plötzlich die Testwelt steht.
 
 #### Das Weltformat
 
 **Eine Welt als Datei** (`grid/worldFile.ts`), Format `baumgartner-welt`,
-Version **`0.2.0`**.
+Version **`0.3.0`**.
 
 Bis hierher gab es zwei Hälften und keine Naht dazwischen. Der
 Navigationsgraph hatte längst ein sauberes, versioniertes Format
 (`nav/navSerial.ts`); alles andere, was eine Gitterwelt ausmacht, hatte keins.
 Die **Bausteine** lagen als nacktes JSON daneben, ungeprüft und ohne Version,
-und die **Massen** — das Dach über einer Halle, die Felswand um Dust, der Sand
+und die **Massen** — das Dach über einer Halle, eine Felswand, der Sand
 darunter — wurden überhaupt nicht gespeichert. Ein „gespeicherter Grundriss"
 war deshalb genau so lange brauchbar, wie die Welt keine hatte.
 
@@ -5791,15 +5795,27 @@ Vier Entscheidungen tragen das Format:
   sähe es, weil die Datei weiterhin gültig aussieht.
 - **Die Version ist Semver, als Zeichenkette.** Solange die Hauptnummer `0`
   ist, gilt eine neue Nebennummer als Bruch — so liest man Semver vor 1.0.
-  Gelesen werden die Zeilen `0.1.x` und `0.2.x` — `0.1` blieb lesbar, weil der
-  Sprung auf `0.2` nur eine Liste hinzugefügt hat (die **Einbauten**), und eine
-  fehlende Liste ist eine leere. Andersherum gilt das nicht: Wer eine
-  `0.2`-Welt in ein altes Programm lädt, verlöre ihre Tore und Türen still.
+  Gelesen werden die Zeilen `0.1.x`, `0.2.x` und `0.3.x`: `0.1` blieb lesbar,
+  weil der Sprung auf `0.2` nur eine Liste hinzugefügt hat (die **Einbauten**),
+  und `0.2` bleibt es, weil `0.3` nur ein **Feld** hinzufügt — den Fuß einer
+  Treppenkachel (`y`, siehe unten). Eine fehlende Liste ist eine leere, ein
+  fehlendes Feld eine Null. Andersherum gilt das nicht: Wer eine
+  `0.3`-Welt in ein altes Programm lädt, verlöre ihre Treppen still.
   Eine Datei aus der Zukunft wird **abgelehnt** und nicht halb geladen, denn
   eine Welt, der beim Laden die Hälfte fehlt, sieht aus wie eine kaputte Welt
   und nicht wie eine zu neue. „Zu neu" und „zu
   alt" bekommen deshalb zwei verschiedene Meldungen: Sie sind das Einzige,
   woran jemand sieht, ob er ein Programm oder eine Datei aktualisieren muss.
+
+**Ein Baustein hat seit `0.3` einen Fuß**, und er heißt `y`. Eine Treppe liegt
+auf dem Metergitter über **mehrere** Kacheln, und jede einzelne weiß zwei
+Dinge: wie viel sie steigt (`height`) und wie hoch über dem Etagenboden sie
+anfängt (`BlockPlacement.lift`). Ohne die zweite Zahl läge ein gespeicherter
+Lauf beim nächsten Laden flach auf dem Boden — vier Stufen nebeneinander statt
+einer Treppe. Sie heißt in der Datei `y` und nicht `lift`, weil dort schon `x`
+und `z` stehen und drei Buchstaben derselben Sorte sich leichter lesen als zwei
+plus ein Wort; und sie fehlt bei null, denn das ist der Normalfall — jeder
+Baustein, der nicht steigt, spart sie sich.
 
 **Streng und nachsichtig an den richtigen Stellen.** Ein Baustein auf einer
 Kachel, die es nicht gibt, fällt weg; eine unbekannte Baustein-Sorte fällt weg
@@ -5823,18 +5839,19 @@ Nichts wäre die schlechteste aller Antworten.
 Weltdatei ist ein **Grundriss** und kein Spielstand. Sie kennt Kacheln, Wände,
 Türen, Verbindungen, Bausteine, Einbauten und Massen — alles, was `GridPlan`
 führt. Sie kennt **nicht**, was eine Welt darüber hinaus von Hand hinstellt
-(`buildProps`): die Lampen und den Dimmer des Dunkelhauses, die Karts in der
-Boxengasse, die Kisten zum Herumwerfen. Und sie kennt keine Farben — welchen
-Ton eine Wand hat, entscheidet die Welt, in der sie steht (`GridWorld.tint`),
-und genau deshalb sieht ein ins Bauplatz importiertes Dunkelhaus aus wie ein
-Bauplan und nicht wie ein Haus. Das ist die Grenze, und sie ist gezogen und
+(`buildProps`): die Lampen an den Türen, die Karts in der Boxengasse, die
+Kisten zum Herumwerfen. Und sie kennt keine Farben — welchen Ton eine Wand hat,
+entscheidet die Welt, in der sie steht (`GridWorld.tint`), und genau deshalb
+sieht eine in den Bauplatz importierte Welt aus wie ein Bauplan und nicht wie
+ein Haus. Das ist die Grenze, und sie ist gezogen und
 nicht vergessen: Ein Format, das _alles_ speichert, ist eines, das bei jeder
 neuen Lampe eine neue Version braucht.
 
 Der **Dateiname** ist der Name der Welt plus das Datum plus `.welt.json` — die
 doppelte Endung, damit ein Betriebssystem sie als JSON öffnet und ein Mensch
-trotzdem sieht, was darin steht: `dunkelhaus-2026-09-07.welt.json`. Ein
-Dunkelhaus wiegt so rund neun Kilobyte.
+trotzdem sieht, was darin steht: `bauplatz-2026-09-07.welt.json`. Ein
+Startzimmer wiegt so ein paar Kilobyte, das Gelände der Testwelt ein paar
+Dutzend.
 
 Ein Download und eine Dateiauswahl sind in der Brille wenig wert — man sieht
 von beidem nichts. Sie sind für den Rechner gedacht, und das ist keine Lücke,
@@ -5979,9 +5996,11 @@ sehen — nicht von oben und unten. Bei einer **Welt** bleibt das Nicken, dort
 _ist_ die Vogelperspektive das, worum es geht; und in der freien Kamera
 sowieso, die schaut sich um (`onMove` in `tools/viewer.ts`).
 
-Wozu die Seite, sieht man am Telefon: „wie sieht das eigentlich aus" ist in der
-Brille ein Weg in den Eingaberaum und an einen Stand, und das ist zu weit für
-eine Frage, die man im Vorbeigehen stellt.
+Wozu die Seite, sieht man am Telefon: „wie sieht das eigentlich aus" hieß in
+der Brille einmal, in den Eingaberaum zu laufen und sich an einen Stand zu
+stellen, und das ist zu weit für eine Frage, die man im Vorbeigehen stellt.
+Seit diese Welt gelöscht ist, ist die Seite nicht mehr der kürzere Weg, sondern
+der einzige.
 
 **Vier Regale, ein Zuschauerplatz, eine Schublade.** Hinter dem Burger-Symbol
 liegen **Werkzeuge**, **Welten**, der **Magische Beutel** und die **NPCs**,
@@ -6038,26 +6057,26 @@ Drei Dinge machen daraus einen Überblick statt eines Kastens:
 - **Kulisse zählt nicht mit.** Der Himmel einer Welt ist eine Kugel von 560
   Metern, ihr Boden eine Platte von tausend — auf beide eingepasst wäre jede
   Welt ein Punkt in der Mitte. Was `markBackdrop` trägt (`createSky`,
-  `createGround`, Sterne und Erde am Mondhimmel), wird beim Einpassen
-  übersprungen und trotzdem gezeichnet: dahinter gehört es hin.
+  `createGround`, dazu was eine Welt sonst an Himmel mitbringt), wird beim
+  Einpassen übersprungen und trotzdem gezeichnet: dahinter gehört es hin.
 - **Ein Dach wird aufgeschnitten — über allem, was darunter steht.** Eine Welt
-  mit Decke füllt beim Bauen `this.roof` (Portal Labor, Dunkelhaus, Pizzeria,
-  Eingaberaum, Kletterhalle), und die Vorschau legt eine Schnittebene hinein —
-  Puppenhaus statt Deckel. **Wie hoch, wird gemessen und nicht gesetzt**
-  (`tools/worldCut.ts`, mit Test): Der Schnitt liegt über der höchsten
-  Oberkante der Welt, nie unter Kopfhöhe und nie über der Decke — und was bis
-  an die Decke reicht, zählt dabei nicht mit, denn das ist die Hülle, die ja
-  gerade weg soll. Vorher lag er fest auf 2,40 m, und das war nur in einem
-  Zimmer richtig: In der **Kletterhalle** stehen 9,4 m hohe Kletterwände unter
-  einer Decke von 10 m, und von der ganzen Halle blieben sechs Stummel auf
-  einer blauen Matte übrig — die Welt selbst war weggeschnitten. Die Ebene
-  liegt im Raum, das Modell dreht sich, also wird sie in jedem Bild aus der
-  Lage der Bühne nachgerechnet; sonst wanderte der Schnitt beim Drehen durch
-  die Welt.
+  mit Decke füllt beim Bauen `this.roof`, und die Vorschau legt eine
+  Schnittebene hinein — Puppenhaus statt Deckel. **Wie hoch, wird gemessen und
+  nicht gesetzt** (`tools/worldCut.ts`, mit Test): Der Schnitt liegt über der
+  höchsten Oberkante der Welt, nie unter Kopfhöhe und nie über der Decke — und
+  was bis an die Decke reicht, zählt dabei nicht mit, denn das ist die Hülle,
+  die ja gerade weg soll. Vorher lag er fest auf 2,40 m, und das war nur in
+  einem Zimmer richtig: In einer Halle mit 9,4 m hohen Kletterwänden unter
+  einer Decke von 10 m blieben sechs Stummel auf einer blauen Matte übrig — die
+  Welt selbst war weggeschnitten. Die Ebene liegt im Raum, das Modell dreht
+  sich, also wird sie in jedem Bild aus der Lage der Bühne nachgerechnet; sonst
+  wanderte der Schnitt beim Drehen durch die Welt. **Heute steht nirgends mehr
+  ein Dach** (siehe _Von oben_); die Rechnung bleibt, weil eine Welt eines
+  bauen darf.
 - **Flach wird enger eingepasst.** Eine Kugel um eine Welt ist so hoch wie
   breit, eine Welt aber ist ein Grundriss mit ein bisschen Höhe darauf. Mit
   Grundriss und Höhe getrennt gerechnet (`ShowOptions.flat`) steht sie doppelt
-  so groß im Bild — vorher war das Dunkelhaus eine Briefmarke in einer leeren
+  so groß im Bild — vorher war ein Haus eine Briefmarke in einer leeren
   Fläche.
 
 **Und man kommt hinein.** Der Überblick beantwortet die erste Frage; die
@@ -6111,8 +6130,8 @@ Vier Dinge daran sind Entscheidungen und keine Nebensache:
   gemessen bis an die Kugel um das Gezeigte: von weit draußen legt ein Druck
   Kilometer zurück, mitten in der Welt Meter, und weil der Abstand beim
   Anfliegen schrumpft, bremst der Flug von selbst ab. Eine feste Zahl kann das
-  nicht — dieselbe ist im Dunkelhaus ein Katapult und in den Alpen ein
-  Stillstand, deren Kulisse misst vier Kilometer im Halbmesser.
+  nicht — dieselbe ist in einem Zimmer ein Katapult und über einem Gebirge ein
+  Stillstand, dessen Kulisse vier Kilometer im Halbmesser misst.
 - **Das Dach bleibt drauf.** Der Schnitt durch eine Welt mit Decke ist die
   Antwort auf die Vogelperspektive; wer drin ist, will das Zimmer, wie es ist.
   Im Flug gilt er deshalb nicht.
@@ -6126,12 +6145,12 @@ Damit das ohne Spiel geht, bekommt `PortalWorld.preview()` zwei Dinge
 untergeschoben. Erstens eine **Physik, die nichts tut**
 (`physics/silentPhysics.ts`): die Bauzeilen legen jede Wand, jede Kiste und
 jedes Gelände in die Simulation, und statt fünfzig `if (physics)` quer durch
-neun Welten nimmt eine Attrappe derselben Form alles entgegen und macht nichts
+jede Welt nimmt eine Attrappe derselben Form alles entgegen und macht nichts
 damit — was daran Rapier ist, beantwortet jeden Zugriff mit sich selbst, damit
 auch `physics.world.createImpulseJoint(rapier.JointData…)` mitten im Bauen ins
 Leere läuft. Rapier selbst wird dabei nie geladen. Zweitens **Licht**: die Welt
 bringt ihr eigenes mit — das Bühnenlicht geht dafür aus —, aber nie weniger als
-0,45; das Dunkelhaus ist mit Absicht fast schwarz (0,035), und eine schwarze
+0,45; eine Welt darf mit Absicht fast schwarz sein (0,035), und eine schwarze
 Vorschau ist keine. Der Hub baut seine Vorschau selbst (`HubWorld.preview()`,
 dieselbe Halle, dieselben Gänge, dieselben wirbelnden Tore, nur ohne Zeiger) —
 von oben sieht man ihm an, was er ist: ein Rad mit Speichen.
@@ -6139,8 +6158,8 @@ von oben sieht man ihm an, was er ist: ein Rad mit Speichen.
 #### Eine Welt laufen lassen
 
 Eine Vorschau ist ein **Bild**, und für „wie ist diese Welt angelegt" ist das
-die richtige Antwort. Beim **Navigationslabor** ist es keine: Es besteht aus
-sechs Knöpfen und dem, was danach passiert, und ein Bild davon zeigt sechs
+die richtige Antwort. Bei der **Testwelt** ist es keine: Sie besteht aus
+Knöpfen, Türen und dem, was danach passiert, und ein Bild davon zeigt ein paar
 Kuppeln. Unter der Bühne steht deshalb bei jeder Welt, die es kann, ein Knopf
 **Laufen lassen** — und danach steht dort dieselbe Welt **in Betrieb**.
 
@@ -6326,7 +6345,7 @@ Druck an, statt hell zu leuchten, während der Finger nicht zieht.
 
 In VR sieht man beides zugleich: ob der Halterzylinder in der Faust sitzt und
 wohin das Ding dabei zeigt. Gerechnet wird mit derselben Kette wie
-im Eingaberaum (`tune/handGrip.ts`) und mit derselben Zielkorrektur: die kommt
+am Griffstand (`tune/handGrip.ts`) und mit derselben Zielkorrektur: die kommt
 sonst aus einem Controller, im Browser gibt es keinen, also steht sie als Zahl
 da (`GRIP_TO_RAY`) — und zwar **nur für Werkzeuge, die zielen**. Was in der
 Faust sitzt (`alignToAim = false`: Controller, Boxhand, Flügel, Handschuhe und
@@ -6353,8 +6372,9 @@ Rand hinausgeht.
 #### Bearbeiten auf der Werkzeugseite
 
 Der Knopf **Bearbeiten** oben in der Ecke macht aus der Ansicht einen
-Justierstand — und zwar denselben, den der Eingaberaum aufstellt, nur mit einem
-Daumen statt mit zwei Händen. Er trägt sein Wort und nicht nur einen Stift, und
+Justierstand — und zwar denselben, den der Eingaberaum aufstellte, nur mit
+einem Daumen statt mit zwei Händen; seit die Welt gelöscht ist, ist er der
+einzige. Er trägt sein Wort und nicht nur einen Stift, und
 das ist kein Geschmack: als nackter 38-Pixel-Umriss zwischen Titel und
 Umschalter war er auf dem Telefon schlicht nicht zu finden, und genau so wurde
 er auch gemeldet. Läuft der Modus, heißt derselbe Knopf **Fertig** und leuchtet.
@@ -6457,8 +6477,8 @@ Zeile unter dem Regler sagt deshalb auch dazu, was sie zeigt: _Werkzeug in der
 echten Hand_ beziehungsweise _Hand in der echten Hand_ — es sind nicht mehr die
 Zahlen aus dem Speicher.
 
-Dazu steht im Bearbeiten-Modus **ein Achsenkreuz** (`core/axesCross.ts`,
-dasselbe wie im Eingaberaum), und zwar genau in diesem Rahmen: am Griffpunkt,
+Dazu steht im Bearbeiten-Modus **ein Achsenkreuz** (`core/axesCross.ts`),
+und zwar genau in diesem Rahmen: am Griffpunkt,
 gedreht auf den Zeigestrahl, sein weißer Arm auf der weißen Linie. X rot, Y
 grün, Z blau, -Z weiß nach vorn, und die Beschriftung der drei Drehregler sagt
 dazu, um welche Achse sie greifen (_Pitch — nicken um X (rot)_). Sechs Zahlen
@@ -6591,8 +6611,10 @@ arbeitet, sah hier nichts davon. Der Menüpunkt **Verbinden** (`#verbinden`,
 
 Es ist **dieselbe Sitzung** wie beim Zusammenspielen: derselbe Raum-Code,
 dasselbe Trystero, dieselben Nachrichten (`net/`). Was hereinkommt, ist der
-Kanal `hpose` aus dem Poseraum — die Haltung der Hand, die drüben gerade
-gemessen wird, zwanzigmal je Sekunde. Oben die Leitung (Raum-Code, Name, ein
+Kanal `hpose` — die Haltung der Hand, die drüben gerade gemessen wird,
+zwanzigmal je Sekunde. Geschickt hat sie der Poseraum des Eingaberaums; seit
+er gelöscht ist, wartet die Seite auf einen Sender, den es nicht gibt (siehe
+_Live auf die Werkzeugseite_). Oben die Leitung (Raum-Code, Name, ein
 Knopf, eine Statuszeile), in der Mitte die Bühne, unten der Konfig-Code in
 einem **Textfeld**: dieser Code wird nicht angesehen, sondern mitgenommen, und
 ein Feld kann man auch dort noch markieren, wo es keine Zwischenablage gibt.
@@ -6612,7 +6634,7 @@ Drei Kleinigkeiten, die dabei nötig waren:
   weiter ins Feld, nur die Bühne gehört dann jemand anderem.
 - Ein **`hello` alle drei Sekunden**. Die Sitzung wirft einen Mitspieler nach
   acht Sekunden Stille hinaus, und ein Zuschauer schickt keine Pose — er fiele
-  drüben aus der Liste, während er zusieht, und der Poseraum meldete „noch
+  drüben aus der Liste, während er zusieht, und die Gegenstelle meldete „noch
   niemand verbunden".
 - `Section` ist nicht mehr dasselbe wie ein **Regal**. Kacheln gibt es nur in
   Regalen (`Shelf`), der Zuschauerplatz hat keine; er bringt die Bühne mit und
@@ -6635,10 +6657,43 @@ ohne diesen Eintrag landete nur `index.html` im `dist`.
 **Eine Welt beschreibt sich in Kacheln, nicht in Metern** (`worlds/grid/`).
 Das ist die jüngste der großen Entscheidungen in diesem Projekt, und sie ist
 aus einem Ärgernis entstanden, das lange als naturgegeben galt: Jede Welt stand
-auf ihrer eigenen Handvoll `slab()`-Aufrufe. Dust hatte siebzehn, der
-Schießstand zwölf, die Pizzeria dreißig. Jeder einzelne ist eine Zahl in
+auf ihrer eigenen Handvoll `slab()`-Aufrufe — eine große Außenkarte hatte
+siebzehn, ein Schießstand zwölf, eine Küche dreißig. Jeder einzelne ist eine
+Zahl in
 Metern, die niemand nachprüfen kann, ohne die Brille aufzusetzen — und genau
 deshalb war eine große Welt nur am Stück zu testen, nie in Teilen.
+
+**Eine Kachel misst einen Meter** (`nav/navTile.TILE`), und das ist die
+Entscheidung vom September 2026. Vorher waren es 2,5 m — grob genug für eine
+Karte mit ein paar hundert statt zehntausend Kacheln, und viel zu grob für die
+Welten, die hier gebaut werden sollen: In einer Küche wie bei _Overcooked_
+steht der Herd neben der Spüle und nicht drei Schritte weiter, und eine Kachel,
+in die ein ganzer Tisch **und** der Weg daran vorbei passen, kann so etwas
+nicht beschreiben. Mit einem Meter ist eine Kachel das, was ein Mensch mit
+einem Schritt überquert, und ein Grundriss liest sich in Metern, ohne dass
+jemand mal zweieinhalb rechnet. Der Preis ist die Kachelzahl: Dieselbe Halle
+hat sechsmal so viele. Das ist vertretbar, weil die Welten dafür kleiner
+ausgelegt werden (der Hub misst elf mal elf Kacheln statt siebzehneinhalb
+Metern) und weil die Wegsuche über ganze Zahlen läuft.
+
+Daran hängen vier weitere Zahlen, und jede folgt aus der einen:
+
+- **`PLAN_WALL_T` 0,2 m.** Die Wand steht auf der Kante, je zehn Zentimeter in
+  beide Kacheln. Ein Gang von einer Kachel hat damit 0,8 m lichte Weite, und
+  die Spielerkapsel misst 0,24 m im Halbmesser (`physics/playerClearance.ts`) —
+  das reicht.
+- **`PLAN_DOOR_W` und `PLAN_WINDOW_W` 0,8 m**: die Kachel minus zwei Pfosten.
+  Türhöhe 2,1 m und Wandhöhe 2,8 m bleiben, wie sie waren.
+- **Ein Baustein passt in eine Kachel.** Küchenzeile einen Meter lang und 0,6 m
+  tief, Tisch 0,9 × 0,9, ein Kistenstapel aus zwei Kisten von 0,45 m. Die Regel
+  ist nicht die Zahl, sondern der Satz: **nichts ragt über die Kachel**, und
+  der Test misst es in allen vier Richtungen nach.
+- **Der Autostep braucht eine Mindestbreite von 0,1 m**
+  (`PhysicsLocomotion.enableAutostep(0.32, 0.1, …)`). Er stand auf 0,18, und
+  das war der Grund, warum die Stufen der Straßenküche (0,19 m tief) klemmten:
+  Der Character-Controller steigt zwar 0,32 m hoch, aber nur, wenn hinter der
+  Stufe genug Platz zum Aufsetzen ist. Die Höhe war nie die Grenze, die
+  **Tiefe** war es.
 
 Vier Dateien, alle **ohne three.js**:
 
@@ -6675,15 +6730,14 @@ steckt.
 
 **Ein Baustein weiß, was er der Kachel antut.** Ein Podest hebt sie an
 (`rise`), ein Tisch macht das Herumkommen teurer (`cost`). Kein „blockiert
-ja/nein": Eine Kachel ist zweieinhalb Meter breit, ein Tisch darin lässt
-reichlich Platz — er ist nur der Weg, den man nicht nimmt, wenn daneben einer
-frei ist. Beides landet im Graphen, und deshalb läuft ein NPC um den Tisch
+ja/nein": Ein Tisch auf einer Kachel lässt daneben noch Platz — er ist nur der
+Weg, den man nicht nimmt, wenn daneben einer frei ist. Beides landet im Graphen, und deshalb läuft ein NPC um den Tisch
 herum und auf das Podest hinauf, ohne dass jemand die Karte von Hand
 nachpinselt.
 
-**Eine Masse ist der ehrliche Ausweg.** Nicht alles hat Kachelform: das Dach
-über einer Halle, der Kugelfang hinter den Scheiben, die Felswand um Dust, der
-Sand darunter. `mass()` baut dafür **einen** Quader über ein Kachelrechteck —
+**Eine Masse ist der ehrliche Ausweg.** Nicht alles hat Kachelform: der
+Kugelfang hinter den Scheiben, eine acht Meter hohe Kletterwand, der Boden
+unter einem ganzen Gelände. `mass()` baut dafür **einen** Quader über ein Kachelrechteck —
 grid-treu, weil seine Kanten Kachelkanten sind, aber eben einer statt tausend.
 Beim Boden ist das keine Bequemlichkeit, sondern Pflicht: Jede Portalfläche
 bekommt eine eigene Kollisionsgruppe, davon gibt es zehn
@@ -6697,10 +6751,34 @@ Graphen** (sonst steht ein NPC unten und weiß nicht, dass es nach oben geht —
 Stockwerke haben in diesem Gitter absichtlich keine Nachbarschaft). Wer die
 dritte vergisst, hat eine Treppe, die man hinauflaufen kann und die für jeden
 NPC nicht existiert; das sieht danach aus wie ein kaputter Character-Controller.
-`GridPlan.stairs()` macht alle drei. Und ein Treppenhaus wechselt zwischen
-**zwei** Kacheln hin und her: Alle Läufe übereinander ginge nicht, weil jeder
-Lauf das Loch für seinen eigenen Kopf schlägt — genau darin müsste der nächste
-stehen. **Und von oben ist sie die vierte Sache**: Wer sie hinaufgeht, nimmt
+`GridPlan.stairs()` macht alle drei.
+
+**Und sie ist länger als eine Kachel.** Auf 2,5-m-Kacheln passte ein ganzes
+Stockwerk auf eine einzige; auf einem Meter wäre das eine Leiter mit Stufen von
+sieben Zentimetern Tiefe — man bleibt an ihr hängen, und genau das war der
+Vorwurf an die Treppe der Straßenküche. Also legt `GridPlan.stairs(x, z, dir,
+level, length?)` den Lauf über **mehrere** Kacheln: `length` Kacheln, und ohne
+Angabe so viele, wie der Anstieg bei **0,7 m je Kachel** braucht
+(`STAIR_LIFT`) — bei 2,8 m Etagenhöhe also vier. Jede Kachel ist ein eigener
+`stairs`-Baustein mit ihrem **Teilanstieg** (`height`) und ihrem **Fuß**
+(`lift`, in der Datei `y`), im Graphen mit ihrer Feinhöhe (`rise = lift`) und
+dem Loch über sich — über **jeder** Stufe, nicht nur über der ersten, sonst
+stößt man auf halber Höhe an den Boden darüber. Verbunden wird erst die
+**letzte**: Sie mündet auf der Kachel davor, und dort steht man auf der Etage
+darüber.
+
+**Die Stufen darin folgen aus zwei Grenzen und nicht aus einem Geschmack**
+(`grid/blocks.ts`): höchstens **`STEP_RISE` 0,2 m hoch**, mindestens
+**`STEP_RUN` 0,25 m tief**. Bei 0,7 m Anstieg je Kachel sind das vier Stufen
+von 0,175 m auf 0,25 m — eine Treppe, die man hinaufgeht, ohne darüber
+nachzudenken. Die **Rampe** (`ramp`) ist dieselbe Rechnung flacher: halb so
+viel Anstieg je Kachel (`RAMP_LIFT` 0,35 m), halb so hohe Stufen, dafür doppelt
+so lang.
+
+Ein Treppenhaus wechselt dabei zwischen **zwei** Läufen hin und her: Alle
+übereinander ginge nicht, weil jeder Lauf das Loch für seinen eigenen Kopf
+schlägt — genau darin müsste der nächste stehen. **Und von oben ist sie die
+vierte Sache**: Wer sie hinaufgeht, nimmt
 auf halber Höhe die Ebene darüber mit ins Bild, und die darunter bleibt stehen
 — eine Treppe ist der einzige Ort, an dem man beide Stockwerke gleichzeitig
 sieht (`core/cutaway.ts`, siehe _Von oben: dieselbe Welt, eine Kamera_).
@@ -6711,15 +6789,16 @@ Ein Baustein ist **still**. Das ist seine Stärke — eine Kachel, eine Sorte, e
 Blickrichtung, und daraus werden Quader —, und es ist genau die Grenze, an der
 das Gitter lange aufhörte. Eine Tür ist halb offen, ein Knopf hat Nachlauf, eine
 Platte ist gedrückt, solange eine Kiste darauf liegt, ein Tor führt in eine
-andere Welt. Für all das gab es bisher genau einen Ort, und der stand in Metern
-neben dem Gitter statt darauf: das Interaktionslabor (`worlds/interact/`). Wer
-in einer Gitterwelt eine Tür wollte, baute sie noch einmal.
+andere Welt. Für all das gab es lange genau einen Ort, und der stand in Metern
+neben dem Gitter statt darauf: das Interaktionslabor, von dem heute nur noch
+die Türmathematik übrig ist (`worlds/interact/doorMotion.ts`). Wer in einer
+Gitterwelt eine Tür wollte, baute sie noch einmal.
 
 Seit P3 gibt es die zweite Sorte Ding auf der Kachel: den **Einbau**
 (`grid/fixtures/`). Dieselbe Kachel, dieselbe Blickrichtung wie ein Baustein,
-dazu eine **Art** (`sign`, später `gate`, `door`, `button`, `plate`, `lamp`,
-`emitter`), eine **Kennung** und ein paar **Eigenschaften** (`target`, `hold`,
-`text`, …). Er steht im Grundriss, im Weltformat und in der Palette des
+dazu eine **Art** (`sign`, später `gate`, `emitter`, `door`, `button`, `lever`,
+`plate`, `lamp` und `wardrobe`), eine **Kennung** und ein paar
+**Eigenschaften** (`target`, `hold`, `text`, …). Er steht im Grundriss, im Weltformat und in der Palette des
 Editors — und `GridWorld` kennt dabei keine einzige Art beim Namen, sondern nur
 die Registry.
 
@@ -6738,12 +6817,16 @@ Zweck:
   hineinschieben. Wer beides in einem machte, baute die Tür sechzigmal in der
   Sekunde neu.
 
-**Ein Einbau kennt niemanden.** Er ruft nichts auf; er meldet vier Sachen, und
-`GridWorld` verteilt sie: `trigger` an eine Kennung, `goto` an den Weltkontext
-(genau das, was das Hub-Tor tut), `sound` an `core/Audio`, `effect` an eine
-Wolke an seiner Kachel (`effects/Burst.ts` mit den Zahlen aus
+**Ein Einbau kennt niemanden.** Er ruft nichts auf; er meldet **fünf** Sachen,
+und `GridWorld` verteilt sie: `trigger` an eine Kennung, `goto` an den
+Weltkontext (genau das, was das Hub-Tor tut), `sound` an `core/Audio`, `effect`
+an eine Wolke an seiner Kachel (`effects/Burst.ts` mit den Zahlen aus
 `effects/effectKinds.ts` — Tür-Staub beim Aufgehen, Funken, wenn eine Kugel
-einen Knopf trifft, Rauch aus der Effektquelle). Das ist der Unterschied
+einen Knopf trifft, Rauch aus der Düse) — und `wardrobe` an `ctx.openWardrobe()`.
+Das letzte ist das einzige **ohne Inhalt**, und das ist Absicht: Der
+Kleiderschrank weiß nicht, wer davorsteht und was daraus wird, er weiß nur,
+dass jemand ihn aufgemacht hat (siehe _Der Kleiderschrank und die Umkleide_).
+Das ist der Unterschied
 zwischen einem Knopf, den ein Test in
 einer Millisekunde prüft, und einem, der eine Tür in der Hand hält. Und
 **ausgelöst wird im nächsten Bild**: Die Ereignisse eines Bildes werden
@@ -6822,16 +6905,17 @@ Sachen sind daran entschieden:
 
 Das dritte ist die **Effektquelle** (`fixtures/emitter.ts`): eine Düse auf
 einer Kachel, die Rauch, Feuer, Funken oder Wasser macht — dieselben Zahlen wie
-im Effektlabor, importiert und nicht abgeschrieben (`effects/effectKinds.ts`).
-Sie ist das Kind, an dem man sieht, wozu die vier Ereignisse gut sind: Ihre
-ganze Logik ist ein Zähler und eine Wartezeit, die Wolke baut `GridWorld`. Mehr
-dazu steht beim Effektlabor unter _Was drin ist_.
+im alten Effektlabor, importiert und nicht abgeschrieben
+(`effects/effectKinds.ts`). Sie ist das Kind, an dem man sieht, wozu die
+Ereignisse gut sind: Ihre ganze Logik ist ein Zähler und eine Wartezeit, die
+Wolke baut `GridWorld`. Vier davon stehen im Norden der Testwelt
+(_Die Testwelt_).
 
 ##### Türen, Knöpfe, Platten
 
-Seit P6 stehen die fünf Arten daneben, die das Interaktionslabor bisher allein
-hatte — **Tür**, **Knopf**, **Hebel**, **Platte**, **Lampe** —, und zwar auf
-dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
+Seit P6 stehen die fünf Arten daneben, die es bis dahin nur im
+Interaktionslabor gab — **Tür**, **Knopf**, **Hebel**, **Platte**, **Lampe** —,
+und zwar auf dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
 
 - **Die Türmathematik wird importiert, nicht abgeschrieben.** `fixtures/door.ts`
   rechnet mit `interact/doorMotion.ts` — derselbe Zustand (`open` zwischen 0
@@ -6842,10 +6926,15 @@ dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
   Sekunden), `swing` (rastet, zwei Flügel an Scharnieren am Rahmen) und `plate`
   (kurzer Nachlauf).
 - **Die Schiebetür hat zwei Halbflügel.** Nicht Geschmack, sondern eine
-  Kachelbreite: Ein ganzes Blatt (1,2 m) müsste 1,2 m zur Seite fahren, träte
-  damit über die Kachelkante und stünde in der Nachbartür — und in einer Wand
-  mit drei Türen nebeneinander ist die Nachbartür genau das, was daneben liegt.
-  Zwei Halbe fahren je 62 cm und bleiben im Pfosten ihrer eigenen Kachel.
+  Kachelbreite: Ein ganzes Blatt müsste um seine eigene Breite zur Seite
+  fahren, träte damit über die Kachelkante und stünde in der Nachbartür — und
+  in einer Wand mit drei Türen nebeneinander ist die Nachbartür genau das, was
+  daneben liegt. Zwei Halbe fahren je eine halbe Türbreite und bleiben im
+  Pfosten ihrer eigenen Kachel. **Gerechnet, nicht getippt**: Die Hälften
+  kommen aus `doorWidth` und nicht aus einer festen Zahl — auf 2,5-m-Kacheln
+  stand dort einmal 62 cm, auf einem Meter sind es 40 (`PLAN_DOOR_W` 0,8), und
+  eine getippte Zahl wäre beim ersten Gitterwechsel eine Tür, die halb offen
+  in ihrem Pfosten klemmt.
 - **Das Blatt gehört der Art, der Rahmen dem Grundriss.** Pfosten und Sturz
   baut `planSolids` wie bei jeder Türkante; das Blatt lässt `GridWorld` für
   Einbau-Türen weg und überlässt es der Art, die es fahren lässt. Der Quader,
@@ -6872,8 +6961,8 @@ dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
 - **Staub und Funken sind gemeldet, nicht gebaut.** Eine Tür, die losfährt oder
   zufällt, gibt `effect('dust')` zurück, ein Knopf, den eine **Kugel** erwischt,
   `effect('sparks')` — und eine Hand, die denselben Knopf drückt, eben nicht.
-  Gebaut wird beides von `GridWorld` aus den Zahlen des Effektlabors
-  (`effects/effectKinds.ts`); eine Art, die ihre eigene Wolke zeichnete, wäre
+  Gebaut wird beides von `GridWorld` aus den Zahlen in
+  `effects/effectKinds.ts`; eine Art, die ihre eigene Wolke zeichnete, wäre
   eine, die man ohne Bildschirm nicht mehr prüfen kann.
 - **Die Platte löst in jedem Bild neu aus**, in dem etwas auf ihr steht, und
   nicht nur beim Betreten. Nur so setzt die Tür dahinter ihre Uhr zurück und
@@ -6881,30 +6970,32 @@ dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
   steht. Gezählt wird das Gewicht als **Zahl** (`weightOn`): zwei Kisten sind
   zwei, und wer eine wegnimmt, hat immer noch eine.
 - **Knopf, Hebel, Platte und Lampe halten niemanden auf** (`solid()` ist
-  falsch). Eine Kachel ist zweieinhalb Meter breit und eine Knopfsäule eine
-  Handbreit dick; ein Quader darum wäre ein Knopf, um den ein NPC einen Bogen
-  macht und vor den man sich nicht mehr stellen kann. Sie rücken dafür an die
-  **Kante** ihrer Kachel statt in die Mitte — in der Mitte stünde die Figur in
-  ihnen, sobald sie drückt.
+  falsch). Eine Knopfsäule ist eine Handbreit dick; ein Quader darum wäre ein
+  Knopf, um den ein NPC einen Bogen macht und vor den man sich nicht mehr
+  stellen kann. Sie rücken dafür an die **Kante** ihrer Kachel statt in die
+  Mitte — in der Mitte stünde die Figur in ihnen, sobald sie drückt. Der
+  **Kleiderschrank** ist die Ausnahme: Er ist ein Möbel und hält auf, und
+  deshalb steht sein Korpus in `view.solids` (siehe _Der Kleiderschrank und
+  die Umkleide_).
 - **Die Schiebetür des Gitters (`slidingDoor.ts`) bleibt, wie sie ist.** Sie
   schaltet ein Blatt zwischen auf und zu und baut es dabei neu; eine Tür, die
   *fährt*, braucht ein Blatt, das jedes Bild woanders steht. Beides in einem
   Handgriff hieße, den einen umzubauen, damit der andere hineinpasst — und
   hinterher hätte die Station eine Tür, die sich anders öffnet als vorher.
 
-**Fünf Welten stehen darauf**: das Dunkelhaus, der Schießstand, Dust, die
-Hülle der Kletterhalle und das Gokart — und seit P4 auch der **Hub** selbst
-(siehe _Hub-Welt_). Der Bauplatz ist seit der dritten
-Fassung selbst eine davon — er baute ohnehin schon aus derselben Liste, und was
-ihn noch ausmacht, sind ein Startzimmer, ein Speicher und ein weißer Raum. Die
-Alpen und der Mond stehen weiter auf ihrem Höhenfeld — ein Berg ist keine
-Kachel, und die Umrechnung würde ihn nur schlechter machen.
+**Alle Welten stehen darauf**, die überhaupt Zimmer, Gänge und Türen haben:
+der **Hub** (seit P4, siehe _Hub-Welt_), der **Bauplatz** und die
+**Testwelt**. Der Bauplatz ist seit der dritten Fassung selbst eine davon — er
+baute ohnehin schon aus derselben Liste, und was ihn noch ausmacht, sind ein
+Startzimmer, ein Speicher und ein weißer Raum. Es gab einmal Welten, die nicht
+darauf standen: Ein Berg ist keine Kachel, und ein Höhenfeld auf das Gitter zu
+ziehen hätte es nur schlechter gemacht.
 
-Die Grenze ist bei der **Kletterhalle** am deutlichsten und dort mit Absicht
-gezogen: Überhang, Riss und Kamin sind kein Mobiliar, sondern das Spiel selbst.
-Ihre Maße sind über viele Sitzungen im Headset entstanden, und jede davon auf
-eine Kachelkante zu ziehen hieße, sie noch einmal von vorn einzumessen — für
-nichts. Auf das Gitter gehört die Hülle: Matte, Decke, vier Wände.
+Die Grenze ist an der **Kletterwand** am deutlichsten und dort mit Absicht
+gezogen: Ein Überhang, ein Riss und ein Kamin sind kein Mobiliar, sondern das
+Spiel selbst. Ihre Maße sind über viele Sitzungen im Headset entstanden, und
+jede davon auf eine Kachelkante zu ziehen hieße, sie noch einmal von vorn
+einzumessen — für nichts. Auf das Gitter gehört die Hülle.
 
 **Was jede Welt dabei geschenkt bekommt**, und was vorher jede einzeln
 erarbeiten musste:
@@ -6922,9 +7013,9 @@ erarbeiten musste:
   Wänden zuerst bemerkt.
 - **Der Bearbeitungsmodus.** Karte, Palette, Tischmodell, Malen und Flächen —
   eine Zeile Verdrahtung, weil `layout()` ohnehin einen `GridPlan` liefert. Wer
-  ihn will, sagt `editable()` `true`, und das tut **nur der Bauplatz**: Eine
-  Weile hing er an jeder Gitterwelt, über eine Seite _Bauen_ im
-  Handgelenkmenü — fünfzehn Zeilen, durch die man blätterte, wann immer man
+  ihn will, sagt `editable()` `true`, und das tun der **Bauplatz** und die
+  **Testwelt**: Eine Weile hing er an jeder Gitterwelt, über eine Seite _Bauen_
+  im Handgelenkmenü — fünfzehn Zeilen, durch die man blätterte, wann immer man
   etwas anderes suchte. Die Seite ist wieder weg; was die meisten daran
   wollten (von oben sehen, wo man ist), ist jetzt ein Werkzeug im Regal
   (_Die Karte in der Hand_) und in jeder Welt zu haben. Mit `editable()` hängt
@@ -6932,19 +7023,27 @@ erarbeiten musste:
   ändern kann, hat keinen eigenen Stand aufzuheben. Und weil ein gespeicherter
   Stand den ganzen Grundriss ersetzt, gibt es daneben `planLoaded()` — den
   Haken für das, was **auch danach** noch gelten muss. Der Bauplatz setzt dort
-  sein Tor zurück in den Hub: eines, das nur in `layout()` stünde, wäre beim
-  ersten Besuch da und ab dem zweiten weg, und dann säße man in der
-  selbstgebauten Welt ohne Ausgang. Zwei Sachen macht die Basis
+  sein Tor zurück in den Hub, die Testwelt alle Einbauten ihrer neun Zonen
+  (`fitTest`): eines, das nur in `layout()` stünde, wäre beim ersten Besuch da
+  und ab dem zweiten weg, und dann säße man in der selbstgebauten Welt ohne
+  Ausgang. **Er läuft deshalb zweimal** — einmal beim Bauen, einmal nach dem
+  Laden —, und das geht nur mit **Einbauten**: Sie haben eine Kennung, und
+  `putFixture` ersetzt nach Kennung. Ein Baustein hat keine und stünde beim
+  zweiten Mal zweimal da. Zwei Sachen macht die Basis
   dabei selbst: den **Umbau** (alte Quader vollständig zurücknehmen, `dropSlab`, und
   aus der Liste neu bauen — höchstens einmal je Bild, egal wie viele Kacheln
   ein Strich gesetzt hat) und das **Abtasten danach** (`rebake`), damit NPCs
   belaufen können, was gerade entstanden ist.
 - **Geprüft, bevor jemand die Brille aufsetzt.** Jeder Grundriss liegt in einer
-  eigenen Datei ohne three.js (`dark/darkHouse.ts`, `range/rangeStand.ts`,
-  `dust/dustTown.ts`, `climb/climbHall.ts`), und sein Test läuft durch jede
-  Tür und jedes Haus vom Erdgeschoss aufs Dach. Ein Zimmer ohne Tür merkt man
-  sonst erst, wenn man davorsteht — nach dem Laden, nach dem Aufsetzen, nach
-  dem Hinlaufen.
+  eigenen Datei ohne three.js (`hub/hubGrid.ts`, `editor/starterGrid.ts`,
+  `test/testPlan.ts`), und sein Test läuft durch jede Tür und auf jede Etage.
+  Ein Zimmer ohne Tür merkt man sonst erst, wenn man davorsteht — nach dem
+  Laden, nach dem Aufsetzen, nach dem Hinlaufen.
+- **Gitterlinien und Wand-Ghosting.** Das Netz der eigenen Ebene (_Menü →
+  Grafik → Gitterlinien_) und die durchsichtige Wand vor der Figur kommen aus
+  `GridWorld` und nicht aus der Welt — beides hängt an den Kacheln und den
+  Quadern, die ohnehin dort liegen (siehe _Von oben_ und
+  _Wie schön es aussieht_).
 
 ### Eine neue Welt hinzufügen
 
@@ -6954,32 +7053,34 @@ erarbeiten musste:
    Beschreibung, Akzentfarbe, unterstützte Rollen und ein `load()` mit
    dynamischem Import.
 
-Soll die neue Welt dieselben Werkzeuge, Portale und Physik haben wie das
-Portal Labor, erbt sie stattdessen von `PortalWorld` und ersetzt nur den Raum:
+Soll die neue Welt dieselben Werkzeuge, Portale und dieselbe Physik haben wie
+die Testwelt, erbt sie stattdessen von `PortalWorld` und ersetzt nur den Raum:
 `buildEnvironment()`, dazu die kleinen Haken `spawnPoint()`, `spawnYaw()`,
 `skyColor()`, `lightIntensity()`, `welcome()`, `beltLoadout()` (leer heißt:
 beide Trigger gehören der Welt) und `worldReset()` (was `B`/`Y` in dieser Welt
-zusätzlich zurücksetzt — die Karts in die Box, die Küche leer). Dazu die drei
-für den Boden und die Schwerkraft: `worldGravity()` (der Mond sagt hier 1,62,
-und solange niemand im Menü eine eigene Zahl setzt, gilt genau die),
-`horizonColor()` (`null` lässt die Fläche bis zum Horizont weg) und
-`horizonLine()` für ihr Raster. `removeProp()`
+zusätzlich zurücksetzt — die Karts in die Box, die Kisten an ihren Platz).
+Dazu die drei für den Boden und die Schwerkraft: `worldGravity()` (eine Welt
+mit weniger Schwerkraft sagt hier ihre Zahl, und solange niemand im Menü eine
+eigene setzt, gilt genau die), `horizonColor()` (`null` lässt die Fläche bis
+zum Horizont weg) und `horizonLine()` für ihr Raster. `removeProp()`
 löscht ein Prop wieder, wahlweise nur lokal. `placeTool()` legt ein Werkzeug in
 den _Raum_ statt auf den Gürtel — liegend oder schwebend, bis eine Hand es
-nimmt (die Taschenlampe im Dunkelhaus). Genau das machen `DustWorld`,
-`RangeWorld`, `KartWorld`, `ShopWorld`, `DarkWorld`, `MoonWorld` und `AlpsWorld` — die ganze Maschinerie
-(Gürtel, Regal, Ferngreifen, geteilte Sitzung) kommt mit, ohne kopiert zu
-werden.
+nimmt. Dazu `toolChoice()`, die Liste hinter dem Werkzeug-Knopf am Bildschirm,
+und `defaultScreenTool()` — was darin liegt, bis jemand etwas anderes wählt.
+Wer davon erbt, bekommt die ganze Maschinerie (Gürtel, Regal, Ferngreifen,
+geteilte Sitzung) mit, ohne sie zu kopieren.
 
 Steht die neue Welt auf **Kacheln** — und das ist inzwischen der Normalfall für
 alles, was Zimmer, Gänge und Türen hat —, erbt sie besser gleich von
 `GridWorld` (siehe oben) und schreibt statt `buildEnvironment()` nur noch
 `layout()`: einen Grundriss aus Zimmern, Kanten und Bausteinen. Geometrie,
 Physik, Portalflächen und die Navigationskarte kommen mit. Der Grundriss gehört
-dabei in eine **eigene Datei ohne three.js** (`darkHouse.ts`, `rangeStand.ts`,
-`dustTown.ts`, `climbHall.ts`) — das ist der einzige Unterschied zwischen einer
-Karte, die ein Test in einer Millisekunde abläuft, und einer, für die man die
-Brille aufsetzen muss.
+dabei in eine **eigene Datei ohne three.js** (`hubGrid.ts`, `starterGrid.ts`,
+`testPlan.ts`) — das ist der einzige Unterschied zwischen einer Karte, die ein
+Test in einer Millisekunde abläuft, und einer, für die man die Brille aufsetzen
+muss. Wächst sie über ein Zimmer hinaus, wird sie eine **Komponistin**, die
+Stempel aufruft: `stamp<Name>(plan)` je Ecke, die Rechtecke in einer eigenen
+Datei daneben (siehe _Die Testwelt_).
 
 Mehr braucht es nicht: Menü, Hub-Tor, Deep-Link (`#<id>`), der Eintrag auf der
 Werkzeugseite samt Vorschau von innen (`preview()` erbt eine `PortalWorld`
@@ -7219,12 +7320,12 @@ _Kopieren_ daneben. _Verlauf kopieren_ nimmt alles auf einmal mit.
 
 Deshalb hat eine Zeile eine **Sorte**. `text` ist, was jemand getippt hat;
 `code` ist eine Zeile, die eine Maschine geschrieben hat und die eine andere
-wieder lesen kann. Der Eingaberaum trägt seine Codes als `code` ein und wendet
-beim Empfang **nur solche** an — was jemand von Hand schreibt, wird nie
-ausgeführt, auch wenn es zufällig wie ein Code aussieht. Die Knöpfe _Werkzeug
-senden_ und _Alles senden_ im Schießgang gehen seither über diesen Weg; sie
-lohnen auch allein im Raum, weil der Code dann im eigenen Verlauf landet statt
-in einer Meldung, die nach vier Sekunden weg ist.
+wieder lesen kann. Wer einen Code verschickt, trägt ihn als `code` ein, und
+angewandt wird beim Empfang **nur solches** — was jemand von Hand schreibt,
+wird nie ausgeführt, auch wenn es zufällig wie ein Code aussieht. Die Knöpfe
+_Werkzeug senden_ und _Alles senden_ an der Wand des Eingaberaums gingen über
+diesen Weg; sie lohnten auch allein im Raum, weil der Code dann im eigenen
+Verlauf landet statt in einer Meldung, die nach vier Sekunden weg ist.
 
 `chat` ist eine eigene Nachrichtensorte in `net/types.ts` und kein
 Welt-Ereignis: der Verlauf gehört der App, überlebt jeden Weltwechsel und wird
@@ -7246,9 +7347,9 @@ herübergeschickt hat, nach einem F5 weg. Gelesen wird der eigene Speicher
 genauso misstrauisch wie das Netz — es ist derselbe fremde Text von gestern,
 und dazwischen lag vielleicht eine Fassung mit anderen Feldern.
 
-**Angewandt wird ein Code auf Knopfdruck.** Der Eingaberaum nimmt ankommende
-Codes von sich aus an — dort ist das der Sinn der Sache, zwei Leute justieren
-gemeinsam. Überall sonst kam ein Code bisher an, stand im Verlauf und tat
+**Angewandt wird ein Code auf Knopfdruck.** Eine Welt darf ankommende Codes von
+sich aus annehmen — im Eingaberaum war das der Sinn der Sache, zwei Leute
+justierten gemeinsam. Überall sonst kam ein Code bisher an, stand im Verlauf und tat
 nichts, ohne dass irgendwo stand, warum. Jetzt liegt neben der Zeile ein Knopf
 _Übernehmen_ (im Panel wie im Menü der Brille), und `World.reloadGear` sagt der
 laufenden Welt Bescheid — was schon in einer Hand liegt, liest seine Zahlen
@@ -7321,9 +7422,9 @@ und Portale auf allen Geräten gleich und hängt am freien Nachrichten-Kanal von
 - **Beutel und Reset** laufen als eigene Nachrichten; wer neu dazukommt, fragt
   einmal nach dem kompletten Stand (`hello` → `state`), und der rechnende
   Spieler wiederholt ihn zur Sicherheit alle zwei Sekunden.
-- **Körper mit Wirkung**: jeder Mitspieler bekommt im Portal Labor eine
-  kinematische Kiste unter dem Kopf und zwei an den Händen. Dadurch stößt er
-  beim Vorbeilaufen wirklich Dominos um, statt durch sie hindurchzugehen.
+- **Körper mit Wirkung**: jeder Mitspieler bekommt eine kinematische Kiste
+  unter dem Kopf und zwei an den Händen. Dadurch stößt er beim Vorbeilaufen
+  wirklich Dominos um, statt durch sie hindurchzugehen.
 
 Was du davon siehst: den vollen Körper des anderen, sein Namensschild, die
 Portal-Waffe in seiner Hand und ein Leuchten an dem Objekt, das er gerade hält.
@@ -7351,8 +7452,8 @@ für die Brille.
 
 **Wer zusieht, geht mit.** Steht der gewählte Spieler in einer anderen Welt,
 wechselst du beim Aussuchen automatisch dorthin — und genauso, wenn er sie
-**später** wechselt: Geht der VR-Spieler durch ein Portal in die Alpen, wird die
-Welt bei allen Zuschauenden nachgeladen. Vorher endete das Zuschauen in dem
+**später** wechselt: Geht der VR-Spieler durch ein Tor in eine andere Welt,
+wird sie bei allen Zuschauenden nachgeladen. Vorher endete das Zuschauen in dem
 Moment, in dem es spannend wurde: Seine Posen kamen weiter an und gehörten zu
 nichts mehr, was hier steht, und das Bild blieb stehen, ohne dass irgendwo
 stand, warum.
