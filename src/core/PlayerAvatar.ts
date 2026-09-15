@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { AvatarBody, type AvatarLimb } from './AvatarBody';
+import { CHEF_EYE, CHEF_GRIP, POSE_SCALE } from './chefFit';
 import type { PlayerRig } from './PlayerRig';
 import type { XRInput } from './XRInput';
 
@@ -60,6 +61,25 @@ export class PlayerAvatar extends AvatarBody {
    * heißt: nichts in der Hand, die Hand schwebt wie sonst neben dem Rumpf.
    */
   screenHand: THREE.Vector3 | null = null;
+
+  /**
+   * **Was die Figur vor dem Körper trägt**, im Raum der Figur
+   * (`core/chefFit.CHEF_CARRY`) — oder `null` für leere Hände.
+   *
+   * Beide Hände gehen darunter, und zwar nur die, die **nicht** getrackt sind:
+   * In der Brille hält der Mensch davor seine eigenen Hände dorthin, wo er
+   * will, und eine Hand, die ihm dabei an einen Teller gezogen würde, wäre
+   * seine nicht mehr. Von oben ist keine getrackt, also gehen beide hin — und
+   * genau dort sieht man es auch.
+   *
+   * Die rechte Hand hat ein **Werkzeug** als Vorrang (`screenHand`): Wer eine
+   * Pistole führt und nebenbei ein Brötchen trägt, hält die Pistole weiter in
+   * der Hand, in der sie sichtbar ist, und das Brötchen mit der linken.
+   */
+  carry: THREE.Vector3 | null = null;
+
+  /** Wie weit der Kopf beim Tragen mitwippt (`AvatarBody.headBob`). */
+  private static readonly CARRY_BOB = 0.018;
 
   constructor(color = 0x3f6fb5) {
     // Die beiden Handkugeln — von oben sieht man sich selbst, und eine Figur
@@ -137,13 +157,30 @@ export class PlayerAvatar extends AvatarBody {
     // die Figur ja kleiner machen. Nur ihre Drehung nicht.
     if (this.headFollowsRig) _head.quaternion!.identity();
     else _head.quaternion!.setFromRotationMatrix(headLocal);
-    void rig;
 
-    const left = handOf(input, 'left', _left);
+    let left = handOf(input, 'left', _left);
     let right = handOf(input, 'right', _right);
     if (!right && this.screenHand) {
       _right.position.copy(this.screenHand);
       right = _right;
+    }
+    const carry = this.carry;
+    this.headBob = carry ? PlayerAvatar.CARRY_BOB : 0;
+    if (carry) {
+      // **Die Umkehrung der Stauchung**, dieselbe wie bei der Bildschirmhand
+      // (`worlds/portal/screenHand.ts`): Der Avatar rechnet jede Handpose auf
+      // Figurenmaß herunter (`AvatarBody.update`, `POSE_SCALE`), also steht
+      // hier die Pose, aus der er wieder genau die Stelle an der Figur macht —
+      // und keine zweite geratene Zahl, die beim nächsten Umbau danebenläge.
+      const y = rig.camera.position.y + (carry.y - CHEF_EYE) / POSE_SCALE;
+      if (!left) {
+        _left.position.set((carry.x - CHEF_GRIP) / POSE_SCALE, y, carry.z / POSE_SCALE);
+        left = _left;
+      }
+      if (!right) {
+        _right.position.set((carry.x + CHEF_GRIP) / POSE_SCALE, y, carry.z / POSE_SCALE);
+        right = _right;
+      }
     }
     this.update(dt, _head, left, right);
   }

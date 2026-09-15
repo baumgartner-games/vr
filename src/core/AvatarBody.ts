@@ -219,6 +219,36 @@ export class AvatarBody extends THREE.Group {
   private speed = 0;
 
   /**
+   * **Wie weit der Kopf der Figur beim Gehen mitwippt**, in Metern — `0` heißt
+   * gar nicht, und das ist der Normalfall.
+   *
+   * Angeschaltet wird es von dem, der etwas trägt (`PlayerAvatar.carry`):
+   * Eine Figur, die einen Teller vor sich her balanciert, geht anders als eine
+   * mit leeren Händen, und bei _Overcooked_ sieht man genau daran von oben,
+   * wer gerade beladen ist.
+   *
+   * **Und es sitzt am Kopf der Figur, nicht an der Kamera.** Die Figur zeichnet
+   * nur, wer sie von außen sieht (`PlayerAvatar`, `LAYER_SELF_ONLY`) — aus den
+   * eigenen Augen und in der Brille ist von diesem Wippen nichts zu sehen und
+   * nichts zu spüren. Eine Kamera, die im Takt der Schritte nickt, ist am
+   * Schirm kein Gefühl von Gehen, sondern Übelkeit, und in der Brille ist sie
+   * schlicht verboten: Dort gehört der Kopf dem Menschen davor.
+   */
+  headBob = 0;
+  private bobNow = 0;
+
+  /**
+   * **Der Ausschlag dieses Bildes**, in Metern (negativ = tiefer).
+   *
+   * Damit wippt mit, was die Figur trägt (`worlds/test/zones/kitchen.ts`): Ein
+   * Burger, der ruhig vor einem wippenden Koch schwebt, ist schlimmer als gar
+   * kein Wippen.
+   */
+  get bob(): number {
+    return this.bobNow;
+  }
+
+  /**
    * **Auf welcher Höhe die Augen dieser Figur stehen** — fest, und nicht mehr
    * die des Spielers (`core/chefModel.ts`). Solange nur die gebaute Figur da
    * ist, ist es dieselbe Zahl: Beide sollen gleich groß sein, sonst wächst
@@ -567,6 +597,10 @@ export class AvatarBody extends THREE.Group {
     this.walkPhase += dt * Math.min(this.speed, 3) * 4.4;
     const stride = Math.min(this.speed / 1.6, 1);
     const swing = stride * 0.075;
+    // Das Wippen: zweimal je Schritt, so weit wie `headBob` erlaubt, und nur
+    // am Kopf der Figur (siehe dort).
+    this.bobNow = -Math.abs(Math.cos(this.walkPhase)) * stride * this.headBob;
+    this.head.position.y += this.bobNow;
     this.shape?.setStride(this.walkPhase, stride);
     // Dieselbe Bewegung auf den Rumpf des Modells — `setStride` kennt nur die
     // gebaute Figur, und die ist ausgeblendet, sobald das Modell da ist.

@@ -55,12 +55,15 @@ Süden auf eine **Kartbahn** mit zwei Karts in der Box — eingestiegen wird mit
 Halt wird gerechnet, aus Material, Form, Körperhaltung und dem Verspreizen,
 schlechte Griffe kosten Ausdauer, und hinunter geht es in **Sprungkissen**, die
 den Fall abfedern statt ihn anzuhalten. Ganz im Norden, hinter dem Podest,
-steht eine **Küche** aus den Fan-Art-Möbeln: Zeile, zwei Herde und Spüle an der
-Wand, eine Insel aus Schneidebrett, Mülleimer und Brötchenkiste, vorn die
-Ausgabe mit den Wärmeschirmen darüber. **Angefasst wird mit `A`**: Topf und
-Pfanne kommen vom Herd in die Hand, Brötchen aus der Kiste, und was in der Hand
-liegt, lässt jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer
-nimmt das Brötchen, den Topf nicht. Über die Möbel **springt** man dabei nicht:
+steht eine **Küche** aus den Fan-Art-Möbeln: Zeile, zwei Herde, Spüle und
+Tellerausgabe an der Wand, vier Zutatenkisten an der Westwand, eine Insel aus
+Schneidebrett, Mülleimer und Anrichte, vorn die Ausgabe mit den Wärmeschirmen
+darüber. **Angefasst wird mit `A`**, und daraus wird ein **Burger**: Patty in
+die Pfanne, Salat und Tomate auf das Brett, alles Fertige auf die Anrichte,
+Teller von der Ausgabe dazu — vier Rezepte vom Hamburger bis zum Deluxe.
+Getragen wird mit beiden Händen vor dem Bauch, und was in der Hand liegt, lässt
+jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer nimmt das
+Brötchen, den Topf nicht, und vom Teller kratzt er nur den Burger. Über die Möbel **springt** man dabei nicht:
 Sie sind für die Füße so hoch wie eine Wand, auch wenn der Tresen nur einen
 halben Meter misst. Östlich daneben liegt der **Schauraum**, in dem jedes der
 dreizehn Möbel noch einmal einzeln und beschriftet steht. Dazu drei

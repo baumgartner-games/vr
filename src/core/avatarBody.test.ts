@@ -30,6 +30,11 @@ function torsoOf(body: AvatarBody): THREE.Object3D {
   return body.getObjectByName('avatar-torso')!;
 }
 
+/** Der Kopf der Figur — die Kugel, die beim Tragen mitwippt. */
+function headOf(body: AvatarBody): THREE.Object3D {
+  return body.getObjectByName('avatar-head')!;
+}
+
 /**
  * Die Jacke allein — ohne Hose und Halstuch. Ihre Breite ist die Zahl, an der
  * das Verhältnis zum Kopf hängt, und damit der ganze Stil.
@@ -255,6 +260,66 @@ describe('die Figur', () => {
     const torso = torsoOf(body);
     expect(torso.children).toHaveLength(1);
     expect(torso.children[0]).not.toBe(before);
+    body.dispose();
+  });
+});
+
+/**
+ * **Das Wippen beim Tragen** — es sitzt am Kopf der Figur und nirgendwo sonst.
+ *
+ * Der Fall, den dieser Test festhält, ist der, den man im Browser erst merkt,
+ * wenn einem schlecht ist: Ein Wippen, das aus Versehen die **Pose** verändert,
+ * die hereingereicht wird, wandert von der Figur in die Kamera — und eine
+ * Kamera, die im Takt der Schritte nickt, ist am Schirm kein Gefühl von Gehen
+ * und in der Brille schlicht verboten.
+ */
+describe('der Kopf beim Tragen', () => {
+  function walk(body: AvatarBody, steps: number): number[] {
+    const heights: number[] = [];
+    for (let i = 0; i < steps; i++) {
+      // Jedes Bild einen halben Meter weiter: schneller als 1,6 m/s, also
+      // voller Ausschlag (`AvatarBody.update`, `stride`).
+      const at = pose(CHEF_EYE);
+      at.position.z = -i * 0.5;
+      body.update(1 / 20, at, null, null);
+      heights.push(headOf(body).position.y);
+    }
+    return heights;
+  }
+
+  it('steht still, solange nichts getragen wird', () => {
+    const body = new AvatarBody();
+    const heights = walk(body, 12);
+    for (const y of heights) expect(y).toBeCloseTo(CHEF_EYE, 6);
+    body.dispose();
+  });
+
+  it('wippt mit dem Schritt, sobald etwas getragen wird', () => {
+    const body = new AvatarBody();
+    body.headBob = 0.02;
+    const heights = walk(body, 24);
+    const low = Math.min(...heights);
+    const high = Math.max(...heights);
+    // Nur nach unten: Ein Kopf, der über seine Augenhöhe hinausschnellt, wäre
+    // ein Hüpfen und kein Gehen.
+    expect(high).toBeLessThanOrEqual(CHEF_EYE + EPSILON);
+    expect(CHEF_EYE - low).toBeGreaterThan(0.005);
+    expect(CHEF_EYE - low).toBeLessThanOrEqual(0.02 + EPSILON);
+    body.dispose();
+  });
+
+  it('lässt die Pose in Ruhe, aus der die Kamera kommt', () => {
+    const body = new AvatarBody();
+    body.headBob = 0.02;
+    const at = pose(CHEF_EYE);
+    for (let i = 0; i < 8; i++) {
+      at.position.z = -i * 0.5;
+      body.update(1 / 20, at, null, null);
+      // Die hereingereichte Pose ist die des Spielers — sie gehört ihm, und
+      // die Figur schreibt nicht darin herum.
+      expect(at.position.y).toBe(CHEF_EYE);
+      expect(body.bob).toBeLessThanOrEqual(0);
+    }
     body.dispose();
   });
 });
