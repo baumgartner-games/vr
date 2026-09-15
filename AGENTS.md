@@ -2020,9 +2020,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Küche** (ganz im Norden, hinter dem Podest): vierundzwanzig mal elf
     Kacheln mit den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe
     _Modelle im Repository_), und zwar in **zwei Hälften**. Im Westen die
-    Küche selbst — Zeile, zwei Herde und Spüle an der Wand, eine Insel aus
-    Schneidebrett, Mülleimer und Brötchenkiste, vorn die Ausgabe mit den
-    Wärmeschirmen darüber —, im Osten der **Schauraum**: jedes der dreizehn
+    Küche selbst — Zeile, zwei Herde, Spüle und Tellerausgabe an der Wand, vier
+    Zutatenkisten an der Westwand, eine Insel aus Schneidebrett, Mülleimer und
+    Anrichte, vorn die Ausgabe mit den Wärmeschirmen darüber —, im Osten der **Schauraum**: jedes der dreizehn
     Möbel noch einmal, frei stehend und mit einer Tafel daneben, auf der sein
     Name und sein Maß stehen. In einer Zeile aus acht Schränken sieht man ein
     einzelnes Möbel nicht; der Katalog ist damit ein Rundgang statt einer
@@ -4785,22 +4785,71 @@ den man im Bild sah:
 #### Anfassen in der Küche
 
 Was `A` vor einem Möbel tut, steht in **einer** Funktion
-(`worlds/test/zones/kitchenCarry.ts`, `kitchenDeed`) und nicht in drei
-`if`-Ketten in der Zone daneben: Es sind neun Fälle — leere oder volle Hand vor
-Fläche, Kiste oder Mülleimer —, und neun Fälle prüft ein Test in Millisekunden
-nach, während dieselben neun im Headset eine Viertelstunde Hin- und Herlaufen
-sind.
+(`worlds/test/zones/kitchenCarry.ts`, `kitchenDeed`) und nicht in sechs
+`if`-Ketten in der Zone daneben: Sechs Arten von Station — Fläche, Kiste,
+Mülleimer, Schneidebrett, Herd mit Pfanne, Anrichte — mal leere oder volle
+Hand, das sind ein paar Dutzend Fälle, und jeder davon ist hier eine Zeile im
+Test und im Headset eine Viertelstunde Hin- und Herlaufen.
+
+**Woraus ein Burger besteht, steht daneben** (`zones/kitchenRecipes.ts`):
+Zutaten, ihre Verarbeitung, die vier Rezepte. Getrennt aus demselben Grund wie
+Katalog und Lader (`core/kitchenFit.ts`) — ein fünftes Rezept ist eine Zeile in
+`RECIPES` und keine Zeile in der Regel daneben.
 
 - **Töpfe und Pfannen** kommen vom Herd in die Hand und von dort auf jede
   Ablage. Sie hängen beim Tragen am **Rig** und nicht an der Hand des Avatars:
   Die Hand gibt es nur von oben und am Schreibtisch
-  (`worlds/portal/screenHand.ts`), das Rig gibt es immer. Wo genau am Rig, sagt
-  die Ansicht — an der Figur ihre Faust (`core/chefFit.CHEF_TOOL`), in der
-  Brille eine Handbreit vor der Brust.
-- **Brötchen** kommen aus der Brötchenkiste, so oft man will. Sie ist gebaut
-  und nicht geladen (`zones/kitchenProps.ts`): Der gekaufte Katalog hat
-  dreizehn Möbel und **keine Zutat**, und für zwei Kugeln eine zweite Quelle
-  mit Lizenz und Aufbereitung aufzunehmen wäre viel Aufwand.
+  (`worlds/portal/screenHand.ts`), das Rig gibt es immer.
+- **Getragen wird mit beiden Händen vor dem Körper** (`core/chefFit.CHEF_CARRY`),
+  wie bei _Overcooked_ — und nicht mehr neben der rechten Schulter
+  (`CHEF_TOOL`, dort bleibt das **Werkzeug**). Das ist keine Zierde: Von oben
+  verschwindet ein Teller an der Schulter hinter dem Kopf, sobald die Figur
+  nach Norden läuft. Die **Hände** der Figur gehen mit darunter
+  (`PlayerAvatar.carry`) — aber nur die, die nicht getrackt sind: In der Brille
+  gehören die Hände dem Menschen davor.
+- **0,72 m vor der Figur und nicht eine Handbreit**, obwohl ihre Vorderkante bei
+  0,33 m liegt. Der Kopf dieser Chibi-Figur ist 0,5 m breit und ihre Mütze
+  noch breiter; dicht vor der Brust blieb von einem Teller von oben nur ein
+  weißer Rand übrig (im Browser nachgesehen). Erst eine Armlänge davor liegt
+  er frei vor ihr.
+- **Der Kopf wippt beim Tragen mit, die Kamera nie** (`AvatarBody.headBob`,
+  `PlayerAvatar.CARRY_BOB`). Das Wippen sitzt am Kopf der **Figur**, und die
+  zeichnet nur, wer sie von außen sieht (`LAYER_SELF_ONLY`) — aus den eigenen
+  Augen und in der Brille ist davon nichts zu sehen und nichts zu spüren. Eine
+  Kamera, die im Takt der Schritte nickt, ist am Schirm kein Gefühl von Gehen,
+  sondern Übelkeit, und in der Brille schlicht verboten. Was die Figur trägt,
+  wippt mit demselben Ausschlag (`AvatarBody.bob`): Ein Burger, der ruhig vor
+  einem wippenden Koch schwebt, wäre schlimmer als gar kein Wippen.
+- **Die Zutaten kommen aus vier Kisten** an der Westwand — Brötchen, Patty,
+  Salat, Tomate —, so oft man will. Sie sind gebaut und nicht geladen
+  (`zones/kitchenProps.FoodKit`): Der gekaufte Katalog hat dreizehn Möbel und
+  **keine Zutat**, und für ein Dutzend Zylinder eine zweite Quelle mit Lizenz
+  und Aufbereitung aufzunehmen wäre viel Aufwand. Sie stehen **nebeneinander**
+  und nicht verteilt: Wer für einen Deluxe vier Zutaten holt, läuft sonst
+  viermal quer durch den Raum, bevor überhaupt etwas in der Pfanne liegt.
+- **Der Weg zum Burger** ist der von _Overcooked_ und deshalb nicht erklärt,
+  sondern gebaut: Patty in die **Pfanne** auf dem Herd (vier Sekunden,
+  `FRY_SECONDS`, verbrennen kann nichts), Salat und Tomate dreimal auf das
+  **Schneidebrett** (`CHOPS`), alles Fertige auf die **Anrichte** — den
+  Arbeitstisch in der Mitte —, und dort nimmt ein **Teller** von der
+  Tellerausgabe den fertigen Stapel auf. Der Stapel liegt dabei sichtbar da und
+  wird bei jeder Schicht neu gebaut: Ohne Brötchen kein Brot, damit man sieht,
+  was fehlt.
+- **Vier Rezepte**, und alle sind Teilmengen des größten: Hamburger,
+  Salatburger, Tomatenburger, Deluxe. Erkannt wird als **Menge** und nicht als
+  Reihenfolge (`recipeOf`) — wer erst die Tomate auflegt, bekommt denselben
+  Burger. Weil Brötchen und Patty in jedem Rezept stecken, ist jeder Stapel,
+  der beides hat, fertig; alles andere sagt, was fehlt (`missing`).
+- **Roh geht nicht auf den Burger.** Der Satz dazu sagt auch, was stattdessen
+  zu tun ist — _muss erst gebraten werden_ statt _geht nicht_. Ein Hinweis,
+  vor dem man steht und rät, ist keiner.
+- **Der Teller bleibt in der Hand** (`scrape`): Wer einen misslungenen Burger
+  am Mülleimer abkratzt, will den Burger loswerden und nicht den Teller — sonst
+  läuft er nach jedem Fehlgriff zur Tellerausgabe. Ein eigener Fall in der
+  Regel, kein Sonderweg in der Zone.
+- **Die Tellerausgabe ist eine Kiste und keine Ablage.** Sie gibt Teller aus,
+  so oft man will; ein Stapel, der nach dem dritten Gast leer ist, wäre der
+  Punkt, an dem eine Runde stehenbleibt.
 - **Ein Brötchen ist 60 cm breit** (`BUN_RADIUS`), und das Maß dafür ist der
   **Teller**: Der auf der Tellerausgabe misst 75 cm im Durchmesser
   (nachgemessen in `public/models/kitchen.glb` — 1,50 m in der Quelle,
@@ -4819,7 +4868,13 @@ sind.
   wenig wie eine, in der keiner leuchtet.
 - **Der Mülleimer nimmt nur Essen.** Einer, der alles schluckt, ist einer, in
   dem nach zwei Minuten die einzige Pfanne der Küche liegt — und die kommt nur
-  mit `B` zurück, was niemand ahnt, der gerade den Deckel zugemacht hat.
+  mit `B` zurück, was niemand ahnt, der gerade den Deckel zugemacht hat. Der
+  leere Teller ist genauso wenig Abfall wie sie.
+- **Wer sich meldet, entscheidet die Regel selbst**: Eine Station ist benutzbar,
+  wenn `kitchenDeed` für sie etwas anderes als `nothing` sagt. Vorher stand
+  daneben eine zweite Liste je Stationsart, und die lief mit jeder neuen Art
+  auseinander — eine Anrichte mit halbem Stapel meldete sich nicht, weil sie
+  nach der alten Zählung leer war.
 - **Nicht schießbar** (`addUsable`, `shot: 0`): Eine Kugel, die den Topf vom
   Herd holt, ist ein Scherz und keine Regel.
 

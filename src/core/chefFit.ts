@@ -69,6 +69,40 @@ export const POSE_SCALE = CHEF_EYE / PLAYER_EYE;
  */
 export const CHEF_TOOL = { x: 0.3, y: 0.46, z: -0.45 } as const;
 
+/**
+ * **Wo die Figur etwas mit beiden Händen vor sich her trägt** — derselbe Raum
+ * wie `CHEF_TOOL`, nur in der Mitte statt an der rechten Faust.
+ *
+ * Bei _Overcooked_ hält der Koch alles vor den Bauch: Topf, Teller, Brett.
+ * Das ist keine Zierde, sondern die Antwort auf eine Frage, die man sich in
+ * der Ansicht von oben ständig stellt — **wer trägt gerade was?** Ein Teller
+ * neben der Schulter verschwindet hinter dem Kopf der Figur, sobald sie nach
+ * Norden läuft; einer vor dem Bauch bleibt aus jeder Richtung sichtbar.
+ *
+ * Die Zahlen sind an der Figur gemessen: Die Hände ruhen auf gut 0,39 m, die
+ * Vorderkante des Rumpfes liegt bei −0,33 m — und trotzdem steht hier 0,72 m
+ * und nicht eine Handbreit davor. Der Grund ist die **Ansicht von oben**: Der
+ * Kopf dieser Chibi-Figur ist 0,5 m breit und ihre Mütze noch breiter, und
+ * ein Teller dicht vor der Brust verschwand darunter bis auf einen weißen
+ * Rand (nachgesehen im Browser). Erst eine Armlänge davor liegt er frei vor
+ * ihr — das ist derselbe Abstand, den ein Koch bei _Overcooked_ hält, und aus
+ * demselben Grund.
+ *
+ * Ein Werkzeug bleibt an `CHEF_TOOL`: Eine Pistole, die mit beiden Händen vor
+ * dem Bauch gehalten wird, zeigt auf die eigenen Füße.
+ */
+export const CHEF_CARRY = { x: 0, y: 0.4, z: -0.72 } as const;
+
+/**
+ * **Wie weit die beiden Hände unter dem Getragenen auseinanderliegen**, in
+ * Metern (`PlayerAvatar.carry`).
+ *
+ * Der Rumpf ist an seiner dicksten Stelle 0,35 m im Halbmesser; die Hände
+ * fassen ein Stück innerhalb davon an, sonst greifen sie an einem Teller von
+ * 75 cm ins Leere neben seinem Rand.
+ */
+export const CHEF_GRIP = 0.24;
+
 /** Die Teile, in die `tools/chef-model.mjs` das Modell zerlegt. */
 export type ChefPart = 'hat' | 'head' | 'body' | 'handLeft' | 'handRight';
 
