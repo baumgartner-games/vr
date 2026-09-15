@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { AvatarBody } from './AvatarBody';
 import { bodyRadius, BODY_KINDS, BODY_RADIUS, HEAD_KINDS, HEAD_RADIUS } from './avatarLook';
+import { CHEF_EYE, POSE_SCALE } from './chefFit';
 import { HEADGEAR_KINDS } from './headgear';
 import type { Appearance } from './appearance';
 
@@ -74,9 +75,12 @@ describe('die Figur', () => {
     expect(box.min.y).toBeLessThan(0.02);
     // Oben schließt der Kragen **über** der Kopfunterkante: Der Kopf sitzt auf
     // dem Rumpf, es gibt keinen Hals, an dem eine Lücke klaffen könnte.
+    // Gemessen wird gegen die Augenhöhe der **Figur** und nicht die des
+    // Spielers — seit sie ein Modell ist, haben die beiden nichts mehr
+    // miteinander zu tun (`core/chefFit.ts`).
     const coat = new THREE.Box3().setFromObject(coatOf(body));
-    expect(coat.max.y).toBeGreaterThan(1.6 - HEAD_RADIUS);
-    expect(coat.max.y).toBeLessThan(1.6);
+    expect(coat.max.y).toBeGreaterThan(CHEF_EYE - HEAD_RADIUS);
+    expect(coat.max.y).toBeLessThan(CHEF_EYE);
     body.dispose();
   });
 
@@ -156,20 +160,21 @@ describe('die Figur', () => {
     body.dispose();
   });
 
-  it('staucht ihn beim Ducken, statt ihn abheben zu lassen', () => {
+  it('bleibt gleich hoch, ob der Spieler steht oder sich duckt', () => {
+    // **Die Figur duckt sich nicht mehr.** Früher kam ihre Höhe aus der des
+    // Spielerkopfes, und wer sich hinsetzte, wurde kleiner. Seit sie ein
+    // Modell in fester Größe ist (`core/chefFit.ts`), hat ihre Höhe mit
+    // seiner nichts mehr zu tun: Sie ist 1,6 m hoch, ihre Augen liegen bei
+    // 0,91 m, und beides bleibt so. Das ist eine Entscheidung und kein
+    // Versehen — deshalb steht sie hier als Test und nicht nur als Kommentar.
     const body = new AvatarBody();
     body.update(1 / 60, pose(1.6), null, null);
-    const tall = new THREE.Box3().setFromObject(torsoOf(body));
+    const standing = new THREE.Box3().setFromObject(torsoOf(body));
     body.update(1 / 60, pose(0.9), null, null);
     const ducked = new THREE.Box3().setFromObject(torsoOf(body));
-    expect(ducked.max.y).toBeLessThan(tall.max.y - 0.6);
-    // Der Boden bleibt der Boden: Jacke und Beine werden kürzer, die Sohle
-    // bleibt, wo sie war.
-    expect(ducked.min.y).toBeCloseTo(tall.min.y, 5);
-    expect(ducked.min.y).toBeLessThan(0.05);
-    // Und schmaler wird die Jacke dabei nicht.
-    const duckedCoat = new THREE.Box3().setFromObject(coatOf(body));
-    expect(duckedCoat.max.x - duckedCoat.min.x).toBeCloseTo(BODY_RADIUS * 2, 1);
+    expect(ducked.max.y).toBeCloseTo(standing.max.y, 5);
+    expect(ducked.min.y).toBeCloseTo(standing.min.y, 5);
+    expect(body.head.position.y).toBeCloseTo(CHEF_EYE, 5);
     body.dispose();
   });
 
@@ -179,7 +184,8 @@ describe('die Figur', () => {
     const body = new AvatarBody();
     body.update(1 / 60, pose(1.6), null, null);
     expect(body.head.position.z).toBeGreaterThan(0.03);
-    expect(body.head.position.y).toBeCloseTo(1.6, 5);
+    // Die Höhe kommt aus der Figur, nicht aus der Pose — x und z aber schon.
+    expect(body.head.position.y).toBeCloseTo(CHEF_EYE, 5);
     body.dispose();
   });
 
@@ -203,20 +209,31 @@ describe('die Figur', () => {
     // plus dem Versatz des Nackens.
     const torso = torsoOf(body).position.z;
     for (const hand of [left, right]) expect(hand.position.z).toBeLessThan(torso - 0.01);
-    // Auf Bauchhöhe, nicht am Boden und nicht am Kinn.
+    // Auf Bauchhöhe, nicht am Boden und nicht am Kinn — in den Maßen der
+    // Figur, die nur noch 1,6 m hoch ist.
     for (const hand of [left, right]) {
-      expect(hand.position.y).toBeGreaterThan(0.55);
-      expect(hand.position.y).toBeLessThan(1.1);
+      expect(hand.position.y).toBeGreaterThan(CHEF_EYE * 0.35);
+      expect(hand.position.y).toBeLessThan(CHEF_EYE);
     }
     body.dispose();
   });
 
-  it('folgt der getrackten Hand', () => {
+  it('folgt der getrackten Hand — gestaucht in den Raum der Figur', () => {
+    // Der Spieler schaut aus 1,6 m, seine Figur aus 0,91 m. Eine Hand, die er
+    // auf Brusthöhe hält, läge über ihrem Kopf, übernähme man sie unbesehen.
+    // Gestaucht wird der **Abstand zum Kopf**, nicht die Weltposition: Die
+    // Figur steht, wo er steht, und greift dorthin, wo er greift.
     const body = new AvatarBody({ hands: true });
     const hand = { position: new THREE.Vector3(0.4, 1.1, -0.3) };
     body.update(1 / 60, pose(1.6), null, hand);
-    expect(body.handAnchors[1].visible).toBe(true);
-    expect(body.handAnchors[1].position.x).toBeCloseTo(0.4, 5);
+    const anchor = body.handAnchors[1];
+    expect(anchor.visible).toBe(true);
+    expect(anchor.position.x).toBeCloseTo(0.4 * POSE_SCALE, 5);
+    // Unter den Augen der Figur, weil die Hand auch unter denen des Spielers
+    // war — und zwar um denselben Anteil.
+    expect(anchor.position.y).toBeCloseTo(CHEF_EYE + (1.1 - 1.6) * POSE_SCALE, 5);
+    // Und was in dieser Hand hängt, wird mit ihr kleiner.
+    expect(anchor.scale.x).toBeCloseTo(POSE_SCALE, 5);
     body.dispose();
   });
 
