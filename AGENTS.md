@@ -733,7 +733,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     und wer in der Brille danebenstand, sah einen Spieler von oben gar nicht.
     Geblieben ist der richtige Gedanke darin — **dass ein 2D-Gitter sagt, wo
     alles steht** —, und der wohnt längst woanders, nämlich im Kachelgitter
-    (`worlds/grid/`, 2,5-m-Kacheln, Ebenen, Bausteine, Einbauten) mit dem
+    (`worlds/grid/`, Kacheln, Ebenen, Bausteine, Einbauten) mit dem
     Bauplatz als Editor (`worlds/editor/WorldEditor.ts`). Phaser und
     `src/world2d/` sind damit ersatzlos weg; der Weg dorthin und zurück steht
     in [dem Plan](docs/plan-2d-hub-interaktion.md).
@@ -742,7 +742,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     das Bild —, die Kamera steht im Süden darüber (`topDownPosition`) und nickt
     genau so weit, dass sie das Ziel ansieht (`topDownPitch`). Der **Zoom**
     geht in vier Stufen als Abstand: 12 · 16 · 22 · 30 m, Vorgabe 16, das Rad
-    sammelt 50 Einheiten je Stufe wie schon in der alten Kachelwelt. Beides läuft
+    sammelt 50 Einheiten je Stufe wie schon in der alten Kachelwelt — und die
+    nächste Stufe wird **vom Abstand aus gerechnet, der gerade gilt**, nicht
+    von der zuletzt gerasterten: Sonst spränge das Bild nach einem Pinch beim
+    ersten Radklick dorthin zurück, wo es vor dem Pinch stand. Beides läuft
     **weich** nach (`net/PoseSmoothing.SmoothPose`, 0,12 s): Ein Rig, das an
     jeder Fuge einen Zentimeter versetzt wird, zitterte sonst im ganzen Bild.
     Perspektivisch und nicht orthografisch, weil ein Podest und der Boden
@@ -753,9 +756,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     (`core/viewLayers.ts` — dieselbe Regel wie Spiegel und Portalsichten). Der
     Kopf folgt dabei dem **Rig** und nicht der Desktop-Kamera
     (`PlayerAvatar.headFollowsRig`), sonst schaute er beim Laufen starr in eine
-    Richtung von vorhin; und die Figur bekommt Fäuste (`AvatarBody`, `hands`),
-    weil eine Figur ohne Hände von oben abgesägt aussieht — in der Brille
-    bleiben sie aus, da sind die eigenen Hände die getrackten.
+    Richtung von vorhin; und die Figur bekommt ihre **Handkugeln**
+    (`AvatarBody`, `hands`), weil ein Koch ohne Hände von oben abgesägt
+    aussieht — in der Brille bleiben sie aus, da sind die eigenen Hände die
+    getrackten.
   - **Gelaufen wird in Weltrichtungen** (`FlatControls.walkNorthUp`): W ist
     Norden (−z) und bleibt Norden, auch wenn die Figur nach Süden schaut, D ist
     Osten (+x). Über dieselbe Physik wie am Schreibtisch (`rig.setIntent`,
@@ -808,7 +812,22 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
       sind es Zeigerflächen und keine Knöpfe: Die Leiste liegt auf
       `pointer-events: none`, die Ereignisse kommen an der Leinwand an, und
       `FlatControls` sieht nach, über welchem Feld ein Finger aufgesetzt hat.
-  - **Benutzen von oben** (`core/usable.ts` mit Test, `PortalWorld.useForward`).
+      Die beiden liegen **nebeneinander über dem Zielstock**, `B` links von
+      `A`, auf derselben Höhe und mit einer Handbreit Luft zum Stock. Vorher
+      saß `B` allein darüber und `A` darunter, und der Daumen, der den Stock
+      hält, erwischte auf dem Weg nach oben zuerst den falschen.
+    - **Zwei Finger in der oberen Hälfte zoomen** (`TopDownCamera.zoomScale`).
+      Ein Pinch ist die Geste, mit der auf einem Telefon seit jeher gezoomt
+      wird, und stufenlos: Der Abstand wird mit dem Faktor der Finger skaliert
+      und zwischen der nächsten und der fernsten Stufe geklemmt
+      (`topDownPose.zoomScaled`). **Obere Hälfte**, weil unten die beiden
+      Stöcke und die Knöpfe liegen — ein zweiter Finger auf dem Zielstock ist
+      kein Zoom, sondern jemand, der gerade zielt und läuft. Und **ohne
+      Nachlaufen**, anders als die Raste: Ein Pinch ist direktes Anfassen, und
+      ein Bild, das dem Finger eine Fünftelsekunde hinterherhinkt, fühlt sich
+      kaputt an.
+  - **`A` benutzt — überall** (`core/usable.ts` mit Test,
+    `PortalWorld.useForward`).
     In der Brille legt man die Hand auf einen Knopf und drückt; von oben gibt
     es keine Hand, die man irgendwo hinlegt, sondern eine Figur, die irgendwo
     steht. `A`, `E`, Enter und der Touch-Knopf `A` fragen deshalb: **Was steht
@@ -816,6 +835,38 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     trifft, das, was die **Füße überlappen** (0,6 m). Der Strahl sticht die
     Überlappung, unter Gleichen gewinnt das Nächste; wer vor einer Druckplatte
     steht und auf den Knopf dahinter zeigt, meint den Knopf.
+    - **Und das gilt in jeder Ansicht, nicht nur von oben.** Die Auswahl
+      rechnet `PortalWorld` in jedem Bild, auch aus den Augen und in der
+      Brille; was sich dabei ändert, ist allein die **Richtung**
+      (`usable.aimForward`): von oben die des Rigs — dort dreht die Steuerung
+      die ganze Figur zum Ziel —, sonst die **Kopfrichtung**, waagerecht
+      projiziert (`PlayerRig.getHeadForward`), denn dort steht die Figur still
+      und sieht sich um. Wer senkrecht nach unten schaut, hat keine waagerechte
+      Richtung mehr; dann gilt wieder die Figur, sonst zeigte `A` beim Blick
+      auf die eigenen Füße irgendwohin.
+    - **Springen und Benutzen sind derselbe Knopf**, und das ist kein Konflikt,
+      sondern die Regel jedes Spiels mit einem Knopf: `A` springt **nur, wenn
+      nichts in Reichweite ist**. Die Welt legt dafür jeden Frame einen Zettel
+      ans Rig (`PlayerRig.useCandidate`) — sie weiß als Einzige, was gerade vor
+      der Figur steht —, und `A` liest ihn. Am Schreibtisch springt die
+      Leertaste weiterhin immer: Dort ist eine Taste frei, und wer vor einem
+      Knopf steht und trotzdem hüpfen will, soll das können. Beim
+      **Weltwechsel** wird der Zettel zurückgesetzt (`standUp`), sonst stünde
+      man in der neuen Welt vor nichts und käme trotzdem nicht vom Boden.
+    - **Was gemeint ist, leuchtet** (`core/highlight.ts`). Ohne das ist die
+      Auswahl eine Vermutung: Man drückt und sieht danach, was passiert ist.
+      Das gewählte Ding bekommt deshalb einen **gelblichen Saum** (`0xffd35a`)
+      — dieselbe Mechanik wie die schwarze Comic-Kontur, eine umgestülpte
+      Hülle (`core/outlineShell.ts`), weil ein Nachbearbeitungsschritt in einer
+      WebXR-Sitzung nicht zu haben ist. Er trägt eine eigene Marke, ein eigenes
+      Material, wirft keinen Schatten, fängt keinen Strahl und sagt für sich
+      selbst jeden weiteren Saum ab — sonst bekäme der Saum einen Saum, sobald
+      der Comic-Modus das nächste Mal über die Szene läuft. Wo ein Usable
+      **keine Geometrie** hat (eine Zone, ein Platz), liegt stattdessen ein
+      **Ring auf dem Boden**: Eine umgestülpte Hülle von nichts ist nichts.
+      Der Hinweis über der Figur bleibt daneben stehen, in allen Ansichten
+      außer der Brille — dort reicht der Saum, und eine Tafel vor dem Gesicht
+      wäre eine zu viel.
     - **Gerechnet wird auf dem Boden**, in x und z. Ein Knopf sitzt auf
       Hüfthöhe, ein Türgriff höher, eine Druckplatte am Boden — wer davorsteht,
       meint sie alle, und ein Strahl aus der Brust verfehlte die Platte um
@@ -847,17 +898,36 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Controller, am Rig statt am Kopf. Damit läuft der **ganze** bestehende Weg
     (`takeTool`, `applyHold`, `onTrigger`, Zielkorrektur, Rückstoß), und es
     gibt keinen zweiten zum Schießen; das Werkzeug zeigt entlang −z des Rigs,
-    also genau dorthin, wohin die Figur schaut. Welche Id darin liegt, sagt
-    `PortalWorld.screenTool()` — ausgeliefert die Pistole, denn ein Trigger
-    ohne Waffe bedeutet nichts. Sie entsteht mit der Ansicht und vergeht mit
-    ihr; der Gürtel bleibt dabei unberührt. Und der **Strahl vom Schirm ruht**
-    so lange (`Pointer.topDown`): Er käme aus der Kamera im Rig, die von oben
-    niemand ansieht, und nähme dem Werkzeug seinen Trigger weg.
+    also genau dorthin, wohin die Figur schaut. Sie entsteht mit der Ansicht
+    und vergeht mit ihr; der Gürtel bleibt dabei unberührt. Und der **Strahl
+    vom Schirm ruht** so lange (`Pointer.topDown`): Er käme aus der Kamera im
+    Rig, die von oben niemand ansieht, und nähme dem Werkzeug seinen Trigger
+    weg.
+    - **Was darin liegt, wählt der Spieler** (`PortalWorld.screenTool()`).
+      Lange stand dort fest, was die Welt beim Bauen hineingelegt hatte —
+      ausgeliefert die Pistole, denn ein Trigger ohne Waffe bedeutet nichts —,
+      und wer etwas anderes wollte, hatte Pech: In der Brille greift man ins
+      Regal am Handgelenk, am Bildschirm gibt es keine Hand, die irgendwo
+      hingreift. Jetzt sitzt unten rechts über `A` und `B` ein runder
+      **Werkzeug-Knopf** (`#hud-tool`, `ui/ToolButton.ts`), der die Ikone des
+      gewählten Werkzeugs zeigt — gezeichnet mit demselben Stift wie jede
+      Menüzeile (`drawMenuIcon`), sonst lernt man zwei Bilder für ein Ding —,
+      und ein Druck klappt eine **Seite** auf (`ui/PageMenu.ts`, eigener Baum).
+      Tastatur: `Tab`; Gamepad: `Y`.
+    - **Ganz oben steht die Hand (leer)**, und das ist eine Wahl und kein
+      Fehlen: `screenTool()` gibt dann `null`, die Bildschirmhand bleibt leer,
+      der Trigger tut nichts. Sie steht zuerst, weil sie die Ausnahme ist, die
+      man am schnellsten wieder braucht — ein Werkzeug legt man weg, um etwas
+      anderes zu tun. Darunter die Werkzeuge der Welt (`beltLoadout()`, sonst
+      `TOOL_IDS`), und ein Tipp wählt **und schließt**: Eine Liste, die offen
+      bleibt, verdeckt genau das, worauf man gerade zielen wollte. Was die Welt
+      von sich aus hineinlegte, heißt jetzt `defaultScreenTool()` und ist
+      bloß die Vorgabe.
   - **Aufgeschnitten wird, was über einem liegt** (`core/cutaway.ts` mit Test,
     Plan E8). Eine Kamera schräg über der Szene hat ein Problem, das eine
-    Kamera in der Brille nie hatte: Sie steht **unter** dem Dach. Im
-    Dunkelhaus war das Bild von oben die Decke, in Dust waren es die Dächer.
-    Also verschwindet vor jedem Bild alles, dessen Ebene **über** der des Rigs
+    Kamera in der Brille nie hatte: Sie steht **unter** dem Dach. In einem Haus
+    ohne Fenster war das Bild von oben die Decke, in einer Stadt waren es die
+    Dächer. Also verschwindet vor jedem Bild alles, dessen Ebene **über** der des Rigs
     liegt, und kommt danach wieder (`TopDownCamera.cut` / `.uncut`, gerufen in
     `App.step` — vor den Spiegeln und Portalsichten, die dieselbe Szene ja
     gleich noch einmal zeichnen). In der Brille und _Aus den Augen_ ändert sich
@@ -869,9 +939,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
       aus ihrer Unterkante. Die **Decke** ist dabei der Sonderfall, und es ist
       der wichtige: Sie gehört dem Stockwerk **darüber**, denn sie ist dessen
       Boden — sonst sähe man in kein Zimmer hinein, dessen Haus nur eine Etage
-      hat. Wer ohne Gitter baut, kann dieselbe Marke von Hand setzen; das
-      Interaktionslabor tut genau das für seinen Deckel (`InteractWorld`,
-      `viewLevel`), und mehr braucht es dort nicht.
+      hat. Wer ohne Gitter baut, kann dieselbe Marke von Hand setzen
+      (`World.viewLevel`), und mehr braucht es nicht. In Hub, Bauplatz und
+      Testwelt steht ohnehin **kein Dach**: Ein Deckel, den man jedes Bild
+      wieder wegnimmt, muss gar nicht erst gebaut werden.
     - **Welche Ebene das Rig ist, sagt die Kachel unter den Füßen**
       (`NavGraph.at`, `keyLevel`) — und die Höhe hat ein Wörtchen mitzureden:
       Ein Treppenlauf gehört ganz der unteren Etage (die Kachel darüber ist
@@ -880,12 +951,40 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
       Umgeschaltet wird beim Hinauf- wie beim Hinabgehen an derselben Höhe,
       sonst flackerte das ganze Stockwerk, sobald jemand auf der obersten Stufe
       einen halben Schritt zurücktritt (`levelStep`, rein, mit Test). Eine Welt
-      ohne Antwort (`World.viewLevel` → `null`, Portal-Labor, Alpen) wird gar
-      nicht aufgeschnitten und sieht aus wie eh und je.
+      ohne Antwort (`World.viewLevel` → `null`) wird gar nicht aufgeschnitten
+      und sieht aus wie eh und je.
     - **Und die Kamera hebt sich mit der Ebene**, nicht mit den Füßen: Ihre
       Zielhöhe ist der Boden der Etage (`NavGraph.levelY`), weich nachgezogen
       von derselben Glättung wie die Figur. Mit den Füßen führe das Bild jede
       Treppenstufe einzeln mit.
+  - **Und was daneben steht, wird durchsichtig** (`grid/wallGhost.ts` mit Test,
+    umgesetzt in `GridWorld`). Das Aufschneiden nimmt weg, was **über** der
+    Figur liegt; eine Wand auf derselben Ebene bleibt stehen — und die Kamera
+    steht im Süden, also hinter jeder Wand, die südlich von der Figur liegt.
+    In _Overcooked_ und den Sims ist das seit jeher dieselbe Antwort: Die Wand
+    bleibt, wird aber durchsichtig.
+    - **Gerechnet wird eine Strecke, kein Strahl in die Szene.** Jedes Bild
+      geht eine Linie von der Kamera zur Mitte des Rigs gegen die Kästen des
+      Gitters (`slabs`, Massen eingeschlossen), und was sie schneidet, bekommt
+      für dieses eine Bild ein **durchsichtiges Zwillingsmaterial** — gleiche
+      Farbe, `transparent`, `opacity 0.25`, `depthWrite false` — und danach
+      sein eigenes zurück. Die Zwillinge liegen in einer zweiten Palette und
+      werden geteilt; ein Material je Quader wäre bei tausend Kacheln tausend.
+      Die Auswahl selbst ist reine Rechnung, ohne three.js und ohne Raycaster,
+      damit ein Test in Millisekunden nachrechnet, was man sonst nur in der
+      Brille sieht.
+    - **Böden zählen nicht.** Ein Blick von schräg oben geht über jede
+      Bodenplatte hinweg, aber er **streift** sie — die Strecke zur Figur endet
+      ja auf ihr. Wer Böden mitnähme, hätte in jedem Bild den halben Fußboden
+      durchsichtig, und darunter ist nichts als Nacht. Also: die Sorte `floor`
+      nie, und alles, was flacher als **Kniehöhe** ist, auch nicht
+      (`GHOST_KNEE`) — eine Schwelle, eine Rampe, der Rand einer Druckplatte
+      verdecken niemanden.
+    - **Deshalb bleibt `batchGridGeometry()` in allen verbleibenden Welten
+      `false`.** Zusammengefasste Geometrie spart Zeichenaufrufe und nimmt
+      einem genau das, worum es hier geht: einen **einzelnen** Quader
+      umzuschalten. Wer die Welten wieder zusammenfasst, hat entweder kein
+      Ghosting mehr oder eine ganze Halle, die auf einmal durchsichtig wird.
   - **Umgeschaltet wird unter _Menü → Ansicht_** und auf der Startseite; die
     Wörter heißen _Von oben_ und _Aus den Augen_ und stehen an einer Stelle
     (`core/screenView.SCREEN_VIEW_LABELS`). Die **Kennungen** bleiben `2d` und
@@ -911,16 +1010,26 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   baut, ist die Ausstattung — Himmel, Nebel, der Leuchtring auf dem
   Hallenboden, die Lichtbänder in den Gängen und die beiden Tafeln.
 
-  Drei Sachen sind beim Umzug anders geworden, und alle drei, weil eine Kachel
-  2,5 m misst und es genau vier Richtungen gibt: Es gibt **vier Gänge** (Nord,
+  Drei Sachen sind beim Umzug anders geworden, und alle drei, weil eine Welt
+  auf dem Gitter genau vier Richtungen kennt: Es gibt **vier Gänge** (Nord,
   Ost, Süd, West) statt beliebig vieler auf einem Kreis — sind sie voll, werden
   sie **länger** statt mehr; die Tore schauen **zurück zur Halle** statt quer
   eingedreht, sodass man vom Eingang aus alle vier Schilder auf einmal liest;
-  und die Halle ist ein **Quadrat** aus sieben mal sieben Kacheln, deren
-  Rundung nur noch der Leuchtring auf dem Boden ist. Kein Dach über den Gängen,
+  und die Halle ist ein **Quadrat**, dessen Rundung nur noch der Leuchtring auf
+  dem Boden ist. Kein Dach über den Gängen,
   wie vorher auch: Von oben wäre ein gedeckelter Gang ein schwarzer Balken —
   aufgeschnitten wird zwar seit P7 (`core/cutaway.ts`), aber ein Deckel, den
   man ohnehin jedes Bild wieder wegnimmt, muss gar nicht erst stehen.
+
+  **Auf Metergitter neu ausgelegt** (September 2026): Die Halle misst **elf
+  mal elf** Kacheln (`HALL_HALF` = 5), die Gänge sind **drei** Kacheln breit,
+  zwischen zwei Toren liegen **zwei** Kacheln, und das erste steht zwei
+  Kacheln hinter dem Hallenrand. In Metern ist die Halle damit kleiner
+  geworden als die sieben mal sieben von vorher (17,5 m) — und das ist der
+  Punkt: Elf Meter sind ein Raum, den man in ein paar Schritten durchquert,
+  und der Weg von Tor zu Tor ist keine Wanderung mehr. Was gleich geblieben
+  ist, ist die Zusage des Tests: **jedes Tor ist vom Startpunkt aus wirklich
+  zu erreichen**, und der Startpunkt liegt nie auf einer Torkachel.
 
   **Ein Tor ist ein Einbau** (`fixtures/gate.ts`, siehe _Einbauten_) und kein
   Möbel mit einem Zeigerziel daran: Man **geht hindurch**, statt darauf zu
@@ -935,10 +1044,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Tore von letzter Woche stehen.
 
   **Der Rückweg**: Jede Gitterwelt setzt sich mit **einer Zeile** in `layout()`
-  ein Tor `→ Hub` neben ihren Startpunkt (Dunkelhaus, Schießstand, Dust,
-  Kletterhalle, Gokart, Bauplatz). Die Welten ohne Gitter — Alpen, Mond,
-  Pizzeria, Portal Labor, die Labore — bleiben beim Handgelenkmenü, das ohnehin
-  überall dasselbe kann.
+  ein Tor `→ Hub` neben ihren Startpunkt — heute sind das der Bauplatz und die
+  Testwelt. Neben ihren Startpunkt und nicht darauf: drei Kacheln Abstand,
+  denn ein Tor direkt am Spawn ist eines, in das man beim ersten Schritt
+  fällt, bevor man die Welt gesehen hat. Was kein Gitter hat, bleibt beim
+  Handgelenkmenü, das ohnehin überall dasselbe kann.
 - **Handgelenk-Menü**: an **beiden** Händen schwebt ein Button; ein Druck öffnet ein
   Panel, das der Hand folgt — inklusive Neigung, es kippt mit dem Handgelenk.
   Es ist zweimal dasselbe Menü, und immer nur **eins offen**: das zweite geht
@@ -978,9 +1088,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Szene ist und sonst dahinter läge. Die Kopfzeile im Web (`#hud`) ist damit
   **oben links der Menü-Knopf, oben rechts** Weltname, Verbindung und VR; auf
   einem schmalen Telefon fällt der Weltname weg, bevor ein Knopf es tut.
-  Aufbau: **Welten** (Hub, Portal Labor, Schießstand, Dust, Gokart, Pizzeria,
-  Mond, Alpen, Dunkelhaus, Kletterhalle, Effektlabor, Interaktionslabor,
-  Eingaberaum, Spiel Haunting),
+  Aufbau: **Welten** (Hub, Bauplatz, Testwelt, Spiel Haunting),
   **Werkzeuge**
   (das ganze Regal direkt in die Hand, und die Einstellungen jedes Werkzeugs
   dahinter), **Magischer Beutel** (Raster mit Companion Cube, Kugel, Domino,
@@ -989,9 +1097,10 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   kommt_),
   **NPC** (wer hier herumläuft — Haut und Hirn getrennt, dazu Spawnpunkte und
   Brutkäfige; siehe _Wer hier herumläuft_),
-  **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Aussehen** (was man
-  auf dem Kopf trägt — siehe _Wie man aussieht_), **Grafik** (die
-  experimentelle Seite: Einfach oder Comic — siehe _Wie schön es aussieht_),
+  **Bewegung** (Haltung, Augenhöhe, Sprint und Ducken), **Aussehen** (drei
+  Zeilen: Kopf, Hut, Körper — siehe _Wie man aussieht_), **Grafik** (die
+  experimentelle Seite: Einfach oder Comic, dazu die Gitterlinien — siehe
+  _Wie schön es aussieht_),
   **Einstellungen** und die Aktionen der Welt.
   Auf den Seiten **Werkzeuge** und **Magischer Beutel** nimmt **Greifen oder
   `A`** den Eintrag in genau die zeigende Hand, damit der Zieltrigger nicht
