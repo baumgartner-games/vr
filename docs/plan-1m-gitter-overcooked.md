@@ -10,9 +10,8 @@ gelöschten Welt nachlesen will, holt es sich mit
 
 ## Stand
 
-**Umgesetzt ist alles außer Haunting** (Paket H läuft noch); Paket X hat
-AGENTS.md, README und die Quellkommentare nachgezogen. Was davon im Spiel
-steht:
+**Umgesetzt ist alles**, Haunting eingeschlossen; Paket X hat AGENTS.md, README
+und die Quellkommentare nachgezogen. Was davon im Spiel steht:
 
 - **Welten** (D): Es gibt `hub`, `editor`, `test` und `haunting`. Die vierzehn
   anderen sind gelöscht, ihre wiederverwendbaren Module stehen (`kart/`,
@@ -45,10 +44,15 @@ steht:
   Ereignis `wardrobe`, `ctx.openWardrobe()`, `ui/WardrobeMenu.ts`, in der
   Brille die Menüseite _Aussehen_.
 
-**Offen:** Haunting (Paket H, eigener Plan `docs/plan-haunting-1m.md`). Und
-eine Lücke, die der Umbau gerissen hat und die keinem Paket gehört: Mit dem
-Navigationslabor ist der einzige Test gefallen, der einen **Eindruck** prüfte
-statt einer Rechnung (siehe AGENTS.md, _Tests_).
+- **Haunting** (H, eigener Plan `docs/plan-haunting-1m.md`): Die Station steht
+  auf 1-m-Kacheln, ihre Türen gehen über die ganze Kachelkante, die gemalte
+  2D-Welt ist weg (`World.ownsFlat` ist falsch — von oben schaut die Kamera des
+  Kerns), der Rechenkern und die Karte der Telefone bleiben, und der Techniker
+  spielt mit `A`, Saum und Werkzeug-Knopf wie überall.
+
+**Offen** bleibt eine Lücke, die der Umbau gerissen hat und die keinem Paket
+gehört: Mit dem Navigationslabor ist der einzige Test gefallen, der einen
+**Eindruck** prüfte statt einer Rechnung (siehe AGENTS.md, _Tests_).
 
 ## Was der Besitzer will (wörtlich zusammengefasst)
 

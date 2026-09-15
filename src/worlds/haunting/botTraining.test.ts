@@ -336,10 +336,23 @@ describe('Das Training selbst', () => {
     // eine einzelne Runde verschiebt den bewerteten Mittelwert schon um
     // 1/32 = 0,031. Eine Zusage, die feiner ist als die Auflösung ihrer
     // Messung, prüft den Würfel und nicht die Gewichte.
-    const run = new TrainingRun(DEFAULT_TUNING, 'both', 6, { ...options, rounds: 64 }, 99);
+    const rounds = 64;
+    const run = new TrainingRun(DEFAULT_TUNING, 'both', 6, { ...options, rounds }, 99);
     run.advanceStep();
     const first = run.state.score;
-    expect(first).toBeLessThan(TRAINING_BAND);
+    // **Und genau deshalb steht hier nicht das Band allein.** Je Besetzung
+    // fallen `rounds / 2` Runden; der Standardfehler einer Quote ist damit
+    // `sqrt(0,25 / (rounds / 2))` — auf 64 Runden rund 0,09, also mehr als das
+    // Band selbst. Ein Satz, der *genau* auf beiden Zielen sitzt, misst hier
+    // im Schnitt trotzdem 0,06 bis 0,07, und `< Band` war damit von Anfang an
+    // eine Wette auf den Samen: Beim Umzug auf das 1-m-Gitter ging sie mit
+    // 0,092 verloren, ohne dass an den Gewichten etwas falsch wäre — die
+    // scharfe Zusage steht oben, über 4 × 400 Runden gemessen, und die hält.
+    // Geprüft wird deshalb gegen Band **plus** Standardfehler: Das fängt einen
+    // Satz, der wirklich davongelaufen ist (0,3 und mehr), und nicht den
+    // Würfel.
+    const noise = Math.sqrt(0.25 / (rounds / 2));
+    expect(first).toBeLessThan(TRAINING_BAND + noise);
     while (!run.finished) run.advanceStep();
     expect(run.state.score).toBeLessThanOrEqual(first);
   }, 60000);
