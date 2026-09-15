@@ -1,136 +1,200 @@
 /**
- * **Was es in der Küche zu essen gibt** — Zutaten, ihre Verarbeitung und die
- * Rezepte daraus. Ohne three.js, ohne Datei, ohne Zone.
+ * **Was es in der Küche zu essen gibt** — Zutaten, ihre Stufen, das Zusammen-
+ * legen und die Rezepte daraus. Ohne three.js, ohne Datei, ohne Zone.
  *
  * Getrennt von `kitchenCarry.ts` aus demselben Grund, aus dem der Möbelkatalog
  * neben dem Lader steht (`core/kitchenFit.ts`): Dort steht, **was `A` tut**,
  * hier steht, **woraus ein Burger besteht**. Beides ändert sich unabhängig
  * voneinander — ein fünftes Rezept ist eine Zeile in `RECIPES` und keine Zeile
- * in der Regel daneben.
+ * in der Regel daneben. Die **Uhren** (Braten, Verbrennen, Schneiden) stehen
+ * in `kitchenClock.ts`, weil sie das einzige sind, was auch ohne Knopfdruck
+ * weiterläuft.
+ *
+ * **Der Träger ist das Neue.** Früher war ein getragenes Ding ein einzelner
+ * Name, und ein Burger entstand nur auf einer eigenen Anrichte — ein Möbel,
+ * das es bei _Overcooked_ gar nicht gibt. Jetzt ist jedes Ding ein `Dish`:
+ * etwas, auf dem etwas liegen **kann**. Teller, Brötchen und Pfanne nehmen
+ * auf, alles andere nicht. Damit fällt die Anrichte weg und das Kombinieren
+ * geht überall — in der Hand, auf der Zeile, auf dem Brett, im Herd.
  *
  * **Drei Sorten Zutat**, und der Unterschied ist die halbe Küche:
  *
  * - **Roh** (`patty`, `lettuce`, `tomato`): kommt aus der Kiste und gehört auf
- *   keinen Burger. Wer es trotzdem auflegen will, liest, warum nicht.
- * - **Verarbeitet** (`patty-cooked`, `lettuce-cut`, `tomato-cut`): aus der
- *   Pfanne oder vom Schneidebrett, und erst das darf auf den Burger.
- * - **Fertig** (`burger`, `plate-burger`): das Ergebnis, einmal für die Hand
- *   und einmal auf dem Teller.
+ *   keinen Träger außer die Pfanne (das Patty). Wer es trotzdem auflegen will,
+ *   liest, warum nicht — und was stattdessen zu tun ist.
+ * - **Fertig** (`patty-cooked`, `lettuce-cut`, `tomato-cut`, `tomato-soup`):
+ *   aus der Pfanne oder vom Brett, und erst das darf auf den Burger.
+ * - **Verdorben** (`patty-burnt`): darf auf Teller und Brötchen, damit man den
+ *   Mist auch wieder wegräumen kann — zählt aber in keinem Rezept.
  *
- * Das Brötchen hat keine Verarbeitung: Es kommt aus der Kiste und geht so, wie
- * es ist, auf die Anrichte. Ein Brötchen, das erst aufgeschnitten werden muss,
- * wäre ein vierter Handgriff für nichts.
+ * Das Brötchen hat keine Verarbeitung: Es kommt aus der Kiste und ist selbst
+ * der Träger. Ein Brötchen, das erst aufgeschnitten werden müsste, wäre ein
+ * vierter Handgriff für nichts.
  */
 
 /** Was sich in der Küche tragen lässt. */
 export type KitchenItem =
-  /** Das Gerät vom Herd — es wird nie zu Essen. */
+  /** Gerät — es wird nie zu Essen. */
   | 'pot'
   | 'pan'
-  /** Roh, so wie es aus der Kiste kommt. */
-  | 'bun'
-  | 'patty'
-  | 'lettuce'
-  | 'tomato'
-  /** Verarbeitet — gebraten oder geschnitten. */
-  | 'patty-cooked'
-  | 'lettuce-cut'
-  | 'tomato-cut'
-  /** Angerichtet. */
-  | 'burger'
+  | 'extinguisher'
+  /** Träger: Sie nehmen auf, was fertig ist. */
   | 'plate'
-  | 'plate-burger';
+  | 'bun'
+  /** Das Patty und seine drei Stufen. */
+  | 'patty'
+  | 'patty-cooked'
+  | 'patty-burnt'
+  /** Was geschnitten wird, und was daraus wird. */
+  | 'lettuce'
+  | 'lettuce-cut'
+  | 'tomato'
+  | 'tomato-cut'
+  | 'tomato-soup';
 
+/**
+ * **Wie die Dinge heißen** — und jeder Name steht im **Singular**, auch die
+ * Tomatenscheibe.
+ *
+ * Diese Namen landen mitten in Sätzen („… liegt schon drauf"), und ein Plural
+ * darunter bräuchte jedes Mal ein zweites Verb. Eine Namenstabelle, die in
+ * jedem Satz passt, ist mehr wert als eine, die einmal schöner klingt.
+ */
 export const ITEM_LABELS: Record<KitchenItem, string> = {
   pot: 'Topf',
   pan: 'Pfanne',
+  extinguisher: 'Feuerlöscher',
+  plate: 'Teller',
   bun: 'Brötchen',
   patty: 'Rohes Patty',
-  lettuce: 'Salatkopf',
-  tomato: 'Tomate',
   'patty-cooked': 'Gebratenes Patty',
+  'patty-burnt': 'Verbranntes Patty',
+  lettuce: 'Salatkopf',
   'lettuce-cut': 'Geschnittener Salat',
-  'tomato-cut': 'Tomatenscheiben',
-  burger: 'Burger',
-  plate: 'Teller',
-  'plate-burger': 'Teller mit Burger',
+  tomato: 'Tomate',
+  'tomato-cut': 'Tomatenscheibe',
+  'tomato-soup': 'Tomatensuppe',
 };
 
 /**
- * **Was auf einen Burger darf** — und zwar genau das und nichts Rohes.
+ * **Ein Ding in der Hand, auf einer Ablage, in der Pfanne** — und was
+ * darauf liegt.
  *
- * Die Reihenfolge ist zugleich die **Schichtung**: Unten das Brötchen, darauf
- * das Patty, dann Salat, dann Tomate, und die Haube des Brötchens kommt
- * obendrauf (`kitchenProps.FoodKit.burger`). Wer eine Zutat dazwischenschiebt,
- * ändert hier die Reihenfolge und nicht fünf Zahlen in der Darstellung.
+ * `on` ist **flach** und eine **Menge**: Ein Teller mit einem belegten
+ * Brötchen trägt `['bun', 'patty-cooked', 'tomato-cut']` und nicht ein
+ * Brötchen, das seinerseits etwas trägt. Ein Baum wäre ehrlicher und wäre beim
+ * ersten Rezept schon eine Rekursion — jede Frage („ist da ein gebratenes
+ * Patty drin?") müsste absteigen, und die Darstellung müsste es auch. Flach
+ * ist die Antwort ein `includes`.
+ *
+ * Alles ist unveränderlich: Eine Tat gibt den **neuen** Zustand zurück, statt
+ * am alten zu drehen. Die Zone hält denselben `Dish` an zwei Stellen
+ * (getragen und auf der Station gemerkt), und ein `push` an der einen wäre ein
+ * Fehler an der anderen.
  */
-export type BurgerPart = 'bun' | 'patty-cooked' | 'lettuce-cut' | 'tomato-cut';
+export interface Dish {
+  readonly item: KitchenItem;
+  /** Was darauf/darin liegt — leer bei allem, was kein Träger ist. */
+  readonly on: readonly KitchenItem[];
+}
 
-export const BURGER_PARTS: readonly BurgerPart[] = [
-  'bun',
-  'patty-cooked',
-  'lettuce-cut',
-  'tomato-cut',
-];
-
-export function isBurgerPart(item: KitchenItem): item is BurgerPart {
-  return (BURGER_PARTS as readonly KitchenItem[]).includes(item);
+/** Ein Ding, kurz geschrieben — `dish('plate', ['bun'])`. */
+export function dish(item: KitchenItem, on: readonly KitchenItem[] = []): Dish {
+  return { item, on };
 }
 
 /**
- * **Was aus einer rohen Zutat wird** — und `null` für alles, was schon fertig
- * ist oder nie geschnitten wird.
+ * **Was ein Träger aufnimmt** — und die Tabelle ist zugleich die Antwort auf
+ * „warum geht Salat nicht auf ein Patty?": Ein Patty steht hier nicht links.
  *
- * Eine Tabelle und keine drei `if`: Die Frage „muss das noch geschnitten
- * werden?" wird an drei Stellen gestellt — vom Schneidebrett, von der
- * Anrichte und vom Hinweis über der Figur —, und drei Stellen mit derselben
- * Liste sind zwei zu viel.
+ * Der **Teller** nimmt alles Fertige und dazu das Brötchen (samt dessen
+ * Inhalt); das **Brötchen** alles Fertige außer einem zweiten Brötchen; die
+ * **Pfanne** genau ein Patty, in jeder Stufe. Rohes (`patty`, `lettuce`,
+ * `tomato`) steht nirgends außer in der Pfanne — es muss erst durch Herd oder
+ * Brett.
  */
-const CHOPPED: Partial<Record<KitchenItem, KitchenItem>> = {
+const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
+  plate: ['bun', 'patty-cooked', 'patty-burnt', 'lettuce-cut', 'tomato-cut', 'tomato-soup'],
+  bun: ['patty-cooked', 'patty-burnt', 'lettuce-cut', 'tomato-cut', 'tomato-soup'],
+  pan: ['patty', 'patty-cooked', 'patty-burnt'],
+};
+
+/** Ob auf diesem Ding überhaupt etwas liegen kann. */
+export function isCarrier(item: KitchenItem): boolean {
+  return TAKES[item] !== undefined;
+}
+
+/** Ob dieser Träger diese Zutat aufnimmt — ohne Ansehen dessen, was schon daraufliegt. */
+export function carries(carrier: KitchenItem, item: KitchenItem): boolean {
+  return TAKES[carrier]?.includes(item) ?? false;
+}
+
+/**
+ * **Was aus einer Zutat auf dem Brett wird** — oder `null`, weil sie dort
+ * nichts zu suchen hat.
+ *
+ * Zwei Stufen bei der Tomate, und das ist kein Spaß, sondern die Probe darauf,
+ * dass eine **zweite** Schnittstufe überhaupt geht: Wer aus Scheiben Suppe
+ * macht, hat den Fortschritt zweimal von vorn laufen lassen.
+ */
+const CHOPS: Partial<Record<KitchenItem, KitchenItem>> = {
   lettuce: 'lettuce-cut',
   tomato: 'tomato-cut',
+  'tomato-cut': 'tomato-soup',
 };
 
-/** Was dieses Ding auf dem Brett wird, oder `null` — es gehört nicht darauf. */
-export function chopped(item: KitchenItem): KitchenItem | null {
-  return CHOPPED[item] ?? null;
-}
-
-/** Was dieses Ding in der Pfanne wird, oder `null` — es gehört nicht hinein. */
-export function fried(item: KitchenItem): KitchenItem | null {
-  return item === 'patty' ? 'patty-cooked' : null;
+export function chopStage(item: KitchenItem): KitchenItem | null {
+  return CHOPS[item] ?? null;
 }
 
 /**
- * **Wie oft geschnitten wird**, bis aus einem Kopf Salat Salatblätter werden.
+ * **Was aus einem Patty in der Pfanne wird** — roh wird gebraten, gebraten
+ * wird verbrannt, und danach ist Schluss.
  *
- * Drei und nicht einer: Ein Druck, und das Schneidebrett wäre ein Knopf, der
- * die Zutat austauscht. Drei sind die drei Bewegungen, die man bei
- * _Overcooked_ auch macht — und sie sind der Grund, warum jemand am Brett
- * **steht** und nicht bloß daran vorbeigeht.
+ * Nach `patty-burnt` kommt kein Ding mehr, sondern **Feuer**, und Feuer ist
+ * kein `KitchenItem`, sondern ein Zustand des Herdes (`kitchenClock.ts`).
+ * Deshalb endet die Tabelle hier und nicht bei einem `'fire'`, das niemand in
+ * die Hand nehmen könnte.
  */
-export const CHOPS = 3;
+const FRIES: Partial<Record<KitchenItem, KitchenItem>> = {
+  patty: 'patty-cooked',
+  'patty-cooked': 'patty-burnt',
+};
+
+export function fryStage(item: KitchenItem): KitchenItem | null {
+  return FRIES[item] ?? null;
+}
 
 /**
- * **Wie lange ein Patty braucht**, in Sekunden.
+ * **Was einer rohen Zutat fehlt**, als Partizip für den Satz „… muss erst
+ * gebraten werden".
  *
- * Vier: lang genug, dass man in der Zeit etwas anderes schneiden geht, kurz
- * genug, dass niemand vor dem Herd wartet. Verbrennen kann nichts — ein
- * verbranntes Patty wäre eine zweite Uhr und ein zweiter Zustand, und beides
- * ohne Runde, die daraus etwas machte.
+ * Eine eigene kleine Tabelle statt einer Ableitung aus `CHOPS`/`FRIES`: Aus
+ * `tomato-cut` wird zwar noch Suppe, roh ist sie aber nicht mehr — sie darf
+ * auf den Burger. „Roh" heißt hier **muss noch**, nicht **kann noch**.
  */
-export const FRY_SECONDS = 4;
+const RAW: Partial<Record<KitchenItem, string>> = {
+  patty: 'gebraten',
+  lettuce: 'geschnitten',
+  tomato: 'geschnitten',
+};
+
+/** Ob dieses Ding erst noch durch Herd oder Brett muss. */
+export function isRaw(item: KitchenItem): boolean {
+  return RAW[item] !== undefined;
+}
 
 /** Was der Mülleimer nimmt — Essen, und sonst nichts. */
 const FOOD: readonly KitchenItem[] = [
   'bun',
   'patty',
-  'lettuce',
-  'tomato',
   'patty-cooked',
+  'patty-burnt',
+  'lettuce',
   'lettuce-cut',
+  'tomato',
   'tomato-cut',
-  'burger',
+  'tomato-soup',
 ];
 
 /** Ob dieses Ding in den Müll darf. */
@@ -138,31 +202,185 @@ export function isFood(item: KitchenItem): boolean {
   return FOOD.includes(item);
 }
 
+/**
+ * **Die Schichtung** — in dieser Reihenfolge liegt ein Burger übereinander.
+ *
+ * Gelegt wird in beliebiger Reihenfolge (`Dish.on` ist eine Menge), gezeigt
+ * wird in dieser: Unten das Brötchen, darauf das Patty, dann Salat, dann
+ * Tomate. Die Liste steht hier und nicht in der Darstellung, weil sie zur
+ * Frage „was ist ein Burger" gehört und nicht zur Frage „welches Netz liegt
+ * auf welcher Höhe" — `kitchenProps` liest sie, statt sie zu wiederholen.
+ */
+export const STACK_ORDER: readonly KitchenItem[] = [
+  'bun',
+  'patty',
+  'patty-cooked',
+  'patty-burnt',
+  'lettuce-cut',
+  'tomato-cut',
+  'tomato-soup',
+];
+
+/** Dieselben Zutaten, von unten nach oben sortiert. */
+export function layered(on: readonly KitchenItem[]): readonly KitchenItem[] {
+  return [...on].sort((a, b) => STACK_ORDER.indexOf(a) - STACK_ORDER.indexOf(b));
+}
+
+/**
+ * **Woraus dieses Gericht besteht** — das Essen, ohne den Teller darunter.
+ *
+ * Der Teller ist Geschirr und keine Zutat: Ein Hamburger auf einem Teller ist
+ * derselbe Hamburger wie einer in der Hand, und genau deshalb kann man ihn mit
+ * und ohne Teller ausgeben. Alles andere zählt sich selbst mit — ein Brötchen
+ * ist die unterste Schicht seines eigenen Burgers.
+ */
+export function contentsOf(d: Dish): readonly KitchenItem[] {
+  return d.item === 'plate' ? d.on : [d.item, ...d.on];
+}
+
+/** Ob und warum zwei Dinge zusammengehen. */
+export type Combined =
+  | {
+      readonly ok: true;
+      /** Was danach in der Hand ist — `null`, wenn sie leer wird. */
+      readonly held: Dish | null;
+      /** Was danach an der Station liegt — `null`, wenn sie frei wird. */
+      readonly target: Dish | null;
+      /** Was gewandert ist — für Hinweis und Meldung. */
+      readonly moved: readonly KitchenItem[];
+    }
+  | { readonly ok: false; readonly why: string };
+
+/** Ein Versuch in eine Richtung: Wer gibt, wer nimmt. */
+type Pour =
+  | { ok: true; give: Dish | null; take: Dish; moved: readonly KitchenItem[] }
+  /** `sure` heißt: Dieser Satz erklärt wirklich den Fall — der andere ist nur ein „geht nicht". */
+  | { ok: false; why: string; sure: boolean };
+
+/**
+ * **Was ein Ding abgibt**, wenn es mit einem Träger zusammenkommt.
+ *
+ * Zwei Sonderfälle, und beide stehen so in der Spezifikation: Die **Pfanne**
+ * gibt ihr Patty her und bleibt selbst stehen, wo sie war — man nimmt aus der
+ * Pfanne nichts heraus, man kippt sie aus. Das **Brötchen** wandert dagegen
+ * mitsamt seinem Belag auf den Teller: Ein Teller mit Burger ist ein Teller,
+ * auf dem ein Brötchen liegt, und kein Teller mit einem Brötchen darauf, das
+ * seinerseits etwas trägt.
+ */
+function offer(d: Dish): { what: readonly KitchenItem[]; rest: Dish | null } {
+  if (d.item === 'pan') return { what: d.on, rest: dish('pan') };
+  return { what: [d.item, ...d.on], rest: null };
+}
+
+/**
+ * **Warum diese Zutat nicht auf diesen Träger darf** — und was stattdessen zu
+ * tun ist.
+ *
+ * Die Reihenfolge der Fälle ist die Reihenfolge, in der sie jemandem helfen:
+ * Erst das Rohe (dagegen kann man sofort etwas tun), dann die Pfanne (sie ist
+ * für genau eine Sache da), dann die beiden Fälle, bei denen man die Träger
+ * verwechselt hat.
+ */
+function whyNot(carrier: KitchenItem, item: KitchenItem): string {
+  const fix = RAW[item];
+  if (fix) return `${ITEM_LABELS[item]} muss erst ${fix} werden`;
+  if (carrier === 'pan') return 'In die Pfanne gehört nur ein Patty';
+  if (item === 'bun') return 'Zwei Brötchen werden kein Burger — dafür braucht es einen Teller';
+  if (item === 'plate') return 'Ein Teller gehört unter das Essen und nicht darauf';
+  return `${ITEM_LABELS[item]} gehört nicht auf ${ITEM_LABELS[carrier]}`;
+}
+
+/** Ein Versuch: `giver` kippt in `taker`. */
+function pour(giver: Dish, taker: Dish): Pour {
+  if (!isCarrier(taker.item)) {
+    return {
+      ok: false,
+      why: `Auf ${ITEM_LABELS[taker.item]} lässt sich nichts legen`,
+      sure: false,
+    };
+  }
+  const { what, rest } = offer(giver);
+  // Nur die Pfanne kann leer abgeben — jeder andere Träger wandert selbst mit.
+  if (!what.length) return { ok: false, why: 'In der Pfanne liegt nichts', sure: true };
+  if (taker.item === 'pan') {
+    if (taker.on.length) {
+      return {
+        ok: false,
+        why: `In der Pfanne liegt schon ${ITEM_LABELS[taker.on[0]]}`,
+        sure: true,
+      };
+    }
+    if (what.length > 1) return { ok: false, why: 'In die Pfanne passt nur ein Patty', sure: true };
+  }
+  for (const item of what) {
+    if (!carries(taker.item, item)) return { ok: false, why: whyNot(taker.item, item), sure: true };
+    if (taker.on.includes(item)) {
+      return { ok: false, why: `${ITEM_LABELS[item]} liegt schon drauf`, sure: true };
+    }
+  }
+  return { ok: true, give: rest, take: dish(taker.item, [...taker.on, ...what]), moved: what };
+}
+
+/** Wenn keiner von beiden ein Träger ist: der hilfreichste Satz dazu. */
+function nothingHolds(a: Dish, b: Dish): string {
+  const raw = isRaw(a.item) ? a.item : isRaw(b.item) ? b.item : null;
+  if (raw) return `${ITEM_LABELS[raw]} muss erst ${RAW[raw]} werden`;
+  return `${ITEM_LABELS[a.item]} und ${ITEM_LABELS[b.item]} halten nicht zusammen — es braucht ein Brötchen oder einen Teller darunter`;
+}
+
+/**
+ * **Zwei Dinge zusammenlegen** — was in der Hand liegt und was an der Station.
+ *
+ * **Die Reihenfolge ist egal**, und das ist der ganze Witz an dieser Funktion:
+ * Es wird beides versucht. Zutat in der Hand auf den Teller an der Zeile, oder
+ * Teller in der Hand an die Zutat auf der Zeile — es kommt derselbe Teller
+ * dabei heraus, einmal liegen bleibend und einmal in der Hand. Wer bei
+ * _Overcooked_ mit dem Teller zur Zutat läuft statt umgekehrt, soll nicht
+ * dastehen und nichts verstehen.
+ *
+ * Geht **keine** Richtung, entscheidet `sure`, welcher der beiden Sätze
+ * herauskommt: Der Satz eines Trägers, der die Zutat abgelehnt hat, hilft
+ * weiter („muss erst gebraten werden"); der Satz „auf ein Patty lässt sich
+ * nichts legen" ist nur die halbe Wahrheit, solange die andere Richtung noch
+ * ungeprüft ist.
+ */
+export function combine(held: Dish, target: Dish): Combined {
+  const into = pour(held, target);
+  if (into.ok) return { ok: true, held: into.give, target: into.take, moved: into.moved };
+  const out = pour(target, held);
+  if (out.ok) return { ok: true, held: out.take, target: out.give, moved: out.moved };
+  if (into.sure) return { ok: false, why: into.why };
+  if (out.sure) return { ok: false, why: out.why };
+  return { ok: false, why: nothingHolds(held, target) };
+}
+
 /** Ein Rezept: wie es heißt und was daraufgehört. */
 export interface Recipe {
   readonly id: string;
   readonly label: string;
   /** Die Zutaten — als **Menge** gelesen, nicht als Reihenfolge. */
-  readonly needs: readonly BurgerPart[];
+  readonly needs: readonly KitchenItem[];
 }
 
 /**
- * **Die vier Burger**, vom nackten bis zum vollen.
+ * **Die fünf Burger**, vom nackten bis zum vollen.
  *
- * Alle vier sind Teilmengen des größten, und das ist Absicht: Man legt auf,
- * was man hat, und bekommt das Rezept, zu dem es passt — statt vorher eines zu
- * wählen und dann die Liste abzuarbeiten. Bei _Overcooked_ sagt der Zettel,
- * was gebraucht wird; hier gibt es noch keine Runde, die Zettel austeilt
+ * Alle sind Obermengen des ersten, und das ist Absicht: Man legt auf, was man
+ * hat, und bekommt das Rezept, zu dem es passt — statt vorher eines zu wählen
+ * und dann die Liste abzuarbeiten. Bei _Overcooked_ sagt der Zettel, was
+ * gebraucht wird; hier gibt es noch keine Runde, die Zettel austeilt
  * (`AGENTS.md`), also sagt der Stapel, was daraus geworden ist.
  *
- * **Brötchen und Patty sind in jedem drin.** Ein „Burger" aus Salat und
- * Tomate ist ein Salat, und ein Brötchen allein ist ein Brötchen — beides sind
- * keine Rezepte, sondern ein unfertiger Stapel.
+ * **Brötchen und gebratenes Patty sind in jedem drin.** Ein „Burger" aus Salat
+ * und Tomate ist ein Salat, und ein Brötchen allein ist ein Brötchen — beides
+ * sind keine Rezepte, sondern ein unfertiger Stapel. Der _Suppenburger_ steht
+ * mit in der Liste, weil die zweite Schnittstufe sonst nirgends ankäme.
  */
 export const RECIPES: readonly Recipe[] = [
   { id: 'hamburger', label: 'Hamburger', needs: ['bun', 'patty-cooked'] },
   { id: 'salat', label: 'Salatburger', needs: ['bun', 'patty-cooked', 'lettuce-cut'] },
   { id: 'tomate', label: 'Tomatenburger', needs: ['bun', 'patty-cooked', 'tomato-cut'] },
+  { id: 'suppe', label: 'Suppenburger', needs: ['bun', 'patty-cooked', 'tomato-soup'] },
   {
     id: 'deluxe',
     label: 'Burger Deluxe',
@@ -171,52 +389,84 @@ export const RECIPES: readonly Recipe[] = [
 ];
 
 /**
- * **Welches Rezept dieser Stapel ist** — oder `null`, solange es keines ist.
+ * **Alles, was gebraten ist und trotzdem in keiner Liste steht** — Suppe mit
+ * Salat, Tomate mit Suppe, und was sonst noch jemandem einfällt.
+ *
+ * Ohne diesen Auffangposten wäre jede Zutatenmischung außerhalb der fünf
+ * Rezepte an der Ausgabe ein `refuse` — und der Spieler bekäme für zwei
+ * ehrliche Arbeitsschritte ein „das ist kein Burger" zu lesen, obwohl ein
+ * Brötchen mit gebratenem Patty in seiner Hand liegt. `needs` ist hier das
+ * **Mindeste** und nicht die genaue Menge; `recipeOf` gibt ihn nie zurück, er
+ * kommt nur aus `served`.
+ */
+export const FREESTYLE: Recipe = {
+  id: 'eigen',
+  label: 'Burger nach Art des Hauses',
+  needs: ['bun', 'patty-cooked'],
+};
+
+/**
+ * **Welches Rezept diese Zutaten sind** — oder `null`, solange es keines ist.
  *
  * Verglichen wird als Menge: Wer erst die Tomate und dann das Patty auflegt,
- * hat denselben Burger. Die Reihenfolge entscheidet nur, wie er **aussieht**,
- * und auch das nicht wirklich — geschichtet wird nach `BURGER_PARTS`.
+ * hat denselben Burger. Die Reihenfolge entscheidet nur, wie er **aussieht**
+ * (`layered`).
  */
-export function recipeOf(stack: readonly KitchenItem[]): Recipe | null {
+export function recipeOf(parts: readonly KitchenItem[]): Recipe | null {
   return (
     RECIPES.find(
       (recipe) =>
-        recipe.needs.length === stack.length && recipe.needs.every((need) => stack.includes(need)),
+        recipe.needs.length === parts.length && recipe.needs.every((need) => parts.includes(need)),
     ) ?? null
   );
 }
 
-/** Ob und warum eine Zutat auf diesen Stapel darf. */
-export type Stacking = { ok: true } | { ok: false; why: string };
-
 /**
- * **Darf das obendrauf?**
+ * **Reicht das für die Ausgabe?** — das Rezept, unter dem es über die Theke
+ * geht, oder `null`.
  *
- * Drei Gründe, warum nicht, und jeder trägt seinen Satz mit: Es ist gar keine
- * Zutat (der Topf), es ist noch roh (das Patty aus der Kiste), oder es liegt
- * schon eines da. Ein Hinweis, der nur _geht nicht_ sagt, ist ein Hinweis, vor
- * dem man steht und rät.
+ * Die Bedingung ist absichtlich weich: ein **Brötchen** und mindestens ein
+ * **gebratenes** Patty, mit oder ohne Teller darunter, Extras erlaubt. Hart
+ * ist nur das Verbrannte — wer ein schwarzes Patty einbaut, serviert es nicht,
+ * sondern räumt es ab. Eine Küche, die nur die fünf Listen annimmt, bestraft
+ * das Ausprobieren, und Ausprobieren ist hier der ganze Sinn.
  */
-export function stackable(stack: readonly KitchenItem[], item: KitchenItem): Stacking {
-  if (!isBurgerPart(item)) {
-    const raw = chopped(item) ? 'geschnitten' : fried(item) ? 'gebraten' : null;
-    if (raw) return { ok: false, why: `${ITEM_LABELS[item]} muss erst ${raw} werden` };
-    return { ok: false, why: `${ITEM_LABELS[item]} gehört nicht auf einen Burger` };
-  }
-  if (stack.includes(item)) return { ok: false, why: `${ITEM_LABELS[item]} liegt schon drauf` };
-  return { ok: true };
+export function served(d: Dish): Recipe | null {
+  const parts = contentsOf(d);
+  if (parts.includes('patty-burnt')) return null;
+  if (!parts.includes('bun') || !parts.includes('patty-cooked')) return null;
+  return recipeOf(parts) ?? FREESTYLE;
 }
 
 /**
- * **Was dem Stapel noch fehlt**, als ein Satz — oder `''`, wenn er fertig ist.
+ * **Warum das noch nicht über die Theke geht** — ein Satz, der sagt, was
+ * fehlt.
  *
- * Es gibt nur zwei Lücken, die einen Stapel unfertig machen: das Brötchen und
- * das Patty (jede andere Kombination davon ist ein Rezept). Genau die stehen
- * deshalb hier und keine gerechnete Aufzählung.
+ * Es gibt genau drei Gründe, und jeder hat seinen eigenen nächsten Schritt:
+ * kein Brötchen, kein gebratenes Patty, oder etwas Verbranntes dazwischen.
  */
-export function missing(stack: readonly KitchenItem[]): string {
-  if (recipeOf(stack)) return '';
-  if (!stack.includes('bun')) return 'Es fehlt noch das Brötchen';
-  if (!stack.includes('patty-cooked')) return 'Es fehlt noch das gebratene Patty';
-  return 'Der Burger ist noch nicht fertig';
+export function whyNotServed(d: Dish): string {
+  const parts = contentsOf(d);
+  if (parts.includes('patty-burnt')) return 'Verbranntes wird nicht serviert — ab in den Müll';
+  if (!parts.includes('bun')) return 'Dafür fehlt noch das Brötchen';
+  if (!parts.includes('patty-cooked')) return 'Dafür fehlt noch ein gebratenes Patty';
+  return 'Das ist noch kein Burger';
+}
+
+/**
+ * **Wie ein Gericht heißt, wenn etwas darauf liegt.**
+ *
+ * Ein fertiges Gericht heißt nach seinem Rezept („Teller mit Hamburger"), ein
+ * unfertiges zählt auf, was daraufliegt („Pfanne (Rohes Patty)"). Die Klammer
+ * statt eines „mit" ist kein Geschmack, sondern Deutsch: „mit Rohes Patty"
+ * wäre falsch, und die richtige Beugung bräuchte eine zweite Namenstabelle nur
+ * für den Dativ — zu viel Aufwand für einen Hinweis über einer Figur.
+ */
+export function dishLabel(d: Dish): string {
+  if (!d.on.length) return ITEM_LABELS[d.item];
+  const recipe = served(d);
+  if (recipe) return `${ITEM_LABELS[d.item]} mit ${recipe.label}`;
+  return `${ITEM_LABELS[d.item]} (${layered(d.on)
+    .map((item) => ITEM_LABELS[item])
+    .join(', ')})`;
 }

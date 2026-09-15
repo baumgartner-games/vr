@@ -79,19 +79,25 @@ export const CHEF_TOOL = { x: 0.3, y: 0.46, z: -0.45 } as const;
  * neben der Schulter verschwindet hinter dem Kopf der Figur, sobald sie nach
  * Norden läuft; einer vor dem Bauch bleibt aus jeder Richtung sichtbar.
  *
- * Die Zahlen sind an der Figur gemessen: Die Hände ruhen auf gut 0,39 m, die
- * Vorderkante des Rumpfes liegt bei −0,33 m — und trotzdem steht hier 0,72 m
- * und nicht eine Handbreit davor. Der Grund ist die **Ansicht von oben**: Der
- * Kopf dieser Chibi-Figur ist 0,5 m breit und ihre Mütze noch breiter, und
- * ein Teller dicht vor der Brust verschwand darunter bis auf einen weißen
- * Rand (nachgesehen im Browser). Erst eine Armlänge davor liegt er frei vor
- * ihr — das ist derselbe Abstand, den ein Koch bei _Overcooked_ hält, und aus
- * demselben Grund.
+ * **0,72 m vor ihr** und nicht eine Handbreit, obwohl ihre Vorderkante bei
+ * −0,33 m liegt: Der Kopf dieser Chibi-Figur ist 0,5 m breit und ihre Mütze
+ * noch breiter, und ein Teller dicht vor der Brust verschwand von oben
+ * darunter bis auf einen weißen Rand (nachgesehen im Browser). Erst eine
+ * Armlänge davor liegt er frei vor ihr — derselbe Abstand, den ein Koch bei
+ * _Overcooked_ hält, und aus demselben Grund.
+ *
+ * **0,62 m hoch, und diese Zahl kommt aus den Möbeln und nicht aus der
+ * Figur**: Die höchste Arbeitsplatte der Küche ist das Schneidebrett mit
+ * 0,57 m (`core/kitchenFit.KITCHEN_PIECES`). Wer tiefer trägt, schiebt den
+ * Topf beim Vorbeilaufen **durch** die Herdplatte — vom Nutzer im Bild
+ * belegt, und von oben sieht es aus, als stecke das Ding im Möbel. Die
+ * Unterkante des Getragenen liegt deshalb über jeder Platte, an der die Figur
+ * vorbeikommt; die Hände gehen mit (`core/PlayerAvatar.carry`).
  *
  * Ein Werkzeug bleibt an `CHEF_TOOL`: Eine Pistole, die mit beiden Händen vor
  * dem Bauch gehalten wird, zeigt auf die eigenen Füße.
  */
-export const CHEF_CARRY = { x: 0, y: 0.4, z: -0.72 } as const;
+export const CHEF_CARRY = { x: 0, y: 0.62, z: -0.72 } as const;
 
 /**
  * **Wie weit die beiden Hände unter dem Getragenen auseinanderliegen**, in

@@ -56,14 +56,17 @@ Halt wird gerechnet, aus Material, Form, Körperhaltung und dem Verspreizen,
 schlechte Griffe kosten Ausdauer, und hinunter geht es in **Sprungkissen**, die
 den Fall abfedern statt ihn anzuhalten. Ganz im Norden, hinter dem Podest,
 steht eine **Küche** aus den Fan-Art-Möbeln: Zeile, zwei Herde, Spüle und
-Tellerausgabe an der Wand, vier Zutatenkisten an der Westwand, eine Insel aus
-Schneidebrett, Mülleimer und Anrichte, vorn die Ausgabe mit den Wärmeschirmen
+Tellerausgabe an der Wand, vier Zutatenausgaben an der Westwand, eine Insel aus
+Schneidebrett und Mülleimer, vorn die Ausgabetheke mit den Wärmeschirmen
 darüber. **Angefasst wird mit `A`**, und daraus wird ein **Burger**: Patty in
-die Pfanne, Salat und Tomate auf das Brett, alles Fertige auf die Anrichte,
-Teller von der Ausgabe dazu — vier Rezepte vom Hamburger bis zum Deluxe.
-Getragen wird mit beiden Händen vor dem Bauch, und was in der Hand liegt, lässt
-jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer nimmt das
-Brötchen, den Topf nicht, und vom Teller kratzt er nur den Burger. Über die Möbel **springt** man dabei nicht:
+die Pfanne (es brät, es verbrennt, und irgendwann brennt der Herd — dann hilft
+der Feuerlöscher), Salat und Tomate aufs Schneidebrett, und alles Fertige auf
+ein Brötchen oder einen Teller. **Träger sind Teller, Brötchen und Pfanne**;
+die Reihenfolge ist egal, Patty auf Brötchen und Brötchen auf Patty geben
+denselben Burger. Über die Ausgabetheke verschwindet er und hinterlässt seinen
+Namen. Getragen wird mit beiden Händen vor dem Bauch, und was in der Hand
+liegt, lässt jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer
+nimmt das Brötchen, den Topf nicht, und vom Teller nur den Inhalt. Über die Möbel **springt** man dabei nicht:
 Sie sind für die Füße so hoch wie eine Wand, auch wenn der Tresen nur einen
 halben Meter misst. Östlich daneben liegt der **Schauraum**, in dem jedes der
 dreizehn Möbel noch einmal einzeln und beschriftet steht. Dazu drei
