@@ -1,15 +1,15 @@
 import * as THREE from 'three';
-import { BURGER_PARTS, type BurgerPart, type KitchenItem } from './kitchenRecipes';
+import { layered, type Dish, type KitchenItem } from './kitchenRecipes';
 
 /**
- * **Was in der Küche steht, aber nicht aus der Datei kommt** — die Kisten und
- * alles, was darin, darauf und daraus wird.
+ * **Was in der Küche zu sehen ist, aber nicht aus der Datei kommt** — jedes
+ * Gericht als Netz, aus geteilten Formen und geteilten Farben.
  *
  * Der gekaufte Katalog hat dreizehn Möbel und **keine Zutat**
  * (`core/kitchenFit.ts`): kein Gemüse, kein Teig, kein Brötchen. Bei
- * _Overcooked_ ist die Kiste mit dem Nachschub aber genau der Ort, an dem eine
- * Runde anfängt — also wird sie hier gebaut, aus denselben Grundkörpern wie
- * die Kisten der Interaktionszone (`zones/interact.ts`).
+ * _Overcooked_ ist die Zutat aber der halbe Bildschirm — also wird sie hier
+ * gebaut, aus denselben Grundkörpern wie die Kisten der Interaktionszone
+ * (`zones/interact.ts`).
  *
  * **Gebaut und nicht gemodelliert**, und das ist eine Entscheidung: Ein
  * Brötchen ist eine gedrückte Kugel, ein Patty eine Scheibe, eine Tomate eine
@@ -18,21 +18,32 @@ import { BURGER_PARTS, type BurgerPart, type KitchenItem } from './kitchenRecipe
  * für ein Dutzend Zylinder. Wenn eines Tages ein Zutatensatz dazukommt,
  * ersetzt er genau diese Klasse.
  *
- * **Warum eine Klasse und keine Funktionen.** Aus einer Kiste kommt beliebig
+ * **Ein Gericht ist ein `Dish` und kein Name mehr** (`kitchenRecipes.ts`), und
+ * das ist die Änderung an dieser Datei: Früher gab es drei Einstiege — eine
+ * Zutat, ein Burger aus einer Teileliste, eine Holzkiste —, und die Zone
+ * musste wissen, welcher gerade gilt. Jetzt gibt es **einen**: `view(d)`
+ * nimmt, was da ist (nackte Tomate, belegtes Brötchen, voller Teller) und gibt
+ * das passende Netz. Die Zone fragt nicht mehr „ist das ein Burger?", sie
+ * reicht durch, was sie ohnehin in der Hand hält. Die Holzkiste ist ganz weg:
+ * Zutaten kommen jetzt aus einem Ausgabe-Möbel des Katalogs mit einem
+ * gerenderten Icon an der Front (`kitchenIcon.ts`).
+ *
+ * **Was hier `null` ist, kommt aus dem Modell.** Topf, Pfanne und
+ * Feuerlöscher stecken im gekauften Möbelnetz und werden von dort abgenommen
+ * (`core/kitchenModel.takeUtensil`) — sie nachzubauen hieße, zwei Pfannen zu
+ * pflegen, von denen eine schlechter aussieht. Damit trotzdem ein Patty **in**
+ * der Pfanne liegen kann, gibt es `topping`: nur den Belag, zum Anhängen an
+ * ein fremdes Netz.
+ *
+ * **Warum eine Klasse und keine Funktionen.** Aus einer Ausgabe kommt beliebig
  * oft ein Brötchen (`kitchenCarry.kitchenDeed`, `box`), und jedes davon hatte
- * bisher seine **eigenen** Materialien: Wer zehn Minuten Brötchen nimmt und
+ * einmal seine **eigenen** Materialien: Wer zehn Minuten Brötchen nimmt und
  * wegwirft, sammelte zwanzig Materialien an, die erst beim Verlassen der Zone
  * freigegeben wurden. Hier hängen Farben und Formen an **einem** Satz, der
  * geteilt und einmal weggeräumt wird (`dispose`) — dieselbe Entscheidung wie
  * beim Möbellader, der Geometrie und Material zwischen dreizehn Tresen teilt
  * (`core/kitchenModel.ts`).
  */
-
-/** Kantenlänge der Kiste, in Metern — eine Kachel breit, halbhoch. */
-export const BOX_SIZE = 0.8;
-export const BOX_HEIGHT = 0.6;
-/** Die Stärke der Bretter. */
-const PLANK = 0.05;
 
 /**
  * **Wie groß ein Brötchen ist**, als Halbmesser in Metern — ein Burger und
@@ -66,6 +77,16 @@ const BUN_SQUASH = 0.44;
 export const BUN_HEIGHT = BUN_RADIUS * 2 * BUN_SQUASH;
 
 /**
+ * **Der Boden des aufgeschnittenen Brötchens** — knapp die Hälfte der Haube.
+ *
+ * Ein belegtes Brötchen ist nicht dasselbe Netz wie ein ganzes: Unten liegt
+ * eine flache Scheibe, darauf der Belag, darüber die Haube. Der Boden trägt
+ * also **den halben** Brötchenanteil, nicht den ganzen — sonst stünde der
+ * Belag so hoch, dass die Haube den Burger zum Turm macht.
+ */
+export const BUN_BASE = BUN_HEIGHT * 0.45;
+
+/**
  * **Der Teller**, halb so hoch wie ein Brötchen und ein Stück breiter.
  *
  * Nachgebaut und nicht geladen, obwohl es im Modell einen gibt: Der dort steht
@@ -78,179 +99,224 @@ export const BUN_HEIGHT = BUN_RADIUS * 2 * BUN_SQUASH;
 export const PLATE_RADIUS = 0.375;
 export const PLATE_HEIGHT = 0.05;
 
-/** Die Farben — Krume, Kruste, Fleisch, Grün, Tomate, Porzellan, Holz. */
+/** Das Patty, in drei Stufen: roh am dicksten, verbrannt am kleinsten. */
+const PATTY_RADIUS = BUN_RADIUS * 0.82;
+const PATTY_RAW_HEIGHT = 0.09;
+const PATTY_DONE_HEIGHT = 0.075;
+const PATTY_BURNT_HEIGHT = 0.06;
+
+/**
+ * **Wie stark das Verbrannte geschrumpft ist.**
+ *
+ * Ein verkohltes Patty muss man **auf den ersten Blick** von einem gebratenen
+ * unterscheiden können — sonst räumt es niemand weg, sondern legt es aufs
+ * Brötchen und wundert sich an der Ausgabe. Schwarz allein reicht dafür nicht:
+ * In einer Küche mit Schlagschatten ist Dunkelbraun neben Schwarz eine Frage
+ * des Lichts. Es ist deshalb auch **kleiner** und **kantiger** (zehn statt
+ * achtzehn Seiten), und über den Deckel laufen helle Risse — eine Form, die
+ * sich von der runden Scheibe daneben schon in der Silhouette unterscheidet.
+ */
+const BURNT_SHRINK = 0.78;
+const BURNT_FACES = 10;
+
+/** Der Salatkopf und die Tomate, wie sie aus der Ausgabe kommen. */
+const HEAD_RADIUS = 0.22;
+const HEAD_SQUASH = 0.86;
+const TOMATO_RADIUS = 0.19;
+const TOMATO_SQUASH = 0.9;
+const STALK_HEIGHT = 0.06;
+
+/**
+ * **Geschnittenes, in drei Scheiben** — und in **einer** Größe.
+ *
+ * Früher gab es jede Scheibe zweimal: als Häufchen auf dem Brett und flacher
+ * im Burger. Mit dem `Dish` ist dieselbe Zutat aber dasselbe Ding, egal wo sie
+ * liegt — auf dem Brett, auf dem Teller, im Brötchen —, und zwei Größen hießen
+ * zwei Höhen, von denen die Zone die falsche stapeln kann. Eine Größe, eine
+ * Höhe, ein Netz.
+ */
+const SLICES = 3;
+const LEAF_RADIUS = BUN_RADIUS * 0.9;
+const LEAF_THICK = 0.02;
+const TOMATO_SLICE_RADIUS = BUN_RADIUS * 0.73;
+const TOMATO_SLICE_THICK = 0.025;
+
+/**
+ * **Die Tomatensuppe ohne Topf** — eine Pfütze mit einem Häufchen darin.
+ *
+ * Suppe ist die zweite Schnittstufe der Tomate (`kitchenRecipes.CHOPS`) und
+ * damit eine **Burgerzutat**: Sie liegt auf dem Brett, wandert in die Hand und
+ * am Ende zwischen Patty und Haube. Ein Topf ist dafür genau das Falsche — er
+ * käme aus dem Möbelmodell, ließe sich nicht stapeln, und ein Brötchen mit
+ * einem Topf darin wäre kein Suppenburger, sondern ein Witz. Was von passierter
+ * Tomate übrig bleibt, wenn man den Topf wegnimmt, ist ihre **Form**: breit
+ * zerlaufen, in der Mitte aufgehäuft, glänzend statt matt. Breiter als jede
+ * Scheibe und flacher als sie, damit man sie auch im Stapel erkennt.
+ */
+const SOUP_RADIUS = BUN_RADIUS * 0.86;
+const SOUP_POOL = 0.045;
+const SOUP_HEAP = 0.03;
+
+/** Die Farben — Krume, Kruste, Fleisch, Kohle, Grün, Tomate, Porzellan. */
 const CRUST = 0xd9a253;
 const CRUMB = 0xf0dcb4;
-const RAW = 0xc4675c;
-const DONE = 0x6f3f24;
+const MEAT_RAW = 0xc4675c;
+const MEAT_DONE = 0x6f3f24;
+const CHAR = 0x211c19;
+const ASH = 0x6e645b;
 const LEAF = 0x63a83c;
 const LEAF_PALE = 0x8cc75c;
 const TOMATO = 0xd23f2b;
 const TOMATO_PALE = 0xe4705c;
+const SOUP = 0xb02a18;
 const STALK = 0x4e7a2a;
 const CHINA = 0xf4f2ec;
-const WOOD = 0xa9763f;
-const TRIM = 0x7d5327;
+
+/** Wie matt etwas ist — Essen schluckt Licht, Suppe wirft es zurück. */
+const MATTE = 0.85;
+const WET = 0.32;
+
+/**
+ * **Wie hoch jede Zutat für sich aufträgt**, in Metern.
+ *
+ * Die Tabelle ist die Rechnung zu den Formen weiter unten und wird aus
+ * denselben Maßen gebildet, aus denen die Geometrie entsteht — eine
+ * abgeschriebene Zahl wäre die eine, die beim nächsten Umbau stehen bleibt.
+ * Was aus dem Möbelmodell kommt, steht mit **0** darin: Es trägt hier nichts
+ * auf, weil es hier gar nicht gebaut wird.
+ */
+export const ITEM_HEIGHT: Record<KitchenItem, number> = {
+  pot: 0,
+  pan: 0,
+  extinguisher: 0,
+  plate: PLATE_HEIGHT,
+  bun: BUN_HEIGHT,
+  patty: PATTY_RAW_HEIGHT,
+  'patty-cooked': PATTY_DONE_HEIGHT,
+  'patty-burnt': PATTY_BURNT_HEIGHT,
+  lettuce: HEAD_RADIUS * 2 * HEAD_SQUASH,
+  'lettuce-cut': LEAF_THICK * SLICES,
+  tomato: TOMATO_RADIUS * 2 * TOMATO_SQUASH + STALK_HEIGHT / 2,
+  'tomato-cut': TOMATO_SLICE_THICK * SLICES,
+  'tomato-soup': SOUP_POOL + SOUP_HEAP,
+};
+
+/** Was nicht gebaut, sondern aus dem Möbelmodell genommen wird. */
+const FROM_MODEL: readonly KitchenItem[] = ['pot', 'pan', 'extinguisher'];
+
+/** Ob dieses Ding aus `core/kitchenModel.takeUtensil` kommt und nicht von hier. */
+export function fromModel(item: KitchenItem): boolean {
+  return FROM_MODEL.includes(item);
+}
+
+/**
+ * **Der Name des Belagnetzes** — damit die Zone es an einem geladenen Netz
+ * wiederfindet und abnehmen kann, ohne sich eine Referenz zu merken.
+ */
+export const STACK_NAME = 'kitchen-stack';
+
+/**
+ * **Wie hoch ein Stapel Zutaten aufträgt** — dieselbe Rechnung, die `pile`
+ * baut, nur ohne Netz.
+ *
+ * Drei Fälle, und der mittlere ist der, den man vergisst: Ohne Brötchen liegen
+ * die Scheiben einfach übereinander; ein Brötchen **ohne** Belag ist gar nicht
+ * aufgeschnitten und damit nur so hoch wie es selbst; erst ein belegtes
+ * Brötchen ist Boden **plus** Belag **plus** Haube.
+ */
+export function stackHeight(items: readonly KitchenItem[]): number {
+  const rest = items.filter((item) => item !== 'bun');
+  const filling = rest.reduce((sum, item) => sum + ITEM_HEIGHT[item], 0);
+  if (!items.includes('bun')) return filling;
+  if (!rest.length) return BUN_HEIGHT;
+  return BUN_BASE + filling + BUN_HEIGHT;
+}
 
 /**
  * **Der Zutatensatz einer Küche** — alle Formen, alle Farben, ein `dispose`.
  *
  * Ein Satz je Zone, und alles, was er ausgibt, teilt sich seine Materialien
- * und seine Geometrien. Was er nicht kennt, gibt er als `null` zurück: Topf
- * und Pfanne kommen aus dem Möbelmodell (`core/kitchenModel.takeUtensil`) und
- * nicht von hier.
+ * und seine Geometrien. Was er nicht kennt, gibt er als `null` zurück: Topf,
+ * Pfanne und Feuerlöscher kommen aus dem Möbelmodell
+ * (`core/kitchenModel.takeUtensil`) und nicht von hier.
  */
 export class FoodKit {
-  private readonly materials = new Map<number, THREE.MeshStandardMaterial>();
+  private readonly materials = new Map<string, THREE.MeshStandardMaterial>();
   private readonly shapes = new Map<string, THREE.BufferGeometry>();
 
   /**
-   * **Ein Ding zum Tragen**, mit dem Ursprung auf seinem Fuß.
+   * **Ein Gericht als Netz** — Träger samt Belag, der Ursprung auf seinem Fuß,
+   * die Mitte auf `x/z = 0`.
    *
    * Derselbe Ursprung wie bei jedem Möbel und bei jedem abgenommenen Gerät
-   * (`core/kitchenModel.takeUtensil`): **auf dem Boden in der Mitte**. Damit
-   * legt die Küche alles, was getragen wird, mit derselben Zeile ab und muss
-   * sich nicht je Ding erinnern, wo dessen Null liegt.
+   * (`core/kitchenModel.takeUtensil`): **unten in der Mitte**. Damit legt die
+   * Küche alles, was sie zeigt, mit derselben Zeile ab und muss sich nicht je
+   * Ding erinnern, wo dessen Null liegt.
+   *
+   * Es gibt vier Fälle, und sie stehen alle in einem `Dish`:
+   *
+   * - **nackte Zutat** (`dish('tomato')`) — das Stück für sich,
+   * - **belegtes Brötchen** (`dish('bun', ['patty-cooked'])`) — Boden, Belag,
+   *   Haube; ohne Belag ein ganzes, ungeschnittenes Brötchen,
+   * - **voller Teller** (`dish('plate', ['bun', 'patty-cooked'])`) — der
+   *   Teller und darauf das Gericht. `Dish.on` ist **flach**: Liegt ein
+   *   Brötchen darin, gehört alles Übrige **hinein** und nicht daneben — sonst
+   *   läge das Patty neben dem Burger auf dem Porzellan.
+   * - **Gerät** (`dish('pan', ['patty'])`) — `null`, siehe `topping`.
    */
-  item(id: KitchenItem): THREE.Object3D | null {
-    switch (id) {
-      case 'bun':
-        return this.bun();
-      case 'patty':
-        return this.patty(false);
-      case 'patty-cooked':
-        return this.patty(true);
-      case 'lettuce':
-        return this.lettuce();
-      case 'lettuce-cut':
-        return this.slices('lettuce-cut', LEAF, LEAF_PALE, 0.27, 0.022);
-      case 'tomato':
-        return this.tomato();
-      case 'tomato-cut':
-        return this.slices('tomato-cut', TOMATO, TOMATO_PALE, 0.21, 0.028);
-      case 'plate':
-        return this.plate();
-      default:
-        return null;
+  view(d: Dish): THREE.Object3D | null {
+    if (fromModel(d.item)) return null;
+    if (d.item === 'plate') {
+      const plate = new THREE.Group();
+      plate.name = 'kitchen-dish-plate';
+      plate.add(this.plate());
+      const food = this.topping(d, PLATE_HEIGHT);
+      if (food) plate.add(food);
+      return plate;
     }
+    // Das Brötchen ist die unterste Schicht seines eigenen Burgers
+    // (`kitchenRecipes.contentsOf`) — deshalb geht es mit in den Stapel und
+    // nicht darunter. Alles andere trägt nichts (`kitchenRecipes.TAKES`).
+    if (d.item === 'bun') return this.pile([d.item, ...d.on]);
+    return this.piece(d.item);
   }
 
   /**
-   * **Der Burger**, Schicht für Schicht in der Reihenfolge des Rezepts
-   * (`kitchenRecipes.BURGER_PARTS`).
+   * **Nur der Belag eines Gerichts**, zum Anhängen an ein geladenes Netz —
+   * das Patty in der Pfanne, das Essen auf einem Teller aus dem Modell.
    *
-   * Gebaut wird aus dem **Stapel** und nicht aus dem Rezeptnamen: Ein
-   * Hamburger ohne Salat soll flacher sein als der Deluxe, und wer eine fünfte
-   * Zutat einführt, schreibt sie in `BURGER_PARTS` und sieht sie hier liegen.
+   * `lift` ist die Höhe, auf der der Belag **aufsitzt**, gemessen im Raum des
+   * Netzes, an das er gehängt wird: bei der Pfanne die Innenkante, beim Teller
+   * dessen Rand. Wer sie falsch angibt, sieht es sofort — das Patty steckt im
+   * Pfannenboden oder schwebt darüber —, und genau deshalb gibt der Satz sie
+   * nicht selbst vor: Wie hoch der Rand einer **geladenen** Pfanne liegt, weiß
+   * nur, wer sie gemessen hat (`core/kitchenModel.looseHeight`).
+   *
+   * Gibt `null`, wenn nichts darauf liegt. Das Netz heißt `STACK_NAME`, damit
+   * es sich am fremden Träger wiederfinden und abnehmen lässt.
    */
-  burger(parts: readonly KitchenItem[]): THREE.Object3D {
-    const burger = new THREE.Group();
-    burger.name = 'kitchen-burger';
-
-    // **Ohne Brötchen kein Brot.** Der Stapel auf der Anrichte wird hier auch
-    // dann gebaut, wenn er erst halb fertig ist — und ein Patty, das schon in
-    // einem Brötchen läge, sähe fertig aus, obwohl das Brötchen noch in der
-    // Kiste liegt. Man soll sehen, was fehlt.
-    const bread = parts.includes('bun');
-    let y = 0;
-    if (bread) {
-      // Der Boden des Brötchens liegt immer unten — auch wenn jemand ihn
-      // zuletzt aufgelegt hat. Ein Burger mit dem Deckel unter dem Fleisch
-      // wäre ein Stapel und kein Burger.
-      const base = this.mesh(
-        'bun-base',
-        () =>
-          new THREE.CylinderGeometry(BUN_RADIUS * 0.92, BUN_RADIUS * 0.86, BUN_HEIGHT * 0.45, 16),
-        CRUMB,
-      );
-      base.position.y = BUN_HEIGHT * 0.225;
-      burger.add(base);
-      y += BUN_HEIGHT * 0.45;
-    }
-
-    for (const part of BURGER_PARTS) {
-      if (part === 'bun' || !parts.includes(part)) continue;
-      const layer = this.layer(part);
-      layer.position.y = y;
-      burger.add(layer);
-      y += layerHeight(part);
-    }
-
-    // Und die Haube darüber — dieselbe gedrückte Kugel wie am ganzen Brötchen.
-    if (bread) {
-      const dome = this.dome();
-      dome.position.y = y;
-      burger.add(dome);
-    }
-    return burger;
+  topping(d: Dish, lift = 0): THREE.Object3D | null {
+    if (!d.on.length) return null;
+    const stack = this.pile(d.on);
+    stack.position.y = lift;
+    return stack;
   }
 
   /**
-   * **Eine Kiste mit einer Zutat darin** — vier Bretter, ein Boden, ein Stück.
+   * **Wie hoch das aufträgt, was dieser Satz für dieses Gericht baut**, in
+   * Metern — die Zahl, mit der der Aufrufer weiterstapelt.
    *
-   * Das Stück darin ist **Deko** und nicht der Vorrat: Genommen wird aus der
-   * Kiste beliebig oft (`kitchenCarry.kitchenDeed`, `box`), denn eine Kiste,
-   * die nach drei Griffen leer ist, ist eine Kiste, vor der man steht und
-   * nicht weiß, ob sie kaputt ist. Es soll sagen, was drin ist, und mehr
-   * nicht — deshalb schaut es über den Rand.
-   *
-   * **Eines und nicht mehr drei**: Ein Burgerbrötchen ist 60 cm breit
-   * (`BUN_RADIUS`), die Kiste innen 70 cm. Drei davon steckten ineinander und
-   * hingen über den Rand, und eine Kiste, aus der Brötchen herauswachsen,
-   * sieht nicht nach Vorrat aus, sondern nach Fehler. Die Kiste mitwachsen zu
-   * lassen war die Alternative und ist keine: Sie steht auf **einer** Kachel
-   * (`worlds/nav/navTile.TILE` = 1 m), und breiter als die Kachel stünde sie
-   * im Weg.
+   * Für Topf, Pfanne und Feuerlöscher ist das die Höhe des **Belags** und
+   * nicht die des Geräts: Das Gerät baut dieser Satz nicht, und seine Höhe
+   * steht dort, wo es herkommt (`core/kitchenModel.looseHeight`). So passt die
+   * Zahl immer zu dem, was `view` beziehungsweise `topping` zurückgibt — und
+   * ein Aufrufer, der beides addiert, rechnet nichts doppelt.
    */
-  crate(fill: KitchenItem): THREE.Object3D {
-    const box = new THREE.Group();
-    box.name = `kitchen-crate-${fill}`;
-
-    const floor = this.mesh(
-      'crate-floor',
-      () => new THREE.BoxGeometry(BOX_SIZE, PLANK, BOX_SIZE),
-      WOOD,
-    );
-    floor.position.y = PLANK / 2;
-    box.add(floor);
-
-    // Vier Wände, und die oberste Leiste dunkler: Daran sieht man von oben,
-    // dass die Kiste offen ist und nicht ein Würfel.
-    for (const [dx, dz] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ] as const) {
-      const wide = dx !== 0 ? PLANK : BOX_SIZE;
-      const deep = dx !== 0 ? BOX_SIZE : PLANK;
-      const key = dx !== 0 ? 'crate-wall-x' : 'crate-wall-z';
-      const wall = this.mesh(key, () => new THREE.BoxGeometry(wide, BOX_HEIGHT, deep), WOOD);
-      wall.position.set(
-        (dx * (BOX_SIZE - PLANK)) / 2,
-        BOX_HEIGHT / 2,
-        (dz * (BOX_SIZE - PLANK)) / 2,
-      );
-      box.add(wall);
-
-      const rim = this.mesh(
-        `${key}-rim`,
-        () => new THREE.BoxGeometry(wide + 0.02, 0.06, deep + 0.02),
-        TRIM,
-      );
-      rim.position.set(wall.position.x, BOX_HEIGHT - 0.03, wall.position.z);
-      box.add(rim);
-    }
-
-    // Die Zutat, mit dem Fuß so tief, dass sie eine Handbreit heraussieht —
-    // gerechnet aus ihrer eigenen Höhe und nicht je Kiste geraten: Eine Tomate
-    // ist halb so hoch wie ein Brötchen und läge sonst unsichtbar darin.
-    const inside = this.item(fill);
-    if (inside) {
-      inside.position.y = BOX_HEIGHT - heightOf(inside) * 0.65;
-      box.add(inside);
-    }
-    return box;
+  height(d: Dish): number {
+    if (fromModel(d.item)) return stackHeight(d.on);
+    if (d.item === 'plate') return PLATE_HEIGHT + stackHeight(d.on);
+    if (d.item === 'bun') return stackHeight([d.item, ...d.on]);
+    return ITEM_HEIGHT[d.item];
   }
 
   /** Alles weg — einmal je Zone, nicht je Brötchen. */
@@ -261,23 +327,119 @@ export class FoodKit {
     this.shapes.clear();
   }
 
+  // --- der Stapel -----------------------------------------------------------
+
+  /**
+   * **Ein Stapel Zutaten**, von unten nach oben in der Reihenfolge, in der ein
+   * Burger aufgebaut ist (`kitchenRecipes.layered`).
+   *
+   * Gelegt wird in beliebiger Reihenfolge, gezeigt in dieser — wer die Tomate
+   * zuletzt auflegt, will sie nicht über der Haube liegen sehen. Jede Schicht
+   * sitzt genau auf der Oberkante der vorigen: Die Höhe, um die weitergerückt
+   * wird, ist dieselbe aus `ITEM_HEIGHT`, mit der `stackHeight` rechnet, und
+   * damit kann ein Gericht weder in sich zusammenfallen noch auseinanderfliegen.
+   */
+  private pile(items: readonly KitchenItem[]): THREE.Object3D {
+    const stack = new THREE.Group();
+    stack.name = STACK_NAME;
+    const order = layered(items);
+    const bread = order.includes('bun');
+    const filling = order.filter((item) => item !== 'bun');
+
+    // Ein Brötchen ohne Belag ist nicht aufgeschnitten, sondern ein Brötchen.
+    if (bread && !filling.length) {
+      stack.add(this.bun());
+      return stack;
+    }
+
+    let y = 0;
+    if (bread) {
+      // Der Boden liegt immer unten — auch wenn jemand das Brötchen zuletzt
+      // auf den Teller gelegt hat. Ein Burger mit dem Deckel unter dem Fleisch
+      // wäre ein Stapel und kein Burger.
+      stack.add(this.bunBase());
+      y += BUN_BASE;
+    }
+    for (const item of filling) {
+      const piece = this.piece(item);
+      // Geräte liegen auf keinem Burger (`kitchenRecipes.TAKES`); käme doch
+      // eines, fehlte hier ein Netz und nicht eine Höhe — `ITEM_HEIGHT` ist
+      // für sie 0, der Stapel rückt also gar nicht weiter.
+      if (!piece) continue;
+      piece.position.y = y;
+      stack.add(piece);
+      y += ITEM_HEIGHT[item];
+    }
+    if (bread) {
+      const dome = this.dome();
+      dome.position.y = y;
+      stack.add(dome);
+    }
+    return stack;
+  }
+
   // --- die Stücke selbst ----------------------------------------------------
 
-  /** Das ganze Brötchen: Boden und Haube, so wie es aus der Kiste kommt. */
+  /**
+   * **Ein einzelnes Stück**, mit dem Fuß auf `y = 0` — dasselbe Netz, ob es
+   * auf dem Brett liegt oder im Burger steckt.
+   */
+  private piece(item: KitchenItem): THREE.Object3D | null {
+    switch (item) {
+      case 'bun':
+        return this.bun();
+      case 'plate':
+        return this.plate();
+      case 'patty':
+        return this.patty('patty', MEAT_RAW, PATTY_RAW_HEIGHT);
+      case 'patty-cooked':
+        return this.patty('patty-cooked', MEAT_DONE, PATTY_DONE_HEIGHT);
+      case 'patty-burnt':
+        return this.burnt();
+      case 'lettuce':
+        return this.lettuce();
+      case 'lettuce-cut':
+        return this.slices('lettuce-cut', LEAF, LEAF_PALE, LEAF_RADIUS, LEAF_THICK);
+      case 'tomato':
+        return this.tomato();
+      case 'tomato-cut':
+        return this.slices(
+          'tomato-cut',
+          TOMATO,
+          TOMATO_PALE,
+          TOMATO_SLICE_RADIUS,
+          TOMATO_SLICE_THICK,
+        );
+      case 'tomato-soup':
+        return this.soup();
+      default:
+        return null;
+    }
+  }
+
+  /** Das ganze Brötchen: Boden und Haube, so wie es aus der Ausgabe kommt. */
   private bun(): THREE.Object3D {
-    const bun = new THREE.Group();
-    bun.name = 'kitchen-bun';
-    // Der helle Boden: eine flache Scheibe unter der Kruste. Ohne sie ist ein
-    // Brötchen von oben ein brauner Fleck.
+    // Der helle Boden **steckt** in der Haube und trägt sie nicht: Ein ganzes
+    // Brötchen ist so hoch wie seine Kruste (`BUN_HEIGHT`), und ohne die
+    // Scheibe darunter wäre es von oben nur ein brauner Fleck.
     const base = this.mesh(
       'bun-foot',
       () => new THREE.CylinderGeometry(BUN_RADIUS * 0.92, BUN_RADIUS * 0.86, BUN_HEIGHT * 0.3, 16),
       CRUMB,
     );
     base.position.y = BUN_HEIGHT * 0.15;
-    bun.add(base);
-    bun.add(this.dome());
-    return bun;
+    return wrap('kitchen-bun', base, this.dome());
+  }
+
+  /** Der Boden des aufgeschnittenen Brötchens — was den Belag trägt. */
+  private bunBase(): THREE.Object3D {
+    const base = this.mesh(
+      'bun-base',
+      () => new THREE.CylinderGeometry(BUN_RADIUS * 0.92, BUN_RADIUS * 0.86, BUN_BASE, 16),
+      CRUMB,
+    );
+    base.position.y = BUN_BASE / 2;
+    return wrap('kitchen-bun-base', base);
   }
 
   /** Die Haube — eine gedrückte Kugel mit dem Fuß auf y = 0. */
@@ -285,51 +447,81 @@ export class FoodKit {
     const dome = this.mesh('bun-dome', () => new THREE.SphereGeometry(BUN_RADIUS, 16, 10), CRUST);
     dome.scale.set(1, BUN_SQUASH, 1);
     dome.position.y = BUN_HEIGHT / 2;
-    return dome;
+    return wrap('kitchen-bun-top', dome);
   }
 
   /** Das Patty — roh hell und dick, gebraten dunkel und flacher. */
-  private patty(cooked: boolean): THREE.Object3D {
-    const height = cooked ? 0.075 : 0.09;
+  private patty(name: string, color: number, height: number): THREE.Object3D {
     const patty = this.mesh(
-      cooked ? 'patty-done' : 'patty-raw',
-      () => new THREE.CylinderGeometry(BUN_RADIUS * 0.82, BUN_RADIUS * 0.78, height, 18),
-      cooked ? DONE : RAW,
+      `${name}-${height}`,
+      () => new THREE.CylinderGeometry(PATTY_RADIUS, PATTY_RADIUS * 0.95, height, 18),
+      color,
     );
     patty.position.y = height / 2;
-    const group = new THREE.Group();
-    group.name = cooked ? 'kitchen-patty-cooked' : 'kitchen-patty';
-    group.add(patty);
-    return group;
+    return wrap(`kitchen-${name}`, patty);
+  }
+
+  /**
+   * **Das verbrannte Patty** — schwarz, geschrumpft, kantig und aufgerissen.
+   *
+   * Die hellen Risse sind der eigentliche Trick: Schwarz auf Schwarz sieht man
+   * im Schatten nicht, ein aschgrauer Sprung quer über den Deckel schon. Sie
+   * liegen bündig mit der Oberkante, damit das Ding nicht höher aufträgt, als
+   * `ITEM_HEIGHT` sagt.
+   */
+  private burnt(): THREE.Object3D {
+    const radius = PATTY_RADIUS * BURNT_SHRINK;
+    const patty = this.mesh(
+      'patty-burnt',
+      () => new THREE.CylinderGeometry(radius, radius * 0.9, PATTY_BURNT_HEIGHT, BURNT_FACES),
+      CHAR,
+    );
+    patty.position.y = PATTY_BURNT_HEIGHT / 2;
+    const parts: THREE.Object3D[] = [patty];
+    const crack = 0.012;
+    for (let i = 0; i < 3; i++) {
+      const line = this.mesh(
+        'patty-burnt-crack',
+        () => new THREE.BoxGeometry(radius * 1.7, crack, crack),
+        ASH,
+      );
+      line.position.y = PATTY_BURNT_HEIGHT - crack / 2;
+      line.rotation.y = i * 1.05;
+      parts.push(line);
+    }
+    return wrap('kitchen-patty-burnt', ...parts);
   }
 
   /** Der Salatkopf — eine Kugel, oben etwas gedrückt. */
   private lettuce(): THREE.Object3D {
-    const head = this.mesh('lettuce-head', () => new THREE.SphereGeometry(0.22, 14, 10), LEAF);
-    head.scale.set(1, 0.86, 1);
-    head.position.y = 0.22 * 0.86;
-    const group = new THREE.Group();
-    group.name = 'kitchen-lettuce';
-    group.add(head);
-    return group;
+    const head = this.mesh(
+      'lettuce-head',
+      () => new THREE.SphereGeometry(HEAD_RADIUS, 14, 10),
+      LEAF,
+    );
+    head.scale.set(1, HEAD_SQUASH, 1);
+    head.position.y = HEAD_RADIUS * HEAD_SQUASH;
+    return wrap('kitchen-lettuce', head);
   }
 
   /** Die Tomate — Kugel und Strunk, damit sie kein roter Ball ist. */
   private tomato(): THREE.Object3D {
-    const group = new THREE.Group();
-    group.name = 'kitchen-tomato';
-    const body = this.mesh('tomato-body', () => new THREE.SphereGeometry(0.19, 14, 10), TOMATO);
-    body.scale.set(1, 0.9, 1);
-    body.position.y = 0.19 * 0.9;
-    group.add(body);
+    const body = this.mesh(
+      'tomato-body',
+      () => new THREE.SphereGeometry(TOMATO_RADIUS, 14, 10),
+      TOMATO,
+    );
+    body.scale.set(1, TOMATO_SQUASH, 1);
+    body.position.y = TOMATO_RADIUS * TOMATO_SQUASH;
     const stalk = this.mesh(
       'tomato-stalk',
-      () => new THREE.CylinderGeometry(0.03, 0.045, 0.06, 8),
+      () => new THREE.CylinderGeometry(0.03, 0.045, STALK_HEIGHT, 8),
       STALK,
     );
-    stalk.position.y = 0.19 * 1.8 - 0.01;
-    group.add(stalk);
-    return group;
+    // Halb in der Frucht, halb darüber — so trägt der Strunk genau seine halbe
+    // Höhe auf, und genau damit rechnet `ITEM_HEIGHT`.
+    stalk.position.y = TOMATO_RADIUS * 2 * TOMATO_SQUASH;
+    return wrap('kitchen-tomato', body, stalk);
   }
 
   /**
@@ -337,7 +529,8 @@ export class FoodKit {
    *
    * Versetzt und nicht gestapelt, weil ein bündiger Stapel aus drei Zylindern
    * von oben wie **einer** aussieht — und dann sieht man dem Brett nicht an,
-   * dass dort gearbeitet wurde.
+   * dass dort gearbeitet wurde. Der Versatz ist symmetrisch (−1, 0, +1), damit
+   * die Mitte des Häufchens trotzdem auf `x/z = 0` bleibt.
    */
   private slices(
     name: string,
@@ -346,88 +539,108 @@ export class FoodKit {
     radius: number,
     thick: number,
   ): THREE.Object3D {
-    const group = new THREE.Group();
-    group.name = `kitchen-${name}`;
-    // **Der Schlüssel trägt die Maße mit.** Dieselben Scheiben gibt es zweimal
-    // — einmal als Häufchen auf dem Brett und einmal flacher im Burger —, und
-    // ein Schlüssel ohne die Maße gäbe der zweiten die Form der ersten.
-    const key = `${name}-slice-${radius}-${thick}`;
-    for (let i = 0; i < 3; i++) {
+    // **Der Schlüssel trägt die Maße mit.** Salat und Tomate teilen sich diese
+    // Methode und nicht ihre Form — ein Schlüssel ohne die Maße gäbe der
+    // zweiten die Größe der ersten.
+    const key = `slice-${radius}-${thick}`;
+    const parts: THREE.Object3D[] = [];
+    for (let i = 0; i < SLICES; i++) {
       const slice = this.mesh(
         key,
         () => new THREE.CylinderGeometry(radius, radius, thick, 16),
         i === 1 ? pale : dark,
       );
-      slice.position.set(i * 0.02 - 0.02, thick / 2 + i * thick, i * 0.015 - 0.015);
+      slice.position.set((i - 1) * 0.02, thick / 2 + i * thick, (i - 1) * 0.015);
       slice.rotation.y = i * 0.6;
-      group.add(slice);
+      parts.push(slice);
     }
-    return group;
+    return wrap(`kitchen-${name}`, ...parts);
+  }
+
+  /** Die Tomatensuppe — eine glänzende Pfütze mit einem Häufchen darin. */
+  private soup(): THREE.Object3D {
+    const pool = this.mesh(
+      'soup-pool',
+      () => new THREE.SphereGeometry(SOUP_RADIUS, 18, 8),
+      SOUP,
+      WET,
+    );
+    pool.scale.set(1, SOUP_POOL / (2 * SOUP_RADIUS), 1);
+    pool.position.y = SOUP_POOL / 2;
+    const heap = this.mesh(
+      'soup-heap',
+      () => new THREE.SphereGeometry(SOUP_RADIUS * 0.45, 14, 8),
+      SOUP,
+      WET,
+    );
+    // Die Kugel steckt zur Hälfte in der Pfütze: Was heraussteht, ist genau
+    // `SOUP_HEAP` — dieselbe Zahl, mit der `ITEM_HEIGHT` rechnet.
+    heap.scale.set(1, SOUP_HEAP / (SOUP_RADIUS * 0.45), 1);
+    heap.position.y = SOUP_POOL;
+    return wrap('kitchen-tomato-soup', pool, heap);
   }
 
   /** Der Teller — eine flache Schale, unten enger als oben. */
   private plate(): THREE.Object3D {
-    const group = new THREE.Group();
-    group.name = 'kitchen-plate';
-    const dish = this.mesh(
+    const plate = this.mesh(
       'plate-dish',
       () => new THREE.CylinderGeometry(PLATE_RADIUS, PLATE_RADIUS * 0.7, PLATE_HEIGHT, 24),
       CHINA,
     );
-    dish.position.y = PLATE_HEIGHT / 2;
-    group.add(dish);
-    return group;
-  }
-
-  /** Eine Schicht des Burgers — dieselben Teile, nur flacher gelegt. */
-  private layer(part: BurgerPart): THREE.Object3D {
-    switch (part) {
-      case 'patty-cooked':
-        return this.patty(true);
-      case 'lettuce-cut':
-        return this.slices('lettuce-cut', LEAF, LEAF_PALE, BUN_RADIUS * 0.9, 0.018);
-      case 'tomato-cut':
-        return this.slices('tomato-cut', TOMATO, TOMATO_PALE, BUN_RADIUS * 0.75, 0.022);
-      case 'bun':
-        return this.dome();
-    }
+    plate.position.y = PLATE_HEIGHT / 2;
+    return wrap('kitchen-plate', plate);
   }
 
   // --- geteilte Formen und Farben -------------------------------------------
 
-  private mesh(key: string, make: () => THREE.BufferGeometry, color: number): THREE.Mesh {
+  private mesh(
+    key: string,
+    make: () => THREE.BufferGeometry,
+    color: number,
+    gloss = MATTE,
+  ): THREE.Mesh {
     let shape = this.shapes.get(key);
     if (!shape) {
       shape = make();
       this.shapes.set(key, shape);
     }
-    const mesh = new THREE.Mesh(shape, this.material(color));
+    const mesh = new THREE.Mesh(shape, this.material(color, gloss));
     mesh.castShadow = true;
     return mesh;
   }
 
-  private material(color: number): THREE.MeshStandardMaterial {
-    let material = this.materials.get(color);
+  /**
+   * Die Rauheit gehört mit in den Schlüssel: Dieselbe Farbe einmal matt und
+   * einmal nass ist zweierlei Material, und ohne sie bekäme die Suppe den
+   * Glanz der Tomate daneben — oder umgekehrt, je nachdem, wer zuerst gebaut
+   * wird.
+   */
+  private material(color: number, gloss: number): THREE.MeshStandardMaterial {
+    const key = `${color}-${gloss}`;
+    let material = this.materials.get(key);
     if (!material) {
-      material = new THREE.MeshStandardMaterial({ color, roughness: 0.85 });
-      this.materials.set(color, material);
+      material = new THREE.MeshStandardMaterial({ color, roughness: gloss });
+      this.materials.set(key, material);
     }
     return material;
   }
 }
 
-/** Wie hoch eine Schicht aufträgt — dieselben Zahlen wie in `FoodKit.layer`. */
-function layerHeight(part: BurgerPart): number {
-  switch (part) {
-    case 'patty-cooked':
-      return 0.075;
-    case 'lettuce-cut':
-      return 0.054;
-    case 'tomato-cut':
-      return 0.066;
-    case 'bun':
-      return BUN_HEIGHT;
-  }
+/**
+ * **Ein Stück unter einem Namen** — jedes gebaute Ding ist eine Gruppe, und
+ * jede Gruppe heißt nach ihrer Zutat.
+ *
+ * Der Name ist kein Schmuck: Er ist der Griff, an dem die Zone eine Schicht
+ * aus einem Stapel wiederfindet (`Object3D.getObjectByName`), ohne sich beim
+ * Bauen jede Referenz zu merken. Und die Gruppe darüber ist der Grund, warum
+ * eine Schicht im Stapel mit **einer** Zeile verschoben wird, egal aus wie
+ * vielen Teilen sie besteht.
+ */
+function wrap(name: string, ...parts: readonly THREE.Object3D[]): THREE.Object3D {
+  const group = new THREE.Group();
+  group.name = name;
+  for (const part of parts) group.add(part);
+  return group;
 }
 
 /** Wie hoch ein gebautes Ding ist — gemessen und nicht je Ding aufgeschrieben. */
