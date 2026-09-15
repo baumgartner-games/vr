@@ -7007,10 +7007,13 @@ und zwar auf dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
   in einer Wand mit drei Türen nebeneinander ist die Nachbartür genau das, was
   daneben liegt. Zwei Halbe fahren je eine halbe Türbreite und bleiben im
   Pfosten ihrer eigenen Kachel. **Gerechnet, nicht getippt**: Die Hälften
-  kommen aus `doorWidth` und nicht aus einer festen Zahl — auf 2,5-m-Kacheln
-  stand dort einmal 62 cm, auf einem Meter sind es 40 (`PLAN_DOOR_W` 0,8), und
+  kommen aus `PLAN_DOOR_W` und nicht aus einer festen Zahl — auf 2,5-m-Kacheln
+  stand dort einmal 62 cm, auf einem Meter sind es 40 (halbe Türbreite), und
   eine getippte Zahl wäre beim ersten Gitterwechsel eine Tür, die halb offen
-  in ihrem Pfosten klemmt.
+  in ihrem Pfosten klemmt. Wer **breiter** baut als das Gitter, baut auch die
+  Tür selbst: Die Station geht über die ganze Kachelkante
+  (`GridPlan.doorWidth()`, unten bei _Haunting_) und fährt ihre Blätter mit
+  ihrer eigenen Türautomatik, nicht mit diesem Einbau.
 - **Das Blatt gehört der Art, der Rahmen dem Grundriss.** Pfosten und Sturz
   baut `planSolids` wie bei jeder Türkante; das Blatt lässt `GridWorld` für
   Einbau-Türen weg und überlässt es der Art, die es fahren lässt. Der Quader,
