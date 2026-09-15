@@ -4801,6 +4801,16 @@ sind.
   und nicht geladen (`zones/kitchenProps.ts`): Der gekaufte Katalog hat
   dreizehn Möbel und **keine Zutat**, und für zwei Kugeln eine zweite Quelle
   mit Lizenz und Aufbereitung aufzunehmen wäre viel Aufwand.
+- **Ein Brötchen ist 60 cm breit** (`BUN_RADIUS`), und das Maß dafür ist der
+  **Teller**: Der auf der Tellerausgabe misst 75 cm im Durchmesser
+  (nachgemessen in `public/models/kitchen.glb` — 1,50 m in der Quelle,
+  halbiert von `KITCHEN_SCALE`). Mit den früheren 22 cm lag auf dem Teller
+  eine Murmel; beim Vorbild füllt der Burger den Teller fast aus, und vier
+  Fünftel sind dieses „fast". Gedrückt wird er dabei flacher als früher
+  (`BUN_SQUASH`, 0,44 statt 0,72) — Breite allein ließe aus dem Brötchen einen
+  Brotball von 43 cm Höhe werden. In der Kiste liegt seitdem **eines** statt
+  drei: Innen ist sie 70 cm weit, mehr passt nicht hinein, und breiter als
+  ihre eine Kachel darf sie nicht werden.
 - **Eine Ablage meldet sich nur, wenn sie etwas zu sagen hat** — wenn etwas
   darauf liegt oder etwas in der Hand. Das ist nicht Sparsamkeit: Der gelbe
   Saum (`core/highlight.ts`) umfasst immer genau das, was `A` gerade meint,
