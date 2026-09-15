@@ -80,7 +80,18 @@ export function stampPodium(plan: GridPlan): void {
       if (x === east) plan.put('parapet', x, z, DIR_E, 1);
     }
   }
+}
 
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
+ * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
+ * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
+ * weggebaut.
+ */
+export function fitPodium(plan: GridPlan): void {
   // Der Hebel oben: an der Westkante des Podests und nicht auf der Kachel, auf
   // der die Treppe mündet — wer oben ankommt, soll nicht schon im Hebel stehen.
   plan.putFixture({

@@ -1,6 +1,6 @@
 import { TILE, tileKey } from '../nav/navTile';
 import { PIT_APRON, PIT_BAYS, PIT_BOXES, PIT_LANE, pitSpots } from './kartCourse';
-import { TARMAC_TOP, kartPit } from './kartPit';
+import { PIT_GATE, TARMAC_TOP, kartPit } from './kartPit';
 
 const plan = kartPit();
 
@@ -69,9 +69,13 @@ describe('Die Boxengasse als Grundriss', () => {
    */
   it('mauert die Gasse überall zu, wo keine Ausfahrt und keine Box ist', () => {
     const walls = plan.blocks().filter((one) => one.kind === 'parapet');
-    // Vorn und hinten quer über die ganze Breite.
-    expect(walls.filter((one) => one.dir === 0)).toHaveLength(PIT_LANE.w);
+    // Hinten quer über die ganze Breite, vorn mit einer Kachel Lücke: Dort
+    // kommt herein, wer zu Fuß zu seinem Kart geht (`PIT_GATE`).
+    expect(walls.filter((one) => one.dir === 0)).toHaveLength(PIT_LANE.w - 1);
     expect(walls.filter((one) => one.dir === 2)).toHaveLength(PIT_LANE.w);
+    expect(
+      walls.some((one) => one.dir === 0 && one.tile === tileKey(PIT_GATE, PIT_LANE.z, 0)),
+    ).toBe(false);
     // Nach Westen überall dort, wo keine Box gegenüberliegt.
     expect(walls.filter((one) => one.dir === 3)).toHaveLength(PIT_LANE.d - PIT_BOXES.d);
     // Und nach Osten nirgends: das ist die Ausfahrt.

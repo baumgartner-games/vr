@@ -87,7 +87,18 @@ export function stampRange(plan: GridPlan): void {
    * hoch — was darüber hinausfliegt, hat die Scheibe ohnehin um Meter verpasst.
    */
   plan.mass('stone', { ...BERM }, 0, BERM_H);
+}
 
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
+ * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
+ * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
+ * weggebaut.
+ */
+export function fitRange(plan: GridPlan): void {
   plan.putFixture({
     id: 'schild-schiessstand',
     kind: 'sign',
@@ -284,16 +295,8 @@ export class RangeZone implements TestZone {
   }
 
   /** Der Pfosten, an dem eine Scheibe hängt. */
-  private buildPost(
-    world: ZoneHost,
-    x: number,
-    distance: number,
-    height: number,
-  ): PhysicsBody {
-    const post = new THREE.Mesh(
-      this.shape(new THREE.BoxGeometry(0.1, height, 0.1)),
-      this.steel!,
-    );
+  private buildPost(world: ZoneHost, x: number, distance: number, height: number): PhysicsBody {
+    const post = new THREE.Mesh(this.shape(new THREE.BoxGeometry(0.1, height, 0.1)), this.steel!);
     post.position.set(x, height / 2, FIRING_LINE + distance);
     world.root.add(post);
     post.updateWorldMatrix(true, false);
@@ -304,13 +307,7 @@ export class RangeZone implements TestZone {
    * Eine Scheibe als **Gegenstand**: Man kann sie abschießen, aufheben,
    * wegtragen und wieder hinstellen — und `B`/`Y` stellt sie zurück.
    */
-  private spawnTarget(
-    world: ZoneHost,
-    x: number,
-    y: number,
-    z: number,
-    id: string,
-  ): PhysicsBody {
+  private spawnTarget(world: ZoneHost, x: number, y: number, z: number, id: string): PhysicsBody {
     const thickness = 0.06;
     const disc = new THREE.Mesh(
       this.shape(new THREE.CylinderGeometry(TARGET_R, TARGET_R, thickness, 24)),

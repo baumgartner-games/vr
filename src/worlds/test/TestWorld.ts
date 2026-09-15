@@ -9,21 +9,12 @@ import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { npcSkin } from '../npc/npcKinds';
 import { SPAWN, centre } from './layout';
-import { testPlan } from './testPlan';
+import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
 import { KartZone } from './zones/kart';
 import { NavigationZone } from './zones/navigation';
 import { RangeZone } from './zones/range';
-import { stampEffects } from './zones/effects';
-import { stampInteract } from './zones/interact';
-import { stampClimb } from './zones/climb';
-import { stampKart } from './zones/kart';
-import { stampNavigation } from './zones/navigation';
-import { stampPodium } from './zones/podium';
-import { stampPortals } from './zones/portals';
-import { stampRange } from './zones/range';
-import { stampStart } from './zones/start';
 import type { TestZone, ZoneHost } from './zones/zone';
 
 /**
@@ -102,18 +93,13 @@ export class TestWorld extends GridWorld {
    *
    * Der **Grundriss** selbst wird dabei nicht wiederhergestellt: Wer eine Wand
    * wegbaut, will sie weg haben. Was zurückkommt, sind die Sachen mit einer
-   * Kennung — und die haben eine, genau damit das hier gehen kann.
+   * **Kennung** (`fitTest`) — und genau damit das hier gehen kann, haben sie
+   * eine: `putFixture` ersetzt nach Kennung, also entsteht kein zweites Tor
+   * neben dem ersten. Bausteine und Massen stehen bewusst nicht darin; ein
+   * zweites Mal gesetzt stünden sie zweimal da.
    */
   protected override planLoaded(plan: GridPlan): void {
-    stampStart(plan);
-    stampInteract(plan);
-    stampEffects(plan);
-    stampNavigation(plan);
-    stampRange(plan);
-    stampKart(plan);
-    stampClimb(plan);
-    stampPodium(plan);
-    stampPortals(plan);
+    fitTest(plan);
   }
 
   /** Draußen: Kies, Beton, Holz — kein Innenraumgrau. */

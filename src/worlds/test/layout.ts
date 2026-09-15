@@ -54,7 +54,15 @@ export const EFFECTS: NavRect = { x: -6, z: -16, w: 13, d: 7 };
 export const PODIUM: NavRect = { x: 12, z: -18, w: 11, d: 9 };
 export const NAVIGATION: NavRect = { x: -24, z: -3, w: 17, d: 7 };
 export const RANGE: NavRect = { x: 6, z: -3, w: 6, d: 7 };
-export const CLIMB: NavRect = { x: 24, z: 8, w: 10, d: 10 };
+/**
+ * Die Kletterzone — **ohne** die Kachelreihe, auf der ihre Wand steht.
+ *
+ * Die Wand ist eine acht Meter hohe Masse (`zones/climb.ts`), und eine Masse
+ * auf einer begehbaren Kachel wäre ein Weg im Graphen, den man in Wirklichkeit
+ * nicht gehen kann. Also liegt die Wandreihe **nördlich** dieses Rechtecks, und
+ * hereingekommen wird von Westen.
+ */
+export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
 
 /**
  * **Die Gänge zwischen den Zonen**, drei Kacheln breit, wo es geht.
@@ -82,10 +90,15 @@ export const PATHS: readonly NavRect[] = [
   // und ein breiter Eingang wäre eine breite Einladung, von der Seite in die
   // Bahn zu treten.
   { x: 5, z: -2, w: 1, d: 5 },
-  // Navigation → Boxengasse (Südwesten, außen um die Strecke herum).
-  { x: -21, z: 4, w: 3, d: 15 },
+  // Navigation → Boxengasse (Südwesten, außen um die Strecke herum). Eine
+  // Kachel breit, und zwar genau die, in der die Mauer der Gasse ihre Lücke
+  // hat (`kart/kartPit.ts`): Ein breiter Gang endete vor einer Brüstung.
+  { x: -20, z: 4, w: 1, d: 15 },
   // Mitte → Kletterwand (Südosten, außen um die Strecke herum).
   { x: 2, z: 5, w: 25, d: 3 },
+  // Und das letzte Stück zur Kletterwand: von Westen herein, denn im Norden
+  // steht ihre Wand.
+  { x: 21, z: 8, w: 3, d: 2 },
 ];
 
 /**
@@ -104,11 +117,10 @@ export const ZONE_TILES: Readonly<Record<string, { x: number; z: number; level: 
   navigation: { x: NAVIGATION.x + 2, z: NAVIGATION.z + 3, level: 0 },
   range: { x: RANGE.x + 3, z: 0, level: 0 },
   kart: { x: -20, z: 22, level: 0 },
-  climb: { x: CLIMB.x + 5, z: CLIMB.z + 5, level: 0 },
+  climb: { x: CLIMB.x + 5, z: CLIMB.z + 4, level: 0 },
 };
 
 /** Die Mitte einer Kachel in Weltmetern — Zonen rechnen damit ihre Requisiten aus. */
 export function centre(tile: number): number {
   return (tile + 0.5) * TILE;
 }
-

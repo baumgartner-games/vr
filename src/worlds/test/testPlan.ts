@@ -11,15 +11,15 @@ import {
   START,
   CLIMB,
 } from './layout';
-import { stampClimb } from './zones/climb';
-import { stampEffects } from './zones/effects';
-import { stampInteract } from './zones/interact';
-import { stampKart } from './zones/kart';
-import { stampNavigation } from './zones/navigation';
-import { stampPodium } from './zones/podium';
-import { stampPortals } from './zones/portals';
-import { stampRange } from './zones/range';
-import { stampStart } from './zones/start';
+import { fitClimb, stampClimb } from './zones/climb';
+import { fitEffects, stampEffects } from './zones/effects';
+import { fitInteract, stampInteract } from './zones/interact';
+import { fitKart, stampKart } from './zones/kart';
+import { fitNavigation, stampNavigation } from './zones/navigation';
+import { fitPodium, stampPodium } from './zones/podium';
+import { fitPortals, stampPortals } from './zones/portals';
+import { fitRange, stampRange } from './zones/range';
+import { fitStart, stampStart } from './zones/start';
 
 /**
  * **Die Testwelt als Grundriss** — ein Gelände, neun Zonen, ein Boden.
@@ -91,5 +91,29 @@ export function testPlan(): GridPlan {
   // vorher nicht gab.
   stampPortals(plan);
 
+  fitTest(plan);
   return plan;
+}
+
+/**
+ * **Die Einbauten aller Zonen** — Tor, Türen, Auslöser, Düsen, Lampen,
+ * Schilder.
+ *
+ * Getrennt vom Rest des Grundrisses, weil `TestWorld.planLoaded` sie noch
+ * einmal aufsetzt, nachdem ein gespeicherter Stand den Plan ersetzt hat
+ * (`GridWorld.applyStored`). Das geht nur mit Einbauten: Sie haben eine
+ * **Kennung**, und `putFixture` ersetzt nach Kennung. Ein Baustein hat keine —
+ * ein zweites Mal gesetzt stünde er zweimal da, und nach dem dritten Besuch
+ * wären es drei Bänke auf einer Kachel.
+ */
+export function fitTest(plan: GridPlan): void {
+  fitStart(plan);
+  fitInteract(plan);
+  fitEffects(plan);
+  fitNavigation(plan);
+  fitRange(plan);
+  fitKart(plan);
+  fitClimb(plan);
+  fitPodium(plan);
+  fitPortals(plan);
 }

@@ -40,8 +40,29 @@ export const GATE_TILE = { x: 0, z: 3 } as const;
 const WALL_COLUMNS: readonly number[] = [-4, -3, -2, 2, 3, 4];
 
 export function stampStart(plan: GridPlan): void {
+  for (const x of WALL_COLUMNS) plan.wall(x, START.z, DIR_N);
+
+  // Ein bisschen Mobiliar, damit der Platz ein Platz ist und kein Feld: eine
+  // Bank an der Westkante und ein Tisch daneben.
+  plan.put('bench', START.x, 1, DIR_W);
+  plan.put('table', START.x + 1, 1, DIR_S);
+}
+
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt (`GridWorld.applyStored`): Ein Tor,
+ * das nur im ausgelieferten Grundriss stünde, wäre beim ersten Besuch da und ab
+ * dem zweiten weg — und dann säße man im selbstgebauten Gelände ohne Ausgang.
+ *
+ * Ein Einbau lässt sich so aufsetzen, weil er eine **Kennung** hat:
+ * `putFixture` ersetzt nach Kennung, also entsteht kein zweites Tor daneben.
+ * Wände und Bausteine haben keine — die kommen deshalb hier nicht vor, und wer
+ * eine Wand wegbaut, hat sie weggebaut.
+ */
+export function fitStart(plan: GridPlan): void {
   const north = START.z;
-  for (const x of WALL_COLUMNS) plan.wall(x, north, DIR_N);
 
   /**
    * **Der Kleiderschrank** (`grid/fixtures/wardrobe.ts`) — an der Wand neben
@@ -95,9 +116,4 @@ export function stampStart(plan: GridPlan): void {
       note: 'Zurück in die Halle',
     },
   });
-
-  // Ein bisschen Mobiliar, damit der Platz ein Platz ist und kein Feld: eine
-  // Bank an der Westkante und ein Tisch daneben.
-  plan.put('bench', START.x, 1, DIR_W);
-  plan.put('table', START.x + 1, 1, DIR_S);
 }

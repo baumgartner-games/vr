@@ -161,7 +161,11 @@ export class Kart extends THREE.Group {
       width: 0.9,
       height: 0.34,
       title: preset.name,
-      body: `${preset.tagline} · Lenkrad greifen zum Einsteigen`,
+      // **`A` zuerst und das Lenkrad danach.** Eingestiegen wird mit dem
+      // Knopf, mit dem man in dieser Welt alles benutzt (`core/usable.ts`);
+      // die Hand ums Lenkrad ist der Weg, den es in der Brille zusätzlich
+      // gibt. Ein Schild, das nur das Lenkrad nennt, nennt den Umweg.
+      body: `${preset.tagline} · A zum Einsteigen`,
       accent: preset.color,
       align: 'center',
     });
@@ -278,9 +282,8 @@ export class Kart extends THREE.Group {
   /**
    * Wer sonst darin sitzt — ein Name, oder `null` für frei.
    *
-   * Das Schild über einem fremden Kart sagt sonst weiter „Lenkrad greifen zum
-   * Einsteigen", und man greift danach, während jemand anderes damit um die
-   * Kurve fährt.
+   * Das Schild über einem fremden Kart sagt sonst weiter „A zum Einsteigen",
+   * und man drückt danach, während jemand anderes damit um die Kurve fährt.
    */
   setTaken(name: string | null): void {
     // Zwanzigmal in der Sekunde kommt eine Pose herein, und jede fragt hier
@@ -296,9 +299,7 @@ export class Kart extends THREE.Group {
     if (this.sign.visible) return;
     this.hover.setText(
       this.preset.name,
-      this.takenBy
-        ? `Besetzt · ${this.takenBy}`
-        : `${this.preset.tagline} · Lenkrad greifen zum Einsteigen`,
+      this.takenBy ? `Besetzt · ${this.takenBy}` : `${this.preset.tagline} · A zum Einsteigen`,
     );
   }
 

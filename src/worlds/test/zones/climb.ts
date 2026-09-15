@@ -24,12 +24,7 @@ import {
 } from '../../climb/crashPad';
 import { fatigueTick, landingBuzz, slipTick, ticksBetween } from '../../climb/gripHaptics';
 import { gripReport, seatOf, type ClimbPose, type HandGrip } from '../../climb/gripQuality';
-import {
-  holdColor,
-  holdLabel,
-  type HoldFeature,
-  type HoldMaterial,
-} from '../../climb/holds';
+import { holdColor, holdLabel, type HoldFeature, type HoldMaterial } from '../../climb/holds';
 import { GRAB_AT, SLIP_AT, freshStamina, stepStamina, type Stamina } from '../../climb/stamina';
 import { GRAB_GLOW } from '../../../core/colors';
 import { gripAnchor, type ControllerState, type Handedness } from '../../../core/XRInput';
@@ -66,8 +61,16 @@ import type { TestZone, ZoneHost } from './zone';
  * Auffangen wäre ein Sturz.
  */
 
-/** Die Wand: die Nordkante der Zone, acht Meter hoch. */
-export const WALL = { x: CLIMB.x, z: CLIMB.z, w: CLIMB.w, d: 1 } as const;
+/**
+ * **Die Wand**: die Kachelreihe **nördlich** der Zone, acht Meter hoch.
+ *
+ * Nördlich und nicht in der Zone: Eine acht Meter hohe Masse auf einer
+ * begehbaren Kachel wäre ein Weg im Graphen, den man in Wirklichkeit nicht
+ * gehen kann — ein NPC liefe hinein und stünde. Also hat die Wand ihre eigene
+ * Reihe, auf der kein Boden liegt (`layout.ts`, `CLIMB`), und man kommt von
+ * Westen herein.
+ */
+export const WALL = { x: CLIMB.x, z: CLIMB.z - 1, w: CLIMB.w, d: 1 } as const;
 export const WALL_H = 8;
 
 /** Die Fläche der Wand in Metern — die Südseite ihrer Kachelreihe. */
@@ -100,7 +103,18 @@ export function stampClimb(plan: GridPlan): void {
   // **Die Wand ist eine Masse.** Acht Meter hoch über eine Kachelreihe — als
   // Kachelwände wären das zehn Stück von je 2,80 m, und darüber wäre Luft.
   plan.mass('wall', { ...WALL }, 0, WALL_H);
+}
 
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
+ * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
+ * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
+ * weggebaut.
+ */
+export function fitClimb(plan: GridPlan): void {
   plan.putFixture({
     id: 'schild-klettern',
     kind: 'sign',
@@ -149,7 +163,10 @@ type WallFeature = Exclude<HoldFeature, 'rail'>;
  * überall zupacken darf.
  */
 const HOLD_SHAPES: Readonly<
-  Record<WallFeature, { depth: number; radius: number; axis: readonly number[] | null; half: number }>
+  Record<
+    WallFeature,
+    { depth: number; radius: number; axis: readonly number[] | null; half: number }
+  >
 > = {
   rung: { depth: 0.1, radius: 0.1, axis: [1, 0, 0], half: 0.28 },
   jug: { depth: 0.05, radius: 0.11, axis: null, half: 0 },
@@ -366,9 +383,7 @@ export class ClimbZone implements TestZone {
     const x = (PAD.minX + PAD.maxX) / 2;
     const z = (PAD.minZ + PAD.maxZ) / 2;
     const mesh = new THREE.Mesh(
-      this.keep(
-        new THREE.BoxGeometry(PAD.maxX - PAD.minX, PAD_HEIGHT, PAD.maxZ - PAD.minZ),
-      ),
+      this.keep(new THREE.BoxGeometry(PAD.maxX - PAD.minX, PAD_HEIGHT, PAD.maxZ - PAD.minZ)),
       cushion,
     );
     mesh.name = 'crash-pad';

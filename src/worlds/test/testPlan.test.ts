@@ -20,7 +20,7 @@ import {
   START,
   ZONE_TILES,
 } from './layout';
-import { testPlan } from './testPlan';
+import { fitTest, testPlan } from './testPlan';
 import { DECK, STAIR_FOOT, STAIR_LANDING, STAIR_LENGTH, STAIR_X } from './zones/podium';
 import { DOORS, YARD } from './zones/interact';
 import { EMITTERS } from './zones/effects';
@@ -96,8 +96,7 @@ describe('Das Gelände der Testwelt', () => {
       for (let j = i + 1; j < pairs.length; j++) {
         const [nameA, a] = pairs[i]!;
         const [nameB, b] = pairs[j]!;
-        const overlap =
-          a.x < b.x + b.w && b.x < a.x + a.w && a.z < b.z + b.d && b.z < a.z + a.d;
+        const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.z < b.z + b.d && b.z < a.z + a.d;
         expect({ nameA, nameB, overlap }).toEqual({ nameA, nameB, overlap: false });
       }
     }
@@ -129,6 +128,21 @@ describe('Das Gelände der Testwelt', () => {
    * Kopfhöhe**, die breiter ist als ein Baustein. Die Kletterwand und der
    * Kugelfang sind stehende Massen und fallen deshalb nicht darunter.
    */
+  /**
+   * **`planLoaded` darf zweimal laufen** (`TestWorld`), und das tut es auch:
+   * einmal auf dem ausgelieferten Grundriss und einmal auf einem
+   * gespeicherten. Einbauten ersetzt `putFixture` nach Kennung; ein Baustein
+   * hat keine, und deshalb steht kein einziger in `fitTest`. Diese Behauptung
+   * ist der Grund, warum das so getrennt ist.
+   */
+  it('setzt die Einbauten ein zweites Mal auf, ohne etwas zu verdoppeln', () => {
+    const twice = testPlan();
+    fitTest(twice);
+    expect(twice.fixtures()).toHaveLength(plan.fixtures().length);
+    expect(twice.blocks()).toHaveLength(plan.blocks().length);
+    expect(twice.masses()).toHaveLength(plan.masses().length);
+  });
+
   it('baut kein Dach', () => {
     const roofs = plan
       .solids()
@@ -267,9 +281,7 @@ describe('Die Zonen dazwischen', () => {
   });
 
   it('stellt den Kugelfang hinter die Scheiben', () => {
-    const berm = plan
-      .masses()
-      .find((one) => one.rect.x === BERM.x && one.rect.z === BERM.z);
+    const berm = plan.masses().find((one) => one.rect.x === BERM.x && one.rect.z === BERM.z);
     expect(berm).toBeDefined();
     expect(berm!.to).toBeGreaterThan(3);
     // Und er steht östlich der Schießlinie, also dort, wohin geschossen wird.
@@ -370,13 +382,7 @@ function rounded<T>(value: T): T {
 
 /** Ob diese Kachel im verschlossenen Hof der Interaktionszone liegt. */
 function inYard(x: number, z: number, level: number): boolean {
-  return (
-    level === 0 &&
-    x >= YARD.x &&
-    x < YARD.x + YARD.w &&
-    z >= YARD.z &&
-    z < YARD.z + YARD.d
-  );
+  return level === 0 && x >= YARD.x && x < YARD.x + YARD.w && z >= YARD.z && z < YARD.z + YARD.d;
 }
 
 /** Wände in eine verlässliche Reihenfolge bringen, damit sich zwei vergleichen lassen. */

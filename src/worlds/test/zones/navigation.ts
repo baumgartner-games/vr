@@ -34,6 +34,8 @@ import type { TestZone, ZoneHost } from './zone';
 export const LANE = { x: NAVIGATION.x + 4, z: 0, length: 7 } as const;
 /** Die Kachel, auf der die Kiste im Weg steht. */
 export const LANE_CRATE = { x: LANE.x + 2, z: LANE.z } as const;
+/** Seine östlichste Kachel — dort hängt die Tür. */
+export const LANE_EAST = LANE.x + LANE.length - 1;
 /** Die Tür am Ostende des Gangs. */
 export const LANE_DOOR = 'tuer-gang';
 
@@ -49,20 +51,30 @@ export const BUTTON_TILE = { x: NAVIGATION.x + 14, z: 0 } as const;
 
 export function stampNavigation(plan: GridPlan): void {
   // **Der enge Gang**: eine Kachel breit, zugemauert nach Norden und Süden.
-  const east = LANE.x + LANE.length - 1;
   plan.run(LANE.x, LANE.z, LANE.length, 'x', (x, z) => {
     plan.wall(x, z, DIR_N);
     plan.wall(x, z, DIR_S);
   });
+}
 
-  // Die Tür an seinem Ostende. Sie steht im Graphen als Türkante und nicht als
-  // Loch in einer Wand — erst damit kann sich eine Meinung über sie irren
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
+ * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
+ * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
+ * weggebaut.
+ */
+export function fitNavigation(plan: GridPlan): void {
+  // Die Tür am Ostende des Gangs. Sie steht im Graphen als Türkante und nicht
+  // als Loch in einer Wand — erst damit kann sich eine Meinung über sie irren
   // (`nav/navBelief.ts`).
-  plan.door(east, LANE.z, DIR_E, 0, false);
+  plan.door(LANE_EAST, LANE.z, DIR_E, 0, false);
   plan.putFixture({
     id: LANE_DOOR,
     kind: 'door',
-    x: east,
+    x: LANE_EAST,
     z: LANE.z,
     dir: DIR_E,
     props: { mode: 'swing' },

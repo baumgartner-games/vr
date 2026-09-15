@@ -109,14 +109,30 @@ export function stampInteract(plan: GridPlan): void {
   });
   plan.run(YARD.x, YARD.z, YARD.d, 'z', (x, z) => plan.wall(x, z, DIR_W));
 
+  // Und die Ostkante: massiv überall, wo keine der drei Türen hängt.
   for (let z = YARD.z; z <= yardEnd; z++) {
-    const spot = DOORS.find((one) => one.z === z);
-    if (!spot) {
-      plan.wall(DOOR_COLUMN, z, DIR_E);
-      continue;
-    }
+    if (DOORS.some((one) => one.z === z)) continue;
+    plan.wall(DOOR_COLUMN, z, DIR_E);
+  }
+}
+
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
+ * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
+ * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
+ * weggebaut.
+ */
+export function fitInteract(plan: GridPlan): void {
+  for (const spot of DOORS) {
+    const z = spot.z;
     // Zu, und nicht offen: Ein Hof, dessen Türen beim Laden aufstehen, ist
-    // einer, an dem man nie merkt, dass es Türen sind.
+    // einer, an dem man nie merkt, dass es Türen sind. Die Kante wird hier
+    // ausdrücklich gesetzt, weil `putFixture` sie nur anlegt, wenn die Art
+    // angemeldet ist — und angemeldet wird sie in der Datei, die three.js
+    // mitbringt (`fixtures/kinds.ts`).
     plan.door(DOOR_COLUMN, z, DIR_E, 0, false);
     plan.putFixture({
       id: spot.door,

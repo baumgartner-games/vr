@@ -32,6 +32,15 @@ export const PIT_POST = 2.6;
 export const TARMAC_TOP = 0.02;
 
 /**
+ * **Die Kachel, in der die Nordmauer der Gasse ihre Lücke hat** — der Eingang
+ * für alle, die zu Fuß kommen.
+ *
+ * Die mittlere, weil eine Lücke am Rand neben der Boxenreihe läge und die
+ * Gasse dort ohnehin am engsten ist.
+ */
+export const PIT_GATE = PIT_LANE.x + 1;
+
+/**
  * Gasse und Boxen in einen bestehenden Grundriss stempeln.
  *
  * @returns denselben Plan, damit sich Aufrufe aneinanderreihen lassen.
@@ -76,13 +85,21 @@ export function stampPit(plan: GridPlan): GridPlan {
   plan.put('shelf', PIT_BOXES.x, PIT_BOXES.z + 1, DIR_W);
   plan.put('bench', PIT_BOXES.x, boxEnd - 1, DIR_W);
 
-  // **Die Mauern der Gasse.** Vorn und hinten hört sie auf, und dort steht
-  // etwas — sonst wäre die Grenze, an der ein Kart zurückgesetzt wird
-  // (`confineToCourse`), unsichtbar. Nach Osten bleibt sie offen: das *ist*
-  // die Ausfahrt. Nach Westen steht eine Mauer überall, wo keine Box ist.
+  /**
+   * **Die Mauern der Gasse.** Vorn und hinten hört sie auf, und dort steht
+   * etwas — sonst wäre die Grenze, an der ein Kart zurückgesetzt wird
+   * (`confineToCourse`), unsichtbar. Nach Osten bleibt sie offen: das *ist*
+   * die Ausfahrt. Nach Westen steht eine Mauer überall, wo keine Box ist.
+   *
+   * **Und in der Nordmauer bleibt eine Kachel frei** (`PIT_GATE`): Dort kommt
+   * herein, wer zu Fuß zu seinem Kart geht. Ein Kart fährt dort nicht hinaus —
+   * es wird von der Fläche gehalten und nicht von der Brüstung
+   * (`kartTrack.confineToCourse`) —, aber ein Mensch läuft sonst gegen eine
+   * hüfthohe Mauer, über die ihn kein Autostep hebt.
+   */
   const laneEnd = PIT_LANE.z + PIT_LANE.d - 1;
   plan.run(PIT_LANE.x, PIT_LANE.z, PIT_LANE.w, 'x', (x, z) => {
-    plan.put('parapet', x, z, DIR_N);
+    if (x !== PIT_GATE) plan.put('parapet', x, z, DIR_N);
     plan.put('parapet', x, laneEnd, DIR_S);
   });
   for (let z = PIT_LANE.z; z <= laneEnd; z++) {

@@ -107,7 +107,18 @@ const _quaternion = new THREE.Quaternion();
 /** Der Grundriss der Zone: die Boxengasse und ein Schild davor. */
 export function stampKart(plan: GridPlan): void {
   stampPit(plan);
+}
 
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
+ * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
+ * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
+ * weggebaut.
+ */
+export function fitKart(plan: GridPlan): void {
   plan.putFixture({
     id: 'schild-gokart',
     kind: 'sign',
@@ -773,9 +784,7 @@ export class KartZone implements TestZone {
    * dort kachelbündig aneinander, und das soll man auch sehen.
    */
   private buildRoad(world: ZoneHost): void {
-    const tarmac = this.own(
-      new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.95 }),
-    );
+    const tarmac = this.own(new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.95 }));
     const paint = this.own(new THREE.MeshBasicMaterial({ color: 0xf2f4f8, toneMapped: false }));
     world.root.add(this.ribbon(0, HALF_WIDTH, TARMAC_TOP, tarmac));
     // Die weißen Linien knapp innerhalb der Kante; in einer Kurve braucht das

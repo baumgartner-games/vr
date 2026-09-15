@@ -37,7 +37,18 @@ export function stampPortals(plan: GridPlan): void {
   plan.wall(NAVIGATION.x, NAVIGATION.z + 5, DIR_W);
   plan.wall(NAVIGATION.x, NAVIGATION.z + 4, DIR_W);
   plan.wall(NAVIGATION.x, NAVIGATION.z + 6, DIR_W);
+}
 
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
+ * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
+ * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
+ * weggebaut.
+ */
+export function fitPortals(plan: GridPlan): void {
   plan.putFixture({
     id: 'schild-portale',
     kind: 'sign',

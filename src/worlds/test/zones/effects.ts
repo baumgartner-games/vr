@@ -44,7 +44,18 @@ export const EMITTERS: readonly EmitterSpot[] = [
 export function stampEffects(plan: GridPlan): void {
   // Die Rückwand im Norden: Sie hält die Reihe zusammen und trägt das Schild.
   plan.run(EFFECTS.x, EFFECTS.z, EFFECTS.w, 'x', (x, z) => plan.wall(x, z, DIR_N));
+}
 
+/**
+ * **Die Einbauten dieser Zone** — und nur sie.
+ *
+ * Getrennt vom Rest, weil `TestWorld.planLoaded` sie **nach** einem
+ * gespeicherten Umbau noch einmal aufsetzt: Ein Einbau hat eine **Kennung**,
+ * und `putFixture` ersetzt nach Kennung — es entsteht also kein zweiter
+ * daneben. Wände und Bausteine haben keine, und wer eine Wand wegbaut, hat sie
+ * weggebaut.
+ */
+export function fitEffects(plan: GridPlan): void {
   plan.putFixture({
     id: 'schild-effekte',
     kind: 'sign',
