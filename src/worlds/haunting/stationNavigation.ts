@@ -20,8 +20,12 @@ import { SMOOTH_MARGIN, pullString } from './navmesh';
 import { pointSegmentDistance } from './navmesh/snapshotClearance';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
 
-/** Quarter-metre samples resolve the tight turn after a 1.2m doorway. */
-const SUBDIVISIONS = 10;
+/**
+ * Quarter-metre samples resolve the tight turn after a doorway. Vier je
+ * Kachel, seit die Kachel ein Meter ist — zehn waren es bei zweieinhalb,
+ * und dieselben zehn auf einem Meter hätten das Raster versechsfacht.
+ */
+const SUBDIVISIONS = 4;
 const STEP = TILE / SUBDIVISIONS;
 const HALF = STEP / 2;
 const DIR_X = [0, 1, 0, -1] as const;
@@ -145,7 +149,11 @@ export function stationRoute(
   graph: NavGraph,
   from: RoutePose,
   goal: TileKey | FloorPoint,
-  clearance = 0.45,
+  // Der Halbmesser des Monsters (`map/flatRound.MONSTER_RADIUS`): Wer nichts
+  // sagt, bekommt den breiteren der beiden Körper, die hier laufen. 0,45 war
+  // die Vorsicht des Möbelpackers und durch eine 1-m-Tür auf einem 0,25-m-
+  // Raster nicht mehr zu bekommen.
+  clearance = 0.3,
   smooth = true,
   avoid: RouteAvoid | null = null,
 ): RoutePath {
@@ -387,11 +395,15 @@ function buildGrid(spec: HouseSpec, graph: NavGraph, radius: number): RouteGrid 
       continue;
     const horizontal = dirZ(dir) !== 0;
     const opening = wall.kind === 'door' && wall.open && !wall.barred;
+    // Eine offene Tür über die ganze Kante lässt keinen Pfosten stehen — ein
+    // Kasten von null Breite hielte trotzdem einen Halbmesser weit auf.
     const spans = opening
-      ? [
-          [-TILE / 2, -STATION_DOOR_W / 2],
-          [STATION_DOOR_W / 2, TILE / 2],
-        ]
+      ? STATION_DOOR_W >= TILE - 1e-6
+        ? []
+        : [
+            [-TILE / 2, -STATION_DOOR_W / 2],
+            [STATION_DOOR_W / 2, TILE / 2],
+          ]
       : [[-TILE / 2, TILE / 2]];
     for (const [start, end] of spans)
       obstacles.push({

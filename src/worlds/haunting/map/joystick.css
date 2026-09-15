@@ -1,0 +1,23 @@
+/*
+ * **Der Stock unter dem linken Daumen** (`map/joystick.ts`) — das eine Bauteil
+ * der gemalten 2D-Welt, das geblieben ist: Die Monster-Rolle
+ * (`monster/monsterView.ts`) und der Zuschauer (`views/watchRole.ts`) steuern
+ * damit ihre Karte. Der Techniker im Schiff hat keinen eigenen Stock mehr,
+ * dort läuft der Bordstock der Seite (`docs/plan-haunting-1m.md`).
+ *
+ * `.flat` ist nur der Rahmen: Lage, Schrift und die Maße, aus denen der Stock
+ * seinen Platz rechnet. Handgesetzt, einzeilig — CSS steht nicht unter Prettier.
+ */
+.flat { position: fixed; inset: 0; z-index: 4; color: #e8ecf7; font: 14px system-ui, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; --flat-top: calc(max(12px, env(safe-area-inset-top)) + 58px); --flat-bottom: max(14px, env(safe-area-inset-bottom)); }
+.flat [hidden] { display: none !important; }
+/* Der Stock: In Ruhe sitzt er sichtbar unten links, wo der Daumen ohnehin
+   liegt; aufgesetzt springt er unter den Daumen (`joystick.ts`) und kehrt
+   losgelassen zurück. Ein Stock, den man erst durch Tippen findet, ist auf
+   dem Telefon keiner. **Seine Fläche bleibt in der unteren Ecke**: Sie reichte
+   einmal bis in die Bildmitte, und dort fing sie den zweiten Finger jeder
+   Zoomgeste ab — die Szene ließ sich nicht mehr aufziehen. */
+.flat__stick { position: absolute; left: 0; bottom: 0; width: min(44vw, 260px); height: min(32vh, 250px); touch-action: none; }
+.flat__stick-base { position: absolute; left: calc(max(24px, env(safe-area-inset-left)) + 64px); top: calc(100% - var(--flat-bottom, 14px) - 78px); width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%; border: 3px solid rgba(220, 226, 234, 0.45); background: rgba(40, 46, 54, 0.5); pointer-events: none; opacity: .72; transition: opacity .15s; }
+.flat__stick-base.is-live { opacity: 1; }
+.flat__stick-base.is-sprint { border-color: #f0b64a; }
+.flat__stick-knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(220, 226, 234, 0.85); box-shadow: 0 0 12px rgba(0, 0, 0, 0.5); }

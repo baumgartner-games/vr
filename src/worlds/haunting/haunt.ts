@@ -52,22 +52,23 @@ export const HAUNT_WAIT = 2.4;
 export const HAUNT_REST = 7;
 
 /**
- * **Wie nah eine Tür sein muss, damit sie zufällt** — in Kacheln, von der
+ * **Wie nah eine Tür sein muss, damit sie zufällt** — in Metern, von der
  * Mitte der Türkante aus gemessen.
  *
- * Eineinhalb Kacheln: die Tür des Zimmers, in dem es steht, und zwar die, an
- * der es gerade vorbeigeht. Weiter gefasst schlüge ein Monster im Nachbarraum
- * Türen zu, die niemand mit ihm in Verbindung bringt — und ein Spuk, den man
- * nicht verorten kann, ist ein Fehler und kein Schreck.
+ * Knapp vier Meter (eineinhalb Kacheln, als eine Kachel zweieinhalb Meter
+ * maß): die Tür des Zimmers, in dem es steht, und zwar die, an der es gerade
+ * vorbeigeht. Weiter gefasst schlüge ein Monster im Nachbarraum Türen zu,
+ * die niemand mit ihm in Verbindung bringt — und ein Spuk, den man nicht
+ * verorten kann, ist ein Fehler und kein Schreck.
  */
-export const SLAM_REACH = 1.5;
+export const SLAM_REACH = 3.75;
 
 /**
  * **Wie nah jemand einer Tür steht, damit sie ihn nicht mehr einklemmt** — in
- * Kacheln. Etwas mehr als eine halbe Kachel: der Durchgang selbst und ein
- * Schritt davor, denn wer im nächsten Bild darin steht, steckt genauso fest.
+ * Metern: der Durchgang selbst und ein Schritt davor, denn wer im nächsten
+ * Bild darin steht, steckt genauso fest.
  */
-export const DOORWAY_CLEAR = 0.75;
+export const DOORWAY_CLEAR = 1.9;
 
 /** Was das Monster gerade treibt — der ganze Zustand des Spuks. */
 export interface Spook {
@@ -198,15 +199,11 @@ function slammable(
     if (door.b === null || shut.has(door.id)) continue;
     if (door.a !== room && door.b !== room) continue;
     const edge = doorCentre(door);
-    const gap = Math.hypot(edge.x - at.x / TILE, edge.z - at.z / TILE);
+    const gap = Math.hypot(edge.x - at.x, edge.z - at.z);
     if (gap > bestGap) continue;
     // Niemandem die Tür auf den Kopf: Wer im Durchgang steht, wird nicht
     // eingeklemmt — auch das Monster nicht, das sich sonst selbst einsperrt.
-    if (
-      sight.occupants?.some(
-        (who) => Math.hypot(edge.x - who.x / TILE, edge.z - who.z / TILE) < DOORWAY_CLEAR,
-      )
-    )
+    if (sight.occupants?.some((who) => Math.hypot(edge.x - who.x, edge.z - who.z) < DOORWAY_CLEAR))
       continue;
     if (sealsOff(sight.spec, shut, door.id)) continue;
     best = door;
@@ -245,18 +242,18 @@ function sealsOff(spec: HouseSpec, shut: ReadonlySet<string>, closing: string): 
 }
 
 /**
- * Die Mitte einer Türkante, in Kacheln.
+ * Die Mitte einer Türkante, in Metern.
  *
  * Auf der Kante und nicht auf der Kachel: Der Bauplan sagt „an dieser Kachel,
  * in dieser Richtung", die Tür sitzt aber auf der Kante dazwischen. Eine halbe
- * Kachel ist gut ein Meter, und um so viel danebengegriffen schlüge das
- * Monster Türen zu, an denen es gar nicht vorbeigekommen ist.
+ * Kachel danebengegriffen schlüge das Monster Türen zu, an denen es gar nicht
+ * vorbeigekommen ist.
  */
 function doorCentre(door: { x: number; z: number; dir: Dir }): { x: number; z: number } {
   const alongX = door.dir === DIR_N || door.dir === DIR_S;
   return {
-    x: door.x + (alongX ? 0.5 : door.dir === DIR_E ? 1 : 0),
-    z: door.z + (alongX ? (door.dir === DIR_S ? 1 : 0) : 0.5),
+    x: (door.x + (alongX ? 0.5 : door.dir === DIR_E ? 1 : 0)) * TILE,
+    z: (door.z + (alongX ? (door.dir === DIR_S ? 1 : 0) : 0.5)) * TILE,
   };
 }
 

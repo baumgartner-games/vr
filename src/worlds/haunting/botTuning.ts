@@ -155,9 +155,16 @@ export const TECHNICIAN_FIELDS: ReadonlyArray<TuningField<TechnicianTuning>> = [
  * Ziel „der Techniker gewinnt 60–70 % der Runden" (`botTraining.test.ts`
  * rechnet es bei jedem Lauf nach). Wer eine Zahl hier von Hand ändert, ändert
  * damit die Schwierigkeit der ganzen Bot-Runde — und der Test sagt es ihm.
- * Zuletzt neu trainiert mit dem Paket „Rechenkern": eine Türbreite von 2 m in
- * beiden Welten, Ducken als Tempo und die ablaufende Abfangprognose spielen
- * eine andere Runde als vorher, und die alten Zahlen fielen aus dem Band.
+ * Zuletzt nachgestellt mit dem 1-m-Gitter (Paket H, `docs/plan-haunting-1m.md`):
+ * Seit die Gefahr des Technikers zu Fuß über die Türen gemessen wird
+ * (`roomGraph.walkingGap`) statt über die Mitten der Räume, merkt er ein
+ * Monster erst, wenn es wirklich nah ist — die Vorsicht musste deshalb von
+ * sieben auf dreizehn Meter, und die Wartezeit bis zur Weiterarbeit von zehn
+ * auf fünf Sekunden, sonst verlor das Team (mit dem Zuruf an die Zentrale)
+ * zwei Drittel mehr Runden als zu zweit. Gemessen wie in `botTraining.test`
+ * (vier Reihen à 400 Runden) trifft dieser Satz beide Bänder; das Monster ist
+ * unverändert. Davor: das Paket „Rechenkern" (Türbreite, Ducken als Tempo,
+ * Abfangprognose).
  */
 export const DEFAULT_TUNING: BotTuning = {
   monster: {
@@ -182,10 +189,10 @@ export const DEFAULT_TUNING: BotTuning = {
     walk: 2.35,
     sprint: 4.7,
     stamina: 11.25,
-    caution: 7,
+    caution: 13,
     hide: 0.5,
     work: 1.15,
-    nerve: 10,
+    nerve: 5,
   },
 };
 

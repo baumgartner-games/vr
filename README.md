@@ -162,8 +162,8 @@ oben auf der Seite: **mit Brille** heißt er **Enter VR** (der Techniker im
 Anzug), **am Bildschirm** heißt er **Beitreten** — und ob das **Web 3D** ist
 (der Techniker am Bildschirm, im Schiff) oder die **2D Einsatzzentrale** (Handy
 oder Laptop: Archiv, Schalttafel, Späher, Zuschauer oder Monster — die Karte
-von oben), sagt die Wahl **„Am Bildschirm: 2D oder 3D?"**; am Handy ist 2D
-vorbelegt. Die Zeile unter dem Knopf sagt es vor dem Drücken. In der Zentrale erst die Tafel
+der Station), sagt die Wahl **„Von oben"** oder **„Aus den Augen"**; am Handy
+ist _Von oben_ vorbelegt. Die Zeile unter dem Knopf sagt es vor dem Drücken. In der Zentrale erst die Tafel
 einstellen, dann **Rollen testen** — über der Karte nimmt man seinen Platz
 über die Reiter; ein **Ich** auf der Tafel gibt es nicht. Wer über **Enter VR** oder
 **Web 3D** kommt, steht sofort im Anzug: Die Techniker-Zeile der Tafel zeigt
@@ -176,8 +176,8 @@ Ein weiteres Telefon kann das **Monster** spielen:
 Es sieht nur, was das Monster sieht und hört, und steuert es mit Stock und
 einem Knopf — zugeschlagen wird von selbst, wer in Reichweite steht; der Knopf
 gilt dem nächsten Ding, das die Karte hervorhebt (Klappe, Kabine, gesperrte
-Tür) — auch dann, wenn der Techniker die Station in der 2D-Welt von
-oben spielt. Für eine eigene Gruppe auf allen Geräten denselben Raum-Code
+Tür) — auch dann, wenn der Techniker die Station am Bildschirm spielt. Für
+eine eigene Gruppe auf allen Geräten denselben Raum-Code
 eintragen — oder gleich den Link `?room=euer-gruppenname#haunting` teilen, der
 ihn vorausfüllt; ein getippter Code wandert beim Verbinden selbst in die Adresse.
 Ohne Code ist der Raum `haunting`. Die Verbindungsanzeige nennt Raum und Gegenstellen. Nach einem
@@ -192,10 +192,11 @@ desselben Browsers, keine getrennten Geräte im WLAN.
 **Die Mission:** Jede Runde fängt im **Aufbau** an — auf dem Handy die erste
 Seite, in der Brille der Knopf am Handgelenk. Er ist kurz:
 
-1. **Ein Häkchen.** _2D-Welt von oben_ (sonst das Schiff; am Telefon ist 2D
-   voreingestellt, in der Brille gibt es immer das Schiff — **und diese eine
-   Frage darfst du dir mitten in der Runde anders beantworten**, siehe unten).
-   Ohne Monster spielt man, indem der Platz Monster auf „Aus" steht.
+1. **Kein Häkchen.** Ob du das Schiff von oben oder aus den Augen siehst,
+   ist keine Frage des Aufbaus: Das ist _Menü → Ansicht_, wie in jeder Welt,
+   und du darfst es dir mitten in der Runde anders überlegen (in der Brille
+   gibt es immer das Schiff). Ohne Monster spielt man, indem der Platz
+   Monster auf „Aus" steht.
 2. **Die Verteilung.** Techniker, Monster und die drei Fähigkeiten der
    Einsatzzentrale, jede auf Bot, Mensch oder Aus. Wer _du_ bist, steht hier
    nicht — das wählst du über der Karte.
@@ -204,11 +205,13 @@ Seite, in der Brille der Knopf am Handgelenk. Er ist kurz:
    und jeder darf jede Rolle. Über der Karte steht ein Kopf: die Rollen als
    Reiter (Techniker, Rot, Gelb, Blau, Monster, Zuschauer), das Zahnrad, und
    die Leiste mit Systemen, Anzug und — sobald sie läuft — der Uhr. Der
-   Reiter **Techniker** setzt dich an den Stock: Die 2D-Welt geht auf, und du
+   Reiter **Techniker** setzt dich an den Stock: Du stehst im Schiff am
+   Bildschirm — von oben oder aus den Augen, wie _Menü → Ansicht_ steht — und
    läufst los. Das Monster bewegt sich im Test nur, wenn ein Mensch es
    steuert.
-4. **Mission starten** — im Zahnrad (über der Karte wie in der 2D-Welt) oder
-   gleich im Aufbau, für den, der nicht erst testen will. Erst dann läuft die
+4. **Mission starten** — im Zahnrad über der Karte des Telefons, in der
+   Tafel des Technikers oder gleich im Aufbau, für den, der nicht erst
+   testen will. Erst dann läuft die
    Uhr, das Licht geht aus, das Monster los — auf derselben Station.
    **Mission stoppen** im selben Zahnrad führt zurück in den Test, **Zurück
    zu den Rollen** in den Aufbau. **Steckt der Techniker schon in der Brille,
@@ -232,9 +235,10 @@ ein anderes Gerät sie rechnet oder schon jemand als Techniker spielt, steht
 das im Eintrag selbst. Die feste Skeld-Karte enthält 14 benannte Räume in der
 Anordnung der Vorlage: Cafeteria oben, Triebwerke/Reactor/Security links,
 Weapons/O2/Navigation rechts, Storage unten und die dazwischenliegenden
-Nebenräume. Die meisten Räume messen 4 × 4 Rasterfelder (10 × 10 Meter);
-Cafeteria und Storage sind größer. Gänge verbinden die Module über echte
-Rasterböden. Die Konturen sind rechtwinklig, noch ohne 45°-Wandelemente.
+Nebenräume. Eine Kachel ist ein Meter: Die meisten Räume messen 10 × 10
+Meter, Cafeteria (20 × 18) und Storage (15 × 12) sind größer, die Gänge sind
+zwei Meter breit, und jede Tür ist eine ganze Kachelkante (1 m) ohne Pfosten.
+Die Konturen sind rechtwinklig, noch ohne 45°-Wandelemente.
 Seeds verändern Aufgaben und Einrichtung, nicht Raumnamen oder Grundriss.
 Modelle und Raumgestaltung verwenden eigene Assets.
 Antrieb, Nahrungsversorgung und Notsignal müssen repariert werden. In jedem
@@ -242,8 +246,8 @@ Raum stehen **zwei bis drei Frachtkisten**, jede mit Farbband und Nummer
 beschriftet („Kiste 2 · blau") — am Modell wie auf der Karte, immer lesbar.
 Die drei Ersatzteile liegen in dreien davon, vier weitere halten Werkzeug, und
 der Rest ist leer. **Wer weiß, welche die richtige ist, hängt daran, wer am
-Archiv sitzt:** Ist es ein Bot, leuchtet die richtige Kiste selbst — im Schiff
-mit einem gelben Saum, in der 2D-Welt mit Schein, Umriss und Puls. Sitzt dort
+Archiv sitzt:** Ist es ein Bot, leuchtet die richtige Kiste selbst — mit einem
+gelben Saum. Sitzt dort
 ein **Mensch**, sieht der Techniker nur noch den **Raum** leuchten; welche
 Kiste darin es ist, weiß das Archiv als Einziges und sagt es an: „Kiste 2,
 blaues Band · Nordwand". Wer ohne diese Ansage sucht, öffnet Kisten — oder
@@ -257,14 +261,14 @@ Reparaturen zur Zentrale zurückkehren.
 **Ein Ersatzteil auf einmal.** Der Techniker trägt es in der Hand — in der
 Brille wirklich in der rechten —, und solange er es hat, geht keine zweite
 Kiste mit einem Teil heraus: erst abliefern oder ablegen. Ablegen geht
-jederzeit (`G` am Schirm, Knopf im Panel); das Teil bleibt liegen, wo er
-stand, und lässt sich mit `E` wieder aufnehmen. Ohne Teil in der Hand bleibt
-die Abdeckung des Wartungskastens zu. **Die Taschenlampe kann er nie
-verlieren:** Sie hängt von Anfang an in beiden Holstern und steht in beiden
-Handkreisen (`1` links, `2` rechts) — ausmachen darf er sie, das macht ihn
-schwerer sichtbar.
+jederzeit (Knopf **Ablegen** in der Tafel des Technikers); das Teil bleibt
+liegen, wo er stand, und lässt sich mit Benutzen (`A` am Pad, `E` an der
+Tastatur) wieder aufnehmen. Ohne Teil in der Hand bleibt die Abdeckung des
+Wartungskastens zu. **Die Taschenlampe kann er nie verlieren:** Sie hängt von
+Anfang an in beiden Holstern und steht im Werkzeug-Knopf unten rechts —
+ausmachen darf er sie, das macht ihn schwerer sichtbar.
 
-**Wer spielt mit:** Die Tafel des Aufbaus, in 2D wie in 3D — Techniker (Mensch
+**Wer spielt mit:** Die Tafel des Aufbaus, am Telefon wie in der Brille — Techniker (Mensch
 oder Bot; steht jemand mit der Brille im Raum, heißt die Zeile **VR** und
 gehört ihm), Monster (Mensch, Bot oder aus) und die **drei Fähigkeiten der
 Einsatzzentrale** — Späher, Schalttafel, Archiv —, jede auf **Bot, Mensch oder
@@ -274,10 +278,8 @@ wie er mag; wie die Mischung heißt, steht daneben: Späher + Schalttafel ist di
 der **Leitstand**, alle drei die **Zentrale**. So passt die Runde auch zu
 dritt, wenn nur zwei in der Zentrale sitzen. Unter jeder Fähigkeit steht, wer
 sie wirklich hält. **Ein Bot auf einer Fähigkeit gibt sie dem Techniker
-selbst:** Wer allein in der 2D-Welt spielt, sieht die
-Peilung des Monsters alle paar Sekunden, sperrt Türen und schaltet Lampen per
-Tipp auf die Karte und schlägt mit einem Tipp aufs Zimmer die Akte mit den
-Codes auf. **Gewollt gesperrt ist immer nur eine Tür, und sie hält, bis sie
+selbst:** Der Archivar aus Zahlen funkt ihm Fundort und Ziel, die richtige
+Kiste leuchtet, und der Kompass zeigt hin. **Gewollt gesperrt ist immer nur eine Tür, und sie hält, bis sie
 von selbst fällt** — acht bis zehn Sekunden, mit rotem Balken über der Tür;
 solange lässt sich weder sie wieder öffnen noch eine zweite sperren, und der
 Schalter sagt, warum. Das gilt im Test wie in der Mission. Türen, die das
@@ -285,9 +287,9 @@ Monster zuschlägt, gehen nach zwanzig Sekunden von selbst wieder auf oder
 vorher durch die Schalttafel.
 
 **Ein Riegel, der gefallen ist, bleibt vierzig Sekunden offen.** Die Tür wird
-dabei **grün, blinkt** und zählt herunter — auf der Karte und in der 2D-Szene
-läuft derselbe Balken wie beim Halten, nur grün statt rot, und Blatt und
-Schwelle zucken im Sekundentakt in Grün. So lange lässt sie
+dabei **grün, blinkt** und zählt herunter — auf der Karte läuft derselbe
+Balken wie beim Halten, nur grün statt rot, und das Blatt zuckt im
+Sekundentakt in Grün. So lange lässt sie
 sich nicht wieder verriegeln, und das ist Absicht: Sonst wurde aus dem Riegel
 das Spiel „ich schließe immer die Tür vor dem Monster", und das Vieh stand
 fest. Dazu kommt, dass es lieber **zieht** als läuft: Steht ein Umweg von mehr
@@ -308,91 +310,49 @@ seines Geräts am Tisch vor der Scheibe — Rot, Gelb, Blau, das Monster —, di
 Zuschauer und wer noch keinen Platz hat in der Reihe dahinter. Niemand aus
 der Zentrale steht als Spieler mitten auf dem Vorplatz.
 
-**Die 2D-Welt** sieht aus wie ein Brettspiel von oben: helle Böden mit
-Kacheln, dicke Wände, Türen als Blätter mit Schloss, die Möbel aus dem Schiff
-als Klötze, kleine Astronauten mit Händen, das Monster als Klumpen mit Augen.
-Geräusche laufen als Wellen über die Kacheln — die eigenen blau, die des
-Monsters rot, Türen und Fracht orange. Eine Wand hält eine Welle nicht auf,
-sie dämpft sie: Was nebenan ankommt, kommt später und blasser an, und eine
-zugeworfene Tür macht einen Schritt leiser und nicht lautlos. Gelbe Dreiecke
-am Bildrand zeigen zum nächsten Ziel (am Desktop im Schiff ein Kompass am oberen Bildrand),
-„Zielpfade" im Optionsmenü legt die Wege von Techniker und Monster auf die
-Karte — beim Zuschauen als „Zuschauer: Alles" beide, als „Zuschauer: Einzeln"
-nur den dessen, zu dem der Sprungknopf zuletzt geführt hat —, und im Modus
-„Alles sehen" führen Bögen von Klappe zu Klappe mit dem
-Raum, in dem der Schacht endet. Wer das Monster spielt, steigt mit
-**Interagieren** in eine Klappe und wählt darunter den Zielraum.
-**Der obere Rand gehört in 2D dem Spiel.** Die Kopfzeile der Seite (Menü,
-Verbindung, VR) ist dort ausgeblendet und kommt beim Verlassen zurück; was
-oben steht, steht untereinander statt voreinander. Ganz oben links zwei
-Zeilen und sonst nichts: **O₂** mit der Restzeit und den Anzug-Herzen,
-darunter **Aufgaben:** mit einem Kreis je Auftrag — voll erledigt, halb
-angefangen, leer offen. Ein Tipp auf die Zeile klappt die Liste mit den Namen
-auf, ein zweiter wieder zu. Rechts daneben das **Zahnrad**, in der Zeile
-darunter die Sprungknöpfe — die sind damit nie verdeckt.
-
-Das **Zahnrad** zeigt, was sich mitten in der Runde ändert — Ansicht,
-Zielpfade, Ton, **Zuschauen: an/aus** (immer möglich), beim Zuschauen die
-**Simulationsgeschwindigkeit** (×1 bis ×16), **Ansicht: 2D ↔ 3D**
-und **Runde verlassen** —, und darin unter **Aufmachen** die
-drei Wege nach draußen: **Karte** (die Übersicht der Station; den eigenen
-🗺-Knopf oben rechts gibt es nicht mehr), **Menü** und **Verbindung**, also
-das, was sonst in der Kopfzeile steht. Wer mitspielt und was die nächste Runde
-wird, steht in der Lobby. **Immer nur eines auf einmal:** Solange Karte,
-Rätsel, Raumakte oder Menü offen sind, ist der Rest weg — kein HUD, keine
-Reiter, keine Spielszene dahinter; ein Zurück bringt alles wieder, und die
-Runde ist unterdessen weitergelaufen.
-
-**2D ↔ 3D, mitten im Spiel.** Als Techniker musst du dich nicht vor der Runde
-entscheiden: Im Zahnrad der 2D-Welt steht **„Ansicht: 2D ↔ 3D"**, und im Panel
-des Technikers im Schiff steht der Knopf **„2D von oben"**. Beide schalten
-sofort um, und zwar **dieselbe Runde**: dieselbe Uhr und derselbe Sauerstoff,
-derselbe Anzug, dasselbe Ersatzteil in der Hand, dieselben gesperrten Türen und
-brennenden Lampen — und dasselbe Monster an derselben Stelle, das sich immer
-noch merkt, wo es dich zuletzt gesehen hat. Du stehst danach dort, wo du eben
-standest. Wer zusieht oder in der Zentrale sitzt, merkt von alledem nichts: Der
-Stand ist derselbe, nur das Bild ist ein anderes. **In der Brille gibt es keine
-Karte von oben** — dort bleibt es beim Schiff, und der Eintrag sagt es auch.
+**Von oben ist dasselbe Schiff.** _Menü → Ansicht_ schaltet jederzeit
+zwischen _Von oben_ und _Aus den Augen_ um, ohne Neustart und ohne neue
+Rolle: dieselbe Runde, dieselbe Uhr, derselbe Anzug, dasselbe Monster. Von
+oben hängt die Kamera schräg über der Figur, schneidet die Decke ab, macht
+Wände vor der Figur durchsichtig und zeichnet auf Wunsch die Kacheln; die
+Figur läuft in Weltrichtungen, zwei Finger zoomen, und `A` benutzt, was vor
+ihr steht. **In der Brille gibt es nur das Schiff.** Die gemalte 2D-Welt —
+das Brettspiel von oben mit eigener Runde darin — gibt es seit dem
+1-m-Gitter nicht mehr; die Zentrale am Telefon zeichnet weiter ihre Karte.
 Wandert die Technikerrolle mitten in der Runde zu jemand anderem, übergibt das
 alte Gerät dem neuen die ganze Runde, und zwar mitsamt allem, was sonst nur der
 eine Rechner wusste — Sperrfristen, Lampenrestzeiten und das Gedächtnis des
 Monsters.
 
-**Verschieben ist ein Blick zur Seite.** Die Szene lässt sich ziehen und mit
-zwei Fingern zoomen; dann steht oben **Zum Spieler**. Sobald du wieder einen
-Schritt gehst, springt die Kamera von selbst zurück. Ganz herausgezoomt passt
-die ganze Station ins Bild und lässt sich ein Stück nach unten ziehen, damit
-ihre obere Kante frei unter den Anzeigen steht. **Wer
-zuschaut**, hat keinen Stock, dafür zwei Knöpfe: _Zum Techniker_ und
-_Zum Monster_, jederzeit umschaltbar. Die Sicht der Plätze Rot, Gelb und Blau
-wählt man über die Reiter — dieselben sieben im Kopf der 2D-Welt wie über
-der Karte des Telefons — auch während eine Runde läuft.
+**Wer zuschaut**, sieht im Schiff der Bot-Runde zu: Die Kamera folgt dem
+Techniker aus Zahlen (von oben steht die Figur auf ihm), **Freie Kamera**
+lässt einen selbst durch das Schiff laufen, **Bot folgen** holt einen zurück.
+Am Telefon hat der Zuschauer seine Linse mit einem Stock zum Fliegen und
+kann in jeden Platz hineinsehen. Die Sicht der Plätze Rot, Gelb und Blau
+wählt man über die Reiter über der Karte des Telefons — auch während eine
+Runde läuft.
 
-**Die Handyansichten:** Alle drei zeichnen dieselbe Karte wie die 2D-Welt,
+**Die Handyansichten:** Alle drei zeichnen dieselbe Karte der Station,
 jede mit eigenen Schichten. Beim **Archiv** liegt die ganze Station darauf,
 mit Fracht und Konsolen. **Wohin das Teil muss, erfährt das Archiv erst, wenn
 der Techniker es in der Hand hat:** Dann führt eine gestrichelte Linie zur
 Konsole, und am Ziel steht „hierher". Legt er es irgendwo ab und lässt es länger
 als fünf Sekunden liegen, meldet das Archiv, in welchem Raum es liegt. Ein Tipp auf ein Zimmer schlägt die **Raumakte** auf — ganzseitig, die Karte
 ist so lange weg, und „Karte" bringt sie zurück: Codes groß, Fundhinweise,
-Türen — und ein Bild des Raums, in 3D die Draufsicht der wirklichen Welt mit
-Zoom und Wisch, in der 2D-Welt eine herangezoomte Karte. Live-Positionen zeigt
+Türen — und ein Bild des Raums, die Draufsicht der wirklichen Welt mit
+Zoom und Wisch. Live-Positionen zeigt
 es keine, Lampen auch nicht. Die **Schalttafel** zeigt
 den Grundriss ohne Wesen und schaltet Türen und Lampen per Tipp — eine Lampe
 ist ein Kreis in der Zimmermitte, gelb, wenn sie brennt; eine Schalterliste
 gibt es nicht, und ein Schott, das gerade abkühlt, sagt es beim Tipp. Der
 **Späher** zeigt zwei Punkte
 und sonst nichts. Der Kopfbereich bietet einen
-sichtbaren Rollenwechsel. In der 2D-Welt liegt derselbe Wechsel als Streifen
-über der Szene: Wer dort eine Rolle aufschlägt, sieht **dieselbe laufende
-Runde** aus ihrer Sicht, ohne dass etwas neu gestartet wird — allerdings nur
-in einer **Test-Runde**: Mitten in einer Mission ist man dort der Techniker
-und steht im Anzug.
+sichtbaren Rollenwechsel.
 
 **Wer blutet, wird verfolgt.** Ein Treffer reißt eine Wunde, und die blutet
 zwei Minuten lang: Wer sich danach bewegt, hinterlässt alle anderthalb Meter
-einen dunkelroten Tropfen — in 2D auf dem Boden, in der Brille als flacher
-Fleck auf dem Blech. Nach gut einer halben Minute ist ein Tropfen verblasst,
+einen dunkelroten Tropfen, einen flachen Fleck auf dem Blech. Nach gut einer
+halben Minute ist ein Tropfen verblasst,
 wer stehen bleibt, hinterlässt fast nichts. Das Monster **sieht nicht**, wo die
 Spur liegt; es findet sie nur, wenn es im selben Raum darüberläuft — dann
 allerdings liest es daraus, in welche Richtung es weitergehen muss, und sucht
@@ -402,9 +362,9 @@ verrät nicht nur, dass man da war, sondern wohin man gelaufen ist.
 **Überleben und beobachten:** Drei Treffer beenden die Runde; nach jedem
 Treffer gibt es drei Sekunden Schutz. Ein gefundenes Medkit heilt einen
 Treffer. Tod und Sieg zeigen eine klare Meldung mit **Neu starten**, auch im
-Headset. Ein Schutzschrank lässt sich mit dem Code aus dem Archiv öffnen und
-betreten. Ein beleuchteter Knopf im Inneren führt wieder hinaus; am Desktop
-funktioniert auch `E`. Die Bedienung setzt voraus, dass man sich im Raum des
+Headset. Ein Schutzschrank lässt sich ohne Code betreten — ein Druck auf das
+Tastenfeld hinein, ein zweiter heraus; am Bildschirm ist das Benutzen (`A`,
+`E`). Die Bedienung setzt voraus, dass man sich im Raum des
 Schranks befindet; durch eine Nachbarwand lässt er sich nicht benutzen.
 Reißt das Monster einen Schrank auf, ist er für den Rest der Runde ein
 funkendes Wrack: Niemand kommt mehr hinein, und es gibt ein Versteck weniger.
@@ -462,35 +422,33 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 | Aktion                                                   | Tastatur / Maus                                                                                                     |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Laufen und umsehen                                       | `WASD` und Maus; `Shift` zum Rennen                                                                                 |
-| Schrank öffnen, Sache aufnehmen, Taste am Rätsel drücken | Anvisieren und `E` oder Linksklick                                                                                  |
-| Linke Hand wechseln                                      | `1`: Radar, Röntgengerät und freie Hand durchschalten                                                               |
-| Rechte Hand wechseln                                     | `2`: Taschenlampe, gefundenes Medkit, freie Hand                                                                    |
-| Medkit verwenden                                         | Rechts auswählen und `E` drücken                                                                                    |
+| Schrank öffnen, Sache aufnehmen, Konsole aufmachen      | `E` (am Pad `A`) — der gelbe Saum zeigt, was gemeint ist; Anvisieren und Linksklick gehen daneben weiter           |
+| Werkzeug wechseln                                        | `Tab` oder der runde Knopf unten rechts: Taschenlampe, Radar, Röntgengerät, Medkit, leere Hand                     |
+| Medkit verwenden                                         | Im Werkzeug-Knopf wählen und `E` drücken                                                                            |
 | Taschenlampe an und aus                                  | `E`, wenn nichts zum Benutzen vor dir liegt                                                                         |
-| Ducken                                                   | `Ctrl` halten                                                                                                       |
-| Simulationsflug                                          | `WASD` in Blickrichtung, `Space` hoch, `Ctrl` runter; `Shift` schneller                                             |
+| Ducken                                                   | `Ctrl` halten oder **Ducken** in der Tafel                                                                          |
+| Ersatzteil ablegen                                       | **Ablegen** in der Tafel                                                                                            |
 | Leistungsanzeige                                         | `F3` oder Menü → Grafik → _Bildrate im Bild_ (auch am Handy); in der Brille steht dieselbe Zahl unter Menü → Grafik |
 
-**Am Bildschirm liegt dieselbe Steuerung wie in der 2D-Welt**: der Stock links
-unten, rechts unten drei Knöpfe. Die beiden kleinen sind die zwei Hände —
-**Linke Hand** (Radar, Röntgengerät, frei) und **Rechte Hand** (Taschenlampe,
-Medkit, frei), dieselben Reihen wie `1` und `2`. Der große trägt den Namen
-dessen, worauf man gerade zielt, und tut dasselbe wie `E`.
+**Am Bildschirm ist die Steuerung die der Seite, wie in jeder Welt**: auf dem
+Handy der Bordstock links und `A`/`B` rechts, am Laptop `WASD`, Maus, `E`.
+Was `A` gerade meint — Kistenklappe, Konsole, Tastenfeld, Türtafel, das
+liegende Teil —, trägt einen gelben Saum und einen Hinweis über der Figur;
+der runde Werkzeug-Knopf unten rechts wählt Taschenlampe, Radar,
+Röntgengerät oder Medkit. Über den Stock geht es mit Arbeitstempo los;
+jenseits des äußeren Rings wird gerannt. In der Brille gibt es Zeiger,
+Trigger und `A`.
 
-**Und wenn nichts vor dir liegt, ist derselbe Knopf der Lichtschalter.** Dann
-steht auf ihm **Licht an** oder **Licht aus** — also das, was der nächste Druck
-tun wird —, und auf dem rechten Handknopf **Lampe an** oder **Lampe aus**: Wie
-es gerade um dich herum ist, musst du nicht mehr an der Wand ablesen. Die Lampe
+**Und wenn nichts vor dir liegt, ist Benutzen der Lichtschalter.** Die Lampe
 bleibt dabei in der Hand; sie auszumachen ist eine Entscheidung, keine leere
-Hand, denn das Monster sieht eine brennende Lampe weiter als dich. Über den Stock geht
-es mit Arbeitstempo los; jenseits des äußeren Rings wird gerannt. Tastatur und
-Maus bleiben daneben, wie sie waren; in der Brille sind die Knöpfe weg, dort
-gibt es Zeiger und Trigger.
+Hand, denn das Monster sieht eine brennende Lampe weiter als dich. In der
+Tafel steht, ob sie gerade brennt.
 
 **Der obere Rand gehört auch im Schiff dem Spiel.** Die Kopfzeile der Seite
-(Menü, Verbindung, VR) ist hier ausgeblendet wie in der 2D-Welt und kommt beim
-Verlassen zurück; oben stehen der Kompass und darunter die Tafel des
-Technikers. Die Tafel ist nur so hoch wie das, was darin steht, und
+(Menü, Verbindung, VR) ist hier ausgeblendet und kommt beim Verlassen zurück;
+oben stehen der Kompass und darunter die Tafel des Technikers, unten in der
+Mitte der Streifen mit Sauerstoff, Anzug und Aufträgen. Die Tafel ist nur so
+hoch wie das, was darin steht, und
 **lässt sich zuklappen**: „Zuklappen" räumt sie weg bis auf die Titelzeile mit
 Anzug, Systemen und Sauerstoff — daneben bleibt das **⚙ Optionen** stehen, und
 darin führen **Menü**, **Verbindung** und **VR** dorthin, wo sonst die
@@ -526,11 +484,11 @@ Jeder Übungsraum hat Rückkehr- und Wechselknöpfe. Testbesuche in Missionsräu
 verwenden freie Ankunftsplätze.
 
 **Zuschauen** (im Optionsmenü der laufenden Runde, in der Brille auch im Menü —
-und zwar immer) heißt: der Runde folgen, die im Raum wirklich läuft. Spielt jemand — im Schiff oder von einem
-anderen Gerät aus in 2D —, siehst du **ihn**: dieselbe Station, dieselben
-Türen, dasselbe Monster, mit zwei Sprungknöpfen „Zum Techniker" und „Zum
-Monster" und dem Modus „Alles sehen". Eingaben hast du keine; ein Zuruf von
-dir beendet die Runde schneller als das Monster.
+und zwar immer) heißt: der Runde folgen, die im Raum wirklich läuft. Spielt
+jemand im Schiff, siehst du **ihn** auf der Karte des Telefons: dieselbe
+Station, dieselben Türen, dasselbe Monster, mit der Linse des Zuschauers und
+dem Modus „Alles sehen". Eingaben hast du keine; ein Zuruf von dir beendet
+die Runde schneller als das Monster.
 
 Am **Zuschauerplatz der Zentrale** wählst du dazu, **wessen Platz** du gerade
 ansiehst — Deck (das ganze Schiff von schräg oben, ohne Decke), Archiv,
@@ -597,7 +555,7 @@ Station gehört hat. Schächte durch gemeinsame Wände benutzt es weiterhin.
 
 **Zeitraffer, Regler und Training.** In der Bot-Runde laufen ×2, ×4, ×8, ×12
 und ×16 (beschleunigt wird über die Zahl der Bilder, nicht über ihre Länge);
-eingestellt wird das im Optionsmenü, in 2D wie im Schiff. Die
+eingestellt wird das im Optionsmenü des Schiffs. Die
 Beleuchtung schaltet zwischen voller Beleuchtung, Wachbetrieb,
 Alarmbeleuchtung und Notstrom — im Alarm drehen sich rote Leuchten in den
 Gängen. Unter **Bots justieren & trainieren** stehen alle Gewichte beider Bots
@@ -618,10 +576,10 @@ und Ducken sind leiser. Aktuelle KI-Absichten stehen unter der Legende. Die Lini
 verwendeten Navigationswege. Das lokale Funkprotokoll zeigt Raumwechsel des
 Technikers an die Zentrale sowie die Archivhinweise. Es ist keine autonome
 Dreiercrew und kein zusätzlicher Sprachchat.
-**Simulation / Flugmodus** hebt die Decke ab. Am Desktop folgt die Kamera
-zunächst dem Bot; **Freie Kamera** gibt `WASD`, `Space` und `Ctrl` zum Erkunden
-frei, bis 120 Meter Höhe. **Kartenübersicht** zeigt die Station direkt von oben.
-**Bot folgen** schaltet zurück. Im XR-Headset gibt es keine automatische
+**Bot-Runde.** Am Bildschirm folgt die Kamera dem Bot — von oben steht die
+Figur auf ihm, aus den Augen schwebt sie schräg darüber; **Freie Kamera**
+lässt dich selbst durch das Schiff laufen, die Übersicht ist von oben der
+Zoom. **Bot folgen** schaltet zurück. Im XR-Headset gibt es keine automatische
 Blicknachführung. Zum Verlassen **Simulation beenden** oder **Zur Einsatzzentrale**
 wählen. Techniker-Bot und Monster folgen geprüften Kurven mit Beschleunigung
 und sanftem Abbremsen (`navmesh/route.ts`).

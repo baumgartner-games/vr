@@ -65,12 +65,15 @@ describe('Die ausgespielte Runde ohne Bild', () => {
 
   /**
    * **Acht Stationen statt einer.** Ob es hilft, schneller zu arbeiten, hängt
-   * am Zuschnitt: Auf einer Station, deren Räume eng beieinander liegen, ist
-   * Stehenbleiben sicherer als Laufen, und dort gewinnt der langsame
-   * Techniker sogar öfter. Über acht Stationen mittelt sich das weg und die
-   * Richtung bleibt — deshalb misst dieser Test die Reihe und nicht den
-   * Einzelfall, und deshalb zählt er die **Reparaturen** mit: Die sagen
-   * unmittelbarer als der Ausgang, wer mehr geschafft hat.
+   * am Zuschnitt: Wer schneller fertig ist, läuft mehr — und Laufen ist auf
+   * dieser Station die Zeit, in der das Monster einen hört und sieht; am
+   * Wartungskasten steht man still. Seit dem 1-m-Gitter (Räume ohne
+   * gemeinsame Wand, Gänge von zwei Metern) gewinnt der schnelle Techniker
+   * deshalb nicht öfter als der langsame (über 240 Runden je Seite gemessen:
+   * 101 zu 106 Siege), er ist nur **schneller fertig**. Genau das prüft
+   * dieser Test über acht Stationen: dass die Gewichte der Schalttafel in der
+   * Runde ankommen — eine gewonnene Runde dauert mit halben Handgriffen
+   * spürbar kürzer als mit doppelten.
    */
   it('nutzt dieselben Gewichte, die die Schalttafel anbietet', () => {
     const with_ = (work: number): BotTuning =>
@@ -83,10 +86,15 @@ describe('Die ausgespielte Runde ohne Bild', () => {
       );
     const slower = series(2);
     const faster = series(0.5);
-    const repairs = (list: RoundResult[]): number => list.reduce((sum, r) => sum + r.repairs, 0);
-    const won = (list: RoundResult[]): number => list.filter((r) => r.won).length;
-    expect(repairs(faster)).toBeGreaterThan(repairs(slower));
-    expect(won(faster)).toBeGreaterThan(won(slower));
+    const wonTime = (list: RoundResult[]): number => {
+      const won = list.filter((r) => r.won);
+      return won.reduce((sum, r) => sum + r.time, 0) / Math.max(1, won.length);
+    };
+    expect(faster.some((r) => r.won)).toBe(true);
+    expect(slower.some((r) => r.won)).toBe(true);
+    // Sechs Handgriffe à 2,6 bzw. 6,4 s, mal 1,5 Unterschied im Faktor: gut
+    // vierzig Sekunden je gewonnener Runde, die der Schnelle spart.
+    expect(wonTime(faster)).toBeLessThan(wonTime(slower) - 20);
   });
 
   /**

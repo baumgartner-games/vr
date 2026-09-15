@@ -38,7 +38,7 @@ import { seating, shoved, type Claim, type StationId } from './stations';
 import type { HauntState } from './net';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import { cabinsText, endingText, lowOxygen, roundHud } from './rules/roundHud';
-import { FLAT_CHECK, startLabel, type LobbyChoice, type View } from './rules/lobby';
+import { startLabel, type LobbyChoice } from './rules/lobby';
 import { SHIP_OCCUPIED } from './rules/worldMenu';
 import type { MonsterPort } from './monster/monsterDriver';
 
@@ -58,8 +58,8 @@ import type { MonsterPort } from './monster/monsterDriver';
  * Fähigkeit hält — und drückt unten **„Rollen testen"**. Dann kommt die
  * **Karte**, und darüber genau **ein Kopf**: die Rollen als Reiter zum
  * Wechseln, das Zahnrad, und darunter die Leiste mit Uhr, Aufträgen und
- * Anzug-Leben — dieselbe Zeile wie beim Techniker in der 2D-Welt
- * (`map/flatMode.ts`). Solange niemand die Mission gestartet hat, ist das ein
+ * Anzug-Leben — dieselbe Zeile wie beim Techniker im Schiff
+ * (`ShipExperience.ts`). Solange niemand die Mission gestartet hat, ist das ein
  * **Test**: hell, ohne Uhr, ohne Treffer, und jeder darf jede Rolle. Im
  * Zahnrad stehen „Mission starten" / „Mission stoppen" und „Zurück zu den
  * Rollen"; dorthin sind auch Menü, Verbindung und VR gezogen.
@@ -75,8 +75,8 @@ import type { MonsterPort } from './monster/monsterDriver';
  * der Einsatzkontrolle; wer Akte und Radar hält, klärt auf. Mitten in der
  * Mission entscheidet `switchRights`, wer überhaupt wechseln darf.
  *
- * Die Rollen selbst zeichnen dieselbe `MapView` wie die 2D-Welt, jede mit
- * eigenen Schichten (`views/`): der Archivar alles, was liegt, die Schalttafel
+ * Die Rollen selbst zeichnen die Karte der Station (`map/mapView.ts`), jede
+ * mit eigenen Schichten (`views/`): der Archivar alles, was liegt, die Schalttafel
  * die Station ohne Wesen — Türen und Lampen schaltet sie mit dem Tipp auf die
  * Karte —, der Späher zwei Punkte alle dreieinhalb Sekunden. Der Fernseher
  * ist die Ausnahme: Sein Bild ist die 3D-Welt, gezeichnet in das Rechteck,
@@ -115,19 +115,11 @@ export interface StationHost {
    */
   vr?(): boolean;
   /**
-   * Ob die nächste Runde lokal in 2D läuft — dann darf sie auch dann starten,
-   * wenn im Schiff schon jemand Techniker ist (eine Karte von oben stört ihn
-   * nicht).
-   */
-  flatWanted?(): boolean;
-  /**
-   * Die Wahl des Aufbaus (`rules/lobby.ts`): die Ansicht — 2D von oben oder
-   * 3D im Schiff, als Häkchen „2D-Welt" — und der eigene Platz (`me`).
+   * Die Wahl des Aufbaus (`rules/lobby.ts`): die Absicht und der eigene
+   * Platz (`me`).
    */
   lobby?(): LobbyChoice;
   setLobby?(choice: LobbyChoice): void;
-  /** **Mitten in der Runde die Ansicht wechseln** — 2D ↔ 3D (`HauntingWorld.switchView`). */
-  switchView?(view: View): void;
   /**
    * Die Verteilung der nächsten Runde (`rules/roundSetup.ts`): Techniker,
    * Monster und die drei Fähigkeiten der Zentrale. `startSetup` startet genau
@@ -449,7 +441,6 @@ export class StationUi {
         .map((claim) => `${claim.id}:${claim.station}`)
         .sort()
         .join('|'),
-      this.host.lobby?.().view ?? '',
       this.host.setup ? describeSetup(this.host.setup()) : '',
     ].join('/');
 
@@ -694,13 +685,12 @@ export class StationUi {
       return this.vanPage();
     }
     // **Der Techniker hat kein Gerät in der Zentrale.** Sein Reiter setzt ihn
-    // an den Stock (`StationHost.technician`): Auf der Karte von oben öffnet
-    // sich dafür die 2D-Welt über dieser Seite, im Schiff wird er der
-    // Techniker am Bildschirm. Was hier steht, sieht er nur, wenn beides nicht
-    // ging — dann sagt der Satz, warum, und der Knopf versucht es noch einmal.
+    // an den Stock (`StationHost.technician`): Er wird der Techniker am
+    // Bildschirm, und diese Seite geht zu. Was hier steht, sieht er nur, wenn
+    // das nicht ging — dann sagt der Satz, warum, und der Knopf versucht es
+    // noch einmal.
     if (this.tab === 'technician') {
       this.dropView();
-      const flat = (this.host.lobby?.().view ?? '2d') === '2d';
       const vr = this.host.vr?.() ?? this.host.link().vr;
       const again = key('haunt__tile', {
         text: 'An den Stock',
@@ -713,9 +703,7 @@ export class StationUi {
           'Du bist der Techniker',
           vr
             ? `Der Anzug ist vergeben: ${this.host.link().technician ?? 'jemand'} trägt ihn. Nimm einen anderen Reiter.`
-            : flat
-              ? 'Die Karte von oben öffnet sich — dort läufst du los. Mission starten: im Zahnrad.'
-              : 'Du stehst im Schiff am Bildschirm. Mission starten: im Zahnrad oder aus der Zentrale.',
+            : 'Du stehst im Schiff am Bildschirm. Mission starten: im Zahnrad oder aus der Zentrale.',
         ),
         again,
       ];
@@ -812,10 +800,10 @@ export class StationUi {
   }
 
   /**
-   * **Der Aufbau** — eine Seite, ein Häkchen, eine Verteilung, zwei Knöpfe.
+   * **Der Aufbau** — eine Seite, eine Verteilung, zwei Knöpfe.
    *
-   * - **Ein Häkchen.** „2D-Welt von oben" ist die Ansicht (`LobbyChoice.view`);
-   *   ohne Monster spielt man, indem der Platz Monster auf „Aus" steht.
+   * - **Kein Häkchen mehr.** Die Karte von oben ist weg (Plan H); ohne
+   *   Monster spielt man, indem der Platz Monster auf „Aus" steht.
    * - **Die Verteilung** (`roundSetupPanel.ts`): Techniker (VR, wenn eine
    *   Brille im Raum ist), Monster, und die drei Fähigkeiten mit Bot/Mensch/Aus
    *   — **ohne „Ich"**: Wer man ist, wählt man über die Reiter der Karte.
@@ -837,7 +825,7 @@ export class StationUi {
     const choice = this.host.lobby?.() ?? null;
     // **Der Statuschip statt der Warnzeile.** „Warte auf den VR-Spieler" stand
     // als roter Kasten über allem und war doch nur eine Zählung: Es gibt keinen
-    // Grund, auf jemanden zu warten — eine 2D-Runde geht auch allein los.
+    // Grund, auf jemanden zu warten — eine Bot-Runde geht auch allein los.
     const chip = el(
       'div',
       `lobby__link${link.vr ? ' is-live' : ''}`,
@@ -846,16 +834,9 @@ export class StationUi {
     const out: HTMLElement[] = [chip];
 
     if (setup && choice && this.host.setSetup && this.host.setLobby) {
-      const checks = el('div', 'lobby__checks');
-      checks.append(
-        check('view', FLAT_CHECK, 'Die Karte von oben statt des Schiffs', choice.view === '2d'),
-      );
-      out.push(checks);
-
       this.setupPanel ??= new SetupPanel({
         setup: () => this.host.setup!(),
         onChange: (next) => this.host.setSetup!(next),
-        humanMonster: () => (this.host.lobby?.().view ?? '2d') === '2d',
         vr: () => this.host.vr?.() ?? this.host.link().vr,
         holder: (seat) => this.holderOf(seat),
         me: () => this.me,
@@ -883,11 +864,9 @@ export class StationUi {
       );
 
       if (this.host.startSetup) {
-        // **Eine 2D-Runde ist lokal**: Sie stört keinen Techniker im Schiff,
-        // deshalb sperrt ein spielender Techniker sie auch nicht. Im Schiff
-        // gibt es dagegen einen Techniker je Raum — **aber die Runde startet
-        // die Zentrale für ihn**: Solange dort noch keine läuft, geht der
-        // Tipp als Wunsch an die Brille (`HauntingWorld.startRound`). Gesperrt
+        // **Im Schiff gibt es einen Techniker je Raum — aber die Runde
+        // startet die Zentrale für ihn**: Solange dort noch keine läuft, geht
+        // der Tipp als Wunsch an ihn (`HauntingWorld.startRound`). Gesperrt
         // ist der Knopf nur, während seine Runde wirklich läuft.
         const busy = this.shipBusy();
         out.push(
@@ -895,8 +874,8 @@ export class StationUi {
             label: startLabel(setup),
             sub: busy
               ? 'Ein Techniker spielt bereits im Schiff.'
-              : link.vr && choice.view === '3d'
-                ? `Startet bei der Brille im Schiff · ${describeSetup(setup)}`
+              : link.vr
+                ? `Startet beim Techniker im Schiff · ${describeSetup(setup)}`
                 : `Uhr, Dunkelheit, Monster — sofort · ${describeSetup(setup)}`,
             data: { startSetup: '' },
             disabled: busy,
@@ -942,16 +921,14 @@ export class StationUi {
   }
 
   /**
-   * **Ob der Start im Schiff gerade vergeben ist**: eine Brille im Raum, die
-   * Ansicht auf dem Schiff — und dort läuft schon eine Runde. Vorher reichte
-   * die Brille allein, und genau das war der tote Knopf: Wer in der Zentrale
-   * saß, konnte die Runde des Technikers nicht anwerfen, und der Techniker
-   * suchte sie am Handgelenk.
+   * **Ob der Start im Schiff gerade vergeben ist**: ein Techniker im Raum —
+   * und seine Runde läuft schon. Vorher reichte der Techniker allein, und
+   * genau das war der tote Knopf: Wer in der Zentrale saß, konnte die Runde
+   * des Technikers nicht anwerfen, und der Techniker suchte sie am
+   * Handgelenk.
    */
   private shipBusy(): boolean {
-    const link = this.host.link();
-    const view = this.host.lobby?.().view ?? (this.host.flatWanted?.() ? '2d' : '3d');
-    return link.vr && view === '3d' && this.host.state().phase === 'running';
+    return this.host.link().vr && this.host.state().phase === 'running';
   }
 
   /**
@@ -969,8 +946,8 @@ export class StationUi {
    *
    * Mitten in einer Mission entscheidet `roundSetup.switchRights`, ob er darf:
    * Im Test jeder alles; sonst jeder, der nicht im Schiff den Anzug trägt —
-   * der Techniker am Bildschirm (Ansicht 3D) bleibt, wo er ist, und den
-   * Techniker in der Brille rührt niemand an.
+   * der Techniker am Bildschirm bleibt, wo er ist, und den Techniker in der
+   * Brille rührt niemand an.
    */
   private choose(me: MyRole): void {
     const was = this.me;
@@ -978,7 +955,7 @@ export class StationUi {
     if (running && was !== me) {
       const rights = switchRights({
         test: this.host.state().crew.options.test,
-        inShip: was === 'technician' && (this.host.lobby?.().view ?? '2d') === '3d',
+        inShip: was === 'technician',
         vrTechnician: this.host.link().vr,
       });
       const allowed = me === 'technician' ? rights.technician : rights.abilities;
@@ -1021,17 +998,6 @@ export class StationUi {
     // ob das die Karte von oben ist oder das Schiff.
     if (me === 'technician') this.host.technician();
     else this.host.leaveTechnician?.();
-  }
-
-  /**
-   * **Das eine Häkchen des Aufbaus.** „2D-Welt von oben" ist die Ansicht —
-   * es schreibt dorthin, wo sie hingehört (`rules/lobby.ts`), und startet
-   * nichts.
-   */
-  private toggleCheck(which: 'view'): void {
-    const choice = this.host.lobby?.();
-    if (!choice || which !== 'view') return;
-    this.host.setLobby?.({ ...choice, view: choice.view === '2d' ? '3d' : '2d' });
   }
 
   /** Wer diesen Platz gerade über das Netz hält — als Name, `null` für niemanden. */
@@ -1086,7 +1052,7 @@ export class StationUi {
   private onClick(event: Event): void {
     const target = event.target as HTMLElement | null;
     const hit = target?.closest<HTMLElement>(
-      '[data-me],[data-check],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],' +
+      '[data-me],[data-technician],[data-game-menu],[data-page-net],[data-page-vr],' +
         '[data-restart],[data-start-setup],[data-stop-round],[data-test-roles],[data-setup],' +
         '[data-options],[data-close-options]',
     );
@@ -1133,8 +1099,6 @@ export class StationUi {
       this.host.restart?.();
     } else if (data['technician'] !== undefined) {
       this.host.technician();
-    } else if (data['check'] !== undefined) {
-      this.toggleCheck(data['check'] as 'view');
     } else if (data['me']) {
       this.choose(data['me'] as MyRole);
     }
@@ -1144,15 +1108,3 @@ export class StationUi {
 }
 
 // --- Kleinkram ---------------------------------------------------------------
-
-/** Ein Häkchen des Aufbaus: Kästchen links, Name und Zeile rechts. */
-function check(id: string, label: string, hint: string, on: boolean): HTMLElement {
-  const node = key(`lobby__check${on ? ' is-on' : ''}`, {
-    text: '',
-    data: { check: id },
-    pressed: on,
-  });
-  node.append(el('span', 'lobby__box', on ? '✓' : ''), el('span', 'lobby__check-text'));
-  node.lastElementChild?.append(el('strong', '', label), el('span', 'haunt__tag', hint));
-  return node;
-}

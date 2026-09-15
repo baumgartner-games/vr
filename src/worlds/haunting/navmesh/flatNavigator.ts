@@ -76,8 +76,14 @@ export const REACHED = 0.08;
  * und liefe sonst zu jeder zurück.
  */
 export const PASSED = 0.5;
-/** Wie weit vor einer gesperrten Tür der Wartepunkt liegt, in Metern (wie `geometry.doorPath`). */
-const WAIT_DEPTH = 0.9;
+/**
+ * Wie weit vor einer gesperrten Tür der Wartepunkt liegt, in Metern (wie
+ * `geometry.doorPath`). Weniger als die halbe Breite eines Gangs abzüglich
+ * Wandabstand: Ein Gang ist zwei Meter breit, und ein Wartepunkt 0,9 m vor
+ * der Tür läge mit dem Körper in der Wand gegenüber — das Monster stünde dann
+ * schiebend daneben statt an der Tür.
+ */
+const WAIT_DEPTH = 0.55;
 
 export interface FlatLeg {
   /** Ob die Route bis ans Ziel führt. */
@@ -201,7 +207,15 @@ export class FlatNavigator {
     if (!this.complete) {
       const end = this.end();
       const endSpace = end ? this.rooms.spaceAt(end) : '';
-      const door = endSpace === goalSpace ? null : this.blockingDoor(at, goalSpace, shut);
+      // **Auch ein Ziel auf der Türkante selbst ist ein Ziel hinter einer
+      // Tür.** Die Routine lauert und fängt an Türen ab (`monsterIntercept`,
+      // `doorPoint`: die Türmitte auf der Kante), und die Kante gehört auf der
+      // Raumkarte dem Raum, in dem das Monster schon steht — der Raumweg
+      // kennt dann keine gesperrte Tür, und das Monster stünde vor dem
+      // Riegel, ohne an ihm zu arbeiten.
+      const door =
+        (endSpace === goalSpace ? null : this.blockingDoor(at, goalSpace, shut)) ??
+        this.doorUnder(goal, shut);
       if (door) {
         this.door = door;
         this.plan(graph, at, waitPoint(door, at));
@@ -315,6 +329,16 @@ export class FlatNavigator {
   }
 
   /** Die erste gesperrte Tür auf dem Raumweg von `at` nach `goalSpace`. */
+  /** Die gesperrte Tür, auf deren Kante das Ziel liegt — `null`, wenn keine. */
+  private doorUnder(goal: FloorPoint, shut: readonly string[]): HouseDoor | null {
+    for (const door of this.spec.doors) {
+      if (!shut.includes(door.id)) continue;
+      const middle = doorMiddle(door);
+      if (Math.hypot(middle.x - goal.x, middle.z - goal.z) <= TILE / 2) return door;
+    }
+    return null;
+  }
+
   private blockingDoor(
     at: FloorPoint,
     goalSpace: string,

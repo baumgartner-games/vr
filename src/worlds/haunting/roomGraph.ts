@@ -264,6 +264,47 @@ function buildGraph(spec: HouseSpec, knowsCommand: boolean): StationGraph {
   return graph;
 }
 
+/** Eine Stelle samt dem Knoten, in dem sie liegt — Techniker, Monster. */
+export interface Placed extends FloorPoint {
+  readonly space: string;
+}
+
+/** Die Mitte der Tür zwischen zwei Nachbarn — `null`, wenn sie keine teilen. */
+export function portalPoint(graph: StationGraph, a: string, b: string): FloorPoint | null {
+  if (a === b) return null;
+  const shared = graph.doorsOf(b);
+  for (const id of graph.doorsOf(a)) if (shared.includes(id)) return graph.doorPoint(id);
+  return null;
+}
+
+/**
+ * **Wie weit es zu Fuß ist** — von einer Stelle zu einer anderen, über die
+ * Türen: im selben Knoten die Luftlinie, beim Nachbarn über die gemeinsame
+ * Tür, zwei Knoten weiter über beide Türen (die Gänge sind zwei Meter breit
+ * und oft nur ein Zwischenstück); alles Weitere ist die Weglänge der Mitten
+ * (`distance`) — und weit weg.
+ *
+ * Bis zum 1-m-Gitter fragte die Gefahr des Technikers `distance` der Mitten:
+ * In einem Zimmer von zehn Metern lag die Mitte des Nachbarn nah genug. Die
+ * Cafeteria ist zwanzig Meter breit; ihre Mitte liegt von jeder
+ * Nachbarmitte zwölf Meter und mehr entfernt — ein Monster sechs Meter
+ * hinter der Tür war damit rechnerisch „weit", und der Techniker lief ihm
+ * in die Arme, ohne je zu fliehen.
+ */
+export function walkingGap(graph: StationGraph, from: Placed, to: Placed): number {
+  const far = (a: FloorPoint, b: FloorPoint): number => Math.hypot(a.x - b.x, a.z - b.z);
+  if (from.space === to.space) return far(from, to);
+  const direct = portalPoint(graph, from.space, to.space);
+  if (direct) return far(from, direct) + far(direct, to);
+  let best = Infinity;
+  for (const mid of graph.neighbours(from.space)) {
+    const a = portalPoint(graph, from.space, mid),
+      b = portalPoint(graph, mid, to.space);
+    if (a && b) best = Math.min(best, far(from, a) + far(a, b) + far(b, to));
+  }
+  return best < Infinity ? best : graph.distance(from.space, to.space);
+}
+
 /**
  * Ob zwei Rechtecke eine Wand teilen — sie müssen sich auf einer Seite
  * berühren und dabei ein Stück von mehr als null Kacheln gemeinsam haben. Eine

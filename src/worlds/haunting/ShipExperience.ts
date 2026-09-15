@@ -1,13 +1,5 @@
 import * as THREE from 'three';
 import './haunting.css';
-// **Das Optionsmenü trägt die Klassen der 2D-Welt** (`map/optionsMenu.ts`:
-// `.flat__panel`, `.flat__option`, `.flat__note`) — und deren Stil steht in
-// `map/flat.css`. Der kam bisher nur mit, wenn jemand vorher einmal die
-// 2D-Welt aufgemacht hatte; wer im Schiff anfing, bekam das Zahnrad als
-// nackte Liste. Seit die Kopfzeile der Seite hier aus ist, führt genau dieses
-// Menü zu Menü, Verbindung und VR — es darf nicht davon abhängen, wo man
-// vorher war.
-import './map/flat.css';
 import { clickedKey, el } from './ui/dom';
 import { key as uiKey } from './ui/widgets';
 import { playTone } from '../../core/Audio';
@@ -23,11 +15,9 @@ import {
   SHARED,
   soundKeys,
   speedKeys,
-  switchViewKey,
   watchKey,
   type OptionItem,
 } from './map/optionsMenu';
-import { VIEW_LABELS } from './rules/lobby';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import type { MapGoal } from './map/mapView';
 import { ObjectiveCompass } from './objectiveCompass';
@@ -40,7 +30,9 @@ import {
   type DroppedPart,
 } from './rules/archiveGoals';
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
-import type { WorldContext } from '../../core/types';
+import type { ToolChoice, ToolOption, WorldContext } from '../../core/types';
+import type { Usable } from '../../core/usable';
+import { isTyping } from '../../core/textEntry';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { MirrorSurface } from '../shared/Mirror';
@@ -78,7 +70,6 @@ import {
   type HouseSpec,
   STATION_DOOR_W,
 } from './house';
-import { HauntingDesktopControls } from './desktopControls';
 import { HauntingComfort } from './HauntingComfort';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { XrayTool } from '../portal/tools/XrayTool';
@@ -114,8 +105,6 @@ import {
 import { buildTrainingDeck } from './trainingDeck';
 import {
   MONSTERS,
-  PLAYER_SPRINT_SPEED,
-  PLAYER_WALK_SPEED,
   ROOM_COUNTS,
   lockerCode,
   puzzleFor,
@@ -127,7 +116,6 @@ import {
 } from './mission';
 import { SHIP, animateCreature, buildCrewmate, label } from './shipArt';
 import type { HauntState } from './net';
-import { ShipControls } from './world3d/shipControls';
 
 interface ShipHost {
   ctx: WorldContext;
@@ -138,15 +126,19 @@ interface ShipHost {
   start(): void;
   test(): void;
   stations?(): void;
-  /**
-   * **Die Ansicht wechseln, mitten in der Runde** (`HauntingWorld.switchView`).
-   * Im Schiff gibt es dafür genau einen Knopf — „2D von oben" —, und er steht
-   * nur im Panel des Technikers: Wer nicht spielt, hat nichts zu wechseln.
-   */
-  switchView?(view: '2d' | '3d'): void;
   door(id: string): void;
   doorOpen?(id: string): boolean;
   doorLocked?(id: string): boolean;
+  /**
+   * **Ein Ding beim Kern als benutzbar anmelden** (`core/usable.ts`,
+   * `PortalWorld.addUsable`): Was hier `bind` bekommt — Kistenklappen,
+   * Konsolen, Tastenfelder, Türtafeln, das liegende Teil, die schwebende
+   * Lampe —, bekommt damit auch `A` (am Schreibtisch `E`), den Saum und den
+   * Hinweis über der Figur. Der Zeiger bleibt daneben für Hand, Trigger und
+   * den Strahl aus den Augen.
+   */
+  usable?(object: THREE.Object3D, usable: Usable, options?: { radius?: number }): void;
+  unusable?(object: THREE.Object3D): void;
   /** Versetzt den Spieler; mit `yaw` schaut er danach dorthin (`movePlayerTo`). */
   travel(at: THREE.Vector3, yaw?: number): void;
   /** Wo der Techniker aus Zahlen steht — `null`, solange keine Bot-Runde läuft (`flatKernel.ts`). */
@@ -264,11 +256,7 @@ interface Console {
 }
 const _head = new THREE.Vector3(),
   _pos = new THREE.Vector3(),
-  _direction = new THREE.Vector3(),
-  _walk = new THREE.Vector3(),
-  _side = new THREE.Vector3(),
-  _wish = new THREE.Vector3();
-const UP = new THREE.Vector3(0, 1, 0);
+  _direction = new THREE.Vector3();
 
 /** Ein Objekt mit Namen — damit ein Test es in der Szene findet. */
 function named<T extends THREE.Object3D>(object: T, name: string): T {
@@ -300,6 +288,18 @@ const HAND_LABEL = {
   part: 'Ersatzteil',
 } as const;
 
+/**
+ * Was `bind` außer dem Zeiger noch anmeldet (`ShipHost.usable`): `use` ist,
+ * was `A` tut (`null`: nichts anmelden — der Zeiger reicht), `prompt` der
+ * Hinweis über der Figur, `radius` der Halbmesser fürs Benutzen, wenn die
+ * Ausdehnung des Objekts nichts taugt (eine Lampe mit Lichtkegel).
+ */
+interface BindExtra {
+  use?: (() => void) | null;
+  prompt?: () => string;
+  radius?: number;
+}
+
 /** Station-only interactions. All game state belongs to the VR host snapshot. */
 export class ShipExperience {
   readonly root = new THREE.Group();
@@ -318,8 +318,17 @@ export class ShipExperience {
   private readonly seams: THREE.Mesh[] = [];
   private readonly doors: Door[] = [];
   private readonly lockers: Locker[] = [];
-  private readonly desktop: HauntingDesktopControls;
   private readonly comfort: HauntingComfort | null;
+  /**
+   * **Ducken am Bildschirm** — die eine Taste, die diese Welt neben dem Kern
+   * behält (`docs/plan-haunting-1m.md`): `Strg` gehalten, oder der Umschalter
+   * „Ducken" in der Tafel. Der Kern hat am Schirm keine Duck-Taste, und das
+   * Spiel hängt an der Lautstärke (`mission.CROUCH_FACTOR`).
+   */
+  private crouchHeld = false;
+  private crouchToggle = false;
+  /** Ob dieses Bauteil die Haltung des Gestells gerade setzt — beim Abbau zurück. */
+  private ownsStance = false;
   private readonly torch = new THREE.Group();
   private readonly heldLamp = new FlashlightTool();
   /**
@@ -371,10 +380,6 @@ export class ShipExperience {
    * und „Benutzen" legt ihn um, wenn nichts vor einem liegt.
    */
   private torchLit = true;
-  /** Bilder, die ein Druck auf „Benutzen" noch auf seinen Strahl wartet (`armUse`). */
-  private usePending = 0;
-  /** Ob dieser Druck etwas getroffen hat. */
-  private useHit = false;
   private labMirror: MirrorSurface | null = null;
   private visibleRooms: ReadonlySet<string> | null = null;
   private readonly crosshair = el('div', 'orbital-crosshair');
@@ -391,22 +396,21 @@ export class ShipExperience {
   );
   private readonly visor: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   private readonly status: Screen;
-  /** Sauerstoff und Anzug-Leben, nur in der Brille (`paintHud`). */
+  /** Sauerstoff und Anzug-Leben, in der Brille (`paintHud`). */
   private readonly hud: Screen;
+  /**
+   * **Derselbe Streifen am Bildschirm, als DOM** (`.orbital-hud`). Der an der
+   * Kamera hing an `ctx.camera`, und von oben ist die Kamera eine andere
+   * (`core/TopDownCamera.ts`) — ein Streifen, den man von oben nie sieht.
+   * Dieselbe Rechnung (`rules/roundHud.ts`), dieselben Zeilen.
+   */
+  private readonly hudDom = el('div', 'orbital-hud');
   private readonly command: Screen;
   private readonly dom = el('section', 'orbital-player');
   /**
-   * **Der Stock und die drei Knöpfe der 2D-Welt** über der 3D-Szene
-   * (`world3d/shipControls.ts`) — dieselbe Steuerung, ob man die Station von
-   * oben oder von innen spielt. Nur im Browser: In der Brille hat man
-   * Controller, und ein Knopf im DOM ist dort unsichtbar.
-   */
-  private controls: ShipControls | null = null;
-  /**
-   * **Das Optionsmenü der 2D-Welt, hier über dem Schiff** (`map/optionsMenu.ts`)
-   * — nur im Browser. In der Brille gibt es das Handgelenkmenü, und ein Panel
-   * im DOM ist dort unsichtbar. Der Rahmen trägt die Klassen der 2D-Welt,
-   * damit `flat.css` das Panel an dieselbe Stelle setzt wie dort.
+   * **Das Optionsmenü über dem Schiff** (`map/optionsMenu.ts`) — nur im
+   * Browser. In der Brille gibt es das Handgelenkmenü, und ein Panel im DOM
+   * ist dort unsichtbar. Wo es liegt, sagt `haunting.css` (`.flat__panel`).
    */
   private readonly optionsRoot = el('div', 'flat orbital-options');
   private readonly optionsPanel = el('div', 'ui-panel flat__panel');
@@ -470,8 +474,24 @@ export class ShipExperience {
   private readonly followEye = new THREE.Vector3();
   private readonly followTarget = new THREE.Vector3();
   private readonly messages: string[] = [];
-  private flatFlight = 0;
   private disposed = false;
+  /**
+   * **Die Werkzeugwahl am Bildschirm** (`core/types.ToolChoice`, `#hud-tool`)
+   * — das eine Objekt, das `App` jedes Bild liest; die Welt reicht es durch
+   * (`HauntingWorld.toolChoice`). Gewählt wird eine Hand: Lampe und Medkit
+   * rechts, Radar und Röntgen links, `null` leert beide.
+   */
+  private readonly choice: ToolChoice = {
+    current: null,
+    options: [],
+    choose: (id) => this.chooseTool(id),
+  };
+  /**
+   * Was zuletzt im Werkzeug-Knopf gewählt wurde — solange es noch in der
+   * Hand liegt, ist das die Anzeige; sonst sagt es die Hand (`toolChoice`).
+   * `undefined`: noch nichts gewählt.
+   */
+  private chosen: string | null | undefined;
   private readonly bayLight = named(new THREE.PointLight(0xddefff, 0, 6, 2), 'training-bay-light');
   private readonly suitColors = new Map<THREE.MeshStandardMaterial, THREE.Color>();
   private suitImmersive: boolean | null = null;
@@ -492,11 +512,24 @@ export class ShipExperience {
     this.command = this.screen(2.8, 1.5, 768);
     this.command.mesh.position.set(-3.2, 1.7, APRON.z * TILE + 0.25);
     this.root.add(this.command.mesh);
-    this.bind(this.command.mesh, (uv) => {
-      if (!uv) return;
-      const index = Math.floor((1 - uv.y) * 6);
-      this.commandAction(index);
-    });
+    this.bind(
+      this.command.mesh,
+      (uv) => {
+        if (!uv) return;
+        const index = Math.floor((1 - uv.y) * 6);
+        this.commandAction(index);
+      },
+      false,
+      true,
+      {
+        // Von oben zielt niemand auf eine Zeile des Terminals: `A` klappt die
+        // Tafel auf, dort stehen dieselben Knöpfe.
+        use: () => {
+          this.unfold();
+          this.host.say('Terminal: Mission, Test oder Bot-Runde in der Tafel wählen.');
+        },
+      },
+    );
     this.buildCabinets();
     this.buildConsoles();
     this.buildDoors();
@@ -508,10 +541,17 @@ export class ShipExperience {
     this.status.mesh.material.depthTest = false;
     this.status.mesh.renderOrder = 999;
     host.ctx.camera.add(this.status.mesh);
-    this.bind(this.status.mesh, () => {
-      if (this.crew.hidden) this.leaveLocker();
-      else if (['lost', 'won'].includes(this.host.state().phase)) this.host.start();
-    });
+    this.bind(
+      this.status.mesh,
+      () => {
+        if (this.crew.hidden) this.leaveLocker();
+        else if (['lost', 'won'].includes(this.host.state().phase)) this.host.start();
+      },
+      false,
+      true,
+      // Der Schirm hängt an der Kamera; `A` erledigt dasselbe über `useSpecial`.
+      { use: null },
+    );
     // **Der Streifen im Blickfeld**: In der Brille ist das DOM unsichtbar, und
     // der Statusschirm kommt nur im Versteck und am Ende. Sauerstoff, Anzug und
     // die drei Aufträge müssen aber die ganze Runde da sein — klein, unten im
@@ -565,7 +605,13 @@ export class ShipExperience {
       // wieder setzt (`main.ts`, `onSessionChanged`) und den Streifen sonst
       // mitten in der Runde zurückholte.
       document.body.classList.add('orbital-on');
-      document.body.append(this.dom, this.crosshair, this.optionsRoot);
+      this.hudDom.hidden = true;
+      this.hudDom.setAttribute('role', 'status');
+      document.body.append(this.dom, this.crosshair, this.optionsRoot, this.hudDom);
+      // Ducken: `Strg` gehalten — die eine Taste dieser Welt (siehe `crouchHeld`).
+      window.addEventListener('keydown', this.keyDown);
+      window.addEventListener('keyup', this.keyUp);
+      window.addEventListener('blur', this.clearKeys);
       if (host.objectives) {
         this.compass = new ObjectiveCompass();
         document.body.append(this.compass.element);
@@ -574,162 +620,189 @@ export class ShipExperience {
     this.root.add(this.bay, this.effects.root);
     this.root.add(this.bayLight);
     this.buildTorch();
-    this.desktop = new HauntingDesktopControls({
-      rig: host.ctx.rig,
-      pointer: host.ctx.pointer,
-      enabled: () => this.player && !host.ctx.menu.isOpen,
-      presenting: () => host.ctx.renderer.xr.isPresenting,
-      simulation: () => this.crew.simulation && !this.followBot,
-      canMove: () =>
-        (this.crew.simulation || !this.crew.hidden) &&
-        this.crew.hp > 0 &&
-        (!this.crew.simulation || !this.followBot),
-      cycleHand: (hand) => (hand === 'left' ? this.cycleSensor() : this.cycleRight()),
-      drop: () => this.dropPart(),
-      interact: () => {
-        if (['lost', 'won'].includes(this.host.state().phase)) {
-          this.host.start();
-          return true;
-        }
-        if (this.crew.hidden && !this.crew.simulation) {
-          this.leaveLocker();
-          return true;
-        }
-        if (this.rightItem === 'medkit') {
-          this.heal();
-          return true;
-        }
-        // **Auf nichts gezielt? Dann ist Benutzen der Lichtschalter.** Ob
-        // wirklich nichts vor einem liegt, sagt aber erst der Strahl, den
-        // `desktopControls` gleich darauf auslöst — also wird der Druck nur
-        // vorgemerkt (`armUse`) und zwei Bilder später abgerechnet.
-        this.armUse();
-        return false;
-      },
-    });
-    // Die Steuerung der 2D-Welt, hier über der Szene: nur für den, der wirklich
-    // läuft, und nur im Browser (`world3d/shipControls.ts`).
-    if (this.player)
-      this.controls = new ShipControls({
-        interact: () => this.pressUse(),
-        cycleLeft: () => this.cycleSensor(),
-        cycleRight: () => this.cycleRight(),
-      });
     this.paint();
   }
 
   /**
-   * **Der große Knopf.** Er tut genau das, was am Desktop das `E` tut: erst
-   * die Sonderfälle (eine zu Ende gespielte Runde, ein Schutzschrank, ein
-   * Medkit in der Hand), sonst löst er das aus, worauf man zielt — über
-   * denselben Zeiger, auf dem auch der Trigger der Brille sitzt. Ein zweiter
-   * Weg dorthin wäre ein zweiter Weg, der irgendwann anders aussieht.
+   * **Die Sonderfälle von `A`** (am Schreibtisch `E`), bevor der Kern nach
+   * einem Ding vor der Figur sucht (`HauntingWorld.useForward`): Eine zu Ende
+   * gespielte Runde fängt neu an, aus dem Schutzschrank geht es heraus, ein
+   * Medkit in der Hand heilt. `true`, wenn einer davon gegriffen hat.
    */
-  private pressUse(): void {
+  useSpecial(): boolean {
+    if (!this.player) return false;
     if (['lost', 'won'].includes(this.host.state().phase)) {
       this.host.start();
-      return;
+      return true;
     }
     if (this.crew.hidden && !this.crew.simulation) {
       this.leaveLocker();
       this.paint();
-      return;
+      return true;
     }
     if (this.rightItem === 'medkit') {
       this.heal();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * **Liegt nichts vor einem, ist `A` der Lichtschalter.** Der Besitzer hat
+   * es so bestellt: „Wenn ich auf keine Kiste oder Tür schaue, will ich mit
+   * Benutzen die Taschenlampe an- und ausmachen können." Der Kern hat nichts
+   * gefunden (`useForward`), also gilt der Druck der Lampe — außer mitten in
+   * einem Handgriff: Wer dabei noch einmal drückt, will nicht das Licht
+   * umlegen. `true`, wenn das Licht wirklich umgelegt wurde.
+   */
+  useEmpty(): boolean {
+    if (!this.player || this.crew.simulation || this.crew.hidden || this.crew.hp <= 0) return false;
+    if (this.busy) return false;
+    this.toggleTorch();
+    return true;
+  }
+
+  /**
+   * **Was der Kern beim Benutzen eines angemeldeten Dings tut** — dieselben
+   * Regeln wie der Trigger am Zeiger (`bind`, `onSelect`), nur ohne Strahl:
+   * Reichweite und Richtung hat der Kern schon geprüft (`pickUsable`).
+   */
+  private useObject(object: THREE.Object3D, run: () => void, wearable: boolean): boolean {
+    if (this.crew.simulation && !wearable) return false;
+    // Was mit seinem Raum ausgeblendet ist (`setVisibleRooms`), steht hinter
+    // einer Wand: nicht vor einem, also auch nicht benutzbar.
+    for (let node: THREE.Object3D | null = object; node; node = node.parent)
+      if (!node.visible) return false;
+    // **In Reichweite — also ein Handgriff.** Auch dann, wenn er gleich
+    // abgewiesen wird: Wer zweimal schnell auf dieselbe Tür drückt, meint
+    // beim zweiten Mal die Tür und nicht das Licht (`useEmpty`).
+    if (this.interactionCooldown > 0) return true;
+    if (this.crew.hidden && !this.crew.simulation) {
+      this.leaveLocker();
+      this.paint();
+      return true;
+    }
+    this.host.ctx.rig.getHeadPosition(this.lastSoundAt);
+    this.actionHand = null;
+    run();
+    this.paint();
+    return true;
+  }
+
+  /**
+   * **Die Werkzeugwahl** (`#hud-tool`): Hand (leer) vom Kern, dann Lampe,
+   * Radar, Röntgen und — nur mit einem im Inventar — Medkit. Was gerade in
+   * einer der zwei Hände liegt, ist die Wahl; das Ersatzteil ist keine (es
+   * steht im Streifen und wird in der Tafel abgelegt).
+   */
+  toolChoice(): ToolChoice {
+    const options: ToolOption[] = [
+      { id: 'flashlight', label: 'Taschenlampe', icon: this.heldLamp.icon },
+      { id: 'radar', label: 'Bewegungsradar', icon: this.handheldRadar.icon },
+      { id: 'xray', label: 'Röntgengerät', icon: this.handheldXray.icon },
+    ];
+    if (this.crew.inventory.includes('medkit'))
+      options.push({ id: 'medkit', label: 'Medkit', icon: 'bag' });
+    this.choice.options = options;
+    const chosen = this.chosen;
+    const inHand =
+      chosen === null
+        ? this.rightItem !== 'flashlight' &&
+          this.rightItem !== 'medkit' &&
+          this.sensorMode === 'off'
+        : chosen === 'flashlight' || chosen === 'medkit'
+          ? this.rightItem === chosen
+          : chosen === 'radar' || chosen === 'xray'
+            ? this.sensorMode === chosen
+            : false;
+    this.choice.current = inHand
+      ? (chosen as string | null)
+      : this.rightItem === 'flashlight' || this.rightItem === 'medkit'
+        ? this.rightItem
+        : this.sensorMode === 'radar' || this.sensorMode === 'xray'
+          ? this.sensorMode
+          : null;
+    return this.choice;
+  }
+
+  /**
+   * **Ein Tipp in der Werkzeugliste.** Lampe und Medkit gehen in die rechte
+   * Hand, Radar und Röntgen in die linke — dieselben zwei Reihen wie in der
+   * Brille am Gürtel. `null` leert beide: Dunkelheit ist in diesem Haus eine
+   * Entscheidung (`threat.ts`). Ein Gerät, das nicht in der Fracht war, sagt
+   * es, statt stumm nichts zu tun.
+   */
+  chooseTool(id: string | null): void {
+    const immersive = this.host.ctx.renderer.xr.isPresenting;
+    if (id === null) {
+      this.rightItem = this.rightItem === 'part' ? 'part' : 'off';
+      this.sensorMode = 'off';
+      if (immersive) {
+        this.host.equip?.('off', 'right');
+        this.host.equip?.('off', 'left');
+      }
+      this.host.say('Beide Hände frei.');
+    } else if (id === 'flashlight') {
+      this.rightItem = 'flashlight';
+      this.torchLit = true;
+      if (immersive) this.host.equip?.('flashlight', 'right');
+      this.host.say('Taschenlampe eingeschaltet.');
+    } else if (id === 'medkit') {
+      if (!this.crew.inventory.includes('medkit')) {
+        this.host.say('Kein Medkit im Inventar.');
+        return;
+      }
+      this.rightItem = 'medkit';
+      this.host.say('Medkit gewählt. Benutzen heilt.');
+    } else if (id === 'radar' || id === 'xray') {
+      if (!this.crew.inventory.includes(id)) {
+        this.host.say(`${HAND_LABEL[id]} liegt noch in der Fracht.`);
+        return;
+      }
+      this.sensorMode = id;
+      if (immersive) this.host.equip?.(id, 'left');
+      this.host.say(
+        id === 'radar'
+          ? 'Bewegungsradar in der Hand · am Gürtel seitlich ablegbar.'
+          : 'Röntgengerät in der Hand · durch den Rahmen nach Fracht suchen.',
+      );
+    } else return;
+    this.chosen = id;
+    this.host.ctx.refreshWorldMenu();
+    this.stamp = '';
+    this.paint();
+  }
+
+  /** `Strg` gehalten heißt ducken — solange kein Textfeld den Fokus hat. */
+  private readonly keyDown = (event: KeyboardEvent): void => {
+    if (!event.code.startsWith('Control') || event.altKey || event.metaKey) return;
+    if (this.host.ctx.renderer.xr.isPresenting || isTyping()) return;
+    event.preventDefault();
+    this.crouchHeld = true;
+  };
+  private readonly keyUp = (event: KeyboardEvent): void => {
+    if (event.code.startsWith('Control')) this.crouchHeld = false;
+  };
+  private readonly clearKeys = (): void => {
+    this.crouchHeld = false;
+  };
+
+  /**
+   * Die Haltung je Bild ans Gestell — geduckt, solange `Strg` liegt oder der
+   * Umschalter steht; nie im Versteck, nie ohne Anzug, nie in der Bot-Runde.
+   */
+  private stepCrouch(dt: number): void {
+    const ctx = this.host.ctx;
+    if (ctx.renderer.xr.isPresenting || ctx.menu.isOpen) {
+      if (this.ownsStance) {
+        ctx.rig.updateDesktopCrouch(false, 1);
+        this.ownsStance = false;
+      }
       return;
     }
-    // **Liegt nichts vor einem, macht dieser Knopf das Licht.** Der Besitzer
-    // hat es so bestellt: „Wenn ich auf keine Kiste oder Tür schaue, will ich
-    // mit Benutzen die Taschenlampe an- und ausmachen können." Auf dem
-    // Telefon ist das der einzige Lichtschalter, der nicht in einem Menü
-    // liegt; am Desktop tut `E` dasselbe.
-    this.armUse();
-    const pointer = this.host.ctx.pointer;
-    pointer.setKeyboardTrigger(true);
-    pointer.setKeyboardTrigger(false);
-  }
-
-  /**
-   * **Einen Druck auf „Benutzen" vormerken.**
-   *
-   * Ob etwas vor einem liegt, weiß hier niemand: Der Zeiger malt seinen
-   * Strahl erst im nächsten Bild (`Pointer.update`), und der gemerkte
-   * Hover-Zustand (`focusedTarget`) hängt am Finger auf der Leinwand und ist
-   * nach dem Loslassen leer — ein zweiter Strahl nur zum Nachsehen wäre ein
-   * zweiter Weg, der irgendwann anders zielt als der erste.
-   *
-   * Also zählt dieser Druck zwei Bilder ab. Trifft der Strahl in dieser Zeit
-   * etwas (`bind`, `onSelect` setzt `useHit`), war es ein Handgriff und sonst
-   * nichts. Trifft er nichts, war „Benutzen" gemeint als Lichtschalter.
-   */
-  private armUse(): void {
-    if (this.crew.simulation || this.crew.hidden || this.crew.hp <= 0) return;
-    this.useHit = false;
-    this.usePending = 2;
-  }
-
-  /** Die Abrechnung dazu, einmal je Bild (`update`). */
-  private stepUse(): void {
-    if (this.usePending === 0) return;
-    this.usePending -= 1;
-    if (this.usePending > 0 || this.useHit) return;
-    // Ein Handgriff, der gerade läuft (eine Kiste geht auf), ist auch einer:
-    // Wer dabei noch einmal drückt, will nicht das Licht umlegen.
-    if (this.busy) return;
-    this.toggleTorch();
-  }
-
-  /**
-   * **Der Stock bewegt das Rig.** Dieselbe Rechnung wie in `FlatControls`:
-   * Blickrichtung flach, quer dazu die Seite, beides mit dem Stock gewichtet.
-   * Gesetzt wird nur, solange der Daumen liegt — sonst nähme dieser Stock der
-   * Tastatur jedes Bild wieder den Wunsch weg, den sie gerade gesetzt hat.
-   *
-   * Getempo wie überall in dieser Runde (`mission.ts`): Arbeitstempo, und
-   * jenseits des Sprintrings das Fluchttempo. Wer die 2D-Welt gespielt hat,
-   * läuft hier genauso schnell.
-   */
-  private stepStick(): void {
-    const controls = this.controls;
-    if (!controls || controls.hidden) return;
-    const stick = controls.move;
-    if (stick.magnitude <= 0) return;
-    const crew = this.crew;
-    if (crew.hp <= 0 || (!!crew.hidden && !crew.simulation) || crew.simulation) return;
-    const rig = this.host.ctx.rig;
-    rig.getHeadForward(_walk);
-    _side.copy(_walk).cross(UP).normalize();
-    _wish.set(0, 0, 0).addScaledVector(_walk, -stick.z).addScaledVector(_side, stick.x);
-    if (_wish.lengthSq() > 1) _wish.normalize();
-    rig.setIntent(
-      _wish.multiplyScalar(
-        rig.walkSpeed(stick.sprint, stick.sprint ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED),
-      ),
-      false,
-      stick.sprint,
-    );
-  }
-
-  /** Was auf den drei Knöpfen steht — Hände und das Ding vor einem. */
-  private paintControls(): void {
-    const controls = this.controls;
-    if (!controls) return;
-    const ctx = this.host.ctx;
-    const crew = this.crew;
-    controls.hidden =
-      ctx.renderer.xr.isPresenting || ctx.menu.isOpen || crew.simulation || crew.hp <= 0;
-    if (controls.hidden) return;
-    const label = this.crosshair.dataset.label ?? '';
-    controls.setLabels({
-      left: this.keyLabel('left'),
-      right: this.keyLabel('right'),
-      // „E: Benutzen" ist die Beschriftung des Fadenkreuzes; auf dem Knopf
-      // steht das `E` nicht, denn dort drückt man mit dem Daumen.
-      target: this.focusedTarget ? label.replace(/^E:\s*/, '') : '',
-      // Und wenn nichts vor einem liegt, steht auf dem Knopf, was er dann tut.
-      idle: this.rightItem === 'flashlight' && this.torchLit ? 'Licht aus' : 'Licht an',
-    });
+    const able = !this.crew.simulation && !this.crew.hidden && this.crew.hp > 0 && this.player;
+    ctx.rig.updateDesktopCrouch(able && (this.crouchHeld || this.crouchToggle), dt);
+    this.ownsStance = true;
   }
 
   private get crew() {
@@ -772,9 +845,28 @@ export class ShipExperience {
     action: (uv: THREE.Vector2 | null) => void,
     wearable = false,
     pokeable = true,
+    extra: BindExtra = {},
   ): void {
     if (!this.player) return;
     this.targets.push(object);
+    // **Und beim Kern** (`ShipHost.usable`): `A` von oben und `E` am
+    // Schreibtisch finden dieses Ding über `pickUsable`, der Saum und der
+    // Hinweis über der Figur kommen mit. Der Hinweis ist die Beschriftung des
+    // Fadenkreuzes ohne ihr „E: " — oder, was `prompt` gerade sagt.
+    const use = extra.use === undefined ? () => action(null) : extra.use;
+    if (use)
+      this.host.usable?.(
+        object,
+        {
+          use: () => this.useObject(object, use, wearable),
+          usePrompt: () => {
+            if (extra.prompt) return extra.prompt();
+            const text = object.userData.interactionLabel as string | undefined;
+            return (text ?? 'Benutzen').replace(/^E:\s*/, '');
+          },
+        },
+        extra.radius !== undefined ? { radius: extra.radius } : {},
+      );
     this.host.ctx.pointer.add({
       object,
       pokeable,
@@ -804,12 +896,8 @@ export class ShipExperience {
         this.host.ctx.rig.getHeadPosition(_head);
         object.getWorldPosition(_pos);
         // Zu weit weg ist wie nichts: Was drei Meter entfernt im Strahl liegt,
-        // hat man nicht vor sich (`armUse` macht daraus den Lichtschalter).
+        // hat man nicht vor sich.
         if (_head.distanceTo(_pos) > PANEL_RANGE || (this.crew.simulation && !wearable)) return;
-        // **In Reichweite — also ein Handgriff.** Auch dann, wenn er gleich
-        // abgewiesen wird: Wer zweimal schnell auf dieselbe Tür drückt, meint
-        // beim zweiten Mal die Tür und nicht das Licht (`armUse`).
-        this.useHit = true;
         if (this.interactionCooldown > 0) return;
         if (this.crew.hidden && !this.crew.simulation) {
           this.leaveLocker();
@@ -939,7 +1027,18 @@ export class ShipExperience {
     // gleich wieder ab (`openCabinet` — derselbe Knopf bricht ab), und die
     // Kiste ging in VR nie auf. Eine Tür von gut einem Meter ist kein Knopf,
     // den man antippt; das Ersatzteil dahinter darf man weiter greifen.
-    this.bind(leaf, () => this.openCabinet(id), false, false);
+    // **`A` vor der offenen Kiste nimmt das Teil** und schließt sie nicht:
+    // Von oben liegt das Blatt vor dem Teil, und `pickUsable` nähme sonst
+    // immer das Blatt. Erst leer, dann geht sie mit demselben Druck zu.
+    const exposed = (): boolean =>
+      !!lootMesh && this.crew.opened.includes(id) && !this.crew.inventory.includes(id);
+    this.bind(leaf, () => this.openCabinet(id), false, false, {
+      use: () => (exposed() ? this.takeLoot(id) : this.openCabinet(id)),
+      prompt: () =>
+        exposed()
+          ? `${lootLabel(this.host.spec(), loot)} nehmen`
+          : 'Frachtschrank öffnen / schließen',
+    });
     if (lootMesh) {
       lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
       this.bind(lootMesh, () => this.takeLoot(id));
@@ -1155,7 +1254,7 @@ export class ShipExperience {
     state.dropped = [...(state.dropped ?? []).filter((one) => one.id !== id), dropped];
     if (this.rightItem === 'part') this.rightItem = 'flashlight';
     if (this.host.ctx.renderer.xr.isPresenting) this.host.equip?.('flashlight', 'right');
-    this.host.say(`${lootLabel(spec, id)} abgelegt. Wieder aufnehmen: E.`);
+    this.host.say(`${lootLabel(spec, id)} abgelegt. Wieder aufnehmen: Benutzen.`);
     this.sound('door');
     this.paint();
     this.host.ctx.refreshWorldMenu();
@@ -1243,15 +1342,24 @@ export class ShipExperience {
       slits: null,
       ghost: null,
     });
-    this.bind(keypad.mesh, (uv) => {
-      if (!uv || !this.active) return;
+    const press = (): void => {
+      if (!this.active) return;
       const locker = this.lockers.find((l) => l.id === id)!;
       if (locker.open) {
         this.enterLocker(locker);
         return;
       }
       this.lockerDigit(id, 0);
-    });
+    };
+    this.bind(
+      keypad.mesh,
+      (uv) => {
+        if (uv) press();
+      },
+      false,
+      true,
+      { use: press },
+    );
   }
   /**
    * **Der Schutzschrank hat keinen Code mehr** — ein Tipp, und man ist drin;
@@ -1446,9 +1554,49 @@ export class ShipExperience {
       ...(training ? { practice: { open: false, links: [], digits: [1, 1, 1] } } : {}),
     };
     this.consoles.push(console);
-    this.bind(screen.mesh, (uv) => {
-      if (uv) this.repairInput(repair.id, uv.x, 1 - uv.y);
-    });
+    this.bind(
+      screen.mesh,
+      (uv) => {
+        if (uv) this.repairInput(repair.id, uv.x, 1 - uv.y);
+      },
+      false,
+      true,
+      { use: () => this.useConsole(repair.id) },
+    );
+  }
+
+  /** Die Tafel und ihren Hauptteil aufklappen — für das, was `A` dorthin verweist. */
+  private unfold(): void {
+    this.folded = false;
+    this.mainOpen = true;
+    const main = this.dom.querySelector<HTMLDetailsElement>('details[data-main]');
+    if (main) main.open = true;
+    this.stamp = '';
+  }
+
+  /**
+   * **`A` an einer Konsole.** Von oben zielt niemand auf eine Stelle der
+   * Tafel mit UV-Treffern; der Druck öffnet den Wartungskasten (oder setzt
+   * eine geschaffte Übung zurück), und das Rätsel selbst steht als Knöpfe in
+   * der Tafel des Technikers (`paint`, `near.console`) — dieselbe Rechnung
+   * (`mission.puzzleFor`) wie die Tafel an der Konsole. Steht der Kasten schon
+   * offen, klappt der Druck nur die Tafel auf.
+   */
+  private useConsole(id: string): void {
+    // Dieselbe Konsole, die auch `repairInput` meint: die nächste mit dieser
+    // Aufgabe — im Test steht dieselbe einmal im Schiff und einmal im Labor.
+    this.host.ctx.rig.getHeadPosition(_head);
+    const console = this.consoles
+      .filter((c) => c.repair.id === id && (!c.training || this.crew.options.test))
+      .sort((a, b) => a.at.distanceToSquared(_head) - b.at.distanceToSquared(_head))[0];
+    if (!console) return;
+    const puzzle = console.practice ?? puzzleFor(this.crew, id);
+    this.unfold();
+    if (!puzzle.open || (console.training && console.solved)) {
+      this.repairInput(id, 0.5, 0.5);
+      return;
+    }
+    this.host.say(`${console.repair.title}: Rätsel in der Tafel.`);
   }
   private repairInput(id: string, x: number, y: number): void {
     if (!this.active || this.crew.hidden) return;
@@ -1714,42 +1862,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     );
   }
   /**
-   * **Die rechte Hand durchschalten**: frei, Lampe, Medkit — und das
-   * Ersatzteil, solange er eines trägt.
-   *
-   * Die **Taschenlampe steht immer in der Liste**, auch wenn die Fracht noch
-   * unberührt ist: Sie hängt von Anfang an an beiden Hüften und kann nicht
-   * verloren gehen (`HauntingWorld.beltLoadout`). „Frei" bleibt trotzdem
-   * erreichbar — Dunkelheit ist in diesem Haus eine Entscheidung und kein
-   * Verlust: Wer die Lampe ausmacht, ist für das Monster schwerer zu sehen
-   * (`threat.ts`), und die andere Hand hat ohnehin noch eine.
-   */
-  private cycleRight(): void {
-    const carried = !!carriedPart(this.host.spec(), this.host.state());
-    const items = [
-      'off',
-      'flashlight',
-      ...(this.crew.inventory.includes('medkit') ? ['medkit'] : []),
-      ...(carried ? ['part'] : []),
-    ] as Array<'off' | 'flashlight' | 'medkit' | 'part'>;
-    this.rightItem = items[(items.indexOf(this.rightItem) + 1) % items.length]!;
-    this.host.say(
-      this.rightItem === 'off'
-        ? 'Rechte Hand frei.'
-        : this.rightItem === 'medkit'
-          ? 'Medkit gewählt. E zum Heilen.'
-          : this.rightItem === 'part'
-            ? `${lootLabel(this.host.spec(), carriedPart(this.host.spec(), this.host.state()))} in der Hand. G legt es ab.`
-            : 'Taschenlampe eingeschaltet.',
-    );
-    if (this.rightItem === 'flashlight') this.torchLit = true;
-    if (this.host.ctx.renderer.xr.isPresenting)
-      this.host.equip?.(this.rightItem === 'flashlight' ? 'flashlight' : 'off', 'right');
-    this.stamp = '';
-    this.paint();
-  }
-
-  /**
    * **Licht an, Licht aus.**
    *
    * Die Lampe bleibt dabei in der Hand — das ist der Unterschied zu
@@ -1764,7 +1876,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
    * verloren — getragen wird, was im Inventar steht, `rightItem` sagt nur,
    * was man sieht (`updateTools`).
    */
-  private toggleTorch(): void {
+  toggleTorch(): void {
     if (this.rightItem === 'flashlight') this.torchLit = !this.torchLit;
     else {
       this.rightItem = 'flashlight';
@@ -1788,22 +1900,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       : HAND_LABEL[this.rightItem];
   }
 
-  /**
-   * **Dieselbe Auskunft, kurz genug für den runden Knopf.** Dort ist Platz
-   * für neun Zeichen, danach schneidet `flat.css` mit „…" ab — „Taschenlampe
-   * an" stand als „Taschenl…" da, und genau das Wort, um das es geht, fehlte.
-   * Auf den Knöpfen heißt sie deshalb „Lampe"; in der Tafel, wo eine ganze
-   * Zeile Platz ist, bleibt sie die Taschenlampe.
-   */
-  private keyLabel(side: 'left' | 'right'): string {
-    if (side === 'left')
-      // Die linke Lampe hat keinen eigenen Schalter: Sie brennt, solange sie
-      // in der Hand liegt (`updateTools`).
-      return this.sensorMode === 'flashlight' ? 'Lampe an' : HAND_LABEL[this.sensorMode];
-    return this.rightItem === 'flashlight'
-      ? `Lampe ${this.torchLit ? 'an' : 'aus'}`
-      : HAND_LABEL[this.rightItem];
-  }
   private buildSuit(): void {
     const avatar = this.host.ctx.avatar;
     avatar.traverse((object) => {
@@ -1989,12 +2085,15 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (floating?.visible && floating !== this.floatingTorch) {
       this.floatingTorch = floating;
       floating.userData.interactionLabel = 'E: Taschenlampe aufnehmen';
-      this.bind(floating, () => {
+      // Mit eigenem Halbmesser: Die Ausdehnung einer Lampe ist ihr Lichtkegel,
+      // und der reichte als Trefferfläche über den halben Vorplatz.
+      const take = (): void => {
         if (ctx.renderer.xr.isPresenting) {
           this.host.say('Taschenlampe mit dem Griff greifen.');
           return;
         }
         this.host.ctx.pointer.remove(floating);
+        this.host.unusable?.(floating);
         if (this.focusedTarget === floating) {
           this.focusedTarget = null;
           this.crosshair.dataset.label = '';
@@ -2002,8 +2101,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         this.host.takeFloatingTorch?.();
         this.floatingTorch = null;
         this.rightItem = 'flashlight';
-        this.host.say('Taschenlampe aufgenommen. 2 legt sie weg und nimmt sie wieder zur Hand.');
-      });
+        this.host.say(
+          'Taschenlampe aufgenommen. Der Werkzeug-Knopf legt sie weg und nimmt sie wieder zur Hand.',
+        );
+      };
+      this.bind(floating, take, false, true, { use: take, radius: 0.35 });
     }
   }
 
@@ -2030,7 +2132,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.stepTraining();
     ctx.rig.getHeadPosition(_head);
     this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
-    this.stepUse();
     this.stepChore(dt, _head);
     this.stepArchiveRadio();
     this.updateTools(dt);
@@ -2130,9 +2231,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.crosshair.hidden = ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.optionsRoot.hidden =
         !this.optionsOpen || ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
-      this.paintControls();
-      this.stepStick();
-      this.dom.classList.toggle('is-keys', !this.controls?.hidden);
+      this.stepCrouch(dt);
       this.stepCompass(ctx, state.phase === 'running' && !crew.simulation);
       // Solange die Mission läuft, nie in der Bot-Runde und nie im Menü: Ohne
       // Runde gibt es nichts zu zählen, und wer einer Bot-Runde zusieht, hat
@@ -2140,7 +2239,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       // beide spielen dieselbe Station und brauchen dieselbe Anzeige.
       const round =
         state.phase === 'running' && !crew.simulation ? (this.host.round?.() ?? null) : null;
-      this.hud.mesh.visible = !!round;
+      // In der Brille der Streifen an der Kamera, am Bildschirm der im DOM —
+      // derselbe Inhalt, zwei Stellen, weil die Kamera von oben eine andere ist.
+      this.hud.mesh.visible = !!round && ctx.renderer.xr.isPresenting;
+      this.hudDom.hidden = !round || ctx.renderer.xr.isPresenting || ctx.menu.isOpen;
       this.hudTimer -= dt;
       // **Der Ladebalken läuft schneller als die Uhr.** Ein Balken, der
       // viermal je Sekunde springt, sieht aus wie ein Ruckeln; solange ein
@@ -2154,11 +2256,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       }
       this.stepSound(dt, _head);
       this.stepSimulation(dt);
-      this.desktop.update(dt);
       this.comfort?.update(dt);
     } else {
       this.status.mesh.visible = false;
       this.hud.mesh.visible = false;
+      this.hudDom.hidden = true;
     }
     this.paintTimer -= dt;
     if (this.paintTimer <= 0) {
@@ -2403,6 +2505,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const key = `${hud.oxygen}|${hud.suit}|${hud.color}|${fps}|${pips}|${line}|${orders}|${chore?.label ?? ''}|${filled}`;
     if (this.hud.mesh.userData.paint === key) return;
     this.hud.mesh.userData.paint = key;
+    this.paintHudDom(hud, round, fps, orders, pips, line, chore, filled);
     const c = this.hud.ctx;
     const { width: w, height: h } = this.hud.canvas;
     // Ohne Auftragszeile ist der Streifen **eine** Zeile hoch und nicht eine
@@ -2458,6 +2561,39 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     c.fillText(line, pad + pipsWidth + pad * 0.7, top + (h - top) / 2, w - pipsWidth - pad * 3);
     this.paintChore(chore, top, h);
     this.hud.texture.needsUpdate = true;
+  }
+
+  /** Dieselben Zeilen als DOM (`.orbital-hud`) — für den Bildschirm, von oben wie aus den Augen. */
+  private paintHudDom(
+    hud: ReturnType<typeof roundHud>,
+    round: MapRound,
+    fps: string,
+    orders: boolean,
+    pips: string,
+    line: string,
+    chore: Chore | null,
+    filled: number,
+  ): void {
+    const top = el('div', `orbital-hud__row${hud.low ? ' is-low' : ''}`);
+    const oxygen = el('strong', 'orbital-hud__oxygen', hud.oxygen);
+    oxygen.style.color = hud.color;
+    const suit = el('span', 'orbital-hud__suit', hud.suit);
+    suit.style.color = round.suit > 0 ? '#adffe8' : hud.color;
+    top.append(oxygen, el('small', 'orbital-hud__fps', fps), suit);
+    const rows: HTMLElement[] = [top];
+    if (orders) {
+      const tasks = el('div', 'orbital-hud__row orbital-hud__tasks');
+      tasks.append(el('span', 'orbital-hud__pips', pips), el('span', '', line));
+      rows.push(tasks);
+    }
+    if (chore) {
+      const bar = el('div', 'orbital-hud__chore');
+      const fill = el('i', 'orbital-hud__fill');
+      fill.style.width = `${Math.round((filled / 40) * 100)}%`;
+      bar.append(el('span', '', chore.label), fill);
+      rows.push(bar);
+    }
+    this.hudDom.replaceChildren(...rows);
   }
 
   /**
@@ -2599,9 +2735,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const fold = actionKey(this.folded ? '▾ Aufklappen' : '▴ Zuklappen', 'fold');
     fold.setAttribute('aria-expanded', String(!this.folded));
     this.dom.append(fold);
-    // **Das Zahnrad der 2D-Welt** (`showOptions`): Zentrale, 2D von oben,
-    // Menü, Verbindung, VR, Ton, Runde verlassen — dieselben Einträge mit
-    // denselben Worten wie dort, statt loser Knöpfe, die dasselbe anders
+    // **Das Zahnrad** (`showOptions`): Zentrale, Menü, Verbindung, VR, Ton,
+    // Runde verlassen — ein Menü statt loser Knöpfe, die dasselbe anders
     // nannten. Oben, weil es eine Ansicht ist und kein Handgriff — und
     // zugeklappt der einzige Weg nach draußen, deshalb bleibt es stehen.
     this.dom.append(actionKey('⚙ Optionen', 'options'));
@@ -2612,7 +2747,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       intent.dataset.aiIntent = '';
       this.dom.append(
         actionKey(this.followBot ? 'Freie Kamera' : 'Bot folgen', 'follow-bot'),
-        actionKey('Kartenübersicht', 'overview'),
         el(
           'div',
           '',
@@ -2643,9 +2777,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         'orbital-player__keys',
         crew.simulation
           ? this.followBot
-            ? 'Kamera folgt dem Bot · Freie Kamera zum Erkunden wählen'
-            : 'Freie Kamera · WASD fliegen · Leertaste ↑ · Strg ↓ · Umschalt schneller'
-          : `WASD · Strg ducken · E benutzen (frei vor dir: Licht ${this.rightItem === 'flashlight' && this.torchLit ? 'aus' : 'an'}) · 1: ${this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode]} · 2: ${this.rightItem === 'off' ? 'Hand frei' : this.rightLabel}`,
+            ? 'Kamera folgt dem Bot · Freie Kamera: selbst durch das Schiff laufen'
+            : 'Freie Kamera · WASD oder Stock · Bot folgen holt dich zurück'
+          : `WASD · Strg ducken · E benutzen (frei vor dir: Licht ${this.rightItem === 'flashlight' && this.torchLit ? 'aus' : 'an'}) · Werkzeug: Knopf unten rechts oder Tab · links: ${this.sensorMode === 'off' ? 'Hand frei' : HAND_LABEL[this.sensorMode]} · rechts: ${this.rightItem === 'off' ? 'Hand frei' : this.rightLabel}`,
       ),
     );
     const panel = el('details');
@@ -2677,14 +2811,19 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       button(`Skeld · ${crew.options.rooms} Räume`, 'rooms');
       button(MONSTERS.find((m) => m.id === crew.options.monster)!.name, 'monster');
     }
-    button(`Linke Hand: ${HAND_LABEL[this.sensorMode]}`, 'sensor');
-    button(`Rechte Hand: ${this.rightLabel}`, 'right');
+    // **Ducken als Umschalter** — die eine Taste dieser Welt neben dem Kern,
+    // weil das Spiel an der Lautstärke hängt (`mission.CROUCH_FACTOR`).
+    if (!crew.simulation) {
+      const crouch = actionKey(`Ducken: ${this.crouchToggle ? 'an' : 'aus'}`, 'crouch');
+      crouch.setAttribute('aria-pressed', String(this.crouchToggle));
+      row.append(crouch);
+    }
     button('Medkit', 'heal');
     // **Ablegen steht nur da, wenn etwas abzulegen ist.** Ein Knopf, der bei
     // leeren Händen nichts tut, ist einer, den man mitten in der Flucht trifft.
     if (carriedPart(this.host.spec(), state))
       button(
-        `${lootLabel(this.host.spec(), carriedPart(this.host.spec(), state))} ablegen (G)`,
+        `${lootLabel(this.host.spec(), carriedPart(this.host.spec(), state))} ablegen`,
         'drop',
       );
     if (crew.hidden) button('Schutzschrank verlassen', 'leave');
@@ -2765,8 +2904,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       for (const room of this.host.spec().rooms)
         button(`Testbesuch: ${room.name} / ${roomCode(room.id)}`, `visit:${room.id}`, details);
       if (crew.simulation) {
-        button('Höher fliegen', 'up', details);
-        button('Tiefer fliegen', 'down', details);
         const log = el('div', 'orbital-radio');
         log.setAttribute('role', 'log');
         log.setAttribute('aria-label', 'Simulierter Funkverkehr');
@@ -2987,12 +3124,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
   }
 
   /**
-   * **Die Einträge des Schiffs** — dieselben wie in der 2D-Welt
-   * (`FlatMode.renderOptions`), ohne die zwei, die es im Schiff nicht gibt
-   * (Zielpfade, die Sichtmodi des Zuschauers), und mit „Zentrale" statt
-   * „Karte" unter „Aufmachen": Die Karte von oben *ist* hier die andere
-   * Ansicht, und die steht als „2D ↔ 3D" weiter unten. **In der Bot-Runde
-   * dazu das Tempo** (`speedKeys`), mit denselben sechs Stufen wie in 2D.
+   * **Die Einträge des Schiffs**: Zuschauen, Zentrale, Menü, Verbindung, VR,
+   * Ton, Runde verlassen — und **in der Bot-Runde das Tempo** (`speedKeys`).
+   * Ob man das Schiff von oben oder aus den Augen sieht, steht nicht hier,
+   * sondern in _Menü → Ansicht_ des Kerns.
    */
   private shipOptions(): OptionItem[] {
     const crew = this.crew;
@@ -3025,8 +3160,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         ambient: this.audioOn ? levelLabel(this.hearingAudio.levels.ambient) : 'aus',
       }),
     );
-    if (this.host.switchView && !crew.simulation)
-      items.push(switchViewKey('2d', VIEW_LABELS['2d']));
     items.push(...leaveKeys());
     return items;
   }
@@ -3057,8 +3190,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       } else this.hearingAudio.cycle(data['audio']);
       renderOptions(this.optionsPanel, this.shipOptions());
       return;
-    } else if (data['switchView'] === '2d') this.host.switchView?.('2d');
-    else if (data['leave'] !== undefined) this.host.stations?.();
+    } else if (data['leave'] !== undefined) this.host.stations?.();
     else if (data['closeOptions'] === undefined) return;
     this.showOptions(false);
     this.stamp = '';
@@ -3083,20 +3215,11 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     } else if (kind === 'stations') this.host.stations?.();
     else if (kind === 'fold') this.folded = !this.folded;
     else if (kind === 'options') this.showOptions(!this.optionsOpen);
-    else if (kind === 'flat-view') this.host.switchView?.('2d');
-    else if (kind === 'overview') {
-      this.followBot = false;
-      if (!this.host.ctx.renderer.xr.isPresenting) {
-        this.host.ctx.rig.setHeadWorldPosition(new THREE.Vector3(0, 90, -22));
-        this.host.ctx.camera.lookAt(0, 0, -22);
-        this.host.ctx.rig.updateMatrixWorld(true);
-      }
-    } else if (kind === 'follow-bot') this.followBot = !this.followBot;
+    else if (kind === 'follow-bot') this.setFollowBot(!this.followBot);
+    else if (kind === 'crouch') this.crouchToggle = !this.crouchToggle;
     else if (kind === 'rooms') this.commandAction(3);
     else if (kind === 'monster') this.commandAction(4);
     else if (kind === 'light') this.commandAction(5);
-    else if (kind === 'sensor') this.cycleSensor();
-    else if (kind === 'right') this.cycleRight();
     else if (kind === 'heal') this.heal();
     else if (kind === 'drop') this.dropPart();
     else if (kind === 'leave') this.leaveLocker();
@@ -3108,8 +3231,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     else if (kind === 'door') this.host.door(id!);
     else if (kind === 'simulate') this.toggleSimulation();
     else if (kind === 'deck-light') this.host.setLighting?.({});
-    else if (kind === 'up') this.flatFlight = 1;
-    else if (kind === 'down') this.flatFlight = -1;
     else if (kind === 'visit' && this.crew.options.test) this.visit(id!);
     else if (kind === 'home') this.home();
     else if (kind === 'lab') this.visitLab(id as TrainingRoomId);
@@ -3183,7 +3304,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         row(
           'simulation',
           this.crew.simulation ? 'Bot-Runde beenden' : 'Bot-Runde anschauen',
-          'Techniker sammelt Ersatzteile, repariert Systeme und kehrt heim · freie Flugkamera',
+          'Techniker sammelt Ersatzteile, repariert Systeme und kehrt heim · die Kamera folgt ihm',
           () => this.toggleSimulation(),
         ),
       );
@@ -3224,7 +3345,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     const at = trainingSpawn(id);
     this.host.travel(new THREE.Vector3(at.x, at.y, at.z));
     this.host.say(
-      `${TRAINING_ROOMS.find((r) => r.id === id)!.name} · E / Trigger zum Ausprobieren. Kein Monster.`,
+      `${TRAINING_ROOMS.find((r) => r.id === id)!.name} · Benutzen (A / E) oder Trigger zum Ausprobieren. Kein Monster.`,
     );
   }
   private home(): void {
@@ -3262,9 +3383,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.crew.inventory = [];
     this.crew.puzzles = {};
     this.crew.simulation = true;
-    this.followBot = true;
     for (const panel of this.dom.querySelectorAll('details')) panel.open = false;
-    this.host.ctx.rig.frozen = true;
+    this.setFollowBot(true);
     this.hiddenWas = false;
     if (!this.simulated) {
       this.simulated = buildCrewmate();
@@ -3284,6 +3404,19 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     else this.followBotCamera(0, true);
     this.host.ctx.refreshWorldMenu();
     this.stamp = '';
+  }
+
+  /**
+   * **Ob die Kamera dem Techniker aus Zahlen folgt.** Solange sie folgt, steht
+   * das Gestell still (`frozen`); die „Freie Kamera" am Bildschirm ist die
+   * Figur selbst, die durch das Schiff läuft — der Freiflug ist mit der
+   * gemalten Karte gegangen (`docs/plan-haunting-1m.md`). In der Brille
+   * bleibt das Gestell in beiden Fällen still: Dort fliegen die Sticks.
+   */
+  private setFollowBot(follow: boolean): void {
+    this.followBot = follow;
+    const ctx = this.host.ctx;
+    ctx.rig.frozen = follow || ctx.renderer.xr.isPresenting;
   }
 
   private toggleSimulation(): void {
@@ -3313,7 +3446,8 @@ ANTIPPEN: ZUM SAFE-RAUM`,
   private stepSimulation(dt: number): void {
     if (!this.crew.simulation || !this.simulated) return;
     const ctx = this.host.ctx;
-    if (ctx.renderer.xr.isPresenting || !this.followBot) {
+    if (ctx.renderer.xr.isPresenting) {
+      // In der Brille fliegt der Zuschauer mit den Sticks über das Deck.
       const left = ctx.input.get('left')?.thumbstick,
         right = ctx.input.get('right')?.thumbstick;
       ctx.camera.getWorldDirection(_direction);
@@ -3322,8 +3456,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       ctx.rig.position.addScaledVector(_direction, -(left?.y ?? 0) * dt * 4);
       ctx.rig.position.x += -_direction.z * (left?.x ?? 0) * dt * 4;
       ctx.rig.position.z += _direction.x * (left?.x ?? 0) * dt * 4;
-      ctx.rig.position.y += (-(right?.y ?? 0) + this.flatFlight) * dt * 12;
-      this.flatFlight *= Math.max(0, 1 - dt * 2);
+      ctx.rig.position.y += -(right?.y ?? 0) * dt * 12;
       ctx.rig.position.y = Math.max(0, Math.min(120, ctx.rig.position.y));
       ctx.rig.updateMatrixWorld(true);
     }
@@ -3346,9 +3479,23 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       }
     this.followBotCamera(dt);
   }
+  /**
+   * **Die Kamera folgt dem Techniker aus Zahlen.** Von oben folgt die Kamera
+   * des Kerns dem Gestell (`core/TopDownCamera.ts`), also steht das Gestell
+   * auf dem Bot; aus den Augen schwebt es schräg über ihm und schaut zu ihm
+   * hin — wie bisher.
+   */
   private followBotCamera(dt: number, immediately = false): void {
     const ctx = this.host.ctx;
     if (!this.followBot || !this.simulated || ctx.renderer.xr.isPresenting) return;
+    if (ctx.topDown) {
+      const k = immediately ? 1 : 1 - Math.exp(-6 * Math.max(0, dt));
+      ctx.rig.position.x += (this.simulated.position.x - ctx.rig.position.x) * k;
+      ctx.rig.position.z += (this.simulated.position.z - ctx.rig.position.z) * k;
+      ctx.rig.position.y = 0;
+      ctx.rig.updateMatrixWorld(true);
+      return;
+    }
     this.followTarget.copy(this.simulated.position);
     this.followTarget.x += 8;
     this.followTarget.y += 12;
@@ -3471,7 +3618,15 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       if (this.crew.simulation) this.toggleSimulation();
     }
     this.disposed = true;
-    this.desktop.dispose();
+    if (this.player) {
+      window.removeEventListener('keydown', this.keyDown);
+      window.removeEventListener('keyup', this.keyUp);
+      window.removeEventListener('blur', this.clearKeys);
+    }
+    if (this.ownsStance) {
+      this.host.ctx.rig.updateDesktopCrouch(false, 1);
+      this.ownsStance = false;
+    }
     this.comfort?.dispose();
     this.crosshair.remove();
     this.torch.removeFromParent();
@@ -3490,14 +3645,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.hud.mesh.removeFromParent();
     disposeObject(this.hud.mesh);
     this.dom.remove();
+    this.hudDom.remove();
     this.dom.removeEventListener('click', this.domClick);
     document.body.classList.remove('orbital-on');
-    this.controls?.dispose();
-    this.controls = null;
     this.optionsRoot.remove();
     this.compass?.dispose();
     this.compass = null;
-    for (const target of this.targets) this.host.ctx.pointer.remove(target);
+    for (const target of this.targets) {
+      this.host.ctx.pointer.remove(target);
+      this.host.unusable?.(target);
+    }
     this.effects.dispose();
     this.audio.dispose();
     this.hearingAudio.dispose();

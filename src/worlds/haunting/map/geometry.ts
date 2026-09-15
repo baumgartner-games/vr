@@ -1,7 +1,9 @@
 import { TILE, dirX, dirZ, type Dir } from '../../nav/navTile';
+import { PLAN_WALL_T } from '../../editor/levelPlan';
 import {
   APRON,
   spacesOf,
+  STATION_DOOR_W,
   type HouseDoor,
   type HouseRoom,
   type HouseSpec,
@@ -21,8 +23,13 @@ import type { MapPoint, MapSegment, MapSnapshot } from './mapSnapshot';
  * ohne dass eine Szene durchsucht werden müsste.
  */
 
-/** Wie dick eine Wand auf der Karte gezeichnet und begangen wird, in Metern. */
-export const WALL_T = 0.25;
+/**
+ * Wie dick eine Wand auf der Karte gezeichnet und begangen wird, in Metern —
+ * dieselbe Zahl wie im Schiff (`editor/levelPlan.PLAN_WALL_T`). Eine eigene
+ * Zahl hier war einmal 0,25 gegen 0,2 dort: fünf Zentimeter, um die die
+ * 2D-Figur mehr Abstand hielt als die Kapsel im Schiff.
+ */
+export const WALL_T = PLAN_WALL_T;
 
 /**
  * **Wie breit eine Türöffnung ist**, in Metern — eine Kachel abzüglich
@@ -33,7 +40,7 @@ export const WALL_T = 0.25;
  * Collider (`plan.ts`). Vorher baute das Schiff 1,2 m, und der 2D-Spieler
  * lief durch Pfosten, die er nicht sah.
  */
-export const DOOR_WIDTH = TILE - 2 * WALL_T;
+export const DOOR_WIDTH = STATION_DOOR_W;
 
 /** Ein Rechteck in Kacheln als Kontur in Metern, gegen den Uhrzeigersinn. */
 export function rectPolygon(rect: Rect): MapPoint[] {
@@ -70,7 +77,7 @@ export function doorCentre(door: Pick<HouseDoor, 'x' | 'z' | 'dir'>): MapPoint {
 export function doorWaypoint(
   door: Pick<HouseDoor, 'x' | 'z' | 'dir'>,
   towards: MapPoint,
-  depth = 0.9,
+  depth = 0.55,
 ): MapPoint {
   const centre = doorCentre(door);
   const nx = dirX(door.dir),
@@ -91,7 +98,7 @@ export function doorWaypoint(
 export function doorPath(
   door: Pick<HouseDoor, 'x' | 'z' | 'dir'>,
   towards: MapPoint,
-  depth = 0.9,
+  depth = 0.55,
 ): [MapPoint, MapPoint] {
   const far = doorWaypoint(door, towards, depth);
   const centre = doorCentre(door);
@@ -378,13 +385,54 @@ export function walkable(
     if (shut.includes(door.id)) continue;
     const centre = doorCentre(door);
     const axis = doorAxis(door.dir);
-    const half = DOOR_WIDTH / 2 - radius;
+    // **Zwei Türen Kante an Kante sind eine Öffnung.** Zwischen zwei Gängen
+    // steht auf jeder gemeinsamen Kachelkante eine Tür, und seit eine Tür die
+    // ganze Kante misst, gibt es zwischen ihnen keinen Pfosten mehr — auch
+    // nicht auf der Karte: Wer genau auf der Fuge zwischen beiden steht, steht
+    // in einer offenen Tür und nicht in einer Wand.
+    const [from, to] = openingAlong(spec, shut, door);
     const depth = inset + 0.05;
     const along = axis === 'x' ? at.x - centre.x : at.z - centre.z;
     const across = axis === 'x' ? at.z - centre.z : at.x - centre.x;
-    if (Math.abs(along) <= half && Math.abs(across) <= depth) return true;
+    if (along >= from + radius && along <= to - radius && Math.abs(across) <= depth) return true;
   }
   return false;
+}
+
+/**
+ * Die Öffnung, zu der eine Tür gehört, entlang ihrer Wand — von `door` aus
+ * gemessen: die eigene Kante plus jede offene Tür, die auf derselben Wand
+ * unmittelbar daneben steht, in beide Richtungen.
+ */
+function openingAlong(spec: HouseSpec, shut: readonly string[], door: HouseDoor): [number, number] {
+  const centre = doorCentre(door);
+  const axis = doorAxis(door.dir);
+  let from = -DOOR_WIDTH / 2;
+  let to = DOOR_WIDTH / 2;
+  const neighbours = spec.doors.filter((other) => {
+    if (other === door || shut.includes(other.id) || doorAxis(other.dir) !== axis) return false;
+    const at = doorCentre(other);
+    const across = axis === 'x' ? at.z - centre.z : at.x - centre.x;
+    return Math.abs(across) < 1e-6;
+  });
+  const offsets = neighbours.map((other) => {
+    const at = doorCentre(other);
+    return axis === 'x' ? at.x - centre.x : at.z - centre.z;
+  });
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const offset of offsets) {
+      if (Math.abs(offset - DOOR_WIDTH / 2 - to) < 1e-6) {
+        to = offset + DOOR_WIDTH / 2;
+        grew = true;
+      } else if (Math.abs(offset + DOOR_WIDTH / 2 - from) < 1e-6) {
+        from = offset - DOOR_WIDTH / 2;
+        grew = true;
+      }
+    }
+  }
+  return [from, to];
 }
 
 /**

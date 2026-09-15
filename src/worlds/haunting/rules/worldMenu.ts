@@ -6,13 +6,11 @@
  * Menü selbst, sondern an drei Stellen, an denen ein Tastendruck **wortlos ins
  * Leere** lief:
  *
- * - Die Checkbox „2D-Welt von oben" (`bgvr.haunting.flat.v1`) gilt für den
- *   ganzen Browser. Stand sie an — im Van angehakt, Tage vorher —, führte
- *   „Mission starten" in der Brille in die 2D-Karte. Die aber macht in einer
- *   laufenden XR-Sitzung ausdrücklich gar nichts auf (`openFlat`: „Im Headset
- *   gibt es keine Karte von oben"). Der Eintrag in der Brille zeigte die
- *   Checkbox nicht einmal an, denn sie steht nur im Fenstermodus im Menü.
- *   Ergebnis: drücken, nichts passiert, kein Wort dazu.
+ * - Die Checkbox „2D-Welt von oben" galt für den ganzen Browser. Stand sie
+ *   an — im Van angehakt, Tage vorher —, führte „Mission starten" in der
+ *   Brille in die gemalte 2D-Karte, die in einer XR-Sitzung gar nichts
+ *   aufmachte. Ergebnis: drücken, nichts passiert, kein Wort dazu. (Die Karte
+ *   ist seit dem 1-m-Gitter weg; die Hürde steht hier als Geschichte.)
  * - `startMission` und `testMission` brachen still ab, wenn dieses Gerät die
  *   Runde nicht rechnet (`isHost`) oder nicht der Techniker ist. Ein zweites
  *   Fenster, das noch als Techniker im Raum steht, reicht dafür.
@@ -68,8 +66,6 @@ export interface WorldMenuState {
   me: string;
   /** Wo die Runde gerade steht. */
   phase: RoundPhase;
-  /** Ob die Ansicht der Lobby auf „2D von oben" steht (`rules/lobby.View`). */
-  flatWanted: boolean;
   /**
    * Welche der drei Kacheln gerade leuchtet — gerechnet aus der Verteilung
    * (`lobby.intentOf`), nicht aus einem zweiten Merker daneben.
@@ -111,17 +107,6 @@ export interface RoundStart {
 export function startedRound(kind: RoundKind): RoundStart {
   const mission = kind === 'mission';
   return { phase: 'running', monsterOn: mission, test: !mission, bright: !mission };
-}
-
-/**
- * **Ob dieser Start als 2D-Karte läuft — in der Brille nie.**
- *
- * Die Checkbox gilt für den ganzen Browser, die Karte von oben aber ist ein
- * Fenster-Ding: `openFlat` steigt in einer XR-Sitzung wieder aus. Wer die
- * Brille auf hat, bekommt deshalb das Schiff, egal was angehakt ist.
- */
-export function opensFlat(state: Pick<WorldMenuState, 'flatWanted' | 'immersive'>): boolean {
-  return state.flatWanted && !state.immersive;
 }
 
 /** Ob dieses Gerät die Runde rechnet. Ein leerer Gastgeber heißt: noch offen. */
@@ -237,7 +222,6 @@ export function startEntries(state: WorldMenuState): WorldMenuEntry[] {
   return INTENTS.map((intent) => {
     const blocked = startBlocker(state, intent);
     const notes: string[] = [];
-    if (opensFlat(state)) notes.push('Als 2D-Karte von oben');
     if (running) notes.push('Die laufende Runde endet damit');
     notes.push(INTENT_HINTS[intent]);
     return {

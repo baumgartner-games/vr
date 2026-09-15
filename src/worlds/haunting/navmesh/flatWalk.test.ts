@@ -1,7 +1,7 @@
 import { TILE } from '../../nav/navTile';
 import { generateHouse, roomCentre, roomOf, type HouseDoor, type HouseSpec } from '../house';
 import { doorCentre, slide, walkable } from '../map/geometry';
-import { FlatRound } from '../map/flatRound';
+import { FlatRound, MONSTER_RADIUS } from '../map/flatRound';
 import { housePlan } from '../plan';
 import { COMMAND } from '../roomGraph';
 import { stationRoute } from '../stationNavigation';
@@ -20,8 +20,7 @@ import { COMMAND_HOME } from '../trainingLayout';
  * ankommen, ohne Gleiten, ohne Verwerfen.
  */
 
-/** Wie in `flatRound.ts`: der Radius des 2D-Monsters und der Aufschlag der Wegsuche. */
-const MONSTER_RADIUS = 0.4;
+/** Der Aufschlag der Wegsuche auf den Radius des Monsters (`map/flatRound.MONSTER_RADIUS`). */
 const ROUTE_COMFORT = 0.05;
 /** Ein Schritt bei zwei Metern je Sekunde und dreißig Bildern. */
 const STRIDE = 0.07;
@@ -141,7 +140,7 @@ describe('Der geglättete Weg in der 2D-Welt', () => {
       housePlan(spec).graph,
       from,
       poseFor(spec, spec.rooms.at(-1)!.id),
-      0.45,
+      MONSTER_RADIUS + ROUTE_COMFORT,
     );
     const crossed = (door: HouseDoor): boolean => {
       const at = doorCentre(door);

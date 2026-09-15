@@ -989,9 +989,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Wörter heißen _Von oben_ und _Aus den Augen_ und stehen an einer Stelle
     (`core/screenView.SCREEN_VIEW_LABELS`). Die **Kennungen** bleiben `2d` und
     `3d`: So stehen sie im Speicher jedes Browsers, der hier schon einmal offen
-    war. In der Brille gibt es die Ansicht nicht — man steht darin —, und
-    Haunting bringt seine eigene Runde von oben mit (`World.ownsFlat`), die
-    schaltet ihr eigenes Zahnrad. _Raster_, _Ebenen_, _Editor_ und _Plan
+    war. In der Brille gibt es die Ansicht nicht — man steht darin.
+    `World.ownsFlat` bleibt als Haken für eine Welt mit eigener Ansicht von
+    oben; gesetzt hatte ihn nur Haunting, bis seine gemalte 2D-Karte mit dem
+    1-m-Gitter ging (Paket H) — seither gilt auch dort die Kamera des Kerns.
+    _Raster_, _Ebenen_, _Editor_ und _Plan
     zurücksetzen_ standen in diesem Menü, solange es eine eigene, gemalte
     Kachelwelt zu bemalen gab; gebaut wird jetzt im Bauplatz
     (`worlds/editor/WorldEditor.ts`).
@@ -7600,6 +7602,82 @@ Haunting bleibt eine `GridWorld`/`PortalWorld`. Die Einsatzzentrale ist sicher;
 vier getrennte Lehrzimmer liegen östlich außerhalb der Missionskarte. Der
 inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 
+**Das 1-m-Gitter und das Ende der gemalten 2D-Welt** (Paket H, September
+2026, `docs/plan-haunting-1m.md`) — was seither gilt, in Zahlen und Namen:
+
+- **Die Kachel ist ein Meter** (`nav/navTile.TILE` = 1). Die Station steht
+  in `house.ts` als Tabelle in Metern: Räume meist 10 × 10 (Cafeteria
+  20 × 18, Storage 15 × 12, Electrical 10 × 12, MedBay 9 × 10), **Gänge zwei
+  Kacheln breit**, `STATION_BOUNDS` = 70 × 60 m, `HOUSE` 40 × 30 m, Vorplatz
+  `APRON` 40 × 5 m, Aufzug `COMMAND_LIFT` 2 × 2. Kein Raum berührt einen
+  anderen (eine Kachel Fuge; `roomGraph.test` verlangt, dass es keine
+  Wandnachbarn ohne Tür gibt); Räume hängen nur über Gänge zusammen, und
+  **zwischen zwei Gängen steht die ganze gemeinsame Kante offen** (Kreuzung).
+  Lehrzimmer: `EAST` = Ostrand + 15 m, Safe 12 × 10, Modelle 20 × 15.
+- **Die Tür ist eine ganze Kachelkante**: `house.STATION_DOOR_W` = `TILE`
+  = 1,0 m, **ohne Pfosten** (`levelBuild.doorParts` lässt den Pfosten bei
+  Breite null weg; `stationNavigation.buildGrid` legt dann keine
+  Pfostenkästen). Begründung: Auf dem 0,25-m-Raster der Wegsuche
+  (`SUBDIVISIONS` = 4) passt ein Körper von `MONSTER_RADIUS` = **0,3** durch
+  1,0 m (Streifen 0,4 m, Rasterpunkte bei ±0,125); mit 0,8 m und Pfosten
+  läge kein Rasterpunkt mehr im Streifen. `stationRoute` nimmt 0,3 als
+  Vorgabe; `PLAYER_RADIUS` bleibt 0,24. Metrische Konstanten, die vorher „eine
+  Kachel" meinten, stehen jetzt in Metern: `haunt.SLAM_REACH` 3,75,
+  `DOORWAY_CLEAR` 1,9, `technicianBot.DREAD_CORE` = `CONTACT` + 2,5,
+  `flatNavigator.WAIT_DEPTH` 0,55, `geometry.doorPath` Tiefe 0,55.
+- **Die Hülle**: `StationPlan.solids()` legt Böden je Raum und Wände in
+  Läufen zusammen (`mergeFloors`, `mergeWalls`), `batchGridGeometry()` ist
+  **false** — der Kern ghostet Wände vor der Figur nur je Quader. Die Decke
+  bleibt als Masse auf `level + 1`; was Haunting selbst an die Decke hängt
+  (Lampenscheiben, Drehleuchten), trägt `userData.level = 1`, damit die
+  Kamera von oben es mit der Decke abschneidet (`core/cutaway.ts`).
+  `shipArt`: eine Deckplatte je Kachel (Schachbrett), ein Pfosten je Meter
+  Wand, Paneele `TILE − 0,2`; an einer Ecke mit Tür lässt die Wand daneben
+  0,34 m frei (`cutPlus`/`cutMinus`), Raumschilder nie breiter als die Wand.
+- **Die Ansicht von oben ist die des Kerns**: `HauntingWorld.ownsFlat` ist
+  **false**; _Menü → Ansicht_ schaltet wie überall (`core/TopDownCamera.ts`,
+  `App.topDown`, `FlatControls`). Der Gierwinkel der Runde kommt von oben aus
+  dem Gestell (`HauntingWorld.lookYaw`), sonst aus der Kamera. **Weg** sind
+  `map/flatMode.ts`, `map/flatScene.ts`, `map/flatArt.ts`, `map/toolIcons.ts`,
+  `map/flat.css`, `map/controls.css` (→ `map/joystick.css`, nur der Stock),
+  `map/puzzleOverlay.ts`, `monster/monsterSession.ts`, `desktopControls.ts`,
+  `world3d/shipControls.ts`, `rules/lobby.View`/`viewSwap`/`VIEW_LABELS`,
+  `worldMenu.opensFlat`/`flatWanted`, das Häkchen „2D-Welt von oben" und der
+  Eintrag `haunt:view`, `HauntingWorld.switchView`/`openFlat`/`closeFlat`/
+  `enterFlat`/`leaveFlat`/`stepFlat`/`flatShared`. Geblieben ist der
+  **Rechenkern** (`flatKernel.ts`, `map/flatRound.ts`, `geometry.ts`,
+  `visibility.ts`, `extract.ts`, `mapSnapshot.ts`, `noise*`, Monster, Regeln,
+  Audio, Schächte) und die **Karte der Telefone** (`map/mapView.ts`, `views/`).
+  Absätze weiter unten, die die gezeichnete 2D-Welt beschreiben, sind
+  Geschichte — was dort über Runde, Regeln und Karte steht, gilt weiter.
+- **Der Techniker am Bildschirm spielt mit dem Kern**: Alles, was
+  `ShipExperience.bind` bekommt, ist beim Kern als `Usable` angemeldet
+  (`ShipHost.usable` → `PortalWorld.addUsable`); `A`/`E` gehen durch
+  `HauntingWorld.useForward` — Sonderfälle (`ShipExperience.useSpecial`:
+  Runde vorbei, im Schrank, Medkit), dann `pickUsable`, sonst der
+  Lichtschalter (`useEmpty`). Vor der **offenen** Kiste nimmt `A` das Teil;
+  an der Konsole öffnet `A` den Wartungskasten und klappt die Tafel mit dem
+  Rätsel auf (`useConsole`). Der Werkzeug-Knopf des Kerns (`#hud-tool`,
+  `HauntingWorld.toolChoice` → `ShipExperience.toolChoice`/`chooseTool`)
+  wählt Lampe, Radar, Röntgen, Medkit; die Bildschirmhand des Kerns bleibt
+  leer (`defaultScreenTool` → `null`). Tasten `1`/`2`/`G`, die Knöpfe „Linke/
+  Rechte Hand", Kartenübersicht und Freiflug sind weg; **`Strg` duckt**
+  (plus Umschalter **Ducken** in der Tafel) — die eine Taste, die die Welt
+  neben dem Kern behält. Der HUD-Streifen ist am Bildschirm DOM
+  (`.orbital-hud`, `paintHudDom`), in der Brille weiter der an der Kamera.
+  Der Bordstock der Seite läuft, sobald jemand den Stock nimmt
+  (`syncTouchStick`). In der Bot-Runde steht das Gestell von oben auf dem
+  Bot (`followBotCamera` mit `ctx.topDown`); „Freie Kamera" ist die Figur,
+  die läuft. Ein Monster-Telefon ohne Techniker im Raum bekommt keine Karte
+  mehr, sondern den Satz `MONSTER_NEEDS_TECHNICIAN`.
+- **Die Simulation geht durch die Türen** (`roundSim.move`, `portalPoint`)
+  statt auf die Mitte des Nachbarn zu, und **Gefahr ist, was zu Fuß nah ist**
+  (`roomGraph.walkingGap`, in `roundSim` und `rules/technicianBot.ts`): Die
+  Cafeteria ist zwanzig Meter breit, ihre Mitte liegt von jeder Tür zwölf
+  Meter entfernt — gemessen über die Mitten fühlte der Techniker ein Monster
+  sechs Meter hinter der Tür nie. Die Gewichte (`botTuning.DEFAULT_TUNING`)
+  und `botTraining.test.BOT_RATES` sind auf dem 1-m-Gitter nachgelernt.
+
 **Die Einsatzzentrale (`APRON`) liegt nördlich an der Cafeteria**, nicht mehr
 am Südrand hinter einem eigenen Andockkorridor. Die Schleuse
 (`commandDoorTile`) geht mitten in die Kantinenwand, der Rest derselben Wand
@@ -7690,12 +7768,11 @@ ist, steht einmal und wird von beiden Welten gerufen:
 - **Die Zahlen**: `PLAYER_RADIUS` = `physics/playerClearance.PLAYER_CAPSULE_RADIUS`
   = 0,24 m (die 2D-Figur war 0,35 m dick und hielt elf Zentimeter mehr
   Abstand zu jeder Wand), **eine Türbreite** `house.STATION_DOOR_W` =
-  `TILE − 2·PLAN_WALL_T` = 2,0 m in beiden Welten (siehe „Eine Türbreite"
+  `TILE` = 1,0 m ohne Pfosten (seit dem 1-m-Gitter; siehe „Eine Türbreite"
   unten), der Würfel der
   Routine im Headset aus dem Samen der Station wie in 2D (`routineDice`;
-  vorher eine Konstante), `MONSTER_RADIUS` 0,4 als Wegbreite in beiden Welten
-  (der Rapier-Zylinder ist mit 0,29 m schmaler und bleibt deshalb nirgends
-  hängen, wo die 2D-Figur durchkommt).
+  vorher eine Konstante), `MONSTER_RADIUS` **0,3** als Wegbreite (0,4 bis zum
+  1-m-Gitter; der Rapier-Zylinder ist mit 0,29 m gleich breit).
 
 **Der Rechenkern: die 2D-Runde rechnet auch im Schiff** (`flatKernel.ts`,
 `kernelLocomotion.ts`, `HauntingWorld.stepKernel`)
@@ -7721,7 +7798,9 @@ Paket beim Gastgeber in der Brille:
   hängt sich vor die `PhysicsLocomotion` des Gestells und hält den Wunsch nur
   fest (`wish`); `kernelInput` macht daraus den `FlatInput` der Runde —
   Richtung und Größe am Tempo des Gestells normiert (`rig.pace`), Sprint,
-  Ducken (`rig.crouch > 0,15`), Blick der Kamera als `yaw` und der Schritt,
+  Ducken (`rig.crouch > 0,15`), der Blick als `yaw` (`lookYaw`: von oben das
+  Gestell, das `FlatControls` in die Laufrichtung dreht — die Kamera des
+  Kerns schaut dort immer nach Norden —, sonst die Kamera) und der Schritt,
   den der Körper im Spielraum selbst getan hat, als `shift` (einmal je Bild,
   gegen Wände und Kästen geglitten). Die Runde tut den Schritt in ihren
   1/30-s-Scheiben, danach setzt `followKernel` das Gestell so, dass der Kopf
@@ -7759,12 +7838,12 @@ Paket beim Gastgeber in der Brille:
   eigene Leiter je Runde), damit `ShipExperience` Absicht und Jagd daraus
   liest und sie mit dem Stand an alle Geräte geht. Neue Gewichte im Test gehen
   an `round.retune`.
-- **Wer rechnet**: nur der Gastgeber in der Brille (`isHost`, Rolle `vr`,
-  keine wartende Übergabe). Wer die 2D-Ansicht offen hat, rechnet dort
-  (`flatShared`; `runningRound()` ist dann diese Runde); ein Desktop-Gastgeber
-  ohne Anzug lässt die Runde stehen — wie vorher. Übergabe und Ansichtswechsel
-  lassen den Kern los (`releaseMonster` → `kernel = null`) und stellen ihn
-  aus den Büchern neu; `stateMessage` und Snapshot ändern sich nicht.
+- **Wer rechnet**: nur der Gastgeber im Anzug (`isHost`, Rolle `vr` — die
+  Brille oder der Techniker am Bildschirm, `flatTechnician`, keine wartende
+  Übergabe); ein Telefon in der Zentrale als Gastgeber lässt die Runde
+  stehen. Eine Übergabe lässt den Kern los (`releaseMonster` → `kernel =
+  null`) und stellt ihn aus den Büchern neu; `stateMessage` und Snapshot
+  ändern sich nicht.
 - **Weg ist damit** aus `HauntingWorld`: `stepCrew`, `stepLocks`, `stepLamps`,
   `stepSpook`, `trackMonster`, `noticeRepairs`, `checkItems`, `stepTrail`,
   das eigene Hörmodell samt Geräuschprotokoll, `LitCache`, `MonsterWalk`,
@@ -7777,24 +7856,23 @@ Paket beim Gastgeber in der Brille:
   (Kern statt NPC: Gastgeberwechsel, Bot-Runde, Wahrnehmung, Bücher),
   `groundTruth.test.ts`; der Browser-Smoke liest `world.kernel`.
 
-**Eine Türbreite** (`house.STATION_DOOR_W` = `TILE − 2·PLAN_WALL_T` = 2,0 m)
+**Eine Türbreite** (`house.STATION_DOOR_W` = `TILE` = 1,0 m, ohne Pfosten)
 
-Bis hierher waren die Türen des Schiffs `PLAN_DOOR_W` 1,2 m breit, das Modell
-der 2D-Welt (`geometry.DOOR_WIDTH`) 2,0 m — die Gewichte von Sicht und Gehör
-sind darauf abgestimmt, und ein Versuch, das Modell auf 1,2 zu setzen, warf
-`botTraining.test.ts` aus dem Band. Seit diesem Paket ist die **Öffnung im
-Schiff** so breit wie das Modell: eine Kachel abzüglich der Wandstärke.
-`GridPlan.doorWidth()` ist der Haken dafür — `StationPlan` (`plan.ts`)
-überschreibt ihn, alle anderen Rasterwelten behalten 1,2 m
-(`levelBuild.planSolids`, `slidingDoor.ts` fragen den Plan). Das Schott hat
-dafür je Seite **zwei Teleskop-Blätter** (`ShipExperience`, `DoorLeaf` mit
-`rest`/`travel`), damit zwei Meter Tür in die 0,25-m-Pfostentasche passen;
-`stationNavigation`, `stationLayout` und `automaticDoors`
-(`TRIGGER_CROSS`/`OCCUPIED_CROSS`) rechnen mit `STATION_DOOR_W`, die 2D-Figur
-geht `DOOR_WIDTH / 2 − Radius` breit durch (`geometry.walkable`;
-`DOOR_PASSAGE` ist weg). Auf dem Blatt des Archivars bleibt der Türbogen
-symbolisch 1,2 m (`PAPER_ARC`). `groundTruth.test.ts` prüft, dass beide
-Zahlen dieselbe sind.
+Bis zum 1-m-Gitter waren die Türen des Schiffs `PLAN_DOOR_W` 1,2 m breit, das
+Modell der 2D-Welt (`geometry.DOOR_WIDTH`) 2,0 m, danach beide „eine Kachel
+abzüglich Wandstärke" auf der 2,5-m-Kachel. Seit Paket H ist die Öffnung
+**eine ganze Kachelkante** — ein Meter, kein Pfosten: `GridPlan.doorWidth()`
+ist der Haken dafür — `StationPlan` (`plan.ts`) überschreibt ihn, alle
+anderen Rasterwelten behalten `PLAN_DOOR_W` (`levelBuild.planSolids` lässt
+den Pfosten bei Breite null weg, `slidingDoor.ts` fragt den Plan). Das Schott
+hat je Seite **zwei Teleskop-Blätter** (`ShipExperience`, `DoorLeaf` mit
+`rest`/`travel`); `stationNavigation`, `stationLayout` und `automaticDoors`
+(`TRIGGER_CROSS`/`OCCUPIED_CROSS`) rechnen mit `STATION_DOOR_W`, die Figur
+der Runde geht `DOOR_WIDTH / 2 − Radius` breit durch (`geometry.walkable`,
+`openingAlong` fasst dabei benachbarte offene Türen derselben Wandlinie zu
+einer Öffnung zusammen — die Kreuzung zweier Gänge hat keinen Pfosten in der
+Mitte). Auf dem Blatt des Archivars bleibt der Türbogen symbolisch
+(`PAPER_ARC`). `groundTruth.test.ts` prüft, dass beide Zahlen dieselbe sind.
 
 **Ducken ist ein Tempo** (`mission.CROUCH_FACTOR` = 0,5, `PLAYER_CROUCH_SPEED`)
 
@@ -7802,10 +7880,10 @@ In beiden Welten: Geduckt geht man halb so schnell, und leiser ist man, weil
 man langsamer ist — `audio/cues.stepLoudness(speed)` wählt die Stufe nach dem
 Tempo (`SNEAK_LIMIT` 2 m/s → `NOISE.sneak`, über `SPRINT_LIMIT` 3,6 →
 `NOISE.sprint`, dazwischen `NOISE.walk`), nicht nach einer Haltung. Sprint
-schlägt Ducken. In 3D kommt es aus `rig.crouch` (Stick, Ctrl, körperlich), in
-2D aus dem neuen Knopf **Ducken** (`FlatMode`, `flat__key--crouch`, ein
-Umschalter, `FlatInput.crouch`). Das Sichtfeld des 2D-Technikers ist das der
-Quest 3: `perception.BOT_FOV` = 110°.
+schlägt Ducken. Es kommt aus `rig.crouch` (Stick, `Strg` gehalten, der
+Umschalter **Ducken** in der Tafel des Technikers, körperlich) und geht als
+`FlatInput.crouch` in die Runde. Das Sichtfeld des Technikers aus Zahlen ist
+das der Quest 3: `perception.BOT_FOV` = 110°.
 
 Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
 
@@ -7813,9 +7891,9 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Requisiten, Werkzeuge, Stufen und Sprung; außerhalb der Karte
   (Übungslabor) trägt sie allein. Schränke sind in 3D begehbar, in 2D ein
   Kasten — die Runde weiß vom Verstecken nur über `crew.hidden`.
-- **Wer nicht rechnet**: Ein Gastgeber ohne Brille (Desktop, Telefon ohne
-  2D-Ansicht) hat keinen Kern; seine Runde steht, bis jemand mit Anzug oder
-  2D-Ansicht Gastgeber wird — wie vorher.
+- **Wer nicht rechnet**: Ein Gastgeber ohne Anzug (ein Telefon in der
+  Zentrale) hat keinen Kern; seine Runde steht, bis jemand mit Anzug —
+  Brille oder Techniker am Bildschirm — Gastgeber wird.
 - **Die Trainingssimulation** (`roundSim.ts`) bleibt die grobe Raumkarte
   ohne Wände, Licht und Türen — mit Absicht, siehe „Gewichte, Simulation,
   Training".
@@ -7889,9 +7967,9 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   der Empfängerseite hängt keine Regel daran, gesperrt wird beim Gastgeber);
   `MapSource.doorHold` liefert sie mit `cooling: true`, daraus wird
   `MapDoor.cooling` und derselbe Balken über der Tür wie beim Halten, nur grün
-  statt rot (`map/mapView.ts`, `map/flatScene.ts` — auch bei
-  zurückgefahrenem Blatt); dazu wechselt das Blatt auf der Karte und die
-  Schwelle in der 2D-Szene im Sekundentakt in die Farbe der Abkühlung, aus
+  statt rot (`map/mapView.ts` — auch bei
+  zurückgefahrenem Blatt); dazu wechselt das Blatt auf der Karte im
+  Sekundentakt in die Farbe der Abkühlung, aus
   der Uhr gerechnet (`Math.sin(time · 7)`), weil ein Balken allein auf einem
   Telefon leicht übersehen wird — „muss optisch gut angezeigt werden", so
   der Besitzer. Auf der Tafel der Schalttafel-Rolle
@@ -8149,8 +8227,8 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   nicht mehr das Möbel vor („bei dem Frachtcontainer"), sondern die Kiste —
   `CargoSlot.clue`, „Kiste 2, blaues Band · Nordwand". `HouseTask.hint` bleibt
   stehen — er nennt das Merkmal des Raums („bei der Werkbank") und hängt am
-  Reparaturhinweis (`mission.ts`) und an der 2D-Raumakte (`map/flatMode.ts`),
-  die beide noch auf ihn zeigen.
+  Reparaturhinweis (`mission.ts`) und an der Raumakte des Archivs
+  (`views/archiveRole.ts`), die beide noch auf ihn zeigen.
 - **Eine Hand, ein Ersatzteil** (`rules/archiveGoals.ts`, `carriedPart`,
   `canCarryPart`): `crew.inventory` trägt höchstens **ein** Missionsteil;
   Werkzeuge (Radar, Röntgen, Medkit) zählen nicht mit, die stecken am Gürtel.
@@ -8159,9 +8237,10 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   ein und klapperte danach die Konsolen ab; der halbe Weg durch das Schiff
   fiele weg. In 3D ist das Teil ein **Ding in der Hand**: am Schirm im
   Streifen neben Lampe und Medkit (`rightItem === 'part'`), in der Brille am
-  Griff des rechten Controllers. **`G` legt es ab** (`ShipExperience.dropPart`,
-  Knopf im Panel), es liegt dann als Modell im Gang und wird mit `E` wieder
-  aufgenommen. **`taken` heißt „war einmal draußen", `inventory` heißt „ist in
+  Griff des rechten Controllers. **Ablegen** in der Tafel legt es ab
+  (`ShipExperience.dropPart`; die Taste `G` ist mit der gemalten Karte
+  gegangen), es liegt dann als Modell im Gang und wird mit Benutzen (`A`/`E`,
+  ein `Usable`) wieder aufgenommen. **`taken` heißt „war einmal draußen", `inventory` heißt „ist in
   der Hand"** — die Konsole prüft seit jetzt in **beiden** Welten das Zweite:
   Wer sein Teil ablegt, sperrt damit auch die Abdeckung wieder zu.
 - **Wer wissen darf, welche Kiste die richtige ist** (`rules/roundSetup.ts`,
@@ -8172,10 +8251,10 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   welche der zwei bis drei Kisten darin zählt, steht allein auf seinem Blatt.
   Kompass, Randdreieck und Zielpfad zielen unverändert auf `MapGoal.at` und
   brauchen nur das Label. **Hervorgehoben wird die Sache selbst und kein Ring
-  daneben:** in 2D die Kiste mit Schein, Umriss und Puls (`flatArt.drawCargo`)
-  oder der Raumboden mit pulsierender Kante (`map/flatScene.ts`,
-  `FlatSceneOptions.goalRoom`), in 3D ein gelber Saum auf der Zielkiste
-  (`core/outlineShell.ts`, `ShipExperience.seam`). **Das Kennzeichen ist immer
+  daneben:** ein gelber Saum auf der Zielkiste (`core/outlineShell.ts`,
+  `ShipExperience.seam`) — neben dem Saum des Kerns auf dem, was `A` gerade
+  meint (`core/highlight.ts`); die gemalte Karte zeichnete dafür Schein,
+  Umriss und Puls. **Das Kennzeichen ist immer
   sichtbar** — `MapItem.mark`, Farbband und Nummer am Modell
   (`fixtureModels.buildCargoCabinet(mark)`, Farben in
   `fixtureDimensions.CARGO_BAND_COLORS`) —, denn der Archivar spricht ja
@@ -8230,43 +8309,22 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
 - `HauntingComfort` bietet lokale Snap-/Smooth-Drehung, Bewegungsrand und
   Haptik; reale Kopfbewegung löst keinen Rand aus. Dispose restauriert die
   gemeinsamen Rig-Einstellungen und räumt Pointer/Audio/GPU-Ressourcen auf.
-- **Die Steuerung der 2D-Welt gilt auch im Schiff**
-  (`world3d/shipControls.ts`): Stock links unten, drei Knöpfe rechts unten,
-  dieselbe Klasse und dasselbe CSS wie in 2D (`map/joystick.ts`,
-  `map/flat.css`) — nur ohne den schwarzen Grund (`.flat.ship3d { background:
-none }`; ohne diese Zeile malt `flat.css` die ganze Station zu, sobald
-  jemand die Datei lädt — das Schiff tut das seit dem Optionsmenü selbst) und
-  nur dort bedienbar, wo Stock und Knöpfe liegen; dazwischen geht jeder Finger an die Leinwand
-  durch, sonst ließe sich nicht mehr umsehen. Neu ist an den Knöpfen nur der
-  Inhalt: Im Schiff hat man **zwei Hände**, also stehen auf den beiden
-  kleinen „Linke Hand" (Radar/Röntgen/frei) und „Rechte Hand"
-  (Lampe/Medkit/frei) — dieselben zwei Reihen wie auf `1` und `2` —, und der
-  große trägt den Namen dessen, worauf man gerade zielt, wie am Desktop das
-  `E`. **Und liegt nichts vor einem, ist der große Knopf der Lichtschalter**
-  (`pressUse` → `armUse`/`toggleTorch`): Der Besitzer wollte das Licht ohne
-  Menü umlegen können. Ob wirklich nichts da ist, sagt der Strahl und nicht
-  der gemerkte Hover-Zustand — der hängt am Finger auf der Leinwand und ist
-  nach dem Loslassen leer. Ein Druck wird deshalb **vorgemerkt** und zwei
-  Bilder später abgerechnet: Hat `bind`s `onSelect` in dieser Zeit etwas in
-  Reichweite gefunden (auch etwas, das den Handgriff gerade abweist — eine
-  Tür in der Sperrfrist ist trotzdem eine Tür), war es ein Handgriff; sonst
-  legt er `torchLit` um. Auf den runden Knöpfen heißt die Lampe „Lampe an" /
-  „Lampe aus" und nicht „Taschenlampe": Dort ist Platz für neun Zeichen, und
-  abgeschnitten wurde bisher genau das Wort, um das es geht (`keyLabel`); auf
-  dem großen Knopf steht dafür „Licht an" / „Licht aus" — was er _tun_ wird,
-  wenn nichts vor einem liegt. Der Stock schiebt das Rig mit `PLAYER_WALK_SPEED` und jenseits des
-  Sprintrings mit `PLAYER_SPRINT_SPEED` — nur solange der Daumen liegt, sonst
-  nähme er der Tastatur jedes Bild ihren Wunsch weg. Nicht in der Brille
-  (dort ist DOM unsichtbar), nicht in der Simulation, nicht bei offenem Menü.
-  Damit die Tafel des Technikers nicht darunter liegt, rückt sie hoch
-  (`.orbital-player.is-keys`). **Den Bordstock der Seite** (`index.html`,
-  `#touch`) schaltet die Welt dafür ab: `WorldContext.touchStick(false)` beim
-  Betreten, `true` beim Verlassen — zwei Stöcke übereinander wären einer zu
-  viel.
-- `desktopControls.ts`: E/Klick benutzt denselben Interaktionspfad — und im
-  Leeren dasselbe Licht wie der große Knopf;
-  1 wechselt Radar/Xray/frei, 2 Lampe/Medkit/frei. Ctrl duckt. Im Simulationsflug
-  WASD/Space/Ctrl. Menüs, Texteingaben und Fokusverlust sperren gehaltene Tasten.
+- **Der Techniker am Bildschirm spielt mit dem Kern** (Paket H): Bordstock
+  der Seite oder `WASD`, `A`/`E` benutzt über `HauntingWorld.useForward`
+  (Sonderfälle → `pickUsable` über die angemeldeten Dinge → sonst der
+  Lichtschalter, `ShipExperience.useEmpty`; ein Handgriff in der Sperrfrist
+  zählt als Handgriff und legt das Licht nicht um), der Saum und der Hinweis
+  über der Figur kommen vom Kern (`bind` meldet jedes Ziel als `Usable` an,
+  `usePrompt` ist die Fadenkreuz-Beschriftung ohne „E: "), der Werkzeug-Knopf
+  (`#hud-tool`, `Tab`) wählt die Hand (`chooseTool`: Lampe/Medkit rechts,
+  Radar/Röntgen links, `null` leert beide; `toolChoice.current` ist die
+  letzte Wahl, solange sie noch in der Hand liegt). Eigener Stock, eigene
+  Knöpfe (`world3d/shipControls.ts`) und eigene Tasten (`desktopControls.ts`:
+  `1`/`2`/`G`, Freiflug) sind weg; `Strg` duckt weiter (Fensterereignis in
+  `ShipExperience`, `stepCrouch`), dazu **Ducken** in der Tafel. Der
+  HUD-Streifen ist am Bildschirm DOM (`.orbital-hud`), der Kompass bleibt DOM,
+  der Streifen an der Kamera bleibt der Brille. `WorldContext.touchStick`
+  ruht nur, solange die Zentrale über dem Bild liegt (`syncTouchStick`).
 - Die **Bot-Runde im Schiff** spielt der Techniker aus Zahlen der 2D-Welt
   (`rules/technicianBot.ts`) auf dem Rechenkern (`flatKernel.ts`,
   `FlatKernel.startBot`): eine echte, schadensfreie Runde mit aktiver
@@ -8301,21 +8359,24 @@ none }`; ohne diese Zeile malt `flat.css` die ganze Station zu, sobald
   („M 3,2 s / T 4,0 s") und der Name der Haltung am Ziel. Weltgeometrie, flach
   auf dem Boden — damit ist es auch in der Brille richtig herum. Die Zahlen
   kommen aus `RoutineOutput.insight` (`monsterRoutine.ts`) und werden nirgends
-  zweimal gerechnet; gezeichnet wird in 2D dasselbe aus `map/insightOverlay.ts`
-  (Szene _und_ Kartenübersicht, `FlatMode.drawSceneOverlay` /
-  `MapViewOptions.overlay`). **Nur im Modus „Alles sehen"**: Ein Techniker mit
+  zweimal gerechnet; auf der Karte der Telefone zeichnet dasselbe
+  `map/insightOverlay.ts` (`MapViewOptions.overlay`). **Nur im Modus „Alles
+  sehen"**: Ein Techniker mit
   dem Glaubensbild vor sich weiß, welche Zimmer gerade sicher sind, und die
   halbe Runde ist vorbei. **Über die Leitung geht es als optionales Feld**
   (`HauntState.insight`, `readState` stutzt Haltung, Listen und Meter zurecht,
   kein Protokollsprung): Der Gastgeber schreibt seinen Beschluss je Bild in den
   Stand, und ein Zuschauer, der das Monster nicht selbst rechnet — ein Telefon
-  am Fernseher, ein 2D-Netz-Zuschauer —, liest es von dort
-  (`HauntingWorld.render`, `FlatModeHost.insight`). Gehen/Stillstand erzeugen weniger/keinen Schall.
+  am Fernseher —, liest es von dort (`HauntingWorld.render`).
+  Gehen/Stillstand erzeugen weniger/keinen Schall.
   Schrittanimation basiert auf Körperseite und Gliedmaßtyp statt Child-Reihenfolge:
   linkes/rechtes Bein gegensinnig, gleichseitiger Arm jeweils entgegengesetzt.
-  Freiflug reicht bis 120m, Kartenübersicht setzt den Desktopblick auf 90m.
-  Desktop-Demos starten mit nachgeführter Botkamera; **Freie Kamera** / **Bot
-  folgen** wechselt die Bedienung. `followBotCamera` läuft niemals im XR-Headset;
+  Desktop-Demos starten mit nachgeführter Botkamera: aus den Augen schräg
+  über dem Bot, **von oben steht das Gestell auf ihm** (`followBotCamera`
+  mit `ctx.topDown` — die Kamera des Kerns folgt dem Gestell). **Freie
+  Kamera** / **Bot folgen** wechselt die Bedienung (`setFollowBot`: frei
+  heißt, die Figur läuft selbst; Freiflug und Kartenübersicht sind mit der
+  gemalten Karte gegangen). `followBotCamera` läuft niemals im XR-Headset;
   dort behält der Spieler seine Blickrichtung.
 - **Das Monster kennt die Einsatzzentrale nicht** (`roomGraph.monsterGraph`).
   Es gibt die Raumkarte zweimal: die ganze (`stationGraph`, mit dem Knoten
@@ -8516,10 +8577,7 @@ none }`; ohne diese Zeile malt `flat.css` die ganze Station zu, sobald
   solange man den anderen nicht wirklich sieht (ein Marker neben der
   leibhaftigen Figur ist keine Erinnerung, sondern ein zweiter Gegner);
   „Alles sehen" zeigt **beide** blass (`GHOST_WATCH` 0,35) neben den echten
-  Figuren. In 2D malt `map/flatArt.drawGhost` eine **gestrichelte Silhouette** —
-  denselben Umriss wie die Figur (`monsterSilhouette` teilen sich `drawMonster`
-  und `drawGhost`), nur als Kontur; `map/flatScene.ts` hängt sie in die
-  z-Sortierung, `map/mapView.ts` zeichnet auf der Karte einen gestrichelten
+  Figuren. `map/mapView.ts` zeichnet auf der Karte einen gestrichelten
   Ring mit Blickstrich, und die Monster-Ansicht schreibt „Zuletzt gesehen:
   Werkstatt · vor 6 s" in ihre Kopfzeile (`ghostAgeText`). In 3D ist es
   **Weltgeometrie** und kein Bildschirmzeichen (`HauntingWorld.paintGhost`):
@@ -8704,8 +8762,8 @@ raum)` gibt dieselbe Auskunft nach außen, und `monsterRoutine` stellt seinen
   Unendliche Kosten wären dieselbe Ecke, in der er sonst stehen bleibt und
   stirbt — dieselbe Regel wie bei der Scheu vor dem Monster (`RouteAvoid`).
 - **Die Scheu hat einen harten Kern** (`RouteAvoid.core`, `CORE_WEIGHT` = 1000
-  je Rasterschritt, Radius `DREAD_CORE` = Schlagreichweite 1,7 m + eine Kachel
-  2,5 m). Der weiche Trichter allein kostete vier je Schritt — einen Meter
+  je Rasterschritt, Radius `DREAD_CORE` = Schlagreichweite 1,7 m + 2,5 m —
+  einmal „eine Kachel", seit dem 1-m-Gitter in Metern). Der weiche Trichter allein kostete vier je Schritt — einen Meter
   Umweg, und den zahlt ein Fliehender jederzeit: Der Techniker lief dem
   Monster regelmäßig durch die Arme. Tausend sind 250 m Umweg, mehr als die
   Station breit ist; hindurch geht er nur noch, wenn es gar keinen Weg daneben
@@ -8719,17 +8777,14 @@ raum)` gibt dieselbe Auskunft nach außen, und `monsterRoutine` stellt seinen
   hindurchführt (`navmesh/flatNavigator.crossesCore`, dazu engere Toleranzen
   `CORE_TOLERANCE`/`CORE_HOLD`).
 - **Zeitraffer** (`simulationSpeed.ts`): ×1/×2/×4/×8/×12/×16 über die
-  **Anzahl** der Bilder (`HauntingWorld.update` → `tick`; in der 2D-Welt
-  `FlatMode.update` um den `TechnicianBot`), nie über die Länge eines
-  Schritts; nur der letzte Durchgang sendet und frischt die Anzeigen auf.
-  Lange echte Bilder nehmen die Stufe selbsttätig zurück. **Eingestellt wird
-  sie im Optionsmenü beider Welten** (`map/optionsMenu.speedKeys`, Reihe
+  **Anzahl** der Bilder (`HauntingWorld.update` → `tick`), nie über die Länge
+  eines Schritts; nur der letzte Durchgang sendet und frischt die Anzeigen
+  auf. Lange echte Bilder nehmen die Stufe selbsttätig zurück. **Eingestellt
+  wird sie im Optionsmenü des Schiffs** (`map/optionsMenu.speedKeys`, Reihe
   `ui-row` aus Pillen, `[data-speed]`, nur in der Bot-Runde) — der Besitzer
   wollte die Stufen einzeln wählbar, nicht einen Knopf, der reihum zählt; der
   „Tempo"-Knopf in der Test-Tafel des Schiffs ist deshalb weg. Die Stufe
-  gehört der Welt (`HauntingWorld.simulationSpeed`, an beide Ansichten als
-  `simulationSpeed`/`setSimulationSpeed` gereicht) und geht beim Wechsel
-  2D ↔ 3D mit.
+  gehört der Welt (`HauntingWorld.simulationSpeed`).
 - **Beleuchtung der Bot-Runde** (`botLighting.ts`): vier Stellungen, dazu
   Drehleuchten in den Gängen (`shipArt.buildCorridorBeacons`,
   `HauntingWorld.applyBeacons`). Winkel und Puls laufen im Kreis statt
@@ -8740,159 +8795,34 @@ raum)` gibt dieselbe Auskunft nach außen, und `monsterRoutine` stellt seinen
 
 **Telefone und Netzwerk**
 
-- **Das Telefon ist das Hauptgerät der Einsatzzentrale — und der 2D-Welt.**
-  Die Stationen im Van werden von den Spielern am Handy bedient, und die
-  2D-Karte von oben wird ebenfalls am Handy gespielt. Jede UI-Entscheidung in
-  diesen beiden Teilen wird zuerst für ein Telefon im Hochformat getroffen:
+- **Das Telefon ist das Hauptgerät der Einsatzzentrale.** Die Stationen im
+  Van werden von den Spielern am Handy bedient, und auch der Techniker am
+  Handy spielt das Schiff (von oben oder aus den Augen, mit dem Bordstock der
+  Seite). Jede UI-Entscheidung wird zuerst für ein Telefon im Hochformat
+  getroffen:
   Daumenzonen unten, nichts Wichtiges in der Bildmitte, nichts unter dem
   HUD der Seite (Menü, Verbindung, VR; `z-index` 5 in `style.css`), und was
   bedienbar sein soll, ist ohne Tippen ins Leere sichtbar. Desktop und
   Querformat sind Nebenfälle, nicht der Maßstab.
-- **Die 2D-Welt** (`map/flatMode.ts`, `map/flat.css`) ist **eine gezeichnete
-  Szene, keine Karte** — der Auftraggeber hat Among Us als Vorlage gegeben:
-  `map/flatScene.ts` zeichnet Böden mit Plattenraster, Wände als Band mit
-  Oberkante und sichtbarer Vorderseite nach Süden (`WALL_H` 0,6 m bei 1,2 m
-  Figurhöhe), Raumnamen blass-rot auf dem Boden, Türen mit Schiebeblatt und
-  Leuchte, Requisiten und Figuren als Vektorzeichnungen (`map/flatArt.ts`:
-  Crewmate-Bohne mit Visier, Rucksack und Gehanimation, Monster-Silhouette je
-  Sorte, Fracht, Konsole, Spind samt Wrack, Klappe) **und die Möbel derselben
-  Räume** (`drawFixture` über `MapSnapshot.fixtures`: Grundfläche gedreht wie
-  im Schiff, Körper nach Norden, hellere Deckfläche; Farben aus
-  `fixtureDimensions.MARK_COLORS` und Höhen aus `markHeight` — derselben Zahl
-  und derselben Bausteinhöhe, aus der auch der 3D-Klotz gebaut wird und das
-  Archiv malt. **Nicht** `FIXTURE_CATALOG.height`: Das ist die Hülle für die
-  Aufstellung samt Griffen, und ein Esstisch von 1,6 m sähe auf dem Bild aus
-  wie ein Schrank), alles gemeinsam nach z
-  sortiert, damit eine Figur vor einer Wand vor ihr steht und dahinter
-  dahinter. **Es gibt eine Spielwelt, zwei Darstellungen:** Was in 3D im Raum
-  steht, steht auch in 2D — Fracht, Schrank und Konsole zeichnet dabei die
-  Requisite mit ihrem Zustand, nicht der Möbelklotz. **Und was dort im Weg
-  steht, steht auch hier im Weg** (`geometry.fixtureBlocks`, `walkable`/`slide`
-  mit den `bounds` aus `stationLayout`): dieselben Kästen, denen die Wegsuche
-  schon auswich (`stationNavigation.buildGrid`) — durch einen Tank läuft
-  niemand mehr. Die Raummitte bleibt frei, dafür sorgt der Packer.
-  **Geräusche laufen auch über den Boden der Szene** und nicht nur über die
-  Karte (`noiseWaves.ts`, geteilt mit `mapView.ts`): Wer spielt, soll sehen,
-  was er hört, ohne erst die Übersicht aufzuklappen. Welche Welle in welcher
-  Farbe, entscheidet die Ansicht (`FlatSceneOptions.noiseInk`): **Die eigenen
-  Schritte bleiben weg** — man sieht sich nicht selbst zu —, und für alle, die
-  **mitspielen**, ist ein Geräusch ein Geräusch: eine Farbe, ob es aus einer
-  Tür, einem Mitspieler oder dem Monster kam. Nur **wer zusieht** (Rolle
-  `watch`, „Alles sehen") darf sie auseinanderhalten. **Auch eine Tür, die auf- oder
-  zufährt, macht eine Welle** (`FlatRound.stepDoors`, `MapNoiseCause` `door`);
-  gefahren wird seit dem Paket „Eine Wahrheit" mit **derselben Türautomatik
-  wie im Schiff** (`automaticDoors.ts`: Kasten 1,8 m quer und 3,2 m vor der
-  Tür, Nachlauf 1,2 s, ein belegter Durchgang fällt nie um jemanden zu), und
-  ein zugefahrenes Blatt ist für `slide` eine Wand — die alte eigene Rechnung
-  der 2D-Runde (Radius 2,2 m, Nachlauf bis 2,6 m) ist weg.
-  Alles außerhalb der Sicht ist schwarz: eine schwarze Decke, aus
-  der die Flächen des `VisibilityField` mit weichem Rand ausgeschnitten sind;
-  „Alles sehen" dunkelt nur ab. **Der Schnitt wird dabei um `WALL_H` nach
-  Norden gezogen** (`WALL_LIFTS`, in Stufen): Das Sichtbarkeitsmodell rechnet
-  auf dem Boden und endet an der Wand, gezeichnet wächst dieselbe Wand aber
-  nach Norden aus ihrer Linie heraus — wer vor seiner Nordwand stand, sah den
-  Boden bis an sie heran und die Wand selbst nicht.
-  **Das HUD ist zwei Zeilen breit und keine Akte**: oben links der Kasten mit
-  `O₂ m:ss` und den Anzug-Herzen, darunter der Reiter „Aufgaben:" mit einem
-  Kreis je Auftrag — ein Tipp klappt die Liste auf. Was sich während der Runde
-  **nicht** ändert, steht dort nicht mehr: welches Monster mitspielt, wer
-  welchen Platz besetzt und wie die nächste Runde verteilt ist, steht in der
-  Lobby; der Fortschrittsbalken „Aufgaben erledigt" zählte
-  dasselbe wie die drei Kreise darunter und ist weg. Der obere Bildschirmrand
-  gehört dem, was sich ändert — und er gehört der 2D-Welt **allein**: Der
-  Streifen der Seite (Weltname, Menü, Verbindung, VR — `index.html`, `#hud`,
-  `z-index: 5`) wird beim Betreten abgeschaltet (`core/pageHud.ts`) und beim
-  Verlassen so wiederhergestellt, wie er war; `--flat-top` rückt dafür in
-  `.flat--world` um dessen Höhe nach oben. **Im Schiff im Browser ist der
-  Streifen ebenfalls aus** — dort über eine Klasse am `body`
+- **Die gemalte 2D-Welt ist weg** (Paket H): `map/flatMode.ts`,
+  `map/flatScene.ts`, `map/flatArt.ts`, `map/flat.css` zeichneten das
+  Brettspiel von oben mit eigener Runde darin — Böden, Wände als Band,
+  Figuren als Bohnen, Overlays für Karte, Rätsel, Akte und Menü, die Kamera,
+  die beim ersten Schritt zurückkam, der Rollenstreifen über der Szene. Was
+  davon **Rechnung** war, gilt weiter und steht in `map/flatRound.ts`,
+  `geometry.ts`, `visibility.ts`, `noiseSpread.ts`, `automaticDoors.ts`
+  (die Türautomatik: Kasten 1,8 m quer und 3,2 m vor der Tür, Nachlauf
+  1,2 s, ein belegter Durchgang fällt nie um jemanden zu), `rules/` und
+  `audio/`; was **Bild** war, ist das Schiff von oben (`core/TopDownCamera.ts`)
+  und die Karte der Telefone (`map/mapView.ts`). Der Streifen der Seite
+  (`#hud`) ist im Schiff im Browser weiter aus — über eine Klasse am `body`
   (`haunting.css`, `body.orbital-on #hud`, gesetzt von `ShipExperience`),
   weil die Seite ihr `hidden` beim Verlassen der Brille selbst wieder setzt
-  (`main.ts`) und den Streifen sonst mitten in der Runde zurückholte; Kompass
-  und Tafel rücken dafür an den oberen Rand (`--orbital-top`). **Oben steht eine Spalte, keine Sammlung von
-  Abständen** (`.flat__top`): erste Zeile die **Rollenknöpfe in einem Panel**
-  (`views/roleStrip.ts`, gebaut aus `views/roleTabs.ts` — **dieselben sieben
-  Reiter wie über der Karte des Telefons**: Techniker, Rot, Gelb, Blau,
-  Monster, Zuschauer: Einzeln, Zuschauer: Alles) und am Ende der Zeile das
-  Zahnrad, zweite Zeile — links beginnend — der Kasten mit Auftrag und Uhr,
-  dritte Zeile die Sprungknöpfe, **vierte Zeile die Bühne der aufgeschlagenen
-  Rolle** (`RoleStrip.stage`, `.role-stage`), die den Rest der Höhe füllt.
-  Vorher hing jedes davon an `--flat-top` plus einer geratenen Zahl und lag
-  reihum vor dem nächsten — „Zum Spieler" gab es, zu sehen war der
-  Rollenstreifen davor; und die Bühne war eine eigene Schicht über der ganzen
-  Fläche (`inset: 0`, z-index 5): Die Kopfzeile eines Farbplatzes stand hinter
-  den Rollenknöpfen, und das Optionsmenü (z-index 3) lag bei offener Rolle
-  **hinter** ihr — das Zahnrad „tat nichts". In der Spalte kann sich nichts
-  überlagern, und die Bühne geht mit dem Kopf weg, sobald ein Overlay offen
-  ist; was in der Rolle oben steht (Kasten, Meldung, Blatt, Eckknopf), rechnet
-  in der Bühne nicht mehr mit Seitenrand oder Streifen, denn beide liegen
-  darüber und nicht darin. Und vorher standen im Panel die
-  **Karten** der Registry (Archiv, Schalttafel, Späher) statt der Plätze: In
-  der Mission hieß die Zeile damit anders als im Test auf dem Telefon, und
-  sieben einzeilige Pillen passten nicht hinein — der Besitzer wollte einen
-  Kopf in der Optik des Spiels. Jetzt sind die Pillen **zweizeilig** (Platz,
-  darunter klein, was er hält) und brechen im Panel um. Ein **Farbplatz**
-  schlägt die eine Karte mit allem auf, was der Platz laut Tafel hält
-  (`views/seatRole.ts`), das **Monster** seine Ansicht; **die Zuschauer sind
-  Reiter, die nichts aufschlagen** (`RoleStripHost.pick`): „Zuschauer:
-  Einzeln" (`watch:technician`, bis zur Umbenennung „Zuschauer: Techniker")
-  gibt den Stock dem Techniker aus Zahlen, macht die Karte
-  allwissend (ein Zuschauer mit der Sicht des Anzugs sähe ein schwarzes Bild)
-  und folgt ihm, „Zuschauer: Alles" schlägt dazu die ganze Station als Karte
-  auf; „Techniker" holt den Stock zurück. Welcher der zwei man ist, merkt
-  sich `FlatMode.watchAll` — daran hängen die Zielpfade (siehe unten). **Der eigene
-  🗺-Knopf ist weg**; die Karte (das alte `MapView` als Overlay) steht als
-  Eintrag im Zahnrad, zusammen mit „Menü" und „Verbindung", die die Knöpfe der
-  abgeschalteten Kopfzeile drücken (`pressPageButton`) — das Weltmenü ist im
-  Browser eine Seite aus DOM (`ui/PageMenu.ts`) und liegt über der 2D-Welt;
-  die Kopfzeile muss dafür nicht mehr zurückgeholt werden (das alte
-  `.is-paged` ist weg). Unten rechts der große Knopf
-  „Benutzen" mit „Werkzeug" und „Wechseln" darüber. Stock links. Der Stock hat eine **sichtbare
-  Ruhestellung** unten links und springt beim Aufsetzen unter den Daumen
-  (`map/joystick.ts`). `.flat [hidden] { display: none !important }` ist
-  Pflicht: Panels mit `display: flex` und `hidden` standen sonst als leerer
-  Balken mitten auf der Karte — über dem Spieler.
-- **Ein Overlay auf einmal** (`FlatOverlay`, `FlatMode.applyOverlay`): Karte,
-  Rätsel, Raumakte und Optionsmenü wollen dieselbe Fläche. Solange eines
-  offen ist, ist der **ganze Kopf** weg — Rollenknöpfe, Zahnrad, Kasten,
-  Sprungknöpfe — und dazu Stock, Knöpfe **und die
-  Szene** — die Runde läuft weiter, sie ist nur nicht zu sehen. Das steht
-  an _einer_ Stelle, weil vier Stellen, die je ein `hidden` umlegen, sich
-  genau dann widersprechen, wenn zwei gleichzeitig zutreffen: Vorher stand die
-  Aufgabenliste über dem Kabelrätsel und der Stock lief darunter weiter. Das
-  Rätsel gehört dabei der Runde und keinem Knopf — `syncOverlay` zieht den
-  Zustand nach `PuzzleOverlay.sync` nach, ein offenes Rätsel schiebt Karte,
-  Akte und Menü beiseite. Wer das Monster spielt, sieht das HUD des Technikers
-  gar nicht mehr: Sauerstoff und Auftragsliste des Gegners sind kein
-  Monsterwissen.
-- **Die Kamera kommt beim ersten Schritt zurück** (`FlatMode.followPlayer`,
-  `CAMERA_RETURN`): Wer die Szene zur Seite zieht, sieht nach — und läuft
-  dann weiter. Vorher blieb die Kamera liegen, und der Techniker lief aus dem
-  eigenen Bild heraus, bis er den Knopf fand. Verschieben ist damit ein Blick
-  zur Seite, kein Zustand; „Zum Spieler" steht nur da, solange er wirklich
-  etwas tut. **Nur für den, der spielt** — in der Vorführung und beim
-  Zuschauen läuft der Techniker ununterbrochen, und dieselbe Regel nähme dort
-  jedes Verschieben im nächsten Bild wieder zurück.
-- **Ganz heraus geht immer bis zur ganzen Station** — in der Szene wie auf
-  der Karte (`FlatScene.fitScale`, `MapView.fitScale`). Beide haben eine
-  feste Zoom-Untergrenze (`minScale`: 28 Punkte je Meter in der Szene, 6 auf
-  der Karte der 2D-Welt), und die ist fürs Spielen gedacht: Näher als ein
-  paar Räume braucht der Daumen nicht zu sehen. Die Station misst aber
-  hundert mal fünfundsechzig Meter, und bei 28 Punkten je Meter passt sie auf
-  keinen Bildschirm, bei 6 auf kein Telefon — wer einer Bot-Runde zusah,
-  konnte nie das Ganze sehen, und `fit()` der Karte blieb am selben Riegel
-  hängen. Die Untergrenze reicht deshalb immer bis zu dem Maßstab, bei dem
-  die Station mit Rand ins Bild passt (`FIT_MARGIN`), wie klein der auch ist.
-  **Und was ganz ins Bild passt, steht in der Mitte** (`settle`, je Achse):
-  Eine Kamera, die der Figur folgt, hielte sie in der Mitte und schöbe die
-  halbe Station aus dem Bild — genau die Hälfte, die man beim Herauszoomen
-  sehen wollte. Das Folgen bleibt dabei an; sobald wieder herangezoomt wird,
-  hängt die Kamera wieder an der Figur. **Nach unten gibt der Anschlag
-  nach** (`PAN_HEADROOM`, 150 Punkte, in Szene und Karte): Wer selbst zieht —
-  also `following` los —, holt die Station so weit herunter, wie oben verdeckt
-  ist, und sieht ihre obere Kante frei unter `--flat-top`. Nach oben gibt er
-  gar nicht nach, und wer einer Figur folgt, bekommt weiter die Mitte:
-  sonst hinge das Bild daran, wo die Figur gerade steht, und wackelte beim
-  Gehen.
+  (`main.ts`); Kompass und Tafel rücken dafür an den oberen Rand
+  (`--orbital-top`). Der Stock der Karten-Rollen (`map/joystick.ts`,
+  `map/joystick.css`: Monster, Zuschauer) hat eine **sichtbare Ruhestellung**
+  unten links und springt beim Aufsetzen unter den Daumen; `.flat [hidden] {
+  display: none !important }` bleibt Pflicht.
 - **Die Karte hat die Handschrift eines Brettspiels** (`map/mapView.ts`,
   `INK`): helle Böden mit Kachelfugen (`FLOOR_TILE` 1,25 m), Wände als dunkler
   Kern mit heller Kante, **Türen als Blätter in Pfosten** — zu ist ein Blatt
@@ -8901,8 +8831,8 @@ raum)` gibt dieselbe Auskunft nach außen, und `monsterRoutine` stellt seinen
   `stationLayout`, `extract.fixturesOf`, mit Kennzeichen je `MarkId`), Figuren
   als kleine Astronauten mit Visier, Rucksack, Händen und Beinen, die beim
   Gehen schwingen, das Monster als Klumpen mit Augen und Klauen. **Geräusche
-  sind Wellen über die Kacheln** (`map/noiseWaves.ts`, geteilt mit der
-  2D-Szene; `MapSnapshot.noises`, `MapNoise` mit Urheber, Reichweite `reachOf`,
+  sind Wellen über die Kacheln** (`map/noiseWaves.ts`;
+  `MapSnapshot.noises`, `MapNoise` mit Urheber, Reichweite `reachOf`,
   Zeit; `WAVE_SPEED` 9 m/s): eigene blau, die des Monsters rot, alles andere
   orange — **die Urheberfarbe aber nur im Modus „Alles sehen"**; wer mitspielt,
   bekommt für alles Fremde dieselbe Farbe — die 2D-Runde führt sie fünf Sekunden
@@ -9033,28 +8963,19 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   alten Namen. `flatRoleOf` sagt, wen der Spieler in 2D spielt — ein
   Mensch als Techniker gewinnt gegen ein Mensch als Monster (ein Stock, ein
   Spieler), und niemand von beiden heißt **`watch`**: zusehen, während der
-  Techniker aus Zahlen läuft. `roundKindOf` sagt die Rundenart im Schiff (dort
-  rechnet das Monster immer die Routine). **Ein Bot auf einem Platz gibt dem Techniker die
-  Fähigkeit selbst** (`powersOf`, `SoloPowers`): Späher heißt **Horchbild** der
-  Station alle `SCOUT_PERIOD` = 3,5 s (`FlatMode.stepScout`, nur im Modus
-  „Realitätsnah", nur auf der **Kartenübersicht**, über `MapViewOptions.noises`)
-  — eine Probe der Geräusche der letzten Sekunden, neu gestempelt, damit die
-  Wellen vom Moment der Probe an loslaufen und es bis zur nächsten still ist.
-  **Nicht** mehr die Stelle des Monsters: Eine Peilung alle drei Sekunden nahm
-  ihm jede Möglichkeit, sich zu verstecken oder aufzulauern, und ein Schacht
-  war damit nur ein schnellerer Weg. Ohne Späher zeigt die Karte im Modus
-  „Realitätsnah" **gar keine** Geräusche — sie ist das Bild der Zentrale und
-  nicht das eigene Ohr; was der Techniker selbst wahrnimmt, sieht er auf dem
-  Boden der Szene. Weiter:
-  Schalttafel heißt Tür oder Lampe per Tipp in der **Kartenübersicht** (🗺;
-  die Szene kennt keine Tür-Tipps; `FlatRound.lockDoor`, `switchLight`),
-  Archivar heißt die Akte per Tipp aufs Zimmer, in Szene wie Karte
-  (`FlatMode.openSheet`: Kennzeichen, Schrankcode, Türen, Licht, Fracht mit
-  Fundhinweis — seit `rules/cargo.ts` das Kistenkennzeichen und die Wand, und
-  nur mit dem Platz —, Konsole mit Code oder Kabelplan, Schacht mit Ziel; die
-  Zuordnung läuft über die Id und nicht mehr über das Label, denn auf einer
-  Kiste steht ihr Kennzeichen). Ein Mensch am Platz nimmt sie ihm wieder ab —
-  und mit ihr die Kistengenauigkeit des Ziels (`goalPrecision`).
+  Techniker aus Zahlen läuft (`flatRoleOf` ist mit der gemalten Karte
+  gegangen). `roundKindOf` sagt die Rundenart im Schiff (dort rechnet das
+  Monster immer die Routine). **Ein Bot auf einem Platz gibt dem Techniker die
+  Fähigkeit selbst** (`powersOf`, `SoloPowers`): Archiv heißt Kistengenauigkeit
+  des Ziels (`goalPrecision`), der Saum auf der Zielkiste, die Auftragszeile
+  im Streifen (`hudTasksVisible`) und der Funk des Archivars aus Zahlen
+  (unten); Späher und Schalttafel wirken heute nur über die Karte der
+  Telefone — das Horchbild (`SCOUT_PERIOD` = 3,5 s, eine Probe der Geräusche
+  statt der Stelle des Monsters: Eine Peilung alle drei Sekunden nahm ihm jede
+  Möglichkeit, sich zu verstecken) und die Tür- und Lampen-Tipps hingen an der
+  gemalten Karte des Technikers und sind mit ihr gegangen. Ein Mensch am
+  Platz nimmt ihm die Fähigkeit wieder ab — und mit ihr die Kistengenauigkeit
+  des Ziels.
   **Und der Archivar aus Zahlen funkt jetzt auch** (`rules/archiveRadio.ts`):
   Bis hierher bekam der Techniker dessen Auskunft _still_ — die Zielkiste
   leuchtete, ein Tipp aufs Zimmer schlug die Akte auf. In der Brille schaut aber
@@ -9068,31 +8989,19 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   dem Teil in der Hand, ein abgelegtes Teil erst nach `DROPPED_SEEN`. Gefunkt
   wird nur bei Lagewechsel (`ArchiveCall.key`) und nur dort, wo am Archiv
   wirklich ein Bot rechnet: Sitzt ein Mensch, ist das Sagen sein Platz, und eine
-  Stimme daneben nähme ihm seinen einzigen Beitrag weg. „Zielpfade" im
-  Optionsmenü (`FlatMode.routeLines`) legt den Weg des Technikers zum nächsten
-  Ziel (`FlatRound.playerRoute`, ein eigener `FlatNavigator` mit
-  `PLAYER_RADIUS`) und den des Monsters (`monsterRoute`, `navigator.remaining`;
-  für den Spieler nur mit Späher oder „Alles sehen") auf Szene und Karte.
-  **Beim Zuschauen ist der Weg des Technikers der seines Bots**
-  (`TechnicianBot.route` über `FlatWalker.remaining`): `playerRoute` war ohne
-  Archiv leer (`precision` `none` → kein Ziel), und mit Archiv nicht das, was
-  der Bot gerade tut, wenn er in eine Kabine flieht — „die Pfade des
-  Technikers fehlten". Wer man ist, entscheidet, wessen Weg liegt:
-  „Zuschauer: Alles" beide, „Zuschauer: Einzeln" nur den dessen, dem die
-  Kamera folgt (`FlatMode.focus`, gesetzt von den zwei Sprungknöpfen, nicht
-  von der Kamera — ein zur Seite gezogenes Bild wechselt den Weg nicht;
-  `routeFocus` sagt es für Tests). Über der Szene malt
-  `FlatMode.drawSceneOverlay` (Haken `FlatSceneOptions.overlay`) Wege sowie das
-  Randdreieck der Ziele; die Szene selbst weiß davon nichts.
-- **Das Kabelrätsel zeigt Symbole** (`map/puzzleOverlay.ts`, `WIRE_SYMBOLS`,
-  `WIRE_COLORS` wie an der Konsole im Schiff): Stecker `i` gehört in die
+  Stimme daneben nähme ihm seinen einzigen Beitrag weg. Die Wege von
+  Techniker und Monster (`FlatRound.playerRoute`, ein eigener `FlatNavigator`
+  mit `PLAYER_RADIUS`; `monsterRoute`, `navigator.remaining`) liegen im Schiff
+  als `NavigationOverlay` auf dem Boden (Bot-Runde, „KI-Absichten"); **beim
+  Zuschauen ist der Weg des Technikers der seines Bots** (`TechnicianBot.route`
+  über `FlatWalker.remaining`).
+- **Das Kabelrätsel zeigt Symbole** (`WIRE_SYMBOLS` in `ShipExperience`, an
+  der Konsole und in der Tafel des Technikers): Stecker `i` gehört in die
   Buchse mit demselben Symbol, richtig Verbundenes leuchtet grün. Ohne die
-  Symbole war das Rätsel ein Raten unter 24 Wegen. **Und das Overlay wird nur
-  neu gebaut, wenn sich der Rätselstand ändert** — ein Knopf, der zwischen
-  Aufsetzen und Abheben des Fingers aus dem DOM fällt, bekommt auf dem
-  Telefon keinen Klick; genau daran scheiterte das Lösen. Rätsel, Optionen
-  und Akte hängen unter `--flat-top` statt in der Bildmitte, und das Rätsel
-  liegt über dem Optionsmenü (`z-index`) — offen ist ohnehin immer nur eines
+  Symbole war das Rätsel ein Raten unter 24 Wegen. Von oben öffnet `A` an der
+  Konsole den Wartungskasten und klappt die Tafel mit den Rätselknöpfen auf
+  (`useConsole`); das frühere Rätsel-Overlay der gemalten Karte
+  (`map/puzzleOverlay.ts`) ist weg — offen ist ohnehin immer nur eines
   (`FlatOverlay`, oben).
 - **Der Kompass am oberen Bildrand** (`objectiveCompass.ts`) gehört dem
   Desktop-Techniker: Himmelsrichtungen und die Ziele (`HauntingWorld.objectives`,
@@ -9119,12 +9028,10 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   `rules/worldMenu.ts` und wird von `worldMenu.test.ts` nachgerechnet — drei
   Hürden waren es, und jede endete vorher in einem Eintrag, der nichts tat und
   nichts sagte:
-  1. **Die Ansicht „2D von oben" gilt in der Brille nicht** (`opensFlat`).
-     Sie steht im `localStorage` des ganzen Browsers; wer sie irgendwann im Van
-     gewählt hatte, wurde in der Brille nach `openFlat` geschickt — und das
-     steigt in einer XR-Sitzung wortlos wieder aus („Im Headset gibt es keine
-     Karte von oben"). In der Brille gibt es deshalb immer das Schiff, und der
-     Eintrag `haunt:view` sagt das auch, statt eine Wahl vorzutäuschen.
+  1. **Die Ansicht ist keine Sache dieser Welt mehr.** Bis Paket H entschied
+     ein Häkchen „2D von oben" (`opensFlat`), ob eine gemalte Karte aufging —
+     und in der Brille stieg das wortlos aus; seither ist _Von oben_ oder
+     _Aus den Augen_ das Menü des Kerns, und diese Hürde gibt es nicht mehr.
   2. **Ein fremder Gastgeber** (`mayCompute`, `HOST_BUSY`): Rechnet ein anderes
      Gerät die Runde — ein zweites Fenster, das noch als Techniker im Raum
      steht, reicht —, dann sagt der Eintrag das, statt still zu bleiben.
@@ -9163,9 +9070,8 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   gesperrt (`StationUi.shipBusy`: Brille im Raum, Ansicht Schiff, **und** die
   Runde läuft — vorher reichte die Brille allein, und genau das war der Fall,
   in dem drei Leute in der Zentrale warteten, während der Techniker am
-  Handgelenk nach dem Knopf suchte). Ein Zuschauer bekommt nach dem Wunsch wie
-  bisher sein Bild von oben (`openFlat` als `watch`), ein Platz der Zentrale
-  bleibt an seiner Karte.
+  Handgelenk nach dem Knopf suchte). Ein Platz der Zentrale bleibt nach dem
+  Wunsch an seiner Karte und sieht dort die Runde, die läuft.
 
   **Was die Welt sagt, steht auf dem Telefon** (`StationUi.say`,
   `.haunt__say`, `HauntingWorld.say`): eine Zeile zwischen Auftragsstreifen
@@ -9178,34 +9084,33 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   `INTENTS` die drei Zeilen `haunt:play` · `haunt:watch` · `haunt:train` mit
   den Worten aus `INTENT_LABELS` (Spielen · Zuschauen · Trainieren), markiert
   die aktive (`active`, aus `intentOf`) und sagt in der Zeile darunter, wenn
-  eine laufende Runde damit endet. Der alte Eintrag `haunt:flat` („2D-Welt von
-  oben: an/aus") heißt `haunt:view` und zeigt die Ansicht als Namen
-  (`VIEW_LABELS`); in der Brille steht sie fest und sagt das auch.
+  eine laufende Runde damit endet. Die alten Einträge `haunt:flat` („2D-Welt
+  von oben: an/aus") und `haunt:view` gibt es nicht mehr — die Ansicht ist das
+  Menü des Kerns.
 
-- **Der Aufbau ist zwei Häkchen, eine Tafel und ein Knopf** (`rules/lobby.ts`,
-  `LobbyChoice`, in `localStorage` unter `bgvr.haunting.lobby.v1`). Die
-  **Absicht** (`Intent`) sagt, _was_ passiert, die **Ansicht** (`View`) nur,
-  _wie_ man dabei zusieht — 2D von oben oder 3D im Schiff (auf dem Telefon ist
-  2D voreingestellt, `defaultLobby`; in der Brille ist die Ansicht
-  **wirkungslos**, siehe den Absatz darüber). Gewählt wird die Ansicht als
-  **ein Häkchen**, „2D-Welt von oben" (`[data-check="view"]`); das Häkchen
-  „Testen" ist weg — ohne Monster spielt man, indem man den Platz **Monster
-  auf „Aus"** stellt (`applyIntent('train')` tut genau das), und **in einer
-  Runde ohne Monster darf jeder jederzeit jede Rolle wechseln**. Die drei
-  Kacheln _Spielen · Zuschauen · Trainieren_ sind
-  weg: „Zuschauen" baut man nicht auf, man schaltet es mitten in der Runde an
-  (2D-Optionsmenü); die Absicht `watch` bleibt als Datum und im Brillenmenü.
+- **Der Aufbau ist eine Tafel und ein Knopf** (`rules/lobby.ts`,
+  `LobbyChoice` = Absicht und Platz, in `localStorage` unter
+  `bgvr.haunting.lobby.v1`; ein gemerktes Feld `view` aus alten Ständen wird
+  beim Lesen fallen gelassen). Die **Absicht** (`Intent`) sagt, _was_
+  passiert; wie man dabei zusieht — von oben oder aus den Augen — ist seit
+  Paket H das Menü des Kerns und kein Häkchen mehr (`[data-check="view"]` ist
+  weg, ebenso `View`, `viewSwap`, `VIEW_LABELS` und der alte Schlüssel
+  `bgvr.haunting.flat.v1`). Das Häkchen „Testen" ist ebenfalls weg — ohne
+  Monster spielt man, indem man den Platz **Monster auf „Aus"** stellt
+  (`applyIntent('train')` tut genau das), und **in einer Runde ohne Monster
+  darf jeder jederzeit jede Rolle wechseln**. Die drei Kacheln _Spielen ·
+  Zuschauen · Trainieren_ sind weg: „Zuschauen" baut man nicht auf, man
+  schaltet es mitten in der Runde an (Optionsmenü des Schiffs); die Absicht
+  `watch` bleibt als Datum und im Brillenmenü.
   `applyIntent(setup, intent, me)` kennt dabei, wer fragt: Ein Monster-Mensch
   bleibt beim „Spielen" das Monster, und der Techniker gehört dann den Zahlen.
   Die Absicht ist keine zweite Wahrheit neben der Verteilung: `applyIntent`
   schreibt sie in die `RoundSetup` (die Fähigkeiten bleiben dabei stehen),
   `intentOf` liest sie wieder heraus, und `startLabel` beschriftet daraus den
   **einen** Startknopf — „Mission starten", „Test starten", „Zuschauen",
-  **ohne Ansicht in Klammern**: Ein Knopf wiederholt keine Einstellung, die
-  zwei Zeilen darüber als Häkchen steht. `HauntingWorld.flatWanted` ist nur
-  noch `lobby.view === '2d'` und entscheidet in `startRound`, ob `FlatMode`
-  oder das Schiff; der alte Schlüssel `bgvr.haunting.flat.v1` wird beim ersten
-  Laden noch einmal gelesen (`'1'` → 2D) und danach nie wieder geschrieben.
+  **ohne Ansicht in Klammern**. Jede Runde läuft im Schiff
+  (`HauntingWorld.startRound`); ein Monster-Telefon ohne Techniker im Raum
+  bekommt statt einer Karte den Satz `MONSTER_NEEDS_TECHNICIAN`.
   **Alle Oberflächen zeigen denselben Aufbau**, in derselben Reihenfolge und
   mit denselben Worten:
   - **Startseite der Runde** (`index.html` `#haunt-start`, `main.ts`, unter
@@ -9347,8 +9252,8 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
     - Der **Aufbau** (`vanPage`, `data-page="setup"`): oben nur eine
       Überschrift („Aufbau · Rollen") und rechts drei kleine Knöpfe für
       Spielmenü, Verbindung und VR — **keine Reiter**; darunter ein Statuschip,
-      das Häkchen „2D-Welt von oben" (`[data-check="view"]`), die Tafel (fünf
-      Zeilen, je Mensch/Bot/Aus und die drei Fähigkeitslampen, **ohne „Ich"**),
+      die Tafel (fünf Zeilen, je Mensch/Bot/Aus und die drei Fähigkeitslampen,
+      **ohne „Ich"**),
       dann **„Rollen testen"** (`[data-test-roles]`: auf die Karte, ohne dass
       etwas losgeht — **läuft im Raum schon eine Mission, heißt derselbe Knopf
       „Zur laufenden Runde"** (`[data-join]`): Wer die Seite mitten in der
@@ -9430,21 +9335,17 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
     wird getroffen, kein Spuk, keine Uhr, und jeder darf jede Rolle
     (`RoleStripHost.rights`). Die Uhr des Standes (`time`) läuft trotzdem
     weiter — Wellen und Spuren hängen an ihr —, gezeigt wird sie nur in der
-    Mission. **„Mission starten"** (Zahnrad in 2D und auf dem Telefon, oder
-    der Knopf im Aufbau) baut die Runde **auf derselben Station** neu
-    (`FlatMode.startMission` → `rebuild` mit gleichem Samen, `phase:
-'running'`: Uhr null, Licht aus, Monster am anderen Ende); **„Mission
-    stoppen"** (`FlatMode.stopMission`, `HauntingWorld.stopRound`,
-    `net.stopMessage`/`readStop` für den, der nicht rechnet) führt zurück in
-    den Test. Läuft die gemeinsame 2D-Runde schon auf dem Gerät, startet ein
-    Startwunsch der Zentrale **darin** (`startRound` → `flat.startMission`)
-    statt eine zweite 2D-Welt darüberzulegen.
-    **Kein Bot auf einem Menschenplatz** (`FlatMode.playRole`,
-    `FLAT_NEEDS_TECHNICIAN`): Steht auf der Tafel „Techniker: Mensch" und
-    niemand hat den Reiter genommen, läuft kein Techniker aus Zahlen — man
-    sieht einer Station zu, in der der Anzug am Rand steht —, und die Mission
-    startet nicht, bis jemand den Stock nimmt oder die Tafel den Platz einem
-    Bot gibt; der Satz nennt beides. Der Schalter „Zuschauen" in der 2D-Welt
+    Mission. **„Mission starten"** (Zahnrad auf dem Telefon, Tafel des
+    Technikers oder der Knopf im Aufbau) baut die Runde **auf derselben
+    Station** neu (`HauntingWorld.startMission`, `phase: 'running'`: Uhr null,
+    Licht aus, Monster am anderen Ende); **„Mission stoppen"**
+    (`HauntingWorld.stopRound`, `net.stopMessage`/`readStop` für den, der
+    nicht rechnet) führt zurück in den Test.
+    **Kein Bot auf einem Menschenplatz** (`shipStart` → `SHIP_NEEDS_TECHNICIAN`):
+    Steht auf der Tafel „Techniker: Mensch" und niemand hat den Reiter
+    genommen, läuft kein Techniker aus Zahlen, und die Mission startet nicht,
+    bis jemand den Stock nimmt oder die Tafel den Platz einem Bot gibt; der
+    Satz nennt beides. Der Schalter „Zuschauen"
     gibt den Stock dagegen ausdrücklich ab und schreibt dafür „Techniker:
     Bot" auf seine Tafel (`setWatching`).
   - **Brille** (`HauntingWorld.menu`): dieselben drei Absichten zuerst, dann
@@ -9466,65 +9367,22 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
     die Titelzeile — Anzug, Systeme, Sauerstoff — und die zwei Knöpfe, die
     wieder hinausführen; welche Klappen darin offen standen, merkt sich das
     Panel (`mainOpen`, `testsOpen`). Oben im Panel steht **⚙ Optionen**
-    (`data-action="options"`, `ShipExperience.showOptions`) und klappt **das
-    Optionsmenü der 2D-Welt** auf — nur im Browser, nie in der Brille. Das
-    Schiff bindet dafür `map/flat.css` selbst ein: Das Menü trägt dessen
-    Klassen, und wer im Schiff anfing statt in der 2D-Welt, bekam es sonst als
-    nackte Liste. Wer diese Datei lädt, lädt auch `.flat { background: #000 }`
-    — die Bedien-Ebene über der Szene muss sie deshalb ausdrücklich wieder
-    abbestellen (`.flat.ship3d`), sonst ist die Station schwarz.
-  - **Ein Optionsmenü für beide Welten** (`map/optionsMenu.ts`): Was ein
-    Optionsmenü _ist_ — Überschriften, Hinweise, Knöpfe mit `data-*`-Schlüssel
-    (`OptionItem`) — und wie es gezeichnet wird (`renderOptions`, aus den
-    Bausteinen `ui-head` und `ui-option` in `ui/widgets.ts`), steht einmal dort; die
-    geteilten Namen in `SHARED` (`watchKey`, `switchViewKey`, `soundKeys`,
-    `leaveKeys`). `FlatMode.renderOptions` baut daraus seine Liste, das
-    Schiff (`ShipExperience.shipOptions`) seine: Ansicht, Zuschauen an/aus
-    (= Bot-Runde), Aufmachen (Zentrale, Menü, Verbindung, **VR**), Ton,
-    „Ansicht: 2D ↔ 3D", Runde verlassen, Weiterspielen. Menü, Verbindung und
-    VR drücken die Knöpfe der ausgeblendeten Kopfzeile (`pressPageButton`) —
-    seit sie im Schiff aus ist, ist dieses Menü der einzige Weg dorthin. Die losen Knöpfe „Rolle wechseln",
-    „2D von oben" und „Missionsmenü" sind darin aufgegangen.
-  - **2D-Optionsmenü** (`FlatMode.renderOptions`): zuerst die **Runde** —
-    **„Mission starten"** (`[data-mission="start"]`, solange keine läuft:
-    auf derselben Station) oder **„Mission stoppen"** (`[data-mission="stop"]`:
-    zurück in den Test), nicht am Netz —, dann, was sich _in_ der Runde
-    ändert: Ansicht (die zwei Modi nur für den Zuschauer; wer mitspielt,
-    bekommt „Realitätsnah" als Zeile), Zielpfade, **„Zuschauen: an/aus"**
-    (`[data-watch]`, immer möglich), in der Bot-Runde die
-    **Simulationsgeschwindigkeit** (`speedKeys`, sechs Pillen ×1 … ×16),
-    unter „Aufmachen" die drei Wege nach
-    draußen (**Karte**, **Menü**, **Verbindung** — den 🗺-Knopf gibt es nicht
-    mehr), Ton, **„Ansicht: 3D Schiff"** (`[data-switch-view]` →
-    `HauntingWorld.switchView`) und **„Zurück zu den Rollen"**
-    (`SHARED.leave`, `[data-leave]`: die 2D-Welt geht zu, das Telefon steht
-    im Aufbau). Neue Runde, „Mit Monster", der dreistufige Rollenknopf und die
-    eingebettete Tafel sind dort weg. Im Kopf stehen dieselben sieben Reiter
-    wie auf dem Telefon (`views/roleTabs.ts`); gelb umrandet, wer man ist
-    (`FlatMode.myRole`: Techniker, Monster, Zuschauer: Einzeln oder Zuschauer:
-    Alles — je nachdem, welchen Reiter man genommen hat, `watchAll`).
-    **Zuschauen in 2D ist eine eigene Rolle** (`FlatRole` `watch`, früher
-    `bot`): kein Stock, keine Knöpfe, dafür **beide** Sprungknöpfe („Zum
-    Techniker", „Zum Monster") mitten in der Runde und der Modus „Alles sehen".
-    **Was dabei zu sehen ist, hängt am Raum**: Läuft dort wirklich eine Runde
-    (`HauntingWorld.roomOccupied` — ein Mensch im Headset oder ein 2D-Techniker,
-    der sich meldet), sieht der Zuschauer **diese** Runde. Szene und Karte
-    kommen dann aus dem Stand, den der Gastgeber ansagt: `HauntingWorld`
-    reicht `map/worldSource.ts` als `FlatModeHost.watchSnapshot` herein, die
-    2D-Welt rechnet gar nichts mehr (kein Techniker aus Zahlen, keine Wege,
-    keine neue Runde im Endbildschirm) und zeichnet nur noch. Ist der Raum
-    leer, bleibt es bei der **lokalen Bot-Runde** mit dem Techniker aus Zahlen
-    (`rules/technicianBot.ts`) — er ist nur keine Rolle mehr, die jemand im
-    Aufbau wählt: Angeschaltet wird Zuschauen im Optionsmenü der Runde
-    („Zuschauen: an/aus", und als die zwei Zuschauer-Reiter im Kopf), und zwar
-    immer. Wessen Sicht ein Zuschauer _sonst_ noch haben kann, steht in
-    derselben Reiterzeile: Rot, Gelb und Blau sind eigene Karten, also führt
-    die Wahl dorthin.
-    Beides ist **lokal** und sperrt keinen Techniker im Schiff; deshalb
-    bleibt Zuschauen auch dann wählbar, wenn im Raum schon jemand spielt.
-    2D-**Spielen** und 2D-**Trainieren** sind dagegen die gemeinsame Runde übers
-    Netz (siehe unten) — wer sie spielt, ist der Techniker, und ein zweiter
-    Techniker im Raum sperrt sie.
+    (`data-action="options"`, `ShipExperience.showOptions`) und klappt das
+    Optionsmenü des Schiffs auf — nur im Browser, nie in der Brille. Wo es
+    liegt, sagt `haunting.css` (`.flat.orbital-options`, `.flat__panel`,
+    `.flat__note`; bis Paket H stand das in `map/flat.css`).
+  - **Das Optionsmenü** (`map/optionsMenu.ts`): Was ein Optionsmenü _ist_ —
+    Überschriften, Hinweise, Knöpfe mit `data-*`-Schlüssel (`OptionItem`) —
+    und wie es gezeichnet wird (`renderOptions`, aus den Bausteinen `ui-head`
+    und `ui-option` in `ui/widgets.ts`), steht einmal dort; die festen Namen
+    in `SHARED` (`watchKey`, `soundKeys`, `leaveKeys`). Das Schiff
+    (`ShipExperience.shipOptions`) baut daraus: Zuschauen an/aus (= Bot-Runde),
+    in der Bot-Runde das Tempo, Aufmachen (Zentrale, Menü, Verbindung, **VR**),
+    Ton, Runde verlassen, Weiterspielen. Menü, Verbindung und VR drücken die
+    Knöpfe der ausgeblendeten Kopfzeile (`pressPageButton`) — seit sie im
+    Schiff aus ist, ist dieses Menü der einzige Weg dorthin. Die losen Knöpfe
+    „Rolle wechseln", „2D von oben" und „Missionsmenü" sind darin aufgegangen;
+    „Ansicht: 2D ↔ 3D" (`switchViewKey`) ist mit der gemalten Karte gegangen.
 - **Knöpfe und Panels sind Bausteine, keine Handarbeit** (`ui/dom.ts`,
   `ui/widgets.ts`, `ui/widgets.css`). Haunting hat viele davon — das
   Zahnrad-Menü der 2D-Welt, das der Zentrale, die Linse des Zuschauers, die
@@ -9535,14 +9393,14 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
     CSS derselbe Kasten fünfmal. Jetzt steht jedes davon **einmal**:
   * `ui/dom.ts`: `el(tag, klasse, text)` (immer `textContent`, nie
     `innerHTML` — hier gehen Spielernamen durch), `clickedKey(event)` (der
-    `<button>` über dem Klickziel) und `setData(node, { switchView: '2d' })`.
+    `<button>` über dem Klickziel) und `setData(node, { watch: '' })`.
   * `ui/widgets.ts`: `key(klasse, spec)` — ein Knopf, entweder `{ text }` als
     eine Zeile oder `{ label, sub }` als Name groß und Zeile klein, dazu
     `data`, `active`, `pressed`, `disabled`, `title`, `ariaLabel`;
     `optionKey` (der Listenknopf `ui-option`, mit `tone: 'go' | 'leave'` für
     den grünen und den roten Rand) und `pillKey` (die Pille `ui-pill`);
     `captioned(caption, value)` / `labelled(label, sub)` für die Knöpfe unter
-    dem Daumen (`flat__key`, `monster__key`); `note(ton, titel, text)` (die
+    dem Daumen (`monster__key`); `note(ton, titel, text)` (die
     Kachel `ui-note`, drei Töne), `fact(begriff, wert, { warn, valueClass })`
     (die Zeile `ui-fact`), `head(titel, beisage)` (die Überschrift `ui-head`)
     und `Toast` (`say(text, ton)`, `step(dt)`, leer unsichtbar).
@@ -9550,7 +9408,7 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
     `ui-pill`, `ui-note`, `ui-fact`, `ui-toast`. Die **Lage** und der Ton einer
     Stelle stehen weiter in ihrem Blatt, als zweite Klasse neben der von hier
     (`ui-panel flat__panel`, `ui-toast monster__toast`); jedes dieser Blätter
-    (`flat.css`, `views.css`, `monster.css`, `haunting.css`) bindet
+    (`views.css`, `monster.css`, `haunting.css`) bindet
     `widgets.css` per `@import` **zuerst** ein, damit bei gleicher Spezifität
     die Zeile der Stelle gewinnt. Die Kachel nimmt in der Zentrale die Farben
     der Station über `var(--haunt-*, fallback)`.
@@ -9572,8 +9430,8 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   darunter; ein `if (station === …)` je Rolle gibt es dort nicht mehr. Eine
   neue Rolle braucht **keine Zeile** in `stationUi.ts`, `stations.ts` oder
   einer Union — nur eine eigene Datei.
-- **Die drei Nicht-VR-Rollen sind Karten** (`views/`), und zwar dieselbe
-  `MapView` wie die 2D-Welt, jede mit eigenen Schichten. Was eine Rolle
+- **Die drei Nicht-VR-Rollen sind Karten** (`views/`), dieselbe `MapView`
+  (`map/mapView.ts`), jede mit eigenen Schichten. Was eine Rolle
   **nicht** sieht, steht deshalb nicht in einem Kommentar, sondern in ihren
   Layern — mit Test:
   - **Archiv** (`views/archiveRole.ts`): die ganze Station mit Fracht,
@@ -9591,8 +9449,7 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
     Raums. In 3D ist das ein **Loch**, in das `HauntingWorld.render` die
     Draufsicht der wirklichen Welt zeichnet, mit Zoom und Wisch
     (`views/archiveDesk.ts` über `RoleHost.extra`, `archiveView.ts` für die
-    Anschläge); in der 2D-Welt steht dort eine zweite, herangezoomte
-    `MapView`, und `RoleView.viewport()` bleibt `null`. Die Missionsliste ist
+    Anschläge). Die Missionsliste ist
     weg: Sie zählte auf, was die Karte zeigt.
   - **Schalttafel** (`views/panelRole.ts`, Kennung `hack`): der Grundriss
     ohne Wesen. **Tür antippen** sperrt oder gibt frei, **Lampe antippen**
@@ -9629,26 +9486,18 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
     seine **Linse** (`watchLens.ts`) schlüpft er in jede andere Rolle — Deck,
     Archiv, Schalttafel, Späher, Monster (keine Drohne) —, und zwar in **deren**
     angemeldete Ansicht, nicht in einen Nachbau: Er schlägt sie aus der Registry
-    auf wie der Rollenstreifen der 2D-Welt, nur mit einem Wirt, dessen `door`
+    auf, mit einem Wirt, dessen `door`
     und `light` `''` zurückgeben und nichts tun. Dazu „wem folgen?" (Techniker /
     Monster / frei, nur über dem Deck) und **KI-Absichten** an/aus — das Overlay
     aus Paket M4, das es nur hier gibt (`HauntingWorld.insightWanted` fragt
     `StationUi.watchLens`). `StationUi.shownStation` sagt der Welt, welche
     Kamera sie ausrichten soll.
-- **Rollenwechsel in der 2D-Welt** (`views/roleStrip.ts`): ein Streifen über
-  der Szene. Wer dort eine Rolle aufschlägt, bekommt sie über **dieselbe
-  laufende `FlatRound`** — nichts wird gestartet, nichts verworfen; die Runde
-  rechnet weiter, während jemand ihr beim Archiv zusieht. Der Wirt dafür ist
-  `FlatMode.roleHost()`; die Schalttafel greift über `FlatRound.lockDoor` und
-  `switchLight` in dieselbe Runde. **Gewechselt wird immer** — auch mitten in
-  der Mission (`RoleStripHost.rights` → `switchRights` mit `inShip: false`:
-  gesperrt ist nur, wer im Schiff den Anzug trägt, und das ist auf der Karte
-  niemand). Bis hierher ging es nur in einer Test-Runde, mit der Begründung,
-  der 2D-Techniker stehe im Anzug; der Besitzer wollte außerhalb von VR und
-  3D immer wechseln können, und auf der Karte ist ein Reiter ohnehin nur ein
-  anderer Blick auf dieselbe Runde. Der Streifen kann weiterhin Knöpfe
-  abschalten, wenn der Wirt es sagt — mit dem Grund als Titel; zurück zur
-  Szene geht immer.
+- **Die Reiter der Rollen** (`views/roleTabs.ts`, `views/roleStrip.ts`)
+  bleiben der Kopf über der Karte des Telefons: sieben Reiter, gelb umrandet,
+  wer man ist; **gewechselt wird immer** (`RoleStripHost.rights` →
+  `switchRights`: gesperrt ist nur, wer im Schiff den Anzug trägt — der
+  Techniker am Bildschirm mitten in der Mission, `inShip`). Der Streifen über
+  der gemalten 2D-Szene ist mit ihr gegangen.
 - **Die Drohne ist gestrichen** — Rolle, Ansicht, Körper, Kamera, Flug,
   Netznachricht (`kind: 'drone'`) und CSS. Übrig geblieben sind die
   **Wegtypen**: `droneRoute.ts` heißt heute `navmesh/route.ts` (Paket `nav`)
@@ -9657,7 +9506,7 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   Wechselsperre, `DRONE_PROFILE` —, ist weg.
 - Stationen: Archiv, Schalttafel (`hack`), Späher (`scout`), Zuschauer
   — und **Monster** (`stations.ts`, `monster/`): ein Telefon spielt das
-  Monster, egal ob der Techniker in 3D oder in der 2D-Welt spielt. Die Ansicht
+  Monster, während der Techniker im Schiff spielt. Die Ansicht
   ist `monster/monsterView.ts` (Karte aus Monstersicht, Stock, **ein** Knopf);
   das Telefon schickt `{kind:'monster'}` (Stock, Zähler für Interagieren,
   Klappenziel; das Feld `attack` steht nur noch für alte Gastgeber im
@@ -9858,65 +9707,18 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   wie bisher eine Runde ohne Buchführung, läuft aber nicht auseinander.
   `?net=local` ist BroadcastChannel zwischen Tabs; WLAN/
   Internet verwenden öffentliche Signalisierung/STUN, kein garantierter TURN.
-- **Die 2D-Welt ist netzfähig:** Wer dort Mission oder Training spielt
-  (in der Lobby „Wie? 2D von oben", dann der Startknopf), ist
-  der Techniker der gemeinsamen Runde und wird Gastgeber (Herzschlag wie der
-  Desktop-Techniker; `HauntingWorld.flatShared`). `HauntingWorld.stepFlat` übernimmt je Bild
-  `flat.round.haunt` als Stand (`adopt`, derselbe Pfad wie bei einem fremden
-  Gastgeber, samt Hausneubau bei Seedwechsel), füllt `technician`, `ride` und
-  `venting`, und `tickNet` sendet und empfängt weiter — Schalter der
-  Schalttafel wirken in der 2D-Runde, das Monster-Telefon steuert sie.
-  Spielt schon ein anderer Techniker im Raum, lehnt `openFlat` ab; beim
-  Verlassen stellt `closeFlat` einen frischen Stand her und sagt ihn an. Die
-  2D-Bot-Runde bleibt lokal.
-- **Der Techniker wechselt die Ansicht mitten in der Runde**
-  (`HauntingWorld.switchView('2d' | '3d')`) — kein Neustart, keine neue
-  Station, keine neue Rolle. Möglich ist es, weil der Stand ein Datenobjekt ist
-  und kein Gerät: `HauntState` reist ohnehin, und was nur beim Gastgeber liegt,
-  geht als dieselbe Buchführung (`HauntBooks`) von der einen Ansicht in die
-  andere — der Wechsel ist derselbe Vorgang wie eine Übergabe, nur ohne Netz
-  dazwischen.
-  - **3D → 2D** (`enterFlat`): Die Stelle des Technikers geht zuerst in den
-    Stand (`HauntState.technician` — in 2D hat er kein Rig), dann wird die
-    2D-Runde aus dem **laufenden** Stand aufgebaut (`FlatRound`, Option
-    `resume: FlatResume`) statt aus einem frischen. Der Stand wird dabei
-    **übernommen, nicht kopiert**: `round.haunt` _ist_ `world.state`. Das
-    NPC-Monster im Schiff hört auf (`releaseMonster`), das der 2D-Runde steht
-    an seiner Stelle und erbt sein Gedächtnis. Werkzeuge kommen aus
-    `crew.inventory`, Uhr, Anzug, Sauerstoff, `shut`, `lit` und die Riegel aus
-    Stand und Buchführung.
-  - **2D → 3D** (`leaveFlat`): `FlatRound.books()` gibt die Buchführung als
-    Abschrift heraus, `closeFlat(true)` schließt nur das Bild und setzt den
-    Stand **nicht** zurück, der Techniker landet bei `state.technician`
-    (danach wieder `null`, sonst stünde er als gezeichneter Zweiter daneben),
-    das NPC-Monster wird bei `state.monster` aufgestellt — **erst spawnen,
-    dann `loadBooks`**, sonst schriebe man in ein Gedächtnis, das es noch
-    nicht gibt.
-  - **Was ein Tipp bedeutet, rechnet `rules/lobby.viewSwap`** — eine Zeile
-    statt einer Kette von `if`, und ohne Welt nachrechenbar (`same`, `xr`,
-    `demo`, `handover`, `blocked`). In der Kette steckten zwei Fehler, die man
-    ihr nicht ansah: Der Knopf wurde dem **Zuschauer angeboten** (im
-    Objektliteral von `openFlat` stand `switchView` zweimal — einmal so bedingt
-    wie der Kommentar darüber versprach, einmal darunter ohne Bedingung, und das
-    zweite gewann) und dann mit `NOT_TECHNICIAN` abgewiesen; und solange die
-    **Bot-Runde in 2D** lief, hielt `now = flatShared ? '2d' : '3d'` die Welt
-    für „schon in 3D", und der Wechsel tat gar nichts.
-  - **Der Techniker übergibt, der Zuschauer wechselt die Seite.** Wer einer
-    **Vorführung** zusieht (Bot-Runde, hier wie dort), darf ebenfalls wechseln —
-    sie gehört niemandem. Nur reist sie nicht: Hier wie dort rechnet sie ein
-    `TechnicianBot` auf einer `FlatRound` (im Schiff auf dem Kern,
-    `flatKernel.ts`), aber auf einer zweiten Runde, also **fängt sie auf der
-    anderen Seite von vorn an**
-    (`swapDemo`, `ShipExperience.leaveBotRound`/`startBotRound`), und der Satz
-    dazu sagt es. Wer dagegen einer **echten** Runde im Netz zusieht oder das
-    Monster am Stock spielt, wechselt nicht: Er sähe sonst der Runde eines
-    anderen von innen zu. **In der Brille gibt es keine Karte von oben** (wie
-    `opensFlat`) — der Eintrag sagt das als Satz, statt wortlos nichts zu tun.
-  - Die Knöpfe: im Optionsmenü der 2D-Welt „Ansicht: 2D ↔ 3D"
-    (`flatMode.renderOptions`, `data-switch-view`) und im Panel des Technikers
-    im Schiff der eine Knopf „2D von oben" (`ShipExperience.paintDom`,
-    `data-action="flat-view"`). Beide legen auch die Ansicht der Lobby um, damit
-    die nächste Runde nicht wieder in der alten anfängt.
+- **Die Ansicht wechselt der Kern, mitten in der Runde** — _Menü →
+  Ansicht_, ohne dass diese Welt etwas tut: Der Stand ist ein Datenobjekt
+  (`HauntState`), der Kern rechnet weiter, nur die Kamera ist eine andere
+  (`core/TopDownCamera.ts` über dem Gestell, `KernelLocomotion` fängt den
+  Wunsch aus `FlatControls` genauso ab wie den aus der Brille). Bis Paket H
+  war das `HauntingWorld.switchView('2d' | '3d')` mit `enterFlat`/`leaveFlat`
+  — die 2D-Runde wurde aus dem laufenden Stand aufgebaut (`FlatResume`), die
+  Bücher (`HauntBooks`) gingen als Abschrift hinüber und zurück; dieselbe
+  Naht (`books`, `loadBooks`, `FlatRound` mit `resume`) ist heute die der
+  **Übergabe** zwischen Gastgebern und wird als solche geprüft
+  (`HauntingWorld.replay.test.ts`, „Die Bücher zwischen Welt und Runde").
+  `rules/lobby.viewSwap` ist weg.
 
 **Budget und Prüfung**
 
@@ -9970,8 +9772,8 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   Schritt, die Aufnahmedauer und Fehler beim zusätzlichen Diagnosebild.
   Bewegungsprüfungen warten bei niedriger Software-Framerate bis zu 90s auf
   echte >0,5m Bewegung beider Akteure; die Distanzanforderung bleibt erhalten.
-  Der Freiflugtest vergleicht Rig-Höhen vor/nach dem Tastendruck, nicht
-  Rig-Höhe mit Augenhöhe und nicht nach pauschalen 500ms.
+  (Einen Freiflug gibt es seit Paket H nicht mehr; ein Smoke, der ihn prüft,
+  ist zu streichen.)
 - `.artifacts/browser-smoke` enthält Screenshots und JSON-Reports. Entscheidend
   sind `passed`/`failure`, nicht das Vorhandensein von Bildern. `botStart`/
   `botEnd` erfassen Positionsänderung und Reparaturstand, `botText` das Protokoll;

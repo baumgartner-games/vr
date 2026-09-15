@@ -5,11 +5,11 @@ import { interact, steer, type MonsterArena } from './monsterHelm';
 
 /**
  * **Das Steuer übers Netz, beim Gastgeber** — führt aus, was die Station
- * `monster` sagt, in beiden Welten.
+ * `monster` sagt.
  *
- * Die 3D-Welt (`HauntingWorld.stepRoutine`) und die 2D-Runde
- * (`map/flatRound.ts`) fragen je Bild `active()` und nehmen dann `decide()`
- * statt der Routine — dieselbe Form wie das lokale Steuer
+ * Die Runde (`map/flatRound.ts`, im Schiff gerechnet von `flatKernel.ts`)
+ * fragt je Bild `active()` und nimmt dann `decide()` statt der Routine —
+ * dieselbe Form wie das Steuer im selben Prozess
  * (`flatMonsterControl.ts`), dieselbe Übersetzung (`monsterHelm.ts`). Neu
  * ist nur, **woher** die Eingabe kommt: aus der letzten `monster`-Nachricht
  * (`accept`), zehnmal je Sekunde vom Telefon.

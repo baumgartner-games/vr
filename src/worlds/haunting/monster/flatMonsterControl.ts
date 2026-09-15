@@ -19,7 +19,14 @@ import {
 } from './monsterHelm';
 
 /**
- * **Das Steuer des Monsters in der 2D-Runde.**
+ * **Das Steuer des Monsters im selben Prozess wie die Runde.**
+ *
+ * Bis zum 1-m-Gitter saß so das Telefon in der gemalten 2D-Welt am Monster;
+ * die Welt ist weg (`docs/plan-haunting-1m.md`), im Spiel läuft das Steuer
+ * übers Netz (`netMonsterControl.ts`, `netMonsterPort.ts`). Geblieben ist
+ * diese Klasse als die eine Stelle, die `MonsterDriver` **und** `MonsterPort`
+ * ohne Leitung zusammensteckt — das Steuer, an dem die Tests von Helm
+ * (`monsterHelm.test.ts`) und Monster-Rolle (`monsterRole.test.ts`) drehen.
  *
  * Hängt sich als `driver` in eine `FlatRound` und übersetzt Stock und
  * Knöpfe in genau die Entscheidung, die sonst die Routine trifft — die

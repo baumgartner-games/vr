@@ -1,5 +1,5 @@
 import { TILE } from '../nav/navTile';
-import { APRON, HOUSE, type Rect } from './house';
+import { APRON, HOUSE, STATION_BOUNDS, type Rect } from './house';
 import {
   COMMAND_HOME,
   TRAINING_ROOMS,
@@ -21,10 +21,12 @@ test('the four teaching rooms have separate full-size floors far outside the mis
     'tools',
   ]);
   for (const room of TRAINING_ROOMS) {
-    expect(room.x - (HOUSE.x + HOUSE.w)).toBeGreaterThanOrEqual(6);
-    expect(gap(room, HOUSE)).toBeGreaterThanOrEqual(6);
-    expect(gap(room, APRON)).toBeGreaterThanOrEqual(6);
-    expect(room.w * TILE).toBe(room.id === 'models' ? 20 : 12.5);
+    // Fünfzehn Meter Luft zur Mission — so viel wie die sechs Kacheln vorher.
+    expect(room.x - (STATION_BOUNDS.x + STATION_BOUNDS.w)).toBeGreaterThanOrEqual(15);
+    expect(gap(room, STATION_BOUNDS)).toBeGreaterThanOrEqual(15);
+    expect(gap(room, HOUSE)).toBeGreaterThanOrEqual(15);
+    expect(gap(room, APRON)).toBeGreaterThanOrEqual(15);
+    expect(room.w * TILE).toBe(room.id === 'models' ? 20 : 12);
     expect(room.d * TILE).toBe(room.id === 'models' ? 15 : 10);
     for (const coordinate of [room.x, room.z, room.w, room.d]) {
       expect(Number.isInteger(coordinate)).toBe(true);
@@ -32,7 +34,7 @@ test('the four teaching rooms have separate full-size floors far outside the mis
   }
   for (let a = 0; a < TRAINING_ROOMS.length; a++) {
     for (let b = a + 1; b < TRAINING_ROOMS.length; b++) {
-      expect(gap(TRAINING_ROOMS[a]!, TRAINING_ROOMS[b]!)).toBeGreaterThanOrEqual(2);
+      expect(gap(TRAINING_ROOMS[a]!, TRAINING_ROOMS[b]!)).toBeGreaterThanOrEqual(5);
     }
   }
 });
@@ -43,10 +45,10 @@ test('each spawn and its reserved standing area lie well inside its own physical
     const bounds = trainingBounds(room.id);
     expect(spawn.y).toBe(0);
     expect(trainingRoomAt(spawn.x, spawn.z)?.id).toBe(room.id);
-    expect(spawn.x - bounds.minX).toBeGreaterThanOrEqual(1.25 * TILE);
-    expect(bounds.maxX - spawn.x).toBeGreaterThanOrEqual(1.25 * TILE);
-    expect(spawn.z - bounds.minZ).toBeGreaterThanOrEqual(1.25 * TILE);
-    expect(bounds.maxZ - spawn.z).toBeGreaterThanOrEqual(1.25 * TILE);
+    expect(spawn.x - bounds.minX).toBeGreaterThanOrEqual(3);
+    expect(bounds.maxX - spawn.x).toBeGreaterThanOrEqual(3);
+    expect(spawn.z - bounds.minZ).toBeGreaterThanOrEqual(3);
+    expect(bounds.maxZ - spawn.z).toBeGreaterThanOrEqual(3);
     for (const dx of [-TRAINING_SPAWN_RADIUS, TRAINING_SPAWN_RADIUS]) {
       for (const dz of [-TRAINING_SPAWN_RADIUS, TRAINING_SPAWN_RADIUS]) {
         expect(trainingRoomAt(spawn.x + dx, spawn.z + dz)?.id).toBe(room.id);

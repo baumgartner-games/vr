@@ -113,7 +113,11 @@ describe('station hull geometry', () => {
         const mesh = sign as THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
         expect(mesh.material.color.getHex()).toBe(0xffffff);
         expect(mesh.material.depthTest).toBe(true);
-        expect(mesh.geometry.parameters.width).toBeGreaterThanOrEqual(2);
+        // So breit wie möglich — und nie breiter als die Wand: Ein Gang von
+        // zwei Kacheln trägt ein kürzeres Schild (`buildRoomHull`).
+        expect(mesh.geometry.parameters.width).toBeGreaterThanOrEqual(
+          Math.min(2, room.rect.w * TILE - 0.3),
+        );
         const north = room.rect.z * TILE;
         const south = (room.rect.z + room.rect.d) * TILE;
         expect(
@@ -123,23 +127,25 @@ describe('station hull geometry', () => {
     }
   });
 
-  test('visible deck plates are smaller than the navigation grid and rooms have department stencils', () => {
+  test('visible deck plates are one per tile of the navigation grid and rooms have department stencils', () => {
     const spec = generateHouse(42, 8),
       ship = buildShip(spec);
     for (const room of spec.rooms) {
       const group = ship.getObjectByName(`station-room-${room.id}`)!;
+      // Eine Platte je Kachel (`TILE` = 1 m), knapp kleiner als die Kachel —
+      // neun je Kachel wären auf dem 1-m-Gitter vierzigtausend Quader.
       const plates = boxesIn(group).filter((box) => {
         const size = box.getSize(new THREE.Vector3());
         return (
           box.min.y > 0.025 &&
           box.max.y < 0.045 &&
-          size.x > 0.8 &&
-          size.x < 0.84 &&
-          size.z > 0.8 &&
-          size.z < 0.84
+          size.x > TILE - 0.1 &&
+          size.x < TILE &&
+          size.z > TILE - 0.1 &&
+          size.z < TILE
         );
       });
-      expect(plates).toHaveLength(room.rect.w * room.rect.d * 9);
+      expect(plates).toHaveLength(room.rect.w * room.rect.d);
       expect(group.getObjectByName('department-floor-stencil')).toBeDefined();
     }
   });
