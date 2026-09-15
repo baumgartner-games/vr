@@ -55,28 +55,54 @@ interface Spot {
  * an der Wand, eine Insel zum Schnippeln, und vorn die Ausgabe.
  *
  * Die Zahlen sind Kacheln **innerhalb** der Zone (`layout.KITCHEN`), damit sich
- * die ganze Küche verschieben lässt, ohne dreizehn Zeilen nachzurechnen. Wie
+ * die ganze Küche verschieben lässt, ohne dreißig Zeilen nachzurechnen. Wie
  * groß ein Stück ist, steht nicht hier, sondern im Katalog — gemessen und
  * nicht geschätzt.
+ *
+ * **Und sie ist dichter geworden**, seit die Möbel auf ihr richtiges Maß
+ * halbiert sind (`core/kitchenFit.KITCHEN_SCALE`): Ein Unterschrank belegt
+ * jetzt **eine** Kachel statt vier. Mit dem alten Aufbau standen zwölf Stücke
+ * verloren in einem Raum von 12 × 11 m; jetzt gibt es das, was eine Küche
+ * ausmacht — eine **durchgehende Zeile** an der Wand, an der man entlanggeht,
+ * ohne zwischen zwei Schränken ins Freie zu treten. Dass dabei mancher Name
+ * zweimal vorkommt, ist kein Versehen: Eine Küche hat mehr als einen
+ * Unterschrank, und jedes Exemplar ist ohnehin eine eigene Kopie
+ * (`core/kitchenModel.ts`).
  */
 export const KITCHEN_SPOTS: readonly Spot[] = [
-  // --- die Wand im Norden: Zeile, zwei Herde, Spüle ---------------------------
+  // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ----------------
   { name: 'counter', x: 0, z: 0 },
+  { name: 'stove', x: 1, z: 0 },
   { name: 'stove-pot', x: 2, z: 0 },
-  { name: 'stove-pan', x: 5, z: 0 },
-  { name: 'sink', x: 8, z: 0 },
+  { name: 'stove-pan', x: 3, z: 0 },
+  { name: 'counter', x: 4, z: 0 },
+  // Zwei Kacheln breit — sie ist das einzige Stück, das die Zeile unterbricht.
+  { name: 'sink', x: 5, z: 0 },
+  { name: 'counter', x: 7, z: 0 },
+  { name: 'board', x: 8, z: 0 },
+  { name: 'counter', x: 9, z: 0 },
+  { name: 'plate-counter', x: 10, z: 0 },
 
-  // --- die Insel in der Mitte -------------------------------------------------
-  { name: 'table', x: 2, z: 4 },
+  // --- die Ecke nach Osten: sie zieht die Zeile um die Ecke -------------------
+  { name: 'counter', x: 11, z: 1 },
+  { name: 'counter', x: 11, z: 2 },
+  { name: 'bin', x: 11, z: 3 },
+
+  // --- die Insel in der Mitte ------------------------------------------------
+  { name: 'table', x: 3, z: 4 },
   { name: 'board', x: 4, z: 4 },
+  { name: 'table', x: 5, z: 4 },
   { name: 'bin', x: 6, z: 4 },
 
-  // --- und vorn die Ausgabe, mit dem Regal darüber ----------------------------
-  { name: 'serve-counter', x: 2, z: 8, turn: 2 },
-  { name: 'plate-counter', x: 4, z: 8, turn: 2 },
-  { name: 'pass', x: 6, z: 8, turn: 2 },
-  { name: 'plate-rack', x: 6, z: 6 },
-  { name: 'extinguisher', x: 10, z: 8 },
+  // --- das Regal, Rücken an Rücken mit der Ausgabe ---------------------------
+  { name: 'plate-rack', x: 5, z: 8 },
+
+  // --- und vorn die Ausgabe, zum Gang hin gedreht -----------------------------
+  { name: 'serve-counter', x: 3, z: 9, turn: 2 },
+  { name: 'plate-counter', x: 4, z: 9, turn: 2 },
+  { name: 'pass', x: 5, z: 9, turn: 2 },
+  { name: 'serve-counter', x: 7, z: 9, turn: 2 },
+  { name: 'extinguisher', x: 11, z: 9 },
 ];
 
 /** Wie weit ein Möbel eine Kachel verteuert — teurer als eine Kiste. */

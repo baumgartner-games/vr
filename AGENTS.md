@@ -4654,26 +4654,55 @@ sonst jedes Möbel an seinen Kanten) und dann wieder gebündelt über
 am Unterschrank darunter fest, ein „Möbel" von 2,50 m mit anderthalb Metern
 Luft in der Mitte.
 
-Die Möbel sind in **Metern** gebaut und bleiben es. Ein Tresen ist dort
-2 × 2 m und belegt damit vier Kacheln des Meterrasters
-(`worlds/nav/navTile.TILE`) — die Namen und Maße stehen in `kitchenFit.ts`,
-das weder three.js noch `import.meta` anfasst, damit Jest sie lesen kann.
+Die Möbel sind in **Metern** gebaut — und zwar in den falschen. Nachgemessen
+an der Datei ist eine Spüle dort 4 × 2,1 m groß und 2,3 m hoch, ein
+Feuerlöscher 2 × 2 m und 2,5 m hoch, und der schmalste Unterschrank belegt
+2 × 2 m. Das ist keine Küche, das ist eine Turnhalle: Neben einem Koch von
+1,60 m (`core/chefFit.ts`) reichte ein Tresen bis über die Augen, und ein
+einzelner Schrank war fünfmal so breit wie die Figur davor.
+
+Also **halbiert** (`KITCHEN_SCALE`). Ein Unterschrank belegt damit **eine**
+Kachel des Meterrasters (`worlds/nav/navTile.TILE`) und ist einen halben Meter
+hoch; beim Vorbild liegt die Arbeitsplatte auf einem guten Drittel der
+Figurenhöhe, und dort liegt sie jetzt auch. Der Faktor sitzt am **Lader**
+(`core/kitchenModel.ts`) und nicht in der Quelldatei: Die ist fremde Arbeit und
+wird nicht angefasst, und ein zweites Aufbereiten für eine Zahl wären 32 MB
+Rohdaten für einen Faktor. Die Maße im Katalog sind die **fertigen** — was dort
+steht, ist, wie groß ein Möbel im Spiel ist.
+
+Die Kachelzahl ist dabei die **gerundete** Grundfläche und nicht die
+aufgerundete: Ein Unterschrank ist einen Meter breit und 1,06 m tief, und wer
+daraus zwei Kacheln macht, stellt eine ganze Zeile davon mit einem Meter Luft
+dazwischen auf. Ein Möbel darf ein paar Zentimeter über seine Kachel
+hinausragen; eine Küche mit Lücken darin ist keine Küche.
+
+Die Namen und Maße stehen in `kitchenFit.ts`, das weder three.js noch
+`import.meta` anfasst, damit Jest sie lesen kann.
 
 **Aufgestellt sind sie in der Küche der Testwelt** (`worlds/test/zones/kitchen.ts`).
 Der Katalog lag nach seinem Import ein halbes Jahr ungenutzt da: dreizehn
 vermessene Möbel, eine Ladefunktion und keine Welt, die sie hinstellt. Jetzt
 gibt es eine — drei Bänder wie in jeder Küche dieses Spiels (Geräte an der
 Wand, eine Insel, die Ausgabe), und daneben die Probe darauf, dass die
-Kochfigur wirklich zu diesen Möbeln passt. Zwei Dinge sind daran wichtig genug,
+Kochfigur wirklich zu diesen Möbeln passt. Drei Dinge sind daran wichtig genug,
 um sie hier zu nennen:
 
 - **Der Grundriss weiß, wo ein Möbel steht**, auch wenn die Datei nie ankommt.
   Jedes Stück verteuert seine Kacheln (`stampKitchen`), und damit geht ein NPC
   um den Tresen herum statt hindurch. Ein Möbel, das nur im Bild existiert, ist
   ein Möbel, durch das gelaufen wird — ein Jest-Test hält das fest.
-- **Ein hängendes Stück bekommt keinen Körper** (`KitchenPiece.hanging`): Unter
-  dem Ausgaberegal läuft man durch, und eine Kachel, die es teuer machte, wäre
-  eine Kachel, um die ein NPC grundlos herumginge.
+- **Ein Name darf mehrmals vorkommen.** Eine Küche hat mehr als einen
+  Unterschrank, und seit die Möbel auf ihr richtiges Maß halbiert sind, passt
+  auch eine **durchgehende Zeile** an die Wand — eine, an der man entlanggeht,
+  ohne zwischen zwei Schränken ins Freie zu treten. Jedes Exemplar ist ohnehin
+  eine eigene Kopie (`core/kitchenModel.ts`).
+- **Ein hängendes Stück bekommt keinen Körper** (`KitchenPiece.hanging`):
+  Darunter läuft man durch, und eine Kachel, die es teuer machte, wäre eine
+  Kachel, um die ein NPC grundlos herumginge. **In dieser Fassung der Quelle
+  tut es keines** — das Ausgaberegal stand im Katalog als hängendes Stück von
+  3,52 m, und die Datei sagt etwas anderes: Es fängt wie jedes andere Möbel
+  bei y = 0 an. Das war kein Schönheitsfehler, sondern ein Loch, durch das man
+  mitten hindurchlief.
 
 ### Wie man aussieht
 
