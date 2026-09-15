@@ -114,6 +114,9 @@ export function faceMarks(kind: HeadKind, box: HeadBox): FaceMarks {
     case 'round': {
       group.add(...blush(box, skull));
       crown.add(dome(mane, 0, box.crown * 0.62, box.face * 0.42, skull * 0.86, 0.34, 0.8));
+      // **Und der Schopf**, ohne den dieser Kopf aussah wie gar keine Wahl.
+      // Siehe `quiff` — das ist der Grund, warum es ihn gibt.
+      crown.add(quiff(mane, box, skull));
       break;
     }
 
@@ -202,15 +205,46 @@ function whiskers(box: HeadBox, skull: number, material: THREE.Material): THREE.
 }
 
 /**
+ * **Der Schopf des Standardkopfes** — die Locke, die nach vorn über die Stirn
+ * fällt.
+ *
+ * Sie ist nachträglich dazugekommen, und der Grund steht in einem Satz: _„Rund
+ * sieht aus wie nichts."_ Und das stimmte. Die vier Köpfe unterscheiden sich
+ * an Bart, Zöpfen und Sommersprossen — nur **Rund** hatte nichts davon,
+ * sondern eine Haarkappe und zwei blasse Wangen. Von oben, und von dort schaut
+ * man in diesem Projekt auf die Figur, blieb davon der Unterschied zwischen
+ * braunem und schwarzem Haar übrig: keiner.
+ *
+ * Ein Schopf löst genau das, weil er die **Silhouette** ändert und nicht nur
+ * die Farbe: Er steht über den Umriss des Schädels hinaus und ist deshalb von
+ * oben, von vorn und im Profil zu sehen. Er hängt im `crown` und geht damit
+ * unter jeder Mütze mit — dieselbe Regel wie für das übrige Haar.
+ */
+function quiff(material: THREE.Material, box: HeadBox, skull: number): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.ConeGeometry(skull * 0.24, skull * 0.62, 12), material);
+  // Über der Stirn, nach vorn gelegt: aufrecht wäre es ein Horn, flach ein
+  // Fladen. Gut ein halber Rechter Winkel sieht von oben wie eine Locke aus.
+  mesh.position.set(0, box.crown * 0.92, box.face * 0.36);
+  mesh.rotation.x = -0.85;
+  mesh.scale.set(1, 1, 0.72);
+  return mesh;
+}
+
+/**
  * **Zwei Wangenflecken**, flach auf die Haut gelegt — nicht auf eine gedachte
  * Ebene vor dem Gesicht (`onSkull`).
+ *
+ * Sie sind größer und kräftiger geworden, als sie einmal waren, und zwar aus
+ * demselben Grund wie der Schopf daneben: Ein Kopf, der _Runde Backen_ heißt,
+ * muss welche haben, die man sieht. Zwei blasse Scheiben von 19 % der
+ * Schädelbreite waren im Spiel nicht von der Haut zu unterscheiden.
  */
 function blush(box: HeadBox, skull: number): THREE.Mesh[] {
-  const colour = skin(0xe08a7a);
+  const colour = skin(0xdd6f62);
   const x = skull * 0.56;
   const y = box.chin * 0.42;
   return [-1, 1].map((sign) => {
-    const cheek = new THREE.Mesh(new THREE.SphereGeometry(skull * 0.19, 12, 8), colour);
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(skull * 0.26, 12, 8), colour);
     cheek.scale.set(1, 0.78, 0.3);
     cheek.position.set(sign * x, y, onSkull(box, skull, x, y) + LIFT);
     return cheek;

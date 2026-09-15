@@ -1317,6 +1317,24 @@ export class App {
           },
         },
         {
+          // **Die Umrisse der Physik** — gezeichnet von
+          // `physics/HitboxView.ts`, in jeder Welt, die Physik hat. Sie liegen
+          // ohne Tiefenprüfung über allem: Ein Umriss, den das Möbel verdeckt,
+          // zu dem er gehört, beantwortet keine Frage.
+          id: 'gfx:hitboxes',
+          label: 'Hitboxen',
+          sub: 'Die Körper der Physik als Drahtgitter · mit dem Kreis um den Spieler',
+          caption: 'Liegt über allem · Werkstattansicht, kostet Bildrate',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.hitBoxes,
+          run: () => {
+            const next = saveGraphics({ hitBoxes: !graphics().hitBoxes });
+            this.menuDirty = true;
+            this.notify(next.hitBoxes ? 'Hitboxen an' : 'Hitboxen aus');
+          },
+        },
+        {
           // **Der Schalter, den der Besitzer wollte**: Schatten wie in
           // Overcooked, ohne dafür die ganze Zeichnung dazuzunehmen. Er steht
           // über dem Modus, weil er der ist, an dem man wirklich dreht —

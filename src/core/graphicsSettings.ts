@@ -77,6 +77,24 @@ export interface GraphicsSettings {
    */
   gridLines: boolean;
   /**
+   * **Die Umrisse der Körper**, über alles andere gelegt
+   * (`physics/HitboxView.ts`).
+   *
+   * Jeder Kasten, jede Kapsel, jeder Zylinder, den die Physik kennt — die
+   * Wände, die Küchenmöbel, die Kisten, und vor allem der **Kreis um den
+   * Spieler**, der von oben zeigt, wie breit er wirklich ist. Gezeichnet
+   * **ohne Tiefenprüfung**: Die Linien liegen über allem, auch über dem, was
+   * vor ihnen steht, denn ein Umriss, den das Möbel verdeckt, zu dem er
+   * gehört, beantwortet keine Frage.
+   *
+   * Ab Werk **aus**. Das ist eine Werkstattansicht: Sie sagt, warum man
+   * irgendwo hängen bleibt, warum ein Sprung nicht hinaufreicht und wo die
+   * unsichtbare Sperre über einer Küchenzeile wirklich endet
+   * (`worlds/test/zones/kitchen.ts`). Wer sie anlässt, spielt in einem
+   * Drahtgitter.
+   */
+  hitBoxes: boolean;
+  /**
    * **Ob die Sonne Schatten wirft.**
    *
    * Ein eigener Schalter und keine Eigenschaft der Stufe, und das ist
@@ -119,6 +137,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   xrScale: 1,
   showFps: false,
   gridLines: false,
+  hitBoxes: false,
   shadows: true,
 };
 
@@ -266,11 +285,12 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     : DEFAULT_GRAPHICS.xrScale;
   const showFps = raw.showFps === true;
   const gridLines = raw.gridLines === true;
+  const hitBoxes = raw.hitBoxes === true;
   // **Nicht `=== true`**, anders als die beiden darüber: Die Schatten sind ab
   // Werk **an**, und ein gespeicherter Stand von gestern kennt das Feld noch
   // gar nicht. Wer sie ausmacht, hat `false` gespeichert und bekommt `false`.
   const shadows = raw.shadows ?? DEFAULT_GRAPHICS.shadows;
-  return { mode, xrScale, showFps, gridLines, shadows };
+  return { mode, xrScale, showFps, gridLines, hitBoxes, shadows };
 }
 
 /** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
@@ -294,14 +314,15 @@ export function nextXrScale(scale: XrScale): XrScale {
  */
 export function graphicsSummary(
   settings: Pick<GraphicsSettings, 'mode' | 'xrScale'> &
-    Partial<Pick<GraphicsSettings, 'gridLines' | 'shadows'>>,
+    Partial<Pick<GraphicsSettings, 'gridLines' | 'hitBoxes' | 'shadows'>>,
 ): string {
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
   const grid = settings.gridLines ? ' · Gitterlinien' : '';
+  const boxes = settings.hitBoxes ? ' · Hitboxen' : '';
   // Genannt wird die Abweichung: „mit Schatten" sagt niemandem etwas, „ohne
   // Schatten" erklärt ein Bild, in dem alles zu schweben scheint.
   const shade = settings.shadows === false ? ' · ohne Schatten' : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${shade}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${shade}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

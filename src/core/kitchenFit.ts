@@ -57,6 +57,53 @@ export interface KitchenPiece {
    * einer nächsten Quelle braucht es wieder.
    */
   readonly hanging?: boolean;
+
+  /**
+   * **Wo die Arbeitsfläche liegt**, in Metern über dem Boden — dort landet,
+   * was jemand ablegt (`worlds/test/zones/kitchen.ts`).
+   *
+   * Sie ist bei den meisten Möbeln dasselbe wie `height`, und deshalb steht
+   * sie nur dort, wo sie es **nicht** ist: Auf dem Herd mit dem Topf ist
+   * `height` die Oberkante des **Topfes** (0,87 m) und nicht die der Platte
+   * (0,55 m) — ein Brötchen, das auf `height` abgelegt würde, schwebte eine
+   * Handbreit über dem Deckel.
+   */
+  readonly deck?: number;
+
+  /**
+   * Ob man auf diesem Möbel **etwas ablegen** kann.
+   *
+   * Nicht jede waagerechte Fläche ist eine: In den Mülleimer wird geworfen
+   * und nicht gelegt, auf einem Feuerlöscher steht nichts, und das
+   * Ausgaberegal hängt über der Theke (`worlds/test/zones/kitchen.ts`).
+   */
+  readonly worktop?: boolean;
+
+  /**
+   * **Was man von diesem Möbel herunternehmen kann** — der Topf, die Pfanne.
+   *
+   * Das Stück ist im Modell ein **eigenes Netz** (Material `Kitchen_Utensils`,
+   * `core/kitchenModel.ts`): Ein Herd mit Topf ist eine Gruppe aus Korpus und
+   * Topf, und wer den Topf nimmt, lässt einen leeren Herd stehen. Ohne dieses
+   * Feld wüsste die Küche nicht, dass es dort überhaupt etwas zu greifen gibt.
+   */
+  readonly holds?: 'pot' | 'pan';
+
+  /**
+   * **Wie weit das Möbel aus der Mitte seiner Kachel rückt**, in Metern
+   * (x, z) — der Ausgleich für einen Griff, der übersteht.
+   *
+   * Der Ursprung eines Möbels liegt in der Mitte seiner **ganzen** Hülle
+   * (`tools/kitchen-model.mjs`), und beim Herd mit der Pfanne gehört der
+   * Pfannenstiel dazu: Er ragt 16 cm nach Süden heraus, also wanderte der
+   * **Korpus** beim Zentrieren 7,8 cm nach Norden — und stand damit als
+   * einziger Herd aus der Reihe. Genau diese 7,8 cm stehen hier.
+   *
+   * Gemessen und nicht geschätzt: Der Korpus (Material `Kitchen_Cabins`)
+   * reicht in der Datei von z = −0,610 bis z = +0,453, seine Mitte liegt also
+   * bei −0,078.
+   */
+  readonly align?: readonly [x: number, z: number];
 }
 
 /**
@@ -75,19 +122,43 @@ export interface KitchenPiece {
  * für Spüle, Ausgabetheke und Regal.
  */
 export const KITCHEN_PIECES: readonly KitchenPiece[] = [
-  { name: 'plate-counter', label: 'Tellerausgabe', tiles: [1, 1], height: 0.56 },
+  {
+    name: 'plate-counter',
+    label: 'Tellerausgabe',
+    tiles: [1, 1],
+    height: 0.56,
+    deck: 0.5,
+    worktop: true,
+  },
   { name: 'extinguisher', label: 'Feuerlöscher', tiles: [1, 1], height: 1.25 },
   { name: 'sink', label: 'Spüle', tiles: [2, 1], height: 1.15 },
   { name: 'bin', label: 'Mülleimer', tiles: [1, 1], height: 0.45 },
-  { name: 'table', label: 'Arbeitstisch', tiles: [1, 1], height: 0.5 },
-  { name: 'serve-counter', label: 'Ausgabe', tiles: [1, 1], height: 0.46 },
-  { name: 'board', label: 'Schneidebrett', tiles: [1, 1], height: 0.57 },
+  { name: 'table', label: 'Arbeitstisch', tiles: [1, 1], height: 0.5, worktop: true },
+  { name: 'serve-counter', label: 'Ausgabe', tiles: [1, 1], height: 0.46, worktop: true },
+  { name: 'board', label: 'Schneidebrett', tiles: [1, 1], height: 0.57, worktop: true },
   { name: 'plate-rack', label: 'Ausgaberegal', tiles: [2, 1], height: 0.56 },
-  { name: 'pass', label: 'Ausgabetheke', tiles: [2, 1], height: 0.53 },
-  { name: 'counter', label: 'Küchenzeile', tiles: [1, 1], height: 0.5 },
-  { name: 'stove', label: 'Herd', tiles: [1, 1], height: 0.55 },
-  { name: 'stove-pot', label: 'Herd mit Topf', tiles: [1, 1], height: 0.87 },
-  { name: 'stove-pan', label: 'Herd mit Pfanne', tiles: [1, 1], height: 0.68 },
+  { name: 'pass', label: 'Ausgabetheke', tiles: [2, 1], height: 0.53, worktop: true },
+  { name: 'counter', label: 'Küchenzeile', tiles: [1, 1], height: 0.5, worktop: true },
+  { name: 'stove', label: 'Herd', tiles: [1, 1], height: 0.55, worktop: true },
+  {
+    name: 'stove-pot',
+    label: 'Herd mit Topf',
+    tiles: [1, 1],
+    height: 0.87,
+    deck: 0.55,
+    worktop: true,
+    holds: 'pot',
+  },
+  {
+    name: 'stove-pan',
+    label: 'Herd mit Pfanne',
+    tiles: [1, 1],
+    height: 0.68,
+    deck: 0.55,
+    worktop: true,
+    holds: 'pan',
+    align: [0, 0.078],
+  },
 ];
 
 /** Die Namen allein — für Listen, die keine Maße brauchen. */
@@ -96,4 +167,15 @@ export const KITCHEN_NAMES: readonly string[] = KITCHEN_PIECES.map((piece) => pi
 /** Ein Möbel nach Namen, oder `undefined` — Fremdtext kommt über das Netz. */
 export function kitchenPiece(name: string): KitchenPiece | undefined {
   return KITCHEN_PIECES.find((piece) => piece.name === name);
+}
+
+/**
+ * **Wo auf diesem Möbel etwas liegt**, in Metern über seinem Fuß.
+ *
+ * Eine Zeile und keine drei an jeder Aufrufstelle: `deck` steht nur dort im
+ * Katalog, wo es von `height` abweicht (siehe `KitchenPiece.deck`), und wer
+ * das von Hand nachschlägt, vergisst es beim nächsten Möbel.
+ */
+export function kitchenDeck(piece: KitchenPiece): number {
+  return piece.deck ?? piece.height;
 }

@@ -231,6 +231,18 @@ export class PhysicsWorld {
     for (let i = 0; i < count; i++) this.world.step();
   }
 
+  /**
+   * **Die Umrisse aller Körper**, so wie Rapier sie selbst zeichnet — Punkte
+   * und Farben, je zwei Punkte eine Strecke (`physics/HitboxView.ts`).
+   *
+   * `null`, wenn die wasm-Welt schon freigegeben ist: Aus einer Welt, die es
+   * nicht mehr gibt, holt man auch keine Linien mehr.
+   */
+  debugLines(): { vertices: Float32Array; colors: Float32Array } | null {
+    if (this.freed) return null;
+    return this.world.debugRender();
+  }
+
   /** Immovable collider matching the object's world transform. */
   addStatic(object: THREE.Object3D, options: BodyOptions = {}): PhysicsBody {
     return this.addBody(object, 'fixed', options);

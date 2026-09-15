@@ -70,14 +70,25 @@ export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
  * Sie ist die jüngste Zone und der Grund, warum das Gelände nach Norden
  * gewachsen ist (`FIELD`): Die Möbel aus dem Katalog sind **groß** — eine
  * Spüle misst 4 × 3 m, ein Herd 3 × 3 (`core/kitchenFit.ts`) —, und in eine
- * Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe. Zwölf mal elf
- * Kacheln sind drei Bänder: Geräte an der Wand, eine Insel, die Ausgabe.
+ * Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe.
+ *
+ * **Sie ist doppelt so breit geworden**, und die zweite Hälfte ist der
+ * Schauraum. Zwölf Kacheln reichten für die Küche selbst — drei Bänder:
+ * Geräte an der Wand, eine Insel, die Ausgabe —, aber nicht für das, was
+ * daneben fehlte: **jedes Möbel einmal einzeln**. Dreizehn Stücke mit einer
+ * Kachel Luft dazwischen brauchen achtundzwanzig Kacheln, und in einer Zeile
+ * aus acht Schränken sieht man keines davon (`zones/kitchen.ts`). Also
+ * vierundzwanzig Kacheln in der Breite: im Westen die Küche, im Osten der
+ * Katalog zum Abgehen.
+ *
+ * Nach Osten und nicht nach Süden gewachsen: Dort liegt das Podest
+ * (`PODIUM`), und nach Osten ist bis zum Rand des Geländes nichts.
  *
  * Hinter dem Podest und nicht neben dem Schießstand: Dessen Bahnen laufen
  * quer über den ganzen Osten bis zum Kugelfang (`zones/range.ts`, `BERM`), und
  * eine Küche in der Schusslinie ist eine Küche mit Löchern.
  */
-export const KITCHEN: NavRect = { x: 12, z: -31, w: 12, d: 11 };
+export const KITCHEN: NavRect = { x: 12, z: -31, w: 24, d: 11 };
 
 /**
  * **Die Gänge zwischen den Zonen**, drei Kacheln breit, wo es geht.

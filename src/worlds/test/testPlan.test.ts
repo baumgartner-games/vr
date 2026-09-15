@@ -28,8 +28,8 @@ import { EMITTERS } from './zones/effects';
 import { HUB_GATE, GATE_TILE } from './zones/start';
 import { SPIKES } from './zones/navigation';
 import { BERM } from './zones/range';
-import { KITCHEN_SPOTS } from './zones/kitchen';
-import { kitchenPiece } from '../../core/kitchenFit';
+import { KITCHEN_SHOWN, KITCHEN_SPOTS } from './zones/kitchen';
+import { KITCHEN_NAMES, kitchenPiece } from '../../core/kitchenFit';
 
 /** Einmal gebaut und von allen Behauptungen geteilt: er ändert sich nicht. */
 const plan = testPlan();
@@ -346,6 +346,44 @@ describe('Die Zonen dazwischen', () => {
         fits: true,
       });
     }
+  });
+
+  /**
+   * **Kein Möbel steht in einem anderen.** Ein Aufbau von dreißig Stücken wird
+   * von Hand gesetzt, und zwei Zahlen, die um eins danebenliegen, sieht man
+   * erst, wenn zwei Schränke ineinanderstecken.
+   *
+   * Die **gehobenen** Stücke sind ausgenommen, und genau dafür gibt es sie:
+   * Das Ausgaberegal steht auf derselben Kachel wie die Ausgabetheke, nur eine
+   * Ebene höher (`zones/kitchen.ts`, `Spot.lift`).
+   */
+  it('stellt kein Küchenmöbel in ein anderes', () => {
+    const taken = new Map<string, string>();
+    for (const spot of KITCHEN_SPOTS) {
+      if (spot.lift) continue;
+      const piece = kitchenPiece(spot.name)!;
+      const turned = (spot.turn ?? 0) % 2 === 1;
+      const [w, d] = piece.tiles;
+      for (let dz = 0; dz < (turned ? w : d); dz++) {
+        for (let dx = 0; dx < (turned ? d : w); dx++) {
+          const key = `${spot.x + dx},${spot.z + dz}`;
+          expect({ key, free: !taken.has(key), by: taken.get(key) ?? spot.name }).toEqual({
+            key,
+            free: true,
+            by: spot.name,
+          });
+          taken.set(key, spot.name);
+        }
+      }
+    }
+  });
+
+  /**
+   * **Der Schauraum zeigt jedes Möbel genau einmal** — er ist der Katalog zum
+   * Abgehen, und ein Katalog, in dem ein Stück fehlt, ist eine Liste.
+   */
+  it('zeigt im Schauraum jedes Möbel des Katalogs einmal', () => {
+    expect([...KITCHEN_SHOWN].sort()).toEqual([...KITCHEN_NAMES].sort());
   });
 
   /** Und der Aushang dort ist mehrzeilig — die Probe auf das Schild als Seite. */

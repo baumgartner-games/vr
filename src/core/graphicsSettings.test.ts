@@ -21,6 +21,7 @@ describe('Grafikeinstellungen', () => {
       xrScale: 1,
       showFps: false,
       gridLines: false,
+      hitBoxes: false,
       shadows: true,
     });
   });
@@ -162,6 +163,25 @@ describe('Grafikeinstellungen', () => {
     );
     expect(graphicsSummary({ mode: 'comic', xrScale: 0.7, gridLines: true })).toBe(
       'Comic · Brille Flüssig · Gitterlinien',
+    );
+  });
+
+  /**
+   * **Die Hitboxen sind eine Werkstattansicht.** Ab Werk aus, wie die
+   * Gitterlinien, und genannt werden sie in der Überschrift nur, wenn sie an
+   * sind — wer ein Drahtgitter über der Welt hat, soll in der Zeile darüber
+   * lesen, woran das liegt.
+   */
+  it('merkt sich die Hitboxen nur als echtes Ja und nennt sie nur, wenn sie an sind', () => {
+    expect(DEFAULT_GRAPHICS.hitBoxes).toBe(false);
+    expect(clampGraphics({ hitBoxes: true })).toEqual({ ...DEFAULT_GRAPHICS, hitBoxes: true });
+    expect(clampGraphics({ hitBoxes: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: false })).toBe('Einfach');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true })).toBe(
+      'Einfach · Hitboxen',
+    );
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, gridLines: true, hitBoxes: true })).toBe(
+      'Einfach · Gitterlinien · Hitboxen',
     );
   });
 
