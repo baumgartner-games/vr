@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { AvatarBody } from './AvatarBody';
-import { BODY_KINDS, BODY_RADIUS, HEAD_KINDS, HEAD_RADIUS, HEM } from './avatarLook';
+import { bodyRadius, BODY_KINDS, BODY_RADIUS, HEAD_KINDS, HEAD_RADIUS } from './avatarLook';
 import { HEADGEAR_KINDS } from './headgear';
 import type { Appearance } from './appearance';
 
@@ -30,11 +30,20 @@ function torsoOf(body: AvatarBody): THREE.Object3D {
 }
 
 /**
- * Die Jacke allein — ohne Ärmel und Beine. Der Rumpf trägt inzwischen beides,
- * und deren Spannweite ist nicht die Breite des Stoffs, um die es geht.
+ * Die Jacke allein — ohne Hose und Halstuch. Ihre Breite ist die Zahl, an der
+ * das Verhältnis zum Kopf hängt, und damit der ganze Stil.
  */
 function coatOf(body: AvatarBody): THREE.Object3D {
   return body.getObjectByName('avatar-coat')!;
+}
+
+/**
+ * Die Gruppe, die das Watscheln trägt. `avatar-torso` steht unter dem Kopf und
+ * dreht sich mit ihm; darin hängt die gebaute Figur, und **die** wippt, rollt
+ * und neigt sich (`BodyShape.setStride`).
+ */
+function shapeOf(body: AvatarBody): THREE.Object3D {
+  return torsoOf(body).children[0]!;
 }
 
 describe('die Figur', () => {
@@ -71,56 +80,54 @@ describe('die Figur', () => {
     body.dispose();
   });
 
-  it('lässt die karierten Beine unter dem Saum hervorschauen', () => {
-    // Der Saum der Jacke endet über dem Boden, und darunter steht etwas: Ohne
-    // diese Lücke ist die Figur wieder ein Kegel, der über den Boden rutscht.
+  it('trägt unter dem Saum die karierte Hose — und keine Beine', () => {
+    // Die Vorbilder haben **keine Beine**: Ihr Kochkaro sitzt unten am Rumpf,
+    // und darunter schließt er als Kuppel auf dem Boden ab. Ein Zwischenstand
+    // dieses Umbaus hatte zwei Beine mit Schuhen; das las sich als Koch, war
+    // aber nicht der Stil. Der Test hält die Entscheidung fest, weil sie beim
+    // nächsten Mal sonst wieder umgedreht wird.
     const body = new AvatarBody();
     body.update(1 / 60, pose(1.6), null, null);
+    expect(body.getObjectByName('leg-left')).toBeUndefined();
+    expect(body.getObjectByName('leg-right')).toBeUndefined();
+    expect(body.getObjectByName('sleeve-left')).toBeUndefined();
+
     const coat = new THREE.Box3().setFromObject(coatOf(body));
-    expect(coat.min.y).toBeGreaterThan(0.25);
-    const left = new THREE.Box3().setFromObject(body.getObjectByName('leg-left')!);
-    const right = new THREE.Box3().setFromObject(body.getObjectByName('leg-right')!);
-    for (const leg of [left, right]) {
-      expect(leg.min.y).toBeLessThan(0.02);
-      expect(leg.max.y).toBeGreaterThan(coat.min.y);
-    }
-    // Und sie stehen nebeneinander, nicht ineinander.
-    expect(left.max.x).toBeLessThan(right.min.x);
+    const checks = new THREE.Box3().setFromObject(body.getObjectByName('avatar-trousers')!);
+    // Die Hose steht auf dem Boden und hört unter dem Saum auf …
+    expect(checks.min.y).toBeGreaterThan(-EPSILON);
+    expect(checks.min.y).toBeLessThan(0.01);
+    expect(checks.max.y).toBeLessThan(coat.min.y + 0.01);
+    // … und sie ist **schmaler als die Jacke**: Der Saum springt darüber
+    // heraus, und diese Taille ist der Unterschied zwischen einem Koch und
+    // einer Matrjoschka.
+    expect(checks.max.x - checks.min.x).toBeLessThan((coat.max.x - coat.min.x) * 0.85);
     body.dispose();
   });
 
-  it('schwingt die Beine beim Laufen und lässt sie im Stehen stehen', () => {
-    // Von oben sieht man aus 16 m keinen einzelnen Schuh — aber dass sich
-    // etwas bewegt, sieht man sofort. Eine Figur, an der beim Laufen nichts
-    // zuckt, rutscht über den Boden.
+  it('watschelt beim Laufen und steht im Stehen still', () => {
+    // Eine Figur ohne Beine kann nicht schreiten, also wippt sie: Der Rumpf
+    // hebt und staucht sich im Takt, rollt dazu und legt sich nach vorn. Ohne
+    // das rutscht sie über den Boden.
     const body = new AvatarBody();
     body.update(1 / 60, pose(1.6), null, null);
-    const still = body.getObjectByName('leg-left')!.rotation.x;
-    expect(still).toBeCloseTo(0, 5);
-    // Drei Bilder mit einem Meter Versatz sind reichlich Tempo.
-    for (let i = 0; i < 6; i++) {
+    const shape = shapeOf(body);
+    expect(shape.rotation.z).toBeCloseTo(0, 5);
+    expect(shape.rotation.x).toBeCloseTo(0, 5);
+    expect(shape.scale.y).toBeCloseTo(1, 5);
+
+    let rolled = 0;
+    let squashed = 1;
+    for (let i = 0; i < 12; i++) {
       body.position.x += 0.05;
       body.update(1 / 60, pose(1.6), null, null);
+      rolled = Math.max(rolled, Math.abs(shape.rotation.z));
+      squashed = Math.min(squashed, shape.scale.y);
     }
-    const left = body.getObjectByName('leg-left')!.rotation.x;
-    const right = body.getObjectByName('leg-right')!.rotation.x;
-    expect(Math.abs(left)).toBeGreaterThan(0.02);
-    // Gegenläufig: Das eine Bein geht vor, wenn das andere zurückgeht.
-    expect(left).toBeCloseTo(-right, 5);
-    body.dispose();
-  });
-
-  it('richtet die Ärmel auf die Hände', () => {
-    // Der Ärmel ist das, was Hand und Rumpf zusammengehören lässt. Zeigt er
-    // woanders hin, liegt der Figur die Hand nur daneben.
-    const body = new AvatarBody({ hands: true });
-    const far = { position: new THREE.Vector3(1.1, 1.3, -0.2) };
-    body.update(1 / 60, pose(1.6), null, far);
-    const sleeve = body.getObjectByName('sleeve-right')!;
-    const tip = new THREE.Vector3(0, 0, -1).applyQuaternion(sleeve.quaternion);
-    // Nach rechts (+x) und nicht nach links — mehr verlangt der Test nicht,
-    // weil dem Ärmel bewusst ein Stück Richtung nach außen beigemischt ist.
-    expect(tip.x).toBeGreaterThan(0.3);
+    expect(rolled).toBeGreaterThan(0.01);
+    expect(squashed).toBeLessThan(0.995);
+    // Nach vorn geneigt, nicht nach hinten.
+    expect(shape.rotation.x).toBeLessThan(-0.01);
     body.dispose();
   });
 
@@ -135,13 +142,17 @@ describe('die Figur', () => {
     // deshalb ein Fenster und keine Gleichheit.
     expect(width).toBeGreaterThan(BODY_RADIUS * 2 - 0.02);
     expect(width).toBeLessThanOrEqual(BODY_RADIUS * 2 + EPSILON);
-    expect(width).toBeGreaterThan(0.75);
-    // **Der Kopf ist über die Hälfte so breit wie die Jacke**, und oben kragt
-    // er über sie hinaus: Genau diese Einschnürung an der Schulter macht die
-    // Vorbilder aus. Ein Kopf, der schmaler ist als der Kragen, versinkt
-    // darin — so sah die erste Fassung von oben aus wie ein Kegel mit Knauf.
-    expect(HEAD_RADIUS * 2).toBeGreaterThan(width * 0.5);
-    expect(box.max.x * HEM).toBeLessThan(HEAD_RADIUS);
+    expect(width).toBeGreaterThan(0.7);
+    // **Das eigentliche Maß dieses Stils**: Der Kopf ist fast so breit wie
+    // die Jacke. An den Vorbildern sind es 91 %, hier 86 % — und in der
+    // ersten Fassung waren es 55 %, weshalb sie von oben aussah wie ein Knauf
+    // auf einem Kegel. Wer den Rumpf breiter macht, ohne den Kopf mitzunehmen,
+    // dreht genau das wieder zurück.
+    expect(HEAD_RADIUS * 2).toBeGreaterThan(width * 0.8);
+    expect(HEAD_RADIUS * 2).toBeLessThan(width);
+    // Und oben kragt er über die Schulter hinaus — die Einschnürung, an der
+    // das Auge die Figur wiedererkennt.
+    expect(HEAD_RADIUS).toBeGreaterThan(bodyRadius(0.95) * 1.2);
     body.dispose();
   });
 
@@ -181,12 +192,17 @@ describe('die Figur', () => {
     expect(right.visible).toBe(false);
     // Seitlich weit genug, dass sie von schräg oben neben dem 84 cm breiten
     // Rumpf vorbeischauen …
-    expect(left.position.x).toBeLessThan(-BODY_RADIUS * 0.9);
-    expect(right.position.x).toBeGreaterThan(BODY_RADIUS * 0.9);
-    // … und **vor** ihm, nicht neben ihm: −z ist vorn, der Rumpf steht bei
-    // z = 0 plus dem Versatz des Nackens.
+    // **Mit Lücke**: Die Hand steht weiter außen als der Rumpf an ihrer Höhe
+    // — bei den Vorbildern ist zwischen beiden nachgemessen Luft, und das ist
+    // neben der Mütze ihr unverwechselbarstes Merkmal. Ein Zwischenstand
+    // hatte Ärmelstummel, die genau diese Lücke schlossen.
+    const shoulder = bodyRadius(0.6);
+    expect(left.position.x).toBeLessThan(-shoulder);
+    expect(right.position.x).toBeGreaterThan(shoulder);
+    // … und ein Stück **vor** ihm: −z ist vorn, der Rumpf steht bei z = 0
+    // plus dem Versatz des Nackens.
     const torso = torsoOf(body).position.z;
-    for (const hand of [left, right]) expect(hand.position.z).toBeLessThan(torso - 0.12);
+    for (const hand of [left, right]) expect(hand.position.z).toBeLessThan(torso - 0.01);
     // Auf Bauchhöhe, nicht am Boden und nicht am Kinn.
     for (const hand of [left, right]) {
       expect(hand.position.y).toBeGreaterThan(0.55);

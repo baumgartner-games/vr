@@ -194,17 +194,17 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
         new THREE.CylinderGeometry(around(0.9), around(0.94), r(0.32), 26),
         dark,
       );
-      headband.position.y = r(0.64);
+      headband.position.y = r(0.66);
       toque.add(headband);
 
       // Der Rand der Mütze liegt auf dem Band auf — und ist **schmaler als
       // die Haube darüber**. Dieser Überhang mit dem Schatten darunter ist
       // das, woran man eine Kochmütze auch als Scherenschnitt erkennt.
       const brim = new THREE.Mesh(
-        new THREE.CylinderGeometry(around(0.95), around(0.92), r(0.3), 28),
+        new THREE.CylinderGeometry(around(0.95), around(0.92), r(0.42), 28),
         linen,
       );
-      brim.position.y = r(0.95);
+      brim.position.y = r(1.03);
       toque.add(brim);
 
       // **Die Haube aus Lappen.** Fünf Kugeln im Kreis plus eine in der Mitte,
@@ -215,13 +215,13 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
       for (let i = 0; i < lobes; i++) {
         const angle = (i / lobes) * Math.PI * 2 + Math.PI / lobes;
         const lobe = new THREE.Mesh(new THREE.SphereGeometry(r(0.6), 16, 12), linen);
-        lobe.position.set(Math.sin(angle) * around(0.6), r(1.46), Math.cos(angle) * around(0.6));
+        lobe.position.set(Math.sin(angle) * around(0.62), r(1.68), Math.cos(angle) * around(0.62));
         lobe.scale.set(1.02, 1.2, 1.02);
         toque.add(lobe);
       }
       const crown = new THREE.Mesh(new THREE.SphereGeometry(r(0.76), 20, 14), linen);
       crown.scale.set(1.0, 0.9, 1.0);
-      crown.position.y = r(1.62);
+      crown.position.y = r(1.86);
       toque.add(crown);
       break;
     }

@@ -55,7 +55,7 @@ const head = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion()
 /**
  * `?hat=chef` zeigt alle Sorten mit derselben Mütze (die Vorgabe, weil es um
  * die Figur geht), `?hat=all` geht das Hutregal durch, `?walk=1` lässt sie
- * laufen — daran sieht man Beine und Ärmel in Bewegung.
+ * laufen — daran sieht man das Watscheln.
  */
 const params = new URLSearchParams(location.search);
 const hatChoice = params.get('hat') ?? 'chef';
@@ -79,7 +79,7 @@ for (let i = 0; i < count; i++) {
 }
 
 // Im Stand genügt ein Bild; zum Laufen werden ein paar Schritte vorgespult,
-// damit die Beine mitten im Schritt stehen und nicht am Anfang.
+// damit das Watscheln mitten im Takt steht und nicht am Anfang.
 const steps = walking ? 40 : 1;
 for (let step = 0; step < steps; step++) {
   for (const body of bodies) {

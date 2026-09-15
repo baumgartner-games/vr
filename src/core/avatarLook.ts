@@ -29,15 +29,17 @@ import { CHEF, cloth, hair, skin, squarish, squarishReach, trim, trousers } from
  * Koch aus Overcooked ist kein Mensch in klein, sondern ein Kopf mit einem
  * Bauch darunter. Ø 32 cm sahen von oben aus wie ein Knauf auf einer Säule.
  */
-export const HEAD_RADIUS = 0.26;
+export const HEAD_RADIUS = 0.32;
 
 /**
  * Wie eckig der Kopf ist (`chefStyle.squarish`): 0 wäre eine Kugel, 1 ein
- * Würfel. An den Vorbildern sind es weiche Kanten mit einem Eckenradius von
- * gut einem Fünftel der Kantenlänge — hier also ein gutes halbes Stück auf
- * dem Weg zum Würfel, nicht mehr.
+ * Würfel. An den Vorbildern ist der Kopf über 60 % seiner Höhe **fast gleich
+ * breit** und hat vorn eine flache Fläche für das Gesicht — das ist eine
+ * gefaste Kiste mit einem Eckenradius um ein Fünftel der Kante, und nicht
+ * annähernd eine Kugel. Eine der Figuren im Spiel trägt buchstäblich einen
+ * Pappkarton als Kopf und fällt damit nicht aus der Reihe.
  */
-export const HEAD_BOX = 0.5;
+export const HEAD_BOX = 0.58;
 
 /**
  * **Wie viel breiter die gefaste Kiste an ihrer Ecke ist als eine Kugel**
@@ -46,7 +48,7 @@ export const HEAD_BOX = 0.5;
  * Genau daran scheiterte beim Umbau jeder Hut, der den Kopf **umfasst**: Eine
  * Mütze, deren Halbmesser aus `HEAD_RADIUS` kommt, liegt vorn und seitlich
  * an — und lässt an den vier Ecken dazwischen die Haut durchblitzen, weil der
- * Kopf dort ein Fünftel weiter hinausreicht. Die Zahl wird deshalb
+ * Kopf dort ein Viertel weiter hinausreicht. Die Zahl wird deshalb
  * **ausgerechnet** und nicht geraten: Sie ist die Reichweite in Richtung der
  * waagerechten Diagonale, und sie geht von selbst mit, wenn jemand `HEAD_BOX`
  * ändert.
@@ -54,58 +56,50 @@ export const HEAD_BOX = 0.5;
 export const HEAD_SPREAD = squarishReach(new THREE.Vector3(1, 0, 1).normalize(), HEAD_BOX);
 
 /**
- * Halbmesser des Rumpfes an seiner dicksten Stelle (Ø 84 cm) — knapp über der
- * Mitte, denn dort sitzt bei diesen Figuren das Volumen.
+ * Halbmesser des Rumpfes an seiner dicksten Stelle (Ø 74 cm).
  *
- * Die Höhe der Figur ist **vorgegeben**: Der Kopf steht, wo die Augen des
- * Spielers stehen, sonst sehen sich zwei Leute in der Brille nicht in die
- * Augen. Gedrungen wird sie deshalb über die **Breite** und darüber, wo das
- * Volumen liegt — viel oben, wenig unten, wie ein Ei mit der dicken Seite oben.
- */
-export const BODY_RADIUS = 0.425;
-
-/**
- * Halbmesser der Hand (Ø 19 cm) — das Maß, an dem alles an ihr hängt, auch
- * wenn eine Hand längst keine Kugel mehr ist (`buildHand`). Sie ist gut ein
- * Drittel so breit wie der Kopf; bei den Vorbildern ist sie das auch, und
- * kleiner verschwindet sie aus 16 m Höhe.
- */
-export const HAND_RADIUS = 0.095;
-
-/**
- * **Wo der Rumpf aufhört und die Beine anfangen**, als Anteil der Rumpfhöhe.
+ * **Diese Zahl ist kleiner geworden, und das ist der Umbau.** Vorher war der
+ * Rumpf 84 cm breit und der Kopf 46 — der Kopf maß also 55 % der Rumpfbreite,
+ * und von schräg oben las sich das als Knauf auf einem Kegel. Nachgemessen ist
+ * der Kopf an den Vorbildern **fast so breit wie der Rumpf** (1,04 zu 1,14,
+ * also 91 %). Hier sind es 64 zu 74 cm, und damit 86 %.
  *
- * Das ist die Zahl, die aus der Kegelfigur einen Koch macht. Vorher ging eine
- * einzige Drehform vom Boden bis unter den Kopf: von schräg oben ein Ei mit
- * einem Knauf darauf, und beim Laufen bewegte sich daran gar nichts. Jetzt
- * endet die Jacke hier, und darunter stehen zwei karierte Beine in Schuhen —
- * die man aus 16 m Höhe zwar kaum einzeln sieht, deren **Bewegung** man aber
- * sofort sieht. Eine Figur, die läuft, ohne dass sich etwas an ihr bewegt,
- * rutscht über den Boden.
+ * Es ist also nicht der Rumpf, der die Figur gedrungen macht, sondern der
+ * **Kopf, der ihn oben fast einholt** — und über der Schulter sogar überkragt.
+ * Genau diese Einschnürung erkennt das Auge wieder.
  */
-export const HEM = 0.3;
-
-/** Halbmesser eines Beins — ein Hosenbein, kein Stock. */
-const LEG_RADIUS = 0.105;
-
-/** Wie weit die Beine auseinanderstehen, von der Mitte aus. */
-const LEG_SIDE = 0.14;
+export const BODY_RADIUS = 0.37;
 
 /**
- * Wie flach der Schuh ist und wie weit er dadurch unter das Ende des Beins
- * reicht — die Zahl, mit der die **Sohle auf dem Boden** steht statt einen
- * Zentimeter darunter. Sie fällt aus den Maßen des Schuhs heraus und wird
- * deshalb daraus gerechnet und nicht daneben geschrieben.
+ * Halbmesser der Hand (Ø 19 cm) — das Maß, an dem alles an ihr hängt.
+ *
+ * Nachgemessen ist eine Hand dort **0,23 Kopfhöhen breit und 0,46 lang**: ein
+ * großes, längliches Ding, kein Knubbel. `buildHand` zieht die Kugel deshalb
+ * entlang ihrer Achse auf gut das Anderthalbfache.
  */
-const SHOE_SQUASH = 0.6;
-const SHOE_DROP = LEG_RADIUS * 1.12 * SHOE_SQUASH;
+export const HAND_RADIUS = 0.115;
 
-/** Der Ärmelstummel an der Schulter: Halbmesser und Länge in Metern. */
-const SLEEVE_RADIUS = 0.088;
-const SLEEVE_LENGTH = 0.14;
-
-/** Auf welcher Höhe das Schürzenband liegt, als Anteil der Rumpfhöhe. */
-const APRON_TIE = 0.78;
+/**
+ * **Wo die Hose anfängt**, als Anteil der Rumpfhöhe — und damit die Naht, an
+ * der die Figur überhaupt in zwei Teile zerfällt.
+ *
+ * Die Vorbilder haben **keine Beine**: Ihr Kochkaro ist eine Textur auf dem
+ * untersten Achtel des Rumpfes, und darunter schließt der Rumpf als Kuppel
+ * auf dem Boden ab. Ein Zwischenstand dieses Umbaus hatte zwei karierte Beine
+ * mit Schuhen darunter; das las sich zwar als Koch, war aber nicht der Stil,
+ * den es zu treffen galt — und Füße wollte an dieser Figur ausdrücklich
+ * niemand.
+ *
+ * Hier ist der Anteil größer als das Achtel der Vorbilder, und das hat einen
+ * Grund: Der Kopf steht auf **Augenhöhe des Spielers**, sonst sehen sich zwei
+ * Leute in der Brille nicht in die Augen — die Figur ist damit gut doppelt so
+ * hoch wie ein Overcooked-Koch, und diese Höhe muss irgendwohin. Sie geht in
+ * die Hose: Die **Jacke** darüber behält damit ihr gedrungenes Maß (gut
+ * breiter als hoch), und was darunter übrig bleibt, ist dunkel und tritt
+ * zurück. Ein Rumpf, der die ganze Höhe als Jacke nimmt, ist wieder der
+ * Kegel, mit dem das hier angefangen hat.
+ */
+export const HEM = 0.28;
 
 // --- Köpfe -----------------------------------------------------------------
 
@@ -210,10 +204,6 @@ export function nextBody(kind: BodyKind): BodyKind {
  * Mittelpunkt. Augen und Nase sitzen dadurch von selbst auf der Rundung, statt
  * aus drei geratenen Zahlen zu bestehen, die beim nächsten Kopfmaß danebenliegen.
  */
-const _reach = new THREE.Vector3();
-/** Die Achse, entlang der ein Ärmel gebaut ist — siehe `setArms`. */
-const _back = new THREE.Vector3(0, 0, -1);
-
 function onHead(x: number, y: number, z: number, distance: number): THREE.Vector3 {
   const direction = new THREE.Vector3(x, y, z).normalize();
   // Der Abstand rechnet gegen **die Oberfläche der gefasten Kiste**, nicht
@@ -438,8 +428,9 @@ function whiskers(material: THREE.Material): THREE.Mesh[] {
 }
 
 /**
- * Der Rumpf, wie ihn `AvatarBody` bewegt: eine Gruppe plus die eine Sache, die
- * sich an ihm jedes Bild ändert.
+ * Der Rumpf, wie ihn `AvatarBody` bewegt: eine Gruppe plus das, was sich an
+ * ihm jedes Bild ändert. **Nichts davon baut Geometrie** — es sind `scale`,
+ * `position` und `rotation`, sonst läge je Bild ein Netz für den Sammler da.
  */
 export interface BodyShape {
   group: THREE.Group;
@@ -450,103 +441,108 @@ export interface BodyShape {
    */
   setHeight(height: number): void;
   /**
-   * **Der Schritt** — `phase` läuft im Bogenmaß durch, `amount` ist 0 im
-   * Stehen und 1 im vollen Lauf. Die beiden Beine schwingen gegeneinander.
+   * **Das Watscheln** — `phase` läuft im Bogenmaß durch, `amount` ist 0 im
+   * Stehen und 1 im vollen Lauf.
+   *
+   * Eine Figur ohne Beine kann nicht schreiten, also wippt sie: Der Rumpf hebt
+   * und staucht sich im Takt, rollt dazu seitlich und legt sich ein Stück in
+   * die Laufrichtung. Das ist keine Notlösung, sondern genau das, was die
+   * Vorbilder tun — und es ist der Unterschied zwischen einer Figur, die geht,
+   * und einer, die über den Boden rutscht.
    */
   setStride(phase: number, amount: number): void;
-  /**
-   * **Die Ärmel zeigen auf die Hände.** `left` und `right` sind die
-   * Handpositionen im Raum des Rumpfes — also schon gedreht und verschoben,
-   * so wie `AvatarBody` sie ausrechnet.
-   *
-   * Das ist der Grund, warum die Figur überhaupt Ärmel hat: Zwei Hände, die
-   * frei vor dem Bauch schweben, und zwei Stummel, die starr an der Schulter
-   * hängen, waren vier Teile, die nichts miteinander zu tun hatten — man sah
-   * eine Figur, der jemand die Hände danebengelegt hat. Ein Ärmel, der auf
-   * seine Hand **zeigt** und sich bis zu ihr streckt, schließt die Lücke,
-   * ohne dass daraus ein Skelett mit zwei Gelenken wird, dessen Ellbogen man
-   * nur falsch raten kann.
-   */
-  setArms(left: THREE.Vector3, right: THREE.Vector3): void;
 }
 
 /**
- * **Die Kartoffel** — die Drehform des Rumpfes als Halbmesser in Metern über
- * einer Höhe von 0 bis 1.
+ * **Die Drehform des Rumpfes** als Halbmesser in Metern über einer Höhe von
+ * 0 bis 1.
  *
  * Der Halbmesser ist absolut, die Höhe ein **Anteil**: Gebaut wird die Form
  * einmal und dann nur in y gestreckt (`setHeight`), damit Ducken den Rumpf
  * staucht, ohne ihn dünn zu machen — und ohne je Bild eine Geometrie für den
  * Sammler zu hinterlassen.
  *
- * Die Kurve macht die Figur **gedrungen**, obwohl ihre Höhe feststeht: unten
- * rund und schmal (Ø 56 cm), ab einem Drittel schnell ausladend, am dicksten
- * knapp über der Mitte (Ø 84 cm), darüber zum Kopf hin auf Ø 51 cm eingezogen
- * und über 1,0 zu einer Schulter geschlossen, in der der Kopf sitzt. Das ist
- * ein Ei mit der dicken Seite oben: Wo das Volumen liegt, sieht das Auge die
- * Masse, und der schlanke Fuß darunter liest sich als kurzer Rock, nicht als
- * Säule.
+ * Die Kurve ist an den Vorbildern **abgemessen** und nicht erfunden: ein
+ * unten schweres Ei, das an seiner breitesten Stelle bei knapp der Hälfte
+ * steht, nach oben zur Schulter auf gut die Hälfte einzieht und unten als
+ * **geschlossene Kuppel auf dem Boden** aufsitzt. Keine Beine, keine Füße,
+ * kein Ausschnitt — die untere Silhouette ist eine durchgehende Rundung, und
+ * das ist eines der fünf Dinge, an denen man diese Figuren erkennt.
+ *
+ * Die Zahlen sind Anteile von `BODY_RADIUS`, damit eine breitere Figur nicht
+ * zwanzig Zeilen Handarbeit bedeutet.
  */
-const BARREL: ReadonlyArray<readonly [number, number]> = [
-  // Der Saum: von innen nach außen um die Kante herum. Ein Rock hat unten eine
-  // **Lippe** und keine Schnittfläche — man sieht von schräg unten hinein,
-  // sobald die Figur auf einer Stufe steht.
-  [0.0, HEM - 0.045],
-  [0.22, HEM - 0.042],
-  [0.33, HEM - 0.03],
-  [0.385, HEM - 0.012],
-  [0.408, HEM],
-  // Von hier an nach oben: die breiteste Stelle liegt **unten**, nicht in der
-  // Mitte. Das ist der Unterschied zwischen einem Rock und einem Bauch, und
-  // die Vorbilder tragen einen Rock.
-  [BODY_RADIUS, HEM + 0.04],
-  [0.421, 0.42],
-  [0.409, 0.52],
-  [0.392, 0.61],
-  [0.369, 0.69],
-  [0.341, 0.765],
-  [0.309, 0.83],
-  [0.278, 0.88],
-  // Die Schulter: hier hört die Jacke auf, in sie zu passen, und wird zum
-  // Kragen. Schmal genug, dass der Kopf darüber **steht** und nicht darin
-  // steckt — das war der Fehler der alten Kurve.
-  [0.246, 0.925],
-  [0.214, 0.962],
-  [0.192, 0.985],
-  [0.166, 1.0],
-  [0.108, 1.012],
-  [0.0, 1.018],
-];
+const BARREL: ReadonlyArray<readonly [number, number]> = (
+  [
+    // **Die Hose**: ein schlanker Schlauch, unten als Kuppel geschlossen.
+    // Keine zwei Beine, kein Ausschnitt, keine Füße — die untere Silhouette
+    // ist eine durchgehende Rundung, und das ist eines der fünf Dinge, an
+    // denen man diese Figuren erkennt.
+    [0.0, 0.0],
+    [0.36, 0.01],
+    [0.6, 0.026],
+    [0.73, 0.05],
+    [0.79, 0.082],
+    [0.8, 0.13],
+    [0.795, 0.2],
+    [0.785, 0.25],
+    [0.775, HEM - 0.005],
+    // **Der Saum der Jacke** springt darüber heraus: Auf zwei Zentimetern
+    // Höhe verdoppelt sich der Halbmesser. Das ist die Taille, und ohne sie
+    // ist die Figur ein glattes Ei mit einem karierten Boden — genau das war
+    // der Zwischenstand, und es sah aus wie eine Matrjoschka.
+    [0.95, HEM],
+    [0.99, HEM + 0.04],
+    // Von hier an die Jacke: unten am breitesten, nach oben zur Schulter
+    // eingezogen.
+    [1.0, 0.5],
+    [0.99, 0.64],
+    [0.96, 0.72],
+    [0.915, 0.79],
+    [0.85, 0.855],
+    // Die Schulter: hier hört die Jacke auf, in sie zu passen, und wird zum
+    // Kragen. Schmal genug, dass der Kopf darüber **steht** und seitlich
+    // darüber hinauskragt — diese Einschnürung macht die Vorbilder aus.
+    [0.76, 0.905],
+    [0.64, 0.95],
+    [0.53, 0.978],
+    [0.38, 0.995],
+    [0.0, 1.0],
+  ] as ReadonlyArray<readonly [number, number]>
+).map(([share, y]) => [share * BODY_RADIUS, y] as const);
+
+/** Von wo bis wo die Knopfleiste reicht, als Anteil der Rumpfhöhe. */
+const PLACKET_BOTTOM = HEM + 0.08;
+const PLACKET_TOP = 0.9;
+
+/**
+ * Wie weit die weiße Blende um den Rumpf greift, im Bogenmaß — **unten** und
+ * **oben**.
+ *
+ * Zwei Zahlen und nicht eine: Bei den Vorbildern ist die Blende ein
+ * **Trapez**, oben schmaler als unten, und diese schräge Kante ist die
+ * Revers-Linie einer doppelreihigen Kochjacke. Ein Streifen mit parallelen
+ * Kanten sieht aus, als hätte jemand Papier auf den Bauch geklebt — das war
+ * der Zwischenstand, und von der Seite sah man es sofort.
+ */
+const PLACKET_WIDE = 2.0;
+const PLACKET_NARROW = 1.25;
+
+/** Auf welcher Höhe der Wulst des Halstuchs liegt, als Anteil der Rumpfhöhe. */
+const COLLAR = 0.955;
+
+/** Und auf welcher das Schürzenband quer über die Blende läuft. */
+const APRON_TIE = 0.56;
 
 /**
  * Wie dick der Rumpf auf der Höhe `fraction` ist, in Metern — zwischen den
  * Stützstellen linear.
  *
- * Alles, was sich an den Rumpf anlegt (Schürze, Knöpfe, Ringe, Halstuch),
+ * Alles, was sich an den Rumpf anlegt (Blende, Knöpfe, Ringe, Halstuch),
  * fragt hier statt eine Zahl zu raten. Sonst schwebt beim nächsten Umbau der
  * Kurve ein Knopf vor dem Bauch oder steckt darin.
  */
-/** Von wo bis wo die Schürze reicht, als Anteil der Rumpfhöhe. */
-const APRON_BOTTOM = HEM + 0.015;
-const APRON_TOP = 0.84;
-
-/**
- * Wie weit die Schürze um den Rumpf greift, im Bogenmaß. 1,45 rad sind gut 83°
- * — an der dicksten Stelle also gut 53 cm Stoff vorn: breit genug, dass man
- * sie aus 16 m Höhe als Schürze und nicht als Streifen sieht, schmal genug,
- * dass links und rechts die Jacke stehen bleibt. Eine Schürze, die um den
- * halben Rumpf geht, ist keine Schürze mehr, sondern die Jacke in einer
- * zweiten Farbe.
- */
-const APRON_WIDTH = 2.5;
-
-/** Auf welcher Höhe der Wulst des Halstuchs liegt, als Anteil der Rumpfhöhe. */
-const COLLAR = 0.94;
-
-/** Wo die Ärmel ansetzen — knapp unter dem Kragen, also an der Schulter. */
-const SHOULDER = 0.85;
-
-function barrelRadius(fraction: number): number {
+export function bodyRadius(fraction: number): number {
   const first = BARREL[0]!;
   if (fraction <= first[1]) return first[0];
   for (let i = 1; i < BARREL.length; i++) {
@@ -561,178 +557,210 @@ function barrelRadius(fraction: number): number {
 }
 
 /**
- * **Der Rumpf** — Jacke, Schürze mit Knopfleiste, Halstuch, Ärmel und die
- * karierten Beine darunter.
+ * **Die Blende** — das weiße Trapez vorn auf der Jacke, als eigenes Netz.
+ *
+ * `LatheGeometry` kann das nicht: Sie dreht ein Profil um einen **festen**
+ * Winkel, und genau der soll hier mit der Höhe schmaler werden. Es sind
+ * dreißig Zeilen für ein Gitter aus Zeilen (Höhe) und Spalten (Winkel), bei
+ * dem die halbe Winkelbreite je Zeile interpoliert wird — und dafür bekommt
+ * die Figur die schräge Revers-Kante, die sie als Kochjacke lesbar macht.
+ *
+ * Die Höhen sind **Anteile**, die Halbmesser Meter: Damit wächst die Blende
+ * beim Ducken genauso mit wie die Jacke darunter, indem der Aufrufer sie in
+ * y skaliert.
+ */
+function placketGeometry(
+  bottom: number,
+  top: number,
+  wide: number,
+  narrow: number,
+  lift: number,
+): THREE.BufferGeometry {
+  const rows = 14;
+  const columns = 18;
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  for (let row = 0; row <= rows; row++) {
+    const t = row / rows;
+    const y = bottom + (top - bottom) * t;
+    // Die Kante läuft nicht gerade, sondern biegt sich: unten fast senkrecht,
+    // oben schnell einwärts — so fällt Stoff, und so sitzt ein Revers.
+    const half = (wide + (narrow - wide) * t * t) / 2;
+    const radius = bodyRadius(y) * lift;
+    for (let column = 0; column <= columns; column++) {
+      // `phi` zählt wie bei `LatheGeometry` von +z (hinten) herum, die Mitte
+      // der Blende liegt also bei π — vorn.
+      const phi = Math.PI - half + (half * 2 * column) / columns;
+      positions.push(Math.sin(phi) * radius, y, Math.cos(phi) * radius);
+      uvs.push(column / columns, t);
+    }
+  }
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < columns; column++) {
+      const a = row * (columns + 1) + column;
+      const b = a + columns + 1;
+      // Gegen den Uhrzeigersinn von **außen** gesehen — andersherum zeigt
+      // die Fläche in den Bauch und wird weggeschnitten. Genau daran war
+      // die Blende beim ersten Versuch unsichtbar.
+      indices.push(a, a + 1, b, a + 1, b + 1, b);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
+ * **Der Rumpf** — Hose, Jacke, Blende mit doppelter Knopfreihe, Halstuch.
  *
  * Gebaut wird von unten nach oben, und jedes Stück fragt die Drehkurve nach
  * seinem Halbmesser, statt eine Zahl zu raten (`barrelRadius`). Wer die Kurve
- * ändert, verschiebt damit auch Knöpfe, Kragen und Ärmel — und findet keinen
+ * ändert, verschiebt damit auch Knöpfe, Kragen und Band — und findet keinen
  * Knopf, der vor dem Bauch schwebt.
  *
+ * **Keine Arme, keine Schultern, keine Ärmel.** Zwischen Rumpf und Hand ist
+ * bei diesen Figuren nichts — und zwar nachgemessen nichts: eine sichtbare
+ * Luftlücke. Ein Zwischenstand hatte Ärmelstummel, die auf ihre Hand zeigten;
+ * sie schlossen die Lücke, die den Stil ausmacht, und sahen von der Seite aus
+ * wie Knochen. `AvatarBody` hält die Hände deshalb auf Abstand
+ * (`HAND_GAP`), statt sie anzubinden.
+ *
  * @param suit Das Material der **Anzugfarbe der Rolle**. Es wird geteilt und
- *   nicht kopiert: Schürzenband, Halstuch und Ärmelaufschlag haben keine eigene
- *   Farbe, sie tragen die des Spielers, und ein Farbwechsel soll nicht den
- *   halben Körper neu bauen. Weggeworfen wird es deshalb auch nicht hier,
- *   sondern von dem, dem es gehört (`AvatarBody`).
+ *   nicht kopiert: Schürzenband und Halstuch haben keine eigene Farbe, sie
+ *   tragen die des Spielers, und ein Farbwechsel soll nicht den halben Körper
+ *   neu bauen. Weggeworfen wird es deshalb auch nicht hier, sondern von dem,
+ *   dem es gehört (`AvatarBody`).
  */
 export function buildBody(kind: BodyKind, suit: THREE.Material): BodyShape {
   const look = BODY_LOOKS[kind];
   const group = new THREE.Group();
   group.name = `avatar-torso-${kind}`;
-  const jacket = cloth(look.jacket);
+  const jacketCloth = cloth(look.jacket);
   const trimStuff = cloth(look.trim, 0.82);
-  const apronCloth = cloth(CHEF.apron);
-  const legCloth = trousers();
-  const shoeLeather = trim(CHEF.shoe, 0.55);
+  const placketCloth = cloth(CHEF.apron);
 
-  // --- Beine ---------------------------------------------------------------
-  // Zwei Beine, die unter dem Saum hervorschauen, und zwei Schuhe darunter.
-  // Sie hängen je in einer eigenen Gruppe, deren **Drehpunkt die Hüfte ist**:
-  // Ein Bein, das um seine Mitte schwingt, sieht aus, als würde es getreten.
-  const legs = [-1, 1].map((sign) => {
-    const hip = new THREE.Group();
-    hip.name = sign < 0 ? 'leg-left' : 'leg-right';
-    const shank = new THREE.Mesh(new THREE.CapsuleGeometry(LEG_RADIUS, 1, 6, 12), legCloth);
-    shank.frustumCulled = false;
-    const shoe = new THREE.Mesh(new THREE.SphereGeometry(LEG_RADIUS * 1.12, 14, 10), shoeLeather);
-    // Ein Schuh ist nach vorn gezogen und flach — eine Kugel darunter wäre ein
-    // Fuß aus einem Comic, und der Zeh sagt von oben, wohin die Figur zeigt.
-    shoe.scale.set(0.92, SHOE_SQUASH, 1.45);
-    shoe.position.z = -LEG_RADIUS * 0.45;
-    hip.add(shank, shoe);
-    group.add(hip);
-    return { hip, shank, shoe, sign };
-  });
+  // --- Hose ----------------------------------------------------------------
+  // **Unten ist die Figur kariert, und das ist keine Hose, sondern ein Stück
+  // derselben Drehform.** Zwei Netze auf einer Kurve: Was unterhalb des Saums
+  // liegt, trägt das Kochkaro, was darüber liegt, die Jacke. Die Silhouette
+  // bleibt eine einzige durchgehende Rundung — genau das ist der Punkt.
+  const trouserPoints = BARREL.filter(([, y]) => y <= HEM - 0.004).map(
+    ([r, y]) => new THREE.Vector2(r, y),
+  );
+  const checks = new THREE.Mesh(new THREE.LatheGeometry(trouserPoints, 32), trousers());
+  checks.name = 'avatar-trousers';
+  checks.frustumCulled = false;
+  group.add(checks);
 
   // --- Jacke ---------------------------------------------------------------
-  const points = BARREL.map(([r, y]) => new THREE.Vector2(r, y));
-  const shell = new THREE.Mesh(new THREE.LatheGeometry(points, 32), jacket);
-  // Die Jacke hat einen Namen, weil der Test ihre Breite misst: Der Rumpf als
-  // Ganzes trägt inzwischen Ärmel und Beine, und deren Spannweite ist eine
-  // andere Zahl als die des Stoffs, um den es dabei geht.
+  const jacketPoints = BARREL.filter(([, y]) => y >= HEM - 0.005).map(
+    ([r, y]) => new THREE.Vector2(r, y),
+  );
+  const shell = new THREE.Mesh(new THREE.LatheGeometry(jacketPoints, 32), jacketCloth);
+  // Die Jacke hat einen Namen, weil der Test ihre Breite misst: Sie ist das
+  // Stück, dessen Verhältnis zum Kopf über den ganzen Stil entscheidet.
   shell.name = 'avatar-coat';
   shell.frustumCulled = false;
   group.add(shell);
 
-  // **Die Schürze ist dieselbe Drehform**, nur ein Stück davon und minimal
-  // weiter außen: ein Quader vorn stünde an dieser Glocke unten in der Luft und
-  // oben im Bauch. So legt sie sich bei jeder Rumpfhöhe an, weil sie mit
-  // demselben Faktor mitwächst. `phiStart` zählt von +z (hinten) herum, also
-  // liegt die Mitte der Schürze bei π — vorn.
-  const apronPoints = BARREL.filter(([, y]) => y >= APRON_BOTTOM && y <= APRON_TOP).map(
-    ([r, y]) => new THREE.Vector2(r * 1.008, y),
+  // Der **Saum** der Jacke als eigener Wulst: Ohne ihn stoßen Karo und Weiß
+  // auf einer mathematisch exakten Linie aneinander, und genau das sieht
+  // gemacht aus. Ein Stück Stoff hat unten eine Kante.
+  const hemRadius = bodyRadius(HEM + 0.02);
+  const hemRing = new THREE.Mesh(
+    new THREE.TorusGeometry(hemRadius * 0.99, 0.026, 8, 30),
+    jacketCloth,
   );
-  const apron = new THREE.Mesh(
-    new THREE.LatheGeometry(apronPoints, 20, Math.PI - APRON_WIDTH / 2, APRON_WIDTH),
-    apronCloth,
-  );
-  apron.frustumCulled = false;
-  group.add(apron);
+  hemRing.rotation.x = Math.PI / 2;
+  group.add(hemRing);
 
-  // Das **Schürzenband** in der Farbe der Rolle: ein Streifen quer über die
-  // Schürze, dort wo sie gebunden wäre. Er ist der Grund, warum man aus 16 m
-  // Höhe sieht, welche Farbe jemand hat, obwohl die Schürze weiß ist — eine
-  // weiße Fläche mit einem farbigen Gurt liest sich schneller als eine
-  // farbige Fläche neben einer weißen.
-  const sashPoints = BARREL.filter(([, y]) => y >= APRON_TIE - 0.055 && y <= APRON_TIE + 0.055).map(
-    ([r, y]) => new THREE.Vector2(r * 1.024, y),
+  // --- Blende --------------------------------------------------------------
+  const placket = new THREE.Mesh(
+    placketGeometry(HEM + 0.055, 0.93, PLACKET_WIDE, PLACKET_NARROW, 1.014),
+    placketCloth,
   );
-  const sash =
-    sashPoints.length >= 2
-      ? new THREE.Mesh(
-          new THREE.LatheGeometry(sashPoints, 20, Math.PI - APRON_WIDTH / 2, APRON_WIDTH),
-          suit,
-        )
-      : null;
-  if (sash) {
-    sash.frustumCulled = false;
-    group.add(sash);
+  placket.name = 'avatar-placket';
+  placket.frustumCulled = false;
+  group.add(placket);
+
+  // **Vier Knöpfe in zwei Spalten**, und die Spalten sind gegeneinander
+  // versetzt. Das ist keine Verzierung: Eine Kochjacke ist **doppelreihig**,
+  // und drei Knöpfe in einer Reihe in der Mitte waren ein Hemd. Wie weit vorn
+  // ein Knopf steht, sagt die Kurve.
+  const buttonStuff = trim(CHEF.button, 0.45);
+  const buttons: Array<{ button: THREE.Mesh; fraction: number }> = [];
+  for (const side of [-1, 1] as const) {
+    for (let i = 0; i < 2; i++) {
+      const fraction =
+        PLACKET_BOTTOM +
+        (PLACKET_TOP - PLACKET_BOTTOM) * (i === 0 ? 0.34 : 0.72) +
+        (side < 0 ? 0.012 : 0);
+      const button = new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 10), buttonStuff);
+      button.scale.set(1, 1, 0.45);
+      const radius = bodyRadius(fraction) * 1.012;
+      // Die Spalten sitzen auf dem Bogen der Blende und nicht auf einer
+      // geraden Linie — der Rumpf ist rund, ein Knopf liegt ihm an.
+      const phi = Math.PI + side * 0.28;
+      button.position.set(Math.sin(phi) * radius, 0, Math.cos(phi) * radius);
+      buttons.push({ button, fraction });
+      group.add(button);
+    }
   }
 
-  // Die Knopfleiste sitzt auf der Schürze. Schwarz und nicht in der Farbe der
-  // Jacke: Bei den Vorbildern sind es drei dunkle Punkte auf Weiß, und drei
-  // dunkle Punkte sind aus jeder Entfernung drei dunkle Punkte.
-  const buttonStuff = trim(CHEF.button, 0.45);
-  const buttons = [0.44, 0.56, 0.68].map((fraction) => {
-    const button = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.018, 14), buttonStuff);
-    button.rotation.x = Math.PI / 2;
-    button.position.z = -(barrelRadius(fraction) * 1.008 + 0.012);
-    return { button, fraction };
-  });
-  for (const { button } of buttons) group.add(button);
-
-  // --- Ärmel ---------------------------------------------------------------
-  // **Kurze Stummel und keine Arme.** Die Hände dieser Figur folgen dem, was
-  // die Brille trackt, und liegen dabei überall — ein Unterarm dazwischen wäre
-  // eine Kette aus zwei Gelenken, die man nur falsch lösen kann. Ein Stummel an
-  // der Schulter macht dagegen genau das, was der Silhouette fehlt: Schultern.
-  // Die Vorbilder haben auch kaum mehr als das.
-  const sleeves = [-1, 1].map((sign) => {
-    const pivot = new THREE.Group();
-    pivot.name = sign < 0 ? 'sleeve-left' : 'sleeve-right';
-    // Der Ärmel ist **entlang −z** gebaut und wird von `setArms` dorthin
-    // gedreht, wo die Hand ist. Drei Teile, und jedes aus einem Grund:
-    //
-    // - Die **Schulterkugel** sitzt fest am Rumpf und wird nie gestreckt. Sie
-    //   ist das runde Stück, das aus der Jacke herauswächst.
-    // - Das **Rohr** dazwischen ist das einzige, was sich in der Länge ändert.
-    //   Eine Kapsel wäre hier falsch: Streckt man sie, werden ihre Kuppen zu
-    //   flachen Scheiben, und man sieht dem Ärmel in die offene Röhre.
-    // - Der **Aufschlag** am Ende ist wieder eine Kugel — er schließt das Rohr
-    //   und trägt die Farbe der Rolle, wie Halstuch und Schürzenband.
-    const deltoid = new THREE.Mesh(new THREE.SphereGeometry(SLEEVE_RADIUS * 1.08, 14, 10), jacket);
-    const upper = new THREE.Mesh(
-      new THREE.CylinderGeometry(SLEEVE_RADIUS, SLEEVE_RADIUS * 0.84, 1, 14),
-      jacket,
-    );
-    upper.rotation.x = Math.PI / 2;
-    upper.frustumCulled = false;
-    const cuff = new THREE.Mesh(new THREE.SphereGeometry(SLEEVE_RADIUS * 0.86, 14, 10), suit);
-    cuff.scale.set(1, 1, 0.72);
-    pivot.add(deltoid, upper, cuff);
-    group.add(pivot);
-    return { pivot, upper, cuff, sign };
-  });
+  // Das **Schürzenband** in der Farbe der Rolle: ein Streifen quer über die
+  // Blende. Er ist der Grund, warum man aus 16 m Höhe sieht, welche Farbe
+  // jemand hat, obwohl die Blende weiß ist — eine weiße Fläche mit einem
+  // farbigen Gurt liest sich schneller als eine farbige Fläche neben einer
+  // weißen.
+  const sash = new THREE.Mesh(
+    placketGeometry(
+      APRON_TIE - 0.028,
+      APRON_TIE + 0.028,
+      PLACKET_WIDE * 0.92,
+      PLACKET_WIDE * 0.92,
+      1.024,
+    ),
+    suit,
+  );
+  sash.frustumCulled = false;
+  group.add(sash);
 
   // --- Halstuch ------------------------------------------------------------
   // **Das Halstuch ist ein Wulst mit Knoten**, kein Kragen: ein Ring unter dem
   // Kopf und davor der Knoten mit zwei Zipfeln. Er ist das, was den Kopf
   // aufsitzen lässt, statt ihn auf einem Hals schweben zu lassen — einen Hals
   // hat diese Figur nicht.
-  const collarRadius = barrelRadius(COLLAR) + 0.008;
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(collarRadius, 0.031, 10, 28), suit);
+  const collarRadius = bodyRadius(COLLAR) + 0.01;
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(collarRadius, 0.032, 10, 28), suit);
   collar.rotation.x = Math.PI / 2;
-  const knot = new THREE.Mesh(new THREE.SphereGeometry(0.052, 14, 10), suit);
+  const knot = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 10), suit);
   knot.scale.set(1.15, 1, 0.9);
-  knot.position.z = -(collarRadius + 0.022);
-  // Zwei Zipfel, die unter dem Knoten auf die Schürze fallen — das Stück, an
+  knot.position.z = -(collarRadius + 0.02);
+  // Zwei Zipfel, die unter dem Knoten auf die Blende fallen — das Stück, an
   // dem ein Halstuch als Tuch und nicht als Schlauch zu erkennen ist.
   const tails = [-1, 1].map((sign) => {
-    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.13, 10), suit);
-    tail.position.set(sign * 0.045, -0.06, -(collarRadius + 0.012));
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.038, 0.14, 10), suit);
+    tail.position.set(sign * 0.042, -0.07, -(collarRadius + 0.008));
     tail.rotation.set(-0.35, 0, sign * 0.3);
     return tail;
   });
   group.add(collar, knot, ...tails);
 
-  // Die Ringe der gestreiften Jacke laufen **nur um den Rücken** — vorn liegt
-  // die Schürze, und ein Ring, der durch sie hindurchschneidet, sieht aus wie
-  // ein Fehler und nicht wie ein Streifen. `thetaStart` zählt wie `phiStart`
-  // von +z (hinten) herum, und die Schürze liegt bei π — der Bogen fängt also
-  // an ihrer einen Kante an und hört an der anderen auf.
-  const backStart = Math.PI + APRON_WIDTH / 2;
-  const backSpan = Math.PI * 2 - APRON_WIDTH;
   const rings = look.stripes
-    ? [0.44, 0.6, 0.76].map((fraction) => {
-        // **Ein Zylinder wäre falsch.** Der Rumpf verjüngt sich, ein Zylinder
-        // nicht: Oben stünde der Ring in der Luft, unten steckte er im Stoff,
-        // und dazwischen fransen beide Flächen ineinander. Derselbe
-        // Drehkörper-Ausschnitt wie bei der Schürze legt sich dagegen an.
-        const band = [fraction - 0.03, fraction, fraction + 0.03].map(
-          (y) => new THREE.Vector2(barrelRadius(y) * 1.012, y),
+    ? [0.58, 0.74, 0.88].map((fraction) => {
+        // Nur um den Rücken: Vorn liegt die Blende, und ein Ring, der durch
+        // sie hindurchschneidet, sieht aus wie ein Fehler und nicht wie ein
+        // Streifen. Ein Zylinder wäre hier außerdem falsch — der Rumpf
+        // verjüngt sich, und derselbe Drehkörper-Ausschnitt legt sich an.
+        const band = [fraction - 0.028, fraction, fraction + 0.028].map(
+          (y) => new THREE.Vector2(bodyRadius(y) * 1.012, y),
         );
         const ring = new THREE.Mesh(
-          new THREE.LatheGeometry(band, 22, backStart, backSpan),
+          new THREE.LatheGeometry(band, 22, Math.PI + PLACKET_WIDE / 2, Math.PI * 2 - PLACKET_WIDE),
           trimStuff,
         );
         ring.frustumCulled = false;
@@ -741,105 +769,58 @@ export function buildBody(kind: BodyKind, suit: THREE.Material): BodyShape {
     : [];
   for (const { ring } of rings) group.add(ring);
 
-  /** Wie lang ein Bein bei dieser Rumpfhöhe ist, von der Hüfte bis zur Sohle. */
-  let legLength = 0;
-  let hipY = 0;
-  /** Auf welcher Höhe die Ärmel ansetzen — `setHeight` schreibt sie fort. */
-  let shoulderY = 0;
+  /** Die zuletzt gesetzte Rumpfhöhe — das Watscheln rechnet darauf. */
+  let standing = 1;
 
   return {
     group,
     setHeight(height: number): void {
-      shell.scale.set(1, height, 1);
-      // Dieselbe Streckung wie die Hülle — Schürze und Band sind ja ihre
-      // Ausschnitte.
-      apron.scale.set(1, height, 1);
-      sash?.scale.set(1, height, 1);
-      for (const { button, fraction } of buttons) button.position.y = height * fraction;
+      standing = height;
+      for (const mesh of [checks, shell, placket, sash]) mesh.scale.set(1, height, 1);
       for (const { ring } of rings) ring.scale.set(1, height, 1);
+      for (const { button, fraction } of buttons) button.position.y = height * fraction;
+      hemRing.position.y = height * HEM;
       collar.position.y = height * COLLAR;
       knot.position.y = height * COLLAR;
-      for (const tail of tails) tail.position.y = height * COLLAR - 0.06;
-
-      // Die Hüfte liegt **im** Rock, ein Stück über dem Saum: Ein Bein, das
-      // erst darunter anfängt, hat beim Ausschwingen oben eine Lücke.
-      hipY = height * (HEM + 0.06);
-      shoulderY = height * SHOULDER;
-      // **Die Sohle liegt auf dem Boden**, nicht die Beinmitte: Die Länge des
-      // Beins ist der Weg von der Hüfte bis dorthin, wo der Schuh gerade noch
-      // Platz hat. Die Kapsel ist um ihre Mitte gebaut und wird deshalb um die
-      // halbe Länge nach unten gerückt; der Schuh sitzt an ihrem Ende.
-      legLength = Math.max(hipY - SHOE_DROP, 0.05);
-      for (const { hip, shank, shoe, sign } of legs) {
-        hip.position.set(sign * LEG_SIDE, hipY, 0);
-        shank.scale.set(1, legLength, 1);
-        shank.position.y = -legLength / 2;
-        shoe.position.y = -legLength;
-      }
+      for (const tail of tails) tail.position.y = height * COLLAR - 0.07;
     },
     setStride(phase: number, amount: number): void {
-      // Volle Schrittweite sind gut 30° je Bein — mehr sieht aus wie Marschieren.
-      const swing = 0.54 * amount;
-      for (const { hip, sign } of legs) {
-        hip.rotation.x = Math.sin(phase + (sign < 0 ? 0 : Math.PI)) * swing;
-      }
-    },
-    setArms(left: THREE.Vector3, right: THREE.Vector3): void {
-      for (const { pivot, upper, cuff, sign } of sleeves) {
-        // Die Schulter sitzt dort, wo die Jacke an dieser Höhe dick ist —
-        // wieder aus der Kurve und nicht geraten.
-        pivot.position.set(
-          sign * barrelRadius(SHOULDER) * 0.92,
-          shoulderY,
-          -barrelRadius(SHOULDER) * 0.12,
-        );
-        const hand = sign < 0 ? left : right;
-        _reach.copy(hand).sub(pivot.position);
-        const distance = _reach.length();
-        if (distance < 1e-4) continue;
-        // **Nicht `lookAt`**: Das rechnet in Weltkoordinaten, und dieser Ärmel
-        // hängt in einem Rumpf, der sich dreht und verschiebt. Die Drehung
-        // wird deshalb direkt aus der Richtung gebaut — von der eigenen −z
-        // auf den Weg zur Hand.
-        _reach.divideScalar(distance);
-        // **Der Ärmel zeigt nicht ganz auf die Hand.** Hinge er stur an ihr,
-        // klebte er im Stand senkrecht am Rumpf und verschwände darin — und
-        // genau die Schulter, für die er da ist, sähe man nicht. Ein Viertel
-        // nach außen dazugemischt hält ihn immer ein Stück vom Körper weg,
-        // ohne dass er beim Greifen in die falsche Richtung zeigt.
-        _reach.x += sign * 0.3;
-        _reach.y += 0.04;
-        _reach.normalize();
-        pivot.quaternion.setFromUnitVectors(_back, _reach);
-        // Der Ärmel reicht **nicht** bis zur Hand: Er ist ein kurzes Stück
-        // Stoff an der Schulter, und zwischen Aufschlag und Handrücken bleibt
-        // der Unterarm frei — so sind die Vorbilder gebaut. Er wächst aber
-        // mit, damit die Lücke bei ausgestrecktem Arm nicht aufreißt.
-        const length = Math.max(Math.min(distance * 0.5, distance), SLEEVE_LENGTH);
-        upper.scale.set(1, length, 1);
-        upper.position.z = -length / 2;
-        cuff.position.z = -length;
-      }
+      // **Heben und stauchen im Takt.** Eine Figur ohne Beine hebt sich beim
+      // Gehen leicht und drückt sich bei der Landung zusammen — das ist der
+      // ganze Schritt, und er ist von schräg oben besser zu sehen als jedes
+      // Bein. Gestaucht wird der **Rumpf**, nie der Kopf: Der sitzt, wo die
+      // Augen sitzen, und ein Kopf, der wippt, ist Übelkeit in der Brille.
+      const bob = Math.abs(Math.sin(phase)) * 0.055 * amount;
+      const squash = 1 - bob * 0.5;
+      group.position.y = bob * standing * 0.28;
+      group.scale.set(1 + (1 - squash) * 0.6, squash, 1 + (1 - squash) * 0.6);
+      // Und dazu das Rollen: gegen den Takt des Hebens, damit die Figur
+      // watschelt statt zu hüpfen.
+      group.rotation.z = Math.sin(phase) * 0.07 * amount;
+      // Die Neigung nach vorn gehört zum Lauftempo und nicht zum Takt — wer
+      // rennt, legt sich hinein.
+      group.rotation.x = -0.1 * amount;
     },
   };
 }
 
 /**
- * **Die Hand** — ein fingerloser Fäustling, der **neben** dem Körper schwebt.
+ * **Die Hand** — ein fingerloser Klumpen, der **neben** dem Körper schwebt.
  *
- * Hier lagen gleich zwei Fassungen daneben. Die erste war eine **Kugel**: aus
- * 16 m Höhe reichte das, aber sobald zwei Spieler nebeneinander standen, war
- * es eine Perle am Arm. Die zweite hatte vier ausmodellierte Finger und einen
- * Daumen — und sah aus wie ein Bündel Bananen, weil vier Wülste nebeneinander
- * aus jeder Entfernung vier Wülste bleiben.
+ * Hier lagen nacheinander drei Fassungen daneben. Die erste war eine **Kugel**:
+ * aus 16 m Höhe reichte das, aber neben einem zweiten Spieler war es eine
+ * Perle am Arm. Die zweite hatte vier ausmodellierte Finger und sah aus wie
+ * ein Bündel Bananen, weil vier Wülste nebeneinander aus jeder Entfernung vier
+ * Wülste bleiben. Die dritte hing an einem Ärmelstummel — und schloss damit
+ * genau die Lücke, die diesen Stil ausmacht.
  *
- * Nachgemessen an den Vorbildern ist es **beides nicht**: Deren Hand ist ein
- * glatter, leicht gebogener Klumpen **ohne einen einzigen Finger**, gut ein
- * Fünftel so breit wie der Kopf und fast halb so lang wie er hoch ist — also
- * ein großes, weiches Ding, das man auch aus der Ferne sieht, weil es eine
- * Form hat und keine Details. Der Daumen bleibt als flacher Wulst, und zwar
- * aus einem Grund, den die Vorbilder nicht haben: Diese Hände halten Werkzeug,
- * und ohne Daumen sieht man nicht, welche Seite die Handfläche ist.
+ * Nachgemessen ist es ein glatter, leicht gebogener Klumpen **ohne einen
+ * einzigen Finger**, gut ein Fünftel so breit wie der Kopf und fast halb so
+ * lang wie er hoch ist — also ein großes, weiches Ding, das man auch aus der
+ * Ferne sieht, weil es eine Form hat und keine Details. Das dicke Ende ist die
+ * Faust, das dünne zeigt zum Körper. Der Daumen bleibt als flacher Wulst, und
+ * zwar aus einem Grund, den die Vorbilder nicht haben: Diese Hände halten
+ * Werkzeug, und ohne Daumen sieht man nicht, welche Seite die Handfläche ist.
  *
  * Gerechnet wird in `HAND_RADIUS`. **−z ist vorn**, +y ist der Handrücken —
  * dieselbe Konvention wie im Griff-Raum der getrackten Hand
@@ -854,25 +835,27 @@ export function buildHand(sign: -1 | 1, material: THREE.Material): THREE.Group {
   group.name = sign < 0 ? 'avatar-hand-left' : 'avatar-hand-right';
   const h = HAND_RADIUS;
 
-  // Der Klumpen: entlang −z gestreckt, nach vorn hin dicker. Die dicke Seite
-  // ist die Faust, die dünne der Ansatz zum Arm — das ist die ganze Form.
-  const fist = new THREE.Mesh(squarish(h, 0.22, 18), material);
-  fist.scale.set(0.9, 0.82, 1.5);
-  fist.position.z = -h * 0.22;
+  // Der Klumpen: entlang −z auf gut das Anderthalbfache gezogen und nach vorn
+  // hin dicker. Kaum gefast — eine Hand ist das weichste an dieser Figur.
+  const fist = new THREE.Mesh(squarish(h, 0.16, 18), material);
+  fist.scale.set(0.9, 0.84, 1.55);
+  fist.position.z = -h * 0.3;
   fist.frustumCulled = false;
   group.add(fist);
 
-  const wrist = new THREE.Mesh(new THREE.SphereGeometry(h * 0.62, 12, 10), material);
-  wrist.position.z = h * 0.55;
+  // Das dünne Ende zum Körper hin — es macht aus der Bohne eine Hand, weil
+  // man daran sieht, wo sie „aufhört".
+  const wrist = new THREE.Mesh(new THREE.SphereGeometry(h * 0.66, 12, 10), material);
+  wrist.position.z = h * 0.72;
   wrist.frustumCulled = false;
   group.add(wrist);
 
   // Der Daumen liegt **an** der Hand und steht nicht davon ab: ein flacher
   // Wulst auf der Innenseite, der sagt, wo die Handfläche ist.
-  const thumb = new THREE.Mesh(new THREE.SphereGeometry(h * 0.42, 12, 10), material);
-  thumb.position.set(-sign * h * 0.6, -h * 0.05, -h * 0.34);
-  thumb.scale.set(0.62, 0.62, 1.15);
-  thumb.rotation.y = -sign * 0.5;
+  const thumb = new THREE.Mesh(new THREE.SphereGeometry(h * 0.44, 12, 10), material);
+  thumb.position.set(-sign * h * 0.6, -h * 0.06, -h * 0.4);
+  thumb.scale.set(0.6, 0.6, 1.2);
+  thumb.rotation.y = -sign * 0.45;
   thumb.frustumCulled = false;
   group.add(thumb);
 

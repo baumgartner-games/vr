@@ -41,9 +41,7 @@ export const CHEF = {
   /** Die Hose: das helle Feld des Karos. */
   trouserLight: 0xe8e4da,
   /** Und das dunkle. Kochkaro ist schwarz-weiß, nicht grau-weiß. */
-  trouserDark: 0x2b2d33,
-  /** Die Schuhe — dunkles Leder, keine schwarzen Klötze. */
-  shoe: 0x3b3129,
+  trouserDark: 0x33353c,
   /** Der Mund, wo einer zu sehen ist. */
   mouth: 0x7c3b34,
 } as const;
@@ -80,13 +78,10 @@ export function trim(color: number, roughness = 0.5): THREE.MeshStandardMaterial
  * **Das Kochkaro als Bild** (`CanvasTexture`) — die schwarz-weiße Hose, ohne
  * die kein Koch ein Koch ist.
  *
- * Gemalt und nicht aus Geometrie gebaut: Ein Karo aus Quadern wären je Bein
- * sechzig Netze für ein Muster, das aus 16 m Höhe vier Pixel breit ist. Die
- * Textur wird **einmal** gebaut und von allen Beinen geteilt — sie hängt an
- * keiner Figur und an keiner Farbe.
- *
- * `repeat` steht am Material und nicht hier: Ein kurzes Bein soll dieselbe
- * Karogröße haben wie ein langes, sonst wächst das Muster beim Ducken mit.
+ * Gemalt und nicht aus Geometrie gebaut: Ein Karo aus Quadern wären sechzig
+ * Netze für ein Muster, das aus 16 m Höhe vier Pixel breit ist. Die Textur
+ * wird **einmal** gebaut und von allen Figuren geteilt — sie hängt an keiner
+ * Figur und an keiner Farbe.
  */
 let checkerTexture: THREE.Texture | null = null;
 
@@ -137,7 +132,10 @@ let trouserMaterial: THREE.MeshStandardMaterial | null = null;
 export function trousers(): THREE.MeshStandardMaterial {
   if (trouserMaterial) return trouserMaterial;
   const texture = chefChecker();
-  texture.repeat.set(3, 4);
+  // Acht Rauten im Umfang und sechs in der Höhe — so grob wie an den
+  // Vorbildern. Ein feineres Karo wird aus 16 m Höhe zu Grau, ein gröberes
+  // sieht von Nahem aus wie ein Schachbrett und nicht wie Stoff.
+  texture.repeat.set(9, 4);
   trouserMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     map: texture,
