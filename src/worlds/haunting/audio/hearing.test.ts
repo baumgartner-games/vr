@@ -269,14 +269,16 @@ describe('Das Hörmodell', () => {
         );
         if (crossesThird) continue;
         const gap = Math.hypot(a.centre.x - b.centre.x, a.centre.z - b.centre.z);
-        if (gap > 12) continue;
+        // Räume von zehn Metern: Nachbarn stehen sechzehn Meter auseinander.
+        if (gap > 16) continue;
         const path = new Hearing().path(snapshot, a.centre, b.centre);
         expect(Number.isFinite(path.distance)).toBe(true);
         expect(path.occluded).toBe(true);
         expect(path.distance).toBeGreaterThan(path.direct);
-        // Eine einzelne Wand kostet höchstens WALL_LOSS — ein Weg über Türen
-        // darf kürzer sein. Kreuzt die Luftlinie noch einen Gang, wird es mehr.
-        if (path.distance <= path.direct + WALL_LOSS + 1e-6) found++;
+        // Eine einzelne Wand kostet höchstens WALL_LOSS plus den Umweg zum
+        // Wandpunkt — ein Weg über Türen darf kürzer sein. Kreuzt die
+        // Luftlinie noch einen Gang oder eine zweite Wand, wird es mehr.
+        if (path.distance <= path.direct + WALL_LOSS + 1.5) found++;
       }
     expect(found).toBeGreaterThan(0);
   });
@@ -291,7 +293,7 @@ describe('Das Hörmodell', () => {
     // Luftlinie kreuzt genau eine Wand (zwei Kanten), also kostet sie WALL_LOSS.
     const toA = normal(door, a.centre);
     const along = door.axis === 'x' ? { x: 1, z: 0 } : { x: 0, z: 1 };
-    for (const shift of [2.5, -2.5]) {
+    for (const shift of [2.5, -2.5, 1.5, -1.5]) {
       const p = {
         x: door.at.x + toA.x * 0.3 + along.x * shift,
         z: door.at.z + toA.z * 0.3 + along.z * shift,

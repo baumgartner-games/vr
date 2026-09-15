@@ -1,4 +1,3 @@
-import { TILE } from '../../nav/navTile';
 import { spacesOf, type HouseRoom } from '../house';
 import { FlatRound, MONSTER_ID } from '../map/flatRound';
 import { litRegions } from '../map/visibility';
@@ -12,9 +11,14 @@ import { CLOSE_SIGHT, monsterSight } from './monsterSight';
  * dazwischen, Berührungsnähe.
  */
 
-/** Ein Raum, der in einer Richtung mindestens drei Kacheln misst — Platz für drei Meter Abstand. */
+/**
+ * Ein Raum, der in einer Richtung mindestens drei Meter misst — Platz für drei
+ * Meter Abstand — und **nicht die Cafeteria**: Durch deren Fensterfront fällt
+ * das Licht der Zentrale, und dort steht im Dunkeln niemand.
+ */
 function wideRoom(round: FlatRound): { room: HouseRoom; axis: 'x' | 'z' } {
   for (const room of spacesOf(round.house)) {
+    if (room.id === round.house.entryRoom) continue;
     if (room.rect.w >= 3) return { room, axis: 'x' };
     if (room.rect.d >= 3) return { room, axis: 'z' };
   }
@@ -173,6 +177,7 @@ describe('Was das Monster sieht', () => {
     round.step(1 / 30, { x: 0, z: 0, sprint: false });
     expect(round.drain().some((event) => event.text === 'Es hat dich gesehen.')).toBe(true);
     expect(round.threat.mode).toBe('hunt');
-    expect(Math.hypot(round.player.x - centre.x, round.player.z - centre.z)).toBeLessThan(TILE * 2);
+    // Ein Bild später steht er noch, wo er hingestellt wurde — drei Meter weg.
+    expect(Math.hypot(round.player.x - centre.x, round.player.z - centre.z)).toBeLessThan(3.5);
   });
 });

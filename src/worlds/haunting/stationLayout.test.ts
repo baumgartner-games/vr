@@ -1,7 +1,7 @@
 import { PLAN_DOOR_W, PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import { FIXTURE_CATALOG } from './fixtureDimensions';
-import { generateHouse, type HouseRoom } from './house';
+import { generateHouse, STATION_DOOR_W, type HouseRoom } from './house';
 import { repairsFor, ROOM_COUNTS } from './mission';
 import { CARGO_PER_ROOM, taskCargo } from './rules/cargo';
 import { VentNet } from './vents/ventGraph';
@@ -213,7 +213,7 @@ describe('station module placement', () => {
    */
   test('keeps cargo crates out of every doorway landing', () => {
     const depth = 2.4;
-    const width = PLAN_DOOR_W / 2 + 0.45;
+    const width = STATION_DOOR_W / 2 + 0.45;
     for (const seed of [3, 87832, 4711, 12345]) {
       const spec = generateHouse(seed, 14);
       const crates = stationLayout(spec).filter(

@@ -117,7 +117,7 @@ export function roomAccent(kind: string): number {
   return colors[kind] ?? SHIP.cyan;
 }
 
-/** Physical floor, hull and equipment all share the same 2.5-metre tile system. */
+/** Physical floor, hull and equipment all share the same one-metre tile system. */
 export function buildShip(spec: HouseSpec): THREE.Group {
   const group = new THREE.Group();
   group.name = 'station-hull-details';
@@ -155,20 +155,16 @@ function floor(batch: ShipBatch, rect: Rect, accent = SHIP.cyan, circulation = f
   for (const tile of tilesOf(rect)) {
     const x = (tile.x + 0.5) * TILE,
       z = (tile.z + 0.5) * TILE;
-    // The navigation grid is 2.5m; visible deck plates are human-scale 0.83m.
+    // Eine Kachel ist ein Meter, und das ist die Deckplatte: eine je Kachel,
+    // im Schachbrett gefärbt. Neun Platten je Kachel (0,83 m auf dem alten
+    // 2,5-m-Gitter) wären auf viereinhalbtausend Kacheln vierzigtausend
+    // Quader in einem Netz — für ein Bild, das aus Augenhöhe niemand sieht.
     batch.box(SHIP.dark, [TILE - 0.025, 0.018, TILE - 0.025], [x, 0.017, z]);
-    const plate = TILE / 3;
-    for (let column = 0; column < 3; column++)
-      for (let row = 0; row < 3; row++) {
-        const px = x + (column - 1) * plate,
-          pz = z + (row - 1) * plate;
-        batch.box(
-          (column + row + tile.x + tile.z) % 2 === 0 ? SHIP.deck : SHIP.trim,
-          [plate - 0.025, 0.013, plate - 0.025],
-          [px, 0.033, pz],
-        );
-      }
-    batch.box(SHIP.hull, [0.17, 0.008, 0.015], [x, 0.043, z + TILE / 2 - 0.1]);
+    batch.box(
+      (tile.x + tile.z) % 2 === 0 ? SHIP.deck : SHIP.trim,
+      [TILE - 0.06, 0.013, TILE - 0.06],
+      [x, 0.033, z],
+    );
     const edge = tile.z === rect.z || tile.z === rect.z + rect.d - 1;
     if (edge) {
       const toward = tile.z === rect.z ? -1 : 1;
@@ -304,31 +300,30 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
         spec.windows.some(
           (window) => window.x === tile.x && window.z === tile.z && window.dir === dir,
         );
+      // Ein Pfosten je Meter Wand, an der Kante der Kachel: Die Pfosten der
+      // Nachbarkacheln stoßen aneinander und werden zusammen zu einem.
       const face = PLAN_WALL_T / 2,
-        post = TILE / 2 - 0.19;
+        post = TILE / 2 - 0.05;
       for (const u of [-post, post]) {
         batch.box(SHIP.trim, [0.1, 2.2, 0.11], local(u, 1.15, face + 0.065), false, yaw);
         // Angled shoulders and rounded conduit break the rectangular wall silhouette.
         batch.box(SHIP.trim, [0.1, 0.28, 0.1], local(u, 2.42, face + 0.1), false, yaw, Math.PI / 5);
       }
       if (!opening) {
-        batch.box(SHIP.hull, [TILE - 0.48, 1.41, 0.032], local(0, 1.365, face + 0.021), false, yaw);
+        batch.box(SHIP.hull, [TILE - 0.2, 1.41, 0.032], local(0, 1.365, face + 0.021), false, yaw);
         // Broad department colour, inset seams and a kick plate make the ship's
         // rooms readable at a glance, without adding decorative floor obstacles.
-        batch.box(accent, [TILE - 0.48, 0.29, 0.037], local(0, 0.705, face + 0.044), false, yaw);
-        batch.box(SHIP.dark, [TILE - 0.42, 0.2, 0.051], local(0, 0.18, face + 0.032), false, yaw);
-        for (const u of [-0.64, 0.64])
-          batch.box(SHIP.trim, [0.026, 0.64, 0.018], local(u, 1.35, face + 0.047), false, yaw);
-        batch.box(SHIP.hull, [0.24, 0.065, 0.021], local(0.62, 1.92, face + 0.066), false, yaw);
-        batch.box(SHIP.trim, [TILE - 0.46, 0.11, 0.043], local(0, 0.42, face + 0.03), false, yaw);
-        batch.box(SHIP.dark, [TILE - 0.63, 0.075, 0.044], local(0, 1.84, face + 0.044), false, yaw);
+        batch.box(accent, [TILE - 0.2, 0.29, 0.037], local(0, 0.705, face + 0.044), false, yaw);
+        batch.box(SHIP.dark, [TILE - 0.16, 0.2, 0.051], local(0, 0.18, face + 0.032), false, yaw);
+        batch.box(SHIP.trim, [TILE - 0.18, 0.11, 0.043], local(0, 0.42, face + 0.03), false, yaw);
+        batch.box(SHIP.dark, [TILE - 0.3, 0.075, 0.044], local(0, 1.84, face + 0.044), false, yaw);
         // One small low-level status marker is visible during a total blackout.
         batch.box(accent, [0.17, 0.015, 0.012], local(-post + 0.23, 0.31, face + 0.055), true, yaw);
       }
       // Everything crossing the wall segment is above the actual door head.
       batch.box(
         SHIP.hull,
-        [TILE - 0.32, 0.13, 0.12],
+        [TILE - 0.12, 0.13, 0.12],
         local(0, PLAN_WALL_H - 0.19, face + 0.085),
         false,
         yaw,
@@ -337,7 +332,7 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
       batch.pipe(
         SHIP.trim,
         0.032,
-        TILE - 0.39,
+        TILE - 0.14,
         local(0, PLAN_WALL_H - 0.42, face + 0.09),
         dirX(dir) === 0,
       );
@@ -458,17 +453,20 @@ function buildCommandHull(): THREE.Group {
   const south = (APRON.z + APRON.d) * TILE,
     centreX = (APRON.x + APRON.w / 2) * TILE,
     centreZ = (APRON.z + APRON.d / 2) * TILE;
-  for (let column = 0; column < APRON.w; column++) {
-    const x = (APRON.x + column + 0.5) * TILE;
+  // Die Fensterfront in Feldern von zweieinhalb Metern — dem Maß der alten
+  // Kachel, das für Pfosten und Sturzstücke das richtige geblieben ist.
+  const bay = 2.5;
+  for (let left = APRON.x * TILE; left < (APRON.x + APRON.w) * TILE - 1e-6; left += bay) {
+    const x = left + bay / 2;
     batch.box(
       SHIP.hull,
-      [TILE - 0.25, 0.15, 0.18],
+      [bay - 0.25, 0.15, 0.18],
       [x, PLAN_WALL_H - 0.18, south - PLAN_WALL_T / 2 - 0.1],
     );
     batch.pipe(
       SHIP.trim,
       0.034,
-      TILE - 0.2,
+      bay - 0.2,
       [x, PLAN_WALL_H - 0.39, south - PLAN_WALL_T / 2 - 0.1],
       true,
     );
@@ -476,7 +474,7 @@ function buildCommandHull(): THREE.Group {
       batch.box(
         SHIP.trim,
         [0.09, PLAN_WALL_H - 0.12, 0.13],
-        [x + side * (TILE / 2 - 0.19), PLAN_WALL_H / 2, south - PLAN_WALL_T / 2 - 0.09],
+        [x + side * (bay / 2 - 0.19), PLAN_WALL_H / 2, south - PLAN_WALL_T / 2 - 0.09],
       );
   }
   // Ceiling service rail remains inside the deck; no old 3-metre bay offsets.

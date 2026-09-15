@@ -4,7 +4,6 @@ import type { StationGraph } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
 import { FlatWalker } from '../map/flatWalk';
 import { CONTACT, FlatRound, type FlatInput } from '../map/flatRound';
-import { TILE } from '../../nav/navTile';
 import { lockedDoorsBetween } from '../navmesh';
 import type { RouteAvoid } from '../stationNavigation';
 import { SUIT_LIVES } from './roundRules';
@@ -102,7 +101,8 @@ const DREAD_HURT = 2.5;
 const DREAD_MEMORY = 6;
 /**
  * **Der harte Kern um das Monster**, in Metern: seine Schlagreichweite
- * (`map/flatRound.CONTACT` = 1,7 m) plus eine Kachel (`TILE` = 2,5 m).
+ * (`map/flatRound.CONTACT` = 1,7 m) plus zweieinhalb Meter — das war „eine
+ * Kachel", solange eine Kachel so groß war, und gemeint waren die Meter.
  *
  * Das ist die Antwort auf den Fehler, den man in jeder zweiten Runde sah: Der
  * Techniker lief dem Monster durch die Arme, und zwar nicht aus Dummheit,
@@ -113,7 +113,7 @@ const DREAD_MEMORY = 6;
  * Weg daneben gibt, geht er trotzdem hindurch. Eine Wand wäre er nicht: Die
  * sperrte ihn in der Ecke ein, in der er dann stehen bliebe.
  */
-const DREAD_CORE = CONTACT + TILE;
+const DREAD_CORE = CONTACT + 2.5;
 /**
  * **Was eine gesperrte Tür auf dem Fluchtweg kostet**, in Metern Umweg, wenn
  * das Monster noch weit ist: Hingehen, ziehen, weiterlaufen — ungefähr ein

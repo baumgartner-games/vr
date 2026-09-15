@@ -1,5 +1,5 @@
 import { DIR_S, TILE } from '../nav/navTile';
-import { APRON, HOUSE, type Rect } from './house';
+import { APRON, STATION_BOUNDS, type Rect } from './house';
 
 export type TrainingRoomId = 'safe' | 'tools' | 'repairs' | 'models';
 
@@ -16,32 +16,35 @@ export interface TrainingBounds {
   maxZ: number;
 }
 
-/** Metres: the return point stays a full metre inside the command floor. */
-export const COMMAND_HOME = { x: 0, z: (APRON.z + 1.6) * TILE } as const;
+/** Metres: the return point stands in the middle of the command floor. */
+export const COMMAND_HOME = { x: 0, z: (APRON.z + 2.5) * TILE } as const;
 
-const EAST = HOUSE.x + HOUSE.w + 18;
-const NORTH = HOUSE.z;
+/** Fünfzehn Meter östlich des Stationsrands — so viel Luft wie vorher (sechs Kacheln). */
+const EAST = STATION_BOUNDS.x + STATION_BOUNDS.w + 15;
+const NORTH = STATION_BOUNDS.z;
 
 /**
- * Four independent teaching rooms, at least six empty tiles east of the
- * mission. Two empty tiles separate each neighbouring pair. They belong in
- * the physics/grid plan only during test mode, never in the mission graph.
+ * Four independent teaching rooms, fifteen metres east of the mission. Five
+ * metres separate each neighbouring pair. They belong in the physics/grid
+ * plan only during test mode, never in the mission graph. Kacheln zu einem
+ * Meter, dieselben Maße wie vorher (5 × 4 Kacheln zu 2,5 m → 12 × 10 m).
  */
 export const TRAINING_ROOMS: readonly TrainingRoom[] = [
-  { id: 'safe', name: 'Safe und Schutzschrank', x: EAST, z: NORTH, w: 5, d: 4 },
-  { id: 'tools', name: 'Ausrüstung und Scanner', x: EAST + 7, z: NORTH, w: 5, d: 4 },
-  { id: 'repairs', name: 'Reparaturen und Rätsel', x: EAST, z: NORTH + 6, w: 5, d: 4 },
-  { id: 'models', name: 'Modelle, Schotts und Effekte', x: EAST + 7, z: NORTH + 6, w: 8, d: 6 },
+  { id: 'safe', name: 'Safe und Schutzschrank', x: EAST, z: NORTH, w: 12, d: 10 },
+  { id: 'tools', name: 'Ausrüstung und Scanner', x: EAST + 17, z: NORTH, w: 12, d: 10 },
+  { id: 'repairs', name: 'Reparaturen und Rätsel', x: EAST, z: NORTH + 15, w: 12, d: 10 },
+  { id: 'models', name: 'Modelle, Schotts und Effekte', x: EAST + 17, z: NORTH + 15, w: 20, d: 15 },
 ];
 
-/** Keep exhibits out of this radius around each trainingSpawn(), in metres. */
+/** Das Übungsschott mitten in der Modellhalle, wie bisher. */
 export const TRAINING_DOOR = {
   id: 'training-door',
-  x: EAST + 13,
-  z: NORTH + 9,
+  x: EAST + 17 + 15,
+  z: NORTH + 15 + 7,
   dir: DIR_S,
 } as const;
 
+/** Keep exhibits out of this radius around each trainingSpawn(), in metres. */
 export const TRAINING_SPAWN_RADIUS = 0.8;
 
 /** Metres, with half-open boundaries matching the normal station room lookup. */
@@ -60,7 +63,7 @@ export function trainingRoomAt(x: number, z: number): TrainingRoom | null {
 /** Metres: approach exhibits from the south, looking north (yaw zero). */
 export function trainingSpawn(id: TrainingRoomId): { x: number; y: 0; z: number } {
   const room = roomById(id);
-  return { x: (room.x + room.w / 2) * TILE, y: 0, z: (room.z + room.d - 1.25) * TILE };
+  return { x: (room.x + room.w / 2) * TILE, y: 0, z: (room.z + room.d) * TILE - 3 };
 }
 
 /** Interior floor footprint in metres; wall thickness is deliberately not included. */

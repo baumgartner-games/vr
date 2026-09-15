@@ -1,5 +1,5 @@
 import { TILE } from '../../nav/navTile';
-import { APRON_INNER } from '../house';
+import { APRON } from '../house';
 import { COMMAND_HOME } from '../trainingLayout';
 import { STATIONS, type StationId } from '../stations';
 import {
@@ -29,7 +29,7 @@ describe('Die Hocker der Einsatzzentrale', () => {
     for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeGreaterThan(0.4);
     expect((xs[0]! + xs[xs.length - 1]!) / 2).toBeCloseTo(COMMAND_TABLE.x);
     // Der Tisch steht an der Fensterfront — die Reihe aus `house.ts`, nicht geraten.
-    expect(COMMAND_TABLE.z).toBeCloseTo((APRON_INNER + 0.05) * TILE);
+    expect(COMMAND_TABLE.z).toBeCloseTo((APRON.z + APRON.d) * TILE - 2.4);
   });
 
   test('kein Hocker steht auf dem Rückkehrpunkt, an dem die Brille landet', () => {

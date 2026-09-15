@@ -1,6 +1,6 @@
 import type { PeerPose } from '../../../net/types';
 import { TILE } from '../../nav/navTile';
-import { APRON_INNER } from '../house';
+import { APRON } from '../house';
 import type { StationId } from '../stations';
 
 /**
@@ -43,8 +43,11 @@ export interface CrewSeat {
   station: StationId | null;
 }
 
-/** Die Mitte des Tischs: an der Fensterfront der Kantine, westlich vom Rückkehrpunkt. */
-export const COMMAND_TABLE = { x: -5, z: (APRON_INNER + 0.05) * TILE } as const;
+/**
+ * Die Mitte des Tischs: 2,4 m vor der Fensterfront der Kantine, westlich vom
+ * Rückkehrpunkt — in Metern vom Vorplatzrand, wie alles auf dem Vorplatz.
+ */
+export const COMMAND_TABLE = { x: -5, z: (APRON.z + APRON.d) * TILE - 2.4 } as const;
 /** Ein Monitor je Hocker, so weit auseinander. */
 export const STOOL_STEP = 0.6;
 /** Die Hocker stehen südlich vom Tisch — zwischen Tisch und Haus steht die Brille. */

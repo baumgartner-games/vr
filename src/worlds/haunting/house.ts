@@ -1,16 +1,21 @@
 import { DIR_E, DIR_N, DIR_S, DIR_W, TILE, type Dir } from '../nav/navTile';
-import { PLAN_WALL_T } from '../editor/levelPlan';
 
 /**
- * **Wie breit eine Tür der Station ist — eine Kachel abzüglich Wanddicke**,
- * in beiden Welten. Der Bauplan des Schiffs baute lange `PLAN_DOOR_W` = 1,2 m
- * mit Pfosten von 0,65 m, die 2D-Karte rechnete mit 2,0 m (`map/geometry.
- * DOOR_WIDTH`, dieselbe Zahl): Der 2D-Spieler lief durch Pfosten, die es in
- * 3D gab, und die Wegsuche kannte nur die schmale Öffnung. Jetzt baut die
- * Station (`plan.ts`, `StationPlan.doorWidth`) mit dieser Zahl; die anderen
- * Welten des Rasters behalten ihre 1,2 m.
+ * **Wie breit eine Tür der Station ist — eine ganze Kachelkante, ohne
+ * Pfosten**, in beiden Welten.
+ *
+ * Der Bauplan des Schiffs baute lange `PLAN_DOOR_W` mit Pfosten, die 2D-Karte
+ * rechnete mit einer Kachel abzüglich Wanddicke — zwei Zahlen für eine Tür.
+ * Seit dem 1-m-Gitter ist es **die Kachel selbst**, und der Grund ist das
+ * Monster: Sein Wegkörper misst `MONSTER_RADIUS` (0,3 m) im Halbmesser, die
+ * Wegsuche rastert in Vierteldezimetern (`stationNavigation.ts`), und eine
+ * Tür von 0,8 m ließe der Mitte eine Rinne von 0,2 m — darin liegt keine
+ * Rasterzelle, und das Vieh stünde vor jeder Tür wie vor einer Wand. Eine
+ * ganze Kante gibt 0,4 m, zwei Zellen. Dazu passt es zum Schiff: Eine
+ * Schleuse hat keine Pfosten, sie fährt in die Wand (`ShipExperience`).
+ * Die anderen Welten des Rasters behalten `PLAN_DOOR_W` mit Pfosten.
  */
-export const STATION_DOOR_W = TILE - 2 * PLAN_WALL_T;
+export const STATION_DOOR_W = TILE;
 import { Rng } from './rng';
 import { buildPanel, type PanelSwitch } from './panel';
 
@@ -51,11 +56,21 @@ export interface Rect {
 }
 
 /**
- * Wo das gewürfelte Haus auf dem Gitter steht — **südlich der Zentrale**, mit
+ * Wo das gewürfelte Haus auf dem Gitter steht — **nördlich der Zentrale**, mit
  * seiner Südwand an deren Vorplatz. Nur der alte Zufallsgrundriss benutzt es;
- * die Station bringt ihre eigenen Rechtecke mit.
+ * die Station bringt ihre eigenen Rechtecke mit. Seit die Kachel ein Meter
+ * ist (September 2026), stehen hier Meter: vierzig mal dreißig, dieselben
+ * Maße wie vorher in sechzehn mal zwölf Kacheln zu je zweieinhalb.
  */
-export const HOUSE: Rect = { x: -8, z: -35, w: 16, d: 12 };
+export const HOUSE: Rect = { x: -20, z: -87, w: 40, d: 30 };
+/**
+ * **Das Rechteck der festen Station** (`stationRooms`), in Kacheln zu einem
+ * Meter: 70 × 60, von Reactor bis Navigation, vom Vorplatzrand der Cafeteria
+ * bis unter Communications. Eine Konstante, weil drei Stellen dieselben
+ * Zahlen brauchen — die Zellenschleife der Gänge, die Himmelsrichtung eines
+ * Gangnamens und die Lehrzimmer, die 15 m östlich davon stehen.
+ */
+export const STATION_BOUNDS: Rect = { x: -32, z: -52, w: 70, d: 60 };
 /** Wie breit der Tisch der Einsatzzentrale ist, in Kacheln. */
 export const VAN_W = 4;
 
@@ -81,14 +96,18 @@ export const VAN_W = 4;
  * an der abgelegt wird, und was dort steht, macht aus einer Runde eine
  * Belagerung.
  */
-export const APRON: Rect = { x: HOUSE.x, z: HOUSE.z + HOUSE.d, w: HOUSE.w, d: 2 };
+export const APRON: Rect = { x: HOUSE.x, z: HOUSE.z + HOUSE.d, w: HOUSE.w, d: 5 };
 
 /** Die Vorplatzreihe an der Fensterfront: Tisch der Einsatzzentrale, Terminal, Rückkehrpunkt. */
 export const APRON_INNER = APRON.z + APRON.d - 1;
 /** Die äußere Reihe mit Hüllenfenstern: Abendlicht über dem Vorplatz. */
 export const APRON_OUTER = APRON.z;
-/** Der Aufzugsschacht zum Testdeck, in Kacheln. */
-export const COMMAND_LIFT = { x: APRON.x + APRON.w - 2, z: APRON_OUTER } as const;
+/**
+ * Der Aufzugsschacht zum Testdeck, in Kacheln: **zwei mal zwei** in der
+ * Nordostecke des Vorplatzes. Eine Kachel war er, solange eine Kachel
+ * zweieinhalb Meter maß; ein Aufzug von einem Quadratmeter wäre ein Spind.
+ */
+export const COMMAND_LIFT = { x: APRON.x + APRON.w - 3, z: APRON_OUTER, w: 2, d: 2 } as const;
 /** Die Kachelreihe, in der die Einsatzzentrale steht. */
 export const VAN_Z = APRON_INNER;
 
@@ -335,21 +354,28 @@ export function generateHouse(seed: number, roomCount?: number): HouseSpec {
 
 /** Fixed Skeld topology, expressed entirely in existing grid rectangles. */
 function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Rect } {
+  // **In Metern, seit die Kachel ein Meter ist.** Die Räume messen ungefähr,
+  // was sie in Kacheln zu zweieinhalb Metern maßen (4 Kacheln → 10 m), damit
+  // Tempo, Hörweiten und die gemessenen Gewichte der Bots weiter zu den
+  // Wegen passen; die Gänge sind zwei Kacheln breit. **Kein Raum berührt
+  // einen anderen Raum**: Zwischen zwei Räumen liegt immer ein Gang oder eine
+  // Fuge von einem Meter — sonst hörte das Monster durch eine Wand, die es
+  // vorher nicht gab (`roomGraph.earshot`, `WALL_LOSS`).
   const definitions: Array<[string, RoomKind, MarkId, number, number, number, number]> = [
-    ['Cafeteria', 'kueche', 'ofen', -3, -21, 8, 7],
-    ['Upper Engine', 'werkstatt', 'werkbank', -15, -19, 4, 4],
-    ['Reactor', 'wohnzimmer', 'kamin', -20, -13, 4, 6],
-    ['Security', 'bibliothek', 'buecher', -13, -12, 4, 4],
-    ['MedBay', 'bad', 'wanne', -8, -13, 4, 4],
-    ['Lower Engine', 'werkstatt', 'werkbank', -15, -5, 4, 4],
-    ['Electrical', 'kammer', 'kiste', -8, -6, 4, 5],
-    ['Storage', 'kammer', 'kiste', -2, -3, 6, 5],
-    ['Weapons', 'werkstatt', 'werkbank', 8, -19, 4, 4],
-    ['O2', 'esszimmer', 'standuhr', 7, -13, 4, 4],
-    ['Navigation', 'musikzimmer', 'sessel', 16, -12, 4, 4],
-    ['Admin', 'bibliothek', 'buecher', 5, -8, 4, 4],
-    ['Shields', 'werkstatt', 'werkbank', 11, -4, 4, 4],
-    ['Communications', 'musikzimmer', 'klavier', 5, -1, 4, 4],
+    ['Cafeteria', 'kueche', 'ofen', -10, -52, 20, 18],
+    ['Upper Engine', 'werkstatt', 'werkbank', -30, -48, 10, 10],
+    ['Reactor', 'wohnzimmer', 'kamin', -32, -34, 10, 15],
+    ['Security', 'bibliothek', 'buecher', -20, -27, 10, 10],
+    ['MedBay', 'bad', 'wanne', -20, -38, 9, 10],
+    ['Lower Engine', 'werkstatt', 'werkbank', -30, -12, 10, 10],
+    ['Electrical', 'kammer', 'kiste', -19, -16, 10, 12],
+    ['Storage', 'kammer', 'kiste', -8, -12, 15, 12],
+    ['Weapons', 'werkstatt', 'werkbank', 20, -48, 10, 10],
+    ['O2', 'esszimmer', 'standuhr', 12, -34, 10, 10],
+    ['Navigation', 'musikzimmer', 'sessel', 28, -32, 10, 10],
+    ['Admin', 'bibliothek', 'buecher', 6, -23, 10, 10],
+    ['Shields', 'werkstatt', 'werkbank', 24, -8, 10, 10],
+    ['Communications', 'musikzimmer', 'klavier', 8, -2, 10, 10],
   ];
   const rooms = definitions.map(([name, kind, signature, x, z, w, d], i): HouseRoom => ({
     id: `r${i}`,
@@ -361,20 +387,19 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
     lamp: true,
   }));
   // Corridor strips are unioned, then merged into rectangles: no overlapping
-  // floors, and no furniture in circulation spaces. Two tiles = five metres.
+  // floors, and no furniture in circulation spaces. Two tiles = two metres.
   const strips: Rect[] = [
-    { x: -11, z: -17, w: 8, d: 2 },
-    { x: -7, z: -15, w: 2, d: 2 },
-    { x: -16, z: -15, w: 3, d: 10 },
-    { x: -11, z: -3, w: 2, d: 2 },
-    { x: -10, z: -1, w: 8, d: 2 },
-    { x: 0, z: -14, w: 2, d: 11 },
-    { x: 2, z: -7, w: 3, d: 2 },
-    { x: 5, z: -17, w: 3, d: 2 },
-    { x: 10, z: -15, w: 4, d: 2 },
-    { x: 12, z: -13, w: 2, d: 9 },
-    { x: 11, z: -11, w: 5, d: 2 },
-    { x: 4, z: -3, w: 7, d: 2 },
+    { x: -20, z: -44, w: 10, d: 2 }, // Nordwestgang: Upper Engine ↔ Cafeteria
+    { x: -16, z: -42, w: 2, d: 4 }, // Stich zur MedBay
+    { x: -22, z: -38, w: 2, d: 26 }, // Westgang: Reactor, Security, MedBay, Triebwerke
+    { x: -20, z: -4, w: 12, d: 2 }, // Südwestgang: Lower Engine, Electrical, Storage
+    { x: -1, z: -34, w: 2, d: 22 }, // Mittelgang: Cafeteria ↔ Storage
+    { x: 1, z: -20, w: 5, d: 2 }, // Stich zu Admin
+    { x: 10, z: -44, w: 10, d: 2 }, // Nordostgang: Cafeteria ↔ Weapons
+    { x: 16, z: -42, w: 2, d: 8 }, // Stich zu O2
+    { x: 24, z: -38, w: 2, d: 30 }, // Ostgang: Weapons ↔ Shields
+    { x: 22, z: -28, w: 6, d: 2 }, // Gang zur Navigation
+    { x: 7, z: -4, w: 17, d: 2 }, // Südostgang: Storage, Communications, Shields
   ];
   const cells = new Set<string>();
   for (const strip of strips)
@@ -382,8 +407,8 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
       if (!rooms.some((r) => inside(r.rect, cell.x, cell.z))) cells.add(`${cell.x},${cell.z}`);
     }
   const passages: HouseRoom[] = [];
-  for (let z = -21; z < 3; z++)
-    for (let x = -20; x < 20; x++) {
+  for (let z = STATION_BOUNDS.z; z < STATION_BOUNDS.z + STATION_BOUNDS.d; z++)
+    for (let x = STATION_BOUNDS.x; x < STATION_BOUNDS.x + STATION_BOUNDS.w; x++) {
       if (!cells.has(`${x},${z}`)) continue;
       let w = 1;
       while (cells.has(`${x + w},${z}`)) w++;
@@ -404,7 +429,7 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
       });
     }
   namePassages(rooms, passages);
-  return { rooms, passages, bounds: { x: -20, z: -21, w: 40, d: 24 } };
+  return { rooms, passages, bounds: STATION_BOUNDS };
 }
 
 /**
@@ -435,7 +460,7 @@ export function namePassages(rooms: readonly HouseRoom[], passages: HouseRoom[])
     }
     const base = best
       ? `${best.room.name}-${compass(best.room.rect, passage.rect)}gang`
-      : `${compass({ x: -20, z: -21, w: 40, d: 24 }, passage.rect)}gang`;
+      : `${compass(STATION_BOUNDS, passage.rect)}gang`;
     const seen = (used.get(base) ?? 0) + 1;
     used.set(base, seen);
     passage.name = seen === 1 ? base : `${base} ${'ⅠⅡⅢⅣⅤⅥⅦⅧⅨ'[seen - 1] ?? seen}`;
@@ -578,8 +603,8 @@ function inside(rect: Rect, x: number, z: number): boolean {
 
 // --- Grundriss --------------------------------------------------------------
 
-/** Kein Zimmer schmaler als zwei Kacheln — sonst ist es ein Gang mit Bett. */
-const MIN_SIDE = 2;
+/** Kein Zimmer schmaler als fünf Meter — sonst ist es ein Gang mit Bett. */
+const MIN_SIDE = 5;
 /** Wie viele Zimmer ein Haus hat. Weniger ist leer, mehr ist unbeschreibbar. */
 const ROOM_RANGE = [6, 7] as const;
 

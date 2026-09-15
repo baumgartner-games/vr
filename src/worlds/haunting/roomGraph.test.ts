@@ -103,16 +103,29 @@ describe('Die Raumkarte hört durch Wände', () => {
    * vierzehn Metern, über die ein Geräusch der Lautstärke 1 etwas aussagt
    * (`monsterMemory.CARRY`), heißt hundert Meter schlicht: taub.
    */
-  it('hört im gewürfelten Haus mit Samen 3 den Raum nebenan auf 19 statt auf 100 Metern', () => {
-    const spec = generateHouse(3);
-    const graph = stationGraph(spec);
-    const air = Math.hypot(
-      graph.centre('r4').x - graph.centre('r5').x,
-      graph.centre('r4').z - graph.centre('r5').z,
-    );
-    expect(air).toBeCloseTo(10, 6);
-    expect(earshotViaDoors(graph)('r4', 'r5')).toBeGreaterThan(100);
-    expect(graph.earshot('r4', 'r5')).toBeCloseTo(10 + WALL_LOSS, 6);
+  it('hört im gewürfelten Haus den Raum nebenan durch die Wand statt um die halbe Station', () => {
+    // Das Zufallshaus misst seit dem 1-m-Gitter vierzig mal dreißig Meter, und
+    // welche zwei Zimmer Wand an Wand ohne Tür liegen, entscheidet der Samen.
+    // Gesucht wird deshalb das deutlichste Paar aus fünf Häusern — und für das
+    // muss gelten: durch die Wand Luftlinie plus WALL_LOSS, über die Türen
+    // mindestens das Doppelte.
+    let widest: { air: number; wall: number; doors: number } | null = null;
+    for (const seed of [1, 2, 3, 7, 1000]) {
+      const spec = generateHouse(seed);
+      const graph = stationGraph(spec);
+      const viaDoors = earshotViaDoors(graph);
+      for (const [a, b] of wallOnlyPairs(spec)) {
+        const air = Math.hypot(
+          graph.centre(a).x - graph.centre(b).x,
+          graph.centre(a).z - graph.centre(b).z,
+        );
+        const found = { air, wall: graph.earshot(a, b), doors: viaDoors(a, b) };
+        if (!widest || found.doors - found.wall > widest.doors - widest.wall) widest = found;
+      }
+    }
+    expect(widest).not.toBeNull();
+    expect(widest!.wall).toBeCloseTo(widest!.air + WALL_LOSS, 6);
+    expect(widest!.doors).toBeGreaterThan(2 * widest!.wall);
   });
 
   it('lässt die Wegsuche unberührt — durch eine Wand geht niemand', () => {

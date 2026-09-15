@@ -13,10 +13,10 @@ test('Schall geht um die Ecke, aber nicht über eine fehlende Kachel', () => {
     [2, 0],
   ])
     graph.setTile(tileKey(x!, z!));
-  const field = acousticField(graph, { x: 1, z: 1 }, 20);
+  const field = acousticField(graph, { x: 0.5, z: 0.5 }, 20);
   expect(field.get(tileKey(2, 0))).toBe(4 * TILE);
   graph.removeTile(tileKey(1, 1));
-  expect(acousticField(graph, { x: 1, z: 1 }, 30).has(tileKey(2, 0))).toBe(false);
+  expect(acousticField(graph, { x: 0.5, z: 0.5 }, 30).has(tileKey(2, 0))).toBe(false);
 });
 
 /**
@@ -33,14 +33,14 @@ test('eine geteilte Wand dämpft den Schall, die offene Tür lässt ihn durch', 
   graph.setWall(tileKey(0, 0), DIR_E, { kind: 'solid' });
   // Gedämpft, nicht abgeschnitten: zu kurze Reichweite kommt nicht hinüber,
   // die längere schon — und zwar um genau eine Wand teurer.
-  expect(acousticField(graph, { x: 1, z: 1 }, 10).has(tileKey(1, 0))).toBe(false);
-  expect(acousticField(graph, { x: 1, z: 1 }, 20).get(tileKey(1, 0))).toBe(TILE + WALL_LOSS);
+  expect(acousticField(graph, { x: 0.5, z: 0.5 }, 9).has(tileKey(1, 0))).toBe(false);
+  expect(acousticField(graph, { x: 0.5, z: 0.5 }, 20).get(tileKey(1, 0))).toBe(TILE + WALL_LOSS);
   graph.setWall(tileKey(0, 0), DIR_E, { kind: 'window' });
-  expect(acousticField(graph, { x: 1, z: 1 }, 20).get(tileKey(1, 0))).toBe(TILE + GLASS_LOSS);
+  expect(acousticField(graph, { x: 0.5, z: 0.5 }, 20).get(tileKey(1, 0))).toBe(TILE + GLASS_LOSS);
   graph.setWall(tileKey(0, 0), DIR_E, { kind: 'door', open: false });
-  expect(acousticField(graph, { x: 1, z: 1 }, 20).get(tileKey(1, 0))).toBe(TILE + DOOR_LOSS);
+  expect(acousticField(graph, { x: 0.5, z: 0.5 }, 20).get(tileKey(1, 0))).toBe(TILE + DOOR_LOSS);
   graph.setWall(tileKey(0, 0), DIR_E, { kind: 'door', open: true });
-  expect(acousticField(graph, { x: 1, z: 1 }, 10).get(tileKey(1, 0))).toBe(TILE);
+  expect(acousticField(graph, { x: 0.5, z: 0.5 }, 10).get(tileKey(1, 0))).toBe(TILE);
 });
 
 test('Sicht verwirft, was hinter einem oder zu weit weg ist', () => {

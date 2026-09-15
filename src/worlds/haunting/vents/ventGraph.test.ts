@@ -93,8 +93,9 @@ describe('Das Lüftungsnetz aus der Datendatei', () => {
     expect(() => new VentNet(spec, { flaps: [{ ...good, dir: DIR_N }], links: [] })).toThrow(
       /Rand/,
     );
-    // In der Türöffnung: die Cafeteria-Südtür bei Kachel (1, -15) nach Süden.
-    expect(() => new VentNet(spec, { flaps: [{ ...good, x: 1 }], links: [] })).toThrow(
+    // In der Türöffnung: die Cafeteria-Südtür zum Mittelgang, eine Kachel
+    // neben der Klappe.
+    expect(() => new VentNet(spec, { flaps: [{ ...good, x: good.x + 1 }], links: [] })).toThrow(
       /Türöffnung/,
     );
     expect(
@@ -105,7 +106,7 @@ describe('Das Lüftungsnetz aus der Datendatei', () => {
         }),
     ).toThrow(/unbekannte Klappe/);
     expect(
-      () => new VentNet(spec, { flaps: [good, { ...good, dir: DIR_E, x: 4 }], links: [] }),
+      () => new VentNet(spec, { flaps: [good, { ...good, dir: DIR_E, x: 9, z: -40 }], links: [] }),
     ).toThrow(/doppelte/);
   });
 

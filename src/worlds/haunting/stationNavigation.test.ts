@@ -57,7 +57,7 @@ test.each([14])('walking routes in %i-room stations clear models and real door f
         complete: true,
         grounded: true,
       });
-      expect(clearPath(from, route.points!, boxes, 0.45)).toBe(true);
+      expect(clearPath(from, route.points!, boxes, 0.3)).toBe(true);
     }
   }
 });
@@ -66,11 +66,11 @@ test('a route rounds corners with short, collision-clear curve samples', () => {
   const spec = generateHouse(2, 8);
   const from = poseFor(spec, spec.entryRoom);
   const target = poseFor(spec, 'r2');
-  const route = stationRoute(spec, housePlan(spec).graph, from, target, 0.45);
+  const route = stationRoute(spec, housePlan(spec).graph, from, target, 0.3);
   expect(route.complete).toBe(true);
   expect(route.points!.at(-1)).toEqual({ x: target.x, z: target.z });
   const boxes = [...stationLayout(spec).map((p) => p.bounds), ...walls(spec)];
-  expect(clearPath(from, route.points!, boxes, 0.45)).toBe(true);
+  expect(clearPath(from, route.points!, boxes, 0.3)).toBe(true);
   let curvedSamples = 0;
   const points = [from, ...route.points!];
   for (let i = 1; i < points.length - 1; i++) {
@@ -96,14 +96,14 @@ test('the seed2 route avoids the tall locker crossed by the old tile-centre rout
   const plan = housePlan(spec);
   const from = poseFor(spec, spec.entryRoom);
   const locker = stationLayout(spec).find((p) => p.id === 'locker-r3')!;
-  const route = stationRoute(spec, plan.graph, from, goalFor(spec, 'r0'), 0.45);
+  const route = stationRoute(spec, plan.graph, from, goalFor(spec, 'r0'), 0.3);
   expect(route.complete).toBe(true);
-  expect(clearPath(from, route.points!, [locker.bounds], 0.45)).toBe(true);
+  expect(clearPath(from, route.points!, [locker.bounds], 0.3)).toBe(true);
   const pose = { ...from };
   for (let frame = 0; frame < 12000 && route.points!.length; frame++) {
     const previous = { ...pose };
     stepAlong(pose, route, 1 / 90);
-    expect(routeBlocked(previous, pose, locker.bounds, 0.45)).toBe(false);
+    expect(routeBlocked(previous, pose, locker.bounds, 0.3)).toBe(false);
   }
   expect(route.points).toHaveLength(0);
   expect(routeLength(pose, route)).toBe(0);
