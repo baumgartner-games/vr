@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HEAD_RADIUS } from './avatarLook';
+import { HEAD_RADIUS, HEAD_SPREAD } from './avatarLook';
 
 /**
  * **Was man auf dem Kopf trägt** — die erste Sorte Kleidung in diesem Projekt.
@@ -100,6 +100,19 @@ function r(k: number): number {
 }
 
 /**
+ * Dasselbe für alles, was den Kopf **umfasst** — Bänder, Krempen, Kuppen. Der
+ * Kopf ist eine gefaste Kiste und an seinen vier Ecken gut ein Fünftel weiter
+ * draußen als eine Kugel (`avatarLook.HEAD_SPREAD`); ein Hut, der das nicht
+ * mitrechnet, sitzt vorn an und lässt an den Ecken die Haut durchblitzen.
+ *
+ * Nicht benutzt wird es für alles, was **auf** dem Kopf steht statt um ihn
+ * herum — ein Zylinderrohr oder ein Bommel berührt ihn nie.
+ */
+function around(k: number): number {
+  return HEAD_RADIUS * k * HEAD_SPREAD;
+}
+
+/**
  * **Die Kuppe, die dem runden Kopf ab der Höhe `base` aufsitzt.**
  *
  * Auf einer Kugel hängt der Halbmesser von der Höhe ab: Wer eine Mütze mit
@@ -109,7 +122,8 @@ function r(k: number): number {
  * über dem Kopf, weil sie von ihrer Ansatzhöhe an schneller fällt als er.
  */
 function dome(base: number, margin: number): { radius: number; y: number } {
-  const radius = Math.sqrt(Math.max(HEAD_RADIUS * HEAD_RADIUS - base * base, 1e-4)) + margin;
+  const radius =
+    Math.sqrt(Math.max(HEAD_RADIUS * HEAD_RADIUS - base * base, 1e-4)) * HEAD_SPREAD + margin;
   return { radius, y: base };
 }
 
@@ -146,21 +160,69 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
 
   switch (kind) {
     case 'chef': {
-      // Die Kochmütze: Wulst, Rohr, Haube. Sie ist absichtlich hoch — von
-      // schräg oben ist sie das, was eine Figur als Koch erkennbar macht,
-      // und sie überragt dabei jeden anderen Hut im Regal. Der Wulst unten
-      // ist der Ring, der sie auf dem runden Kopf hält; ohne ihn säße oben
-      // ein Zylinder auf einer Kugel.
-      const linen = solid(0xf7f5ef, 0.9);
-      const band = new THREE.Mesh(new THREE.TorusGeometry(r(0.9), r(0.2), 10, 26), linen);
-      band.rotation.x = Math.PI / 2;
-      band.position.y = r(0.66);
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(r(0.82), r(0.95), r(0.95), 24), linen);
-      tube.position.y = r(1.12);
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(r(0.95), 20, 14), linen);
-      puff.scale.set(1.2, 0.92, 1.2);
-      puff.position.y = r(1.78);
-      group.add(band, tube, puff);
+      // **Die Kochmütze** — das Erkennungszeichen dieser Figuren, und deshalb
+      // das Stück, an dem sich der Umbau am meisten entschied.
+      //
+      // Vorher waren es drei glatte Drehkörper: Wulst, Rohr, Kuppel. Von vorn
+      // ein Marshmallow auf einem Kegel. Bei den Vorbildern besteht die Haube
+      // aus **mehreren Lappen**, die sich überlappen — das ist es, was den
+      // Stoff wie Stoff aussehen lässt und nicht wie gedrehtes Holz, und man
+      // sieht es noch aus 16 m Höhe an der Kante, die nicht rund ist.
+      //
+      // Dazu drei Maße, die vorher fehlten: Die Mütze ist **breiter als der
+      // Kopf** (sonst ist sie eine Zipfelmütze), sie ist **höher**, und unter
+      // ihr sitzt ein **dunkles Stirnband**. Das Band ist der Kniff: Es
+      // trennt Weiß von Haut, und ohne diese Trennung verschwimmt die obere
+      // Kopfhälfte zu einem hellen Fleck.
+      const linen = solid(0xf6f3ea, 0.92);
+      const dark = solid(0x24262c, 0.85);
+      // Alles an dieser Mütze sitzt in einer eigenen Gruppe, weil sie als
+      // Ganzes **nach hinten gekippt** getragen wird — gut zehn Grad, und ein
+      // Stück nach hinten versetzt. Gerade aufgesetzt sähe sie aus wie ein
+      // Hut auf einem Schneemann; gekippt gibt sie der Figur die Stirn frei,
+      // auf der Brauen und Blick sitzen.
+      const toque = new THREE.Group();
+      toque.rotation.x = -0.2;
+      toque.position.z = r(0.1);
+      group.add(toque);
+
+      // Das Stirnband: ein Rohr über den Brauen, das den Kopf ringsum fasst.
+      // Es steht über die Kopfform hinaus, damit es auch von vorn ein Band ist
+      // und kein aufgemalter Strich — und es trennt Weiß von Haut. Ohne diese
+      // Trennung verschwimmt die obere Kopfhälfte zu einem hellen Fleck.
+      const headband = new THREE.Mesh(
+        new THREE.CylinderGeometry(around(0.9), around(0.94), r(0.32), 26),
+        dark,
+      );
+      headband.position.y = r(0.64);
+      toque.add(headband);
+
+      // Der Rand der Mütze liegt auf dem Band auf — und ist **schmaler als
+      // die Haube darüber**. Dieser Überhang mit dem Schatten darunter ist
+      // das, woran man eine Kochmütze auch als Scherenschnitt erkennt.
+      const brim = new THREE.Mesh(
+        new THREE.CylinderGeometry(around(0.95), around(0.92), r(0.3), 28),
+        linen,
+      );
+      brim.position.y = r(0.95);
+      toque.add(brim);
+
+      // **Die Haube aus Lappen.** Fünf Kugeln im Kreis plus eine in der Mitte,
+      // alle ineinandergeschoben: zusammen eine Wolke mit sichtbaren Beulen.
+      // Sechs Netze für die Silhouette, die diese Figur ausmacht — billiger
+      // als jede Textur, die dasselbe versuchen würde.
+      const lobes = 5;
+      for (let i = 0; i < lobes; i++) {
+        const angle = (i / lobes) * Math.PI * 2 + Math.PI / lobes;
+        const lobe = new THREE.Mesh(new THREE.SphereGeometry(r(0.6), 16, 12), linen);
+        lobe.position.set(Math.sin(angle) * around(0.6), r(1.46), Math.cos(angle) * around(0.6));
+        lobe.scale.set(1.02, 1.2, 1.02);
+        toque.add(lobe);
+      }
+      const crown = new THREE.Mesh(new THREE.SphereGeometry(r(0.76), 20, 14), linen);
+      crown.scale.set(1.0, 0.9, 1.0);
+      crown.position.y = r(1.62);
+      toque.add(crown);
       break;
     }
     case 'cap': {
@@ -216,7 +278,7 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
       const knit = solid(0xc2543f, 0.95);
       const shell = domeMesh(r(0.47), r(0.09), knit);
       const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(r(1.0), r(1.0), r(0.27), 22),
+        new THREE.CylinderGeometry(around(0.92), around(0.92), r(0.27), 22),
         solid(0xa8422f, 0.95),
       );
       band.position.y = r(0.54);
@@ -232,10 +294,13 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
       const felt = solid(0x14161d, 0.85);
       const brim = new THREE.Mesh(new THREE.CylinderGeometry(r(1.36), r(1.36), r(0.1), 26), felt);
       brim.position.y = r(0.62);
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(r(0.91), r(0.94), r(1.32), 26), felt);
+      const tube = new THREE.Mesh(
+        new THREE.CylinderGeometry(around(0.86), around(0.89), r(1.32), 26),
+        felt,
+      );
       tube.position.y = r(1.36);
       const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(r(0.95), r(0.96), r(0.23), 26),
+        new THREE.CylinderGeometry(around(0.9), around(0.91), r(0.23), 26),
         solid(0x8c2f3c, 0.8),
       );
       band.position.y = r(0.79);
@@ -244,7 +309,10 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
     }
     case 'crown': {
       const gold = solid(0xe8c14a, 0.3, 0.75);
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(r(0.98), r(0.98), r(0.36), 22), gold);
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(around(0.92), around(0.92), r(0.36), 22),
+        gold,
+      );
       ring.position.y = r(0.74);
       group.add(ring);
       for (let i = 0; i < 6; i++) {

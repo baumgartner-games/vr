@@ -3,14 +3,15 @@ import { buildHeadgear, type HeadgearKind } from './headgear';
 import { DEFAULT_APPEARANCE, type Appearance } from './appearance';
 import {
   buildBody,
+  buildHand,
   buildHead,
   skinTone,
-  HAND_RADIUS,
   HEAD_RADIUS,
   type BodyKind,
   type BodyShape,
   type HeadKind,
 } from './avatarLook';
+import { cloth, skin as skinMaterial } from './chefStyle';
 
 /** Head + hand pose used to drive the body, in the body's parent space. */
 export interface AvatarLimb {
@@ -44,6 +45,8 @@ function disposeTree(root: THREE.Object3D, keep?: ReadonlySet<THREE.Material>): 
 const _forward = new THREE.Vector3();
 const _hand = new THREE.Vector3();
 const _world = new THREE.Vector3();
+/** Beide Handpositionen im Raum des Rumpfes — für die Ärmel, je Bild neu. */
+const _arms: [THREE.Vector3, THREE.Vector3] = [new THREE.Vector3(), new THREE.Vector3()];
 
 /**
  * Wie weit die Kopfmitte hinter den Augen sitzt — dort steht auch der Rumpf.
@@ -64,10 +67,10 @@ const NECK_BACK = HEAD_RADIUS * 0.34;
  * nicht neben ihm vorbeischaut, und eine Figur, die von hinten keine Hände
  * hat, greift für den Zuschauer ins Leere.
  */
-const HAND_SIDE = 0.42;
-const HAND_FRONT = 0.24;
-/** Auf welchem Anteil der Rumpfhöhe — knapp über der dicksten Stelle. */
-const HAND_LIFT = 0.66;
+const HAND_SIDE = 0.4;
+const HAND_FRONT = 0.18;
+/** Auf welchem Anteil der Rumpfhöhe — auf Bauchhöhe, unter der Schulter. */
+const HAND_LIFT = 0.52;
 
 /**
  * **Die Figur** — ein Koch nach dem Vorbild von Overcooked, angetrieben von
@@ -98,7 +101,7 @@ export class AvatarBody extends THREE.Group {
    * ist (daran hängt, ob ein Werkzeug darin liegt); die Kugel schwebt auch
    * dann vor dem Rumpf, wenn niemand sie trackt.
    */
-  private readonly handMeshes: THREE.Mesh[] = [];
+  private readonly handMeshes: THREE.Group[] = [];
 
   /** Der Rumpf: eine Gruppe, damit Drehung und Höhe getrennt bleiben. */
   private readonly torso: THREE.Group;
@@ -123,15 +126,11 @@ export class AvatarBody extends THREE.Group {
     super();
     this.name = 'avatar-body';
 
-    this.suit = new THREE.MeshStandardMaterial({
-      color: options.color ?? 0x3f6fb5,
-      roughness: 0.6,
-      metalness: 0.15,
-    });
-    this.skin = new THREE.MeshStandardMaterial({
-      color: skinTone(DEFAULT_APPEARANCE.head),
-      roughness: 0.85,
-    });
+    // Stoff und Haut kommen aus der Stilschicht (`core/chefStyle.ts`) und
+    // nicht aus drei eigenen Zahlen: Ein Halstuch soll so matt sein wie die
+    // Jacke daneben, sonst glänzt in der Brille genau ein Teil der Figur.
+    this.suit = cloth(options.color ?? 0x3f6fb5);
+    this.skin = skinMaterial(skinTone(DEFAULT_APPEARANCE.head));
     this.kept = new Set<THREE.Material>([this.suit, this.skin]);
 
     this.torso = new THREE.Group();
@@ -149,12 +148,11 @@ export class AvatarBody extends THREE.Group {
       this.add(anchor);
       anchors.push(anchor);
       if (!options.hands) continue;
-      // Ø 19 cm: Zu einem Kopf von 46 cm gehören Fäuste und keine Perlen —
+      // Ø 19 cm: Zu einem Kopf von 52 cm gehören Fäustlinge und keine Perlen —
       // von oben ist die Hand das, woran man sieht, wohin jemand greift.
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(HAND_RADIUS, 16, 12), this.skin);
-      ball.frustumCulled = false;
-      this.add(ball);
-      this.handMeshes.push(ball);
+      const mitt = buildHand(i === 0 ? -1 : 1, this.skin);
+      this.add(mitt);
+      this.handMeshes.push(mitt);
     }
     this.handAnchors = [anchors[0]!, anchors[1]!];
 
@@ -271,17 +269,24 @@ export class AvatarBody extends THREE.Group {
     const cos = Math.cos(this.bodyYaw);
     const baseX = headPos.x + sin * NECK_BACK;
     const baseZ = headPos.z + cos * NECK_BACK;
-    // Der Kopf sitzt **auf** dem Rumpf, ohne Hals: Die Schulter endet ein
-    // Stück über der Kopfunterkante, und die Kugel steckt darin.
-    const height = Math.max(headPos.y - HEAD_RADIUS * 0.62, 0.3);
+    // Der Kopf sitzt **auf** dem Rumpf, ohne Hals: Der Kragen endet knapp
+    // über der Kopfunterkante, und die Kugel steht darauf. `0.86` statt der
+    // alten `0.62` ist der Unterschied zwischen einem Kopf, der auf einem
+    // Körper sitzt, und einem, der bis zu den Augen darin versinkt — so sah
+    // die Figur vorher von oben aus wie ein Kegel mit einem Knauf.
+    const height = Math.max(headPos.y - HEAD_RADIUS * 0.86, 0.3);
     this.torso.position.set(baseX, 0, baseZ);
     this.torso.rotation.set(0, this.bodyYaw, 0);
     this.shape?.setHeight(height);
 
-    // Tempo treibt das Pendeln der freien Hände; im Stehen hängen sie ruhig.
+    // Tempo treibt Schritt und Pendeln; im Stehen hängen die Hände ruhig und
+    // die Beine stehen still. `stride` ist 0 im Stand und 1 ab 1,6 m/s — das
+    // ist gutes Gehtempo, und schneller wird der Schritt nicht weiter, nur
+    // häufiger.
     this.speed += (this.travelSpeed(headPos, dt) - this.speed) * Math.min(1, dt * 8);
     this.walkPhase += dt * Math.min(this.speed, 3) * 4.4;
     const swing = Math.min(this.speed * 0.05, 0.09);
+    this.shape?.setStride(this.walkPhase, Math.min(this.speed / 1.6, 1));
 
     for (let i = 0; i < 2; i++) {
       const sign = i === 0 ? -1 : 1;
@@ -304,11 +309,27 @@ export class AvatarBody extends THREE.Group {
         );
       }
 
+      // Der Ärmel rechnet im Raum des Rumpfes, die Hand liegt im Raum des
+      // Körpers: einmal die Verschiebung des Rumpfes abziehen und um seinen
+      // Gierwinkel zurückdrehen, dann passen beide zusammen.
+      const dx = _hand.x - baseX;
+      const dz = _hand.z - baseZ;
+      _arms[i]!.set(dx * cos - dz * sin, _hand.y, dx * sin + dz * cos);
+
       anchor.visible = limb !== null;
       anchor.position.copy(_hand);
       if (limb?.quaternion) anchor.quaternion.copy(limb.quaternion);
-      this.handMeshes[i]?.position.copy(_hand);
+      const mitt = this.handMeshes[i];
+      if (!mitt) continue;
+      mitt.position.copy(_hand);
+      // Eine ungetrackte Hand schaut dorthin, wohin der Rumpf schaut, und
+      // kippt die Handfläche leicht nach innen — so hält jemand etwas vor
+      // sich. Eine getrackte übernimmt die Pose, die die Brille misst.
+      if (limb?.quaternion) mitt.quaternion.copy(limb.quaternion);
+      else mitt.rotation.set(0.62, this.bodyYaw, sign * 0.34);
     }
+
+    this.shape?.setArms(_arms[0]!, _arms[1]!);
   }
 
   dispose(): void {

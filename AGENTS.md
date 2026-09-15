@@ -4552,25 +4552,86 @@ _Menü → Aussehen_ und der **Kleiderschrank** — drei Zeilen, und dahinter di
 ganze Figur (`core/AvatarBody.ts`, `core/avatarLook.ts`, `core/appearance.ts`,
 `core/headgear.ts`).
 
-**Die Figur ist ein Koch**, seit September 2026: ein **Rumpf** wie eine Tonne
-(0,5 m breit, vom Boden bis unter den Kopf, oben etwas schmaler), ein runder
-**Kopf** (Ø 32 cm, `HEAD_RADIUS`) mit zwei Augen und einer Nase, zwei
-**Handkugeln** (Ø 12 cm), die daneben schweben — und **keine Arme und keine
-Beine**. Das Vorbild sind die Köche aus _Overcooked_, und der Grund ist die
-Kamera: In diesem Projekt schaut man aus zwölf Metern schräg von oben auf
-Figuren, und ein Skelett mit Armen und Beinen ist von dort zwei graue Striche,
-an denen man nicht einmal erkennt, wohin jemand sieht. Ein runder Kopf mit
-Augen und Nase erkennt man, ein Rumpf ohne Gliedmaßen liest sich als
-Blickrichtung, und zwei Kugeln daneben sind Hände.
+**Die Figur ist ein Koch**, seit September 2026 — und seit dem zweiten Anlauf
+sieht sie auch nach einem aus. Das Vorbild sind die Köche aus _Overcooked_, und
+der Grund ist die Kamera: Hier schaut man aus **16 m** schräg von oben unter
+55° auf Figuren (`core/topDownPose.ts`), und ein Skelett mit Armen und Beinen
+ist von dort zwei graue Striche, an denen man nicht einmal erkennt, wohin
+jemand sieht.
+
+Was die Figur ist, in Maßen (`core/avatarLook.ts`, alles oben in der Datei):
+
+| Teil | Maß | |
+| --- | --- | --- |
+| **Kopf** | Ø 52 cm (`HEAD_RADIUS = 0.26`) | eine **gefaste Kiste**, keine Kugel (`HEAD_BOX = 0.5`) |
+| **Jacke** | Ø 85 cm an der breitesten Stelle (`BODY_RADIUS`) | eine Glocke, unten am breitesten |
+| **Saum** | bei 30 % der Rumpfhöhe (`HEM`) | darunter stehen die Beine |
+| **Beine** | zwei, kariert, mit Schuhen | schwingen beim Laufen gegeneinander |
+| **Ärmel** | kurze Stummel an der Schulter | zeigen auf die Hand, wachsen mit |
+| **Hände** | Ø 19 cm (`HAND_RADIUS`) | fingerlose Fäustlinge, schweben mit Lücke |
+| **Mütze** | gut 90 % der Kopfhöhe | fünf Lappen, dunkles Stirnband, nach hinten gekippt |
+
+**Die vier Fehler des ersten Anlaufs** stehen hier, weil sie sich sonst
+wiederholen. Er war nicht falsch gebaut, er war nur zu wenig: Aus einer
+Drehform vom Boden bis unter den Kopf, einer Kugel darauf und zwei Perlen
+daneben wird von schräg oben ein **Kegel mit einem Knauf** — ein Bowlingpin.
+
+1. **Der Kopf versank im Rumpf.** Er saß bis zu den Augen im Kragen, weil die
+   Rumpfhöhe mit `HEAD_RADIUS * 0.62` gerechnet wurde; heute sind es `0.86`,
+   und der Kopf **kragt über die Schulter hinaus**. Genau diese Einschnürung
+   an der Schulter ist es, woran man die Vorbilder erkennt.
+2. **Es bewegte sich beim Laufen nichts.** Eine Figur ohne Beine rutscht über
+   den Boden. Die Vorbilder haben zwar wirklich keine Beine — ihr Karo ist
+   eine Textur auf dem unteren Achtel des Rumpfes —, aber die Vorbilder sind
+   auch zwei Kopfhöhen groß. Hier steht der Kopf auf **Augenhöhe des
+   Spielers**, sonst sehen sich zwei Leute in der Brille nicht in die Augen;
+   die Figur ist damit über zwei Meter hoch, und der ganze Unterschied muss
+   irgendwohin. Er geht in die **Beine**, nicht in einen längeren Rumpf: Ein
+   langer Rumpf ist wieder der Bowlingpin. Das ist die eine Stelle, an der
+   hier bewusst vom Vorbild abgewichen wird.
+3. **Die Hände waren Kugeln, dann Bündel Bananen.** Nachgemessen ist eine Hand
+   dort ein glatter, fingerloser Klumpen mit sichtbarer **Lücke** zum Körper.
+   Vier ausmodellierte Finger bleiben aus jeder Entfernung vier Wülste; eine
+   Kugel bleibt eine Perle. Der Daumen ist die einzige Zutat, und zwar weil
+   diese Hände Werkzeug halten und man sonst die Handfläche nicht findet.
+4. **Alles war glatt.** Kein Stirnband, keine Lappen an der Mütze, keine
+   Brauen, keine Ohren, kein Karo. Die Vorbilder wirken detailliert, weil sie
+   ein Dutzend solcher Kleinteile haben — nicht, weil ihre Netze fein wären.
+
+**Das Material ist nachgemessen und steht an einer Stelle**
+(`core/chefStyle.ts`): matter Stoff (`roughness 0.88`), etwas glattere Haut
+(`0.62`), **`metalness: 0` überall**. Vorher hatte jede der drei Dateien ihr
+eigenes `solid(...)` mit anderen Zahlen, und in der Brille glänzte genau ein
+Teil der Figur. Dort stehen auch die Palette (`CHEF`), das Kochkaro als
+`CanvasTexture` und `squarish()` — die gefaste Kiste, aus der der Kopf ist.
+
+**Keine Kontur und keine Farbstufen.** Overcooked ist nicht cel-schattiert: Die
+Figuren haben keinen schwarzen Strich um sich und keine Lichtbänder, sie leben
+von Hell-Dunkel großer Flächen. Die Vorgabe (`mode: 'simple'`) ist damit die
+richtige für diesen Stil; wer **Comic** einschaltet, bekommt beides dazu und
+sieht dann nach Zeichentrick aus statt nach Knetfigur (siehe
+[Wie schön es aussieht](#wie-schön-es-aussieht)). Das ist eine Entscheidung
+für die ganze Welt und nicht für die Figur, und deshalb bleibt sie eine
+Einstellung.
 
 **Der Antrieb ist derselbe geblieben**: `update(dt, head, left, right)` mit Kopf
 und Händen, wie ihn ein Headset über seinen Träger nun einmal weiß. Der Rumpf
 steht unter dem Kopf, dreht mit `bodyYaw` (mit derselben Totzone wie vorher) und
-folgt der Kopfhöhe — wer sich duckt, wird kleiner. Nicht getrackte Hände
+folgt der Kopfhöhe — wer sich duckt, wird kleiner, und die Beine werden mit
+ihm kürzer; die **Sohle bleibt dabei auf dem Boden**. Nicht getrackte Hände
 schweben seitlich neben dem Rumpf und pendeln beim Laufen leicht. Was andere
 daran hängen haben, ist unverändert: `head`, `handAnchors`, `setColor`,
 `setHeadgear`, `setSelfView`, `setHandsVisible`, `update`, `dispose`, `bodyYaw`
-— dazu neu `setLook(look)`.
+— dazu `setLook(look)`.
+
+**`BodyShape` hat drei Methoden statt einer** (`core/avatarLook.ts`), und alle
+drei ändern je Bild nur `scale`, `position` und `quaternion` — **niemals
+Geometrie**: `setHeight` stellt die Figur auf ihre Höhe, `setStride` schwingt
+die Beine, `setArms` dreht die Ärmel auf die Hände. Der letzte ist der, der die
+Figur zusammenhält: Zwei Hände, die frei schweben, und zwei Stummel, die starr
+an der Schulter hängen, waren vier Teile, die nichts miteinander zu tun hatten.
+Gerechnet wird dabei **ohne `lookAt`** — das rechnet in Weltkoordinaten, und
+der Ärmel hängt in einem Rumpf, der sich dreht.
 
 **Drei Zeilen, drei Listen** (`core/avatarLook.ts`). Vorher gab es nur den Hut,
 und alle sahen darunter gleich aus: derselbe Körper aus Kapseln, dieselbe Farbe
@@ -4583,12 +4644,36 @@ seinen Namen dafür. Jetzt sind es drei:
   **Hände** mit, es sind ja seine (`skinTone`).
 - **Hut** — acht Sorten aus Zylindern, Kugeln und Quadern wie alles hier:
   **ohne** (die Auslieferung), **Kochmütze**, **Basecap**, **Helm**,
-  **Bauhelm**, **Mütze**, **Zylinder**, **Krone**. Die Kochmütze ist die neue
-  und das Vorbild für alles andere: hoch, weiß, mit Wulst.
+  **Bauhelm**, **Mütze**, **Zylinder**, **Krone**. Die Kochmütze ist das
+  Vorbild für alles andere: **dunkles Stirnband**, schmaler Rand, darüber eine
+  Haube aus **fünf Lappen**, die über den Rand hinauskragt, das Ganze gut zehn
+  Grad nach hinten gekippt. Jedes dieser vier Stücke ist nachgemessen, und
+  jedes einzelne fehlte in der ersten Fassung — die war ein Marshmallow auf
+  einem Kegel.
 - **Körper** — fünf Kochjacken: weiß, rot, blau, grün, gestreift.
 
 Was eine **Anzugfarbe** trägt und keine eigene hat — Schürze, Halstuch —, trägt
 die des Trägers: Ein Spieler hat eine Farbe und nicht drei.
+
+**Wie man die Figur ansieht, bevor man sie ändert.** Die Optik ist das eine
+hier, was kein Jest-Test abnehmen kann — `avatarBody.test.ts` prüft
+Proportionen und Rechnung, aber ob eine Figur nach Koch aussieht, entscheidet
+das Auge. Dafür gibt es den **Musterbogen**:
+
+```
+npm run dev                # in einem Fenster laufen lassen
+npm run avatar             # schießt vier Ansichten nach .artifacts/avatar
+npm run avatar -- --tag=nachher --walk   # zum Vergleichen, und in Bewegung
+```
+
+Die Seite ist `avatar-preview.html` (`src/preview/avatarPreview.ts`) und wird
+**nicht mitgebaut** — `vite.config.ts` kennt nur `index.html` und `tools.html`,
+also gibt es sie nur im Entwicklungsserver. Sie stellt alle Sorten
+nebeneinander und rendert vier Ansichten: von vorn, halb schräg, von der Seite
+und **die Kamera, unter der wirklich gespielt wird** (16 m, 55°, 30°
+Öffnung). Was dort nicht lesbar ist, ist es nirgends. `?hat=all` geht statt
+der Kochmütze das Hutregal durch, `?walk=1` lässt die Figuren laufen — daran
+sieht man Beine und Ärmel in Bewegung, und im Stand sieht man das nie.
 
 Drei Regeln stecken darin, und alle drei sind es wert, aufgeschrieben zu
 werden:

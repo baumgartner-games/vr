@@ -1118,7 +1118,10 @@ test('the floating world flashlight is pickable with an ordinary web E interacti
 });
 
 test('desktop hides the real local avatar while XR shows its body and always hides its head', () => {
-  const body = ctx.avatar.children.find((object) => object instanceof THREE.Mesh)!;
+  // Die Jacke, mit Namen: Seit die Figur Ärmel und Beine hat, ist kein Netz
+  // mehr **unmittelbares** Kind des Avatars — das erste, was `children.find`
+  // hier fand, war früher eine Handkugel und ist heute eine Gruppe.
+  const body = ctx.avatar.getObjectByName('avatar-coat')!;
   const headMeshes: THREE.Object3D[] = [];
   ctx.avatar.head.traverse((object) => headMeshes.push(object));
   expect(body.layers.isEnabled(0)).toBe(false);
