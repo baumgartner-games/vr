@@ -93,7 +93,7 @@ Schnittstelle als `async` vorschreibt.
 **Zwei Geschwindigkeiten.** `jest.config.cjs` führt eine Liste `SLOW`: die
 Suiten, die ganze Runden ausspielen — Bot-Runden über die echte 2D-Runde
 (`rules/botRound.test.ts`, 150 s), die 2D-Runde selbst (`map/flatRound.test.ts`,
-90 s), Schächte, Glättung, Training, Modelltechniker, Navigationslabor,
+90 s), Schächte, Glättung, Training, Modelltechniker, Fracht,
 Schiffsart — zusammen gut sechs Minuten Rechenzeit, bei zwei CI-Kernen die
 Hälfte der Wartezeit. `npm test` lässt sie aus und ist in unter einer Minute
 durch; `npm run test:slow` fährt genau diese Liste; die CI macht beides in
@@ -168,9 +168,7 @@ ob es nach links oder nach rechts zeigt, ein gedrehter Vektor schon), die
 **Untersetzung der Feinjustage**
 (`src/worlds/tune/fineTune.ts` — dass ein Zentimeter ein Millimeter wird, dass
 die Drehung den kürzeren Bogen nimmt, und dass zehn Bilder auf demselben Weg
-dort enden, wo eines endet), der **Justierstand im Schießgang**
-(`src/worlds/tune/rangeSettings.ts` — Grenzen, damit eine ziehende Hand ihn
-nicht in die Wand schiebt, und ein Speicher, der auch kaputt sein darf), die
+dort enden, wo eines endet), die
 **Handgesten**
 (`src/core/handGestures.ts` — welche Finger an der Handfläche liegen und was
 daraus Greifen und Trigger macht, samt der Hysterese, ohne die ein halb
@@ -204,8 +202,8 @@ vorzeichenrichtig kippt, und die Zahl, wegen der es diesen Test gibt: die
 **Determinante ist −1**. Einem Spiegelbild sieht man in der Brille nicht an,
 dass es falsch herum ist — man merkt es erst, wenn man die Hand hebt und die
 falsche zurückwinkt, und sucht den Fehler dann überall, nur nicht in vier
-Zeilen Matrix), die **Lichtstufen des
-Dunkelhauses** (`src/worlds/dark/lightLevels.ts` — dass die erste Stufe
+Zeilen Matrix), die **Lichtstufen eines
+Dimmers** (`src/worlds/dark/lightLevels.ts` — dass die erste Stufe
 wirklich null ist, dass jede folgende heller wird und dass es nach der
 hellsten wieder aus ist), der **Halt an der Kletterwand**
 (`src/worlds/climb/gripQuality.ts` — dass die Leiter immer voll hält, egal wie
@@ -255,8 +253,7 @@ der Totzone ihn gar nicht erst bewegt, dass der Drehratendeckel greift, wo er
 greifen soll, dass er den kurzen Weg um den Vollkreis nimmt und nie weiter als
 der harte Deckel zurückbleibt), die **Streckenführung**
 (`src/worlds/kart/kartTrack.ts` — nächster Punkt, Leitplanke, Boxengasse und
-Rundenzähler über die Ziellinie hinweg), das **Pizza-Rezept**
-(`src/worlds/shop/pizza.ts` — Kneten, Belegen, Backen, Punkte), das
+Rundenzähler über die Ziellinie hinweg), das
 **Werkzeug-Budget pro Gürtelplatz**
 (`src/worlds/portal/tools/looseBudget.ts` — dass eine Waffe links und eine
 rechts sich nicht gegenseitig verschlucken, und dass ein Exemplar in einer
@@ -265,12 +262,12 @@ Hand zwar mitzählt, aber niemandem aus der Hand genommen wird), die
 (`src/worlds/portal/tools/supermanFlight.ts` und `supermanSettings.ts` — dass
 volle Lehne die eingestellte Geschwindigkeit ergibt und nicht irgendetwas weit
 jenseits eines ausgestreckten Arms, die Vorzeichen der Kurve, und wer welche
-Achse bedient), der **zweite Justierstand**
+Achse bedient), die **Einstellung des Griffstands**
 (`src/worlds/tune/gripSettings.ts` — Grenzen, eine Seite, die keine ist, und
 eine Werkzeug-Id, die es nicht mehr gibt) samt seiner **Rechnung**
 (`src/worlds/tune/handGrip.ts` — dass die Kette Griff → Werkzeug → Hand sich
-wirklich schließt und der Griff sich dabei herauskürzt, denn am Stand hält
-niemand etwas, und dass die Zielkorrektur, die ein gehaltenes Werkzeug
+wirklich schließt und der Griff sich dabei herauskürzt, denn ein hingestelltes
+Werkzeug hält niemand, und dass die Zielkorrektur, die ein gehaltenes Werkzeug
 hineinbekommt, auch wieder herausgeht: `holdFromGrip` ist die Umkehrung von
 `toolInGrip`, und ohne sie stünde sie beim nächsten Zeichnen doppelt darin), die **Faust am Griff**
 (`src/core/gripHandPose.test.ts` — dass eine am Griff eingestellte Haltung für
@@ -424,7 +421,7 @@ Zeigerichtung aus den letzten Bildern vor dem Loslassen kommt und nicht aus dem
 Ausholen davor, dass der Blick den Wurf im engen Kegel ganz an sich zieht und
 weit außerhalb gar nicht, und der Wurf, um den es geht: der Arm fährt beim
 Zielen von oben nach unten, und die Klinge geht trotzdem waagerecht auf das
-Ziel) und die **Effekte des Effektlabors**
+Ziel) und die **Effekte**
 (`src/worlds/effects/effectKinds.ts` — die Grenzen und das Raster der Größe,
 dass „größer" mehr und dickere Partikel heißt, aber nie mehr als die Obergrenze,
 und dass die Physik dahinter dieselbe bleibt; `effectBurst.ts` — dass eine
@@ -452,10 +449,7 @@ Knochen an der Boxhand, als Punktfarben im Netz des Handschuhs), die **geteilte
 Handhaltung** (`src/worlds/tune/handShare.ts` — hin und
 zurück ohne Verlust, dass die zwanzig Gelenke nur mitgehen, wenn es sie gibt,
 und dass alles, was nicht danach aussieht, verworfen wird
-statt eine halbe Hand zu bauen) und die **Maße des Gangs samt Poseraum**
-(`src/worlds/tune/lane.ts` — dass die Trennwand die Knöpfe stehen lässt, wo die
-alte Wand stand, dass ihre Tür breit genug ist und in den Gang passt, und dass
-der Schwebekasten in den Streifen dahinter passt, mitsamt dem, der davorsteht).
+statt eine halbe Hand zu bauen).
 das **Hirn eines NPC** (`src/worlds/npc/npcBrain.ts` — dass „vorne" wirklich
 -Z ist und ein Zombie einem nicht rückwärts davonläuft, dass er über den
 kürzeren Bogen dreht und nur läuft, wohin er schon schaut, dass er ankommt,
@@ -547,10 +541,6 @@ eingeschlossen: Eine Metalltür, die als Holztür zurückkäme, wäre ein Zombie
 der durch eine Wand geht, die vor dem Speichern eine war; und jede Datei, die
 es ablehnt: fremdes Format, fehlende Version, eine Karte aus
 der Zukunft und eine mit einer anderen Kachelgröße) — und, seit es sie gibt,
-der **Bauplan der Wandkonsole** (`navlab/consoleLayout.ts` — dass jede Taste und
-jede Beschriftung auf der Platte bleibt, auch wenn eine Ebene dazukommt, dass
-keine zwei übereinanderliegen und dass „Verbindungen" als Ebene und als
-Schalter nicht dieselbe Taste sind), und
 der **Bauplan des Editors** (`editor/levelPlan.ts` — worauf ein Zeiger trifft,
 Kachel oder Kante; was die vier Werkzeuge daraus machen; und dass der
 Radiergummi erst die Tür, dann die Wand und dann den Boden nimmt), die
@@ -569,11 +559,11 @@ baut, findet das Abtasten wieder), das **Setzen von Bausteinen**
 geraten wird, dass der Radiergummi erst den Baustein und dann den Boden nimmt,
 dass eine Kachel danach wieder so billig ist wie vorher, und der Fehler, der
 erst beim **zweiten** Laden aufflöge: dass ein Aufschlag nicht doppelt zählt),
-und die **vier Grundrisse der Gitterwelten** (`dark/darkHouse.ts`,
-`range/rangeStand.ts`, `dust/dustTown.ts`, `climb/climbHall.ts` — dass man vom
-Startzimmer in jedes Zimmer kommt, dass jedes Haus in Dust vom Erdgeschoss aufs
-Dach begehbar ist, dass kein Baustein in einer Tür steht und dass die Matte der
-Kletterhalle nicht als zweite Fläche auf dem Boden liegt), die **Miniatur**
+und der **Grundriss der Testwelt** (`test/testPlan.ts` — dass jede der neun
+Zonen vom Startplatz aus zu erreichen ist, dass die Treppe wirklich auf dem
+Podest endet, dass hinter die Türwand nur kommt, wer eine der drei Türen
+aufmacht, und dass die ganze Welt eine Runde durch das Weltformat unverändert
+übersteht), die **Miniatur**
 (`editor/miniature.ts` — Hin und Zurück ohne Drift, **auch bei einem gekippten
 Modell**; dass eine Hand es samt Handgelenk trägt und der angefasste Punkt
 dabei unter ihr bleibt; dass zwei Hände es kippen **und** rollen — das Rollen
@@ -604,20 +594,22 @@ sind; dass ein Baustein ohne Boden stillschweigend wegfällt, eine kaputte Masse
 dagegen abbricht) und der **Speicher dahinter**
 (`grid/worldStore.ts` — dass jede Welt ihren eigenen Schlüssel hat, dass Müll im
 Speicher weggeworfen wird statt die Welt aufzuhalten, und dass ein privates
-Fenster ohne `localStorage` ein Nein bekommt statt eines Absturzes) — und das
-**ganze Labor auf einmal** (`navlab/labSim.ts`, `labSim.test.ts`, und einmal
-mit echter Physik in `labPhysics.test.ts`): dieselben
-Wände, dieselbe Karte, ein Körper mit Umfang und Drehrate, und je Bucht ein
-**Kontrollpunkt**, an dem er vorbeigekommen sein muss — darunter der, um den es
-seit den Türen geht: Vor der **Metalltür** muss der Zombie außen herum, und der
-Beweis ist die Stelle, an der seine Spur die Wandlinie überschreitet; vor der
-**Holztür** steht er drei Sekunden und geht dann geradeaus hindurch. Beide Male
-prüft der Test zusätzlich, dass er **wirklich hingegangen** ist: Der Umweg
-fängt an der Tür an und nicht am Start, sonst wusste er von einem Riegel, den
-ihm niemand gezeigt hat. Der Unterschied zu allen
-anderen ist die Frage: Die übrigen prüfen eine Rechnung, dieser prüft einen
-**Eindruck** — „der Zombie läuft durch die verriegelte Tür" ist keine falsche
-Zahl, sondern ein Weg, den man erst sieht, wenn man ihn abläuft.
+Fenster ohne `localStorage` ein Nein bekommt statt eines Absturzes) und das
+**Wand-Ghosting** (`grid/wallGhost.ts` — was zwischen Kamera und Figur steht
+und was nicht: eine Wand ja, ein Boden nie, eine Druckplatte auch nicht).
+
+**Ein Prüfstand ist weggefallen, und das ist eine Lücke.** Bis September 2026
+lief das ganze **Navigationslabor** als Test (`navlab/labSim.ts`, und einmal
+mit echter Physik): dieselben Wände, dieselbe Karte, ein Körper mit Umfang und
+Drehrate, und je Bucht ein **Kontrollpunkt**, an dem er vorbeigekommen sein
+musste — vor der Metalltür außen herum, vor der Holztür drei Sekunden
+davorstehen und dann hindurch. Der Unterschied zu allen anderen war die Frage:
+Die übrigen prüfen eine Rechnung, dieser prüfte einen **Eindruck** — „der
+Zombie läuft durch die verriegelte Tür" ist keine falsche Zahl, sondern ein
+Weg, den man erst sieht, wenn man ihn abläuft. Mit der Welt ist er gegangen;
+die Navigationszone der Testwelt stellt dieselben Fragen wieder auf, prüft sie
+aber bislang nur von Hand. Wer sie wieder rechnen lassen will, findet das alte
+Gerüst in `git show 3678f32:src/worlds/navlab/labSim.ts`.
 
 Und seit es die **Schilder** gibt (`worlds/signs/`), fünf weitere: was auf
 einem Schild steht (`signMarkup.ts` — die kleine Teilmenge Markdown, und vor
@@ -638,7 +630,7 @@ Fassung das Bekannte stehen bleibt: beim Begrüßen antworten mehrere, und ohne
 diese Regel spränge der Rollstand jedes Schildes zurück an den Anfang). Dazu
 die **Tastaturwahl** (`core/systemKeyboard.ts` — die Tabelle aus drei
 Einstellungen mal „in der Brille" mal „auf so einem Gerät", in der man sich
-sonst vertut) und die **Türen des Interaktionslabors**
+sonst vertut) und die **Türmathematik**
 (`worlds/interact/doorMotion.ts` — dass eine Tür mit Nachlauf beim zweiten
 Druck _nicht_ zufällt, sondern die Uhr neu setzt: eine Tür, die zugeht, während
 man in ihr steht, ist eine Falle und kein Schalter) und der **alte Build**
@@ -673,8 +665,8 @@ Der erste Blätterpfeil stand deshalb im Leder. Alles, was schwer zu testen ist,
 möglichst in so ein Modul — der Rest bleibt Verdrahtung.
 
 **Vier Tests starten wirklich Rapier**, und jeder hat sich das verdient
-(`jest.config.cjs` führt sie auf): `navlab/labPhysics.test.ts` lässt einen NPC
-über die Quader des Navigationslabors laufen, `npc/npcDirector.test.ts` prüft,
+(`jest.config.cjs` führt sie auf): `grid/slidingDoor.test.ts` lässt ein
+Türblatt wirklich fahren, `npc/npcDirector.test.ts` prüft,
 woher Nachschub kommt, `physics/playerFooting.test.ts` stellt den Spieler bei
 fünf Bildraten auf den Boden — und `worlds/portal/portalFall.test.ts` lässt
 einen Zombie **und einen Würfel** durch ein Bodenportal fallen. Der letzte, weil
