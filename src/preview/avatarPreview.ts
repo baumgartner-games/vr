@@ -62,7 +62,7 @@ const hatChoice = params.get('hat') ?? 'chef';
 const walking = params.get('walk') === '1';
 
 const count = Math.max(HEAD_KINDS.length, BODY_KINDS.length, hatChoice === 'all' ? 8 : 5);
-const spacing = 1.7;
+const spacing = 1.15;
 const bodies: AvatarBody[] = [];
 for (let i = 0; i < count; i++) {
   const body = new AvatarBody({ color: ROLES[i % ROLES.length]!, hands: true });
@@ -78,36 +78,46 @@ for (let i = 0; i < count; i++) {
   bodies.push(body);
 }
 
-// Im Stand genügt ein Bild; zum Laufen werden ein paar Schritte vorgespult,
-// damit das Watscheln mitten im Takt steht und nicht am Anfang.
-const steps = walking ? 40 : 1;
-for (let step = 0; step < steps; step++) {
-  for (const body of bodies) {
-    if (walking) body.position.z -= 0.035;
-    head.position.set(0, 1.62, 0);
-    head.quaternion.identity();
-    body.update(1 / 60, head, null, null);
+/**
+ * **Posiert wird vor jedem Bild, nicht einmal beim Laden.**
+ *
+ * Das Modell der Figur kommt asynchron (`core/chefModel.ts`), und wer einmal
+ * beim Laden posiert, fotografiert den Stand davor: Der Kopf hing dann noch
+ * dort, wo die gebaute Figur ihn hatte, und die Hände auch. Genau dieser
+ * Fehler kostete beim Umbau zwei Durchgänge, in denen dieselbe falsche
+ * Stellung zweimal als „unverändert" dastand.
+ */
+function pose(): void {
+  const steps = walking ? 40 : 1;
+  for (let step = 0; step < steps; step++) {
+    for (const body of bodies) {
+      if (walking) body.position.z -= 0.035;
+      head.position.set(0, 1.62, 0);
+      head.quaternion.identity();
+      body.update(1 / 60, head, null, null);
+    }
   }
+  if (walking) for (const body of bodies) body.position.z = 0;
 }
 
 const views: Array<{ name: string; position: THREE.Vector3; look: THREE.Vector3; fov: number }> = [
   // Von vorn und von der Seite: der Blick, den ein Mitspieler in der Brille hat.
   {
     name: 'front',
-    position: new THREE.Vector3(0, 1.3, -5.6),
-    look: new THREE.Vector3(0, 1.0, 0),
+    position: new THREE.Vector3(0, 0.9, -4.6),
+    look: new THREE.Vector3(0, 0.75, 0),
     fov: 45,
   },
   {
     name: 'three-quarter',
-    position: new THREE.Vector3(3.8, 2.4, -4.6),
-    look: new THREE.Vector3(0, 0.95, 0),
+    position: new THREE.Vector3(3.0, 1.8, -3.6),
+    look: new THREE.Vector3(0, 0.7, 0),
     fov: 45,
   },
   {
     name: 'side',
-    position: new THREE.Vector3(5.8, 1.3, 0),
-    look: new THREE.Vector3(0, 1.0, 0),
+    position: new THREE.Vector3(4.4, 0.9, 0),
+    look: new THREE.Vector3(0, 0.75, 0),
     fov: 45,
   },
   // Und die Kamera, unter der wirklich gespielt wird: 16 m, 55° Neigung, 30°
@@ -115,7 +125,7 @@ const views: Array<{ name: string; position: THREE.Vector3; look: THREE.Vector3;
   {
     name: 'topdown',
     position: new THREE.Vector3(0, 13.1, -9.2),
-    look: new THREE.Vector3(0, 0.8, 0),
+    look: new THREE.Vector3(0, 0.5, 0),
     fov: 30,
   },
 ];
@@ -123,6 +133,7 @@ const views: Array<{ name: string; position: THREE.Vector3; look: THREE.Vector3;
 const camera = new THREE.PerspectiveCamera(45, WIDTH / HEIGHT, 0.05, 200);
 
 function draw(index: number): void {
+  pose();
   const view = views[index] ?? views[0]!;
   camera.fov = view.fov;
   camera.position.copy(view.position);

@@ -13,6 +13,8 @@ import {
   type HeadKind,
 } from './avatarLook';
 import { cloth, skin as skinMaterial } from './chefStyle';
+import { canLoadModels, CHEF_EYE, POSE_SCALE } from './chefFit';
+import type { ChefParts } from './chefModel';
 
 /** Head + hand pose used to drive the body, in the body's parent space. */
 export interface AvatarLimb {
@@ -108,6 +110,29 @@ export class AvatarBody extends THREE.Group {
    */
   private readonly handMeshes: THREE.Group[] = [];
 
+  /** Die Hände des Modells, sobald es da ist — sonst leer. */
+  private readonly modelHands: THREE.Object3D[] = [];
+
+  /** Die Mütze des Modells. Sie weicht jeder anderen Kopfbedeckung. */
+  private modelHat: THREE.Object3D | null = null;
+
+  /** Ob die Hände gezeichnet werden — `setHandsVisible` merkt es sich hier. */
+  private handsOn = true;
+
+  /** Trägt den Rumpf des Modells und sein Watscheln (`wearModel`). */
+  private sway: THREE.Group | null = null;
+
+  /**
+   * Wo eine ungetrackte Hand ruht, wenn das Modell da ist — seitlich und in
+   * der Höhe, beides am Rumpf des Modells gemessen (`wearModel`). Ohne Modell
+   * bleiben es die Werte der gebauten Figur.
+   */
+  private idleSide = 0;
+  private idleLift = 0;
+
+  /** Wie weit der Kopf hinter der Pose sitzt — beim Modell gar nicht mehr. */
+  private neckBack = NECK_BACK;
+
   /** Der Rumpf: eine Gruppe, damit Drehung und Höhe getrennt bleiben. */
   private readonly torso: THREE.Group;
   private shape: BodyShape | null = null;
@@ -126,6 +151,23 @@ export class AvatarBody extends THREE.Group {
   private hasPrevious = false;
   private walkPhase = 0;
   private speed = 0;
+
+  /**
+   * **Auf welcher Höhe die Augen dieser Figur stehen** — fest, und nicht mehr
+   * die des Spielers (`core/chefModel.ts`). Solange nur die gebaute Figur da
+   * ist, ist es dieselbe Zahl: Beide sollen gleich groß sein, sonst wächst
+   * der Mitspieler in dem Moment, in dem seine Datei ankommt.
+   */
+  private readonly eyeY = CHEF_EYE;
+
+  /**
+   * Das geladene Modell dieser Figur, sobald es da ist (`core/chefModel.ts`).
+   * Solange es `null` ist, steht die gebaute Figur — und wenn es `null`
+   * bleibt, bleibt sie stehen.
+   */
+  private model: ChefParts | null = null;
+  /** Ob diese Figur schon weggeräumt wurde, als das Modell ankam. */
+  private gone = false;
 
   constructor(options: AvatarBodyOptions = {}) {
     super();
@@ -150,6 +192,9 @@ export class AvatarBody extends THREE.Group {
     for (let i = 0; i < 2; i++) {
       const anchor = new THREE.Object3D();
       anchor.name = i === 0 ? 'hand-left' : 'hand-right';
+      // Was in dieser Hand hängt, wird mit ihr kleiner: Ein Werkzeug in
+      // Spielergröße steckt in der Faust einer 1,6-m-Figur wie ein Balken.
+      anchor.scale.setScalar(POSE_SCALE);
       this.add(anchor);
       anchors.push(anchor);
       if (!options.hands) continue;
@@ -163,6 +208,105 @@ export class AvatarBody extends THREE.Group {
 
     this.buildFace(this.look.head);
     this.buildTorso(this.look.body);
+
+    // Das Modell kommt asynchron. Bis dahin steht die gebaute Figur; kommt es
+    // gar nicht, bleibt sie für immer stehen. `void`, weil hier niemand
+    // wartet: Eine Figur, die erst erscheint, wenn eine Datei da ist, ist in
+    // der Brille eine Figur, die fehlt.
+    //
+    // **Der Import ist dynamisch und die Frage steht davor.** `chefModel.ts`
+    // zieht `GLTFLoader` und `import.meta` mit sich, und beides bringt einen
+    // Jest-Lauf zum Stehen. Wo es kein WebGL gibt, wird das Modul deshalb gar
+    // nicht erst angefasst (`core/chefFit.ts`).
+    if (canLoadModels()) {
+      void import('./chefModel')
+        .then(async (module) => module.chefParts())
+        .then((parts) => {
+          if (!parts || this.gone) return;
+          this.wearModel(parts);
+        });
+    }
+  }
+
+  /**
+   * **Zieht das geladene Modell an** und blendet die gebaute Figur aus.
+   *
+   * Ausgeblendet und nicht weggeworfen: Die gebaute Figur hängt an Tests, an
+   * `setLook` und an der Umkleide, und sie kostet im Ruhezustand nichts.
+   * Zurückgetauscht wird nie — das Modell kommt einmal oder gar nicht.
+   */
+  private wearModel(parts: ChefParts): void {
+    this.model = parts;
+
+    this.head.add(parts.parts.head);
+    this.modelHat = parts.parts.hat;
+    this.head.add(this.modelHat);
+    // **Der Rumpf des Modells watschelt mit.** `BodyShape.setStride` schreibt
+    // seine Bewegung in die Gruppe der gebauten Figur, und die ist
+    // ausgeblendet — also bekommt das Modell eine eigene Gruppe, auf die
+    // dieselbe Bewegung kopiert wird. Ein Koch, an dem sich beim Laufen
+    // nichts bewegt, rutscht über den Boden, und das war schon einmal der
+    // Vorwurf.
+    this.sway = new THREE.Group();
+    this.sway.name = 'avatar-sway';
+    this.sway.add(parts.parts.body);
+    this.torso.add(this.sway);
+    for (let i = 0; i < 2; i++) {
+      const hand = i === 0 ? parts.parts.handLeft : parts.parts.handRight;
+      this.add(hand);
+      this.modelHands.push(hand);
+      // Die gebaute Hand tritt ab, sobald die richtige da ist.
+      const built = this.handMeshes[i];
+      if (built) built.visible = false;
+      hand.visible = built ? built.visible || this.handsOn : this.handsOn;
+    }
+
+    // Die gebaute Figur verschwindet, ihre Gruppen bleiben: An ihnen hängen
+    // Drehung, Höhe und die Ebenen-Maske.
+    if (this.shape) this.shape.group.visible = false;
+    if (this.face) this.face.visible = false;
+
+    // **Wo die Hände ruhen, sagt das Modell** und nicht mehr die Drehkurve der
+    // gebauten Figur: Der Rumpf des Modells ist breiter und niedriger, und
+    // Hände, die nach der alten Kurve stehen, stecken darin. Gemessen wird
+    // einmal beim Anziehen, nicht je Bild — und an der **Geometrie**, nicht
+    // über `setFromObject`: Das rechnet mit Weltmatrizen, und die stimmen in
+    // diesem Moment noch nicht, weil die Figur gerade erst zusammengesetzt
+    // wird.
+    const box = new THREE.Box3();
+    parts.parts.body.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.geometry.computeBoundingBox();
+      if (mesh.geometry.boundingBox) box.union(mesh.geometry.boundingBox);
+    });
+    this.idleSide = (box.max.x - box.min.x) / 2 + HAND_GAP * POSE_SCALE;
+    this.idleLift = box.max.y * 0.62;
+
+    // **Kein Nackenversatz mehr.** Er schob den Kopf hinter die Augen, aus
+    // denen die Pose kam — sinnvoll, solange der Kopf an der Kamera hing. Die
+    // Figur ist jetzt eine kleine Puppe, die dort steht, wo der Spieler steht;
+    // ihre Augen sind nirgends in der Nähe seiner. Ein Kopf, der stattdessen
+    // elf Zentimeter hinter dem Rumpf schwebt, ist nur noch ein Fehler.
+    this.neckBack = 0;
+
+    this.applyModelLook();
+    this.setHeadgear(this.look.hat, true);
+    // Neue Kinder erben die Ebene nicht von selbst — dieselbe Zeile wie bei
+    // Gesicht, Rumpf und Hut, und ohne sie schwebt dem Spieler sein eigener
+    // Kopf vor der Nase (`core/PlayerAvatar.ts`).
+    this.head.traverse((object) => (object.layers.mask = this.head.layers.mask));
+    this.torso.traverse((object) => (object.layers.mask = this.torso.layers.mask));
+    for (const hand of this.modelHands) {
+      hand.traverse((object) => (object.layers.mask = this.layers.mask));
+    }
+  }
+
+  /** Jacke und Haut des Modells auf die Wahl dieser Figur bringen. */
+  private applyModelLook(): void {
+    if (!this.model) return;
+    this.model.jacket.color.copy(this.suit.color);
+    this.model.skin.color.setHex(skinTone(this.look.head));
   }
 
   /**
@@ -178,11 +322,13 @@ export class AvatarBody extends THREE.Group {
     if (look.head !== this.look.head) this.buildFace(look.head);
     if (look.body !== this.look.body) this.buildTorso(look.body);
     this.look = { ...this.look, head: look.head, body: look.body };
+    this.applyModelLook();
     this.setHeadgear(look.hat);
   }
 
   setColor(color: number): void {
     this.suit.color.setHex(color);
+    this.model?.jacket.color.setHex(color);
     this.suit.emissive.setHex(color).multiplyScalar(0.12);
     // Der Hut trägt die Anzugfarbe, wo er eine trägt — also neu bauen, sonst
     // hätte ein Spieler, der die Rolle wechselt, einen Helm von vorhin auf.
@@ -195,7 +341,11 @@ export class AvatarBody extends THREE.Group {
    * keine, und dann tut das hier nichts.
    */
   protected setHandsVisible(on: boolean): void {
-    for (const ball of this.handMeshes) ball.visible = on;
+    this.handsOn = on;
+    // Sichtbar ist immer nur eine Sorte Hand: das Modell, wenn es da ist,
+    // sonst die gebaute.
+    for (const built of this.handMeshes) built.visible = on && !this.model;
+    for (const hand of this.modelHands) hand.visible = on;
   }
 
   /**
@@ -217,6 +367,16 @@ export class AvatarBody extends THREE.Group {
       disposeTree(this.headgear, this.kept);
       this.headgear = null;
     }
+    // **Die Mütze des Modells ist die Kochmütze.** Wer sie aufhat, trägt die
+    // modellierte; wer etwas anderes wählt, nimmt sie ab und bekommt die
+    // gebaute (`core/headgear.ts`). Ohne diese Zeile säße auf jedem Bauhelm
+    // noch eine Mütze darunter.
+    if (this.modelHat) this.modelHat.visible = kind === 'chef' || kind === 'none';
+
+    // Und mit Modell braucht die Kochmütze keine zweite: Das Modell bringt
+    // seine eigene mit.
+    if (this.model && kind === 'chef') return;
+
     const built = buildHeadgear(kind, this.suit.color.getHex());
     if (!built) return;
     this.headgear = built;
@@ -262,9 +422,9 @@ export class AvatarBody extends THREE.Group {
     const headSin = Math.sin(headYaw);
     const headCos = Math.cos(headYaw);
     this.head.position.set(
-      headPos.x + headSin * NECK_BACK,
-      headPos.y,
-      headPos.z + headCos * NECK_BACK,
+      headPos.x + headSin * this.neckBack,
+      this.eyeY,
+      headPos.z + headCos * this.neckBack,
     );
     if (head.quaternion) this.head.quaternion.copy(head.quaternion);
 
@@ -272,14 +432,14 @@ export class AvatarBody extends THREE.Group {
     // Ducken staucht ihn: Seine Höhe ist die des Kopfes, nicht seine eigene.
     const sin = Math.sin(this.bodyYaw);
     const cos = Math.cos(this.bodyYaw);
-    const baseX = headPos.x + sin * NECK_BACK;
-    const baseZ = headPos.z + cos * NECK_BACK;
-    // Der Kopf sitzt **auf** dem Rumpf, ohne Hals: Der Kragen endet knapp
-    // über der Kopfunterkante, und die Kiste steht darauf. `0.86` statt der
-    // alten `0.62` ist der Unterschied zwischen einem Kopf, der auf einem
-    // Körper sitzt, und einem, der bis zu den Augen darin versinkt — so sah
-    // die Figur vorher von oben aus wie ein Kegel mit einem Knauf.
-    const height = Math.max(headPos.y - HEAD_RADIUS * 0.86, 0.3);
+    const baseX = headPos.x + sin * this.neckBack;
+    const baseZ = headPos.z + cos * this.neckBack;
+    // **Die Figur ist immer gleich hoch.** Früher kam ihre Höhe aus der des
+    // Spielerkopfes, und Ducken stauchte sie mit. Seit sie ein Modell ist
+    // (`core/chefModel.ts`), ist sie 1,6 m hoch und ihre Augen liegen bei
+    // 0,91 m — eine Figur, die zur Küche passt und nicht zum Spieler. Ob
+    // jemand steht oder sitzt, ändert daran nichts; es gibt kein Bücken mehr.
+    const height = Math.max(this.eyeY - HEAD_RADIUS * 0.86, 0.3);
     this.torso.position.set(baseX, 0, baseZ);
     this.torso.rotation.set(0, this.bodyYaw, 0);
     this.shape?.setHeight(height);
@@ -292,6 +452,13 @@ export class AvatarBody extends THREE.Group {
     const stride = Math.min(this.speed / 1.6, 1);
     const swing = stride * 0.075;
     this.shape?.setStride(this.walkPhase, stride);
+    // Dieselbe Bewegung auf den Rumpf des Modells — `setStride` kennt nur die
+    // gebaute Figur, und die ist ausgeblendet, sobald das Modell da ist.
+    if (this.sway && this.shape) {
+      this.sway.position.copy(this.shape.group.position);
+      this.sway.rotation.copy(this.shape.group.rotation);
+      this.sway.scale.copy(this.shape.group.scale);
+    }
 
     for (let i = 0; i < 2; i++) {
       const sign = i === 0 ? -1 : 1;
@@ -299,7 +466,16 @@ export class AvatarBody extends THREE.Group {
       const anchor = this.handAnchors[i]!;
 
       if (limb) {
-        _hand.copy(limb.position);
+        // **Die Pose des Spielers wird gestaucht.** Er schaut aus 1,6 m, seine
+        // Figur aus 0,91 m: Eine Hand auf seiner Brusthöhe läge über ihrem
+        // Kopf, übernähme man sie unbesehen. Gestaucht wird der **Abstand zum
+        // Kopf**, nicht die Weltposition — so bleibt die Figur dort stehen,
+        // wo der Spieler steht, und greift trotzdem dorthin, wo er greift.
+        _hand.set(
+          baseX + (limb.position.x - headPos.x) * POSE_SCALE,
+          this.eyeY + (limb.position.y - headPos.y) * POSE_SCALE,
+          baseZ + (limb.position.z - headPos.z) * POSE_SCALE,
+        );
       } else {
         // Ohne Arme gibt es nichts zu lösen: Die Hand schwebt **neben** dem
         // Rumpf, mit `HAND_GAP` Luft dazwischen, und pendelt beim Laufen vor
@@ -309,11 +485,12 @@ export class AvatarBody extends THREE.Group {
         // `cos/-sin` ist die Rechte des Rumpfes, `-sin/-cos` seine
         // Blickrichtung.
         const phase = this.walkPhase + (i === 0 ? 0 : Math.PI);
-        const side = sign * (bodyRadius(HAND_LIFT) + HAND_GAP);
-        const ahead = HAND_FRONT + Math.sin(phase) * swing;
+        const side = sign * (this.idleSide || bodyRadius(HAND_LIFT) + HAND_GAP);
+        const lift = this.idleLift || height * HAND_LIFT;
+        const ahead = HAND_FRONT * POSE_SCALE + Math.sin(phase) * swing * POSE_SCALE;
         _hand.set(
           baseX + cos * side - sin * ahead,
-          height * HAND_LIFT - Math.abs(Math.cos(phase)) * swing * 0.4,
+          lift - Math.abs(Math.cos(phase)) * swing * 0.4 * POSE_SCALE,
           baseZ - sin * side - cos * ahead,
         );
       }
@@ -321,18 +498,26 @@ export class AvatarBody extends THREE.Group {
       anchor.visible = limb !== null;
       anchor.position.copy(_hand);
       if (limb?.quaternion) anchor.quaternion.copy(limb.quaternion);
-      const mitt = this.handMeshes[i];
-      if (!mitt) continue;
-      mitt.position.copy(_hand);
-      // Eine ungetrackte Hand schaut dorthin, wohin der Rumpf schaut, und
-      // kippt die Handfläche leicht nach innen — so hält jemand etwas vor
-      // sich. Eine getrackte übernimmt die Pose, die die Brille misst.
-      if (limb?.quaternion) mitt.quaternion.copy(limb.quaternion);
-      else mitt.rotation.set(0.72, this.bodyYaw, sign * 0.2);
+      const built = this.handMeshes[i];
+      if (built) {
+        built.position.copy(_hand);
+        if (limb?.quaternion) built.quaternion.copy(limb.quaternion);
+        else built.rotation.set(0.72, this.bodyYaw, sign * 0.2);
+      }
+      const modelled = this.modelHands[i];
+      if (modelled) {
+        modelled.position.copy(_hand);
+        // Die Hand des Modells ist schon geformt und geneigt; sie soll nur
+        // mit dem Rumpf mitdrehen. Die Neigungen der gebauten Faust darauf
+        // anzuwenden, legte sie quer.
+        if (limb?.quaternion) modelled.quaternion.copy(limb.quaternion);
+        else modelled.rotation.set(0, this.bodyYaw, 0);
+      }
     }
   }
 
   dispose(): void {
+    this.gone = true;
     disposeTree(this);
     for (const material of this.kept) material.dispose();
     this.removeFromParent();

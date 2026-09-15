@@ -4552,91 +4552,81 @@ _Menü → Aussehen_ und der **Kleiderschrank** — drei Zeilen, und dahinter di
 ganze Figur (`core/AvatarBody.ts`, `core/avatarLook.ts`, `core/appearance.ts`,
 `core/headgear.ts`).
 
-**Die Figur ist ein Koch**, seit September 2026 — und seit dem zweiten Anlauf
-sieht sie auch nach einem aus. Das Vorbild sind die Köche aus _Overcooked_, und
-der Grund ist die Kamera: Hier schaut man aus **16 m** schräg von oben unter
-55° auf Figuren (`core/topDownPose.ts`), und ein Skelett mit Armen und Beinen
-ist von dort zwei graue Striche, an denen man nicht einmal erkennt, wohin
-jemand sieht.
+**Die Figur ist ein Koch**, und seit dem dritten Anlauf ist sie ein
+**Modell** statt gebauter Geometrie: „Little Chef (Overcooked like)" von
+marcelosants, CC-BY-4.0 (`public/models/CREDITS.md`). Das Vorbild sind die
+Köche aus _Overcooked_, und der Grund für die ganze Mühe ist die Kamera: Hier
+schaut man aus **16 m** schräg von oben unter 55° auf Figuren
+(`core/topDownPose.ts`).
 
-Was die Figur ist, in Maßen (`core/avatarLook.ts`, alles oben in der Datei):
+**Warum überhaupt ein Modell**, wo doch sonst alles hier aus Grundkörpern
+entsteht: Zwei Anläufe lang wurde die Figur aus Kugeln und Drehformen gebaut,
+und zwei Anläufe lang fehlten die letzten zwanzig Prozent Ähnlichkeit. Ein
+Modellierer, der weiß, was er tut, macht in einer Stunde, wofür `BARREL`-Kurven
+einen Tag brauchen und dann nach Kegel aussehen. Die Regel „dieses Projekt lädt
+keine Modelldateien" gilt weiter für **Welt und Werkzeug** — dort ist sie
+richtig, weil eine Wand aus zwei Quadern in derselben Sekunde dasteht wie der
+Rest. Für **Figuren und Möbel** gilt sie nicht mehr.
 
-| Teil | Maß | |
-| --- | --- | --- |
-| **Kopf** | Ø 64 cm (`HEAD_RADIUS = 0.32`) | eine **gefaste Kiste**, keine Kugel (`HEAD_BOX = 0.58`) |
-| **Jacke** | Ø 74 cm an der breitesten Stelle (`BODY_RADIUS`) | eine Glocke, unten am breitesten |
-| **Saum** | bei 28 % der Rumpfhöhe (`HEM`) | darunter die karierte Hose |
-| **Hose** | knapp 80 % der Jackenbreite | **ein** Stück, ohne Beine, ohne Füße |
-| **Hände** | Ø 23 cm (`HAND_RADIUS`) | fingerlose Klumpen, schweben **mit Lücke** |
-| **Mütze** | so hoch wie der Kopf | fünf Lappen, dunkles Stirnband, nach hinten gekippt |
+**Die gebaute Figur ist trotzdem noch da** (`core/avatarLook.ts`), und nicht
+aus Nostalgie: Das Modell kommt über das Netz und ist erst ein paar Bilder
+später da; ohne Netz kommt es nie, und in Jest gibt es kein WebGL. Bis dahin —
+und notfalls für immer — steht die gebaute Figur. Niemand soll vor einem
+unsichtbaren Mitspieler stehen, weil eine Datei fehlt. Dasselbe Muster wie bei
+den Controllern (`core/ControllerModels.ts`).
 
-**Die vier Fehler der ersten Fassung** stehen hier, weil sie sich sonst
-wiederholen. Sie war nicht falsch gebaut, sie war nur zu wenig: Aus einer
-Drehform vom Boden bis unter den Kopf, einer Kugel darauf und zwei Perlen
-daneben wird von schräg oben ein **Bowlingpin mit einem Knauf**.
+**Die Figur ist 1,6 m hoch, und ihre Augen liegen bei 0,91 m.** Das ist die
+Entscheidung, an der zwei Anläufe hingen, und sie ist es wert, aufgeschrieben
+zu werden:
 
-1. **Der Kopf war zu schmal für den Rumpf.** Er maß 55 % der Rumpfbreite;
-   nachgemessen sind es an den Vorbildern **91 %**, hier 86 %. Das ist das
-   eigentliche Maß dieses Stils — nicht der breite Rumpf macht die Figur
-   gedrungen, sondern der **Kopf, der ihn oben fast einholt** und über der
-   Schulter überkragt. Er versank obendrein im Kragen (Rumpfhöhe aus
-   `HEAD_RADIUS * 0.62`, heute `0.86`). Wer den Rumpf breiter macht, ohne den
-   Kopf mitzunehmen, dreht genau das zurück — ein Jest-Test hält das Verhältnis
-   deshalb fest.
-2. **Es bewegte sich beim Laufen nichts**, und die Figur rutschte über den
-   Boden. Beine sind nicht die Antwort: Die Vorbilder haben keine, und ein
-   Zwischenstand mit zwei karierten Beinen und Schuhen las sich zwar als Koch,
-   traf den Stil aber nicht. Eine Figur ohne Beine **watschelt**
-   (`BodyShape.setStride`): heben, stauchen, seitlich rollen, in die
-   Laufrichtung legen. Der **Kopf macht das nicht mit** — der sitzt, wo die
-   Augen sitzen, und ein Kopf, der wippt, ist Übelkeit in der Brille.
-3. **Die Hände waren Kugeln**, dann Bündel Bananen, dann hingen sie an
-   Ärmelstummeln. Alle drei daneben: Nachgemessen ist eine Hand ein glatter,
-   **fingerloser** Klumpen, und zwischen ihr und dem Rumpf ist **Luft**
-   (`AvatarBody.HAND_GAP`). Keine Schulter, kein Ärmel, kein Arm. Diese Lücke
-   ist neben der Mütze das unverwechselbarste an diesen Figuren, und der
-   Ärmelstummel schloss genau sie. Der Daumen ist die einzige Zutat gegenüber
-   dem Vorbild, und zwar weil diese Hände Werkzeug halten.
-4. **Alles war glatt.** Kein Stirnband, keine Lappen an der Mütze, keine
-   Brauen, keine Ohren, kein Karo, drei Knöpfe in einer Reihe. Die Vorbilder
-   wirken detailliert, weil sie ein Dutzend solcher Kleinteile haben — nicht,
-   weil ihre Netze fein wären. Die Knöpfe sind **vier in zwei versetzten
-   Spalten**: Eine Kochjacke ist doppelreihig, drei in einer Reihe waren ein
-   Hemd. Und die weiße Blende ist ein **Trapez** (`placketGeometry`), oben
-   schmaler als unten — diese schräge Kante ist die Revers-Linie, und ein
-   Streifen mit parallelen Kanten sah aus wie aufgeklebtes Papier.
+Ein Overcooked-Koch ist eine **Chibi-Figur** — Kopf und Mütze machen gut die
+Hälfte seiner Höhe aus, ohne Mütze ist er 1,8 Kopfhöhen groß, seine Augen
+sitzen bei 1,24. Skaliert man ihn so, dass seine Augen auf der Augenhöhe eines
+Menschen liegen, wird er **2,84 m hoch und sein Kopf einen Meter breit**.
+Neben einem Tresen von einem Meter ist das ein Riese im Puppenhaus. Es wurde
+gebaut, in drei Größen nebeneinandergestellt und angesehen (`npm run avatar`),
+und es war eindeutig.
 
-**Die eine Stelle, an der bewusst vom Vorbild abgewichen wird, ist die Höhe.**
-Ein Overcooked-Koch ist ohne Mütze **1,8 Kopfhöhen** groß und seine Augen
-sitzen bei 1,24 — bei einer Figur auf Augenhöhe eines Menschen wäre der Kopf
-einen Meter groß. Der Kopf steht hier aber auf **Augenhöhe des Spielers**,
-sonst sehen sich zwei Leute in der Brille nicht in die Augen. Die Figur ist
-damit gut doppelt so hoch wie ihr Vorbild, und diese Höhe muss irgendwohin:
-Sie geht in die **karierte Hose** unter dem Saum. Die Jacke darüber behält ihr
-gedrungenes Maß, und was darunter übrig bleibt, ist dunkel und tritt zurück.
-Ein Rumpf, der die ganze Höhe als Jacke nimmt, ist wieder der Bowlingpin —
-ausprobiert, angesehen, verworfen.
+Also andersherum: **Die Figur bekommt die Größe, die zur Küche passt**, und
+ihre Augen liegen dann eben tiefer als die des Spielers. In der Brille steht
+die Kamera damit über dem Kopf der eigenen Figur; von oben — und von dort wird
+gespielt — sieht man davon nichts. Der alte Grund („sonst sehen sich zwei Leute
+in der Brille nicht in die Augen") ist damit hinfällig, und mit ihm der
+**Nackenversatz**: Der Kopf sitzt jetzt einfach auf dem Rumpf.
 
-**Das Material ist nachgemessen und steht an einer Stelle**
-(`core/chefStyle.ts`): matter Stoff (`roughness 0.88`), etwas glattere Haut
-(`0.62`), **`metalness: 0` überall**. Vorher hatte jede der drei Dateien ihr
-eigenes `solid(...)` mit anderen Zahlen, und in der Brille glänzte genau ein
-Teil der Figur. Dort stehen auch die Palette (`CHEF`), das Kochkaro als
-`CanvasTexture` und `squarish()` — die gefaste Kiste, aus der der Kopf ist.
+Aus derselben Entscheidung folgt, dass die Figur **immer gleich hoch ist**. Sie
+duckt sich nicht mehr mit dem Spieler, denn ihre Höhe kommt nicht mehr von ihm;
+ob jemand steht oder sitzt, ändert an ihr nichts. **Es gibt kein Bücken der
+Figur mehr**, und das ist eine Entscheidung und kein Versehen — ein Jest-Test
+hält sie fest.
 
-**Keine Kontur und keine Farbstufen.** Overcooked ist nicht cel-schattiert: Die
-Figuren haben keinen schwarzen Strich um sich und keine Lichtbänder, sie leben
-von Hell-Dunkel großer Flächen. Die Vorgabe (`mode: 'simple'`) ist damit die
-richtige für diesen Stil; wer **Comic** einschaltet, bekommt beides dazu und
-sieht dann nach Zeichentrick aus statt nach Knetfigur (siehe
-[Wie schön es aussieht](#wie-schön-es-aussieht)). Das ist eine Entscheidung
-für die ganze Welt und nicht für die Figur, und deshalb bleibt sie eine
-Einstellung.
+Was daraus für die **Posen** folgt, steht in `core/chefFit.ts`: Der Spieler
+schaut aus 1,6 m, seine Figur aus 0,91 m, also wird der **Abstand zum Kopf**
+mit `POSE_SCALE` gestaucht. Was er eine Kopfhöhe unter seinen Augen hält, hält
+sie eine Kopfhöhe unter ihren. Derselbe Faktor sitzt auf den Handankern, damit
+ein Werkzeug darin mit der Figur kleiner wird, statt in ihrer Faust zu stecken
+wie ein Balken.
+
+**Wie die Datei entsteht**, steht in `tools/chef-model.mjs`, und zwar
+vollständig: Die Quelle ist ein Standbild-Sculpt mit 550 000 Dreiecken (allein
+die Mütze 352 000), ohne Skelett, ohne Animation, und ihre Teile liegen nicht
+in Knoten, sondern über fünf Materialien verteilt. Das Werkzeug zerlegt sie in
+**Mütze, Kopf, Rumpf und zwei Hände** — nach Material und Ort, nicht nach
+zusammenhängenden Flächen —, dezimiert jedes Stück einzeln auf zusammen 8 260
+Dreiecke und stellt sie in Spielmaße. Übrig bleiben 160 KB.
+
+Drei Fehler aus diesem Umbau stehen dort im Detail, weil sie sich sonst
+wiederholen: dass **anteilige** Budgets der Mütze das Budget des Gesichts
+wegfressen, dass **kleine Teile gar nicht** vereinfacht werden dürfen (die
+Augen wurden zu zwei Sicheln), und dass die **Trennebene gemessen** gehört und
+nicht geschätzt — sie lag zuerst im Kopf statt in der Lücke darunter, und
+danach hatte der Kopf ein abgeschnittenes Kinn und die „Hände" einen halben
+Meter Breite.
 
 **Der Antrieb ist derselbe geblieben**: `update(dt, head, left, right)` mit Kopf
 und Händen, wie ihn ein Headset über seinen Träger nun einmal weiß. Der Rumpf
-steht unter dem Kopf, dreht mit `bodyYaw` (mit derselben Totzone wie vorher) und
-folgt der Kopfhöhe — wer sich duckt, wird kleiner. Nicht getrackte Hände
+steht unter dem Kopf und dreht mit `bodyYaw` (mit derselben Totzone wie vorher);
+seine **Höhe kommt nicht mehr vom Spieler**, siehe oben. Nicht getrackte Hände
 schweben seitlich neben dem Rumpf und pendeln beim Laufen leicht. Was andere
 daran hängen haben, ist unverändert: `head`, `handAnchors`, `setColor`,
 `setHeadgear`, `setSelfView`, `setHandsVisible`, `update`, `dispose`, `bodyYaw`
