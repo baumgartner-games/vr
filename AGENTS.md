@@ -1947,422 +1947,148 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Kopfhöhe — Vorbeugen im Sessel hob vorher die halbe Welt mit an
   (`core/posture.ts`, mit Test).
 
-- **Portal Labor** (experimentell): Physik-Sandkasten mit den Portal-Waffen am
-  Gürtel (blau links, rot rechts, aber jede Hand darf jede nehmen),
-  Schwerkraft, Sprung, Companion Cubes und einer Reihe Dominosteine — es sind
-  die aus dem magischen Beutel, derselbe Bauplan und dieselben Zahlen, damit
-  ein dazugestellter Stein nicht als Fremdkörper in der Reihe steht. Portale
-  gehen auch auf Boden und Decke — samt Sturz und Schwung beim Herausfliegen.
-  Hände, Waffen und Objekte werden an der Portalebene geschnitten und kommen
-  auf der anderen Seite wieder heraus: Du kannst die Hand durch ein Portal
-  stecken und sie drüben sehen — und damit auch dort etwas anstoßen.
-- **Eigener Körper**: Torso, Arme und Beine gibt es, sie werden aber nur in
-  Portalsichten gezeichnet — und, solange die Sicht mit einer Drohne draußen
-  ist, auch für den eigenen Blick zurück. Der zurückgelassene Körper wird
+- **Die Testwelt** (`src/worlds/test/`): der Prüfstand — **neun Zonen auf einem
+  Gelände**, in einer Minute zu Fuß abzulaufen.
+
+  Bis September 2026 gab es siebzehn Welten, und jede prüfte eine Sache: eine
+  für die Portale, eine für den Schießstand, eine fürs Klettern, eine für die
+  Wegsuche. Das war bequem zu bauen und unmöglich zu pflegen — wer am Kern
+  etwas änderte, lud siebzehn Welten hintereinander und hatte danach den
+  Verdacht, die entscheidende vergessen zu haben. Jetzt gibt es **eine**, und
+  was von den anderen bleibt, sind ihre Module: Kartphysik, Trefferwertung,
+  Kletterhalt, Effektzahlen, Türmathematik. Wer eine gelöschte Welt nachlesen
+  will, holt sie sich mit `git show 3678f32:src/worlds/<welt>/<Datei>.ts`.
+
+  **Norden ist oben und die Mitte ist der Startplatz.** Die Himmelsrichtung ist
+  die Wegbeschreibung — wer eine Zone sucht, sucht eine Richtung:
+
+  - **Start und Tor** (Mitte): Startplatz, ein Schild, der **Kleiderschrank**
+    und drei Kacheln weiter das Tor zurück in den Hub.
+  - **Effektquellen** (Norden): vier Düsen nebeneinander — Rauch, Feuer,
+    Funken, Wasser —, je ein Knopf eine Kachel davor. Dieselben Zahlen wie im
+    alten Effektlabor (`effects/effectKinds.ts`), importiert und nicht
+    abgeschrieben. Vier Knöpfe nebeneinander statt einer mit Auswahl: Im Labor
+    stand man davor und sah hin, hier läuft man vorbei. Jede Düse trägt die
+    Farbe ihres Effekts, damit man von oben sieht, welche die Wasserfontäne
+    ist.
+  - **Interaktionen** (Nordwesten): eine Wand mit drei Türen in drei
+    Betriebsarten (Schiebetür, Flügeltür, Drucktür), davor je ein Auslöser —
+    Knopf, Hebel, Druckplatte —, daneben zwei Kisten zum Draufschieben, dazu
+    eine Lampe mit Kippschalter. Dahinter liegt ein **Hof**, und das ist der
+    ganze Punkt: Eine Tür, an der man vorbeigehen kann, ist ein Möbelstück.
+    Weil hier wirklich getrennt wird, lässt es sich auch prüfen — mit
+    geschlossenen Türen kommt vom Startplatz aus niemand hinter die Wand.
+  - **Treppe und Podest** (Nordosten): fünf mal fünf Kacheln auf Ebene 1, eine
+    Brüstung ringsum, vier Säulen darunter und eine **vier Kacheln lange**
+    Treppe hinauf. Oben ein Hebel, der unten eine Lampe schaltet — der Beweis,
+    dass ein `trigger` keine Etagengrenze kennt. Auf Säulen und nicht auf einer
+    Wand, weil man von oben sonst nur sähe, dass etwas erscheint, und nie, dass
+    darunter etwas war.
+  - **Navigation** (Westen): ein enger Gang mit einer Kiste darin, eine Tür an
+    seinem Ende, ein Stachelfeld und ein roter Knopf, der einen NPC von A nach
+    B schickt. Der Gang ist ein **Umweg und keine Sackgasse**: Man kommt auch
+    außen herum, und genau das zeigt er — eine Kiste macht ihre Kachel _teuer_
+    und nicht _zu_. Das Stachelfeld ist eine Kachelnotiz und kein Objekt
+    (`TileFacts.hazard`), also weiß ein NPC davon, bevor er hineinläuft.
+  - **Schießstand** (Osten), **ohne Dach**: eine Schießlinie, Scheiben auf 5,
+    10 und 20 m, zwei Stahlplatten und ein Kugelfang als Masse dahinter. Jeder
+    Treffer zählt (`range/scoring.ts`), die Scheibe nach ihrem Ring. Fünf bis
+    zwanzig Meter und nicht zehn bis hundert: Der alte Stand war 125 m tief,
+    und das wäre hier der ganze Osten samt halber Kartbahn. Die Bank ist das,
+    was sie in Wirklichkeit ist — eine **Küchenzeile**, derselbe geprüfte
+    Baustein auf derselben Arbeitshöhe.
+  - **Gokart** (Süden): eine Rundstrecke von 35 × 25 m aus Streckenteilen auf
+    dem Gitter und eine Boxengasse mit zwei Karts darin. **Eingestiegen wird
+    mit `A`** — das Kart meldet sich als `Usable` mit dem Hinweis
+    _Einsteigen_ —, ausgestiegen mit `A` halten. Ausführlich unter _Die
+    Kartzone_.
+  - **Klettern** (Südosten): eine Wand mit Griffen aus drei Materialien und
+    zwei Sprungkissen davor. Ausführlich unter _Klettern_.
+  - **Portaltafeln**: drei helle Tafeln — am Startplatz, auf dem Podest und an
+    der Westwand der Navigation. Drei und nicht eine, weil ein Portal erst zu
+    zweit etwas ist; die auf dem Podest ist der kürzeste Weg, die Treppe zu
+    übergehen, und genau das soll man einmal ausprobiert haben.
+
+  **Kein Dach, nirgends.** Von oben wäre jedes davon ein schwarzer Balken über
+  genau dem, was man sehen will — und was die Figur verdeckt, macht ohnehin das
+  Ghosting durchsichtig (siehe _Von oben_).
+
+  **Gebaut werden darf hier** (`editable()` ist wahr), und das ist der Sinn des
+  Metergitters: Wer eine feine Welt bauen will, braucht einen Ort, an dem er es
+  probiert — mit Karte und Palette am Gürtel, mit Speicher und mit einer Datei
+  zum Mitnehmen (_Welt sichern_, siehe _Speichern, exportieren, importieren_).
+  Weil ein gespeicherter Stand den **ganzen** Grundriss ersetzt, steht alles,
+  was auch danach noch gelten muss, in `planLoaded()`: das Tor zum Hub und jeder
+  Einbau, den eine Zone braucht.
+
+  **Und `planLoaded` läuft zweimal** — einmal beim Bauen und einmal nach dem
+  Laden —, deshalb sind die Einbauten vom Rest des Grundrisses getrennt
+  (`fitTest(plan)` neben `testPlan()`). Das geht nur mit Einbauten: Sie haben
+  eine **Kennung**, und `putFixture` ersetzt nach Kennung. Ein Baustein hat
+  keine; ein zweites Mal gesetzt stünde er zweimal da, und nach dem dritten
+  Besuch wären es drei Bänke auf einer Kachel.
+
+  **Die Zonen bekommen einen Vertrag und nicht diese Welt** (`zones/zone.ts`,
+  `ZoneHost`). Der naheliegende Weg wäre gewesen, ihnen die `TestWorld` selbst
+  in die Hand zu geben — und damit hätte jede Zone Zugriff auf den Editor, die
+  Portale, das Menü und die Physik-Einstellungen. Nach dem dritten Umbau hätte
+  eine davon etwas daran verstellt, und niemand wüsste welche. Sie dürfen
+  bauen, anmelden und melden, und sonst nichts; dieselbe Entscheidung wie bei
+  den Einbauten und aus demselben Grund. Fünf von neun haben überhaupt Leben
+  darin (Interaktionen, Navigation, Schießstand, Kart, Klettern), die anderen
+  vier sind ein **Stempel** auf dem Grundriss und fertig
+  (`stamp<Name>(plan)`).
+
+  **Wo eine Zone liegt, steht in `layout.ts`** und nicht im Grundriss, und das
+  ist kein Stilfehler, sondern ein Absturz weniger: Der Grundriss ruft die
+  Zonen auf, und jede Zone will wissen, wo ihr Rechteck liegt — stünden die
+  Rechtecke im Grundriss, importierte jede Zone ihn und er jede Zone, und beim
+  ersten Import wäre die Hälfte der Konstanten `undefined`.
+
+  **Geprüft, bevor jemand hineinläuft** (`testPlan.test.ts`, ohne three.js):
+  dass jede Zone vom Startplatz aus erreichbar ist, dass die Treppe wirklich
+  auf dem Podest endet, dass hinter die Türwand nur kommt, wer eine Tür
+  aufmacht, und dass die ganze Welt eine Runde durch das Weltformat unverändert
+  übersteht. Eine Ecke, in die man nicht kommt, merkt man sonst erst nach dem
+  Laden, nach dem Aufsetzen, nach dem Hinlaufen.
+- **Eigener Körper**: Rumpf, Kopf und die beiden Handkugeln gibt es, sie werden
+  aber nur in Portalsichten und Spiegeln gezeichnet — und, solange die Sicht mit
+  einer Drohne draußen ist, auch für den eigenen Blick zurück. Der
+  zurückgelassene Körper wird
   dabei über den **ganzen Rahmen** festgehalten, in dem er stand
   (`PlayerAvatar.leaveBehind`), nicht über eine Kopfpose im mitfliegenden
-  Rig-Raum: das Skelett rechnet mit dem Boden auf y = 0, und ein Rig, das zehn
-  Meter steigt und sich dreht, zog Beine, Hals und Torso jedes Mal lang. Direkt sieht man nur die eigenen Hände — und sich
+  Rig-Raum: Die Figur rechnet mit dem Boden auf y = 0, und ein Rig, das zehn
+  Meter steigt und sich dreht, zog sie jedes Mal lang. Direkt sieht man nur die eigenen Hände — und sich
   selbst, wenn man durch ein Portal schaut. Die anderen Spieler bekommen
   denselben Körper, samt Namensschild und der Waffe in ihrer Hand.
-- **Schießstand** (experimentell): überdachte Schießlinie mit fünf Bahnen —
-  gebaut auf dem **Kachelgitter** (`range/rangeStand.ts`), und die Schießbank
-  ist dort der Baustein, der sie in Wirklichkeit ist: dieselbe **Küchenzeile**
-  wie im Dunkelhaus, dieselbe Arbeitshöhe. Wer einmal nachgerechnet hat, dass
-  eine Arbeitsplatte auf 90 cm liegt, hat es für beide Welten nachgerechnet.
-  Zielscheiben auf 10, 25 und 50 m, zwei großen auf 75 und 100 m sowie einer
-  Reihe Stahlplatten auf 18 m. Die Scheiben hängen an Scharnieren und schwingen
-  beim Treffer zurück. Am Gürtel hängt hier die Pistole. Gedacht zum
-  Ausprobieren der Waffeneinstellungen. **Jeder Treffer zählt**: die Scheibe
-  nach dem Ring (10 bis 2), die Stahlplatte pauschal. Die Zahl erscheint
-  **knapp über der Visierlinie** — nicht an der Scheibe, dort wäre sie auf
-  hundert Meter unlesbar, und auch nicht mehr weit oben: fünf Zeilen stapeln
-  sich nach _oben_, die oberste stand damit auf 30° über dem Auge und war nur
-  mit zurückgelegtem Kopf zu finden — und ein kurzer Ton steigt mit ihr auf, je besser der
-  Treffer, desto höher. Beides direkt beim Schützen, ohne Laufzeit und ohne
-  Entfernung, und beides an zwei Tafeln auf der Schießlinie abschaltbar
-  (anschießen oder Trigger).
-- **Gokart** (experimentell): eine Strecke aus **Streckenteilen** auf dem
-  Kachelgitter — vier Geraden und vier Kurven mit vier verschiedenen Radien
-  (`kart/kartCourse.ts`) — und daneben eine **Boxengasse** mit vier Buchten
-  unter einem Dach, in denen die Karts stehen (`kart/kartPit.ts`). Jedes hat
-  seinen eigenen Charakter und sein eigenes **Klemmbrett**. Lenkrad greifen
-  setzt dich hinein, rechter Trigger ist Gas, linker die Bremse, der linke
-  Stick lenkt — oder das Lenkrad selbst, wenn die erste Zeile des Klemmbretts
-  das sagt. Losfahren heißt: aus der Box nach rechts auf die Gerade ziehen; eine
-  Ein- und Ausfahrt gibt es nicht, weil Gasse und Strecke kachelbündig
-  aneinander stoßen. Der **Kopf zieht der Lenkung nach**, statt an ihr
-  festzuhängen — das ist die Zeile gegen die Übelkeit, und wie weit, steht auf
-  dem Klemmbrett. Aussteigen steht die ganze Zeit auf einem Schild über dem
-  Lenkrad. Rundenzeiten stehen an der Strecke.
-- **Pizzeria** (experimentell): Küche, Thresen, Gastraum. Teig aus der Kiste auf
-  den Arbeitstisch legen und mit der **Faust** flach kneten, mit der roten
-  **Kelle** Soße verteilen, **Käse** darüber streuen, ab in den **Ofen** und
-  fertig auf einen Gästetisch. Der **Mülleimer** löscht, was schiefging. An der
-  Wand hinter jeder Station steht, was sie will.
-- **Eingaberaum** (experimentell): eine Kammer, deren einziger Zweck es ist zu
-  zeigen, was die Hände tun. Alles, was man hier abliest, hängt auf **einer
-  Tafelwand gut zwei Meter vor dem Spieler** (`tune/inputPanel.ts`, mit Test):
-  Name des Raums, die Aufnahme, die beiden Controller-Modelle und je Hand eine
-  Tafel darunter. Vorher hing es an der **Vorderwand**, vier Meter weg, und
-  beides ging dabei schief: eine Tafel wird nicht dadurch lesbar, dass sie
-  größer wird (die Schrift wächst mit, die Entfernung bleibt — die Lage-Tafel
-  kam auf ein halbes Grad Schrifthöhe, und ihre letzte Zeile fiel ganz weg),
-  und die Modelle hingen auf halbem Weg dorthin, also aus Spielersicht genau
-  auf den Zahlen dahinter. Auf einer Fläche steht nichts mehr **vor** etwas
-  anderem, nur noch daneben, und das rechnet der Test nach: kein Rechteck
-  schneidet ein anderes, und alles zusammen bleibt in einem Blickfeld, für das
-  man den Kopf nicht dreht. Die Tafeln sind dabei **kleiner** geworden und die
-  Schrift doppelt so groß.
+- **Einmessen: was vom Eingaberaum geblieben ist.** Es gab dafür eine eigene
+  Welt — eine Kammer, deren einziger Zweck es war zu zeigen, was die Hände tun:
+  zwei Controller-Modelle auf Augenhöhe, je Hand eine Tafel mit der Lage des
+  Geräts in zwei Räumen, ein Achsenkreuz, eine Aufnahme der Handbeschleunigung,
+  eine Bank mit Vibrationsmustern, und hinter der Rückwand ein Schießgang mit
+  **zwei Justierständen** (der eine maß, wohin ein Werkzeug zeigt, der andere,
+  wie die Faust darum liegt) und einem **Poseraum**, in dem ein Schwebekasten
+  losgelassene Werkzeuge in der Luft hielt, damit man die blanke Hand daran
+  legen konnte. Mit dem Umbau vom September 2026 ist sie weg.
 
-  Zwei **Controller-Modelle** schweben auf
-  Augenhöhe, drehen sich mit den echten mit, jeder Knopf leuchtet beim Drücken
-  auf, Stick und Trigger bewegen sich wirklich. Gezeigt wird dabei das **echte
-  Modell** des Geräts, das gerade in der Hand liegt (siehe
-  _Controller-Modelle_); der selbst gebaute aus Kästen und Zylindern bleibt der
-  Rückfall. Mit **bloßen Händen** treten
-  sie beiseite und es stehen fünf Balken da — wie weit jeder Finger an der
-  Handfläche liegt — plus zwei Lampen für das, was daraus wurde. An der Wand
-  steht dasselbe in Worten.
+  Was sie hervorgebracht hat, steht weiter da, und deshalb lohnt der Absatz:
+  die **Rechnung** hinter beiden Ständen (`tune/handGrip.ts`, `toolPose.ts`),
+  die **Feinjustage** mit ihrer Untersetzung (`tune/fineTune.ts`), die
+  **Vibrationsmuster** (`tune/haptics.ts`), die **Aufnahme** der
+  Beschleunigung (`tune/accelRecord.ts`), das **Controller-Modell** als
+  Rückfall (`tune/InputModel.ts`), die **geteilte Handhaltung** über die
+  Leitung (`tune/handShare.ts`) und jede Zahl, die damals gemessen wurde —
+  `IDLE_HAND_POSE`, `GRIP_TO_RAY`, die drei Kurzcodes an Stoppuhr, Hammer und
+  Drohne (siehe _Eingemessene Griffe_).
 
-  Daneben hängt je Hand der **Zug an Trigger und Griff** als zwei Balken
-  (`tune/PullGauge.ts`), mit einer Marke bei der Hälfte und einer ganz oben.
-  Das sind die einzigen zwei Eingaben eines Quest-Controllers, die nicht nur an
-  oder aus sind: Das Gamepad meldet für beide einen Wert zwischen 0 und 1, und
-  WebXR sagt **getrennt davon**, ab wann die Laufzeitumgebung das ein „Drücken"
-  nennt. Beides ging vorher verloren — ein Leuchtpunkt kennt zwei Zustände, und
-  ein halb gezogener Trigger sah aus wie ein gar nicht gezogener, bis er
-  umsprang. Jetzt ist der **Balken** der Zug, der **Farbumschlag** das Drücken,
-  und auf der Tafel steht die Zahl dazu (`Trigger 65 %`, auf fünf Prozent
-  gerundet, weil jede Änderung dieser Zeile eine neue Leinwand kostet). Wer
-  wissen will, ob sein Trigger wirklich bis zum Anschlag geht oder ob der
-  Auslösepunkt zu früh liegt, sieht hier beides gleichzeitig. Die Balken hängen
-  an der Tafelwand und nicht am Modell: Das dreht sich mit der Hand mit, und
-  eine Füllstandsanzeige darauf stünde die halbe Zeit auf dem Kopf.
+  **Justiert wird seither auf der Werkzeugseite** (`tools.html`, Knopf
+  _Bearbeiten_, siehe _Bearbeiten auf der Werkzeugseite_): dieselben Speicher,
+  dieselben Kurzcodes, ein Daumen statt zweier Hände. Was dabei fehlt, ist die
+  Hälfte, für die es die Welt gab — eine Messung **am Gerät**, mit der eigenen
+  Hand daran. Wer sie wiederhaben will, baut sie als Zone der Testwelt neu; die
+  Rechnungen liegen alle bereit, und was an Aufbau nötig war, steht in
+  `git show 3678f32:src/worlds/tune/`.
 
-  Und darunter je Hand **eine** Tafel: was gedrückt ist, und die **Lage des
-  Geräts als Zahl**, in **zwei Räumen**, denn genau dazwischen liegt die
-  Verwirrung (es waren einmal zwei Tafeln übereinander mit ausgeschriebenen
-  Zeilen — zusammen zu viel Fläche und trotzdem zu kleine Schrift; die Zeilen
-  kürzen sich zu `Strahl YXZ  Y -12°  P 34°  R -5°`):
-
-  - **Zeigestrahl**, gelesen als Euler `YXZ` — die Reihenfolge, in der ein
-    Flugzeug oder eine Kamera geführt wird: erst gieren, dann nicken, dann
-    rollen. Darin heißt „geradeaus gezielt" **Pitch 0**, und ein Rollen um die
-    Zeigeachse ändert **nur** den Roll. Das ist die Zeile, die man liest.
-  - **Griffraum**, gelesen als Euler `XYZ` — die Schreibweise jeder
-    `HandPose`. Das ist die Zeile, die man weitersagt.
-  - **Griff → Strahl**: wie weit der Strahl gegen den Griff steht, wie das
-    Gerät selbst es meldet — und in Klammern daneben, was im Code dafür steht
-    (`GRIP_TO_RAY`). Nur nebeneinander sind die beiden eine Auskunft: eine
-    gemessene Zahl allein sagt nicht, ob sie neu ist. Stehen sie auseinander,
-    ist die gemessene die richtige.
-
-  Dass die ersten beiden so weit auseinanderliegen, ist der Punkt: der
-  Handgriff eines Quest-Controllers steht schräg zu seinem Strahl, und wer
-  geradeaus zielt, hat im Griffraum deshalb einen kräftigen Pitch stehen — die
-  gemeldeten **45°** waren keine Fehlmessung, sondern das Gerät. Und weil die
-  Räume gegeneinander verdreht sind, verteilt sich ein Rollen um den Strahl im
-  Griffraum auf **Yaw und Roll zugleich**; auch das ist kein Fehler, sondern
-  eine Drehung, die dort um keine einzelne Achse geht.
-
-  Eine **getrackte Hand** hat weder Griff noch Gerät; dort tritt das
-  **Handgelenk** an die Stelle des Griffs. Vorher stand für sie gar nichts da,
-  weil `hand.quaternion` die Ruhe ist — die Gelenke tragen die Drehung, nicht
-  die Gruppe darum. Neu gezeichnet wird höchstens fünfmal je Sekunde: eine
-  Zahl, die sich mit jedem Bild um ein Grad ändert, ist ein Flackern, und jedes
-  Neuzeichnen malt eine Leinwand neu.
-
-  **Und dazu die Achsen selbst**, denn eine Zahl ohne Achse ist keine Auskunft
-  (`core/axesCross.ts`). Ein Kreuz steht auf dem **Boden** zwischen einem
-  selbst und der Tafelwand — es stand eine Weile auf Brusthöhe mitten im Blick
-  auf die Tafeln und genau dort, wo man die Hände hält — und je eines an jedem
-  Controller-Modell, sodass man beide nebeneinander sieht und daran, wie schräg
-  der Raum des Geräts im Zimmer steht. Die Farben sind die üblichen — **X rot,
-  Y grün, Z blau**, wie in three.js und Blender —, und dazu kommt der vierte
-  Pfeil, um den es eigentlich geht: **-Z in Weiß**. Vorne ist überall in diesem
-  Spiel das _negative_ Z; ein Kreuz, das nur +Z zeigt, zeigt genau dorthin, wo
-  nichts ist. Die Legende an der Wand schreibt es aus.
-
-  **Greifen friert die Lage ein**, ein zweites Greifen gibt sie wieder frei —
-  außer während einer Aufnahme, dann setzt derselbe Knopf eine Marke.
-  Der Stick bewegt in diesem Raum nichts, man steht also ohnehin still; was
-  fehlte, war ein Weg, eine Zahl festzuhalten, ohne sie im selben Moment durch
-  das Hinsehen zu verändern. Eingefroren steht die Tafel bernsteinfarben da,
-  und neben das Modell stellt sich, was diese Lage **bedeutet**: die
-  **Boxhand** in der Faust um den **Handgriff des Geräts** — derselbe rote
-  Zylinder wie auf der Werkzeugseite unter _Hand in echt_
-  (`core/controllerHandle.ts`, eine Geometrie für beide Stellen) und dieselbe
-  gerechnete Faust (`CONTROLLER_HAND_POSE`). Man liest die Zahl also nicht
-  nur, man sieht auch, was das Spiel daraus macht. Gebaut und nicht
-  gespeichert: dort soll stehen, was aus der Lage **folgt**, nicht, was jemand
-  vorhin eingestellt hat.
-
-  **Die Aufnahme** steht oben auf der Tafelwand, und der Knopf daneben startet
-  und beendet sie. Sie misst, **wie stark die Hand beschleunigt** — die eine
-  Größe, zu der niemand ein Gefühl hat: ein Meter je Sekunde ist ein Schritt,
-  aber „40 m/s²" sagt nichts, bis man es einmal neben der eigenen Bewegung
-  gesehen hat. Genau solche Zahlen stehen aber in den Schwellen des Spiels (der
-  Schlag des Hammers, das Tempo eines Wurfs, das Schütteln der Sektflasche), und
-  bisher hieß Einstellen: probieren, bis etwas passiert. Die Tafel zeigt die
-  laufende Zeit, den **Höchstwert** samt Hand und Zeitpunkt und den aktuellen
-  Wert, in m/s² **und in g** — ein g kennt man.
-
-  Während sie läuft, setzt **Greifen** eine **Marke**: der Wert genau in dem
-  Moment, in dem man drückt, mit laufender Nummer und Zeit; die letzten drei
-  stehen auf der Tafel, die jüngste oben. Ohne sie misst man einen Wurf und
-  liest hinterher den Höchstwert des Abbremsens ab. Solange aufgenommen wird,
-  gehört der Griffknopf deshalb der Marke und friert **nichts** ein — zwei
-  Bedeutungen zugleich hat er nicht. Gemessen wird aus den Positionen der Hand,
-  also zweimal abgeleitet und beide Male geglättet
-  (`tune/accelRecord.ts`, mit Test); gefüttert wird **jedes** Bild, auch wenn
-  die Tafel nur fünfmal je Sekunde neu gezeichnet wird — ein Gipfel dauert zwei
-  Bilder.
-
-  An der **rechten Wand hängen die Zahlen**, die man abliest statt sie
-  anzufassen: zwei Knöpfe messen die **Augenhöhe** (siehe _Sitzen oder
-  stehen_), stehend und sitzend, und daneben hängt die **Werte-Tafel** mit der
-  letzten Messung und dem **Konfig-Code für genau diese Hand an genau diesem
-  Werkzeug** — kurz genug zum Abtippen, weil sonst nichts drinsteht. Die
-  Augenhöhe steht hier und nicht nur im Menü, weil ohne sie keine Zahl aus dem
-  Gang stimmt: ein Headset kennt sie nicht.
-
-  Dort stand einmal ein **Tisch mit einer Geisterhand**, und die Idee war gut
-  — eine Handhaltung im Leeren einzustellen ist Raten, weil sich der Arm
-  mitbewegt, und auf einer Tischplatte nicht. Nur war er ein **zweiter Weg** zu
-  derselben Antwort, mit eigener Bedienung, eigenen Knöpfen und einer eigenen
-  Gelegenheit, versehentlich etwas anderes einzustellen als nebenan. Seit die
-  Hand selbst ein **Werkzeug** ist (_Boxhand_, oben), fällt er weg: man legt
-  sie im Gang in den Halter wie eine Pistole.
-
-  An der **linken Wand steht eine Bank mit einem Griff darauf**, der sich
-  nicht bewegen lässt — nur anfassen. Solange man ihn hält, spielt der
-  Controller das Muster, das der Knopf daneben ausgewählt hat: kein Vibrieren,
-  leicht, mittel, stark, Doppelklopfen, Salve, Herzschlag, Anschwellen,
-  Dauerbrummen (`tune/haptics.ts` mit Test, `tune/VibeBench.ts`). Vibration
-  ist die einzige Rückmeldung des Spiels, die man **nicht sehen** kann, und
-  ob eine Salve als Salve ankommt, merkt man sonst nirgends. Ein Ding, das man
-  greift und das dann mitkommt, prüft die Physik; hier soll die Hand ruhig an
-  etwas Festem liegen, also bewegt sich der Griff nicht.
-
-  **Hinter dem Rücken, durch die Tür in der Rückwand, liegt der Schießgang**
-  (`tune/lane.ts` hat seine Maße). Von links nach rechts gelesen ist er ein
-  Arbeitsablauf: **Werkzeug-Menü**, **Halter**, **Griffstand**, **Werte** — und
-  „links" heißt hier aus Sicht dessen, der im Gang nach vorn schaut, also +X,
-  während rechts -X ist. Genau deshalb ist der Gang breit: vier Dinge
-  nebeneinander, zwei davon mit einem Ausleger voller Griffe.
-
-  Ein Schild am Halter macht das **Werkzeug-Menü** auf, und das erscheint
-  **vor dem Spieler** statt an einer Wand: es ist dasselbe Panel wie am
-  Handgelenk (`ui/WristMenu.ts` mit `anchor: 'view'`), nur ohne runden Knopf
-  und frei in der Luft. Vorher war es ein Kachelraster an der Wand, und das
-  hatte zwei Fehler auf einmal — es war ein **zweites** Menü mit eigener
-  Bedienung und eigenem Aussehen, und es hing dort, wo es gebaut wurde, statt
-  dort, wo man steht. **Trigger oder Greifen** wählt aus (das Regal ist eine
-  Nimm-Seite), und die Auswahl legt das Werkzeug **direkt in den Halter**: man
-  wählt es ja, um es einzumessen, und der Weg dorthin führt ohnehin nur über
-  ihn. Der Griffstand bekommt dieselbe Id gleich mit.
-
-  Dann kommen **zwei Justierstände** nebeneinander, und **jeder hat seine
-  eigene Zielscheibe** am Ende des Gangs, genau vor sich. Sie beantworten die
-  beiden Hälften derselben Frage: der erste _wie halte ich das Ding?_, der
-  zweite _wie umfasst die Hand es?_
-
-  Die Scheiben hängen fest — sie halten Kugeln auf, und ein Kollisionskörper,
-  der jedem Schieben folgt, ist eine Fehlerquelle für einen Schönheitsfehler.
-  Verschiebbar sind die **Stände**, und damit keiner quer durch den Gang auf
-  die Scheibe des Nachbarn zeigt, dreht sich die **Zuordnung**: der linke Stand
-  nimmt die linke Scheibe, der rechte die rechte (`tune/lane.ts`,
-  `swapTargets`, mit Test). Entschieden wird nach der Reihenfolge und nicht
-  nach dem kürzesten Weg — der ist genau dann unentschieden, wenn beide Stände
-  auf derselben Seite stehen.
-
-  Der **erste Stand** (`tune/ToolRange.ts`): ein Werkzeug liegt nicht richtig
-  oder falsch, es **zeigt** richtig oder falsch — und wohin es zeigt, sieht man
-  an nichts so gut wie an einer Scheibe am Ende eines Gangs. Ein Werkzeug, das
-  man in den **Halter** hält, rastet
-  ein und liegt dort exakt auf die Scheibe gerichtet; damit ist die
-  Zielrichtung keine Unbekannte mehr. Dann führt man die Hand ans Werkzeug,
-  dorthin, wo man es halten will, und bestätigt mit **Greifen oder Trigger**:
-  was dazwischen liegt, _ist_ die Haltung (`toolPose.ts`), sie wird gespeichert
-  und das Werkzeug springt damit in die Hand zurück — wo man sofort sieht, ob
-  es die Scheibe trifft. `A` legt es unverändert zurück.
-
-  Der Stand selbst ist dabei immer im Weg, also ist er **leer fast durchsichtig
-  und voll unsichtbar** (`STAND_OPACITY` in `tune/StandFrame.ts`): man will die
-  Hand am Werkzeug beurteilen und nicht das Möbelstück darunter, und leer muss man trotzdem sehen, wohin das Werkzeug
-  soll. Sobald eines drinsitzt, läuft stattdessen eine **Linie aus dem Werkzeug
-  bis in die Scheibe** — die Zielachse selbst, zu sehen statt zu glauben. Das
-  Werkzeug ist dann ein _Kind_ der Aufnahme und nicht bloß an derselben Stelle:
-  es kann von ihr nicht wegdriften, auch nicht, während der Stand verschoben
-  wird.
-
-  Auf dem Boden liegt dabei ein **Kreis**. Wer hineintritt, macht die Welt
-  durchsichtig und seine **virtuelle Hand unsichtbar**; wer heraustritt, nimmt
-  beides zurück. In einer AR-Sitzung sieht man drinnen also die **echte** Hand
-  am virtuellen Werkzeug und legt sie daran, statt zu raten, wo eine Boxhand
-  aufhört und die eigene anfängt. Es ist die einzige Stelle im Spiel, an der
-  ein **Schritt** etwas schaltet, und sie hat einen Grund: genau hier sind
-  beide Hände voll — eine hält das Werkzeug, die andere soll daneben liegen —,
-  und beide Hände voll heißt, dass niemand einen Knopf drückt. Ein von Hand
-  geschaltetes AR bleibt davon unberührt: der Kreis nimmt nur zurück, was er
-  selbst angeschaltet hat.
-
-  **Höhe und Ort hängen bei beiden Ständen an zwei Griffen** an einem
-  Ausleger, einen halben Meter zur Seite (`tune/StandFrame.ts`,
-  `tune/rangeSettings.ts` und `tune/gripSettings.ts`, beide mit Test): oben ein
-  Schieber für die Höhe, unten eine Kugel für den Ort, greifen und ziehen, beim
-  Loslassen gespeichert. So weit weg, weil ein Griff neben der Aufnahme von der
-  Hand mitgenommen wird, die nach dem Werkzeug greift — und dann steht der
-  Stand mitten in einer Messung woanders. Zwei Griffe statt eines, weil „zu
-  hoch" und „zu weit links" zwei Fragen sind und ein Griff, der beides kann,
-  immer auch das verstellt, was schon stimmte. Gestell, Säule und Ausleger sind
-  bei beiden dieselben, damit man nicht zweimal lernt, wie ein Stand
-  verschoben wird.
-
-  Der **zweite Stand** steht **auf der anderen Seite des Gangs, außerhalb des
-  Kreises** —
-  dort soll die Welt ja gerade nicht durchsichtig sein, denn hier sieht man eine
-  Boxhand an. Er hält eine unbewegliche **Kopie** desselben Werkzeugs und daran
-  eine **feste Boxhand** (`tune/GripStand.ts`, Rechnung in `tune/handGrip.ts`
-  mit Test) — fest und nicht gläsern, weil sie hier das Ding ist, um das es
-  geht, und kein Vergleichsstück. Die Kopie kann man nicht nehmen, nicht
-  schieben und nicht einrasten lassen: sie _ist_ der feste Punkt, und ein
-  fester Punkt, den man versehentlich mitnimmt, ist keiner. Die Boxhand dagegen
-  greift man, dreht sie, verschiebt sie und lässt sie los; wo sie dann liegt,
-  _ist_ die Handhaltung an diesem Werkzeug. `A` bricht ab. Sie hängt dabei
-  wirklich an der Hand (`Object3D.attach`) statt Bild für Bild nachgerechnet zu
-  werden: was man hält, hält man 1:1, und ein Umhängen kann keine
-  Rundungsfehler aufsummieren. **Darunter** hängt ein Knopf, der die Haltung
-  zurücksetzt — dort, wo man steht, wenn man ihn braucht; an der Wand steht
-  derselbe noch einmal. Zurückgesetzt wird **auf die Hand am Werkzeug** und
-  nicht auf sechs Nullen: die Null einer Handhaltung ist der Griffpunkt des
-  Controllers, und die liegt sichtbar neben dem Werkzeug (siehe _Eingemessene
-  Griffe_).
-
-  **Warum zwei Stände und nicht einer**: _wohin ein Werkzeug zeigt_ und _wie die
-  Faust darum herum liegt_ sind zwei Größen. Der erste Stand misst die eine, der
-  zweite die andere, und man merkt es daran, dass eine stimmen kann, während die
-  andere daneben ist — die Zielrichtung genau auf dem Strahl und die Hand
-  trotzdem quer am Griff. Für alles mit **Standardgriff** ist die zweite Größe
-  seit der einen gerechneten Faust keine Frage mehr (siehe _Eingemessene
-  Griffe_); der Stand bleibt für alles andere und für den, der es anders haben
-  will.
-
-  Die Kopie ist immer das, was man gerade einmisst: der Halter legt sie hin,
-  sobald dort etwas einrastet. Wer über den Halter gar nicht geht, drückt
-  _Kopie_ und bekommt das Werkzeug aus der zeigenden Hand. Die Boxhand hängt
-  als **Kind der Kopie** — das ist keine Kleinigkeit, sondern die ganze
-  Rechnung: ihre Lage in diesem Elternteil _ist_ die Größe, die gespeichert
-  wird, und ein Stand, den man hinterher noch verschiebt, nimmt beide
-  gemeinsam mit, ohne dass sich an der Messung etwas ändert.
-
-  Und die Kopie liegt in der **Gestalt, die sie in der eingestellten Hand hat**
-  (`Tool.showHeldBy`). Für fast jedes Werkzeug ist das dasselbe Bild; für die
-  beiden, deren Modell sich im Griff verschiebt — Drohne und großer Hammer —
-  ist es der Unterschied zwischen einer Messung und einer um den Versatz
-  daneben. Beim **Hammer** heißt es außerdem, dass dort sein Auslieferungsgriff
-  am Stiel liegt: eine Handhaltung ist der Versatz gegen den _Ursprung_ des
-  Werkzeugs, und der ist bei ihm immer der Punkt, an dem die Faust liegt —
-  einmal eingemessen gilt sie damit an jedem Punkt des Stiels, und der Stand
-  braucht die anderen Punkte gar nicht zu zeigen. Warum das überhaupt eine
-  Zeile Code ist, steht unter _Eingemessene Griffe_.
-
-  Für die letzten zwei Millimeter gibt es an der linken Wand des Gangs
-  **Feinjustieren**: die geltende Haltung wird geladen (`gripForHold` in
-  `toolPose.ts`, die Umkehrung der Messung) und als **Geisterhand** ans
-  Werkzeug gestellt, und die Hand, die den Knopf _nicht_ gedrückt hat, zieht
-  sie zurecht — **um ein Zehntel untersetzt**: ein Zentimeter an der eigenen
-  Hand ist ein Millimeter am Geist, ein Grad ein Zehntelgrad
-  (`tune/fineTune.ts` mit Test). Eine ausgestreckte Hand zittert um mehr, als
-  hier eingestellt wird; untersetzt tut sie es nicht mehr. Der Trigger legt
-  fest, `A` bricht ab. An derselben Wand hängt dieselbe **Werte-Tafel** wie im
-  Raum, mit denselben sechs Zahlen und dem Konfig-Code — wer im Gang steht,
-  läuft für seine eigenen Zahlen nicht zurück in den Raum. Sie ist groß und
-  dreizeilig, weil auf ihr **alles** stehen soll: eine Tafel, die kürzt, lässt
-  den Code weg, weil der hinten steht, und der Code ist der Grund, warum man
-  hinsieht. `TextPlane` verkleinert deshalb die Schrift, bis alles hineinpasst,
-  statt zu kürzen, und ein `\n` bricht die Zeile, wo es steht.
-
-  Ein Knopf dort ist **AR an/aus**: er blendet Wände, Boden und Decke
-  durchsichtig (`tune/seeThrough.ts`), damit die virtuelle Hand nicht mehr
-  hinter der Welt verschwindet. Ob dahinter das **echte Zimmer** auftaucht,
-  entscheidet die laufende Sitzung: `App.enterVR` fragt zuerst nach
-  `immersive-ar` und fällt auf `immersive-vr` zurück, und nur eine AR-Sitzung
-  mischt ihr Kamerabild dazu. Wo es das nicht gibt, ist die Welt eben nur
-  durchsichtig — die Hand verdeckt sie trotzdem nicht mehr. Der Raum hat
-  deshalb als einziger **keine Horizontfläche**: die läge sonst als graue
-  Platte über dem echten Fußboden.
-
-  Durchsichtig wird dabei die _Welt_, **nicht der Bildpuffer** — jedenfalls
-  nicht ohne Kamerabild dahinter. Ein Bild mit Alpha 0 hat der Compositor nicht
-  anzuzeigen, sondern wegzublenden, und was dann durchkommt, ist auf einer
-  Brille das reprojizierte letzte Bild: es zieht bei jeder Kopfdrehung hinterher,
-  und kleine helle Dinge — ein Werkzeug im Stand zum Beispiel — sehen dabei aus,
-  als bewegten sie sich mit dem Kopf mit. In einer VR-Sitzung bleibt der
-  Hintergrund deshalb undurchsichtig, nur eben dunkel statt Himmel.
-
-  **Rechts hinter der Trennwand liegt der Poseraum** — der Gang ist dafür nach
-  rechts breiter geworden, und die alte rechte Wand ist zur Trennwand mit Tür
-  geworden, damit Knöpfe und Werte-Tafel bleiben, wo sie waren. Darin hängt
-  ein **Schwebekasten**: eine durchsichtige Kiste in der Luft, in der die
-  Schwerkraft aufhört. Ein Werkzeug, das man darin loslässt, bleibt liegen —
-  und daran legt man die **blanke** Hand, die dafür einen Handschuh trägt
-  (Schalter an derselben Wand). Ein zweiter Schalter stellt den Kasten **fest**:
-  dann rührt sich darin nichts mehr, und die messende Faust nimmt das Werkzeug
-  auch nicht mehr an sich. Was zwischen Hand und Werkzeug liegt, ist die
-  Haltung; sie steht mit ihrem Konfig-Code auf der Tafel dahinter. _Handpose
-  teilen_ schickt sie live an alle im Raum — geteilt wird immer die Hand, die
-  **nicht** gedrückt hat, und deren Trigger hält sie fest. Zusehen kann dabei
-  auch die Werkzeugseite im Browser (`tools.html`, Menüpunkt _Verbinden_).
-  Ausführlich unter _Der Poseraum_.
-
-  **Gelaufen und
-  gedreht wird hier nicht** (`PlayerRig.locked`), der Kopf natürlich schon:
-  man kommt her, um eine Haltung zu halten und sie anzusehen. Weil die Tafeln
-  aber rechts hängen, die Bank links steht, der Schießgang hinten liegt, und
-  man im Sessel an nichts davon hinkommt, gibt es neben dem Schild
-  einen **Knopf, der den Stick freigibt** — ausdrücklich und sichtbar, statt
-  dass es einfach so geht. Gürtel und Werkzeugregal sind da, denn die Hand, die man
-  ansieht, ist die, die man einstellt; am Gürtel hängen die **Boxhand** links
-  und die **Pistole** rechts, die beiden Dinge, für die man herkommt.
-
-- **Dust** (experimentell): große Außenkarte im Geist der Counter-Strike-Map —
-  zwei Plätze, ein Tunnel, Rampen, ein begehbarer Vierstöcker mit Treppen bis
-  aufs Dach und ein paar kleinere Häuser. Dieselben Werkzeuge, dieselbe Physik,
-  dieselbe geteilte Sitzung wie im Portal Labor; Portale haften dort an den
-  hellen Tafeln und am Boden. Die Karte steht auf dem **Kachelgitter**
-  (`dust/dustTown.ts`): acht Häuser als Liste — wo eines steht, wie viele
-  Stockwerke, auf welcher Seite die Tür. Die Obergeschosse haben seither
-  **Fenster**, die wirklich Löcher sind, und die Treppen stehen im
-  Navigationsgraphen statt nur in der Geometrie.
-- **Dunkelhaus** (experimentell): ein kleines Haus ohne Fenster — Startraum,
-  ein Flur quer durch, vier Zimmer und ein Hinterzimmer. Es steht auf dem
-  **Kachelgitter** (`dark/darkHouse.ts`), und seit es das tut, steht auch etwas
-  darin: eine **Küchenzeile** über drei Kacheln im Südostzimmer, Regale, Tische,
-  eine Bank, ein Kistenstapel. Es
-  gibt kein Tageslicht: das Umgebungslicht steht fast auf null, gesehen wird
-  nur, was man anmacht oder trägt. Im Startraum hängt ein **Dimmer** an der
-  Wand (anzielen + Trigger, oder mit dem Finger antippen), der die Deckenlampen
-  des ganzen Hauses in **fünf Stufen** schaltet — _aus, dämmrig, gedimmt,
-  normal, hell_, eine Stufe pro Druck, nach der hellsten wieder aus. Zwei
-  Stellungen beantworten nur die Frage „ist Licht an?“; die interessanten
-  liegen dazwischen: wie wenig Licht reicht für einen Flur, ab wann lohnt die
-  Taschenlampe nicht mehr. Das Nordwest-Zimmer hat bewusst gar keine Lampe und
-  bleibt auf jeder Stufe dunkel. Der Dimmer selbst **leuchtet immer**, auch auf
-  _aus_: die Platte ist selbstleuchtend (Basic-Material, dafür braucht es kein
-  Licht), sie trägt ein kleines eigenes für den Hof an der Wand, und der Knopf
-  wandert mit jeder Stufe höher, während die Pips daneben mitzählen. Ein
-  Lichtschalter, den man mit der Taschenlampe suchen muss, ist genau einmal
-  lustig. Die Lampen leuchten hier viel stärker als in den anderen Welten
-  (26 statt 9): dort ist eine Lampe ein Akzent neben Sonne und Umgebungslicht,
-  hier ist sie das ganze Licht. Davor schwebt eine **eingeschaltete
-  Taschenlampe** (man muss sie im Dunkeln ja finden können), auf den Kisten liegen eine
-  **Leuchtkugel** zum Werfen, eine **Laterne** und zwei **Knicklichter** zum
-  Liegenlassen als Wegmarke. Sonst ist alles wie im Portal Labor: derselbe
-  Gürtel, dasselbe Regal, dieselbe Physik. Portale haften nur an den hellen
-  Tafeln im Flur und am Boden — eine Putzwand mit Loch würde das Haus zum
-  Nichts draußen aufmachen.
 - **Haunting / Orbital**: eine Raumstation für eine Quest und zwei Telefone.
   Der Außentechniker sucht Gegenstände, löst Reparaturaufträge und kann nach
   drei Treffern verlieren. Die drei Nicht-VR-Rollen zeichnen dieselbe Karte
@@ -2377,67 +2103,49 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   6/8/10/12 größere Räume mit Gängen und drei Entitäten mit eigener Wahrnehmung. Sichere Tests bleiben bei ausgeschaltetem Licht gegnerfrei;
   vier Lehrzimmer liegen abseits der Missionskarte. Ausführlich:
   _Haunting / Orbital: Raumstation für eine Quest und zwei Mobilgeräte_.
-- **Kletterhalle** (experimentell): die Welt, in der der **Greifknopf etwas
-  anderes tut**. Überall sonst nimmt Greifen ein Ding in die Hand; hier hängt
-  es den ganzen Spieler an die Wand. Von Griff zu Griff geführt wird dabei
-  niemand — man fasst hin, wo man will, und die Welt rechnet aus, wie gut das
-  war. Das Vorbild ist die Haltemechanik aus _Cairn_.
+- **Klettern** (`worlds/climb/`, Zone der Testwelt in `test/zones/climb.ts`):
+  die Stelle, an der der **Greifknopf etwas anderes tut**. Überall sonst nimmt
+  Greifen ein Ding in die Hand; hier hängt es den ganzen Spieler an die Wand.
+  Von Griff zu Griff geführt wird dabei niemand — man fasst hin, wo man will,
+  und die Welt rechnet aus, wie gut das war. Das Vorbild ist die Haltemechanik
+  aus _Cairn_.
 
-  **Die Halle steht auf dem Kachelgitter, die Kletterwände nicht**
-  (`climb/climbHall.ts`), und die Grenze ist Absicht: Überhang, Riss und Kamin
-  sind kein Mobiliar, sondern das Spiel selbst — ihre Maße sind über viele
-  Sitzungen im Headset entstanden. Matte, Decke und die vier Wände sind
-  dagegen austauschbar und sehen jetzt aus wie überall sonst. Nebenbei hat die
-  Halle dadurch einen Boden bekommen, auf dem ein NPC herumlaufen kann.
-
-  **Über Zimmerhöhe muss die Hülle von Hand nach** (`hallUpperWalls`). Eine
-  gerasterte Wand ist `PLAN_WALL_H` hoch, also 2,80 m — die Höhe eines
-  Zimmers; diese Halle ist **zehn Meter** hoch. Unten merkt das niemand, oben
-  jeder: Wer auf den Podesten bei 6,50 m ankam, stand zwischen offenen Kanten
-  und sah statt einer Hallenwand ins Nichts. Der fehlende Streifen sind vier
-  Quader in Wanddicke auf denselben Kachelkanten wie die Wände darunter, über
-  Eck geschlossen, damit in keiner Ecke ein senkrechter Schlitz bleibt. Eine
-  **Masse** im Grundriss (`GridPlan.mass`) ginge dafür nicht: Die deckt ein
-  Kachelrechteck ab, und die schmalste Kachel ist 2,5 m — die Wand stünde
-  mitten in den Kletterwänden, die einen guten Meter davor hängen. Gerechnet
-  wird sie in `climbHall.ts` und damit ohne Brille geprüft; hingestellt wird
-  sie in `ClimbWorld.buildShell`.
+  **Die Wand steht auf dem Gitter, die Griffe nicht**, und die Grenze ist
+  Absicht: Eine Wand ist Hülle und gehört auf Kachelkanten — hier eine **Masse**
+  von acht Metern über eine Kachelreihe, denn als Kachelwände wären das zehn
+  Stück von je 2,80 m und darüber Luft. Ein **Griff** dagegen ist kein
+  Mobiliar, sondern das Spiel selbst, und seine Stelle auf zehn Zentimeter
+  genau ist genau das, was ihn schwer oder leicht macht; auf eine Kachelkante
+  gezogen wäre er neu einzumessen, für nichts. Die Wandreihe liegt dabei
+  **außerhalb** der begehbaren Zone: Eine acht Meter hohe Masse auf einer
+  begehbaren Kachel wäre ein Weg im Graphen, den man in Wirklichkeit nicht
+  gehen kann — ein NPC liefe hinein und stünde.
 
   **Wie das Klettern selbst funktioniert.** Jede greifende Hand bekommt einen
   **Anker** in der Welt, und der Körper wird jedes Bild so weit verschoben,
-  dass die Hände wieder dort sind (`ClimbWorld.driveBody`). Zieht man die Hand
-  herunter, geht der Körper hinauf; mehr ist Klettern nicht. Gefahren wird das
-  über den **Flugmodus** der Fortbewegung (`PhysicsLocomotion.setFlight`,
-  dieselbe Tür, durch die auch der Supermanhandschuh geht) und nicht über die
-  Position des Rigs — dadurch bleiben Wände Wände, man klettert nicht in die
-  Halle hinein, und beim Loslassen wird aus dem letzten Zug ein **Schwung**
-  (gedeckelt, damit aus einem Klimmzug kein Raketenstart wird). Solange eine
-  Hand hängt, ist der **linke Stick abgeschaltet** (`PlayerRig.locked`) — wer
-  hängt, geht nicht und springt nicht.
+  dass die Hände wieder dort sind. Zieht man die Hand herunter, geht der Körper
+  hinauf; mehr ist Klettern nicht. Gefahren wird das über den **Flugmodus** der
+  Fortbewegung (`PhysicsLocomotion.setFlight`, dieselbe Tür, durch die auch der
+  Supermanhandschuh geht) und nicht über die Position des Rigs — dadurch
+  bleiben Wände Wände, man klettert nicht in die Welt hinein, und beim
+  Loslassen wird aus dem letzten Zug ein **Schwung** (gedeckelt, damit aus einem
+  Klimmzug kein Raketenstart wird). Solange eine Hand hängt, ist der **linke
+  Stick abgeschaltet** — wer hängt, geht nicht und springt nicht. Der rechte
+  dreht weiter, denn wer sich an einer Wand hochzieht, will über die Schulter
+  schauen wie überall sonst; danach wird jeder **Anker neu auf seinen Griff
+  gesetzt**, sonst hinge die Hand einen halben Meter neben ihm in der Luft. Das
+  ist auch die ehrlichere Bewegung — an einer echten Wand dreht sich der Körper
+  um die Hände und nicht die Hände um den Körper.
 
-  **Gedreht wird trotzdem** (`ClimbWorld.turnAtTheWall`): Der rechte Stick
-  gehört weiter dem Hals, denn wer sich an einer Wand hochzieht, will genauso
-  über die Schulter schauen und die Route nebenan ansehen wie überall sonst —
-  und wer es nicht kann, dreht sich körperlich im Zimmer und steht irgendwann
-  mit dem Kabel um den Hals vor der Wand. Die Rastdrehung steht deshalb hier
-  und nicht im Rig, denn sie hat einen Nachsatz: Sie schwenkt den ganzen
-  Spieler um seinen Kopf, also auch seine Hände, während die **Anker** in der
-  Welt stehen. Bliebe es dabei, hinge die Hand danach einen halben Meter neben
-  ihrem Griff in der Luft, und der Zug risse einen dorthin. Also wird jeder
-  Anker danach **neu auf seinen Griff gesetzt**, genau wie beim Zupacken; der
-  Körper schwingt in den nächsten Bildern um die Griffe herum an seine neue
-  Stelle. Das ist auch die ehrlichere Bewegung — an einer echten Wand dreht
-  sich der Körper um die Hände und nicht die Hände um den Körper. Der Sitz
-  (`seat`) bleibt dabei, was er beim Zupacken war: Wie gut man getroffen hat,
-  ändert sich nicht dadurch, dass man sich umdreht.
+  Damit der Greifknopf sich nicht mit dem normalen Greifen schlägt, klettert
+  nur eine Hand, die wirklich **leer** ist (`PortalWorld.handFree`): Wer eine
+  Kiste trägt, trägt eine Kiste. Und die Zone hört nur zu, **solange man vor
+  ihr steht** (`NEAR`, vier Meter um ihr Rechteck): Ein Greifknopf, der quer
+  über das ganze Gelände nach Griffen sucht, nähme der halben Welt ihr Greifen.
 
-  Damit der Greifknopf sich nicht mit dem normalen Greifen schlägt,
-  klettert nur eine Hand, die wirklich leer ist (`PortalWorld.handFree`) — wer
-  eine Kiste trägt, trägt eine Kiste. Am Gürtel hängt deshalb auch nichts.
-
-  **Was in den Halt eingeht** (`climb/gripQuality.ts`, mit Test — reine
-  Zahlen, kein three.js). Heraus kommt eine Zahl je Hand und daraus der
-  **Halt** (`support`):
+  **Was in den Halt eingeht** (`climb/gripQuality.ts`, mit Test — reine Zahlen,
+  kein three.js). Heraus kommt eine Zahl je Hand und daraus der **Halt**
+  (`support`):
 
   - **Material** (`climb/holds.ts`): _Sprosse_ (perfekt, Grundwert 1),
     _rauer Fels_ (0,44) und _glatter, glänzender Fels_ (0,24). Dazu, was jedes
@@ -2446,10 +2154,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     und Holm +0,36, Henkel +0,34, Spalte +0,30, Kante +0,26, Ballen +0,06,
     blanke Fläche nichts. Eine um einen halben Handteller verfehlte Kante ist
     keine Kante, sondern eine Wand — und genau das ist „wer keine gute Kante
-    erwischt“. Leisten, Sprossen, Risse und Holme haben dafür eine **Achse**:
+    erwischt". Leisten, Sprossen, Risse und Holme haben dafür eine **Achse**:
     An ihnen entlang darf man überall zupacken, darüber und darunter nicht.
-    Beim Holm ist das der ganze Punkt — er ist eine Strebe von zwei Metern
-    Länge, an der man sich entlanghangelt (siehe **Oben ankommen**).
   - **Verspreizen** (Jamming): Stehen zwei Hände an **entgegengesetzten**
     Flächen, gibt es bis zu +0,40 — abhängig davon, wie genau sie gegeneinander
     stehen _und_ wie nah die Hände beieinander sind. Druck braucht einen
@@ -2479,38 +2185,24 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Schalter. Unter **0,18** ist es kein Halt mehr, sondern ein Streifen: Die
   Hand geht ab, und wer keine zweite mehr an der Wand hat, fällt. Dazwischen
   läuft sie aus, umso schneller je schlechter der Halt und je glatter das
-  Material. Auf der Matte füllt sie sich in drei Sekunden, an der Wand in
+  Material. Auf dem Boden füllt sie sich in drei Sekunden, an der Wand in
   sechs. Was dabei herauskommt, in Sekunden bis leer: zwei raue Henkel oder
   Kanten sind eine **Rast**, zwei raue Ballen 180 s, zwei raue Flächen 55 s,
   zwei glatte Kanten 95 s, zwei glatte Flächen **9 s** — und einarmig überall
-  ein Drittel davon. Am Überhang wird aus der Rast an der Kante ein Auslaufen;
-  Rasten gibt es dort nur noch an den Henkeln.
+  ein Drittel davon.
 
   **Die Anzeige** (`climb/ClimbHud.ts`) hängt wie die Trefferanzeige an der
   **Kamera** und liegt auf `LAYER_HUD` — ein Balken, der dem Kopf ein Bild
   hinterherläuft, ist das Erste in VR, wovon einem schlecht wird. Sie sitzt am
-  **unteren Bildrand**: 45 cm unter der Blicklinie auf einen Meter, also gut
-  24° — und dem Auge entgegengedreht, weil eine schräg gesehene Tafel eine
-  gestauchte ist. Vorher waren es 20 cm (11°), und damit hing sie die ganze
-  Zeit mit an der Wand; ganz an den Rand wiederum gehört sie auch nicht, sonst
-  sähe man sie nur beim Kopfsenken und könnte sie gleich weglassen. Unten in
-  der Mitte die Ausdauer, links und rechts daneben je ein Haltbalken; die
+  **unteren Bildrand**, 45 cm unter der Blicklinie auf einen Meter (gut 24°),
+  und dem Auge entgegengedreht, weil eine schräg gesehene Tafel eine gestauchte
+  ist. Unten in der Mitte die Ausdauer, links und rechts je ein Haltbalken; die
   Anordnung ist die Anschrift, deshalb steht nichts daran. Auf den Haltbalken
-  sitzen zwei feine Striche genau auf den beiden Schwellen — sonst wäre „gut“
+  sitzen zwei feine Striche genau auf den beiden Schwellen — sonst wäre „gut"
   eine Farbe, die man glauben muss, statt einer Höhe, die man abliest.
-  Abschaltbar im Menü.
-
-  Zwei Zahlen daran waren lange falsch, und beide sieht man erst in der Brille.
-  **Das Vorzeichen der Drehung**: Ein positives `rotation.x` kippt die Normale
-  einer Tafel nach _unten_ und damit vom Auge weg — die Tafel hing also nicht
-  um 24° zurückgedreht, sondern um 24° weiter nach vorn, knapp 50° schräg im
-  Blick statt null. Und **die Reihenfolge**: Sie liegt ohne Tiefentest auf dem
-  Glas (sonst verschwände sie hinter jeder Wand, an der man gerade hängt), und
-  dann entscheidet allein die Zeichenreihenfolge, wer über wem liegt. Mit den
-  60 von vorher lag sie über _allem_, auch über dem aufgeklappten
-  Handgelenkmenü (`UIPanel`, Reihenfolge 10). Jetzt wird sie **davor**
-  gezeichnet (4) statt darüber: Drei Balken, die quer durch eine Menüseite
-  laufen, sind schlimmer als drei Balken, die man kurz nicht sieht.
+  Gezeichnet wird sie **davor** und nicht darüber (`renderOrder` 4): Drei
+  Balken, die quer durch eine Menüseite laufen, sind schlimmer als drei Balken,
+  die man kurz nicht sieht. Abschaltbar im Menü.
 
   **Die Vibration** (`climb/gripHaptics.ts`, mit Test) ist bewusst **kein
   Dauerbrummen, dessen Stärke den Halt anzeigt**: Ein Motor, der die ganze Zeit
@@ -2518,366 +2210,124 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   andere Rückmeldung und leert den Akku — und man merkt eine _Änderung_ ohnehin
   viel besser als einen _Pegel_. Also drei **Ereignisse**: (1) **Der Schlag
   beim Zupacken**, genau einer, und er ist die Antwort auf „habe ich das gut
-  erwischt?“ — guter Halt **kurz und hart** (1,0 / 60 ms), schlechter **schwach
+  erwischt?" — guter Halt **kurz und hart** (1,0 / 60 ms), schlechter **schwach
   und lang** (0,15 / 190 ms); dieselben zwei Regler in die Gegenrichtung, und
   dadurch ohne Anzeige auseinanderzuhalten. (2) **Das Rutschen**: Solange ein
   Griff unter der Erholungsschwelle liegt, tickt es leicht weiter, und je
   schlechter der Halt, desto **schneller** die Folge — nicht lauter, schneller;
   ein beschleunigendes Ticken liest sich als Countdown, und das ist es auch.
   (3) **Die Warnung** ab einem Drittel Ausdauer, kurz und kräftig statt lang
-  und weich, damit beide nebeneinander unterscheidbar bleiben. An der Leiter
-  passiert nichts davon außer dem Schlag beim Zupacken — eine Welt, in der auch
-  das sichere Material vibriert, hat kein sicheres Material mehr.
+  und weich. An der Leiter passiert nichts davon außer dem Schlag beim
+  Zupacken — eine Welt, in der auch das sichere Material vibriert, hat kein
+  sicheres Material mehr.
 
-  **Die Halle** ist eine Lehrtafel: 25 × 20 m, 10 m hoch, Boden ganz aus
-  Matten, zwei große **Sprungkissen** davor (siehe unten), und jede Wand
-  beantwortet genau eine Frage. **Leiterwand** (perfektes
-  Material, der Nullpunkt und der Weg nach oben für jeden, der erst einmal
-  sehen will, wie hoch es hier ist), **Rauwand** mit einer Route von Henkeln
-  über Leisten bis zu Ballen und blanken Flächen, daneben der **Riss** (eine
-  senkrechte Spalte, in die die Hand hineingeht), der **Überhang** (34°,
-  dieselben Griffe, aber sie schauen nach unten), die **Glattwand** (poliert
-  und glänzend) und der **Kamin**: zwei Wände, 95 cm auseinander, fast ohne
-  Griffe — der einzige Weg hoch ist das Verspreizen, und wer die Kanten sucht
-  statt zu drücken, kommt nicht weit.
-
-  **Oben ankommen** ist ein eigenes Stück Bauwerk, und zwar aus einem Grund,
-  den man erst im Headset merkt: Die Podeste stehen **vor** ihren Wänden, in
-  der Halle. Wer eine Wand hochklettert, hat sein Podest also nicht vor der
-  Nase, sondern über dem Kopf, und die letzten Meter gehen zwischen Wand und
-  Podestkante hindurch. Zuerst lag dort eine Handbreit Luft — 35 cm —, und
-  damit endete jede Route unter dem Blech: Der Körper ist eine Kapsel von
-  **48 cm Durchmesser** (`PhysicsLocomotion`), und was nicht durchpasst, hängt
-  fest. Deshalb hält jedes Podest jetzt **90 cm** Abstand zu seiner Wand
-  (`DECK_GAP`) — ein Schacht, durch den der Körper passt.
-
-  Durchpassen ist aber nur die halbe Miete: Oben aus dem Schacht heraus hängt
-  man zwar über Podesthöhe, doch der Boden liegt **neben** einem und nicht
-  unter einem. Dafür steht in jedem Schacht eine **Ausstiegshilfe**
-  (`ClimbWorld.topout`), eine je Route — Rauwand, Riss, Leiterwand, Glattwand,
-  Überhang und Kamin. Sie hat die Form, die sie hat, wegen zweier Dinge, die
-  beide erst im Headset auffallen:
-
-  1. **Ein Griff auf Podesthöhe reicht nicht.** Wer sich an der Kante
-     hochzieht, hängt am Ende _an_ ihr: Die Hand ist oben, die Füße baumeln im
-     Schacht, und der Boden ist zwar in Reichweite, aber nicht unter einem.
-     Deshalb geht die Hilfe **2,50 m über die Podestoberkante hinaus**
-     (`TOPOUT_ABOVE`) — erst ein Griff weit über dem Blech lässt einen so weit
-     hochziehen, dass die Füße über dessen Kante kommen, und wer oben steht,
-     hat ihn immer noch in der Hand.
-
-     **Die Zahl misst sich am Hangeln, nicht am Hochziehen**, und daran ist sie
-     beim ersten Versuch gescheitert: 1,70 m waren zu wenig. Der Körper hängt
-     an seinen Händen (`driveBody`), also liegen die Füße so weit unter dem
-     Holm, wie die Hand über ihnen steht — bei aufgestrecktem Arm gut zwei
-     Meter (`REACH_HANG` = 2,15 m). An einem waagerechten Holm auf 8,20 m
-     baumelten die Beine damit auf 6,10 m, also **unter** der Podestkante bei
-     6,50 m: Man stieß mit den Knien gegen das Blech, statt sich darunter
-     hinüberzuhangeln. Jetzt ist es die Armlänge plus eine Handbreit Luft
-     (`TOPOUT_CLEAR`).
-
-  2. **Eine schräge Leiter steht im eigenen Weg.** Zuerst lehnte sie nach
-     außen, über den Schacht — also über genau die Strecke, die der Kletterer
-     nach oben nimmt —, und man stieß von unten gegen ihre Unterseite. Deshalb
-     steht sie jetzt **senkrecht** im Schacht und geht oben **um die Ecke**:
-     Ihre beiden Holme laufen auf Ausstiegshöhe waagerecht weiter und
-     **einen Meter über die Podestkante** hinein (`TOPOUT_OVER`), mit
-     Sprossen dazwischen. Dort hängt man sich lang, hangelt sich hinüber und
-     lässt über dem Boden los.
-
-  Und weil man beim Hangeln nicht nach Sprossen suchen will, ist an ihr
-  **alles anfassbar**: die Sprossen ohnehin, aber auch die beiden **Holme auf
-  ihrer ganzen Länge**. Das ist die Griffart `rail` (`ClimbWorld.bar`) — kein
-  Punkt an einer Wand, sondern eine _Strecke_ mit Achse: Man greift hin, wo man
-  gerade ist, senkrecht wie waagerecht, und die Hand hängt genau dort. Alles
-  daran ist **perfektes Material**: Der Ausstieg ist der Moment, in dem die
-  Ausdauer ohnehin am Ende ist, und eine Leiter, die einen dort abwirft, wäre
-  keine. Sie hat mit Absicht **keinen Körper für die Physik** — der Weg des
-  Kletterers führt genau durch sie hindurch, und an einem Querholm, an dem der
-  Kopf hängen bleibt, hätte man nur einen zweiten Ort zum Feststecken gewonnen.
-  Die rechte Spur der Rauwand bekommt dazu oben eine **Querung** aus drei
-  Henkeln, weil die Leiter am Kopf der linken steht.
-
-  **Der Weg hinunter: die Sprungkissen** (`climb/crashPad.ts`, mit Test —
+  **Der Weg hinunter: das Sprungkissen** (`climb/crashPad.ts`, mit Test —
   reine Zahlen, kein three.js). Jeder nimmt von oben denselben Weg zurück, und
   bis vor kurzem endete er an einer Bodenplatte: Der Kopf fällt mit gut zehn
   Metern in der Sekunde, und **im nächsten Bild steht er still**. Das ist in
   der Brille kein Aufkommen, sondern der kürzeste Weg zur Übelkeit — das Auge
   meldet eine Vollbremsung, von der der Gleichgewichtssinn nichts mitbekommen
   hat, und genau diese Lücke ist es, aus der Motion Sickness entsteht. Ein
-  Fall lässt sich in VR nicht abschaffen, sein **Ende** schon. Also steht dort
-  jetzt, was in einer echten Halle auch dort steht: zwei große Kissen, 1,40 m
-  dick, in die man einsinkt.
+  Fall lässt sich in VR nicht abschaffen, sein **Ende** schon.
 
-  **Sie sind wirklich weich und nicht nur blau.** Jedes Kissen ist eine
-  **Feder mit Dämpfer**, und seine Oberfläche ist der Boden, auf dem man steht:
-  ein **kinematischer** Körper, der jedes Bild um die Einsinktiefe nach unten
-  gesetzt wird, mit dem gestauchten Quader darüber. Wer daraufspringt, drückt
-  ihn hinunter; der Blick fährt mit, wird langsamer, kehrt um und wird wieder
-  herausgeschoben. Aus dem einen Bild werden gut acht Zehntelsekunden, und
-  keines davon ist ein Ruck.
+  Das Kissen ist deshalb eine **Feder mit Dämpfer**, und seine Oberfläche ist
+  der Boden, auf dem man steht: ein **kinematischer** Körper, der jedes Bild um
+  die Einsinktiefe nach unten gesetzt wird. Aus dem einen Bild werden gut acht
+  Zehntelsekunden, und keines davon ist ein Ruck. **Warum eine Feder und keine
+  Bremsstrecke**: Bei einer Feder hängt die Zeit bis zum tiefsten Punkt _nicht_
+  am Aufpralltempo — sie ist ihre Viertelperiode und damit für den Stolperer
+  dieselbe wie für den Sprung aus sechs Metern. Eine feste Bremsstrecke täte das
+  Gegenteil: Je schneller jemand ankommt, desto härter bremst sie ihn. Die eine
+  Zahl, um die es geht, ist deshalb die **Kreisfrequenz** (`PAD_OMEGA` = 7);
+  dass ein Sprung von oben trotzdem nicht durchschlägt, macht die
+  **progressive Härte** — ein halb zusammengedrücktes Kissen wehrt sich stärker
+  als eines in Ruhe, so wie Luft in einem Sack. Eine **Rampe** an seiner Kante
+  führt wieder hinauf, flacher als das, was der Körper noch steigt.
 
-  **Warum eine Feder und keine Bremsstrecke.** Bei einer Feder hängt die Zeit
-  bis zum tiefsten Punkt _nicht_ am Aufpralltempo — sie ist ihre Viertelperiode
-  und damit für den Stolperer dieselbe wie für den Sprung aus sechs Metern.
-  Eine feste Bremsstrecke täte das Gegenteil: Je schneller jemand ankommt,
-  desto härter bremst sie ihn, und der Sturz vom höchsten Podest wäre der
-  einzige, bei dem es wieder schlägt. Die eine Zahl, um die es geht, ist
-  deshalb die **Kreisfrequenz** (`PAD_OMEGA` = 7 → gut anderthalb
-  Zehntelsekunden nach unten); dass ein Sprung von oben trotzdem nicht
-  durchschlägt, macht die **progressive Härte** — ein halb zusammengedrücktes
-  Kissen wehrt sich stärker als eines in Ruhe, so wie Luft in einem Sack. Die
-  Dämpfung liegt knapp unter der kritischen, damit ein Rest Rückstoß bleibt und
-  einen wieder heraushebt, ohne dass es zum Trampolin wird (Überschwinger unter
-  sieben Zentimetern).
+  Die Griffe tragen die **Greif-Farben** aus `core/colors.ts` und keine zweiten:
+  Sprossen leuchten hell, rauer Fels trägt den ruhigen Ton, glatter den dunklen;
+  den Rest macht die Oberfläche, denn glatter Fels glänzt auch. Wer im Spiel
+  gelernt hat, dass Türkis „hier anfassen" heißt, sucht an einer Wand voller
+  bunter Klötze zuerst das Türkis. Geklettert wird mit **Controllern oder
+  getrackten Händen**; am Schreibtisch kann man die Wand ansehen und daran
+  entlanglaufen, aber nicht hinauf.
 
-  **Geführt wird der Körper über den Flugmodus** (`setFlight`) — dieselbe Tür,
-  durch die auch das Klettern geht —, und zwar **nur bis zum tiefsten Punkt**.
-  Danach steigt die Fläche wieder, und eine Fläche, die von unten kommt, hebt
-  einen von selbst an; der Umkehrpunkt ist außerdem der Moment, in dem der
-  Körper stillsteht, also der beste zum Loslassen. Der Stick ist damit nur eine
-  gute Zehntelsekunde lang aus statt eine ganze Sekunde. Ein Problem der
-  Reihenfolge steckt darin: Die Fortbewegung rechnet **vor** der Welt (`App`),
-  wer also in derselben Frame aufkommt, hat sein Falltempo schon verloren,
-  bevor das Kissen davon erfährt — ein Kissen, das mit 0 m/s zupackt, ist eine
-  Bodenplatte mit Farbe. Deshalb zwei Wege ans Tempo: ein Bild **Vorhalt**
-  (gefangen wird, wer im nächsten Bild ohnehin darin stünde) und das gemerkte
-  Falltempo als Netz darunter.
+  **Was mit der Kletterhalle gegangen ist**, und das ist der ehrliche Teil: die
+  sechs Routen nebeneinander (Leiterwand, Rauwand, Riss, Überhang, Glattwand,
+  Kamin), die Podeste auf 6,50 m und die **Ausstiegshilfen**, mit denen man
+  oben wirklich ankam — ein Schacht von 90 cm zwischen Wand und Podest, eine
+  senkrechte Leiter darin, deren Holme oben um die Ecke und einen Meter über
+  die Kante laufen, damit man sich hinüberhangeln kann. Die Zahlen dazu und
+  warum sie so sind, stehen in `git show 3678f32:src/worlds/climb/ClimbWorld.ts`;
+  hier steht eine Wand, an der man die Rechnung ausprobiert, und kein
+  Lehrpfad.
 
-  **Wo sie liegen, entscheiden die Podestkanten und nicht die Wände.** Ein
-  Kissen am Wandfuß wäre eine Bouldermatte — die verschluckte die untersten
-  Griffe jeder Route, und man finge 1,20 m über dem Boden an zu klettern. Die
-  beiden liegen deshalb frei in der Halle, jedes vor der Vorderkante der
-  Podeste, von denen aus gesprungen wird: das große vor Rauwand und Riss
-  (bündig an die Westwand des Kamins, ein Schlitz dazwischen sähe aus wie eine
-  Ritze zum Hineinfallen), das zweite vor Überhang und Glattwand. Dazwischen
-  bleibt der Streifen zum Einstieg in den Kamin. Dazu **je eine Rampe**, sonst
-  wäre ein Kissen eine Falle: Der Körper steigt Stufen bis 32 cm (Autostep),
-  ein Kissen ist 1,40 m hoch — ein Keil von 25° ist flacher als alles, was
-  diese Fortbewegung noch hinaufkommt, und ein Bauteil statt einer Treppe aus
-  vieren.
+- **Der Kleiderschrank und die Umkleide** (`grid/fixtures/wardrobe.ts`,
+  `ui/WardrobeMenu.ts`): der erste Einbau, der nicht die Welt ändert, sondern
+  **den Spieler**.
 
-  In einer **geteilten Sitzung** rechnet jeder Client seine eigenen Kissen: Man
-  sieht das Kissen unter dem eigenen Sprung einsinken, nicht das unter dem
-  eines Mitspielers. Das ist der billige Weg und für eine Federung, die eine
-  halbe Sekunde dauert, auch der richtige.
+  Er steht an einer Kante wie ein Regal — eine Kachel breit, einen halben Meter
+  tief, 2,1 m hoch —, ist fest und benutzbar, und auf einer seiner beiden
+  Türfronten hängt ein **Spiegel** (`worlds/shared/Mirror.ts`, derselbe wie am
+  Standspiegel). Wer davorsteht und `A` drückt, bekommt die Umkleide.
 
-  Wer wieder hinunter will, springt in die Kissen oder nimmt _Zurück auf die
-  Matte_ im Menü. Die Griffe tragen die **Greif-Farben** aus `core/colors.ts`
-  und keine zweiten: Sprossen leuchten hell, rauer Fels trägt den ruhigen Ton,
-  glatter den dunklen; den Rest macht die Oberfläche, denn glatter Fels glänzt
-  auch. Wer im Spiel gelernt hat, dass Türkis „hier anfassen“ heißt, sucht an
-  einer Wand voller bunter Klötze zuerst das Türkis.
+  **Er tut das über ein Ereignis und nicht selbst.** `use` meldet
+  `{ type: 'wardrobe' }`, `GridWorld` reicht es an `ctx.openWardrobe()` weiter,
+  und was daraus wird, entscheidet `App`. Eine Einbau-Art, die `saveAppearance`
+  riefe, wäre eine, die man ohne Speicher nicht mehr prüfen kann — und sie
+  wüsste Dinge, die sie nichts angehen: wer davorsteht, was der anhat, und ob
+  daraus am Bildschirm eine Seite oder in der Brille eine Menüseite wird. Es ist
+  das einzige `FixtureEvent` **ohne Inhalt**, und genau das ist die Nachricht:
+  Jemand hat den Schrank aufgemacht.
 
-  Portale haften an nichts hier drin, und das ist Absicht — ein Portal an der
-  Hallendecke wäre der kürzeste Weg nach oben und damit das Ende dieser Welt.
-  Geklettert wird mit **Controllern oder getrackten Händen**; am Schreibtisch
-  kann man die Halle ansehen und durchlaufen, aber nicht hinauf.
+  **Der Spiegel brauchte dafür keinen neuen Bau-Kontext.** Der erste Verdacht
+  war, `FixtureBuild` um einen Haken für Spiegel zu erweitern — der
+  Standspiegel sieht ja so aus, als bräuchte er Renderer, Szene und Kamera. Er
+  braucht sie nicht: Eine `MirrorSurface` ist ein gewöhnliches Mesh, und wer ihr
+  ihr Bild malt, **sucht sie im Szenengraphen** (`MirrorRenderer.render` über
+  `collectMirrors`). Ein Spiegel, der in `ctx.group` hängt, bekommt sein Bild
+  also von selbst, und der Vertrag der Einbauten bleibt so klein, wie sein
+  Kommentar es verspricht. Er kostet nur eines: **Freigeben** — das Glas hält
+  ein eigenes Material, und erst dessen `dispose` meldet dem Zähler der Spiegel,
+  dass es eines weniger ist.
 
-- **Mond** (experimentell): die Welt, die es wegen der Schwerkraft gibt —
-  1,62 m/s². Ein Sprung dauert dreimal so lange, ein geworfener Stein fliegt
-  bis zum nächsten Krater, ein Stapel fällt in Zeitlupe zusammen, ohne dass
-  jemand die Stoppuhr angefasst hätte. Graue Ebene bis zum Horizont, Krater,
-  Felsbrocken, ein Lander mit Portaltafeln als Landmarke, eine Fahne;
-  schwarzer Himmel mit Sternen und der Erde darüber, die nie untergeht. Die
-  Schwerkraft kann man überall einstellen — ein Ort, der von sich aus so ist,
-  lädt zum Ausprobieren ein, statt es zu erlauben.
-- **Alpen** (experimentell): die Welt, die es wegen zweier Werkzeuge gibt —
-  Hängegleiter und Flügel brauchen beide dasselbe: Höhe, die man verlieren
-  kann. Ein großer Berg (der Gipfel liegt bei gut 280 m, das Kreuz steht dort,
-  wo es _wirklich_ am höchsten ist — gesucht, nicht gesetzt, weil die
-  Nachbarberge die Flanke anheben), sechs kleinere drum herum, dazwischen ein
-  Tal. Man fängt oben an, auf einer **Startrampe** unterhalb des Gipfels mit
-  Blick ins Tal, den Gleiter an der linken und die Flügel an der rechten Hüfte;
-  unten liegt eine **Landewiese** mit Windsack und Ring, daneben eine Alm mit
-  ein paar Kisten. Wald bis zur Baumgrenze, Fels wo es steil ist, Schnee ab
-  175 m — alles Vertexfarben aus Höhe und Steigung.
-  Unten stehen zwei **rote Knöpfe** (`shared/redButton.ts`), einer auf der
-  Wiese und einer vor der Alm: drücken, und man steht wieder auf der Rampe.
-  Der Weg zurück nach oben wären sonst 236 Höhenmeter über eine Flanke, die
-  stellenweise zu steil zum Gehen ist — eine Wartezeit zwischen zwei Flügen,
-  und damit genau dort, wo an dieser Welt nichts stehen soll. Der Knopf setzt
-  auch den **Blick** neu (`teleportPlayerTo` mit `yaw`): wer aus dem Tal auf
-  einen Berg gebracht wird, weiß ohnehin nicht mehr, wo vorn war, und die
-  Rampe zeigt ins Tal.
-  Das Gelände ist ein **Höhenfeld** (`alps/alpsTerrain.ts`, mit Test): eine
-  Höhe je Punkt aus Glockenkurven, Rauschen mit Gedächtnis und zwei absichtlich
-  ebenen Stellen, zum Rand hin auf null auslaufend, und dahinter eine Wiese bis
-  zum Horizont. Das Mesh und der Physik-Collider lesen dieselben Zahlen
-  (`PhysicsWorld.addHeightfield`, Rapiers Anordnung steht dort hingeschrieben,
-  weil man sie nur durch Ausprobieren erfährt), deshalb steht man nie neben
-  dem, was man sieht. Ein Strahl gegen fünfzigtausend Dreiecke wäre pro
-  Versuch eine Millisekunde, also läuft der Teleporter am Strahl entlang, bis
-  er unter die Höhe fällt (`raycastTerrain`). **Gehen** ging dort lange kaum,
-  aus drei Gründen, jeder für sich gemessen: Der Rand des Startplatzes war
-  bergwärts eine Wand (gut zwanzig Meter Anstieg auf zehn Meter, über 60°) —
-  er ist jetzt zum Gipfel hin breit und zum Tal hin schmal (`LAUNCH_EDGE`),
-  und der Gipfel hat ein kleines ebenes Stück (`SUMMIT_CAP`); der Test läuft
-  den Weg vom Plateau zum Kreuz ab und verlangt überall unter 51°. Die
-  **Rutschgrenze** des Charakter-Controllers lag bei 40°, die Klettergrenze bei
-  52° — dazwischen durfte man hinauf und rutschte gleichzeitig hinunter, und
-  die Flanke hat fast überall 35° bis 50°; gerutscht wird jetzt erst jenseits
-  dessen, was man hinaufkommt (`SLIDE_SLOPE_DEG` in `PhysicsLocomotion.ts`).
-  Und das hintere Ende des Stegs stand 95 cm über dem Plateau, drei Schritte
-  zu hoch für einen Schritt — davor steht jetzt ein Aufgang aus Holz, knapp
-  15° steil. Der Himmel wandert mit dem Kopf:
-  wer vom Gipfel dreihundert Meter weit sieht, sähe die Kugel sonst von innen
-  an ihrer Naht. Portale gibt es hier keine Flächen für — ein Berg hat keine
-  Wände.
-- **Effektlabor** (experimentell): die Welt, die es wegen einer einzigen Frage
-  gibt — _wie sieht das eigentlich aus?_ Ein Effekt dauert anderthalb Sekunden,
-  und genau deshalb ist er so schwer einzustellen: bis man ihn im Spiel gesehen
-  hat, ist er vorbei, und beim nächsten Versuch steht man woanders. Hier steht
-  man immer gleich, und der Unterschied zwischen zwei Einstellungen ist ein
-  Knopfdruck — dieselbe Idee wie im Eingaberaum, nur für das, was man _sieht_,
-  statt für das, was man drückt.
-  Ein geschlossener Kasten (10 × 10 m), vorn eine **Bühne** mit Kreis und
-  Sockel, davor ein Pult mit einem **großen roten Knopf** (antippen oder
-  anzielen + Trigger; er taucht sichtbar ein, damit man weiß, dass man
-  getroffen hat). **Links daneben** die Tafel: eine Kachel je Effekt — Rauch,
-  Feuer, Funken, Explosion, Staub, Zauber, Wasser — und darunter ein
-  **Schieber für die Größe**, von 0,25× bis 4×. Der Schieber wird nicht nur
-  angetippt, sondern **gezogen**: solange der Trigger derselben Hand unten
-  bleibt, folgt der Reiter ihrem Strahl (`updateDrag`); wer lieber klickt,
-  findet dieselben Werte als Rasten im Handgelenk-Menü, zusammen mit _Auslösen_
-  und _Alles weg_. Die Kacheln stehen in **zwei Spalten**: sieben untereinander
-  wären eine Tafel von der Decke bis zum Knie, und der Schieber läge darunter.
-  Auf der Hüfte hängt die **Stoppuhr** — sie ist das eigentliche Werkzeug
-  dieses Raums, denn eine Explosion in Zeitlupe ist der einzige Weg, sie
-  wirklich anzusehen. Damit das trägt, laufen die Wolken in der Zeit der Welt
-  und nicht in der der Wanduhr: `PortalWorld.worldTimeScale` gibt den Faktor
-  heraus, mit dem auch die Physik rechnet. Daneben der **magische Beutel** —
-  etwas, das im Rauch steht, sagt mehr über den Rauch als der Rauch allein, und
-  dafür stehen um die Bühne herum auch drei Kisten und ein Companion Cube.
-  Ein Effekt ist dabei nichts als ein Satz Zahlen (`effects/effectKinds.ts`,
-  mit Test): Anzahl, Lebensdauer, Tempo, Streuung, Auftrieb, Schwerkraft,
-  Luftwiderstand, Größe, Farbverlauf, Leuchten, Lichtblitz. Wer einen
-  dazutut, schreibt eine Zeile in diese Liste — die Tafel im Raum baut sich
-  daraus. Geflogen wird in `effectBurst.ts` (mit Test, reine Zahlenreihen),
-  gezeichnet als **eine** Punktwolke je Auslösung (`Burst.ts`): Punkte und
-  keine Kugeln, was leuchtet additiv gemischt, alles andere verdeckend, und
-  jedes Partikel ein weicher Fleck aus einer 64er-Textur — ohne die ist ein
-  Punkt ein Quadrat, und eine Rauchwolke aus Quadraten sieht aus wie ein
-  Bildfehler. „Größer" heißt dabei mehr, dickere, schnellere und länger
-  lebende Partikel bis zu einer festen Obergrenze — die Physik dahinter bleibt
-  gleich: eine doppelt so große Explosion fällt nicht doppelt so schnell.
-  **Und dieselben Zahlen stehen jetzt auch in einer Welt, in der man läuft**:
-  In der Südostecke der Straßenküche stehen vier Düsen nebeneinander — Rauch,
-  Feuer, Funken, Wasser —, jede mit einem Knopf davor
-  (`grid/fixtures/emitter.ts`, `street/stampEffects.ts`). Sie ist derselbe
-  Einbau in zwei Betriebsarten: mit `burst` ein Einmalschuss, ohne ein
-  Dauerläufer, den der Auslöser an- und ausschaltet. Sie **baut die Wolke
-  nicht selbst**, sondern meldet ein `effect`-Ereignis, und `GridWorld` lässt
-  es laufen — genauso, wie ein Geräusch an `core/Audio` geht. Damit bleibt ihre
-  Logik ohne three.js prüfbar, und es gibt **eine** Stelle, die weiß, wie viele
-  Wolken gleichzeitig noch vertretbar sind; vier Düsen in einer Ecke schaffen
-  es sonst schnell, aus Effekten Nebel zu machen. Jede trägt die Farbe ihres
-  Effekts im Auge — von oben sieht man auf einen Blick, welche die
-  Wasserfontäne ist.
-- **Interaktionslabor** (experimentell): eine helle Halle (32 × 22 m) im Geist
-  der Testkammern aus _Portal_ und der großen Testzelle, die in Oblivion hinter
-  der Karte liegt — ein Raum ohne Geschichte, in dem einmal aufgebaut steht,
-  was man **anfassen** kann. Quer durch die Halle läuft eine Wand mit drei
-  Öffnungen, und das ist der Punkt: Ohne eine Wand, die wirklich trennt, ist
-  eine Tür ein Möbelstück, an dem man vorbeigeht.
-  - **Schiebetür**, geöffnet vom **großen roten Knopf** (derselbe wie im
-    Effektlabor, `worlds/shared/redButton.ts`) — mit **Nachlauf**: sechs
-    Sekunden, dann fällt sie von selbst zu.
-  - **Flügeltür**, zwei Blätter an ihren Scharnieren, geschaltet vom **Hebel**,
-    der **rastet**: auf bleibt auf.
-  - **Drucktür**, offen nur, solange etwas auf der **Druckplatte** liegt — man
-    selbst, oder die Kiste, die daneben steht. Die Platte löst in _jedem_ Bild
-    neu aus, in dem sie gedrückt ist; deshalb fällt die Tür anderthalb Sekunden
-    nach dem Verlassen zu und nicht unter dem, der darin steht
-    (`interact/doorMotion.ts`, mit Test).
-    Dazu ein **Kippschalter** an der Westwand für das Deckenlicht, über jeder Tür
-    eine Lampe (aus, gelb in Bewegung, grün offen) und hinter der Wand die
-    **Schildergalerie**: drei Tafeln, die zeigen, was ein Schild kann — Markdown,
-    ein langer Aushang, der von selbst rollt, und der Text, den man selbst
-    hineinschreibt. Die Türblätter sind **kinematische** Körper: sie schieben,
-    was ihnen im Weg liegt, und niemand schiebt sie. Im Gürtel liegt statt der
-    zweiten Portalpistole das **Schild** — in einem Raum, in dem es ums Bedienen
-    geht, ist das Werkzeug, das etwas aufschreibt, wichtiger als das zweite, das
-    Löcher in Wände schießt.
-    **Von oben** sind Knopf, Hebel und Kippschalter dasselbe noch einmal, nur
-    ohne Hand: Man stellt sich davor, über der Figur steht, was geht, und `E`
-    tut es (`core/usable.ts`, siehe _Benutzen von oben_). Der rote Knopf hat
-    dazu einen Kollisionskörper und lässt sich **anschießen** — die Portal-Regel,
-    und im Labor die Vorlage für die Einbauten auf dem Gitter.
-- **Straßenküche** (experimentell, `src/worlds/street/`): die Testwelt für das
-  Spielen **von oben** — eine Straßenkreuzung im Geist der Straßenlevel aus
-  _Overcooked_: eine Fahrbahn mit doppelter gelber Mittellinie quer durch die
-  Karte, ein breiter **Zebrastreifen** in der Mitte, links und rechts davon
-  **Küchenzeilen** mit zwei Herdplatten, am Rand **Marktstände** mit
-  gestreiften Markisen (blau-weiß und rot-weiß), Bänke, Verkehrshüte,
-  Blumenkübel und vier Kisten zum Schieben. Sie steht auf dem **Kachelgitter**
-  (24 × 16 Kacheln, `street/streetPlan.ts`), und sie ist der Ort, an dem
-  **Türen, Knöpfe, Platten, Treppen und Effekte** wirklich ausprobiert werden
-  ([der Plan](docs/plan-2d-hub-interaktion.md)) — eine Welt, in der man dabei
-  läuft, und kein Labor, in dem man davorsteht.
-  - **Die Karte ist eine Zeichnung im Quelltext** (`MAP`): eine Zeile je
-    Kachelreihe, ein Zeichen je Kachel — `B` Bordstein, `S` Straße, `Z`
-    Zebrastreifen, `K` Küchenzeile, `H` Herd, `M` Marktstand, `b` Bank, `k`
-    Kiste, `T` Tor, `P` Podest, `^` Treppe. Sie ist nicht die Abschrift des
-    Plans, sondern der Plan: Was dort als Buchstabe steht, wird darunter zu
-    Boden, Baustein oder Masse. Eine Karte, die einmal als Bild im Kommentar
-    und einmal als Aufrufe darunter steht, passt nach dem dritten Verschieben
-    nicht mehr zusammen. Was die Zeichnung **nicht** sagen kann, ist die
-    Blickrichtung einer Zeile — die steht in einer kleinen Tabelle daneben,
-    und ein Test hält beide aneinander.
-  - **Zwei Sachen liegen anders als in der Skizze des Plans**, und beide, weil
-    man darin läuft: Der Zebrastreifen liegt **quer** über der Fahrbahn statt
-    längs darin (längs wäre ein Mittelstreifen und keine Querung), und das
-    **Tor zum Hub** steht neben der Fahrbahn statt darauf, drei Kacheln vom
-    Startplatz weg — ein Tor neben dem Spawn ist eines, durch das man beim
-    ersten Schritt fällt, bevor man die Welt gesehen hat.
-  - **Keine Bilddateien** (Entscheidung E9 des Plans): Asphalt, Zebrastreifen,
-    Mittellinie und Markisenstreifen sind Farbe und flache Quader. Eine Textur
-    wäre hier kein Gewinn — ein Streifen aus zwei Quadern liegt richtig, sobald
-    der Stand steht.
-  - **Was ein Körper ist und was eine Kachel**: Küchenzeilen und Bänke sind
-    Bausteine (`counter`, `bench`) und machen ihre Kachel teuer; die
-    Marktstände sind **Massen ohne Boden darunter** — ein Kasten mit Markise
-    ist kein Möbel auf einer Kachel, sondern ein kleines Haus über dreien, und
-    wer dort Boden legte, hätte begehbare Stände. Kisten, Hüte und Kübel sind
-    dagegen **Gegenstände** mit eigenem Körper: Was man schieben können soll,
-    gehört in die Physik und nicht in die Karte. _Welt zurücksetzen_ stellt sie
-    an ihren Platz.
-  - **Geprüft, bevor jemand hineinläuft** (`streetPlan.test.ts`): Maße, der
-    Bordstein ringsherum, der freie Startplatz, das Tor, der leere
-    Zebrastreifen — und vor allem die **Erreichbarkeit jeder freien Kachel vom
-    Startplatz aus**, über ein Strömungsfeld (`nav/navPath.flowField`), das
-    ohnehin alle auf einen Schlag durchrechnet. Eine Ecke, in die man nicht
-    kommt, merkt man sonst erst nach dem Laden, nach dem Aufsetzen, nach dem
-    Hinlaufen.
-  - **Die Türwand im Südwesten** (`stampDoors.ts`): in der Ecke liegt ein
-    kleiner **Hof**, und davor steht eine kurze Wand mit den drei Türen des
-    Interaktionslabors — Schiebetür, Flügeltür, Drucktür —, jede mit ihrem
-    Auslöser eine Kachel davor: **roter Knopf**, **Hebel**, **Druckplatte**,
-    und neben der Platte zwei Kisten, die man daraufschiebt. Dazu eine
-    **Lampe** an der Kreuzung mit ihrem **Kippschalter** — die kürzeste Kette,
-    die es gibt: Hebel umlegen, Licht geht an, und dazwischen liegt nichts als
-    ein `trigger` durch die Registry (`grid/fixtures/`, siehe _Einbauten_).
-    Dieselbe Lampe schaltet der Hebel oben auf dem Podest; ihre Kennung ist
-    deshalb eine Konstante (`stampStairs.LAMP_ID`) und keine Zeichenkette an
-    zwei Stellen. Ein **Hof** und keine Wand quer über den Platz, denn eine
-    Tür, an der man vorbeigehen kann, ist ein Möbelstück; und weil hier
-    wirklich getrennt wird, lässt es sich auch **prüfen**
-    (`streetDoors.test.ts`): Mit geschlossenen Türen kommt vom Startplatz aus
-    niemand hinter die Wand, mit einer geöffneten alle neun Kacheln — ein
-    Strömungsfeld, in Millisekunden, statt dass es jemand im Headset nachläuft.
-    Der **Südwesten** und nicht der Osten, weil dort die Effektecke steht: Zwei
-    Pakete auf denselben Kacheln wären zwei Einbauten ineinander. Rechts hängt
-    in dieser Welt deshalb die **Pistole** statt der zweiten Portalpistole:
-    Draußen hält kein Portal, und der Knopf lässt sich anschießen.
-  - **Drei Dateien hängen am Ende von `streetPlan()`** (`stampDoors.ts`,
-    `stampStairs.ts`, `stampEffects.ts`) — Türen, Treppen, Effekte, je eine
-    Datei und je ein Eigentümer. Die Komponistin sagt nur, *was*
-    zusammenkommt; so konnten die Pakete nebeneinander laufen, ohne sich in
-    derselben Zeile zu treffen.
-  - **Das Tor zurück in den Hub** ist ein Einbau der Art `gate`
-    (`grid/fixtures/gate.ts`) und steht im Grundriss: eine Kachel, auf der man
-    steht, um woanders zu sein — kein selbstgebautes Gebilde daneben.
+  **Korpus in `solids`, Türen im Bild.** Dieselbe Teilung wie bei jedem Einbau,
+  der aufhält: Was Körper hat, gehört in `solids` — dort wird es aus der Palette
+  der Welt gebaut, bekommt Physik und wird von oben durchsichtig, wenn es die
+  Figur verdeckt. Die beiden Türfronten sind das, was man **anfasst**, und
+  hängen deshalb in der Gruppe: Was dort hängt, bekommt den gelben Saum, und
+  ein Schrank, bei dem der ganze Kasten leuchtet, sagt weniger als einer, bei
+  dem die Türen leuchten.
+
+  **Die Umkleide am Bildschirm** ist eine Seite über dem Bild, geschnitten wie
+  das Menü (`ui/pageMenu.css`): auf dem Telefon ein Blatt von unten, am
+  Schreibtisch ein Kasten in der Mitte. Links drei Zeilen mit ‹ und › — Kopf,
+  Hut, Körper (`ui/wardrobeRows.ts`) —, rechts **die Figur in Nahaufnahme**,
+  unten _Fertig_. Die Figur ist eine **zweite Szene**: ein eigener Renderer in
+  einem eigenen Canvas, ein `AvatarBody` darin, dasselbe Licht wie im Spiel —
+  und beides entsteht beim Öffnen und ist beim Schließen wieder weg. Das ist die
+  Stelle, an der man es falsch machen kann: Ein zweiter Renderer, der im
+  Hintergrund weiterläuft, kostet auf der Quest genau die Bilder, die dem Spiel
+  fehlen. Warum überhaupt eine zweite Szene und kein Ausschnitt der ersten: Die
+  eigene Figur steht auf einer Ebene, die nur Portale und Spiegel zeichnen
+  (`LAYER_SELF_ONLY`), und sie steht dort, wo der Spieler steht — nicht vor
+  einem Vorhang, in den man hineinschaut.
+
+  **In der Brille gibt es diese Seite nicht.** Dort zeigt der Spiegel am Schrank
+  einen selbst, und die drei Zeilen gibt es längst — unter _Aussehen_ am
+  Handgelenk, und genau dorthin springt `A`. Ein zweites Canvas mit einer
+  zweiten Figur davor wäre ein Bild von einem Spiegel neben einem Spiegel.
+
+  **Gespeichert wird sofort** (`saveAppearance`); _Fertig_ schließt nur. Es gibt
+  kein _Übernehmen_: Wer vor einem Spiegel steht und die Änderung nicht sieht,
+  hat kein Umkleidemenü. Der eigene Körper und das Netz hören über
+  `onAppearanceChange` ohnehin zu.
+
+  **Die Zeilen sind eine eigene Datei** (`ui/wardrobeRows.ts`) und aus demselben
+  Grund, aus dem `init`/`step` einer Einbau-Art rein sind: Was eine Zeile
+  schaltet, ist eine Rechnung über drei Listen, und die prüft ein Test in
+  Millisekunden. Was daraus für ein Knopf wird — DOM am Bildschirm, Menüzeile am
+  Handgelenk —, ist eine zweite Frage.
 - **Schilder** (`src/worlds/signs/`, Werkzeug `tools/SignTool.ts`): Tafeln, die
   man irgendwo hinstellt und beschriftet. Sie sind das Gegenstück zur
   Staffelei — die stellt eine Fläche zum _Malen_ hin, das Schild eine zum
