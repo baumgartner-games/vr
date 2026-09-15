@@ -4546,6 +4546,38 @@ Vier Sachen sind daran entschieden (`GridWorld`, `buildGridLines`):
   paar tausend Linien neu baut, blitzt beim ersten Bild auf und sieht aus wie
   ein Fehler.
 
+### Modelle im Repository
+
+`public/models` ist der Ordner, in dem **fremde Arbeit** liegt: die Spielfigur
+(`chef.glb`) und die Küchenmöbel (`kitchen.glb`), beide CC-BY-4.0. Die
+Namensnennung steht in `public/models/CREDITS.md`, und sie ist **Pflicht**,
+nicht Höflichkeit — wer ein Modell aufnimmt, trägt es dort ein, **bevor** er
+es einbaut. Eine Datei ohne Zeile in dieser Liste ist eine Datei ohne Lizenz.
+
+**Die Rohdateien liegen nicht im Repository.** Zusammen 32 MB, von denen nach
+der Aufbereitung 630 KB übrig bleiben. Was mit ihnen geschieht, steht
+vollständig in den beiden Werkzeugen — `tools/chef-model.mjs` und
+`tools/kitchen-model.mjs` —, und zwar mitsamt den Fehlern, die dabei gemacht
+wurden. Sie laufen von Hand, nicht bei jedem Build: Ein Modell ändert sich
+nicht, und `@gltf-transform` und `sharp` gehören nicht in die Abhängigkeiten
+eines Spiels, das sie nie ausführt (`npm install --no-save` beim Aufbereiten).
+
+**Der Küchenkatalog** (`core/kitchenFit.ts`) hat dreizehn Möbel: Tellerausgabe,
+Feuerlöscher, Spüle, Mülleimer, Arbeitstisch, Ausgabe, Schneidebrett,
+Ausgaberegal, Ausgabetheke, Küchenzeile, Herd, Herd mit Topf, Herd mit Pfanne.
+Die Quelle war eine **Schauraum-Szene**: ein Bild, das jemand aufgebaut hat,
+in vier Netzen, die nur nach Material getrennt waren. Zerlegt wird sie über den
+**Zusammenhang der Positionen** (nicht der Indizes — eine UV-Naht zerschneidet
+sonst jedes Möbel an seinen Kanten) und dann wieder gebündelt über
+**Grundriss und Höhe**. Die Höhe gehört dazu: Ohne sie klebte der Hängeschrank
+am Unterschrank darunter fest, ein „Möbel" von 2,50 m mit anderthalb Metern
+Luft in der Mitte.
+
+Die Möbel sind in **Metern** gebaut und bleiben es. Ein Tresen ist dort
+2 × 2 m und belegt damit vier Kacheln des Meterrasters
+(`worlds/nav/navTile.TILE`) — die Namen und Maße stehen in `kitchenFit.ts`,
+das weder three.js noch `import.meta` anfasst, damit Jest sie lesen kann.
+
 ### Wie man aussieht
 
 _Menü → Aussehen_ und der **Kleiderschrank** — drei Zeilen, und dahinter die
