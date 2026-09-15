@@ -145,8 +145,7 @@ describe('Ein Stück Karte in Weltmaßen', () => {
     // **Der Fehler, der einen Menschen einen viel zu großen Bogen um die
     // Stachelgrube laufen ließ.** Die Kante bei `maxX` gehört schon zur
     // nächsten Kachel; wer dort noch einmal fragt, malt eine Spalte zu viel an
-    // — und zwar nur nach Osten und nach Süden, was das Ganze schief macht
-    // (`navlab/labSim.test.ts`, „dicht an der Grube vorbei").
+    // — und zwar nur nach Osten und nach Süden, was das Ganze schief macht.
     const graph = field();
     const touched = paintRect(
       graph,

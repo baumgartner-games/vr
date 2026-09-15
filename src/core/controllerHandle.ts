@@ -17,10 +17,10 @@ import type { Handedness } from './XRInput';
  * ein Werkzeug hält. Zwei türkise Zylinder nebeneinander wären zwei Griffe
  * desselben Dings; ein roter neben einem grünen sind zwei Dinge.
  *
- * Gebraucht wird er zweimal, und beide Male für dieselbe Frage — „wie liegt
- * das Gerät wirklich in der Hand?": auf der Werkzeugseite unter *Hand in echt*
- * (`tools/viewer.ts`) und an der Wand des Eingaberaums, wenn eine Lage
- * eingefroren wird (`worlds/tune/TuneWorld.ts`).
+ * Gebraucht wird er für die Frage „wie liegt das Gerät wirklich in der
+ * Hand?": auf der Werkzeugseite unter *Hand in echt* (`tools/viewer.ts`).
+ * Dieselbe Geometrie stand an der Tafelwand des Eingaberaums neben einer
+ * eingefrorenen Lage; die Welt ist gelöscht, die Frage bleibt dieselbe.
  */
 export const HANDLE_COLOR = 0xe0554a;
 

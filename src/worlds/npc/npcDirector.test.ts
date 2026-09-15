@@ -11,7 +11,7 @@ import { NpcDirector } from './NpcDirector';
  * Punkt steht, legt auch kein Käfig nach — wer einen Zombie umlegt, will ihn
  * liegen sehen und nicht zwei Sekunden später wieder vor sich haben.
  *
- * Es ist neben `navlab/labPhysics.test.ts` die zweite Stelle, an der Rapier
+ * Es ist eine der Stellen, an denen Rapier
  * wirklich startet (siehe `jest.config.cjs`): Der Bestand baut Körper, und eine
  * Attrappe, die das nur so tut, prüfte etwas anderes als das, was läuft.
  */

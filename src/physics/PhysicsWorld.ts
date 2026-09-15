@@ -654,8 +654,7 @@ function colliderFor(
       // Wand von zwanzig Mikrometern, und ein Zylinder steigt keine Stufe. Im
       // Navigationslabor hing die Puppe genau daran fest, an der Fuge zwischen
       // der obersten Rampenstufe und dem Podest daneben — sie stand oben, ihr
-      // Weg zeigte über die Lücke, und sie rührte sich nicht mehr
-      // (`navlab/labPhysics.test.ts`).
+      // Weg zeigte über die Lücke, und sie rührte sich nicht mehr.
       //
       // Die Rundung nimmt der Kante genau diese Ecke: Was so hoch ist wie sie,
       // schiebt den Körper hinauf statt ihn zu blockieren. **Die Außenmaße

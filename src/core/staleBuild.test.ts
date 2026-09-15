@@ -5,10 +5,10 @@ describe('isStaleModuleError', () => {
   // stehen hier wörtlich, damit ein Tippfehler in der Liste auffällt und nicht
   // erst dann, wenn nach einem Deploy niemand mehr die Welt wechseln kann.
   it.each([
-    'Failed to fetch dynamically imported module: https://x/assets/MoonWorld-a1b2c3.js',
-    'error loading dynamically imported module: https://x/assets/MoonWorld-a1b2c3.js',
+    'Failed to fetch dynamically imported module: https://x/assets/TestWorld-a1b2c3.js',
+    'error loading dynamically imported module: https://x/assets/TestWorld-a1b2c3.js',
     'Importing a module script failed.',
-    'Unable to preload CSS for /assets/MoonWorld-a1b2c3.css',
+    'Unable to preload CSS for /assets/TestWorld-a1b2c3.css',
   ])('erkennt "%s"', (message) => {
     expect(isStaleModuleError(new TypeError(message))).toBe(true);
   });

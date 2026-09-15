@@ -258,7 +258,7 @@ export class App {
       antialias: true,
       powerPreference: 'high-performance',
       // Durchsichtig **können** muss der Puffer, sonst liegt im
-      // Passthrough-Bild ein schwarzes Tuch über dem Zimmer (`seeThrough.ts`).
+      // Passthrough-Bild einer AR-Sitzung ein schwarzes Tuch über dem Zimmer.
       // Sein soll er es nicht: `alpha: true` stellt die Löschfarbe sonst auf
       // durchsichtig, und dann scheint zwischen zwei Welten die Webseite
       // durch.

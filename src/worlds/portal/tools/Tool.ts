@@ -598,14 +598,16 @@ export abstract class Tool extends THREE.Group {
    * der Stiel des Hammers rutscht entlang seiner Achse —, und für die ist das
    * hier die zweite Hälfte von `applyHold`.
    *
-   * Gebraucht wird sie am **Griffstand** (`worlds/tune/GripStand.ts`). Dort
-   * hängt eine Kopie, die niemand hält; `applyHold` steigt bei so einer Kopie
-   * gleich in der ersten Zeile aus, also stand die Drohne dort **mittig** statt
-   * am Griff. Wer die Boxhand an ihren sichtbaren Griff legte, mass sie damit
-   * um genau diese Verschiebung daneben, und im Spiel schwebte die Hand dann
-   * zehn Zentimeter neben dem Gerät. Die Kopie am Stand muss dasselbe Bild
-   * zeigen wie die Hand im Spiel — sonst misst man an einem anderen Gegenstand
-   * als dem, den man später hält.
+   * Gebraucht wird sie überall dort, wo ein Werkzeug **hingestellt** statt
+   * gehalten wird: auf der Werkzeugseite, am Avatar der Mitspieler, und
+   * früher am Griffstand des Eingaberaums. Dort hing eine Kopie, die niemand
+   * hält; `applyHold` steigt bei so einer Kopie gleich in der ersten Zeile
+   * aus, also stand die Drohne **mittig** statt am Griff. Wer die Boxhand an
+   * ihren sichtbaren Griff legte, mass sie um genau diese Verschiebung
+   * daneben, und im Spiel schwebte die Hand dann zehn Zentimeter neben dem
+   * Gerät. Was hingestellt wird, muss dasselbe Bild zeigen wie die Hand im
+   * Spiel — sonst misst man an einem anderen Gegenstand als dem, den man
+   * später hält.
    *
    * Am Nullpunkt ändert das nichts: der Ursprung des Werkzeugs bleibt, wo er
    * ist, und die Messung rechnet gegen ihn (`tune/handGrip.ts`). Verschoben
