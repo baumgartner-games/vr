@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 /**
  * **Was in der Küche steht, aber nicht aus der Datei kommt** — die
- * Brötchenkiste und die Brötchen darin.
+ * Brötchenkiste und das Brötchen darin.
  *
  * Der gekaufte Katalog hat dreizehn Möbel und **keine Zutat**
  * (`core/kitchenFit.ts`): kein Gemüse, kein Teig, kein Brötchen. Bei
@@ -23,10 +23,36 @@ export const BOX_HEIGHT = 0.6;
 /** Die Stärke der Bretter. */
 const PLANK = 0.05;
 
-/** Wie groß ein Brötchen ist, in Metern. */
-export const BUN_RADIUS = 0.11;
+/**
+ * **Wie groß ein Brötchen ist**, als Halbmesser in Metern — ein Burger und
+ * kein Frühstücksbrötchen.
+ *
+ * Es war einmal 11 cm groß, und das war zu wenig: Der Teller auf der
+ * Tellerausgabe misst **75 cm** im Durchmesser (nachgemessen in
+ * `public/models/kitchen.glb`: 1,50 m in der Quelle, halbiert von
+ * `core/kitchenFit.KITCHEN_SCALE`), und daneben lag eine Murmel, die ein
+ * Sechstel davon bedeckte. Beim Vorbild füllt der Burger den Teller **fast**
+ * aus, und genau das tut er jetzt: 60 cm breit, vier Fünftel des Tellers.
+ *
+ * Der Teller ist das Maß und nicht die Figur — er ist der Ort, an dem ein
+ * Burger am Ende landet, und was darauf zu klein aussieht, sieht überall zu
+ * klein aus.
+ */
+export const BUN_RADIUS = 0.3;
+
+/**
+ * **Wie flach es gedrückt ist** — ein Anteil seines Durchmessers.
+ *
+ * Die Zahl steht hier und nicht zweimal weiter unten: Sie geht in die Höhe
+ * **und** in die Stauchung der Kugel, und zwei Stellen mit derselben Zahl
+ * sind eine Stelle zu viel. Flacher als früher (0,72), weil Breite allein
+ * eine Kugel wachsen lässt: 60 cm breit und 43 cm hoch wäre ein Brotball auf
+ * dem Tresen, 60 cm breit und 26 cm hoch ist ein Burger.
+ */
+const BUN_SQUASH = 0.44;
+
 /** Und wie hoch es damit aufträgt — es ist gedrückt, keine Kugel. */
-export const BUN_HEIGHT = BUN_RADIUS * 2 * 0.72;
+export const BUN_HEIGHT = BUN_RADIUS * 2 * BUN_SQUASH;
 
 /** Die Farben: Krume, Kruste, Holz. */
 const CRUST = 0xd9a253;
@@ -51,7 +77,7 @@ export function buildBun(materials: THREE.Material[]): THREE.Object3D {
   bun.name = 'kitchen-bun';
 
   const top = new THREE.Mesh(new THREE.SphereGeometry(BUN_RADIUS, 14, 10), crust);
-  top.scale.set(1, 0.72, 1);
+  top.scale.set(1, BUN_SQUASH, 1);
   top.position.y = BUN_HEIGHT / 2;
   top.castShadow = true;
   bun.add(top);
@@ -70,12 +96,20 @@ export function buildBun(materials: THREE.Material[]): THREE.Object3D {
 }
 
 /**
- * **Die Brötchenkiste** — vier Bretter, ein Boden, drei Brötchen darin.
+ * **Die Brötchenkiste** — vier Bretter, ein Boden, ein Brötchen darin.
  *
- * Die Brötchen darin sind **Deko** und nicht der Vorrat: Genommen wird aus der
+ * Das Brötchen darin ist **Deko** und nicht der Vorrat: Genommen wird aus der
  * Kiste beliebig oft (`kitchenCarry.kitchenDeed`, `box`), denn eine Kiste, die
  * nach drei Griffen leer ist, ist eine Kiste, vor der man steht und nicht
- * weiß, ob sie kaputt ist. Sie sollen sagen, was drin ist, und mehr nicht.
+ * weiß, ob sie kaputt ist. Es soll sagen, was drin ist, und mehr nicht.
+ *
+ * **Eines und nicht mehr drei**: Bei 60 cm Breite (`BUN_RADIUS`) passt genau
+ * ein Burger zwischen die Bretter — die Kiste ist innen 70 cm weit. Drei
+ * davon steckten ineinander und hingen über den Rand, und eine Kiste, aus der
+ * Brötchen herauswachsen, sieht nicht nach Vorrat aus, sondern nach Fehler.
+ * Die Kiste mitwachsen zu lassen war die Alternative und ist keine: Sie steht
+ * auf **einer** Kachel (`worlds/nav/navTile.TILE` = 1 m), und breiter als die
+ * Kachel stünde sie im Weg.
  */
 export function buildBunBox(materials: THREE.Material[]): THREE.Object3D {
   const wood = own(materials, new THREE.MeshStandardMaterial({ color: WOOD, roughness: 0.85 }));
@@ -109,19 +143,12 @@ export function buildBunBox(materials: THREE.Material[]): THREE.Object3D {
     box.add(rim);
   }
 
-  // Drei Brötchen, knapp unter dem Rand — sie schauen heraus, fallen aber
-  // nicht darüber.
-  const spots: ReadonlyArray<readonly [number, number]> = [
-    [-0.14, -0.1],
-    [0.15, -0.05],
-    [0.0, 0.16],
-  ];
-  for (const [x, z] of spots) {
-    const bun = buildBun(materials);
-    bun.position.set(x, BOX_HEIGHT - 0.22, z);
-    bun.rotation.y = x * 4;
-    box.add(bun);
-  }
+  // Ein Brötchen, mit dem Fuß knapp unter dem Rand: Es schaut eine Handbreit
+  // heraus und sagt damit von weitem, was in der Kiste ist — liegt es tiefer,
+  // ist die Kiste von vorn eine Kiste mit nichts darin.
+  const bun = buildBun(materials);
+  bun.position.set(0, BOX_HEIGHT - 0.18, 0);
+  box.add(bun);
 
   return box;
 }
