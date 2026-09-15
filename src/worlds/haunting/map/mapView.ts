@@ -172,7 +172,7 @@ export interface MapViewOptions {
   /**
    * **Welche Geräusche diese Karte zeigt** — voreingestellt die des
    * Snapshots. Der Späher reicht hier sein Horchbild herein: eine Probe alle
-   * paar Sekunden statt eines fortlaufenden Bandes (`map/flatMode.ts`).
+   * paar Sekunden statt eines fortlaufenden Bandes (`views/scoutRole.ts`).
    */
   noises?: () => readonly MapNoise[];
   /**
@@ -212,8 +212,7 @@ const FLOOR_TILE = NOISE_TILE;
 const FIT_MARGIN = 2;
 /**
  * **Wie weit das ganz herausgezoomte Haus nach unten gezogen werden darf**, in
- * Bildpunkten — dieselbe Nachgiebigkeit wie in der Szene
- * (`flatScene.PAN_HEADROOM`) und aus demselben Grund: Ganz heraus passt das
+ * Bildpunkten — und der Grund: Ganz heraus passt das
  * Haus ins Bild und stand deshalb fest in der Mitte, obere Kante hinter dem,
  * was oben schwebt. Nach unten gibt der Anschlag so viel nach, wie oben
  * verdeckt ist; nach oben nicht, und aus dem Bild heraus schon gar nicht.

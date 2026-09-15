@@ -23,11 +23,9 @@ import {
   SHARED,
   soundKeys,
   speedKeys,
-  switchViewKey,
   watchKey,
   type OptionItem,
 } from './map/optionsMenu';
-import { VIEW_LABELS } from './rules/lobby';
 import type { MapRound, MapSnapshot } from './map/mapSnapshot';
 import type { MapGoal } from './map/mapView';
 import { ObjectiveCompass } from './objectiveCompass';
@@ -138,12 +136,6 @@ interface ShipHost {
   start(): void;
   test(): void;
   stations?(): void;
-  /**
-   * **Die Ansicht wechseln, mitten in der Runde** (`HauntingWorld.switchView`).
-   * Im Schiff gibt es dafür genau einen Knopf — „2D von oben" —, und er steht
-   * nur im Panel des Technikers: Wer nicht spielt, hat nichts zu wechseln.
-   */
-  switchView?(view: '2d' | '3d'): void;
   door(id: string): void;
   doorOpen?(id: string): boolean;
   doorLocked?(id: string): boolean;
@@ -3025,8 +3017,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         ambient: this.audioOn ? levelLabel(this.hearingAudio.levels.ambient) : 'aus',
       }),
     );
-    if (this.host.switchView && !crew.simulation)
-      items.push(switchViewKey('2d', VIEW_LABELS['2d']));
     items.push(...leaveKeys());
     return items;
   }
@@ -3057,8 +3047,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       } else this.hearingAudio.cycle(data['audio']);
       renderOptions(this.optionsPanel, this.shipOptions());
       return;
-    } else if (data['switchView'] === '2d') this.host.switchView?.('2d');
-    else if (data['leave'] !== undefined) this.host.stations?.();
+    } else if (data['leave'] !== undefined) this.host.stations?.();
     else if (data['closeOptions'] === undefined) return;
     this.showOptions(false);
     this.stamp = '';
@@ -3083,7 +3072,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     } else if (kind === 'stations') this.host.stations?.();
     else if (kind === 'fold') this.folded = !this.folded;
     else if (kind === 'options') this.showOptions(!this.optionsOpen);
-    else if (kind === 'flat-view') this.host.switchView?.('2d');
     else if (kind === 'overview') {
       this.followBot = false;
       if (!this.host.ctx.renderer.xr.isPresenting) {

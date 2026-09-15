@@ -13,10 +13,10 @@ import type { MonsterInput, MonsterTarget, MonsterTargetKind } from './monsterDr
  * **Das Steuer des Monsters, ohne Welt** — die Übersetzung von Stock und
  * Knopf in das, was die Runde versteht.
  *
- * Zwei Welten rechnen das Monster: die 2D-Runde (`map/flatRound.ts`) und die
- * 3D-Welt (`HauntingWorld`), und in beiden kann ein Spieler am Steuer sitzen —
- * lokal am Telefon in der 2D-Welt (`flatMonsterControl.ts`) oder übers Netz
- * an der Station `monster` (`netMonsterControl.ts`). Was die Knöpfe
+ * Die Runde rechnet das Monster (`map/flatRound.ts`), und zwei Steuer können
+ * darin sitzen — eines im selben Prozess (`flatMonsterControl.ts`, heute das
+ * Steuer der Tests) und eines übers Netz an der Station `monster`
+ * (`netMonsterControl.ts`). Was die Knöpfe
  * **bedeuten**, darf davon nicht abhängen. Deshalb stehen die Regeln hier,
  * einmal, und beide Steuer reichen nur ihre Sicht auf die Runde herein
  * (`MonsterArena`): Bauplan, Stand, den Reiter (Position, Blick, Raum), die

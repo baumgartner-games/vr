@@ -68,23 +68,19 @@ afterEach(() => {
 /**
  * Eine Einsatzzentrale mit allem, was `HauntingWorld` ihr hereinreicht.
  *
- * `flat` sagt, womit die Ansicht anfängt (`true` heißt „2D von oben");
- * `'none'` ist eine Welt **ohne** Aufbau-Anschluss — es gibt sie (ältere
- * Wirte, Tests), und sie muss wenigstens den Weg an den Stock offenlassen.
+ * `withLobby` `false` ist eine Welt **ohne** Aufbau-Anschluss — es gibt sie
+ * (ältere Wirte, Tests), und sie muss wenigstens den Weg an den Stock
+ * offenlassen.
  */
 function crew(
   me: MyRole | null = 'red',
   remoteTechnician = true,
   monster?: MonsterPort,
-  flat: boolean | 'none' = true,
+  withLobby = true,
   mapless = false,
 ) {
   const round = new FlatRound(947, { test: true });
-  let lobby: LobbyChoice = {
-    intent: 'play',
-    view: flat === true ? '2d' : '3d',
-    me: 'watch:technician',
-  };
+  let lobby: LobbyChoice = { intent: 'play', me: 'watch:technician' };
   // **Die Tafel dieser Tests**: Rot hält das Archiv, Gelb den Späher, Blau
   // die Schalttafel — je eine Karte je Stuhl, damit ein Reiter eine Ansicht
   // meint. Wer mischen will, schaltet die Lämpchen im Test selbst um.
@@ -141,10 +137,9 @@ function crew(
     ...(mapless ? {} : { snapshot: () => round.snapshot() }),
     monsterPort: () => monster ?? null,
     notify: (text: string) => notify(text),
-    ...(flat === 'none'
+    ...(!withLobby
       ? {}
       : {
-          flatWanted: () => lobby.view === '2d',
           lobby: () => lobby,
           setLobby(choice: LobbyChoice) {
             lobby = choice;
@@ -478,18 +473,18 @@ describe('Die Einsatzzentrale baut ihre Rollen aus der Registry', () => {
   });
 });
 
-describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
+describe('Der Aufbau — eine Verteilung, ein Knopf', () => {
   /**
-   * **Ein Häkchen, nicht zwei.** „Testen" ist weg: Auf der Tafel steht
-   * „Monster: Aus", und das ist dieselbe Aussage an der Stelle, an die sie
-   * gehört. Keines startet etwas.
+   * **Kein Häkchen.** „Testen" ist weg: Auf der Tafel steht „Monster: Aus",
+   * und das ist dieselbe Aussage an der Stelle, an die sie gehört. Und die
+   * Karte von oben ist weg (Plan H): Von oben oder aus den Augen ist die
+   * Ansicht des Kerns, nicht der Aufbau.
    */
-  it('zeigt ein Häkchen statt Kacheln und startet erst mit dem einen Knopf', () => {
+  it('zeigt keine Häkchen und keine Kacheln und startet erst mit dem einen Knopf', () => {
     const game = crew('red', false);
     toSetup();
-    const checks = [...document.querySelectorAll<HTMLElement>('[data-check]')];
-    expect(checks.map((key) => key.dataset['check'])).toEqual(['view']);
-    expect(checks[0]!.textContent).toContain('2D-Welt von oben');
+    expect(document.querySelector('[data-check]')).toBeNull();
+    expect(document.body.textContent).not.toContain('2D-Welt von oben');
     expect(document.body.textContent).not.toContain('Testen');
     // Die Kacheln, die alte Fähigkeiten-Spalte, die Geräteliste — und „Ich"
     // — sind weg (siehe den eigenen Test dazu).
@@ -503,9 +498,6 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     toSetup();
     expect(quest.hidden).toBe(true);
 
-    expect(checks[0]!.getAttribute('aria-pressed')).toBe('true');
-    button('[data-check="view"]').click();
-    expect(game.lobby.view).toBe('3d');
     // Kein Monster heißt Test — über die Tafel, nicht über ein Häkchen.
     button('[data-seat="monster"] [data-setup-who="off"]').click();
     expect(game.setup.seats.monster.who).toBe('off');
@@ -567,12 +559,9 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
   });
 
   it('beschriftet den einen Startknopf ohne Ansicht in Klammern', () => {
-    const game = crew('red', false);
+    crew('red', false);
     toSetup();
     const label = () => button('[data-start-setup]').querySelector('strong')!.textContent;
-    expect(label()).toBe('Mission starten');
-    button('[data-check="view"]').click();
-    expect(game.lobby.view).toBe('3d');
     expect(label()).toBe('Mission starten');
     button('[data-seat="monster"] [data-setup-who="off"]').click();
     expect(label()).toBe('Test starten');
@@ -669,10 +658,10 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
   });
 
   it('sagt statt eines toten Knopfes, warum im Schiff gerade kein Start geht', () => {
-    // Ein Techniker im Raum und die Ansicht auf dem Schiff: Der Knopf ist
-    // gesperrt. Wer ihn trotzdem trifft — der Raum kann zwischen Zeichnen und
-    // Tippen belegt worden sein —, bekommt den Grund und kein Nichts.
-    const game = crew('red', true, undefined, false);
+    // Ein Techniker im Raum, und seine Runde läuft: Der Knopf ist gesperrt.
+    // Wer ihn trotzdem trifft — der Raum kann zwischen Zeichnen und Tippen
+    // belegt worden sein —, bekommt den Grund und kein Nichts.
+    const game = crew('red', true);
     toSetup();
     const start = button('[data-start-setup]');
     start.disabled = false;
@@ -687,13 +676,13 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
    * Davor geht der Tipp als Wunsch an sie (`HauntingWorld.startRound`).
    */
   it('lässt die Zentrale die Runde der Brille starten, solange dort keine läuft', () => {
-    const game = crew('red', true, undefined, false);
+    const game = crew('red', true);
     game.state.phase = 'briefing';
     game.ui.refresh();
     toSetup();
     const start = () => button('[data-start-setup]');
     expect(start().disabled).toBe(false);
-    expect(start().textContent).toContain('Startet bei der Brille');
+    expect(start().textContent).toContain('Startet beim Techniker');
     start().click();
     expect(game.startSetup).toHaveBeenCalledTimes(1);
     expect(document.querySelector('.haunt__say')!.textContent).not.toContain(SHIP_OCCUPIED);
@@ -703,15 +692,20 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
     expect(start().disabled).toBe(true);
   });
 
-  it('sperrt den Start im Schiff, solange ein anderer Techniker spielt — in 2D nicht', () => {
-    const game = crew('red', true, undefined, false);
+  it('sperrt den Start im Schiff, solange ein anderer Techniker spielt', () => {
+    const game = crew('red', true);
     toSetup();
     const start = () => button('[data-start-setup]');
     expect(start().disabled).toBe(true);
     expect(start().textContent).toContain('Ein Techniker spielt bereits');
     start().click();
     expect(game.startSetup).not.toHaveBeenCalled();
-    button('[data-check="view"]').click();
+  });
+
+  it('lässt den Start zu, wenn niemand im Schiff spielt', () => {
+    const game = crew('red', false);
+    toSetup();
+    const start = () => button('[data-start-setup]');
     expect(start().disabled).toBe(false);
     start().click();
     expect(game.startSetup).toHaveBeenCalledTimes(1);
@@ -725,7 +719,7 @@ describe('Der Aufbau — ein Häkchen, eine Verteilung, ein Knopf', () => {
   });
 
   it('bietet ohne Lobby den Desktop-Techniker an', () => {
-    const game = crew(null, false, undefined, 'none');
+    const game = crew(null, false, undefined, false);
     button('[data-technician]').click();
     expect(game.technician).toHaveBeenCalledTimes(1);
   });
@@ -763,12 +757,11 @@ describe('Rollen sind Plätze mit Fähigkeiten', () => {
 
   /**
    * **Nur wer im Schiff den Anzug trägt, bleibt darin**: der Techniker am
-   * Bildschirm (Ansicht 3D) mitten in der Mission. Der Grund steht auf der
-   * Seite; im Test darf auch er.
+   * Bildschirm mitten in der Mission. Der Grund steht auf der Seite; im Test
+   * darf auch er.
    */
   it('lässt den Techniker im Schiff mitten in der Mission nicht wechseln', () => {
-    const game = crew('technician', false, undefined, false);
-    expect(game.lobby.view).toBe('3d');
+    const game = crew('technician', false);
     open('red');
     expect(game.notify).toHaveBeenCalledWith(SHIP_KEEPS_ROLE);
     expect(game.lobby.me).toBe('technician');
@@ -781,7 +774,7 @@ describe('Rollen sind Plätze mit Fähigkeiten', () => {
 
   /**
    * **Der Reiter „Techniker" setzt an den Stock** (`StationHost.technician`):
-   * Die Welt öffnet dafür die Karte von oben im Test — hier steht nur der
+   * Die Welt macht das Gerät zum Techniker im Schiff — hier steht nur der
    * Satz dazu und ein Knopf, der es noch einmal versucht.
    */
   it('setzt den Techniker über seinen Reiter an den Stock', () => {
@@ -791,7 +784,9 @@ describe('Rollen sind Plätze mit Fähigkeiten', () => {
     expect(game.ui.station).toBeNull();
     expect(game.technician).toHaveBeenCalledTimes(1);
     expect(document.querySelector('.haunt__body')?.textContent).toContain('Du bist der Techniker');
-    expect(document.querySelector('.haunt__body')?.textContent).toContain('Karte von oben');
+    expect(document.querySelector('.haunt__body')?.textContent).toContain(
+      'im Schiff am Bildschirm',
+    );
     button('[data-technician]').click();
     expect(game.technician).toHaveBeenCalledTimes(2);
   });

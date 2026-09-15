@@ -91,8 +91,6 @@ let restart: jest.Mock;
 let equip: jest.Mock;
 let testMission: jest.Mock;
 let stations: jest.Mock;
-/** Der eine Knopf „2D von oben" im Panel des Technikers (`HauntingWorld.switchView`). */
-let switchView: jest.Mock;
 let speed: number;
 let menuToggle: jest.Mock;
 let floating: FlashlightTool;
@@ -174,7 +172,6 @@ beforeEach(() => {
   equip = jest.fn();
   testMission = jest.fn();
   stations = jest.fn();
-  switchView = jest.fn();
   speed = 1;
   goals = [];
   round = null;
@@ -198,7 +195,6 @@ beforeEach(() => {
     objectives: () => goals,
     round: () => round,
     stations,
-    switchView,
     simulationSpeed: () => speed,
     setSimulationSpeed: (value) => {
       speed = value;
@@ -1506,15 +1502,12 @@ test('der Streifen zeigt die Aufträge nur, wenn am Archiv ein Bot sitzt', () =>
 });
 
 /**
- * **Dieselbe Runde von oben statt von innen** (`HauntingWorld.switchView`). Ein
- * Knopf, und zwar genau einer: Er steht oben bei „Rolle wechseln", weil er
- * dasselbe ist — eine Ansicht und kein Neustart — und nicht unten zwischen den
- * Handgriffen, wo man ihn auf der Flucht trifft.
+ * **Das Zahnrad des Technikers** (`map/optionsMenu.ts`): ein Knopf oben im
+ * Panel klappt es auf. Einen Knopf „2D von oben" gibt es darin nicht mehr —
+ * von oben oder aus den Augen ist _Menü → Ansicht_ des Kerns (Plan H,
+ * `docs/plan-haunting-1m.md`), kein Eintrag dieser Welt.
  */
-test('der Techniker wechselt über das Optionsmenü der 2D-Welt in die Karte von oben', () => {
-  // **Dasselbe Zahnrad wie in 2D** (`map/optionsMenu.ts`): ein Knopf oben im
-  // Panel klappt es auf, und darin stehen dieselben Einträge mit denselben
-  // Worten — kein zweites Menü mit anderen Namen.
+test('das Zahnrad des Technikers öffnet das Optionsmenü — ohne Knopf für die Karte von oben', () => {
   const gear = document.querySelector<HTMLButtonElement>('[data-action="options"]')!;
   expect(gear).not.toBeNull();
   expect(gear.closest('details')).toBeNull();
@@ -1536,18 +1529,13 @@ test('der Techniker wechselt über das Optionsmenü der 2D-Welt in die Karte von
       'Zurück zu den Rollen',
     ]),
   );
-  const swap = panel.querySelector<HTMLButtonElement>('[data-switch-view="2d"]')!;
-  expect(swap).not.toBeNull();
-  expect(swap.textContent).toContain('2D von oben');
-  swap.click();
-  expect(switchView).toHaveBeenCalledWith('2d');
-  expect(panel.hidden).toBe(true);
+  expect(panel.querySelector('[data-switch-view]')).toBeNull();
+  expect(panel.textContent).not.toContain('2D von oben');
   // Und nichts sonst: kein Neustart, kein Test, keine Rollenwahl.
   expect(restart).not.toHaveBeenCalled();
   expect(testMission).not.toHaveBeenCalled();
   expect(stations).not.toHaveBeenCalled();
   // „Zurück zu den Rollen" führt in die Zentrale — dorthin, wo der Aufbau steht.
-  gear.click();
   panel.querySelector<HTMLButtonElement>('[data-leave]')!.click();
   expect(stations).toHaveBeenCalledTimes(1);
 });

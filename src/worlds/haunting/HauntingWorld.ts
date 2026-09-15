@@ -5,7 +5,7 @@ import { PLAN_DOOR_H, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 import { DIRS, DIR_E, DIR_N, DIR_S, TILE, dirX, dirZ, type Dir } from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { playSlam, playSwitch } from '../../core/Audio';
-import { storedScreenView } from '../../core/screenView';
+import { yawOfForward } from '../../core/walkFrame';
 import { pickHost } from '../../net/host';
 import type { Peer } from '../../net/NetSession';
 import type { PeerPose } from '../../net/types';
@@ -103,12 +103,9 @@ import {
   COLOURS,
   cycleTechnician,
   cycleWho,
-  flatRoleOf,
   goalPrecision,
-  isWatcher,
   loadSetup,
   lockTechnician,
-  powersOf,
   roundKindOf,
   sameSetup,
   saveSetup,
@@ -128,18 +125,12 @@ import {
   intentOf,
   loadLobby,
   saveLobby,
-  VIEW_LABELS,
-  viewSwap,
   type Intent,
   type LobbyChoice,
-  type View,
 } from './rules/lobby';
 import {
   asIntent,
-  FLAT_NEEDS_TECHNICIAN,
   HOST_BUSY,
-  NOT_TECHNICIAN,
-  opensFlat,
   ROOM_BUSY,
   ROUND_STOPPED,
   SHIP_NEEDS_TECHNICIAN,
@@ -162,15 +153,7 @@ import { NetMonsterControl } from './monster/netMonsterControl';
 import { NetMonsterPort } from './monster/netMonsterPort';
 import { rescueHeight } from '../shared/fallRescue';
 import type { MapSnapshot } from './map/mapSnapshot';
-import type { FlatMode } from './map/flatMode';
-import {
-  FlatRound,
-  type FlatEvent,
-  type FlatInput,
-  type FlatOptions,
-  type FlatResume,
-} from './map/flatRound';
-import type { ToolIcons } from './map/toolIcons';
+import { FlatRound, type FlatEvent, type FlatInput } from './map/flatRound';
 import { MOVE_TIME, ownerOf, seatOf, type Claim, type StationId } from './stations';
 import {
   claimMessage,
@@ -263,9 +246,6 @@ const SETUP_GRACE = 1500;
 export const START_SENT = 'Start geht an den Techniker im Schiff — die Runde beginnt bei ihm.';
 /** Und was der Gastgeber einem Startwunsch entgegnet, solange seine Runde läuft. */
 export const ROUND_RUNNING = 'Die Runde läuft schon — ein zweiter Start bricht sie nicht ab.';
-/** Die 2D-Welt gibt es je Raum einmal: Wer sie spielt, ist der Techniker. */
-export const FLAT_OCCUPIED =
-  '2D-Welt nicht verfügbar: Ein anderer Techniker spielt bereits in diesem Raum.';
 /**
  * **Wie lange ein frischer Gastgeber auf die Übergabe des alten wartet**, in
  * Sekunden.
@@ -281,13 +261,15 @@ export const FLAT_OCCUPIED =
 const HANDOVER_WAIT = 2;
 
 /**
- * Was der Wechsel in die Karte von oben sagt, wenn die Brille auf ist. Sie ist
- * ein Fenster-Ding (`rules/worldMenu.opensFlat`), und ein Eintrag, der in einer
- * XR-Sitzung wortlos nichts tut, ist genau der Fehler, den die Startknöpfe
- * schon einmal hatten.
+ * **Was das Telefon am Monster hört, wenn niemand den Anzug trägt.** Das
+ * Monster jagt im Schiff, und das Schiff rechnet dort, wo der Techniker ist
+ * (`stepKernel`, Rolle `vr`). Bis zum 1-m-Gitter öffnete das Telefon dafür die
+ * gemalte Karte mit einem Techniker aus Zahlen; die Karte ist weg
+ * (`docs/plan-haunting-1m.md`), also braucht die Runde einen Techniker im
+ * Raum — einen Menschen oder eine Bot-Runde auf einem Bildschirm.
  */
-const NO_FLAT_IN_XR =
-  'In der Brille gibt es keine Karte von oben — dort bleibt das Schiff. Am Fenster geht der Wechsel.';
+export const MONSTER_NEEDS_TECHNICIAN =
+  'Monster ohne Techniker: Erst muss jemand im Schiff stehen — Brille, „Web 3D" oder „Zuschauen" auf einem Bildschirm.';
 
 /** Und wie oft das Telefon am Monster seinen Stock ansagt. */
 const MONSTER_RATE = 1 / 10;
@@ -397,13 +379,15 @@ const _lidOn = [_lid];
 
 export class HauntingWorld extends GridWorld {
   /**
-   * **Diese Welt hat ihre eigene Ansicht von oben** (`map/flatMode.ts`): mit
-   * Räumen, Türen, Licht, Rollen und einer ganzen Runde darin. Die des Kerns
-   * (`core/TopDownCamera.ts`, die Kamera schräg über der Szene) gilt für jede
-   * andere Welt und
-   * soll hier nicht darüberzeichnen.
+   * **Die Ansicht von oben ist die des Kerns** (`core/TopDownCamera.ts`):
+   * dieselbe Szene, in der die Brille steht, schräg von oben — aufgeschnitten
+   * über der Ebene des Rigs, Wände vor der Figur durchsichtig, Gitterlinien
+   * auf Wunsch. Bis September 2026 malte Haunting hier eine eigene 2D-Karte
+   * (`map/flatMode.ts`, `map/flatScene.ts`) und schützte sie mit dieser
+   * Marke; die Karte ist weg (Plan H, `docs/plan-haunting-1m.md`), die Runde
+   * rechnet unverändert (`flatKernel.ts`), nur ihr Bild ist jetzt das Schiff.
    */
-  readonly ownsFlat = true;
+  readonly ownsFlat = false;
 
   /** Der Bauplan dieser Runde. Steht vor dem ersten `layout()` fest. */
   private spec: HouseSpec = generateHouse(rollSeed(), 8);
@@ -424,6 +408,11 @@ export class HauntingWorld extends GridWorld {
   private experience: ShipExperience | null = null;
   private mountedRole = '';
   private flatTechnician = false;
+  /**
+   * Ob der Bordstock der Seite gerade gezeigt wird (`WorldContext.touchStick`)
+   * — gemerkt, damit `syncTouchStick` ihn nur bei einem Wechsel anfasst.
+   */
+  private stickShown: boolean | null = null;
   /** Der Strahl, der beim Versetzen den Boden sucht (`movePlayerTo`). */
   private readonly floorRay = new THREE.Raycaster();
   private pendingBotRound = false;
@@ -534,8 +523,7 @@ export class HauntingWorld extends GridWorld {
   /**
    * **Das Steuer der Station `monster` übers Netz** (`monster/netMonsterControl.ts`):
    * führt beim Gastgeber aus, was das Telefon sagt — als `driver` der Runde,
-   * die gerade rechnet: der 2D-Ansicht, solange `flat` steht, sonst des Kerns
-   * (`flatKernel.ts`). Beides ist eine `FlatRound`.
+   * die gerade rechnet: des Kerns (`flatKernel.ts`), einer `FlatRound`.
    */
   private readonly netMonster = new NetMonsterControl({
     house: () => this.runningRound()?.house ?? this.spec,
@@ -544,7 +532,7 @@ export class HauntingWorld extends GridWorld {
     ride: () => this.runningRound()?.ventRide ?? this.ventRide,
     // Die Buchführung der Sperren und die Uhr: Ohne sie kann das Monster
     // keine Stahltür aufziehen (`rules/doorLocks.ts`).
-    locks: () => (this.flatShared ? this.flat!.round.locks : this.locks),
+    locks: () => this.locks,
     time: () => this.state.time,
     occupied: () => ownerOf(this.currentClaims(), 'monster') !== '',
   });
@@ -692,45 +680,12 @@ export class HauntingWorld extends GridWorld {
   };
 
   private ui: StationUi | null = null;
-  /** Die laufende 2D-Runde (`map/flatMode.ts`), von „Bot-Runde", „Mission" oder „Test" gestartet. */
-  private flat: FlatMode | null = null;
   /**
-   * Ob diese 2D-Welt einer Runde im Netz **zusieht**, statt selbst eine zu
-   * rechnen. Dann kommt der Snapshot aus der 3D-Welt und nicht aus ihr.
-   */
-  private flatWatching = false;
-  /**
-   * Ob die laufende 2D-Runde **die gemeinsame Runde** ist (Mission und Test:
-   * wer sie spielt, ist der Techniker und rechnet sie für alle Telefone —
-   * `stepFlat`) oder eine lokale Vorführung (Bot-Runde: kein Herzschlag, kein
-   * Stand für andere, wie die 3D-Bot-Runde).
-   */
-  private flatShared = false;
-  /**
-   * Ob die gemeinsame 2D-Runde **eine laufende Mission fortsetzt**, deren
-   * Bücher noch unterwegs sind (`takeStick`, `receive` → `handover`): Der
-   * Stand kam vom Gastgeber, die Riegel, der Spuk und das Gedächtnis kommen
-   * erst mit seiner Übergabe — und die gehört dann in diese Runde.
-   */
-  private flatResumed = false;
-  /** Die gepufferten Werkzeugbilder der 2D-Welt (`map/toolIcons.ts`). */
-  private flatIcons: ToolIcons | null = null;
-  private flatLoading = false;
-  /**
-   * **Was ich vorhabe und wie ich es sehen will** — die Wahl der Lobby
+   * **Was ich vorhabe und wer ich bin** — die Wahl der Lobby
    * (`rules/lobby.ts`), gemerkt im Browser: Wer am Telefon spielt, setzt sie
-   * nicht jedes Mal neu. Der alte Schalter „2D-Welt von oben" wird dabei
-   * einmal mitgelesen und danach vergessen.
+   * nicht jedes Mal neu.
    */
-  private lobbyChoice: LobbyChoice = loadLobby(undefined, undefined, storedScreenView());
-  /**
-   * **„2D-Welt von oben"** — nur noch die Ansicht dieser Wahl. Eine
-   * Einstellung und kein Start: Sie sagt, wie die *nächste* Runde aussieht,
-   * die danach wie jede andere gewählt wird — Bot-Runde, Mission oder Test.
-   */
-  private get flatWanted(): boolean {
-    return this.lobbyChoice.view === '2d';
-  }
+  private lobbyChoice: LobbyChoice = loadLobby();
   /**
    * Wer wo sitzt — und **wann das hier ankam**.
    *
@@ -811,8 +766,14 @@ export class HauntingWorld extends GridWorld {
     return { floor: 0x3a4b58, wall: 0x728590, wood: 0x4c6370, door: 0x536d7b };
   }
 
+  /**
+   * **Keine Bündel**: Von oben macht der Kern Wände vor der Figur durchsichtig
+   * (`core/TopDownCamera.ts`, Ghosting), und das geht nur je Quader. Damit die
+   * Zahl der Quader trotzdem klein bleibt, legt `StationPlan.solids()` Böden
+   * je Raum und Wände in Läufen zusammen (`plan.ts`).
+   */
   protected override batchGridGeometry(): boolean {
-    return true;
+    return false;
   }
 
   protected override gridDoorVisible(): boolean {
@@ -916,11 +877,6 @@ export class HauntingWorld extends GridWorld {
     // Wand.
     ctx.scene.fog = new THREE.FogExp2(0x020711, 0.008);
     ctx.net.on(HAUNT_CHANNEL, (data, from) => this.receive(data, from));
-    // Der Bordstock der Seite bleibt hier aus: Diese Welt bringt ihren eigenen
-    // mit — in 2D den der gezeichneten Szene, im Schiff denselben über der
-    // 3D-Ansicht (`world3d/shipControls.ts`). Zwei Stöcke übereinander wären
-    // einer zu viel.
-    ctx.touchStick(false);
     this.joinTable(ctx);
     // Die Zentrale steht nicht am Spawn, sie sitzt am Tisch (`crewPlace`).
     ctx.avatars.placement = (peer) => this.crewPlace(peer);
@@ -935,13 +891,27 @@ export class HauntingWorld extends GridWorld {
     if (
       ctx.role !== 'vr' &&
       this.lobbyChoice.me === 'technician' &&
-      this.lobbyChoice.view === '3d' &&
       ![...ctx.net.peers.values()].some((peer) => peer.world === 'haunting' && peer.role === 'vr')
     )
       this.flatTechnician = true;
 
     this.setupRole(ctx);
     this.applyLights();
+  }
+
+  /**
+   * **Der Bordstock der Seite** (`#touch`: Stock, Zielstock, `A`/`B`) ist die
+   * Steuerung des Technikers auf dem Handy. Er ruht nur, solange die Seite
+   * der Zentrale (`StationUi`) über dem Bild liegt — wer den Stock nimmt
+   * (`takeStick`), bekommt ihn, wer an den Tisch zurückgeht, gibt ihn ab.
+   * Bis zum 1-m-Gitter brachte diese Welt einen eigenen Stock mit; der ist
+   * weg (`docs/plan-haunting-1m.md`).
+   */
+  private syncTouchStick(ctx: WorldContext): void {
+    const shown = !this.ui || this.flatTechnician;
+    if (shown === this.stickShown) return;
+    this.stickShown = shown;
+    ctx.touchStick(shown);
   }
 
   private setupRole(ctx: WorldContext): void {
@@ -992,15 +962,13 @@ export class HauntingWorld extends GridWorld {
         state: () => this.state,
         claims: () => this.currentClaims(),
         me: () => ctx.net.localId,
-        technician: () => this.takeStick(ctx),
+        technician: () => this.takeStick(),
         leaveTechnician: () => {
           this.flatTechnician = false;
         },
         stopRound: () => this.stopRound(ctx),
         menu: () => ctx.menu.toggle(),
-        flatWanted: () => this.flatWanted,
         vr: () => this.roomHasVr(),
-        switchView: (view) => this.switchView(view),
         lobby: () => this.lobbyChoice,
         setLobby: (choice) => this.setLobby(choice),
         setup: () => this.setup,
@@ -1050,6 +1018,7 @@ export class HauntingWorld extends GridWorld {
     this.pendingBooks = null;
     ctx.net.off(HAUNT_CHANNEL);
     ctx.touchStick(true);
+    this.stickShown = null;
     // Die Avatare gehören der Seite: In der nächsten Welt steht jeder wieder, wo er steht.
     ctx.avatars.placement = null;
     this.crewPlaces.clear();
@@ -1061,10 +1030,6 @@ export class HauntingWorld extends GridWorld {
     // Die Schnittebene gehört dem Renderer und nicht dieser Welt: Wer sie
     // stehen ließe, schnitte der nächsten Welt die Decke ab.
     this.liftLid(false);
-    this.flat?.dispose();
-    this.flat = null;
-    this.flatShared = false;
-    this.flatIcons = null;
     this.ui?.dispose();
     this.ui = null;
     this.netPort = null;
@@ -1132,7 +1097,11 @@ export class HauntingWorld extends GridWorld {
     this.stage.add(this.testLight);
     for (const room of spacesOf(this.spec)) this.buildLamp(room.id, roomCentre(room));
     this.beacons = buildCorridorBeacons(this.spec);
-    for (const beacon of this.beacons) this.stage.add(beacon.root);
+    for (const beacon of this.beacons) {
+      // Hängt unter der Decke: Von oben geht die Leuchte mit ihr weg.
+      beacon.root.userData.level = 1;
+      this.stage.add(beacon.root);
+    }
     if (this.context) this.mountExperience(this.context);
     if (this.ui) this.buildDoorMarks();
     this.nextPhoneRender = 0;
@@ -1178,8 +1147,6 @@ export class HauntingWorld extends GridWorld {
         this.pendingStart = null;
         ctx.menu.toggle(false);
       },
-      // Der eine Knopf im Panel des Technikers: „2D von oben" (`switchView`).
-      switchView: (view) => this.switchView(view),
       door: (id) => this.manualDoor(id),
       round: () => this.rules.status(this.state),
       doorOpen: (id) =>
@@ -1242,6 +1209,8 @@ export class HauntingWorld extends GridWorld {
     );
     glass.rotation.x = Math.PI / 2;
     glass.position.set((at.x + 0.5) * TILE, PLAN_WALL_H - 0.14, (at.z + 0.5) * TILE);
+    // Deckenkram: Von oben geht die Scheibe mit der Decke weg (`core/cutaway.ts`).
+    glass.userData.level = 1;
     this.stage.add(glass);
     this.lamps.set(roomId, {
       glass,
@@ -1666,22 +1635,8 @@ export class HauntingWorld extends GridWorld {
   }
 
   private tick(dt: number, ctx: WorldContext, last = true): void {
-    if (this.flat) {
-      // Die 2D-Welt rechnet sich selbst; der 3D-Pfad steht still. Das Netz
-      // läuft weiter: Wer 2D spielt, ist der Techniker der gemeinsamen Runde —
-      // die lokale Bot-Runde rechnet nur für sich.
-      this.context = ctx;
-      if (this.flatShared) this.stepFlat(dt, ctx);
-      else this.flat.update(dt);
-      // **Der Zuschauer am Netz braucht die Türblätter.** Sein Bild kommt aus
-      // `worldSnapshot()`, und ob ein Blatt offen steht, weiß nur der
-      // Türautomat — der sonst im 3D-Pfad läuft, den die 2D-Welt stillstellt.
-      // Ohne diesen Schritt blieben für ihn alle Türen für immer zu.
-      if (this.flatWatching) this.applyDoors(dt);
-      this.tickNet(dt, ctx, last);
-      return;
-    }
     if (this.flatTechnician) ctx = { ...ctx, role: 'vr' };
+    this.syncTouchStick(ctx);
     if (this.mountedRole !== ctx.role) {
       this.context = ctx;
       this.setupRole(ctx);
@@ -1776,14 +1731,14 @@ export class HauntingWorld extends GridWorld {
     this.tickNet(dt, ctx, last);
   }
 
-  /** Die Runde, die gerade rechnet — 2D-Ansicht oder Kern —, oder `null`. */
+  /** Die Runde, die gerade rechnet — der Kern —, oder `null`. */
   private runningRound(): FlatRound | null {
-    return this.flatShared ? (this.flat?.round ?? null) : (this.kernel?.round ?? null);
+    return this.kernel?.round ?? null;
   }
 
   /**
    * **Der Rechenkern steht — oder wird gestellt.** Eine neue Runde, ein
-   * Wechsel aus der 2D-Ansicht, eine Übergabe: Jedes Mal gehört der Stand
+   * neues Haus, eine Übergabe: Jedes Mal gehört der Stand
    * einem anderen Objekt, und die Runde, die ihn rechnet, wird neu aufgesetzt
    * — mit den Büchern, die bis dahin geführt wurden (`pendingBooks`), und
    * dem Techniker dort, wo das Gestell gerade steht.
@@ -1799,8 +1754,7 @@ export class HauntingWorld extends GridWorld {
     let at: { x: number; z: number; yaw: number } | undefined;
     if (!this.state.crew.simulation) {
       ctx.rig.getHeadPosition(_head);
-      ctx.camera.getWorldDirection(_feet);
-      at = { x: _head.x, z: _head.z, yaw: Math.atan2(-_feet.x, -_feet.z) };
+      at = { x: _head.x, z: _head.z, yaw: this.lookYaw(ctx) };
     }
     const kernel = new FlatKernel(this.spec.seed, this.state, this.pendingBooks ?? {}, {
       tuning: this.tuning,
@@ -1901,15 +1855,30 @@ export class HauntingWorld extends GridWorld {
     const pace = ctx.rig.pace?.(sprint) ?? PLAYER_WALK_SPEED;
     const wished = Math.hypot(wish.x, wish.z);
     const magnitude = pace > 0 ? Math.min(1, wished / pace) : 0;
-    ctx.camera.getWorldDirection(_feet);
     return {
       x: wished > 1e-6 ? (wish.x / wished) * magnitude : 0,
       z: wished > 1e-6 ? (wish.z / wished) * magnitude : 0,
       sprint,
       crouch: ctx.rig.crouch > 0.15,
-      yaw: Math.atan2(-_feet.x, -_feet.z),
+      yaw: this.lookYaw(ctx),
       shift,
     };
+  }
+
+  /**
+   * **Wohin die Figur schaut** — der Gierwinkel für die Runde. Aus den Augen
+   * ist das die Kamera; von oben schaut die Kamera des Kerns immer nach
+   * Norden (`core/TopDownCamera.ts`), also zählt dort das Gestell, das
+   * `FlatControls` in die Laufrichtung dreht.
+   */
+  private lookYaw(ctx: WorldContext): number {
+    if (ctx.topDown) {
+      ctx.rig.getWorldDirection(_feet);
+      // `Object3D.getWorldDirection` gibt +Z; das Gestell schaut nach −Z.
+      return yawOfForward(-_feet.x, -_feet.z);
+    }
+    ctx.camera.getWorldDirection(_feet);
+    return Math.atan2(-_feet.x, -_feet.z);
   }
 
   /** Das Gestell dorthin, wo die Figur der Runde steht — der Kopf über ihre Füße. */
@@ -1933,43 +1902,9 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Ein Bild der 2D-Welt als gemeinsame Runde.** Die Runde rechnet sich
-   * selbst (`map/flatMode.ts`); hier wird ihr Stand zum Stand der Welt — die
-   * Übernahme ist dieselbe wie bei einem fremden Gastgeber (`adopt`), samt
-   * neuem Haus, wenn die 2D-Welt eine neue Runde würfelt. Dazu kommt, was
-   * die 2D-Runde nicht selbst führt: die Stelle des Technikers (er hat kein
-   * Rig), die Phase der Schachtfahrt und das Signal `venting`, an dem alle
-   * anderen Geräte das verborgene Monster erkennen. Das Steuer der
-   * Monster-Station hängt sich als `driver` ein, sobald die Runde keins hat.
-   */
-  private stepFlat(dt: number, ctx: WorldContext): void {
-    const flat = this.flat!;
-    if (!flat.round.driver) flat.round.driver = this.netMonster;
-    flat.update(dt);
-    const round = flat.round;
-    this.adopt(round.haunt);
-    // Eine Buchführung für beide: Was die Tafel am Telefon sperrt und was der
-    // Techniker in der 2D-Runde sperrt, teilt sich denselben einen Riegel.
-    this.locks = round.locks;
-    const player = round.player;
-    round.haunt.technician = {
-      x: player.x,
-      z: player.z,
-      yaw: player.yaw,
-      moving: round.entities().find((entity) => entity.id === 'player')?.moving ?? false,
-    };
-    round.haunt.ride = round.ventRide.phase;
-    round.haunt.crew.venting = round.ventRide.concealed
-      ? Math.min(VENTING_CEILING, Math.max(VENTING_FLOOR, round.ventRide.timer))
-      : 0;
-    this.refreshHost(ctx);
-  }
-
-  /**
    * **Der Netzteil eines Bildes** — Herzschlag, Stand, Platz, Monster-Steuer.
-   * Aus `tick` herausgelöst, weil er auch läuft, wenn die 2D-Welt den
-   * 3D-Pfad stillstellt: Die Telefone sähen sonst eine Runde, die niemand
-   * mehr ansagt.
+   * Aus `tick` herausgelöst, damit er in einem Stück lesbar bleibt: Die
+   * Telefone sähen sonst eine Runde, die niemand mehr ansagt.
    */
   private tickNet(dt: number, ctx: WorldContext, last: boolean): void {
     if (!last) return;
@@ -1977,7 +1912,7 @@ export class HauntingWorld extends GridWorld {
     if (this.sendTimer <= 0) {
       this.sendTimer = STATE_RATE;
       // Der 2D-Spieler ist ein Techniker wie der im Headset (`refreshHost`).
-      if (ctx.role === 'vr' || this.flatShared) ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician' });
+      if (ctx.role === 'vr') ctx.net.emit(HAUNT_CHANNEL, { kind: 'technician' });
       // Die Tafel reist mit dem Stand: So steht sie auf allen Geräten gleich,
       // und ein Telefon, das später dazukommt, sieht die Verteilung, die gilt.
       if (this.isHost) ctx.net.emit(HAUNT_CHANNEL, stateMessage(this.state, this.setup));
@@ -2013,8 +1948,8 @@ export class HauntingWorld extends GridWorld {
 
   /**
    * **Gastgeber ist, wer Techniker ist** (`net.pickGameHost`) — in der Brille,
-   * am Desktop oder auf der Karte von oben, das ist dieselbe Rolle in drei
-   * Ansichten. Spielt niemand, rechnet der Älteste.
+   * am Bildschirm von oben oder aus den Augen, das ist dieselbe Rolle.
+   * Spielt niemand, rechnet der Älteste.
    *
    * **Und wechselt der Techniker, wird übergeben.** Der alte Gastgeber schickt
    * dem neuen den ganzen Stand samt der Buchführung, die sonst nie über die
@@ -2026,11 +1961,11 @@ export class HauntingWorld extends GridWorld {
   private refreshHost(ctx: WorldContext): void {
     const here = [...ctx.net.peers.values()].filter((peer) => peer.world === ctx.net.world);
     const candidates = [
-      // Wer die 2D-Welt spielt, ist der Techniker dieser Runde — und rechnet sie.
+      // Wer den Anzug trägt, ist der Techniker dieser Runde — und rechnet sie.
       {
         id: ctx.net.localId,
         seniority: ctx.net.localSeniority,
-        technician: ctx.role === 'vr' || this.flatTechnician || this.flatShared,
+        technician: ctx.role === 'vr' || this.flatTechnician,
       },
       ...here.map((peer) => ({
         id: peer.id,
@@ -2054,7 +1989,6 @@ export class HauntingWorld extends GridWorld {
       this.handoverUntil = clock() + HANDOVER_WAIT * 1000;
     if (
       next === ctx.net.localId &&
-      !this.flatShared &&
       this.state.phase === 'running' &&
       this.state.monsterOn &&
       this.state.monster &&
@@ -2074,26 +2008,17 @@ export class HauntingWorld extends GridWorld {
       return;
     }
     // **Die Übergabe** (`net.handoverMessage`) — nur an den, für den sie
-    // gedacht ist, nur wenn er die Runde inzwischen wirklich rechnet, und nur,
-    // solange dieses Gerät nicht selbst eine 2D-Runde spielt: Dort *ist* die
-    // eigene Runde der Stand, und ein fremder wäre eine zweite Station unter
-    // derselben Uhr.
-    // **Außer, die 2D-Runde hat die Mission eben erst übernommen**
-    // (`flatResumed`): Dann ist ihr Stand schon der des Gastgebers, und nur
-    // die Bücher fehlen ihr noch — die gehen in sie hinein, der Stand nicht.
+    // gedacht ist, und nur, wenn er die Runde inzwischen wirklich rechnet.
     const handover = readHandover(data);
     if (handover) {
       if (handover.to === this.context?.net.localId && this.isHost) {
-        if (!this.flatShared) this.takeHandover(handover.state, handover.books);
-        else if (this.flatResumed && handover.state.seed === this.state.seed)
-          this.takeFlatHandover(handover.books);
+        this.takeHandover(handover.state, handover.books);
       }
       return;
     }
     const state = readState(data);
     if (state && from !== this.context?.net.localId && from === this.hostId) {
-      // In der gemeinsamen 2D-Runde ist der eigene Stand der Stand (`stepFlat`).
-      if (!this.flatShared && !this.stale(state)) this.adopt(state);
+      if (!this.stale(state)) this.adopt(state);
       // **Die Tafel des Gastgebers gilt** — außer in der Schonfrist nach einem
       // eigenen Tipp, der gerade erst zu ihm unterwegs ist.
       const shared = readSharedSetup(data);
@@ -2223,12 +2148,12 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Die Buchführung, zum Mitnehmen** — aus der Runde, die gerade rechnet:
-   * der 2D-Ansicht (`flatShared`), dem Kern (`flatKernel.ts`) oder, wenn
-   * gerade keine läuft, den Büchern, die auf die nächste warten.
+   * **Die Buchführung, zum Mitnehmen** — aus der Runde, die gerade rechnet
+   * (dem Kern, `flatKernel.ts`) oder, wenn gerade keine läuft, den Büchern,
+   * die auf die nächste warten.
    */
   private books(): HauntBooks {
-    const running = this.flatShared ? this.flat?.round.books() : this.kernel?.round.books();
+    const running = this.kernel?.round.books();
     const carried = running ?? this.pendingBooks;
     // Ohne laufende Runde führen Tafel und Techniker vor Ort Riegel und
     // Lampen selbst (`this.locks`, `this.lampBook`) — die gehen mit.
@@ -2261,23 +2186,7 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Die Bücher in die fortgesetzte 2D-Runde** (`FlatRound.loadBooks`): Der
-   * Stand bleibt der ihre — er *ist* schon der, den der alte Gastgeber
-   * ansagte —, das Lampenbudget führt wie immer dieser Wirt. Einmal, dann ist
-   * die Übernahme vollständig.
-   */
-  private takeFlatHandover(books: HauntBooks): void {
-    this.flatResumed = false;
-    this.handoverUntil = 0;
-    const round = this.flat?.round;
-    if (!round || round.phase !== 'running') return;
-    round.loadBooks(books);
-    this.locks = round.locks;
-    this.lampBook = books.lamps;
-  }
-
-  /**
-   * **Die Buchführung übernehmen** — vom alten Gastgeber, aus der 2D-Ansicht.
+   * **Die Buchführung übernehmen** — vom alten Gastgeber.
    * Der Kern wird damit neu gestellt (`ensureKernel`): Eine Runde, die mit
    * fremden Büchern weiterrechnet, ist eine andere Runde.
    */
@@ -2630,12 +2539,12 @@ export class HauntingWorld extends GridWorld {
       this.state.held = this.locks.chosen;
     }
     // **Und ab und zu fährt ein Schott von selbst auf** — beim Gastgeber
-    // ohne Kern (2D-Zuschauer am Netz); sonst tut es die Runde. (`rules/doorGlitch.ts`).
+    // ohne Kern; sonst tut es die Runde (`rules/doorGlitch.ts`).
     // Gerechnet beim Gastgeber, angewendet über dieselbe Mechanik wie jedes
     // andere Auffahren: ein Bewohner, der keiner ist. Gesperrte Schotts sind
     // nicht dabei — der Riegel ist die eine Entscheidung der Tafel.
     const glitch =
-      this.isHost && !(this.kernel && !this.flat)
+      this.isHost && !this.kernel
         ? stepGlitch(
             this.glitch,
             doors.filter((door) => !shut.has(door.id)).map((door) => door.id),
@@ -2644,7 +2553,7 @@ export class HauntingWorld extends GridWorld {
           ).id
         : '';
     const occupants = this.doorOccupants();
-    const kernel = this.isHost && !this.flat ? this.kernel : null;
+    const kernel = this.isHost ? this.kernel : null;
     for (const door of doors) {
       const at = doorEdge(door);
       const ghosts = door.id === glitch ? [...occupants, { x: at.x, z: at.z }] : occupants;
@@ -2881,13 +2790,6 @@ export class HauntingWorld extends GridWorld {
    * nicht der Kompromiss, sondern der Ton, den man haben will.
    */
   override render(ctx: WorldContext): boolean {
-    if (this.flat) {
-      const renderer = ctx.renderer;
-      renderer.setScissorTest(false);
-      renderer.setClearColor(0x070a10, 1);
-      renderer.clear();
-      return true;
-    }
     const ui = this.ui;
     if (!ui) {
       this.nextPhoneRender = 0;
@@ -3141,7 +3043,7 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Den Techniker aus der 2D-Welt in die 3D-Welt stellen.**
+   * **Den Techniker eines anderen Geräts ins Schiff stellen.**
    *
    * Er hat kein Rig und keine Avatar-Pose; alles, was von ihm über die
    * Leitung kommt, ist `HauntState.technician` — Stelle, Blick, und ob er
@@ -3337,24 +3239,7 @@ export class HauntingWorld extends GridWorld {
       accent: 0x65dce5,
       run,
     });
-    // **Die Ansicht — dieselbe Wahl wie das Segment „2D | 3D" im Van.** Sie
-    // heißt hier nicht mehr „2D-Welt von oben: an/aus": Ein Kästchen, das
-    // aussieht, als starte es etwas, war der Befund; ein Segment mit zwei
-    // Namen sagt, worin man gleich steht. In der Brille steht es fest — die
-    // Karte von oben macht in einer XR-Sitzung nicht auf (`opensFlat`).
     const immersive = this.context?.renderer.xr.isPresenting ?? false;
-    const view = entry(
-      'haunt:view',
-      `Ansicht: ${VIEW_LABELS[immersive ? '3d' : this.lobbyChoice.view]}`,
-      immersive
-        ? 'In der Brille immer das Schiff · die Karte von oben gibt es nur am Fenster'
-        : 'Antippen wechselt · gilt für Spielen, Zuschauen und Trainieren',
-      () => {
-        if (immersive)
-          this.context?.notify('In der Brille gibt es nur das Schiff — die Karte von oben nicht.');
-        else this.toggleFlatWanted();
-      },
-    );
     // **Feststecken — und heraus.** Der Wunsch des Besitzers: Wer in der
     // Brille im Boden steckt (eine Platte, ein Podest, ein Sprung ins Nichts),
     // soll sich am Handgelenk selbst retten können. Der Eintrag steht in
@@ -3377,12 +3262,11 @@ export class HauntingWorld extends GridWorld {
             this.flatTechnician = true;
           },
         ),
-        view,
         rescue,
       ];
     return [
-      // **Was? — dieselben drei Kacheln wie im Van und im Optionsmenü der
-      // 2D-Welt** (`rules/lobby.ts`, gerechnet in `rules/worldMenu.ts`):
+      // **Was? — dieselben drei Kacheln wie im Van** (`rules/lobby.ts`,
+      // gerechnet in `rules/worldMenu.ts`):
       // Spielen · Zuschauen · Trainieren, in derselben Reihenfolge und mit
       // denselben Worten. Die aktive ist markiert, und wo gerade keine Runde
       // losgehen kann, steht der Grund als ganzer Satz an der Stelle, an der
@@ -3409,7 +3293,6 @@ export class HauntingWorld extends GridWorld {
             ),
           ]
         : []),
-      view,
       entry(
         'haunt:light',
         `Testlicht: ${this.state.crew.options.bright ? 'an' : 'aus'}`,
@@ -3556,7 +3439,6 @@ export class HauntingWorld extends GridWorld {
       hostId: this.hostId,
       me: ctx?.net.localId ?? '',
       phase: this.state.phase,
-      flatWanted: this.flatWanted,
       intent: intentOf(this.setup ?? loadSetup()),
       occupied: ctx ? this.roomOccupied(ctx) : false,
     };
@@ -3609,8 +3491,8 @@ export class HauntingWorld extends GridWorld {
    * Tisch: auf dem Hocker ihres Geräts, oder in der Reihe dahinter
    * (`world3d/commandSeats.crewPlacement`, aus den Ansprüchen `seatOf`).
    *
-   * Eine Ausnahme nimmt jemanden ganz aus dem Bild: **der Techniker der
-   * 2D-Runde.** Er trägt den Anzug, hat aber kein Rig — seine Stelle steht im
+   * Eine Ausnahme nimmt jemanden ganz aus dem Bild: **der Techniker aus dem
+   * Stand.** Er trägt den Anzug, hat aber kein Rig — seine Stelle steht im
    * Stand (`state.technician`), und daraus zeichnet `showTechnician` schon
    * einen Körper. Sein Avatar am Spawn wäre ein zweiter Techniker.
    */
@@ -3675,14 +3557,9 @@ export class HauntingWorld extends GridWorld {
     if (!ctx.net.connected) ctx.join(hauntRoomFrom(location.search));
   }
 
-  /** Die Ansicht umlegen — nur die Einstellung, keine Runde. */
-  private toggleFlatWanted(): void {
-    this.setLobby({ ...this.lobbyChoice, view: this.flatWanted ? '3d' : '2d' });
-  }
-
   /**
    * Die Wahl der Lobby übernehmen: merken und die Anzeigen nachziehen. Van,
-   * Brillenmenü und 2D-Optionsmenü zeigen dieselbe Wahl — wer sie an einer
+   * Brillenmenü zeigen dieselbe Wahl — wer sie an einer
    * Stelle umstellt, soll sie nicht an der nächsten noch alt vorfinden.
    */
   private setLobby(choice: LobbyChoice): void {
@@ -3709,12 +3586,11 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
-   * **Eine Runde starten — in 2D oder 3D, je nach Ansicht.** Herein kommt die
-   * Absicht der Lobby (Spielen · Zuschauen · Trainieren); die alten drei
-   * Namen (`mission`, `test`, `bot`) gehen ebenso, solange sie noch irgendwo
-   * stehen (`asIntent`). Steht die Ansicht auf „2D von oben", läuft jede
-   * davon als `FlatMode`; sonst wie bisher im Schiff. **In der Brille immer
-   * im Schiff** — die Karte von oben gibt es dort nicht (`opensFlat`).
+   * **Eine Runde starten — im Schiff.** Herein kommt die Absicht der Lobby
+   * (Spielen · Zuschauen · Trainieren); die alten drei Namen (`mission`,
+   * `test`, `bot`) gehen ebenso, solange sie noch irgendwo stehen
+   * (`asIntent`). Ob das Schiff dabei von oben oder aus den Augen zu sehen
+   * ist, entscheidet _Menü → Ansicht_ des Kerns — nicht diese Welt.
    */
   private startRound(what: Intent | RoundKind, ctx: WorldContext): void {
     // Die Absicht schreibt Techniker und Monster auf die Tafel; die Plätze der
@@ -3747,81 +3623,22 @@ export class HauntingWorld extends GridWorld {
       // **Läuft seine Runde schon, geht kein Wunsch hinüber.** Der Gastgeber
       // wiese ihn mit demselben Satz ab — nur sagte er ihn bisher sich selbst,
       // und hier stand „Start geht an den Techniker": der tote Knopf nach
-      // einem Neuladen mitten in der Runde. Der Zuschauer bekommt sein Bild
-      // von oben trotzdem — es ist die Runde, die läuft.
+      // einem Neuladen mitten in der Runde. Der Zuschauer sieht die Runde,
+      // die läuft, auf seiner Karte (`views/`) — es ist der Stand des Gastgebers.
       if (this.state.phase === 'running') this.say(ROUND_RUNNING);
       else {
         ctx.net.emit(HAUNT_CHANNEL, startMessage(asIntent(what), setup));
         this.say(START_SENT);
       }
-      if (opensFlat(this.startState()) && isWatcher(this.myPlace())) {
-        this.openFlat(ctx, {
-          monster: this.state.crew.options.monster,
-          tuning: this.tuning,
-          test: setup.seats.monster.who === 'off',
-          role: 'watch',
-          setup,
-          powers: powersOf(setup),
-          mode: 'omniscient',
-        });
-      }
       return;
     }
-    // **Läuft hier schon die gemeinsame 2D-Runde im Test** — dieses Gerät
-    // steht am Stock oder am Steuer des Monsters —, dann startet die Mission
-    // **darin**, auf derselben Station (`FlatMode.startMission`), statt eine
-    // neue 2D-Welt darüberzulegen. So kommt der Startwunsch der Zentrale an:
-    // Die Tafel reist mit, die Rolle bleibt.
-    if (this.flat && this.flatShared) {
-      const started = this.flat.startMission({
-        setup,
-        test: setup.seats.monster.who === 'off',
-        powers: powersOf(setup),
-        role: flatRoleOf(setup, this.myPlace()),
-      });
-      if (started) ctx.menu.toggle(false);
-      return;
-    }
-    // **Die Checkbox „2D-Welt von oben" gilt in der Brille nicht.** Sie steht
-    // im Browser und überlebt Tage; wer sie irgendwann im Van angehakt hat und
-    // später die Brille aufsetzte, landete hier in `openFlat` — und das steigt
-    // in einer XR-Sitzung wortlos wieder aus. Der Druck auf „Mission starten"
-    // tat dann gar nichts. In der Brille gibt es das Schiff.
-    // **Wer das Monster spielt, spielt es auf der Karte** — auch dann, wenn
-    // die Ansicht auf „3D" steht und im Raum keine Brille ist: Im Schiff
-    // rechnet der Modelltechniker nur in einer Vorführung, und die läuft dort
-    // nur auf dem Gerät des Technikers. Ein Monster allein im Schiff hätte
-    // niemanden zu jagen. Steht eine Brille im Raum, bleibt es beim Steuer
-    // übers Netz (`monster/netMonsterPort.ts`).
-    const asMonster = this.myPlace() === 'monster' && !this.roomHasTechnician(ctx);
-    if (asMonster && !opensFlat(this.startState()) && !ctx.renderer.xr.isPresenting)
-      ctx.notify('Als Monster spielst du auf der Karte von oben.');
-    if (opensFlat(this.startState()) || (asMonster && !ctx.renderer.xr.isPresenting)) {
-      const options = this.state.crew.options;
-      const role = flatRoleOf(setup, this.myPlace());
-      // **Kein Bot auf einem Menschenplatz.** Steht auf der Tafel „Techniker:
-      // Mensch" und niemand trägt den Anzug — dieses Gerät sieht nur zu —,
-      // dann läuft keine Vorführung mit einem Techniker aus Zahlen los. Die
-      // Mission wartet, bis jemand den Reiter „Techniker" nimmt, oder bis die
-      // Tafel den Platz einem Bot gibt; der Satz nennt beides.
-      if (
-        role === 'watch' &&
-        setup.seats.technician.who === 'human' &&
-        !this.roomHasTechnician(ctx)
-      ) {
-        this.say(FLAT_NEEDS_TECHNICIAN);
-        return;
-      }
-      this.openFlat(ctx, {
-        monster: options.monster,
-        tuning: this.tuning,
-        test: setup.seats.monster.who === 'off',
-        role,
-        setup,
-        powers: powersOf(setup),
-        // Wer zusieht, will alles sehen; wer spielt, sieht, was der Techniker sieht.
-        mode: role === 'watch' ? 'omniscient' : 'realistic',
-      });
+    // **Wer das Monster spielt, braucht jemanden zum Jagen.** Das Schiff
+    // rechnet beim Techniker (`stepKernel`); ein Telefon am Steuer des
+    // Monsters ohne Techniker im Raum hätte keine Runde, in der es steuert.
+    // Bis zum 1-m-Gitter öffnete es dafür die gemalte Karte mit einem
+    // Techniker aus Zahlen; jetzt sagt es, was fehlt (`MONSTER_NEEDS_TECHNICIAN`).
+    if (this.myPlace() === 'monster' && !this.roomHasTechnician(ctx)) {
+      this.say(MONSTER_NEEDS_TECHNICIAN);
       return;
     }
     // **„Monster: Mensch" ist eine Verabredung und noch kein Mensch.**
@@ -3845,7 +3662,7 @@ export class HauntingWorld extends GridWorld {
     // stand es mitten in der Runde, die gerade angefangen hat, und sah aus, als
     // wäre nichts passiert. Umgekehrt darf es bei einer Absage gerade *nicht*
     // zugehen: Die Meldung steht in der Statuszeile des Panels und wäre mit ihm
-    // weg (`App.notify`). `requestBotRound` und `openFlat` machen es genauso.
+    // weg (`App.notify`). `requestBotRound` macht es genauso.
     if (inShip === 'bot') {
       this.requestBotRound(ctx);
       return;
@@ -3886,76 +3703,27 @@ export class HauntingWorld extends GridWorld {
 
   /**
    * **Dieses Gerät an den Stock setzen** — der Reiter „Techniker" auf dem
-   * Telefon (`StationHost.technician`). Auf der Karte von oben heißt das: die
-   * 2D-Welt öffnet sich sofort, **im Test-Zustand** (`FlatOptions.phase`
-   * `'briefing'`): hell, ohne Uhr, ohne Monster-Routine, und man läuft los.
-   * Die Mission startet danach aus dem Optionsmenü oder aus der Zentrale. Im
-   * Schiff (Ansicht 3D) ist es wie bisher der Desktop-Techniker
-   * (`flatTechnician`), und der steht dort ohnehin im hellen Vorplatz. Die
+   * Telefon (`StationHost.technician`). Es wird der Techniker im Schiff
+   * (`flatTechnician`): Die Seite der Zentrale geht zu, der Bordstock der
+   * Seite kommt (`syncTouchStick`), und die Figur steht im hellen Vorplatz —
+   * läuft im Raum schon eine Mission, kennt sie den Stand vom Gastgeber
+   * (`adopt`) und steigt beim nächsten Bild in sie ein (`ensureKernel`). Die
    * Brille rührt niemand an.
    */
-  private takeStick(ctx: WorldContext): void {
+  private takeStick(): void {
     if (this.roomHasVr()) {
       this.say(VR_KEEPS_TECHNICIAN);
       return;
     }
-    if (!opensFlat(this.startState())) {
-      this.flatTechnician = true;
-      return;
-    }
-    if (this.flat?.role === 'technician') return;
-    const setup = this.setup;
-    // **Läuft im Raum schon eine Mission, steigt er in sie ein** — statt sie
-    // durch einen frischen Test zu ersetzen. Der Fall ist das Neuladen: Wer
-    // mitten in der Runde die Seite neu lädt, kommt in der Zentrale an, kennt
-    // den Stand vom Gastgeber (`adopt`) und will an den Stock zurück. Bis
-    // hierher machte der Reiter daraus einen Test-Zustand auf derselben
-    // Station, der als neuer Stand an alle ging: Die Mission war weg. Jetzt
-    // reist der Stand in die 2D-Runde (`FlatResume`, derselbe Weg wie von 3D
-    // nach 2D), und die Bücher kommen mit der Übergabe des alten Gastgebers
-    // nach (`flatResumed`). Trägt schon jemand anders den Anzug, gibt es
-    // dieselbe Absage wie beim Öffnen — nur bevor das Monster losgelassen ist.
-    const running = this.state.phase === 'running' && !this.state.crew.simulation;
-    let resume: FlatResume | undefined;
-    if (running) {
-      if (this.flatLoading) return;
-      if (this.roomOccupied(ctx)) {
-        this.say(FLAT_OCCUPIED);
-        return;
-      }
-      const books = this.books();
-      this.releaseMonster();
-      resume = {
-        state: this.state,
-        locks: books.locks,
-        spook: books.spook,
-        trail: books.trail,
-        memory: books.memory,
-      };
-    }
-    this.openFlat(ctx, {
-      monster: this.state.crew.options.monster,
-      tuning: this.tuning,
-      test: setup.seats.monster.who === 'off',
-      role: 'technician',
-      setup,
-      powers: powersOf(setup),
-      mode: 'realistic',
-      phase: running ? 'running' : 'briefing',
-      resume,
-    });
-    // Erst nach dem Öffnen: `openFlat` schließt eine 2D-Welt, die noch offen
-    // steht, und `closeFlat` setzt die Marke zurück.
-    this.flatResumed = running;
+    this.flatTechnician = true;
   }
 
   /**
    * **Die Runde stoppen — zurück in den Test.** Der Gastgeber setzt den Stand
    * auf derselben Station zurück: Monster weg, Uhr auf null, Türen und Lampen
-   * frei, Phase `briefing` — hell, ohne Treffer, jeder darf jede Rolle. Läuft
-   * die gemeinsame 2D-Runde auf diesem Gerät, tut sie es selbst
-   * (`FlatMode.stopMission`). Wer nicht rechnet, schickt den Wunsch dem, der
-   * es tut (`net.stopMessage`) — derselbe Weg wie beim Start.
+   * frei, Phase `briefing` — hell, ohne Treffer, jeder darf jede Rolle. Wer
+   * nicht rechnet, schickt den Wunsch dem, der es tut (`net.stopMessage`) —
+   * derselbe Weg wie beim Start.
    */
   private stopRound(ctx: WorldContext): void {
     if (!this.isHost) {
@@ -3965,14 +3733,6 @@ export class HauntingWorld extends GridWorld {
       } else this.say(HOST_BUSY);
       return;
     }
-    if (this.flat && this.flatShared) {
-      this.flat.stopMission();
-      this.say(ROUND_STOPPED);
-      return;
-    }
-    // Eine lokale Vorführung (Bot-Runde in 2D) ist keine gemeinsame Runde:
-    // Sie geht einfach zu, und darunter steht die Station im Test.
-    if (this.flat) this.closeFlat();
     if (this.state.crew.simulation) this.experience?.leaveBotRound();
     this.removeMonster();
     this.rules.reset();
@@ -4100,339 +3860,14 @@ export class HauntingWorld extends GridWorld {
     return out;
   }
 
-  /**
-   * **Die Ansicht wechseln — mitten in der Runde.**
-   *
-   * Der Wunsch des Besitzers, in einem Satz: „Da wir die Karte ja perfekt für
-   * 2D als auch 3D als Single Source of Truth haben, will ich auch während des
-   * laufenden Spiels zwischen 2D und 3D (als Techniker) wechseln können."
-   * Genau das, und nichts weiter: **kein Neustart, keine neue Station, keine
-   * neue Rolle.**
-   *
-   * Möglich ist es, weil der Stand der Runde ein Datenobjekt ist und kein
-   * Gerät: `HauntState` reist ohnehin über die Leitung, und was nur beim
-   * Gastgeber liegt — Riegel, Lampen, Spuk, Wunde, das Gedächtnis des Monsters
-   * — geht hier als Buchführung (`net.HauntBooks`) von der einen Ansicht in
-   * die andere. Der Wechsel ist deshalb **derselbe Vorgang wie eine Übergabe**,
-   * nur ohne Netz dazwischen.
-   *
-   * - **3D → 2D**: Die 2D-Runde wird aus dem laufenden Stand aufgebaut
-   *   (`FlatRound`, `FlatResume`) statt aus einem frischen. Der Techniker
-   *   steht, wo er stand; das NPC-Monster im Schiff hört auf, das der 2D-Runde
-   *   übernimmt seine Stelle und sein Gedächtnis.
-   * - **2D → 3D**: Der Stand *ist* schon `this.state` (`stepFlat` schreibt ihn
-   *   je Bild), das Schiff wird daraus aufgebaut, und der Techniker landet
-   *   dort, wo `state.technician` ihn zuletzt hingesetzt hat.
-   *
-   * **Nur der Techniker wechselt**, und nur zwischen seinen zwei Ansichten.
-   * Zuschauer und Telefone lesen den Stand ohnehin nur; für sie ändert sich
-   * nichts, und sie merken vom Wechsel auch nichts. **In der Brille gibt es
-   * keine Karte von oben** — dieselbe Wahrheit wie in `opensFlat`, und hier
-   * steht sie als Satz und nicht als stilles Nichtstun.
-   */
-  switchView(view: View): void {
-    const ctx = this.context;
-    if (!ctx || this.flatLoading) return;
-    // `flatShared` ist die **gespielte** 2D-Runde; eine Vorführung daneben
-    // (Bot-Runde, `role: 'watch'`) liegt genauso über dem Schiff und zählt
-    // hier genauso als „jetzt 2D".
-    const now: View = this.flat ? '2d' : '3d';
-    // Was der Tipp bedeutet, rechnet `rules/lobby.viewSwap` — eine Zeile statt
-    // einer Kette von `if`, und nachrechenbar ohne Welt.
-    const swap = viewSwap({
-      now,
-      want: view,
-      demo: this.watchingBots(),
-      // Wer in 2D das Monster spielt, ist **kein** Techniker: Im Schiff stünde
-      // er sonst plötzlich als einer da, und die Runde hätte zwei.
-      technician:
-        now === '2d' ? this.flat?.role === 'technician' : ctx.role === 'vr' || this.flatTechnician,
-      presenting: ctx.renderer.xr.isPresenting,
-    });
-    if (swap === 'same') return;
-    if (swap === 'xr') {
-      ctx.notify(NO_FLAT_IN_XR);
-      return;
-    }
-    // **Zuschauen wechselt auch die Seite.** Wer der Bot-Runde zusieht, sieht
-    // dieselbe Vorführung von oben oder von innen — das ist keine Übernahme
-    // und nimmt niemandem etwas weg. Nur: Eine Vorführung ist kein Stand, der
-    // über die Leitung reist, also fängt sie auf der anderen Seite **von
-    // vorn** an. Das steht auch im Satz, den er dazu bekommt.
-    if (swap === 'demo') {
-      this.swapDemo(ctx, view);
-      return;
-    }
-    if (swap === 'blocked') {
-      ctx.notify(NOT_TECHNICIAN);
-      return;
-    }
-    // Die Wahl der Lobby zieht mit: Wer mitten in der Runde umschaltet, will
-    // die nächste nicht wieder in der alten Ansicht anfangen.
-    this.setLobby({ ...this.lobbyChoice, view });
-    if (this.state.phase !== 'running') {
-      // Es läuft nichts, was mitkommen könnte — dann ist der Wechsel nur die
-      // Einstellung, und die steht jetzt.
-      ctx.notify(`Ansicht: ${VIEW_LABELS[view]} — sie gilt ab der nächsten Runde.`);
-      return;
-    }
-    if (view === '2d') this.enterFlat(ctx);
-    else this.leaveFlat(ctx);
-  }
-
-  /**
-   * **Ob hier gerade einer Vorführung zugesehen wird** — der Bot-Runde in 2D
-   * oder derselben im Schiff. Nicht dasselbe wie „Zuschauen am Netz": Dort
-   * spielt jemand wirklich, und dessen Runde ist nicht zu wechseln.
-   */
-  private watchingBots(): boolean {
-    if (this.flat) return this.flat.role === 'watch' && !this.flatWatching;
-    return this.state.crew.simulation;
-  }
-
-  /**
-   * **Die Vorführung auf der anderen Seite.** Die Bot-Runde ist kein Stand,
-   * der reist: In 2D wie im Schiff rechnet sie ein `TechnicianBot` auf einer
-   * `FlatRound` (`flatKernel.ts`), aber auf zwei Runden, nicht auf einer.
-   * Sie fängt deshalb neu an, und der Satz dazu sagt es, statt es den
-   * Zuschauer selbst merken zu lassen.
-   */
-  private swapDemo(ctx: WorldContext, view: View): void {
-    this.setLobby({ ...this.lobbyChoice, view });
-    if (view === '2d') {
-      this.experience?.leaveBotRound();
-      this.openFlat(ctx, {
-        monster: this.state.crew.options.monster,
-        tuning: this.tuning,
-        test: this.state.crew.options.test,
-        role: 'watch',
-        setup: this.setup,
-        powers: powersOf(this.setup),
-        mode: 'omniscient',
-      });
-    } else {
-      this.closeFlat();
-      this.state.crew.options.test = true;
-      this.experience?.startBotRound();
-    }
-    ctx.notify(`Zuschauen: ${VIEW_LABELS[view]} — die Bot-Runde fängt dabei von vorn an.`);
-  }
-
-  /**
-   * **Vom Schiff auf die Karte von oben.** Der Stand wandert als `FlatResume`
-   * in die neue Runde; der Techniker bekommt dabei zum ersten Mal eine Stelle
-   * im Stand, denn in 2D hat er kein Rig (`HauntState.technician`).
-   */
-  private enterFlat(ctx: WorldContext): void {
-    // Dieselbe Absage wie beim Start (`openFlat`) — aber **vorher**: Wer erst
-    // das Monster loslässt und dann abgewiesen wird, steht danach in einer
-    // Runde ohne Gegner.
-    if (this.roomOccupied(ctx)) {
-      ctx.notify(FLAT_OCCUPIED);
-      return;
-    }
-    // **Erst einpacken, dann loslassen**: `releaseMonster` wirft das Gedächtnis
-    // weg, und danach eingepackt wäre es leer.
-    const books = this.books();
-    ctx.rig.getHeadPosition(_head);
-    ctx.camera.getWorldDirection(_feet);
-    const yaw = Math.atan2(-_feet.x, -_feet.z);
-    this.state.technician = { x: _head.x, z: _head.z, yaw, moving: false };
-    this.releaseMonster();
-    this.openFlat(ctx, {
-      monster: this.state.crew.options.monster,
-      tuning: this.tuning,
-      test: this.state.crew.options.test,
-      role: 'technician',
-      setup: this.setup,
-      powers: powersOf(this.setup),
-      mode: 'realistic',
-      resume: {
-        state: this.state,
-        locks: books.locks,
-        spook: books.spook,
-        trail: books.trail,
-        memory: books.memory,
-        yaw,
-      },
-    });
-  }
-
-  /**
-   * **Von der Karte zurück ins Schiff.** Die 2D-Runde wird geschlossen, ohne
-   * den Stand zurückzusetzen (`closeFlat(true)`) — sonst wäre der Wechsel ein
-   * Rundenabbruch mit Ansage.
-   *
-   * Die Reihenfolge ist die Regel: erst das Monster wieder aufstellen
-   * (`spawnMonster` baut ein frisches Gedächtnis), **dann** die Buchführung
-   * hineingeben. Andersherum schriebe man in ein Gedächtnis, das es noch nicht
-   * gibt.
-   */
-  private leaveFlat(ctx: WorldContext): void {
-    const round = this.flat?.round;
-    if (!round) return;
-    const books = round.books();
-    const at = this.state.technician;
-    this.closeFlat(true);
-    // Im Schiff hat der Techniker wieder ein Rig; seine Stelle im Stand wäre
-    // von jetzt an ein zweiter, gezeichneter Techniker (`showTechnician`).
-    this.state.technician = null;
-    if (at) this.movePlayerTo(ctx, _feet.set(at.x, 0, at.z), at.yaw);
-    // Die Bücher der 2D-Runde werden die des Kerns, der im nächsten Bild
-    // neu gestellt wird (`ensureKernel`) — Monster, Gedächtnis und Riegel
-    // gehen ohne Bruch weiter.
-    this.loadBooks(books);
-    // Wer aus der Zentrale in die 2D-Runde ging, steht jetzt im Schiff — und
-    // ist damit der Techniker am Desktop (`flatTechnician`, `tick`).
-    this.flatTechnician = ctx.role !== 'vr';
-    this.ui?.refresh();
-    ctx.refreshWorldMenu();
-  }
-
-  /**
-   * **Die 2D-Welt öffnen.** Solange sie läuft, rechnet `FlatMode` die Runde
-   * selbst (`map/flatRound.ts`) und `tick`/`render` fassen die 3D-Welt nicht
-   * an. Mission und Test sind dabei **die gemeinsame Runde**: Wer sie spielt,
-   * ist der Techniker, wird Gastgeber und sagt den Stand an (`stepFlat`,
-   * `tickNet`); die Telefone sehen, schalten und spielen das Monster wie bei
-   * einem Techniker im Schiff. Die Bot-Runde bleibt eine lokale Vorführung.
-   * Eine laufende 2D-Runde wird durch die neue ersetzt.
-   */
-  private openFlat(ctx: WorldContext, options: FlatOptions): void {
-    if (this.flat) this.closeFlat();
-    if (this.flatLoading) return;
-    const shared = options.role !== 'watch';
-    // Ein Techniker je Raum — dieselbe Regel wie bei der Bot-Runde: Wer 2D
-    // spielt, wird Gastgeber der gemeinsamen Runde, und zwei davon gäbe es nicht.
-    const occupied = this.roomOccupied(ctx);
-    // **Und genau derselbe belegte Raum ist für den Zuschauer die gute
-    // Nachricht.** Spielt im Raum wirklich jemand, sieht er *dieser* Runde zu
-    // (`FlatModeHost.watchSnapshot`) statt einer Vorführung daneben; ist der
-    // Raum leer, bleibt es bei der lokalen Bot-Runde wie bisher.
-    const live = !shared && occupied;
-    if (shared && occupied) {
-      ctx.notify(FLAT_OCCUPIED);
-      return;
-    }
-    this.flatLoading = true;
-    // Die 2D-Welt (samt CSS und der Registry-Discovery mit `import.meta.glob`)
-    // kommt erst, wenn jemand sie will: So bleibt sie aus dem 3D-Pfad und
-    // aus den Tests der Welt heraus.
-    void Promise.all([
-      import('./map/flatMode'),
-      import('./map/toolIcons'),
-      import('./registry/discover'),
-    ])
-      .then(([mode, icons, discover]) => {
-        this.flatLoading = false;
-        // Im Headset gibt es keine Karte von oben — dort bleibt die Brille.
-        if (this.flat || ctx.renderer.xr.isPresenting) return;
-        if (discover.REGISTERED_FILES.length === 0)
-          console.warn('Haunting: keine *.register.ts gefunden');
-        // Die gemeinsame Runde läuft auf demselben Samen wie das Haus der
-        // Telefone — ein anderer Same wäre eine andere Karte. Die lokale
-        // Bot-Runde darf würfeln.
-        this.flatShared = shared;
-        this.flatWatching = live;
-        this.flat = new mode.FlatMode(shared || live ? this.spec.seed : rollSeed(), options, {
-          // „Zurück zu den Rollen": Die 2D-Welt geht zu, und das Telefon
-          // steht wieder im Aufbau — dort, wo die Tafel und die Knöpfe sind.
-          exit: () => {
-            this.closeFlat();
-            this.ui?.goSetup();
-          },
-          notify: (text) => ctx.notify(text),
-          // **Dasselbe Tempo auf beiden Seiten.** Die Stufe gehört der Welt,
-          // nicht der Ansicht: Wer in 2D auf ×8 stellt und ins Schiff wechselt,
-          // sieht die Bot-Runde dort mit ×8 weiterlaufen — und umgekehrt.
-          simulationSpeed: () => this.simulationSpeed,
-          setSimulationSpeed: (speed) => {
-            this.simulationSpeed = clampSimulationSpeed(speed);
-          },
-          // **Wer das Monster spielt, wechselt nicht.** Im Schiff gäbe es für
-          // ihn keine zweite Ansicht — er stünde dort plötzlich als Techniker
-          // in einer Runde, die schon einen hat. Der **Zuschauer** darf: Für
-          // ihn ist der Wechsel die Seite, von der er zusieht
-          // (`switchView`), und genau der Knopf tat bis eben nichts.
-          //
-          // Er stand hier zweimal im selben Objektliteral — einmal so
-          // bedingt, wie es der Kommentar darüber versprach, und einmal
-          // darunter ohne jede Bedingung. Das zweite gewann, der Knopf war da,
-          // und `switchView` wies ihn mit `NOT_TECHNICIAN` ab: ein Menüeintrag,
-          // der beim Tippen eine Absage sagt.
-          ...(options.role !== 'monster'
-            ? { switchView: (view: View) => this.switchView(view) }
-            : {}),
-          // Nur beim Zusehen am Netz: Szene und Karte kommen aus dem Stand,
-          // den der Gastgeber ansagt. Das `insight` weiß nur, wer das Monster
-          // rechnet — alle anderen bekommen `null` und sehen die Runde ohne
-          // den Kopf des Gegners.
-          ...(live
-            ? {
-                watchSnapshot: (): MapSnapshot => this.worldSnapshot(),
-                insight: () => this.state.insight ?? null,
-              }
-            : {}),
-        });
-        if (live) ctx.notify('Zuschauen: Du siehst die Runde, die in diesem Raum läuft.');
-        // Die Werkzeuge einmal aus ihren 3D-Modellen rendern und puffern;
-        // die 2D-Welt hängt die fertigen Bilder in ihren Knopf (`toolIcons.ts`).
-        this.flatIcons ??= new icons.ToolIcons();
-        this.flat.setToolIcons(this.flatIcons);
-        document.body.append(this.flat.element);
-        ctx.menu.toggle(false);
-        this.ui?.refresh();
-        ctx.refreshWorldMenu();
-      })
-      .catch((error: unknown) => {
-        this.flatLoading = false;
-        console.error('Haunting: 2D-Welt konnte nicht geladen werden', error);
-      });
-  }
-
-  /**
-   * Die 2D-Welt verlassen — zurück dorthin, wo sie gestartet wurde
-   * (Einsatzzentrale oder Techniker). War es die gemeinsame Runde, ist sie
-   * damit vorbei: ein frischer Stand auf demselben Haus, wie `newRound` ihn
-   * baut — und angesagt, damit die Telefone nicht auf einer verwaisten Runde
-   * sitzen.
-   *
-   * **Außer beim Ansichtswechsel** (`keepState`, `switchView`): Dann wird nur
-   * das Bild geschlossen und die Runde läuft im Schiff weiter. Denselben Stand
-   * hier zurückzusetzen hieße, dem Techniker beim Umschalten die Runde
-   * wegzunehmen — und den Telefonen gleich mit.
-   */
-  private closeFlat(keepState = false): void {
-    if (!this.flat) return;
-    this.flat.dispose();
-    this.flat = null;
-    this.flatWatching = false;
-    this.flatResumed = false;
-    if (this.flatShared) {
-      this.flatShared = false;
-      if (!keepState) {
-        this.state = freshState(this.spec.seed, this.state.crew.options);
-        this.rules.reset();
-        this.netMonster.reset();
-        if (this.isHost) this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
-      }
-    }
-    this.ui?.refresh();
-    this.context?.refreshWorldMenu();
-  }
-
   /** Der Stand der Station als Karte — reiner Lesezugriff (`map/extract.ts`). */
   mapSnapshot(): MapSnapshot {
-    // Der Zuschauer am Netz rechnet keine Runde — seine eigene steht still,
-    // und ihr Snapshot wäre eine zweite, falsche Station.
-    if (this.flat && !this.flatWatching) return this.flat.round.snapshot();
     return this.worldSnapshot();
   }
 
   /**
-   * **Die 3D-Welt als Karte** — auch dann, wenn eine 2D-Welt darüber liegt.
-   * Der Zuschauer in 2D zeichnet genau das: den Stand, den der Gastgeber
-   * ansagt (`map/worldSource.ts`), und nicht seine eigene stillstehende Runde.
+   * **Die 3D-Welt als Karte**: der Stand, den der Gastgeber ansagt
+   * (`map/worldSource.ts`) — für die Telefone der Zentrale (`views/`).
    */
   private worldSnapshot(): MapSnapshot {
     return extractMapSnapshot(

@@ -419,11 +419,13 @@ Dateien: `HauntingWorld.ts`, `HauntingWorld.replay.test.ts`,
 `map/flatBooks.test.ts` (die Buchführungs-Fälle wandern nach
 `flatKernel.test.ts` oder `flatRound.test.ts`, wenn sie `FlatMode` brauchen),
 `map/mapView.test.ts` (nur, was `FlatMode` importiert), `map/index.ts`,
-`map/mapSource.ts`, `map/worldSource.ts`, `monster/flatMonsterControl.ts`
-(löschen), `monster/monsterSession.ts` (löschen), `monster/monsterMode.test.
-ts` (löschen), `monster/monsterRole.test.ts`, `monster/monsterHelm.test.ts`
-(die Fälle über `FlatMonsterControl` auf `netMonsterControl` umschreiben
-oder streichen, wenn sie nur den lokalen 2D-Stock prüfen), `monster/
+`map/mapSource.ts`, `map/worldSource.ts`, `monster/monsterSession.ts`
+(löschen), `monster/monsterMode.test.ts` (löschen),
+`monster/flatMonsterControl.ts` (**bleibt**, nur die Doku: Es ist das eine
+Steuer, das `MonsterDriver` und `MonsterPort` ohne Leitung an einer
+`FlatRound` zusammensteckt — kein Bild, kein DOM —, und daran drehen
+`monster/monsterHelm.test.ts` und `monster/monsterRole.test.ts`; sie auf
+das Netz umzuschreiben prüfte das Protokoll statt den Helm), `monster/
 monsterHelm.ts` (Kommentare), `rules/lobby.ts`, `rules/lobby.test.ts`,
 `rules/worldMenu.ts`, `rules/worldMenu.test.ts`, `stationUi.ts`,
 `stationUi.test.ts`, `views/roles.test.ts`, `src/main.ts` (nur
@@ -434,6 +436,15 @@ läuft von oben mit der Kamera des Kerns; `batchGridGeometry()` false;
 Deckenkram mit `userData.level = 1`; `touchStick` nur an der Zentrale;
 `kernelInput` mit Rig-Gier von oben; Bot-Runde von oben über das Rig;
 alle Tests dieser Liste grün, dazu die vier Prüfungen.
+
+**Was mit der Karte wegfällt:** Ein Telefon am Steuer des Monsters, das
+allein im Raum ist, bekam bisher die gemalte Karte mit einem Techniker aus
+Zahlen. Das Schiff rechnet nur dort, wo ein Techniker steht (`stepKernel`,
+Rolle `vr`); ohne Techniker im Raum sagt der Start jetzt, was fehlt
+(`HauntingWorld.MONSTER_NEEDS_TECHNICIAN`): eine Brille, „Web 3D" oder
+„Zuschauen" auf einem zweiten Bildschirm. Ein Gastgeber-Telefon, das die
+Bot-Runde hinter seiner Zentrale rechnet, wäre der nächste Schritt, nicht
+dieser.
 
 `ShipExperience.ts` gehört **H3** — H2 fasst es nicht an. Damit H2 den
 `switchView`-Haken des Wirts abbauen kann, ohne H3 zu berühren, lässt H2

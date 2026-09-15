@@ -159,8 +159,8 @@ function replay(): ReplayWorld {
     ventRide: new VentTravel(vents),
     ventArt: null,
     monsterDriver: null,
-    // Die Wahl der Lobby (`rules/lobby.ts`) — ohne sie hat der Nachbau keine
-    // Ansicht, und `flatWanted` liest sie aus.
+    // Die Wahl der Lobby (`rules/lobby.ts`) — ohne sie weiß der Nachbau
+    // nicht, wer er ist (`myPlace`).
     lobbyChoice: defaultLobby('desktop'),
     // Die Tafel und ihre Schonfrist (`applySetup`, `SETUP_GRACE`).
     setup: defaultSetup(),
@@ -172,7 +172,7 @@ function replay(): ReplayWorld {
 /**
  * **Ein Gerät im Aufbau**: kein Stock, keine Brille — so, wie ein Telefon oder
  * ein Desktop dasteht, das die Runde gerade verteilt hat. Der Raum ist leer,
- * die Tafel steht auf „Techniker: Mensch", die Ansicht auf dem Schiff.
+ * die Tafel steht auf „Techniker: Mensch".
  */
 function setupStarter(): ReplayWorld {
   const world = replay();
@@ -182,7 +182,7 @@ function setupStarter(): ReplayWorld {
     hostId: 'local',
     setup: defaultSetup(),
     pendingStart: null,
-    lobbyChoice: { intent: 'play', view: '3d', me: 'technician' },
+    lobbyChoice: { intent: 'play', me: 'technician' },
   });
   world.state.phase = 'briefing';
   return world;
@@ -377,23 +377,21 @@ test('the headset menu leads with the mission and says why a start is refused', 
     renderer: { xr: { isPresenting: true } },
   };
   world.context = ctx;
-  // Die Ansicht „2D von oben" darf in der Brille nichts umleiten, und ein
-  // fremder Gastgeber darf den Eintrag nicht stumm machen (`rules/worldMenu.ts`).
-  world.lobbyChoice = { intent: 'play', view: '2d', me: 'technician' };
+  // Ein fremder Gastgeber darf den Eintrag nicht stumm machen (`rules/worldMenu.ts`).
+  world.lobbyChoice = { intent: 'play', me: 'technician' };
   world.hostId = 'remote';
   const rounds = world.menu().filter((row) => row.id.startsWith('haunt:'));
-  // Dieselben drei Absichten wie im Van und im Optionsmenü der 2D-Welt
-  // (`rules/lobby.ts`), in derselben Reihenfolge.
+  // Dieselben drei Absichten wie im Van (`rules/lobby.ts`), in derselben
+  // Reihenfolge.
   expect(rounds.slice(0, 3).map((row) => row.id)).toEqual([
     'haunt:play',
     'haunt:watch',
     'haunt:train',
   ]);
-  // Die Ansicht steht als eigener Eintrag daneben und heißt nicht mehr
-  // „2D-Welt von oben: an/aus"; in der Brille ist sie fest.
-  const view = world.menu().find((row: { id: string }) => row.id === 'haunt:view')!;
-  expect(view.label).toContain('3D Schiff');
-  expect(world.menu().some((row: { id: string }) => row.id === 'haunt:flat')).toBe(false);
+  // Eine Ansicht wählt diese Welt nicht mehr: Von oben oder aus den Augen ist
+  // _Menü → Ansicht_ des Kerns (Plan H).
+  for (const id of ['haunt:view', 'haunt:flat'])
+    expect(world.menu().some((row: { id: string }) => row.id === id)).toBe(false);
   expect(rounds[0]!.sub).toBe(HOST_BUSY);
   rounds[0]!.run!(null);
   expect(ctx.notify).toHaveBeenCalledWith(HOST_BUSY);
@@ -447,10 +445,13 @@ test('simulation perception reads the bot position and ignores the observer rig'
   const world = replay();
   world.state.crew.options.test = true;
   world.state.crew.simulation = true;
-  // Zwei Meter vor dem Techniker aus Zahlen, im Gang vor der Zentrale:
+  // Zwei Meter vor dem Techniker aus Zahlen, in der Cafeteria (seit dem
+  // 1-m-Gitter ist der Raum vor der Zentrale zwanzig Meter breit):
   // Berührungsnähe (`monsterSight.CLOSE_SIGHT`), gesehen also auch ohne
-  // eine einzige Lampe.
+  // eine einzige Lampe. Was die Runde dazu meldet, sagt die Welt an — hier
+  // ins Leere.
   world.state.monster = { x: 0, z: -37 };
+  Object.assign(world, { announce: jest.fn() });
   const getHeadPosition = jest.fn(() => {
     throw new Error('Observer is not the player');
   });
@@ -480,7 +481,7 @@ test('simulation perception reads the bot position and ignores the observer rig'
  * zeichnete sie nie, und am Fernseher sah man eine leere Station, in der
  * Türen von selbst aufgingen (Paket U4).
  */
-test('der 2D-Techniker bekommt einen Körper — und verschwindet im Schutzschrank', () => {
+test('der Techniker aus dem Stand bekommt einen Körper — und verschwindet im Schutzschrank', () => {
   const world = replay();
   // Ohne Pose kein Körper: Wer im Headset spielt, hat einen Avatar.
   world.showTechnician();
@@ -555,15 +556,14 @@ test('die Blutflecken liegen flach auf dem Boden und werden wiederverwendet', ()
 });
 
 /**
- * **Der Ansichtswechsel mitten in der Runde** (`HauntingWorld.switchView`).
- *
- * Geprüft wird die Naht, an der er hängt, und zwar mit dem echten Code auf
- * beiden Seiten: Die Welt packt ihre Buchführung ein (`books`), die 2D-Runde
- * übernimmt Stand und Buchführung (`FlatResume`), und die Welt nimmt beides
- * wieder entgegen (`loadBooks`). Was dabei verloren geht, ist genau das, was
- * ein Spieler beim Umschalten verlöre.
+ * **Die Bücher reisen mit** — die Naht zwischen Welt und Runde, mit dem
+ * echten Code auf beiden Seiten: Die Welt packt ihre Buchführung ein
+ * (`books`), eine Runde übernimmt Stand und Buchführung (`FlatRound`,
+ * `resume`), und die Welt nimmt beides wieder entgegen (`loadBooks`). Das ist
+ * derselbe Weg wie eine Übergabe zwischen Gastgebern, nur ohne Netz; was
+ * dabei verloren ginge, verlöre ein Spieler beim Wechsel des Gastgebers.
  */
-describe('Ein Wechsel 3D → 2D → 3D', () => {
+describe('Die Bücher zwischen Welt und Runde', () => {
   /**
    * Eine Welt mitten in einer Runde: Uhr, Anzug, Gepäck, Türen, Licht,
    * Monster — und ein Kern, der sie rechnet, mit Riegeln, Lampen, Spuk und
@@ -598,7 +598,7 @@ describe('Ein Wechsel 3D → 2D → 3D', () => {
     // Die Bücher, die beim Umschalten warteten, sind die des Kerns geworden.
     expect(world.kernel!.round.locks.chosen).toBe('d1');
     expect(world.locks).toBe(world.kernel!.round.locks);
-    // --- 3D → 2D: die laufende Runde übernehmen statt eine neue würfeln.
+    // --- Welt → Runde: die laufende Runde übernehmen statt eine neue würfeln.
     const books = world.books();
     expect(books.spook.room).toBe('r3');
     expect(books.trail.until).toBe(120);
@@ -616,10 +616,10 @@ describe('Ein Wechsel 3D → 2D → 3D', () => {
     expect(round.player.x).toBeCloseTo(6.5);
     expect(round.monster.x).toBeCloseTo(12);
 
-    // --- Ein Bild 2D, damit die Runde wirklich gelaufen ist.
+    // --- Ein Bild, damit die Runde wirklich gelaufen ist.
     round.step(1 / 30, { x: 0, z: 0, sprint: false });
 
-    // --- 2D → 3D: Stand und Buchführung zurück in die Welt.
+    // --- Runde → Welt: Stand und Buchführung zurück in die Welt.
     const carried = round.books();
     world.state = round.state();
     world.loadBooks({ ...carried, lamps: world.lampBook });
@@ -773,7 +773,7 @@ test('a seat in the centre is told that the ship round has nobody in the suit', 
   const world = setupStarter();
   const ctx = starterCtx();
   world.context = ctx;
-  world.lobbyChoice = { intent: 'play', view: '3d', me: 'red' };
+  world.lobbyChoice = { intent: 'play', me: 'red' };
   world.startRound('play', ctx);
   expect(world.flatTechnician).toBe(false);
   expect(world.pendingStart).toBeNull();
@@ -801,7 +801,7 @@ describe('Die Tafel und der Start über die Leitung', () => {
   function phone(): { world: ReplayWorld; ctx: ReturnType<typeof starterCtx> } {
     const world = setupStarter();
     world.hostId = 'remote';
-    world.lobbyChoice = { intent: 'play', view: '3d', me: 'red' };
+    world.lobbyChoice = { intent: 'play', me: 'red' };
     const ctx = starterCtx(true);
     world.context = ctx;
     return { world, ctx };

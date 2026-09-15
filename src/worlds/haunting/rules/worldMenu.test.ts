@@ -2,7 +2,6 @@ import { INTENTS } from './lobby';
 import {
   asIntent,
   mayCompute,
-  opensFlat,
   shipStart,
   startBlocker,
   startedRound,
@@ -20,7 +19,6 @@ function inHeadset(over: Partial<WorldMenuState> = {}): WorldMenuState {
     hostId: 'me',
     me: 'me',
     phase: 'briefing',
-    flatWanted: false,
     intent: 'play',
     occupied: false,
     ...over,
@@ -59,23 +57,6 @@ describe('Das Menü in der Brille', () => {
   it('markiert die Absicht, die gerade auf der Tafel steht — und nur die', () => {
     const active = startEntries(inHeadset({ intent: 'train' })).filter((entry) => entry.active);
     expect(active.map((entry) => entry.id)).toEqual(['haunt:train']);
-  });
-
-  it('startet im Schiff, auch wenn die Ansicht auf „2D von oben" steht', () => {
-    // Der eigentliche Fehlerbericht: Die Ansicht gilt für den ganzen Browser,
-    // die Karte von oben aber öffnet in einer XR-Sitzung nicht — der Druck lief
-    // ins Leere. In der Brille zählt sie deshalb nicht mehr.
-    expect(opensFlat({ flatWanted: true, immersive: true })).toBe(false);
-    expect(opensFlat({ flatWanted: true, immersive: false })).toBe(true);
-    const entries = startEntries(inHeadset({ flatWanted: true }));
-    expect(entries[0]!.starts).toBe('play');
-    expect(entries[0]!.sub).not.toContain('2D-Karte');
-  });
-
-  it('sagt am Fenster dazu, dass die Runde als 2D-Karte läuft', () => {
-    const entries = startEntries(inHeadset({ immersive: false, flatWanted: true }));
-    expect(entries[0]!.sub).toContain('Als 2D-Karte von oben');
-    expect(entries[0]!.starts).toBe('play');
   });
 });
 
