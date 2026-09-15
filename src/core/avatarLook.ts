@@ -116,7 +116,7 @@ export const HEAD_LABELS: Record<HeadKind, string> = {
 };
 
 export const HEAD_SUBS: Record<HeadKind, string> = {
-  round: 'Runde Backen, sonst nichts — die Auslieferung',
+  round: 'Schopf über der Stirn, runde Backen — die Auslieferung',
   freckles: 'Helle Haut, Punkte über der Nase',
   beard: 'Dunkler Bart bis unter die Ohren',
   moustache: 'Nur der Balken unter der Nase',

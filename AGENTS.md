@@ -2017,18 +2017,24 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Kartzone_.
   - **Klettern** (Südosten): eine Wand mit Griffen aus drei Materialien und
     zwei Sprungkissen davor. Ausführlich unter _Klettern_.
-  - **Küche** (ganz im Norden, hinter dem Podest): zwölf mal elf Kacheln mit
-    den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe _Modelle im
-    Repository_) — Zeile, zwei Herde und Spüle an der Wand, eine Insel aus
-    Arbeitstisch, Schneidebrett und Mülleimer, vorn die Ausgabe mit dem Regal
-    darüber. Sie ist der Grund, warum das Gelände nach Norden gewachsen ist
-    (`FIELD` ist jetzt 64 × 80 m): Die Möbel sind groß — eine Spüle misst
-    4 × 3 m —, und in eine Lücke zwischen zwei bestehenden Zonen passt davon
-    keine Reihe. Hinter dem Podest und nicht neben dem Schießstand, weil
-    dessen Bahnen quer über den ganzen Osten bis zum Kugelfang laufen und eine
-    Küche in der Schusslinie eine Küche mit Löchern ist. Ihr Schild ist
-    zugleich die Probe auf den **Aushang**: Es trägt Überschrift, Aufzählung
-    und Zitat, und wer es benutzt, schlägt es im Menü auf.
+  - **Küche** (ganz im Norden, hinter dem Podest): vierundzwanzig mal elf
+    Kacheln mit den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe
+    _Modelle im Repository_), und zwar in **zwei Hälften**. Im Westen die
+    Küche selbst — Zeile, zwei Herde und Spüle an der Wand, eine Insel aus
+    Schneidebrett, Mülleimer und Brötchenkiste, vorn die Ausgabe mit den
+    Wärmeschirmen darüber —, im Osten der **Schauraum**: jedes der dreizehn
+    Möbel noch einmal, frei stehend und mit einer Tafel daneben, auf der sein
+    Name und sein Maß stehen. In einer Zeile aus acht Schränken sieht man ein
+    einzelnes Möbel nicht; der Katalog ist damit ein Rundgang statt einer
+    Liste. **Angefasst wird mit `A`** (siehe _Anfassen in der Küche_). Sie ist
+    der Grund, warum das Gelände nach Norden gewachsen ist (`FIELD` ist jetzt
+    64 × 80 m): Die Möbel sind groß — eine Spüle misst 4 × 3 m —, und in eine
+    Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe. Hinter dem
+    Podest und nicht neben dem Schießstand, weil dessen Bahnen quer über den
+    ganzen Osten bis zum Kugelfang laufen und eine Küche in der Schusslinie
+    eine Küche mit Löchern ist. Ihr Schild ist zugleich die Probe auf den
+    **Aushang**: Es trägt Überschrift, Aufzählung und Zitat, und wer es
+    benutzt, schlägt es im Menü auf.
   - **Portaltafeln**: drei helle Tafeln — am Startplatz, auf dem Podest und an
     der Westwand der Navigation. Drei und nicht eine, weil ein Portal erst zu
     zweit etwas ist; die auf dem Podest ist der kürzeste Weg, die Treppe zu
@@ -4704,6 +4710,90 @@ um sie hier zu nennen:
   bei y = 0 an. Das war kein Schönheitsfehler, sondern ein Loch, durch das man
   mitten hindurchlief.
 
+#### Vier Zahlen, die aus dem Katalog mehr machen als eine Liste
+
+Der Katalog nennt zu jedem Möbel Name, Beschriftung, Grundfläche und Höhe.
+Vier weitere Felder sind dazugekommen, und jedes hat einen Fehler abgeräumt,
+den man im Bild sah:
+
+- **`align`** — wie weit ein Möbel aus der Mitte seiner Kachel rückt. Der
+  Ursprung liegt in der Mitte der **ganzen** Hülle (`tools/kitchen-model.mjs`),
+  und beim _Herd mit Pfanne_ gehört der Pfannenstiel dazu: Er ragt 16 cm nach
+  Süden heraus, also wanderte der Korpus beim Zentrieren 7,8 cm nach Norden und
+  stand als einziger Herd aus der Reihe. Die Zahl ist gemessen und nicht
+  geschätzt — der Korpus (Material `Kitchen_Cabins`) reicht in der Datei von
+  z = −0,610 bis z = +0,453.
+- **`deck`** — wo die Arbeitsfläche liegt. Beim _Herd mit Topf_ ist `height`
+  die Oberkante des **Topfes** (0,87 m) und nicht die der Platte (0,55 m); ein
+  Brötchen, das auf `height` abgelegt würde, schwebte eine Handbreit über dem
+  Deckel. Steht nur dort, wo es von `height` abweicht.
+- **`worktop`** — ob man darauf etwas ablegen kann. Nicht jede waagerechte
+  Fläche ist eine: In den Mülleimer wird geworfen, auf einem Feuerlöscher steht
+  nichts.
+- **`holds`** — was sich herunternehmen lässt. Topf und Pfanne sind im Modell
+  **eigene Netze** (Material `Kitchen_Utensils`), also kommt ein Herd mit Topf
+  als Gruppe aus Korpus und Topf aus der Datei — und `kitchenModel.takeUtensil`
+  hängt den Topf aus, gibt ihm seinen Ursprung auf seinem eigenen Boden und
+  lässt einen leeren Herd stehen.
+
+#### Anfassen in der Küche
+
+Was `A` vor einem Möbel tut, steht in **einer** Funktion
+(`worlds/test/zones/kitchenCarry.ts`, `kitchenDeed`) und nicht in drei
+`if`-Ketten in der Zone daneben: Es sind neun Fälle — leere oder volle Hand vor
+Fläche, Kiste oder Mülleimer —, und neun Fälle prüft ein Test in Millisekunden
+nach, während dieselben neun im Headset eine Viertelstunde Hin- und Herlaufen
+sind.
+
+- **Töpfe und Pfannen** kommen vom Herd in die Hand und von dort auf jede
+  Ablage. Sie hängen beim Tragen am **Rig** und nicht an der Hand des Avatars:
+  Die Hand gibt es nur von oben und am Schreibtisch
+  (`worlds/portal/screenHand.ts`), das Rig gibt es immer. Wo genau am Rig, sagt
+  die Ansicht — an der Figur ihre Faust (`core/chefFit.CHEF_TOOL`), in der
+  Brille eine Handbreit vor der Brust.
+- **Brötchen** kommen aus der Brötchenkiste, so oft man will. Sie ist gebaut
+  und nicht geladen (`zones/kitchenProps.ts`): Der gekaufte Katalog hat
+  dreizehn Möbel und **keine Zutat**, und für zwei Kugeln eine zweite Quelle
+  mit Lizenz und Aufbereitung aufzunehmen wäre viel Aufwand.
+- **Eine Ablage meldet sich nur, wenn sie etwas zu sagen hat** — wenn etwas
+  darauf liegt oder etwas in der Hand. Das ist nicht Sparsamkeit: Der gelbe
+  Saum (`core/highlight.ts`) umfasst immer genau das, was `A` gerade meint,
+  also leuchtet beim Brötchen in der Hand jede Fläche auf, auf die es darf, und
+  sonst keine. Eine Küche, in der jeder Schrank immer leuchtet, sagt genauso
+  wenig wie eine, in der keiner leuchtet.
+- **Der Mülleimer nimmt nur Essen.** Einer, der alles schluckt, ist einer, in
+  dem nach zwei Minuten die einzige Pfanne der Küche liegt — und die kommt nur
+  mit `B` zurück, was niemand ahnt, der gerade den Deckel zugemacht hat.
+- **Nicht schießbar** (`addUsable`, `shot: 0`): Eine Kugel, die den Topf vom
+  Herd holt, ist ein Scherz und keine Regel.
+
+#### Der Körper unter dem Möbel
+
+Hier lag der Fehler, wegen dem man **durch** die Küche lief: `addSolid` misst
+die Hülle des Objekts, das es bekommt (`PhysicsWorld.halfExtentsOf`), und ein
+geladenes Möbel ist eine **Gruppe** ohne eigene Geometrie. Für die bleibt der
+Notnagel von 10 cm Halbmaß — ein Würfelchen von 20 cm mitten im Herd, im Boden
+zur Hälfte versenkt. Von einer Küche aus dreißig Möbeln war damit nichts fest
+außer dreißig Kieselsteinen.
+
+Jedes Stück bekommt deshalb einen eigenen, **unsichtbaren Kasten** in der Größe
+seiner Kachelfläche. Zwei Dinge daran sind es wert, aufgeschrieben zu werden:
+
+- **In der Küche ist er mindestens 1,40 m hoch**, auch wenn der Tresen nur
+  einen halben Meter misst. Der Spieler springt mit 4,4 m/s ab, das ist gut ein
+  Meter Scheitelhöhe (`PhysicsLocomotion.jumpSpeed`) — wer einmal oben stand,
+  lief die ganze Wand entlang, über Spüle und Herd hinweg. Bei _Overcooked_ ist
+  genau das der Witz an einer Küche: Man geht **herum**, nicht darüber. Im
+  Schauraum bleibt es bei der echten Höhe; dort gibt es kein „darüber hinweg",
+  nur ein Möbel zum Ansehen.
+- **Und es bleibt bei einem Kasten.** Der erste Versuch setzte die Sperre als
+  zweiten Körper auf den ersten, damit eine Kugel über den Tresen fliegen kann.
+  Zwei Körper übereinander an derselben Stelle sind für die Spielerkapsel aber
+  keine Wand, sondern eine **Falle**: Sie blieb beim Springen dagegen auf
+  halber Höhe davor hängen und fiel nicht mehr herunter — im Browser gemessen,
+  an derselben Stelle, an der eine gewöhnliche Wand einen sauber abprallen
+  lässt. Eine Wand ist ein Kasten, also ist auch das hier einer.
+
 ### Wie man aussieht
 
 _Menü → Aussehen_ und der **Kleiderschrank** — drei Zeilen, und dahinter die
@@ -4864,6 +4954,17 @@ Drei Zeilen richten das:
   weicht jedem Hut: Bei der gebauten Figur steckte es von selbst unter der
   Mütze, auf dem runderen Kopf des Modells ragte es als brauner Fladen über
   deren Rand.
+
+- **_Rund_ hat einen Schopf**, und der ist nachgereicht. Die Rückmeldung lautete
+  „Rund sieht aus wie nichts", und sie stimmte: Die anderen drei Köpfe
+  unterscheiden sich an Bart, Schnauzer und Zöpfen — _Rund_ hatte eine
+  Haarkappe und zwei blasse Wangen, und von **oben**, und von dort schaut man
+  in diesem Projekt auf die Figur, blieb davon der Unterschied zwischen braunem
+  und schwarzem Haar übrig: keiner. Ein Schopf über der Stirn löst genau das,
+  weil er die **Silhouette** ändert und nicht nur die Farbe; die Wangen sind
+  dazu größer und kräftiger geworden, denn ein Kopf, der _Runde Backen_ heißt,
+  muss welche haben, die man sieht. Der Schopf hängt im `crown` und geht damit
+  unter jeder Mütze mit — dieselbe Regel wie für das übrige Haar.
 
 Was eine **Anzugfarbe** trägt und keine eigene hat — Schürze, Halstuch —, trägt
 die des Trägers: Ein Spieler hat eine Farbe und nicht drei.

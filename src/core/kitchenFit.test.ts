@@ -1,4 +1,10 @@
-import { KITCHEN_NAMES, KITCHEN_PIECES, KITCHEN_SCALE, kitchenPiece } from './kitchenFit';
+import {
+  KITCHEN_NAMES,
+  KITCHEN_PIECES,
+  KITCHEN_SCALE,
+  kitchenDeck,
+  kitchenPiece,
+} from './kitchenFit';
 
 /**
  * **Die Maße der Quelldatei**, in Metern und ungeteilt — abgelesen aus
@@ -108,5 +114,60 @@ describe('der Möbelkatalog', () => {
    */
   it('lässt kein Möbel hängen, solange keines hängt', () => {
     expect(KITCHEN_PIECES.filter((piece) => piece.hanging)).toEqual([]);
+  });
+
+  /**
+   * **Die Arbeitsfläche liegt nie über dem Möbel.** `deck` steht nur dort, wo
+   * es von `height` abweicht — und es weicht immer nach **unten** ab: `height`
+   * ist beim Herd mit dem Topf die Oberkante des Topfes, `deck` die der
+   * Platte. Andersherum wäre ein Brötchen, das über dem Deckel schwebt.
+   */
+  it('legt jede Arbeitsfläche auf oder unter die Oberkante', () => {
+    for (const piece of KITCHEN_PIECES) {
+      const deck = kitchenDeck(piece);
+      expect({ name: piece.name, ok: deck > 0.1 && deck <= piece.height + 1e-9 }).toEqual({
+        name: piece.name,
+        ok: true,
+      });
+    }
+    // Ohne eigenen Eintrag ist die Oberkante die Arbeitsfläche.
+    expect(kitchenDeck(kitchenPiece('counter')!)).toBe(kitchenPiece('counter')!.height);
+    // Und mit: der Herd, nicht der Topfdeckel.
+    expect(kitchenDeck(kitchenPiece('stove-pot')!)).toBe(0.55);
+  });
+
+  /**
+   * **Was einen Topf trägt, ist eine Ablage und hat eine eigene Höhe.** Ohne
+   * beides läge der Topf nach dem ersten Abstellen in der Luft — oder gar
+   * nicht, weil das Möbel keine Fläche hat, auf die er darf.
+   */
+  it('gibt jedem Möbel mit losem Gerät eine Fläche darunter', () => {
+    const holding = KITCHEN_PIECES.filter((piece) => piece.holds);
+    expect(holding.map((piece) => piece.name)).toEqual(['stove-pot', 'stove-pan']);
+    for (const piece of holding) {
+      expect({ name: piece.name, worktop: piece.worktop === true }).toEqual({
+        name: piece.name,
+        worktop: true,
+      });
+      expect(kitchenDeck(piece)).toBeLessThan(piece.height);
+    }
+  });
+
+  /**
+   * **Der Versatz bleibt in der Kachel.** Er gleicht einen überstehenden Griff
+   * aus (`KitchenPiece.align`, der Pfannenstiel) und ist damit ein paar
+   * Zentimeter — wer hier einen halben Meter einträgt, stellt ein Möbel auf
+   * die Nachbarkachel, ohne dass der Grundriss davon wüsste.
+   */
+  it('rückt kein Möbel weiter als eine halbe Kachel aus der Mitte', () => {
+    const shifted = KITCHEN_PIECES.filter((piece) => piece.align);
+    expect(shifted.map((piece) => piece.name)).toEqual(['stove-pan']);
+    for (const piece of KITCHEN_PIECES) {
+      const [x, z] = piece.align ?? [0, 0];
+      expect(Math.max(Math.abs(x), Math.abs(z))).toBeLessThan(0.5);
+    }
+    // Gemessen an der Datei: Der Korpus reicht von z = −0,610 bis z = +0,453,
+    // seine Mitte liegt also bei −0,078 — genau so weit rückt er zurück.
+    expect(kitchenPiece('stove-pan')!.align).toEqual([0, 0.078]);
   });
 });

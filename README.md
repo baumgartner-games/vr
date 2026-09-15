@@ -56,10 +56,15 @@ Halt wird gerechnet, aus Material, Form, Körperhaltung und dem Verspreizen,
 schlechte Griffe kosten Ausdauer, und hinunter geht es in **Sprungkissen**, die
 den Fall abfedern statt ihn anzuhalten. Ganz im Norden, hinter dem Podest,
 steht eine **Küche** aus den Fan-Art-Möbeln: Zeile, zwei Herde und Spüle an der
-Wand, eine Insel aus Arbeitstisch, Schneidebrett und Mülleimer, vorn die
-Ausgabe mit dem Regal darüber — und daneben der Beweis, dass die Kochfigur zu
-diesen Tresen passt. Dazu drei **Portaltafeln**, eine davon
-oben auf dem Podest.
+Wand, eine Insel aus Schneidebrett, Mülleimer und Brötchenkiste, vorn die
+Ausgabe mit den Wärmeschirmen darüber. **Angefasst wird mit `A`**: Topf und
+Pfanne kommen vom Herd in die Hand, Brötchen aus der Kiste, und was in der Hand
+liegt, lässt jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer
+nimmt das Brötchen, den Topf nicht. Über die Möbel **springt** man dabei nicht:
+Sie sind für die Füße so hoch wie eine Wand, auch wenn der Tresen nur einen
+halben Meter misst. Östlich daneben liegt der **Schauraum**, in dem jedes der
+dreizehn Möbel noch einmal einzeln und beschriftet steht. Dazu drei
+**Portaltafeln**, eine davon oben auf dem Podest.
 
 Dazu kommt
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
