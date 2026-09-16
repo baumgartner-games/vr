@@ -789,9 +789,23 @@ const MOUTH_LONG = 0.07;
  *
  * 64 Pixel je Sparren reichen: Die Textur wird nie größer als eine Kachel im
  * Bild, und ein weicher Rand am Pfeil ist hier eher hilfreich als störend.
+ *
+ * „Sparren" heißt seit dem Umbau der Leinwand das **Paar** aus Querleiste und
+ * Pfeil (`arrowTexture`) und nicht mehr der gewinkelte Haken, der dort einmal
+ * stand — warum, steht dort.
  */
-const CHEVRONS = 2;
-const CHEVRON_PIXELS = 64;
+const ARROWS = 2;
+const ARROW_PIXELS = 64;
+
+/**
+ * **Wie deckend die Querleiste ist**, im Verhältnis zur Pfeilspitze.
+ *
+ * Die Leiste ist die Maschine, der Pfeil die Auskunft: Beide in derselben
+ * Farbe und derselben Deckkraft ergäben ein Leitermuster, in dem die Spitze
+ * untergeht. Bei 45 % liest man aus 16 m Höhe zuerst die Richtung und erst
+ * beim Hinsehen die Leisten.
+ */
+const SLAT_ALPHA = 0.45;
 
 /**
  * **Der Bausatz für die Bänder einer Küche** — geteilte Formen, geteilte
@@ -922,7 +936,7 @@ export class BeltKit {
   private texture(kind: BeltKind): THREE.CanvasTexture | null {
     let arrows = this.arrows.get(kind);
     if (arrows === undefined) {
-      arrows = chevronTexture(BELT_COLORS[kind]);
+      arrows = arrowTexture(BELT_COLORS[kind]);
       this.arrows.set(kind, arrows);
     }
     return arrows;
@@ -945,10 +959,10 @@ export class BeltKit {
   update(dt: number): void {
     const step = Number.isFinite(dt) ? Math.max(0, dt) : 0;
     if (step === 0) return;
-    // Eine Kachel je `BELT_SECONDS`, und eine Kachel sind `CHEVRONS`
+    // Eine Kachel je `BELT_SECONDS`, und eine Kachel sind `ARROWS`
     // Wiederholungen der Textur — die Sparren laufen also genau so schnell wie
     // das, was auf dem Band liegt.
-    this.run = (this.run + (step / BELT_SECONDS) * CHEVRONS) % 1;
+    this.run = (this.run + (step / BELT_SECONDS) * ARROWS) % 1;
     // Beide Sorten laufen mit **einer** Zahl: Ein Zugband, dessen Sparren
     // anders liefen als die des Bandes daneben, sähe aus wie ein Gerät mit
     // einem anderen Motor — und es ist keines, es greift nur zusätzlich nach
@@ -1013,14 +1027,32 @@ export class BeltKit {
  * liegt nach dem Flachlegen der Ebene bei −z. So zeigt der Pfeil im eigenen
  * Raum des Möbels nach Norden, genau wie `beltStep(0)`.
  *
+ * **Volles Dreieck und Querleiste statt zweier Winkelhaken**, und das ist
+ * keine Geschmacksfrage, sondern ein Fehler, den man erst sieht, wenn die
+ * Küche steht. Hier stand ein gewinkelter Sparren: zwei gleich lange Schenkel
+ * mit einem Knick in der Mitte. Ein Knick für sich ist ein Pfeil — vier davon
+ * über Kreuz sind ein **Hakenkreuz**. Genau das entsteht, sobald jemand vier
+ * Bänder in einem Quadrat von zwei mal zwei Kacheln in alle vier Richtungen
+ * legt, und seit der Umbau jede Drehung erlaubt, legt das früher oder später
+ * jemand. Ein Spiel, in dem man dieses Zeichen bauen kann, ohne es zu wollen,
+ * hat ein Problem, und es ist keins, das man wegerklärt.
+ *
+ * Also weg mit dem Knick: Ein **ausgefülltes Dreieck** hat keine Schenkel, die
+ * sich um eine Mitte legen könnten — vier davon über Kreuz sind ein Windrad
+ * und nichts weiter. Die **Querleiste** dahinter ist der Sparren, den ein
+ * Förderband wirklich hat; sie liegt quer zur Laufrichtung, ist gerade und
+ * kann sich deshalb ebenfalls nicht verhaken. Beides zusammen liest sich aus
+ * 16 m Höhe besser als vorher: Die Leisten sagen „Maschine", das Dreieck sagt
+ * „dorthin".
+ *
  * `color` sagt, welche Sorte Band das wird (`BELT_COLORS`) — es ist der einzige
  * Unterschied zwischen den beiden Leinwänden, und deshalb ist es ein Argument
  * und keine zweite Funktion daneben.
  */
-function chevronTexture(color: string): THREE.CanvasTexture | null {
+function arrowTexture(color: string): THREE.CanvasTexture | null {
   if (!canLoadModels()) return null;
 
-  const size = CHEVRON_PIXELS;
+  const size = ARROW_PIXELS;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -1032,25 +1064,29 @@ function chevronTexture(color: string): THREE.CanvasTexture | null {
   ctx.fillStyle = `#${BAND_COLOR.toString(16).padStart(6, '0')}`;
   ctx.fillRect(0, 0, size, size);
 
-  ctx.strokeStyle = color;
-  // Ein Achtel der Kachel dick, mit runden Enden: Aus 16 m Höhe ist ein dünner
-  // Strich ein Flimmern, ein dicker ein Pfeil.
-  ctx.lineWidth = size / 8;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  ctx.fillStyle = color;
+  // **Die Querleiste** am hinteren Rand der Wiederholung — quer über das Band,
+  // von Rand zu Rand, aber nicht ganz bis an die Kante: Zwei Leisten, die sich
+  // über die Kachelgrenze hinweg berühren, wären eine durchgehende Linie und
+  // damit kein Sparren mehr.
+  ctx.globalAlpha = SLAT_ALPHA;
+  ctx.fillRect(size * 0.06, size * 0.8, size * 0.88, size * 0.09);
+  ctx.globalAlpha = 1;
+
+  // **Das Dreieck** darüber, mit der Spitze in Laufrichtung. Es bleibt mit
+  // Abstand innerhalb der Wiederholung (0,16 bis 0,62), damit zwischen zwei
+  // Pfeilen Luft steht und die Reihe sich als Folge von Pfeilen liest.
   ctx.beginPath();
-  // Die Spitze sitzt auf einem Drittel der Höhe und nicht in der Mitte: So
-  // bleibt zwischen zwei Sparren sichtbar Luft, und die Reihe liest sich als
-  // Folge von Pfeilen statt als Zickzack.
-  ctx.moveTo(size * 0.12, size * 0.68);
-  ctx.lineTo(size * 0.5, size * 0.3);
-  ctx.lineTo(size * 0.88, size * 0.68);
-  ctx.stroke();
+  ctx.moveTo(size * 0.5, size * 0.16);
+  ctx.lineTo(size * 0.82, size * 0.62);
+  ctx.lineTo(size * 0.18, size * 0.62);
+  ctx.closePath();
+  ctx.fill();
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(1, CHEVRONS);
+  texture.repeat.set(1, ARROWS);
   return texture;
 }

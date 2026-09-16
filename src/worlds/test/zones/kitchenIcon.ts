@@ -482,8 +482,15 @@ export class IconOven {
    * an das er gehängt wird (`model.add(sign)`).
    *
    * Der Ursprung eines Möbels liegt auf dem Boden in seiner Mitte
-   * (`worlds/test/zones/kitchen.ts`, `place`). Wer das Möbel dreht, dreht das
-   * Bild mit — es hängt ja daran.
+   * (`worlds/test/zones/kitchen.ts`, `place`).
+   *
+   * **Die Drehung des Möbels macht es nicht mit**, und das ist die eine
+   * Ausnahme an diesem Möbel: Das Schild hängt zwar daran, wird aber von oben
+   * **gelesen**, und dort liegt Norden oben. Die Zone dreht es deshalb
+   * zurück (`kitchen.aimIcon`) — sonst lägen die vier Ausgaben an der
+   * Westwand, die gedreht stehen, mit Brötchen und Patty auf der Seite, und
+   * seit im Umbau jedes Möbel frei gedreht werden kann, wäre das kein
+   * Einzelfall mehr.
    *
    * **Zwei Flächen und nicht eine**, und deshalb gibt das hier eine Gruppe
    * zurück und kein `Mesh`: unten der weiße Kreis (`blankDiameter`), darauf

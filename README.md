@@ -60,9 +60,9 @@ Tellerausgabe an der Wand, vier Zutatenausgaben an der Westwand, eine Insel aus
 Schneidebrett und Mülleimer, **zwei Bandbahnen** quer durch den Raum (was
 daraufliegt, gleitet weich weiter und fährt nur los, wenn vorn Platz wird —
 oder frei wird, während es fährt; die orangen **Zugbänder** holen sich
-obendrein von selbst, was auf der Kachel dahinter liegt; im Baumodus zeigt ein
-getragenes Band dorthin, wohin die Figur zeigt, und der Auslöser dreht jedes
-andere Möbel eine Vierteldrehung weiter), vorn die
+obendrein von selbst, was auf der Kachel dahinter liegt; im Baumodus zeigt
+jedes getragene Möbel dorthin, wohin die Figur zeigt, und der Auslöser dreht
+es in den Händen eine Vierteldrehung weiter), vorn die
 Ausgabetheke mit den Wärmeschirmen als Durchreiche darüber und davor der
 Gastraum mit drei Tischen und der Geschirrrückgabe. **Angefasst wird mit `A`**,
 und daraus wird ein **Burger**: Patty in die Pfanne (es brät, es verbrennt, und
