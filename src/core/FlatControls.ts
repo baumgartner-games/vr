@@ -2,10 +2,36 @@ import * as THREE from 'three';
 import type { PlayerRig } from './PlayerRig';
 import type { TopDownCamera } from './TopDownCamera';
 import { ButtonState } from './XRInput';
-import { firstGamepad, readGamepad, type GamepadFrame } from './gamepad';
+import {
+  firstGamepad,
+  readGamepad,
+  type ButtonPlan,
+  type GamepadFrame,
+  type GamepadLike,
+} from './gamepad';
 import { isTyping } from './textEntry';
+import type { PadSlot } from './gamepadReport';
+import {
+  deviceKey,
+  keysFor,
+  layoutSize,
+  padPlan,
+  slotOf,
+  type InputConfig,
+  type KeyAction,
+} from './inputMap';
+import { inputConfig, onInputConfigChange } from './inputStore';
 import { pinchFactor, yawFromDirection, type Vec2 } from './topDownPose';
 import { smoothAngle } from '../net/PoseSmoothing';
+
+/**
+ * **Ein abgefangener Druck** — was das Menü beim Einstellen bekommt. Am Pad
+ * die Nummer _und_ die Stelle, an der sie laut Gerätekarte sitzt: Die Belegung
+ * hängt an Stellen, das Panel auf der Eingabeseite zeigt Nummern, und beide
+ * sollen dasselbe meinen.
+ */
+export type InputPress =
+  { kind: 'pad'; index: number; slot: PadSlot | null } | { kind: 'key'; code: string };
 
 const _forward = new THREE.Vector3();
 const _strafe = new THREE.Vector3();
@@ -81,6 +107,28 @@ export class FlatControls {
   lookSpeed = 0.0024;
 
   private readonly keys = new Set<string>();
+  /**
+   * **Die geltende Belegung** (`core/inputMap.ts`) — hier gehalten und nicht je
+   * Bild geholt, denn gelesen wird sie sechzigmal je Sekunde. Wer sie im Menü
+   * verstellt, sagt es (`onInputConfigChange`), und dann gilt sie sofort: Wer
+   * einen Knopf neu legt, will ihn danach drücken und nicht neu laden.
+   */
+  private config: InputConfig = inputConfig();
+  /**
+   * Und daraus die Nummern, die dieses Pad wirklich hat — neu gerechnet, wenn
+   * die Belegung wechselt **oder ein anderes Pad angesteckt wird**. Die
+   * Gerätekarte gehört dem Gerät, und das zweite Pad im Haus ist ein anderes.
+   */
+  private plan: ButtonPlan | null = null;
+  private planFor = '';
+  /**
+   * **Der nächste Druck gehört nicht dem Spiel, sondern dem Menü.** Solange
+   * hier jemand wartet, läuft die Figur nicht los und die Werkzeugliste klappt
+   * nicht auf — sonst spränge man beim Einstellen des Sprungknopfes.
+   */
+  private capture: ((press: InputPress) => void) | null = null;
+  /** Welche Pad-Nummern im letzten Bild lagen — für die Flanke beim Abfangen. */
+  private padDown = new Set<number>();
   private jumpQueued = false;
   /** `E` oder Enter — die Tastatur benutzt und springt nie damit. */
   private useQueued = false;
@@ -146,6 +194,37 @@ export class FlatControls {
         ? pads
         : { stick: pads, aim: null, use: null, fire: null, right: null, tool: null, menu: null };
     this.bind();
+    // Eine verstellte Belegung gilt sofort — der Plan wird beim nächsten Bild
+    // neu gerechnet, nicht hier: Welches Pad dann steckt, weiß erst `readPad`.
+    this.disposers.push(
+      onInputConfigChange(() => {
+        this.config = inputConfig();
+        this.plan = null;
+      }),
+    );
+  }
+
+  /**
+   * **Den nächsten Druck abfangen, statt ihn zu spielen.**
+   *
+   * So stellt das Menü eine Belegung ein: „Drück jetzt den Knopf, der das tun
+   * soll." Abgehört wird dabei nichts Neues — dieselben Tasten und dasselbe
+   * Pad wie sonst, nur geht der Druck einmal woanders hin. Eine zweite Stelle,
+   * die Tasten abhört, wäre genau die Doppelung, die dieses Modul vermeidet.
+   *
+   * Der Rückgabewert bricht das Warten wieder ab (der Knopf _Abbrechen_ im
+   * Menü, oder ein Menü, das zugeht).
+   */
+  captureNext(listener: (press: InputPress) => void): () => void {
+    this.capture = listener;
+    return () => {
+      if (this.capture === listener) this.capture = null;
+    };
+  }
+
+  /** Ob gerade auf einen Druck gewartet wird (für die Zeile im Menü). */
+  get capturing(): boolean {
+    return this.capture !== null;
   }
 
   /**
@@ -203,10 +282,10 @@ export class FlatControls {
 
     let x = this.stick.x + pad.move.x;
     let z = this.stick.y + pad.move.y;
-    if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) z -= 1;
-    if (this.keys.has('KeyS') || this.keys.has('ArrowDown')) z += 1;
-    if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) x -= 1;
-    if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) x += 1;
+    if (this.held('forward')) z -= 1;
+    if (this.held('back')) z += 1;
+    if (this.held('left')) x -= 1;
+    if (this.held('right')) x += 1;
 
     // **Benutzen und Springen liegen auf `A`**, und zwar in jeder
     // Bildschirmansicht (Plan, _Interaktion und Steuerung_): Steht etwas in
@@ -214,7 +293,7 @@ export class FlatControls {
     // springt daneben immer.
     const jump = this.applyUse(pad) || this.jumpQueued;
     this.jumpQueued = false;
-    const sprint = this.keys.has('ShiftLeft') || pad.sprint;
+    const sprint = this.held('sprint') || pad.sprint;
 
     if (this.topDownOn) {
       this.walkNorthUp(dt, x, z, jump, sprint, pad);
@@ -329,12 +408,7 @@ export class FlatControls {
     // ist für Knöpfe; was ein Halten verlangt — der Ausstieg aus dem Kart —,
     // fragte bisher nur den Controller und war damit ohne Brille gar nicht zu
     // bedienen. Alle vier Geber zusammen, weil alle vier dasselbe meinen.
-    this.rig.useHeld =
-      this.usePointer !== null ||
-      pad.use ||
-      this.keys.has('KeyE') ||
-      this.keys.has('Enter') ||
-      this.keys.has('NumpadEnter');
+    this.rig.useHeld = this.usePointer !== null || pad.use || this.held('use');
 
     let use = this.useQueued;
     this.useQueued = false;
@@ -406,13 +480,63 @@ export class FlatControls {
     return yawFromDirection(dir.x, dir.z);
   }
 
-  /** Das Pad dieses Bildes, samt Flanken für seine Knöpfe. */
+  /** Ob eine der Tasten dieser Absicht gerade liegt (`core/inputMap.ts`). */
+  private held(action: KeyAction): boolean {
+    for (const code of keysFor(this.config, action)) {
+      if (this.keys.has(code)) return true;
+    }
+    return false;
+  }
+
+  /** Ob genau diese Taste auf dieser Absicht liegt. */
+  private bound(code: string, action: KeyAction): boolean {
+    return keysFor(this.config, action).includes(code);
+  }
+
+  /**
+   * Das Pad dieses Bildes, samt Flanken für seine Knöpfe — gelesen durch die
+   * Belegung und die Karte **dieses** Geräts (`core/inputMap.padPlan`).
+   */
   private readPad(): GamepadFrame {
     const pads =
       typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function'
         ? navigator.getGamepads()
         : null;
-    const frame = readGamepad(firstGamepad(pads));
+    const device = firstGamepad(pads) as (GamepadLike & { id?: string }) | null;
+    const count = device?.buttons.length ?? 0;
+    const layout = this.config.layouts[deviceKey(device?.id)] ?? {};
+
+    // Neu gerechnet wird nur, wenn sich wirklich etwas ändert: ein anderes
+    // Pad, eine andere Knopfzahl, oder eine verstellte Belegung (die setzt
+    // `plan` auf null). Je Bild eine Karte aufzulösen wäre Arbeit für nichts.
+    const key = device ? `${deviceKey(device.id)}:${count}` : '';
+    if (!this.plan || this.planFor !== key) {
+      this.planFor = key;
+      this.plan = padPlan(this.config, layout, count);
+    }
+
+    // Welche Nummern **neu** heruntergegangen sind. Der Zustand allein reichte
+    // nicht: Wer die Zeile im Menü mit `A` angetippt hat, hält `A` in diesem
+    // Moment noch gedrückt, und der Druck, den er meint, kommt erst danach.
+    const before = this.padDown;
+    const down = new Set<number>();
+    for (let index = 0; index < count; index++) {
+      if (device?.buttons[index]?.pressed) down.add(index);
+    }
+    this.padDown = down;
+
+    if (this.capture) {
+      for (const index of down) {
+        if (before.has(index)) continue;
+        const take = this.capture;
+        this.capture = null;
+        take({ kind: 'pad', index, slot: slotOf(layout, index, layoutSize(count)) });
+        // Dieses Bild spielt niemand: Der Knopf war für das Menü.
+        return readGamepad(null);
+      }
+    }
+
+    const frame = readGamepad(device, this.plan);
     edge(this.padUse, frame.use);
     edge(this.padZoomIn, frame.zoomIn);
     edge(this.padZoomOut, frame.zoomOut);
@@ -455,21 +579,35 @@ export class FlatControls {
 
   private bind(): void {
     this.on(window, 'keydown', (e: KeyboardEvent) => {
-      if (!this.enabled || isTyping()) return;
-      if (e.code === 'Space') {
+      if (isTyping()) return;
+      // **Wartet das Menü auf eine Taste, spielt sie dieses Mal nicht.** Auch
+      // dann nicht, wenn die Steuerung sonst gar nicht läuft (`enabled`): Im
+      // Menü steht man still, und eingestellt wird trotzdem.
+      if (this.capture && !e.repeat) {
+        e.preventDefault();
+        const take = this.capture;
+        this.capture = null;
+        take({ kind: 'key', code: e.code });
+        return;
+      }
+      if (!this.enabled) return;
+      if (this.bound(e.code, 'jump')) {
         e.preventDefault();
         this.jumpQueued = true;
       }
-      // `E` und Enter benutzen — einmal je Druck. Eine gehaltene Taste
-      // wiederholt sich im Browser, und ein Knopf, der dreißigmal je Sekunde
-      // gedrückt wird, ist ein flackernder Knopf.
-      if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat && !this.keys.has(e.code)) {
+      // Benutzen — einmal je Druck. Eine gehaltene Taste wiederholt sich im
+      // Browser, und ein Knopf, der dreißigmal je Sekunde gedrückt wird, ist
+      // ein flackernder Knopf. **Alle** Tasten der Absicht lösen aus;
+      // `NumpadEnter` hielt hier bis zur Belegung nur, ohne dass das je
+      // jemand entschieden hätte — und eine Taste, die man selbst auf
+      // _Benutzen_ legt und die dann nicht benutzt, wäre eine kaputte Zeile.
+      if (this.bound(e.code, 'use') && !e.repeat && !this.keys.has(e.code)) {
         this.useQueued = true;
       }
-      // `Tab` klappt die Werkzeugliste auf. Der Browser schöbe damit sonst den
-      // Fokus durch die Kopfzeile, und wer danach `WASD` drückt, tippt in einen
-      // Knopf statt zu laufen.
-      if (e.code === 'Tab' && !e.repeat) {
+      // Die Werkzeugliste. Auf `Tab` schöbe der Browser sonst den Fokus durch
+      // die Kopfzeile, und wer danach `WASD` drückt, tippt in einen Knopf
+      // statt zu laufen.
+      if (this.bound(e.code, 'tools') && !e.repeat) {
         e.preventDefault();
         this.toolsQueued = true;
       }

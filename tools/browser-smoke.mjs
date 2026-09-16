@@ -600,6 +600,55 @@ for (const name of browserNames) {
         assert.equal(result.inputsPage.axes, 4);
         // Der Stickknopf wandert mit der Achse: +x nach rechts, −y nach oben.
         assert.equal(result.inputsPage.stick, 'translate(3.50 -7.00)');
+        // **Der Fall, für den es die Gerätekarte gibt**, von Anfang bis Ende.
+        //
+        // Ein Backbone am iPhone meldet den unteren Gesichtsknopf als
+        // `buttons[1]`; wer dort unten drückt, benutzt nichts. Hier drückt das
+        // erfundene Pad dauerhaft `buttons[1]` — also wird die Karte so
+        // gestellt, dass diese Nummer unten sitzt, und danach muss **alles**
+        // umschwenken: die Aufschrift der Zeile, die leuchtende Stelle im Bild
+        // und die Zeile _Benutzen_ darunter, die zeigt, was das Spiel daraus
+        // macht. Diese Kette lässt sich nur im Browser prüfen; die Rechnung
+        // darunter prüft `core/inputMap.test.ts`.
+        await inputs.locator('#map-edit').click();
+        await inputs.locator('.key__slot').nth(1).selectOption('face-down');
+        // Gewartet wird auf genau das, was gleich behauptet wird: dass unten
+        // leuchtet. Ein Wait auf eine Zeile mit „Unten" ginge sofort durch —
+        // „Steuerkreuz unten" steht ohnehin in der Liste.
+        await inputs.locator('.pad__key[data-slot="face-down"].is-down').waitFor();
+        result.inputsPage.remapped = {
+          code: await inputs.locator('#code-api').innerText(),
+          label: await inputs.locator('#code-label').innerText(),
+          lit: await inputs
+            .locator('.pad__key.is-down')
+            .evaluateAll((keys) => keys.map((key) => key.dataset.slot).sort()),
+          use: await inputs.locator('[data-game="use"]').innerText(),
+          stored: await inputs.evaluate(() => localStorage.getItem('bgvr.inputs')),
+        };
+        assert.equal(result.inputsPage.remapped.code, 'gamepad.buttons[10]');
+        // Gedrückt sind 1, 7 und 10. Vorher leuchtete für die 1 *rechts*, jetzt
+        // *unten* — und sonst ändert sich nichts: Die 0 ist nicht gedrückt,
+        // also leuchtet ihre neue Stelle auch nicht.
+        assert.deepEqual(
+          result.inputsPage.remapped.lit,
+          ['face-down', 'stick-left', 'trigger-right'],
+          'Nach dem Tausch leuchtet unten, was vorher rechts leuchtete',
+        );
+        assert.equal(
+          result.inputsPage.remapped.use,
+          'ja',
+          'Und das Spiel benutzt mit dem Knopf, der wirklich unten sitzt',
+        );
+        assert.match(result.inputsPage.remapped.stored, /"1":"face-down"/);
+
+        // Und der Rückweg — eine Einstellung ohne ihn ist eine Falle.
+        await inputs.locator('#all-reset').click();
+        await inputs.locator('[data-game="use"]').filter({ hasText: '—' }).waitFor();
+        result.inputsPage.reset = await inputs.evaluate(() =>
+          localStorage.getItem('bgvr.inputs'),
+        );
+        assert.equal(result.inputsPage.reset, null, 'Alles auf Standard räumt wirklich auf');
+
         // **Und der Vollbildknopf — geprüft an seiner Zusage und nicht an
         // diesem Browser.** Die Zusage ist: Er steht genau dort, wo der Browser
         // Vollbild wirklich erlaubt, und nirgends sonst

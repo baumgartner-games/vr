@@ -181,7 +181,11 @@ export const PAD_KIND_LABELS: Record<PadKind, string> = {
   playstation: 'PlayStation',
   xbox: 'Xbox',
   nintendo: 'Nintendo',
-  generic: 'Standard-Layout',
+  // Nicht „Standard-Layout": Das Layout ist bei allen vieren dasselbe, was
+  // fehlt, ist die **Marke** — und damit die Aufschrift. Ein Backbone am
+  // iPhone ist genau so ein Fall (Hersteller 358a), und es gibt ihn mit
+  // Xbox- und mit PlayStation-Tasten: Geraten wird da nichts.
+  generic: 'Marke unbekannt',
 };
 
 /** Wo Knopf `index` sitzt — oder `null`, wenn ihn keine Tabelle kennt. */
@@ -201,6 +205,23 @@ export function padButtonLabel(index: number, kind: PadKind): string {
 /** Dasselbe als Zeichen für das Abzeichen. */
 export function padButtonIcon(index: number, kind: PadKind): string {
   return PAD_BUTTONS[index]?.icons[kind] ?? String(index);
+}
+
+/**
+ * **Die Aufschrift einer Stelle** — nicht einer Nummer.
+ *
+ * Den Unterschied gibt es, seit eine Gerätekarte die beiden auseinanderziehen
+ * darf (`core/inputMap.ts`): Sitzt an einem Backbone `buttons[1]` unten, dann
+ * heißt _diese Nummer_ `✕`, und die Tabelle nach Nummern gefragt sagte `○`.
+ * Wer eine Stelle beschriftet, fragt deshalb hier.
+ */
+export function padSlotLabel(slot: PadSlot, kind: PadKind): string {
+  return PAD_BUTTONS.find((spec) => spec.slot === slot)?.labels[kind] ?? slot;
+}
+
+/** Und ihr Zeichen. */
+export function padSlotIcon(slot: PadSlot, kind: PadKind): string {
+  return PAD_BUTTONS.find((spec) => spec.slot === slot)?.icons[kind] ?? '?';
 }
 
 /** Wie die Achse `index` heißt. */

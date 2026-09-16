@@ -1,18 +1,43 @@
 import './inputs.css';
 import { padDiagram, showPressedSlots, showSticks } from './padDiagram';
 import {
+  PAD_BUTTONS,
   PAD_KIND_LABELS,
   connectedPads,
   describePad,
   padEdges,
   padKind,
+  padSlotIcon,
+  padSlotLabel,
   padSnapshot,
   pressedMask,
   type PadEdge,
   type PadLike,
+  type PadSlot,
   type PadSnapshot,
 } from '../core/gamepadReport';
 import { readGamepad } from '../core/gamepad';
+import {
+  ACTION_LABELS,
+  KEY_ACTIONS,
+  PAD_ACTIONS,
+  assignSlot,
+  bindKey,
+  bindPad,
+  deviceKey,
+  indexOf,
+  isDefaultConfig,
+  keysFor,
+  layoutSize,
+  layoutSlots,
+  padPlan,
+  padSlotsFor,
+  resetBindings,
+  resetDevice,
+  type KeyAction,
+  type PadAction,
+} from '../core/inputMap';
+import { clearInputConfig, inputConfig, saveInputConfig } from '../core/inputStore';
 import {
   fullscreenActive,
   fullscreenSupported,
@@ -49,6 +74,15 @@ import {
 
 const statusLine = el<HTMLElement>('#pad-status');
 const padHint = el<HTMLElement>('#pad-hint');
+const padNone = el<HTMLElement>('#pad-none');
+const mapEdit = el<HTMLButtonElement>('#map-edit');
+const mapReset = el<HTMLButtonElement>('#map-reset');
+const mapHint = el<HTMLElement>('#map-hint');
+const bindPadList = el<HTMLUListElement>('#bind-pad');
+const bindKeyList = el<HTMLUListElement>('#bind-keys');
+const bindNote = el<HTMLElement>('#bind-note');
+const bindReset = el<HTMLButtonElement>('#bind-reset');
+const allReset = el<HTMLButtonElement>('#all-reset');
 const padSeg = el<HTMLElement>('#pads');
 const diagramHost = el<HTMLElement>('#diagram');
 const diagramNote = el<HTMLElement>('#diagram-note');
@@ -136,6 +170,20 @@ padSeg.addEventListener('click', (event) => {
   watched = slot;
 });
 
+/**
+ * **Ob dieser Browser die Gamepad-API überhaupt hat.**
+ *
+ * Der Browser der PlayStation 5 hat sie nicht: Der DualSense steuert dort
+ * einen Mauszeiger, und mehr kommt auf einer Webseite nicht an (nachgesehen am
+ * 16.09.2026 auf einer PS5). Das ist keine Einstellung, sondern eine Grenze
+ * des Geräts — und der Unterschied zu „noch keinen Knopf gedrückt" ist der
+ * Unterschied zwischen einer Minute und einer Stunde Suche.
+ */
+const hasPadApi =
+  typeof navigator.getGamepads === 'function' ||
+  typeof (navigator as Navigator & { webkitGetGamepads?: unknown }).webkitGetGamepads ===
+    'function';
+
 /** Alle Pads, die der Browser gerade meldet. */
 function pads(): { slot: number; pad: PadLike }[] {
   // `navigator.getGamepads` gibt es in alten WebKit-Fassungen nur mit Präfix.
@@ -162,20 +210,57 @@ function frame(): void {
   const pad = watchedPad(found);
   showPadChoice(found);
 
-  const snapshot = padSnapshot(pad);
+  // **Die Karte dieses Geräts liegt über allem, was danach kommt.** Sie sagt,
+  // wo eine Nummer wirklich sitzt (`core/inputMap.ts`) — und damit, wie das
+  // Bild leuchtet, wie die Liste beschriftet ist und was das Spiel hört. Ohne
+  // diesen Schritt zeigte die Seite eine Wahrheit und das Spiel eine andere.
+  const snapshot = mapped(padSnapshot(pad), pad);
   showStatus(pad, found.length);
   showDiagram(snapshot, pad);
-  showButtons(snapshot);
+  showButtons(snapshot, pad);
   showAxes(snapshot);
   showCode(snapshot);
   showGameReading(pad);
   showRumble(pad);
 
   const edges = padEdges(before, snapshot);
-  if (edges.length) logEdges(edges);
+  // Ein frischer Druck gehört dem Einsteller, wenn einer wartet — und dann
+  // nicht dem Protokoll: Wer gerade _Schießen_ neu legt, hat nicht geschossen.
+  const fresh = edges.find((edge) => edge.down);
+  if (learning?.kind === 'pad' && fresh) {
+    const slot = snapshot.buttons[fresh.index]?.slot ?? null;
+    takeLearned((action) => {
+      if (!slot) {
+        say(`Knopf ${fresh.index} sitzt auf keiner Stelle — erst in der Karte zuordnen.`);
+        return null;
+      }
+      return bindPad(inputConfig(), action as PadAction, slot);
+    });
+  } else if (edges.length) logEdges(edges);
   before = pressedMask(snapshot);
 
   requestAnimationFrame(frame);
+}
+
+/**
+ * Den Stellen im Bild die Karte dieses Geräts überziehen: Aufschrift und
+ * Zeichen folgen der **Stelle**, nicht der Nummer — sitzt `buttons[1]` unten,
+ * heißt diese Nummer `✕`.
+ */
+function mapped(snapshot: PadSnapshot, pad: PadLike | null): PadSnapshot {
+  const layout = inputConfig().layouts[deviceKey(pad?.id)];
+  if (!layout || !snapshot.buttons.length) return snapshot;
+  const slots = layoutSlots(layout, layoutSize(snapshot.buttons.length));
+  const buttons = snapshot.buttons.map((button) => {
+    const slot = slots[button.index] ?? null;
+    return {
+      ...button,
+      slot,
+      label: slot ? padSlotLabel(slot, snapshot.kind) : `Knopf ${button.index}`,
+      icon: slot ? padSlotIcon(slot, snapshot.kind) : `${button.index}`,
+    };
+  });
+  return { ...snapshot, buttons, pressed: buttons.filter((button) => button.pressed) };
 }
 
 /**
@@ -190,10 +275,16 @@ function frame(): void {
 function showStatus(pad: PadLike | null, count: number): void {
   const text = pad
     ? `${describePad(pad)}${count > 1 ? ` · ${count} Pads angeschlossen` : ''}`
-    : 'Kein Pad gefunden.';
+    : hasPadApi
+      ? 'Kein Pad gefunden.'
+      : 'Dieser Browser hat keine Gamepad-API.';
   write(statusLine, text);
   statusLine.classList.toggle('is-online', Boolean(pad));
-  padHint.hidden = Boolean(pad);
+  // **Zwei verschiedene „nichts".** Ohne API hilft kein Knopfdruck, und der
+  // Hinweis „drück mal was" schickte jemanden auf eine Suche ohne Ende — genau
+  // das passiert im Browser der PS5. Also steht dort die andere Erklärung.
+  padHint.hidden = Boolean(pad) || !hasPadApi;
+  padNone.hidden = hasPadApi;
 }
 
 /** Die Wahl zwischen mehreren Pads — sie steht nur da, wenn es eine gibt. */
@@ -233,9 +324,14 @@ function showDiagram(snapshot: PadSnapshot, pad: PadLike | null): void {
     // Nichts von außen in der Vorlage: Jede eingesetzte Stelle kommt aus der
     // Tabelle in `core/gamepadReport.ts`, keine aus `pad.id` (siehe dort).
     diagramHost.innerHTML = padDiagram(snapshot.kind);
-    diagramNote.textContent = pad
-      ? `Standard-Layout mit der Aufschrift: ${PAD_KIND_LABELS[snapshot.kind]}.`
-      : 'Noch kein Pad — die Zeichnung zeigt das Standard-Layout.';
+    // Wo die Marke bekannt ist, steht ihre Aufschrift darauf; wo nicht, die
+    // **Lage** — und dann gehört dazugesagt, warum. „Aufschrift: Marke
+    // unbekannt" wäre ein Satz, der sich selbst im Weg steht.
+    diagramNote.textContent = !pad
+      ? 'Noch kein Pad — die Zeichnung zeigt das Standard-Layout.'
+      : snapshot.kind === 'generic'
+        ? 'Standard-Layout. Die Marke steht nicht in der Kennung des Geräts, deshalb tragen die Knöpfe hier ihre Lage (Unten, Rechts …) und keine Aufschrift.'
+        : `Standard-Layout mit der Aufschrift: ${PAD_KIND_LABELS[snapshot.kind]}.`;
   }
   const svg = diagramHost.firstElementChild;
   if (!svg) return;
@@ -250,6 +346,189 @@ function showDiagram(snapshot: PadSnapshot, pad: PadLike | null): void {
   );
 }
 
+// --- Einstellen: die Karte des Geräts und die Belegung ----------------------
+
+/**
+ * **Wer gerade auf einen Druck wartet.** Eingestellt wird überall gleich:
+ * Zeile antippen, dann drücken, was es tun soll. Es wartet immer höchstens
+ * eine Zeile — zwei, die beide den nächsten Knopf wollen, wären ein Knopf, der
+ * zwei Dinge tut.
+ */
+let learning: { kind: 'pad' | 'key'; row: HTMLElement } | null = null;
+let learningAction: PadAction | KeyAction | null = null;
+/** Ob die Karte gerade Felder zeigt statt nur dazustehen. */
+let editingMap = false;
+
+/** Eine Zeile sagt etwas — kurz, an der Stelle, an der man hinsieht. */
+function say(text: string): void {
+  bindNote.dataset['said'] = text;
+  bindNote.classList.add('is-said');
+  const said = document.createElement('strong');
+  said.textContent = text;
+  bindNote.replaceChildren(said);
+  window.setTimeout(() => {
+    if (bindNote.dataset['said'] !== text) return;
+    bindNote.classList.remove('is-said');
+    bindNote.replaceChildren(NOTE);
+  }, 4000);
+}
+
+/** Der Grundtext unter der Belegung — er kommt nach jeder Meldung zurück. */
+const NOTE = document.createTextNode(bindNote.textContent ?? '');
+
+/**
+ * Das Warten beenden und das Ergebnis speichern, wenn es eines gibt.
+ *
+ * Die Aktion wird dabei **weitergereicht** und nicht aus `learningAction`
+ * gelesen: `stopLearning` räumt die Variable ab, und ein Bauplan, der danach
+ * noch darin nachsieht, belegt eine Aktion namens `null` — also gar keine. Das
+ * sah man der Seite nicht an, sie sagte nur nichts mehr.
+ */
+function takeLearned(
+  make: (action: PadAction | KeyAction) => ReturnType<typeof inputConfig> | null,
+): void {
+  const action = learningAction;
+  stopLearning();
+  if (!action) return;
+  const next = make(action);
+  if (!next) return;
+  saveInputConfig(next);
+  buildBindings();
+  say(`${ACTION_LABELS[action].label} neu belegt.`);
+}
+
+function stopLearning(): void {
+  learning?.row.classList.remove('is-learning');
+  learning = null;
+  learningAction = null;
+}
+
+/** Eine Zeile der Belegung: was sie tut, worauf sie liegt, und der Rückweg. */
+function bindRow(kind: 'pad' | 'key', action: PadAction | KeyAction, text: string): HTMLElement {
+  const row = document.createElement('li');
+  row.className = 'bind';
+  const name = document.createElement('span');
+  name.className = 'bind__name';
+  name.textContent = ACTION_LABELS[action].label;
+  const on = document.createElement('span');
+  on.className = 'bind__on';
+  on.textContent = text;
+  const set = document.createElement('button');
+  set.type = 'button';
+  set.className = 'btn btn--small';
+  set.textContent = kind === 'pad' ? 'Knopf drücken' : 'Taste drücken';
+  set.addEventListener('click', () => {
+    const again = learning?.row === row;
+    stopLearning();
+    if (again) return;
+    learning = { kind, row };
+    learningAction = action;
+    row.classList.add('is-learning');
+  });
+  row.append(name, on, set);
+  return row;
+}
+
+/**
+ * **Die Belegung, wie sie gerade gilt** — neu gezeichnet nach jeder Änderung
+ * und nicht je Bild: Sie ändert sich, wenn jemand sie ändert, und sonst nie.
+ */
+function buildBindings(): void {
+  const config = inputConfig();
+  const pad = watchedPad(pads());
+  const key = deviceKey(pad?.id);
+  const layout = config.layouts[key] ?? {};
+  const count = pad?.buttons.length ?? 0;
+  const kind = padSnapshot(pad).kind;
+
+  bindPadList.replaceChildren(
+    ...PAD_ACTIONS.map((action) => {
+      const text =
+        padSlotsFor(config, action)
+          .map((slot) => {
+            const at = indexOf(layout, slot, layoutSize(count));
+            const label = padSlotLabel(slot, kind);
+            // Die Nummer steht dabei, wo es eine gibt: Sie ist das, was man
+            // im Panel darüber wiedererkennt.
+            return at === null ? `${label} (hat dieses Pad nicht)` : `${label} · buttons[${at}]`;
+          })
+          .join(' · ') || 'kein Knopf';
+      return bindRow('pad', action, text);
+    }),
+  );
+
+  bindKeyList.replaceChildren(
+    ...KEY_ACTIONS.map((action) =>
+      bindRow('key', action, keysFor(config, action).map(keyLabel).join(' · ') || 'keine Taste'),
+    ),
+  );
+
+  const changed = !isDefaultConfig(config);
+  bindReset.disabled = !changed;
+  allReset.disabled = !changed;
+  mapReset.hidden = !(editingMap && config.layouts[key]);
+}
+
+/**
+ * `KeyboardEvent.code` ist für Menschen keine Taste: `KeyW` ist ein W,
+ * `ArrowUp` ein Pfeil. Gezeigt wird die Aufschrift — und die rohe Kennung nur
+ * dort, wo es keine gibt, denn geraten wird hier nichts.
+ */
+function keyLabel(code: string): string {
+  const named: Record<string, string> = {
+    Space: 'Leertaste',
+    Enter: 'Eingabe',
+    NumpadEnter: 'Eingabe (Ziffernblock)',
+    Tab: 'Tab',
+    ShiftLeft: 'Umschalt links',
+    ShiftRight: 'Umschalt rechts',
+    ControlLeft: 'Strg links',
+    ControlRight: 'Strg rechts',
+    AltLeft: 'Alt',
+    AltRight: 'Alt Gr',
+    ArrowUp: '↑',
+    ArrowDown: '↓',
+    ArrowLeft: '←',
+    ArrowRight: '→',
+  };
+  if (named[code]) return named[code];
+  const letter = /^Key([A-Z])$/.exec(code);
+  if (letter) return letter[1]!;
+  const digit = /^Digit([0-9])$/.exec(code);
+  if (digit) return digit[1]!;
+  return code;
+}
+
+mapEdit.addEventListener('click', () => {
+  editingMap = !editingMap;
+  mapEdit.setAttribute('aria-pressed', editingMap ? 'true' : 'false');
+  mapEdit.textContent = editingMap ? 'Fertig' : 'Karte anpassen';
+  mapHint.hidden = !editingMap;
+  builtKeys = '';
+  buildBindings();
+});
+
+mapReset.addEventListener('click', () => {
+  const pad = watchedPad(pads());
+  saveInputConfig(resetDevice(inputConfig(), deviceKey(pad?.id)));
+  builtKeys = '';
+  buildBindings();
+  say('Karte dieses Geräts zurückgesetzt.');
+});
+
+bindReset.addEventListener('click', () => {
+  saveInputConfig(resetBindings(inputConfig()));
+  buildBindings();
+  say('Belegung auf Standard.');
+});
+
+allReset.addEventListener('click', () => {
+  clearInputConfig();
+  builtKeys = '';
+  buildBindings();
+  say('Alles auf Standard — auch die Gerätekarten.');
+});
+
 /** Die Zellen der Knopfliste, nach Nummer — gebaut, sobald es sie gibt. */
 const keyCells = new Map<number, { row: HTMLElement; value: HTMLElement }>();
 
@@ -258,15 +537,16 @@ const keyCells = new Map<number, { row: HTMLElement; value: HTMLElement }>();
  * Ware: Wer wissen will, ob sein Knopf ankommt, will die Liste sehen, in der
  * er *nicht* aufleuchtet, und nicht eine Liste der belegten.
  */
-function showButtons(snapshot: PadSnapshot): void {
-  const wanted = `${snapshot.kind}:${snapshot.buttons.length}`;
+function showButtons(snapshot: PadSnapshot, pad: PadLike | null): void {
+  const wanted = `${snapshot.kind}:${snapshot.buttons.length}:${editingMap}`;
   if (builtKeys !== wanted) {
     builtKeys = wanted;
     keyCells.clear();
+    buttonList.className = editingMap ? 'keys keys--editing' : 'keys';
     buttonList.replaceChildren(
       ...snapshot.buttons.map((button) => {
         const row = document.createElement('li');
-        row.className = 'key';
+        row.className = editingMap ? 'key key--editing' : 'key';
         const icon = document.createElement('span');
         icon.className = 'key__icon';
         icon.textContent = button.icon;
@@ -279,6 +559,7 @@ function showButtons(snapshot: PadSnapshot): void {
         const value = document.createElement('span');
         value.className = 'key__value';
         row.append(icon, name, code, value);
+        if (editingMap) row.append(slotPicker(button.index, snapshot, pad));
         keyCells.set(button.index, { row, value });
         return row;
       }),
@@ -293,6 +574,46 @@ function showButtons(snapshot: PadSnapshot): void {
     // eine Zahl, die nichts sagt, und sie stünde achtzehnmal da.
     write(cell.value, button.analog ? `${Math.round(button.value * 100)} %` : '');
   }
+}
+
+/**
+ * **Das Feld, mit dem eine Nummer ihre Stelle bekommt.**
+ *
+ * Ein Auswahlfeld und kein „jetzt drücken": Hier weiß man schon, welche Nummer
+ * gemeint ist — sie steht in derselben Zeile —, und die Frage ist nur, wo sie
+ * sitzt. Ein Feld beantwortet das mit einem Griff, auf dem Telefon wie am
+ * Fernseher, und zeigt dabei alle Stellen, die es gibt.
+ *
+ * Der Tausch passiert im Modell (`assignSlot`): Wer Nummer 1 nach unten legt,
+ * schickt den bisherigen Bewohner dorthin, wo Nummer 1 herkam.
+ */
+function slotPicker(index: number, snapshot: PadSnapshot, pad: PadLike | null): HTMLElement {
+  const picker = document.createElement('select');
+  picker.className = 'key__slot';
+  picker.setAttribute('aria-label', `Wo sitzt buttons[${index}]?`);
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = '— keine Stelle —';
+  picker.append(none);
+  for (const spec of PAD_BUTTONS) {
+    const option = document.createElement('option');
+    option.value = spec.slot;
+    option.textContent = spec.labels[snapshot.kind];
+    if (snapshot.buttons[index]?.slot === spec.slot) option.selected = true;
+    picker.append(option);
+  }
+  picker.addEventListener('change', () => {
+    const slot = picker.value as PadSlot | '';
+    if (!slot) return;
+    saveInputConfig(
+      assignSlot(inputConfig(), deviceKey(pad?.id), index, slot, snapshot.buttons.length),
+    );
+    // Die ganze Liste neu: Ein Tausch ändert immer zwei Zeilen.
+    builtKeys = '';
+    buildBindings();
+    say(`buttons[${index}] sitzt jetzt: ${padSlotLabel(slot, snapshot.kind)}`);
+  });
+  return picker;
 }
 
 /** Die Achsen: Balken und Zahl, beides ungerechnet. */
@@ -392,7 +713,15 @@ function logEdges(edges: readonly PadEdge[]): void {
  * beim nächsten Umbau der Belegung stehen bleibt und dann das Falsche zeigt.
  */
 function showGameReading(pad: PadLike | null): void {
-  const reading = readGamepad(pad);
+  // **Mit der Belegung und der Karte dieses Geräts** und nicht mit der ab
+  // Werk: Sonst behauptete diese Zeile, das Spiel höre Nummer 0, während es in
+  // Wirklichkeit längst Nummer 1 hört — und die eine Zeile, die diese Seite
+  // unbedingt richtig haben muss, wäre die falsche.
+  const config = inputConfig();
+  const reading = readGamepad(
+    pad,
+    padPlan(config, config.layouts[deviceKey(pad?.id)] ?? {}, pad?.buttons.length ?? 0),
+  );
   const stick = (s: { x: number; y: number }): string =>
     s.x === 0 && s.y === 0 ? 'ruht' : `${s.x.toFixed(2)} / ${s.y.toFixed(2)}`;
   const flag = (on: boolean): string => (on ? 'ja' : '—');
@@ -434,6 +763,14 @@ const keyWhich = el<HTMLElement>('#key-which');
 const pointerCell = el<HTMLElement>('#pointer');
 
 window.addEventListener('keydown', (event) => {
+  // Wartet eine Zeile auf eine Taste, gehört dieser Anschlag ihr — und nur
+  // ihr: Sonst blätterte `Tab` beim Einstellen durch die Knöpfe der Seite.
+  if (learning?.kind === 'key' && !event.repeat) {
+    event.preventDefault();
+    const code = event.code;
+    takeLearned((action) => bindKey(inputConfig(), action as KeyAction, code));
+    return;
+  }
   write(keyCode, event.code || '(leer)');
   write(keyKey, event.key === ' ' ? '(Leertaste)' : event.key);
   write(keyWhich, `${event.keyCode}`);
@@ -563,4 +900,8 @@ rumbleButton.addEventListener('click', () => {
  * das schon vor dem Laden der Seite gedrückt wurde, meldet das Ereignis nie —
  * wer darauf wartet, sieht bei genau diesem Pad nichts.
  */
+buildBindings();
+// Und die Belegung noch einmal, sobald sich ein Pad meldet: Sie nennt die
+// Nummern **dieses** Geräts, und die gibt es vor dem ersten Knopfdruck nicht.
+window.addEventListener('gamepadconnected', () => buildBindings());
 requestAnimationFrame(frame);

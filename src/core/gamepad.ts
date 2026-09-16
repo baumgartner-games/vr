@@ -107,28 +107,69 @@ export function emptyFrame(): GamepadFrame {
 }
 
 /**
+ * **Welche Nummer welche Absicht auslöst** — je Absicht eine Liste, weil
+ * `fire` von Haus aus zwei hat (`B` und der Trigger).
+ *
+ * Ohne diesen Plan gilt der ab Werk (`DEFAULT_PLAN`), und damit Zeile für
+ * Zeile das, was dieses Projekt immer hatte. Wer einen Plan mitgibt, hat ihn
+ * aus Belegung und Gerätekarte gerechnet (`core/inputMap.padPlan`) — dieses
+ * Modul weiß von beidem nichts und muss es nicht: Es liest Nummern.
+ */
+export interface ButtonPlan {
+  readonly use: readonly number[];
+  readonly fire: readonly number[];
+  readonly sprint: readonly number[];
+  readonly tools: readonly number[];
+  readonly zoomIn: readonly number[];
+  readonly zoomOut: readonly number[];
+}
+
+/** Der Plan ab Werk: die Knopfnummern von oben, in Listen. */
+export const DEFAULT_PLAN: ButtonPlan = {
+  use: [BUTTON_A],
+  fire: [BUTTON_B, BUTTON_RT],
+  sprint: [BUTTON_LS],
+  tools: [BUTTON_Y],
+  zoomIn: [BUTTON_LB],
+  zoomOut: [BUTTON_RB],
+};
+
+/**
  * **Ein Bild vom Pad.** `null` oder ein abgemeldetes Pad ergibt ein leeres
  * Bild — der Aufrufer muss nichts abfangen.
  */
-export function readGamepad(pad: GamepadLike | null | undefined): GamepadFrame {
+export function readGamepad(
+  pad: GamepadLike | null | undefined,
+  plan: ButtonPlan = DEFAULT_PLAN,
+): GamepadFrame {
   const frame = emptyFrame();
   if (!pad || pad.connected === false) return frame;
   frame.connected = true;
   stick(pad, AXIS_MOVE_X, AXIS_MOVE_Y, frame.move);
   stick(pad, AXIS_AIM_X, AXIS_AIM_Y, frame.aim);
-  frame.use = pressed(pad, BUTTON_A);
-  frame.sprint = pressed(pad, BUTTON_LS);
-  frame.zoomIn = pressed(pad, BUTTON_LB);
-  frame.zoomOut = pressed(pad, BUTTON_RB);
-  frame.tools = pressed(pad, BUTTON_Y);
-  // Der Trigger ist analog, `B` ist es nicht: Wer mit `B` schießt, drückt ganz
-  // durch. So kommt aus beiden Wegen **eine** Zahl heraus, und die Waffe muss
-  // nicht wissen, woher sie kam.
-  const trigger = value(pad, BUTTON_RT);
-  const b = pressed(pad, BUTTON_B);
-  frame.trigger = Math.max(b ? 1 : 0, trigger);
-  frame.fire = b || pressed(pad, BUTTON_RT);
+  frame.use = any(pad, plan.use);
+  frame.sprint = any(pad, plan.sprint);
+  frame.zoomIn = any(pad, plan.zoomIn);
+  frame.zoomOut = any(pad, plan.zoomOut);
+  frame.tools = any(pad, plan.tools);
+  // **Ein Zug, aus welchem Knopf er auch kommt.** Der Trigger ist analog, `B`
+  // ist es nicht: Wer mit `B` schießt, drückt ganz durch — ein gedrückter
+  // Schalter meldet den Wert 1, und wo der Wert fehlt, macht `value` daraus
+  // eine 1. Also genügt das Maximum über die Knöpfe der Absicht, und die
+  // Waffe muss nicht wissen, woher der Zug kam.
+  let trigger = 0;
+  for (const index of plan.fire) trigger = Math.max(trigger, value(pad, index));
+  frame.trigger = trigger;
+  frame.fire = any(pad, plan.fire);
   return frame;
+}
+
+/** Ob **irgendeiner** der Knöpfe dieser Absicht anliegt. */
+function any(pad: GamepadLike, indices: readonly number[]): boolean {
+  for (const index of indices) {
+    if (pressed(pad, index)) return true;
+  }
+  return false;
 }
 
 /**

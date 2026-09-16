@@ -818,6 +818,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
         das Bild des Controllers dazu, und darunter derselbe `readGamepad`, der
         im Spiel läuft. Sie ist der einzige Weg, ein Pad am Browser einer
         Konsole zu untersuchen — dort gibt es keine Entwicklerwerkzeuge.
+      - **Und die Nummern sind nicht in Stein.** Die Knopfnummern oben sind die
+        **Voreinstellung** (`DEFAULT_PLAN`); wer will, legt sie um, und wessen
+        Treiber die Lage falsch meldet, richtet sie mit einer Gerätekarte
+        (`core/inputMap.ts`, siehe
+        [Zwei Karten](#zwei-karten-wo-ein-knopf-sitzt-und-was-er-tut)).
+        `readGamepad` bekommt dafür einen `ButtonPlan`; ohne einen gilt Zeile
+        für Zeile das, was immer galt.
     - **Auf dem Glas** kommt rechts unten ein zweiter Stock dazu und darüber
       zwei runde Knöpfe `A`/`B` (`#touch-aim`, `#touch-a`, `#touch-b`); sie
       stehen nur von oben, weil sie sonst nichts bedeuten. Wie der linke Stock
@@ -2478,6 +2485,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   der im Spiel läuft. Sie ist für den Browser einer Konsole gebaut, wo es keine
   Entwicklerwerkzeuge gibt und ein Knopf, der nichts tut, sonst unerklärlich
   bleibt.
+- **Belegung und Gerätekarte** (`core/inputMap.ts` mit Test, `inputStore.ts`;
+  auf der Seite und im Spiel unter _Menü → Eingaben_): Welcher Knopf und welche
+  Taste was tun — und, davon getrennt, **wo eine Nummer an diesem Gerät
+  wirklich sitzt**. Das zweite gibt es, weil manche Treiber die Lage falsch
+  melden (ein Backbone am iPhone meldet den unteren Gesichtsknopf als
+  `buttons[1]`); ein Tausch ist ein Handgriff, gilt nur für dieses Gerät, und
+  danach stimmen Bild, Liste und Spiel. Alles gespeichert, alles einzeln oder
+  ganz auf Standard zurückzusetzen; ohne eigene Einstellung ändert sich nichts.
 - **Vollbild, wo keine Brille ist** (`core/fullscreen.ts`, siehe
   [Vollbild, wo keine Brille ist](#vollbild-wo-keine-brille-ist)): ein Knopf auf
   der Startseite und im Streifen des Spiels. Auf einer Konsole oder am
@@ -2536,6 +2551,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   beide Seiten haben dieselben Möglichkeiten.
 
 ## Steuerung
+
+**Die Tabelle ist die Voreinstellung, nicht das Gesetz.** Tastatur und Pad sind
+einstellbar — je Aktion die Taste beziehungsweise die Stelle am Pad, dazu eine
+Karte für Geräte, die ihre Knöpfe falsch verorten; beides unter
+_Menü → Eingaben_ und auf `/inputs.html`, beides gespeichert und jederzeit
+zurücksetzbar (`core/inputMap.ts`, siehe
+[Zwei Karten](#zwei-karten-wo-ein-knopf-sitzt-und-was-er-tut)). Was unten steht,
+gilt für jeden, der nichts verstellt hat.
 
 |                                                                                    | VR                                                                                                                                                                                                                                                            | Desktop                                                                                                                                                                                                                                                                                                                                        | Gamepad                                                     | Handy                                      |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------ |
@@ -7587,6 +7610,99 @@ Knopfzahl wechseln, und sonst nie.
 Gebaut wird sie im selben Vite-Lauf wie die anderen beiden
 (`rollupOptions.input` in `vite.config.ts`).
 
+#### Zwei Karten: wo ein Knopf sitzt, und was er tut
+
+Die Seite blieb nicht lange beim Zusehen, und der Anlass war ein Gerät:
+**Ein Backbone am iPhone meldet den unteren Gesichtsknopf als `buttons[1]`**
+und den rechten als `buttons[0]` — getauscht gegenüber dem Standard-Mapping.
+Wer damit unten drückt, benutzt nichts, weil _Benutzen_ auf Nummer 0 liegt.
+Die Seite zeigte das sofort; ändern ließ es sich nicht.
+
+Daraus wurde `core/inputMap.ts` (reine Rechnung, mit Test) und
+`core/inputStore.ts` (`localStorage`, `bgvr.inputs`). Der Kern ist, dass hier
+**zwei** Dinge auseinandergehalten werden, die sich gleich anfühlen:
+
+- Die **Gerätekarte** sagt, **welche Nummer wo sitzt**. Sie gehört dem Gerät,
+  liegt unter dessen Kennung (`deviceKey`, aus `gamepad.id`) und gilt für kein
+  anderes — ein Treiberfehler eines Backbones ist an einem DualSense schlicht
+  falsch.
+- Die **Belegung** sagt, **welche Stelle was tut**. Sie gehört dem Menschen und
+  gilt für alle Geräte.
+
+**Und deshalb hängen Aktionen an Stellen und nicht an Nummern.** _Benutzen_ ist
+„der untere Gesichtsknopf", nicht „Nummer 0". Hängte die Belegung an Nummern,
+wäre die Gerätekarte eine Kosmetik, die das Bild auf der Seite richtet und das
+Spiel weiter falsch lässt — und man müsste an jedem Pad, das anders zählt, alles
+neu einstellen. So richtet **eine** Angabe beides: Steht in der Karte, dass
+Nummer 1 unten sitzt, dann benutzt Nummer 1, im Bild leuchtet unten, und in der
+Liste heißt diese Nummer `✕`.
+
+Drei Regeln stecken darin, und alle drei sind es wert:
+
+- **Ein Tausch ist ein Handgriff.** Wer sagt „unten sitzt Nummer 1", sagt
+  unvermeidlich auch etwas über Nummer 0 — sie kann nicht auch unten sitzen.
+  `assignSlot` schickt sie deshalb dorthin, wo Nummer 1 herkam. Damit ist der
+  häufigste Fall überhaupt — zwei verwechselte Knöpfe — **eine** Bewegung, und
+  es kann keine Karte entstehen, in der eine Stelle zweimal vorkommt
+  (`layoutSlots` lässt eine Abweichung gewinnen und den Rest leer laufen).
+- **Eine Stelle gehört einer Sache.** `bindPad` nimmt sie allem anderen weg; ein
+  Knopf, der zugleich schießt und zoomt, ist kein eingestellter Knopf, sondern
+  ein unvorhersehbarer. Was dadurch leer läuft, bleibt leer und steht als „kein
+  Knopf" da — eine Aktion ohne Knopf ist eine Entscheidung, kein Fehler.
+- **Gespeichert wird nur der Widerspruch.** Wer heute `Tab` ausdrücklich auf die
+  Werkzeugliste legt, hätte sie sonst morgen weiter dort, auch wenn die
+  Voreinstellung längst eine bessere Taste kennt.
+
+Gelesen wird beides an **einer** Stelle: `readGamepad` bekommt einen `ButtonPlan`
+(Nummern je Absicht, gerechnet von `padPlan`), `FlatControls` fragt seine Tasten
+über `keysFor`. Ohne Plan gilt `DEFAULT_PLAN`, und der ist Zeile für Zeile das,
+was dieses Projekt immer hatte — wer nichts einstellt, merkt von dem ganzen
+Apparat nichts. **Die Sticks sind nicht dabei**: Laufen und Zielen sind Achsen,
+und eine Achse auf einen Knopf zu legen wäre ein anderes Gefühl und nicht
+dieselbe Sache.
+
+Einstellen kann man es an zwei Orten, und beide benutzen dieselben Funktionen:
+auf der Seite (Felder in _Alle Knöpfe_ für die Karte, Zeilen unter _Belegung_
+für den Rest) und **im Spiel** unter _Menü → Eingaben_ (siehe unten). Der Weg
+zurück steht überall daneben — eine Einstellung ohne Rückweg ist eine Falle.
+
+#### Was der Browser der PS5 kann, und was nicht
+
+**Er hat die Gamepad-API nicht.** Der DualSense steuert dort einen Mauszeiger,
+und mehr kommt auf einer Webseite nicht an (nachgesehen am 16.09.2026 auf einer
+PS5). Das ist keine Einstellung, die man findet, sondern eine Grenze des Geräts.
+
+Die Seite sagt das jetzt ausdrücklich: Fehlt `navigator.getGamepads`, steht dort
+nicht „Kein Pad gefunden — drück mal was", sondern der Satz über den Mauszeiger.
+Der Unterschied zwischen den beiden Meldungen ist der Unterschied zwischen einer
+Minute und einer Stunde Suche.
+
+Für die Spielwiese heißt das: Auf einer PS5 spielt man **mit dem Zeiger**, und
+genau dafür ist die Ansicht _Von oben_ ohnehin gebaut (Maus zielt, Klick
+schießt). Der Vollbildknopf ist dort besonders viel wert.
+
+### Menü → Eingaben
+
+Dieselbe Belegung wie auf der Eingabeseite, aber dort, wo man steht, wenn sie
+einem auffällt (`App.inputsMenu`). Vier Zeilen:
+
+- **Was gerade anliegt** — mitgeschrieben wie die Bildraten-Zeile im
+  Grafik-Menü: nur die Zeile, nicht der Baum, und nur solange das Menü offen
+  ist (`render`). Ohne diese Rückmeldung stellt man blind ein.
+- **Belegung am Pad** und **an der Tastatur** — je Aktion eine Zeile mit dem,
+  worauf sie gerade liegt.
+- **Karte dieses Geräts** — je Stelle eine Zeile mit ihrer Nummer; es gibt sie
+  nur mit Pad.
+- **Alles auf Standard**, und in den Untermenüs die kleineren Rückwege.
+
+Eingestellt wird überall gleich: Zeile antippen, dann drücken, was es tun soll.
+Abgehört wird dabei **nichts Neues** — `FlatControls.captureNext` biegt den
+nächsten Druck einmal um, statt eine zweite Stelle aufzumachen, die Tasten
+liest. Solange eine Zeile wartet, spielt dieses Bild niemand: Sonst spränge man
+beim Einstellen des Sprungknopfes, und die Werkzeugliste klappte auf, während
+man sie neu belegt. Gesucht wird dabei die **Flanke** und nicht der Zustand —
+wer die Zeile mit `A` angetippt hat, hält `A` in diesem Moment noch gedrückt.
+
 ### Vollbild, wo keine Brille ist
 
 In der Brille stellt sich die Frage nicht: Eine XR-Sitzung _ist_ Vollbild. Am
@@ -10699,6 +10815,13 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   geprüft und nicht an diesem Browser: Er ist genau dann da, wenn
   `document.fullscreenEnabled` gilt — ein „er ist sichtbar" wäre eine
   Behauptung über Chromium, die in einer Einbettung grundlos rot würde.
+  Danach läuft **der Fall des Backbones** durch: Die Karte wird so gestellt,
+  dass `buttons[1]` unten sitzt, und geprüft wird, dass daraufhin die
+  leuchtende Stelle im Bild **und** die Zeile _Benutzen_ umschwenken — die
+  ganze Kette von der Einstellung bis zu dem, was das Spiel daraus macht. Zum
+  Schluss _Alles auf Standard_, und der Speicher muss wieder leer sein: Eine
+  Einstellung ohne Rückweg ist eine Falle, und ein Test, der seinen Zustand
+  liegen lässt, vergiftet den nächsten Durchlauf.
 - CI verwendet `--no-screenshots`: Alle Funktionsprüfungen bleiben aktiv,
   aber weder Pflicht- noch Fehlerbilder werden aufgenommen. Der JSON-Report
   bleibt das CI-Artefakt; `screenshots: false`, `screenshot: null` und
