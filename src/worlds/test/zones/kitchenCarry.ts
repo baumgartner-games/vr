@@ -463,6 +463,38 @@ function atReturn(held: Dish | null, stack: number): KitchenDeed {
 }
 
 /**
+ * **Ob diese Tat das meint, was auf der Station liegt** — und nicht die
+ * Station selbst.
+ *
+ * Die Frage stellt sich genau einmal, und zwar dort, wo der **gelbe Saum**
+ * gesetzt wird (`core/highlight.ts`, `worlds/test/zones/kitchen.aimAt`): Er
+ * umfasst immer das, was `A` gerade meint, und beantwortet damit vorab die
+ * Frage „was passiert, wenn ich jetzt drücke?". Liegt ein Teller auf dem
+ * Tisch, ist die Antwort **der Teller** — man nimmt ihn auf, der Tisch bleibt
+ * stehen. Ein leuchtender Tisch sagt an dieser Stelle das Falsche.
+ *
+ * Zwei Taten fassen das Liegende an, und nur diese beiden:
+ *
+ * - **`take`** nimmt es in die Hand.
+ * - **`combine`** legt etwas darauf oder nimmt es auf — gewandert ist in
+ *   beiden Richtungen das, was dort lag.
+ *
+ * Alles andere meint wirklich die Station: Auf eine Fläche wird **abgelegt**
+ * (`place`), am Brett wird **angefangen** (`work`), in den Mülleimer geworfen
+ * (`trash`, `scrape`), über die Theke geschoben (`serve`), ein Herd gelöscht
+ * (`douse`). Dort ist das Möbel das Ziel, und es leuchtet auch so.
+ *
+ * **Warum das hier steht und nicht in der Zone.** Es ist eine Aussage über
+ * Taten und nicht über Netze — dieselbe Trennung wie bei `kitchenPrompt`
+ * darunter, und aus demselben Grund: Ein Test rechnet alle Fälle nach, und
+ * die nächste Tat, die dazukommt, wird hier einsortiert statt in einer
+ * zweiten Liste in der Zone vergessen.
+ */
+export function meansContent(deed: KitchenDeed): boolean {
+  return deed.do === 'take' || deed.do === 'combine';
+}
+
+/**
  * **Der Hinweis über der Figur** (`core/usable.Usable.usePrompt`) — derselbe
  * Satz, den `kitchenDeed` gleich ausführen wird.
  *

@@ -3,6 +3,7 @@ import {
   dish,
   kitchenDeed,
   kitchenPrompt,
+  meansContent,
   type Dish,
   type KitchenDeed,
   type KitchenItem,
@@ -719,5 +720,51 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
       kind: 'wash',
       dish: d('plate-dirty'),
     });
+  });
+});
+
+/**
+ * **Woran der gelbe Saum hängt** (`meansContent`).
+ *
+ * Die Frage stammt aus dem Spiel und nicht aus dem Quelltext: Liegt ein Teller
+ * auf dem Tisch, leuchtete bisher der **Tisch** — und man nimmt doch den
+ * Teller. Der Saum beantwortet vorab „was passiert, wenn ich jetzt drücke",
+ * und darauf gibt es genau zwei Antworten: das Möbel oder das, was darauf
+ * liegt.
+ */
+describe('was eine Tat meint', () => {
+  it('meint das Liegende, wenn es in die Hand geht', () => {
+    // Leere Hand vor einem Tisch mit Teller: Man nimmt den Teller.
+    expect(meansContent(press(null, { kind: 'top', on: d('plate') }))).toBe(true);
+    // Und auch vom Herd nimmt man die Pfanne und nicht den Herd.
+    expect(meansContent(press(null, { kind: 'stove', on: d('pan', 'patty') }))).toBe(true);
+    // Zusammenlegen fasst ebenfalls das an, was dort liegt — in beide
+    // Richtungen (`kitchenRecipes.combine`).
+    expect(meansContent(press(d('patty-cooked'), { kind: 'top', on: d('bun') }))).toBe(true);
+    expect(meansContent(press(d('plate'), { kind: 'top', on: d('bun', 'patty-cooked') }))).toBe(
+      true,
+    );
+  });
+
+  it('meint das Möbel, wenn dort etwas hingeht oder etwas anfängt', () => {
+    // Ablegen zielt auf die Fläche.
+    expect(meansContent(press(d('plate'), { kind: 'top' }))).toBe(false);
+    // Schneiden und Spülen fangen an der Station an.
+    expect(meansContent(press(d('lettuce'), { kind: 'board' }))).toBe(false);
+    expect(meansContent(press(d('plate-dirty'), { kind: 'sink' }))).toBe(false);
+    // Mülleimer, Ausgabetheke und brennender Herd sind selbst das Ziel.
+    expect(meansContent(press(d('bun'), { kind: 'bin' }))).toBe(false);
+    expect(meansContent(press(d('plate', 'bun', 'patty-cooked'), { kind: 'bin' }))).toBe(false);
+    expect(meansContent(press(d('plate', 'bun', 'patty-cooked'), { kind: 'serve' }))).toBe(false);
+    expect(
+      meansContent(press(d('extinguisher'), { kind: 'stove', on: d('pan'), fire: true })),
+    ).toBe(false);
+  });
+
+  it('macht aus einem abgelehnten oder leeren Griff nichts zum Leuchten', () => {
+    // `refuse` und `nothing` melden sich gar nicht erst als Inhalt an — die
+    // Zone leuchtet dann das Möbel an, das den Satz trägt.
+    expect(meansContent(press(d('bun'), { kind: 'rack' }))).toBe(false);
+    expect(meansContent(press(null, { kind: 'top' }))).toBe(false);
   });
 });

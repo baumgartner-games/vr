@@ -25,6 +25,7 @@ import {
   kitchenDeed,
   kitchenPrompt,
   layered,
+  meansContent,
   onStove,
   onWork,
   stovePhase,
@@ -33,6 +34,7 @@ import {
   type Dish,
   type KitchenItem,
   type Station as StationFacts,
+  type KitchenDeed,
   type StationKind,
   type StovePhase,
   type StoveState,
@@ -323,16 +325,25 @@ interface Furnish {
   /** Ob es gerade getragen wird — dann belegt es keine Kachel. */
   held: boolean;
   /**
-   * **Ob es gerade als benutzbar angemeldet ist.**
+   * **Was von diesem Möbel gerade als benutzbar angemeldet ist** — und das ist
+   * nicht immer das Möbel.
    *
-   * Der Merker sitzt am **Möbel** und nicht an seiner Station, und das ist
-   * kein Zufall: Im Baumodus meint `A` das Möbel selbst, und ein Möbel ohne
-   * Station (die Spüle war lange eines) will sich dann genauso anmelden. Zwei
-   * Merker für eine Anmeldung wären zwei Wahrheiten — und weil `addUsable`
-   * nur anhängt und nicht nachsieht (`PortalWorld.addUsable`), wäre die
-   * zweite eine Liste, die mit jedem Bild wächst.
+   * Der gelbe Saum umfasst genau das Objekt, das hier steht
+   * (`core/highlight.ts`), und er ist die Antwort auf die Frage „was passiert,
+   * wenn ich jetzt drücke?". Liegt ein Teller auf dem Tisch, ist die Antwort
+   * **der Teller** und nicht der Tisch: Man nimmt ihn auf, der Tisch bleibt
+   * stehen. Ein leuchtender Tisch wäre an dieser Stelle die falsche Auskunft —
+   * er sagt „dieses Möbel", und gemeint ist, was darauf liegt.
+   *
+   * Deshalb steht hier ein **Objekt** und kein `boolean`: Die Anmeldung
+   * wandert zwischen Möbel und Inhalt hin und her, und wer nur merkt, *ob*
+   * etwas angemeldet ist, meldet beim Wechsel das Falsche ab.
+   *
+   * Der Merker sitzt am **Möbel** und nicht an seiner Station, und auch das
+   * ist kein Zufall: Im Baumodus meint `A` das Möbel selbst, und ein Möbel
+   * ohne Station will sich dann genauso anmelden.
    */
-  live: boolean;
+  usable: THREE.Object3D | null;
 }
 
 /**
@@ -1002,7 +1013,7 @@ export class KitchenZone implements TestZone {
       body: null,
       station: null,
       held: false,
-      live: false,
+      usable: null,
     };
     const foot = this.standAt(furnish);
     if (!spot.show) this.furniture.push(furnish);
@@ -1322,15 +1333,14 @@ export class KitchenZone implements TestZone {
       // hier eine zweite Liste je Stationsart — und die lief mit jeder neuen
       // Art auseinander. `nothing` ist der einzige Fall ohne etwas zu sagen;
       // `refuse` hat einen Satz und meldet sich.
-      const wanted = spot ? kitchenDeed(this.held(), facts(spot)).do !== 'nothing' : false;
-      if (wanted === furnish.live) continue;
-      furnish.live = wanted;
-      if (!wanted || !spot) {
-        world.removeUsable(furnish.model);
-        continue;
-      }
+      const deed = spot ? kitchenDeed(this.held(), facts(spot)) : null;
+      const target = deed && deed.do !== 'nothing' && spot ? this.aimAt(spot, deed) : null;
+      if (target === furnish.usable) continue;
+      if (furnish.usable) world.removeUsable(furnish.usable);
+      furnish.usable = target;
+      if (!target || !spot) continue;
       world.addUsable(
-        spot.object,
+        target,
         {
           use: () => this.act(spot),
           usePrompt: () => kitchenPrompt(kitchenDeed(this.held(), facts(spot)), spot.label),
@@ -1340,6 +1350,24 @@ export class KitchenZone implements TestZone {
         { shot: 0 },
       );
     }
+  }
+
+  /**
+   * **Woran der gelbe Saum hängt** — am Möbel oder an dem, was darauf liegt.
+   *
+   * **Welche Tat das Liegende meint, sagt die Regel** (`meansContent`,
+   * `kitchenCarry.ts`) — sie ist eine Aussage über Taten und wird deshalb
+   * dort geführt und dort geprüft. Hier steht nur, **welches Netz** dabei
+   * herauskommt.
+   *
+   * An der **Rückgabe** liegt kein einzelnes Ding, sondern ein Stapel; dann
+   * leuchtet der. Und wo eine Ausgabe etwas Frisches aus dem Nichts gibt
+   * (`box` mit leerem Deckel), gibt es nichts zum Leuchten außer ihr selbst.
+   */
+  private aimAt(spot: Station, deed: KitchenDeed): THREE.Object3D {
+    if (!meansContent(deed)) return spot.object;
+    if (spot.kind === 'return') return spot.pile ?? spot.object;
+    return spot.on?.object ?? spot.object;
   }
 
   /** Was die Figur trägt, so wie die Regel es sehen will. */
@@ -1763,8 +1791,8 @@ export class KitchenZone implements TestZone {
     // Alle Anmeldungen fallen lassen: Im Baumodus meint `A` etwas anderes,
     // und ein Möbel, das noch die Anmeldung von vorhin trägt, tut das Falsche.
     for (const furnish of this.furniture) {
-      furnish.live = false;
-      world.removeUsable(furnish.model);
+      if (furnish.usable) world.removeUsable(furnish.usable);
+      furnish.usable = null;
     }
     world.notify(this.editing ? 'Umbau: Möbel lassen sich tragen' : 'Umbau beendet');
     this.refreshStations();
@@ -1779,14 +1807,19 @@ export class KitchenZone implements TestZone {
     }
   }
 
-  /** Ein Möbel im Baumodus an- oder abmelden. */
+  /**
+   * **Ein Möbel im Baumodus an- oder abmelden.**
+   *
+   * Hier ist das Möbel immer selbst gemeint — im Umbau hebt man es auf, und
+   * was darauf liegt, ist gerade der Grund, es **nicht** zu tun
+   * (`liftPiece`).
+   */
   private setLive(world: ZoneHost, furnish: Furnish, wanted: boolean): void {
-    if (wanted === furnish.live) return;
-    furnish.live = wanted;
-    if (!wanted) {
-      world.removeUsable(furnish.model);
-      return;
-    }
+    const target = wanted ? furnish.model : null;
+    if (target === furnish.usable) return;
+    if (furnish.usable) world.removeUsable(furnish.usable);
+    furnish.usable = target;
+    if (!target) return;
     world.addUsable(
       furnish.model,
       {
