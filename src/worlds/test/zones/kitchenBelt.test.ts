@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {
+  BELT_COLORS,
   BELT_EMPTY,
   BELT_HEIGHT,
   BELT_HOLD,
@@ -7,7 +8,9 @@ import {
   BeltKit,
   advanceBelts,
   beltBound,
+  beltKind,
   beltProgress,
+  beltReach,
   beltStep,
   type BeltFrame,
   type BeltState,
@@ -62,6 +65,24 @@ describe('beltStep — wohin ein gedrehtes Band schiebt', () => {
     expect(seen.size).toBe(4);
   });
 
+  it('greift genau andersherum, als es schiebt', () => {
+    // Ein Zugband holt sich, was **hinter** ihm liegt — dort, wo die Sparren
+    // hereinlaufen. Zwei Tabellen dafür wären eine zu viel.
+    const turns: Turn[] = [0, 1, 2, 3];
+    for (const turn of turns) {
+      const step = beltStep(turn);
+      const reach = beltReach(turn);
+      expect(reach).toEqual({ dx: -step.dx, dz: -step.dz });
+    }
+  });
+
+  it('kennt genau zwei Sorten Band und nennt alles andere keines', () => {
+    expect(beltKind('belt')).toBe('push');
+    expect(beltKind('belt-pull')).toBe('pull');
+    expect(beltKind('counter')).toBeNull();
+    expect(beltKind('')).toBeNull();
+  });
+
   it('lässt sich nicht von außen umschreiben', () => {
     // Der Versatz ist eingefroren: Wer ihn weiterreicht und dabei versehentlich
     // darauf rechnet, dreht sonst alle Bänder der Küche.
@@ -81,11 +102,20 @@ interface Cell {
   loaded: boolean;
   state: BeltState;
   to: string | null;
+  pull?: string | null;
 }
 
 /** Ein Band, das auf `to` schiebt — und `to: null` ist das Band ins Nichts. */
 function belt(id: string, to: string | null, loaded = true): Cell {
   return { id, loaded, state: BELT_EMPTY, to };
+}
+
+/**
+ * **Ein Zugband**: Es schiebt auf `to` wie jedes Band und holt sich obendrein,
+ * was auf `pull` liegt.
+ */
+function puller(id: string, to: string | null, pull: string | null, loaded = false): Cell {
+  return { id, loaded, state: BELT_EMPTY, to, pull };
 }
 
 /** Eine Ablage: Sie wird frei und besetzt, aber von selbst wandert dort nichts. */
@@ -394,6 +424,169 @@ describe('advanceBelts — losfahren, ankommen, anstehen', () => {
   });
 });
 
+/**
+ * **Das Zugband** (`BeltTile.pull`) — dasselbe Band, das sich obendrein von
+ * selbst holt, was auf der Kachel dahinter liegt.
+ *
+ * Die drei Zusagen, an denen es hängt, sind die drei, die ein Grundriss
+ * irgendwann auf die Probe stellt: dass eine **Arbeitsplatte** für diesen einen
+ * Handgriff zu einem Band wird und danach wieder eine Arbeitsplatte ist; dass
+ * ein **Band seinem eigenen Pfeil folgt**, auch wenn ein Zugband quer daneben
+ * etwas anderes möchte; und dass **zwei Zugbänder an einer Platte** sich nicht
+ * dasselbe Ding teilen.
+ */
+describe('advanceBelts — das Zugband holt sich etwas', () => {
+  it('zieht von einer Arbeitsplatte, die selbst gar nichts tut', () => {
+    const run = new Run(shelf('platte', true), puller('zug', 'ablage', 'platte'), shelf('ablage'));
+    // Zwei Kacheln Weg: erst von der Platte auf das Zugband, dann weiter.
+    expect(handOvers(run.run(BELT_SECONDS * 3))).toEqual(['platte>zug', 'zug>ablage']);
+    expect(run.holds).toBe('ablage');
+  });
+
+  it('fährt dabei dieselben zwei Sekunden wie jedes Band', () => {
+    const run = new Run(shelf('platte', true), puller('zug', null, 'platte'));
+    const frames = run.run(BELT_SECONDS - 1 / 60);
+    expect(handOvers(frames)).toEqual([]);
+    // Und unterwegs hängt es sichtbar zwischen den beiden Kacheln.
+    const last = frames[frames.length - 1]!;
+    expect(last.carry.get('platte')?.to).toBe('zug');
+    expect(last.carry.get('platte')?.t).toBeGreaterThan(0.9);
+    // Zwei Bilder Zugabe: Losgefahren wird erst am Ende des ersten Bildes, die
+    // zwei Sekunden laufen also ab dem zweiten.
+    expect(handOvers(run.run(3 / 60))).toEqual(['platte>zug']);
+  });
+
+  it('lässt die Platte danach wieder eine Platte sein', () => {
+    const run = new Run(shelf('platte', true), puller('zug', null, 'platte'));
+    run.run(BELT_SECONDS + 0.05);
+    expect(run.holds).toBe('zug');
+    // Das Zugband ist voll, also passiert nichts mehr — auch nicht, wenn
+    // jemand erneut etwas auf die Platte legt.
+    run.at('platte').loaded = true;
+    expect(handOvers(run.run(BELT_SECONDS * 2))).toEqual([]);
+    expect(run.at('platte').state).toBe(BELT_EMPTY);
+  });
+
+  it('zieht nichts von einem Band, das selbst schiebt', () => {
+    // Das Band `quer` schiebt nach `ablage`; das Zugband steht daneben und
+    // möchte es haben. Der Pfeil auf dem Band gewinnt, sonst wäre er eine Lüge.
+    const run = new Run(belt('quer', 'ablage'), shelf('ablage'), puller('zug', null, 'quer'));
+    expect(handOvers(run.run(BELT_SECONDS * 2))).toEqual(['quer>ablage']);
+    expect(run.holds).toBe('ablage');
+  });
+
+  it('zieht von einem Band, das nirgendwohin schiebt', () => {
+    // Ein Band am Rand der Küche ist eine Ablage: Es fährt ohnehin nicht los,
+    // also darf es leergezogen werden.
+    const run = new Run(belt('sack', null), puller('zug', null, 'sack'));
+    expect(handOvers(run.run(BELT_SECONDS * 2))).toEqual(['sack>zug']);
+  });
+
+  it('zieht auch nichts aus einem Ziel, das die Zone gar nicht kennt', () => {
+    // Dasselbe wie „schiebt nirgendwohin", nur eine Zeile weiter oben: Ein `to`
+    // auf eine Kachel, von der nichts gemeldet wurde, ist kein Ziel.
+    const run = new Run(belt('sack', 'nirgendwo'), puller('zug', null, 'sack'));
+    expect(handOvers(run.run(BELT_SECONDS * 2))).toEqual(['sack>zug']);
+  });
+
+  it('gibt eine Platte an genau ein Zugband — und zwar an eines, das kann', () => {
+    // Zwei Zugbänder an derselben Arbeitsplatte. Das erste ist voll und steht
+    // (es schiebt nirgendwohin), das zweite ist frei: Also greift das zweite.
+    const run = new Run(
+      shelf('platte', true),
+      puller('links', null, 'platte', true),
+      puller('rechts', null, 'platte'),
+    );
+    const first = run.frame(1 / 60);
+    expect([...first.carry.keys()]).toEqual(['platte']);
+    expect(first.carry.get('platte')?.to).toBe('rechts');
+    expect(handOvers(run.run(BELT_SECONDS * 2))).toEqual(['platte>rechts']);
+    expect(run.holds).toBe('links rechts');
+  });
+
+  it('gibt sie dem ersten, solange beide können', () => {
+    const run = new Run(
+      shelf('platte', true),
+      puller('links', null, 'platte'),
+      puller('rechts', null, 'platte'),
+    );
+    expect(handOvers(run.run(BELT_SECONDS * 2))).toEqual(['platte>links']);
+    expect(run.holds).toBe('links');
+  });
+
+  it('leitet einen laufenden Zug nicht zum zweiten Zugband um', () => {
+    // Beide können anfangs nehmen, also greift das erste. Auf halber Strecke
+    // läuft es voll — und das Ding wartet davor, statt in der Luft die
+    // Richtung zu wechseln. Losfahren ist ein Versprechen.
+    const run = new Run(
+      shelf('platte', true),
+      puller('links', null, 'platte'),
+      puller('rechts', null, 'platte'),
+    );
+    run.run(BELT_SECONDS / 2);
+    expect(run.at('platte').state.to).toBe('links');
+
+    run.at('links').loaded = true;
+    for (const frame of run.run(BELT_SECONDS * 2)) {
+      const carry = frame.carry.get('platte');
+      if (carry) expect(carry.to).toBe('links');
+      expect(frame.moves).toEqual([]);
+    }
+    expect(run.holds).toBe('platte links');
+
+    // Wird das erste wieder frei, kommt es dort an — und nicht beim zweiten.
+    run.at('links').loaded = false;
+    expect(handOvers(run.run(BELT_SECONDS))).toEqual(['platte>links']);
+  });
+
+  it('reicht eine Reihe Zugbänder durch wie eine Reihe Bänder', () => {
+    // Drei Zugbänder hintereinander: Jedes zieht vom Vordermann, der ohnehin
+    // auf es zeigt. Das ist der Normalfall einer orangen Bahn, und er darf
+    // nichts anderes tun als eine blaue.
+    const run = new Run(
+      shelf('platte', true),
+      puller('a', 'b', 'platte'),
+      puller('b', 'c', 'a'),
+      puller('c', 'ablage', 'b'),
+      shelf('ablage'),
+    );
+    expect(handOvers(run.run(BELT_SECONDS * 5))).toEqual(['platte>a', 'a>b', 'b>c', 'c>ablage']);
+    expect(run.holds).toBe('ablage');
+  });
+
+  it('zieht sich nicht selbst und dreht sich nicht mit einem zweiten im Kreis', () => {
+    const alone = new Run(puller('zug', null, 'zug', true));
+    expect(handOvers(alone.run(BELT_SECONDS * 2))).toEqual([]);
+    expect(alone.at('zug').state).toBe(BELT_EMPTY);
+
+    // Und zwei, die sich gegenseitig meinen und beide voll sind: Auch das ist
+    // ein Ring, und ein voller Ring steht (dieselbe Zeile wie bei den Bändern).
+    const pair = new Run(puller('a', null, 'b', true), puller('b', null, 'a', true));
+    expect(handOvers(pair.run(BELT_SECONDS * 2))).toEqual([]);
+  });
+
+  it('hört auf zu ziehen, sobald das Zugband weggetragen wird', () => {
+    const run = new Run(shelf('platte', true), puller('zug', null, 'platte'));
+    run.run(BELT_SECONDS / 2);
+    expect(run.at('platte').state.moving).toBe(true);
+
+    run.cells.delete('zug');
+    run.frame(1 / 60);
+    // Was unterwegs war, liegt wieder auf der Platte — und nicht in der Luft.
+    expect(run.at('platte').state).toBe(BELT_EMPTY);
+    expect(run.holds).toBe('platte');
+  });
+
+  it('meldet die Platte als vergeben, sobald etwas auf das Zugband zufährt', () => {
+    // Dieselbe Auskunft wie bei den Bändern (`beltBound`), nur andersherum
+    // gebraucht: Wer auf das Zugband etwas legen will, kommt zu spät.
+    const run = new Run(shelf('platte', true), puller('zug', null, 'platte'));
+    const frame = run.frame(1 / 60);
+    expect(beltBound(frame, 'zug')).toBe(true);
+    expect(beltBound(frame, 'platte')).toBe(false);
+  });
+});
+
 describe('beltProgress — der Anteil über die Kachel', () => {
   it('klemmt ihn auf 0…1 und meldet für Stehendes null', () => {
     expect(beltProgress(BELT_EMPTY)).toBe(0);
@@ -449,11 +642,67 @@ describe('BeltKit — der Bausatz ohne Leinwand', () => {
     expect(shapes.size).toBe(4);
     expect(skins.size).toBe(4);
 
+    // Und die Zugbänder kosten genau das, was an ihnen anders ist: eine Form
+    // (der Greifer) und zwei Farben (seine und die der orangen Sparren).
+    for (let i = 0; i < 8; i++) {
+      kit.piece('pull').traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        shapes.add(mesh.geometry);
+        skins.add(mesh.material as THREE.Material);
+      });
+    }
+    expect(shapes.size).toBe(5);
+    expect(skins.size).toBe(6);
+
     const shapeGone = jest.spyOn(THREE.BufferGeometry.prototype, 'dispose');
     const skinGone = jest.spyOn(THREE.Material.prototype, 'dispose');
     kit.dispose();
-    expect(shapeGone).toHaveBeenCalledTimes(4);
-    expect(skinGone).toHaveBeenCalledTimes(4);
+    expect(shapeGone).toHaveBeenCalledTimes(5);
+    expect(skinGone).toHaveBeenCalledTimes(6);
+  });
+
+  /**
+   * **Ein Zugband ist dasselbe Möbel mit einem Greifer**, und der liegt flach
+   * an der hinteren Kante — dort, wo es sich etwas holt. Läge er quer oder
+   * stünde er auf, führe jeder hereingezogene Teller mitten hindurch.
+   */
+  it('baut das Zugband so hoch wie das Band, mit einem flachen Greifer hinten', () => {
+    const kit = new BeltKit();
+    const pull = kit.piece('pull');
+    pull.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(pull);
+    expect(box.min.y).toBeCloseTo(0, 6);
+    // Zwei Millimeter über der Ablagefläche und keinen mehr.
+    expect(box.max.y).toBeGreaterThan(BELT_HEIGHT);
+    expect(box.max.y - BELT_HEIGHT).toBeLessThan(0.003);
+
+    // Ein Netz mehr als beim gewöhnlichen Band, und es liegt im Süden — dort,
+    // wo `beltStep(0)` **nicht** hinzeigt.
+    const plain = kit.piece();
+    const count = (model: THREE.Object3D): number => {
+      let seen = 0;
+      model.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) seen++;
+      });
+      return seen;
+    };
+    expect(count(pull)).toBe(count(plain) + 1);
+    const mouth = pull.children[count(plain)]!;
+    expect(mouth.position.z).toBeGreaterThan(0.4);
+    expect(mouth.position.y).toBeCloseTo(BELT_HEIGHT, 6);
+    kit.dispose();
+  });
+
+  it('gibt den beiden Sorten deutlich verschiedene Farben', () => {
+    // Blau schiebt, orange zieht — und zwischen den beiden liegt der halbe
+    // Farbkreis, damit man sie auch von oben auseinanderhält.
+    const push = new THREE.Color(BELT_COLORS.push);
+    const pull = new THREE.Color(BELT_COLORS.pull);
+    expect(push.b).toBeGreaterThan(push.r);
+    expect(pull.r).toBeGreaterThan(pull.b);
+    const spread = Math.abs(push.r - pull.r) + Math.abs(push.b - pull.b);
+    expect(spread).toBeGreaterThan(1);
   });
 
   it('läuft auch ohne Textur und übersteht ein zweites `dispose`', () => {

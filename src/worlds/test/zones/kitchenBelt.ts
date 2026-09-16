@@ -13,10 +13,10 @@ import { TILE } from '../../nav/navTile';
  * Pfeile darauf laufen und nicht bloß daraufgemalt sind. Ein stehender Pfeil
  * ist eine Beschriftung, ein laufender ist die Maschine selbst.
  *
- * **Dieses Möbel steckt nicht in `public/models/kitchen.glb`.** Der gekaufte
+ * **Diese Möbel stecken nicht in `public/models/kitchen.glb`.** Der gekaufte
  * Katalog hat dreizehn Stücke und kein Band (`core/kitchenFit.KITCHEN_PIECES`);
- * der Eintrag `belt` trägt deshalb `built: true` — es wird gebaut, hier, aus
- * Kästen und einer Leinwand. Dieselbe Entscheidung wie beim Zutatensatz
+ * die Einträge `belt` und `belt-pull` tragen deshalb `built: true` — sie werden
+ * gebaut, hier, aus Kästen und einer Leinwand. Dieselbe Entscheidung wie beim Zutatensatz
  * nebenan (`kitchenProps.FoodKit`) und aus demselben Grund: Eine zweite
  * Quelldatei aufzunehmen, mit Lizenz, Aufbereitung und Eintrag in
  * `public/models/CREDITS.md`, wäre viel Aufwand für drei Quader.
@@ -26,6 +26,16 @@ import { TILE } from '../../nav/navTile';
  * reine Zahlen — dieselbe Trennung wie zwischen `kitchenClock.ts` und
  * `kitchenGauge.ts`. Was die Küche mit dem weitergereichten Ding anstellt,
  * entscheidet sie selbst (`kitchen.ts`); hier steht nur, wann es so weit ist.
+ *
+ * **Zwei Sorten Band, und nur eine davon greift nach hinten.** Das
+ * gewöhnliche Band (`belt`, blaue Sparren) nimmt, was man darauflegt, und
+ * schiebt es eine Kachel weiter. Das **Zugband** (`belt-pull`, orange Sparren)
+ * tut dasselbe und holt sich obendrein von selbst, was auf der Kachel
+ * **hinter** ihm liegt — und die Kachel davor muss dafür kein Band sein: eine
+ * Arbeitsplatte, ein Gästetisch, ein Schneidebrett. Sie **wird** für diesen
+ * einen Handgriff eines (`BeltTile.pull`, `advanceBelts`), und damit gilt für
+ * sie ohne eine zweite Rechnung alles, was für ein Band gilt — Losfahren,
+ * Anstehen, `BELT_HOLD`, das Bild dazwischen.
  *
  * **Und die obere Hälfte rechnet nicht mehr je Kachel, sondern je Bild.** Das
  * ist die eine Entscheidung, aus der alles andere hier folgt: Ein Band hängt an
@@ -99,10 +109,23 @@ export interface BeltState {
   readonly time: number;
   /** Ob das Ding losgefahren ist und nur noch ankommen muss. */
   readonly moving: boolean;
+  /**
+   * **Wohin diese Fahrt geht** — `null`, solange keine läuft.
+   *
+   * Für ein Band steht es ohnehin fest (es schiebt, wohin sein Pfeil zeigt),
+   * und dort ist dieses Feld nur die Wiederholung davon. Gebraucht wird es an
+   * der einen Kachel, die **kein** Band ist: Eine Arbeitsplatte, an der zwei
+   * Zugbänder stehen, wird in jedem Bild neu gefragt, welches von beiden sie
+   * gerade zieht — und ohne dieses Feld wäre die Antwort in dem Bild, in dem
+   * das erste volläuft, eine andere als im Bild davor. Das Ding hinge dann auf
+   * halber Strecke und führe plötzlich woandershin. **Losfahren ist ein
+   * Versprechen** (siehe `advanceBelts`), und hier steht, wem es gilt.
+   */
+  readonly to?: string | null;
 }
 
 /** Eine Kachel, auf der nichts unterwegs ist — leer oder wartend. */
-export const BELT_EMPTY: BeltState = Object.freeze({ time: 0, moving: false });
+export const BELT_EMPTY: BeltState = Object.freeze({ time: 0, moving: false, to: null });
 
 /**
  * **Eine Kachel, so viel wie die Bandrechnung davon braucht** — und das ist
@@ -131,6 +154,23 @@ export interface BeltTile {
   readonly state: BeltState;
   /** Wohin diese Kachel schiebt; `null` bei allem, was nicht schiebt. */
   readonly to: string | null;
+  /**
+   * **Woher dieses Band sich etwas holt** — nur beim Zugband, sonst `null`.
+   *
+   * Es ist die Kachel **hinter** dem Band, also die, aus deren Richtung die
+   * Sparren kommen (`beltReach`). Was dort liegt, wandert von selbst auf das
+   * Zugband, und zwar genau so, wie es von einem Band auf das nächste wanderte:
+   * Die genannte Kachel bekommt für dieses Bild das Zugband als Ziel — mehr
+   * passiert nicht. Deshalb steht hier auch nur ein Schlüssel und keine zweite
+   * Sorte Fahrt.
+   *
+   * **Drei Fälle geben nichts her, und alle drei ohne Sonderzeile:** eine
+   * Kachel, die es nicht gibt; eine, die schon selbst schiebt (ein Band folgt
+   * seinem eigenen Pfeil, auch wenn ein Zugband daneben etwas anderes möchte);
+   * und eine, um die sich zwei Zugbänder streiten — dann bekommt sie genau
+   * eines von beiden (`advanceBelts`).
+   */
+  readonly pull?: string | null;
 }
 
 /** Eine Übergabe: Was auf `from` lag, liegt jetzt auf `to`. */
@@ -197,6 +237,27 @@ interface Seat {
   loaded: boolean;
   time: number;
   moving: boolean;
+  /**
+   * **Wohin diese Kachel in _diesem_ Bild schiebt** — das eigene Ziel, oder das
+   * Zugband, das sie sich für dieses Bild genommen hat (`BeltTile.pull`).
+   *
+   * Veränderlich und nicht aus `tile.to` gelesen: Genau hier wird aus einer
+   * Arbeitsplatte für einen Handgriff ein Band. Alles darunter fragt nur noch
+   * dieses Feld und weiß deshalb nicht einmal, dass es Zugbänder gibt.
+   */
+  to: string | null;
+}
+
+/**
+ * **Ob auf diese Kachel gerade etwas darf** — frei, oder belegt von einem, der
+ * selbst schon unterwegs ist.
+ *
+ * Dieselbe Frage, die das Losfahren stellt (die Kettenausnahme, Schritt 3), und
+ * deshalb steht sie hier einmal und nicht zweimal: Ein Zugband, das gerade
+ * abfließt, ist ein Zugband, das gleich frei ist.
+ */
+function canTake(seat: Seat): boolean {
+  return !seat.loaded || seat.moving;
 }
 
 /**
@@ -258,11 +319,65 @@ export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame 
       // abgeräumt, endet seine Fahrt mit ihm.
       time: tile.loaded ? sane : 0,
       moving: tile.loaded && tile.state.moving,
+      to: tile.to,
     });
   }
 
+  // **Ein Ziel, von dem die Zone nichts erzählt, ist keines.** Einmal
+  // ausgestrichen und nicht bei jeder Frage neu nachgeschlagen: Danach heißt
+  // `to === null` überall dasselbe — „diese Kachel schiebt nirgendwohin" —, und
+  // die Zugbänder unten dürfen sich darauf verlassen. Ohne diesen Strich hielte
+  // ein Band, das auf eine weggetragene Ablage zeigt, sich für beschäftigt und
+  // ließe sich nicht leerziehen.
+  for (const seat of board.values()) if (seat.to !== null && !board.has(seat.to)) seat.to = null;
+
   const ahead = (seat: Seat): Seat | undefined =>
-    seat.tile.to === null ? undefined : board.get(seat.tile.to);
+    seat.to === null ? undefined : board.get(seat.to);
+
+  // --- 0. die Zugbänder greifen nach hinten -----------------------------------
+  //
+  // **Und mehr tun sie nicht**: Sie schreiben der Kachel hinter sich ein Ziel,
+  // und das sind sie selbst. Danach ist ein gezogener Arbeitstisch von einem
+  // Band nicht mehr zu unterscheiden, und alles Weitere — Losfahren,
+  // Kettenausnahme, `BELT_HOLD`, Ankommen — gilt für ihn, ohne dass es unten
+  // noch einmal stünde. Das ist der ganze Trick an dieser Sorte Möbel.
+  //
+  // Zwei Regeln entscheiden die Fälle, die ein Grundriss irgendwann herstellt:
+  //
+  // - **Ein Band folgt seinem eigenen Pfeil.** Wer selbst schiebt, lässt sich
+  //   nicht ziehen — auch nicht von einem Zugband, das quer daneben steht. Die
+  //   Sparren auf dem Band sagen, wohin es geht, und eine Maschine, die sie
+  //   überstimmt, macht aus der sichtbaren Richtung eine Lüge. Schiebt es
+  //   dagegen **nirgendwohin** (am Rand, vor einem Mülleimer), ist es eine
+  //   Ablage wie jede andere und darf leergezogen werden.
+  // - **Eine Kachel wird von genau einem Zugband gezogen.** Stehen zwei an
+  //   derselben Arbeitsplatte, bekommt sie das erste, das gerade etwas
+  //   annehmen kann — ist das erste voll und das zweite frei, greift das
+  //   zweite. Erst diese Vorliebe macht aus zwei Zugbändern zwei Abnehmer;
+  //   ohne sie stünde das zweite still, während das erste im Stau steht, und
+  //   die Arbeitsplatte bliebe liegen, obwohl daneben Platz wäre. Sind beide
+  //   voll, gewinnt das erste — es passiert ohnehin nichts.
+  //
+  // Wer der Erste ist, entscheidet wie überall hier die Reihenfolge der
+  // übergebenen Kacheln; eine zufällige Antwort wäre schlechter.
+  let pulls: Map<string, Seat> | null = null;
+  for (const seat of board.values()) {
+    const source = seat.tile.pull ? board.get(seat.tile.pull) : undefined;
+    // Ein Band, das von sich selbst zöge, wäre eine Kachel, die sich selbst
+    // zum Ziel hat — und damit ein Ring aus einem Glied.
+    if (!source || source === seat || source.to !== null) continue;
+    // **Ein laufender Zug wird nicht umgeleitet.** Fährt auf der Platte schon
+    // etwas, gehört sie dem, zu dem es unterwegs ist (`BeltState.to`), und
+    // zwar auch dann, wenn der inzwischen volläuft: Das Ding wartet dann vor
+    // ihm (`BELT_HOLD`), statt auf halber Strecke die Richtung zu wechseln.
+    // Erst das **nächste** Ding wird wieder frei vergeben.
+    const promised = source.moving ? (source.tile.state.to ?? null) : null;
+    if (promised !== null && promised !== seat.tile.id) continue;
+    const taken = (pulls ??= new Map()).get(source.tile.id);
+    if (taken && promised === null && (canTake(taken) || !canTake(seat))) continue;
+    pulls.set(source.tile.id, seat);
+  }
+  if (pulls) for (const [id, puller] of pulls) board.get(id)!.to = puller.tile.id;
 
   // Ein Ziel, das es nicht mehr gibt — im Baumodus wandert das Möbel davor
   // weg —, beendet die Fahrt an Ort und Stelle. Der Sprung zurück auf die
@@ -355,7 +470,7 @@ export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame 
   // gibt es nicht, und eine zufällige wäre schlechter.
   const claimed = new Set<string>();
   for (const seat of board.values()) {
-    if (seat.moving && seat.tile.to !== null) claimed.add(seat.tile.to);
+    if (seat.moving && seat.to !== null) claimed.add(seat.to);
   }
   for (let settled = false; !settled;) {
     settled = true;
@@ -365,7 +480,7 @@ export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame 
       if (!next || claimed.has(next.tile.id)) continue;
       // Frei — **oder** belegt von einem, der selbst schon losgefahren ist. Das
       // ist die Kettenausnahme, und sie steht in dieser einen Zeile.
-      if (next.loaded && !next.moving) continue;
+      if (!canTake(next)) continue;
       seat.moving = true;
       claimed.add(next.tile.id);
       settled = false;
@@ -377,14 +492,20 @@ export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame 
   let carry: Map<string, BeltCarry> | null = null;
   for (const seat of board.values()) {
     const was = seat.tile.state;
-    const now: BeltState = seat.moving ? { time: seat.time, moving: true } : BELT_EMPTY;
-    if (now.moving !== was.moving || now.time !== was.time) {
+    const now: BeltState = seat.moving
+      ? { time: seat.time, moving: true, to: seat.to }
+      : BELT_EMPTY;
+    if (
+      now.moving !== was.moving ||
+      now.time !== was.time ||
+      (now.to ?? null) !== (was.to ?? null)
+    ) {
       (states ??= new Map()).set(seat.tile.id, now);
     }
-    if (seat.moving && seat.tile.to !== null) {
+    if (seat.moving && seat.to !== null) {
       (carry ??= new Map()).set(seat.tile.id, {
         from: seat.tile.id,
-        to: seat.tile.to,
+        to: seat.to,
         t: seat.time / BELT_SECONDS,
       });
     }
@@ -431,6 +552,36 @@ export function beltProgress(state: BeltState): number {
  */
 export function beltStep(turn: 0 | 1 | 2 | 3): { dx: number; dz: number } {
   return BELT_STEPS[turn] ?? BELT_STEPS[0]!;
+}
+
+/**
+ * **Welche Sorte Band dieses Möbel ist** — oder `null`, wenn es gar keines ist.
+ *
+ * Die eine Stelle, an der ein Katalogname zu einer Bandsorte wird
+ * (`core/kitchenFit.KITCHEN_PIECES`: `belt`, `belt-pull`). Sie steht hier und
+ * nicht in der Zone, weil hier auch steht, was die beiden unterscheidet — und
+ * eine zweite Tabelle mit denselben zwei Namen wäre die, die beim dritten Band
+ * ausschert.
+ */
+export function beltKind(name: string): BeltKind | null {
+  if (name === 'belt') return 'push';
+  if (name === 'belt-pull') return 'pull';
+  return null;
+}
+
+/**
+ * **Wohin ein Zugband greift**, als Kachelversatz — die Gegenrichtung zu
+ * `beltStep`, und keine zweite Tabelle.
+ *
+ * Ein Zugband holt sich, was **hinter** ihm liegt: Wo die Sparren hereinlaufen,
+ * steht die Kachel, die leergezogen wird. Damit zeigt derselbe Pfeil beides an
+ * — woher es nimmt und wohin es gibt —, und wer das Möbel dreht, dreht beides
+ * mit. Ein Zugband mit einer eigenen, unabhängig gedrehten Greifrichtung wäre
+ * ein Möbel, dem man nicht ansieht, was es tut.
+ */
+export function beltReach(turn: 0 | 1 | 2 | 3): { dx: number; dz: number } {
+  const step = beltStep(turn);
+  return { dx: -step.dx, dz: -step.dz };
 }
 
 /**
@@ -508,14 +659,56 @@ const BAND_LONG = TILE;
  * Korpus verschwindet dort im Schatten der Nachbarn und stört nicht; die helle
  * Platte ist die Kante, an der man das Möbel überhaupt erkennt; der Trog ist
  * fast schwarz, damit die hellen Sparren darauf den größten Kontrast der
- * ganzen Küche haben. Das Hellblau der Sparren ist dasselbe, in dem auch der
- * Schneidebalken leuchtet (`kitchenGauge.TONE_COLOR.chop`, `0xe8f3ff`) — die
- * Farbe, die in dieser Küche „hier passiert gerade etwas von selbst" heißt.
+ * ganzen Küche haben.
+ *
+ * **Und an den Sparren hängt jetzt, welche Sorte Band das ist**: blau schiebt,
+ * orange zieht. Die Sparren tragen die Farbe und nicht der Korpus, weil sie
+ * das Einzige an diesem Möbel sind, was man aus 16 m Höhe wirklich liest —
+ * zwei Pfeile je Kachel, quer über den fast schwarzen Trog. Ein orangefarbener
+ * Kasten unter einer Platte wäre aus derselben Höhe ein Schatten.
+ *
+ * Die beiden Töne sind absichtlich **nicht** die zartesten, die noch gingen:
+ * Ein Band wird im Vorbeilaufen gelesen und nicht betrachtet, und zwischen
+ * `#5ab4ff` und `#ff9f45` liegt der halbe Farbkreis — sie sind auch dann noch
+ * auseinanderzuhalten, wenn ein Teller die halbe Kachel verdeckt. Das frühere
+ * Fast-Weiß (`#e8f3ff`, der Ton des Schneidebalkens) ist damit weg: Es war
+ * eine Farbe für **eine** Sorte Band, und von zwei Sorten wäre es die
+ * unentschiedene gewesen.
  */
 const BODY_COLOR = 0x39414d;
 const TOP_COLOR = 0xdfe4e9;
 const BAND_COLOR = 0x171b21;
-const ARROW_COLOR = '#e8f3ff';
+
+/** Was für ein Band gebaut wird — dasselbe Möbel, zwei Aufgaben. */
+export type BeltKind = 'push' | 'pull';
+
+/** Die Farbe der Sparren je Sorte: blau schiebt, orange zieht. */
+export const BELT_COLORS: Readonly<Record<BeltKind, string>> = Object.freeze({
+  push: '#5ab4ff',
+  pull: '#ff9f45',
+});
+
+/**
+ * **Der Greifer am Zugband**, in Metern — der helle Streifen an seiner
+ * **hinteren** Kante, dort, wo es sich etwas holt.
+ *
+ * Er ist die Antwort auf eine Frage, die die Farbe allein nicht beantwortet:
+ * Ein oranges Band sagt „ich ziehe", aber nicht **von welcher Seite**. Der
+ * Streifen liegt an der Kante, an der die Sparren hereinlaufen, also genau an
+ * der Nachbarkachel, die leergezogen wird — wer beide zusammen sieht, muss
+ * nichts nachschlagen.
+ *
+ * Und er liegt **flach und mittig in der Ablagefläche**: 4 mm dick, mit seiner
+ * Mitte genau auf `BELT_HEIGHT`, ragt er 2 mm über den Trog und liegt mit den
+ * anderen 2 mm darin. Beides hat einen Grund. Über die Kante fährt alles
+ * hinweg, was hereingezogen wird — eine aufgestellte Leiste wäre ein Greifer,
+ * der durch jeden Teller hindurchführe, den er sich holt. Und die 2 mm nach
+ * oben sind der Abstand zur Pfeilebene, die genau auf `BELT_HEIGHT` liegt: Zwei
+ * Flächen auf derselben Höhe flimmern gegeneinander, sobald die Kamera sich
+ * bewegt.
+ */
+const MOUTH_THICK = 0.004;
+const MOUTH_LONG = 0.07;
 
 /**
  * **Wie viele Sparren auf eine Kachel passen** und wie groß die Leinwand für
@@ -558,8 +751,12 @@ export class BeltKit {
   private readonly shapes = new Map<string, THREE.BufferGeometry>();
   private readonly skins = new Map<string, THREE.MeshStandardMaterial>();
 
-  /** Die Sparren — `null` ohne Leinwand, und dann bleibt das Band einfarbig. */
-  private readonly arrows: THREE.CanvasTexture | null;
+  /**
+   * Die Sparren je Sorte — `null` ohne Leinwand, und dann bleibt das Band
+   * einfarbig dunkel. Erst gebaut, wenn die erste Kachel dieser Sorte gebraucht
+   * wird: Eine Küche ohne Zugband malt keine orangefarbene Leinwand.
+   */
+  private readonly arrows = new Map<BeltKind, THREE.CanvasTexture | null>();
 
   /**
    * Wie weit die Sparren schon gelaufen sind, in **Texturlängen** (0…1). Eine
@@ -569,10 +766,6 @@ export class BeltKit {
    */
   private run = 0;
 
-  constructor() {
-    this.arrows = chevronTexture();
-  }
-
   /**
    * **Ein Band**, Ursprung **auf dem Boden in seiner Mitte** — wie jedes
    * Küchenmöbel (`core/kitchenModel.kitchenModel`, `tools/kitchen-model.mjs`).
@@ -581,10 +774,16 @@ export class BeltKit {
    * auch jedes geladene Möbel gedreht wird (`kitchen.ts`, `place`), und der
    * Pfeil zeigt im eigenen Raum nach −z. Wer das Band um 90° dreht, dreht
    * beides mit — siehe `beltStep`.
+   *
+   * **Beide Sorten sind dasselbe Möbel.** Sie teilen sich Korpus, Platte und
+   * Trog bis auf die letzte Form; verschieden sind die Farbe der Sparren und
+   * der Greifer hinten, den nur das Zugband trägt. Genau so soll es auch
+   * aussehen: Ein Zugband ist ein Förderband mit einem Griff nach hinten und
+   * kein zweites Gerät.
    */
-  piece(): THREE.Object3D {
+  piece(kind: BeltKind = 'push'): THREE.Object3D {
     const group = new THREE.Group();
-    group.name = 'kitchen-belt';
+    group.name = kind === 'pull' ? 'kitchen-belt-pull' : 'kitchen-belt';
 
     const body = new THREE.Mesh(
       this.shape('body', () => new THREE.BoxGeometry(BODY_SIDE, BODY_HEIGHT, BODY_SIDE)),
@@ -610,6 +809,7 @@ export class BeltKit {
     // Die Pfeile liegen als eigene Ebene **auf** dem Trog und nicht als Textur
     // am Kasten: Ein Quader legt dieselbe Textur auf alle sechs Seiten, und
     // dann liefen die Sparren auch an den Stirnflächen mit.
+    const chevrons = this.texture(kind);
     const arrows = new THREE.Mesh(
       // Eine Ebene, flach gelegt: Danach zeigt ihr v nach −z, also genau
       // dorthin, wohin das Band schiebt. Der Sparren auf der Leinwand zeigt
@@ -617,7 +817,7 @@ export class BeltKit {
       this.shape('arrows', () =>
         new THREE.PlaneGeometry(BAND_WIDE, BAND_LONG).rotateX(-Math.PI / 2),
       ),
-      this.skin('arrows', this.arrows ? 0xffffff : BAND_COLOR, 0.95, this.arrows),
+      this.skin(`arrows:${kind}`, chevrons ? 0xffffff : BAND_COLOR, 0.95, chevrons),
     );
     arrows.position.y = BELT_HEIGHT;
     // Aufgemalt und nicht gebaut: Ein Pfeil wirft keinen Schatten und hält
@@ -627,7 +827,37 @@ export class BeltKit {
     arrows.raycast = () => {};
     group.add(arrows);
 
+    // Der Greifer sitzt an der **hinteren** Kante: Das Band schiebt nach −z,
+    // also kommt von +z herein, was es sich holt.
+    if (kind === 'pull') {
+      const mouth = new THREE.Mesh(
+        this.shape('mouth', () => new THREE.BoxGeometry(BAND_WIDE, MOUTH_THICK, MOUTH_LONG)),
+        this.skin('mouth', new THREE.Color(BELT_COLORS.pull).getHex(), 0.6),
+      );
+      mouth.position.set(0, BELT_HEIGHT, (BAND_LONG - MOUTH_LONG) / 2);
+      mouth.castShadow = false;
+      mouth.receiveShadow = false;
+      mouth.raycast = () => {};
+      group.add(mouth);
+    }
+
     return group;
+  }
+
+  /**
+   * **Die Leinwand dieser Sorte** — einmal gemalt, von allen ihren Bändern
+   * geteilt.
+   *
+   * `null` steht für „ohne Leinwand" und wird **gemerkt**: Sonst versuchte
+   * jedes Band in Jest von Neuem, eine zu bekommen.
+   */
+  private texture(kind: BeltKind): THREE.CanvasTexture | null {
+    let arrows = this.arrows.get(kind);
+    if (arrows === undefined) {
+      arrows = chevronTexture(BELT_COLORS[kind]);
+      this.arrows.set(kind, arrows);
+    }
+    return arrows;
   }
 
   /**
@@ -645,14 +875,17 @@ export class BeltKit {
    * ausgehen und die Pfeile ruckeln.
    */
   update(dt: number): void {
-    if (!this.arrows) return;
     const step = Number.isFinite(dt) ? Math.max(0, dt) : 0;
     if (step === 0) return;
     // Eine Kachel je `BELT_SECONDS`, und eine Kachel sind `CHEVRONS`
     // Wiederholungen der Textur — die Sparren laufen also genau so schnell wie
     // das, was auf dem Band liegt.
     this.run = (this.run + (step / BELT_SECONDS) * CHEVRONS) % 1;
-    this.arrows.offset.y = -this.run;
+    // Beide Sorten laufen mit **einer** Zahl: Ein Zugband, dessen Sparren
+    // anders liefen als die des Bandes daneben, sähe aus wie ein Gerät mit
+    // einem anderen Motor — und es ist keines, es greift nur zusätzlich nach
+    // hinten.
+    for (const arrows of this.arrows.values()) if (arrows) arrows.offset.y = -this.run;
   }
 
   /**
@@ -666,7 +899,8 @@ export class BeltKit {
     for (const skin of this.skins.values()) skin.dispose();
     this.shapes.clear();
     this.skins.clear();
-    this.arrows?.dispose();
+    for (const arrows of this.arrows.values()) arrows?.dispose();
+    this.arrows.clear();
     this.run = 0;
   }
 
@@ -710,8 +944,12 @@ export class BeltKit {
  * aus umdreht (`texture.flipY`), ist oben auf der Leinwand v = 1 — und v = 1
  * liegt nach dem Flachlegen der Ebene bei −z. So zeigt der Pfeil im eigenen
  * Raum des Möbels nach Norden, genau wie `beltStep(0)`.
+ *
+ * `color` sagt, welche Sorte Band das wird (`BELT_COLORS`) — es ist der einzige
+ * Unterschied zwischen den beiden Leinwänden, und deshalb ist es ein Argument
+ * und keine zweite Funktion daneben.
  */
-function chevronTexture(): THREE.CanvasTexture | null {
+function chevronTexture(color: string): THREE.CanvasTexture | null {
   if (!canLoadModels()) return null;
 
   const size = CHEVRON_PIXELS;
@@ -726,7 +964,7 @@ function chevronTexture(): THREE.CanvasTexture | null {
   ctx.fillStyle = `#${BAND_COLOR.toString(16).padStart(6, '0')}`;
   ctx.fillRect(0, 0, size, size);
 
-  ctx.strokeStyle = ARROW_COLOR;
+  ctx.strokeStyle = color;
   // Ein Achtel der Kachel dick, mit runden Enden: Aus 16 m Höhe ist ein dünner
   // Strich ein Flimmern, ein dicker ein Pfeil.
   ctx.lineWidth = size / 8;
