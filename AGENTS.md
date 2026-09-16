@@ -876,9 +876,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
       der Comic-Modus das nächste Mal über die Szene läuft. Wo ein Usable
       **keine Geometrie** hat (eine Zone, ein Platz), liegt stattdessen ein
       **Ring auf dem Boden**: Eine umgestülpte Hülle von nichts ist nichts.
-      Der Hinweis über der Figur bleibt daneben stehen, in allen Ansichten
-      außer der Brille — dort reicht der Saum, und eine Tafel vor dem Gesicht
-      wäre eine zu viel.
+      **Der Saum ist die ganze Auskunft**, in jeder Ansicht. Daneben stand
+      einmal eine Tafel in der Bildmitte („Tomate nehmen"), und sie sagte
+      dasselbe ein zweites Mal — nur eben quer über der halben Küche statt
+      dort, wo das Ding steht. Sie ist weg (`showUsePrompt` samt
+      `USE_PROMPT_Y`); `Usable.usePrompt` bleibt als **Satz über die Tat**, den
+      eine Welt selbst melden kann und den die Tests der Küche nachrechnen
+      (`zones/kitchenCarry.kitchenPrompt`).
     - **Gerechnet wird auf dem Boden**, in x und z. Ein Knopf sitzt auf
       Hüfthöhe, ein Türgriff höher, eine Druckplatte am Boden — wer davorsteht,
       meint sie alle, und ein Strahl aus der Brust verfehlte die Platte um
@@ -890,21 +894,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
       dahinter steht dieselbe Methode, die auch der Zeiger und die Hand
       aufrufen. Angemeldet wird in einer **Liste** der Welt und nicht in der
       Szene gesucht — die Frage „was ist hier benutzbar" steht in jedem Bild
-      an, weil der Hinweis über der Figur daran hängt (_Knopf drücken_, eine
-      Tafel in der Neigung der Kamera, nur von oben). Am Objekt selbst hängt
-      dieselbe Auskunft als `userData.usable`.
-    - **Die Taste steht nicht auf der Tafel.** Der Hinweis begann einmal mit
-      dem Namen des Knopfes (_A · Brötchen nehmen_), und dafür gab es einen
-      Grund: Wer nicht weiß, womit er etwas anfängt, liest ihn dort. Nur sagen
-      das inzwischen zwei Dinge deutlicher als ein Buchstabe — das Ding selbst
-      bekommt seinen gelben Saum, und der Knopf, der es aufmacht, leuchtet am
-      Glas mit. Übrig bleibt die **Tat** („Brötchen nehmen", „Feuer löschen"),
-      und das ist an der Ausgabetheke im Gedränge genau das, was man sucht.
-      Damit ist auch `PlayerRig.useLabel` weg — diese Tafel war der einzige
-      Ort, der den Namen des Knopfes je gelesen hat, und ein Feld, das jedes
-      Bild gesetzt und von niemandem gelesen wird, ist die zweite Wahrheit, die
-      beim nächsten Umbau ausschert. Mit ihm fiel `FlatControls.padSpoke`, das
-      sich nur gemerkt hatte, ob zuletzt eine Taste oder ein Knopf sprach.
+      an, weil der gelbe Saum daran hängt. Am Objekt selbst hängt dieselbe
+      Auskunft als `userData.usable`.
+    - **Die Tafel ist ganz weg.** Sie begann einmal mit dem Namen des Knopfes
+      (_A · Brötchen nehmen_), verlor ihn und behielt die Tat („Brötchen
+      nehmen") — und auch die sagt der Saum schon, und zwar am Ding. In einer
+      Küche im Gedränge stand damit dauernd ein Schild vor der Arbeitsfläche.
+      Mit der Tafel fiel schon vorher `PlayerRig.useLabel` (sie war der einzige
+      Ort, der den Namen des Knopfes je gelesen hat) und mit ihm
+      `FlatControls.padSpoke`, das sich nur gemerkt hatte, ob zuletzt eine
+      Taste oder ein Knopf sprach.
     - **Die Portal-Regel: Was man drücken kann, kann man auch treffen.** Der
       rote Knopf (`worlds/shared/redButton.ts`) hat einen Kollisionskörper an
       der Kuppel, und eine Kugel, die ihn unterwegs streift, ruft sein `use`
@@ -2047,8 +2046,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     einer Tafel daneben, auf der sein Name und sein Maß stehen. In einer Zeile
     aus acht Schränken sieht man ein einzelnes Möbel nicht; der Katalog ist
     damit ein Rundgang statt einer Liste. **Angefasst wird mit `A`**, und ein
-    Knopf neben dem Eingang schaltet den **Baumodus** ein, in dem sich leere
-    Möbel versetzen lassen (beides unter _Anfassen in der Küche_). Sie ist
+    roter Knopf neben dem Eingang schaltet den **Baumodus** ein und wieder aus,
+    in dem sich leere Möbel versetzen lassen (beides unter _Anfassen in der
+    Küche_). Sie ist
     der Grund, warum das Gelände nach Norden gewachsen ist (`FIELD` ist jetzt
     64 × 80 m): Die Möbel sind groß — eine Spüle misst 4 × 3 m —, und in eine
     Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe. Hinter dem
@@ -2617,9 +2617,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Verspreizen                                                                        | eine Hand links, eine rechts an gegenüberliegenden Flächen — und **nah beieinander**, sonst kann man nicht drücken                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Sprungkissen                                                                       | von oben in das blaue Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                                                                                                                   | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Halt-Anzeige | sie taucht auf, sobald man vor der Kletterwand steht, und geht danach wieder weg — Ausdauer in der Mitte, je ein Haltbalken links und rechts | dito | – | dito |
-| Küche: kochen | davorstellen und `A` — die Station, die `A` gerade meint, trägt den gelben Saum, und der Hinweis über der Figur sagt die Tat (_Brötchen nehmen_) | `E` oder Enter | `A` | Knopf `A` |
+| Küche: kochen | davorstellen und `A` — die Station, die `A` gerade meint, trägt den gelben Saum, und mehr braucht es nicht | `E` oder Enter | `A` | Knopf `A` |
 | Küche: Feuerlöscher | erst vom Hocker nehmen (`A`), dann den **Trigger der rechten Hand gedrückt halten**; gezielt wird mit dem Kopf | **aus den Augen**: `E` gedrückt halten, gezielt mit dem Kopf. **Von oben**: ein **Schalter** — Linksklick an, noch einmal aus (oder `E`, solange nichts in Reichweite steht); gezielt mit dem rechten Stock, der dort die Figur dreht | aus den Augen `A` halten; von oben schaltet RT (oder `A`, solange nichts in Reichweite steht) | aus den Augen Knopf `A` halten; von oben schaltet Knopf `B` (oder `A`, solange nichts in Reichweite steht) |
-| Küche: umbauen | Knopf in der Küche + `A` schaltet den Baumodus um; dann `A` am leeren Möbel hebt es auf, `A` auf dem Umriss davor setzt es ab (grün = passt, rot = passt nicht) | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
+| Küche: umbauen | roter Knopf neben dem Eingang + `A` schaltet den Baumodus um (sein Schild sagt, wohin: _Küche umbauen_ / _Küche nutzen_); dann `A` am leeren Möbel hebt es auf, `A` auf dem Umriss davor setzt es ab (grün = passt, rot = passt nicht) | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
 | Messband                                                                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Stoppuhr                                                                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Pinsel                                                                             | Palette antippen **oder** anzielen + Trigger; Regler (RGB, Breite) gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                                                                     | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
@@ -4986,7 +4986,13 @@ Und das sind die Regeln, die darin stehen:
   sechs verbrennen, fünf bis zum Feuer, dann brennt es. Dazu gehören die
   Anzeigen: Flammen unter der Pfanne, ein Fortschrittsbalken in Warm, einer in
   Rot, ein Warndreieck kurz vorher. Ein brennender Herd ist keine Fläche mehr —
-  solange es brennt, geht dort nur noch eines.
+  solange es brennt, geht dort nur noch eines. **Balken und Dreieck werden ohne
+  Tiefenprüfung gezeichnet** (`kitchenGauge.skin`, `front`): Sie schweben eine
+  Handbreit über der Platte, und genau dort steht auch das, worüber sie etwas
+  sagen — von schräg oben schnitt der Balken durch das Patty, und man las die
+  Hälfte. Jetzt liegt er **vor** seinem Möbel. Die **Flammen** bleiben
+  ausgenommen: Sie sind Kegel im Raum, und ein Feuer, das durch die Wand des
+  Nachbarraums leuchtet, ist ein Fehler und kein Hinweis.
 - **Der Feuerlöscher wird gehalten, nicht gedrückt** (`kitchenSpray.ts`). Er
   war einmal ein einzelner Druck auf `A` am brennenden Herd, und das ist kein
   Feuerlöscher, sondern ein Lichtschalter: Bei _Overcooked_ wie bei _PlateUp_
@@ -5110,10 +5116,18 @@ Und das sind die Regeln, die darin stehen:
   Leere schiebt, verliert, was daraufliegt.
 - **Der Baumodus hängt an einem Knopf in der Küche** (`zones/kitchenBuild.ts`).
   Bei _Overcooked_ steht die Küche, wie sie steht; bei _PlateUp_ baut man sie
-  zwischen zwei Tagen um, und genau das ist gemeint. Der Schalter neben dem
-  Eingang ist **selbst ein benutzbares Ding** und kein Menüeintrag: hingehen,
-  gelber Saum, `A` — wer den Umbau sucht, findet ihn dort, wo er steht. Ist er
-  an, lässt sich jedes **leere** Möbel aufheben und tragen wie die Pfanne
+  zwischen zwei Tagen um, und genau das ist gemeint. Es ist der **große rote
+  Knopf** auf seiner Säule — derselbe, der an den Effektquellen die Funken
+  auslöst (`shared/redButton.ts`) —, und er ist **selbst ein benutzbares Ding**
+  und kein Menüeintrag: hingehen, gelber Saum, `A`. Sein Schild sagt, was der
+  nächste Druck tut, und wechselt deshalb mit: _Küche umbauen_, solange
+  gekocht wird, _Küche nutzen_, solange umgebaut wird. Er steht auf der Kachel
+  neben dem Eingang (`kitchenPlan.BUILD_BUTTON_TILE`), und die gehört ihm
+  allein: Dort stand einmal der Hocker mit dem Feuerlöscher, und weil `A` immer
+  nur **das Nächste** nimmt (`core/usable.pickUsable`), erwischte man den
+  Schalter und nie den Löscher. Der Hocker steht seitdem oben in der Nordzeile
+  neben dem Herd mit der Pfanne — also neben dem einzigen, an dem es brennen
+  kann. Ist der Baumodus an, lässt sich jedes **leere** Möbel aufheben und tragen wie die Pfanne
   (dieselbe Hand, derselbe Knopf, dasselbe Vor-dem-Bauch-Tragen), und vor den
   Füßen liegt ein **Umriss**, der grün oder rot ist. Der Umriss ist ebenfalls
   ein Usable, und das ist kein Trick, sondern die einzige ehrliche Antwort auf
@@ -9242,9 +9256,9 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   der Seite oder `WASD`, `A`/`E` benutzt über `HauntingWorld.useForward`
   (Sonderfälle → `pickUsable` über die angemeldeten Dinge → sonst der
   Lichtschalter, `ShipExperience.useEmpty`; ein Handgriff in der Sperrfrist
-  zählt als Handgriff und legt das Licht nicht um), der Saum und der Hinweis
-  über der Figur kommen vom Kern (`bind` meldet jedes Ziel als `Usable` an,
-  `usePrompt` ist die Fadenkreuz-Beschriftung ohne „E: "), der Werkzeug-Knopf
+  zählt als Handgriff und legt das Licht nicht um), der Saum kommt vom Kern
+  (`bind` meldet jedes Ziel als `Usable` an; sein `usePrompt` wird nicht mehr
+  gezeigt, nur noch geprüft), der Werkzeug-Knopf
   (`#hud-tool`, `Tab`) wählt die Hand (`chooseTool`: Lampe/Medkit rechts,
   Radar/Röntgen links, `null` leert beide; `toolChoice.current` ist die
   letzte Wahl, solange sie noch in der Hand liegt). Eigener Stock, eigene

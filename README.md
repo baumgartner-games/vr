@@ -72,9 +72,11 @@ weggeht, fängt von vorn an.
 Gast setzt sich an einen freien Tisch, isst, und lässt dreckiges Geschirr
 zurück. Das stapelt sich an der Rückgabe, wandert in die Spüle und kommt sauber
 wieder — ohne diesen Kreis wäre die Tellerausgabe ein Brunnen. Brennt der Herd,
-nimmt man den **Feuerlöscher** vom Hocker und **hält** ihn ins Feuer, aus zwei
-Kacheln Abstand; ein Druck genügt nicht mehr. Und ein Knopf in der Küche
-schaltet den **Baumodus** ein: Dann lässt sich jedes leere Möbel aufheben,
+nimmt man den **Feuerlöscher** vom Hocker — er steht oben in der Zeile neben
+dem Herd, also dort, wo es brennt — und **hält** ihn ins Feuer, aus zwei
+Kacheln Abstand; ein Druck genügt nicht mehr. Und ein großer roter Knopf neben
+dem Eingang schaltet den **Baumodus** ein und wieder aus; sein Schild sagt,
+wohin der nächste Druck führt. Ist er an, lässt sich jedes leere Möbel aufheben,
 tragen wie die Pfanne und auf einer freien Kachel wieder absetzen — der Umriss
 vor den Füßen sagt vorher, ob es passt.
 
@@ -469,11 +471,10 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 **Am Bildschirm ist die Steuerung die der Seite, wie in jeder Welt**: auf dem
 Handy der Bordstock links und `A`/`B` rechts, am Laptop `WASD`, Maus, `E`.
 Was `A` gerade meint — Kistenklappe, Konsole, Tastenfeld, Türtafel, das
-liegende Teil —, trägt einen gelben Saum und einen Hinweis über der Figur;
-der runde Werkzeug-Knopf unten rechts wählt Taschenlampe, Radar,
-Röntgengerät oder Medkit. Über den Stock geht es mit Arbeitstempo los;
-jenseits des äußeren Rings wird gerannt. In der Brille gibt es Zeiger,
-Trigger und `A`.
+liegende Teil —, trägt einen gelben Saum; der runde Werkzeug-Knopf unten
+rechts wählt Taschenlampe, Radar, Röntgengerät oder Medkit. Über den Stock
+geht es mit Arbeitstempo los; jenseits des äußeren Rings wird gerannt. In der
+Brille gibt es Zeiger, Trigger und `A`.
 
 **Und wenn nichts vor dir liegt, ist Benutzen der Lichtschalter.** Die Lampe
 bleibt dabei in der Hand; sie auszumachen ist eine Entscheidung, keine leere
@@ -854,7 +855,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Springen / Ducken             | `A` rechts (springt nur, wenn nichts in Reichweite ist) / rechten Stick reindrücken                                                                                        | `Leertaste`                                                            | Knopf `A`, siehe links   |
 | Menü                          | Button an beiden Händen (immer nur eins offen)                                                                                                                             | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links      |
 | Von oben ↔ Aus den Augen      | –                                                                                                                                                                          | Startseite oder Menü → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger in der oberen Hälfte zoomen |
-| Benutzen                      | `A` rechts — was in Reichweite steht, bekommt einen gelben Saum                                                                                                            | `E` oder Enter — ein Hinweis über der Figur sagt, was da ist           | Knopf `A`                |
+| Benutzen                      | `A` rechts — was in Reichweite steht, bekommt einen gelben Saum                                                                                                            | `E` oder Enter — der gelbe Saum sagt, was gemeint ist                  | Knopf `A`                |
 | Werkzeug wählen               | – (das Regal hängt am Handgelenk)                                                                                                                                          | Knopf unten rechts oder `Tab` — die Liste fängt mit _Hand (leer)_ an   | derselbe Knopf, antippen |
 | Zielen / Schießen (von oben)  | Trigger der Hand mit der Waffe                                                                                                                                             | Maus zielt, Linksklick schießt                                         | rechter Stick, Knopf `B` |
 | Auswählen                     | zielen + Trigger oder `A`                                                                                                                                                  | Linksklick                                                             | tippen                   |

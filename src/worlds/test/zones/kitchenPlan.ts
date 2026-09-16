@@ -214,6 +214,22 @@ export function rackLift(): number {
  * Ablage bei z = 8. Beides ist Aufbau und kein Möbel: Der Katalog kennt einen
  * Tisch und ein Band, wofür sie hier stehen, steht nur hier.
  */
+/**
+ * **Wo der rote Umbauknopf steht** — Kachel der Zone, wie alles hier.
+ *
+ * Er ist kein Möbel und steht deshalb nicht in `KITCHEN_SPOTS`: Ein Knopf, den
+ * man im Baumodus aufheben und in die Ecke stellen kann, ist ein Knopf, den
+ * man irgendwann nicht mehr findet — und dann kommt man aus dem Baumodus nicht
+ * mehr heraus. Die Kachel steht trotzdem hier und nicht in der Zone, damit
+ * Grundriss (`stampKitchen`) und Aufbau (`kitchen.ts`) dieselbe Zahl lesen.
+ *
+ * Neben dem Eingang, am Südwestrand: Wer vom Gang hereinkommt, läuft daran
+ * vorbei. Vorher stand hier der Hocker mit dem Feuerlöscher — und weil der
+ * Knopf damals auf derselben Kachel hing, erwischte `A` immer nur ihn
+ * (`core/usable.pickUsable` nimmt das Nächste) und nie den Löscher.
+ */
+export const BUILD_BUTTON_TILE = { x: 0, z: 9 } as const;
+
 export const KITCHEN_SPOTS: readonly Spot[] = [
   // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ----------------
   { name: 'counter', x: 0, z: 0 },
@@ -222,7 +238,12 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // Der **einzige** Herd mit Pfanne, und damit der einzige, auf dem etwas
   // brät: Es gibt genau eine Pfanne in dieser Küche (`kitchen.ts`).
   { name: 'stove-pan', x: 3, z: 0 },
-  { name: 'counter', x: 4, z: 0 },
+  // **Der Löscher steht neben dem Herd**, und zwar neben dem einen, an dem es
+  // brennen kann. Vorher stand er unten am Ausgang: Wer von dort aus löschen
+  // wollte, lief einmal quer durch die Küche, während die Pfanne loderte —
+  // und in genau den Sekunden ist ein Feuerlöscher entweder in Reichweite
+  // oder nutzlos. Eine Kachel Arbeitsfläche kostet das, und sie ist es wert.
+  { name: 'extinguisher', x: 4, z: 0 },
   // Zwei Kacheln breit — sie ist das einzige Stück, das die Zeile unterbricht.
   { name: 'sink', x: 5, z: 0 },
   { name: 'counter', x: 7, z: 0 },
@@ -262,9 +283,10 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // und nicht dahinter, mit Luft dazwischen (`rackLift`).
   { name: 'plate-rack', x: 5, z: 9, turn: 2, lift: rackLift() },
   { name: 'serve-counter', x: 7, z: 9, turn: 2 },
-  // Der Hocker mit dem Feuerlöscher steht am Weg nach draußen: Wer vom Gang
-  // hereinkommt, läuft daran vorbei, und wenn es brennt, weiß er, wohin.
-  { name: 'extinguisher', x: 0, z: 9 },
+  // Auf `BUILD_BUTTON_TILE` stand einmal der Hocker mit dem Feuerlöscher. Die
+  // Kachel gehört jetzt dem roten Umbauknopf (`kitchen.ts`,
+  // `addBuildButton`), und der ist kein Möbel: Er steht in keiner Liste,
+  // lässt sich nicht aufheben und nicht umbauen.
 
   // --- der Gastraum: drei Tische und die Rückgabe, südlich der Theke ----------
   // Dieselbe Reihe (z = 10, die letzte der Zone) und dasselbe Möbel: ein
@@ -393,6 +415,14 @@ export function stampKitchen(plan: GridPlan): void {
       }
     }
   }
+
+  // Der rote Umbauknopf ist kein Möbel und steht in keiner Liste — seine
+  // Säule steht trotzdem im Weg (`kitchen.ts`, `addBuildButton`). Derselbe
+  // Aufschlag wie für ein Möbel: Ein NPC geht darum herum, statt hindurch.
+  plan.floor(
+    { x: KITCHEN.x + BUILD_BUTTON_TILE.x, z: KITCHEN.z + BUILD_BUTTON_TILE.z, w: 1, d: 1 },
+    { cost: FURNITURE_COST },
+  );
 }
 
 /**

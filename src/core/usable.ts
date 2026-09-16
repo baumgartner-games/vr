@@ -44,9 +44,16 @@ export interface UseSource {
  * nachläuft, und ein Tor, das schon offen steht, sagen `false`, und die Welt
  * sucht dann nicht weiter nach einer Meldung, die es nicht gibt.
  *
- * `usePrompt` ist der Satz über der Figur (_E · Knopf drücken_). Wer keinen
- * hat, bekommt keinen Hinweis — das ist der Normalfall für alles, was man
- * ohnehin sieht.
+ * `usePrompt` ist der Satz, den ein Ding über seine eigene Tat sagt —
+ * „Tomate nehmen", „Feuer löschen", „Das ist noch nicht gebraten".
+ *
+ * **Gezeigt wird er nicht mehr.** Bis eben hing er als Tafel in der Bildmitte
+ * über der Figur (`PortalWorld.showUsePrompt`), und das war einmal zu viel:
+ * Was `A` gerade meint, sagt der **gelbe Saum** (`core/highlight.ts`) schon,
+ * und zwar dort, wo das Ding steht, statt quer über der halben Küche. Die
+ * Tafel ist deshalb weg; der Satz bleibt, weil er die geprüfte Beschreibung
+ * dessen ist, was ein Druck bewirkt (`kitchenCarry.kitchenPrompt` und die
+ * Tests daneben), und weil eine Welt ihn jederzeit selbst melden kann.
  */
 export interface Usable {
   use(by: UseSource): boolean;

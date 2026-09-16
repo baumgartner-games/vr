@@ -45,6 +45,7 @@ import { DIRTY_STACK_MAX, FoodKit } from './kitchenProps';
 import { GAUGE_LIFT, KitchenGauges, WARN_LIFT } from './kitchenGauge';
 import { IconOven } from './kitchenIcon';
 import {
+  BUILD_BUTTON_TILE,
   KITCHEN_FLOOR,
   KITCHEN_SPOTS,
   footprint,
@@ -72,6 +73,7 @@ import {
   sprayOn,
   type DouseState,
 } from './kitchenSpray';
+import { buildRedButton, BUTTON_DOME_R, type RedButton } from '../../shared/redButton';
 import type { TestZone, ZoneHost } from './zone';
 
 /**
@@ -205,15 +207,15 @@ const TICKET_SECONDS = 4;
 const TICKET_LIFT = 0.95;
 
 /**
- * **Wie hoch der Umbau-Schalter über dem Boden hängt**, in Metern, und wie
- * groß sein Kasten ist.
+ * **Was auf dem Schild des Umbauknopfes steht** — je nachdem, wohin der
+ * nächste Druck führt.
  *
- * Auf Brusthöhe der Figur (1,60 m hoch, `core/chefFit.CHEF_HEIGHT`): hoch
- * genug, dass er von oben nicht unter einer Arbeitsplatte verschwindet, tief
- * genug, dass ihn in der Brille eine Hand erreicht.
+ * Nicht der Zustand („Baumodus"), sondern die **Tat**: Wer davorsteht, will
+ * wissen, was passiert, wenn er drückt, und nicht, wie das heißt, worin er
+ * gerade ist. Dieselbe Regel wie bei jedem anderen Hinweis dieser Welt
+ * (`core/usable.Usable.usePrompt`).
  */
-const SWITCH_LIFT = 1.05;
-const SWITCH_SIZE = 0.26;
+const BUILD_BUTTON_LABELS = { off: 'Küche umbauen', on: 'Küche nutzen' } as const;
 
 /**
  * **Wie durchsichtig der Bauplatz ist** und in welchen Farben er antwortet.
@@ -449,6 +451,8 @@ export class KitchenZone implements TestZone {
   // --- der Baumodus ----------------------------------------------------------
   /** Ob gerade umgebaut wird (`kitchenBuild.ts`). */
   private editing = false;
+  /** Der rote Knopf, der ihn umlegt (`addBuildButton`). */
+  private buildButton: RedButton | null = null;
   /** Das Möbel in der Hand — im Baumodus trägt man Möbel statt Essen. */
   private lifted: Furnish | null = null;
   /** Der Umriss des Bauplatzes: wo er steht und ob dort Platz ist. */
@@ -487,7 +491,7 @@ export class KitchenZone implements TestZone {
       const model = this.buildPiece(piece);
       if (model) this.place(model, piece, spot, () => null);
     }
-    this.addLever();
+    this.addBuildButton();
 
     // Dieselbe Frage wie bei der Figur, und aus demselben Grund: `GLTFLoader`
     // und `import.meta` bringen einen Jest-Lauf zum Stehen, also wird das
@@ -524,6 +528,8 @@ export class KitchenZone implements TestZone {
     // Die Pfeile auf den Bändern wandern, auch wenn nichts daraufliegt: Ein
     // Band, das erst bei Fracht zeigt, wohin es schiebt, sagt es zu spät.
     this.belts?.update(dt);
+    // Der Knopf kommt nach dem Druck wieder hoch — von allein tut er es nicht.
+    this.buildButton?.update(dt);
     this.gauges?.update(dt);
     this.fadeTicket(dt);
     this.carryInHands(ctx);
@@ -939,6 +945,8 @@ export class KitchenZone implements TestZone {
     this.belts = null;
     this.jet?.dispose();
     this.jet = null;
+    this.buildButton?.dispose();
+    this.buildButton = null;
     this.stations.length = 0;
     this.furniture.length = 0;
     this.bodies.length = 0;
@@ -1730,43 +1738,70 @@ export class KitchenZone implements TestZone {
   // --- der Baumodus ----------------------------------------------------------
 
   /**
-   * **Der Schalter, der den Umbau anwirft** — ein Kasten an der Wand, und er
-   * ist selbst ein benutzbares Ding.
+   * **Der Knopf, der den Umbau anwirft** — derselbe große rote wie an den
+   * Effektquellen (`worlds/shared/redButton.ts`, `zones/effects.ts`).
    *
-   * „Ein Ingame-Button wie bei der Interaktion": also kein Menüeintrag und
-   * keine zweite Taste, sondern genau das, was diese Welt für „etwas tun" hat
-   * — hingehen, gelber Saum, `A` (`core/usable.ts`). Wer den Umbau sucht,
-   * findet ihn dort, wo er steht, statt in einer Liste.
+   * Vorher stand hier ein violetter Kasten auf Brusthöhe, und er stand genau
+   * auf der Kachel des Feuerlöscher-Hockers (x = 0, z = 9). Zwei Dinge auf
+   * einer Kachel heißt: `A` erwischt immer nur eines davon (`pickUsable`
+   * nimmt das Nächste), und das war der Kasten — der Löscher ließ sich nicht
+   * mehr abnehmen. Der Hocker ist deshalb an die Nordzeile neben den Herd
+   * gezogen (`kitchenPlan.KITCHEN_SPOTS`), und auf der frei gewordenen Kachel
+   * steht jetzt der Knopf, den diese Welt für „etwas auslösen" hat.
    *
-   * Er steht neben dem Eingang, auf der Kachel des Feuerlöscher-Hockers
-   * gegenüber: Wer hereinkommt, läuft daran vorbei.
+   * **Sein Schild sagt, was der Druck tut, und nicht, wo man ist**: _Küche
+   * umbauen_, solange gekocht wird, _Küche nutzen_, solange umgebaut wird. Ein
+   * Knopf, der in beiden Zuständen gleich heißt, ist ein Schalter, dessen
+   * Stellung man erraten muss.
+   *
+   * Er steht neben dem Eingang, mit dem Schild nach Süden zum Gang: Wer
+   * hereinkommt, läuft daran vorbei und liest es von vorn.
    */
-  private addLever(): void {
+  private addBuildButton(): void {
     const world = this.world;
-    if (!world) return;
-    const shape = new THREE.BoxGeometry(SWITCH_SIZE, SWITCH_SIZE, 0.08);
-    this.shapes.push(shape);
-    const lever = new THREE.Mesh(
-      shape,
-      this.own(new THREE.MeshStandardMaterial({ color: 0x9d7bff })),
+    if (!world || typeof document === 'undefined') return;
+    const button = buildRedButton({
+      title: BUILD_BUTTON_LABELS.off,
+      body: 'Möbel aufheben und neu hinstellen',
+    });
+    this.buildButton = button;
+    button.group.name = 'kitchen-build-button';
+    button.group.position.set(
+      (KITCHEN.x + BUILD_BUTTON_TILE.x + 0.5) * TILE,
+      KITCHEN_FLOOR,
+      (KITCHEN.z + BUILD_BUTTON_TILE.z + 0.5) * TILE,
     );
-    lever.name = 'kitchen-build-switch';
-    lever.position.set(
-      (KITCHEN.x + 0.5) * TILE,
-      KITCHEN_FLOOR + SWITCH_LIFT,
-      (KITCHEN.z + KITCHEN.d - 1.5) * TILE,
+    world.root.add(button.group);
+    button.group.updateWorldMatrix(true, true);
+    this.placed.push(button.group);
+    // **Durch die Säule läuft niemand.** Der violette Kasten vorher hing in
+    // der Luft und hatte nichts, wogegen man stoßen konnte; eine Säule, durch
+    // die man hindurchgeht, sieht dagegen kaputt aus. Der Teller misst 0,6 m
+    // (`shared/redButton.ts`), der Kasten misst genauso viel.
+    const block = this.boxAt(
+      0.6,
+      1.0,
+      0.6,
+      button.group.position.x,
+      KITCHEN_FLOOR,
+      button.group.position.z,
     );
-    lever.castShadow = true;
-    world.root.add(lever);
-    lever.updateWorldMatrix(true, false);
-    this.placed.push(lever);
+    world.root.add(block);
+    block.updateWorldMatrix(true, false);
+    this.placed.push(block);
+    this.bodies.push(world.addSolid(block));
     world.addUsable(
-      lever,
+      button.dome,
       {
-        use: () => this.toggleEdit(),
-        usePrompt: () => (this.editing ? 'Umbau beenden' : 'Küche umbauen'),
+        use: () => {
+          button.press();
+          return this.toggleEdit();
+        },
+        usePrompt: () => (this.editing ? BUILD_BUTTON_LABELS.on : BUILD_BUTTON_LABELS.off),
       },
-      { shot: 0 },
+      // Der Knopf ist so groß wie seine Kuppel, und getroffen werden darf er
+      // auch (Portal-Regel: was man drücken kann, kann man auch treffen).
+      { radius: BUTTON_DOME_R, shot: BUTTON_DOME_R },
     );
   }
 
@@ -1794,6 +1829,11 @@ export class KitchenZone implements TestZone {
       if (furnish.usable) world.removeUsable(furnish.usable);
       furnish.usable = null;
     }
+    // Das Schild geht mit: Es sagt, was der **nächste** Druck tut.
+    this.buildButton?.setTitle(
+      this.editing ? BUILD_BUTTON_LABELS.on : BUILD_BUTTON_LABELS.off,
+      this.editing ? 'Zurück ans Kochen' : 'Möbel aufheben und neu hinstellen',
+    );
     world.notify(this.editing ? 'Umbau: Möbel lassen sich tragen' : 'Umbau beendet');
     this.refreshStations();
     return true;
