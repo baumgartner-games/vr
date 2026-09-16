@@ -224,7 +224,7 @@ export class NavigationZone implements TestZone {
     }
   }
 
-  /** Der Zielmast am Ende: ein Mast und eine Tafel, die nach Osten liest. */
+  /** Der Zielmast am Ende: ein Mast und eine Tafel, die die Kamera ansieht. */
   private buildMark(world: ZoneHost): void {
     const steel = this.own(new THREE.MeshStandardMaterial({ color: 0x9aa6bd, roughness: 0.5 }));
     const post = new THREE.Mesh(this.shape(new THREE.BoxGeometry(0.09, MARK_HEIGHT, 0.09)), steel);
@@ -237,9 +237,12 @@ export class NavigationZone implements TestZone {
       title: 'Ziel',
       body: 'Hierher läuft er',
       accent: 0x5ee0a0,
+      // Sie stand fest nach Osten — also zu dem hin, der aus der Zone kommt,
+      // und quer zu jedem, der von oben zusieht. Jetzt sieht sie die Kamera an
+      // (`ui/billboard.ts`), aus welcher auch immer gerade gezeichnet wird.
+      face: true,
     });
     plate.position.set(centre(POINT_B.x), MARK_HEIGHT, centre(POINT_B.z));
-    plate.rotation.y = Math.PI / 2;
     world.root.add(plate);
     this.mark = plate;
   }
@@ -251,7 +254,8 @@ export class NavigationZone implements TestZone {
       body: 'Von hier bis zum Zielmast im Westen',
     });
     button.group.position.set(centre(BUTTON_TILE.x), 0, centre(BUTTON_TILE.z));
-    // Das Schild steht auf +Z; gedreht schaut es dorthin, wo man ankommt.
+    // Gedreht steht die Säule so, wie man auf sie zukommt; das Schild darüber
+    // sieht ohnehin die Kamera an (`ui/billboard.ts`).
     button.group.rotation.y = Math.PI;
     world.root.add(button.group);
     this.button = button;

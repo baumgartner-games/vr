@@ -62,8 +62,10 @@ export interface RedButton {
 /**
  * Baut den Knopf mit seinem Schild.
  *
- * Das Schild steht auf +Z: die Welt dreht die Gruppe so, dass diese Seite dem
- * entgegensieht, der auf den Knopf zukommt.
+ * Wohin die Gruppe gedreht wird, entscheidet weiterhin die Welt — für das
+ * Schild ist es egal geworden: Es richtet sich beim Zeichnen zur Kamera aus
+ * (`ui/billboard.ts`) und ist aus jeder Richtung und aus jeder Ansicht zu
+ * lesen.
  */
 export function buildRedButton(options: { title: string; body?: string }): RedButton {
   const group = new THREE.Group();
@@ -113,11 +115,16 @@ export function buildRedButton(options: { title: string; body?: string }): RedBu
     body: options.body,
     align: 'center',
     accent: RED,
+    // **Es sieht die Kamera an** (`ui/billboard.ts`). Vorher stand es fest auf
+    // +Z und lehnte sich um 0,12 rad zurück — gut für den, der von vorn
+    // ankommt, und unlesbar für jeden, der von der Seite kommt oder von oben
+    // spielt: Ein Knopf, den die Welt zum Gang hin gedreht hat, zeigte der
+    // Kamera von oben nur die Kante seines Schildes.
+    face: true,
   });
-  // Über dem Knopf und leicht zurückgelehnt: von vorn lesbar, ohne dem
-  // drückenden Arm im Weg zu stehen.
+  // Über dem Knopf: lesbar, ohne dem drückenden Arm im Weg zu stehen. Die
+  // Neigung setzt jetzt die Ausrichtung beim Zeichnen, nicht mehr diese Zeile.
   sign.position.set(0, PEDESTAL_H + 0.62, -0.02);
-  sign.rotation.x = 0.12;
   group.add(sign);
 
   let pressed = 0;

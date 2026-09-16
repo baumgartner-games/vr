@@ -30,13 +30,33 @@ import { GRAB_TINT, GRAB_TINT_EMISSIVE } from '../../core/colors';
  * sie gehört und wer sie mitliest, steht in `SignRoom.ts`.
  */
 
-/** Breite der Leinwand in Pixeln — die Höhe folgt den Maßen der Tafel. */
-const CANVAS_W = 1024;
-/** Rand um den Text, als Anteil der Breite. */
-const PAD = 0.045;
+/**
+ * **Breite der Leinwand in Pixeln** — die Höhe folgt den Maßen der Tafel.
+ *
+ * Nach außen gegeben, damit ein Test nachrechnen kann, ob ein fester Aushang
+ * auf seine Tafel passt (`worlds/test/zones/kitchenNotice.test.ts`): Ein Text,
+ * den niemand rollen kann, weil die Tafel an der Wand hängt, muss ganz
+ * daraufpassen — und das entscheidet sich auf dieser Leinwand.
+ */
+export const SIGN_CANVAS_W = 1024;
+const CANVAS_W = SIGN_CANVAS_W;
+/** Rand um den Text, als Anteil der Breite — aus demselben Grund nach außen. */
+export const SIGN_PAD = 0.045;
+const PAD = SIGN_PAD;
 /** Dicke des Rahmens und wie weit die Schrift davor liegt. */
 const FRAME = 0.03;
 const FACE_Z = 0.018;
+/** Dicke der Rückwand — sie schließt den Rahmen nach hinten. */
+const BACK_T = 0.02;
+/**
+ * **Wie weit die Tafel nach hinten baut**, in Metern, von ihrem Mittelpunkt
+ * aus gemessen.
+ *
+ * Eine ausgerechnete Zahl und kein Maß aus dem Bauch: Wer eine Tafel an eine
+ * Wand hängt, muss wissen, wo ihre Rückseite liegt, sonst steckt sie in der
+ * Wand und flackert (`worlds/test/zones/kitchenNotice.ts`).
+ */
+export const SIGN_BACK_DEPTH = 0.025 + BACK_T / 2;
 /** Höhe des Pfostens unter der Tafel und der Halbmesser seines Fußes. */
 const POST_H = 1.05;
 const FOOT_R = 0.22;
@@ -49,6 +69,17 @@ export interface SignBoardOptions {
   text: string;
   settings: SignSettings;
   mount: 'post' | 'wall';
+  /**
+   * **Traggriffe dran?** Vorgabe ja — ein Schild, das jemand hingestellt hat,
+   * nimmt derselbe Jemand auch wieder mit (`SignRoom.ts`).
+   *
+   * `false` ist für die Tafel, die zur Welt gehört und nicht zum Spieler: der
+   * Aushang an der Küchenwand (`worlds/test/zones/kitchenNotice.ts`). Zwei
+   * türkise Griffe sagen in dieser Welt „hier anfassen", und das ist ein
+   * Versprechen — wer es an eine angeschraubte Tafel hängt, lässt jemanden
+   * daran ziehen, bis er aufgibt.
+   */
+  handles?: boolean;
 }
 
 /** Ein Bild, das das Schild zeigen soll — und wie weit es damit ist. */
@@ -111,7 +142,7 @@ export class SignBoard extends THREE.Group {
     // Die Rückwand für ein Schild an der Wand — sie schließt den Rahmen, damit
     // man von der Seite nicht durch das Schild in die Wand sieht.
     this.back = new THREE.Mesh(
-      new THREE.BoxGeometry(1, 1, 0.02),
+      new THREE.BoxGeometry(1, 1, BACK_T),
       new THREE.MeshStandardMaterial({ color: 0x1a2130, roughness: 0.9 }),
     );
     this.back.name = 'sign-back';
@@ -134,7 +165,7 @@ export class SignBoard extends THREE.Group {
 
     // Die beiden Traggriffe: dieselbe türkise Farbe wie an jedem Werkzeug, und
     // sie heißt hier dasselbe wie dort — hier anfassen.
-    for (const side of [-1, 1]) {
+    for (const side of options.handles === false ? [] : [-1, 1]) {
       const handle = new THREE.Mesh(
         new THREE.CylinderGeometry(0.022, 0.022, 0.12, 10),
         new THREE.MeshStandardMaterial({
@@ -271,8 +302,8 @@ export class SignBoard extends THREE.Group {
     this.face.geometry = new THREE.PlaneGeometry(width, height);
     this.face.position.set(0, 0, FACE_Z);
     this.back.geometry.dispose();
-    this.back.geometry = new THREE.BoxGeometry(width + FRAME * 2, height + FRAME * 2, 0.02);
-    this.back.position.set(0, 0, -0.025);
+    this.back.geometry = new THREE.BoxGeometry(width + FRAME * 2, height + FRAME * 2, BACK_T);
+    this.back.position.set(0, 0, -(SIGN_BACK_DEPTH - BACK_T / 2));
     this.back.visible = this.mount === 'wall';
     this.post.visible = this.mount === 'post';
     this.post.position.y = -height / 2;

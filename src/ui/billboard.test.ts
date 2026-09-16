@@ -10,6 +10,13 @@ import { BILLBOARD_LEAN_MIN, billboardAngles, faceCamera, unfaceCamera } from '.
  * sehen konnte: Die Welt bekommt dort die Kamera aus den Augen, am Schirm steht
  * aber die von oben.
  *
+ * Und die zweite Zusage steckt in fast jedem Fall hier drin: **parallel zum
+ * Bild**, nicht auf die Linse gezielt. Ein Schild bekommt Neigung und Gieren
+ * der Kamera und nicht die Richtung zu ihrem Standort — sonst steht jede
+ * Beschriftung neben der Blickachse ein bisschen schiefer als die daneben.
+ * Deshalb steht in diesen Tests nirgends mehr, **wo** die Kamera ist: Es
+ * kommt allein darauf an, **wie** sie schaut.
+ *
  * Kein WebGL nötig. Was three beim Zeichnen tut, ist eine Zeile
  * (`renderObject`: `object.onBeforeRender(renderer, scene, camera, …)`), und
  * die kann ein Test selbst rufen — `draw` unten tut nichts anderes.
@@ -24,11 +31,22 @@ function stage(): THREE.Object3D {
   return parent;
 }
 
-function eyeAt(x: number, y: number, z: number): THREE.Camera {
+/**
+ * **Eine Kamera, die so schaut** — `down` nach unten, `turn` um die Hochachse,
+ * beides im Bogenmaß. Wo sie dabei steht, ist ihr (und dem Schild) egal.
+ */
+function eyeLooking(down: number, turn = 0, roll = 0): THREE.Camera {
   const camera = new THREE.PerspectiveCamera();
-  camera.position.set(x, y, z);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.set(-down, turn, roll);
+  camera.position.set(3, 7, -2);
   camera.updateMatrixWorld(true);
   return camera;
+}
+
+/** Die Richtung, in der der Betrachter hinter der Kamera sitzt: ihr +Z. */
+function backAxis(camera: THREE.Camera): THREE.Vector3 {
+  return new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2).normalize();
 }
 
 /**
@@ -52,20 +70,21 @@ function facing(object: THREE.Object3D): THREE.Vector3 {
 
 describe('billboardAngles — die reine Rechnung', () => {
   it('giert zur Kamera und lehnt sich mindestens zurück', () => {
-    // Kamera genau im Osten, auf gleicher Höhe: volles Gieren, Mindestneigung.
+    // Eine Kamera, die waagerecht nach Westen schaut — ihre Rückachse zeigt
+    // nach Osten: volles Gieren, Mindestneigung.
     const { yaw, pitch } = billboardAngles(5, 0, 0, 0);
     expect(yaw).toBeCloseTo(Math.PI / 2, 6);
     expect(pitch).toBeCloseTo(-BILLBOARD_LEAN_MIN, 6);
   });
 
-  it('nimmt den echten Winkel, sobald die Kamera höher steht als das Mindestmaß', () => {
-    // 55° über der Waagerechten, wie die Kamera von oben.
+  it('nimmt den echten Winkel, sobald die Kamera steiler blickt als das Mindestmaß', () => {
+    // 55° nach unten, wie die Kamera von oben.
     const tilt = (55 * Math.PI) / 180;
     const { pitch } = billboardAngles(0, Math.sin(tilt), Math.cos(tilt), 0);
     expect(pitch).toBeCloseTo(-tilt, 6);
   });
 
-  it('behält das Gieren, wenn die Kamera senkrecht darüber steht', () => {
+  it('behält das Gieren, wenn die Kamera senkrecht nach unten schaut', () => {
     const { yaw, pitch } = billboardAngles(0, 4, 0, 1.23);
     expect(yaw).toBeCloseTo(1.23, 6);
     expect(pitch).toBeCloseTo(-Math.PI / 2, 6);
@@ -84,19 +103,47 @@ describe('billboardAngles — die reine Rechnung', () => {
 });
 
 describe('faceCamera — ausgerichtet wird beim Zeichnen', () => {
-  it('sieht die Kamera an, aus der gezeichnet wird — auch an einem gedrehten Elternteil', () => {
+  const TILT = (55 * Math.PI) / 180;
+
+  it('steht parallel zum Bild der Kamera — auch an einem gedrehten Elternteil', () => {
     const parent = stage();
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(1, 1));
     sign.position.set(1, 0.85, 0);
     parent.add(sign);
     faceCamera(sign);
 
-    const at = sign.getWorldPosition(new THREE.Vector3());
-    const camera = eyeAt(at.x + 3, at.y + 6, at.z + 3);
+    const camera = eyeLooking(TILT, 0.7);
     draw(sign, camera);
 
-    const want = camera.position.clone().sub(at).normalize();
-    expect(facing(sign).dot(want)).toBeCloseTo(1, 5);
+    // Die Vorderseite des Schildes zeigt genau dorthin, wo der Betrachter
+    // hinter der Linse sitzt: auf die Rückachse der Kamera.
+    expect(facing(sign).dot(backAxis(camera))).toBeCloseTo(1, 5);
+  });
+
+  /**
+   * **Die Zusage, für die das Ganze umgebaut wurde.** Zwei Schilder, dieselbe
+   * Kamera, verschiedene Orte im Bild — und beide stehen **gleich**. Vorher
+   * zielte jedes auf den Standort der Kamera, und weil deren Blick von schräg
+   * oben kommt, stand jedes am Rand ein Stück schiefer als das in der Mitte:
+   * Von oben lagen die Beschriftungen der Küche wie hingeworfen.
+   */
+  it('richtet zwei Schilder nebeneinander gleich aus, statt jedes auf die Linse zu zielen', () => {
+    const camera = eyeLooking(TILT);
+    const signs = [-6, 6].map((x) => {
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(1, 1));
+      sign.position.set(x, 1, 4);
+      const parent = new THREE.Group();
+      parent.add(sign);
+      parent.updateMatrixWorld(true);
+      faceCamera(sign);
+      draw(sign, camera);
+      return sign.rotation.clone();
+    });
+    expect(signs[0]!.y).toBeCloseTo(signs[1]!.y, 6);
+    expect(signs[0]!.x).toBeCloseTo(signs[1]!.x, 6);
+    // Und zwar so, wie die Kamera schaut: 55° zurückgelehnt, nach Süden.
+    expect(signs[0]!.x).toBeCloseTo(-TILT, 5);
+    expect(signs[0]!.y).toBeCloseTo(0, 6);
   });
 
   /**
@@ -111,18 +158,39 @@ describe('faceCamera — ausgerichtet wird beim Zeichnen', () => {
     parent.add(sign);
     faceCamera(sign);
 
-    const at = sign.getWorldPosition(new THREE.Vector3());
-    const oben = eyeAt(at.x, at.y + 16, at.z + 11);
-    const augen = eyeAt(at.x + 3, at.y, at.z);
+    const oben = eyeLooking(TILT);
+    const augen = eyeLooking(0, Math.PI / 2);
 
     draw(sign, oben);
     const zurOben = facing(sign).clone();
     draw(sign, augen);
     const zurAugen = facing(sign).clone();
 
-    expect(zurOben.dot(oben.position.clone().sub(at).normalize())).toBeCloseTo(1, 5);
+    expect(zurOben.dot(backAxis(oben))).toBeCloseTo(1, 5);
+    // Aus den Augen greift die Mindestneigung: gegiert wie die Kamera, aber
+    // nicht bolzengerade.
     expect(zurAugen.x).toBeGreaterThan(0.8);
     expect(zurOben.dot(zurAugen)).toBeLessThan(0.9);
+  });
+
+  /**
+   * **Eine Kamera, die sich zur Seite legt, legt kein Schild mit.** In der
+   * Brille passiert das bei jedem Blick um die Ecke; ein Aushang, der dabei
+   * mitkippt, ist kein Aushang mehr, sondern ein Zeiger.
+   */
+  it('übernimmt das Rollen der Kamera nicht', () => {
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1, 1));
+    const parent = new THREE.Group();
+    parent.add(sign);
+    parent.updateMatrixWorld(true);
+    faceCamera(sign);
+
+    draw(sign, eyeLooking(TILT, 0.3));
+    const gerade = sign.rotation.clone();
+    draw(sign, eyeLooking(TILT, 0.3, 0.4));
+    expect(sign.rotation.z).toBe(0);
+    expect(sign.rotation.y).toBeCloseTo(gerade.y, 6);
+    expect(sign.rotation.x).toBeCloseTo(gerade.x, 6);
   });
 
   it('zieht die Weltmatrix sofort nach, nicht erst im nächsten Bild', () => {
@@ -131,8 +199,7 @@ describe('faceCamera — ausgerichtet wird beim Zeichnen', () => {
     parent.add(sign);
     faceCamera(sign);
 
-    const camera = eyeAt(20, 9, 20);
-    draw(sign, camera);
+    draw(sign, eyeLooking(0.6, 2.1));
     // Ohne `updateMatrixWorld` in `onBeforeRender` stünde hier noch die
     // Drehung von vorhin — three baut die Matrizen **vor** dem Zeichnen.
     const stored = new THREE.Vector3().set(
@@ -156,11 +223,10 @@ describe('faceCamera — ausgerichtet wird beim Zeichnen', () => {
     parent.add(group);
     faceCamera(group);
 
-    const at = group.getWorldPosition(new THREE.Vector3());
-    const camera = eyeAt(at.x - 5, at.y + 5, at.z);
+    const camera = eyeLooking(TILT, -1.2);
     draw(group, camera);
 
-    expect(facing(group).dot(camera.position.clone().sub(at).normalize())).toBeCloseTo(1, 5);
+    expect(facing(group).dot(backAxis(camera))).toBeCloseTo(1, 5);
   });
 
   it('hält ein zweites Anhängen aus und lässt sich wieder abnehmen', () => {
@@ -170,14 +236,13 @@ describe('faceCamera — ausgerichtet wird beim Zeichnen', () => {
     faceCamera(sign);
     faceCamera(sign, { upright: true });
 
-    const camera = eyeAt(30, 30, 30);
-    draw(sign, camera);
+    draw(sign, eyeLooking(TILT, 1));
     // Die zweite Ansage gilt — und nicht beide übereinander.
     expect(sign.rotation.x).toBe(0);
 
     const drehung = sign.rotation.y;
     unfaceCamera(sign);
-    draw(sign, eyeAt(-30, 30, -30));
+    draw(sign, eyeLooking(TILT, -1));
     expect(sign.rotation.y).toBe(drehung);
     // Zweimal abnehmen ist kein Fehler.
     expect(() => {

@@ -38,6 +38,28 @@ function eyeAt(x: number, y: number, z: number): THREE.Camera {
   return camera;
 }
 
+/**
+ * **Eine Kamera, die so schaut** — `down` nach unten, `turn` um die Hochachse.
+ *
+ * Wo sie dabei steht, ist gleichgültig: Ein Balken bekommt Neigung und Gieren
+ * der Kamera und nicht die Richtung zu ihrem Standort (`ui/billboard.ts`) —
+ * sonst stünde jeder Balken neben der Blickachse ein Stück schiefer als der
+ * daneben.
+ */
+function eyeLooking(down: number, turn = 0): THREE.Camera {
+  const camera = new THREE.PerspectiveCamera();
+  camera.rotation.order = 'YXZ';
+  camera.rotation.set(-down, turn, 0);
+  camera.position.set(AT.x - 2, AT.y + 4, AT.z + 6);
+  camera.updateMatrixWorld(true);
+  return camera;
+}
+
+/** Die Richtung, in der der Betrachter hinter der Kamera sitzt: ihr +Z. */
+function backAxis(camera: THREE.Camera): THREE.Vector3 {
+  return new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2).normalize();
+}
+
 function named(parent: THREE.Object3D, name: string): THREE.Object3D[] {
   return parent.children.filter((child) => child.name.startsWith(name));
 }
@@ -192,17 +214,15 @@ describe('KitchenGauges — die Drehung zur Kamera', () => {
     return object.getWorldDirection(new THREE.Vector3());
   }
 
-  it('sieht die Kamera von oben genau an', () => {
+  it('steht parallel zum Bild der Kamera von oben', () => {
     const parent = stage();
     const gauges = new KitchenGauges(parent);
     gauges.bar('a', AT, 0.5, 'cook');
-    // 55° über der Waagerechten, wie `core/topDownPose.TOP_DOWN_TILT`.
-    const tilt = (55 * Math.PI) / 180;
-    const camera = eyeAt(AT.x, AT.y + 16 * Math.sin(tilt), AT.z + 16 * Math.cos(tilt));
+    // 55° nach unten, wie `core/topDownPose.TOP_DOWN_TILT`.
+    const camera = eyeLooking((55 * Math.PI) / 180);
     draw(parent, camera);
 
-    const want = camera.position.clone().sub(AT).normalize();
-    expect(facing(parent.children[0]!).dot(want)).toBeCloseTo(1, 5);
+    expect(facing(parent.children[0]!).dot(backAxis(camera))).toBeCloseTo(1, 5);
     gauges.dispose();
   });
 
@@ -210,7 +230,7 @@ describe('KitchenGauges — die Drehung zur Kamera', () => {
     const parent = stage();
     const gauges = new KitchenGauges(parent);
     gauges.bar('a', AT, 0.5, 'cook');
-    draw(parent, eyeAt(AT.x, AT.y, AT.z + 3));
+    draw(parent, eyeLooking(0));
 
     const normal = facing(parent.children[0]!);
     // Genau die Mindestneigung — und nicht etwa nach hinten weggekippt.
@@ -220,11 +240,11 @@ describe('KitchenGauges — die Drehung zur Kamera', () => {
     gauges.dispose();
   });
 
-  it('dreht sich nach Osten, wenn die Kamera im Osten steht', () => {
+  it('dreht sich nach Osten, wenn die Kamera nach Westen schaut', () => {
     const parent = stage();
     const gauges = new KitchenGauges(parent);
     gauges.warn('a', AT);
-    draw(parent, eyeAt(AT.x + 5, AT.y, AT.z));
+    draw(parent, eyeLooking(0, Math.PI / 2));
 
     const normal = facing(parent.children[0]!);
     expect(normal.x).toBeGreaterThan(0.8);
@@ -244,15 +264,15 @@ describe('KitchenGauges — die Drehung zur Kamera', () => {
     gauges.bar('a', AT, 0.5, 'cook');
     const bar = parent.children[0]!;
 
-    const oben = eyeAt(AT.x, AT.y + 16, AT.z + 11);
-    const brille = eyeAt(AT.x + 2, AT.y, AT.z);
+    const oben = eyeLooking((55 * Math.PI) / 180);
+    const brille = eyeLooking(0, Math.PI / 2);
 
     draw(parent, oben);
     const zurOben = facing(bar).clone();
     draw(parent, brille);
     const zurBrille = facing(bar).clone();
 
-    expect(zurOben.dot(oben.position.clone().sub(AT).normalize())).toBeCloseTo(1, 5);
+    expect(zurOben.dot(backAxis(oben))).toBeCloseTo(1, 5);
     expect(zurBrille.x).toBeGreaterThan(0.8);
     gauges.dispose();
   });

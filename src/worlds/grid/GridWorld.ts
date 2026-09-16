@@ -626,9 +626,10 @@ export abstract class GridWorld extends PortalWorld {
    */
   private stepFixtures(dt: number, ctx: WorldContext): void {
     if (this.fixtures.length === 0) return;
-    // Einmal für alle: Wohin sich drehen soll, was sich zum Betrachter dreht
-    // (`FixtureView.face`) — heute genau die Tafeln der Schilder.
-    ctx.rig.getHeadPosition(_head);
+    // Hier stand einmal der Kopf des Spielers, einmal je Bild geholt: Die
+    // Tafeln der Schilder drehten sich danach. Sie richten sich jetzt beim
+    // Zeichnen zur Kamera aus und brauchen von hier nichts mehr
+    // (`ui/billboard.ts`, `fixtures/sign.ts`).
     const pending: { from: FixtureRun; event: FixtureEvent }[] = [];
     for (const run of this.fixtures) {
       const on = this.standingOn(run, ctx);
@@ -646,7 +647,6 @@ export abstract class GridWorld extends PortalWorld {
         pending.push({ from: run, event });
       }
       run.kind.apply(run.view, run.state);
-      run.view.face?.(_head);
       const hard = run.kind.solid(run.state);
       if (hard !== run.hard) {
         this.setFixtureSolid(run, hard);
@@ -1614,7 +1614,6 @@ const GHOST_OPACITY = 0.25;
  */
 const SIGN_PAGE = 'grid:sign';
 
-const _head = new THREE.Vector3();
 const _target = new THREE.Vector3();
 const _feet = new THREE.Vector3();
 const _spot = new THREE.Vector3();

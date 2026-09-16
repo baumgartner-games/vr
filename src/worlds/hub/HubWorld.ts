@@ -205,6 +205,13 @@ export class HubWorld extends GridWorld {
       body: 'Wähle eine Welt – auf ein Tor im Gang stellen oder über den Button an deiner Hand.',
       align: 'center',
       accent: 0x4aa8ff,
+      // **Kein `face`, und das ist Absicht** (`ui/billboard.ts`). Es ist die
+      // Aufschrift über der Mündung des Gangs, nicht ein Schild darin — wie
+      // ein Schriftzug über einem Tor. Zur Kamera geneigt wäre es das
+      // größte Ding im Bild und läge von oben quer über dem ersten Tor: Man
+      // liest die Halle und sieht das Tor nicht, auf das man sich stellen
+      // soll. Was man von oben wirklich braucht, steht auf den Schildern der
+      // Tore, und die drehen sich.
     });
     // Über der Mündung des ersten Gangs: knapp über der Wandkrone (2,8 m), also
     // hoch genug, um über den Toren zu stehen, und tief genug, um beim Blick
@@ -218,9 +225,11 @@ export class HubWorld extends GridWorld {
       title: 'Steuerung',
       body: 'Beide Hände: Menü-Button. Zielen + Trigger wählt. Stick: gehen, rechts: drehen.',
       accent: 0x9d7bff,
+      // Dieselbe Regel wie oben — die schräge Drehung von Hand, die hier
+      // stand, war der Versuch, es beiden Ansichten recht zu machen.
+      face: true,
     });
     hint.position.set(middle.x - (HALL_HALF - 2) * TILE, 1.6, middle.z + HALL_HALF * TILE);
-    hint.rotation.y = Math.PI / 4.5;
     group.add(hint);
 
     this.panels.push(title, hint);

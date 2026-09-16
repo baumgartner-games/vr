@@ -123,8 +123,9 @@ export const BUTTON: FixtureKind<ButtonState> = {
     const group = new THREE.Group();
     group.name = `fixture:${place.id}`;
     group.position.set(ctx.at.x, ctx.at.y, ctx.at.z);
-    // Das Schild des Knopfes steht auf `+z`, und `+z` ist nach dem Drehen die
-    // Seite, von der man kommt — dieselbe Regel wie beim Schild.
+    // `+z` ist nach dem Drehen die Seite, von der man kommt — dieselbe Regel
+    // wie beim Schild. Dessen Tafel richtet sich davon unabhängig zur Kamera
+    // aus (`ui/billboard.ts`); gedreht wird hier die Säule.
     group.rotation.y = fixtureYaw(place.dir);
     // Und die Säule steht an der Kante statt in der Mitte: eine Armlänge vor
     // dem, der auf der Kachel steht.
