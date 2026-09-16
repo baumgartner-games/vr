@@ -828,6 +828,30 @@ Wenn dort „Kein Pad gefunden" steht: Ein Browser meldet ein angestecktes Pad
 erst, wenn daran **einmal ein Knopf gedrückt wurde**. Details in
 [AGENTS.md](AGENTS.md#die-eingabeseite).
 
+### Belegung ändern — und die Karte des Geräts
+
+Manche Treiber melden die Knöpfe nicht dort, wo das Standard-Mapping sie
+hinlegt: Ein **Backbone am iPhone** meldet den unteren Gesichtsknopf als
+`buttons[1]`, wo `buttons[0]` erwartet wird. Wer damit unten drückt, benutzt
+nichts. Dafür gibt es zwei Einstellungen, die **auf der Seite** und **im Spiel**
+unter _Menü → Eingaben_ dieselben sind:
+
+- **Karte dieses Geräts** — wo eine Nummer wirklich sitzt. Ein Tausch ist ein
+  Handgriff (der andere Knopf zieht mit um), gilt nur für dieses Gerät, und
+  danach stimmen Bild, Liste **und** Spiel.
+- **Belegung** — welcher Knopf und welche Taste was tun. Zeile antippen, dann
+  drücken, was es tun soll. Eine Stelle gehört immer nur einer Sache.
+
+Beides wird auf dem Gerät gespeichert und lässt sich jederzeit einzeln oder
+ganz **auf Standard zurücksetzen**. Ohne eigene Einstellung läuft alles genau
+wie bisher. Laufen und Zielen bleiben am Pad die Sticks.
+
+**Der Browser der PS5 hat keine Gamepad-API**: Der DualSense steuert dort einen
+Mauszeiger, Knöpfe und Sticks erreichen die Seite nicht (nachgesehen am
+16.09.2026). Die Eingabeseite sagt das ausdrücklich, statt nach einem Knopfdruck
+zu fragen, der nichts ändern kann — gespielt wird dort mit dem Zeiger, in der
+Ansicht _Von oben_.
+
 ## Vollbild
 
 Wo keine Brille ist, geht **Vollbild**: ein Knopf mit dem Vollbildsymbol auf der
@@ -857,6 +881,10 @@ Android heißt derselbe Schritt _installieren_.
 Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 
 ## Steuerung
+
+Die Tabelle ist die **Voreinstellung**: Tastatur und Controller lassen sich
+unter _Menü → Eingaben_ (und auf [`/inputs.html`](#eingabeseite)) umlegen,
+gespeichert und jederzeit auf Standard zurücksetzbar.
 
 |                               | VR                                                                                                                                                                         | Desktop                                                                | Handy                    |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------ |

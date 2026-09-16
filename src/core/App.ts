@@ -36,6 +36,28 @@ import {
 } from '../net/room';
 import { KeyPanel, type KeyPanelRequest } from '../ui/KeyPanel';
 import { detectFlatRole } from './device';
+import { firstGamepad, readGamepad, type GamepadLike } from './gamepad';
+import { PAD_BUTTONS, padButtonLabel, padKind, padSlotLabel, padSnapshot } from './gamepadReport';
+import {
+  ACTION_LABELS,
+  KEY_ACTIONS,
+  PAD_ACTIONS,
+  assignSlot,
+  bindKey,
+  bindPad,
+  deviceKey,
+  indexOf,
+  isDefaultConfig,
+  keysFor,
+  layoutSize,
+  padSlotsFor,
+  resetBindings,
+  resetDevice,
+  type InputConfig,
+  type PadAction,
+} from './inputMap';
+import { clearInputConfig, inputConfig, saveInputConfig } from './inputStore';
+import type { InputPress } from './FlatControls';
 import { GraphicsQuality } from './GraphicsQuality';
 import { FrameStats } from './FrameStats';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
@@ -248,6 +270,12 @@ export class App {
   private fpsEntry: MenuEntry | null = null;
   /** Dem Vollbild wieder zuhören aufhören — die Zeile darüber hängt daran (`fullscreenRow`). */
   private stopFullscreenWatch: (() => void) | null = null;
+  /** Dasselbe für die Zeile, die zeigt, was gerade am Pad anliegt (`inputsMenu`). */
+  private liveInput: MenuEntry | null = null;
+  /** Welche Zeile des Eingaben-Menüs gerade auf einen Druck wartet, wenn eine. */
+  private learning: string | null = null;
+  /** Und wie man dieses Warten wieder abstellt. */
+  private stopLearning: (() => void) | null = null;
   private spectating = false;
   /**
    * In welcher Welt der Beobachtete zuletzt stand — `''`, solange niemandem
@@ -906,6 +934,7 @@ export class App {
       this.viewMenu(),
       this.networkMenu(),
       this.movementMenu(),
+      this.inputsMenu(),
       this.appearanceMenu(),
       this.graphicsMenu(),
       ...this.worldMenu,
@@ -968,6 +997,234 @@ export class App {
           accent: 0x5ee0a0,
           selected: flat,
           run: () => this.setScreenView('2d'),
+        },
+      ],
+    };
+  }
+
+  /**
+   * **Die Eingaben: was ankommt, und was es tun soll.**
+   *
+   * Der Anlass war ein Backbone am iPhone, das den unteren Gesichtsknopf als
+   * `buttons[1]` meldet — getauscht gegenüber dem Standard-Mapping. Wer dort
+   * unten drückt, benutzt nichts, und im Spiel ist das nicht zu erkennen,
+   * geschweige denn zu richten. Die Eingabeseite (`/inputs.html`) zeigt es;
+   * dieses Menü **ändert** es, an Ort und Stelle, ohne die Welt zu verlassen.
+   *
+   * Drei Zeilen, und die erste ist die wichtigste: **was gerade anliegt**. Sie
+   * wird wie die Bildraten-Zeile im Grafik-Menü nachgeschrieben, ohne den Baum
+   * neu zu bauen (`render`) — ein Neubau je Bild wäre selbst ein Ruckler, und
+   * ohne Rückmeldung stellt man blind ein.
+   *
+   * Eingestellt wird überall gleich: Zeile antippen, dann den Knopf oder die
+   * Taste drücken, die es tun soll (`FlatControls.captureNext` — abgehört wird
+   * nichts Neues, der Druck geht nur einmal woanders hin). Und überall steht
+   * der Weg zurück daneben, weil eine Einstellung ohne Rückweg eine Falle ist.
+   */
+  private inputsMenu(): MenuEntry {
+    const config = inputConfig();
+    const pad = firstGamepad(
+      typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function'
+        ? navigator.getGamepads()
+        : null,
+    ) as (GamepadLike & { id?: string }) | null;
+    const key = deviceKey(pad?.id);
+    const count = pad?.buttons.length ?? 0;
+    const accent = 0x4aa8ff;
+
+    /** Die Zeile, die mitschreibt, was anliegt — `render` hält sie aktuell. */
+    this.liveInput = {
+      id: 'input:live',
+      label: livePadLabel(pad, config),
+      sub: pad
+        ? 'Drück etwas — hier steht, was ankommt'
+        : 'Ein Pad meldet sich erst, wenn daran ein Knopf gedrückt wurde',
+      icon: 'controller',
+      accent: pad ? 0x5ee0a0 : 0x6f7d99,
+    };
+
+    /**
+     * Eine Zeile, die auf einen Druck wartet. Wartet schon eine, wird die
+     * abgelöst: Zwei Zeilen, die beide den nächsten Knopf wollen, wären ein
+     * Knopf, der zwei Dinge tut.
+     */
+    const learn = (
+      id: string,
+      label: string,
+      sub: string,
+      want: 'pad' | 'key',
+      take: (press: InputPress) => void,
+    ): MenuEntry => ({
+      id,
+      label: this.learning === id ? `${label} — jetzt drücken` : label,
+      sub: this.learning === id ? 'Noch einmal antippen bricht ab' : sub,
+      icon: 'settings',
+      accent: this.learning === id ? 0xffc857 : accent,
+      run: () => {
+        this.stopLearning?.();
+        if (this.learning === id) {
+          this.learning = null;
+          this.menuDirty = true;
+          return;
+        }
+        this.learning = id;
+        this.menuDirty = true;
+        this.stopLearning = this.flat.captureNext((press) => {
+          this.learning = null;
+          this.stopLearning = null;
+          // Ein Druck der falschen Sorte wird nicht eingebaut, sondern gesagt:
+          // Wer eine Taste sucht und einen Knopf drückt, hat sich vertan, und
+          // eine stumm verschluckte Eingabe erklärt das nicht.
+          if (press.kind !== want) {
+            this.notify(want === 'pad' ? 'Das war eine Taste, kein Knopf' : 'Das war ein Knopf');
+          } else take(press);
+          this.menuDirty = true;
+        });
+      },
+    });
+
+    const save = (next: InputConfig, said: string): void => {
+      saveInputConfig(next);
+      this.notify(said);
+    };
+
+    /** Was welcher Knopf am Pad tut. */
+    const padRows: MenuEntry[] = PAD_ACTIONS.map((action) =>
+      learn(
+        `input:pad:${action}`,
+        `${ACTION_LABELS[action].label}: ${padBindingText(config, action, key, count)}`,
+        ACTION_LABELS[action].sub,
+        'pad',
+        (press) => {
+          if (press.kind !== 'pad') return;
+          if (!press.slot) {
+            this.notify(`Knopf ${press.index} sitzt auf keiner bekannten Stelle`);
+            return;
+          }
+          save(
+            bindPad(inputConfig(), action, press.slot),
+            `${ACTION_LABELS[action].label}: ${padButtonLabel(press.index, padKind(pad?.id))}`,
+          );
+        },
+      ),
+    );
+
+    /** Und welche Taste. */
+    const keyRows: MenuEntry[] = KEY_ACTIONS.map((action) =>
+      learn(
+        `input:key:${action}`,
+        `${ACTION_LABELS[action].label}: ${keysFor(config, action).map(keyLabel).join(' · ') || 'keine Taste'}`,
+        ACTION_LABELS[action].sub,
+        'key',
+        (press) => {
+          if (press.kind !== 'key') return;
+          save(
+            bindKey(inputConfig(), action, press.code),
+            `${ACTION_LABELS[action].label}: ${keyLabel(press.code)}`,
+          );
+        },
+      ),
+    );
+
+    /**
+     * **Die Gerätekarte**: eine Zeile je Stelle, und die Nummer daneben. Sie
+     * gibt es nur mit Pad — ohne eines wäre sie achtzehn Zeilen über ein Gerät,
+     * das niemand in der Hand hat.
+     */
+    const layout = config.layouts[key] ?? {};
+    const mapRows: MenuEntry[] = pad
+      ? PAD_BUTTONS.map((spec) => {
+          const at = indexOf(layout, spec.slot, layoutSize(count));
+          return learn(
+            `input:map:${spec.slot}`,
+            `${spec.labels[padKind(pad.id)]}: ${at === null ? 'kein Knopf' : `buttons[${at}]`}`,
+            'Drück den Knopf, der wirklich hier sitzt',
+            'pad',
+            (press) => {
+              if (press.kind !== 'pad') return;
+              save(
+                assignSlot(inputConfig(), key, press.index, spec.slot, count),
+                `buttons[${press.index}] sitzt ${spec.labels[padKind(pad.id)]}`,
+              );
+            },
+          );
+        })
+      : [];
+
+    const changed = !isDefaultConfig(config);
+    return {
+      id: 'input',
+      label: 'Eingaben',
+      sub: changed ? 'Eigene Belegung' : 'Tastatur und Controller · Standard',
+      icon: 'controller',
+      accent,
+      children: [
+        this.liveInput,
+        {
+          id: 'input:bindings',
+          label: 'Belegung am Pad',
+          sub: 'Welcher Knopf was tut',
+          icon: 'controller',
+          accent,
+          children: [
+            ...padRows,
+            {
+              id: 'input:pad:reset',
+              label: 'Pad und Tastatur auf Standard',
+              sub: 'Die Gerätekarten bleiben — ein Treiberfehler ist kein Geschmack',
+              icon: 'reset',
+              accent: 0xffc857,
+              run: () => {
+                save(resetBindings(inputConfig()), 'Belegung auf Standard');
+                this.menuDirty = true;
+              },
+            },
+          ],
+        },
+        {
+          id: 'input:keys',
+          label: 'Belegung an der Tastatur',
+          sub: 'Welche Taste was tut',
+          icon: 'settings',
+          accent,
+          children: keyRows,
+        },
+        ...(pad
+          ? [
+              {
+                id: 'input:map',
+                label: 'Karte dieses Geräts',
+                sub: 'Wenn ein Knopf woanders sitzt, als er meldet',
+                icon: 'controller',
+                accent,
+                children: [
+                  ...mapRows,
+                  {
+                    id: 'input:map:reset',
+                    label: 'Karte dieses Geräts vergessen',
+                    sub: 'Zurück auf das Standard-Mapping',
+                    icon: 'reset',
+                    accent: 0xffc857,
+                    run: () => {
+                      save(resetDevice(inputConfig(), key), 'Gerätekarte zurückgesetzt');
+                      this.menuDirty = true;
+                    },
+                  },
+                ],
+              } satisfies MenuEntry,
+            ]
+          : []),
+        {
+          id: 'input:reset',
+          label: 'Alles auf Standard',
+          sub: changed ? 'Belegungen und Gerätekarten' : 'Es ist schon alles Standard',
+          icon: 'reset',
+          accent: changed ? 0xff6b5e : 0x6f7d99,
+          run: () => {
+            clearInputConfig();
+            this.notify('Eingaben auf Standard');
+            this.menuDirty = true;
+          },
         },
       ],
     };
@@ -2053,7 +2310,97 @@ export class App {
       this.fpsEntry.label = fpsLabel(sample);
       this.wristMenu.refresh();
     }
+    // **Und dieselbe Zeile für die Eingaben** (`inputsMenu`): Wer eine
+    // Belegung einstellt, will sehen, dass sein Knopf überhaupt ankommt —
+    // ohne diese Rückmeldung stellt man blind ein. Wieder nur die Zeile und
+    // nicht der Baum, und nur solange jemand hinsieht.
+    if (this.liveInput && this.wristMenu.isOpen) {
+      const pad = firstGamepad(
+        typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function'
+          ? navigator.getGamepads()
+          : null,
+      ) as (GamepadLike & { id?: string }) | null;
+      const line = livePadLabel(pad, inputConfig());
+      if (line !== this.liveInput.label) {
+        this.liveInput.label = line;
+        this.wristMenu.refresh();
+      }
+    }
   }
+}
+
+/**
+ * **Was gerade am Pad anliegt, in einer Zeile** — die Rückmeldung, ohne die
+ * man blind einstellt. Genannt werden Nummer **und** Aufschrift: Die eine
+ * findet man im Code wieder, die andere auf dem Gerät in der Hand.
+ */
+function livePadLabel(pad: (GamepadLike & { id?: string }) | null, config: InputConfig): string {
+  if (!pad) return 'Kein Pad';
+  const snapshot = padSnapshot(pad);
+  const down = snapshot.pressed.map((button) => `${button.icon} ${button.code}`);
+  if (down.length) return down.join(' · ');
+  // Kein Knopf — dann sagen die Sticks, ob überhaupt etwas ankommt.
+  const frame = readGamepad(pad);
+  const move = Math.hypot(frame.move.x, frame.move.y);
+  const aim = Math.hypot(frame.aim.x, frame.aim.y);
+  if (move > 0 || aim > 0) return `Stick ${move > aim ? 'links' : 'rechts'} ausgelenkt`;
+  return config.layouts[deviceKey(pad.id)] ? 'Nichts gedrückt · eigene Karte' : 'Nichts gedrückt';
+}
+
+/**
+ * Wie eine Pad-Belegung im Menü dasteht: die Aufschrift des Geräts und die
+ * Nummer, die dieses Gerät dafür meldet — beides, denn genau ihr Auseinanderfallen
+ * ist der Fehler, um den es hier geht.
+ */
+function padBindingText(
+  config: InputConfig,
+  action: PadAction,
+  key: string,
+  count: number,
+): string {
+  const layout = config.layouts[key] ?? {};
+  const kind = padKind(key);
+  const parts = padSlotsFor(config, action).map((slot) => {
+    const at = indexOf(layout, slot, layoutSize(count));
+    const label = padSlotLabel(slot, kind);
+    return at === null ? `${label} (hat dieses Pad nicht)` : `${label} [${at}]`;
+  });
+  return parts.join(' · ') || 'kein Knopf';
+}
+
+/**
+ * `KeyboardEvent.code` ist für Menschen keine Taste: `KeyW` ist ein W,
+ * `ArrowUp` ein Pfeil, und `ShiftLeft` heißt auf keiner Tastatur so. Gezeigt
+ * wird deshalb die Aufschrift — und die rohe Kennung nur dort, wo es keine
+ * gibt, denn geraten wird hier nichts.
+ */
+function keyLabel(code: string): string {
+  const named: Record<string, string> = {
+    Space: 'Leertaste',
+    Enter: 'Eingabe',
+    NumpadEnter: 'Eingabe (Ziffernblock)',
+    Tab: 'Tab',
+    Escape: 'Esc',
+    Backspace: 'Rücktaste',
+    ShiftLeft: 'Umschalt links',
+    ShiftRight: 'Umschalt rechts',
+    ControlLeft: 'Strg links',
+    ControlRight: 'Strg rechts',
+    AltLeft: 'Alt',
+    AltRight: 'Alt Gr',
+    ArrowUp: '↑',
+    ArrowDown: '↓',
+    ArrowLeft: '←',
+    ArrowRight: '→',
+  };
+  if (named[code]) return named[code];
+  const letter = /^Key([A-Z])$/.exec(code);
+  if (letter) return letter[1]!;
+  const digit = /^Digit([0-9])$/.exec(code);
+  if (digit) return digit[1]!;
+  const numpad = /^Numpad([0-9])$/.exec(code);
+  if (numpad) return `${numpad[1]} (Ziffernblock)`;
+  return code;
 }
 
 /** Die Bildraten-Zeile des Grafik-Menüs. */

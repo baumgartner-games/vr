@@ -65,6 +65,20 @@
           Ein angestecktes Pad wird erst sichtbar, wenn daran <strong>einmal ein Knopf</strong>
           gedrückt wurde — so verlangt es das API. Also: Controller in die Hand und irgendetwas drücken.
         </p>
+        <!--
+          **Und der Fall, in dem alles Drücken nichts hilft**: Der Browser der
+          PS5 hat die Gamepad-API gar nicht. Der DualSense steuert dort einen
+          Mauszeiger, und mehr kommt auf einer Webseite nicht an — nachgesehen
+          am 16.09.2026 auf einer PS5. Das ist keine Einstellung, die man
+          findet, sondern eine Grenze des Geräts, und sie gehört hierher, bevor
+          jemand eine Stunde sucht.
+        -->
+        <p id="pad-none" class="hint is-warn" hidden>
+          <strong>Dieser Browser hat keine Gamepad-API.</strong> Der Controller kommt hier nur als
+          <strong>Mauszeiger</strong> an — so ist es im Browser der PlayStation 5. Die Spielwiese
+          lässt sich dort mit dem Zeiger bedienen; Knöpfe und Sticks erreichen die Seite nicht,
+          und keine Einstellung ändert das.
+        </p>
         <!-- Zwei Pads am selben Gerät: das Spiel hört nur eines, nämlich das erste. -->
         <div id="pads" class="seg" role="group" aria-label="Welches Pad" hidden></div>
       </section>
@@ -113,7 +127,57 @@
       <!-- Alle Knöpfe, auch die, die nichts tun: Vollständigkeit ist hier die Ware. -->
       <section class="card card--wide">
         <h2 class="card__title">Alle Knöpfe</h2>
+        <!--
+          **Und die Karte dieses Geräts.** Manche Treiber melden die Knöpfe
+          nicht dort, wo das Standard-Mapping sie hinlegt — ein Backbone am
+          iPhone meldet den unteren Gesichtsknopf als `buttons[1]`. Dann sitzt
+          hier neben jeder Nummer ein Feld, in dem steht, wo sie wirklich
+          sitzt; ein Tausch nimmt den anderen Knopf mit, und danach stimmen
+          Bild **und** Spiel (`core/inputMap.ts`).
+
+          Versteckt, bis jemand sie braucht: Die Liste ist zuerst eine
+          Auskunft und erst auf Wunsch ein Formular.
+        -->
+        <div class="row row--head">
+          <button id="map-edit" class="btn btn--small" type="button" aria-pressed="false">
+            Karte anpassen
+          </button>
+          <button id="map-reset" class="btn btn--small" type="button" hidden>
+            Karte dieses Geräts vergessen
+          </button>
+        </div>
+        <p id="map-hint" class="hint" hidden>
+          Stimmt eine Zeile nicht mit dem Knopf überein, den du drückst? Stell im Feld ein, wo die
+          Nummer <strong>wirklich</strong> sitzt — der bisherige Bewohner der Stelle bekommt die
+          Stelle, die diese Nummer abgibt. Gespeichert wird das nur für dieses Gerät.
+        </p>
         <ul id="buttons" class="keys"></ul>
+      </section>
+
+      <!--
+        **Was welcher Knopf tun soll.** Die Karte darüber sagt, wo ein Knopf
+        sitzt; hier steht, was er auslöst. Beides getrennt, weil es zwei
+        verschiedene Fehler sind: ein Treiber, der über die Lage lügt, und eine
+        Belegung, die einem nicht passt (`core/inputMap.ts`).
+
+        Dieselbe Belegung steht **in der App** unter Menü → Eingaben; wer im
+        Spiel steht, muss diese Seite dafür nicht aufrufen.
+      -->
+      <section class="card card--wide">
+        <h2 class="card__title">Belegung</h2>
+        <h3 class="card__sub">Am Pad</h3>
+        <ul id="bind-pad" class="binds"></ul>
+        <h3 class="card__sub">An der Tastatur</h3>
+        <ul id="bind-keys" class="binds"></ul>
+        <p id="bind-note" class="hint">
+          Eine Zeile antippen, dann den Knopf oder die Taste drücken, die das tun soll. Eine Stelle
+          gehört immer nur einer Sache — was sie abgibt, läuft leer, und das steht dann auch da.
+          Laufen und Zielen sind am Pad die <strong>Sticks</strong> und deshalb nicht dabei.
+        </p>
+        <div class="row">
+          <button id="bind-reset" class="btn" type="button">Belegung auf Standard</button>
+          <button id="all-reset" class="btn" type="button">Alles auf Standard</button>
+        </div>
       </section>
 
       <section class="card card--wide">

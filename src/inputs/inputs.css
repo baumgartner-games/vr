@@ -144,6 +144,21 @@ html, body {
 }
 .btn:hover { border-color: var(--accent); }
 .btn[hidden] { display: none; }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn--small { padding: 6px 12px; font-size: 13px; }
+/* Die Knöpfe über der Liste stehen an ihrem Kopf und nicht unter ihr. */
+.row--head { margin: 0 0 10px; }
+
+/* Ein Hinweis, der eine Grenze des Geräts meldet — kein Fehler, aber auch
+   nichts, worüber man hinwegliest. */
+.hint.is-warn {
+  padding: 10px 12px;
+  color: var(--fg);
+  background: rgba(255, 200, 87, 0.1);
+  border: 1px solid rgba(255, 200, 87, 0.45);
+  border-radius: 10px;
+}
+.hint.is-said { color: var(--on); }
 
 .seg { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .seg[hidden] { display: none; }
@@ -285,6 +300,54 @@ html, body {
    Tasten. Es ist keine Mode-Spielerei: Wer prüft, ob sein Finger erkannt wird,
    sieht sonst nichts. */
 .key.is-touched { border-color: rgba(74, 168, 255, 0.5); }
+
+/*
+ * Im Einstellmodus bekommt jede Zeile ein Feld dazu. Es steht in einer eigenen
+ * Spalte und nicht unter der Zeile: Wer achtzehn Zeilen durchgeht, soll die
+ * Felder untereinander finden und nicht suchen.
+ */
+.keys--editing { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+/*
+ * Das Feld steht **unter** der Zeile und nicht neben ihr, auf jeder Breite:
+ * Daneben blieben für Name und Nummer siebzig Pixel, und aus „Steuerkreuz
+ * rechts · buttons[15]" wurde „Steuer… but…". Eine Zeile, die man nicht mehr
+ * lesen kann, ist keine Hilfe beim Zuordnen.
+ */
+.key--editing { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "icon name value" "icon code value" "slot slot slot"; }
+.key__slot {
+  grid-area: slot;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: rgba(5, 8, 16, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* ---------- Belegung: was welcher Knopf tut ---------- */
+
+.binds { display: flex; flex-direction: column; gap: 6px; margin: 0 0 4px; padding: 0; list-style: none; }
+.bind {
+  display: grid;
+  grid-template-columns: minmax(100px, 140px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  font-size: 14px;
+  background: rgba(140, 170, 230, 0.06);
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+@media (max-width: 520px) { .bind { grid-template-columns: minmax(0, 1fr) auto; } .bind__on { grid-column: 1 / -1; } }
+.bind__name { color: var(--muted); }
+.bind__on { overflow-wrap: anywhere; font-size: 13px; }
+/* Die Zeile, die auf einen Druck wartet: Sie leuchtet, und zwar in der Farbe,
+   die auf dieser Seite sonst nichts hat — gedrückt ist grün, wartend ist gelb. */
+.bind.is-learning { background: rgba(255, 200, 87, 0.14); border-color: #ffc857; }
+.bind.is-learning .bind__on::after { content: " — jetzt drücken"; color: #ffc857; }
 
 /* ---------- Achsen ---------- */
 
