@@ -2055,6 +2055,15 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Kartzone_.
   - **Klettern** (Südosten): eine Wand mit Griffen aus drei Materialien und
     zwei Sprungkissen davor. Ausführlich unter _Klettern_.
+  - **Zu jeder Zone springt man auch** (_Menü → Zu einer Zone_,
+    `TestWorld.jumpMenu`): neun Ziele, eines je Zone, und zwar **dieselben
+    Kacheln**, an denen der Grundrisstest misst, ob eine Zone überhaupt
+    erreichbar ist (`layout.ZONE_TILES`). Das Gelände misst 64 × 80 m; wer nur
+    die Küche ansehen will, läuft sonst eine knappe Minute an drei Zonen
+    vorbei, die er gerade nicht meint — und dieser Platz ist ein Prüfstand und
+    keine Reise. Die Höhe kommt aus dem Graphen (`NavGraph.levelY`): Das Podest
+    liegt auf Ebene 1, und wer dorthin auf y = 0 spränge, stünde unter seinem
+    eigenen Deck.
   - **Küche** (ganz im Norden, hinter dem Podest): vierundzwanzig mal elf
     Kacheln mit den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe
     _Modelle im Repository_), und zwar in **zwei Hälften**. Im Westen die
@@ -5194,24 +5203,27 @@ Und das sind die Regeln, die darin stehen:
 - **Und daneben das Zugband** (`belt-pull`, `BeltTile.pull`): dasselbe Möbel,
   dieselbe Höhe, dieselbe Kachel — es holt sich obendrein **von selbst**, was
   auf der Kachel **hinter** ihm liegt. Dort muss kein Band stehen, und das ist
-  der ganze Witz daran: Eine Arbeitsplatte, ein Schneidebrett, ein Gästetisch
-  wird für diesen einen Handgriff selbst zum Band. Gerechnet wird das in
-  **einer** Zeile — das Zugband schreibt der Kachel hinter sich sich selbst als
-  Ziel —, und danach gilt für sie ohne eine zweite Rechnung alles, was für ein
-  Band gilt: Kettenausnahme, `BELT_HOLD`, Anstehen, das Bild dazwischen. Vier
-  Dinge entscheiden die Fälle, die ein Grundriss irgendwann herstellt:
-  - **Ein Band folgt seinem eigenen Pfeil.** Wer selbst schiebt, lässt sich
-    nicht ziehen; sonst wäre die sichtbare Richtung eine Lüge. Schiebt es
-    nirgendwohin (am Rand, vor dem Mülleimer), ist es eine Ablage wie jede
-    andere und darf leergezogen werden.
+  der ganze Witz daran: Eine Arbeitsplatte, ein Schneidebrett, ein Gästetisch,
+  ein anderes Band wird für diesen einen Handgriff selbst zum Band. Gerechnet
+  wird das in **einer** Zeile — das Zugband schreibt der Kachel hinter sich sich
+  selbst als Ziel —, und danach gilt für sie ohne eine zweite Rechnung alles,
+  was für ein Band gilt: Kettenausnahme, `BELT_HOLD`, Anstehen, das Bild
+  dazwischen. Vier Dinge entscheiden die Fälle, die ein Grundriss irgendwann
+  herstellt:
+  - **Gezogen wird per Vormerkung, und die steht schon, bevor etwas da ist.**
+    Ein **freies** Zugband schreibt sich bei seinem Nachbarn ein; der weiß
+    damit, dass er nicht weitergeben muss, und was dort **zur Ruhe kommt**, geht
+    quer weg statt geradeaus weiter — auch auf einem Band, das selbst schiebt.
+    Ist das Zugband dagegen **voll**, gibt es keine Vormerkung, und das Band
+    schiebt wie immer: Ein Stau nebenan hält die Bahn nicht mit an.
+  - **Was schon fährt, wird nicht umgeleitet.** Hat ein Ding seine Fahrt
+    angefangen, gilt sie (`BeltState.to`), auch wenn nebenan gerade ein Zugband
+    frei wird. Sonst wechselte es auf halber Strecke die Richtung — und
+    Losfahren ist hier ein Versprechen. Gezogen wird also nur, was **liegt**.
   - **Eine Kachel wird von genau einem Zugband gezogen.** Stehen zwei daran,
-    bekommt sie das erste, das gerade **annehmen kann** — ist das erste voll
-    und das zweite frei, greift das zweite. Ohne diese Vorliebe stünde das
-    zweite still, während das erste im Stau steht. Vergeben wird aber nur, was
-    noch **nicht unterwegs** ist: Fährt schon etwas, gehört die Kachel dem, zu
-    dem es fährt (`BeltState.to`), auch wenn der inzwischen volläuft. Sonst
-    wechselte ein Ding auf halber Strecke die Richtung — und Losfahren ist hier
-    ein Versprechen.
+    bekommt sie das erste, das gerade vormerken kann — ist das erste voll und
+    das zweite frei, greift das zweite. Erst das macht aus zwei Zugbändern zwei
+    Abnehmer.
   - **Gerät ist keine Ware**: Vom Herd (dort steht die Pfanne) und aus der
     Löscherhalterung zieht es nichts, genauso wenig wie aus dem Mülleimer oder
     von der Ausgabetheke — dieselben zwei, die auch als **Ziel** ausscheiden.

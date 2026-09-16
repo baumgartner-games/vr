@@ -467,12 +467,50 @@ describe('advanceBelts — das Zugband holt sich etwas', () => {
     expect(run.at('platte').state).toBe(BELT_EMPTY);
   });
 
-  it('zieht nichts von einem Band, das selbst schiebt', () => {
-    // Das Band `quer` schiebt nach `ablage`; das Zugband steht daneben und
-    // möchte es haben. Der Pfeil auf dem Band gewinnt, sonst wäre er eine Lüge.
+  it('zieht auch von einem Band, das selbst schiebt — solange das Ding dort liegt', () => {
+    // Das Band `quer` schiebt nach `ablage`; daneben steht ein freies Zugband
+    // und merkt sich vor, was dort ankommt. Also geht es quer weg und nicht
+    // geradeaus: Das Band weiß durch die Vormerkung, dass es nicht weitergeben
+    // muss.
     const run = new Run(belt('quer', 'ablage'), shelf('ablage'), puller('zug', null, 'quer'));
+    expect(handOvers(run.run(BELT_SECONDS * 2))).toEqual(['quer>zug']);
+    expect(run.holds).toBe('zug');
+  });
+
+  it('lässt das Band weiterschieben, solange das Zugband voll ist', () => {
+    // Dieselbe Kreuzung, nur ist das Zugband besetzt: keine Vormerkung, also
+    // der gewohnte Weg. Ein Zugband im Stau hält das Band nicht mit an.
+    const run = new Run(belt('quer', 'ablage'), shelf('ablage'), puller('zug', null, 'quer', true));
     expect(handOvers(run.run(BELT_SECONDS * 2))).toEqual(['quer>ablage']);
+    expect(run.holds).toBe('ablage zug');
+  });
+
+  it('zieht nichts, was schon unterwegs ist', () => {
+    // Das Band fährt los, **dann** wird das Zugband frei. Zu spät: Was fährt,
+    // fährt zu Ende — sonst wechselte ein Teller auf halber Strecke die
+    // Richtung.
+    const run = new Run(belt('quer', 'ablage'), shelf('ablage'), puller('zug', null, 'quer', true));
+    run.run(BELT_SECONDS / 2);
+    expect(run.at('quer').state.to).toBe('ablage');
+
+    run.at('zug').loaded = false;
+    expect(handOvers(run.run(BELT_SECONDS))).toEqual(['quer>ablage']);
     expect(run.holds).toBe('ablage');
+  });
+
+  it('zieht von einem anderen Zugband, sobald dort etwas liegt', () => {
+    // Der Fall, für den die Vormerkung da ist: zwei Zugbänder über Eck. `eins`
+    // zieht von der Platte und schiebt nach `weiter`; `zwei` steht quer daneben
+    // und zieht von `eins`. Was auf `eins` **ankommt**, geht deshalb zu `zwei`
+    // und nicht nach `weiter`.
+    const run = new Run(
+      shelf('platte', true),
+      puller('eins', 'weiter', 'platte'),
+      shelf('weiter'),
+      puller('zwei', null, 'eins'),
+    );
+    expect(handOvers(run.run(BELT_SECONDS * 3))).toEqual(['platte>eins', 'eins>zwei']);
+    expect(run.holds).toBe('zwei');
   });
 
   it('zieht von einem Band, das nirgendwohin schiebt', () => {

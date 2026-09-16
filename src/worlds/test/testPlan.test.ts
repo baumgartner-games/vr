@@ -19,6 +19,7 @@ import {
   RANGE,
   SPAWN,
   START,
+  ZONE_LABELS,
   ZONE_TILES,
 } from './layout';
 import { fitTest, testPlan } from './testPlan';
@@ -53,6 +54,24 @@ describe('Das Gelände der Testwelt', () => {
       const path = findPath(plan.graph, spawn, tile, { profile: HUMAN_PROFILE });
       expect({ name, complete: path.complete }).toEqual({ name, complete: true });
     }
+  });
+
+  /**
+   * **Und jede Zone hat einen Namen**, denn dieselbe Liste ist das Menü, mit
+   * dem man zu ihr springt (`TestWorld.jumpMenu`). Wer eine Zone dazutut und
+   * den Namen vergisst, bekäme dort einen Eintrag, der `kitchen` heißt.
+   */
+  it('nennt jede Zone beim Namen', () => {
+    for (const name of Object.keys(ZONE_TILES)) {
+      expect({ name, labelled: typeof ZONE_LABELS[name] === 'string' }).toEqual({
+        name,
+        labelled: true,
+      });
+    }
+    const labels = Object.values(ZONE_LABELS);
+    expect(new Set(labels).size).toBe(labels.length);
+    // Und keinen Namen zu viel: Ein Ziel, das es nicht gibt, stünde im Menü.
+    expect(Object.keys(ZONE_LABELS).sort()).toEqual(Object.keys(ZONE_TILES).sort());
   });
 
   /**

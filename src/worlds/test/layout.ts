@@ -138,6 +138,11 @@ export const PATHS: readonly NavRect[] = [
  * einzelne Kachel des Plans; diese Liste sagt, welche davon zu welcher Zone
  * gehört, damit eine Fehlermeldung „die Kletterwand hängt in der Luft" lautet
  * und nicht „Kachel 24,12 hat keinen Anschluss".
+ *
+ * **Und seit es den Sprung im Menü gibt, ist es zugleich die Liste der Ziele**
+ * (`TestWorld.menu`): Dieselbe Kachel, an der ein Test misst, ob man hinkommt,
+ * ist die, auf die man gesetzt wird. Eine zweite Liste daneben wäre die, die
+ * beim nächsten Verschieben einer Zone stehen bleibt.
  */
 export const ZONE_TILES: Readonly<Record<string, { x: number; z: number; level: number }>> = {
   start: { x: SPAWN.x, z: SPAWN.z, level: 0 },
@@ -150,6 +155,26 @@ export const ZONE_TILES: Readonly<Record<string, { x: number; z: number; level: 
   climb: { x: CLIMB.x + 5, z: CLIMB.z + 4, level: 0 },
   // Die Mitte des Gangs zwischen Insel und Ausgabe — dort, wo ein Koch steht.
   kitchen: { x: KITCHEN.x + 1, z: KITCHEN.z + 7, level: 0 },
+};
+
+/**
+ * **Wie die Zonen heißen** — für das Menü, und nur dafür.
+ *
+ * Die Kennungen oben sind Schlüssel für Tests und Code; im Menü steht, was
+ * jemand sucht, der das Gelände zum ersten Mal sieht. Beide Listen tragen
+ * dieselben Namen, und ein Test daneben hält das fest: Wer eine Zone dazutut,
+ * soll sie nicht im Menü vergessen.
+ */
+export const ZONE_LABELS: Readonly<Record<string, string>> = {
+  start: 'Startplatz',
+  interact: 'Interaktionen',
+  effects: 'Effekte',
+  podium: 'Podest',
+  navigation: 'Navigation',
+  range: 'Schießstand',
+  kart: 'Boxengasse',
+  climb: 'Kletterwand',
+  kitchen: 'Küche',
 };
 
 /** Die Mitte einer Kachel in Weltmetern — Zonen rechnen damit ihre Requisiten aus. */

@@ -32,10 +32,18 @@ import { TILE } from '../../nav/navTile';
  * schiebt es eine Kachel weiter. Das **Zugband** (`belt-pull`, orange Sparren)
  * tut dasselbe und holt sich obendrein von selbst, was auf der Kachel
  * **hinter** ihm liegt — und die Kachel davor muss dafür kein Band sein: eine
- * Arbeitsplatte, ein Gästetisch, ein Schneidebrett. Sie **wird** für diesen
- * einen Handgriff eines (`BeltTile.pull`, `advanceBelts`), und damit gilt für
- * sie ohne eine zweite Rechnung alles, was für ein Band gilt — Losfahren,
- * Anstehen, `BELT_HOLD`, das Bild dazwischen.
+ * Arbeitsplatte, ein Gästetisch, ein Schneidebrett, ein anderes Band. Sie
+ * **wird** für diesen einen Handgriff eines (`BeltTile.pull`, `advanceBelts`),
+ * und damit gilt für sie ohne eine zweite Rechnung alles, was für ein Band
+ * gilt — Losfahren, Anstehen, `BELT_HOLD`, das Bild dazwischen.
+ *
+ * **Und es zieht, indem es sich etwas vormerkt.** Ein freies Zugband schreibt
+ * sich bei seinem Nachbarn ein, noch bevor dort überhaupt etwas liegt; der
+ * weiß damit, dass er es nicht weitergeben muss. Was dort **zur Ruhe kommt**,
+ * geht deshalb quer weg statt geradeaus weiter — auch auf einem Band, das
+ * selbst schiebt. Was dagegen schon **fährt**, fährt zu Ende, und ein **volles**
+ * Zugband merkt gar nicht erst vor: Dann schiebt das Band wie immer, statt sich
+ * an einem Stau nebenan anzustecken.
  *
  * **Und die obere Hälfte rechnet nicht mehr je Kachel, sondern je Bild.** Das
  * ist die eine Entscheidung, aus der alles andere hier folgt: Ein Band hängt an
@@ -164,11 +172,16 @@ export interface BeltTile {
    * passiert nicht. Deshalb steht hier auch nur ein Schlüssel und keine zweite
    * Sorte Fahrt.
    *
+   * **Vorgemerkt wird, bevor etwas da ist**: Ein freies Zugband schreibt sich
+   * bei seinem Nachbarn ein, und der weiß damit schon, dass er nicht
+   * weitergeben muss. Was dort **liegt**, geht deshalb quer weg statt geradeaus
+   * weiter — auch von einem Band, das selbst schiebt.
+   *
    * **Drei Fälle geben nichts her, und alle drei ohne Sonderzeile:** eine
-   * Kachel, die es nicht gibt; eine, die schon selbst schiebt (ein Band folgt
-   * seinem eigenen Pfeil, auch wenn ein Zugband daneben etwas anderes möchte);
-   * und eine, um die sich zwei Zugbänder streiten — dann bekommt sie genau
-   * eines von beiden (`advanceBelts`).
+   * Kachel, die es nicht gibt; eine, auf der schon etwas **fährt** (was
+   * losgefahren ist, fährt zu Ende); und eine, um die sich zwei Zugbänder
+   * streiten — dann bekommt sie genau eines von beiden. Und ein volles Zugband
+   * merkt gar nicht erst vor: Dann schiebt das Band wie immer (`advanceBelts`).
    */
   readonly pull?: string | null;
 }
@@ -334,7 +347,7 @@ export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame 
   const ahead = (seat: Seat): Seat | undefined =>
     seat.to === null ? undefined : board.get(seat.to);
 
-  // --- 0. die Zugbänder greifen nach hinten -----------------------------------
+  // --- 0. die Zugbänder merken sich etwas vor ---------------------------------
   //
   // **Und mehr tun sie nicht**: Sie schreiben der Kachel hinter sich ein Ziel,
   // und das sind sie selbst. Danach ist ein gezogener Arbeitstisch von einem
@@ -342,39 +355,52 @@ export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame 
   // Kettenausnahme, `BELT_HOLD`, Ankommen — gilt für ihn, ohne dass es unten
   // noch einmal stünde. Das ist der ganze Trick an dieser Sorte Möbel.
   //
-  // Zwei Regeln entscheiden die Fälle, die ein Grundriss irgendwann herstellt:
+  // **Die Vormerkung steht, bevor überhaupt etwas da ist.** Ein freies Zugband
+  // merkt bei seinem Nachbarn an: „Was hier ankommt, hole ich." Der Nachbar
+  // weiß damit schon, dass er es **nicht weitergeben** muss — und deshalb geht
+  // ein Ding, das auf einem Band zur Ruhe kommt, im selben Bild quer weg statt
+  // geradeaus weiter. Ist das Zugband dagegen voll, gibt es keine Vormerkung,
+  // und das Band schiebt wie immer.
   //
-  // - **Ein Band folgt seinem eigenen Pfeil.** Wer selbst schiebt, lässt sich
-  //   nicht ziehen — auch nicht von einem Zugband, das quer daneben steht. Die
-  //   Sparren auf dem Band sagen, wohin es geht, und eine Maschine, die sie
-  //   überstimmt, macht aus der sichtbaren Richtung eine Lüge. Schiebt es
-  //   dagegen **nirgendwohin** (am Rand, vor einem Mülleimer), ist es eine
-  //   Ablage wie jede andere und darf leergezogen werden.
+  // Drei Regeln entscheiden die Fälle, die ein Grundriss irgendwann herstellt:
+  //
+  // - **Was schon fährt, wird nicht umgeleitet.** Hat ein Ding seine Fahrt
+  //   angefangen — geradeaus oder zu einem anderen Zugband —, dann gilt sie
+  //   (`BeltState.to`), auch wenn nebenan gerade ein Zugband frei wird. Sonst
+  //   wechselte es auf halber Strecke die Richtung, und das Losfahren wäre
+  //   kein Versprechen mehr. Gezogen wird also nur, was **liegt**.
+  // - **Nur ein freies Zugband merkt vor**, und „frei" heißt hier dasselbe wie
+  //   beim Losfahren: leer — oder voll, aber selbst schon unterwegs (`canTake`).
+  //   Wer im Stau steht, hält nicht auch noch den Nachbarn an: Dann schiebt
+  //   das Band sein Ding den gewohnten Weg weiter.
   // - **Eine Kachel wird von genau einem Zugband gezogen.** Stehen zwei an
-  //   derselben Arbeitsplatte, bekommt sie das erste, das gerade etwas
-  //   annehmen kann — ist das erste voll und das zweite frei, greift das
-  //   zweite. Erst diese Vorliebe macht aus zwei Zugbändern zwei Abnehmer;
-  //   ohne sie stünde das zweite still, während das erste im Stau steht, und
-  //   die Arbeitsplatte bliebe liegen, obwohl daneben Platz wäre. Sind beide
-  //   voll, gewinnt das erste — es passiert ohnehin nichts.
+  //   derselben Arbeitsplatte, bekommt sie das erste, das gerade vormerken
+  //   kann — ist das erste voll und das zweite frei, greift das zweite. Erst
+  //   das macht aus zwei Zugbändern zwei Abnehmer.
   //
   // Wer der Erste ist, entscheidet wie überall hier die Reihenfolge der
   // übergebenen Kacheln; eine zufällige Antwort wäre schlechter.
+  //
+  // **Ein Band, das schiebt, darf also leergezogen werden** — anders als in der
+  // ersten Fassung, die den eigenen Pfeil immer gewinnen ließ. Der Pfeil bleibt
+  // trotzdem wahr: Er sagt, wohin das Band schiebt, **wenn** es schiebt. Wo ein
+  // Zugband danebensteht, ist das die Ausnahme, und man sieht sie an dessen
+  // orangem Greifer.
+  for (const seat of board.values()) {
+    // Ein laufender Zug behält sein Ziel, komme, was wolle — auch das eines
+    // Zugbands, das die Kachel inzwischen nicht mehr vormerken dürfte.
+    const kept = seat.moving ? (seat.tile.state.to ?? null) : null;
+    if (kept !== null && board.has(kept)) seat.to = kept;
+  }
   let pulls: Map<string, Seat> | null = null;
   for (const seat of board.values()) {
     const source = seat.tile.pull ? board.get(seat.tile.pull) : undefined;
     // Ein Band, das von sich selbst zöge, wäre eine Kachel, die sich selbst
     // zum Ziel hat — und damit ein Ring aus einem Glied.
-    if (!source || source === seat || source.to !== null) continue;
-    // **Ein laufender Zug wird nicht umgeleitet.** Fährt auf der Platte schon
-    // etwas, gehört sie dem, zu dem es unterwegs ist (`BeltState.to`), und
-    // zwar auch dann, wenn der inzwischen volläuft: Das Ding wartet dann vor
-    // ihm (`BELT_HOLD`), statt auf halber Strecke die Richtung zu wechseln.
-    // Erst das **nächste** Ding wird wieder frei vergeben.
-    const promised = source.moving ? (source.tile.state.to ?? null) : null;
-    if (promised !== null && promised !== seat.tile.id) continue;
-    const taken = (pulls ??= new Map()).get(source.tile.id);
-    if (taken && promised === null && (canTake(taken) || !canTake(seat))) continue;
+    if (!source || source === seat) continue;
+    // Was fährt, fährt weiter; wer voll steht, merkt nicht vor.
+    if (source.moving || !canTake(seat)) continue;
+    if ((pulls ??= new Map()).has(source.tile.id)) continue;
     pulls.set(source.tile.id, seat);
   }
   if (pulls) for (const [id, puller] of pulls) board.get(id)!.to = puller.tile.id;
