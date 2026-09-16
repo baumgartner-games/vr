@@ -33,6 +33,7 @@ import {
   stovePhase,
   stoveProgress,
   workProgress,
+  workWaits,
   type Dish,
   type KitchenItem,
   type Station as StationFacts,
@@ -722,10 +723,16 @@ export class KitchenZone implements TestZone {
    * neues Armieren gibt es nur durch erneutes Ablegen (`settle`). Das ist die
    * Entscheidung, die den Unterschied macht zwischen „ich stelle es hin und
    * gehe" und „ich stehe daneben und arbeite".
+   *
+   * **Der fertige Teller kommt in die Hand** (`kitchenWork.WORK_TO_HAND`), und
+   * das ist der einzige Ort, an dem die Zone den Unterschied zwischen Brett
+   * und Becken überhaupt sieht — sie sieht ihn als `tick.toHand` und fragt
+   * nirgends nach `spot.kind`. Der Griff selbst ist derselbe wie der von Hand
+   * (`pickUp` und `takeInHand`, wie bei `do: 'take'`), nur macht ihn niemand.
    */
   private workFrame(spot: Station, dt: number): void {
     const near = Math.hypot(_feet.x - spot.deck.x, _feet.z - spot.deck.z) <= WORK_REACH;
-    const tick = advanceWork(spot.work, dt, near);
+    const tick = advanceWork(spot.work, dt, near, !this.carried);
     if (tick.state === spot.work) return;
     spot.work = tick.state;
     if (!tick.done) return;
@@ -733,7 +740,22 @@ export class KitchenZone implements TestZone {
     // Was gearbeitet wird, trägt nichts (`kitchenRecipes.CHOPS`) — aus dem
     // Salatkopf wird geschnittener Salat, aus dem dreckigen Teller ein sauberer.
     if (on) this.restyle(on, dish(tick.done));
-    this.world?.notify(`${ITEM_LABELS[tick.done]} fertig`);
+    const label = ITEM_LABELS[tick.done];
+    if (tick.toHand && on) {
+      // `pickUp` räumt die Station und stellt ihre Uhren neu (`settle`) —
+      // dasselbe, was `tick.state` schon sagt, und deshalb keine zweite
+      // Rechnung, sondern dieselbe.
+      const thing = this.pickUp(spot, on.dish);
+      if (thing) this.takeInHand(thing);
+      this.world?.notify(`${label} in der Hand`);
+    } else if (workWaits(tick)) {
+      // **Volle Hand**: Der Teller ist sauber und bleibt im Wasser stehen.
+      // Gesagt werden muss es, sonst steht man mit der Pfanne davor und hält
+      // die Uhr für hängengeblieben.
+      this.world?.notify(`${label} fertig — die Hand ist voll`);
+    } else {
+      this.world?.notify(`${label} fertig`);
+    }
     this.refreshStations();
   }
 

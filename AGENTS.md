@@ -5090,6 +5090,9 @@ rechnet etwas aus, das man ohne Szene prüfen kann.
   bleibt bewusst draußen: Er läuft weiter, ob jemand davorsteht oder nicht, und
   das ist der ganze Sinn des Bratens. Hier ist es umgekehrt, und zwei
   Rechnungen mit gegenteiliger Grundannahme gehören nicht in eine Funktion.
+  Wo Brett und Becken doch auseinandergehen — das Fertige bleibt liegen oder
+  geht in die Hand —, steht das als **ein Tabelleneintrag** in derselben Datei
+  (`WORK_TO_HAND`) und nicht als Sonderfall in der Zone.
 - **`kitchenGuests.ts` ist die Uhr des Gastes** — wer isst, wie lange noch, und
   was danach auf dem Tisch stehen bleibt (`EAT_SECONDS` 8 s, `TableState`).
   Sie steht aus demselben Grund neben der Zone wie der Herd: Wer den Rest einer
@@ -5175,11 +5178,27 @@ Und das sind die Regeln, die darin stehen:
   nicht erst zielen müssen. Wie die Ansichten den Auslöser lesen, steht unter
   _Steuerung_.
 - **Schneiden und Spülen sind dieselbe Uhr** (`kitchenWork.ts`,
-  `WORK_SECONDS` = 3 s für beides). Das Brett schneidet von selbst, sobald
-  etwas daraufliegt, das Becken spült von selbst, sobald dreckiges Geschirr
-  darin steht — und beides nur, solange jemand davorsteht (1,5 m um die
-  Möbelmitte; `Station.live` heißt „hier gäbe es etwas zu tun" und nicht
-  „jemand steht davor"). Die Tomate hat dabei zwei Stufen: Scheibe, dann Suppe.
+  `WORK_SECONDS` = 3 s für beides). Beide fangen mit dem **Ablegen** an und
+  brauchen keinen zweiten Knopfdruck: Wer den Salatkopf auf das Brett legt,
+  will schneiden, wer den dreckigen Teller ins Becken stellt, will spülen. Und
+  beide laufen nur, solange jemand davorsteht (1,5 m um die Möbelmitte;
+  `Station.live` heißt „hier gäbe es etwas zu tun" und nicht „jemand steht
+  davor"). Die Tomate hat dabei zwei Stufen: Scheibe, dann Suppe.
+- **Der einzige Unterschied zwischen Brett und Becken ist, wohin das Fertige
+  geht** (`WORK_TO_HAND`, ein Eintrag je `WorkKind`). Am **Brett** bleibt es
+  liegen — der geschnittene Salat will als Nächstes auf einen Teller, und wer
+  ihn aufnimmt, hat damit schon entschieden, wohin. Aus dem **Becken** kommt
+  der saubere Teller **in die Hand**: „Dreckigen Teller interagieren, dann wird
+  abgewaschen. Ist es fertig, hat man einen sauberen Teller in der Hand" (aus
+  dem Spieltest am Handy). Vorher stand er fertig gespült im Wasser, und der
+  Weg kostete einen Griff mehr an genau der Stelle, an der man ohnehin schon
+  stand — bis dahin war das Becken besetzt und der nächste dreckige Teller
+  passte nicht hinein. **Ist die Hand voll**, bleibt er trotzdem stehen: Er
+  drängt nichts aus der Hand, und ein Griff ans Becken holt ihn nach
+  (`atSink`); die Zone sagt es dann auch an (`workWaits`). Die Tabelle ist die
+  **eine** Stelle dafür — die Zone fragt `tick.toHand` und nie nach der
+  Stationsart, und eine dritte Arbeitsart müsste ihren Eintrag beim Übersetzen
+  nachreichen.
 - **Wer weggeht, fängt von vorn an.** Früher blieb der Fortschritt stehen und
   lief beim Zurückkommen weiter — bequem, aber es machte aus dem Brett eine
   Ablage, an der man im Vorbeigehen antippt: hinlegen, zwei Sekunden warten,
@@ -5245,7 +5264,10 @@ Und das sind die Regeln, die darin stehen:
   - **Vier saubere Teller** auf dem Abtropfbrett (`CLEAN_STACK_MAX`), als
     derselbe Stapel wie an der Rückgabe, nur mit sauberen Tellern und einer
     anderen Grenze. Voll lehnt es ab — anders als die Rückgabe, die nie ablehnt,
-    weil ein Gast ohne Abstellplatz eine Sackgasse wäre.
+    weil ein Gast ohne Abstellplatz eine Sackgasse wäre. Gefüllt wird es **aus
+    der Hand**: Fertig gespült liegt der Teller dort (`WORK_TO_HAND`), und ein
+    Schritt zur Seite stellt ihn ab, statt ihn auf irgendeiner Arbeitsplatte
+    zwischenzulagern, wo er beim nächsten Burger im Weg läge.
   - **Der Wasserhahn war nicht verdreht.** Nachgemessen steht sein Fuß hinten
     (z = −0,90…−0,70) und der Bogen greift nach vorn über die Mulde — die
     Schauseite dieser Möbel ist ohnehin **+z**, dort sitzen die Türgriffe, und

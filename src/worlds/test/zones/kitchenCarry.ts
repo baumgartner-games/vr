@@ -36,10 +36,12 @@
  * sind danach weg — zum Gast. Der bringt ihn dreckig zurück: an die
  * **Rückgabe**, wo sich die dreckigen Teller stapeln, oder er lässt ihn am
  * **Gästetisch** stehen. Von dort trägt man ihn ins **Spülbecken**, und das
- * macht mit derselben Uhr sauber, mit der das Brett schneidet (`kitchenWork.ts`);
- * der saubere Teller kommt auf das **Abtropfbrett** daneben, bis ihn jemand
- * braucht. Ohne diesen Kreis wäre die Tellerausgabe ein Brunnen und die Küche
- * nach zehn Gästen ein Tellerlager.
+ * macht mit derselben Uhr sauber, mit der das Brett schneidet
+ * (`kitchenWork.ts`). **Fertig gespült liegt er in der Hand** — man steht ja
+ * daneben, sonst liefe die Uhr gar nicht (`kitchenWork.WORK_TO_HAND`) — und
+ * von dort geht er auf das **Abtropfbrett** daneben, bis ihn jemand braucht,
+ * oder gleich zur nächsten Bestellung. Ohne diesen Kreis wäre die
+ * Tellerausgabe ein Brunnen und die Küche nach zehn Gästen ein Tellerlager.
  *
  * **Warum der Topf nicht in den Müll darf.** Ein Mülleimer, der alles
  * schluckt, ist ein Mülleimer, in dem nach zwei Minuten die einzige Pfanne der
@@ -116,10 +118,12 @@ export {
 export {
   IDLE_WORK,
   WORK_SECONDS,
+  WORK_TO_HAND,
   advanceWork,
   onWork,
   workProgress,
   workStage,
+  workWaits,
   type WorkKind,
   type WorkState,
   type WorkTick,
@@ -462,6 +466,17 @@ function atPass(held: Dish | null): KitchenDeed {
  * zwar leeres. Ein Teller mit einem halben Burger darauf gehört erst an den
  * Mülleimer; eine Spüle, die ihn schluckte, wäre ein zweiter Mülleimer mit
  * Wasserhahn.
+ *
+ * **Angesprochen wird der dreckige Teller, und was herauskommt, liegt in der
+ * Hand.** Der Weg ist damit ein Griff und kein Hin und Her: hierher treten,
+ * `A`, dabeistehen, fertig. Wo das Fertige hingeht, entscheidet die Uhr
+ * (`kitchenWork.WORK_TO_HAND`) und nicht diese Datei — hier steht nur, was
+ * hineindarf.
+ *
+ * **Die erste Zeile ist trotzdem geblieben**, und sie ist jetzt der Ausweg für
+ * den einen Fall, in dem der saubere Teller doch im Becken steht: Wer mit
+ * voller Hand danebenstand, bekam ihn nicht gereicht. Ein Griff mit leerer
+ * Hand holt ihn nach.
  */
 function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
   if (!held) return on ? { do: 'take', dish: on } : { do: 'nothing' };
@@ -478,10 +493,11 @@ function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
  * **saubere** Geschirr.
  *
  * Es ist die zweite Hälfte der Spüle (`core/kitchenFit.ts`, `sink-drain`), und
- * es macht den Abwasch erst zu einem Weg mit einem Ende: Vorher kam aus dem
- * Becken ein sauberer Teller in die Hand, und wer ihn nicht sofort brauchte,
- * musste ihn irgendwo auf einer Arbeitsplatte zwischenlagern — die Spüle blieb
- * so lange besetzt. Jetzt stellt man ihn daneben ab und spült den nächsten.
+ * es macht den Abwasch erst zu einem Weg mit einem Ende. Aus dem Becken kommt
+ * der saubere Teller in die **Hand** (`kitchenWork.WORK_TO_HAND`), und wer ihn
+ * nicht sofort braucht, müsste ihn sonst auf irgendeiner Arbeitsplatte
+ * zwischenlagern, wo er beim nächsten Burger im Weg liegt. Hier stellt man ihn
+ * ab und spült den nächsten — einen Schritt weiter, ohne den Platz zu wechseln.
  *
  * Der Fall ist Zeile für Zeile `atReturn`, mit zwei Unterschieden, und beide
  * sind gewollt:

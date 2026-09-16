@@ -1,10 +1,13 @@
 import {
   CLEAN_STACK_MAX,
   ITEM_LABELS,
+  WORK_SECONDS,
+  advanceWork,
   dish,
   kitchenDeed,
   kitchenPrompt,
   meansContent,
+  onWork,
   type Dish,
   type KitchenDeed,
   type KitchenItem,
@@ -610,12 +613,33 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
       do: 'place',
       dish: d('plate'),
     });
-    // Und was darin steht, nimmt man heraus — auch den fertig gespülten.
+    // Und was darin steht, nimmt man heraus.
     expect(press(null, { kind: 'sink', on: d('plate') })).toEqual({
       do: 'take',
       dish: d('plate'),
     });
     expect(press(null, { kind: 'sink', on: null })).toEqual({ do: 'nothing' });
+  });
+
+  /**
+   * **Der Nachgriff bei voller Hand.** Fertig gespült kommt der Teller von
+   * selbst in die Hand (`kitchenWork.WORK_TO_HAND`) — außer die Hand war
+   * voll, dann wartet er im Wasser. Dieser Griff ist der Ausweg daraus, und
+   * er ist der Grund, warum die Spüle weiter hergibt, was in ihr steht.
+   */
+  it('gibt den wartenden sauberen Teller auf Nachfrage her', () => {
+    expect(press(null, { kind: 'sink', on: d('plate') })).toEqual({
+      do: 'take',
+      dish: d('plate'),
+    });
+    // Mit voller Hand bleibt er stehen und sagt auch, warum: Zwei Teller
+    // passen nicht übereinander.
+    expect(why(press(d('plate-dirty'), { kind: 'sink', on: d('plate') }))).toContain('schon');
+    // Und er ist sauber, also nimmt ihn das Abtropfbrett an.
+    expect(press(d('plate'), { kind: 'drain', stack: 0 })).toEqual({
+      do: 'place',
+      dish: d('plate'),
+    });
   });
 
   it('lässt in die Spüle nur Geschirr', () => {
@@ -756,7 +780,13 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
   });
 
   /**
-   * **Einmal ganz herum** — vom fertigen Burger bis zum sauberen Teller.
+   * **Einmal ganz herum** — vom fertigen Burger bis zum sauberen Teller auf
+   * dem Abtropfbrett, ohne einen Handgriff dazwischen auszulassen.
+   *
+   * Der Weg ist der Grund, warum es die Spüle gibt, und er muss **in einem
+   * Stück** durchspielbar bleiben: Gast, Rückgabe oder Tisch, Becken, Hand,
+   * Abtropfbrett. Bricht er in der Mitte, steht die Küche nach zehn Gästen
+   * still, und man merkt es erst im Headset.
    */
   it('führt den Teller vom Gast zurück in die Küche', () => {
     const served = press(d('plate', 'bun', 'patty-cooked'), { kind: 'serve' });
@@ -770,6 +800,17 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
       do: 'work',
       kind: 'wash',
       dish: d('plate-dirty'),
+    });
+    // Die Hand ist dabei leer — der Teller steht ja im Wasser —, also endet
+    // die Uhr mit dem sauberen Teller darin (`kitchenWork.WORK_TO_HAND`).
+    const washed = advanceWork(onWork('wash', 'plate-dirty'), WORK_SECONDS.wash, true, true);
+    expect(washed.done).toBe('plate');
+    expect(washed.toHand).toBe(true);
+    // Und aus der Hand geht er auf das Abtropfbrett, wo er auf die nächste
+    // Bestellung wartet.
+    expect(press(d(washed.done ?? 'plate'), { kind: 'drain', stack: 1 })).toEqual({
+      do: 'place',
+      dish: d('plate'),
     });
   });
 });
