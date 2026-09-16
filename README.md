@@ -57,7 +57,9 @@ schlechte Griffe kosten Ausdauer, und hinunter geht es in **Sprungkissen**, die
 den Fall abfedern statt ihn anzuhalten. Ganz im Norden, hinter dem Podest,
 steht eine **Küche** aus den Fan-Art-Möbeln: Zeile, zwei Herde, Spüle und
 Tellerausgabe an der Wand, vier Zutatenausgaben an der Westwand, eine Insel aus
-Schneidebrett und Mülleimer, ein **Förderband** quer durch den Raum, vorn die
+Schneidebrett und Mülleimer, ein **Förderband** quer durch den Raum (was
+daraufliegt, gleitet weich weiter und fährt nur los, wenn vorn Platz wird —
+oder frei wird, während es fährt), vorn die
 Ausgabetheke mit den Wärmeschirmen als Durchreiche darüber und davor der
 Gastraum mit drei Tischen und der Geschirrrückgabe. **Angefasst wird mit `A`**,
 und daraus wird ein **Burger**: Patty in die Pfanne (es brät, es verbrennt, und

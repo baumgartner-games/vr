@@ -63,7 +63,16 @@ import {
   type TableState,
 } from './kitchenGuests';
 import { BUILD_AHEAD, buildFree, tileAhead, whyNotBuilt, type BuildSpot } from './kitchenBuild';
-import { BeltKit, BELT_EMPTY, advanceBelt, beltStep, type BeltState } from './kitchenBelt';
+import {
+  BeltKit,
+  BELT_EMPTY,
+  advanceBelts,
+  beltBound,
+  beltStep,
+  type BeltFrame,
+  type BeltState,
+  type BeltTile,
+} from './kitchenBelt';
 import {
   DRY,
   SprayJet,
@@ -453,6 +462,14 @@ export class KitchenZone implements TestZone {
   private editing = false;
   /** Der rote Knopf, der ihn umlegt (`addBuildButton`). */
   private buildButton: RedButton | null = null;
+  /**
+   * **Was die Bänder in diesem Bild gerechnet haben** (`runBelts`).
+   *
+   * Gemerkt wird es für genau eine Frage: ob auf eine Kachel gerade etwas
+   * zufährt (`kitchenBelt.beltBound`). Eine solche Kachel ist leer und trotzdem
+   * vergeben, und das sieht man ihr nicht an.
+   */
+  private beltNow: BeltFrame | null = null;
   /** Das Möbel in der Hand — im Baumodus trägt man Möbel statt Essen. */
   private lifted: Furnish | null = null;
   /** Der Umriss des Bauplatzes: wo er steht und ob dort Platz ist. */
@@ -523,6 +540,7 @@ export class KitchenZone implements TestZone {
    */
   update(dt: number, ctx: WorldContext): void {
     this.aim(ctx);
+    this.runBelts(dt);
     this.cook(dt);
     this.spray(dt, ctx);
     // Die Pfeile auf den Bändern wandern, auch wenn nichts daraufliegt: Ein
@@ -580,7 +598,8 @@ export class KitchenZone implements TestZone {
           this.tableFrame(spot, dt);
           break;
         case 'belt':
-          this.beltFrame(spot, dt);
+          // Das Band rechnet **einmal für alle** (`runBelts`) und nicht je
+          // Kachel; hier bleibt nur die Anzeige übrig.
           break;
         default:
           continue;
@@ -662,27 +681,114 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Ein Bild auf dem Förderband** — was daraufliegt, wandert weiter.
+   * **Wohin ein Band abliefert** — die Station auf der nächsten Kachel in
+   * Laufrichtung (`kitchenBelt.beltStep`), oder `null`.
    *
-   * Weitergereicht wird an die Station auf der **nächsten Kachel in
-   * Laufrichtung** (`kitchenBelt.beltStep`). Ist dort nichts oder steht dort
-   * schon etwas, bleibt das Ding liegen und versucht es im nächsten Bild
-   * wieder — ein Band, das seine Fracht ins Nichts schiebt, wäre ein Band, an
-   * dem Teller verschwinden.
+   * `null` heißt für die Rechnung nebenan: Hier fährt nichts los. Das ist
+   * derselbe Fall für dreierlei, und das ist Absicht — ein Band am Rand der
+   * Küche, eines, das auf einen Mülleimer zeigt, und eines, das auf die
+   * Ausgabetheke zeigt. Die letzten beiden nehmen nichts entgegen, was ihnen
+   * jemand hinschiebt: In den Mülleimer wird **geworfen**, über die Theke wird
+   * **serviert**, und beides ist ein Handgriff und kein Zufall. Ein Teller, den
+   * ein Band von selbst in den Müll trägt, wäre der teuerste Unfall dieser
+   * Küche.
    */
-  private beltFrame(spot: Station, dt: number): void {
-    const tick = advanceBelt(spot.belt, dt, spot.on !== null);
-    spot.belt = tick.state;
-    if (!tick.handOver) return;
-    const load = spot.on;
-    if (!load) return;
+  private beltTarget(spot: Station): Station | null {
     const step = beltStep(spot.home.turn);
     const next = this.stationAt(spot.home.x + step.dx, spot.home.z + step.dz);
-    if (!next || next.on || next.kind === 'bin' || next.kind === 'serve') return;
-    spot.on = null;
-    this.settle(spot);
-    this.layOn(next, load);
-    this.refreshStations();
+    if (!next || next.kind === 'bin' || next.kind === 'serve') return null;
+    return next;
+  }
+
+  /**
+   * **Ein Bild auf allen Bändern** — einmal je Bild, für die ganze Küche
+   * (`kitchenBelt.advanceBelts`).
+   *
+   * **Warum nicht je Kachel.** Ein Band hängt am Band davor, und das am davor:
+   * Ob hier etwas losfahren darf, ist eine Frage über die **Nachbarn**, und wer
+   * sie Kachel für Kachel stellt, beantwortet sie je nach Reihenfolge anders —
+   * von vorn gerechnet fährt ein volles Band in einem Bild los, von hinten
+   * gerechnet braucht es so viele Bilder, wie es Kacheln hat. Die Rechnung
+   * bekommt deshalb **alle** Kacheln auf einmal; was dabei herauskommt, steht
+   * dort und nicht hier.
+   *
+   * **Jede Station wird gemeldet, nicht nur die Bänder.** Die Frage „ist
+   * vorn Platz?" gilt genauso für die Ablage am Ende der Reihe wie für das
+   * nächste Band — und eine Ablage ist in dieser Rechnung nichts anderes als
+   * eine Kachel ohne Ziel (`BeltTile.to === null`).
+   *
+   * **Die Übergaben kommen in anwendbarer Reihenfolge**, von vorn nach hinten:
+   * Wer sie der Reihe nach abarbeitet, legt nie etwas auf eine Kachel, von der
+   * der Vordermann noch nicht weggezogen ist.
+   */
+  private runBelts(dt: number): void {
+    if (!this.stations.length) return;
+    let belts = false;
+    const tiles: BeltTile[] = [];
+    for (const spot of this.stations) {
+      if (spot.kind === 'belt') belts = true;
+      const to = spot.kind === 'belt' ? this.beltTarget(spot) : null;
+      tiles.push({
+        id: spot.key,
+        loaded: spot.on !== null,
+        state: spot.belt,
+        to: to?.key ?? null,
+      });
+    }
+    // Eine Küche **ohne Band** rechnet gar nichts — den Fall gibt es im
+    // Schauraum und in jeder Küche, aus der jemand das letzte Band
+    // herausgebaut hat. Gefragt wird nach dem Möbel und nicht nach seinem
+    // Ziel: Ein Band, das gerade ins Leere zeigt, weil die Ablage davor im
+    // Baumodus weggetragen wurde, muss durch die Rechnung — sonst bliebe ein
+    // Ding, das eben noch unterwegs war, auf `moving` stehen und hinge
+    // sichtbar in der Luft.
+    if (!belts) {
+      this.beltNow = null;
+      return;
+    }
+
+    const frame = advanceBelts(tiles, dt);
+    this.beltNow = frame;
+
+    // **Erst die Übergaben, dann die Zustände**, und die Reihenfolge ist keine
+    // Geschmacksfrage: `layOn` ruft `settle`, und das setzt das Band der
+    // Zielkachel auf `BELT_EMPTY` zurück. Wer die Zustände vorher schriebe,
+    // nähme einem Ding, das in **einem** Bild ankommt und gleich weiterfährt,
+    // sein frisch gesetztes `moving` wieder weg — es stünde ein Bild lang
+    // still, und das an jeder Kachel einer Reihe.
+    for (const move of frame.moves) {
+      const from = this.stationByKey(move.from);
+      const to = this.stationByKey(move.to);
+      const load = from?.on;
+      if (!from || !to || !load) continue;
+      from.on = null;
+      this.settle(from);
+      this.layOn(to, load);
+      this.refreshStations();
+    }
+
+    for (const spot of this.stations) {
+      const next = frame.states.get(spot.key);
+      if (next) spot.belt = next;
+    }
+
+    // **Der Zustand springt, das Bild nicht.** Logisch liegt das Ding die
+    // ganze Fahrt über auf seiner Ausgangskachel (siehe `advanceBelts`);
+    // gezeichnet wird es dazwischen. Gesetzt wird das **nach** den Übergaben,
+    // denn `layOn` stellt ein angekommenes Ding auf seine neue Kachel — und
+    // was gerade erst losgefahren ist, soll dort auch losfahren und nicht
+    // einen Bildmoment am alten Platz stehen.
+    for (const carry of frame.carry.values()) {
+      const from = this.stationByKey(carry.from);
+      const to = this.stationByKey(carry.to);
+      if (!from?.on || !to) continue;
+      from.on.object.position.lerpVectors(from.deck, to.deck, carry.t);
+    }
+  }
+
+  /** Eine Station an ihrem Anzeigenschlüssel — den vergibt `addStation`. */
+  private stationByKey(key: string): Station | null {
+    return this.stations.find((spot) => spot.key === key) ?? null;
   }
 
   /**
@@ -895,6 +1001,10 @@ export class KitchenZone implements TestZone {
     if (this.lifted) this.dropPiece(true);
     this.editing = false;
     this.spraying = false;
+    // Was unterwegs war, ist es nach dem Zurücksetzen nicht mehr: Eine
+    // Reservierung auf eine Kachel, auf der gleich wieder alles frisch liegt,
+    // sperrte sie für einen Handgriff, den niemand mehr erwartet.
+    this.beltNow = null;
     const loose = [this.carried, ...this.stations.map((spot) => spot.on)];
     this.carried = null;
     if (this.avatar) this.avatar.carry = null;
@@ -958,6 +1068,7 @@ export class KitchenZone implements TestZone {
     this.spraying = false;
     this.ticket = null;
     this.ticketLeft = 0;
+    this.beltNow = null;
     this.hidden = null;
     // Die Hände der Figur wieder freigeben — sie überlebt diese Zone.
     if (this.avatar) this.avatar.carry = null;
@@ -1395,6 +1506,17 @@ export class KitchenZone implements TestZone {
     const world = this.world;
     if (!world) return false;
     const deed = kitchenDeed(this.held(), facts(spot));
+    // **Eine Kachel, auf die gerade etwas zufährt, ist vergeben** — auch wenn
+    // sie leer aussieht (`kitchenBelt.beltBound`). Wer trotzdem etwas darauf
+    // legt, bekommt nichts Kaputtes: Das Ankommende bleibt kurz davor stehen
+    // und staut sich (`BELT_HOLD`). Nur ist ein Stau, den man selbst verursacht
+    // hat, ohne es zu sehen, kein gutes Spiel — also wird es gesagt, statt ihn
+    // hübsch aussehen zu lassen. Gilt nur fürs **Hinlegen**: Wer etwas
+    // aufnimmt oder zusammenlegt, macht die Kachel nicht voller, als sie ist.
+    if (deed.do === 'place' && this.beltNow && beltBound(this.beltNow, spot.key)) {
+      world.notify(`Auf ${spot.label} kommt gerade etwas an`);
+      return true;
+    }
     switch (deed.do) {
       case 'take': {
         const thing = this.pickUp(spot, deed.dish);

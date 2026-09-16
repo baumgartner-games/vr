@@ -5127,8 +5127,39 @@ Und das sind die Regeln, die darin stehen:
   es kauft **Hände**. Wohin geschoben wird, sagen wandernde Sparren und nicht
   ein aufgemalter Pfeil — ein stehender Pfeil ist eine Beschriftung, ein
   laufender ist die Maschine selbst. Am Ende der Reihe steht eine Ablage
-  (`beltStep` sagt, an welche Kachel weitergereicht wird); ein Band, das ins
-  Leere schiebt, verliert, was daraufliegt.
+  (`beltStep` sagt, an welche Kachel weitergereicht wird).
+- **Der Zustand springt, das Bild nicht** (`kitchenBelt.advanceBelts`,
+  `kitchen.runBelts`). Ein Ding gehört logisch immer genau einer Kachel;
+  gezeichnet wird es währenddessen linear zwischen den beiden Kachelmitten
+  überblendet — linear und ungeglättet, weil die Sparren darunter mit derselben
+  gleichbleibenden Geschwindigkeit laufen und ein weich anfahrendes Ding
+  sichtbar anders führe als sein Untergrund.
+- **Losfahren ist ein Versprechen, kein Umzug.** Eine Fahrt hat zwei Stufen:
+  **losfahren** darf, wessen Ziel frei ist _oder_ wessen Ziel zwar belegt ist,
+  das Belegende aber selbst schon losgefahren ist (die **Kettenausnahme** —
+  fließt vorn einer ab, setzt sich das ganze Band in **einem** Bild in
+  Bewegung); **ankommen** darf nur, wessen Ziel wirklich leer ist. Die alte
+  Kachel wird dabei erst beim Ankommen frei, nicht beim Losfahren: Sonst läge
+  ein Ding zwei Sekunden lang logisch dort, wo es sichtbar nicht ist — `A`
+  griffe ins falsche Feld (`stationAt` fragt die Kachel, nicht das Bild), und
+  ein unterwegs abgeräumtes Ding müsste von einer Kachel genommen werden, die
+  es nie erreicht hat. Wer nicht ankommen kann, bleibt bei `BELT_HOLD` (0,625
+  Kachel, ein Tellerradius vor der Mitte) **stehen** statt zurückzuspringen:
+  Ein Teller, der rückwärts fährt, liest sich nicht als „besetzt", sondern als
+  kaputtes Spiel. Ein Band, das ins Leere schiebt, fährt gar nicht erst los —
+  vorher verlor es, was daraufliegt. Und ein voller Ring steht, ohne dass es
+  dafür einen Sonderfall bräuchte: Losfahren breitet sich von einer Kachel mit
+  wirklich freiem Ziel nach hinten aus, und ohne eine solche fängt nichts an.
+- **Gerechnet wird je Bild für alle Kacheln auf einmal**, nicht je Kachel. Ein
+  Band hängt am Band davor, und wer jede Kachel für sich rechnet, fällt auf die
+  Reihenfolge herein: von vorn gerechnet fährt ein volles Band in einem Bild
+  los, von hinten gerechnet braucht es so viele Bilder, wie es Kacheln hat.
+  Gemeldet wird dabei **jede** Station und nicht nur die Bänder — eine Ablage
+  ist in dieser Rechnung eine Kachel ohne Ziel, und dass ein Band ins Nichts
+  denselben Fall ergibt, ist die ganze Antwort auf „was, wenn da vorn nichts
+  ist". Eine Kachel, auf die etwas zufährt, ist leer und trotzdem vergeben:
+  Wer dort ablegen will, bekommt es gesagt (`beltBound`), statt den Stau erst
+  zu bauen.
 - **Der Baumodus hängt an einem Knopf in der Küche** (`zones/kitchenBuild.ts`).
   Bei _Overcooked_ steht die Küche, wie sie steht; bei _PlateUp_ baut man sie
   zwischen zwei Tagen um, und genau das ist gemeint. Es ist der **große rote

@@ -21,12 +21,20 @@ import { TILE } from '../../nav/navTile';
  * Quelldatei aufzunehmen, mit Lizenz, Aufbereitung und Eintrag in
  * `public/models/CREDITS.md`, wäre viel Aufwand für drei Quader.
  *
- * **Drei Teile, und nur der mittlere kennt three.js.** Wie lange etwas
- * unterwegs ist (`advanceBelt`) und wohin ein gedrehtes Band schiebt
- * (`beltStep`) sind reine Zahlen — dieselbe Trennung wie zwischen
- * `kitchenClock.ts` und `kitchenGauge.ts`. Was die Küche mit dem
- * weitergereichten Ding anstellt, entscheidet sie selbst (`kitchen.ts`); hier
- * steht nur, wann es so weit ist.
+ * **Zwei Teile, und nur der untere kennt three.js.** Wohin ein gedrehtes Band
+ * schiebt (`beltStep`) und wer wann losfährt und ankommt (`advanceBelts`) sind
+ * reine Zahlen — dieselbe Trennung wie zwischen `kitchenClock.ts` und
+ * `kitchenGauge.ts`. Was die Küche mit dem weitergereichten Ding anstellt,
+ * entscheidet sie selbst (`kitchen.ts`); hier steht nur, wann es so weit ist.
+ *
+ * **Und die obere Hälfte rechnet nicht mehr je Kachel, sondern je Bild.** Das
+ * ist die eine Entscheidung, aus der alles andere hier folgt: Ein Band hängt an
+ * dem Band davor, und das an dem davor. Wer jede Kachel für sich rechnet, kann
+ * die Frage „darf ich losfahren?" nicht beantworten, ohne dabei auf eine
+ * Reihenfolge hereinzufallen — von vorn gerechnet fährt ein volles Band in
+ * einem Bild los, von hinten gerechnet braucht es so viele Bilder, wie es
+ * Kacheln hat. `advanceBelts` bekommt deshalb **alle** Kacheln auf einmal und
+ * rechnet, bis sich nichts mehr ändert.
  */
 
 // --- die reine Rechnung -------------------------------------------------------
@@ -48,56 +56,359 @@ import { TILE } from '../../nav/navTile';
  */
 export const BELT_SECONDS = 2;
 
-/** Wie weit ein Ding auf dem Band schon gewandert ist. */
+/**
+ * **Wie weit ein Ding fährt, das nicht ankommen darf** — der Anteil 0…1, bei
+ * dem es kurz vor dem Ziel hängen bleibt.
+ *
+ * Losgefahren wird schon, wenn der Vordermann losgefahren ist; **angekommen**
+ * wird erst, wenn die Zielkachel wirklich leer ist (`advanceBelts`). Dazwischen
+ * liegt der Fall, dass das Ziel in der Zwischenzeit doch wieder belegt wurde —
+ * jemand legt während der zwei Sekunden etwas auf die Kachel vor dem Band.
+ * Dann steckt das Ding fest, und es gibt genau zwei Möglichkeiten: zurück oder
+ * warten. **Zurück sieht nach Fehler aus** — ein Teller, der auf dem Band
+ * rückwärts fährt, liest sich nicht als „besetzt", sondern als kaputtes Spiel.
+ * Also warten, und zwar dort, wo es gerade steht.
+ *
+ * Wo es steht, darf es aber nicht im Ding auf der Zielkachel stecken. Das
+ * Breiteste, was in dieser Küche herumliegt, ist der Teller mit 37,5 cm Radius
+ * (`kitchenProps.PLATE_RADIUS`); bleibt das Ding genau diesen Radius vor der
+ * Kachelmitte stehen, stößt es gerade an ihn, ohne ihn zu überlagern. Von oben
+ * liest sich das als das, was es ist: eine Schlange, die sich vor einem
+ * Hindernis staut — und nicht als zwei Dinge, die ineinanderliegen.
+ */
+export const BELT_HOLD = 1 - 0.375 / TILE;
+
+/**
+ * **Wie weit ein Ding auf dem Band schon gewandert ist** — und ob es überhaupt
+ * schon losgefahren ist.
+ *
+ * Zwei Felder, und das zweite ist aus dem ersten **nicht** ablesbar: Ein Ding,
+ * das in diesem Bild losgefahren ist, steht noch bei `time: 0` und ist trotzdem
+ * unterwegs. Genau daran erkennt der Hintermann, dass diese Kachel gleich frei
+ * wird und er selbst schon anfahren darf. Wer `moving` aus `time > 0` erraten
+ * wollte, verlöre diesen einen Bildmoment — und mit ihm die Kettenausnahme: Ein
+ * volles Band setzte sich dann Kachel für Kachel über ebenso viele Bilder in
+ * Bewegung statt in einem Stück.
+ *
+ * Der Zustand gehört der **Ausgangskachel**, nicht dem Ding: Was auf halber
+ * Strecke ist, liegt logisch weiter auf der Kachel, von der es kommt. Siehe
+ * `advanceBelts`, dort steht, warum.
+ */
 export interface BeltState {
-  /** Sekunden auf dieser Kachel. */
+  /** Sekunden seit dem Losfahren — `0`, solange nichts unterwegs ist. */
   readonly time: number;
+  /** Ob das Ding losgefahren ist und nur noch ankommen muss. */
+  readonly moving: boolean;
 }
 
-/** Ein Band, auf dem nichts liegt. */
-export const BELT_EMPTY: BeltState = { time: 0 };
+/** Eine Kachel, auf der nichts unterwegs ist — leer oder wartend. */
+export const BELT_EMPTY: BeltState = Object.freeze({ time: 0, moving: false });
 
-/** Was ein Bild auf dem Band geändert hat. */
-export interface BeltTick {
+/**
+ * **Eine Kachel, so viel wie die Bandrechnung davon braucht** — und das ist
+ * absichtlich so wenig, dass auch Kacheln hineinpassen, die gar kein Band sind.
+ *
+ * Denn genau das ist der Punkt: Ob vor dem Band das nächste Band liegt, eine
+ * Arbeitsplatte oder überhaupt nichts, ändert an der Frage nichts. Gefragt ist
+ * immer dasselbe — **liegt dort etwas, und wandert es weg?** Eine Ablage ist
+ * deshalb eine Kachel ohne Ziel (`to: null`): Sie wird frei und besetzt, aber
+ * von selbst wandert dort nichts. Ein Band, das ins Nichts schiebt, ist
+ * dieselbe Kachel ohne Ziel — und dass beides zusammenfällt, ist die ganze
+ * Antwort auf „was, wenn da vorn gar nichts ist": Dann fährt es nicht los.
+ * Vorher fuhr es los, und das Ding war weg.
+ *
+ * `id` ist der Schlüssel, unter dem die Zone ihre Station wiederfindet — sie
+ * führt dafür schon einen (`kitchen.Station.key`). Ein `to`, das auf keine der
+ * übergebenen Kacheln zeigt, zählt wie `null`: Auch ein Ziel, von dem die Zone
+ * nichts erzählt, ist für dieses Modul keines.
+ */
+export interface BeltTile {
+  /** Der Schlüssel dieser Kachel. */
+  readonly id: string;
+  /** Ob hier gerade etwas liegt. */
+  readonly loaded: boolean;
+  /** Der Fahrtzustand dieser Kachel — `BELT_EMPTY` bei allem, was nicht fährt. */
   readonly state: BeltState;
-  /** Ob das Ding in **diesem** Bild die Kachel verlassen hat — genau einmal. */
-  readonly handOver: boolean;
+  /** Wohin diese Kachel schiebt; `null` bei allem, was nicht schiebt. */
+  readonly to: string | null;
+}
+
+/** Eine Übergabe: Was auf `from` lag, liegt jetzt auf `to`. */
+export interface BeltMove {
+  readonly from: string;
+  readonly to: string;
 }
 
 /**
- * **Ein Bild auf dem Band** — `handOver` heißt: weiterreichen an die nächste
- * Station (`beltStep` sagt, an welche).
+ * **Wo ein wanderndes Ding gezeichnet wird** — zwischen zwei Kachelmitten.
  *
- * `loaded` ist die Frage, ob überhaupt etwas daraufliegt. Ein **leeres Band
- * bleibt bei null**, und es fällt auch nichts langsam zurück wie beim Löschen
- * (`kitchenSpray.advanceDouse`): Dort ist der Fortschritt ein halb erledigter
- * Handgriff, hier ist er ein **Ort** — was heruntergenommen wurde, liegt
- * nirgendwo mehr auf der Strecke, und wer es wieder auflegt, legt es vorn auf.
+ * Kein Vektor und keine Höhe: Wo die Mitten liegen, weiß die Zone
+ * (`kitchen.Station.deck`), und sie blendet selbst zwischen ihnen über. Dieses
+ * Modul gibt den Anteil heraus und sonst nichts — dieselbe Grenze wie überall
+ * hier, three.js steht in der unteren Hälfte der Datei.
  *
- * **Der Rest läuft nicht über.** Anders als beim Braten
- * (`kitchenClock.advanceStove`, wo eine Phase in die nächste überläuft) gibt es
- * hier keine nächste Phase, die den Rest gebrauchen könnte: Ob die Nachbarkachel
- * ein zweites Band, eine Ablage oder eine Wand ist, weiß dieses Modul nicht.
- * Der Übertrag gehört der Küche, und die legt das Ding beim Weiterreichen frisch
- * auf — mit `BELT_EMPTY`.
+ * **Linear und ungeglättet**, und das ist keine Sparsamkeit: Ein Band läuft mit
+ * gleichbleibender Geschwindigkeit, und die Sparren darauf laufen genau so
+ * schnell (`BeltKit.update` rechnet mit demselben `BELT_SECONDS`). Ein
+ * weich an- und abschwellendes Ding führe sichtbar anders als der Untergrund,
+ * auf dem es liegt.
  */
-export function advanceBelt(state: BeltState, dt: number, loaded: boolean): BeltTick {
-  // Nichts darauf: Der Zustand steht auf null, und wenn er es schon tut,
-  // entsteht dafür kein neues Objekt — das ist der Fall für jedes leere Band
-  // in jedem Bild.
-  if (!loaded) return { state: state.time === 0 ? state : BELT_EMPTY, handOver: false };
+export interface BeltCarry {
+  /** Die Kachel, auf der es logisch liegt. */
+  readonly from: string;
+  /** Die Kachel, auf die es zufährt. */
+  readonly to: string;
+  /** Wie weit dazwischen, 0…1 — gedeckelt auf `BELT_HOLD`, solange es nicht ankommt. */
+  readonly t: number;
+}
+
+/** Was ein Bild auf allen Bändern geändert hat. */
+export interface BeltFrame {
+  /**
+   * Die neuen Fahrtzustände — **nur** für die Kacheln, bei denen sich etwas
+   * geändert hat. Eine Küche, in der gerade kein Band läuft, gibt hier nichts
+   * heraus, und die Zone schreibt dann auch nichts.
+   */
+  readonly states: ReadonlyMap<string, BeltState>;
+  /**
+   * Die Übergaben dieses Bildes, **in anwendbarer Reihenfolge**: von vorn nach
+   * hinten. Wer sie der Reihe nach abarbeitet, legt nie etwas auf eine Kachel,
+   * auf der noch etwas liegt — der Vordermann ist in der Liste immer vorher
+   * weggezogen. Rückwärts angewandt überschriebe die Liste Dinge.
+   */
+  readonly moves: readonly BeltMove[];
+  /** Was gerade zwischen zwei Kacheln hängt, je Ausgangskachel. */
+  readonly carry: ReadonlyMap<string, BeltCarry>;
+}
+
+/** Nichts zu tun — geteilt, damit ein Bild ohne Bänder keinen Müll hinterlässt. */
+const NO_STATES: ReadonlyMap<string, BeltState> = new Map();
+const NO_CARRY: ReadonlyMap<string, BeltCarry> = new Map();
+const NO_MOVES: readonly BeltMove[] = Object.freeze([]);
+const STILL_FRAME: BeltFrame = Object.freeze({
+  states: NO_STATES,
+  moves: NO_MOVES,
+  carry: NO_CARRY,
+});
+
+/** Eine Kachel während der Rechnung — dasselbe wie `BeltTile`, nur veränderlich. */
+interface Seat {
+  readonly tile: BeltTile;
+  loaded: boolean;
+  time: number;
+  moving: boolean;
+}
+
+/**
+ * **Ein Bild auf allen Bändern** — wer losfährt, wer ankommt, und wo das
+ * Wandernde inzwischen hängt.
+ *
+ * Eine Fahrt hat **zwei Stufen**, und das ist der ganze Unterschied zu vorher:
+ *
+ * - **Losfahren** darf, wessen Ziel frei ist — _oder_ wessen Ziel zwar belegt
+ *   ist, das Belegende aber selbst schon losgefahren ist. Das ist die
+ *   Kettenausnahme: Fließt vorn einer ab, setzt sich das ganze Band in
+ *   Bewegung, und zwar in **einem** Bild (die Schleife unten rechnet, bis sich
+ *   nichts mehr ändert). Was ein anderer schon angesteuert hat, zählt dabei
+ *   nicht als frei.
+ * - **Ankommen** darf nur, wessen Ziel wirklich leer ist. Wer nicht ankommen
+ *   kann, bleibt bei `BELT_HOLD` stehen, statt zurückzuspringen.
+ *
+ * **Die alte Kachel wird beim Losfahren nicht frei**, sondern erst beim
+ * Ankommen — und das ist die Entscheidung, an der diese Rechnung hängt. Der
+ * Reiz des Gegenteils ist offensichtlich: Wer beim Losfahren schon umgebucht
+ * wird, braucht keine zweite Stufe. Aber dann liegt das Ding zwei Sekunden lang
+ * logisch dort, wo es sichtbar noch gar nicht ist. Das kostet drei Dinge auf
+ * einmal: Der Hintermann fährt auf eine Kachel zu, auf der noch etwas sichtbar
+ * steht; wer `A` drückt, greift ins Leere oder in das falsche Ding
+ * (`kitchen.stationAt` fragt die Kachel, nicht das Bild); und ein Ding, das
+ * unterwegs abgeräumt wird, müsste von einer Kachel genommen werden, die es nie
+ * erreicht hat. Belegt bleibt deshalb, wo es herkommt — **das Losfahren ist ein
+ * Versprechen, kein Umzug**. Und weil ein Versprechen nicht zurückgenommen
+ * wird, darf der Hintermann sich darauf verlassen.
+ *
+ * Was daraus folgt, ist angenehm: Eine Kachel, von der etwas losgefahren ist,
+ * gilt weiter als belegt — es kann also niemand etwas daraufwerfen, und zwei
+ * aufeinanderfolgende Dinge kommen sich nie näher als eine Kachel. `BELT_HOLD`
+ * greift nur in dem einen Fall, den die Zone nicht verhindert: Das Ziel war
+ * beim Losfahren leer, und jemand hat in der Zwischenzeit etwas hingelegt.
+ *
+ * **Ein voller Ring fährt nicht.** Drei Bänder im Kreis, alle belegt, nirgends
+ * Platz: Jedes könnte losfahren, weil das nächste losgefahren wäre — eine
+ * Begründung, die sich im Kreis selbst trägt. Die Schleife unten fängt das
+ * ohne Sonderfall ab, weil sie nicht rät, sondern **ausbreitet**: Losfahren
+ * beginnt bei einer Kachel, deren Ziel wirklich frei ist, und wandert von dort
+ * nach hinten. Ist keine solche Kachel da, fängt nichts an — und ein voller
+ * Ring steht, was auch richtig ist: Er käme nirgends an.
+ */
+export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame {
+  if (!tiles.length) return STILL_FRAME;
 
   // `NaN` käme aus einer Uhr, die noch nie gelaufen ist; ein Band, dessen Zeit
-  // einmal keine Zahl ist, reicht nie wieder etwas weiter.
+  // einmal keine Zahl ist, käme nie wieder irgendwo an.
   const step = Number.isFinite(dt) ? Math.max(0, dt) : 0;
-  const time = state.time + step;
-  if (time < BELT_SECONDS) return { state: { time }, handOver: false };
-  return { state: BELT_EMPTY, handOver: true };
+
+  const board = new Map<string, Seat>();
+  for (const tile of tiles) {
+    const sane = Number.isFinite(tile.state.time) ? Math.max(0, tile.state.time) : 0;
+    board.set(tile.id, {
+      tile,
+      loaded: tile.loaded,
+      // Was nicht daliegt, fährt auch nicht: Wird ein Ding unterwegs
+      // abgeräumt, endet seine Fahrt mit ihm.
+      time: tile.loaded ? sane : 0,
+      moving: tile.loaded && tile.state.moving,
+    });
+  }
+
+  const ahead = (seat: Seat): Seat | undefined =>
+    seat.tile.to === null ? undefined : board.get(seat.tile.to);
+
+  // Ein Ziel, das es nicht mehr gibt — im Baumodus wandert das Möbel davor
+  // weg —, beendet die Fahrt an Ort und Stelle. Der Sprung zurück auf die
+  // eigene Kachel ist hier ausnahmsweise das Richtige: Das Band schiebt
+  // nirgendwohin mehr, und ein Ding, das auf eine leere Stelle zuführe, wäre
+  // die schlechtere Lüge.
+  for (const seat of board.values()) {
+    if (seat.moving && !ahead(seat)) {
+      seat.moving = false;
+      seat.time = 0;
+    }
+  }
+
+  // --- 1. die Uhren der Fahrenden laufen — keiner am Vordermann vorbei --------
+  //
+  // Die Deckelung sitzt **hier** und nicht hinter dem Ankommen, und das ist der
+  // Unterschied zwischen „steht kurz vor dem Ziel" und „springt zurück": Eine
+  // Uhr, die erst über das Ziel hinausläuft und dann zurückgeklemmt wird, hat
+  // das Ding schon einmal zu weit gezeichnet. Die Obergrenze kommt deshalb von
+  // vorn: Wer auf eine freie Kachel zufährt, darf durchfahren; wer auf eine
+  // besetzte zufährt, die stehen bleibt, kommt bis `BELT_HOLD`; und wer hinter
+  // einem Fahrenden herfährt, kommt **genau so weit wie der** — damit bleibt
+  // zwischen zwei Dingen immer eine ganze Kachel Abstand, auch im Stau.
+  //
+  // `Math.max(…, seat.time)` in beiden gebremsten Fällen ist die Zusage, dass
+  // die Uhr **nie** rückwärts läuft: Wird das Ziel erst belegt, während schon
+  // jemand fast dort ist, bleibt der stehen, wo er ist, statt sich auf die
+  // Grenze zurückzusetzen. Dass er dann näher steht als `BELT_HOLD` erlaubt, ist
+  // der kleinere Fehler — und `beltBound` ist da, damit die Zone diesen Fall gar
+  // nicht erst entstehen lässt.
+  const hold = BELT_SECONDS * BELT_HOLD;
+  const ticked = new Set<Seat>();
+  const tick = (seat: Seat): number => {
+    // Vorgemerkt, **bevor** es nach vorn weitergeht: Ein Ring aus lauter
+    // Fahrenden kann es nicht geben (siehe oben), aber eine Rekursion, die es
+    // darauf ankommen ließe, hinge daran fest.
+    if (ticked.has(seat)) return seat.time;
+    ticked.add(seat);
+    const next = ahead(seat);
+    const limit = !next
+      ? seat.time
+      : !next.loaded
+        ? BELT_SECONDS
+        : !next.moving
+          ? Math.max(hold, seat.time)
+          : Math.max(tick(next), seat.time);
+    seat.time = Math.min(seat.time + step, limit);
+    return seat.time;
+  };
+  for (const seat of board.values()) if (seat.moving) tick(seat);
+
+  // --- 2. ankommen, von vorn nach hinten --------------------------------------
+  // Wer ankommt, macht seine Kachel frei — und das kann den Hintermann im
+  // **selben** Bild ankommen lassen. Deshalb wird wiederholt, bis sich nichts
+  // mehr rührt: Sonst hinge ein volles Band bei jeder Übergabe ein Bild lang
+  // durch, und bei 60 Bildern und acht Kacheln wäre das eine sichtbare Welle.
+  const moves: BeltMove[] = [];
+  for (let settled = false; !settled;) {
+    settled = true;
+    for (const seat of board.values()) {
+      if (!seat.moving || seat.time < BELT_SECONDS) continue;
+      const next = ahead(seat);
+      if (!next || next.loaded) continue;
+      seat.loaded = false;
+      seat.moving = false;
+      seat.time = 0;
+      next.loaded = true;
+      next.moving = false;
+      // Der Rest läuft **nicht** über: Was ankommt, fängt auf der neuen Kachel
+      // vorn an. Anders als beim Braten (`kitchenClock.advanceStove`) gibt es
+      // hier keine Phase, die den Rest gebrauchen könnte — die neue Kachel ist
+      // vielleicht gar kein Band.
+      next.time = 0;
+      moves.push({ from: seat.tile.id, to: next.tile.id });
+      settled = false;
+    }
+  }
+
+  // --- 3. losfahren, von vorn nach hinten -------------------------------------
+  //
+  // Erst jetzt, denn Schritt 2 hat Kacheln frei gemacht: Wer in diesem Bild
+  // angekommen ist, darf im selben Bild weiterfahren, und der hinter ihm auch.
+  //
+  // **Eine Kachel gehört dem, der schon auf sie zufährt.** Zwei Bänder, die auf
+  // dieselbe Arbeitsplatte schieben, sind kein Sonderfall, sondern ein
+  // Grundriss, den irgendwann jemand so baut — und ohne diese Vormerkung führen
+  // beide los, einer kommt an, und der andere steht hinterher mitten in der Luft
+  // fest. Also fährt der Zweite gar nicht erst los. Wer der Erste ist,
+  // entscheidet die Reihenfolge der übergebenen Kacheln; eine bessere Antwort
+  // gibt es nicht, und eine zufällige wäre schlechter.
+  const claimed = new Set<string>();
+  for (const seat of board.values()) {
+    if (seat.moving && seat.tile.to !== null) claimed.add(seat.tile.to);
+  }
+  for (let settled = false; !settled;) {
+    settled = true;
+    for (const seat of board.values()) {
+      if (!seat.loaded || seat.moving) continue;
+      const next = ahead(seat);
+      if (!next || claimed.has(next.tile.id)) continue;
+      // Frei — **oder** belegt von einem, der selbst schon losgefahren ist. Das
+      // ist die Kettenausnahme, und sie steht in dieser einen Zeile.
+      if (next.loaded && !next.moving) continue;
+      seat.moving = true;
+      claimed.add(next.tile.id);
+      settled = false;
+    }
+  }
+
+  // --- 4. was die Zone davon erfährt ------------------------------------------
+  let states: Map<string, BeltState> | null = null;
+  let carry: Map<string, BeltCarry> | null = null;
+  for (const seat of board.values()) {
+    const was = seat.tile.state;
+    const now: BeltState = seat.moving ? { time: seat.time, moving: true } : BELT_EMPTY;
+    if (now.moving !== was.moving || now.time !== was.time) {
+      (states ??= new Map()).set(seat.tile.id, now);
+    }
+    if (seat.moving && seat.tile.to !== null) {
+      (carry ??= new Map()).set(seat.tile.id, {
+        from: seat.tile.id,
+        to: seat.tile.to,
+        t: seat.time / BELT_SECONDS,
+      });
+    }
+  }
+  if (!states && !carry && !moves.length) return STILL_FRAME;
+  return { states: states ?? NO_STATES, moves, carry: carry ?? NO_CARRY };
+}
+
+/**
+ * **Ob auf diese Kachel gerade etwas zufährt.**
+ *
+ * Für die eine Lücke, die `BELT_HOLD` sonst ausbaden muss: Eine Kachel, auf die
+ * ein Band zuschiebt, ist zwar leer, aber schon vergeben. Wer das beim Ablegen
+ * fragt (`kitchenCarry.kitchenDeed` entscheidet, was `A` tut), verhindert den
+ * Stau, statt ihn hübsch aussehen zu lassen.
+ */
+export function beltBound(frame: BeltFrame, id: string): boolean {
+  for (const carry of frame.carry.values()) if (carry.to === id) return true;
+  return false;
 }
 
 /** Der Anteil 0…1 — wie weit über die Kachel, für das Ding und für den Balken. */
 export function beltProgress(state: BeltState): number {
-  if (!Number.isFinite(state.time)) return 0;
+  if (!state.moving || !Number.isFinite(state.time)) return 0;
   return Math.min(1, Math.max(0, state.time / BELT_SECONDS));
 }
 
