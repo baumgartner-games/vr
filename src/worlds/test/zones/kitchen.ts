@@ -2475,6 +2475,24 @@ export class KitchenZone implements TestZone {
    * **Eine für die ganze Zone**, mit neuem Text statt einer zweiten Tafel: Wer
    * drei Burger hintereinander ausgibt, soll nicht drei Schilder übereinander
    * stehen haben, und eine Leinwand je Gericht wäre eine Textur je Gericht.
+   *
+   * **Und sie steht vor den Gegenständen, nicht zwischen ihnen** (`front`,
+   * `ui/TextPlane.ts`). Auf der Theke stehen Teller und Brötchen, einen Meter
+   * darüber hängen die Wärmeschirme — von schräg oben schnitt ein Brötchen quer
+   * durch das Wort, und auf dem Handy war von „Deluxe serviert" noch
+   * „Deluxe s…" zu lesen. Das ist derselbe Griff, mit dem der
+   * Fortschrittsbalken vor dem Patty liegt statt darin (`kitchenGauge.skin`,
+   * `front`), und er ist hier auch derselbe Handel: Ohne Tiefenprüfung wäre die
+   * Tafel durch jede Wand zu sehen — nur steht sie eben vier Sekunden lang
+   * (`TICKET_SECONDS`) an genau der Theke, an der gerade jemand etwas
+   * abgegeben hat, und wer das war, steht davor.
+   *
+   * **Die Namensschilder im Schauraum bekommen ihn nicht** (`addLabel`), und
+   * das ist nachgesehen und nicht vergessen: Dort steht jedes Möbel frei, die
+   * drei Reihen liegen drei Meter auseinander (`kitchenPlan`, `show`), und
+   * nichts steht darauf — bei 55° Blickwinkel von oben müsste ein Nachbar über
+   * vier Meter hoch sein, um ein Schild anzuschneiden. Fünfzehn Tafeln, die
+   * dafür dauerhaft durch jede Wand leuchten, wären der schlechtere Tausch.
    */
   private showTicket(spot: Station, label: string): void {
     const world = this.world;
@@ -2488,6 +2506,7 @@ export class KitchenZone implements TestZone {
         accent: 0x7de88a,
         align: 'center',
         face: true,
+        front: true,
       });
       this.ticket = plate;
       this.labels.push(plate);

@@ -16,9 +16,54 @@ export interface TextPlaneOptions {
    * ein Schild, das sich zwar umdrehen, aber nicht zurücklehnen soll.
    */
   face?: boolean | BillboardOptions;
+  /**
+   * **Sie soll vor den Gegenständen stehen, nicht zwischen ihnen.**
+   *
+   * Eine Tafel schwebt über dem, worüber sie etwas sagt — und genau dort steht
+   * auch das, was sie verdeckt. An der Burger-Abgabe war das zu sehen: Auf der
+   * Theke stehen Brötchen und Teller, darüber hängen die Wärmeschirme, und von
+   * schräg oben schnitt ein Brötchen quer durch das Wort. Übrig blieb
+   * „Deluxe s…" — ausgerechnet die Meldung, für die man hergekommen ist.
+   * Mit `front` wird **ohne Tiefenprüfung** gezeichnet (`depthTest: false`),
+   * und die Tafel liegt vor dem Ding, zu dem sie gehört.
+   *
+   * **Dasselbe Mittel wie bei den Küchenanzeigen** (`kitchenGauge.skin`,
+   * Parameter `front`) und aus demselben Grund: Dort liegt der
+   * Fortschrittsbalken seither vor dem Patty in der Pfanne statt darin. Ein
+   * zweites Verfahren daneben zu erfinden hieße, zwei Regeln zu haben, die
+   * dasselbe fast gleich machen.
+   *
+   * **Ein Versatz Richtung Kamera wäre hier keine Alternative gewesen.** Das
+   * Brötchen liegt nicht einen Hauch vor der Tafel, sondern in der Blickrichtung
+   * von schräg oben eine gute Handbreit davor; was `polygonOffset` an Tiefe
+   * verschiebt, ist ein Saum gegen Z-Fighting und kein halber Meter. Wer so
+   * weit verschöbe, dass es reicht, hätte die Tafel sichtbar von ihrer Theke
+   * weggerückt — und sie stünde **trotzdem** irgendwann wieder in einer Wand.
+   *
+   * **Es reicht aber weiter, als man denkt**, und darum ist es eine Option und
+   * keine Vorgabe: Ohne Tiefenprüfung steht die Tafel auch vor jeder Wand und
+   * ist aus dem Nachbarraum quer durch sie hindurch zu lesen. Wer sie setzt,
+   * steht dafür ein. Bei einer Tafel, die vier Sekunden lang und nur dort
+   * steht, wo der Spieler sie gerade selbst ausgelöst hat, ist das keine Frage;
+   * bei Namensschildern, die dauernd hängen, wäre es eine.
+   */
+  front?: boolean;
 }
 
 const RES = 512;
+
+/**
+ * **In welcher Reihe eine Tafel mit `front` gezeichnet wird.**
+ *
+ * Gegen alles **Undurchsichtige** entscheidet die Zahl gar nichts: Das ist
+ * längst gezeichnet, wenn eine durchsichtige Tafel an die Reihe kommt — dafür
+ * sorgt schon `depthTest: false`. Sie entscheidet nur unter den Anzeigen
+ * selbst, und die Küche hat welche: Balken und Warndreieck liegen auf 6
+ * (`worlds/test/zones/kitchenGauge.quiet`). Eine Tafel eine Stufe darüber
+ * heißt, dass dort, wo ein Balken und ein Wort einander überlappen, das Wort
+ * gewinnt — der Balken sagt „gleich fertig", der Text sagt, was fertig ist.
+ */
+const FRONT_ORDER = 7;
 
 /**
  * **Eine flache Tafel mit Text darauf** — für Schilder, Hinweise und Welttore.
@@ -54,8 +99,18 @@ export class TextPlane extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMa
 
     super(
       new THREE.PlaneGeometry(options.width, height),
-      new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false }),
+      new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        toneMapped: false,
+        // Siehe `front` in den Optionen: vor den Gegenständen statt zwischen
+        // ihnen. `depthWrite` gehört dazu — eine Tafel, die keine Tiefe prüft,
+        // aber welche schreibt, verdeckt hinterher Durchsichtiges, das gar
+        // nicht hinter ihr liegt.
+        ...(options.front ? { depthTest: false, depthWrite: false } : {}),
+      }),
     );
+    if (options.front) this.renderOrder = FRONT_ORDER;
 
     this.canvas = canvas;
     this.texture = texture;

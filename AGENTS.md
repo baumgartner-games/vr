@@ -5172,7 +5172,15 @@ Und das sind die Regeln, die darin stehen:
   sich an einen freien **Gästetisch** und isst **8 s**
   (`kitchenGuests.EAT_SECONDS`, ungefähr so lang wie ein ganzer Burger von
   vorn) — an der Theke steht dabei vier Sekunden lang, was es geworden ist
-  (`Hamburger serviert`, `TICKET_SECONDS`). Ist kein Tisch frei, landet das
+  (`Hamburger serviert`, `TICKET_SECONDS`). Diese Tafel wird wie Balken und
+  Warndreieck **ohne Tiefenprüfung** gezeichnet (`TextPlaneOptions.front`):
+  Auf der Theke stehen Teller und Brötchen, darüber hängen die Wärmeschirme,
+  und von schräg oben schnitt ein Brötchen quer durch das Wort — zu lesen war
+  „Deluxe s…". Sie ist damit auch durch eine Wand zu sehen, und das ist der
+  bewusste Handel: Sie steht vier Sekunden lang genau dort, wo gerade jemand
+  abgegeben hat. Die **Namensschilder im Schauraum** bekommen das deshalb
+  nicht — dort verdeckt ohnehin nichts ein Schild, und fünfzehn Tafeln durch
+  jede Wand wären der schlechtere Tausch. Ist kein Tisch frei, landet das
   Geschirr gleich an der **Geschirrrückgabe**. Dort **stapeln** sich die
   dreckigen Teller, bis zu sechs (`DIRTY_STACK_MAX`, gerechnet aus dem
   Verdrehwinkel je Lage und aus der Brusthöhe der Figur), und von dort holt man
