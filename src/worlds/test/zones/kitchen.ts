@@ -48,6 +48,7 @@ import {
   BUILD_BUTTON_TILE,
   KITCHEN_FLOOR,
   KITCHEN_SPOTS,
+  TURN_LABELS,
   footprint,
   stationKind,
   type Spot,
@@ -68,6 +69,10 @@ import {
   BELT_EMPTY,
   advanceBelts,
   beltBound,
+  beltDelivers,
+  beltKind,
+  beltReach,
+  beltReleases,
   beltStep,
   type BeltFrame,
   type BeltState,
@@ -92,9 +97,9 @@ import type { TestZone, ZoneHost } from './zone';
  * Die Möbel sind „Overcooked Kitchen Assets (Fan Art)" von Arun Kumar S,
  * CC-BY-4.0 (`public/models/CREDITS.md`), aufbereitet von
  * `tools/kitchen-model.mjs` in dreizehn einzeln setzbare Stücke
- * (`core/kitchenFit.ts`, `core/kitchenModel.ts`). Das vierzehnte —  das
- * **Förderband** — steckt in keiner Datei und wird gebaut
- * (`KitchenPiece.built`, `kitchenBelt.ts`).
+ * (`core/kitchenFit.ts`, `core/kitchenModel.ts`). Das vierzehnte und das
+ * fünfzehnte — das **Förderband** und das **Zugband** — stecken in keiner
+ * Datei und werden gebaut (`KitchenPiece.built`, `kitchenBelt.ts`).
  *
  * Die Zone besteht aus **zwei Hälften**, und beide haben eine Aufgabe:
  *
@@ -249,6 +254,8 @@ const _rigAhead = new THREE.Vector3();
 const _headAhead = new THREE.Vector3();
 const _nozzle = new THREE.Vector3();
 const _spin = new THREE.Quaternion();
+/** Der Gierwinkel des Rigs, für das Möbel in den Händen (`aimHeld`). */
+const _look = new THREE.Euler(0, 0, 0, 'YXZ');
 
 // --- und was darin steht ----------------------------------------------------
 
@@ -324,9 +331,17 @@ interface Furnish {
   /** Die nordwestliche Kachel, relativ zur Zone — im Baumodus wandert sie. */
   x: number;
   z: number;
-  readonly turn: Turn;
-  /** Die Grundfläche in Kacheln, schon gedreht (`kitchenPlan.footprint`). */
-  readonly size: { w: number; d: number };
+  /**
+   * **Wie herum es steht** — im Baumodus dreht der Auslöser es weiter
+   * (`turnPiece`), also ist es nicht mehr das, was im Aufbau stand.
+   */
+  turn: Turn;
+  /**
+   * Die Grundfläche in Kacheln, **schon gedreht** (`kitchenPlan.footprint`) —
+   * und mit jeder Vierteldrehung neu gerechnet, denn eine Ausgabetheke liegt
+   * quer anders als längs.
+   */
+  size: { w: number; d: number };
   readonly model: THREE.Object3D;
   /** Der unsichtbare Kasten darüber und sein Körper — beide können fehlen. */
   box: THREE.Mesh | null;
@@ -458,6 +473,8 @@ export class KitchenZone implements TestZone {
   private useWas = false;
 
   // --- der Baumodus ----------------------------------------------------------
+  /** Ob der Auslöser im letzten Bild lag — die Flanke, die dreht (`buildTurn`). */
+  private turnWas = false;
   /** Ob gerade umgebaut wird (`kitchenBuild.ts`). */
   private editing = false;
   /** Der rote Knopf, der ihn umlegt (`addBuildButton`). */
@@ -543,6 +560,7 @@ export class KitchenZone implements TestZone {
     this.runBelts(dt);
     this.cook(dt);
     this.spray(dt, ctx);
+    this.buildTurn(ctx);
     // Die Pfeile auf den Bändern wandern, auch wenn nichts daraufliegt: Ein
     // Band, das erst bei Fracht zeigt, wohin es schiebt, sagt es zu spät.
     this.belts?.update(dt);
@@ -687,17 +705,35 @@ export class KitchenZone implements TestZone {
    * `null` heißt für die Rechnung nebenan: Hier fährt nichts los. Das ist
    * derselbe Fall für dreierlei, und das ist Absicht — ein Band am Rand der
    * Küche, eines, das auf einen Mülleimer zeigt, und eines, das auf die
-   * Ausgabetheke zeigt. Die letzten beiden nehmen nichts entgegen, was ihnen
-   * jemand hinschiebt: In den Mülleimer wird **geworfen**, über die Theke wird
-   * **serviert**, und beides ist ein Handgriff und kein Zufall. Ein Teller, den
-   * ein Band von selbst in den Müll trägt, wäre der teuerste Unfall dieser
-   * Küche.
+   * Ausgabetheke zeigt.
+   *
+   * **Hier steht nur das Nachschlagen**, die Regel steht nebenan
+   * (`kitchenBelt.beltDelivers`, mit Test über alle elf Stationsarten): Welche
+   * Kachel der Nachbar ist, weiß nur die Zone; ob dorthin abgeliefert werden
+   * darf, ist eine Frage über Zahlen und Arten und gehört dorthin, wo ein Test
+   * sie ohne WebGL stellen kann.
    */
   private beltTarget(spot: Station): Station | null {
     const step = beltStep(spot.home.turn);
     const next = this.stationAt(spot.home.x + step.dx, spot.home.z + step.dz);
-    if (!next || next.kind === 'bin' || next.kind === 'serve') return null;
-    return next;
+    return next && beltDelivers(next.kind) ? next : null;
+  }
+
+  /**
+   * **Woher ein Zugband sich etwas holt** — die Station auf der Kachel
+   * **hinter** ihm (`kitchenBelt.beltReach`), oder `null`.
+   *
+   * Dieselbe Arbeitsteilung wie eine Zeile höher: Die Kachel schlägt die Zone
+   * nach, was von dort mitgenommen werden darf, entscheidet
+   * `kitchenBelt.beltReleases` — Herd und Löscherhalterung nicht (das ist
+   * Gerät), Mülleimer und Theke auch nicht (was man nicht hinschieben darf,
+   * zieht man nicht heraus), und was gerade unter dem Messer liegt, bleibt
+   * liegen.
+   */
+  private beltSource(spot: Station): Station | null {
+    const step = beltReach(spot.home.turn);
+    const back = this.stationAt(spot.home.x + step.dx, spot.home.z + step.dz);
+    return back && beltReleases(back.kind, back.work.working) ? back : null;
   }
 
   /**
@@ -726,13 +762,20 @@ export class KitchenZone implements TestZone {
     let belts = false;
     const tiles: BeltTile[] = [];
     for (const spot of this.stations) {
-      if (spot.kind === 'belt') belts = true;
-      const to = spot.kind === 'belt' ? this.beltTarget(spot) : null;
+      // Welche Sorte Band das ist, steht am **Möbel** und nicht an der Station:
+      // Für `A` sind beide dasselbe (`kitchenPlan.STATION_KINDS`), und eine
+      // zwölfte Stationsart hätte in `kitchenDeed` Zeile für Zeile dasselbe
+      // getan wie `belt`.
+      const kind = spot.kind === 'belt' ? beltKind(spot.home.piece.name) : null;
+      if (kind) belts = true;
+      const to = kind ? this.beltTarget(spot) : null;
+      const from = kind === 'pull' ? this.beltSource(spot) : null;
       tiles.push({
         id: spot.key,
         loaded: spot.on !== null,
         state: spot.belt,
         to: to?.key ?? null,
+        pull: from?.key ?? null,
       });
     }
     // Eine Küche **ohne Band** rechnet gar nichts — den Fall gibt es im
@@ -964,6 +1007,7 @@ export class KitchenZone implements TestZone {
       ctx.avatar.carry = null;
       return;
     }
+    this.aimHeld(ctx);
     if (ctx.renderer.xr.isPresenting) {
       // In der Brille tragen es die echten Hände nicht — dort hängt es eine
       // Handbreit vor der Brust, mittig und ruhig.
@@ -978,6 +1022,28 @@ export class KitchenZone implements TestZone {
     // beim Werkzeug in der Bildschirmhand (`worlds/portal/screenHand.ts`).
     held.position.set(CHEF_CARRY.x, CHEF_CARRY.y + ctx.avatar.bob, CHEF_CARRY.z);
     ctx.avatar.carry = CARRY_POINT;
+  }
+
+  /**
+   * **Ein getragenes Möbel zeigt schon in den Händen dorthin, wohin es zeigen
+   * wird** — in Weltrichtung und nicht in Tragerichtung.
+   *
+   * Das Möbel hängt am Rig (`liftPiece`), und das Rig dreht sich mit der Figur.
+   * Ein Band, das man in seiner eigenen Drehung ins Rig hängte, führe also mit
+   * jedem Schritt woandershin — und die Drehung, die man gerade eingestellt
+   * hat, wäre genau dann nicht mehr abzulesen, wenn man sich zum Bauplatz
+   * umdreht. Herausgerechnet wird deshalb der Gierwinkel des Rigs: Was übrig
+   * bleibt, ist die Richtung, in der es nachher steht.
+   *
+   * Nur für **Möbel**. Ein getragener Teller hat keine Richtung, und ihn
+   * festzuhalten, während die Figur sich dreht, sähe aus, als klebte er in der
+   * Luft.
+   */
+  private aimHeld(ctx: WorldContext): void {
+    const furnish = this.lifted;
+    if (!furnish) return;
+    _look.setFromQuaternion(ctx.rig.getWorldQuaternion(_spin), 'YXZ');
+    furnish.model.rotation.set(0, (furnish.turn * Math.PI) / 2 - _look.y, 0);
   }
 
   /**
@@ -1083,12 +1149,14 @@ export class KitchenZone implements TestZone {
    * **Ein gebautes Stück** — alles, was in keiner Datei steht
    * (`KitchenPiece.built`).
    *
-   * Zurzeit ist das genau eines, das Förderband. Der Zweig bleibt trotzdem
-   * allgemein: Ein Katalog, in dem ein gebautes Möbel ein Sonderfall im
-   * Aufstellen wäre, bekäme beim zweiten einen zweiten Sonderfall.
+   * Zurzeit sind das zwei, und beide kommen aus demselben Bausatz: das
+   * Förderband und das Zugband (`kitchenBelt.BeltKit.piece`). Der Zweig bleibt
+   * trotzdem allgemein: Ein Katalog, in dem ein gebautes Möbel ein Sonderfall
+   * im Aufstellen wäre, bekäme beim nächsten einen zweiten Sonderfall.
    */
   private buildPiece(piece: KitchenPiece): THREE.Object3D | null {
-    if (piece.name === 'belt') return this.belts?.piece() ?? null;
+    const kind = beltKind(piece.name);
+    if (kind) return this.belts?.piece(kind) ?? null;
     return null;
   }
 
@@ -1824,6 +1892,12 @@ export class KitchenZone implements TestZone {
    */
   private settle(spot: Station): void {
     const on = spot.on?.dish ?? null;
+    // **Was frisch hier liegt, fährt von vorn los** — und zwar auf jeder
+    // Station und nicht nur auf einem Band. Seit ein Zugband auch von einer
+    // Arbeitsplatte zieht, führt jede Kachel einen Fahrtzustand
+    // (`kitchenBelt.BeltTile`); einer, der von der vorigen Fuhre stehen bliebe,
+    // ließe das Nächste eine halbe Kachel zu weit vorn anfangen.
+    spot.belt = BELT_EMPTY;
     if (spot.kind === 'stove') {
       // Auf dem Herd steht die Pfanne, **in** ihr liegt das Patty. Liegt dort
       // etwas anderes (ein Teller, ein Brötchen), brät nichts — und genau das
@@ -1836,7 +1910,6 @@ export class KitchenZone implements TestZone {
       spot.work = onWork(kind, on?.item ?? null);
       return;
     }
-    if (spot.kind === 'belt') spot.belt = BELT_EMPTY;
   }
 
   /**
@@ -2011,10 +2084,68 @@ export class KitchenZone implements TestZone {
     this.lifted = furnish;
     this.dropBody(furnish);
     if (this.rig) this.rig.add(furnish.model);
-    furnish.model.rotation.set(0, 0, 0);
-    world.notify(`${furnish.piece.label} aufgenommen`);
+    // Wie herum es in den Händen liegt, rechnet `aimHeld` in jedem Bild — es
+    // zeigt dorthin, wohin es nachher zeigt, und nicht dorthin, wohin die Figur
+    // gerade schaut.
+    world.notify(`${furnish.piece.label} aufgenommen — der Auslöser dreht es`);
     this.refreshStations();
     return true;
+  }
+
+  /**
+   * **Eine Vierteldrehung weiter** — das Möbel in der Hand zeigt woandershin.
+   *
+   * Das ist der Handgriff, ohne den ein Band nur in der Richtung steht, in der
+   * es im Aufbau steht. Aufheben und woanders hinstellen konnte der Umbau schon;
+   * **wie herum** blieb, wie es war, und damit ließ sich eine Bahn nur
+   * verlängern, nie um die Ecke führen.
+   *
+   * **Warum nicht aus der Blickrichtung.** Der naheliegende Weg wäre, das Möbel
+   * dorthin zeigen zu lassen, wohin die Figur schaut — kein Knopf, keine
+   * Erklärung. Er scheitert an genau dem Fall, für den man dreht: Der Bauplatz
+   * ist die Kachel **vor** der Figur (`kitchenBuild.tileAhead`), also stünde
+   * das Band immer quer zur Reihe, die man gerade baut. Wer die nächste Kachel
+   * einer Südbahn setzen will, müsste nördlich davon stehen — und dort steht
+   * schon das Band von eben.
+   *
+   * Gedreht wird deshalb mit dem **Auslöser**: in der Brille der Trigger der
+   * rechten Hand, von oben die linke Maustaste, `RT` am Pad und der rote Knopf
+   * auf dem Glas. Er ist im Umbau frei, und zwar mit Sicherheit: Wer ein Möbel
+   * trägt, trägt keinen Feuerlöscher — das Anschalten räumt die Hände
+   * (`toggleEdit`), und nur ein gehaltener Löscher pustet (`kitchenSpray.sprayOn`).
+   *
+   * Zu sehen ist die Drehung sofort und an zwei Stellen: Das Möbel in den
+   * Händen dreht sich mit, und zwar in **Weltrichtung** (`carryInHands`), und
+   * der Satz am Handgelenk nennt die Himmelsrichtung. Ein Band, dessen
+   * Laufrichtung man erst nach dem Absetzen sähe, wäre eines, das man dreimal
+   * absetzt.
+   */
+  private turnPiece(): boolean {
+    const world = this.world;
+    const furnish = this.lifted;
+    if (!world || !furnish) return false;
+    furnish.turn = ((furnish.turn + 1) % 4) as Turn;
+    furnish.size = footprint(furnish.piece, furnish.turn);
+    world.notify(`${furnish.piece.label} zeigt nach ${TURN_LABELS[furnish.turn]}`);
+    return true;
+  }
+
+  /**
+   * **Der Auslöser im Umbau** — eine Flanke, drei Ansichten.
+   *
+   * Dieselben Geber wie beim Feuerlöscher nebenan (`spray`) und aus demselben
+   * Grund: In der Brille fragt man den Controller, am Schirm das Gestell
+   * (`PlayerRig.trigger`, gesetzt von `core/FlatControls.applyTopDownButtons`).
+   * Wer nichts trägt, drückt ins Leere — und das ist richtig so, ein Auslöser
+   * ohne Möbel in der Hand hat in dieser Küche nichts zu tun.
+   */
+  private buildTurn(ctx: WorldContext): void {
+    const down = ctx.renderer.xr.isPresenting
+      ? (ctx.input.get('right')?.trigger.pressed ?? false)
+      : ctx.rig.trigger > 0.5;
+    const pressed = down && !this.turnWas;
+    this.turnWas = down;
+    if (pressed && this.editing && this.lifted) this.turnPiece();
   }
 
   /**
@@ -2030,6 +2161,14 @@ export class KitchenZone implements TestZone {
     const world = this.world;
     const furnish = this.lifted;
     if (!world || !furnish) return false;
+    // **Nach Hause heißt auch: wie es stand.** Die alte Kachel ist frei, die
+    // alte Drehung aber nicht unbedingt harmlos — wer eine Ausgabetheke quer
+    // gedreht dorthin zurückzwänge, wo sie längs stand, schöbe sie in das Möbel
+    // daneben. Und `home` fragt nicht, ob dort Platz ist (dafür ist es da).
+    if (home) {
+      furnish.turn = furnish.spot.turn ?? 0;
+      furnish.size = footprint(furnish.piece, furnish.turn);
+    }
     const want = home ? { x: furnish.spot.x, z: furnish.spot.z } : (this.ghostAt ?? null);
     if (!want) return false;
     const target: BuildSpot = { x: want.x, z: want.z, w: furnish.size.w, d: furnish.size.d };

@@ -207,12 +207,14 @@ export function rackLift(): number {
  * andere — kombiniert wird überall (`kitchenCarry.ts`), und ein Möbel, auf dem
  * als einzigem ein Burger entsteht, gibt es bei _Overcooked_ nicht.
  *
- * **Dafür gibt es jetzt einen Gastraum und ein Förderband.** In der letzten
+ * **Dafür gibt es jetzt einen Gastraum und zwei Bandbahnen.** In der letzten
  * Reihe (z = 10) stehen drei Gästetische und die Geschirrrückgabe — viermal
  * derselbe Arbeitstisch, dreimal in der einen und einmal in der anderen Rolle
- * (`Spot.role`). Und quer durch die Küche läuft ein Band von der Insel zur
- * Ablage bei z = 8. Beides ist Aufbau und kein Möbel: Der Katalog kennt einen
- * Tisch und ein Band, wofür sie hier stehen, steht nur hier.
+ * (`Spot.role`). Und quer durch die Küche laufen zwei Spalten nach Süden: vier
+ * Förderbänder bei x = 9, die tragen, was man darauflegt, und vier Zugbänder
+ * bei x = 7, die sich vom Arbeitstisch der Insel selbst holen, was dort liegen
+ * bleibt. Beides ist Aufbau und kein Möbel: Der Katalog kennt einen Tisch und
+ * zwei Bänder, wofür sie hier stehen, steht nur hier.
  */
 /**
  * **Wo der rote Umbauknopf steht** — Kachel der Zone, wie alles hier.
@@ -309,22 +311,46 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // zur Spüle an der Nordwand.
   { name: 'table', x: 10, z: 10, role: 'return', label: 'Geschirrrückgabe' },
 
-  // --- das Förderband: von der Insel nach Süden -------------------------------
-  // Drei Bänder in einer Reihe, `turn: 2` — nach Süden gedreht, und in diese
-  // Richtung schiebt es. Am Ende steht eine Küchenzeile als Ablage, auf die es
-  // abliefert; ein Band, das ins Leere schiebt, verliert, was daraufliegt.
+  // --- zwei Bahnen von der Insel nach vorn ------------------------------------
   //
-  // **x = 9, z = 5…8 ist frei, und das ist nachgesehen und nicht gehofft.**
+  // **Die blaue Bahn** (`belt`): vier gewöhnliche Bänder in der Spalte x = 9,
+  // `turn: 2` — nach Süden gedreht, und in diese Richtung schieben sie. Am Ende
+  // steht eine Küchenzeile als Ablage, auf die abgeliefert wird; ein Band, das
+  // ins Leere schiebt, verliert, was daraufliegt. Was hier fährt, hat jemand
+  // von Hand daraufgelegt.
+  //
+  // **x = 9, z = 4…8 ist frei, und das ist nachgesehen und nicht gehofft.**
   // Die Spalte x = 9 hat in dieser Küche genau einen Eintrag, die Küchenzeile
   // bei z = 0; die Ostecke steht auf x = 11 (z = 1…3), die Insel reicht mit
   // dem Arbeitstisch bis x = 7 (z = 4), und die Ausgabe vorn beginnt erst bei
-  // z = 9. Zwischen z = 1 und z = 8 steht auf x = 9 also nichts — vier freie
-  // Kacheln in einer Spalte, genau so viele, wie drei Bänder und eine Ablage
-  // brauchen.
+  // z = 9. Zwischen z = 1 und z = 8 steht auf x = 9 also nichts.
+  { name: 'belt', x: 9, z: 4, turn: 2 },
   { name: 'belt', x: 9, z: 5, turn: 2 },
   { name: 'belt', x: 9, z: 6, turn: 2 },
   { name: 'belt', x: 9, z: 7, turn: 2 },
   { name: 'counter', x: 9, z: 8 },
+
+  // **Die orange Bahn** (`belt-pull`): vier Zugbänder in der Spalte x = 7,
+  // ebenfalls nach Süden. Der Unterschied steht an ihrem **oberen** Ende: Das
+  // erste bei z = 5 zieht sich von selbst herunter, was auf dem Arbeitstisch
+  // der Insel (x = 7, z = 4) liegengeblieben ist — der Tisch verhält sich dafür
+  // wie ein Band, ohne eines zu sein (`kitchenBelt.BeltTile.pull`). Die drei
+  // dahinter sind dann eine gewöhnliche Reihe: Wer von einem Band zieht, das
+  // ohnehin auf ihn zeigt, bekommt genau das, was jede Bandreihe tut.
+  //
+  // Am Ende steht **keine neue Ablage**, sondern die, die schon da war: die
+  // Arbeitsfläche vor der Ausgabetheke (x = 7, z = 9). Damit ist die Bahn das,
+  // wofür ein Zugband gebaut wird — was auf der Insel fertig wird, liegt kurz
+  // darauf vorn an der Theke, ohne dass jemand dafür gelaufen ist.
+  //
+  // **Die Spalte x = 7 ist zwischen z = 5 und z = 8 frei** (die Insel endet bei
+  // z = 4, die Ausgabe beginnt bei z = 9), und zwischen den beiden Bahnen
+  // bleibt x = 8 als Gang offen: von der Nordzeile bis zum Gastraum, quer an
+  // beiden Bahnen entlang.
+  { name: 'belt-pull', x: 7, z: 5, turn: 2 },
+  { name: 'belt-pull', x: 7, z: 6, turn: 2 },
+  { name: 'belt-pull', x: 7, z: 7, turn: 2 },
+  { name: 'belt-pull', x: 7, z: 8, turn: 2 },
 
   // --- der Schauraum: jedes Möbel einmal, einzeln und beschriftet -------------
   { name: 'plate-counter', x: 13, z: 1, show: true },
@@ -354,6 +380,11 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // die erste freie Kachel. In der Reihe z = 1 steht dort zwar der
   // Arbeitstisch, aber das sind drei Kacheln Abstand.
   { name: 'belt', x: 22, z: 4, show: true },
+
+  // Das Zugband steht in der dritten Reihe, im selben Takt wie die Herde
+  // daneben (13, 15, 17, 19 — also 21). Dass es dort nichts zu ziehen hat, ist
+  // richtig so: Der Schauraum zeigt Möbel und keine Aufbauten.
+  { name: 'belt-pull', x: 21, z: 7, show: true },
 ];
 
 /** Wie weit ein Möbel eine Kachel verteuert — teurer als ein Baustein. */
@@ -361,6 +392,18 @@ const FURNITURE_COST = 8;
 
 /** Wo die Oberkante des Küchenbodens liegt — knapp über dem Gelände. */
 export const KITCHEN_FLOOR = 0.02;
+
+/**
+ * **Wie diese Drehung heißt** — für den Satz, den der Umbau sagt, wenn jemand
+ * ein Möbel weiterdreht (`kitchen.ts`, `turnPiece`).
+ *
+ * Himmelsrichtungen und nicht „links/rechts": Die Küche wird von oben gespielt,
+ * Norden liegt dort oben (`core/topDownPose.ts`), und ein Band, das „nach
+ * rechts" schöbe, hieße aus den Augen etwas anderes als von oben. Die
+ * Reihenfolge ist die von `Spot.turn` und `kitchenBelt.beltStep`: 0 Norden,
+ * 1 Westen, 2 Süden, 3 Osten.
+ */
+export const TURN_LABELS: readonly string[] = ['Norden', 'Westen', 'Süden', 'Osten'];
 
 /** Die Grundfläche eines Stücks in Kacheln, gedreht wie es steht. */
 export function footprint(piece: KitchenPiece, turn: Turn): { w: number; d: number } {
@@ -463,13 +506,14 @@ export function fitKitchen(plan: GridPlan): void {
         '# Die Küche',
         '',
         'Möbel aus *Overcooked Kitchen Assets (Fan Art)* von Arun Kumar S,',
-        'CC-BY-4.0 — siehe `public/models/CREDITS.md`. Das Förderband steht in',
-        'keiner Datei, es ist gebaut.',
+        'CC-BY-4.0 — siehe `public/models/CREDITS.md`. Die beiden Bänder stehen',
+        'in keiner Datei, sie sind gebaut.',
         '',
         '- An der Westwand: vier Ausgaben — Brötchen, Patty, Salat, Tomate',
         '- An der Nordwand: Zeile, drei Herde, Spüle, Tellerausgabe',
         '- In der Mitte: Schneidebrett, Mülleimer, Arbeitstisch',
-        '- Östlich davon: das **Förderband**, drei Kacheln nach Süden',
+        '- Quer hindurch: zwei Bahnen nach Süden — vier **Förderbänder**',
+        '  (blau) im Osten, vier **Zugbänder** (orange) neben der Insel',
         '- Vorn: die Ausgabetheke mit den Wärmeschirmen darüber',
         '- Ganz im Süden: drei Gästetische und die **Geschirrrückgabe**',
         '- Im Osten: der Schauraum — jedes Möbel einmal, beschriftet',
@@ -508,11 +552,29 @@ export function fitKitchen(plan: GridPlan): void {
         'zwischendurch etwas anderes tut, nimmt das Geschirr hinterher **erneut',
         'auf und setzt es nochmal ab**.',
         '',
-        '## Das Förderband',
+        '## Die beiden Bänder',
         '',
-        'Was auf dem **Förderband** liegt, schiebt es in Pfeilrichtung weiter,',
-        'Kachel um Kachel, bis auf die Ablage am Ende. Wer quer durch die Küche',
-        'tragen müsste, legt es stattdessen auf und geht schon vor.',
+        'Was auf einem **Förderband** liegt (blaue Pfeile), schiebt es in',
+        'Pfeilrichtung weiter, Kachel um Kachel, bis auf die Ablage am Ende.',
+        'Wer quer durch die Küche tragen müsste, legt es stattdessen auf und',
+        'geht schon vor.',
+        '',
+        'Ein **Zugband** (orange Pfeile) tut dasselbe und **holt sich obendrein',
+        'von selbst**, was auf der Kachel dahinter liegt — am hellen Streifen',
+        'an seiner Hinterkante sieht man, von wo. Dort muss kein Band stehen:',
+        'Eine Arbeitsplatte, ein Schneidebrett, ein Gästetisch oder ein anderes',
+        'Band wird für diesen Handgriff selbst zum Band.',
+        '',
+        'Solange es **frei** ist, merkt es sich beim Nachbarn vor, und der gibt',
+        'dann nicht weiter: Was dort **liegen bleibt**, geht quer weg. Was schon',
+        '**fährt**, fährt zu Ende, und ein **volles** Zugband hält niemanden auf',
+        '— dann schiebt das Band wie immer. Vom Herd und aus der',
+        'Löscherhalterung zieht es nichts (das ist Gerät, keine Ware), und was',
+        'gerade unter dem Messer liegt, lässt es liegen.',
+        '',
+        'Beide lassen sich im **Umbau** aufheben und **drehen**: Der Auslöser',
+        'dreht das getragene Möbel um eine Vierteldrehung weiter, und es zeigt',
+        'schon in den Händen dorthin, wohin es nachher schiebt.',
         '',
         '## Wenn es brennt',
         '',
@@ -562,6 +624,12 @@ export function fitKitchen(plan: GridPlan): void {
  * **Und das Förderband genauso.** Es ist die einzige Sorte Möbel, die es nur
  * in dieser einen Rolle gibt: Ein Band, das nicht schiebt, ist ein schmales
  * Brett. Deshalb steht es hier und nicht in `Spot.role`.
+ *
+ * **Zwei Möbel, eine Rolle**: Das Zugband (`belt-pull`) ist für `A` dasselbe
+ * wie das Förderband — eine Ablage, die weiterschiebt. Dass es sich obendrein
+ * von selbst etwas holt, ist keine Sache des Anfassens, sondern der Bandrechnung
+ * (`kitchenBelt.BeltTile.pull`), und eine zwölfte Stationsart wäre eine, die in
+ * `kitchenDeed` neben `belt` stünde und Zeile für Zeile dasselbe täte.
  */
 const STATION_KINDS: Readonly<Record<string, StationKind>> = {
   bin: 'bin',
@@ -571,6 +639,7 @@ const STATION_KINDS: Readonly<Record<string, StationKind>> = {
   extinguisher: 'rack',
   sink: 'sink',
   belt: 'belt',
+  'belt-pull': 'belt',
 };
 
 /**

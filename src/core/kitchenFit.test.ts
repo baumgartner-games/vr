@@ -140,7 +140,7 @@ describe('der Möbelkatalog', () => {
    */
   it('lässt nur gebaute Möbel ohne Knoten in der Quelle durchgehen', () => {
     const built = KITCHEN_PIECES.filter((piece) => piece.built);
-    expect(built.map((piece) => piece.name)).toEqual(['belt']);
+    expect(built.map((piece) => piece.name)).toEqual(['belt', 'belt-pull']);
     for (const piece of KITCHEN_PIECES) {
       const inSource = SOURCE[piece.name] !== undefined;
       expect({ name: piece.name, inSource }).toEqual({
@@ -174,6 +174,27 @@ describe('der Möbelkatalog', () => {
     // nirgendwohin (`worlds/test/zones/kitchenPlan.stationKind`).
     expect(belt.worktop).toBe(true);
     expect(kitchenDeck(belt)).toBe(belt.height);
+  });
+
+  /**
+   * **Und das Zugband ist in jedem Maß dasselbe Möbel.**
+   *
+   * Es zieht sich zusätzlich von der Kachel hinter sich, was dort liegt
+   * (`worlds/test/zones/kitchenBelt.ts`) — an Grundfläche, Höhe und
+   * Arbeitsfläche ändert das nichts, und genau darauf kommt es an: Die beiden
+   * stehen in einer Bahn hintereinander, und ein Zentimeter Unterschied wäre
+   * darin eine Stufe.
+   */
+  it('baut das Zugband in denselben Maßen wie das Förderband', () => {
+    const belt = kitchenPiece('belt')!;
+    const pull = kitchenPiece('belt-pull')!;
+    expect(pull.height).toBe(belt.height);
+    expect(pull.tiles).toEqual(belt.tiles);
+    expect(pull.worktop).toBe(true);
+    expect(kitchenDeck(pull)).toBe(kitchenDeck(belt));
+    // Zwei Möbel und nicht eines mit einem Schalter: Im Baumodus trägt man ein
+    // Katalogstück in der Hand, und man soll ihm ansehen, welches.
+    expect(pull.label).not.toBe(belt.label);
   });
 
   /**

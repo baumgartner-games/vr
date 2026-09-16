@@ -158,7 +158,7 @@ export interface KitchenPiece {
    * Das klingt nach einem Bruch des Katalogs und ist keiner: Diese Liste
    * beschreibt, **was in der Küche steht** — nicht, was gekauft wurde. Die
    * Quelle ist fremde Arbeit mit einer Lizenz (`public/models/CREDITS.md`),
-   * sie hat dreizehn Möbel, und sie wird nicht angefasst. Ein Förderband ist
+   * sie hat dreizehn Möbel, und sie wird nicht angefasst. Ein Band ist
    * trotzdem ein Möbel dieser Küche: Es belegt eine Kachel, es ist 0,53 m
    * hoch, man legt etwas darauf. Genau diese Zahlen will jeder haben, der den
    * Aufbau plant (`worlds/test/zones/kitchenPlan.ts`), den Grundriss stempelt
@@ -181,14 +181,14 @@ export interface KitchenPiece {
 }
 
 /**
- * **Die dreizehn Möbel der Quelle und ein vierzehntes dazu**, in der
+ * **Die dreizehn Möbel der Quelle und zwei gebaute dazu**, in der
  * Reihenfolge, in der sie aus der Datei fallen — mit den Maßen, die sie **im
  * Spiel** haben, also halbiert (`KITCHEN_SCALE`).
  *
- * Das vierzehnte ist das **Förderband**: Es steht am Ende, es trägt
- * `built: true`, und es ist das einzige Stück ohne Knoten in der Quelle
- * (siehe `KitchenPiece.built`). Wer das Werkzeug neu laufen lässt, ersetzt die
- * dreizehn davor und lässt das Band stehen.
+ * Die beiden gebauten sind das **Förderband** und das **Zugband**: Sie stehen
+ * am Ende, sie tragen `built: true`, und sie sind die einzigen Stücke ohne
+ * Knoten in der Quelle (siehe `KitchenPiece.built`). Wer das Werkzeug neu
+ * laufen lässt, ersetzt die dreizehn davor und lässt die beiden stehen.
  *
  * Die Kachelzahl ist die gerundete Grundfläche und nicht die aufgerundete:
  * Ein Unterschrank ist einen Meter breit und 1,06 m tief, und wer daraus zwei
@@ -304,6 +304,27 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // Unterschied zur Theke ist allein die Grundfläche: `pass` belegt zwei
     // Kacheln, das Band **eine** — drei davon in einer Reihe sind eine
     // Strecke, zwei Doppelkacheln wären ein zweiter Tresen.
+    height: 0.53,
+    worktop: true,
+    built: true,
+  },
+  {
+    name: 'belt-pull',
+    label: 'Zugband',
+    tiles: [1, 1],
+    // **Dieselbe Zahl wie beim Förderband, und zwar dieselbe Zeile weiter
+    // oben.** Ein Zugband ist ein Förderband mit einem Griff nach hinten: Es
+    // steht in derselben Reihe, nimmt dieselbe Kachel ein und läuft auf
+    // derselben Höhe. Wäre es auch nur einen Zentimeter höher, stünde von oben
+    // eine Stufe mitten in der Bahn — an genau der Stelle, an der ein Teller
+    // von einem Band auf das nächste fährt.
+    //
+    // Warum es trotzdem ein **zweites** Stück im Katalog ist und keine
+    // Einstellung am ersten: Im Baumodus hebt man Möbel auf und stellt sie
+    // wieder hin (`zones/kitchenBuild.ts`), und was man dabei in der Hand hat,
+    // ist ein Katalogstück. Ein Band, das man nach dem Aufstellen erst noch
+    // umschalten müsste, wäre ein Möbel mit einem unsichtbaren Schalter; zwei
+    // Stücke sind zwei Möbel, und man sieht ihnen an, welches man trägt.
     height: 0.53,
     worktop: true,
     built: true,

@@ -39,6 +39,9 @@ import {
 /** Nur die Möbel der Küche; der Schauraum spielt nicht mit. */
 const WORKING = KITCHEN_SPOTS.filter((spot) => !spot.show);
 
+/** Und andersherum: die Schaustücke allein. */
+const SHOWN = KITCHEN_SPOTS.filter((spot) => spot.show);
+
 /**
  * Was an diesem Platz steht — mit **allen drei** Angaben, die `stationKind`
  * kennt. Ein Test, der `role` vergisst, prüft eine Küche, die es nicht gibt:
@@ -77,6 +80,10 @@ describe('die Rollen der Möbel', () => {
     // Das Förderband gibt es nur in dieser einen Rolle — ein Band, das nicht
     // schiebt, wäre ein schmales Brett.
     ['belt', undefined, 'belt'],
+    // Und das Zugband ist für `A` dasselbe: eine Ablage, die weiterschiebt.
+    // Dass es sich von selbst etwas holt, entscheidet die Bandrechnung und
+    // nicht der Griff (`kitchenBelt.BeltTile.pull`).
+    ['belt-pull', undefined, 'belt'],
     // Und was keine Arbeitsfläche ist, hört gar nicht erst auf `A`.
     ['plate-rack', undefined, null],
   ];
@@ -212,34 +219,74 @@ describe('die Tische vor der Theke', () => {
 });
 
 /**
- * **Das Förderband** — drei Stück in einer Spalte, nach Süden gedreht, und am
- * Ende eine Ablage.
+ * **Die beiden Bahnen** — vier gewöhnliche Bänder in der einen Spalte, vier
+ * Zugbänder in der anderen, und an beiden Enden eine Ablage.
+ *
+ * Geprüft wird hier nicht, **dass** ein Zugband zieht (das steht in
+ * `kitchenBelt.test.ts`), sondern dass es an einer Stelle steht, an der es
+ * etwas zu ziehen gibt: Ein Zugband vor einer leeren Kachel ist ein teures
+ * Förderband.
  */
-describe('das Förderband', () => {
+describe('die beiden Bandbahnen', () => {
   const belts = WORKING.filter((spot) => spot.name === 'belt');
+  const pulls = WORKING.filter((spot) => spot.name === 'belt-pull');
 
-  it('läuft in einer Spalte nach Süden und liefert auf eine Ablage ab', () => {
-    expect(belts.map((spot) => spot.z)).toEqual([5, 6, 7]);
-    for (const spot of belts) {
-      expect(spot.x).toBe(9);
+  it('stellt vier Förderbänder und vier Zugbänder auf', () => {
+    expect(belts).toHaveLength(4);
+    expect(pulls).toHaveLength(4);
+    for (const spot of [...belts, ...pulls]) {
       // `turn: 2` ist „nach Süden gedreht" (`Spot.turn`) — und in diese
       // Richtung schiebt es.
       expect(spot.turn).toBe(2);
       expect(kindOf(spot)).toBe('belt');
     }
+  });
+
+  it('läuft blau in der Spalte x = 9 nach Süden und liefert auf eine Ablage ab', () => {
+    expect(belts.map((spot) => spot.z)).toEqual([4, 5, 6, 7]);
+    for (const spot of belts) expect(spot.x).toBe(9);
     // Ohne Ablage am Ende fiele herunter, was ankommt.
     const end = WORKING.find((spot) => spot.x === 9 && spot.z === 8);
     expect(end?.name).toBe('counter');
     expect(kindOf(end!)).toBe('top');
   });
 
-  /** Vier freie Kacheln in einer Spalte — nachgesehen und nicht gehofft. */
+  it('läuft orange in der Spalte x = 7 vom Arbeitstisch zur Ausgabe', () => {
+    expect(pulls.map((spot) => spot.z)).toEqual([5, 6, 7, 8]);
+    for (const spot of pulls) expect(spot.x).toBe(7);
+    // Oben die Insel: Von ihrem Arbeitstisch zieht das erste Zugband, und
+    // deshalb muss dort eine Ablage stehen und kein Mülleimer, kein Herd.
+    const island = WORKING.find((spot) => spot.x === 7 && spot.z === 4);
+    expect(island?.name).toBe('table');
+    expect(kindOf(island!)).toBe('top');
+    // Unten die Arbeitsfläche neben der Ausgabetheke — eine, die es schon gab.
+    const end = WORKING.find((spot) => spot.x === 7 && spot.z === 9);
+    expect(end?.name).toBe('serve-counter');
+    expect(kindOf(end!)).toBe('top');
+  });
+
+  /** Freie Kacheln in zwei Spalten — nachgesehen und nicht gehofft. */
   it('steht auf Kacheln, die sonst niemand belegt', () => {
-    const others = WORKING.filter((spot) => spot.x === 9 && spot.z >= 5 && spot.z <= 8);
-    expect(others).toHaveLength(4);
     // Die Spalte x = 9 trägt sonst nur die Küchenzeile an der Nordwand.
-    const column = WORKING.filter((spot) => spot.x === 9).map((spot) => spot.z);
-    expect([...column].sort((a, b) => a - b)).toEqual([0, 5, 6, 7, 8]);
+    const east = WORKING.filter((spot) => spot.x === 9).map((spot) => spot.z);
+    expect([...east].sort((a, b) => a - b)).toEqual([0, 4, 5, 6, 7, 8]);
+    // Und die Spalte x = 7 den Arbeitstisch der Insel, die Ausgabe vorn und
+    // sonst nichts. (Der Gästetisch bei z = 10 steht auf x = 8.)
+    const west = WORKING.filter((spot) => spot.x === 7).map((spot) => spot.z);
+    expect([...west].sort((a, b) => a - b)).toEqual([0, 4, 5, 6, 7, 8, 9]);
+  });
+
+  /**
+   * **Zwischen den Bahnen bleibt ein Gang.** Zwei Spalten Möbel quer durch die
+   * Küche sind zwei Wände; ohne die Kachelreihe dazwischen liefe man von der
+   * Nordzeile bis zum Gastraum ums ganze Haus.
+   */
+  it('lässt die Spalte x = 8 zwischen den Bahnen frei', () => {
+    const between = WORKING.filter((spot) => {
+      const size = footprint(kitchenPiece(spot.name)!, spot.turn ?? 0);
+      return spot.x <= 8 && spot.x + size.w > 8 && spot.z >= 1 && spot.z <= 9;
+    });
+    expect(between).toEqual([]);
   });
 });
 
@@ -296,7 +343,15 @@ describe('der Schauraum', () => {
     expect(new Set(KITCHEN_SHOWN).size).toBe(KITCHEN_SHOWN.length);
   });
 
-  it('stellt das Förderband auf eine freie Kachel', () => {
+  it('stellt die beiden Bänder auf freie Kacheln', () => {
+    const pull = KITCHEN_SPOTS.find((spot) => spot.name === 'belt-pull' && spot.show);
+    expect({ x: pull?.x, z: pull?.z }).toEqual({ x: 21, z: 7 });
+    // In der Reihe z = 7 stehen die Herde auf 13, 15, 17 und 19 — 21 hält den
+    // Takt und bleibt innerhalb der Zone.
+    expect(pull!.x).toBeLessThan(KITCHEN.w);
+    const stove = SHOWN.find((spot) => spot.name === 'stove-pan')!;
+    expect(pull!.x).toBeGreaterThanOrEqual(stove.x + 2);
+
     const belt = KITCHEN_SPOTS.find((spot) => spot.name === 'belt' && spot.show);
     expect({ x: belt?.x, z: belt?.z }).toEqual({ x: 22, z: 4 });
     // Innerhalb der Zone (24 Kacheln breit, also x = 0…23).

@@ -8,7 +8,8 @@ import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { npcSkin } from '../npc/npcKinds';
-import { SPAWN, centre } from './layout';
+import { SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
+import { spawnAt } from './spawnAt';
 import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
@@ -110,10 +111,22 @@ export class TestWorld extends GridWorld {
     return { floor: 0x7c8a6a, stone: 0x9a9481, wood: 0x8a5f38, wall: 0xb3b8c2 };
   }
 
+  /**
+   * **Wo man ankommt** — die Mitte des Startplatzes, oder die Kachel, die in
+   * der Adresse steht (`spawnAt.ts`, `?at=`).
+   *
+   * Der Startplatz ist nie eine Torkachel, dafür sorgt der Grundriss
+   * (`zones/start.ts`, mit Test). Die Adresse darf dagegen **jede** Kachel
+   * nennen: Sie ist das Werkzeug dessen, der die Welt prüft, und der weiß, wo
+   * er hinwill. Steht dort Unsinn, gilt der Startplatz — geraten wird nicht.
+   */
   protected override spawnPoint(): THREE.Vector3 {
-    // Die Mitte des Startplatzes — nie eine Torkachel, dafür sorgt der
-    // Grundriss (`zones/start.ts`, mit Test).
-    return new THREE.Vector3(centre(SPAWN.x), 0, centre(SPAWN.z));
+    const at = spawnAt(typeof location === 'undefined' ? '' : location.search);
+    if (!at) return new THREE.Vector3(centre(SPAWN.x), 0, centre(SPAWN.z));
+    // Die Ebene kommt aus dem Graphen und nicht aus einer Zahl hier: Das Deck
+    // des Podests liegt oben, und wer auf y = 0 daruntersetzt, steckt drin.
+    const y = this.grid?.graph.levelY(at.level) ?? 0;
+    return new THREE.Vector3(centre(at.x), y, centre(at.z));
   }
 
   protected override spawnYaw(): number {
@@ -225,7 +238,57 @@ export class TestWorld extends GridWorld {
   }
 
   override menu(): MenuEntry[] {
-    return [...super.menu(), ...this.kart.menu()];
+    return [...super.menu(), this.jumpMenu(), ...this.kart.menu()];
+  }
+
+  /**
+   * **Der Sprung zu einer Zone** — neun Ziele, eines je Zone (`layout.ZONE_TILES`).
+   *
+   * Das Gelände misst 64 × 80 m, und die Küche liegt ganz im Norden hinter dem
+   * Podest: Wer sie ansehen will, läuft eine knappe Minute quer über den Platz,
+   * an drei Zonen vorbei, die er gerade nicht meint. Für den Prüfstand dieser
+   * Engine ist das die falsche Minute — man kommt her, um **eine** Sache
+   * anzusehen (`docs/plan-2d-hub-interaktion.md`: die Testwelt ist der
+   * Prüfstand, nicht die Reise).
+   *
+   * **Die Ziele sind dieselben Kacheln, an denen der Grundrisstest misst**, ob
+   * eine Zone überhaupt erreichbar ist (`testPlan.test.ts`). Das ist kein
+   * Zufall, sondern der Grund, warum es diese Liste schon gab: Eine Kachel, auf
+   * die man springt, und eine, zu der man laufen kann, sollen dieselbe sein —
+   * sonst setzt einen der Sprung irgendwann dorthin, wo der Weg gar nicht
+   * hinführt.
+   *
+   * **Die Höhe kommt aus dem Graphen** (`NavGraph.levelY`) und nicht aus einer
+   * Zahl hier: Das Podest liegt auf Ebene 1, und wer dorthin auf y = 0 spränge,
+   * stünde **unter** seinem eigenen Deck.
+   *
+   * Es ist ein **Menüeintrag** und kein Werkzeug am Gürtel: Ein Sprung ist
+   * nichts, was man im Spiel tut, sondern etwas, mit dem man das Spiel aufsucht.
+   */
+  private jumpMenu(): MenuEntry {
+    return {
+      id: 'test:jump',
+      label: 'Zu einer Zone',
+      sub: 'Neun Ziele auf dem Gelände',
+      icon: 'teleport',
+      accent: 0x7cc4ff,
+      children: Object.entries(ZONE_TILES).map(([id, tile]) => ({
+        id: `test:jump:${id}`,
+        label: ZONE_LABELS[id] ?? id,
+        sub: `Kachel ${tile.x} / ${tile.z}`,
+        icon: 'teleport',
+        run: () => this.jumpTo(id, tile),
+      })),
+    };
+  }
+
+  /** Und der Sprung selbst — dieselbe Bewegung, die auch ein Portal macht. */
+  private jumpTo(id: string, tile: { x: number; z: number; level: number }): void {
+    const ctx = this.context;
+    if (!ctx) return;
+    const y = this.grid?.graph.levelY(tile.level) ?? 0;
+    this.movePlayerTo(ctx, new THREE.Vector3(centre(tile.x), y, centre(tile.z)));
+    this.announce(`${ZONE_LABELS[id] ?? id}: angekommen`);
   }
 
   override dispose(ctx: WorldContext): void {

@@ -2055,16 +2055,42 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Kartzone_.
   - **Klettern** (Südosten): eine Wand mit Griffen aus drei Materialien und
     zwei Sprungkissen davor. Ausführlich unter _Klettern_.
+  - **Zu jeder Zone springt man auch** (_Menü → Zu einer Zone_,
+    `TestWorld.jumpMenu`): neun Ziele, eines je Zone, und zwar **dieselben
+    Kacheln**, an denen der Grundrisstest misst, ob eine Zone überhaupt
+    erreichbar ist (`layout.ZONE_TILES`). Das Gelände misst 64 × 80 m; wer nur
+    die Küche ansehen will, läuft sonst eine knappe Minute an drei Zonen
+    vorbei, die er gerade nicht meint — und dieser Platz ist ein Prüfstand und
+    keine Reise. Die Höhe kommt aus dem Graphen (`NavGraph.levelY`): Das Podest
+    liegt auf Ebene 1, und wer dorthin auf y = 0 spränge, stünde unter seinem
+    eigenen Deck.
+  - **Und auf eine einzelne Kachel setzt einen die Adresse** (`spawnAt.ts`):
+    `/?at=21,-24#test` fängt auf genau dieser Kachel des Geländes an,
+    `/?at=18,-16,1#test` eine Ebene höher auf dem Deck des Podests, und
+    `/?at=kitchen#test` nimmt denselben Namen wie das Menü. Gerechnet wird in
+    **Kacheln des Geländes** — dieselben Zahlen, die in `layout.ts` stehen und
+    die ein Test ausgibt, wenn er über eine Kachel stolpert: Wer „Kachel 21,-24
+    hat keinen Anschluss" liest, tippt sie in die Adresse und steht daneben.
+    Sie gilt für die ganze Sitzung, also auch fürs Wiedereinsetzen nach einem
+    Sturz. Warum eine Adresse und kein Zifferblock im Spiel: Das hier ist kein
+    Spielzug, sondern das Werkzeug dessen, der die Welt **prüft** — er kommt
+    von außen, mit einer Zahl in der Hand, und eine Adresse kann man
+    aufschreiben, verschicken und in ein Testskript legen. Alles, was nicht
+    eindeutig ist (ein Wort statt einer Zahl, ein unbekannter Name, eine halbe
+    Koordinate), gibt den gewöhnlichen Startplatz: Geraten wird nicht, sonst
+    sucht man im Gelände, warum man woanders steht.
   - **Küche** (ganz im Norden, hinter dem Podest): vierundzwanzig mal elf
     Kacheln mit den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe
     _Modelle im Repository_), und zwar in **zwei Hälften**. Im Westen die
     Küche selbst — Zeile, zwei Herde, Spüle und Tellerausgabe an der Wand, vier
     Zutatenausgaben an der Westwand, eine Insel aus Schneidebrett und
-    Mülleimer, ein **Förderband** quer durch den Raum, vorn die Ausgabetheke
+    Mülleimer, **zwei Bandbahnen** quer durch den Raum — vier Förderbänder
+    (blau) und vier Zugbänder (orange), die sich von selbst holen, was auf der
+    Kachel dahinter liegt —, vorn die Ausgabetheke
     mit den Wärmeschirmen einen Meter darüber, und südlich davon der
     **Gastraum**: drei Gästetische und die Geschirrrückgabe (die Türkacheln
     daneben bleiben frei, sonst stünde ein Tisch im Eingang) —, im Osten der
-    **Schauraum**: jedes der vierzehn Möbel noch einmal, frei stehend und mit
+    **Schauraum**: jedes der fünfzehn Möbel noch einmal, frei stehend und mit
     einer Tafel daneben, auf der sein Name und sein Maß stehen. In einer Zeile
     aus acht Schränken sieht man ein einzelnes Möbel nicht; der Katalog ist
     damit ein Rundgang statt einer Liste. **Angefasst wird mit `A`**, und ein
@@ -4826,14 +4852,14 @@ wurden. Sie laufen von Hand, nicht bei jedem Build: Ein Modell ändert sich
 nicht, und `@gltf-transform` und `sharp` gehören nicht in die Abhängigkeiten
 eines Spiels, das sie nie ausführt (`npm install --no-save` beim Aufbereiten).
 
-**Der Küchenkatalog** (`core/kitchenFit.ts`) hat vierzehn Möbel: Tellerausgabe,
+**Der Küchenkatalog** (`core/kitchenFit.ts`) hat fünfzehn Möbel: Tellerausgabe,
 Feuerlöscher, Spüle, Mülleimer, Arbeitstisch, Ausgabe, Schneidebrett,
 Ausgaberegal, Ausgabetheke, Küchenzeile, Herd, Herd mit Topf, Herd mit Pfanne —
-und das **Förderband**, das in keiner Datei steckt, sondern gebaut wird
-(`KitchenPiece.built`, siehe _Anfassen in der Küche_). Der Katalog beschreibt,
-was in dieser Küche **steht**, nicht, was gekauft wurde; wer `built` nicht
-liest, meldet eine fehlende Datei, die es nicht gibt, und stellt einen grauen
-Würfel dorthin, wo ein Band stehen soll.
+und das **Förderband** und das **Zugband**, die in keiner Datei stecken,
+sondern gebaut werden (`KitchenPiece.built`, siehe _Anfassen in der Küche_).
+Der Katalog beschreibt, was in dieser Küche **steht**, nicht, was gekauft
+wurde; wer `built` nicht liest, meldet eine fehlende Datei, die es nicht gibt,
+und stellt einen grauen Würfel dorthin, wo ein Band stehen soll.
 
 Die dreizehn aus der Datei kommen aus einer **Schauraum-Szene**: ein Bild, das
 jemand aufgebaut hat, in vier Netzen, die nur nach Material getrennt waren. Zerlegt wird sie über den
@@ -4926,7 +4952,7 @@ Was `A` vor einem Möbel tut, steht in **einer** Funktion
 (`worlds/test/zones/kitchenCarry.ts`, `kitchenDeed`) und nicht in elf
 `if`-Ketten in der Zone daneben. Elf Stationsarten (`StationKind`) — Ablage,
 Kiste, Mülleimer, Schneidebrett, Herd, Ausgabetheke, Löscherhalterung, Spüle,
-Geschirrrückgabe, Gästetisch, Förderband — mal volle oder leere Hand ergeben ein
+Geschirrrückgabe, Gästetisch, Band — mal volle oder leere Hand ergeben ein
 paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
 eine Viertelstunde Hin- und Herlaufen.
 
@@ -4943,7 +4969,7 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenGuests.ts` | wer an einem Tisch isst, wie lange, und was stehen bleibt |
 | `zones/kitchenBuild.ts` | welche Kachel gemeint ist und ob dort Platz ist |
 | `zones/kitchenSpray.ts` | der Feuerlöscher: Kegel, Schalter, Fortschritt, Nebel |
-| `zones/kitchenBelt.ts` | das Förderband: Laufzeit, Laufrichtung, Netz |
+| `zones/kitchenBelt.ts` | die Bänder: Laufzeit, Laufrichtung, Ziehen, Nachbarn, Netz |
 | `zones/kitchenCarry.ts` | Stationen und `kitchenDeed`; reicht alle Uhren weiter |
 | `zones/kitchenPlan.ts` | wo welches Möbel steht, der Grundriss, das Schild |
 | `zones/kitchen.ts` | die Zone: Netze, Körper, Anzeigen, Anfassen |
@@ -5189,6 +5215,53 @@ Und das sind die Regeln, die darin stehen:
   ein aufgemalter Pfeil — ein stehender Pfeil ist eine Beschriftung, ein
   laufender ist die Maschine selbst. Am Ende der Reihe steht eine Ablage
   (`beltStep` sagt, an welche Kachel weitergereicht wird).
+- **Und daneben das Zugband** (`belt-pull`, `BeltTile.pull`): dasselbe Möbel,
+  dieselbe Höhe, dieselbe Kachel — es holt sich obendrein **von selbst**, was
+  auf der Kachel **hinter** ihm liegt. Dort muss kein Band stehen, und das ist
+  der ganze Witz daran: Eine Arbeitsplatte, ein Schneidebrett, ein Gästetisch,
+  ein anderes Band wird für diesen einen Handgriff selbst zum Band. Gerechnet
+  wird das in **einer** Zeile — das Zugband schreibt der Kachel hinter sich sich
+  selbst als Ziel —, und danach gilt für sie ohne eine zweite Rechnung alles,
+  was für ein Band gilt: Kettenausnahme, `BELT_HOLD`, Anstehen, das Bild
+  dazwischen. Vier Dinge entscheiden die Fälle, die ein Grundriss irgendwann
+  herstellt:
+  - **Gezogen wird per Vormerkung, und die steht schon, bevor etwas da ist.**
+    Ein **freies** Zugband schreibt sich bei seinem Nachbarn ein; der weiß
+    damit, dass er nicht weitergeben muss, und was dort **zur Ruhe kommt**, geht
+    quer weg statt geradeaus weiter — auch auf einem Band, das selbst schiebt.
+    Ist das Zugband dagegen **voll**, gibt es keine Vormerkung, und das Band
+    schiebt wie immer: Ein Stau nebenan hält die Bahn nicht mit an.
+  - **Was schon fährt, wird nicht umgeleitet.** Hat ein Ding seine Fahrt
+    angefangen, gilt sie (`BeltState.to`), auch wenn nebenan gerade ein Zugband
+    frei wird. Sonst wechselte es auf halber Strecke die Richtung — und
+    Losfahren ist hier ein Versprechen. Gezogen wird also nur, was **liegt**.
+  - **Eine Kachel wird von genau einem Zugband gezogen.** Stehen zwei daran,
+    bekommt sie das erste, das gerade vormerken kann — ist das erste voll und
+    das zweite frei, greift das zweite. Erst das macht aus zwei Zugbändern zwei
+    Abnehmer.
+  - **Gerät ist keine Ware**: Vom Herd (dort steht die Pfanne) und aus der
+    Löscherhalterung zieht es nichts, genauso wenig wie aus dem Mülleimer oder
+    von der Ausgabetheke — dieselben zwei, die auch als **Ziel** ausscheiden.
+    Was man nicht hinschieben darf, zieht man auch nicht heraus. Beide Regeln
+    stehen als **reine Funktionen** neben der Rechnung (`beltDelivers`,
+    `beltReleases`) und nicht in der Zone: Welche Station nebenan steht, weiß
+    nur die Zone; ob sie darf, ist eine Frage über Stationsarten, und die prüft
+    ein Test über **alle elf** statt über die drei, die gerade zufällig neben
+    einem Band stehen.
+  - **Was unter dem Messer liegt, bleibt liegen**: Solange am Brett oder in der
+    Spüle jemand davorsteht und die Uhr läuft (`WorkState.working`), zieht das
+    Band nichts weg. Sobald sie steht, fährt das Fertige los.
+  Zu sehen ist der Unterschied an der **Farbe der Sparren** — blau schiebt,
+  orange zieht (`BELT_COLORS`) — und an einem hellen Streifen an der
+  **Hinterkante** des Zugbands, der sagt, von welcher Kachel es sich etwas
+  holt. Die Farbe sitzt an den Sparren und nicht am Korpus, weil die Sparren
+  das Einzige sind, was man aus 16 m Höhe wirklich liest.
+- **Zwei Bahnen stehen in der Testküche**: vier Förderbänder in der Spalte
+  x = 9 nach Süden auf eine Ablage, und vier Zugbänder in der Spalte x = 7, von
+  denen das erste den Arbeitstisch der Insel leerzieht und das letzte vorn
+  neben der Ausgabetheke abliefert. Dazwischen bleibt x = 8 als Gang frei —
+  zwei Spalten Möbel quer durch die Küche sind zwei Wände, und ohne die Reihe
+  dazwischen liefe man von der Nordzeile bis zum Gastraum ums ganze Haus.
 - **Der Zustand springt, das Bild nicht** (`kitchenBelt.advanceBelts`,
   `kitchen.runBelts`). Ein Ding gehört logisch immer genau einer Kachel;
   gezeichnet wird es währenddessen linear zwischen den beiden Kachelmitten
@@ -5244,7 +5317,23 @@ Und das sind die Regeln, die darin stehen:
   noch innerhalb der nächsten; mit einer ganzen Kachel sprang das Ziel bei jedem
   Schritt um zwei Felder. Beim Anschalten wandern die Hände frei, denn wer mit
   einem Teller in der Hand umzubauen anfängt, hätte ein Möbel **und** einen
-  Teller darin. Und dazu kommt ein neuer Punkt im Zonenvertrag:
+  Teller darin.
+  **Gedreht wird mit dem Auslöser**: Er dreht das getragene Möbel um eine
+  Vierteldrehung weiter (`turnPiece`), und erst damit lässt sich eine Bandbahn
+  um die Ecke führen statt nur verlängern. In der Brille ist das der Trigger
+  der rechten Hand, von oben die linke Maustaste, `RT` am Pad und der rote
+  Knopf auf dem Glas — im Umbau ist er mit Sicherheit frei, denn wer ein Möbel
+  trägt, trägt keinen Feuerlöscher. Der naheliegendere Weg, das Möbel einfach
+  dorthin zeigen zu lassen, **wohin die Figur schaut**, scheitert an genau dem
+  Fall, für den man dreht: Der Bauplatz ist die Kachel **vor** der Figur, also
+  stünde das Band immer quer zu der Reihe, die man gerade baut — und um es
+  längs zu stellen, müsste man dort stehen, wo schon das Band von eben steht.
+  Das getragene Möbel dreht sich dabei sofort mit, und zwar in
+  **Weltrichtung** (`aimHeld`): Wer sich zum Bauplatz umdreht, soll die
+  Richtung, die er gerade eingestellt hat, nicht verlieren. `B`/`Y` stellt es
+  zurück an seinen alten Platz **und in seine alte Drehung** — quer gedreht in
+  eine Lücke gezwängt, in der es längs stand, schöbe es sich ins Möbel daneben.
+  Und dazu kommt ein neuer Punkt im Zonenvertrag:
   **`ZoneHost.removeSolid`** (`zones/zone.ts`). Ohne ihn bliebe die alte Sperre
   stehen, wo nichts mehr steht — eine unsichtbare Wand auf einer leeren Kachel,
   die niemand wiederfindet. Es ist der einzige Grund für diesen Handgriff;
@@ -5259,7 +5348,8 @@ Und das sind die Regeln, die darin stehen:
   spielt einen Durchgang im Browser durch — Patty braten, Pfanne über dem
   Brötchen auskippen, Teller holen, servieren, dem Gast beim Essen zusehen, das
   Geschirr abräumen und spülen, ein Feuer mit dem gehaltenen Löscher ausmachen,
-  den Umbau anschalten und ein Möbel versetzen, `B` drücken.
+  den Umbau anschalten, ein Möbel versetzen und mit dem Auslöser drehen,
+  `B` drücken.
 
 
 #### Der Körper unter dem Möbel
