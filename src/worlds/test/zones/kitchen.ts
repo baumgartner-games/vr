@@ -239,6 +239,21 @@ const TICKET_LIFT = 0.95;
 const BUILD_BUTTON_LABELS = { off: 'Küche umbauen', on: 'Küche nutzen' } as const;
 
 /**
+ * **Wie das Möbel in den Händen liegt** — die Seite und nicht die
+ * Himmelsrichtung (`Furnish.hold`, `turnPiece`).
+ *
+ * Himmelsrichtungen stehen an der abgesetzten Küche (`kitchenPlan.TURN_LABELS`)
+ * und stimmen dort auch: Ein Band schiebt nach Süden, und das bleibt so. In den
+ * **Händen** wäre dieselbe Auskunft eine, die beim nächsten Schritt nicht mehr
+ * gilt — wer sich umdreht, trägt sein Möbel nicht anders, aber es zeigt
+ * woandershin. „Nach links" bleibt „nach links".
+ *
+ * Die Reihenfolge ist die von `Spot.turn`: ein Viertel weiter ist gegen den
+ * Uhrzeigersinn, von oben gesehen also nach links.
+ */
+const HOLD_LABELS: readonly string[] = ['nach vorn', 'nach links', 'zu dir', 'nach rechts'];
+
+/**
  * **Wie durchsichtig der Bauplatz ist** und in welchen Farben er antwortet.
  *
  * Grün heißt „hier passt es", rot „hier nicht" — und beides zeigt sich schon,
@@ -261,8 +276,6 @@ const _rigAhead = new THREE.Vector3();
 const _headAhead = new THREE.Vector3();
 const _nozzle = new THREE.Vector3();
 const _spin = new THREE.Quaternion();
-/** Der Gierwinkel des Rigs, für das Möbel in den Händen (`aimHeld`). */
-const _look = new THREE.Euler(0, 0, 0, 'YXZ');
 
 // --- und was darin steht ----------------------------------------------------
 
@@ -339,10 +352,27 @@ interface Furnish {
   x: number;
   z: number;
   /**
-   * **Wie herum es steht** — im Baumodus dreht der Auslöser es weiter
-   * (`turnPiece`), also ist es nicht mehr das, was im Aufbau stand.
+   * **Wie herum es steht**, in Weltvierteln — im Baumodus zeigt es dorthin,
+   * wohin die Figur zeigt (`facePiece`), also ist es nicht mehr das, was im
+   * Aufbau stand.
    */
   turn: Turn;
+  /**
+   * **Wie herum es in den Händen liegt** — Viertel **relativ zur Figur**, und
+   * nur solange es getragen wird.
+   *
+   * Zwei Zahlen für eine Drehung, und sie sind nicht dasselbe: `turn` ist die
+   * Richtung in der **Welt** (dorthin schiebt ein Band, so steht das Möbel
+   * nachher da), `hold` die Richtung **vor dem Bauch** (0 heißt: Vorderseite
+   * von der Figur weg). Beim Tragen gilt `turn = Blickviertel + hold`
+   * (`facePiece`), und das Möbel in den Händen dreht sich mit der Figur mit,
+   * wie die Pfanne (`aimHeld`).
+   *
+   * Der Auslöser dreht **hier** weiter und nicht an `turn` (`turnPiece`): Eine
+   * Weltdrehung wäre im nächsten Bild von der Blickrichtung wieder
+   * überschrieben; ein Versatz zur Figur bleibt, auch wenn sie sich umdreht.
+   */
+  hold: Turn;
   /**
    * Die Grundfläche in Kacheln, **schon gedreht** (`kitchenPlan.footprint`) —
    * und mit jeder Vierteldrehung neu gerechnet, denn eine Ausgabetheke liegt
@@ -355,6 +385,16 @@ interface Furnish {
   body: PhysicsBody | null;
   /** Die Station darauf, wenn es eine ist. */
   station: Station | null;
+  /**
+   * **Das Bild der Zutat auf dem Deckel**, wenn es eines trägt
+   * (`kitchenIcon.counterSign`) — oder `null`.
+   *
+   * Es hängt am Möbel und wird trotzdem hier gemerkt, weil es als Einziges
+   * daran die Drehung des Möbels **nicht** mitmachen darf: Ein Brötchen, das
+   * quer liegt, weil die Ausgabe quer steht, ist von oben kein Brötchen mehr
+   * (`aimIcon`).
+   */
+  icon: THREE.Object3D | null;
   /** Ob es gerade getragen wird — dann belegt es keine Kachel. */
   held: boolean;
   /**
@@ -770,6 +810,14 @@ export class KitchenZone implements TestZone {
     let belts = false;
     const tiles: BeltTile[] = [];
     for (const spot of this.stations) {
+      // **Was getragen wird, steht nicht in der Küche.** Ein Möbel in den
+      // Händen belegt keine Kachel (`stationAt` überspringt es schon), und als
+      // Band dürfte es erst recht nichts tun: Ein Zugband, das man aufhebt,
+      // zöge sonst weiter an der Kachel hinter seinem **alten** Platz und
+      // legte sich das Geholte in die Luft, wo es eben noch stand. Seit die
+      // Drehung eines getragenen Möbels der Blickrichtung folgt (`facePiece`),
+      // wanderte diese Kachel obendrein beim Umsehen mit.
+      if (spot.home.held) continue;
       // Welche Sorte Band das ist, steht am **Möbel** und nicht an der Station:
       // Für `A` sind beide dasselbe (`kitchenPlan.STATION_KINDS`), und eine
       // zwölfte Stationsart hätte in `kitchenDeed` Zeile für Zeile dasselbe
@@ -1015,7 +1063,7 @@ export class KitchenZone implements TestZone {
       ctx.avatar.carry = null;
       return;
     }
-    this.aimHeld(ctx);
+    this.aimHeld();
     if (ctx.renderer.xr.isPresenting) {
       // In der Brille tragen es die echten Hände nicht — dort hängt es eine
       // Handbreit vor der Brust, mittig und ruhig.
@@ -1033,65 +1081,92 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Ein getragenes Möbel zeigt schon in den Händen dorthin, wohin es zeigen
-   * wird** — in Weltrichtung und nicht in Tragerichtung.
+   * **Ein getragenes Möbel liegt in den Händen und dreht sich mit** — wie die
+   * Pfanne, wie der Teller, wie alles, was diese Figur trägt.
    *
-   * Das Möbel hängt am Rig (`liftPiece`), und das Rig dreht sich mit der Figur.
-   * Ein Band, das man in seiner eigenen Drehung ins Rig hängte, führe also mit
-   * jedem Schritt woandershin — und die Drehung, die man gerade eingestellt
-   * hat, wäre genau dann nicht mehr abzulesen, wenn man sich zum Bauplatz
-   * umdreht. Herausgerechnet wird deshalb der Gierwinkel des Rigs: Was übrig
-   * bleibt, ist die Richtung, in der es nachher steht.
+   * Es hängt am Rig (`liftPiece`), und das Rig dreht sich mit der Figur; hier
+   * steht deshalb **nur** noch der Versatz zur Figur (`Furnish.hold`, 0 heißt
+   * „Vorderseite von mir weg"). Wer sich umdreht, dreht das Möbel mit — es
+   * bleibt vor dem Bauch liegen, wie man es aufgenommen hat.
    *
-   * **Beim Band sieht das aus wie Mitdrehen**, und das ist kein Widerspruch:
-   * Seine Drehung folgt der Blickrichtung (`facePiece`), also zeigt es in den
-   * Händen immer von der Figur weg und wandert mit ihr herum — wie die Pfanne.
-   * Es springt dabei in Vierteln, weil es nachher in Vierteln steht; wer
-   * schräg läuft, sieht deshalb vorab, welche der beiden Richtungen es wird.
+   * **Hier wurde einmal der Gierwinkel des Rigs herausgerechnet**, damit ein
+   * getragenes Möbel in **Weltrichtung** stehen blieb: Man stellte mit dem
+   * Auslöser eine Himmelsrichtung ein und wollte sie beim Umdrehen zum
+   * Bauplatz nicht verlieren. Seit die Drehung der **Blickrichtung** folgt
+   * (`facePiece`), ist diese Rechnung genau verkehrt herum — sie hielt das
+   * Möbel starr in der Welt, während die Figur sich darunter wegdrehte, und
+   * das sah aus, als klebte es in der Luft statt in den Händen zu liegen.
    *
-   * Nur für **Möbel**. Ein getragener Teller hat keine Richtung, und ihn
-   * festzuhalten, während die Figur sich dreht, sähe aus, als klebte er in der
-   * Luft.
+   * Was dabei verloren geht, ist eine Viertelung: Die Figur schaut stufenlos,
+   * das Möbel steht nachher in Vierteln (`kitchenBuild.turnAhead`). In den
+   * Händen liegt es deshalb genau vor dem Bauch, und **welches** Viertel
+   * daraus wird, sagt der Umriss am Bauplatz und beim Band der Hinweis dazu.
+   *
+   * Nur für **Möbel**: Ein getragener Teller hat keine Richtung und hängt
+   * ohnehin ungedreht am Rig (`carryInHands`).
    */
-  private aimHeld(ctx: WorldContext): void {
+  private aimHeld(): void {
     const furnish = this.lifted;
     if (!furnish) return;
-    _look.setFromQuaternion(ctx.rig.getWorldQuaternion(_spin), 'YXZ');
-    furnish.model.rotation.set(0, (furnish.turn * Math.PI) / 2 - _look.y, 0);
+    furnish.model.rotation.set(0, (furnish.hold * Math.PI) / 2, 0);
   }
 
   /**
-   * **Ein getragenes Band zeigt dorthin, wohin die Figur zeigt** — und dreht
-   * sich mit ihr.
+   * **Das Bild der Zutat bleibt oben liegen, wie man es liest** — auch wenn
+   * das Möbel darunter quer steht.
    *
-   * Das ist der Handgriff, mit dem eine Bahn entsteht: Wer nach Süden schaut
-   * und absetzt, hat ein Band gebaut, das nach Süden schiebt
-   * (`kitchenBuild.turnAhead` rechnet aus der Blickrichtung die Vierteldrehung,
-   * und die ist zugleich die Laufrichtung, `kitchenBelt.beltStep`). Alle vier
-   * Richtungen sind damit ohne einen einzigen Knopfdruck zu haben — von oben
-   * zeigt die Figur dorthin, wohin sie läuft oder wohin die Maus zielt
-   * (`core/FlatControls.walkNorthUp`), aus den Augen und in der Brille dorthin,
-   * wohin der Kopf schaut.
+   * Die vier Ausgaben an der Westwand stehen gedreht (`KITCHEN_SPOTS`,
+   * `turn: 3`), und das Schild auf ihrem Deckel hängt am Möbel, machte die
+   * Drehung also mit: Von oben lagen Brötchen, Patty, Salat und Tomate auf der
+   * Seite. Seit jedes Möbel frei gedreht hingestellt werden kann, ist das kein
+   * Einzelfall mehr, sondern die Regel — also wird die Drehung des Möbels im
+   * Schild wieder herausgerechnet, statt sie an vier Stellen im Aufbau
+   * auszugleichen.
    *
-   * **Nur Möbel mit einer Laufrichtung**, also die Bänder (`beltKind`). Bei
-   * allem anderen ist die Drehung eine Frage der Grundfläche und nicht der
-   * Wirkung: Eine Ausgabetheke, die sich beim Vorbeigehen quer stellte, schöbe
-   * sich in das Möbel daneben und wäre nirgends mehr abzusetzen. Dort dreht
-   * weiterhin der Auslöser (`turnPiece`).
+   * **Nur das Bild, nicht das Möbel.** Eine Ausgabe hat eine Vorderseite (die
+   * Mulde, die Leisten) und darf ruhig quer stehen; ihr Schild ist eine
+   * Beschriftung, und Beschriftungen liest man in der Ansicht, in der gespielt
+   * wird (`core/TopDownCamera.ts`, Norden oben).
+   */
+  private aimIcon(furnish: Furnish): void {
+    if (!furnish.icon) return;
+    furnish.icon.rotation.y = (-furnish.turn * Math.PI) / 2;
+  }
+
+  /**
+   * **Ein getragenes Möbel zeigt dorthin, wohin die Figur zeigt** — jedes, und
+   * nicht mehr nur das Band.
    *
-   * Die Grundfläche wird trotzdem nachgeführt: Heute sind beide Bänder eine
-   * Kachel groß (`core/kitchenFit.KITCHEN_PIECES`), und ein Band, dessen
-   * Grundfläche beim ersten zweikachligen Modell an der Drehung von vorhin
-   * hinge, wäre der Fehler, den niemand mehr mit dieser Zeile in Verbindung
-   * brächte.
+   * Aus der Blickrichtung wird die Vierteldrehung (`kitchenBuild.turnAhead`),
+   * dazu kommt der Versatz, in dem es in den Händen liegt (`Furnish.hold`):
+   * `turn = Blickviertel + hold`. Damit gilt für jedes Möbel dasselbe wie
+   * bisher für das Band — wer nach Süden schaut und absetzt, stellt es nach
+   * Süden hin. Von oben zeigt die Figur dorthin, wohin sie läuft oder wohin
+   * die Maus zielt (`core/FlatControls.walkNorthUp`), aus den Augen und in der
+   * Brille dorthin, wohin der Kopf schaut.
+   *
+   * **Beim Band ist das die Laufrichtung** (`kitchenBelt.beltStep` hat
+   * dieselbe Reihenfolge), bei der Ausgabe die Seite mit der Mulde, beim Herd
+   * die Seite mit den Knöpfen. Vorher ließ sich nur das Band frei drehen und
+   * alles andere stand für immer so, wie es im Aufbau stand — eine Küche, in
+   * der man ein Möbel versetzen, aber nicht wenden kann, ist eine halb
+   * umgebaute Küche.
+   *
+   * **Die Grundfläche wird mitgeführt**, denn eine Spüle liegt quer anders als
+   * längs (`kitchenPlan.footprint`); der Umriss am Bauplatz zeigt es sofort.
+   * Und das Schild oben dreht sich **nicht** mit (`aimIcon`).
    */
   private facePiece(): void {
     const furnish = this.lifted;
-    if (!furnish || !beltKind(furnish.piece.name)) return;
-    const turn = turnAhead(_aim, furnish.turn);
+    if (!furnish) return;
+    // Ohne Richtung bleibt das Blickviertel, das schon gilt — also das, was
+    // aus Dreh- und Trageviertel übrig bleibt.
+    const keep = (((furnish.turn - furnish.hold) % 4) + 4) % 4;
+    const turn = ((turnAhead(_aim, keep as Turn) + furnish.hold) % 4) as Turn;
     if (turn === furnish.turn) return;
     furnish.turn = turn;
     furnish.size = footprint(furnish.piece, turn);
+    this.aimIcon(furnish);
   }
 
   /**
@@ -1242,11 +1317,13 @@ export class KitchenZone implements TestZone {
       x: spot.x,
       z: spot.z,
       turn,
+      hold: 0,
       size,
       model,
       box: null,
       body: null,
       station: null,
+      icon: null,
       held: false,
       usable: null,
     };
@@ -1259,7 +1336,7 @@ export class KitchenZone implements TestZone {
       return;
     }
     this.addBody(furnish);
-    this.addIcon(model, piece, spot);
+    this.addIcon(furnish);
     this.addStation(furnish, foot, takeUtensil);
   }
 
@@ -1415,7 +1492,8 @@ export class KitchenZone implements TestZone {
    * steht eine Ausgabe ohne Schild da, gibt aber genauso aus. Ein Schild, das
    * eine Welt zum Stehen bringt, wäre der teuerste Zierrat der Küche.
    */
-  private addIcon(model: THREE.Object3D, piece: KitchenPiece, spot: Spot): void {
+  private addIcon(furnish: Furnish): void {
+    const { model, piece, spot } = furnish;
     const gives = spot.gives;
     const oven = this.oven;
     if (!gives || !oven) return;
@@ -1444,6 +1522,10 @@ export class KitchenZone implements TestZone {
     // sich aus beiden Richtungen als Ausgabe (`kitchenIcon.counterSign`).
     holder.add(oven.counterSign(texture, { piece }));
     model.add(holder);
+    // Das Schild macht die Drehung des Möbels **nicht** mit: Es wird von oben
+    // gelesen, und dort liegt Norden oben (`aimIcon`).
+    furnish.icon = holder;
+    this.aimIcon(furnish);
   }
 
   /**
@@ -2132,65 +2214,58 @@ export class KitchenZone implements TestZone {
     this.lifted = furnish;
     this.dropBody(furnish);
     if (this.rig) this.rig.add(furnish.model);
-    // Wie herum es in den Händen liegt, rechnet `aimHeld` in jedem Bild — es
-    // zeigt dorthin, wohin es nachher zeigt. **Womit** man das einstellt, ist
-    // je Möbel verschieden, und der Satz sagt genau das eine, das hier gilt:
-    // ein Band folgt dem Blick (`facePiece`), alles andere dem Auslöser
-    // (`turnPiece`).
-    world.notify(
-      beltKind(furnish.piece.name)
-        ? `${furnish.piece.label} aufgenommen — es zeigt dorthin, wohin du zeigst`
-        : `${furnish.piece.label} aufgenommen — der Auslöser dreht es`,
-    );
+    // **Aufgenommen wird mit der Vorderseite nach vorn.** Jedes Möbel liegt
+    // gleich in den Händen, egal wie es vorher stand — sonst müsste man erst
+    // herausfinden, wie herum man es gerade trägt, um zu wissen, wie es
+    // hinkommt. Wohin es zeigt, rechnet `facePiece` gleich aus der
+    // Blickrichtung; wie es in den Händen liegt, `aimHeld`.
+    furnish.hold = 0;
+    this.facePiece();
+    this.aimHeld();
+    world.notify(`${furnish.piece.label} aufgenommen — der Auslöser wendet es`);
     this.refreshStations();
     return true;
   }
 
   /**
-   * **Eine Vierteldrehung weiter** — das Möbel in der Hand zeigt woandershin.
+   * **Eine Vierteldrehung weiter — in den Händen.**
    *
-   * Das ist der Handgriff, ohne den ein Möbel nur in der Richtung steht, in der
-   * es im Aufbau steht. Aufheben und woanders hinstellen konnte der Umbau
-   * schon; **wie herum** blieb, wie es war.
+   * Wohin ein Möbel zeigt, sagt die Blickrichtung (`facePiece`), und das reicht
+   * für fast alles: Man stellt es dorthin, wohin man schaut. Was damit **nicht**
+   * geht, ist das Möbel, das quer zur Laufrichtung stehen soll — die Ausgabe
+   * an der Westwand, deren Mulde nach Osten zeigt, während man die Reihe von
+   * Norden nach Süden entlangläuft. Dafür ist dieser Griff da: Er dreht nicht
+   * die Welt, sondern die Art, wie das Möbel **vor dem Bauch liegt**
+   * (`Furnish.hold`) — und weil die Weltdrehung daraus gerechnet wird, bleibt
+   * der Versatz erhalten, wenn man sich umdreht.
    *
-   * **Bänder dreht er nicht mehr**, und das ist die Änderung an dieser Stelle.
-   * Sie zeigen von selbst dorthin, wohin die Figur zeigt (`facePiece`), also
-   * wäre jede Vierteldrehung im nächsten Bild wieder überschrieben — ein Knopf,
-   * der einen Wimpernschlag lang etwas tut, ist schlimmer als keiner. Hier
-   * stand lange das Gegenteil: dass die Blickrichtung nicht tauge, weil der
-   * Bauplatz die Kachel **vor** der Figur ist (`kitchenBuild.tileAhead`) und
-   * man zum Verlängern einer Südbahn nördlich davon stehen müsste, wo schon das
-   * Band von eben steht. Das stimmt für die **Füße** und nicht für den
-   * **Blick**: Von oben zielt die Maus — und am Pad der rechte Stock —
-   * unabhängig davon, wohin gelaufen wird (`core/FlatControls.aimYaw`). Man
-   * läuft die Bahn also rückwärts entlang und hält den Zeiger dorthin, wohin
-   * sie schieben soll; um die Ecke geht sie, indem man den Zeiger dreht.
+   * Hier stand einmal das Gegenteil: dass die Blickrichtung nicht tauge, weil
+   * der Bauplatz die Kachel **vor** der Figur ist (`kitchenBuild.tileAhead`)
+   * und man zum Verlängern einer Südbahn nördlich davon stehen müsste, wo
+   * schon das Band von eben steht. Das stimmt für die **Füße** und nicht für
+   * den **Blick**: Von oben zielt die Maus — und am Pad der rechte Stock —
+   * unabhängig davon, wohin gelaufen wird (`core/FlatControls.aimYaw`).
    *
-   * Für alles andere bleibt der **Auslöser**: in der Brille der Trigger der
-   * rechten Hand, von oben die linke Maustaste, `RT` am Pad und der rote Knopf
-   * auf dem Glas. Er ist im Umbau frei, und zwar mit Sicherheit: Wer ein Möbel
-   * trägt, trägt keinen Feuerlöscher — das Anschalten räumt die Hände
-   * (`toggleEdit`), und nur ein gehaltener Löscher pustet (`kitchenSpray.sprayOn`).
+   * Gedreht wird mit dem **Auslöser**: in der Brille der Trigger der rechten
+   * Hand, von oben die linke Maustaste, `RT` am Pad und der rote Knopf auf dem
+   * Glas. Er ist im Umbau frei, und zwar mit Sicherheit: Wer ein Möbel trägt,
+   * trägt keinen Feuerlöscher — das Anschalten räumt die Hände (`toggleEdit`),
+   * und nur ein gehaltener Löscher pustet (`kitchenSpray.sprayOn`).
    *
-   * Zu sehen ist die Drehung sofort und an zwei Stellen: Das Möbel in den
-   * Händen dreht sich mit, und zwar in **Weltrichtung** (`carryInHands`), und
-   * der Satz am Handgelenk nennt die Himmelsrichtung. Ein Möbel, dessen
-   * Richtung man erst nach dem Absetzen sähe, wäre eines, das man dreimal
-   * absetzt.
+   * **Der Satz nennt die Seite und nicht die Himmelsrichtung**, denn die
+   * ändert sich beim nächsten Schritt wieder: „nach links" bleibt „nach
+   * links", auch wenn man sich zum Bauplatz umdreht. Was in der Welt daraus
+   * wird, zeigt das Möbel in den Händen und, beim Band, der Hinweis am
+   * Bauplatz.
    */
   private turnPiece(): boolean {
     const world = this.world;
     const furnish = this.lifted;
     if (!world || !furnish) return false;
-    // Ein Band **folgt** dem Blick; ein Druck sagt hier deshalb, wie es geht,
-    // statt eine Drehung zu setzen, die eine Millisekunde später verfällt.
-    if (beltKind(furnish.piece.name)) {
-      world.notify(`${furnish.piece.label} zeigt dorthin, wohin du zeigst`);
-      return true;
-    }
-    furnish.turn = ((furnish.turn + 1) % 4) as Turn;
-    furnish.size = footprint(furnish.piece, furnish.turn);
-    world.notify(`${furnish.piece.label} zeigt nach ${TURN_LABELS[furnish.turn]}`);
+    furnish.hold = ((furnish.hold + 1) % 4) as Turn;
+    this.facePiece();
+    this.aimHeld();
+    world.notify(`${furnish.piece.label}: Vorderseite ${HOLD_LABELS[furnish.hold]}`);
     return true;
   }
 
@@ -2247,6 +2322,7 @@ export class KitchenZone implements TestZone {
     this.lifted = null;
     world.root.add(furnish.model);
     const foot = this.standAt(furnish);
+    this.aimIcon(furnish);
     this.addBody(furnish);
     const station = furnish.station;
     if (station) {

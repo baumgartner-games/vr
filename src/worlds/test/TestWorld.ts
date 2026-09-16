@@ -3,6 +3,7 @@ import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
 import { createSky } from '../shared/environment';
+import { DustTrail } from '../shared/dustTrail';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
@@ -57,6 +58,17 @@ export class TestWorld extends GridWorld {
     this.climb,
     this.kitchen,
   ];
+
+  /**
+   * **Der Staub hinter der Figur** (`shared/dustTrail.ts`) — die Spur, an der
+   * man von oben sieht, dass sie läuft.
+   *
+   * Er hängt an der **Welt** und nicht an der Küche, obwohl das Vorbild dort
+   * steht (_Overcooked_): Gestaubt wird, wo gelaufen wird, und gelaufen wird
+   * auf dem ganzen Gelände. Eine Spur, die an der Kachelgrenze der Küche
+   * anfinge, wäre ein Effekt, dessen Regel man erraten müsste.
+   */
+  private dust: DustTrail | null = null;
 
   protected override worldId(): string {
     return 'test';
@@ -208,11 +220,31 @@ export class TestWorld extends GridWorld {
     if (!ctx || !this.physics) return;
     const host = this.zoneHost();
     for (const zone of this.zones) zone.build(ctx, host);
+    this.dust ??= new DustTrail(this.root);
   }
 
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     for (const zone of this.zones) zone.update?.(dt, ctx);
+    this.trailDust(dt, ctx);
+  }
+
+  /**
+   * **Wo die Füße stehen und ob sie gehen** — mehr braucht die Spur nicht.
+   *
+   * Die Füße sind nicht `rig.position`: Das Gestell sinkt beim Ducken, der
+   * Boden tut es nicht (`PlayerRig.getFloorY`). Und gelaufen wird nur zu Fuß —
+   * `wishing` ist der eine Merker, den alle vier Steuerungen setzen (Brille,
+   * Maus, Pad, Bordstock), `seated` schließt das Kart aus. Wer im Kart sitzt,
+   * fährt; sein Staub käme von den Reifen und nicht von den Schuhen, und den
+   * gibt es hier (noch) nicht.
+   */
+  private trailDust(dt: number, ctx: WorldContext): void {
+    const dust = this.dust;
+    if (!dust) return;
+    const rig = ctx.rig;
+    _feet.set(rig.position.x, rig.getFloorY(), rig.position.z);
+    dust.update(dt, _feet, rig.wishing && rig.seated <= 0.01);
   }
 
   /** `B`/`Y`: Karts in die Box, Kisten und Scheiben zurück, Hände auf. */
@@ -293,6 +325,8 @@ export class TestWorld extends GridWorld {
 
   override dispose(ctx: WorldContext): void {
     for (const zone of this.zones) zone.dispose();
+    this.dust?.dispose();
+    this.dust = null;
     super.dispose(ctx);
   }
 
@@ -373,3 +407,6 @@ export class TestWorld extends GridWorld {
     );
   }
 }
+
+/** Einer für alle: Wer je Bild einen Vektor baut, baut je Bild einen Vektor. */
+const _feet = new THREE.Vector3();

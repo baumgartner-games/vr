@@ -5226,7 +5226,18 @@ Und das sind die Regeln, die darin stehen:
   damit ist es **langsamer als Laufen** (2,6 m/s): Ein Band kauft keine Zeit,
   es kauft **Hände**. Wohin geschoben wird, sagen wandernde Sparren und nicht
   ein aufgemalter Pfeil — ein stehender Pfeil ist eine Beschriftung, ein
-  laufender ist die Maschine selbst. Am Ende der Reihe steht eine Ablage
+  laufender ist die Maschine selbst. **Der Trog nimmt die ganze Kachel ein**, und
+  das ist eine Korrektur, die man erst sieht, wenn die Küche steht: Er war
+  72 cm breit, links und rechts blieb ein Streifen heller Platte stehen — und
+  vier Bänder in einem Quadrat von zwei mal zwei Kacheln, jedes um eine
+  Vierteldrehung versetzt, sind damit vier dunkle Rechtecke um eine Mitte mit
+  hellen Fugen dazwischen: ein **Hakenkreuz**, gebaut aus der Fuge und nicht
+  aus dem Pfeil. Seit der Umbau jede Drehung erlaubt, legt das früher oder
+  später jemand. Über die volle Kachel gibt es den hellen Streifen nicht mehr,
+  und dieselben vier Kacheln sind eine dunkle Fläche mit acht Pfeilen darauf.
+  Die **Sparren** bleiben, wie sie waren, und laufen weiter auf 72 cm
+  (`ARROW_WIDE`) — ein Pfeil, den man auf einen Meter zieht, ist ein
+  breitgedrückter Pfeil. Am Ende der Reihe steht eine Ablage
   (`beltStep` sagt, an welche Kachel weitergereicht wird).
 - **Und daneben das Zugband** (`belt-pull`, `BeltTile.pull`): dasselbe Möbel,
   dieselbe Höhe, dieselbe Kachel — es holt sich obendrein **von selbst**, was
@@ -5331,41 +5342,50 @@ Und das sind die Regeln, die darin stehen:
   Schritt um zwei Felder. Beim Anschalten wandern die Hände frei, denn wer mit
   einem Teller in der Hand umzubauen anfängt, hätte ein Möbel **und** einen
   Teller darin.
-  **Gedreht wird je nach Möbel verschieden**, und der Unterschied ist die
-  Wirkrichtung. Ein **Förderband** zeigt dorthin, **wohin die Figur zeigt**
-  (`facePiece`, `kitchenBuild.turnAhead`): Wer nach Süden schaut und absetzt,
-  hat ein Band gebaut, das nach Süden schiebt (`beltStep`, dieselbe
-  Reihenfolge), und damit sind alle vier Richtungen ohne einen einzigen
-  Knopfdruck zu haben. Gerundet wird auf die nähere der beiden Achsen, und
-  genau auf der Diagonale gewinnt Nord-Süd — damit dieselbe Richtung immer
-  dieselbe Drehung ergibt und das Band in der Hand nicht zwischen zwei
-  Richtungen flackert. Hier stand lange das Gegenteil: dass die Blickrichtung
-  nicht tauge, weil der Bauplatz die Kachel **vor** der Figur ist und man zum
-  Verlängern einer Südbahn nördlich davon stehen müsste, wo schon das Band von
-  eben steht. Das stimmt für die **Füße** und nicht für den **Blick** — von
-  oben zielt die Maus (am Pad der rechte Stock) unabhängig davon, wohin
-  gelaufen wird (`FlatControls.aimYaw`): Man läuft die Bahn rückwärts entlang
-  und hält den Zeiger dorthin, wohin sie schieben soll; um die Ecke geht sie,
-  indem man den Zeiger dreht.
-  **Alles ohne Laufrichtung dreht weiterhin der Auslöser** um eine
-  Vierteldrehung (`turnPiece`) — in der Brille der Trigger der rechten Hand,
-  von oben die linke Maustaste, `RT` am Pad und der rote Knopf auf dem Glas; im
-  Umbau ist er mit Sicherheit frei, denn wer ein Möbel trägt, trägt keinen
-  Feuerlöscher. Ein **Band** dreht er nicht mehr, sondern sagt, woran es liegt:
-  Seine Vierteldrehung wäre im nächsten Bild wieder überschrieben. Umgekehrt
-  darf eine Theke dem Blick nicht folgen — zwei Kacheln, die sich beim
-  Vorbeigehen quer stellen, schöben sich ins Möbel daneben und wären nirgends
-  mehr abzusetzen.
-  Das getragene Möbel dreht sich dabei sofort mit, und zwar in
-  **Weltrichtung** (`aimHeld`): Wer sich zum Bauplatz umdreht, soll die
-  Richtung, die er gerade eingestellt hat, nicht verlieren. Beim Band sieht
-  genau das aus wie Mitdrehen — seine Weltrichtung **ist** die Blickrichtung,
-  also zeigt es in den Händen immer von der Figur weg, wie die Pfanne, nur eben
-  in Vierteln springend. Der Hinweis am Bauplatz nennt die Himmelsrichtung
-  („Förderband nach Süden absetzen"), damit die Laufrichtung vor dem Absetzen
-  dasteht und nicht erst danach. `B`/`Y` stellt es
-  zurück an seinen alten Platz **und in seine alte Drehung** — quer gedreht in
-  eine Lücke gezwängt, in der es längs stand, schöbe es sich ins Möbel daneben.
+  **Gedreht wird mit dem Blick, und zwar jedes Möbel** (`facePiece`,
+  `kitchenBuild.turnAhead`): Was in den Händen liegt, zeigt dorthin, wohin die
+  Figur zeigt — wer nach Süden schaut und absetzt, stellt es nach Süden hin.
+  Beim **Förderband** ist das zugleich die Laufrichtung (`beltStep` hat
+  dieselbe Reihenfolge), bei der **Ausgabe** die Seite mit der Mulde, beim
+  **Herd** die Seite mit den Knöpfen. Gerundet wird auf die nähere der beiden
+  Achsen, und genau auf der Diagonale gewinnt Nord-Süd — damit dieselbe
+  Richtung immer dieselbe Drehung ergibt und nichts flackert. Hier stand lange
+  das Gegenteil: dass die Blickrichtung nicht tauge, weil der Bauplatz die
+  Kachel **vor** der Figur ist und man zum Verlängern einer Südbahn nördlich
+  davon stehen müsste, wo schon das Band von eben steht. Das stimmt für die
+  **Füße** und nicht für den **Blick** — von oben zielt die Maus (am Pad der
+  rechte Stock) unabhängig davon, wohin gelaufen wird (`FlatControls.aimYaw`):
+  Man läuft die Bahn rückwärts entlang und hält den Zeiger dorthin, wohin sie
+  schieben soll; um die Ecke geht sie, indem man den Zeiger dreht.
+  **Der Auslöser dreht dazu, wie es in den Händen liegt** (`turnPiece`,
+  `Furnish.hold`) — in der Brille der Trigger der rechten Hand, von oben die
+  linke Maustaste, `RT` am Pad und der rote Knopf auf dem Glas; im Umbau ist er
+  mit Sicherheit frei, denn wer ein Möbel trägt, trägt keinen Feuerlöscher. Er
+  dreht **nicht** die Welt, sondern den Versatz zur Figur, und die Weltdrehung
+  wird daraus gerechnet (`turn = Blickviertel + hold`). Der Unterschied ist
+  der Fall, für den es ihn gibt: die Ausgabe an der Westwand, deren Mulde nach
+  Osten zeigen soll, während man die Reihe von Norden nach Süden entlangläuft.
+  Eine Weltdrehung wäre im nächsten Bild von der Blickrichtung überschrieben;
+  ein Versatz zur Figur bleibt, auch wenn sie sich umdreht — deshalb nennt der
+  Satz dazu die Seite („Vorderseite nach links") und nicht die
+  Himmelsrichtung.
+  **Das getragene Möbel dreht sich mit der Figur** (`aimHeld`), wie die Pfanne
+  und wie der Teller: Es hängt am Rig, und im Netz steht nur noch der Versatz.
+  Hier wurde einmal der Gierwinkel des Rigs **herausgerechnet**, damit ein
+  getragenes Möbel in Weltrichtung stehen blieb — seit die Drehung dem Blick
+  folgt, hielt diese Rechnung das Möbel starr in der Welt, während die Figur
+  sich darunter wegdrehte, und das sah aus, als klebte es in der Luft. Der
+  Hinweis am Bauplatz nennt beim Band die Himmelsrichtung („Förderband nach
+  Süden absetzen"), damit die Laufrichtung vor dem Absetzen dasteht und nicht
+  erst danach. `B`/`Y` stellt es zurück an seinen alten Platz **und in seine
+  alte Drehung** — quer gedreht in eine Lücke gezwängt, in der es längs stand,
+  schöbe es sich ins Möbel daneben.
+  **Das Schild auf dem Deckel dreht sich als Einziges nicht mit** (`aimIcon`):
+  Es wird von oben gelesen, und dort liegt Norden oben. Die vier Ausgaben an
+  der Westwand stehen gedreht (`turn: 3`), und ihre Bilder lagen deshalb auf
+  der Seite — ein Brötchen im Profil ist kein Brötchen. Die Zone rechnet die
+  Drehung des Möbels im Schild wieder heraus, und weil das an `Furnish.turn`
+  hängt, gilt es auch für jedes Möbel, das gerade frei gedreht wird.
   Und dazu kommt ein neuer Punkt im Zonenvertrag:
   **`ZoneHost.removeSolid`** (`zones/zone.ts`). Ohne ihn bliebe die alte Sperre
   stehen, wo nichts mehr steht — eine unsichtbare Wand auf einer leeren Kachel,
@@ -5644,6 +5664,25 @@ aus einem halben Meter Abstand rund 90° freies Blickfeld lässt. Die Mitte des
 Bildes bleibt vollständig, außen wird es dunkel — und genau dort, am Bildrand,
 ist die schnelle Bewegung, von der einem schlecht wird. Beide haben außer dem
 Namen nichts miteinander zu tun, und deshalb sind es zwei Funktionen.
+
+**Und hinter ihr staubt es** (`worlds/shared/dustTrail.ts`, `DustTrail`). Aus
+16 m Höhe ist eine rennende Figur eine Figur, die ein Stück weiter oben ist als
+eben; woran man sieht, dass sie rennt, ist die Spur dahinter — bei _Overcooked_
+ist der Staub hinter dem Koch deshalb kein Zierrat, sondern die Auskunft über
+das Tempo. Gemessen wird am **Weg** und nicht an der Zeit (`dustDue`, mit
+Test): Alle 35 cm steigt ein Wölkchen auf, also staubt es beim Rennen dicht,
+beim Schleichen selten und im Stehen gar nicht. Wer in einem Bild weiter kommt
+als `DUST_JUMP` (1,2 m), ist **versetzt** worden — Portal, Sprungmenü,
+Sturzrettung —, und dann staubt es überhaupt nicht: Eine Spur entlang einer
+Strecke, die niemand gelaufen ist, wäre eine Lüge. Gebaut ist der Effekt wie der
+Löschnebel in der Küche (`SprayJet`: geteilte Form, ein Material, Felder fester
+Länge, und wer nichts zeigt, kostet nichts), und die Wölkchen hängen in der
+**Welt** und nicht an der Figur — was ausgestoßen ist, bleibt liegen, sonst
+zöge man es hinter sich her wie einen Schal. Angehängt wird die Spur in der
+Testwelt (`TestWorld.trailDust`) und nicht in der Küche: Gestaubt wird, wo
+gelaufen wird, und gelaufen wird auf dem ganzen Gelände. Nur zu Fuß —
+`PlayerRig.wishing` ist der Merker, den alle vier Steuerungen setzen, und
+`seated` schließt das Kart aus.
 
 ### Die Karte in der Hand
 

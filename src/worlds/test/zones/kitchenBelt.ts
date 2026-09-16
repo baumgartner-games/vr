@@ -702,16 +702,46 @@ const BODY_HEIGHT = Math.max(0.1, BELT_HEIGHT - TOP_THICK - BAND_THICK - BAND_LI
  *
  * Der Korpus bleibt 2 cm hinter der Kachel zurück, damit zwischen zwei Bändern
  * eine Fuge steht und nicht eine durchgehende Wand; die Platte nimmt die
- * Kachel voll ein, damit zwei Platten sich berühren. Das Laufband ist 72 cm
- * breit — schmal genug, dass links und rechts sichtbar Platte bleibt, breit
- * genug für einen Teller (75 cm Durchmesser, `kitchenProps.PLATE_RADIUS`), der
- * ihn also gerade überdeckt. Und **über die volle Kachel lang**, damit zwei
- * Bänder hintereinander ein Band ergeben und keine zwei Bänder.
+ * Kachel voll ein, damit zwei Platten sich berühren.
+ *
+ * **Der Trog nimmt sie ebenfalls voll ein, und das ist eine Korrektur.** Er
+ * war 72 cm breit und einen Meter lang, damit links und rechts von ihm ein
+ * Streifen heller Platte stehen blieb — eine schöne Kante, solange alle Bänder
+ * einer Küche in dieselbe Richtung zeigen. Seit der Umbau jede Drehung
+ * erlaubt, legt früher oder später jemand vier Bänder in einem Quadrat von
+ * zwei mal zwei Kacheln in alle vier Richtungen, und dann stehen vier dunkle
+ * Rechtecke um eine Mitte, jedes um eine Vierteldrehung versetzt, mit hellen
+ * Streifen dazwischen: ein **Hakenkreuz**, gebaut aus der Fuge und nicht aus
+ * dem Pfeil. Ein Spiel, in dem man dieses Zeichen bauen kann, ohne es zu
+ * wollen, hat ein Problem, und es ist keins, das man wegerklärt.
+ *
+ * Über die volle Kachel gibt es den hellen Streifen nicht mehr: Vier Bänder
+ * über Kreuz sind eine dunkle Fläche mit acht Pfeilen darauf, und zwei Bänder
+ * hintereinander sind ohnehin schon immer **ein** Band gewesen und nicht zwei.
+ * Die Platte bleibt darunter liegen und ist weiter die Kante, die man aus
+ * Augenhöhe sieht — nur von oben verdeckt der Trog sie jetzt, und genau das
+ * ist der Zweck.
  */
 const BODY_SIDE = TILE - 0.04;
 const TOP_SIDE = TILE;
-const BAND_WIDE = 0.72;
+const BAND_WIDE = TILE;
 const BAND_LONG = TILE;
+
+/**
+ * **Wie breit die Sparren laufen**, in Metern — 72 cm, das Maß des alten
+ * Trogs.
+ *
+ * Der Trog geht über die ganze Kachel, die **Pfeile** tun es nicht: Sie sind
+ * ein Bild auf dem Band (`arrows`, mit der Farbe des Trogs als Grund), und ein
+ * Bild, das man von 72 cm auf einen Meter zieht, ist ein breitgedrückter
+ * Pfeil. 72 cm sind außerdem knapp der Teller (75 cm Durchmesser,
+ * `kitchenProps.PLATE_RADIUS`), der sie beim Fahren gerade überdeckt — die
+ * Zahl war für die Fracht gedacht und bleibt es.
+ *
+ * Und der **Greifer** des Zugbands ist genauso breit: Er gehört zu den
+ * Sparren, nicht zum Trog.
+ */
+const ARROW_WIDE = 0.72;
 
 /**
  * **Die Farben.**
@@ -883,7 +913,7 @@ export class BeltKit {
       // dorthin, wohin das Band schiebt. Der Sparren auf der Leinwand zeigt
       // nach oben, und „oben" ist bei `flipY` (der Voreinstellung) v = 1.
       this.shape('arrows', () =>
-        new THREE.PlaneGeometry(BAND_WIDE, BAND_LONG).rotateX(-Math.PI / 2),
+        new THREE.PlaneGeometry(ARROW_WIDE, BAND_LONG).rotateX(-Math.PI / 2),
       ),
       this.skin(`arrows:${kind}`, chevrons ? 0xffffff : BAND_COLOR, 0.95, chevrons),
     );
@@ -899,7 +929,7 @@ export class BeltKit {
     // also kommt von +z herein, was es sich holt.
     if (kind === 'pull') {
       const mouth = new THREE.Mesh(
-        this.shape('mouth', () => new THREE.BoxGeometry(BAND_WIDE, MOUTH_THICK, MOUTH_LONG)),
+        this.shape('mouth', () => new THREE.BoxGeometry(ARROW_WIDE, MOUTH_THICK, MOUTH_LONG)),
         this.skin('mouth', new THREE.Color(BELT_COLORS.pull).getHex(), 0.6),
       );
       mouth.position.set(0, BELT_HEIGHT, (BAND_LONG - MOUTH_LONG) / 2);
