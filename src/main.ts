@@ -23,6 +23,8 @@ import {
   toggleFullscreen,
 } from './core/fullscreen';
 import { showScreenPads } from './core/screenPads';
+import { INSTALL_TEXT } from './core/install';
+import { registerServiceWorker, watchInstall } from './core/pwa';
 import { graphics, onGraphicsChange } from './core/graphicsSettings';
 import { firstGamepad } from './core/gamepad';
 
@@ -613,6 +615,43 @@ if (canFullscreen) {
   onFullscreenChange(document, showFullscreen);
   showFullscreen();
 }
+
+/**
+ * **Die Spielwiese als App ablegen** — der Block unter den Verweisen.
+ *
+ * Er gehört neben das Vollbild darüber, denn es ist dieselbe Frage von der
+ * anderen Seite: Auf dem iPhone gibt es Vollbild *nur* so. Was angezeigt
+ * wird, rechnet `core/install.ts`; hier steht nur, welches Element das dann
+ * ist. Der Knopf verschwindet, sobald installiert wurde — ein zweites Mal
+ * annehmen lässt sich ein Angebot nicht.
+ */
+const installBox = document.querySelector<HTMLElement>('#install')!;
+const installButton = document.querySelector<HTMLButtonElement>('#install-btn')!;
+const installHint = document.querySelector<HTMLElement>('#install-hint')!;
+const installOffer = watchInstall((state) => {
+  installBox.hidden = state === 'installed' || state === 'none';
+  installButton.hidden = state !== 'prompt';
+  installHint.textContent = INSTALL_TEXT[state];
+});
+installButton.addEventListener('click', () => {
+  void installOffer.install().then((done) => {
+    if (!done) return;
+    // Der Block hat sich mit dem angenommenen Angebot selbst abgemeldet
+    // (nichts mehr anzubieten) — für diesen einen Satz kommt er zurück, sonst
+    // stünde die Antwort auf den Klick in einem versteckten Absatz.
+    installHint.textContent = 'Fertig — die Spielwiese liegt jetzt auf dem Startbildschirm.';
+    installBox.hidden = false;
+  });
+});
+
+/**
+ * Und der Service Worker dahinter (`src/sw.ts`): Er macht aus der Seite die
+ * App, die auch ohne Netz startet — und er ist die Bedingung dafür, dass ein
+ * Browser das Installieren überhaupt anbietet. Angemeldet wird erst, wenn die
+ * Seite steht: Beim Start ist jedes Byte für die Welt da und nicht für den
+ * Speicher von übermorgen.
+ */
+window.addEventListener('load', registerServiceWorker);
 
 window.addEventListener('hashchange', () => {
   const id = window.location.hash.slice(1);

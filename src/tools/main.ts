@@ -10,6 +10,7 @@ import { BRAINS } from '../worlds/npc/npcBrains';
 import { NpcBody } from '../worlds/npc/NpcBody';
 import { createBrainShape } from '../worlds/npc/brainShape';
 import { WORLDS } from '../worlds';
+import { registerServiceWorker } from '../core/pwa';
 import { buildGate, spinGate } from '../worlds/hub/gate';
 import { drawMenuIcon, type MenuIcon } from '../ui/menu';
 import {
@@ -2193,3 +2194,7 @@ function showOverview(section: Section): void {
   // Kacheln — und deshalb steht er hier und nicht in `route`.
   showLive(section === 'live');
 }
+
+// Auch diese Seite gehört zur App: Der Service Worker gilt für das ganze
+// Verzeichnis, und wer hier zuerst landet, soll ihn mitbringen (`core/pwa.ts`).
+window.addEventListener('load', registerServiceWorker);

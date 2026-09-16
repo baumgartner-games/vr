@@ -637,7 +637,16 @@ man in ihr steht, ist eine Falle und kein Schalter) und der **alte Build**
 (`core/staleBuild.ts` — die drei Sätze, mit denen die drei Browser-Familien
 ein nicht mehr vorhandenes Modul melden, wörtlich, damit ein Tippfehler in der
 Liste auffällt und nicht erst dann, wenn nach einem Deploy niemand mehr die
-Welt wechseln kann; und die Bremse, die daraus höchstens _ein_ Neuladen macht).
+Welt wechseln kann; und die Bremse, die daraus höchstens _ein_ Neuladen macht),
+die **Wege des Service Workers** (`core/swRoutes.ts` — welche Anfrage aus dem
+Speicher kommt, welche erst ins Netz geht und welche er gar nicht anfasst; ein
+Fehler darin sieht nicht aus wie ein Fehler, sondern wie eine alte Welt, die
+nicht weggeht, und deshalb steht die Entscheidung in einer Funktion und nicht
+in einem Ereignis) und **wann das Installieren angeboten wird**
+(`core/install.ts` — dass ein iPad, das sich als Macintosh ausgibt, an seinen
+Berührungspunkten zu erkennen ist, und dass niemand gefragt wird, der die
+Spielwiese längst installiert hat; ein iPhone steht nicht in der CI, ein
+Kennstring ist alles, was man von ihm hat).
 
 Diese Module kommen bewusst ohne three.js und ohne Rapier aus, deshalb braucht
 Jest weder WebGL noch WebXR noch wasm.
@@ -4416,7 +4425,11 @@ src/
              dem geteilten Zustand der Props und Portale)
              — darin `npc/`, alles, was in einer Welt herumläuft: Haut, Hirn,
              Körper und der Regisseur, der sie zusammenhält
-tools/     Kommandozeile: `npm run config` liest und schreibt Konfig-Codes
+  sw.ts      Der Service Worker — kein Modul der Seite, sondern ein eigenes
+             Programm neben ihr (`vite.config.ts`, eigener Einstiegspunkt);
+             er entscheidet nichts selbst, das tut `core/swRoutes.ts`
+tools/     Kommandozeile: `npm run config` liest und schreibt Konfig-Codes,
+           `npm run icons` macht aus `public/icon.svg` die App-Symbole
 ```
 
 Wie sich der Spieler bewegt, entscheidet ein austauschbares `Locomotion`:
@@ -7935,9 +7948,10 @@ funktioniert, steht im Kopf von `index.html`:
 `apple-mobile-web-app-capable` und ein Web-App-Manifest mit
 `display: fullscreen` (`public/manifest.webmanifest`). _Zum Home-Bildschirm
 hinzufügen_, und die Seite startet ohne Adresszeile und ohne Systemleiste —
-auf Android genauso, nur heißt es dort _installieren_. Die Pfade im Manifest
-sind **relativ**, damit sie auf GitHub Pages unter `/<repo>/` stimmen; den
-`href` des `<link>` schreibt Vite selbst auf die Basis um.
+auf Android genauso, nur heißt es dort _installieren_. Was alles dazugehört,
+damit das mehr ist als ein Vollbildersatz — Symbole, Service Worker, der Knopf
+auf der Startseite —, steht unter
+[Die Seite als App](#die-seite-als-app-manifest-symbole-service-worker).
 
 Das API dafür ist zwei Zeilen, und die zwei Zeilen sind der Grund für
 `core/fullscreen.ts`: **Es gibt sie doppelt.** Safari und die WebKit-Browser der
@@ -7961,6 +7975,155 @@ verfehlt, für die er gedacht war. Drei Entscheidungen dazu:
   liefert den Stand _nach_ dem Umschalten und nicht den Wunsch: Vollbild ist
   eine Bequemlichkeit, und eine Bequemlichkeit, die eine Ausnahme in die Konsole
   schreibt, hat niemandem geholfen.
+
+### Die Seite als App: Manifest, Symbole, Service Worker
+
+**Die Spielwiese lässt sich installieren** — auf dem Telefon, am Schreibtisch
+und in der Brille —, und danach ist sie eine App mit eigenem Symbol, eigenem
+Fenster und einem Start, der kein Netz braucht. Das ist keine zweite Fassung
+des Projekts, sondern dieselbe Seite mit vier Zutaten: einem Manifest, Symbolen
+als PNG, einem Service Worker und einem Knopf, der nur dasteht, wo er etwas
+bewirkt.
+
+Der Anlass steht einen Abschnitt weiter oben: **Auf dem iPhone ist das
+Installieren der einzige Weg zum Vollbild.** Alles andere kam dazu, weil es
+ohnehin danebenlag.
+
+#### Das Manifest (`public/manifest.webmanifest`)
+
+Es lag schon da, als es nur um Vollbild ging, und ist jetzt vollständig:
+`display: fullscreen` mit `standalone` als Rückfall, Hintergrund- und
+Themenfarbe wie in `style.css`, dazu **Symbole als PNG** und drei
+**Kurzbefehle** (Haunting, Werkzeuge, Eingaben — auf Android das lange
+Antippen des Symbols).
+
+Zwei Entscheidungen darin sind es wert, aufgeschrieben zu werden:
+
+- **Alle Pfade sind relativ** (`start_url: "."`, `scope: "."`, `icon-192.png`),
+  denn dieselbe Datei liegt lokal an der Wurzel und auf GitHub Pages unter
+  `/vr/`. Den `href` des `<link rel="manifest">` in den drei HTML-Seiten
+  schreibt Vite selbst auf die Basis um (`BASE_PATH`).
+- **Kein `id`.** Fehlt es, ist die Kennung der App ihre `start_url` — und die
+  stimmt an jeder Stelle, an der das Manifest liegt. Ein relatives `id` wird
+  dagegen gegen den _Ursprung_ aufgelöst und nicht gegen das Manifest: Es wäre
+  genau die Sorte Feld, die man einmal einträgt und drei Deploys später als
+  zweite App im Startmenü wiederfindet.
+
+#### Die Symbole (`public/icon.svg`, `tools/icons.mjs`)
+
+Ein Manifest darf ein SVG als Symbol angeben, und Chrome nimmt es — **iOS
+nicht**: Safari holt sich das Symbol für den Startbildschirm aus
+`<link rel="apple-touch-icon">`, und dort zählt nur PNG. Dazu will Android ein
+`maskable`-Symbol, aus dem sich jedes Gerät seine eigene Form schneidet: Kreis,
+Tropfen, abgerundetes Quadrat.
+
+Also gibt es **eine** Vorlage und einen Befehl, der die Fassungen daraus macht:
+
+```
+npm run icons     # public/icon.svg  →  icon-192, icon-512, icon-maskable-512, apple-touch-icon
+```
+
+Gerendert wird mit dem Chromium, der ohnehin für den Rauchtest da ist; die
+Ergebnisse liegen im Repository, **ein Build braucht keinen Browser**. Das
+Motiv sind die zwei Portale des Banners, und sie liegen in der Gruppe `#art`:
+Für die `maskable`-Fassung schrumpft der Befehl **nur diese Gruppe** und lässt
+Himmel und Gitter bis an den Rand laufen. Ein Symbol, das man als Ganzes
+schrumpft, bekommt einen Rand in der Hintergrundfarbe, und den sieht man auf
+jedem hellen Startbildschirm.
+
+#### Der Service Worker (`src/sw.ts`, `core/swRoutes.ts`)
+
+Er ist der Teil, der eine installierbare Seite von einer installierten App
+unterscheidet: **Ohne einen Service Worker, der eine Anfrage beantworten kann,
+wenn nichts da ist, bietet Chrome das Installieren gar nicht erst an.**
+
+**Die Entscheidung steht nicht in ihm**, sondern in `core/swRoutes.ts`, als
+reine Funktion mit Test. Der Grund ist derselbe wie überall hier, nur schärfer:
+Ein Fehler in einem Service Worker sieht nicht aus wie ein Fehler, sondern wie
+eine alte Welt, die nicht weggeht — und auf einer Brille sind das zwanzig
+Minuten Sucherei, bevor überhaupt jemand auf den Speicher kommt. Vier Wege gibt
+es, und mehr sollen es nicht werden:
+
+| Weg            | Wofür                                          | Warum                                                                              |
+| -------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `page`         | die drei HTML-Seiten                           | erst das Netz: Eine Seite nennt die Namen aller anderen Dateien                     |
+| `immutable`    | alles unter `assets/` mit Hash im Namen        | erst der Speicher: Diese Datei ändert sich nie, sie heißt sonst anders              |
+| `revalidate`   | Modelle, Töne, Controller-Profile, das Manifest | sofort da, im Hintergrund nachgeholt: feste Namen, großer Inhalt                    |
+| `bypass`       | fremde Server, `POST`, `Range`, Quellkarten    | gar nichts tun — und das ist bei den Relays der Verbindung die einzige richtige Wahl |
+
+Und fünf Dinge, die je einen Abend gekostet haben:
+
+- **`ignoreVary: true` bei jeder Suche im Speicher.** Ohne diese Zeile findet
+  der Speicher seine eigenen Dateien nicht: Ein Server, der `Vary: Origin`
+  mitschickt (`vite preview` tut es), macht aus jeder abgelegten Antwort eine,
+  die nur zu einer Anfrage mit derselben Herkunft passt — und Vite fragt die
+  Module der Seite mit `crossorigin` an, die Liste beim Einrichten dagegen
+  ohne. Das Ergebnis war eine Seite, die offline startete und dann ohne ein
+  einziges Skript dastand, obwohl jede Datei im Speicher lag.
+- **Ein Hash zählt nur unterhalb von `assets/`.** Vites Hashes sind
+  Base64 und enthalten selbst Bindestriche (`main-Bd7_x-1a.js`) — nach dem
+  Muster allein wäre `apple-touch-icon.png` eine unveränderliche Datei, und das
+  Symbol ließe sich bis zum nächsten Deploy nicht mehr austauschen.
+- **Zwei Speicher.** `bgvr-shell-<build>` trägt die Nummer des Builds und wird
+  beim Aktivieren des nächsten gelöscht; `bgvr-media` überlebt ihn. Modelle und
+  Töne sind zweistellige Megabytes mit festen Namen — sie nach jedem Deploy neu
+  über Mobilfunk zu ziehen, wäre die unfreundlichste Art, einen Tippfehler zu
+  korrigieren.
+- **Kein `skipWaiting`.** Ein neuer Build übernimmt beim nächsten Start und
+  nicht mittendrin: Wer gerade in der Brille steht, verliert sonst die Welt
+  unter den Füßen, weil im Hintergrund ein Deploy lief. Solange der alte
+  Service Worker weiterläuft, schadet er nichts — Seiten holt er ohnehin erst
+  aus dem Netz, und jede Datei, die eine frische Seite nennt, hat einen neuen
+  Namen und liegt in keinem Speicher.
+- **Nur im fertigen Build** (`core/pwa.registerServiceWorker`). Im
+  Entwicklungsbetrieb säße er zwischen Vite und der Seite und lieferte Module
+  aus, die man gerade geändert hat — der unangenehmste Fehler, den man sich
+  einbauen kann, weil er aussieht, als sei die Änderung nicht angekommen.
+  Ausprobiert wird er mit `npm run build && npm run preview`.
+
+**Und was der Build weiß und die Laufzeit nicht:** die Dateinamen. Ein kleines
+Rollup-Plugin in `vite.config.ts` (`precachePlugin`) setzt nach dem Bündeln die
+Liste der Hüllendateien in den fertigen `sw.js` ein — die drei Seiten, die
+Chunks, die sie **fest** importieren, und deren Stil. Ohne diese Liste wäre die
+Spielwiese erst beim _zweiten_ Besuch ohne Netz benutzbar: Beim ersten lädt die
+Seite ihre Dateien, während der Service Worker gerade erst installiert wird,
+und er sieht davon nichts. Nicht in der Liste steht, was erst beim Betreten
+einer Welt geladen wird — jede Welt ist ein eigener Chunk, dazu die
+Physik-Engine mit ihren 2,8 MB. Das kommt in den Speicher, sobald es das erste
+Mal wirklich gebraucht wird.
+
+Der Service Worker ist deshalb ein **eigener Einstiegspunkt** im Build
+(`rollupOptions.input.sw`) mit einem Sonderfall in `entryFileNames`: Sein
+Geltungsbereich ist das Verzeichnis, in dem er liegt — ein `sw-C3aB9x2Q.js` in
+`assets/` könnte nur `assets/` beantworten. Er importiert nichts außer
+`core/swRoutes.ts`, und deshalb bündelt Rollup ihn zu einer Datei ohne
+`import`: ein klassisches Skript, wie es Firefox bis heute verlangt.
+
+#### Der Knopf (`core/install.ts`, `core/pwa.ts`, `#install`)
+
+„Installieren" heißt im Web dreimal etwas anderes, und `installState` ist die
+Fallunterscheidung dazu — dieselbe Regel wie beim Vollbild, ein Knopf steht nur
+da, wo er etwas bewirkt:
+
+- **Chrome, Edge, der Browser der Quest** melden sich von selbst
+  (`beforeinstallprompt`); das Angebot wird aufgehoben und hinter den Knopf
+  gelegt. `preventDefault` gehört dazu, sonst zeigt Chrome zusätzlich seinen
+  eigenen Streifen am unteren Rand — und der verdeckt auf einem Telefon im
+  Querformat genau die Knöpfe, um die es geht.
+- **Safari auf iPhone und iPad** meldet sich nie. Dort steht ein **Satz** statt
+  eines Knopfes, und er nennt den Weg: Teilen → _Zum Home-Bildschirm_. Erkannt
+  wird das Gerät am Kennstring — **und iPadOS meldet sich seit 13 als
+  Macintosh**, ist davon also nur an einem zu unterscheiden: Es hat
+  Berührungspunkte, ein Mac hat keine.
+- **Wer schon installiert hat, wird nicht gefragt.** `isStandalone` fragt
+  `display-mode` (jeder Browser) _und_ `navigator.standalone` (Safaris eigene,
+  ungenormte Antwort). Eine App, die in ihrem eigenen Fenster läuft und einem
+  anbietet, sich zu installieren, hat nicht verstanden, wo sie ist.
+- **Alles andere schweigt.**
+
+Geprüft wird das mit Attrappen (`install.test.ts`): ein iPhone steht nicht in
+der CI, und ein Kennstring ist das Einzige, was man von einem Gerät hat, das
+man nicht hat.
 
 ### Welten auf dem Kachelgitter
 
@@ -11143,3 +11306,28 @@ hintereinander tippt, hat zwei davon unterwegs; ohne die Marke räumte die
 zweite die Welt der ersten ab, während deren `init` noch mitten im Aufbauen
 war. Heraus kam eine halbe Welt, in der nichts mehr ging — und der Weg dorthin
 war ein doppelter Tipper.
+
+### Was ein Deploy für den Service Worker bedeutet
+
+Seit die Seite als App installierbar ist (`src/sw.ts`), liegt ein Teil von ihr
+im Telefon und nicht nur auf `gh-pages`. Drei Zusagen halten das zusammen, und
+alle drei ziehen in dieselbe Richtung wie der Abschnitt darüber:
+
+- **Seiten kommen erst aus dem Netz.** Eine `index.html` aus dem Speicher wäre
+  genau der alte Build, gegen den `core/staleBuild.ts` ankämpft — nur diesmal
+  ohne 404, an dem man ihn merkt. Erst wenn das Netz nichts hat, antwortet der
+  Speicher.
+- **Jeder Build hat seinen eigenen Speicher** (`bgvr-shell-<BUILD_ID>`, in der
+  CI die ersten zwölf Stellen von `GITHUB_SHA`). Der neue Service Worker
+  löscht beim Aktivieren die Speicher aller anderen: Ein halber alter Build
+  kann nicht liegenbleiben.
+- **Der Wechsel passiert beim nächsten Start**, nicht mitten in der Sitzung
+  (kein `skipWaiting`). In der Zwischenzeit läuft die Seite aus dem alten
+  Speicher weiter — was sie neu anfordert, hat ohnehin einen neuen Namen und
+  kommt aus dem Netz.
+
+Wer den Service Worker beim Entwickeln vom Hals haben will, braucht nichts zu
+tun: Er meldet sich nur im fertigen Build an (`core/pwa.ts`). Wer ihn
+ausprobieren will, nimmt `npm run build && npm run preview` — und wer ihn
+loswerden will, nachdem er ihn einmal hatte, wirft ihn in den
+Entwicklerwerkzeugen unter _Application → Service Workers_ hinaus.
