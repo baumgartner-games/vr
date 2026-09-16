@@ -1,4 +1,5 @@
 import {
+  CLEAN_STACK_MAX,
   ITEM_LABELS,
   dish,
   kitchenDeed,
@@ -663,6 +664,56 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
       expect(deed.do).toBe('refuse');
       expect(why(deed)).toContain('dreckiges Geschirr');
     }
+  });
+
+  /**
+   * **Das Abtropfbrett ist die Rückgabe für saubere Teller**, und es ist das
+   * zweite Stück der geteilten Spüle (`core/kitchenFit.ts`, `sink-drain`).
+   *
+   * Der Spieltest hat es verlangt — „Man kann saubere Teller (bis zu 4) auf dem
+   * Abtropf-Element sammeln" —, und es macht aus dem Abwasch einen Vorrat: Wer
+   * fünf Teller am Stück spült, stellt sie daneben ab, statt jeden einzeln quer
+   * durch die Küche zu tragen.
+   */
+  it('sammelt bis zu vier saubere Teller auf dem Abtropfbrett', () => {
+    expect(press(d('plate'), { kind: 'drain', stack: 0 })).toEqual({
+      do: 'place',
+      dish: d('plate'),
+    });
+    expect(press(d('plate'), { kind: 'drain', stack: CLEAN_STACK_MAX - 1 })).toEqual({
+      do: 'place',
+      dish: d('plate'),
+    });
+    // Der fünfte nicht mehr — und wer davorsteht, liest, warum.
+    const full = press(d('plate'), { kind: 'drain', stack: CLEAN_STACK_MAX });
+    expect(full.do).toBe('refuse');
+    expect(why(full)).toContain('4');
+    expect(CLEAN_STACK_MAX).toBe(4);
+  });
+
+  it('gibt vom Abtropfbrett den obersten Teller her', () => {
+    expect(press(null, { kind: 'drain', stack: 4 })).toEqual({ do: 'take', dish: d('plate') });
+    expect(press(null, { kind: 'drain', stack: 1 })).toEqual({ do: 'take', dish: d('plate') });
+    // Ein leeres Brett meldet sich nicht — wie eine leere Rückgabe.
+    expect(press(null, { kind: 'drain', stack: 0 })).toEqual({ do: 'nothing' });
+    expect(press(null, { kind: 'drain' })).toEqual({ do: 'nothing' });
+  });
+
+  it('lässt auf das Abtropfbrett nur leere saubere Teller', () => {
+    for (const held of [d('plate-dirty'), d('bun'), d('pan'), d('plate', 'bun')]) {
+      const deed = press(held, { kind: 'drain', stack: 1 });
+      expect({ item: held.item, do: deed.do }).toEqual({ item: held.item, do: 'refuse' });
+      expect(why(deed)).toContain('saubere Teller');
+    }
+  });
+
+  it('sagt am Abtropfbrett an, was gleich passiert', () => {
+    expect(kitchenPrompt(press(d('plate'), { kind: 'drain' }), 'Abtropfbrett')).toBe(
+      'Teller auf Abtropfbrett legen',
+    );
+    expect(kitchenPrompt(press(null, { kind: 'drain', stack: 2 }), 'Abtropfbrett')).toBe(
+      'Teller nehmen',
+    );
   });
 
   /**

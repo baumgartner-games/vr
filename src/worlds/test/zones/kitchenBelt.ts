@@ -589,6 +589,16 @@ export function beltStep(turn: 0 | 1 | 2 | 3): { dx: number; dz: number } {
  * Handgriff und kein Zufall. Ein Teller, den ein Band von selbst in den Müll
  * trägt, wäre der teuerste Unfall dieser Küche.
  *
+ * **Und zwei weitere seit dem Abtropfbrett**: die **Geschirrrückgabe** und das
+ * **Abtropfbrett** selbst. Auf ihnen liegt kein einzelnes Ding, sondern ein
+ * **Stapel** (`kitchenCarry.Station.stack`) — wer dort etwas abstellt, lässt es
+ * im Stapel aufgehen, und das kann nur der Handgriff, der mitzählt
+ * (`kitchen.act`). Ein Band legte es stattdessen obendrauf, und dort läge es
+ * für immer: Die Regel liest an diesen beiden Stationen nur die **Zahl**, also
+ * würde das Abgelieferte nie wieder angefasst. In dieser Küche steht kein Band
+ * neben einer der beiden — im Umbau kann jederzeit eines dorthin gestellt
+ * werden, und dann soll es einfach nicht abliefern.
+ *
  * Die Regel steht hier und nicht in der Zone, obwohl erst die Zone weiß,
  * **welche** Station nebenan steht: Das Nachschlagen der Nachbarkachel ist eine
  * Zeile, die Entscheidung darüber ist die Regel — und eine Regel, die nur im
@@ -596,7 +606,7 @@ export function beltStep(turn: 0 | 1 | 2 | 3): { dx: number; dz: number } {
  * (`kitchen.beltTarget` schlägt nach, hier steht, was gilt).
  */
 export function beltDelivers(kind: StationKind): boolean {
-  return kind !== 'bin' && kind !== 'serve';
+  return kind !== 'bin' && kind !== 'serve' && kind !== 'return' && kind !== 'drain';
 }
 
 /**

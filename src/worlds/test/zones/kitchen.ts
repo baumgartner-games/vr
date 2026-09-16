@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   KITCHEN_SCALE,
+  SINK_BOWL,
   kitchenDeck,
   kitchenPiece,
   type KitchenPiece,
@@ -14,6 +15,7 @@ import type { WorldContext } from '../../../core/types';
 import { TextPlane } from '../../../ui/TextPlane';
 import { KITCHEN } from '../layout';
 import {
+  CLEAN_STACK_MAX,
   COLD_STOVE,
   IDLE_WORK,
   ITEM_LABELS,
@@ -41,7 +43,7 @@ import {
   type WorkKind,
   type WorkState,
 } from './kitchenCarry';
-import { DIRTY_STACK_MAX, FoodKit } from './kitchenProps';
+import { DIRTY_STACK_MAX, FoodKit, SINK_TILT } from './kitchenProps';
 import { GAUGE_LIFT, KitchenGauges, WARN_LIFT } from './kitchenGauge';
 import { IconOven } from './kitchenIcon';
 import { buildKitchenNotice } from './kitchenNotice';
@@ -495,6 +497,8 @@ export class KitchenZone implements TestZone {
   private readonly shapes: THREE.BufferGeometry[] = [];
   /** Ein Material für alle Trefferkästen — unsichtbar ist unsichtbar. */
   private hidden: THREE.MeshBasicMaterial | null = null;
+  /** Und eines für das Wasser in jedem Spülbecken (`addWater`). */
+  private pond: THREE.MeshStandardMaterial | null = null;
   private readonly labels: TextPlane[] = [];
   private readonly stations: Station[] = [];
   /** Jedes aufgestellte Möbel der Küche — der Schauraum steht nicht darin. */
@@ -1338,6 +1342,11 @@ export class KitchenZone implements TestZone {
     };
     const foot = this.standAt(furnish);
     if (!spot.show) this.furniture.push(furnish);
+    // **Das Wasser gehört dem Möbel und nicht der Station** — also steht es
+    // auch im Schauraum im Becken, wo es gar nichts zu spülen gibt. Ein
+    // Spülbecken ohne Wasser ist eine Blechmulde, und der Schauraum zeigt, wie
+    // ein Möbel aussieht.
+    if (stationKind(piece.name, spot.gives, spot.role) === 'sink') this.addWater(furnish);
 
     if (spot.show) {
       this.addBody(furnish);
@@ -1628,6 +1637,53 @@ export class KitchenZone implements TestZone {
     });
   }
 
+  /**
+   * **Das Wasser im Spülbecken** — eine Fläche in der Mulde, halb hoch.
+   *
+   * **In der Quelle ist keines drin**, und das war der Grund, warum die Spüle
+   * nach nichts aussah: eine leere Blechmulde, in der ein Teller flach auf dem
+   * Rand lag. Bei _Overcooked_ ist es umgekehrt — an der Spüle sieht man von
+   * weitem, dass dort Arbeit liegt, und das macht das Wasser.
+   *
+   * **Gebaut und nicht geladen**, wie alles, was die Quelle nicht hat
+   * (`kitchenProps.ts`): ein Rechteck in der gemessenen Größe der
+   * Beckenöffnung, auf `SINK_BOWL.water` — halbe Beckentiefe. Genau dort taucht
+   * der schräge Teller zur Hälfte ein (`kitchenProps.SINK_TILT`).
+   *
+   * **Es hängt am Möbel und nicht in der Welt**, und damit fährt es im Baumodus
+   * mit: Wer das Becken aufhebt und anderswo hinstellt, trägt das Wasser darin
+   * mit sich, statt es stehen zu lassen. Der Träger hebt dafür den halben
+   * Maßstab des geladenen Modells wieder auf — dieselbe Gruppe wie beim Schild
+   * der Ausgabe (`addIcon`), und aus demselben Grund: Die Zahlen aus dem
+   * Katalog sind Meter der Welt.
+   */
+  private addWater(furnish: Furnish): void {
+    const { piece, model } = furnish;
+    const shape = new THREE.PlaneGeometry(SINK_BOWL.width, SINK_BOWL.depth);
+    this.shapes.push(shape);
+    // Durchsichtig, aber nicht durchsichtig genug, um das Becken darunter zu
+    // zeigen: Ein Wasser, durch das man den Blechboden sieht, ist eine blaue
+    // Folie. Rau ist es auch nicht — eine ruhige Fläche spiegelt.
+    this.pond ??= this.own(
+      new THREE.MeshStandardMaterial({
+        color: 0x2e7ba6,
+        transparent: true,
+        opacity: 0.78,
+        roughness: 0.12,
+        metalness: 0.2,
+      }),
+    );
+    const water = new THREE.Mesh(shape, this.pond);
+    water.name = 'kitchen-sink-water';
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(SINK_BOWL.at[0], SINK_BOWL.water, SINK_BOWL.at[1]);
+    const holder = new THREE.Group();
+    holder.name = 'kitchen-water-holder';
+    holder.scale.setScalar(piece.built ? 1 : 1 / KITCHEN_SCALE);
+    holder.add(water);
+    model.add(holder);
+  }
+
   /** Die Station auf dieser Kachel — oder `null`, wenn dort keine steht. */
   private stationAt(x: number, z: number): Station | null {
     for (const furnish of this.furniture) {
@@ -1703,13 +1759,14 @@ export class KitchenZone implements TestZone {
    * dort geführt und dort geprüft. Hier steht nur, **welches Netz** dabei
    * herauskommt.
    *
-   * An der **Rückgabe** liegt kein einzelnes Ding, sondern ein Stapel; dann
-   * leuchtet der. Und wo eine Ausgabe etwas Frisches aus dem Nichts gibt
-   * (`box` mit leerem Deckel), gibt es nichts zum Leuchten außer ihr selbst.
+   * An der **Rückgabe** und auf dem **Abtropfbrett** liegt kein einzelnes Ding,
+   * sondern ein Stapel; dann leuchtet der. Und wo eine Ausgabe etwas Frisches
+   * aus dem Nichts gibt (`box` mit leerem Deckel), gibt es nichts zum Leuchten
+   * außer ihr selbst.
    */
   private aimAt(spot: Station, deed: KitchenDeed): THREE.Object3D {
     if (!meansContent(deed)) return spot.object;
-    if (spot.kind === 'return') return spot.pile ?? spot.object;
+    if (stacks(spot.kind)) return spot.pile ?? spot.object;
     return spot.on?.object ?? spot.object;
   }
 
@@ -1754,12 +1811,13 @@ export class KitchenZone implements TestZone {
         const thing = this.carried;
         if (!thing) return false;
         this.carried = null;
-        if (spot.kind === 'return') {
-          // An der Rückgabe wird nicht abgelegt, sondern **gestapelt**: Der
-          // Teller geht im Stapel auf, sein Netz wird nicht gebraucht.
+        if (stacks(spot.kind)) {
+          // An der Rückgabe und auf dem Abtropfbrett wird nicht abgelegt,
+          // sondern **gestapelt**: Der Teller geht im Stapel auf, sein Netz
+          // wird nicht gebraucht.
           this.discard(thing);
           this.setStack(spot, spot.stack + 1);
-          world.notify(`Dreckiger Teller abgestellt (${spot.stack})`);
+          world.notify(`${dishLabel(deed.dish)} abgestellt (${spot.stack})`);
           break;
         }
         this.layOn(spot, thing);
@@ -1913,7 +1971,7 @@ export class KitchenZone implements TestZone {
    * danach leer.
    */
   private pickUp(spot: Station, want: Dish): Carried | null {
-    if (spot.kind === 'return') {
+    if (stacks(spot.kind)) {
       if (spot.stack <= 0) return null;
       this.setStack(spot, spot.stack - 1);
       return this.make(want);
@@ -1940,14 +1998,22 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Der Stapel an der Rückgabe** — eine Zahl und ein Netz dazu.
+   * **Der Stapel an der Rückgabe und auf dem Abtropfbrett** — eine Zahl und
+   * ein Netz dazu.
    *
    * Das Netz wird nur dann neu gebaut, wenn sich die Zahl geändert hat: Ein
    * Stapel, der jedes Bild neu entsteht, wäre sechs Teller je Bild
    * (`kitchenProps.FoodKit.dirtyStack`).
+   *
+   * **Zwei Stationen, eine Rechnung**: An der Rückgabe stehen bis zu sechs
+   * dreckige, auf dem Abtropfbrett bis zu vier saubere Teller
+   * (`kitchenCarry.CLEAN_STACK_MAX`). Was sich unterscheidet, sind die Grenze
+   * und das Netz; alles andere — zählen, altes Netz wegräumen, neues
+   * hinstellen — ist Zeile für Zeile dasselbe.
    */
   private setStack(spot: Station, count: number): void {
-    const want = Math.max(0, Math.min(DIRTY_STACK_MAX, count));
+    const clean = spot.kind === 'drain';
+    const want = Math.max(0, Math.min(clean ? CLEAN_STACK_MAX : DIRTY_STACK_MAX, count));
     if (want === spot.stack && (want === 0) === (spot.pile === null)) return;
     spot.stack = want;
     if (spot.pile) {
@@ -1956,7 +2022,7 @@ export class KitchenZone implements TestZone {
       spot.pile = null;
     }
     if (want <= 0) return;
-    const pile = this.food.dirtyStack(want);
+    const pile = clean ? this.food.cleanStack(want) : this.food.dirtyStack(want);
     pile.position.copy(spot.deck);
     this.world?.root.add(pile);
     this.placed.push(pile);
@@ -2021,11 +2087,24 @@ export class KitchenZone implements TestZone {
   /**
    * **Auf eine Fläche**: in die Welt hängen, mittig auf die Arbeitsplatte —
    * und die Uhren der Station auf das setzen, was jetzt darauf steht.
+   *
+   * **Mit einer Ausnahme, und die ist das Spülbecken**: Dort wird nicht
+   * abgelegt, sondern eingelegt. Was ins Wasser kommt, liegt **schräg** — mit
+   * der unteren Kante auf dem Beckenboden und der oberen auf Randhöhe. Der
+   * Winkel ist ausgerechnet und steht bei `kitchenProps.SINK_TILT`; hier steht
+   * nur, dass er um die **x-Achse** geht, also nach vorn kippt: Aus der
+   * Hauptansicht (55° von oben) dreht sich die Tellerfläche damit zur Kamera
+   * und nicht von ihr weg, und man sieht auf einen Blick, dass da etwas im
+   * Wasser steht und nicht auf einer Platte liegt.
+   *
+   * Warum hier und nicht am Gericht: Wie ein Ding liegt, gehört der **Stelle**,
+   * an der es liegt — derselbe Teller liegt auf der Zeile flach und im Becken
+   * schräg, und in der Hand wieder flach (`takeInHand` setzt zurück).
    */
   private layOn(spot: Station, thing: Carried): void {
     const world = this.world;
     spot.on = thing;
-    thing.object.rotation.set(0, 0, 0);
+    thing.object.rotation.set(spot.kind === 'sink' ? SINK_TILT : 0, 0, 0);
     if (world) world.root.add(thing.object);
     thing.object.position.copy(spot.deck);
     this.settle(spot);
@@ -2358,6 +2437,11 @@ export class KitchenZone implements TestZone {
         foot + kitchenDeck(furnish.piece),
         furnish.model.position.z,
       );
+      // **Und der Stapel zieht mit.** Er hängt nicht am Möbel, sondern steht
+      // als eigenes Netz auf dessen Ablage (`setStack`) — wer die Rückgabe
+      // oder das Abtropfbrett im Baumodus versetzt, ließ bisher vier Teller in
+      // der Luft stehen, wo vorher das Möbel war.
+      station.pile?.position.copy(station.deck);
       // Der Schlüssel trägt die Kachel — ein Balken unter dem alten Schlüssel
       // hinge nach dem Umbau über der Stelle, an der nichts mehr steht.
       this.gauges?.clear(station.key);
@@ -2563,9 +2647,9 @@ export class KitchenZone implements TestZone {
  *
  * Fünf Felder, und keines davon rechnet die Zone selbst aus: Ob der Herd
  * brennt, weiß seine Uhr (`StoveState.fire`), was darauf liegt, ist das
- * `Dish` des getragenen Dings, und wie hoch der Stapel an der Rückgabe ist,
- * steht als Zahl daneben. Die Regel bekommt damit genau das, was sie lesen
- * darf — und nicht die halbe Zone.
+ * `Dish` des getragenen Dings, und wie hoch der Stapel an der Rückgabe oder auf
+ * dem Abtropfbrett ist, steht als Zahl daneben. Die Regel bekommt damit genau
+ * das, was sie lesen darf — und nicht die halbe Zone.
  */
 function facts(spot: Station): StationFacts {
   return {
@@ -2575,4 +2659,18 @@ function facts(spot: Station): StationFacts {
     fire: spot.stove.fire,
     stack: spot.stack,
   };
+}
+
+/**
+ * **Ob an dieser Station gestapelt statt abgelegt wird.**
+ *
+ * Zwei Arten tun das: die **Geschirrrückgabe** (dreckige Teller) und das
+ * **Abtropfbrett** (saubere). Sie führen keinen `Dish`, sondern eine Zahl
+ * (`Station.stack`) und ein Netz dazu (`Station.pile`), und deshalb sehen an
+ * vier Stellen die Handgriffe anders aus: nehmen, hinlegen, zielen, zeichnen.
+ * Eine Zeile statt viermal derselben Oder-Bedingung — die fünfte Stelle wäre
+ * die, an der eine davon fehlt.
+ */
+function stacks(kind: StationKind): boolean {
+  return kind === 'return' || kind === 'drain';
 }

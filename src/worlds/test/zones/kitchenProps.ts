@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { PAN_BOWL } from '../../../core/kitchenFit';
+import { PAN_BOWL, SINK_BOWL } from '../../../core/kitchenFit';
+import { CLEAN_STACK_MAX } from './kitchenCarry';
 import { layered, type Dish, type KitchenItem } from './kitchenRecipes';
 
 /**
@@ -106,6 +107,39 @@ export const BUN_BASE = BUN_HEIGHT * 0.45;
  */
 export const PLATE_RADIUS = 0.375;
 export const PLATE_HEIGHT = 0.05;
+
+/**
+ * **Wie schräg ein Teller im Spülbecken liegt**, im Bogenmaß — 0,1923, also
+ * **11,1°**.
+ *
+ * Er lag vorher flach, und das war aus zwei Gründen falsch. Der eine ist der
+ * Auftraggeber: „Wenn Teller gewaschen werden, sollen die Teller leicht schräg
+ * sein, sodass ein Teil davon im Wasser steht." Der andere ist die Messung: Ein
+ * Teller ist **0,75 m** breit (`PLATE_RADIUS`), die Beckenöffnung nur
+ * 0,81 × 0,64 m (`core/kitchenFit.SINK_BOWL`) — flach passt er gar nicht
+ * hinein, er läge quer über dem Rand, und im Wasser stünde nichts von ihm.
+ *
+ * **Der Winkel ist deshalb ausgerechnet und nicht gewählt.** Der Teller lehnt
+ * so, dass seine **untere Kante auf dem Beckenboden** aufsetzt und seine
+ * **obere auf Randhöhe** endet — er überspannt also genau die Beckentiefe:
+ *
+ * `sin α = (rim − floor) / 2 / PLATE_RADIUS = 0,1442 / 2 / 0,375 = 0,1923`
+ *
+ * Die Hälfte der Tiefe steht dabei, weil sich der Teller um seine **Mitte**
+ * neigt: Die eine Kante geht um `r · sin α` herunter, die andere um ebenso viel
+ * herauf. Und weil das Wasser auf halber Tiefe steht (`SINK_BOWL.water`), liegt
+ * damit genau die **untere Hälfte** des Tellers darin — „ein Teil davon", und
+ * zwar ein gut sichtbarer.
+ *
+ * **Gekippt wird um die x-Achse**, also nach vorn und hinten: Die vordere Kante
+ * taucht ein, die hintere steht auf. Das ist die Richtung, in der man ihn aus
+ * der Hauptansicht (55° von oben, `core/topDownPose.TOP_DOWN_TILT`) auch sieht
+ * — die Tellerfläche dreht sich dabei zur Kamera hin statt von ihr weg. Was
+ * dabei über die Beckenkante hinausragt (in z 0,75 m gegen 0,64 m Öffnung),
+ * liegt **unter** dem Rand und steckt in ihm; von außen sieht man einen
+ * Teller, den die Kante überdeckt, und kein Loch.
+ */
+export const SINK_TILT = Math.asin((SINK_BOWL.rim - SINK_BOWL.floor) / 2 / PLATE_RADIUS);
 
 /**
  * **Der dreckige Teller** — derselbe Teller, nur benutzt (`plate-dirty`,
@@ -431,16 +465,42 @@ export class FoodKit {
    * damit er von oben als Stapel zu erkennen ist und nicht als **ein** Teller.
    */
   dirtyStack(count: number): THREE.Object3D {
+    return this.plateStack(count, DIRTY_STACK_MAX, () => this.dirtyPlate(), 'kitchen-dirty-stack');
+  }
+
+  /**
+   * **Und derselbe Turm aus sauberen Tellern** — der auf dem **Abtropfbrett**
+   * (`core/kitchenFit.ts`, `sink-drain`).
+   *
+   * Zwei Aufrufe derselben Schleife und nicht zwei Schleifen: Ein Stapel ist
+   * ein Stapel, und der Unterschied zwischen den beiden ist genau ein Teller —
+   * derselbe Verdrehwinkel, dieselbe Lagenhöhe, dieselbe Klemmung. Zwei
+   * Fassungen davon wären zwei Stellen, an denen `DIRTY_TWIST` nachzuziehen
+   * ist, und eine davon würde vergessen.
+   *
+   * Höchstens `CLEAN_STACK_MAX` (vier, siehe dort) statt sechs: Das Brett lehnt
+   * ab, wenn es voll ist, die Rückgabe nie.
+   */
+  cleanStack(count: number): THREE.Object3D {
+    return this.plateStack(count, CLEAN_STACK_MAX, () => this.plate(), 'kitchen-clean-stack');
+  }
+
+  private plateStack(
+    count: number,
+    most: number,
+    one: () => THREE.Object3D,
+    name: string,
+  ): THREE.Object3D {
     // Geklemmt und nicht geprüft: `count` kommt aus einem Zähler, der auch
     // einmal danebenliegen darf — eine Ausnahme dafür zu werfen hieße, eine
     // Küche wegen eines Tellers zu viel anzuhalten. `NaN` fällt dabei durch
     // jeden Vergleich, also wird es vorher abgefangen.
     const want = Math.round(count);
-    const plates = Number.isNaN(want) ? 1 : Math.min(DIRTY_STACK_MAX, Math.max(1, want));
+    const plates = Number.isNaN(want) ? 1 : Math.min(most, Math.max(1, want));
     const stack = new THREE.Group();
-    stack.name = 'kitchen-dirty-stack';
+    stack.name = name;
     for (let i = 0; i < plates; i++) {
-      const plate = this.dirtyPlate();
+      const plate = one();
       plate.position.y = i * PLATE_HEIGHT;
       plate.rotation.y = i * DIRTY_TWIST;
       stack.add(plate);

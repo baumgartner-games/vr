@@ -2092,7 +2092,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Küche** (ganz im Norden, hinter dem Podest): vierundzwanzig mal elf
     Kacheln mit den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe
     _Modelle im Repository_), und zwar in **zwei Hälften**. Im Westen die
-    Küche selbst — Zeile, zwei Herde, Spüle und Tellerausgabe an der Wand, vier
+    Küche selbst — Zeile, zwei Herde, **Spülbecken und Abtropfbrett** und die
+    Tellerausgabe an der Wand, vier
     Zutatenausgaben an der Westwand, eine Insel aus Schneidebrett und
     Mülleimer, **zwei Bandbahnen** quer durch den Raum — vier Förderbänder
     (blau) und vier Zugbänder (orange), die sich von selbst holen, was auf der
@@ -2100,15 +2101,19 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     mit den Wärmeschirmen einen Meter darüber, und südlich davon der
     **Gastraum**: drei Gästetische und die Geschirrrückgabe (die Türkacheln
     daneben bleiben frei, sonst stünde ein Tisch im Eingang) —, im Osten der
-    **Schauraum**: jedes der fünfzehn Möbel noch einmal, frei stehend und mit
-    einer Tafel daneben, auf der sein Name und sein Maß stehen. In einer Zeile
+    **Schauraum**: jedes der sechzehn Möbel noch einmal, frei stehend und mit
+    einer Tafel daneben, auf der sein Name und sein Maß stehen — bis auf die
+    beiden Hälften der Spüle, die dort **nebeneinander** stehen: Ihre
+    Schnittflächen sind offen, und auf Lücke gestellt sähe man in zwei
+    aufgesägte Schränke. In einer Zeile
     aus acht Schränken sieht man ein einzelnes Möbel nicht; der Katalog ist
     damit ein Rundgang statt einer Liste. **Angefasst wird mit `A`**, und ein
     roter Knopf neben dem Eingang schaltet den **Baumodus** ein und wieder aus,
     in dem sich leere Möbel versetzen lassen (beides unter _Anfassen in der
     Küche_). Sie ist
     der Grund, warum das Gelände nach Norden gewachsen ist (`FIELD` ist jetzt
-    64 × 80 m): Die Möbel sind groß — eine Spüle misst 4 × 3 m —, und in eine
+    64 × 80 m): Die Möbel sind groß — eine Spüle misst in der Quelle 4 × 2,1 m,
+im Spiel also zwei Kacheln —, und in eine
     Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe. Hinter dem
     Podest und nicht neben dem Schießstand, weil dessen Bahnen quer über den
     ganzen Osten bis zum Kugelfang laufen und eine Küche in der Schusslinie
@@ -4925,14 +4930,22 @@ wurden. Sie laufen von Hand, nicht bei jedem Build: Ein Modell ändert sich
 nicht, und `@gltf-transform` und `sharp` gehören nicht in die Abhängigkeiten
 eines Spiels, das sie nie ausführt (`npm install --no-save` beim Aufbereiten).
 
-**Der Küchenkatalog** (`core/kitchenFit.ts`) hat fünfzehn Möbel: Tellerausgabe,
-Feuerlöscher, Spüle, Mülleimer, Arbeitstisch, Ausgabe, Schneidebrett,
-Ausgaberegal, Ausgabetheke, Küchenzeile, Herd, Herd mit Topf, Herd mit Pfanne —
-und das **Förderband** und das **Zugband**, die in keiner Datei stecken,
-sondern gebaut werden (`KitchenPiece.built`, siehe _Anfassen in der Küche_).
-Der Katalog beschreibt, was in dieser Küche **steht**, nicht, was gekauft
-wurde; wer `built` nicht liest, meldet eine fehlende Datei, die es nicht gibt,
-und stellt einen grauen Würfel dorthin, wo ein Band stehen soll.
+**Der Küchenkatalog** (`core/kitchenFit.ts`) hat sechzehn Möbel: Tellerausgabe,
+Feuerlöscher, **Spülbecken**, **Abtropfbrett**, Mülleimer, Arbeitstisch,
+Ausgabe, Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile, Herd, Herd mit
+Topf, Herd mit Pfanne — und das **Förderband** und das **Zugband**, die in
+keiner Datei stecken, sondern gebaut werden (`KitchenPiece.built`, siehe
+_Anfassen in der Küche_). Der Katalog beschreibt, was in dieser Küche **steht**,
+nicht, was gekauft wurde; wer `built` nicht liest, meldet eine fehlende Datei,
+die es nicht gibt, und stellt einen grauen Würfel dorthin, wo ein Band stehen
+soll.
+
+Sechzehn aus **dreizehn Knoten**, und der Unterschied ist die Spüle: Sie ist in
+der Datei **ein** Möbel von vier Metern — links ein Becken, rechts ein
+Abtropfbrett, in der Mitte die Armatur — und wird beim Laden in zwei Stücke von
+je einer Kachel zerschnitten (`core/kitchenModel.splitSink`, siehe _Der Abwasch_
+weiter unten). Teilnetze zum Trennen gibt es nicht; geschnitten wird die
+Geometrie selbst, an einer **gemessenen** Naht bei x = 0.
 
 Die dreizehn aus der Datei kommen aus einer **Schauraum-Szene**: ein Bild, das
 jemand aufgebaut hat, in vier Netzen, die nur nach Material getrennt waren. Zerlegt wird sie über den
@@ -5035,9 +5048,10 @@ den man im Bild sah:
 
 Was `A` vor einem Möbel tut, steht in **einer** Funktion
 (`worlds/test/zones/kitchenCarry.ts`, `kitchenDeed`) und nicht in elf
-`if`-Ketten in der Zone daneben. Elf Stationsarten (`StationKind`) — Ablage,
-Kiste, Mülleimer, Schneidebrett, Herd, Ausgabetheke, Löscherhalterung, Spüle,
-Geschirrrückgabe, Gästetisch, Band — mal volle oder leere Hand ergeben ein
+`if`-Ketten in der Zone daneben. Zwölf Stationsarten (`StationKind`) — Ablage,
+Kiste, Mülleimer, Schneidebrett, Herd, Ausgabetheke, Löscherhalterung,
+Spülbecken, **Abtropfbrett**, Geschirrrückgabe, Gästetisch, Band — mal volle
+oder leere Hand ergeben ein
 paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
 eine Viertelstunde Hin- und Herlaufen.
 
@@ -5162,7 +5176,7 @@ Und das sind die Regeln, die darin stehen:
   _Steuerung_.
 - **Schneiden und Spülen sind dieselbe Uhr** (`kitchenWork.ts`,
   `WORK_SECONDS` = 3 s für beides). Das Brett schneidet von selbst, sobald
-  etwas daraufliegt, die Spüle spült von selbst, sobald dreckiges Geschirr
+  etwas daraufliegt, das Becken spült von selbst, sobald dreckiges Geschirr
   darin steht — und beides nur, solange jemand davorsteht (1,5 m um die
   Möbelmitte; `Station.live` heißt „hier gäbe es etwas zu tun" und nicht
   „jemand steht davor"). Die Tomate hat dabei zwei Stufen: Scheibe, dann Suppe.
@@ -5191,21 +5205,57 @@ Und das sind die Regeln, die darin stehen:
   „Deluxe s…". Sie ist damit auch durch eine Wand zu sehen, und das ist der
   bewusste Handel: Sie steht vier Sekunden lang genau dort, wo gerade jemand
   abgegeben hat. Die **Namensschilder im Schauraum** bekommen das deshalb
-  nicht — dort verdeckt ohnehin nichts ein Schild, und fünfzehn Tafeln durch
+  nicht — dort verdeckt ohnehin nichts ein Schild, und sechzehn Tafeln durch
   jede Wand wären der schlechtere Tausch. Ist kein Tisch frei, landet das
   Geschirr gleich an der **Geschirrrückgabe**. Dort **stapeln** sich die
   dreckigen Teller, bis zu sechs (`DIRTY_STACK_MAX`, gerechnet aus dem
   Verdrehwinkel je Lage und aus der Brusthöhe der Figur), und von dort holt man
-  sie einzeln in die **Spüle**. Eine Rückgabe, auf die nur ein Teller passt,
-  wäre bei drei Gästen gleichzeitig eine Sackgasse.
+  sie einzeln in das **Spülbecken**. Eine Rückgabe, auf die nur ein Teller
+  passt, wäre bei drei Gästen gleichzeitig eine Sackgasse.
 - **Der dreckige Teller ist ein eigenes Ding** (`'plate-dirty'`) und kein
   Zustand am sauberen. Er trägt nichts (er steht in `TAKES` gar nicht), er
   gehört nicht über die Theke, und `isDishware` fasst ihn mit dem sauberen
-  zusammen, weil Spüle und Rückgabe genau danach fragen: Was dort hineingehört,
-  unterscheidet sich vom Essen und vom Gerät, nicht vom Zustand. In die Spüle
+  zusammen, weil Becken und Rückgabe genau danach fragen: Was dort hineingehört,
+  unterscheidet sich vom Essen und vom Gerät, nicht vom Zustand. In das Becken
   darf deshalb auch nur **leeres** Geschirr; ein Teller mit einem halben Burger
-  darauf gehört erst an den Mülleimer, und eine Spüle, die ihn schluckte, wäre
+  darauf gehört erst an den Mülleimer, und ein Becken, das ihn schluckte, wäre
   ein zweiter Mülleimer mit Wasserhahn.
+- **Die Spüle sind zwei Möbel**, und der Teller liegt darin **schräg im
+  Wasser**. Beides kam aus einem Spieltest am Handy: „Das Waschbecken müssen wir
+  in 2 Elemente teilen… Wenn Teller gewaschen werden, sollen die Teller leicht
+  schräg sein, sodass ein Teil davon im Wasser steht… Man kann saubere Teller
+  (bis zu 4) auf dem Abtropf-Element sammeln. Der Wasserhahn ist falsch herum?"
+  Was daraus geworden ist, in der Reihenfolge der vier Punkte:
+  - **Zwei Möbel** (`sink-basin`, `sink-drain`): Ein Möbel hat genau **eine**
+    Station, also könnte man davor immer nur eines von beidem tun — spülen oder
+    abstellen. Das Netz der Quelle ist ein einziges Stück und wird beim Laden
+    bei x = 0 zerschnitten (`core/kitchenModel.splitSink`). Die Naht ist
+    gemessen und nicht gewählt: Beckenboden und Abtropfwanne liegen
+    spiegelbildlich bei x = ∓0,9751, der Steg zwischen ihren Öffnungen hat
+    seine Mitte bei −0,0040. Beide Hälften stecken 1,74 cm im Estrich
+    (`SINK_SUNK`), damit ihr Rand mit der Zeile daneben auf 0,500 m fluchtet —
+    derselbe Fall wie beim Schneidebrett, halb so hoch.
+  - **Der Teller liegt schräg**, und zwar um **11,1°** (`kitchenProps.SINK_TILT`).
+    Der Winkel ist ausgerechnet: Ein Teller ist 0,75 m breit, die Beckenöffnung
+    nur 0,81 × 0,64 m — flach passt er gar nicht hinein, sondern läge quer über
+    dem Rand. Er lehnt deshalb mit der unteren Kante auf dem Beckenboden und der
+    oberen auf Randhöhe, überspannt also genau die Beckentiefe von 14,4 cm. Das
+    **Wasser** ist gebaut und steht auf halber Tiefe — also liegt genau die
+    untere Hälfte des Tellers darin.
+  - **Vier saubere Teller** auf dem Abtropfbrett (`CLEAN_STACK_MAX`), als
+    derselbe Stapel wie an der Rückgabe, nur mit sauberen Tellern und einer
+    anderen Grenze. Voll lehnt es ab — anders als die Rückgabe, die nie ablehnt,
+    weil ein Gast ohne Abstellplatz eine Sackgasse wäre.
+  - **Der Wasserhahn war nicht verdreht.** Nachgemessen steht sein Fuß hinten
+    (z = −0,90…−0,70) und der Bogen greift nach vorn über die Mulde — die
+    Schauseite dieser Möbel ist ohnehin **+z**, dort sitzen die Türgriffe, und
+    mit `turn: 0` zeigt sie zum Gang. Falsch war **x**: Die Armatur stand
+    mittig auf dem **Steg** zwischen den beiden Mulden, goss also auf die Kante.
+    Sie ist beim Schneiden um 0,9751 (Quellmaß) auf die Mitte des Beckens
+    gerückt. Aus 55° von oben sieht ein 0,63 m hoher Hahn übrigens immer so
+    aus, als stünde er weiter vorn, als er steht: Er wandert im Bild um
+    `Höhe / tan 55° = 0,44 m` auf die Kamera zu, und das ist fast die ganze
+    Tiefe des Möbels.
 - **Die Zutaten kommen aus dem Ausgabe-Möbel** des Katalogs, nicht mehr aus
   gebauten Holzkisten, und tragen ein **zur Laufzeit gerendertes Bild** ihrer
   Zutat (`zones/kitchenIcon.ts`): Der Ofen stellt das Ding vor eigenes Licht,
@@ -5370,8 +5420,10 @@ Und das sind die Regeln, die darin stehen:
     stehen als **reine Funktionen** neben der Rechnung (`beltDelivers`,
     `beltReleases`) und nicht in der Zone: Welche Station nebenan steht, weiß
     nur die Zone; ob sie darf, ist eine Frage über Stationsarten, und die prüft
-    ein Test über **alle elf** statt über die drei, die gerade zufällig neben
-    einem Band stehen.
+    ein Test über **alle zwölf** statt über die drei, die gerade zufällig neben
+    einem Band stehen. Auf einen **Stapel** — Geschirrrückgabe und
+    Abtropfbrett — liefert dabei keines ab: Dort liest die Regel nur die Zahl,
+    also läge das Abgelieferte obendrauf und würde nie wieder angefasst.
   - **Was unter dem Messer liegt, bleibt liegen**: Solange am Brett oder in der
     Spüle jemand davorsteht und die Uhr läuft (`WorkState.working`), zieht das
     Band nichts weg. Sobald sie steht, fährt das Fertige los.
@@ -8279,7 +8331,7 @@ deshalb war eine große Welt nur am Stück zu testen, nie in Teilen.
 Entscheidung vom September 2026. Vorher waren es 2,5 m — grob genug für eine
 Karte mit ein paar hundert statt zehntausend Kacheln, und viel zu grob für die
 Welten, die hier gebaut werden sollen: In einer Küche wie bei _Overcooked_
-steht der Herd neben der Spüle und nicht drei Schritte weiter, und eine Kachel,
+steht der Herd neben dem Spülbecken und nicht drei Schritte weiter, und eine Kachel,
 in die ein ganzer Tisch **und** der Weg daran vorbei passen, kann so etwas
 nicht beschreiben. Mit einem Meter ist eine Kachel das, was ein Mensch mit
 einem Schritt überquert, und ein Grundriss liest sich in Metern, ohne dass

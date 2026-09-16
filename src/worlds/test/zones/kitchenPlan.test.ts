@@ -79,9 +79,11 @@ describe('die Rollen der Möbel', () => {
     // Dasselbe Möbel mit einer Zutat darin ist eine Ausgabe.
     ['serve-counter', 'bun', 'box'],
     ['plate-counter', 'plate', 'box'],
-    // Die Spüle ist eine Station geworden: Dort wird gespült, und ein Möbel,
-    // das so heißt, braucht dafür keine Zeile im Aufbau.
-    ['sink', undefined, 'sink'],
+    // Die Spüle sind zwei Stationen geworden: Im Becken wird gespült, auf dem
+    // Abtropfbrett stapeln sich die sauberen Teller. Möbel, die so heißen,
+    // brauchen dafür keine Zeile im Aufbau.
+    ['sink-basin', undefined, 'sink'],
+    ['sink-drain', undefined, 'drain'],
     // Das Förderband gibt es nur in dieser einen Rolle — ein Band, das nicht
     // schiebt, wäre ein schmales Brett.
     ['belt', undefined, 'belt'],
@@ -166,11 +168,33 @@ describe('die Rollen der Möbel', () => {
     expect(kinds.filter((kind) => kind === 'serve')).toHaveLength(1);
     expect(kinds.filter((kind) => kind === 'rack')).toHaveLength(1);
     expect(kinds.filter((kind) => kind === 'board')).toHaveLength(2);
-    // Und je eine Spüle und eine Geschirrrückgabe: Der Abwasch hat einen
-    // Anfang und ein Ende, und beides doppelt wäre ein zweiter Weg, den
-    // niemand erklärt hat.
+    // Und je ein Spülbecken, ein Abtropfbrett und eine Geschirrrückgabe: Der
+    // Abwasch hat einen Anfang und ein Ende, und beides doppelt wäre ein
+    // zweiter Weg, den niemand erklärt hat.
     expect(kinds.filter((kind) => kind === 'sink')).toHaveLength(1);
+    expect(kinds.filter((kind) => kind === 'drain')).toHaveLength(1);
     expect(kinds.filter((kind) => kind === 'return')).toHaveLength(1);
+  });
+
+  /**
+   * **Und die beiden Hälften stehen nebeneinander und in der richtigen
+   * Reihenfolge.**
+   *
+   * Im Modell liegt die Mulde links und die Abtropfwanne rechts
+   * (`core/kitchenFit.ts`, der Block über `SINK_SUNK`), und geschnitten wird in
+   * der Mitte. Wer sie vertauscht oder auseinanderstellt, dreht die offenen
+   * Schnittflächen nach außen — aus einer Spüle würden zwei aufgesägte.
+   */
+  it('stellt Becken und Abtropfbrett nebeneinander, Becken links', () => {
+    for (const shown of [false, true]) {
+      const basin = KITCHEN_SPOTS.find((s) => s.name === 'sink-basin' && !!s.show === shown)!;
+      const drain = KITCHEN_SPOTS.find((s) => s.name === 'sink-drain' && !!s.show === shown)!;
+      expect({ shown, z: drain.z }).toEqual({ shown, z: basin.z });
+      expect({ shown, x: drain.x }).toEqual({ shown, x: basin.x + 1 });
+      // Ungedreht: Bei `turn: 0` zeigt die linke Hälfte des Netzes nach Westen.
+      expect({ shown, turn: basin.turn ?? 0 }).toEqual({ shown, turn: 0 });
+      expect({ shown, turn: drain.turn ?? 0 }).toEqual({ shown, turn: 0 });
+    }
   });
 });
 
@@ -269,10 +293,19 @@ describe('die Arbeitsflächen der Zeile', () => {
     // auf (0,57 − 0,033, die Spitze des Hackmessers), und die Brettoberfläche
     // liegt bei 0,50 m.
     expect(board.height - board.bury!).toBeCloseTo(0.537, 3);
-    // Es ist das einzige Möbel im Aufbau, das eingelassen ist — die Zeile ist
-    // sonst gewachsen, nicht gesenkt worden.
+    // Eingelassen sind im Aufbau nur das Brett und die beiden Hälften der
+    // Spüle — die Zeile ist sonst gewachsen, nicht gesenkt worden. Je zweimal
+    // in der Küche und einmal im Schauraum, das Brett dreimal.
     const sunk = KITCHEN_SPOTS.filter((spot) => kitchenPiece(spot.name)?.bury);
-    expect(sunk.map((spot) => spot.name)).toEqual(['board', 'board', 'board']);
+    expect(sunk.map((spot) => spot.name)).toEqual([
+      'sink-basin',
+      'sink-drain',
+      'board',
+      'board',
+      'sink-basin',
+      'sink-drain',
+      'board',
+    ]);
   });
 });
 
