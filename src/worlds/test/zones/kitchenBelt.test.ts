@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { StationKind } from './kitchenCarry';
 import {
   BELT_COLORS,
   BELT_EMPTY,
@@ -8,9 +9,11 @@ import {
   BeltKit,
   advanceBelts,
   beltBound,
+  beltDelivers,
   beltKind,
   beltProgress,
   beltReach,
+  beltReleases,
   beltStep,
   type BeltFrame,
   type BeltState,
@@ -622,6 +625,74 @@ describe('advanceBelts — das Zugband holt sich etwas', () => {
     const frame = run.frame(1 / 60);
     expect(beltBound(frame, 'zug')).toBe(true);
     expect(beltBound(frame, 'platte')).toBe(false);
+  });
+});
+
+/**
+ * **Was ein Band von seinen Nachbarn will** (`beltDelivers`, `beltReleases`).
+ *
+ * Die Frage „welche Station liegt auf der Kachel nebenan?" kann nur die Zone
+ * beantworten — die Frage „und darf sie?" ist eine über Stationsarten, und
+ * deshalb steht sie hier und wird hier geprüft, über **alle elf** Arten
+ * (`kitchenCarry.StationKind`) und nicht über die drei, die in der Testküche
+ * gerade zufällig neben einem Band stehen.
+ */
+describe('beltDelivers / beltReleases — was die Nachbarkachel darf', () => {
+  const kinds: StationKind[] = [
+    'top',
+    'bin',
+    'box',
+    'board',
+    'stove',
+    'serve',
+    'rack',
+    'sink',
+    'return',
+    'table',
+    'belt',
+  ];
+
+  it('liefert überall ab außer in den Mülleimer und über die Theke', () => {
+    const takes = kinds.filter((kind) => beltDelivers(kind));
+    expect(takes).toEqual([
+      'top',
+      'box',
+      'board',
+      'stove',
+      'rack',
+      'sink',
+      'return',
+      'table',
+      'belt',
+    ]);
+    // In den Mülleimer wird geworfen, über die Theke wird serviert — beides ist
+    // ein Handgriff und kein Zufall.
+    expect(beltDelivers('bin')).toBe(false);
+    expect(beltDelivers('serve')).toBe(false);
+  });
+
+  it('zieht von allem, was Ware trägt — aber nicht von Herd und Halterung', () => {
+    const gives = kinds.filter((kind) => beltReleases(kind));
+    expect(gives).toEqual(['top', 'box', 'board', 'sink', 'return', 'table', 'belt']);
+    // Gerät ist keine Ware: die Pfanne gehört auf den Herd, der Löscher in
+    // seine Halterung.
+    expect(beltReleases('stove')).toBe(false);
+    expect(beltReleases('rack')).toBe(false);
+    // Und was man nicht hinschieben darf, zieht man auch nicht heraus.
+    for (const kind of kinds) {
+      if (!beltDelivers(kind)) expect(beltReleases(kind)).toBe(false);
+    }
+  });
+
+  it('lässt liegen, was gerade unter dem Messer liegt', () => {
+    // Die laufende Uhr am Brett oder in der Spüle hält das Band an; steht sie,
+    // ist es eine Ablage wie jede andere.
+    expect(beltReleases('board', true)).toBe(false);
+    expect(beltReleases('sink', true)).toBe(false);
+    expect(beltReleases('board', false)).toBe(true);
+    // Auf einer Ablage läuft nie eine Uhr — und wenn doch eine gemeldet würde,
+    // gälte dieselbe Zurückhaltung.
+    expect(beltReleases('top', true)).toBe(false);
   });
 });
 

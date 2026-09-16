@@ -69,8 +69,10 @@ import {
   BELT_EMPTY,
   advanceBelts,
   beltBound,
+  beltDelivers,
   beltKind,
   beltReach,
+  beltReleases,
   beltStep,
   type BeltFrame,
   type BeltState,
@@ -703,48 +705,35 @@ export class KitchenZone implements TestZone {
    * `null` heißt für die Rechnung nebenan: Hier fährt nichts los. Das ist
    * derselbe Fall für dreierlei, und das ist Absicht — ein Band am Rand der
    * Küche, eines, das auf einen Mülleimer zeigt, und eines, das auf die
-   * Ausgabetheke zeigt. Die letzten beiden nehmen nichts entgegen, was ihnen
-   * jemand hinschiebt: In den Mülleimer wird **geworfen**, über die Theke wird
-   * **serviert**, und beides ist ein Handgriff und kein Zufall. Ein Teller, den
-   * ein Band von selbst in den Müll trägt, wäre der teuerste Unfall dieser
-   * Küche.
+   * Ausgabetheke zeigt.
+   *
+   * **Hier steht nur das Nachschlagen**, die Regel steht nebenan
+   * (`kitchenBelt.beltDelivers`, mit Test über alle elf Stationsarten): Welche
+   * Kachel der Nachbar ist, weiß nur die Zone; ob dorthin abgeliefert werden
+   * darf, ist eine Frage über Zahlen und Arten und gehört dorthin, wo ein Test
+   * sie ohne WebGL stellen kann.
    */
   private beltTarget(spot: Station): Station | null {
     const step = beltStep(spot.home.turn);
     const next = this.stationAt(spot.home.x + step.dx, spot.home.z + step.dz);
-    if (!next || next.kind === 'bin' || next.kind === 'serve') return null;
-    return next;
+    return next && beltDelivers(next.kind) ? next : null;
   }
 
   /**
    * **Woher ein Zugband sich etwas holt** — die Station auf der Kachel
    * **hinter** ihm (`kitchenBelt.beltReach`), oder `null`.
    *
-   * Vier Nachbarn geben nichts her, und jeder aus seinem eigenen Grund:
-   *
-   * - Der **Herd** und die **Löscherhalterung**: Was dort steht, ist Gerät und
-   *   keine Ware. Ein Band, das die einzige Pfanne der Küche mitnimmt, während
-   *   das Patty darin brät, ist kein Fördern, sondern ein Diebstahl — und beim
-   *   Löscher merkt man es erst, wenn es brennt.
-   * - Der **Mülleimer** und die **Ausgabetheke**: Aus beiden wird von Hand
-   *   nichts genommen, also auch nicht von selbst. Dieselben zwei, die schon
-   *   als **Ziel** ausscheiden (`beltTarget`) — was man nicht hinschieben darf,
-   *   zieht man auch nicht heraus.
-   *
-   * Und ein fünfter Fall, der kein Möbel ist, sondern ein Augenblick: **Was
-   * gerade unter dem Messer liegt, zieht kein Band weg.** Wer am Brett steht
-   * und schneidet, hat den Salat noch nicht aus der Hand gegeben
-   * (`kitchenWork.WorkState.working` — die Uhr läuft nur, solange jemand
-   * davorsteht). Sobald sie steht, ist das Brett eine Ablage wie jede andere,
-   * und das Fertige fährt los.
+   * Dieselbe Arbeitsteilung wie eine Zeile höher: Die Kachel schlägt die Zone
+   * nach, was von dort mitgenommen werden darf, entscheidet
+   * `kitchenBelt.beltReleases` — Herd und Löscherhalterung nicht (das ist
+   * Gerät), Mülleimer und Theke auch nicht (was man nicht hinschieben darf,
+   * zieht man nicht heraus), und was gerade unter dem Messer liegt, bleibt
+   * liegen.
    */
   private beltSource(spot: Station): Station | null {
     const step = beltReach(spot.home.turn);
     const back = this.stationAt(spot.home.x + step.dx, spot.home.z + step.dz);
-    if (!back || back.kind === 'bin' || back.kind === 'serve') return null;
-    if (back.kind === 'stove' || back.kind === 'rack') return null;
-    if (back.work.working) return null;
-    return back;
+    return back && beltReleases(back.kind, back.work.working) ? back : null;
   }
 
   /**

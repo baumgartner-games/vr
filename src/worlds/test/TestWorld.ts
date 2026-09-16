@@ -9,6 +9,7 @@ import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { npcSkin } from '../npc/npcKinds';
 import { SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
+import { spawnAt } from './spawnAt';
 import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
@@ -110,10 +111,22 @@ export class TestWorld extends GridWorld {
     return { floor: 0x7c8a6a, stone: 0x9a9481, wood: 0x8a5f38, wall: 0xb3b8c2 };
   }
 
+  /**
+   * **Wo man ankommt** — die Mitte des Startplatzes, oder die Kachel, die in
+   * der Adresse steht (`spawnAt.ts`, `?at=`).
+   *
+   * Der Startplatz ist nie eine Torkachel, dafür sorgt der Grundriss
+   * (`zones/start.ts`, mit Test). Die Adresse darf dagegen **jede** Kachel
+   * nennen: Sie ist das Werkzeug dessen, der die Welt prüft, und der weiß, wo
+   * er hinwill. Steht dort Unsinn, gilt der Startplatz — geraten wird nicht.
+   */
   protected override spawnPoint(): THREE.Vector3 {
-    // Die Mitte des Startplatzes — nie eine Torkachel, dafür sorgt der
-    // Grundriss (`zones/start.ts`, mit Test).
-    return new THREE.Vector3(centre(SPAWN.x), 0, centre(SPAWN.z));
+    const at = spawnAt(typeof location === 'undefined' ? '' : location.search);
+    if (!at) return new THREE.Vector3(centre(SPAWN.x), 0, centre(SPAWN.z));
+    // Die Ebene kommt aus dem Graphen und nicht aus einer Zahl hier: Das Deck
+    // des Podests liegt oben, und wer auf y = 0 daruntersetzt, steckt drin.
+    const y = this.grid?.graph.levelY(at.level) ?? 0;
+    return new THREE.Vector3(centre(at.x), y, centre(at.z));
   }
 
   protected override spawnYaw(): number {

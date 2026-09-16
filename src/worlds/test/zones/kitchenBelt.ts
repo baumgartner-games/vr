@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { canLoadModels } from '../../../core/chefFit';
 import { kitchenPiece } from '../../../core/kitchenFit';
 import { TILE } from '../../nav/navTile';
+import type { StationKind } from './kitchenCarry';
 
 /**
  * **Das Förderband** — eine Kachel Ausgabetheke, auf der die Dinge von selbst
@@ -578,6 +579,47 @@ export function beltProgress(state: BeltState): number {
  */
 export function beltStep(turn: 0 | 1 | 2 | 3): { dx: number; dz: number } {
   return BELT_STEPS[turn] ?? BELT_STEPS[0]!;
+}
+
+/**
+ * **Ob ein Band auf diese Sorte Station abliefern darf.**
+ *
+ * Zwei sagen nein, und beide aus demselben Grund: In den **Mülleimer** wird
+ * geworfen, über die **Ausgabetheke** wird serviert, und beides ist ein
+ * Handgriff und kein Zufall. Ein Teller, den ein Band von selbst in den Müll
+ * trägt, wäre der teuerste Unfall dieser Küche.
+ *
+ * Die Regel steht hier und nicht in der Zone, obwohl erst die Zone weiß,
+ * **welche** Station nebenan steht: Das Nachschlagen der Nachbarkachel ist eine
+ * Zeile, die Entscheidung darüber ist die Regel — und eine Regel, die nur im
+ * Browser läuft, ist eine Regel, die niemand nachrechnet
+ * (`kitchen.beltTarget` schlägt nach, hier steht, was gilt).
+ */
+export function beltDelivers(kind: StationKind): boolean {
+  return kind !== 'bin' && kind !== 'serve';
+}
+
+/**
+ * **Ob ein Zugband sich von dieser Sorte Station etwas holen darf.**
+ *
+ * Alles, worauf ein Band nicht abliefern darf, darf es auch nicht leerziehen —
+ * was man nicht hinschieben darf, nimmt man auch nicht heraus. Dazu zwei
+ * eigene Fälle und ein Augenblick:
+ *
+ * - **Herd** und **Löscherhalterung**: Was dort steht, ist Gerät und keine
+ *   Ware. Ein Band, das die einzige Pfanne der Küche mitnimmt, während das
+ *   Patty darin brät, ist kein Fördern, sondern ein Diebstahl — und beim
+ *   Löscher merkt man es erst, wenn es brennt.
+ * - **Und was gerade unter dem Messer liegt, bleibt liegen** (`working`): Wer
+ *   am Brett steht und schneidet, hat den Salat noch nicht aus der Hand
+ *   gegeben (`kitchenWork.WorkState.working` läuft nur, solange jemand
+ *   davorsteht). Sobald die Uhr steht, ist das Brett eine Ablage wie jede
+ *   andere, und das Fertige fährt los.
+ */
+export function beltReleases(kind: StationKind, working = false): boolean {
+  if (!beltDelivers(kind)) return false;
+  if (kind === 'stove' || kind === 'rack') return false;
+  return !working;
 }
 
 /**

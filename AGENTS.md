@@ -2064,6 +2064,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     keine Reise. Die Höhe kommt aus dem Graphen (`NavGraph.levelY`): Das Podest
     liegt auf Ebene 1, und wer dorthin auf y = 0 spränge, stünde unter seinem
     eigenen Deck.
+  - **Und auf eine einzelne Kachel setzt einen die Adresse** (`spawnAt.ts`):
+    `/?at=21,-24#test` fängt auf genau dieser Kachel des Geländes an,
+    `/?at=18,-16,1#test` eine Ebene höher auf dem Deck des Podests, und
+    `/?at=kitchen#test` nimmt denselben Namen wie das Menü. Gerechnet wird in
+    **Kacheln des Geländes** — dieselben Zahlen, die in `layout.ts` stehen und
+    die ein Test ausgibt, wenn er über eine Kachel stolpert: Wer „Kachel 21,-24
+    hat keinen Anschluss" liest, tippt sie in die Adresse und steht daneben.
+    Sie gilt für die ganze Sitzung, also auch fürs Wiedereinsetzen nach einem
+    Sturz. Warum eine Adresse und kein Zifferblock im Spiel: Das hier ist kein
+    Spielzug, sondern das Werkzeug dessen, der die Welt **prüft** — er kommt
+    von außen, mit einer Zahl in der Hand, und eine Adresse kann man
+    aufschreiben, verschicken und in ein Testskript legen. Alles, was nicht
+    eindeutig ist (ein Wort statt einer Zahl, ein unbekannter Name, eine halbe
+    Koordinate), gibt den gewöhnlichen Startplatz: Geraten wird nicht, sonst
+    sucht man im Gelände, warum man woanders steht.
   - **Küche** (ganz im Norden, hinter dem Podest): vierundzwanzig mal elf
     Kacheln mit den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe
     _Modelle im Repository_), und zwar in **zwei Hälften**. Im Westen die
@@ -4954,7 +4969,7 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenGuests.ts` | wer an einem Tisch isst, wie lange, und was stehen bleibt |
 | `zones/kitchenBuild.ts` | welche Kachel gemeint ist und ob dort Platz ist |
 | `zones/kitchenSpray.ts` | der Feuerlöscher: Kegel, Schalter, Fortschritt, Nebel |
-| `zones/kitchenBelt.ts` | die Bänder: Laufzeit, Laufrichtung, Ziehen, Netz |
+| `zones/kitchenBelt.ts` | die Bänder: Laufzeit, Laufrichtung, Ziehen, Nachbarn, Netz |
 | `zones/kitchenCarry.ts` | Stationen und `kitchenDeed`; reicht alle Uhren weiter |
 | `zones/kitchenPlan.ts` | wo welches Möbel steht, der Grundriss, das Schild |
 | `zones/kitchen.ts` | die Zone: Netze, Körper, Anzeigen, Anfassen |
@@ -5227,7 +5242,12 @@ Und das sind die Regeln, die darin stehen:
   - **Gerät ist keine Ware**: Vom Herd (dort steht die Pfanne) und aus der
     Löscherhalterung zieht es nichts, genauso wenig wie aus dem Mülleimer oder
     von der Ausgabetheke — dieselben zwei, die auch als **Ziel** ausscheiden.
-    Was man nicht hinschieben darf, zieht man auch nicht heraus.
+    Was man nicht hinschieben darf, zieht man auch nicht heraus. Beide Regeln
+    stehen als **reine Funktionen** neben der Rechnung (`beltDelivers`,
+    `beltReleases`) und nicht in der Zone: Welche Station nebenan steht, weiß
+    nur die Zone; ob sie darf, ist eine Frage über Stationsarten, und die prüft
+    ein Test über **alle elf** statt über die drei, die gerade zufällig neben
+    einem Band stehen.
   - **Was unter dem Messer liegt, bleibt liegen**: Solange am Brett oder in der
     Spüle jemand davorsteht und die Uhr läuft (`WorkState.working`), zieht das
     Band nichts weg. Sobald sie steht, fährt das Fertige los.
