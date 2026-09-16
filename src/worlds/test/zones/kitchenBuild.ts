@@ -1,9 +1,12 @@
-import type { Turn } from './kitchenPlan';
-
 /**
- * **Der Umbau der Küche** — welche Kachel gerade gemeint ist, welche noch frei
- * ist, und wie herum ein Möbel dabei steht. Ohne three.js, ohne Szene, ohne
- * Zone.
+ * **Der Umbau der Küche** — welche Kachel gerade gemeint ist und ob dort noch
+ * Platz ist. Ohne three.js, ohne Szene, ohne Zone.
+ *
+ * Wie herum ein Möbel steht, steht **nicht** hier: Das rechnet
+ * `kitchenPlan.footprint` schon aus Katalogmaß und Drehung, und eine zweite
+ * Fassung davon wäre die zweite Wahrheit, die beim nächsten Möbel ausschert.
+ * Ein aufgehobenes Möbel behält deshalb seine Drehung und bekommt anderswo
+ * dieselbe wieder.
  *
  * Bei _Overcooked_ steht die Küche, wie sie steht. Bei _PlateUp_ baut man sie
  * zwischen zwei Tagen selbst um, und genau das ist hier gemeint: ein
@@ -156,21 +159,4 @@ export function whyNotBuilt(
   }
   if (taken.some((other) => overlaps(spot, other))) return 'Hier steht schon etwas';
   return null;
-}
-
-/**
- * **Eine Vierteldrehung weiter** — der zweite Handgriff des Baumodus.
- *
- * Ein Möbel, das sich nur verschieben und nicht drehen lässt, ist ein Möbel,
- * das an der Westwand mit dem Rücken zum Raum steht. Gedreht wird **in der
- * Hand**, nicht am Platz: Was man trägt, dreht man, bevor man es hinstellt.
- */
-export function turnAround(turn: Turn): Turn {
-  return ((turn + 1) % 4) as Turn;
-}
-
-/** Und die Grundfläche dazu — bei ungerader Drehung stehen Breite und Tiefe über Kreuz. */
-export function turnedSize(tiles: readonly [number, number], turn: Turn): { w: number; d: number } {
-  const [w, d] = tiles;
-  return turn % 2 === 0 ? { w, d } : { w: d, d: w };
 }

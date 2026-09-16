@@ -150,12 +150,45 @@ export interface KitchenPiece {
    * keinem Standpunkt aus im Bild.
    */
   readonly align?: readonly [x: number, z: number];
+
+  /**
+   * **Dieses Stück steckt nicht in `public/models/kitchen.glb`, sondern wird
+   * gebaut.**
+   *
+   * Das klingt nach einem Bruch des Katalogs und ist keiner: Diese Liste
+   * beschreibt, **was in der Küche steht** — nicht, was gekauft wurde. Die
+   * Quelle ist fremde Arbeit mit einer Lizenz (`public/models/CREDITS.md`),
+   * sie hat dreizehn Möbel, und sie wird nicht angefasst. Ein Förderband ist
+   * trotzdem ein Möbel dieser Küche: Es belegt eine Kachel, es ist 0,53 m
+   * hoch, man legt etwas darauf. Genau diese Zahlen will jeder haben, der den
+   * Aufbau plant (`worlds/test/zones/kitchenPlan.ts`), den Grundriss stempelt
+   * (`worlds/test/testPlan.ts`) oder den Schauraum füllt — und ob das Netz
+   * dahinter geladen oder aus Zylindern gebaut ist, geht keinen davon etwas
+   * an. Eine zweite Liste neben dieser wäre die, die beim übernächsten Möbel
+   * auseinanderläuft.
+   *
+   * **Was ein Lader damit tun muss**: `core/kitchenModel.kitchenModel` sucht
+   * den Namen als Knoten in der Datei und gibt `null`, wenn er nicht darin
+   * steht. Für ein gebautes Stück ist dieses `null` **kein Fehlschlag** —
+   * nicht „Modell fehlt, nimm den Ersatzbaustein", sondern „hier ist die Zone
+   * dran". Wer `built` nicht liest, meldet eine fehlende Datei, die es nicht
+   * gibt, und stellt einen grauen Würfel dorthin, wo ein Band stehen soll.
+   * Umgekehrt gilt es genauso: Wer ein Stück **ohne** `built` nicht in der
+   * Datei findet, hat einen Tippfehler im Namen — und diese Unterscheidung
+   * gibt es ohne dieses Feld nicht.
+   */
+  readonly built?: boolean;
 }
 
 /**
- * **Die dreizehn Möbel**, in der Reihenfolge, in der sie aus der Quelle fallen
- * — mit den Maßen, die sie **im Spiel** haben, also halbiert
- * (`KITCHEN_SCALE`).
+ * **Die dreizehn Möbel der Quelle und ein vierzehntes dazu**, in der
+ * Reihenfolge, in der sie aus der Datei fallen — mit den Maßen, die sie **im
+ * Spiel** haben, also halbiert (`KITCHEN_SCALE`).
+ *
+ * Das vierzehnte ist das **Förderband**: Es steht am Ende, es trägt
+ * `built: true`, und es ist das einzige Stück ohne Knoten in der Quelle
+ * (siehe `KitchenPiece.built`). Wer das Werkzeug neu laufen lässt, ersetzt die
+ * dreizehn davor und lässt das Band stehen.
  *
  * Die Kachelzahl ist die gerundete Grundfläche und nicht die aufgerundete:
  * Ein Unterschrank ist einen Meter breit und 1,06 m tief, und wer daraus zwei
@@ -225,6 +258,26 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     worktop: true,
     holds: 'pan',
     align: [0, 0.078],
+  },
+  {
+    name: 'belt',
+    label: 'Förderband',
+    tiles: [1, 1],
+    // **0,53 m, und die Zahl ist abgeschrieben — mit Absicht.** Ein
+    // Förderband ist in dieser Küche die Verlängerung der **Ausgabetheke**:
+    // Was daraufliegt, fährt weiter und wird am anderen Ende abgeholt. Damit
+    // es danach aussieht, muss es auf derselben Höhe laufen wie `pass`
+    // (0,53 m) — ein Band, das drei Zentimeter tiefer oder höher steht als die
+    // Theke daneben, ist in der Sicht von oben eine Stufe, die niemand
+    // erklären kann. Eine eigene, hübschere Zahl (0,50 wie der Arbeitstisch,
+    // 0,55 wie der Herd) wäre genau das: hübscher und falsch.
+    //
+    // Unterschied zur Theke ist allein die Grundfläche: `pass` belegt zwei
+    // Kacheln, das Band **eine** — drei davon in einer Reihe sind eine
+    // Strecke, zwei Doppelkacheln wären ein zweiter Tresen.
+    height: 0.53,
+    worktop: true,
+    built: true,
   },
 ];
 

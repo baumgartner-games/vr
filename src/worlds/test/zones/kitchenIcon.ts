@@ -20,6 +20,16 @@ import { TILE } from '../../nav/navTile';
  * sich ändert — und würde es nicht tun. Hier wird **genau das Ding** abgelichtet,
  * das später in der Hand liegt: derselbe Körper, dieselbe Farbe.
  *
+ * **Und das Möbel bringt selbst schon ein Symbol mit.** In der Textur des
+ * `serve-counter` steckt ein aufgedruckter Burger — vorn und oben. Unser Icon
+ * lag davor, beides war zu sehen, und vor der Salatausgabe stand ein Salat auf
+ * einem Burger. Eine Tafel ist deshalb **zwei** Flächen: hinten eine deckend
+ * weiße, die den Aufdruck auslöscht, davor das gerenderte Bild
+ * (`IconOven.counterSign`, `blankSize`). Die Textur des Möbels wird dabei
+ * nicht angefasst — sie ist fremde Arbeit, sie gehört dreizehn Möbeln
+ * gemeinsam, und ein zweiter Satz Texturen für ein Symbol wäre teurer als eine
+ * Fläche mit einer Farbe darauf.
+ *
  * **Einmal und nicht je Bild.** Ein Render in ein `WebGLRenderTarget` ist ein
  * vollständiger zweiter Durchgang durch eine (winzige) Szene — vier Zutaten,
  * vier Durchgänge, einmal beim Aufbau der Zone. Danach ist ein Icon eine
@@ -109,8 +119,50 @@ export const SIGN_DEFAULT: SignPlace = 'front';
 const SIGN_MARGIN_FRONT = 0.05;
 const SIGN_MARGIN_TOP = 0.19;
 
+/**
+ * **Der Rand um die weiße Grundfläche** — schmaler als der um die Tafel, und
+ * das ist der ganze Punkt.
+ *
+ * Das gekaufte Möbel `serve-counter` trägt in seiner Textur ein
+ * **aufgedrucktes Burger-Symbol**, vorn wie oben. Unser gerendertes Icon liegt
+ * davor, und beides war gleichzeitig zu sehen: hinter dem Salat der Ausgabe
+ * ein zweiter, fremder Burger. Ein Aufkleber deckt aber nur, was er bedeckt —
+ * also kommt **Farbe** darunter, eine deckend weiße Fläche, groß genug, dass
+ * vom Aufdruck nichts mehr herausschaut.
+ *
+ * **Größer als die Tafel, und zwar in beide Richtungen.** Die Tafel ist
+ * quadratisch, weil die Textur es ist (`signSize`) — der Aufdruck ist das
+ * nicht, er sitzt in der Breite der ganzen Front. Eine weiße Fläche in
+ * Tafelgröße wäre eine Unterlegscheibe: Sie nähme dem Icon den Hintergrund und
+ * ließe links und rechts genau das stehen, was sie überdecken soll. Gerechnet
+ * am Ausgabe-Möbel (1 Kachel, 0,46 m hoch, `core/kitchenFit.KITCHEN_PIECES`):
+ *
+ * - **Vorn** wird die Fläche 1,00 − 2 × 0,03 = **0,94 m** breit und
+ *   0,46 − 2 × 0,03 = **0,40 m** hoch. Die Tafel davor misst 0,36 m — es
+ *   bleiben also 2 cm Weiß über und unter ihr und 29 cm links und rechts.
+ * - **Oben** wird sie 1,00 − 2 × 0,06 = **0,88 m** im Quadrat, die Tafel
+ *   darauf 0,62 m: 13 cm Weiß ringsum.
+ *
+ * Warum überhaupt ein Rand bleibt: Die Front läuft oben und unten in eine
+ * Leiste aus, und die Kachel hat eine Kante. Eine weiße Fläche, die darüber
+ * hinausragt, steht in der Luft und sieht von der Seite aus wie ein
+ * abgeknickter Aufkleber. Die 5 cm aus `SIGN_MARGIN_FRONT` sind der Platz, auf
+ * dem ein **Schild** nicht kleben soll; Farbe darf dichter heran — 3 cm vorn,
+ * und oben 6 cm statt der 19 cm, die eine liegende Tafel sichtbar auf der
+ * Platte halten.
+ */
+const BLANK_MARGIN_FRONT = 0.03;
+const BLANK_MARGIN_TOP = 0.06;
+
 /** Wie weit die Tafel vom Möbel absteht, in Metern — gegen Z-Fighting. */
 const SIGN_GAP = 0.01;
+
+/**
+ * Und wie weit die Icon-Tafel vor der weißen Fläche liegt — 2 mm, aus
+ * demselben Grund. Weniger als `SIGN_GAP`, weil die beiden zusammengehören:
+ * Sie sind ein Aufkleber aus zwei Lagen und nicht zwei Schilder.
+ */
+const SIGN_LAYER = 0.002;
 
 /** Was ein Ofen an einem einzelnen Bild anders machen darf. */
 export interface IconBakeOptions {
@@ -239,6 +291,35 @@ export function signSize(piece: KitchenPiece, where: SignPlace = SIGN_DEFAULT): 
 }
 
 /**
+ * **Wie groß die weiße Grundfläche unter der Tafel ist**, in Metern — und
+ * anders als die Tafel ist sie **nicht** quadratisch (siehe
+ * `BLANK_MARGIN_FRONT`).
+ *
+ * Vorn ist `w` die Breite des Möbels und `h` seine Höhe, oben ist `w` seine
+ * Breite und `h` seine Tiefe — in beiden Fällen die Fläche, die man von dieser
+ * Seite sieht, abzüglich eines schmalen Rands. Aus dem Katalog gerechnet wie
+ * `signSize`: Wer das Möbel dort austauscht, bekommt eine Fläche, die wieder
+ * passt, statt einer, die plötzlich über die Kante steht.
+ */
+export function blankSize(
+  piece: KitchenPiece,
+  where: SignPlace = SIGN_DEFAULT,
+): { w: number; h: number } {
+  const wide = piece.tiles[0] * TILE;
+  if (where === 'top') {
+    const deep = piece.tiles[1] * TILE;
+    return {
+      w: Math.max(0.05, wide - 2 * BLANK_MARGIN_TOP),
+      h: Math.max(0.05, deep - 2 * BLANK_MARGIN_TOP),
+    };
+  }
+  return {
+    w: Math.max(0.05, wide - 2 * BLANK_MARGIN_FRONT),
+    h: Math.max(0.05, piece.height - 2 * BLANK_MARGIN_FRONT),
+  };
+}
+
+/**
  * **Der Ofen** — einer je Zone, wie der Zutatensatz nebenan.
  *
  * Er hält die kleine Szene, in der gebacken wird, die fertigen Bilder und
@@ -257,6 +338,8 @@ export class IconOven {
   /** Die geteilten Teile der Tafeln: Formen nach Maß, Materialien nach Bild. */
   private readonly boards = new Map<string, THREE.PlaneGeometry>();
   private readonly skins = new Map<THREE.Texture, THREE.MeshBasicMaterial>();
+  /** Das Weiß unter allen Tafeln — eines für die ganze Zone. */
+  private paint: THREE.MeshBasicMaterial | null = null;
 
   private readonly box = new THREE.Box3();
   private readonly size = new THREE.Vector3();
@@ -381,6 +464,28 @@ export class IconOven {
   }
 
   /**
+   * **Die weiße Grundfläche** — deckend, unbeleuchtet, ohne Durchsicht.
+   *
+   * `MeshBasicMaterial` **ohne** `transparent`, und das ist dieselbe
+   * Begründung wie bei der Tafel darüber: Ein beleuchtetes Weiß ist im
+   * Schatten des Ausgaberegals grau, und grau überdeckt kein aufgedrucktes
+   * Symbol, es lässt es durchscheinen. Unbeleuchtet ist es in der Sonne und im
+   * Schatten dasselbe Weiß — und mehr soll es nicht sein: Untergrund, damit
+   * das Icon davor das einzige Bild am Möbel ist.
+   *
+   * Sie schreibt Tiefe (kein `depthWrite: false` wie beim Aufkleber): Was
+   * hinter ihr liegt, soll **nicht** mehr gezeichnet werden, das ist ja der
+   * Zweck.
+   */
+  blank(width: number, height: number): THREE.Mesh {
+    const blank = new THREE.Mesh(this.board(width, height), this.white());
+    blank.name = 'kitchen-icon-blank';
+    blank.castShadow = false;
+    blank.receiveShadow = false;
+    return blank;
+  }
+
+  /**
    * **Dieselbe Tafel, schon an ihrem Platz** — im Raum des Möbels, an das sie
    * gehängt wird (`model.add(sign)`).
    *
@@ -389,25 +494,43 @@ export class IconOven {
    * Ausgaben an der Theke stehen mit `turn: 2` „zum Gang hin gedreht", und der
    * Gang liegt im Süden (+z). Wer das Möbel anders dreht, dreht die Tafel mit
    * — sie hängt ja daran.
+   *
+   * **Zwei Flächen und nicht eine**, und deshalb gibt das hier eine Gruppe
+   * zurück und kein `Mesh`: hinten die deckend weiße Grundfläche
+   * (`blankSize`), die das **aufgedruckte** Symbol des gekauften Möbels
+   * auslöscht, und `SIGN_LAYER` davor die Icon-Tafel wie bisher. Ohne die
+   * weiße Lage sah man beides gleichzeitig — den Salat, den wir rendern, und
+   * den Burger, der in der Textur des Möbels steckt.
+   *
+   * An der Lage der Gruppe ändert sich dadurch nichts: Sie sitzt genau dort,
+   * wo vorher die Tafel saß, mit derselben Drehung.
    */
-  counterSign(texture: THREE.Texture, spot: SignSpot = {}): THREE.Mesh {
+  counterSign(texture: THREE.Texture, spot: SignSpot = {}): THREE.Object3D {
     const piece = spot.piece ?? kitchenPiece('serve-counter');
     const height = piece?.height ?? 0.46;
     const depth = (piece?.tiles[1] ?? 1) * TILE;
     const where = spot.where ?? SIGN_DEFAULT;
     const edge = piece ? signSize(piece, where) : 0.36;
+    const back = piece ? blankSize(piece, where) : { w: 0.94, h: 0.4 };
 
+    const board = new THREE.Group();
+    board.name = 'kitchen-icon-board';
+    // Die Reihenfolge ist zugleich die Tiefe: erst das Weiß, dann das Bild.
+    board.add(this.blank(back.w, back.h));
     const sign = this.sign(texture, edge, edge);
+    sign.position.z = SIGN_LAYER;
+    board.add(sign);
+
     if (where === 'top') {
-      sign.position.set(0, height + SIGN_GAP, 0);
+      board.position.set(0, height + SIGN_GAP, 0);
       // Hingelegt: Das Bild schaut nach oben, sein Kopf zeigt nach Norden —
       // also dorthin, wo in der Ansicht von oben der obere Bildrand liegt.
-      sign.rotation.x = -Math.PI / 2;
-      return sign;
+      board.rotation.x = -Math.PI / 2;
+      return board;
     }
-    sign.position.set(0, height / 2, -(depth / 2 + SIGN_GAP));
-    sign.rotation.y = Math.PI;
-    return sign;
+    board.position.set(0, height / 2, -(depth / 2 + SIGN_GAP));
+    board.rotation.y = Math.PI;
+    return board;
   }
 
   /**
@@ -427,6 +550,8 @@ export class IconOven {
     this.boards.clear();
     for (const skin of this.skins.values()) skin.dispose();
     this.skins.clear();
+    this.paint?.dispose();
+    this.paint = null;
     this.scene.clear();
   }
 
@@ -518,5 +643,15 @@ export class IconOven {
       this.skins.set(texture, skin);
     }
     return skin;
+  }
+
+  /**
+   * Ein Weiß für alle Grundflächen dieser Zone — geteilt wie Form und Haut der
+   * Tafeln. Acht Ausgaben mit acht gleichen weißen Materialien wären acht
+   * Zeichenaufträge, die der Renderer nicht zusammenfassen kann.
+   */
+  private white(): THREE.MeshBasicMaterial {
+    this.paint ??= new THREE.MeshBasicMaterial({ color: 0xffffff });
+    return this.paint;
   }
 }

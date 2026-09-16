@@ -1,15 +1,23 @@
 /**
- * **Die Uhren der Küche** — braten, verbrennen, brennen, schneiden. Ohne
- * three.js, ohne Zone, ohne Bild.
+ * **Die Uhr am Herd** — braten, verbrennen, brennen. Ohne three.js, ohne Zone,
+ * ohne Bild.
  *
- * Eine dritte Datei neben Rezept (`kitchenRecipes.ts`) und Regel
- * (`kitchenCarry.ts`), und der Grund ist ein anderer als dort: Alles in jenen
- * beiden passiert, **weil jemand `A` drückt**. Hier passiert etwas, **weil
- * Zeit vergeht** — und das ist die fehleranfälligste Stelle der ganzen Küche.
- * Ein Bild dauert 16 ms, eine Phase 4 s, und wer die Reste am Phasenende
- * wegwirft, dessen Patty verbrennt je nach Bildrate unterschiedlich schnell.
- * Deshalb steht die Rechnung hier, wo ein Test sie mit einem Schritt von 100 s
- * genauso nachrechnen kann wie mit tausend Schritten von 0,1 s.
+ * Eine Datei neben Rezept (`kitchenRecipes.ts`) und Regel (`kitchenCarry.ts`),
+ * und der Grund ist ein anderer als dort: Alles in jenen beiden passiert,
+ * **weil jemand `A` drückt**. Hier passiert etwas, **weil Zeit vergeht** — und
+ * das ist die fehleranfälligste Stelle der ganzen Küche. Ein Bild dauert
+ * 16 ms, eine Phase 4 s, und wer die Reste am Phasenende wegwirft, dessen
+ * Patty verbrennt je nach Bildrate unterschiedlich schnell. Deshalb steht die
+ * Rechnung hier, wo ein Test sie mit einem Schritt von 100 s genauso
+ * nachrechnen kann wie mit tausend Schritten von 0,1 s.
+ *
+ * **Das Schneidebrett stand einmal mit in dieser Datei** — es ist in
+ * `kitchenWork.ts` aufgegangen, zusammen mit der Spüle. Der Unterschied, an
+ * dem die Trennung hängt, ist die Figur davor: Der Herd läuft weiter, **ob
+ * jemand dabeisteht oder nicht** (sonst könnte man in der Bratzeit nichts
+ * anderes tun), die Arbeit dort drüben läuft **nur**, solange jemand dabeisteht.
+ * Zwei Rechnungen mit gegenteiliger Grundannahme gehören nicht nebeneinander,
+ * nur weil in beiden eine Zahl hochzählt.
  *
  * Die Zone gibt je Bild ihr `dt` hinein und bekommt einen neuen Zustand
  * zurück, dazu einen Anteil 0…1 für den Balken darüber (Spezifikation §7).
@@ -17,7 +25,7 @@
  * die Station.
  */
 
-import { fryStage, chopStage, type KitchenItem } from './kitchenRecipes';
+import { fryStage, type KitchenItem } from './kitchenRecipes';
 
 /**
  * **Wie lange ein Patty braucht**, in Sekunden.
@@ -45,18 +53,6 @@ export const BURN_SECONDS = 6;
  * Sekunden reichen quer durch die Küche zum Feuerlöscher.
  */
 export const FIRE_SECONDS = 5;
-
-/**
- * **Wie lange ein Schnitt dauert** — je Stufe.
- *
- * Drei Sekunden statt der früheren drei Knopfdrücke: Ein Brett, an dem man
- * dreimal `A` tippt, ist ein Knopf, der die Zutat austauscht. Eine Uhr, die
- * nur läuft, solange man davorsteht, ist der Grund, warum man am Brett
- * **steht** — und bei _Overcooked_ ist genau das die Arbeit.
- */
-export const CHOP_SECONDS = 3;
-
-// --- der Herd ---------------------------------------------------------------
 
 /** In welcher Phase der Herd steckt. */
 export type StovePhase = 'cold' | 'frying' | 'burning' | 'igniting' | 'fire';
@@ -189,69 +185,4 @@ export function advanceStove(state: StoveState, dt: number): StoveTick {
  */
 export function douse(state: StoveState): StoveState {
   return state.fire ? COLD_STOVE : state;
-}
-
-// --- das Schneidebrett ------------------------------------------------------
-
-/**
- * **Was auf dem Brett liegt und wie weit es geschnitten ist.**
- *
- * `cutting` ist der Grund, warum aus einer Tomate nicht in einem Zug Suppe
- * wird: Ist eine Stufe fertig, steht die Uhr, und das Ergebnis liegt da. Wer
- * weiterschneiden will, nimmt es und legt es wieder hin — ein Handgriff, der
- * zeigt, dass die zweite Stufe gewollt war und nicht passiert ist.
- */
-export interface ChopState {
-  readonly item: KitchenItem | null;
-  /** Sekunden an dieser Stufe. */
-  readonly time: number;
-  /** Ob noch geschnitten wird. */
-  readonly cutting: boolean;
-}
-
-/** Ein leeres Brett. */
-export const EMPTY_BOARD: ChopState = { item: null, time: 0, cutting: false };
-
-/**
- * **Frisch aufgelegt** — und damit fängt das Schneiden sofort an.
- *
- * Kein zusätzlicher Druck auf `A`: Wer etwas Schneidbares auf ein
- * Schneidebrett legt, will es schneiden. Alles andere darf trotzdem daliegen —
- * ein Brett ist auch eine Ablage —, nur die Uhr läuft dann nicht.
- */
-export function onBoard(item: KitchenItem | null): ChopState {
-  return { item, time: 0, cutting: item !== null && chopStage(item) !== null };
-}
-
-/** Der Anteil 0…1 für den Balken über dem Brett. */
-export function chopProgress(state: ChopState): number {
-  return state.cutting ? Math.min(1, state.time / CHOP_SECONDS) : 0;
-}
-
-/** Was ein Bild am Brett geändert hat. */
-export interface ChopTick {
-  readonly state: ChopState;
-  /** Was in diesem Bild fertig geschnitten wurde. */
-  readonly cut: KitchenItem | null;
-}
-
-/**
- * **Ein Bild am Brett** — `dt` Sekunden weiter, aber nur, wenn jemand
- * danebensteht.
- *
- * `live` ist die Figur am Brett. Geht sie weg, hört das Schneiden auf und der
- * **Fortschritt bleibt stehen**, statt zurückzufallen: Bei _Overcooked_ ist
- * das Weglaufen vom Brett eine Entscheidung („ich hole schon mal das
- * Brötchen") und keine Strafe. Zurückgesetzt wird nur, wer die Zutat in die
- * Hand nimmt — dann legt die Zone `EMPTY_BOARD` hin.
- */
-export function advanceChop(state: ChopState, dt: number, live: boolean): ChopTick {
-  if (!live || !state.cutting || !state.item) return { state, cut: null };
-  const time = state.time + Math.max(0, dt);
-  if (time < CHOP_SECONDS) return { state: { ...state, time }, cut: null };
-  const cut = chopStage(state.item);
-  if (!cut) return { state: { ...state, cutting: false }, cut: null };
-  // Genau **eine** Stufe je Auflegen, auch wenn das Bild lang war: Der Rest
-  // verfällt, weil die nächste Stufe einen neuen Handgriff braucht.
-  return { state: { item: cut, time: 0, cutting: false }, cut };
 }

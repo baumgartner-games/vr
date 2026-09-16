@@ -60,14 +60,28 @@ describe('Kisten, Flächen, Mülleimer', () => {
     });
   });
 
-  it('gibt aus der Kiste nichts in eine Hand, die schon voll ist', () => {
-    const pot = press(d('pot'), { kind: 'box', gives: 'bun' });
-    expect(pot.do).toBe('refuse');
-    expect(why(pot)).toContain('Hände');
-    // Zwei Brötchen werden kein Burger — und der Satz sagt, was hilft.
-    expect(why(press(d('bun'), { kind: 'box', gives: 'bun' }))).toContain('Teller');
-    // Rohes bleibt roh, auch direkt an der Kiste.
-    expect(why(press(d('plate'), { kind: 'box', gives: 'patty' }))).toContain('gebraten');
+  /**
+   * **Was nicht in die Hand passt, kommt auf den Deckel.** Früher stand hier
+   * „erst die Hände frei machen" — ein Satz, der einen quer durch die Küche
+   * zur nächsten freien Fläche schickte, obwohl man vor einer stand. Die Kiste
+   * ist jetzt zugleich Arbeitsplatte, und damit ist der Handgriff derselbe wie
+   * an der Zeile.
+   */
+  it('legt auf die Kiste, was nicht in die Hand geht', () => {
+    expect(press(d('pot'), { kind: 'box', gives: 'bun' })).toEqual({
+      do: 'place',
+      dish: d('pot'),
+    });
+    // Zwei Brötchen werden kein Burger — also liegt das mitgebrachte jetzt da.
+    expect(press(d('bun'), { kind: 'box', gives: 'bun' })).toEqual({
+      do: 'place',
+      dish: d('bun'),
+    });
+    // Und der Teller an der Pattykiste: Rohes bleibt roh, der Teller liegt ab.
+    expect(press(d('plate'), { kind: 'box', gives: 'patty' })).toEqual({
+      do: 'place',
+      dish: d('plate'),
+    });
   });
 
   it('legt auf eine freie Fläche und nimmt von einer belegten', () => {
@@ -104,6 +118,29 @@ describe('Kisten, Flächen, Mülleimer', () => {
     expect(why(deed)).toContain('Topf');
   });
 
+  /**
+   * **Verbranntes kommt nicht mehr auf den Burger.** Früher durfte es das,
+   * damit man es wieder abräumen kann — in Wahrheit baute man damit einen
+   * Burger, der erst an der Theke durchfiel. Jetzt fällt es schon hier durch,
+   * und der Satz nennt den Weg zum Mülleimer.
+   */
+  it('legt kein verbranntes Patty auf Brötchen oder Teller', () => {
+    for (const on of [d('bun'), d('plate'), d('plate', 'bun', 'patty-cooked')]) {
+      const deed = press(d('patty-burnt'), { kind: 'top', on });
+      expect(deed.do).toBe('refuse');
+      expect(why(deed)).toContain('Müll');
+    }
+    // Aus der Pfanne heraus genauso — sie ist der einzige Ort, an dem es
+    // entsteht, und der Mülleimer der einzige, an dem es hingehört.
+    const pan = press(d('pan', 'patty-burnt'), { kind: 'top', on: d('bun') });
+    expect(pan.do).toBe('refuse');
+    expect(why(pan)).toContain('Müll');
+    expect(press(d('pan', 'patty-burnt'), { kind: 'bin' })).toEqual({
+      do: 'scrape',
+      dish: d('pan'),
+    });
+  });
+
   it('tut mit leerer Hand vor einer leeren Fläche nichts', () => {
     expect(press(null, { kind: 'top', on: null })).toEqual({ do: 'nothing' });
     expect(press(null, { kind: 'bin' })).toEqual({ do: 'nothing' });
@@ -125,7 +162,7 @@ describe('Kisten, Flächen, Mülleimer', () => {
    * Fehlgriff zur Tellerausgabe. Auch die Pfanne behält sich selbst.
    */
   it('räumt den Träger ab und behält ihn', () => {
-    expect(press(d('plate', 'bun', 'patty-burnt'), { kind: 'bin' })).toEqual({
+    expect(press(d('plate', 'bun', 'lettuce-cut'), { kind: 'bin' })).toEqual({
       do: 'scrape',
       dish: d('plate'),
     });
@@ -138,7 +175,7 @@ describe('Kisten, Flächen, Mülleimer', () => {
   });
 
   it('nimmt Gerät und leeren Teller nicht in den Müll', () => {
-    for (const item of ['pot', 'pan', 'plate', 'extinguisher'] as const) {
+    for (const item of ['pot', 'pan', 'plate', 'plate-dirty', 'extinguisher'] as const) {
       const deed = press(d(item), { kind: 'bin' });
       expect({ item, do: deed.do }).toEqual({ item, do: 'refuse' });
       expect(why(deed)).toContain(ITEM_LABELS[item]);
@@ -152,11 +189,13 @@ describe('Kisten, Flächen, Mülleimer', () => {
 describe('Brett, Herd und Ausgabe', () => {
   it('fängt am Brett sofort an zu schneiden', () => {
     expect(press(d('lettuce'), { kind: 'board', on: null })).toEqual({
-      do: 'chop',
+      do: 'work',
+      kind: 'chop',
       dish: d('lettuce'),
     });
     expect(press(d('tomato-cut'), { kind: 'board', on: null })).toEqual({
-      do: 'chop',
+      do: 'work',
+      kind: 'chop',
       dish: d('tomato-cut'),
     });
     // Was nicht geschnitten wird, liegt dort nur herum — ein Brett ist auch
@@ -247,11 +286,17 @@ describe('Brett, Herd und Ausgabe', () => {
   });
 
   /**
-   * **Über die Theke geht, was ein Burger ist** — mit oder ohne Teller
-   * darunter, und der Teller bleibt in der Hand.
+   * **Über die Theke geht nur, was auf einem Teller liegt** — und danach sind
+   * Teller **und** Gericht weg, beide beim Gast.
+   *
+   * Beides zusammen ist die Regel, einzeln wäre jede Hälfte falsch: Ein Burger
+   * in der bloßen Hand ist kein Gericht, und ein Teller, der beim Servieren in
+   * der Hand bliebe, machte die Tellerausgabe zum Brunnen und die Spüle zur
+   * Deko. Der Teller kommt dreckig zurück (Rückgabe und Gästetisch) — das ist
+   * der Kreis, um den es geht.
    */
-  it('gibt fertige Gerichte aus', () => {
-    expect(press(d('bun', 'patty-cooked'), { kind: 'serve' })).toEqual({
+  it('gibt fertige Gerichte nur auf dem Teller aus', () => {
+    expect(press(d('plate', 'bun', 'patty-cooked'), { kind: 'serve' })).toEqual({
       do: 'serve',
       recipe: expect.objectContaining({ id: 'hamburger' }),
       held: null,
@@ -259,17 +304,36 @@ describe('Brett, Herd und Ausgabe', () => {
     expect(press(d('plate', 'bun', 'patty-cooked', 'tomato-cut'), { kind: 'serve' })).toEqual({
       do: 'serve',
       recipe: expect.objectContaining({ id: 'tomate' }),
-      held: d('plate'),
+      held: null,
     });
   });
 
-  it('gibt nichts Halbes, nichts Rohes und nichts Verbranntes aus', () => {
+  /**
+   * **Ohne Teller geht nichts über die Theke**, und der Satz sagt genau das —
+   * nicht „das ist noch kein Burger", denn der Burger ist ja fertig.
+   */
+  it('weist denselben Burger ohne Teller ab', () => {
     const pass: Station = { kind: 'serve' };
+    for (const held of [d('bun', 'patty-cooked'), d('bun', 'patty-cooked', 'lettuce-cut')]) {
+      const deed = press(held, pass);
+      expect(deed.do).toBe('refuse');
+      expect(why(deed)).toContain('Teller');
+    }
+  });
+
+  it('gibt nichts Halbes, nichts Rohes und keinen leeren Teller aus', () => {
+    const pass: Station = { kind: 'serve' };
+    // Fehlt am Gericht noch etwas, ist der fehlende Teller das kleinere
+    // Problem — der Satz nennt das größere zuerst.
     expect(why(press(d('bun'), pass))).toContain('Patty');
     expect(why(press(d('plate', 'lettuce-cut'), pass))).toContain('Brötchen');
-    expect(why(press(d('bun', 'patty-burnt'), pass))).toContain('Müll');
     expect(why(press(d('pan', 'patty-cooked'), pass))).toContain('Brötchen');
-    expect(why(press(d('pot'), pass))).toContain('Topf');
+    // Der leere Teller ist kein Gericht.
+    expect(why(press(d('plate'), pass))).toContain('Brötchen');
+    expect(press(null, pass)).toEqual({ do: 'nothing' });
+    // Und Verbranntes kommt gar nicht erst auf einen Teller (`carries`) — aus
+    // der Pfanne heraus liest man trotzdem, wohin es gehört.
+    expect(why(press(d('pan', 'patty-burnt'), pass))).toContain('Müll');
   });
 });
 
@@ -345,13 +409,15 @@ describe('der Hinweis über der Figur', () => {
 });
 
 /**
- * **Eine Kiste ist keine Ablage** — und genau daran hing ein Fehler, den erst
- * der Durchgang im Browser zeigte.
+ * **Die Kiste ist Ausgabe und Arbeitsplatte zugleich.**
  *
- * Wer mit der Pfanne voll gebratenem Patty an die Brötchenausgabe trat, bekam
- * ein Brötchen mit Patty darauf, das nirgendwohin gehörte: Die Kiste hat keine
- * Fläche, auf der es liegen bleiben könnte, und in der Hand lag die Pfanne.
- * Ergebnis war ein spurlos verschwundenes Patty.
+ * Aus ihr kommt das Frische, und auf ihrem Deckel liegt, was man gerade nicht
+ * in der Hand haben will — Brötchen, Patty, Tomate, Salat und an der
+ * Tellerausgabe der Teller selbst. Was **nicht** geht, ist Frisches
+ * auszugeben, das anschließend niemandem gehört: Wer mit der Pfanne voll
+ * gebratenem Patty an die Brötchenausgabe trat, bekam einmal ein Brötchen mit
+ * Patty darauf, das in der Luft hing — das Patty war spurlos weg. Heute fängt
+ * der Deckel die Pfanne auf, statt ein Brötchen aus dem Nichts zu erfinden.
  */
 describe('an der Kiste', () => {
   it('gibt in die leere Hand', () => {
@@ -393,9 +459,265 @@ describe('an der Kiste', () => {
 
   it('gibt nichts heraus, was niemand halten kann', () => {
     // Die Pfanne gäbe ihr Patty an ein frisches Brötchen ab — und das Brötchen
-    // hätte danach keinen Platz. Lieber gar nichts tun und es sagen.
+    // hätte danach keinen Platz. Also gibt es kein Brötchen, sondern die
+    // Pfanne kommt auf den Deckel.
     const deed = kitchenDeed(dish('pan', ['patty-cooked']), { kind: 'box', gives: 'bun' });
-    expect(deed.do).toBe('refuse');
-    expect(deed.do === 'refuse' && deed.why).toContain('Hände frei');
+    expect(deed).toEqual({ do: 'place', dish: dish('pan', ['patty-cooked']) });
+    // Liegt der Deckel schon voll, passiert gar nichts — und man liest, warum.
+    const full = kitchenDeed(dish('pan', ['patty-cooked']), {
+      kind: 'box',
+      gives: 'bun',
+      on: dish('pot'),
+    });
+    expect(full.do).toBe('refuse');
+  });
+
+  /**
+   * **Die Kiste als Ablage** — das ist der zweite Beruf jedes Kistendeckels.
+   * Was daraufliegt, geht beim Nehmen vor: Die Kiste gibt ihr Frisches ja noch
+   * beliebig oft her, das abgestellte Ding gibt es genau einmal.
+   */
+  it('nimmt Abgestelltes an und gibt es vor dem Frischen zurück', () => {
+    const box: Station = { kind: 'box', gives: 'bun' };
+    for (const item of ['patty', 'tomato', 'lettuce', 'pot'] as const) {
+      expect(kitchenDeed(dish(item), box)).toEqual({ do: 'place', dish: dish(item) });
+    }
+    expect(kitchenDeed(null, { ...box, on: dish('tomato-cut') })).toEqual({
+      do: 'take',
+      dish: dish('tomato-cut'),
+    });
+  });
+
+  /**
+   * **Und der Teller geht an der Tellerausgabe wieder zurück.** Wer ihn doch
+   * nicht braucht, stellt ihn dorthin, wo er ihn hergeholt hat — alles andere
+   * wäre ein Teller, den man nur noch tragen oder in die Spüle stellen kann.
+   */
+  it('nimmt den Teller an der Tellerausgabe zurück', () => {
+    const plates: Station = { kind: 'box', gives: 'plate' };
+    expect(kitchenDeed(dish('plate'), plates)).toEqual({ do: 'place', dish: dish('plate') });
+    // Der belegte Teller auch — man legt ihn ab wie auf jede Fläche.
+    const full = dish('plate', ['bun', 'patty-cooked']);
+    expect(kitchenDeed(full, plates)).toEqual({ do: 'place', dish: full });
+    // Und danach nimmt man ihn von dort wieder auf.
+    expect(kitchenDeed(null, { ...plates, on: full })).toEqual({ do: 'take', dish: full });
+  });
+
+  /**
+   * **Das Kombinieren geht weiter vor.** Ein Brötchen auf den mitgebrachten
+   * Teller ist der Handgriff, für den die Kiste in die volle Hand gibt — das
+   * Ablegen kommt erst, wenn er nicht geht.
+   */
+  it('legt lieber zusammen, als abzustellen', () => {
+    expect(kitchenDeed(dish('plate'), { kind: 'box', gives: 'bun' })).toEqual({
+      do: 'combine',
+      held: dish('plate', ['bun']),
+      target: null,
+      moved: ['bun'],
+    });
+  });
+
+  /**
+   * **Was auf dem Deckel liegt, bleibt liegen** — und daran hing der zweite
+   * Fehler derselben Art.
+   *
+   * Die Kiste gibt ihr Frisches aus dem Nichts in die Hand; was daneben auf
+   * ihrem Deckel liegt, ist an diesem Handgriff gar nicht beteiligt. Stand dort
+   * trotzdem `target: null`, las die Zone das als _hier liegt danach nichts
+   * mehr_, räumte die Fläche und warf weg, was darauf war: Wer mit dem Teller
+   * an die Brötchenausgabe trat, auf deren Deckel eine Tomate lag, bekam das
+   * Brötchen — und die Tomate war spurlos weg.
+   */
+  it('lässt das Liegende liegen, wenn es das Frische in die Hand gibt', () => {
+    const tomato = dish('tomato');
+    const deed = kitchenDeed(dish('plate'), { kind: 'box', gives: 'bun', on: tomato });
+    expect(deed).toEqual({
+      do: 'combine',
+      held: dish('plate', ['bun']),
+      target: tomato,
+      moved: ['bun'],
+    });
+    // Und zwar unverändert — die Station bekommt denselben Stand zurück, den
+    // sie hatte, damit die Zone daraus ein Nichtstun machen kann.
+    expect(deed.do === 'combine' && deed.target).toBe(tomato);
+
+    // Dasselbe in die andere Richtung: Die leere Pfanne holt sich das rohe
+    // Patty, der Salatkopf auf dem Deckel geht das nichts an.
+    const lettuce = dish('lettuce');
+    const pan = kitchenDeed(dish('pan'), { kind: 'box', gives: 'patty', on: lettuce });
+    expect(pan).toEqual({
+      do: 'combine',
+      held: dish('pan', ['patty']),
+      target: lettuce,
+      moved: ['patty'],
+    });
+  });
+
+  /**
+   * **Das Liegende geht vor dem Frischen** — und die Regel gibt dafür
+   * dasselbe `on` zurück, das sie bekommen hat. Nur daran erkennt die Zone,
+   * dass sie hier das Liegende aufnehmen und die Fläche räumen soll, statt
+   * wie sonst an einer Kiste ein neues Ding zu bauen.
+   */
+  it('gibt beim Nehmen genau das Liegende zurück und keine Kopie', () => {
+    const tomato = dish('tomato-cut');
+    const deed = kitchenDeed(null, { kind: 'box', gives: 'bun', on: tomato });
+    expect(deed).toEqual({ do: 'take', dish: tomato });
+    expect(deed.do === 'take' && deed.dish).toBe(tomato);
+  });
+
+  /**
+   * **Auf dem Deckel wird auch kombiniert** — wie auf jeder anderen Fläche.
+   * Eine Kiste ohne `gives` ist dann nichts weiter als eine Ablage.
+   */
+  it('legt auf dem Deckel zusammen, was zusammengehört', () => {
+    const deed = kitchenDeed(dish('patty-cooked'), { kind: 'box', on: dish('bun') });
+    expect(deed).toEqual({
+      do: 'combine',
+      held: null,
+      target: dish('bun', ['patty-cooked']),
+      moved: ['patty-cooked'],
+    });
+    const no = kitchenDeed(dish('patty'), { kind: 'box', on: dish('bun') });
+    expect(no.do).toBe('refuse');
+    expect(no.do === 'refuse' && no.why).toContain('gebraten');
+  });
+});
+
+/**
+ * **Der Kreislauf des Geschirrs** — Theke, Gast, Rückgabe, Spüle.
+ *
+ * Er ist der Grund, warum die Theke einen Teller verlangt: Ohne ihn wäre die
+ * Tellerausgabe ein Brunnen, aus dem man schöpft, und die Spüle stünde als
+ * Möbel ohne Aufgabe herum. Mit ihm ist jeder servierte Burger ein Teller, der
+ * später wiederkommt.
+ */
+describe('Spüle, Rückgabe und Gästetisch', () => {
+  /**
+   * **Spülen ist dasselbe wie Schneiden**, nur an einem anderen Möbel: Beides
+   * ist `work` und läuft über `kitchenWork.ts`.
+   */
+  it('spült den dreckigen Teller, sobald er in der Spüle steht', () => {
+    expect(press(d('plate-dirty'), { kind: 'sink', on: null })).toEqual({
+      do: 'work',
+      kind: 'wash',
+      dish: d('plate-dirty'),
+    });
+    // Der saubere Teller darf auch hineingestellt werden, arbeitet aber nicht.
+    expect(press(d('plate'), { kind: 'sink', on: null })).toEqual({
+      do: 'place',
+      dish: d('plate'),
+    });
+    // Und was darin steht, nimmt man heraus — auch den fertig gespülten.
+    expect(press(null, { kind: 'sink', on: d('plate') })).toEqual({
+      do: 'take',
+      dish: d('plate'),
+    });
+    expect(press(null, { kind: 'sink', on: null })).toEqual({ do: 'nothing' });
+  });
+
+  it('lässt in die Spüle nur Geschirr', () => {
+    for (const item of ['bun', 'pan', 'pot', 'lettuce', 'extinguisher'] as const) {
+      const deed = press(d(item), { kind: 'sink' });
+      expect({ item, do: deed.do }).toEqual({ item, do: 'refuse' });
+      expect(why(deed)).toContain('Geschirr');
+    }
+    // Ein Teller mit Essen darauf gehört erst an den Mülleimer — eine Spüle,
+    // die ihn schluckte, wäre ein zweiter Mülleimer mit Wasserhahn.
+    expect(why(press(d('plate', 'bun'), { kind: 'sink' }))).toContain('Geschirr');
+    // Und zwei Teller passen nicht übereinander.
+    expect(why(press(d('plate-dirty'), { kind: 'sink', on: d('plate') }))).toContain('schon');
+  });
+
+  /**
+   * **Die Rückgabe ist ein Stapel** — dort türmt sich, was die Gäste
+   * zurückgeben, und wer spülen geht, holt sich einen Teller nach dem anderen.
+   */
+  it('nimmt von der Rückgabe, solange dort etwas liegt', () => {
+    expect(press(null, { kind: 'return', stack: 3 })).toEqual({
+      do: 'take',
+      dish: d('plate-dirty'),
+    });
+    expect(press(null, { kind: 'return', stack: 1 })).toEqual({
+      do: 'take',
+      dish: d('plate-dirty'),
+    });
+    // Ein leerer Stapel ist kein Möbel, das sich meldet.
+    expect(press(null, { kind: 'return', stack: 0 })).toEqual({ do: 'nothing' });
+    expect(press(null, { kind: 'return' })).toEqual({ do: 'nothing' });
+  });
+
+  it('stellt dreckiges Geschirr auf die Rückgabe und sonst nichts', () => {
+    expect(press(d('plate-dirty'), { kind: 'return', stack: 2 })).toEqual({
+      do: 'place',
+      dish: d('plate-dirty'),
+    });
+    // Auch auf die leere Rückgabe — sie füllt sich ja von dort her.
+    expect(press(d('plate-dirty'), { kind: 'return', stack: 0 })).toEqual({
+      do: 'place',
+      dish: d('plate-dirty'),
+    });
+    for (const held of [d('plate'), d('bun'), d('pan'), d('plate', 'bun', 'patty-cooked')]) {
+      const deed = press(held, { kind: 'return', stack: 1 });
+      expect(deed.do).toBe('refuse');
+      expect(why(deed)).toContain('dreckiges Geschirr');
+    }
+  });
+
+  /**
+   * **Gästetisch und Förderband sind Flächen.** Was den einen zum Gästetisch
+   * macht, ist der Kunde daran, und was das andere zum Band macht, ist seine
+   * Bewegung — beides Sache der Zone. Für `A` ist es beides eine Ablage.
+   */
+  it('räumt den Gästetisch ab und legt auf das Band', () => {
+    expect(press(null, { kind: 'table', on: d('plate-dirty') })).toEqual({
+      do: 'take',
+      dish: d('plate-dirty'),
+    });
+    expect(press(null, { kind: 'table', on: null })).toEqual({ do: 'nothing' });
+    expect(press(d('plate', 'bun', 'patty-cooked'), { kind: 'table', on: null })).toEqual({
+      do: 'place',
+      dish: d('plate', 'bun', 'patty-cooked'),
+    });
+    expect(press(d('bun'), { kind: 'belt', on: null })).toEqual({ do: 'place', dish: d('bun') });
+    expect(press(d('patty-cooked'), { kind: 'belt', on: d('bun') })).toEqual({
+      do: 'combine',
+      held: null,
+      target: d('bun', 'patty-cooked'),
+      moved: ['patty-cooked'],
+    });
+  });
+
+  it('sagt an der Spüle und an der Rückgabe an, was gleich passiert', () => {
+    expect(kitchenPrompt(press(d('plate-dirty'), { kind: 'sink' }), 'Spüle')).toBe(
+      'Geschirr spülen',
+    );
+    expect(kitchenPrompt(press(null, { kind: 'return', stack: 2 }), 'Rückgabe')).toBe(
+      'Dreckiger Teller nehmen',
+    );
+    expect(kitchenPrompt(press(d('plate-dirty'), { kind: 'return' }), 'Rückgabe')).toBe(
+      'Dreckiger Teller auf Rückgabe legen',
+    );
+    // Und stumm ist, was nichts zu tun gibt.
+    expect(kitchenPrompt(press(null, { kind: 'sink' }), 'Spüle')).toBe('');
+    expect(kitchenPrompt(press(null, { kind: 'return', stack: 0 }), 'Rückgabe')).toBe('');
+  });
+
+  /**
+   * **Einmal ganz herum** — vom fertigen Burger bis zum sauberen Teller.
+   */
+  it('führt den Teller vom Gast zurück in die Küche', () => {
+    const served = press(d('plate', 'bun', 'patty-cooked'), { kind: 'serve' });
+    expect(served.do).toBe('serve');
+    expect(served.do === 'serve' && served.held).toBeNull();
+    // Der Gast lässt ihn dreckig zurück, man holt ihn und stellt ihn in die
+    // Spüle — dort wird er mit derselben Uhr sauber wie der Salat am Brett.
+    const back = press(null, { kind: 'table', on: d('plate-dirty') });
+    expect(back).toEqual({ do: 'take', dish: d('plate-dirty') });
+    expect(press(d('plate-dirty'), { kind: 'sink' })).toEqual({
+      do: 'work',
+      kind: 'wash',
+      dish: d('plate-dirty'),
+    });
   });
 });

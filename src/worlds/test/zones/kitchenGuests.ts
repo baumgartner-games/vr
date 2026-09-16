@@ -114,14 +114,3 @@ export function eatProgress(state: TableState): number {
   if (state.left <= 0) return 0;
   return Math.min(1, Math.max(0, (EAT_SECONDS - state.left) / EAT_SECONDS));
 }
-
-/**
- * **Wie hoch der Stapel an der Rückgabe werden darf.**
- *
- * Sechs Teller, und die Zahl ist eine Entscheidung und keine Grenze der
- * Technik: Ein Stapel, der immer weiter wächst, ist ein Turm, der von oben die
- * halbe Küche verdeckt — und ein Spiel, das niemanden je zum Spülen zwingt.
- * Ist er voll, nimmt die Rückgabe nichts mehr an, und das dreckige Geschirr
- * muss in die Spüle.
- */
-export const RETURN_STACK_MAX = 6;

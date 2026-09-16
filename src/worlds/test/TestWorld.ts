@@ -261,6 +261,11 @@ export class TestWorld extends GridWorld {
         this.solids.push(object);
         return this.physics!.addStatic(object, { membership: GROUP_WORLD, filter: ALL_GROUPS });
       },
+      removeSolid: (object, body) => {
+        const at = this.solids.indexOf(object);
+        if (at >= 0) this.solids.splice(at, 1);
+        this.physics?.remove(body);
+      },
       addUsable: (object, usable, options) => this.addUsable(object, usable, options),
       removeUsable: (object) => this.removeUsable(object),
       notify: (message) => this.announce(message),

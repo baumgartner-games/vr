@@ -1,7 +1,6 @@
 import {
   CLEAR_TABLE,
   EAT_SECONDS,
-  RETURN_STACK_MAX,
   advanceTable,
   cleared,
   eatProgress,
@@ -90,12 +89,5 @@ describe('der Balken über dem Tisch', () => {
     expect(eatProgress({ left: EAT_SECONDS / 2, dirty: false })).toBeCloseTo(0.5, 6);
     // Steht das Geschirr da, gibt es nichts mehr zu messen.
     expect(eatProgress({ left: 0, dirty: true })).toBe(0);
-  });
-});
-
-describe('der Stapel an der Rückgabe', () => {
-  test('hat eine Grenze, und die ist eine Entscheidung', () => {
-    expect(RETURN_STACK_MAX).toBeGreaterThan(1);
-    expect(RETURN_STACK_MAX).toBeLessThanOrEqual(8);
   });
 });

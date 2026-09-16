@@ -1,6 +1,14 @@
 import * as THREE from 'three';
 import { kitchenPiece } from '../../../core/kitchenFit';
-import { ICON_FOV, ICON_PADDING, IconOven, iconDistance, iconView, signSize } from './kitchenIcon';
+import {
+  ICON_FOV,
+  ICON_PADDING,
+  IconOven,
+  blankSize,
+  iconDistance,
+  iconView,
+  signSize,
+} from './kitchenIcon';
 
 /**
  * **Was am Icon-Ofen ohne Grafikkarte zu prüfen ist** — und das ist genau das,
@@ -120,6 +128,51 @@ describe('signSize', () => {
   });
 });
 
+/**
+ * **Die weiße Grundfläche** — sie soll das aufgedruckte Symbol des gekauften
+ * Möbels **überdecken** und nicht bloß die Tafel hinterlegen. Alles, was dieser
+ * Block prüft, folgt aus diesem einen Satz: Sie ist größer als die Tafel, sie
+ * ist nicht quadratisch, und sie bleibt trotzdem auf dem Möbel.
+ */
+describe('blankSize', () => {
+  const serve = kitchenPiece('serve-counter')!;
+
+  it('nimmt vorn fast die ganze Front', () => {
+    // Eine Kachel breit minus zweimal 3 cm, 0,46 m hoch minus zweimal 3 cm.
+    expect(blankSize(serve, 'front')).toEqual({ w: 0.94, h: 0.4 });
+  });
+
+  it('nimmt oben fast die ganze Kachel', () => {
+    // Eine Kachel im Quadrat minus zweimal 6 cm.
+    const top = blankSize(serve, 'top');
+    expect(top.w).toBeCloseTo(0.88, 6);
+    expect(top.h).toBeCloseTo(0.88, 6);
+  });
+
+  it('ist in beide Richtungen größer als die Tafel davor', () => {
+    for (const where of ['front', 'top'] as const) {
+      const back = blankSize(serve, where);
+      const edge = signSize(serve, where);
+      expect(back.w).toBeGreaterThan(edge);
+      expect(back.h).toBeGreaterThan(edge);
+    }
+  });
+
+  it('steht nirgends über die Kante des Möbels', () => {
+    const front = blankSize(serve, 'front');
+    expect(front.w).toBeLessThan(serve.tiles[0] * 1);
+    expect(front.h).toBeLessThan(serve.height);
+    const top = blankSize(serve, 'top');
+    expect(top.w).toBeLessThan(serve.tiles[0] * 1);
+    expect(top.h).toBeLessThan(serve.tiles[1] * 1);
+  });
+
+  it('wird an einem flachen Möbel nicht negativ', () => {
+    expect(blankSize({ ...serve, height: 0.02 }, 'front').h).toBeGreaterThan(0);
+    expect(blankSize({ ...serve, tiles: [0, 0] }, 'top').w).toBeGreaterThan(0);
+  });
+});
+
 describe('IconOven ohne WebGL', () => {
   /** In Jest gibt es keinen Renderer — und der Ofen darf ihn nicht anfassen. */
   const noRenderer = {} as unknown as THREE.WebGLRenderer;
@@ -166,6 +219,66 @@ describe('IconOven ohne WebGL', () => {
     const top = oven.counterSign(texture, { where: 'top' });
     expect(top.position.y).toBeGreaterThan(serve.height);
     expect(top.rotation.x).toBeCloseTo(-Math.PI / 2);
+
+    oven.dispose();
+    texture.dispose();
+  });
+
+  /**
+   * **Eine Tafel ist zwei Flächen**, seit das gekaufte Möbel sein eigenes,
+   * aufgedrucktes Burger-Symbol mitbringt: hinten das deckende Weiß, das es
+   * auslöscht, davor das gerenderte Bild. Vorher lagen beide Symbole
+   * übereinander und waren gleichzeitig zu sehen.
+   */
+  it('legt eine weiße Fläche hinter das Icon', () => {
+    const oven = new IconOven(noRenderer);
+    const texture = new THREE.Texture();
+    const serve = kitchenPiece('serve-counter')!;
+
+    for (const where of ['front', 'top'] as const) {
+      const board = oven.counterSign(texture, { where });
+      expect(board.children).toHaveLength(2);
+      const [blank, sign] = board.children as THREE.Mesh[];
+      expect(blank!.name).toBe('kitchen-icon-blank');
+      expect(sign!.name).toBe('kitchen-icon-sign');
+
+      // Die weiße liegt **hinten**: Das Icon steht einen Hauch davor, damit
+      // die beiden nicht um dieselben Pixel streiten.
+      expect(sign!.position.z).toBeGreaterThan(blank!.position.z);
+      expect(sign!.position.z).toBeLessThan(0.01);
+
+      // Und sie ist größer — überdecken, nicht hinterlegen.
+      const back = (blank!.geometry as THREE.PlaneGeometry).parameters;
+      const front = (sign!.geometry as THREE.PlaneGeometry).parameters;
+      expect(back.width).toBeGreaterThan(front.width);
+      expect(back.height).toBeGreaterThan(front.height);
+      expect({ w: back.width, h: back.height }).toEqual(blankSize(serve, where));
+      expect(front.width).toBeCloseTo(signSize(serve, where), 6);
+    }
+
+    oven.dispose();
+    texture.dispose();
+  });
+
+  /**
+   * **Deckend und unbeleuchtet.** Ein durchsichtiges Weiß ließe den Aufdruck
+   * durchscheinen, ein beleuchtetes wäre im Schatten des Ausgaberegals grau —
+   * dieselbe Begründung, die schon für die Icon-Tafel selbst gilt.
+   */
+  it('malt mit einem geteilten, deckenden Weiß', () => {
+    const oven = new IconOven(noRenderer);
+    const texture = new THREE.Texture();
+
+    const first = oven.counterSign(texture).children[0] as THREE.Mesh;
+    const second = oven.counterSign(texture, { where: 'top' }).children[0] as THREE.Mesh;
+    const paint = first.material as THREE.MeshBasicMaterial;
+    expect(second.material).toBe(paint);
+    expect(paint.isMeshBasicMaterial).toBe(true);
+    expect(paint.transparent).toBe(false);
+    expect(paint.color.getHex()).toBe(0xffffff);
+    // Sie wirft und empfängt keinen Schatten — sie ist Farbe und kein Möbel.
+    expect(first.castShadow).toBe(false);
+    expect(first.receiveShadow).toBe(false);
 
     oven.dispose();
     texture.dispose();

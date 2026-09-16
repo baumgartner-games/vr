@@ -14,9 +14,8 @@ import {
  * Küche mit zwölf Stationen **eine** rote Farbe hat und nicht zwölf, dass ein
  * Herd, der zwischen zwei Pattys aus- und wieder einblendet, dabei nichts neu
  * baut, dass ein Balken bei einem Anteil von 0,4 wirklich 40 % breit ist — und
- * dass ein Schild sich auch dann noch lesbar zurücklehnt, wenn ihm die Kamera
- * aus den Augen gereicht wird, während am Schirm die von oben steht
- * (`GAUGE_LEAN_MIN`).
+ * dass ein Schild sich zu der Kamera dreht, aus der **gezeichnet** wird, statt
+ * zu der, die ein `update` gereicht bekommt (`ui/billboard.ts`).
  *
  * Kein WebGL und kein `document`: Das Modul malt nichts auf eine Leinwand,
  * also läuft es hier wie jede andere Rechnung (`core/chefFit.canLoadModels`).
@@ -41,6 +40,22 @@ function eyeAt(x: number, y: number, z: number): THREE.Camera {
 
 function named(parent: THREE.Object3D, name: string): THREE.Object3D[] {
   return parent.children.filter((child) => child.name.startsWith(name));
+}
+
+/**
+ * **Ein Bild zeichnen** — das, was three tut und was hier den Unterschied
+ * macht: Jedes gezeichnete Teil bekommt seinen `onBeforeRender` mit **dieser**
+ * Kamera (`renderObject` im `WebGLRenderer`). Mehr braucht die Ausrichtung
+ * nicht, und deshalb braucht sie auch kein WebGL.
+ */
+function draw(object: THREE.Object3D, camera: THREE.Camera): void {
+  object.traverse((node) => {
+    (node.onBeforeRender as unknown as (r: unknown, s: unknown, c: THREE.Camera) => void)(
+      null,
+      null,
+      camera,
+    );
+  });
 }
 
 const AT = new THREE.Vector3(11, 0.85, -4);
@@ -184,7 +199,7 @@ describe('KitchenGauges — die Drehung zur Kamera', () => {
     // 55° über der Waagerechten, wie `core/topDownPose.TOP_DOWN_TILT`.
     const tilt = (55 * Math.PI) / 180;
     const camera = eyeAt(AT.x, AT.y + 16 * Math.sin(tilt), AT.z + 16 * Math.cos(tilt));
-    gauges.update(0.016, camera);
+    draw(parent, camera);
 
     const want = camera.position.clone().sub(AT).normalize();
     expect(facing(parent.children[0]!).dot(want)).toBeCloseTo(1, 5);
@@ -195,7 +210,7 @@ describe('KitchenGauges — die Drehung zur Kamera', () => {
     const parent = stage();
     const gauges = new KitchenGauges(parent);
     gauges.bar('a', AT, 0.5, 'cook');
-    gauges.update(0.016, eyeAt(AT.x, AT.y, AT.z + 3));
+    draw(parent, eyeAt(AT.x, AT.y, AT.z + 3));
 
     const normal = facing(parent.children[0]!);
     // Genau die Mindestneigung — und nicht etwa nach hinten weggekippt.
@@ -209,11 +224,47 @@ describe('KitchenGauges — die Drehung zur Kamera', () => {
     const parent = stage();
     const gauges = new KitchenGauges(parent);
     gauges.warn('a', AT);
-    gauges.update(0.016, eyeAt(AT.x + 5, AT.y, AT.z));
+    draw(parent, eyeAt(AT.x + 5, AT.y, AT.z));
 
     const normal = facing(parent.children[0]!);
     expect(normal.x).toBeGreaterThan(0.8);
     expect(Math.abs(normal.z)).toBeLessThan(0.01);
+    gauges.dispose();
+  });
+
+  /**
+   * **Der Grund für den ganzen Umbau.** Zwei Ansichten im selben Bild — am
+   * Schirm die Kamera von oben, daneben ein Spieler in der Brille —, und jede
+   * bekommt denselben Balken zu sich gedreht. Im `update` wäre das nicht zu
+   * haben: Dort gibt es nur **eine** Kamera, und es ist die falsche.
+   */
+  it('richtet denselben Balken für jede zeichnende Kamera neu aus', () => {
+    const parent = stage();
+    const gauges = new KitchenGauges(parent);
+    gauges.bar('a', AT, 0.5, 'cook');
+    const bar = parent.children[0]!;
+
+    const oben = eyeAt(AT.x, AT.y + 16, AT.z + 11);
+    const brille = eyeAt(AT.x + 2, AT.y, AT.z);
+
+    draw(parent, oben);
+    const zurOben = facing(bar).clone();
+    draw(parent, brille);
+    const zurBrille = facing(bar).clone();
+
+    expect(zurOben.dot(oben.position.clone().sub(AT).normalize())).toBeCloseTo(1, 5);
+    expect(zurBrille.x).toBeGreaterThan(0.8);
+    gauges.dispose();
+  });
+
+  it('dreht die Flammen nicht mit — sie sind Kegel und stehen im Raum', () => {
+    const parent = stage();
+    const gauges = new KitchenGauges(parent);
+    gauges.flame('a', AT, 'fire');
+    const flame = parent.children[0]!;
+    const before = flame.rotation.clone();
+    draw(parent, eyeAt(AT.x + 4, AT.y + 4, AT.z + 4));
+    expect(flame.rotation.equals(before)).toBe(true);
     gauges.dispose();
   });
 });

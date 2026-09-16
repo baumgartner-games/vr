@@ -4,8 +4,6 @@ import {
   overlaps,
   tileAhead,
   tilesOf,
-  turnAround,
-  turnedSize,
   whyNotBuilt,
   type BuildSpot,
 } from './kitchenBuild';
@@ -112,21 +110,5 @@ describe('ob hier Platz ist', () => {
     expect(whyNotBuilt(spot(0, 11), taken, BOUNDS)).toBe('Das steht dann außerhalb der Küche');
     // Die letzte Kachel gehört noch dazu.
     expect(buildFree(spot(23, 10), taken, BOUNDS)).toBe(true);
-  });
-});
-
-describe('drehen', () => {
-  test('vier Vierteldrehungen sind eine ganze', () => {
-    expect(turnAround(0)).toBe(1);
-    expect(turnAround(1)).toBe(2);
-    expect(turnAround(2)).toBe(3);
-    expect(turnAround(3)).toBe(0);
-  });
-
-  test('bei ungerader Drehung stehen Breite und Tiefe über Kreuz', () => {
-    expect(turnedSize([2, 1], 0)).toEqual({ w: 2, d: 1 });
-    expect(turnedSize([2, 1], 1)).toEqual({ w: 1, d: 2 });
-    expect(turnedSize([2, 1], 2)).toEqual({ w: 2, d: 1 });
-    expect(turnedSize([2, 1], 3)).toEqual({ w: 1, d: 2 });
   });
 });

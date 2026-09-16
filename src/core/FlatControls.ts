@@ -113,12 +113,6 @@ export class FlatControls {
    * sich. Erst eine echte Mausbewegung holt das Zielen zurück.
    */
   private aimedWithStick = false;
-  /**
-   * Ob zuletzt ein **Knopf am Pad oder auf dem Glas** gedrückt wurde und nicht
-   * eine Taste — daraus wird der Name im Hinweis über der Figur
-   * (`PlayerRig.useLabel`). Eine Taste holt ihn wieder zurück.
-   */
-  private padSpoke = false;
   private topDownOn = false;
   private readonly pads: TouchPads;
   /** Die Flanken des Gamepads — Knöpfe eines Pads kommen als Zustand, nicht als Ereignis. */
@@ -328,9 +322,6 @@ export class FlatControls {
    * @returns ob in diesem Bild gesprungen werden soll
    */
   private applyUse(pad: GamepadFrame): boolean {
-    if (pad.use || pad.fire || pad.zoomIn || pad.zoomOut || pad.tools) this.padSpoke = true;
-    this.rig.useLabel = this.padSpoke ? 'A' : 'E';
-
     if (this.toolsQueued || this.padTools.justPressed) this.onTools?.();
     this.toolsQueued = false;
 
@@ -482,8 +473,6 @@ export class FlatControls {
         e.preventDefault();
         this.toolsQueued = true;
       }
-      // Wer tippt, spielt an der Tastatur: der Hinweis heißt wieder `E`.
-      this.padSpoke = false;
       this.keys.add(e.code);
     });
     this.on(window, 'keyup', (e: KeyboardEvent) => this.keys.delete(e.code));
@@ -523,11 +512,9 @@ export class FlatControls {
         // springen (`applyUse`).
         this.usePointer = event.pointerId;
         this.aQueued = true;
-        this.padSpoke = true;
         this.setPressed(pads.use, true);
       } else if (hitsElement(pads.fire, event)) {
         this.firePointer = event.pointerId;
-        this.padSpoke = true;
         this.setPressed(pads.fire, true);
       } else if (this.freeHit(event)) {
         // Ein Finger, der auf nichts liegt: Er sieht sich um — bis ein zweiter

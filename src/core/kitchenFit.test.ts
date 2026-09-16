@@ -14,6 +14,13 @@ import {
  * nennt die **fertigen** Maße, und ohne diese Liste daneben wäre nicht mehr zu
  * sehen, woher sie kommen. Wer die Quelle austauscht, trägt hier die neuen ein
  * und sieht am fehlschlagenden Test, was im Katalog nachzuziehen ist.
+ *
+ * **Ein gebautes Stück steht nicht darin, und genau das ist die Probe.** Der
+ * Katalog führt seit dem Förderband auch Möbel, die es in
+ * `public/models/kitchen.glb` gar nicht gibt (`KitchenPiece.built`) — für die
+ * ist hier nichts nachzumessen. Wer ein Möbel vergisst einzutragen, bekommt
+ * deshalb keine stille Lücke: Er muss es entweder hier nennen oder im Katalog
+ * als `built` kennzeichnen.
  */
 const SOURCE: Readonly<Record<string, readonly [number, number, number]>> = {
   'plate-counter': [2, 1.12, 2.12],
@@ -79,7 +86,10 @@ describe('der Möbelkatalog', () => {
     expect(KITCHEN_SCALE).toBe(0.5);
     for (const piece of KITCHEN_PIECES) {
       const source = SOURCE[piece.name];
-      expect({ name: piece.name, known: source !== undefined }).toEqual({
+      // Aus der Datei kommt es oder es wird gebaut — ein drittes gibt es
+      // nicht, und ein Möbel, das in keiner der beiden Listen steht, ist ein
+      // vergessener Eintrag und kein Sonderfall.
+      expect({ name: piece.name, known: source !== undefined || piece.built === true }).toEqual({
         name: piece.name,
         known: true,
       });
@@ -114,6 +124,55 @@ describe('der Möbelkatalog', () => {
    */
   it('lässt kein Möbel hängen, solange keines hängt', () => {
     expect(KITCHEN_PIECES.filter((piece) => piece.hanging)).toEqual([]);
+  });
+
+  /**
+   * **Ohne Knoten in der Quelle darf nur auskommen, wer sich als gebaut
+   * ausweist** (`KitchenPiece.built`).
+   *
+   * Das ist die eine Regel, die das neue Feld überhaupt trägt: Ein `null` aus
+   * `core/kitchenModel.kitchenModel` heißt bei einem gebauten Stück „die Zone
+   * ist dran" und bei jedem anderen „der Name ist falsch geschrieben". Ohne
+   * diesen Test wäre ein Tippfehler im Katalog ein Möbel, das still zum
+   * Ersatzbaustein wird — und niemand sähe den Unterschied zum Förderband,
+   * das genauso wenig in der Datei steht.
+   */
+  it('lässt nur gebaute Möbel ohne Knoten in der Quelle durchgehen', () => {
+    const built = KITCHEN_PIECES.filter((piece) => piece.built);
+    expect(built.map((piece) => piece.name)).toEqual(['belt']);
+    for (const piece of KITCHEN_PIECES) {
+      const inSource = SOURCE[piece.name] !== undefined;
+      expect({ name: piece.name, inSource }).toEqual({
+        name: piece.name,
+        inSource: piece.built !== true,
+      });
+    }
+    // Und ein gebautes Stück bleibt ein vollwertiges Möbel: Wer es nur halb
+    // einträgt, stellt eine Kachel ohne Höhe auf.
+    for (const piece of built) {
+      expect(piece.height).toBeGreaterThan(0.1);
+      expect(piece.tiles).toEqual([1, 1]);
+    }
+  });
+
+  /**
+   * **Das Förderband ist so hoch wie die Ausgabetheke**, und zwar auf den
+   * Zentimeter — es ist deren Verlängerung, und zwei Flächen, auf denen
+   * dasselbe Gericht steht, dürfen keine Stufe bilden.
+   *
+   * Eine Kachel breit statt zwei ist der ganze Unterschied: Drei Bänder in
+   * einer Reihe sind eine Strecke, drei Theken wären ein Tresen.
+   */
+  it('lässt das Förderband auf der Höhe der Ausgabetheke laufen', () => {
+    const belt = kitchenPiece('belt')!;
+    const pass = kitchenPiece('pass')!;
+    expect(belt.height).toBe(pass.height);
+    expect(belt.tiles).toEqual([1, 1]);
+    expect(pass.tiles).toEqual([2, 1]);
+    // Eine Arbeitsfläche ist es auch: Was man nicht ablegen kann, fährt auch
+    // nirgendwohin (`worlds/test/zones/kitchenPlan.stationKind`).
+    expect(belt.worktop).toBe(true);
+    expect(kitchenDeck(belt)).toBe(belt.height);
   });
 
   /**
