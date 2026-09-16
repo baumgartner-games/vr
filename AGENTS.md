@@ -5318,19 +5318,39 @@ Und das sind die Regeln, die darin stehen:
   Schritt um zwei Felder. Beim Anschalten wandern die Hände frei, denn wer mit
   einem Teller in der Hand umzubauen anfängt, hätte ein Möbel **und** einen
   Teller darin.
-  **Gedreht wird mit dem Auslöser**: Er dreht das getragene Möbel um eine
-  Vierteldrehung weiter (`turnPiece`), und erst damit lässt sich eine Bandbahn
-  um die Ecke führen statt nur verlängern. In der Brille ist das der Trigger
-  der rechten Hand, von oben die linke Maustaste, `RT` am Pad und der rote
-  Knopf auf dem Glas — im Umbau ist er mit Sicherheit frei, denn wer ein Möbel
-  trägt, trägt keinen Feuerlöscher. Der naheliegendere Weg, das Möbel einfach
-  dorthin zeigen zu lassen, **wohin die Figur schaut**, scheitert an genau dem
-  Fall, für den man dreht: Der Bauplatz ist die Kachel **vor** der Figur, also
-  stünde das Band immer quer zu der Reihe, die man gerade baut — und um es
-  längs zu stellen, müsste man dort stehen, wo schon das Band von eben steht.
+  **Gedreht wird je nach Möbel verschieden**, und der Unterschied ist die
+  Wirkrichtung. Ein **Förderband** zeigt dorthin, **wohin die Figur zeigt**
+  (`facePiece`, `kitchenBuild.turnAhead`): Wer nach Süden schaut und absetzt,
+  hat ein Band gebaut, das nach Süden schiebt (`beltStep`, dieselbe
+  Reihenfolge), und damit sind alle vier Richtungen ohne einen einzigen
+  Knopfdruck zu haben. Gerundet wird auf die nähere der beiden Achsen, und
+  genau auf der Diagonale gewinnt Nord-Süd — damit dieselbe Richtung immer
+  dieselbe Drehung ergibt und das Band in der Hand nicht zwischen zwei
+  Richtungen flackert. Hier stand lange das Gegenteil: dass die Blickrichtung
+  nicht tauge, weil der Bauplatz die Kachel **vor** der Figur ist und man zum
+  Verlängern einer Südbahn nördlich davon stehen müsste, wo schon das Band von
+  eben steht. Das stimmt für die **Füße** und nicht für den **Blick** — von
+  oben zielt die Maus (am Pad der rechte Stock) unabhängig davon, wohin
+  gelaufen wird (`FlatControls.aimYaw`): Man läuft die Bahn rückwärts entlang
+  und hält den Zeiger dorthin, wohin sie schieben soll; um die Ecke geht sie,
+  indem man den Zeiger dreht.
+  **Alles ohne Laufrichtung dreht weiterhin der Auslöser** um eine
+  Vierteldrehung (`turnPiece`) — in der Brille der Trigger der rechten Hand,
+  von oben die linke Maustaste, `RT` am Pad und der rote Knopf auf dem Glas; im
+  Umbau ist er mit Sicherheit frei, denn wer ein Möbel trägt, trägt keinen
+  Feuerlöscher. Ein **Band** dreht er nicht mehr, sondern sagt, woran es liegt:
+  Seine Vierteldrehung wäre im nächsten Bild wieder überschrieben. Umgekehrt
+  darf eine Theke dem Blick nicht folgen — zwei Kacheln, die sich beim
+  Vorbeigehen quer stellen, schöben sich ins Möbel daneben und wären nirgends
+  mehr abzusetzen.
   Das getragene Möbel dreht sich dabei sofort mit, und zwar in
   **Weltrichtung** (`aimHeld`): Wer sich zum Bauplatz umdreht, soll die
-  Richtung, die er gerade eingestellt hat, nicht verlieren. `B`/`Y` stellt es
+  Richtung, die er gerade eingestellt hat, nicht verlieren. Beim Band sieht
+  genau das aus wie Mitdrehen — seine Weltrichtung **ist** die Blickrichtung,
+  also zeigt es in den Händen immer von der Figur weg, wie die Pfanne, nur eben
+  in Vierteln springend. Der Hinweis am Bauplatz nennt die Himmelsrichtung
+  („Förderband nach Süden absetzen"), damit die Laufrichtung vor dem Absetzen
+  dasteht und nicht erst danach. `B`/`Y` stellt es
   zurück an seinen alten Platz **und in seine alte Drehung** — quer gedreht in
   eine Lücke gezwängt, in der es längs stand, schöbe es sich ins Möbel daneben.
   Und dazu kommt ein neuer Punkt im Zonenvertrag:
@@ -5348,8 +5368,8 @@ Und das sind die Regeln, die darin stehen:
   spielt einen Durchgang im Browser durch — Patty braten, Pfanne über dem
   Brötchen auskippen, Teller holen, servieren, dem Gast beim Essen zusehen, das
   Geschirr abräumen und spülen, ein Feuer mit dem gehaltenen Löscher ausmachen,
-  den Umbau anschalten, ein Möbel versetzen und mit dem Auslöser drehen,
-  `B` drücken.
+  den Umbau anschalten, ein Möbel versetzen und mit dem Auslöser drehen, ein
+  Band aufheben und es in allen vier Richtungen absetzen, `B` drücken.
 
 
 #### Der Körper unter dem Möbel

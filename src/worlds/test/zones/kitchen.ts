@@ -63,7 +63,14 @@ import {
   seat,
   type TableState,
 } from './kitchenGuests';
-import { BUILD_AHEAD, buildFree, tileAhead, whyNotBuilt, type BuildSpot } from './kitchenBuild';
+import {
+  BUILD_AHEAD,
+  buildFree,
+  tileAhead,
+  turnAhead,
+  whyNotBuilt,
+  type BuildSpot,
+} from './kitchenBuild';
 import {
   BeltKit,
   BELT_EMPTY,
@@ -561,6 +568,7 @@ export class KitchenZone implements TestZone {
     this.cook(dt);
     this.spray(dt, ctx);
     this.buildTurn(ctx);
+    this.facePiece();
     // Die Pfeile auf den Bändern wandern, auch wenn nichts daraufliegt: Ein
     // Band, das erst bei Fracht zeigt, wohin es schiebt, sagt es zu spät.
     this.belts?.update(dt);
@@ -1035,6 +1043,12 @@ export class KitchenZone implements TestZone {
    * umdreht. Herausgerechnet wird deshalb der Gierwinkel des Rigs: Was übrig
    * bleibt, ist die Richtung, in der es nachher steht.
    *
+   * **Beim Band sieht das aus wie Mitdrehen**, und das ist kein Widerspruch:
+   * Seine Drehung folgt der Blickrichtung (`facePiece`), also zeigt es in den
+   * Händen immer von der Figur weg und wandert mit ihr herum — wie die Pfanne.
+   * Es springt dabei in Vierteln, weil es nachher in Vierteln steht; wer
+   * schräg läuft, sieht deshalb vorab, welche der beiden Richtungen es wird.
+   *
    * Nur für **Möbel**. Ein getragener Teller hat keine Richtung, und ihn
    * festzuhalten, während die Figur sich dreht, sähe aus, als klebte er in der
    * Luft.
@@ -1044,6 +1058,40 @@ export class KitchenZone implements TestZone {
     if (!furnish) return;
     _look.setFromQuaternion(ctx.rig.getWorldQuaternion(_spin), 'YXZ');
     furnish.model.rotation.set(0, (furnish.turn * Math.PI) / 2 - _look.y, 0);
+  }
+
+  /**
+   * **Ein getragenes Band zeigt dorthin, wohin die Figur zeigt** — und dreht
+   * sich mit ihr.
+   *
+   * Das ist der Handgriff, mit dem eine Bahn entsteht: Wer nach Süden schaut
+   * und absetzt, hat ein Band gebaut, das nach Süden schiebt
+   * (`kitchenBuild.turnAhead` rechnet aus der Blickrichtung die Vierteldrehung,
+   * und die ist zugleich die Laufrichtung, `kitchenBelt.beltStep`). Alle vier
+   * Richtungen sind damit ohne einen einzigen Knopfdruck zu haben — von oben
+   * zeigt die Figur dorthin, wohin sie läuft oder wohin die Maus zielt
+   * (`core/FlatControls.walkNorthUp`), aus den Augen und in der Brille dorthin,
+   * wohin der Kopf schaut.
+   *
+   * **Nur Möbel mit einer Laufrichtung**, also die Bänder (`beltKind`). Bei
+   * allem anderen ist die Drehung eine Frage der Grundfläche und nicht der
+   * Wirkung: Eine Ausgabetheke, die sich beim Vorbeigehen quer stellte, schöbe
+   * sich in das Möbel daneben und wäre nirgends mehr abzusetzen. Dort dreht
+   * weiterhin der Auslöser (`turnPiece`).
+   *
+   * Die Grundfläche wird trotzdem nachgeführt: Heute sind beide Bänder eine
+   * Kachel groß (`core/kitchenFit.KITCHEN_PIECES`), und ein Band, dessen
+   * Grundfläche beim ersten zweikachligen Modell an der Drehung von vorhin
+   * hinge, wäre der Fehler, den niemand mehr mit dieser Zeile in Verbindung
+   * brächte.
+   */
+  private facePiece(): void {
+    const furnish = this.lifted;
+    if (!furnish || !beltKind(furnish.piece.name)) return;
+    const turn = turnAhead(_aim, furnish.turn);
+    if (turn === furnish.turn) return;
+    furnish.turn = turn;
+    furnish.size = footprint(furnish.piece, turn);
   }
 
   /**
@@ -2085,9 +2133,15 @@ export class KitchenZone implements TestZone {
     this.dropBody(furnish);
     if (this.rig) this.rig.add(furnish.model);
     // Wie herum es in den Händen liegt, rechnet `aimHeld` in jedem Bild — es
-    // zeigt dorthin, wohin es nachher zeigt, und nicht dorthin, wohin die Figur
-    // gerade schaut.
-    world.notify(`${furnish.piece.label} aufgenommen — der Auslöser dreht es`);
+    // zeigt dorthin, wohin es nachher zeigt. **Womit** man das einstellt, ist
+    // je Möbel verschieden, und der Satz sagt genau das eine, das hier gilt:
+    // ein Band folgt dem Blick (`facePiece`), alles andere dem Auslöser
+    // (`turnPiece`).
+    world.notify(
+      beltKind(furnish.piece.name)
+        ? `${furnish.piece.label} aufgenommen — es zeigt dorthin, wohin du zeigst`
+        : `${furnish.piece.label} aufgenommen — der Auslöser dreht es`,
+    );
     this.refreshStations();
     return true;
   }
@@ -2095,20 +2149,24 @@ export class KitchenZone implements TestZone {
   /**
    * **Eine Vierteldrehung weiter** — das Möbel in der Hand zeigt woandershin.
    *
-   * Das ist der Handgriff, ohne den ein Band nur in der Richtung steht, in der
-   * es im Aufbau steht. Aufheben und woanders hinstellen konnte der Umbau schon;
-   * **wie herum** blieb, wie es war, und damit ließ sich eine Bahn nur
-   * verlängern, nie um die Ecke führen.
+   * Das ist der Handgriff, ohne den ein Möbel nur in der Richtung steht, in der
+   * es im Aufbau steht. Aufheben und woanders hinstellen konnte der Umbau
+   * schon; **wie herum** blieb, wie es war.
    *
-   * **Warum nicht aus der Blickrichtung.** Der naheliegende Weg wäre, das Möbel
-   * dorthin zeigen zu lassen, wohin die Figur schaut — kein Knopf, keine
-   * Erklärung. Er scheitert an genau dem Fall, für den man dreht: Der Bauplatz
-   * ist die Kachel **vor** der Figur (`kitchenBuild.tileAhead`), also stünde
-   * das Band immer quer zur Reihe, die man gerade baut. Wer die nächste Kachel
-   * einer Südbahn setzen will, müsste nördlich davon stehen — und dort steht
-   * schon das Band von eben.
+   * **Bänder dreht er nicht mehr**, und das ist die Änderung an dieser Stelle.
+   * Sie zeigen von selbst dorthin, wohin die Figur zeigt (`facePiece`), also
+   * wäre jede Vierteldrehung im nächsten Bild wieder überschrieben — ein Knopf,
+   * der einen Wimpernschlag lang etwas tut, ist schlimmer als keiner. Hier
+   * stand lange das Gegenteil: dass die Blickrichtung nicht tauge, weil der
+   * Bauplatz die Kachel **vor** der Figur ist (`kitchenBuild.tileAhead`) und
+   * man zum Verlängern einer Südbahn nördlich davon stehen müsste, wo schon das
+   * Band von eben steht. Das stimmt für die **Füße** und nicht für den
+   * **Blick**: Von oben zielt die Maus — und am Pad der rechte Stock —
+   * unabhängig davon, wohin gelaufen wird (`core/FlatControls.aimYaw`). Man
+   * läuft die Bahn also rückwärts entlang und hält den Zeiger dorthin, wohin
+   * sie schieben soll; um die Ecke geht sie, indem man den Zeiger dreht.
    *
-   * Gedreht wird deshalb mit dem **Auslöser**: in der Brille der Trigger der
+   * Für alles andere bleibt der **Auslöser**: in der Brille der Trigger der
    * rechten Hand, von oben die linke Maustaste, `RT` am Pad und der rote Knopf
    * auf dem Glas. Er ist im Umbau frei, und zwar mit Sicherheit: Wer ein Möbel
    * trägt, trägt keinen Feuerlöscher — das Anschalten räumt die Hände
@@ -2116,14 +2174,20 @@ export class KitchenZone implements TestZone {
    *
    * Zu sehen ist die Drehung sofort und an zwei Stellen: Das Möbel in den
    * Händen dreht sich mit, und zwar in **Weltrichtung** (`carryInHands`), und
-   * der Satz am Handgelenk nennt die Himmelsrichtung. Ein Band, dessen
-   * Laufrichtung man erst nach dem Absetzen sähe, wäre eines, das man dreimal
+   * der Satz am Handgelenk nennt die Himmelsrichtung. Ein Möbel, dessen
+   * Richtung man erst nach dem Absetzen sähe, wäre eines, das man dreimal
    * absetzt.
    */
   private turnPiece(): boolean {
     const world = this.world;
     const furnish = this.lifted;
     if (!world || !furnish) return false;
+    // Ein Band **folgt** dem Blick; ein Druck sagt hier deshalb, wie es geht,
+    // statt eine Drehung zu setzen, die eine Millisekunde später verfällt.
+    if (beltKind(furnish.piece.name)) {
+      world.notify(`${furnish.piece.label} zeigt dorthin, wohin du zeigst`);
+      return true;
+    }
     furnish.turn = ((furnish.turn + 1) % 4) as Turn;
     furnish.size = footprint(furnish.piece, furnish.turn);
     world.notify(`${furnish.piece.label} zeigt nach ${TURN_LABELS[furnish.turn]}`);
@@ -2197,7 +2261,14 @@ export class KitchenZone implements TestZone {
       station.key = `${furnish.piece.name}@${furnish.x},${furnish.z}`;
       station.shown = null;
     }
-    world.notify(`${furnish.piece.label} abgesetzt`);
+    // **Beim Band steht die Laufrichtung dabei.** Es schiebt dorthin
+    // (`kitchenBelt.beltStep`), und wer eine Bahn baut, will das bestätigt
+    // bekommen, ohne erst auf die Pfeile zu schauen.
+    world.notify(
+      beltKind(furnish.piece.name)
+        ? `${furnish.piece.label} abgesetzt — schiebt nach ${TURN_LABELS[furnish.turn]}`
+        : `${furnish.piece.label} abgesetzt`,
+    );
     this.refreshStations();
     return true;
   }
@@ -2291,7 +2362,13 @@ export class KitchenZone implements TestZone {
           const at = this.ghostAt;
           if (!at) return '';
           const why = whyNotBuilt(at, this.taken(furnish), { w: KITCHEN.w, d: KITCHEN.d });
-          return why ?? `${furnish.piece.label} hier absetzen`;
+          if (why) return why;
+          // Die Richtung gehört in den Hinweis, solange sie eine Wirkung hat:
+          // Beim Band ist sie der halbe Handgriff, und sie ändert sich, während
+          // man davorsteht und sich dreht (`facePiece`).
+          return beltKind(furnish.piece.name)
+            ? `${furnish.piece.label} nach ${TURN_LABELS[furnish.turn]} absetzen`
+            : `${furnish.piece.label} hier absetzen`;
         },
       },
       { shot: 0 },
