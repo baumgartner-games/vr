@@ -885,9 +885,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
       dahinter steht dieselbe Methode, die auch der Zeiger und die Hand
       aufrufen. Angemeldet wird in einer **Liste** der Welt und nicht in der
       Szene gesucht — die Frage „was ist hier benutzbar" steht in jedem Bild
-      an, weil der Hinweis über der Figur daran hängt (_E · Knopf drücken_,
-      eine Tafel in der Neigung der Kamera, nur von oben). Am Objekt selbst
-      hängt dieselbe Auskunft als `userData.usable`.
+      an, weil der Hinweis über der Figur daran hängt (_Knopf drücken_, eine
+      Tafel in der Neigung der Kamera, nur von oben). Am Objekt selbst hängt
+      dieselbe Auskunft als `userData.usable`.
+    - **Die Taste steht nicht auf der Tafel.** Der Hinweis begann einmal mit
+      dem Namen des Knopfes (_A · Brötchen nehmen_), und dafür gab es einen
+      Grund: Wer nicht weiß, womit er etwas anfängt, liest ihn dort. Nur sagen
+      das inzwischen zwei Dinge deutlicher als ein Buchstabe — das Ding selbst
+      bekommt seinen gelben Saum, und der Knopf, der es aufmacht, leuchtet am
+      Glas mit. Übrig bleibt die **Tat** („Brötchen nehmen", „Feuer löschen"),
+      und das ist an der Ausgabetheke im Gedränge genau das, was man sucht.
+      Damit ist auch `PlayerRig.useLabel` weg — diese Tafel war der einzige
+      Ort, der den Namen des Knopfes je gelesen hat, und ein Feld, das jedes
+      Bild gesetzt und von niemandem gelesen wird, ist die zweite Wahrheit, die
+      beim nächsten Umbau ausschert. Mit ihm fiel `FlatControls.padSpoke`, das
+      sich nur gemerkt hatte, ob zuletzt eine Taste oder ein Knopf sprach.
     - **Die Portal-Regel: Was man drücken kann, kann man auch treffen.** Der
       rote Knopf (`worlds/shared/redButton.ts`) hat einen Kollisionskörper an
       der Kuppel, und eine Kugel, die ihn unterwegs streift, ruft sein `use`
@@ -2022,11 +2034,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     _Modelle im Repository_), und zwar in **zwei Hälften**. Im Westen die
     Küche selbst — Zeile, zwei Herde, Spüle und Tellerausgabe an der Wand, vier
     Zutatenausgaben an der Westwand, eine Insel aus Schneidebrett und
-    Mülleimer, vorn die Ausgabetheke mit den Wärmeschirmen darüber —, im Osten der **Schauraum**: jedes der dreizehn
-    Möbel noch einmal, frei stehend und mit einer Tafel daneben, auf der sein
-    Name und sein Maß stehen. In einer Zeile aus acht Schränken sieht man ein
-    einzelnes Möbel nicht; der Katalog ist damit ein Rundgang statt einer
-    Liste. **Angefasst wird mit `A`** (siehe _Anfassen in der Küche_). Sie ist
+    Mülleimer, ein **Förderband** quer durch den Raum, vorn die Ausgabetheke
+    mit den Wärmeschirmen einen Meter darüber, und südlich davon der
+    **Gastraum**: drei Gästetische und die Geschirrrückgabe (die Türkacheln
+    daneben bleiben frei, sonst stünde ein Tisch im Eingang) —, im Osten der
+    **Schauraum**: jedes der vierzehn Möbel noch einmal, frei stehend und mit
+    einer Tafel daneben, auf der sein Name und sein Maß stehen. In einer Zeile
+    aus acht Schränken sieht man ein einzelnes Möbel nicht; der Katalog ist
+    damit ein Rundgang statt einer Liste. **Angefasst wird mit `A`**, und ein
+    Knopf neben dem Eingang schaltet den **Baumodus** ein, in dem sich leere
+    Möbel versetzen lassen (beides unter _Anfassen in der Küche_). Sie ist
     der Grund, warum das Gelände nach Norden gewachsen ist (`FIELD` ist jetzt
     64 × 80 m): Die Möbel sind groß — eine Spüle misst 4 × 3 m —, und in eine
     Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe. Hinter dem
@@ -2583,6 +2600,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
 | Verspreizen                                                                        | eine Hand links, eine rechts an gegenüberliegenden Flächen — und **nah beieinander**, sonst kann man nicht drücken                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Sprungkissen                                                                       | von oben in das blaue Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                                                                                                                   | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Halt-Anzeige | sie taucht auf, sobald man vor der Kletterwand steht, und geht danach wieder weg — Ausdauer in der Mitte, je ein Haltbalken links und rechts | dito | – | dito |
+| Küche: kochen | davorstellen und `A` — die Station, die `A` gerade meint, trägt den gelben Saum, und der Hinweis über der Figur sagt die Tat (_Brötchen nehmen_) | `E` oder Enter | `A` | Knopf `A` |
+| Küche: Feuerlöscher | erst vom Hocker nehmen (`A`), dann den **Trigger der rechten Hand gedrückt halten**; gezielt wird mit dem Kopf | **aus den Augen**: `E` gedrückt halten, gezielt mit dem Kopf. **Von oben**: ein **Schalter** — Linksklick an, noch einmal aus (oder `E`, solange nichts in Reichweite steht); gezielt mit dem rechten Stock, der dort die Figur dreht | aus den Augen `A` halten; von oben schaltet RT (oder `A`, solange nichts in Reichweite steht) | aus den Augen Knopf `A` halten; von oben schaltet Knopf `B` (oder `A`, solange nichts in Reichweite steht) |
+| Küche: umbauen | Knopf in der Küche + `A` schaltet den Baumodus um; dann `A` am leeren Möbel hebt es auf, `A` auf dem Umriss davor setzt es ab (grün = passt, rot = passt nicht) | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
 | Messband                                                                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Stoppuhr                                                                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Pinsel                                                                             | Palette antippen **oder** anzielen + Trigger; Regler (RGB, Breite) gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                                                                     | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
@@ -4307,7 +4327,8 @@ src/
   physics/   Rapier-Wrapper und der Charakter-Controller (dynamisch geladen)
   ui/        Canvas-basierte 3D-UI (Panel, Textflächen, Handgelenk-Menüs)
              — darin `menuNav.ts`, der Weg durchs Menü, den sich beide
-             Handgelenke teilen
+             Handgelenke teilen, und `billboard.ts`, die einzige Stelle,
+             an der sich etwas zur Kamera dreht
   net/       Transport-Interface, WebRTC/BroadcastChannel, Presence, Avatare,
              Zuschauer-Kamera
   worlds/    Weltenregistry + je eine Welt pro Ordner (inkl. `PortalSync`,
@@ -4679,6 +4700,61 @@ jeden Collider der Welt und legt dabei zwei frische Zahlenfelder an. Die Frage
 nach dem Häkchen steht deshalb **vor** dem Aufruf und nicht danach — wer es aus
 hat, merkt von der Datei nichts, und der `LineSegments` entsteht überhaupt erst
 beim ersten Mal Anschalten.
+
+#### Was die Kamera ansieht
+
+Ein Schild, ein Fortschrittsbalken, ein Warndreieck: Alles, was Auskunft gibt,
+will dem Auge zugewandt stehen und nicht hochkant im Bild. Die Rechnung dafür
+steht an **einer** Stelle im Projekt (`ui/billboard.ts`, `faceCamera`). Sie
+stand vorher in `worlds/test/zones/kitchenGauge.ts` und hätte beim nächsten
+Schild ein zweites Mal dagestanden — ein Ding, das der Kamera zugewandt stehen
+will, ist keine Küchenfrage.
+
+**Ausgerichtet wird beim Zeichnen, nicht im `update`**, und das ist der
+eigentliche Punkt. Eine Welt bekommt in `update` genau **eine** Kamera gereicht
+(`WorldContext.camera`), und das ist die aus den Augen; der Tausch auf die
+Kamera von oben passiert in `core/App.ts` erst fürs **Bild** (`viewContext`).
+Wer sich im `update` danach richtete, stand in der Ansicht von oben zur Figur
+gedreht statt zur Kamera — fast hochkant, und genau das war am Schirm zu sehen.
+`Object3D.onBeforeRender` bekommt dagegen **die Kamera, aus der gerade wirklich
+gezeichnet wird**: von oben, aus den Augen, im Spiegel, je XR-Auge einmal. Es
+muss niemand eine Kamera durchreichen, und jeder Client richtet dasselbe Schild
+für seinen eigenen Blick aus — der Spieler in der Brille sieht es zu sich
+gedreht, während es am Schirm daneben zur Kamera von oben steht.
+
+Drei Fallen stecken darin, und alle drei sind teuer bezahlt:
+
+- **three ruft `onBeforeRender` nicht auf einer `Group`.** Der Renderer ruft
+  ihn nur für das, was er wirklich zeichnet — `Mesh`, `Line`, `Points`,
+  `Sprite`. Ein Balken ist aber eine Gruppe aus Grund und Füllung, und die
+  hätte den Handler nie gesehen. `faceCamera` hängt ihn deshalb **zusätzlich an
+  alles Gezeichnete darunter**: Jedes Teil richtet vor seinem eigenen Zug die
+  Gruppe aus. Daraus folgt die Regel für Aufrufer — **erst bauen, dann
+  `faceCamera`**. Was danach hineingehängt wird, löst nichts aus.
+- **Die Matrix muss von Hand nachgezogen werden** (`updateMatrixWorld`). three
+  baut die Matrizen der Szene vor dem Zeichnen; wer im Handler nur `rotation`
+  setzt, sieht die Drehung ein Bild zu spät — und bei zwei Ansichten
+  nebeneinander die des jeweils anderen Auges.
+- **Ein Schild lehnt sich mindestens 30° zurück** (`BILLBOARD_LEAN_MIN`). Nicht
+  für die Kamera von oben: Die steht mit 55° (`core/topDownPose.TOP_DOWN_TILT`)
+  ohnehin darüber und bekommt ihren echten Winkel. Der Mindestwert regelt den
+  anderen Fall — eine Kamera **auf oder unter** der Höhe des Schildes, wo es
+  bolzengerade stünde oder nach vorn kippte und seine Rückseite nach oben
+  zeigte. Aus den Augen (0,914 m, `core/chefFit.CHEF_EYE`) steht die Kamera
+  kaum über einem Balken auf 0,85 m; 30° zurück sind auf zwei Meter Abstand
+  kaum von „genau angesehen" zu unterscheiden (`cos 30° = 0,87`), lassen den
+  Balken aber wie ein Schild über der Pfanne aussehen und nicht wie einen
+  Aufkleber in der Luft. `upright` gibt es dazu für Schilder, die senkrecht
+  stehen sollen: nur gieren, nicht neigen.
+
+Angehängt wird **einmal beim Bauen** und nicht je Bild; abgemeldet werden muss
+nichts, weil der Handler am Objekt lebt und mit ihm verschwindet
+(`unfaceCamera` gibt es trotzdem, und zweimal Anhängen ersetzt statt zu
+stapeln). Die reine Rechnung steht als `billboardAngles` daneben, damit ein
+Test sie ohne Szene nachrechnen kann — steht die Kamera **senkrecht** über dem
+Schild, ist jede Richtung gleich richtig, und dann bleibt das bisherige Gieren
+stehen, statt auf den kleinsten Rechenfehler hin herumzuspringen.
+
 ### Modelle im Repository
 
 `public/models` ist der Ordner, in dem **fremde Arbeit** liegt: die Spielfigur
@@ -4695,11 +4771,17 @@ wurden. Sie laufen von Hand, nicht bei jedem Build: Ein Modell ändert sich
 nicht, und `@gltf-transform` und `sharp` gehören nicht in die Abhängigkeiten
 eines Spiels, das sie nie ausführt (`npm install --no-save` beim Aufbereiten).
 
-**Der Küchenkatalog** (`core/kitchenFit.ts`) hat dreizehn Möbel: Tellerausgabe,
+**Der Küchenkatalog** (`core/kitchenFit.ts`) hat vierzehn Möbel: Tellerausgabe,
 Feuerlöscher, Spüle, Mülleimer, Arbeitstisch, Ausgabe, Schneidebrett,
-Ausgaberegal, Ausgabetheke, Küchenzeile, Herd, Herd mit Topf, Herd mit Pfanne.
-Die Quelle war eine **Schauraum-Szene**: ein Bild, das jemand aufgebaut hat,
-in vier Netzen, die nur nach Material getrennt waren. Zerlegt wird sie über den
+Ausgaberegal, Ausgabetheke, Küchenzeile, Herd, Herd mit Topf, Herd mit Pfanne —
+und das **Förderband**, das in keiner Datei steckt, sondern gebaut wird
+(`KitchenPiece.built`, siehe _Anfassen in der Küche_). Der Katalog beschreibt,
+was in dieser Küche **steht**, nicht, was gekauft wurde; wer `built` nicht
+liest, meldet eine fehlende Datei, die es nicht gibt, und stellt einen grauen
+Würfel dorthin, wo ein Band stehen soll.
+
+Die dreizehn aus der Datei kommen aus einer **Schauraum-Szene**: ein Bild, das
+jemand aufgebaut hat, in vier Netzen, die nur nach Material getrennt waren. Zerlegt wird sie über den
 **Zusammenhang der Positionen** (nicht der Indizes — eine UV-Naht zerschneidet
 sonst jedes Möbel an seinen Kanten) und dann wieder gebündelt über
 **Grundriss und Höhe**. Die Höhe gehört dazu: Ohne sie klebte der Hängeschrank
@@ -4734,10 +4816,11 @@ Die Namen und Maße stehen in `kitchenFit.ts`, das weder three.js noch
 **Aufgestellt sind sie in der Küche der Testwelt** (`worlds/test/zones/kitchen.ts`).
 Der Katalog lag nach seinem Import ein halbes Jahr ungenutzt da: dreizehn
 vermessene Möbel, eine Ladefunktion und keine Welt, die sie hinstellt. Jetzt
-gibt es eine — drei Bänder wie in jeder Küche dieses Spiels (Geräte an der
-Wand, eine Insel, die Ausgabe), und daneben die Probe darauf, dass die
-Kochfigur wirklich zu diesen Möbeln passt. Drei Dinge sind daran wichtig genug,
-um sie hier zu nennen:
+gibt es eine — drei **Reihen** wie in jeder Küche dieses Spiels (Geräte an der
+Wand, eine Insel, die Ausgabe), dazu ein Gastraum davor, und daneben die Probe
+darauf, dass die Kochfigur wirklich zu diesen Möbeln passt. („Reihen" und nicht
+mehr „Bänder": Seit es ein Förderband gibt, ist das Wort vergeben.) Drei Dinge
+sind daran wichtig genug, um sie hier zu nennen:
 
 - **Der Grundriss weiß, wo ein Möbel steht**, auch wenn die Datei nie ankommt.
   Jedes Stück verteuert seine Kacheln (`stampKitchen`), und damit geht ein NPC
@@ -4785,23 +4868,66 @@ den man im Bild sah:
 #### Anfassen in der Küche
 
 Was `A` vor einem Möbel tut, steht in **einer** Funktion
-(`worlds/test/zones/kitchenCarry.ts`, `kitchenDeed`) und nicht in sieben
-`if`-Ketten in der Zone daneben. Sieben Stationsarten — Ablage, Kiste,
-Mülleimer, Schneidebrett, Herd, Ausgabetheke, Löscherhalterung — mal volle
-oder leere Hand ergeben ein paar Dutzend Fälle, und jeder davon ist hier eine
-Zeile im Test und im Headset eine Viertelstunde Hin- und Herlaufen.
+(`worlds/test/zones/kitchenCarry.ts`, `kitchenDeed`) und nicht in elf
+`if`-Ketten in der Zone daneben. Elf Stationsarten (`StationKind`) — Ablage,
+Kiste, Mülleimer, Schneidebrett, Herd, Ausgabetheke, Löscherhalterung, Spüle,
+Geschirrrückgabe, Gästetisch, Förderband — mal volle oder leere Hand ergeben ein
+paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
+eine Viertelstunde Hin- und Herlaufen.
 
-Die Küche liegt seitdem in sechs Dateien, und die Grenze ist jedes Mal
-dieselbe: **Rechnung getrennt von Darstellung.**
+Die Küche liegt seitdem in dreizehn Dateien, dazu eine vierzehnte im `ui/`, die
+längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
+getrennt von Darstellung** — was ohne three.js auskommt, kommt ohne three.js
+aus, und genau das ist der Grund, warum es so viele Dateien sind.
 
 | Datei | Was darin steht |
 | --- | --- |
 | `zones/kitchenRecipes.ts` | Zutaten, Träger, Stufen, `combine`, Rezepte |
-| `zones/kitchenClock.ts` | die Uhren: braten, verbrennen, entzünden, schneiden |
-| `zones/kitchenCarry.ts` | Stationen und `kitchenDeed`; reicht beide weiter |
+| `zones/kitchenClock.ts` | die Uhr des **Herdes**: braten, verbrennen, entzünden |
+| `zones/kitchenWork.ts` | die Uhr der **Arbeit**: schneiden und spülen, eine Rechnung |
+| `zones/kitchenGuests.ts` | wer an einem Tisch isst, wie lange, und was stehen bleibt |
+| `zones/kitchenBuild.ts` | welche Kachel gemeint ist und ob dort Platz ist |
+| `zones/kitchenSpray.ts` | der Feuerlöscher: Kegel, Schalter, Fortschritt, Nebel |
+| `zones/kitchenBelt.ts` | das Förderband: Laufzeit, Laufrichtung, Netz |
+| `zones/kitchenCarry.ts` | Stationen und `kitchenDeed`; reicht alle Uhren weiter |
 | `zones/kitchenPlan.ts` | wo welches Möbel steht, der Grundriss, das Schild |
 | `zones/kitchen.ts` | die Zone: Netze, Körper, Anzeigen, Anfassen |
 | `zones/kitchenProps.ts` | `FoodKit`: aus einem Gericht wird ein Netz |
+| `zones/kitchenIcon.ts` | der Ofen, der aus einer Zutat eine Textur backt |
+| `zones/kitchenGauge.ts` | Balken, Warndreieck und Flammen über den Stationen |
+| `ui/billboard.ts` | `faceCamera`: was Auskunft gibt, sieht die Kamera an |
+
+Die jüngsten sechs kamen mit dem Geschirr, den Gästen, dem Band, dem Löscher
+und dem Umbau dazu, und jede ist aus demselben Grund eine **eigene** Datei: Sie
+rechnet etwas aus, das man ohne Szene prüfen kann.
+
+- **`kitchenWork.ts` ist die eine Stelle für „Arbeit an einer Station über
+  Zeit".** Das Schneidebrett hatte seine Uhr einmal für sich allein (sie stand
+  in `kitchenClock.ts`); mit der Spüle hätte es daneben ein zweites
+  `advanceChop` gegeben, das bis auf zwei Namen dasselbe tut — samt zweitem
+  Balken und zweiter Gelegenheit, eines von beidem zu vergessen. Der **Herd**
+  bleibt bewusst draußen: Er läuft weiter, ob jemand davorsteht oder nicht, und
+  das ist der ganze Sinn des Bratens. Hier ist es umgekehrt, und zwei
+  Rechnungen mit gegenteiliger Grundannahme gehören nicht in eine Funktion.
+- **`kitchenGuests.ts` ist die Uhr des Gastes** — wer isst, wie lange noch, und
+  was danach auf dem Tisch stehen bleibt (`EAT_SECONDS` 8 s, `TableState`).
+  Sie steht aus demselben Grund neben der Zone wie der Herd: Wer den Rest einer
+  Phase am Ende wegwirft, dessen Gäste essen je nach Bildrate verschieden lang.
+- **`kitchenBuild.ts` rechnet in Kacheln**, nicht in Metern: welche Kachel vor
+  den Füßen liegt (`tileAhead`, `BUILD_AHEAD` = 0,7 m) und ob dort noch Platz
+  ist (`buildFree`, `whyNotBuilt`). Wie herum ein Möbel steht, steht **nicht**
+  darin — das rechnet `kitchenPlan.footprint` längst aus Katalogmaß und
+  Drehung, und eine zweite Fassung davon wäre die zweite Wahrheit.
+- **`kitchenSpray.ts` und `kitchenBelt.ts` sind je dreigeteilt**, und nur der
+  mittlere Teil kennt three.js: reine Rechnung (`inSpray`, `sprayOn`,
+  `advanceDouse`; `advanceBelt`, `beltStep`), dann das Netz, dann nichts weiter
+  — was die Küche mit dem Ergebnis anstellt, entscheidet sie selbst.
+- **`ui/billboard.ts` liegt bewusst nicht bei der Küche.** Die Rechnung stand
+  vorher in `kitchenGauge.ts` und hätte beim nächsten Schild ein zweites Mal
+  dagestanden; ein Ding, das der Kamera zugewandt stehen will, ist keine
+  Küchenfrage. Ausführlich unter _Was die Kamera ansieht_.
+
+Und das sind die Regeln, die darin stehen:
 
 - **Träger statt Anrichte.** Es gibt genau drei Dinge, die etwas aufnehmen:
   **Teller**, **Brötchen** und **Pfanne** (`isCarrier`). Ein getragenes Ding
@@ -4822,26 +4948,83 @@ dieselbe: **Rechnung getrennt von Darstellung.**
   Patty darin und kippt sie über Brötchen oder Teller aus; sie bleibt dabei,
   wo sie war (in der Hand oder auf dem Herd). Das ist der Griff aus
   _Overcooked_, und er erspart einen Sonderfall „Patty aus Gerät".
-- **Eine Kiste ist keine Ablage.** Sie hat keine Fläche, auf der etwas liegen
-  bleiben könnte. Wer mit der vollen Pfanne an die Brötchenausgabe trat,
-  bekam deshalb erst ein Brötchen mit Patty, das niemandem gehörte — im
-  Browser nachgestellt, das Patty war spurlos weg. Jetzt gilt dort nur, was
-  die **Hand** aufnimmt: der Teller, der den Burger schluckt, die leere Pfanne,
-  die das rohe Patty aufnimmt. Alles andere ist „Erst die Hände frei machen".
+- **Verbranntes bleibt in der Pfanne** (`TAKES`). Es auf Teller und Brötchen
+  zu erlauben, war einmal die bequeme Art, den Mist abzuräumen; in Wahrheit
+  baut man damit einen Burger, den die Theke abweist — eine Sackgasse, die erst
+  drei Schritte später auffällt. Die Pfanne behält es, weil es dort ohne Zutun
+  entsteht, und man kippt sie in den Mülleimer aus.
+- **Eine Kiste gibt aus und ist zugleich Arbeitsplatte** (`fromBox`). Das
+  Zweite ist neu und hat einen sichtbaren Grund: Die vier Vorratsboxen stehen
+  an der Westwand nebeneinander, und wer dort mit vollen Händen ankommt, hatte
+  vorher keinen Platz, etwas abzulegen. Jetzt liegt auf dem Deckel, was jemand
+  genau dorthin gestellt hat — und **das** geht vor dem Frischen: Die Kiste
+  gibt ihr Frisches ja noch beliebig oft, das Liegende gibt es einmal. Damit
+  geht der überzählige **Teller an der Tellerausgabe zurück**, statt dass man
+  ihn quer durch die Küche trägt. Geblieben ist die Regel dahinter: Wer mit der
+  vollen Pfanne an die Brötchenausgabe trat, bekam einmal ein Brötchen mit
+  Patty, das niemandem gehörte — im Browser nachgestellt, das Patty war spurlos
+  weg. Was aus dem Nichts kommt, muss deshalb in die **Hand** passen; alles
+  andere ist „Erst die Hände frei machen".
 - **Der Herd hat vier Phasen** (`kitchenClock.ts`): vier Sekunden braten,
   sechs verbrennen, fünf bis zum Feuer, dann brennt es. Dazu gehören die
   Anzeigen: Flammen unter der Pfanne, ein Fortschrittsbalken in Warm, einer in
-  Rot, ein Warndreieck kurz vorher. Gelöscht wird mit dem **Feuerlöscher** in
-  der Hand — den nimmt man vom Hocker, auf dem er im Modell steht
-  (`KitchenPiece.holds`).
-- **Das Schneidebrett schneidet von selbst**, sobald etwas daraufliegt, und
-  nur, solange jemand davorsteht (1,5 m um die Möbelmitte, gerechnet aus der
-  Kamera — `Station.live` heißt „hier gäbe es etwas zu tun" und nicht „jemand
-  steht davor"). Wer weggeht, lässt die Uhr stehen; wer die Zutat aufnimmt,
-  verliert den Fortschritt. Die Tomate hat zwei Stufen: Scheibe, dann Suppe.
-- **Über die Ausgabetheke verschwindet das Gericht** und hinterlässt drei
-  Sekunden lang seinen Namen an der Theke (`Hamburger serviert`). Ein Teller
-  darunter bleibt in der Hand — wie beim Mülleimer, wo nur der Inhalt fliegt.
+  Rot, ein Warndreieck kurz vorher. Ein brennender Herd ist keine Fläche mehr —
+  solange es brennt, geht dort nur noch eines.
+- **Der Feuerlöscher wird gehalten, nicht gedrückt** (`kitchenSpray.ts`). Er
+  war einmal ein einzelner Druck auf `A` am brennenden Herd, und das ist kein
+  Feuerlöscher, sondern ein Lichtschalter: Bei _Overcooked_ wie bei _PlateUp_
+  **läuft** er, man hält ihn ins Feuer, und was im Strahl liegt, geht aus. Man
+  nimmt ihn vom Hocker, auf dem er im Modell steht (`KitchenPiece.holds`), und
+  zielt mit derselben Richtung, mit der auch `A` etwas erwischt — von oben mit
+  der Figur (der rechte Stock **ist** dort das Zielen), aus den Augen und in
+  der Brille mit dem Kopf. Der Kegel reicht **2,5 m** weit (`SPRAY_RANGE`,
+  deutlich weiter als der Griff mit 1,5 m — genau das ist der Sinn) und öffnet
+  sich um **25°** zur Seite (`SPRAY_HALF_ANGLE`): auf einen Meter 0,93 m breit,
+  also knapp eine Kachel, auf die volle Reichweite 2,33 m. Nah und genau, weit
+  und ungefähr. Ein Herd im Strahl braucht **1,5 s** (`SPRAY_SECONDS`) — null
+  wäre der alte Knopfdruck zurück, und viel mehr ginge nicht, weil eine Küche
+  mit zwei brennenden Herden steht. Der alte Griff am brennenden Herd bleibt
+  daneben bestehen (`kitchenDeed`, `do: 'douse'`): Wer schon davorsteht, soll
+  nicht erst zielen müssen. Wie die Ansichten den Auslöser lesen, steht unter
+  _Steuerung_.
+- **Schneiden und Spülen sind dieselbe Uhr** (`kitchenWork.ts`,
+  `WORK_SECONDS` = 3 s für beides). Das Brett schneidet von selbst, sobald
+  etwas daraufliegt, die Spüle spült von selbst, sobald dreckiges Geschirr
+  darin steht — und beides nur, solange jemand davorsteht (1,5 m um die
+  Möbelmitte; `Station.live` heißt „hier gäbe es etwas zu tun" und nicht
+  „jemand steht davor"). Die Tomate hat dabei zwei Stufen: Scheibe, dann Suppe.
+- **Wer weggeht, fängt von vorn an.** Früher blieb der Fortschritt stehen und
+  lief beim Zurückkommen weiter — bequem, aber es machte aus dem Brett eine
+  Ablage, an der man im Vorbeigehen antippt: hinlegen, zwei Sekunden warten,
+  weglaufen, irgendwann wiederkommen, fertig. Arbeit, die man in Scheiben
+  schneiden kann, ist keine Entscheidung mehr, sondern Buchhaltung. Jetzt
+  bricht das Weggehen ab, und wer die Uhr wieder armieren will, zahlt dafür
+  zwei Handgriffe: **erneut aufnehmen und erneut ablegen** (`onWork`). Damit
+  steht man am Brett, weil die Küche es verlangt — und genau das ist bei
+  _Overcooked_ die Arbeit. Dieselben zwei Handgriffe kosten auch die zweite
+  Schnittstufe: Ist eine Stufe fertig, steht die Uhr, und aus einer Tomate wird
+  nicht in einem Zug Suppe.
+- **Über die Theke geht nur, was auf einem Teller liegt** (`atPass`), und
+  **Teller und Gericht gehen zusammen weg**. Vorher verschwand der Burger und
+  der Teller blieb in der Hand; damit endete ein Burger im Nichts und die
+  Tellerausgabe war ein Brunnen. Jetzt geht der Kreis weiter: Ein Gast setzt
+  sich an einen freien **Gästetisch** und isst **8 s**
+  (`kitchenGuests.EAT_SECONDS`, ungefähr so lang wie ein ganzer Burger von
+  vorn) — an der Theke steht dabei vier Sekunden lang, was es geworden ist
+  (`Hamburger serviert`, `TICKET_SECONDS`). Ist kein Tisch frei, landet das
+  Geschirr gleich an der **Geschirrrückgabe**. Dort **stapeln** sich die
+  dreckigen Teller, bis zu sechs (`DIRTY_STACK_MAX`, gerechnet aus dem
+  Verdrehwinkel je Lage und aus der Brusthöhe der Figur), und von dort holt man
+  sie einzeln in die **Spüle**. Eine Rückgabe, auf die nur ein Teller passt,
+  wäre bei drei Gästen gleichzeitig eine Sackgasse.
+- **Der dreckige Teller ist ein eigenes Ding** (`'plate-dirty'`) und kein
+  Zustand am sauberen. Er trägt nichts (er steht in `TAKES` gar nicht), er
+  gehört nicht über die Theke, und `isDishware` fasst ihn mit dem sauberen
+  zusammen, weil Spüle und Rückgabe genau danach fragen: Was dort hineingehört,
+  unterscheidet sich vom Essen und vom Gerät, nicht vom Zustand. In die Spüle
+  darf deshalb auch nur **leeres** Geschirr; ein Teller mit einem halben Burger
+  darauf gehört erst an den Mülleimer, und eine Spüle, die ihn schluckte, wäre
+  ein zweiter Mülleimer mit Wasserhahn.
 - **Die Zutaten kommen aus dem Ausgabe-Möbel** des Katalogs, nicht mehr aus
   gebauten Holzkisten, und tragen ein **zur Laufzeit gerendertes Bild** ihrer
   Zutat (`zones/kitchenIcon.ts`): Der Ofen stellt das Ding vor eigenes Licht,
@@ -4853,6 +5036,14 @@ dieselbe: **Rechnung getrennt von Darstellung.**
   Strich. Und es hängt in einer Gruppe, die den halben Maßstab des Möbels
   wieder aufhebt (`KITCHEN_SCALE`), sonst ist es halb so groß und klebt auf
   10 cm Höhe.
+- **Das Icon überlagert sich nicht mehr mit dem Aufdruck darunter.**
+  `IconOven.counterSign` liefert deshalb keine einzelne Tafel mehr, sondern
+  eine **Gruppe**: erst eine deckend weiße Grundfläche in der Größe der freien
+  Stelle (`blankSize`), darüber die Tafel mit dem Icon. Die Reihenfolge ist
+  zugleich die Tiefe. Der gekaufte Teller ist auf **die** Textur gemalt, die
+  sich alle Möbel teilen — sie zu retuschieren hieße, einen zweiten Satz
+  Texturen für ein Symbol zu pflegen, und das kostet mehr als eine Fläche mit
+  einer Farbe darauf.
 - **Getragen wird mit beiden Händen vor dem Körper** (`core/chefFit.CHEF_CARRY`),
   0,72 m vor der Figur und 0,62 m hoch. Beide Zahlen sind gemessen und nicht
   geraten: Der Kopf dieser Chibi-Figur ist 0,5 m breit, und ein Teller dicht
@@ -4871,14 +5062,66 @@ dieselbe: **Rechnung getrennt von Darstellung.**
 - **Der Mülleimer nimmt nur Essen.** Einer, der alles schluckt, ist einer, in
   dem nach zwei Minuten die einzige Pfanne der Küche liegt. Der leere Teller
   ist genauso wenig Abfall wie sie; ein voller verliert nur seinen Inhalt.
+- **Das Ausgaberegal hängt einen Meter höher** (`kitchenPlan.RACK_RAISE`): Fuß
+  bei **1,65 m**, Oberkante bei **2,21 m** statt bei 0,65 und 1,21. Es steht
+  auf derselben Kachel wie die Ausgabetheke, eine Ebene darüber, und mit dem
+  Meter wird daraus das, was es sein soll — eine **Durchreiche** und kein Brett
+  auf Brusthöhe. Zwei Rechnungen dazu: Der Fuß liegt 5 cm über dem Scheitel der
+  Figur (1,60 m), sie läuft also darunter durch; und in der Ansicht von oben
+  (55°, `core/topDownPose.TOP_DOWN_TILT`) wandert ein Ding je Meter Höhe um
+  `1 / tan 55° = 0,70 m` nach Süden — das Regal liegt im Bild damit **vor** der
+  Theke statt darauf, und der Teller darunter ist zu sehen. Ein Stück mit
+  `Spot.lift` bekommt keinen Körper; sonst stünde eine unsichtbare Wand in der
+  Luft.
+- **Das Förderband ist das erste gebaute Möbel im Katalog**
+  (`core/kitchenFit.KitchenPiece.built`, `zones/kitchenBelt.ts`). Es steckt in
+  keiner Quelldatei — der gekaufte Katalog hat dreizehn Stücke und kein Band —,
+  und eine zweite Quelldatei mit Lizenz, Aufbereitung und Eintrag in
+  `public/models/CREDITS.md` wäre viel Aufwand für drei Quader. Trotzdem steht
+  es im Katalog: Die Liste beschreibt, was in dieser Küche steht, nicht, was
+  gekauft wurde, und wer den Grundriss stempelt oder den Schauraum füllt, will
+  Grundfläche und Höhe haben und nicht wissen, woher das Netz kommt. Es ist
+  eine Kachel groß und **0,53 m** hoch — die Zahl der Ausgabetheke, abgeschrieben
+  mit Absicht: Ein Band, das drei Zentimeter höher stünde als die Theke daneben,
+  wäre von oben eine Stufe, die niemand erklären kann. Ein Ding braucht **2 s**
+  über eine Kachel (`BELT_SECONDS`), also einen halben Meter je Sekunde, und
+  damit ist es **langsamer als Laufen** (2,6 m/s): Ein Band kauft keine Zeit,
+  es kauft **Hände**. Wohin geschoben wird, sagen wandernde Sparren und nicht
+  ein aufgemalter Pfeil — ein stehender Pfeil ist eine Beschriftung, ein
+  laufender ist die Maschine selbst. Am Ende der Reihe steht eine Ablage
+  (`beltStep` sagt, an welche Kachel weitergereicht wird); ein Band, das ins
+  Leere schiebt, verliert, was daraufliegt.
+- **Der Baumodus hängt an einem Knopf in der Küche** (`zones/kitchenBuild.ts`).
+  Bei _Overcooked_ steht die Küche, wie sie steht; bei _PlateUp_ baut man sie
+  zwischen zwei Tagen um, und genau das ist gemeint. Der Schalter neben dem
+  Eingang ist **selbst ein benutzbares Ding** und kein Menüeintrag: hingehen,
+  gelber Saum, `A` — wer den Umbau sucht, findet ihn dort, wo er steht. Ist er
+  an, lässt sich jedes **leere** Möbel aufheben und tragen wie die Pfanne
+  (dieselbe Hand, derselbe Knopf, dasselbe Vor-dem-Bauch-Tragen), und vor den
+  Füßen liegt ein **Umriss**, der grün oder rot ist. Der Umriss ist ebenfalls
+  ein Usable, und das ist kein Trick, sondern die einzige ehrliche Antwort auf
+  „wohin drücke ich?": Ein Möbel in der Hand hat kein Ziel, auf das man zeigen
+  könnte, also bekommt es eines. Gemeint ist die Kachel **0,7 m** vor der Figur
+  (`BUILD_AHEAD`) — weit genug über die eigene Kachelkante bei 0,5 m hinaus und
+  noch innerhalb der nächsten; mit einer ganzen Kachel sprang das Ziel bei jedem
+  Schritt um zwei Felder. Beim Anschalten wandern die Hände frei, denn wer mit
+  einem Teller in der Hand umzubauen anfängt, hätte ein Möbel **und** einen
+  Teller darin. Und dazu kommt ein neuer Punkt im Zonenvertrag:
+  **`ZoneHost.removeSolid`** (`zones/zone.ts`). Ohne ihn bliebe die alte Sperre
+  stehen, wo nichts mehr steht — eine unsichtbare Wand auf einer leeren Kachel,
+  die niemand wiederfindet. Es ist der einzige Grund für diesen Handgriff;
+  alles andere in dieser Welt stellt einmal hin und lässt stehen.
 - **Nicht schießbar** (`addUsable`, `shot: 0`): Eine Kugel, die den Topf vom
   Herd holt, ist ein Scherz und keine Regel.
-- **Was in Jest steht und was nicht.** Die Regeln, die Uhren, die Rezepte, die
-  Rechnung des Icon-Ofens und die Zuordnung Möbel → Stationsart sind geprüft
-  (rund 150 Fälle). Die Zone selbst ist es nicht: In der Testumgebung gibt es
-  kein WebGL, also entstehen dort gar keine Stationen. Wer sie anfasst, spielt
-  einen Durchgang im Browser durch — Patty braten, Pfanne über dem Brötchen
-  auskippen, Teller holen, servieren, Feuer löschen, `B` drücken.
+- **Was in Jest steht und was nicht.** Die Regeln, die Uhren, die Rezepte, der
+  Strahl des Löschers, die Laufzeit des Bandes, der Platz auf dem Grundriss,
+  die Rechnung des Icon-Ofens und die Zuordnung Möbel → Stationsart sind
+  geprüft (rund 270 Fälle). Die Zone selbst ist es nicht: In der Testumgebung
+  gibt es kein WebGL, also entstehen dort gar keine Stationen. Wer sie anfasst,
+  spielt einen Durchgang im Browser durch — Patty braten, Pfanne über dem
+  Brötchen auskippen, Teller holen, servieren, dem Gast beim Essen zusehen, das
+  Geschirr abräumen und spülen, ein Feuer mit dem gehaltenen Löscher ausmachen,
+  den Umbau anschalten und ein Möbel versetzen, `B` drücken.
 
 
 #### Der Körper unter dem Möbel
@@ -7573,7 +7816,7 @@ und zwar auf dem Gitter statt in Metern. Was dabei entschieden wurde und warum:
   ein Schild, ein Tor werden alle gleich angefasst; *was* dabei passiert,
   entscheidet ihr `step`. Wer statt dessen je Art eine eigene Anmeldung
   schriebe, hätte beim fünften Einbau fünf Wege zum selben Haken. Der Hinweis
-  über der Figur ist der Name der Art (_E · Knopf_). Wo man anfasst, darf die
+  über der Figur ist der Name der Art (_Knopf_). Wo man anfasst, darf die
   Art sagen (`view.handle`): Der rote Knopf gibt seine **Kuppel** an, denn eine
   Kugel auf Hüfthöhe soll den roten Punkt treffen und nicht die Säule darunter,
   und der Hebel seinen **Sockel**, denn sein Knauf wandert beim Umlegen und ein
