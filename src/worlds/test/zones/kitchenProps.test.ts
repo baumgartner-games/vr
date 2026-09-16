@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PAN_BOWL } from '../../../core/kitchenFit';
 import { ITEM_LABELS, dish, layered, type Dish, type KitchenItem } from './kitchenRecipes';
 import {
   BUN_BASE,
@@ -219,6 +220,32 @@ describe('FoodKit.topping', () => {
     const d: Dish = dish('plate', ['bun', 'patty-cooked']);
     const loose = kit.topping(d, 0)!;
     expect(span(loose).max.y).toBeCloseTo(kit.height(d) - PLATE_HEIGHT, 5);
+  });
+
+  /**
+   * **Das Patty liegt in der Mulde und nicht auf dem Stiel.**
+   *
+   * Der Ursprung der abgenommenen Pfanne sitzt in der Mitte ihrer **ganzen**
+   * Hülle, und dazu gehört der Griff (`core/kitchenModel.takeUtensil`) — der
+   * Belag muss deshalb um `kitchenFit.PAN_BOWL` zurückrücken. Dort steht auch
+   * die Rechnung; hier steht nur, dass es einzig die Pfanne betrifft.
+   */
+  it('rückt den Belag der Pfanne in die Mulde', () => {
+    const top = kit.topping(dish('pan', ['patty']), 0.04)!;
+    expect(top.position.x).toBeCloseTo(PAN_BOWL[0], 6);
+    expect(top.position.z).toBeCloseTo(PAN_BOWL[1], 6);
+    expect(top.position.y).toBeCloseTo(0.04, 6);
+    // Und der Versatz steckt wirklich im Netz und nicht nur in der Gruppe.
+    const box = span(top);
+    expect((box.min.z + box.max.z) / 2).toBeCloseTo(PAN_BOWL[1], 5);
+  });
+
+  it('lässt jeden anderen Träger auf seiner Mitte', () => {
+    for (const d of [dish('plate', ['bun']), dish('bun', ['patty-cooked'])]) {
+      const top = kit.topping(d, 0)!;
+      expect(top.position.x).toBeCloseTo(0, 6);
+      expect(top.position.z).toBeCloseTo(0, 6);
+    }
   });
 });
 

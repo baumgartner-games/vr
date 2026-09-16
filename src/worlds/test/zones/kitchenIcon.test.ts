@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { kitchenPiece } from '../../../core/kitchenFit';
 import {
+  BLANK_SHARE,
   ICON_FOV,
   ICON_PADDING,
   IconOven,
-  blankSize,
+  SIGN_SHARE,
+  blankDiameter,
   iconDistance,
   iconView,
   signSize,
@@ -110,66 +112,53 @@ describe('iconDistance', () => {
 describe('signSize', () => {
   const serve = kitchenPiece('serve-counter')!;
 
-  it('passt vorn zwischen die Kanten der Ausgabe', () => {
-    // 0,46 m hoch minus zweimal 5 cm Rand.
-    expect(signSize(serve, 'front')).toBeCloseTo(0.36);
-    expect(signSize(serve, 'front')).toBeLessThan(serve.height);
+  it('nimmt 65 % der Deckfläche ein', () => {
+    // Eine Kachel (1 m), davon 65 % — und die Ausgabe ist eine Kachel groß.
+    expect(signSize(serve)).toBeCloseTo(0.65, 6);
+    expect(SIGN_SHARE).toBe(0.65);
   });
 
-  it('nutzt oben die ganze Kachel', () => {
-    // Eine Kachel (1 m) minus zweimal 19 cm Rand.
-    expect(signSize(serve, 'top')).toBeCloseTo(0.62);
-    expect(signSize(serve, 'top')).toBeGreaterThan(signSize(serve, 'front'));
+  it('richtet sich nach der kürzeren Kante', () => {
+    // Zwei Kacheln breit, eine tief: Das Bild bleibt quadratisch und passt in
+    // die Tiefe, statt über die Längskante zu stehen.
+    expect(signSize({ ...serve, tiles: [2, 1] })).toBeCloseTo(0.65, 6);
   });
 
-  it('wird an einem flachen Möbel nicht negativ', () => {
-    expect(signSize({ ...serve, height: 0.02 }, 'front')).toBeGreaterThan(0);
-    expect(signSize({ ...serve, tiles: [0, 0] }, 'top')).toBeGreaterThan(0);
+  it('wird an einem Möbel ohne Grundfläche nicht null', () => {
+    expect(signSize({ ...serve, tiles: [0, 0] })).toBeGreaterThan(0);
   });
 });
 
 /**
- * **Die weiße Grundfläche** — sie soll das aufgedruckte Symbol des gekauften
- * Möbels **überdecken** und nicht bloß die Tafel hinterlegen. Alles, was dieser
- * Block prüft, folgt aus diesem einen Satz: Sie ist größer als die Tafel, sie
- * ist nicht quadratisch, und sie bleibt trotzdem auf dem Möbel.
+ * **Der weiße Kreis** — der Teller, auf dem die Zutat liegt. Vorher war das ein
+ * Rechteck von 0,88 m auf einer Kachel von einem Meter, also fast das ganze
+ * Möbel. Alles, was dieser Block prüft, folgt aus dem einen Satz „ein Teller
+ * und keine Platte": Er ist deutlich kleiner als die Kachel, er ist größer als
+ * das Bild darauf, und er steht nirgends über die Kante.
  */
-describe('blankSize', () => {
+describe('blankDiameter', () => {
   const serve = kitchenPiece('serve-counter')!;
 
-  it('nimmt vorn fast die ganze Front', () => {
-    // Eine Kachel breit minus zweimal 3 cm, 0,46 m hoch minus zweimal 3 cm.
-    expect(blankSize(serve, 'front')).toEqual({ w: 0.94, h: 0.4 });
+  it('nimmt 70 % der Deckfläche ein', () => {
+    expect(blankDiameter(serve)).toBeCloseTo(0.7, 6);
+    expect(BLANK_SHARE).toBe(0.7);
   });
 
-  it('nimmt oben fast die ganze Kachel', () => {
-    // Eine Kachel im Quadrat minus zweimal 6 cm.
-    const top = blankSize(serve, 'top');
-    expect(top.w).toBeCloseTo(0.88, 6);
-    expect(top.h).toBeCloseTo(0.88, 6);
+  it('ist kleiner als das alte weiße Rechteck von 0,88 m', () => {
+    expect(blankDiameter(serve)).toBeLessThan(0.88);
   });
 
-  it('ist in beide Richtungen größer als die Tafel davor', () => {
-    for (const where of ['front', 'top'] as const) {
-      const back = blankSize(serve, where);
-      const edge = signSize(serve, where);
-      expect(back.w).toBeGreaterThan(edge);
-      expect(back.h).toBeGreaterThan(edge);
-    }
+  it('bleibt größer als das Bild darauf', () => {
+    expect(blankDiameter(serve)).toBeGreaterThan(signSize(serve));
   });
 
   it('steht nirgends über die Kante des Möbels', () => {
-    const front = blankSize(serve, 'front');
-    expect(front.w).toBeLessThan(serve.tiles[0] * 1);
-    expect(front.h).toBeLessThan(serve.height);
-    const top = blankSize(serve, 'top');
-    expect(top.w).toBeLessThan(serve.tiles[0] * 1);
-    expect(top.h).toBeLessThan(serve.tiles[1] * 1);
+    expect(blankDiameter(serve)).toBeLessThan(serve.tiles[0] * 1);
+    expect(blankDiameter(serve)).toBeLessThan(serve.tiles[1] * 1);
   });
 
-  it('wird an einem flachen Möbel nicht negativ', () => {
-    expect(blankSize({ ...serve, height: 0.02 }, 'front').h).toBeGreaterThan(0);
-    expect(blankSize({ ...serve, tiles: [0, 0] }, 'top').w).toBeGreaterThan(0);
+  it('wird an einem Möbel ohne Grundfläche nicht null', () => {
+    expect(blankDiameter({ ...serve, tiles: [0, 0] })).toBeGreaterThan(0);
   });
 });
 
@@ -206,73 +195,74 @@ describe('IconOven ohne WebGL', () => {
     texture.dispose();
   });
 
-  it('hängt eine Tafel vorn ans Möbel und legt sie oben hin', () => {
+  it('legt den Teller oben auf das Möbel', () => {
     const oven = new IconOven(noRenderer);
     const texture = new THREE.Texture();
     const serve = kitchenPiece('serve-counter')!;
 
-    const front = oven.counterSign(texture);
-    expect(front.position.y).toBeCloseTo(serve.height / 2);
-    expect(front.position.z).toBeLessThan(0);
-    expect(front.rotation.x).toBeCloseTo(0);
-
-    const top = oven.counterSign(texture, { where: 'top' });
+    const top = oven.counterSign(texture);
     expect(top.position.y).toBeGreaterThan(serve.height);
+    // Hingelegt statt hingestellt: Das Bild schaut nach oben.
     expect(top.rotation.x).toBeCloseTo(-Math.PI / 2);
+    expect(top.position.x).toBeCloseTo(0);
+    expect(top.position.z).toBeCloseTo(0);
 
     oven.dispose();
     texture.dispose();
   });
 
   /**
-   * **Eine Tafel ist zwei Flächen**, seit das gekaufte Möbel sein eigenes,
-   * aufgedrucktes Burger-Symbol mitbringt: hinten das deckende Weiß, das es
-   * auslöscht, davor das gerenderte Bild. Vorher lagen beide Symbole
-   * übereinander und waren gleichzeitig zu sehen.
+   * **Ein Teller ist zwei Flächen**: unten der weiße Kreis, darauf das
+   * gerenderte Bild. Der Kreis nimmt 70 % der Deckfläche ein, das Bild 65 % —
+   * beide gemessen an derselben Kante, damit man die Zahlen nebeneinander lesen
+   * kann (`SIGN_SHARE`, `BLANK_SHARE`).
    */
-  it('legt eine weiße Fläche hinter das Icon', () => {
+  it('legt das Icon auf einen weißen Kreis', () => {
     const oven = new IconOven(noRenderer);
     const texture = new THREE.Texture();
     const serve = kitchenPiece('serve-counter')!;
 
-    for (const where of ['front', 'top'] as const) {
-      const board = oven.counterSign(texture, { where });
-      expect(board.children).toHaveLength(2);
-      const [blank, sign] = board.children as THREE.Mesh[];
-      expect(blank!.name).toBe('kitchen-icon-blank');
-      expect(sign!.name).toBe('kitchen-icon-sign');
+    const board = oven.counterSign(texture);
+    expect(board.children).toHaveLength(2);
+    const [blank, sign] = board.children as THREE.Mesh[];
+    expect(blank!.name).toBe('kitchen-icon-blank');
+    expect(sign!.name).toBe('kitchen-icon-sign');
 
-      // Die weiße liegt **hinten**: Das Icon steht einen Hauch davor, damit
-      // die beiden nicht um dieselben Pixel streiten.
-      expect(sign!.position.z).toBeGreaterThan(blank!.position.z);
-      expect(sign!.position.z).toBeLessThan(0.01);
+    // Der Kreis liegt **unten**: Das Bild steht einen Hauch darüber, damit die
+    // beiden nicht um dieselben Pixel streiten.
+    expect(sign!.position.z).toBeGreaterThan(blank!.position.z);
+    expect(sign!.position.z).toBeLessThan(0.01);
 
-      // Und sie ist größer — überdecken, nicht hinterlegen.
-      const back = (blank!.geometry as THREE.PlaneGeometry).parameters;
-      const front = (sign!.geometry as THREE.PlaneGeometry).parameters;
-      expect(back.width).toBeGreaterThan(front.width);
-      expect(back.height).toBeGreaterThan(front.height);
-      expect({ w: back.width, h: back.height }).toEqual(blankSize(serve, where));
-      expect(front.width).toBeCloseTo(signSize(serve, where), 6);
-    }
+    // Ein Kreis und kein Rechteck — das ist der Unterschied zur alten Fassung.
+    const disc = blank!.geometry as THREE.CircleGeometry;
+    expect(disc.type).toBe('CircleGeometry');
+    expect(disc.parameters.radius * 2).toBeCloseTo(blankDiameter(serve), 6);
+
+    const front = (sign!.geometry as THREE.PlaneGeometry).parameters;
+    expect(front.width).toBeCloseTo(signSize(serve), 6);
+    expect(front.height).toBeCloseTo(signSize(serve), 6);
+    expect(disc.parameters.radius * 2).toBeGreaterThan(front.width);
 
     oven.dispose();
     texture.dispose();
   });
 
   /**
-   * **Deckend und unbeleuchtet.** Ein durchsichtiges Weiß ließe den Aufdruck
+   * **Deckend und unbeleuchtet.** Ein durchsichtiges Weiß ließe das Möbel
    * durchscheinen, ein beleuchtetes wäre im Schatten des Ausgaberegals grau —
    * dieselbe Begründung, die schon für die Icon-Tafel selbst gilt.
    */
   it('malt mit einem geteilten, deckenden Weiß', () => {
     const oven = new IconOven(noRenderer);
     const texture = new THREE.Texture();
+    const serve = kitchenPiece('serve-counter')!;
 
     const first = oven.counterSign(texture).children[0] as THREE.Mesh;
-    const second = oven.counterSign(texture, { where: 'top' }).children[0] as THREE.Mesh;
+    const second = oven.counterSign(texture, { piece: serve }).children[0] as THREE.Mesh;
     const paint = first.material as THREE.MeshBasicMaterial;
     expect(second.material).toBe(paint);
+    // Dieselbe Form auch, solange es dasselbe Maß ist — geteilt wie die Farbe.
+    expect(second.geometry).toBe(first.geometry);
     expect(paint.isMeshBasicMaterial).toBe(true);
     expect(paint.transparent).toBe(false);
     expect(paint.color.getHex()).toBe(0xffffff);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PAN_BOWL } from '../../../core/kitchenFit';
 import { layered, type Dish, type KitchenItem } from './kitchenRecipes';
 
 /**
@@ -388,11 +389,24 @@ export class FoodKit {
    *
    * Gibt `null`, wenn nichts darauf liegt. Das Netz heißt `STACK_NAME`, damit
    * es sich am fremden Träger wiederfinden und abnehmen lässt.
+   *
+   * **Und in der Pfanne rückt der Belag zur Seite** (`kitchenFit.PAN_BOWL`).
+   * Das ist die einzige Stelle, an der ein Belag nicht auf `x/z = 0` sitzt, und
+   * sie hat einen gemessenen Grund: Der Ursprung der abgenommenen Pfanne liegt
+   * in der Mitte aus Mulde **und Stiel**, also 22,5 cm neben der Mulde. Ein
+   * Patty auf der Null des Trägers lag deshalb halb auf dem Griff — sichtbar
+   * schief, und zwar in jeder Ansicht. Die Zahl steht im Katalog und nicht
+   * hier: Sie ist an der Quelldatei gemessen wie `align` und `deck`, und dieser
+   * Satz hier baut nur, was auf ihr liegt.
+   *
+   * Ein Teller bekommt den Versatz **nicht** — er ist rund und hat keinen
+   * Griff, und sein Ursprung ist seine Mitte.
    */
   topping(d: Dish, lift = 0): THREE.Object3D | null {
     if (!d.on.length) return null;
     const stack = this.pile(d.on);
-    stack.position.y = lift;
+    const [dx, dz] = d.item === 'pan' ? PAN_BOWL : [0, 0];
+    stack.position.set(dx, lift, dz);
     return stack;
   }
 

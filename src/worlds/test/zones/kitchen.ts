@@ -1318,15 +1318,15 @@ export class KitchenZone implements TestZone {
     const holder = new THREE.Group();
     holder.name = 'kitchen-icon-holder';
     holder.scale.setScalar(piece.built ? 1 : 1 / KITCHEN_SCALE);
-    // **Zweimal dasselbe Bild, oben und vorn** — weil man aus zwei Richtungen
-    // darauf schaut. Von oben (`core/TopDownCamera.ts`, die Hauptansicht am
-    // Schirm) sieht man von einem Möbel fast nur den Deckel; aus den Augen und
-    // in der Brille wiederum ist ein liegendes Schild ein Strich. Beide Tafeln
-    // bringen ihre **weiße Grundfläche** mit, die das aufgedruckte Symbol des
-    // gekauften Möbels überdeckt (`kitchenIcon.counterSign`) — sonst lägen
-    // zwei Burger übereinander, der gedruckte und der gebackene.
-    holder.add(oven.counterSign(texture, { piece, where: 'top' }));
-    holder.add(oven.counterSign(texture, { piece, where: 'front' }));
+    // **Einmal, oben.** Es war eine Weile zweimal dasselbe Bild, oben und
+    // vorn, und der Gedanke dahinter stimmte für sich: Von oben
+    // (`core/TopDownCamera.ts`, die Hauptansicht am Schirm) sieht man von einem
+    // Möbel fast nur den Deckel, aus den Augen vor allem die Front. Nur standen
+    // dann vier Ausgaben nebeneinander mit **acht** Bildern derselben vier
+    // Zutaten, und das vordere klemmte auf einem Möbel von 0,46 m zwischen zwei
+    // Leisten. Was oben liegt, ist ein Teller mit der Zutat darauf — das liest
+    // sich aus beiden Richtungen als Ausgabe (`kitchenIcon.counterSign`).
+    holder.add(oven.counterSign(texture, { piece }));
     model.add(holder);
   }
 

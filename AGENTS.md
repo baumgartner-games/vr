@@ -5068,26 +5068,64 @@ Und das sind die Regeln, die darin stehen:
   Zutat (`zones/kitchenIcon.ts`): Der Ofen stellt das Ding vor eigenes Licht,
   rechnet die Entfernung aus den acht Ecken seiner Hülle — eine Umkugel
   verschenkte beim flachen Patty drei Viertel des Bildes — und backt eine
-  Textur. Das Schild hängt **zweimal** daran, oben und vorn: Von oben sieht
-  man von einem Möbel fast nur den Deckel, und der trägt im gekauften Modell
-  überall denselben weißen Teller; aus den Augen wäre ein liegendes Schild ein
-  Strich. Und es hängt in einer Gruppe, die den halben Maßstab des Möbels
-  wieder aufhebt (`KITCHEN_SCALE`), sonst ist es halb so groß und klebt auf
-  10 cm Höhe.
-- **Das Icon überlagert sich nicht mehr mit dem Aufdruck darunter.**
-  `IconOven.counterSign` liefert deshalb keine einzelne Tafel mehr, sondern
-  eine **Gruppe**: erst eine deckend weiße Grundfläche in der Größe der freien
-  Stelle (`blankSize`), darüber die Tafel mit dem Icon. Die Reihenfolge ist
-  zugleich die Tiefe. Der gekaufte Teller ist auf **die** Textur gemalt, die
-  sich alle Möbel teilen — sie zu retuschieren hieße, einen zweiten Satz
-  Texturen für ein Symbol zu pflegen, und das kostet mehr als eine Fläche mit
-  einer Farbe darauf.
+  Textur. Das Schild hängt **einmal** daran, oben. Es hing eine Weile zweimal,
+  oben und vorn, und beides war begründet — von oben sieht man von einem Möbel
+  fast nur den Deckel, aus den Augen vor allem die Front —, nur standen dann
+  vier Ausgaben nebeneinander mit **acht** Bildern derselben vier Zutaten, und
+  das vordere klemmte auf einem Möbel von 0,46 m zwischen zwei Leisten. Und es
+  hängt in einer Gruppe, die den halben Maßstab des Möbels wieder aufhebt
+  (`KITCHEN_SCALE`), sonst ist es halb so groß und klebt auf 10 cm Höhe.
+- **Ein Teller obendrauf, und sonst nichts.** `IconOven.counterSign` liefert
+  keine einzelne Tafel, sondern eine **Gruppe**: unten ein **weißer Kreis** von
+  70 % der Kachelkante (`BLANK_SHARE`, also 0,70 m), darauf das gerenderte Bild
+  mit 65 % derselben Kante (`SIGN_SHARE`, 0,65 m). Die Reihenfolge ist zugleich
+  die Tiefe. Beide Anteile messen dieselbe Deckfläche und nicht einer den
+  anderen — 65 % von 70 % wären 0,46 m und sähen auf dem Kreis verloren aus.
+  Vorher lag dort ein weißes **Rechteck** von 0,88 m, also fast das ganze
+  Möbel: Von oben sah man eine weiße Platte mit einem kleinen Bild und vom
+  Möbel nichts mehr.
+- **Der aufgedruckte Teller wird jetzt wirklich entfernt**, nicht mehr
+  zugedeckt (`core/kitchenModel.erasePrintedPlate`). Das große weiße Rechteck
+  hatte genau diese Aufgabe; ein Kreis von 70 % schafft sie nicht mehr. Und
+  ausbauen lässt sich der Aufdruck nicht: `serve-counter` ist **ein** Netz mit
+  **einem** Material, der Teller mit dem Burger ist ein Bild im Atlas, und die
+  Mulde besteht aus genau **zwei Dreiecken**, die dieses Bild zeigen. Also wird
+  **umgeklebt**: Ihre vier Ecken bekommen alle dieselbe Texturkoordinate, und
+  zwar eine, die auf das blanke Holz am Rand desselben Bildfelds zeigt. Ein
+  einziger Punkt statt eines Ausschnitts ist Absicht — ohne Ableitung in der
+  Fläche nimmt der Renderer die schärfste Mipmap, und aus den Nachbarfeldern
+  des Atlas kann nichts hereinlaufen. Einmal an der geteilten Vorlage; die
+  **Textur** selbst bleibt unangetastet, sie ist fremde Arbeit und gehört
+  dreizehn Möbeln gemeinsam.
+- **Auf dem Schneidebrett liegt das Essen auf dem Brett**
+  (`kitchenFit.KITCHEN_PIECES`, `board.deck = 0,533`). Ohne eigenen Eintrag gilt
+  als Ablagehöhe die `height` des Möbels, und die ist hier die Spitze des
+  **Hackmessers**, das auf dem Brett liegt (Quellmaß 1,148, halbiert 0,574 m).
+  Ein Salatkopf schwebte damit 3,7 cm über dem Brett — aus 55° von oben
+  (`core/topDownPose.TOP_DOWN_TILT`) sieht man genau diesen Spalt. Gemessen:
+  Korpus bis 1,000 (halbiert 0,500 m, auf den Millimeter die Höhe der
+  Küchenzeile daneben — die **Möbel** fluchten also), darauf das Brett bis
+  1,065 (halbiert 0,5326 m, die größte waagerechte Fläche des Netzes). Die
+  3,3 cm, um die die Arbeitsfläche damit über der Zeile liegt, **sind das
+  Brett**: Es ist genau so dick. Sie wegzurechnen hieße, es in die Platte zu
+  versenken, und weil es exakt so dick ist wie die Stufe, wäre es danach
+  unsichtbar.
+- **Das Patty sitzt in der Mulde, nicht auf dem Stiel** (`kitchenFit.PAN_BOWL`).
+  Ein abgenommenes Gerät bekommt seinen Ursprung in der Mitte seiner **ganzen**
+  Hülle (`kitchenModel.takeUtensil`), und zur Hülle einer Pfanne gehört der
+  Stiel — der Belag landete deshalb 22,5 cm neben der Mulde und lag halb über
+  dem Pfannenrand. Die Zahl ist an der Quelldatei gemessen (Mulde ohne Stiel
+  als Drehkörper: gleicher Durchmesser in x und z) und steht im Katalog neben
+  `align` und `deck`, also in der Liste, die man beim Austausch der Quelle
+  nachmisst. Der Teller bekommt den Versatz nicht: Er ist rund und hat keinen
+  Griff.
 - **Getragen wird mit beiden Händen vor dem Körper** (`core/chefFit.CHEF_CARRY`),
   0,72 m vor der Figur und 0,62 m hoch. Beide Zahlen sind gemessen und nicht
   geraten: Der Kopf dieser Chibi-Figur ist 0,5 m breit, und ein Teller dicht
   vor der Brust verschwand von oben darunter; und die höchste Arbeitsplatte
-  der Küche ist das Schneidebrett mit 0,57 m — wer tiefer trägt, schiebt den
-  Topf beim Vorbeilaufen **durch** die Herdplatte.
+  der Küche ist das Schneidebrett mit 0,57 m (die Spitze des Hackmessers
+  darauf) — wer tiefer trägt, schiebt den Topf beim Vorbeilaufen **durch** die
+  Herdplatte.
 - **Der Kopf wippt beim Tragen mit, die Kamera nie** (`AvatarBody.headBob`).
   Das Wippen sitzt am Kopf der **Figur**, und die zeichnet nur, wer sie von
   außen sieht (`LAYER_SELF_ONLY`) — eine Kamera, die im Takt der Schritte

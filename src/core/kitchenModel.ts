@@ -27,7 +27,10 @@ let pending: Promise<THREE.Group | null> | null = null;
 function template(): Promise<THREE.Group | null> {
   pending ??= new GLTFLoader()
     .loadAsync(KITCHEN_URL)
-    .then((gltf) => gltf.scene)
+    .then((gltf) => {
+      erasePrintedPlate(gltf.scene);
+      return gltf.scene;
+    })
     .catch((error: unknown) => {
       // Einmal sagen, nicht je Möbel: Wer offline baut, soll nicht dreizehn
       // gleiche Zeilen in der Konsole finden. Ohne Modell bleibt der
@@ -36,6 +39,76 @@ function template(): Promise<THREE.Group | null> {
       return null;
     });
   return pending;
+}
+
+/**
+ * **Der aufgedruckte Teller auf der Ausgabe — weg damit.**
+ *
+ * Die Ausgabe (`serve-counter`) hat oben eine flache Mulde, und in dieser Mulde
+ * ist ein **weißer Teller mit einem Burger darauf** abgebildet. Vor der
+ * Salatausgabe lag darum ein Salat auf einem fremden Burger, und die Küche
+ * musste das bisher mit einer großen weißen Fläche zudecken
+ * (`worlds/test/zones/kitchenIcon.ts`). Jetzt reicht dort ein Kreis, der nur
+ * noch 70 % der Kachel breit ist — also muss der Aufdruck wirklich weg.
+ *
+ * **Und er ist kein Teilnetz.** Das ist die Überraschung an dieser Stelle und
+ * der Grund, warum hier eine ganze Erklärung steht: Nachgesehen in
+ * `public/models/kitchen.glb` ist `serve-counter` **ein einziges Netz mit einem
+ * einzigen Material** (`Kitchen_Cabins`, 448 Ecken, 232 Dreiecke) — es gibt
+ * nichts, was man nach Namen ausbauen oder unsichtbar schalten könnte. Der
+ * Teller und der Burger sind ein **Bild im Atlas**, und die Mulde besteht aus
+ * genau **zwei Dreiecken**, die dieses Bild zeigen.
+ *
+ * **Also wird umgeklebt statt ausgebaut.** Die vier Ecken dieser beiden
+ * Dreiecke bekommen alle dieselbe Texturkoordinate, und zwar eine, die auf das
+ * **blanke Holz** am Rand desselben Bildfelds zeigt. Danach ist die Mulde eine
+ * einfarbige Holzfläche in genau dem Ton, den sie ringsum ohnehin hat — der
+ * Teller ist weg, die Fläche ist noch da, und kein Loch schaut in den Schrank
+ * hinein. Ein einziger Punkt statt eines Ausschnitts ist dabei Absicht: Ohne
+ * Ableitung in der Fläche nimmt der Renderer die **schärfste** Mipmap, und
+ * damit kann von den Nachbarfeldern des Atlas (rot darüber, grün darunter)
+ * nichts hereinlaufen.
+ *
+ * Die Zahlen sind an der Datei abgelesen: Das Bildfeld liegt bei
+ * u = 0,827…0,937 und v = 0,496…0,606, das Holz bei u = 0,8379 / v = 0,5059
+ * (dort ist die Textur über 5 × 5 Texel praktisch einfarbig, #6f3a15). Das
+ * Rechteck unten ist etwas weiter gefasst, damit es die Ecken sicher einschließt
+ * — und es fasst trotzdem **nur** diese beiden Dreiecke: Geprüft wird über
+ * **alle drei** Ecken eines Dreiecks, und kein anderes Dreieck dieses Möbels
+ * liegt vollständig darin.
+ *
+ * **Einmal an der Vorlage** und nicht je Exemplar: Die Geometrie wird zwischen
+ * allen Ausgaben geteilt (`kitchenModel`), und alle wollen dasselbe. Die
+ * **Textur** wird dabei nicht angefasst — sie ist fremde Arbeit und gehört
+ * dreizehn Möbeln gemeinsam.
+ */
+const PRINTED_PIECE = 'serve-counter';
+const PRINTED_TILE = { u0: 0.82, u1: 0.94, v0: 0.49, v1: 0.61 };
+const PRINTED_PATCH = { u: 0.8379, v: 0.5059 };
+
+function erasePrintedPlate(source: THREE.Object3D): void {
+  const piece = source.getObjectByName(PRINTED_PIECE);
+  if (!piece) return;
+  piece.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const uv = mesh.geometry.getAttribute('uv');
+    const index = mesh.geometry.getIndex();
+    if (!uv || !index) return;
+    const shows = (corner: number): boolean => {
+      const u = uv.getX(corner);
+      const v = uv.getY(corner);
+      return (
+        u >= PRINTED_TILE.u0 && u <= PRINTED_TILE.u1 && v >= PRINTED_TILE.v0 && v <= PRINTED_TILE.v1
+      );
+    };
+    for (let i = 0; i + 2 < index.count; i += 3) {
+      const corners = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
+      if (!corners.every(shows)) continue;
+      for (const corner of corners) uv.setXY(corner, PRINTED_PATCH.u, PRINTED_PATCH.v);
+      uv.needsUpdate = true;
+    }
+  });
 }
 
 /**
@@ -100,6 +173,14 @@ export async function kitchenModel(name: string): Promise<THREE.Object3D | null>
  * (`tools/kitchen-model.mjs`). Dafür hängt das Netz in einer Gruppe, die den
  * Versatz trägt und den halben Maßstab gleich mit — eine Geometrie wird nicht
  * verschoben, sie gehört der Vorlage und ist geteilt.
+ *
+ * **„Seine Mitte" ist dabei die Mitte der ganzen Hülle — mit Griff.** Bei der
+ * Pfanne ist das nicht die Mitte der Mulde: Der Stiel zieht die Hülle 22,5 cm
+ * zur Seite. Das bleibt hier absichtlich so, denn dieser Ursprung ist auch der
+ * Punkt, an dem die Pfanne wieder auf den Herd gestellt wird — verschöbe man
+ * ihn, stünde sie danach halb neben der Platte. Wer **in** die Pfanne legt,
+ * rechnet den Versatz dazu: `core/kitchenFit.PAN_BOWL`, angewandt in
+ * `worlds/test/zones/kitchenProps.FoodKit.topping`.
  */
 export function takeUtensil(model: THREE.Object3D): THREE.Object3D | null {
   const parts: THREE.Mesh[] = [];
