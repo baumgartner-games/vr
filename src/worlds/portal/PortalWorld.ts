@@ -264,11 +264,19 @@ import {
   type Usable,
 } from '../../core/usable';
 import {
+  interactionKind,
   interactionView,
   resolveInteraction,
   type ResolvedInteraction,
 } from '../../core/interaction';
 import { inputConfig } from '../../core/inputStore';
+import {
+  HAND_USE_RANGE,
+  handUseFires,
+  handUseMemory,
+  pickHandUse,
+  type HandUseFind,
+} from '../../core/handUse';
 import { ScreenHand } from './screenHand';
 import { Highlight } from '../../core/highlight';
 import type { ToolChoice, ToolOption } from '../../core/types';
@@ -465,6 +473,21 @@ const _rotationB = new THREE.Quaternion();
 const _localRotation = new THREE.Quaternion();
 const _size = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
+// Benutzen mit der Hand (`core/handUse.ts`) — eigene Zwischenlagen, damit die
+// Rechnung dem Greifen daneben nicht in seine fährt.
+const _handBox = new THREE.Box3();
+const _handCentre = new THREE.Vector3();
+const _handSize = new THREE.Vector3();
+const _handHead = new THREE.Vector3();
+const _handRay = new THREE.Ray();
+const _handForward = new THREE.Vector3();
+const _handFinds: HandUseFind<THREE.Object3D>[] = [];
+/**
+ * Was beim groben Aussieben (`readHandUseAims`) über die Zeigereichweite hinaus
+ * noch mitkommt, in Metern: Der Ort eines Möbels ist sein Ursprung und nicht
+ * seine Kante, und ein Tresen ist zwei Meter lang.
+ */
+const HAND_USE_SLACK = 3;
 
 /**
  * The node a hand's belongings hang on.
@@ -780,6 +803,26 @@ export class PortalWorld implements World {
    * für die Stelle, die ihn eines Tages anzeigt.
    */
   protected useInteraction: ResolvedInteraction | null = null;
+  /**
+   * **Was jede Hand in der Brille gerade anfasst** (`core/handUse.ts`) — die
+   * Entprellung, und sonst nichts.
+   *
+   * Eine Berührung drückt einen Knopf, und eine Hand, die darin liegen bleibt,
+   * drückt ihn sechzigmal je Sekunde. Gemerkt wird deshalb, was im letzten
+   * Bild angefasst war; ausgelöst wird nur beim **Hineinfassen**. Wer die Hand
+   * herauszieht, vergisst.
+   */
+  private readonly handUsed = new Map<Handedness, THREE.Object3D | null>();
+  /**
+   * Die benutzbaren Dinge als Greifboxen, je Bild einmal gebaut und von beiden
+   * Händen gelesen. Gerechnet wird gegen die **echte** Ausdehnung des Dings
+   * plus den Zuschlag des Greifens (`grabReach.GRAB_MARGIN`) und nicht gegen
+   * den großzügigen Zielhalbmesser von oben: Auf vier Zentimeter Kippschalter
+   * zielt von oben niemand — eine Hand, die daraufliegt, trifft ihn genau.
+   */
+  private readonly handUseAims: { entry: UsableEntry; target: AimTarget }[] = [];
+  /** Was in **diesem** Bild schon von einer Hand benutzt wurde. */
+  private readonly handUseFired = new Set<Usable>();
   /**
    * **Die Hand am Schirm** (`screenHand.ts`) — nur in der Ansicht von oben.
    *
@@ -6226,6 +6269,10 @@ export class PortalWorld implements World {
     const reachable = new Set<PhysicsBody>();
     this.locked.clear();
     this.readNearZone(ctx);
+    this.readHandUseAims(ctx);
+    // **Ein Druck, eine Wirkung**: Zwei Hände können auf demselben Knopf
+    // liegen, und der soll trotzdem einmal antworten.
+    this.handUseFired.clear();
 
     for (const controller of ctx.input.controllers) {
       const hand = controller.handedness;
@@ -6300,6 +6347,129 @@ export class PortalWorld implements World {
     this.hideRope(hand);
     this.hideGhost(hand);
     ctx.hands.setGlow(hand, false);
+    // Eine Hand, die gerade etwas anderes tut, fasst auch nichts mehr an:
+    // Sonst bliebe die Erinnerung stehen, und das Ding antwortete beim
+    // nächsten Hineinfassen nicht mehr.
+    this.handUsed.set(hand, null);
+  }
+
+  // --- benutzen mit der Hand (nur in der Brille) ----------------------------
+
+  /**
+   * **Die benutzbaren Dinge als Greifboxen**, je Bild einmal (`core/handUse.ts`).
+   *
+   * Gerechnet wird gegen die **echte** Ausdehnung und nicht gegen den
+   * Zielhalbmesser der Ansicht von oben (`UsableEntry.radius`): Der ist
+   * absichtlich großzügig, weil niemand von oben auf einen Kippschalter zielt
+   * — eine Hand, die darauf liegt, trifft ihn aber genau, und ein halber Meter
+   * Luft um jedes Möbel machte aus dem Anfassen ein Danebengreifen.
+   *
+   * Die Kiste steht achsenparallel in der Welt, deshalb trägt sie keine
+   * Drehung: `Box3.setFromObject` liefert genau das, und eine gedrehte Kiste
+   * um ein Möbel, das ohnehin gerade steht, wäre eine Genauigkeit, die nichts
+   * genauer macht.
+   */
+  private readHandUseAims(ctx: WorldContext): void {
+    this.handUseAims.length = 0;
+    if (!ctx.renderer.xr.isPresenting || this.usables.length === 0) return;
+    // **Erst grob aussieben, dann genau messen.** Eine Kiste um ein Möbel zu
+    // legen heißt, seinen ganzen Teilbaum durchzugehen (`Box3.setFromObject`),
+    // und das je Bild für jedes benutzbare Ding einer Küche wäre eine
+    // Rechnung, die man in der Brille merkt. Was weiter weg steht, als eine
+    // Hand je reicht oder ein Zeigen trägt, fällt vorher heraus — dafür genügt
+    // der Ort des Dings, und der kostet nur die Matrizen über ihm.
+    ctx.rig.getHeadPosition(_handHead);
+    const far = HAND_USE_RANGE + HAND_USE_SLACK;
+    for (const entry of this.usables) {
+      if (!entry.object.visible) continue;
+      if (entry.object.getWorldPosition(_handSize).distanceTo(_handHead) > far) continue;
+      const box = _handBox.setFromObject(entry.object);
+      if (box.isEmpty()) continue;
+      box.getCenter(_handCentre);
+      box.getSize(_handSize);
+      this.handUseAims.push({
+        entry,
+        target: {
+          position: { x: _handCentre.x, y: _handCentre.y, z: _handCentre.z },
+          quaternion: { x: 0, y: 0, z: 0, w: 1 },
+          halfExtents: { x: _handSize.x / 2, y: _handSize.y / 2, z: _handSize.z / 2 },
+        },
+      });
+    }
+  }
+
+  /**
+   * **Was diese Hand meint, und ob sie es gerade auslöst.**
+   *
+   * Das ist die Brillen-Hälfte von `core/interaction.ts`: Ein `press` will
+   * berührt oder gezeigt-und-getriggert werden, ein `grab` will die
+   * **Greif-Taste** — dieselbe, mit der man in dieser Welt jeden Gegenstand
+   * greift. Das ist kein zweiter Draht auf derselben Taste, sondern derselbe:
+   * Ein Brötchen aus der Ausgabe ist ein Gegenstand, den man greifen will, es
+   * hat nur keinen Körper in der Physik, an dem die Faust sich festhalten
+   * könnte. Deshalb steht diese Abfrage genau dort, wo die Hand sonst nach
+   * Gegenständen sucht — und **hinter** ihr: Was einen Körper hat, gewinnt,
+   * und am vorhandenen Greifen ändert sich damit nichts.
+   *
+   * @returns ob wirklich etwas passiert ist
+   */
+  private useByHand(
+    ctx: WorldContext,
+    controller: ControllerState,
+    hand: Handedness,
+    anchor: THREE.Object3D,
+  ): boolean {
+    // **Dem Menü gehört seine Hand.** Liegt ihr Strahl auf einer Menüseite,
+    // gehört ihr Trigger dem Menü und nicht der Küche — dieselbe Regel wie bei
+    // den Werkzeugen (`updateTools`), und die andere Hand arbeitet weiter.
+    if (this.handUseAims.length === 0 || ctx.pointer.hoveringWith(hand)) {
+      this.handUsed.set(hand, null);
+      return false;
+    }
+
+    anchor.getWorldPosition(_hand);
+    controller.getRay(_handRay);
+    _handFinds.length = 0;
+    for (const { entry, target } of this.handUseAims) {
+      const kind = interactionKind(entry.usable.interaction);
+      if (kind === 'none') continue;
+      const depth = reachDepth(target, _hand);
+      if (depth !== null) {
+        _handFinds.push({ item: entry.object, reach: 'touch', distance: depth, kind });
+        continue;
+      }
+      const along = rayReach(target, _handRay.origin, _handRay.direction);
+      if (along === null || along > HAND_USE_RANGE) continue;
+      _handFinds.push({ item: entry.object, reach: 'aim', distance: along, kind });
+    }
+
+    // **Gemerkt wird das Objekt und nicht die Anmeldung**: Eine Station meldet
+    // sich neu an, sobald sich ändert, was ein Druck bewirkt (die Ausgabe gibt
+    // erst ein Brötchen, dann nimmt sie einen Teller entgegen). Hinge die
+    // Entprellung an der Anmeldung, löste dieselbe liegende Hand im nächsten
+    // Bild wieder aus — und legte zurück, was sie eben genommen hat. Das
+    // Objekt ist das, worin die Hand steckt, und genau das soll sie erst
+    // wieder verlassen.
+    const find = pickHandUse(_handFinds);
+    const fires = handUseFires(
+      find,
+      { trigger: controller.trigger.justPressed, grip: controller.squeeze.justPressed },
+      this.handUsed.get(hand) ?? null,
+    );
+    // Die Hand leuchtet, sobald sie in etwas steckt — dasselbe Zeichen wie
+    // beim Anfassen eines Gegenstands (AGENTS.md, „Anfassen: die Hand
+    // leuchtet"). Das Zeigen bekommt keines: Dafür gibt es den gelben Saum.
+    ctx.hands.setGlow(hand, find?.reach === 'touch');
+    this.handUsed.set(hand, handUseMemory(find));
+    if (!fires || !find) return false;
+
+    const usable = this.handUseAims.find((aim) => aim.entry.object === find.item)?.entry.usable;
+    if (!usable || this.handUseFired.has(usable)) return false;
+    this.handUseFired.add(usable);
+    _handForward.copy(_handRay.direction);
+    const acted = usable.use({ kind: 'player', at: _hand, forward: _handForward });
+    if (acted) controller.pulse(find.kind === 'grab' ? 0.5 : 0.3, 25);
+    return acted;
   }
 
   /**
@@ -6360,8 +6530,14 @@ export class PortalWorld implements World {
     if (!aim) {
       this.hideRope(hand);
       this.hideGhost(hand);
+      // **Kein Gegenstand in Reichweite — dann die benutzbaren Dinge**
+      // (`useByHand`). Genau hier und nicht davor: Was einen Körper in der
+      // Physik hat, gewinnt, und damit ändert sich am vorhandenen Greifen von
+      // Werkzeugen, Waffen und Gegenständen nichts.
+      this.useByHand(ctx, controller, hand, anchor);
       return;
     }
+    this.handUsed.set(hand, null);
     reachable.add(aim.entry);
     this.hideRope(hand);
 
