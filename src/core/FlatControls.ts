@@ -633,7 +633,21 @@ export class FlatControls {
           if (event.button === 0) this.mouseFire = true;
           return;
         }
-        if (!this.pointerLocked) void this.canvas.requestPointerLock?.();
+        if (!this.pointerLocked) {
+          void this.canvas.requestPointerLock?.();
+          return;
+        }
+        // **Aus den Augen benutzt die linke Maustaste** — die Auflösung von
+        // `core/interaction.ts` für die Ansicht `firstPerson`: „Linke
+        // Maustaste / E". Der Blick zeigt hin, der Klick macht.
+        //
+        // Ausdrücklich **nur**, wenn wirklich etwas dasteht
+        // (`PlayerRig.useCandidate`): Anders als `A` ist die linke Maustaste
+        // kein Knopf für zwei Dinge — ein Klick ins Leere soll nichts tun und
+        // vor allem nicht springen. Und der erste Klick bleibt der, der den
+        // Zeiger holt (oben), sonst benutzte man beim Hineinklicken ins Bild
+        // aus Versehen, was gerade vor einem steht.
+        if (event.button === 0 && this.rig.useCandidate) this.useQueued = true;
         return;
       }
       const pads = this.pads;

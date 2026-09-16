@@ -54,6 +54,7 @@
  * hingehört — im Müll landet er nie, beim Gast immer.
  */
 
+import type { InteractionKind } from '../../../core/interaction';
 import {
   ITEM_LABELS,
   combine,
@@ -492,6 +493,33 @@ function atReturn(held: Dish | null, stack: number): KitchenDeed {
  */
 export function meansContent(deed: KitchenDeed): boolean {
   return deed.do === 'take' || deed.do === 'combine';
+}
+
+/**
+ * **Wie eine Tat bedient werden will** (`core/interaction.ts`) — gegriffen
+ * oder gedrückt.
+ *
+ * Gegriffen wird genau das, was danach **in der Hand liegt**: das Brötchen aus
+ * der Ausgabe, der Teller vom Stapel, die Pfanne vom Herd, der Topf, der
+ * Feuerlöscher aus seiner Halterung. Alles andere ist eine Bedienung der
+ * Station — ablegen, schneiden, spülen, wegwerfen, servieren, löschen —, und
+ * das ist ein Druck, auch wenn dabei etwas die Hand verlässt.
+ *
+ * **Warum `combine` ein Druck ist**, obwohl es wie `take` am Inhalt leuchtet
+ * (`meansContent`): Wer ein Patty auf ein Brötchen legt, greift nicht danach,
+ * er legt es hin. Die beiden Fragen sind verschieden — *welches Netz ist
+ * gemeint* und *was will es* —, und sie haben deshalb zwei Funktionen und
+ * nicht eine mit zwei Antworten.
+ *
+ * **Und `nothing` ist `none`**: die leere Hand vor der leeren Fläche. Heute
+ * meldet die Zone so eine Station gar nicht erst an
+ * (`kitchen.refreshStations`); dass die Antwort hier trotzdem steht, macht den
+ * Satz vollständig und erspart dem nächsten, der eine Station stehen lässt,
+ * einen leuchtenden Saum ohne Angebot.
+ */
+export function kitchenInteraction(deed: KitchenDeed | null | undefined): InteractionKind {
+  if (!deed || deed.do === 'nothing') return 'none';
+  return deed.do === 'take' ? 'grab' : 'press';
 }
 
 /**

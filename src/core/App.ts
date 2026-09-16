@@ -48,6 +48,7 @@ import {
   deviceKey,
   indexOf,
   isDefaultConfig,
+  keyLabel,
   keysFor,
   layoutSize,
   padSlotsFor,
@@ -2366,41 +2367,6 @@ function padBindingText(
     return at === null ? `${label} (hat dieses Pad nicht)` : `${label} [${at}]`;
   });
   return parts.join(' · ') || 'kein Knopf';
-}
-
-/**
- * `KeyboardEvent.code` ist für Menschen keine Taste: `KeyW` ist ein W,
- * `ArrowUp` ein Pfeil, und `ShiftLeft` heißt auf keiner Tastatur so. Gezeigt
- * wird deshalb die Aufschrift — und die rohe Kennung nur dort, wo es keine
- * gibt, denn geraten wird hier nichts.
- */
-function keyLabel(code: string): string {
-  const named: Record<string, string> = {
-    Space: 'Leertaste',
-    Enter: 'Eingabe',
-    NumpadEnter: 'Eingabe (Ziffernblock)',
-    Tab: 'Tab',
-    Escape: 'Esc',
-    Backspace: 'Rücktaste',
-    ShiftLeft: 'Umschalt links',
-    ShiftRight: 'Umschalt rechts',
-    ControlLeft: 'Strg links',
-    ControlRight: 'Strg rechts',
-    AltLeft: 'Alt',
-    AltRight: 'Alt Gr',
-    ArrowUp: '↑',
-    ArrowDown: '↓',
-    ArrowLeft: '←',
-    ArrowRight: '→',
-  };
-  if (named[code]) return named[code];
-  const letter = /^Key([A-Z])$/.exec(code);
-  if (letter) return letter[1]!;
-  const digit = /^Digit([0-9])$/.exec(code);
-  if (digit) return digit[1]!;
-  const numpad = /^Numpad([0-9])$/.exec(code);
-  if (numpad) return `${numpad[1]} (Ziffernblock)`;
-  return code;
 }
 
 /** Die Bildraten-Zeile des Grafik-Menüs. */

@@ -263,6 +263,12 @@ import {
   type UseCandidate,
   type Usable,
 } from '../../core/usable';
+import {
+  interactionView,
+  resolveInteraction,
+  type ResolvedInteraction,
+} from '../../core/interaction';
+import { inputConfig } from '../../core/inputStore';
 import { ScreenHand } from './screenHand';
 import { Highlight } from '../../core/highlight';
 import type { ToolChoice, ToolOption } from '../../core/types';
@@ -763,6 +769,17 @@ export class PortalWorld implements World {
   private readonly usables: UsableEntry[] = [];
   /** Zwischenlage für `pickUsable` — je Bild neu gefüllt, nie neu angelegt. */
   private readonly useCandidates: UseCandidate[] = [];
+  /**
+   * **Was das gerade Gemeinte in dieser Ansicht will** (`core/interaction.ts`)
+   * — oder `null`, wenn nichts dasteht.
+   *
+   * Je Bild neu aufgelöst, denn beides kann sich ändern: das Gemeinte, wenn
+   * man einen Schritt geht, und die Ansicht, wenn jemand die Brille aufsetzt.
+   * Gelesen wird es hier vom Saum (ein Ding, mit dem in dieser Ansicht nichts
+   * geht, kündigt auch nichts an); der Hinweis daneben (`hint`) steht bereit
+   * für die Stelle, die ihn eines Tages anzeigt.
+   */
+  protected useInteraction: ResolvedInteraction | null = null;
   /**
    * **Die Hand am Schirm** (`screenHand.ts`) — nur in der Ansicht von oben.
    *
@@ -7543,13 +7560,32 @@ export class PortalWorld implements World {
       this.usables.length > 0 ? pickUsable(this.collectUsables(), _useAt, _useForward) : null;
     ctx.rig.useCandidate = pick !== null;
 
+    // **Und was das Gemeinte in dieser Ansicht will** (`core/interaction.ts`).
+    // Ein Knopf will gedrückt werden, ein Brötchen gegriffen — dieselbe
+    // Absicht in allen drei Ansichten, nur mit verschiedenen Gebern. Aufgelöst
+    // wird sie hier, weil hier ohnehin schon feststeht, was gemeint ist.
+    this.useInteraction = pick
+      ? resolveInteraction(
+          pick.candidate.usable.interaction,
+          interactionView(ctx.topDown, ctx.renderer.xr.isPresenting),
+          { config: inputConfig() },
+        )
+      : null;
+
     // **Der Saum ist die ganze Auskunft** — in der Brille, von oben und aus
     // den Augen gleichermaßen. Daneben stand bis eben eine Tafel („Tomate
     // nehmen"), und sie sagte dasselbe ein zweites Mal: Was `A` meint, zeigt
     // der Saum schon, und zwar **dort, wo es steht**, statt in der Bildmitte
     // über allem anderen. Eine Küche im Gedränge hatte damit dauernd ein
     // Schild vor der halben Arbeitsfläche.
-    this.highlighter.highlight(pick?.candidate.object ?? null);
+    //
+    // **Er hängt jetzt an der Auflösung und nicht mehr nur am Fund**: Was in
+    // dieser Ansicht keinen Geber hat (`interactive`), kündigt auch nichts an.
+    // Heute ändert das nichts — `press` und `grab` haben überall einen —, und
+    // genau so soll es sein: Die Regel steht, bevor der erste Fall kommt.
+    this.highlighter.highlight(
+      this.useInteraction?.interactive ? (pick?.candidate.object ?? null) : null,
+    );
     this.highlighter.update(dt);
   }
 
