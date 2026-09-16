@@ -5,10 +5,12 @@ import { KITCHEN } from '../layout';
 import { PLATE_HEIGHT, stackHeight } from './kitchenProps';
 import type { KitchenItem, StationKind } from './kitchenCarry';
 import {
+  BUILD_BUTTON_TILE,
   KITCHEN_SHOWN,
   KITCHEN_SPOTS,
   RACK_AIR,
   RACK_RAISE,
+  footprint,
   passTop,
   rackLift,
   stationKind,
@@ -238,6 +240,43 @@ describe('das Förderband', () => {
     // Die Spalte x = 9 trägt sonst nur die Küchenzeile an der Nordwand.
     const column = WORKING.filter((spot) => spot.x === 9).map((spot) => spot.z);
     expect([...column].sort((a, b) => a - b)).toEqual([0, 5, 6, 7, 8]);
+  });
+});
+
+/**
+ * **Der Feuerlöscher und der Umbauknopf** — zwei Dinge, die einmal auf
+ * derselben Kachel standen und sich dabei gegenseitig unbedienbar machten.
+ *
+ * `A` nimmt immer nur **eines** (`core/usable.pickUsable` wählt das Nächste),
+ * und das war der Knopf: Der Löscher ließ sich nicht mehr abnehmen, obwohl er
+ * sichtbar dastand. Seitdem steht der Hocker oben neben dem Herd — dort, wo es
+ * brennt — und der Knopf allein auf der Kachel am Eingang.
+ */
+describe('der Feuerlöscher und der Umbauknopf', () => {
+  const stool = WORKING.find((spot) => spot.name === 'extinguisher');
+
+  it('stellt den Löscher in die Nordzeile neben den Herd mit der Pfanne', () => {
+    expect(stool).toBeDefined();
+    expect(stool!.z).toBe(0);
+    const pan = WORKING.find((spot) => spot.name === 'stove-pan');
+    expect(pan?.z).toBe(0);
+    // Nebendran heißt: eine Kachel weiter, und der Löscher ist einen breit.
+    expect(Math.abs(stool!.x - pan!.x)).toBe(1);
+    // Er bleibt eine Halterung, an der `A` den Löscher nimmt.
+    expect(kindOf(stool!)).toBe('rack');
+  });
+
+  it('lässt die Kachel des Umbauknopfes frei', () => {
+    const taken = WORKING.some((spot) => {
+      const size = footprint(kitchenPiece(spot.name)!, spot.turn ?? 0);
+      return (
+        BUILD_BUTTON_TILE.x >= spot.x &&
+        BUILD_BUTTON_TILE.x < spot.x + size.w &&
+        BUILD_BUTTON_TILE.z >= spot.z &&
+        BUILD_BUTTON_TILE.z < spot.z + size.d
+      );
+    });
+    expect(taken).toBe(false);
   });
 });
 

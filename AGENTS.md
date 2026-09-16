@@ -825,6 +825,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
         [Zwei Karten](#zwei-karten-wo-ein-knopf-sitzt-und-was-er-tut)).
         `readGamepad` bekommt dafür einen `ButtonPlan`; ohne einen gilt Zeile
         für Zeile das, was immer galt.
+    - **Dass es das Glas überhaupt gibt, ist eine Einstellung** — _Menü →
+      Grafik → Bildschirm-Steuerung_ mit drei Rasten
+      (`graphicsSettings.screenPads`, gerechnet in `core/screenPads.ts`, gesetzt
+      in `main.ts`). **Automatisch** ist die Voreinstellung und heißt: nur am
+      Handy (`device.detectFlatRole`), und auch dort nur, solange **kein
+      Gamepad** angesteckt ist — wer eines am Tablet hängen hat, hält schon
+      einen echten Stock in der Hand und braucht keinen gemalten darüber, der
+      ihm das halbe Bild nimmt. **An** zeigt sie auch am Schreibtisch, **aus**
+      nimmt sie auch dem Telefon. Zwei Zustände stehen **vor** der Einstellung
+      und lassen sich von ihr nicht überstimmen: in der Brille sieht niemand
+      auf das Glas, und eine Welt mit eigener Steuerung
+      (`WorldContext.touchStick`) hätte sonst zwei Stöcke übereinander. Die
+      Bedingung stand einmal dreimal in `main.ts` und kannte je nur ihre
+      Hälfte — wer die Brille absetzte, bekam die Stöcke auch dann zurück, wenn
+      die Welt sie gerade selbst mitbrachte.
     - **Auf dem Glas** kommt rechts unten ein zweiter Stock dazu und darüber
       zwei runde Knöpfe `A`/`B` (`#touch-aim`, `#touch-a`, `#touch-b`); sie
       stehen nur von oben, weil sie sonst nichts bedeuten. Wie der linke Stock
@@ -883,9 +898,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
       der Comic-Modus das nächste Mal über die Szene läuft. Wo ein Usable
       **keine Geometrie** hat (eine Zone, ein Platz), liegt stattdessen ein
       **Ring auf dem Boden**: Eine umgestülpte Hülle von nichts ist nichts.
-      Der Hinweis über der Figur bleibt daneben stehen, in allen Ansichten
-      außer der Brille — dort reicht der Saum, und eine Tafel vor dem Gesicht
-      wäre eine zu viel.
+      **Der Saum ist die ganze Auskunft**, in jeder Ansicht. Daneben stand
+      einmal eine Tafel in der Bildmitte („Tomate nehmen"), und sie sagte
+      dasselbe ein zweites Mal — nur eben quer über der halben Küche statt
+      dort, wo das Ding steht. Sie ist weg (`showUsePrompt` samt
+      `USE_PROMPT_Y`); `Usable.usePrompt` bleibt als **Satz über die Tat**, den
+      eine Welt selbst melden kann und den die Tests der Küche nachrechnen
+      (`zones/kitchenCarry.kitchenPrompt`).
     - **Gerechnet wird auf dem Boden**, in x und z. Ein Knopf sitzt auf
       Hüfthöhe, ein Türgriff höher, eine Druckplatte am Boden — wer davorsteht,
       meint sie alle, und ein Strahl aus der Brust verfehlte die Platte um
@@ -897,21 +916,16 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
       dahinter steht dieselbe Methode, die auch der Zeiger und die Hand
       aufrufen. Angemeldet wird in einer **Liste** der Welt und nicht in der
       Szene gesucht — die Frage „was ist hier benutzbar" steht in jedem Bild
-      an, weil der Hinweis über der Figur daran hängt (_Knopf drücken_, eine
-      Tafel in der Neigung der Kamera, nur von oben). Am Objekt selbst hängt
-      dieselbe Auskunft als `userData.usable`.
-    - **Die Taste steht nicht auf der Tafel.** Der Hinweis begann einmal mit
-      dem Namen des Knopfes (_A · Brötchen nehmen_), und dafür gab es einen
-      Grund: Wer nicht weiß, womit er etwas anfängt, liest ihn dort. Nur sagen
-      das inzwischen zwei Dinge deutlicher als ein Buchstabe — das Ding selbst
-      bekommt seinen gelben Saum, und der Knopf, der es aufmacht, leuchtet am
-      Glas mit. Übrig bleibt die **Tat** („Brötchen nehmen", „Feuer löschen"),
-      und das ist an der Ausgabetheke im Gedränge genau das, was man sucht.
-      Damit ist auch `PlayerRig.useLabel` weg — diese Tafel war der einzige
-      Ort, der den Namen des Knopfes je gelesen hat, und ein Feld, das jedes
-      Bild gesetzt und von niemandem gelesen wird, ist die zweite Wahrheit, die
-      beim nächsten Umbau ausschert. Mit ihm fiel `FlatControls.padSpoke`, das
-      sich nur gemerkt hatte, ob zuletzt eine Taste oder ein Knopf sprach.
+      an, weil der gelbe Saum daran hängt. Am Objekt selbst hängt dieselbe
+      Auskunft als `userData.usable`.
+    - **Die Tafel ist ganz weg.** Sie begann einmal mit dem Namen des Knopfes
+      (_A · Brötchen nehmen_), verlor ihn und behielt die Tat („Brötchen
+      nehmen") — und auch die sagt der Saum schon, und zwar am Ding. In einer
+      Küche im Gedränge stand damit dauernd ein Schild vor der Arbeitsfläche.
+      Mit der Tafel fiel schon vorher `PlayerRig.useLabel` (sie war der einzige
+      Ort, der den Namen des Knopfes je gelesen hat) und mit ihm
+      `FlatControls.padSpoke`, das sich nur gemerkt hatte, ob zuletzt eine
+      Taste oder ein Knopf sprach.
     - **Die Portal-Regel: Was man drücken kann, kann man auch treffen.** Der
       rote Knopf (`worlds/shared/redButton.ts`) hat einen Kollisionskörper an
       der Kuppel, und eine Kugel, die ihn unterwegs streift, ruft sein `use`
@@ -2054,8 +2068,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     einer Tafel daneben, auf der sein Name und sein Maß stehen. In einer Zeile
     aus acht Schränken sieht man ein einzelnes Möbel nicht; der Katalog ist
     damit ein Rundgang statt einer Liste. **Angefasst wird mit `A`**, und ein
-    Knopf neben dem Eingang schaltet den **Baumodus** ein, in dem sich leere
-    Möbel versetzen lassen (beides unter _Anfassen in der Küche_). Sie ist
+    roter Knopf neben dem Eingang schaltet den **Baumodus** ein und wieder aus,
+    in dem sich leere Möbel versetzen lassen (beides unter _Anfassen in der
+    Küche_). Sie ist
     der Grund, warum das Gelände nach Norden gewachsen ist (`FIELD` ist jetzt
     64 × 80 m): Die Möbel sind groß — eine Spüle misst 4 × 3 m —, und in eine
     Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe. Hinter dem
@@ -2640,9 +2655,9 @@ gilt für jeden, der nichts verstellt hat.
 | Verspreizen                                                                        | eine Hand links, eine rechts an gegenüberliegenden Flächen — und **nah beieinander**, sonst kann man nicht drücken                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Sprungkissen                                                                       | von oben in das blaue Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                                                                                                                   | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Halt-Anzeige | sie taucht auf, sobald man vor der Kletterwand steht, und geht danach wieder weg — Ausdauer in der Mitte, je ein Haltbalken links und rechts | dito | – | dito |
-| Küche: kochen | davorstellen und `A` — die Station, die `A` gerade meint, trägt den gelben Saum, und der Hinweis über der Figur sagt die Tat (_Brötchen nehmen_) | `E` oder Enter | `A` | Knopf `A` |
+| Küche: kochen | davorstellen und `A` — die Station, die `A` gerade meint, trägt den gelben Saum, und mehr braucht es nicht | `E` oder Enter | `A` | Knopf `A` |
 | Küche: Feuerlöscher | erst vom Hocker nehmen (`A`), dann den **Trigger der rechten Hand gedrückt halten**; gezielt wird mit dem Kopf | **aus den Augen**: `E` gedrückt halten, gezielt mit dem Kopf. **Von oben**: ein **Schalter** — Linksklick an, noch einmal aus (oder `E`, solange nichts in Reichweite steht); gezielt mit dem rechten Stock, der dort die Figur dreht | aus den Augen `A` halten; von oben schaltet RT (oder `A`, solange nichts in Reichweite steht) | aus den Augen Knopf `A` halten; von oben schaltet Knopf `B` (oder `A`, solange nichts in Reichweite steht) |
-| Küche: umbauen | Knopf in der Küche + `A` schaltet den Baumodus um; dann `A` am leeren Möbel hebt es auf, `A` auf dem Umriss davor setzt es ab (grün = passt, rot = passt nicht) | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
+| Küche: umbauen | roter Knopf neben dem Eingang + `A` schaltet den Baumodus um (sein Schild sagt, wohin: _Küche umbauen_ / _Küche nutzen_); dann `A` am leeren Möbel hebt es auf, `A` auf dem Umriss davor setzt es ab (grün = passt, rot = passt nicht) | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
 | Messband                                                                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Stoppuhr                                                                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Pinsel                                                                             | Palette antippen **oder** anzielen + Trigger; Regler (RGB, Breite) gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                                                                     | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
@@ -5009,7 +5024,13 @@ Und das sind die Regeln, die darin stehen:
   sechs verbrennen, fünf bis zum Feuer, dann brennt es. Dazu gehören die
   Anzeigen: Flammen unter der Pfanne, ein Fortschrittsbalken in Warm, einer in
   Rot, ein Warndreieck kurz vorher. Ein brennender Herd ist keine Fläche mehr —
-  solange es brennt, geht dort nur noch eines.
+  solange es brennt, geht dort nur noch eines. **Balken und Dreieck werden ohne
+  Tiefenprüfung gezeichnet** (`kitchenGauge.skin`, `front`): Sie schweben eine
+  Handbreit über der Platte, und genau dort steht auch das, worüber sie etwas
+  sagen — von schräg oben schnitt der Balken durch das Patty, und man las die
+  Hälfte. Jetzt liegt er **vor** seinem Möbel. Die **Flammen** bleiben
+  ausgenommen: Sie sind Kegel im Raum, und ein Feuer, das durch die Wand des
+  Nachbarraums leuchtet, ist ein Fehler und kein Hinweis.
 - **Der Feuerlöscher wird gehalten, nicht gedrückt** (`kitchenSpray.ts`). Er
   war einmal ein einzelner Druck auf `A` am brennenden Herd, und das ist kein
   Feuerlöscher, sondern ein Lichtschalter: Bei _Overcooked_ wie bei _PlateUp_
@@ -5070,26 +5091,64 @@ Und das sind die Regeln, die darin stehen:
   Zutat (`zones/kitchenIcon.ts`): Der Ofen stellt das Ding vor eigenes Licht,
   rechnet die Entfernung aus den acht Ecken seiner Hülle — eine Umkugel
   verschenkte beim flachen Patty drei Viertel des Bildes — und backt eine
-  Textur. Das Schild hängt **zweimal** daran, oben und vorn: Von oben sieht
-  man von einem Möbel fast nur den Deckel, und der trägt im gekauften Modell
-  überall denselben weißen Teller; aus den Augen wäre ein liegendes Schild ein
-  Strich. Und es hängt in einer Gruppe, die den halben Maßstab des Möbels
-  wieder aufhebt (`KITCHEN_SCALE`), sonst ist es halb so groß und klebt auf
-  10 cm Höhe.
-- **Das Icon überlagert sich nicht mehr mit dem Aufdruck darunter.**
-  `IconOven.counterSign` liefert deshalb keine einzelne Tafel mehr, sondern
-  eine **Gruppe**: erst eine deckend weiße Grundfläche in der Größe der freien
-  Stelle (`blankSize`), darüber die Tafel mit dem Icon. Die Reihenfolge ist
-  zugleich die Tiefe. Der gekaufte Teller ist auf **die** Textur gemalt, die
-  sich alle Möbel teilen — sie zu retuschieren hieße, einen zweiten Satz
-  Texturen für ein Symbol zu pflegen, und das kostet mehr als eine Fläche mit
-  einer Farbe darauf.
+  Textur. Das Schild hängt **einmal** daran, oben. Es hing eine Weile zweimal,
+  oben und vorn, und beides war begründet — von oben sieht man von einem Möbel
+  fast nur den Deckel, aus den Augen vor allem die Front —, nur standen dann
+  vier Ausgaben nebeneinander mit **acht** Bildern derselben vier Zutaten, und
+  das vordere klemmte auf einem Möbel von 0,46 m zwischen zwei Leisten. Und es
+  hängt in einer Gruppe, die den halben Maßstab des Möbels wieder aufhebt
+  (`KITCHEN_SCALE`), sonst ist es halb so groß und klebt auf 10 cm Höhe.
+- **Ein Teller obendrauf, und sonst nichts.** `IconOven.counterSign` liefert
+  keine einzelne Tafel, sondern eine **Gruppe**: unten ein **weißer Kreis** von
+  70 % der Kachelkante (`BLANK_SHARE`, also 0,70 m), darauf das gerenderte Bild
+  mit 65 % derselben Kante (`SIGN_SHARE`, 0,65 m). Die Reihenfolge ist zugleich
+  die Tiefe. Beide Anteile messen dieselbe Deckfläche und nicht einer den
+  anderen — 65 % von 70 % wären 0,46 m und sähen auf dem Kreis verloren aus.
+  Vorher lag dort ein weißes **Rechteck** von 0,88 m, also fast das ganze
+  Möbel: Von oben sah man eine weiße Platte mit einem kleinen Bild und vom
+  Möbel nichts mehr.
+- **Der aufgedruckte Teller wird jetzt wirklich entfernt**, nicht mehr
+  zugedeckt (`core/kitchenModel.erasePrintedPlate`). Das große weiße Rechteck
+  hatte genau diese Aufgabe; ein Kreis von 70 % schafft sie nicht mehr. Und
+  ausbauen lässt sich der Aufdruck nicht: `serve-counter` ist **ein** Netz mit
+  **einem** Material, der Teller mit dem Burger ist ein Bild im Atlas, und die
+  Mulde besteht aus genau **zwei Dreiecken**, die dieses Bild zeigen. Also wird
+  **umgeklebt**: Ihre vier Ecken bekommen alle dieselbe Texturkoordinate, und
+  zwar eine, die auf das blanke Holz am Rand desselben Bildfelds zeigt. Ein
+  einziger Punkt statt eines Ausschnitts ist Absicht — ohne Ableitung in der
+  Fläche nimmt der Renderer die schärfste Mipmap, und aus den Nachbarfeldern
+  des Atlas kann nichts hereinlaufen. Einmal an der geteilten Vorlage; die
+  **Textur** selbst bleibt unangetastet, sie ist fremde Arbeit und gehört
+  dreizehn Möbeln gemeinsam.
+- **Auf dem Schneidebrett liegt das Essen auf dem Brett**
+  (`kitchenFit.KITCHEN_PIECES`, `board.deck = 0,533`). Ohne eigenen Eintrag gilt
+  als Ablagehöhe die `height` des Möbels, und die ist hier die Spitze des
+  **Hackmessers**, das auf dem Brett liegt (Quellmaß 1,148, halbiert 0,574 m).
+  Ein Salatkopf schwebte damit 3,7 cm über dem Brett — aus 55° von oben
+  (`core/topDownPose.TOP_DOWN_TILT`) sieht man genau diesen Spalt. Gemessen:
+  Korpus bis 1,000 (halbiert 0,500 m, auf den Millimeter die Höhe der
+  Küchenzeile daneben — die **Möbel** fluchten also), darauf das Brett bis
+  1,065 (halbiert 0,5326 m, die größte waagerechte Fläche des Netzes). Die
+  3,3 cm, um die die Arbeitsfläche damit über der Zeile liegt, **sind das
+  Brett**: Es ist genau so dick. Sie wegzurechnen hieße, es in die Platte zu
+  versenken, und weil es exakt so dick ist wie die Stufe, wäre es danach
+  unsichtbar.
+- **Das Patty sitzt in der Mulde, nicht auf dem Stiel** (`kitchenFit.PAN_BOWL`).
+  Ein abgenommenes Gerät bekommt seinen Ursprung in der Mitte seiner **ganzen**
+  Hülle (`kitchenModel.takeUtensil`), und zur Hülle einer Pfanne gehört der
+  Stiel — der Belag landete deshalb 22,5 cm neben der Mulde und lag halb über
+  dem Pfannenrand. Die Zahl ist an der Quelldatei gemessen (Mulde ohne Stiel
+  als Drehkörper: gleicher Durchmesser in x und z) und steht im Katalog neben
+  `align` und `deck`, also in der Liste, die man beim Austausch der Quelle
+  nachmisst. Der Teller bekommt den Versatz nicht: Er ist rund und hat keinen
+  Griff.
 - **Getragen wird mit beiden Händen vor dem Körper** (`core/chefFit.CHEF_CARRY`),
   0,72 m vor der Figur und 0,62 m hoch. Beide Zahlen sind gemessen und nicht
   geraten: Der Kopf dieser Chibi-Figur ist 0,5 m breit, und ein Teller dicht
   vor der Brust verschwand von oben darunter; und die höchste Arbeitsplatte
-  der Küche ist das Schneidebrett mit 0,57 m — wer tiefer trägt, schiebt den
-  Topf beim Vorbeilaufen **durch** die Herdplatte.
+  der Küche ist das Schneidebrett mit 0,57 m (die Spitze des Hackmessers
+  darauf) — wer tiefer trägt, schiebt den Topf beim Vorbeilaufen **durch** die
+  Herdplatte.
 - **Der Kopf wippt beim Tragen mit, die Kamera nie** (`AvatarBody.headBob`).
   Das Wippen sitzt am Kopf der **Figur**, und die zeichnet nur, wer sie von
   außen sieht (`LAYER_SELF_ONLY`) — eine Kamera, die im Takt der Schritte
@@ -5129,14 +5188,53 @@ Und das sind die Regeln, die darin stehen:
   es kauft **Hände**. Wohin geschoben wird, sagen wandernde Sparren und nicht
   ein aufgemalter Pfeil — ein stehender Pfeil ist eine Beschriftung, ein
   laufender ist die Maschine selbst. Am Ende der Reihe steht eine Ablage
-  (`beltStep` sagt, an welche Kachel weitergereicht wird); ein Band, das ins
-  Leere schiebt, verliert, was daraufliegt.
+  (`beltStep` sagt, an welche Kachel weitergereicht wird).
+- **Der Zustand springt, das Bild nicht** (`kitchenBelt.advanceBelts`,
+  `kitchen.runBelts`). Ein Ding gehört logisch immer genau einer Kachel;
+  gezeichnet wird es währenddessen linear zwischen den beiden Kachelmitten
+  überblendet — linear und ungeglättet, weil die Sparren darunter mit derselben
+  gleichbleibenden Geschwindigkeit laufen und ein weich anfahrendes Ding
+  sichtbar anders führe als sein Untergrund.
+- **Losfahren ist ein Versprechen, kein Umzug.** Eine Fahrt hat zwei Stufen:
+  **losfahren** darf, wessen Ziel frei ist _oder_ wessen Ziel zwar belegt ist,
+  das Belegende aber selbst schon losgefahren ist (die **Kettenausnahme** —
+  fließt vorn einer ab, setzt sich das ganze Band in **einem** Bild in
+  Bewegung); **ankommen** darf nur, wessen Ziel wirklich leer ist. Die alte
+  Kachel wird dabei erst beim Ankommen frei, nicht beim Losfahren: Sonst läge
+  ein Ding zwei Sekunden lang logisch dort, wo es sichtbar nicht ist — `A`
+  griffe ins falsche Feld (`stationAt` fragt die Kachel, nicht das Bild), und
+  ein unterwegs abgeräumtes Ding müsste von einer Kachel genommen werden, die
+  es nie erreicht hat. Wer nicht ankommen kann, bleibt bei `BELT_HOLD` (0,625
+  Kachel, ein Tellerradius vor der Mitte) **stehen** statt zurückzuspringen:
+  Ein Teller, der rückwärts fährt, liest sich nicht als „besetzt", sondern als
+  kaputtes Spiel. Ein Band, das ins Leere schiebt, fährt gar nicht erst los —
+  vorher verlor es, was daraufliegt. Und ein voller Ring steht, ohne dass es
+  dafür einen Sonderfall bräuchte: Losfahren breitet sich von einer Kachel mit
+  wirklich freiem Ziel nach hinten aus, und ohne eine solche fängt nichts an.
+- **Gerechnet wird je Bild für alle Kacheln auf einmal**, nicht je Kachel. Ein
+  Band hängt am Band davor, und wer jede Kachel für sich rechnet, fällt auf die
+  Reihenfolge herein: von vorn gerechnet fährt ein volles Band in einem Bild
+  los, von hinten gerechnet braucht es so viele Bilder, wie es Kacheln hat.
+  Gemeldet wird dabei **jede** Station und nicht nur die Bänder — eine Ablage
+  ist in dieser Rechnung eine Kachel ohne Ziel, und dass ein Band ins Nichts
+  denselben Fall ergibt, ist die ganze Antwort auf „was, wenn da vorn nichts
+  ist". Eine Kachel, auf die etwas zufährt, ist leer und trotzdem vergeben:
+  Wer dort ablegen will, bekommt es gesagt (`beltBound`), statt den Stau erst
+  zu bauen.
 - **Der Baumodus hängt an einem Knopf in der Küche** (`zones/kitchenBuild.ts`).
   Bei _Overcooked_ steht die Küche, wie sie steht; bei _PlateUp_ baut man sie
-  zwischen zwei Tagen um, und genau das ist gemeint. Der Schalter neben dem
-  Eingang ist **selbst ein benutzbares Ding** und kein Menüeintrag: hingehen,
-  gelber Saum, `A` — wer den Umbau sucht, findet ihn dort, wo er steht. Ist er
-  an, lässt sich jedes **leere** Möbel aufheben und tragen wie die Pfanne
+  zwischen zwei Tagen um, und genau das ist gemeint. Es ist der **große rote
+  Knopf** auf seiner Säule — derselbe, der an den Effektquellen die Funken
+  auslöst (`shared/redButton.ts`) —, und er ist **selbst ein benutzbares Ding**
+  und kein Menüeintrag: hingehen, gelber Saum, `A`. Sein Schild sagt, was der
+  nächste Druck tut, und wechselt deshalb mit: _Küche umbauen_, solange
+  gekocht wird, _Küche nutzen_, solange umgebaut wird. Er steht auf der Kachel
+  neben dem Eingang (`kitchenPlan.BUILD_BUTTON_TILE`), und die gehört ihm
+  allein: Dort stand einmal der Hocker mit dem Feuerlöscher, und weil `A` immer
+  nur **das Nächste** nimmt (`core/usable.pickUsable`), erwischte man den
+  Schalter und nie den Löscher. Der Hocker steht seitdem oben in der Nordzeile
+  neben dem Herd mit der Pfanne — also neben dem einzigen, an dem es brennen
+  kann. Ist der Baumodus an, lässt sich jedes **leere** Möbel aufheben und tragen wie die Pfanne
   (dieselbe Hand, derselbe Knopf, dasselbe Vor-dem-Bauch-Tragen), und vor den
   Füßen liegt ein **Umriss**, der grün oder rot ist. Der Umriss ist ebenfalls
   ein Usable, und das ist kein Trick, sondern die einzige ehrliche Antwort auf
@@ -7711,7 +7809,25 @@ die Eingabeseite gebaut ist — Konsolenbrowser, Fernseher, Telefon im Querforma
 Dort kostet die Adresszeile ein Fünftel der Fläche, und das Spiel läuft im Rest.
 Also steht ein Knopf mit dem Vollbildsymbol auf der Startseite oben rechts
 (`#landing-full`) und im Streifen des Spiels neben _VR_ (`#hud-full`) — derselbe
-Knopf an zwei Stellen, so wie das Menü es schon ist.
+Knopf an zwei Stellen, so wie das Menü es schon ist. **Und dieselbe Handlung
+noch einmal als Zeile unter _Menü → Grafik_** (`App.fullscreenRow`): Auf einem
+Telefon im Querformat verdeckt genau der Streifen mit dem Knopf das, was man
+loswerden will, und wer das Menü offen hat, sucht nicht darunter. Sie ist
+**keine Einstellung** — Vollbild ist ein Zustand des Browsers, kein Wert im
+Speicher, und eine Vollbildanfrage braucht ohnehin eine frische Geste —, also
+liest die Zeile jedes Mal den Stand und beschriftet sich danach.
+
+**Auf dem iPhone gibt es keinen davon, und das ist keine Lücke, sondern das
+Gerät.** Safari kennt dort Vollbild nur für ein `<video>`; was es zeigte, wäre
+der Videoplayer und nicht die Spielwiese, und `fullscreenSupported` sagt deshalb
+ehrlich „nein" und blendet Knopf und Zeile aus. Der eine Weg, der dort
+funktioniert, steht im Kopf von `index.html`:
+`apple-mobile-web-app-capable` und ein Web-App-Manifest mit
+`display: fullscreen` (`public/manifest.webmanifest`). _Zum Home-Bildschirm
+hinzufügen_, und die Seite startet ohne Adresszeile und ohne Systemleiste —
+auf Android genauso, nur heißt es dort _installieren_. Die Pfade im Manifest
+sind **relativ**, damit sie auf GitHub Pages unter `/<repo>/` stimmen; den
+`href` des `<link>` schreibt Vite selbst auf die Basis um.
 
 Das API dafür ist zwei Zeilen, und die zwei Zeilen sind der Grund für
 `core/fullscreen.ts`: **Es gibt sie doppelt.** Safari und die WebKit-Browser der
@@ -9358,9 +9474,9 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   der Seite oder `WASD`, `A`/`E` benutzt über `HauntingWorld.useForward`
   (Sonderfälle → `pickUsable` über die angemeldeten Dinge → sonst der
   Lichtschalter, `ShipExperience.useEmpty`; ein Handgriff in der Sperrfrist
-  zählt als Handgriff und legt das Licht nicht um), der Saum und der Hinweis
-  über der Figur kommen vom Kern (`bind` meldet jedes Ziel als `Usable` an,
-  `usePrompt` ist die Fadenkreuz-Beschriftung ohne „E: "), der Werkzeug-Knopf
+  zählt als Handgriff und legt das Licht nicht um), der Saum kommt vom Kern
+  (`bind` meldet jedes Ziel als `Usable` an; sein `usePrompt` wird nicht mehr
+  gezeigt, nur noch geprüft), der Werkzeug-Knopf
   (`#hud-tool`, `Tab`) wählt die Hand (`chooseTool`: Lampe/Medkit rechts,
   Radar/Röntgen links, `null` leert beide; `toolChoice.current` ist die
   letzte Wahl, solange sie noch in der Hand liegt). Eigener Stock, eigene

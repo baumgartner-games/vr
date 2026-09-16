@@ -57,7 +57,9 @@ schlechte Griffe kosten Ausdauer, und hinunter geht es in **Sprungkissen**, die
 den Fall abfedern statt ihn anzuhalten. Ganz im Norden, hinter dem Podest,
 steht eine **Küche** aus den Fan-Art-Möbeln: Zeile, zwei Herde, Spüle und
 Tellerausgabe an der Wand, vier Zutatenausgaben an der Westwand, eine Insel aus
-Schneidebrett und Mülleimer, ein **Förderband** quer durch den Raum, vorn die
+Schneidebrett und Mülleimer, ein **Förderband** quer durch den Raum (was
+daraufliegt, gleitet weich weiter und fährt nur los, wenn vorn Platz wird —
+oder frei wird, während es fährt), vorn die
 Ausgabetheke mit den Wärmeschirmen als Durchreiche darüber und davor der
 Gastraum mit drei Tischen und der Geschirrrückgabe. **Angefasst wird mit `A`**,
 und daraus wird ein **Burger**: Patty in die Pfanne (es brät, es verbrennt, und
@@ -72,9 +74,11 @@ weggeht, fängt von vorn an.
 Gast setzt sich an einen freien Tisch, isst, und lässt dreckiges Geschirr
 zurück. Das stapelt sich an der Rückgabe, wandert in die Spüle und kommt sauber
 wieder — ohne diesen Kreis wäre die Tellerausgabe ein Brunnen. Brennt der Herd,
-nimmt man den **Feuerlöscher** vom Hocker und **hält** ihn ins Feuer, aus zwei
-Kacheln Abstand; ein Druck genügt nicht mehr. Und ein Knopf in der Küche
-schaltet den **Baumodus** ein: Dann lässt sich jedes leere Möbel aufheben,
+nimmt man den **Feuerlöscher** vom Hocker — er steht oben in der Zeile neben
+dem Herd, also dort, wo es brennt — und **hält** ihn ins Feuer, aus zwei
+Kacheln Abstand; ein Druck genügt nicht mehr. Und ein großer roter Knopf neben
+dem Eingang schaltet den **Baumodus** ein und wieder aus; sein Schild sagt,
+wohin der nächste Druck führt. Ist er an, lässt sich jedes leere Möbel aufheben,
 tragen wie die Pfanne und auf einer freien Kachel wieder absetzen — der Umriss
 vor den Füßen sagt vorher, ob es passt.
 
@@ -469,11 +473,10 @@ Die Interaktionsanzeige nennt das anvisierte Objekt in Reichweite.
 **Am Bildschirm ist die Steuerung die der Seite, wie in jeder Welt**: auf dem
 Handy der Bordstock links und `A`/`B` rechts, am Laptop `WASD`, Maus, `E`.
 Was `A` gerade meint — Kistenklappe, Konsole, Tastenfeld, Türtafel, das
-liegende Teil —, trägt einen gelben Saum und einen Hinweis über der Figur;
-der runde Werkzeug-Knopf unten rechts wählt Taschenlampe, Radar,
-Röntgengerät oder Medkit. Über den Stock geht es mit Arbeitstempo los;
-jenseits des äußeren Rings wird gerannt. In der Brille gibt es Zeiger,
-Trigger und `A`.
+liegende Teil —, trägt einen gelben Saum; der runde Werkzeug-Knopf unten
+rechts wählt Taschenlampe, Radar, Röntgengerät oder Medkit. Über den Stock
+geht es mit Arbeitstempo los; jenseits des äußeren Rings wird gerannt. In der
+Brille gibt es Zeiger, Trigger und `A`.
 
 **Und wenn nichts vor dir liegt, ist Benutzen der Lichtschalter.** Die Lampe
 bleibt dabei in der Hand; sie auszumachen ist eine Entscheidung, keine leere
@@ -857,6 +860,14 @@ oder am Fernseher kostet die Adresszeile sonst ein Fünftel des Bildes. In der
 Brille gibt es ihn nicht — eine XR-Sitzung ist Vollbild —, und in Browsern, die
 es nicht erlauben, auch nicht: Ein Knopf, der nichts tut, ist schlimmer als
 keiner. `Esc` beendet es, und der Knopf weiß das (`core/fullscreen.ts`).
+Dieselbe Handlung steht auch als Zeile unter **Menü → Grafik** — auf dem Handy
+im Querformat verdeckt der Streifen mit dem Knopf genau das, was weg soll.
+
+**Auf dem iPhone gibt es beides nicht**, weil Safari dort Vollbild nur für ein
+Video kennt. Der Weg, der dort funktioniert, ist _Zum Home-Bildschirm
+hinzufügen_: Die Seite bringt ein Web-App-Manifest und die passenden
+Apple-Zeilen mit und startet dann ohne Adresszeile und ohne Systemleiste. Auf
+Android heißt derselbe Schritt _installieren_.
 
 ## Query-/Hash-Parameter
 
@@ -877,12 +888,12 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 
 |                               | VR                                                                                                                                                                         | Desktop                                                                | Handy                    |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------ |
-| Bewegen                       | linker Stick (reindrücken = Sprint)                                                                                                                                        | `WASD`, `Shift`                                                        | linker Touch-Stick       |
+| Bewegen                       | linker Stick (reindrücken = Sprint)                                                                                                                                        | `WASD`, `Shift`                                                        | linker Touch-Stick (Menü → Grafik → _Bildschirm-Steuerung_: automatisch / an / aus; automatisch heißt „nur am Handy, und nur ohne Gamepad") |
 | Umsehen                       | Kopf, rechter Stick = Snap-Turn                                                                                                                                            | Maus (Klick = Pointer-Lock)                                            | wischen                  |
 | Springen / Ducken             | `A` rechts (springt nur, wenn nichts in Reichweite ist) / rechten Stick reindrücken                                                                                        | `Leertaste`                                                            | Knopf `A`, siehe links   |
 | Menü                          | Button an beiden Händen (immer nur eins offen)                                                                                                                             | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links      |
 | Von oben ↔ Aus den Augen      | –                                                                                                                                                                          | Startseite oder Menü → _Ansicht_; Mausrad zoomt                        | dito; zwei Finger in der oberen Hälfte zoomen |
-| Benutzen                      | `A` rechts — was in Reichweite steht, bekommt einen gelben Saum                                                                                                            | `E` oder Enter — ein Hinweis über der Figur sagt, was da ist           | Knopf `A`                |
+| Benutzen                      | `A` rechts — was in Reichweite steht, bekommt einen gelben Saum                                                                                                            | `E` oder Enter — der gelbe Saum sagt, was gemeint ist                  | Knopf `A`                |
 | Werkzeug wählen               | – (das Regal hängt am Handgelenk)                                                                                                                                          | Knopf unten rechts oder `Tab` — die Liste fängt mit _Hand (leer)_ an   | derselbe Knopf, antippen |
 | Zielen / Schießen (von oben)  | Trigger der Hand mit der Waffe                                                                                                                                             | Maus zielt, Linksklick schießt                                         | rechter Stick, Knopf `B` |
 | Auswählen                     | zielen + Trigger oder `A`                                                                                                                                                  | Linksklick                                                             | tippen                   |

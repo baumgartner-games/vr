@@ -266,7 +266,6 @@ import {
 import { ScreenHand } from './screenHand';
 import { Highlight } from '../../core/highlight';
 import type { ToolChoice, ToolOption } from '../../core/types';
-import { topDownPitch } from '../../core/topDownPose';
 import { overBudget, type LooseEntry } from './tools/looseBudget';
 import { findMaterial, isTransparent } from './tools/materials';
 import { PullMeter, pullTension, pullTriggered } from './pullGesture';
@@ -284,23 +283,12 @@ const SHAPE_LABELS: Record<string, string> = {
   hull: 'Hülle',
 };
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
-/** Wie hoch über den Füßen der Hinweis _E · …_ über der Figur schwebt, in Metern. */
-const USE_PROMPT_Y = 2.15;
 /** Zwischenlagen fürs Benutzen — Ort und Blickrichtung der Figur (`core/usable.ts`). */
 const _useAt = new THREE.Vector3();
 const _useForward = new THREE.Vector3();
 /** Wohin Figur und Kopf zeigen — `usable.aimForward` wählt aus beidem. */
 const _useRigAhead = new THREE.Vector3();
 const _useHeadAhead = new THREE.Vector3();
-/** Wo der Hinweis aus den Augen steht: vor dem Gesicht statt über dem Kopf. */
-const _promptAt = new THREE.Vector3();
-const _promptAhead = new THREE.Vector3();
-/**
- * Wie weit vor dem Auge der Hinweis steht und wie weit unter der Blickachse,
- * in Metern — tief genug, dass er nicht vor dem steht, worum es geht.
- */
-const USE_PROMPT_AHEAD = 1.4;
-const USE_PROMPT_DROP = 0.4;
 const _useCentre = new THREE.Vector3();
 const _useFlight = new THREE.Vector3();
 const _useBox = new THREE.Box3();
@@ -783,9 +771,6 @@ export class PortalWorld implements World {
    * beziehungsweise gar keine.
    */
   private screenHand: ScreenHand | null = null;
-  /** Der Hinweis über der Figur (_E · Knopf drücken_), solange einer ansteht. */
-  private usePromptPlane: TextPlane | null = null;
-  private usePromptText = '';
   /**
    * **Der gelbe Saum um das, was `A` gerade meint** (`core/highlight.ts`).
    *
@@ -3404,10 +3389,6 @@ export class PortalWorld implements World {
     this.hitboxes?.dispose();
     this.hitboxes = null;
     ctx.rig.useCandidate = false;
-    this.usePromptPlane?.dispose();
-    this.usePromptPlane?.removeFromParent();
-    this.usePromptPlane = null;
-    this.usePromptText = '';
     if (this.canvas) {
       if (this.flatFire) this.canvas.removeEventListener('mousedown', this.flatFire);
       if (this.blockContextMenu) {
@@ -7546,8 +7527,8 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Je Bild einmal**: die Anforderung des Rigs abholen, das Gewählte
-   * hervorheben und den Hinweis nachführen.
+   * **Je Bild einmal**: die Anforderung des Rigs abholen und das Gewählte
+   * hervorheben.
    *
    * Und dem Gestell sagen, **ob** etwas dasteht (`PlayerRig.useCandidate`):
    * Daran hängt, ob `A` benutzt oder springt — in der Brille wie am Schirm.
@@ -7562,16 +7543,14 @@ export class PortalWorld implements World {
       this.usables.length > 0 ? pickUsable(this.collectUsables(), _useAt, _useForward) : null;
     ctx.rig.useCandidate = pick !== null;
 
-    // **Hervorgehoben wird überall** — auch in der Brille: Dort ist der Saum
-    // die ganze Auskunft, denn einen Hinweis über dem eigenen Kopf liest
-    // niemand, der selbst in der Welt steht.
+    // **Der Saum ist die ganze Auskunft** — in der Brille, von oben und aus
+    // den Augen gleichermaßen. Daneben stand bis eben eine Tafel („Tomate
+    // nehmen"), und sie sagte dasselbe ein zweites Mal: Was `A` meint, zeigt
+    // der Saum schon, und zwar **dort, wo es steht**, statt in der Bildmitte
+    // über allem anderen. Eine Küche im Gedränge hatte damit dauernd ein
+    // Schild vor der halben Arbeitsfläche.
     this.highlighter.highlight(pick?.candidate.object ?? null);
     this.highlighter.update(dt);
-
-    // Der Hinweis dagegen gehört den Bildschirmansichten: von oben über der
-    // Figur, aus den Augen vor dem Gesicht (`showUsePrompt`).
-    const prompt = ctx.renderer.xr.isPresenting ? '' : (pick?.candidate.usable.usePrompt?.() ?? '');
-    this.showUsePrompt(ctx, prompt);
   }
 
   /** Die Liste als Kandidaten für die Auswahl — Weltpositionen, je Bild frisch. */
@@ -7588,67 +7567,6 @@ export class PortalWorld implements World {
       this.useCandidates.push(candidate);
     }
     return this.useCandidates;
-  }
-
-  /**
-   * Der Hinweis über der Figur — eine Tafel im Raum, keine Meldung.
-   *
-   * Sie liegt in der Neigung der Kamera von oben (`topDownPitch`), steht also
-   * gerade im Bild, ohne dass sie jedes Bild neu ausgerichtet werden müsste.
-   *
-   * **Die Taste steht nicht mehr dran.** Früher begann der Hinweis mit dem
-   * Namen des Knopfes (`A · Brötchen nehmen`), und dafür gab es einen Grund:
-   * Wer nicht weiß, womit er etwas anfängt, liest ihn dort. Nur sagen das
-   * inzwischen zwei Dinge deutlicher als ein Buchstabe auf einer Tafel — das
-   * Ding selbst bekommt seinen gelben Saum (`highlighter`, auch in der
-   * Brille), und der Knopf, der es aufmacht, leuchtet am Glas mit. Was übrig
-   * bleibt, ist die **Tat**: „Brötchen nehmen", „Feuer löschen". Kürzer, und
-   * an der Ausgabetheke im Gedränge genau das, was man sucht.
-   *
-   * Damit ist auch `PlayerRig.useLabel` weg: Diese Tafel war der einzige Ort,
-   * an dem der Name des Knopfes je gelesen wurde, und ein Feld, das jedes Bild
-   * gesetzt und von niemandem mehr gelesen wird, ist die zweite Wahrheit, die
-   * beim nächsten Umbau ausschert.
-   */
-  private showUsePrompt(ctx: WorldContext, text: string): void {
-    if (!text) {
-      if (this.usePromptPlane) this.usePromptPlane.visible = false;
-      this.usePromptText = '';
-      return;
-    }
-    let plane = this.usePromptPlane;
-    if (!plane) {
-      plane = new TextPlane({ width: 1.1, height: 0.26, title: '', align: 'center' });
-      plane.name = 'use-prompt';
-      this.root.add(plane);
-      this.usePromptPlane = plane;
-    }
-    if (text !== this.usePromptText) {
-      plane.setText(text);
-      this.usePromptText = text;
-    }
-    plane.visible = true;
-    if (ctx.topDown) {
-      plane.rotation.set(topDownPitch(), 0, 0);
-      plane.position.set(
-        ctx.rig.position.x,
-        ctx.rig.getFloorY() + USE_PROMPT_Y,
-        ctx.rig.position.z,
-      );
-      return;
-    }
-    // **Aus den Augen steht er vor dem Gesicht.** Über dem eigenen Kopf hinge
-    // er dort, wo man als Einziger nicht hinsieht — der eigene Körper ist das
-    // Einzige in der Welt, das man nie zu sehen bekommt. Also eine
-    // Handbreit unter der Blickachse, gut einen Meter voraus, dem Auge
-    // zugewandt.
-    ctx.rig.getHeadPosition(_promptAt);
-    ctx.rig.getHeadForward(_promptAhead);
-    plane.position
-      .copy(_promptAt)
-      .addScaledVector(_promptAhead, USE_PROMPT_AHEAD)
-      .setY(_promptAt.y - USE_PROMPT_DROP);
-    plane.lookAt(_promptAt);
   }
 
   /**

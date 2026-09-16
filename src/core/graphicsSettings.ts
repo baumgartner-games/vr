@@ -113,7 +113,47 @@ export interface GraphicsSettings {
    * die Bildrate klemmt.
    */
   shadows: boolean;
+  /**
+   * **Ob die Stöcke auf dem Glas liegen** — links der Stock zum Laufen, rechts
+   * Zielstock und `A`/`B` (`index.html`, `#touch`).
+   *
+   * Drei Rasten und nicht zwei, weil sich die Frage auf zwei Arten falsch
+   * beantworten lässt: Ein Telefon ohne Stöcke ist unbedienbar, ein
+   * Schreibtisch mit Stöcken hat zwei Daumenflächen im Bild, die nie jemand
+   * anfasst. **Automatisch** heißt deshalb: nur dort, wo ein Finger wirklich
+   * das einzige Eingabegerät ist. Wer ein Gamepad am Tablet hängen hat, hält
+   * schon einen echten Stock in der Hand und braucht keinen gemalten darüber;
+   * wer am Schreibtisch trotzdem einen sehen will — zum Ausprobieren, für ein
+   * Video —, stellt **an**.
+   *
+   * Gerechnet wird das nicht hier, sondern in `screenPads.ts`: Dort stehen
+   * alle Eingaben beieinander, auch die, die keine Einstellung sind — die
+   * Brille auf dem Kopf und die Welt, die ihre eigene Steuerung mitbringt.
+   */
+  screenPads: ScreenPads;
 }
+
+/**
+ * **An / Aus / Automatisch** — die Rasten der Bildschirm-Steuerung.
+ *
+ * `auto` steht vorn, weil es die Voreinstellung ist und ein Druck auf die
+ * Zeile von dort losgeht; danach kommt das, was man am ehesten will, wenn die
+ * Automatik daneben lag.
+ */
+export type ScreenPads = 'auto' | 'on' | 'off';
+export const SCREEN_PADS = ['auto', 'on', 'off'] as const;
+
+export const SCREEN_PADS_LABELS: Readonly<Record<ScreenPads, string>> = {
+  auto: 'Automatisch',
+  on: 'An',
+  off: 'Aus',
+};
+
+export const SCREEN_PADS_SUBS: Readonly<Record<ScreenPads, string>> = {
+  auto: 'Nur am Handy — und dort nur, solange kein Gamepad angesteckt ist',
+  on: 'Immer, auch am Schreibtisch',
+  off: 'Nie · Tastatur, Maus oder Gamepad',
+};
 
 /** Die drei Rasten des Reglers, von scharf nach flüssig. */
 export type XrScale = 1 | 0.85 | 0.7;
@@ -139,6 +179,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   gridLines: false,
   hitBoxes: false,
   shadows: true,
+  screenPads: 'auto',
 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
@@ -290,7 +331,13 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   // Werk **an**, und ein gespeicherter Stand von gestern kennt das Feld noch
   // gar nicht. Wer sie ausmacht, hat `false` gespeichert und bekommt `false`.
   const shadows = raw.shadows ?? DEFAULT_GRAPHICS.shadows;
-  return { mode, xrScale, showFps, gridLines, hitBoxes, shadows };
+  // Aus demselben Grund kein `=== 'on'`: Ein Stand von gestern kennt die Raste
+  // nicht, und „kenne ich nicht" heißt hier **automatisch** und nicht „aus" —
+  // sonst stünde ein Telefon, das gestern noch Stöcke hatte, heute ohne da.
+  const screenPads = SCREEN_PADS.includes(raw.screenPads as ScreenPads)
+    ? (raw.screenPads as ScreenPads)
+    : DEFAULT_GRAPHICS.screenPads;
+  return { mode, xrScale, showFps, gridLines, hitBoxes, shadows, screenPads };
 }
 
 /** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
@@ -305,6 +352,12 @@ export function nextXrScale(scale: XrScale): XrScale {
   return XR_SCALES[(index + 1) % XR_SCALES.length]!;
 }
 
+/** Ein Druck auf die Zeile: automatisch → an → aus und wieder von vorn. */
+export function nextScreenPads(pads: ScreenPads): ScreenPads {
+  const index = SCREEN_PADS.indexOf(pads);
+  return SCREEN_PADS[(index + 1) % SCREEN_PADS.length]!;
+}
+
 /**
  * Wie die Seite im Menü unter ihrer Überschrift steht.
  *
@@ -314,7 +367,7 @@ export function nextXrScale(scale: XrScale): XrScale {
  */
 export function graphicsSummary(
   settings: Pick<GraphicsSettings, 'mode' | 'xrScale'> &
-    Partial<Pick<GraphicsSettings, 'gridLines' | 'hitBoxes' | 'shadows'>>,
+    Partial<Pick<GraphicsSettings, 'gridLines' | 'hitBoxes' | 'shadows' | 'screenPads'>>,
 ): string {
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
   const grid = settings.gridLines ? ' · Gitterlinien' : '';
@@ -322,7 +375,14 @@ export function graphicsSummary(
   // Genannt wird die Abweichung: „mit Schatten" sagt niemandem etwas, „ohne
   // Schatten" erklärt ein Bild, in dem alles zu schweben scheint.
   const shade = settings.shadows === false ? ' · ohne Schatten' : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${shade}`;
+  // Und ebenso hier: Die Automatik ist der Normalfall und steht nicht in der
+  // Zeile — wer sie überstimmt hat, soll aber lesen können, warum sein Handy
+  // ohne Stöcke oder sein Schreibtisch mit welchen dasteht.
+  const pads =
+    settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
+      ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
+      : '';
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${shade}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

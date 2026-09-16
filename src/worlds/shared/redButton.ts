@@ -42,6 +42,16 @@ export interface RedButton {
   dome: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
   /** Drückt den Knopf sichtbar ein — der Rest ist Sache der Welt. */
   press(): void;
+  /**
+   * **Was auf dem Schild steht, neu setzen.**
+   *
+   * Für den einen Knopf, der nicht immer dasselbe tut: Der Umbauschalter der
+   * Küche heißt _Küche umbauen_, solange gekocht wird, und _Küche nutzen_,
+   * solange umgebaut wird (`worlds/test/zones/kitchen.ts`). Ein Schild, das
+   * dabei stehen bliebe, verspräche beim zweiten Druck das Gegenteil dessen,
+   * was passiert.
+   */
+  setTitle(title: string, body?: string): void;
   /** Der Zeiger liegt darauf, oder eben nicht. */
   hover(on: boolean): void;
   /** Lässt den Knopf wieder hochkommen. */
@@ -119,6 +129,7 @@ export function buildRedButton(options: { title: string; body?: string }): RedBu
       pressed = PRESS_TIME;
       dome.position.y = restY - PRESS_DEPTH;
     },
+    setTitle: (title: string, body?: string) => sign.setText(title, body),
     hover: (on: boolean) => dome.material.emissive.setHex(on ? RED_HOT : RED_GLOW),
     update: (dt: number) => {
       if (pressed <= 0) return;

@@ -231,6 +231,35 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     label: 'Schneidebrett',
     tiles: [1, 1],
     height: 0.57,
+    // **0,533 m, und das ist die Oberseite des Bretts — nicht die des
+    // Messers.**
+    //
+    // Ohne diesen Eintrag war die Ablage `height`, und `height` ist hier die
+    // Spitze des **Hackmessers**, das auf dem Brett liegt: In der Datei reicht
+    // das Netz aus `Kitchen_Utensils` bis y = 1,148 (halbiert 0,574 m). Ein
+    // Salatkopf, der dort abgelegt wurde, schwebte eine gute Daumenbreite über
+    // dem Brett — 3,7 cm, und aus 55° von oben
+    // (`core/topDownPose.TOP_DOWN_TILT`) sieht man genau diesen Spalt.
+    //
+    // Gemessen und nicht geschätzt, alles in Quellmaß, halbiert daneben:
+    //
+    // - Der **Korpus** (`Kitchen_Cabins`) reicht von y = 0,000 bis 1,000 —
+    //   halbiert **0,500 m**, und das ist auf den Millimeter dieselbe Zahl wie
+    //   bei der Küchenzeile daneben (`counter`, ebenfalls 1,000 → 0,500 m).
+    //   Die Möbel selbst fluchten also bereits.
+    // - Darauf **liegt das Brett**: eine Platte von y = 0,998 bis 1,065, ihre
+    //   Deckfläche halbiert **0,5326 m** (die größte waagerechte Fläche des
+    //   Netzes, 1,63 m² in Quellmaß — das Brett und nichts anderes).
+    // - Darüber das **Messer** bis 1,148 → 0,574 m, gerundet die 0,57 von
+    //   `height`.
+    //
+    // Die 3,3 cm, um die die Arbeitsfläche damit über der Küchenzeile liegt,
+    // **sind das Brett**: Es ist genau so dick (0,067 in der Quelle). Sie
+    // wegzurechnen hieße, das Brett in die Platte zu versenken — und weil es
+    // exakt so dick ist wie die Stufe, wäre es danach unsichtbar. Ein
+    // Schneidebrett liegt auf der Arbeitsplatte; das ist die Stufe, und sie
+    // bleibt.
+    deck: 0.533,
     worktop: true,
     // 3,07 cm nach Süden: Das Brett ist 0,9999 m tief, die Küchenzeile neben
     // ihm 1,0612 m — so fluchtet die Vorderkante (`KitchenPiece.align`).
@@ -299,3 +328,41 @@ export function kitchenPiece(name: string): KitchenPiece | undefined {
 export function kitchenDeck(piece: KitchenPiece): number {
   return piece.deck ?? piece.height;
 }
+
+/**
+ * **Wo in der abgenommenen Pfanne die Mulde liegt**, in Metern (x, z) — der
+ * Versatz von ihrem Ursprung zur Mitte des Bratraums.
+ *
+ * Ein abgenommenes Gerät bekommt seinen Ursprung in der Mitte seiner **ganzen**
+ * Hülle (`core/kitchenModel.takeUtensil`), und zur Hülle einer Pfanne gehört
+ * der **Stiel**. Genau daran lag das Patty schief: Es wird auf `x/z = 0` des
+ * Trägers gelegt (`worlds/test/zones/kitchen.ts`, `restyle` →
+ * `kitchenProps.FoodKit.topping`), und dieser Punkt ist nicht die Mulde,
+ * sondern die Mitte aus Mulde **und** Stiel — also ein gutes Stück zum Griff
+ * hin. Auf dem Bild lag das Fleisch halb über dem Pfannenrand.
+ *
+ * **Aus der Geometrie gerechnet und nicht geschätzt** (Quellmaß aus
+ * `public/models/kitchen.glb`, Knoten `stove-pan`, Netz `Kitchen_Utensils`):
+ *
+ * - Die ganze Hülle reicht in z von −0,9372 bis +1,2198; ihre Mitte liegt bei
+ *   **+0,1413** — dorthin setzt `takeUtensil` den Ursprung.
+ * - Die **Mulde ohne Stiel** ist ein Drehkörper: In x misst sie −0,6316 bis
+ *   +0,6244, also 1,2560 breit, und breiter wird die Pfanne nirgends — der
+ *   Stiel ist mit |x| ≤ 0,115 ein schmaler Balken. Derselbe Durchmesser gilt
+ *   in z, und weil die Mulde bei z = −0,9372 anfängt, liegt ihre Mitte bei
+ *   −0,9372 + 0,6280 = **−0,3092**. Der Stiel schließt dort an und läuft bis
+ *   +1,2198.
+ * - In x fallen beide Mitten auf −0,0036 zusammen: Der Stiel steht mittig.
+ *
+ * Bleibt in z ein Unterschied von −0,4505 in Quellmaß, halbiert
+ * (`KITCHEN_SCALE`) **−0,225 m** — knapp drei Viertel des Muldenhalbmessers
+ * (0,314 m). Genau so weit lag das Patty daneben.
+ *
+ * **Warum die Zahl hier steht und nicht am Netz.** Der Belag hängt nicht an der
+ * Pfanne, sondern neben ihr am selben Träger (`worlds/test/zones/kitchen.ts`,
+ * `addStation`), und der Zutatensatz, der ihn baut, kennt kein geladenes Modell
+ * (`kitchenProps.ts`). Ein gemessenes Maß aus der Quelldatei gehört damit in
+ * denselben Katalog wie `align` und `deck` — das ist die Liste, die man beim
+ * Austausch der Quelle nachmisst.
+ */
+export const PAN_BOWL: readonly [x: number, z: number] = [0, -0.225];

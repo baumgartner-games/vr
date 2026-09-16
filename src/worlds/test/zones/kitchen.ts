@@ -45,6 +45,7 @@ import { DIRTY_STACK_MAX, FoodKit } from './kitchenProps';
 import { GAUGE_LIFT, KitchenGauges, WARN_LIFT } from './kitchenGauge';
 import { IconOven } from './kitchenIcon';
 import {
+  BUILD_BUTTON_TILE,
   KITCHEN_FLOOR,
   KITCHEN_SPOTS,
   footprint,
@@ -62,7 +63,16 @@ import {
   type TableState,
 } from './kitchenGuests';
 import { BUILD_AHEAD, buildFree, tileAhead, whyNotBuilt, type BuildSpot } from './kitchenBuild';
-import { BeltKit, BELT_EMPTY, advanceBelt, beltStep, type BeltState } from './kitchenBelt';
+import {
+  BeltKit,
+  BELT_EMPTY,
+  advanceBelts,
+  beltBound,
+  beltStep,
+  type BeltFrame,
+  type BeltState,
+  type BeltTile,
+} from './kitchenBelt';
 import {
   DRY,
   SprayJet,
@@ -72,6 +82,7 @@ import {
   sprayOn,
   type DouseState,
 } from './kitchenSpray';
+import { buildRedButton, BUTTON_DOME_R, type RedButton } from '../../shared/redButton';
 import type { TestZone, ZoneHost } from './zone';
 
 /**
@@ -205,15 +216,15 @@ const TICKET_SECONDS = 4;
 const TICKET_LIFT = 0.95;
 
 /**
- * **Wie hoch der Umbau-Schalter über dem Boden hängt**, in Metern, und wie
- * groß sein Kasten ist.
+ * **Was auf dem Schild des Umbauknopfes steht** — je nachdem, wohin der
+ * nächste Druck führt.
  *
- * Auf Brusthöhe der Figur (1,60 m hoch, `core/chefFit.CHEF_HEIGHT`): hoch
- * genug, dass er von oben nicht unter einer Arbeitsplatte verschwindet, tief
- * genug, dass ihn in der Brille eine Hand erreicht.
+ * Nicht der Zustand („Baumodus"), sondern die **Tat**: Wer davorsteht, will
+ * wissen, was passiert, wenn er drückt, und nicht, wie das heißt, worin er
+ * gerade ist. Dieselbe Regel wie bei jedem anderen Hinweis dieser Welt
+ * (`core/usable.Usable.usePrompt`).
  */
-const SWITCH_LIFT = 1.05;
-const SWITCH_SIZE = 0.26;
+const BUILD_BUTTON_LABELS = { off: 'Küche umbauen', on: 'Küche nutzen' } as const;
 
 /**
  * **Wie durchsichtig der Bauplatz ist** und in welchen Farben er antwortet.
@@ -449,6 +460,16 @@ export class KitchenZone implements TestZone {
   // --- der Baumodus ----------------------------------------------------------
   /** Ob gerade umgebaut wird (`kitchenBuild.ts`). */
   private editing = false;
+  /** Der rote Knopf, der ihn umlegt (`addBuildButton`). */
+  private buildButton: RedButton | null = null;
+  /**
+   * **Was die Bänder in diesem Bild gerechnet haben** (`runBelts`).
+   *
+   * Gemerkt wird es für genau eine Frage: ob auf eine Kachel gerade etwas
+   * zufährt (`kitchenBelt.beltBound`). Eine solche Kachel ist leer und trotzdem
+   * vergeben, und das sieht man ihr nicht an.
+   */
+  private beltNow: BeltFrame | null = null;
   /** Das Möbel in der Hand — im Baumodus trägt man Möbel statt Essen. */
   private lifted: Furnish | null = null;
   /** Der Umriss des Bauplatzes: wo er steht und ob dort Platz ist. */
@@ -487,7 +508,7 @@ export class KitchenZone implements TestZone {
       const model = this.buildPiece(piece);
       if (model) this.place(model, piece, spot, () => null);
     }
-    this.addLever();
+    this.addBuildButton();
 
     // Dieselbe Frage wie bei der Figur, und aus demselben Grund: `GLTFLoader`
     // und `import.meta` bringen einen Jest-Lauf zum Stehen, also wird das
@@ -519,11 +540,14 @@ export class KitchenZone implements TestZone {
    */
   update(dt: number, ctx: WorldContext): void {
     this.aim(ctx);
+    this.runBelts(dt);
     this.cook(dt);
     this.spray(dt, ctx);
     // Die Pfeile auf den Bändern wandern, auch wenn nichts daraufliegt: Ein
     // Band, das erst bei Fracht zeigt, wohin es schiebt, sagt es zu spät.
     this.belts?.update(dt);
+    // Der Knopf kommt nach dem Druck wieder hoch — von allein tut er es nicht.
+    this.buildButton?.update(dt);
     this.gauges?.update(dt);
     this.fadeTicket(dt);
     this.carryInHands(ctx);
@@ -574,7 +598,8 @@ export class KitchenZone implements TestZone {
           this.tableFrame(spot, dt);
           break;
         case 'belt':
-          this.beltFrame(spot, dt);
+          // Das Band rechnet **einmal für alle** (`runBelts`) und nicht je
+          // Kachel; hier bleibt nur die Anzeige übrig.
           break;
         default:
           continue;
@@ -656,27 +681,114 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Ein Bild auf dem Förderband** — was daraufliegt, wandert weiter.
+   * **Wohin ein Band abliefert** — die Station auf der nächsten Kachel in
+   * Laufrichtung (`kitchenBelt.beltStep`), oder `null`.
    *
-   * Weitergereicht wird an die Station auf der **nächsten Kachel in
-   * Laufrichtung** (`kitchenBelt.beltStep`). Ist dort nichts oder steht dort
-   * schon etwas, bleibt das Ding liegen und versucht es im nächsten Bild
-   * wieder — ein Band, das seine Fracht ins Nichts schiebt, wäre ein Band, an
-   * dem Teller verschwinden.
+   * `null` heißt für die Rechnung nebenan: Hier fährt nichts los. Das ist
+   * derselbe Fall für dreierlei, und das ist Absicht — ein Band am Rand der
+   * Küche, eines, das auf einen Mülleimer zeigt, und eines, das auf die
+   * Ausgabetheke zeigt. Die letzten beiden nehmen nichts entgegen, was ihnen
+   * jemand hinschiebt: In den Mülleimer wird **geworfen**, über die Theke wird
+   * **serviert**, und beides ist ein Handgriff und kein Zufall. Ein Teller, den
+   * ein Band von selbst in den Müll trägt, wäre der teuerste Unfall dieser
+   * Küche.
    */
-  private beltFrame(spot: Station, dt: number): void {
-    const tick = advanceBelt(spot.belt, dt, spot.on !== null);
-    spot.belt = tick.state;
-    if (!tick.handOver) return;
-    const load = spot.on;
-    if (!load) return;
+  private beltTarget(spot: Station): Station | null {
     const step = beltStep(spot.home.turn);
     const next = this.stationAt(spot.home.x + step.dx, spot.home.z + step.dz);
-    if (!next || next.on || next.kind === 'bin' || next.kind === 'serve') return;
-    spot.on = null;
-    this.settle(spot);
-    this.layOn(next, load);
-    this.refreshStations();
+    if (!next || next.kind === 'bin' || next.kind === 'serve') return null;
+    return next;
+  }
+
+  /**
+   * **Ein Bild auf allen Bändern** — einmal je Bild, für die ganze Küche
+   * (`kitchenBelt.advanceBelts`).
+   *
+   * **Warum nicht je Kachel.** Ein Band hängt am Band davor, und das am davor:
+   * Ob hier etwas losfahren darf, ist eine Frage über die **Nachbarn**, und wer
+   * sie Kachel für Kachel stellt, beantwortet sie je nach Reihenfolge anders —
+   * von vorn gerechnet fährt ein volles Band in einem Bild los, von hinten
+   * gerechnet braucht es so viele Bilder, wie es Kacheln hat. Die Rechnung
+   * bekommt deshalb **alle** Kacheln auf einmal; was dabei herauskommt, steht
+   * dort und nicht hier.
+   *
+   * **Jede Station wird gemeldet, nicht nur die Bänder.** Die Frage „ist
+   * vorn Platz?" gilt genauso für die Ablage am Ende der Reihe wie für das
+   * nächste Band — und eine Ablage ist in dieser Rechnung nichts anderes als
+   * eine Kachel ohne Ziel (`BeltTile.to === null`).
+   *
+   * **Die Übergaben kommen in anwendbarer Reihenfolge**, von vorn nach hinten:
+   * Wer sie der Reihe nach abarbeitet, legt nie etwas auf eine Kachel, von der
+   * der Vordermann noch nicht weggezogen ist.
+   */
+  private runBelts(dt: number): void {
+    if (!this.stations.length) return;
+    let belts = false;
+    const tiles: BeltTile[] = [];
+    for (const spot of this.stations) {
+      if (spot.kind === 'belt') belts = true;
+      const to = spot.kind === 'belt' ? this.beltTarget(spot) : null;
+      tiles.push({
+        id: spot.key,
+        loaded: spot.on !== null,
+        state: spot.belt,
+        to: to?.key ?? null,
+      });
+    }
+    // Eine Küche **ohne Band** rechnet gar nichts — den Fall gibt es im
+    // Schauraum und in jeder Küche, aus der jemand das letzte Band
+    // herausgebaut hat. Gefragt wird nach dem Möbel und nicht nach seinem
+    // Ziel: Ein Band, das gerade ins Leere zeigt, weil die Ablage davor im
+    // Baumodus weggetragen wurde, muss durch die Rechnung — sonst bliebe ein
+    // Ding, das eben noch unterwegs war, auf `moving` stehen und hinge
+    // sichtbar in der Luft.
+    if (!belts) {
+      this.beltNow = null;
+      return;
+    }
+
+    const frame = advanceBelts(tiles, dt);
+    this.beltNow = frame;
+
+    // **Erst die Übergaben, dann die Zustände**, und die Reihenfolge ist keine
+    // Geschmacksfrage: `layOn` ruft `settle`, und das setzt das Band der
+    // Zielkachel auf `BELT_EMPTY` zurück. Wer die Zustände vorher schriebe,
+    // nähme einem Ding, das in **einem** Bild ankommt und gleich weiterfährt,
+    // sein frisch gesetztes `moving` wieder weg — es stünde ein Bild lang
+    // still, und das an jeder Kachel einer Reihe.
+    for (const move of frame.moves) {
+      const from = this.stationByKey(move.from);
+      const to = this.stationByKey(move.to);
+      const load = from?.on;
+      if (!from || !to || !load) continue;
+      from.on = null;
+      this.settle(from);
+      this.layOn(to, load);
+      this.refreshStations();
+    }
+
+    for (const spot of this.stations) {
+      const next = frame.states.get(spot.key);
+      if (next) spot.belt = next;
+    }
+
+    // **Der Zustand springt, das Bild nicht.** Logisch liegt das Ding die
+    // ganze Fahrt über auf seiner Ausgangskachel (siehe `advanceBelts`);
+    // gezeichnet wird es dazwischen. Gesetzt wird das **nach** den Übergaben,
+    // denn `layOn` stellt ein angekommenes Ding auf seine neue Kachel — und
+    // was gerade erst losgefahren ist, soll dort auch losfahren und nicht
+    // einen Bildmoment am alten Platz stehen.
+    for (const carry of frame.carry.values()) {
+      const from = this.stationByKey(carry.from);
+      const to = this.stationByKey(carry.to);
+      if (!from?.on || !to) continue;
+      from.on.object.position.lerpVectors(from.deck, to.deck, carry.t);
+    }
+  }
+
+  /** Eine Station an ihrem Anzeigenschlüssel — den vergibt `addStation`. */
+  private stationByKey(key: string): Station | null {
+    return this.stations.find((spot) => spot.key === key) ?? null;
   }
 
   /**
@@ -889,6 +1001,10 @@ export class KitchenZone implements TestZone {
     if (this.lifted) this.dropPiece(true);
     this.editing = false;
     this.spraying = false;
+    // Was unterwegs war, ist es nach dem Zurücksetzen nicht mehr: Eine
+    // Reservierung auf eine Kachel, auf der gleich wieder alles frisch liegt,
+    // sperrte sie für einen Handgriff, den niemand mehr erwartet.
+    this.beltNow = null;
     const loose = [this.carried, ...this.stations.map((spot) => spot.on)];
     this.carried = null;
     if (this.avatar) this.avatar.carry = null;
@@ -939,6 +1055,8 @@ export class KitchenZone implements TestZone {
     this.belts = null;
     this.jet?.dispose();
     this.jet = null;
+    this.buildButton?.dispose();
+    this.buildButton = null;
     this.stations.length = 0;
     this.furniture.length = 0;
     this.bodies.length = 0;
@@ -950,6 +1068,7 @@ export class KitchenZone implements TestZone {
     this.spraying = false;
     this.ticket = null;
     this.ticketLeft = 0;
+    this.beltNow = null;
     this.hidden = null;
     // Die Hände der Figur wieder freigeben — sie überlebt diese Zone.
     if (this.avatar) this.avatar.carry = null;
@@ -1199,15 +1318,15 @@ export class KitchenZone implements TestZone {
     const holder = new THREE.Group();
     holder.name = 'kitchen-icon-holder';
     holder.scale.setScalar(piece.built ? 1 : 1 / KITCHEN_SCALE);
-    // **Zweimal dasselbe Bild, oben und vorn** — weil man aus zwei Richtungen
-    // darauf schaut. Von oben (`core/TopDownCamera.ts`, die Hauptansicht am
-    // Schirm) sieht man von einem Möbel fast nur den Deckel; aus den Augen und
-    // in der Brille wiederum ist ein liegendes Schild ein Strich. Beide Tafeln
-    // bringen ihre **weiße Grundfläche** mit, die das aufgedruckte Symbol des
-    // gekauften Möbels überdeckt (`kitchenIcon.counterSign`) — sonst lägen
-    // zwei Burger übereinander, der gedruckte und der gebackene.
-    holder.add(oven.counterSign(texture, { piece, where: 'top' }));
-    holder.add(oven.counterSign(texture, { piece, where: 'front' }));
+    // **Einmal, oben.** Es war eine Weile zweimal dasselbe Bild, oben und
+    // vorn, und der Gedanke dahinter stimmte für sich: Von oben
+    // (`core/TopDownCamera.ts`, die Hauptansicht am Schirm) sieht man von einem
+    // Möbel fast nur den Deckel, aus den Augen vor allem die Front. Nur standen
+    // dann vier Ausgaben nebeneinander mit **acht** Bildern derselben vier
+    // Zutaten, und das vordere klemmte auf einem Möbel von 0,46 m zwischen zwei
+    // Leisten. Was oben liegt, ist ein Teller mit der Zutat darauf — das liest
+    // sich aus beiden Richtungen als Ausgabe (`kitchenIcon.counterSign`).
+    holder.add(oven.counterSign(texture, { piece }));
     model.add(holder);
   }
 
@@ -1387,6 +1506,17 @@ export class KitchenZone implements TestZone {
     const world = this.world;
     if (!world) return false;
     const deed = kitchenDeed(this.held(), facts(spot));
+    // **Eine Kachel, auf die gerade etwas zufährt, ist vergeben** — auch wenn
+    // sie leer aussieht (`kitchenBelt.beltBound`). Wer trotzdem etwas darauf
+    // legt, bekommt nichts Kaputtes: Das Ankommende bleibt kurz davor stehen
+    // und staut sich (`BELT_HOLD`). Nur ist ein Stau, den man selbst verursacht
+    // hat, ohne es zu sehen, kein gutes Spiel — also wird es gesagt, statt ihn
+    // hübsch aussehen zu lassen. Gilt nur fürs **Hinlegen**: Wer etwas
+    // aufnimmt oder zusammenlegt, macht die Kachel nicht voller, als sie ist.
+    if (deed.do === 'place' && this.beltNow && beltBound(this.beltNow, spot.key)) {
+      world.notify(`Auf ${spot.label} kommt gerade etwas an`);
+      return true;
+    }
     switch (deed.do) {
       case 'take': {
         const thing = this.pickUp(spot, deed.dish);
@@ -1730,43 +1860,70 @@ export class KitchenZone implements TestZone {
   // --- der Baumodus ----------------------------------------------------------
 
   /**
-   * **Der Schalter, der den Umbau anwirft** — ein Kasten an der Wand, und er
-   * ist selbst ein benutzbares Ding.
+   * **Der Knopf, der den Umbau anwirft** — derselbe große rote wie an den
+   * Effektquellen (`worlds/shared/redButton.ts`, `zones/effects.ts`).
    *
-   * „Ein Ingame-Button wie bei der Interaktion": also kein Menüeintrag und
-   * keine zweite Taste, sondern genau das, was diese Welt für „etwas tun" hat
-   * — hingehen, gelber Saum, `A` (`core/usable.ts`). Wer den Umbau sucht,
-   * findet ihn dort, wo er steht, statt in einer Liste.
+   * Vorher stand hier ein violetter Kasten auf Brusthöhe, und er stand genau
+   * auf der Kachel des Feuerlöscher-Hockers (x = 0, z = 9). Zwei Dinge auf
+   * einer Kachel heißt: `A` erwischt immer nur eines davon (`pickUsable`
+   * nimmt das Nächste), und das war der Kasten — der Löscher ließ sich nicht
+   * mehr abnehmen. Der Hocker ist deshalb an die Nordzeile neben den Herd
+   * gezogen (`kitchenPlan.KITCHEN_SPOTS`), und auf der frei gewordenen Kachel
+   * steht jetzt der Knopf, den diese Welt für „etwas auslösen" hat.
    *
-   * Er steht neben dem Eingang, auf der Kachel des Feuerlöscher-Hockers
-   * gegenüber: Wer hereinkommt, läuft daran vorbei.
+   * **Sein Schild sagt, was der Druck tut, und nicht, wo man ist**: _Küche
+   * umbauen_, solange gekocht wird, _Küche nutzen_, solange umgebaut wird. Ein
+   * Knopf, der in beiden Zuständen gleich heißt, ist ein Schalter, dessen
+   * Stellung man erraten muss.
+   *
+   * Er steht neben dem Eingang, mit dem Schild nach Süden zum Gang: Wer
+   * hereinkommt, läuft daran vorbei und liest es von vorn.
    */
-  private addLever(): void {
+  private addBuildButton(): void {
     const world = this.world;
-    if (!world) return;
-    const shape = new THREE.BoxGeometry(SWITCH_SIZE, SWITCH_SIZE, 0.08);
-    this.shapes.push(shape);
-    const lever = new THREE.Mesh(
-      shape,
-      this.own(new THREE.MeshStandardMaterial({ color: 0x9d7bff })),
+    if (!world || typeof document === 'undefined') return;
+    const button = buildRedButton({
+      title: BUILD_BUTTON_LABELS.off,
+      body: 'Möbel aufheben und neu hinstellen',
+    });
+    this.buildButton = button;
+    button.group.name = 'kitchen-build-button';
+    button.group.position.set(
+      (KITCHEN.x + BUILD_BUTTON_TILE.x + 0.5) * TILE,
+      KITCHEN_FLOOR,
+      (KITCHEN.z + BUILD_BUTTON_TILE.z + 0.5) * TILE,
     );
-    lever.name = 'kitchen-build-switch';
-    lever.position.set(
-      (KITCHEN.x + 0.5) * TILE,
-      KITCHEN_FLOOR + SWITCH_LIFT,
-      (KITCHEN.z + KITCHEN.d - 1.5) * TILE,
+    world.root.add(button.group);
+    button.group.updateWorldMatrix(true, true);
+    this.placed.push(button.group);
+    // **Durch die Säule läuft niemand.** Der violette Kasten vorher hing in
+    // der Luft und hatte nichts, wogegen man stoßen konnte; eine Säule, durch
+    // die man hindurchgeht, sieht dagegen kaputt aus. Der Teller misst 0,6 m
+    // (`shared/redButton.ts`), der Kasten misst genauso viel.
+    const block = this.boxAt(
+      0.6,
+      1.0,
+      0.6,
+      button.group.position.x,
+      KITCHEN_FLOOR,
+      button.group.position.z,
     );
-    lever.castShadow = true;
-    world.root.add(lever);
-    lever.updateWorldMatrix(true, false);
-    this.placed.push(lever);
+    world.root.add(block);
+    block.updateWorldMatrix(true, false);
+    this.placed.push(block);
+    this.bodies.push(world.addSolid(block));
     world.addUsable(
-      lever,
+      button.dome,
       {
-        use: () => this.toggleEdit(),
-        usePrompt: () => (this.editing ? 'Umbau beenden' : 'Küche umbauen'),
+        use: () => {
+          button.press();
+          return this.toggleEdit();
+        },
+        usePrompt: () => (this.editing ? BUILD_BUTTON_LABELS.on : BUILD_BUTTON_LABELS.off),
       },
-      { shot: 0 },
+      // Der Knopf ist so groß wie seine Kuppel, und getroffen werden darf er
+      // auch (Portal-Regel: was man drücken kann, kann man auch treffen).
+      { radius: BUTTON_DOME_R, shot: BUTTON_DOME_R },
     );
   }
 
@@ -1794,6 +1951,11 @@ export class KitchenZone implements TestZone {
       if (furnish.usable) world.removeUsable(furnish.usable);
       furnish.usable = null;
     }
+    // Das Schild geht mit: Es sagt, was der **nächste** Druck tut.
+    this.buildButton?.setTitle(
+      this.editing ? BUILD_BUTTON_LABELS.on : BUILD_BUTTON_LABELS.off,
+      this.editing ? 'Zurück ans Kochen' : 'Möbel aufheben und neu hinstellen',
+    );
     world.notify(this.editing ? 'Umbau: Möbel lassen sich tragen' : 'Umbau beendet');
     this.refreshStations();
     return true;

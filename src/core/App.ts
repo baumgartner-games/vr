@@ -66,15 +66,24 @@ import { BODY_LABELS, BODY_SUBS, HEAD_LABELS, HEAD_SUBS, nextBody, nextHead } fr
 import {
   GRAPHICS_MODE_LABELS,
   GRAPHICS_MODE_SUBS,
+  SCREEN_PADS_LABELS,
+  SCREEN_PADS_SUBS,
   XR_SCALE_LABELS,
   XR_SCALE_SUBS,
   clearGraphics,
   graphics,
   graphicsSummary,
   nextGraphicsMode,
+  nextScreenPads,
   nextXrScale,
   saveGraphics,
 } from './graphicsSettings';
+import {
+  fullscreenActive,
+  fullscreenSupported,
+  onFullscreenChange,
+  toggleFullscreen,
+} from './fullscreen';
 import type { FrameSample } from './FrameStats';
 import {
   DEFAULT_EYES,
@@ -259,6 +268,8 @@ export class App {
   private menuDirty = false;
   /** Die Bildraten-Zeile des Grafik-Menüs — nachgeschrieben, solange das Menü offen ist. */
   private fpsEntry: MenuEntry | null = null;
+  /** Dem Vollbild wieder zuhören aufhören — die Zeile darüber hängt daran (`fullscreenRow`). */
+  private stopFullscreenWatch: (() => void) | null = null;
   /** Dasselbe für die Zeile, die zeigt, was gerade am Pad anliegt (`inputsMenu`). */
   private liveInput: MenuEntry | null = null;
   /** Welche Zeile des Eingaben-Menüs gerade auf einen Druck wartet, wenn eine. */
@@ -406,6 +417,16 @@ export class App {
     this.keys = new KeyPanel();
     this.scene.add(this.keys);
     this.pointer.add(this.keys.asPointerTarget());
+
+    // **Vollbild endet auch, ohne dass jemand die Zeile gedrückt hat**: `Esc`,
+    // die Systemtaste eines Fernsehers, der Knopf oben rechts. Die Zeile im
+    // Grafik-Menü sagt den Stand und nicht den letzten Klick, also wird sie
+    // danach neu gebaut (`fullscreenRow`).
+    if (typeof document !== 'undefined') {
+      this.stopFullscreenWatch = onFullscreenChange(document, () => {
+        this.menuDirty = true;
+      });
+    }
 
     // Der Hut sitzt sofort und bleibt sitzen: Wer ihn im Menü wechselt, sieht
     // ihn im Spiegel und die anderen im selben Augenblick.
@@ -818,6 +839,8 @@ export class App {
   dispose(): void {
     this.renderer.setAnimationLoop(null);
     window.removeEventListener('resize', this.onResize);
+    this.stopFullscreenWatch?.();
+    this.stopFullscreenWatch = null;
     this.renderer.xr.removeEventListener('sessionstart', this.onSessionStart);
     this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd);
     this.unloadWorld();
@@ -1639,6 +1662,24 @@ export class App {
           },
         },
         {
+          // **Wann die Stöcke auf dem Glas liegen** (`index.html`, `#touch`).
+          // Die Zeile stellt nur die Frage; die Antwort rechnet
+          // `core/screenPads.ts`, und angewendet wird sie in `main.ts` — auch
+          // sofort, denn `saveGraphics` sagt allen Bescheid, die zuhören.
+          id: 'gfx:screen-pads',
+          label: `Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[settings.screenPads]}`,
+          sub: SCREEN_PADS_SUBS[settings.screenPads],
+          caption: 'Automatisch → An → Aus · in der Brille und in eigenen Welten nie',
+          icon: 'settings',
+          accent,
+          run: () => {
+            const next = saveGraphics({ screenPads: nextScreenPads(graphics().screenPads) });
+            this.menuDirty = true;
+            this.notify(`Bildschirm-Steuerung: ${SCREEN_PADS_LABELS[next.screenPads]}`);
+          },
+        },
+        ...this.fullscreenRow(accent),
+        {
           id: 'gfx:reset',
           label: 'Zurück auf Einfach',
           sub: 'Das Bild, das dieses Projekt immer hatte',
@@ -1652,6 +1693,50 @@ export class App {
         },
       ],
     };
+  }
+
+  /**
+   * **Vollbild als Zeile im Menü** — keine Einstellung, sondern eine Handlung.
+   *
+   * Die beiden Knöpfe dafür gibt es längst (`index.html`, `#landing-full` und
+   * `#hud-full`), und trotzdem fehlte etwas: Auf einem Telefon im Querformat
+   * ist der Streifen mit dem Knopf genau das, was die Adresszeile verdeckt, und
+   * wer das Menü offen hat, sucht nicht nach einem Knopf darunter. Dieselbe
+   * Handlung steht deshalb auch hier — und damit in der Brille und auf der
+   * Seite gleich, weil beide denselben Baum zeichnen.
+   *
+   * **Nichts davon liegt im Speicher.** Vollbild ist ein Zustand des Browsers,
+   * kein Wert: `Esc` beendet es, die Systemtaste eines Fernsehers auch, und ein
+   * gemerktes „ja" könnte beim nächsten Laden niemand einlösen — eine
+   * Vollbildanfrage braucht eine frische Geste. Die Zeile liest deshalb jedes
+   * Mal den Stand und beschriftet sich danach.
+   *
+   * **Wo der Browser es nicht erlaubt, steht die Zeile gar nicht erst da** —
+   * dieselbe Entscheidung wie bei den zwei Knöpfen: Eine Zeile, die eine
+   * Fähigkeit behauptet und nichts tut, ist schlimmer als keine.
+   */
+  private fullscreenRow(accent: number): MenuEntry[] {
+    const doc = typeof document === 'undefined' ? null : document;
+    if (!doc || !fullscreenSupported(doc, doc.documentElement)) return [];
+    const on = fullscreenActive(doc);
+    return [
+      {
+        id: 'gfx:fullscreen',
+        label: on ? 'Vollbild beenden' : 'Vollbild',
+        sub: on
+          ? 'Zurück zum Fenster · Esc tut dasselbe'
+          : 'Adresszeile und Systemleiste weg — ein Fünftel der Fläche mehr',
+        caption: 'Kein gespeicherter Wert · gilt für dieses Fenster, bis es jemand beendet',
+        icon: 'settings',
+        accent,
+        checked: on,
+        run: () => {
+          void toggleFullscreen(doc, doc.documentElement).then(() => {
+            this.menuDirty = true;
+          });
+        },
+      },
+    ];
   }
 
   /**

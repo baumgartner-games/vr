@@ -237,7 +237,7 @@ export class KitchenGauges {
     }
     if (bar.tone !== tone) {
       bar.tone = tone;
-      bar.fill.material = this.skin(`fill:${tone}`, TONE_COLOR[tone], 1);
+      bar.fill.material = this.skin(`fill:${tone}`, TONE_COLOR[tone], 1, false, true);
     }
     this.place(bar.group, at);
     // `NaN` käme aus einer Uhr, die noch nie gelaufen ist; ein Balken, dessen
@@ -410,7 +410,7 @@ export class KitchenGauges {
 
     const track = new THREE.Mesh(
       this.shape('quad', () => new THREE.PlaneGeometry(1, 1)),
-      this.skin('track', DARK, 0.85),
+      this.skin('track', DARK, 0.85, false, true),
     );
     track.scale.set(BAR_WIDTH + 2 * BAR_EDGE, BAR_HEIGHT + 2 * BAR_EDGE, 1);
     quiet(track);
@@ -420,7 +420,7 @@ export class KitchenGauges {
       // der Anteil eine Zahl in `scale.x` und nicht zwei (Breite und
       // Verschiebung), die beim nächsten Umbau auseinanderlaufen.
       this.shape('quad-left', () => new THREE.PlaneGeometry(1, 1).translate(0.5, 0, 0)),
-      this.skin('fill:cook', TONE_COLOR.cook, 1),
+      this.skin('fill:cook', TONE_COLOR.cook, 1, false, true),
     );
     fill.position.set(-BAR_WIDTH / 2, 0, 0.003);
     fill.scale.set(BAR_WIDTH, BAR_HEIGHT, 1);
@@ -440,7 +440,7 @@ export class KitchenGauges {
     group.name = 'kitchen-gauge-warn';
 
     const quad = this.shape('quad', () => new THREE.PlaneGeometry(1, 1));
-    const ink = this.skin('warn:ink', DARK, 1);
+    const ink = this.skin('warn:ink', DARK, 1, false, true);
     const triangle = this.shape('triangle', makeTriangle);
 
     // Der dunkle Grund steht ringsum über und ist der Grund, aus dem das
@@ -449,7 +449,7 @@ export class KitchenGauges {
     back.scale.setScalar(WARN_SIZE * 1.16);
     quiet(back);
 
-    const front = new THREE.Mesh(triangle, this.skin('warn:face', WARN_RED, 1));
+    const front = new THREE.Mesh(triangle, this.skin('warn:face', WARN_RED, 1, false, true));
     front.scale.setScalar(WARN_SIZE);
     front.position.z = 0.003;
     quiet(front);
@@ -538,7 +538,13 @@ export class KitchenGauges {
    * lässt unbeleuchtete Materialien in Ruhe (`core/graphicsScene.ts`), also
    * bekommt kein Balken einen schwarzen Saum um sich.
    */
-  private skin(key: string, color: number, opacity: number, glow = false): THREE.MeshBasicMaterial {
+  private skin(
+    key: string,
+    color: number,
+    opacity: number,
+    glow = false,
+    front = false,
+  ): THREE.MeshBasicMaterial {
     let skin = this.skins.get(key);
     if (!skin) {
       skin = new THREE.MeshBasicMaterial({
@@ -547,6 +553,20 @@ export class KitchenGauges {
         opacity,
         toneMapped: false,
         depthWrite: false,
+        // **`front` zeichnet vor dem Möbel, nicht darin.** Ein Balken schwebt
+        // eine Handbreit über der Platte (`GAUGE_LIFT`) — und genau dort steht
+        // auch das, worüber er etwas sagt: die Pfanne mit dem Patty darin, das
+        // Brötchen auf dem Brett. Von schräg oben schneidet er sie, und man
+        // sah einen halben Balken hinter einem Patty. Ohne Tiefenprüfung liegt
+        // er **vor** dem Ding, zu dem er gehört, und ist ganz zu lesen; der
+        // `renderOrder` aus `quiet` sorgt dafür, dass er dabei über dem Möbel
+        // landet und nicht über der nächsten Anzeige.
+        //
+        // Nur für die flachen Anzeigen, die zur Kamera schauen. Die **Flammen**
+        // bleiben mit Tiefenprüfung: Sie sind Kegel im Raum, und ein Feuer, das
+        // durch die Wand des Nachbarraums leuchtet, ist ein Fehler und kein
+        // Hinweis.
+        depthTest: !front,
         // Von beiden Seiten: Wer von hinten an einen Herd tritt, soll nicht vor
         // einem unsichtbaren Balken stehen.
         side: THREE.DoubleSide,

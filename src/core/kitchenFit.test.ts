@@ -2,6 +2,7 @@ import {
   KITCHEN_NAMES,
   KITCHEN_PIECES,
   KITCHEN_SCALE,
+  PAN_BOWL,
   kitchenDeck,
   kitchenPiece,
 } from './kitchenFit';
@@ -260,6 +261,58 @@ describe('der Möbelkatalog', () => {
     const gap = front('counter') - front('board') + az;
     expect(gap).toBeCloseTo(2 * az, 2);
     expect(board.tiles).toEqual(counter.tiles);
+  });
+
+  /**
+   * **Auf dem Schneidebrett liegt das Essen auf dem Brett und nicht auf dem
+   * Messer.**
+   *
+   * `height` ist hier die Spitze des Hackmessers (Quelle 1,148 → 0,574 m);
+   * ohne eigenen `deck`-Eintrag wurde genau dorthin abgelegt, und ein
+   * Salatkopf schwebte 3,7 cm über dem Brett. Die drei Höhen des Möbels stehen
+   * in der Quelle und sind hier nachgerechnet:
+   *
+   * - Korpus bis 1,000 → **0,500 m**, und das ist auf den Millimeter die
+   *   Oberkante der Küchenzeile daneben — die Möbel fluchten also bereits.
+   * - Brett darauf bis 1,065 → **0,5326 m**, gerundet die 0,533 des Katalogs.
+   * - Messer bis 1,148 → 0,574 m.
+   */
+  it('legt aufs Schneidebrett und nicht aufs Messer', () => {
+    const board = kitchenPiece('board')!;
+    const counter = kitchenPiece('counter')!;
+    // Das Brett liegt auf der Arbeitsplatte, also über ihr — und um genau
+    // seine eigene Dicke (0,067 in der Quelle, halbiert 3,3 cm).
+    expect(kitchenDeck(board) - counter.height).toBeCloseTo(0.033, 2);
+    // Und deutlich unter der Messerspitze, die `height` ist.
+    expect(kitchenDeck(board)).toBeLessThan(board.height);
+    expect(board.height - kitchenDeck(board)).toBeCloseTo(0.041, 2);
+    // Die Korpusse selbst sind gleich hoch — beide 1,000 in der Quelle.
+    expect(SOURCE['board']![1] * KITCHEN_SCALE).toBeCloseTo(0.575, 3);
+    expect(SOURCE['counter']![1] * KITCHEN_SCALE).toBe(counter.height);
+  });
+
+  /**
+   * **Die Mulde der Pfanne liegt nicht in der Mitte der Pfanne.**
+   *
+   * Der Stiel zieht die Hülle zur Seite, und der Ursprung der abgenommenen
+   * Pfanne sitzt in der Mitte dieser Hülle (`core/kitchenModel.takeUtensil`).
+   * `PAN_BOWL` ist der gemessene Abstand von dort zur Mulde — siehe die
+   * Rechnung an der Konstanten.
+   */
+  it('setzt den Belag der Pfanne in die Mulde und nicht auf den Stiel', () => {
+    const [x, z] = PAN_BOWL;
+    // Der Stiel steht mittig in x — dort ist nichts auszugleichen.
+    expect(x).toBe(0);
+    // Und er zeigt nach Süden, der Ausgleich also nach Norden.
+    expect(z).toBeLessThan(0);
+    // (1,2198 + (−0,9372)) / 2 = +0,1413 ist die Mitte der Hülle,
+    // −0,9372 + 1,2560 / 2 = −0,3092 die der Mulde; halbiert bleiben −0,225 m.
+    const hull = (1.2198 + -0.9372) / 2;
+    const bowl = -0.9372 + 1.256 / 2;
+    expect(z).toBeCloseTo((bowl - hull) * KITCHEN_SCALE, 3);
+    // Und der Versatz bleibt innerhalb der Pfanne: Ihr Halbmesser ist
+    // 1,256 / 2 halbiert, also 0,314 m.
+    expect(Math.abs(z)).toBeLessThan((1.256 / 2) * KITCHEN_SCALE);
   });
 
   /**
