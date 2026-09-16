@@ -10,6 +10,8 @@ import { USE_REACH } from '../../../core/usable';
 import { TILE } from '../../nav/navTile';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
 import type { PlayerAvatar } from '../../../core/PlayerAvatar';
+import type { PlayerRig } from '../../../core/PlayerRig';
+import { kitchenEyeScale, onPostureChange } from '../../../core/posture';
 import type { WorldContext } from '../../../core/types';
 import { TextPlane } from '../../../ui/TextPlane';
 import { KITCHEN } from '../layout';
@@ -52,6 +54,7 @@ import {
   KITCHEN_SPOTS,
   TURN_LABELS,
   footprint,
+  inKitchen,
   stationKind,
   type Spot,
   type Turn,
@@ -476,7 +479,26 @@ interface Carried {
  */
 export class KitchenZone implements TestZone {
   private world: ZoneHost | null = null;
-  private rig: THREE.Object3D | null = null;
+  /**
+   * Das Gestell des Spielers — Träger für alles, was er in der Hand hält, und
+   * seit der Küchen-Augenhöhe auch das Ding, dessen `eyeScale` diese Zone
+   * setzt (`fitEyes`). Deshalb steht hier `PlayerRig` und nicht `Object3D`:
+   * Ein Rig, das beim Verlassen der Welt noch gestaucht wäre, nähme die
+   * Küche in die nächste mit.
+   */
+  private rig: PlayerRig | null = null;
+  /**
+   * **Der Maßstab, auf den die Küche die Augenhöhe bringt** — einmal gerechnet
+   * und nicht sechzigmal in der Sekunde.
+   *
+   * `posture.kitchenEyeScale` liest den `localStorage` und parst JSON; je Bild
+   * wäre das ein Dateizugriff für eine Zahl, die sich nur ändert, wenn jemand
+   * im Menü daran dreht. Genau dafür gibt es den Melder (`onPostureChange`),
+   * und genau so machen es Menü und Eingaberaum auch.
+   */
+  private eyeScale = 1;
+  /** Den Melder wieder abbestellen — sonst hält er die Zone am Leben. */
+  private offEyes: (() => void) | null = null;
   /**
    * Die Figur des Spielers — sie hält die Hände unter das Getragene
    * (`PlayerAvatar.carry`).
@@ -560,6 +582,15 @@ export class KitchenZone implements TestZone {
     this.rig = ctx.rig;
     this.avatar = ctx.avatar;
     this.gone = false;
+    // Die Augenhöhe der Küche jetzt holen und danach nur noch, wenn jemand
+    // sie verstellt (`fitEyes`). Erst abbestellen, dann anmelden: Ein zweites
+    // `build` ohne `dispose` dazwischen hinterließe sonst einen Melder, den
+    // niemand mehr los wird.
+    this.offEyes?.();
+    this.eyeScale = kitchenEyeScale();
+    this.offEyes = onPostureChange(() => {
+      this.eyeScale = kitchenEyeScale();
+    });
     this.gauges = new KitchenGauges(world.root);
     this.belts = new BeltKit();
     this.jet = new SprayJet(world.root);
@@ -611,6 +642,7 @@ export class KitchenZone implements TestZone {
    */
   update(dt: number, ctx: WorldContext): void {
     this.aim(ctx);
+    this.fitEyes(ctx);
     this.runBelts(dt);
     this.cook(dt);
     this.spray(dt, ctx);
@@ -647,6 +679,41 @@ export class KitchenZone implements TestZone {
     const flat = Math.hypot(wanted.x, wanted.z);
     if (flat > 1e-4) _aim.set(wanted.x / flat, 0, wanted.z / flat);
     else _aim.copy(_rigAhead).setY(0);
+  }
+
+  /**
+   * **Wie groß der Spieler in dieser Küche ist** — und nur in ihr, und nur in
+   * der Brille.
+   *
+   * Die Küche ist **mit Absicht zu klein**: Die Möbel sind halbiert
+   * (`core/kitchenFit.KITCHEN_SCALE`), die Arbeitsplatten liegen auf einem
+   * halben Meter, und die Kochfigur, die dazwischen steht, ist 1,60 m hoch mit
+   * Augen auf 0,91 m (`core/chefFit.ts`). Wer dort mit seiner echten
+   * Augenhöhe von 1,65 m steht, schaut steil auf eine Puppenstube herab — die
+   * Zahlen stimmen alle, der Blick stimmt nicht. Also wird in der Küche der
+   * **Spieler** kleiner und nicht die Küche größer: `PlayerRig.eyeScale`
+   * staucht ihn auf die eingestellte Augenhöhe (`posture.kitchenEyeScale`,
+   * voreingestellt 140 cm), die Füße bleiben auf dem Boden, und das Bücken
+   * bleibt ein Bücken.
+   *
+   * **Drei Bedingungen, und alle drei stehen in einer Zeile:**
+   *
+   * - **In der Brille** (`xr.isPresenting`). Am Bildschirm setzt das Spiel die
+   *   Kamera selbst; dort gibt es keine echte Augenhöhe, die danebenliegen
+   *   könnte.
+   * - **Nicht von oben** (`ctx.topDown`). Die Ansicht von oben hängt an keiner
+   *   Kopfhöhe, und eine gestauchte Figur wäre dort ein Rätsel.
+   * - **In der Küche** (`kitchenPlan.inKitchen`) — das Rechteck aus
+   *   `layout.KITCHEN` und nichts sonst. Gokart, Schießstand, Kletterwand und
+   *   jede andere Welt sehen nie etwas anderes als 1.
+   *
+   * Zurückgesetzt wird jedes Bild, in dem eine davon nicht gilt: Ein Feld, das
+   * nur gesetzt und nie gelöscht wird, ist ein Spieler, der nach dem
+   * Verlassen der Küche einen Viertelmeter zu klein bleibt.
+   */
+  private fitEyes(ctx: WorldContext): void {
+    const inside = ctx.renderer.xr.isPresenting && !ctx.topDown && inKitchen(_feet.x, _feet.z);
+    ctx.rig.eyeScale = inside ? this.eyeScale : 1;
   }
 
   /**
@@ -1272,6 +1339,14 @@ export class KitchenZone implements TestZone {
     if (this.avatar) this.avatar.carry = null;
     this.avatar = null;
     this.world = null;
+    // Und die Augenhöhe: Sie gehört der Küche, nicht dem Spieler. `standUp`
+    // beim Weltwechsel räumt sie zwar ohnehin weg (`core/PlayerRig.ts`), aber
+    // eine Zone, die sich darauf verlässt, dass jemand anders hinter ihr
+    // aufräumt, ist genau die, die beim nächsten Umbau einen gestauchten
+    // Spieler im Gokart sitzen lässt.
+    this.offEyes?.();
+    this.offEyes = null;
+    if (this.rig) this.rig.eyeScale = 1;
     this.rig = null;
   }
 

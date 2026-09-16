@@ -1,5 +1,5 @@
 import type { GridPlan } from '../../grid/gridPlan';
-import { DIR_E, DIR_N, DIR_W } from '../../nav/navTile';
+import { DIR_E, DIR_N, DIR_W, TILE } from '../../nav/navTile';
 import { KITCHEN_PIECES, kitchenPiece, type KitchenPiece } from '../../../core/kitchenFit';
 import { KITCHEN } from '../layout';
 import type { KitchenItem, StationKind } from './kitchenCarry';
@@ -392,6 +392,42 @@ const FURNITURE_COST = 8;
 
 /** Wo die Oberkante des Küchenbodens liegt — knapp über dem Gelände. */
 export const KITCHEN_FLOOR = 0.02;
+
+/**
+ * **Wie weit vor der Küche ihre Augenhöhe schon gilt**, in Metern.
+ *
+ * Die Küche ist nach Süden offen — dort geht man hinein (`stampKitchen`), und
+ * dort steht auch die Grenze, an der der Spieler in der Brille um einen
+ * Viertelmeter absackt (`kitchen.ts`, `fitEyes`). Ohne diesen Meter fiele das
+ * genau in dem Schritt an, mit dem man durch die Öffnung tritt: ein Sacken des
+ * Bodens, während man vorwärts geht. Einen Meter davor beginnt es, und in der
+ * Türöffnung ist es vorbei.
+ *
+ * Ein Meter und nicht mehr: Nach Süden liegt das Podest (`layout.PODIUM`) mit
+ * zwei Kacheln Abstand, und eine Küche, deren Regeln bis unter das Geländer
+ * des Nachbarn reichten, wäre eine unsichtbare Stufe mitten im Weg.
+ */
+export const KITCHEN_EYE_MARGIN = 1;
+
+/**
+ * **Ob ein Punkt in der Küche steht** — in Weltmetern, waagerecht.
+ *
+ * Hier hängt „Küche" für alles, was nur dort gelten soll: die eigene
+ * Augenhöhe des Spielers in der Brille (`kitchen.ts`, `fitEyes`). Eine
+ * Rechnung und keine zweite Liste von Zahlen — das Rechteck steht in
+ * `layout.KITCHEN` und nirgendwo sonst.
+ *
+ * Die Höhe zählt nicht mit: Die Küche hat keine zweite Etage, und ein Spieler,
+ * der über ihr fliegt, ist ein Spieler im Sonderfall einer anderen Welt.
+ */
+export function inKitchen(x: number, z: number, margin = KITCHEN_EYE_MARGIN): boolean {
+  return (
+    x >= KITCHEN.x * TILE - margin &&
+    x <= (KITCHEN.x + KITCHEN.w) * TILE + margin &&
+    z >= KITCHEN.z * TILE - margin &&
+    z <= (KITCHEN.z + KITCHEN.d) * TILE + margin
+  );
+}
 
 /**
  * **Wie diese Drehung heißt** — für den Satz, den der Umbau sagt, wenn jemand

@@ -1,7 +1,14 @@
 import * as THREE from 'three';
 import type { Handedness, XRInput } from './XRInput';
 import { FreeLocomotion, type Locomotion } from './Locomotion';
-import { STANDING_EYE, eyeHeights, playerPosture, seatedLift, type Posture } from './posture';
+import {
+  EYE_SCALE_RANGE,
+  STANDING_EYE,
+  eyeHeights,
+  playerPosture,
+  seatedLift,
+  type Posture,
+} from './posture';
 import {
   forwardOfYaw,
   newWalkFrame,
@@ -106,6 +113,29 @@ export class PlayerRig extends THREE.Group {
    * und dazwischen bewegt sich nichts mehr.
    */
   seatHeight = seatedLift();
+  /**
+   * **Auf welchen Bruchteil seiner eigenen Augenhöhe eine Welt den Spieler
+   * gerade herunterrechnet** — 1 heißt: unverändert, und das ist überall so
+   * außer dort, wo eine Welt es ausdrücklich anders sagt.
+   *
+   * Es gibt dafür genau einen Anlass, und der ist ein Raum, der **mit Absicht
+   * zu klein gebaut ist**: die Küche der Testwelt. Ihre Möbel sind auf eine
+   * Kochfigur von 1,60 m zugeschnitten, ihre Arbeitsplatten liegen auf einem
+   * halben Meter (`core/kitchenFit.ts`), und ein Spieler mit seiner echten
+   * Augenhöhe schaut von oben in eine Puppenstube. Die Küche setzt das Feld
+   * deshalb jedes Bild (`worlds/test/zones/kitchen.ts`, `fitEyes`) — und nur
+   * in der Brille, nur innerhalb ihres Rechtecks.
+   *
+   * **Gestaucht wird und nicht verschoben.** Das Rig sinkt um einen Betrag,
+   * der mit der Kopfhöhe mitgeht, nicht um einen festen: Wer sich bückt,
+   * kommt dabei weiterhin bis auf den Boden, statt eine feste Handbreit
+   * darunter zu verschwinden. Die Begründung im Langen steht bei
+   * `posture.kitchenEyeScale`.
+   *
+   * Die Füße bleiben, wo sie sind — dasselbe Versprechen wie beim Ducken und
+   * bei der Sitz-Anhebung, eingelöst von `getFloorY()`.
+   */
+  eyeScale = 1;
 
   locomotion: Locomotion = new FreeLocomotion();
   /**
@@ -160,6 +190,15 @@ export class PlayerRig extends THREE.Group {
    * exact mirror image of `crouchOffset`: the rig goes up, the feet stay put.
    */
   private seatLift = 0;
+  /**
+   * Wie weit die Stauchung (`eyeScale`) das Rig gerade absenkt, in Metern.
+   *
+   * Die dritte in der Reihe nach `crouchOffset` und `seatLift`, und sie wird
+   * genauso geführt: Das Rig geht nach unten, die Füße bleiben oben. Negativ
+   * ist erlaubt und heißt „angehoben" — ein sehr kleiner Spieler wird in der
+   * Küche auf die eingestellte Höhe **hoch**gerechnet.
+   */
+  private squashOffset = 0;
 
   constructor(
     private readonly renderer: THREE.WebGLRenderer,
@@ -297,7 +336,10 @@ export class PlayerRig extends THREE.Group {
 
   /** Eye height above the floor — crouching makes the body shorter, not lower. */
   getHeadHeight(): number {
-    return Math.max(0.6, this.camera.position.y - this.crouchOffset + this.seatLift);
+    return Math.max(
+      0.6,
+      this.camera.position.y - this.crouchOffset + this.seatLift - this.squashOffset,
+    );
   }
 
   /**
@@ -306,12 +348,20 @@ export class PlayerRig extends THREE.Group {
    * `position.y`.
    */
   getFloorY(): number {
-    return this.position.y + this.crouchOffset - this.seatLift;
+    return this.position.y + this.crouchOffset + this.squashOffset - this.seatLift;
   }
 
   /** How far the view is currently dropped below the standing pose. */
   get crouch(): number {
     return this.crouchOffset;
+  }
+
+  /**
+   * Wie weit die Stauchung der Augenhöhe das Rig gerade absenkt, in Metern —
+   * 0, solange `eyeScale` bei 1 steht, also überall außer in der Küche.
+   */
+  get squash(): number {
+    return this.squashOffset;
   }
 
   /**
@@ -339,9 +389,13 @@ export class PlayerRig extends THREE.Group {
     this.locked = false;
     this.useCandidate = false;
     this.sprintScale = 1;
-    this.position.y -= this.crouchOffset - this.seatLift;
+    // Die Stauchung gehört der Welt, die man gerade verlässt (`eyeScale`) —
+    // wer sie mitnähme, stünde in der nächsten einen Viertelmeter zu tief.
+    this.position.y -= this.crouchOffset - this.seatLift - this.squashOffset;
     this.crouchOffset = 0;
     this.seatLift = 0;
+    this.squashOffset = 0;
+    this.eyeScale = 1;
     this.crouchWanted = false;
     this.sprintWanted = false;
     this.updateMatrixWorld(true);
@@ -419,8 +473,13 @@ export class PlayerRig extends THREE.Group {
     // out. The seat used to be missing here, and a sitting player was set
     // `seatLift` below every point he was moved to: knee-deep in the floor
     // after the safety locker, the round start and even the rescue button.
+    //
+    // Die Stauchung der Küche (`eyeScale`) zählt hier mit und aus demselben
+    // Grund: Sie senkt das Rig wie das Ducken, und ein Spieler, der mitten in
+    // der Küche versetzt wird, soll mit den Füßen auf dem Punkt landen und
+    // nicht einen Viertelmeter darunter.
     this.position.copy(position);
-    this.position.y += this.seatLift - this.crouchOffset;
+    this.position.y += this.seatLift - this.crouchOffset - this.squashOffset;
     this.quaternion.setFromEuler(_euler.set(0, yaw, 0));
     this.updateMatrixWorld(true);
   }
@@ -496,6 +555,13 @@ export class PlayerRig extends THREE.Group {
         if (this.useCandidate) this.useWanted = true;
         else this.intentJump = true;
       }
+    } else {
+      // **Am Bildschirm wird nicht gestaucht.** Von oben und aus den Augen
+      // sitzt die Kamera dort, wo das Spiel sie hinsetzt, und keine Welt
+      // korrigiert eine Brille, die gar nicht auf ist. Was in der Brille an
+      // Stauchung übrig war, geht auf demselben Weg zurück, auf dem es
+      // gekommen ist — sonst bliebe das Rig nach dem Absetzen abgesenkt.
+      this.updateSquash(dt, 1);
     }
 
     // Was die Welt nach diesem Bild über den Wunsch wissen darf (Puste):
@@ -576,6 +642,11 @@ export class PlayerRig extends THREE.Group {
     this.updateSeatLift(dt);
 
     this.updateCrouch(dt);
+
+    // Zuletzt, und das ist keine Geschmacksfrage: Die Stauchung rechnet auf
+    // der Augenhöhe **dieses** Bildes, und zu der gehören Sitz-Anhebung und
+    // Ducken. Andersherum stauchte sie das Bild von gestern.
+    this.updateSquash(dt, this.eyeScale);
   }
 
   private updateCrouch(dt: number): void {
@@ -610,6 +681,47 @@ export class PlayerRig extends THREE.Group {
     );
     this.seatLift += step;
     this.position.y += step;
+    this.updateMatrixWorld(true);
+  }
+
+  /**
+   * **Die Stauchung der Augenhöhe** (`eyeScale`) — das Rig sinkt, die Füße
+   * bleiben.
+   *
+   * Der Betrag ist ein **Anteil der gerade gültigen Augenhöhe** und keine
+   * feste Zahl, und daran hängt das Ganze: Gestaucht wird der Abstand zum
+   * Boden, also bleibt der Boden der Boden. Wer sich in der Küche bückt, um
+   * etwas aufzuheben, landet anteilig tiefer — und nie unter dem Estrich, wie
+   * es eine feste Absenkung täte, sobald der Kopf tiefer käme als sie selbst.
+   *
+   * Dass die Kopfhöhe dabei **jedes Bild gemessen** wird, ist hier richtig und
+   * bei der Sitz-Anhebung falsch (`updateSeatLift`): Dort wäre ein Vorbeugen
+   * im Sessel ein Wandern der ganzen Welt; hier ist es eine gleichmäßige
+   * Stauchung, die aus einer Bewegung des Kopfes eine etwas kleinere Bewegung
+   * macht — und aus dem Rauschen des Sensors ein um ein Sechstel kleineres.
+   *
+   * Die Rampe ist dieselbe wie beim Ducken: Das Betreten der Küche liest sich
+   * damit als Sacken des Körpers und nicht als Sprung des Bodens.
+   */
+  private updateSquash(dt: number, scale: number): void {
+    const factor = THREE.MathUtils.clamp(
+      Number.isFinite(scale) ? scale : 1,
+      EYE_SCALE_RANGE.min,
+      EYE_SCALE_RANGE.max,
+    );
+    // Die **ungestauchte** Augenhöhe dieses Bildes: genau das, was
+    // `getHeadHeight` ohne diese Rechnung zurückgäbe. Unter null gibt es sie
+    // nicht — ein Kopf unter dem Boden wäre sonst eine Anhebung.
+    const eye = Math.max(0, this.camera.position.y + this.seatLift - this.crouchOffset);
+    const target = eye * (1 - factor);
+    if (Math.abs(target - this.squashOffset) < 1e-4) return;
+    const step = THREE.MathUtils.clamp(
+      target - this.squashOffset,
+      -this.crouchSpeed * dt,
+      this.crouchSpeed * dt,
+    );
+    this.squashOffset += step;
+    this.position.y -= step;
     this.updateMatrixWorld(true);
   }
 }

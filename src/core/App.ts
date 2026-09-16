@@ -88,6 +88,7 @@ import type { FrameSample } from './FrameStats';
 import {
   DEFAULT_EYES,
   EYE_RANGE,
+  KITCHEN_EYE_RANGE,
   eyeHeights,
   saveEyeHeights,
   savePlayerPosture,
@@ -1350,6 +1351,13 @@ export class App {
    * liegt. Also zwei eigene Zahlen — und weil eine Augenhöhe etwas ist, das
    * die Brille besser weiß als der Mensch darin, gibt es zu jeder ein
    * **Jetzt messen**: hinstellen, drücken, fertig.
+   *
+   * **Die dritte Zahl misst niemand** — sie ist ein Wunsch und kein Körpermaß:
+   * aus welcher Höhe man in der **Küche** schauen will. Die Küche ist mit
+   * Absicht klein gebaut (`core/kitchenFit.ts`), und wer dort mit seinen
+   * echten 1,65 m steht, schaut auf eine Puppenstube herab. Deshalb steht sie
+   * ohne *Jetzt messen* hier — die Brille kann zu ihr nichts beitragen — und
+   * mit einem eigenen, engeren Bereich (`KITCHEN_EYE_RANGE`).
    */
   private eyeMenu(): MenuEntry {
     const rig = this.rig;
@@ -1362,23 +1370,31 @@ export class App {
       this.menuDirty = true;
     };
 
-    const step = (key: 'stand' | 'sit', title: string, sub: string): MenuEntry[] => [
-      {
-        id: `move:eye-${key}`,
-        label: `${title}: ${eyeHeights()[key]} cm`,
-        sub: `${sub} · ${EYE_RANGE.min} bis ${EYE_RANGE.max} cm · +5 pro Druck`,
-        icon: 'settings',
-        accent,
-        run: () => {
-          const now = eyeHeights()[key];
-          // Oben angekommen wieder unten anfangen: eine Raste, die am Ende
-          // stehen bleibt, lässt einen die ganze Reihe rückwärts suchen.
-          const next = now + 5 > EYE_RANGE.max ? EYE_RANGE.min : now + 5;
-          const values = saveEyeHeights({ [key]: next });
-          apply();
-          this.notify(`${title}: ${values[key]} cm`);
-        },
+    /** Eine Raste in Fünferschritten — mit dem Bereich, der zu ihr gehört. */
+    const knob = (
+      key: keyof ReturnType<typeof eyeHeights>,
+      title: string,
+      sub: string,
+      range: { min: number; max: number } = EYE_RANGE,
+    ): MenuEntry => ({
+      id: `move:eye-${key}`,
+      label: `${title}: ${eyeHeights()[key]} cm`,
+      sub: `${sub} · ${range.min} bis ${range.max} cm · +5 pro Druck`,
+      icon: 'settings',
+      accent,
+      run: () => {
+        const now = eyeHeights()[key];
+        // Oben angekommen wieder unten anfangen: eine Raste, die am Ende
+        // stehen bleibt, lässt einen die ganze Reihe rückwärts suchen.
+        const next = now + 5 > range.max ? range.min : now + 5;
+        const values = saveEyeHeights({ [key]: next });
+        apply();
+        this.notify(`${title}: ${values[key]} cm`);
       },
+    });
+
+    const step = (key: 'stand' | 'sit', title: string, sub: string): MenuEntry[] => [
+      knob(key, title, sub),
       {
         id: `move:eye-${key}-measure`,
         label: `${title} jetzt messen`,
@@ -1402,16 +1418,17 @@ export class App {
     return {
       id: 'move:eyes',
       label: 'Augenhöhe',
-      sub: `Stehend ${eyeHeights().stand} cm · sitzend ${eyeHeights().sit} cm`,
+      sub: `Stehend ${eyeHeights().stand} cm · sitzend ${eyeHeights().sit} cm · Küche ${eyeHeights().kitchen} cm`,
       icon: 'settings',
       accent,
       children: [
         ...step('stand', 'Stehend', 'Augen über dem Zimmerboden, aufrecht'),
         ...step('sit', 'Sitzend', 'Dasselbe im Sessel'),
+        knob('kitchen', 'In der Küche', 'Nur in der Brille, nur in der Küche', KITCHEN_EYE_RANGE),
         {
           id: 'move:eye-reset',
           label: 'Augenhöhen zurücksetzen',
-          sub: `Zurück auf ${DEFAULT_EYES.stand} und ${DEFAULT_EYES.sit} cm`,
+          sub: `Zurück auf ${DEFAULT_EYES.stand}, ${DEFAULT_EYES.sit} und ${DEFAULT_EYES.kitchen} cm`,
           icon: 'reset',
           accent: 0xffc857,
           run: () => {
