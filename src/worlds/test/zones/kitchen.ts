@@ -44,6 +44,8 @@ import {
 import { DIRTY_STACK_MAX, FoodKit } from './kitchenProps';
 import { GAUGE_LIFT, KitchenGauges, WARN_LIFT } from './kitchenGauge';
 import { IconOven } from './kitchenIcon';
+import { buildKitchenNotice } from './kitchenNotice';
+import type { SignBoard } from '../../signs/SignBoard';
 import {
   BUILD_BUTTON_TILE,
   KITCHEN_FLOOR,
@@ -526,6 +528,8 @@ export class KitchenZone implements TestZone {
   private editing = false;
   /** Der rote Knopf, der ihn umlegt (`addBuildButton`). */
   private buildButton: RedButton | null = null;
+  /** Der Aushang an der Nordwand (`kitchenNotice.ts`) — eine Tafel, die hängt. */
+  private notice: SignBoard | null = null;
   /**
    * **Was die Bänder in diesem Bild gerechnet haben** (`runBelts`).
    *
@@ -573,6 +577,9 @@ export class KitchenZone implements TestZone {
       if (model) this.place(model, piece, spot, () => null);
     }
     this.addBuildButton();
+    // Der Aushang an der Nordwand: dieselbe Wand, an der die Zeile steht, und
+    // die einzige, deren Innenseite die Kamera von oben ansieht.
+    this.notice = buildKitchenNotice(world.root);
 
     // Dieselbe Frage wie bei der Figur, und aus demselben Grund: `GLTFLoader`
     // und `import.meta` bringen einen Jest-Lauf zum Stehen, also wird das
@@ -1246,6 +1253,8 @@ export class KitchenZone implements TestZone {
     this.jet = null;
     this.buildButton?.dispose();
     this.buildButton = null;
+    this.notice?.dispose();
+    this.notice = null;
     this.stations.length = 0;
     this.furniture.length = 0;
     this.bodies.length = 0;
@@ -2079,8 +2088,9 @@ export class KitchenZone implements TestZone {
    * Knopf, der in beiden Zuständen gleich heißt, ist ein Schalter, dessen
    * Stellung man erraten muss.
    *
-   * Er steht neben dem Eingang, mit dem Schild nach Süden zum Gang: Wer
-   * hereinkommt, läuft daran vorbei und liest es von vorn.
+   * Er steht neben dem Eingang, zum Gang hin: Wer hereinkommt, läuft daran
+   * vorbei. Sein Schild sieht dabei die Kamera an (`ui/billboard.ts`) und
+   * nicht den Gang — von oben stand es sonst quer im Bild.
    */
   private addBuildButton(): void {
     const world = this.world;

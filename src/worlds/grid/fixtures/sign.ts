@@ -13,7 +13,6 @@ import {
   type FixtureInput,
   type FixtureKind,
   type FixturePlacement,
-  type FixtureSpot,
   type FixtureView,
 } from './index';
 
@@ -28,11 +27,17 @@ import {
  * Satz, und ein Wegweiser mit drei Zielen, eine Hausordnung oder die Regeln
  * eines Spiels passten gar nicht.
  *
- * **Und die Tafel dreht sich zum Spieler.** Sie stand nach der Richtung, in
- * der sie gesetzt wurde, und das ist genau die falsche Regel für die Ansicht,
- * in der hier gespielt wird: Von schräg oben ist eine Tafel, die nach Süden
- * schaut, ein Strich. Jetzt schaut sie dorthin, wo der Kopf ist
- * (`FixtureView.face`) — der Pfosten bleibt, wo er steht.
+ * **Und die Tafel sieht die Kamera an**, aus der gerade gezeichnet wird
+ * (`ui/billboard.faceCamera`) — der Pfosten bleibt, wo er steht. Sie stand
+ * zuerst nach der Richtung, in der sie gesetzt wurde, und das ist genau die
+ * falsche Regel für die Ansicht, in der hier gespielt wird: Von schräg oben
+ * ist eine Tafel, die nach Süden schaut, ein Strich. Danach drehte sie sich
+ * zum **Kopf des Spielers**, und das war nur fast richtig: In der Ansicht von
+ * oben steht die Kamera woanders als der Kopf, also drehte sich jedes Schild
+ * mit der Figur mit statt zum Bild — wer sich einmal um sich selbst drehte,
+ * sah seinen Wegweiser einmal um sich selbst kippen. Ausgerichtet wird
+ * deshalb beim **Zeichnen**, je Kamera: von oben zur Kamera von oben, samt
+ * ihrer Neigung, in der Brille zum Auge.
  *
  * Seine ganze Logik sind weiterhin zwei Zeilen: Wer es benutzt, hat es einmal
  * mehr gelesen. Dass daraus eine Seite wird, passiert im Bild (`apply`) und
@@ -65,10 +70,6 @@ export function signMarkdown(place: FixturePlacement): boolean {
 /** Das Bild dazu — ein Pfosten, ein Brett, und das Brett kann Text. */
 interface SignView extends FixtureView {
   board: TextPlane;
-  /** Wo die Tafel in der Welt hängt — sie dreht sich um diesen Punkt. */
-  at: THREE.Vector3;
-  /** Wie weit ihre Gruppe schon gedreht ist; die Tafel dreht dagegen. */
-  yaw: number;
 }
 
 /** Wie hoch das Brett hängt und wie breit es ist. */
@@ -134,23 +135,20 @@ export const SIGN: FixtureKind<SignState> = {
       title: signSummary(text, 48) || 'Schild',
       align: 'center',
       accent: SIGN.accent,
+      // Die eine Zeile, die aus dem Pfosten einen Wegweiser macht: Die Tafel
+      // sieht die Kamera an, aus der gezeichnet wird — von oben also die
+      // Kamera von oben, und weil sie sich dabei auch zurücklehnt, liest man
+      // sie dort ganz statt als Strich.
+      face: true,
     });
     const lift = POST_H + BOARD_W * 0.21;
     board.position.set(0, lift, edge + 0.05);
     group.add(board);
 
     ctx.group.add(group);
-    const at = new THREE.Vector3(ctx.at.x, ctx.at.y + lift, ctx.at.z);
-    // Die Tafel hängt am Pfosten und nicht in der Kachelmitte; ohne diesen
-    // Versatz drehte sie sich um einen Punkt, an dem sie gar nicht steht.
-    at.x += Math.sin(yaw) * edge;
-    at.z += Math.cos(yaw) * edge;
     const view: SignView = {
       object: group,
       board,
-      at,
-      yaw,
-      face: (head: FixtureSpot) => faceViewer(board, at, yaw, head),
       dispose: () => board.dispose(),
     };
     return view;
@@ -159,28 +157,8 @@ export const SIGN: FixtureKind<SignState> = {
   /**
    * **Nichts.** Ein Schild hat kein Bild, das sich mit seinem Zustand ändert:
    * Was es sagt, sagt es beim Lesen, und das ist ein Ereignis (`step`). Die
-   * eine Bewegung, die es macht, ist die Drehung zum Betrachter, und die hängt
-   * am Kopf des Spielers und nicht am Zustand (`FixtureView.face`).
+   * eine Bewegung, die es macht, ist die Drehung zur Kamera, und die hängt an
+   * der Tafel selbst und nicht am Zustand (`ui/billboard.faceCamera`).
    */
   apply(): void {},
 };
-
-/**
- * **Die Tafel dreht sich zum Kopf** — um die Hochachse und sonst nirgendwohin.
- *
- * Nur um y: Eine Tafel, die sich auch nach oben neigt, kippt von oben gesehen
- * flach auf den Boden, und das ist genau die Ansicht, für die das hier gemacht
- * ist. Gerechnet wird gegen die Drehung ihrer Gruppe, damit ein Schild an der
- * Ostwand nicht um neunzig Grad danebensteht.
- */
-function faceViewer(
-  board: THREE.Object3D,
-  at: THREE.Vector3,
-  yaw: number,
-  head: FixtureSpot,
-): void {
-  const dx = head.x - at.x;
-  const dz = head.z - at.z;
-  if (dx === 0 && dz === 0) return;
-  board.rotation.y = Math.atan2(dx, dz) - yaw;
-}

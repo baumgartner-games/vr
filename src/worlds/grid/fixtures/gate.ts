@@ -1,14 +1,5 @@
-import * as THREE from 'three';
 import { TILE } from '../../nav/navTile';
-import {
-  GATE_FACES,
-  GATE_WIDTH,
-  buildGate,
-  gateFloorSign,
-  layFlatNorthUp,
-  spinGate,
-  type Gate,
-} from '../../hub/gate';
+import { GATE_FACES, GATE_WIDTH, buildGate, spinGate, type Gate } from '../../hub/gate';
 import {
   fixtureYaw,
   goto,
@@ -98,12 +89,11 @@ export function gateLabel(place: FixturePlacement): string {
 }
 
 /**
- * Das Bild dazu: das Tor selbst, die flache Tafel auf dem Podest — und die
- * Nummer, damit nicht alle Ringe im Gleichschritt drehen.
+ * Das Bild dazu: das Tor selbst — und die Nummer, damit nicht alle Ringe im
+ * Gleichschritt drehen.
  */
 interface GateView extends FixtureView {
   gate: Gate;
-  floor: THREE.Object3D & { dispose(): void };
   index: number;
 }
 
@@ -169,26 +159,19 @@ export const GATE: FixtureKind<GateState> = {
     // eines Tages anders bemisst, soll hier nichts suchen müssen.
     group.scale.setScalar(TILE / GATE_WIDTH);
 
-    // Die flache Tafel liegt vorn auf dem Podest und liest nach Norden oben,
-    // egal wohin das Tor schaut — das ist die Ansicht _Von oben_.
-    const floor = gateFloorSign(label, accent);
-    floor.position.set(0, 0.13, 0.28);
-    layFlatNorthUp(floor, yaw);
-    group.add(floor);
+    // Hier lag die flache Tafel auf dem Podest, weil das aufrechte Schild der
+    // Kamera von oben je nach Torrichtung den Rücken zeigte. Das tut es nicht
+    // mehr: Es richtet sich beim Zeichnen aus (`hub/gate.ts`, `ui/billboard.ts`).
 
     ctx.group.add(group);
     const view: GateView = {
       object: group,
       gate,
-      floor,
       // Aus der Kachel und nicht aus einem Zähler: Zwei Tore nebeneinander
       // sollen verschieden wirbeln, und dieselbe Welt soll das jedes Mal
       // gleich tun.
       index: Math.abs(place.x + place.z) % 2,
-      dispose: () => {
-        gate.sign.dispose();
-        floor.dispose();
-      },
+      dispose: () => gate.sign.dispose(),
     };
     return view;
   },

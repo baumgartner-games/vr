@@ -227,7 +227,22 @@ export interface FixtureReach {
   half?: number;
 }
 
-/** Was beim Bauen herauskommt. */
+/**
+ * **Was beim Bauen herauskommt.**
+ *
+ * **Und was es hier nicht mehr gibt: „dreh dich zum Spieler".** Es stand
+ * einmal ein `face(head)` darin, jedes Bild gerufen, und das **Schild** war
+ * seine einzige Kundschaft (`fixtures/sign.ts`). Es war der halbe Weg: Eine
+ * Tafel, die dem Kopf folgt, steht in der Ansicht von oben zur **Figur**
+ * gedreht und nicht zur **Kamera** — sie dreht sich also mit, sobald sich die
+ * Figur dreht, statt stehen zu bleiben und lesbar zu sein.
+ *
+ * Wer sich zum Betrachter drehen will, hängt sich das beim Bauen selbst an
+ * (`ui/billboard.faceCamera`, `TextPlaneOptions.face`): Ausgerichtet wird dort
+ * beim **Zeichnen** und damit je Kamera — am Schirm die von oben, in der
+ * Brille je Auge. Kein Einbau muss dafür je Bild etwas tun, und `step` bleibt
+ * ohne three.js prüfbar.
+ */
 export interface FixtureView {
   /** Das Bild — hängt in der Gruppe der Welt und wird beim Umbau weggeräumt. */
   object?: THREE.Object3D | null;
@@ -252,19 +267,6 @@ export interface FixtureView {
    * seinen Türblättern heute schon (`slidingDoor.ts`).
    */
   solids?: readonly PlanSolid[];
-  /**
-   * **Jedes Bild: wo der Kopf des Spielers gerade steht**, in Weltmetern.
-   *
-   * Für alles, was sich zum Betrachter dreht. Genau eine Art braucht es
-   * bisher, und sie ist der Grund: Ein **Schild** an einer Wand ist von der
-   * Seite ein Strich, und von oben — der Ansicht, in der hier gespielt wird —
-   * ist eine Tafel, die nach Süden schaut, schlicht nicht zu lesen. Eine
-   * Tafel, die sich mitdreht, ist immer zu lesen.
-   *
-   * Sie steht in der **Ansicht** und nicht in `step`: Eine Drehung ist Bild
-   * und kein Zustand, und `step` soll ohne three.js prüfbar bleiben.
-   */
-  face?(head: FixtureSpot): void;
   /** Was beim Abräumen freizugeben ist, wenn `object` dafür nicht reicht. */
   dispose?(): void;
 }

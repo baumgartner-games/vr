@@ -241,6 +241,10 @@ export class EditorWorld extends GridWorld {
       title: 'Bauplatz',
       body: 'Karte von der Hüfte ziehen. Eine Hand trägt, zwei drehen und zoomen.',
       accent: 0x39d0ff,
+      // Freistehend in der Luft und deshalb zur Kamera gedreht
+      // (`ui/billboard.ts`): Wer von oben baut, soll es lesen können, ohne
+      // sich davorzustellen.
+      face: true,
     });
     // Ein paar Schritte vor dem Startzimmer und nicht mehr zwölfeinhalb Meter
     // davor: Das Zimmer misst acht Meter, und ein Schild dahinter stünde in

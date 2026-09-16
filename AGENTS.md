@@ -1091,7 +1091,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Möbel mit einem Zeigerziel daran: Man **geht hindurch**, statt darauf zu
   zeigen. Wer auf seine Kachel tritt und vier Zehntelsekunden stehen bleibt,
   ist drüben. Das Bild dazu — Podest, Ring in der Akzentfarbe, wirbelnde
-  Scheibe, Schild — steht in `hub/gate.ts`, weil die Werkzeugseite dasselbe
+  Scheibe, Schild (das sich zur Kamera dreht, siehe _Was die Kamera ansieht_) —
+  steht in `hub/gate.ts`, weil die Werkzeugseite dasselbe
   Tor zeigt; dort steht es frei und in voller Größe, auf einer Kachel ein
   Sechstel kleiner, damit sein Sockel nicht in die Nachbarkachel ragt. Was
   hinter einem Tor liegt, trägt `HubWorld` beim Bauen aus `WORLDS` ein und
@@ -2113,7 +2114,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     ganzen Osten bis zum Kugelfang laufen und eine Küche in der Schusslinie
     eine Küche mit Löchern ist. Ihr Schild ist zugleich die Probe auf den
     **Aushang**: Es trägt Überschrift, Aufzählung und Zitat, und wer es
-    benutzt, schlägt es im Menü auf.
+    benutzt, schlägt es im Menü auf. An der **Nordwand** hängt dazu die
+    **große Tafel** (`zones/kitchenNotice.ts`): 2,4 × 1,8 m, Markdown nicht im
+    Menü, sondern gesetzt an der Wand — Überschriften, Aufzählung, Trennlinie,
+    Zitat, Code. Sie dreht sich **nicht** mit (siehe _Was die Kamera ansieht_):
+    Ein Text an einer Wand ist ein Gemälde. Die Nordwand ist dafür die
+    richtige, weil die Kamera von oben aus dem Süden schaut — an der Westwand
+    hinge derselbe Aushang für diesen Blick hochkant.
   - **Portaltafeln**: drei helle Tafeln — am Startplatz, auf dem Podest und an
     der Westwand der Navigation. Drei und nicht eine, weil ein Portal erst zu
     zweit etwas ist; die auf dem Podest ist der kürzeste Weg, die Treppe zu
@@ -2508,7 +2515,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   anderen da sind; sie mitzuschreiben hieße, dass ein längst abgeräumtes Schild
   beim nächsten Besuch wieder an der Wand hängt. Schilder, die zu einer **Welt**
   gehören (eine Galerie, die zum Aufbau zählt), gehören niemandem: feste Kennung,
-  nicht gespeichert, nicht verschickt — jeder baut dieselbe Halle.
+  nicht gespeichert, nicht verschickt — jeder baut dieselbe Halle. Die Tafel
+  kann darüber hinaus **ohne Traggriffe** gebaut werden (`handles: false`) — für
+  eine, die angeschraubt ist und nicht mitgenommen wird, wie der Aushang an der
+  Küchenwand (`worlds/test/zones/kitchenNotice.ts`): Zwei türkise Griffe sagen
+  in diesem Spiel „hier anfassen", und das ist ein Versprechen.
 - **Tastatur des Geräts** (`src/core/systemKeyboard.ts`): In der Brille kann
   eine Texteingabe die **Systemtastatur** anfordern — der Meta-Quest-Browser
   blendet seine eigene ein, sobald in einer laufenden WebXR-Sitzung ein
@@ -4804,6 +4815,21 @@ stand vorher in `worlds/test/zones/kitchenGauge.ts` und hätte beim nächsten
 Schild ein zweites Mal dagestanden — ein Ding, das der Kamera zugewandt stehen
 will, ist keine Küchenfrage.
 
+**Zur Kamera heißt: parallel zum Bild** — und nicht „mit der Nase auf die
+Linse". Der Unterschied fällt erst am Rand des Bildes auf, und dort sofort. Ein
+Schild, das auf die **Stelle** zielt, an der die Kamera steht, behält seine
+Hochachse in der senkrechten Ebene durch Schild und Kamera; bei einer Kamera,
+die von schräg oben blickt, steht die umso schiefer im Bild, je weiter das
+Schild neben der Blickachse liegt. Von oben lagen die Beschriftungen des
+Küchenkatalogs damit wie hingeworfen — jede in einem anderen Winkel, keine
+davon waagerecht. Gerechnet wird deshalb aus der **Rückachse der Kamera**
+(ihrem +Z, also der Richtung, in der der Betrachter hinter der Linse sitzt):
+Das Schild bekommt genau die Neigung und das Gieren, aus denen die Kamera
+schaut. Alle Schilder im Bild stehen damit gleich, alle Zeilen waagerecht,
+keine verkürzt. Die **Rolle** der Kamera wird dabei nicht übernommen — wer in
+der Brille den Kopf zur Seite legt, soll ein Schild sehen, das steht, und
+keines, das mitkippt.
+
 **Ausgerichtet wird beim Zeichnen, nicht im `update`**, und das ist der
 eigentliche Punkt. Eine Welt bekommt in `update` genau **eine** Kamera gereicht
 (`WorldContext.camera`), und das ist die aus den Augen; der Tausch auf die
@@ -4840,6 +4866,40 @@ Drei Fallen stecken darin, und alle drei sind teuer bezahlt:
   Balken aber wie ein Schild über der Pfanne aussehen und nicht wie einen
   Aufkleber in der Luft. `upright` gibt es dazu für Schilder, die senkrecht
   stehen sollen: nur gieren, nicht neigen.
+
+**Was sich dreht und was hängt.** Die Regel dazu ist eine Zeile, und sie gilt
+in jeder Welt: **Alles, was frei im Raum steht und Auskunft gibt, sieht die
+Kamera an — Text an einer Wand nicht.** Ein Schild am Pfosten
+(`grid/fixtures/sign.ts`), die Tafel über dem roten Knopf
+(`shared/redButton.ts`), das Schild am Tor (`hub/gate.ts`), die Beschriftung
+eines Schaustücks, der Zielmast der Navigation, der Name über einem leeren Kart,
+die Balken und Warndreiecke der Küche: alle mit `face`. Ein **Aushang an der
+Wand** dagegen ist ein Gemälde und bleibt, wo er hängt
+(`worlds/test/zones/kitchenNotice.ts`); dasselbe gilt für Beschriftungen, die
+zu einem Gerät gehören — das Schild im Armaturenbrett des Karts, die Tasten
+einer Bedientafel, die Mulde der Palette, das HUD auf dem Glas — und für die
+Aufschrift über der Mündung des Hub-Gangs, die zur Wand gehört und nicht in
+den Gang.
+
+Zwei Umwege sind dieser Regel zum Opfer gefallen, und beide sind es wert,
+aufgeschrieben zu bleiben:
+
+- **Die zweite, flache Tafel auf dem Torpodest** ist weg (`hub/gate.ts`). Sie
+  lag waagerecht auf dem Sockel und las nach Norden oben, weil das aufrechte
+  Schild je nach Torrichtung der Kamera von oben den Rücken zeigte. Das
+  aufrechte zu neigen schien ausgeschlossen: Es stünde dann gegen sein eigenes
+  Tor verdreht, von innen ein schief hängendes Brett. Der Denkfehler war,
+  Ausrichtung für etwas zu halten, das **einmal** in der Szene steht — sie
+  passiert je Kamera, und der Spieler in der Brille bekommt dasselbe Schild zu
+  **seinem** Auge gedreht, während es am Schirm daneben zur Kamera von oben
+  steht.
+- **`FixtureView.face(head)` gibt es nicht mehr** (`grid/fixtures/index.ts`).
+  Ein Einbau bekam damit je Bild den Kopf des Spielers gereicht und drehte sich
+  danach; das **Schild** war die einzige Kundschaft. Es war der halbe Weg: Eine
+  Tafel, die dem Kopf folgt, steht in der Ansicht von oben zur **Figur** gedreht
+  und nicht zur **Kamera** — sie dreht sich also mit, sobald sich die Figur
+  dreht. Genau das war zu sehen: Wer sich einmal um sich selbst drehte, sah
+  seinen Wegweiser einmal um sich selbst kippen.
 
 Angehängt wird **einmal beim Bauen** und nicht je Bild; abgemeldet werden muss
 nichts, weil der Handler am Objekt lebt und mit ihm verschwindet
@@ -4989,7 +5049,8 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenProps.ts` | `FoodKit`: aus einem Gericht wird ein Netz |
 | `zones/kitchenIcon.ts` | der Ofen, der aus einer Zutat eine Textur backt |
 | `zones/kitchenGauge.ts` | Balken, Warndreieck und Flammen über den Stationen |
-| `ui/billboard.ts` | `faceCamera`: was Auskunft gibt, sieht die Kamera an |
+| `zones/kitchenNotice.ts` | der Aushang an der Nordwand: Markdown, gesetzt an der Wand |
+| `ui/billboard.ts` | `faceCamera`: was Auskunft gibt, steht parallel zum Bild |
 
 Die jüngsten sechs kamen mit dem Geschirr, den Gästen, dem Band, dem Löscher
 und dem Umbau dazu, und jede ist aus demselben Grund eine **eigene** Datei: Sie
@@ -8383,10 +8444,13 @@ Drei Feinheiten stecken darin:
 
 - **Auf der Tafel steht die erste Zeile**, nicht der ganze Aushang
   (`signSummary`). Sie ist ein Wegweiser und keine Wand voller Text.
-- **Die Tafel dreht sich zum Spieler** (`FixtureView.face`, gerufen von
-  `stepFixtures` mit dem Kopf). Von schräg oben — der Ansicht, in der hier
-  gespielt wird — ist eine Tafel, die nach Süden schaut, ein Strich. Gedreht
-  wird nur um die Hochachse und nur die **Tafel**; der Pfosten bleibt, wo er
+- **Die Tafel sieht die Kamera an** (`TextPlaneOptions.face`, `ui/billboard.ts`)
+  — und zwar die, aus der gerade gezeichnet wird. Von schräg oben ist eine
+  Tafel, die nach Süden schaut, ein Strich; und eine, die sich zum **Kopf**
+  dreht (so war es davor, `FixtureView.face`), dreht sich in der Ansicht von
+  oben mit der Figur mit statt zum Bild. Ausgerichtet wird deshalb beim
+  Zeichnen, samt Neigung — von oben liest man die ganze Tafel, in der Brille
+  steht sie zum Auge. Gedreht wird nur die **Tafel**; der Pfosten bleibt, wo er
   steht.
 - **Aufgeschlagen wird ein Bild später** (`GridWorld.openReading`).
   `WorldContext.refreshWorldMenu` merkt sich nur, dass der Baum neu zu bauen

@@ -168,6 +168,12 @@ export class Kart extends THREE.Group {
       body: `${preset.tagline} · A zum Einsteigen`,
       accent: preset.color,
       align: 'center',
+      // It hangs over the kart, so it turns with it — and a kart parked
+      // nose-out showed its label edge-on to anyone looking from above. It
+      // faces the drawing camera instead (`ui/billboard.ts`); the dashboard
+      // sign a few lines up does not, because that one belongs to the kart
+      // the way a gauge belongs to a dashboard.
+      face: true,
     });
     this.hover.position.set(0, 1.5, 0);
     this.add(this.hover);

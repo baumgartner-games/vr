@@ -21,6 +21,22 @@ import * as THREE from 'three';
  * daneben sieht es zu sich gedreht, während es am Schirm zur Kamera von oben
  * steht.
  *
+ * **Zur Kamera heißt: parallel zum Bild** — und nicht „mit der Nase auf die
+ * Linse". Das ist ein Unterschied, den man erst am Rand des Bildes sieht, und
+ * dort sieht man ihn sofort. Ein Schild, das auf die **Stelle** zielt, an der
+ * die Kamera steht, dreht sich für jeden Standort ein bisschen anders: Seine
+ * Hochachse bleibt in der senkrechten Ebene durch Schild und Kamera, und die
+ * steht bei einer Kamera, die von schräg oben blickt, umso schiefer im Bild,
+ * je weiter das Schild neben der Blickachse steht. Von oben lagen die
+ * Beschriftungen des Küchenkatalogs damit wie hingeworfen — jede in einem
+ * anderen Winkel, keine davon waagerecht. Gerechnet wird deshalb aus der
+ * **Rückachse der Kamera** (ihrem +Z): Das Schild bekommt genau die Neigung
+ * und das Gieren, aus denen die Kamera schaut, steht also parallel zu ihrer
+ * Bildebene — alle Schilder im Bild gleich ausgerichtet, alle Zeilen
+ * waagerecht, keine verkürzt. Eine Rolle der Kamera wird dabei **nicht**
+ * übernommen: Wer in der Brille den Kopf zur Seite legt, soll ein Schild
+ * sehen, das an der Wand bleibt, und keines, das mitkippt.
+ *
  * **Was three dabei nicht tut**: `onBeforeRender` ruft der Renderer nur für
  * Dinge, die er wirklich zeichnet (`Mesh`, `Line`, `Points`, `Sprite`) — eine
  * `Group` bekommt ihn nie. Ein Balken ist aber eine Gruppe aus Grund und
@@ -35,20 +51,18 @@ import * as THREE from 'three';
 /**
  * **Wie weit sich ein Schild mindestens zurücklehnt**, im Bogenmaß (30°).
  *
- * Ein Schild, das seiner Kamera genau ins Gesicht sieht, ist nie verkürzt —
- * das erledigt die Ausrichtung beim Zeichnen von selbst. Der Mindestwinkel
- * regelt den anderen Fall: eine Kamera **auf oder unter** der Höhe des
- * Schildes. Dort stünde es bolzengerade oder kippte sogar nach vorn und zeigte
- * seine Rückseite nach oben — und diese Welt sieht fast immer von oben auf ihre
- * Küche.
+ * Ein Schild, das parallel zum Bild steht, ist nie verkürzt — das erledigt die
+ * Ausrichtung beim Zeichnen von selbst. Der Mindestwinkel regelt den anderen
+ * Fall: eine Kamera, die **waagerecht oder nach oben** schaut. Dort stünde das
+ * Schild bolzengerade oder kippte sogar nach vorn und zeigte seine Rückseite
+ * nach oben — und diese Welt sieht fast immer von oben auf ihre Küche.
  *
- * 30° sind dafür das gute Maß: Die Kamera von oben steht 55° über der
- * Waagerechten (`core/topDownPose.TOP_DOWN_TILT`), liegt also über dem
- * Mindestwert und bekommt ihren echten Winkel — das Schild sieht sie genau an.
- * Aus den Augen (0,914 m, `core/chefFit.CHEF_EYE`) steht die Kamera kaum über
- * einem Balken auf 0,85 m; dort greift die Mindestneigung, und 30° zurück sind
- * auf zwei Meter Abstand kaum von „genau angesehen" zu unterscheiden
- * (cos 30° = 0,87) — dafür sieht der Balken aus wie ein Schild über der Pfanne
+ * 30° sind dafür das gute Maß: Die Kamera von oben blickt 55° nach unten
+ * (`core/topDownPose.TOP_DOWN_TILT`), liegt also über dem Mindestwert und
+ * bekommt ihren echten Winkel — das Schild steht genau parallel zu ihrem Bild.
+ * Aus den Augen schaut man dagegen ungefähr geradeaus; dort greift die
+ * Mindestneigung, und 30° zurück sind kaum von „senkrecht" zu unterscheiden
+ * (cos 30° = 0,87) — dafür sieht ein Balken aus wie ein Schild über der Pfanne
  * und nicht wie ein Aufkleber in der Luft.
  */
 export const BILLBOARD_LEAN_MIN = (30 * Math.PI) / 180;
@@ -56,7 +70,7 @@ export const BILLBOARD_LEAN_MIN = (30 * Math.PI) / 180;
 export interface BillboardOptions {
   /**
    * Mindest-Neigung; Vorgabe `BILLBOARD_LEAN_MIN`. 0 gibt die Kamera
-   * unverfälscht wieder — und lässt ein Schild vor einer tiefer stehenden
+   * unverfälscht wieder — und lässt ein Schild vor einer nach oben blickenden
    * Kamera senkrecht stehen, statt es nach vorn zu kippen.
    */
   readonly leanMin?: number;
@@ -68,11 +82,16 @@ export interface BillboardOptions {
  * **Die reine Rechnung**: Gieren und Neigen, damit ein Test sie ohne Szene
  * nachrechnen kann.
  *
- * `dx`/`dy`/`dz` zeigen vom Schild zur Kamera, **im Raum des Elternteils** —
- * dort gilt auch die Drehung, die dabei herauskommt. `fallbackYaw` ist das
- * Gieren, das bleiben soll, wenn es keines mehr gibt: Steht die Kamera
- * **senkrecht** über dem Schild, ist jede Richtung gleich richtig, und ein
- * Schild, das dann auf den kleinsten Rechenfehler hin herumspringt, ist
+ * `dx`/`dy`/`dz` sind die **Rückachse der Kamera** (ihr +Z, also die Richtung,
+ * in der der Betrachter hinter der Linse sitzt), **im Raum des Elternteils** —
+ * dort gilt auch die Drehung, die dabei herauskommt. Genau dorthin zeigt
+ * danach die Vorderseite des Schildes, und damit steht es **parallel zum Bild**
+ * statt bloß auf die Kamera zu zielen; warum das der Unterschied zwischen
+ * lesbar und schief ist, steht oben im Kopf dieser Datei.
+ *
+ * `fallbackYaw` ist das Gieren, das bleiben soll, wenn es keines mehr gibt:
+ * Schaut die Kamera **senkrecht** nach unten, ist jede Richtung gleich richtig,
+ * und ein Schild, das dann auf den kleinsten Rechenfehler hin herumspringt, ist
  * schlimmer als eines, das stehen bleibt.
  *
  * @returns `pitch` und `yaw`, wie sie in `rotation` gehören (Ordnung `YXZ`);
@@ -115,17 +134,16 @@ export function faceCamera(object: THREE.Object3D, options?: BillboardOptions): 
   object.rotation.order = 'YXZ';
 
   const aim = (camera: THREE.Camera): void => {
-    // Die Kamera in den Raum des Elternteils holen — die Drehung, die gleich
-    // gesetzt wird, gilt in genau diesem Raum.
-    camera.getWorldPosition(_eye);
-    object.parent?.worldToLocal(_eye);
-    const { yaw, pitch } = billboardAngles(
-      _eye.x - object.position.x,
-      _eye.y - object.position.y,
-      _eye.z - object.position.z,
-      object.rotation.y,
-      options,
-    );
+    // **Die Rückachse der Kamera**, nicht die Strecke zu ihr hin: ihr +Z, also
+    // die Richtung, in der der Betrachter sitzt. Und sie kommt in den Raum des
+    // Elternteils — die Drehung, die gleich gesetzt wird, gilt in genau diesem
+    // Raum. `transformDirection` nimmt dafür nur die obere 3×3-Ecke: Eine
+    // Richtung hat keinen Ort, den man verschieben könnte.
+    _axis.setFromMatrixColumn(camera.matrixWorld, 2);
+    const parent = object.parent;
+    if (parent) _axis.transformDirection(_inverse.copy(parent.matrixWorld).invert());
+    else _axis.normalize();
+    const { yaw, pitch } = billboardAngles(_axis.x, _axis.y, _axis.z, object.rotation.y, options);
     object.rotation.set(pitch, yaw, 0);
     // **Diese Zeile ist die halbe Miete.** three hat die Matrizen der Szene
     // vor dem Zeichnen längst gebaut; wer hier nur `rotation` setzt, sieht die
@@ -176,4 +194,5 @@ const FACING = 'billboard';
 const NO_HANDLER = function () {};
 
 /** Einer für alle: Wer je Bild einen Vektor baut, baut je Bild einen Vektor. */
-const _eye = new THREE.Vector3();
+const _axis = new THREE.Vector3();
+const _inverse = new THREE.Matrix4();

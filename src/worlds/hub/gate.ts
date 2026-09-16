@@ -117,7 +117,23 @@ export function buildGate(title: string, description: string, accent: number): G
   disc.position.y = 1.15;
   group.add(disc);
 
-  const sign = new TextPlane({ width: 0.95, height: 0.31, title, body: description, accent });
+  // **Das Schild sieht die Kamera an** (`ui/billboard.ts`) und nicht mehr
+  // dorthin, wohin sein Tor gedreht wurde. Ein Tor steht in vier möglichen
+  // Richtungen, die Kamera von oben aber immer im Süden: Jedes zweite Tor
+  // zeigte ihr die Rückseite seines Schildes. Dagegen lag hier lange eine
+  // zweite, flache Tafel auf dem Podest — zwei Tafeln mit demselben Wort, von
+  // denen je nach Ansicht eine falsch stand. Eine Tafel, die sich beim
+  // Zeichnen ausrichtet, ist in **jeder** Ansicht die richtige: Am Schirm
+  // steht sie zur Kamera von oben, in der Brille zum Auge, und schief hängt
+  // sie in keiner von beiden.
+  const sign = new TextPlane({
+    width: 0.95,
+    height: 0.31,
+    title,
+    body: description,
+    accent,
+    face: true,
+  });
   sign.position.set(0, SIGN_Y, 0.02);
   group.add(sign);
 
@@ -148,45 +164,25 @@ export function spinGate(gate: Gate, time: number, index = 0): void {
 }
 
 /**
- * **Das flache Schild auf dem Podest** — das, was man _von oben_ liest.
+ * **Hier lag einmal ein zweites, flaches Schild auf dem Podest** — das, was
+ * man _von oben_ las, samt `layFlatNorthUp`, das es waagerecht und nach Norden
+ * ausgerichtet hinlegte.
  *
- * Die Ansicht _Von oben_ schaut aus fester Richtung schräg von Süden auf die
- * Szene (`core/topDownPose.ts`), das Tor aber steht in vier möglichen
- * Richtungen: Wer nach Norden schaut, zeigt der Kamera die Rückseite seines
- * Schildes. Zwei Auswege standen zur Wahl, und dieser ist der, der in der
- * Brille nichts kaputt macht. Das aufrechte Schild zur Kamera zu **neigen**
- * hieße, es gegen sein eigenes Tor zu verdrehen — von innen sähe man ein
- * schief hängendes Brett. Ein **zweites, flaches** Schild dagegen liegt einfach
- * da: von oben lesbar, von unten ein Streifen auf dem Podest.
+ * Es war der Ausweg aus einer Zwickmühle: Die Ansicht _Von oben_ schaut aus
+ * fester Richtung schräg von Süden auf die Szene (`core/topDownPose.ts`), ein
+ * Tor aber steht in vier möglichen Richtungen, und jedes zweite zeigte der
+ * Kamera die Rückseite seines Schildes. Das aufrechte Schild dorthin zu
+ * **neigen** schien damals ausgeschlossen, weil es dann gegen sein eigenes Tor
+ * verdreht stünde — von innen ein schief hängendes Brett.
  *
- * In die Waagerechte legt es `layFlatNorthUp`; hier entsteht nur die Tafel.
+ * Das war ein Denkfehler, und er ist es wert, aufgeschrieben zu bleiben:
+ * Ausgerichtet wird **je Kamera und beim Zeichnen** (`ui/billboard.ts`), nicht
+ * ein für alle Mal in der Szene. Der Spieler in der Brille bekommt das Schild
+ * zu **seinem** Auge gedreht und sieht deshalb nie ein schiefes Brett, während
+ * dieselbe Tafel am Schirm daneben zur Kamera von oben steht. Damit ist die
+ * zweite Tafel nichts als ein zweites Mal dasselbe Wort — und eine davon steht
+ * in jeder Ansicht falsch.
  */
-export function gateFloorSign(title: string, accent: number): TextPlane {
-  return new TextPlane({
-    width: 0.9,
-    height: 0.3,
-    title,
-    align: 'center',
-    accent,
-    // Kräftiger als am aufrechten Schild: Was flach auf dem Boden liegt, sieht
-    // man im streifenden Licht sonst kaum.
-    background: 'rgba(9, 14, 26, 0.94)',
-  });
-}
-
-/**
- * **Eine Tafel so hinlegen, dass sie nach Norden oben liest** — auch wenn die
- * Gruppe, in der sie hängt, um `yaw` gedreht ist.
- *
- * Erst flach (`x`), dann in der Ebene zurück (`z`): In der Reihenfolge, in der
- * three.js einen Euler abarbeitet (`XYZ`), ist `z` die Drehung *in* der Tafel
- * und `y` wäre eine um die Hochachse davor — und die stünde nach dem Umlegen
- * quer. Wer das verwechselt, hat ein Schild, das in drei von vier Richtungen
- * seitlich liest.
- */
-export function layFlatNorthUp(plane: THREE.Object3D, yaw: number): void {
-  plane.rotation.set(-Math.PI / 2, 0, -yaw);
-}
 
 /** Alle Tore, die in diesem Baum hängen — in der Reihenfolge, in der sie stehen. */
 export function gatesIn(root: THREE.Object3D): Gate[] {
