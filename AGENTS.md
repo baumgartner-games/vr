@@ -5213,15 +5213,18 @@ Und das sind die Regeln, die darin stehen:
   damit ist es **langsamer als Laufen** (2,6 m/s): Ein Band kauft keine Zeit,
   es kauft **Hände**. Wohin geschoben wird, sagen wandernde Sparren und nicht
   ein aufgemalter Pfeil — ein stehender Pfeil ist eine Beschriftung, ein
-  laufender ist die Maschine selbst. Ein Sparren ist ein **ausgefülltes
-  Dreieck mit einer Querleiste dahinter** und kein gewinkelter Haken mehr, und
-  das ist ein Fehler, den man erst sieht, wenn die Küche steht: Vier
-  Winkelhaken, die in einem Quadrat von zwei mal zwei Kacheln in alle vier
-  Richtungen zeigen, ergeben ein **Hakenkreuz** — und seit der Umbau jede
-  Drehung erlaubt, legt das früher oder später jemand. Ein Dreieck hat keine
-  Schenkel, die sich um eine Mitte legen könnten, eine Querleiste ist gerade:
-  Dieselben vier Kacheln sind damit ein Windrad aus Pfeilen und nichts
-  weiter. Am Ende der Reihe steht eine Ablage
+  laufender ist die Maschine selbst. **Der Trog nimmt die ganze Kachel ein**, und
+  das ist eine Korrektur, die man erst sieht, wenn die Küche steht: Er war
+  72 cm breit, links und rechts blieb ein Streifen heller Platte stehen — und
+  vier Bänder in einem Quadrat von zwei mal zwei Kacheln, jedes um eine
+  Vierteldrehung versetzt, sind damit vier dunkle Rechtecke um eine Mitte mit
+  hellen Fugen dazwischen: ein **Hakenkreuz**, gebaut aus der Fuge und nicht
+  aus dem Pfeil. Seit der Umbau jede Drehung erlaubt, legt das früher oder
+  später jemand. Über die volle Kachel gibt es den hellen Streifen nicht mehr,
+  und dieselben vier Kacheln sind eine dunkle Fläche mit acht Pfeilen darauf.
+  Die **Sparren** bleiben, wie sie waren, und laufen weiter auf 72 cm
+  (`ARROW_WIDE`) — ein Pfeil, den man auf einen Meter zieht, ist ein
+  breitgedrückter Pfeil. Am Ende der Reihe steht eine Ablage
   (`beltStep` sagt, an welche Kachel weitergereicht wird).
 - **Und daneben das Zugband** (`belt-pull`, `BeltTile.pull`): dasselbe Möbel,
   dieselbe Höhe, dieselbe Kachel — es holt sich obendrein **von selbst**, was
