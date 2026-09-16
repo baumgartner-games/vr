@@ -22,6 +22,9 @@ import {
   onFullscreenChange,
   toggleFullscreen,
 } from './core/fullscreen';
+import { showScreenPads } from './core/screenPads';
+import { graphics, onGraphicsChange } from './core/graphicsSettings';
+import { firstGamepad } from './core/gamepad';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;
@@ -104,6 +107,52 @@ let hauntError = '';
 
 let netPanel: NetPanel | null = null;
 
+/**
+ * **Wann die Stöcke auf dem Glas liegen** — die drei Stellen, die es einmal
+ * waren, ziehen jetzt an einem Strang (`core/screenPads.ts`).
+ *
+ * Dreimal stand hier dieselbe Zeile: beim Betreten, beim Auf- und Absetzen der
+ * Brille, und wenn eine Welt den Stock zurückgab. Jede kannte nur ihre eigene
+ * Hälfte der Lage — wer die Brille absetzte, bekam die Stöcke auch dann zurück,
+ * wenn die Welt gerade ihre eigene Steuerung zeigte. Also gibt es hier nur noch
+ * **einen** Merker je Zustand und **eine** Funktion, die nach jeder Änderung
+ * läuft. Was daraus folgt, rechnet das Modul; hier steht nur, was der Browser
+ * gerade meldet.
+ */
+let inSession = false;
+/** Ob die laufende Welt den Bordstock der Seite überhaupt will. */
+let worldWantsStick = true;
+
+/**
+ * **Ob gerade ein Gamepad angesteckt ist.** Gefragt wird die API und nicht ein
+ * gemerkter Zustand: `gamepadconnected` kommt in manchen Browsern erst, wenn
+ * am Pad ein Knopf gedrückt wurde, und ein Pad, das beim Neuladen der Seite
+ * schon steckte, meldet sich gar nicht erst. Die Liste dagegen stimmt immer.
+ */
+function padPresent(): boolean {
+  const list =
+    typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function'
+      ? navigator.getGamepads()
+      : null;
+  return firstGamepad(list) !== null;
+}
+
+function showPads(): void {
+  touch.hidden = !showScreenPads({
+    setting: graphics().screenPads,
+    role: detectFlatRole(),
+    gamepad: padPresent(),
+    presenting: inSession,
+    worldWantsStick,
+  });
+}
+
+// Angesteckt und abgezogen wird jederzeit, und die Einstellung dazu steht im
+// Menü — beides zieht die Stöcke sofort nach, ohne dass jemand neu laden muss.
+for (const event of ['gamepadconnected', 'gamepaddisconnected'])
+  window.addEventListener(event, showPads);
+onGraphicsChange(showPads);
+
 const app = (() => {
   try {
     return new App(canvas, pads, {
@@ -115,7 +164,8 @@ const app = (() => {
       },
       onSessionChanged: (presenting) => {
         hud.hidden = presenting;
-        touch.hidden = presenting || detectFlatRole() !== 'handheld';
+        inSession = presenting;
+        showPads();
         hudVr.textContent = presenting ? 'VR beenden' : 'VR';
         if (presenting) {
           netPanel?.toggle(false);
@@ -129,9 +179,11 @@ const app = (() => {
           button.setAttribute('aria-expanded', open ? 'true' : 'false');
       },
       // Eine Welt mit eigener Steuerung nimmt den Bordstock weg; `true` heißt,
-      // dass wieder die Seite entscheidet (`WorldContext.touchStick`).
+      // dass wieder die Seite entscheidet (`WorldContext.touchStick`) — also
+      // genau das, was `showPads` ausrechnet.
       onTouchStick: (on) => {
-        touch.hidden = !on || detectFlatRole() !== 'handheld';
+        worldWantsStick = on;
+        showPads();
       },
       onNetChanged: () => {
         netPanel?.refresh();
@@ -343,7 +395,7 @@ async function startVR(button: HTMLButtonElement = enterButton): Promise<void> {
 function startFlat(): void {
   hideLanding();
   hud.hidden = false;
-  touch.hidden = detectFlatRole() !== 'handheld';
+  showPads();
 }
 
 // --- Haunting: Name, Raum-Code, drei Wege in denselben Raum -------------------

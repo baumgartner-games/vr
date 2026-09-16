@@ -818,6 +818,21 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
         das Bild des Controllers dazu, und darunter derselbe `readGamepad`, der
         im Spiel läuft. Sie ist der einzige Weg, ein Pad am Browser einer
         Konsole zu untersuchen — dort gibt es keine Entwicklerwerkzeuge.
+    - **Dass es das Glas überhaupt gibt, ist eine Einstellung** — _Menü →
+      Grafik → Bildschirm-Steuerung_ mit drei Rasten
+      (`graphicsSettings.screenPads`, gerechnet in `core/screenPads.ts`, gesetzt
+      in `main.ts`). **Automatisch** ist die Voreinstellung und heißt: nur am
+      Handy (`device.detectFlatRole`), und auch dort nur, solange **kein
+      Gamepad** angesteckt ist — wer eines am Tablet hängen hat, hält schon
+      einen echten Stock in der Hand und braucht keinen gemalten darüber, der
+      ihm das halbe Bild nimmt. **An** zeigt sie auch am Schreibtisch, **aus**
+      nimmt sie auch dem Telefon. Zwei Zustände stehen **vor** der Einstellung
+      und lassen sich von ihr nicht überstimmen: in der Brille sieht niemand
+      auf das Glas, und eine Welt mit eigener Steuerung
+      (`WorldContext.touchStick`) hätte sonst zwei Stöcke übereinander. Die
+      Bedingung stand einmal dreimal in `main.ts` und kannte je nur ihre
+      Hälfte — wer die Brille absetzte, bekam die Stöcke auch dann zurück, wenn
+      die Welt sie gerade selbst mitbrachte.
     - **Auf dem Glas** kommt rechts unten ein zweiter Stock dazu und darüber
       zwei runde Knöpfe `A`/`B` (`#touch-aim`, `#touch-a`, `#touch-b`); sie
       stehen nur von oben, weil sie sonst nichts bedeuten. Wie der linke Stock
@@ -7609,7 +7624,25 @@ die Eingabeseite gebaut ist — Konsolenbrowser, Fernseher, Telefon im Querforma
 Dort kostet die Adresszeile ein Fünftel der Fläche, und das Spiel läuft im Rest.
 Also steht ein Knopf mit dem Vollbildsymbol auf der Startseite oben rechts
 (`#landing-full`) und im Streifen des Spiels neben _VR_ (`#hud-full`) — derselbe
-Knopf an zwei Stellen, so wie das Menü es schon ist.
+Knopf an zwei Stellen, so wie das Menü es schon ist. **Und dieselbe Handlung
+noch einmal als Zeile unter _Menü → Grafik_** (`App.fullscreenRow`): Auf einem
+Telefon im Querformat verdeckt genau der Streifen mit dem Knopf das, was man
+loswerden will, und wer das Menü offen hat, sucht nicht darunter. Sie ist
+**keine Einstellung** — Vollbild ist ein Zustand des Browsers, kein Wert im
+Speicher, und eine Vollbildanfrage braucht ohnehin eine frische Geste —, also
+liest die Zeile jedes Mal den Stand und beschriftet sich danach.
+
+**Auf dem iPhone gibt es keinen davon, und das ist keine Lücke, sondern das
+Gerät.** Safari kennt dort Vollbild nur für ein `<video>`; was es zeigte, wäre
+der Videoplayer und nicht die Spielwiese, und `fullscreenSupported` sagt deshalb
+ehrlich „nein" und blendet Knopf und Zeile aus. Der eine Weg, der dort
+funktioniert, steht im Kopf von `index.html`:
+`apple-mobile-web-app-capable` und ein Web-App-Manifest mit
+`display: fullscreen` (`public/manifest.webmanifest`). _Zum Home-Bildschirm
+hinzufügen_, und die Seite startet ohne Adresszeile und ohne Systemleiste —
+auf Android genauso, nur heißt es dort _installieren_. Die Pfade im Manifest
+sind **relativ**, damit sie auf GitHub Pages unter `/<repo>/` stimmen; den
+`href` des `<link>` schreibt Vite selbst auf die Basis um.
 
 Das API dafür ist zwei Zeilen, und die zwei Zeilen sind der Grund für
 `core/fullscreen.ts`: **Es gibt sie doppelt.** Safari und die WebKit-Browser der

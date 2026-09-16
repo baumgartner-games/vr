@@ -4,6 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#05070d" />
+    <!--
+      **Vollbild für die Geräte, die es nicht hergeben.** Die Zeile im Menü und
+      der Knopf oben rechts (`core/fullscreen.ts`) brauchen ein
+      `requestFullscreen` am Element — Android hat es, iPadOS hat es, **Safari
+      auf dem iPhone hat es nicht**: Dort gibt es Vollbild nur für ein `<video>`,
+      und das zeigte den Videoplayer und nicht die Spielwiese. Für genau dieses
+      Gerät gibt es nur einen ehrlichen Weg, und das sind diese drei Zeilen:
+      *Zum Home-Bildschirm hinzufügen*, und die Seite startet ohne Adresszeile
+      und ohne Systemleiste. `black-translucent` schiebt das Bild dabei unter die
+      Uhr; die Ränder fängt `viewport-fit=cover` oben schon ab.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BG VR" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!--
+      Dasselbe für alle anderen: Ein installiertes Web-App-Manifest mit
+      `display: fullscreen` startet ohne Browserrahmen. Die Pfade darin sind
+      **relativ** zur Manifestdatei, damit sie auf GitHub Pages unter
+      `/<repo>/` genauso stimmen wie lokal an der Wurzel (`vite.config.ts`,
+      `BASE_PATH`).
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>Baumgartner VR</title>
     <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
@@ -331,6 +354,14 @@
     -->
     <button id="hud-tool" class="hud-tool" type="button" aria-label="Werkzeug" aria-expanded="false" hidden></button>
 
+    <!--
+      **Die Steuerung auf dem Glas.** Ob sie überhaupt dasteht, entscheidet
+      eine einzige Rechnung (`src/core/screenPads.ts`, angewandt in
+      `src/main.ts`): die Einstellung unter **Menü → Grafik →
+      Bildschirm-Steuerung** (an / aus / automatisch), und in der Automatik das
+      Gerät — nur am Handy, und dort nur, solange kein Gamepad angesteckt ist.
+      In der Brille und in Welten mit eigener Steuerung nie.
+    -->
     <div id="touch" class="touch" hidden>
       <div id="touch-stick" class="touch__stick"><span></span></div>
       <!-- Zielstock und A/B gehören der Ansicht von oben; FlatControls blendet sie dort ein. -->

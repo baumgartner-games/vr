@@ -23,6 +23,9 @@ describe('Grafikeinstellungen', () => {
       gridLines: false,
       hitBoxes: false,
       shadows: true,
+      // Die Stöcke auf dem Glas entscheiden sich nach Gerät — nachgerechnet
+      // wird das in `screenPads.test.ts`.
+      screenPads: 'auto',
     });
   });
 

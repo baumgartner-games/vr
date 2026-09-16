@@ -834,6 +834,14 @@ oder am Fernseher kostet die Adresszeile sonst ein Fünftel des Bildes. In der
 Brille gibt es ihn nicht — eine XR-Sitzung ist Vollbild —, und in Browsern, die
 es nicht erlauben, auch nicht: Ein Knopf, der nichts tut, ist schlimmer als
 keiner. `Esc` beendet es, und der Knopf weiß das (`core/fullscreen.ts`).
+Dieselbe Handlung steht auch als Zeile unter **Menü → Grafik** — auf dem Handy
+im Querformat verdeckt der Streifen mit dem Knopf genau das, was weg soll.
+
+**Auf dem iPhone gibt es beides nicht**, weil Safari dort Vollbild nur für ein
+Video kennt. Der Weg, der dort funktioniert, ist _Zum Home-Bildschirm
+hinzufügen_: Die Seite bringt ein Web-App-Manifest und die passenden
+Apple-Zeilen mit und startet dann ohne Adresszeile und ohne Systemleiste. Auf
+Android heißt derselbe Schritt _installieren_.
 
 ## Query-/Hash-Parameter
 
@@ -850,7 +858,7 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 
 |                               | VR                                                                                                                                                                         | Desktop                                                                | Handy                    |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------ |
-| Bewegen                       | linker Stick (reindrücken = Sprint)                                                                                                                                        | `WASD`, `Shift`                                                        | linker Touch-Stick       |
+| Bewegen                       | linker Stick (reindrücken = Sprint)                                                                                                                                        | `WASD`, `Shift`                                                        | linker Touch-Stick (Menü → Grafik → _Bildschirm-Steuerung_: automatisch / an / aus; automatisch heißt „nur am Handy, und nur ohne Gamepad") |
 | Umsehen                       | Kopf, rechter Stick = Snap-Turn                                                                                                                                            | Maus (Klick = Pointer-Lock)                                            | wischen                  |
 | Springen / Ducken             | `A` rechts (springt nur, wenn nichts in Reichweite ist) / rechten Stick reindrücken                                                                                        | `Leertaste`                                                            | Knopf `A`, siehe links   |
 | Menü                          | Button an beiden Händen (immer nur eins offen)                                                                                                                             | Knopf ☰ oben links (dasselbe Menü als Seite, auch auf der Startseite) | Knopf ☰ oben links      |
