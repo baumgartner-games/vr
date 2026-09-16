@@ -41,7 +41,15 @@ export interface KitchenPiece {
   readonly label: string;
   /** Wie viele Kacheln es belegt (`worlds/nav/navTile.TILE` = 1 m). */
   readonly tiles: readonly [x: number, z: number];
-  /** Wie hoch es ist, in Metern — für Kopffreiheit und Sicht. */
+  /**
+   * Wie hoch es ist, in Metern — für Kopffreiheit und Sicht.
+   *
+   * Gemessen am **Möbel** und von seinem eigenen Fuß aus, nicht vom Boden des
+   * Raums: Ein Stück mit `bury` steckt ein paar Zentimeter im Estrich und ragt
+   * entsprechend weniger weit heraus (`height − bury`). Der Katalog nennt
+   * weiter das Maß der Quelle, damit ein zweiter Lauf des Werkzeugs nachrechnen
+   * kann, was in der Datei steht.
+   */
   readonly height: number;
   /**
    * Ob es **hängt** statt zu stehen: Dann ist `height` seine Oberkante und
@@ -59,14 +67,20 @@ export interface KitchenPiece {
   readonly hanging?: boolean;
 
   /**
-   * **Wo die Arbeitsfläche liegt**, in Metern über dem Boden — dort landet,
-   * was jemand ablegt (`worlds/test/zones/kitchen.ts`).
+   * **Wo die Arbeitsfläche liegt**, in Metern über dem **Fuß des Möbels** —
+   * dort landet, was jemand ablegt (`worlds/test/zones/kitchen.ts`).
    *
    * Sie ist bei den meisten Möbeln dasselbe wie `height`, und deshalb steht
    * sie nur dort, wo sie es **nicht** ist: Auf dem Herd mit dem Topf ist
    * `height` die Oberkante des **Topfes** (0,87 m) und nicht die der Platte
    * (0,55 m) — ein Brötchen, das auf `height` abgelegt würde, schwebte eine
    * Handbreit über dem Deckel.
+   *
+   * **Über dem Fuß und nicht über dem Boden**, seit es `bury` gibt: Wer wissen
+   * will, wie hoch die Fläche im Raum liegt, fragt `kitchenWorkHeight`. Die
+   * Zone rechnet ohnehin von dem Punkt aus, an dem das Möbel steht
+   * (`kitchen.ts`, `standAt` gibt ihn zurück) — und der ist bei einem
+   * eingelassenen Möbel nicht der Fußboden.
    */
   readonly deck?: number;
 
@@ -150,6 +164,48 @@ export interface KitchenPiece {
    * keinem Standpunkt aus im Bild.
    */
   readonly align?: readonly [x: number, z: number];
+
+  /**
+   * **Wie tief das Möbel im Boden steckt**, in Metern — derselbe Ausgleich wie
+   * `align`, nur nach unten statt zur Seite (`worlds/test/zones/kitchen.ts`,
+   * `standAt`).
+   *
+   * Es gibt genau einen Fall, und er hat drei Anläufe gebraucht: das
+   * **Schneidebrett**. Auf seinem Korpus liegt ein Brett, das Brett ist 3,3 cm
+   * dick, und damit lag seine Arbeitsfläche 3,3 cm über der der Küchenzeile
+   * daneben. In einer Zeile aus Zeile, Brett, Zeile ist das eine **Stufe**, und
+   * aus 55° von oben (`core/topDownPose.TOP_DOWN_TILT`) läuft sie quer durchs
+   * Bild.
+   *
+   * **An dieser Stelle stand lange die Gegenrede**, und sie ist widerlegt: Die
+   * 3,3 cm *seien* das Brett, ein Schneidebrett liege nun einmal auf der
+   * Platte, also bleibe die Stufe. Gewollt ist aber eine durchgehende
+   * Arbeitsfläche — und die kostet das Brett nichts, weil nicht das **Brett**
+   * in die Platte versenkt wird (dann wäre es unsichtbar, es ist genau so dick
+   * wie die Stufe), sondern das **ganze Möbel** um die Brettdicke tiefer steht.
+   * Oben fluchtet es damit, unten verschwinden 3,3 cm im Estrich.
+   *
+   * **Und unten ist dort nichts, was man sehen können muss.** Gemessen an der
+   * Quelle: Unter y = 0,065 steht der Korpus nur bis ±0,900 statt ±1,000, also
+   * im Spiel **5 cm hinter der Kante der Deckplatte** zurück und von deren
+   * Überstand verdeckt; und zwischen y = 0,015 und y = 0,427 (halbiert 0,007
+   * bis 0,214 m) hat der Korpus überhaupt keine Kante — die unterste Fuge, die
+   * man daran sieht, liegt 21 cm über dem Boden und damit sechsmal so hoch wie
+   * das, was versenkt wird. Im Estrich steckt eine glatte Sockelleiste im
+   * Schatten der Platte.
+   *
+   * **Was dadurch nicht kippt**: `height` und `deck` messen weiter das Möbel
+   * selbst, von seinem eigenen Fuß aus — nur der Fuß liegt tiefer. Die
+   * Ablagehöhe im Raum ist deshalb `kitchenWorkHeight`, und die ist beim Brett
+   * auf den Millimeter die der Küchenzeile.
+   *
+   * **Nicht zu verwechseln mit `Spot.lift`** (`worlds/test/zones/kitchenPlan.ts`):
+   * Das hebt ein Möbel an **einer Stelle** an — das Ausgaberegal über der Theke
+   * — und lässt dabei den Körper weg, damit man darunter durchläuft. `bury`
+   * gehört dem **Möbel**: Das Brett steht zweimal in der Küche und einmal im
+   * Schauraum, und es soll überall gleich stehen.
+   */
+  readonly bury?: number;
 
   /**
    * **Dieses Stück steckt nicht in `public/models/kitchen.glb`, sondern wird
@@ -246,20 +302,26 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // - Der **Korpus** (`Kitchen_Cabins`) reicht von y = 0,000 bis 1,000 —
     //   halbiert **0,500 m**, und das ist auf den Millimeter dieselbe Zahl wie
     //   bei der Küchenzeile daneben (`counter`, ebenfalls 1,000 → 0,500 m).
-    //   Die Möbel selbst fluchten also bereits.
+    //   Die **Korpusse** standen also von Anfang an gleich hoch — die Stufe war
+    //   allein das aufliegende Brett, und genau deshalb geht sie unten wieder
+    //   ab und nicht oben (`bury`).
     // - Darauf **liegt das Brett**: eine Platte von y = 0,998 bis 1,065, ihre
     //   Deckfläche halbiert **0,5326 m** (die größte waagerechte Fläche des
     //   Netzes, 1,63 m² in Quellmaß — das Brett und nichts anderes).
     // - Darüber das **Messer** bis 1,148 → 0,574 m, gerundet die 0,57 von
     //   `height`.
     //
-    // Die 3,3 cm, um die die Arbeitsfläche damit über der Küchenzeile liegt,
-    // **sind das Brett**: Es ist genau so dick (0,067 in der Quelle). Sie
-    // wegzurechnen hieße, das Brett in die Platte zu versenken — und weil es
-    // exakt so dick ist wie die Stufe, wäre es danach unsichtbar. Ein
-    // Schneidebrett liegt auf der Arbeitsplatte; das ist die Stufe, und sie
-    // bleibt.
+    // Die 3,3 cm, um die die Arbeitsfläche damit über dem Korpus liegt, **sind
+    // das Brett**: Es ist genau so dick (0,067 in der Quelle). Deshalb wird
+    // auch nicht an dieser Zahl gedreht — sie ist gemessen und stimmt.
     deck: 0.533,
+    // **Und dieselben 3,3 cm gehen unten wieder ab.** Sie waren die Stufe
+    // zwischen Brett und Küchenzeile, und die Zeile soll eine Linie sein und
+    // keine Treppe: 0,533 − 0,033 = **0,500 m**, auf den Millimeter die
+    // Arbeitsplatte von `counter` (`kitchenWorkHeight`). Versenkt wird das
+    // **Möbel** und nicht das Brett — das bleibt obenauf sichtbar, im Boden
+    // steckt nur Sockelleiste (siehe `KitchenPiece.bury`).
+    bury: 0.033,
     worktop: true,
     // 3,07 cm nach Süden: Das Brett ist 0,9999 m tief, die Küchenzeile neben
     // ihm 1,0612 m — so fluchtet die Vorderkante (`KitchenPiece.align`).
@@ -268,7 +330,20 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
   { name: 'plate-rack', label: 'Ausgaberegal', tiles: [2, 1], height: 0.56 },
   { name: 'pass', label: 'Ausgabetheke', tiles: [2, 1], height: 0.53, worktop: true },
   { name: 'counter', label: 'Küchenzeile', tiles: [1, 1], height: 0.5, worktop: true },
-  { name: 'stove', label: 'Herd', tiles: [1, 1], height: 0.55, worktop: true },
+  {
+    name: 'stove',
+    label: 'Herd',
+    tiles: [1, 1],
+    // **0,55 m, und die bleiben, obwohl die Zeile auf 0,50 m arbeitet.** Das
+    // ist kein zweiter Fall von `board`: Das **Blech** des Herds endet in der
+    // Quelle bei y = 1,000 — halbiert 0,500 m, bündig mit `counter` —, und die
+    // 5 cm darüber sind die **Kochstelle** (Quelle bis 1,100). Auf der steht
+    // ein Topf und nicht ein Salatkopf: Der Topf von `stove-pot` fängt bei
+    // 1,110 an, sitzt also genau darauf. Wer den Herd um diese 5 cm tiefer
+    // stellte, versenkte jeden Topf in der Kochstelle.
+    height: 0.55,
+    worktop: true,
+  },
   {
     name: 'stove-pot',
     label: 'Herd mit Topf',
@@ -348,6 +423,27 @@ export function kitchenPiece(name: string): KitchenPiece | undefined {
  */
 export function kitchenDeck(piece: KitchenPiece): number {
   return piece.deck ?? piece.height;
+}
+
+/**
+ * **Wie hoch die Arbeitsfläche über dem Boden liegt**, in Metern — dieselbe
+ * Fläche wie `kitchenDeck`, nur von unten gemessen statt vom Fuß des Möbels.
+ *
+ * Das ist die Zahl, über die sich in der Küche eine **Zeile** bildet: Küchenzeile
+ * und Schneidebrett und Tellerausgabe sollen nebeneinander eine durchgehende
+ * Platte ergeben, und ob ein Möbel dafür ein paar Zentimeter im Estrich steckt
+ * (`KitchenPiece.bury`), ist die Sache des Möbels und nicht die dessen, der die
+ * Zeile ansieht. Vorher war diese Zahl `kitchenDeck` — und solange kein Möbel
+ * eingelassen war, war das dasselbe; beim Brett ist es das nicht mehr, und wer
+ * die beiden verwechselt, misst die Stufe wieder herbei, die gerade abgeräumt
+ * wurde.
+ *
+ * Die Zone braucht sie nicht: Sie rechnet vom Fuß aus, den sie beim Hinstellen
+ * ohnehin in der Hand hat (`worlds/test/zones/kitchen.ts`, `standAt`). Gebraucht
+ * wird sie da, wo zwei Möbel **verglichen** werden.
+ */
+export function kitchenWorkHeight(piece: KitchenPiece): number {
+  return kitchenDeck(piece) - (piece.bury ?? 0);
 }
 
 /**

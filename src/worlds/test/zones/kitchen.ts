@@ -1353,6 +1353,20 @@ export class KitchenZone implements TestZone {
    * **Ein Möbel auf seine Kachel stellen** — die eine Rechnung von Kachel zu
    * Weltmaß, und sie wird zweimal gebraucht: beim Aufbau und bei jedem Umbau.
    *
+   * **Der Fuß ist nicht immer der Fußboden.** Nach oben hebt ihn `Spot.lift`
+   * (das Ausgaberegal über der Theke), nach unten zieht ihn `KitchenPiece.bury`
+   * — beim Schneidebrett um die Dicke des Bretts, damit dessen Oberfläche mit
+   * der Küchenzeile daneben eine durchgehende Arbeitsplatte ergibt statt einer
+   * Stufe. Der Unterschied zwischen beiden ist, wem sie gehören: `lift` einer
+   * **Stelle** im Aufbau, `bury` dem **Möbel** — und deshalb steht das Brett in
+   * der Küche wie im Schauraum gleich.
+   *
+   * Weil hier der Fuß herauskommt und nicht der Boden, rechnet alles Weitere
+   * von selbst richtig: Die Ablage ist `foot + kitchenDeck(piece)`, und
+   * `kitchenDeck` misst ab Fuß (`core/kitchenFit.ts`). Der **Körper** bleibt
+   * davon unberührt und steht weiter auf dem Boden (`addBody`) — ein Möbel,
+   * gegen das man 3 cm tiefer läuft, ist kein anderes Hindernis.
+   *
    * @returns die Höhe, auf der es steht — die Ablage rechnet darauf weiter
    */
   private standAt(furnish: Furnish): number {
@@ -1361,7 +1375,7 @@ export class KitchenZone implements TestZone {
     const [ax, az] = piece.align ?? [0, 0];
     const centreX = (KITCHEN.x + furnish.x + size.w / 2) * TILE;
     const centreZ = (KITCHEN.z + furnish.z + size.d / 2) * TILE;
-    const foot = KITCHEN_FLOOR + (spot.lift ?? 0);
+    const foot = KITCHEN_FLOOR + (spot.lift ?? 0) - (piece.bury ?? 0);
     model.position.set(
       centreX + ax * Math.cos(angle) + az * Math.sin(angle),
       foot,
@@ -1405,8 +1419,11 @@ export class KitchenZone implements TestZone {
     if (!world || piece.hanging || spot.lift) return;
     // Im Schauraum steht jedes Stück für sich: Dort gibt es kein „darüber
     // hinweg", nur ein Möbel zum Ansehen — und keinen Grund, über ihm gegen
-    // Luft zu laufen.
-    const height = spot.show ? piece.height : Math.max(piece.height, BLOCK_HEIGHT);
+    // Luft zu laufen. Was im Boden steckt, zählt dabei nicht mit
+    // (`KitchenPiece.bury`): Der Kasten steht auf dem Boden, also reicht er so
+    // weit, wie das Möbel darüber hinausragt, und nicht drei Zentimeter höher.
+    const stands = piece.height - (piece.bury ?? 0);
+    const height = spot.show ? stands : Math.max(stands, BLOCK_HEIGHT);
     const centreX = (KITCHEN.x + furnish.x + size.w / 2) * TILE;
     const centreZ = (KITCHEN.z + furnish.z + size.d / 2) * TILE;
     const box = this.boxAt(size.w * TILE, height, size.d * TILE, centreX, KITCHEN_FLOOR, centreZ);

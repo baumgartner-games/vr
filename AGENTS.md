@@ -4993,10 +4993,10 @@ sind daran wichtig genug, um sie hier zu nennen:
   bei y = 0 an. Das war kein Schönheitsfehler, sondern ein Loch, durch das man
   mitten hindurchlief.
 
-#### Vier Zahlen, die aus dem Katalog mehr machen als eine Liste
+#### Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste
 
 Der Katalog nennt zu jedem Möbel Name, Beschriftung, Grundfläche und Höhe.
-Vier weitere Felder sind dazugekommen, und jedes hat einen Fehler abgeräumt,
+Fünf weitere Felder sind dazugekommen, und jedes hat einen Fehler abgeräumt,
 den man im Bild sah:
 
 - **`align`** — wie weit ein Möbel aus der Mitte seiner Kachel rückt. Der
@@ -5006,10 +5006,22 @@ den man im Bild sah:
   stand als einziger Herd aus der Reihe. Die Zahl ist gemessen und nicht
   geschätzt — der Korpus (Material `Kitchen_Cabins`) reicht in der Datei von
   z = −0,610 bis z = +0,453.
-- **`deck`** — wo die Arbeitsfläche liegt. Beim _Herd mit Topf_ ist `height`
-  die Oberkante des **Topfes** (0,87 m) und nicht die der Platte (0,55 m); ein
-  Brötchen, das auf `height` abgelegt würde, schwebte eine Handbreit über dem
-  Deckel. Steht nur dort, wo es von `height` abweicht.
+- **`deck`** — wo die Arbeitsfläche liegt, **über dem Fuß des Möbels**. Beim
+  _Herd mit Topf_ ist `height` die Oberkante des **Topfes** (0,87 m) und nicht
+  die der Platte (0,55 m); ein Brötchen, das auf `height` abgelegt würde,
+  schwebte eine Handbreit über dem Deckel. Steht nur dort, wo es von `height`
+  abweicht.
+- **`bury`** — wie tief das Möbel im Boden steckt; derselbe Ausgleich wie
+  `align`, nur nach unten statt zur Seite. Einen Fall gibt es, das
+  **Schneidebrett**: Sein Brett liegt obenauf und ist 3,3 cm dick, also lag
+  seine Arbeitsfläche 3,3 cm über der Küchenzeile daneben — eine Stufe in einer
+  Reihe, die eine Platte sein soll. Versenkt wird deshalb das ganze Möbel um
+  genau diese 3,3 cm; im Boden steckt Sockelleiste, oben fluchtet die Fläche.
+  Wie hoch eine Arbeitsfläche **im Raum** liegt, sagt `kitchenWorkHeight` —
+  `deck` allein tut es seitdem nicht mehr. Nicht zu verwechseln mit `Spot.lift`
+  (`zones/kitchenPlan.ts`): Das gehört einer **Stelle** im Aufbau (das
+  Ausgaberegal über der Theke) und lässt den Körper weg, `bury` gehört dem
+  **Möbel** und gilt überall, wo es steht — auch im Schauraum.
 - **`worktop`** — ob man darauf etwas ablegen kann. Nicht jede waagerechte
   Fläche ist eine: In den Mülleimer wird geworfen, auf einem Feuerlöscher steht
   nichts.
@@ -5235,12 +5247,29 @@ Und das sind die Regeln, die darin stehen:
   Ein Salatkopf schwebte damit 3,7 cm über dem Brett — aus 55° von oben
   (`core/topDownPose.TOP_DOWN_TILT`) sieht man genau diesen Spalt. Gemessen:
   Korpus bis 1,000 (halbiert 0,500 m, auf den Millimeter die Höhe der
-  Küchenzeile daneben — die **Möbel** fluchten also), darauf das Brett bis
-  1,065 (halbiert 0,5326 m, die größte waagerechte Fläche des Netzes). Die
-  3,3 cm, um die die Arbeitsfläche damit über der Zeile liegt, **sind das
-  Brett**: Es ist genau so dick. Sie wegzurechnen hieße, es in die Platte zu
-  versenken, und weil es exakt so dick ist wie die Stufe, wäre es danach
-  unsichtbar.
+  Küchenzeile daneben — die **Korpusse** standen also von Anfang an gleich
+  hoch), darauf das Brett bis 1,065 (halbiert 0,5326 m, die größte waagerechte
+  Fläche des Netzes).
+- **Und das Möbel steckt um die Dicke des Bretts im Boden**
+  (`board.bury = 0,033`), damit die Zeile eine Linie ergibt. **Hier stand
+  zweimal das Gegenteil** — die 3,3 cm *seien* das Brett, ein Schneidebrett
+  liege nun einmal auf der Platte, also bleibe die Stufe —, und dreimal kam
+  dieselbe Rückmeldung: In einer Reihe aus Zeile, Brett, Zeile ist das eine
+  **Treppe**, und aus 55° von oben läuft sie quer durchs Bild. Aufgelöst wird
+  der Widerspruch nicht am Brett, sondern am Fuß: Versenkt wird das **ganze
+  Möbel**, nicht das Brett in seiner Platte (das wäre unsichtbar, es ist genau
+  so dick wie die Stufe). Oben fluchtet die Arbeitsfläche damit bei 0,500 m mit
+  `counter`, unten verschwinden 3,3 cm Sockelleiste — und die steht ohnehin 5 cm
+  hinter der Kante der Deckplatte zurück (Quelle: unter y = 0,065 reicht der
+  Korpus nur bis ±0,900 statt ±1,000), liegt also in deren Schatten. `height`
+  und `deck` messen weiter ab **Fuß des Möbels**; wie hoch eine Fläche im Raum
+  liegt, sagt `kitchenFit.kitchenWorkHeight`, und die Zone rechnet vom Fuß aus,
+  den sie beim Hinstellen ohnehin hat (`kitchen.ts`, `standAt`). Der **Herd**
+  bleibt bei 0,55 m und ist keine zweite Stufe: Sein Blech liegt bei 0,500 m
+  wie die Zeile, die 5 cm darüber sind die Kochstelle, und darauf steht ein
+  Topf. Festgehalten ist die Zusage in `kitchenPlan.test.ts` („die
+  Arbeitsflächen der Zeile") — über den **Aufbau**, nicht über einzelne Möbel:
+  Gleich hoch sein müssen die, die nebeneinanderstehen.
 - **Das Patty sitzt in der Mulde, nicht auf dem Stiel** (`kitchenFit.PAN_BOWL`).
   Ein abgenommenes Gerät bekommt seinen Ursprung in der Mitte seiner **ganzen**
   Hülle (`kitchenModel.takeUtensil`), und zur Hülle einer Pfanne gehört der
@@ -5253,10 +5282,12 @@ Und das sind die Regeln, die darin stehen:
 - **Getragen wird mit beiden Händen vor dem Körper** (`core/chefFit.CHEF_CARRY`),
   0,72 m vor der Figur und 0,62 m hoch. Beide Zahlen sind gemessen und nicht
   geraten: Der Kopf dieser Chibi-Figur ist 0,5 m breit, und ein Teller dicht
-  vor der Brust verschwand von oben darunter; und die höchste Arbeitsplatte
-  der Küche ist das Schneidebrett mit 0,57 m (die Spitze des Hackmessers
-  darauf) — wer tiefer trägt, schiebt den Topf beim Vorbeilaufen **durch** die
-  Herdplatte.
+  vor der Brust verschwand von oben darunter; und das höchste Stück Küche, an
+  dem man vorbeiträgt, ist das Schneidebrett mit 0,537 m über dem Boden (die
+  Spitze des Hackmessers darauf, seit das Möbel um die Brettdicke tiefer steht)
+  — wer tiefer trägt, schiebt den Topf beim Vorbeilaufen **durch** die
+  Herdplatte. Die **Arbeitsplatte** selbst liegt seitdem überall auf 0,50 m,
+  nur die Kochstelle des Herds 5 cm darüber.
 - **Der Kopf wippt beim Tragen mit, die Kamera nie** (`AvatarBody.headBob`).
   Das Wippen sitzt am Kopf der **Figur**, und die zeichnet nur, wer sie von
   außen sieht (`LAYER_SELF_ONLY`) — eine Kamera, die im Takt der Schritte

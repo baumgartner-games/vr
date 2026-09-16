@@ -5,6 +5,7 @@ import {
   PAN_BOWL,
   kitchenDeck,
   kitchenPiece,
+  kitchenWorkHeight,
 } from './kitchenFit';
 
 /**
@@ -301,8 +302,10 @@ describe('der Möbelkatalog', () => {
   it('legt aufs Schneidebrett und nicht aufs Messer', () => {
     const board = kitchenPiece('board')!;
     const counter = kitchenPiece('counter')!;
-    // Das Brett liegt auf der Arbeitsplatte, also über ihr — und um genau
-    // seine eigene Dicke (0,067 in der Quelle, halbiert 3,3 cm).
+    // Das Brett liegt auf dem Korpus, also über ihm — und um genau seine
+    // eigene Dicke (0,067 in der Quelle, halbiert 3,3 cm). Gemessen wird ab
+    // **Fuß** des Möbels; wo die Fläche im Raum liegt, steht eine Prüfung
+    // weiter unten.
     expect(kitchenDeck(board) - counter.height).toBeCloseTo(0.033, 2);
     // Und deutlich unter der Messerspitze, die `height` ist.
     expect(kitchenDeck(board)).toBeLessThan(board.height);
@@ -310,6 +313,69 @@ describe('der Möbelkatalog', () => {
     // Die Korpusse selbst sind gleich hoch — beide 1,000 in der Quelle.
     expect(SOURCE['board']![1] * KITCHEN_SCALE).toBeCloseTo(0.575, 3);
     expect(SOURCE['counter']![1] * KITCHEN_SCALE).toBe(counter.height);
+  });
+
+  /**
+   * **Die Arbeitsflächen der Zeilenmöbel liegen auf einer Höhe** — und das ist
+   * die Zusage, die dreimal gebrochen wurde.
+   *
+   * Zweimal stand an dieser Stelle eine Begründung dafür, dass das
+   * Schneidebrett 3,3 cm höher arbeitet als die Küchenzeile: Die 3,3 cm *seien*
+   * das Brett, ein Brett liege nun einmal auf der Platte. Im Bild ist es
+   * trotzdem eine **Stufe** in einer Reihe aus Zeile, Brett, Zeile, und
+   * verlangt war eine durchgehende Platte. Sie kommt nicht daher, dass am Maß
+   * des Bretts gedreht wird (das ist gemessen), sondern daher, dass das **Möbel**
+   * um die Brettdicke tiefer steht (`KitchenPiece.bury`).
+   *
+   * Geprüft wird deshalb `kitchenWorkHeight` und nicht `kitchenDeck`: Das eine
+   * misst über dem Boden, das andere über dem Fuß des Möbels — und genau dieser
+   * Unterschied ist der ganze Umbau.
+   */
+  it('legt die Arbeitsflächen der Zeilenmöbel auf eine Höhe', () => {
+    const line = kitchenWorkHeight(kitchenPiece('counter')!);
+    // Die Küchenzeile ist das Maß: Korpus 1,000 in der Quelle, halbiert.
+    expect(line).toBeCloseTo(1 * KITCHEN_SCALE, 6);
+    // Die Möbel, die in dieser Küche in einer Reihe stehen — welche das sind,
+    // steht im Aufbau und wird dort auch geprüft
+    // (`worlds/test/zones/kitchenPlan.test.ts`).
+    for (const name of ['counter', 'board', 'table', 'plate-counter', 'extinguisher']) {
+      const piece = kitchenPiece(name)!;
+      expect({ name, top: kitchenWorkHeight(piece).toFixed(3) }).toEqual({
+        name,
+        top: line.toFixed(3),
+      });
+    }
+    // Der Herd ist die begründete Ausnahme: Sein **Blech** liegt bei 1,000 in
+    // der Quelle, also bündig mit der Zeile; die 5 cm darüber sind die
+    // Kochstelle, und darauf steht ein Topf.
+    for (const name of ['stove', 'stove-pot', 'stove-pan']) {
+      expect({ name, top: kitchenWorkHeight(kitchenPiece(name)!) }).toEqual({ name, top: 0.55 });
+    }
+    expect(SOURCE['stove']![1] - 1).toBeCloseTo(0.1, 6);
+  });
+
+  /**
+   * **Im Boden steckt nur, was dort niemand vermisst.** `bury` ist ein
+   * Ausgleich von Zentimetern und keine Grube: Ein Möbel, das um einen halben
+   * Meter versenkt würde, wäre ein Loch im Fußboden mit einer Platte darüber —
+   * und seine Schubladen, seine Griffe und beim Schneidebrett das Brett selbst
+   * wären weg. Deshalb bleibt es unter einem Zehntelmeter und unter der eigenen
+   * Ablagehöhe.
+   */
+  it('versenkt kein Möbel weiter als seine Sockelleiste', () => {
+    const sunk = KITCHEN_PIECES.filter((piece) => piece.bury);
+    expect(sunk.map((piece) => piece.name)).toEqual(['board']);
+    for (const piece of KITCHEN_PIECES) {
+      const bury = piece.bury ?? 0;
+      expect({ name: piece.name, ok: bury >= 0 && bury < 0.1 }).toEqual({
+        name: piece.name,
+        ok: true,
+      });
+      // Was oben herausragt, bleibt sichtbar — beim Brett 0,57 − 0,033 =
+      // 0,537 m bis zur Messerspitze, mit der Brettoberfläche bei 0,50 m.
+      expect(kitchenWorkHeight(piece)).toBeGreaterThan(0.1);
+      expect(piece.height - bury).toBeGreaterThan(kitchenWorkHeight(piece) - 1e-9);
+    }
   });
 
   /**
