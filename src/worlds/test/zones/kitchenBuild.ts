@@ -2,11 +2,15 @@
  * **Der Umbau der Küche** — welche Kachel gerade gemeint ist und ob dort noch
  * Platz ist. Ohne three.js, ohne Szene, ohne Zone.
  *
- * Wie herum ein Möbel steht, steht **nicht** hier: Das rechnet
+ * Wie **groß** ein gedrehtes Möbel ist, steht **nicht** hier: Das rechnet
  * `kitchenPlan.footprint` schon aus Katalogmaß und Drehung, und eine zweite
  * Fassung davon wäre die zweite Wahrheit, die beim nächsten Möbel ausschert.
- * Ein aufgehobenes Möbel behält deshalb seine Drehung und bekommt anderswo
- * dieselbe wieder.
+ * Wie **herum** es in den Händen liegt, steht dagegen sehr wohl hier, seit es
+ * Möbel mit einer Wirkrichtung gibt: `turnAhead` macht aus der Blickrichtung
+ * eine Vierteldrehung, und damit zeigt ein getragenes Förderband dorthin, wohin
+ * die Figur zeigt (`kitchen.facePiece`). Alles andere behält beim Aufheben
+ * seine Drehung und bekommt anderswo dieselbe wieder — dort dreht der Auslöser
+ * (`kitchen.turnPiece`).
  *
  * Bei _Overcooked_ steht die Küche, wie sie steht. Bei _PlateUp_ baut man sie
  * zwischen zwei Tagen selbst um, und genau das ist hier gemeint: ein
@@ -28,6 +32,8 @@
  * hier in Metern rechnete, hätte zwei Koordinatensysteme für eine Küche, und
  * das zweite wäre das, das beim nächsten Verschieben der Zone stehen bleibt.
  */
+
+import type { Turn } from './kitchenPlan';
 
 /** Eine Kachel im Grundriss der Zone. */
 export interface BuildTile {
@@ -89,6 +95,35 @@ export function tileAhead(
     x: Math.floor((at.x + dx - origin.x) / tile),
     z: Math.floor((at.z + dz - origin.z) / tile),
   };
+}
+
+/**
+ * **Welche Vierteldrehung in diese Richtung zeigt** — die Drehung, deren
+ * Vorderseite dorthin schaut, wohin auch die Figur schaut.
+ *
+ * Bei `turn: 0` ist vorn Norden (`kitchenPlan.Spot.turn`), eine Umdrehung zeigt
+ * nach Westen, zwei nach Süden, drei nach Osten. Das ist dieselbe Reihenfolge
+ * wie in `kitchenBelt.beltStep`, und deshalb ist die Antwort für ein Förderband
+ * nicht nur eine Drehung, sondern gleich seine **Laufrichtung**: Wer nach Süden
+ * schaut und absetzt, hat ein Band gebaut, das nach Süden schiebt.
+ *
+ * Gerundet wird auf die **längere** der beiden Hälften: Wer nach Südwesten
+ * schaut, meint entweder Süden oder Westen, und es gewinnt die Achse, auf der
+ * er weiter herausschaut. Genau auf der Diagonale (`|x| === |z|`) gewinnt
+ * Nord-Süd — nicht weil sie besser wäre, sondern damit dieselbe Richtung immer
+ * dieselbe Drehung ergibt. Ein Band, das bei diagonalem Lauf zwischen zwei
+ * Richtungen flackerte, wäre eines, dessen Laufrichtung man erst nach dem
+ * Absetzen kennt.
+ *
+ * Ohne Richtung — die Figur steht und schaut nirgendwohin — bleibt es bei
+ * `keep`, also bei der Drehung, die das Möbel schon hat. Dieselbe Antwort wie
+ * bei `tileAhead` daneben und aus demselben Grund: Eine Drehung, die bei jedem
+ * Stillstand nach Norden spränge, wäre schlimmer als gar keine.
+ */
+export function turnAhead(forward: { x: number; z: number }, keep: Turn = 0): Turn {
+  if (Math.hypot(forward.x, forward.z) < 1e-4) return keep;
+  if (Math.abs(forward.x) > Math.abs(forward.z)) return forward.x < 0 ? 1 : 3;
+  return forward.z < 0 ? 0 : 2;
 }
 
 /** Jede Kachel, die eine Grundfläche ab `spot` belegt. */

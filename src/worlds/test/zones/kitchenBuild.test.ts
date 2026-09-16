@@ -4,9 +4,11 @@ import {
   overlaps,
   tileAhead,
   tilesOf,
+  turnAhead,
   whyNotBuilt,
   type BuildSpot,
 } from './kitchenBuild';
+import { beltStep } from './kitchenBelt';
 
 /**
  * **Der Umbau, nachgerechnet** (`kitchenBuild.ts`).
@@ -62,6 +64,45 @@ describe('welche Kachel gemeint ist', () => {
       x: 2,
       z: 4,
     });
+  });
+});
+
+describe('wie herum das Getragene zeigt', () => {
+  test('die vier Richtungen, und Norden ist die Null', () => {
+    expect(turnAhead({ x: 0, z: -1 })).toBe(0);
+    expect(turnAhead({ x: -1, z: 0 })).toBe(1);
+    expect(turnAhead({ x: 0, z: 1 })).toBe(2);
+    expect(turnAhead({ x: 1, z: 0 })).toBe(3);
+  });
+
+  test('die Drehung ist die Laufrichtung des Bandes', () => {
+    // Der ganze Zweck der Rechnung: Wer nach Süden schaut und absetzt, hat ein
+    // Band gebaut, das nach Süden schiebt (`kitchenBelt.beltStep`).
+    expect(beltStep(turnAhead({ x: 0, z: 1 }))).toEqual({ dx: 0, dz: 1 });
+    expect(beltStep(turnAhead({ x: -1, z: 0 }))).toEqual({ dx: -1, dz: 0 });
+    expect(beltStep(turnAhead({ x: 0.2, z: -0.9 }))).toEqual({ dx: 0, dz: -1 });
+  });
+
+  test('schräg zählt die längere Hälfte', () => {
+    expect(turnAhead({ x: -0.9, z: 0.4 })).toBe(1);
+    expect(turnAhead({ x: -0.4, z: 0.9 })).toBe(2);
+  });
+
+  test('genau auf der Diagonale gewinnt Nord-Süd — und zwar immer dieselbe', () => {
+    expect(turnAhead({ x: 1, z: 1 })).toBe(2);
+    expect(turnAhead({ x: -1, z: 1 })).toBe(2);
+    expect(turnAhead({ x: 1, z: -1 })).toBe(0);
+    expect(turnAhead({ x: -1, z: -1 })).toBe(0);
+  });
+
+  test('die Länge zählt nicht, nur wohin es zeigt', () => {
+    expect(turnAhead({ x: 0, z: 40 })).toBe(turnAhead({ x: 0, z: 1 }));
+  });
+
+  test('ohne Richtung bleibt es, wie es liegt', () => {
+    expect(turnAhead({ x: 0, z: 0 }, 3)).toBe(3);
+    // Und ohne etwas zu behalten, ist es Norden.
+    expect(turnAhead({ x: 0, z: 0 })).toBe(0);
   });
 });
 
