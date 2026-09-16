@@ -232,3 +232,109 @@ export function lapDelta(previousAlong: number, along: number, total: number): n
   if (delta < -total / 2) delta += total;
   return delta;
 }
+
+// --- der Rand der Strecke ---------------------------------------------------
+
+/** Ein Punkt auf der Mittellinie, mit Tangente und linker Normale dort. */
+export interface PathPoint {
+  x: number;
+  z: number;
+  /** Einheitstangente, in Fahrtrichtung. */
+  tx: number;
+  tz: number;
+  /** Ihre linke Normale, von oben gesehen. */
+  nx: number;
+  nz: number;
+}
+
+/**
+ * **Der Punkt nach einer Bogenlänge** — nicht der nächstgelegene
+ * (`nearestOnPath`), sondern der, den man erreicht, wenn man `distance` Meter
+ * weit um die Runde geht.
+ *
+ * Die Linie wird dafür einmal abgelaufen. Das klingt teuer und ist es nicht:
+ * Gebraucht wird das beim **Bauen** der Strecke, ein paar hundert Mal, und nie
+ * wieder. Eine Bogenlänge über dem Rundenmaß läuft weiter mit — die Linie ist
+ * geschlossen, und der Meter 110 einer Runde von 100 Metern ist der Meter 10.
+ */
+export function pointAlong(path: readonly Vec2[], distance: number): PathPoint {
+  const count = path.length;
+  const first = path[0]!;
+  if (count < 2) return { x: first.x, z: first.z, tx: 0, tz: -1, nx: -1, nz: 0 };
+  const total = pathLength(path);
+  let travelled = 0;
+  const wanted = total > 0 ? ((distance % total) + total) % total : 0;
+  for (let i = 0; i < count; i++) {
+    const a = path[i]!;
+    const b = path[(i + 1) % count]!;
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const length = Math.hypot(dx, dz);
+    if (length <= 1e-9) continue;
+    if (travelled + length >= wanted) {
+      const t = (wanted - travelled) / length;
+      const tx = dx / length;
+      const tz = dz / length;
+      return { x: a.x + dx * t, z: a.z + dz * t, tx, tz, nx: tz, nz: -tx };
+    }
+    travelled += length;
+  }
+  return { x: first.x, z: first.z, tx: 0, tz: -1, nx: -1, nz: 0 };
+}
+
+/** Wo ein Ding am Streckenrand steht — ein Randstein, ein Reifenstapel. */
+export interface TrimSpot {
+  x: number;
+  z: number;
+  /** Wie es zu drehen ist, damit es längs der Bahn steht. */
+  yaw: number;
+  /** Der wievielte Schritt um die Runde — daran hängt Rot oder Weiß. */
+  step: number;
+  /** Links (+1) oder rechts (−1) der Fahrtrichtung. */
+  side: 1 | -1;
+}
+
+/**
+ * **Alles, was am Rand der Strecke steht, als Liste von Plätzen.**
+ *
+ * Gerechnet und nicht gebaut, und das ist der Zweck dieser Funktion: Die
+ * Randsteine und die Reifenstapel der Kartzone sind je hundert gleiche Kästen,
+ * und hundert gleiche Kästen gehören in **ein** Bündel (`InstancedMesh`) und
+ * nicht in hundert Zeichenaufrufe. Ein Bündel braucht aber die Plätze
+ * vorher — es entsteht in einem Zug und wächst danach nicht mehr.
+ *
+ * `skip` ist die Boxengasse: Randstein und Reifenstapel folgen der Mittellinie
+ * und wüssten sonst nichts davon, dass an der Zielgeraden gar kein Rand ist,
+ * sondern die Ausfahrt — sie stünden mitten zwischen den Karts.
+ *
+ * Die Schritte laufen über **beide** Seiten mit derselben Nummer: Ein
+ * Randstein links und der ihm gegenüber sollen dieselbe Farbe haben, sonst
+ * sieht die Gerade aus wie ein Reißverschluss.
+ */
+export function trimSpots(options: {
+  path: readonly Vec2[];
+  /** Die Rundenlänge; mehr als eine Runde wird nicht bestückt. */
+  lapLength: number;
+  /** Abstand zweier Schritte in Metern. */
+  spacing: number;
+  /** Wie weit neben der Mittellinie, in Metern. */
+  offset: number;
+  /** Ob an dieser Stelle nichts stehen darf (die Boxengasse). */
+  skip?: (x: number, z: number) => boolean;
+}): TrimSpot[] {
+  const { path, lapLength, spacing, offset, skip } = options;
+  const out: TrimSpot[] = [];
+  if (!(spacing > 0) || !(lapLength > 0) || path.length < 2) return out;
+  let step = 0;
+  for (let distance = 0; distance < lapLength; distance += spacing) {
+    const point = pointAlong(path, distance);
+    for (const side of [1, -1] as const) {
+      const x = point.x + point.nx * side * offset;
+      const z = point.z + point.nz * side * offset;
+      if (skip?.(x, z)) continue;
+      out.push({ x, z, yaw: Math.atan2(-point.tx, -point.tz), step, side });
+    }
+    step++;
+  }
+  return out;
+}
