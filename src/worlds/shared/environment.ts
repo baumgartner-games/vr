@@ -159,14 +159,8 @@ export function createGround(
   // darin — draußen stand damit ein Raster, das mit dem Metergitter, auf dem
   // gebaut wird (`worlds/grid/`), nichts zu tun hatte.
   const tile = options.tile ?? CHECKER_TILE * 2;
-  const texture = new THREE.CanvasTexture(
-    gridCanvas(color, options.line ?? 0x000000, options.checker ?? mixed(color)),
-  );
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
+  const texture = checkerTexture(color, options.line ?? 0x000000, options.checker ?? mixed(color));
   texture.repeat.set((radius * 2) / tile, (radius * 2) / tile);
-  texture.anisotropy = 8;
 
   // Ein **Kasten** und keine Ebene: der Collider kommt aus der Geometrie, und
   // eine Ebene hat keine Dicke (siehe `GROUND_THICKNESS`). Sechs Flächen statt
@@ -206,6 +200,41 @@ function mixed(color: number): number {
     return Math.min(255, Math.round(channel + (255 - channel) * 0.18)) << shift;
   };
   return lift(16) | lift(8) | lift(0);
+}
+
+/**
+ * **Ein Schachbrett als Textur**, fertig zum Kacheln — wie oft, sagt der, der
+ * sie bekommt (`repeat`).
+ *
+ * Sie steht als eigener Handgriff da, seit es einen **zweiten** Boden mit
+ * Schachbrett gibt: den Küchenboden der Testwelt
+ * (`worlds/test/zones/kitchenFloor.ts`), mit halben Feldern und eigenen Farben.
+ * Der Zeichner darunter (`gridCanvas`) war nie das Schwierige — die vier
+ * Einstellungen darum herum sind es, und jede davon ist ein Fehler, den man
+ * erst in der Brille sieht:
+ *
+ * - **`SRGBColorSpace`**, sonst kommen die Farben zu hell heraus: Eine
+ *   Leinwand trägt sRGB-Werte, und ein Renderer, dem das niemand sagt, rechnet
+ *   sie ein zweites Mal hell.
+ * - **`RepeatWrapping`** auf beiden Achsen, denn genau dafür sind es zwei mal
+ *   zwei Felder: Ein Schachbrett setzt sich beim Kacheln nur fort, wenn beide
+ *   Sorten Felder an jeder Kante liegen.
+ * - **Mipmaps**, und die gibt es hier geschenkt: Die Leinwand ist 256 × 256
+ *   Bildpunkte groß, also eine Zweierpotenz, und three.js baut die Stufen
+ *   selbst. Ohne sie flimmert jedes Raster, sobald ein Feld kleiner wird als
+ *   ein Bildpunkt.
+ * - **`anisotropy`**, weil beide Böden flach unter einer schrägen Kamera
+ *   liegen (55°, `core/topDownPose.ts`). Genau dort holt sich die
+ *   Mipmap-Stufe ihre Unschärfe: Der Boden wäre in der Ferne matschig, lange
+ *   bevor er dort klein ist.
+ */
+export function checkerTexture(color: number, line: number, checker: number): THREE.CanvasTexture {
+  const texture = new THREE.CanvasTexture(gridCanvas(color, line, checker));
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.anisotropy = 8;
+  return texture;
 }
 
 /**

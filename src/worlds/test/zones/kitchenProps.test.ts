@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { PAN_BOWL } from '../../../core/kitchenFit';
+import { PAN_BOWL, SINK_BOWL } from '../../../core/kitchenFit';
+import { CLEAN_STACK_MAX } from './kitchenCarry';
 import { ITEM_LABELS, dish, layered, type Dish, type KitchenItem } from './kitchenRecipes';
 import {
   BUN_BASE,
@@ -8,6 +9,8 @@ import {
   FoodKit,
   ITEM_HEIGHT,
   PLATE_HEIGHT,
+  PLATE_RADIUS,
+  SINK_TILT,
   STACK_NAME,
   stackHeight,
 } from './kitchenProps';
@@ -360,6 +363,39 @@ describe('FoodKit.dirtyStack', () => {
     }
   });
 
+  /**
+   * **Und derselbe Turm aus sauberen Tellern** — der auf dem Abtropfbrett
+   * (`core/kitchenFit.ts`, `sink-drain`). Aus dem Spieltest: „Man kann saubere
+   * Teller (bis zu 4) auf dem Abtropf-Element sammeln."
+   *
+   * Geprüft wird vor allem, dass es **derselbe** Stapel ist: gleiche Lagenhöhe,
+   * gleicher Verdrehwinkel, nur ein anderer Teller und eine andere Grenze. Zwei
+   * Fassungen davon wären zwei Stellen, an denen `DIRTY_TWIST` nachzuziehen ist.
+   */
+  it('stapelt saubere Teller genauso, nur bis vier', () => {
+    expect(CLEAN_STACK_MAX).toBe(4);
+    for (const count of [1, 2, 4]) {
+      const stack = kit.cleanStack(count);
+      expect(stack.children).toHaveLength(count);
+      const box = span(stack);
+      expect(box.min.y).toBeCloseTo(0, 5);
+      expect(box.max.y).toBeCloseTo(count * PLATE_HEIGHT, 5);
+    }
+    for (const count of [0, -4, Number.NaN]) {
+      expect(kit.cleanStack(count).children).toHaveLength(1);
+    }
+    for (const count of [5, 40, Number.POSITIVE_INFINITY]) {
+      expect(kit.cleanStack(count).children).toHaveLength(CLEAN_STACK_MAX);
+    }
+    // Dieselbe Lage, dieselbe Drehung wie beim dreckigen Stapel.
+    const clean = kit.cleanStack(4).children;
+    const dirty = kit.dirtyStack(4).children;
+    for (let i = 0; i < clean.length; i++) {
+      expect(clean[i]!.position.y).toBeCloseTo(dirty[i]!.position.y, 6);
+      expect(clean[i]!.rotation.y).toBeCloseTo(dirty[i]!.rotation.y, 6);
+    }
+  });
+
   it('teilt Form und Farbe zwischen allen Tellern eines Stapels', () => {
     const stack = kit.dirtyStack(4);
     const meshes = stack.children.map((plate) => meshesOf(plate));
@@ -370,6 +406,47 @@ describe('FoodKit.dirtyStack', () => {
         expect(plate[i]!.material).toBe(meshes[0]![i]!.material);
       }
     }
+  });
+});
+
+/**
+ * **Der Teller liegt schräg im Wasser**, und der Winkel ist ausgerechnet.
+ *
+ * Aus dem Spieltest: „Wenn Teller gewaschen werden, sollen die Teller leicht
+ * schräg sein, sodass ein Teil davon im Wasser steht." Vorher lag der Teller
+ * flach — und er lag dabei nicht einmal im Becken, sondern quer über dessen
+ * Rand, denn er ist breiter als die Mulde.
+ */
+describe('der Teller im Spülbecken', () => {
+  it('lehnt vom Beckenboden bis auf Randhöhe', () => {
+    // Die untere Kante geht um `r · sin α` herunter, die obere um ebenso viel
+    // herauf — zusammen ist das genau die Beckentiefe.
+    const reach = 2 * PLATE_RADIUS * Math.sin(SINK_TILT);
+    expect(reach).toBeCloseTo(SINK_BOWL.rim - SINK_BOWL.floor, 6);
+    // Von der Ablage aus (dem Wasserspiegel) sitzt die untere Kante auf dem
+    // Boden und die obere auf dem Rand.
+    expect(SINK_BOWL.water - reach / 2).toBeCloseTo(SINK_BOWL.floor, 6);
+    expect(SINK_BOWL.water + reach / 2).toBeCloseTo(SINK_BOWL.rim, 6);
+  });
+
+  it('neigt sich leicht und nicht senkrecht', () => {
+    // 11,1° — „leicht schräg" und nicht hochkant im Becken stehend.
+    expect((SINK_TILT * 180) / Math.PI).toBeCloseTo(11.1, 1);
+    expect(SINK_TILT).toBeGreaterThan(0.05);
+    expect(SINK_TILT).toBeLessThan(Math.PI / 8);
+  });
+
+  /**
+   * **Und flach ginge es gar nicht.** Das ist die Messung, an der der Winkel
+   * hängt: Der Teller ist 0,75 m breit, die Beckenöffnung 0,81 × 0,64 m. In
+   * der Tiefe passt er also nicht hinein — flach abgelegt läge er auf dem Rand,
+   * und im Wasser stünde kein Stück von ihm.
+   */
+  it('passt flach nicht in das Becken', () => {
+    expect(2 * PLATE_RADIUS).toBeGreaterThan(SINK_BOWL.depth);
+    // Quer dazu passt er, und genau dorthin fällt er beim Neigen zusammen:
+    // 0,75 · cos 11,1° = 0,736 m in eine Öffnung von 0,808 m.
+    expect(2 * PLATE_RADIUS * Math.cos(SINK_TILT)).toBeLessThan(SINK_BOWL.width);
   });
 });
 

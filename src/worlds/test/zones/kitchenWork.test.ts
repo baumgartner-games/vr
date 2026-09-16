@@ -1,24 +1,33 @@
 import {
   IDLE_WORK,
   WORK_SECONDS,
+  WORK_TO_HAND,
   advanceWork,
   onWork,
   workProgress,
   workStage,
+  workWaits,
   type WorkKind,
   type WorkState,
 } from './kitchenWork';
 
-/** Viele kleine Bilder statt eines großen — so, wie es im Headset läuft. */
-function frames(state: WorkState, seconds: number, near: boolean, dt = 1 / 60) {
+/**
+ * Viele kleine Bilder statt eines großen — so, wie es im Headset läuft.
+ *
+ * `handFree` ist die leere Hand der Figur; ohne Angabe ist sie voll, und damit
+ * bleibt am Becken alles liegen, wie es das vor dem Abwasch-Umbau immer tat.
+ */
+function frames(state: WorkState, seconds: number, near: boolean, handFree = false, dt = 1 / 60) {
   let now = state;
   let done: string | null = null;
+  let toHand = false;
   for (let t = 0; t < seconds; t += dt) {
-    const tick = advanceWork(now, dt, near);
+    const tick = advanceWork(now, dt, near, handFree);
     now = tick.state;
     done = tick.done ?? done;
+    toHand = tick.toHand || toHand;
   }
-  return { state: now, done };
+  return { state: now, done, toHand };
 }
 
 /**
@@ -114,7 +123,11 @@ describe('die Uhr an der Station', () => {
     expect(tomato.state.item).toBe('tomato-cut');
     expect(tomato.state.time).toBe(0);
     // Und weiterlaufen tut von allein gar nichts mehr.
-    expect(advanceWork(tomato.state, 100, true)).toEqual({ state: tomato.state, done: null });
+    expect(advanceWork(tomato.state, 100, true)).toEqual({
+      state: tomato.state,
+      done: null,
+      toHand: false,
+    });
     // Erst das erneute Auflegen macht Suppe daraus.
     const soup = advanceWork(onWork('chop', tomato.state.item), WORK_SECONDS.chop, true);
     expect(soup.done).toBe('tomato-soup');
@@ -145,9 +158,13 @@ describe('die Uhr an der Station', () => {
   });
 
   it('arbeitet an einer leeren Station nicht', () => {
-    expect(advanceWork(IDLE_WORK, 100, true)).toEqual({ state: IDLE_WORK, done: null });
+    expect(advanceWork(IDLE_WORK, 100, true)).toEqual({
+      state: IDLE_WORK,
+      done: null,
+      toHand: false,
+    });
     const idle = onWork('chop', 'bun');
-    expect(advanceWork(idle, 100, true)).toEqual({ state: idle, done: null });
+    expect(advanceWork(idle, 100, true)).toEqual({ state: idle, done: null, toHand: false });
   });
 
   it('zählt ein rückwärts laufendes Bild nicht mit', () => {
@@ -216,6 +233,11 @@ describe('das Weggehen', () => {
 
 /**
  * **Beide Arten, dieselbe Rechnung** — hier einmal Seite an Seite.
+ *
+ * Gerechnet wird mit **voller Hand**, und das ist Absicht: So läuft für beide
+ * Arten Zeile für Zeile dasselbe ab. Der einzige Unterschied — der saubere
+ * Teller geht in die Hand — hängt genau an der leeren Hand und steht deshalb
+ * im Block darunter, statt diesen hier zu zerfasern.
  */
 describe('schneiden und spülen laufen gleich', () => {
   const runs: [WorkKind, 'lettuce' | 'plate-dirty', string][] = [
@@ -240,5 +262,125 @@ describe('schneiden und spülen laufen gleich', () => {
     const away = advanceWork(half, 10, false).state;
     expect(away).toEqual({ kind, item, time: 0, working: false });
     expect(frames(away, 100, true).done).toBeNull();
+  });
+});
+
+/**
+ * **Der Abwasch endet in der Hand** — der eine Unterschied zum Brett
+ * (`WORK_TO_HAND`).
+ *
+ * Er kommt aus dem Spieltest am Handy: „Dreckigen Teller interagieren, dann
+ * wird abgewaschen. Ist es fertig, hat man einen sauberen Teller in der Hand."
+ * Vorher wurde der Teller sauber und blieb im Becken stehen — man stand
+ * daneben, hatte gewartet, und musste ihn zum Schluss noch einmal aufnehmen.
+ * Drei Sekunden Arbeit, zwei Handgriffe Buchhaltung; das Becken war so lange
+ * besetzt, und der nächste dreckige Teller passte nicht hinein.
+ */
+describe('was aus der Spüle herauskommt', () => {
+  it('legt den sauberen Teller in die Hand und räumt das Becken', () => {
+    const wash = frames(onWork('wash', 'plate-dirty'), WORK_SECONDS.wash, true, true);
+    expect(wash.done).toBe('plate');
+    expect(wash.toHand).toBe(true);
+    // Und das Becken ist leer: Der Teller ist **weg** von der Station und
+    // liegt nicht zweimal in der Küche.
+    expect(wash.state.item).toBeNull();
+    expect(workProgress(wash.state)).toBe(0);
+  });
+
+  /**
+   * **Volle Hand**: Der Teller ist trotzdem sauber, er wartet nur im Wasser.
+   * Ihn aus einer Hand zu drängen, die die Pfanne hält, wäre der schlimmere
+   * Fehler; ein Griff ans Becken holt ihn nach (`kitchenCarry.atSink`).
+   */
+  it('lässt ihn im Becken stehen, wenn die Hand voll ist', () => {
+    const wash = advanceWork(onWork('wash', 'plate-dirty'), WORK_SECONDS.wash, true, false);
+    expect(wash.done).toBe('plate');
+    expect(wash.toHand).toBe(false);
+    expect(wash.state.item).toBe('plate');
+    // Und das ist der Fall, über den die Zone etwas sagen muss.
+    expect(workWaits(wash)).toBe(true);
+    // Stehenbleiben heißt nicht weiterarbeiten: Ein sauberer Teller wird im
+    // Becken nicht noch sauberer, auch nicht mit leerer Hand.
+    expect(frames(wash.state, 100, true, true)).toMatchObject({ done: null, toHand: false });
+  });
+
+  /**
+   * **Am Brett ändert sich nichts**, auch nicht mit leerer Hand: Der
+   * geschnittene Salat will als Nächstes auf einen Teller, und wer ihn
+   * aufnimmt, hat damit schon entschieden, wohin.
+   */
+  it('lässt das Geschnittene auf dem Brett liegen', () => {
+    const cut = advanceWork(onWork('chop', 'lettuce'), WORK_SECONDS.chop, true, true);
+    expect(cut.done).toBe('lettuce-cut');
+    expect(cut.toHand).toBe(false);
+    expect(cut.state.item).toBe('lettuce-cut');
+    // Liegenbleiben ist hier kein Ausweichen, sondern der Normalfall — also
+    // gibt es auch nichts anzusagen.
+    expect(workWaits(cut)).toBe(false);
+    // Auch die Tomate über beide Stufen bleibt, wo sie ist.
+    const soup = advanceWork(onWork('chop', 'tomato-cut'), WORK_SECONDS.chop, true, true);
+    expect(soup.state.item).toBe('tomato-soup');
+    expect(soup.toHand).toBe(false);
+  });
+
+  /**
+   * **Wer weggeht, bekommt nichts in die Hand** — dieselbe Regel wie am Brett,
+   * und die leere Hand ändert daran nichts. Sonst wäre die Spüle die eine
+   * Station, an der sich Warten lohnt, indem man wegläuft.
+   */
+  it('gibt beim Abbruch nichts heraus', () => {
+    const begun = advanceWork(onWork('wash', 'plate-dirty'), WORK_SECONDS.wash - 0.5, true, true);
+    expect(begun.toHand).toBe(false);
+    const away = advanceWork(begun.state, 10, false, true);
+    expect(away.done).toBeNull();
+    expect(away.toHand).toBe(false);
+    // Der dreckige Teller steht weiter im Becken, und Zurückkommen allein tut
+    // gar nichts: Erst ein erneutes Auflegen armiert die Uhr wieder.
+    expect(away.state.item).toBe('plate-dirty');
+    expect(frames(away.state, 100, true, true)).toMatchObject({ done: null, toHand: false });
+    expect(frames(onWork('wash', away.state.item), WORK_SECONDS.wash, true, true).toHand).toBe(
+      true,
+    );
+  });
+
+  /**
+   * **Der ganze Weg am Stück**, so wie er im Spiel läuft: Der Gast gibt den
+   * dreckigen Teller zurück, man stellt ihn ins Becken, steht dabei, und hat
+   * danach den sauberen in der Hand — bereit für das Abtropfbrett oder gleich
+   * für die nächste Bestellung.
+   */
+  it('führt den dreckigen Teller in einem Zug zum sauberen in der Hand', () => {
+    let now = onWork('wash', 'plate-dirty');
+    expect(now.working).toBe(true);
+    expect(workProgress(now)).toBe(0);
+
+    const half = frames(now, WORK_SECONDS.wash / 2, true, true);
+    expect(half.done).toBeNull();
+    // Der Balken über der Spüle steht auf halb — er stimmt weiter.
+    expect(workProgress(half.state)).toBeGreaterThan(0.4);
+    expect(workProgress(half.state)).toBeLessThan(0.6);
+
+    now = half.state;
+    const end = frames(now, WORK_SECONDS.wash, true, true);
+    expect(end.done).toBe('plate');
+    expect(end.toHand).toBe(true);
+    expect(end.state.item).toBeNull();
+    // Und danach zeigt die Spüle nichts mehr an.
+    expect(workProgress(end.state)).toBe(0);
+  });
+
+  /**
+   * **Die Tabelle ist die eine Stelle.** Steht sie einmal auf `false`, ist der
+   * ganze Umbau zurückgenommen — ohne dass irgendwo sonst etwas zu ändern
+   * wäre. Genau das soll sie leisten.
+   */
+  it('entscheidet allein über den Weg des Fertigen', () => {
+    expect(WORK_TO_HAND).toEqual({ chop: false, wash: true });
+    for (const kind of Object.keys(WORK_TO_HAND) as WorkKind[]) {
+      const item = kind === 'chop' ? 'lettuce' : 'plate-dirty';
+      const tick = advanceWork(onWork(kind, item), WORK_SECONDS[kind], true, true);
+      expect({ kind, toHand: tick.toHand }).toEqual({ kind, toHand: WORK_TO_HAND[kind] });
+      expect(tick.state.item === null).toBe(WORK_TO_HAND[kind]);
+    }
   });
 });

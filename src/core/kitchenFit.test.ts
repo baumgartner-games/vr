@@ -3,8 +3,12 @@ import {
   KITCHEN_PIECES,
   KITCHEN_SCALE,
   PAN_BOWL,
+  SINK_BOWL,
+  SINK_SUNK,
+  SINK_TRAY,
   kitchenDeck,
   kitchenPiece,
+  kitchenWorkHeight,
 } from './kitchenFit';
 
 /**
@@ -26,7 +30,16 @@ import {
 const SOURCE: Readonly<Record<string, readonly [number, number, number]>> = {
   'plate-counter': [2, 1.12, 2.12],
   extinguisher: [2, 2.5, 2],
-  sink: [4, 2.3, 2.12],
+  // **Die Spüle steht als ihre beiden Hälften darin.** Der Knoten `sink` der
+  // Datei ist 4 × 2,3 × 2,12 m groß und wird beim Laden bei x = 0 zerschnitten
+  // (`core/kitchenModel.splitSink`) — nachzumessen sind also die Hälften, und
+  // ihre Breiten müssen die ganze Spüle wieder ergeben (siehe der Test unten).
+  // Das Becken behält dabei die volle Höhe: Auf ihm steht die Armatur.
+  'sink-basin': [2, 2.3, 2.12],
+  // Und 1,035 ausnahmsweise auf drei Stellen: Der Rand liegt bei y = 1,034858,
+  // halbiert 0,5174 m — auf zwei Stellen gerundet läge die Quelle mit 1,03
+  // genau auf der Grenze, ab der der Katalog auf 0,51 oder 0,52 rundet.
+  'sink-drain': [2, 1.035, 2.12],
   bin: [2, 0.9, 2],
   table: [2, 1, 2],
   'serve-counter': [2, 0.91, 2],
@@ -70,7 +83,9 @@ describe('der Möbelkatalog', () => {
   });
 
   it('findet ein Möbel nach Namen und verschluckt sich nicht an Fremdtext', () => {
-    expect(kitchenPiece('sink')?.label).toBe('Spüle');
+    expect(kitchenPiece('sink-basin')?.label).toBe('Spülbecken');
+    // Und die ganze Spüle gibt es nicht mehr — sie ist zwei Möbel.
+    expect(kitchenPiece('sink')).toBeUndefined();
     // Die Namen kommen über das Netz in einem Plan an — was dort steht, hat
     // niemand geprüft.
     expect(kitchenPiece('../../etc/passwd')).toBeUndefined();
@@ -301,8 +316,10 @@ describe('der Möbelkatalog', () => {
   it('legt aufs Schneidebrett und nicht aufs Messer', () => {
     const board = kitchenPiece('board')!;
     const counter = kitchenPiece('counter')!;
-    // Das Brett liegt auf der Arbeitsplatte, also über ihr — und um genau
-    // seine eigene Dicke (0,067 in der Quelle, halbiert 3,3 cm).
+    // Das Brett liegt auf dem Korpus, also über ihm — und um genau seine
+    // eigene Dicke (0,067 in der Quelle, halbiert 3,3 cm). Gemessen wird ab
+    // **Fuß** des Möbels; wo die Fläche im Raum liegt, steht eine Prüfung
+    // weiter unten.
     expect(kitchenDeck(board) - counter.height).toBeCloseTo(0.033, 2);
     // Und deutlich unter der Messerspitze, die `height` ist.
     expect(kitchenDeck(board)).toBeLessThan(board.height);
@@ -310,6 +327,69 @@ describe('der Möbelkatalog', () => {
     // Die Korpusse selbst sind gleich hoch — beide 1,000 in der Quelle.
     expect(SOURCE['board']![1] * KITCHEN_SCALE).toBeCloseTo(0.575, 3);
     expect(SOURCE['counter']![1] * KITCHEN_SCALE).toBe(counter.height);
+  });
+
+  /**
+   * **Die Arbeitsflächen der Zeilenmöbel liegen auf einer Höhe** — und das ist
+   * die Zusage, die dreimal gebrochen wurde.
+   *
+   * Zweimal stand an dieser Stelle eine Begründung dafür, dass das
+   * Schneidebrett 3,3 cm höher arbeitet als die Küchenzeile: Die 3,3 cm *seien*
+   * das Brett, ein Brett liege nun einmal auf der Platte. Im Bild ist es
+   * trotzdem eine **Stufe** in einer Reihe aus Zeile, Brett, Zeile, und
+   * verlangt war eine durchgehende Platte. Sie kommt nicht daher, dass am Maß
+   * des Bretts gedreht wird (das ist gemessen), sondern daher, dass das **Möbel**
+   * um die Brettdicke tiefer steht (`KitchenPiece.bury`).
+   *
+   * Geprüft wird deshalb `kitchenWorkHeight` und nicht `kitchenDeck`: Das eine
+   * misst über dem Boden, das andere über dem Fuß des Möbels — und genau dieser
+   * Unterschied ist der ganze Umbau.
+   */
+  it('legt die Arbeitsflächen der Zeilenmöbel auf eine Höhe', () => {
+    const line = kitchenWorkHeight(kitchenPiece('counter')!);
+    // Die Küchenzeile ist das Maß: Korpus 1,000 in der Quelle, halbiert.
+    expect(line).toBeCloseTo(1 * KITCHEN_SCALE, 6);
+    // Die Möbel, die in dieser Küche in einer Reihe stehen — welche das sind,
+    // steht im Aufbau und wird dort auch geprüft
+    // (`worlds/test/zones/kitchenPlan.test.ts`).
+    for (const name of ['counter', 'board', 'table', 'plate-counter', 'extinguisher']) {
+      const piece = kitchenPiece(name)!;
+      expect({ name, top: kitchenWorkHeight(piece).toFixed(3) }).toEqual({
+        name,
+        top: line.toFixed(3),
+      });
+    }
+    // Der Herd ist die begründete Ausnahme: Sein **Blech** liegt bei 1,000 in
+    // der Quelle, also bündig mit der Zeile; die 5 cm darüber sind die
+    // Kochstelle, und darauf steht ein Topf.
+    for (const name of ['stove', 'stove-pot', 'stove-pan']) {
+      expect({ name, top: kitchenWorkHeight(kitchenPiece(name)!) }).toEqual({ name, top: 0.55 });
+    }
+    expect(SOURCE['stove']![1] - 1).toBeCloseTo(0.1, 6);
+  });
+
+  /**
+   * **Im Boden steckt nur, was dort niemand vermisst.** `bury` ist ein
+   * Ausgleich von Zentimetern und keine Grube: Ein Möbel, das um einen halben
+   * Meter versenkt würde, wäre ein Loch im Fußboden mit einer Platte darüber —
+   * und seine Schubladen, seine Griffe und beim Schneidebrett das Brett selbst
+   * wären weg. Deshalb bleibt es unter einem Zehntelmeter und unter der eigenen
+   * Ablagehöhe.
+   */
+  it('versenkt kein Möbel weiter als seine Sockelleiste', () => {
+    const sunk = KITCHEN_PIECES.filter((piece) => piece.bury);
+    expect(sunk.map((piece) => piece.name)).toEqual(['sink-basin', 'sink-drain', 'board']);
+    for (const piece of KITCHEN_PIECES) {
+      const bury = piece.bury ?? 0;
+      expect({ name: piece.name, ok: bury >= 0 && bury < 0.1 }).toEqual({
+        name: piece.name,
+        ok: true,
+      });
+      // Was oben herausragt, bleibt sichtbar — beim Brett 0,57 − 0,033 =
+      // 0,537 m bis zur Messerspitze, mit der Brettoberfläche bei 0,50 m.
+      expect(kitchenWorkHeight(piece)).toBeGreaterThan(0.1);
+      expect(piece.height - bury).toBeGreaterThan(kitchenWorkHeight(piece) - 1e-9);
+    }
   });
 
   /**
@@ -354,5 +434,88 @@ describe('der Möbelkatalog', () => {
     expect(kitchenDeck(piece)).toBeCloseTo(1 * KITCHEN_SCALE, 2);
     // Der Löscher darüber: gut drei Viertel Meter hoch.
     expect(piece.height - kitchenDeck(piece)).toBeCloseTo(0.75, 2);
+  });
+});
+
+/**
+ * **Aus einer Spüle sind zwei Möbel geworden**, und dieser Block rechnet die
+ * Zerlegung nach — nicht das Netz (das ist `core/kitchenModel.splitSink` und
+ * braucht eine Datei), sondern die Zahlen, die im Katalog davon stehen.
+ *
+ * Der Spieltest hat es so gefordert: „Das Waschbecken müssen wir in 2 Elemente
+ * teilen. Das Waschbecken selbst und das Abstellbrett-Element." Die beiden
+ * Hälften sind seither zwei Stücke mit zwei Stationen — im Becken wird gespült,
+ * auf dem Brett stehen die sauberen Teller.
+ */
+describe('die geteilte Spüle', () => {
+  const basin = kitchenPiece('sink-basin')!;
+  const drain = kitchenPiece('sink-drain')!;
+
+  it('macht aus dem einen Knoten zwei Möbel von je einer Kachel', () => {
+    expect([basin.name, drain.name]).toEqual(['sink-basin', 'sink-drain']);
+    expect(basin.tiles).toEqual([1, 1]);
+    expect(drain.tiles).toEqual([1, 1]);
+    // **Und zusammen sind sie wieder die ganze Spüle.** Der Knoten `sink` ist
+    // in der Quelle 4 m breit; jede Hälfte misst 2 m, weil die Naht auf x = 0
+    // liegt und das Netz dort von −2,000 bis +2,000 reicht. Wer die Naht
+    // verschiebt, sieht es hier.
+    expect(SOURCE['sink-basin']![0] + SOURCE['sink-drain']![0]).toBe(4);
+    // Tiefe unverändert: Geschnitten wird in x, nicht in z.
+    expect(SOURCE['sink-basin']![2]).toBe(SOURCE['sink-drain']![2]);
+    // Die Armatur steht auf dem Becken, also ist nur diese Hälfte hoch.
+    expect(basin.height).toBeGreaterThan(drain.height * 2);
+  });
+
+  /**
+   * **Der Beckenrand reiht sich in die Zeile ein.** Er liegt in der Quelle bei
+   * y = 1,034858 (halbiert 0,5174 m) und damit 1,74 cm über der Küchenzeile —
+   * eine Stufe mitten in der Nordwand, dieselbe Sorte Fehler wie beim
+   * Schneidebrett, nur halb so hoch. `SINK_SUNK` nimmt sie unten wieder weg.
+   */
+  it('legt den Rand beider Hälften auf die Höhe der Küchenzeile', () => {
+    const line = kitchenWorkHeight(kitchenPiece('counter')!);
+    expect(line).toBeCloseTo(0.5, 6);
+    expect(SINK_BOWL.rim - SINK_SUNK).toBeCloseTo(line, 3);
+    // Beide Hälften stecken gleich tief — zwei Hälften eines Möbels mit einer
+    // Kante dazwischen wären zwei Möbel.
+    expect(basin.bury).toBe(SINK_SUNK);
+    expect(drain.bury).toBe(SINK_SUNK);
+    // Und was im Boden steckt, ist Sockel und kein Stück Möbel: Unterhalb von
+    // y = 0,05 (Quelle) steht der Korpus ohnehin hinter der Deckplatte zurück.
+    expect(SINK_SUNK).toBeLessThan(0.05 * KITCHEN_SCALE);
+  });
+
+  /**
+   * **Im Becken wird hineingelegt und nicht daraufgelegt.** `deck` ist deshalb
+   * nicht der Rand, sondern der Wasserspiegel — und der liegt auf halber
+   * Beckentiefe, weil genau dort der schräge Teller zur Hälfte eintaucht
+   * (`worlds/test/zones/kitchenProps.SINK_TILT`).
+   */
+  it('setzt die Ablage des Beckens auf den Wasserspiegel', () => {
+    expect(kitchenDeck(basin)).toBe(SINK_BOWL.water);
+    expect(SINK_BOWL.water).toBeCloseTo((SINK_BOWL.rim + SINK_BOWL.floor) / 2, 4);
+    // Das Becken ist 14,4 cm tief (Quelle 1,034858 − 0,746379 = 0,288479).
+    expect(SINK_BOWL.rim - SINK_BOWL.floor).toBeCloseTo(0.288479 * KITCHEN_SCALE, 3);
+  });
+
+  /**
+   * **Und das Abtropfbrett ist flach.** Genau daran unterscheidet die Quelle
+   * die beiden Seiten: links eine Mulde von 14,4 cm, rechts eine Riffelwanne
+   * von 7,6 cm. Wäre es andersherum, hätten wir zwei Becken und kein Brett.
+   */
+  it('gibt dem Abtropfbrett eine flache Wanne statt eines zweiten Beckens', () => {
+    expect(kitchenDeck(drain)).toBe(SINK_TRAY.floor);
+    const tray = SINK_BOWL.rim - SINK_TRAY.floor;
+    expect(tray).toBeCloseTo(0.038, 3);
+    expect(tray).toBeLessThan((SINK_BOWL.rim - SINK_BOWL.floor) / 2);
+    // Beide Mulden sitzen spiegelbildlich zur Naht — dieselbe Zahl mit
+    // umgekehrtem Vorzeichen, und in z gleich weit nach Norden versetzt.
+    expect(SINK_BOWL.at[0]).toBeCloseTo(-SINK_TRAY.at[0], 6);
+    expect(SINK_BOWL.at[1]).toBe(SINK_TRAY.at[1]);
+    // Und beide bleiben innerhalb ihrer Kachel (1 m).
+    for (const tub of [SINK_BOWL, SINK_TRAY]) {
+      expect(Math.abs(tub.at[0]) + tub.width / 2).toBeLessThan(0.5);
+      expect(Math.abs(tub.at[1]) + tub.depth / 2).toBeLessThan(0.5);
+    }
   });
 });

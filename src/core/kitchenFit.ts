@@ -41,7 +41,15 @@ export interface KitchenPiece {
   readonly label: string;
   /** Wie viele Kacheln es belegt (`worlds/nav/navTile.TILE` = 1 m). */
   readonly tiles: readonly [x: number, z: number];
-  /** Wie hoch es ist, in Metern — für Kopffreiheit und Sicht. */
+  /**
+   * Wie hoch es ist, in Metern — für Kopffreiheit und Sicht.
+   *
+   * Gemessen am **Möbel** und von seinem eigenen Fuß aus, nicht vom Boden des
+   * Raums: Ein Stück mit `bury` steckt ein paar Zentimeter im Estrich und ragt
+   * entsprechend weniger weit heraus (`height − bury`). Der Katalog nennt
+   * weiter das Maß der Quelle, damit ein zweiter Lauf des Werkzeugs nachrechnen
+   * kann, was in der Datei steht.
+   */
   readonly height: number;
   /**
    * Ob es **hängt** statt zu stehen: Dann ist `height` seine Oberkante und
@@ -59,14 +67,20 @@ export interface KitchenPiece {
   readonly hanging?: boolean;
 
   /**
-   * **Wo die Arbeitsfläche liegt**, in Metern über dem Boden — dort landet,
-   * was jemand ablegt (`worlds/test/zones/kitchen.ts`).
+   * **Wo die Arbeitsfläche liegt**, in Metern über dem **Fuß des Möbels** —
+   * dort landet, was jemand ablegt (`worlds/test/zones/kitchen.ts`).
    *
    * Sie ist bei den meisten Möbeln dasselbe wie `height`, und deshalb steht
    * sie nur dort, wo sie es **nicht** ist: Auf dem Herd mit dem Topf ist
    * `height` die Oberkante des **Topfes** (0,87 m) und nicht die der Platte
    * (0,55 m) — ein Brötchen, das auf `height` abgelegt würde, schwebte eine
    * Handbreit über dem Deckel.
+   *
+   * **Über dem Fuß und nicht über dem Boden**, seit es `bury` gibt: Wer wissen
+   * will, wie hoch die Fläche im Raum liegt, fragt `kitchenWorkHeight`. Die
+   * Zone rechnet ohnehin von dem Punkt aus, an dem das Möbel steht
+   * (`kitchen.ts`, `standAt` gibt ihn zurück) — und der ist bei einem
+   * eingelassenen Möbel nicht der Fußboden.
    */
   readonly deck?: number;
 
@@ -152,6 +166,50 @@ export interface KitchenPiece {
   readonly align?: readonly [x: number, z: number];
 
   /**
+   * **Wie tief das Möbel im Boden steckt**, in Metern — derselbe Ausgleich wie
+   * `align`, nur nach unten statt zur Seite (`worlds/test/zones/kitchen.ts`,
+   * `standAt`).
+   *
+   * Der erste Fall hat drei Anläufe gebraucht: das **Schneidebrett**. Auf
+   * seinem Korpus liegt ein Brett, das Brett ist 3,3 cm dick, und damit lag
+   * seine Arbeitsfläche 3,3 cm über der der Küchenzeile daneben. In einer Zeile
+   * aus Zeile, Brett, Zeile ist das eine **Stufe**, und aus 55° von oben
+   * (`core/topDownPose.TOP_DOWN_TILT`) läuft sie quer durchs Bild.
+   *
+   * Der zweite und dritte sind die beiden Hälften der **Spüle**: Ihr Rand liegt
+   * 1,74 cm über der Zeile, und sie stehen mitten darin (`SINK_SUNK`).
+   *
+   * **An dieser Stelle stand lange die Gegenrede**, und sie ist widerlegt: Die
+   * 3,3 cm *seien* das Brett, ein Schneidebrett liege nun einmal auf der
+   * Platte, also bleibe die Stufe. Gewollt ist aber eine durchgehende
+   * Arbeitsfläche — und die kostet das Brett nichts, weil nicht das **Brett**
+   * in die Platte versenkt wird (dann wäre es unsichtbar, es ist genau so dick
+   * wie die Stufe), sondern das **ganze Möbel** um die Brettdicke tiefer steht.
+   * Oben fluchtet es damit, unten verschwinden 3,3 cm im Estrich.
+   *
+   * **Und unten ist dort nichts, was man sehen können muss.** Gemessen an der
+   * Quelle: Unter y = 0,065 steht der Korpus nur bis ±0,900 statt ±1,000, also
+   * im Spiel **5 cm hinter der Kante der Deckplatte** zurück und von deren
+   * Überstand verdeckt; und zwischen y = 0,015 und y = 0,427 (halbiert 0,007
+   * bis 0,214 m) hat der Korpus überhaupt keine Kante — die unterste Fuge, die
+   * man daran sieht, liegt 21 cm über dem Boden und damit sechsmal so hoch wie
+   * das, was versenkt wird. Im Estrich steckt eine glatte Sockelleiste im
+   * Schatten der Platte.
+   *
+   * **Was dadurch nicht kippt**: `height` und `deck` messen weiter das Möbel
+   * selbst, von seinem eigenen Fuß aus — nur der Fuß liegt tiefer. Die
+   * Ablagehöhe im Raum ist deshalb `kitchenWorkHeight`, und die ist beim Brett
+   * auf den Millimeter die der Küchenzeile.
+   *
+   * **Nicht zu verwechseln mit `Spot.lift`** (`worlds/test/zones/kitchenPlan.ts`):
+   * Das hebt ein Möbel an **einer Stelle** an — das Ausgaberegal über der Theke
+   * — und lässt dabei den Körper weg, damit man darunter durchläuft. `bury`
+   * gehört dem **Möbel**: Das Brett steht zweimal in der Küche und einmal im
+   * Schauraum, und es soll überall gleich stehen.
+   */
+  readonly bury?: number;
+
+  /**
    * **Dieses Stück steckt nicht in `public/models/kitchen.glb`, sondern wird
    * gebaut.**
    *
@@ -180,15 +238,131 @@ export interface KitchenPiece {
   readonly built?: boolean;
 }
 
+/*
+ * **Die Spüle ist zwei Möbel**, und die drei Blöcke hierunter sind die Zahlen
+ * dazu.
+ *
+ * In der Quelle ist `sink` **ein** Möbel von vier Metern Breite: links ein
+ * Becken, rechts ein Abtropfbrett, dazwischen ein Steg und darauf die Armatur.
+ * Im Spiel sind das zwei Stücke von je einem Meter (`sink-basin`,
+ * `sink-drain`), und das ist keine Schönheit, sondern die Küche: Ein Becken,
+ * in dem gespült wird, und eine Ablage, auf der die sauberen Teller stehen,
+ * sind zwei Handgriffe an zwei Stellen — als ein Möbel hätten sie **eine**
+ * Station, und wer davorsteht, könnte immer nur eines von beidem tun.
+ *
+ * **Zerschnitten wird das Netz beim Laden** (`core/kitchenModel.splitSink`),
+ * denn Teilnetze zum Trennen gibt es nicht — der ganze Knoten ist ein einziges
+ * Netz mit 1350 Ecken und einem Material. Die Naht liegt bei **x = 0**, und
+ * das ist gemessen und nicht gewählt: Der Beckenboden reicht von x = −1,7828
+ * bis −0,1675 (Mitte −0,9751), die Abtropfwanne von +0,2083 bis +1,7419
+ * (Mitte +0,9751) — die beiden Mulden liegen spiegelbildlich um x = 0, und der
+ * Steg zwischen ihren Öffnungen (−0,1660 bis +0,1580) hat seine Mitte bei
+ * −0,0040. Zwei Millimeter Quellmaß, einer im Spiel.
+ *
+ * Alle Zahlen hier sind **halbiert** (`KITCHEN_SCALE`) und ab **Fuß des
+ * Möbels** gemessen, wie `deck`; die Quellmaße stehen daneben, damit ein
+ * zweiter Lauf des Werkzeugs nachrechnen kann.
+ */
+
 /**
- * **Die dreizehn Möbel der Quelle und zwei gebaute dazu**, in der
- * Reihenfolge, in der sie aus der Datei fallen — mit den Maßen, die sie **im
- * Spiel** haben, also halbiert (`KITCHEN_SCALE`).
+ * **Wie tief die beiden Hälften im Estrich stecken** — derselbe Fall wie beim
+ * Schneidebrett (`KitchenPiece.bury`), nur andersherum begründet.
+ *
+ * Der Beckenrand liegt in der Quelle bei y = 1,034858, halbiert **0,5174 m**.
+ * Die Küchenzeile daneben liegt bei 1,000 → **0,5000 m**. In der Nordzeile
+ * stehen Zeile, Herde, Löscherhocker, **Spüle**, Zeile, Brett, Zeile,
+ * Tellerausgabe nebeneinander, und alle bis auf die Spüle arbeiten auf 0,500 m
+ * — die Spüle sprang um **1,74 cm** heraus. Das ist die halbe Stufe, die das
+ * Schneidebrett gekostet hat (3,3 cm), und aus 55° von oben
+ * (`core/topDownPose.TOP_DOWN_TILT`) läuft sie über zwei Kacheln quer durchs
+ * Bild.
+ *
+ * Also gehen die 1,74 cm unten wieder ab, und zwar bei **beiden** Hälften
+ * gleich: Zwei Hälften eines Möbels, die verschieden tief stünden, hätten
+ * zwischen sich eine Kante, die es in der Quelle nicht gibt.
+ *
+ * **Und unten ist nichts, was man sehen können muss.** Gemessen an der Quelle:
+ * Unterhalb von y = 0,05 steht der Korpus nur bis x = ±1,900 und z = −0,988…
+ * +0,866, also 5 cm (im Spiel) hinter der Kante der Deckplatte (±2,000 /
+ * ±1,061) und in ihrem Schatten; zwischen y = 0,02 und y = 0,05 hat er
+ * überhaupt keine Ecke. Im Estrich steckt eine glatte Sockelleiste.
+ */
+export const SINK_SUNK = 0.0174;
+
+/**
+ * **Das Becken** — wo das Wasser steht und wie der Teller darin liegt.
+ *
+ * Alles in Metern über dem **Fuß** des Möbels (`sink-basin`), Quellmaß in
+ * Klammern:
+ *
+ * - `rim` **0,5174** (1,034858) — der Rand ringsum, die Fläche, die sich mit
+ *   `SINK_SUNK` in die Zeile einreiht.
+ * - `floor` **0,3732** (0,746379) — der Beckenboden. Das Becken ist damit
+ *   **14,4 cm tief**.
+ * - `water` **0,4453** — genau dazwischen, also **halb voll**. Ein Becken, das
+ *   bis zum Rand stünde, hätte den Teller unter Wasser und von oben unsichtbar;
+ *   eines mit einem Fingerbreit Wasser wäre kein Spülbecken, sondern eine
+ *   Mulde. Die Mitte ist zugleich die Höhe, auf der der Teller **halb**
+ *   eintaucht — siehe unten.
+ * - `width` **0,8076** (1,6153) und `depth` **0,6410** (1,2821) — die Öffnung.
+ * - `at` **[+0,0124, −0,0307]** — wo ihre Mitte gegenüber dem Ursprung der
+ *   **Hälfte** liegt. Die Mulde sitzt in der Quelle bei x = −0,9751, die
+ *   Hälfte reicht von −1,9999 bis 0 und wird um ihre Mitte (−0,99994)
+ *   zentriert; es bleiben 0,0248 Quellmaß, halbiert 1,24 cm. In z sind es die
+ *   3,07 cm, um die die Mulde in der Quelle nach Norden versetzt ist.
+ *
+ * **Warum der Teller schräg liegt und wie schräg.** Ein Teller ist 0,75 m breit
+ * (`worlds/test/zones/kitchenProps.PLATE_RADIUS`), das Becken 0,81 × 0,64 m —
+ * er passt also gar nicht flach hinein, und flach auf den Rand gelegt stünde
+ * kein Stück von ihm im Wasser. Er lehnt deshalb: **untere Kante auf dem
+ * Beckenboden, obere Kante auf Randhöhe**. Damit ist der Winkel nicht gewählt,
+ * sondern ausgerechnet — er ist der, bei dem der Teller genau die Beckentiefe
+ * überspannt (`kitchenProps.SINK_TILT`, 11,1°) —, und weil das Wasser auf
+ * halber Tiefe steht, liegt genau die untere Hälfte darin.
+ */
+export const SINK_BOWL = {
+  rim: 0.5174,
+  floor: 0.3732,
+  water: 0.4453,
+  width: 0.8076,
+  depth: 0.641,
+  at: [0.0124, -0.0307],
+} as const;
+
+/**
+ * **Das Abtropfbrett** — dieselbe Lesart, andere Hälfte.
+ *
+ * - `floor` **0,4794** (0,958739) — der Boden der Wanne, und damit die Fläche,
+ *   auf der die sauberen Teller stehen. Sie liegt nur **7,6 cm** unter dem Rand
+ *   (`SINK_BOWL.rim`): eine flache Riffelwanne und kein zweites Becken — genau
+ *   daran unterscheidet die Quelle die beiden Seiten, und genau deshalb ist
+ *   diese hier das Abtropfbrett.
+ * - `width` **0,7668** (1,5336), `depth` **0,6002** (1,2004) — die Wanne.
+ * - `at` **[−0,0124, −0,0307]** — spiegelbildlich zum Becken.
+ */
+export const SINK_TRAY = {
+  floor: 0.4794,
+  width: 0.7668,
+  depth: 0.6002,
+  at: [-0.0124, -0.0307],
+} as const;
+
+/**
+ * **Vierzehn Möbel aus dreizehn Knoten der Quelle und zwei gebaute dazu**, in
+ * der Reihenfolge, in der sie aus der Datei fallen — mit den Maßen, die sie
+ * **im Spiel** haben, also halbiert (`KITCHEN_SCALE`).
+ *
+ * Vierzehn aus dreizehn, weil die **Spüle** in zwei Stücke zerfällt: Der Knoten
+ * `sink` der Quelle ist vier Meter breit und wird beim Laden in `sink-basin`
+ * und `sink-drain` zerschnitten (siehe der Block über `SINK_SUNK`). Wer die
+ * Liste am Werkzeug nachrechnet, findet dort weiter **einen** Eintrag `sink`
+ * — die beiden hier sind seine Hälften, und ihre Maße stehen in den Blöcken
+ * darüber.
  *
  * Die beiden gebauten sind das **Förderband** und das **Zugband**: Sie stehen
  * am Ende, sie tragen `built: true`, und sie sind die einzigen Stücke ohne
  * Knoten in der Quelle (siehe `KitchenPiece.built`). Wer das Werkzeug neu
- * laufen lässt, ersetzt die dreizehn davor und lässt die beiden stehen.
+ * laufen lässt, ersetzt die vierzehn davor und lässt die beiden stehen.
  *
  * Die Kachelzahl ist die gerundete Grundfläche und nicht die aufgerundete:
  * Ein Unterschrank ist einen Meter breit und 1,06 m tief, und wer daraus zwei
@@ -198,7 +372,7 @@ export interface KitchenPiece {
  *
  * Die Maße der **Quelle** stehen daneben, damit ein zweiter Lauf des Werkzeugs
  * nachrechenbar bleibt: 2 × 2 m und 1 m hoch für einen Unterschrank, 4 m breit
- * für Spüle, Ausgabetheke und Regal.
+ * für Spüle, Ausgabetheke und Regal — bei der Spüle je 2 m auf die Hälfte.
  */
 export const KITCHEN_PIECES: readonly KitchenPiece[] = [
   {
@@ -222,7 +396,32 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     worktop: true,
     holds: 'extinguisher',
   },
-  { name: 'sink', label: 'Spüle', tiles: [2, 1], height: 1.15 },
+  {
+    name: 'sink-basin',
+    label: 'Spülbecken',
+    tiles: [1, 1],
+    // **1,15 m ist die Oberkante der Armatur und nicht die des Möbels.** Der
+    // Beckenrand — die Fläche, die sich in die Zeile einreiht — liegt bei
+    // 0,5174 m (`SINK_BOWL.rim`, Quelle 1,034858); die 63 cm darüber sind der
+    // Wasserhahn (Quelle bis 2,297749).
+    height: 1.15,
+    // **Hier wird nicht darauf-, sondern hineingelegt.** Der Teller liegt im
+    // Wasser und nicht auf dem Rand — warum das genau diese Höhe ist, steht
+    // an `SINK_BOWL`.
+    deck: SINK_BOWL.water,
+    bury: SINK_SUNK,
+  },
+  {
+    name: 'sink-drain',
+    label: 'Abtropfbrett',
+    tiles: [1, 1],
+    // Der Rand, und sonst nichts: Die Armatur steht auf der anderen Hälfte.
+    height: 0.52,
+    // Die Wanne, in der die sauberen Teller stehen — 7,6 cm tiefer als der
+    // Rand daneben (Quelle 0,958739 gegen 1,034858).
+    deck: SINK_TRAY.floor,
+    bury: SINK_SUNK,
+  },
   { name: 'bin', label: 'Mülleimer', tiles: [1, 1], height: 0.45 },
   { name: 'table', label: 'Arbeitstisch', tiles: [1, 1], height: 0.5, worktop: true },
   { name: 'serve-counter', label: 'Ausgabe', tiles: [1, 1], height: 0.46, worktop: true },
@@ -246,20 +445,26 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // - Der **Korpus** (`Kitchen_Cabins`) reicht von y = 0,000 bis 1,000 —
     //   halbiert **0,500 m**, und das ist auf den Millimeter dieselbe Zahl wie
     //   bei der Küchenzeile daneben (`counter`, ebenfalls 1,000 → 0,500 m).
-    //   Die Möbel selbst fluchten also bereits.
+    //   Die **Korpusse** standen also von Anfang an gleich hoch — die Stufe war
+    //   allein das aufliegende Brett, und genau deshalb geht sie unten wieder
+    //   ab und nicht oben (`bury`).
     // - Darauf **liegt das Brett**: eine Platte von y = 0,998 bis 1,065, ihre
     //   Deckfläche halbiert **0,5326 m** (die größte waagerechte Fläche des
     //   Netzes, 1,63 m² in Quellmaß — das Brett und nichts anderes).
     // - Darüber das **Messer** bis 1,148 → 0,574 m, gerundet die 0,57 von
     //   `height`.
     //
-    // Die 3,3 cm, um die die Arbeitsfläche damit über der Küchenzeile liegt,
-    // **sind das Brett**: Es ist genau so dick (0,067 in der Quelle). Sie
-    // wegzurechnen hieße, das Brett in die Platte zu versenken — und weil es
-    // exakt so dick ist wie die Stufe, wäre es danach unsichtbar. Ein
-    // Schneidebrett liegt auf der Arbeitsplatte; das ist die Stufe, und sie
-    // bleibt.
+    // Die 3,3 cm, um die die Arbeitsfläche damit über dem Korpus liegt, **sind
+    // das Brett**: Es ist genau so dick (0,067 in der Quelle). Deshalb wird
+    // auch nicht an dieser Zahl gedreht — sie ist gemessen und stimmt.
     deck: 0.533,
+    // **Und dieselben 3,3 cm gehen unten wieder ab.** Sie waren die Stufe
+    // zwischen Brett und Küchenzeile, und die Zeile soll eine Linie sein und
+    // keine Treppe: 0,533 − 0,033 = **0,500 m**, auf den Millimeter die
+    // Arbeitsplatte von `counter` (`kitchenWorkHeight`). Versenkt wird das
+    // **Möbel** und nicht das Brett — das bleibt obenauf sichtbar, im Boden
+    // steckt nur Sockelleiste (siehe `KitchenPiece.bury`).
+    bury: 0.033,
     worktop: true,
     // 3,07 cm nach Süden: Das Brett ist 0,9999 m tief, die Küchenzeile neben
     // ihm 1,0612 m — so fluchtet die Vorderkante (`KitchenPiece.align`).
@@ -268,7 +473,20 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
   { name: 'plate-rack', label: 'Ausgaberegal', tiles: [2, 1], height: 0.56 },
   { name: 'pass', label: 'Ausgabetheke', tiles: [2, 1], height: 0.53, worktop: true },
   { name: 'counter', label: 'Küchenzeile', tiles: [1, 1], height: 0.5, worktop: true },
-  { name: 'stove', label: 'Herd', tiles: [1, 1], height: 0.55, worktop: true },
+  {
+    name: 'stove',
+    label: 'Herd',
+    tiles: [1, 1],
+    // **0,55 m, und die bleiben, obwohl die Zeile auf 0,50 m arbeitet.** Das
+    // ist kein zweiter Fall von `board`: Das **Blech** des Herds endet in der
+    // Quelle bei y = 1,000 — halbiert 0,500 m, bündig mit `counter` —, und die
+    // 5 cm darüber sind die **Kochstelle** (Quelle bis 1,100). Auf der steht
+    // ein Topf und nicht ein Salatkopf: Der Topf von `stove-pot` fängt bei
+    // 1,110 an, sitzt also genau darauf. Wer den Herd um diese 5 cm tiefer
+    // stellte, versenkte jeden Topf in der Kochstelle.
+    height: 0.55,
+    worktop: true,
+  },
   {
     name: 'stove-pot',
     label: 'Herd mit Topf',
@@ -348,6 +566,27 @@ export function kitchenPiece(name: string): KitchenPiece | undefined {
  */
 export function kitchenDeck(piece: KitchenPiece): number {
   return piece.deck ?? piece.height;
+}
+
+/**
+ * **Wie hoch die Arbeitsfläche über dem Boden liegt**, in Metern — dieselbe
+ * Fläche wie `kitchenDeck`, nur von unten gemessen statt vom Fuß des Möbels.
+ *
+ * Das ist die Zahl, über die sich in der Küche eine **Zeile** bildet: Küchenzeile
+ * und Schneidebrett und Tellerausgabe sollen nebeneinander eine durchgehende
+ * Platte ergeben, und ob ein Möbel dafür ein paar Zentimeter im Estrich steckt
+ * (`KitchenPiece.bury`), ist die Sache des Möbels und nicht die dessen, der die
+ * Zeile ansieht. Vorher war diese Zahl `kitchenDeck` — und solange kein Möbel
+ * eingelassen war, war das dasselbe; beim Brett ist es das nicht mehr, und wer
+ * die beiden verwechselt, misst die Stufe wieder herbei, die gerade abgeräumt
+ * wurde.
+ *
+ * Die Zone braucht sie nicht: Sie rechnet vom Fuß aus, den sie beim Hinstellen
+ * ohnehin in der Hand hat (`worlds/test/zones/kitchen.ts`, `standAt`). Gebraucht
+ * wird sie da, wo zwei Möbel **verglichen** werden.
+ */
+export function kitchenWorkHeight(piece: KitchenPiece): number {
+  return kitchenDeck(piece) - (piece.bury ?? 0);
 }
 
 /**

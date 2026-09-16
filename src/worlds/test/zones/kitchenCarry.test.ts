@@ -1,9 +1,13 @@
 import {
+  CLEAN_STACK_MAX,
   ITEM_LABELS,
+  WORK_SECONDS,
+  advanceWork,
   dish,
   kitchenDeed,
   kitchenPrompt,
   meansContent,
+  onWork,
   type Dish,
   type KitchenDeed,
   type KitchenItem,
@@ -609,12 +613,33 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
       do: 'place',
       dish: d('plate'),
     });
-    // Und was darin steht, nimmt man heraus — auch den fertig gespülten.
+    // Und was darin steht, nimmt man heraus.
     expect(press(null, { kind: 'sink', on: d('plate') })).toEqual({
       do: 'take',
       dish: d('plate'),
     });
     expect(press(null, { kind: 'sink', on: null })).toEqual({ do: 'nothing' });
+  });
+
+  /**
+   * **Der Nachgriff bei voller Hand.** Fertig gespült kommt der Teller von
+   * selbst in die Hand (`kitchenWork.WORK_TO_HAND`) — außer die Hand war
+   * voll, dann wartet er im Wasser. Dieser Griff ist der Ausweg daraus, und
+   * er ist der Grund, warum die Spüle weiter hergibt, was in ihr steht.
+   */
+  it('gibt den wartenden sauberen Teller auf Nachfrage her', () => {
+    expect(press(null, { kind: 'sink', on: d('plate') })).toEqual({
+      do: 'take',
+      dish: d('plate'),
+    });
+    // Mit voller Hand bleibt er stehen und sagt auch, warum: Zwei Teller
+    // passen nicht übereinander.
+    expect(why(press(d('plate-dirty'), { kind: 'sink', on: d('plate') }))).toContain('schon');
+    // Und er ist sauber, also nimmt ihn das Abtropfbrett an.
+    expect(press(d('plate'), { kind: 'drain', stack: 0 })).toEqual({
+      do: 'place',
+      dish: d('plate'),
+    });
   });
 
   it('lässt in die Spüle nur Geschirr', () => {
@@ -666,6 +691,56 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
   });
 
   /**
+   * **Das Abtropfbrett ist die Rückgabe für saubere Teller**, und es ist das
+   * zweite Stück der geteilten Spüle (`core/kitchenFit.ts`, `sink-drain`).
+   *
+   * Der Spieltest hat es verlangt — „Man kann saubere Teller (bis zu 4) auf dem
+   * Abtropf-Element sammeln" —, und es macht aus dem Abwasch einen Vorrat: Wer
+   * fünf Teller am Stück spült, stellt sie daneben ab, statt jeden einzeln quer
+   * durch die Küche zu tragen.
+   */
+  it('sammelt bis zu vier saubere Teller auf dem Abtropfbrett', () => {
+    expect(press(d('plate'), { kind: 'drain', stack: 0 })).toEqual({
+      do: 'place',
+      dish: d('plate'),
+    });
+    expect(press(d('plate'), { kind: 'drain', stack: CLEAN_STACK_MAX - 1 })).toEqual({
+      do: 'place',
+      dish: d('plate'),
+    });
+    // Der fünfte nicht mehr — und wer davorsteht, liest, warum.
+    const full = press(d('plate'), { kind: 'drain', stack: CLEAN_STACK_MAX });
+    expect(full.do).toBe('refuse');
+    expect(why(full)).toContain('4');
+    expect(CLEAN_STACK_MAX).toBe(4);
+  });
+
+  it('gibt vom Abtropfbrett den obersten Teller her', () => {
+    expect(press(null, { kind: 'drain', stack: 4 })).toEqual({ do: 'take', dish: d('plate') });
+    expect(press(null, { kind: 'drain', stack: 1 })).toEqual({ do: 'take', dish: d('plate') });
+    // Ein leeres Brett meldet sich nicht — wie eine leere Rückgabe.
+    expect(press(null, { kind: 'drain', stack: 0 })).toEqual({ do: 'nothing' });
+    expect(press(null, { kind: 'drain' })).toEqual({ do: 'nothing' });
+  });
+
+  it('lässt auf das Abtropfbrett nur leere saubere Teller', () => {
+    for (const held of [d('plate-dirty'), d('bun'), d('pan'), d('plate', 'bun')]) {
+      const deed = press(held, { kind: 'drain', stack: 1 });
+      expect({ item: held.item, do: deed.do }).toEqual({ item: held.item, do: 'refuse' });
+      expect(why(deed)).toContain('saubere Teller');
+    }
+  });
+
+  it('sagt am Abtropfbrett an, was gleich passiert', () => {
+    expect(kitchenPrompt(press(d('plate'), { kind: 'drain' }), 'Abtropfbrett')).toBe(
+      'Teller auf Abtropfbrett legen',
+    );
+    expect(kitchenPrompt(press(null, { kind: 'drain', stack: 2 }), 'Abtropfbrett')).toBe(
+      'Teller nehmen',
+    );
+  });
+
+  /**
    * **Gästetisch und Förderband sind Flächen.** Was den einen zum Gästetisch
    * macht, ist der Kunde daran, und was das andere zum Band macht, ist seine
    * Bewegung — beides Sache der Zone. Für `A` ist es beides eine Ablage.
@@ -705,7 +780,13 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
   });
 
   /**
-   * **Einmal ganz herum** — vom fertigen Burger bis zum sauberen Teller.
+   * **Einmal ganz herum** — vom fertigen Burger bis zum sauberen Teller auf
+   * dem Abtropfbrett, ohne einen Handgriff dazwischen auszulassen.
+   *
+   * Der Weg ist der Grund, warum es die Spüle gibt, und er muss **in einem
+   * Stück** durchspielbar bleiben: Gast, Rückgabe oder Tisch, Becken, Hand,
+   * Abtropfbrett. Bricht er in der Mitte, steht die Küche nach zehn Gästen
+   * still, und man merkt es erst im Headset.
    */
   it('führt den Teller vom Gast zurück in die Küche', () => {
     const served = press(d('plate', 'bun', 'patty-cooked'), { kind: 'serve' });
@@ -719,6 +800,17 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
       do: 'work',
       kind: 'wash',
       dish: d('plate-dirty'),
+    });
+    // Die Hand ist dabei leer — der Teller steht ja im Wasser —, also endet
+    // die Uhr mit dem sauberen Teller darin (`kitchenWork.WORK_TO_HAND`).
+    const washed = advanceWork(onWork('wash', 'plate-dirty'), WORK_SECONDS.wash, true, true);
+    expect(washed.done).toBe('plate');
+    expect(washed.toHand).toBe(true);
+    // Und aus der Hand geht er auf das Abtropfbrett, wo er auf die nächste
+    // Bestellung wartet.
+    expect(press(d(washed.done ?? 'plate'), { kind: 'drain', stack: 1 })).toEqual({
+      do: 'place',
+      dish: d('plate'),
     });
   });
 });

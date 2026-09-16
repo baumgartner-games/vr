@@ -1,13 +1,14 @@
 /**
  * **Was `A` in der Küche tut** — die Regel hinter dem Kochen, ohne three.js.
  *
- * In der Küche steht elferlei herum, das auf `A` antwortet: **Flächen**, auf
+ * In der Küche steht zwölferlei herum, das auf `A` antwortet: **Flächen**, auf
  * denen etwas liegen kann (Zeile, Tisch, Ausgaberegal, Gästetisch, Förderband),
  * die **Kisten**, aus denen die Zutaten kommen, das **Schneidebrett**, der
  * **Herd mit der Pfanne**, die **Ausgabetheke**, der **Mülleimer**, die
- * **Halterung** des Feuerlöschers und — neu — die **Spüle** samt
- * **Geschirrrückgabe**. Was beim Drücken passiert, hängt an genau zwei Dingen:
- * was die Figur gerade trägt, und wovor sie steht.
+ * **Halterung** des Feuerlöschers und die **Geschirrrückgabe** — und seit die
+ * Spüle zwei Möbel sind, das **Spülbecken** und das **Abtropfbrett** daneben
+ * einzeln. Was beim Drücken passiert, hängt an genau zwei Dingen: was die Figur
+ * gerade trägt, und wovor sie steht.
  *
  * Das sind ein paar Dutzend Fälle, und sie stehen hier als **eine Funktion**
  * und nicht als sieben `if`-Ketten in der Zone daneben. Der Grund ist derselbe
@@ -34,10 +35,13 @@
  * Theke geht nur noch, was auf einem **Teller** liegt, und Teller wie Gericht
  * sind danach weg — zum Gast. Der bringt ihn dreckig zurück: an die
  * **Rückgabe**, wo sich die dreckigen Teller stapeln, oder er lässt ihn am
- * **Gästetisch** stehen. Von dort trägt man ihn in die **Spüle**, und die
- * macht mit derselben Uhr sauber, mit der das Brett schneidet (`kitchenWork.ts`).
- * Ohne diesen Kreis wäre die Tellerausgabe ein Brunnen und die Küche nach zehn
- * Gästen ein Tellerlager.
+ * **Gästetisch** stehen. Von dort trägt man ihn ins **Spülbecken**, und das
+ * macht mit derselben Uhr sauber, mit der das Brett schneidet
+ * (`kitchenWork.ts`). **Fertig gespült liegt er in der Hand** — man steht ja
+ * daneben, sonst liefe die Uhr gar nicht (`kitchenWork.WORK_TO_HAND`) — und
+ * von dort geht er auf das **Abtropfbrett** daneben, bis ihn jemand braucht,
+ * oder gleich zur nächsten Bestellung. Ohne diesen Kreis wäre die
+ * Tellerausgabe ein Brunnen und die Küche nach zehn Gästen ein Tellerlager.
  *
  * **Warum der Topf nicht in den Müll darf.** Ein Mülleimer, der alles
  * schluckt, ist ein Mülleimer, in dem nach zwei Minuten die einzige Pfanne der
@@ -114,10 +118,12 @@ export {
 export {
   IDLE_WORK,
   WORK_SECONDS,
+  WORK_TO_HAND,
   advanceWork,
   onWork,
   workProgress,
   workStage,
+  workWaits,
   type WorkKind,
   type WorkState,
   type WorkTick,
@@ -139,8 +145,10 @@ export type StationKind =
   | 'serve'
   /** Die Halterung des Feuerlöschers. */
   | 'rack'
-  /** Die Spüle: dreckiges Geschirr hinein, und es wird gespült. */
+  /** Das Spülbecken: dreckiges Geschirr hinein, und es wird gespült. */
   | 'sink'
+  /** Das Abtropfbrett neben dem Becken: Dort **stapeln** sich die sauberen Teller. */
+  | 'drain'
   /** Die Geschirrrückgabe: Dort **stapeln** sich die dreckigen Teller. */
   | 'return'
   /** Ein Gästetisch: Dort isst ein Kunde und lässt sein Geschirr zurück. */
@@ -171,9 +179,33 @@ export interface Station {
   readonly gives?: KitchenItem;
   /** Ob der Herd brennt — nur bei `stove` (`kitchenClock.StoveState.fire`). */
   readonly fire?: boolean;
-  /** Wie viele dreckige Teller hier liegen — nur bei `return`. */
+  /** Wie viele Teller hier stapeln — bei `return` dreckige, bei `drain` saubere. */
   readonly stack?: number;
 }
+
+/**
+ * **Wie viele saubere Teller auf das Abtropfbrett passen** — vier.
+ *
+ * Die Zahl kommt aus dem Spieltest („bis zu 4"), und sie hält auch der
+ * Nachrechnung stand, mit der schon der dreckige Stapel begrenzt ist
+ * (`kitchenProps.DIRTY_STACK_MAX`, sechs):
+ *
+ * - **Von oben**: Jeder Teller liegt gegen den vorigen verdreht
+ *   (`kitchenProps.DIRTY_TWIST`, 13° je Lage). Vier Lagen fächern um 39° auf —
+ *   man zählt sie auf einen Blick, und es sieht noch nach Stapel aus.
+ * - **Von vorn**: Die Wanne liegt bei 0,462 m über dem Boden
+ *   (`core/kitchenFit.SINK_TRAY.floor` abzüglich `SINK_SUNK`), vier Teller sind
+ *   4 × 0,05 = 0,20 m, die Oberkante also 0,662 m. Das bleibt gut 14 cm unter
+ *   der Brusthöhe der Figur (0,80 m), an der der dreckige Stapel seine Grenze
+ *   hat — der Blick über die Zeile bleibt frei.
+ *
+ * **Warum die Zahl hier steht und `DIRTY_STACK_MAX` nicht.** Die Rückgabe lehnt
+ * nie ab: Ein Gast, dessen Teller nirgends hinkann, wäre eine Sackgasse. Das
+ * Abtropfbrett **lehnt ab**, sobald es voll ist — und was `A` bewirkt, steht in
+ * dieser Datei und nirgends sonst. Der Stapel dort ist dagegen ein Bild und
+ * gehört deshalb zum Zutatensatz.
+ */
+export const CLEAN_STACK_MAX = 4;
 
 /**
  * Was ein Druck auf `A` bewirkt — **genau eine** Sache, die die Zone ausführt.
@@ -245,6 +277,9 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
 
     case 'sink':
       return atSink(held, station.on ?? null);
+
+    case 'drain':
+      return atDrain(held, station.stack ?? 0);
 
     case 'return':
       return atReturn(held, station.stack ?? 0);
@@ -431,6 +466,17 @@ function atPass(held: Dish | null): KitchenDeed {
  * zwar leeres. Ein Teller mit einem halben Burger darauf gehört erst an den
  * Mülleimer; eine Spüle, die ihn schluckte, wäre ein zweiter Mülleimer mit
  * Wasserhahn.
+ *
+ * **Angesprochen wird der dreckige Teller, und was herauskommt, liegt in der
+ * Hand.** Der Weg ist damit ein Griff und kein Hin und Her: hierher treten,
+ * `A`, dabeistehen, fertig. Wo das Fertige hingeht, entscheidet die Uhr
+ * (`kitchenWork.WORK_TO_HAND`) und nicht diese Datei — hier steht nur, was
+ * hineindarf.
+ *
+ * **Die erste Zeile ist trotzdem geblieben**, und sie ist jetzt der Ausweg für
+ * den einen Fall, in dem der saubere Teller doch im Becken steht: Wer mit
+ * voller Hand danebenstand, bekam ihn nicht gereicht. Ein Griff mit leerer
+ * Hand holt ihn nach.
  */
 function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
   if (!held) return on ? { do: 'take', dish: on } : { do: 'nothing' };
@@ -440,6 +486,38 @@ function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
   if (on) return { do: 'refuse', why: `In der Spüle steht schon ${ITEM_LABELS[on.item]}` };
   if (held.item !== 'plate-dirty') return { do: 'place', dish: held };
   return { do: 'work', kind: 'wash', dish: held };
+}
+
+/**
+ * **Das Abtropfbrett** ist die Rückgabe, nur andersherum: Hier stapelt sich das
+ * **saubere** Geschirr.
+ *
+ * Es ist die zweite Hälfte der Spüle (`core/kitchenFit.ts`, `sink-drain`), und
+ * es macht den Abwasch erst zu einem Weg mit einem Ende. Aus dem Becken kommt
+ * der saubere Teller in die **Hand** (`kitchenWork.WORK_TO_HAND`), und wer ihn
+ * nicht sofort braucht, müsste ihn sonst auf irgendeiner Arbeitsplatte
+ * zwischenlagern, wo er beim nächsten Burger im Weg liegt. Hier stellt man ihn
+ * ab und spült den nächsten — einen Schritt weiter, ohne den Platz zu wechseln.
+ *
+ * Der Fall ist Zeile für Zeile `atReturn`, mit zwei Unterschieden, und beide
+ * sind gewollt:
+ *
+ * - Hier gehört der **saubere** Teller hin und nichts sonst — ein dreckiger
+ *   zwischen vier sauberen ist der, den jemand gleich auf die Theke stellt.
+ *   Ein Teller **mit Belag** ebenfalls nicht: Das Brett ist eine Ablage für
+ *   Geschirr und keine zweite Arbeitsplatte.
+ * - Und es ist **voll** (`CLEAN_STACK_MAX`), während die Rückgabe nie voll ist.
+ *   Der Grund steht dort.
+ */
+function atDrain(held: Dish | null, stack: number): KitchenDeed {
+  if (!held) return stack > 0 ? { do: 'take', dish: dish('plate') } : { do: 'nothing' };
+  if (held.item !== 'plate' || held.on.length) {
+    return { do: 'refuse', why: 'Auf das Abtropfbrett gehören nur saubere Teller' };
+  }
+  if (stack >= CLEAN_STACK_MAX) {
+    return { do: 'refuse', why: `Auf dem Abtropfbrett stehen schon ${CLEAN_STACK_MAX} Teller` };
+  }
+  return { do: 'place', dish: held };
 }
 
 /**

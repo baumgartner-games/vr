@@ -38,6 +38,15 @@ export interface Spot {
    * Viertelumdrehungen um die Hochachse; 0 ist wie geliefert, und **vorn ist
    * dann Norden** (−z). Eine Umdrehung dreht nach Westen, zwei nach Süden
    * (zum Gang hin), drei nach Osten.
+   *
+   * **„Vorn" heißt hier die Richtung und nicht die Schauseite des Möbels** —
+   * die zeigt in dieser Quelle nach **+z**, also bei `turn: 0` nach Süden. Das
+   * ist nachgemessen und stand lange nirgends: An der Küchenzeile wie an der
+   * Spüle sitzen die Türgriffe auf der +z-Seite (bis z = +1,061), während die
+   * Rückwand bei z = −1,061 glatt durchläuft. Die Wandzeile steht deshalb mit
+   * `turn: 0` **richtig** herum — ihre Türen zeigen zum Gang, ihre Rückwand zur
+   * Wand, und der Wasserhahn der Spüle steht hinten. Wer das verwechselt, dreht
+   * die halbe Küche um 180°, weil ihm ein Möbel verkehrt vorkam.
    */
   readonly turn?: Turn;
   /**
@@ -233,7 +242,11 @@ export function rackLift(): number {
 export const BUILD_BUTTON_TILE = { x: 0, z: 9 } as const;
 
 export const KITCHEN_SPOTS: readonly Spot[] = [
-  // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ----------------
+  // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ---------------
+  // Sie ist eine durchgehende Arbeitsplatte auf 0,500 m, und dazu gehören
+  // seit dem Umbau auch die beiden Hälften der Spüle: Ihr Rand liegt in der
+  // Quelle 1,74 cm höher und steckt dafür so tief im Estrich
+  // (`core/kitchenFit.SINK_SUNK`).
   { name: 'counter', x: 0, z: 0 },
   { name: 'stove', x: 1, z: 0 },
   { name: 'stove-pot', x: 2, z: 0 },
@@ -246,8 +259,15 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // und in genau den Sekunden ist ein Feuerlöscher entweder in Reichweite
   // oder nutzlos. Eine Kachel Arbeitsfläche kostet das, und sie ist es wert.
   { name: 'extinguisher', x: 4, z: 0 },
-  // Zwei Kacheln breit — sie ist das einzige Stück, das die Zeile unterbricht.
-  { name: 'sink', x: 5, z: 0 },
+  // **Die Spüle sind zwei Möbel**, und sie stehen nebeneinander wie vorher das
+  // eine: das **Becken** mit der Armatur auf x = 5, das **Abtropfbrett** auf
+  // x = 6. Die Reihenfolge ist nicht frei — im Modell liegt die Mulde auf der
+  // linken Hälfte und die Abtropfwanne auf der rechten (`core/kitchenFit.ts`,
+  // der Block über `SINK_SUNK`), und mit `turn: 0` zeigt links nach Westen.
+  // Andersherum aufgestellt hätte man zwei Hälften, deren Schnittkanten nach
+  // außen zeigen statt aufeinander — aus einer Spüle würden zwei aufgesägte.
+  { name: 'sink-basin', x: 5, z: 0 },
+  { name: 'sink-drain', x: 6, z: 0 },
   { name: 'counter', x: 7, z: 0 },
   { name: 'board', x: 8, z: 0 },
   { name: 'counter', x: 9, z: 0 },
@@ -355,7 +375,15 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // --- der Schauraum: jedes Möbel einmal, einzeln und beschriftet -------------
   { name: 'plate-counter', x: 13, z: 1, show: true },
   { name: 'extinguisher', x: 15, z: 1, show: true },
-  { name: 'sink', x: 17, z: 1, show: true },
+  // **Die beiden Hälften stehen auch im Schauraum nebeneinander**, auf genau
+  // den zwei Kacheln, die die ganze Spüle vorher belegt hat. Der Schauraum
+  // zeigt sonst jedes Stück für sich, mit einer Kachel Luft — hier nicht: Ihre
+  // Schnittflächen sind offen (`core/kitchenModel.splitSink`), und auf Lücke
+  // gestellt sähe man in zwei aufgeschnittene Schränke. Zwei Schilder gibt es
+  // trotzdem, und sie liegen nicht übereinander, weil sie über dem jeweiligen
+  // Möbel hängen: das des Beckens auf 1,15 m, das des Bretts auf 0,52 m.
+  { name: 'sink-basin', x: 17, z: 1, show: true },
+  { name: 'sink-drain', x: 18, z: 1, show: true },
   { name: 'bin', x: 20, z: 1, show: true },
   { name: 'table', x: 22, z: 1, show: true },
 
@@ -422,10 +450,22 @@ export function stampKitchen(plan: GridPlan): void {
   const east = KITCHEN.x + KITCHEN.w - 1;
   const south = KITCHEN.z + KITCHEN.d - 1;
 
-  // **Ein Boden aus Stein.** Ohne ihn steht die Küche auf der Wiese des
-  // Geländes, und eine Spüle im Gras sieht aus wie ein Versehen. Er liegt
-  // knapp über dem Gelände, damit sich die beiden nicht um jedes Pixel
-  // streiten — dieselbe Handbreit wie der Asphalt der Boxengasse.
+  // **Der Estrich.** Ohne ihn steht die Küche auf der Wiese des Geländes, und
+  // eine Spüle im Gras sieht aus wie ein Versehen. Er liegt knapp über dem
+  // Gelände, damit sich die beiden nicht um jedes Pixel streiten — dieselbe
+  // Handbreit wie der Asphalt der Boxengasse.
+  //
+  // **Zu sehen ist er nur noch von der Seite**: Oben liegen seit dem Spieltest
+  // am Handy die karierten Fliesen (`kitchenFloor.ts`), zwei Millimeter
+  // darüber. Der Quader hier bleibt trotzdem genau so stehen, wie er steht —
+  // er ist der **Körper**, auf dem gelaufen wird, und seine Oberkante ist die
+  // Höhe, auf der jedes Möbel der Küche aufsetzt (`KITCHEN_FLOOR`). Der Belag
+  // ist nur das Bild; wer ihn zum Körper machte, hätte zwei Kollider
+  // übereinander für eine Fläche.
+  //
+  // Warum die Fliesen kein neunter Eintrag in `grid/solids.PlanSolidKind`
+  // sind, steht in `kitchenFloor.ts`: Eine Sorte dort trägt einen Ton und kein
+  // Muster, und die Wiederholung kennt nur, wer weiß, wie groß die Fläche ist.
   plan.mass('stone', KITCHEN, -0.06, KITCHEN_FLOOR);
 
   plan.run(KITCHEN.x, KITCHEN.z, KITCHEN.w, 'x', (x, z) => plan.wall(x, z, DIR_N));
@@ -510,7 +550,8 @@ export function fitKitchen(plan: GridPlan): void {
         'in keiner Datei, sie sind gebaut.',
         '',
         '- An der Westwand: vier Ausgaben — Brötchen, Patty, Salat, Tomate',
-        '- An der Nordwand: Zeile, drei Herde, Spüle, Tellerausgabe',
+        '- An der Nordwand: Zeile, drei Herde, **Spülbecken** und',
+        '  **Abtropfbrett**, Tellerausgabe',
         '- In der Mitte: Schneidebrett, Mülleimer, Arbeitstisch',
         '- Quer hindurch: zwei Bahnen nach Süden — vier **Förderbänder**',
         '  (blau) im Osten, vier **Zugbänder** (orange) neben der Insel',
@@ -546,11 +587,17 @@ export function fitKitchen(plan: GridPlan): void {
         '',
         'Die Gäste an den Tischen im Süden lassen ihr Geschirr stehen. Dreckige',
         'Teller stapeln sich an der **Geschirrrückgabe** am Ostende der Reihe;',
-        'von dort nimmt man sie und legt sie in die **Spüle**, und dort werden',
-        'sie sauber. Die Spüle läuft wie das Brett schneidet: solange jemand',
-        'davorsteht. Nur wartet sie **nicht** auf einen, der weggeht — wer',
+        'von dort nimmt man sie und legt sie in das **Spülbecken**, und dort',
+        'werden sie sauber. Das Becken läuft wie das Brett schneidet: solange',
+        'jemand davorsteht. Nur wartet es **nicht** auf einen, der weggeht — wer',
         'zwischendurch etwas anderes tut, nimmt das Geschirr hinterher **erneut',
         'auf und setzt es nochmal ab**.',
+        '',
+        'Der Teller liegt dabei **schräg im Wasser**, mit der unteren Kante auf',
+        'dem Beckenboden — daran sieht man von oben, dass gerade gespült wird.',
+        'Neben dem Becken steht das **Abtropfbrett**: Dort sammeln sich bis zu',
+        'vier saubere Teller, und wer einen holt, nimmt den obersten. Damit',
+        'muss man nicht zu jedem Gericht erst spülen gehen.',
         '',
         '## Die beiden Bänder',
         '',
@@ -614,12 +661,13 @@ export function fitKitchen(plan: GridPlan): void {
  * dieser Küche in beiden Rollen. Dasselbe gilt seit dem Gastraum für den
  * Arbeitstisch (`Spot.role`): Er steht hier nicht, weil er dreierlei ist.
  *
- * **Die Spüle ist neu dabei.** Sie war das einzige Möbel der Küche, an dem `A`
- * gar nichts tat — eine Spüle zum Ansehen. Jetzt wird darin gespült: Wer einen
- * dreckigen Teller hineinlegt, bekommt einen sauberen heraus, und wie am
- * Schneidebrett läuft es, solange jemand davorsteht. Ein Möbel, das schon so
- * heißt, braucht dafür keine Zeile im Aufbau — eine Spüle ist überall eine
- * Spüle, anders als ein Tisch.
+ * **Die Spüle steht zweimal darin, weil sie zwei Möbel ist.** Im **Becken**
+ * wird gespült: Wer einen dreckigen Teller hineinlegt, bekommt einen sauberen
+ * heraus, und wie am Schneidebrett läuft es, solange jemand davorsteht. Auf dem
+ * **Abtropfbrett** daneben stapeln sich die sauberen, bis zu vier
+ * (`kitchenCarry.CLEAN_STACK_MAX`). Ein Möbel, das schon so heißt, braucht
+ * dafür keine Zeile im Aufbau — ein Spülbecken ist überall ein Spülbecken,
+ * anders als ein Tisch.
  *
  * **Und das Förderband genauso.** Es ist die einzige Sorte Möbel, die es nur
  * in dieser einen Rolle gibt: Ein Band, das nicht schiebt, ist ein schmales
@@ -637,7 +685,8 @@ const STATION_KINDS: Readonly<Record<string, StationKind>> = {
   'stove-pan': 'stove',
   pass: 'serve',
   extinguisher: 'rack',
-  sink: 'sink',
+  'sink-basin': 'sink',
+  'sink-drain': 'drain',
   belt: 'belt',
   'belt-pull': 'belt',
 };
@@ -655,7 +704,8 @@ const STATION_KINDS: Readonly<Record<string, StationKind>> = {
  *    manchmal wirkt.
  * 2. Was ausgibt, ist eine **Ausgabe**, egal welches Möbel darunter steht.
  * 3. Danach zählt die Tabelle der Möbel, die immer dasselbe sind (Mülleimer,
- *    Brett, Herd mit Pfanne, Theke, Halterung, Spüle, Förderband).
+ *    Brett, Herd mit Pfanne, Theke, Halterung, Spülbecken, Abtropfbrett,
+ *    Förderband).
  * 4. Und alles, was im Katalog eine Arbeitsfläche ist, ist eine **Ablage**.
  *
  * Zwei Möbel wechseln damit ihre Rolle je nach Platz — der `serve-counter`

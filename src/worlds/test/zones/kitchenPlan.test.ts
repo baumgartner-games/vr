@@ -1,5 +1,10 @@
 import { CHEF_HEIGHT } from '../../../core/chefFit';
-import { KITCHEN_NAMES, kitchenPiece } from '../../../core/kitchenFit';
+import {
+  KITCHEN_NAMES,
+  kitchenDeck,
+  kitchenPiece,
+  kitchenWorkHeight,
+} from '../../../core/kitchenFit';
 import { TOP_DOWN_TILT } from '../../../core/topDownPose';
 import { KITCHEN } from '../layout';
 import { PLATE_HEIGHT, stackHeight } from './kitchenProps';
@@ -74,9 +79,11 @@ describe('die Rollen der Möbel', () => {
     // Dasselbe Möbel mit einer Zutat darin ist eine Ausgabe.
     ['serve-counter', 'bun', 'box'],
     ['plate-counter', 'plate', 'box'],
-    // Die Spüle ist eine Station geworden: Dort wird gespült, und ein Möbel,
-    // das so heißt, braucht dafür keine Zeile im Aufbau.
-    ['sink', undefined, 'sink'],
+    // Die Spüle sind zwei Stationen geworden: Im Becken wird gespült, auf dem
+    // Abtropfbrett stapeln sich die sauberen Teller. Möbel, die so heißen,
+    // brauchen dafür keine Zeile im Aufbau.
+    ['sink-basin', undefined, 'sink'],
+    ['sink-drain', undefined, 'drain'],
     // Das Förderband gibt es nur in dieser einen Rolle — ein Band, das nicht
     // schiebt, wäre ein schmales Brett.
     ['belt', undefined, 'belt'],
@@ -161,11 +168,144 @@ describe('die Rollen der Möbel', () => {
     expect(kinds.filter((kind) => kind === 'serve')).toHaveLength(1);
     expect(kinds.filter((kind) => kind === 'rack')).toHaveLength(1);
     expect(kinds.filter((kind) => kind === 'board')).toHaveLength(2);
-    // Und je eine Spüle und eine Geschirrrückgabe: Der Abwasch hat einen
-    // Anfang und ein Ende, und beides doppelt wäre ein zweiter Weg, den
-    // niemand erklärt hat.
+    // Und je ein Spülbecken, ein Abtropfbrett und eine Geschirrrückgabe: Der
+    // Abwasch hat einen Anfang und ein Ende, und beides doppelt wäre ein
+    // zweiter Weg, den niemand erklärt hat.
     expect(kinds.filter((kind) => kind === 'sink')).toHaveLength(1);
+    expect(kinds.filter((kind) => kind === 'drain')).toHaveLength(1);
     expect(kinds.filter((kind) => kind === 'return')).toHaveLength(1);
+  });
+
+  /**
+   * **Und die beiden Hälften stehen nebeneinander und in der richtigen
+   * Reihenfolge.**
+   *
+   * Im Modell liegt die Mulde links und die Abtropfwanne rechts
+   * (`core/kitchenFit.ts`, der Block über `SINK_SUNK`), und geschnitten wird in
+   * der Mitte. Wer sie vertauscht oder auseinanderstellt, dreht die offenen
+   * Schnittflächen nach außen — aus einer Spüle würden zwei aufgesägte.
+   */
+  it('stellt Becken und Abtropfbrett nebeneinander, Becken links', () => {
+    for (const shown of [false, true]) {
+      const basin = KITCHEN_SPOTS.find((s) => s.name === 'sink-basin' && !!s.show === shown)!;
+      const drain = KITCHEN_SPOTS.find((s) => s.name === 'sink-drain' && !!s.show === shown)!;
+      expect({ shown, z: drain.z }).toEqual({ shown, z: basin.z });
+      expect({ shown, x: drain.x }).toEqual({ shown, x: basin.x + 1 });
+      // Ungedreht: Bei `turn: 0` zeigt die linke Hälfte des Netzes nach Westen.
+      expect({ shown, turn: basin.turn ?? 0 }).toEqual({ shown, turn: 0 });
+      expect({ shown, turn: drain.turn ?? 0 }).toEqual({ shown, turn: 0 });
+    }
+  });
+});
+
+/**
+ * **Die Zeile ist eine Arbeitsplatte und keine Treppe.**
+ *
+ * Diese Sache ist dreimal aufgeschlagen und zweimal im Katalog **verteidigt**
+ * statt abgeräumt worden: Das Schneidebrett trägt sein Brett obenauf und
+ * arbeitete damit 3,3 cm über der Küchenzeile neben ihm. In einer Reihe aus
+ * Zeile, Brett, Zeile ist das eine Stufe, und aus 55° von oben
+ * (`core/topDownPose.TOP_DOWN_TILT`) läuft sie quer durchs Bild. Inzwischen
+ * steckt das **Möbel** um genau diese 3,3 cm im Boden
+ * (`core/kitchenFit.KitchenPiece.bury`), das Brett liegt weiter obenauf, und
+ * die Fläche fluchtet.
+ *
+ * Der Test steht hier und nicht nur im Katalog, weil die Zusage am **Aufbau**
+ * hängt: Nicht irgendwelche Möbel sollen gleich hoch sein, sondern die, die in
+ * dieser Küche nebeneinanderstehen. Ein vierter Anlauf fängt sich hier.
+ */
+describe('die Arbeitsflächen der Zeile', () => {
+  /**
+   * Die beiden Reihen, die durchlaufen sollen — Kacheln der Zone, wie alles
+   * hier: an der Nordwand die ganze Zeile (x = 0…10), in der Mitte die Insel
+   * (x = 3…7).
+   *
+   * Die Bänder bei x = 9 stehen in derselben Reihe und sind trotzdem nicht
+   * dabei: Sie sind eine **Bahn** und keine Arbeitsplatte, und sie richten sich
+   * nach der Ausgabetheke vorn (`passTop`, `kitchenBelt.BELT_HEIGHT`). Die
+   * Ausgaben an der Westwand (x = 1) liegen aus demselben Grund draußen.
+   */
+  const LINES = [
+    { z: 0, from: 0, to: 10 },
+    { z: 4, from: 3, to: 7 },
+  ] as const;
+
+  /**
+   * **Die Kochstellen zählen nicht mit**, und das ist kein Schlupfloch: Das
+   * Blech des Herds liegt bei 0,50 m wie die Zeile, die 5 cm darüber sind die
+   * Kochstelle — und darauf steht ein **Topf** (`core/kitchenFit.ts`, `stove`).
+   * Wer sie einebnete, versenkte jeden Topf im Herd.
+   */
+  const HOBS = new Set(['stove', 'stove-pot', 'stove-pan']);
+
+  const line = kitchenWorkHeight(kitchenPiece('counter')!);
+
+  it('legt jede Ablage der Zeile auf die Höhe der Küchenzeile', () => {
+    // Das Maß ist die Küchenzeile selbst und keine Zahl daneben: Wer sie
+    // ändert, soll hier sehen, was mitzuziehen ist.
+    expect(line).toBeCloseTo(0.5, 6);
+    const checked: string[] = [];
+    for (const { z, from, to } of LINES) {
+      for (const spot of WORKING) {
+        if (spot.z !== z || spot.x < from || spot.x > to) continue;
+        const piece = kitchenPiece(spot.name)!;
+        // Spüle und Mülleimer sind keine Ablage — auf ihnen liegt nie etwas,
+        // und ihre Höhe hat mit der Platte nichts zu tun.
+        if (!piece.worktop || HOBS.has(piece.name)) continue;
+        checked.push(piece.name);
+        expect({ name: piece.name, top: kitchenWorkHeight(piece).toFixed(3) }).toEqual({
+          name: piece.name,
+          top: line.toFixed(3),
+        });
+      }
+    }
+    // Und es ist wirklich die Reihe aus dem Bild geprüft worden — Zeile,
+    // Brett, Zeile an der Wand und noch einmal auf der Insel. Eine Schleife
+    // über null Möbel ist grün und sagt nichts.
+    expect(checked).toEqual([
+      'counter',
+      'extinguisher',
+      'counter',
+      'board',
+      'counter',
+      'plate-counter',
+      'counter',
+      'board',
+      'counter',
+      'table',
+    ]);
+  });
+
+  /**
+   * **Und der Salatkopf liegt danach immer noch auf dem Brett.** Das ist die
+   * andere Hälfte der Zusage: Die Fläche darf nicht dadurch bündig werden, dass
+   * die Ablage ins Möbel rutscht. `deck` misst ab Fuß des Möbels, der Fuß liegt
+   * um die Brettdicke tiefer — beides zusammen ergibt die Zeilenhöhe.
+   */
+  it('lässt das Brett dabei sichtbar und die Ablage darauf', () => {
+    const board = kitchenPiece('board')!;
+    // Oberfläche des Bretts über dem Fuß: Quelle 1,065, halbiert 0,5326 m.
+    expect(kitchenDeck(board)).toBeCloseTo(0.533, 3);
+    // Genau darum steckt das Möbel tiefer, und genau so viel.
+    expect(board.bury).toBeCloseTo(0.033, 3);
+    expect(kitchenWorkHeight(board)).toBeCloseTo(line, 6);
+    // Was im Boden steckt, ist Sockel: Über ihm ragt das Möbel noch 0,537 m
+    // auf (0,57 − 0,033, die Spitze des Hackmessers), und die Brettoberfläche
+    // liegt bei 0,50 m.
+    expect(board.height - board.bury!).toBeCloseTo(0.537, 3);
+    // Eingelassen sind im Aufbau nur das Brett und die beiden Hälften der
+    // Spüle — die Zeile ist sonst gewachsen, nicht gesenkt worden. Je zweimal
+    // in der Küche und einmal im Schauraum, das Brett dreimal.
+    const sunk = KITCHEN_SPOTS.filter((spot) => kitchenPiece(spot.name)?.bury);
+    expect(sunk.map((spot) => spot.name)).toEqual([
+      'sink-basin',
+      'sink-drain',
+      'board',
+      'board',
+      'sink-basin',
+      'sink-drain',
+      'board',
+    ]);
   });
 });
 
