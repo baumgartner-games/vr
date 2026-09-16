@@ -3,6 +3,7 @@
   "short_name": "BG VR",
   "description": "WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen.",
   "lang": "de",
+  "dir": "ltr",
   "start_url": ".",
   "scope": ".",
   "display": "fullscreen",
@@ -10,12 +11,58 @@
   "orientation": "any",
   "background_color": "#05070d",
   "theme_color": "#05070d",
+  "categories": ["games", "entertainment"],
   "icons": [
     {
-      "src": "banner.svg",
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Haunting / Orbital",
+      "short_name": "Haunting",
+      "description": "Direkt in die Startseite der Runde: Name, Raum-Code, Lobby.",
+      "url": "./#haunting",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Werkzeuge, Welten und Beutel",
+      "short_name": "Werkzeuge",
+      "description": "Alles zum Ansehen und Drehen, ohne Brille und ohne Welt.",
+      "url": "./tools.html",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Controller und Tasten prüfen",
+      "short_name": "Eingaben",
+      "description": "Was der Browser vom Eingabegerät sieht — jeder Knopf mit seiner Nummer.",
+      "url": "./inputs.html",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "prefer_related_applications": false
 }

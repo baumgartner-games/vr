@@ -17,6 +17,7 @@ import {
   type PadSnapshot,
 } from '../core/gamepadReport';
 import { readGamepad } from '../core/gamepad';
+import { registerServiceWorker } from '../core/pwa';
 import {
   ACTION_LABELS,
   KEY_ACTIONS,
@@ -905,3 +906,7 @@ buildBindings();
 // Nummern **dieses** Geräts, und die gibt es vor dem ersten Knopfdruck nicht.
 window.addEventListener('gamepadconnected', () => buildBindings());
 requestAnimationFrame(frame);
+
+// Auch diese Seite gehört zur App: Der Service Worker gilt für das ganze
+// Verzeichnis, und wer hier zuerst landet, soll ihn mitbringen (`core/pwa.ts`).
+window.addEventListener('load', registerServiceWorker);

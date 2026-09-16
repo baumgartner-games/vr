@@ -24,9 +24,14 @@
       `display: fullscreen` startet ohne Browserrahmen. Die Pfade darin sind
       **relativ** zur Manifestdatei, damit sie auf GitHub Pages unter
       `/<repo>/` genauso stimmen wie lokal an der Wurzel (`vite.config.ts`,
-      `BASE_PATH`).
+      `BASE_PATH`); den `href` hier schreibt Vite selbst auf die Basis um.
+
+      Das Symbol für den Startbildschirm holt sich iOS **nicht** aus dem
+      Manifest, sondern von dieser Zeile, und nur als PNG — `tools/icons.mjs`
+      macht es aus `public/icon.svg`.
     -->
     <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Baumgartner VR</title>
     <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
@@ -184,6 +189,19 @@
           nicht zu untersuchen — dort gibt es keine Entwicklerwerkzeuge.
         -->
         <p class="landing__more only-generic"><a href="./inputs.html">Controller und Tasten prüfen →</a></p>
+
+        <!--
+          **Als App ablegen.** Der Knopf steht nur da, wo der Browser das
+          Installieren wirklich anbietet (`core/install.ts`); auf iPhone und
+          iPad, wo es nur über das Teilen-Menü geht, steht statt seiner der
+          Satz, der den Weg nennt, und wer schon installiert hat, sieht
+          nichts. Nicht `only-generic`: Auch wer zu einer Runde eingeladen
+          wurde, will sie auf dem Telefon wiederfinden.
+        -->
+        <div id="install" class="install" hidden>
+          <button type="button" id="install-btn" class="btn btn--ghost" hidden>Als App installieren</button>
+          <p id="install-hint" class="field__hint"></p>
+        </div>
 
         <p id="xr-status" class="status only-generic"></p>
 

@@ -659,7 +659,12 @@ npm run dev      # http://localhost:5173
 npm run build    # Typecheck + Produktionsbuild nach dist/
 npm run preview  # gebautes Ergebnis lokal servieren
 npm test         # Jest (schnell); npm run test:slow für die Rundensimulationen
+npm run icons    # public/icon.svg → die PNG-Symbole der App (braucht Chromium)
 ```
+
+Der **Service Worker** meldet sich nur im fertigen Build an; im
+Entwicklungsbetrieb säße er zwischen Vite und der Seite. Wer ihn und das
+Installieren ausprobieren will, nimmt `npm run build && npm run preview`.
 
 WebXR braucht einen sicheren Kontext; `localhost` reicht, für die Brille im
 selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
@@ -868,9 +873,79 @@ im Querformat verdeckt der Streifen mit dem Knopf genau das, was weg soll.
 
 **Auf dem iPhone gibt es beides nicht**, weil Safari dort Vollbild nur für ein
 Video kennt. Der Weg, der dort funktioniert, ist _Zum Home-Bildschirm
-hinzufügen_: Die Seite bringt ein Web-App-Manifest und die passenden
-Apple-Zeilen mit und startet dann ohne Adresszeile und ohne Systemleiste. Auf
-Android heißt derselbe Schritt _installieren_.
+hinzufügen_ — siehe den nächsten Abschnitt.
+
+## Als App installieren
+
+Die Spielwiese ist eine **PWA**: Sie lässt sich auf dem Telefon, auf dem
+Schreibtisch und in der Brille ablegen wie eine App — eigenes Symbol, eigenes
+Fenster ohne Adresszeile, eigener Eintrag im Umschalter — und sie **startet
+auch ohne Netz**.
+
+| Gerät                          | Weg                                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Android** (Chrome, Edge)     | Knopf **Als App installieren** auf der Startseite — oder Browsermenü → _App installieren_                                              |
+| **iPhone / iPad** (Safari)     | Teilen-Menü → **Zum Home-Bildschirm**. Einen Knopf dafür gibt es dort nicht, also steht auf der Startseite der Satz, der den Weg nennt |
+| **Windows / macOS / Linux**    | Chrome und Edge: das Symbol rechts in der Adresszeile, oder derselbe Knopf auf der Startseite                                          |
+| **Meta Quest** (Browser)       | Menü → _Website speichern_/_Installieren_; danach liegt sie in der Bibliothek und startet ins Vollbild                                 |
+| **Firefox am Schreibtisch**    | gar nicht — Firefox kennt das Installieren dort nicht, und dann steht auf der Startseite auch nichts davon                             |
+
+Wer sie schon installiert hat, bekommt den Knopf nicht mehr zu sehen: Die Seite
+merkt, dass sie in ihrem eigenen Fenster läuft (`core/install.ts`).
+
+**Ohne Netz** startet sie in die Hub-Welt, und jede Welt, jedes Modell und
+jeder Ton, der einmal geladen war, ist danach da: Ein Service Worker legt die
+Hülle der Anwendung beim Installieren ab und alles Weitere beim ersten
+Gebrauch (`src/sw.ts`). Was ohne Netz **nicht** geht, ist alles, wozu ein
+zweites Gerät gehört: zusammen spielen, Sprache, die Lobby einer Runde.
+
+### Was eine PWA heute kann — und was nicht
+
+Für dieses Projekt sortiert; der Stand ist September 2026.
+
+**Geht, und zwar überall:**
+
+- **Vollbild ohne Browserrahmen**, auch auf dem iPhone — dort ist es sogar der
+  einzige Weg dorthin.
+- **Offline starten** und weiterspielen, samt Modellen und Tönen.
+- **Eigenes Symbol, eigenes Fenster**, eigener Eintrag im App-Umschalter, auf
+  Android auch **Kurzbefehle** beim langen Antippen des Symbols (hier:
+  _Haunting_, _Werkzeuge_, _Eingaben_).
+- **WebGL/WebGPU, WebXR, Gamepad, Mikrofon, WebRTC, Vibration, Sensoren,
+  `localStorage`** — eine installierte PWA kann genau das, was der Browser
+  kann, denn sie _ist_ der Browser. Die Brillen-Sitzung startet aus der
+  installierten App wie aus dem Tab.
+- **Bildschirm wachhalten** (`Screen Wake Lock`), Ausrichtung sperren,
+  Zwischenablage, Dateien öffnen und speichern (`File System Access`, auf
+  Safari nur Download/Upload).
+
+**Geht, aber nicht überall:**
+
+- **Push-Nachrichten und Badges**: Android und Desktop ja; auf iOS erst seit
+  16.4 und **nur**, wenn die Seite wirklich über _Zum Home-Bildschirm_ abgelegt
+  wurde.
+- **Hintergrund-Synchronisierung** (`Background Sync`, `Periodic Sync`): nur
+  Chromium.
+- **Bluetooth, USB, serielle Schnittstellen, MIDI**: nur Chromium — Safari und
+  Firefox lehnen sie aus Datenschutzgründen ab.
+- **Als Ziel zum Teilen auftauchen** (`share_target`) und **Dateitypen
+  übernehmen** (`file_handlers`): nur Chromium.
+- **Fenstergröße und -position merken**, mehrere Fenster, `window-controls-overlay`:
+  nur am Schreibtisch.
+
+**Geht nicht:**
+
+- **In einen App-Store** — außer über einen Verpacker (TWA bei Google Play,
+  PWABuilder bei Microsoft). Apple nimmt keine reine PWA.
+- **WebXR auf iPhone und iPad**: Safari kennt es bis heute nicht, auch nicht
+  installiert. Dort läuft die Spielwiese am Bildschirm, nicht in der Brille.
+- **Im Hintergrund weiterrechnen**, wenn die App zu ist: Ein Service Worker
+  lebt Sekunden, keine Minuten.
+- **An die Dateien des Systems, an andere Apps, an das Adressbuch** — was eine
+  Webseite nicht darf, darf eine installierte Webseite auch nicht.
+- **Automatisch aktualisieren, während man spielt**: Ein neuer Stand wird
+  geladen, übernimmt aber erst beim nächsten Start. Das ist Absicht — mitten in
+  einer VR-Sitzung die Welt zu tauschen, wäre schlimmer als ein Tag alter Code.
 
 ## Query-/Hash-Parameter
 
