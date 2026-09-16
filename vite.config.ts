@@ -12,13 +12,15 @@ export default defineConfig({
     target: 'es2022',
     outDir: 'dist',
     sourcemap: true,
-    // Zwei Seiten: die Spielwiese selbst und die Werkzeugseite. Ohne diese
-    // Liste baut Vite nur `index.html`, und `tools.html` läge im Netz als
-    // Datei, die auf ein `src/`-Modul zeigt, das es dort nicht gibt.
+    // Drei Seiten: die Spielwiese selbst, die Werkzeugseite und die
+    // Eingabeseite. Ohne diese Liste baut Vite nur `index.html`, und die
+    // anderen lägen im Netz als Dateien, die auf ein `src/`-Modul zeigen, das
+    // es dort nicht gibt.
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         tools: resolve(__dirname, 'tools.html'),
+        inputs: resolve(__dirname, 'inputs.html'),
       },
     },
   },

@@ -648,7 +648,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https`.
 
 Die Haunting-Handyoberflächen werden mit jsdom geprüft: Raumakten, Codes,
 Rollenwechsel, Reiterbedienung und Eingabefokus. Automatische Türen und
-vollständige Botrunden haben eigene Navigationstests. Für die echte 3D-App:
+vollständige Botrunden haben eigene Navigationstests. Das Gamepad ist reine
+Rechnung und wird als solche geprüft (`core/gamepad.ts`,
+`core/gamepadReport.ts`) — im Container steckt kein Controller, und der
+Browserlauf am Ende schiebt der Eingabeseite ein erfundenes Pad unter, um die
+Verdrahtung zu prüfen. Für die echte 3D-App:
 
 ```bash
 npm run test:browser:install     # einmalig Chromium + Firefox
@@ -782,6 +786,39 @@ Konfig-Code darunter in einem Feld zum Herauskopieren. Die Gegenstelle dazu war
 der Poseraum des Eingaberaums, und den gibt es seit dem Umbau nicht mehr;
 diese Seite hört weiter zu, es schickt bloß gerade niemand. Details in
 [AGENTS.md](AGENTS.md#die-werkzeugseite).
+
+## Eingabeseite
+
+Und **[`/inputs.html`](https://baumgartner-games.github.io/vr/inputs.html)** —
+eine Frage, und zwar die, die sonst niemand beantworten kann: _Kommt der Knopf,
+den ich gerade drücke, in diesem Browser überhaupt an, und unter welcher
+Nummer?_ Gedacht für die Geräte, an denen man das nicht nachsehen kann: den
+Browser einer **PS5**, einen Fernseher, ein Telefon. Dort gibt es keine
+Entwicklerwerkzeuge.
+
+Zu sehen ist, über die **Gamepad-API**: das erkannte Gerät samt Kennung und
+Mapping, ein **gezeichneter Controller**, auf dem leuchtet, was gedrückt ist
+(mit der Aufschrift des Geräts — `✕ ○ □ △` oder `A B X Y`), ein Panel mit dem
+**Code des gedrückten Knopfes** (`gamepad.buttons[7]`, groß daneben die Nummer)
+und einem Protokoll der letzten Drücke, **alle Knöpfe** und **Achsen** als
+Liste — ungerechnet, also mitsamt der Drift eines ruhenden Sticks —, und
+darunter, mit derselben Funktion wie im Spiel, **was die Spielwiese daraus
+macht** (laufen, zielen, benutzen, schießen). Dazu `event.code` der Tastatur,
+Gerät und Browser, ein Knopf **Bericht kopieren** für Fehlerberichte und, wo es
+einen Motor gibt, **Rütteln testen**.
+
+Wenn dort „Kein Pad gefunden" steht: Ein Browser meldet ein angestecktes Pad
+erst, wenn daran **einmal ein Knopf gedrückt wurde**. Details in
+[AGENTS.md](AGENTS.md#die-eingabeseite).
+
+## Vollbild
+
+Wo keine Brille ist, geht **Vollbild**: ein Knopf mit dem Vollbildsymbol auf der
+Startseite oben rechts und im Streifen des Spiels neben _VR_. Auf einer Konsole
+oder am Fernseher kostet die Adresszeile sonst ein Fünftel des Bildes. In der
+Brille gibt es ihn nicht — eine XR-Sitzung ist Vollbild —, und in Browsern, die
+es nicht erlauben, auch nicht: Ein Knopf, der nichts tut, ist schlimmer als
+keiner. `Esc` beendet es, und der Knopf weiß das (`core/fullscreen.ts`).
 
 ## Query-/Hash-Parameter
 

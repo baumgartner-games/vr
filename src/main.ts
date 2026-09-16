@@ -16,6 +16,12 @@ import {
 } from './core/screenView';
 import { DEFAULT_WORLD, findWorld } from './worlds';
 import { isStaleModuleError, shouldReload } from './core/staleBuild';
+import {
+  fullscreenActive,
+  fullscreenSupported,
+  onFullscreenChange,
+  toggleFullscreen,
+} from './core/fullscreen';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;
@@ -27,6 +33,15 @@ const hudWorld = document.querySelector<HTMLElement>('#hud-world')!;
 const hudMenu = document.querySelector<HTMLButtonElement>('#hud-menu')!;
 const hudVr = document.querySelector<HTMLButtonElement>('#hud-vr')!;
 const landingMenu = document.querySelector<HTMLButtonElement>('#landing-menu')!;
+/**
+ * Die beiden Vollbildknöpfe — auf der Startseite und im Spiel, derselbe Knopf
+ * an zwei Stellen, so wie es das Menü auch schon ist (`#landing-menu`,
+ * `#hud-menu`). Siehe `showFullscreen` weiter unten.
+ */
+const fullButtons = [
+  document.querySelector<HTMLButtonElement>('#landing-full')!,
+  document.querySelector<HTMLButtonElement>('#hud-full')!,
+];
 const touch = document.querySelector<HTMLElement>('#touch')!;
 /**
  * Die vier Zeigerflächen auf dem Glas (`core/FlatControls.TouchPads`): links
@@ -507,6 +522,45 @@ hudVr.addEventListener('click', () => {
     }
   })();
 });
+
+/**
+ * **Vollbild, wo keine Brille ist** (`core/fullscreen.ts`, `#landing-full`,
+ * `#hud-full`).
+ *
+ * In der Brille stellt sich die Frage nicht: Eine XR-Sitzung _ist_ Vollbild,
+ * und der Streifen mit dem Knopf ist dort ohnehin weg (`onSessionChanged`). Am
+ * Bildschirm ist es die einzige Antwort auf eine ganze Klasse von Geräten —
+ * der Browser einer Konsole, ein Fernseher, ein Telefon im Querformat: Dort
+ * kostet die Adresszeile ein Fünftel der Fläche, und das Spiel läuft im Rest.
+ *
+ * **Warum der Knopf verschwindet, statt grau zu werden.** Wo der Browser
+ * Vollbild nicht erlaubt — in einem `<iframe>` ohne `allow="fullscreen"`, auf
+ * Geräten, die es nicht können —, ist ein Knopf, der nichts tut, schlimmer als
+ * keiner: Er behauptet eine Fähigkeit und nimmt Platz weg. Gefragt wird
+ * deshalb einmal, und die Antwort entscheidet, ob es ihn gibt.
+ *
+ * Beschriftet wird nach dem **Stand** und nicht nach dem Klick: `Esc` beendet
+ * das Vollbild, die Systemtaste eines Fernsehers auch, und beide fragen
+ * niemanden. Deshalb hängt das Umbeschriften am Ereignis.
+ */
+const canFullscreen = fullscreenSupported(document, document.documentElement);
+for (const button of fullButtons) button.hidden = !canFullscreen;
+if (canFullscreen) {
+  const showFullscreen = (): void => {
+    const on = fullscreenActive(document);
+    for (const button of fullButtons) {
+      button.setAttribute('aria-pressed', on ? 'true' : 'false');
+      button.setAttribute('aria-label', on ? 'Vollbild beenden' : 'Vollbild');
+    }
+  };
+  for (const button of fullButtons) {
+    button.addEventListener('click', () => {
+      void toggleFullscreen(document, document.documentElement).then(showFullscreen);
+    });
+  }
+  onFullscreenChange(document, showFullscreen);
+  showFullscreen();
+}
 
 window.addEventListener('hashchange', () => {
   const id = window.location.hash.slice(1);

@@ -190,6 +190,17 @@ h1 {
   z-index: 11;
 }
 
+/* Vollbild auf der Startseite: derselbe runde Knopf, andere Ecke. */
+.landing__full {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 11;
+}
+.landing__full[hidden] { display: none; }
+/* Das Vollbildsymbol sind vier Ecken, und eine Ecke braucht `linejoin`. */
+.landing__full svg { stroke-linejoin: round; }
+
 .hud__row {
   display: flex;
   gap: 6px;
@@ -221,6 +232,27 @@ h1 {
 }
 
 .hud__btn:hover { background: rgba(140, 170, 230, 0.22); }
+.hud__btn[hidden] { display: none; }
+
+/*
+ * Der Vollbildknopf im Streifen: derselbe Knopf wie „Verbindung" und „VR", nur
+ * mit Symbol statt Wort — auf einem Telefon ist der Streifen voll, und
+ * „Vollbild" ausgeschrieben schiebt „VR" über den Rand.
+ *
+ * Zwei Symbole, eines sichtbar: hinein und hinaus. Welches, sagt `aria-pressed`
+ * — dasselbe Attribut, das Vorlesegeräten den Stand sagt, entscheidet damit
+ * auch das Bild, und es kann keine zweite Wahrheit dazu geben.
+ */
+.hud__btn--icon { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; }
+.hud__btn--icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.hud__btn--icon .icon--out, .hud__btn--icon[aria-pressed="true"] .icon--in { display: none; }
+.hud__btn--icon[aria-pressed="true"] .icon--out { display: block; }
+.hud__btn--icon[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+
+/* Dasselbe für den runden Knopf auf der Startseite. */
+.hud__menu .icon--out, .hud__menu[aria-pressed="true"] .icon--in { display: none; }
+.hud__menu[aria-pressed="true"] .icon--out { display: block; }
+.hud__menu[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 
 /* ---------- Touch controls (phone) ---------- */
 

@@ -813,6 +813,11 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
       `ButtonState` aus `core/XRInput.ts`, dieselbe Klasse wie in der Brille
       und keine Abschrift. Außerhalb von _Von oben_ darf der Pad mitspielen:
       linker Stick läuft, rechter sieht sich um, `A` springt.
+      - **Was davon wirklich ankommt, zeigt `/inputs.html`** (siehe
+        [Die Eingabeseite](#die-eingabeseite)): jeder Knopf mit seiner Nummer,
+        das Bild des Controllers dazu, und darunter derselbe `readGamepad`, der
+        im Spiel läuft. Sie ist der einzige Weg, ein Pad am Browser einer
+        Konsole zu untersuchen — dort gibt es keine Entwicklerwerkzeuge.
     - **Auf dem Glas** kommt rechts unten ein zweiter Stock dazu und darüber
       zwei runde Knöpfe `A`/`B` (`#touch-aim`, `#touch-a`, `#touch-b`); sie
       stehen nur von oben, weil sie sonst nichts bedeuten. Wie der linke Stock
@@ -2449,6 +2454,18 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Zeichen, aus denen Markdown besteht, ein hohes Feld, das die letzten Zeilen
   zeigt, und eine Eingabetaste, die eine **neue Zeile** macht statt abzuschicken
   (fertig ist man mit _Fertig_ oder `Strg`+`Eingabe`).
+- **Die Eingabeseite** (`inputs.html`, `src/inputs/`, siehe
+  [Die Eingabeseite](#die-eingabeseite)): jeder Knopf des Pads mit seiner
+  Nummer, ein gezeichneter Controller, auf dem leuchtet, was gedrückt ist, das
+  Panel mit `gamepad.buttons[N]` daneben — und darunter derselbe `readGamepad`,
+  der im Spiel läuft. Sie ist für den Browser einer Konsole gebaut, wo es keine
+  Entwicklerwerkzeuge gibt und ein Knopf, der nichts tut, sonst unerklärlich
+  bleibt.
+- **Vollbild, wo keine Brille ist** (`core/fullscreen.ts`, siehe
+  [Vollbild, wo keine Brille ist](#vollbild-wo-keine-brille-ist)): ein Knopf auf
+  der Startseite und im Streifen des Spiels. Auf einer Konsole oder am
+  Fernseher kostet die Adresszeile ein Fünftel des Bildes; in der Brille gibt
+  es ihn nicht, dort ist die Sitzung selbst das Vollbild.
 - **Boden bis zum Horizont**: unter _jeder_ Welt liegt eine Fläche mit Raster,
   einen Kilometer im Quadrat, begehbar und portalfähig (`createGround` in
   `worlds/shared/environment.ts`). Vorher stand jede Welt auf ihrer eigenen
@@ -5095,8 +5112,8 @@ npm run avatar -- --tag=nachher --walk   # zum Vergleichen, und in Bewegung
 ```
 
 Die Seite ist `avatar-preview.html` (`src/preview/avatarPreview.ts`) und wird
-**nicht mitgebaut** — `vite.config.ts` kennt nur `index.html` und `tools.html`,
-also gibt es sie nur im Entwicklungsserver. Sie stellt alle Sorten
+**nicht mitgebaut** — `vite.config.ts` kennt nur `index.html`, `tools.html` und
+`inputs.html`, also gibt es sie nur im Entwicklungsserver. Sie stellt alle Sorten
 nebeneinander und rendert vier Ansichten: von vorn, halb schräg, von der Seite
 und **die Kamera, unter der wirklich gespielt wird** (16 m, 55°, 30°
 Öffnung). Was dort nicht lesbar ist, ist es nirgends. `?hat=all` geht statt
@@ -7240,6 +7257,125 @@ Fläche — im Fluss schiebt jedes Retina-Display die Seite ein Stück auf.
 
 Gebaut wird sie im selben Vite-Lauf (`rollupOptions.input` in `vite.config.ts`);
 ohne diesen Eintrag landete nur `index.html` im `dist`.
+
+### Die Eingabeseite
+
+Und eine dritte Seite: **`inputs.html`** (`src/inputs/`). Sie beantwortet eine
+einzige Frage, und zwar die, die sonst niemand beantworten kann: _Kommt der
+Knopf, den ich gerade drücke, im Browser dieses Geräts überhaupt an — und unter
+welcher Nummer?_
+
+**Wofür sie gebaut ist**, steht nicht im Code, sondern im Gerät: der Browser
+einer PS5, ein Fernseher, ein Telefon. Dort gibt es keine Entwicklerwerkzeuge,
+keine Konsole und keinen Weg, `navigator.getGamepads()` selbst aufzurufen. Wenn
+dort ein Knopf im Spiel nichts tut, ist die Fehlersuche vorbei, bevor sie
+angefangen hat — man weiß nicht, ob der Browser den Knopf nicht meldet, ob er
+ihn unter einer anderen Nummer meldet, oder ob er schlicht nicht belegt ist.
+Genau diese drei Fälle trennt die Seite, und zwar von oben nach unten:
+
+- **Gerät**: die Kennung, die der Treiber ausgibt, die erkannte Marke, und —
+  wichtiger als beides — ob `mapping === 'standard'` gilt. Steht dort nicht
+  `standard`, ist jede Nummer darunter die Nummer, die sich dieser Treiber
+  ausgedacht hat, und die Tabelle daneben eine Vermutung. Das muss dastehen, wo
+  man hinsieht, und nicht in einer Fußnote.
+- **Am Controller**: ein gezeichnetes Pad, auf dem leuchtet, was gedrückt ist
+  (`inputs/padDiagram.ts`). Es dreht die Richtung um — man drückt und sieht **an
+  der Stelle**, wo man gedrückt hat, ob es angekommen ist; eine Liste aus
+  achtzehn Zeilen beantwortet das vollständig und trotzdem nicht, weil man darin
+  nachzählen muss. Gezeichnet und nicht fotografiert: Ein Foto wäre _ein_ Pad,
+  angeschlossen ist irgendeines. Was mit der Marke wechselt, sind allein die
+  Zeichen darauf.
+- **Code des gedrückten Knopfes**: die Nummer groß, darunter `gamepad.buttons[N]`
+  in genau der Schreibweise, mit der man ihn im eigenen Code wiederfindet, und
+  darunter ein Protokoll. Das Protokoll führt **Flanken und keine Zustände**:
+  Ein gehaltener Knopf steht einmal da und nicht sechzigmal pro Sekunde.
+- **Alle Knöpfe** und **Achsen**, vollständig, auch die, die nichts tun — wer
+  wissen will, ob sein Knopf ankommt, will die Liste sehen, in der er *nicht*
+  aufleuchtet. Die Achsen stehen **ungerechnet** da: Dass ein ruhender Stick
+  0,04 meldet, rechnet `core/gamepad.ts` im Spiel mit seiner runden Totzone weg,
+  und das ist dort richtig; hier ist es die Antwort auf die Frage, warum die
+  Figur von allein läuft. Eine Diagnoseseite, die schönt, taugt nichts.
+- **Was die Spielwiese daraus macht** — mit `readGamepad` aus `core/gamepad.ts`,
+  also **derselben** Funktion, die im Spiel läuft. Eine zweite Deutung hier wäre
+  eine, die beim nächsten Umbau der Belegung stehen bleibt und dann das Falsche
+  zeigt. Erst dieser Kasten trennt „der Knopf kommt nicht an" von „der Knopf ist
+  nicht belegt".
+- Dazu **Tastatur und Zeiger** (`event.code` ist dasselbe Rätsel wie
+  `buttons[3]`, und eine Fernbedienung schickt Tasten, die auf keiner Tastatur
+  stehen), **Gerät und Browser**, ein Knopf **Bericht kopieren** — von einer
+  Konsole aus ist Abtippen die Alternative, und wo die Zwischenablage gesperrt
+  ist, klappt der Text zum Markieren aus — und **Rütteln testen**, wo es einen
+  Motor gibt: Ein Pad, dessen Knöpfe ankommen, das aber nicht rüttelt, ist halb
+  angeschlossen, und das sieht man sonst nirgends.
+
+**Die eine Erklärung, die niemand errät**, steht groß unter der Statuszeile: Ein
+Browser meldet ein angestecktes Pad erst, wenn daran **einmal ein Knopf gedrückt
+wurde** — die Liste der angeschlossenen Geräte wäre sonst ein Fingerabdruck für
+jede Werbeseite. „Kein Pad gefunden" heißt hier also fast immer „drück mal was"
+und fast nie „das Kabel ist kaputt". Aus demselben Grund ist
+`gamepadconnected` hier nur eine Nachricht und keine Bedingung: Die Schleife
+läuft von der ersten Sekunde an und fragt jedes Bild neu, denn ein Pad, das
+schon vor dem Laden der Seite gedrückt wurde, meldet das Ereignis nie.
+
+**Wo die Arbeit steckt, steckt sie nicht auf der Seite.** Welche Nummer welche
+Taste ist und wie sie auf welchem Gerät heißt, steht in
+`core/gamepadReport.ts` — kein DOM, kein `navigator`, und deshalb von einem Test
+nachgerechnet; das Bild in `inputs/padDiagram.ts`, ebenso. Im Container steckt
+kein Controller, und ein Stück Eingabe, das man nur mit Hardware in der Hand
+prüfen kann, ist ungeprüft. Die Tabelle hat dabei **vier Spalten und keine
+Fallunterscheidung nach Gerät**: Das Standard-Mapping legt die Reihenfolge fest
+(unten, rechts, links, oben, dann die Schultern, dann die Mitte, dann das
+Steuerkreuz), und was sich zwischen Xbox, PlayStation und Switch unterscheidet,
+ist allein die Aufschrift derselben Stelle — `A` oder `✕`, `LB` oder `L1`. Ein
+Pad, dessen Marke wir nicht erkennen, bekommt die neutrale Spalte und ist damit
+vollständig beschrieben, nicht halb. Die Marke selbst wird aus `gamepad.id`
+geraten, und zuerst an der **Herstellernummer** (`Vendor: 054c`): Ein DualShock 4
+heißt in Chrome schlicht „Wireless Controller", und ein Adapter nennt sich, wie
+er will.
+
+Was auf der Seite selbst bleibt, ist die Schleife — und **eine Regel**: Es wird
+nur geschrieben, was sich geändert hat. Achtzehn Knöpfe, vier Achsen und sieben
+Zeilen darunter sechzigmal je Sekunde neu zu setzen heißt, dem Browser siebzigmal
+pro Bild Arbeit zu machen, die niemand sieht; auf einem Konsolenbrowser ist das
+der Unterschied zwischen einer flüssigen Seite und einer, die beim Knopfdruck
+hakt. Dasselbe gilt für das Bild: Es wird neu gezeichnet, wenn Marke oder
+Knopfzahl wechseln, und sonst nie.
+
+Gebaut wird sie im selben Vite-Lauf wie die anderen beiden
+(`rollupOptions.input` in `vite.config.ts`).
+
+### Vollbild, wo keine Brille ist
+
+In der Brille stellt sich die Frage nicht: Eine XR-Sitzung _ist_ Vollbild. Am
+Bildschirm ist sie die einzige Antwort auf dieselbe Klasse von Geräten, für die
+die Eingabeseite gebaut ist — Konsolenbrowser, Fernseher, Telefon im Querformat:
+Dort kostet die Adresszeile ein Fünftel der Fläche, und das Spiel läuft im Rest.
+Also steht ein Knopf mit dem Vollbildsymbol auf der Startseite oben rechts
+(`#landing-full`) und im Streifen des Spiels neben _VR_ (`#hud-full`) — derselbe
+Knopf an zwei Stellen, so wie das Menü es schon ist.
+
+Das API dafür ist zwei Zeilen, und die zwei Zeilen sind der Grund für
+`core/fullscreen.ts`: **Es gibt sie doppelt.** Safari und die WebKit-Browser der
+Konsolen kennen bis heute nur `webkitRequestFullscreen`, ohne Promise, und ein
+`element.requestFullscreen()` läuft dort in einen `TypeError` — ein Knopf, der
+nur auf dem Schreibtisch des Entwicklers klappt, hätte genau die Geräte
+verfehlt, für die er gedacht war. Drei Entscheidungen dazu:
+
+- **Wo der Browser es nicht erlaubt, gibt es den Knopf nicht** — `hidden`, nicht
+  grau. In einem `<iframe>` ohne `allow="fullscreen"` steht die Funktion da und
+  wirft; ein Knopf, der eine Fähigkeit behauptet und nichts tut, ist schlimmer
+  als keiner. Gefragt wird `fullscreenEnabled`, also die Erlaubnis und nicht nur
+  die Existenz.
+- **Beschriftet wird nach dem Stand, nicht nach dem Klick.** `Esc` beendet das
+  Vollbild, die Systemtaste eines Fernsehers auch, und beide fragen niemanden;
+  deshalb hängt das Umbeschriften an `fullscreenchange` (und an
+  `webkitfullscreenchange`, aus demselben Grund wie oben). Welches der beiden
+  Symbole man sieht, entscheidet `aria-pressed` und damit dasselbe Attribut, das
+  Vorlesegeräten den Stand sagt — es kann keine zweite Wahrheit dazu geben.
+- **Ein „nein" wird nicht geworfen, sondern zurückgegeben.** `toggleFullscreen`
+  liefert den Stand _nach_ dem Umschalten und nicht den Wunsch: Vollbild ist
+  eine Bequemlichkeit, und eine Bequemlichkeit, die eine Ausnahme in die Konsole
+  schreibt, hat niemandem geholfen.
 
 ### Welten auf dem Kachelgitter
 
@@ -10309,6 +10445,17 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   Chromium-Fallback. Diese Läufe nicht als native Leistungsmessung ausgeben.
   Browser einmalig via `npm run test:browser:install` installieren; Playwright
   und Browserrevision müssen zusammenpassen.
+- **Am Ende jedes Lauf steht die Eingabeseite** (`result.inputsPage`), und sie
+  ist der einzige Schritt, der sein Gerät mitbringt: `navigator.getGamepads`
+  wird vor dem Laden ersetzt — ein DualSense mit drei gedrückten Knöpfen —,
+  denn Playwright kann kein Pad vortäuschen, und im Container steckt keines.
+  Geprüft wird dabei nicht die Rechnung (die prüft Jest), sondern die
+  Verdrahtung: dass die Kennung erkannt wird, dass `gamepad.buttons[10]` im
+  Panel steht, dass im Bild genau die drei gedrückten Stellen leuchten und der
+  Stickknopf mit der Achse wandert. Der Vollbildknopf wird an seiner Zusage
+  geprüft und nicht an diesem Browser: Er ist genau dann da, wenn
+  `document.fullscreenEnabled` gilt — ein „er ist sichtbar" wäre eine
+  Behauptung über Chromium, die in einer Einbettung grundlos rot würde.
 - CI verwendet `--no-screenshots`: Alle Funktionsprüfungen bleiben aktiv,
   aber weder Pflicht- noch Fehlerbilder werden aufgenommen. Der JSON-Report
   bleibt das CI-Artefakt; `screenshots: false`, `screenshot: null` und
