@@ -8,4 +8,6 @@ src/style.css
 index.html
 src/tools/tools.css
 tools.html
+src/inputs/inputs.css
+inputs.html
 src/worlds/haunting/haunting.css

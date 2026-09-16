@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#05070d" />
+    <title>Eingaben — Baumgartner VR</title>
+    <meta name="description" content="Was der Browser vom Eingabegerät sieht: jeder Knopf mit seiner Nummer, das Bild des Controllers dazu, die Achsen der Sticks — und was die Spielwiese daraus macht. Für Konsolenbrowser, Fernseher und alles ohne Entwicklerwerkzeuge." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8E%AE%3C/text%3E%3C/svg%3E" />
+  </head>
+  <body class="page">
+    <!--
+      **Die Eingabeseite.** Eine Frage, und zwar die, die sonst niemand
+      beantworten kann: *Kommt der Knopf, den ich gerade drücke, im Browser
+      dieses Geräts überhaupt an — und unter welcher Nummer?*
+
+      Sie ist für die Geräte gebaut, an denen man das nicht nachsehen kann: der
+      Browser einer PS5, ein Fernseher, ein Telefon. Dort gibt es keine
+      Entwicklerwerkzeuge, keine Konsole und keinen Weg, `navigator.getGamepads()`
+      selbst aufzurufen — es gibt nur diese Seite. Deshalb steht hier alles
+      doppelt: als Bild, auf dem man **die Stelle** sieht, die man gedrückt hat,
+      und als Zahl, die man **abschreiben** kann.
+
+      Was die Seite *nicht* ist: ein Spiel. Kein WebXR, keine Physik, keine
+      Welt, kein three.js — nur `requestAnimationFrame` und das Gamepad-API.
+    -->
+    <header class="top">
+      <button id="nav" class="top__icon" type="button" aria-label="Menü" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+      <h1 class="top__title">Eingaben</h1>
+      <!--
+        Der Vollbildknopf. Er steht hier aus demselben Grund, aus dem die Seite
+        hier steht: Auf einer Konsole kostet die Adresszeile ein Fünftel des
+        Fernsehers. Gezeigt wird er nur, wo der Browser Vollbild wirklich
+        erlaubt (`core/fullscreen.ts`), sonst gar nicht — ein Knopf, der nichts
+        tut, ist schlimmer als keiner.
+      -->
+      <button id="full" class="top__icon top__icon--right" type="button" aria-label="Vollbild" aria-pressed="false" hidden>
+        <svg class="icon--in" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+        <svg class="icon--out" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /></svg>
+      </button>
+    </header>
+
+    <nav id="drawer" class="drawer" hidden>
+      <a class="drawer__link" href="./">VR Spielwiese</a>
+      <a class="drawer__link" href="./tools.html">Werkzeuge, Welten und Beutel</a>
+      <hr class="drawer__rule" />
+      <a class="drawer__link drawer__link--out" href="https://github.com/baumgartner-games/vr">Quellcode</a>
+    </nav>
+
+    <main class="body">
+      <!--
+        **Zuerst: ist überhaupt ein Pad da?** Und wenn nicht, warum nicht —
+        denn „nichts zu sehen" hat hier eine harmlose Erklärung, die niemand
+        errät: Ein Browser meldet ein angestecktes Pad erst, wenn daran einmal
+        ein Knopf gedrückt wurde (sonst wäre die Liste der angeschlossenen
+        Geräte ein Fingerabdruck für jede Werbeseite). Das muss dastehen,
+        bevor jemand sein Kabel prüft.
+      -->
+      <section class="card card--wide">
+        <h2 class="card__title">Gerät</h2>
+        <p id="pad-status" class="status">Suche …</p>
+        <p id="pad-hint" class="hint">
+          Ein angestecktes Pad wird erst sichtbar, wenn daran <strong>einmal ein Knopf</strong>
+          gedrückt wurde — so verlangt es das API. Also: Controller in die Hand und irgendetwas drücken.
+        </p>
+        <!-- Zwei Pads am selben Gerät: das Spiel hört nur eines, nämlich das erste. -->
+        <div id="pads" class="seg" role="group" aria-label="Welches Pad" hidden></div>
+      </section>
+
+      <div class="cols">
+        <!--
+          Das Bild. Es dreht die Richtung um: Man drückt, und **an der Stelle**,
+          wo man gedrückt hat, leuchtet es. Die Aufschrift darauf wechselt mit
+          der Marke des Geräts (`src/inputs/padDiagram.ts`).
+        -->
+        <section class="card">
+          <h2 class="card__title">Am Controller</h2>
+          <div id="diagram" class="diagram"></div>
+          <p id="diagram-note" class="hint">
+            Die Zeichnung ist kein bestimmtes Pad, sondern das Standard-Layout — was darauf steht,
+            richtet sich nach dem erkannten Gerät.
+          </p>
+        </section>
+
+        <!--
+          **Das Panel mit dem Code.** Die große Zahl ist die Nummer, unter der
+          das API den Knopf führt, und darunter steht sie so, wie man sie in
+          eigenem Code hinschreibt. Wer von einer Konsole aus berichtet, was
+          nicht klappt, liest genau diese Zeile vor.
+        -->
+        <section class="card card--code">
+          <h2 class="card__title">Code des gedrückten Knopfes</h2>
+          <div class="code">
+            <span id="code-icon" class="code__icon" aria-hidden="true">–</span>
+            <div class="code__lines">
+              <code id="code-api" class="code__api">buttons[?]</code>
+              <strong id="code-label" class="code__label">Noch nichts gedrückt</strong>
+              <span id="code-value" class="code__value"></span>
+            </div>
+            <span id="code-index" class="code__num" aria-label="Nummer des Knopfes">—</span>
+          </div>
+          <h3 class="card__sub">Protokoll</h3>
+          <ul id="log" class="log" aria-live="polite"></ul>
+          <p class="hint">
+            Jede Zeile ist ein <em>Druck</em>, nicht ein Bild: Ein gehaltener Knopf steht einmal da
+            und nicht sechzigmal pro Sekunde.
+          </p>
+        </section>
+      </div>
+
+      <!-- Alle Knöpfe, auch die, die nichts tun: Vollständigkeit ist hier die Ware. -->
+      <section class="card card--wide">
+        <h2 class="card__title">Alle Knöpfe</h2>
+        <ul id="buttons" class="keys"></ul>
+      </section>
+
+      <section class="card card--wide">
+        <h2 class="card__title">Achsen</h2>
+        <ul id="axes" class="axes"></ul>
+        <p class="hint">
+          Ungerechnet, wie der Treiber sie meldet: Ein Stick, den niemand anfasst und der hier
+          0,04 zeigt, ist der Grund, warum eine Figur von allein läuft. Das Spiel rechnet diese
+          Drift mit einer runden Totzone weg (<code>core/gamepad.ts</code>) — diese Seite nicht.
+        </p>
+      </section>
+
+      <!--
+        Und der Schritt danach: Was die Spielwiese aus denselben Zahlen macht
+        (`core/gamepad.readGamepad` — dieselbe Funktion, die im Spiel läuft).
+        Damit trennt die Seite die zwei Fehler, die sich sonst gleich anfühlen:
+        „der Knopf kommt nicht an" und „der Knopf ist nicht belegt".
+      -->
+      <section class="card card--wide">
+        <h2 class="card__title">Was die Spielwiese daraus macht</h2>
+        <dl class="game">
+          <div class="game__row"><dt>Laufen</dt><dd data-game="move">—</dd></div>
+          <div class="game__row"><dt>Zielen</dt><dd data-game="aim">—</dd></div>
+          <div class="game__row"><dt>Benutzen</dt><dd data-game="use">—</dd></div>
+          <div class="game__row"><dt>Schießen</dt><dd data-game="fire">—</dd></div>
+          <div class="game__row"><dt>Sprint</dt><dd data-game="sprint">—</dd></div>
+          <div class="game__row"><dt>Zoom</dt><dd data-game="zoom">—</dd></div>
+          <div class="game__row"><dt>Werkzeugliste</dt><dd data-game="tools">—</dd></div>
+        </dl>
+        <p class="hint">
+          Von oben gespielt: links laufen, rechts zielen, <strong>A/✕</strong> benutzen,
+          <strong>B/○</strong> oder der rechte Trigger schießen, Stick links gedrückt sprinten,
+          <strong>Y/△</strong> klappt die Werkzeugliste auf.
+        </p>
+      </section>
+
+      <!--
+        Tastatur und Zeiger stehen dabei, weil „welcher Knopf ist das" auch am
+        Fernseher-Browser mit Fernbedienung und am Laptop gefragt wird — und
+        weil `event.code` dasselbe Rätsel ist wie `buttons[3]`.
+      -->
+      <section class="card card--wide">
+        <h2 class="card__title">Tastatur und Zeiger</h2>
+        <dl class="game">
+          <div class="game__row"><dt>code</dt><dd><code id="key-code">—</code></dd></div>
+          <div class="game__row"><dt>key</dt><dd><code id="key-key">—</code></dd></div>
+          <div class="game__row"><dt>keyCode</dt><dd><code id="key-which">—</code></dd></div>
+          <div class="game__row"><dt>Zeiger</dt><dd id="pointer">—</dd></div>
+        </dl>
+      </section>
+
+      <!--
+        Zum Schluss das, was man in einen Fehlerbericht schreibt. Der Knopf
+        *Bericht kopieren* ist keine Bequemlichkeit: Von einer Konsole aus ist
+        Abtippen die einzige Alternative.
+      -->
+      <section class="card card--wide">
+        <h2 class="card__title">Gerät und Browser</h2>
+        <dl id="env" class="game"></dl>
+        <div class="row">
+          <button id="copy" class="btn" type="button">Bericht kopieren</button>
+          <button id="rumble" class="btn" type="button" hidden>Rütteln testen</button>
+        </div>
+        <p id="copy-note" class="hint">
+          Der Bericht enthält Pad-Kennung, Browserkennung und die Zahlen dieser Seite —
+          genau das, was bei „der Knopf tut nichts" fehlt.
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="/src/inputs/main.ts"></script>
+  </body>
+</html>

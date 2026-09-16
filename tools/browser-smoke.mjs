@@ -535,6 +535,98 @@ for (const name of browserNames) {
               requestAnimationFrame(frame);
             }),
         );
+        // **Die Eingabeseite mit einem Pad, das es hier nicht gibt.**
+        //
+        // Im Container steckt kein Controller, und Playwright kann keinen
+        // vortäuschen — es gibt kein Gamepad-API zum Fernsteuern. Die Rechnung
+        // dahinter prüft Jest (`core/gamepadReport.test.ts`,
+        // `inputs/padDiagram.test.ts`); was **nur** hier zu prüfen ist, ist die
+        // Verdrahtung: dass die Schleife läuft, dass das Bild an der richtigen
+        // Stelle leuchtet und dass die Nummer im Panel steht. Also wird
+        // `navigator.getGamepads` vor dem Laden ersetzt — ein DualSense mit
+        // drei gedrückten Knöpfen —, und danach wird nachgesehen.
+        //
+        // Eigene Seite im selben Kontext: Die Eingabeseite hat kein `window.bgvr`,
+        // und `capture()` oben hält die Renderschleife des Spiels an.
+        const inputs = await context.newPage();
+        inputs.setDefaultTimeout(60000);
+        inputs.on('pageerror', (error) => result.pageErrors.push(error.stack ?? error.message));
+        inputs.on('console', (message) => {
+          if (message.type() === 'error') result.consoleErrors.push(message.text());
+        });
+        await inputs.addInitScript(() => {
+          const down = new Set([1, 7, 10]);
+          const pad = {
+            id: 'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)',
+            index: 0,
+            mapping: 'standard',
+            connected: true,
+            axes: [0.5, -1, 0, 0],
+            get buttons() {
+              return Array.from({ length: 18 }, (_, i) => ({
+                pressed: down.has(i),
+                touched: false,
+                value: i === 7 && down.has(i) ? 0.62 : down.has(i) ? 1 : 0,
+              }));
+            },
+          };
+          navigator.getGamepads = () => [pad, null, null, null];
+        });
+        await inputs.goto(new URL('inputs.html', base).href, {
+          waitUntil: 'domcontentloaded',
+          timeout: 90000,
+        });
+        // Die höchste gedrückte Nummer steht im Panel — `buttons[10]`, L3.
+        await inputs.locator('#code-index').filter({ hasText: '10' }).waitFor();
+        result.inputsPage = {
+          status: await inputs.locator('#pad-status').innerText(),
+          code: await inputs.locator('#code-api').innerText(),
+          label: await inputs.locator('#code-label').innerText(),
+          lit: await inputs
+            .locator('.pad__key.is-down')
+            .evaluateAll((keys) => keys.map((key) => key.dataset.slot).sort()),
+          keys: await inputs.locator('.key').count(),
+          axes: await inputs.locator('.axis').count(),
+          stick: await inputs.locator('[data-stick="left"]').getAttribute('transform'),
+        };
+        assert.match(result.inputsPage.status, /PlayStation · Standard-Mapping/);
+        assert.equal(result.inputsPage.code, 'gamepad.buttons[10]');
+        assert.deepEqual(
+          result.inputsPage.lit,
+          ['face-right', 'stick-left', 'trigger-right'],
+          'Das Bild leuchtet genau dort, wo gedrückt wird',
+        );
+        assert.equal(result.inputsPage.keys, 18, 'Alle Knöpfe stehen in der Liste, auch die leeren');
+        assert.equal(result.inputsPage.axes, 4);
+        // Der Stickknopf wandert mit der Achse: +x nach rechts, −y nach oben.
+        assert.equal(result.inputsPage.stick, 'translate(3.50 -7.00)');
+        // **Und der Vollbildknopf — geprüft an seiner Zusage und nicht an
+        // diesem Browser.** Die Zusage ist: Er steht genau dort, wo der Browser
+        // Vollbild wirklich erlaubt, und nirgends sonst
+        // (`core/fullscreen.fullscreenSupported`). Ein „er ist sichtbar" wäre
+        // dagegen eine Behauptung über Chromium, die in einer Einbettung oder
+        // auf dem nächsten Gerät grundlos rot würde.
+        result.inputsPage.fullscreen = await inputs.evaluate(() => ({
+          allowed: document.fullscreenEnabled === true,
+          shown: !document.querySelector('#full').hidden,
+        }));
+        assert.equal(
+          result.inputsPage.fullscreen.shown,
+          result.inputsPage.fullscreen.allowed,
+          'Den Vollbildknopf gibt es genau dort, wo Vollbild erlaubt ist',
+        );
+        if (result.inputsPage.fullscreen.shown) {
+          // Und nach dem Klick trägt er den Stand: `aria-pressed` ist dasselbe
+          // Attribut, das das Symbol umschaltet.
+          await inputs.locator('#full').click();
+          await inputs.locator('#full[aria-pressed="true"]').waitFor();
+          result.inputsPage.fullscreen.entered = await inputs.evaluate(
+            () => Boolean(document.fullscreenElement),
+          );
+          assert(result.inputsPage.fullscreen.entered, 'Der Knopf schaltet wirklich auf Vollbild');
+        }
+        await inputs.close();
+
         assert.equal(result.pageErrors.length, 0, 'No uncaught browser errors');
         result.passed = true;
       } catch (error) {

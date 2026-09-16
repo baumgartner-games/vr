@@ -20,6 +20,19 @@
       <button id="landing-menu" class="hud__menu landing__menu" type="button" aria-label="Menü" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
       </button>
+      <!--
+        **Vollbild, wo keine Brille ist.** In der Brille stellt sich die Frage
+        nicht — eine XR-Sitzung ist Vollbild. Am Bildschirm ist sie die Antwort
+        auf eine ganze Klasse von Geräten: der Browser einer Konsole, ein
+        Fernseher, ein Telefon im Querformat, wo ein Fünftel der Fläche
+        Adresszeile ist. Derselbe Knopf steht im Spiel oben rechts
+        (`#hud-full`); gezeigt werden beide nur, wo der Browser Vollbild
+        wirklich erlaubt (`core/fullscreen.ts`).
+      -->
+      <button id="landing-full" class="hud__menu landing__full" type="button" aria-label="Vollbild" aria-pressed="false" hidden>
+        <svg class="icon--in" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+        <svg class="icon--out" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /></svg>
+      </button>
       <div class="landing__inner">
         <p class="eyebrow">Baumgartner Games</p>
         <!--
@@ -141,6 +154,14 @@
         -->
         <p class="landing__more only-generic"><a href="./tools.html">Werkzeuge, Welten und Beutel ansehen →</a></p>
 
+        <!--
+          Und die Eingabeseite. Sie steht hier und nicht in einem Menü, weil
+          man sie genau dann braucht, wenn man noch nicht drin ist: Ein Pad,
+          dessen Knöpfe im Spiel nichts tun, ist am Konsolenbrowser sonst
+          nicht zu untersuchen — dort gibt es keine Entwicklerwerkzeuge.
+        -->
+        <p class="landing__more only-generic"><a href="./inputs.html">Controller und Tasten prüfen →</a></p>
+
         <p id="xr-status" class="status only-generic"></p>
 
         <details id="net-setup" class="net only-generic">
@@ -199,6 +220,11 @@
       <div class="hud__row">
         <span id="hud-world" class="hud__world"></span>
         <button id="hud-net" class="hud__btn">Verbindung</button>
+        <!-- Siehe `#landing-full` oben: derselbe Knopf, dieselbe Bedingung. -->
+        <button id="hud-full" class="hud__btn hud__btn--icon" type="button" aria-label="Vollbild" aria-pressed="false" hidden>
+          <svg class="icon--in" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+          <svg class="icon--out" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /></svg>
+        </button>
         <button id="hud-vr" class="hud__btn">VR</button>
       </div>
     </div>
