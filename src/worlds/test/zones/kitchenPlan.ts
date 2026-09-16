@@ -450,10 +450,22 @@ export function stampKitchen(plan: GridPlan): void {
   const east = KITCHEN.x + KITCHEN.w - 1;
   const south = KITCHEN.z + KITCHEN.d - 1;
 
-  // **Ein Boden aus Stein.** Ohne ihn steht die Küche auf der Wiese des
-  // Geländes, und eine Spüle im Gras sieht aus wie ein Versehen. Er liegt
-  // knapp über dem Gelände, damit sich die beiden nicht um jedes Pixel
-  // streiten — dieselbe Handbreit wie der Asphalt der Boxengasse.
+  // **Der Estrich.** Ohne ihn steht die Küche auf der Wiese des Geländes, und
+  // eine Spüle im Gras sieht aus wie ein Versehen. Er liegt knapp über dem
+  // Gelände, damit sich die beiden nicht um jedes Pixel streiten — dieselbe
+  // Handbreit wie der Asphalt der Boxengasse.
+  //
+  // **Zu sehen ist er nur noch von der Seite**: Oben liegen seit dem Spieltest
+  // am Handy die karierten Fliesen (`kitchenFloor.ts`), zwei Millimeter
+  // darüber. Der Quader hier bleibt trotzdem genau so stehen, wie er steht —
+  // er ist der **Körper**, auf dem gelaufen wird, und seine Oberkante ist die
+  // Höhe, auf der jedes Möbel der Küche aufsetzt (`KITCHEN_FLOOR`). Der Belag
+  // ist nur das Bild; wer ihn zum Körper machte, hätte zwei Kollider
+  // übereinander für eine Fläche.
+  //
+  // Warum die Fliesen kein neunter Eintrag in `grid/solids.PlanSolidKind`
+  // sind, steht in `kitchenFloor.ts`: Eine Sorte dort trägt einen Ton und kein
+  // Muster, und die Wiederholung kennt nur, wer weiß, wie groß die Fläche ist.
   plan.mass('stone', KITCHEN, -0.06, KITCHEN_FLOOR);
 
   plan.run(KITCHEN.x, KITCHEN.z, KITCHEN.w, 'x', (x, z) => plan.wall(x, z, DIR_N));

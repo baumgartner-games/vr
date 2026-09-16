@@ -47,6 +47,7 @@ import {
 import { DIRTY_STACK_MAX, FoodKit, SINK_TILT } from './kitchenProps';
 import { GAUGE_LIFT, KitchenGauges, WARN_LIFT } from './kitchenGauge';
 import { IconOven } from './kitchenIcon';
+import { KitchenFloor } from './kitchenFloor';
 import { buildKitchenNotice } from './kitchenNotice';
 import type { SignBoard } from '../../signs/SignBoard';
 import {
@@ -514,6 +515,8 @@ export class KitchenZone implements TestZone {
   private belts: BeltKit | null = null;
   /** Der Nebel aus dem Feuerlöscher (`kitchenSpray.ts`). */
   private jet: SprayJet | null = null;
+  /** Der karierte Belag über dem Estrich der Zone (`kitchenFloor.ts`). */
+  private floor: KitchenFloor | null = null;
   /** Was die Figur gerade trägt. */
   private carried: Carried | null = null;
   /** Die Tafel an der Ausgabetheke und wie lange sie noch steht. */
@@ -568,6 +571,11 @@ export class KitchenZone implements TestZone {
     this.gauges = new KitchenGauges(world.root);
     this.belts = new BeltKit();
     this.jet = new SprayJet(world.root);
+    // **Zuerst der Boden**, denn auf ihm steht alles andere: Der Grundriss legt
+    // den Estrich (`stampKitchen`), die Zone die Fliesen darauf
+    // (`kitchenFloor.ts`). Er hängt an der Welt und nicht an einem Möbel — im
+    // Baumodus wird die Küche umgestellt, nicht der Boden aufgenommen.
+    this.floor = new KitchenFloor(world.root);
     // Der Ofen braucht den Renderer und gibt ohne WebGL und in der Brille
     // `null` zurück (`IconOven.bake`) — dann eben kein Schild an der Ausgabe.
     this.oven = new IconOven(ctx.renderer);
@@ -1267,7 +1275,8 @@ export class KitchenZone implements TestZone {
     this.owned.length = 0;
     // Zutaten und Teller hängen an **einem** Satz und nicht an jedem Brötchen
     // einzeln (`kitchenProps.FoodKit`); dasselbe gilt für die Anzeigen, die
-    // Bilder an den Ausgaben, die Bänder und den Nebel.
+    // Bilder an den Ausgaben, die Bänder, den Nebel und den Boden — und der
+    // gibt seine Leinwand mit frei, die ein Material für sich behielte.
     this.food.dispose();
     this.gauges?.dispose();
     this.gauges = null;
@@ -1277,6 +1286,8 @@ export class KitchenZone implements TestZone {
     this.belts = null;
     this.jet?.dispose();
     this.jet = null;
+    this.floor?.dispose();
+    this.floor = null;
     this.buildButton?.dispose();
     this.buildButton = null;
     this.notice?.dispose();

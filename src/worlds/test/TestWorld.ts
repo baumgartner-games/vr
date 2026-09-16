@@ -9,7 +9,7 @@ import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { npcSkin } from '../npc/npcKinds';
-import { SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
+import { HORIZON_COLORS, SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
 import { spawnAt } from './spawnAt';
 import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
@@ -161,17 +161,23 @@ export class TestWorld extends GridWorld {
    * als keines. Das Vorbild ist der Prüfkammerboden aus Portal — es ist
    * dasselbe, aus dem auch die Portalflächen dieses Projekts kommen, und es
    * sagt auf einen Blick, wie weit etwas weg ist.
+   *
+   * **Die Küche hat seitdem ein zweites Brett**, und die beiden grenzen
+   * unmittelbar aneinander (`zones/kitchenFloor.ts`): halbe Felder, warme und
+   * dunkle Töne, damit der Küchenboden ein Küchenboden bleibt und nicht die
+   * Fortsetzung dieses hier wird. Die drei Farben unten stehen deshalb in
+   * `layout.HORIZON_COLORS` — der Boden nebenan wird gegen sie gemessen.
    */
   protected override horizonColor(): number {
-    return 0x9aa0a8;
+    return HORIZON_COLORS.ground;
   }
 
   protected override horizonChecker(): number {
-    return 0xe8ebef;
+    return HORIZON_COLORS.checker;
   }
 
   protected override horizonLine(): number {
-    return 0x6c727a;
+    return HORIZON_COLORS.line;
   }
 
   protected override lightIntensity(): number {

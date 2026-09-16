@@ -2091,7 +2091,27 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     sucht man im Gelände, warum man woanders steht.
   - **Küche** (ganz im Norden, hinter dem Podest): vierundzwanzig mal elf
     Kacheln mit den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe
-    _Modelle im Repository_), und zwar in **zwei Hälften**. Im Westen die
+    _Modelle im Repository_), und zwar in **zwei Hälften**. Unter allem liegt
+    ein **karierter Boden** (`zones/kitchenFloor.ts`): cremeweiß und
+    schiefergrau im Wechsel, **ein halber Meter je Feld**, also zwei mal zwei
+    Felder auf jeder Kachel des Meterrasters — eine Fuge, die schräg unter der
+    Küchenzeile durchliefe, wäre schlimmer als gar keine. Er ist der
+    Unterschied zwischen „hier stehen Möbel auf dem Gelände" und „hier ist ein
+    Raum", und er ist bewusst **gegen das Schachbrett draußen** gewählt
+    (`layout.HORIZON_COLORS`): Das ist grau auf weiß mit einem Meter je Feld,
+    also zwei helle kühle Töne — drinnen sind die Felder halb so groß, die Töne
+    wärmer und der Sprung zwischen ihnen mehr als doppelt so groß. Damit liest
+    sich die Kante zwischen beiden als Schwelle und nicht als Versehen; ein
+    Jest-Test rechnet Feldgröße, Kontrast und Ausrichtung nach. Gezeichnet wird
+    das Muster vom selben Schachbrettzeichner wie der Boden bis zum Horizont
+    (`shared/environment.checkerTexture`, samt Farbraum, Mipmaps und
+    `anisotropy` gegen das Flimmern aus der Aufsicht); die Fliesen sind ein
+    **eigenes Material** der Zone und keine neunte Sorte im Gitter — eine Sorte
+    dort trägt einen Ton und kein Muster, und wie oft sich das Muster
+    wiederholt, weiß nur, wer die Größe der Fläche kennt. Der Steinquader aus
+    dem Grundriss bleibt darunter liegen: Er ist der Körper, auf dem gelaufen
+    wird, und der Belag liegt zwei Millimeter darüber, damit die beiden nicht
+    um jeden Bildpunkt streiten. Im Westen die
     Küche selbst — Zeile, zwei Herde, **Spülbecken und Abtropfbrett** und die
     Tellerausgabe an der Wand, vier
     Zutatenausgaben an der Westwand, eine Insel aus Schneidebrett und
@@ -2583,6 +2603,14 @@ im Spiel also zwei Kacheln —, und in eine
   Welt ihr Brett bekommt, ohne ihren Ton zu verlieren; wer es wie in **Portal**
   will — grau und weiß —, nennt sie (`horizonChecker()`, so macht es die
   Testwelt).
+
+  Den Zeichner teilt sich dieser Boden inzwischen mit einem zweiten
+  (`checkerTexture`): Die **Küche der Testwelt** ist ebenfalls kariert, mit
+  halben Feldern und eigenen Tönen (`test/zones/kitchenFloor.ts`). Geteilt wird
+  dabei nicht nur das Muster, sondern vor allem, was darum herum steht —
+  sRGB-Farbraum, Mipmaps und `anisotropy`: die drei Einstellungen, ohne die ein
+  Raster aus der Schrägsicht flimmert, und die man in einer zweiten Fassung
+  garantiert einmal vergisst.
 - **Rettung aus der Tiefe**: wer trotzdem unter die Welt fällt — durch ein
   Bodenportal, durch eine Ritze, durch einen Handschuh — kommt an derselben
   Stelle wieder heraus, auf dem **höchsten** Punkt, der dort steht. Von unten
@@ -5055,7 +5083,7 @@ oder leere Hand ergeben ein
 paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
 eine Viertelstunde Hin- und Herlaufen.
 
-Die Küche liegt seitdem in dreizehn Dateien, dazu eine vierzehnte im `ui/`, die
+Die Küche liegt seitdem in fünfzehn Dateien, dazu eine sechzehnte im `ui/`, die
 längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
 getrennt von Darstellung** — was ohne three.js auskommt, kommt ohne three.js
 aus, und genau das ist der Grund, warum es so viele Dateien sind.
@@ -5076,6 +5104,7 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenIcon.ts` | der Ofen, der aus einer Zutat eine Textur backt |
 | `zones/kitchenGauge.ts` | Balken, Warndreieck und Flammen über den Stationen |
 | `zones/kitchenNotice.ts` | der Aushang an der Nordwand: Markdown, gesetzt an der Wand |
+| `zones/kitchenFloor.ts` | der karierte Boden: Feldgröße, Töne, Fuge, die Fläche darüber |
 | `ui/billboard.ts` | `faceCamera`: was Auskunft gibt, steht parallel zum Bild |
 
 Die jüngsten sechs kamen mit dem Geschirr, den Gästen, dem Band, dem Löscher

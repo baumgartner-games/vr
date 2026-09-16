@@ -38,6 +38,23 @@ export const LEVELS: readonly number[] = [0, STOREY];
  */
 export const FIELD: NavRect = { x: -27, z: -34, w: 64, d: 80 };
 
+/**
+ * **Die Farben des Bodens draußen** — grau und weiß im Wechsel, ein Meter je
+ * Feld (`shared/environment.createGround`, `TestWorld.horizonColor`).
+ *
+ * Die drei Zahlen standen in drei Methodenrümpfen der Welt, und dort kam
+ * niemand an sie heran, der sie braucht. Gebraucht werden sie seit dem
+ * **Küchenboden**: Der ist ebenfalls kariert (`zones/kitchenFloor.ts`), er
+ * grenzt unmittelbar an diesen hier, und genau deshalb muss er sich von ihm
+ * abheben — feinere Felder, wärmere und dunklere Töne. Ein Test rechnet das
+ * nach, und dafür muss er beide Böden in die Hand bekommen.
+ */
+export const HORIZON_COLORS = {
+  ground: 0x9aa0a8,
+  checker: 0xe8ebef,
+  line: 0x6c727a,
+} as const;
+
 /** Wo man ankommt: die Mitte des Startplatzes. */
 export const SPAWN = { x: 0, z: 0 } as const;
 
