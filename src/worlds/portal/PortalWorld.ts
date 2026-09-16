@@ -7596,9 +7596,19 @@ export class PortalWorld implements World {
    * Sie liegt in der Neigung der Kamera von oben (`topDownPitch`), steht also
    * gerade im Bild, ohne dass sie jedes Bild neu ausgerichtet werden müsste.
    *
-   * Wie der Knopf heißt, sagt das Gestell (`PlayerRig.useLabel`): `E` an der
-   * Tastatur, `A` am Pad und auf dem Glas. Ein Hinweis, der mit einem Pad in
-   * der Hand `E` zeigt, nennt eine Taste, die dort niemand hat.
+   * **Die Taste steht nicht mehr dran.** Früher begann der Hinweis mit dem
+   * Namen des Knopfes (`A · Brötchen nehmen`), und dafür gab es einen Grund:
+   * Wer nicht weiß, womit er etwas anfängt, liest ihn dort. Nur sagen das
+   * inzwischen zwei Dinge deutlicher als ein Buchstabe auf einer Tafel — das
+   * Ding selbst bekommt seinen gelben Saum (`highlighter`, auch in der
+   * Brille), und der Knopf, der es aufmacht, leuchtet am Glas mit. Was übrig
+   * bleibt, ist die **Tat**: „Brötchen nehmen", „Feuer löschen". Kürzer, und
+   * an der Ausgabetheke im Gedränge genau das, was man sucht.
+   *
+   * Damit ist auch `PlayerRig.useLabel` weg: Diese Tafel war der einzige Ort,
+   * an dem der Name des Knopfes je gelesen wurde, und ein Feld, das jedes Bild
+   * gesetzt und von niemandem mehr gelesen wird, ist die zweite Wahrheit, die
+   * beim nächsten Umbau ausschert.
    */
   private showUsePrompt(ctx: WorldContext, text: string): void {
     if (!text) {
@@ -7613,10 +7623,9 @@ export class PortalWorld implements World {
       this.root.add(plane);
       this.usePromptPlane = plane;
     }
-    const label = `${ctx.rig.useLabel} · ${text}`;
-    if (label !== this.usePromptText) {
-      plane.setText(label);
-      this.usePromptText = label;
+    if (text !== this.usePromptText) {
+      plane.setText(text);
+      this.usePromptText = text;
     }
     plane.visible = true;
     if (ctx.topDown) {

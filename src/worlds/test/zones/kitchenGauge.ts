@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BILLBOARD_LEAN_MIN, faceCamera } from '../../../ui/billboard';
 
 /**
  * **Was über einer Küchenstation in der Luft steht** — der Fortschrittsbalken,
@@ -31,6 +32,13 @@ import * as THREE from 'three';
  * oder liegt abgehängt im Vorrat (`spare`). `update` kehrt sofort um, solange
  * nichts sichtbar ist. In der Küche steht die Regel: zwölf Möbel, von denen
  * meistens keines etwas zu sagen hat.
+ *
+ * **Zur Kamera dreht sich alles beim Zeichnen**, nicht im `update`: Balken und
+ * Warndreieck bekommen beim Bauen ein `faceCamera` aus `ui/billboard.ts`, und
+ * damit gilt für sie die Kamera, aus der gerade wirklich gezeichnet wird — von
+ * oben am Schirm, aus den Augen in der Brille, für jeden Spieler seine eigene.
+ * Die Flammen bleiben davon ausgenommen: Sie sind Kegel im Raum und sehen von
+ * jeder Seite aus wie Feuer.
  *
  * **Nichts davon kennt die Zone.** Die Station sagt „hier, an dieser
  * Weltstelle, ein Balken bei 0,4 in warm" und beim nächsten Mal „weg damit" —
@@ -96,23 +104,13 @@ export const WARN_SIZE = 0.24;
 export const WARN_LIFT = 0.52;
 
 /**
- * **Wie weit ein Schild sich mindestens zurücklehnt**, im Bogenmaß (30°).
+ * **Wie weit ein Schild sich mindestens zurücklehnt** — der Wert wohnt jetzt in
+ * `ui/billboard.ts`, wo auch die Ausrichtung wohnt (siehe dort, warum 30°).
  *
- * Ein Schild dreht sich zur Kamera — nur zu **welcher**? Die Hauptansicht am
- * Schirm ist die Kamera von oben (`core/TopDownCamera.ts`), sie steht 55° über
- * der Waagerechten; eine Welt bekommt in `update` aber die Kamera aus den
- * Augen gereicht (`core/App.ts`: `world.update(dt, context)` — der Tausch auf
- * die Kamera von oben passiert erst für das **Bild**). Wer stur der gereichten
- * Kamera ins Gesicht sieht, steht von oben also fast hochkant im Bild und ist
- * auf ein knappes Drittel gestaucht (cos 55° = 0,57).
- *
- * Also lehnt sich jedes Schild **mindestens** 30° zurück, egal wer fragt: Von
- * oben bleiben 25° Rest (cos = 0,91, so gut wie unverkürzt), aus den Augen
- * sind es 30° (cos = 0,87) — beides liest sich. Steht die Kamera höher als 30°
- * — die von oben tut es —, gilt ihr echter Winkel und das Schild sieht sie
- * genau an.
+ * Hier steht er nur noch als Name, unter dem ihn die Küche und ihre Tests
+ * kennen; eine zweite Zahl daneben wäre eine Zahl zu viel.
  */
-export const GAUGE_LEAN_MIN = (30 * Math.PI) / 180;
+export { BILLBOARD_LEAN_MIN as GAUGE_LEAN_MIN };
 
 /** Die Farben der drei Balken — warm fürs Braten, rot fürs Verbrennen, hell fürs Schneiden. */
 const TONE_COLOR: Readonly<Record<GaugeTone, number>> = {
@@ -301,7 +299,14 @@ export class KitchenGauges {
     this.place(flame.group, at);
   }
 
-  /** **Alles zu diesem Schlüssel weg** — Balken, Dreieck und Flammen auf einmal. */
+  /**
+   * **Alles zu diesem Schlüssel weg** — Balken, Dreieck und Flammen auf einmal.
+   *
+   * Von der Ausrichtung zur Kamera ist dabei nichts abzumelden: Sie hängt als
+   * `onBeforeRender` am Objekt selbst (`ui/billboard.ts`), fällt mit ihm aus
+   * der Szene und kommt mit ihm aus dem Vorrat zurück. Wer hier ein
+   * `unfaceCamera` sucht, sucht vergebens — und richtig.
+   */
   clear(key: string): void {
     const bar = this.bars.get(key);
     if (bar) {
@@ -314,27 +319,24 @@ export class KitchenGauges {
   }
 
   /**
-   * **Ein Bild weiter**: Schilder drehen sich zur Kamera, das Dreieck pulst,
-   * die Flammen flackern.
+   * **Ein Bild weiter**: Das Dreieck pulst, die Flammen flackern.
    *
-   * Zu rufen ist das aus dem `update` der Zone, mit **der** Kamera, aus der
-   * gerade gesehen wird (`WorldContext.camera`). Wer es vergisst, bekommt
-   * stehende Schilder in der Richtung, in der sie zuletzt standen — keine
-   * Ausnahme, nur falsch herum.
+   * **Die Kamera hat hier nichts mehr zu suchen** — der Parameter steht nur
+   * noch da, damit die Küche (`kitchen.ts`) ihre Zeile nicht ändern muss.
+   * Ausgerichtet wird beim Zeichnen (`ui/billboard.faceCamera`), und zwar aus
+   * gutem Grund: Was eine Welt hier gereicht bekommt, ist die Kamera **aus den
+   * Augen** (`WorldContext.camera`) — am Schirm zeichnet aber die von oben
+   * (`core/App.ts` tauscht sie erst fürs Bild). Genau daher standen die Balken
+   * in der Ansicht von oben zur Figur gedreht statt zur Kamera. Über
+   * `onBeforeRender` gilt dagegen die Kamera, aus der gerade wirklich
+   * gezeichnet wird — je Ansicht, je Auge, je Spieler eine eigene.
    *
    * Solange nichts zu sehen ist, kostet der Aufruf einen Vergleich und kehrt
    * um; auch die Uhr steht dann still.
    */
-  update(dt: number, camera: THREE.Camera): void {
+  update(dt: number, _camera?: THREE.Camera): void {
     if (this.bars.size === 0 && this.warns.size === 0 && this.flames.size === 0) return;
     this.clock += dt;
-
-    // Die Kamera einmal in den Raum des Elternteils holen und nicht je Schild:
-    // Die Drehung, die gleich gesetzt wird, gilt in genau diesem Raum.
-    camera.getWorldPosition(_eye);
-    this.parent.worldToLocal(_eye);
-
-    for (const bar of this.bars.values()) face(bar.group, _eye);
 
     if (this.warns.size > 0) {
       const pulse = (Math.sin(this.clock * WARN_HZ * Math.PI * 2) + 1) / 2;
@@ -347,10 +349,7 @@ export class KitchenGauges {
       if (red) red.opacity = alpha;
       if (ink) ink.opacity = alpha;
       const grow = 1 + WARN_GROW * pulse;
-      for (const sign of this.warns.values()) {
-        face(sign, _eye);
-        sign.scale.setScalar(grow);
-      }
+      for (const sign of this.warns.values()) sign.scale.setScalar(grow);
     }
 
     for (const flame of this.flames.values()) {
@@ -380,6 +379,9 @@ export class KitchenGauges {
    * die geteilten Formen und Farben, jede genau einmal. Danach ist dieser Satz
    * leer und lässt sich wieder füllen — nötig ist das nicht, aber ein
    * `dispose`, nach dem ein zweiter Aufruf abstürzt, ist eine Falle.
+   *
+   * Die Ausrichtung zur Kamera steht auch hier nicht: Sie geht mit dem Objekt,
+   * an dem sie hängt (siehe `clear`).
    */
   dispose(): void {
     for (const bar of this.bars.values()) bar.group.removeFromParent();
@@ -405,9 +407,6 @@ export class KitchenGauges {
   private buildBar(): Bar {
     const group = new THREE.Group();
     group.name = 'kitchen-gauge-bar';
-    // Erst drehen, dann kippen (`face`): In der Reihenfolge `XYZ` kippte das
-    // Schild um die **Welt**achse und stünde schief im Bild.
-    group.rotation.order = 'YXZ';
 
     const track = new THREE.Mesh(
       this.shape('quad', () => new THREE.PlaneGeometry(1, 1)),
@@ -428,6 +427,10 @@ export class KitchenGauges {
     quiet(fill);
 
     group.add(track, fill);
+    // **Zuletzt**, wenn die Teile hängen: `onBeforeRender` ruft three nur an
+    // Gezeichnetem, nie an einer `Group` — `faceCamera` hängt sich deshalb an
+    // Grund und Füllung und richtet von dort die Gruppe aus.
+    faceCamera(group);
     return { group, fill, tone: 'cook' };
   }
 
@@ -435,7 +438,6 @@ export class KitchenGauges {
   private buildWarn(): THREE.Object3D {
     const group = new THREE.Group();
     group.name = 'kitchen-gauge-warn';
-    group.rotation.order = 'YXZ';
 
     const quad = this.shape('quad', () => new THREE.PlaneGeometry(1, 1));
     const ink = this.skin('warn:ink', DARK, 1);
@@ -466,6 +468,7 @@ export class KitchenGauges {
 
     front.add(stem, dot);
     group.add(back, front);
+    faceCamera(group);
     return group;
   }
 
@@ -563,26 +566,6 @@ export class KitchenGauges {
 }
 
 /**
- * **Ein Schild sieht die Kamera an** — Gieren voll, Nicken mindestens
- * `GAUGE_LEAN_MIN` (siehe dort, warum).
- *
- * Gerechnet wird im Raum des Elternteils: `eye` ist die Kamera darin, und die
- * gesetzte Drehung gilt genau dort. Die Ordnung `YXZ` steht am Objekt und
- * nicht hier — sie gehört zu ihm und nicht zu einem Aufruf.
- */
-function face(object: THREE.Object3D, eye: THREE.Vector3): void {
-  const dx = eye.x - object.position.x;
-  const dy = eye.y - object.position.y;
-  const dz = eye.z - object.position.z;
-  const flat = Math.hypot(dx, dz);
-  // Steht die Kamera **senkrecht** darüber, gibt es kein Gieren mehr; dann
-  // bleibt das Schild stehen, wie es stand, und legt sich nur flach.
-  const lean = flat > 1e-4 ? Math.atan2(dy, flat) : Math.PI / 2;
-  const yaw = flat > 1e-4 ? Math.atan2(dx, dz) : object.rotation.y;
-  object.rotation.set(-Math.max(lean, GAUGE_LEAN_MIN), yaw, 0);
-}
-
-/**
  * **Ein gleichseitiges Dreieck mit der Seitenlänge 1**, Spitze oben, Schwerpunkt
  * im Ursprung — damit `scale` die Seitenlänge ist und sonst nichts.
  *
@@ -619,4 +602,3 @@ function quiet(mesh: THREE.Mesh): void {
 
 /** Einer für alle: Wer je Bild einen Vektor baut, baut je Bild einen Vektor. */
 const _at = new THREE.Vector3();
-const _eye = new THREE.Vector3();

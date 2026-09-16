@@ -35,6 +35,13 @@ import { layered, type Dish, type KitchenItem } from './kitchenRecipes';
  * der Pfanne liegen kann, gibt es `topping`: nur den Belag, zum Anhängen an
  * ein fremdes Netz.
  *
+ * **Und seit es die Spüle gibt, baut dieser Satz auch Geschirr, das schmutzig
+ * ist.** Der dreckige Teller ist derselbe Teller mit Resten darauf, und der
+ * Stapel an der Rückgabe (`dirtyStack`) ist eine Handvoll davon übereinander.
+ * Beides gehört hierher und nicht in die Zone: Es ist gebaute Zutat wie alles
+ * andere in dieser Datei, es teilt sich Formen und Farben mit dem sauberen
+ * Teller, und es ist genau so hoch wie er.
+ *
  * **Warum eine Klasse und keine Funktionen.** Aus einer Ausgabe kommt beliebig
  * oft ein Brötchen (`kitchenCarry.kitchenDeed`, `box`), und jedes davon hatte
  * einmal seine **eigenen** Materialien: Wer zehn Minuten Brötchen nimmt und
@@ -98,6 +105,71 @@ export const BUN_BASE = BUN_HEIGHT * 0.45;
  */
 export const PLATE_RADIUS = 0.375;
 export const PLATE_HEIGHT = 0.05;
+
+/**
+ * **Der dreckige Teller** — derselbe Teller, nur benutzt (`plate-dirty`,
+ * `kitchenRecipes.KitchenItem`).
+ *
+ * Er muss **in der Hauptansicht** vom sauberen zu unterscheiden sein, und die
+ * schaut aus 55° von oben (`core/topDownPose.TOP_DOWN_TILT`). Von dort ist ein
+ * Teller eine helle Scheibe und sonst nichts: Der Rand steht 5 cm hoch, davon
+ * sieht man bei diesem Winkel einen Streifen von 3 cm am hinteren Bogen. Farbe
+ * allein trägt deshalb nicht. Angegrautes Porzellan neben weißem ist im
+ * Schatten des Ausgaberegals derselbe Grauton wie weißes Porzellan in der
+ * Sonne — dasselbe Argument, das beim verbrannten Patty (`BURNT_SHRINK`) schon
+ * einmal gegen „einfach dunkler" entschieden hat.
+ *
+ * **Also reden Reste mit.** Auf der Scheibe liegen fünf kantige Krümel und ein
+ * Soßenfleck, und was von oben ankommt, ist keine glatte Scheibe mehr, sondern
+ * eine mit Flecken darauf — ein Umriss, den es beim sauberen Teller nirgends
+ * gibt. Kantig gegen die runde Scheibe, dunkel gegen das Porzellan, und
+ * unregelmäßig verteilt: Fünf Punkte auf einem Kreisbogen wären ein Muster und
+ * sähen nach Verzierung aus.
+ *
+ * **Gleich hoch wie der saubere Teller**, und das ist keine Schönheit, sondern
+ * Pflicht: An der Rückgabe stapeln sich die Dinger (`FoodKit.dirtyStack`), und
+ * ein Stapel rechnet mit `ITEM_HEIGHT` — ein dreckiger Teller, der einen
+ * Millimeter mehr aufträgt, hebt den sechsten um einen halben Zentimeter aus
+ * dem Bild. Die Krümel wachsen deshalb **nicht** oben drauf: Der Tellerkörper
+ * ist um genau ihre Dicke flacher gestaucht, und zusammen sind beide wieder
+ * `PLATE_HEIGHT` hoch. Gestaucht und nicht neu gebaut — es ist dieselbe
+ * Geometrie wie beim sauberen Teller, nur mit einem anderen `scale.y`.
+ */
+const SCRAPS = 5;
+const SCRAP_SIZE = 0.075;
+const SCRAP_HEIGHT = 0.012;
+const DIRTY_DISH = PLATE_HEIGHT - SCRAP_HEIGHT;
+
+/**
+ * **Wie viele dreckige Teller ein Stapel höchstens hat** — sechs, und die Zahl
+ * ist von zwei Seiten gerechnet.
+ *
+ * - **Von oben**: Jeder Teller ist gegen den vorigen verdreht (`DIRTY_TWIST`),
+ *   und daran zählt man sie. Bei 13° je Lage stehen der unterste und der
+ *   sechste 65° gegeneinander; was darüber hinausgeht, sieht aus wie ein
+ *   aufgefächertes Kartenspiel und nicht mehr wie ein Stapel.
+ * - **Von vorn**: Sechs Teller sind 6 × 0,05 = **0,30 m**. Die Rückgabe ist
+ *   ein Arbeitstisch von 0,50 m (`core/kitchenFit.KITCHEN_PIECES`, `table`),
+ *   die Oberkante des Stapels liegt damit bei 0,80 m — genau auf halber Höhe
+ *   der Figur (1,60 m, `core/chefFit.CHEF_HEIGHT`), also auf Brusthöhe. Ein
+ *   siebter Teller stünde ihr vor dem Gesicht und verdeckte, was hinter der
+ *   Rückgabe steht.
+ */
+export const DIRTY_STACK_MAX = 6;
+
+/**
+ * **Wie weit jeder Teller gegen den vorigen verdreht ist**, im Bogenmaß.
+ *
+ * Ein Stapel aus exakt fluchtenden Zylindern ist von oben **ein** Teller —
+ * dasselbe Problem wie beim Häufchen aus drei Scheiben (`slices`), und
+ * dieselbe Antwort. 13° sind dabei kein runder Ersatz für 15°, sondern knapp
+ * darunter gewählt: Der Teller ist ein 24-Eck, eine Seite also genau 15°. Bei
+ * 15° deckte sich jede Kante mit der darunter, und der Stapel stünde wieder
+ * exakt in Flucht; bei 13° wandert sie in jeder Lage sichtbar weiter, und über
+ * einen vollen Stapel (fünf Lagen Abstand, 5 × 13° = 65°) kommt keine Kante
+ * ein zweites Mal auf dieselbe Stelle.
+ */
+const DIRTY_TWIST = (13 * Math.PI) / 180;
 
 /** Das Patty, in drei Stufen: roh am dicksten, verbrannt am kleinsten. */
 const PATTY_RADIUS = BUN_RADIUS * 0.82;
@@ -172,9 +244,27 @@ const SOUP = 0xb02a18;
 const STALK = 0x4e7a2a;
 const CHINA = 0xf4f2ec;
 
+/**
+ * Und der Ton des benutzten Geschirrs: angegrautes Porzellan, ein Krümel, ein
+ * Soßenfleck. Das Grau ist mit Bedacht **nicht** weit weg von `CHINA` — ein
+ * dunkelgrauer Teller wäre ein anderes Geschirr und keines, das gleich wieder
+ * sauber wird. Erkannt wird er an den Resten, nicht am Ton (siehe oben).
+ */
+const CHINA_DIRTY = 0xd9d3c4;
+const SCRAP = 0x7d5533;
+const SAUCE = 0x9c3a22;
+
 /** Wie matt etwas ist — Essen schluckt Licht, Suppe wirft es zurück. */
 const MATTE = 0.85;
 const WET = 0.32;
+
+/**
+ * Und benutztes Porzellan ist stumpf: Die Glasur eines sauberen Tellers wirft
+ * eine Kante Licht zurück, ein angetrockneter Teller nicht. Das ist der zweite,
+ * kleinere Unterschied zum sauberen Teller — er kostet nichts, weil `material`
+ * die Rauheit ohnehin im Schlüssel führt.
+ */
+const DULL = 0.97;
 
 /**
  * **Wie hoch jede Zutat für sich aufträgt**, in Metern.
@@ -190,6 +280,10 @@ export const ITEM_HEIGHT: Record<KitchenItem, number> = {
   pan: 0,
   extinguisher: 0,
   plate: PLATE_HEIGHT,
+  // **Genau so hoch wie der saubere.** Die Krümel stecken im Teller und sitzen
+  // nicht darauf (siehe `DIRTY_DISH`) — nur deshalb rechnet ein Stapel aus
+  // beiderlei Geschirr mit einer Zahl.
+  'plate-dirty': PLATE_HEIGHT,
   bun: BUN_HEIGHT,
   patty: PATTY_RAW_HEIGHT,
   'patty-cooked': PATTY_DONE_HEIGHT,
@@ -303,6 +397,44 @@ export class FoodKit {
   }
 
   /**
+   * **Ein Stapel dreckiger Teller** — `count` Stück übereinander, Fuß auf
+   * y = 0.
+   *
+   * Das ist, was an der **Geschirrrückgabe** steht
+   * (`kitchenPlan.KITCHEN_SPOTS`, `role: 'return'`): Die Gäste lassen ihr
+   * Geschirr an den Tischen, es wandert zur Rückgabe, und dort wächst ein
+   * Turm, an dem man auf einen Blick sieht, wie viel Arbeit wartet. Genau
+   * dafür ist es **ein** Netz aus `count` Tellern und nicht `count` einzeln
+   * abgelegte Gerichte: Der Stapel ist eine Anzeige und keine Ablage.
+   *
+   * `count` wird auf **1 bis `DIRTY_STACK_MAX`** geklemmt (siehe dort, warum
+   * sechs). Null Teller wären ein leerer Sockel, den man für ein Möbel hält;
+   * wer keinen Stapel will, baut keinen.
+   *
+   * Jeder Teller sitzt `PLATE_HEIGHT` über dem vorigen — dieselbe Zahl, mit
+   * der `ITEM_HEIGHT` rechnet, also ist der Stapel genau
+   * `count × PLATE_HEIGHT` hoch — und ist um `DIRTY_TWIST` gegen ihn verdreht,
+   * damit er von oben als Stapel zu erkennen ist und nicht als **ein** Teller.
+   */
+  dirtyStack(count: number): THREE.Object3D {
+    // Geklemmt und nicht geprüft: `count` kommt aus einem Zähler, der auch
+    // einmal danebenliegen darf — eine Ausnahme dafür zu werfen hieße, eine
+    // Küche wegen eines Tellers zu viel anzuhalten. `NaN` fällt dabei durch
+    // jeden Vergleich, also wird es vorher abgefangen.
+    const want = Math.round(count);
+    const plates = Number.isNaN(want) ? 1 : Math.min(DIRTY_STACK_MAX, Math.max(1, want));
+    const stack = new THREE.Group();
+    stack.name = 'kitchen-dirty-stack';
+    for (let i = 0; i < plates; i++) {
+      const plate = this.dirtyPlate();
+      plate.position.y = i * PLATE_HEIGHT;
+      plate.rotation.y = i * DIRTY_TWIST;
+      stack.add(plate);
+    }
+    return stack;
+  }
+
+  /**
    * **Wie hoch das aufträgt, was dieser Satz für dieses Gericht baut**, in
    * Metern — die Zahl, mit der der Aufrufer weiterstapelt.
    *
@@ -390,6 +522,8 @@ export class FoodKit {
         return this.bun();
       case 'plate':
         return this.plate();
+      case 'plate-dirty':
+        return this.dirtyPlate();
       case 'patty':
         return this.patty('patty', MEAT_RAW, PATTY_RAW_HEIGHT);
       case 'patty-cooked':
@@ -582,13 +716,72 @@ export class FoodKit {
 
   /** Der Teller — eine flache Schale, unten enger als oben. */
   private plate(): THREE.Object3D {
-    const plate = this.mesh(
-      'plate-dish',
-      () => new THREE.CylinderGeometry(PLATE_RADIUS, PLATE_RADIUS * 0.7, PLATE_HEIGHT, 24),
-      CHINA,
-    );
+    const plate = this.mesh('plate-dish', () => this.plateShape(), CHINA);
     plate.position.y = PLATE_HEIGHT / 2;
     return wrap('kitchen-plate', plate);
+  }
+
+  /**
+   * **Der dreckige Teller** — dieselbe Schale, gestaucht, stumpf, mit Resten
+   * darauf (siehe der Block bei `SCRAPS`).
+   *
+   * Die Schale ist **dieselbe Geometrie** wie beim sauberen Teller, nur mit
+   * `scale.y` flachgedrückt: So bleibt es eine geteilte Form, und die Krümel
+   * darüber machen zusammen mit ihr wieder genau `PLATE_HEIGHT`.
+   *
+   * Die Reste liegen auf einer Spirale im goldenen Winkel (137,5°, hier als
+   * 2,4 im Bogenmaß) und in drei wechselnden Abständen von der Mitte. Das ist
+   * die billigste Art, fünf Punkte zu verteilen, die nach **Zufall** aussehen
+   * und trotzdem in jedem Bild gleich liegen — ein echter Zufall wäre ein
+   * Teller, der bei jedem Blick anders aussieht, und ein Kreis aus fünf
+   * Krümeln sähe aus wie ein Zierrand.
+   */
+  private dirtyPlate(): THREE.Object3D {
+    const plate = this.mesh('plate-dish', () => this.plateShape(), CHINA_DIRTY, DULL);
+    plate.scale.y = DIRTY_DISH / PLATE_HEIGHT;
+    plate.position.y = DIRTY_DISH / 2;
+    const parts: THREE.Object3D[] = [plate];
+
+    // Der Soßenfleck: flach zerlaufen, glänzend, nicht in der Mitte — eine
+    // Pfütze in der Tellermitte wäre wieder ein Kreis im Kreis. Die Kugel
+    // steckt zur Hälfte im Porzellan, was heraussteht, ist `SCRAP_HEIGHT / 2`.
+    const smear = this.mesh(
+      'plate-dirty-smear',
+      () => new THREE.SphereGeometry(PLATE_RADIUS * 0.4, 14, 6),
+      SAUCE,
+      WET,
+    );
+    smear.scale.set(1, SCRAP_HEIGHT / (2 * PLATE_RADIUS * 0.4), 0.72);
+    smear.position.set(-PLATE_RADIUS * 0.18, DIRTY_DISH, PLATE_RADIUS * 0.12);
+    parts.push(smear);
+
+    for (let i = 0; i < SCRAPS; i++) {
+      const scrap = this.mesh(
+        'plate-dirty-scrap',
+        () => new THREE.BoxGeometry(SCRAP_SIZE, SCRAP_HEIGHT, SCRAP_SIZE * 0.6),
+        SCRAP,
+      );
+      const angle = i * 2.4;
+      // Höchstens 0,48 Halbmesser weit heraus: Ein Krümel von 7,5 cm bringt
+      // seine halbe Diagonale (5,3 cm) mit, zusammen bleibt er mit 0,23 m gut
+      // innerhalb der Scheibe (0,375 m). Das ist kein Schönheitsmaß — die
+      // Hülle des ganzen Tellers muss die der Scheibe bleiben, sonst sitzt
+      // seine Mitte nicht mehr auf x/z = 0.
+      const reach = PLATE_RADIUS * (0.22 + 0.13 * (i % 3));
+      scrap.position.set(
+        Math.cos(angle) * reach,
+        DIRTY_DISH + SCRAP_HEIGHT / 2,
+        Math.sin(angle) * reach,
+      );
+      scrap.rotation.y = i * 0.9;
+      parts.push(scrap);
+    }
+    return wrap('kitchen-plate-dirty', ...parts);
+  }
+
+  /** Die Form beider Teller — einmal gebaut, von sauber und dreckig geteilt. */
+  private plateShape(): THREE.BufferGeometry {
+    return new THREE.CylinderGeometry(PLATE_RADIUS, PLATE_RADIUS * 0.7, PLATE_HEIGHT, 24);
   }
 
   // --- geteilte Formen und Farben -------------------------------------------

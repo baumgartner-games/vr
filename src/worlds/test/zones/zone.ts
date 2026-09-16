@@ -40,6 +40,18 @@ export interface ZoneHost {
    */
   addSolid(object: THREE.Object3D): PhysicsBody;
 
+  /**
+   * **Und wieder heraus** — der Körper aus der Physik, das Objekt aus der
+   * Liste, gegen die Strahlen prüfen.
+   *
+   * Es gibt genau einen Grund für diesen Handgriff, und der ist der Baumodus
+   * der Küche (`zones/kitchenBuild.ts`): Wer ein Möbel aufhebt und anderswo
+   * hinstellt, lässt sonst seine alte Wand stehen — eine unsichtbare Sperre
+   * auf einer Kachel, auf der nichts mehr steht, und die findet niemand
+   * wieder. Alles andere in dieser Welt stellt einmal hin und lässt stehen.
+   */
+  removeSolid(object: THREE.Object3D, body: PhysicsBody): void;
+
   /** **Etwas benutzbar machen** — `A` in jeder Ansicht (`core/usable.ts`). */
   addUsable(
     object: THREE.Object3D,

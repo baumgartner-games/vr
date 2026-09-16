@@ -3,6 +3,7 @@ import { ITEM_LABELS, dish, layered, type Dish, type KitchenItem } from './kitch
 import {
   BUN_BASE,
   BUN_HEIGHT,
+  DIRTY_STACK_MAX,
   FoodKit,
   ITEM_HEIGHT,
   PLATE_HEIGHT,
@@ -218,6 +219,130 @@ describe('FoodKit.topping', () => {
     const d: Dish = dish('plate', ['bun', 'patty-cooked']);
     const loose = kit.topping(d, 0)!;
     expect(span(loose).max.y).toBeCloseTo(kit.height(d) - PLATE_HEIGHT, 5);
+  });
+});
+
+/**
+ * **Der dreckige Teller** — dieselbe Scheibe, anderer Anblick.
+ *
+ * Zwei Sachen daran sind Rechnung und nicht Geschmack, und beide stehen
+ * deshalb hier: Er ist **genau so hoch** wie der saubere (sonst rechnet kein
+ * Stapel), und er **bleibt in seiner Scheibe** (sonst wandert die Mitte des
+ * Dings aus x/z = 0, und die Zone legt ihn versetzt ab).
+ */
+describe('der dreckige Teller', () => {
+  let kit: FoodKit;
+  beforeEach(() => {
+    kit = new FoodKit();
+  });
+  afterEach(() => {
+    kit.dispose();
+  });
+
+  it('ist genau so hoch wie der saubere', () => {
+    expect(ITEM_HEIGHT['plate-dirty']).toBe(ITEM_HEIGHT.plate);
+    const view = kit.view(dish('plate-dirty'))!;
+    expect(span(view).max.y).toBeCloseTo(PLATE_HEIGHT, 5);
+    expect(kit.height(dish('plate-dirty'))).toBeCloseTo(PLATE_HEIGHT, 5);
+  });
+
+  it('bleibt mit Krümeln und Fleck innerhalb der Scheibe', () => {
+    const clean = span(kit.view(dish('plate'))!);
+    const dirty = span(kit.view(dish('plate-dirty'))!);
+    for (const axis of ['x', 'z'] as const) {
+      expect(dirty.min[axis]).toBeCloseTo(clean.min[axis], 5);
+      expect(dirty.max[axis]).toBeCloseTo(clean.max[axis], 5);
+    }
+  });
+
+  /**
+   * **Von oben muss man ihn sehen**, und die Hauptansicht zeigt fast nur die
+   * Deckfläche: Der Unterschied darf also nicht nur im Ton liegen. Geprüft
+   * wird, was sich ohne Grafikkarte prüfen lässt — dass mehr auf der Scheibe
+   * liegt als beim sauberen Teller, und dass das Porzellan ein anderes
+   * Material bekommt.
+   */
+  it('trägt Reste auf der Scheibe und ein anderes Porzellan', () => {
+    const clean = meshesOf(kit.view(dish('plate'))!);
+    const dirty = meshesOf(kit.view(dish('plate-dirty'))!);
+    expect(clean).toHaveLength(1);
+    expect(dirty.length).toBeGreaterThan(clean.length);
+    // Dieselbe Form, geteilt wie überall in dieser Datei — nur gestaucht.
+    expect(dirty[0]!.geometry).toBe(clean[0]!.geometry);
+    expect(dirty[0]!.material).not.toBe(clean[0]!.material);
+    // Und was darauf liegt, liegt wirklich darauf und nicht darin.
+    for (const scrap of dirty.slice(1)) {
+      const box = span(scrap);
+      expect(box.max.y).toBeLessThanOrEqual(PLATE_HEIGHT + 1e-9);
+      expect(box.min.y).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('FoodKit.dirtyStack', () => {
+  let kit: FoodKit;
+  beforeEach(() => {
+    kit = new FoodKit();
+  });
+  afterEach(() => {
+    kit.dispose();
+  });
+
+  it('stapelt so hoch, wie die Teller zusammen sind', () => {
+    for (const count of [1, 2, 3, 6]) {
+      const stack = kit.dirtyStack(count);
+      expect(stack.children).toHaveLength(count);
+      const box = span(stack);
+      expect(box.min.y).toBeCloseTo(0, 5);
+      expect(box.max.y).toBeCloseTo(count * PLATE_HEIGHT, 5);
+    }
+  });
+
+  /** Kein leerer Sockel und kein Turm — 1 bis `DIRTY_STACK_MAX`. */
+  it('klemmt die Zahl an beiden Enden', () => {
+    expect(DIRTY_STACK_MAX).toBe(6);
+    for (const count of [0, -4, 0.2, Number.NaN]) {
+      expect(kit.dirtyStack(count).children).toHaveLength(1);
+    }
+    for (const count of [7, 40, Number.POSITIVE_INFINITY]) {
+      expect(kit.dirtyStack(count).children).toHaveLength(DIRTY_STACK_MAX);
+    }
+  });
+
+  /**
+   * **Ein Stapel aus fluchtenden Zylindern ist von oben ein Teller.** Jeder
+   * liegt deshalb gedreht auf dem vorigen, und keine Drehung wiederholt sich
+   * innerhalb eines vollen Stapels.
+   */
+  it('verdreht jeden Teller gegen den vorigen', () => {
+    const stack = kit.dirtyStack(DIRTY_STACK_MAX);
+    const turns = stack.children.map((plate) => plate.rotation.y);
+    expect(turns[0]).toBeCloseTo(0, 5);
+    for (let i = 1; i < turns.length; i++) {
+      expect(turns[i]! - turns[i - 1]!).toBeCloseTo(turns[1]! - turns[0]!, 5);
+      // Ein paar Grad, nicht ein Viertel: Es soll ein Stapel bleiben.
+      expect(turns[i]! - turns[i - 1]!).toBeGreaterThan(0.05);
+      expect(turns[i]! - turns[i - 1]!).toBeLessThan(Math.PI / 8);
+    }
+    // Der Teller ist ein 24-Eck (15° je Seite) — bei genau 15° deckte sich
+    // jede Kante wieder mit der darunter.
+    expect(turns[1]! - turns[0]!).not.toBeCloseTo(Math.PI / 12, 3);
+    // Und jeder Teller sitzt auf der Oberkante des vorigen.
+    for (let i = 0; i < stack.children.length; i++) {
+      expect(stack.children[i]!.position.y).toBeCloseTo(i * PLATE_HEIGHT, 5);
+    }
+  });
+
+  it('teilt Form und Farbe zwischen allen Tellern eines Stapels', () => {
+    const stack = kit.dirtyStack(4);
+    const meshes = stack.children.map((plate) => meshesOf(plate));
+    for (const plate of meshes.slice(1)) {
+      expect(plate).toHaveLength(meshes[0]!.length);
+      for (let i = 0; i < plate.length; i++) {
+        expect(plate[i]!.geometry).toBe(meshes[0]![i]!.geometry);
+        expect(plate[i]!.material).toBe(meshes[0]![i]!.material);
+      }
+    }
   });
 });
 

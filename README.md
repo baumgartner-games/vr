@@ -57,20 +57,34 @@ schlechte Griffe kosten Ausdauer, und hinunter geht es in **Sprungkissen**, die
 den Fall abfedern statt ihn anzuhalten. Ganz im Norden, hinter dem Podest,
 steht eine **Küche** aus den Fan-Art-Möbeln: Zeile, zwei Herde, Spüle und
 Tellerausgabe an der Wand, vier Zutatenausgaben an der Westwand, eine Insel aus
-Schneidebrett und Mülleimer, vorn die Ausgabetheke mit den Wärmeschirmen
-darüber. **Angefasst wird mit `A`**, und daraus wird ein **Burger**: Patty in
-die Pfanne (es brät, es verbrennt, und irgendwann brennt der Herd — dann hilft
-der Feuerlöscher), Salat und Tomate aufs Schneidebrett, und alles Fertige auf
-ein Brötchen oder einen Teller. **Träger sind Teller, Brötchen und Pfanne**;
-die Reihenfolge ist egal, Patty auf Brötchen und Brötchen auf Patty geben
-denselben Burger. Über die Ausgabetheke verschwindet er und hinterlässt seinen
-Namen. Getragen wird mit beiden Händen vor dem Bauch, und was in der Hand
-liegt, lässt jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer
-nimmt das Brötchen, den Topf nicht, und vom Teller nur den Inhalt. Über die Möbel **springt** man dabei nicht:
-Sie sind für die Füße so hoch wie eine Wand, auch wenn der Tresen nur einen
-halben Meter misst. Östlich daneben liegt der **Schauraum**, in dem jedes der
-dreizehn Möbel noch einmal einzeln und beschriftet steht. Dazu drei
-**Portaltafeln**, eine davon oben auf dem Podest.
+Schneidebrett und Mülleimer, ein **Förderband** quer durch den Raum, vorn die
+Ausgabetheke mit den Wärmeschirmen als Durchreiche darüber und davor der
+Gastraum mit drei Tischen und der Geschirrrückgabe. **Angefasst wird mit `A`**,
+und daraus wird ein **Burger**: Patty in die Pfanne (es brät, es verbrennt, und
+irgendwann brennt der Herd), Salat und Tomate aufs Schneidebrett, und alles
+Fertige auf ein Brötchen oder einen Teller. **Träger sind Teller, Brötchen und
+Pfanne**; die Reihenfolge ist egal, Patty auf Brötchen und Brötchen auf Patty
+geben denselben Burger. Verbranntes kommt auf keinen von beiden — das kippt man
+in den Mülleimer. Am Brett wird geschnitten, solange man davorsteht; wer
+weggeht, fängt von vorn an.
+
+**Über die Theke geht nur, was auf einem Teller liegt**, und der geht mit: Ein
+Gast setzt sich an einen freien Tisch, isst, und lässt dreckiges Geschirr
+zurück. Das stapelt sich an der Rückgabe, wandert in die Spüle und kommt sauber
+wieder — ohne diesen Kreis wäre die Tellerausgabe ein Brunnen. Brennt der Herd,
+nimmt man den **Feuerlöscher** vom Hocker und **hält** ihn ins Feuer, aus zwei
+Kacheln Abstand; ein Druck genügt nicht mehr. Und ein Knopf in der Küche
+schaltet den **Baumodus** ein: Dann lässt sich jedes leere Möbel aufheben,
+tragen wie die Pfanne und auf einer freien Kachel wieder absetzen — der Umriss
+vor den Füßen sagt vorher, ob es passt.
+
+Getragen wird mit beiden Händen vor dem Bauch, und was in der Hand liegt, lässt
+jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer nimmt das
+Brötchen, den Topf nicht, und vom Teller nur den Inhalt. Über die Möbel
+**springt** man dabei nicht: Sie sind für die Füße so hoch wie eine Wand, auch
+wenn der Tresen nur einen halben Meter misst. Östlich daneben liegt der
+**Schauraum**, in dem jedes der vierzehn Möbel noch einmal einzeln und
+beschriftet steht. Dazu drei **Portaltafeln**, eine davon oben auf dem Podest.
 
 Dazu kommt
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
@@ -864,6 +878,8 @@ Im Browser liegt die App zum Debuggen auf `window.bgvr`.
 | Kart: fahren                  | rechter Trigger Gas, linker bremst, linker Stick lenkt                                                                                                                     | `W`/`S`, `A`/`D`                                                       | –                        |
 | Kart: aussteigen              | `A`/`X` halten                                                                                                                                                             | `E` halten                                                             | –                        |
 | Kart: zu zweit                | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge                                                                                           | dito                                                                   | –                        |
+| Küche: Feuerlöscher | vom Hocker nehmen und den Trigger der rechten Hand **halten**; gezielt wird mit dem Kopf | aus den Augen `E` halten; von oben ein Schalter — Linksklick an, noch einmal aus, gezielt mit dem rechten Stock | aus den Augen `A` halten; von oben schaltet `B` |
+| Küche: umbauen | der Knopf in der Küche schaltet um, dann `A` am leeren Möbel und `A` auf dem Umriss davor | dito mit `E` | dito mit `A` |
 | Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`                                                                                         | dito; der Schrank öffnet die Umkleide mit der Figur daneben            | dito                     |
 | Hitboxen                      | Menü → Grafik → _Hitboxen_ — die Körper der Physik über allem, mit dem Spielerkreis                                                                                                             | dito                                                                   | dito                     |
 | Gitterlinien                  | Menü → Grafik → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |

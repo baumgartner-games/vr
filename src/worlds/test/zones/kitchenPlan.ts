@@ -73,6 +73,25 @@ export interface Spot {
    */
   readonly label?: string;
   /**
+   * **Welche Rolle dieses Möbel an dieser Stelle spielt**, wenn nicht die aus
+   * dem Katalog.
+   *
+   * Dieselbe Unterscheidung, die es für `gives` schon gibt, nur eine Stufe
+   * allgemeiner: Der Katalog beschreibt das **gekaufte Möbel**, dieser Aufbau
+   * seine **Rolle**. Ein Arbeitstisch ist im Katalog ein Arbeitstisch — in
+   * dieser Küche stehen vier davon in der Reihe vor der Theke, und drei davon
+   * sind **Gästetische**, an denen dreckiges Geschirr liegen bleibt, während
+   * der vierte die **Geschirrrückgabe** ist, an der es sich stapelt. Dasselbe
+   * Möbel, dieselbe Höhe, dieselbe Grundfläche, drei Rollen.
+   *
+   * Der Katalog kann das nicht entscheiden, und er soll es auch nicht: Er
+   * müsste dafür dreimal `table` führen, und spätestens die nächste Küche
+   * stellte einen davon wieder als Arbeitsfläche hin. `role` hat deshalb in
+   * `stationKind` Vorrang vor allem anderen — auch vor `gives`: Wer hier
+   * etwas hinschreibt, hat es an genau dieser Stelle so gemeint.
+   */
+  readonly role?: StationKind;
+  /**
    * **Ob es im Schauraum steht** statt in der Küche.
    *
    * Ein Schaustück wird beschriftet, gibt nichts her und nimmt nichts an —
@@ -95,12 +114,13 @@ export function passTop(): number {
 }
 
 /**
- * **Wie viel Luft zwischen Theke und Regal bleibt**, in Metern.
+ * **Die Mindestluft zwischen Theke und Regal**, in Metern — der Rest, unter
+ * den ein Teller passt.
  *
- * Das Regal stand bis eben mit seinem Fuß genau auf der Theke — zwei Möbel,
- * die sich berühren, und darunter passte nichts, nicht einmal ein Blatt
- * Papier. Ein Ausgaberegal ist aber kein Deckel: Unter den Wärmeschirmen soll
- * ein Teller stehen können.
+ * Das Regal stand einmal mit seinem Fuß genau auf der Theke — zwei Möbel, die
+ * sich berühren, und darunter passte nichts, nicht einmal ein Blatt Papier.
+ * Ein Ausgaberegal ist aber kein Deckel: Unter den Wärmeschirmen soll ein
+ * Teller stehen können.
  *
  * Die Rechnung, gemessen und nicht geraten:
  *
@@ -110,26 +130,58 @@ export function passTop(): number {
  *   aus dem Modell).
  * - 0,12 m Luft heißt also: Der Teller schiebt sich mit **7 cm Rest** unter
  *   das Regal, und man sieht von der Seite, dass da eine Fuge ist.
- * - Ein **Burger** passt nicht darunter, und das ist Absicht: Ein Hamburger
- *   trägt schon 0,46 m auf, der Deluxe 0,59 m (`kitchenProps.stackHeight`).
- *   Ein Regal, unter das ein Burger passt, stünde mit seiner Oberkante über
- *   dem Kopf des Kochs (1,60 m, `core/chefFit.CHEF_HEIGHT`) und leuchtete auf
- *   den Boden. Das fertige Gericht steht **vor** dem Regal auf der Theke, wo
- *   die Schirme hinzeigen — nicht darin.
  *
- * So bleibt die Oberkante des Regals bei 0,53 + 0,12 + 0,56 = **1,21 m**: über
- * der Theke, unter dem Kopf, und von oben sieht man beides.
+ * **Das ist heute die Untergrenze und nicht mehr die ganze Höhe.** Dieser
+ * Block erklärte lange, warum das Regal **dicht** über der Theke sitzt — dass
+ * nämlich gerade ein Teller darunter passt und ein Burger ausdrücklich nicht,
+ * damit die Oberkante unter dem Kopf des Kochs bleibt. In der Küche stimmte
+ * die Rechnung und das Bild nicht: Ein Regal auf 0,65 bis 1,21 m hängt einer
+ * Figur von 1,60 m mitten vor der Brust, verdeckt von vorn die halbe Theke und
+ * von oben genau die Kachel, auf die das Gericht soll. Ein Ausgaberegal gehört
+ * über Kopf, wie jede Durchreiche — deshalb kommt `RACK_RAISE` dazu, und
+ * deshalb ist das mit dem Burger, der nicht darunter passen darf, hinfällig.
+ * Er passt jetzt, und das ist richtig so: Auf der Theke steht das fertige
+ * Gericht, die Schirme leuchten von oben darauf.
  */
 export const RACK_AIR = PLATE_HEIGHT + 0.07;
 
+/**
+ * **Und der Meter, um den das Regal höher gehängt wurde.**
+ *
+ * Eine benannte Konstante und keine Zahl in der Rechnung, weil sie die eine
+ * Stelle ist, an der man die Durchreiche verschiebt. Nachgerechnet:
+ *
+ * - Der **Fuß** liegt jetzt bei 0,53 (Theke) + 0,12 (`RACK_AIR`) + 1,00 =
+ *   **1,65 m**, die **Oberkante** bei 1,65 + 0,56 (`plate-rack`) = **2,21 m**.
+ *   Vorher waren es 0,65 m und 1,21 m.
+ * - Für die **Figur** (1,60 m, `core/chefFit.CHEF_HEIGHT`): Der Fuß liegt
+ *   5 cm über ihrem Scheitel. Sie läuft also darunter durch, statt dagegen zu
+ *   stoßen — und was sie trägt, trägt sie vor dem Bauch (`kitchenCarry.ts`),
+ *   kommt dem Regal folglich nicht einmal nahe. Das ist der Unterschied
+ *   zwischen einer Durchreiche und einem Brett auf Brusthöhe.
+ * - Für die **Sicht von oben** (55° über der Waagerechten,
+ *   `core/topDownPose.TOP_DOWN_TILT`): Ein Ding wandert im Bild um
+ *   `Höhe / tan 55°` auf die Kamera zu, also nach Süden. Ein Meter mehr sind
+ *   `1 / 1,428 = 0,70 m` — gut zwei Drittel einer Kachel. Das Regal liegt im
+ *   Bild damit **vor** der Theke statt darauf, und der Teller, den man dort
+ *   abstellt, ist wieder zu sehen. Genau dafür ist die Hauptansicht da.
+ *
+ * Ein Meter und nicht 0,95 oder 1,10: Die Zahl soll ablesbar sein. Alles
+ * zwischen „über dem Kopf" (ab 1,60 − 0,53 − 0,12 = 0,95 m) und „noch im
+ * Raum" ist begründbar, und von den begründbaren Zahlen ist die runde die
+ * beste.
+ */
+export const RACK_RAISE = 1;
+
 /** Wie hoch der Fuß des Ausgaberegals über dem Boden steht, in Metern. */
 export function rackLift(): number {
-  return passTop() + RACK_AIR;
+  return passTop() + RACK_AIR + RACK_RAISE;
 }
 
 /**
- * **Der Aufbau der Küche** — drei Bänder, wie in jeder Küche dieses Spiels,
- * und die Ausgaben an der Westwand.
+ * **Der Aufbau der Küche** — drei Reihen, wie in jeder Küche dieses Spiels,
+ * und die Ausgaben an der Westwand. („Reihen" und nicht mehr „Bänder": Seit es
+ * ein Förderband gibt, ist das Wort vergeben.)
  *
  * Die Zahlen sind Kacheln **innerhalb** der Zone (`layout.KITCHEN`), damit sich
  * die ganze Küche verschieben lässt, ohne dreißig Zeilen nachzurechnen. Wie
@@ -154,6 +206,13 @@ export function rackLift(): number {
  * **Die Anrichte ist abgeschafft.** Der Arbeitstisch ist eine Ablage wie jede
  * andere — kombiniert wird überall (`kitchenCarry.ts`), und ein Möbel, auf dem
  * als einzigem ein Burger entsteht, gibt es bei _Overcooked_ nicht.
+ *
+ * **Dafür gibt es jetzt einen Gastraum und ein Förderband.** In der letzten
+ * Reihe (z = 10) stehen drei Gästetische und die Geschirrrückgabe — viermal
+ * derselbe Arbeitstisch, dreimal in der einen und einmal in der anderen Rolle
+ * (`Spot.role`). Und quer durch die Küche läuft ein Band von der Insel zur
+ * Ablage bei z = 8. Beides ist Aufbau und kein Möbel: Der Katalog kennt einen
+ * Tisch und ein Band, wofür sie hier stehen, steht nur hier.
  */
 export const KITCHEN_SPOTS: readonly Spot[] = [
   // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ----------------
@@ -207,6 +266,44 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // hereinkommt, läuft daran vorbei, und wenn es brennt, weiß er, wohin.
   { name: 'extinguisher', x: 0, z: 9 },
 
+  // --- der Gastraum: drei Tische und die Rückgabe, südlich der Theke ----------
+  // Dieselbe Reihe (z = 10, die letzte der Zone) und dasselbe Möbel: ein
+  // Arbeitstisch, dreimal als **Gästetisch** und einmal als
+  // **Geschirrrückgabe** (`Spot.role`). Der Katalog weiß davon nichts und muss
+  // es nicht — ein Tisch ist ein Tisch, wozu er dasteht, entscheidet der
+  // Aufbau.
+  //
+  // **Nicht auf x = 0…2**, und das ist keine Feinheit: Dort mündet der Gang
+  // vom Podest (`layout.PATHS`, das Rechteck `{ x: 12, z: -21, w: 3, d: 4 }` —
+  // in Kacheln der Zone genau x = 0…2 an der Südkante). Ein Tisch in der Tür
+  // ist keine Küche, sondern ein Hindernis, das jeder beim Hereinkommen
+  // umläuft. Jede zweite Kachel ab x = 4, damit zwischen zwei Tischen einer
+  // durchkommt.
+  { name: 'table', x: 4, z: 10, role: 'table', label: 'Gästetisch' },
+  { name: 'table', x: 6, z: 10, role: 'table', label: 'Gästetisch' },
+  { name: 'table', x: 8, z: 10, role: 'table', label: 'Gästetisch' },
+  // Am Ende der Reihe, im Osten: Hier stapelt sich das dreckige Geschirr
+  // (`kitchenProps.FoodKit.dirtyStack`), und von hier ist es der kürzeste Weg
+  // zur Spüle an der Nordwand.
+  { name: 'table', x: 10, z: 10, role: 'return', label: 'Geschirrrückgabe' },
+
+  // --- das Förderband: von der Insel nach Süden -------------------------------
+  // Drei Bänder in einer Reihe, `turn: 2` — nach Süden gedreht, und in diese
+  // Richtung schiebt es. Am Ende steht eine Küchenzeile als Ablage, auf die es
+  // abliefert; ein Band, das ins Leere schiebt, verliert, was daraufliegt.
+  //
+  // **x = 9, z = 5…8 ist frei, und das ist nachgesehen und nicht gehofft.**
+  // Die Spalte x = 9 hat in dieser Küche genau einen Eintrag, die Küchenzeile
+  // bei z = 0; die Ostecke steht auf x = 11 (z = 1…3), die Insel reicht mit
+  // dem Arbeitstisch bis x = 7 (z = 4), und die Ausgabe vorn beginnt erst bei
+  // z = 9. Zwischen z = 1 und z = 8 steht auf x = 9 also nichts — vier freie
+  // Kacheln in einer Spalte, genau so viele, wie drei Bänder und eine Ablage
+  // brauchen.
+  { name: 'belt', x: 9, z: 5, turn: 2 },
+  { name: 'belt', x: 9, z: 6, turn: 2 },
+  { name: 'belt', x: 9, z: 7, turn: 2 },
+  { name: 'counter', x: 9, z: 8 },
+
   // --- der Schauraum: jedes Möbel einmal, einzeln und beschriftet -------------
   { name: 'plate-counter', x: 13, z: 1, show: true },
   { name: 'extinguisher', x: 15, z: 1, show: true },
@@ -223,6 +320,18 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   { name: 'stove', x: 15, z: 7, show: true },
   { name: 'stove-pot', x: 17, z: 7, show: true },
   { name: 'stove-pan', x: 19, z: 7, show: true },
+  // **Auch das gebaute Möbel steht hier.** Der Schauraum zeigt jedes
+  // Katalogstück genau einmal (`worlds/test/testPlan.test.ts` rechnet
+  // `KITCHEN_SHOWN` gegen `core/kitchenFit.KITCHEN_NAMES`), und ob ein Stück
+  // aus der Datei kommt oder gebaut wird (`KitchenPiece.built`), ist dem
+  // Schauraum egal — er zeigt, was in dieser Küche stehen kann.
+  //
+  // x = 22, z = 4 ist frei, nachgesehen in der Reihe darüber: In z = 4 stehen
+  // `serve-counter` (13), `board` (15), `plate-rack` (17…18) und `pass`
+  // (20…21) — rechts davon ist bis zur Ostwand (x = 23) Platz, und x = 22 ist
+  // die erste freie Kachel. In der Reihe z = 1 steht dort zwar der
+  // Arbeitstisch, aber das sind drei Kacheln Abstand.
+  { name: 'belt', x: 22, z: 4, show: true },
 ];
 
 /** Wie weit ein Möbel eine Kachel verteuert — teurer als ein Baustein. */
@@ -304,6 +413,13 @@ export function stampKitchen(plan: GridPlan): void {
  * Rezept mit Anrichte und dreimal Drücken — beides gibt es nicht mehr, und ein
  * Aushang, der einen abgeschafften Handgriff erklärt, ist schlimmer als keiner:
  * Wer ihn liest, sucht danach ein Möbel, das nirgends steht.
+ *
+ * **Deshalb wird er jetzt schon wieder nachgezogen**, und zwar an fünf
+ * Stellen: Serviert wird nur noch mit Teller, es gibt einen Abwasch (Tische,
+ * Rückgabe, Spüle), es gibt ein Förderband, verbranntes Patty kommt auf keinen
+ * Burger mehr, und der Feuerlöscher wird gehalten statt auf den Herd gedrückt.
+ * Jede dieser fünf Änderungen macht einen Satz im alten Text falsch — und ein
+ * falscher Satz auf einem Schild kostet mehr Zeit als drei fehlende.
  */
 export function fitKitchen(plan: GridPlan): void {
   plan.putFixture({
@@ -317,12 +433,15 @@ export function fitKitchen(plan: GridPlan): void {
         '# Die Küche',
         '',
         'Möbel aus *Overcooked Kitchen Assets (Fan Art)* von Arun Kumar S,',
-        'CC-BY-4.0 — siehe `public/models/CREDITS.md`.',
+        'CC-BY-4.0 — siehe `public/models/CREDITS.md`. Das Förderband steht in',
+        'keiner Datei, es ist gebaut.',
         '',
         '- An der Westwand: vier Ausgaben — Brötchen, Patty, Salat, Tomate',
         '- An der Nordwand: Zeile, drei Herde, Spüle, Tellerausgabe',
         '- In der Mitte: Schneidebrett, Mülleimer, Arbeitstisch',
+        '- Östlich davon: das **Förderband**, drei Kacheln nach Süden',
         '- Vorn: die Ausgabetheke mit den Wärmeschirmen darüber',
+        '- Ganz im Süden: drei Gästetische und die **Geschirrrückgabe**',
         '- Im Osten: der Schauraum — jedes Möbel einmal, beschriftet',
         '',
         '## Ein Burger',
@@ -330,24 +449,49 @@ export function fitKitchen(plan: GridPlan): void {
         '1. **Patty** an der Ausgabe holen und in die **Pfanne** auf dem Herd',
         '   legen. Der Balken darüber zeigt, wie weit es ist — und er läuft',
         '   weiter: Aus gebraten wird verbrannt, aus verbrannt wird Feuer.',
+        '   **Verbranntes kommt auf keinen Burger mehr**, es gehört in den',
+        '   Mülleimer.',
         '2. **Salat** und **Tomate** auf ein **Schneidebrett** legen. Es',
         '   schneidet von selbst, solange jemand davorsteht; wer weggeht,',
         '   findet den Fortschritt wieder, wo er ihn gelassen hat.',
         '3. Alles Fertige auf ein **Brötchen** oder einen **Teller** legen —',
         '   die Reihenfolge ist egal, und kombiniert wird überall: in der Hand,',
-        '   auf der Zeile, am Brett, an der Ausgabe.',
-        '4. Den Burger über die **Ausgabetheke** schieben. Der Teller bleibt in',
-        '   der Hand, an der Theke steht kurz, was es geworden ist.',
+        '   auf der Zeile, am Brett, an der Ausgabe. Auf eine **Ausgabe** legt',
+        '   man auch ab wie auf jede Arbeitsplatte — und einen Teller, den man',
+        '   nicht mehr braucht, gibt man an der **Tellerausgabe** zurück.',
+        '4. Der Burger kommt auf einen **Teller**, der Teller über die',
+        '   **Ausgabetheke**. **Serviert wird nur mit Teller**: Teller und',
+        '   Burger gehen zusammen hinaus, und an der Theke steht kurz, was es',
+        '   geworden ist.',
         '',
         'Fünf Rezepte: Hamburger, Salatburger, Tomatenburger, Suppenburger,',
         'Burger Deluxe — wer etwas anderes zusammenstellt, serviert es als',
         '*Burger nach Art des Hauses*.',
         '',
+        '## Der Abwasch',
+        '',
+        'Die Gäste an den Tischen im Süden lassen ihr Geschirr stehen. Dreckige',
+        'Teller stapeln sich an der **Geschirrrückgabe** am Ostende der Reihe;',
+        'von dort nimmt man sie und legt sie in die **Spüle**, und dort werden',
+        'sie sauber. Die Spüle läuft wie das Brett schneidet: solange jemand',
+        'davorsteht. Nur wartet sie **nicht** auf einen, der weggeht — wer',
+        'zwischendurch etwas anderes tut, nimmt das Geschirr hinterher **erneut',
+        'auf und setzt es nochmal ab**.',
+        '',
+        '## Das Förderband',
+        '',
+        'Was auf dem **Förderband** liegt, schiebt es in Pfeilrichtung weiter,',
+        'Kachel um Kachel, bis auf die Ablage am Ende. Wer quer durch die Küche',
+        'tragen müsste, legt es stattdessen auf und geht schon vor.',
+        '',
         '## Wenn es brennt',
         '',
         'Ein vergessenes Patty qualmt erst (rotes Warndreieck) und brennt dann.',
         'Ein brennender Herd nimmt nichts mehr an: Den **Feuerlöscher** vom',
-        'Hocker an der Westwand holen und damit `A` auf dem Herd drücken.',
+        'Hocker an der Westwand holen. Er wird **gehalten** und pustet, solange',
+        'er an ist — von oben schaltet `A` ihn an und wieder aus, am Schirm aus',
+        'der Ich-Sicht und in der Brille hält man die Taste. Damit auf das',
+        'Feuer richten, bis es aus ist; ein Druck auf den Herd tut nichts mehr.',
         '',
         'Am Mülleimer fliegt weg, was auf dem Träger liegt — der Teller bleibt',
         'in der Hand. Topf, Pfanne und Feuerlöscher gehören nicht hinein.',
@@ -375,7 +519,19 @@ export function fitKitchen(plan: GridPlan): void {
  * Die **Ausgaben** stehen nicht darin, und das ist der Unterschied zwischen
  * Möbel und Aufbau: Ob ein `serve-counter` Brötchen ausgibt oder bloß eine
  * Ablage vor der Theke ist, entscheidet `Spot.gives` — dasselbe Möbel steht in
- * dieser Küche in beiden Rollen.
+ * dieser Küche in beiden Rollen. Dasselbe gilt seit dem Gastraum für den
+ * Arbeitstisch (`Spot.role`): Er steht hier nicht, weil er dreierlei ist.
+ *
+ * **Die Spüle ist neu dabei.** Sie war das einzige Möbel der Küche, an dem `A`
+ * gar nichts tat — eine Spüle zum Ansehen. Jetzt wird darin gespült: Wer einen
+ * dreckigen Teller hineinlegt, bekommt einen sauberen heraus, und wie am
+ * Schneidebrett läuft es, solange jemand davorsteht. Ein Möbel, das schon so
+ * heißt, braucht dafür keine Zeile im Aufbau — eine Spüle ist überall eine
+ * Spüle, anders als ein Tisch.
+ *
+ * **Und das Förderband genauso.** Es ist die einzige Sorte Möbel, die es nur
+ * in dieser einen Rolle gibt: Ein Band, das nicht schiebt, ist ein schmales
+ * Brett. Deshalb steht es hier und nicht in `Spot.role`.
  */
 const STATION_KINDS: Readonly<Record<string, StationKind>> = {
   bin: 'bin',
@@ -383,18 +539,36 @@ const STATION_KINDS: Readonly<Record<string, StationKind>> = {
   'stove-pan': 'stove',
   pass: 'serve',
   extinguisher: 'rack',
+  sink: 'sink',
+  belt: 'belt',
 };
 
 /**
  * **Was dieses Möbel an dieser Stelle ist** — oder `null`, wenn `A` daran
- * nichts bewirkt (Spüle, Ausgaberegal).
+ * nichts bewirkt (das Ausgaberegal).
  *
- * Die Reihenfolge ist die Entscheidung: Was ausgibt, ist eine **Ausgabe**,
- * egal welches Möbel darunter steht; danach zählt die Tabelle; und alles, was
- * im Katalog eine Arbeitsfläche ist, ist eine **Ablage**. Genau ein Möbel
- * wechselt damit seine Rolle je nach Platz, und genau dafür ist es gedacht.
+ * Die Reihenfolge ist die Entscheidung, und sie läuft vom **Platz** zum
+ * **Möbel**:
+ *
+ * 1. Steht am Platz eine `role`, gilt sie — **vor allem anderen**, auch vor
+ *    `gives`. Sie ist das, was jemand an dieser einen Stelle ausdrücklich
+ *    hingeschrieben hat, und wer sie überstimmen ließe, hätte ein Feld, das
+ *    manchmal wirkt.
+ * 2. Was ausgibt, ist eine **Ausgabe**, egal welches Möbel darunter steht.
+ * 3. Danach zählt die Tabelle der Möbel, die immer dasselbe sind (Mülleimer,
+ *    Brett, Herd mit Pfanne, Theke, Halterung, Spüle, Förderband).
+ * 4. Und alles, was im Katalog eine Arbeitsfläche ist, ist eine **Ablage**.
+ *
+ * Zwei Möbel wechseln damit ihre Rolle je nach Platz — der `serve-counter`
+ * über `gives`, der `table` über `role` —, und genau dafür sind die beiden
+ * Felder da.
  */
-export function stationKind(name: string, gives?: KitchenItem): StationKind | null {
+export function stationKind(
+  name: string,
+  gives?: KitchenItem,
+  role?: StationKind,
+): StationKind | null {
+  if (role) return role;
   if (gives) return 'box';
   const kind = STATION_KINDS[name];
   if (kind) return kind;

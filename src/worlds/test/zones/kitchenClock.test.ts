@@ -1,19 +1,13 @@
 import {
   BURN_SECONDS,
-  CHOP_SECONDS,
   COLD_STOVE,
-  EMPTY_BOARD,
   FIRE_SECONDS,
   FRY_SECONDS,
-  advanceChop,
   advanceStove,
-  chopProgress,
   douse,
-  onBoard,
   onStove,
   stovePhase,
   stoveProgress,
-  type ChopState,
   type StoveState,
 } from './kitchenClock';
 
@@ -31,18 +25,6 @@ function frames(state: StoveState, seconds: number, dt = 1 / 60) {
   return { state: now, turned, lit };
 }
 
-/** Dasselbe am Brett, mit der Figur davor oder eben nicht. */
-function chopFrames(state: ChopState, seconds: number, live: boolean, dt = 1 / 60) {
-  let now = state;
-  let cut: string | null = null;
-  for (let t = 0; t < seconds; t += dt) {
-    const tick = advanceChop(now, dt, live);
-    now = tick.state;
-    cut = tick.cut ?? cut;
-  }
-  return { state: now, cut };
-}
-
 /**
  * **Die Uhr am Herd** — die fehleranfälligste Stelle der ganzen Küche.
  *
@@ -51,6 +33,9 @@ function chopFrames(state: ChopState, seconds: number, live: boolean, dt = 1 / 6
  * läuft jede Strecke deshalb zweimal: einmal in einem großen Schritt und
  * einmal in sechzig kleinen je Sekunde. Kommt nicht beides Mal dasselbe
  * heraus, hängt die Küche an der Bildrate.
+ *
+ * **Das Brett steht nicht mehr hier**, sondern in `kitchenWork.test.ts` — es
+ * teilt sich die Uhr jetzt mit der Spüle.
  */
 describe('die Uhr am Herd', () => {
   it('steht still, solange nichts in der Pfanne liegt', () => {
@@ -143,83 +128,5 @@ describe('die Uhr am Herd', () => {
     expect(again.time).toBe(0);
     expect(stoveProgress(again)).toBe(0);
     expect(again.patty).toBe('patty');
-  });
-});
-
-/**
- * **Die Uhr am Brett** — sie läuft nur, solange jemand davorsteht.
- *
- * Kein dreimaliges Drücken mehr: Wer etwas Schneidbares hinlegt, schneidet.
- * Geht er weg, bleibt der Fortschritt stehen, statt zurückzufallen — bei
- * _Overcooked_ ist das Weglaufen eine Entscheidung und keine Strafe.
- */
-describe('die Uhr am Brett', () => {
-  it('fängt beim Auflegen von selbst an', () => {
-    expect(onBoard('lettuce').cutting).toBe(true);
-    expect(onBoard('tomato').cutting).toBe(true);
-    // Auch die zweite Stufe: Scheiben werden zu Suppe.
-    expect(onBoard('tomato-cut').cutting).toBe(true);
-    // Und was nicht geschnitten wird, liegt einfach da.
-    expect(onBoard('bun').cutting).toBe(false);
-    expect(onBoard('patty-cooked').cutting).toBe(false);
-    expect(onBoard(null)).toEqual(EMPTY_BOARD);
-  });
-
-  it('schneidet in CHOP_SECONDS eine Stufe und dann keine zweite', () => {
-    const done = advanceChop(onBoard('lettuce'), CHOP_SECONDS, true);
-    expect(done.cut).toBe('lettuce-cut');
-    expect(done.state.item).toBe('lettuce-cut');
-    expect(done.state.cutting).toBe(false);
-    // Ein langes Bild macht daraus keine zwei Stufen — und bei der Tomate
-    // gäbe es ja eine zweite.
-    const tomato = advanceChop(onBoard('tomato'), 100, true);
-    expect(tomato.state.item).toBe('tomato-cut');
-    expect(advanceChop(tomato.state, 100, true).cut).toBeNull();
-  });
-
-  it('macht aus der Tomate erst Scheiben und dann Suppe', () => {
-    const cut = advanceChop(onBoard('tomato'), CHOP_SECONDS, true).state;
-    expect(cut.item).toBe('tomato-cut');
-    // Dafür muss man sie einmal nehmen und wieder hinlegen.
-    const soup = advanceChop(onBoard(cut.item), CHOP_SECONDS, true);
-    expect(soup.cut).toBe('tomato-soup');
-    expect(advanceChop(onBoard('tomato-soup'), 100, true).cut).toBeNull();
-  });
-
-  it('zeigt, wie weit der Schnitt ist', () => {
-    const part = advanceChop(onBoard('lettuce'), CHOP_SECONDS / 2, true).state;
-    expect(chopProgress(part)).toBeCloseTo(0.5);
-    expect(chopProgress(EMPTY_BOARD)).toBe(0);
-    expect(chopProgress(onBoard('bun'))).toBe(0);
-  });
-
-  /**
-   * **Weggehen hält an, kommt aber nicht zurück auf null.** Wer zwischendurch
-   * das Brötchen holt, findet den halb geschnittenen Salat so wieder vor, wie
-   * er ihn liegen ließ.
-   */
-  it('hält an, wenn niemand danebensteht, und läuft danach weiter', () => {
-    const begun = chopFrames(onBoard('lettuce'), CHOP_SECONDS - 1, true);
-    expect(begun.cut).toBeNull();
-    const away = chopFrames(begun.state, 10, false);
-    expect(away.cut).toBeNull();
-    expect(away.state.time).toBeCloseTo(begun.state.time, 5);
-    expect(chopProgress(away.state)).toBeCloseTo(chopProgress(begun.state), 5);
-    const back = chopFrames(away.state, 1.2, true);
-    expect(back.cut).toBe('lettuce-cut');
-  });
-
-  it('vergisst den Fortschritt, wenn die Zutat in die Hand geht', () => {
-    const begun = advanceChop(onBoard('tomato'), CHOP_SECONDS - 0.5, true).state;
-    expect(chopProgress(begun)).toBeGreaterThan(0.8);
-    // Die Zone legt dann ein leeres Brett hin — und die Zutat kommt
-    // unverändert in die Hand.
-    expect(chopProgress(EMPTY_BOARD)).toBe(0);
-    expect(chopProgress(onBoard(begun.item))).toBe(0);
-    expect(begun.item).toBe('tomato');
-  });
-
-  it('schneidet an einem leeren Brett nichts', () => {
-    expect(advanceChop(EMPTY_BOARD, 100, true)).toEqual({ state: EMPTY_BOARD, cut: null });
   });
 });

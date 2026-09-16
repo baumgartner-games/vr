@@ -208,15 +208,6 @@ export class PlayerRig extends THREE.Group {
   }
 
   /**
-   * **Wie der Knopf zum Benutzen gerade heißt** — `E` an der Tastatur, `A` am
-   * Gamepad und auf dem Glas. Gesetzt von `FlatControls` (die weiß, welches
-   * Gerät zuletzt sprach), gelesen vom Hinweis über der Figur
-   * (`PortalWorld.showUsePrompt`). Ein Hinweis, der fest `E` zeigt, ist mit
-   * einem Pad in der Hand schlicht falsch.
-   */
-  useLabel: 'E' | 'A' = 'E';
-
-  /**
    * **Ob gerade etwas in Reichweite steht, das man benutzen kann.**
    *
    * Gesetzt von der Welt, jedes Bild (`PortalWorld.updateUsables` →

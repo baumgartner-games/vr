@@ -6,9 +6,10 @@
  * neben dem Lader steht (`core/kitchenFit.ts`): Dort steht, **was `A` tut**,
  * hier steht, **woraus ein Burger besteht**. Beides ändert sich unabhängig
  * voneinander — ein fünftes Rezept ist eine Zeile in `RECIPES` und keine Zeile
- * in der Regel daneben. Die **Uhren** (Braten, Verbrennen, Schneiden) stehen
- * in `kitchenClock.ts`, weil sie das einzige sind, was auch ohne Knopfdruck
- * weiterläuft.
+ * in der Regel daneben. Die **Uhr am Herd** (Braten, Verbrennen) steht in
+ * `kitchenClock.ts`, die **Arbeit an einer Station** (Schneiden, Spülen) in
+ * `kitchenWork.ts` — beides, weil es das einzige ist, was auch ohne
+ * Knopfdruck weiterläuft.
  *
  * **Der Träger ist das Neue.** Früher war ein getragenes Ding ein einzelner
  * Name, und ein Burger entstand nur auf einer eigenen Anrichte — ein Möbel,
@@ -24,12 +25,23 @@
  *   liest, warum nicht — und was stattdessen zu tun ist.
  * - **Fertig** (`patty-cooked`, `lettuce-cut`, `tomato-cut`, `tomato-soup`):
  *   aus der Pfanne oder vom Brett, und erst das darf auf den Burger.
- * - **Verdorben** (`patty-burnt`): darf auf Teller und Brötchen, damit man den
- *   Mist auch wieder wegräumen kann — zählt aber in keinem Rezept.
+ * - **Verdorben** (`patty-burnt`): geht **nur noch in den Müll**. Früher durfte
+ *   es auf Teller und Brötchen, damit man den Mist wieder abräumen kann — das
+ *   Ergebnis war ein Burger, den man baut, an die Theke trägt und dort erst als
+ *   verdorben vorgelesen bekommt. Verbranntes fällt jetzt schon beim Auflegen
+ *   durch, und zwar mit dem Satz, der den Weg zum Mülleimer nennt. Aus der
+ *   Pfanne kommt es ohnehin nicht heraus, ohne dass man sie auskippt.
  *
  * Das Brötchen hat keine Verarbeitung: Es kommt aus der Kiste und ist selbst
  * der Träger. Ein Brötchen, das erst aufgeschnitten werden müsste, wäre ein
  * vierter Handgriff für nichts.
+ *
+ * **Und dann ist da noch das Geschirr.** Ein Teller ist entweder sauber
+ * (`plate`) oder dreckig (`plate-dirty`), und der dreckige ist weder Träger
+ * noch Essen: Auf ihn legt man nichts, und in den Müll gehört er erst recht
+ * nicht — er gehört in die Spüle (`kitchenWork.ts`). `isDishware` fasst beide
+ * zusammen, weil die Spüle und die Rückgabe nach _Geschirr_ fragen und nicht
+ * nach _sauber oder dreckig_.
  */
 
 /** Was sich in der Küche tragen lässt. */
@@ -41,6 +53,8 @@ export type KitchenItem =
   /** Träger: Sie nehmen auf, was fertig ist. */
   | 'plate'
   | 'bun'
+  /** Geschirr, das erst durch die Spüle muss — trägt nichts. */
+  | 'plate-dirty'
   /** Das Patty und seine drei Stufen. */
   | 'patty'
   | 'patty-cooked'
@@ -66,6 +80,7 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   extinguisher: 'Feuerlöscher',
   plate: 'Teller',
   bun: 'Brötchen',
+  'plate-dirty': 'Dreckiger Teller',
   patty: 'Rohes Patty',
   'patty-cooked': 'Gebratenes Patty',
   'patty-burnt': 'Verbranntes Patty',
@@ -112,16 +127,38 @@ export function dish(item: KitchenItem, on: readonly KitchenItem[] = []): Dish {
  * **Pfanne** genau ein Patty, in jeder Stufe. Rohes (`patty`, `lettuce`,
  * `tomato`) steht nirgends außer in der Pfanne — es muss erst durch Herd oder
  * Brett.
+ *
+ * **Verbranntes steht nur noch links bei der Pfanne.** Es auf Teller und
+ * Brötchen zu erlauben, war einmal die bequeme Art, den Mist abzuräumen; in
+ * Wahrheit baut man damit einen Burger, der an der Theke abgewiesen wird —
+ * eine Sackgasse, die erst drei Schritte später auffällt. Die Pfanne behält
+ * es, weil es dort ohne Zutun entsteht, und man kippt sie in den Mülleimer
+ * aus.
+ *
+ * Der **dreckige Teller** steht hier gar nicht: Auf ihm liegt nichts, bis er
+ * gespült ist.
  */
 const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
-  plate: ['bun', 'patty-cooked', 'patty-burnt', 'lettuce-cut', 'tomato-cut', 'tomato-soup'],
-  bun: ['patty-cooked', 'patty-burnt', 'lettuce-cut', 'tomato-cut', 'tomato-soup'],
+  plate: ['bun', 'patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup'],
+  bun: ['patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup'],
   pan: ['patty', 'patty-cooked', 'patty-burnt'],
 };
 
 /** Ob auf diesem Ding überhaupt etwas liegen kann. */
 export function isCarrier(item: KitchenItem): boolean {
   return TAKES[item] !== undefined;
+}
+
+/**
+ * **Ob dieses Ding Geschirr ist** — sauber oder dreckig, beides zählt.
+ *
+ * Spüle und Rückgabe (`kitchenCarry.StationKind`) fragen genau das: Was dort
+ * hineingehört, unterscheidet sich vom Essen und vom Gerät, nicht vom
+ * Zustand. `isCarrier` taugt dafür nicht — der dreckige Teller trägt nichts,
+ * ist aber trotzdem Geschirr.
+ */
+export function isDishware(item: KitchenItem): boolean {
+  return item === 'plate' || item === 'plate-dirty';
 }
 
 /** Ob dieser Träger diese Zutat aufnimmt — ohne Ansehen dessen, was schon daraufliegt. */
@@ -184,7 +221,11 @@ export function isRaw(item: KitchenItem): boolean {
   return RAW[item] !== undefined;
 }
 
-/** Was der Mülleimer nimmt — Essen, und sonst nichts. */
+/**
+ * Was der Mülleimer nimmt — Essen, und sonst nichts. Geschirr steht auch dann
+ * nicht darin, wenn es dreckig ist: Ein dreckiger Teller ist kein Abfall,
+ * sondern Arbeit, und die wartet in der Spüle.
+ */
 const FOOD: readonly KitchenItem[] = [
   'bun',
   'patty',
@@ -277,13 +318,17 @@ function offer(d: Dish): { what: readonly KitchenItem[]; rest: Dish | null } {
  * tun ist.
  *
  * Die Reihenfolge der Fälle ist die Reihenfolge, in der sie jemandem helfen:
- * Erst das Rohe (dagegen kann man sofort etwas tun), dann die Pfanne (sie ist
- * für genau eine Sache da), dann die beiden Fälle, bei denen man die Träger
- * verwechselt hat.
+ * Erst das Rohe (dagegen kann man sofort etwas tun), dann das Verbrannte (dagegen
+ * auch, nur andersherum), dann die Pfanne (sie ist für genau eine Sache da),
+ * dann die beiden Fälle, bei denen man die Träger verwechselt hat.
  */
 function whyNot(carrier: KitchenItem, item: KitchenItem): string {
   const fix = RAW[item];
   if (fix) return `${ITEM_LABELS[item]} muss erst ${fix} werden`;
+  // **Das Verbrannte bekommt seinen eigenen Satz**, und der nennt den einzigen
+  // Weg, der ihm noch bleibt. Ohne ihn stünde hier „Verbranntes Patty gehört
+  // nicht auf Teller" — richtig, aber ratlos.
+  if (item === 'patty-burnt') return 'Verbranntes Patty gehört in den Müll';
   if (carrier === 'pan') return 'In die Pfanne gehört nur ein Patty';
   if (item === 'bun') return 'Zwei Brötchen werden kein Burger — dafür braucht es einen Teller';
   if (item === 'plate') return 'Ein Teller gehört unter das Essen und nicht darauf';

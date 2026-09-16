@@ -10,6 +10,7 @@ import {
   dishLabel,
   fryStage,
   isCarrier,
+  isDishware,
   isFood,
   isRaw,
   layered,
@@ -84,14 +85,28 @@ describe('Zutaten und ihre Stufen', () => {
   /**
    * **Der Topf bleibt draußen.** Ein Mülleimer, der alles schluckt, ist einer,
    * in dem nach zwei Minuten die einzige Pfanne der Küche liegt — und der
-   * Teller ist genauso wenig Abfall wie sie.
+   * Teller ist genauso wenig Abfall wie sie. Auch der **dreckige** nicht: Er
+   * ist kein Abfall, sondern Arbeit, und die wartet in der Spüle.
    */
   it('nennt nur Essen Essen', () => {
     for (const item of ['bun', 'patty', 'patty-burnt', 'tomato-soup'] as const) {
       expect({ item, food: isFood(item) }).toEqual({ item, food: true });
     }
-    for (const item of ['pot', 'pan', 'plate', 'extinguisher'] as const) {
+    for (const item of ['pot', 'pan', 'plate', 'plate-dirty', 'extinguisher'] as const) {
       expect({ item, food: isFood(item) }).toEqual({ item, food: false });
+    }
+  });
+
+  /**
+   * **Geschirr ist beides** — sauber wie dreckig. Spüle und Rückgabe fragen
+   * danach, und `isCarrier` taugt dafür nicht: Der dreckige Teller trägt
+   * nichts und ist trotzdem Geschirr.
+   */
+  it('zählt den sauberen und den dreckigen Teller als Geschirr', () => {
+    expect(isDishware('plate')).toBe(true);
+    expect(isDishware('plate-dirty')).toBe(true);
+    for (const item of ['bun', 'pan', 'pot', 'patty-cooked', 'extinguisher'] as const) {
+      expect({ item, dish: isDishware(item) }).toEqual({ item, dish: false });
     }
   });
 
@@ -119,6 +134,10 @@ describe('Träger', () => {
     for (const item of ['patty-cooked', 'lettuce-cut', 'pot', 'extinguisher'] as const) {
       expect({ item, carrier: isCarrier(item) }).toEqual({ item, carrier: false });
     }
+    // Der dreckige Teller trägt nichts: Auf ihn kommt erst wieder etwas,
+    // nachdem er durch die Spüle war.
+    expect(isCarrier('plate-dirty')).toBe(false);
+    expect(carries('plate-dirty', 'bun')).toBe(false);
   });
 
   it('lässt auf den Teller alles Fertige und das Brötchen', () => {
@@ -141,6 +160,18 @@ describe('Träger', () => {
     }
     expect(carries('pan', 'bun')).toBe(false);
     expect(carries('pan', 'lettuce')).toBe(false);
+  });
+
+  /**
+   * **Verbranntes bleibt in der Pfanne oder geht in den Müll** — auf Teller
+   * und Brötchen kommt es nicht mehr. Früher durfte es das, damit man den Mist
+   * abräumen kann; in Wahrheit baute man damit einen Burger, der erst an der
+   * Theke durchfiel.
+   */
+  it('nimmt Verbranntes nur noch in die Pfanne', () => {
+    expect(carries('pan', 'patty-burnt')).toBe(true);
+    expect(carries('bun', 'patty-burnt')).toBe(false);
+    expect(carries('plate', 'patty-burnt')).toBe(false);
   });
 
   it('lässt Rohes nur in die Pfanne', () => {
@@ -237,10 +268,22 @@ describe('zusammenlegen', () => {
     expect(back).toEqual({ ok: true, held: d('pan', 'patty'), target: null, moved: ['patty'] });
   });
 
-  it('lässt auch Verbranntes auf den Teller — man soll es wegräumen können', () => {
-    const result = combine(d('patty-burnt'), d('plate'));
-    expect(result.ok).toBe(true);
-    expect(served(d('plate', 'bun', 'patty-cooked', 'patty-burnt'))).toBeNull();
+  /**
+   * **Verbranntes kommt nicht mehr auf den Burger** — und der Satz dazu nennt
+   * den einzigen Weg, der ihm bleibt. Ohne ihn stünde hier „gehört nicht auf
+   * Teller": richtig, aber ratlos.
+   */
+  it('lässt Verbranntes weder auf Brötchen noch auf Teller', () => {
+    for (const carrier of ['bun', 'plate'] as const) {
+      const { there, back } = bothWays(d('patty-burnt'), d(carrier));
+      expect({ carrier, ok: there.ok }).toEqual({ carrier, ok: false });
+      expect({ carrier, ok: back.ok }).toEqual({ carrier, ok: false });
+      expect(why(there)).toContain('Müll');
+      expect(why(back)).toContain('Müll');
+    }
+    // In der Pfanne entsteht es von allein, also bleibt es dort erlaubt — man
+    // kippt sie in den Mülleimer aus.
+    expect(combine(d('patty-burnt'), d('pan')).ok).toBe(true);
   });
 });
 
@@ -393,6 +436,9 @@ describe('Rezepte und Ausgabe', () => {
     expect(served(d('plate'))).toBeNull();
     expect(served(d('bun', 'lettuce-cut'))).toBeNull();
     expect(served(d('pan', 'patty-cooked'))).toBeNull();
+    // Ein Brötchen mit verbranntem Patty lässt sich gar nicht mehr bauen
+    // (`carries`), aber der Riegel bleibt: Er ist die zweite Tür an derselben
+    // Wand, und die kostet nichts.
     expect(served(d('bun', 'patty-burnt'))).toBeNull();
     expect(served(d('bun', 'patty-cooked', 'patty-burnt'))).toBeNull();
   });
@@ -405,6 +451,7 @@ describe('Rezepte und Ausgabe', () => {
 
   it('nennt ein Gericht nach seinem Rezept und ein halbes nach seinem Inhalt', () => {
     expect(dishLabel(d('plate'))).toBe('Teller');
+    expect(dishLabel(d('plate-dirty'))).toBe('Dreckiger Teller');
     expect(dishLabel(d('plate', 'bun', 'patty-cooked'))).toBe('Teller mit Hamburger');
     expect(dishLabel(d('pan', 'patty'))).toBe('Pfanne (Rohes Patty)');
     expect(dishLabel(d('bun', 'lettuce-cut'))).toBe('Brötchen (Geschnittener Salat)');

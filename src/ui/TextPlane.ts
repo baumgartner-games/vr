@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { faceCamera, type BillboardOptions } from './billboard';
 
 export interface TextPlaneOptions {
   width: number;
@@ -8,11 +9,35 @@ export interface TextPlaneOptions {
   accent?: number;
   background?: string;
   align?: 'left' | 'center';
+  /**
+   * **Soll die Tafel mitdrehen?** Ohne die Option bleibt sie stehen, wie sie
+   * gestellt wurde (siehe Klassenkommentar). `true` nimmt die Vorgaben aus
+   * `ui/billboard.ts`, ein Objekt reicht sie weiter — `{ upright: true }` für
+   * ein Schild, das sich zwar umdrehen, aber nicht zurücklehnen soll.
+   */
+  face?: boolean | BillboardOptions;
 }
 
 const RES = 512;
 
-/** A flat, canvas-rendered label — for signage, hints and world gates. */
+/**
+ * **Eine flache Tafel mit Text darauf** — für Schilder, Hinweise und Welttore.
+ *
+ * Gemalt wird auf eine Leinwand (`document.createElement('canvas')`) und als
+ * Textur auf ein Quad gelegt; wer **Balken** statt Wörter braucht, ist bei
+ * `worlds/test/zones/kitchenGauge.ts` besser aufgehoben.
+ *
+ * **Sie steht still, wenn man ihr nichts anderes sagt.** Wohin eine Tafel
+ * sieht, entscheidet, wer sie aufstellt — das ist die Vorgabe, und für eine
+ * Tafel an einer Wand ist sie richtig. Wer stattdessen ein Schild will, das
+ * **dem Blick folgt**, setzt `face` in den Optionen: Dann richtet sich die
+ * Tafel bei jedem Zeichnen zur Kamera aus, aus der gerade gezeichnet wird
+ * (`ui/billboard.ts`). Das ist mehr als Bequemlichkeit — es ist die einzige
+ * Art, die in zwei Ansichten gleichzeitig stimmt: Am Schirm steht die Kamera
+ * von oben, in der Brille steht der Kopf woanders, und beide bekommen dieselbe
+ * Tafel zu sich gedreht. Eine Drehung, die man von außen setzt (`rotation`),
+ * wird beim nächsten Zeichnen überschrieben; beides zugleich geht nicht.
+ */
 export class TextPlane extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> {
   private readonly canvas: HTMLCanvasElement;
   private readonly texture: THREE.CanvasTexture;
@@ -38,6 +63,9 @@ export class TextPlane extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMa
     this.name = `text-plane:${options.title}`;
     this.geometry.computeBoundingBox();
     this.draw();
+    // Eine Tafel ist selbst das Gezeichnete, keine Gruppe — `faceCamera` hängt
+    // hier also genau an einem Ding, und das gleich hier beim Bauen.
+    if (options.face) faceCamera(this, options.face === true ? undefined : options.face);
   }
 
   /** New words, and — for anything that changes with them — a new accent. */
