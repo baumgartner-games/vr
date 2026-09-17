@@ -64,7 +64,17 @@ export type KitchenItem =
   | 'lettuce-cut'
   | 'tomato'
   | 'tomato-cut'
-  | 'tomato-soup';
+  | 'tomato-soup'
+  /**
+   * **Wasser** — das einzige Ding, das nur **in** etwas vorkommt und nie für
+   * sich.
+   *
+   * Es entsteht am Spülbecken im Topf (`kitchenCarry.atSink`) und vergeht mit
+   * ihm; es steht in keiner Zeile von `TAKES`, in keinem `CHOPS`, in keinem
+   * `FRIES` und in keinem `FOOD`. Warum es trotzdem ein `KitchenItem` ist und
+   * nicht ein zweites Ding `'pot-water'`, steht bei `Dish`.
+   */
+  | 'water';
 
 /**
  * **Wie die Dinge heißen** — und jeder Name steht im **Singular**, auch die
@@ -89,6 +99,13 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   tomato: 'Tomate',
   'tomato-cut': 'Tomatenscheibe',
   'tomato-soup': 'Tomatensuppe',
+  // **„Wasser" und nicht „Topf mit Wasser".** Der Name steht für das, was
+  // **im** Topf ist, und der Topf nennt sich daneben selbst: `dishLabel` baut
+  // daraus „Topf (Wasser)" — dieselbe Klammer wie bei „Pfanne (Rohes Patty)".
+  // Ein Eintrag „Topf mit Wasser" stünde in jedem dieser Sätze doppelt, und im
+  // Hinweis der Spüle („Topf mit Wasser füllen") stünde er falsch: Gefüllt wird
+  // der Topf, und **womit**, sagt dieses Wort.
+  water: 'Wasser',
 };
 
 /**
@@ -106,6 +123,32 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
  * am alten zu drehen. Die Zone hält denselben `Dish` an zwei Stellen
  * (getragen und auf der Station gemerkt), und ein `push` an der einen wäre ein
  * Fehler an der anderen.
+ *
+ * **Und `on` ist auch das, was *in* etwas ist** — seit der Topf am Spülbecken
+ * Wasser bekommt, ist er `dish('pot', ['water'])`. Die Alternative wäre ein
+ * eigenes Ding `'pot-water'` gewesen, und sie ist an drei Stellen
+ * durchgefallen:
+ *
+ * - **Das Netz.** Topf und Pfanne kommen aus dem Möbelmodell und werden nie neu
+ *   gebaut, sondern behalten ihr Netz und tauschen nur ihren **Belag**
+ *   (`worlds/test/zones/kitchen.restyle` → `kitchenProps.FoodKit.topping`). Ein
+ *   `'pot-water'` mit leerem `on` hätte dort gar nichts zu tauschen — das
+ *   Wasser bräuchte einen eigenen Zweig in der Zone, und der wäre der erste
+ *   Sonderfall in einer Datei, die keinen hat.
+ * - **Das Ausgießen.** `on` hat bereits einen Weg zurück zu leer: der
+ *   Mülleimer räumt ab, was auf einem Träger liegt, und gibt den Träger zurück
+ *   (`kitchenCarry.intoBin` → `scrape`). Ein zweites Ding bräuchte eine zweite
+ *   Regel, damit man das Wasser wieder los wird.
+ * - **Die Namen.** `ITEM_LABELS` führt Dinge im Singular und satzfähig;
+ *   „Topf mit Wasser" wäre der einzige Eintrag, der seinen eigenen Träger
+ *   schon im Namen trägt, und stünde in „Topf mit Wasser nehmen" einmal zu
+ *   viel darin.
+ *
+ * **Wasser ist trotzdem keine Zutat**, und das garantiert nicht ein Kommentar,
+ * sondern `TAKES`: Es steht in **keiner** Zeile rechts, also nimmt kein Träger
+ * es an — kein Brötchen, kein Teller, keine Pfanne. Es kommt gar nicht über
+ * `combine` in den Topf, sondern über eine eigene Tat an der Spüle. Siehe
+ * dort, warum das der springende Punkt ist.
  */
 export interface Dish {
   readonly item: KitchenItem;
@@ -137,6 +180,22 @@ export function dish(item: KitchenItem, on: readonly KitchenItem[] = []): Dish {
  *
  * Der **dreckige Teller** steht hier gar nicht: Auf ihm liegt nichts, bis er
  * gespült ist.
+ *
+ * **Und der Topf steht nicht links.** Er hält Wasser (`Dish.on`), und trotzdem
+ * bekommt er keine Zeile: Diese Tabelle sagt, was beim **Zusammenlegen**
+ * (`combine`) angenommen wird, und Wasser kommt nicht aus einer Hand, sondern
+ * aus dem Hahn (`kitchenCarry.atSink`). Eine Zeile `pot: ['water']` änderte
+ * daran nichts Gutes und zwei Dinge zum Schlechteren: `isCarrier('pot')` würde
+ * wahr, womit `pour` den Topf plötzlich als Ziel prüft — und aus dem
+ * hilfreichen „Topf und Tomatenscheibe halten nicht zusammen — es braucht ein
+ * Brötchen oder einen Teller darunter" würde „Tomatenscheibe gehört nicht auf
+ * Topf". Für eine Zutat, die es als freies Ding nie gibt, ist das ein
+ * schlechterer Satz zum Nulltarif.
+ *
+ * **Umgekehrt ist genau das die Zusicherung**: Weil `water` in keiner Zeile
+ * rechts steht, gibt `carries(x, 'water')` für **jedes** `x` falsch. Wasser
+ * landet auf keinem Brötchen, auf keinem Teller und in keiner Pfanne — nicht
+ * weil niemand daran gedacht hat, sondern weil die Tabelle es nicht hergibt.
  */
 const TAKES: Partial<Record<KitchenItem, readonly KitchenItem[]>> = {
   plate: ['bun', 'patty-cooked', 'lettuce-cut', 'tomato-cut', 'tomato-soup'],
@@ -225,6 +284,13 @@ export function isRaw(item: KitchenItem): boolean {
  * Was der Mülleimer nimmt — Essen, und sonst nichts. Geschirr steht auch dann
  * nicht darin, wenn es dreckig ist: Ein dreckiger Teller ist kein Abfall,
  * sondern Arbeit, und die wartet in der Spüle.
+ *
+ * **Wasser steht auch nicht darin**, und es braucht trotzdem keinen eigenen
+ * Weg: Ein Topf mit Wasser ist ein Träger mit Inhalt, und Träger mit Inhalt
+ * räumt der Mülleimer ab, statt sie zu schlucken (`kitchenCarry.intoBin` →
+ * `scrape`). Wer den Topf ausgießen will, hält ihn über den Eimer — der Topf
+ * bleibt in der Hand, das Wasser ist weg. Dass `isFood('water')` falsch ist,
+ * betrifft nur den Fall, den es gar nicht gibt: Wasser für sich in der Hand.
  */
 const FOOD: readonly KitchenItem[] = [
   'bun',

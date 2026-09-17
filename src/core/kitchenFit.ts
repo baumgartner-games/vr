@@ -129,39 +129,74 @@ export interface KitchenPiece {
 
   /**
    * **Wie weit das Möbel aus der Mitte seiner Kachel rückt**, in Metern
-   * (x, z) — der Ausgleich dafür, dass die Kachelmitte nicht immer die Mitte
-   * dessen ist, was man sieht. Zwei Gründe dafür sind gemessen, und beide
-   * stehen unten: ein Griff, der übersteht, und ein Möbel, das flacher ist
-   * als seine Nachbarn.
+   * (x, z) — der Ausgleich dafür, dass die Kachelmitte nicht die Mitte dessen
+   * ist, was man sieht.
    *
-   * **Positiv ist nach Süden und nach Osten**, in der eigenen Drehung des
-   * Möbels (`worlds/test/zones/kitchen.ts`, `place`) — ein um 180° gedrehter
-   * Herd rückt nach der anderen Seite.
+   * **Positiv ist nach Süden und nach Osten**, und zwar in der **eigenen**
+   * Drehung des Möbels: `worlds/test/zones/kitchen.ts`, `standAt`, dreht den
+   * Versatz mit `turn` mit — ein um 180° gedrehter Herd rückt nach der anderen
+   * Seite. Die Zeile an der Nordwand steht mit `turn: 0`, dort ist Süden also
+   * „nach vorn", zum Gang hin (`worlds/test/zones/kitchenPlan.Spot.turn`).
    *
-   * Der Ursprung eines Möbels liegt in der Mitte seiner **ganzen** Hülle
-   * (`tools/kitchen-model.mjs`), und beim Herd mit der Pfanne gehört der
-   * Pfannenstiel dazu: Er ragt 16 cm nach Süden heraus, also wanderte der
-   * **Korpus** beim Zentrieren 7,8 cm nach Norden — und stand damit als
-   * einziger Herd aus der Reihe. Genau diese 7,8 cm stehen hier.
+   * **Alles Weitere hängt an einem Satz: Der Ursprung liegt in der Mitte der
+   * ganzen Hülle** (`tools/kitchen-model.mjs`) — und die Hülle ist nicht der
+   * Korpus. Was irgendwo übersteht, zieht den Ursprung zu sich herüber, und
+   * der Korpus rückt um dieselbe Strecke in die Gegenrichtung. Das ist kein
+   * Fehler des Werkzeugs: Eine Hülle ist das, was ein Möbel belegt. Es heißt
+   * nur, dass die Kante, an der man ausrichtet, nachzumessen ist.
    *
-   * Gemessen und nicht geschätzt: Der Korpus (Material `Kitchen_Cabins`)
-   * reicht in der Datei von z = −0,610 bis z = +0,453, seine Mitte liegt also
-   * bei −0,078.
+   * **Die Kante ist die Vorderkante der Küchenzeile, und sie liegt nicht dort,
+   * wo ihr Katalogmaß es vermuten lässt.** Gemessen in der Quelle
+   * (`public/models/kitchen.glb`, Knoten `counter`, Netz `Kitchen_Cabins`);
+   * Quellmaß, halbiertes Spielmaß daneben (`KITCHEN_SCALE`):
    *
-   * **Und beim Schneidebrett steht gar nichts über — es ist zu flach.** Die
-   * Küchenzeile ist 1,0612 m tief (Quelle 2,1224 m), das Brett 0,9999 m
-   * (Quelle 1,9998 m), und beide sitzen in ihrer eigenen Datei mittig um
-   * z = 0. Auf einer gemeinsamen Kachelmitte sprang das Brett deshalb **vorn
-   * und hinten je 3,07 cm zurück** — sichtbar als Delle in einer Zeile aus
-   * Zeile, Brett, Zeile (`worlds/test/zones/kitchen.ts`, beide Bretter stehen
-   * so).
+   * - Korpus samt Arbeitsplatte: z = −1,0612 … +0,9386, also **2,0000 tief**
+   *   (Spiel 0,9999 m).
+   * - Der **Türgriff** auf y = 0,3…0,5: z = +0,9291 … **+1,0612**. Er allein
+   *   macht aus den 2,0000 die 2,1224, mit denen die Zeile im Katalog steht —
+   *   und er ist ein Bügel von 32 cm Breite (Quelle x = ±0,3216), keine Kante.
+   * - Zentriert wird über die Hülle, der **Korpus** sitzt also 0,0613 weiter
+   *   nördlich als die Kachelmitte: im Spiel **3,07 cm**.
    *
-   * Auszugleichen ist nur **eine** Seite, denn ein flaches Möbel bleibt flach:
-   * 0,5306 − 0,4999 = **0,0307 m nach Süden**. Die Vorderkante gewinnt, weil
-   * man nur sie sieht — davor steht die Figur, dort greift sie zu, und eine
-   * Kante, die um drei Zentimeter versetzt durchläuft, fällt sofort auf.
-   * Hinten wächst die Lücke dafür auf 6,1 cm; die zeigt zur Wand und ist von
-   * keinem Standpunkt aus im Bild.
+   * Die Vorderkante, die man sieht, liegt damit **0,4693 m** vor der
+   * Kachelmitte und nicht 0,5306 m. `plate-counter` und die beiden
+   * Spülenhälften sind derselbe Korpus mit demselben Griff — sie brauchen
+   * keinen Versatz, sie **sind** die Linie.
+   *
+   * Daran gemessen rücken drei Sorten Möbel:
+   *
+   * - **Brett und Löscherhocker** (`board`, `extinguisher`) haben keinen
+   *   Griff: ±0,9999 in der Quelle, ebenfalls 2,0000 tief, aber mittig. Sie
+   *   standen deshalb von Haus aus 3,07 cm **zu weit vorn** und gehen um genau
+   *   diese 3,07 cm **nach Norden**. Danach fluchten Vorder- **und**
+   *   Hinterkante mit der Zeile, denn die Korpusse sind gleich tief.
+   * - **Die Herde** sind vorn kürzer, weil unter ihrer Platte die Blende mit
+   *   den Knöpfen hängt: Das Blech reicht von −1,0634 bis +0,7786 (im Spiel
+   *   0,9210 m tief), die Blende sitzt erst davor (+0,8180…+1,0634 auf
+   *   y = 0,3…0,7). Die Kochstelle sprang damit **8 cm hinter die Zeile
+   *   zurück** — und dieselben 8 cm fehlten ihr hinten zur Wand. Sie geht um
+   *   **8 cm nach Süden**.
+   * - **Der Herd mit der Pfanne** zusätzlich um den Pfannenstiel: Der ragt
+   *   16 cm nach Süden aus der Hülle, der Korpus wandert beim Zentrieren also
+   *   7,8 cm nach Norden (in der Datei −1,2198 … +0,6221). 7,8 + 8,0 =
+   *   **15,8 cm**, und danach steht er wie die beiden anderen Herde.
+   *
+   * **Was der Versatz beim Herd ausdrücklich nicht kann: ihn ganz aus der Wand
+   * holen.** Die Nordwand ist 0,2 m dick und steht auf der Kachelkante
+   * (`worlds/editor/levelPlan.PLAN_WALL_T`), ihre Innenseite liegt also 0,40 m
+   * nördlich der Kachelmitte. Bis zur Vorderkante der Zeile sind es von dort
+   * 0,40 + 0,4693 = **0,8693 m**, und das Blech des Herds ist 0,9210 m tief —
+   * es passt um **5,2 cm** nicht dazwischen. Vorn bündig heißt deshalb: hinten
+   * bleiben 5,2 cm hinter der Wandinnenseite stehen. Vorher waren es 13,2 cm,
+   * und die Küchenzeile daneben steckt mit ihren 13,1 cm unverändert dort — der
+   * Herd ist nach dem Rücken also das Möbel der Zeile, das am **wenigsten** in
+   * der Wand steht.
+   *
+   * Die Vorderkante gewinnt, weil man nur sie sieht: Davor steht die Figur,
+   * dort greift sie zu, und eine Kante, die um Zentimeter versetzt durchläuft,
+   * fällt aus 55° von oben (`core/topDownPose.TOP_DOWN_TILT`) sofort auf.
+   * Hinter der Wandinnenseite ist dagegen nichts im Bild: Die Wand ist 2,8 m
+   * hoch und undurchsichtig, und die Kamera steht im Süden.
    */
   readonly align?: readonly [x: number, z: number];
 
@@ -395,6 +430,13 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     deck: 0.5,
     worktop: true,
     holds: 'extinguisher',
+    // 3,07 cm nach Norden, derselbe Fall wie beim Schneidebrett: Der Hocker
+    // ist in der Quelle ±0,9999 tief und mittig, die Küchenzeile gleich tief,
+    // aber wegen ihres Griffs um 0,0613 nach Norden zentriert. Der Hocker
+    // steht in der Nordzeile zwischen dem Herd mit der Pfanne und der Spüle
+    // (`worlds/test/zones/kitchenPlan.KITCHEN_SPOTS`) und sprang ohne diesen
+    // Versatz vorn aus der Arbeitsplattenreihe (`KitchenPiece.align`).
+    align: [0, -0.031],
   },
   {
     name: 'sink-basin',
@@ -466,9 +508,23 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // steckt nur Sockelleiste (siehe `KitchenPiece.bury`).
     bury: 0.033,
     worktop: true,
-    // 3,07 cm nach Süden: Das Brett ist 0,9999 m tief, die Küchenzeile neben
-    // ihm 1,0612 m — so fluchtet die Vorderkante (`KitchenPiece.align`).
-    align: [0, 0.031],
+    // **3,07 cm nach Norden — und hier stand dieselbe Zahl lange mit dem
+    // falschen Vorzeichen.**
+    //
+    // Der alte Eintrag +0,031 rechnete die **Hülle** der Küchenzeile (1,0612 m,
+    // Griff inbegriffen) gegen den **Korpus** des Bretts (0,9999 m) und schob
+    // das Brett um die Differenz nach Süden. Verglichen wurden damit zwei
+    // verschiedene Dinge: Beide Korpusse sind auf den Millimeter gleich tief
+    // (Quelle 2,0000), länger ist an der Zeile nur ihr Türgriff — und an einem
+    // Griff richtet man keine Arbeitsplatte aus.
+    //
+    // Weil die Zeile über ihre Hülle zentriert wird, steht ihr Korpus schon
+    // 3,07 cm weiter nördlich als der des Bretts (`KitchenPiece.align`). Das
+    // Brett stand also **ohne** Versatz 3,07 cm zu weit vorn und **mit** ihm
+    // 6,1 cm — eine Nase in einer Zeile aus Zeile, Brett, Zeile, also genau
+    // die Sorte Delle, gegen die der Versatz einmal eingetragen wurde. Nach
+    // Norden fluchten Vorder- und Hinterkante mit der Zeile, beide zugleich.
+    align: [0, -0.031],
   },
   { name: 'plate-rack', label: 'Ausgaberegal', tiles: [2, 1], height: 0.56 },
   { name: 'pass', label: 'Ausgabetheke', tiles: [2, 1], height: 0.53, worktop: true },
@@ -486,6 +542,15 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // stellte, versenkte jeden Topf in der Kochstelle.
     height: 0.55,
     worktop: true,
+    // **8 cm nach Süden, und das ist die Zeile und die Wand in einer Zahl.**
+    // Das Blech reicht in der Quelle von z = −1,0634 bis +0,7786, ist also nur
+    // 0,9210 m tief (Spiel) und sitzt mittig auf der Kachel, weil die Blende
+    // mit den Knöpfen davor die Hülle wieder symmetrisch macht. Vorn sprang
+    // die Kochstelle damit 8 cm hinter die Arbeitsplatten zurück, hinten stand
+    // sie 13,2 cm hinter der Wandinnenseite — sichtbar abgeschnitten, weil die
+    // Platte ein aufgesetzter Klotz ist und keine flache Rückwand wie bei der
+    // Zeile. Beides ist derselbe Versatz (`KitchenPiece.align`).
+    align: [0, 0.08],
   },
   {
     name: 'stove-pot',
@@ -495,6 +560,10 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     deck: 0.55,
     worktop: true,
     holds: 'pot',
+    // Derselbe Korpus wie beim leeren Herd, also derselbe Versatz: Der Topf
+    // ist ein eigenes Netz obendrauf (`Kitchen_Utensils`) und verschiebt die
+    // Hülle nicht nach Süden — anders als der Pfannenstiel eine Zeile weiter.
+    align: [0, 0.08],
   },
   {
     name: 'stove-pan',
@@ -504,7 +573,19 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     deck: 0.55,
     worktop: true,
     holds: 'pan',
-    align: [0, 0.078],
+    // **15,8 cm nach Süden, und die Zahl ist eine Summe aus zwei gemessenen.**
+    //
+    // 7,8 cm davon richten den Korpus gegen den **Pfannenstiel** auf: Er ragt
+    // 16 cm nach Süden aus der Hülle, also wanderte das Blech beim Zentrieren
+    // um die Hälfte nach Norden — in der Datei liegt es hier bei −1,2198 …
+    // +0,6221 statt bei −1,0634 … +0,7786 wie bei den beiden anderen Herden.
+    // Diese 7,8 cm standen hier schon immer, und sie stimmen.
+    //
+    // Die anderen 8,0 cm sind dieselben wie beim leeren Herd: die Vorderkante
+    // auf die Linie der Küchenzeile und die Kochstelle damit aus der Wand
+    // (`KitchenPiece.align`). Ein Herd, der nur einen der beiden Versätze
+    // bekäme, stünde wieder als einziger aus der Reihe.
+    align: [0, 0.158],
   },
   {
     name: 'belt',
@@ -626,3 +707,60 @@ export function kitchenWorkHeight(piece: KitchenPiece): number {
  * Austausch der Quelle nachmisst.
  */
 export const PAN_BOWL: readonly [x: number, z: number] = [0, -0.225];
+
+/**
+ * **Wo im abgenommenen Topf das Wasser steht** — der Innenraum, in Metern über
+ * seinem **Fuß**, und der Innenradius dazu.
+ *
+ * Dieselbe Lesart wie `SINK_BOWL` und dieselbe Quelle wie `PAN_BOWL`: gemessen
+ * an `public/models/kitchen.glb`, Knoten `stove-pot`, Netz `Kitchen_Utensils`,
+ * Quellmaß in Klammern, halbiert mit `KITCHEN_SCALE`. Der Topf ist **oben
+ * offen** — das ist keine Annahme, sondern steht in der Datei: Über der
+ * Gefäßwand liegen zwei Ringe zu je 50 Ecken (außen 1,7181 bei r = 0,6339,
+ * innen 1,7182 bei r = 0,5627) und darüber die Deckfläche des umgeschlagenen
+ * Randes (1,7331, r = 0,5772…0,6188). Ein Deckel käme als geschlossene Kappe,
+ * und die gibt es nicht.
+ *
+ * - `floor` **0,0247** (1,1588 gegen den Fuß bei 1,1095) — der Innenboden, eine
+ *   Scheibe von r = 0,5661. Der Topf ist damit **27,97 cm tief**, bei 31,18 cm
+ *   Gesamthöhe: 3,2 cm Blech und Rand.
+ * - `rim` **0,3044** (1,7182) — die Öffnung, gemessen an der **Unterseite** des
+ *   Randes und nicht an seiner Oberkante (0,3118). Wasser steht im Gefäß, nicht
+ *   im Rand.
+ * - `water` **0,1646** — genau dazwischen, also **halb voll**, und das ist
+ *   dieselbe Entscheidung wie beim Spülbecken (`SINK_BOWL.water`) samt
+ *   derselben Begründung: Ein Topf bis zum Rand ist beim ersten Schritt
+ *   übergelaufen, ein Fingerbreit Wasser ist eine Pfütze. Nachgerechnet für die
+ *   Hauptansicht (55° von oben, `core/topDownPose.TOP_DOWN_TILT`): Der
+ *   Spiegel liegt 13,98 cm unter dem Rand, der nähere Rand verdeckt davon
+ *   13,98 / tan 55° = 9,79 cm eines Durchmessers von 57,19 cm — **17 %**. Es
+ *   bleibt eine breite Ellipse und kein Sichelchen. Zum Vergleich der leere
+ *   Topf: Sein Boden liegt 27,97 cm tief, davon verdeckt der Rand 34 % — dunkel
+ *   und weit unten gegen hell und knapp unter der Kante, das unterscheidet sich
+ *   auf einen Blick.
+ * - `radius` **0,281** — der Wasserspiegel als Scheibe. Die Innenwand läuft
+ *   nach oben leicht zusammen (0,2903 bei y = 0,0319, 0,2860 auf Spiegelhöhe,
+ *   0,2813 am Rand), und die engste Stelle zwischen Boden und Spiegel ist die
+ *   Kante des Bodens selbst mit 0,2831. 0,281 bleibt überall **innerhalb** der
+ *   Wand — ein Wasser, das durch das Blech tritt, sieht man von außen als
+ *   blauen Ring um den Topf.
+ *
+ * **Warum das hier steht und nicht im Zutatensatz.** Es ist an der Quelldatei
+ * gemessen wie `align`, `deck` und `PAN_BOWL` — das ist die Liste, die man beim
+ * Austausch der Quelle nachmisst. Der Satz, der das Wasser **baut**
+ * (`worlds/test/zones/kitchenProps.ts`), kennt kein geladenes Modell.
+ *
+ * **Anders als bei der Pfanne braucht es keinen Versatz in x/z.** Der Ursprung
+ * eines abgenommenen Geräts liegt in der Mitte seiner ganzen Hülle
+ * (`core/kitchenModel.takeUtensil`), und beim Topf ist das zugleich seine
+ * Achse: Seine beiden Griffe stehen sich gegenüber und ziehen die Hülle nach
+ * keiner Seite (x −0,8659…+0,8498, Mitte −0,0081; z −0,7785…+0,4826, Mitte
+ * −0,1480 — und das ist auf den Millimeter die Achse der Ringe). Der Stiel der
+ * Pfanne steht nur auf einer Seite, und genau dafür gibt es `PAN_BOWL`.
+ */
+export const POT_BOWL = {
+  floor: 0.0247,
+  rim: 0.3044,
+  water: 0.1646,
+  radius: 0.281,
+} as const;

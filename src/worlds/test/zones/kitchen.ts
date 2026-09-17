@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   KITCHEN_SCALE,
+  POT_BOWL,
   SINK_BOWL,
   kitchenDeck,
   kitchenPiece,
@@ -47,7 +48,7 @@ import {
   type WorkKind,
   type WorkState,
 } from './kitchenCarry';
-import { DIRTY_STACK_MAX, FoodKit, SINK_TILT } from './kitchenProps';
+import { DIRTY_STACK_MAX, FoodKit, SINK_TILT, WATER_LOOK } from './kitchenProps';
 import { GAUGE_LIFT, KitchenGauges, WARN_LIFT } from './kitchenGauge';
 import { IconOven } from './kitchenIcon';
 import { KitchenFloor } from './kitchenFloor';
@@ -197,6 +198,26 @@ const CARRY_POINT = new THREE.Vector3(CHEF_CARRY.x, CHEF_CARRY.y, CHEF_CARRY.z);
  * nur, wer sie gemessen hat.
  */
 const PAN_RIM = 0.04;
+
+/**
+ * **Wie hoch der Inhalt in einem geladenen Gerät aufsitzt**, über dessen Fuß.
+ *
+ * Zwei Gefäße, zwei Zahlen, und beide sind gemessen und nicht geraten: In der
+ * Pfanne liegt das Patty auf `PAN_RIM` (siehe dort), im Topf steht das Wasser
+ * auf seinem Innenboden (`core/kitchenFit.POT_BOWL.floor`, 2,47 cm über dem
+ * Fuß des Topfes). Der Feuerlöscher kommt hier nie an — er nimmt nichts auf
+ * (`kitchenRecipes.TAKES`) —, bekommt aber dieselbe Antwort wie die Pfanne,
+ * weil eine Funktion mit einem `null` darin an jeder Aufrufstelle eine
+ * Fallunterscheidung nach sich zöge.
+ *
+ * **Warum das hier steht und nicht im Zutatensatz**: Wie hoch der Rand eines
+ * **geladenen** Netzes liegt, weiß nur, wer es misst — `FoodKit.topping`
+ * bekommt die Zahl deshalb gereicht und schlägt sie nicht nach
+ * (`kitchenProps.ts`).
+ */
+function looseRim(item: KitchenItem): number {
+  return item === 'pot' ? POT_BOWL.floor : PAN_RIM;
+}
 
 /**
  * **Wie weit die Figur von einer Station weg sein darf**, damit dort
@@ -1770,18 +1791,11 @@ export class KitchenZone implements TestZone {
     const { piece, model } = furnish;
     const shape = new THREE.PlaneGeometry(SINK_BOWL.width, SINK_BOWL.depth);
     this.shapes.push(shape);
-    // Durchsichtig, aber nicht durchsichtig genug, um das Becken darunter zu
-    // zeigen: Ein Wasser, durch das man den Blechboden sieht, ist eine blaue
-    // Folie. Rau ist es auch nicht — eine ruhige Fläche spiegelt.
-    this.pond ??= this.own(
-      new THREE.MeshStandardMaterial({
-        color: 0x2e7ba6,
-        transparent: true,
-        opacity: 0.78,
-        roughness: 0.12,
-        metalness: 0.2,
-      }),
-    );
+    // **Der Ton kommt aus dem Zutatensatz** (`kitchenProps.WATER_LOOK`) und
+    // steht nicht mehr hier: Seit der Topf am Hahn gefüllt wird, gibt es ein
+    // zweites Wasser in dieser Küche, und zwei Blautöne nebeneinander wären
+    // zwei Flüssigkeiten. Warum die Zahlen sind, wie sie sind, steht dort.
+    this.pond ??= this.own(new THREE.MeshStandardMaterial({ ...WATER_LOOK, transparent: true }));
     const water = new THREE.Mesh(shape, this.pond);
     water.name = 'kitchen-sink-water';
     water.rotation.x = -Math.PI / 2;
@@ -1967,6 +1981,25 @@ export class KitchenZone implements TestZone {
         const gained = deed.held?.on ?? [];
         const toHand = deed.moved.every((item) => gained.includes(item));
         world.notify(toHand ? `${names} aufgenommen` : `${names} auf ${spot.label}`);
+        break;
+      }
+      case 'fill': {
+        // **Nur die Hand ändert sich.** Das Becken bleibt, wie es ist — samt
+        // dem dreckigen Teller darin und samt seiner laufenden Uhr: `settle`
+        // wird hier ausdrücklich **nicht** gerufen, sonst finge das Spülen
+        // neben dem Topf von vorn an (`kitchenWork.onWork`). Der Topf wird
+        // untergehalten und nicht eingeräumt, und genau so wenig rührt dieser
+        // Fall die Station an.
+        const thing = this.carried;
+        if (!thing) return false;
+        this.restyle(thing, deed.dish);
+        // „Topf mit Wasser gefüllt" und nicht `dishLabel` („Topf (Wasser)"):
+        // Die Klammer ist die Form für eine **Aufzählung** von Belag, und hier
+        // gibt es nur eines, das dazugekommen ist. Derselbe Satzbau wie im
+        // Hinweis darüber (`kitchenCarry.kitchenPrompt`), nur im Perfekt.
+        world.notify(
+          `${ITEM_LABELS[deed.dish.item]} mit ${ITEM_LABELS[deed.dish.on[0] ?? 'water']} gefüllt`,
+        );
         break;
       }
       case 'trash': {
@@ -2177,7 +2210,7 @@ export class KitchenZone implements TestZone {
         thing.topping.removeFromParent();
         thing.topping = null;
       }
-      const top = this.food.topping(next, PAN_RIM);
+      const top = this.food.topping(next, looseRim(next.item));
       if (top) thing.object.add(top);
       thing.topping = top;
       return;

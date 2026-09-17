@@ -43,6 +43,15 @@
  * oder gleich zur nächsten Bestellung. Ohne diesen Kreis wäre die
  * Tellerausgabe ein Brunnen und die Küche nach zehn Gästen ein Tellerlager.
  *
+ * **Das Spülbecken ist zugleich der Wasserhahn.** Wer den **Topf** in der Hand
+ * hat und davorsteht, füllt ihn — und zwar auch dann, wenn darin gerade ein
+ * dreckiger Teller liegt. Der Topf wird nicht hineingelegt, er wird
+ * untergehalten, und deshalb gehen ihn die beiden Sätze nichts an, mit denen
+ * das Becken sonst ablehnt. Wasser ist dabei Inhalt des Topfes wie das Patty
+ * Inhalt der Pfanne (`kitchenRecipes.Dish`), und es geht auf demselben Weg
+ * wieder weg wie jeder Inhalt: über den Mülleimer. Die Begründungen im
+ * Einzelnen stehen bei `atSink`.
+ *
  * **Warum der Topf nicht in den Müll darf.** Ein Mülleimer, der alles
  * schluckt, ist ein Mülleimer, in dem nach zwei Minuten die einzige Pfanne der
  * Küche liegt — und die kommt nur mit `B` zurück, was niemand ahnt, der gerade
@@ -240,6 +249,25 @@ export type KitchenDeed =
    * mehr_ und wirft weg, was dort lag.
    */
   | { do: 'combine'; held: Dish | null; target: Dish | null; moved: readonly KitchenItem[] }
+  /**
+   * **Den Topf unter den Hahn halten** — er ist danach voll, die Station
+   * bleibt unberührt.
+   *
+   * `dish` ist der **volle** neue Stand der Hand, wie bei `combine`: Die Zone
+   * tauscht damit nur das Aussehen des Getragenen (`kitchen.restyle`) und
+   * rechnet nichts nach.
+   *
+   * **Eine eigene Tat und kein `combine`.** Mechanisch ginge es als solches —
+   * Hand bekommt einen neuen Stand, Station behält ihren —, aber zwei Dinge
+   * wären dann falsch. Der **Saum** hinge am Liegenden (`meansContent` sagt für
+   * `combine` wahr), also am dreckigen Teller im Becken, mit dem dieser
+   * Handgriff gar nichts zu tun hat. Und der **Satz** hieße „Wasser auflegen".
+   * Gefüllt wird an der Station, also leuchtet die Station und der Satz sagt,
+   * was geschieht.
+   *
+   * **Und kein `work`** (`kitchenWork.ts`): Dazu weiter unten bei `atSink`.
+   */
+  | { do: 'fill'; dish: Dish }
   /** Alles aus der Hand in den Müll. */
   | { do: 'trash'; dish: Dish }
   /** Nur den Inhalt in den Müll; der Träger bleibt (leer) in der Hand. */
@@ -478,9 +506,54 @@ function atPass(held: Dish | null): KitchenDeed {
  * den einen Fall, in dem der saubere Teller doch im Becken steht: Wer mit
  * voller Hand danebenstand, bekam ihn nicht gereicht. Ein Griff mit leerer
  * Hand holt ihn nach.
+ *
+ * **Der Topf ist die Ausnahme, und er ist sie in beiden Sätzen.** „In die Spüle
+ * gehört nur Geschirr" und „In der Spüle steht schon …" sind für ihn falsch,
+ * weil er gar nicht **hineingelegt** wird: Er wird unter den Hahn gehalten und
+ * ist danach voll. Deshalb steht sein Fall **vor** beiden Prüfungen — und das
+ * ist die ausdrückliche Zusage: Wer den Topf füllt, füllt ihn auch dann, wenn
+ * im Becken gerade ein dreckiger Teller liegt. Das Becken ist in diesem
+ * Augenblick zwei Dinge auf einmal — ein Waschbecken und ein Wasserhahn —, und
+ * genau so ist es in einer Küche auch.
+ *
+ * **Sofort und nicht mit der Uhr.** Es lag nahe, einen dritten `WorkKind` neben
+ * `'chop'` und `'wash'` zu stellen; dagegen sprechen zwei Dinge, und das
+ * zweite ist das schwerere:
+ *
+ * - **Es gibt nichts zuzusehen.** Ein Fortschrittsbalken ist die Antwort auf
+ *   „das dauert, und solange musst du hier stehen bleiben". Beim Schneiden und
+ *   beim Spülen ist das die Arbeit selbst; einen Hahn aufzudrehen ist ein
+ *   Handgriff. Drei Sekunden Balken dafür wären drei Sekunden Buchhaltung.
+ * - **Die Uhr gehört der Station, und die Station ist besetzt.** `WorkState`
+ *   hängt an der Spüle und rechnet mit **einem** Ding darin (`onWork`,
+ *   `advanceWork`, `WORK_TO_HAND`). Der Topf liegt aber nicht darin — er ist in
+ *   der Hand, und im Becken darf gleichzeitig ein Teller gespült werden. Das
+ *   wären zwei Uhren an einer Station, und genau **eine** Uhr an einer Station
+ *   ist das, wofür es `kitchenWork.ts` überhaupt gibt.
+ *
+ * **Wohin das Wasser wieder verschwindet**, steht nicht hier, sondern ergibt
+ * sich: Über dem Mülleimer wird der Topf abgeräumt und bleibt in der Hand
+ * (`intoBin` → `scrape`), und abstellen und aufnehmen lässt er sich voll wie
+ * leer, weil `onTop` nach dem Träger fragt und nicht nach seinem Inhalt. Eine
+ * Sackgasse gibt es damit nicht.
+ *
+ * **Wozu das Wasser gut ist, steht absichtlich nirgends.** Verlangt war das
+ * Füllen, und ein Suppenrezept, das niemand bestellt hat, wäre eine zweite
+ * Entscheidung im selben Handgriff. Wenn es eines Tages kommt, ist die Stelle
+ * dafür schon da: Wasser ist Inhalt des Topfes wie das Patty Inhalt der Pfanne,
+ * der Herd kocht, was in seinem Gefäß liegt (`kitchenClock.onStove` liest heute
+ * `on.item === 'pan'`), und `CHOPS`/`FRIES` sind Tabellen. Was fehlte, wäre eine
+ * Zeile darin — kein neuer Zustand.
  */
 function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
   if (!held) return on ? { do: 'take', dish: on } : { do: 'nothing' };
+  if (held.item === 'pot') {
+    // `on` kann beim Topf nur `['water']` sein — er steht in keiner Zeile von
+    // `TAKES`, nimmt über `combine` also nichts an. Ein voller Topf tut hier
+    // deshalb nichts Doppeltes, sondern sagt, was los ist.
+    if (held.on.length) return { do: 'refuse', why: 'Im Topf ist schon Wasser' };
+    return { do: 'fill', dish: dish('pot', ['water']) };
+  }
   if (!isDishware(held.item) || held.on.length) {
     return { do: 'refuse', why: 'In die Spüle gehört nur Geschirr' };
   }
@@ -559,9 +632,14 @@ function atReturn(held: Dish | null, stack: number): KitchenDeed {
  *   beiden Richtungen das, was dort lag.
  *
  * Alles andere meint wirklich die Station: Auf eine Fläche wird **abgelegt**
- * (`place`), am Brett wird **angefangen** (`work`), in den Mülleimer geworfen
- * (`trash`, `scrape`), über die Theke geschoben (`serve`), ein Herd gelöscht
- * (`douse`). Dort ist das Möbel das Ziel, und es leuchtet auch so.
+ * (`place`), am Brett wird **angefangen** (`work`), am Becken der Topf
+ * **gefüllt** (`fill`), in den Mülleimer geworfen (`trash`, `scrape`), über die
+ * Theke geschoben (`serve`), ein Herd gelöscht (`douse`). Dort ist das Möbel
+ * das Ziel, und es leuchtet auch so.
+ *
+ * **Beim Füllen ist das der ganze Witz**: Im Becken kann ein dreckiger Teller
+ * liegen, und der hat mit dem Topf unter dem Hahn nichts zu tun. Leuchtete er,
+ * sähe es aus, als griffe man gleich nach ihm.
  *
  * **Warum das hier steht und nicht in der Zone.** Es ist eine Aussage über
  * Taten und nicht über Netze — dieselbe Trennung wie bei `kitchenPrompt`
@@ -580,8 +658,16 @@ export function meansContent(deed: KitchenDeed): boolean {
  * Gegriffen wird genau das, was danach **in der Hand liegt**: das Brötchen aus
  * der Ausgabe, der Teller vom Stapel, die Pfanne vom Herd, der Topf, der
  * Feuerlöscher aus seiner Halterung. Alles andere ist eine Bedienung der
- * Station — ablegen, schneiden, spülen, wegwerfen, servieren, löschen —, und
- * das ist ein Druck, auch wenn dabei etwas die Hand verlässt.
+ * Station — ablegen, schneiden, spülen, **den Topf füllen**, wegwerfen,
+ * servieren, löschen —, und das ist ein Druck, auch wenn dabei etwas die Hand
+ * verlässt.
+ *
+ * **Und deshalb steht `fill` in keiner Zeile hier.** Es ist kein `take`, fällt
+ * also in denselben Zweig wie alles andere und wird gedrückt — in der Brille
+ * heißt das **Berühren oder Trigger** (`core/interaction.INTERACTION_DEFAULTS`,
+ * `press` → `handTouch`/`aimTrigger`, getippt), von oben `A`, am Schreibtisch
+ * linke Maustaste oder `E`. Genau der Weg, den Schneiden und Spülen schon
+ * gehen; ein Sonderfall für eine der drei Ansichten kommt gar nicht erst vor.
  *
  * **Warum `combine` ein Druck ist**, obwohl es wie `take` am Inhalt leuchtet
  * (`meansContent`): Wer ein Patty auf ein Brötchen legt, greift nicht danach,
@@ -623,6 +709,12 @@ export function kitchenPrompt(deed: KitchenDeed, what: string): string {
       // gespült wird Geschirr — „Dreckiger Teller spülen" wäre falsches
       // Deutsch, und der Dativ dafür stünde in keiner Tabelle.
       return deed.kind === 'chop' ? `${ITEM_LABELS[deed.dish.item]} schneiden` : 'Geschirr spülen';
+    case 'fill':
+      // „Topf mit Wasser füllen" — der Träger im Nominativ, der Inhalt hinter
+      // dem `mit`. Beides sind Einträge aus `ITEM_LABELS` und keine
+      // geschriebenen Wörter: Käme eines Tages ein zweiter Hahn mit etwas
+      // anderem daraus, steht der Satz schon richtig da.
+      return `${ITEM_LABELS[deed.dish.item]} mit ${ITEM_LABELS[deed.dish.on[0] ?? 'water']} füllen`;
     case 'combine':
       return `${layered(deed.moved)
         .map((item) => ITEM_LABELS[item])
