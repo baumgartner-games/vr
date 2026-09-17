@@ -205,12 +205,18 @@ export function rackLift(): number {
  * verschieden stehen, sind ein Fehler, den man sieht und nicht erklären kann.
  * Beide stehen deshalb in derselben Nachbarschaft: Zeile, Brett, Zeile.
  *
- * **Nachtrag: die Delle ist weg, und zwar im Katalog.** Inzwischen rückt
- * `KitchenPiece.align` das Brett um die gemessenen 3,07 cm nach Süden, womit
- * seine **Vorderkante** mit der der Zeile fluchtet (`core/kitchenFit.ts`);
- * hinten wächst die Lücke dafür auf 6,1 cm und zeigt zur Wand. Die gleiche
- * Nachbarschaft bleibt trotzdem: Sie kostet nichts, und ein Brett zwischen
- * zwei verschieden tiefen Möbeln hätte wieder zwei verschiedene Fugen.
+ * **Nachtrag: die Delle ist weg, und zwar im Katalog — nach zwei Anläufen.**
+ * Der erste schob das Brett um 3,07 cm nach **Süden** und machte es damit
+ * schlimmer: Er verglich die 1,0612 m der **Hülle** der Zeile (ihr Türgriff
+ * ist darin) mit den 0,9999 m des **Korpus** des Bretts. Beide Korpusse sind
+ * in Wahrheit gleich tief; weil die Zeile über ihre Hülle zentriert wird,
+ * steht ihr Korpus 3,07 cm weiter nördlich, und das Brett stand schon ohne
+ * Versatz zu weit vorn. Heute rückt `KitchenPiece.align` es um dieselben
+ * 3,07 cm nach **Norden** (`core/kitchenFit.ts`), und dann fluchten
+ * Vorder- **und** Hinterkante — eine Lücke zur Wand bleibt nirgends. Die
+ * gleiche Nachbarschaft bleibt trotzdem: Sie kostet nichts, und ein Brett
+ * zwischen zwei verschieden tiefen Möbeln hätte wieder zwei verschiedene
+ * Fugen.
  *
  * **Die Anrichte ist abgeschafft.** Der Arbeitstisch ist eine Ablage wie jede
  * andere — kombiniert wird überall (`kitchenCarry.ts`), und ein Möbel, auf dem

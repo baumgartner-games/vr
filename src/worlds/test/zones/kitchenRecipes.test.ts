@@ -110,6 +110,47 @@ describe('Zutaten und ihre Stufen', () => {
     }
   });
 
+  /**
+   * **Wasser ist keine Zutat**, und das steht nicht nur in einem Kommentar,
+   * sondern in den Tabellen.
+   *
+   * Es gibt es nur **in** einem Topf (`kitchenCarry.atSink`), und es soll dort
+   * bleiben: Ein Wasser, das als Belag auf einem Brötchen landet oder über die
+   * Theke geht, wäre das, was man an einem flachen `Dish.on` zu Recht
+   * befürchtet. Die Zusicherung ist `TAKES` — `water` steht in keiner Zeile
+   * rechts, also nimmt **kein** Träger es an, heute und beim nächsten Rezept.
+   */
+  it('lässt Wasser nirgends als Zutat gelten', () => {
+    for (const carrier of Object.keys(ITEM_LABELS) as KitchenItem[]) {
+      expect({ carrier, ok: carries(carrier, 'water') }).toEqual({ carrier, ok: false });
+    }
+    // Kein Abfall, kein Geschirr, kein Träger — und aus ihm wird auch nichts.
+    expect(isFood('water')).toBe(false);
+    expect(isDishware('water')).toBe(false);
+    expect(isCarrier('water')).toBe(false);
+    expect(isRaw('water')).toBe(false);
+    expect(chopStage('water')).toBeNull();
+    expect(fryStage('water')).toBeNull();
+    // Und der Topf bleibt kein Träger im Sinne dieser Tabelle: Sein Wasser
+    // kommt aus dem Hahn und nicht aus einer Hand. Der hilfreiche Satz
+    // daneben hängt genau daran (siehe den Block über `TAKES`).
+    expect(isCarrier('pot')).toBe(false);
+  });
+
+  /**
+   * **Und ein Topf voll Wasser ist kein Gericht.** Er kommt an der Theke
+   * vorbei wie jeder andere Träger mit Inhalt, und dort muss er durchfallen.
+   */
+  it('serviert keinen Topf mit Wasser', () => {
+    const pot = d('pot', 'water');
+    expect(served(pot)).toBeNull();
+    expect(recipeOf(contentsOf(pot))).toBeNull();
+    // Der Name bleibt lesbar und im Singular: dieselbe Klammer wie bei der
+    // Pfanne mit ihrem Patty.
+    expect(dishLabel(pot)).toBe('Topf (Wasser)');
+    expect(dishLabel(d('pot'))).toBe('Topf');
+  });
+
   it('schichtet das Brötchen nach unten, egal wie gelegt wurde', () => {
     expect(layered(['tomato-cut', 'bun', 'patty-cooked'])).toEqual([
       'bun',

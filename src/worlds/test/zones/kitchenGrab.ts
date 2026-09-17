@@ -191,6 +191,15 @@ export function kitchenHandles(
     case 'tomato-cut':
     case 'tomato-soup':
       return [];
+
+    // **Wasser greift man gar nicht.** Es kommt nur **in** etwas vor — im
+    // Topf, den man am Spülbecken füllt (`kitchenCarry.atSink`) — und nie für
+    // sich allein. Die Zeile steht hier trotzdem, und zwar als Zeile und
+    // nicht als `default`: Ein `default` nähme dem Übersetzer die einzige
+    // Stelle, an der er meldet, dass eine neue Zutat noch keine Griffe hat.
+    // Genau das hat diese hier gemeldet, als sie dazukam.
+    case 'water':
+      return [];
   }
 }
 

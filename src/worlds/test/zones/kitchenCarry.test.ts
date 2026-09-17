@@ -643,8 +643,13 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
     });
   });
 
+  /**
+   * **Der Topf steht nicht mehr in dieser Liste**, und das ist kein Versehen:
+   * Er wird am Becken **gefüllt** und nicht hineingelegt (siehe die Fälle
+   * darunter). Alles andere lehnt die Spüle weiterhin mit demselben Satz ab.
+   */
   it('lässt in die Spüle nur Geschirr', () => {
-    for (const item of ['bun', 'pan', 'pot', 'lettuce', 'extinguisher'] as const) {
+    for (const item of ['bun', 'pan', 'lettuce', 'extinguisher'] as const) {
       const deed = press(d(item), { kind: 'sink' });
       expect({ item, do: deed.do }).toEqual({ item, do: 'refuse' });
       expect(why(deed)).toContain('Geschirr');
@@ -654,6 +659,128 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
     expect(why(press(d('plate', 'bun'), { kind: 'sink' }))).toContain('Geschirr');
     // Und zwei Teller passen nicht übereinander.
     expect(why(press(d('plate-dirty'), { kind: 'sink', on: d('plate') }))).toContain('schon');
+  });
+
+  /**
+   * **Das Becken ist auch ein Wasserhahn** — der Topf wird davor gefüllt, und
+   * zwar ohne hineingestellt zu werden.
+   *
+   * Das ist die Zusage aus dem Auftrag, und sie hat zwei Hälften: Es geht mit
+   * leerem Becken, und es geht **genauso** mit einem dreckigen Teller darin.
+   * Die zweite Hälfte ist die eigentliche — sie ist der Grund, warum der Fall
+   * in `atSink` vor beiden Ablehnungen steht und nicht dahinter.
+   */
+  it('füllt den Topf am Becken, ob es leer ist oder nicht', () => {
+    const full = { do: 'fill', dish: d('pot', 'water') };
+    expect(press(d('pot'), { kind: 'sink', on: null })).toEqual(full);
+    // **Egal ob dreckiger Teller drin ist** — wörtlich der Auftrag.
+    expect(press(d('pot'), { kind: 'sink', on: d('plate-dirty') })).toEqual(full);
+    // Und auch neben dem sauberen Teller, der auf seine Abholung wartet
+    // (`kitchenWork.WORK_TO_HAND`, volle Hand).
+    expect(press(d('pot'), { kind: 'sink', on: d('plate') })).toEqual(full);
+  });
+
+  /**
+   * **Die Station bleibt dabei unberührt.** Ein `fill` trägt nur den neuen
+   * Stand der **Hand** — kein `target`, kein `place`, kein `work`. Daran hängt
+   * in der Zone, dass die Uhr des Tellers im Becken weiterläuft, statt neben
+   * dem Topf von vorn anzufangen.
+   */
+  it('rührt beim Füllen nichts an, was im Becken steht', () => {
+    const deed = press(d('pot'), { kind: 'sink', on: d('plate-dirty') });
+    expect(deed.do).toBe('fill');
+    expect(Object.keys(deed).sort()).toEqual(['dish', 'do']);
+    // Und der dreckige Teller wird weiterhin gespült wie eh und je — das
+    // Füllen hat an dieser Regel nichts verschoben.
+    expect(press(d('plate-dirty'), { kind: 'sink', on: null })).toEqual({
+      do: 'work',
+      kind: 'wash',
+      dish: d('plate-dirty'),
+    });
+  });
+
+  /**
+   * **Ein voller Topf tut nichts Doppeltes**, sondern sagt, warum nichts
+   * passiert — derselbe Umgang wie überall sonst in dieser Regel (`refuse`
+   * trägt seinen Satz mit).
+   */
+  it('füllt keinen Topf, in dem schon Wasser ist', () => {
+    const deed = press(d('pot', 'water'), { kind: 'sink', on: null });
+    expect(deed.do).toBe('refuse');
+    expect(why(deed)).toContain('Wasser');
+    // Auch am besetzten Becken bleibt es bei diesem Satz und nicht bei dem
+    // über das Geschirr darin: Der Topf geht das Becken nichts an.
+    expect(why(press(d('pot', 'water'), { kind: 'sink', on: d('plate-dirty') }))).toContain(
+      'Wasser',
+    );
+  });
+
+  /**
+   * **Gefüllt wird gedrückt und nicht gegriffen** (`core/interaction.ts`).
+   *
+   * Es ist eine Bedienung der Station wie Schneiden und Spülen, also ist es
+   * `press` — in der Brille Berühren oder Trigger, von oben `A`, am
+   * Schreibtisch die linke Maustaste. Und der **Saum** hängt an der Station und
+   * nicht an dem, was im Becken liegt: Wer den Topf füllt, greift nicht nach
+   * dem dreckigen Teller daneben.
+   */
+  it('bedient beim Füllen die Station', () => {
+    const deed = press(d('pot'), { kind: 'sink', on: d('plate-dirty') });
+    expect(kitchenInteraction(deed)).toBe('press');
+    expect(meansContent(deed)).toBe(false);
+    expect(kitchenPrompt(deed, 'Spülbecken')).toBe('Topf mit Wasser füllen');
+  });
+
+  /**
+   * **Und das Wasser wird man wieder los.** Ein Zustand, aus dem es keinen
+   * Rückweg gibt, wäre eine Sackgasse mit einem Topf darin — der einzige der
+   * Küche.
+   *
+   * Der Weg ist der, den es für jeden Träger mit Inhalt schon gibt: über den
+   * Mülleimer abräumen, Träger behalten (`intoBin` → `scrape`). Abstellen und
+   * wieder aufnehmen geht voll wie leer.
+   */
+  it('lässt den vollen Topf ausgießen, abstellen und aufnehmen', () => {
+    expect(press(d('pot', 'water'), { kind: 'bin' })).toEqual({ do: 'scrape', dish: d('pot') });
+    expect(kitchenPrompt(press(d('pot', 'water'), { kind: 'bin' }), 'Mülleimer')).toBe(
+      'Topf abräumen',
+    );
+    // Auf jeder Fläche abstellbar …
+    expect(press(d('pot', 'water'), { kind: 'top', on: null })).toEqual({
+      do: 'place',
+      dish: d('pot', 'water'),
+    });
+    // … und mitsamt Wasser wieder aufnehmbar.
+    expect(press(null, { kind: 'top', on: d('pot', 'water') })).toEqual({
+      do: 'take',
+      dish: d('pot', 'water'),
+    });
+    expect(kitchenPrompt(press(null, { kind: 'top', on: d('pot', 'water') }), 'Zeile')).toBe(
+      'Topf (Wasser) nehmen',
+    );
+  });
+
+  /**
+   * **Und nirgends sonst fällt der volle Topf durch.**
+   *
+   * Das ist die Gegenprobe zu der Entscheidung, Wasser als Inhalt zu führen
+   * (`kitchenRecipes.Dish`): Ein Träger mit Inhalt kommt an vielen Stellen
+   * vorbei, und an keiner davon darf aus dem Wasser plötzlich eine Zutat, ein
+   * Gericht oder ein Stück Geschirr werden.
+   */
+  it('lässt den vollen Topf nirgends durch, wo er nicht hingehört', () => {
+    // Nicht über die Theke — es ist kein Burger und liegt auf keinem Teller.
+    expect(press(d('pot', 'water'), { kind: 'serve' }).do).toBe('refuse');
+    // Nicht auf das Abtropfbrett, nicht an die Rückgabe, nicht in die
+    // Löscherhalterung.
+    for (const kind of ['drain', 'return', 'rack'] as const) {
+      expect(press(d('pot', 'water'), { kind, stack: 0, on: null }).do).toBe('refuse');
+    }
+    // Und das Wasser wandert auf kein Brötchen und auf keinen Teller: Es steht
+    // in keiner Zeile von `TAKES`, also nimmt es niemand an.
+    for (const carrier of ['bun', 'plate', 'pan'] as const) {
+      expect(press(d('pot', 'water'), { kind: 'top', on: d(carrier) }).do).toBe('refuse');
+    }
   });
 
   /**
