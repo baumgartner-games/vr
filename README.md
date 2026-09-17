@@ -60,9 +60,9 @@ Tellerausgabe an der Wand, vier Zutatenausgaben an der Westwand, eine Insel aus
 Schneidebrett und Mülleimer, **zwei Bandbahnen** quer durch den Raum (was
 daraufliegt, gleitet weich weiter und fährt nur los, wenn vorn Platz wird —
 oder frei wird, während es fährt; die orangen **Zugbänder** holen sich
-obendrein von selbst, was auf der Kachel dahinter liegt; im Baumodus zeigt
-jedes getragene Möbel dorthin, wohin die Figur zeigt, und der Auslöser dreht
-es in den Händen eine Vierteldrehung weiter), vorn die
+obendrein von selbst, was auf der Kachel dahinter liegt; ein getragenes Möbel
+zeigt dorthin, wohin die Figur zeigt, und der Auslöser dreht es in den Händen
+eine Vierteldrehung weiter), vorn die
 Ausgabetheke mit den Wärmeschirmen als Durchreiche darüber und davor der
 Gastraum mit drei Tischen und der Geschirrrückgabe. **Angefasst wird mit `A`**,
 und daraus wird ein **Burger**: Patty in die Pfanne (es brät, es verbrennt, und
@@ -83,14 +83,24 @@ Kacheln Abstand; ein Druck genügt nicht mehr. Und ein großer roter Knopf neben
 dem Eingang schaltet den **Baumodus** ein und wieder aus; sein Schild sagt,
 wohin der nächste Druck führt. Ist er an, lässt sich jedes leere Möbel aufheben,
 tragen wie die Pfanne und auf einer freien Kachel wieder absetzen — der Umriss
-vor den Füßen sagt vorher, ob es passt.
+vor den Füßen sagt vorher, ob es passt. Das Einschalten **räumt die Küche
+vorher ab**: Uhren aus, Flächen leer, Topf, Pfanne und Feuerlöscher zurück an
+ihren Platz. Man baut um, man kocht nicht — und aufheben lässt sich ohnehin nur,
+worauf nichts mehr steht.
+
+Woher die Möbel kommen, sagt der **Computer-Tisch** neben der Ankunft: Ein Druck
+von vorn, und die Küche verblasst — man steht in einem weißen Raum, in dem alle
+Möbel als Miniaturen um einen herum stehen. Eines anfassen, und man hält es
+wieder in der Küche in der Hand, an genau der Stelle, an der man vor dem Tisch
+stand. Ein Möbel zweimal gibt es am **Kopierer** in der Mitte: links das
+Original hinlegen, rechts die Kopie abholen, und die nächste wächst sofort nach.
 
 Getragen wird mit beiden Händen vor dem Bauch, und was in der Hand liegt, lässt
 jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer nimmt das
 Brötchen, den Topf nicht, und vom Teller nur den Inhalt. Über die Möbel
 **springt** man dabei nicht: Sie sind für die Füße so hoch wie eine Wand, auch
 wenn der Tresen nur einen halben Meter misst. Östlich daneben liegt der
-**Schauraum**, in dem jedes der vierzehn Möbel noch einmal einzeln und
+**Schauraum**, in dem jedes der achtzehn Möbel noch einmal einzeln und
 beschriftet steht. Dazu drei **Portaltafeln**, eine davon oben auf dem Podest.
 
 Dazu kommt
@@ -160,8 +170,10 @@ Beine, weil von zwölf Metern Höhe ein Skelett nur zwei graue Striche ist. Drei
 Zeilen stellen sie ein: vier **Köpfe**, acht **Hüte** von der Kochmütze bis zur
 Krone und fünf **Kochjacken**. Alle drei gehen über das Netz, alle im Raum
 sehen, als was man herumläuft — und wer lieber vor einem Spiegel wechselt,
-stellt sich an den **Kleiderschrank**: Ein Druck auf `A` öffnet die Umkleide
-mit der Figur in Nahaufnahme daneben.
+stellt sich an den **Kleiderschrank**: Ein Druck auf `A`, und die Welt verblasst
+— man steht in seinem Schrank, die siebzehn Sachen stehen greifbar um einen
+herum, und der Spiegel an der Tür zeigt sofort, wie es an einem aussieht. Noch
+ein Druck auf den Schrank, und man steht wieder da, wo man stand.
 three.js + TypeScript + Vite, ohne externe Assets — alles wird prozedural
 gebaut.
 
@@ -996,8 +1008,9 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Kart: aussteigen              | `A`/`X` halten                                                                                                                                                             | `E` halten                                                             | –                        |
 | Kart: zu zweit                | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge                                                                                           | dito                                                                   | –                        |
 | Küche: Feuerlöscher | vom Hocker nehmen und den Trigger der rechten Hand **halten**; gezielt wird mit dem Kopf | aus den Augen `E` halten; von oben ein Schalter — Linksklick an, noch einmal aus, gezielt mit dem rechten Stock | aus den Augen `A` halten; von oben schaltet `B` |
-| Küche: umbauen | der Knopf in der Küche schaltet um, dann `A` am leeren Möbel und `A` auf dem Umriss davor | dito mit `E` | dito mit `A` |
-| Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`                                                                                         | dito; der Schrank öffnet die Umkleide mit der Figur daneben            | dito                     |
+| Küche: umbauen | der Knopf in der Küche schaltet um (und räumt dabei ab), dann `A` am leeren Möbel und `A` auf dem Umriss davor | dito mit `E` | dito mit `A` |
+| Küche: Möbel holen | vorn an den Computer-Tisch und `A` — im Katalog ringsum eines anfassen; auf dem Kopierer links ablegen, rechts die Kopie abholen | dito mit `E` | dito mit `A` |
+| Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`, dann greift man sich die Sachen im Schrank                                              | dito                                                                   | dito                     |
 | Hitboxen                      | Menü → Grafik → _Hitboxen_ — die Körper der Physik über allem, mit dem Spielerkreis                                                                                                             | dito                                                                   | dito                     |
 | Gitterlinien                  | Menü → Grafik → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |
 | Zurücksetzen                  | `B` / `Y` oder Menü                                                                                                                                                        | `R` oder Menü                                                          | Menü                     |

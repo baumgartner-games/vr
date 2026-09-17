@@ -400,8 +400,17 @@ export class ConstructRoom {
     // steht, blendet nicht ein, es erscheint.
     for (const node of this.hidden) node.object.visible = node.visible;
     this.settled = false;
+    // **Mitten im Aufgehen umgedreht heißt: von dort zurück.** `open01` ist
+    // beim Hineinblenden `clock / FADE` und beim Hinausblenden `1 − clock /
+    // FADE`; eine Uhr, die dabei auf null gestellt wird, springt von dem
+    // Stand, den sie gerade hatte, erst auf **ganz offen** und blendet von dort
+    // zurück. Wer zweimal kurz hintereinander drückt — und das tut jeder, der
+    // sich verdrückt hat —, sieht die Welt dann einmal ganz verschwinden,
+    // bevor sie wiederkommt. Also wird der Stand übernommen und nicht
+    // verworfen.
+    const open01 = this.phase === 'in' ? clamp01(this.clock / FADE_SECONDS) : 1;
     this.phase = 'out';
-    this.clock = 0;
+    this.clock = FADE_SECONDS * (1 - open01);
     this.wantsLeave = false;
     this.paint();
   }

@@ -333,7 +333,15 @@ export class WardrobeRack {
     foot.position.y = FOOT_HEIGHT / 2;
     group.add(foot);
 
-    if (worn) group.add(this.wornRing());
+    // **Jedes Stück bekommt seinen Reif, sichtbar ist nur einer.** Anziehen
+    // lässt der Aufrufer den Reif wandern, ohne das Regal neu zu bauen
+    // (`GridWorld.wearable` schaltet `rack-worn` um) — und schalten kann er
+    // nur, was da ist. Ein Reif, den es erst beim nächsten Neubau gäbe, wäre
+    // nach dem ersten Kleiderwechsel bei **keinem** Stück mehr zu sehen: Der
+    // alte ginge aus, ein neuer entstünde nie.
+    const ring = this.wornRing();
+    ring.visible = worn;
+    group.add(ring);
     return group;
   }
 

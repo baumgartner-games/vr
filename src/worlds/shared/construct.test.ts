@@ -398,6 +398,30 @@ describe('Der Construct-Raum', () => {
     expect(furniture.material.transparent).toBe(false);
   });
 
+  /**
+   * **Zweimal kurz hintereinander gedrückt** — und das tut jeder, der sich
+   * verdrückt hat. Die Welt darf dabei nicht erst ganz verschwinden, bevor sie
+   * wiederkommt: Der Stand der Überblendung wird übernommen, nicht verworfen.
+   */
+  test('dreht eine laufende Überblendung um, statt sie erst zu Ende zu spielen', () => {
+    const { room, anchor, furniture } = world();
+    room.enter({ anchor, at: new THREE.Vector3(), items: [] });
+    room.update(FADE_SECONDS * 0.4);
+    const half = furniture.material.opacity;
+    // Mitten drin: weder ganz da noch ganz weg.
+    expect(half).toBeGreaterThan(0.1);
+    expect(half).toBeLessThan(0.9);
+
+    room.leave();
+    // Kein Sprung auf null — der Rückweg fängt dort an, wo der Hinweg stand.
+    expect(furniture.material.opacity).toBeCloseTo(half, 5);
+
+    room.update(FADE_SECONDS);
+    expect(furniture.visible).toBe(true);
+    expect(furniture.material.opacity).toBe(1);
+    expect(furniture.material.transparent).toBe(false);
+  });
+
   test('verlassen, ohne betreten zu haben, tut nichts', () => {
     const { host, room, furniture } = world();
     expect(() => {

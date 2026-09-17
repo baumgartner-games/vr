@@ -529,6 +529,41 @@ interface Carried {
 }
 
 /**
+ * **Was auf einer Kopierfläche steht, und was daneben daraus geworden ist.**
+ *
+ * Die Vorlage ist ein gewöhnliches `Furnish` mit `held = true` — also eines,
+ * das keine Kachel belegt und keinen Körper hat, genau wie ein getragenes. Das
+ * ist der Punkt und keine Sparsamkeit: Wer sie wieder herunternimmt, bekommt
+ * **dasselbe** Möbel zurück und keine Nachbildung davon.
+ */
+interface Plate {
+  readonly load: Furnish;
+  /** Die durchscheinende Kopie in der Zone daneben — `null`, bis eine steht. */
+  copy: THREE.Object3D | null;
+  /** Ihre eigenen Materialien; sie gehen mit ihr (`clearCopy`). */
+  readonly skins: THREE.Material[];
+}
+
+/**
+ * **Welche Möbel sich selbst bedienen** — und es ist die **Sorte**, die das
+ * entscheidet, nicht ein Merker auf ein bestimmtes Stück.
+ *
+ * Beide haben keine Station (`kitchenPlan.stationKind` gibt `null`), also
+ * fände sie die Schleife über die Stationen nie; beide haben stattdessen zwei
+ * Bedeutungen an einem Netz, und welche gilt, entscheidet, wo man steht
+ * (`kitchenDesk.pieceSide`, `kitchenDesk.copierField`).
+ *
+ * Eine Funktion und kein Feld, weil der Möbelkatalog **jedes** Katalogstück
+ * hergibt: Wer sich einen zweiten Rechner holt, hat zwei, und ein Merker
+ * zeigte danach auf den neuen, während der alte als totes Möbel herumstünde.
+ */
+function selfServed(name: string): 'desk' | 'copier' | null {
+  if (name === 'desk') return 'desk';
+  if (name === 'copier') return 'copier';
+  return null;
+}
+
+/**
  * **Die Möbel selbst** — geladen, gesetzt, mit Körper, und zum Anfassen.
  *
  * Sie kommen asynchron und womöglich gar nicht (kein Netz, kein WebGL, keine
@@ -622,25 +657,14 @@ export class KitchenZone implements TestZone {
    * Materialien bleiben **geteilt**, eine Miniatur kostet also einen Knoten
    * und keine Geometrie.
    */
-  private readonly models = new Map<string, THREE.Object3D>();
-  /** Der Computer-Tisch in der Küche — der Zugang zum Möbelkatalog. */
-  private computer: Furnish | null = null;
-  /** Der Kopierer in der Küche. */
-  private copier: Furnish | null = null;
+  private readonly models = new Map<string, { model: THREE.Object3D; scale: number }>();
   /**
-   * **Das Möbel, das gerade als Miniatur auf der Kopierfläche steht.**
+   * **Was auf welcher Kopierfläche steht** — ein Eintrag je belegtem Kopierer.
    *
-   * Es ist ein gewöhnliches `Furnish` mit `held = true` — also eines, das
-   * keine Kachel belegt und keinen Körper hat, genau wie ein getragenes. Das
-   * ist der Grund, warum es hier steht und nicht als eigene Sorte: Wer es
-   * wieder herunternimmt, bekommt **dasselbe** Möbel zurück und keine
-   * Nachbildung davon.
+   * Eine Karte und kein Feld, weil es mehr als einen Kopierer geben kann: Der
+   * Möbelkatalog gibt jedes Katalogstück her, den Kopierer eingeschlossen.
    */
-  private onPlate: Furnish | null = null;
-  /** Die Kopie in der Kopie-Zone — durchscheinend, bis jemand sie nimmt. */
-  private copy: THREE.Object3D | null = null;
-  /** Ihre eigenen Materialien; sie gehen mit ihr (`clearCopy`). */
-  private readonly copySkins: THREE.Material[] = [];
+  private readonly plates = new Map<Furnish, Plate>();
 
   // --- der Feuerlöscher ------------------------------------------------------
   /** Ob er gerade pustet, und ob die Auslöser im vorigen Bild schon lagen. */
@@ -833,10 +857,18 @@ export class KitchenZone implements TestZone {
    * Jede Uhr rechnet nebenan und gibt einen neuen Zustand zurück, dazu das,
    * was in diesem Bild fertig geworden ist. Die Zone tut damit genau zwei
    * Dinge: das Netz tauschen und es sagen.
+   *
+   * **Ein Möbel in der Hand arbeitet nicht.** Seit ein Herd samt seiner Pfanne
+   * getragen werden kann (`liftPiece`, `stowGear`), gibt es Stationen, die
+   * gerade nirgends stehen — und ein Patty, das vor dem Bauch weiterbrutzelt
+   * und unterwegs Feuer fängt, ist kein Spiel, sondern ein Rätsel. Dasselbe
+   * gilt für die Vorlage auf einer Kopierfläche: Sie ist ein Modell und keine
+   * Küche.
    */
   private cook(dt: number): void {
     if (!this.stations.length) return;
     for (const spot of this.stations) {
+      if (spot.home.held) continue;
       switch (spot.kind) {
         case 'stove':
           this.stoveFrame(spot, dt);
@@ -1393,13 +1425,11 @@ export class KitchenZone implements TestZone {
    * beim Aufräumen verschwände, wäre eine Küche mit einem Loch darin.
    */
   reset(): void {
-    // **Erst die Kopierfläche räumen, dann die Hände.** Was dort als Miniatur
-    // steht, ist ein gewöhnliches Möbel mit leeren Händen dahinter
-    // (`onPlate`); es muss in die Hand, damit `dropPiece(true)` es heimschicken
-    // kann. Andersherum stünde nach dem Aufräumen eine Vorlage auf einem
-    // Kopierer, den niemand mehr aufheben kann.
-    if (!this.lifted) this.takeFromPlate();
+    // **Auch die Kopierflächen werden geräumt.** Was dort als Miniatur steht,
+    // ist ein gewöhnliches Möbel; bliebe es liegen, stünde nach dem Aufräumen
+    // eine Vorlage auf einem Kopierer, den niemand mehr aufheben kann.
     if (this.lifted) this.dropPiece(true);
+    this.clearPlates();
     this.editing = false;
     // **Und das Schild sagt es auch.** `editing` allein umzulegen hieß: Auf
     // dem Knopf stand nach dem Aufräumen weiter „Küche nutzen", während längst
@@ -1438,10 +1468,16 @@ export class KitchenZone implements TestZone {
     // Kachel, auf der gleich wieder alles frisch liegt, sperrte sie für einen
     // Handgriff, den niemand mehr erwartet.
     this.beltNow = null;
-    const loose = [this.carried, ...this.stations.map((spot) => spot.on)];
+    // **Was getragen wird oder auf einer Kopierfläche steht, bleibt, wie es
+    // ist.** Darauf liegt höchstens das eigene Gerät des Möbels, und das reist
+    // mit ihm (`stowGear`); es hier abzuräumen hieße, den Topf auf der Kachel
+    // abzustellen, auf der sein Herd einmal stand, während der Herd anderswo
+    // ist. Wo das Möbel wieder hinkommt, stellt `dropPiece` ihn zurück.
+    const standing = this.stations.filter((spot) => !spot.home.held);
+    const loose = [this.carried, ...standing.map((spot) => spot.on)];
     this.carried = null;
     if (this.avatar) this.avatar.carry = null;
-    for (const spot of this.stations) {
+    for (const spot of standing) {
       spot.on = null;
       spot.table = CLEAR_TABLE;
       spot.belt = BELT_EMPTY;
@@ -1507,11 +1543,9 @@ export class KitchenZone implements TestZone {
     this.buildButton = null;
     this.notice?.dispose();
     this.notice = null;
-    this.clearCopy();
+    for (const copier of [...this.plates.keys()]) this.clearCopy(copier);
+    this.plates.clear();
     this.models.clear();
-    this.computer = null;
-    this.copier = null;
-    this.onPlate = null;
     this.stations.length = 0;
     this.furniture.length = 0;
     this.bodies.length = 0;
@@ -1607,16 +1641,13 @@ export class KitchenZone implements TestZone {
     // **Das erste Netz je Sorte wird die Vorlage** (`models`). Gebaut wird es
     // ohnehin, ob im Schauraum oder in der Küche — und aus ihm klont der
     // Möbelkatalog seine Miniaturen.
-    if (!this.models.has(piece.name)) this.models.set(piece.name, model);
-    if (!spot.show) {
-      this.furniture.push(furnish);
-      // Zwei Möbel bedienen sich selbst und stehen deshalb auch einzeln da:
-      // Der Rechner macht den Katalog auf, der Kopierer vervielfältigt. Beide
-      // haben keine Station (`stationKind` gibt `null`), also fände sie die
-      // Schleife in `refreshStations` sonst nie.
-      if (piece.name === 'desk') this.computer = furnish;
-      if (piece.name === 'copier') this.copier = furnish;
+    // Der **Maßstab** kommt mit: Geladene Möbel sind halbiert
+    // (`core/kitchenModel.KITCHEN_SCALE`), gebaute stehen auf 1, und ein Klon,
+    // der das nicht weiß, steht doppelt so groß in der Küche (`pieceScale`).
+    if (!this.models.has(piece.name)) {
+      this.models.set(piece.name, { model, scale: model.scale.x });
     }
+    if (!spot.show) this.furniture.push(furnish);
     // **Das Wasser gehört dem Möbel und nicht der Station** — also steht es
     // auch im Schauraum im Becken, wo es gar nichts zu spülen gibt. Ein
     // Spülbecken ohne Wasser ist eine Blechmulde, und der Schauraum zeigt, wie
@@ -1999,7 +2030,11 @@ export class KitchenZone implements TestZone {
       return;
     }
     for (const furnish of this.furniture) {
-      if (furnish === this.computer || furnish === this.copier) continue;
+      // **Was getragen wird oder auf einer Kopierfläche steht, meldet nichts
+      // an.** Seine Station hätte eine Ablage an der Kachel, auf der es einmal
+      // stand — und eine Ausgabe, die man vor dem Bauch trägt, gewönne gegen
+      // die halbe Küche und legte ihr Brötchen dorthin, wo sie früher stand.
+      if (furnish.held || selfServed(furnish.piece.name)) continue;
       const spot = furnish.station;
       // **Die Regel selbst sagt, ob es hier etwas zu tun gibt.** Vorher stand
       // hier eine zweite Liste je Stationsart — und die lief mit jeder neuen
@@ -2568,7 +2603,12 @@ export class KitchenZone implements TestZone {
   private toggleEdit(): boolean {
     const world = this.world;
     if (!world) return false;
-    if (this.editing && this.lifted) this.dropPiece(true);
+    // **In beide Richtungen die Hände frei.** Beim Ausschalten war das schon
+    // so; beim Einschalten ist es neu und nötig, seit ein Möbel auch ohne
+    // Umbau in die Hand kommt (`takeFromCatalogue`). Ein getragener Herd wäre
+    // sonst eine Station, die das Abräumen gleich darauf auf ihre alte Kachel
+    // zurückräumt — der Topf läge dann dort, wo der Herd einmal stand.
+    if (this.lifted) this.dropPiece(true);
     this.editing = !this.editing;
     if (this.editing) this.calmStations();
     // Alle Anmeldungen fallen lassen: Im Baumodus meint `A` etwas anderes,
@@ -2589,10 +2629,10 @@ export class KitchenZone implements TestZone {
   /** Im Baumodus hört **jedes** Möbel auf `A` — und zwar auf sich selbst. */
   private refreshEditables(world: ZoneHost): void {
     for (const furnish of this.furniture) {
-      // Die beiden mit eigener Anmeldung übergehen: Sie haben im Umbau
-      // dieselben zwei Bedeutungen wie sonst, nur dass eine davon das
-      // Aufheben ist (`useDesk`, `useCopier`).
-      if (furnish === this.computer || furnish === this.copier) continue;
+      // Die mit eigener Anmeldung übergehen: Sie haben im Umbau dieselben zwei
+      // Bedeutungen wie sonst, nur dass eine davon das Aufheben ist
+      // (`useDesk`, `useCopier`).
+      if (selfServed(furnish.piece.name)) continue;
       const wanted = !furnish.held && this.lifted === null;
       this.setLive(world, furnish, wanted);
     }
@@ -2627,28 +2667,24 @@ export class KitchenZone implements TestZone {
   // --- der Rechner, der Möbelkatalog und der Kopierer -------------------------
 
   /**
-   * **Zwei Möbel bedienen sich selbst**, und sie hängen deshalb nicht an der
-   * Schleife über die Stationen.
+   * **Die Möbel, die sich selbst bedienen** — und es sind alle ihrer Sorte.
    *
-   * Rechner und Kopierer haben keine Ablage und geben nichts aus; für
-   * `kitchenPlan.stationKind` sind sie damit gar nichts, und in
-   * `refreshStations` käme nie eine Anmeldung für sie zustande. Sie bekommen
-   * ihre eigene, und die gilt in **beiden** Betriebsarten: Auch beim Kochen
-   * soll man den Katalog aufmachen können, und beim Kopieren auch dann, wenn
-   * gerade nicht umgebaut wird.
-   *
-   * **Abgemeldet wird, solange das Konstrukt offen steht.** Dort sieht man die
-   * Küche nicht, und ein Möbel, auf das man durch einen weißen Raum hindurch
-   * drückt, ist ein Griff ins Nichts mit Wirkung.
+   * Der erste Entwurf merkte sich **einen** Rechner und **einen** Kopierer in
+   * je einem Feld, und das war genau so lange richtig, bis jemand über den
+   * Möbelkatalog einen zweiten holte: Das Feld zeigte dann auf den neuen, der
+   * alte fiel aus der Anmeldung und stand als totes Möbel herum. Ein Katalog,
+   * der jedes Möbel hergibt, darf von keinem annehmen, dass es das einzige ist
+   * — also entscheidet die **Sorte** und kein Merker.
    */
   private refreshSpecials(world: ZoneHost): void {
-    for (const furnish of [this.computer, this.copier]) {
-      if (!furnish) continue;
+    for (const furnish of this.furniture) {
+      const kind = selfServed(furnish.piece.name);
+      if (!kind) continue;
       // Der Kopierer hört auch mit einem Möbel in der Hand zu — auf ihn legt
       // man es ja. Der Rechner nicht: Dort **holt** man eines, und zwei auf
       // einmal trägt niemand; abgemeldet gewinnt stattdessen der Bauplatz vor
       // den Füßen (`showGhost`), und das ist auch das, was man dann will.
-      const free = furnish === this.copier || this.lifted === null;
+      const free = kind === 'copier' || this.lifted === null;
       this.setSelf(world, furnish, !furnish.held && free);
     }
   }
@@ -2663,7 +2699,7 @@ export class KitchenZone implements TestZone {
     // Drei Pfeilfunktionen davor und nicht `this` in einen Namen gelegt: Ein
     // Getter im Objektliteral bindet sein eigenes `this`, und das wäre hier
     // das Literal und nicht die Zone.
-    const copier = furnish === this.copier;
+    const copier = selfServed(furnish.piece.name) === 'copier';
     const act = (): boolean => (copier ? this.useCopier(furnish) : this.useDesk(furnish));
     const say = (): string => (copier ? this.copierPrompt(furnish) : this.deskPrompt(furnish));
     const grip = (): 'press' | 'grab' =>
@@ -2731,7 +2767,9 @@ export class KitchenZone implements TestZone {
   private deskPrompt(furnish: Furnish): string {
     if (this.world?.inConstruct()) return 'Zurück in die Küche';
     const { dx, dz } = this.towards(furnish);
-    if (pieceSide(furnish.turn, dx, dz) === 'front') return 'Möbelkatalog öffnen';
+    if (pieceSide(furnish.turn, dx, dz) === 'front') {
+      return this.carried ? 'Erst die Hände frei machen' : 'Möbelkatalog öffnen';
+    }
     return this.editing
       ? `${furnish.piece.label} aufheben`
       : `${furnish.piece.label} — von vorn bedienen`;
@@ -2753,6 +2791,12 @@ export class KitchenZone implements TestZone {
    * wieder in der Küche — genau dort, wo er vor dem Tisch stand, denn bewegt
    * hat er sich nie.
    *
+   * **Mit vollen Händen geht er nicht auf**, und das ist keine Schikane: Die
+   * Figur trägt genau **ein** Ding vor dem Bauch (`carryInHands`), Essen und
+   * Möbel teilen sich diesen Platz. Wer mit einem Brötchen in der Hand ein
+   * Möbel zöge, bekäme ein Möbel, das dreißig Meter neben ihm herflöge, weil
+   * niemand es hinstellt.
+   *
    * **Gezeigt wird, was geladen ist**, und nicht, was im Katalog steht: Ohne
    * WebGL und ohne Modelldatei gibt es keine Netze, und ein Regal aus leeren
    * Gruppen wäre ein weißer Raum, in dem man nichts findet. Die gebauten
@@ -2762,6 +2806,10 @@ export class KitchenZone implements TestZone {
   private openCatalogue(furnish: Furnish): boolean {
     const world = this.world;
     if (!world) return false;
+    if (this.carried) {
+      world.notify('Erst die Hände frei machen');
+      return true;
+    }
     const items: ConstructItem[] = [];
     for (const piece of KITCHEN_PIECES) {
       const mini = this.miniature(piece.name);
@@ -2792,6 +2840,21 @@ export class KitchenZone implements TestZone {
   }
 
   /**
+   * **Der Grundmaßstab eines Katalogstücks.**
+   *
+   * Geladene Möbel kommen **halbiert** aus der Datei (`core/kitchenModel.ts`
+   * setzt `KITCHEN_SCALE` auf das Netz, nicht auf die Geometrie), gebaute
+   * stehen auf 1. Wer irgendwo `scale.setScalar(1)` schriebe, um „wieder
+   * normal" zu meinen, verdoppelte damit jede Spüle und jeden Herd — und die
+   * Hülle dazu bliebe, wo sie war, denn die kommt aus dem Katalog und nicht
+   * aus dem Netz. Also wird der Maßstab beim ersten Aufstellen gemerkt und
+   * überall von hier geholt.
+   */
+  private pieceScale(name: string): number {
+    return this.models.get(name)?.scale ?? 1;
+  }
+
+  /**
    * **Eine Miniatur eines Katalogstücks** — geklont, nicht gebaut.
    *
    * Auf eine Handbreit gerechnet und nicht auf einen festen Faktor: Zwischen
@@ -2804,9 +2867,12 @@ export class KitchenZone implements TestZone {
   private miniature(name: string): THREE.Object3D | null {
     const source = this.models.get(name);
     if (!source) return null;
-    const model = source.clone(true);
+    const model = source.model.clone(true);
     model.position.set(0, 0, 0);
     model.rotation.set(0, 0, 0);
+    // Auf 1 und nicht auf den Grundmaßstab: Gemessen wird gleich ohnehin, und
+    // gemessen werden soll die **Form** und nicht, wie groß sie zufällig gerade
+    // in der Küche steht (die Vorlage auf einer Kopierfläche steht im Drittel).
     model.scale.set(1, 1, 1);
     model.visible = true;
     const box = new THREE.Box3().setFromObject(model);
@@ -2839,11 +2905,16 @@ export class KitchenZone implements TestZone {
    */
   private takeFromCatalogue(piece: KitchenPiece): boolean {
     const world = this.world;
-    if (!world || this.lifted) return false;
+    if (!world || this.lifted || this.carried) return false;
     const model = piece.built
       ? this.buildPiece(piece)
-      : (this.models.get(piece.name)?.clone(true) ?? null);
+      : (this.models.get(piece.name)?.model.clone(true) ?? null);
     if (!model) return false;
+    // **Der Klon kommt von einem Netz, das in der Welt steht**, und das kann
+    // jede Größe haben: Eine Vorlage auf einer Kopierfläche steht im Drittel.
+    // `place`/`standAt` setzen Ort und Drehung, den Maßstab niemand — also
+    // hier, aus dem gemerkten Grundmaß.
+    model.scale.setScalar(this.pieceScale(piece.name));
     const home = this.freeTile(piece);
     if (!home) {
       world.notify('Kein freier Platz in der Küche — erst etwas wegstellen');
@@ -2870,17 +2941,23 @@ export class KitchenZone implements TestZone {
    *
    * Sie ist die Heimat eines neu entstandenen Möbels und nicht sein Standort:
    * Hingestellt wird es dort, wo der Spieler es hinstellt.
+   *
+   * **Getragene Möbel belegen dabei ihre Heimat und nicht ihren Standort.**
+   * Sonst bekämen zwei nacheinander geholte Mülleimer dieselbe Heimatkachel —
+   * die erste war ja frei, als der zweite geholt wurde —, und beim Aufräumen
+   * stünden sie ineinander.
    */
   private freeTile(piece: KitchenPiece): BuildTile | null {
     const size = footprint(piece, 0);
-    const used = this.furniture.filter((one) => !one.held);
+    const used: BuildSpot[] = this.furniture.map((one) =>
+      one.held
+        ? { x: one.spot.x, z: one.spot.z, ...footprint(one.piece, one.spot.turn ?? 0) }
+        : { x: one.x, z: one.z, w: one.size.w, d: one.size.d },
+    );
     for (let z = 0; z + size.d <= KITCHEN.d; z++) {
       for (let x = 0; x + size.w <= KITCHEN.w; x++) {
         const want: BuildSpot = { x, z, w: size.w, d: size.d };
-        if (
-          used.some((one) => overlaps(want, { x: one.x, z: one.z, w: one.size.w, d: one.size.d }))
-        )
-          continue;
+        if (used.some((one) => overlaps(want, one))) continue;
         return { x, z };
       }
     }
@@ -2903,48 +2980,66 @@ export class KitchenZone implements TestZone {
    * echtes Möbel, und in der Zone wächst sofort die nächste nach. Das Gerät
    * gibt also unbegrenzt her, solange die Vorlage liegen bleibt; das ist die
    * Absicht und kein Versehen.
+   *
+   * **Aufheben geht von beiden Hälften**, solange keine Vorlage liegt. Wer im
+   * Umbau vor der leeren Kopie-Zone steht und den Kopierer versetzen will,
+   * soll nicht erst um das Gerät herumlaufen müssen.
    */
   private useCopier(furnish: Furnish): boolean {
     const world = this.world;
     if (!world) return false;
+    const plate = this.plates.get(furnish) ?? null;
     const { dx, dz } = this.towards(furnish);
     if (copierField(furnish.turn, dx, dz) === 'zone') {
-      if (!this.onPlate) {
+      if (!plate) {
+        if (this.editing && !this.lifted) return this.liftPiece(furnish);
         world.notify('Erst eine Vorlage auf die Kopierfläche legen');
         return true;
       }
-      if (this.lifted) {
+      if (this.lifted || this.carried) {
         world.notify('Erst die Hände frei machen');
         return true;
       }
-      const made = this.takeFromCatalogue(this.onPlate.piece);
+      const made = this.takeFromCatalogue(plate.load.piece);
       // Die Kopie wächst nach: Sie hing an der Vorlage und nicht an diesem
       // einen Griff.
       if (made) this.showCopy(furnish);
       return true;
     }
     if (this.lifted) return this.layOnPlate(furnish);
-    if (this.onPlate) return this.takeFromPlate();
+    if (plate) {
+      if (this.carried) {
+        world.notify('Erst die Hände frei machen');
+        return true;
+      }
+      return this.takeFromPlate(furnish);
+    }
     if (this.editing) return this.liftPiece(furnish);
     world.notify(`${furnish.piece.label}: ein Möbel darauflegen, dann daneben abholen`);
     return true;
   }
 
   private copierPrompt(furnish: Furnish): string {
+    const plate = this.plates.get(furnish) ?? null;
     const { dx, dz } = this.towards(furnish);
     if (copierField(furnish.turn, dx, dz) === 'zone') {
-      return this.onPlate ? `Kopie von ${this.onPlate.piece.label} nehmen` : 'Kopie-Zone (leer)';
+      if (plate) return `Kopie von ${plate.load.piece.label} nehmen`;
+      return this.editing && !this.lifted ? `${furnish.piece.label} aufheben` : 'Kopie-Zone (leer)';
     }
     if (this.lifted) return `${this.lifted.piece.label} auf die Kopierfläche legen`;
-    if (this.onPlate) return `${this.onPlate.piece.label} herunternehmen`;
+    if (plate) return `${plate.load.piece.label} herunternehmen`;
     return this.editing ? `${furnish.piece.label} aufheben` : 'Kopierfläche (leer)';
   }
 
   private copierGrip(furnish: Furnish): 'press' | 'grab' {
+    const plate = this.plates.get(furnish) ?? null;
     const { dx, dz } = this.towards(furnish);
-    if (copierField(furnish.turn, dx, dz) === 'zone') return this.onPlate ? 'grab' : 'press';
+    if (copierField(furnish.turn, dx, dz) === 'zone') {
+      if (plate) return 'grab';
+      return this.editing && !this.lifted ? 'grab' : 'press';
+    }
     if (this.lifted) return 'press';
-    if (this.onPlate) return 'grab';
+    if (plate) return 'grab';
     return this.editing ? 'grab' : 'press';
   }
 
@@ -2955,24 +3050,29 @@ export class KitchenZone implements TestZone {
    * deshalb auch nichts, was der Bauplatz für belegt hält. Sein Netz hängt
    * fortan am **Kopierer** und nicht mehr am Gestell des Spielers — damit
    * fährt die Vorlage mit, falls jemand das Gerät später versetzt.
+   *
+   * **Der Maßstab ist ein Faktor auf das Grundmaß** und keine feste Zahl: Ein
+   * geladenes Möbel steht auf 0,5 (`core/kitchenModel.ts`), ein gebautes auf 1.
+   * Wer beide auf `1/3` setzte, machte aus jeder Küchenzeile zwei Drittel ihrer
+   * selbst statt ein Drittel — sichtbar daran, dass sie über ihr Feld hinausragt.
    */
   private layOnPlate(furnish: Furnish): boolean {
     const world = this.world;
     const load = this.lifted;
     if (!world || !load) return false;
-    if (this.onPlate) {
+    if (this.plates.has(furnish)) {
       world.notify('Auf der Kopierfläche steht schon etwas');
       return true;
     }
     this.lifted = null;
-    this.onPlate = load;
+    this.plates.set(furnish, { load, copy: null, skins: [] });
     load.hold = 0;
     const model = load.model;
     furnish.model.add(model);
     const [px, pz] = COPIER_PLATE;
     model.position.set(px, COPIER_DECK, pz);
     model.rotation.set(0, 0, 0);
-    model.scale.setScalar(MINI_SCALE);
+    model.scale.setScalar(this.pieceScale(load.piece.name) * MINI_SCALE);
     world.notify(`${load.piece.label} auf der Kopierfläche`);
     this.showCopy(furnish);
     this.refreshStations();
@@ -2980,13 +3080,14 @@ export class KitchenZone implements TestZone {
   }
 
   /** **Und wieder herunter** — dasselbe Möbel, wieder in voller Größe und in der Hand. */
-  private takeFromPlate(): boolean {
+  private takeFromPlate(furnish: Furnish): boolean {
     const world = this.world;
-    const load = this.onPlate;
-    if (!world || !load || this.lifted) return false;
-    this.onPlate = null;
-    this.clearCopy();
-    load.model.scale.setScalar(1);
+    const plate = this.plates.get(furnish) ?? null;
+    if (!world || !plate || this.lifted) return false;
+    const load = plate.load;
+    this.clearCopy(furnish);
+    this.plates.delete(furnish);
+    load.model.scale.setScalar(this.pieceScale(load.piece.name));
     this.lifted = load;
     load.held = true;
     load.hold = 0;
@@ -2999,6 +3100,23 @@ export class KitchenZone implements TestZone {
   }
 
   /**
+   * **Jede Kopierfläche räumen** — beim Aufräumen (`B`/`Y`) und beim Verlassen
+   * der Welt.
+   *
+   * Über die Hand und nicht am Baum vorbei: `takeFromPlate` und
+   * `dropPiece(true)` sind die beiden Handgriffe, die ein Möbel schon richtig
+   * heimschicken (Körper, Kachel, Station, Anzeigen), und ein dritter Weg
+   * dorthin wäre der, der eines davon vergisst.
+   */
+  private clearPlates(): void {
+    for (const copier of [...this.plates.keys()]) {
+      if (this.lifted) this.dropPiece(true);
+      if (!this.takeFromPlate(copier)) continue;
+      this.dropPiece(true);
+    }
+  }
+
+  /**
    * **Die Kopie in der Zone** — dasselbe Netz, durchscheinend.
    *
    * Sie bekommt **eigene** Materialien und nicht die der Vorlage: Ein geklontes
@@ -3006,10 +3124,10 @@ export class KitchenZone implements TestZone {
    * `opacity` verstellte, machte das Möbel in der Hand gleich mit durchsichtig.
    */
   private showCopy(furnish: Furnish): void {
-    this.clearCopy();
-    const load = this.onPlate;
-    if (!load) return;
-    const model = load.model.clone(true);
+    this.clearCopy(furnish);
+    const plate = this.plates.get(furnish) ?? null;
+    if (!plate) return;
+    const model = plate.load.model.clone(true);
     model.traverse((node) => {
       const mesh = node as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -3022,7 +3140,7 @@ export class KitchenZone implements TestZone {
         // **Nicht in `owned`.** Die Kopie entsteht bei jedem Griff neu; eine
         // Liste, die erst beim Verlassen der Welt geleert wird, wüchse mit
         // jedem kopierten Möbel. Sie gehen mit ihrer Kopie (`clearCopy`).
-        this.copySkins.push(ghost);
+        plate.skins.push(ghost);
         return ghost;
       });
       mesh.castShadow = false;
@@ -3032,36 +3150,91 @@ export class KitchenZone implements TestZone {
     model.position.set(zx, COPIER_DECK, zz);
     model.name = 'kitchen-copy';
     furnish.model.add(model);
-    this.copy = model;
+    plate.copy = model;
+  }
+  /** Die Kopie wieder weg — beim Herunternehmen der Vorlage und beim Aufräumen. */
+  private clearCopy(furnish: Furnish): void {
+    const plate = this.plates.get(furnish);
+    if (!plate) return;
+    for (const skin of plate.skins) skin.dispose();
+    plate.skins.length = 0;
+    plate.copy?.removeFromParent();
+    plate.copy = null;
   }
 
-  /** Die Kopie wieder weg — beim Herunternehmen der Vorlage und beim Aufräumen. */
-  private clearCopy(): void {
-    for (const skin of this.copySkins) skin.dispose();
-    this.copySkins.length = 0;
-    if (!this.copy) return;
-    this.copy.removeFromParent();
-    this.copy = null;
+  /**
+   * **Das eigene Gerät eines Möbels** — der Topf auf seinem Herd, der Löscher
+   * auf seinem Hocker.
+   *
+   * Erkannt am **Heimweg** und nicht am Namen: `Carried.home` ist die Station,
+   * auf die `B` es zurückstellt, und die steht beim Gerät auf dem Möbel, auf
+   * dem es geliefert wurde (`addStation`). Ein Topf, den jemand auf einen
+   * fremden Tisch gestellt hat, ist dort deshalb **kein** eigenes Gerät — und
+   * genau richtig so: Dieser Tisch lässt sich dann nicht aufheben.
+   */
+  private ownGear(furnish: Furnish): Carried | null {
+    const spot = furnish.station;
+    const on = spot?.on ?? null;
+    return on && on.home === spot ? on : null;
+  }
+
+  /**
+   * **Das Gerät reist am Möbel mit.**
+   *
+   * Es hängt sich unter das Netz des Möbels, damit es Ort, Drehung und
+   * Handhaltung von selbst mitmacht — beim Absetzen holt `dropPiece` es wieder
+   * heraus und stellt es auf die neue Ablage.
+   *
+   * **Der Maßstab wird gegengerechnet**, und das ist die Zeile, die man
+   * vergisst: Ein geladenes Möbel steht auf 0,5 (`core/kitchenModel.ts`), und
+   * ein Kind darunter erbt das. Ohne das `1/s` wäre der Topf beim Tragen halb
+   * so groß und säße auf halber Höhe.
+   */
+  private stowGear(furnish: Furnish, gear: Carried): void {
+    const scale = furnish.model.scale.x || 1;
+    furnish.model.add(gear.object);
+    gear.object.scale.setScalar(1 / scale);
+    gear.object.rotation.set(0, 0, 0);
+    gear.object.position.set(0, kitchenDeck(furnish.piece) / scale, 0);
   }
 
   /**
    * **Ein Möbel aufheben** — und es lässt seine Sperre nicht stehen.
    *
-   * Was darauf liegt, bleibt der Grund, es **nicht** zu tun: Ein Herd, den man
-   * mit der Pfanne darauf davonträgt, ist ein Herd, dessen Pfanne beim
-   * Absetzen irgendwo in der Luft hängt. Erst abräumen, dann tragen — ein Satz
-   * mehr und ein Fehler weniger.
+   * Was darauf liegt, bleibt der Grund, es **nicht** zu tun: Ein Herd, auf dem
+   * ein halber Burger steht, ist einer, dessen Burger beim Absetzen irgendwo in
+   * der Luft hängt. Erst abräumen, dann tragen — ein Satz mehr und ein Fehler
+   * weniger.
+   *
+   * **Sein eigenes Gerät ist davon ausgenommen** (`ownGear`), und ohne diese
+   * Ausnahme wäre die Regel eine Sperre: Topf, Pfanne und Feuerlöscher stehen
+   * auf **ihrem** Möbel, dort gehören sie hin, und dorthin stellt sie auch
+   * jedes Aufräumen zurück (`calmStations`). Wer sie als „nicht leer" zählte,
+   * hätte drei Möbel, die sich nie versetzen lassen — und keinen Weg, sie leer
+   * zu bekommen, denn im Umbau meint `A` das Möbel und nicht mehr den Topf
+   * darauf. Also reist das Gerät mit: Es hängt sich ans Möbel und steht beim
+   * Absetzen wieder auf dessen Ablage.
    */
   private liftPiece(furnish: Furnish): boolean {
     const world = this.world;
     if (!world || this.lifted) return false;
-    if (furnish.station?.on || (furnish.station?.stack ?? 0) > 0) {
+    const gear = this.ownGear(furnish);
+    if ((furnish.station?.on && !gear) || (furnish.station?.stack ?? 0) > 0) {
       world.notify(`${furnish.piece.label} ist nicht leer — erst abräumen`);
       return true;
     }
     furnish.held = true;
     this.lifted = furnish;
     this.dropBody(furnish);
+    // **Die Anzeigen bleiben nicht stehen.** Ein hochgehobenes Möbel läuft
+    // nicht mehr mit (`cook` übergeht es), und ein Balken, der dort weiter
+    // schwebt, wo es einmal stand, ist die Auskunft über eine Station, die es
+    // an dieser Stelle nicht mehr gibt.
+    if (furnish.station) {
+      this.gauges?.clear(furnish.station.key);
+      furnish.station.shown = null;
+    }
+    if (gear) this.stowGear(furnish, gear);
     if (this.rig) this.rig.add(furnish.model);
     // **Aufgenommen wird mit der Vorderseite nach vorn.** Jedes Möbel liegt
     // gleich in den Händen, egal wie es vorher stand — sonst müsste man erst
@@ -3194,6 +3367,15 @@ export class KitchenZone implements TestZone {
       this.gauges?.clear(station.key);
       station.key = `${furnish.piece.name}@${furnish.x},${furnish.z}`;
       station.shown = null;
+      // **Und das mitgereiste Gerät steigt wieder ab** (`stowGear`): zurück in
+      // die Welt, auf die neue Ablage, in voller Größe. `layOn` macht alle drei
+      // Schritte und stellt nebenbei die Uhr der Station — ein eigener Weg
+      // dafür wäre der, der `settle` vergisst.
+      const gear = this.ownGear(furnish);
+      if (gear) {
+        gear.object.scale.setScalar(1);
+        this.layOn(station, gear);
+      }
     }
     // **Beim Band steht die Laufrichtung dabei.** Es schiebt dorthin
     // (`kitchenBelt.beltStep`), und wer eine Bahn baut, will das bestätigt

@@ -98,13 +98,17 @@ describe('was die Figur anhat', () => {
     // `RackPiece.worn` ist die Auskunft für den Aufrufer; der Reif ist die für
     // den Spieler. Beide müssen dasselbe sagen, sonst steht man vor einem
     // Regal und probiert aus, was man schon anhat.
+    //
+    // **Gebaut wird er bei jedem Stück, sichtbar ist er bei einem** — der
+    // Aufrufer schaltet ihn um, wenn jemand etwas anzieht, ohne das Regal neu
+    // zu bauen (`GridWorld.wearable`), und schalten kann er nur, was da ist.
     const rack = new WardrobeRack();
     for (const piece of rack.pieces({ hat: 'tophat', head: 'beard', body: 'green' })) {
-      let rings = 0;
+      const rings: boolean[] = [];
       piece.object.traverse((child) => {
-        if (child.name === 'rack-worn') rings++;
+        if (child.name === 'rack-worn') rings.push(child.visible);
       });
-      expect(rings).toBe(piece.worn ? 1 : 0);
+      expect(rings).toEqual([piece.worn]);
     }
     rack.dispose();
   });
