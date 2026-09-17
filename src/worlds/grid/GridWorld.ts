@@ -1814,8 +1814,10 @@ export abstract class GridWorld extends PortalWorld {
     // hat, einen gespeicherten Stand, den niemand angelegt hat.
     if (this.editor?.editing) this.saveWorld(true);
     // **Erst heraus, dann abreißen.** Wer die Welt verlässt, während das
-    // Konstrukt offen steht, ließe sonst eine Handvoll unsichtbarer Äste und
-    // ein gesperrtes Rig zurück — und das Rig überlebt den Weltwechsel.
+    // Konstrukt offen steht, ließe sonst eine Handvoll unsichtbarer Äste
+    // zurück — und einen Körper, der durch Wände geht und dessen Pose im Netz
+    // an einer Stelle klebt, die es gleich nicht mehr gibt. Beides überlebt
+    // den Weltwechsel, der Raum nicht.
     this.leaveConstruct();
     this.construct?.dispose();
     this.construct = null;
