@@ -391,13 +391,27 @@ function fold(runs) {
 // --- der Lauf ---------------------------------------------------------------
 
 await mkdir(path.dirname(out), { recursive: true });
-const browser = await chromium.launch({
-  headless: true,
-  ...(process.env.SMOKE_EXECUTABLE ? { executablePath: process.env.SMOKE_EXECUTABLE } : {}),
-  args: software
-    ? ['--enable-webgl', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
-    : ['--enable-webgl', '--ignore-gpu-blocklist'],
-});
+/**
+ * **Der Browser wird als sterblich behandelt.** Ein SwiftShader, der eine
+ * Stunde lang Szene um Szene mit sechshundert Zeichenaufrufen rastert, geht
+ * irgendwann aus dem Speicher — und danach scheitert jede weitere Messung mit
+ * „Target page, context or browser has been closed". Deshalb wird er zu Beginn
+ * jedes Durchgangs frisch gestartet und nach jedem Fehlschlag nachgesehen, ob
+ * er noch da ist.
+ */
+const launch = () =>
+  chromium.launch({
+    headless: true,
+    ...(process.env.SMOKE_EXECUTABLE ? { executablePath: process.env.SMOKE_EXECUTABLE } : {}),
+    args: software
+      ? ['--enable-webgl', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
+      : ['--enable-webgl', '--ignore-gpu-blocklist'],
+  });
+let browser = await launch();
+const freshBrowser = async () => {
+  if (browser?.isConnected()) await browser.close().catch(() => {});
+  browser = await launch();
+};
 
 const plan = cases().filter((item) => !only || only.has(item.id));
 const results = [];
@@ -434,6 +448,7 @@ const collected = new Map(tasks.map((task) => [`${task.world}/${task.item.id}`, 
 
 try {
   for (let repeat = 1; repeat <= repeats; repeat++) {
+    if (repeat > 1) await freshBrowser();
     for (const { world, item } of tasks) {
       const key = `${world}/${item.id}`;
       process.stdout.write(
@@ -451,6 +466,10 @@ try {
           const message = error.message.split('\n')[0];
           console.log(`  Versuch ${attempt} fehlgeschlagen: ${message}`);
           failures.push({ world, case: item.id, repeat, attempt, message });
+          // Ist der Browser selbst weg, hilft ein zweiter Versuch im selben
+          // Browser nicht — der zweite bekäme denselben Fehler, und alle
+          // folgenden Zeilen ebenfalls.
+          if (!browser.isConnected()) await freshBrowser();
         }
       }
       if (!run) continue;
@@ -468,7 +487,7 @@ try {
     }
   }
 } finally {
-  await browser.close();
+  await browser.close().catch(() => {});
   report.finished = new Date().toISOString();
   await save();
 }
