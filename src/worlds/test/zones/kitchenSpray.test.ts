@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import {
   DOUSE_COOL,
   DRY,
+  EXTINGUISHER_HULL,
+  MUZZLE_AHEAD,
+  MUZZLE_LIFT,
+  NOZZLE_TIP,
   SPRAY_HALF_ANGLE,
   SPRAY_RANGE,
   SPRAY_SECONDS,
@@ -10,6 +14,7 @@ import {
   douseProgress,
   inSpray,
   sprayHold,
+  sprayMuzzle,
   sprayOn,
   type DouseState,
 } from './kitchenSpray';
@@ -17,10 +22,13 @@ import {
 /**
  * **Was der Feuerlöscher verspricht** (`kitchenSpray.ts`).
  *
- * Drei Versprechen, und alle drei sind im Headset teuer nachzustellen: dass der
+ * Vier Versprechen, und alle vier sind im Headset teuer nachzustellen: dass der
  * Kegel vorn trifft und hinten nicht, dass derselbe Knopf in drei Ansichten
- * dasselbe **meint** und trotzdem verschieden **liegt**, und dass ein Herd bei
- * einem Bild von 100 s genauso lange löscht wie bei tausend Bildern von 0,1 s.
+ * dasselbe **meint** und trotzdem verschieden **liegt**, dass ein Herd bei
+ * einem Bild von 100 s genauso lange löscht wie bei tausend Bildern von 0,1 s
+ * — und seit der Rückmeldung aus der Quest, dass der Nebel **oben am Rohr**
+ * austritt und nicht unten am Fuß (`sprayMuzzle`). Das letzte ist das
+ * teuerste: Welt laden, hinlaufen, greifen, sprühen, hinsehen.
  *
  * Kein WebGL und kein `document`: Auch der Nebel malt nichts auf eine Leinwand,
  * also läuft er hier wie jede andere Rechnung (`core/chefFit.canLoadModels`).
@@ -242,7 +250,16 @@ describe('SprayJet — der Nebel', () => {
     return parent;
   }
 
-  const NOZZLE = new THREE.Vector3(11, 1.1, -4);
+  /**
+   * **Der Löscher, wie die Küche ihn hereinreicht** — der Ursprung seines
+   * Netzes, und der liegt an seinem **Fuß** (`kitchen.spray`:
+   * `held.object.getWorldPosition`, Ursprung aus
+   * `core/kitchenModel.takeUtensil`). Genau von hier aus rechnet `inSpray` in
+   * der Küche, und genau hier kam der Nebel bis zu diesem Auftrag heraus.
+   */
+  const HELD = new THREE.Vector3(11, 1.1, -4);
+  /** Und die Düse darüber — dorthin gehört der Nebel (`sprayMuzzle`). */
+  const MUZZLE = sprayMuzzle(HELD, { x: 0, z: -1 }, new THREE.Vector3());
   const AHEAD = new THREE.Vector3(0, 0, -1);
   /** So viele Bällchen muss ein laufender Strahl mindestens zeigen. */
   const PUFFS_SEEN = 20;
@@ -255,7 +272,7 @@ describe('SprayJet — der Nebel', () => {
   it('hängt nichts in die Szene, solange niemand pustet', () => {
     const parent = stage();
     const jet = new SprayJet(parent);
-    for (let i = 0; i < 60; i++) jet.update(0.016, false, NOZZLE, AHEAD);
+    for (let i = 0; i < 60; i++) jet.update(0.016, false, HELD, AHEAD);
     expect(parent.children).toHaveLength(0);
     jet.dispose();
   });
@@ -264,16 +281,16 @@ describe('SprayJet — der Nebel', () => {
     const parent = stage();
     const jet = new SprayJet(parent);
 
-    jet.update(0.016, true, NOZZLE, AHEAD);
+    jet.update(0.016, true, HELD, AHEAD);
     expect(parent.children).toHaveLength(1);
     const group = parent.children[0]!;
     // Nach einem Bild ist der Strahl noch kurz — er wächst nach vorn heraus.
     const first = shown(group).length;
-    for (let i = 0; i < 60; i++) jet.update(0.016, true, NOZZLE, AHEAD);
+    for (let i = 0; i < 60; i++) jet.update(0.016, true, HELD, AHEAD);
     expect(shown(group).length).toBeGreaterThan(first);
 
     // Ausgemacht: Der Rest fliegt noch zu Ende und hängt sich dann selbst ab.
-    for (let i = 0; i < 120; i++) jet.update(0.016, false, NOZZLE, AHEAD);
+    for (let i = 0; i < 120; i++) jet.update(0.016, false, HELD, AHEAD);
     expect(parent.children).toHaveLength(0);
     jet.dispose();
   });
@@ -281,13 +298,13 @@ describe('SprayJet — der Nebel', () => {
   it('baut nichts nach, wie lange auch gepustet wird', () => {
     const parent = stage();
     const jet = new SprayJet(parent);
-    jet.update(0.016, true, NOZZLE, AHEAD);
+    jet.update(0.016, true, HELD, AHEAD);
     const count = parent.children[0]!.children.length;
-    for (let i = 0; i < 600; i++) jet.update(0.016, true, NOZZLE, AHEAD);
+    for (let i = 0; i < 600; i++) jet.update(0.016, true, HELD, AHEAD);
     expect(parent.children[0]!.children).toHaveLength(count);
     // Und beim Wiederanmachen entsteht auch keine zweite Gruppe.
-    for (let i = 0; i < 120; i++) jet.update(0.016, false, NOZZLE, AHEAD);
-    jet.update(0.016, true, NOZZLE, AHEAD);
+    for (let i = 0; i < 120; i++) jet.update(0.016, false, HELD, AHEAD);
+    jet.update(0.016, true, HELD, AHEAD);
     expect(parent.children).toHaveLength(1);
     jet.dispose();
   });
@@ -295,39 +312,101 @@ describe('SprayJet — der Nebel', () => {
   it('steht an der Düse und zeigt dorthin, wohin gehalten wird', () => {
     const parent = stage();
     const jet = new SprayJet(parent);
-    for (let i = 0; i < 40; i++) jet.update(0.016, true, NOZZLE, AHEAD);
+    for (let i = 0; i < 40; i++) jet.update(0.016, true, HELD, AHEAD);
     const group = parent.children[0]!;
 
     const at = group.getWorldPosition(new THREE.Vector3());
-    expect(at.x).toBeCloseTo(NOZZLE.x, 5);
-    expect(at.y).toBeCloseTo(NOZZLE.y, 5);
-    expect(at.z).toBeCloseTo(NOZZLE.z, 5);
+    expect(at.x).toBeCloseTo(MUZZLE.x, 5);
+    expect(at.y).toBeCloseTo(MUZZLE.y, 5);
+    expect(at.z).toBeCloseTo(MUZZLE.z, 5);
 
     // Jedes sichtbare Bällchen liegt vor der Düse, in Richtung des Strahls —
     // auch am gedrehten Elternteil, an dem ein falsch verwandelter
     // Richtungsvektor sofort auffiele.
     const world = new THREE.Vector3();
     for (const puff of shown(group)) {
-      puff.getWorldPosition(world).sub(NOZZLE);
+      puff.getWorldPosition(world).sub(HELD);
       expect(world.z).toBeLessThanOrEqual(1e-6);
     }
     jet.dispose();
   });
 
+  it('pustet oben aus dem Rohr und nicht unten aus dem Fuß', () => {
+    // Die Rückmeldung aus der Quest, Wort für Wort: „nur sollte der Rauch oben
+    // aus dem Rohr kommen, nicht unten". Herein kommt der Ursprung des Netzes,
+    // und der liegt unten in seiner Mitte — der Nebel gehört trotzdem an die
+    // Düse, und die sitzt auf 0,88 der Höhe (`NOZZLE_TIP`).
+    const parent = stage();
+    const jet = new SprayJet(parent);
+    for (let i = 0; i < 40; i++) jet.update(0.016, true, HELD, AHEAD);
+    const group = parent.children[0]!;
+
+    const at = group.getWorldPosition(new THREE.Vector3());
+    expect(at.y - HELD.y).toBeCloseTo(MUZZLE_LIFT, 6);
+    // **Über der Mitte des Löschers** und nicht an seinem Fuß: Das ist die
+    // Aussage, um die es geht, und sie hängt an der Messung und nicht an
+    // dieser Zeile.
+    expect(at.y - HELD.y).toBeGreaterThan(EXTINGUISHER_HULL.height / 2);
+    // Und vor seiner Achse, dort, wo das Rohr endet — `AHEAD` zeigt nach -z.
+    expect(HELD.z - at.z).toBeCloseTo(MUZZLE_AHEAD, 6);
+
+    // Und das gilt auch für den Nebel selbst und nicht nur für die Gruppe, an
+    // der er hängt: Das Bällchen, das der Düse am nächsten ist — das jüngste,
+    // das eben erst ausgestoßen wurde —, steht oben am Rohr. Weiter draußen
+    // fächert der Kegel auf und der Nebel hängt durch (`PUFF_FAN`,
+    // `PUFF_DROOP`), aber **bis auf den Fuß** des Löschers fällt keines zurück.
+    const world = new THREE.Vector3();
+    let nearest = Number.POSITIVE_INFINITY;
+    let atNozzle = 0;
+    for (const puff of shown(group)) {
+      puff.getWorldPosition(world);
+      expect(world.y).toBeGreaterThan(HELD.y);
+      const away = world.distanceTo(MUZZLE);
+      if (away >= nearest) continue;
+      nearest = away;
+      atNozzle = world.y;
+    }
+    expect(atNozzle).toBeGreaterThan(HELD.y + EXTINGUISHER_HULL.height / 2);
+    jet.dispose();
+  });
+
+  it('setzt die Düse dorthin, wo das Modell sie hat', () => {
+    // Gemessen an `public/models/kitchen.glb` (`NOZZLE_TIP`): oben am Rohr,
+    // knapp unter dem Tragebügel auf 0,93 (`kitchenGrab.NOZZLE_BAR`) und vorn
+    // an der Hülle, deren +x das Rohr überhaupt erst macht.
+    expect(NOZZLE_TIP.lift).toBeLessThan(0.93);
+    expect(MUZZLE_LIFT).toBeCloseTo(NOZZLE_TIP.lift * EXTINGUISHER_HULL.height, 6);
+    expect(MUZZLE_AHEAD).toBeCloseTo((NOZZLE_TIP.across * EXTINGUISHER_HULL.width) / 2, 6);
+
+    // Sie dreht sich mit dem Löscher mit — die Länge der Richtung ist egal.
+    const east = sprayMuzzle(HELD, { x: 37, z: 0 }, new THREE.Vector3());
+    expect(east.x - HELD.x).toBeCloseTo(MUZZLE_AHEAD, 6);
+    expect(east.z).toBeCloseTo(HELD.z, 6);
+    expect(east.y - HELD.y).toBeCloseTo(MUZZLE_LIFT, 6);
+
+    // Ohne waagerechte Richtung wird nur gehoben: Wer senkrecht nach unten
+    // sieht, bekommt keinen Strahl, der ins Nichts springt (und keine Null in
+    // der Division).
+    const down = sprayMuzzle(HELD, { x: 0, z: 0 }, new THREE.Vector3());
+    expect(down.x).toBeCloseTo(HELD.x, 6);
+    expect(down.z).toBeCloseTo(HELD.z, 6);
+    expect(down.y - HELD.y).toBeCloseTo(MUZZLE_LIFT, 6);
+  });
+
   it('bleibt im gerechneten Kegel — was man sieht, geht auch aus', () => {
     const parent = stage();
     const jet = new SprayJet(parent);
-    for (let i = 0; i < 90; i++) jet.update(0.016, true, NOZZLE, AHEAD);
+    for (let i = 0; i < 90; i++) jet.update(0.016, true, HELD, AHEAD);
     const group = parent.children[0]!;
 
     const world = new THREE.Vector3();
     let seen = 0;
     for (const puff of shown(group)) {
       puff.getWorldPosition(world);
-      expect(inSpray(NOZZLE, AHEAD, world)).toBe(true);
+      expect(inSpray(HELD, AHEAD, world)).toBe(true);
       // Und auch die **Hülle** bleibt in Reichweite: Der Halbmesser steckt in
       // `scale`, denn die geteilte Form hat den Halbmesser 1.
-      expect(world.distanceTo(NOZZLE) + puff.scale.x).toBeLessThanOrEqual(SPRAY_RANGE);
+      expect(world.distanceTo(HELD) + puff.scale.x).toBeLessThanOrEqual(SPRAY_RANGE);
       seen++;
     }
     // Ein Strahl ohne Bällchen hätte den Test sonst mühelos bestanden.
@@ -338,7 +417,7 @@ describe('SprayJet — der Nebel', () => {
   it('teilt Form und Farbe über alle Bällchen und gibt beide einmal frei', () => {
     const parent = stage();
     const jet = new SprayJet(parent);
-    jet.update(0.016, true, NOZZLE, AHEAD);
+    jet.update(0.016, true, HELD, AHEAD);
     const group = parent.children[0]!;
     const shapes = new Set(group.children.map((child) => (child as THREE.Mesh).geometry));
     const skins = new Set(group.children.map((child) => (child as THREE.Mesh).material));
@@ -356,16 +435,16 @@ describe('SprayJet — der Nebel', () => {
   it('übersteht ein zweites `dispose` und ein `update` danach', () => {
     const parent = stage();
     const jet = new SprayJet(parent);
-    jet.update(0.016, true, NOZZLE, AHEAD);
+    jet.update(0.016, true, HELD, AHEAD);
     jet.dispose();
     expect(() => jet.dispose()).not.toThrow();
-    expect(() => jet.update(0.016, false, NOZZLE, AHEAD)).not.toThrow();
+    expect(() => jet.update(0.016, false, HELD, AHEAD)).not.toThrow();
   });
 
   it('lässt sich von einem `dt` ohne Zahl nicht zerlegen', () => {
     const parent = stage();
     const jet = new SprayJet(parent);
-    jet.update(Number.NaN, true, NOZZLE, AHEAD);
+    jet.update(Number.NaN, true, HELD, AHEAD);
     const world = new THREE.Vector3();
     for (const puff of shown(parent.children[0]!)) {
       puff.getWorldPosition(world);

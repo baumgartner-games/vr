@@ -3678,11 +3678,38 @@ Jetzt wählt in der Brille die Hand, und am Schirm wählt weiter der Körper
 | in der Brille              | die Hand (`core/handUse.pickHandUse`, je Hand eine)  |
 
 Zwischen den **beiden Händen** gilt dieselbe Rangfolge wie innerhalb einer:
-Anfassen sticht Zeigen, unter Gleichen gewinnt das Nächste. Der Körper bleibt
-der **Rückfall**, auch in der Brille: Zeigt keine Hand auf etwas, meint `A`
-weiter, was vor der Figur steht, und dann soll das auch leuchten — ein Saum,
-der in dem Augenblick ausginge, in dem die Taste noch wirkt, wäre derselbe
-Fehler in der anderen Richtung.
+Anfassen sticht Zeigen, unter Gleichen gewinnt das Nächste
+(`core/handUse.betterHandUse` — eine Rechnung für beide Fragen, nicht zwei
+Abschriften). Der Körper bleibt der **Rückfall**, auch in der Brille: Zeigt
+keine Hand auf etwas, meint `A` weiter, was vor der Figur steht, und dann soll
+das auch leuchten — ein Saum, der in dem Augenblick ausginge, in dem die Taste
+noch wirkt, wäre derselbe Fehler in der anderen Richtung.
+
+**Und unter Gleichen führt die Hand, die zuletzt etwas getan hat**
+(`core/handUse.leadHandUse`, `PortalWorld.lastActHand`). Das ist die nächste
+Meldung aus der Brille, und sie ist die Kehrseite der eben beschriebenen:
+Sobald man **trägt**, sprang der Saum zwischen den Händen hin und her, weil er
+immer dem näheren der beiden Funde folgte — mit der Pfanne in der Linken
+streift die freie Rechte beim Gehen ständig irgendeine Arbeitsplatte, und dann
+leuchtete die. Wer eines in der Hand hat, meint mit dieser Hand weiter.
+
+Führend ist, wer zuletzt wirklich **gehandelt** hat: gegriffen (`attach`), ein
+Werkzeug genommen (`takeTool`, `catchLooseTool`) oder gedrückt, wo der Druck
+etwas bewirkt hat (`useByHand`). **Zeigen führt nicht** — sonst wäre es
+dasselbe Hin und Her mit einem Bild Verzögerung. Und zeigt die führende Hand
+ins Leere, gilt wieder der bessere Fund: Ein Saum, der ausgeht, weil der Arm
+gerade herunterhängt, wäre derselbe Fehler noch einmal.
+
+**Mit zwei Gegenständen bekommt jede Hand ihren eigenen Saum.** Steht
+`core/grabSettings.GrabSettings.twoHands`, kann jede Hand etwas Eigenes
+greifen, und dann ist „was meint die Hand?" zweimal zu beantworten — links die
+Pfanne, rechts der Burger, und beide Hände zeigen woandershin. `PortalWorld`
+hält dafür einen **zweiten** `Highlight` (zwei Instanzen und keine Liste: Die
+Klasse verspricht, dass genau ein Ding leuchtet, und zwei Hände sind zwei
+solcher Versprechen). Zeigen beide auf dasselbe Ding, leuchtet es einmal. Der
+Rückfall auf den Körper entfällt dabei mit Absicht: Er ist die Auskunft für die
+**Figur** und nicht für eine Hand, und eine leere Hand soll in dieser
+Betriebsart auch leer aussehen.
 
 Zwei Zeilen Ablauf hängen daran: Worauf eine Hand zeigt, steht erst in
 `updateGrabs` fest, also wird der Saum **danach** gesetzt und nicht davor

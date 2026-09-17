@@ -270,6 +270,7 @@ import {
   interactionView,
   resolveInteraction,
   vrInputs,
+  type InteractionView,
   type ResolvedInteraction,
 } from '../../core/interaction';
 import { grabReaches } from '../../core/grabHandles';
@@ -281,6 +282,7 @@ import {
   gripPressTook,
   handUseFires,
   handUseMemory,
+  leadHandUse,
   pickHandUse,
   stepGripPress,
   type GripPress,
@@ -902,6 +904,40 @@ export class PortalWorld implements World {
    * die Welt verlässt, nimmt ihn mit (`dispose`).
    */
   private readonly highlighter = new Highlight(this.root);
+  /**
+   * **Der zweite Saum** — nur in der Brille und nur, wenn _zwei Gegenstände_
+   * eingeschaltet ist (`core/grabSettings.GrabSettings.twoHands`).
+   *
+   * Solange eine Hand trägt und die andere frei bleibt, gibt es genau **eine**
+   * Auskunft, und ein zweiter Saum wäre eine Frage zu viel: Wer links die
+   * Pfanne hält, greift als Nächstes auch links zu. Sobald aber **jede** Hand
+   * etwas Eigenes greifen kann, ist „was meint die Hand?" zweimal zu
+   * beantworten — und dann gehört jeder Hand ihr eigener Saum, sonst zeigt
+   * eine der beiden ins Ungewisse.
+   *
+   * Zwei Instanzen und keine Liste in `Highlight`: Die Klasse verspricht
+   * ausdrücklich, dass **genau ein** Ding leuchtet (`core/highlight.ts`), und
+   * zwei Hände sind zwei solcher Versprechen — nicht eines mit zwei Dingen.
+   */
+  private readonly secondHighlighter = new Highlight(this.root);
+  /**
+   * **Die Hand, die zuletzt etwas getan hat** — und deshalb die, deren Saum
+   * gilt, solange nur ein Gegenstand getragen wird.
+   *
+   * Das ist die gemeldete Beobachtung aus der Brille: Mit der Pfanne in der
+   * Linken sprang der Saum zwischen den Händen hin und her, weil er immer der
+   * **näheren** der beiden folgte (`handMeans`) — die freie Rechte streifte
+   * im Vorbeigehen eine Arbeitsplatte, und schon leuchtete die statt dessen,
+   * was die tragende Hand meint. Wer eines in der Hand hat, meint aber mit
+   * dieser Hand weiter; die andere schaukelt nur mit.
+   *
+   * Gesetzt wird sie dort, wo eine Hand wirklich **handelt** und nicht, wo sie
+   * hinzeigt: ein Griff nach einem Gegenstand (`attach`), ein Werkzeug in die
+   * Faust (`takeTool`, `catchLooseTool`) und ein Druck, der etwas bewirkt hat
+   * (`useByHand`). Zeigen allein setzt sie nicht — sonst wäre sie wieder
+   * dasselbe Hin und Her, nur mit einem Bild Verzögerung.
+   */
+  private lastActHand: Handedness | null = null;
 
   /**
    * **Die Umrisse der Physik** — das Häkchen _Hitboxen_ unter *Grafik*
@@ -2051,6 +2087,30 @@ export class PortalWorld implements World {
       },
     };
 
+    /**
+     * **Zwei Gegenstände in der Brille** — derselbe Schalter, den in der Küche
+     * der zweite rote Knopf umlegt (`worlds/test/zones/kitchen.ts`).
+     *
+     * Er steht hier **auch**, und das ist kein zweiter Schalter: Beide
+     * schreiben `GrabSettings.twoHands`, und beide Seiten ziehen über
+     * `onGrabChange` nach. Ein Knopf in einer Zone erreicht nur, wer in dieser
+     * Zone steht; eine Menüzeile erreicht jeden, der die Einstellung sucht, wo
+     * alle anderen Greif-Einstellungen stehen.
+     */
+    const twoHandsOn: MenuEntry = {
+      id: 'setting:grab-two-hands',
+      label: 'Zwei Gegenstände',
+      sub: 'In jeder Hand etwas tragen — und jede Hand hebt hervor, worauf sie zeigt',
+      icon: 'glove',
+      accent,
+      checked: this.grabConfig.twoHands,
+      run: () => {
+        const on = !this.grabConfig.twoHands;
+        this.applyGrabSettings(saveGrabSettings({ twoHands: on }));
+        toggle(twoHandsOn, on, on ? 'Zwei Gegenstände an' : 'Zwei Gegenstände aus');
+      },
+    };
+
     const motion: MenuEntry = {
       id: 'setting:grab-motion',
       label: `Im Nahgriff: ${motionLabel(this.grabConfig.motion)}`,
@@ -2118,6 +2178,7 @@ export class PortalWorld implements World {
       icon: 'glove',
       accent,
       children: [
+        twoHandsOn,
         nearOn,
         ...GRAB_FIELDS.map(dial),
         motion,
@@ -3513,6 +3574,7 @@ export class PortalWorld implements World {
     for (const entry of [...this.usables]) this.removeUsable(entry.object);
     // Der Saum hängt an einem Ding der Welt und darf ihr nicht folgen.
     this.highlighter.dispose();
+    this.secondHighlighter.dispose();
     this.hitboxes?.dispose();
     this.hitboxes = null;
     ctx.rig.useCandidate = false;
@@ -5183,6 +5245,7 @@ export class PortalWorld implements World {
 
     const busy = this.held.get(hand);
     if (busy === tool) return;
+    this.lastActHand = hand;
     if (busy) this.stowTool(busy);
 
     // A hand can only carry one thing, tool or prop.
@@ -6668,6 +6731,10 @@ export class PortalWorld implements World {
     _handForward.copy(_handRay.direction);
     const acted = usable.use({ kind: 'player', at: _hand, forward: _handForward, hand });
     if (!acted) return false;
+    // Ein Druck, der etwas bewirkt hat — mehr ist „zuletzt interagiert" nicht
+    // (`lastActHand`). Ein Druck ins Leere zählt ausdrücklich nicht: Sonst
+    // führte eine Hand, die an einer erschöpften Ausgabe hängt, den Saum an.
+    this.lastActHand = hand;
     // **Dieser Druck hat etwas genommen** — nur dann darf sein Loslassen
     // wieder etwas abstellen. Ein Druck ins Leere merkt sich nichts.
     if (find.kind === 'grab' && press) this.gripPresses.set(hand, gripPressTook(press));
@@ -7341,6 +7408,7 @@ export class PortalWorld implements World {
     if (this.fixedInZone(entry)) return;
     const loose = this.loose.get(entry);
     if (loose) {
+      this.lastActHand = hand;
       this.catchLooseTool(hand, loose);
       return;
     }
@@ -7369,6 +7437,9 @@ export class PortalWorld implements World {
     } else {
       entry.object.getWorldPosition(_point);
     }
+    // **Diese Hand hat gehandelt** (`lastActHand`): Ihr gehört von jetzt an der
+    // Saum, solange nur ein Gegenstand getragen wird.
+    this.lastActHand = hand;
     this.grabs.set(hand, {
       entry,
       offset,
@@ -8007,7 +8078,11 @@ export class PortalWorld implements World {
    */
   private showUse(dt: number, ctx: WorldContext): void {
     const view = interactionView(ctx.topDown, ctx.renderer.xr.isPresenting);
-    const chosen = (view === 'vr' ? this.handMeans() : null) ?? this.bodyPick;
+    // **Zwei Hände, zwei Säume — aber nur, wenn auch zwei Gegenstände gehen**
+    // (`core/grabSettings.GrabSettings.twoHands`). Steht der Schalter aus,
+    // trägt man eines, und dann gibt es eine Auskunft und nicht zwei.
+    const split = view === 'vr' && this.grabConfig.twoHands;
+    const chosen = (view === 'vr' ? (split ? null : this.leadHand()) : null) ?? this.bodyPick;
 
     // **Und was das Gemeinte in dieser Ansicht will** (`core/interaction.ts`).
     // Ein Knopf will gedrückt werden, ein Brötchen gegriffen — dieselbe
@@ -8024,38 +8099,65 @@ export class PortalWorld implements World {
     // über allem anderen. Eine Küche im Gedränge hatte damit dauernd ein
     // Schild vor der halben Arbeitsfläche.
     //
-    // **Er hängt jetzt an der Auflösung und nicht mehr nur am Fund**: Was in
-    // dieser Ansicht keinen Geber hat (`interactive`), kündigt auch nichts an.
-    // Heute ändert das nichts — `press` und `grab` haben überall einen —, und
-    // genau so soll es sein: Die Regel steht, bevor der erste Fall kommt.
-    this.highlighter.highlight(this.useInteraction?.interactive ? (chosen?.object ?? null) : null);
+    // **Er hängt an der Auflösung und nicht nur am Fund**: Was in dieser
+    // Ansicht keinen Geber hat (`interactive`), kündigt auch nichts an.
+    if (split) {
+      // **Jede Hand hebt hervor, worauf sie selbst zeigt.** Der Rückfall auf
+      // den Körper entfällt dabei mit Absicht: Er ist die Auskunft für die
+      // Figur und nicht für eine Hand, und eine leere Hand soll in dieser
+      // Betriebsart auch leer aussehen.
+      const first = this.handShows('left', view);
+      const second = this.handShows('right', view);
+      this.highlighter.highlight(first);
+      // Zeigen beide auf **dasselbe** Ding, leuchtet es einmal: Zwei Hüllen um
+      // dasselbe Netz geben keinen zweiten Saum, sondern einen doppelt dicken.
+      this.secondHighlighter.highlight(second === first ? null : second);
+    } else {
+      this.highlighter.highlight(
+        this.useInteraction?.interactive ? (chosen?.object ?? null) : null,
+      );
+      this.secondHighlighter.highlight(null);
+    }
     this.highlighter.update(dt);
+    this.secondHighlighter.update(dt);
   }
 
   /**
-   * **Was die beiden Hände zusammen meinen** — der bessere der zwei Funde.
+   * **Was diese eine Hand zeigen soll** — ihr Fund, sofern er in dieser
+   * Ansicht überhaupt einen Geber hat, sonst nichts.
    *
-   * Dieselbe Rangfolge wie innerhalb einer Hand (`core/handUse.pickHandUse`):
-   * Anfassen sticht Zeigen, unter Gleichen gewinnt das Nächste. Eine Hand, die
-   * in einem Regal steckt, gewinnt damit gegen eine, die quer durch den Raum
-   * auf eine Tür zeigt — und das ist auch die Hand, die als Nächstes etwas tut.
+   * Gebraucht wird es nur in der Betriebsart _zwei Gegenstände_, und dort für
+   * jede Hand einzeln: Die linke darf auf einen Knopf zeigen, während die
+   * rechte auf ein Brötchen zeigt, und beides will eigens aufgelöst werden.
    */
-  private handMeans(): HandPick | null {
-    let best: HandPick | null = null;
-    for (const pick of this.handPicks.values()) {
-      if (!pick) continue;
-      if (!best) {
-        best = pick;
-        continue;
-      }
-      if (best.reach === 'touch' && pick.reach !== 'touch') continue;
-      if (pick.reach === 'touch' && best.reach !== 'touch') {
-        best = pick;
-        continue;
-      }
-      if (pick.distance < best.distance) best = pick;
-    }
-    return best;
+  private handShows(hand: Handedness, view: InteractionView): THREE.Object3D | null {
+    const pick = this.handPicks.get(hand) ?? null;
+    if (!pick) return null;
+    const resolved = resolveInteraction(pick.usable.interaction, view, {
+      config: inputConfig(),
+    });
+    return resolved.interactive ? pick.object : null;
+  }
+
+  /**
+   * **Welche Hand den Saum führt**, solange nur ein Gegenstand getragen wird.
+   *
+   * Die Hand, die zuletzt etwas getan hat (`lastActHand`) — und zwar
+   * **nur**, solange sie selbst etwas meint. Zeigt sie ins Leere, fällt die
+   * Auskunft auf den besseren der beiden Funde zurück (`handMeans`), denn ein
+   * Saum, der ausgeht, weil die tragende Hand gerade herunterhängt, wäre der
+   * gemeldete Fehler in der anderen Richtung: Dann sieht man beim Zielen mit
+   * der freien Hand überhaupt nichts mehr.
+   *
+   * Und solange noch gar nichts getan wurde, ist es wie immer der bessere der
+   * beiden Funde — eine frische Sitzung hat keine führende Hand.
+   */
+  private leadHand(): HandPick | null {
+    return leadHandUse(
+      this.handPicks.get('left') ?? null,
+      this.handPicks.get('right') ?? null,
+      this.lastActHand,
+    );
   }
 
   /** Die Liste als Kandidaten für die Auswahl — Weltpositionen, je Bild frisch. */

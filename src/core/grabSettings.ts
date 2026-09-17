@@ -81,6 +81,28 @@ export interface GrabSettings {
   /** Die Geisterhand am Gegenstand, solange er nah gefasst werden kann. */
   ghost: boolean;
   /**
+   * **Zwei Gegenstände in der Brille** — links die Pfanne, rechts der Burger.
+   *
+   * Ab Werk **aus**, und das ist keine Vorsicht, sondern die Beobachtung, mit
+   * der dieses Feld entstanden ist: Wer mit einer Hand trägt, will mit der
+   * anderen zeigen, drücken, sich festhalten — und eine Küche, in der beide
+   * Fäuste voll sind, hat keine Hand mehr für den Knopf daneben. Wer die
+   * zweite Hand ausdrücklich haben will, legt den Schalter um; in der Küche
+   * steht dafür ein eigener roter Knopf neben dem Umbauknopf
+   * (`worlds/test/zones/kitchen.ts`).
+   *
+   * Zwei Dinge hängen daran, und beide sind im Auftrag genannt:
+   *
+   * - **Was in den Händen liegt.** Aus: genau ein Gegenstand, ganz gleich,
+   *   welche Hand ihn holt — die zweite Hand nimmt ihn der ersten ab
+   *   (Übergabe). An: jede Hand trägt ihren eigenen.
+   * - **Was leuchtet.** Aus: **eine** Auskunft, und zwar die der Hand, die
+   *   zuletzt etwas getan hat — zwei Säume für einen Gegenstand sind eine
+   *   Frage zu viel. An: jede Hand hebt hervor, worauf sie selbst zeigt,
+   *   denn jetzt kann jede etwas Eigenes greifen.
+   */
+  twoHands: boolean;
+  /**
    * **Welche Fassung dieser Seite im Speicher steht** (`VERSION`).
    *
    * Keine Einstellung, sondern die Antwort auf ein Problem, das jede neue
@@ -141,6 +163,9 @@ export const DEFAULT_GRAB: GrabSettings = {
   scale: 150,
   motion: 'hand',
   ghost: true,
+  // Eine Hand bleibt frei, solange niemand etwas anderes sagt — siehe
+  // `GrabSettings.twoHands`.
+  twoHands: false,
   version: VERSION,
 };
 
@@ -221,7 +246,7 @@ export function clampGrab(settings: Partial<GrabSettings> | undefined): GrabSett
       : DEFAULT_GRAB[field.key];
   }
   if (!GRAB_MOTIONS.includes(next.motion)) next.motion = DEFAULT_GRAB.motion;
-  for (const key of ['remote', 'rope', 'near', 'ghost'] as const) {
+  for (const key of ['remote', 'rope', 'near', 'ghost', 'twoHands'] as const) {
     if (typeof next[key] !== 'boolean') next[key] = DEFAULT_GRAB[key];
   }
   // Was hier herauskommt, ist gegen die heutigen Vorgaben geprüft — und trägt

@@ -690,6 +690,7 @@ npm run build    # Typecheck + Produktionsbuild nach dist/
 npm run preview  # gebautes Ergebnis lokal servieren
 npm test         # Jest (schnell); npm run test:slow für die Rundensimulationen
 npm run icons    # public/icon.svg → die PNG-Symbole der App (braucht Chromium)
+npm run fps      # Bildraten-Matrix gegen einen laufenden Dev-Server (braucht Chromium)
 ```
 
 Der **Service Worker** meldet sich nur im fertigen Build an; im
@@ -737,6 +738,13 @@ dass der Archivar nur einen Raum sieht und das mobile Layout nicht überläuft.
 Ein kurzer Botlauf ersetzt weder den Integrationstest einer vollständigen Mission
 noch eine Quest-Abnahme mit echten VR-Controllern und mehreren Mobilgeräten.
 Details und noch offene Hardwaretests: [Orbital-QA](docs/orbital-qa.md).
+
+Die **Bildrate** misst `npm run fps` (`tools/fps-bench.mjs`): eine Matrix aus
+Grafikeinstellungen über Hub und Testwelt, mit mittlerer Bildzeit und
+1-%-Perzentil. Die Referenzeinstellung für die Quest 3, das Bildzeit-Budget und
+die Grenzen der Messung stehen in
+[Quest-3-Referenz](docs/quest3-referenz.md). SwiftShader liefert dabei keine
+vorhersagbaren fps — nur Verhältnisse.
 
 Der Workflow [Browser smoke](.github/workflows/browser.yml) prüft den gebauten
 Stand zusätzlich mit Chromium und `--no-screenshots` in CI. Der Report bleibt dort

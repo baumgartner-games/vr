@@ -95,6 +95,40 @@ export interface HandUseButtons {
 }
 
 /**
+ * **So viel, wie die Rangfolge von einem Fund wissen muss** — wie er erreicht
+ * wird und wie weit weg er ist.
+ *
+ * Es steht eigens da, weil dieselbe Rangfolge an **zwei** Stellen gebraucht
+ * wird und bis eben an beiden ausgeschrieben stand: einmal unter den Funden
+ * **einer** Hand (`pickHandUse`) und einmal zwischen den Funden **zweier**
+ * Hände (`betterHandUse`, in der Welt der gelbe Saum). Zwei Abschriften
+ * derselben sechs Zeilen sind zwei, die nach der nächsten Änderung
+ * verschieden entscheiden.
+ */
+export interface HandReached {
+  readonly reach: HandUseReach;
+  readonly distance: number;
+}
+
+/**
+ * **Der bessere zweier Funde** — Anfassen sticht Zeigen, unter Gleichen
+ * gewinnt das Nächste.
+ *
+ * Eine Hand, die in einem Regal steckt, gewinnt damit gegen eine, die quer
+ * durch den Raum auf eine Tür zeigt — und das ist auch die Hand, die als
+ * Nächstes etwas tut. Bei genau gleichem Abstand bleibt der **erste** Fund
+ * stehen; das ist keine Aussage über die Hände, sondern die Zusage, dass die
+ * Rechnung nicht in jedem Bild anders ausgeht.
+ */
+export function betterHandUse<T extends HandReached>(best: T | null, find: T | null): T | null {
+  if (!find) return best;
+  if (!best) return find;
+  if (best.reach === 'touch' && find.reach !== 'touch') return best;
+  if (find.reach === 'touch' && best.reach !== 'touch') return find;
+  return find.distance < best.distance ? find : best;
+}
+
+/**
  * **Was diese Hand meint.** Anfassen sticht Zeigen; unter Gleichen das
  * Nächste. Dinge ohne Angebot (`none`) kommen gar nicht erst in Frage.
  */
@@ -102,18 +136,46 @@ export function pickHandUse<T>(finds: readonly HandUseFind<T>[]): HandUseFind<T>
   let best: HandUseFind<T> | null = null;
   for (const find of finds) {
     if (find.kind === 'none') continue;
-    if (!best) {
-      best = find;
-      continue;
-    }
-    if (best.reach === 'touch' && find.reach !== 'touch') continue;
-    if (find.reach === 'touch' && best.reach !== 'touch') {
-      best = find;
-      continue;
-    }
-    if (find.distance < best.distance) best = find;
+    best = betterHandUse(best, find);
   }
   return best;
+}
+
+/**
+ * **Welche der beiden Hände den Saum führt**, solange nur **ein** Gegenstand
+ * getragen wird (`core/grabSettings.GrabSettings.twoHands` steht aus).
+ *
+ * Das ist die Antwort auf eine Beobachtung aus der Brille: Mit der Pfanne in
+ * der Linken sprang der gelbe Saum zwischen den Händen hin und her, weil er
+ * immer dem **näheren** der beiden Funde folgte — die freie Rechte streifte im
+ * Vorbeigehen eine Arbeitsplatte, und schon leuchtete die statt dessen, was
+ * die tragende Hand meint. Wer eines in der Hand hält, meint mit dieser Hand
+ * weiter; die andere schaukelt nur mit.
+ *
+ * Die Regel in zwei Zeilen:
+ *
+ * - **Die führende Hand hat Vorrang**, solange sie selbst etwas meint. Führend
+ *   ist, wer zuletzt wirklich etwas **getan** hat — gegriffen, ein Werkzeug
+ *   genommen, einen Knopf gedrückt. Zeigen allein führt nicht, sonst wäre es
+ *   wieder dasselbe Hin und Her mit einem Bild Verzögerung.
+ * - **Zeigt sie ins Leere, gilt wieder der bessere Fund.** Ein Saum, der
+ *   ausginge, weil die tragende Hand gerade herunterhängt, wäre der gemeldete
+ *   Fehler in der anderen Richtung: Dann sähe man beim Zielen mit der freien
+ *   Hand überhaupt nichts mehr.
+ *
+ * Ohne führende Hand — eine frische Sitzung, in der noch nichts geschehen ist
+ * — bleibt alles, wie es war.
+ */
+export function leadHandUse<T extends HandReached>(
+  left: T | null,
+  right: T | null,
+  lead: 'left' | 'right' | null,
+): T | null {
+  if (lead) {
+    const own = lead === 'left' ? left : right;
+    if (own) return own;
+  }
+  return betterHandUse(left, right);
 }
 
 /**

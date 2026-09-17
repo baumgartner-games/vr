@@ -13,6 +13,7 @@ import {
   type KitchenPiece,
 } from '../../../core/kitchenFit';
 import { interactionGrab, resolveInteraction, vrInputs } from '../../../core/interaction';
+import { GRIP_TO_RAY, STANDARD_GRIP } from '../../portal/tools/gripFit';
 import {
   KITCHEN_REACH,
   KITCHEN_STATION_GRAB,
@@ -27,9 +28,45 @@ import { dish, kitchenDeed, kitchenGivesUp, kitchenInteractionSpec } from './kit
 import { PLATE_RADIUS } from './kitchenProps';
 import type { KitchenItem } from './kitchenRecipes';
 
-const PAN_SIZE = { width: 0.63, depth: 1.08, height: 0.18 };
+/**
+ * **Die Hülle der Pfanne, am Modell nachgemessen** — nicht geschätzt und nicht
+ * gerundet, weil an ihr die Winkel hängen, die weiter unten geprüft werden.
+ *
+ * Gemessen an `public/models/kitchen.glb`, Netz `stove-pan`, Material
+ * `Kitchen_Utensils`, und zwar an genau derselben Hülle, die auch das Spiel
+ * misst: Ursprung unten in der Mitte, halber Küchenmaßstab
+ * (`core/kitchenModel.takeUtensil`, `kitchen.markHandles`). Hier stand einmal
+ * eine Höhe von 0,18 m; gemessen sind es 0,128 m, und mit der falschen Höhe
+ * wäre jede Aussage über die Steigung des Stiels um ein Drittel daneben.
+ */
+const PAN_SIZE = { width: 0.628, depth: 1.0785, height: 0.1278 };
 const POT_SIZE = { width: 0.86, depth: 0.63, height: 0.31 };
 const TANK_SIZE = { width: 0.62, depth: 0.39, height: 0.75 };
+
+/**
+ * **Die gemessene Achse des Stiels**, Anteil der halben Tiefe → Anteil der
+ * Höhe: die Mitten von Scheiben quer zu z, aus denselben Scheitelpunkten wie
+ * oben. Von 0,20 (dort wächst das Rohr aus der Mulde) bis 0,775 (dort endet es
+ * und die flache Fahne beginnt), dazu deren Mitte bei 1,00.
+ */
+const PAN_STALK_AXIS: readonly (readonly [number, number])[] = [
+  [0.2, 0.34],
+  [0.3, 0.39],
+  [0.5, 0.505],
+  [0.7, 0.627],
+  [0.775, 0.654],
+  [1.0, 0.818],
+];
+
+/** Wie weit der Standardgriff **jedes** Werkzeug nach vorn neigt, im Bogenmaß. */
+const GRIP_PITCH = -2 * Math.atan2(STANDARD_GRIP.rotation.x, STANDARD_GRIP.rotation.w);
+
+function dot(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number },
+): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
 
 /** Wohin die Faustachse (+Y) dieses Griffs im Raum des Dings zeigt, gerundet. */
 function axisOf(spot: GrabHandle): number[] {
@@ -103,14 +140,102 @@ describe('Wie ein Küchending gegriffen werden will', () => {
   });
 
   /**
+   * **Und sie steckt wirklich im Stiel** — das ist die Frage, die der
+   * Prüfstand als Bild beantwortet (`preview/handlesPreview.ts`, Ansicht
+   * `pan-roh`), hier als Zahl.
+   *
+   * Geprüft wird gegen die **gemessene Achse** des Rohrs (`PAN_STALK_AXIS`):
+   * An keiner Stelle darf die Stange weiter als vier Millimeter daneben
+   * liegen, und das ist weniger als ein Zehntel ihres Halbmessers. Eine
+   * Stange, die man von Hand um 20° drehte, fiele hier mit acht Zentimetern
+   * durch — genau dafür steht der Test hier.
+   */
+  it('hält die Stange über ihre ganze Länge in der gemessenen Stielachse', () => {
+    const [stalk] = kitchenHandles('pan', PAN_SIZE);
+    const half = PAN_SIZE.depth / 2;
+    const bar = stalk!.hold!;
+    // Die Gerade der Stange, als Höhe über einem Anteil der halben Tiefe.
+    const rise = bar.along.y / bar.along.z;
+    const heightAt = (along: number): number =>
+      stalk!.pose.position.y + (along * half - stalk!.pose.position.z) * rise;
+    for (const [along, lift] of PAN_STALK_AXIS) {
+      const off = Math.abs(heightAt(along) - lift * PAN_SIZE.height);
+      expect([along, off < 0.004]).toEqual([along, true]);
+      expect([along, off < bar.radius]).toEqual([along, true]);
+    }
+  });
+
+  /**
+   * **Wie steil der Stiel ansteigt** — 8,1°, und das ist eine Eigenschaft des
+   * Modells und keine Einstellung.
+   *
+   * Gemessen steigt die Achse des Rohrs um 7,4°; mit der flachen Fahne am Ende
+   * (`lift` 0,82 bei `along` 1,00), auf der die Spitze der Stange sitzt, sind
+   * es 8,1°. Hier stand einmal 8,7° — derselbe Stiel, nur der Fuß der Stange
+   * saß drei Zentimeter zu weit hinten.
+   */
+  it('lässt den Stiel um die gemessenen 8,1° ansteigen', () => {
+    const [stalk] = kitchenHandles('pan', PAN_SIZE);
+    const bar = stalk!.hold!;
+    const rise = (Math.atan2(Math.abs(bar.along.y), Math.abs(bar.along.z)) * 180) / Math.PI;
+    expect(rise).toBeCloseTo(8.1, 1);
+  });
+
+  /**
    * **Und sie liegt waagerecht in der Faust, mit der Mulde vorn.** Das ist der
    * gemeldete Fehler als Zusicherung: Vorher stand der Stiel in der
    * Faustachse, also hing die Pfanne hochkant und hinter der Hand.
+   *
+   * Die Faustachse steht dabei **nicht mehr auf der Senkrechten der Pfanne**,
+   * sondern um 20,7° nach vorn gekippt — die zweite Rückmeldung aus der
+   * Brille („der Zylinder-Halter muss weiter nach vorne gekippt werden, so 20°
+   * mehr"), und zwar als gerechnete Zahl: die 8,1° des Stiels plus die 12,6°,
+   * mit denen der Standardgriff jedes Werkzeug neigt. Das Vorne zeigt weiter
+   * zur Mulde.
    */
-  it('hält die Pfanne oben offen und die Mulde vorn', () => {
+  it('kippt die Faust um die 20,7° nach vorn, die aus der Brille gemeldet wurden', () => {
     const [stalk] = kitchenHandles('pan', PAN_SIZE);
-    expect(axisOf(stalk!)).toEqual([0, 1, 0]);
-    expect(frontOf(stalk!)).toEqual([0, 0, -1]);
+    const axis = axisOf(stalk!);
+    const front = frontOf(stalk!);
+    expect(axis).toEqual([0, 0.94, -0.35]);
+    expect(front).toEqual([0, -0.35, -0.94]);
+    // Dieselbe Drehung in Grad, und woraus sie besteht — ungerundet, denn eine
+    // Achse auf zwei Stellen wäre hier schon ein Drittelgrad daneben.
+    const raw = rotateVec({ x: 0, y: 1, z: 0 }, stalk!.pose.rotation, { x: 0, y: 0, z: 0 });
+    const tilt = Math.atan2(-raw.z, raw.y);
+    const bar = stalk!.hold!;
+    const rise = Math.atan2(Math.abs(bar.along.y), Math.abs(bar.along.z));
+    expect((tilt * 180) / Math.PI).toBeCloseTo(20.7, 1);
+    expect(tilt - rise).toBeCloseTo(GRIP_PITCH, 6);
+    expect(GRIP_PITCH).toBeCloseTo(0.22, 10);
+  });
+
+  /**
+   * **Wofür die 20,7° gut sind**: Der Stiel liegt in der Hand **waagerecht**.
+   *
+   * Das ist die Rückmeldung selbst, als Rechnung — und die einzige Stelle, an
+   * der sie überhaupt nachprüfbar ist: Im Raum der Pfanne war der Zylinder
+   * schon vorher richtig, schräg lag er erst in der Faust. Vorher stieg er
+   * dort um 21,3° an; jetzt steht er senkrecht auf der Welt-Senkrechten, also
+   * waagerecht.
+   *
+   * Die Pfanne selbst lehnt sich dabei um die 8,1° des Stiels **nach hinten**,
+   * mit der Mulde zum Träger — die Richtung, in der nichts herausrutscht.
+   */
+  it('legt den Stiel in der Faust waagerecht und die Mulde zum Träger', () => {
+    const [stalk] = kitchenHandles('pan', PAN_SIZE);
+    const hold = holdFor(stalk!);
+    const zero = { x: 0, y: 0, z: 0 };
+    // Welt-Senkrechte und Zielrichtung im Griffraum (`gripFit.GRIP_TO_RAY`).
+    const up = rotateVec({ x: 0, y: 1, z: 0 }, GRIP_TO_RAY, { ...zero });
+    const ray = rotateVec({ x: 0, y: 0, z: -1 }, GRIP_TO_RAY, { ...zero });
+    const bar = rotateVec(stalk!.hold!.along, hold.rotation, { ...zero });
+    const pan = rotateVec({ x: 0, y: 1, z: 0 }, hold.rotation, { ...zero });
+    // Die Stange steht senkrecht auf der Welt-Senkrechten: waagerecht.
+    expect(dot(bar, up)).toBeCloseTo(0, 10);
+    // Und die Pfanne lehnt um die Steigung des Stiels zurück, nicht nach vorn.
+    expect((Math.acos(dot(pan, up)) * 180) / Math.PI).toBeCloseTo(8.1, 1);
+    expect(dot(pan, ray)).toBeLessThan(0);
   });
 
   /**
