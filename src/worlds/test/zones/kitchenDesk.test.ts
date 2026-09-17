@@ -335,19 +335,81 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
     expect(skins.size).toBe(5);
 
     for (let i = 0; i < 20; i++) collect(kit.copierPiece());
-    // Sockel, Fuge, Glas, Wiege, Pfosten, Pfeilschaft, Pfeilspitze — sieben
-    // Formen mehr; die vier Pfosten teilen sich eine.
-    expect(shapes.size).toBe(15);
-    // Und nur zwei Farben mehr: Korpus und Fuge sind dieselben wie am Tisch.
-    expect(skins.size).toBe(7);
+    // Sockel, Fuge, Glas, Wiege, Pfosten, zwei Leisten der Bühne, zwei
+    // Schenkel des Zielrahmens, eine Spitze der Spur — zehn Formen mehr für
+    // zwanzig Kopierer: Die vier Pfosten teilen sich eine, die zehn Spitzen
+    // einer Spur ebenfalls.
+    expect(shapes.size).toBe(18);
+    // Und sieben Farben mehr: Glas, Akzent und fünf Spitzen — je Spitze eine,
+    // denn durch sie läuft das Licht (`DeskKit.update`). Korpus und Fuge sind
+    // dieselben wie am Tisch.
+    expect(skins.size).toBe(12);
 
     const shapeGone = jest.spyOn(THREE.BufferGeometry.prototype, 'dispose');
     const skinGone = jest.spyOn(THREE.Material.prototype, 'dispose');
     kit.dispose();
-    expect(shapeGone).toHaveBeenCalledTimes(15);
-    expect(skinGone).toHaveBeenCalledTimes(7);
+    expect(shapeGone).toHaveBeenCalledTimes(18);
+    expect(skinGone).toHaveBeenCalledTimes(12);
     shapeGone.mockRestore();
     skinGone.mockRestore();
+  });
+
+  it('lässt das Licht der Spur von der Kopierfläche zur Kopie-Zone laufen', () => {
+    const kit = new DeskKit();
+    const copier = kit.copierPiece();
+    // Die Spitzen der Spur: alles, was auf beiden Längsseiten des Sockels
+    // liegt, unterhalb der Feldhöhe und mit einer eigenen Farbe.
+    const marks = new Map<number, THREE.MeshStandardMaterial>();
+    const lane: THREE.Mesh[] = [];
+    copier.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (!mesh.isMesh || mesh.position.y >= COPIER_DECK) return;
+      const skin = mesh.material as THREE.MeshStandardMaterial;
+      if (!skin.emissive || Math.abs(mesh.position.z) < 0.3) return;
+      lane.push(mesh);
+      marks.set(Math.round(mesh.position.x * 1000), skin);
+    });
+    // Fünf Stellen, von der Mitte der Kopierfläche bis zur Mitte der Zone —
+    // die Spur fängt an, wo man hinlegt, und hört auf, wo man abholt.
+    const at = [...marks.keys()].sort((a, b) => a - b);
+    expect(at.length).toBe(5);
+    expect(at[0] / 1000).toBeCloseTo(COPIER_PLATE[0], 6);
+    expect(at[at.length - 1] / 1000).toBeCloseTo(COPIER_ZONE[0], 6);
+    // Und die Spur liegt auf **beiden** Längsseiten, je Stelle einmal vorn und
+    // einmal hinten, mit derselben Farbe: Wer von hinten davorsteht, soll
+    // dieselbe Richtung lesen wie der, der vorn steht — und sie im selben Takt
+    // blinken sehen.
+    expect(lane.length).toBe(10);
+    for (const x of at) {
+      const pair = lane.filter((mesh) => Math.round(mesh.position.x * 1000) === x);
+      expect(pair.map((mesh) => Math.sign(mesh.position.z)).sort()).toEqual([-1, 1]);
+      expect(pair[0].material).toBe(pair[1].material);
+    }
+
+    // Das Licht steht zuerst auf der Spitze über der Kopierfläche …
+    const brightest = (): number => {
+      let best = at[0];
+      for (const x of at) {
+        if (marks.get(x)!.emissiveIntensity > marks.get(best)!.emissiveIntensity) best = x;
+      }
+      return best;
+    };
+    kit.update(0.001);
+    expect(brightest()).toBe(at[0]);
+    // … und wandert von dort zur Kopie-Zone, Spitze für Spitze.
+    const seen: number[] = [];
+    for (let i = 1; i < 5; i++) {
+      kit.update(1.2 / 5);
+      seen.push(brightest());
+    }
+    expect(seen).toEqual(at.slice(1));
+
+    // Ein Bild ohne Zeit verstellt nichts, und Unsinn erst recht nicht.
+    const before = at.map((x) => marks.get(x)!.emissiveIntensity);
+    kit.update(0);
+    kit.update(Number.NaN);
+    expect(at.map((x) => marks.get(x)!.emissiveIntensity)).toEqual(before);
+    kit.dispose();
   });
 
   it('ist nach `dispose` leer und lässt sich wieder füllen', () => {

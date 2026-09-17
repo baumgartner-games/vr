@@ -282,6 +282,34 @@ export function tileSlots(count: number, options?: { facing?: number }): Constru
 }
 
 /**
+ * **Wie ein Stück auf seiner Kachel steht** — in Vierteldrehungen, und nur in
+ * denen.
+ *
+ * Es sieht zur Mitte, denn ein Regal, dessen Stücke alle in dieselbe
+ * Weltrichtung zeigen, zeigt der Figur die Hälfte von hinten. Aber es sieht
+ * **nicht genau** zur Mitte, und das ist der Unterschied zu vorher: Wer den
+ * Winkel zur Mitte ausrechnet und ihn hinschreibt, bekommt auf jeder Kachel
+ * abseits der beiden Achsen eine krumme Zahl — und damit ein Möbel, das schräg
+ * auf seiner Kachel steht. Zwanzig davon sehen aus wie eine Küche nach einem
+ * Erdbeben, und schlimmer: Ein schräg stehender Herd sagt nichts mehr darüber,
+ * wie er später in der Küche steht. Dort gibt es nur vier Drehungen
+ * (`test/zones/kitchenPlan.Turn`), also gibt es hier auch nur vier.
+ *
+ * Genommen wird die von den vieren, die der Mitte am nächsten kommt: Das Stück
+ * steht **grade** und zeigt trotzdem in den Viertelkreis, in dem die Figur
+ * steht. Bei Gleichstand — auf den Diagonalen — gewinnt die Tiefe, damit zwei
+ * spiegelbildliche Kacheln auch spiegelbildlich stehen und nicht die eine nach
+ * Süden und die andere nach Osten.
+ *
+ * @param slot der Platz, relativ zur Mitte (−z ist vorn)
+ * @returns die Drehung um y, in Bogenmaß und immer ein Vielfaches von 90°
+ */
+export function slotTurn(slot: ConstructSlot): number {
+  if (Math.abs(slot.z) >= Math.abs(slot.x)) return slot.z < 0 ? Math.PI : 0;
+  return slot.x > 0 ? Math.PI / 2 : -Math.PI / 2;
+}
+
+/**
  * **Wie groß der Boden für so viele Stücke sein muss**, in Kacheln von der
  * Mitte aus.
  *
@@ -758,9 +786,8 @@ export class ConstructRoom {
     entry.object = object;
     this.stage?.add(object);
     object.visible = true;
-    // Jedes Stück sieht die Figur an: Ein Regal, dessen Stücke alle in
-    // dieselbe Weltrichtung zeigen, zeigt der Figur die Hälfte von hinten.
-    object.rotation.y = Math.PI - Math.atan2(entry.slot.x, -entry.slot.z);
+    // Jedes Stück sieht zur Mitte — aber in Vierteln (`slotTurn`).
+    object.rotation.y = slotTurn(entry.slot);
     this.host.addUsable(object, this.pickedBy(entry.item), { radius: PICK_RADIUS });
     return object;
   }

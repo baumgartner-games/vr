@@ -394,26 +394,99 @@ const POST_SIDE = 0.04;
 const POST_HIGH = COPIER_HEIGHT - COPIER_DECK;
 
 /**
- * **Der Pfeil von der Vorlage zur Kopie**, in Metern — 23 cm über beide Felder
- * (14 cm Schaft, 9 cm Spitze), vorn auf dem Sockel, quer über die Fuge.
+ * **Die Sparrenspur von der Vorlage zur Kopie** — fünf Pfeilspitzen, die von
+ * der Mitte der Kopierfläche zur Mitte der Kopie-Zone laufen, und zwar auf
+ * **beiden** Längsseiten des Sockels.
  *
- * Er ist die einzige Beschriftung dieses Geräts und beantwortet die eine Frage,
- * die zwei gleich große Felder offenlassen: **welches von beiden zuerst**.
- * Ohne ihn legt der erste, der davorsteht, sein Möbel in die Kopie-Zone und
- * wartet darauf, dass links etwas erscheint.
+ * Sie ersetzt den einen 23-cm-Pfeil, der hier vorher lag, und sie ersetzt ihn
+ * aus zwei Gründen. Der erste ist die Größe: Gelesen wird dieses Möbel aus
+ * 16 m Höhe (`core/topDownPose.ts`), und dort war der alte Pfeil ein Strich.
+ * Der zweite ist die **Seite**: Er lag nur vorn, und ein Kopierer, den man von
+ * hinten anspricht (`copierField` erlaubt das), sagte dann gar nichts mehr.
  *
- * Er liegt an der **Vorderkante**, weil dort steht, wer ihn liest — 6 cm vor
- * den Feldern und einen Zentimeter innerhalb des Sockels, damit er nicht über
- * die Grundfläche des Möbels hinausragt. Und er liegt 6 mm über dem Sockel,
- * also knapp über der Fuge, die er kreuzt: Zwei Flächen auf derselben Höhe
+ * Von Feldmitte zu Feldmitte (`COPIER_PLATE`, `COPIER_ZONE`) und nicht nur über
+ * die Fuge: Die Spur **fängt dort an, wo man hinlegt, und hört dort auf, wo man
+ * abholt**. Das ist die ganze Bedienungsanleitung dieses Geräts, und sie
+ * braucht kein Wort.
+ *
+ * Und sie **läuft** (`DeskKit.update`): Ein Licht wandert von Spitze zu
+ * Spitze, immer zur Kopie-Zone hin. Dieselbe Entscheidung wie bei den Sparren
+ * auf dem Band (`kitchenBelt.BeltKit.update`) und dieselbe Begründung: Eine
+ * Richtung, die sich bewegt, liest man, ohne sie zu suchen — und sie läuft
+ * auch dann, wenn nichts auf dem Glas liegt, denn wer erst dann zeigt, wohin
+ * es geht, zeigt es zu spät.
+ *
+ * Die Spitzen sind 12 cm lang und 7 cm breit: Sie passen mit einem halben
+ * Zentimeter Luft in den 8 cm breiten Rand zwischen Feld und Sockelkante
+ * (`COPIER_BASE_DEEP` gegen `FIELD_DEEP`), ohne über das Möbel hinauszuragen. Und sie liegen 6 mm über dem Sockel, also
+ * knapp über der Fuge, die sie kreuzen: Zwei Flächen auf derselben Höhe
  * flimmern gegeneinander (`kitchenBelt.BAND_LIFT`).
  */
-const ARROW_LONG = 0.14;
-const ARROW_THICK = 0.004;
-const ARROW_HEAD = 0.09;
-const ARROW_HALF = 0.05;
-const ARROW_AT = -0.41;
-const ARROW_LIFT = SEAM_HIGH + 0.002;
+const LANE_MARKS = 5;
+const LANE_HEAD = 0.12;
+const LANE_HALF = 0.035;
+const LANE_AT = (COPIER_BASE_DEEP - 0.08) / 2;
+const LANE_LIFT = SEAM_HIGH + 0.002;
+
+/**
+ * **Wie lange das Licht für die ganze Spur braucht**, in Sekunden — 1,2, und
+ * das ist nach unten gewählt.
+ *
+ * Schneller wäre ein Flackern, das die Küche unruhig macht; langsamer wäre ein
+ * Gerät, das müde aussieht. Bei 1,2 s liegt zwischen zwei Spitzen eine knappe
+ * Viertelsekunde, und das ist die Geschwindigkeit, in der man eine Bewegung
+ * als **Richtung** liest und nicht als Blinken.
+ */
+const LANE_SECONDS = 1.2;
+
+/**
+ * **Wie hell eine Spitze ist**, wenn das Licht gerade woanders ist — und wenn
+ * es auf ihr steht.
+ *
+ * Sie geht nie ganz aus: Eine Spur, deren Spitzen zwischen den Pulsen
+ * verschwinden, ist im Standbild kein Pfeil mehr, und genau so sieht man sie
+ * auf jedem Bildschirmfoto und in jedem Bericht.
+ */
+const LANE_DIM = 0.25;
+const LANE_BRIGHT = 1.1;
+
+/**
+ * **Der Zielrahmen auf dem Glas** — vier Winkel in den Ecken der Kopierfläche,
+ * in Metern.
+ *
+ * Er ist die Antwort auf die Hälfte der Frage, die die Spur offenlässt: Sie
+ * sagt, in welche Richtung es geht, er sagt, dass hier etwas **hinein**gehört.
+ * Vier Winkel und kein geschlossener Rahmen, und das ist der Unterschied zur
+ * Kopie-Zone nebenan (`PAD_BAR`): Ein offener Zielrahmen ist die Markierung
+ * eines Scanners — man legt etwas hinein —, ein geschlossener eine Bühne — auf
+ * ihr steht etwas. Zwei Felder, zwei Zeichen, und keines davon ein Wort.
+ *
+ * 12 cm lange Schenkel, 2 cm breit, 4 cm von der Feldkante eingerückt: groß
+ * genug, um aus 16 m Höhe vier Ecken zu bleiben, und weit genug innen, dass
+ * eine Miniatur in der Feldmitte sie nicht verdeckt. Und 1 mm hoch, denn sie
+ * liegen **auf** dem Glas: Eine Markierung genau in der Glasebene flimmerte
+ * gegen sie, sobald die Kamera sich bewegt (`kitchenBelt.BAND_LIFT`).
+ */
+const MARK_LONG = 0.12;
+const MARK_WIDE = 0.02;
+const MARK_INSET = 0.04;
+const MARK_LIFT = 0.001;
+
+/**
+ * **Der Rahmen um die Kopie-Zone**, in Metern — vier flache Leisten auf der
+ * Kante der Wiege, zwischen den vier Pfosten.
+ *
+ * Ohne ihn ist das dunkle, matte Feld aus 16 m Höhe ein **Loch**, und ein Loch
+ * lädt dazu ein, etwas hineinzulegen — also genau das Gegenteil dessen, was
+ * die Zone tut. Der Rahmen macht aus dem Loch eine Bühne: eine Fläche mit
+ * einer Kante, auf der etwas steht, und die vier Pfosten stehen fortan auf
+ * seinen Ecken, statt frei aus dem Nichts zu wachsen.
+ *
+ * 2,5 cm breite Leisten, 1 mm hoch — dieselbe Höhe wie der Zielrahmen auf dem
+ * Glas und aus demselben Grund: Sie liegen auf der Wiege und nicht in ihr.
+ */
+const PAD_BAR = 0.025;
+const PAD_LIFT = 0.001;
 
 /**
  * **Die Farben.**
@@ -474,6 +547,12 @@ const GLOW_STRENGTH = 0.55;
 export class DeskKit {
   private readonly shapes = new Map<string, THREE.BufferGeometry>();
   private readonly skins = new Map<string, THREE.MeshStandardMaterial>();
+
+  /**
+   * Wie weit das Licht die Sparrenspur schon entlanggelaufen ist (0…1) — eine
+   * Zahl für alle Kopierer dieser Küche (`update`).
+   */
+  private run = 0;
 
   /**
    * **Der Computer-Tisch**, Ursprung **auf dem Boden in seiner Mitte** — wie
@@ -672,24 +751,128 @@ export class DeskKit {
     for (const mesh of [base, seam, glass, cradle, ...posts]) mesh.castShadow = true;
     group.add(base, seam, glass, cradle, ...posts);
 
-    // Der Pfeil ist **aufgemalt und nicht gebaut**: kein Schatten, kein Treffer
-    // für den Strahl (`core/usable.ts` zielt auf Möbel, nicht auf Farbe) —
-    // dieselbe Behandlung wie die Sparren auf dem Band.
-    const shaft = new THREE.Mesh(
-      this.shape('arrow-shaft', () => new THREE.BoxGeometry(ARROW_LONG, ARROW_THICK, SEAM_WIDE)),
-      accent,
+    // **Aufgemalt und nicht gebaut**: kein Schatten, kein Treffer für den
+    // Strahl (`core/usable.ts` zielt auf Möbel, nicht auf Farbe) — dieselbe
+    // Behandlung wie die Sparren auf dem Band. Das gilt für alles, was von hier
+    // an kommt: Spur, Zielrahmen und Bühnenrahmen sind Zeichen auf dem Gerät.
+    const paint: THREE.Mesh[] = [];
+
+    // Die Bühne um die Kopie-Zone: vier Leisten auf der Kante der Wiege, die
+    // vier Pfosten stehen auf ihren Ecken.
+    const padLong = this.shape(
+      'copier-pad-long',
+      () => new THREE.BoxGeometry(FIELD_WIDE, PAD_LIFT, PAD_BAR),
     );
-    shaft.position.set(-ARROW_HEAD / 2, COPIER_BASE_HIGH + ARROW_LIFT, ARROW_AT);
-    const head = new THREE.Mesh(this.shape('arrow-head', arrowHead), accent);
-    head.position.set(ARROW_LONG / 2, COPIER_BASE_HIGH + ARROW_LIFT, ARROW_AT);
-    for (const mesh of [shaft, head]) {
+    const padSide = this.shape(
+      'copier-pad-side',
+      () => new THREE.BoxGeometry(PAD_BAR, PAD_LIFT, FIELD_DEEP - 2 * PAD_BAR),
+    );
+    for (const sz of [-1, 1]) {
+      const bar = new THREE.Mesh(padLong, accent);
+      bar.position.set(
+        COPIER_ZONE[0],
+        COPIER_DECK + PAD_LIFT / 2,
+        COPIER_ZONE[1] + (sz * (FIELD_DEEP - PAD_BAR)) / 2,
+      );
+      paint.push(bar);
+    }
+    for (const sx of [-1, 1]) {
+      const bar = new THREE.Mesh(padSide, accent);
+      bar.position.set(
+        COPIER_ZONE[0] + (sx * (FIELD_WIDE - PAD_BAR)) / 2,
+        COPIER_DECK + PAD_LIFT / 2,
+        COPIER_ZONE[1],
+      );
+      paint.push(bar);
+    }
+
+    // Der Zielrahmen auf dem Glas: vier offene Winkel, je zwei Schenkel.
+    const markLong = this.shape(
+      'copier-mark-long',
+      () => new THREE.BoxGeometry(MARK_LONG, MARK_LIFT, MARK_WIDE),
+    );
+    const markSide = this.shape(
+      'copier-mark-side',
+      () => new THREE.BoxGeometry(MARK_WIDE, MARK_LIFT, MARK_LONG),
+    );
+    const cornerX = FIELD_WIDE / 2 - MARK_INSET;
+    const cornerZ = FIELD_DEEP / 2 - MARK_INSET;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const along = new THREE.Mesh(markLong, accent);
+        along.position.set(
+          COPIER_PLATE[0] + sx * (cornerX - MARK_LONG / 2),
+          COPIER_DECK + MARK_LIFT / 2,
+          COPIER_PLATE[1] + sz * (cornerZ - MARK_WIDE / 2),
+        );
+        const across = new THREE.Mesh(markSide, accent);
+        across.position.set(
+          COPIER_PLATE[0] + sx * (cornerX - MARK_WIDE / 2),
+          COPIER_DECK + MARK_LIFT / 2,
+          COPIER_PLATE[1] + sz * (cornerZ - MARK_LONG / 2),
+        );
+        paint.push(along, across);
+      }
+    }
+
+    // Die Spur: fünf Spitzen je Längsseite, von der Kopierfläche zur Kopie-Zone.
+    // **Je Spitze eine eigene Farbe**, über alle Kopierer geteilt: Durch sie
+    // läuft das Licht (`update`), und zwei Geräte, die verschieden blinkten,
+    // sähen aus wie zwei verschiedene Geräte.
+    const headShape = this.shape('copier-lane-head', laneHead);
+    for (let i = 0; i < LANE_MARKS; i++) {
+      const skin = this.skin(laneKey(i), {
+        color: GLOW_COLOR,
+        emissive: GLOW_COLOR,
+        emissiveIntensity: LANE_DIM,
+        roughness: 0.45,
+      });
+      const at = COPIER_PLATE[0] + ((COPIER_ZONE[0] - COPIER_PLATE[0]) * i) / (LANE_MARKS - 1);
+      for (const sz of [-1, 1]) {
+        const mark = new THREE.Mesh(headShape, skin);
+        mark.position.set(at, COPIER_BASE_HIGH + LANE_LIFT, sz * LANE_AT);
+        paint.push(mark);
+      }
+    }
+
+    for (const mesh of paint) {
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       mesh.raycast = () => {};
     }
-    group.add(shaft, head);
+    group.add(...paint);
 
     return group;
+  }
+
+  /**
+   * **Ein Bild weiter: das Licht wandert die Spur entlang.**
+   *
+   * Angefasst werden `LANE_MARKS` Zahlen und nichts sonst — kein Netz, keine
+   * Textur, keine Geometrie (dieselbe Sparsamkeit wie beim Band, das je Bild
+   * einen Texturversatz verstellt und sonst nichts). Alle Kopierer einer Küche
+   * teilen sich diese Farben und laufen deshalb im Gleichschritt: Ein zweites
+   * Gerät, das eine halbe Sekunde versetzt blinkte, sähe aus wie ein Gerät mit
+   * einem anderen Motor, und es ist dasselbe.
+   *
+   * Der Puls ist ein Dreieck und keine Stufe: Er steigt zur Spitze hin an und
+   * fällt wieder ab, und damit ist die Bewegung ein **Wandern** und kein
+   * Weiterspringen. Und er läuft immer, ob eine Vorlage liegt oder nicht
+   * (`LANE_SECONDS`).
+   */
+  update(dt: number): void {
+    const step = Number.isFinite(dt) ? Math.max(0, dt) : 0;
+    if (step === 0) return;
+    this.run = (this.run + step / LANE_SECONDS) % 1;
+    for (let i = 0; i < LANE_MARKS; i++) {
+      const skin = this.skins.get(laneKey(i));
+      if (!skin) continue;
+      // Der Abstand dieser Spitze zum Licht, auf (−0,5; 0,5] zurückgeholt: Das
+      // Licht läuft im Kreis, also ist die letzte Spitze der ersten benachbart.
+      const gap = wrapRun(this.run - i / LANE_MARKS);
+      const close = Math.max(0, 1 - Math.abs(gap) * LANE_MARKS);
+      skin.emissiveIntensity = LANE_DIM + (LANE_BRIGHT - LANE_DIM) * close;
+    }
   }
 
   /**
@@ -703,6 +886,7 @@ export class DeskKit {
     for (const skin of this.skins.values()) skin.dispose();
     this.shapes.clear();
     this.skins.clear();
+    this.run = 0;
   }
 
   // --- geteilte Formen und Farben ---------------------------------------------
@@ -743,11 +927,11 @@ export class DeskKit {
 }
 
 /**
- * **Die Spitze des Pfeils** — ein flaches Dreieck in der x-z-Ebene, das nach
- * +x zeigt.
+ * **Eine Spitze der Sparrenspur** — ein flaches Dreieck in der x-z-Ebene, das
+ * nach +x zeigt, also von der Kopierfläche zur Kopie-Zone.
  *
  * Drei Punkte und keine plattgedrückte `ConeGeometry`: Ein Kegel mit drei
- * Segmenten, den man in der Höhe auf 4 mm staucht, ist ein gestauchter Kegel —
+ * Segmenten, den man in der Höhe auf nichts staucht, ist ein gestauchter Kegel —
  * seine Grundfläche steht schräg, und von oben sieht man ein Dreieck, dessen
  * Spitze nicht dort liegt, wo man sie hingerechnet hat. Ein Dreieck ist drei
  * Punkte; die schreibt man hin.
@@ -755,15 +939,26 @@ export class DeskKit {
  * Die Reihenfolge der Punkte ist nicht beliebig: So gedreht zeigt die Normale
  * nach **+y**, und das Dreieck ist von oben sichtbar statt von unten.
  */
-function arrowHead(): THREE.BufferGeometry {
+function laneHead(): THREE.BufferGeometry {
   const head = new THREE.BufferGeometry();
   head.setAttribute(
     'position',
     new THREE.Float32BufferAttribute(
-      [ARROW_HEAD / 2, 0, 0, -ARROW_HEAD / 2, 0, -ARROW_HALF, -ARROW_HEAD / 2, 0, ARROW_HALF],
+      [LANE_HEAD / 2, 0, 0, -LANE_HEAD / 2, 0, -LANE_HALF, -LANE_HEAD / 2, 0, LANE_HALF],
       3,
     ),
   );
   head.computeVertexNormals();
   return head;
+}
+
+/** Der Name der Farbe einer Spitze — je Spitze eine, über alle Kopierer geteilt. */
+function laneKey(index: number): string {
+  return `lane:${index}`;
+}
+
+/** Einen Lauf auf (−0,5; 0,5] zurückholen — die Spur ist ein Kreis. */
+function wrapRun(run: number): number {
+  const turn = ((run + 0.5) % 1) - 0.5;
+  return turn <= -0.5 ? turn + 1 : turn;
 }

@@ -6889,6 +6889,32 @@ Und das sind die Regeln, die darin stehen:
   zwischen Insel und Gastraum und nicht an einer Wand — was man kopiert, trägt
   man vom Rechner her heran und danach irgendwohin, und ein Gerät in der Ecke
   wäre zweimal derselbe Weg.
+
+  - **Es erklärt sich ohne ein einziges Wort** — drei Zeichen, kein Schild.
+
+    Die **Sparrenspur** (`LANE_MARKS`, fünf Spitzen je Längsseite) läuft von der
+    Mitte der Kopierfläche zur Mitte der Kopie-Zone, und ein Licht wandert sie
+    entlang (`DeskKit.update`, `LANE_SECONDS` = 1,2 s). Sie ersetzt den einen
+    23-cm-Pfeil, der vorher an der Vorderkante lag: Gelesen wird dieses Möbel
+    aus 16 m Höhe, und dort war er ein Strich — und er lag nur **vorn**, obwohl
+    `copierField` das Gerät von jeder Seite bedienen lässt. Dass die Spur
+    läuft, ist dieselbe Entscheidung wie bei den Sparren auf dem Band, samt
+    Begründung: Eine Richtung, die sich bewegt, liest man, ohne sie zu suchen,
+    und sie läuft auch ohne Vorlage — wer erst dann zeigt, wohin es geht, zeigt
+    es zu spät. Je Spitze eine eigene Farbe, über alle Kopierer einer Küche
+    geteilt: Zwei Geräte, die verschieden blinkten, sähen aus wie zwei
+    verschiedene Geräte.
+
+    Der **Zielrahmen** auf dem Glas (`MARK_LONG`) ist vier offene Winkel in den
+    Ecken der Kopierfläche — die Markierung eines Scanners: Hier legt man etwas
+    hinein. Der **Bühnenrahmen** um die Kopie-Zone (`PAD_BAR`) ist dagegen
+    geschlossen, und die vier Pfosten stehen auf seinen Ecken. Ohne ihn ist das
+    dunkle, matte Feld aus 16 m Höhe ein **Loch**, und ein Loch lädt dazu ein,
+    etwas hineinzulegen — also zu genau dem Gegenteil dessen, was die Zone tut.
+
+    Zwei Felder, zwei Zeichen, eine Richtung dazwischen. Ein Schild („rein",
+    „raus") wäre die vierte Sprache in dieser Küche und die einzige, die man
+    übersetzen muss.
   - **Wer ein Möbel trägt, legt es links als Miniatur ab** (`layOnPlate`) — und
     es bleibt **dasselbe** Möbel, nur klein, nicht seine Nachbildung. Klein
     heißt hier ein **Drittel** (`MINI_SCALE`) und damit eine andere Zahl als im
@@ -6913,7 +6939,7 @@ Und das sind die Regeln, die darin stehen:
     später versetzt. Wer sie herunternimmt, bekommt genau dieses Möbel zurück,
     in voller Größe und in die Hand.
   - **Rechts steht daraufhin eine durchscheinende Kopie** (`showCopy`,
-    `COPY_ALPHA` = 0,45). Sie ist so lange nichts, bis jemand sie nimmt — dann
+    `COPY_ALPHA` = 0,55). Sie ist so lange nichts, bis jemand sie nimmt — dann
     entsteht in der Hand ein echtes Möbel, und die nächste wächst sofort nach.
     Das Gerät gibt also unbegrenzt her, solange die Vorlage liegen bleibt; das
     ist die Absicht und kein Versehen. Die Kopie bekommt dabei **eigene**
@@ -6922,6 +6948,26 @@ Und das sind die Regeln, die darin stehen:
     durchsichtig. Sie gehen mit ihr (`clearCopy`) und nicht in die Liste der
     Welt — die Kopie entsteht bei jedem Griff neu, und eine Liste, die erst beim
     Weltwechsel geleert wird, wüchse mit jedem kopierten Möbel.
+
+    **Ein einzelnes Material bleibt dabei ein einzelnes**, und genau das tat es
+    lange nicht: Die Schleife holte sich `[mesh.material]`, färbte um und
+    hängte die **Liste** wieder ein — auch dort, wo vorher ein einzelnes
+    Material hing. Ein Netz mit einer Materialliste rendert three.js über
+    `geometry.groups`, und eine Geometrie aus einer glTF-Datei hat keine: Was
+    dabei herauskam, war kein blasses Möbel, sondern **gar keines**. Die Kopie
+    gab es, man konnte sie nehmen, sie stand nur nicht da — das Gerät sah
+    kaputt aus, ohne es zu sein. Dieselbe Falle steht überall dort, wo
+    `Array.isArray(mesh.material) ? … : [mesh.material]` nicht nur **gelesen**,
+    sondern auch wieder zurückgeschrieben wird.
+
+    **Und sie leuchtet im Grün des Geräts** (`COPY_GLOW`, `emissiveIntensity`
+    0,3). Ein Möbel, das nur halb durchsichtig ist, verschwindet auf der matten,
+    dunklen Wiege — ausgerechnet ein brauner Unterschrank wird dort zu einem
+    braunen Schatten auf Schwarz. Mit dem Grün trägt die Kopie ihr eigenes
+    Licht, egal welche Farbe das Möbel hat, und sagt zugleich, was sie ist:
+    nicht das Möbel, sondern das, was der Kopierer davon zeigt. 0,3 und nicht
+    mehr, denn wer eine Küchenzeile kopiert, soll eine Küchenzeile sehen und
+    keinen grünen Klotz.
   - **Solange die Vorlage liegt, lässt sich das Gerät nicht aufheben.** Ein
     Kopierer, den man mit der Vorlage darauf durch die Küche trägt, wäre ein
     Möbel mit einem Möbel darin, und beim Absetzen wüsste niemand, wo die
@@ -7235,9 +7281,19 @@ gelbe Saum (`core/highlight.ts`) beim kleinsten Kopfdrehen hin und her.
 Gefüllt wird von innen nach außen und innerhalb eines Rings **von der
 Blickrichtung aus nach beiden Seiten**: Das erste Stück steht dort, wo die Figur
 nach dem Verblassen ohnehin hinsieht, das zweite daneben, und was hinter ihr
-landet, kommt zuletzt. Und jedes Stück sieht die Mitte an: Ein Regal, dessen
-Stücke alle in dieselbe Weltrichtung zeigen, zeigt der Figur die Hälfte von
-hinten.
+landet, kommt zuletzt.
+
+Und jedes Stück sieht die Mitte an — **in Vierteldrehungen** (`slotTurn`): Ein
+Regal, dessen Stücke alle in dieselbe Weltrichtung zeigen, zeigt der Figur die
+Hälfte von hinten; eines, das den Winkel zur Mitte ausrechnet und hinschreibt,
+stellt jedes Stück abseits der beiden Achsen **schräg auf seine Kachel**. Genau
+das war hier zu sehen, und es sah aus wie eine Küche nach einem Erdbeben —
+schlimmer noch: Ein schräg stehender Herd sagt nichts mehr darüber, wie er
+später in der Küche steht, und dort gibt es nur vier Drehungen
+(`test/zones/kitchenPlan.Turn`). Also gibt es hier auch nur vier, und genommen
+wird die, die der Mitte am nächsten kommt. Auf den Diagonalen, wo zwei gleich
+nah sind, gewinnt die Tiefe — sonst stünden zwei spiegelbildliche Kacheln nicht
+spiegelbildlich, sondern die eine nach Süden und die andere nach Osten.
 
 **Gebaut wird ein Stück erst, wenn es an der Reihe ist aufzufahren**
 (`ConstructItem.object`, `ConstructRoom.raise`). Das ist die Antwort auf die
