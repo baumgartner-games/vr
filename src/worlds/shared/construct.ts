@@ -15,17 +15,25 @@ import { TILE } from '../nav/navTile';
  * ein Ring um den Schrank herum, zwei Kacheln Abstand, die Kreuzmitte frei.
  * Der Boden rastet dafür auf dem Kachelgitter der Welt ein (`enter`), damit
  * der Schrank mittig auf **seiner** Kachel steht und nicht quer über vieren.
- * Und weil ein Ring drei Kacheln weiter draußen keine Armlänge mehr ist,
- * reicht `A` hier so weit, wie das entfernteste Stück steht (`reach`) — die
- * Figur bleibt stehen, der Strahl wird länger.
+ * Darin geht man herum: Ein Regal, um das man nicht herumgehen kann, ist ein
+ * Schaufenster. Und weil man dafür nicht bis vor jedes Stück laufen soll,
+ * reicht `A` hier so weit, wie das entfernteste steht (`reach`).
  *
- * **Und der Körper bleibt stehen.** Nichts hier versetzt den Spieler, dreht
- * ihn oder sperrt seine Steuerung: Die anderen im Raum sehen weiter eine
- * Figur, die vor ihrem Schrank steht — sie sehen nur nicht, dass die gerade in
- * einem weißen Nichts ihre Hosen sortiert. Das ist der Grund für die ganze
- * Bauart: Ein Raum, der die Welt **ausblendet**, statt den Spieler
- * wegzuschicken, braucht keine Zeile im Netzwerk (`net/`), keine zweite Szene
- * und keinen zweiten Spielerkörper. Wer stattdessen in eine eigene Szene
+ * **Und der Körper bleibt trotzdem stehen.** Der Raum selbst versetzt niemals
+ * jemanden — er ist eine Ansicht, und wer darin herumläuft, läuft in ihm.
+ * Dafür sorgt die Welt, die ihn aufmacht (`GridWorld.syncConstructBody`): Sie
+ * merkt sich die Stelle, an der jemand hineinging, lässt seinen Körper für die
+ * Dauer durch alles hindurchgehen (`PhysicsLocomotion.ghost` — die Küche ist
+ * ausgeblendet, ihre Wände stehen aber noch), hält die Pose im Netz an der
+ * Eintrittsstelle fest (`NetSession.poseAnchor`) und setzt ihn beim Verlassen
+ * genau dorthin zurück. Die anderen im Raum sehen also weiter eine Figur, die
+ * vor ihrem Schrank steht und sich umsieht — sie sehen nur nicht, dass die
+ * gerade in einem weißen Nichts ihre Hosen sortiert.
+ *
+ * Das ist der Grund für die ganze Bauart: Ein Raum, der die Welt
+ * **ausblendet**, statt den Spieler wegzuschicken, braucht keine zweite Szene
+ * und keinen zweiten Spielerkörper — im Netz kostet er ein Feld und keinen
+ * zweiten Kanal. Wer stattdessen in eine eigene Szene
  * teleportierte, müsste den Rückweg, den Verbindungsabbruch mittendrin und
  * die Frage, wo die anderen die Figur solange sehen, alle drei selbst
  * beantworten.
@@ -116,6 +124,28 @@ export const FLOOR_TILES = 7;
 
 /** Die dunkle Fuge zwischen zwei Kacheln, in Metern. */
 const GROUT = 0.035;
+
+/**
+ * **Das Licht des Raums** — sein eigenes, und das ist der Punkt.
+ *
+ * Der Raum blendet die Welt aus, und die Lichter der Welt hängen als oberstes
+ * Kind in ihrer Gruppe (`shared/environment.createLighting`): Sie gingen mit
+ * aus, und was blieb, war ein weißer Boden mit **schwarzen Scherenschnitten**
+ * darauf. Genau so sah es aus, und genau so war es gemeint — nur nicht so
+ * gedacht.
+ *
+ * Geliehen wird es sich deshalb nicht zurück, es wird mitgebracht. Ein Raum,
+ * dessen Beleuchtung an der Welt hängt, aus der man ihn aufmacht, zeigt
+ * dieselbe Mütze im Dunkelhaus schwarz und in der Küche weiß — und das ist
+ * eine Anprobe, der man nicht trauen kann. Hier ist es in jeder Welt dasselbe
+ * Licht, und es ist ein **Schauraumlicht**: von oben weich und von vorn
+ * gerichtet, ohne Schatten, ohne Farbe, ohne Stimmung. Die Stimmung ist das
+ * Weiß.
+ */
+const LIGHT_SKY = 0xffffff;
+const LIGHT_GROUND = 0x8c97ab;
+const LIGHT_HEMI = 2.4;
+const LIGHT_KEY = 1.2;
 
 /** Wie tief der Boden beim Einblenden noch liegt, in Metern — er kommt herauf. */
 const FLOOR_DIP = 0.3;
@@ -313,6 +343,13 @@ function clamp01(value: number): number {
   return value <= 0 ? 0 : value >= 1 ? 1 : value;
 }
 
+function clampTo(value: number, least: number, most: number): number {
+  return value < least ? least : value > most ? most : value;
+}
+
+/** Zwischenlage für `keepInside` — je Bild gefragt, nie neu angelegt. */
+const _world = new THREE.Vector3();
+
 /**
  * **Der Raum selbst** — einer je Welt, nicht einer je Schrank.
  *
@@ -344,6 +381,8 @@ export class ConstructRoom {
   private floor: THREE.Group | null = null;
   private tiles: THREE.InstancedMesh | null = null;
   private grout: THREE.Mesh | null = null;
+  /** Die beiden Lampen des Raums — sie kommen mit der Deckkraft herauf. */
+  private lights: THREE.Light[] = [];
   /** Wie weit der gebaute Boden reicht, in Kacheln — er wächst, aber schrumpft nie. */
   private floorTiles = 0;
 
@@ -353,11 +392,11 @@ export class ConstructRoom {
    *
    * Die Vorgabe (`core/usable.USE_REACH`, 1,5 m) ist eine Armlänge und eine
    * halbe, und sie ist genau richtig für eine Welt, in der man zu einem Knopf
-   * hingeht. Hier geht niemand hin: Das Rig ist gesperrt, solange der Raum
-   * offen ist (`GridWorld.syncConstructLock`) — das ist der ganze Grund, warum
-   * die anderen Spieler weiter eine Figur vor ihrem Schrank stehen sehen. Die
-   * Stücke stehen dafür jetzt drei Kacheln weit draußen, und ein Regal, das
-   * man ansieht und nicht bedienen kann, ist kein Regal.
+   * **hingeht**. Hingehen kann man hier auch — aber der Ring liegt drei
+   * Kacheln weit draußen und geht einmal herum, und wer für jedes Stück, das
+   * er sich ansehen will, erst drei Schritte und eine halbe Drehung machen
+   * muss, sieht sich zwei an und hört auf. Der Raum ist ein Schauraum: Man
+   * steht in der Mitte, sieht sich um, und was man ansieht, kann man nehmen.
    *
    * Also reicht der Strahl im Konstrukt so weit, wie das entfernteste Stück
    * steht, und keinen Meter weiter. **Gerechnet und nicht geraten**, weil die
@@ -382,6 +421,34 @@ export class ConstructRoom {
   /** Wie weit `A` reichen muss, damit jedes Stück erreichbar ist (siehe `far`). */
   get reach(): number {
     return this.far;
+  }
+
+  /**
+   * **Der Rand des Raums** — eine Stelle in Weltmetern auf den Boden
+   * zurückholen, und sagen, ob das nötig war.
+   *
+   * Seit man hier herumgehen darf, hat der weiße Boden einen Rand, und hinter
+   * dem ist wirklich nichts: kein Boden, keine Kachel, keine Schwerkraft, die
+   * einen zurückholt (`PhysicsLocomotion.ghost`). Wer darüber hinausliefe,
+   * stünde in einem weißen Nichts ohne jedes Merkmal und fände den Weg zurück
+   * nur durch Probieren. Also endet der Raum an seinem Boden, wie ein Zimmer
+   * an seiner Wand — eine halbe Kachel vor der letzten Fuge, damit man nicht
+   * mit den Zehen über der Kante steht.
+   *
+   * Der Raum klemmt dabei nicht selbst: Er sagt nur, wo sein Rand ist. Wer den
+   * Spieler versetzt, ist die Welt (`GridWorld.syncConstructBody`) — der Raum
+   * fasst den Spieler an keiner Stelle an, und das soll so bleiben.
+   */
+  keepInside(point: THREE.Vector3): boolean {
+    const stage = this.stage;
+    if (!this.open || !stage || this.floorTiles <= 0) return false;
+    const reach = (this.floorTiles + 0.5) * TILE_SIZE;
+    const centre = stage.getWorldPosition(_world);
+    const x = clampTo(point.x, centre.x - reach, centre.x + reach);
+    const z = clampTo(point.z, centre.z - reach, centre.z + reach);
+    if (x === point.x && z === point.z) return false;
+    point.set(x, point.y, z);
+    return true;
   }
 
   /**
@@ -516,6 +583,9 @@ export class ConstructRoom {
       this.settle();
     }
     this.disposeFloor();
+    // Eine Lampe hat weder Geometrie noch Material; sie geht mit der Bühne aus
+    // dem Baum, und mehr ist an ihr nicht freizugeben.
+    this.lights = [];
     this.stage?.removeFromParent();
     this.stage = null;
     this.floorTiles = 0;
@@ -651,6 +721,7 @@ export class ConstructRoom {
       this.floor.position.y = -FLOOR_DIP * (1 - open01);
       this.setFloorOpacity(open01);
     }
+    this.setLight(open01);
 
     for (let i = 0; i < this.entries.length; i++) {
       const entry = this.entries[i]!;
@@ -780,6 +851,7 @@ export class ConstructRoom {
   private ensureStage(tiles: number): THREE.Group {
     const stage = (this.stage ??= new THREE.Group());
     stage.name = 'construct';
+    if (this.lights.length === 0) stage.add(this.buildLight());
     if (this.floorTiles >= tiles) return stage;
     if (this.floor) {
       this.floor.removeFromParent();
@@ -788,6 +860,35 @@ export class ConstructRoom {
     stage.add(this.buildFloor(tiles));
     this.floorTiles = tiles;
     return stage;
+  }
+
+  /**
+   * **Die Lampen des Raums** (siehe `LIGHT_HEMI`) — zwei, und sie hängen an der
+   * Bühne.
+   *
+   * An der Bühne und nicht an der Welt, weil sie mit dem Raum kommen und gehen
+   * sollen: Beim Verlassen wird die Bühne ausgehängt (`settle`), und die Welt
+   * bekommt danach genau ihr eigenes Licht zurück und keinen Zuschlag. Für die
+   * halbe Sekunde dazwischen fahren sie mit der Deckkraft herauf, damit die
+   * verblassende Küche nicht kurz doppelt beleuchtet dasteht.
+   *
+   * Kein Schatten: Er kostet einen zweiten Durchgang für eine Handvoll
+   * Miniaturen auf einem Boden, der ohnehin nur weiß ist — und ein Schlagschatten
+   * unter jedem Stück machte aus dem Nichts einen Raum mit Decke.
+   */
+  private buildLight(): THREE.Group {
+    const group = new THREE.Group();
+    group.name = 'construct-light';
+    const hemi = new THREE.HemisphereLight(LIGHT_SKY, LIGHT_GROUND, 0);
+    const key = new THREE.DirectionalLight(LIGHT_SKY, 0);
+    // Von schräg oben vorn, wie in einem Schaufenster. Die Richtung ist die der
+    // Welt und nicht die der Figur: Der Raum dreht sich nicht mit dem Kopf, und
+    // ein Licht, das das täte, nähme jedem Stück seine Form.
+    key.position.set(3, 8, 5);
+    key.castShadow = false;
+    group.add(hemi, key);
+    this.lights = [hemi, key];
+    return group;
   }
 
   /**
@@ -859,6 +960,13 @@ export class ConstructRoom {
     this.tiles = mesh;
     this.grout = grout;
     return floor;
+  }
+
+  /** Die Lampen fahren mit dem Raum herauf — siehe `buildLight`. */
+  private setLight(value: number): void {
+    const [hemi, key] = this.lights;
+    if (hemi) hemi.intensity = LIGHT_HEMI * value;
+    if (key) key.intensity = LIGHT_KEY * value;
   }
 
   private setFloorOpacity(value: number): void {

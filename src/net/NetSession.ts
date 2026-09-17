@@ -57,6 +57,8 @@ const _mat = new THREE.Matrix4();
 const _pos = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _scale = new THREE.Vector3();
+/** Der Versatz eines gesetzten Ankers, einmal je Sendung (`poseAnchor`). */
+const _shift = new THREE.Vector3();
 
 /**
  * Presence and pose sync. Deliberately transport agnostic so that asymmetric
@@ -87,6 +89,30 @@ export class NetSession {
   private worldSince = now();
   /** Cleared while the local camera is glued to someone else's head. */
   visible = true;
+  /**
+   * **Wo die anderen den Körper sehen sollen**, während er in Wahrheit
+   * woanders steht. `null` heißt: alles wie bisher.
+   *
+   * Gedacht für den Konstrukt-Raum (`worlds/shared/construct.ts`). Dort läuft
+   * man in einem weißen Nichts umher, während die anderen weiter die Figur vor
+   * ihrem Schrank sehen sollen — liefe die gesendete Pose mit, wanderte draußen
+   * jemand durch Wände. Solange ein Anker steht, wird deshalb von allen drei
+   * gesendeten Posen derselbe Versatz abgezogen: **verschoben, nicht
+   * eingefroren**. Die Figur draußen bleibt an ihrem Platz, sieht sich aber um
+   * und bewegt die Hände, denn Drehung und Handabstand bleiben unangetastet.
+   *
+   * Der Anker ist eine **Kopfposition** und keine Fußstelle — warum, steht in
+   * `update` bei der Rechnung. Gesetzt wird er also aus `rig.getHeadPosition`
+   * und nicht aus `rig.position`.
+   *
+   * Der Vektor wird bei jedem Senden gelesen und nicht kopiert: Wer ihn
+   * weiterschiebt, schiebt damit die Figur, die die anderen sehen.
+   *
+   * Mit `visible` hat das nichts zu tun. `hidden` nimmt den Avatar drüben ganz
+   * aus der Szene (`net/RemoteAvatars.ts`); hier soll er gerade **gesehen**
+   * werden, nur eben dort, wo er hineingegangen ist.
+   */
+  poseAnchor: THREE.Vector3 | null = null;
   status: NetStatus = 'offline';
   statusDetail = '';
 
@@ -283,15 +309,30 @@ export class NetSession {
     if (this.poseTimer <= 0) {
       this.poseTimer = POSE_INTERVAL;
       rig.getHeadMatrix(_mat);
+      // Der Versatz kommt aus **derselben Matrix** wie die Kopfpose und nicht
+      // aus `rig.position`. Zwischen den beiden Quellen hängt die Kamera im
+      // Gestell — Augenhöhe, Ducken, ein Schritt im Zimmer —, und gegen die
+      // Rig-Position gerechnet spränge die Figur draußen genau in dem Bild, in
+      // dem der Anker gesetzt wird: um eine Augenhöhe nach unten. So dagegen
+      // gilt die Zusage, an der hier alles hängt: Steht der Anker dort, wo der
+      // Kopf gerade ist, kommt Null heraus und die gesendete Pose ist Zeichen
+      // für Zeichen die alte.
+      const shift = this.poseAnchor
+        ? _shift.setFromMatrixPosition(_mat).sub(this.poseAnchor)
+        : null;
+      // Kopf zuerst, Hände danach: `poseFromObject` schreibt selbst in `_mat`.
+      const head = poseFromMatrix(_mat);
+      const left = poseFromObject(input.get('left')?.grip ?? null);
+      const right = poseFromObject(input.get('right')?.grip ?? null);
+      // Alle drei um dasselbe zurück — der Kopf landet auf dem Anker, die Hände
+      // behalten ihren Abstand zu ihm.
+      shiftPose(head, shift);
+      shiftPose(left, shift);
+      shiftPose(right, shift);
       this.send({
         type: 'pose',
         from: this.localId,
-        pose: {
-          head: poseFromMatrix(_mat),
-          left: poseFromObject(input.get('left')?.grip ?? null),
-          right: poseFromObject(input.get('right')?.grip ?? null),
-          hidden: !this.visible,
-        },
+        pose: { head, left, right, hidden: !this.visible },
       });
     }
 
@@ -439,6 +480,21 @@ function poseFromObject(object: THREE.Object3D | null): PoseArray | null {
   if (!object || !object.visible) return null;
   object.updateMatrixWorld();
   return poseFromMatrix(_mat.copy(object.matrixWorld));
+}
+
+/**
+ * Schiebt eine fertige Pose um den Versatz zurück — an Ort und Stelle, weil das
+ * Array gerade erst entstanden ist und niemandem sonst gehört.
+ *
+ * Nur die drei Ortszahlen wandern; die Drehung bleibt, wie sie ist. Ohne
+ * Versatz oder ohne Pose geschieht nichts: `null` ist hier kein Fehler, sondern
+ * eine Hand, die gerade keinen Griff hat (`poseFromObject`).
+ */
+function shiftPose(pose: PoseArray | null, shift: THREE.Vector3 | null): void {
+  if (!pose || !shift) return;
+  pose[0] = round(pose[0] - shift.x);
+  pose[1] = round(pose[1] - shift.y);
+  pose[2] = round(pose[2] - shift.z);
 }
 
 function round(value: number): number {

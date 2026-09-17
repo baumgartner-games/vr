@@ -6876,21 +6876,52 @@ alles andere verschwindet, und nur der Gegenstand selbst bleibt stehen. Um die
 Figur herum fahren die Stücke zur Auswahl aus dem Boden — Kleidung am Schrank,
 Möbel am Rechner. Zurück geht es über denselben Gegenstand.
 
-**Die Figur bewegt sich dabei nicht**, und das ist keine Kulisse, sondern die
-Bedingung, unter der das Ganze überhaupt geht. Draußen steht sie weiter dort, wo
-sie stand, und die anderen im Raum sehen sie dort stehen — sie sehen nur nicht,
-dass die gerade in einem weißen Nichts ihre Hüte sortiert. Deshalb wird das Rig
-gesperrt (`PlayerRig.locked`): Umsehen ja, gehen nein. Liefe man darin herum,
-liefe man draußen mit und käme beim Verlassen irgendwo heraus, nur nicht dort,
-wo man hineingegangen ist. Gemerkt wird, was vorher galt (`GridWorld.lockedWas`)
-— in einer Welt, die aus eigenen Gründen sperrt, wäre ein hartes `false` beim
-Verlassen eine stille Freigabe.
+**Der Körper bleibt dabei in der alten Welt stehen**, und das ist keine
+Kulisse, sondern die Bedingung, unter der das Ganze überhaupt geht. Draußen
+steht die Figur weiter dort, wo sie stand, und die anderen im Raum sehen sie
+dort — sie sehen nur nicht, dass die gerade in einem weißen Nichts ihre Hüte
+sortiert.
+
+**Herumgehen darf man trotzdem**, und seit September 2026 geht das auch: Ein
+Regal, um das man nicht herumgehen kann, ist ein Schaufenster. Drei Dinge
+zusammen machen daraus einen abgeschnittenen eigenen Raum
+(`GridWorld.syncConstructBody`):
+
+- **Die Stelle wird gemerkt** (`constructHome`, gemessen mit
+  `PortalWorld.playerFeet`: waagerecht der Kopf, senkrecht der Boden des Rigs)
+  und beim Verlassen über `movePlayerTo` **ohne Winkel** wieder gesetzt — die
+  Füße landen exakt dort, die Blickrichtung bleibt die, in die man gerade
+  sieht. Ein Ruck der Kamera ohne Anlass wäre das Gegenteil von Komfort.
+- **Der Körper geht durch alles hindurch** (`PhysicsLocomotion.ghost`): keine
+  Kollisionen, keine Schwerkraft, kein Boden, und die **Kapsel bleibt stehen**,
+  wo sie war. Das ist der Unterschied zu `setFlight`, das ausdrücklich an
+  Wänden anhält. Ohne das lief man im leeren Weiß gegen die Küchenzeile, die
+  man gerade nicht sah — die Welt ist ja nur **ausgeblendet**, ihre
+  Kollisionskörper stehen weiter.
+- **Die Pose im Netz bleibt am Anker** (`NetSession.poseAnchor`): Kopf und
+  beide Hände werden um denselben Versatz zurückgeschoben, gerechnet gegen
+  dieselbe Kopfmatrix, aus der die Pose entsteht. Verschoben, nicht
+  eingefroren — die anderen sehen eine Figur, die dasteht und sich umsieht,
+  statt einer Statue. `hidden` wäre das Falsche gewesen: Das macht den Avatar
+  bei den anderen ganz unsichtbar.
+
+Und der Raum hört an seinem Boden auf (`ConstructRoom.keepInside`, eine halbe
+Kachel hinter der letzten Fuge): Ohne Schwerkraft und ohne Kollisionen hielte
+einen sonst nichts davon ab, in ein weißes Nichts ohne jedes Merkmal zu laufen.
+
+**Versucht wurde es zuerst andersherum**, mit `PlayerRig.locked`: Wer drinsteht,
+soll sich gar nicht bewegen können. Das hielt aber nur in der **Brille** —
+`locked` schaltet dort Stock, Sprung und Drehung ab (`PlayerRig.update`, alle
+drei Prüfungen stehen in `if (presenting)`), und am Bildschirm wie am Telefon
+läuft die Figur über `FlatControls.setIntent` daran vorbei. Man lief also doch,
+und zwar gegen unsichtbare Wände, und stand beim Verlassen woanders.
 
 Wer stattdessen in eine **eigene Szene** teleportierte, müsste drei Fragen
 selbst beantworten: den Rückweg, den Verbindungsabbruch mittendrin und die, wo
 die anderen die Figur solange sehen. Ein Raum, der die Welt **ausblendet**,
-statt den Spieler wegzuschicken, braucht keine Zeile im Netzwerk (`net/`), keine
-zweite Szene und keinen zweiten Spielerkörper. Er ist damit auch rein lokal:
+statt den Spieler wegzuschicken, braucht keine zweite Szene und keinen zweiten
+Spielerkörper — im Netz kostet er **ein** Feld (`poseAnchor`) und keinen
+zweiten Kanal. Er ist damit auch rein lokal:
 Nichts daran wird geteilt, nichts daran gehört in einen Spielstand. Er ist eine
 **Ansicht** und kein Ort.
 
@@ -6954,6 +6985,20 @@ als **Welle** (`RISE_STAGGER`, 0,04 s je Stück), hinaus alle zusammen: Nach
 einer halben Sekunde ist die Welt wieder da, und ein Stück, das dann noch
 versinkt, versinkt im Küchenboden.
 
+**Und der Raum bringt sein eigenes Licht mit** (`ConstructRoom.buildLight`).
+Das ist kein Schmuck, sondern ein behobener Fehler: Die Lichter einer Welt
+hängen als oberstes Kind in ihrer Gruppe (`shared/environment.createLighting`),
+und `hideList` blendet genau solche Kinder aus. In three.js zählt ein Licht mit
+`visible = false` in keiner Lichterliste mehr — im Konstrukt stand damit eine
+Auswahl aus `MeshStandardMaterial` ohne eine einzige Lampe, also **schwarze
+Scherenschnitte** auf weißem Boden. Geliehen wird das Licht sich deshalb nicht
+zurück, es wird mitgebracht: eine Hemisphäre und ein gerichtetes Licht von
+schräg oben vorn, ohne Schatten, an der Bühne und nicht an der Welt. Damit
+zeigt dieselbe Mütze im Dunkelhaus dasselbe wie in der Küche — eine Anprobe,
+deren Farbe von der Welt abhinge, ist eine, der man nicht trauen kann. Sie
+fahren mit der Deckkraft herauf, damit die verblassende Küche nicht kurz
+doppelt beleuchtet dasteht, und gehen mit der Bühne wieder aus.
+
 **Der weiße Boden: zwei Netze für 225 Kacheln und keine 225.** Sieben zu jeder
 Seite (`FLOOR_TILES`) sind fünfzehn mal fünfzehn Kacheln, also ein Quadrat von
 15 m — weit genug, dass der Rand in der Brille am Bildrand liegt und nicht vor
@@ -7013,11 +7058,11 @@ vieren. Weil Weltgitter und Konstruktboden dieselbe Kachelgröße haben
 (`nav/navTile.TILE`, 1 m), decken sie sich nach dem Einrasten vollständig.
 
 **Und `A` reicht so weit, wie die Stücke stehen** (`ConstructRoom.reach`,
-`PortalWorld.useReach`, `handUseRange`). Das ist die Folge aus beidem: Die Figur
-bleibt gesperrt stehen — daran hängt, dass die anderen Spieler sie vor ihrem
-Schrank sehen —, und der erste Ring liegt drei Kacheln weit draußen. Entweder
-der Strahl wird länger, oder die Figur dürfte laufen; liefe sie, liefe sie in
-der echten Welt gegen Möbel, die sie gerade nicht sieht. Gerechnet wird die
+`PortalWorld.useReach`, `handUseRange`). Hingehen darf man, aber der Ring liegt
+drei Kacheln weit draußen und geht einmal herum: Wer für jedes Stück, das er
+sich ansehen will, erst drei Schritte und eine halbe Drehung macht, sieht sich
+zwei an und hört auf. Der Raum ist ein **Schauraum** — man steht in der Mitte,
+sieht sich um, und was man ansieht, kann man nehmen. Gerechnet wird die
 Reichweite aus den Plätzen und nicht geraten, sonst wäre sie beim nächsten Ring
 wieder falsch, und sie gilt am Schirm (Strahl aus der Brust) wie in der Brille
 (Zeigen aus der Hand). Gefährlich ist sie nicht: Im Konstrukt ist außer dem
@@ -7093,8 +7138,13 @@ Kachelmitte und auf dem Boden liegt, dass zwei Kacheln um die Mitte und die
 Kreuzmitte frei bleiben, dass die Ringe von innen nach außen füllen und der
 Boden mitwächst, dass der Boden auf der Kachel des **Ankers** einrastet und
 nicht auf den Füßen, dass `A` bis zum entferntesten Stück reicht und keinen
-Meter weiter, dass die Stücke nacheinander entstehen und jedes genau einmal —
-und dass Unsinn (`NaN`, null Stücke) nichts ergibt. Das ist die Sorte Fehler,
+Meter weiter, dass die Stücke nacheinander entstehen und jedes genau einmal,
+dass der Raum sein eigenes Licht anmacht und beim Verlassen wieder aus, dass er
+an seinem Boden aufhört — und dass Unsinn (`NaN`, null Stücke) nichts ergibt.
+Der kollisionsfreie Körper läuft dazu gegen echtes Rapier
+(`physics/playerGhost.test.ts`: die Wand hält ohne ihn, hält mit ihm nicht, die
+Kapsel bleibt stehen, und ein `resync` schaltet ihn ab), und der Anker im Netz
+gegen einen Loopback-Transport (`net/poseAnchor.test.ts`). Das ist die Sorte Fehler,
 die man in der Brille erst merkt, wenn man vor einem Stück steht, das man nicht
 greifen kann.
 
