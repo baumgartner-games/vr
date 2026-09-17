@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { canLoadModels } from '../../../core/chefFit';
 import { kitchenPiece } from '../../../core/kitchenFit';
 import { TILE } from '../../nav/navTile';
-import type { StationKind } from './kitchenCarry';
+import type { KitchenDeed, StationKind } from './kitchenCarry';
 
 /**
  * **Das Förderband** — eine Kachel Ausgabetheke, auf der die Dinge von selbst
@@ -584,10 +584,26 @@ export function beltStep(turn: 0 | 1 | 2 | 3): { dx: number; dz: number } {
 /**
  * **Ob ein Band auf diese Sorte Station abliefern darf.**
  *
- * Zwei sagen nein, und beide aus demselben Grund: In den **Mülleimer** wird
- * geworfen, über die **Ausgabetheke** wird serviert, und beides ist ein
- * Handgriff und kein Zufall. Ein Teller, den ein Band von selbst in den Müll
- * trägt, wäre der teuerste Unfall dieser Küche.
+ * **Der Mülleimer sagt jetzt ja**, und damit kehrt sich hier eine Entscheidung
+ * um. Vorher stand an dieser Stelle, in den Mülleimer werde **geworfen**, und
+ * ein Teller, den ein Band von selbst in den Müll trägt, wäre der teuerste
+ * Unfall dieser Küche. Das Gegenteil war aber der teurere: Ein Band, das auf
+ * einen Mülleimer zeigt und dann **nicht** abliefert, staut sich an ihm — das
+ * Ding steht auf dem Band, das Band steht, und die halbe Reihe dahinter steht
+ * mit. Man baut kein Band aus Versehen in einen Mülleimer, man sieht am Pfeil,
+ * wohin es schiebt, und wer beides tut, meint es so: „Wenn ein Förderband
+ * etwas zum Mülleimer bewegen würde, soll das Objekt … auch gelöscht werden,
+ * als wenn man es in den Mülleimer werfen würde."
+ *
+ * **Und genau so wird es weggeworfen** — über denselben Handgriff, den auch
+ * `A` auslöst (`kitchenCarry.kitchenDeed`, `do: 'trash'` und `'scrape'`), und
+ * nicht über eine zweite Lösch-Mechanik daneben. Zwei Wege, ein Ding aus der
+ * Küche zu nehmen, sind der Anfang von zwei Wegen, die sich unterscheiden.
+ * Welche der Eimer davon annimmt, steht bei `beltTrashes`; der Topf bleibt
+ * auch hier draußen.
+ *
+ * Über die **Ausgabetheke** wird dagegen weiter nur von Hand serviert: Dort
+ * geht ein Gericht an einen Gast, und das ist ein Handgriff und kein Zufall.
  *
  * **Und zwei weitere seit dem Abtropfbrett**: die **Geschirrrückgabe** und das
  * **Abtropfbrett** selbst. Auf ihnen liegt kein einzelnes Ding, sondern ein
@@ -606,16 +622,54 @@ export function beltStep(turn: 0 | 1 | 2 | 3): { dx: number; dz: number } {
  * (`kitchen.beltTarget` schlägt nach, hier steht, was gilt).
  */
 export function beltDelivers(kind: StationKind): boolean {
-  return kind !== 'bin' && kind !== 'serve' && kind !== 'return' && kind !== 'drain';
+  return kind !== 'serve' && kind !== 'return' && kind !== 'drain';
+}
+
+/**
+ * **Ob das, was ein Band an den Mülleimer liefert, dort auch verschwindet.**
+ *
+ * Gefragt wird nicht die Stationsart, sondern die **Tat**, die dieselbe Regel
+ * für denselben Fall ausrechnet, vor der auch ein Spieler mit vollen Händen
+ * steht (`kitchenCarry.kitchenDeed` an einer Station der Art `bin`). Zwei
+ * Antworten heißen ja, und beide bedeuten „hier wird etwas weggeworfen":
+ *
+ * - **`trash`** — das Ganze geht hinein: das Brötchen, der verkohlte Patty,
+ *   der Salat.
+ * - **`scrape`** — nur der Inhalt geht hinein, der **Träger bleibt**. Beim
+ *   Spieler bleibt er in der Hand; vom Band aus bleibt er auf dem Band liegen
+ *   (`kitchen.dumpInBin`), denn auf einem Mülleimer liegt nie etwas.
+ *
+ * Alles andere heißt nein, und das ist vor allem `refuse`: Der Topf, die
+ * Pfanne, der Feuerlöscher und der leere Teller gehören nicht in den Müll
+ * (`kitchenCarry.intoBin`). Ein Band davor fährt gar nicht erst los — die Zone
+ * fragt **vor** der Fahrt (`kitchen.beltTarget`), und nicht erst beim
+ * Ankommen. Andersherum führe der Topf alle zwei Sekunden an den Eimer und
+ * spränge zurück, und das sähe aus wie ein Fehler, weil es einer wäre.
+ *
+ * **Warum die Tat und nicht die Zutat.** Was in den Müll darf, steht schon
+ * genau einmal geschrieben, nämlich in der Regel für `A`. Hier noch einmal
+ * `isFood` zu fragen, wäre die zweite Liste, die beim nächsten neuen Ding
+ * auseinanderläuft — und sie liefe auseinander, ohne dass es jemandem
+ * auffiele: Von Hand ginge das neue Ding in den Müll, vom Band aus nicht.
+ */
+export function beltTrashes(deed: KitchenDeed): boolean {
+  return deed.do === 'trash' || deed.do === 'scrape';
 }
 
 /**
  * **Ob ein Zugband sich von dieser Sorte Station etwas holen darf.**
  *
  * Alles, worauf ein Band nicht abliefern darf, darf es auch nicht leerziehen —
- * was man nicht hinschieben darf, nimmt man auch nicht heraus. Dazu zwei
+ * was man nicht hinschieben darf, nimmt man auch nicht heraus. Dazu drei
  * eigene Fälle und ein Augenblick:
  *
+ * - **Der Mülleimer**, und er ist der einzige, bei dem die Frage nicht
+ *   spiegelbildlich ist: Hineinschieben darf ein Band seit Neuestem
+ *   (`beltDelivers`), **heraus**holen niemals. Ein Zugband, das den Müll
+ *   wieder ausräumt, wäre die zweite Hälfte einer Endlosschleife — hinein,
+ *   heraus, hinein —, und weggeworfen ist weggeworfen. Die Zeile steht
+ *   deshalb hier ausdrücklich und nicht mehr als Nebenwirkung von
+ *   `beltDelivers`.
  * - **Herd** und **Löscherhalterung**: Was dort steht, ist Gerät und keine
  *   Ware. Ein Band, das die einzige Pfanne der Küche mitnimmt, während das
  *   Patty darin brät, ist kein Fördern, sondern ein Diebstahl — und beim
@@ -628,7 +682,7 @@ export function beltDelivers(kind: StationKind): boolean {
  */
 export function beltReleases(kind: StationKind, working = false): boolean {
   if (!beltDelivers(kind)) return false;
-  if (kind === 'stove' || kind === 'rack') return false;
+  if (kind === 'bin' || kind === 'stove' || kind === 'rack') return false;
   return !working;
 }
 
