@@ -566,6 +566,67 @@ describe('Der Construct-Raum', () => {
     expect(stage.position.z).toBeCloseTo(0.5, 6);
   });
 
+  test('der Raum hört an seinem Boden auf', () => {
+    // Seit man darin herumgeht, hat der weiße Boden einen Rand — und dahinter
+    // gibt es weder Boden noch Schwerkraft, die einen zurückholte. Wer
+    // darüber hinausliefe, stünde in einem Nichts ohne jedes Merkmal.
+    const { room, anchor } = world();
+    room.enter({ anchor, at: new THREE.Vector3(0.5, 0, 1.5), items: [] });
+
+    // Der Anker steht auf der Kachel 0/0, die Mitte ist also 0,5/0,5, und der
+    // Boden reicht `FLOOR_TILES` Kacheln plus eine halbe nach jeder Seite.
+    const edge = (FLOOR_TILES + 0.5) * TILE_SIZE;
+    const inside = new THREE.Vector3(0.5 + edge - 0.01, 0, 0.5);
+    expect(room.keepInside(inside)).toBe(false);
+
+    const outside = new THREE.Vector3(0.5 + edge + 5, 0, 0.5 - edge - 5);
+    expect(room.keepInside(outside)).toBe(true);
+    expect(outside.x).toBeCloseTo(0.5 + edge, 6);
+    expect(outside.z).toBeCloseTo(0.5 - edge, 6);
+
+    // Die Höhe bleibt, wie sie war: Der Rand ist eine Wand und kein Boden.
+    const high = new THREE.Vector3(99, 4.2, 99);
+    room.keepInside(high);
+    expect(high.y).toBe(4.2);
+
+    // Und ein geschlossener Raum klemmt niemanden — dann gilt wieder die Welt.
+    room.leave();
+    room.update(FADE_SECONDS);
+    const free = new THREE.Vector3(99, 0, 99);
+    expect(room.keepInside(free)).toBe(false);
+    expect(free.x).toBe(99);
+  });
+
+  test('der Raum bringt sein eigenes Licht mit', () => {
+    // Die Lichter der Welt hängen als oberstes Kind in ihrer Gruppe und gehen
+    // deshalb mit ihr aus (`hideList`). Ohne eigenes Licht wäre die Auswahl ein
+    // schwarzer Scherenschnitt auf weißem Boden — genau so sah es aus.
+    const { host, room, anchor } = world();
+    const lamp = new THREE.HemisphereLight(0xffffff, 0x000000, 1.5);
+    lamp.name = 'lighting';
+    host.root.add(lamp);
+
+    room.enter({ anchor, at: new THREE.Vector3(), items: [] });
+    room.update(FADE_SECONDS);
+    // Das Licht der Welt ist aus …
+    expect(lamp.visible).toBe(false);
+    // … und das des Raums an, mit voller Stärke.
+    const stage = host.root.children.find((child) => child.name === 'construct')!;
+    const lights: THREE.Light[] = [];
+    stage.traverse((child) => {
+      if ((child as THREE.Light).isLight) lights.push(child as THREE.Light);
+    });
+    expect(lights.length).toBeGreaterThan(0);
+    expect(lights.every((light) => light.intensity > 0)).toBe(true);
+
+    // Und beim Verlassen geht es wieder aus, sonst bekäme die Welt einen
+    // Zuschlag, den sie nie bestellt hat.
+    room.leave();
+    room.update(FADE_SECONDS);
+    expect(lamp.visible).toBe(true);
+    expect(stage.parent).toBeNull();
+  });
+
   test('der Boden sind zwei Netze und nicht zweihundertfünfundzwanzig', () => {
     const { host, room, anchor } = world();
     room.enter({ anchor, at: new THREE.Vector3(2, 0, -3), items: [] });
@@ -598,7 +659,8 @@ describe('Der Construct-Raum', () => {
     room.update(FADE_SECONDS);
 
     const stage = host.root.children.find((child) => child.name === 'construct')!;
-    const tiles = stage.children[0]!.children.find(
+    const floor = stage.children.find((child) => child.name === 'construct-floor')!;
+    const tiles = floor.children.find(
       (child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh,
     )!;
     const spy = jest.spyOn(tiles.geometry, 'dispose');

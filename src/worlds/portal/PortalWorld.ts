@@ -4300,6 +4300,19 @@ export class PortalWorld implements World {
    * und genau um so viel landete man bisher neben dem Ziel, beim Start einer
    * Runde auch schon einmal in einer Wand.
    */
+  /**
+   * **Den Körper durch die Welt gehen lassen** (`PhysicsLocomotion.ghost`) —
+   * der Konstrukt-Raum fragt danach (`GridWorld.syncConstructBody`).
+   *
+   * Eine Methode und kein öffentliches Feld, weil die Fortbewegung dieser Welt
+   * gehört und nicht ihren Erben: Sie entsteht beim `init` und ist beim
+   * Weltwechsel wieder weg (`this.locomotion`), und wer sie zwischendurch
+   * anfasst, soll das nicht auf einem `null` tun müssen.
+   */
+  protected setPlayerGhost(on: boolean): void {
+    if (this.locomotion) this.locomotion.ghost = on;
+  }
+
   protected movePlayerTo(ctx: WorldContext, at: THREE.Vector3, yaw?: number): void {
     _euler.setFromQuaternion(ctx.rig.quaternion, 'YXZ');
     ctx.rig.placeFeetAt(_point.copy(at), yaw ?? _euler.y);
@@ -6040,7 +6053,18 @@ export class PortalWorld implements World {
     return this.playerFeet(target);
   }
 
-  private playerFeet(target: THREE.Vector3): THREE.Vector3 | null {
+  /**
+   * **Wo die Figur mit den Sohlen steht**, in Weltmetern — waagerecht der
+   * Kopf, senkrecht der Boden des Rigs.
+   *
+   * `protected`, weil das Konstrukt dieselbe Rechnung braucht
+   * (`GridWorld.syncConstructBody`): In der Brille steht der Ursprung des Rigs
+   * in der Mitte des Spielraums und der Mensch irgendwo darin, und
+   * `position.y` trägt Ducken und Sitzen mit sich herum, die die Füße nicht
+   * anheben. Zwei Rechnungen für dieselbe Frage wären zwei Gelegenheiten,
+   * eines von beidem zu vergessen.
+   */
+  protected playerFeet(target: THREE.Vector3): THREE.Vector3 | null {
     const ctx = this.context;
     // Kein Spieler, aber eine Attrappe: die laufende Vorschau der
     // Werkzeugseite. Für alles, was den Spieler sucht, *ist* sie er — und wenn

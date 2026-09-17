@@ -178,6 +178,33 @@ export class PhysicsLocomotion implements Locomotion {
    */
   phaseMask = 0;
 
+  /**
+   * **Durch alles hindurch, ohne Schwerkraft** — der Konstrukt-Raum, und sonst
+   * niemand (`worlds/shared/construct.ts`, `GridWorld.syncConstructBody`).
+   *
+   * Der weiße Raum blendet die Welt aus, statt den Spieler wegzuschicken. Die
+   * **Kollisionskörper** dieser Welt bleiben dabei aber stehen, und wer sich in
+   * dem weißen Nichts umsieht und losgeht, läuft in die Küchenzeile, die er
+   * gerade nicht sieht. Genau so war der Befund: unsichtbare Wände in einem
+   * leeren Raum.
+   *
+   * Solange das hier gesetzt ist, rechnet diese Klasse deshalb gar nicht mehr
+   * mit der Welt: kein `computeColliderMovement`, keine Schwerkraft, kein
+   * Boden. Das Rig geht dorthin, wohin der Stock zeigt, und sonst nirgendwohin.
+   *
+   * **Und die Kapsel bleibt, wo sie ist.** Das ist keine Nachlässigkeit,
+   * sondern die halbe Absicht: Der Körper steht weiter dort, wo er den Raum
+   * betreten hat — dort, wo die anderen Spieler ihn sehen (`net/NetSession`) —,
+   * und beim Verlassen setzt `resync` das Rig wieder über ihn. Ein Flug wäre
+   * das Falsche gewesen (`setFlight`): Der hält an Wänden an, und das ist dort
+   * ausdrücklich gewollt.
+   *
+   * Nicht `phaseMask`: Die schreibt `PortalWorld.update` jedes Bild neu (sie
+   * gehört dem Trichter vor einem Portal), ein Eintrag von außen wäre ein Bild
+   * später wieder weg.
+   */
+  ghost = false;
+
   private pushes = false;
 
   /**
@@ -288,6 +315,19 @@ export class PhysicsLocomotion implements Locomotion {
 
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void {
     if (dt <= 0 || this.disposed) return;
+    // **Im Konstrukt hört die Welt hier auf** (`ghost`). Vor allem anderen,
+    // damit von der Welt wirklich nichts mehr durchschlägt: keine Kapsel, die
+    // nachgeführt wird, kein Boden, der gesucht wird, kein Beugen, das
+    // begrenzt wird.
+    if (this.ghost) {
+      this.velocity.set(velocity.x, 0, velocity.z);
+      this.grounded = false;
+      if (this.velocity.lengthSq() > 0) {
+        rig.position.addScaledVector(this.velocity, dt);
+        rig.updateMatrixWorld(true);
+      }
+      return;
+    }
     this.updateShape(rig);
     this.publishCapsule();
 
@@ -499,6 +539,10 @@ export class PhysicsLocomotion implements Locomotion {
   resync(rig: PlayerRig): void {
     this.velocity.set(0, 0, 0);
     this.flight = null;
+    // Ein `resync` ist immer die Ansage „das Rig steht jetzt woanders" — und
+    // wer durch Wände geht, hört damit auf, sobald ihn jemand versetzt. Wer
+    // weiter schweben will, sagt es danach noch einmal.
+    this.ghost = false;
     this.syncCapsuleToRig(rig, true);
     this.grounded = false;
     this.coyote = 0;
