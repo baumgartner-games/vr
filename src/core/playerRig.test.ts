@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PlayerRig } from './PlayerRig';
+import { EYE_SCALE_RANGE } from './posture';
 import { ButtonState, type XRInput } from './XRInput';
 
 /**
@@ -95,6 +96,143 @@ describe('PlayerRig.placeAt im Sitzen', () => {
     expect(head.x).toBeCloseTo(-3);
     expect(head.z).toBeCloseTo(6);
     expect(head.y).toBeCloseTo(1.6);
+  });
+});
+
+/**
+ * **Die Küche ist klein, also wird der Spieler es auch** (`PlayerRig.eyeScale`).
+ *
+ * Die Möbel der Küche sind halbiert und die Kochfigur 1,60 m hoch
+ * (`core/kitchenFit.ts`, `core/chefFit.ts`); wer dort mit seinen echten 1,65 m
+ * steht, schaut von oben in eine Puppenstube. Die Antwort ist eine **Stauchung
+ * der Augenhöhe**, kein fester Versatz — und was das für einen Unterschied
+ * macht, steht in der letzten Prüfung dieser Gruppe: Ein fester Versatz zöge
+ * den Gebückten unter den Boden, ein Faktor lässt die Null die Null.
+ */
+describe('PlayerRig.eyeScale — die Augenhöhe in der Küche', () => {
+  /** 165 cm echte Augenhöhe auf 140 cm Küchenhöhe. */
+  const SCALE = 1.4 / 1.65;
+
+  /** Ein langes Bild in der Brille: die Rampe ist danach vollständig durch. */
+  function frame(player: PlayerRig, presenting = true, dt = 1): void {
+    const input = { get: () => undefined } as unknown as Parameters<PlayerRig['update']>[1];
+    player.update(dt, input, presenting);
+  }
+
+  function standing(): PlayerRig {
+    const player = rig();
+    player.camera.position.set(0, 1.65, 0);
+    player.eyeScale = SCALE;
+    frame(player);
+    return player;
+  }
+
+  it('bringt den stehenden Spieler auf die eingestellte Höhe — die Füße bleiben', () => {
+    const player = standing();
+    expect(player.getHeadHeight()).toBeCloseTo(1.4, 4);
+    expect(player.getFloorY()).toBeCloseTo(0, 4);
+    expect(player.squash).toBeCloseTo(0.25, 4);
+  });
+
+  /**
+   * Der Sitzende ist über seine Anhebung schon auf Stehhöhe (`seatedLift`);
+   * die Stauchung rechnet auf **dieser** Höhe und nicht auf der rohen
+   * Kopfhöhe — sonst säße er in der Küche 20 cm tiefer als der Stehende
+   * daneben.
+   */
+  it('rechnet beim Sitzenden auf der angehobenen Höhe', () => {
+    const player = rig();
+    player.posture = 'sit';
+    player.seatHeight = 0.45;
+    player.camera.position.set(0, 1.2, 0);
+    player.eyeScale = SCALE;
+    frame(player);
+    expect(player.seated).toBeCloseTo(0.45, 4);
+    expect(player.getHeadHeight()).toBeCloseTo(1.4, 4);
+    expect(player.getFloorY()).toBeCloseTo(0, 4);
+  });
+
+  it('lässt bei 1 alles, wie es ist', () => {
+    const player = rig();
+    player.camera.position.set(0, 1.65, 0);
+    frame(player);
+    expect(player.squash).toBe(0);
+    expect(player.getHeadHeight()).toBeCloseTo(1.65, 6);
+  });
+
+  /**
+   * **Am Bildschirm nicht** — weder von oben noch aus den Augen. Dort setzt
+   * das Spiel die Kamera selbst, und eine Welt, die eine Brille korrigiert,
+   * die gar nicht auf ist, verschiebt nur den Boden.
+   */
+  it('wirkt nicht am Bildschirm und geht nach dem Absetzen zurück', () => {
+    const player = standing();
+    expect(player.squash).toBeCloseTo(0.25, 4);
+    // Brille ab: dieselbe Rampe zurück auf null.
+    frame(player, false);
+    expect(player.squash).toBeCloseTo(0, 4);
+    expect(player.getHeadHeight()).toBeCloseTo(1.65, 4);
+    expect(player.getFloorY()).toBeCloseTo(0, 4);
+  });
+
+  /**
+   * **Die Prüfung, an der die ganze Entscheidung hängt.** Wer sich in der
+   * Küche bis zum Boden bückt, kommt bis zum Boden — anteilig tiefer, aber
+   * nie darunter. Ein fester Versatz von 25 cm hätte den Kopf auf 20 cm
+   * Höhe fünf Zentimeter **unter** den Estrich gezogen.
+   */
+  it('lässt das Bücken ein Bücken sein', () => {
+    const player = standing();
+    for (const head of [1.2, 0.8, 0.4, 0.2, 0.05]) {
+      player.camera.position.y = head;
+      frame(player);
+      const eye = player.camera.position.y - player.squash;
+      expect(eye).toBeCloseTo(head * SCALE, 4);
+      expect(eye).toBeGreaterThan(0);
+      expect(player.getFloorY()).toBeCloseTo(0, 4);
+    }
+  });
+
+  it('setzt einen sehr kleinen Spieler herauf statt herunter', () => {
+    const player = rig();
+    player.camera.position.set(0, 1.2, 0);
+    player.eyeScale = 1.4 / 1.2;
+    frame(player);
+    expect(player.getHeadHeight()).toBeCloseTo(1.4, 4);
+    expect(player.squash).toBeLessThan(0);
+    expect(player.getFloorY()).toBeCloseTo(0, 4);
+  });
+
+  it('setzt die Füße beim Versetzen auf den Punkt und nicht die Stauchung darüber', () => {
+    const player = standing();
+    player.placeAt(new THREE.Vector3(2, 0.3, -4), 0);
+    expect(player.getFloorY()).toBeCloseTo(0.3, 4);
+    expect(player.getHeadPosition(new THREE.Vector3()).y).toBeCloseTo(0.3 + 1.4, 4);
+  });
+
+  it('nimmt die Stauchung nicht in die nächste Welt mit', () => {
+    const player = standing();
+    player.standUp();
+    expect(player.squash).toBe(0);
+    expect(player.eyeScale).toBe(1);
+    expect(player.getFloorY()).toBeCloseTo(player.position.y, 6);
+  });
+
+  /**
+   * Eine Stauchung, die eine Welt aus Versehen auf 0 oder 20 setzt, darf den
+   * Spieler nicht in den Himmel oder in den Estrich schießen
+   * (`posture.EYE_SCALE_RANGE`).
+   */
+  it('begrenzt, was eine Welt verlangen darf', () => {
+    const player = rig();
+    player.camera.position.set(0, 1.65, 0);
+    player.eyeScale = 0;
+    frame(player);
+    expect(player.getHeadHeight()).toBeCloseTo(1.65 * EYE_SCALE_RANGE.min, 4);
+
+    player.eyeScale = 20;
+    frame(player);
+    expect(player.getHeadHeight()).toBeCloseTo(1.65 * EYE_SCALE_RANGE.max, 4);
   });
 });
 

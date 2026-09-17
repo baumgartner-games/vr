@@ -11,11 +11,13 @@ import { PLATE_HEIGHT, stackHeight } from './kitchenProps';
 import type { KitchenItem, StationKind } from './kitchenCarry';
 import {
   BUILD_BUTTON_TILE,
+  KITCHEN_EYE_MARGIN,
   KITCHEN_SHOWN,
   KITCHEN_SPOTS,
   RACK_AIR,
   RACK_RAISE,
   footprint,
+  inKitchen,
   passTop,
   rackLift,
   stationKind,
@@ -569,5 +571,53 @@ describe('das Ausgaberegal über der Theke', () => {
     // Mehr als eine halbe Kachel (`worlds/nav/navTile.TILE` = 1 m): Der
     // Teller, der in der Mitte der Thekenkachel steht, kommt wieder frei.
     expect(slide).toBeGreaterThan(0.5);
+  });
+});
+
+/**
+ * **Woran „Küche" hängt** (`kitchenPlan.inKitchen`).
+ *
+ * Die eigene Augenhöhe des VR-Spielers gilt in genau einem Rechteck
+ * (`kitchen.ts`, `fitEyes`), und das ist `layout.KITCHEN` — keine zweite Liste
+ * von Zahlen, keine Abstandsprüfung zu irgendeinem Möbel. Was hier
+ * danebenginge, wäre ein Spieler, der auf der Wiese plötzlich einen
+ * Viertelmeter kleiner wird.
+ */
+describe('Wo die Küche anfängt', () => {
+  const west = KITCHEN.x;
+  const east = KITCHEN.x + KITCHEN.w;
+  const north = KITCHEN.z;
+  const south = KITCHEN.z + KITCHEN.d;
+
+  it('nimmt, was drinsteht', () => {
+    expect(inKitchen((west + east) / 2, (north + south) / 2)).toBe(true);
+    for (const [x, z] of [
+      [west, north],
+      [east, north],
+      [west, south],
+      [east, south],
+    ] as const) {
+      expect(inKitchen(x, z)).toBe(true);
+    }
+  });
+
+  it('lässt draußen, was draußen steht', () => {
+    // Der Startplatz, das Podest südlich davon, der Schießstand.
+    expect(inKitchen(0, 0)).toBe(false);
+    expect(inKitchen((west + east) / 2, south + 5)).toBe(false);
+    expect(inKitchen(west - 10, (north + south) / 2)).toBe(false);
+  });
+
+  /**
+   * **Ein Meter Vorlauf**, damit das Absacken vor der Türöffnung passiert und
+   * nicht in ihr (`KITCHEN_EYE_MARGIN`). Weiter nicht: Nach Süden liegt das
+   * Podest mit zwei Kacheln Abstand.
+   */
+  it('fängt einen Meter vor der Öffnung an und nicht früher', () => {
+    expect(KITCHEN_EYE_MARGIN).toBe(1);
+    expect(inKitchen((west + east) / 2, south + KITCHEN_EYE_MARGIN)).toBe(true);
+    expect(inKitchen((west + east) / 2, south + KITCHEN_EYE_MARGIN + 0.01)).toBe(false);
+    // Ohne Zuschlag ist die Kante die Kante.
+    expect(inKitchen((west + east) / 2, south + 0.5, 0)).toBe(false);
   });
 });
