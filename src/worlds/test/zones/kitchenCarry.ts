@@ -120,6 +120,7 @@ export {
   onStove,
   stovePhase,
   stoveProgress,
+  stoveUnder,
   type StovePhase,
   type StoveState,
   type StoveTick,

@@ -32,10 +32,10 @@ import {
   kitchenPrompt,
   layered,
   meansContent,
-  onStove,
   onWork,
   stovePhase,
   stoveProgress,
+  stoveUnder,
   workProgress,
   workWaits,
   type Dish,
@@ -1319,10 +1319,42 @@ export class KitchenZone implements TestZone {
   reset(): void {
     if (this.lifted) this.dropPiece(true);
     this.editing = false;
+    // **Und das Schild sagt es auch.** `editing` allein umzulegen hieß: Auf
+    // dem Knopf stand nach dem Aufräumen weiter „Küche nutzen", während längst
+    // wieder gekocht wurde — eine Beschriftung, die das Gegenteil dessen sagt,
+    // was der nächste Druck tut, ist schlimmer als gar keine.
+    this.showBuildLabel();
+    this.calmStations();
+    this.refreshStations();
+  }
+
+  /**
+   * **Alle Uhren aus, alle Flächen leer** — der gemeinsame Kern von `B`/`Y`
+   * und des Umbaus.
+   *
+   * Er stand bis eben nur im Aufräumen, und der Umbau machte daneben seine
+   * eigene, kürzere Fassung: Er warf weg, was in der Hand lag, und ließ alles
+   * andere laufen. Damit fing der Umbau in einer Küche an, in der es weiter
+   * brutzelte — ein Herd, der brennt, während man das Möbel daneben
+   * verrückt, ist kein Bauzustand, sondern ein Unfall mit einem Zeitlimit.
+   * Und aufheben ließ sich ohnehin nichts, worauf noch etwas stand
+   * (`liftPiece`): Man schaltete den Umbau ein und musste erst einmal
+   * abräumen gehen.
+   *
+   * **Geräte gehen heim, Essen geht weg.** Topf, Pfanne und Feuerlöscher gibt
+   * es genau einmal in dieser Küche (`core/kitchenModel.takeUtensil`); wer sie
+   * wie ein halbes Brötchen wegwürfe, hätte einen Herd ohne Pfanne und keinen
+   * Weg, eine neue zu bekommen. Genau das tat der Umbau bisher mit dem, was
+   * beim Anschalten in der Hand lag.
+   *
+   * **Leer gehen sie heim**, also ohne ihren Belag: Ein Patty, das in der
+   * zurückgestellten Pfanne weiterbrutzelte, wäre kein Aufräumen.
+   */
+  private calmStations(): void {
     this.spraying = false;
-    // Was unterwegs war, ist es nach dem Zurücksetzen nicht mehr: Eine
-    // Reservierung auf eine Kachel, auf der gleich wieder alles frisch liegt,
-    // sperrte sie für einen Handgriff, den niemand mehr erwartet.
+    // Was unterwegs war, ist es danach nicht mehr: Eine Reservierung auf eine
+    // Kachel, auf der gleich wieder alles frisch liegt, sperrte sie für einen
+    // Handgriff, den niemand mehr erwartet.
     this.beltNow = null;
     const loose = [this.carried, ...this.stations.map((spot) => spot.on)];
     this.carried = null;
@@ -1333,6 +1365,9 @@ export class KitchenZone implements TestZone {
       spot.belt = BELT_EMPTY;
       spot.wet = DRY;
       this.setStack(spot, 0);
+      // `settle` ist die **einzige** Stelle, die eine Uhr armiert: Sie setzt
+      // den Herd auf `onStove(null)` und Brett wie Spüle auf `onWork(kind,
+      // null)`. Das Feuer geht damit mit aus, denn `COLD_STOVE` kennt keines.
       this.settle(spot);
       this.gauges?.clear(spot.key);
       spot.shown = null;
@@ -1347,7 +1382,14 @@ export class KitchenZone implements TestZone {
       this.layOn(thing.home, thing);
     }
     this.hideTicket();
-    this.refreshStations();
+  }
+
+  /** Was auf dem Knopf steht — beide Zeilen an einer Stelle, siehe `reset`. */
+  private showBuildLabel(): void {
+    this.buildButton?.setTitle(
+      this.editing ? BUILD_BUTTON_LABELS.on : BUILD_BUTTON_LABELS.off,
+      this.editing ? 'Zurück ans Kochen' : 'Möbel aufheben und neu hinstellen',
+    );
   }
 
   dispose(): void {
@@ -2289,10 +2331,12 @@ export class KitchenZone implements TestZone {
     // ließe das Nächste eine halbe Kachel zu weit vorn anfangen.
     spot.belt = BELT_EMPTY;
     if (spot.kind === 'stove') {
-      // Auf dem Herd steht die Pfanne, **in** ihr liegt das Patty. Liegt dort
-      // etwas anderes (ein Teller, ein Brötchen), brät nichts — und genau das
-      // sagt `onStove(null)`.
-      spot.stove = onStove(on?.item === 'pan' ? (on.on[0] ?? null) : null);
+      // Auf dem Herd steht die Pfanne, **in** ihr liegt das Patty — und wer
+      // sie anfasst, löscht die Uhr, in beide Richtungen. Die Regel steht
+      // nebenan und nicht hier (`kitchenClock.stoveUnder`), weil sie dort
+      // einen Test hat: Diese Zeile braucht three.js und ist damit die eine
+      // Stelle, an der eine Rechnung unbewiesen bliebe.
+      spot.stove = stoveUnder(on);
       return;
     }
     if (spot.kind === 'board' || spot.kind === 'sink') {
@@ -2403,16 +2447,22 @@ export class KitchenZone implements TestZone {
    * Ausschalten wüsste niemand, was davon bleibt. Der Teller geht deshalb
    * dorthin, wo er hergekommen wäre — zurück in die Welt, an die Station, an
    * der man steht, oder eben weg.
+   *
+   * **Und mit ihm hört die ganze Küche auf zu arbeiten** (`calmStations`):
+   * Der Herd brennt nicht mehr, der Gast am Tisch ist aufgestanden, das Band
+   * steht, die Stapel sind weg. Zwei Gründe, und jeder allein reicht. Ein
+   * brennender Herd, den man gerade an die andere Wand trägt, ist ein
+   * Zeitlimit mitten in einer Tätigkeit, die keines haben soll — man baut um,
+   * man kocht nicht. Und aufheben lässt sich nur, was leer ist (`liftPiece`):
+   * Ohne das Abräumen fing jeder Umbau damit an, der Küche hinterherzuräumen,
+   * bevor man das erste Möbel anfassen durfte.
    */
   private toggleEdit(): boolean {
     const world = this.world;
     if (!world) return false;
     if (this.editing && this.lifted) this.dropPiece(true);
     this.editing = !this.editing;
-    if (this.editing && this.carried) {
-      this.discard(this.carried);
-      this.carried = null;
-    }
+    if (this.editing) this.calmStations();
     // Alle Anmeldungen fallen lassen: Im Baumodus meint `A` etwas anderes,
     // und ein Möbel, das noch die Anmeldung von vorhin trägt, tut das Falsche.
     for (const furnish of this.furniture) {
@@ -2420,11 +2470,10 @@ export class KitchenZone implements TestZone {
       furnish.usable = null;
     }
     // Das Schild geht mit: Es sagt, was der **nächste** Druck tut.
-    this.buildButton?.setTitle(
-      this.editing ? BUILD_BUTTON_LABELS.on : BUILD_BUTTON_LABELS.off,
-      this.editing ? 'Zurück ans Kochen' : 'Möbel aufheben und neu hinstellen',
+    this.showBuildLabel();
+    world.notify(
+      this.editing ? 'Umbau: Möbel sind abgeräumt und lassen sich tragen' : 'Umbau beendet',
     );
-    world.notify(this.editing ? 'Umbau: Möbel lassen sich tragen' : 'Umbau beendet');
     this.refreshStations();
     return true;
   }
