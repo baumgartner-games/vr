@@ -1,10 +1,13 @@
+import { kitchenDeck, type KitchenPiece } from '../../../core/kitchenFit';
 import {
   handle,
+  rimHandles,
   ringHandles,
   type GrabHandle,
   type GrabSpec,
   type Vec3,
 } from '../../../core/grabHandles';
+import { TILE } from '../../nav/navTile';
 import { PLATE_HEIGHT, PLATE_RADIUS } from './kitchenProps';
 import type { KitchenItem } from './kitchenRecipes';
 
@@ -32,6 +35,12 @@ import type { KitchenItem } from './kitchenRecipes';
  *   „da das die Bereiche sind, wie man einen Teller halten würde". Am Rand
  *   sind es acht, gleichmäßig verteilt: Ein Teller hat keine Vorderseite, und
  *   welcher der acht es wird, entscheidet die Hand (`nearestHandle`).
+ *
+ * **Und seit dem Umbau ein vierter Fall, der keine Tabelle ist**: die
+ * **Möbel**. Sie bekommen ihre vier Rand-Griffe aus einer Regel über den
+ * Katalog (`pieceHandles`, ganz unten) — der Mülleimer und die Arbeitsplatte
+ * brauchen dafür ausdrücklich keinen eigenen Eintrag, und das ist die
+ * Bedingung des Auftrags und nicht meine Bequemlichkeit.
  *
  * **Und alle zusammen greifen nur im Meter** (`GrabSpec.reach`, `'moore'`):
  * kein Nahgreifen, kein Ferngreifen, nur das eigene Feld und die acht daneben.
@@ -203,3 +212,100 @@ export function kitchenGrab(item: KitchenItem, size?: ItemSize): GrabSpec {
  * nicht nur für das, was in die Hand geht.
  */
 export const KITCHEN_STATION_GRAB: GrabSpec = { handles: [], reach: KITCHEN_REACH };
+
+// --- und wo die Hand ein Küchen**möbel** anfasst ---------------------------
+
+/**
+ * **Wie weit innen von der Kante die Faust liegt**, in Metern.
+ *
+ * Genau auf der Kante läge die Faust zur Hälfte neben dem Möbel — dieselbe
+ * Überlegung wie beim Tellerrand (`RIM_INSET`), nur in Metern statt als
+ * Anteil: Eine Hand ist eine Hand, ob sie einen Mülleimer von 45 cm oder eine
+ * Ausgabetheke von zwei Metern packt, und ein Anteil machte den Griff am
+ * breiten Möbel breiter, ohne dass die Hand dabei wüchse. Sechs Zentimeter
+ * sind die halbe Faust.
+ */
+export const RIM_GRIP_IN = 0.06;
+
+/**
+ * **Die vier Rand-Griffe eines Möbels** — aus einer Regel, nicht aus fünfzehn
+ * Einträgen.
+ *
+ * Der Auftrag sagt es wörtlich: „Küchen Elemente haben unsichtbare
+ * Griffe/Handles am Rand (4 Stück), diese können allgemein platziert sein,
+ * sodass es nicht für Mülleimer, Arbeitsplatte individuell gesetzt werden
+ * müssten." Genau das steht hier — und es ist **eine Zeile Ableitung** über
+ * den ganzen Katalog (`core/kitchenFit.KITCHEN_PIECES`), keine Tabelle
+ * daneben. Der Mülleimer hat keinen eigenen Eintrag, die Küchenzeile auch
+ * nicht, und ein sechzehntes Möbel bekommt seine vier Griffe, ohne dass
+ * jemand diese Datei aufmacht. Ein Test hält das fest.
+ *
+ * Gebaut wird mit `grabHandles.rimHandles` — der Stelle im `core`, die genau
+ * dafür angelegt wurde: vier Griffe in der Mitte der vier Seiten, die Achse
+ * senkrecht (der Daumen zeigt nach oben, die Finger greifen unter die Kante),
+ * das Vorne nach innen. Sie heißen nach der Richtung, in der sie liegen:
+ * `+x`, `-x`, `+z`, `-z`.
+ *
+ * ## Die Grundfläche ist die Kachelzahl
+ *
+ * Und zwar die aus dem Katalog (`KitchenPiece.tiles`, eine Kachel = 1 m,
+ * `worlds/nav/navTile.TILE`). Das ist dieselbe Fläche, die der Umriss am
+ * Bauplatz zeigt und die beim Absetzen auf Platz geprüft wird
+ * (`kitchenBuild.buildFree`) — wer an der Kante zufasst, die er sieht, fasst
+ * damit auch an die Kante, die er gleich hinstellt.
+ *
+ * **Der Katalogversatz wird dabei nicht herausgerechnet** (`KitchenPiece.align`).
+ * Er ist bei genau zwei Möbeln von fünfzehn ungleich null — 3,1 cm beim
+ * Schneidebrett, 7,8 cm beim Herd mit der Pfanne — und er verschiebt das
+ * **Modell** gegen seine Kachel. Die Griffe hängen im Raum des Modells, also
+ * wandern sie mit: Sie sitzen damit am Möbel, das man sieht, und nicht am
+ * Gitter, das man nicht sieht. Von den beiden Ungenauigkeiten ist das die
+ * ehrlichere.
+ *
+ * ## Auf welcher Höhe
+ *
+ * Auf der **Arbeitsfläche** (`core/kitchenFit.kitchenDeck`), gemessen ab Fuß
+ * des Möbels — dort, wo auch alles liegt, was darauf steht.
+ *
+ * Die naheliegende Antwort wäre die **Oberkante** (`KitchenPiece.height`), und
+ * sie ist falsch, sobald man sie am Katalog nachschlägt: Beim Spülbecken ist
+ * `height` die Spitze der **Armatur** (1,15 m), beim Feuerlöscher die Kappe
+ * des **Löschers** (1,25 m), beim Herd mit Topf der **Topfdeckel** (0,87 m).
+ * Vier Griffe am Wasserhahn sind keine Griffe. `deck` ist genau die Zahl, die
+ * im Katalog eingeführt wurde, um „die Fläche des Möbels" von „das Höchste,
+ * was darauf steht" zu unterscheiden — und deshalb ist sie auch hier die
+ * richtige.
+ *
+ * Nachgerechnet über den ganzen Katalog liegt sie damit zwischen **0,45 m**
+ * (Mülleimer) und **0,56 m** (Ausgaberegal): Hüfthöhe bei einem Koch von
+ * 1,60 m (`core/chefFit.ts`), also genau dort, wo ein Mensch ein Möbel
+ * anfasst, um es zu schieben. Eine feste Zahl für alle wäre bequemer und
+ * stünde beim Mülleimer in der Luft oder im Becken; eine Ausnahmeliste für
+ * einzelne Möbel wäre das, was der Auftrag ausdrücklich nicht will. **Es
+ * braucht keine** — das ist der Prüfstein, und er hält.
+ */
+export function pieceHandles(piece: KitchenPiece): readonly GrabHandle[] {
+  const [wide, deep] = piece.tiles;
+  return rimHandles(
+    {
+      x: Math.max(RIM_GRIP_IN, (wide * TILE) / 2 - RIM_GRIP_IN),
+      z: Math.max(RIM_GRIP_IN, (deep * TILE) / 2 - RIM_GRIP_IN),
+    },
+    kitchenDeck(piece),
+  );
+}
+
+/**
+ * **Was ein Möbel über das Greifen sagt** — vier Rand-Griffe und derselbe
+ * Meter wie alles andere in dieser Küche.
+ *
+ * Ein aufgehobenes Möbel ist im Umbau nichts anderes als ein sehr großes
+ * Brötchen (`worlds/test/zones/kitchen.ts`, `setLive`), also gilt für es
+ * dieselbe Reichweite: **kein Nahgreifen, kein Ferngreifen** — nur das eigene
+ * Feld und die acht daneben (`KITCHEN_REACH`). Eine Küchenzeile, die aus drei
+ * Metern in die Hände flöge, wäre der Fall, den `'moore'` verhindern soll, und
+ * zwar der sichtbarste.
+ */
+export function kitchenPieceGrab(piece: KitchenPiece): GrabSpec {
+  return { handles: pieceHandles(piece), reach: KITCHEN_REACH };
+}

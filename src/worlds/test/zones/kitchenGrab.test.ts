@@ -1,11 +1,20 @@
 import { grabsByHitbox, holdFor, nearestHandle, type GrabPose } from '../../../core/grabHandles';
+import {
+  KITCHEN_PIECES,
+  kitchenDeck,
+  kitchenPiece,
+  type KitchenPiece,
+} from '../../../core/kitchenFit';
 import { interactionGrab, resolveInteraction, vrInputs } from '../../../core/interaction';
 import {
   KITCHEN_REACH,
   KITCHEN_STATION_GRAB,
   PLATE_RIM_HANDLES,
+  RIM_GRIP_IN,
   kitchenGrab,
   kitchenHandles,
+  kitchenPieceGrab,
+  pieceHandles,
 } from './kitchenGrab';
 import { dish, kitchenDeed, kitchenGivesUp, kitchenInteractionSpec } from './kitchenCarry';
 import { PLATE_RADIUS } from './kitchenProps';
@@ -176,5 +185,137 @@ describe('Abgelegt wird erst beim Loslassen', () => {
     const spec = kitchenInteractionSpec(kitchenDeed(null, { kind: 'top' }));
     expect(spec.kind).toBe('none');
     expect(resolveInteraction(spec, 'vr').interactive).toBe(false);
+  });
+});
+
+/**
+ * **Die vier Rand-Griffe der Möbel** — und vor allem: dass es sie **ohne
+ * Tabelle** gibt.
+ *
+ * Das ist die Zusicherung, um die der Auftrag ausdrücklich gebeten hat: „diese
+ * können allgemein platziert sein, sodass es nicht für Mülleimer,
+ * Arbeitsplatte individuell gesetzt werden müssten." Ein Test, der jedes Möbel
+ * einzeln nachschlüge, prüfte das Gegenteil — also läuft er über den **ganzen
+ * Katalog** und verlangt von jedem Stück dasselbe. Wer morgen ein sechzehntes
+ * Möbel einträgt, bekommt seine vier Griffe geschenkt oder diesen Test rot.
+ */
+describe('Wie ein Küchenmöbel gegriffen werden will', () => {
+  it('gibt jedem Möbel des Katalogs vier Griffe — aus einer Regel', () => {
+    for (const piece of KITCHEN_PIECES) {
+      const handles = pieceHandles(piece);
+      expect(handles.map((one) => one.id)).toEqual(['+x', '-x', '+z', '-z']);
+    }
+  });
+
+  /**
+   * **Mülleimer und Arbeitsplatte sind die beiden, die der Auftrag beim Namen
+   * nennt.** Sie stehen hier nicht, weil sie etwas Besonderes wären, sondern
+   * weil sie es ausdrücklich **nicht** sein dürfen: Sie bekommen Zeile für
+   * Zeile dieselben Griffe wie jedes andere Möbel derselben Grundfläche, und
+   * der einzige Unterschied ist die Höhe, die im Katalog steht.
+   */
+  it('braucht für Mülleimer und Arbeitsplatte keinen eigenen Eintrag', () => {
+    const bin = kitchenPiece('bin');
+    const table = kitchenPiece('table');
+    expect(bin && table).toBeTruthy();
+    if (!bin || !table) return;
+    // Dieselbe Grundfläche, also dieselben vier Stellen in x und z …
+    const rim = (piece: KitchenPiece) =>
+      pieceHandles(piece).map((one) => [one.pose.position.x, one.pose.position.z]);
+    expect(rim(bin)).toEqual(rim(table));
+    // … und dieselben vier Achsen.
+    expect(pieceHandles(bin).map((one) => one.pose.rotation)).toEqual(
+      pieceHandles(table).map((one) => one.pose.rotation),
+    );
+    // Nur die Höhe unterscheidet sie, und die steht im Katalog und nicht hier.
+    expect(pieceHandles(bin)[0].pose.position.y).toBeCloseTo(kitchenDeck(bin), 6);
+    expect(pieceHandles(table)[0].pose.position.y).toBeCloseTo(kitchenDeck(table), 6);
+    expect(pieceHandles(bin)[0].pose.position.y).not.toBeCloseTo(
+      pieceHandles(table)[0].pose.position.y,
+      3,
+    );
+  });
+
+  /**
+   * **Die Höhe ist die Arbeitsfläche und nicht die Oberkante.** Die drei
+   * Möbel, an denen das auseinanderfällt, sind zugleich die drei, an denen
+   * eine Griffhöhe aus `height` sichtbar falsch wäre: am Wasserhahn, an der
+   * Kappe des Feuerlöschers und auf dem Topfdeckel.
+   */
+  it('setzt die Griffe auf die Arbeitsfläche und nicht auf den Wasserhahn', () => {
+    for (const name of ['sink-basin', 'extinguisher', 'stove-pot']) {
+      const piece = kitchenPiece(name);
+      expect(piece).toBeTruthy();
+      if (!piece) continue;
+      const y = pieceHandles(piece)[0].pose.position.y;
+      expect(y).toBeCloseTo(kitchenDeck(piece), 6);
+      expect(y).toBeLessThan(piece.height);
+    }
+  });
+
+  /**
+   * **Hüfthöhe, über den ganzen Katalog** — die Begründung der Entscheidung,
+   * als Zahl. Ein Koch ist 1,60 m groß (`core/chefFit.ts`); alles zwischen
+   * einem knappen halben Meter und gut einem halben ist die Höhe, auf der ein
+   * Mensch ein Möbel anfasst, um es zu schieben.
+   */
+  it('landet damit bei jedem Möbel zwischen 0,40 m und 0,60 m', () => {
+    for (const piece of KITCHEN_PIECES) {
+      const y = pieceHandles(piece)[0].pose.position.y;
+      expect(y).toBeGreaterThan(0.4);
+      expect(y).toBeLessThan(0.6);
+    }
+  });
+
+  /**
+   * **Die Griffe liegen auf der Grundfläche, ein halbe Faust nach innen** —
+   * und beim breiten Möbel entsprechend weiter außen, ohne dass jemand es
+   * einträgt. Die Ausgabetheke belegt zwei Kacheln, der Arbeitstisch eine.
+   */
+  it('nimmt die Kachelzahl als Grundfläche und rückt eine halbe Faust hinein', () => {
+    const pass = kitchenPiece('pass');
+    const table = kitchenPiece('table');
+    expect(pass && table).toBeTruthy();
+    if (!pass || !table) return;
+    expect(pass.tiles).toEqual([2, 1]);
+    const wide = pieceHandles(pass);
+    expect(wide[0].pose.position.x).toBeCloseTo(1 - RIM_GRIP_IN, 6);
+    expect(wide[1].pose.position.x).toBeCloseTo(-(1 - RIM_GRIP_IN), 6);
+    expect(wide[2].pose.position.z).toBeCloseTo(0.5 - RIM_GRIP_IN, 6);
+    const square = pieceHandles(table);
+    expect(square[0].pose.position.x).toBeCloseTo(0.5 - RIM_GRIP_IN, 6);
+    expect(square[2].pose.position.z).toBeCloseTo(0.5 - RIM_GRIP_IN, 6);
+  });
+
+  /**
+   * **Und ein Möbel greift nur im Meter**, wie alles in dieser Küche: Eine
+   * Küchenzeile, die aus drei Metern in die Hände flöge, wäre der sichtbarste
+   * Fall von Ferngreifen, den dieser Grundriss hergibt.
+   */
+  it('greift ein Möbel nur in der Moore-Nachbarschaft', () => {
+    const stove = kitchenPiece('stove');
+    expect(stove).toBeTruthy();
+    if (!stove) return;
+    expect(kitchenPieceGrab(stove).reach).toBe(KITCHEN_REACH);
+    expect(kitchenPieceGrab(stove).reach).toBe('moore');
+    expect(grabsByHitbox(kitchenPieceGrab(stove))).toBe(false);
+  });
+
+  /**
+   * **Welche Kante die Hand meint, entscheidet der Abstand** — dieselbe
+   * Rechnung wie beim Teller (`grabHandles.nearestHandle`). Der Test steht
+   * hier und nicht bei den Möbeln, weil erst die beiden zusammen die Frage
+   * beantworten: Wer östlich vor dem Herd steht, packt seine Ostkante.
+   */
+  it('wählt die Kante, die der Hand am nächsten liegt', () => {
+    const stove = kitchenPiece('stove');
+    expect(stove).toBeTruthy();
+    if (!stove) return;
+    const handles = pieceHandles(stove);
+    const spot = at(10, 0, 4);
+    expect(nearestHandle(handles, spot, { x: 10.6, y: 0.5, z: 4 })?.handle.id).toBe('+x');
+    expect(nearestHandle(handles, spot, { x: 9.4, y: 0.5, z: 4 })?.handle.id).toBe('-x');
+    expect(nearestHandle(handles, spot, { x: 10, y: 0.5, z: 4.6 })?.handle.id).toBe('+z');
+    expect(nearestHandle(handles, spot, { x: 10, y: 0.5, z: 3.4 })?.handle.id).toBe('-z');
   });
 });
