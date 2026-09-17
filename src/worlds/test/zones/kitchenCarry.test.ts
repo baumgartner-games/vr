@@ -5,13 +5,19 @@ import {
   WORK_ALONE,
   WORK_SECONDS,
   advanceWork,
+  carrySlot,
   dish,
+  handsOver,
+  keptOnFold,
   kitchenDeed,
   kitchenInteraction,
   kitchenPrompt,
   meansContent,
   onWork,
+  otherHand,
+  type CarrySide,
   type Dish,
+  type HandoverAsk,
   type KitchenDeed,
   type KitchenItem,
   type Station,
@@ -1095,5 +1101,132 @@ describe('welche Station arbeitet', () => {
       .map(([kind]) => kind)
       .sort();
     expect(alone).toEqual(['griddle', 'mixer']);
+  });
+});
+
+/**
+ * **Die Fächer** — welche Hand welches Ding meint, je nachdem, ob der Schalter
+ * _zwei Gegenstände_ liegt (`core/grabSettings.GrabSettings.twoHands`).
+ *
+ * Das ist die Messlatte dieses Auftrags, und sie steht hier als Regel: **Ohne
+ * den Schalter muss sich die Küche Zeile für Zeile verhalten wie vorher.** Ein
+ * Fach, zwei Hände, dieselbe Antwort — alles andere wäre ein Umbau, der
+ * nebenbei etwas kaputt macht, das nie zur Debatte stand.
+ */
+describe('ein Fach oder zwei', () => {
+  it('gibt ohne den Schalter jeder Seite dasselbe Fach', () => {
+    // Links, rechts, ohne Hand — dreimal dieselbe Antwort, und es ist die, die
+    // die Küche immer hatte: Was die Figur trägt, trägt die Figur.
+    expect(carrySlot('left', false, 'right')).toBe('body');
+    expect(carrySlot('right', false, 'right')).toBe('body');
+    expect(carrySlot('body', false, 'left')).toBe('body');
+  });
+
+  it('gibt mit dem Schalter jeder Hand ihr eigenes Fach', () => {
+    expect(carrySlot('left', true, 'right')).toBe('left');
+    expect(carrySlot('right', true, 'left')).toBe('right');
+  });
+
+  /**
+   * **Ohne Hand gefragt gilt die zuletzt tätige.** Den Fall gibt es auch in der
+   * Brille: Der fertig gespülte Teller kommt aus einer Uhr in die Hand
+   * (`kitchenWork.WORK_TO_HAND`) und nicht aus einem Griff. Ein drittes Fach
+   * vor dem Bauch wäre ein drittes getragenes Ding — und genau das soll dieser
+   * Schalter nicht hergeben.
+   */
+  it('schickt eine handlose Frage an die zuletzt tätige Hand', () => {
+    expect(carrySlot('body', true, 'left')).toBe('left');
+    expect(carrySlot('body', true, 'right')).toBe('right');
+  });
+
+  it('kennt die andere Hand', () => {
+    expect(otherHand('left')).toBe('right');
+    expect(otherHand('right')).toBe('left');
+  });
+});
+
+/**
+ * **Beim Abschalten bleibt genau eines übrig.**
+ *
+ * Wer den Schalter umlegt, während beide Hände voll sind, hätte sonst ein
+ * zweites Ding an einer Hand, nach der niemand mehr fragt: Danach gibt jede
+ * Seite dasselbe Fach zurück, und das andere wäre unerreichbar.
+ */
+describe('was beim Abschalten in der Hand bleibt', () => {
+  it('behält das der zuletzt tätigen Hand', () => {
+    expect(keptOnFold(['left', 'right'], 'right')).toBe('right');
+    expect(keptOnFold(['left', 'right'], 'left')).toBe('left');
+  });
+
+  it('behält das einzige, auch wenn es an der anderen Hand hängt', () => {
+    expect(keptOnFold(['left'], 'right')).toBe('left');
+    // Und was schon vor dem Bauch hing, hängt weiter dort.
+    expect(keptOnFold(['body'], 'right')).toBe('body');
+  });
+
+  it('gibt nichts zurück, wenn die Hände leer sind', () => {
+    expect(keptOnFold([], 'left')).toBeNull();
+  });
+
+  /** Es bleibt **eines** — nie zwei, in keiner Aufstellung. */
+  it('lässt in keinem Fall zwei übrig', () => {
+    const cases: readonly CarrySide[][] = [[], ['body'], ['left'], ['right'], ['left', 'right']];
+    for (const sides of cases) {
+      const kept = keptOnFold(sides, 'right');
+      expect(sides.filter((side) => side === kept)).toHaveLength(sides.length === 0 ? 0 : 1);
+    }
+  });
+});
+
+/**
+ * **Die Übergabe von Hand zu Hand** — dieselbe Geste wie beim Werkzeug
+ * (`PortalWorld.handoverTool`): Hände zusammen, greifen, fertig.
+ *
+ * Fünf Bedingungen, und jede einzelne verhindert für sich einen Fehler, den
+ * man sonst erst mit aufgesetzter Brille findet.
+ */
+describe('von einer Hand in die andere', () => {
+  /** Alles erfüllt — von hier aus wird jede Bedingung einzeln weggenommen. */
+  const ready: HandoverAsk = {
+    presenting: true,
+    pressed: true,
+    empty: true,
+    holding: true,
+    together: true,
+  };
+
+  it('übergibt, wenn alles zusammenkommt', () => {
+    expect(handsOver(ready)).toBe(true);
+  });
+
+  /** **Nur in der Brille**: Von oben und am Schreibtisch gibt es keine zweite Hand. */
+  it('übergibt nicht außerhalb der Brille', () => {
+    expect(handsOver({ ...ready, presenting: false })).toBe(false);
+  });
+
+  /**
+   * **Auf der Flanke und nicht, solange die Taste liegt.** Ohne diese
+   * Bedingung wanderte die Pfanne Bild für Bild hin und her, solange jemand
+   * die Hände beieinander hält und greift.
+   */
+  it('übergibt nur auf den neuen Druck der Greif-Taste', () => {
+    expect(handsOver({ ...ready, pressed: false })).toBe(false);
+  });
+
+  it('legt nichts in eine Hand, die schon etwas hält', () => {
+    expect(handsOver({ ...ready, empty: false })).toBe(false);
+  });
+
+  it('übergibt nichts, wenn die andere Hand leer ist', () => {
+    expect(handsOver({ ...ready, holding: false })).toBe(false);
+  });
+
+  /**
+   * **Und die Hände müssen wirklich beieinander sein** (`grabReach.atHandGrip`,
+   * 16 cm zwischen den Griffpunkten). Sonst nähme die leere Hand der anderen
+   * quer durch die Küche etwas ab, sobald sie greift.
+   */
+  it('übergibt nicht über die Reichweite hinaus', () => {
+    expect(handsOver({ ...ready, together: false })).toBe(false);
   });
 });

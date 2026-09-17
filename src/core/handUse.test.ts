@@ -3,11 +3,13 @@ import {
   HAND_TAP_SECONDS,
   HAND_USE_RANGE,
   beginGripPress,
+  betterHandUse,
   gripPressDrops,
   gripPressKind,
   gripPressTook,
   handUseFires,
   handUseMemory,
+  leadHandUse,
   pickHandUse,
   stepGripPress,
   type GripPress,
@@ -307,5 +309,58 @@ describe('Halten oder Tippen', () => {
     // Abgelegt wird beim nächsten Druck, und der ist ein `justPressed`; dass
     // eine Fläche darauf antwortet, steht oben.
     expect(gripPressKind(tapping)).toBe('tap');
+  });
+});
+
+/**
+ * **Welche der beiden Hände den Saum führt** — die Regel, mit der der gelbe
+ * Saum in der Brille aufhört, zwischen den Händen hin und her zu springen
+ * (`core/handUse.leadHandUse`, `worlds/portal/PortalWorld.showUse`).
+ */
+describe('Welche Hand den Saum führt', () => {
+  /** Ein Fund, so viel wie die Rangfolge davon braucht. */
+  const reached = (item: string, reach: 'touch' | 'aim', distance: number) => ({
+    item,
+    reach,
+    distance,
+  });
+
+  it('nimmt ohne führende Hand den besseren der beiden Funde', () => {
+    const left = reached('regal', 'aim', 2.5);
+    const right = reached('tresen', 'aim', 0.4);
+    expect(leadHandUse(left, right, null)).toBe(right);
+    expect(leadHandUse(left, null, null)).toBe(left);
+    expect(leadHandUse(null, null, null)).toBeNull();
+  });
+
+  it('lässt Anfassen vor Zeigen gehen, auch über beide Hände hinweg', () => {
+    const left = reached('schublade', 'touch', 0.9);
+    const right = reached('tuer', 'aim', 0.1);
+    expect(betterHandUse(left, right)).toBe(left);
+    expect(betterHandUse(right, left)).toBe(left);
+  });
+
+  it('bleibt bei gleichem Abstand beim ersten Fund — der Saum soll nicht flackern', () => {
+    const left = reached('a', 'aim', 1);
+    const right = reached('b', 'aim', 1);
+    expect(betterHandUse(left, right)).toBe(left);
+  });
+
+  it('gibt der führenden Hand den Vorrang, auch wenn die andere näher dran ist', () => {
+    // Genau der gemeldete Fall: Die Pfanne liegt links, die freie Rechte
+    // streift im Vorbeigehen eine Arbeitsplatte.
+    const left = reached('herd', 'aim', 2.8);
+    const right = reached('arbeitsplatte', 'touch', 0.05);
+    expect(leadHandUse(left, right, 'left')).toBe(left);
+    expect(leadHandUse(left, right, 'right')).toBe(right);
+  });
+
+  it('fällt auf den besseren Fund zurück, wenn die führende Hand ins Leere zeigt', () => {
+    const right = reached('tresen', 'aim', 1.2);
+    expect(leadHandUse(null, right, 'left')).toBe(right);
+  });
+
+  it('zeigt nichts, wenn keine der beiden Hände etwas meint', () => {
+    expect(leadHandUse(null, null, 'right')).toBeNull();
   });
 });

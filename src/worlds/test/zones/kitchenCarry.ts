@@ -68,6 +68,7 @@
  */
 
 import type { GrabLike } from '../../../core/grabHandles';
+import type { Handedness } from '../../../core/XRInput';
 import {
   INTERACTION_DEFAULTS,
   type InteractionInput,
@@ -906,4 +907,113 @@ export function kitchenPrompt(deed: KitchenDeed, what: string): string {
     case 'nothing':
       return '';
   }
+}
+
+// --- zwei Hände ------------------------------------------------------------
+
+/**
+ * **An welcher Hand etwas liegt** — oder vor dem Bauch, wenn es keine gibt.
+ *
+ * `'body'` ist kein Notnagel, sondern der Normalfall von oben und am
+ * Schreibtisch: Dort gibt es keine Hand, die zugegriffen hätte
+ * (`core/usable.UseSource.hand`), und was die Figur trägt, hängt vor ihrem
+ * Bauch (`kitchen.carryInHands`). In der Brille ist es eine der beiden echten
+ * Hände.
+ *
+ * Es ist zugleich der **Schlüssel des Faches**: Die Küche führt je Seite eines,
+ * und welches Fach eine Seite meint, sagt `carrySlot` darunter.
+ */
+export type CarrySide = Handedness | 'body';
+
+/**
+ * **Welches Fach eine Seite meint** — und hier steckt die ganze Betriebsart
+ * drin (`core/grabSettings.GrabSettings.twoHands`).
+ *
+ * **Steht der Schalter aus**, gibt es genau **ein** getragenes Ding, und es
+ * gehört der Figur und nicht einer Hand: Jede Seite bekommt dasselbe Fach
+ * (`'body'`) und damit dieselbe Antwort. Das ist der Zustand, den diese Küche
+ * immer hatte, Zeile für Zeile — wer mit der linken Hand nach dem Teller
+ * greift, den die rechte hält, greift nach demselben Teller.
+ *
+ * **Steht er an**, hat jede Hand ihr eigenes Fach: links die Pfanne, rechts
+ * der Burger.
+ *
+ * **Und ohne Hand gefragt?** Das kommt auch in der Brille vor — der fertig
+ * gespülte Teller kommt aus einer **Uhr** in die Hand (`kitchenWork.WORK_TO_HAND`)
+ * und nicht aus einem Griff, und die Uhr weiß von keiner Hand. Dann gilt die
+ * Hand, die zuletzt etwas getan hat (`busy`): Ein drittes Fach vor dem Bauch
+ * wäre ein drittes getragenes Ding, und genau das soll dieser Schalter nicht
+ * hergeben.
+ */
+export function carrySlot(side: CarrySide, twoHands: boolean, busy: Handedness): CarrySide {
+  if (!twoHands) return 'body';
+  return side === 'body' ? busy : side;
+}
+
+/** Die andere der beiden Hände. */
+export function otherHand(hand: Handedness): Handedness {
+  return hand === 'left' ? 'right' : 'left';
+}
+
+/**
+ * **Was eine Übergabe von Hand zu Hand verlangt** — fünf Bedingungen, und alle
+ * fünf müssen gelten.
+ *
+ * Es ist dieselbe Geste wie beim Werkzeug (`PortalWorld.handoverTool`):
+ * **Hände zusammen, greifen, fertig.** Gemessen wird sie auch mit derselben
+ * Rechnung (`worlds/portal/grabReach.atHandGrip`, `HANDOVER_REACH`) — die steht
+ * dort und wird dort geprüft, hier steht nur, wann sie überhaupt gefragt wird.
+ */
+export interface HandoverAsk {
+  /** Nur in der Brille: von oben und am Schreibtisch gibt es keine zweite Hand. */
+  readonly presenting: boolean;
+  /**
+   * **Die Flanke** der Greif-Taste der leeren Hand
+   * (`core/XRInput.ButtonState.justPressed`) und nicht ihr Liegen: Wer sie
+   * gedrückt hält, während die Hände beieinander sind, schöbe den Gegenstand
+   * sonst Bild für Bild hin und her.
+   */
+  readonly pressed: boolean;
+  /** Ob die greifende Hand leer ist — in eine volle wird nichts gelegt. */
+  readonly empty: boolean;
+  /** Ob die andere Hand überhaupt etwas hält. */
+  readonly holding: boolean;
+  /** Ob beide **Griffpunkte** nah genug beieinander sind (`atHandGrip`). */
+  readonly together: boolean;
+}
+
+/**
+ * **Ob der Gegenstand jetzt die Hand wechselt.**
+ *
+ * „Es wäre schön, wenn ich Gegenstände in der Küche auch von einer in die
+ * andere Hand nehmen könnte" — das ist der Auftrag, und das hier ist er als
+ * Regel. Sie gilt in **beiden** Betriebsarten: Mit dem Schalter aus wechselt
+ * das eine getragene Ding die Hand, mit ihm an wandert eines der beiden in die
+ * freie.
+ *
+ * Eine eigene Funktion und keine fünf `&&` in der Zone, weil ein Fall hier eine
+ * Zeile ist und im Headset ein Hin- und Herlaufen mit aufgesetzter Brille.
+ */
+export function handsOver(ask: HandoverAsk): boolean {
+  return ask.presenting && ask.pressed && ask.empty && ask.holding && ask.together;
+}
+
+/**
+ * **Was beim Abschalten in der Hand bleibt** — genau eines, und der Rest geht
+ * dorthin zurück, wo er hingehört.
+ *
+ * Wer `twoHands` umlegt, während beide Hände voll sind, hat einen Augenblick
+ * lang zwei Dinge in einem Fach, und das ist kein Zustand, sondern ein
+ * verlorener Gegenstand: Das zweite hinge an einer Hand, nach der niemand mehr
+ * fragt. Bleiben darf deshalb das der Hand, die zuletzt etwas getan hat
+ * (`busy`) — sie ist die, mit der gerade gearbeitet wurde. Alles andere räumt
+ * die Zone nach derselben Regel weg wie der Umbau (`kitchenBuild.goesHomeOnEdit`):
+ * Was einen Platz hat, an den es gehört, geht dorthin zurück; weggeworfen wird
+ * nur, was keinen hat.
+ *
+ * `null` heißt: Es ist ohnehin nichts in der Hand.
+ */
+export function keptOnFold(sides: readonly CarrySide[], busy: Handedness): CarrySide | null {
+  if (sides.length === 0) return null;
+  return sides.includes(busy) ? busy : sides[0]!;
 }

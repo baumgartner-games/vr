@@ -3679,11 +3679,38 @@ Jetzt wählt in der Brille die Hand, und am Schirm wählt weiter der Körper
 | in der Brille              | die Hand (`core/handUse.pickHandUse`, je Hand eine)  |
 
 Zwischen den **beiden Händen** gilt dieselbe Rangfolge wie innerhalb einer:
-Anfassen sticht Zeigen, unter Gleichen gewinnt das Nächste. Der Körper bleibt
-der **Rückfall**, auch in der Brille: Zeigt keine Hand auf etwas, meint `A`
-weiter, was vor der Figur steht, und dann soll das auch leuchten — ein Saum,
-der in dem Augenblick ausginge, in dem die Taste noch wirkt, wäre derselbe
-Fehler in der anderen Richtung.
+Anfassen sticht Zeigen, unter Gleichen gewinnt das Nächste
+(`core/handUse.betterHandUse` — eine Rechnung für beide Fragen, nicht zwei
+Abschriften). Der Körper bleibt der **Rückfall**, auch in der Brille: Zeigt
+keine Hand auf etwas, meint `A` weiter, was vor der Figur steht, und dann soll
+das auch leuchten — ein Saum, der in dem Augenblick ausginge, in dem die Taste
+noch wirkt, wäre derselbe Fehler in der anderen Richtung.
+
+**Und unter Gleichen führt die Hand, die zuletzt etwas getan hat**
+(`core/handUse.leadHandUse`, `PortalWorld.lastActHand`). Das ist die nächste
+Meldung aus der Brille, und sie ist die Kehrseite der eben beschriebenen:
+Sobald man **trägt**, sprang der Saum zwischen den Händen hin und her, weil er
+immer dem näheren der beiden Funde folgte — mit der Pfanne in der Linken
+streift die freie Rechte beim Gehen ständig irgendeine Arbeitsplatte, und dann
+leuchtete die. Wer eines in der Hand hat, meint mit dieser Hand weiter.
+
+Führend ist, wer zuletzt wirklich **gehandelt** hat: gegriffen (`attach`), ein
+Werkzeug genommen (`takeTool`, `catchLooseTool`) oder gedrückt, wo der Druck
+etwas bewirkt hat (`useByHand`). **Zeigen führt nicht** — sonst wäre es
+dasselbe Hin und Her mit einem Bild Verzögerung. Und zeigt die führende Hand
+ins Leere, gilt wieder der bessere Fund: Ein Saum, der ausgeht, weil der Arm
+gerade herunterhängt, wäre derselbe Fehler noch einmal.
+
+**Mit zwei Gegenständen bekommt jede Hand ihren eigenen Saum.** Steht
+`core/grabSettings.GrabSettings.twoHands`, kann jede Hand etwas Eigenes
+greifen, und dann ist „was meint die Hand?" zweimal zu beantworten — links die
+Pfanne, rechts der Burger, und beide Hände zeigen woandershin. `PortalWorld`
+hält dafür einen **zweiten** `Highlight` (zwei Instanzen und keine Liste: Die
+Klasse verspricht, dass genau ein Ding leuchtet, und zwei Hände sind zwei
+solcher Versprechen). Zeigen beide auf dasselbe Ding, leuchtet es einmal. Der
+Rückfall auf den Körper entfällt dabei mit Absicht: Er ist die Auskunft für die
+**Figur** und nicht für eine Hand, und eine leere Hand soll in dieser
+Betriebsart auch leer aussehen.
 
 Zwei Zeilen Ablauf hängen daran: Worauf eine Hand zeigt, steht erst in
 `updateGrabs` fest, also wird der Saum **danach** gesetzt und nicht davor
@@ -5856,6 +5883,123 @@ Die zweite erledigt eine ganze Klasse von Vermutungen:
 > zusammen **rund 1,4 ms je Bild** — `world.update` 0,99, die Physik 0,19, alle
 > zehn Zonen zusammen 0,15. Bei 72 fps stehen 13,9 ms zur Verfügung. Wer hier
 > optimiert, optimiert das Zehntel; das Bild liegt im anderen.
+
+#### Die Messstrecke der Küche — und wer die Aufrufe verbraucht
+
+Die Messstrecke für die **Bildrate** (`npm run fps`, `docs/quest3-referenz.md`)
+beantwortet, was ein Regler kostet. Ihr offener Hauptposten heißt dort **M3**:
+607 Zeichenaufrufe in der Testwelt, und die Küchenmöbel stehen im Verdacht. Wer
+sie verschmelzen will, muss vorher wissen, **wer** die Aufrufe verbraucht — und
+das steht in keiner Bildzeit. Dafür gibt es das Schwesterwerkzeug
+`tools/perf-kitchen.mjs` (`npm run perf:kitchen`), mit derselben
+Seitenvorbereitung: HMR abgeklemmt, Service Worker aus, Grafikeinstellungen
+vollständig geschrieben, aus den Augen und nicht von oben.
+
+Gemessen wird **dort, wo ein Koch steht** — `?at=kitchen#test` setzt die Füße
+auf die Ankerkachel der Küche (13,5 / −23,5), also die Stelle, an der auch der
+Grundrisstest misst —, und für zwölf Blickrichtungen je 30°: Die Aufrufe hängen
+in dieser Welt kaum davon ab, wo man steht, sondern wohin man sieht.
+
+**Die Augenhöhe der Brille gilt am Schreibtisch nicht.** `zones/kitchen.fitEyes`
+staucht den Körper auf die 115 cm des Küchenblicks (`posture.DEFAULT_EYES`) nur
+in einer XR-Sitzung; ein Browser ohne Brille steht mit 165 cm da. Das Werkzeug
+setzt die Höhe deshalb für das Bild selbst, unmittelbar vor `render` — dort
+entscheidet die Projektionsmatrix, was ausgesiebt wird. Dieselbe Stelle setzt
+wahlweise ein Sichtfeld wie ein Auge der Quest (96° senkrecht, Seitenverhältnis
+0,935); es kommt fast dasselbe heraus wie mit den 70°/16:10 des Bildschirms
+(396 gegen 399 Aufrufe im Mittel), denn **waagerecht** sind beide ähnlich weit.
+
+Gezählt wird, indem `renderBufferDirect` umhüllt wird — die eine Stelle, durch
+die jeder Zeichenaufruf geht, im Haupt- wie im Schattendurchgang. Keine Zeile im
+Spiel ändert sich dafür.
+
+| Blick | Aufrufe je Bild | Hauptdurchgang | Schattendurchgang | Dreiecke |
+| ----: | --------------: | -------------: | ----------------: | -------: |
+| 0° (Norden) | 243 | 48 | 195 | 76 138 |
+| 30° | 234 | 39 | 195 | 71 501 |
+| 60° | 258 | 63 | 195 | 70 389 |
+| 90° (Westen) | 327 | 132 | 195 | 81 833 |
+| 120° | 460 | 265 | 195 | 93 071 |
+| 150° | 473 | 278 | 195 | 94 721 |
+| 180° (Süden) | 439 | 244 | 195 | 90 201 |
+| 210° | 330 | 135 | 195 | 79 119 |
+| 240° | 529 | 334 | 195 | 90 536 |
+| 270° (Osten) | 543 | 348 | 195 | 90 072 |
+| 300° | **558** | **357** | 201 | 96 557 |
+| 330° | 391 | 190 | 201 | 86 919 |
+
+Drei Sachen stehen in dieser Tabelle:
+
+**Der Schattendurchgang ist blickfest.** 195 bis 201 Aufrufe, egal wohin man
+sieht — er zeichnet aus der Sicht der Sonne und nicht aus der des Spielers. Im
+Mittel über die Runde ist er **die Hälfte des Bildes** (196 von 399). Wer nach
+Norden sieht, zahlt für den Schatten viermal so viel wie für das, was er sieht.
+Das ist der Posten hinter **M4** in `docs/quest3-referenz.md`, und es ist die
+Zahl, die dort fehlte.
+
+**Zwei Drittel des Hauptdurchgangs sind sechs gebaute Maschinen.** In der
+teuersten Richtung (300°, nach Osten in Werkhalle und Schauraum) sind von 357
+Aufrufen **226** der Kopierer, das Zugband, das Förderband, der Mixer, das
+Filterband und der Kombinierer — und die zeichnen zusammen gut **3 000
+Dreiecke**. Der Kopierer allein sind 60 Aufrufe für 500 Dreiecke, aus 9
+Materialien und 10 Geometrien: Er ist aus fünf Dutzend kleinen Quadern gebaut,
+und jeder einzelne ist ein eigenes `Mesh` mit eigenem Material. Dasselbe gilt
+für alles, was `KitchenPiece.built` selbst zusammensetzt. **M3 zielt damit auf
+die richtige Zone, aber auf die falschen Möbel:** Nicht die Stücke aus
+`kitchen.glb` sind der Posten, sondern die gebauten.
+
+**Die Möbel aus der Datei stehen trotzdem doppelt und dreifach im Bild.**
+`counter` liefert in derselben Richtung 12 Aufrufe aus **einer** Geometrie und
+**einem** Material — zwölfmal dasselbe Ding, zwölfmal einzeln gezeichnet.
+
+Die vollständigen Ranglisten — je Objekt, je Material, je Netz — schreibt der
+Lauf nach `.artifacts/perf-kitchen/<Zeitstempel>/`.
+
+**Und die Rechenzeit?** Im selben Lauf hängt sich ein CPU-Profil an
+(`Profiler.start` über CDP) und teilt die Bildschleife nach Aufrufern auf. Das
+Ergebnis ist eindeutig und hat nichts mit der Küche zu tun: **Knapp 60 % der
+JavaScript-Zeit außerhalb des Renderers stecken in
+`Object3D.updateMatrixWorld`** — in dem einen erzwungenen Durchlauf, den
+`PortalRenderer.render` vor
+jedem Bild macht (`scene.updateMatrixWorld(true)`, acht Zeilen bevor geprüft
+wird, ob überhaupt ein Portal gesetzt ist). **Das ist nicht dasselbe wie M2:**
+Dort sind 2 764 unsichtbare Knoten stillgelegt worden, und sie kosten jetzt
+keine Multiplikation mehr — durchlaufen werden sie weiterhin. Gezählt, nicht
+geschätzt: Der Szenengraph hat nach M2 **6 556 Knoten** (4 740 Netze, 680
+sichtbar), und er wird je Bild **zweimal** vollständig durchgerechnet — einmal
+erzwungen von dort, einmal sanft von three selbst —, dazu kommt ein drittes
+`traverseVisible` für die Spiegelsuche (`collectMirrors`, 7 % der Zeit
+außerhalb des Renderers).
+
+> **Zählwerte überträgt der Container ehrlich, Zeiten nicht.** Aufrufe,
+> Objekte, Materialien und Dreiecke kommen aus dem Renderer und gelten
+> unabhängig von der Grafikkarte darunter. Die Millisekunden nicht: Dort
+> zeichnet SwiftShader in Software, und dort liegen 93 % der Bildschleife. Das
+> Werkzeug trennt beides deshalb ausdrücklich und weist nur Anteile aus. **Aus
+> diesem Lauf folgt keine Bildzeit und kein Prozentgewinn für die Quest 3** —
+> dieselbe Falle wie bei den 34 % für Schatten aus.
+
+**Was daraus folgen könnte, aber noch nicht geschehen ist** — drei Vorschläge,
+nach Größe des Postens, keiner davon umgesetzt:
+
+1. **Die gebauten Maschinen zusammenfassen** (M3, aber gezielt). Ein Kopierer
+   aus 60 Quadern mit 9 Materialien ist gebündelt einer aus 9 Aufrufen: je
+   Material eine zusammengefasste Geometrie (`mergeGeometries`), gerechnet beim
+   Bauen und nicht je Bild. Es ist dieselbe Rechnung wie bei den Bodenkacheln
+   weiter oben, nur eine Ebene kleiner — und einzeln bewegen sich die Teile nur
+   dort, wo ein Band läuft; die bleiben dann eben draußen, genau wie das, was
+   `kitchenGrab.ts` greifbar halten muss.
+2. **Den Schattendurchgang an derselben Stelle mitnehmen** (M4). Er ist die
+   Hälfte des Bildes und zeichnet dieselben Quader noch einmal. Wo ein Bündel
+   entsteht, fällt er von selbst mit; wo nicht, hilft `denyShadow` an allem, was
+   ohnehin in der Silhouette eines größeren Kastens steckt — der Trick, mit dem
+   die Laufbänder schon von 45 auf 10 Aufrufe gekommen sind.
+3. **Den erzwungenen Matrixdurchlauf nur dann, wenn ein Portal steht.** Die
+   Prüfung auf `active.length === 0` steht in `PortalRenderer.render` acht
+   Zeilen **unter** dem `scene.updateMatrixWorld(true)`. Sie darüber zu ziehen
+   ist eine Zeile; was sie einspart, ist ein vollständiger Durchlauf durch 6 556
+   Knoten je Bild, und zwar auch dann, wenn die Portalpistole gar nicht in der
+   Hand liegt.
 
 #### Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht
 

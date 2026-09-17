@@ -13,6 +13,7 @@ import { beltGrabs, beltKind, beltReach, beltReleases, beltStep, beltWants } fro
 import { chopStage } from './kitchenRecipes';
 import {
   BUILD_BUTTON_TILE,
+  HANDS_BUTTON_TILE,
   KITCHEN_EYE_MARGIN,
   KITCHEN_SHOWN,
   KITCHEN_SPOTS,
@@ -484,17 +485,39 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
     expect(kindOf(stool!)).toBe('rack');
   });
 
-  it('lässt die Kachel des Umbauknopfes frei', () => {
-    const taken = WORKING.some((spot) => {
+  /** Ob auf dieser Kachel ein Möbel der arbeitenden Küche steht. */
+  const busy = (tile: { x: number; z: number }): boolean =>
+    WORKING.some((spot) => {
       const size = footprint(kitchenPiece(spot.name)!, spot.turn ?? 0);
       return (
-        BUILD_BUTTON_TILE.x >= spot.x &&
-        BUILD_BUTTON_TILE.x < spot.x + size.w &&
-        BUILD_BUTTON_TILE.z >= spot.z &&
-        BUILD_BUTTON_TILE.z < spot.z + size.d
+        tile.x >= spot.x && tile.x < spot.x + size.w && tile.z >= spot.z && tile.z < spot.z + size.d
       );
     });
-    expect(taken).toBe(false);
+
+  it('lässt die Kachel des Umbauknopfes frei', () => {
+    expect(busy(BUILD_BUTTON_TILE)).toBe(false);
+  });
+
+  /**
+   * **Und die des zweiten Knopfes ebenso** (`HANDS_BUTTON_TILE`, „VR zwei
+   * Gegenstände an/aus"). Derselbe Fehler wäre hier derselbe: `A` erwischte
+   * immer nur eines von beiden, und je nachdem, welches, ließe sich entweder
+   * der Knopf nicht mehr drücken oder das Möbel nicht mehr bedienen.
+   */
+  it('lässt die Kachel des zweiten Knopfes frei', () => {
+    expect(busy(HANDS_BUTTON_TILE)).toBe(false);
+  });
+
+  /**
+   * **Und die beiden stehen nicht aufeinander.** Zwei Knöpfe auf einer Kachel
+   * wären genau der Fall, den die beiden Prüfungen darüber für Möbel
+   * ausschließen — nur dass ihn keine Möbelliste auffangen würde, denn ein
+   * Knopf steht in keiner.
+   */
+  it('stellt die beiden Knöpfe nebeneinander und nicht übereinander', () => {
+    const dx = Math.abs(BUILD_BUTTON_TILE.x - HANDS_BUTTON_TILE.x);
+    const dz = Math.abs(BUILD_BUTTON_TILE.z - HANDS_BUTTON_TILE.z);
+    expect(dx + dz).toBe(1);
   });
 });
 

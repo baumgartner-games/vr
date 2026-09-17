@@ -126,6 +126,16 @@ export abstract class GridWorld extends PortalWorld {
    * Was hier steht, wird umgeschaltet; alles andere bleibt, wie es ist.
    */
   private readonly ghostBatched: THREE.Mesh[] = [];
+  /**
+   * **Die Quader, deren Matrizen stillgelegt werden** — alles, was in irgendein
+   * Bündel gewandert ist, aus beiden Listen oben.
+   *
+   * Der Grund steht in `freezeBatched()`. Die Liste selbst ist nötig, weil das
+   * Stilllegen **nach** dem Bündeln kommen muss und nicht mittendrin: Erst
+   * müssen die Weltmatrizen einmal richtig gerechnet sein, und dafür muss die
+   * Gruppe da hängen, wo sie hingehört.
+   */
+  private readonly batched: THREE.Mesh[] = [];
   /** Ob gerade die Bündel zu sehen sind (aus den Augen) oder die Quader (von oben). */
   private ghostBatchView = true;
   /** Ob zuletzt von oben geschaut wurde — ein Umbau muss die Ansicht wiederherstellen. */
@@ -338,6 +348,7 @@ export abstract class GridWorld extends PortalWorld {
     }
     this.ghostBatches.length = 0;
     this.ghostBatched.length = 0;
+    this.batched.length = 0;
     for (const mesh of this.slabs) this.dropSlab(mesh);
     this.slabs.length = 0;
     this.batchable.length = 0;
@@ -367,6 +378,9 @@ export abstract class GridWorld extends PortalWorld {
       this.ghostBatchView = true;
       this.showGhostBatches(!this.topDownView);
     }
+    // **Und jetzt stehen die Gebündelten still** — beide Sorten zusammen, erst
+    // nachdem beide Bündel gebaut sind (`freezeBatched`).
+    this.freezeBatched(group);
     // **Nach den Bausteinen**, und zwar auch nach dem Zusammenfassen: Ein
     // Einbau hat ein eigenes Bild und eigene Körper, und in eine
     // `InstancedMesh` gehört er nicht — er bewegt sich.
@@ -430,6 +444,9 @@ export abstract class GridWorld extends PortalWorld {
         matrix.compose(mesh.position, mesh.quaternion, scale);
         batch.setMatrixAt(i, matrix);
         mesh.visible = false;
+        // Gemerkt für `freezeBatched()`: Was hier in ein Bündel gegangen ist,
+        // steht von jetzt an still und braucht seine Matrix nie wieder neu.
+        this.batched.push(mesh);
         // **Ein Quader, der wiederkommt, behält seinen Saum.** Im Comic hängt
         // die Kontur am sichtbaren Ding; wer von oben wieder einzeln dasteht,
         // braucht dort eine — und solange er unsichtbar ist, kostet sie nichts,
@@ -440,6 +457,56 @@ export abstract class GridWorld extends PortalWorld {
       batch.computeBoundingSphere();
       group.add(batch);
       into.push(batch);
+    }
+  }
+
+  /**
+   * **Die gebündelten Quader stehen still — also soll three sie auch nicht
+   * jedes Bild neu ausrechnen.**
+   *
+   * Ein Quader, der in ein Bündel gewandert ist, wird unsichtbar und bleibt im
+   * Baum stehen (`buildBatches`, mit gutem Grund: seine Physik, sein Eintrag in
+   * `solids` und jeder Strahl, der auf ihn zeigt, arbeiten unverändert weiter).
+   * Beim **Zeichnen** kostet er dadurch nichts — `projectObject` kehrt an einem
+   * unsichtbaren Objekt sofort um. Beim **Matrizenziehen** kostet er trotzdem:
+   * `Object3D.updateMatrixWorld` fragt nicht nach Sichtbarkeit, es läuft durch
+   * jedes Kind und rechnet für jedes `updateMatrix()` und eine
+   * Matrixmultiplikation.
+   *
+   * In der Testwelt sind das **1 358 unsichtbare Quader**, und der Durchlauf
+   * läuft **dreimal je Bild** (Hauptdurchgang, Spiegeldurchgang, und einer
+   * davor). Gemessen: `scene.updateMatrixWorld()` kostete dort 1,09 ms je
+   * Aufruf gegen 0,046 ms im Hub — das meiste davon für Quader, die niemand
+   * sieht und die sich nie bewegen.
+   *
+   * Beides abgeschaltet, `matrixAutoUpdate` **und** `matrixWorldAutoUpdate`:
+   * Das erste spart das Neuzusammensetzen aus Position, Drehung und Größe, das
+   * zweite die Multiplikation mit der Elternmatrix. Vorher wird einmal
+   * erzwungen gerechnet (`group.updateMatrixWorld(true)`) — genau diese
+   * Reihenfolge ist der Punkt: Wer erst stilllegt und dann rechnen ließe, hätte
+   * Quader mit einer Weltmatrix aus dem Nichts.
+   *
+   * **Und warum das gefahrlos ist:** Diese Quader bewegen sich nach dem Bauen
+   * nie wieder. Was mit ihnen geschieht, ist ausschließlich ein Umschalten von
+   * `visible` (`showGhostBatches`, wenn die Ansicht von oben die Wände wieder
+   * einzeln hinstellt) und ein Materialtausch (`setGhost`, das Durchsichtigwerden
+   * einer Wand) — beides rührt keine Matrix an. Wer einen Quader wirklich
+   * versetzt, versetzt ihn nicht: Ein geänderter Plan baut das ganze Gitter neu
+   * (`rebuildGrid`), und dabei entstehen frische Meshes, die hier wieder
+   * durchlaufen. Türblätter und Portalflächen kommen ohnehin nie in ein Bündel
+   * (`gridBatch.joinsBatch`, `joinsGhostBatch`) und bleiben deshalb beweglich.
+   *
+   * Nachträglich angehängte Kinder — die Konturhülle des Comics
+   * (`core/outlineShell.ts`) — bleiben ebenfalls richtig: Sie tragen ihre
+   * eigenen Schalter, und die Elternmatrix, mit der sie rechnen, steht ja
+   * korrekt und für immer fest.
+   */
+  private freezeBatched(group: THREE.Group): void {
+    if (this.batched.length === 0) return;
+    group.updateMatrixWorld(true);
+    for (const mesh of this.batched) {
+      mesh.matrixAutoUpdate = false;
+      mesh.matrixWorldAutoUpdate = false;
     }
   }
 

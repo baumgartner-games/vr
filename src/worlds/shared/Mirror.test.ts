@@ -72,7 +72,60 @@ describe('web mirror render budget', () => {
     mirror.geometry.dispose();
   });
 
-  it('keeps the established XR buffer scale and stereo camera path', () => {
+  it('leaves a pane blind once it is too small at the eye to be worth a pass', () => {
+    const fake = renderer();
+    const mirrors = new MirrorRenderer(fake as unknown as THREE.WebGLRenderer);
+    const { root, camera } = scene();
+    root.children[0]!.removeFromParent();
+    // Das Glas des Kleiderschranks aus der Testwelt: 0,36 × 1,5 m.
+    const pane = new MirrorSurface(0.36, 1.5);
+    root.add(pane);
+    const camerasAt = (z: number) => {
+      pane.position.set(0, 0, z);
+      fake.render.mockClear();
+      mirrors.render(root, camera);
+      return fake.render.mock.calls.length;
+    };
+    // Davorstehen: Bild. Quer über den Platz: blindes Glas — früher zeichnete
+    // dieselbe Scheibe die ganze Welt noch auf zwölf Meter ein zweites Mal.
+    expect(camerasAt(-2)).toBe(1);
+    expect(camerasAt(-12)).toBe(0);
+    expect(pane.material.uniforms.uActive!.value).toBe(0);
+    mirrors.dispose();
+    pane.material.dispose();
+    pane.geometry.dispose();
+  });
+
+  it('skips the forced XR scene traversal when no mirror is drawn', () => {
+    const fake = renderer();
+    const { root, mirror, camera } = scene();
+    const eye = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 100);
+    eye.viewport = new THREE.Vector4(0, 0, 2560, 1440);
+    const stereo = new THREE.ArrayCamera([eye]);
+    const xrFake = { ...fake, xr: { isPresenting: true, enabled: true, getCamera: () => stereo } };
+    const mirrors = new MirrorRenderer(xrFake as unknown as THREE.WebGLRenderer);
+    const walk = jest.spyOn(root, 'updateMatrixWorld');
+
+    // Zugeklappt im Schrank: kein Durchgang, also auch kein Durchlauf durch die
+    // Szene. Das war in der Brille bis dahin 1,1 ms in **jedem** Bild.
+    mirror.reflecting = false;
+    mirrors.render(root, camera);
+    expect(fake.render).not.toHaveBeenCalled();
+    expect(walk).not.toHaveBeenCalled();
+
+    // Und sobald wirklich gezeichnet wird, steht die Szene vorher auf Stand.
+    mirror.reflecting = true;
+    mirrors.render(root, camera);
+    expect(fake.render).toHaveBeenCalledTimes(1);
+    expect(walk).toHaveBeenCalledWith(true);
+
+    walk.mockRestore();
+    mirrors.dispose();
+    mirror.material.dispose();
+    mirror.geometry.dispose();
+  });
+
+  it('draws the XR mirror at a fraction of the eye buffer, stereo', () => {
     const fake = renderer();
     const { root, mirror, camera } = scene();
     const eye = new THREE.PerspectiveCamera(70, 16 / 9, 0.05, 100);
@@ -82,8 +135,10 @@ describe('web mirror render budget', () => {
     const mirrors = new MirrorRenderer(xrFake as unknown as THREE.WebGLRenderer);
     mirrors.render(root, camera);
     const target = fake.setRenderTarget.mock.calls[0]![0] as THREE.WebGLRenderTarget;
-    expect(target.width).toBe(1792);
-    expect(target.height).toBe(1007);
+    // 0,4 des Augenpuffers (`MirrorRenderer.vrResolutionScale`): Ein Spiegel
+    // ist eine Fläche im Raum und kein zweiter Bildschirm.
+    expect(target.width).toBe(1024);
+    expect(target.height).toBe(576);
     expect(target.samples).toBe(0);
     const reflected = fake.render.mock.calls[0]![1] as THREE.ArrayCamera;
     expect(reflected.isArrayCamera).toBe(true);
