@@ -58,9 +58,9 @@ describe('what a thing wants, per view', () => {
 
   it('holds the grab button in VR — the one place where holding matters', () => {
     const grab = resolveInteraction('grab', 'vr');
-    expect(grab.inputs).toEqual(['grip']);
+    expect(grab.inputs).toEqual(['grip', 'aimTrigger']);
     expect(grab.press).toBe('hold');
-    expect(grab.hint).toBe('Greifen halten');
+    expect(grab.hint).toBe('Greifen / Trigger halten');
   });
 
   it('is interactive wherever there is an input', () => {

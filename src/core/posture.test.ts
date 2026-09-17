@@ -96,14 +96,14 @@ describe('Augenhöhen', () => {
  * stehen lässt, bleibt der Boden der Boden.
  */
 describe('Die Augenhöhe in der Küche', () => {
-  it('bringt den voreingestellten Spieler von 165 auf 150 cm', () => {
+  it('bringt den voreingestellten Spieler von 165 auf 115 cm', () => {
     const scale = kitchenEyeScale(DEFAULT_EYES);
-    expect(scale).toBeCloseTo(150 / 165, 6);
+    expect(scale).toBeCloseTo(115 / 165, 6);
     expect(DEFAULT_EYES.stand * scale).toBeCloseTo(DEFAULT_EYES.kitchen, 6);
   });
 
   /**
-   * Zwei Spieler, 35 cm auseinander, danach beide auf 1,50 m — das kann eine
+   * Zwei Spieler, 35 cm auseinander, danach beide auf 1,15 m — das kann eine
    * feste Differenz nicht: Sie hielte den Abstand und verfehlte damit einen
    * von beiden.
    */
@@ -185,24 +185,25 @@ describe('Was im Speicher steht', () => {
   /**
    * **Ein neuer Auslieferungswert rührt keine gespeicherte Zahl an.**
    *
-   * Die Küchenhöhe ist von 140 auf 150 cm gezogen worden, weil sich 140 in der
-   * Brille zu niedrig anfühlte (`DEFAULT_EYES`). Wer vorher am Regler gedreht
+   * Die Küchenhöhe ist erst von 140 auf 150 und dann auf 115 cm gesetzt
+   * worden, jedes Mal mit aufgesetzter Brille (`DEFAULT_EYES`). Wer selbst am
+   * Regler gedreht
    * hat, hat seine Zahl aber aus demselben Grund gewählt: weil sie sich für
    * **ihn** richtig anfühlt. Ein Auslieferungswert, der beim nächsten Start
    * darüberschriebe, nähme ihm genau das wieder weg — und zwar unbemerkt, denn
    * niemand sieht im Menü nach, ob dort noch steht, was er eingestellt hat.
    *
-   * Geprüft wird deshalb beides: Eine gespeicherte 140 bleibt eine 140, auch
+   * Geprüft wird deshalb beides: Eine gespeicherte 150 bleibt eine 150, auch
    * wenn sie zufällig dem **alten** Auslieferungswert gleicht — und ein
-   * fehlender Eintrag wird zur neuen 150.
+   * fehlender Eintrag wird zur neuen 115.
    */
-  it('lässt eine eingestellte Küchenhöhe stehen, auch die alte 140', () => {
+  it('lässt eine eingestellte Küchenhöhe stehen, auch die alte 150', () => {
+    fake(JSON.stringify({ stand: 178, sit: 126, kitchen: 150 }));
+    expect(eyeHeights()).toEqual({ stand: 178, sit: 126, kitchen: 150 });
     fake(JSON.stringify({ stand: 178, sit: 126, kitchen: 140 }));
-    expect(eyeHeights()).toEqual({ stand: 178, sit: 126, kitchen: 140 });
-    fake(JSON.stringify({ stand: 178, sit: 126, kitchen: 115 }));
-    expect(eyeHeights().kitchen).toBe(115);
+    expect(eyeHeights().kitchen).toBe(140);
     fake(JSON.stringify({ stand: 178, sit: 126 }));
-    expect(eyeHeights().kitchen).toBe(150);
+    expect(eyeHeights().kitchen).toBe(115);
   });
 
   it('macht aus Unsinn im Speicher die Auslieferungswerte', () => {

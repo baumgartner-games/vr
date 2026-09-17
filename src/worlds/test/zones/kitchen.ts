@@ -371,6 +371,9 @@ const _aim = new THREE.Vector3();
 const _rigAhead = new THREE.Vector3();
 const _headAhead = new THREE.Vector3();
 const _nozzle = new THREE.Vector3();
+/** Wohin der Löscher pustet — die Hand, nicht der Körper (`aimJet`). */
+const _jet = new THREE.Vector3();
+const _handRay = new THREE.Ray();
 const _spin = new THREE.Quaternion();
 // Die Griffe: eine Hülle zum Messen, eine Handpose zum Wählen (`core/grabHandles.ts`).
 const _bounds = new THREE.Box3();
@@ -929,7 +932,7 @@ export class KitchenZone implements TestZone {
    * Zahlen stimmen alle, der Blick stimmt nicht. Also wird in der Küche der
    * **Spieler** kleiner und nicht die Küche größer: `PlayerRig.eyeScale`
    * staucht ihn auf die eingestellte Augenhöhe (`posture.kitchenEyeScale`,
-   * voreingestellt 150 cm), die Füße bleiben auf dem Boden, und das Bücken
+   * voreingestellt 115 cm), die Füße bleiben auf dem Boden, und das Bücken
    * bleibt ein Bücken.
    *
    * **Drei Bedingungen, und alle drei stehen in einer Zeile:**
@@ -1356,6 +1359,10 @@ export class KitchenZone implements TestZone {
       topDown: ctx.topDown,
     });
 
+    // **Und wohin er zielt**: in der Brille dorthin, wohin die Hand zeigt, die
+    // ihn hält — sonst weiter dorthin, wohin die Figur schaut (`aimHand`).
+    this.aimJet(ctx, carrying ? held : null);
+
     if (carrying && held) {
       // Die Düse ist das Ende des Löschers in der Hand, nicht die Brust: Ein
       // Strahl, der aus dem Bauch käme, ginge bei jedem Blick nach unten in
@@ -1364,16 +1371,50 @@ export class KitchenZone implements TestZone {
     } else {
       _nozzle.copy(_feet).setY(_feet.y + CHEF_CARRY.y);
     }
-    this.jet?.update(dt, this.spraying, _nozzle, _aim);
+    this.jet?.update(dt, this.spraying, _nozzle, _jet);
 
     for (const spot of this.stations) {
       if (spot.kind !== 'stove') continue;
-      const hit = this.spraying && spot.stove.fire && inSpray(_nozzle, _aim, spot.deck);
+      const hit = this.spraying && spot.stove.fire && inSpray(_nozzle, _jet, spot.deck);
       const tick = advanceDouse(spot.wet, dt, hit);
       spot.wet = tick.state;
       if (!tick.out) continue;
       this.putOut(spot);
     }
+  }
+
+  /**
+   * **Wohin der Löscher pustet** — und das ist seit diesem Auftrag die
+   * **Hand** und nicht mehr der Körper.
+   *
+   * „Beim Feuerlöscher will ich in die Richtung sprühen, in die meine Hand
+   * zeigt, nicht in der mein Körper gedreht ist." Genau das war der
+   * Unterschied: `_aim` kommt aus Rig und Kopf (`aim`) und ist damit die
+   * Richtung, in der man **steht** — wer sich zum brennenden Herd hindreht,
+   * ohne den Kopf mitzudrehen, pustete daran vorbei. In der Brille gibt es
+   * eine bessere Auskunft, und sie ist dieselbe, mit der man in dieser Welt
+   * auf alles zielt: der Zeigestrahl des Controllers, der den Löscher hält.
+   *
+   * **Waagerecht gemacht**, wie `aim` es auch tut: Gerechnet wird der Strahl
+   * auf dem Boden (`kitchenSpray.inSpray`, x und z), und wer senkrecht nach
+   * unten zeigt, hat keine waagerechte Richtung mehr — dann bleibt die des
+   * Körpers stehen, statt dass der Kegel in sich zusammenfällt.
+   *
+   * **Und nur in der Brille**: Von oben und am Schreibtisch gibt es keine
+   * Hand, die irgendwohin zeigt (`worlds/portal/screenHand.ts` hält nur ein
+   * Werkzeug), also gilt dort weiter der Blick — Zeile für Zeile das, was
+   * vorher galt.
+   */
+  private aimJet(ctx: WorldContext, held: Carried | null): void {
+    _jet.copy(_aim);
+    const side = held ? this.carriedHand : null;
+    if (!side || !ctx.renderer.xr.isPresenting) return;
+    const controller = ctx.input.get(side);
+    if (!controller?.tracked) return;
+    controller.getRay(_handRay);
+    const flat = Math.hypot(_handRay.direction.x, _handRay.direction.z);
+    if (flat < 1e-4) return;
+    _jet.set(_handRay.direction.x / flat, 0, _handRay.direction.z / flat);
   }
 
   /** Das Feuer ist aus — die Pfanne bleibt, ihr Inhalt ist verkohlt und weg. */
@@ -1487,6 +1528,7 @@ export class KitchenZone implements TestZone {
       return;
     }
     this.aimHeld();
+    this.shrinkPiece(ctx);
     if (ctx.renderer.xr.isPresenting) {
       // **In der Brille liegt es in der Hand**, an seinem Griff — die Pfanne
       // am Stiel, wie ein Werkzeug (`holdInHand`). Klappt das nicht (kein
@@ -1587,6 +1629,40 @@ export class KitchenZone implements TestZone {
     object.position.set(hold.position.x, hold.position.y, hold.position.z);
     object.quaternion.set(hold.rotation.x, hold.rotation.y, hold.rotation.z, hold.rotation.w);
     return true;
+  }
+
+  /**
+   * **Ein getragenes Möbel wird für den Träger klein** — und nur für ihn.
+   *
+   * Eine Ausgabetheke ist zwei Meter breit. Vor dem Bauch getragen füllt sie
+   * in der Brille und aus den Augen das halbe Bild: Man trägt sie zum
+   * Bauplatz und sieht den Bauplatz nicht mehr. Von **oben** ist genau das
+   * kein Problem — dort sieht man die Figur von hinten oben, das Möbel liegt
+   * vor ihr und verdeckt Boden, den man ohnehin nicht braucht —, und deshalb
+   * bleibt es dort in voller Größe.
+   *
+   * „Für alle anderen von außen kann es ruhig sein, dass ich das so groß in
+   * der Hand halte (nur eben für den Spieler selbst)": Das ist hier gratis zu
+   * haben, denn ein getragenes Möbel hängt am **Rig** des Trägers
+   * (`liftPiece`) und wird gar nicht übertragen — was ein Mitspieler sieht,
+   * ist seine eigene Rechnung und nicht diese.
+   *
+   * **Ein Drittel**, dieselbe Zahl wie die Vorlage auf der Kopierfläche
+   * (`MINI_SCALE`), und mit derselben Begründung: Der Größenunterschied
+   * zwischen Mülleimer und Theke bleibt sichtbar, statt dass alles auf ein
+   * Maß gerechnet wird (`MINI_SIZE` im Katalog tut das, und dort ist es
+   * richtig — dort steht jedes Stück allein auf seiner Kachel).
+   *
+   * Zurückgesetzt wird beim Absetzen (`dropPiece`, `layOnPlate`,
+   * `takeFromPlate`) und in jedem Bild, in dem von oben gespielt wird: Wer die
+   * Ansicht wechselt, während er ein Möbel trägt, soll es nicht in der
+   * falschen Größe behalten.
+   */
+  private shrinkPiece(ctx: WorldContext): void {
+    const furnish = this.lifted;
+    if (!furnish) return;
+    const full = kitchenPieceScale(furnish.piece);
+    furnish.model.scale.setScalar(ctx.topDown ? full : full * MINI_SCALE);
   }
 
   private aimHeld(): void {
@@ -2339,6 +2415,10 @@ export class KitchenZone implements TestZone {
       // Absicht unten fragen beide danach, und beide werden gelesen, während
       // die Figur davorsteht.
       const deedNow = (): KitchenDeed => kitchenDeed(this.held(), facts(spot));
+      // Dieselbe Bauart: eine Frage, die beim Lesen gestellt wird, nicht beim
+      // Anmelden. Der Löscher kommt in die Hand, ohne dass sich eine Station
+      // neu anmeldet — und ab dann ist der Trigger vergeben.
+      const triggerFree = (): boolean => this.triggerFree();
       world.addUsable(
         target,
         {
@@ -2356,11 +2436,16 @@ export class KitchenZone implements TestZone {
           // (`kitchenCarry.kitchenInteractionSpec`), und alles in dieser Küche
           // greift nur im Meter (`kitchenGrab.KITCHEN_REACH`). Die Griffe
           // dazu kommen von dem, was gleich in der Hand liegt.
+          //
+          // **Und sie sagt auch, ob der Trigger noch frei ist**
+          // (`freeTrigger`): Er spritzt den Feuerlöscher und wendet ein
+          // getragenes Möbel; wo er das tut, darf er nicht zugleich ablegen.
           get interaction() {
             const deed = deedNow();
             return kitchenInteractionSpec(
               deed,
               deed.do === 'take' ? kitchenGrab(deed.dish.item) : KITCHEN_STATION_GRAB,
+              triggerFree(),
             );
           },
         },
@@ -2393,6 +2478,21 @@ export class KitchenZone implements TestZone {
   /** Was die Figur trägt, so wie die Regel es sehen will. */
   private held(): Dish | null {
     return this.carried?.dish ?? null;
+  }
+
+  /**
+   * **Ob der Trigger gerade frei ist** — für die Anmeldung der Stationen in der
+   * Brille (`kitchenCarry.kitchenInteractionSpec`).
+   *
+   * Er ist es nicht, solange die Hand etwas hält, das ihn selbst benutzt: den
+   * **Feuerlöscher** (er spritzt damit, `spray`) und ein **getragenes Möbel**
+   * (es wendet sich damit, `buildTurn`). Beides sind Tasten, die ein Mensch
+   * gedrückt hält oder mehrmals antippt, während er vor einer Arbeitsplatte
+   * steht — und wenn dieselbe Taste dabei ablegte, läge der Löscher nach dem
+   * ersten Löschversuch auf der Zeile.
+   */
+  private triggerFree(): boolean {
+    return !this.lifted && this.carried?.dish.item !== 'extinguisher';
   }
 
   /**
@@ -3033,6 +3133,14 @@ export class KitchenZone implements TestZone {
           `${furnish.piece.label} aufheben`,
         // Aufheben ist greifen — ein Möbel im Umbau ist nichts anderes als
         // ein sehr großes Brötchen.
+        //
+        // **Und hier bleibt es bei der Greif-Taste allein**, obwohl `grab` in
+        // der Brille seit Neuestem auch den Trigger kennt
+        // (`core/interaction.INTERACTION_DEFAULTS`). Der Trigger hat in der
+        // Hand, die ein Möbel trägt, schon eine Aufgabe: Er **wendet** es
+        // (`buildTurn`). Beides auf derselben Taste hieße, dass derselbe Druck
+        // das Möbel aufhebt und im selben Bild einmal weiterdreht — und wer
+        // dann wenden will, hebt beim nächsten Druck das nächste auf.
         interaction: {
           kind: 'grab',
           views: { vr: { inputs: ['grip'], press: 'hold' } },
@@ -3864,6 +3972,9 @@ export class KitchenZone implements TestZone {
     furnish.z = target.z;
     furnish.held = false;
     this.lifted = null;
+    // **Wieder in voller Größe**: Getragen wurde es für den Träger als
+    // Miniatur (`shrinkPiece`), hingestellt wird das Möbel.
+    furnish.model.scale.setScalar(kitchenPieceScale(furnish.piece));
     world.root.add(furnish.model);
     const foot = this.standAt(furnish);
     this.aimIcon(furnish);

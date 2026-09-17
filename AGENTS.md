@@ -2017,22 +2017,27 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   trotzdem den falschen Blick: Er schaut steil von oben in eine Puppenstube,
   der Tresen liegt auf Kniehöhe, und ein Topf auf dem Herd ist ein Punkt weit
   unten. Also wird in der Küche nicht die Küche größer, sondern der **Spieler
-  kleiner** — auf eine dritte, eigene Augenhöhe, ab Werk **150 cm**,
+  kleiner** — auf eine dritte, eigene Augenhöhe, ab Werk **115 cm**,
   einstellbar unter _Menü → Bewegung → Augenhöhe → In der Küche_ (100 bis
-  180 cm, +5 pro Druck). Hergeleitet standen dort einmal 140, weil es zwischen
-  den beiden liegt, die es schon gibt: Aus 120 cm schaut man der Arbeitsplatte
-  ins Gesicht, aus 160 steht man wieder darüber. **Im Headset ausprobiert
-  fühlten sich 140 cm dann zu niedrig an** — seitdem sind es 150, und das ist
-  die wertvollere Auskunft als die Mitte zwischen zwei Zahlen. Wer schon
-  einmal am Regler gedreht hat, behält seine eigene: Der Auslieferungswert
-  ersetzt eine **fehlende** Zahl und überschreibt keine gespeicherte
+  180 cm, +5 pro Druck). Diese Zahl ist dreimal gewandert, und der Weg lohnt
+  sich zu lesen: Hergeleitet standen dort **140**, weil es zwischen den beiden
+  liegt, die es schon gibt (aus 120 cm schaut man der Arbeitsplatte ins
+  Gesicht, aus 160 steht man wieder darüber). Im Headset fühlten sich 140 zu
+  niedrig an, also **150**. Und dann hat jemand mit aufgesetzter Brille
+  gekocht, am Regler gedreht, bis es stimmte, und **115** gemerkt. Die
+  Richtung hat sich damit umgekehrt, und das ist kein Widerspruch, sondern der
+  Unterschied zwischen *hinstellen* und *arbeiten*: Aus 150 cm sieht die Küche
+  richtig aus, aus 115 cm **greift** sie sich richtig — die Platte liegt auf
+  Bauchhöhe wie in einer echten Küche statt unter einem. Wer schon einmal am
+  Regler gedreht hat, behält seine eigene Zahl: Der Auslieferungswert ersetzt
+  eine **fehlende** und überschreibt keine gespeicherte
   (`core/posture.clampEyes`).
 
   **Ein Verhältnis und keine Differenz**, und daran hängt mehr, als es klingt.
   Eingestellt wird eine absolute Zahl — das ist die Frage, die man sich stellt
   („aus welcher Höhe will ich auf die Platte schauen?") —, umgesetzt wird sie
-  als Faktor auf die eigene gemessene Stehhöhe: 150/165 für den
-  voreingestellten Spieler, 150/195 für einen sehr großen. Beide landen damit
+  als Faktor auf die eigene gemessene Stehhöhe: 115/165 für den
+  voreingestellten Spieler, 115/195 für einen sehr großen. Beide landen damit
   auf **derselben** Höhe, was eine feste Absenkung nicht kann; sie hielte den
   Abstand und verfehlte einen von beiden. Und vor allem bleibt die Null die
   Null: Gestaucht wird der **Abstand zum Boden**, also bleibt der Boden der
@@ -2906,7 +2911,7 @@ gilt für jeden, der nichts verstellt hat.
 | Menüseite blättern                                                                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Werkzeug-Einstellungen                                                             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                                                                                                                  | Linksklick auf den Pfeil                                                                                                                                                                                                                                                                                                                       | –                                                           | tippen                                     |
 | Augenhöhe messen                                                                   | Menü → Bewegung → Augenhöhe → _Jetzt messen_ — stehend und sitzend je eine Zahl                                                                                                                                                                               | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
-| Augenhöhe in der Küche                                                              | Menü → Bewegung → Augenhöhe → _In der Küche_ — ab Werk 150 cm, 100 bis 180, +5 pro Druck; wirkt nur in der Brille und nur im Küchenrechteck                                                                                                                             | –                                                                                                                                                                                                                                                                                                                                                | –                                                             | –                                            |
+| Augenhöhe in der Küche                                                              | Menü → Bewegung → Augenhöhe → _In der Küche_ — ab Werk 115 cm, 100 bis 180, +5 pro Druck; wirkt nur in der Brille und nur im Küchenrechteck                                                                                                                             | –                                                                                                                                                                                                                                                                                                                                                | –                                                             | –                                            |
 | Verbinden (in der Brille)                                                          | Menü → _Verbindung_ → _Raum betreten_ (Code tippen) oder _Neuen Raum aufmachen_; _Name_ ändert den eigenen Namen — beides geht mitten im Spiel                                                                                                                | Raum-Code auf der Startseite                                                                                                                                                                                                                                                                                                                   | –                                                           | –                                          |
 | Chat                                                                               | Menü → _Verbindung_ → _Chat_: letzte Zeilen lesen, _Schreiben_ macht die Tastatur auf; eine Zeile mit Konfig-Code auswählen übernimmt ihn                                                                                                                     | Panel _Verbindung_ → **Chat**: tippen, _Kopieren_ und _Übernehmen_ je Zeile, _Verlauf kopieren_                                                                                                                                                                                                                                                | –                                                           | dito                                       |
 | Handschuh an blanken Händen                                                        | Menü → Hände → _Blanke Hände_                                                                                                                                                                                                                                 | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
@@ -2946,8 +2951,8 @@ gilt für jeden, der nichts verstellt hat.
 | Sprungkissen                                                                       | von oben in das blaue Kissen springen — es federt den Fall ab, statt ihn anzuhalten; wieder hinauf geht es über seine Rampe                                                                                                                                   | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
 | Halt-Anzeige | sie taucht auf, sobald man vor der Kletterwand steht, und geht danach wieder weg — Ausdauer in der Mitte, je ein Haltbalken links und rechts | dito | – | dito |
 | Küche: kochen | davorstellen und `A` — die Station, die `A` gerade meint, trägt den gelben Saum, und mehr braucht es nicht | `E` oder Enter | `A` | Knopf `A` |
-| Küche: greifen                                                                     | **Greifen** nimmt Pfanne, Topf, Teller, Zutat und im Umbau das Möbel — nur im eigenen Feld und den acht daneben, und am nächstgelegenen Griff. Halten und beim Loslassen ablegen, **oder** tippen und beim nächsten Druck ablegen                             | `A`/`E` wie beim Kochen — die feinere Wahl (welches Feld, welcher Griff) gibt es nur in der Brille                                                                                                                                                                                                                                             | `A`                                                         | Knopf `A`                                  |
-| Küche: Feuerlöscher | erst vom Hocker nehmen (`A`), dann den **Trigger der rechten Hand gedrückt halten**; gezielt wird mit dem Kopf | **aus den Augen**: `E` gedrückt halten, gezielt mit dem Kopf. **Von oben**: ein **Schalter** — Linksklick an, noch einmal aus (oder `E`, solange nichts in Reichweite steht); gezielt mit dem rechten Stock, der dort die Figur dreht | aus den Augen `A` halten; von oben schaltet RT (oder `A`, solange nichts in Reichweite steht) | aus den Augen Knopf `A` halten; von oben schaltet Knopf `B` (oder `A`, solange nichts in Reichweite steht) |
+| Küche: greifen                                                                     | **Greifen** oder **Trigger auf das Angezielte** nimmt Pfanne, Topf, Teller, Zutat und legt sie ab — nur im eigenen Feld und den acht daneben, und am nächstgelegenen Griff. Halten und beim Loslassen ablegen, **oder** tippen und beim nächsten Druck ablegen. Ein Möbel im Umbau nimmt **nur** Greifen: Der Trigger wendet es dort schon | `A`/`E` wie beim Kochen — die feinere Wahl (welches Feld, welcher Griff) gibt es nur in der Brille                                                                                                                                                                                                                                             | `A`                                                         | Knopf `A`                                  |
+| Küche: Feuerlöscher | erst vom Hocker nehmen, dann den **Trigger der rechten Hand gedrückt halten**; gezielt wird mit **der Hand**, die ihn hält | **aus den Augen**: `E` gedrückt halten, gezielt mit dem Kopf. **Von oben**: ein **Schalter** — Linksklick an, noch einmal aus (oder `E`, solange nichts in Reichweite steht); gezielt mit dem rechten Stock, der dort die Figur dreht | aus den Augen `A` halten; von oben schaltet RT (oder `A`, solange nichts in Reichweite steht) | aus den Augen Knopf `A` halten; von oben schaltet Knopf `B` (oder `A`, solange nichts in Reichweite steht) |
 | Küche: umbauen | roter Knopf neben dem Eingang + `A` schaltet den Baumodus um (sein Schild sagt, wohin: _Küche umbauen_ / _Küche nutzen_); das Einschalten räumt die Küche ab wie `B`/`Y`, danach hebt **Greifen** am Möbel es **samt allem, was darauf steht** auf, **Loslassen** über dem Umriss setzt es ab (grün = passt, rot = passt nicht) | dito mit `E`: `E` am Möbel hebt es samt Inhalt auf, `E` auf dem Umriss setzt es ab | dito mit `A` | dito mit Knopf `A` |
 | Küche: Möbelkatalog | **vorn** an den Computer-Tisch treten und `A` — die Küche verblasst, ringsum stehen alle Möbel als Miniaturen auf den Kacheln; eines anfassen, und man hält es in der Küche in der Hand. Von der Seite oder von hinten hebt `A` im Umbau den Tisch selbst auf | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
 | Küche: kopieren | ein getragenes Möbel **links** auf den Kopierer legen (`A`), die durchscheinende Kopie **rechts** abholen (`A`) — die nächste wächst nach, solange die Vorlage liegt | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
@@ -3334,13 +3339,51 @@ mit `holdForHandle` — der **Umkehrung** von `gripFit.gripInHand`. Damit landet
 jeder Griff auf demselben Griffpunkt wie der einer Pistole, und eine Pfanne
 liegt in derselben Faust wie jedes Werkzeug.
 
+#### Der Haltezylinder — und warum die Stange nicht die Faustachse ist
+
+Ein Punkt mit zwei Richtungen ist alles, was `handle()` braucht, und für den
+Rand eines Tellers ist es auch alles, was es gibt. Für ein **Gerät** war es zu
+wenig, und zwar zweimal hintereinander: Der Feuerlöscher zielte quer zur Hand,
+der Topf hatte den **Stiel der Pfanne** mitten in seiner Suppe (er benutzte
+buchstäblich dieselbe Zeile), und die Pfanne hing hochkant hinter der Faust.
+Alle drei Zahlenreihen stimmten für sich, und keine ließ sich nachsehen.
+
+Seitdem geben die drei ihre Griffe als **Haltezylinder** an
+(`grabHandles.HoldBar`, gebaut mit `holdBar(id, {from, to, radius}, up, ahead)`):
+
+| Angabe        | Was sie sagt                                                                 |
+| ------------- | ---------------------------------------------------------------------------- |
+| `from` / `to` | die beiden Enden der **Stange am Modell**; die Hand liegt in ihrer Mitte      |
+| `radius`      | wie dick sie ist                                                             |
+| `up`          | welche Richtung am Ding in der Hand **oben** bleibt — das wird die Faustachse |
+| `ahead`       | wohin vom Griff aus der **Körper** des Dings liegt — das wird das Vorne (-Z)  |
+
+Der Handrücken (`back`) fällt dabei ab und wird nicht mehr geraten:
+`back = ahead × up`, und damit ist `−Z = ahead` (ein Test rechnet es nach).
+
+**Die Stange ist ausdrücklich nicht die Faustachse**, und das ist der Fehler,
+der zweimal gemacht wurde. Ein Hammer hat beides an derselben Stelle: Sein
+Stiel liegt in der Faust, sein Kopf sitzt oben auf der Daumenseite. Eine
+**Pfanne** hat es nicht: Ihr Stiel liegt waagerecht, und die Faustachse steht
+in der Brille senkrecht — wer den Stiel in die Achse legt, bekommt eine Pfanne
+hochkant, und dann liegt das Patty an der Wand. Also sagt der Zylinder, **wo**
+die Hand liegt, und `up`/`ahead` sagen, **wie herum** das Ding dabei hängt. Für
+alle drei Geräte ist `up` die Senkrechte des Dings und `ahead` die Richtung,
+in die es vor der Faust zeigen soll — die Mulde, der Topfbauch, die Düse.
+
+Und weil der Zylinder das gemessene Stück des Modells ist, kann man ihn
+**ansehen**: `Menü → Grafik → Griffe zeigen` malt ihn (siehe _Griffe zeigen_),
+und der Prüfstand `handles-preview.html` (`npm run handles`) macht Bilder
+davon. Genau daran wurden die drei eingemessen, und genau daran prüft man sie
+nach, wenn jemand das Modell tauscht.
+
 Die Fälle unterscheiden sich nur in der Zahl der Griffe:
 
 | Fall                      | Beispiele                                     | Was es heißt                                      |
 | ------------------------- | --------------------------------------------- | ------------------------------------------------- |
 | **Kein Griff**            | Brötchen, Tomate, Salat, Patty                | „wie beim Companion Cube": zupacken, wo man fasst |
-| **Ein Griff**             | Pfanne und Topf am Stiel, der Löscher am Hals | genau eine Stelle, und sonst hält man es verkehrt |
-| **Mehrere**               | Teller: acht am Rand, einer von unten         | die **Hand** wählt: der nächste gewinnt           |
+| **Ein Haltezylinder**     | Pfanne am Stiel, Löscher am Tragebügel        | die gemessene Stange, und sonst hält man es verkehrt |
+| **Mehrere**               | Teller: acht am Rand, einer von unten; Topf: beide Ohren | die **Hand** wählt: der nächste gewinnt |
 | **Vier, aus einer Regel** | jedes Küchenmöbel                             | Mitte jeder Kante — siehe _Anfassen in der Küche_ |
 
 Welcher von mehreren es wird, entscheidet `nearestHandle` — nach **Abstand** und
@@ -3353,7 +3396,19 @@ Die Tabelle für die Küche steht in `worlds/test/zones/kitchenGrab.ts` — dort
 nicht im `core`, weil nur die Küche weiß, was ein Stiel ist. Ihre Zahlen hängen
 an der **gemessenen Hülle** des Netzes und nicht an abgeschriebenen Zentimetern:
 Pfanne, Topf und Feuerlöscher kommen aus `public/models/kitchen.glb`, und ein
-ausgetauschtes Modell bringt neue Maße mit.
+ausgetauschtes Modell bringt neue Maße mit. Die einzigen absoluten Zahlen dort
+sind die drei **Halbmesser** der Zylinder, und die sind es aus einem Grund: Ein
+Anteil wovon? Die Dicke eines Stiels hat mit der Breite einer Pfanne nichts zu
+tun — sie ist die Dicke eines Rohrs, am Modell gemessen.
+
+Drei Dinge daraus sind am Modell abgelesen und stehen deshalb im Klartext
+daneben: Der **Pfannenstiel** steigt um gut 8°, weshalb seine beiden Enden
+verschieden hoch liegen. Die beiden **Topfohren** stehen sich gegenüber, aber
+ihre Verbindungslinie liegt 9° schräg zur x-Achse — neun Grad sind hier sechs
+Zentimeter, und bei einer Stange von 2,4 cm Halbmesser der Unterschied zwischen
+„der Zylinder liegt auf dem Griff" und „daneben". Und die **Düse** des Löschers
+zeigt nach +x, der Bügel nach -x; vorher stand dort -z als Vorne, und genau um
+diese Vierteldrehung stand er in der Faust verkehrt.
 
 Die vierte Zeile ist die einzige, die gar keine Tabelle ist: Ein **Möbel**
 bekommt seine vier Rand-Griffe aus `grabHandles.rimHandles`, generisch in der
@@ -3435,15 +3490,30 @@ Die Ableitung steht als Tabelle da und nicht als `if`-Kette
 
 | Absicht | von oben (`topDown`) | aus den Augen (`firstPerson`) | in der Brille (`vr`)          |
 | ------- | -------------------- | ----------------------------- | ----------------------------- |
-| `press` | `A` / `E`, tippen    | linke Maustaste / `E`, tippen | Berühren / Trigger, tippen    |
-| `grab`  | `A` / `E`, tippen    | linke Maustaste / `E`, tippen | Greifen, **halten**           |
-| `none`  | —                    | —                             | —                             |
+| `press` | `A` / `E`, tippen    | linke Maustaste / `E`, tippen | Berühren / Trigger, tippen      |
+| `grab`  | `A` / `E`, tippen    | linke Maustaste / `E`, tippen | Greifen / Trigger, **halten**   |
+| `none`  | —                    | —                             | —                               |
 
 **„Halten" heißt dabei nicht „nur halten".** Die Greif-Taste geht beim Zufassen
 herunter und legt beim Loslassen ab — wer sie nur kurz antippt, behält das Ding
 in der Hand und legt es mit dem **nächsten** Druck ab. Beides ist dieselbe Zeile
 in der Ableitung; unterschieden wird erst beim Loslassen, und wie, steht unter
 _Halten oder Tippen_.
+
+**Und der Trigger nimmt auch.** Hier stand einmal das Gegenteil: „Der Trigger
+gehört dem, was man in der Hand hält, und ein Brötchen, das schon auf den
+Zeigefinger springt, nähme dem Greifen seine einzige unmissverständliche
+Geste." Die erste Hälfte stimmt weiter — der Feuerlöscher spritzt mit dem
+Trigger, das getragene Möbel wendet mit ihm —, die zweite hat sich in der
+Brille nicht bestätigt: Wer eine Pfanne **anzielt**, will sie haben, und ohne
+den Trigger muss er mit der Faust hinlangen, auch wenn sie eine Armlänge weiter
+auf dem Herd steht. Seitdem stehen beide Geber nebeneinander, und keiner sticht
+den anderen (`handUse.handUseFires` fragt jeden für sich, siehe unten).
+
+Ein Ding, für das das **nicht** gelten soll, meldet weiter nur `grip` an — und
+genau eines tut das: das Möbel im Umbau. Sein Trigger ist beim Tragen schon
+vergeben (`kitchen.buildTurn` wendet damit), und derselbe Druck dürfte es nicht
+aufheben und im selben Bild einmal weiterdrehen.
 
 **Von oben ändert sich nichts**, und das ist Absicht: `A` (am Schreibtisch `E`)
 tut, was es immer getan hat, für jede Absicht gleich. Dort gibt es keine Hand,
@@ -3525,8 +3595,19 @@ nie beides zugleich auslösen, auch wenn Hand und Strahl auf demselben Ding
 liegen.
 
 Und dann die Knöpfe, genau wie es die Tabelle oben verspricht: Ein `press`
-antwortet auf die **Berührung** selbst oder auf den **Trigger**; ein `grab`
-antwortet auf die **Greif-Taste** und auf sonst nichts.
+antwortet auf die **Berührung** selbst oder auf den **Trigger**; ein `grab` auf
+die **Greif-Taste** oder ebenfalls auf den Trigger.
+
+**Gefragt wird die Geberliste, und zwar Eintrag für Eintrag.** Hier stand
+einmal `if (inputs.includes('grip')) return buttons.grip;` — eine Zeile, die
+die Greif-Taste nicht nur zuließ, sondern alle anderen **abwies**. Ein Ding,
+das Greifen *und* Trigger anmeldete, antwortete damit nur auf das Greifen, und
+das war ein gemeldeter Fehler mit einem sehr konkreten Gesicht: Ein Steak in
+der Pfanne ließ sich auf kein Brötchen legen, weder mit dem Trigger noch mit
+der Greif-Taste, während es von oben mit `A` ging. Der Grund ist derselbe, aus
+dem der Trigger überhaupt dazugekommen ist — wer mit der Pfanne vor dem
+Brötchen steht, hat seine **Faust** eine Pfannenlänge daneben: Die Mulde liegt
+über der Platte, die Hand nicht. Gezielt wird mit dem Strahl, und der trifft.
 
 **Die Berührung muss entprellt werden**, sonst ist sie unbrauchbar: Ein Knopf,
 den die bloße Berührung drückt, wird sechzigmal je Sekunde gedrückt, solange
@@ -3572,15 +3653,39 @@ könnte. Ob es das Loslassen ablegt oder erst der nächste Druck, entscheidet
 deshalb nicht die Physik, sondern die **Art des Drucks** — und die steht gleich
 darunter.
 
-**Was noch offen ist**, und zwar ausdrücklich:
+#### Und der gelbe Saum folgt in der Brille der Hand
 
-- Der gelbe Saum folgt in der Brille weiter dem Strahl aus der Brust und nicht
-  der Hand; was die Hand meint, sagt ihr Leuchten. Zwei Auskünfte für zwei
-  Wege, und keine davon ist falsch — aber sie können auf zwei verschiedene
-  Dinge zeigen.
-- Einen Ort, an dem der Hinweistext angezeigt wird, gibt es noch nicht; er
-  steht bereit (`PortalWorld.useInteraction.hint`), die Tafel über der Figur
-  ist seinerzeit mit gutem Grund verschwunden.
+Hier stand bis vor Kurzem, das sei „ausdrücklich offen": Der Saum folgte in der
+Brille weiter dem Strahl aus der **Brust** (`pickUsable`), während die Hand
+entschied, was wirklich passiert. Zwei Auskünfte für zwei Wege, keine davon
+falsch — und regelmäßig auf zwei verschiedene Dinge zeigend. In der Küche war
+das kein Schönheitsfehler, sondern ein Bedienfehler: Man hielt einen Salat in
+der Hand, zielte damit auf die Zeile **links**, legte ihn auch dort ab — und
+sah die Zeile **vor** sich leuchten.
+
+Jetzt wählt in der Brille die Hand, und am Schirm wählt weiter der Körper
+(`PortalWorld.showUse`):
+
+| Ansicht                    | Wer wählt                                            |
+| -------------------------- | ---------------------------------------------------- |
+| von oben, aus den Augen    | der Strahl aus der Brust (`core/usable.pickUsable`)  |
+| in der Brille              | die Hand (`core/handUse.pickHandUse`, je Hand eine)  |
+
+Zwischen den **beiden Händen** gilt dieselbe Rangfolge wie innerhalb einer:
+Anfassen sticht Zeigen, unter Gleichen gewinnt das Nächste. Der Körper bleibt
+der **Rückfall**, auch in der Brille: Zeigt keine Hand auf etwas, meint `A`
+weiter, was vor der Figur steht, und dann soll das auch leuchten — ein Saum,
+der in dem Augenblick ausginge, in dem die Taste noch wirkt, wäre derselbe
+Fehler in der anderen Richtung.
+
+Zwei Zeilen Ablauf hängen daran: Worauf eine Hand zeigt, steht erst in
+`updateGrabs` fest, also wird der Saum **danach** gesetzt und nicht davor
+(`update` ruft `updateUsables`, `updateGrabs`, `showUse`). Ein Saum, der ein
+Bild hinterherhinkt, zeigt beim Umsehen regelmäßig auf das Möbel von eben.
+
+**Was noch offen ist**: Einen Ort, an dem der Hinweistext angezeigt wird, gibt
+es nicht; er steht bereit (`PortalWorld.useInteraction.hint`), die Tafel über
+der Figur ist seinerzeit mit gutem Grund verschwunden.
 
 ### Halten oder Tippen — zwei Greif-Arten, beide gültig
 
@@ -3619,9 +3724,24 @@ loslassen (oder erneut drücken, wenn man nur getippt hatte).
 Geschrieben ist das als Ausnahme für **eine einzelne Ansicht**, genau so, wie
 `core/interaction.ts` sie vorsieht: Sechs Taten geben etwas aus der Hand
 (`place`, `work`, `combine`, `trash`, `scrape`, `serve`), und die sechs melden
-für die Ansicht `vr` die Greif-Taste an statt Berührung und Trigger
-(`kitchenCarry.kitchenInteractionSpec`, `kitchenGivesUp`). **Von oben und am
+für die Ansicht `vr` Greif-Taste **und Trigger** an statt der Berührung
+(`kitchenCarry.kitchenInteractionSpec`, `kitchenGivesUp`). Die **Berührung**
+bleibt ausgeschlossen, und nur darum ging es hier je: Wer mit dem Topf an der
+Arbeitsplatte vorbeiläuft, läuft daran vorbei. Der Trigger ist dagegen ein
+ausdrücklicher Druck auf etwas Angezieltes und war von Anfang an gemeint —
+ohne ihn ließ sich ein Steak aus der Pfanne auf kein Brötchen legen, weil die
+Faust dabei eine Pfannenlänge neben dem Brötchen steht. **Von oben und am
 Schreibtisch ändert sich dadurch nichts** — `A` tut, was `A` immer getan hat.
+
+**Ein vergebener Trigger wird nicht zweimal vergeben.** Er hat in dieser Küche
+zwei angestammte Aufgaben, und beide gehören dem, was schon in der Hand liegt:
+Er **spritzt** den Feuerlöscher (`spray`) und **wendet** ein getragenes Möbel
+(`buildTurn`). Solange eines davon in der Hand ist, melden die Stationen ihn
+nicht mehr an (`kitchenInteractionSpec(deed, grab, freeTrigger)`, gefüttert von
+`kitchen.triggerFree`) — sonst drückte man ihn zum Löschen und stellte den
+Löscher dabei auf die Arbeitsplatte. Die Greif-Taste bleibt in beiden Fällen,
+und die Regel steht in `kitchenCarry.ts`, wo sie ein Test nachrechnet; nur
+**wissen**, was in der Hand liegt, kann die Zone.
 
 Das **Löschen** (`douse`) gehört ausdrücklich nicht dazu: Es nimmt der Hand
 nichts weg, der Löscher bleibt darin, und wer damit an den brennenden Herd
@@ -5433,7 +5553,24 @@ Faust hängt, und das Vorne, wohin der Zeigefinger zeigt. Das Kreuz
 (`core/axesCross.ts`) zeigt beides, und sein weißer Arm (`AXIS_FRONT`) ist genau
 das -Z, das ein Griff „vorne" nennt.
 
+**Und wo ein Haltezylinder dabeisteht, steht er auch da** — eine
+durchscheinende grüne Röhre in derselben Farbe wie der +Y-Arm daneben
+(`HANDLE_BAR_COLOR`, `HANDLE_BAR_ALPHA`), offen an beiden Enden, damit man die
+Stange **darin** sieht. Das Kreuz sagt, wie herum ein Griff liegt; der Zylinder
+sagt, **worauf**. Erst mit ihm lässt sich die Frage beantworten, um die es beim
+Einmessen geht — deckt sich der Griff mit dem Stiel der Pfanne, mit den Ohren
+des Topfes, mit dem Bügel des Löschers? —, und genau weil sie vorher nicht zu
+beantworten war, standen alle drei eine Weile falsch herum. Gedreht wird er in
+`bar.along` und nicht in die Drehung des Griffs: Beides fällt bei einem Hammer
+zusammen und bei einer Pfanne nicht (siehe _Der Haltezylinder_).
+
 Es ist eine Werkstattansicht wie die Hitboxen: ein Maßband, kein Bühnenbild.
+Wer die Brille dafür nicht aufsetzen will, bekommt dieselben Bilder am Schirm:
+`handles-preview.html` (`src/preview/handlesPreview.ts`) stellt jedes Gerät
+einmal roh mit seinen Zylindern und einmal in einer groben Hand hin,
+`npm run handles` schießt alle Ansichten nach `.artifacts/handles` — derselbe
+Weg wie beim Musterbogen des Avatars, und aus demselben Grund: Ob etwas in
+einer Hand richtig liegt, entscheidet kein Jest-Test.
 
 #### Was die Kamera ansieht
 
@@ -6017,9 +6154,17 @@ Und das sind die Regeln, die darin stehen:
   Feuerlöscher, sondern ein Lichtschalter: Bei _Overcooked_ wie bei _PlateUp_
   **läuft** er, man hält ihn ins Feuer, und was im Strahl liegt, geht aus. Man
   nimmt ihn vom Hocker, auf dem er im Modell steht (`KitchenPiece.holds`), und
-  zielt mit derselben Richtung, mit der auch `A` etwas erwischt — von oben mit
-  der Figur (der rechte Stock **ist** dort das Zielen), aus den Augen und in
-  der Brille mit dem Kopf. Der Kegel reicht **2,5 m** weit (`SPRAY_RANGE`,
+  zielt **in der Brille mit der Hand, die ihn hält** (`kitchen.aimJet`) — mit
+  dem Zeigestrahl ihres Controllers, waagerecht gemacht, wie bei allem, was auf
+  dem Boden gerechnet wird. Hier galt einmal auch dort der Kopf, und das war
+  der gemeldete Fehler: „Ich will in die Richtung sprühen, in die meine Hand
+  zeigt, nicht in der mein Körper gedreht ist." Wer sich zum brennenden Herd
+  hindreht, ohne den Kopf mitzudrehen, pustete daneben. Von oben und aus den
+  Augen bleibt es die Richtung, mit der auch `A` etwas erwischt — die Figur
+  (der rechte Stock **ist** dort das Zielen) beziehungsweise der Kopf; dort
+  gibt es keine Hand, die woandershin zeigt. Zeigt die Hand senkrecht nach
+  unten, bleibt die des Körpers stehen: Ein Kegel ohne waagerechte Richtung
+  löschte sonst rundum alles. Der Kegel reicht **2,5 m** weit (`SPRAY_RANGE`,
   deutlich weiter als der Griff mit 1,5 m — genau das ist der Sinn) und öffnet
   sich um **25°** zur Seite (`SPRAY_HALF_ANGLE`): auf einen Meter 0,93 m breit,
   also knapp eine Kachel, auf die volle Reichweite 2,33 m. Nah und genau, weit
@@ -6549,6 +6694,18 @@ Und das sind die Regeln, die darin stehen:
   ein Versatz zur Figur bleibt, auch wenn sie sich umdreht — deshalb nennt der
   Satz dazu die Seite („Vorderseite nach links") und nicht die
   Himmelsrichtung.
+  **Und es wird für den Träger klein** (`shrinkPiece`, ein Drittel — dieselbe
+  Zahl wie die Vorlage auf der Kopierfläche, `MINI_SCALE`). Eine Ausgabetheke
+  ist zwei Meter breit; vor dem Bauch getragen füllt sie **in der Brille und
+  aus den Augen** das halbe Bild, und man trägt sie zum Bauplatz, ohne den
+  Bauplatz noch zu sehen. **Von oben bleibt sie groß**: Dort schaut man von
+  hinten oben auf die Figur, das Möbel liegt vor ihr und verdeckt Boden, den
+  niemand braucht. Und für **Mitspieler** bleibt sie es auch — das ist hier
+  gratis zu haben, denn ein getragenes Möbel hängt am Rig seines Trägers und
+  wird gar nicht übertragen; was von außen zu sehen ist, rechnet jeder Client
+  selbst. Beim Absetzen steht wieder das Möbel da (`dropPiece` setzt den
+  Maßstab zurück).
+
   **Das getragene Möbel dreht sich mit der Figur** (`aimHeld`), wie die Pfanne
   und wie der Teller: Es hängt am Rig, und im Netz steht nur noch der Versatz.
   Hier wurde einmal der Gierwinkel des Rigs **herausgerechnet**, damit ein

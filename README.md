@@ -79,7 +79,8 @@ zurück. Das stapelt sich an der Rückgabe, wandert in die Spüle und kommt saub
 wieder — ohne diesen Kreis wäre die Tellerausgabe ein Brunnen. Brennt der Herd,
 nimmt man den **Feuerlöscher** vom Hocker — er steht oben in der Zeile neben
 dem Herd, also dort, wo es brennt — und **hält** ihn ins Feuer, aus zwei
-Kacheln Abstand; ein Druck genügt nicht mehr. Und ein großer roter Knopf neben
+Kacheln Abstand; ein Druck genügt nicht mehr. In der Brille hängt er am
+Tragebügel in der Faust und spritzt dorthin, wohin die **Hand** zeigt. Und ein großer roter Knopf neben
 dem Eingang schaltet den **Baumodus** ein und wieder aus; sein Schild sagt,
 wohin der nächste Druck führt. Ist er an, lässt sich jedes leere Möbel aufheben,
 tragen wie die Pfanne und auf einer freien Kachel wieder absetzen — der Umriss
@@ -1002,12 +1003,13 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Pinsel                        | Palette an der anderen Hand: antippen **oder** anzielen + Trigger; Regler für RGB und Strichbreite gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie          | Linksklick                                                             | –                        |
 | Staffelei                     | Trigger stellt sie auf den Boden und die Hand ist danach frei; Griff an der Ablage + Greifen nimmt sie wieder auf; `A`/`X` wischt die Leinwand; gemalt wird mit dem Pinsel | –                                                                      | –                        |
 | Aufheben / werfen             | Grip mit leerer Hand am Objekt                                                                                                                                             | –                                                                      | –                        |
+| Küche: nehmen und ablegen     | Grip **oder** Trigger auf das, was man anzielt — Pfanne, Topf, Teller, Zutat; halten und beim Loslassen ablegen, oder tippen und beim nächsten Druck                        | Linksklick oder `E`                                                    | `A`                      |
 | Ferngreifen                   | zielen, Grip, Hand zum Körper zucken (ab 8 m/s, einstellbar)                                                                                                               | –                                                                      | –                        |
 | Kart: einsteigen              | davorstellen und `A` — oder das Lenkrad greifen                                                                                                                            | davorstellen und `E`                                                   | Knopf `A`                |
 | Kart: fahren                  | rechter Trigger Gas, linker bremst, linker Stick lenkt                                                                                                                     | `W`/`S`, `A`/`D`                                                       | –                        |
 | Kart: aussteigen              | `A`/`X` halten                                                                                                                                                             | `E` halten                                                             | –                        |
 | Kart: zu zweit                | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge                                                                                           | dito                                                                   | –                        |
-| Küche: Feuerlöscher | vom Hocker nehmen und den Trigger der rechten Hand **halten**; gezielt wird mit dem Kopf | aus den Augen `E` halten; von oben ein Schalter — Linksklick an, noch einmal aus, gezielt mit dem rechten Stock | aus den Augen `A` halten; von oben schaltet `B` |
+| Küche: Feuerlöscher | vom Hocker nehmen und den Trigger der rechten Hand **halten**; gezielt wird mit der Hand, die ihn hält | aus den Augen `E` halten; von oben ein Schalter — Linksklick an, noch einmal aus, gezielt mit dem rechten Stock | aus den Augen `A` halten; von oben schaltet `B` |
 | Küche: umbauen | der Knopf in der Küche schaltet um (und räumt dabei ab), dann `A` am leeren Möbel und `A` auf dem Umriss davor | dito mit `E` | dito mit `A` |
 | Küche: Möbel holen | vorn an den Computer-Tisch und `A` — im Katalog ringsum eines anfassen; auf dem Kopierer links ablegen, rechts die Kopie abholen | dito mit `E` | dito mit `A` |
 | Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`, dann greift man sich die Sachen im Schrank                                              | dito                                                                   | dito                     |

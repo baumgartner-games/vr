@@ -68,7 +68,12 @@
  */
 
 import type { GrabLike } from '../../../core/grabHandles';
-import type { InteractionKind, InteractionSpec } from '../../../core/interaction';
+import {
+  INTERACTION_DEFAULTS,
+  type InteractionInput,
+  type InteractionKind,
+  type InteractionSpec,
+} from '../../../core/interaction';
 import {
   ITEM_LABELS,
   combine,
@@ -739,17 +744,45 @@ export function kitchenGivesUp(deed: KitchenDeed | null | undefined): boolean {
  *
  * @param grab was das gemeinte Ding über das Greifen sagt
  *             (`worlds/test/zones/kitchenGrab.ts`) — Griffe und Reichweite
+ * @param freeTrigger ob der Trigger in der Brille gerade frei ist. Falsch,
+ *                    solange die Hand etwas hält, das ihn selbst benutzt:
+ *                    den Feuerlöscher und das getragene Möbel.
  */
 export function kitchenInteractionSpec(
   deed: KitchenDeed | null | undefined,
   grab?: GrabLike,
+  freeTrigger = true,
 ): InteractionSpec {
   const kind = kitchenInteraction(deed);
-  if (!kitchenGivesUp(deed)) return { kind, grab };
+  if (!kitchenGivesUp(deed)) {
+    if (freeTrigger || kind === 'none') return { kind, grab };
+    const base = INTERACTION_DEFAULTS[kind].vr;
+    const inputs = base.inputs.filter((one) => one !== 'aimTrigger');
+    return { kind, views: { vr: { inputs, press: base.press } }, grab };
+  }
   // **In der Brille die Greif-Taste, und sie wird gehalten.** Gedrückt wird
   // beim Zugreifen, abgelegt beim Loslassen — dieselbe Taste, dieselbe Geste,
   // und dazwischen kann man mit dem Topf durch die halbe Küche laufen.
-  return { kind, views: { vr: { inputs: ['grip'], press: 'hold' } }, grab };
+  //
+  // **Und der Trigger daneben.** Das ist der gemeldete Fehler: Ein Steak in
+  // der Pfanne ließ sich auf kein Brötchen legen, weder mit dem Trigger noch
+  // mit der Greif-Taste, während es von oben mit `A` ging. Der Grund war
+  // diese Zeile — sie nannte nur `grip`, und wer mit der Pfanne vor dem
+  // Brötchen steht, hat seine **Faust** eine Pfannenlänge daneben: Die Mulde
+  // liegt über der Platte, die Hand nicht. Gezielt wird dagegen mit dem
+  // Strahl, und der trifft das Brötchen. Beide Geber nebeneinander, und die
+  // Berührung bleibt weiterhin draußen — sonst legt man den Topf wieder ab,
+  // sobald man mit ihm an der Arbeitsplatte vorbeikommt.
+  //
+  // **Es sei denn, der Trigger ist gerade vergeben** (`freeTrigger`). Er hat in
+  // dieser Küche zwei angestammte Aufgaben, und beide gehören dem, was schon in
+  // der Hand liegt: Er **spritzt** den Feuerlöscher (`kitchen.spray`) und
+  // **wendet** ein getragenes Möbel (`kitchen.buildTurn`). Bekäme er daneben
+  // das Ablegen, drückte man ihn zum Löschen und stellte den Löscher dabei auf
+  // die Arbeitsplatte. Wer entscheidet, ist die Zone: Sie weiß, was in der Hand
+  // liegt, und diese Datei bleibt die Regel dazu.
+  const inputs: readonly InteractionInput[] = freeTrigger ? ['grip', 'aimTrigger'] : ['grip'];
+  return { kind, views: { vr: { inputs, press: 'hold' } }, grab };
 }
 
 /**

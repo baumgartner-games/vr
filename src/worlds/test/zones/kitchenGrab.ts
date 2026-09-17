@@ -1,6 +1,7 @@
 import { kitchenDeck, type KitchenPiece } from '../../../core/kitchenFit';
 import {
   handle,
+  holdBar,
   rimHandles,
   ringHandles,
   type GrabHandle,
@@ -28,9 +29,12 @@ import type { KitchenItem } from './kitchenRecipes';
  *   Objekt-Hitbox, also wie bei z. B. Companion Cube." Eine leere Griffliste
  *   sagt genau das, und `grabHandles.HITBOX_HOLD` legt das Ding dann so in die
  *   Faust, wie es dasteht.
- * - **Geräte** — Pfanne und Topf am **Stiel**, der Feuerlöscher **oben** am
- *   Ventil, „ähnlich wie bei der Taschenlampe". Je einer, denn es gibt je
- *   genau eine Stelle, an der ein Mensch sie anfasst.
+ * - **Geräte** — und sie sind seit diesem Auftrag **Haltezylinder**
+ *   (`core/grabHandles.holdBar`): die Pfanne am Stiel, der Topf an seinen
+ *   **zwei** Ohren, der Feuerlöscher oben am Hals. Jede dieser Stangen ist am
+ *   Modell gemessen, jede ist mit _Griffe anzeigen_ zu sehen, und daran prüft
+ *   man sie nach — ein Punkt mit einer geratenen Achse war genau die Auskunft,
+ *   die man nicht nachsehen konnte, und alle drei standen falsch herum.
  * - **Teller**: unsichtbare Griffe **am Rand** und **an der Unterseite** —
  *   „da das die Bereiche sind, wie man einen Teller halten würde". Am Rand
  *   sind es acht, gleichmäßig verteilt: Ein Teller hat keine Vorderseite, und
@@ -89,35 +93,103 @@ export const DEFAULT_ITEM_SIZE: ItemSize = {
 };
 
 /**
- * **Wo am Stiel die Faust liegt** — als Anteil der halben Tiefe, vom Ursprung
- * aus nach +z.
+ * **Der Stiel der Pfanne**, als Anteile der gemessenen Hülle — die beiden
+ * Enden der Stange, an der die Faust liegt.
  *
- * Bei der Pfanne läuft der Stiel von der Mulde bis zum Ende der Hülle
- * (`core/kitchenFit.PAN_BOWL` rechnet vor, dass die Mulde 22,5 cm neben dem
- * Ursprung sitzt): Sein hinteres Drittel ist das Stück, das in der Faust
- * liegt. 0,72 legt den Griff genau dorthin und lässt vorn genug Stiel, dass
- * die Mulde nicht auf den Fingern sitzt.
+ * Gemessen am Modell (`public/models/kitchen.glb`, Netz `stove-pan`, Material
+ * `Kitchen_Utensils`) und nicht geschätzt: Der Stiel läuft von der Mulde bis
+ * zum Ende der Hülle — er ist es, der ihr die Tiefe gibt, deshalb steht die
+ * Spitze bei genau 1,0 —, und dabei steigt er um gut 8°, weshalb die beiden
+ * Enden verschieden hoch liegen. `tip` ist die Spitze, `neck` die Stelle, an
+ * der er aus der Mulde wächst; die Faust liegt in der Mitte dazwischen.
+ *
+ * **Warum die Mitte und nicht das hintere Drittel.** Hier stand einmal ein
+ * einzelner Punkt bei 0,72 der halben Tiefe, und er war nicht falsch — er
+ * liegt anderthalb Zentimeter neben der Mitte dieser Stange. Nur beantwortete
+ * er die Frage nicht, um die es geht: Ein Punkt kann man nicht sehen, eine
+ * Stange schon (`core/handleView.ts`), und deshalb steht jetzt die Stange da.
  */
-const STALK_ALONG = 0.72;
+const PAN_STALK = {
+  tip: { lift: 0.83, along: 1.0 },
+  neck: { lift: 0.38, along: 0.3 },
+} as const;
 
 /**
- * **Und auf welcher Höhe** — als Anteil der Gesamthöhe.
+ * **Wie dick der Pfannenstiel ist**, als Halbmesser in Metern.
  *
- * Ein Stiel sitzt oben am Rand der Mulde und nicht auf halber Höhe; zwei
- * Drittel sind die Stelle, an der er bei jedem Topf und jeder Pfanne dieser
- * Bauart ansetzt.
+ * Die eine Zahl in dieser Datei, die **kein** Anteil der Hülle ist, und das
+ * mit Absicht: Ein Anteil wovon? Die Dicke eines Stiels hat mit der Breite
+ * einer Pfanne nichts zu tun — sie ist die Dicke eines Rohrs und am Modell
+ * gemessen (9,6 cm Durchmesser im halbierten Küchenmaßstab). Wer das Modell
+ * tauscht, misst hier nach; dass der Zylinder dann noch im Ding steckt, sagt
+ * der Test daneben.
  */
-const STALK_LIFT = 0.66;
+const PAN_STALK_RADIUS = 0.048;
 
 /**
- * **Wie hoch am Feuerlöscher die Hand liegt** — als Anteil seiner Höhe.
+ * **Wo die beiden Ohren des Topfes sitzen** — Anteile der gemessenen Hülle,
+ * und zwar für das Ohr auf der **+x**-Seite; das andere ist an der Mittelachse
+ * gespiegelt.
  *
- * „Oben, da wo er eben zum Betätigen bzw. Greifen wäre": Das ist der Hals
- * unter dem Ventil, also gut drei Viertel hinauf. Die Achse steht dabei
- * senkrecht und das Vorne zeigt nach -Z — dieselbe Lage wie bei der
- * Taschenlampe, und damit zielt die Düse dorthin, wohin die Hand zeigt.
+ * Auch das ist gemessen (`stove-pot`) und nicht gedacht: Die beiden Ohren
+ * stehen sich gegenüber, ihre Verbindungslinie liegt aber **9° schräg** zur
+ * x-Achse. Neun Grad klingen nach nichts und sind hier sechs Zentimeter — bei
+ * einer Stange von 2,4 cm Halbmesser also der Unterschied zwischen „der
+ * Zylinder liegt auf dem Griff" und „daneben". Deshalb steht `shift` hier und
+ * nicht eine glatte Null.
+ *
+ * `out` ist der Abstand von der Mitte als Anteil der halben Breite, `lift` die
+ * Höhe als Anteil der Gesamthöhe (die Ohren sitzen oben am Rand, kurz unter
+ * dem Deckel), `shift` der Versatz quer dazu als Anteil der halben Tiefe, und
+ * `along` die Richtung der Stange — quer zum Radius, wie bei einem Bügel.
  */
-const NOZZLE_LIFT = 0.78;
+const POT_EAR = {
+  out: 0.88,
+  lift: 0.86,
+  shift: -0.19,
+  along: { x: 0.123, y: 0, z: 0.992 },
+  /** Halbe Länge der Stange, als Anteil der halben Tiefe. */
+  half: 0.45,
+} as const;
+
+/** Wie dick ein Topfohr ist, als Halbmesser in Metern — gemessen wie oben. */
+const POT_EAR_RADIUS = 0.024;
+
+/**
+ * **Der Bügel des Feuerlöschers** — die Stange oben, an der man ihn trägt, in
+ * Anteilen der gemessenen Hülle.
+ *
+ * Hier stand einmal ein Punkt „oben am Ventil", auf der Mittelachse und auf
+ * drei Vierteln der Höhe — also **im Blech** und nicht an einem Griff. Am
+ * Modell gibt es einen: der Tragebügel liegt quer über dem Ventil, läuft
+ * entlang x und ist mit 10 cm Durchmesser genau eine Faust dick. Genau
+ * darauf liegt jetzt die Hand, und man sieht es nach (_Griffe anzeigen_).
+ *
+ * `across` ist die Mitte als Anteil der halben Breite (der Bügel sitzt
+ * gegenüber der Düse, also nach -x versetzt), `lift` die Höhe als Anteil der
+ * Gesamthöhe — fast ganz oben: zwischen Bügel und Hebel, wo die Finger
+ * liegen, und der Löscher hängt darunter —, `shift` der kleine
+ * Versatz quer dazu, und `half` die halbe Länge als Anteil der halben Breite.
+ */
+const NOZZLE_BAR = {
+  across: -0.29,
+  lift: 0.93,
+  shift: 0.11,
+  half: 0.49,
+} as const;
+
+/** Wie dick der Bügel ist, als Halbmesser in Metern — gemessen wie oben. */
+const NOZZLE_RADIUS = 0.035;
+
+/**
+ * **Wohin der Feuerlöscher zielt**, im Raum seines Netzes: nach **+x**.
+ *
+ * Auch das ist am Modell abgelesen und nicht geraten — dort ragt die schwarze
+ * Düse nach +x aus dem Kopf heraus, der Bügel nach -x. Vorher stand hier -z,
+ * und deshalb zeigte die Düse in der Faust nach **rechts** statt nach vorn:
+ * genau die Vierteldrehung nach links, die der Auftrag verlangt.
+ */
+const NOZZLE_AHEAD: Vec3 = { x: 1, y: 0, z: 0 };
 
 /**
  * **Wie weit innen vom Tellerrand** die Finger fassen — ein Anteil des
@@ -136,7 +208,113 @@ export const KITCHEN_REACH = 'moore' as const;
 
 const UP: Vec3 = { x: 0, y: 1, z: 0 };
 const RIGHT: Vec3 = { x: 1, y: 0, z: 0 };
-const LEFT: Vec3 = { x: -1, y: 0, z: 0 };
+/** Vom Griff aus **nach vorn**, wenn der Körper des Dings bei -z liegt. */
+const AHEAD: Vec3 = { x: 0, y: 0, z: -1 };
+
+/**
+ * **Die Pfanne am Stiel.**
+ *
+ * Die Stange ist der gemessene Stiel (`PAN_STALK`), oben bleibt die Senkrechte
+ * der Pfanne, und nach vorn kommt die Mulde: Damit liegt sie in der Hand
+ * **waagerecht mit der Mulde nach oben und vor der Faust**, und der Stiel zeigt
+ * zum Handgelenk zurück — so, wie man eine Pfanne trägt.
+ *
+ * Vorher stand ihr **Stiel** in der Faustachse, und das war der gemeldete
+ * Fehler in zwei Teilen: Er zeigte erstens von der Mulde **weg** (die Pfanne
+ * hing hinter der Faust statt vor ihr), und zweitens machte er die Pfanne
+ * hochkant, weil eine Faustachse in der Brille senkrecht steht. Beides
+ * zusammen ist die halbe Drehung um die Hochachse plus die Vierteldrehung um
+ * die Querachse, die der Auftrag beschreibt.
+ */
+function panStalk(size: ItemSize): GrabHandle {
+  const half = size.depth / 2;
+  return holdBar(
+    'stiel',
+    {
+      from: { x: 0, y: size.height * PAN_STALK.tip.lift, z: half * PAN_STALK.tip.along },
+      to: { x: 0, y: size.height * PAN_STALK.neck.lift, z: half * PAN_STALK.neck.along },
+      radius: PAN_STALK_RADIUS,
+    },
+    UP,
+    AHEAD,
+  );
+}
+
+/**
+ * **Der Topf an seinen beiden Ohren** — und das ist der zweite Teil desselben
+ * Fehlers.
+ *
+ * Er hatte bis eben den **Stiel der Pfanne**: dieselbe Zeile, dieselben
+ * Anteile, also einen Griff mitten in der Suppe. Ein Topf hat keinen Stiel, er
+ * hat zwei Ohren, sie stehen sich gegenüber, und welches davon gemeint ist,
+ * entscheidet wie beim Teller die Hand (`nearestHandle`). Sie heißen nach der
+ * Seite, auf der sie liegen: `ohr-x` und `ohr+x`.
+ *
+ * Oben bleibt die Senkrechte des Topfes — ein Topf, der sich beim Anfassen
+ * legt, schüttet sein Wasser aus —, und nach vorn kommt der Topf selbst: Er
+ * steht damit **vor** der Faust und nicht neben ihr.
+ */
+function potEars(size: ItemSize): readonly GrabHandle[] {
+  const wide = size.width / 2;
+  const deep = size.depth / 2;
+  const made: GrabHandle[] = [];
+  for (const side of [1, -1] as const) {
+    const at = {
+      x: side * POT_EAR.out * wide,
+      y: size.height * POT_EAR.lift,
+      z: side * POT_EAR.shift * deep,
+    };
+    const reach = {
+      x: side * POT_EAR.along.x * POT_EAR.half * deep,
+      y: 0,
+      z: side * POT_EAR.along.z * POT_EAR.half * deep,
+    };
+    // Nach vorn liegt die Mitte des Topfes, also der Weg vom Ohr dorthin.
+    const inward = Math.hypot(at.x, at.z) || 1;
+    made.push(
+      holdBar(
+        `ohr${side > 0 ? '+' : '-'}x`,
+        {
+          from: { x: at.x + reach.x, y: at.y, z: at.z + reach.z },
+          to: { x: at.x - reach.x, y: at.y, z: at.z - reach.z },
+          radius: POT_EAR_RADIUS,
+        },
+        UP,
+        { x: -at.x / inward, y: 0, z: -at.z / inward },
+      ),
+    );
+  }
+  return made;
+}
+
+/**
+ * **Der Feuerlöscher am Tragebügel.**
+ *
+ * Die Stange ist der Bügel über dem Ventil (`NOZZLE_BAR`), oben bleibt die
+ * Senkrechte des Löschers — er hängt unter der Faust, wie man ihn trägt —, und
+ * nach vorn zeigt die **Düse**. Das ist die Vierteldrehung nach links, die der
+ * Auftrag nennt: Vorher zielte der Löscher quer zur Hand, jetzt dorthin, wohin
+ * die Hand zeigt, und der Strahl folgt ihr (`kitchen.spray`).
+ */
+function extinguisherNeck(size: ItemSize): GrabHandle {
+  const wide = size.width / 2;
+  const reach = NOZZLE_BAR.half * wide;
+  const at = {
+    x: NOZZLE_BAR.across * wide,
+    y: NOZZLE_BAR.lift * size.height,
+    z: NOZZLE_BAR.shift * (size.depth / 2),
+  };
+  return holdBar(
+    'buegel',
+    {
+      from: { x: at.x - reach, y: at.y, z: at.z },
+      to: { x: at.x + reach, y: at.y, z: at.z },
+      radius: NOZZLE_RADIUS,
+    },
+    UP,
+    NOZZLE_AHEAD,
+  );
+}
 
 /**
  * **Die Griffe eines Küchendings** — leer für alles, was man einfach packt.
@@ -151,24 +329,13 @@ export function kitchenHandles(
 ): readonly GrabHandle[] {
   switch (item) {
     case 'pan':
+      return [panStalk(size)];
+
     case 'pot':
-      // Der Stiel liegt quer in der Faust: seine Richtung **ist** die
-      // Griffachse (+z, vom Gerät weg), der Handrücken schaut nach links,
-      // damit das Vorne nach unten zeigt — dorthin, wohin die Finger sich
-      // unter dem Stiel schließen.
-      return [
-        handle(
-          'stiel',
-          { x: 0, y: size.height * STALK_LIFT, z: (size.depth / 2) * STALK_ALONG },
-          { x: 0, y: 0, z: 1 },
-          LEFT,
-        ),
-      ];
+      return potEars(size);
 
     case 'extinguisher':
-      // Aufrecht in der Faust, wie die Taschenlampe: die Achse senkrecht, das
-      // Vorne nach -Z — also zielt die Düse dorthin, wohin die Hand zeigt.
-      return [handle('kopf', { x: 0, y: size.height * NOZZLE_LIFT, z: 0 }, UP, RIGHT)];
+      return [extinguisherNeck(size)];
 
     case 'plate':
     case 'plate-dirty':

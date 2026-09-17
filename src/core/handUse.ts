@@ -125,10 +125,10 @@ export function pickHandUse<T>(finds: readonly HandUseFind<T>[]): HandUseFind<T>
  *   (`touchedBefore`); wer die Hand liegen lässt und dann den Trigger zieht,
  *   drückt ausdrücklich noch einmal, und das soll er dürfen.
  * - `grab` will die **Greif-Taste**, und zwar dieselbe, mit der man in dieser
- *   Welt jeden Gegenstand greift (`worlds/portal/grabReach.ts`). Der Trigger
- *   tut hier nichts: Er gehört dem, was man in der Hand hält, und ein
- *   Brötchen, das schon auf den Zeigefinger springt, nähme dem Greifen seine
- *   einzige unmissverständliche Geste.
+ *   Welt jeden Gegenstand greift (`worlds/portal/grabReach.ts`) — **oder den
+ *   Trigger auf das, was man anzielt** (`core/interaction.ts`). Zwei Geber,
+ *   und keiner sticht den anderen: Welche der beiden Tasten es war, ist dem
+ *   Brötchen gleich.
  * - `none` löst nie aus.
  *
  * @param touchedBefore welches Ding dieselbe Hand im **letzten** Bild schon
@@ -147,7 +147,14 @@ export function handUseFires<T>(
   // vermeiden soll. Fehlt die Liste, kommt sie aus der Ableitung — und dann
   // steht hier Zeile für Zeile das Alte.
   const inputs = find.inputs ?? INTERACTION_DEFAULTS[find.kind].vr.inputs;
-  if (inputs.includes('grip')) return buttons.grip;
+  // **Jeder Geber für sich**, und das ist die Änderung: Hier stand einmal
+  // `if (inputs.includes('grip')) return buttons.grip;` — eine Zeile, die die
+  // Greif-Taste nicht nur zuließ, sondern alle anderen **abwies**. Ein Ding,
+  // das Greifen *und* Trigger anmeldet, antwortete damit nur auf das Greifen,
+  // und genau das war der gemeldete Fehler: Ein Steak aus der Pfanne ließ sich
+  // mit dem Trigger auf kein Brötchen legen, obwohl der Trigger dafür
+  // angemeldet war. Die Liste ist eine Liste; wer darin steht, löst aus.
+  if (buttons.grip && inputs.includes('grip')) return true;
   if (buttons.trigger && inputs.includes('aimTrigger')) return true;
   return inputs.includes('handTouch') && find.reach === 'touch' && touchedBefore !== find.item;
 }
