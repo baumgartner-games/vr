@@ -691,6 +691,7 @@ npm run preview  # gebautes Ergebnis lokal servieren
 npm test         # Jest (schnell); npm run test:slow für die Rundensimulationen
 npm run icons    # public/icon.svg → die PNG-Symbole der App (braucht Chromium)
 npm run fps      # Bildraten-Matrix gegen einen laufenden Dev-Server (braucht Chromium)
+npm run perf:kitchen  # Zeichenaufrufe der Küche, Rundumblick aus Augenhöhe
 ```
 
 Der **Service Worker** meldet sich nur im fertigen Build an; im
@@ -714,14 +715,7 @@ Verdrahtung zu prüfen. Für die echte 3D-App:
 npm run test:browser:install     # einmalig Chromium + Firefox
 npm run dev                     # in einem Terminal laufen lassen
 npm run test:browser            # Screenshots/Report unter .artifacts/browser-smoke
-npm run perf:kitchen            # Zeichenaufrufe der Küche, Rundumblick aus Augenhöhe
 ```
-
-`npm run perf:kitchen` zählt, was ein Bild in der Küche kostet — je Objekt, je
-Material, je Netz und je Blickrichtung, dazu die JavaScript-Zeit nach Aufrufern.
-Die **Zählwerte** gelten überall, die **Zeiten** nur auf dem Rechner, der misst;
-eine Bildrate für eine Brille fällt dabei nicht ab (AGENTS.md, „Die Messstrecke
-der Küche").
 
 Der Browserloop öffnet standardmäßig Chromium und Firefox als sichtbare Fenster
 mit normaler Grafik-Konfiguration. `--browser=chromium` oder `--browser=firefox`
@@ -745,6 +739,14 @@ Grafikeinstellungen über Hub und Testwelt, mit mittlerer Bildzeit und
 die Grenzen der Messung stehen in
 [Quest-3-Referenz](docs/quest3-referenz.md). SwiftShader liefert dabei keine
 vorhersagbaren fps — nur Verhältnisse.
+
+**Wer** die Zeichenaufrufe verbraucht, zählt das Schwesterwerkzeug
+`npm run perf:kitchen` (`tools/perf-kitchen.mjs`): aus der Augenperspektive
+eines Kochs in der Küche, einmal um die eigene Achse, je Objekt, je Material,
+je Netz und je Blickrichtung — dazu die JavaScript-Zeit nach Aufrufern. Die
+**Zählwerte** gelten überall, die **Zeiten** nur auf dem Rechner, der misst;
+eine Bildrate für eine Brille fällt auch hier nicht ab (AGENTS.md, „Die
+Messstrecke der Küche").
 
 Der Workflow [Browser smoke](.github/workflows/browser.yml) prüft den gebauten
 Stand zusätzlich mit Chromium und `--no-screenshots` in CI. Der Report bleibt dort

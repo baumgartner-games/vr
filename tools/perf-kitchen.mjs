@@ -2,8 +2,16 @@
  * **Die Messstrecke der Küche** — Zeichenaufrufe aus der Augenperspektive,
  * einmal um die eigene Achse.
  *
- *   npm run dev                 # oder: npm run preview
- *   npm run perf:kitchen
+ *   npm run dev -- --port 5183
+ *   npm run perf:kitchen -- --url=http://127.0.0.1:5183/
+ *
+ * **Das Schwesterwerkzeug von `npm run fps`** (`tools/fps-bench.mjs`) und
+ * dieselbe Seitenvorbereitung: HMR abgeklemmt, Service Worker aus,
+ * Grafikeinstellungen vollständig geschrieben, aus den Augen und nicht von
+ * oben. Nur die Frage ist eine andere. Die Messstrecke für die Bildrate fragt,
+ * **was ein Regler kostet** (`docs/quest3-referenz.md`); diese hier fragt,
+ * **wer die Zeichenaufrufe verbraucht** — je Objekt, je Material, je Netz und
+ * je Blickrichtung. Das ist die Frage hinter dem offenen Posten M3 dort.
  *
  * Gemessen wird dort, wo ein Koch steht: `?at=kitchen#test` setzt die Füße auf
  * die Ankerkachel der Küche (`worlds/test/layout.ZONE_TILES`), und gezählt wird
@@ -50,7 +58,7 @@ const args = new Map(
     return [key, rest.join('=') || 'true'];
   }),
 );
-const base = args.get('url') ?? process.env.SMOKE_URL ?? 'http://127.0.0.1:5173/';
+const base = args.get('url') ?? process.env.SMOKE_URL ?? 'http://127.0.0.1:5183/';
 const steps = Math.max(1, Math.min(72, Number(args.get('steps') ?? 12)));
 const frames = Math.max(1, Math.min(20, Number(args.get('frames') ?? 3)));
 const wantProfile = args.get('profile') !== '0';
@@ -60,6 +68,31 @@ const output = path.resolve(
     path.join(root, `.artifacts/perf-kitchen/${new Date().toISOString().replace(/[:.]/g, '-')}`),
 );
 await mkdir(output, { recursive: true });
+
+/** Derselbe Stummel wie in `fps-bench.mjs`: HMR ohne Verbindung. */
+const VITE_CLIENT_STUB = `
+export const createHotContext = () => ({
+  accept() {}, acceptExports() {}, dispose() {}, prune() {}, decline() {},
+  invalidate() {}, on() {}, off() {}, send() {}, data: {},
+});
+export const updateStyle = (id, content) => {
+  const selector = 'style[data-vite-dev-id="' + id + '"]';
+  let style = document.querySelector(selector);
+  if (!style) {
+    style = document.createElement('style');
+    style.setAttribute('data-vite-dev-id', id);
+    document.head.appendChild(style);
+  }
+  style.textContent = content;
+};
+export const removeStyle = (id) => {
+  document.querySelector('style[data-vite-dev-id="' + id + '"]')?.remove();
+};
+export const injectQuery = (url) => url;
+export const inWorkerThread = false;
+export const context = {};
+export class ErrorOverlay extends HTMLElement {}
+`;
 
 /** Die drei Posen; `eyeY` ist die Augenhöhe über dem Boden, `fov` senkrecht. */
 const POSES = [
@@ -320,16 +353,64 @@ function readProfile(profile, frameCount) {
 
 // --- Der Lauf ---------------------------------------------------------------
 
+// **Erst nachsehen, ob überhaupt jemand da ist** — derselbe Griff wie in
+// `fps-bench.mjs`: Der häufigste Fehler beim Messen verdient die kürzeste
+// Antwort und nicht neunzig Sekunden Zeitüberschreitung.
+try {
+  const probe = await fetch(base, { method: 'GET' });
+  if (!probe.ok) throw new Error(`HTTP ${probe.status}`);
+} catch (error) {
+  console.error(`Unter ${base} antwortet kein Dev-Server (${error.message}).`);
+  console.error('Erst `npm run dev -- --port 5183`, dann diesen Befehl.');
+  process.exit(1);
+}
+
 const browser = await chromium.launch({
   headless: !args.has('headed'),
   ...(process.env.SMOKE_EXECUTABLE ? { executablePath: process.env.SMOKE_EXECUTABLE } : {}),
   args: software
     ? ['--enable-webgl', '--use-angle=swiftshader', '--enable-unsafe-swiftshader']
-    : ['--enable-webgl'],
+    : ['--enable-webgl', '--ignore-gpu-blocklist'],
 });
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+const context = await browser.newContext({
+  viewport: { width: 1280, height: 800 },
+  deviceScaleFactor: 1,
+  // Der Service Worker der PWA hält Module aus einem früheren Lauf fest.
+  serviceWorkers: 'block',
+  reducedMotion: 'reduce',
+});
+// **Der HMR-Client wird abgeklemmt.** In diesem Arbeitsverzeichnis schreiben
+// mehrere Agenten; eine Messung, der mitten im Rundumblick die Seite neu lädt,
+// ist keine Messung (`fps-bench.mjs` erklärt es im Langen).
+await context.route('**/@vite/client', (route) =>
+  route.fulfill({ contentType: 'text/javascript', body: VITE_CLIENT_STUB }),
+);
+// Vollständig geschrieben und nicht zusammengeführt: ein Rest aus einem
+// früheren Lauf im selben Profil wäre eine stille Fehlmessung. Schatten
+// bleiben **an** — das ist der Auslieferungszustand, und der Durchgang ist
+// genau einer der Posten, um die es geht.
+await context.addInitScript(() => {
+  localStorage.setItem(
+    'bgvr.graphics',
+    JSON.stringify({
+      mode: 'simple',
+      xrScale: 1,
+      showFps: false,
+      gridLines: false,
+      hitBoxes: false,
+      showHandles: false,
+      shadows: true,
+      screenPads: 'off',
+    }),
+  );
+});
+const page = await context.newPage();
 const errors = [];
-page.on('pageerror', (error) => errors.push(error.stack ?? error.message));
+const crashes = [];
+page.on('pageerror', (error) => {
+  crashes.push(String(error));
+  errors.push(error.stack ?? error.message);
+});
 page.on('console', (message) => {
   if (message.type() === 'error') errors.push(`console: ${message.text().slice(0, 300)}`);
 });
@@ -339,8 +420,25 @@ url.searchParams.set('at', 'kitchen');
 url.hash = 'test';
 console.log(`Messstrecke Küche: ${url.href}`);
 await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 90000 });
+// Aus den Augen und nicht von oben — von oben zeichnet `TopDownCamera` etwas
+// anderes, und `GridWorld.stepWallGhosts` schaltet dort sogar die Wandbündel um.
+await page.locator('#screen-view [data-view="3d"]').click();
 await page.locator('#enter').click();
-await page.waitForFunction(() => globalThis.bgvr?.worldId === 'test', null, { timeout: 120000 });
+// Und hier wartet man nicht blind: Lädt die Welt nicht, soll der Fehler kommen
+// und nicht die Zeitüberschreitung.
+await Promise.race([
+  page.waitForFunction(() => globalThis.bgvr?.currentWorldId === 'test' && globalThis.bgvr.world, null, {
+    timeout: 120000,
+  }),
+  new Promise((_, reject) => {
+    const watch = setInterval(() => {
+      if (!crashes.length) return;
+      clearInterval(watch);
+      reject(new Error(`Die Testwelt lädt nicht: ${crashes[0]}`));
+    }, 250);
+    watch.unref?.();
+  }),
+]);
 await page.waitForFunction(() => globalThis.bgvr?.loading == null, null, { timeout: 180000 });
 // Modelle, Physik und Zonen kommen asynchron nach; danach steht das Bild.
 await page.waitForTimeout(12000);
@@ -514,4 +612,5 @@ if (js) {
 
 console.log(`\nZahlen und Rohdaten: ${output}`);
 if (errors.length) console.log(`Fehler im Lauf: ${errors.length}\n${errors.join('\n')}`);
+await context.close();
 await browser.close();

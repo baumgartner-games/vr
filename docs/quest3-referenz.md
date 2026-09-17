@@ -248,6 +248,33 @@ nicht das Ziel. Die 60 fps hängen an **M3**: Es ist der einzige offene Posten,
 der die 607 Zeichenaufrufe anfasst, und die zählen in der Brille doppelt, weil
 jedes Auge sie einzeln bezahlt.
 
+### Nachgezählt: wer die Zeichenaufrufe verbraucht
+
+M3 und M4 benennen Posten, nicht Objekte. Welche Dinge die Aufrufe tatsächlich
+verbrauchen, zählt seit dem 17. September 2026 `npm run perf:kitchen`
+(`tools/perf-kitchen.mjs`) — aus der Augenperspektive eines Kochs in der Küche,
+einmal um die eigene Achse in zwölf Schritten, mit der Augenhöhe der Brille
+(115 cm). Der Befund im Langen steht in AGENTS.md unter _Die Messstrecke der
+Küche_; hier die drei Zeilen, die M3 und M4 betreffen:
+
+- **Der Schattendurchgang ist blickfest** — 195 bis 201 Aufrufe, egal wohin man
+  sieht, im Mittel die Hälfte des Bildes (196 von 399). Das ist die Zahl zu
+  **M4**.
+- **Zwei Drittel des Hauptdurchgangs sind sechs gebaute Maschinen.** In der
+  teuersten Richtung 226 von 357 Aufrufen für Kopierer, Zugband, Förderband,
+  Mixer, Filterband und Kombinierer — zusammen gut 3 000 Dreiecke. Der Kopierer
+  allein: 60 Aufrufe aus 9 Materialien und 10 Geometrien. **M3 zielt auf die
+  richtige Zone, aber auf die falschen Möbel** — nicht die Stücke aus
+  `kitchen.glb`, sondern die gebauten (`KitchenPiece.built`).
+- **Ein `counter` steht zwölfmal im Bild**, aus einer Geometrie und einem
+  Material — der Fall für eine `InstancedMesh`, nicht für ein Verschmelzen.
+
+Dazu ein Posten, den die Liste oben noch nicht kennt: `PortalRenderer.render`
+rechnet vor **jedem** Bild den ganzen Szenengraphen erzwungen durch
+(`scene.updateMatrixWorld(true)`) — auch ohne gesetztes Portal, acht Zeilen
+bevor es das prüft. Nach M2 sind das weiterhin 6 556 Knoten je Durchlauf, und
+es sind knapp 60 % der JavaScript-Zeit außerhalb des Renderers.
+
 ## Wie man die Messung wiederholt
 
 Zwei Befehle, zwei Terminals:
