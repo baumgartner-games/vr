@@ -1,6 +1,6 @@
 /**
- * **Arbeit an einer Station, die Zeit kostet** — schneiden und spülen, und
- * beides aus derselben Rechnung. Ohne three.js, ohne Zone, ohne Bild.
+ * **Arbeit an einer Station, die Zeit kostet** — schneiden, spülen und mixen,
+ * alle drei aus derselben Rechnung. Ohne three.js, ohne Zone, ohne Bild.
  *
  * Das Schneidebrett hatte diese Uhr einmal für sich allein (sie stand in
  * `kitchenClock.ts` neben dem Herd). Dann kam die Spüle dazu, und mit ihr
@@ -10,17 +10,22 @@
  * Arbeit genau einmal**, und die Station sagt nur, welcher Art sie ist
  * (`WorkKind`) und was auf ihr liegt.
  *
- * **Ein einziger Unterschied bleibt**, und er steht bei `WORK_TO_HAND`: Was am
- * Brett fertig wird, liegt danach auf dem Brett; was in der Spüle fertig wird,
- * liegt danach in der **Hand**. Er steht dort als Tabelleneintrag und nicht
- * als Sonderfall der Spüle irgendwo in der Zone — sonst wären es doch wieder
- * zwei Rechnungen, nur mit einem gemeinsamen Namen davor.
+ * **Zwei Unterschiede bleiben, und beide sind Tabelleneinträge.** Bei
+ * `WORK_TO_HAND` steht, **wohin** das Fertige geht: Was am Brett fertig wird,
+ * liegt danach auf dem Brett; was in der Spüle fertig wird, liegt danach in
+ * der **Hand**. Bei `WORK_ALONE` steht, **wer dabeistehen muss**: am Brett und
+ * an der Spüle die Figur, im Mixer niemand. Beide stehen als Tabelle da und
+ * nicht als Sonderfall irgendwo in der Zone — sonst wären es doch wieder drei
+ * Rechnungen, nur mit einem gemeinsamen Namen davor.
  *
  * Der Herd bleibt draußen, und das ist kein Versehen: Er läuft weiter, **ob
  * jemand davorsteht oder nicht** — das ist der ganze Sinn des Bratens, man
- * geht ja in der Zeit etwas anderes tun. Hier ist es genau umgekehrt: Diese
- * Uhr läuft **nur**, solange die Figur an der Station steht. Zwei Rechnungen
- * mit gegenteiliger Grundannahme gehören nicht in eine Funktion.
+ * geht ja in der Zeit etwas anderes tun. **Der Mixer tut das auch**, und er
+ * bleibt trotzdem hier: Was ihn ausmacht, ist die **Stufenfolge** einer Zutat
+ * (roh → geschnitten → Suppe), und die ist Wort für Wort die des Bretts
+ * (`workStage`). Mit dem Herd teilt er nur die eine Zeile `WORK_ALONE` — und
+ * eine Zeile ist ein schlechterer Grund für eine gemeinsame Datei als eine
+ * ganze Tabelle.
  *
  * **Wer weggeht, fängt von vorn an.** Früher blieb der Fortschritt stehen und
  * lief beim Zurückkommen weiter — bequem, aber es machte aus dem Brett eine
@@ -30,7 +35,9 @@
  * bricht das Weggehen die Arbeit ab, und wer sie doch abbrechen will, zahlt
  * dafür zwei Handgriffe: **erneut aufnehmen und erneut ablegen** (`onWork`).
  * Damit steht man am Brett, weil es die Küche verlangt — und genau das ist
- * bei _Overcooked_ die Arbeit.
+ * bei _Overcooked_ die Arbeit. **Der Mixer ist die Ausnahme, die man sich
+ * hinstellt**: Er nimmt einem dieses Danebenstehen ab, und dafür kostet er
+ * eine Sekunde mehr je Stufe (`WORK_SECONDS`).
  *
  * Die Zone gibt je Bild ihr `dt` hinein und bekommt einen neuen Zustand
  * zurück, dazu einen Anteil 0…1 für den Balken darüber. Sie merkt sich nichts
@@ -44,7 +51,20 @@ export type WorkKind =
   /** Am Schneidebrett: aus Rohem wird Geschnittenes. */
   | 'chop'
   /** An der Spüle: aus dreckigem Geschirr wird sauberes. */
-  | 'wash';
+  | 'wash'
+  /**
+   * **Im Mixer: dasselbe wie am Brett, nur ohne jemanden davor.**
+   *
+   * Es ist ausdrücklich **dieselbe** Stufenfolge (`workStage` fragt für beide
+   * `chopStage`), und daran hängt der Satz aus dem Auftrag: „Tomaten werden
+   * nicht zu Tomatensuppe, sondern müssen zweimal durch den Mixer." Genau das
+   * sagt `kitchenRecipes.CHOPS` schon — Tomate wird Scheibe, Scheibe wird
+   * Suppe —, und eine eigene Tabelle für den Mixer wäre die, in der eines
+   * Tages die Tomate in einem Zug Suppe wird und am Brett nicht.
+   *
+   * Der ganze Unterschied steht in `WORK_ALONE`.
+   */
+  | 'blend';
 
 /**
  * **Wie lange eine Stufe dauert** — je Art, in Sekunden.
@@ -57,6 +77,15 @@ export type WorkKind =
 export const WORK_SECONDS: Readonly<Record<WorkKind, number>> = {
   chop: 3,
   wash: 3,
+  // **Vier, und die eine Sekunde mehr ist der Preis für die freien Hände.**
+  // Der Mixer arbeitet, während niemand danebensteht (`WORK_ALONE`) — er
+  // nimmt einem also nicht Zeit ab, sondern **Anwesenheit**, und das ist in
+  // dieser Küche die teurere Ware (derselbe Gedanke wie beim Band:
+  // `kitchenBelt.BELT_SECONDS` ist absichtlich langsamer als Laufen). Wäre er
+  // auch noch schneller als das Brett, gäbe es keinen Grund mehr, jemals ein
+  // Brett zu benutzen, und ein Möbel, das ein anderes wertlos macht, ist kein
+  // zweites Möbel, sondern ein Ersatz.
+  blend: 4,
 };
 
 /**
@@ -84,6 +113,38 @@ export const WORK_SECONDS: Readonly<Record<WorkKind, number>> = {
 export const WORK_TO_HAND: Readonly<Record<WorkKind, boolean>> = {
   chop: false,
   wash: true,
+  // **Im Mixer bleibt liegen, was fertig ist**, und hier ist die Antwort noch
+  // eindeutiger als am Brett: Niemand steht davor, dem man etwas in die Hand
+  // drücken könnte. Ein Mixer, der sein Ergebnis in eine Hand gäbe, die
+  // vielleicht drei Kacheln weiter ist, ist kein Möbel, sondern ein Wurf — und
+  // die ganze Pipeline hängt daran, dass ein Zugband es dort **abholen** kann
+  // (`kitchenBelt.beltReleases`).
+  blend: false,
+};
+
+/**
+ * **Ob diese Arbeit auch ohne jemanden davor läuft** — und das ist der
+ * **einzige** Unterschied zwischen Brett und Mixer.
+ *
+ * Am **Brett** und an der **Spüle** ist das Danebenstehen die Arbeit: Wer
+ * weggeht, hat abgebrochen (`advanceWork`), und genau das macht bei
+ * _Overcooked_ aus einem Knopfdruck eine Tätigkeit. Der **Mixer** kehrt das um
+ * — er ist das Möbel, das man kauft, **damit** man weggehen kann. Hineinlegen
+ * ist der eine Handgriff, alles Weitere geschieht ohne einen.
+ *
+ * Erst damit wird eine Bandstraße möglich: Ein Zugband legt den Salatkopf
+ * hinein, der Mixer schneidet ihn, das nächste Zugband holt ihn wieder heraus,
+ * und in der ganzen Kette steht niemand. An einem Brett stünde die Kette
+ * still, sobald der Koch sich umdreht.
+ *
+ * **Eine Tabelle und kein `if` in `advanceWork`**, aus demselben Grund wie bei
+ * `WORK_TO_HAND`: Kommt eine vierte Art dazu, fragt der Übersetzer nach ihrem
+ * Eintrag.
+ */
+export const WORK_ALONE: Readonly<Record<WorkKind, boolean>> = {
+  chop: false,
+  wash: false,
+  blend: true,
 };
 
 /**
@@ -120,7 +181,10 @@ export const IDLE_WORK: WorkState = { kind: null, item: null, time: 0, working: 
  * eine Tabelle, die man pflegen muss; ein `if` nicht.
  */
 export function workStage(kind: WorkKind, item: KitchenItem): KitchenItem | null {
-  if (kind === 'chop') return chopStage(item);
+  // **Mixer und Brett fragen dieselbe Tabelle**, und das ist die ganze Zusage
+  // hinter „zweimal durch den Mixer": Was das Messer in zwei Stufen zerlegt,
+  // zerlegt der Mixer in denselben zwei Stufen (`kitchenRecipes.CHOPS`).
+  if (kind === 'chop' || kind === 'blend') return chopStage(item);
   return item === 'plate-dirty' ? 'plate' : null;
 }
 
@@ -186,6 +250,12 @@ export interface WorkTick {
  * Becken holt ihn dann nach (`kitchenCarry.atSink` gibt her, was darin steht)
  * — derselbe Weg, den es vor dieser Änderung immer gab, jetzt nur noch als
  * Ausnahme. Am Brett ist der Wert gleichgültig, deshalb darf er fehlen.
+ *
+ * **Und für den Mixer gilt das alles nicht** (`WORK_ALONE`): Er läuft weiter,
+ * ob jemand danebensteht oder nicht, und bricht deshalb auch nichts ab. `near`
+ * wird für ihn gar nicht erst gelesen — die Zone darf ihn also ruhig mit
+ * demselben Aufruf füttern wie das Brett und muss nicht wissen, welches Möbel
+ * sich wie verhält.
  */
 export function advanceWork(
   state: WorkState,
@@ -193,7 +263,11 @@ export function advanceWork(
   near: boolean,
   handFree = false,
 ): WorkTick {
-  if (!near) {
+  // Der Merker steht **vor** dem Abbruch und nicht darin: `state.kind` ist
+  // `null`, solange nichts angelegt ist, und eine leere Station bricht ohnehin
+  // nichts ab.
+  const alone = state.kind !== null && WORK_ALONE[state.kind];
+  if (!near && !alone) {
     if (!state.working && state.time === 0) return { state, done: null, toHand: false };
     return { state: { ...state, time: 0, working: false }, done: null, toHand: false };
   }

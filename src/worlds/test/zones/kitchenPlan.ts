@@ -101,6 +101,25 @@ export interface Spot {
    */
   readonly role?: StationKind;
   /**
+   * **Was ein Filterband hier schon gelernt hat** (`kitchenBelt.beltWants`) —
+   * nur bei `belt-smart`, und sonst `undefined`.
+   *
+   * Im Spiel lernt ein Filterband, indem man ihm das Ding einmal auflegt
+   * (`kitchen.act`); dieses Feld ist dieselbe Lehre, nur schon erteilt. Es
+   * steht hier und nicht im Katalog, weil ein Filter keine Eigenschaft des
+   * **Möbels** ist, sondern seines **Platzes**: Zwei Filterbänder aus
+   * demselben Katalogstück ziehen verschiedene Dinge, und welches was zieht,
+   * entscheidet, wofür es in dieser Küche dasteht.
+   *
+   * **Und die Straße in der Werkhalle braucht es.** Ein Filterband ohne
+   * Filter zieht gar nichts — das ist die Regel und sie ist richtig
+   * (`kitchenBelt.beltWants`). Eine Schaustraße, die erst läuft, nachdem
+   * jemand drei Bändern etwas aufgelegt hat, zeigt aber nichts, sondern steht
+   * herum. Also stehen sie gelehrt da, mit dem Bild ihres Filters obenauf,
+   * und wer ein eigenes bauen will, sieht daran, was ihn erwartet.
+   */
+  readonly filter?: KitchenItem;
+  /**
    * **Ob es im Schauraum steht** statt in der Küche.
    *
    * Ein Schaustück wird beschriftet, gibt nichts her und nimmt nichts an —
@@ -246,6 +265,50 @@ export function rackLift(): number {
  * (`core/usable.pickUsable` nimmt das Nächste) und nie den Löscher.
  */
 export const BUILD_BUTTON_TILE = { x: 0, z: 9 } as const;
+
+/**
+ * **Die Werkhalle** — acht freie Spalten zwischen Küche und Schauraum, in
+ * denen Bandstraßen stehen.
+ *
+ * Sie ist der „neue Bereich", um den die Küche gewachsen ist, und sie musste
+ * es sein: Eine Straße aus Vorratskiste, Zugband, Mixer, Filterband und
+ * Kombinierer ist sechs bis acht Kacheln **am Stück** lang, und so etwas gab
+ * es in der alten Küche nirgends mehr. Verstreute Einzelkacheln helfen dabei
+ * nicht — eine Bahn, die um einen Herd herum muss, ist keine Bahn.
+ *
+ * **Sie hat keine eigene Wand und keine eigene Tür**, und das ist Absicht: Sie
+ * ist die Küche, nur größer. Die Ostecke der alten Küche (x = 11, z = 1…3)
+ * bleibt stehen und ist die einzige Engstelle; darunter, ab z = 4, geht man
+ * geradeaus hinüber.
+ *
+ * Das Rechteck steht hier und nicht in `layout.ts`, weil es keine **Zone**
+ * ist, sondern ein Teil dieser einen: Es hat keinen eigenen Boden, keine
+ * eigenen Wände und keinen eigenen Eingang. Gebraucht wird es für die Tests
+ * daneben — sie rechnen nach, dass die Straße darin bleibt und dass daneben
+ * noch Platz zum Bauen ist.
+ */
+export const PIPELINE = { x: 12, z: 0, w: 8, d: 11 } as const;
+
+/**
+ * **Wo der Schauraum anfängt** — seine westlichste Kachel.
+ *
+ * Er stand einmal fest auf x = 13, und jede seiner achtzehn Zeilen trug ihre
+ * Zahl selbst. Dann wuchs die Werkhalle zwischen Küche und Schauraum, und
+ * damit wanderten alle achtzehn um denselben Betrag nach Osten — genau die
+ * Sorte Änderung, bei der die siebzehnte Zahl stimmt und die achtzehnte
+ * nicht.
+ *
+ * Also rechnet der Schauraum jetzt ab seiner eigenen Kante, wie die Küche
+ * schon immer ab ihrer rechnet (der Kopf dieser Datei sagt es für die Zone:
+ * „damit sich die ganze Küche verschieben lässt, ohne dreißig Zeilen
+ * nachzurechnen"). Die Abstände dahinter bleiben, was sie waren: ein Möbel,
+ * eine Kachel Luft.
+ *
+ * 21 ist die Kachel nach der Werkhalle (x = 12…19) und der einen Spalte
+ * Abstand dahinter (x = 20) — dieselbe Kachel Luft, die den Schauraum vorher
+ * von der Küche trennte.
+ */
+export const SHOW_X = 21;
 
 export const KITCHEN_SPOTS: readonly Spot[] = [
   // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ---------------
@@ -404,9 +467,92 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // wäre zweimal derselbe Weg.
   { name: 'copier', x: 4, z: 7, turn: 2 },
 
+  // --- die Werkhalle: drei Straßen, die ohne Läufer auskommen -----------------
+  //
+  // Acht Spalten östlich der Küche (`PIPELINE`), und darin steht das, wofür
+  // Kombinierer, Mixer und Filterband gebaut wurden: **eine Burgerstraße**.
+  // Sie belegt drei der acht Spalten; die anderen fünf sind leer und bleiben
+  // es, denn genau dafür ist die Halle da — wer eine eigene Straße bauen will,
+  // braucht Spalten am Stück und nicht Einzelkacheln zwischen zwei Herden.
+  //
+  // **Was von selbst läuft und was nicht.** Gebraten wird weiter von Hand, und
+  // das ist keine Lücke: Es gibt genau **eine** Pfanne in dieser Küche
+  // (`kitchen.ts`), sie steht auf dem einen Herd, und ein Band kann nichts in
+  // eine Pfanne legen, die schon auf ihrer Kachel liegt — dafür ist der
+  // Kombinierer da, und der gehört nicht auf einen brennenden Herd. Die Straße
+  // nimmt einem deshalb alles **außer** dem Braten ab: Brötchen holen, Salat
+  // schneiden, Tomaten zweimal mixen, zusammenlegen, auf den Teller heben. Der
+  // Koch bratet und legt das fertige Patty auf die Pattyablage — den Rest
+  // sieht er fahren.
+  //
+  // **Spalte 12/13: der Burger.** Oben die Brötchenkiste, darunter ein Zugband,
+  // das sich von ihr bedient (`kitchenBelt.beltRefills`), dann zwei Bänder zum
+  // Kombinierer. Der hält das Brötchen und holt sich von **Osten** das Patty
+  // (sein Pfeil zeigt nach Westen, also auf den Ring zu — `turn: 1`,
+  // `kitchenBelt.beltReach`). Der fertige Burger geht per Zugband nach Süden
+  // auf eine Ablage, und dort holt ihn der **zweite** Kombinierer ab, auf dem
+  // schon ein Teller liegt. Dass der Teller **oben** liegt und der Burger von
+  // der Seite kommt und nicht umgekehrt, ist keine Laune: Ein Teller gehört
+  // unter das Essen (`kitchenRecipes.whyNot`), und der Kombinierer legt immer
+  // auf das, was auf ihm liegt (`kitchenRecipes.stackOn`).
+  { name: 'serve-counter', x: 12, z: 0, turn: 2, gives: 'bun', label: 'Brötchenvorrat' },
+  { name: 'belt-pull', x: 12, z: 1, turn: 2 },
+  { name: 'belt', x: 12, z: 2, turn: 2 },
+  { name: 'belt', x: 12, z: 3, turn: 2 },
+  { name: 'combiner', x: 12, z: 4, turn: 1 },
+  // Die Ablage, auf die der Koch das gebratene Patty legt — eine gewöhnliche
+  // Arbeitsplatte, und **absichtlich kein Band**: Ein Band davor schöbe das
+  // Patty auf den Kombinierer, sobald der leer ist, und dann läge dort das
+  // Patty als Unterlage und das Brötchen käme nicht mehr darauf (siehe oben).
+  // Eine stehende Ablage lässt sich nur **ziehen**, und ziehen tut hier nur
+  // der Kombinierer.
+  { name: 'table', x: 13, z: 4, label: 'Pattyablage' },
+  { name: 'belt-pull', x: 12, z: 5, turn: 2 },
+  { name: 'belt', x: 12, z: 6, turn: 2 },
+  { name: 'counter', x: 12, z: 7, label: 'Burgerablage' },
+  { name: 'plate-counter', x: 13, z: 5, turn: 2, gives: 'plate', label: 'Tellervorrat' },
+  { name: 'belt-pull', x: 13, z: 6, turn: 2 },
+  { name: 'combiner', x: 13, z: 7, turn: 3 },
+  { name: 'belt-pull', x: 13, z: 8, turn: 2 },
+  { name: 'counter', x: 13, z: 9, label: 'Ausgabeablage' },
+
+  // **Spalte 15: der Salat**, und die kürzeste der drei Straßen. Kiste,
+  // Zugband, Mixer, Filterband, Ablage — fünf Kacheln, und niemand steht
+  // dabei. Am Brett wäre dieselbe Arbeit drei Sekunden Danebenstehen je Kopf
+  // (`kitchenWork.WORK_ALONE`).
+  //
+  // Das Filterband hier könnte auch ein gewöhnliches Zugband sein: Ein Mixer
+  // gibt nichts her, solange er läuft (`kitchenBelt.beltReleases`), es kann
+  // sich also ohnehin nur der geschnittene Salat auf den Weg machen. Es steht
+  // trotzdem eines da, und zwar als **Anschauung**: Man sieht an einer kurzen
+  // Straße, was der Filter tut, bevor man ihn eine Spalte weiter braucht.
+  { name: 'serve-counter', x: 15, z: 0, turn: 2, gives: 'lettuce', label: 'Salatvorrat' },
+  { name: 'belt-pull', x: 15, z: 1, turn: 2 },
+  { name: 'mixer', x: 15, z: 2 },
+  { name: 'belt-smart', x: 15, z: 3, turn: 2, filter: 'lettuce-cut' },
+  { name: 'counter', x: 15, z: 4, label: 'Salatablage' },
+
+  // **Spalte 16: die Tomate, und sie ist der Grund für den Filter.** Aus einer
+  // Tomate wird im Mixer eine Scheibe und aus der Scheibe erst im **zweiten**
+  // Durchgang Suppe (`kitchenRecipes.CHOPS`) — also stehen hier zwei Mixer
+  // hintereinander, und dazwischen ein Filterband, das die **Scheibe** holt.
+  // Am Ende eines, das die **Suppe** holt und die Scheiben liegen ließe, wenn
+  // dort eine läge.
+  //
+  // Zwei Mixer und nicht einer mit einer Schleife: Eine Bahn, die etwas zu
+  // ihrem Anfang zurückträgt, ist ein Ring, und ein voller Ring fährt nicht
+  // (`kitchenBelt.advanceBelts`).
+  { name: 'serve-counter', x: 16, z: 0, turn: 2, gives: 'tomato', label: 'Tomatenvorrat' },
+  { name: 'belt-pull', x: 16, z: 1, turn: 2 },
+  { name: 'mixer', x: 16, z: 2 },
+  { name: 'belt-smart', x: 16, z: 3, turn: 2, filter: 'tomato-cut' },
+  { name: 'mixer', x: 16, z: 4 },
+  { name: 'belt-smart', x: 16, z: 5, turn: 2, filter: 'tomato-soup' },
+  { name: 'counter', x: 16, z: 6, label: 'Suppenablage' },
+
   // --- der Schauraum: jedes Möbel einmal, einzeln und beschriftet -------------
-  { name: 'plate-counter', x: 13, z: 1, show: true },
-  { name: 'extinguisher', x: 15, z: 1, show: true },
+  { name: 'plate-counter', x: SHOW_X, z: 1, show: true },
+  { name: 'extinguisher', x: SHOW_X + 2, z: 1, show: true },
   // **Die beiden Hälften stehen auch im Schauraum nebeneinander**, auf genau
   // den zwei Kacheln, die die ganze Spüle vorher belegt hat. Der Schauraum
   // zeigt sonst jedes Stück für sich, mit einer Kachel Luft — hier nicht: Ihre
@@ -414,46 +560,56 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // gestellt sähe man in zwei aufgeschnittene Schränke. Zwei Schilder gibt es
   // trotzdem, und sie liegen nicht übereinander, weil sie über dem jeweiligen
   // Möbel hängen: das des Beckens auf 1,15 m, das des Bretts auf 0,52 m.
-  { name: 'sink-basin', x: 17, z: 1, show: true },
-  { name: 'sink-drain', x: 18, z: 1, show: true },
-  { name: 'bin', x: 20, z: 1, show: true },
-  { name: 'table', x: 22, z: 1, show: true },
+  { name: 'sink-basin', x: SHOW_X + 4, z: 1, show: true },
+  { name: 'sink-drain', x: SHOW_X + 5, z: 1, show: true },
+  { name: 'bin', x: SHOW_X + 7, z: 1, show: true },
+  { name: 'table', x: SHOW_X + 9, z: 1, show: true },
 
-  { name: 'serve-counter', x: 13, z: 4, show: true },
-  { name: 'board', x: 15, z: 4, show: true },
-  { name: 'plate-rack', x: 17, z: 4, show: true },
-  { name: 'pass', x: 20, z: 4, show: true },
+  { name: 'serve-counter', x: SHOW_X, z: 4, show: true },
+  { name: 'board', x: SHOW_X + 2, z: 4, show: true },
+  { name: 'plate-rack', x: SHOW_X + 4, z: 4, show: true },
+  { name: 'pass', x: SHOW_X + 7, z: 4, show: true },
 
-  { name: 'counter', x: 13, z: 7, show: true },
-  { name: 'stove', x: 15, z: 7, show: true },
-  { name: 'stove-pot', x: 17, z: 7, show: true },
-  { name: 'stove-pan', x: 19, z: 7, show: true },
+  { name: 'counter', x: SHOW_X, z: 7, show: true },
+  { name: 'stove', x: SHOW_X + 2, z: 7, show: true },
+  { name: 'stove-pot', x: SHOW_X + 4, z: 7, show: true },
+  { name: 'stove-pan', x: SHOW_X + 6, z: 7, show: true },
   // **Auch das gebaute Möbel steht hier.** Der Schauraum zeigt jedes
   // Katalogstück genau einmal (`worlds/test/testPlan.test.ts` rechnet
   // `KITCHEN_SHOWN` gegen `core/kitchenFit.KITCHEN_NAMES`), und ob ein Stück
   // aus der Datei kommt oder gebaut wird (`KitchenPiece.built`), ist dem
   // Schauraum egal — er zeigt, was in dieser Küche stehen kann.
   //
-  // x = 22, z = 4 ist frei, nachgesehen in der Reihe darüber: In z = 4 stehen
-  // `serve-counter` (13), `board` (15), `plate-rack` (17…18) und `pass`
-  // (20…21) — rechts davon ist bis zur Ostwand (x = 23) Platz, und x = 22 ist
-  // die erste freie Kachel. In der Reihe z = 1 steht dort zwar der
-  // Arbeitstisch, aber das sind drei Kacheln Abstand.
-  { name: 'belt', x: 22, z: 4, show: true },
+  // `SHOW_X + 9` ist die letzte Kachel dieser Reihe, nachgesehen in ihr: Davor
+  // stehen `serve-counter` (+0), `board` (+2), `plate-rack` (+4…+5) und `pass`
+  // (+7…+8) — rechts davon ist bis zur Ostwand Platz, und +9 ist die erste
+  // freie Kachel. In der Reihe z = 1 steht dort zwar der Arbeitstisch, aber
+  // das sind drei Kacheln Abstand.
+  { name: 'belt', x: SHOW_X + 9, z: 4, show: true },
 
   // Das Zugband steht in der dritten Reihe, im selben Takt wie die Herde
-  // daneben (13, 15, 17, 19 — also 21). Dass es dort nichts zu ziehen hat, ist
+  // daneben (+0, +2, +4, +6 — also +8). Dass es dort nichts zu ziehen hat, ist
   // richtig so: Der Schauraum zeigt Möbel und keine Aufbauten.
-  { name: 'belt-pull', x: 21, z: 7, show: true },
+  { name: 'belt-pull', x: SHOW_X + 8, z: 7, show: true },
 
   // **Die vierte Reihe** — sie kam mit dem Rechner und dem Kopierer dazu. In
   // den drei Reihen darüber war kein Platz mehr für zwei Kacheln am Stück:
-  // z = 1 ist bis x = 22 belegt, z = 4 bis x = 22, z = 7 bis x = 21, und
-  // rechts davon steht bei x = 23 die Ostwand. Eine Reihe weiter unten ist
-  // billiger als ein umgeräumter Schauraum — er zeigt eine Liste und keine
-  // Komposition.
-  { name: 'desk', x: 13, z: 10, show: true },
-  { name: 'copier', x: 15, z: 10, show: true },
+  // z = 1 ist bis +9 belegt, z = 4 bis +9, z = 7 bis +8, und rechts davon
+  // steht die Ostwand. Eine Reihe weiter unten ist billiger als ein
+  // umgeräumter Schauraum — er zeigt eine Liste und keine Komposition.
+  //
+  // **Und sie hat die drei neuen Möbel aufgenommen.** Filterband,
+  // Kombinierer und Mixer stehen im selben Takt dahinter (+5, +7, +9); in
+  // den Reihen darüber war keine Lücke mehr, die zwei Möbel auseinander
+  // gehalten hätte. Dass das Filterband hier nichts gelernt hat und der
+  // Kombinierer nichts zusammenlegt, ist richtig so — der Schauraum zeigt
+  // Möbel und keine Aufbauten, und wie sie **zusammen** aussehen, zeigt die
+  // Straße in der Werkhalle.
+  { name: 'desk', x: SHOW_X, z: 10, show: true },
+  { name: 'copier', x: SHOW_X + 2, z: 10, show: true },
+  { name: 'belt-smart', x: SHOW_X + 5, z: 10, show: true },
+  { name: 'combiner', x: SHOW_X + 7, z: 10, show: true },
+  { name: 'mixer', x: SHOW_X + 9, z: 10, show: true },
 ];
 
 /** Wie weit ein Möbel eine Kachel verteuert — teurer als ein Baustein. */
@@ -766,6 +922,20 @@ const STATION_KINDS: Readonly<Record<string, StationKind>> = {
   'sink-drain': 'drain',
   belt: 'belt',
   'belt-pull': 'belt',
+  // **Drei Möbel, eine Rolle**: Das Filterband ist für `A` dasselbe wie die
+  // beiden anderen Bänder — eine Ablage, die weiterschiebt. Was es von ihnen
+  // unterscheidet, ist sein Gedächtnis, und das ist eine Sache der
+  // Bandrechnung und nicht des Anfassens (`kitchenBelt.beltWants`).
+  'belt-smart': 'belt',
+  // Kombinierer und Mixer bekommen dagegen **eigene** Arten, und zwar nicht,
+  // weil `A` an ihnen etwas anderes täte — an beiden legt man ab und nimmt
+  // auf wie auf jeder Arbeitsplatte —, sondern weil an beiden eine **Uhr**
+  // hängt, die die Zone je Bild laufen lassen muss (`kitchen.cook`). Eine
+  // Station, die man nicht an ihrer Art erkennt, findet man je Bild nur über
+  // ihren Möbelnamen, und dann steht die Regel wieder im Bild statt in der
+  // Rechnung.
+  combiner: 'combiner',
+  mixer: 'mixer',
 };
 
 /**

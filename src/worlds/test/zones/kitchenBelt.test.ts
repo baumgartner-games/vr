@@ -10,12 +10,16 @@ import {
   advanceBelts,
   beltBound,
   beltDelivers,
+  beltGrabs,
   beltKind,
+  beltLearns,
   beltProgress,
   beltReach,
+  beltRefills,
   beltReleases,
   beltStep,
   beltTrashes,
+  beltWants,
   type BeltFrame,
   type BeltState,
 } from './kitchenBelt';
@@ -80,11 +84,39 @@ describe('beltStep — wohin ein gedrehtes Band schiebt', () => {
     }
   });
 
-  it('kennt genau zwei Sorten Band und nennt alles andere keines', () => {
+  it('kennt genau drei Sorten Band und nennt alles andere keines', () => {
     expect(beltKind('belt')).toBe('push');
     expect(beltKind('belt-pull')).toBe('pull');
+    expect(beltKind('belt-smart')).toBe('smart');
     expect(beltKind('counter')).toBeNull();
     expect(beltKind('')).toBeNull();
+  });
+
+  it('lässt zwei der drei Sorten nach hinten greifen', () => {
+    // `beltGrabs` beantwortet zwei Fragen auf einmal — ob das Möbel den
+    // Greifer trägt und ob die Zone für dieses Band nach einer Quelle sucht.
+    // Zwei getrennte Antworten wären die Gelegenheit, ein Band zu bauen, das
+    // zieht, ohne es zu zeigen.
+    expect(beltGrabs('push')).toBe(false);
+    expect(beltGrabs('pull')).toBe(true);
+    expect(beltGrabs('smart')).toBe(true);
+  });
+
+  it('gibt jeder Sorte ihre eigene Farbe', () => {
+    const tones = Object.values(BELT_COLORS);
+    expect(tones).toHaveLength(3);
+    expect(new Set(tones).size).toBe(3);
+    for (const tone of tones) expect(tone).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it('merkt sich nur am Filterband etwas', () => {
+    // Ein Katalogname, und was er bedeutet. Gelehrt wird nur von Hand
+    // (`kitchen.act`) — ein Band, das von seiner eigenen Fracht lernte, hätte
+    // nach der ersten Fuhre einen Filter, den niemand gesetzt hat.
+    expect(beltLearns('belt-smart')).toBe(true);
+    expect(beltLearns('belt-pull')).toBe(false);
+    expect(beltLearns('belt')).toBe(false);
+    expect(beltLearns('counter')).toBe(false);
   });
 
   it('lässt sich nicht von außen umschreiben', () => {
@@ -602,6 +634,53 @@ describe('advanceBelts — das Zugband holt sich etwas', () => {
     expect(handOvers(run.run(BELT_SECONDS))).toEqual(['platte>links']);
   });
 
+  it('vererbt eine Vormerkung nicht an das, was gerade ankommt', () => {
+    // **Der Fehler, an dem eine ganze Bandstraße hing.** Ein Zugband merkt sich
+    // eine Nachbarkachel vor, weil **dieses** Ding dort liegt. Kommt im selben
+    // Bild ein **anderes** an, war die Vormerkung nicht für dieses gedacht —
+    // und die Frage ist neu zu stellen, und zwar von dem, der sie beantworten
+    // kann (die Zone: `kitchen.beltSource` weiß, was auf der Kachel liegt).
+    //
+    // Im Spiel sah das so aus: Das Filterband zog den geschnittenen Salat aus
+    // dem Mixer, das Band davor schob im selben Bild den nächsten **rohen**
+    // Salatkopf hinein — und der fuhr auf derselben Vormerkung ungehackt
+    // hinterher. Der Filter stimmte, der Mixer stimmte, heraus kamen trotzdem
+    // rohe Köpfe.
+    const run = new Run(
+      belt('band', 'werkbank'),
+      shelf('werkbank', true),
+      puller('zug', null, 'werkbank'),
+    );
+    // Erst kommt die Werkbank leer: Ihr Ding geht zum Zugband, das Band davor
+    // rückt im selben Bild nach.
+    const frames = run.run(BELT_SECONDS * 2);
+    expect(handOvers(frames)).toEqual(['werkbank>zug', 'band>werkbank']);
+    // **Und das Nachgerückte bleibt liegen** — das Zugband ist voll, es merkt
+    // also gar nicht erst neu vor, und ohne Vormerkung fährt eine Werkbank
+    // nirgendwohin.
+    expect(run.holds).toBe('werkbank zug');
+    expect(run.at('werkbank').state.moving).toBe(false);
+  });
+
+  it('merkt im nächsten Bild wieder vor — die Vormerkung ist aufgeschoben, nicht weg', () => {
+    // Die Gegenprobe zur Zeile darüber: Das Ankommende wartet **ein Bild**,
+    // nicht für immer. Ist das Zugband wieder frei, geht es quer weg wie eh und
+    // je (`BeltTile.pull`).
+    const run = new Run(
+      belt('band', 'werkbank'),
+      shelf('werkbank', true),
+      puller('zug', 'ablage', 'werkbank'),
+      shelf('ablage'),
+    );
+    expect(handOvers(run.run(BELT_SECONDS * 4))).toEqual([
+      'werkbank>zug',
+      'band>werkbank',
+      'zug>ablage',
+      'werkbank>zug',
+    ]);
+    expect(run.holds).toBe('zug ablage');
+  });
+
   it('reicht eine Reihe Zugbänder durch wie eine Reihe Bänder', () => {
     // Drei Zugbänder hintereinander: Jedes zieht vom Vordermann, der ohnehin
     // auf es zeigt. Das ist der Normalfall einer orangen Bahn, und er darf
@@ -651,6 +730,56 @@ describe('advanceBelts — das Zugband holt sich etwas', () => {
 });
 
 /**
+ * **Der Filter des Filterbands** (`beltWants`).
+ *
+ * Drei Aussagen, und die erste ist die, über die man zweimal nachdenkt: Ohne
+ * Filter zieht es **nichts**. Die Alternative — bis zur ersten Lehre ziehen
+ * wie ein gewöhnliches Zugband — wäre ein Möbel, das seine Regel wechselt,
+ * sobald man es benutzt, und damit eine Falle statt eines Filters.
+ */
+describe('beltWants — was ein Filterband haben will', () => {
+  it('zieht ohne Filter gar nichts', () => {
+    expect(beltWants(null, 'bun')).toBe(false);
+    expect(beltWants(null, null)).toBe(false);
+  });
+
+  it('zieht genau das Gelernte und sonst nichts', () => {
+    expect(beltWants('bun', 'bun')).toBe(true);
+    expect(beltWants('bun', 'patty-cooked')).toBe(false);
+    // Die Stufen einer Zutat sind verschiedene Dinge: Wer Scheiben holen will,
+    // bekommt keine ganze Tomate.
+    expect(beltWants('tomato-cut', 'tomato')).toBe(false);
+    expect(beltWants('tomato-cut', 'tomato-cut')).toBe(true);
+  });
+
+  it('zieht von einer leeren Kachel nichts', () => {
+    expect(beltWants('bun', null)).toBe(false);
+  });
+});
+
+/**
+ * **Die Vorratskiste als volle Kachel** (`beltRefills`).
+ *
+ * Für die Rechnung ist eine Kachel belegt oder frei; eine Kiste ist von beidem
+ * nichts. Diese eine Zeile ist die Übersetzung — und sie ist der Grund, warum
+ * eine Bandstraße überhaupt ohne Läufer anfangen kann.
+ */
+describe('beltRefills — was von selbst nachliefert', () => {
+  it('nennt die Vorratskiste und sonst nichts', () => {
+    expect(beltRefills('box')).toBe(true);
+    for (const kind of ['top', 'belt', 'board', 'mixer', 'combiner', 'table'] as const) {
+      expect({ kind, refills: beltRefills(kind) }).toEqual({ kind, refills: false });
+    }
+  });
+
+  it('gibt her, was es nachliefert — sonst nützte das Nachliefern nichts', () => {
+    // Eine Kiste, die als voll gilt, aber nichts hergäbe, wäre eine Kachel, an
+    // der jede Straße hängenbliebe.
+    expect(beltReleases('box')).toBe(true);
+  });
+});
+
+/**
  * **Was ein Band von seinen Nachbarn will** (`beltDelivers`, `beltReleases`).
  *
  * Die Frage „welche Station liegt auf der Kachel nebenan?" kann nur die Zone
@@ -673,11 +802,25 @@ describe('beltDelivers / beltReleases — was die Nachbarkachel darf', () => {
     'return',
     'table',
     'belt',
+    'combiner',
+    'mixer',
   ];
 
   it('liefert überall ab außer über die Theke und auf einen Stapel', () => {
     const takes = kinds.filter((kind) => beltDelivers(kind));
-    expect(takes).toEqual(['top', 'bin', 'box', 'board', 'stove', 'rack', 'sink', 'table', 'belt']);
+    expect(takes).toEqual([
+      'top',
+      'bin',
+      'box',
+      'board',
+      'stove',
+      'rack',
+      'sink',
+      'table',
+      'belt',
+      'combiner',
+      'mixer',
+    ]);
     // **In den Mülleimer liefert ein Band ab**, und was dort ankommt, ist weg
     // (`beltTrashes`). Ein Band, das auf einen Eimer zeigt und nicht
     // abliefert, staute sich an ihm — und gebaut wird so ein Band mit Absicht.
@@ -694,7 +837,7 @@ describe('beltDelivers / beltReleases — was die Nachbarkachel darf', () => {
 
   it('zieht von allem, was Ware trägt — aber nicht von Herd und Halterung', () => {
     const gives = kinds.filter((kind) => beltReleases(kind));
-    expect(gives).toEqual(['top', 'box', 'board', 'sink', 'table', 'belt']);
+    expect(gives).toEqual(['top', 'box', 'board', 'sink', 'table', 'belt', 'combiner', 'mixer']);
     // Gerät ist keine Ware: die Pfanne gehört auf den Herd, der Löscher in
     // seine Halterung.
     expect(beltReleases('stove')).toBe(false);
@@ -750,6 +893,20 @@ describe('beltDelivers / beltReleases — was die Nachbarkachel darf', () => {
     // Auf einer Ablage läuft nie eine Uhr — und wenn doch eine gemeldet würde,
     // gälte dieselbe Zurückhaltung.
     expect(beltReleases('top', true)).toBe(false);
+  });
+
+  it('lässt auch liegen, was gerade im Mixer ist', () => {
+    // **Und hier trägt dasselbe Wort das ganze Gewicht**: Ein Mixer arbeitet,
+    // ohne dass jemand danebensteht (`kitchenWork.WORK_ALONE`), also ist
+    // `working` die einzige Auskunft darüber, ob er mitten in einer Stufe
+    // steckt. Ein Zugband, das ihm den halb gehackten Salat wegnähme, wäre der
+    // Grund, warum eine Bandstraße nie zweimal dasselbe liefert.
+    expect(beltReleases('mixer', true)).toBe(false);
+    expect(beltReleases('mixer', false)).toBe(true);
+    // Der Kombinierer meldet seine eigene Uhr über denselben Weg
+    // (`kitchen.beltSource` reicht beide hinein).
+    expect(beltReleases('combiner', true)).toBe(false);
+    expect(beltReleases('combiner', false)).toBe(true);
   });
 });
 

@@ -465,6 +465,36 @@ export function combine(held: Dish, target: Dish): Combined {
   return { ok: false, why: nothingHolds(held, target) };
 }
 
+/**
+ * **Nur eine Richtung: `offer` legt auf `base` auf** — und was dabei entsteht,
+ * bleibt auf `base`.
+ *
+ * Der Unterschied zu `combine` ist die **Unbestimmtheit**, die dort gewollt
+ * ist und hier schädlich wäre. `combine` versucht beide Richtungen, weil ein
+ * Spieler mit dem Teller zur Tomate laufen darf oder mit der Tomate zum
+ * Teller — es kommt derselbe Teller heraus, einmal in der Hand und einmal auf
+ * der Zeile. Ein **Möbel** hat diese Freiheit nicht: Der Kombinierer
+ * (`kitchenCombiner.ts`) hat ein Oben und eine Seite, und was er baut, muss
+ * oben liegen bleiben. Ließe man ihn `combine` fragen, stünde der fertige
+ * Burger die Hälfte der Zeit auf der **Zulieferkachel** — bei einem Teller
+ * oben und einem Brötchen von der Seite genau so: `pour(Brötchen, Teller)`
+ * schlägt fehl, `pour(Teller, Brötchen)` gelingt, und das Ergebnis landete
+ * dort, wo das Brötchen herkam.
+ *
+ * Deshalb dieselbe Rechnung, nur einmal statt zweimal — und deshalb ist es
+ * eine Zeile hier und keine zweite in `kitchenCombiner.ts`: `pour` ist die
+ * Stelle, an der steht, was auf was darf, und sie soll es einmal sagen.
+ *
+ * `moved` ist wie bei `combine` das Gewanderte; `held` ist, was dem Anbieter
+ * bleibt (die leere Pfanne — sonst `null`), `target` der neue Stand von
+ * `base`.
+ */
+export function stackOn(offer: Dish, base: Dish): Combined {
+  const filled = pour(offer, base);
+  if (!filled.ok) return { ok: false, why: filled.why };
+  return { ok: true, held: filled.give, target: filled.take, moved: filled.moved };
+}
+
 /** Ein Rezept: wie es heißt und was daraufgehört. */
 export interface Recipe {
   readonly id: string;

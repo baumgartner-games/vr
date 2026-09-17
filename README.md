@@ -60,7 +60,8 @@ Tellerausgabe an der Wand, vier Zutatenausgaben an der Westwand, eine Insel aus
 Schneidebrett und Mülleimer, **zwei Bandbahnen** quer durch den Raum (was
 daraufliegt, gleitet weich weiter und fährt nur los, wenn vorn Platz wird —
 oder frei wird, während es fährt; die orangen **Zugbänder** holen sich
-obendrein von selbst, was auf der Kachel dahinter liegt; ein getragenes Möbel
+obendrein von selbst, was auf der Kachel dahinter liegt, und seit Neuestem auch
+aus einer **Vorratskiste**; ein getragenes Möbel
 zeigt dorthin, wohin die Figur zeigt, und der Auslöser dreht es in den Händen
 eine Vierteldrehung weiter), vorn die
 Ausgabetheke mit den Wärmeschirmen als Durchreiche darüber und davor der
@@ -72,6 +73,22 @@ Pfanne**; die Reihenfolge ist egal, Patty auf Brötchen und Brötchen auf Patty
 geben denselben Burger. Verbranntes kommt auf keinen von beiden — das kippt man
 in den Mülleimer. Am Brett wird geschnitten, solange man davorsteht; wer
 weggeht, fängt von vorn an.
+
+Östlich der Küche liegt seit dem letzten Umbau die **Werkhalle** — acht freie
+Spalten, in denen eine **Bandstraße** steht, die einen Burger ohne Läufer
+zusammensetzt. Drei neue Möbel machen das möglich: Der **Kombinierer** (grün)
+hält, was man ihm auflegt, und holt sich von der Seite, auf die sein Pfeil
+zeigt, die Zutat dazu — Brötchen oben, gebratenes Patty von der Seite, Burger
+oben. Der **Mixer** ist ein Schneidebrett mit Motor: Er hackt, **ohne dass
+jemand danebensteht**, eine Stufe je Auflegen — eine Tomate muss also zweimal
+hindurch, bis Suppe daraus wird. Und das **Filterband** (violett) ist ein
+Zugband mit Gedächtnis: Wer ihm einmal etwas auflegt, dem zieht es danach nur
+noch genau das, und ein kleines Bild an seiner Greifkante sagt, was es sich
+gemerkt hat. In der Halle laufen damit drei Bahnen von selbst — Brötchen aus
+der Kiste zum Kombinierer, Salat durch den Mixer, Tomaten zweimal durch zwei
+Mixer zu Suppe — und am Ende steht ein angerichteter Teller. Gebraten wird
+weiter von Hand: Es gibt eine Pfanne, und die steht auf dem Herd. Der Rest der
+Halle ist leer und bleibt es — dort baut man seine eigene Straße.
 
 **Über die Theke geht nur, was auf einem Teller liegt**, und der geht mit: Ein
 Gast setzt sich an einen freien Tisch, isst, und lässt dreckiges Geschirr
@@ -101,7 +118,7 @@ jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer nimmt das
 Brötchen, den Topf nicht, und vom Teller nur den Inhalt. Über die Möbel
 **springt** man dabei nicht: Sie sind für die Füße so hoch wie eine Wand, auch
 wenn der Tresen nur einen halben Meter misst. Östlich daneben liegt der
-**Schauraum**, in dem jedes der achtzehn Möbel noch einmal einzeln und
+**Schauraum**, in dem jedes der einundzwanzig Möbel noch einmal einzeln und
 beschriftet steht. Dazu drei **Portaltafeln**, eine davon oben auf dem Podest.
 
 Dazu kommt

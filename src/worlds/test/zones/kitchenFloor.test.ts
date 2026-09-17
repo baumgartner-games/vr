@@ -61,14 +61,18 @@ describe('das Muster liegt im Kachelraster', () => {
 
   /**
    * **Die Leinwand geht ganzzahlig über die Zone.** Sie trägt zwei mal zwei
-   * Felder, bei halben Feldern also einen Quadratmeter — über vierundzwanzig
-   * mal elf Kacheln kommt damit vierundzwanzig mal elf heraus und nichts
+   * Felder, bei halben Feldern also einen Quadratmeter — über eine Zone aus
+   * ganzen Kacheln kommt damit genau ihre Kachelzahl heraus und nichts
    * Krummes. Eine krumme Zahl hieße: Das Muster wird an einer Kante mitten im
    * Feld abgeschnitten.
+   *
+   * Gerechnet wird gegen das **Rechteck** und nicht gegen zwei abgeschriebene
+   * Zahlen: Die Küche ist schon zweimal gewachsen (zuletzt um die Werkhalle,
+   * `layout.KITCHEN`), und ein Test, der die alte Breite festhält, hält nichts
+   * über das Muster fest, sondern nur über die Zahl von gestern.
    */
   it('wiederholt sich ganzzahlig über das Rechteck der Küche', () => {
     const repeat = checkerRepeat(KITCHEN);
-    expect(repeat).toEqual({ x: 24, z: 11 });
     expect(repeat.x).toBe(KITCHEN.w);
     expect(repeat.z).toBe(KITCHEN.d);
     expect(Number.isInteger(repeat.x)).toBe(true);
