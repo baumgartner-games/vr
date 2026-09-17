@@ -86,6 +86,7 @@ import {
 import {
   BUILD_AHEAD,
   buildFree,
+  goesHomeOnEdit,
   holdForRim,
   ridesAlong,
   tileAhead,
@@ -2700,6 +2701,16 @@ export class KitchenZone implements TestZone {
    * Ausschalten wüsste niemand, was davon bleibt. Der Teller geht deshalb
    * dorthin, wo er hergekommen wäre — zurück in die Welt, an die Station, an
    * der man steht, oder eben weg.
+   *
+   * **Und „weg" heißt nicht für immer.** Hier stand lange ein blankes
+   * `discard`, und für ein Brötchen war das richtig: Es ist aus der Ausgabe
+   * gekommen und kommt von dort wieder. Pfanne, Topf und Feuerlöscher sind
+   * aber keine Ware — sie werden beim Aufbau **einmal** aus dem Modell
+   * gelöst (`takeUtensil`), und es gibt genau eine von jeder. Wer den Umbau
+   * mit der Pfanne in der Hand anschaltete, warf damit die einzige Pfanne der
+   * Küche aus der Szene, und bis zum nächsten `reset` briet niemand mehr
+   * etwas. Was einen Platz hat, an den es gehört, geht deshalb dorthin
+   * zurück; weggeworfen wird nur, was keinen hat.
    */
   private toggleEdit(): boolean {
     const world = this.world;
@@ -2707,7 +2718,9 @@ export class KitchenZone implements TestZone {
     if (this.editing && this.lifted) this.dropPiece(true);
     this.editing = !this.editing;
     if (this.editing && this.carried) {
-      this.discard(this.carried);
+      const home = this.carried.home;
+      if (home && goesHomeOnEdit(home, Boolean(home.on))) this.layOn(home, this.carried);
+      else this.discard(this.carried);
       this.carried = null;
     }
     // Alle Anmeldungen fallen lassen: Im Baumodus meint `A` etwas anderes,

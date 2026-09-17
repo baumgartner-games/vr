@@ -308,3 +308,36 @@ export function holdForRim(id: string | null | undefined): Turn {
       return 0;
   }
 }
+
+/**
+ * **Wohin das Getragene geht, wenn der Umbau anfängt** (`kitchen.toggleEdit`).
+ *
+ * Wer umbaut, trägt nichts — das Anschalten räumt die Hände, sonst hätte man
+ * ein Möbel **und** einen Topf darin. Die Frage ist nur, wohin damit, und hier
+ * stand lange die bequeme Antwort: weg. Für ein Brötchen stimmt sie auch. Es
+ * kommt aus der Ausgabe und kommt von dort wieder, und eine Küche, die jede
+ * weggelegte Zutat aufhebt, füllt sich mit Leichen (`kitchen.discard`).
+ *
+ * **Pfanne, Topf und Feuerlöscher sind aber keine Ware.** Sie werden beim
+ * Aufbau genau **einmal** aus dem Modell gelöst (`kitchen.spawnUtensil` →
+ * `kitchenModel.takeUtensil`), und es gibt eine von jeder. Wer den Umbau mit
+ * der Pfanne in der Hand anschaltete, warf damit die einzige Pfanne der Küche
+ * aus der Szene — und bis zum nächsten `reset` briet niemand mehr etwas. Man
+ * merkt es nicht beim Anschalten, sondern zehn Minuten später am leeren Herd,
+ * und das ist die Sorte Fehler, für die es diese Datei gibt.
+ *
+ * Also: **Was einen Platz hat, an den es gehört, geht dorthin zurück.** Das
+ * ist `Carried.home` — der Herd, von dem die Pfanne kommt, dieselbe Stelle,
+ * an die `B` sie stellt. Weggeworfen wird nur, was keinen Platz hat: das
+ * gebaute Gericht, die Zutat, der Teller aus dem Stapel.
+ *
+ * Und der Platz muss **frei** sein. Ein Zugband kann inzwischen etwas auf den
+ * Herd geschoben haben (`kitchenBelt.ts`); `kitchen.layOn` schriebe das
+ * kommentarlos über, und aus einem verlorenen Ding würden zwei.
+ *
+ * @param home    der Platz, an den es gehört — `null` bei allem, was keinen hat
+ * @param taken   ob dort gerade schon etwas liegt
+ */
+export function goesHomeOnEdit(home: unknown, taken: boolean): boolean {
+  return Boolean(home) && !taken;
+}

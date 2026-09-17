@@ -2,6 +2,7 @@ import {
   BUILD_AHEAD,
   EMPTY_LOAD,
   buildFree,
+  goesHomeOnEdit,
   holdForRim,
   overlaps,
   ridesAlong,
@@ -323,5 +324,26 @@ describe('wie ein Möbel in den Händen liegt', () => {
     expect(holdForRim('-x')).toBe(1);
     expect(holdForRim('-z')).toBe(2);
     expect(holdForRim('+x')).toBe(3);
+  });
+});
+
+describe('was beim Anschalten des Umbaus aus der Hand wird', () => {
+  /**
+   * Der Fehler, der hier festgenagelt wird, sah man nicht beim Anschalten,
+   * sondern zehn Minuten später am leeren Herd: Der Umbau warf das Getragene
+   * weg, und Pfanne, Topf und Feuerlöscher gibt es genau einmal.
+   */
+  test('was einen Platz hat, geht dorthin zurück', () => {
+    expect(goesHomeOnEdit({ key: 'stove' }, false)).toBe(true);
+  });
+
+  test('was keinen hat, wird weggeworfen — das Brötchen kommt aus der Ausgabe', () => {
+    expect(goesHomeOnEdit(null, false)).toBe(false);
+    expect(goesHomeOnEdit(undefined, false)).toBe(false);
+  });
+
+  test('ein belegter Platz nimmt nichts mehr an — sonst würden aus einem zwei', () => {
+    // Ein Zugband hat inzwischen etwas auf den Herd geschoben.
+    expect(goesHomeOnEdit({ key: 'stove' }, true)).toBe(false);
   });
 });
