@@ -10,6 +10,7 @@ import {
   TILE_CLEAR,
   TILE_SIZE,
   floorTilesFor,
+  slotTurn,
   tileSlots,
   type ConstructHost,
   type ConstructItem,
@@ -154,6 +155,53 @@ describe('Wo die Auswahl steht (`tileSlots`)', () => {
         expect(Math.abs(slot.x) / TILE_SIZE).toBeLessThanOrEqual(half);
         expect(Math.abs(slot.z) / TILE_SIZE).toBeLessThanOrEqual(half);
       }
+    }
+  });
+});
+
+describe('Wie die Auswahl steht (`slotTurn`)', () => {
+  /** Wohin die Vorderseite eines so gedrehten Stücks zeigt (−z ist vorn). */
+  const front = (turn: number): { x: number; z: number } => ({
+    x: Math.round(-Math.sin(turn) * 1e6) / 1e6,
+    z: Math.round(-Math.cos(turn) * 1e6) / 1e6,
+  });
+
+  test('gibt nur Vielfache einer Vierteldrehung her', () => {
+    // Genau darum geht es: In der Küche steht kein Möbel schräg
+    // (`test/zones/kitchenPlan.Turn`), im Schauraum daneben also auch nicht.
+    for (const slot of tileSlots(120)) {
+      const quarter = slotTurn(slot) / (Math.PI / 2);
+      expect(quarter).toBeCloseTo(Math.round(quarter), 12);
+    }
+  });
+
+  test('dreht jedes Stück in das Viertel, in dem die Mitte liegt', () => {
+    for (const slot of tileSlots(120)) {
+      const face = front(slotTurn(slot));
+      // Zur Mitte heißt: Die Vorderseite zeigt dorthin, wo weniger von dem
+      // steht, was das Stück von der Mitte trennt — das Skalarprodukt mit dem
+      // Weg zur Mitte ist positiv.
+      expect(face.x * -slot.x + face.z * -slot.z).toBeGreaterThan(0);
+    }
+  });
+
+  test('stellt die vier Kacheln der Kreuzmitte genau nach vorn', () => {
+    const step = TILE_SIZE * (TILE_CLEAR + 1);
+    expect(slotTurn({ x: 0, y: 0, z: -step })).toBeCloseTo(Math.PI, 12);
+    expect(slotTurn({ x: 0, y: 0, z: step })).toBeCloseTo(0, 12);
+    expect(slotTurn({ x: step, y: 0, z: 0 })).toBeCloseTo(Math.PI / 2, 12);
+    expect(slotTurn({ x: -step, y: 0, z: 0 })).toBeCloseTo(-Math.PI / 2, 12);
+  });
+
+  test('stellt zwei spiegelbildliche Kacheln auch spiegelbildlich', () => {
+    // Auf den Diagonalen ist der Abstand zu zwei Vierteln derselbe. Dann
+    // gewinnt die Tiefe — und nicht die Rundungsregel einer Fließkommazahl,
+    // die links und rechts verschieden ausfällt.
+    for (const slot of tileSlots(120)) {
+      const here = front(slotTurn(slot));
+      const there = front(slotTurn({ ...slot, x: -slot.x }));
+      expect(there.x).toBeCloseTo(-here.x, 12);
+      expect(there.z).toBeCloseTo(here.z, 12);
     }
   });
 });

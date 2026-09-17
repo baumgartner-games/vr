@@ -397,8 +397,26 @@ const MINI_SIZE = 0.8;
  */
 const MINI_SCALE = 1 / 3;
 
-/** Wie durchscheinend die Kopie in der Kopie-Zone ist, bis jemand sie nimmt. */
-const COPY_ALPHA = 0.45;
+/**
+ * **Wie durchscheinend die Kopie in der Kopie-Zone ist**, bis jemand sie nimmt
+ * — und in welchem Licht sie steht.
+ *
+ * 0,55 statt der früheren 0,45: Die Kopie ist das Ergebnis dieses Geräts, und
+ * ein Ergebnis, das man suchen muss, ist keines. Durchscheinend bleibt sie
+ * trotzdem, denn sie ist noch nichts — erst der Griff macht daraus ein Möbel.
+ *
+ * Das **Grün ist das des Geräts** (`COPY_GLOW`, dieselbe Zahl wie
+ * `kitchenDesk.GLOW_COLOR`): Glas, Pfosten, Bühne und Spur tragen es schon, und
+ * die Kopie ist das, was dieses Grün ankündigt. Eine fünfte Farbe hieße, dass
+ * hier noch etwas anderes passiert.
+ *
+ * Und es liegt **leicht** darüber (`COPY_GLOW_STRENGTH` = 0,3): Bei 0,5 wird
+ * aus jedem Möbel ein grüner Klotz, und wer eine Küchenzeile kopiert, soll eine
+ * Küchenzeile sehen — Kante, Griff und Sockel bleiben bei 0,3 lesbar.
+ */
+const COPY_ALPHA = 0.55;
+const COPY_GLOW = 0x2fd6a8;
+const COPY_GLOW_STRENGTH = 0.3;
 
 /** Die Stelle, an der eine Anzeige schweben soll — ein Vektor für die Zone. */
 const _at = new THREE.Vector3();
@@ -1002,6 +1020,10 @@ export class KitchenZone implements TestZone {
     // Die Pfeile auf den Bändern wandern, auch wenn nichts daraufliegt: Ein
     // Band, das erst bei Fracht zeigt, wohin es schiebt, sagt es zu spät.
     this.belts?.update(dt);
+    // Und das Licht läuft die Spur auf dem Kopierer entlang, aus demselben
+    // Grund wie die Sparren: Ein Gerät, das erst mit einer Vorlage darauf
+    // zeigt, wohin die Kopie kommt, zeigt es zu spät.
+    this.desks?.update(dt);
     // Die Knöpfe kommen nach dem Druck wieder hoch — von allein tun sie es nicht.
     this.buildButton?.update(dt);
     this.handsButton?.update(dt);
@@ -4199,11 +4221,28 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Die Kopie in der Zone** — dasselbe Netz, durchscheinend.
+   * **Die Kopie in der Zone** — dasselbe Netz, durchscheinend und im Grün des
+   * Geräts.
    *
    * Sie bekommt **eigene** Materialien und nicht die der Vorlage: Ein geklontes
    * Netz teilt sein Material mit dem Original (`Object3D.clone`), und wer dort
    * `opacity` verstellte, machte das Möbel in der Hand gleich mit durchsichtig.
+   *
+   * **Ein einzelnes Material bleibt ein einzelnes.** Genau hier stand der
+   * Fehler, wegen dem die Kopie-Zone seit dem ersten Tag leer aussah: Die
+   * Schleife holte sich `[mesh.material]`, färbte um und hängte die **Liste**
+   * wieder ein — auch dort, wo vorher ein einzelnes Material hing. Ein Netz mit
+   * einer Materialliste rendert three.js über `geometry.groups`, und eine
+   * Geometrie aus einer glTF-Datei hat keine: Was dabei herauskam, war kein
+   * blasses Möbel, sondern **gar keines**. Die Kopie gab es, man konnte sie
+   * nehmen, sie stand nur nicht da.
+   *
+   * **Und sie leuchtet** (`COPY_GLOW`): Ein Möbel, das nur halb durchsichtig
+   * ist, verschwindet auf der matten, dunklen Wiege — ausgerechnet ein brauner
+   * Unterschrank wird dort zu einem braunen Schatten auf Schwarz. Mit dem Grün
+   * des Geräts im `emissive` trägt die Kopie ihr eigenes Licht, egal welche
+   * Farbe das Möbel hat, und sagt zugleich, was sie ist: nicht das Möbel,
+   * sondern das, was der Kopierer davon zeigt.
    */
   private showCopy(furnish: Furnish): void {
     this.clearCopy(furnish);
@@ -4219,18 +4258,29 @@ export class KitchenZone implements TestZone {
     model.traverse((node) => {
       const mesh = node as THREE.Mesh;
       if (!mesh.isMesh) return;
-      const skins = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      mesh.material = skins.map((skin) => {
-        const ghost = (skin as THREE.Material).clone();
+      const many = Array.isArray(mesh.material);
+      const skins = many ? (mesh.material as THREE.Material[]) : [mesh.material as THREE.Material];
+      const ghosts = skins.map((skin) => {
+        const ghost = skin.clone();
         ghost.transparent = true;
         ghost.opacity = COPY_ALPHA;
         ghost.depthWrite = false;
+        const lit = ghost as THREE.MeshStandardMaterial;
+        // Nicht jedes Material kennt `emissive` — ein `MeshBasicMaterial` hat
+        // keines, und ein Feld, das es nicht gibt, zu setzen, ist eine Zeile,
+        // die nichts tut und beim Lesen etwas anderes behauptet.
+        if (lit.emissive) {
+          lit.emissive = new THREE.Color(COPY_GLOW);
+          lit.emissiveIntensity = COPY_GLOW_STRENGTH;
+          lit.emissiveMap = null;
+        }
         // **Nicht in `owned`.** Die Kopie entsteht bei jedem Griff neu; eine
         // Liste, die erst beim Verlassen der Welt geleert wird, wüchse mit
         // jedem kopierten Möbel. Sie gehen mit ihrer Kopie (`clearCopy`).
         plate.skins.push(ghost);
         return ghost;
       });
+      mesh.material = many ? ghosts : ghosts[0];
       mesh.castShadow = false;
       mesh.receiveShadow = false;
     });
