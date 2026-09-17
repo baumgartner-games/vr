@@ -22,7 +22,8 @@
  * Software-Rasterizer auf der CPU. Das ist **keine Quest 3**:
  *
  * - **Absolute fps sind wertlos.** SwiftShader ist ein bis zwei
- *   Größenordnungen langsamer als ein Adreno 740; eine Bildzeit von hier sagt
+ *   Größenordnungen langsamer als die mobile GPU einer Quest 3; eine Bildzeit
+ *   von hier sagt
  *   nichts über eine Bildzeit dort.
  * - **Was am Füllen der Bildpunkte hängt, ist hier verzerrt.** Ein
  *   Software-Rasterizer zahlt pro Pixel anders als eine echte GPU; die
@@ -390,6 +391,21 @@ function fold(runs) {
 
 // --- der Lauf ---------------------------------------------------------------
 
+/**
+ * **Erst nachsehen, ob überhaupt jemand da ist.** Ohne diesen Griff endet ein
+ * vergessener Dev-Server in einer Zeitüberschreitung von Playwright nach
+ * neunzig Sekunden — mit einer Meldung, die alles Mögliche bedeuten kann. Der
+ * häufigste Fehler beim Messen verdient die kürzeste Antwort.
+ */
+try {
+  const probe = await fetch(base, { method: 'GET' });
+  if (!probe.ok) throw new Error(`HTTP ${probe.status}`);
+} catch (error) {
+  console.error(`Unter ${base} antwortet kein Dev-Server (${error.message}).`);
+  console.error('Erst `npm run dev -- --port 5183`, dann diesen Befehl. `--help` zeigt den Rest.');
+  process.exit(1);
+}
+
 await mkdir(path.dirname(out), { recursive: true });
 /**
  * **Der Browser wird als sterblich behandelt.** Ein SwiftShader, der eine
@@ -520,7 +536,7 @@ console.log(
   table(results, [
     { head: 'Welt', cell: (row) => row.world },
     { head: 'Fall', cell: (row) => row.case },
-    { head: 'Bilder', cell: (row) => row.frames, right: true },
+    { head: 'Bilder', cell: (row) => Math.round(row.frames), right: true },
     { head: '⌀ ms', cell: (row) => num(row.frameMs), right: true },
     { head: 'fps', cell: (row) => num(row.fps), right: true },
     { head: 'Median ms', cell: (row) => num(row.p50Ms), right: true },
