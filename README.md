@@ -713,7 +713,14 @@ Verdrahtung zu prüfen. Für die echte 3D-App:
 npm run test:browser:install     # einmalig Chromium + Firefox
 npm run dev                     # in einem Terminal laufen lassen
 npm run test:browser            # Screenshots/Report unter .artifacts/browser-smoke
+npm run perf:kitchen            # Zeichenaufrufe der Küche, Rundumblick aus Augenhöhe
 ```
+
+`npm run perf:kitchen` zählt, was ein Bild in der Küche kostet — je Objekt, je
+Material, je Netz und je Blickrichtung, dazu die JavaScript-Zeit nach Aufrufern.
+Die **Zählwerte** gelten überall, die **Zeiten** nur auf dem Rechner, der misst;
+eine Bildrate für eine Brille fällt dabei nicht ab (AGENTS.md, „Die Messstrecke
+der Küche").
 
 Der Browserloop öffnet standardmäßig Chromium und Firefox als sichtbare Fenster
 mit normaler Grafik-Konfiguration. `--browser=chromium` oder `--browser=firefox`

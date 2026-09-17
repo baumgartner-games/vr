@@ -5856,6 +5856,108 @@ Die zweite erledigt eine ganze Klasse von Vermutungen:
 > zehn Zonen zusammen 0,15. Bei 72 fps stehen 13,9 ms zur Verfügung. Wer hier
 > optimiert, optimiert das Zehntel; das Bild liegt im anderen.
 
+#### Die Messstrecke der Küche — und wer die Aufrufe verbraucht
+
+Die beiden Zahlen oben stammen aus Instrumentierung, die nie eingecheckt wurde;
+die nächste Frage stand damit jedes Mal wieder bei null. Sie steht jetzt in
+`tools/perf-kitchen.mjs` (`npm run perf:kitchen`, ein laufender `npm run dev`
+davor). Gemessen wird **dort, wo ein Koch steht** — `?at=kitchen#test` setzt die
+Füße auf die Ankerkachel der Küche (13,5 / −23,5), also die Stelle, an der
+auch der Grundrisstest misst —, **aus den Augen und nicht von oben**, und für
+zwölf Blickrichtungen je 30°: Die Aufrufe hängen in dieser Welt kaum
+davon ab, wo man steht, sondern wohin man sieht.
+
+**Die Augenhöhe der Brille gilt am Schreibtisch nicht.** `zones/kitchen.fitEyes`
+staucht den Körper auf die 115 cm des Küchenblicks (`posture.DEFAULT_EYES`) nur
+in einer XR-Sitzung; ein Browser ohne Brille steht mit 165 cm da. Das Werkzeug
+setzt die Höhe deshalb für das Bild selbst, unmittelbar vor `render` — dort
+entscheidet die Projektionsmatrix, was ausgesiebt wird. Dieselbe Stelle setzt
+wahlweise ein Sichtfeld wie ein Auge der Quest (96° senkrecht, Seitenverhältnis
+0,935); es kommt fast dasselbe heraus wie mit den 70°/16:10 des Bildschirms
+(390 gegen 395 Aufrufe im Mittel), denn **waagerecht** sind beide ähnlich weit.
+
+Gezählt wird, indem `renderBufferDirect` umhüllt wird — die eine Stelle, durch
+die jeder Zeichenaufruf geht, im Haupt- wie im Schattendurchgang. Keine Zeile im
+Spiel ändert sich dafür.
+
+| Blick | Aufrufe je Bild | Hauptdurchgang | Schattendurchgang | Dreiecke |
+| ----: | --------------: | -------------: | ----------------: | -------: |
+|    0° (Norden) |    239 |             48 |               191 |   74 534 |
+|   30° |             228 |             37 |               191 |   70 119 |
+|   60° |             248 |             57 |               191 |   68 959 |
+|   90° (Westen) |    318 |            127 |               191 |   78 623 |
+|  120° |             450 |            259 |               191 |   88 993 |
+|  150° |             463 |            272 |               191 |   90 643 |
+|  180° (Süden) |     429 |            238 |               191 |   86 979 |
+|  210° |             326 |            135 |               191 |   77 515 |
+|  240° |             525 |            334 |               191 |   88 932 |
+|  270° (Osten) |     551 |            354 |               197 |   90 436 |
+|  300° |         **557** |        **360** |               197 |   95 235 |
+|  330° |             387 |            190 |               197 |   85 315 |
+
+Drei Sachen stehen in dieser Tabelle:
+
+**Der Schattendurchgang ist blickfest.** 191 bis 197 Aufrufe, egal wohin man
+sieht — er zeichnet aus der Sicht der Sonne und nicht aus der des Spielers. Im
+Mittel über die Runde ist er **die Hälfte des Bildes** (193 von 395). Wer nach
+Norden sieht, zahlt für den Schatten viermal so viel wie für das, was er sieht.
+
+**Zwei Drittel des Hauptdurchgangs sind sechs gebaute Maschinen.** In der
+teuersten Richtung (300°, nach Osten in Werkhalle und Schauraum) sind von 360
+Aufrufen **226** der Kopierer, das Zugband, das Förderband, der Mixer, das
+Filterband und der Kombinierer — und die zeichnen zusammen gut **3 000
+Dreiecke**. Der Kopierer allein sind 60 Aufrufe für 500 Dreiecke, aus 9
+Materialien und 10 Geometrien: Er ist aus fünf Dutzend kleinen Quadern gebaut,
+und jeder einzelne ist ein eigenes `Mesh` mit eigenem Material. Dasselbe gilt
+für alles, was `KitchenPiece.built` selbst zusammensetzt.
+
+**Die Möbel aus der Datei stehen doppelt und dreifach im Bild.** `counter`
+liefert in derselben Richtung 12 Aufrufe aus **einer** Geometrie und **einem**
+Material — zwölfmal dasselbe Ding, zwölfmal einzeln gezeichnet.
+
+Die vollständigen Ranglisten — je Objekt, je Material, je Netz — schreibt der
+Lauf nach `.artifacts/perf-kitchen/<Zeitstempel>/`.
+
+**Und die Rechenzeit?** Im selben Lauf hängt sich ein CPU-Profil an
+(`Profiler.start` über CDP) und teilt die Bildschleife nach Aufrufern auf. Das
+Ergebnis ist eindeutig und hat nichts mit der Küche zu tun: **Rund zwei Drittel
+der JavaScript-Zeit außerhalb des Renderers stecken in
+`Object3D.updateMatrixWorld`**, und zwar in dem einen erzwungenen Durchlauf, den
+`PortalRenderer.render` vor jedem Bild macht (`scene.updateMatrixWorld(true)`,
+noch bevor geprüft wird, ob überhaupt ein Portal gesetzt ist). Der Szenengraph
+der Testwelt hat **8 055 Knoten**; davon sind 675 Netze sichtbar. Gezählt, nicht
+geschätzt: Der ganze Graph wird je Bild **zweimal** durchgerechnet — einmal
+erzwungen von dort, einmal sanft von three selbst —, dazu kommt ein drittes
+`traverseVisible` für die Spiegelsuche (`collectMirrors`).
+
+> **Zählwerte überträgt der Container ehrlich, Zeiten nicht.** Aufrufe,
+> Objekte, Materialien und Dreiecke kommen aus dem Renderer und gelten
+> unabhängig von der Grafikkarte darunter. Die Millisekunden nicht: Dort zeichnet
+> SwiftShader in Software, und dort liegen 87 % der Bildschleife. Das Werkzeug
+> trennt beides deshalb ausdrücklich und weist nur Anteile aus. **Aus diesem
+> Lauf folgt keine Bildzeit und kein Prozentgewinn für die Quest 3** — dieselbe
+> Falle wie bei den 34 % für Schatten aus.
+
+**Was daraus folgen könnte, aber noch nicht geschehen ist** — drei Vorschläge,
+nach Größe des Postens, keiner davon umgesetzt:
+
+1. **Die gebauten Maschinen zusammenfassen.** Ein Kopierer aus 60 Quadern mit 9
+   Materialien ist gebündelt einer aus 9 Aufrufen: je Material eine
+   zusammengefasste Geometrie (`mergeGeometries`), gerechnet beim Bauen und
+   nicht je Bild. Es ist dieselbe Rechnung wie bei den Bodenkacheln weiter
+   oben, nur eine Ebene kleiner — und einzeln bewegen sich die Teile nur dort,
+   wo ein Band läuft; die bleiben dann eben draußen.
+2. **Den Schattendurchgang an derselben Stelle mitnehmen.** Er ist die Hälfte
+   des Bildes und zeichnet dieselben Quader noch einmal. Wo ein Bündel entsteht,
+   fällt er von selbst mit; wo nicht, hilft `denyShadow` an allem, was ohnehin
+   in der Silhouette eines größeren Kastens steckt — der Trick, mit dem die
+   Laufbänder schon von 45 auf 10 Aufrufe gekommen sind.
+3. **Den erzwungenen Matrixdurchlauf nur dann, wenn ein Portal steht.** Die
+   Prüfung auf `active.length === 0` steht in `PortalRenderer.render` acht Zeilen
+   **unter** dem `scene.updateMatrixWorld(true)`. Sie darüber zu ziehen ist eine
+   Zeile; was sie einspart, ist ein vollständiger Durchlauf durch 8 055 Knoten je
+   Bild, und zwar auch dann, wenn die Portalpistole gar nicht in der Hand liegt.
+
 #### Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht
 
 `TextPlane.setText` prüft seit dem Umbau, ob sich Überschrift, Text oder Akzent
