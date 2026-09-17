@@ -28,6 +28,7 @@ import {
   deviceKey,
   indexOf,
   isDefaultConfig,
+  keyLabel,
   keysFor,
   layoutSize,
   layoutSlots,
@@ -468,36 +469,6 @@ function buildBindings(): void {
   bindReset.disabled = !changed;
   allReset.disabled = !changed;
   mapReset.hidden = !(editingMap && config.layouts[key]);
-}
-
-/**
- * `KeyboardEvent.code` ist für Menschen keine Taste: `KeyW` ist ein W,
- * `ArrowUp` ein Pfeil. Gezeigt wird die Aufschrift — und die rohe Kennung nur
- * dort, wo es keine gibt, denn geraten wird hier nichts.
- */
-function keyLabel(code: string): string {
-  const named: Record<string, string> = {
-    Space: 'Leertaste',
-    Enter: 'Eingabe',
-    NumpadEnter: 'Eingabe (Ziffernblock)',
-    Tab: 'Tab',
-    ShiftLeft: 'Umschalt links',
-    ShiftRight: 'Umschalt rechts',
-    ControlLeft: 'Strg links',
-    ControlRight: 'Strg rechts',
-    AltLeft: 'Alt',
-    AltRight: 'Alt Gr',
-    ArrowUp: '↑',
-    ArrowDown: '↓',
-    ArrowLeft: '←',
-    ArrowRight: '→',
-  };
-  if (named[code]) return named[code];
-  const letter = /^Key([A-Z])$/.exec(code);
-  if (letter) return letter[1]!;
-  const digit = /^Digit([0-9])$/.exec(code);
-  if (digit) return digit[1]!;
-  return code;
 }
 
 mapEdit.addEventListener('click', () => {
