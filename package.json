@@ -20,7 +20,8 @@
     "avatar": "node tools/avatar-shot.mjs",
     "handles": "node tools/handle-shot.mjs",
     "fps": "node tools/fps-bench.mjs",
-    "icons": "node tools/icons.mjs"
+    "icons": "node tools/icons.mjs",
+    "perf:kitchen": "node tools/perf-kitchen.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",
