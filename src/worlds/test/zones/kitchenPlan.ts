@@ -284,6 +284,18 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   { name: 'counter', x: 11, z: 2 },
   { name: 'bin', x: 11, z: 3 },
 
+  // --- der Rechner an der Westwand, neben der Ankunft -------------------------
+  //
+  // **Er steht dort, wo man ankommt.** Die Ankunftskachel ist x = 1, z = 7
+  // (`layout.SPAWNS.kitchen`); der Tisch steht eine Kachel westlich davon und
+  // schaut mit `turn: 3` nach Osten, der Ankommenden also ins Gesicht. Ein
+  // Möbelkatalog, den man erst suchen muss, ist einer, den niemand aufmacht.
+  //
+  // Und er steht neben dem roten Umbauknopf zwei Kacheln weiter südlich
+  // (`BUILD_BUTTON_TILE`, x = 0, z = 9), weil beide dasselbe Thema haben:
+  // Der Knopf macht den Umbau auf, der Rechner gibt die Möbel dazu her.
+  { name: 'desk', x: 0, z: 7, turn: 3 },
+
   // --- die Ausgaben an der Westwand, zur Küche hin gedreht --------------------
   // Vier nebeneinander und nicht verteilt, seit es Rezepte gibt
   // (`kitchenRecipes.ts`): Wer für einen Deluxe vier Zutaten holt, läuft sonst
@@ -378,6 +390,20 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   { name: 'belt-pull', x: 7, z: 7, turn: 2 },
   { name: 'belt-pull', x: 7, z: 8, turn: 2 },
 
+  // --- der Kopierer, in der freien Mitte zwischen Insel und Gastraum ----------
+  //
+  // **Zwei Kacheln, x = 4…5 auf z = 7**, nach Süden gedreht wie die Ausgabe
+  // dahinter. Nachgesehen und nicht gehofft: In der Reihe z = 7 stehen sonst
+  // nur die beiden Bahnen (`belt-pull` auf x = 7, `belt` auf x = 9), die Insel
+  // endet bei z = 4, die Ausgaben an der Westwand bei x = 1. Westlich bleibt
+  // x = 2…3 als Gang zur Ankunft frei, östlich x = 6 als Durchlass zwischen
+  // Kopierer und Zugband.
+  //
+  // Er gehört in die **Mitte** und nicht an eine Wand: Was man kopiert, trägt
+  // man vom Rechner her heran und danach irgendwohin — ein Gerät in der Ecke
+  // wäre zweimal derselbe Weg.
+  { name: 'copier', x: 4, z: 7, turn: 2 },
+
   // --- der Schauraum: jedes Möbel einmal, einzeln und beschriftet -------------
   { name: 'plate-counter', x: 13, z: 1, show: true },
   { name: 'extinguisher', x: 15, z: 1, show: true },
@@ -419,6 +445,15 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // daneben (13, 15, 17, 19 — also 21). Dass es dort nichts zu ziehen hat, ist
   // richtig so: Der Schauraum zeigt Möbel und keine Aufbauten.
   { name: 'belt-pull', x: 21, z: 7, show: true },
+
+  // **Die vierte Reihe** — sie kam mit dem Rechner und dem Kopierer dazu. In
+  // den drei Reihen darüber war kein Platz mehr für zwei Kacheln am Stück:
+  // z = 1 ist bis x = 22 belegt, z = 4 bis x = 22, z = 7 bis x = 21, und
+  // rechts davon steht bei x = 23 die Ostwand. Eine Reihe weiter unten ist
+  // billiger als ein umgeräumter Schauraum — er zeigt eine Liste und keine
+  // Komposition.
+  { name: 'desk', x: 13, z: 10, show: true },
+  { name: 'copier', x: 15, z: 10, show: true },
 ];
 
 /** Wie weit ein Möbel eine Kachel verteuert — teurer als ein Baustein. */

@@ -84,6 +84,43 @@ export function copierSpot(
   return { x: ox * cos + oz * sin, z: -ox * sin + oz * cos };
 }
 
+/** Welches der beiden Felder des Kopierers gemeint ist (`copierField`). */
+export type CopierField = 'plate' | 'zone';
+
+/**
+ * **Vor welchem der beiden Felder jemand steht.**
+ *
+ * Der Kopierer ist ein Möbel mit zwei Bedeutungen nebeneinander: links die
+ * Vorlage, rechts die Kopie (`COPIER_PLATE`, `COPIER_ZONE`). Was ein Druck
+ * tut, hängt davon ab, vor welcher Hälfte man steht — und das ist die eine
+ * Rechnung dahinter, also steht sie hier und nicht an der Aufrufstelle.
+ *
+ * **Warum kein zweites Usable je Feld**, was naheliegender aussähe: Die
+ * Auswahl nimmt das **nächstgelegene** Ding, dessen Zielzylinder der Strahl
+ * trifft (`core/usable.pickUsable`), und der Zylinder des ganzen Kopierers ist
+ * mit über einem Meter größer als der Abstand der beiden Feldmitten. Er
+ * gewönne damit gegen jedes kleine Ding, das man auf eines der Felder stellt —
+ * und zwar auch dann, wenn man genau davorsteht. Ein Möbel, zwei Felder, eine
+ * Anmeldung: Der gelbe Saum umfasst dann das ganze Gerät, und das ist die
+ * ehrlichere Auskunft — bedient wird der Kopierer, nicht die Glasplatte.
+ *
+ * Gemessen wird in der **Eigendrehung** des Möbels, also gegen die gedrehten
+ * Feldmitten (`copierSpot`) und nicht gegen eine geratene Seite. Genau in der
+ * Mitte zwischen beiden gewinnt die **Kopierfläche**: Dort fängt jede Benutzung
+ * an, und ein leeres Feld, das nichts hergibt, wäre die unbrauchbarere Antwort.
+ *
+ * @param turn Vierteldrehungen des Möbels
+ * @param dx Abstand vom Ursprung des Möbels zur Figur, in Metern
+ * @param dz dasselbe in z
+ */
+export function copierField(turn: Turn, dx: number, dz: number): CopierField {
+  const plate = copierSpot(COPIER_PLATE, turn);
+  const zone = copierSpot(COPIER_ZONE, turn);
+  const toPlate = (dx - plate.x) ** 2 + (dz - plate.z) ** 2;
+  const toZone = (dx - zone.x) ** 2 + (dz - zone.z) ** 2;
+  return toZone < toPlate ? 'zone' : 'plate';
+}
+
 /** Von welcher Seite jemand vor einem Möbel steht (`pieceSide`). */
 export type PieceSide = 'front' | 'side' | 'back';
 

@@ -209,7 +209,7 @@ describe('der Möbelkatalog', () => {
    */
   it('lässt nur gebaute Möbel ohne Knoten in der Quelle durchgehen', () => {
     const built = KITCHEN_PIECES.filter((piece) => piece.built);
-    expect(built.map((piece) => piece.name)).toEqual(['belt', 'belt-pull']);
+    expect(built.map((piece) => piece.name)).toEqual(['belt', 'belt-pull', 'desk', 'copier']);
     for (const piece of KITCHEN_PIECES) {
       const inSource = SOURCE[piece.name] !== undefined;
       expect({ name: piece.name, inSource }).toEqual({
@@ -219,9 +219,17 @@ describe('der Möbelkatalog', () => {
     }
     // Und ein gebautes Stück bleibt ein vollwertiges Möbel: Wer es nur halb
     // einträgt, stellt eine Kachel ohne Höhe auf.
+    //
+    // **Die Grundfläche steht hier nicht mehr mit**, seit der Kopierer zwei
+    // Kacheln belegt (`worlds/test/zones/kitchenDesk.ts`): Dass ein gebautes
+    // Möbel auf eine Kachel passt, war nie eine Regel, sondern der Zufall,
+    // dass die ersten beiden Förderbänder waren. Was zählt, ist eine
+    // Grundfläche aus ganzen Kacheln — eine halbe belegt keine.
     for (const piece of built) {
       expect(piece.height).toBeGreaterThan(0.1);
-      expect(piece.tiles).toEqual([1, 1]);
+      const [w, d] = piece.tiles;
+      expect(Number.isInteger(w) && w >= 1).toBe(true);
+      expect(Number.isInteger(d) && d >= 1).toBe(true);
     }
   });
 

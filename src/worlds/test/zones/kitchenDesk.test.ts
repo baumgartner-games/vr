@@ -10,10 +10,12 @@ import {
   SCREEN_FOOT,
   SCREEN_HIGH,
   SCREEN_WIDE,
+  copierField,
   copierSpot,
   pieceSide,
   type PieceSide,
 } from './kitchenDesk';
+import { kitchenPiece } from '../../../core/kitchenFit';
 import type { Turn } from './kitchenPlan';
 
 /**
@@ -364,6 +366,84 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
       kit.dispose();
       kit.dispose();
     }).not.toThrow();
+  });
+});
+
+/**
+ * **Welche Hälfte des Kopierers gemeint ist** (`copierField`).
+ *
+ * Die Rechnung ist drei Zeilen lang und trotzdem die, bei der ein Umbau still
+ * die Kopie auf die Vorlage legt: Sie hängt an der Drehung, und eine Drehung
+ * prüft niemand im Kopf nach.
+ */
+describe('copierField — vor welchem Feld jemand steht', () => {
+  const TURNS: readonly Turn[] = [0, 1, 2, 3];
+
+  it('nennt die Hälfte, auf deren Feldmitte man zugeht', () => {
+    for (const turn of TURNS) {
+      const plate = copierSpot(COPIER_PLATE, turn);
+      const zone = copierSpot(COPIER_ZONE, turn);
+      expect(copierField(turn, plate.x, plate.z)).toBe('plate');
+      expect(copierField(turn, zone.x, zone.z)).toBe('zone');
+    }
+  });
+
+  /**
+   * Der Fall, den man von Hand falsch abschreibt: Man steht **vor** dem Gerät
+   * (also auf seiner Blickseite) und einen halben Meter zur Seite versetzt.
+   */
+  it('entscheidet auch von vorn und aus einem Schritt Abstand richtig', () => {
+    for (const turn of TURNS) {
+      const plate = copierSpot(COPIER_PLATE, turn);
+      const zone = copierSpot(COPIER_ZONE, turn);
+      // Einen Meter in Blickrichtung des Möbels vor die jeweilige Feldmitte.
+      const ahead = copierSpot([0, -1], turn);
+      expect(copierField(turn, plate.x + ahead.x, plate.z + ahead.z)).toBe('plate');
+      expect(copierField(turn, zone.x + ahead.x, zone.z + ahead.z)).toBe('zone');
+    }
+  });
+
+  it('gibt der Kopierfläche die Mitte, weil dort jede Benutzung anfängt', () => {
+    for (const turn of TURNS) expect(copierField(turn, 0, 0)).toBe('plate');
+  });
+
+  it('kümmert sich nicht um die Entfernung, nur um die Seite', () => {
+    for (const turn of TURNS) {
+      const far = copierSpot(COPIER_ZONE, turn);
+      expect(copierField(turn, far.x * 20, far.z * 20)).toBe('zone');
+    }
+  });
+});
+
+/**
+ * **Der Katalog schreibt die Maße dieses Netzes ab** (`core/kitchenFit.ts`).
+ *
+ * Er muss es: Er kommt ohne three.js aus, und ein `import` von hier holte die
+ * halbe Zone in einen Test, der nur Zahlen nachschlägt. Abgeschriebene Zahlen
+ * laufen auseinander — also rechnet dieser Test sie einmal gegeneinander, an
+ * der einen Stelle, an der beide Dateien ohnehin zusammenliegen.
+ */
+describe('was im Katalog über die beiden steht', () => {
+  it('nennt für den Computer-Tisch dieselbe Höhe und dieselbe Platte', () => {
+    const piece = kitchenPiece('desk');
+    expect(piece).toBeDefined();
+    expect(piece!.height).toBeCloseTo(DESK_HEIGHT, 6);
+    expect(piece!.deck).toBeCloseTo(DESK_TOP, 6);
+    expect(piece!.tiles).toEqual([1, 1]);
+    expect(piece!.built).toBe(true);
+    // Keine Ablage: Ohne `worktop` bekommt er keine Station, und genau das ist
+    // gemeint — der Tisch hat eine Wirkung, und die sitzt am Bildschirm.
+    expect(piece!.worktop).toBeUndefined();
+  });
+
+  it('nennt für den Kopierer dieselbe Höhe und dieselbe Feldhöhe', () => {
+    const piece = kitchenPiece('copier');
+    expect(piece).toBeDefined();
+    expect(piece!.height).toBeCloseTo(COPIER_HEIGHT, 6);
+    expect(piece!.deck).toBeCloseTo(COPIER_DECK, 6);
+    expect(piece!.tiles).toEqual([2, 1]);
+    expect(piece!.built).toBe(true);
+    expect(piece!.worktop).toBeUndefined();
   });
 });
 

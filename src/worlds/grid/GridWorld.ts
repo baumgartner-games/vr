@@ -904,7 +904,7 @@ export abstract class GridWorld extends PortalWorld {
 
     const rack = (this.rack ??= new WardrobeRack());
     const pieces = rack.pieces(appearance());
-    this.enterConstruct(ctx, {
+    this.enterConstruct({
       anchor,
       at: ctx.rig.position,
       title: 'Umkleide — greif dir etwas',
@@ -953,25 +953,48 @@ export abstract class GridWorld extends PortalWorld {
    * Er sperrt dabei das Rig: Die Figur bleibt draußen dort stehen, wo sie
    * steht (siehe `lockedWas`). Alles Übrige macht der Raum selbst.
    */
-  protected enterConstruct(ctx: WorldContext, options: ConstructOptions): void {
+  protected enterConstruct(options: ConstructOptions): void {
     const room = (this.construct ??= new ConstructRoom({
       root: this.root,
       addUsable: (object, usable, use) => this.addUsable(object, usable, use),
       removeUsable: (object) => this.removeUsable(object),
       notify: (message) => this.announce(message),
     }));
-    if (room.open) return;
-    this.lockedWas = ctx.rig.locked;
-    ctx.rig.locked = true;
     room.enter(options);
+    this.syncConstructLock();
   }
 
   /** **Und wieder hinaus** — die Welt kommt zurück, die Figur darf wieder gehen. */
   protected leaveConstruct(): void {
-    if (!this.construct?.open) return;
-    this.construct.leave();
+    this.construct?.leave();
+    this.syncConstructLock();
+  }
+
+  /**
+   * **Die Sperre folgt dem Raum und nicht dem Handgriff.**
+   *
+   * Es gibt zwei Wege hinaus, und nur einer geht über `leaveConstruct`: Ein
+   * Stück, dessen Griff `true` meldet — der Möbelkatalog am Rechner der Küche
+   * tut das —, schließt den Raum **von innen** (`ConstructRoom.update`). Wer
+   * die Sperre nur beim ausdrücklichen Verlassen löste, ließe nach so einem
+   * Griff eine Figur zurück, die sich nicht mehr von der Stelle bewegt, und
+   * niemand fände den Grund dafür. Also wird sie jedes Bild nachgezogen: Der
+   * Raum sagt, ob er offen ist, und die Sperre richtet sich danach.
+   *
+   * Was vorher galt, wird gemerkt und zurückgegeben (`lockedWas`) — in einer
+   * Welt, die aus eigenen Gründen sperrt, wäre ein hartes `false` beim
+   * Verlassen eine stille Freigabe.
+   */
+  private syncConstructLock(): void {
     const rig = this.context?.rig;
-    if (rig) rig.locked = this.lockedWas ?? false;
+    if (!rig) return;
+    if (this.construct?.open) {
+      if (this.lockedWas === null) this.lockedWas = rig.locked;
+      rig.locked = true;
+      return;
+    }
+    if (this.lockedWas === null) return;
+    rig.locked = this.lockedWas;
     this.lockedWas = null;
   }
 
@@ -1433,6 +1456,7 @@ export abstract class GridWorld extends PortalWorld {
     // Wandgeister, die Schnittebene von oben), soll auf dem Stand rechnen, den
     // er gerade hergestellt hat.
     this.construct?.update(dt);
+    this.syncConstructLock();
     this.stepBursts(dt);
     this.trackLevel(ctx);
     this.showGridLines();
