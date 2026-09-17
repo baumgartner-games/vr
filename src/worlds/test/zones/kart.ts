@@ -17,7 +17,15 @@ import {
   viewFollow,
   type KartField,
 } from '../../kart/kartSettings';
-import { confineToCourse, insideApron, nearestOnPath, pathLength } from '../../kart/kartTrack';
+import {
+  confineToCourse,
+  insideApron,
+  nearestOnPath,
+  pathLength,
+  pointAlong,
+  trimSpots,
+  type TrimSpot,
+} from '../../kart/kartTrack';
 import { shortestAngle, stepViewYaw } from '../../kart/kartView';
 import { TextPlane } from '../../../ui/TextPlane';
 import { LAYER_HUD } from '../../../ui/ScoreHud';
@@ -25,6 +33,7 @@ import type { MenuEntry } from '../../../ui/menu';
 import { playPick, playTone } from '../../../core/Audio';
 import { gripAnchor, type Handedness } from '../../../core/XRInput';
 import { visorFrame } from '../../../core/headgear';
+import { denyOutline } from '../../../core/outlineShell';
 import type { WorldContext } from '../../../core/types';
 import {
   ALL_GROUPS,
@@ -97,6 +106,9 @@ const FLAT_KEYS: Readonly<Record<string, FlatJob>> = {
 };
 
 const UP = new THREE.Vector3(0, 1, 0);
+/** Der Maßstab eines Bündel-Eintrags: keiner. Die Form bringt ihre Größe mit. */
+const _one = new THREE.Vector3(1, 1, 1);
+const _matrix = new THREE.Matrix4();
 const _hand = new THREE.Vector3();
 const _hub = new THREE.Vector3();
 const _head = new THREE.Vector3();
@@ -147,6 +159,8 @@ export class KartZone implements TestZone {
   private readonly bodies = new Map<Kart, PhysicsBody>();
   private readonly owned: THREE.Material[] = [];
   private readonly shapes: THREE.BufferGeometry[] = [];
+  /** Die Bündel der Bande — ihr Matrizenpuffer will beim Abräumen zurück. */
+  private readonly batches: THREE.InstancedMesh[] = [];
   private readonly pointerTargets: THREE.Object3D[] = [];
 
   private world: ZoneHost | null = null;
@@ -248,6 +262,14 @@ export class KartZone implements TestZone {
     this.lapBoard = null;
     for (const material of this.owned) material.dispose();
     this.owned.length = 0;
+    // **Erst die Bündel, dann die Formen**: Ein Bündel teilt seine Geometrie
+    // mit den unsichtbaren Kästen daneben, und `InstancedMesh.dispose` gibt nur
+    // den eigenen Matrizenpuffer zurück.
+    for (const batch of this.batches) {
+      batch.removeFromParent();
+      batch.dispose();
+    }
+    this.batches.length = 0;
     for (const shape of this.shapes) shape.dispose();
     this.shapes.length = 0;
     this.world = null;
@@ -860,47 +882,89 @@ export class KartZone implements TestZone {
   /**
    * Rot-weiße Randsteine an beiden Kanten des Asphalts — nur eben nicht dort,
    * wo die Boxengasse liegt: Dort ist kein Rand, sondern die Ausfahrt.
+   *
+   * **Zwei Bündel statt hundert Kästen** (`InstancedMesh`): Ein Randstein sieht
+   * aus wie der nächste, keiner bewegt sich, und die Farbe wechselt nur
+   * zwischen zweien — ein Bündel für Rot, eines für Weiß, und die ganze Bande
+   * kostet zwei Zeichenaufrufe statt hundert. Das ist keine Feinheit: Aus der
+   * Küche heraus liegt die ganze Strecke im Bild, und dort zählt jeder Aufruf
+   * (`gridBatch.ts` erzählt dieselbe Geschichte für den Grundriss).
    */
   private buildKerbs(world: ZoneHost): void {
     const red = this.own(new THREE.MeshStandardMaterial({ color: 0xd8402f, roughness: 0.8 }));
     const white = this.own(new THREE.MeshStandardMaterial({ color: 0xf0f2f6, roughness: 0.8 }));
     const step = 2;
     const shape = this.shape(new THREE.BoxGeometry(0.5, 0.07, step * 0.95));
-    let index = 0;
-    for (let distance = 0; distance < this.lapLength; distance += step) {
-      const point = this.pointAt(distance);
-      const material = index % 2 === 0 ? red : white;
-      for (const side of [1, -1]) {
-        const x = point.x + point.nx * side * (HALF_WIDTH + 0.26);
-        const z = point.z + point.nz * side * (HALF_WIDTH + 0.26);
-        if (this.overPit(x, z)) continue;
-        const kerb = new THREE.Mesh(shape, material);
-        kerb.position.set(x, 0.035, z);
-        kerb.rotation.y = Math.atan2(-point.tx, -point.tz);
-        world.root.add(kerb);
-      }
-      index++;
+    const spots = trimSpots({
+      path: this.path,
+      lapLength: this.lapLength,
+      spacing: step,
+      offset: HALF_WIDTH + 0.26,
+      skip: (x, z) => this.overPit(x, z),
+    });
+    for (const [material, even] of [
+      [red, true],
+      [white, false],
+    ] as const) {
+      const mine = spots.filter((spot) => (spot.step % 2 === 0) === even);
+      const batch = this.batch(shape, material, mine, 0.035);
+      if (batch) world.root.add(batch);
     }
   }
 
-  /** Reifenstapel außerhalb der Randsteine — fest, damit niemand vom Feld läuft. */
+  /**
+   * Reifenstapel außerhalb der Randsteine — fest, damit niemand vom Feld läuft.
+   *
+   * **Gezeichnet als ein Bündel, angefasst als einzelne Kästen.** Ein Stapel
+   * ist ein Körper in der Physik und ein Eintrag in der Abtastliste der Welt
+   * (`ZoneHost.addSolid`) — beides braucht ein eigenes Objekt mit eigener
+   * Stelle. Beides braucht aber **nicht**, dass es auch gezeichnet wird: three
+   * prüft beim Abtasten keine Sichtbarkeit, beim Zeichnen dagegen schon. Also
+   * stehen die Kästen unsichtbar da, wo sie stehen, und gesehen wird das
+   * Bündel.
+   */
   private buildBarriers(world: ZoneHost): void {
     const tyre = this.own(new THREE.MeshStandardMaterial({ color: 0x1b1e26, roughness: 0.95 }));
     const shape = this.shape(new THREE.BoxGeometry(1, 0.6, 1));
-    for (let distance = 0; distance < this.lapLength; distance += BARRIER_SPACING) {
-      const point = this.pointAt(distance);
-      for (const side of [1, -1]) {
-        const x = point.x + point.nx * side * (HALF_WIDTH + BARRIER_OFFSET);
-        const z = point.z + point.nz * side * (HALF_WIDTH + BARRIER_OFFSET);
-        if (this.overPit(x, z)) continue;
-        const stack = new THREE.Mesh(shape, tyre);
-        stack.position.set(x, 0.3, z);
-        stack.rotation.y = Math.atan2(-point.tx, -point.tz);
-        world.root.add(stack);
-        stack.updateWorldMatrix(true, false);
-        world.addSolid(stack);
-      }
+    const spots = trimSpots({
+      path: this.path,
+      lapLength: this.lapLength,
+      spacing: BARRIER_SPACING,
+      offset: HALF_WIDTH + BARRIER_OFFSET,
+      skip: (x, z) => this.overPit(x, z),
+    });
+    for (const spot of spots) {
+      const stack = new THREE.Mesh(shape, tyre);
+      stack.position.set(spot.x, 0.3, spot.z);
+      stack.rotation.y = spot.yaw;
+      stack.visible = false;
+      denyOutline(stack);
+      world.root.add(stack);
+      stack.updateWorldMatrix(true, false);
+      world.addSolid(stack);
     }
+    const batch = this.batch(shape, tyre, spots, 0.3);
+    if (batch) world.root.add(batch);
+  }
+
+  /** Aus einer Liste von Plätzen ein Bündel — oder `null`, wenn keiner übrig ist. */
+  private batch(
+    shape: THREE.BufferGeometry,
+    material: THREE.Material,
+    spots: readonly TrimSpot[],
+    y: number,
+  ): THREE.InstancedMesh | null {
+    if (spots.length === 0) return null;
+    const batch = new THREE.InstancedMesh(shape, material, spots.length);
+    spots.forEach((spot, i) => {
+      _quaternion.setFromAxisAngle(UP, spot.yaw);
+      _spot.set(spot.x, y, spot.z);
+      _matrix.compose(_spot, _quaternion, _one);
+      batch.setMatrixAt(i, _matrix);
+    });
+    batch.computeBoundingSphere();
+    this.batches.push(batch);
+    return batch;
   }
 
   /**
@@ -926,7 +990,7 @@ export class KartZone implements TestZone {
 
   /** Start- und Ziellinie, und die Tafel mit den Rundenzeiten daneben. */
   private buildStart(world: ZoneHost): void {
-    const point = this.pointAt(0);
+    const point = pointAlong(this.path, 0);
     const line = new THREE.Mesh(
       this.shape(new THREE.PlaneGeometry(HALF_WIDTH * 2, 0.7)),
       this.own(new THREE.MeshBasicMaterial({ color: 0xf2f4f8, toneMapped: false })),
@@ -959,38 +1023,6 @@ export class KartZone implements TestZone {
     const last = this.lap.lastLap === null ? '—' : formatLap(this.lap.lastLap);
     const best = this.lap.bestLap === null ? '—' : formatLap(this.lap.bestLap);
     board.setText(`Letzte ${last}`, `Beste ${best} · ${this.lap.laps} Runden`);
-  }
-
-  /** Ein Punkt so weit um die Runde, mit Tangente und Normale dort. */
-  private pointAt(distance: number): {
-    x: number;
-    z: number;
-    tx: number;
-    tz: number;
-    nx: number;
-    nz: number;
-  } {
-    // Gebraucht wird der Punkt nach einer **Bogenlänge** und nicht der
-    // nächstgelegene (`nearestOnPath`) — also wird die Linie einmal abgelaufen.
-    let travelled = 0;
-    const count = this.path.length;
-    for (let i = 0; i < count; i++) {
-      const a = this.path[i]!;
-      const b = this.path[(i + 1) % count]!;
-      const dx = b.x - a.x;
-      const dz = b.z - a.z;
-      const length = Math.hypot(dx, dz);
-      if (length <= 1e-9) continue;
-      if (travelled + length >= distance) {
-        const t = (distance - travelled) / length;
-        const tx = dx / length;
-        const tz = dz / length;
-        return { x: a.x + dx * t, z: a.z + dz * t, tx, tz, nx: tz, nz: -tx };
-      }
-      travelled += length;
-    }
-    const first = this.path[0]!;
-    return { x: first.x, z: first.z, tx: 0, tz: -1, nx: -1, nz: 0 };
   }
 
   private own<T extends THREE.Material>(material: T): T {

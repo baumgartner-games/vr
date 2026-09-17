@@ -6,6 +6,8 @@ import {
   lapDelta,
   nearestOnPath,
   pathLength,
+  pointAlong,
+  trimSpots,
   type Apron,
   type Vec2,
 } from './kartTrack';
@@ -148,5 +150,83 @@ describe('lapDelta', () => {
 
   it('gives up on a lap of no length', () => {
     expect(lapDelta(1, 2, 0)).toBe(0);
+  });
+});
+
+describe('pointAlong', () => {
+  it('läuft die Linie ab und trifft die Ecke nach einer Seitenlänge', () => {
+    const point = pointAlong(SQUARE, 20);
+    expect(point.x).toBeCloseTo(10, 9);
+    expect(point.z).toBeCloseTo(-10, 9);
+  });
+
+  it('gibt die Tangente in Fahrtrichtung und die linke Normale dazu', () => {
+    const point = pointAlong(SQUARE, 10);
+    expect(point.tx).toBeCloseTo(1, 9);
+    expect(point.tz).toBeCloseTo(0, 9);
+    // Links von +X ist −Z, und die Normale ist (tz, −tx).
+    expect(point.nx).toBeCloseTo(0, 9);
+    expect(point.nz).toBeCloseTo(-1, 9);
+  });
+
+  it('ist geschlossen: eine Runde weiter ist derselbe Punkt', () => {
+    const once = pointAlong(SQUARE, 13);
+    const twice = pointAlong(SQUARE, 13 + 80);
+    expect(twice.x).toBeCloseTo(once.x, 9);
+    expect(twice.z).toBeCloseTo(once.z, 9);
+  });
+
+  it('hält eine entartete Linie aus, statt daneben zu greifen', () => {
+    expect(pointAlong([{ x: 3, z: 4 }], 12)).toMatchObject({ x: 3, z: 4 });
+  });
+});
+
+/**
+ * **Die Plätze am Streckenrand** — die Rechnung hinter den Bündeln.
+ *
+ * Randsteine und Reifenstapel werden als `InstancedMesh` gezeichnet
+ * (`worlds/test/zones/kart.ts`), und ein Bündel entsteht in einem Zug: Es
+ * braucht die Plätze **vorher** und kann sie hinterher nicht mehr ändern. Was
+ * diese Liste falsch hinlegt, steht für immer falsch da — also steht es hier.
+ */
+describe('trimSpots', () => {
+  const spots = (skip?: (x: number, z: number) => boolean) =>
+    trimSpots({ path: SQUARE, lapLength: 80, spacing: 10, offset: 2, skip });
+
+  it('bestückt beide Seiten in einem Zug, eine Runde lang', () => {
+    // 80 m in Schritten von 10 sind acht Schritte, je zwei Seiten.
+    expect(spots()).toHaveLength(16);
+  });
+
+  it('setzt die Dinger neben die Linie und nicht darauf', () => {
+    const first = spots()[0]!;
+    expect(Math.hypot(first.x - -10, first.z - -10)).toBeCloseTo(2, 9);
+  });
+
+  it('gibt beiden Seiten eines Schritts dieselbe Nummer', () => {
+    const [left, right] = spots();
+    expect(left!.step).toBe(0);
+    expect(right!.step).toBe(0);
+    expect(left!.side).toBe(1);
+    expect(right!.side).toBe(-1);
+  });
+
+  it('teilt sich damit sauber in Rot und Weiß — quer über die Bahn dieselbe Farbe', () => {
+    const all = spots();
+    const red = all.filter((spot) => spot.step % 2 === 0);
+    const white = all.filter((spot) => spot.step % 2 !== 0);
+    expect(red).toHaveLength(8);
+    expect(white).toHaveLength(8);
+    expect(red.length + white.length).toBe(all.length);
+  });
+
+  it('lässt aus, wo die Boxengasse liegt', () => {
+    const cleared = spots((x, z) => x > 0 && z > 0);
+    expect(cleared.length).toBeLessThan(16);
+    expect(cleared.every((spot) => !(spot.x > 0 && spot.z > 0))).toBe(true);
+  });
+
+  it('gibt nichts zurück, wenn der Abstand keiner ist', () => {
+    expect(trimSpots({ path: SQUARE, lapLength: 80, spacing: 0, offset: 2 })).toHaveLength(0);
   });
 });
