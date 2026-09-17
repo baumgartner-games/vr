@@ -23,9 +23,17 @@ import * as THREE from 'three';
  * einen brennenden Herd um genau die Höhe der Brust, sobald jemand ein wenig
  * nach oben sieht.
  *
- * **Nichts davon kennt die Zone.** Die Küche sagt je Bild „Düse hier, Richtung
- * dorthin, Auslöser liegt" und bekommt einen Kegel und ein Bild zurück; welche
- * Herde darin liegen, weiß nur sie (`kitchen.ts`).
+ * **Nichts davon kennt die Zone.** Die Küche sagt je Bild „Löscher hier,
+ * Richtung dorthin, Auslöser liegt" und bekommt einen Kegel und ein Bild
+ * zurück; welche Herde darin liegen, weiß nur sie (`kitchen.ts`).
+ *
+ * **Und wo genau der Nebel austritt, rechnet der Strahl selbst** — die Küche
+ * reicht ihm den **Ursprung des Netzes** (`kitchen.spray`:
+ * `held.object.getWorldPosition`), und der liegt bei jedem Gerät dieser Küche
+ * **unten in der Mitte** (`core/kitchenModel.takeUtensil`). Beim Löscher ist
+ * das sein **Fuß**, und genau daher kam der Rauch bisher: unten aus dem
+ * Standring statt oben aus dem Rohr. `sprayMuzzle` setzt ihn dorthin, wo das
+ * Modell seine Düse hat.
  */
 
 // --- die reine Rechnung -------------------------------------------------------
@@ -266,15 +274,134 @@ export function douseProgress(state: DouseState): number {
   return Math.min(1, Math.max(0, state.time / SPRAY_SECONDS));
 }
 
+// --- wo der Nebel austritt ----------------------------------------------------
+
+/**
+ * **Die Hülle des Feuerlöschers**, in Metern — Breite (x), Höhe (y), Tiefe (z),
+ * so wie er in der Hand hängt.
+ *
+ * Gemessen an `public/models/kitchen.glb`, Knoten `extinguisher`, und zwar nur
+ * am Netz mit dem Material `Kitchen_Utensils` — das ist genau das, was
+ * `core/kitchenModel.takeUtensil` abnimmt und in die Hand gibt; der Hocker
+ * darunter gehört zu `Kitchen_Cabins` und zählt nicht mit. In Quellmaß sind es
+ * 1,2325 × 1,4957 × 0,7717, und die Küche halbiert alles beim Laden
+ * (`core/kitchenFit.KITCHEN_SCALE` = 0,5).
+ *
+ * **Warum die Zahlen hier abgeschrieben stehen.** Die Küche misst die Hülle je
+ * Gerät im Bild (`kitchen.markHandles`, `kitchen.grabbedAt`) und reicht sie an
+ * die Griffe weiter (`kitchenGrab.kitchenHandles`); dem Strahl reicht sie nur
+ * den **Ursprung** des Netzes und sonst nichts. Bis `kitchen.spray` auch das
+ * Maß mitgibt, steht es hier — mit derselben Ansage wie bei
+ * `kitchenGrab.NOZZLE_RADIUS` und `PAN_STALK_RADIUS`, den beiden anderen
+ * Zahlen dieser Küche in Zentimetern: **Wer das Modell tauscht, misst hier
+ * nach.**
+ */
+export const EXTINGUISHER_HULL = { width: 0.616, height: 0.748, depth: 0.386 } as const;
+
+/**
+ * **Wo die Düse sitzt** — die Mitte ihrer Öffnung, in Anteilen der Hülle und in
+ * derselben Form wie `kitchenGrab.NOZZLE_BAR`, an dem die Hand liegt.
+ *
+ * Gemessen und nicht geschätzt: Das Netz zerfällt in vier zusammenhängende
+ * Teile, und man erkennt den Löscher an ihnen wieder — die **Flasche** (`lift`
+ * 0,00…0,84), das **Ventil mit dem Tragebügel** (0,79…0,89, `across` bis −1,0:
+ * dort liegt die Faust), der **Hebel** darüber (0,90…1,00) und das **Rohr**
+ * (`across` 0,32…1,00). Das Rohr ist der vorderste Teil des ganzen Löschers —
+ * es gibt der Hülle ihr +x, und genau deshalb zeigt `kitchenGrab.NOZZLE_AHEAD`
+ * dorthin —, und sein Mund ist ein Ring aus 24 Punkten um (0,99 | 0,88 |
+ * −0,06). Dessen Halbmesser ist knapp 5 cm, also auf den Zentimeter das
+ * `PUFF_MIN` weiter unten: Das erste Bällchen ist so groß wie die Öffnung, aus
+ * der es kommt.
+ *
+ * Der Mund liegt damit **knapp unter der Hand** (der Bügel sitzt auf 0,93, also
+ * vier Zentimeter höher) und gut 30 cm **vor** ihr. Dass er unter dem Griff
+ * liegt und nicht über ihm, ist der Löscher selbst: Man hält ihn oben am
+ * Bügel, und das Rohr geht vom Ventil aus zur Seite weg.
+ *
+ * `shift` bleibt ungerechnet: 6 % der halben Tiefe sind gut ein Zentimeter
+ * quer, und um mehr als das wackelt in der Brille jedes Handgelenk je Bild. Er
+ * steht trotzdem hier, weil eine Messung ohne ihre dritte Zahl keine Messung
+ * ist.
+ */
+export const NOZZLE_TIP = { across: 0.99, lift: 0.88, shift: -0.06 } as const;
+
+/**
+ * **Wie hoch über dem Fuß des Löschers die Düse sitzt** — 66 cm, also gut über
+ * seiner Mitte.
+ *
+ * Das ist der gemeldete Fehler als eine Zahl: Der Nebel kam bisher genau diese
+ * 66 cm zu tief heraus, nämlich am Ursprung des Netzes, und der liegt bei jedem
+ * Gerät dieser Küche unten in der Mitte (`core/kitchenModel.takeUtensil`). Im
+ * Headset sah man deshalb den Rauch **unten aus dem Standring** quellen, nicht
+ * oben aus dem Rohr.
+ */
+export const MUZZLE_LIFT = NOZZLE_TIP.lift * EXTINGUISHER_HULL.height;
+
+/** **Wie weit vor der Achse des Löschers** die Düse steht — gut 30 cm. */
+export const MUZZLE_AHEAD = (NOZZLE_TIP.across * EXTINGUISHER_HULL.width) / 2;
+
+/**
+ * **Vom Löscher in der Hand zur Düse oben am Rohr.**
+ *
+ * Gerechnet wird in der Welt und in zwei Schritten: **hinauf** um
+ * `MUZZLE_LIFT` und **nach vorn** um `MUZZLE_AHEAD`, entlang derselben
+ * waagerechten Richtung, in die auch gezielt wird.
+ *
+ * **Warum die Welt-Senkrechte und nicht die Achse des Netzes.** Sauber wäre
+ * der Versatz im Raum des Löschers, mit seiner Matrix verdreht; dazu müsste
+ * der Strahl das Objekt kennen, und er bekommt nur einen Punkt und eine
+ * Richtung (`SprayJet.update`). Das ist kein Verlust: Der Löscher **hängt**
+ * unter der Faust (`kitchenGrab.extinguisherNeck` legt seine Senkrechte auf
+ * die der Hand), und seine Düse zeigt dorthin, wohin die Hand zeigt
+ * (`NOZZLE_AHEAD`). Damit sind die beiden Achsen bis auf die Neigung des
+ * Handgelenks genau die, die hier stehen — und gerechnet wird ohnehin auf dem
+ * Boden (`inSpray`), wo eine Neigung nichts ändert.
+ *
+ * Eine Richtung **ohne Länge** hebt nur an: Wer senkrecht nach unten sieht,
+ * hat keine waagerechte Richtung mehr, und ein Versatz durch Null wäre ein
+ * Strahl, der in diesem Bild ins Nichts springt.
+ *
+ * @param at      der Ursprung des Löschernetzes — unten in seiner Mitte
+ * @param forward die waagerechte Richtung; die Länge ist egal
+ * @param out     wohin das Ergebnis geschrieben wird (und was zurückkommt)
+ */
+export function sprayMuzzle(
+  at: { x: number; y: number; z: number },
+  forward: { x: number; z: number },
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  out.set(at.x, at.y + MUZZLE_LIFT, at.z);
+  const length = Math.hypot(forward.x, forward.z);
+  if (!(length > 1e-6)) return out;
+  out.x += (forward.x / length) * MUZZLE_AHEAD;
+  out.z += (forward.z / length) * MUZZLE_AHEAD;
+  return out;
+}
+
 // --- der Strahl als Bild ------------------------------------------------------
+
+/**
+ * **Wie weit der Nebel von der Düse aus noch fliegt**, in Metern — 2,20 m.
+ *
+ * Die Reichweite gilt ab der **Hand**: `kitchen.spray` misst den Kegel vom
+ * Ursprung des Löschers aus (`inSpray(_nozzle, …)`, derselbe Punkt, den auch
+ * `sprayMuzzle` bekommt), und die Düse steht davon schon `MUZZLE_AHEAD` = 30 cm
+ * entfernt nach vorn. Der Nebel bekommt deshalb nur den Rest — 2,5 − 0,30 m —,
+ * und alles, was ihn ausmacht, hängt an dieser Zahl statt an `SPRAY_RANGE`.
+ *
+ * Ohne diesen Abzug stünde der Nebel am Ende um genau diese 30 cm **vor** dem
+ * Kegel, in dem Feuer ausgeht, und die Zusage von `PUFF_FAN` — was man im Weiß
+ * stehen sieht, geht auch aus — wäre an der Spitze des Strahls keine mehr.
+ */
+const PUFF_RANGE = SPRAY_RANGE - MUZZLE_AHEAD;
 
 /**
  * **Wie viele Nebelbällchen der Strahl hat.**
  *
  * Sechsunddreißig, und das ist keine runde Zahl aus Bequemlichkeit: Sie
- * ergibt sich aus der Lebenszeit eines Bällchens (`PUFF_LIFE`, gut eine halbe
- * Sekunde) und der Bildrate. Bei 60 Bildern je Sekunde startet damit etwa in
- * **jedem zweiten Bild** eines vorn neu — dicht genug für einen
+ * ergibt sich aus der Lebenszeit eines Bällchens (`PUFF_LIFE`, knapp eine halbe
+ * Sekunde) und der Bildrate. Bei 60 Bildern je Sekunde startet damit in
+ * **jedem Bild** eines vorn neu — dicht genug für einen
  * zusammenhängenden Nebel, dünn genug, dass die Küche davon nichts merkt.
  * Mehr Bällchen machen den Nebel nicht dichter, sondern nur teurer; dichter
  * wird er über die Deckkraft.
@@ -287,17 +414,18 @@ const PUFFS = 36;
  *
  * 4,5 m/s ist knapp doppelte Laufgeschwindigkeit (`PlayerRig.moveSpeed` = 2,6):
  * Der Strahl steht sichtbar **vor** der Figur, statt mit ihr zu wandern, und
- * erreicht seine volle Länge in gut einer halben Sekunde. Wer den Löscher
+ * erreicht seine volle Länge in knapp einer halben Sekunde. Wer den Löscher
  * anmacht, sieht ihn also ausfahren und nicht erscheinen.
  */
 const PUFF_SPEED = 4.5;
-const PUFF_LIFE = SPRAY_RANGE / PUFF_SPEED;
+const PUFF_LIFE = PUFF_RANGE / PUFF_SPEED;
 
 /**
  * **Wie groß ein Bällchen ist**, als Halbmesser in Metern — an der Düse und am
  * Ende seines Weges.
  *
- * 5 cm an der Düse ist die Öffnung des Löschers, 28 cm am Ende sind eine
+ * 5 cm an der Düse ist die Öffnung des Löschers — nachgemessen, der Mund des
+ * Rohrs hat 4,7 cm Halbmesser (`NOZZLE_TIP`) —, 28 cm am Ende sind eine
  * Nebelschwade. Dass es unterwegs wächst, ist der halbe Effekt: Ein Strahl aus
  * gleich großen Kugeln sieht aus wie eine Perlenkette.
  */
@@ -314,16 +442,18 @@ const PUFF_MAX = 0.28;
  * hinausquillt, wäre ein Löscher, der sichtbar auf einen Herd hält und ihn
  * nicht löscht.
  *
- * Gerechnet, und zwar an den **Mitten** der Bällchen: 0,6 · tan 25° · 2,5 m =
- * 0,70 m seitlicher Versatz am Ende, gegen mindestens 1,80 m Flugweite
- * (`PUFF_REACH_MIN`) — das sind 21,2° und damit knapp vier Grad Luft im Kegel.
+ * Gerechnet, und zwar an den **Mitten** der Bällchen und ab der **Hand**, weil
+ * der Kegel dort seine Spitze hat: 0,6 · tan 25° · 2,20 m (`PUFF_RANGE`) =
+ * 0,61 m seitlicher Versatz am Ende, gegen mindestens 0,30 + 1,58 = 1,88 m
+ * Abstand (`MUZZLE_AHEAD` plus die kürzeste Wurfweite, 0,72 · `PUFF_RANGE`) —
+ * das sind 18,0° und damit sieben Grad Luft im Kegel.
  * Die weiche **Hülle** eines einzelnen Bällchens steht stellenweise darüber
  * hinaus, und das ist richtig so: Nebel hat keine Kante. Sie liegt dort, wo
  * ohnehin nur noch ein einzelnes durchsichtiges Bällchen hängt und niemand
  * sagen würde, der Strahl gehe noch bis dorthin.
  */
 const PUFF_FAN = 0.6;
-const PUFF_REACH_FAN = PUFF_FAN * Math.tan(SPRAY_HALF_ANGLE) * SPRAY_RANGE;
+const PUFF_REACH_FAN = PUFF_FAN * Math.tan(SPRAY_HALF_ANGLE) * PUFF_RANGE;
 
 /**
  * **Wie weit ein einzelnes Bällchen kommt** — als Anteil der Reichweite, von
@@ -331,9 +461,9 @@ const PUFF_REACH_FAN = PUFF_FAN * Math.tan(SPRAY_HALF_ANGLE) * SPRAY_RANGE;
  *
  * Verschieden schnell und nicht alle gleich: Ein Strahl, in dem jedes Bällchen
  * genau gleich weit fliegt, endet auf einer sauberen Linie und sieht aus wie
- * abgeschnitten. Und nie ganz bis ans Ende der Reichweite — 0,88 · 2,5 m =
- * 2,20 m —, damit auch die Hülle des äußersten Bällchens noch innerhalb der
- * 2,5 m liegt, auf die `inSpray` trifft.
+ * abgeschnitten. Und nie ganz bis ans Ende seines Wegs — 0,88 · 2,20 m
+ * (`PUFF_RANGE`) = 1,93 m, ab der Hand also 2,24 m —, damit auch die Hülle des
+ * äußersten Bällchens noch innerhalb der 2,5 m liegt, auf die `inSpray` trifft.
  */
 const PUFF_REACH_MIN = 0.72;
 const PUFF_REACH_SPAN = 0.16;
@@ -473,7 +603,7 @@ export class SprayJet {
       const out = Math.sqrt(scatter(i * 2 + 1));
       this.fanX[i] = Math.cos(around) * out;
       this.fanY[i] = Math.sin(around) * out;
-      this.reach[i] = SPRAY_RANGE * (PUFF_REACH_MIN + PUFF_REACH_SPAN * scatter(i + 97));
+      this.reach[i] = PUFF_RANGE * (PUFF_REACH_MIN + PUFF_REACH_SPAN * scatter(i + 97));
       this.ages[i] = PUFF_LIFE;
     }
   }
@@ -481,7 +611,9 @@ export class SprayJet {
   /**
    * **Ein Bild weiter.**
    *
-   * @param at      die Düse in Weltkoordinaten
+   * @param at      der **Löscher** in Weltkoordinaten — der Ursprung seines
+   *                Netzes, unten in seiner Mitte; die Düse darüber rechnet der
+   *                Strahl sich selbst aus (`sprayMuzzle`)
    * @param forward die **waagerechte** Richtung; die Länge ist egal
    * @param on      ob gepustet wird; `false` lässt den Rest ausklingen
    *
@@ -578,6 +710,12 @@ export class SprayJet {
   /**
    * **Die Düse an ihren Platz und in ihre Richtung.**
    *
+   * **Der Platz ist die Düse und nicht der Löscher** (`sprayMuzzle`): Was
+   * hereinkommt, ist der Ursprung des Netzes und liegt damit an seinem Fuß —
+   * daher kam der Nebel bis eben unten heraus. Gehoben wird deshalb **vor** dem
+   * Umrechnen, solange die Zahlen noch in der Welt stehen; danach ist „oben"
+   * das Oben der Zone und nicht mehr das der Welt.
+   *
    * Beides im Raum des Elternteils, und die Richtung deshalb über zwei Punkte
    * und nicht über den Vektor selbst: Eine Zone kann gedreht stehen, und ein
    * Richtungsvektor, den man durch `worldToLocal` schiebt, bekommt deren
@@ -586,9 +724,9 @@ export class SprayJet {
    * eine Richtung).
    */
   private aim(at: THREE.Vector3, forward: THREE.Vector3): void {
-    _at.copy(at);
+    sprayMuzzle(at, forward, _at);
+    _tip.copy(_at).add(forward);
     this.parent.worldToLocal(_at);
-    _tip.copy(at).add(forward);
     this.parent.worldToLocal(_tip);
 
     const dx = _tip.x - _at.x;

@@ -28,20 +28,25 @@ import {
   ITEM_LABELS,
   advanceStove,
   advanceWork,
+  carrySlot,
   dish,
   dishLabel,
   douse,
+  handsOver,
+  keptOnFold,
   kitchenDeed,
   kitchenInteractionSpec,
   kitchenPrompt,
   layered,
   meansContent,
   onWork,
+  otherHand,
   stovePhase,
   stoveProgress,
   stoveUnder,
   workProgress,
   workWaits,
+  type CarrySide,
   type Dish,
   type KitchenItem,
   type Station as StationFacts,
@@ -76,6 +81,7 @@ import { buildKitchenNotice } from './kitchenNotice';
 import type { SignBoard } from '../../signs/SignBoard';
 import {
   BUILD_BUTTON_TILE,
+  HANDS_BUTTON_TILE,
   KITCHEN_FLOOR,
   KITCHEN_SPOTS,
   TURN_LABELS,
@@ -94,6 +100,8 @@ import {
   seat,
   type TableState,
 } from './kitchenGuests';
+import { atHandGrip } from '../../portal/grabReach';
+import { grabSettings, onGrabChange, saveGrabSettings } from '../../../core/grabSettings';
 import {
   BUILD_AHEAD,
   buildFree,
@@ -313,6 +321,35 @@ const TICKET_LIFT = 0.95;
 const BUILD_BUTTON_LABELS = { off: 'Küche umbauen', on: 'Küche nutzen' } as const;
 
 /**
+ * **Was auf dem Schild des zweiten Knopfes steht** — der, der die zweite Hand
+ * freigibt (`core/grabSettings.GrabSettings.twoHands`).
+ *
+ * Dieselbe Regel wie beim Umbauknopf darüber, und deshalb dieselbe Bauart: Es
+ * sagt die **Tat** und nicht den Zustand. Wer davorsteht und _VR zwei
+ * Gegenstände an_ liest, weiß, was der nächste Druck bewirkt; ein Schild, auf
+ * dem _Ein Gegenstand_ stünde, ließe ihn raten, ob das die Lage oder das
+ * Angebot ist.
+ *
+ * **„VR" steht ausdrücklich darin**, denn nur dort ändert sich etwas: Von oben
+ * und am Schreibtisch trägt die Figur weiter genau ein Ding vor dem Bauch
+ * (`carryInHands`) — es gibt dort keine zweite Hand, in die etwas könnte
+ * (`core/usable.UseSource.hand`).
+ */
+const HANDS_BUTTON_LABELS = {
+  off: 'VR zwei Gegenstände an',
+  on: 'VR zwei Gegenstände aus',
+} as const;
+
+/** Die zweite Zeile darunter — sie sagt, wozu das gut ist, und bleibt stehen. */
+const HANDS_BUTTON_BODY = 'In der Brille in jeder Hand etwas tragen';
+
+/** Wie die beiden Hände in einer Meldung heißen — „Pfanne in die linke Hand". */
+const HAND_LABELS: Readonly<Record<Handedness, string>> = { left: 'linke', right: 'rechte' };
+
+/** Beide Hände, in fester Reihenfolge — für Schleifen, die je Hand fragen. */
+const HANDS: readonly Handedness[] = ['left', 'right'];
+
+/**
  * **Wie das Möbel in den Händen liegt** — die Seite und nicht die
  * Himmelsrichtung (`Furnish.hold`, `turnPiece`).
  *
@@ -443,6 +480,12 @@ const _nozzle = new THREE.Vector3();
 const _jet = new THREE.Vector3();
 const _handRay = new THREE.Ray();
 const _spin = new THREE.Quaternion();
+/**
+ * Die beiden **Griffpunkte** der Hände, für die Übergabe (`handover`) — zwei
+ * Vektoren für die Zone und nicht zwei je Bild.
+ */
+const _thisGrip = new THREE.Vector3();
+const _otherGrip = new THREE.Vector3();
 // Die Griffe: eine Hülle zum Messen, eine Handpose zum Wählen (`core/grabHandles.ts`).
 const _bounds = new THREE.Box3();
 const _extent = new THREE.Vector3();
@@ -680,6 +723,24 @@ interface Carried {
 }
 
 /**
+ * **Ein belegtes Fach**: was darin liegt, und an welcher echten Hand es hängt.
+ *
+ * Zwei Angaben und nicht eine, weil sie sich unterscheiden, sobald der Schalter
+ * _zwei Gegenstände_ aus ist (`core/grabSettings.GrabSettings.twoHands`): Dann
+ * gibt es genau **ein** Fach (`'body'`), und trotzdem hängt sein Inhalt in der
+ * Brille an **der** Hand, die zugegriffen hat — die Pfanne dreht sich mit dem
+ * Handgelenk, am Stiel (`holdInHand`). Das Fach sagt, wem es gehört; `hand`
+ * sagt, wo es steckt.
+ *
+ * `hand` ist `null`, wenn es keine Hand war: von oben, am Schreibtisch und aus
+ * der Uhr der Spüle. Dann hängt es vor dem Bauch, wie es das immer getan hat.
+ */
+interface Hold {
+  readonly thing: Carried;
+  hand: Handedness | null;
+}
+
+/**
  * **Was auf einer Kopierfläche steht, und was daneben daraus geworden ist.**
  *
  * Die Vorlage ist ein gewöhnliches `Furnish` mit `held = true` — also eines,
@@ -791,17 +852,56 @@ export class KitchenZone implements TestZone {
   private jet: SprayJet | null = null;
   /** Der karierte Belag über dem Estrich der Zone (`kitchenFloor.ts`). */
   private floor: KitchenFloor | null = null;
-  /** Was die Figur gerade trägt. */
-  private carried: Carried | null = null;
   /**
-   * **Welche Hand es trägt** — nur in der Brille (`core/usable.UseSource.hand`).
+   * **Was die Figur gerade trägt — ein Fach je Seite** (`kitchenCarry.CarrySide`).
    *
-   * Von oben und am Schreibtisch gibt es keine: Dort hängt das Getragene vor
-   * dem Bauch, wie es das immer getan hat. In der Brille hängt es an **der**
-   * Hand, die zugegriffen hat, und dreht sich mit ihr — die Pfanne wie ein
-   * Werkzeug, am Stiel.
+   * Bis eben stand hier **ein** Feld und daneben die Hand, an der es hing. Das
+   * war dieselbe Küche, nur kürzer aufgeschrieben: Solange es genau einen
+   * getragenen Gegenstand gibt, ist „was trage ich?" und „was hält diese Hand?"
+   * dieselbe Frage. Seit der Schalter _zwei Gegenstände_ existiert
+   * (`core/grabSettings.GrabSettings.twoHands`), sind es zwei verschiedene, und
+   * **jede Stelle in dieser Datei stellt genau eine davon**:
+   *
+   * - **„Was hält die handelnde Hand?"** → `heldBy(this.sideOf(by))`. Das ist
+   *   alles, was `A` an einer Station tut.
+   * - **„Sind die Hände voll?"** → `handsFull()`. Das ist alles, was einen
+   *   freien Griff **braucht** — Umbau anschalten, Möbelkatalog öffnen,
+   *   Aufräumen, der fertige Teller aus der Spüle.
+   *
+   * Der Schlüssel ist die **Seite** und nicht die Hand, und welche Seite welches
+   * Fach meint, sagt `kitchenCarry.carrySlot`: Steht der Schalter aus, ist es
+   * für jede Seite dasselbe Fach (`'body'`) — dann trägt die Figur wie eh und
+   * je genau ein Ding, und diese Karte hat höchstens einen Eintrag.
    */
-  private carriedHand: Handedness | null = null;
+  private readonly holds = new Map<CarrySide, Hold>();
+  /**
+   * **Die Hand, die zuletzt etwas getan hat** — die Auskunft für alle, die ohne
+   * Hand fragen.
+   *
+   * Es gibt sie: Der Hinweis über einer Station wird gelesen, ohne dass eine
+   * Hand dabeisteht (`refreshStations`, `core/usable.Usable.usePrompt`), und
+   * der fertig gespülte Teller kommt aus einer **Uhr** in die Hand und nicht
+   * aus einem Griff (`kitchenWork.WORK_TO_HAND`). Beide bekommen das Fach
+   * dieser Hand (`kitchenCarry.carrySlot`), und das ist dieselbe Regel, nach
+   * der auch der gelbe Saum mit **einem** Gegenstand auskommt: die Hand, die
+   * zuletzt gearbeitet hat (`core/grabSettings.GrabSettings.twoHands`).
+   *
+   * Rechts ab Werk, weil die meisten rechts greifen — und weil es nur zählt,
+   * bis das erste Mal wirklich eine Hand zugefasst hat.
+   */
+  private busyHand: Handedness = 'right';
+  /**
+   * **Ob beide Hände tragen dürfen** — die Einstellung, einmal gelesen.
+   *
+   * `grabSettings()` liest den `localStorage` und parst JSON; je Bild wäre das
+   * ein Dateizugriff für einen Schalter, der sich nur ändert, wenn jemand ihn
+   * umlegt. Genau dieselbe Überlegung wie bei der Augenhöhe darüber
+   * (`eyeScale`), und derselbe Weg: einmal in `build`, danach am Melder
+   * (`onGrabChange`).
+   */
+  private twoHands = false;
+  /** Den Melder wieder abbestellen — sonst hält er die Zone am Leben. */
+  private offGrab: (() => void) | null = null;
   /**
    * **Die sichtbaren Griffkreuze** (`core/handleView.ts`) — nur, wenn das
    * Häkchen im Grafik-Menü sitzt, und ab Werk sitzt es nicht.
@@ -864,6 +964,16 @@ export class KitchenZone implements TestZone {
   private editing = false;
   /** Der rote Knopf, der ihn umlegt (`addBuildButton`). */
   private buildButton: RedButton | null = null;
+  /**
+   * **Der zweite rote Knopf daneben** — er gibt die zweite Hand frei
+   * (`addHandsButton`, `core/grabSettings.GrabSettings.twoHands`).
+   *
+   * Er steht in der Küche und nicht nur im Menü, weil der Wunsch dort entstand,
+   * wo man ihn braucht: „neben dem Button _Küche umbauen_ auch einen Button:
+   * VR zwei Gegenstände an/aus". In der Brille ist ein Knopf, an dem man
+   * vorbeikommt, schneller umgelegt als eine Zeile, die man erst aufschlägt.
+   */
+  private handsButton: RedButton | null = null;
   /** Der Aushang an der Nordwand (`kitchenNotice.ts`) — eine Tafel, die hängt. */
   private notice: SignBoard | null = null;
   /**
@@ -905,6 +1015,12 @@ export class KitchenZone implements TestZone {
     this.offEyes = onPostureChange(() => {
       this.eyeScale = kitchenEyeScale();
     });
+    // **Und ebenso der Schalter für die zweite Hand** — einmal gelesen, danach
+    // am Melder (`core/grabSettings.onGrabChange`). Erst abbestellen, dann
+    // anmelden, aus demselben Grund wie eine Zeile darüber.
+    this.offGrab?.();
+    this.twoHands = grabSettings().twoHands;
+    this.offGrab = onGrabChange(() => this.foldHands());
     this.gauges = new KitchenGauges(world.root);
     this.belts = new BeltKit();
     this.joins = new CombinerKit();
@@ -930,6 +1046,7 @@ export class KitchenZone implements TestZone {
       if (model) this.place(model, piece, spot, () => null);
     }
     this.addBuildButton();
+    this.addHandsButton();
     // Der Aushang an der Nordwand: dieselbe Wand, an der die Zeile steht, und
     // die einzige, deren Innenseite die Kamera von oben ansieht.
     this.notice = buildKitchenNotice(world.root);
@@ -970,6 +1087,9 @@ export class KitchenZone implements TestZone {
     this.spray(dt, ctx);
     this.buildTurn(ctx);
     this.facePiece();
+    // **Bevor das Getragene gehängt wird**: Wer gerade übergeben hat, soll sein
+    // Ding im selben Bild an der neuen Hand sehen und nicht erst im nächsten.
+    this.handover(ctx);
     // Die Pfeile auf den Bändern wandern, auch wenn nichts daraufliegt: Ein
     // Band, das erst bei Fracht zeigt, wohin es schiebt, sagt es zu spät.
     this.belts?.update(dt);
@@ -977,8 +1097,9 @@ export class KitchenZone implements TestZone {
     // Grund wie die Sparren: Ein Gerät, das erst mit einer Vorlage darauf
     // zeigt, wohin die Kopie kommt, zeigt es zu spät.
     this.desks?.update(dt);
-    // Der Knopf kommt nach dem Druck wieder hoch — von allein tut er es nicht.
+    // Die Knöpfe kommen nach dem Druck wieder hoch — von allein tun sie es nicht.
     this.buildButton?.update(dt);
+    this.handsButton?.update(dt);
     this.gauges?.update(dt);
     this.fadeTicket(dt);
     this.carryInHands(ctx);
@@ -1152,7 +1273,7 @@ export class KitchenZone implements TestZone {
     // Teller stritten sich um dieselbe Stelle vor dem Bauch
     // (`carryInHands`) — der einzige Weg, wie in dieser Küche beides zugleich
     // in die Hände käme.
-    const tick = advanceWork(spot.work, dt, near, !this.carried && !this.editing);
+    const tick = advanceWork(spot.work, dt, near, !this.handsFull() && !this.editing);
     if (tick.state === spot.work) return;
     spot.work = tick.state;
     if (!tick.done) return;
@@ -1637,13 +1758,26 @@ export class KitchenZone implements TestZone {
    * davorsteht, soll nicht erst zielen müssen (`kitchenCarry.kitchenDeed`).
    */
   private spray(dt: number, ctx: WorldContext): void {
-    const held = this.carried;
-    const carrying = held?.dish.item === 'extinguisher';
-    // In der Brille der echte Trigger der rechten Hand, sonst der
+    // **Der Löscher kann in jeder der beiden Hände liegen**, seit beide tragen
+    // dürfen — also wird er gesucht und nicht an einer festen Stelle vermutet.
+    // Was gefunden wird, bringt seine Hand mit: Der Strahl kommt aus **der**
+    // Hand, die ihn hält (`aimJet`), und nicht aus der, die zuletzt etwas
+    // getan hat.
+    const found = this.extinguisher();
+    const held = found?.thing ?? null;
+    const carrying = held !== null;
+    // In der Brille der echte Trigger **der Hand, die ihn hält**, sonst der
     // Benutzen-Knopf, **solange er liegt** (`PlayerRig.useHeld`) — am Schirm
     // ist das die einzige Taste, die in jeder Ansicht ein Halten kennt.
+    //
+    // Hier stand die rechte Hand, und das war richtig, solange die Küche eines
+    // trug und der Löscher damit fast immer rechts lag. Seit beide Hände
+    // tragen dürfen, wäre es ein Löscher, der links hängt und sich rechts
+    // auslösen lässt — dieselbe Auskunft wie beim Zielen (`aimJet`), also
+    // dieselbe Hand. Ohne Hand (er hängt vor dem Bauch) bleibt es die rechte.
+    const pullHand = found?.hand ?? 'right';
     const pulled = ctx.renderer.xr.isPresenting
-      ? (ctx.input.get('right')?.trigger.pressed ?? false)
+      ? (ctx.input.get(pullHand)?.trigger.pressed ?? false)
       : ctx.rig.useHeld;
     // **Von oben schalten zwei Knöpfe denselben Schalter**, und beide sind der
     // Knopf, den man dort ohnehin in der Hand hat: der **Auslöser** (linke
@@ -1668,9 +1802,9 @@ export class KitchenZone implements TestZone {
 
     // **Und wohin er zielt**: in der Brille dorthin, wohin die Hand zeigt, die
     // ihn hält — sonst weiter dorthin, wohin die Figur schaut (`aimHand`).
-    this.aimJet(ctx, carrying ? held : null);
+    this.aimJet(ctx, found?.hand ?? null);
 
-    if (carrying && held) {
+    if (held) {
       // Die Düse ist das Ende des Löschers in der Hand, nicht die Brust: Ein
       // Strahl, der aus dem Bauch käme, ginge bei jedem Blick nach unten in
       // den Boden.
@@ -1711,10 +1845,16 @@ export class KitchenZone implements TestZone {
    * Hand, die irgendwohin zeigt (`worlds/portal/screenHand.ts` hält nur ein
    * Werkzeug), also gilt dort weiter der Blick — Zeile für Zeile das, was
    * vorher galt.
+   *
+   * @param side die Hand, an der der Löscher **hängt** (`Hold.hand`) — nicht
+   *             die, die zuletzt etwas getan hat. Seit beide Hände tragen
+   *             dürfen, sind das zwei verschiedene Auskünfte, und ein Strahl
+   *             aus der falschen Hand ginge an der leeren Faust entlang.
+   *             `null` heißt: kein Löscher in der Hand, oder er hängt vor dem
+   *             Bauch.
    */
-  private aimJet(ctx: WorldContext, held: Carried | null): void {
+  private aimJet(ctx: WorldContext, side: Handedness | null): void {
     _jet.copy(_aim);
-    const side = held ? this.carriedHand : null;
     if (!side || !ctx.renderer.xr.isPresenting) return;
     const controller = ctx.input.get(side);
     if (!controller?.tracked) return;
@@ -1834,38 +1974,89 @@ export class KitchenZone implements TestZone {
    * **Ein getragenes Möbel hängt genauso** (Baumodus): Es ist größer, aber
    * derselbe Griff, und eine zweite Trageweise dafür wäre eine zweite Stelle,
    * an der jemand die Brille vergisst.
+   *
+   * **Und seit die Küche je Seite ein Fach führt** (`holds`), ist daraus eine
+   * Schleife geworden statt einer Zeile: Mit dem Schalter _zwei Gegenstände_
+   * aus läuft sie genau einmal — es gibt genau ein Fach —, mit ihm an zweimal,
+   * und jedes Fach geht an **seine** Hand. Das Möbel steht trotzdem allein
+   * davor: Es schließt jedes Essen aus (`takeFromCatalogue`, `toggleEdit`),
+   * teilt sich also nie die Stelle vor dem Bauch mit einem Teller.
    */
   private carryInHands(ctx: WorldContext): void {
-    const thing = this.carried;
-    const held = thing?.object ?? this.lifted?.model ?? null;
-    if (!held) {
-      ctx.avatar.carry = null;
-      return;
-    }
+    // **Das getragene Möbel zuerst**, denn es teilt sich die Stelle vor dem
+    // Bauch mit dem Essen und schließt es aus (`takeFromCatalogue`,
+    // `toggleEdit`): Wer Möbel trägt, trägt sonst nichts.
     this.aimHeld();
     this.shrinkPiece(ctx);
-    if (ctx.renderer.xr.isPresenting) {
-      // **In der Brille liegt es in der Hand**, an seinem Griff — die Pfanne
-      // am Stiel, wie ein Werkzeug (`holdInHand`). Klappt das nicht (kein
-      // Griff, keine Hand, Controller weg), hängt es wie eh und je eine
-      // Handbreit vor der Brust, mittig und ruhig.
-      if (thing && this.holdInHand(ctx, thing)) {
+    const piece = this.lifted?.model ?? null;
+    if (piece) {
+      if (ctx.renderer.xr.isPresenting) {
+        piece.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
         ctx.avatar.carry = null;
-        return;
+      } else {
+        piece.position.set(CHEF_CARRY.x, CHEF_CARRY.y + ctx.avatar.bob, CHEF_CARRY.z);
+        ctx.avatar.carry = CARRY_POINT;
       }
-      this.backToBelly(thing);
-      held.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
+      return;
+    }
+    if (this.holds.size === 0) {
       ctx.avatar.carry = null;
       return;
     }
-    this.backToBelly(thing);
-    // **Im Raum des Rigs, und das genügt**: Von oben dreht sich das Rig selbst
-    // in die Laufrichtung (`core/FlatControls.walkNorthUp`), und aus den Augen
-    // dreht es die Maus (`FlatControls.look`). Wer hier zusätzlich um die
-    // Blickrichtung der Figur drehte, drehte um null — dieselbe Rechnung wie
-    // beim Werkzeug in der Bildschirmhand (`worlds/portal/screenHand.ts`).
-    held.position.set(CHEF_CARRY.x, CHEF_CARRY.y + ctx.avatar.bob, CHEF_CARRY.z);
-    ctx.avatar.carry = CARRY_POINT;
+    // **Jedes Fach an seine eigene Hand** (`holdInHand`). Mit dem Schalter aus
+    // ist das genau ein Durchgang — die Küche trägt eines —, mit ihm an zwei,
+    // und keines der beiden weiß vom anderen.
+    let atBelly = 0;
+    for (const hold of this.holds.values()) {
+      const thing = hold.thing;
+      if (ctx.renderer.xr.isPresenting) {
+        // **In der Brille liegt es in der Hand**, an seinem Griff — die Pfanne
+        // am Stiel, wie ein Werkzeug (`holdInHand`). Klappt das nicht (kein
+        // Griff, keine Hand, Controller weg), hängt es wie eh und je eine
+        // Handbreit vor der Brust, mittig und ruhig.
+        if (this.holdInHand(ctx, hold)) continue;
+        this.backToBelly(thing);
+        // **Und wenn ausnahmsweise zwei dort landen**, rücken sie
+        // auseinander: Das passiert nur, wenn jemand mit zwei vollen Händen
+        // die Brille absetzt oder ein Controller wegfällt — zwei Gegenstände
+        // auf demselben Punkt wären ein einziger, aus dem zwei Ecken ragen.
+        // Sobald der Schalter wieder ausgeht, räumt `foldHands` ohnehin auf.
+        thing.object.position.set(
+          this.bellyShift(atBelly),
+          ctx.rig.camera.position.y - 0.62,
+          -0.42,
+        );
+      } else {
+        this.backToBelly(thing);
+        // **Im Raum des Rigs, und das genügt**: Von oben dreht sich das Rig
+        // selbst in die Laufrichtung (`core/FlatControls.walkNorthUp`), und aus
+        // den Augen dreht es die Maus (`FlatControls.look`). Wer hier
+        // zusätzlich um die Blickrichtung der Figur drehte, drehte um null —
+        // dieselbe Rechnung wie beim Werkzeug in der Bildschirmhand
+        // (`worlds/portal/screenHand.ts`).
+        thing.object.position.set(
+          CHEF_CARRY.x + this.bellyShift(atBelly),
+          CHEF_CARRY.y + ctx.avatar.bob,
+          CHEF_CARRY.z,
+        );
+      }
+      atBelly++;
+    }
+    // Die Hände der Figur gehen nur unter das, was wirklich vor dem Bauch
+    // hängt; was in einer echten Hand liegt, braucht sie nicht.
+    ctx.avatar.carry = !ctx.renderer.xr.isPresenting && atBelly > 0 ? CARRY_POINT : null;
+  }
+
+  /**
+   * **Wie weit das zweite Ding vor dem Bauch zur Seite rückt**, in Metern.
+   *
+   * Das erste steht mittig, wie immer; erst ab dem zweiten wird versetzt, und
+   * dann nach beiden Seiten. Eine Handbreit reicht: Es soll zu erkennen sein,
+   * dass es zwei sind, und nicht aussehen, als hinge etwas neben der Figur her.
+   */
+  private bellyShift(index: number): number {
+    if (index === 0) return 0;
+    return index % 2 === 1 ? -0.12 : 0.12;
   }
 
   /**
@@ -1932,18 +2123,138 @@ export class KitchenZone implements TestZone {
    *
    * @returns ob es geklappt hat; sonst gilt der Griff vor dem Bauch.
    */
-  private holdInHand(ctx: WorldContext, thing: Carried): boolean {
-    const side = this.carriedHand;
+  private holdInHand(ctx: WorldContext, hold: Hold): boolean {
+    const side = hold.hand;
     if (!side) return false;
     const controller = ctx.input.get(side);
     if (!controller?.tracked) return false;
     const node = controller.hold;
-    const object = thing.object;
+    const object = hold.thing.object;
     if (object.parent !== node) node.add(object);
-    const hold = holdFor(thing.handle);
-    object.position.set(hold.position.x, hold.position.y, hold.position.z);
-    object.quaternion.set(hold.rotation.x, hold.rotation.y, hold.rotation.z, hold.rotation.w);
+    // **Und die Haltung ist für beide Hände dieselbe.** `holdFor` rechnet den
+    // gewählten Griff in den **Griffraum** (`core/gripFit.STANDARD_GRIP_IN_HAND`),
+    // und der ist seitenunabhängig — es gibt keine linke und keine rechte
+    // Fassung davon. Ein Werkzeug braucht die Spiegelung
+    // (`worlds/portal/tools/toolPose.holdForOtherHand`), weil seine Haltung an
+    // **einer** Hand eingemessen wurde; die Griffe dieser Küche sind gerechnet
+    // und nicht gemessen (`kitchenGrab.kitchenHandles`). Deshalb bleibt bei
+    // einer Übergabe derselbe `handle` stehen und die Pfanne dreht sich nicht
+    // in der Luft.
+    const pose = holdFor(hold.thing.handle);
+    object.position.set(pose.position.x, pose.position.y, pose.position.z);
+    object.quaternion.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
     return true;
+  }
+
+  /**
+   * **Von einer Hand in die andere** — Hände zusammen, greifen, fertig.
+   *
+   * „Es wäre schön, wenn ich Gegenstände in der Küche auch von einer in die
+   * andere Hand nehmen könnte." Das ist **dieselbe Geste wie beim Werkzeug**
+   * (`PortalWorld.handoverTool`), und sie wird mit **derselben Rechnung**
+   * gemessen: `grabReach.atHandGrip` gegen `HANDOVER_REACH` (16 cm). Eine
+   * zweite Reichweite daneben wäre eine Zahl, die niemand nachrechnet — und
+   * irgendwann die Reichweite von etwas anderem.
+   *
+   * **Gegen die Griffpunkte**, nicht gegen den Gegenstand: Gemessen wird
+   * `ControllerState.hold` gegen `ControllerState.hold`, und das ist genau der
+   * Knoten, den `PortalWorld.gripOf` zurückgibt — dort liegt der Griff, und nur
+   * dort soll das Zeichen kommen. Eine Reichweite über die Ausdehnung des Dings
+   * ließe die Pfanne auch dann übernehmen, wenn die Hand vorn am Boden steht.
+   *
+   * **Auf der Flanke der Greif-Taste** der leeren Hand
+   * (`ButtonState.justPressed`) und nicht, solange sie liegt: Wer sie gedrückt
+   * hält, während die Hände beieinander sind, schöbe die Pfanne sonst Bild für
+   * Bild hin und her.
+   *
+   * **In beiden Betriebsarten** (`core/grabSettings.GrabSettings.twoHands`):
+   * Mit dem Schalter aus wechselt das eine getragene Ding die Hand — das Fach
+   * bleibt dasselbe, nur `Hold.hand` ändert sich —, mit ihm an wandert eines
+   * der beiden in die freie Hand. Gefragt wird deshalb `holdAt` und nicht
+   * `heldBy`: Nur `Hold.hand` sagt, welche Hand wirklich leer ist.
+   *
+   * Die **Regel** dazu steht nebenan und wird dort geprüft
+   * (`kitchenCarry.handsOver`); hier steht, wogegen sie gemessen wird.
+   */
+  private handover(ctx: WorldContext): void {
+    const world = this.world;
+    if (!world) return;
+    const presenting = ctx.renderer.xr.isPresenting;
+    for (const hand of HANDS) {
+      const here = ctx.input.get(hand);
+      if (!here?.tracked) continue;
+      const there = ctx.input.get(otherHand(hand));
+      const theirs = this.holdAt(otherHand(hand));
+      let together = false;
+      if (there?.tracked && theirs) {
+        here.hold.getWorldPosition(_thisGrip);
+        there.hold.getWorldPosition(_otherGrip);
+        together = atHandGrip(_thisGrip, _otherGrip);
+      }
+      const takes = handsOver({
+        presenting,
+        pressed: here.squeeze.justPressed,
+        empty: !this.holdAt(hand),
+        holding: Boolean(theirs),
+        together,
+      });
+      if (!takes || !theirs) continue;
+      // **Das Fach wechselt, der Griff nicht.** `Carried.handle` bleibt
+      // stehen, und `holdFor` rechnet ihn für beide Hände gleich
+      // (`holdInHand`) — eine Pfanne, die sich bei der Übergabe in der Luft
+      // drehte, wäre genau der Fehler, den ein gemerkter Griff verhindert.
+      this.holds.delete(theirs.slot);
+      theirs.hold.hand = hand;
+      this.holds.set(this.slot(hand), theirs.hold);
+      this.busyHand = hand;
+      // Rückmeldung wie beim Werkzeug: ein kurzer Stups und ein Satz. Ohne den
+      // Stups merkt man in der Brille nicht, ob die Hand nah genug war.
+      here.pulse(0.2, 12);
+      world.notify(`${dishLabel(theirs.hold.thing.dish)} in die ${HAND_LABELS[hand]} Hand`);
+      // Die Anmeldungen fragen nach dem, was in der Hand liegt — und das ist
+      // jetzt eine andere.
+      this.refreshStations();
+      return;
+    }
+  }
+
+  /**
+   * **Der Schalter ist umgelegt worden** (`core/grabSettings.onGrabChange`) —
+   * die Fächer ziehen nach.
+   *
+   * **Beim Anschalten** wandert das eine Fach vor dem Bauch an die Hand, an der
+   * es ohnehin schon hing; hat es keine (von oben, am Schreibtisch, aus der Uhr
+   * der Spüle), bekommt es das Fach der zuletzt tätigen Hand und hängt weiter
+   * vor dem Bauch.
+   *
+   * **Beim Abschalten darf nichts hängenbleiben.** Wer ihn umlegt, während
+   * beide Hände voll sind, behielte sonst ein zweites Ding an einer Hand, nach
+   * der niemand mehr fragt: `heldBy` gibt danach für jede Seite dasselbe Fach
+   * zurück, und das andere wäre unerreichbar. Bleiben darf eines — das der
+   * zuletzt tätigen Hand (`kitchenCarry.keptOnFold`) —, und das andere geht
+   * dorthin zurück, wo es hingehört: dieselbe Regel, die `toggleEdit` und das
+   * Aufräumen schon haben (`putBack`).
+   */
+  private foldHands(): void {
+    const next = grabSettings().twoHands;
+    if (next === this.twoHands) return;
+    this.twoHands = next;
+    const before = [...this.holds.entries()];
+    this.holds.clear();
+    if (next) {
+      for (const [, hold] of before) this.holds.set(hold.hand ?? this.busyHand, hold);
+    } else {
+      const kept = keptOnFold(
+        before.map(([slot]) => slot),
+        this.busyHand,
+      );
+      for (const [slot, hold] of before) {
+        if (slot === kept) this.holds.set('body', hold);
+        else this.putBack(hold.thing);
+      }
+    }
+    this.showHandsLabel();
+    this.refreshStations();
   }
 
   /**
@@ -2109,9 +2420,14 @@ export class KitchenZone implements TestZone {
     // Handgriff, den niemand mehr erwartet.
     this.beltNow = null;
     const standing = this.stations.filter((spot) => !spot.home.held);
-    const loose = [this.carried, ...standing.map((spot) => spot.on)];
-    this.carried = null;
-    this.carriedHand = null;
+    // **Alle Fächer**, nicht nur eines: Mit dem Schalter _zwei Gegenstände_ an
+    // hält jede Hand ihr eigenes, und eines davon liegenzulassen wäre ein
+    // Gegenstand, der an einer Hand hängt, nach der niemand mehr fragt.
+    const loose = [
+      ...[...this.holds.values()].map((hold) => hold.thing),
+      ...standing.map((spot) => spot.on),
+    ];
+    this.holds.clear();
     if (this.avatar) this.avatar.carry = null;
     for (const spot of standing) {
       spot.on = null;
@@ -2127,22 +2443,37 @@ export class KitchenZone implements TestZone {
       spot.shown = null;
     }
     for (const thing of loose) {
-      if (!thing) continue;
-      const home = thing.home;
-      // **Dieselbe Unterscheidung wie im Umbau** (`kitchenBuild.goesHomeOnEdit`)
-      // und nicht eine zweite daneben: Was einen Platz hat, geht dorthin
-      // zurück, weggeworfen wird nur, was keinen hat — und der Platz muss frei
-      // sein. Er ist es hier fast immer (die Schleife darüber hat alle
-      // geräumt), aber „fast immer" ist keine Regel: Ein zweites Gerät mit
-      // demselben Zuhause überschriebe sonst das erste.
-      if (!goesHomeOnEdit(home, Boolean(home?.on))) {
-        this.discard(thing);
-        continue;
-      }
-      this.restyle(thing, dish(thing.dish.item));
-      this.layOn(home!, thing);
+      if (thing) this.putBack(thing);
     }
     this.hideTicket();
+  }
+
+  /**
+   * **Ein loses Ding dorthin zurück, wo es hingehört** — oder weg damit.
+   *
+   * **Dieselbe Unterscheidung wie im Umbau** (`kitchenBuild.goesHomeOnEdit`)
+   * und nicht eine zweite daneben: Was einen Platz hat, geht dorthin zurück,
+   * weggeworfen wird nur, was keinen hat — und der Platz muss frei sein. Beim
+   * Aufräumen ist er es fast immer (`calmStations` hat alle Stationen geräumt),
+   * aber „fast immer" ist keine Regel: Ein zweites Gerät mit demselben Zuhause
+   * überschriebe sonst das erste.
+   *
+   * **Leer** geht es heim, also ohne seinen Belag: Ein Patty, das in der
+   * zurückgestellten Pfanne weiterbrutzelt, wäre kein Aufräumen.
+   *
+   * Zwei rufen das, und deshalb steht es hier und nicht in einem von beiden:
+   * das Aufräumen (`calmStations`) und das Abschalten des zweiten Gegenstands
+   * (`foldHands`). Die Frage ist in beiden Fällen dieselbe — wohin mit etwas,
+   * das gerade aus der Hand muss.
+   */
+  private putBack(thing: Carried): void {
+    const home = thing.home;
+    if (!goesHomeOnEdit(home, Boolean(home?.on))) {
+      this.discard(thing);
+      return;
+    }
+    this.restyle(thing, dish(thing.dish.item));
+    this.layOn(home!, thing);
   }
 
   /** Was auf dem Knopf steht — beide Zeilen an einer Stelle, siehe `reset`. */
@@ -2192,6 +2523,8 @@ export class KitchenZone implements TestZone {
     this.floor = null;
     this.buildButton?.dispose();
     this.buildButton = null;
+    this.handsButton?.dispose();
+    this.handsButton = null;
     this.notice?.dispose();
     this.notice = null;
     for (const copier of [...this.plates.keys()]) this.clearCopy(copier);
@@ -2210,8 +2543,7 @@ export class KitchenZone implements TestZone {
     this.stations.length = 0;
     this.furniture.length = 0;
     this.bodies.length = 0;
-    this.carried = null;
-    this.carriedHand = null;
+    this.holds.clear();
     this.lifted = null;
     this.ghost = null;
     this.ghostLive = false;
@@ -2232,6 +2564,10 @@ export class KitchenZone implements TestZone {
     // Spieler im Gokart sitzen lässt.
     this.offEyes?.();
     this.offEyes = null;
+    // Und der Melder des Greifens: Er zeigt sonst auf eine Küche, die es nicht
+    // mehr gibt, und legte bei der nächsten Einstellung Hand an ihre Fächer.
+    this.offGrab?.();
+    this.offGrab = null;
     if (this.rig) this.rig.eyeScale = 1;
     this.rig = null;
   }
@@ -2815,7 +3151,12 @@ export class KitchenZone implements TestZone {
       // hier eine zweite Liste je Stationsart — und die lief mit jeder neuen
       // Art auseinander. `nothing` ist der einzige Fall ohne etwas zu sagen;
       // `refuse` hat einen Satz und meldet sich.
-      const deed = spot ? kitchenDeed(this.held(), facts(spot)) : null;
+      // **Ohne Hand gefragt**, denn eine Anmeldung gilt für beide: Hier steht
+      // nicht fest, wer gleich drückt. Welches Fach das meint, sagt `slot` —
+      // mit dem Schalter aus das einzige, mit ihm an das der zuletzt tätigen
+      // Hand. Die Tat selbst rechnet `act` dann noch einmal, und zwar für die
+      // Hand, die wirklich gedrückt hat.
+      const deed = spot ? this.deedAt(spot, 'body') : null;
       const target = deed && deed.do !== 'nothing' && spot ? this.aimAt(spot, deed) : null;
       if (target === furnish.usable) continue;
       if (furnish.usable) world.removeUsable(furnish.usable);
@@ -2824,11 +3165,11 @@ export class KitchenZone implements TestZone {
       // Die Tat von **jetzt**, nicht die von der Anmeldung: Hinweis und
       // Absicht unten fragen beide danach, und beide werden gelesen, während
       // die Figur davorsteht.
-      const deedNow = (): KitchenDeed => kitchenDeed(this.held(), facts(spot));
+      const deedNow = (): KitchenDeed => this.deedAt(spot, 'body');
       // Dieselbe Bauart: eine Frage, die beim Lesen gestellt wird, nicht beim
       // Anmelden. Der Löscher kommt in die Hand, ohne dass sich eine Station
       // neu anmeldet — und ab dann ist der Trigger vergeben.
-      const triggerFree = (): boolean => this.triggerFree();
+      const triggerFree = (): boolean => this.triggerFree('body');
       world.addUsable(
         target,
         {
@@ -2867,6 +3208,96 @@ export class KitchenZone implements TestZone {
   }
 
   /**
+   * **Der zweite Knopf: die zweite Hand** — genauso gebaut wie der Umbauknopf
+   * darüber, und aus denselben Gründen.
+   *
+   * Sockel, Kollisionskasten und Anmeldung beim Zeiger stehen dort erklärt
+   * (`addBuildButton`); was hier anders ist, ist nur, was er tut und wo er
+   * steht:
+   *
+   * - **Er schaltet die Einstellung**, nicht die Zone
+   *   (`core/grabSettings.saveGrabSettings`). Was danach in der Küche geschieht,
+   *   macht der Melder (`foldHands`) — derselbe, der auch greift, wenn jemand
+   *   den Schalter im Menü umlegt. Zwei Wege zu einem Schalter, und nur eine
+   *   Stelle, die darauf antwortet.
+   * - **Und er steht auf einer eigenen Kachel** (`kitchenPlan.HANDS_BUTTON_TILE`).
+   *   Zwei Dinge auf einer Kachel heißt: `A` erwischt immer nur eines davon
+   *   (`core/usable.pickUsable` nimmt das Nächste) — genau der Fehler, den der
+   *   Löscher auf der Knopfkachel einmal hatte.
+   */
+  private addHandsButton(): void {
+    const world = this.world;
+    if (!world || typeof document === 'undefined') return;
+    const button = buildRedButton({
+      title: this.twoHands ? HANDS_BUTTON_LABELS.on : HANDS_BUTTON_LABELS.off,
+      body: HANDS_BUTTON_BODY,
+    });
+    this.handsButton = button;
+    button.group.name = 'kitchen-hands-button';
+    button.group.position.set(
+      (KITCHEN.x + HANDS_BUTTON_TILE.x + 0.5) * TILE,
+      KITCHEN_FLOOR,
+      (KITCHEN.z + HANDS_BUTTON_TILE.z + 0.5) * TILE,
+    );
+    world.root.add(button.group);
+    button.group.updateWorldMatrix(true, true);
+    this.placed.push(button.group);
+    // Durch die Säule läuft niemand — dieselbe Begründung und dasselbe Maß wie
+    // beim Umbauknopf (`addBuildButton`).
+    const block = this.boxAt(
+      0.6,
+      1.0,
+      0.6,
+      button.group.position.x,
+      KITCHEN_FLOOR,
+      button.group.position.z,
+    );
+    world.root.add(block);
+    block.updateWorldMatrix(true, false);
+    this.placed.push(block);
+    this.bodies.push(world.addSolid(block));
+    world.addUsable(
+      button.dome,
+      {
+        use: () => {
+          button.press();
+          return this.toggleHands();
+        },
+        usePrompt: () => (this.twoHands ? HANDS_BUTTON_LABELS.on : HANDS_BUTTON_LABELS.off),
+        interaction: 'press',
+      },
+      { radius: BUTTON_DOME_R, shot: BUTTON_DOME_R },
+    );
+  }
+
+  /**
+   * **Den Schalter umlegen** — und mehr tut dieser Knopf nicht.
+   *
+   * Er schreibt die Einstellung und wartet ab: Das Schild, die Fächer und die
+   * Anmeldungen zieht der Melder nach (`foldHands`), weil derselbe Schalter
+   * auch im Menü liegt (*Einstellungen → Greifen*). Wer hier daneben noch
+   * selbst aufräumte, hätte zwei Stellen, die dasselbe tun — und die im Menü
+   * liefe beim nächsten Umbau hinterher.
+   */
+  private toggleHands(): boolean {
+    saveGrabSettings({ twoHands: !grabSettings().twoHands });
+    this.world?.notify(
+      this.twoHands
+        ? 'In der Brille trägt jetzt jede Hand ihr eigenes'
+        : 'Zurück zu einem Gegenstand in den Händen',
+    );
+    return true;
+  }
+
+  /** Was auf dem zweiten Knopf steht — es sagt die **Tat**, siehe `showBuildLabel`. */
+  private showHandsLabel(): void {
+    this.handsButton?.setTitle(
+      this.twoHands ? HANDS_BUTTON_LABELS.on : HANDS_BUTTON_LABELS.off,
+      HANDS_BUTTON_BODY,
+    );
+  }
+
+  /**
    * **Woran der gelbe Saum hängt** — am Möbel oder an dem, was darauf liegt.
    *
    * **Welche Tat das Liegende meint, sagt die Regel** (`meansContent`,
@@ -2885,9 +3316,119 @@ export class KitchenZone implements TestZone {
     return spot.on?.object ?? spot.object;
   }
 
-  /** Was die Figur trägt, so wie die Regel es sehen will. */
-  private held(): Dish | null {
-    return this.carried?.dish ?? null;
+  // --- die Fächer: was welche Hand hält --------------------------------------
+
+  /**
+   * **Welche Seite gehandelt hat** — die Hand, wenn es eine war, sonst die
+   * Figur (`core/usable.UseSource.hand`).
+   *
+   * Von oben und am Schreibtisch gibt es keine Hand; dort ist `'body'` die
+   * ehrliche Antwort und nicht der Notfall.
+   */
+  private sideOf(by?: UseSource): CarrySide {
+    return by?.hand ?? 'body';
+  }
+
+  /**
+   * **Das Fach, das diese Seite meint** — die Betriebsart, in einer Zeile
+   * (`kitchenCarry.carrySlot`).
+   *
+   * Steht der Schalter aus, ist es für jede Seite dasselbe: Die Küche trägt
+   * eines, und jede Hand fragt nach demselben Ding. Steht er an, hat jede Hand
+   * ihr eigenes — und wer ohne Hand fragt, bekommt das der zuletzt tätigen
+   * (`busyHand`).
+   */
+  private slot(side: CarrySide): CarrySide {
+    return carrySlot(side, this.twoHands, this.busyHand);
+  }
+
+  /** **Was diese Seite hält** — die Frage, die jede Tat an einer Station stellt. */
+  private heldBy(side: CarrySide): Carried | null {
+    return this.holds.get(this.slot(side))?.thing ?? null;
+  }
+
+  /**
+   * **Etwas in das Fach dieser Seite legen** — oder es räumen.
+   *
+   * Die Hand wird mitgeschrieben, und zwar die **echte**: Bei `'body'` gibt es
+   * keine, bei einer Seite ist es sie selbst. Daran hängt das Ding in der
+   * Brille (`holdInHand`), und daran findet die Übergabe es wieder
+   * (`holdAt`).
+   */
+  private setHeld(side: CarrySide, thing: Carried | null): void {
+    const slot = this.slot(side);
+    if (!thing) {
+      this.holds.delete(slot);
+      return;
+    }
+    this.holds.set(slot, { thing, hand: side === 'body' ? null : side });
+  }
+
+  /**
+   * **Sind die Hände voll?** — die zweite der beiden Fragen dieser Datei.
+   *
+   * Sie ist **nicht** „was hält diese Hand?": Wer den Möbelkatalog öffnet, den
+   * Umbau anschaltet oder einen fertigen Teller aus der Spüle gedrückt bekommt,
+   * braucht einen **freien Griff** vor dem Bauch, und den gibt es nur, solange
+   * gar nichts getragen wird. Ein Möbel und ein Brötchen stritten sich sonst um
+   * dieselbe Stelle (`carryInHands`).
+   *
+   * Deshalb zählt hier auch mit dem Schalter an **jedes** Fach: Eine Hand mit
+   * der Pfanne darin ist keine freie Hand für eine Ausgabetheke.
+   */
+  private handsFull(): boolean {
+    return this.holds.size > 0;
+  }
+
+  /**
+   * **Was an dieser echten Hand hängt** — samt dem Fach, in dem es liegt.
+   *
+   * Die Übergabe fragt danach und nicht nach `heldBy`, und das ist der ganze
+   * Unterschied zwischen den beiden Betriebsarten: Steht der Schalter aus, gibt
+   * `heldBy` **jeder** Seite dasselbe Ding zurück — die leere Hand sähe damit
+   * nie leer aus, und eine Übergabe käme nie zustande. Woran es wirklich hängt,
+   * steht in `Hold.hand`, und das gilt in beiden Betriebsarten.
+   */
+  private holdAt(hand: Handedness): { slot: CarrySide; hold: Hold } | null {
+    for (const [slot, hold] of this.holds) {
+      if (hold.hand === hand) return { slot, hold };
+    }
+    return null;
+  }
+
+  /**
+   * **Der Feuerlöscher, wenn eine Hand ihn hält** — samt dieser Hand.
+   *
+   * Gesucht und nicht gemerkt: Er ist ein getragenes Ding wie jedes andere und
+   * kann in jedem Fach liegen. Ein zweiter Merker daneben wäre die zweite
+   * Wahrheit, die beim nächsten Handgriff auseinanderläuft — und in der Küche
+   * gibt es genau einen Löscher (`core/kitchenModel.takeUtensil`), also findet
+   * diese Schleife auch höchstens einen.
+   */
+  private extinguisher(): { thing: Carried; hand: Handedness | null } | null {
+    for (const hold of this.holds.values()) {
+      if (hold.thing.dish.item === 'extinguisher') return { thing: hold.thing, hand: hold.hand };
+    }
+    return null;
+  }
+
+  /** Was diese Seite trägt, so wie die Regel es sehen will. */
+  private held(side: CarrySide): Dish | null {
+    return this.heldBy(side)?.dish ?? null;
+  }
+
+  /**
+   * **Was `A` an dieser Station täte** — für die Hand, die fragt
+   * (`kitchenCarry.kitchenDeed`).
+   *
+   * Die Seite wird **durchgezogen** und nicht geraten: Wer mit der linken Hand
+   * die Pfanne hält und mit der rechten nach dem Brötchen greift, bekommt für
+   * die rechte Hand die Tat der rechten Hand. Ohne Seite (`'body'` — der
+   * Hinweis über der Station, der ohne Hand gelesen wird) gilt die zuletzt
+   * tätige (`slot`).
+   */
+  private deedAt(spot: Station, side: CarrySide): KitchenDeed {
+    return kitchenDeed(this.held(side), facts(spot));
   }
 
   /**
@@ -2900,9 +3441,14 @@ export class KitchenZone implements TestZone {
    * gedrückt hält oder mehrmals antippt, während er vor einer Arbeitsplatte
    * steht — und wenn dieselbe Taste dabei ablegte, läge der Löscher nach dem
    * ersten Löschversuch auf der Zeile.
+   *
+   * **Und er gilt je Hand**, seit beide tragen dürfen: Wer den Löscher links
+   * hält, hat rechts weiter einen freien Trigger. Das getragene **Möbel**
+   * dagegen ist keine Sache einer Hand — es hängt am Rig und wird vor dem Bauch
+   * getragen (`liftPiece`), also ist sein Auslöser für beide Hände vergeben.
    */
-  private triggerFree(): boolean {
-    return !this.lifted && this.carried?.dish.item !== 'extinguisher';
+  private triggerFree(side: CarrySide): boolean {
+    return !this.lifted && this.heldBy(side)?.dish.item !== 'extinguisher';
   }
 
   /**
@@ -2916,7 +3462,14 @@ export class KitchenZone implements TestZone {
   private act(spot: Station, by?: UseSource): boolean {
     const world = this.world;
     if (!world) return false;
-    const deed = kitchenDeed(this.held(), facts(spot));
+    // **Die handelnde Seite, einmal bestimmt und danach durchgezogen.** Jede
+    // Zeile darunter, die etwas aus der Hand nimmt oder hineinlegt, meint
+    // **diese** Hand und nicht „die Hand" — mit dem Schalter aus ist das
+    // dasselbe (es gibt nur ein Fach), mit ihm an ist es der Unterschied
+    // zwischen der Pfanne links und dem Burger rechts.
+    const side = this.sideOf(by);
+    if (by?.hand) this.busyHand = by.hand;
+    const deed = this.deedAt(spot, side);
     // **Eine Kachel, auf die gerade etwas zufährt, ist vergeben** — auch wenn
     // sie leer aussieht (`kitchenBelt.beltBound`). Wer trotzdem etwas darauf
     // legt, bekommt nichts Kaputtes: Das Ankommende bleibt kurz davor stehen
@@ -2938,9 +3491,9 @@ export class KitchenZone implements TestZone {
       }
       case 'place':
       case 'work': {
-        const thing = this.carried;
+        const thing = this.heldBy(side);
         if (!thing) return false;
-        this.carried = null;
+        this.setHeld(side, null);
         if (stacks(spot.kind)) {
           // An der Rückgabe und auf dem Abtropfbrett wird nicht abgelegt,
           // sondern **gestapelt**: Der Teller geht im Stapel auf, sein Netz
@@ -2975,7 +3528,7 @@ export class KitchenZone implements TestZone {
         break;
       }
       case 'combine': {
-        this.merge(spot, deed.held, deed.target);
+        this.merge(spot, side, deed.held, deed.target);
         // **Wer hat bekommen?** Zusammengelegt wird in beide Richtungen
         // (`kitchenRecipes.combine`), und die Meldung muss mitgehen: Wer mit
         // dem Teller zur Tomate läuft, hat sie aufgenommen und nicht
@@ -2996,7 +3549,7 @@ export class KitchenZone implements TestZone {
         // neben dem Topf von vorn an (`kitchenWork.onWork`). Der Topf wird
         // untergehalten und nicht eingeräumt, und genau so wenig rührt dieser
         // Fall die Station an.
-        const thing = this.carried;
+        const thing = this.heldBy(side);
         if (!thing) return false;
         this.restyle(thing, deed.dish);
         // „Topf mit Wasser gefüllt" und nicht `dishLabel` („Topf (Wasser)"):
@@ -3009,9 +3562,9 @@ export class KitchenZone implements TestZone {
         break;
       }
       case 'trash': {
-        const thing = this.carried;
+        const thing = this.heldBy(side);
         if (!thing) return false;
-        this.carried = null;
+        this.setHeld(side, null);
         this.discard(thing);
         world.notify(`${dishLabel(deed.dish)} weggeworfen`);
         break;
@@ -3020,18 +3573,18 @@ export class KitchenZone implements TestZone {
         // **Der Träger bleibt in der Hand.** Wer einen misslungenen Burger
         // wegwirft, will nicht auch noch zur Tellerausgabe laufen. Was
         // danach in der Hand ist, steht in der Tat — der leere Träger.
-        const thing = this.carried;
+        const thing = this.heldBy(side);
         if (!thing) return false;
         this.restyle(thing, deed.dish);
         world.notify(`${ITEM_LABELS[deed.dish.item]} abgeräumt`);
         break;
       }
       case 'serve': {
-        const thing = this.carried;
+        const thing = this.heldBy(side);
         if (!thing) return false;
         // **Teller und Gericht gehen zusammen**, und beide zum Gast: `held`
         // ist deshalb `null` (`kitchenCarry.atPass`). Die Hand ist danach frei.
-        this.carried = null;
+        this.setHeld(side, null);
         this.discard(thing);
         this.showTicket(spot, deed.recipe.label);
         world.notify(`${deed.recipe.label} serviert — ${this.toGuest()}`);
@@ -3097,12 +3650,12 @@ export class KitchenZone implements TestZone {
    * — es gibt also keinen Weg, auf dem hier das einzige Exemplar eines Netzes
    * weggeworfen würde. Gäbe es ihn, stünde die Küche danach ohne Pfanne da.
    */
-  private merge(spot: Station, held: Dish | null, target: Dish | null): void {
-    const hand = this.carried;
+  private merge(spot: Station, side: CarrySide, held: Dish | null, target: Dish | null): void {
+    const hand = this.heldBy(side);
     if (hand) {
       if (held) this.restyle(hand, held);
       else {
-        this.carried = null;
+        this.setHeld(side, null);
         this.discard(hand);
       }
     }
@@ -3254,8 +3807,8 @@ export class KitchenZone implements TestZone {
    */
   private takeInHand(thing: Carried, spot?: Station, by?: UseSource): void {
     const rig = this.rig;
-    this.carried = thing;
-    this.carriedHand = by?.hand ?? null;
+    if (by?.hand) this.busyHand = by.hand;
+    this.setHeld(this.sideOf(by), thing);
     thing.handle = this.grabbedAt(thing, spot, by);
     thing.object.rotation.set(0, 0, 0);
     if (rig) rig.add(thing.object);
@@ -3697,7 +4250,7 @@ export class KitchenZone implements TestZone {
     if (this.world?.inConstruct()) return 'Zurück in die Küche';
     const { dx, dz } = this.towards(furnish);
     if (pieceSide(furnish.turn, dx, dz) === 'front') {
-      return this.carried ? 'Erst die Hände frei machen' : 'Möbelkatalog öffnen';
+      return this.handsFull() ? 'Erst die Hände frei machen' : 'Möbelkatalog öffnen';
     }
     return this.editing
       ? `${furnish.piece.label} aufheben`
@@ -3735,7 +4288,7 @@ export class KitchenZone implements TestZone {
   private openCatalogue(furnish: Furnish): boolean {
     const world = this.world;
     if (!world) return false;
-    if (this.carried) {
+    if (this.handsFull()) {
       world.notify('Erst die Hände frei machen');
       return true;
     }
@@ -3863,7 +4416,7 @@ export class KitchenZone implements TestZone {
    */
   private takeFromCatalogue(piece: KitchenPiece): boolean {
     const world = this.world;
-    if (!world || this.lifted || this.carried) return false;
+    if (!world || this.lifted || this.handsFull()) return false;
     // **Geklont wird über `cloneModel`** und nicht über `clone(true)`: Der
     // Griff in den Katalog geschieht im Konstrukt-Raum, und dort ist die
     // Vorlage gerade ausgeblendet. Das gebaute Stück braucht das nicht — es
@@ -3958,7 +4511,7 @@ export class KitchenZone implements TestZone {
         world.notify('Erst eine Vorlage auf die Kopierfläche legen');
         return true;
       }
-      if (this.lifted || this.carried) {
+      if (this.lifted || this.handsFull()) {
         world.notify('Erst die Hände frei machen');
         return true;
       }
@@ -3970,7 +4523,7 @@ export class KitchenZone implements TestZone {
     }
     if (this.lifted) return this.layOnPlate(furnish);
     if (plate) {
-      if (this.carried) {
+      if (this.handsFull()) {
         world.notify('Erst die Hände frei machen');
         return true;
       }

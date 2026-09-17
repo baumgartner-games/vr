@@ -26,8 +26,43 @@ let live = 0;
  * Grenze zeichnete der Beutel die ganze Welt in jede dieser Briefmarken.
  */
 const MIN_WIDTH = 0.1;
-/** Weiter weg als das bleibt ein Spiegel blind. */
+/**
+ * Weiter weg als das bleibt ein Spiegel blind — die **Obergrenze**, unabhängig
+ * davon, wie groß die Scheibe ist.
+ *
+ * Sie war lange die *einzige* Grenze, und das war zu wenig: Vierzehn Meter
+ * gelten hier für jede Fläche gleich, für den Standspiegel von einem halben
+ * Quadratmeter genauso wie für das Glas im Kleiderschrank der Testwelt, das
+ * 36 cm breit ist. Was ein Spiegel kostet, hängt aber nicht an seiner Größe,
+ * sondern an der Szene dahinter: **jeder von ihnen ist ein vollständiger
+ * zweiter Durchgang durch die ganze Welt.** Die feinere Grenze steht deshalb
+ * gleich darunter (`MIN_APPARENT`); diese hier bleibt als Deckel stehen,
+ * damit auch eine sehr große Fläche irgendwann aufhört.
+ */
 const MAX_RANGE = 14;
+/**
+ * **Wie klein eine Scheibe am Auge werden darf, bevor sie blindes Glas wird.**
+ *
+ * Gemessen in Raumwinkel: Fläche geteilt durch Abstand im Quadrat — dieselbe
+ * Zahl, nach der `pick` ohnehin schon sortiert, wenn mehr Spiegel da sind als
+ * das Budget hergibt. Sie ist der ehrliche Maßstab dafür, ob sich ein zweiter
+ * Durchgang lohnt: Ein Handspiegel vor der Nase steht groß am Auge, derselbe
+ * Handspiegel auf einem Regal drei Meter weiter ist ein Fleck.
+ *
+ * 0,02 sr entspricht etwa einer Handfläche auf Armeslänge. Was das für die
+ * Spiegel dieses Projekts heißt:
+ *
+ * - **Kleiderschrank** der Testwelt (0,36 × 1,5 m): rund 5 m statt 14 m.
+ * - **Standspiegel** aus dem Beutel (0,5 × 1,34 m): rund 5,8 m.
+ * - **Handspiegel** am Gürtel (0,26 × 0,19 m): rund 1,6 m — er wird in der
+ *   Hand gehalten und nicht über den Platz hinweg benutzt.
+ *
+ * Der Anlass war eine Messung in der Brille: Die Testwelt stand bei 29–32 fps,
+ * und der Spiegel im Kleiderschrank neben dem Startplatz zeichnete die ganze
+ * Szene ein zweites Mal — 166 bis 301 zusätzliche Zeichenaufrufe je Bild, für
+ * eine Scheibe, vor der gerade niemand stand.
+ */
+const MIN_APPARENT = 0.02;
 /** Und näher als das steckt das Auge darin — die Rechnung entartet. */
 const MIN_DEPTH = 0.02;
 
@@ -204,8 +239,21 @@ export function collectMirrors(
  * unendlicher Gang, und der kostet pro Stufe die ganze Szene noch einmal.
  */
 export class MirrorRenderer {
-  /** Auflösung der Spiegelbilder in VR, als Anteil des Augenpuffers. */
-  vrResolutionScale = 0.7;
+  /**
+   * Auflösung der Spiegelbilder in VR, als Anteil des Augenpuffers.
+   *
+   * **0,4 und nicht mehr.** Ein Spiegel ist eine Fläche im Raum und kein
+   * zweiter Bildschirm: Das Glas im Kleiderschrank ist 36 cm breit und steht
+   * auch dann nur über einem kleinen Teil des Blickfelds, wenn man direkt
+   * davorsteht. Bei 0,7 bekam es ein Bild von 1 792 × 1 007 Punkten je Auge —
+   * mehr Bildpunkte, als es überhaupt auf der Netzhaut belegt, und alle davon
+   * bezahlt die Brille im selben Zeitfenster wie das eigentliche Bild.
+   *
+   * 0,4 sind knapp ein Drittel dieser Fläche (0,4² gegen 0,7²). Was dabei an
+   * Schärfe verloren geht, sieht man in einem Spiegelbild nicht: Es ist ohnehin
+   * um 8 % abgedunkelt (der Shader oben), und niemand liest darin Text.
+   */
+  vrResolutionScale = 0.4;
 
   /**
    * Wie viele Spiegel gleichzeitig ein Bild bekommen.
@@ -246,10 +294,6 @@ export class MirrorRenderer {
     const presenting = renderer.xr.isPresenting;
     const xrCamera = presenting ? renderer.xr.getCamera() : null;
 
-    // Web selection only needs camera and mirror transforms. Actual render
-    // passes update the scene themselves; a second full traversal was wasted
-    // even when every mirror was behind the viewer.
-    if (presenting) scene.updateMatrixWorld(true);
     this.frameSize(xrCamera);
 
     // Wo das Auge steht, entscheidet, welcher Spiegel überhaupt eines
@@ -264,6 +308,31 @@ export class MirrorRenderer {
       );
     }
     this.pick(mirrors, _eye, presenting ? null : this.frustum);
+
+    // **Die Matrizen der ganzen Szene — aber erst jetzt, und nur wenn wirklich
+    // gezeichnet wird.**
+    //
+    // Die Zeile stand früher ganz oben, vor der Auswahl, und lief damit in der
+    // Brille in **jedem** Bild: ein erzwungener Durchlauf über alles, was in
+    // der Szene hängt. In einem leeren Zimmer fällt das nicht auf; in der
+    // Testwelt sind es 6 044 Objekte und gemessene **1,1 ms je Bild** — und
+    // zwar auch dann, wenn der einzige Spiegel der Welt zugeklappt im
+    // Kleiderschrank am anderen Ende des Geländes hing. Am Bildschirm gab es
+    // die Zeile nie; genau deshalb sah der Schreibtisch besser aus als die
+    // Brille, und genau deshalb ist sie in der Messung so lange durchgerutscht.
+    //
+    // Gebraucht wird sie erst für die Durchgänge selbst. Die Auswahl davor
+    // kommt ohne sie aus: `pick` zieht sich die Matrix jedes Kandidaten selbst
+    // (`MirrorSurface.worldSize`, `getWorldNormal`, `updateWorldMatrix`), und
+    // die Kamera des Durchgangs tut dasselbe (`prepareCamera`). Steht am Ende
+    // kein Spiegel in `live`, wird gar nichts gezeichnet — dann ist auch nichts
+    // nachzuziehen.
+    //
+    // Erzwungen (`true`) bleibt sie, wo sie läuft: Sie ist dort die einzige
+    // Stelle, die die Szene vor dem Spiegeldurchgang auf Stand bringt, und ein
+    // Bild, das der Hauptdurchgang gleich richtig zeigt, soll im Spiegel daneben
+    // nicht um ein Bild nachhängen.
+    if (presenting && this.live.length > 0) scene.updateMatrixWorld(true);
 
     // Erst alle blind, dann zeichnen: Ein Spiegel, der beim Zeichnen des
     // nächsten noch sein Bild von eben trüge, zeigte darin einen Raum aus
@@ -371,7 +440,13 @@ export class MirrorRenderer {
       if (depth < MIN_DEPTH) continue;
       const distance = _point.distanceTo(eye);
       if (distance > MAX_RANGE) continue;
-      weights.set(mirror, (size.x * size.y) / Math.max(0.04, distance * distance));
+      // **Wie groß die Scheibe am Auge steht** — Fläche durch Abstand im
+      // Quadrat. Diese eine Zahl beantwortet beide Fragen: ob sich der zweite
+      // Durchgang überhaupt lohnt (`MIN_APPARENT`) und, wenn mehrere ihn
+      // wollen, welcher von ihnen ihn bekommt (die Sortierung unten).
+      const apparent = (size.x * size.y) / Math.max(0.04, distance * distance);
+      if (apparent < MIN_APPARENT) continue;
+      weights.set(mirror, apparent);
       this.live.push(mirror);
     }
     this.live.sort((a, b) => weights.get(b)! - weights.get(a)!);

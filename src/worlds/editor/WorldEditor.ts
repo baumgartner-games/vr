@@ -338,8 +338,12 @@ export class WorldEditor {
    */
   build(): void {
     const root = this.host.root();
+    // Das Tischmodell wird hier **nicht** in die Welt gehängt: Es geht als Welt
+    // los und nicht als Editor, und was zugeklappt ist, hat in der Szene nichts
+    // verloren (`showMini`, und der `setEditing(false)` am Ende dieser Methode).
+    // Bis dahin lässt sich trotzdem alles daran bauen — eine Gruppe ohne Eltern
+    // nimmt Kinder wie jede andere.
     this.mini.add(this.content);
-    root.add(this.mini);
 
     const panel = new EditorPanel(this.host.title().toUpperCase(), PANEL_ROWS);
     root.add(panel);
@@ -452,6 +456,15 @@ export class WorldEditor {
     // worden zu sein.
     if (this.folded) disposeTree(this.folded);
     this.folded = null;
+    // **Und das Tischmodell hängt für den Abriss noch einmal ein.**
+    // Zugeklappt hängt es an gar nichts (`showMini`), und was nicht in der Welt
+    // hängt, nimmt der Abriss der Welt auch nicht mit — `PortalWorld.dispose`
+    // läuft gleich mit `disposeTree` über die Wurzel und würde tausendvierhundert
+    // Quadergeometrien übersehen. Einhängen statt hier selbst freigeben, weil
+    // die Wurzel es ohnehin richtig tut und weil eine zweite Aufräumstelle für
+    // dieselben Sachen genau die Stelle ist, an der später eine von beiden
+    // vergessen wird.
+    this.host.root().add(this.mini);
     this.palette?.dispose();
     this.palette = null;
     this.panel = null;
@@ -892,6 +905,45 @@ export class WorldEditor {
   }
 
   /**
+   * **Das Tischmodell kommt her und geht wieder weg — aus der Szene, nicht
+   * bloß aus dem Bild.**
+   *
+   * Es war bisher nur `visible = false`, und das ist für das Zeichnen genau
+   * richtig: `projectObject` kehrt an einem unsichtbaren Objekt sofort um, und
+   * eine zugeklappte Karte kostet keinen einzigen Zeichenaufruf. Für alles
+   * andere, was three und diese Anwendung je Bild durch die Szene schicken,
+   * ist es das nicht. Ein Grundriss der Testwelt ist ein Quader je Plan-Solid:
+   * **1 406 Meshes**, die zugeklappt im Baum hängen und trotzdem
+   *
+   * - in `Object3D.updateMatrixWorld` durchgerechnet werden — und das läuft
+   *   dreimal je Bild (Hauptdurchgang, Spiegeldurchgang, und einer davor);
+   * - in jedem `traverse`/`traverseVisible` mitlaufen, mit dem diese Anwendung
+   *   die Szene absucht — der Spiegel-Sammler (`worlds/shared/Mirror.ts`) und
+   *   der Grafikdurchlauf (`core/graphicsScene.ts`) tun genau das.
+   *
+   * Gemessen in der Testwelt: Karte abgehängt **und** die gebündelten
+   * Gitterquader stillgelegt (`GridWorld.freezeBatched`) drückte
+   * `scene.updateMatrixWorld()` von 1,09 ms auf 0,25 ms je Aufruf.
+   *
+   * Abgehängt ist deshalb das Richtige, und es ist auch ehrlicher: Eine Karte
+   * in der Tasche liegt nicht durchsichtig im Raum herum. `visible` wird
+   * trotzdem mitgeführt — es gibt Code, der die Sichtbarkeit eines Ziels
+   * einzeln abfragt, und ein Modell, das beim Wiederkommen unsichtbar wäre,
+   * wäre ein aufgeklappter Plan ohne Plan darin.
+   *
+   * Der Preis ist klein und steht hier, damit ihn niemand suchen muss: Was
+   * nicht in der Szene hängt, sieht der Grafikdurchlauf nicht. Klappt man im
+   * Comic die Karte auf, bekommen ihre Quader ihre Konturen erst beim nächsten
+   * Durchlauf (`GraphicsQuality.RESCAN`) — dieselbe Sekunde, die dort auch ein
+   * frisch gebautes Möbel wartet.
+   */
+  private showMini(on: boolean): void {
+    this.mini.visible = on;
+    if (on) this.host.root().add(this.mini);
+    else this.mini.removeFromParent();
+  }
+
+  /**
    * **Bearbeiten an oder aus** — und mit ihm die halbe Welt.
    *
    * Was die Kulisse dabei tut, entscheidet die Welt (`editingChanged`): Der
@@ -902,7 +954,7 @@ export class WorldEditor {
    */
   private setEditing(on: boolean): void {
     this.out = on;
-    this.mini.visible = on;
+    this.showMini(on);
     if (this.panel) this.panel.visible = on;
     if (this.palette) this.palette.visible = on || this.paletteHip !== null;
     if (this.folded) this.folded.visible = !on && this.mapHip !== null;
