@@ -5,13 +5,16 @@ import {
   INTERACTION_VIEWS,
   inputLabel,
   interactionHint,
+  interactionGrab,
   interactionKind,
   interactionSpec,
   interactionView,
   resolveInteraction,
+  vrInputs,
   type InteractionKind,
   type InteractionView,
 } from './interaction';
+import { DEFAULT_GRAB, rimHandles } from './grabHandles';
 import { bindKey, bindPad, defaultInputConfig } from './inputMap';
 
 /**
@@ -208,5 +211,41 @@ describe('the table itself', () => {
         expect(resolved.view).toBe(view);
       }
     }
+  });
+});
+
+/**
+ * **Die zweite Hälfte der Auskunft eines Dings**: nicht nur *ob* man es nimmt,
+ * sondern *wo* und *von wo aus* (`core/grabHandles.ts`). Sie hängt als Feld an
+ * derselben `InteractionSpec` — ein zweites System daneben hätte eine zweite
+ * Liste, und die liefe auseinander.
+ */
+describe('was ein Ding über das Greifen sagt', () => {
+  it('gibt ohne Angabe die Vorgabe her — also alles wie vorher', () => {
+    expect(interactionGrab(undefined)).toEqual(DEFAULT_GRAB);
+    expect(interactionGrab('grab')).toEqual(DEFAULT_GRAB);
+    expect(interactionGrab({ kind: 'grab' }).reach).toBe('all');
+  });
+
+  it('reicht Griffe und Reichweite durch', () => {
+    const spec = {
+      kind: 'grab',
+      grab: { handles: rimHandles({ x: 0.5, z: 0.5 }), reach: 'moore' },
+    };
+    expect(interactionGrab(spec as never).handles).toHaveLength(4);
+    expect(interactionGrab(spec as never).reach).toBe('moore');
+  });
+
+  /**
+   * `vrInputs` ist `resolveInteraction(…, 'vr').inputs` ohne den Hinweistext:
+   * Die Hand fragt das je Bild für jedes Ding in der Nähe, und eine
+   * Zeichenkette, die dabei entsteht und weggeworfen wird, merkt man in der
+   * Brille.
+   */
+  it('nennt die Geber der Brille ohne den Satz daneben', () => {
+    for (const kind of INTERACTION_KINDS) {
+      expect(vrInputs(kind)).toEqual(resolveInteraction(kind, 'vr').inputs);
+    }
+    expect(vrInputs({ kind: 'press', views: { vr: { inputs: ['grip'] } } })).toEqual(['grip']);
   });
 });

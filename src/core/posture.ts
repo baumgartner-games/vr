@@ -32,7 +32,7 @@
  * steht, schaut von oben auf eine Puppenstube herab — die Küche ist mit
  * Absicht klein, also muss in ihr der **Spieler** kleiner werden. Die dritte
  * Zahl in diesem Speicher ist genau das: die Augenhöhe, aus der man in der
- * Küche schaut (`kitchen`, voreingestellt 140 cm). Wie sie wirkt, steht bei
+ * Küche schaut (`kitchen`, voreingestellt 150 cm). Wie sie wirkt, steht bei
  * `kitchenEyeScale` — und sie wirkt **nur in der Brille und nur in der Küche**
  * (`worlds/test/zones/kitchen.ts`, `fitEyes`).
  *
@@ -75,16 +75,32 @@ export interface EyeHeights {
  * sind ungefähr das, was ein Bürostuhl ausmacht, und genau der Betrag, um den
  * die Welt vorher zu groß wurde.
  *
- * **140 cm in der Küche**, und die Zahl liegt mit Absicht in der Mitte: Aus
- * 120 cm (sitzende Augenhöhe) schaut man den Arbeitsplatten ins Gesicht, aus
- * 160 cm steht man wieder darüber. 140 cm ist beides nicht — bequem auf den
- * halben Meter Arbeitshöhe herunter und trotzdem hoch genug, dass ein Bücken
- * bis zum Boden noch ein Bücken ist und kein Hinlegen.
+ * **150 cm in der Küche**, und diese dritte Zahl ist die einzige der drei, die
+ * nicht gerechnet, sondern **aufgesetzt geprüft** wurde.
+ *
+ * Hergeleitet standen hier einmal 140: die Mitte zwischen den beiden Zahlen,
+ * die es schon gab — aus 120 cm (sitzende Augenhöhe) schaut man den
+ * Arbeitsplatten ins Gesicht, aus 160 cm steht man wieder darüber. Die
+ * Herleitung stimmt weiter, ihr Ergebnis stimmte nicht: **In der Brille
+ * fühlten sich 140 cm zu niedrig an** („dann auf 150cm default"). Eine Stunde
+ * Kochen mit aufgesetzter Brille weiß mehr über diese Zahl als die Mitte
+ * zwischen zwei anderen, und deshalb steht die Erfahrung hier und die
+ * Rechnung nur noch daneben.
+ *
+ * 150 cm lässt den halben Meter Arbeitshöhe immer noch bequem unter sich —
+ * man schaut auf die Platte und nicht auf ihre Kante —, nimmt der Küche aber
+ * das Geduckte, und ein Bücken bis zum Boden bleibt ein Bücken und wird kein
+ * Hinlegen.
+ *
+ * **Wer schon einmal am Regler gedreht hat, merkt von der Änderung nichts.**
+ * Diese Zahl ist der Ersatz für eine **fehlende** und überschreibt keine
+ * gespeicherte: Im Speicher steht, was der Spieler eingestellt hat, und
+ * `clampEyes` greift nur dort ein, wo nichts steht (mit Test).
  */
 export const DEFAULT_EYES: EyeHeights = {
   stand: Math.round(STANDING_EYE * 100),
   sit: 120,
-  kitchen: 140,
+  kitchen: 150,
 };
 
 /** Was eine Augenhöhe sein darf — ein Kind im Stehen bis zu jemandem sehr Großem. */

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { StationKind } from './kitchenCarry';
+import { dish, kitchenDeed, type StationKind } from './kitchenCarry';
 import {
   BELT_COLORS,
   BELT_EMPTY,
@@ -15,6 +15,7 @@ import {
   beltReach,
   beltReleases,
   beltStep,
+  beltTrashes,
   type BeltFrame,
   type BeltState,
 } from './kitchenBelt';
@@ -106,6 +107,8 @@ interface Cell {
   state: BeltState;
   to: string | null;
   pull?: string | null;
+  /** Ob diese Kachel ein Mülleimer ist: Was hier ankommt, wird nicht abgelegt. */
+  bin?: boolean;
 }
 
 /** Ein Band, das auf `to` schiebt — und `to: null` ist das Band ins Nichts. */
@@ -127,6 +130,19 @@ function shelf(id: string, loaded = false): Cell {
 }
 
 /**
+ * **Der Mülleimer** — eine Kachel, die nie belegt wird.
+ *
+ * Genau so führt die Zone ihn (`kitchen.runBelts`): Ein Eimer meldet `loaded`
+ * nie, weil auf ihm nie etwas liegt, und was bei ihm ankommt, wirft sie weg,
+ * statt es abzulegen (`kitchen.dumpInBin`). Für die Rechnung hier ist er damit
+ * eine Ablage, die in jedem Bild wieder frei ist — und das ist der ganze
+ * Grund, warum sich vor ihm nichts staut.
+ */
+function trashBin(id: string): Cell {
+  return { id, loaded: false, state: BELT_EMPTY, to: null, bin: true };
+}
+
+/**
  * **Die Zone, so weit ein Test sie braucht** — sie wendet ein Bild in genau der
  * Reihenfolge an, in der `kitchen.ts` es tun muss: **erst die Übergaben, dann
  * die Zustände**. Andersherum setzte das Umlegen (`kitchen.settle` schreibt
@@ -136,6 +152,8 @@ class Run {
   readonly cells = new Map<string, Cell>();
   /** Die verstrichene Zeit, damit ein Test „nach zwei Sekunden" prüfen kann. */
   clock = 0;
+  /** Was in einem Mülleimer gelandet ist — je Ankunft die Kachel, von der es kam. */
+  readonly dumped: string[] = [];
 
   constructor(...cells: Cell[]) {
     for (const cell of cells) this.cells.set(cell.id, cell);
@@ -153,9 +171,13 @@ class Run {
     for (const move of frame.moves) {
       // Die Probe darauf, dass die Reihenfolge aufgeht: Wer hier auf eine
       // belegte Kachel legte, verlöre, was darauf liegt.
-      expect(this.at(move.to).loaded).toBe(false);
+      const to = this.at(move.to);
+      expect(to.loaded).toBe(false);
       this.at(move.from).loaded = false;
-      this.at(move.to).loaded = true;
+      // **Im Mülleimer wird nichts abgelegt**: Es ist weg, und die Kachel
+      // bleibt leer — genau das tut die Zone (`kitchen.dumpInBin`).
+      if (to.bin) this.dumped.push(move.from);
+      else to.loaded = true;
     }
     for (const [id, state] of frame.states) this.at(id).state = state;
     this.clock += dt;
@@ -653,12 +675,15 @@ describe('beltDelivers / beltReleases — was die Nachbarkachel darf', () => {
     'belt',
   ];
 
-  it('liefert überall ab außer in den Mülleimer, über die Theke und auf einen Stapel', () => {
+  it('liefert überall ab außer über die Theke und auf einen Stapel', () => {
     const takes = kinds.filter((kind) => beltDelivers(kind));
-    expect(takes).toEqual(['top', 'box', 'board', 'stove', 'rack', 'sink', 'table', 'belt']);
-    // In den Mülleimer wird geworfen, über die Theke wird serviert — beides ist
-    // ein Handgriff und kein Zufall.
-    expect(beltDelivers('bin')).toBe(false);
+    expect(takes).toEqual(['top', 'bin', 'box', 'board', 'stove', 'rack', 'sink', 'table', 'belt']);
+    // **In den Mülleimer liefert ein Band ab**, und was dort ankommt, ist weg
+    // (`beltTrashes`). Ein Band, das auf einen Eimer zeigt und nicht
+    // abliefert, staute sich an ihm — und gebaut wird so ein Band mit Absicht.
+    expect(beltDelivers('bin')).toBe(true);
+    // Über die Theke wird dagegen serviert, und das ist ein Handgriff und kein
+    // Zufall.
     expect(beltDelivers('serve')).toBe(false);
     // Und auf einen **Stapel** liefert kein Band ab: Dort liest die Regel nur
     // die Zahl (`kitchenCarry.Station.stack`), also läge das Abgelieferte
@@ -674,10 +699,46 @@ describe('beltDelivers / beltReleases — was die Nachbarkachel darf', () => {
     // seine Halterung.
     expect(beltReleases('stove')).toBe(false);
     expect(beltReleases('rack')).toBe(false);
-    // Und was man nicht hinschieben darf, zieht man auch nicht heraus.
+    // **Und aus dem Mülleimer holt kein Band etwas heraus** — er ist der eine
+    // Nachbar, bei dem die Frage nicht spiegelbildlich ist: hinein ja, heraus
+    // nie. Ein Zugband, das den Müll wieder ausräumt, wäre die zweite Hälfte
+    // einer Endlosschleife.
+    expect(beltDelivers('bin')).toBe(true);
+    expect(beltReleases('bin')).toBe(false);
+    // Und sonst gilt: was man nicht hinschieben darf, zieht man auch nicht
+    // heraus.
     for (const kind of kinds) {
       if (!beltDelivers(kind)) expect(beltReleases(kind)).toBe(false);
     }
+  });
+
+  /**
+   * **Was der Mülleimer vom Band annimmt** (`beltTrashes`).
+   *
+   * Gefragt wird die **Tat** und nicht die Zutat: Dieselbe Regel, vor der ein
+   * Spieler mit vollen Händen steht, entscheidet auch, was ein Band loswird
+   * (`kitchenCarry.kitchenDeed`). Deshalb steht hier keine zweite Liste
+   * essbarer Dinge — es steht hier, dass die erste gilt.
+   */
+  it('wirft weg, was auch aus der Hand in den Müll ginge — und sonst nichts', () => {
+    const bin = { kind: 'bin' } as const;
+    // Essen geht ganz hinein.
+    expect(beltTrashes(kitchenDeed(dish('bun'), bin))).toBe(true);
+    expect(beltTrashes(kitchenDeed(dish('patty-burnt'), bin))).toBe(true);
+    // Ein Teller mit Belag wird abgeräumt: Der Inhalt geht hinein, der Träger
+    // bleibt — auch das ist Wegwerfen und zählt deshalb mit.
+    const loaded = kitchenDeed(dish('plate', ['bun']), bin);
+    expect(loaded.do).toBe('scrape');
+    expect(beltTrashes(loaded)).toBe(true);
+    // Gerät und leeres Geschirr gehören nicht in den Müll — ein Band davor
+    // fährt gar nicht erst los (`kitchen.beltTarget`).
+    for (const item of ['pot', 'pan', 'plate', 'extinguisher'] as const) {
+      const deed = kitchenDeed(dish(item), bin);
+      expect(deed.do).toBe('refuse');
+      expect(beltTrashes(deed)).toBe(false);
+    }
+    // Und ein Band ohne Ladung hat nichts wegzuwerfen.
+    expect(beltTrashes(kitchenDeed(null, bin))).toBe(false);
   });
 
   it('lässt liegen, was gerade unter dem Messer liegt', () => {
@@ -689,6 +750,61 @@ describe('beltDelivers / beltReleases — was die Nachbarkachel darf', () => {
     // Auf einer Ablage läuft nie eine Uhr — und wenn doch eine gemeldet würde,
     // gälte dieselbe Zurückhaltung.
     expect(beltReleases('top', true)).toBe(false);
+  });
+});
+
+/**
+ * **Das Band, das in den Mülleimer schiebt** — und was dort ankommt, ist weg.
+ *
+ * Bestellt hat es der Nutzer so: „Wenn ein Förderband etwas zum Mülleimer
+ * bewegen würde, soll das Objekt … auch gelöscht werden, als wenn man es in
+ * den Mülleimer werfen würde." Für die Rechnung hier ist der Eimer deshalb
+ * **kein Sonderfall**, sondern eine Kachel, die nie belegt wird — die Zone
+ * meldet sie in jedem Bild wieder leer, weil sie das Angelieferte wegwirft
+ * statt es abzulegen (`trashBin`, `kitchen.dumpInBin`).
+ *
+ * Und genau daran hängt die Zusage, die ein Test hier prüfen kann und im
+ * Headset eine Viertelstunde kostet: **Vor einem Mülleimer staut sich
+ * nichts.** Eine volle Reihe Bänder rückt so lange nach, wie noch etwas
+ * daraufliegt.
+ */
+describe('advanceBelts — das Band in den Mülleimer', () => {
+  it('liefert ab, und die Kachel davor wird leer', () => {
+    const run = new Run(belt('band', 'eimer'), trashBin('eimer'));
+    const frames = run.run(BELT_SECONDS * 2);
+    expect(handOvers(frames)).toEqual(['band>eimer']);
+    expect(run.dumped).toEqual(['band']);
+    // Weder auf dem Band noch im Eimer liegt danach etwas.
+    expect(run.holds).toBe('');
+    expect(run.at('band').state).toBe(BELT_EMPTY);
+  });
+
+  it('nimmt mehrere kurz hintereinander an, ohne sich zu stauen', () => {
+    // Drei volle Bänder in einer Reihe auf den Eimer zu. Weil er nie belegt
+    // wird, rückt die ganze Reihe nach: alle zwei Sekunden eines, und nach
+    // sechs Sekunden ist die Reihe leer.
+    const run = new Run(
+      belt('drei', 'zwei'),
+      belt('zwei', 'eins'),
+      belt('eins', 'eimer'),
+      trashBin('eimer'),
+    );
+    run.run(BELT_SECONDS * 3 + 0.5);
+    expect(run.dumped.length).toBe(3);
+    // Weggeworfen wird immer von derselben Kachel — der letzten vor dem Eimer.
+    expect(new Set(run.dumped)).toEqual(new Set(['eins']));
+    expect(run.holds).toBe('');
+  });
+
+  it('wirft auch das weg, was ein Zugband erst heranholt', () => {
+    // Die beiden Sorten Band zusammen: Das Zugband holt sich, was auf der
+    // Arbeitsplatte liegt, und schiebt es in den Eimer. Zwei Fahrten, ein
+    // Ergebnis — und keine davon braucht hier eine eigene Zeile.
+    const run = new Run(shelf('platte', true), puller('zug', 'eimer', 'platte'), trashBin('eimer'));
+    const frames = run.run(BELT_SECONDS * 3);
+    expect(handOvers(frames)).toEqual(['platte>zug', 'zug>eimer']);
+    expect(run.dumped).toEqual(['zug']);
+    expect(run.holds).toBe('');
   });
 });
 

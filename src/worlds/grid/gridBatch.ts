@@ -68,6 +68,41 @@ export function joinsBatch(one: BatchCandidate, knee = GHOST_KNEE): boolean {
 }
 
 /**
+ * **Und darf dieser Quader in ein Bündel, das nur aus den Augen gilt?**
+ *
+ * Der Einwand gegen das Bündeln — ein Bündel hat ein Material, das Ghosting
+ * braucht viele — ist in Runde zwei noch einmal nachgelesen worden, und zwar in
+ * `GridWorld.stepWallGhosts`. Dort steht die erste Zeile:
+ *
+ * ```ts
+ * if (!ctx.topDown) { this.clearWallGhosts(); return; }
+ * ```
+ *
+ * **Geghostet wird ausschließlich von oben.** In der Brille steht man *in* der
+ * Welt; eine Wand, die dort durchsichtig würde, weil der Kopf zufällig
+ * dahintersteht, wäre ein Fehler und kein Hilfsmittel. Der Einwand gilt also
+ * nicht für alle Zeiten, sondern für **eine Ansicht** — und ausgerechnet für
+ * die, die auf keiner Brille läuft.
+ *
+ * Also darf auch eine Wand in ein Bündel, solange man dafür sorgt, dass von
+ * oben wieder die einzelnen Quader dastehen. Genau das macht `GridWorld`: Aus
+ * den Augen ist das Bündel zu sehen und die Quader sind unsichtbar, von oben
+ * genau andersherum. Gemessen aus der Küche mit Blick auf die Gokart-Strecke
+ * waren die Wände **156 von 414** Zeichenaufrufen im Hauptdurchgang und **90
+ * von 243** im Schattendurchgang — zusammen 37 % eines Bildes, und in der
+ * Brille das Doppelte davon, weil der Hauptdurchgang je Auge einmal läuft.
+ *
+ * Die beiden Ausnahmen bleiben dieselben wie oben und aus denselben Gründen:
+ * **Portalflächen** und **Türblätter**. Und die beiden Listen bleiben
+ * ausdrücklich komplementär — was `joinsBatch` nimmt, lässt diese Frage liegen
+ * und umgekehrt; ein Quader steckt nie in beiden Bündeln.
+ */
+export function joinsGhostBatch(one: BatchCandidate, knee = GHOST_KNEE): boolean {
+  if (one.portal === true || one.door === true) return false;
+  return blocksView(one, knee);
+}
+
+/**
  * **Der Schlüssel, unter dem zwei Quader ins selbe Bündel gehören**: gleiches
  * Material **und** gleiche Etage.
  *

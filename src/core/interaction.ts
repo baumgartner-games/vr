@@ -1,4 +1,5 @@
 import { padSlotLabel, type PadKind, type PadSlot } from './gamepadReport';
+import { grabSpec, type GrabLike, type GrabSpec } from './grabHandles';
 import { defaultInputConfig, keyLabel, keysFor, padSlotsFor, type InputConfig } from './inputMap';
 
 /**
@@ -178,6 +179,21 @@ export interface InteractionOverride {
 export interface InteractionSpec {
   readonly kind: InteractionKind;
   readonly views?: Readonly<Partial<Record<InteractionView, InteractionOverride>>>;
+  /**
+   * **Und wie es gegriffen werden will** (`core/grabHandles.ts`): an welchen
+   * Stellen die Hand andockt, und wie weit dafür gegriffen werden darf.
+   *
+   * Es hängt hier und nicht in einer eigenen Anmeldung daneben, und das ist
+   * die Entscheidung dieses Auftrags: Ein Ding sagt an **einer** Stelle, was
+   * es will — `kind` sagt *ob* man es nimmt, `grab` sagt *wo* und *von wo
+   * aus*. Ein zweites System neben diesem hätte zwangsläufig eine zweite
+   * Liste, und die liefe nach der dritten Änderung auseinander.
+   *
+   * Freiwillig, und wer nichts angibt, bekommt die Vorgabe
+   * (`grabHandles.DEFAULT_GRAB`): keine Griffe, alle drei Reichweiten — also
+   * genau das Verhalten, das jedes greifbare Ding vorher hatte.
+   */
+  readonly grab?: GrabLike;
 }
 
 /**
@@ -195,6 +211,33 @@ export function interactionSpec(like: InteractionLike | null | undefined): Inter
 /** Welche Absicht ein Ding hat — die Kurzform für alles, was nur den Typ will. */
 export function interactionKind(like: InteractionLike | null | undefined): InteractionKind {
   return interactionSpec(like).kind;
+}
+
+/**
+ * **Wie ein Ding gegriffen werden will** — die Kurzform zu `InteractionSpec.grab`.
+ *
+ * Steht nichts da, gilt die Vorgabe aus `core/grabHandles.ts`. Damit kommt
+ * jede Stelle, die nach Griffen oder Reichweite fragt, mit einer Zeile aus und
+ * muss den Fall „gar nichts angegeben" nicht selbst kennen.
+ */
+export function interactionGrab(like: InteractionLike | null | undefined): GrabSpec {
+  return grabSpec(interactionSpec(like).grab);
+}
+
+/**
+ * **Womit man es in der Brille auslöst** — die Geberliste der Ansicht `vr`,
+ * ohne den Hinweistext daneben.
+ *
+ * Es ist `resolveInteraction(like, 'vr').inputs` und sonst nichts, nur ohne
+ * den Satz: Die Hand fragt das je Bild für **jedes** angemeldete Ding in der
+ * Nähe (`core/handUse.ts`, `PortalWorld.useByHand`), und eine Zeichenkette,
+ * die dabei entsteht und im selben Atemzug weggeworfen wird, ist die Sorte
+ * Arbeit, die man in der Brille merkt.
+ */
+export function vrInputs(like: InteractionLike | null | undefined): readonly InteractionInput[] {
+  const spec = interactionSpec(like);
+  const kind = INTERACTION_KINDS.includes(spec.kind) ? spec.kind : DEFAULT_INTERACTION;
+  return spec.views?.vr?.inputs ?? INTERACTION_DEFAULTS[kind].vr.inputs;
 }
 
 /**

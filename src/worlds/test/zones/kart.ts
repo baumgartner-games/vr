@@ -26,7 +26,7 @@ import {
   trimSpots,
   type TrimSpot,
 } from '../../kart/kartTrack';
-import { shortestAngle, stepViewYaw } from '../../kart/kartView';
+import { shortestAngle, showsDashboard, stepViewYaw } from '../../kart/kartView';
 import { TextPlane } from '../../../ui/TextPlane';
 import { LAYER_HUD } from '../../../ui/ScoreHud';
 import type { MenuEntry } from '../../../ui/menu';
@@ -212,7 +212,14 @@ export class KartZone implements TestZone {
     if (this.driving) this.updateDriving(dt, ctx, this.driving);
 
     ctx.rig.getHeadPosition(_head);
-    for (const kart of this.karts) kart.faceHover(_head);
+    for (const kart of this.karts) {
+      kart.faceHover(_head);
+      // **Das Klemmbrett nur in Lesenähe** (`kartView.showsDashboard`): Zwei
+      // geparkte Karts am anderen Ende des Geländes trugen bis hierher ihr
+      // Armaturenbrett durchs Bild — sechs Zeichenaufrufe für etwas, das aus
+      // sechsundfünfzig Metern kein Pixel hoch ist.
+      kart.setDashboard(showsDashboard(kart.position.distanceTo(_head), this.driving === kart));
+    }
 
     // Viermal je Sekunde reicht für eine Tafel mit Rundenzeiten.
     this.boardTick += dt;

@@ -67,7 +67,8 @@
  * hingehört — im Müll landet er nie, beim Gast immer.
  */
 
-import type { InteractionKind } from '../../../core/interaction';
+import type { GrabLike } from '../../../core/grabHandles';
+import type { InteractionKind, InteractionSpec } from '../../../core/interaction';
 import {
   ITEM_LABELS,
   combine,
@@ -684,6 +685,70 @@ export function meansContent(deed: KitchenDeed): boolean {
 export function kitchenInteraction(deed: KitchenDeed | null | undefined): InteractionKind {
   if (!deed || deed.do === 'nothing') return 'none';
   return deed.do === 'take' ? 'grab' : 'press';
+}
+
+/**
+ * **Ob diese Tat etwas aus der Hand gibt** — und damit, ob in der Brille die
+ * **Greif-Taste** zuständig ist statt der bloßen Berührung.
+ *
+ * Das ist der gemeldete Fehler, als Regel geschrieben: Bisher löste eine
+ * Arbeitsplatte aus, sobald die Hand sie **berührte** — wer mit dem Topf daran
+ * vorbeikam, hatte ihn abgestellt, ohne etwas gedrückt zu haben. Richtig ist:
+ * in der Nähe sein **und** die Greif-Taste loslassen (oder erneut drücken,
+ * wenn man nur getippt hatte). Sechs Taten geben etwas aus der Hand, und für
+ * die sechs gilt das:
+ *
+ * `place`, `work` (ablegen und gleich anfangen), `combine` (auflegen oder
+ * aufnehmen), `trash`, `scrape` (der Belag geht, der Träger bleibt) und
+ * `serve`.
+ *
+ * **`douse` gehört ausdrücklich nicht dazu.** Das Feuer zu löschen nimmt der
+ * Hand nichts weg — der Löscher bleibt darin. Wer mit ihm an den brennenden
+ * Herd tritt, soll ihn auch weiter durch Hinlangen löschen können; das ist
+ * eine Bedienung und kein Ablegen.
+ *
+ * **Und von oben ändert sich dadurch nichts**: `A` tut, was `A` immer getan
+ * hat. Was hier entsteht, ist eine Ausnahme **nur für die Ansicht `vr`**
+ * (`core/interaction.InteractionSpec.views`) — genau der Fall, für den es sie
+ * gibt.
+ */
+export function kitchenGivesUp(deed: KitchenDeed | null | undefined): boolean {
+  if (!deed) return false;
+  switch (deed.do) {
+    case 'place':
+    case 'work':
+    case 'combine':
+    case 'trash':
+    case 'scrape':
+    case 'serve':
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * **Die ganze Auskunft einer Station** — Absicht, Ausnahme in der Brille und
+ * die Griffe dessen, was dabei in die Hand geht.
+ *
+ * Eine Zeile statt dreier Felder an drei Stellen: Die Zone meldet sie an
+ * (`kitchen.refreshStations`), die Hand liest sie
+ * (`PortalWorld.useByHand`), und ein Test rechnet sie nach, ohne dass eine
+ * Brille dafür aufgesetzt werden müsste.
+ *
+ * @param grab was das gemeinte Ding über das Greifen sagt
+ *             (`worlds/test/zones/kitchenGrab.ts`) — Griffe und Reichweite
+ */
+export function kitchenInteractionSpec(
+  deed: KitchenDeed | null | undefined,
+  grab?: GrabLike,
+): InteractionSpec {
+  const kind = kitchenInteraction(deed);
+  if (!kitchenGivesUp(deed)) return { kind, grab };
+  // **In der Brille die Greif-Taste, und sie wird gehalten.** Gedrückt wird
+  // beim Zugreifen, abgelegt beim Loslassen — dieselbe Taste, dieselbe Geste,
+  // und dazwischen kann man mit dem Topf durch die halbe Küche laufen.
+  return { kind, views: { vr: { inputs: ['grip'], press: 'hold' } }, grab };
 }
 
 /**

@@ -1,14 +1,21 @@
 import {
   BUILD_AHEAD,
+  EMPTY_LOAD,
   buildFree,
+  goesHomeOnEdit,
+  holdForRim,
   overlaps,
+  ridesAlong,
   tileAhead,
   tilesOf,
   turnAhead,
   whyNotBuilt,
+  whyNotLifted,
   type BuildSpot,
 } from './kitchenBuild';
-import { beltStep } from './kitchenBelt';
+import { BELT_EMPTY, advanceBelts, beltStep } from './kitchenBelt';
+import { FRY_SECONDS, advanceStove, onStove } from './kitchenClock';
+import type { Turn } from './kitchenPlan';
 
 /**
  * **Der Umbau, nachgerechnet** (`kitchenBuild.ts`).
@@ -151,5 +158,192 @@ describe('ob hier Platz ist', () => {
     expect(whyNotBuilt(spot(0, 11), taken, BOUNDS)).toBe('Das steht dann außerhalb der Küche');
     // Die letzte Kachel gehört noch dazu.
     expect(buildFree(spot(23, 10), taken, BOUNDS)).toBe(true);
+  });
+});
+
+/**
+ * **Das Umstellen mit Inhalt, nachgerechnet.**
+ *
+ * Der Auftrag in einem Satz: „Küchen Elemente sollen übrigens auch umgestellt
+ * werden können bei dem Küche umbauen Modus, wenn zb eine Pfanne auf dem Herd
+ * steht. Dann wird dieses Element so mit Pfanne darauf bewegt." Hier stehen
+ * die Fälle, die man sonst erst im Betrieb merkt — mehrere Dinge, ein
+ * arbeitendes Möbel, ein Band ohne Nachbarn, eine belegte Kachel.
+ */
+describe('was beim Aufheben mitfährt', () => {
+  it('lässt ein Möbel mit etwas darauf jetzt aufheben — das war der Auftrag', () => {
+    expect(whyNotLifted('Herd', { things: 1, stack: 0, burning: false })).toBeNull();
+    expect(whyNotLifted('Ausgabe', { things: 0, stack: 4, burning: false })).toBeNull();
+    expect(whyNotLifted('Küchenzeile', EMPTY_LOAD)).toBeNull();
+  });
+
+  /**
+   * **Ein Möbel mit mehreren Dingen darauf** — die Teller auf der Ausgabe, der
+   * Stapel auf dem Abtropfbrett. Es zählt beides, und zwar getrennt: Auf der
+   * Fläche liegt ein Gericht (`Station.on`), daneben steht ein Stapel
+   * (`Station.stack`), und wer nur das eine mitnähme, ließe das andere in der
+   * Luft stehen.
+   */
+  it('nimmt sowohl das Liegende als auch den Stapel mit', () => {
+    expect(ridesAlong(EMPTY_LOAD)).toBe(false);
+    expect(ridesAlong({ things: 1, stack: 0, burning: false })).toBe(true);
+    expect(ridesAlong({ things: 0, stack: 4, burning: false })).toBe(true);
+    expect(ridesAlong({ things: 1, stack: 4, burning: false })).toBe(true);
+  });
+
+  /**
+   * **Das Feuer ist der eine Grund, der bleibt.** Gelöscht wird mit dem
+   * Feuerlöscher in der Hand (`kitchenSpray.sprayOn`), und wer den Herd trägt,
+   * hat keine Hand mehr frei — ein brennender Herd vor dem Bauch ließe sich
+   * mit nichts mehr ausmachen.
+   */
+  it('lässt einen brennenden Herd stehen und sagt, warum', () => {
+    const why = whyNotLifted('Herd', { things: 1, stack: 0, burning: true });
+    expect(why).toBe('Herd brennt — erst löschen');
+    // Auch leer nicht: Es brennt der Herd und nicht die Pfanne.
+    expect(whyNotLifted('Herd', { things: 0, stack: 0, burning: true })).not.toBeNull();
+  });
+
+  /**
+   * **Ein arbeitendes Möbel hält an, es bricht nicht ab.** Getragen wird die
+   * Uhr gar nicht erst gefüttert (`kitchen.cook` überspringt, was in den
+   * Händen liegt), und beim Absetzen läuft sie dort weiter, wo sie stand — es
+   * gibt absichtlich kein `settle` beim Absetzen (`kitchen.dropPiece`).
+   *
+   * Die Gegenprobe steht daneben: Ein Neuanfang fiele auf null zurück, und
+   * genau das wäre die Strafe fürs Umstellen, die hier niemand will.
+   */
+  it('hält die Uhr des Herds an, statt sie zurückzusetzen', () => {
+    const hot = advanceStove(onStove('patty'), 1.5).state;
+    expect(hot.time).toBeCloseTo(1.5, 6);
+    // Drei Bilder lang getragen: kein Aufruf, also kein Fortschritt — und kein
+    // Verlust. Auch kein Feuer, das in den Händen ausbräche.
+    expect(hot.fire).toBe(false);
+    // Abgesetzt, und es geht weiter, wo es stand.
+    expect(advanceStove(hot, 0.5).state.time).toBeCloseTo(2, 6);
+    expect(FRY_SECONDS).toBeGreaterThan(2);
+    // Und so sähe der Abbruch aus, den es hier nicht gibt.
+    expect(onStove('patty').time).toBe(0);
+  });
+
+  /**
+   * **Ein Band, dessen Nachbar wegzieht**, schiebt ins Leere — und das heißt
+   * hier: Es schiebt gar nicht. Die Zone meldet ein getragenes Möbel erst gar
+   * nicht an (`kitchen.runBelts` überspringt `home.held`), also steht das Ziel
+   * nicht auf dem Brett, und `advanceBelts` streicht es (`to = null`). Das
+   * Ding bleibt liegen, wo es liegt.
+   */
+  it('lässt ein Band stehen, dessen Ziel gerade getragen wird', () => {
+    const before = advanceBelts(
+      [
+        { id: 'belt', loaded: true, state: BELT_EMPTY, to: 'ablage', pull: null },
+        { id: 'ablage', loaded: false, state: BELT_EMPTY, to: null, pull: null },
+      ],
+      0.2,
+    );
+    expect(before.states.get('belt')?.moving).toBe(true);
+
+    // Dieselbe Küche, nur ist die Ablage jetzt in den Händen — sie fehlt in
+    // der Liste, und das Band fährt nicht los.
+    const after = advanceBelts(
+      [{ id: 'belt', loaded: true, state: BELT_EMPTY, to: 'ablage', pull: null }],
+      0.2,
+    );
+    expect(after.moves).toEqual([]);
+    // Weder eine Fahrt noch eine gezeichnete Bewegung: Das Ding liegt still.
+    expect(after.states.get('belt')?.moving ?? false).toBe(false);
+    expect(after.carry.size).toBe(0);
+  });
+
+  /**
+   * **Eine belegte Kachel bleibt belegt**, ob das getragene Möbel nun voll ist
+   * oder leer: Was mitfährt, ändert die Grundfläche nicht. Und die eigene
+   * Kachel ist frei, solange man trägt — das Möbel steht nicht in `taken`.
+   */
+  it('prüft den Platz unverändert, auch wenn etwas mitfährt', () => {
+    const bounds = { w: 24, d: 11 };
+    const here: BuildSpot = { x: 3, z: 3, w: 1, d: 1 };
+    const nachbar: BuildSpot = { x: 4, z: 3, w: 1, d: 1 };
+    // Der Nachbar steht, die eigene Kachel ist beim Tragen leer.
+    expect(buildFree(here, [nachbar], bounds)).toBe(true);
+    expect(buildFree(nachbar, [nachbar], bounds)).toBe(false);
+    expect(whyNotBuilt(nachbar, [nachbar], bounds)).toBe('Hier steht schon etwas');
+    expect(whyNotBuilt({ x: -1, z: 3, w: 1, d: 1 }, [], bounds)).toBe(
+      'Das steht dann außerhalb der Küche',
+    );
+  });
+});
+
+/**
+ * **An welcher Kante man zufasst, so liegt es in den Händen** (`holdForRim`).
+ *
+ * Die Regel ist eine einzige, und der Test rechnet sie nach, statt die vier
+ * Zahlen abzuschreiben: Die gegriffene Kante muss nach dem Absetzen zur Figur
+ * zeigen.
+ */
+describe('wie ein Möbel in den Händen liegt', () => {
+  /** Wohin die Kante `id` zeigt, wenn das Möbel um `turn` Viertel gedreht dasteht. */
+  function edgeAfter(id: string, turn: Turn): { x: number; z: number } {
+    const base: Record<string, { x: number; z: number }> = {
+      '+x': { x: 1, z: 0 },
+      '-x': { x: -1, z: 0 },
+      '+z': { x: 0, z: 1 },
+      '-z': { x: 0, z: -1 },
+    };
+    const angle = (turn * Math.PI) / 2;
+    const edge = base[id];
+    return {
+      x: edge.x * Math.cos(angle) + edge.z * Math.sin(angle),
+      z: -edge.x * Math.sin(angle) + edge.z * Math.cos(angle),
+    };
+  }
+
+  it('lässt die gegriffene Kante der Figur zugewandt', () => {
+    // Die Figur schaut nach Norden (-z), das Möbel steht also in `turn = hold`
+    // (`kitchen.facePiece`): Die gegriffene Kante muss nach Süden zeigen.
+    for (const id of ['+x', '-x', '+z', '-z']) {
+      const towards = edgeAfter(id, holdForRim(id));
+      expect(towards.x).toBeCloseTo(0, 6);
+      expect(towards.z).toBeCloseTo(1, 6);
+    }
+  });
+
+  it('bleibt ohne Griff bei „Vorderseite nach vorn" — wie von oben immer', () => {
+    expect(holdForRim(null)).toBe(0);
+    expect(holdForRim(undefined)).toBe(0);
+    // Und der Griff hinten am Möbel ist genau dieser Fall.
+    expect(holdForRim('+z')).toBe(0);
+    // Ein Name, den es nicht gibt, ändert nichts — keine Ausnahme, keine
+    // Verdrehung.
+    expect(holdForRim('boden')).toBe(0);
+  });
+
+  it('nennt die vier Viertel, wie sie in den Händen heißen', () => {
+    // `HOLD_LABELS` in `kitchen.ts`: 0 nach vorn, 1 nach links, 2 zu dir,
+    // 3 nach rechts.
+    expect(holdForRim('-x')).toBe(1);
+    expect(holdForRim('-z')).toBe(2);
+    expect(holdForRim('+x')).toBe(3);
+  });
+});
+
+describe('was beim Anschalten des Umbaus aus der Hand wird', () => {
+  /**
+   * Der Fehler, der hier festgenagelt wird, sah man nicht beim Anschalten,
+   * sondern zehn Minuten später am leeren Herd: Der Umbau warf das Getragene
+   * weg, und Pfanne, Topf und Feuerlöscher gibt es genau einmal.
+   */
+  test('was einen Platz hat, geht dorthin zurück', () => {
+    expect(goesHomeOnEdit({ key: 'stove' }, false)).toBe(true);
+  });
+
+  test('was keinen hat, wird weggeworfen — das Brötchen kommt aus der Ausgabe', () => {
+    expect(goesHomeOnEdit(null, false)).toBe(false);
+    expect(goesHomeOnEdit(undefined, false)).toBe(false);
+  });
+
+  test('ein belegter Platz nimmt nichts mehr an — sonst würden aus einem zwei', () => {
+    // Ein Zugband hat inzwischen etwas auf den Herd geschoben.
+    expect(goesHomeOnEdit({ key: 'stove' }, true)).toBe(false);
   });
 });
