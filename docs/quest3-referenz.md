@@ -25,6 +25,11 @@ Gemessen wird mit `tools/fps-bench.mjs` (`npm run fps`). Die Messung lief am
 >   (`GridWorld.freezeBatched`, `WorldEditor.showMini`):
 >   `scene.updateMatrixWorld()` 1,09 ms → 0,25 ms.
 >
+> Gemessen haben die beiden zusammen **−24 % Bild-CPU** in der Testwelt (am
+> Startplatz 3,80 → 2,90 ms JavaScript je Bild), im Hub unverändert 0,30 ms.
+> Für 60 fps reicht das **nicht** — siehe
+> [_Was noch offen ist_](#was-noch-offen-ist).
+>
 > Die Tabellen unten bleiben trotzdem stehen, und zwar als **Ausgangslage**: Sie
 > sind die Messung, aus der die beiden Eingriffe folgten. Wer die Wirkung sehen
 > will, misst neu — `npm run fps`, zwei Befehle am Ende dieses Dokuments.
@@ -213,6 +218,35 @@ Ein Absatz, ohne den die Tabellen oben gefährlich wären.
 - **Ein Standort ist nicht die Welt.** Gemessen wird am Startpunkt jeder Welt,
   aus den Augen, ohne Bewegung. Wer in der Testwelt in die Küche läuft, sieht
   andere Zahlen.
+
+## Was noch offen ist
+
+Die Ursachenrechnung hinter diesem Abschnitt steht ausführlich im
+Untersuchungsbericht zu diesem Auftrag; hier die Posten, an denen die nächste
+Runde ansetzt, in der Reihenfolge, in der sie sich lohnen.
+
+**Erledigt** — beide oben im Kasten, zusammen gemessen −24 % Bild-CPU:
+
+| | | gemessen |
+| --- | --- | --- |
+| **M1** | Der Spiegel im Kleiderschrank (`worlds/shared/Mirror.ts`) | Bild bis 5 m statt bis 12 m; dort, wo er lief: 1,8–2,0 ms und 188–213 Zeichenaufrufe je Bild → 0 |
+| **M2** | 2764 unsichtbare Objekte aus dem Matrizenlauf (`GridWorld.freezeBatched`, `WorldEditor.showMini`) | `scene.updateMatrixWorld()` 1,10 → 0,74 ms je Aufruf, dreimal je Bild |
+
+**Offen**, und der erste Posten ist der entscheidende:
+
+| | | Schätzung Quest | Aufwand · Risiko |
+| --- | --- | --- | --- |
+| **M3** | **Küchenmöbel verschmelzen oder instanzieren** (`kitchenProps.ts`, `kitchenBelt.ts`). Ziel: von 607 auf unter 200 Zeichenaufrufe. Ein Tresen besteht aus 29 Meshes, ein Band aus 30, und es stehen 9 bzw. 10 davon herum. Zu prüfen ist dabei, was einzeln greifbar bleiben muss (`kitchenGrab.ts`, `kitchenCarry.ts`) — diese Teile bleiben eigene Meshes. | **−8 bis −14 ms** | groß · mittel |
+| **M4** | Die **Schattenkarte** nur neu bestellen, wenn ihr Anker springt (`core/GraphicsQuality.ts`). `aimSun` rastet den Kasten ohnehin auf ein 2-m-Gitter; solange man in derselben Zelle steht, ist die vorhandene Karte richtig. Spart 118 Zeichenaufrufe und einen Szenendurchlauf in fast jedem Bild. | −3 bis −6 ms | klein · klein |
+| **M5** | Den **Sekundendurchlauf** entschärfen (`core/GraphicsQuality.ts`, `RESCAN`). Er läuft einmal je Sekunde über alle 6000 Objekte — das ist der Ruckler hinter „29 ↔ 32 fps", nicht die Bildrate selbst. | gegen das Ruckeln | klein · klein |
+| **M6** | **Multiview** prüfen: Ob `OVR_multiview2` auf der Quest 3 da ist und three es nutzt, ließ sich hier nicht messen — der Container hat keine Brille. Wenn ja, halbiert das die Absetzkosten aller Zeichenaufrufe. Die größte verbleibende Schraube, falls M3 und M4 nicht reichen. | — | mittel |
+| **M7** | **Auf der Quest nachmessen.** Alle Zahlen dieses Dokuments sind Verhältnisse aus einem Software-Rasterizer. Die eine Messung, die zählt, steht noch aus: dieselbe Runde durch die Testwelt, vorher und nachher, mit der Bildratenanzeige aus dem Grafikmenü. | — | klein |
+
+**Die ehrliche Hochrechnung für die Brille**: Aus den 33 ms von heute werden mit
+M1 und M2 geschätzt **22–25 ms, also 40–45 fps** — spürbar besser, aber noch
+nicht das Ziel. Die 60 fps hängen an **M3**: Es ist der einzige offene Posten,
+der die 607 Zeichenaufrufe anfasst, und die zählen in der Brille doppelt, weil
+jedes Auge sie einzeln bezahlt.
 
 ## Wie man die Messung wiederholt
 
