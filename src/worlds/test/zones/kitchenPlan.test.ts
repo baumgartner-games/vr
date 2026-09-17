@@ -9,13 +9,17 @@ import { TOP_DOWN_TILT } from '../../../core/topDownPose';
 import { KITCHEN } from '../layout';
 import { PLATE_HEIGHT, stackHeight } from './kitchenProps';
 import type { KitchenItem, StationKind } from './kitchenCarry';
+import { beltGrabs, beltKind, beltReach, beltReleases, beltStep, beltWants } from './kitchenBelt';
+import { chopStage } from './kitchenRecipes';
 import {
   BUILD_BUTTON_TILE,
   KITCHEN_EYE_MARGIN,
   KITCHEN_SHOWN,
   KITCHEN_SPOTS,
+  PIPELINE,
   RACK_AIR,
   RACK_RAISE,
+  SHOW_X,
   footprint,
   inKitchen,
   passTop,
@@ -45,6 +49,22 @@ import {
 
 /** Nur die Möbel der Küche; der Schauraum spielt nicht mit. */
 const WORKING = KITCHEN_SPOTS.filter((spot) => !spot.show);
+
+/**
+ * **Und davon nur die alte Küche** — alles westlich der Werkhalle
+ * (`kitchenPlan.PIPELINE`).
+ *
+ * Seit die Halle dazugekommen ist, stehen in dieser Zone zwei Aufbauten
+ * nebeneinander, und die meisten Aussagen hier gelten für genau einen davon:
+ * „vier Förderbänder in der Spalte x = 9" ist eine Aussage über die Küche und
+ * nicht über die Straße, die nebenan noch drei weitere Bänder aufstellt. Wer
+ * beide in einen Topf wirft, bekommt Tests, die bei jedem neuen Möbel in der
+ * Halle umgeschrieben werden müssen.
+ */
+const KITCHEN_SIDE = WORKING.filter((spot) => spot.x < PIPELINE.x);
+
+/** Und die Straße in der Werkhalle für sich. */
+const HALL = WORKING.filter((spot) => spot.x >= PIPELINE.x);
 
 /** Und andersherum: die Schaustücke allein. */
 const SHOWN = KITCHEN_SPOTS.filter((spot) => spot.show);
@@ -130,9 +150,15 @@ describe('die Rollen der Möbel', () => {
   /**
    * **Vier Zutaten, viermal dasselbe Möbel.** Die Kisten sind abgeschafft; was
    * ausgibt, ist eine Ausgabe aus dem Katalog mit einem Bild vorn daran.
+   *
+   * Gezählt wird die **Küche** und nicht die Werkhalle: Dort steht die
+   * Bandstraße mit ihren eigenen Vorräten, und die sind kein zweiter Satz
+   * Ausgaben für den Koch, sondern der Anfang von drei Bahnen (`HALL`). Eine
+   * Küche mit zwei Brötchenausgaben nebeneinander wäre ein Fehler, eine Halle
+   * mit einer eigenen ist der Punkt.
    */
   it('gibt jede Zutat genau einmal aus', () => {
-    const gives = WORKING.filter((spot) => spot.gives);
+    const gives = KITCHEN_SIDE.filter((spot) => spot.gives);
     expect(gives.map((spot) => spot.gives).sort()).toEqual([
       'bun',
       'lettuce',
@@ -370,8 +396,8 @@ describe('die Tische vor der Theke', () => {
  * Förderband.
  */
 describe('die beiden Bandbahnen', () => {
-  const belts = WORKING.filter((spot) => spot.name === 'belt');
-  const pulls = WORKING.filter((spot) => spot.name === 'belt-pull');
+  const belts = KITCHEN_SIDE.filter((spot) => spot.name === 'belt');
+  const pulls = KITCHEN_SIDE.filter((spot) => spot.name === 'belt-pull');
 
   it('stellt vier Förderbänder und vier Zugbänder auf', () => {
     expect(belts).toHaveLength(4);
@@ -388,7 +414,7 @@ describe('die beiden Bandbahnen', () => {
     expect(belts.map((spot) => spot.z)).toEqual([4, 5, 6, 7]);
     for (const spot of belts) expect(spot.x).toBe(9);
     // Ohne Ablage am Ende fiele herunter, was ankommt.
-    const end = WORKING.find((spot) => spot.x === 9 && spot.z === 8);
+    const end = KITCHEN_SIDE.find((spot) => spot.x === 9 && spot.z === 8);
     expect(end?.name).toBe('counter');
     expect(kindOf(end!)).toBe('top');
   });
@@ -398,11 +424,11 @@ describe('die beiden Bandbahnen', () => {
     for (const spot of pulls) expect(spot.x).toBe(7);
     // Oben die Insel: Von ihrem Arbeitstisch zieht das erste Zugband, und
     // deshalb muss dort eine Ablage stehen und kein Mülleimer, kein Herd.
-    const island = WORKING.find((spot) => spot.x === 7 && spot.z === 4);
+    const island = KITCHEN_SIDE.find((spot) => spot.x === 7 && spot.z === 4);
     expect(island?.name).toBe('table');
     expect(kindOf(island!)).toBe('top');
     // Unten die Arbeitsfläche neben der Ausgabetheke — eine, die es schon gab.
-    const end = WORKING.find((spot) => spot.x === 7 && spot.z === 9);
+    const end = KITCHEN_SIDE.find((spot) => spot.x === 7 && spot.z === 9);
     expect(end?.name).toBe('serve-counter');
     expect(kindOf(end!)).toBe('top');
   });
@@ -410,11 +436,11 @@ describe('die beiden Bandbahnen', () => {
   /** Freie Kacheln in zwei Spalten — nachgesehen und nicht gehofft. */
   it('steht auf Kacheln, die sonst niemand belegt', () => {
     // Die Spalte x = 9 trägt sonst nur die Küchenzeile an der Nordwand.
-    const east = WORKING.filter((spot) => spot.x === 9).map((spot) => spot.z);
+    const east = KITCHEN_SIDE.filter((spot) => spot.x === 9).map((spot) => spot.z);
     expect([...east].sort((a, b) => a - b)).toEqual([0, 4, 5, 6, 7, 8]);
     // Und die Spalte x = 7 den Arbeitstisch der Insel, die Ausgabe vorn und
     // sonst nichts. (Der Gästetisch bei z = 10 steht auf x = 8.)
-    const west = WORKING.filter((spot) => spot.x === 7).map((spot) => spot.z);
+    const west = KITCHEN_SIDE.filter((spot) => spot.x === 7).map((spot) => spot.z);
     expect([...west].sort((a, b) => a - b)).toEqual([0, 4, 5, 6, 7, 8, 9]);
   });
 
@@ -424,7 +450,7 @@ describe('die beiden Bandbahnen', () => {
    * Nordzeile bis zum Gastraum ums ganze Haus.
    */
   it('lässt die Spalte x = 8 zwischen den Bahnen frei', () => {
-    const between = WORKING.filter((spot) => {
+    const between = KITCHEN_SIDE.filter((spot) => {
       const size = footprint(kitchenPiece(spot.name)!, spot.turn ?? 0);
       return spot.x <= 8 && spot.x + size.w > 8 && spot.z >= 1 && spot.z <= 9;
     });
@@ -487,16 +513,16 @@ describe('der Schauraum', () => {
 
   it('stellt die beiden Bänder auf freie Kacheln', () => {
     const pull = KITCHEN_SPOTS.find((spot) => spot.name === 'belt-pull' && spot.show);
-    expect({ x: pull?.x, z: pull?.z }).toEqual({ x: 21, z: 7 });
-    // In der Reihe z = 7 stehen die Herde auf 13, 15, 17 und 19 — 21 hält den
+    expect({ x: pull?.x, z: pull?.z }).toEqual({ x: SHOW_X + 8, z: 7 });
+    // In der Reihe z = 7 stehen die Herde auf +0, +2, +4 und +6 — +8 hält den
     // Takt und bleibt innerhalb der Zone.
     expect(pull!.x).toBeLessThan(KITCHEN.w);
     const stove = SHOWN.find((spot) => spot.name === 'stove-pan')!;
     expect(pull!.x).toBeGreaterThanOrEqual(stove.x + 2);
 
     const belt = KITCHEN_SPOTS.find((spot) => spot.name === 'belt' && spot.show);
-    expect({ x: belt?.x, z: belt?.z }).toEqual({ x: 22, z: 4 });
-    // Innerhalb der Zone (24 Kacheln breit, also x = 0…23).
+    expect({ x: belt?.x, z: belt?.z }).toEqual({ x: SHOW_X + 9, z: 4 });
+    // Innerhalb der Zone.
     expect(belt!.x).toBeLessThan(KITCHEN.w);
     // Und rechts von der Ausgabetheke, die in derselben Reihe x = 20…21 hält.
     const pass = KITCHEN_SPOTS.find((spot) => spot.name === 'pass' && spot.show)!;
@@ -619,5 +645,191 @@ describe('Wo die Küche anfängt', () => {
     expect(inKitchen((west + east) / 2, south + KITCHEN_EYE_MARGIN + 0.01)).toBe(false);
     // Ohne Zuschlag ist die Kante die Kante.
     expect(inKitchen((west + east) / 2, south + 0.5, 0)).toBe(false);
+  });
+});
+
+/**
+ * **Die Werkhalle und ihre Bandstraße** (`kitchenPlan.PIPELINE`).
+ *
+ * Eine Straße aus zwanzig Möbeln ist eine Kette, und eine Kette ist genau so
+ * gut wie ihr schwächstes Glied: **Ein** Zugband, hinter dem nichts steht,
+ * **ein** Band, das ins Leere schiebt, **ein** Filterband ohne Filter — und
+ * die halbe Halle steht. Im Headset merkt man das nach zwei Minuten Zusehen
+ * und sucht den Fehler dann in der Bandrechnung, wo er nicht ist.
+ *
+ * Also wird die Kette hier abgegangen: Jedes greifende Band bekommt seine
+ * Quelle vorgerechnet, jedes schiebende sein Ziel, jeder Kombinierer seine
+ * Zulieferkachel. Was die Rechnung nebenan mit alldem macht, prüft
+ * `kitchenBelt.test.ts` — hier steht nur, dass die Möbel dafür richtig stehen.
+ */
+describe('die Werkhalle', () => {
+  /** Was auf dieser Kachel der Halle steht — die Grundfläche mitgerechnet. */
+  function at(x: number, z: number): Spot | undefined {
+    return WORKING.find((spot) => {
+      const size = footprint(kitchenPiece(spot.name)!, spot.turn ?? 0);
+      return x >= spot.x && x < spot.x + size.w && z >= spot.z && z < spot.z + size.d;
+    });
+  }
+
+  it('liegt östlich der Küche und westlich des Schauraums', () => {
+    // Die eine Kachel Luft zum Schauraum ist dieselbe, die ihn vorher von der
+    // Küche trennte — der Schauraum zeigt Möbel einzeln und nicht in einer
+    // Reihe mit einer Bandstraße.
+    expect(PIPELINE.x).toBe(12);
+    expect(PIPELINE.x + PIPELINE.w).toBeLessThan(SHOW_X);
+    expect(PIPELINE.z).toBe(0);
+    expect(PIPELINE.d).toBe(KITCHEN.d);
+    // Und sie liegt vollständig in der Zone.
+    expect(PIPELINE.x + PIPELINE.w).toBeLessThanOrEqual(KITCHEN.w);
+  });
+
+  it('hält jedes ihrer Möbel in ihren eigenen Spalten', () => {
+    for (const spot of HALL) {
+      const size = footprint(kitchenPiece(spot.name)!, spot.turn ?? 0);
+      expect({
+        name: spot.name,
+        inside: spot.x >= PIPELINE.x && spot.x + size.w <= PIPELINE.x + PIPELINE.w,
+      }).toEqual({ name: spot.name, inside: true });
+    }
+  });
+
+  it('lässt mehr als die Hälfte der Halle zum Selberbauen frei', () => {
+    // Der Sinn der Halle ist der **Platz**, nicht die Schaustraße darin: Wer
+    // eine eigene bauen will, braucht Spalten am Stück. Stünde sie voll, wäre
+    // sie nur ein zweiter Schauraum.
+    const used = new Set<string>();
+    for (const spot of HALL) {
+      const size = footprint(kitchenPiece(spot.name)!, spot.turn ?? 0);
+      for (let dz = 0; dz < size.d; dz++) {
+        for (let dx = 0; dx < size.w; dx++) used.add(`${spot.x + dx}/${spot.z + dz}`);
+      }
+    }
+    expect(used.size).toBeLessThan((PIPELINE.w * PIPELINE.d) / 2);
+    // Und zwar als ganze Spalten und nicht als Streusel: Von den acht Spalten
+    // sind mindestens vier vollständig leer.
+    const empty = [...Array(PIPELINE.w).keys()]
+      .map((dx) => PIPELINE.x + dx)
+      .filter((x) => ![...used].some((key) => key.startsWith(`${x}/`)));
+    expect(empty.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('gibt jedem greifenden Band eine Kachel, von der es nehmen darf', () => {
+    for (const spot of HALL) {
+      const kind = beltKind(spot.name);
+      if (!kind || !beltGrabs(kind)) continue;
+      const reach = beltReach(spot.turn ?? 0);
+      const back = at(spot.x + reach.dx, spot.z + reach.dz);
+      const where = `${spot.name}@${spot.x},${spot.z}`;
+      expect({ where, source: back?.name ?? null }).not.toEqual({ where, source: null });
+      const releases = back ? beltReleases(kindOf(back)!) : false;
+      expect({ where, releases }).toEqual({ where, releases: true });
+    }
+  });
+
+  it('gibt jedem Band eine Kachel, auf die es abliefern darf', () => {
+    for (const spot of HALL) {
+      if (!beltKind(spot.name)) continue;
+      const step = beltStep(spot.turn ?? 0);
+      const next = at(spot.x + step.dx, spot.z + step.dz);
+      const where = `${spot.name}@${spot.x},${spot.z}`;
+      // Ein Band, das ins Leere schiebt, verliert, was daraufliegt — in dieser
+      // Straße steht am Ende jeder Bahn eine Ablage.
+      expect({ where, target: next?.name ?? null }).not.toEqual({ where, target: null });
+    }
+  });
+
+  it('lehrt jedes Filterband schon im Grundriss', () => {
+    const smart = HALL.filter((spot) => spot.name === 'belt-smart');
+    expect(smart.length).toBeGreaterThanOrEqual(3);
+    for (const spot of smart) {
+      const where = `belt-smart@${spot.x},${spot.z}`;
+      expect({ where, filter: spot.filter ?? null }).not.toEqual({ where, filter: null });
+    }
+    // **Und der Filter passt zu dem, was davor steht.** Ein Filterband hinter
+    // einem Mixer, das die falsche Stufe sucht, zieht nie etwas — und das
+    // sieht man der Küche nicht an, man sieht nur, dass sie steht.
+    let checked = 0;
+    for (const spot of smart) {
+      const reach = beltReach(spot.turn ?? 0);
+      const back = at(spot.x + reach.dx, spot.z + reach.dz);
+      const feeds = HALL.filter((one) => {
+        const step = beltStep(one.turn ?? 0);
+        return (
+          beltKind(one.name) !== null && one.x + step.dx === back?.x && one.z + step.dz === back?.z
+        );
+      });
+      // Was in den Mixer davor hineingeschoben wird, kommt eine Stufe weiter
+      // wieder heraus — und genau das muss der Filter sein.
+      if (back?.name !== 'mixer' || !feeds.length) continue;
+      const source = at(
+        feeds[0]!.x + beltReach(feeds[0]!.turn ?? 0).dx,
+        feeds[0]!.z + beltReach(feeds[0]!.turn ?? 0).dz,
+      );
+      // **Was in den Mixer hineinkommt**, und zwar von der Seite des Bandes
+      // gelesen: Ein Filterband schiebt genau das hinein, was es gelernt hat;
+      // ein gewöhnliches Zugband das, was seine Quelle hergibt. Damit hängt
+      // auch der zweite Mixer der Tomatenbahn mit an der Kette — ohne diese
+      // Zeile bräche der Test dort ab, wo er am meisten zu sagen hätte.
+      const raw = feeds[0]!.filter ?? source?.gives ?? source?.filter;
+      if (!raw) continue;
+      // **Dieselbe Tabelle, die auch das Brett liest** (`chopStage`) — eine
+      // zweite hier wäre die, die beim nächsten Rezept auseinanderläuft.
+      const cut = chopStage(raw);
+      expect({ at: `${spot.x},${spot.z}`, filter: spot.filter }).toEqual({
+        at: `${spot.x},${spot.z}`,
+        filter: cut,
+      });
+      expect(beltWants(spot.filter ?? null, cut)).toBe(true);
+      checked++;
+    }
+    // Und die Probe darauf, dass oben wirklich etwas geprüft wurde: Drei der
+    // Filterbänder stehen hinter einem Mixer, der aus einer Kiste gespeist
+    // wird. Ein Test, der sich durch `continue` selbst überspringt, prüft
+    // nichts und sagt es nicht.
+    expect(checked).toBeGreaterThanOrEqual(3);
+  });
+
+  it('stellt jedem Kombinierer eine Zulieferkachel an die Pfeilseite', () => {
+    const joins = HALL.filter((spot) => spot.name === 'combiner');
+    expect(joins.length).toBeGreaterThanOrEqual(2);
+    for (const spot of joins) {
+      const reach = beltReach(spot.turn ?? 0);
+      const back = at(spot.x + reach.dx, spot.z + reach.dz);
+      const where = `combiner@${spot.x},${spot.z}`;
+      expect({ where, source: back?.name ?? null }).not.toEqual({ where, source: null });
+      expect({ where, releases: back ? beltReleases(kindOf(back)!) : false }).toEqual({
+        where,
+        releases: true,
+      });
+      // **Und kein Band schiebt auf diese Kachel.** Täte es das, läge dort
+      // irgendwann die Zutat als Unterlage auf dem Kombinierer und die
+      // Grundlage käme nicht mehr darauf — der Grund, warum die Pattyablage
+      // eine Arbeitsplatte ist und kein Band.
+      const pushers = HALL.filter((one) => {
+        const step = beltStep(one.turn ?? 0);
+        return (
+          beltKind(one.name) !== null && one.x + step.dx === spot.x && one.z + step.dz === spot.z
+        );
+      });
+      for (const one of pushers) {
+        // Wer von vorn schiebt, legt die **Grundlage** hin und steht damit auf
+        // einer anderen Seite als der Pfeil.
+        expect({ where, same: one.x === back?.x && one.z === back?.z }).toEqual({
+          where,
+          same: false,
+        });
+      }
+    }
+  });
+
+  it('bringt ihre eigenen Vorräte mit', () => {
+    // Die Straße fängt bei einer Kiste an und nicht beim Koch: Genau dafür
+    // zieht ein Zugband aus einer Vorratskiste (`kitchenBelt.beltRefills`).
+    const gives = HALL.filter((spot) => spot.gives);
+    expect(gives.map((spot) => spot.gives).sort()).toEqual(['bun', 'lettuce', 'plate', 'tomato']);
+    for (const spot of gives) {
+      expect(kindOf(spot)).toBe('box');
+      expect(spot.label).toBeDefined();
+    }
   });
 });

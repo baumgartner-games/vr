@@ -117,13 +117,28 @@ import {
   beltDelivers,
   beltKind,
   beltReach,
+  beltGrabs,
+  beltLearns,
+  beltRefills,
   beltReleases,
   beltStep,
   beltTrashes,
+  beltWants,
   type BeltFrame,
+  type BeltKind,
   type BeltState,
   type BeltTile,
 } from './kitchenBelt';
+import {
+  CombinerKit,
+  IDLE_COMBINE,
+  advanceCombine,
+  combineProgress,
+  combinerHolds,
+  combinerTakes,
+  type CombineState,
+} from './kitchenCombiner';
+import { MixerKit } from './kitchenMixer';
 import {
   DRY,
   SprayJet,
@@ -319,6 +334,30 @@ const HOLD_LABELS: readonly string[] = ['nach vorn', 'nach links', 'zu dir', 'na
  * **bevor** jemand drückt. Ein Umriss, der erst nach dem Absetzen sagt, dass
  * es nicht geht, ist ein Umriss, der einen zweimal laufen lässt.
  */
+/**
+ * **Wie groß der Filteraufkleber auf einem Filterband ist**, als Durchmesser
+ * in Metern — 30 cm, also knapp ein Drittel der Kachel.
+ *
+ * Gegen den Teller gerechnet, der darüber hinwegfährt (75 cm,
+ * `kitchenProps.PLATE_RADIUS` mal zwei): Ein Aufkleber in Kachelgröße läge
+ * unter jedem davon, dieser lugt an der Kante hervor. Und gegen die Sparren:
+ * Sie laufen 72 cm breit über den Trog (`kitchenBelt`, `ARROW_WIDE`), und was
+ * von ihnen verdeckt wird, ist die Richtung des Bandes — die soll man immer
+ * lesen können.
+ */
+const FILTER_SIGN = 0.3;
+
+/**
+ * **Und wie weit hinten**, in Metern von der Kachelmitte — an der Kante, an
+ * der das Band zugreift (bei `turn: 0` also nach Süden, +z).
+ *
+ * 0,33 m: Der Aufkleber ist 30 cm breit, seine hintere Kante liegt damit bei
+ * 0,48 m und bleibt zwei Zentimeter innerhalb der Kachel. Zwei Bänder
+ * hintereinander haben so eine sichtbare Fuge zwischen ihren Aufklebern statt
+ * zweier Bilder, die sich an der Naht berühren.
+ */
+const FILTER_BACK = 0.33;
+
 const GHOST_ALPHA = 0.35;
 const GHOST_FREE = 0x7de88a;
 const GHOST_BLOCKED = 0xe5361c;
@@ -382,6 +421,17 @@ const COPY_GLOW = 0x2fd6a8;
 const COPY_GLOW_STRENGTH = 0.3;
 
 /** Die Stelle, an der eine Anzeige schweben soll — ein Vektor für die Zone. */
+/**
+ * **Die leere Menge der vergebenen Kacheln** — geteilt, damit ein Bild ohne
+ * Kombinierer keinen Müll hinterlässt.
+ *
+ * Dieselbe Sparsamkeit wie bei den leeren Bandbildern (`kitchenBelt`,
+ * `STILL_FRAME`): In einer Küche ohne Kombinierer läuft diese Schleife
+ * sechzigmal in der Sekunde und soll dabei kein `Set` bauen, das niemand
+ * füllt.
+ */
+const NO_CLAIMS: ReadonlySet<string> = new Set();
+
 const _at = new THREE.Vector3();
 /** Wo die Figur steht und wohin sie zielt — für Arbeit, Nebel und Bauplatz. */
 const _feet = new THREE.Vector3();
@@ -449,6 +499,8 @@ interface Station {
   table: TableState;
   /** Wie weit etwas über das Band gewandert ist; `BELT_EMPTY` überall sonst. */
   belt: BeltState;
+  /** Die Uhr am Kombinierer; `IDLE_COMBINE` überall sonst. */
+  join: CombineState;
   /** Wie lange dieser Herd schon im Nebel steht; `DRY`, solange er es nicht tut. */
   wet: DouseState;
   /** Wie viele dreckige Teller hier liegen — nur an der Rückgabe. */
@@ -520,6 +572,21 @@ interface Furnish {
    * (`aimIcon`).
    */
   icon: THREE.Object3D | null;
+  /**
+   * **Was dieses Filterband gelernt hat** — oder `null` bei allem anderen.
+   *
+   * Es hängt am **Möbel** und nicht an seiner Station, und das ist keine
+   * Geschmacksfrage: Im Baumodus hebt man Möbel auf und stellt sie anderswo
+   * wieder hin (`liftPiece`, `dropPiece`), und ein Filter, der dabei
+   * verlorenginge, wäre ein Gedächtnis, das jedes Versetzen löscht. Ein Band,
+   * das man eine Kachel weiterschiebt, ist dasselbe Band.
+   *
+   * Gesetzt wird es an genau zwei Stellen: einmal beim Aufbau, wenn der
+   * Grundriss es schon mitbringt (`kitchenPlan.Spot.filter`), und danach, so
+   * oft jemand etwas darauflegt (`act`). Was ein Band selbst herbeischafft,
+   * lehrt es nichts — die Begründung steht bei `kitchenBelt.beltLearns`.
+   */
+  filter: KitchenItem | null;
   /** Ob es gerade getragen wird — dann belegt es keine Kachel. */
   held: boolean;
   /**
@@ -712,8 +779,12 @@ export class KitchenZone implements TestZone {
   private gauges: KitchenGauges | null = null;
   /** Der Ofen für die Bilder an den Ausgaben (`kitchenIcon.ts`). */
   private oven: IconOven | null = null;
-  /** Der Bausatz für die Förderbänder (`kitchenBelt.ts`). */
+  /** Der Bausatz für die Förderbänder (`kitchenBelt.ts`) — alle drei Sorten. */
   private belts: BeltKit | null = null;
+  /** Der für die Kombinierer (`kitchenCombiner.ts`). */
+  private joins: CombinerKit | null = null;
+  /** Und der für die Mixer (`kitchenMixer.ts`). */
+  private mixers: MixerKit | null = null;
   /** Und der für Computer-Tisch und Kopierer (`kitchenDesk.ts`). */
   private desks: DeskKit | null = null;
   /** Der Nebel aus dem Feuerlöscher (`kitchenSpray.ts`). */
@@ -836,6 +907,8 @@ export class KitchenZone implements TestZone {
     });
     this.gauges = new KitchenGauges(world.root);
     this.belts = new BeltKit();
+    this.joins = new CombinerKit();
+    this.mixers = new MixerKit();
     this.desks = new DeskKit();
     this.jet = new SprayJet(world.root);
     // **Zuerst der Boden**, denn auf ihm steht alles andere: Der Grundriss legt
@@ -1001,7 +1074,16 @@ export class KitchenZone implements TestZone {
           break;
         case 'board':
         case 'sink':
+        case 'mixer':
+          // **Der Mixer steht in derselben Zeile wie Brett und Spüle**, und
+          // das ist die ganze Umsetzung seiner Sonderrolle: Dass er auch dann
+          // weiterläuft, wenn niemand danebensteht, entscheidet
+          // `kitchenWork.WORK_ALONE` und nicht dieser Zweig. Die Zone fragt
+          // nirgends, welches der drei Möbel sie gerade in der Hand hat.
           this.workFrame(spot, dt);
+          break;
+        case 'combiner':
+          this.combinerFrame(spot, dt);
           break;
         case 'table':
           this.tableFrame(spot, dt);
@@ -1118,6 +1200,92 @@ export class KitchenZone implements TestZone {
   }
 
   /**
+   * **Ein Bild am Kombinierer** — er holt sich von der Seite, was auf das
+   * gehört, was auf ihm liegt.
+   *
+   * Drei Zeilen Zone und eine Rechnung nebenan (`kitchenCombiner.ts`), und die
+   * Aufteilung ist dieselbe wie überall hier: Welche Kachel hinter dem Pfeil
+   * liegt und was darauf steht, weiß nur die Zone; ob daraus etwas wird und
+   * wie lange es dauert, ist eine Frage über Gerichte und Sekunden und hat
+   * dort einen Test.
+   *
+   * **Was er sich holt, fährt sichtbar herüber.** Die Fahrt ist dieselbe Geste
+   * wie auf einem Band — ein Ding, das zwischen zwei Kachelmitten hängt
+   * (`kitchenBelt.BeltCarry`) —, nur rechnet sie hier die Uhr des Kombinierers
+   * aus. Ohne sie verschwände das Patty auf der einen Kachel und erschiene
+   * zwei Sekunden später auf der anderen, und niemand wüsste, wer es geholt
+   * hat.
+   *
+   * **Eine Vorratskiste darf auch Quelle sein**, und dann entsteht das Ding
+   * beim Anfangen (`sprout`) — genau wie beim Zugband. Damit steht der
+   * Kombinierer direkt neben einer Brötchenkiste und legt auf, was sie
+   * hergibt, ohne dass ein Band dazwischen muss.
+   */
+  private combinerFrame(spot: Station, dt: number): void {
+    const step = beltReach(spot.home.turn);
+    const back = this.stationAt(spot.home.x + step.dx, spot.home.z + step.dz);
+    // Was schon fährt, fährt zu Ende und wird nicht nebenbei abgezweigt —
+    // derselbe Satz wie in `advanceBelts`, und hier ist er die einzige Stelle,
+    // an der ein Kombinierer von der Bandrechnung überhaupt Notiz nimmt.
+    const ready =
+      back && !back.belt.moving && beltReleases(back.kind, back.work.working)
+        ? combinerTakes(spot.on?.dish ?? null, this.offerAt(back))
+        : null;
+    const tick = advanceCombine(spot.join, dt, back && ready?.ok ? back.key : null, ready);
+    const was = spot.join;
+    spot.join = tick.state;
+
+    if (tick.state.working && back) {
+      // **Jetzt entsteht es, wenn es aus einer Kiste kommt** — im ersten Bild
+      // des Handgriffs, damit man die ganze Fahrt sieht.
+      if (was.from !== tick.state.from && this.sprout(back)) this.refreshStations();
+      const load = back.on;
+      if (load) load.object.position.lerpVectors(back.deck, spot.deck, combineProgress(tick.state));
+    }
+
+    // **Ein abgebrochener Handgriff stellt zurück.** Was halb herübergefahren
+    // ist, steht sichtbar zwischen zwei Kachelmitten; wird der Handgriff
+    // abgebrochen — jemand nimmt die Zutat weg, ein Band fährt sie fort, der
+    // Kombinierer läuft voll —, bliebe es dort für immer stehen. Gefragt wird
+    // die **alte** Kachel (`was.from`) und nicht die neue: Abgebrochen hat
+    // genau die, an der es hing.
+    if (was.working && !tick.state.working && !tick.done) {
+      const last = was.from ? this.stationByKey(was.from) : null;
+      if (last?.on) last.on.object.position.copy(last.deck);
+    }
+
+    const done = tick.done;
+    if (!done?.ok || !back) return;
+    // **Die Zutatenseite zuerst**, denn sie kann ihr Netz behalten: Die Pfanne
+    // gibt ihr Patty her und bleibt stehen (`kitchenRecipes.stackOn` gibt sie
+    // als `held` zurück), alles andere wandert ganz hinüber und ist danach
+    // weg. `layOn` setzt die Bleibende auf ihre Kachelmitte zurück — sie hat
+    // die halbe Strecke schon zurückgelegt, und dort darf sie nicht stehen
+    // bleiben (derselbe Handgriff wie in `dumpInBin`).
+    const load = back.on;
+    if (load) {
+      if (done.held) {
+        this.restyle(load, done.held);
+        this.layOn(back, load);
+      } else {
+        back.on = null;
+        this.settle(back);
+        this.discard(load);
+      }
+    }
+    // Und die Unterlage bekommt ihren neuen Stand. **Ohne `settle`**: Der
+    // Kombinierer führt keine Uhr, die davon anfinge, und `spot.join` steht
+    // nach `advanceCombine` schon richtig.
+    if (spot.on) this.restyle(spot.on, done.target ?? spot.on.dish);
+    this.world?.notify(
+      `${layered(done.moved)
+        .map((item) => ITEM_LABELS[item])
+        .join(', ')} auf ${spot.label}`,
+    );
+    this.refreshStations();
+  }
+
+  /**
    * **Wohin ein Band abliefert** — die Station auf der nächsten Kachel in
    * Laufrichtung (`kitchenBelt.beltStep`), oder `null`.
    *
@@ -1159,12 +1327,93 @@ export class KitchenZone implements TestZone {
    * Gerät), die Theke nicht (was man nicht hinschieben darf, zieht man nicht
    * heraus), der **Mülleimer** erst recht nicht (dort darf ein Band seit
    * Neuestem hinein, aber niemals heraus), und was gerade unter dem Messer
-   * liegt, bleibt liegen.
+   * oder im Mixer liegt, bleibt liegen.
+   *
+   * **Und die Sorte Band steht jetzt im Aufruf**, weil zwei der drei Sorten
+   * greifen und jede anders: Ein Zugband nimmt, was da ist, ein Filterband nur
+   * das, was es gelernt hat, und ein gewöhnliches Band fragt gar nicht erst
+   * (`kitchenBelt.beltGrabs`).
    */
-  private beltSource(spot: Station): Station | null {
+  private beltSource(spot: Station, kind: BeltKind): Station | null {
+    if (!beltGrabs(kind)) return null;
     const step = beltReach(spot.home.turn);
     const back = this.stationAt(spot.home.x + step.dx, spot.home.z + step.dz);
-    return back && beltReleases(back.kind, back.work.working) ? back : null;
+    // **Auch ein Kombinierer mitten im Handgriff gibt nichts her.** Er führt
+    // seine eigene Uhr (`kitchenCombiner.ts`) und nicht die des Bretts, und
+    // ohne diese Zeile risse ein Zugband ihm das Brötchen unter dem Patty weg,
+    // das gerade zu ihm unterwegs ist — der Handgriff liefe zu Ende und legte
+    // auf nichts auf. Beide Uhren stehen nebeneinander im selben `oder`, weil
+    // die Frage dieselbe ist: Arbeitet dieses Möbel gerade?
+    if (!back || !beltReleases(back.kind, back.work.working || back.join.working)) return null;
+    // **Ein Kombinierer hält seine Unterlage fest**, bis etwas darauf liegt
+    // (`kitchenCombiner.combinerHolds`). Ohne diese Zeile nähme ein Zugband
+    // das Brötchen mit, bevor das Patty da ist — die Straße liefe, und
+    // heraus kämen nackte Brötchen. Die Frage steht hier und nicht in
+    // `beltReleases`, weil sie nicht nur die Stationsart braucht, sondern auch
+    // das, was daraufliegt — derselbe Fall wie beim Mülleimer eine Methode
+    // weiter oben.
+    if (back.kind === 'combiner' && combinerHolds(back.on?.dish ?? null)) return null;
+    // **Und ein Filterband fragt noch einmal nach**, diesmal nach dem Ding
+    // (`kitchenBelt.beltWants`). Die Regel steht dort, hier steht nur, was
+    // nebenan liegt — und bei einer Vorratskiste ist das, was sie hergibt, und
+    // nicht das, was auf ihrem Deckel steht (`offerAt`).
+    if (kind === 'smart' && !beltWants(spot.home.filter, this.offerAt(back)?.item ?? null)) {
+      return null;
+    }
+    return back;
+  }
+
+  /**
+   * **Was diese Station einem Nachbarn anzubieten hat** — das Liegende, oder
+   * bei einer Vorratskiste das, was sie hergibt.
+   *
+   * Die eine Stelle, an der „auf der Kachel liegt etwas" und „aus der Kachel
+   * kommt etwas" zusammenfallen, und sie fallen absichtlich hier zusammen und
+   * nicht dreimal verteilt: Ein Filterband will wissen, ob es zugreifen darf,
+   * ein Kombinierer, ob er anfangen kann, und die Bandrechnung, ob die Kachel
+   * als belegt zählt (`kitchenBelt.beltRefills`). Dreimal dieselbe Frage mit
+   * drei Antworten wäre die Küche, in der ein Filterband eine Kiste ignoriert,
+   * die ein Zugband daneben leerzieht.
+   *
+   * **Das Liegende geht vor**, wie überall an einer Kiste
+   * (`kitchenCarry.fromBox`): Was jemand auf den Deckel gestellt hat, hat er
+   * dort hingestellt, und frisch gibt es die Kiste ja noch beliebig oft.
+   */
+  private offerAt(spot: Station): Dish | null {
+    if (spot.on) return spot.on.dish;
+    if (beltRefills(spot.kind) && spot.gives) return dish(spot.gives);
+    return null;
+  }
+
+  /**
+   * **Ein frisches Ding auf den Deckel einer Vorratskiste** — genau in dem
+   * Bild, in dem es losfährt.
+   *
+   * Eine Kiste gibt aus dem Nichts aus (`kitchenCarry.fromBox`), die
+   * Bandrechnung nebenan kennt aber nur Kacheln, die belegt oder frei sind.
+   * Also wird sie für die Rechnung als belegt gemeldet (`beltRefills`) — und
+   * sobald die Rechnung sagt „von hier fährt jetzt etwas los", steht das Ding
+   * auch wirklich da. Zwei Sekunden lang liegt es dann auf dem Deckel und
+   * fährt sichtbar herüber; wer in der Zeit danach greift, bekommt es
+   * (dieselbe Regel wie für jedes andere Ding auf einer Kiste).
+   *
+   * **Ohne `settle`**, und das ist der springende Punkt: `layOn` stellt die
+   * Uhren der Station neu, und dazu gehört der Fahrtzustand
+   * (`kitchenBelt.BELT_EMPTY`). Der ist in diesem Bild aber gerade gesetzt
+   * worden — eine Kiste, die ihn sich selbst wieder löschte, führe jedes Bild
+   * von vorn los und käme nie an.
+   *
+   * @returns ob wirklich etwas entstanden ist
+   */
+  private sprout(spot: Station): boolean {
+    if (spot.on || !spot.gives) return false;
+    const fresh = this.make(dish(spot.gives));
+    if (!fresh) return false;
+    spot.on = fresh;
+    this.world?.root.add(fresh.object);
+    fresh.object.rotation.set(0, 0, 0);
+    fresh.object.position.copy(spot.deck);
+    return true;
   }
 
   /**
@@ -1190,6 +1439,18 @@ export class KitchenZone implements TestZone {
    */
   private runBelts(dt: number): void {
     if (!this.stations.length) return;
+    // **Erst nachsehen, wer schon vergeben ist.** Ein Kombinierer, dessen Uhr
+    // läuft, hat sich eine Nachbarkachel genommen — die darf in diesem Bild
+    // weder weiterschieben noch von einem Zugband leergezogen werden. Die
+    // Menge steht vor der Schleife, weil die Kachel in ihr vor **oder** nach
+    // ihrem Kombinierer drankommt und eine Antwort, die davon abhängt, keine
+    // ist.
+    let busy: Set<string> | null = null;
+    for (const spot of this.stations) {
+      if (spot.home.held || !spot.join.working || !spot.join.from) continue;
+      (busy ??= new Set()).add(spot.join.from);
+    }
+    const claimed: ReadonlySet<string> = busy ?? NO_CLAIMS;
     let belts = false;
     const tiles: BeltTile[] = [];
     for (const spot of this.stations) {
@@ -1208,13 +1469,32 @@ export class KitchenZone implements TestZone {
       const kind = spot.kind === 'belt' ? beltKind(spot.home.piece.name) : null;
       if (kind) belts = true;
       const to = kind ? this.beltTarget(spot) : null;
-      const from = kind === 'pull' ? this.beltSource(spot) : null;
+      const from = kind ? this.beltSource(spot, kind) : null;
       tiles.push({
         id: spot.key,
-        loaded: spot.on !== null,
+        // **Eine Vorratskiste zählt als belegt** (`kitchenBelt.beltRefills`):
+        // Auf ihr liegt nichts, und trotzdem ist dort etwas zu holen. Was ein
+        // Zugband von ihr abholt, entsteht erst beim Losfahren (`sprout`) —
+        // bis dahin ist die Meldung ein Versprechen, und die Rechnung nebenan
+        // braucht nur dieses.
+        loaded: spot.on !== null || (beltRefills(spot.kind) && spot.gives !== undefined),
         state: spot.belt,
-        to: to?.key ?? null,
-        pull: from?.key ?? null,
+        // **Was ein Kombinierer gerade herüberholt, schiebt nicht weg.** Er
+        // führt seine eigene Uhr und steht nicht in dieser Rechnung; ohne
+        // diese Zeile schöbe ein Band das Patty in dem Augenblick nach Süden
+        // weiter, in dem der Kombinierer es sich nach Westen holt — und
+        // welches von beiden gewänne, entschiede die Reihenfolge der
+        // Stationen. Ein Möbel, das einen Handgriff angefangen hat, bekommt
+        // ihn zu Ende (derselbe Satz wie in `advanceBelts`: Losfahren ist ein
+        // Versprechen).
+        to: claimed.has(spot.key) ? null : (to?.key ?? null),
+        // **Und gezogen wird sie auch nicht.** Dieselbe Vormerkung, von der
+        // anderen Seite gelesen: Ein Zugband, das sich die Kachel holte, an
+        // der ein Kombinierer schon arbeitet, nähme ihm das Patty auf halber
+        // Strecke weg — und der Handgriff liefe zu Ende und legte auf nichts
+        // auf. Beide Zeilen stehen nebeneinander, weil sie **eine**
+        // Entscheidung sind: Diese Kachel ist in diesem Bild vergeben.
+        pull: from && !claimed.has(from.key) ? from.key : null,
       });
     }
     // Eine Küche **ohne Band** rechnet gar nichts — den Fall gibt es im
@@ -1257,7 +1537,12 @@ export class KitchenZone implements TestZone {
 
     for (const spot of this.stations) {
       const next = frame.states.get(spot.key);
-      if (next) spot.belt = next;
+      if (!next) continue;
+      spot.belt = next;
+      // **Jetzt entsteht das Brötchen**, und keinen Augenblick früher: Die
+      // Kiste hat sich als belegt gemeldet, die Rechnung hat daraufhin eine
+      // Fahrt begonnen — und was fährt, muss man sehen können (`sprout`).
+      if (next.moving && beltRefills(spot.kind) && this.sprout(spot)) this.refreshStations();
     }
 
     // **Der Zustand springt, das Bild nicht.** Logisch liegt das Ding die
@@ -1476,7 +1761,9 @@ export class KitchenZone implements TestZone {
     if (phase === 'work' || phase === 'eat' || phase === 'douse') {
       const part =
         phase === 'work'
-          ? workProgress(spot.work)
+          ? spot.kind === 'combiner'
+            ? combineProgress(spot.join)
+            : workProgress(spot.work)
           : phase === 'eat'
             ? eatProgress(spot.table)
             : douseProgress(spot.wet);
@@ -1515,6 +1802,12 @@ export class KitchenZone implements TestZone {
       return stovePhase(spot.stove);
     }
     if (spot.kind === 'table') return eatProgress(spot.table) > 0 ? 'eat' : 'cold';
+    // **Der Kombinierer bekommt denselben Balken wie das Brett**, und das ist
+    // die Absicht: Von oben ist „hier dauert es noch" dieselbe Auskunft, egal
+    // ob geschnitten oder zusammengelegt wird. Ein eigenes Zeichen für ein
+    // Möbel, das ohnehin zwei Sekunden braucht, wäre eine zweite Vokabel für
+    // dieselbe Sache (`kitchenGauge`).
+    if (spot.kind === 'combiner') return combineProgress(spot.join) > 0 ? 'work' : 'cold';
     return workProgress(spot.work) > 0 ? 'work' : 'cold';
   }
 
@@ -1887,6 +2180,10 @@ export class KitchenZone implements TestZone {
     this.oven = null;
     this.belts?.dispose();
     this.belts = null;
+    this.joins?.dispose();
+    this.joins = null;
+    this.mixers?.dispose();
+    this.mixers = null;
     this.desks?.dispose();
     this.desks = null;
     this.jet?.dispose();
@@ -1945,14 +2242,16 @@ export class KitchenZone implements TestZone {
    * **Ein gebautes Stück** — alles, was in keiner Datei steht
    * (`KitchenPiece.built`).
    *
-   * Zurzeit sind das zwei, und beide kommen aus demselben Bausatz: das
-   * Förderband und das Zugband (`kitchenBelt.BeltKit.piece`). Der Zweig bleibt
-   * trotzdem allgemein: Ein Katalog, in dem ein gebautes Möbel ein Sonderfall
-   * im Aufstellen wäre, bekäme beim nächsten einen zweiten Sonderfall.
+   * Inzwischen sind es sieben, und die drei Bänder kommen aus demselben
+   * Bausatz (`kitchenBelt.BeltKit.piece`) — sie sind ein Möbel mit drei
+   * Aufgaben. Kombinierer und Mixer bringen je einen eigenen mit, weil sie je
+   * ein eigenes Möbel sind; Rechner und Kopierer teilen sich ihren.
    */
   private buildPiece(piece: KitchenPiece): THREE.Object3D | null {
     const kind = beltKind(piece.name);
     if (kind) return this.belts?.piece(kind) ?? null;
+    if (piece.name === 'combiner') return this.joins?.piece() ?? null;
+    if (piece.name === 'mixer') return this.mixers?.piece() ?? null;
     if (piece.name === 'desk') return this.desks?.deskPiece() ?? null;
     if (piece.name === 'copier') return this.desks?.copierPiece() ?? null;
     return null;
@@ -1999,6 +2298,7 @@ export class KitchenZone implements TestZone {
       body: null,
       station: null,
       icon: null,
+      filter: spot.filter ?? null,
       held: false,
       cargo: null,
       usable: null,
@@ -2022,6 +2322,10 @@ export class KitchenZone implements TestZone {
     }
     this.addBody(furnish);
     this.addIcon(furnish);
+    // Und das Bild dessen, was ein Filterband schon gelernt hat — beim Aufbau
+    // aus dem Grundriss (`kitchenPlan.Spot.filter`), später bei jeder Lehre
+    // (`learnFilter`).
+    this.showFilter(furnish);
     this.markPieceHandles(furnish);
     this.addStation(furnish, foot, takeUtensil);
     return furnish;
@@ -2208,6 +2512,89 @@ export class KitchenZone implements TestZone {
   }
 
   /**
+   * **Ein Filterband merkt sich etwas** — und sagt, ob sich dabei etwas
+   * geändert hat.
+   *
+   * Zwei Zeilen, und beide sind Buchhaltung: Der Filter kommt ans **Möbel**
+   * (damit er das Versetzen im Baumodus übersteht, siehe `Furnish.filter`),
+   * und das Bild darauf wird neu gebaut. Ob dieses Möbel überhaupt lernt,
+   * steht nebenan (`kitchenBelt.beltLearns`) — eine Frage über einen
+   * Katalognamen, und die gehört zu den Bändern.
+   *
+   * **Derselbe Filter noch einmal ist keine Änderung**, und das ist der Grund
+   * für den Rückgabewert: Wer ein zweites Brötchen auf ein Brötchenband legt,
+   * soll nicht jedes Mal lesen, dass es sich etwas gemerkt hat, was es schon
+   * wusste — dann gilt der gewöhnliche Satz fürs Ablegen.
+   */
+  private learnFilter(spot: Station, item: KitchenItem): boolean {
+    const furnish = spot.home;
+    if (!beltLearns(furnish.piece.name) || furnish.filter === item) return false;
+    furnish.filter = item;
+    this.showFilter(furnish);
+    return true;
+  }
+
+  /**
+   * **Das Bild seines Filters auf dem Filterband** — klein, an der Kante, an
+   * der es zugreift.
+   *
+   * Es ist derselbe Aufkleber wie an einer Vorratskiste (`addIcon`), aus
+   * demselben Ofen und sogar aus demselben Fach: Der Schlüssel `gives:<Ding>`
+   * ist der der Kiste, also teilt ein Brötchenband sein Bild mit der
+   * Brötchenausgabe an der Westwand und kostet nichts (`IconOven.bake`).
+   *
+   * **Klein und hinten, und beides musste sein.** Ein Bild in Kachelgröße
+   * mitten auf dem Deckel läge unter allem, was über das Band fährt, und
+   * verdeckte obendrein die Sparren, an denen man sieht, wohin es schiebt.
+   * 30 cm an der **hinteren** Kante liegen dagegen dort, wo ohnehin der
+   * Greifer sitzt (`kitchenBelt`, `MOUTH_LONG`) — der Aufkleber sagt also
+   * nicht nur „das hier hole ich", sondern steht auch genau an der Seite, von
+   * der er es holt.
+   *
+   * **Zwei Träger und nicht einer**, und darin steckt die einzige Feinheit:
+   * Der äußere sitzt am Möbel und **dreht sich mit** — der Aufkleber soll an
+   * der Greifkante bleiben, auch wenn jemand das Band wendet. Der innere dreht
+   * **zurück**, damit das Bild selbst von oben aufrecht steht (`aimIcon`,
+   * dieselbe Zeile wie an der Kiste). Ein einziger Träger könnte nur eines von
+   * beidem.
+   *
+   * Ohne Filter steht hier nichts — und das ist die ehrliche Auskunft: Ein
+   * Filterband ohne Filter zieht auch nichts (`kitchenBelt.beltWants`).
+   */
+  private showFilter(furnish: Furnish): void {
+    // **Nur Filterbänder**, und die Zeile ist keine Vorsicht, sondern Pflicht:
+    // Ein Möbel führt genau ein `icon` (`Furnish.icon`), und an einer
+    // Vorratskiste ist das der Aufkleber ihrer Zutat — der hängt anders
+    // (unmittelbar am Möbel, ohne den zweiten Träger), und ihn hier abhängen zu
+    // wollen nähme das Möbel selbst mit.
+    if (!beltLearns(furnish.piece.name)) return;
+    const old = furnish.icon;
+    if (old) {
+      old.parent?.removeFromParent();
+      furnish.icon = null;
+    }
+    const { filter, model, piece } = furnish;
+    const oven = this.oven;
+    if (!filter || !oven) return;
+    const texture = oven.bake(
+      `gives:${filter}`,
+      () => this.food.view(dish(filter)) ?? new THREE.Group(),
+    );
+    if (!texture) return;
+    const holder = new THREE.Group();
+    holder.name = 'kitchen-filter-holder';
+    holder.scale.setScalar(1 / kitchenPieceScale(piece));
+    holder.position.z = FILTER_BACK;
+    const aim = new THREE.Group();
+    aim.name = 'kitchen-filter-aim';
+    aim.add(oven.counterSign(texture, { piece, across: FILTER_SIGN }));
+    holder.add(aim);
+    model.add(holder);
+    furnish.icon = aim;
+    this.aimIcon(furnish);
+  }
+
+  /**
    * **Das Bild an der Ausgabe** — was sie hergibt, gerendert und vorn
    * angeklebt (`kitchenIcon.IconOven`).
    *
@@ -2299,6 +2686,7 @@ export class KitchenZone implements TestZone {
       work: IDLE_WORK,
       table: CLEAR_TABLE,
       belt: BELT_EMPTY,
+      join: IDLE_COMBINE,
       wet: DRY,
       stack: 0,
       pile: null,
@@ -2563,13 +2951,25 @@ export class KitchenZone implements TestZone {
           break;
         }
         this.layOn(spot, thing);
-        // Am Brett und in der Spüle fängt die Arbeit sofort an — `layOn` legt
-        // die Uhr an (`settle`), gesagt wird es hier.
+        // **Ein Filterband lernt genau hier**, und sonst nirgends: beim
+        // Auflegen **von Hand**. Was ein Band selbst herbeischafft, lehrt es
+        // nichts (`kitchenBelt.beltLearns`) — sonst hätte es nach der ersten
+        // Fuhre einen Filter, den niemand gesetzt hat. Gelernt wird das Ding
+        // selbst und nicht sein Belag: Wer einen Teller mit Burger auflegt,
+        // meint Teller (`kitchenBelt.beltWants`).
+        if (this.learnFilter(spot, deed.dish.item)) {
+          world.notify(
+            `${ITEM_LABELS[deed.dish.item]} gemerkt — ${spot.label} zieht jetzt nur noch das`,
+          );
+          break;
+        }
+        // Am Brett, im Mixer und in der Spüle fängt die Arbeit sofort an —
+        // `layOn` legt die Uhr an (`settle`), gesagt wird es hier.
         world.notify(
           deed.do === 'work'
             ? deed.kind === 'wash'
               ? 'Geschirr wird gespült'
-              : `${ITEM_LABELS[deed.dish.item]} wird geschnitten`
+              : `${ITEM_LABELS[deed.dish.item]} wird ${deed.kind === 'blend' ? 'gemixt' : 'geschnitten'}`
             : `${dishLabel(deed.dish)} auf ${spot.label}`,
         );
         break;
@@ -2946,9 +3346,21 @@ export class KitchenZone implements TestZone {
       spot.stove = stoveUnder(on);
       return;
     }
-    if (spot.kind === 'board' || spot.kind === 'sink') {
-      const kind: WorkKind = spot.kind === 'sink' ? 'wash' : 'chop';
+    if (spot.kind === 'board' || spot.kind === 'sink' || spot.kind === 'mixer') {
+      // Drei Möbel, drei Arten, **eine** Uhr (`kitchenWork.ts`). Die Zuordnung
+      // steht hier, weil nur die Zone die Möbel kennt; was die Art bedeutet,
+      // steht dort.
+      const kind: WorkKind =
+        spot.kind === 'sink' ? 'wash' : spot.kind === 'mixer' ? 'blend' : 'chop';
       spot.work = onWork(kind, on?.item ?? null);
+      return;
+    }
+    if (spot.kind === 'combiner') {
+      // **Was frisch hier liegt, wird von vorn zusammengelegt.** Ein
+      // Fortschritt, der einen Handgriff überlebte, legte im nächsten Bild
+      // etwas auf eine Unterlage, die es nicht mehr gibt — derselbe Grund, aus
+      // dem auch der Fahrtzustand eine Zeile weiter oben zurückfällt.
+      spot.join = IDLE_COMBINE;
       return;
     }
   }

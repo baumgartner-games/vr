@@ -3,7 +3,7 @@ import { canLoadModels } from '../../../core/chefFit';
 import { denyShadow } from '../../../core/graphicsScene';
 import { kitchenPiece } from '../../../core/kitchenFit';
 import { TILE } from '../../nav/navTile';
-import type { KitchenDeed, StationKind } from './kitchenCarry';
+import type { KitchenDeed, KitchenItem, StationKind } from './kitchenCarry';
 
 /**
  * **Das Förderband** — eine Kachel Ausgabetheke, auf der die Dinge von selbst
@@ -29,15 +29,28 @@ import type { KitchenDeed, StationKind } from './kitchenCarry';
  * `kitchenGauge.ts`. Was die Küche mit dem weitergereichten Ding anstellt,
  * entscheidet sie selbst (`kitchen.ts`); hier steht nur, wann es so weit ist.
  *
- * **Zwei Sorten Band, und nur eine davon greift nach hinten.** Das
+ * **Drei Sorten Band, und nur eine davon greift nicht nach hinten.** Das
  * gewöhnliche Band (`belt`, blaue Sparren) nimmt, was man darauflegt, und
  * schiebt es eine Kachel weiter. Das **Zugband** (`belt-pull`, orange Sparren)
  * tut dasselbe und holt sich obendrein von selbst, was auf der Kachel
  * **hinter** ihm liegt — und die Kachel davor muss dafür kein Band sein: eine
- * Arbeitsplatte, ein Gästetisch, ein Schneidebrett, ein anderes Band. Sie
- * **wird** für diesen einen Handgriff eines (`BeltTile.pull`, `advanceBelts`),
- * und damit gilt für sie ohne eine zweite Rechnung alles, was für ein Band
- * gilt — Losfahren, Anstehen, `BELT_HOLD`, das Bild dazwischen.
+ * Arbeitsplatte, ein Gästetisch, ein Schneidebrett, ein Mixer, eine
+ * Vorratskiste, ein anderes Band. Sie **wird** für diesen einen Handgriff
+ * eines (`BeltTile.pull`, `advanceBelts`), und damit gilt für sie ohne eine
+ * zweite Rechnung alles, was für ein Band gilt — Losfahren, Anstehen,
+ * `BELT_HOLD`, das Bild dazwischen.
+ *
+ * **Und das Filterband** (`belt-smart`, violette Sparren) ist ein Zugband mit
+ * einem Gedächtnis: Es greift nur nach dem, was man ihm einmal aufgelegt hat
+ * (`beltWants`, `beltLearns`). In dieser Datei ist es deshalb **kein**
+ * Sonderfall — die Rechnung unten kennt nur `BeltTile.pull`, und ob dort ein
+ * Schlüssel steht, entscheidet die Zone, die als Einzige weiß, was auf der
+ * Nachbarkachel liegt (`kitchen.beltSource`). Was hier steht, ist die Regel
+ * dazu und das Möbel; die Fahrt ist dieselbe wie bei jedem anderen Band.
+ *
+ * **Eine Vorratskiste zählt dabei als volle Kachel** (`beltRefills`). Sie wird
+ * nie leer, also gibt sie einem Zugband davor alle zwei Sekunden ein frisches
+ * Brötchen — der Anfang jeder Bandstraße, die ohne Läufer auskommt.
  *
  * **Und es zieht, indem es sich etwas vormerkt.** Ein freies Zugband schreibt
  * sich bei seinem Nachbarn ein, noch bevor dort überhaupt etwas liegt; der
@@ -261,6 +274,17 @@ interface Seat {
    * dieses Feld und weiß deshalb nicht einmal, dass es Zugbänder gibt.
    */
   to: string | null;
+  /**
+   * **Und wohin sie von sich aus schiebt** — `tile.to`, einmal auf ein
+   * bekanntes Ziel geprüft und danach unveränderlich.
+   *
+   * Sie ist der Stand, auf den eine Kachel zurückfällt, wenn in diesem Bild
+   * etwas auf ihr **ankommt** (siehe dort). Ohne sie ließe sich das
+   * Geborgte nicht mehr vom Eigenen unterscheiden, sobald `to` einmal
+   * überschrieben ist — und genau daran hing der Fehler, den die Zeile in
+   * Schritt 2 beseitigt.
+   */
+  own: string | null;
 }
 
 /**
@@ -335,6 +359,7 @@ export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame 
       time: tile.loaded ? sane : 0,
       moving: tile.loaded && tile.state.moving,
       to: tile.to,
+      own: tile.to,
     });
   }
 
@@ -344,7 +369,12 @@ export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame 
   // die Zugbänder unten dürfen sich darauf verlassen. Ohne diesen Strich hielte
   // ein Band, das auf eine weggetragene Ablage zeigt, sich für beschäftigt und
   // ließe sich nicht leerziehen.
-  for (const seat of board.values()) if (seat.to !== null && !board.has(seat.to)) seat.to = null;
+  for (const seat of board.values()) {
+    if (seat.to !== null && !board.has(seat.to)) {
+      seat.to = null;
+      seat.own = null;
+    }
+  }
 
   const ahead = (seat: Seat): Seat | undefined =>
     seat.to === null ? undefined : board.get(seat.to);
@@ -479,6 +509,28 @@ export function advanceBelts(tiles: readonly BeltTile[], dt: number): BeltFrame 
       // hier keine Phase, die den Rest gebrauchen könnte — die neue Kachel ist
       // vielleicht gar kein Band.
       next.time = 0;
+      // **Was hier ankommt, erbt kein fremdes Ziel.** Eine Kachel kann in
+      // diesem Bild zwei Ziele getragen haben: ihr **eigenes** (`own`) und
+      // eines, das ihr jemand geliehen hat — entweder ein Zugband, das sich
+      // gerade vorgemerkt hat (`pulls`), oder die Fahrt, die auf ihr noch lief,
+      // als das Bild anfing (`kept`, weiter oben). Das Geliehene gilt dem Ding,
+      // das dort **lag**; für das, was gerade ankommt, ist die Frage neu zu
+      // stellen — und stellen kann sie nur, wer weiß, was jetzt daraufliegt
+      // (`kitchen.beltSource`), nicht diese Rechnung.
+      //
+      // Also: eine frische Vormerkung gilt weiter (das ist die zugesagte
+      // Eigenschaft — was auf einer gezogenen Kachel zur Ruhe kommt, geht quer
+      // weg statt geradeaus), alles andere fällt auf das eigene Ziel zurück.
+      //
+      // **Ohne diese Zeile hing eine ganze Bandstraße daran**, und der Fehler
+      // war im Bild sofort zu sehen und hier fast unsichtbar: Ein Filterband
+      // zog den geschnittenen Salat aus dem Mixer; im selben Bild schob das
+      // Band davor den nächsten **rohen** Salatkopf hinein — und der fuhr auf
+      // dem Ziel der eben beendeten Fahrt ungehackt hinterher. Der Filter
+      // stimmte, der Mixer stimmte, und heraus kamen trotzdem rohe Köpfe.
+      // Vorgemerkt hatte in diesem Bild niemand mehr: Ein Zugband merkt bei
+      // einer Kachel, die selbst gerade fährt, gar nicht erst vor (Schritt 0).
+      next.to = pulls?.get(next.tile.id)?.tile.id ?? next.own;
       moves.push({ from: seat.tile.id, to: next.tile.id });
       settled = false;
     }
@@ -679,12 +731,52 @@ export function beltTrashes(deed: KitchenDeed): boolean {
  *   am Brett steht und schneidet, hat den Salat noch nicht aus der Hand
  *   gegeben (`kitchenWork.WorkState.working` läuft nur, solange jemand
  *   davorsteht). Sobald die Uhr steht, ist das Brett eine Ablage wie jede
- *   andere, und das Fertige fährt los.
+ *   andere, und das Fertige fährt los. **Dasselbe Wort deckt den Mixer ab**,
+ *   und dort trägt es das ganze Gewicht: Er arbeitet ohne jemanden davor
+ *   (`kitchenWork.WORK_ALONE`), also ist `working` bei ihm die einzige
+ *   Auskunft darüber, ob er gerade mitten in einer Stufe steckt. Ein Zugband,
+ *   das ihm den halb gehackten Salat wegnähme, wäre der Grund, warum eine
+ *   Bandstraße nie ein zweites Mal dasselbe liefert.
+ *
+ * **Die Vorratskiste sagt ausdrücklich ja**, und sie ist der eine Fall, in dem
+ * „leerziehen" nicht stimmt: Eine Kiste wird nicht leer, sie gibt aus, so oft
+ * man will (`kitchenCarry.fromBox`). Ein Zugband davor ist damit genau das,
+ * was man sich davon verspricht — die Brötchen kommen von selbst, statt dass
+ * jemand viermal je Burger zur Westwand läuft. Die Kiste bleibt trotzdem eine
+ * Ablage: Liegt etwas auf ihrem Deckel, holt das Band **das** und nicht ein
+ * frisches Ding (`kitchen.runBelts`), denn das Liegende hat jemand dort
+ * hingestellt.
+ *
+ * **Der Kombinierer und der Mixer stehen in keiner Zeile hier**, und das ist
+ * die Antwort und kein Vergessen: Beide sind Möbel, auf denen etwas liegt und
+ * auf denen etwas fertig wird, also gilt für sie die Regel aller Ablagen —
+ * hineinschieben ja, herausholen ja, und der Mixer erst, wenn er still steht.
+ * Genau daraus wird eine Bandstraße: Ein Zugband holt sich, was der Mixer
+ * gehackt und der Kombinierer zusammengelegt hat.
  */
 export function beltReleases(kind: StationKind, working = false): boolean {
   if (!beltDelivers(kind)) return false;
   if (kind === 'bin' || kind === 'stove' || kind === 'rack') return false;
   return !working;
+}
+
+/**
+ * **Ob diese Sorte Station von selbst nachliefert** — heute genau die
+ * Vorratskiste.
+ *
+ * Für die Bandrechnung ist eine Kachel entweder belegt oder frei
+ * (`BeltTile.loaded`), und eine Kiste ist von beidem nichts: Auf ihr liegt
+ * nichts, und trotzdem ist dort etwas zu holen. Diese Zeile ist die Übersetzung
+ * — **eine Kiste gilt als belegt**, und was das Band von ihr abholt, entsteht
+ * in dem Augenblick, in dem es losfährt (`kitchen.runBelts`, `sprout`).
+ *
+ * Sie steht hier und nicht in der Zone, obwohl erst die Zone weiß, **welche**
+ * Kiste was hergibt: Das Nachschlagen ist eine Zeile, die Entscheidung ist die
+ * Regel — dieselbe Arbeitsteilung wie bei `beltDelivers` und `beltReleases`,
+ * und dieselbe Gelegenheit, sie ohne WebGL nachzurechnen.
+ */
+export function beltRefills(kind: StationKind): boolean {
+  return kind === 'box';
 }
 
 /**
@@ -699,7 +791,51 @@ export function beltReleases(kind: StationKind, working = false): boolean {
 export function beltKind(name: string): BeltKind | null {
   if (name === 'belt') return 'push';
   if (name === 'belt-pull') return 'pull';
+  if (name === 'belt-smart') return 'smart';
   return null;
+}
+
+/**
+ * **Ob dieses Möbel sich merkt, was man darauflegt** — heute genau das
+ * Filterband.
+ *
+ * Es ist dieselbe Sorte Frage wie `beltKind` eine Zeile höher und steht
+ * deshalb daneben: ein Katalogname, und was er bedeutet. Die Zone ruft es an
+ * der einen Stelle, an der ein Spieler etwas ablegt (`kitchen.act`) — und
+ * **nur** dort. Was ein Band selbst herbeischafft, lehrt es nichts: Ein Band,
+ * das von seiner eigenen Fracht lernte, hätte nach der ersten Fuhre einen
+ * Filter, den niemand gesetzt hat, und danach nie wieder einen anderen.
+ */
+export function beltLearns(name: string): boolean {
+  return name === 'belt-smart';
+}
+
+/**
+ * **Ob ein Filterband dieses Ding haben will** — der gemerkte Filter gegen
+ * das, was nebenan liegt.
+ *
+ * Drei Fälle, und der erste ist der, über den man zweimal nachdenkt:
+ *
+ * - **Ohne Filter zieht es nichts.** Ein frisch aufgestelltes Filterband steht
+ *   da und tut nichts, bis jemand ihm einmal etwas auflegt. Die Alternative
+ *   wäre gewesen, es bis zur ersten Lehre wie ein gewöhnliches Zugband ziehen
+ *   zu lassen — und das wäre der teurere Fehler: Man baut es in eine laufende
+ *   Bahn, es schleppt erst einmal alles weg, was vorbeikommt, und hört damit
+ *   in dem Augenblick auf, in dem man ihm etwas auflegt. Ein Möbel, das seine
+ *   Regel wechselt, sobald man es benutzt, ist kein Filter, sondern eine
+ *   Falle. Dass es leer nichts tut, sieht man ihm außerdem an: Auf ihm liegt
+ *   dann kein Bild (`kitchen.showFilter`).
+ * - **Gefragt wird nach dem Ding, nicht nach seinem Belag.** Ein Teller mit
+ *   einem Burger darauf ist ein `plate`, und ein Filter auf `plate` holt ihn
+ *   samt allem, was daraufliegt. Das ist gewollt: Am Ende einer Bahn will man
+ *   „alle Teller" haben und nicht „alle Teller, auf denen genau dieser Burger
+ *   liegt" — dafür gibt es die Rezepte und nicht das Band.
+ * - Und **leer ist leer**: Wo nichts liegt, wird nichts gezogen, auch nicht
+ *   von einem Band mit Filter.
+ */
+export function beltWants(filter: KitchenItem | null, item: KitchenItem | null): boolean {
+  if (!filter || !item) return false;
+  return filter === item;
 }
 
 /**
@@ -842,14 +978,41 @@ const BODY_COLOR = 0x39414d;
 const TOP_COLOR = 0xdfe4e9;
 const BAND_COLOR = 0x171b21;
 
-/** Was für ein Band gebaut wird — dasselbe Möbel, zwei Aufgaben. */
-export type BeltKind = 'push' | 'pull';
+/** Was für ein Band gebaut wird — dasselbe Möbel, drei Aufgaben. */
+export type BeltKind = 'push' | 'pull' | 'smart';
 
-/** Die Farbe der Sparren je Sorte: blau schiebt, orange zieht. */
+/**
+ * **Die Farbe der Sparren je Sorte**: blau schiebt, orange zieht, violett
+ * wählt aus.
+ *
+ * Die dritte Farbe ist nach derselben Regel gewählt wie die ersten beiden —
+ * so weit von den anderen entfernt, dass ein Teller, der die halbe Kachel
+ * verdeckt, sie nicht unentscheidbar macht. Violett liegt auf dem Farbkreis
+ * zwischen Blau und Orange auf der Seite, auf der noch nichts steht, und es
+ * ist der einzige Ton dieser Küche, der weder nach Gerät (grau) noch nach
+ * Essen (warm) aussieht: Das Filterband ist das eine Möbel, das sich etwas
+ * **merkt**.
+ */
 export const BELT_COLORS: Readonly<Record<BeltKind, string>> = Object.freeze({
   push: '#5ab4ff',
   pull: '#ff9f45',
+  smart: '#c07bff',
 });
+
+/**
+ * **Ob diese Sorte Band nach hinten greift** — Zugband und Filterband tun es,
+ * das gewöhnliche nicht.
+ *
+ * Eine Zeile statt zweimal `kind === 'pull' || kind === 'smart'`, und sie
+ * beantwortet zwei Fragen auf einmal: ob das Möbel den hellen **Greifer** an
+ * seiner hinteren Kante trägt (`BeltKit.piece`) und ob die Zone für dieses
+ * Band überhaupt nach einer Quelle sucht (`kitchen.beltSource`). Zwei
+ * getrennte Antworten wären die Gelegenheit, ein Band zu bauen, das zieht,
+ * ohne es zu zeigen.
+ */
+export function beltGrabs(kind: BeltKind): boolean {
+  return kind === 'pull' || kind === 'smart';
+}
 
 /**
  * **Der Greifer am Zugband**, in Metern — der helle Streifen an seiner
@@ -946,7 +1109,7 @@ export class BeltKit {
    */
   piece(kind: BeltKind = 'push'): THREE.Object3D {
     const group = new THREE.Group();
-    group.name = kind === 'pull' ? 'kitchen-belt-pull' : 'kitchen-belt';
+    group.name = kind === 'push' ? 'kitchen-belt' : `kitchen-belt-${kind}`;
 
     const body = new THREE.Mesh(
       this.shape('body', () => new THREE.BoxGeometry(BODY_SIDE, BODY_HEIGHT, BODY_SIDE)),
@@ -1003,11 +1166,13 @@ export class BeltKit {
     group.add(arrows);
 
     // Der Greifer sitzt an der **hinteren** Kante: Das Band schiebt nach −z,
-    // also kommt von +z herein, was es sich holt.
-    if (kind === 'pull') {
+    // also kommt von +z herein, was es sich holt. Beide greifenden Sorten
+    // tragen ihn, und jede in ihrer eigenen Farbe (`beltGrabs`) — was zieht,
+    // zeigt auch, von wo.
+    if (beltGrabs(kind)) {
       const mouth = new THREE.Mesh(
         this.shape('mouth', () => new THREE.BoxGeometry(ARROW_WIDE, MOUTH_THICK, MOUTH_LONG)),
-        this.skin('mouth', new THREE.Color(BELT_COLORS.pull).getHex(), 0.6),
+        this.skin(`mouth:${kind}`, new THREE.Color(BELT_COLORS[kind]).getHex(), 0.6),
       );
       mouth.position.set(0, BELT_HEIGHT, (BAND_LONG - MOUTH_LONG) / 2);
       denyShadow(mouth);
