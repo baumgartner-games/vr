@@ -8,8 +8,10 @@ import {
   onStove,
   stovePhase,
   stoveProgress,
+  stoveUnder,
   type StoveState,
 } from './kitchenClock';
+import { dish } from './kitchenRecipes';
 
 /** Viele kleine Bilder statt eines großen — so, wie es im Headset läuft. */
 function frames(state: StoveState, seconds: number, dt = 1 / 60) {
@@ -128,5 +130,67 @@ describe('die Uhr am Herd', () => {
     expect(again.time).toBe(0);
     expect(stoveProgress(again)).toBe(0);
     expect(again.patty).toBe('patty');
+  });
+});
+
+/**
+ * **Was auf dem Herd steht, entscheidet über seine Uhr** (`stoveUnder`).
+ *
+ * Die Rechnung stand einmal mitten in der Zone (`kitchen.ts`, `settle`), also
+ * an der einen Stelle, die kein Test lesen kann. Damit war „die Pfanne
+ * anzufassen löscht den Fortschritt" nur für `onStove` allein bewiesen und
+ * nirgends für den Weg dorthin — und der Weg ist die Hälfte, die beim nächsten
+ * Umbau still kaputtgeht.
+ */
+describe('was unter der Pfanne steht', () => {
+  it('lässt einen Herd ohne Pfanne kalt', () => {
+    expect(stoveUnder(null)).toEqual(COLD_STOVE);
+    expect(stoveUnder(dish('pan'))).toEqual(COLD_STOVE);
+  });
+
+  it('brät nur unter einer Pfanne und nicht unter Teller oder Brötchen', () => {
+    expect(stovePhase(stoveUnder(dish('pan', ['patty'])))).toBe('frying');
+    // Ein Teller mit einem Patty darauf ist ein Teller und kein Herd voll
+    // Arbeit: `TAKES` lässt ihn zwar tragen, gebraten wird darin nichts.
+    expect(stovePhase(stoveUnder(dish('plate', ['patty-cooked'])))).toBe('cold');
+    expect(stovePhase(stoveUnder(dish('bun', ['patty-cooked'])))).toBe('cold');
+  });
+
+  it('nimmt die Stufe des Pattys mit in die neue Uhr', () => {
+    expect(stoveUnder(dish('pan', ['patty'])).patty).toBe('patty');
+    expect(stovePhase(stoveUnder(dish('pan', ['patty-cooked'])))).toBe('burning');
+    expect(stovePhase(stoveUnder(dish('pan', ['patty-burnt'])))).toBe('igniting');
+  });
+
+  /**
+   * **Der Kern der Sache**: Wer die Pfanne kurz vor dem Umschlagen anhebt,
+   * fängt danach wieder bei null an. Ein Fortschritt muss am Stück durchlaufen,
+   * um die nächste Stufe zu erreichen — sonst wäre Braten eine Folge von
+   * Antippen und Weglaufen.
+   */
+  it('löscht den angefangenen Fortschritt beim Aufheben und beim Hinstellen', () => {
+    const almost = advanceStove(onStove('patty'), FRY_SECONDS - 0.01).state;
+    expect(stoveProgress(almost)).toBeGreaterThan(0.99);
+
+    // Pfanne hoch: Auf dem Herd steht nichts mehr, seine Uhr ist kalt.
+    const lifted = stoveUnder(null);
+    expect(lifted).toEqual(COLD_STOVE);
+
+    // Pfanne wieder hin — mit demselben rohen Patty darin.
+    const back = stoveUnder(dish('pan', [almost.patty!]));
+    expect(back.patty).toBe('patty');
+    expect(back.time).toBe(0);
+    expect(stoveProgress(back)).toBe(0);
+
+    // Und es braucht danach die **vollen** vier Sekunden, nicht die fehlenden
+    // Hundertstel.
+    expect(advanceStove(back, FRY_SECONDS - 0.01).turned).toBeNull();
+    expect(advanceStove(back, FRY_SECONDS).turned).toBe('patty-cooked');
+  });
+
+  /** Ein brennender Herd wird durch das Hinstellen nicht gelöscht — er wird geräumt. */
+  it('kennt kein Feuer, das ein Hinstellen überlebt', () => {
+    expect(stoveUnder(dish('pan', ['patty-burnt'])).fire).toBe(false);
+    expect(stoveUnder(null).fire).toBe(false);
   });
 });

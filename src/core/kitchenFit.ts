@@ -628,6 +628,50 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     worktop: true,
     built: true,
   },
+  {
+    name: 'desk',
+    label: 'Computer-Tisch',
+    tiles: [1, 1],
+    // **1,21 m, und das ist die Oberkante des Bildschirms.** Die Zahlen stehen
+    // am Netz (`worlds/test/zones/kitchenDesk.ts`, `DESK_HEIGHT`,
+    // `SCREEN_FOOT`, `SCREEN_HIGH`) und werden hier abgeschrieben statt
+    // eingebunden: Dieser Katalog kommt ohne three.js aus, und ein `import`
+    // von dort holte die halbe Zone in einen Test, der nur Maße nachschlägt.
+    // Dass beide dasselbe sagen, prüft `kitchenDesk.test.ts` nach — die eine
+    // Stelle, an der ohnehin beides zusammenliegt.
+    height: 1.21,
+    // **0,75 m ist die Platte**, ein Viertelmeter höher als jede
+    // Arbeitsplatte dieser Küche (0,50 m). Das ist kein Versehen: Ein
+    // Schreibtisch, an dem man steht, hat seine Platte in Bauchhöhe und nicht
+    // in Kniehöhe — und auf diesen hier legt ohnehin niemand einen Salatkopf.
+    deck: 0.75,
+    // **Und deshalb kein `worktop`.** Ohne die Marke bekommt er keine Station
+    // (`worlds/test/zones/kitchenPlan.stationKind`), und genau so ist es
+    // gemeint: Der Tisch hat eine einzige Wirkung, und die sitzt vorn am
+    // Bildschirm.
+    built: true,
+  },
+  {
+    name: 'copier',
+    label: 'Kopierer',
+    // **Zwei Kacheln, und die zweite ist kein Beiwerk.** Links liegt die
+    // Kopierfläche, rechts die Kopie-Zone (`kitchenDesk.COPIER_PLATE`,
+    // `COPIER_ZONE`, je eine Kachelmitte). Ein Kopierer auf einer Kachel wäre
+    // ein Gerät, bei dem Vorlage und Kopie übereinanderstehen.
+    tiles: [2, 1],
+    // Oberkante der vier Eckpfosten der Kopie-Zone
+    // (`kitchenDesk.COPIER_HEIGHT`).
+    height: 0.8,
+    // **Beide Felder liegen auf 0,50 m** — auf der Arbeitshöhe der
+    // Küchenzeile, und beide auf derselben. Ein Gerät, das behauptet
+    // „dasselbe Ding, noch einmal", und dessen Kopie zwei Zentimeter höher
+    // steht als die Vorlage, behauptet es nicht überzeugend
+    // (`kitchenDesk.COPIER_DECK`).
+    deck: 0.5,
+    // Kein `worktop`: Was hier abgelegt wird, ist ein **Möbel** und kein
+    // Gericht, und das läuft nicht über eine Station.
+    built: true,
+  },
 ];
 
 /** Die Namen allein — für Listen, die keine Maße brauchen. */

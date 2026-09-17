@@ -254,16 +254,21 @@ describe('Wie ein Küchenmöbel gegriffen werden will', () => {
   });
 
   /**
-   * **Hüfthöhe, über den ganzen Katalog** — die Begründung der Entscheidung,
-   * als Zahl. Ein Koch ist 1,60 m groß (`core/chefFit.ts`); alles zwischen
-   * einem knappen halben Meter und gut einem halben ist die Höhe, auf der ein
-   * Mensch ein Möbel anfasst, um es zu schieben.
+   * **Hüft- bis Brusthöhe, über den ganzen Katalog** — die Begründung der
+   * Entscheidung, als Zahl. Ein Koch ist 1,60 m groß (`core/chefFit.ts`);
+   * alles zwischen einem knappen halben Meter und drei Vierteln ist die Höhe,
+   * auf der ein Mensch ein Möbel anfasst, um es zu schieben.
+   *
+   * **Die obere Grenze war 0,60 m**, und sie ist nicht gestiegen, weil die
+   * Regel nachgegeben hätte: Der Computer-Tisch hat seine Platte auf 0,75 m,
+   * weil man daran steht und nicht darauf schneidet. Sein Griff ist
+   * mitgewandert, ohne dass jemand eine Zeile dafür geschrieben hätte — genau
+   * dafür wird die Höhe abgeleitet und nicht eingetragen.
    */
-  it('landet damit bei jedem Möbel zwischen 0,40 m und 0,60 m', () => {
+  it('landet damit bei jedem Möbel zwischen 0,40 m und 0,80 m', () => {
     for (const piece of KITCHEN_PIECES) {
       const y = pieceHandles(piece)[0].pose.position.y;
-      expect(y).toBeGreaterThan(0.4);
-      expect(y).toBeLessThan(0.6);
+      expect([piece.name, y > 0.4 && y < 0.8]).toEqual([piece.name, true]);
     }
   });
 

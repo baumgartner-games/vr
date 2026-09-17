@@ -25,7 +25,7 @@
  * die Station.
  */
 
-import { fryStage, type KitchenItem } from './kitchenRecipes';
+import { fryStage, type Dish, type KitchenItem } from './kitchenRecipes';
 
 /**
  * **Wie lange ein Patty braucht**, in Sekunden.
@@ -88,6 +88,33 @@ export const COLD_STOVE: StoveState = { patty: null, time: 0, fire: false };
  */
 export function onStove(patty: KitchenItem | null): StoveState {
   return { patty, time: 0, fire: false };
+}
+
+/**
+ * **Was auf dem Herd liegt, und was das für seine Uhr heißt** — eine Zeile,
+ * und sie ist die ganze Antwort auf „warum brät es in der Hand nicht weiter?".
+ *
+ * Auf dem Herd steht die **Pfanne**, und **in** ihr liegt das Patty
+ * (`kitchenRecipes.TAKES`). Liegt dort etwas anderes — ein Teller, ein
+ * Brötchen, gar nichts —, brät nichts, und genau das sagt `onStove(null)`.
+ *
+ * Die Rechnung stand bis eben mitten in der Zone (`kitchen.ts`, `settle`) und
+ * damit an der einen Stelle, die kein Test lesen kann: Die Zone braucht
+ * three.js, ein Netz und einen Wirt. Dass **jeder Griff an die Pfanne den
+ * Fortschritt löscht**, war deshalb nur für `onStove` allein bewiesen und
+ * nirgends für den Weg dorthin — und das ist die Hälfte, die man beim nächsten
+ * Umbau kaputt macht, ohne dass etwas rot wird.
+ *
+ * **Immer von vorn, in beide Richtungen.** Hochheben löscht die Uhr, weil dann
+ * nichts mehr darauf steht; Hinstellen löscht sie ebenso, weil `onStove` bei
+ * null anfängt. Ein Fortschritt muss also **am Stück** durchlaufen, um die
+ * nächste Stufe zu erreichen — wer die Pfanne eine halbe Sekunde vor dem
+ * Umschlagen anhebt, fängt die Stufe danach wieder bei null an. Die erreichte
+ * **Stufe** reist dabei in der Pfanne mit (sie steht im `Dish`) und geht nicht
+ * verloren; nur der angefangene Rest tut es.
+ */
+export function stoveUnder(on: Dish | null): StoveState {
+  return onStove(on?.item === 'pan' ? (on.on[0] ?? null) : null);
 }
 
 /** Wie lange die laufende Phase dauert — `0`, wenn keine läuft. */

@@ -2229,8 +2229,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Kachel dahinter liegt —, vorn die Ausgabetheke
     mit den Wärmeschirmen einen Meter darüber, und südlich davon der
     **Gastraum**: drei Gästetische und die Geschirrrückgabe (die Türkacheln
-    daneben bleiben frei, sonst stünde ein Tisch im Eingang) —, im Osten der
-    **Schauraum**: jedes der sechzehn Möbel noch einmal, frei stehend und mit
+    daneben bleiben frei, sonst stünde ein Tisch im Eingang). Dazu zwei Möbel,
+    die nicht kochen, sondern die Küche selbst verwalten: der
+    **Computer-Tisch** neben der Ankunft, der den **Möbelkatalog** aufmacht,
+    und der **Kopierer** in der freien Mitte, der von einem Möbel ein zweites
+    hergibt. Im Osten der
+    **Schauraum**: jedes der achtzehn Möbel noch einmal, frei stehend und mit
     einer Tafel daneben, auf der sein Name und sein Maß stehen — bis auf die
     beiden Hälften der Spüle, die dort **nebeneinander** stehen: Ihre
     Schnittflächen sind offen, und auf Lücke gestellt sähe man in zwei
@@ -2238,8 +2242,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     aus acht Schränken sieht man ein einzelnes Möbel nicht; der Katalog ist
     damit ein Rundgang statt einer Liste. **Angefasst wird mit `A`**, und ein
     roter Knopf neben dem Eingang schaltet den **Baumodus** ein und wieder aus,
-    in dem sich jedes Möbel samt allem, was darauf steht, versetzen lässt
-    (beides unter _Anfassen in der Küche_). Sie ist
+    in dem sich jedes Möbel samt allem, was darauf steht, versetzen lässt — das
+    Einschalten räumt die Küche dabei ab, wie `B`/`Y` es täte (beides unter
+    _Anfassen in der Küche_). Sie ist
     der Grund, warum das Gelände nach Norden gewachsen ist (`FIELD` ist jetzt
     64 × 80 m): Die Möbel sind groß — eine Spüle misst in der Quelle 4 × 2,1 m,
 im Spiel also zwei Kacheln —, und in eine
@@ -2514,22 +2519,29 @@ im Spiel also zwei Kacheln —, und in eine
   Lehrpfad.
 
 - **Der Kleiderschrank und die Umkleide** (`grid/fixtures/wardrobe.ts`,
-  `ui/WardrobeMenu.ts`): der erste Einbau, der nicht die Welt ändert, sondern
-  **den Spieler**.
+  `worlds/shared/wardrobeRack.ts`): der erste Einbau, der nicht die Welt ändert,
+  sondern **den Spieler**.
 
   Er steht an einer Kante wie ein Regal — eine Kachel breit, einen halben Meter
   tief, 2,1 m hoch —, ist fest und benutzbar, und auf einer seiner beiden
   Türfronten hängt ein **Spiegel** (`worlds/shared/Mirror.ts`, derselbe wie am
-  Standspiegel). Wer davorsteht und `A` drückt, bekommt die Umkleide.
+  Standspiegel). Wer davorsteht und `A` drückt, steht im nächsten Augenblick
+  **in** seinem Kleiderschrank: Die Welt verblasst, ein weißer Kachelboden kommt
+  herauf, und um die Figur herum fahren die Sachen aus dem Boden, die sie
+  anziehen kann (siehe _Der Konstrukt-Raum_).
 
   **Er tut das über ein Ereignis und nicht selbst.** `use` meldet
-  `{ type: 'wardrobe' }`, `GridWorld` reicht es an `ctx.openWardrobe()` weiter,
-  und was daraus wird, entscheidet `App`. Eine Einbau-Art, die `saveAppearance`
-  riefe, wäre eine, die man ohne Speicher nicht mehr prüfen kann — und sie
-  wüsste Dinge, die sie nichts angehen: wer davorsteht, was der anhat, und ob
-  daraus am Bildschirm eine Seite oder in der Brille eine Menüseite wird. Es ist
-  das einzige `FixtureEvent` **ohne Inhalt**, und genau das ist die Nachricht:
-  Jemand hat den Schrank aufgemacht.
+  `{ type: 'wardrobe' }`, und was daraus wird, entscheidet die Welt:
+  `GridWorld.openWardrobe` bekommt den Schrank als **Anker** dazu
+  (`view.handle ?? view.object`) und macht damit das Konstrukt auf — ohne ihn
+  wüsste es weder, was stehen bleibt, noch, worauf man drücken muss, um wieder
+  herauszukommen. Ein zweiter Druck auf denselben Schrank führt hinaus. Eine
+  Einbau-Art, die `saveAppearance` riefe, wäre dagegen eine, die man ohne
+  Speicher nicht mehr prüfen kann — und sie wüsste Dinge, die sie nichts
+  angehen: wer davorsteht, was der anhat, und ob daraus ein Regal, eine Seite
+  am Bildschirm oder eine Menüseite in der Brille wird. Es ist das einzige
+  `FixtureEvent` **ohne Inhalt**, und genau das ist die Nachricht: Jemand hat
+  den Schrank aufgemacht.
 
   **Der Spiegel brauchte dafür keinen neuen Bau-Kontext.** Der erste Verdacht
   war, `FixtureBuild` um einen Haken für Spiegel zu erweitern — der
@@ -2548,9 +2560,81 @@ im Spiel also zwei Kacheln —, und in eine
   Figur verdeckt. Die beiden Türfronten sind das, was man **anfasst**, und
   hängen deshalb in der Gruppe: Was dort hängt, bekommt den gelben Saum, und
   ein Schrank, bei dem der ganze Kasten leuchtet, sagt weniger als einer, bei
-  dem die Türen leuchten.
+  dem die Türen leuchten. Dieselbe Teilung entscheidet im Konstrukt, was stehen
+  bleibt: Der **Anker** ist die Gruppe, also stehen Türen und Spiegel im weißen
+  Raum, während der Korpus mit der Welt verblasst, zu der er gehört.
 
-  **Die Umkleide am Bildschirm** ist eine Seite über dem Bild, geschnitten wie
+  **Er meldet sich aus einem Meter**, nicht mehr aus 0,7 m (`use.radius`). Der
+  Halbmesser ist der Zylinder, den der Strahl treffen muss
+  (`core/usable.pickUsable`), und 0,7 m maßen genau die beiden Türblätter — mehr
+  hängt ja nicht in der Gruppe. Wer schräg davorstand, zielte daran vorbei und
+  sah nichts leuchten, während jedes Küchenmöbel drei Meter weiter schon von der
+  Seite antwortet: Ein Möbel ohne eigene Angabe bekommt die Ausdehnung seines
+  Netzes (`PortalWorld.addUsable`, `objectRadius`), bei einer Küchenzeile auf
+  einer Kachel gut 0,7 m, bei der Ausgabetheke über zwei Kacheln das Doppelte.
+  Ein Meter ist die halbe Diagonale der Kachel plus eine Handbreit — und damit
+  antwortet der Schrank aus derselben Entfernung und unter denselben Winkeln wie
+  alles andere, vor dem man stehen kann.
+
+  **Die Umkleide ist kein Blatt mehr, sondern ein Regal**
+  (`worlds/shared/wardrobeRack.ts`). Bis eben klappte ein Druck auf den Schrank
+  eine Liste mit Pfeilen auf, und eine Liste mit Pfeilen ist die eine Bedienung,
+  von der man in einer Brille nichts hat: Man sieht das Kleidungsstück nicht,
+  man liest seinen Namen. Jetzt stehen die **siebzehn** Sachen als Sachen da —
+  vier Gesichter, acht Hüte, fünf Oberteile, in genau der Reihenfolge, in der
+  `ui/wardrobeRows.ts` seine drei Zeilen baut. Zwei Umkleiden, die dieselben
+  Sachen verschieden sortieren, driften nach der zweiten neuen Mütze
+  auseinander, und dann sucht man im Regal an der Stelle, an der im Menü etwas
+  anderes stand.
+
+  Jedes Stück ist **handgroß** (30 bis 45 cm) und steht auf seinem eigenen Fuß,
+  und die drei Verkleinerungen sind je eine Zahl pro Fach (0,55 für Köpfe, 0,44
+  für Hüte, 0,5 für Oberteile), aus dem größten Stück des Fachs
+  zurückgerechnet. **Eine** Zahl je Fach und keine Normierung Stück für Stück:
+  Ein Zylinder ist höher als eine Krone, ein Bauhelm breiter als eine Mütze, und
+  genau daran erkennt man sie auch verkleinert wieder. Der Rumpf wird dabei auf
+  knapp zwei Drittel gestaucht (`BODY_STAND`) — in voller Höhe ist er eine
+  kopflose Figur, gestaucht ist er eine **Büste**, und so stellen
+  Kleidergeschäfte Oberteile hin. Für `none` steht ein **leerer Hutständer**
+  dort, Pfosten und Knauf: `buildHeadgear('none')` gibt `null`, und ein leeres
+  Brett sähe nicht nach einer Möglichkeit aus, sondern nach einer Lücke — dabei
+  ist ausgerechnet _Barhäuptig_ die Auslieferung, und wer einen Hut wieder
+  absetzen will, muss auch etwas **benutzen** können.
+
+  **Was man anhat, trägt einen Reif um den Fuß** (`rack-worn`), flach, warm und
+  selbstleuchtend. `RackPiece.worn` sagt es dem Aufrufer, aber ein Regal, in dem
+  man erst etwas anvisieren muss, um zu erfahren, ob man es schon trägt, ist
+  wieder ein Menü; ein Ring sagt es auf einen Blick und aus jeder Richtung, Text
+  kann das nicht. Beim Anziehen **wandert** er, statt dass das Regal neu gebaut
+  wird (`GridWorld.wearable`) — siebzehn Netze für eine Marke wegzuwerfen wäre
+  das eine, die Auffahrt aus dem Boden ein zweites Mal vorzuführen das andere.
+  Dafür bekommt **jedes** Stück seinen Reif, und sichtbar ist einer: Wandern
+  kann nur, was da ist. Ein Ring, den es erst beim nächsten Neubau gäbe, wäre
+  nach dem ersten Kleiderwechsel bei **keinem** Stück mehr zu sehen — der alte
+  ginge aus, ein neuer entstünde nie.
+  Und der Raum bleibt dabei **offen**: Wer sich umzieht, probiert, und wer
+  probiert, will den nächsten Hut sehen, ohne zweimal durch eine halbe Sekunde
+  Überblendung zu gehen (`ConstructItem.pick` gibt `false`).
+
+  **Der Spiegel an der Tür ist die Rückmeldung** und kein Zierrat. Er ist mit
+  den Türen das Einzige, was nicht verblasst, und er zeigt die Figur in dem, was
+  sie gerade angezogen hat — deshalb braucht dieses Regal keine zweite Szene und
+  keine Figur in Nahaufnahme daneben. Und **das Aussehen hängt weiter am
+  Spieler** und nicht an der Welt (`core/appearance.ts`): `saveAppearance`
+  speichert sofort, der eigene Körper und das Netz hören über
+  `onAppearanceChange` zu, und angesagt wird es in der **Anmeldung** und nicht
+  in der Pose (`hello`, Felder `hat`, `head`, `body` — siehe _Wie man
+  aussieht_). Wer sich hier umzieht, läuft auch in der nächsten Welt so herum.
+
+  **Das Blatt von früher gibt es noch, aber nur als Rückfall**
+  (`ui/WardrobeMenu.ts`). Ohne Netz kein Konstrukt: `GridWorld.openWardrobe`
+  bekommt den Schrank als Anker mitgereicht, und wenn keiner da ist, geht es
+  über `ctx.openWardrobe()` den alten Weg — am Bildschirm die Seite mit der
+  Figur daneben, in der Brille die Seite _Aussehen_ am Handgelenk. Das ist kein
+  Notbehelf, sondern die ehrliche Antwort: Ein Schrank ohne sichtbaren Korpus
+  wäre im Konstrukt ein weißer Raum mit nichts darin.
+
+  **Die Seite am Bildschirm** ist eine Seite über dem Bild, geschnitten wie
   das Menü (`ui/pageMenu.css`): auf dem Telefon ein Blatt von unten, am
   Schreibtisch ein Kasten in der Mitte. Links drei Zeilen mit ‹ und › — Kopf,
   Hut, Körper (`ui/wardrobeRows.ts`) —, rechts **die Figur in Nahaufnahme**,
@@ -2575,21 +2659,24 @@ im Spiel also zwei Kacheln —, und in eine
   der Kopf klein wird, und Jacke und Hände gehören zu dem, was man hier
   aussucht.
 
-  **In der Brille gibt es diese Seite nicht.** Dort zeigt der Spiegel am Schrank
-  einen selbst, und die drei Zeilen gibt es längst — unter _Aussehen_ am
-  Handgelenk, und genau dorthin springt `A`. Ein zweites Canvas mit einer
-  zweiten Figur davor wäre ein Bild von einem Spiegel neben einem Spiegel.
+  **In der Brille gibt es diese Seite nicht.** Fällt der Schrank dort auf den
+  alten Weg zurück, springt `App.openWardrobe` an die Seite _Aussehen_ am
+  Handgelenk und baut kein zweites Canvas auf: Eine zweite Figur vor der Nase
+  wäre ein Bild von einem Spiegel neben einem Spiegel, und sie kostete einen
+  ganzen zweiten Renderer in der Sitzung, in der die Bilder am knappsten sind.
 
   **Gespeichert wird sofort** (`saveAppearance`); _Fertig_ schließt nur. Es gibt
   kein _Übernehmen_: Wer vor einem Spiegel steht und die Änderung nicht sieht,
-  hat kein Umkleidemenü. Der eigene Körper und das Netz hören über
-  `onAppearanceChange` ohnehin zu.
+  hat kein Umkleidemenü.
 
   **Die Zeilen sind eine eigene Datei** (`ui/wardrobeRows.ts`) und aus demselben
   Grund, aus dem `init`/`step` einer Einbau-Art rein sind: Was eine Zeile
   schaltet, ist eine Rechnung über drei Listen, und die prüft ein Test in
   Millisekunden. Was daraus für ein Knopf wird — DOM am Bildschirm, Menüzeile am
-  Handgelenk —, ist eine zweite Frage.
+  Handgelenk, ein Stück auf einem Brett —, ist eine zweite Frage. Dieselbe
+  Grenze läuft durch das Regal: `wardrobeRack.ts` liefert die Stücke und die
+  Auskunft, was Anziehen heißt; wohin sie kommen und wer den Raum wieder
+  zumacht, entscheidet `worlds/shared/construct.ts`.
 - **Schilder** (`src/worlds/signs/`, Werkzeug `tools/SignTool.ts`): Tafeln, die
   man irgendwo hinstellt und beschriftet. Sie sind das Gegenstück zur
   Staffelei — die stellt eine Fläche zum _Malen_ hin, das Schild eine zum
@@ -2848,7 +2935,9 @@ gilt für jeden, der nichts verstellt hat.
 | Küche: kochen | davorstellen und `A` — die Station, die `A` gerade meint, trägt den gelben Saum, und mehr braucht es nicht | `E` oder Enter | `A` | Knopf `A` |
 | Küche: greifen                                                                     | **Greifen** nimmt Pfanne, Topf, Teller, Zutat und im Umbau das Möbel — nur im eigenen Feld und den acht daneben, und am nächstgelegenen Griff. Halten und beim Loslassen ablegen, **oder** tippen und beim nächsten Druck ablegen                             | `A`/`E` wie beim Kochen — die feinere Wahl (welches Feld, welcher Griff) gibt es nur in der Brille                                                                                                                                                                                                                                             | `A`                                                         | Knopf `A`                                  |
 | Küche: Feuerlöscher | erst vom Hocker nehmen (`A`), dann den **Trigger der rechten Hand gedrückt halten**; gezielt wird mit dem Kopf | **aus den Augen**: `E` gedrückt halten, gezielt mit dem Kopf. **Von oben**: ein **Schalter** — Linksklick an, noch einmal aus (oder `E`, solange nichts in Reichweite steht); gezielt mit dem rechten Stock, der dort die Figur dreht | aus den Augen `A` halten; von oben schaltet RT (oder `A`, solange nichts in Reichweite steht) | aus den Augen Knopf `A` halten; von oben schaltet Knopf `B` (oder `A`, solange nichts in Reichweite steht) |
-| Küche: umbauen | roter Knopf neben dem Eingang + `A` schaltet den Baumodus um (sein Schild sagt, wohin: _Küche umbauen_ / _Küche nutzen_); **Greifen** am Möbel hebt es **samt allem, was darauf steht** auf (nur ein brennender Herd bleibt stehen), **Loslassen** über dem Umriss setzt es ab (grün = passt, rot = passt nicht) | dito mit `E`: `E` am Möbel hebt es samt Inhalt auf, `E` auf dem Umriss setzt es ab | dito mit `A` | dito mit Knopf `A` |
+| Küche: umbauen | roter Knopf neben dem Eingang + `A` schaltet den Baumodus um (sein Schild sagt, wohin: _Küche umbauen_ / _Küche nutzen_); das Einschalten räumt die Küche ab wie `B`/`Y`, danach hebt **Greifen** am Möbel es **samt allem, was darauf steht** auf, **Loslassen** über dem Umriss setzt es ab (grün = passt, rot = passt nicht) | dito mit `E`: `E` am Möbel hebt es samt Inhalt auf, `E` auf dem Umriss setzt es ab | dito mit `A` | dito mit Knopf `A` |
+| Küche: Möbelkatalog | **vorn** an den Computer-Tisch treten und `A` — die Küche verblasst, ringsum stehen alle Möbel als Miniaturen; eines anfassen, und man hält es in der Küche in der Hand. Von der Seite oder von hinten hebt `A` im Umbau den Tisch selbst auf | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
+| Küche: kopieren | ein getragenes Möbel **links** auf den Kopierer legen (`A`), die durchscheinende Kopie **rechts** abholen (`A`) — die nächste wächst nach, solange die Vorlage liegt | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
 | Messband                                                                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Stoppuhr                                                                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Pinsel                                                                             | Palette antippen **oder** anzielen + Trigger; Regler (RGB, Breite) gedrückt halten und ziehen; ✕ schließt sie, `A`/`X` öffnet sie wieder; Trigger streicht an, auf einer Leinwand malt er                                                                     | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
@@ -2876,7 +2965,7 @@ gilt für jeden, der nichts verstellt hat.
 | Karte weglegen (zum Bauen) | über der Hüfte loslassen, oder Menü → _Karte weglegen_ — erst dann steht das Gebaute fest da, und erst dann ist es gespeichert | Menü → _Karte weglegen_ | – | dito |
 | Welt speichern / mitnehmen | Bauplatz oder Testwelt, Menü → _Welt sichern_: im Browser speichern, als Datei exportieren, eine Datei importieren, Gespeichertes verwerfen | dito — Export und Import gehen nur hier sinnvoll | – | dito |
 | Aussehen                                                                           | Menü → _Aussehen_: drei Zeilen — **Kopf** (vier), **Hut** (acht, von der Kochmütze bis zur Krone), **Körper** (fünf Kochjacken); alle im Raum sehen es                                                                                                        | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
-| Umkleide                                                                           | vor den **Kleiderschrank** stellen und `A` — in der Brille springt das an die Seite _Aussehen_, und der Spiegel an der Tür zeigt einen selbst                                                                                                                 | dieselbe Taste; am Bildschirm geht die Umkleide mit der Figur daneben auf                                                                                                                                                                                                                                                                      | `A`                                                         | Knopf `A`                                  |
+| Umkleide                                                                           | vor den **Kleiderschrank** stellen und `A` — die Welt verblasst, die siebzehn Sachen stehen greifbar um einen herum, der Spiegel an der Tür zeigt sie an einem; noch ein Druck auf den Schrank, und man steht wieder da, wo man stand                                                                                                                 | dieselbe Taste                                                                                                                                                                                                                                                                                                                                | `A`                                                         | Knopf `A`                                  |
 | Kart: Helm                                                                         | Klemmbrett → _Helm_: Visierrand steht fest im Blick, gegen Übelkeit                                                                                                                                                                                           | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | –                                          |
 | Kart: Werte eintippen                                                              | Klemmbrett → _Werte eingeben_ → Zeile, dann der Zifferblock vor dem Kopf                                                                                                                                                                                      | dito, mit der echten Tastatur                                                                                                                                                                                                                                                                                                                  | –                                                           | –                                          |
 | Zurücksetzen                                                                       | `B` / `Y` oder Menü                                                                                                                                                                                                                                           | `R` oder Menü                                                                                                                                                                                                                                                                                                                                  | –                                                           | Menü                                       |
@@ -5639,17 +5728,20 @@ wurden. Sie laufen von Hand, nicht bei jedem Build: Ein Modell ändert sich
 nicht, und `@gltf-transform` und `sharp` gehören nicht in die Abhängigkeiten
 eines Spiels, das sie nie ausführt (`npm install --no-save` beim Aufbereiten).
 
-**Der Küchenkatalog** (`core/kitchenFit.ts`) hat sechzehn Möbel: Tellerausgabe,
+**Der Küchenkatalog** (`core/kitchenFit.ts`) hat achtzehn Möbel: Tellerausgabe,
 Feuerlöscher, **Spülbecken**, **Abtropfbrett**, Mülleimer, Arbeitstisch,
 Ausgabe, Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile, Herd, Herd mit
-Topf, Herd mit Pfanne — und das **Förderband** und das **Zugband**, die in
-keiner Datei stecken, sondern gebaut werden (`KitchenPiece.built`, siehe
+Topf, Herd mit Pfanne — und das **Förderband**, das **Zugband**, den
+**Computer-Tisch** und den **Kopierer**, die in keiner Datei stecken, sondern
+gebaut werden (`KitchenPiece.built`, siehe
 _Anfassen in der Küche_). Der Katalog beschreibt, was in dieser Küche **steht**,
 nicht, was gekauft wurde; wer `built` nicht liest, meldet eine fehlende Datei,
 die es nicht gibt, und stellt einen grauen Würfel dorthin, wo ein Band stehen
 soll.
 
-Sechzehn aus **dreizehn Knoten**, und der Unterschied ist die Spüle: Sie ist in
+Achtzehn aus **dreizehn Knoten**, und zwei Sachen erklären den Rest. Die eine
+sind die **vier gebauten** Stücke, die in keiner Datei stehen. Die andere ist
+die Spüle: Sie ist in
 der Datei **ein** Möbel von vier Metern — links ein Becken, rechts ein
 Abtropfbrett, in der Mitte die Armatur — und wird beim Laden in zwei Stücke von
 je einer Kachel zerschnitten (`core/kitchenModel.splitSink`, siehe _Der Abwasch_
@@ -5777,7 +5869,7 @@ oder leere Hand ergeben ein
 paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
 eine Viertelstunde Hin- und Herlaufen.
 
-Die Küche liegt seitdem in fünfzehn Dateien, dazu eine sechzehnte im `ui/`, die
+Die Küche liegt seitdem in sechzehn Dateien, dazu eine siebzehnte im `ui/`, die
 längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
 getrennt von Darstellung** — was ohne three.js auskommt, kommt ohne three.js
 aus, und genau das ist der Grund, warum es so viele Dateien sind.
@@ -5791,6 +5883,7 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenBuild.ts` | welche Kachel gemeint ist und ob dort Platz ist |
 | `zones/kitchenSpray.ts` | der Feuerlöscher: Kegel, Schalter, Fortschritt, Nebel |
 | `zones/kitchenBelt.ts` | die Bänder: Laufzeit, Laufrichtung, Ziehen, Nachbarn, Netz |
+| `zones/kitchenDesk.ts` | Computer-Tisch und Kopierer: Seite, Felder, Netz |
 | `zones/kitchenCarry.ts` | Stationen und `kitchenDeed`; reicht alle Uhren weiter |
 | `zones/kitchenPlan.ts` | wo welches Möbel steht, der Grundriss, das Schild |
 | `zones/kitchen.ts` | die Zone: Netze, Körper, Anzeigen, Anfassen |
@@ -5801,9 +5894,9 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenFloor.ts` | der karierte Boden: Feldgröße, Töne, Fuge, die Fläche darüber |
 | `ui/billboard.ts` | `faceCamera`: was Auskunft gibt, steht parallel zum Bild |
 
-Die jüngsten sechs kamen mit dem Geschirr, den Gästen, dem Band, dem Löscher
-und dem Umbau dazu, und jede ist aus demselben Grund eine **eigene** Datei: Sie
-rechnet etwas aus, das man ohne Szene prüfen kann.
+Die jüngsten sieben kamen mit dem Geschirr, den Gästen, dem Band, dem Löscher,
+dem Umbau und dem Rechner dazu, und jede ist aus demselben Grund eine **eigene**
+Datei: Sie rechnet etwas aus, das man ohne Szene prüfen kann.
 
 - **`kitchenWork.ts` ist die eine Stelle für „Arbeit an einer Station über
   Zeit".** Das Schneidebrett hatte seine Uhr einmal für sich allein (sie stand
@@ -5833,6 +5926,13 @@ rechnet etwas aus, das man ohne Szene prüfen kann.
   vorher in `kitchenGauge.ts` und hätte beim nächsten Schild ein zweites Mal
   dagestanden; ein Ding, das der Kamera zugewandt stehen will, ist keine
   Küchenfrage. Ausführlich unter _Was die Kamera ansieht_.
+- **`kitchenDesk.ts` ist genauso geteilt**, und nur der untere Teil kennt
+  three.js: Von welcher Seite jemand vor einem Möbel steht (`pieceSide`) und wo
+  auf einem gedrehten Kopierer seine beiden Felder liegen (`copierSpot`,
+  `copierField`) sind reine Zahlen; darunter liegt der Bausatz, der Tisch und
+  Kopierer baut. Beide Möbel stecken in keiner Quelldatei — ein Rechner ist
+  keines der dreizehn gekauften Stücke —, tragen deshalb `built: true` und
+  werden gebaut wie das Band nebenan.
 
 Und das sind die Regeln, die darin stehen:
 
@@ -5885,6 +5985,20 @@ Und das sind die Regeln, die darin stehen:
   Hälfte. Jetzt liegt er **vor** seinem Möbel. Die **Flammen** bleiben
   ausgenommen: Sie sind Kegel im Raum, und ein Feuer, das durch die Wand des
   Nachbarraums leuchtet, ist ein Fehler und kein Hinweis.
+- **Ein Griff an die Pfanne löscht die angefangene Stufe, in beide Richtungen**
+  (`kitchenClock.stoveUnder`). Auf dem Herd steht die Pfanne, **in** ihr liegt
+  das Patty; liegt dort etwas anderes — ein Teller, ein Brötchen, gar nichts —,
+  brät nichts. Hochheben löscht die Uhr, weil dann nichts mehr darauf steht,
+  Hinstellen löscht sie ebenso, weil `onStove` bei null anfängt. Eine Stufe muss
+  also **am Stück** durchlaufen: Wer die Pfanne eine halbe Sekunde vor dem
+  Umschlagen anhebt, fängt danach wieder bei null an. Die erreichte **Stufe**
+  reist dabei in der Pfanne mit (sie steht im `Dish`) und geht nicht verloren;
+  nur der angefangene Rest tut es. Die Rechnung stand bis eben mitten in der
+  Zone (`kitchen.ts`, `settle`) und damit an der einen Stelle, die kein Test
+  lesen kann — die Zone braucht three.js, ein Netz und einen Wirt. Bewiesen war
+  deshalb nur `onStove` allein und nirgends der Weg dorthin, und das ist die
+  Hälfte, die man beim nächsten Umbau kaputt macht, ohne dass etwas rot wird.
+  Jetzt steht sie neben der Uhr und hat fünf Tests.
 - **Der Feuerlöscher wird gehalten, nicht gedrückt** (`kitchenSpray.ts`). Er
   war einmal ein einzelner Druck auf `A` am brennenden Herd, und das ist kein
   Feuerlöscher, sondern ein Lichtschalter: Bei _Overcooked_ wie bei _PlateUp_
@@ -5949,7 +6063,7 @@ Und das sind die Regeln, die darin stehen:
   „Deluxe s…". Sie ist damit auch durch eine Wand zu sehen, und das ist der
   bewusste Handel: Sie steht vier Sekunden lang genau dort, wo gerade jemand
   abgegeben hat. Die **Namensschilder im Schauraum** bekommen das deshalb
-  nicht — dort verdeckt ohnehin nichts ein Schild, und sechzehn Tafeln durch
+  nicht — dort verdeckt ohnehin nichts ein Schild, und achtzehn Tafeln durch
   jede Wand wären der schlechtere Tausch. Ist kein Tisch frei, landet das
   Geschirr gleich an der **Geschirrrückgabe**. Dort **stapeln** sich die
   dreckigen Teller, bis zu sechs (`DIRTY_STACK_MAX`, gerechnet aus dem
@@ -6323,6 +6437,30 @@ Und das sind die Regeln, die darin stehen:
   der Platz inzwischen belegt, weil ein Zugband etwas daraufgeschoben hat, wird
   trotzdem entsorgt: `layOn` schriebe sonst kommentarlos über, was dort steht.
 
+  **Und mit den Händen hört die ganze Küche auf zu arbeiten** (`calmStations`):
+  Das Anschalten macht dasselbe wie `B`/`Y` — alle Uhren aus, alle Flächen
+  leer, der Gast vom Tisch, die Bänder halten, die Stapel weg. Bis eben räumte
+  es nur die Hände und ließ alles andere laufen, und ein Herd, der brennt,
+  während man das Möbel daneben verrückt, ist kein Bauzustand, sondern ein
+  Unfall mit einem Zeitlimit: Man baut um, man kocht nicht. Dass ein brennender
+  Herd sich nicht aufheben lässt (`whyNotLifted`, siehe unten), ist damit kein
+  Fall mehr, in den man hineingerät, sondern einer, den man selbst herbeiführen
+  muss.
+
+  Zwei Ränder hat das Abräumen. **Was getragen wird oder auf einer
+  Kopierfläche steht, bleibt, wie es ist**: Darauf liegt das, was mit dem Möbel
+  fährt (`carryLoad`), und es dort abzustellen hieße, den Topf auf der Kachel
+  abzusetzen, auf der sein Herd einmal stand. Und **das Umschalten macht in
+  beide Richtungen die Hände frei**: Beim Ausschalten war das schon so, beim
+  Einschalten ist es nötig, seit ein Möbel auch ohne Umbau in die Hand kommt
+  (`takeFromCatalogue`).
+
+  Dass das Schild dabei mitwechselt, steht in `showBuildLabel` und an **einer**
+  Stelle: `reset()` legte `editing` um, ohne die Beschriftung mitzudrehen, und
+  dann stand nach dem Aufräumen weiter _Küche nutzen_ auf dem Knopf, während
+  längst wieder gekocht wurde. Eine Beschriftung, die das Gegenteil dessen
+  sagt, was der nächste Druck tut, ist schlimmer als gar keine.
+
   **Ein Möbel fährt samt Inhalt um** (`kitchen.carryLoad`, `unloadLoad`). Hier
   stand lange eine Sperre: Wer einen Herd mit der Pfanne darauf aufheben wollte,
   bekam _„Herd ist nicht leer — erst abräumen"_ zu lesen. Das war keine Regel,
@@ -6384,8 +6522,12 @@ Und das sind die Regeln, die darin stehen:
   schieben soll; um die Ecke geht sie, indem man den Zeiger dreht.
   **Der Auslöser dreht dazu, wie es in den Händen liegt** (`turnPiece`,
   `Furnish.hold`) — in der Brille der Trigger der rechten Hand, von oben die
-  linke Maustaste, `RT` am Pad und der rote Knopf auf dem Glas; im Umbau ist er
-  mit Sicherheit frei, denn wer ein Möbel trägt, trägt keinen Feuerlöscher. Er
+  linke Maustaste, `RT` am Pad und der rote Knopf auf dem Glas; wer ein Möbel
+  trägt, trägt keinen Feuerlöscher, der Auslöser ist also frei. Er hängt
+  **nicht mehr am Umbau**, sondern nur noch daran, dass etwas in der Hand liegt:
+  Seit es den Möbelkatalog gibt, kommt ein Möbel auch ohne Umbau in die Hand,
+  und eines, das sich nicht wenden lässt, ist eines, das man nur in einer
+  Richtung hinstellen kann. Wer nichts trägt, drückt weiter ins Leere. Er
   dreht **nicht** die Welt, sondern den Versatz zur Figur, und die Weltdrehung
   wird daraus gerechnet (`turn = Blickviertel + hold`). Der Unterschied ist
   der Fall, für den es ihn gibt: die Ausgabe an der Westwand, deren Mulde nach
@@ -6467,18 +6609,207 @@ Und das sind die Regeln, die darin stehen:
   Bauplatz, der stattdessen auf Berührung oder Trigger hörte, setzte das Möbel
   ab, sobald man beim Umsehen einmal darüberfährt. Sichtbar werden die vier
   Griffe mit demselben Häkchen wie alle anderen — _Grafik → Griffe zeigen_.
+- **Der Computer-Tisch ist das erste Möbel mit zwei Bedeutungen an einem Netz**
+  (`zones/kitchenDesk.ts`), und welche gilt, entscheidet die **Seite**, von der
+  man herantritt (`pieceSide`): Vorn steht der Bildschirm, also wird vorn
+  bedient; von der Seite und von hinten greift man nach dem Tisch selbst. Das
+  ist keine Spitzfindigkeit, sondern die einzige Aufteilung, bei der beides
+  erreichbar bleibt — ein Tisch, den man nur über einen Modus aufhebt, wäre im
+  Umbau nicht zu versetzen, und einer, den jeder Druck aufhebt, hätte keinen
+  Rechner. Aufgehoben wird trotzdem **nur im Umbau**: Wer beim Kochen hinter den
+  Tisch tritt, will nicht mit ihm in den Händen dastehen, und bekommt es gesagt.
+  - **120° vorn, 120° hinten, je 60° Flanke** (`SIDE_COS` = 0,5). Die
+    naheliegende Aufteilung wäre ein Viertel je Seite und ist falsch herum
+    gedacht: Vor einen Rechner **stellt** man sich nicht wie vor ein Foto, man
+    kommt schräg heran und bleibt einen Schritt neben der Tastatur stehen. Bei
+    90° Vorderseite ist das schon die Flanke, und der Tisch antwortet nicht
+    mehr; mit 120° hat man eine Handbreit Spielraum nach beiden Seiten und
+    trifft ihn im Vorbeigehen. Nach hinten dieselben 120°, und zwar aus
+    Symmetrie und nicht aus Bedarf — eine Rückseite, die schmaler wäre als die
+    Vorderseite, machte aus jedem Schritt um den Tisch herum ein Ratespiel.
+  - **Die Grenze gehört zum großen Feld**, vorn wie hinten, und dafür steht eine
+    Toleranz von 1e-9 im Code. Genau 60° ergeben je nach Herkunft der beiden
+    Zahlen einen Kosinus von 0,5000000000000001 oder 0,4999999999999999; ohne
+    sie entschiede über „vorn" oder „seitlich" das letzte Bit einer Wurzel, und
+    der Tisch antwortete an derselben Stelle mal so und mal so. Vorder- und
+    Rückseite sind deshalb geschlossen, die beiden Flanken offen.
+  - **Wer genau auf dem Möbel steht, steht davor.** Beide Abstände nahe null
+    ergeben keine Richtung, und dann muss eine der drei Antworten die
+    voreingestellte sein. Es ist `'front'`, weil das die **harmlose** ist: Wer
+    im Gedränge in die Ecke des Tisches läuft, will an den Rechner und nicht den
+    Tisch in der Hand haben. Aus demselben Grund fällt auch eine kaputte Zahl
+    (`NaN`) hierher — der Vergleich ist verneint geschrieben, damit sie nicht
+    zur Rückseite durchrutscht.
+  - **Die Platte liegt auf 0,75 m** und mit Absicht nicht in der
+    Arbeitsplattenreihe (0,50 m): Ein Schreibtisch, an dem man steht, hat seine
+    Platte in Bauchhöhe, und auf diesen hier legt ohnehin niemand einen
+    Salatkopf. Er trägt deshalb auch **kein `worktop`** und bekommt keine
+    Station (`stationKind` gibt `null`); seine einzige Wirkung sitzt vorn am
+    Bildschirm. Er steht an der Westwand neben der Ankunftskachel und schaut ihr
+    ins Gesicht (`turn: 3`) — ein Möbelkatalog, den man erst suchen muss, ist
+    einer, den niemand aufmacht —, und zwei Kacheln weiter südlich steht der
+    rote Umbauknopf: Der Knopf macht den Umbau auf, der Rechner gibt die Möbel
+    dazu her.
+- **Der Möbelkatalog ist das Konstrukt hinter dem Bildschirm** (`openCatalogue`,
+  siehe _Der Konstrukt-Raum_). Die Küche verblasst, der Tisch bleibt stehen, und
+  ringsum fahren alle Katalogstücke als **Miniaturen** aus dem Boden. Wer eines
+  anfasst, hat es in der Hand und steht im selben Augenblick wieder in der Küche
+  — an genau der Stelle, an der er vor dem Tisch stand, denn bewegt hat er sich
+  nie. Im Konstrukt zählt die Seite dann nicht mehr: Dort ist der Tisch das
+  Einzige, was noch dasteht, und damit der einzige Weg zurück.
+  **Mit vollen Händen geht er nicht auf.** Die Figur trägt genau **ein** Ding
+  vor dem Bauch (`carryInHands`), Essen und Möbel teilen sich diesen Platz. Wer
+  mit einem Brötchen in der Hand ein Möbel zöge, bekäme ein Möbel, das dreißig
+  Meter neben ihm herflöge, weil es niemand hinstellt.
+  - **Die Miniaturen werden geklont, nicht gebaut** (`miniature`). Von jeder
+    Sorte merkt sich die Zone das erste Netz, das ohnehin gebaut wird — und weil
+    der **Schauraum** jedes Katalogstück genau einmal zeigt
+    (`KITCHEN_SHOWN`, gegen `KITCHEN_NAMES` geprüft), ist diese Sammlung
+    vollständig, ohne dass jemand eine zweite Liste führt. Geklont wird mit
+    `Object3D.clone()`, Formen und Materialien bleiben also **geteilt**: eine
+    Miniatur kostet einen Knoten und keine Geometrie. Ein zweiter Ladevorgang
+    nur für Miniaturen wäre dieselbe Datei ein zweites Mal — 32 MB für ein
+    Regal.
+  - **Auf 28 cm gerechnet, nicht auf einen festen Faktor** (`MINI_SIZE`, längste
+    Kante). Das Regal setzt seine Stücke mit 34 cm Abstand nebeneinander
+    (`shared/construct.RACK_GAP`), also bleiben sechs Zentimeter Luft: Größer,
+    und zwei Nachbarn stecken ineinander; kleiner, und man erkennt eine Spüle
+    nicht mehr von einem Herd. Und zwischen
+    einem Mülleimer (45 cm) und einer Ausgabetheke über zwei Kacheln liegt der
+    Faktor vier: Mit einem festen Maßstab wäre entweder die Theke zu groß für
+    ihren Platz oder der Eimer ein Krümel. Der Ursprung wandert dabei nach unten
+    in die Mitte, weil das Regal seine Stücke auf ein Brett stellt und nicht an
+    ihrem Modellursprung aufhängt.
+  - **Ein Stück aus dem Katalog entsteht neu und bekommt trotzdem eine
+    Heimatkachel** (`takeFromCatalogue`, `freeTile`). Das ist kein Beiwerk:
+    `B`/`Y` stellt jedes getragene Möbel heim, und eines ohne Zuhause landete
+    dann auf einer Kachel, auf der schon etwas steht. Gesucht wird deshalb eine
+    freie, von Norden nach Süden gelesen wie der Aufbau selbst — und ist die
+    Küche voll, gibt es eben kein neues Möbel. **Getragene Möbel belegen dabei
+    ihre Heimat und nicht ihren Standort**: Sonst bekämen zwei nacheinander
+    geholte Mülleimer dieselbe Heimatkachel (die war ja frei, als der zweite
+    geholt wurde) und stünden beim Aufräumen ineinander. Ohne **Gerät** kommt
+    es dazu:
+    `takeUtensil` gäbe eine zweite Pfanne heraus, und es gibt genau eine.
+  - **Gezeigt wird, was geladen ist**, und nicht, was im Katalog steht. Ohne
+    WebGL und ohne Modelldatei gibt es keine Netze, und ein Regal aus leeren
+    Gruppen wäre ein weißer Raum, in dem man nichts findet; dann sagt der Tisch
+    das auch. Die **gebauten** Stücke — Bänder, Tisch, Kopierer — stehen immer
+    darin, sie hängen an keiner Datei.
+- **Der Kopierer hat zwei Felder nebeneinander** (`zones/kitchenDesk.ts`,
+  `useCopier`): links die **Kopierfläche**, rechts die **Kopie-Zone**, beide auf
+  0,50 m und damit auf der Arbeitshöhe der Zeile. Ein Gerät, das „dasselbe Ding,
+  noch einmal" behauptet und dessen Kopie zwei Zentimeter höher steht als die
+  Vorlage, behauptet es nicht überzeugend. Zwei Kacheln misst es deshalb auch:
+  Auf einer stünden Vorlage und Kopie übereinander. Es steht in der freien Mitte
+  zwischen Insel und Gastraum und nicht an einer Wand — was man kopiert, trägt
+  man vom Rechner her heran und danach irgendwohin, und ein Gerät in der Ecke
+  wäre zweimal derselbe Weg.
+  - **Wer ein Möbel trägt, legt es links als Miniatur ab** (`layOnPlate`) — und
+    es bleibt **dasselbe** Möbel, nur klein, nicht seine Nachbildung. Klein
+    heißt hier ein **Drittel** (`MINI_SCALE`) und damit eine andere Zahl als im
+    Katalog, weil die Frage eine andere ist: Dort geht es darum, achtzehn Möbel
+    nebeneinanderzustellen, hier darum, eines auf eine Kachel zu stellen. Ein
+    Faktor und kein gerechnetes Maß — so bleibt der Größenunterschied zwischen
+    Mülleimer und Ausgabetheke auf der Platte sichtbar, und man sieht der
+    Vorlage an, was man kopiert.
+
+    **Ein Faktor auf das Grundmaß und nicht auf die Eins** (`pieceScale`), und
+    das ist die Zeile, die man vergisst: Ein geladenes Möbel kommt halbiert aus
+    der Datei (`core/kitchenModel.ts` setzt `KITCHEN_SCALE` auf das **Netz**,
+    nicht auf die Geometrie), ein gebautes steht auf 1. Wer beide auf `1/3`
+    setzte, machte aus jeder Küchenzeile zwei Drittel ihrer selbst statt ein
+    Drittel — und wer sie danach mit `setScalar(1)` „wieder normal" machte,
+    verdoppelte sie, während ihre Hülle blieb, wo sie war: Die kommt aus dem
+    Katalog und nicht aus dem Netz. Das Grundmaß wird deshalb beim ersten
+    Aufstellen gemerkt und überall von dort geholt. Es bleibt
+    ein `Furnish` mit `held = true`: kein Körper, keine Kachel, nichts, was der
+    Bauplatz für belegt hält. Sein Netz hängt fortan am Kopierer und nicht mehr
+    am Gestell des Spielers, damit die Vorlage mitfährt, falls jemand das Gerät
+    später versetzt. Wer sie herunternimmt, bekommt genau dieses Möbel zurück,
+    in voller Größe und in die Hand.
+  - **Rechts steht daraufhin eine durchscheinende Kopie** (`showCopy`,
+    `COPY_ALPHA` = 0,45). Sie ist so lange nichts, bis jemand sie nimmt — dann
+    entsteht in der Hand ein echtes Möbel, und die nächste wächst sofort nach.
+    Das Gerät gibt also unbegrenzt her, solange die Vorlage liegen bleibt; das
+    ist die Absicht und kein Versehen. Die Kopie bekommt dabei **eigene**
+    Materialien: Ein geklontes Netz teilt sein Material mit dem Original, und
+    wer dort `opacity` verstellte, machte das Möbel in der Hand gleich mit
+    durchsichtig. Sie gehen mit ihr (`clearCopy`) und nicht in die Liste der
+    Welt — die Kopie entsteht bei jedem Griff neu, und eine Liste, die erst beim
+    Weltwechsel geleert wird, wüchse mit jedem kopierten Möbel.
+  - **Solange die Vorlage liegt, lässt sich das Gerät nicht aufheben.** Ein
+    Kopierer, den man mit der Vorlage darauf durch die Küche trägt, wäre ein
+    Möbel mit einem Möbel darin, und beim Absetzen wüsste niemand, wo die
+    Vorlage hingehört. Aus demselben Grund räumt `reset()` **jede**
+    Kopierfläche mit ab (`clearPlates`): Was dort steht, geht über die Hand
+    heim — `takeFromPlate` und `dropPiece(true)` sind die beiden Handgriffe,
+    die ein Möbel schon richtig zurückschicken (Körper, Kachel, Station,
+    Anzeigen), und ein dritter Weg dorthin wäre der, der eines davon vergisst.
+    Ohne das stünde nach dem Aufräumen eine Vorlage auf einem Kopierer, den
+    niemand mehr aufheben kann.
+
+    **Von beiden Hälften geht es**, solange keine Vorlage liegt: Wer im Umbau
+    vor der leeren Kopie-Zone steht, soll das Gerät nicht erst umrunden müssen.
+
+    Und es gibt so viele Kopierer, wie jemand sich holt: Welches Möbel sich
+    selbst bedient, entscheidet seine **Sorte** (`selfServed`) und kein Merker
+    auf ein bestimmtes Stück — ein Merker zeigte nach dem zweiten Kopierer aus
+    dem Katalog auf den neuen, und der erste stünde als totes Möbel herum.
+    Belegt ist deshalb auch nicht *die* Kopierfläche, sondern eine Karte von
+    Kopierer zu Vorlage (`plates`).
+  - **Welches Feld ein Druck meint, rechnet `copierField`** aus den
+    **gedrehten** Feldmitten (`copierSpot`, dieselbe Vierteldrehung wie
+    `standAt` — und mit ganzzahligen Kosinus, damit eine Feldmitte auf der
+    Kachel liegt, auf die sie gehört, und nicht ein Zehnbillionstel daneben).
+    Genau in der Mitte zwischen beiden gewinnt die Kopierfläche: Dort fängt jede
+    Benutzung an, und ein leeres Feld wäre die unbrauchbarere Antwort.
+  - **Eine Anmeldung und nicht eine je Feld**, was naheliegender aussähe und
+    falsch ist: Die Auswahl nimmt das **nächstgelegene** Ding, dessen
+    Zielzylinder der Strahl trifft (`core/usable.pickUsable`), und der Zylinder
+    des ganzen Kopierers ist mit über einem Meter größer als der Abstand der
+    beiden Feldmitten. Er gewönne damit gegen jedes kleine Ding, das man auf
+    eines der Felder stellt — auch dann, wenn man genau davorsteht. Ein Möbel,
+    zwei Felder, eine Anmeldung: Der gelbe Saum umfasst das ganze Gerät, und das
+    ist die ehrlichere Auskunft, denn bedient wird der Kopierer und nicht die
+    Glasplatte.
+- **Rechner und Kopierer melden sich selbst an** (`refreshSpecials`, `setSelf`)
+  und hängen an keiner Station: Für `stationKind` sind sie nichts, also käme in
+  der Schleife über die Stationen nie eine Anmeldung für sie zustande. Wer das
+  ist, entscheidet die **Sorte** (`selfServed`) und kein Merker auf ein
+  bestimmtes Stück — der Möbelkatalog gibt jedes Katalogstück her, den Rechner
+  eingeschlossen, und ein Merker zeigte nach dem zweiten auf den neuen, während
+  der erste als totes Möbel dastünde. Ihre gilt
+  in **beiden** Betriebsarten — auch beim Kochen soll man den Katalog aufmachen
+  können, und kopieren auch dann, wenn gerade nicht umgebaut wird. Was ein Druck
+  bedeutet und ob er `press` oder `grab` heißt, wird bei **jedem Lesen** neu
+  gerechnet, wie bei den Stationen nebenan: Derselbe Rechner wird von vorn
+  gedrückt und von hinten gegriffen, ohne dass sich sein Netz dazwischen ändert.
+  Mit einem Möbel in der Hand hört der **Kopierer** weiter zu (auf ihn legt man
+  es ja), der **Rechner** nicht — dort holt man eines, und zwei auf einmal trägt
+  niemand; abgemeldet gewinnt stattdessen der Bauplatz vor den Füßen, und das
+  ist auch das, was man dann will. **Im Konstrukt schweigt der Kopierer von
+  selbst**, ohne dass ihn jemand abmeldet: Die Auswahl übergeht, was unsichtbar
+  ist (`PortalWorld.collectUsables`), und der Raum blendet alles aus außer dem
+  Anker. Genau deshalb bleibt umgekehrt der **Rechner** ansprechbar — er ist der
+  Anker und damit der Weg zurück.
 - **Nicht schießbar** (`addUsable`, `shot: 0`): Eine Kugel, die den Topf vom
   Herd holt, ist ein Scherz und keine Regel.
 - **Was in Jest steht und was nicht.** Die Regeln, die Uhren, die Rezepte, der
   Strahl des Löschers, die Laufzeit des Bandes, der Platz auf dem Grundriss,
-  die Rechnung des Icon-Ofens und die Zuordnung Möbel → Stationsart sind
+  die Rechnung des Icon-Ofens, die Seite vor einem Möbel samt den beiden
+  Feldern des Kopierers (`kitchenDesk.test.ts`) und die Zuordnung Möbel →
+  Stationsart sind
   geprüft (rund 270 Fälle). Die Zone selbst ist es nicht: In der Testumgebung
   gibt es kein WebGL, also entstehen dort gar keine Stationen. Wer sie anfasst,
   spielt einen Durchgang im Browser durch — Patty braten, Pfanne über dem
   Brötchen auskippen, Teller holen, servieren, dem Gast beim Essen zusehen, das
   Geschirr abräumen und spülen, ein Feuer mit dem gehaltenen Löscher ausmachen,
-  den Umbau anschalten, ein Möbel versetzen und mit dem Auslöser drehen, ein
-  Band aufheben und es in allen vier Richtungen absetzen, `B` drücken.
+  den Umbau anschalten (und nachsehen, dass danach nichts mehr läuft und die
+  Pfanne wieder auf ihrem Herd steht), ein Möbel versetzen und mit dem Auslöser
+  drehen, ein Band aufheben und es in allen vier Richtungen absetzen, am
+  Rechner den Katalog aufmachen und ein Möbel herausgreifen, es auf den
+  Kopierer legen und die Kopie daneben abholen, `B` drücken.
 
 
 #### Der Körper unter dem Möbel
@@ -6507,6 +6838,191 @@ seiner Kachelfläche. Zwei Dinge daran sind es wert, aufgeschrieben zu werden:
   halber Höhe davor hängen und fiel nicht mehr herunter — im Browser gemessen,
   an derselben Stelle, an der eine gewöhnliche Wand einen sauber abprallen
   lässt. Eine Wand ist ein Kasten, also ist auch das hier einer.
+
+### Der Konstrukt-Raum
+
+**Ein weißer Raum, in dem man aussucht** (`worlds/shared/construct.ts`) — der
+Raum aus _Matrix_, und zwar nur für den, der ihn betritt. Wer vor dem
+**Kleiderschrank** oder vor dem **Computer-Tisch** der Küche steht und `A`
+drückt, sieht die Welt um sich her verblassen: Ein Kachelboden kommt herauf,
+alles andere verschwindet, und nur der Gegenstand selbst bleibt stehen. Um die
+Figur herum fahren die Stücke zur Auswahl aus dem Boden — Kleidung am Schrank,
+Möbel am Rechner. Zurück geht es über denselben Gegenstand.
+
+**Die Figur bewegt sich dabei nicht**, und das ist keine Kulisse, sondern die
+Bedingung, unter der das Ganze überhaupt geht. Draußen steht sie weiter dort, wo
+sie stand, und die anderen im Raum sehen sie dort stehen — sie sehen nur nicht,
+dass die gerade in einem weißen Nichts ihre Hüte sortiert. Deshalb wird das Rig
+gesperrt (`PlayerRig.locked`): Umsehen ja, gehen nein. Liefe man darin herum,
+liefe man draußen mit und käme beim Verlassen irgendwo heraus, nur nicht dort,
+wo man hineingegangen ist. Gemerkt wird, was vorher galt (`GridWorld.lockedWas`)
+— in einer Welt, die aus eigenen Gründen sperrt, wäre ein hartes `false` beim
+Verlassen eine stille Freigabe.
+
+Wer stattdessen in eine **eigene Szene** teleportierte, müsste drei Fragen
+selbst beantworten: den Rückweg, den Verbindungsabbruch mittendrin und die, wo
+die anderen die Figur solange sehen. Ein Raum, der die Welt **ausblendet**,
+statt den Spieler wegzuschicken, braucht keine Zeile im Netzwerk (`net/`), keine
+zweite Szene und keinen zweiten Spielerkörper. Er ist damit auch rein lokal:
+Nichts daran wird geteilt, nichts daran gehört in einen Spielstand. Er ist eine
+**Ansicht** und kein Ort.
+
+**Die Sperre folgt dem Raum und nicht dem Handgriff**
+(`GridWorld.syncConstructLock`). Es gibt zwei Wege hinaus, und nur einer geht
+über `leaveConstruct`: Ein Stück, dessen Griff `true` meldet — der Möbelkatalog
+am Rechner tut das, das Kleiderregal nicht —, schließt den Raum **von innen**
+(`ConstructRoom.update`). Wer die Sperre nur beim ausdrücklichen Verlassen
+löste, ließe nach so einem Griff eine Figur zurück, die sich nicht mehr von der
+Stelle bewegt, und niemand fände den Grund dafür. Also wird sie jedes Bild
+nachgezogen: Der Raum sagt, ob er offen ist, und die Sperre richtet sich danach.
+
+**Verblasst wird einmal beim Betreten und nicht je Bild.** Der Raum läuft den
+Weltbaum einmal ab, sammelt die Materialien ein, merkt sich `transparent`,
+`opacity` und `depthWrite` und stellt sie beim Verlassen genau so wieder her.
+Ein Durchlauf durch ein paar tausend Knoten kostet mehr, als ein Bild in der
+Brille übrig hat (11 ms bei 90 Hz für alles zusammen), und er brächte nichts:
+Was während der halben Sekunde Überblendung dazukommt, gehört zur Welt, die
+gerade verschwindet. Vor allem aber hängt an dieser Liste die
+**Wiederherstellung** — eine Liste, die sich je Bild ändert, verliert genau die
+Materialien, die schon auf halber Deckkraft stehen, und die bleiben dann für
+immer durchsichtig.
+
+**Was sich Anker und Welt teilen, bleibt unangetastet.** Was vom Anker aus
+erreichbar ist, kommt gar nicht erst in die Liste, auch wenn es sein Material
+mit der halben Welt teilt: Ein geteiltes Material gehört in dem Fall beiden, und
+die Welt mitzunehmen hieße, den Anker mitzunehmen. Sonst verblasste der Schrank
+mit, vor dem man steht.
+
+**Unten angekommen wird geräumt.** Ein Material auf Deckkraft 0 bleibt in der
+Sortierung der durchsichtigen Dinge hängen, und die kostet je Bild mehr als der
+ganze Raum: Der Renderer sortiert sie nach Tiefe, zeichnet sie in eigener
+Reihenfolge und kann nichts davon wegwerfen. Unsichtbar ist billiger als
+durchsichtig, also gehen am Ende der Überblendung die flachsten Äste, die den
+Anker nicht enthalten, auf `visible = false` — und gemerkt wird, ob sie vorher
+überhaupt zu sehen waren: Ein Möbel, das die Welt aus eigenen Gründen versteckt
+hält, darf beim Verlassen nicht plötzlich dastehen.
+
+**Der Anker wird nicht umgehängt.** Ihn in die Bühne zu hängen wäre eine Zeile
+und kostete drei: Er verlöre seinen Platz im Baum und damit seine Weltmatrix,
+sein Kollisionskörper (`physics/`) bliebe zurück, und wer ihn zwischendurch
+sucht — Editor, Strahl, Nachbarzone — fände ihn woanders. Stehen lassen und beim
+Ausblenden übergehen kostet nichts davon. Beim Kleiderschrank ist der Anker die
+Gruppe des Einbaus, also die beiden Türen mit dem Spiegel; sein Korpus steht in
+`view.solids`, gehört damit der Welt und verblasst mit ihr.
+
+**Eine halbe Sekunde, hin wie zurück** (`FADE_SECONDS`). Lang genug, dass man
+den Übergang als Übergang sieht und nicht als Bildfehler, kurz genug, dass
+niemand auf ihn wartet — wer zehnmal hintereinander in den Schrank sieht, wartet
+sonst zehnmal. Gemalt wird aus Phase und Uhr, ohne eigenes Gedächtnis: `open01`
+ist der einzige Fortschritt, den es gibt, 0 ist die Welt und 1 ist das
+Konstrukt, und Boden, Deckkraft und Welle hängen alle daran. Damit ein
+Übergang, den man mittendrin umdreht, auch wirklich nicht kaputt aussieht,
+**übernimmt das Verlassen den Stand** und stellt die Uhr nicht auf null: Beim
+Hineinblenden ist `open01` gleich `clock / FADE`, beim Hinausblenden
+`1 − clock / FADE` — eine Uhr, die dabei zurückgesetzt würde, spränge erst auf
+*ganz offen* und blendete von dort zurück. Wer zweimal kurz hintereinander
+drückt, und das tut jeder, der sich verdrückt hat, sähe die Welt einmal ganz
+verschwinden, bevor sie wiederkommt. Hinein kommen die Stücke
+als **Welle** (`RISE_STAGGER`, 0,04 s je Stück), hinaus alle zusammen: Nach
+einer halben Sekunde ist die Welt wieder da, und ein Stück, das dann noch
+versinkt, versinkt im Küchenboden.
+
+**Der weiße Boden: zwei Netze für 225 Kacheln und keine 225.** Sieben zu jeder
+Seite (`FLOOR_TILES`) sind fünfzehn mal fünfzehn Kacheln, also ein Quadrat von
+15 m — weit genug, dass der Rand in der Brille am Bildrand liegt und nicht vor
+den Füßen, und klein genug, dass der Boden nicht so tut, als könnte man darauf
+spazieren gehen. Ein Netz je Kachel wären 225 Zeichenaufrufe, in der Brille 450;
+es ist deshalb ein `InstancedMesh` mit einer geteilten Kachelfläche und
+**einer** dunklen Platte darunter, die durch die Fugen zu sehen ist. Die Fuge
+wird also nicht gezeichnet, sondern freigelassen — das spart die Textur, und
+eine Textur bräuchte eine Leinwand, die es im Testlauf nicht gibt. Beide Netze
+sind `MeshBasicMaterial`: Das Konstrukt hat kein Licht und soll auch keins
+haben, das Weiß ist die Aussage und nicht die Beleuchtung. Und der Boden hält
+**keinen Strahl** auf; einer, der es täte, wäre das Erste, was `A` findet, und
+man meinte nie wieder ein Stück.
+
+**Jedes Stück steht in Armlänge** (`rackSlots`) — reine Rechnung, damit ein Test
+nachmessen kann, ob wirklich jedes davon zu erreichen ist, ohne einen Schritt zu
+machen. Gefüllt wird von innen nach außen und von der Mitte nach oben und unten:
+erst die mittlere Reihe auf **1,05 m** (die Höhe, in der eine stehende Hand von
+selbst hängt), dann die obere auf 1,55 m (auf Augenhöhe sieht man es wenigstens
+gut), dann die untere auf 0,55 m — Bücken ist von den dreien das Einzige, was in
+der Brille unangenehm ist, und wer nur drei Stücke zur Auswahl hat, soll dafür
+weder bücken noch greifen. Der innere Bogen liegt **1,15 m** vor der Figur
+(`RACK_REACH`), der äußere eine Griffbreite weiter draußen (`RACK_GAP`, 0,34 m):
+zusammen 1,49 m und damit knapp innerhalb der Reichweite, aus der `A` überhaupt
+etwas erwischt (`core/usable.USE_REACH`, 1,5 m). Einen **dritten** Bogen gibt es
+deshalb nicht — er läge 1,75 m vor der Figur, und dahin reicht kein Arm, ohne
+dass man einen Schritt macht. Wer mehr Stücke mitbringt, als in zwei Bögen
+passen, bekommt sie im äußeren enger gesetzt: zu eng ist unschön, außer
+Reichweite ist kaputt.
+
+Drei Zahlen dazu, und jede vermeidet etwas anderes:
+
+- **200° Bogen** (`RACK_ARC`). Nicht 360°: Was hinter der Figur steht, findet
+  sie nicht, weil sie nicht hinsieht — sie könnte sich umdrehen, weiß aber
+  nicht, dass es sich lohnt. Und nicht 90°: Ein schmaler Bogen legt bei zehn
+  Stücken drei Reihen übereinander, und die oberste liegt dann über dem Kopf.
+  200° sind eine Vierteldrehung auf der Stelle nach links oder rechts, und man
+  hat alles gesehen.
+- **0,34 m zwischen zwei Nachbarn** (`RACK_GAP`, Sehne und nicht Winkel — weiter
+  draußen passen deshalb mehr Stücke auf denselben Bogen, ohne sich näher zu
+  kommen). Eine Hand ist gut 10 cm breit, ein Stück darf gut 20 cm breit sein;
+  bei weniger greift man daneben, und der gelbe Saum (`core/highlight.ts`)
+  springt beim kleinsten Kopfdrehen zwischen zweien hin und her. Denselben
+  Abstand hat der äußere Bogen vom inneren: Wäre er kleiner, griffe man von vorn
+  nach hinten daneben statt von links nach rechts.
+- **0,16 m Zielzylinder je Stück** und nicht die großzügige Vorgabe
+  (`core/usable.USE_RADIUS`, 0,4 m). Die Stücke stehen keine 40 cm auseinander,
+  man griffe also immer nach zweien gleichzeitig, und welches gewinnt,
+  entschiede der Zufall der Reihenfolge.
+
+Eine angefangene Reihe steht **mittig** vor der Figur — bei einem einzigen Stück
+ist das genau geradeaus, und das ist die halbe Miete für einen Raum, in dem man
+sich nicht umsehen mag. Der äußere Bogen ist um einen halben Schritt versetzt,
+damit seine Stücke durch die Lücken des inneren zu sehen sind und nicht dahinter
+verschwinden. Und jedes Stück sieht die Figur an: Ein Regal, dessen Stücke alle
+in dieselbe Weltrichtung zeigen, zeigt ihr die Hälfte von hinten.
+
+**Zurück geht es über den Anker, und nur über ihn.** Alles andere ist unsichtbar
+und meldet sich deshalb gar nicht mehr (`PortalWorld.collectUsables`) — der
+Schrank dagegen verblasst ja nicht und ist damit der einzige Knopf, den es im
+weißen Raum noch gibt. Heraus kommt man an genau der Stelle, an der man
+hineingegangen ist; bewegt hat man sich nie. Macht ein Stück den Raum von innen
+zu, geschieht das **ein Bild später**: `pick` läuft mitten in der
+Auswahlschleife der Welt (`core/usable.ts`), und wer von dort aus Gegenstände
+abmeldet, über die diese Schleife gerade läuft, räumt dem eigenen `pick` den
+Boden unter den Füßen weg, bevor es zu Ende ist.
+
+**Und es gibt genau einen Raum je Welt** (`GridWorld.construct`), nicht einen je
+Schrank. Zwei offene Konstrukte hießen zwei Meinungen darüber, was gerade
+sichtbar ist: Der zweite blendete die Welt ein zweites Mal aus, merkte sich
+dabei die Deckkraft, die der erste gerade heruntergefahren hat, und stellte
+später genau **die** wieder her. Er hängt deshalb an der **Welt** und nicht an
+dem, was ihn aufmacht — der Kleiderschrank steht in der Startzone, die Möbel
+stehen in der Küche, der Boden gehört der Welt, und eine Zone kennt von alledem
+nur ihr eigenes Stück. Sie reicht ihre Auswahl herein und bekommt zurück, ob
+gerade einer offen steht (`ZoneHost.enterConstruct`, `leaveConstruct`,
+`inConstruct`); mehr braucht sie nicht, und mehr bekommt sie nicht. Entstehen
+tut der Raum erst beim ersten Öffnen: Eine Welt, in der niemand vor einen
+Schrank tritt, baut keinen Boden aus 225 Kacheln.
+
+**Wem was gehört**, ist die zweite Entscheidung: Die Stücke zur Auswahl kommen
+von außen und gehen beim Verlassen **unversehrt** zurück — der Raum hängt sie
+aus dem Baum, gibt aber nichts frei. Was er selbst baut, gehört ihm und stirbt
+mit `dispose`. Derselbe Schnitt wie beim gelben Saum, und aus demselben Grund:
+Ein Raum, der fremde Geometrie entsorgt, fällt erst beim zweiten Betreten auf.
+Beim Weltwechsel wird deshalb **erst herausgegangen und dann abgerissen** —
+sonst bleibt eine Handvoll unsichtbarer Äste zurück, und das gesperrte Rig
+überlebt den Wechsel.
+
+**Geprüft wird das ohne Szene** (`shared/construct.test.ts`,
+`shared/wardrobeRack.test.ts`): dass jeder Platz aus `rackSlots` in Armlänge
+liegt, dass die Reihen von der Mitte nach außen füllen, dass der äußere Bogen
+genau eine Griffbreite weiter draußen liegt und dass Unsinn — `NaN`, null
+Stücke, eine gewünschte Reichweite von zehn Metern — nichts Unerreichbares
+ergibt. Das ist die Sorte Fehler, die man in der Brille erst merkt, wenn man vor
+einem Stück steht, das man nicht greifen kann.
 
 ### Wie man aussieht
 
@@ -6729,10 +7245,12 @@ werden:
 **Geändert wird an zwei Stellen, und beide lesen denselben Speicher**: die Seite
 _Aussehen_ im Menü (drei Zeilen, jede schaltet im Kreis, die Überschrift zeigt
 die Wahl gleich mit — `appearanceSummary`) und die **Umkleide** am
-Kleiderschrank (dieselben drei Zeilen neben der Figur in Nahaufnahme, siehe
-_Der Kleiderschrank und die Umkleide_). Gespeichert wird sofort
-(`saveAppearance`), und wer zuhören will, hängt sich an `onAppearanceChange` —
-der eigene Körper und das Netz tun genau das.
+Kleiderschrank — und die ist keine Liste mehr, sondern ein **Regal im
+Konstrukt**, in dem dieselben siebzehn Sachen als Sachen dastehen und der
+Spiegel an der Tür zeigt, was man gerade angezogen hat (siehe
+_Der Konstrukt-Raum_ und _Der Kleiderschrank und die Umkleide_). Gespeichert
+wird sofort (`saveAppearance`), und wer zuhören will, hängt sich an
+`onAppearanceChange` — der eigene Körper und das Netz tun genau das.
 
 **Von innen ist ein Helm etwas anderes als von außen.** Außen eine Schale,
 innen ein **Rahmen**: ein Kreisring vor dem Auge (`visorFrame`), dessen Loch

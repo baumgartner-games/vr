@@ -286,12 +286,21 @@ export const RIM_GRIP_IN = 0.06;
  * richtige.
  *
  * Nachgerechnet über den ganzen Katalog liegt sie damit zwischen **0,45 m**
- * (Spülbecken und Mülleimer) und **0,56 m** (Ausgaberegal): Hüfthöhe bei einem Koch von
- * 1,60 m (`core/chefFit.ts`), also genau dort, wo ein Mensch ein Möbel
- * anfasst, um es zu schieben. Eine feste Zahl für alle wäre bequemer und
- * stünde beim Mülleimer in der Luft oder im Becken; eine Ausnahmeliste für
- * einzelne Möbel wäre das, was der Auftrag ausdrücklich nicht will. **Es
- * braucht keine** — das ist der Prüfstein, und er hält.
+ * (Spülbecken und Mülleimer) und **0,75 m** (Computer-Tisch): Hüft- bis
+ * Brusthöhe bei einem Koch von 1,60 m (`core/chefFit.ts`), also genau dort, wo
+ * ein Mensch ein Möbel anfasst, um es zu schieben. Eine feste Zahl für alle
+ * wäre bequemer und stünde beim Mülleimer in der Luft oder im Becken; eine
+ * Ausnahmeliste für einzelne Möbel wäre das, was der Auftrag ausdrücklich
+ * nicht will. **Es braucht keine** — das ist der Prüfstein, und er hält.
+ *
+ * **Die obere Zahl war einmal 0,56 m**, und sie ist nicht gestiegen, weil die
+ * Regel nachgegeben hätte, sondern weil der Katalog ein Möbel bekommen hat,
+ * das keine Arbeitsplatte ist: Der Computer-Tisch hat seine Platte auf 0,75 m
+ * (`worlds/test/zones/kitchenDesk.DESK_TOP`), einen Viertelmeter über der
+ * Zeile, weil man daran steht und nicht darauf schneidet. Genau hier zahlt
+ * sich das Ableiten aus: Sein Griff wanderte mit, ohne dass jemand eine Zeile
+ * dafür geschrieben hätte. Eine Zahl, die man beim Eintragen eines Möbels
+ * nachpflegen müsste, wäre die, die man vergisst.
  */
 export function pieceHandles(piece: KitchenPiece): readonly GrabHandle[] {
   const [wide, deep] = piece.tiles;
