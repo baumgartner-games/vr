@@ -26,6 +26,8 @@ import type { GraphicsProfile } from './graphicsSettings';
 
 /** Wo die ursprünglichen Schattenschalter eines Meshes liegen. */
 const MESH_BASE = 'bgvrShadowBase';
+/** Wo steht, dass dieses Mesh ausdrücklich keinen Schatten werfen soll. */
+const NO_SHADOW = 'bgvrNoShadow';
 /** Wo der ursprüngliche `castShadow` eines Lichts liegt. */
 const LIGHT_BASE = 'bgvrCastBase';
 /** Wo die ursprüngliche Stärke eines Grundlichts liegt. */
@@ -39,6 +41,37 @@ const ANCHOR_GRID = 2;
 interface MeshShadowBase {
   cast: boolean;
   receive: boolean;
+}
+
+/**
+ * **„Ich werfe keinen Schatten" — und diesmal bleibt es dabei.**
+ *
+ * Bis hierher war ein `castShadow = false` an einem Modell eine Bitte, die
+ * niemand las: Der Durchlauf hier setzt den Schalter an **jedem** undurchsichtigen
+ * Mesh auf `true`, alle paar Sekunden neu, und die Bitte war nach dem ersten
+ * Durchlauf weg. Gemerkt wurde nur der Ausgangswert, und hergestellt wurde er
+ * nur, wenn jemand die Schatten ganz abschaltet.
+ *
+ * Für die meisten Dinge ist das genau richtig — ein Mesh wird mit
+ * `castShadow = false` geboren (das ist die Voreinstellung von three.js), und
+ * dass es trotzdem einen Schatten wirft, ist ja der Sinn dieses Durchlaufs.
+ * Wer es **ausdrücklich** nicht will, sagt es deshalb hier und nicht am
+ * Schalter, genau wie ein Ding, das keine Kontur will, das über
+ * `outlineShell.denyOutline` sagt.
+ *
+ * Wofür man das braucht: Ein aufgemalter Pfeil auf einem Laufband ist eine
+ * Ebene ohne Dicke — sein Schatten ist ein schwarzes Blatt. Und drei Kästen,
+ * die genau übereinanderstehen, werfen zusammen den Schatten des breitesten;
+ * die anderen beiden sind zwei Zeichenaufrufe je Kachel für nichts.
+ */
+export function denyShadow(object: THREE.Object3D): void {
+  object.userData[NO_SHADOW] = true;
+  object.castShadow = false;
+}
+
+/** Ob jemand das an diesem Ding gesagt hat. */
+export function deniesShadow(object: THREE.Object3D): boolean {
+  return object.userData[NO_SHADOW] === true;
 }
 
 const _anchor = new THREE.Vector3();
@@ -146,7 +179,7 @@ export function applySceneQuality(
       mesh.receiveShadow = base.receive;
       return;
     }
-    mesh.castShadow = !backdrop && solid;
+    mesh.castShadow = !backdrop && solid && !deniesShadow(mesh);
     mesh.receiveShadow = true;
   });
 
