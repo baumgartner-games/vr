@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { InteractionLike } from './interaction';
+import type { Handedness } from './XRInput';
 
 /**
  * **Benutzen** — was `A` (am Schreibtisch `E`) mit dem tut, was vor der Figur
@@ -44,6 +45,20 @@ export interface UseSource {
   readonly at: THREE.Vector3;
   /** Wohin er zeigte: die Blickrichtung der Figur, die Flugbahn der Kugel. */
   readonly forward: THREE.Vector3;
+  /**
+   * **Welche Hand es war** — nur in der Brille, und nur, wenn eine es war.
+   *
+   * Von oben und am Schreibtisch gibt es keine: Dort drückt die Figur, und was
+   * sie nimmt, hängt vor ihrem Bauch (`kitchen.carryInHands`). In der Brille
+   * gibt es zwei, und was eine davon nimmt, soll **in ihr** liegen und sich
+   * mit ihr drehen — die Pfanne wie ein Werkzeug, am Stiel
+   * (`core/grabHandles.ts`). Ohne diese Zeile wüsste die Küche nicht, an
+   * welche der beiden sie das Ding hängen soll.
+   *
+   * Freiwillig, und wer nichts angibt, ist die Figur — also alles, was es
+   * vorher gab.
+   */
+  readonly hand?: Handedness;
 }
 
 /**

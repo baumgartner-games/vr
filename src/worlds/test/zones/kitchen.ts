@@ -7,7 +7,10 @@ import {
   type KitchenPiece,
 } from '../../../core/kitchenFit';
 import { canLoadModels, CHEF_CARRY } from '../../../core/chefFit';
-import { USE_REACH } from '../../../core/usable';
+import { USE_REACH, type UseSource } from '../../../core/usable';
+import { holdFor, nearestHandle, type GrabHandle, type GrabPose } from '../../../core/grabHandles';
+import { HandleView } from '../../../core/handleView';
+import type { Handedness } from '../../../core/XRInput';
 import { TILE } from '../../nav/navTile';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
 import type { PlayerAvatar } from '../../../core/PlayerAvatar';
@@ -27,7 +30,7 @@ import {
   dishLabel,
   douse,
   kitchenDeed,
-  kitchenInteraction,
+  kitchenInteractionSpec,
   kitchenPrompt,
   layered,
   meansContent,
@@ -48,6 +51,7 @@ import {
   type WorkState,
 } from './kitchenCarry';
 import { DIRTY_STACK_MAX, FoodKit, SINK_TILT } from './kitchenProps';
+import { KITCHEN_STATION_GRAB, kitchenGrab, kitchenHandles } from './kitchenGrab';
 import { GAUGE_LIFT, KitchenGauges, WARN_LIFT } from './kitchenGauge';
 import { IconOven } from './kitchenIcon';
 import { KitchenFloor } from './kitchenFloor';
@@ -287,6 +291,14 @@ const _rigAhead = new THREE.Vector3();
 const _headAhead = new THREE.Vector3();
 const _nozzle = new THREE.Vector3();
 const _spin = new THREE.Quaternion();
+// Die Griffe: eine Hülle zum Messen, eine Handpose zum Wählen (`core/grabHandles.ts`).
+const _bounds = new THREE.Box3();
+const _extent = new THREE.Vector3();
+const _grabAt = new THREE.Vector3();
+const _atStation: GrabPose = {
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0, w: 1 },
+};
 
 // --- und was darin steht ----------------------------------------------------
 
@@ -468,6 +480,19 @@ interface Carried {
   topping: THREE.Object3D | null;
   /** Wohin `B` es zurückstellt — der Herd, von dem es kommt. */
   readonly home: Station | null;
+  /**
+   * **An welchem Griff es gerade gehalten wird** (`core/grabHandles.ts`) — in
+   * der Brille, und nur dort.
+   *
+   * Gewählt wird er beim Zugreifen, an der Hand, die zugreift: Wer den Teller
+   * vorn anfasst, hält ihn vorn. Danach bleibt er stehen, bis das Ding wieder
+   * abgestellt und neu genommen wird — ein Griff, der in der Hand wechselt,
+   * wäre ein Teller, der sich beim Umsehen dreht.
+   *
+   * `null` heißt: an der Hitbox, also wie es dasteht — jede Zutat, und alles,
+   * was von oben getragen wird.
+   */
+  handle: GrabHandle | null;
 }
 
 /**
@@ -543,6 +568,20 @@ export class KitchenZone implements TestZone {
   private floor: KitchenFloor | null = null;
   /** Was die Figur gerade trägt. */
   private carried: Carried | null = null;
+  /**
+   * **Welche Hand es trägt** — nur in der Brille (`core/usable.UseSource.hand`).
+   *
+   * Von oben und am Schreibtisch gibt es keine: Dort hängt das Getragene vor
+   * dem Bauch, wie es das immer getan hat. In der Brille hängt es an **der**
+   * Hand, die zugegriffen hat, und dreht sich mit ihr — die Pfanne wie ein
+   * Werkzeug, am Stiel.
+   */
+  private carriedHand: Handedness | null = null;
+  /**
+   * **Die sichtbaren Griffkreuze** (`core/handleView.ts`) — nur, wenn das
+   * Häkchen im Grafik-Menü sitzt, und ab Werk sitzt es nicht.
+   */
+  private readonly handleView = new HandleView();
   /** Die Tafel an der Ausgabetheke und wie lange sie noch steht. */
   private ticket: TextPlane | null = null;
   private ticketLeft = 0;
@@ -1252,19 +1291,28 @@ export class KitchenZone implements TestZone {
    * an der jemand die Brille vergisst.
    */
   private carryInHands(ctx: WorldContext): void {
-    const held = this.carried?.object ?? this.lifted?.model ?? null;
+    const thing = this.carried;
+    const held = thing?.object ?? this.lifted?.model ?? null;
     if (!held) {
       ctx.avatar.carry = null;
       return;
     }
     this.aimHeld();
     if (ctx.renderer.xr.isPresenting) {
-      // In der Brille tragen es die echten Hände nicht — dort hängt es eine
+      // **In der Brille liegt es in der Hand**, an seinem Griff — die Pfanne
+      // am Stiel, wie ein Werkzeug (`holdInHand`). Klappt das nicht (kein
+      // Griff, keine Hand, Controller weg), hängt es wie eh und je eine
       // Handbreit vor der Brust, mittig und ruhig.
+      if (thing && this.holdInHand(ctx, thing)) {
+        ctx.avatar.carry = null;
+        return;
+      }
+      this.backToBelly(thing);
       held.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
       ctx.avatar.carry = null;
       return;
     }
+    this.backToBelly(thing);
     // **Im Raum des Rigs, und das genügt**: Von oben dreht sich das Rig selbst
     // in die Laufrichtung (`core/FlatControls.walkNorthUp`), und aus den Augen
     // dreht es die Maus (`FlatControls.look`). Wer hier zusätzlich um die
@@ -1299,6 +1347,59 @@ export class KitchenZone implements TestZone {
    * Nur für **Möbel**: Ein getragener Teller hat keine Richtung und hängt
    * ohnehin ungedreht am Rig (`carryInHands`).
    */
+  /**
+   * **Zurück vor den Bauch** — für alles, was gerade nicht in einer echten
+   * Hand liegt.
+   *
+   * Es ist die Gegenbewegung zu `holdInHand` und wird gebraucht, sobald man
+   * die Brille absetzt, in die Ansicht von oben wechselt oder ein Controller
+   * wegfällt: Das Ding hängt dann am Controller, und dort bleibt es, wenn
+   * niemand es zurückholt. Ein getragenes **Möbel** fasst das nicht an — es
+   * hängt ohnehin am Rig und trägt seine eigene Drehung (`aimHeld`).
+   */
+  private backToBelly(thing: Carried | null): void {
+    if (!thing) return;
+    const object = thing.object;
+    if (object.parent !== this.rig) this.rig?.add(object);
+    object.quaternion.identity();
+  }
+
+  /**
+   * **Wie die Pistole, nur eine Pfanne** — das getragene Ding hängt an der
+   * Hand, die zugegriffen hat, und zwar an seinem Griff.
+   *
+   * Die Rechnung dazu ist **dieselbe wie bei jedem Werkzeug** und steht im
+   * `core`: `grabHandles.holdFor` gibt die Lage im Griffraum, die den
+   * gewählten Griff genau in die Faust legt (`gripFit.STANDARD_GRIP_IN_HAND`);
+   * ein Ding ohne Griff sitzt unverdreht im Griffpunkt, „wie beim Companion
+   * Cube". Gehängt wird an `ControllerState.hold` — den Knoten, an dem in
+   * diesem Projekt alles hängt, was eine Hand hält, und der bei einer
+   * getrackten Hand schon den Versatz zum Zeigestrahl trägt
+   * (`core/handHold.ts`). Damit dreht sich die Pfanne mit dem Handgelenk, und
+   * das ist genau das, worum es im Auftrag geht.
+   *
+   * **Und die Reichweite bleibt trotzdem die der Figur.** Das Ding liegt in
+   * der Hand, aber wohin es darf, entscheidet weiter die Figur und ihre
+   * Blickrichtung — die Stationen melden sich nur im Meter um sie herum an
+   * (`kitchenGrab.KITCHEN_REACH`, `PortalWorld.useByHand`). Die Brille erlaubt
+   * die feinere Wahl innerhalb dieser Reichweite und keinen Zentimeter mehr.
+   *
+   * @returns ob es geklappt hat; sonst gilt der Griff vor dem Bauch.
+   */
+  private holdInHand(ctx: WorldContext, thing: Carried): boolean {
+    const side = this.carriedHand;
+    if (!side) return false;
+    const controller = ctx.input.get(side);
+    if (!controller?.tracked) return false;
+    const node = controller.hold;
+    const object = thing.object;
+    if (object.parent !== node) node.add(object);
+    const hold = holdFor(thing.handle);
+    object.position.set(hold.position.x, hold.position.y, hold.position.z);
+    object.quaternion.set(hold.rotation.x, hold.rotation.y, hold.rotation.z, hold.rotation.w);
+    return true;
+  }
+
   private aimHeld(): void {
     const furnish = this.lifted;
     if (!furnish) return;
@@ -1390,6 +1491,7 @@ export class KitchenZone implements TestZone {
     this.beltNow = null;
     const loose = [this.carried, ...this.stations.map((spot) => spot.on)];
     this.carried = null;
+    this.carriedHand = null;
     if (this.avatar) this.avatar.carry = null;
     for (const spot of this.stations) {
       spot.on = null;
@@ -1431,6 +1533,10 @@ export class KitchenZone implements TestZone {
     // Bilder an den Ausgaben, die Bänder, den Nebel und den Boden — und der
     // gibt seine Leinwand mit frei, die ein Material für sich behielte.
     this.food.dispose();
+    // Die Griffkreuze hängen an den Netzen und hören am Grafik-Menü zu — beides
+    // muss weg, sonst bleibt ein Melder auf eine Küche zeigen, die es nicht
+    // mehr gibt (`core/handleView.ts`).
+    this.handleView.dispose();
     this.gauges?.dispose();
     this.gauges = null;
     this.oven?.dispose();
@@ -1449,6 +1555,7 @@ export class KitchenZone implements TestZone {
     this.furniture.length = 0;
     this.bodies.length = 0;
     this.carried = null;
+    this.carriedHand = null;
     this.lifted = null;
     this.ghost = null;
     this.ghostLive = false;
@@ -1822,12 +1929,14 @@ export class KitchenZone implements TestZone {
     holder.name = `kitchen-${piece.holds}`;
     holder.add(loose);
     this.placed.push(holder);
+    this.markHandles(holder, piece.holds);
     this.layOn(station, {
       dish: dish(piece.holds),
       object: holder,
       loose,
       topping: null,
       home: station,
+      handle: null,
     });
   }
 
@@ -1939,7 +2048,7 @@ export class KitchenZone implements TestZone {
       world.addUsable(
         target,
         {
-          use: () => this.act(spot),
+          use: (by) => this.act(spot, by),
           usePrompt: () => kitchenPrompt(deedNow(), spot.label),
           // **Ein Feld, das bei jedem Lesen neu fragt** — wie `usePrompt`
           // daneben, und aus demselben Grund: Dieselbe Station will einmal
@@ -1947,8 +2056,18 @@ export class KitchenZone implements TestZone {
           // Augenblick gedrückt werden (den Teller darauf ablegen), ohne dass
           // sich das Netz dazwischen ändert. Eine einmal eingetragene Absicht
           // wäre nach dem ersten Handgriff falsch.
+          //
+          // **Und sie sagt jetzt mehr als „greifen oder drücken"**: In der
+          // Brille gehört alles, was etwas aus der Hand gibt, der Greif-Taste
+          // (`kitchenCarry.kitchenInteractionSpec`), und alles in dieser Küche
+          // greift nur im Meter (`kitchenGrab.KITCHEN_REACH`). Die Griffe
+          // dazu kommen von dem, was gleich in der Hand liegt.
           get interaction() {
-            return kitchenInteraction(deedNow());
+            const deed = deedNow();
+            return kitchenInteractionSpec(
+              deed,
+              deed.do === 'take' ? kitchenGrab(deed.dish.item) : KITCHEN_STATION_GRAB,
+            );
           },
         },
         // **Nicht schießbar**: Eine Kugel, die den Topf vom Herd holt, ist ein
@@ -1990,7 +2109,7 @@ export class KitchenZone implements TestZone {
    * nachgerechnet. Deshalb ist jeder Fall zwei bis vier Zeilen lang: Netz
    * umbauen, hinlegen oder wegnehmen, es sagen.
    */
-  private act(spot: Station): boolean {
+  private act(spot: Station, by?: UseSource): boolean {
     const world = this.world;
     if (!world) return false;
     const deed = kitchenDeed(this.held(), facts(spot));
@@ -2009,7 +2128,7 @@ export class KitchenZone implements TestZone {
       case 'take': {
         const thing = this.pickUp(spot, deed.dish);
         if (!thing) return false;
-        this.takeInHand(thing);
+        this.takeInHand(thing, spot, by);
         world.notify(`${dishLabel(deed.dish)} in der Hand`);
         break;
       }
@@ -2201,7 +2320,8 @@ export class KitchenZone implements TestZone {
     // dem Möbelmodell: Eine Ausgabe, die Pfannen ausgäbe, gibt es nicht.
     if (!object) return null;
     this.placed.push(object);
-    return { dish: want, object, loose: null, topping: null, home: null };
+    this.markHandles(object, want.item);
+    return { dish: want, object, loose: null, topping: null, home: null, handle: null };
   }
 
   /**
@@ -2279,16 +2399,58 @@ export class KitchenZone implements TestZone {
     this.forget(old);
     parent?.add(fresh);
     this.placed.push(fresh);
+    this.handleView.forget(old);
+    this.markHandles(fresh, next.item);
     thing.object = fresh;
   }
 
-  /** In die Hand: ans Rig hängen, den Rest macht `update`. */
-  private takeInHand(thing: Carried): void {
+  /**
+   * **In die Hand**: ans Rig hängen, den Rest macht `update`.
+   *
+   * **Und in der Brille an die Hand, die zugegriffen hat** — samt dem Griff,
+   * an dem sie es hält. Welcher das ist, entscheidet der **Abstand**: Wer den
+   * Teller vorn anfasst, hält ihn vorn (`grabHandles.nearestHandle`). Gemessen
+   * wird gegen die Stelle, an der das Ding **liegt**, also gegen die
+   * Arbeitsplatte der Station — auch für das, was eine Ausgabe frisch aus dem
+   * Nichts gibt: Es entsteht auf ihrem Deckel, und die Hand greift dorthin.
+   *
+   * Ohne Hand (von oben, am Schreibtisch, aus der Uhr der Spüle) bleibt der
+   * Griff `null`, und dann ist es wie vorher: Das Ding hängt vor dem Bauch.
+   */
+  private takeInHand(thing: Carried, spot?: Station, by?: UseSource): void {
     const rig = this.rig;
     this.carried = thing;
+    this.carriedHand = by?.hand ?? null;
+    thing.handle = this.grabbedAt(thing, spot, by);
     thing.object.rotation.set(0, 0, 0);
     if (rig) rig.add(thing.object);
     else thing.object.removeFromParent();
+  }
+
+  /**
+   * **An welchem Griff diese Hand zugefasst hat** — der nächste, oder `null`.
+   *
+   * `null` heißt „an der Hitbox": jede Zutat, und alles, was ohne Hand in die
+   * Hand kommt. Die Rechnung selbst steht im `core` und wird dort geprüft
+   * (`core/grabHandles.nearestHandle`); hier steht nur, wogegen gemessen wird.
+   */
+  private grabbedAt(thing: Carried, spot?: Station, by?: UseSource): GrabHandle | null {
+    if (!by?.hand || !spot) return null;
+    const size = _bounds.setFromObject(thing.object).getSize(_extent);
+    const handles = kitchenHandles(thing.dish.item, {
+      width: size.x,
+      depth: size.z,
+      height: size.y,
+    });
+    if (handles.length === 0) return null;
+    _atStation.position.x = spot.deck.x;
+    _atStation.position.y = spot.deck.y;
+    _atStation.position.z = spot.deck.z;
+    _grabAt.copy(by.at);
+    return (
+      nearestHandle(handles, _atStation, { x: _grabAt.x, y: _grabAt.y, z: _grabAt.z })?.handle ??
+      null
+    );
   }
 
   /**
@@ -2363,8 +2525,26 @@ export class KitchenZone implements TestZone {
    * abgeräumt werden.
    */
   private discard(thing: Carried): void {
+    this.handleView.forget(thing.object);
     thing.object.removeFromParent();
     this.forget(thing.object);
+  }
+
+  /**
+   * **Die Griffkreuze an ein Netz hängen** (`core/handleView.ts`).
+   *
+   * Sie hängen immer, sichtbar sind sie nur mit dem Häkchen — ein Kreuz, das
+   * erst beim Umschalten entstünde, entstünde für die ganze Küche auf einmal,
+   * und das sieht man. Gemessen wird die Hülle des Netzes: Pfanne, Topf und
+   * Feuerlöscher kommen aus dem gekauften Modell, und ihre Maße stehen in
+   * keiner Datei (`kitchenGrab.kitchenHandles`).
+   */
+  private markHandles(object: THREE.Object3D, item: KitchenItem): void {
+    const size = _bounds.setFromObject(object).getSize(_extent);
+    this.handleView.attach(
+      object,
+      kitchenHandles(item, { width: size.x, depth: size.z, height: size.y }),
+    );
   }
 
   private forget(object: THREE.Object3D): void {

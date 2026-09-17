@@ -95,6 +95,22 @@ export interface GraphicsSettings {
    */
   hitBoxes: boolean;
   /**
+   * **Ob die unsichtbaren Griffe sichtbar sind** (`core/handleView.ts`).
+   *
+   * Ein Griff ist eine Stelle mit Lage und Achse, an der die Hand andockt —
+   * am Stiel der Pfanne, oben am Feuerlöscher, am Rand und unter dem Teller
+   * (`core/grabHandles.ts`). Er ist absichtlich unsichtbar: Man soll die
+   * Pfanne am Stiel nehmen, nicht einen Punkt am Stiel treffen. Nur lässt sich
+   * eine Zahl, die man nicht sieht, auch nicht einmessen — und genau dafür
+   * gibt es dieses Häkchen: ein kleines Achsenkreuz an jeder Griffstelle, in
+   * jeder Ansicht.
+   *
+   * Ab Werk **aus**. Das ist ein Werkzeug zum Einmessen und kein Bühnenbild —
+   * dieselbe Sorte Werkstattansicht wie die Hitboxen darüber, und aus
+   * demselben Grund an derselben Stelle.
+   */
+  showHandles: boolean;
+  /**
    * **Ob die Sonne Schatten wirft.**
    *
    * Ein eigener Schalter und keine Eigenschaft der Stufe, und das ist
@@ -178,6 +194,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   showFps: false,
   gridLines: false,
   hitBoxes: false,
+  showHandles: false,
   shadows: true,
   screenPads: 'auto',
 };
@@ -327,6 +344,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const showFps = raw.showFps === true;
   const gridLines = raw.gridLines === true;
   const hitBoxes = raw.hitBoxes === true;
+  const showHandles = raw.showHandles === true;
   // **Nicht `=== true`**, anders als die beiden darüber: Die Schatten sind ab
   // Werk **an**, und ein gespeicherter Stand von gestern kennt das Feld noch
   // gar nicht. Wer sie ausmacht, hat `false` gespeichert und bekommt `false`.
@@ -337,7 +355,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const screenPads = SCREEN_PADS.includes(raw.screenPads as ScreenPads)
     ? (raw.screenPads as ScreenPads)
     : DEFAULT_GRAPHICS.screenPads;
-  return { mode, xrScale, showFps, gridLines, hitBoxes, shadows, screenPads };
+  return { mode, xrScale, showFps, gridLines, hitBoxes, showHandles, shadows, screenPads };
 }
 
 /** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
@@ -367,11 +385,14 @@ export function nextScreenPads(pads: ScreenPads): ScreenPads {
  */
 export function graphicsSummary(
   settings: Pick<GraphicsSettings, 'mode' | 'xrScale'> &
-    Partial<Pick<GraphicsSettings, 'gridLines' | 'hitBoxes' | 'shadows' | 'screenPads'>>,
+    Partial<
+      Pick<GraphicsSettings, 'gridLines' | 'hitBoxes' | 'showHandles' | 'shadows' | 'screenPads'>
+    >,
 ): string {
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
   const grid = settings.gridLines ? ' · Gitterlinien' : '';
   const boxes = settings.hitBoxes ? ' · Hitboxen' : '';
+  const grips = settings.showHandles ? ' · Griffe' : '';
   // Genannt wird die Abweichung: „mit Schatten" sagt niemandem etwas, „ohne
   // Schatten" erklärt ein Bild, in dem alles zu schweben scheint.
   const shade = settings.shadows === false ? ' · ohne Schatten' : '';
@@ -382,7 +403,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${shade}${pads}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${grips}${shade}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------
