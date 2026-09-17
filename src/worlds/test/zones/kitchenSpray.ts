@@ -314,9 +314,9 @@ export const EXTINGUISHER_HULL = { width: 0.616, height: 0.748, depth: 0.386 } a
  * der es kommt.
  *
  * Der Mund liegt damit **knapp unter der Hand** (der Bügel sitzt auf 0,93, also
- * vier Zentimeter höher) und gut 30 cm **vor** ihr. Dass er unter dem Griff liegt und nicht
- * über ihm, ist der Löscher selbst: Man hält ihn oben am Bügel, und das Rohr
- * geht vom Ventil aus zur Seite weg.
+ * vier Zentimeter höher) und gut 30 cm **vor** ihr. Dass er unter dem Griff
+ * liegt und nicht über ihm, ist der Löscher selbst: Man hält ihn oben am
+ * Bügel, und das Rohr geht vom Ventil aus zur Seite weg.
  *
  * `shift` bleibt ungerechnet: 6 % der halben Tiefe sind gut ein Zentimeter
  * quer, und um mehr als das wackelt in der Brille jedes Handgelenk je Bild. Er
@@ -424,7 +424,8 @@ const PUFF_LIFE = PUFF_RANGE / PUFF_SPEED;
  * **Wie groß ein Bällchen ist**, als Halbmesser in Metern — an der Düse und am
  * Ende seines Weges.
  *
- * 5 cm an der Düse ist die Öffnung des Löschers, 28 cm am Ende sind eine
+ * 5 cm an der Düse ist die Öffnung des Löschers — nachgemessen, der Mund des
+ * Rohrs hat 4,7 cm Halbmesser (`NOZZLE_TIP`) —, 28 cm am Ende sind eine
  * Nebelschwade. Dass es unterwegs wächst, ist der halbe Effekt: Ein Strahl aus
  * gleich großen Kugeln sieht aus wie eine Perlenkette.
  */
@@ -444,8 +445,8 @@ const PUFF_MAX = 0.28;
  * Gerechnet, und zwar an den **Mitten** der Bällchen und ab der **Hand**, weil
  * der Kegel dort seine Spitze hat: 0,6 · tan 25° · 2,20 m (`PUFF_RANGE`) =
  * 0,61 m seitlicher Versatz am Ende, gegen mindestens 0,30 + 1,58 = 1,88 m
- * Abstand (`MUZZLE_AHEAD` plus `PUFF_REACH_MIN`) — das sind 18,0° und damit
- * sieben Grad Luft im Kegel.
+ * Abstand (`MUZZLE_AHEAD` plus die kürzeste Wurfweite, 0,72 · `PUFF_RANGE`) —
+ * das sind 18,0° und damit sieben Grad Luft im Kegel.
  * Die weiche **Hülle** eines einzelnen Bällchens steht stellenweise darüber
  * hinaus, und das ist richtig so: Nebel hat keine Kante. Sie liegt dort, wo
  * ohnehin nur noch ein einzelnes durchsichtiges Bällchen hängt und niemand
