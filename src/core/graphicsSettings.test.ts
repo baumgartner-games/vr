@@ -22,6 +22,7 @@ describe('Grafikeinstellungen', () => {
       showFps: false,
       gridLines: false,
       hitBoxes: false,
+      showHandles: false,
       shadows: true,
       // Die Stöcke auf dem Glas entscheiden sich nach Gerät — nachgerechnet
       // wird das in `screenPads.test.ts`.
@@ -185,6 +186,27 @@ describe('Grafikeinstellungen', () => {
     );
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, gridLines: true, hitBoxes: true })).toBe(
       'Einfach · Gitterlinien · Hitboxen',
+    );
+  });
+
+  /**
+   * **Die Griffe sind dieselbe Sorte Werkstattansicht** — ab Werk aus, und in
+   * der Überschrift steht nur, wer sie angemacht hat. Ein Achsenkreuz am
+   * Pfannenstiel ist ein Maßband und kein Bühnenbild (`core/handleView.ts`).
+   */
+  it('merkt sich die Griffe nur als echtes Ja und nennt sie nur, wenn sie an sind', () => {
+    expect(DEFAULT_GRAPHICS.showHandles).toBe(false);
+    expect(clampGraphics({ showHandles: true })).toEqual({
+      ...DEFAULT_GRAPHICS,
+      showHandles: true,
+    });
+    expect(clampGraphics({ showHandles: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, showHandles: false })).toBe('Einfach');
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, showHandles: true })).toBe(
+      'Einfach · Griffe',
+    );
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true, showHandles: true })).toBe(
+      'Einfach · Hitboxen · Griffe',
     );
   });
 

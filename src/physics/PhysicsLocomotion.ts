@@ -104,6 +104,19 @@ const JUMP_BUFFER = 0.15;
 const COYOTE_TIME = 0.12;
 
 /**
+ * **Wie weit der Kopf dem Körper vorauseilen darf**, in Metern — ein Beugen
+ * weit und keinen Schritt.
+ *
+ * Der Körper bleibt an der Wand stehen, der Kopf geht weiter: Anders kommt die
+ * Bewegung, die das Innenohr meldet, gar nicht im Bild an, und ein Bild, das
+ * stehen bleibt, während der Kopf sich bewegt, ist der kürzeste Weg zur
+ * Übelkeit. Eine halbe Armlänge deckt jedes Beugen ab — über den Tresen, um
+ * die Ecke, zur Seite —, und ein Zimmer, in dem jemand einfach weiterläuft,
+ * wo im Spiel eine Wand steht, hält sie trotzdem auf.
+ */
+const LEAN_LIMIT = 0.45;
+
+/**
  * Wie steil eine Fläche höchstens sein darf, damit man sie hinaufkommt.
  *
  * Der Teleporter liest dieselbe Zahl: ein Ziel, das steiler steht, ist keines,
@@ -125,7 +138,8 @@ export const MAX_SLOPE_DEG = 52;
 export const SLIDE_SLOPE_DEG = MAX_SLOPE_DEG + 3;
 
 const _head = new THREE.Vector3();
-const _drift = new THREE.Vector3();
+/** Wie weit die Kapsel dem Kopf waagerecht hinterherhinkt (`apply`). */
+const _lag = new THREE.Vector3();
 const _desired = new THREE.Vector3();
 const _applied = new THREE.Vector3();
 const _rotation = new THREE.Quaternion();
@@ -141,6 +155,15 @@ const DOWN = { x: 0, y: -1, z: 0 };
  * The capsule tracks the head: stepping around the room moves the capsule, and
  * whatever the capsule is *not* allowed to do (walls, ledges) is pushed back
  * onto the rig, so the player never ends up inside geometry.
+ *
+ * **Zurückgeschoben wird aber nur der Schritt und nicht der Kopf.** Die Brille
+ * misst, wo der Kopf steht, und das ist keine Absicht, über die sich
+ * verhandeln lässt — es ist bereits geschehen. Wer sich über den Tresen beugt,
+ * schiebt die Kapsel gegen ein Möbel; ginge das Rig um denselben Betrag
+ * zurück, bliebe das Bild stehen, während das Innenohr Bewegung meldet, und
+ * genau davon wird einem in der Brille schlecht. Der Körper bleibt deshalb
+ * stehen und der Kopf geht weiter — bis `LEAN_LIMIT`, denn ein Beugen ist ein
+ * Beugen und kein Gang durch die Wand.
  */
 export class PhysicsLocomotion implements Locomotion {
   readonly velocity = new THREE.Vector3();
@@ -167,8 +190,6 @@ export class PhysicsLocomotion implements Locomotion {
   private readonly controller: KinematicCharacterController;
   private readonly body: RigidBody;
   private readonly collider: Collider;
-  private readonly lastHead = new THREE.Vector3();
-  private hasLastHead = false;
   private halfHeight = 0.6;
   private disposed = false;
   /**
@@ -271,13 +292,19 @@ export class PhysicsLocomotion implements Locomotion {
     this.publishCapsule();
 
     rig.getHeadPosition(_head);
-    if (!this.hasLastHead) {
-      this.lastHead.copy(_head);
-      this.hasLastHead = true;
-    }
 
-    // Movement the player made physically (room scale) since the last frame.
-    _drift.set(_head.x - this.lastHead.x, 0, _head.z - this.lastHead.z);
+    // **Der Rückstand der Kapsel hinter dem Kopf**, waagerecht — und nicht
+    // mehr der Schritt, den der Kopf seit dem vorigen Bild gemacht hat.
+    //
+    // Gerechnet wurde hier lange die Differenz zweier Kopfpunkte, und das
+    // hatte zwei Eigenschaften: Ein Bild, in dem die Kapsel nicht durfte, war
+    // vergessen, sobald es vorbei war — und weil das Rig um genau diese
+    // Differenz zurückgeschoben wurde, blieb der Kopf dabei stehen. Ein
+    // Zielpunkt statt einer Differenz holt jeden Rückstand von selbst wieder
+    // ein: Die Kapsel geht dorthin, wo der Kopf steht, so weit sie darf, und
+    // versucht es im nächsten Bild weiter.
+    const at = this.body.translation();
+    _lag.set(_head.x - at.x, 0, _head.z - at.z);
 
     // Ein Sprungwunsch wartet kurz auf den Boden, und der Boden bleibt kurz
     // gültig, nachdem er weg ist — beides gegen denselben Fehler: einen Druck,
@@ -324,7 +351,7 @@ export class PhysicsLocomotion implements Locomotion {
       if (this.velocity.y < -TERMINAL_VELOCITY) this.velocity.y = -TERMINAL_VELOCITY;
     }
 
-    _desired.copy(this.velocity).multiplyScalar(dt).add(_drift);
+    _desired.copy(this.velocity).multiplyScalar(dt).add(_lag);
 
     this.controller.computeColliderMovement(
       this.collider,
@@ -412,13 +439,50 @@ export class PhysicsLocomotion implements Locomotion {
     if (blocked(_applied.x, _desired.x)) this.velocity.x *= 0.3;
     if (blocked(_applied.z, _desired.z)) this.velocity.z *= 0.3;
 
-    // Move the rig so the head ends up above the capsule again.
-    rig.position.x += _applied.x - _drift.x;
-    rig.position.z += _applied.z - _drift.z;
+    // **Das Rig macht nur den Schritt mit, nicht die Nachführung.**
+    //
+    // Was die Welt hergibt (`_applied`), ist zweierlei auf einmal: der Schritt,
+    // den der Stock wollte, und die Nachführung hinter den Kopf her
+    // (`_lag`). Das Rig darf nur das erste mitmachen — die zweite steht ja
+    // schon im Bild, die Brille hat den Kopf bereits dorthin gesetzt.
+    //
+    // Und wenn die Welt **weniger** hergibt, als gefragt war, trifft das beide
+    // anteilig. Genau das stand hier vorher nicht: Der ganze Fehlbetrag ging
+    // auf den Schritt, also wurde das Rig um alles zurückgeschoben, was dem
+    // Kopf verwehrt blieb — und ein Kopf, der sich über den Tresen beugt,
+    // stand damit still. Das ist der Befund „die Kamera bleibt starr, wenn ich
+    // mich nach links, rechts oder vorn beuge": In der Küche steht man immer
+    // an einem Möbel, und die Trefferkästen dort reichen bis auf 1,40 m
+    // (`zones/kitchen.BLOCK_HEIGHT`) — also bis in Augenhöhe.
+    rig.position.x += _applied.x - shareOf(_lag.x, _applied.x, _desired.x);
+    rig.position.z += _applied.z - shareOf(_lag.z, _applied.z, _desired.z);
     rig.position.y += this.settle(_applied.y);
     rig.updateMatrixWorld(true);
 
-    rig.getHeadPosition(this.lastHead);
+    this.holdLean(rig);
+  }
+
+  /**
+   * **Wie weit der Kopf dem Körper vorauseilen darf** (`LEAN_LIMIT`).
+   *
+   * Beugen heißt: Der Kopf geht, der Körper bleibt — und genau so soll es
+   * sein, sonst steht die Welt still, während das Innenohr Bewegung meldet.
+   * Ein **Gehen** ist es nicht mehr: Wer im Zimmer einfach weiterläuft, wo im
+   * Spiel eine Wand steht, hätte den Blick sonst beliebig weit im Nichts. Ab
+   * einer halben Armlänge wird deshalb nachgeschoben — nicht der Körper, der
+   * kann ja nicht, sondern das Rig zurück an den Körper.
+   */
+  private holdLean(rig: PlayerRig): void {
+    rig.getHeadPosition(_head);
+    const at = this.body.translation();
+    const dx = _head.x - at.x;
+    const dz = _head.z - at.z;
+    const lean = Math.hypot(dx, dz);
+    if (lean <= LEAN_LIMIT) return;
+    const back = (lean - LEAN_LIMIT) / lean;
+    rig.position.x -= dx * back;
+    rig.position.z -= dz * back;
+    rig.updateMatrixWorld(true);
   }
 
   teleport(rig: PlayerRig, transform: THREE.Matrix4): void {
@@ -427,7 +491,6 @@ export class PhysicsLocomotion implements Locomotion {
     // Portals only sit on vertical or horizontal surfaces here, so the level
     // stays level — but a tilted exit should not fling the player sideways.
     this.syncCapsuleToRig(rig, true);
-    this.hasLastHead = false;
     this.grounded = false;
     this.coyote = 0;
   }
@@ -498,8 +561,6 @@ export class PhysicsLocomotion implements Locomotion {
     // Der Controller fragt den Collider, nicht den Körper — und zwischen hier
     // und dem nächsten Bild rechnet die Welt keinen Schritt.
     this.physics.syncColliders();
-    this.lastHead.copy(_head);
-    this.hasLastHead = true;
   }
 
   /**
@@ -585,6 +646,26 @@ export class PhysicsLocomotion implements Locomotion {
 /** True when the solver ate most of the movement we asked for. */
 function blocked(applied: number, desired: number): boolean {
   return Math.abs(desired) > 1e-3 && Math.abs(applied) < Math.abs(desired) * 0.5;
+}
+
+/**
+ * **Wie viel von dem, was die Welt hergab, auf den Kopf entfällt.**
+ *
+ * Gefragt war `desired` — der Schritt des Stocks *und* die Nachführung hinter
+ * den Kopf her (`part`) —, herausgekommen ist `applied`. Wo nichts im Weg
+ * stand, sind beide gleich, und dann entfällt auf den Kopf genau seine
+ * Nachführung. Wo etwas im Weg stand, teilen sich die beiden den Fehlbetrag in
+ * demselben Verhältnis, in dem sie gefragt haben: Eine Wand hält den Schritt
+ * auf und das Beugen gleichermaßen, und keiner von beiden zahlt für den
+ * anderen.
+ *
+ * Über das Gefragte hinaus wird nichts zugerechnet: Was der Controller
+ * *zusätzlich* herausgibt — er drückt eine steckende Kapsel aus der Wand —,
+ * gehört dem Rig, damit es mit herauskommt.
+ */
+function shareOf(part: number, applied: number, desired: number): number {
+  if (Math.abs(desired) < 1e-9) return 0;
+  return part * THREE.MathUtils.clamp(applied / desired, 0, 1);
 }
 
 /**

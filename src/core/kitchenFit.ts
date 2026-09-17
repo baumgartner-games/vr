@@ -753,6 +753,27 @@ export function kitchenWorkHeight(piece: KitchenPiece): number {
 export const PAN_BOWL: readonly [x: number, z: number] = [0, -0.225];
 
 /**
+ * **In welchem Maßstab dieses Möbel in der Szene steht.**
+ *
+ * Ein geladenes Stück kommt mit `KITCHEN_SCALE` aus dem Lader
+ * (`core/kitchenModel.ts`) — die Quelle ist doppelt so groß, wie sie sein
+ * soll, und halbiert wird am Lader und nicht in der Datei (siehe
+ * `KITCHEN_SCALE`). Ein **gebautes** Stück (Förderband, Zugband) entsteht
+ * dagegen schon in Metern und steht auf 1.
+ *
+ * Das ist die eine Zahl, die jeder braucht, der etwas **an** ein Möbel hängt
+ * statt daneben: das Bild der Zutat auf dem Deckel, das Wasser im Becken, die
+ * Griffkreuze am Rand und seit dem Umbau auch das, was beim Tragen mitfährt
+ * (`worlds/test/zones/kitchen.ts`). Alle vier stehen in Metern der Welt, alle
+ * vier müssen den halben Maßstab wieder aufheben — und viermal
+ * `piece.built ? 1 : 0.5` nebeneinander ist dreimal zu oft: Wer die Quelle
+ * tauscht und `KITCHEN_SCALE` ändert, findet sonst drei von vier Stellen.
+ */
+export function kitchenPieceScale(piece: KitchenPiece): number {
+  return piece.built ? 1 : KITCHEN_SCALE;
+}
+
+/**
  * **Wo im abgenommenen Topf das Wasser steht** — der Innenraum, in Metern über
  * seinem **Fuß**, und der Innenradius dazu.
  *

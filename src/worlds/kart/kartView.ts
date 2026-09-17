@@ -39,6 +39,42 @@
 /** Wie weit der Blick höchstens hinter dem Kart zurückbleibt, in Grad. */
 export const MAX_LAG = 25;
 
+/**
+ * **Bis zu welcher Entfernung das Armaturenbrett überhaupt gezeichnet wird**,
+ * in Metern.
+ *
+ * Zehn, und die Zahl kommt vom Lesen und nicht vom Rechnen: Das Klemmbrett ist
+ * zwanzig Zentimeter breit und trägt sieben Zeilen. Aus zehn Metern ist eine
+ * davon auf einem Brillendisplay ein Strich; aus dreißig ist sie ein Pixel.
+ */
+export const DASHBOARD_RANGE = 10;
+
+/**
+ * **Ob das Armaturenbrett dieses Karts zu zeichnen ist.**
+ *
+ * Ein Kart trägt ein ganzes Menü mit sich herum — das Klemmbrett rechts vom
+ * Lenkrad ist eine `UIPanel` mit einer Zeile je Einstellung, und das sind
+ * neunzehn Zeichenaufrufe. Gemessen aus der Küche mit Blick auf die Strecke
+ * standen beide Karts in sechsundfünfzig Metern Entfernung im Bild und
+ * kosteten dort **achtunddreißig von 268** Aufrufen für zwei Schilder, deren
+ * Zeilen keinen Pixel hoch sind.
+ *
+ * Wer **darin sitzt**, sieht es immer: Der Fahrer ist einen halben Meter
+ * davon entfernt, und eine Entfernungsregel, die beim Einsteigen erst greifen
+ * müsste, wäre ein Brett, das einen Sekundenbruchteil zu spät auftaucht.
+ *
+ * Das große Schild **über** dem Kart (`Kart.hover`, „A zum Einsteigen") fällt
+ * ausdrücklich **nicht** darunter: Das ist genau das Schild, das aus der Ferne
+ * gelesen werden soll.
+ */
+export function showsDashboard(
+  distance: number,
+  seated: boolean,
+  range = DASHBOARD_RANGE,
+): boolean {
+  return seated || distance <= range;
+}
+
 const MAX_LAG_RAD = (MAX_LAG * Math.PI) / 180;
 const DEG = Math.PI / 180;
 

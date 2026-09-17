@@ -1,8 +1,16 @@
 import {
+  HAND_TAP_METRES,
+  HAND_TAP_SECONDS,
   HAND_USE_RANGE,
+  beginGripPress,
+  gripPressDrops,
+  gripPressKind,
+  gripPressTook,
   handUseFires,
   handUseMemory,
   pickHandUse,
+  stepGripPress,
+  type GripPress,
   type HandUseButtons,
   type HandUseFind,
 } from './handUse';
@@ -167,5 +175,118 @@ describe('how far pointing reaches', () => {
     // Die neun Meter des Ferngreifens sind für Gegenstände, die man sich holt.
     expect(HAND_USE_RANGE).toBeLessThan(9);
     expect(HAND_USE_RANGE).toBeGreaterThan(1);
+  });
+});
+
+/**
+ * **Die Ausnahme eines einzelnen Dings** (`HandUseFind.inputs`).
+ *
+ * Eine Arbeitsplatte, auf die man etwas ablegt, ist von oben ein `press` und
+ * in der Brille trotzdem die Greif-Taste: Abgelegt wird beim **Loslassen** und
+ * nicht beim Hinlangen. Ohne diese Zeile stellte man den Topf ab, sobald man
+ * mit ihm daran vorbeikommt — genau der gemeldete Fehler.
+ */
+describe('womit ein Ding in der Brille ausgelöst wird', () => {
+  it('lässt die Ableitung gelten, solange nichts anderes dasteht', () => {
+    expect(handUseFires(find('button', 'touch', 0), NOTHING, null)).toBe(true);
+    expect(handUseFires(find('bun', 'touch', 0, 'grab'), NOTHING, null)).toBe(false);
+    expect(handUseFires(find('bun', 'touch', 0, 'grab'), GRIP, null)).toBe(true);
+  });
+
+  it('gibt eine Fläche, die etwas aus der Hand nimmt, der Greif-Taste', () => {
+    const counter: HandUseFind<string> = {
+      item: 'counter',
+      reach: 'touch',
+      distance: 0,
+      kind: 'press',
+      inputs: ['grip'],
+    };
+    // Hinlangen tut nichts — auch nicht beim ersten Hineinfassen.
+    expect(handUseFires(counter, NOTHING, null)).toBe(false);
+    // Und der Trigger ebenso wenig: Er gehört dem, was in der Hand liegt.
+    expect(handUseFires(counter, TRIGGER, null)).toBe(false);
+    expect(handUseFires(counter, GRIP, null)).toBe(true);
+  });
+
+  it('lässt ein Ding auch nur zeigen oder nur berühren wollen', () => {
+    const touchOnly: HandUseFind<string> = {
+      item: 'plate',
+      reach: 'aim',
+      distance: 1,
+      kind: 'press',
+      inputs: ['handTouch'],
+    };
+    expect(handUseFires(touchOnly, TRIGGER, null)).toBe(false);
+    expect(handUseFires({ ...touchOnly, reach: 'touch', distance: 0 }, NOTHING, null)).toBe(true);
+  });
+});
+
+/**
+ * **Halten oder Tippen** — die zwei Greif-Arten, beide gültig, ohne dass man
+ * sich vorher für eine entscheidet.
+ */
+describe('Halten oder Tippen', () => {
+  /** Ein Druck, der `seconds` lang liegt und dabei `metres` weit kommt. */
+  function press(seconds: number, metres: number): GripPress {
+    let grab = beginGripPress();
+    const steps = 6;
+    for (let i = 1; i <= steps; i++) {
+      grab = stepGripPress(grab, seconds / steps, (metres * i) / steps);
+    }
+    return grab;
+  }
+
+  it('nennt den kurzen, stillen Klick ein Tippen', () => {
+    expect(gripPressKind(beginGripPress())).toBe('tap');
+    expect(gripPressKind(press(0.12, 0.01))).toBe('tap');
+  });
+
+  it('nennt die liegende Taste ein Halten, auch ohne jede Bewegung', () => {
+    // Wer drückt und überlegt, wohin, hat sich keinen Millimeter bewegt — und
+    // meint trotzdem „halten".
+    expect(gripPressKind(press(1.2, 0))).toBe('hold');
+    expect(HAND_TAP_SECONDS).toBeLessThan(1);
+  });
+
+  it('nennt den kurzen Zug quer über die Platte ein Halten', () => {
+    // Topf packen, dreißig Zentimeter schieben, loslassen: unter einer
+    // Drittelsekunde, und ganz sicher ein Ablegen.
+    expect(gripPressKind(press(0.2, 0.3))).toBe('hold');
+    expect(HAND_TAP_METRES).toBeLessThan(0.3);
+  });
+
+  it('misst die größte Auslenkung und nicht die letzte', () => {
+    let grab = beginGripPress();
+    grab = stepGripPress(grab, 0.05, 0.4);
+    grab = stepGripPress(grab, 0.05, 0);
+    // Ausgeholt und zurück ist bewegt.
+    expect(gripPressKind(grab)).toBe('hold');
+  });
+
+  it('legt beim Loslassen nur ab, wenn dieser Druck etwas genommen hat', () => {
+    const held = press(0.8, 0.5);
+    // Ein Druck ins Leere: nichts genommen, nichts abzulegen.
+    expect(gripPressDrops(held)).toBe(false);
+    expect(gripPressDrops(gripPressTook(held))).toBe(true);
+    expect(gripPressDrops(null)).toBe(false);
+  });
+
+  /**
+   * **Der ganze Weg des Auftrags**, einmal für jede der beiden Arten:
+   *
+   * - *Halten*: drücken (nehmen), durch die Küche laufen, loslassen (ablegen).
+   * - *Tippen*: drücken und loslassen (nehmen, bleibt in der Hand), später
+   *   erneut drücken (ablegen).
+   */
+  it('trennt den Weg des Haltens vom Weg des Tippens', () => {
+    const holding = gripPressTook(press(2, 1.4));
+    expect(gripPressDrops(holding)).toBe(true);
+
+    const tapping = gripPressTook(press(0.1, 0.02));
+    // Loslassen legt nichts ab — das Ding bleibt in der Hand.
+    expect(gripPressDrops(tapping)).toBe(false);
+    // Abgelegt wird beim nächsten Druck, und der ist ein `justPressed`; dass
+    // eine Fläche darauf antwortet, steht oben.
+    expect(gripPressKind(tapping)).toBe('tap');
   });
 });

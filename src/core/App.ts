@@ -1633,6 +1633,24 @@ export class App {
           },
         },
         {
+          // **Die unsichtbaren Griffe** — gezeichnet von `core/handleView.ts`,
+          // überall dort, wo ein Ding welche angemeldet hat
+          // (`core/grabHandles.ts`). Ein Werkzeug zum Einmessen: Man sieht, wo
+          // die Hand andockt, und erst dann lässt sich eine Zahl beurteilen.
+          id: 'gfx:handles',
+          label: 'Griffe zeigen',
+          sub: 'Die unsichtbaren Griffstellen als Achsenkreuz · Pfannenstiel, Tellerrand, Feuerlöscher',
+          caption: 'Zum Einmessen · ab Werk aus',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.showHandles,
+          run: () => {
+            const next = saveGraphics({ showHandles: !graphics().showHandles });
+            this.menuDirty = true;
+            this.notify(next.showHandles ? 'Griffe sichtbar' : 'Griffe unsichtbar');
+          },
+        },
+        {
           // **Der Schalter, den der Besitzer wollte**: Schatten wie in
           // Overcooked, ohne dafür die ganze Zeichnung dazuzunehmen. Er steht
           // über dem Modus, weil er der ist, an dem man wirklich dreht —

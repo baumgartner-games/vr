@@ -14,7 +14,7 @@ import type { NavGraph } from '../nav/navGraph';
 import { DIRS, NO_TILE, TILE, keyLevel, tileCentreX, tileCentreZ, type Dir } from '../nav/navTile';
 import { changeSlidingDoor } from './slidingDoor';
 import { blocksView, boxesBetween, type GhostCandidate } from './wallGhost';
-import { batchKey, joinsBatch } from './gridBatch';
+import { batchKey, joinsBatch, joinsGhostBatch } from './gridBatch';
 import { fixtureTile, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
 import { EFFECT_LIFT } from './fixtures/index';
@@ -106,6 +106,30 @@ export abstract class GridWorld extends PortalWorld {
    * Mal zu treffen.
    */
   private readonly batchable: THREE.Mesh[] = [];
+  /**
+   * **Die Quader, die nur aus den Augen in ein Bündel dürfen** — die Wände
+   * (`gridBatch.joinsGhostBatch`).
+   *
+   * Sie stehen neben `batchable` und nicht darin, weil sie ein zweites Bündel
+   * bekommen, das eine Ansicht lang verschwindet: Von oben wird geghostet, und
+   * dann müssen wieder die einzelnen Quader dastehen.
+   */
+  private readonly ghostable: THREE.Mesh[] = [];
+  /** Die Bündel daraus — sichtbar aus den Augen, unsichtbar von oben. */
+  private readonly ghostBatches: THREE.InstancedMesh[] = [];
+  /**
+   * Und die Quader, die wirklich in einem davon gelandet sind.
+   *
+   * Nicht dasselbe wie `ghostable`: Wer allein in seiner Gruppe steht, bekommt
+   * kein Bündel und bleibt einfach sichtbar — und ein Türblatt, das eine
+   * Schiebetür nach dem Bündeln nachbaut, darf hier gar nicht erst auftauchen.
+   * Was hier steht, wird umgeschaltet; alles andere bleibt, wie es ist.
+   */
+  private readonly ghostBatched: THREE.Mesh[] = [];
+  /** Ob gerade die Bündel zu sehen sind (aus den Augen) oder die Quader (von oben). */
+  private ghostBatchView = true;
+  /** Ob zuletzt von oben geschaut wurde — ein Umbau muss die Ansicht wiederherstellen. */
+  private topDownView = false;
   /** Ob die Quader gerade auch Körper in der Physik haben. */
   private solid = true;
   /** Was beim Bauen eingefroren wurde — und deshalb hinterher aufzutauen ist. */
@@ -298,9 +322,16 @@ export abstract class GridWorld extends PortalWorld {
       batch.removeFromParent();
     }
     this.batches.length = 0;
+    for (const batch of this.ghostBatches) {
+      batch.geometry.dispose();
+      batch.removeFromParent();
+    }
+    this.ghostBatches.length = 0;
+    this.ghostBatched.length = 0;
     for (const mesh of this.slabs) this.dropSlab(mesh);
     this.slabs.length = 0;
     this.batchable.length = 0;
+    this.ghostable.length = 0;
     // **Das Blatt einer Einbau-Tür baut ihre Art selbst** (`fixtures/door.ts`):
     // Es fährt, und ein zweites, starres an derselben Stelle wäre eine Tür, die
     // aufgeht und trotzdem zu bleibt. Pfosten und Sturz kommen weiter aus dem
@@ -311,11 +342,21 @@ export abstract class GridWorld extends PortalWorld {
       if (solid.door && this.slidingGridDoors() && plan.graph.door(solid.door)?.open) continue;
       this.build(group, solid);
     }
-    // **Gebündelt wird immer** — die Frage ist nur, was hinein darf. Wer
-    // `batchGridGeometry()` anschaltet, nimmt alles und verzichtet dafür aufs
-    // Wand-Ghosting; sonst geht nur hinein, was ohnehin nie ghosten kann
-    // (`gridBatch.ts`).
-    this.buildBatches(group, this.batchGridGeometry() ? this.slabs : this.batchable);
+    // **Gebündelt wird immer** — die Frage ist nur, in welches Bündel. Zuerst
+    // das dauerhafte: alles, was ohnehin nie ghosten kann (`gridBatch.ts`). Wer
+    // `batchGridGeometry()` anschaltet, wirft stattdessen jeden Quader hinein
+    // und verzichtet dafür auf anhaftende Portale und einzeln schaltbare
+    // Türblätter.
+    const all = this.batchGridGeometry();
+    this.buildBatches(group, all ? this.slabs : this.batchable, this.batches, false);
+    // **Und die Wände dazu, für die Ansicht, in der nicht geghostet wird**
+    // (`gridBatch.joinsGhostBatch`). Wer ohnehin alles bündelt, hat sie schon
+    // oben mitgenommen.
+    if (!all) {
+      this.buildBatches(group, this.ghostable, this.ghostBatches, true);
+      this.ghostBatchView = true;
+      this.showGhostBatches(!this.topDownView);
+    }
     // **Nach den Bausteinen**, und zwar auch nach dem Zusammenfassen: Ein
     // Einbau hat ein eigenes Bild und eigene Körper, und in eine
     // `InstancedMesh` gehört er nicht — er bewegt sich.
@@ -337,8 +378,19 @@ export abstract class GridWorld extends PortalWorld {
    * Zeichnen dagegen schon. Ein Saum bekommen sie keinen mehr (`denyOutline`):
    * Im Comic hängt der am sichtbaren Bündel, und tausend unsichtbare Hüllen
    * daneben wären tausend Hüllen, die niemand sieht.
+   *
+   * `returnable` ist die Ausnahme davon und meint die **Wände**: Sie kommen von
+   * oben wieder einzeln zum Vorschein (`showGhostBatches`), also werden sie
+   * gemerkt statt vergessen — und ihren Saum behalten sie, weil sie ihn dann
+   * brauchen. Er hängt als Kind an ihnen und ist unsichtbar, solange sie es
+   * sind.
    */
-  private buildBatches(group: THREE.Group, meshes: readonly THREE.Object3D[]): void {
+  private buildBatches(
+    group: THREE.Group,
+    meshes: readonly THREE.Object3D[],
+    into: THREE.InstancedMesh[],
+    returnable: boolean,
+  ): void {
     const byKey = new Map<
       string,
       { material: THREE.Material; level: number | null; meshes: THREE.Mesh<THREE.BoxGeometry>[] }
@@ -368,12 +420,37 @@ export abstract class GridWorld extends PortalWorld {
         matrix.compose(mesh.position, mesh.quaternion, scale);
         batch.setMatrixAt(i, matrix);
         mesh.visible = false;
-        denyOutline(mesh);
+        // **Ein Quader, der wiederkommt, behält seinen Saum.** Im Comic hängt
+        // die Kontur am sichtbaren Ding; wer von oben wieder einzeln dasteht,
+        // braucht dort eine — und solange er unsichtbar ist, kostet sie nichts,
+        // weil sie sein Kind ist (`core/outlineShell.ts`).
+        if (returnable) this.ghostBatched.push(mesh);
+        else denyOutline(mesh);
       });
       batch.computeBoundingSphere();
       group.add(batch);
-      this.batches.push(batch);
+      into.push(batch);
     }
+  }
+
+  /**
+   * **Welche Hälfte der Wände gerade zu sehen ist** — das Bündel oder die
+   * Quader.
+   *
+   * Umgeschaltet wird an genau einer Frage (`ctx.topDown`), und zwar an
+   * derselben, die auch über das Ghosting entscheidet: Aus den Augen wird nie
+   * eine Wand durchsichtig, also darf dort ein Bündel stehen; von oben wird
+   * geghostet, also stehen dort die einzelnen Quader.
+   *
+   * Nur beim **Wechsel**, nicht jedes Bild: Zweihundert `visible` neu zu setzen
+   * ist billig, aber zweihundertmal je Bild dasselbe zu setzen ist Arbeit ohne
+   * Ergebnis.
+   */
+  private showGhostBatches(batched: boolean): void {
+    if (this.ghostBatchView === batched || this.ghostBatches.length === 0) return;
+    this.ghostBatchView = batched;
+    for (const batch of this.ghostBatches) batch.visible = batched;
+    for (const mesh of this.ghostBatched) mesh.visible = !batched;
   }
 
   // --- die Gitterlinien -----------------------------------------------------
@@ -1168,16 +1245,17 @@ export abstract class GridWorld extends PortalWorld {
     // **Und ob er in ein Bündel darf** (`gridBatch.ts`): Ein Boden, eine
     // Schwelle, eine Rampe wird nie durchsichtig — also kostet es nichts, sie
     // mit ihresgleichen in einem Zug zu zeichnen.
-    if (
-      joinsBatch({
-        box: { x: solid.x, y: solid.y, z: solid.z, w: solid.w, h: solid.h, d: solid.d },
-        floor: solid.kind === 'floor',
-        portal,
-        door: !!solid.door,
-      })
-    ) {
-      this.batchable.push(mesh);
-    }
+    const candidate = {
+      box: { x: solid.x, y: solid.y, z: solid.z, w: solid.w, h: solid.h, d: solid.d },
+      floor: solid.kind === 'floor',
+      portal,
+      door: !!solid.door,
+    };
+    if (joinsBatch(candidate)) this.batchable.push(mesh);
+    // **Und eine Wand in das Bündel, das nur aus den Augen gilt.** Geghostet
+    // wird ausschließlich von oben (`stepWallGhosts`), und dort stehen die
+    // Quader wieder einzeln da.
+    else if (joinsGhostBatch(candidate)) this.ghostable.push(mesh);
   }
 
   // --- Wand-Ghosting --------------------------------------------------------
@@ -1233,6 +1311,11 @@ export abstract class GridWorld extends PortalWorld {
    *   Quadern eine Liste, die nichts tut außer Arbeit zu machen.
    */
   private stepWallGhosts(ctx: WorldContext): void {
+    this.topDownView = ctx.topDown;
+    // **Vor allem anderen und auch ohne einen einzigen Ghost-Kandidaten:** Die
+    // Wände stehen von oben einzeln da und aus den Augen als Bündel, und diese
+    // eine Frage entscheidet beides (`showGhostBatches`).
+    this.showGhostBatches(!ctx.topDown);
     if (this.wallGhosts.length === 0) return;
     if (!ctx.topDown) {
       this.clearWallGhosts();
@@ -1272,12 +1355,16 @@ export abstract class GridWorld extends PortalWorld {
   }
 
   /**
-   * **Ob die Quader zu Bündeln zusammengefasst werden** (`InstancedMesh`).
+   * **Ob ausnahmslos jeder Quader in ein Bündel geht** (`InstancedMesh`).
    *
-   * Aus, und das bleibt so: Ein Bündel hat **ein** Material, und damit fällt
-   * das Wand-Ghosting weg — durchsichtig würde nicht die eine Wand, sondern
-   * jede Wand derselben Sorte auf derselben Ebene. Wer eine Welt mit
-   * zehntausend Kacheln baut, schaltet es an und verzichtet dafür darauf.
+   * Aus, und das bleibt so — aber die Frage ist kleiner geworden, als sie
+   * einmal war. Gebündelt wird längst **immer**: was nie ghosten kann, dauerhaft
+   * (`gridBatch.joinsBatch`), und die Wände für jede Ansicht außer der von oben
+   * (`joinsGhostBatch`, `showGhostBatches`). Wer hier `true` sagt, nimmt
+   * zusätzlich **Portalflächen und Türblätter** mit hinein und verzichtet dafür
+   * auf ein anhaftendes Portal und auf ein Türblatt, das sich einzeln
+   * wegschalten lässt. Das ist der Weg für eine Welt mit zehntausend Kacheln
+   * und für niemanden sonst.
    */
   protected batchGridGeometry(): boolean {
     return false;
@@ -1673,6 +1760,12 @@ export abstract class GridWorld extends PortalWorld {
     this.group = null;
     this.slabs.length = 0;
     this.batches.length = 0;
+    this.ghostBatches.length = 0;
+    this.ghostBatched.length = 0;
+    this.ghostable.length = 0;
+    this.batchable.length = 0;
+    this.ghostBatchView = true;
+    this.topDownView = false;
     this.frozen.length = 0;
     this.palette.clear();
     this.builtVersion = -1;

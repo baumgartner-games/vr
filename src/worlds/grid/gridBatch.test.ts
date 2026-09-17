@@ -1,4 +1,4 @@
-import { batchKey, joinsBatch } from './gridBatch';
+import { batchKey, joinsBatch, joinsGhostBatch } from './gridBatch';
 import { blocksView, GHOST_KNEE } from './wallGhost';
 
 /**
@@ -54,6 +54,67 @@ describe('joinsBatch', () => {
   it('nimmt die Kniehöhe entgegen, wenn eine Welt eine andere hat', () => {
     expect(joinsBatch({ box: box(0.6, 0.2) }, 1)).toBe(true);
     expect(joinsBatch({ box: box(0.6, 0.2) })).toBe(false);
+  });
+});
+
+/**
+ * **Die Probe aufs zweite Bündel** — das, in dem die Wände stecken, solange
+ * niemand von oben schaut.
+ *
+ * Zwei Zusagen stehen hier, und beide zusammen sind der Grund, dass das
+ * Ghosting davon nichts merkt: Was hier hineindarf, ist **genau** das, was
+ * ghosten kann — und die beiden Bündel überschneiden sich **nie**. Ein Quader,
+ * der in beiden steckte, stünde von oben zweimal da; einer, der in keinem
+ * steckt und trotzdem umgeschaltet würde, verschwände ganz.
+ */
+describe('joinsGhostBatch', () => {
+  it('nimmt Wände — sie sind es, um die es geht', () => {
+    expect(joinsGhostBatch({ box: box(1.4, 2.8) })).toBe(true);
+  });
+
+  it('nimmt ein Vordach: die Oberkante zählt, nicht die Dicke', () => {
+    expect(joinsGhostBatch({ box: box(2, 0.1) })).toBe(true);
+  });
+
+  it('lässt Böden liegen — die stecken schon im dauerhaften Bündel', () => {
+    expect(joinsGhostBatch({ box: box(0.15, 0.3), floor: true })).toBe(false);
+    expect(joinsGhostBatch({ box: box(0.1, 0.2) })).toBe(false);
+  });
+
+  it('lässt Portalflächen und Türblätter einzeln, genau wie das andere Bündel', () => {
+    expect(joinsGhostBatch({ box: box(1.4, 2.8), portal: true })).toBe(false);
+    expect(joinsGhostBatch({ box: box(1.4, 2.8), door: true })).toBe(false);
+  });
+
+  it('nimmt genau das, was ghosten kann', () => {
+    for (const y of [0, 0.15, 0.4, 0.49, 0.5, 0.51, 1, 2.5]) {
+      for (const h of [0.1, 0.3, 0.9, 2.8]) {
+        const one = { box: box(y, h) };
+        expect(joinsGhostBatch(one)).toBe(blocksView(one));
+      }
+    }
+  });
+
+  it('teilt sich mit dem dauerhaften Bündel keinen einzigen Quader', () => {
+    for (const y of [0, 0.15, 0.49, 0.5, 0.51, 1, 2.5]) {
+      for (const h of [0.1, 0.3, 2.8]) {
+        for (const floor of [false, true]) {
+          for (const portal of [false, true]) {
+            for (const door of [false, true]) {
+              const one = { box: box(y, h), floor, portal, door };
+              expect(joinsBatch(one) && joinsGhostBatch(one)).toBe(false);
+              // Und zusammen decken sie alles ab, was kein Portal und keine Tür ist.
+              if (!portal && !door) expect(joinsBatch(one) || joinsGhostBatch(one)).toBe(true);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('nimmt dieselbe Kniehöhe entgegen wie das andere Bündel', () => {
+    expect(joinsGhostBatch({ box: box(0.6, 0.2) }, 1)).toBe(false);
+    expect(joinsGhostBatch({ box: box(0.6, 0.2) })).toBe(true);
   });
 });
 
