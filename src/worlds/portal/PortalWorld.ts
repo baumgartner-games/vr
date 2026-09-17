@@ -264,17 +264,25 @@ import {
   type Usable,
 } from '../../core/usable';
 import {
+  interactionGrab,
   interactionKind,
   interactionView,
   resolveInteraction,
+  vrInputs,
   type ResolvedInteraction,
 } from '../../core/interaction';
+import { grabReaches } from '../../core/grabHandles';
 import { inputConfig } from '../../core/inputStore';
 import {
   HAND_USE_RANGE,
+  beginGripPress,
+  gripPressDrops,
+  gripPressTook,
   handUseFires,
   handUseMemory,
   pickHandUse,
+  stepGripPress,
+  type GripPress,
   type HandUseFind,
 } from '../../core/handUse';
 import { ScreenHand } from './screenHand';
@@ -482,6 +490,9 @@ const _handHead = new THREE.Vector3();
 const _handRay = new THREE.Ray();
 const _handForward = new THREE.Vector3();
 const _handFinds: HandUseFind<THREE.Object3D>[] = [];
+const _handFeet = { x: 0, y: 0, z: 0 };
+const _handSpot = { x: 0, y: 0, z: 0 };
+const _grabHand = new THREE.Vector3();
 /**
  * Was beim groben Aussieben (`readHandUseAims`) über die Zeigereichweite hinaus
  * noch mitkommt, in Metern: Der Ort eines Möbels ist sein Ursprung und nicht
@@ -813,6 +824,19 @@ export class PortalWorld implements World {
    * herauszieht, vergisst.
    */
   private readonly handUsed = new Map<Handedness, THREE.Object3D | null>();
+  /**
+   * **Der Stand der Greif-Taste zwischen Drücken und Loslassen**, je Hand
+   * (`core/handUse.ts`, _Halten oder Tippen_).
+   *
+   * Daran hängt die eine Unterscheidung, die der Auftrag verlangt: Wer kurz
+   * tippt, behält das Ding in der Hand und legt es beim nächsten Druck ab; wer
+   * die Taste liegen lässt oder die Hand dabei bewegt, legt beim **Loslassen**
+   * ab. Gerechnet wird die Regel nebenan — hier steht nur, was sich die Hand
+   * bis zum Loslassen merkt.
+   */
+  private readonly gripPresses = new Map<Handedness, GripPress | null>();
+  /** Wo die Hand war, als die Taste gedrückt wurde — für die Wegstrecke oben. */
+  private readonly gripPressFrom = new Map<Handedness, THREE.Vector3>();
   /**
    * Die benutzbaren Dinge als Greifboxen, je Bild einmal gebaut und von beiden
    * Händen gelesen. Gerechnet wird gegen die **echte** Ausdehnung des Dings
@@ -6287,6 +6311,9 @@ export class PortalWorld implements World {
         // Eine Hand, die weg war, fängt beim Wiederkommen von vorn an: was
         // zwischendurch geschehen ist, ist kein Zucken.
         this.pullMeters.get(hand)?.reset();
+        // Und ebenso wenig ist es ein Druck: Eine Hand, die weg war, hat nicht
+        // losgelassen, sie ist verschwunden. Was sie hielt, bleibt in ihr.
+        this.gripPresses.set(hand, null);
         if (grab) this.release(ctx, hand, grab, true);
         this.dropReach(ctx, hand);
         continue;
@@ -6295,6 +6322,7 @@ export class PortalWorld implements World {
       const anchor = gripOf(controller);
       anchor.updateWorldMatrix(true, false);
       this.measurePull(ctx, hand, anchor, dt);
+      this.trackGripPress(controller, hand, anchor, dt);
 
       if (grab) {
         if (!controller.squeeze.pressed) {
@@ -6339,6 +6367,43 @@ export class PortalWorld implements World {
     this.updateGhostHands(dt);
     this.updateHighlights(reachable);
     this.updateHandGestures(ctx, reachable);
+  }
+
+  /**
+   * **Halten oder Tippen** — was zwischen Drücken und Loslassen passiert ist
+   * (`core/handUse.ts`).
+   *
+   * Zwei Zahlen je Hand, und beide entstehen hier: wie lange die Taste schon
+   * liegt, und wie weit die Hand seit dem Drücken gekommen ist. Die Regel
+   * daraus steht im `core` und wird dort geprüft; hier läuft nur die Uhr und
+   * das Maßband.
+   *
+   * Gerufen wird es für **jede getrackte Hand in jedem Bild**, auch für eine,
+   * die gerade einen Gegenstand trägt: Der Unterschied zwischen Tippen und
+   * Halten ist eine Aussage über die Taste und nicht über das, was an ihr
+   * hängt.
+   */
+  private trackGripPress(
+    controller: ControllerState,
+    hand: Handedness,
+    anchor: THREE.Object3D,
+    dt: number,
+  ): void {
+    if (controller.squeeze.justPressed) {
+      let from = this.gripPressFrom.get(hand);
+      if (!from) {
+        from = new THREE.Vector3();
+        this.gripPressFrom.set(hand, from);
+      }
+      anchor.getWorldPosition(from);
+      this.gripPresses.set(hand, beginGripPress());
+      return;
+    }
+    const grab = this.gripPresses.get(hand);
+    if (!grab || !controller.squeeze.pressed) return;
+    const from = this.gripPressFrom.get(hand);
+    anchor.getWorldPosition(_grabHand);
+    this.gripPresses.set(hand, stepGripPress(grab, dt, from ? _grabHand.distanceTo(from) : 0));
   }
 
   /** Alles, was eine Hand an Reichweite angezeigt hatte, wieder abräumen. */
@@ -6429,18 +6494,50 @@ export class PortalWorld implements World {
 
     anchor.getWorldPosition(_hand);
     controller.getRay(_handRay);
+    // **Wo die Figur steht**, nicht wo die Hand ist. Das ist die Pointe des
+    // Auftrags: Die Reichweite kommt weiter aus der Figur, nur die Auswahl
+    // darin darf die Hand treffen (siehe `grabReaches` unten).
+    _handFeet.x = this.nearZone.x;
+    _handFeet.y = this.nearZone.floor;
+    _handFeet.z = this.nearZone.z;
     _handFinds.length = 0;
     for (const { entry, target } of this.handUseAims) {
       const kind = interactionKind(entry.usable.interaction);
       if (kind === 'none') continue;
+      // **Die Reichweite trägt das Ding selbst** (`core/grabHandles.ts`).
+      // `'all'` sagt immer ja — Werkzeuge, Waffen, Gürtelplätze und alles, was
+      // nichts angibt, bleibt damit Zeile für Zeile, wie es war. `'moore'` sagt
+      // nur im eigenen Feld und den acht daneben ja: kein Nahgreifen, kein
+      // Ferngreifen, kein Zeigen über den halben Raum.
+      const reach = interactionGrab(entry.usable.interaction).reach;
+      if (reach !== 'all') {
+        // **Gemessen wird gegen die nächste Ecke und nicht gegen die Mitte.**
+        // Ein Tresen ist zwei Meter lang; wer an seinem einen Ende steht, hat
+        // seine Mitte einen Meter weiter und sein anderes Ende zwei — an der
+        // Mitte gemessen fiele das Möbel heraus, vor dem man steht. Die Kiste
+        // steht achsenparallel (`readHandUseAims`), also genügt ein Klemmen.
+        _handSpot.x = clamp(
+          _handFeet.x,
+          target.position.x - target.halfExtents.x,
+          target.position.x + target.halfExtents.x,
+        );
+        _handSpot.y = target.position.y;
+        _handSpot.z = clamp(
+          _handFeet.z,
+          target.position.z - target.halfExtents.z,
+          target.position.z + target.halfExtents.z,
+        );
+        if (!grabReaches(reach, _handFeet, _handSpot)) continue;
+      }
+      const inputs = vrInputs(entry.usable.interaction);
       const depth = reachDepth(target, _hand);
       if (depth !== null) {
-        _handFinds.push({ item: entry.object, reach: 'touch', distance: depth, kind });
+        _handFinds.push({ item: entry.object, reach: 'touch', distance: depth, kind, inputs });
         continue;
       }
       const along = rayReach(target, _handRay.origin, _handRay.direction);
       if (along === null || along > HAND_USE_RANGE) continue;
-      _handFinds.push({ item: entry.object, reach: 'aim', distance: along, kind });
+      _handFinds.push({ item: entry.object, reach: 'aim', distance: along, kind, inputs });
     }
 
     // **Gemerkt wird das Objekt und nicht die Anmeldung**: Eine Station meldet
@@ -6451,9 +6548,19 @@ export class PortalWorld implements World {
     // Objekt ist das, worin die Hand steckt, und genau das soll sie erst
     // wieder verlassen.
     const find = pickHandUse(_handFinds);
+    // **Die Greif-Taste spricht zweimal**: beim Drücken und beim Loslassen —
+    // und beim Loslassen nur dann, wenn dieser Druck etwas genommen hat und
+    // ein **Halten** war (`core/handUse.gripPressDrops`). Genau das ist die
+    // Antwort auf den gemeldeten Fehler: Mit dem Topf an der Arbeitsplatte
+    // vorbeizulaufen stellt ihn nicht ab; ihn dort loszulassen schon. Und wer
+    // nur kurz getippt hat, behält ihn in der Hand, bis er erneut drückt —
+    // dann ist es wieder ein `justPressed`.
+    const press = this.gripPresses.get(hand) ?? null;
+    const grip =
+      controller.squeeze.justPressed || (controller.squeeze.justReleased && gripPressDrops(press));
     const fires = handUseFires(
       find,
-      { trigger: controller.trigger.justPressed, grip: controller.squeeze.justPressed },
+      { trigger: controller.trigger.justPressed, grip },
       this.handUsed.get(hand) ?? null,
     );
     // Die Hand leuchtet, sobald sie in etwas steckt — dasselbe Zeichen wie
@@ -6467,9 +6574,13 @@ export class PortalWorld implements World {
     if (!usable || this.handUseFired.has(usable)) return false;
     this.handUseFired.add(usable);
     _handForward.copy(_handRay.direction);
-    const acted = usable.use({ kind: 'player', at: _hand, forward: _handForward });
-    if (acted) controller.pulse(find.kind === 'grab' ? 0.5 : 0.3, 25);
-    return acted;
+    const acted = usable.use({ kind: 'player', at: _hand, forward: _handForward, hand });
+    if (!acted) return false;
+    // **Dieser Druck hat etwas genommen** — nur dann darf sein Loslassen
+    // wieder etwas abstellen. Ein Druck ins Leere merkt sich nichts.
+    if (find.kind === 'grab' && press) this.gripPresses.set(hand, gripPressTook(press));
+    controller.pulse(find.kind === 'grab' ? 0.5 : 0.3, 25);
+    return true;
   }
 
   /**
