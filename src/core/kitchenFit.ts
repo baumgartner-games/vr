@@ -629,6 +629,66 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     built: true,
   },
   {
+    name: 'belt-smart',
+    label: 'Filterband',
+    tiles: [1, 1],
+    // **Und wieder dieselbe Zahl, zum dritten Mal.** Ein Filterband ist ein
+    // Zugband, das sich merkt, was es holen darf — mechanisch dasselbe Möbel
+    // mit einem Gedächtnis (`worlds/test/zones/kitchenBelt.beltWants`). Es
+    // steht in denselben Reihen wie die beiden anderen, also läuft es auf
+    // derselben Höhe; alles andere wäre eine Stufe mitten in der Bahn.
+    //
+    // Drittes Katalogstück und keine Einstellung am Zugband, und die
+    // Begründung ist wörtlich die des Zugbands: Im Baumodus trägt man
+    // Katalogstücke, und ein Band, das man nach dem Aufstellen erst noch
+    // umschalten müsste, wäre ein Möbel mit einem unsichtbaren Schalter. Der
+    // **Filter** ist dagegen keine zweite Sorte Band, sondern das, was dieses
+    // eine gelernt hat — man sieht ihn ihm an (`kitchen.showFilter`).
+    height: 0.53,
+    worktop: true,
+    built: true,
+  },
+  {
+    name: 'combiner',
+    label: 'Kombinierer',
+    tiles: [1, 1],
+    // **0,53 m, zum vierten Mal, und hier ist es am wichtigsten.** Der
+    // Kombinierer steht mitten in einer Bandbahn: Von hinten kommt das Patty,
+    // oben liegt das Brötchen, nach vorn geht der Burger weiter. Drei Möbel in
+    // einer Linie, und eines davon auf einer anderen Höhe, wäre genau die
+    // Stufe, über die ein Teller fährt.
+    height: 0.53,
+    worktop: true,
+    built: true,
+  },
+  {
+    name: 'mixer',
+    label: 'Mixer',
+    tiles: [1, 1],
+    // **0,92 m ist die Oberkante des Motorblocks**, nicht die der Schüssel.
+    // Derselbe Fall wie beim Herd mit Topf: `height` ist, was im Weg steht,
+    // `deck` ist, wo etwas liegt. Die Zahlen stehen am Netz
+    // (`worlds/test/zones/kitchenMixer.ts`) und werden hier abgeschrieben —
+    // dieser Katalog kommt ohne three.js aus, und ein Test daneben hält beide
+    // Seiten zusammen.
+    height: 0.92,
+    // **0,50 m, und das ist auf den Millimeter die Arbeitsplatte des
+    // Arbeitstisches** (`table`) — denn genau der steht hier unten drin. Der
+    // Mixer ist ein Arbeitstisch mit einer Schüssel darauf, und was gemixt
+    // wird, steht **in** der Schüssel auf der Tischplatte: Der Rand ist 8,5 cm
+    // hoch (`worlds/test/zones/kitchenMixer.ts`, `BOWL_WALL`) und damit
+    // niedriger als jede Zutat dieser Küche. Von oben sieht man in die
+    // Schüssel hinein und liest, was darin liegt — und das ist die Ansicht, in
+    // der diese Küche gespielt wird.
+    //
+    // Der Eintrag steht trotzdem hier, obwohl er gleich `table` ist: `height`
+    // ist die Oberkante des **Motorblocks**, und ohne `deck` läge das
+    // Geschnittene 42 cm darüber in der Luft.
+    deck: 0.5,
+    worktop: true,
+    built: true,
+  },
+  {
     name: 'desk',
     label: 'Computer-Tisch',
     tiles: [1, 1],

@@ -209,7 +209,15 @@ describe('der Möbelkatalog', () => {
    */
   it('lässt nur gebaute Möbel ohne Knoten in der Quelle durchgehen', () => {
     const built = KITCHEN_PIECES.filter((piece) => piece.built);
-    expect(built.map((piece) => piece.name)).toEqual(['belt', 'belt-pull', 'desk', 'copier']);
+    expect(built.map((piece) => piece.name)).toEqual([
+      'belt',
+      'belt-pull',
+      'belt-smart',
+      'combiner',
+      'mixer',
+      'desk',
+      'copier',
+    ]);
     for (const piece of KITCHEN_PIECES) {
       const inSource = SOURCE[piece.name] !== undefined;
       expect({ name: piece.name, inSource }).toEqual({

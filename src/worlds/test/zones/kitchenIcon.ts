@@ -174,6 +174,34 @@ export interface IconBakeOptions {
 export interface SignSpot {
   /** An welchem Möbel; Vorgabe ist die Ausgabe (`serve-counter`). */
   readonly piece?: KitchenPiece;
+  /**
+   * **Wie groß der weiße Kreis wird**, als Durchmesser in Metern — Vorgabe ist
+   * das Maß des Möbels (`blankDiameter`).
+   *
+   * Es gibt genau einen Grund, davon abzuweichen, und der steht am
+   * **Filterband** (`kitchen.showFilter`): Dort liegt das Bild nicht allein auf
+   * dem Deckel, sondern teilt ihn sich mit dem, was über das Band fährt. Ein
+   * Kreis von 70 cm wäre dort die ganze Kachel und läge unter jedem Teller;
+   * ein kleiner am Rand ist ein Aufkleber, und ein Aufkleber ist, was ein
+   * gemerkter Filter ist.
+   *
+   * Das Bild darin wächst mit: Das Verhältnis von Bild zu Kreis bleibt das
+   * überall gültige (`SIGN_SHARE` zu `BLANK_SHARE`), damit ein kleiner
+   * Aufkleber derselbe Aufkleber ist wie ein großer und nicht ein anders
+   * gesetzter.
+   */
+  readonly across?: number;
+  /**
+   * **Wohin auf dem Deckel**, als Versatz in Metern im Raum des Möbels
+   * (`[x, z]`) — Vorgabe ist die Mitte.
+   *
+   * Im Raum des **Möbels** und nicht der Welt: Der Versatz dreht sich also
+   * mit, wenn jemand das Möbel wendet. Genau so ist es beim Filterband gemeint
+   * — der Aufkleber sitzt an der Kante, an der das Band zugreift, und die
+   * wandert beim Drehen mit. Dass das **Bild** darauf trotzdem nach Norden
+   * schaut, ist eine zweite Drehung und steht in der Zone (`kitchen.aimIcon`).
+   */
+  readonly at?: readonly [x: number, z: number];
 }
 
 const DEG = Math.PI / 180;
@@ -501,8 +529,11 @@ export class IconOven {
     const board = new THREE.Group();
     const piece = spot.piece ?? kitchenPiece('serve-counter');
     const height = piece?.height ?? 0.46;
-    const edge = piece ? signSize(piece) : TILE * SIGN_SHARE;
-    const across = piece ? blankDiameter(piece) : TILE * BLANK_SHARE;
+    const across = spot.across ?? (piece ? blankDiameter(piece) : TILE * BLANK_SHARE);
+    // **Das Bild wächst mit dem Kreis** und nicht mit dem Möbel: Wer den Kreis
+    // vorgibt, bekommt denselben Aufkleber in klein und nicht ein Bild, das
+    // über seinen Untergrund hinaussteht.
+    const edge = across * (SIGN_SHARE / BLANK_SHARE);
 
     board.name = 'kitchen-icon-board';
     // Die Reihenfolge ist zugleich die Tiefe: erst das Weiß, dann das Bild.
@@ -511,7 +542,7 @@ export class IconOven {
     sign.position.z = SIGN_LAYER;
     board.add(sign);
 
-    board.position.set(0, height + SIGN_GAP, 0);
+    board.position.set(spot.at?.[0] ?? 0, height + SIGN_GAP, spot.at?.[1] ?? 0);
     // Hingelegt: Das Bild schaut nach oben, sein Kopf zeigt nach Norden —
     // also dorthin, wo in der Ansicht von oben der obere Bildrand liegt.
     board.rotation.x = -Math.PI / 2;

@@ -2238,8 +2238,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     die nicht kochen, sondern die Küche selbst verwalten: der
     **Computer-Tisch** neben der Ankunft, der den **Möbelkatalog** aufmacht,
     und der **Kopierer** in der freien Mitte, der von einem Möbel ein zweites
-    hergibt. Im Osten der
-    **Schauraum**: jedes der achtzehn Möbel noch einmal, frei stehend und mit
+    hergibt. Östlich anschließend, ohne Wand dazwischen, die **Werkhalle**
+    (`kitchenPlan.PIPELINE`): acht freie Spalten für Bandstraßen, und in dreien
+    davon steht eine, die einen Burger ohne Läufer zusammensetzt — Vorratskiste,
+    Zugband, **Mixer** (hackt ohne jemanden davor), **Filterband** (zieht nur,
+    was es gelernt hat) und **Kombinierer** (legt zusammen, was auf ihm liegt,
+    mit dem, was von der Pfeilseite kommt). Die anderen fünf Spalten bleiben
+    leer: Genau dafür ist die Halle da. Im Osten der
+    **Schauraum**: jedes der einundzwanzig Möbel noch einmal, frei stehend und mit
     einer Tafel daneben, auf der sein Name und sein Maß stehen — bis auf die
     beiden Hälften der Spüle, die dort **nebeneinander** stehen: Ihre
     Schnittflächen sind offen, und auf Lücke gestellt sähe man in zwei
@@ -5905,19 +5911,20 @@ wurden. Sie laufen von Hand, nicht bei jedem Build: Ein Modell ändert sich
 nicht, und `@gltf-transform` und `sharp` gehören nicht in die Abhängigkeiten
 eines Spiels, das sie nie ausführt (`npm install --no-save` beim Aufbereiten).
 
-**Der Küchenkatalog** (`core/kitchenFit.ts`) hat achtzehn Möbel: Tellerausgabe,
-Feuerlöscher, **Spülbecken**, **Abtropfbrett**, Mülleimer, Arbeitstisch,
-Ausgabe, Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile, Herd, Herd mit
-Topf, Herd mit Pfanne — und das **Förderband**, das **Zugband**, den
-**Computer-Tisch** und den **Kopierer**, die in keiner Datei stecken, sondern
-gebaut werden (`KitchenPiece.built`, siehe
+**Der Küchenkatalog** (`core/kitchenFit.ts`) hat einundzwanzig Möbel:
+Tellerausgabe, Feuerlöscher, **Spülbecken**, **Abtropfbrett**, Mülleimer,
+Arbeitstisch, Ausgabe, Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile,
+Herd, Herd mit Topf, Herd mit Pfanne — und das **Förderband**, das **Zugband**,
+das **Filterband**, den **Kombinierer**, den **Mixer**, den **Computer-Tisch**
+und den **Kopierer**, die in keiner Datei stecken, sondern gebaut werden
+(`KitchenPiece.built`, siehe
 _Anfassen in der Küche_). Der Katalog beschreibt, was in dieser Küche **steht**,
 nicht, was gekauft wurde; wer `built` nicht liest, meldet eine fehlende Datei,
 die es nicht gibt, und stellt einen grauen Würfel dorthin, wo ein Band stehen
 soll.
 
-Achtzehn aus **dreizehn Knoten**, und zwei Sachen erklären den Rest. Die eine
-sind die **vier gebauten** Stücke, die in keiner Datei stehen. Die andere ist
+Einundzwanzig aus **dreizehn Knoten**, und zwei Sachen erklären den Rest. Die
+eine sind die **sieben gebauten** Stücke, die in keiner Datei stehen. Die andere ist
 die Spüle: Sie ist in
 der Datei **ein** Möbel von vier Metern — links ein Becken, rechts ein
 Abtropfbrett, in der Mitte die Armatur — und wird beim Laden in zwei Stücke von
@@ -6556,6 +6563,33 @@ Und das sind die Regeln, die darin stehen:
   neben der Ausgabetheke abliefert. Dazwischen bleibt x = 8 als Gang frei —
   zwei Spalten Möbel quer durch die Küche sind zwei Wände, und ohne die Reihe
   dazwischen liefe man von der Nordzeile bis zum Gastraum ums ganze Haus.
+- **Und ein Zugband zieht auch aus einer Vorratskiste** (`beltRefills`). Für
+  die Rechnung ist eine Kachel belegt oder frei; eine Kiste ist von beidem
+  nichts — auf ihr liegt nichts, und trotzdem ist dort etwas zu holen. Sie
+  meldet sich deshalb als **belegt**, und was das Band abholt, entsteht in dem
+  Bild, in dem es losfährt (`kitchen.sprout`): zwei Sekunden lang liegt es
+  sichtbar auf dem Deckel und fährt herüber. Das ist der Anfang jeder
+  Bandstraße, die ohne Läufer auskommt — und die Kiste bleibt dabei eine
+  Ablage: Liegt etwas auf ihrem Deckel, holt das Band **das**, denn das hat
+  jemand dort hingestellt.
+- **Das Filterband** (`belt-smart`, violette Sparren) ist ein Zugband mit
+  Gedächtnis: Es greift nur nach dem, was man ihm einmal **von Hand**
+  aufgelegt hat (`beltWants`, `beltLearns`), und ein kleiner Aufkleber an
+  seiner Greifkante zeigt, was das ist. Drei Entscheidungen stecken darin:
+  - **Ohne Filter zieht es nichts.** Die Alternative — bis zur ersten Lehre
+    ziehen wie ein gewöhnliches Zugband — wäre ein Möbel, das seine Regel
+    wechselt, sobald man es benutzt: Man baut es in eine laufende Bahn, es
+    schleppt erst alles weg und hört genau dann damit auf, wenn man ihm etwas
+    auflegt. Das ist kein Filter, das ist eine Falle.
+  - **Gelernt wird nur von Hand**, nicht von der eigenen Fracht. Ein Band, das
+    von dem lernte, was es selbst herbeischafft, hätte nach der ersten Fuhre
+    einen Filter, den niemand gesetzt hat, und danach nie wieder einen anderen.
+  - **Gemerkt wird das Ding, nicht sein Belag.** Ein Teller mit Burger ist ein
+    `plate`; am Ende einer Bahn will man „alle Teller" und nicht „alle Teller
+    mit genau diesem Burger" — dafür gibt es die Rezepte und nicht das Band.
+  In der Rechnung selbst ist es **kein** Sonderfall: `advanceBelts` kennt nur
+  `BeltTile.pull`, und ob dort ein Schlüssel steht, entscheidet die Zone, die
+  als Einzige weiß, was nebenan liegt (`kitchen.beltSource`).
 - **Der Zustand springt, das Bild nicht** (`kitchenBelt.advanceBelts`,
   `kitchen.runBelts`). Ein Ding gehört logisch immer genau einer Kachel;
   gezeichnet wird es währenddessen linear zwischen den beiden Kachelmitten
@@ -6588,6 +6622,97 @@ Und das sind die Regeln, die darin stehen:
   ist". Eine Kachel, auf die etwas zufährt, ist leer und trotzdem vergeben:
   Wer dort ablegen will, bekommt es gesagt (`beltBound`), statt den Stau erst
   zu bauen.
+- **Der Kombinierer** (`combiner`, `zones/kitchenCombiner.ts`, grüne
+  Markierungen) ist das Möbel, das aus einer Bandbahn eine **Küche** macht. Ein
+  Band kann alles transportieren und nichts **zusammenlegen**: Es liefert nur
+  auf eine freie Kachel ab, und ein Brötchen mit Patty entsteht nun einmal
+  dadurch, dass zwei Dinge auf **derselben** Kachel landen. Er hält also, was
+  man ihm auflegt, und holt sich von der Kachel, auf die sein Pfeil zeigt, die
+  Zutat dazu (`beltReach`, dieselbe Richtung wie beim Zugband). Vier
+  Entscheidungen:
+  - **Oben liegt die Grundlage, von der Seite kommt die Zutat**, und das ist
+    gerichtet: Er fragt `kitchenRecipes.stackOn` und nicht `combine`. `combine`
+    ist absichtlich richtungslos — ein Spieler darf mit dem Teller zur Tomate
+    laufen oder umgekehrt —, ein Möbel hat diese Freiheit nicht: Was es baut,
+    muss oben liegen bleiben, sonst stünde der fertige Burger auf der
+    Zulieferkachel und die halbe Bahn liefe rückwärts. Deshalb liegt in der
+    Werkhalle der **Teller** oben und der Burger kommt von der Seite und nicht
+    andersherum: Ein Teller gehört unter das Essen.
+  - **Er zieht nicht über die Bandrechnung.** Der naheliegende Weg wäre ein
+    `BeltTile.pull` gewesen — nur beruht `advanceBelts` auf dem Satz „auf eine
+    belegte Kachel fährt nichts", und ein Kombinierer ist **gerade dann**
+    aufnahmebereit, wenn er belegt ist. Ihn dort als frei zu melden, hieße, die
+    Rechnung in genau der Aussage anzulügen, auf der sie steht. Also eine
+    eigene Uhr, wie am Brett — und **zwei Sekunden**, genau die Zeit, die ein
+    Band für eine Kachel braucht: Die Fahrt **ist** der Handgriff, und wäre er
+    schneller, baute man Kombinierer statt Bändern.
+  - **Ein angefangener Handgriff gehört einer Kachel** (`CombineState.from`).
+    Wird dort etwas weggenommen oder wechselt der Zulieferer, fängt er von vorn
+    an, statt etwas aufzulegen, das er nie geholt hat.
+  - **Und was er gerade herüberholt, schiebt kein Band weg.** Die Zone streicht
+    der beanspruchten Kachel für dieses Bild ihr Ziel (`runBelts`, `claimed`)
+    und lässt auch kein Zugband daran; umgekehrt gibt ein Kombinierer mitten im
+    Handgriff selbst nichts her (`beltReleases` bekommt seine Uhr mitgereicht).
+    Sonst entschiede die Reihenfolge der Stationen, wer das Patty bekommt.
+  - **Er hält seine Unterlage fest, bis etwas darauf liegt** (`combinerHolds`),
+    und ohne diese Regel funktionierte die ganze Straße nicht. Der Fehler war
+    im Bild sofort zu sehen und in der Rechnung fast unsichtbar: Das Brötchen
+    kam an, lag eine Sekunde auf dem Kombinierer — und das Zugband dahinter
+    nahm es mit, **bevor das Patty da war**. Für die Bandrechnung völlig
+    richtig (dort liegt etwas, also darf man es holen), und die Straße lieferte
+    trotzdem nie einen Burger, sondern eine Reihe nackter Brötchen. Jetzt gilt:
+    Was **einzeln** daliegt, ist eine Unterlage und wartet; was etwas **trägt**,
+    ist ein Gericht und fährt weiter. Der Unterschied steht im Ding selbst
+    (`Dish.on`) — kein Merker am Möbel, den der Umbau verlöre. Und er gilt nur
+    gegen die **Maschine**: Mit `A` nimmt man das Brötchen mit wie von jeder
+    Arbeitsplatte, sonst wäre der Kombinierer eine Sackgasse.
+- **Der Mixer** (`mixer`, `zones/kitchenMixer.ts`) ist ein Schneidebrett mit
+  Motor, und der Unterschied zum Brett steht in **einer** Tabellenzeile:
+  `kitchenWork.WORK_ALONE`. Am Brett **ist** das Danebenstehen die Arbeit — wer
+  weggeht, hat abgebrochen —, der Mixer läuft weiter. Erst damit ist eine
+  Bandstraße möglich: Ein Zugband legt den Salatkopf hinein, der Mixer
+  schneidet, das nächste holt ihn heraus, und in der ganzen Kette steht
+  niemand. Alles andere ist Wort für Wort das Brett: dieselbe Uhr
+  (`advanceWork`), **dieselbe Stufenfolge** (`kitchenRecipes.CHOPS` über
+  `workStage`), eine Stufe je Auflegen, das Fertige bleibt liegen. Daraus folgt
+  ohne eine weitere Zeile der Satz aus dem Auftrag: Eine Tomate muss **zweimal
+  durch den Mixer**, bis Suppe daraus wird. Er kostet dafür **vier** statt drei
+  Sekunden je Stufe — ein Möbel, das einem die Anwesenheit abnimmt **und**
+  schneller ist, macht das Brett wertlos, und dann ist es kein zweites Möbel,
+  sondern ein Ersatz. Gebaut wie die Bänder: Arbeitstisch (0,50 m, die Zahl von
+  `table`), eine Schüssel mit 8,5 cm Rand darauf — niedriger als jede Zutat,
+  damit man von oben hineinsieht — und ein Motorblock an der Nordkante bis
+  0,92 m. Solange er läuft, gibt er nichts her (`beltReleases('mixer', true)`);
+  ohne diese Zeile risse ein Zugband ihm den halb gehackten Salat weg.
+- **Die Werkhalle** (`kitchenPlan.PIPELINE`) ist der Platz dafür. Die Küche ist
+  dafür **acht Kacheln nach Osten gewachsen**, und der Schauraum ist mit nach
+  Osten gerückt (`kitchenPlan.SHOW_X`) statt sitzen zu bleiben: Eine Halle
+  hinter dem Schauraum wäre zwei Zimmer von der Küche weg, und die Straße soll
+  dort anfangen, wo die Küche aufhört. Nach Süden ging es nicht — dort liegt
+  das Podest. Die Halle hat **keine eigene Wand und keine eigene Tür**: Sie
+  ist die Küche, nur größer; ab z = 4 geht man geradeaus hinüber. Darin steht
+  eine Schaustraße aus drei Bahnen, die **drei** der acht Spalten belegt — die
+  anderen fünf sind leer und bleiben es, denn genau dafür ist die Halle da: Wer
+  eine eigene Straße bauen will, braucht Spalten am Stück und nicht
+  Einzelkacheln zwischen zwei Herden. Die drei Bahnen:
+  - **Brötchen und Teller**: Kiste → Zugband → zwei Bänder → Kombinierer
+    (Brötchen oben, Patty von Osten) → Zugband → Ablage → zweiter Kombinierer
+    (Teller oben, Burger von Westen) → Zugband → Ausgabeablage.
+  - **Salat**: Kiste → Zugband → Mixer → Filterband (`lettuce-cut`) → Ablage.
+  - **Tomate**: Kiste → Zugband → Mixer → Filterband (`tomato-cut`) → zweiter
+    Mixer → Filterband (`tomato-soup`) → Ablage. Zwei Mixer und keine Schleife:
+    Eine Bahn, die etwas zu ihrem Anfang zurückträgt, ist ein Ring, und ein
+    voller Ring fährt nicht.
+  **Gebraten wird weiter von Hand**, und das ist keine Lücke: Es gibt genau
+  **eine** Pfanne, sie steht auf dem Herd, und ein Band legt nichts in eine
+  Pfanne, die schon auf ihrer Kachel liegt. Der Koch brät und legt das Patty
+  auf die **Pattyablage** — und die ist mit Absicht eine Arbeitsplatte und kein
+  Band: Ein Band davor schöbe das Patty auf den leeren Kombinierer, es läge
+  dort als Unterlage, und das Brötchen käme nicht mehr darauf. Eine stehende
+  Ablage lässt sich nur **ziehen**, und ziehen tut dort nur der Kombinierer.
+  Die **Filter der drei Filterbänder stehen schon im Grundriss**
+  (`Spot.filter`): Eine Schaustraße, die erst läuft, nachdem jemand drei
+  Bändern etwas aufgelegt hat, zeigt nichts, sondern steht herum.
 - **Der Baumodus hängt an einem Knopf in der Küche** (`zones/kitchenBuild.ts`).
   Bei _Overcooked_ steht die Küche, wie sie steht; bei _PlateUp_ baut man sie
   zwischen zwei Tagen um, und genau das ist gemeint. Es ist der **große rote
@@ -6945,8 +7070,8 @@ Und das sind die Regeln, die darin stehen:
   - **Wer ein Möbel trägt, legt es links als Miniatur ab** (`layOnPlate`) — und
     es bleibt **dasselbe** Möbel, nur klein, nicht seine Nachbildung. Klein
     heißt hier ein **Drittel** (`MINI_SCALE`) und damit eine andere Zahl als im
-    Katalog, weil die Frage eine andere ist: Dort geht es darum, achtzehn Möbel
-    nebeneinanderzustellen, hier darum, eines auf eine Kachel zu stellen. Ein
+    Katalog, weil die Frage eine andere ist: Dort geht es darum, einundzwanzig
+    Möbel nebeneinanderzustellen, hier darum, eines auf eine Kachel zu stellen. Ein
     Faktor und kein gerechnetes Maß — so bleibt der Größenunterschied zwischen
     Mülleimer und Ausgabetheke auf der Platte sichtbar, und man sieht der
     Vorlage an, was man kopiert.
@@ -7270,10 +7395,11 @@ wie ein Möbel, und ein Regal, das ihm auf die Pelle rückt, verdeckt ausgerechn
 den Weg zurück. Dann kommt der erste Ring, **bis auf die Kreuzmitte**: Die vier
 Kacheln genau vor, hinter, links und rechts vom Anker bleiben leer, und damit
 bleiben vier Gassen offen, durch die man von der Mitte aus bis nach draußen
-sieht. Zwanzig Stücke fasst dieser Ring, und damit beide Auswahlen dieses
-Projekts — siebzehn Kleidungsstücke, achtzehn Möbel. Wer mehr mitbringt, bekommt
-den nächsten Ring **zwei** Kacheln weiter draußen: Ein Ring direkt hinter dem
-anderen stünde in dessen Lücken und wäre von der Mitte aus halb verdeckt. Reicht
+sieht. Zwanzig Stücke fasst dieser Ring — genug für die siebzehn Kleidungsstücke
+dieses Projekts, und seit der Werkhalle **nicht** mehr für den Möbelkatalog:
+Der hat einundzwanzig Stücke, und das einundzwanzigste geht in den nächsten Ring
+**zwei** Kacheln weiter draußen. Ein Ring direkt hinter dem anderen stünde in
+dessen Lücken und wäre von der Mitte aus halb verdeckt. Reicht
 der ausgelieferte Boden dafür nicht, wächst **der Boden** (`floorTilesFor`) und
 nicht der Abstand — ein Stück neben dem Boden ist genau der Fehler, den dieser
 Umbau beheben sollte.

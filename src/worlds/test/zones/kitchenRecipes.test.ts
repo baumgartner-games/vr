@@ -16,6 +16,7 @@ import {
   layered,
   recipeOf,
   served,
+  stackOn,
   whyNotServed,
   type Dish,
   type KitchenItem,
@@ -496,5 +497,66 @@ describe('Rezepte und Ausgabe', () => {
     expect(dishLabel(d('plate', 'bun', 'patty-cooked'))).toBe('Teller mit Hamburger');
     expect(dishLabel(d('pan', 'patty'))).toBe('Pfanne (Rohes Patty)');
     expect(dishLabel(d('bun', 'lettuce-cut'))).toBe('Brötchen (Geschnittener Salat)');
+  });
+});
+
+/**
+ * **Dieselbe Rechnung, nur in eine Richtung** (`stackOn`).
+ *
+ * `combine` ist absichtlich richtungslos — ein Spieler darf mit dem Teller zur
+ * Tomate laufen oder umgekehrt. Ein **Möbel** hat diese Freiheit nicht: Der
+ * Kombinierer (`kitchenCombiner.ts`) hat ein Oben und eine Seite, und was er
+ * baut, muss oben liegen bleiben. Hier steht, dass genau das gilt — und dass
+ * es dieselbe Rechnung ist und keine zweite daneben.
+ */
+describe('in eine Richtung auflegen', () => {
+  it('legt auf die Unterlage und lässt das Ergebnis dort', () => {
+    const put = stackOn(d('patty-cooked'), d('bun'));
+    expect(put).toEqual({
+      ok: true,
+      held: null,
+      target: d('bun', 'patty-cooked'),
+      moved: ['patty-cooked'],
+    });
+  });
+
+  it('nimmt den Burger auf den Teller, aber nicht den Teller auf den Burger', () => {
+    // **Der Unterschied zu `combine` in zwei Zeilen.** Dieselben zwei Dinge:
+    // richtungslos gelingt es immer, gerichtet nur so herum, wie ein Teller
+    // gehört — nämlich unter das Essen.
+    const burger = d('bun', 'patty-cooked');
+    expect(combine(burger, d('plate')).ok).toBe(true);
+    expect(combine(d('plate'), burger).ok).toBe(true);
+
+    expect(stackOn(burger, d('plate')).ok).toBe(true);
+    const wrong = stackOn(d('plate'), burger);
+    expect(wrong.ok).toBe(false);
+    expect(why(wrong)).toBe('Ein Teller gehört unter das Essen und nicht darauf');
+  });
+
+  it('lässt der Pfanne die Pfanne', () => {
+    const put = stackOn(d('pan', 'patty-cooked'), d('bun'));
+    expect(put).toEqual({
+      ok: true,
+      held: d('pan'),
+      target: d('bun', 'patty-cooked'),
+      moved: ['patty-cooked'],
+    });
+  });
+
+  it('gibt dieselben Sätze wie der richtungslose Weg', () => {
+    // Die Begründungen kommen beide aus `pour` — es gibt sie einmal, und hier
+    // steht, dass es dabei bleibt.
+    expect(why(stackOn(d('patty'), d('bun')))).toBe('Rohes Patty muss erst gebraten werden');
+    expect(why(stackOn(d('patty-cooked'), d('bun', 'patty-cooked')))).toBe(
+      'Gebratenes Patty liegt schon drauf',
+    );
+    expect(why(stackOn(d('bun'), d('patty-cooked')))).toBe(
+      'Auf Gebratenes Patty lässt sich nichts legen',
+    );
+  });
+
+  it('lässt eine leere Pfanne nichts abgeben', () => {
+    expect(why(stackOn(d('pan'), d('bun')))).toBe('In der Pfanne liegt nichts');
   });
 });

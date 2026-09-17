@@ -36,7 +36,7 @@ export const LEVELS: readonly number[] = [0, STOREY];
  * portalfähige Bodenkacheln hießen, dass ein Bodenportal nebenbei die Wand
  * gegenüber aufmacht. Also genau eine Fläche je Welt, und das ist diese.
  */
-export const FIELD: NavRect = { x: -27, z: -34, w: 64, d: 80 };
+export const FIELD: NavRect = { x: -27, z: -34, w: 72, d: 80 };
 
 /**
  * **Die Farben des Bodens draußen** — grau und weiß im Wechsel, ein Meter je
@@ -98,14 +98,25 @@ export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
  * vierundzwanzig Kacheln in der Breite: im Westen die Küche, im Osten der
  * Katalog zum Abgehen.
  *
- * Nach Osten und nicht nach Süden gewachsen: Dort liegt das Podest
- * (`PODIUM`), und nach Osten ist bis zum Rand des Geländes nichts.
+ * **Und dann kam acht Kacheln später die Werkhalle dazwischen.** Mit
+ * Kombinierer, Mixer und Filterband lässt sich eine Straße bauen, die einen
+ * Burger ohne Läufer zusammensetzt — nur passte sie nirgends hin: Die Küche
+ * war bis auf verstreute Einzelkacheln voll, und eine Bandstraße braucht
+ * **Spalten am Stück**. Also stehen jetzt zwischen Küche und Schauraum acht
+ * freie Spalten (`zones/kitchenPlan.PIPELINE`), in denen die Straße steht und
+ * neben der noch Platz zum Weiterbauen ist.
+ *
+ * **Gewachsen ist sie dafür wieder nach Osten**, und der Schauraum ist mit
+ * nach Osten gerückt (`zones/kitchenPlan.SHOW_X`) statt sitzen zu bleiben:
+ * Eine Werkhalle **hinter** dem Schauraum wäre von der Küche aus zwei
+ * Zimmer weit weg, und die Straße soll dort anfangen, wo die Küche aufhört.
+ * Nach Süden ging es ohnehin nicht — dort liegt das Podest (`PODIUM`).
  *
  * Hinter dem Podest und nicht neben dem Schießstand: Dessen Bahnen laufen
  * quer über den ganzen Osten bis zum Kugelfang (`zones/range.ts`, `BERM`), und
  * eine Küche in der Schusslinie ist eine Küche mit Löchern.
  */
-export const KITCHEN: NavRect = { x: 12, z: -31, w: 24, d: 11 };
+export const KITCHEN: NavRect = { x: 12, z: -31, w: 32, d: 11 };
 
 /**
  * **Die Gänge zwischen den Zonen**, drei Kacheln breit, wo es geht.

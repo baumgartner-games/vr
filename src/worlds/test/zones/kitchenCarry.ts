@@ -135,6 +135,7 @@ export {
 
 export {
   IDLE_WORK,
+  WORK_ALONE,
   WORK_SECONDS,
   WORK_TO_HAND,
   advanceWork,
@@ -172,7 +173,20 @@ export type StationKind =
   /** Ein Gästetisch: Dort isst ein Kunde und lässt sein Geschirr zurück. */
   | 'table'
   /** Das Förderband: eine Ablage, die weiterschiebt. */
-  | 'belt';
+  | 'belt'
+  /**
+   * **Der Kombinierer**: eine Ablage, die sich von der Seite dazuholt, was auf
+   * das gehört, was schon auf ihr liegt.
+   *
+   * Für `A` ist er trotzdem eine Ablage und nichts weiter — man legt das
+   * Brötchen hin, man nimmt den Burger. Dass er nebenbei selbst zugreift, ist
+   * Sache seiner Uhr (`kitchenCombiner.ts`) und keine Sache des Anfassens.
+   * Eine eigene Art bekommt er nur, weil die Zone ihn finden muss, um diese
+   * Uhr laufen zu lassen.
+   */
+  | 'combiner'
+  /** Der Mixer: ein Schneidebrett, das ohne jemanden davor weiterhackt. */
+  | 'mixer';
 
 /**
  * **Eine Station, so viel wie die Regel davon braucht.**
@@ -333,23 +347,31 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
       return onTop(held, station.on ?? null);
     }
 
-    case 'board': {
+    case 'board':
+    case 'mixer': {
       const on = station.on ?? null;
-      // Was geschnitten werden kann, wird geschnitten, sobald es daliegt —
-      // ohne zweiten Druck. Alles andere liegt hier wie auf jeder Ablage.
-      if (held && !on && workStage('chop', held.item)) {
-        return { do: 'work', kind: 'chop', dish: held };
+      // **Brett und Mixer sind hier dieselbe Zeile**, und das ist die Absicht:
+      // Was zerkleinert werden kann, wird zerkleinert, sobald es daliegt —
+      // ohne zweiten Druck. Alles andere liegt hier wie auf jeder Ablage. Der
+      // ganze Unterschied zwischen den beiden steht in `kitchenWork`
+      // (`WORK_ALONE`: am Brett muss jemand danebenstehen, am Mixer nicht) und
+      // betrifft die Uhr, nicht den Handgriff.
+      const work: WorkKind = station.kind === 'board' ? 'chop' : 'blend';
+      if (held && !on && workStage(work, held.item)) {
+        return { do: 'work', kind: work, dish: held };
       }
       return onTop(held, on);
     }
 
-    // **Gästetisch und Förderband sind Flächen und sonst nichts.** Was einen
-    // Gästetisch zum Gästetisch macht, ist der Kunde daran (er stellt sein
-    // dreckiges Geschirr als `on` ab), und was das Band zum Band macht, ist
-    // seine Bewegung — beides Sache der Zone. Für `A` sind es Ablagen, und
-    // eine eigene Regel dafür wäre eine Regel, die dasselbe sagt.
+    // **Gästetisch, Förderband und Kombinierer sind Flächen und sonst
+    // nichts.** Was einen Gästetisch zum Gästetisch macht, ist der Kunde daran
+    // (er stellt sein dreckiges Geschirr als `on` ab), was das Band zum Band
+    // macht, ist seine Bewegung, und was den Kombinierer ausmacht, ist sein
+    // Griff zur Seite — alles drei Sache der Zone. Für `A` sind es Ablagen,
+    // und eine eigene Regel dafür wäre eine Regel, die dasselbe sagt.
     case 'table':
     case 'belt':
+    case 'combiner':
     case 'top':
       return onTop(held, station.on ?? null);
   }
@@ -805,10 +827,12 @@ export function kitchenPrompt(deed: KitchenDeed, what: string): string {
     case 'place':
       return `${dishLabel(deed.dish)} auf ${what} legen`;
     case 'work':
-      // Geschnitten wird eine bestimmte Zutat („Salatkopf schneiden"),
-      // gespült wird Geschirr — „Dreckiger Teller spülen" wäre falsches
-      // Deutsch, und der Dativ dafür stünde in keiner Tabelle.
-      return deed.kind === 'chop' ? `${ITEM_LABELS[deed.dish.item]} schneiden` : 'Geschirr spülen';
+      // Geschnitten und gemixt wird eine bestimmte Zutat („Salatkopf
+      // schneiden", „Tomate mixen"), gespült wird Geschirr — „Dreckiger Teller
+      // spülen" wäre falsches Deutsch, und der Dativ dafür stünde in keiner
+      // Tabelle.
+      if (deed.kind === 'wash') return 'Geschirr spülen';
+      return `${ITEM_LABELS[deed.dish.item]} ${deed.kind === 'blend' ? 'mixen' : 'schneiden'}`;
     case 'fill':
       // „Topf mit Wasser füllen" — der Träger im Nominativ, der Inhalt hinter
       // dem `mit`. Beides sind Einträge aus `ITEM_LABELS` und keine
