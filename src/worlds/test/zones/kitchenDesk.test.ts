@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { deniesShadow } from '../../../core/graphicsScene';
 import {
   COPIER_DECK,
   COPIER_HEIGHT,
@@ -335,11 +336,12 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
     expect(skins.size).toBe(5);
 
     for (let i = 0; i < 20; i++) collect(kit.copierPiece());
-    // Sockel, Fuge, Glas, Wiege, Pfosten, zwei Leisten der Bühne, zwei
-    // Schenkel des Zielrahmens, eine Spitze der Spur — zehn Formen mehr für
-    // zwanzig Kopierer: Die vier Pfosten teilen sich eine, die zehn Spitzen
-    // einer Spur ebenfalls.
-    expect(shapes.size).toBe(18);
+    // Sockel, Fuge, Glas, Wiege, Pfosten — fünf für die festen Teile, die vier
+    // Pfosten teilen sich eine. Dazu **sechs verschmolzene**: eine für alles in
+    // der Akzentfarbe (Bühne und Zielrahmen zusammen) und eine je Spitzenfarbe
+    // der Spur (`kitchenMerge.ts`). Die Formen der einzelnen Zeichen stehen
+    // nicht mehr im Modell — sie waren der Zwischenschritt dorthin.
+    expect(shapes.size).toBe(19);
     // Und sieben Farben mehr: Glas, Akzent und fünf Spitzen — je Spitze eine,
     // denn durch sie läuft das Licht (`DeskKit.update`). Korpus und Fuge sind
     // dieselben wie am Tisch.
@@ -348,7 +350,7 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
     const shapeGone = jest.spyOn(THREE.BufferGeometry.prototype, 'dispose');
     const skinGone = jest.spyOn(THREE.Material.prototype, 'dispose');
     kit.dispose();
-    expect(shapeGone).toHaveBeenCalledTimes(18);
+    expect(shapeGone).toHaveBeenCalledTimes(19);
     expect(skinGone).toHaveBeenCalledTimes(12);
     shapeGone.mockRestore();
     skinGone.mockRestore();
@@ -357,17 +359,22 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
   it('lässt das Licht der Spur von der Kopierfläche zur Kopie-Zone laufen', () => {
     const kit = new DeskKit();
     const copier = kit.copierPiece();
-    // Die Spitzen der Spur: alles, was auf beiden Längsseiten des Sockels
-    // liegt, unterhalb der Feldhöhe und mit einer eigenen Farbe.
+    // **Die Spur wird an ihren Farben gesucht und nicht an Netzstellen.** Seit
+    // die beiden Spitzen einer Stelle zu einem Netz verschmolzen sind
+    // (`kitchenMerge.ts`), sitzt jedes Netz auf dem Ursprung und trägt seine
+    // Stelle in der Geometrie. Die Zusage ist dieselbe geblieben: fünf
+    // Stellen, je eine eigene Farbe, je auf beiden Längsseiten.
     const marks = new Map<number, THREE.MeshStandardMaterial>();
     const lane: THREE.Mesh[] = [];
     copier.traverse((child) => {
       const mesh = child as THREE.Mesh;
-      if (!mesh.isMesh || mesh.position.y >= COPIER_DECK) return;
+      if (!mesh.isMesh) return;
       const skin = mesh.material as THREE.MeshStandardMaterial;
-      if (!skin.emissive || Math.abs(mesh.position.z) < 0.3) return;
+      if (!skin.emissive || !/^lane:/.test(skin.name || '')) return;
+      const hull = new THREE.Box3().setFromObject(mesh);
+      if (hull.max.y >= COPIER_DECK) return;
       lane.push(mesh);
-      marks.set(Math.round(mesh.position.x * 1000), skin);
+      marks.set(Math.round(((hull.min.x + hull.max.x) / 2) * 1000), skin);
     });
     // Fünf Stellen, von der Mitte der Kopierfläche bis zur Mitte der Zone —
     // die Spur fängt an, wo man hinlegt, und hört auf, wo man abholt.
@@ -375,15 +382,15 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
     expect(at.length).toBe(5);
     expect(at[0] / 1000).toBeCloseTo(COPIER_PLATE[0], 6);
     expect(at[at.length - 1] / 1000).toBeCloseTo(COPIER_ZONE[0], 6);
-    // Und die Spur liegt auf **beiden** Längsseiten, je Stelle einmal vorn und
-    // einmal hinten, mit derselben Farbe: Wer von hinten davorsteht, soll
-    // dieselbe Richtung lesen wie der, der vorn steht — und sie im selben Takt
-    // blinken sehen.
-    expect(lane.length).toBe(10);
-    for (const x of at) {
-      const pair = lane.filter((mesh) => Math.round(mesh.position.x * 1000) === x);
-      expect(pair.map((mesh) => Math.sign(mesh.position.z)).sort()).toEqual([-1, 1]);
-      expect(pair[0].material).toBe(pair[1].material);
+    // Und die Spur liegt auf **beiden** Längsseiten: Das Netz einer Stelle
+    // reicht von der einen über die Mitte zur anderen. Wer von hinten
+    // davorsteht, liest dieselbe Richtung wie der, der vorn steht — und sieht
+    // sie im selben Takt blinken, denn es ist dieselbe Farbe.
+    expect(lane.length).toBe(5);
+    for (const mesh of lane) {
+      const hull = new THREE.Box3().setFromObject(mesh);
+      expect(hull.min.z).toBeLessThan(-0.3);
+      expect(hull.max.z).toBeGreaterThan(0.3);
     }
 
     // Das Licht steht zuerst auf der Spitze über der Kopierfläche …
@@ -509,12 +516,21 @@ describe('was im Katalog über die beiden steht', () => {
   });
 });
 
-/** Die höchste waagerechte Fläche über einem Punkt des ungedrehten Möbels. */
+/**
+ * Die höchste waagerechte Fläche über einem Punkt des ungedrehten Möbels.
+ *
+ * **Aufgemaltes zählt nicht mit.** Zielrahmen, Bühnenleisten und die Spitzen
+ * der Spur sind Zeichen auf dem Gerät und keine Fläche, auf die man etwas
+ * legt — sie sagen das selbst (`denyShadow`, `kitchenDesk.copierPiece`). Seit
+ * sie je Farbe zu einem Netz verschmolzen sind, umschließt ihre Hülle auch die
+ * Mitte des Feldes, um das sie herumliegen; ohne diese Zeile meldete der Test
+ * einen Millimeter Zielrahmen als Ablagefläche.
+ */
 function deckOver(model: THREE.Object3D, [x, z]: readonly [number, number]): number {
   let deck = 0;
   model.traverse((child) => {
     const mesh = child as THREE.Mesh;
-    if (!mesh.isMesh) return;
+    if (!mesh.isMesh || deniesShadow(mesh)) return;
     const box = new THREE.Box3().setFromObject(mesh);
     if (x < box.min.x || x > box.max.x || z < box.min.z || z > box.max.z) return;
     deck = Math.max(deck, box.max.y);

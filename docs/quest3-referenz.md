@@ -270,10 +270,28 @@ Küche_; hier die drei Zeilen, die M3 und M4 betreffen:
   Material — der Fall für eine `InstancedMesh`, nicht für ein Verschmelzen.
 
 Dazu ein Posten, den die Liste oben noch nicht kennt: `PortalRenderer.render`
-rechnet vor **jedem** Bild den ganzen Szenengraphen erzwungen durch
+rechnete vor **jedem** Bild den ganzen Szenengraphen erzwungen durch
 (`scene.updateMatrixWorld(true)`) — auch ohne gesetztes Portal, acht Zeilen
-bevor es das prüft. Nach M2 sind das weiterhin 6 556 Knoten je Durchlauf, und
-es sind knapp 60 % der JavaScript-Zeit außerhalb des Renderers.
+bevor es das prüft. Nach M2 waren das weiterhin 6 556 Knoten je Durchlauf und
+knapp 60 % der JavaScript-Zeit außerhalb des Renderers.
+
+**Was daraufhin geschehen ist** (Stand 17. September 2026, Einzelheiten in
+AGENTS.md):
+
+| | | gemessen |
+| --- | --- | --- |
+| **M8** | Der erzwungene Matrizenlauf steht jetzt **hinter** der Frage, ob ein Portal gesetzt ist (`PortalRenderer.render`, `portalMatrixWalk.test.ts`) | zwei vollständige Durchläufe über den Szenengraphen je Bild werden einer |
+| **M9** | Der Kopierer: `denyShadow` an seinen zweiundzwanzig Zeichen (`castShadow = false` allein hält gegen `applySceneQuality` nicht) und dieselben Zeichen je Farbe zu einem Netz verschmolzen (`kitchenMerge.ts`) | 44,3 → 14,3 Zeichenaufrufe je Bild; Schattendurchgang der Küche 196 → 176 |
+
+**Und M3 ist dabei schärfer geworden.** Innerhalb eines Möbels ist wenig zu
+holen — ein Band besteht aus vier Netzen mit vier Materialien, da verschmilzt
+nichts. Der Gewinn liegt **zwischen** den Möbeln: In der teuersten
+Blickrichtung kommen 357 Aufrufe des Hauptdurchgangs aus nur **113
+verschiedenen Paaren aus Geometrie und Material** — dieselbe Kiste
+dreiundzwanzigmal, derselbe Tresen zwölfmal. Der Posten heißt damit
+**instanzieren** (`InstancedMesh` je Paar, wie `grid/gridBatch.ts` es für die
+Bodenkacheln tut) und nicht verschmelzen, und sein Haken ist derselbe wie dort:
+Ein Möbel, das man aufnimmt und woanders hinstellt, muss aus dem Bündel heraus.
 
 ## Wie man die Messung wiederholt
 

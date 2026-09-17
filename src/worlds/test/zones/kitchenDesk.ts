@@ -1,5 +1,7 @@
 import * as THREE from 'three';
+import { denyShadow } from '../../../core/graphicsScene';
 import { TILE } from '../../nav/navTile';
+import { mergeMeshes, mergedMesh } from './kitchenMerge';
 import type { Turn } from './kitchenPlan';
 
 /**
@@ -654,7 +656,9 @@ export class DeskKit {
       SCREEN_FOOT + SCREEN_HIGH / 2,
       SCREEN_AT - (SCREEN_THICK + SCREEN_LIFT) / 2,
     );
-    face.castShadow = false;
+    // Dieselbe Falle wie bei den Zeichen des Kopierers: `castShadow = false`
+    // allein hält gegen `applySceneQuality` nicht.
+    denyShadow(face);
     group.add(face);
 
     return group;
@@ -759,14 +763,13 @@ export class DeskKit {
 
     // Die Bühne um die Kopie-Zone: vier Leisten auf der Kante der Wiege, die
     // vier Pfosten stehen auf ihren Ecken.
-    const padLong = this.shape(
-      'copier-pad-long',
-      () => new THREE.BoxGeometry(FIELD_WIDE, PAD_LIFT, PAD_BAR),
-    );
-    const padSide = this.shape(
-      'copier-pad-side',
-      () => new THREE.BoxGeometry(PAD_BAR, PAD_LIFT, FIELD_DEEP - 2 * PAD_BAR),
-    );
+    // **Die Formen der Zeichen kommen nicht in den Cache.** Sie sind
+    // Zwischenschritt: Gleich werden sie je Farbe zu einem Netz verschmolzen
+    // (`joinPaint`), und **das** teilen sich alle Kopierer. Eine Form, die
+    // hinterher niemand mehr zeichnet, im Cache zu halten, hieße sie bis zum
+    // Abbau der Zone mitzuschleppen.
+    const padLong = new THREE.BoxGeometry(FIELD_WIDE, PAD_LIFT, PAD_BAR);
+    const padSide = new THREE.BoxGeometry(PAD_BAR, PAD_LIFT, FIELD_DEEP - 2 * PAD_BAR);
     for (const sz of [-1, 1]) {
       const bar = new THREE.Mesh(padLong, accent);
       bar.position.set(
@@ -787,14 +790,8 @@ export class DeskKit {
     }
 
     // Der Zielrahmen auf dem Glas: vier offene Winkel, je zwei Schenkel.
-    const markLong = this.shape(
-      'copier-mark-long',
-      () => new THREE.BoxGeometry(MARK_LONG, MARK_LIFT, MARK_WIDE),
-    );
-    const markSide = this.shape(
-      'copier-mark-side',
-      () => new THREE.BoxGeometry(MARK_WIDE, MARK_LIFT, MARK_LONG),
-    );
+    const markLong = new THREE.BoxGeometry(MARK_LONG, MARK_LIFT, MARK_WIDE);
+    const markSide = new THREE.BoxGeometry(MARK_WIDE, MARK_LIFT, MARK_LONG);
     const cornerX = FIELD_WIDE / 2 - MARK_INSET;
     const cornerZ = FIELD_DEEP / 2 - MARK_INSET;
     for (const sx of [-1, 1]) {
@@ -819,7 +816,7 @@ export class DeskKit {
     // **Je Spitze eine eigene Farbe**, über alle Kopierer geteilt: Durch sie
     // läuft das Licht (`update`), und zwei Geräte, die verschieden blinkten,
     // sähen aus wie zwei verschiedene Geräte.
-    const headShape = this.shape('copier-lane-head', laneHead);
+    const headShape = laneHead();
     for (let i = 0; i < LANE_MARKS; i++) {
       const skin = this.skin(laneKey(i), {
         color: GLOW_COLOR,
@@ -836,13 +833,67 @@ export class DeskKit {
     }
 
     for (const mesh of paint) {
-      mesh.castShadow = false;
+      // **`castShadow = false` allein hält nicht.** `applySceneQuality` läuft
+      // sekündlich über die Szene und schaltet an jedem undurchsichtigen Netz
+      // den Schatten wieder an — außer an dem, das ausdrücklich nein sagt
+      // (`core/graphicsScene.denyShadow`). Ohne diese Zeile warfen die
+      // zweiundzwanzig Zeichen des Kopierers Schatten, obwohl sie Farbe sind:
+      // gemessen die zweitgrößte Gruppe im Schattendurchgang der Küche.
+      denyShadow(mesh);
       mesh.receiveShadow = false;
       mesh.raycast = () => {};
     }
-    group.add(...paint);
+
+    // **Und dann werden sie eins.** Zweiundzwanzig Rechtecke sind
+    // zweiundzwanzig Aufrufe für fünfhundert Dreiecke; verschmolzen sind es
+    // sechs (`kitchenMerge.ts`). Verschmolzen wird **je Material**: Der Akzent
+    // trägt Bühne und Zielrahmen zusammen, die fünf Spitzenfarben bleiben
+    // getrennt, denn durch sie läuft das Licht (`update`).
+    group.add(...this.joinPaint(paint));
 
     return group;
+  }
+
+  /**
+   * Die aufgemalten Teile je Material zu einem Netz — und zurück in den
+   * Formen-Cache, damit zwanzig Kopierer sich eines teilen.
+   *
+   * Was sich nicht verschmelzen lässt, kommt unverändert zurück: Ein Material
+   * mit einem einzigen Teil hat nichts zu sparen, und was in den Attributen
+   * nicht zusammenpasst, sagt `mergeMeshes` selbst (`null`).
+   */
+  private joinPaint(paint: readonly THREE.Mesh[]): THREE.Mesh[] {
+    const bySkin = new Map<THREE.Material, THREE.Mesh[]>();
+    for (const mesh of paint) {
+      const skin = mesh.material as THREE.Material;
+      const group = bySkin.get(skin);
+      if (group) group.push(mesh);
+      else bySkin.set(skin, [mesh]);
+    }
+
+    const joined: THREE.Mesh[] = [];
+    for (const [skin, parts] of bySkin) {
+      // Ein Material mit einem einzigen Teil hat nichts zu sparen.
+      if (parts.length < 2) {
+        joined.push(...parts);
+        continue;
+      }
+      // **Der Schlüssel ist die Farbe.** Sie ist je Bausatz dieselbe — zwei
+      // Kopierer desselben Bausatzes tragen dieselben Zeichen an denselben
+      // Stellen, also auch dasselbe verschmolzene Netz.
+      const shape = this.shape(`copier-paint:${skin.uuid}`, () => mergeMeshes(parts)!);
+      // `mergeMeshes` sagt `null`, wenn die Attribute nicht zusammenpassen;
+      // dann bleiben die Einzelteile, und der Cache bleibt leer.
+      if (!shape) {
+        this.shapes.delete(`copier-paint:${skin.uuid}`);
+        joined.push(...parts);
+        continue;
+      }
+      // Die Einzelformen hat niemand sonst — sie waren der Zwischenschritt.
+      for (const part of parts) part.geometry.dispose();
+      joined.push(mergedMesh(shape, parts));
+    }
+    return joined;
   }
 
   /**
@@ -919,7 +970,12 @@ export class DeskKit {
   ): THREE.MeshStandardMaterial {
     let skin = this.skins.get(key);
     if (!skin) {
-      skin = new THREE.MeshStandardMaterial(spec);
+      // **Die Farbe trägt ihren Schlüssel als Namen.** Sie kostet nichts und
+      // ist an zwei Stellen Gold wert: in der Messstrecke, deren Rangliste je
+      // Material sonst zwanzigmal `MeshStandardMaterial` heißt
+      // (`tools/perf-kitchen.mjs`), und im Test, der die Spur der Spitzen an
+      // ihren Farben wiederfindet, seit die Netze verschmolzen sind.
+      skin = new THREE.MeshStandardMaterial({ name: key, ...spec });
       this.skins.set(key, skin);
     }
     return skin;

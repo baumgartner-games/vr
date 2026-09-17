@@ -5979,27 +5979,42 @@ außerhalb des Renderers).
 > diesem Lauf folgt keine Bildzeit und kein Prozentgewinn für die Quest 3** —
 > dieselbe Falle wie bei den 34 % für Schatten aus.
 
-**Was daraus folgen könnte, aber noch nicht geschehen ist** — drei Vorschläge,
-nach Größe des Postens, keiner davon umgesetzt:
+**Was daraus geworden ist.** Zwei der drei Posten sind erledigt, der dritte ist
+größer geworden, als er aussah:
 
-1. **Die gebauten Maschinen zusammenfassen** (M3, aber gezielt). Ein Kopierer
-   aus 60 Quadern mit 9 Materialien ist gebündelt einer aus 9 Aufrufen: je
-   Material eine zusammengefasste Geometrie (`mergeGeometries`), gerechnet beim
-   Bauen und nicht je Bild. Es ist dieselbe Rechnung wie bei den Bodenkacheln
-   weiter oben, nur eine Ebene kleiner — und einzeln bewegen sich die Teile nur
-   dort, wo ein Band läuft; die bleiben dann eben draußen, genau wie das, was
-   `kitchenGrab.ts` greifbar halten muss.
-2. **Den Schattendurchgang an derselben Stelle mitnehmen** (M4). Er ist die
-   Hälfte des Bildes und zeichnet dieselben Quader noch einmal. Wo ein Bündel
-   entsteht, fällt er von selbst mit; wo nicht, hilft `denyShadow` an allem, was
-   ohnehin in der Silhouette eines größeren Kastens steckt — der Trick, mit dem
-   die Laufbänder schon von 45 auf 10 Aufrufe gekommen sind.
-3. **Den erzwungenen Matrixdurchlauf nur dann, wenn ein Portal steht.** Die
-   Prüfung auf `active.length === 0` steht in `PortalRenderer.render` acht
-   Zeilen **unter** dem `scene.updateMatrixWorld(true)`. Sie darüber zu ziehen
-   ist eine Zeile; was sie einspart, ist ein vollständiger Durchlauf durch 6 556
-   Knoten je Bild, und zwar auch dann, wenn die Portalpistole gar nicht in der
-   Hand liegt.
+1. **Der erzwungene Matrizenlauf ist weg, solange kein Portal steht**
+   (`PortalRenderer.render`, `portalMatrixWalk.test.ts`). Aus zwei
+   vollständigen Durchläufen über den Szenengraphen je Bild wurde einer.
+2. **Der Kopierer ist von 44,3 auf 14,3 Zeichenaufrufe je Bild gefallen**
+   (Mittel über die zwölf Richtungen, −68 %), und zwar aus zwei Gründen, die
+   zusammengehören:
+   - **Seine Zeichen warfen Schatten.** `castShadow = false` allein hält gegen
+     `applySceneQuality` nicht — das schaltet sekündlich an jedem
+     undurchsichtigen Netz den Schatten wieder an, außer an dem, das
+     ausdrücklich `denyShadow` sagt. Zweiundzwanzig aufgemalte Rechtecke je
+     Gerät standen deshalb im Schattendurchgang: 29 von 196 Aufrufen. Jetzt
+     sind es 7. **Dieselbe Falle lohnt anderswo einen Blick** — wer
+     `castShadow = false` schreibt und `denyShadow` nicht kennt, hat sie.
+   - **Und sie sind jetzt je Farbe ein Netz** (`kitchenMerge.ts`,
+     `DeskKit.joinPaint`): zweiundzwanzig Rechtecke werden sechs. Verschmolzen
+     wird **je Material** und nur Aufgemaltes; Sockel, Glas, Wiege und die vier
+     Pfosten bleiben einzeln, denn sie tragen und werfen Schatten. Die fünf
+     Farben der Spur bleiben ebenfalls getrennt: Durch sie läuft das Licht.
+3. **Und der große Posten steht noch** — er heißt aber nicht „verschmelzen",
+   sondern **instanzieren**. Gezählt in der teuersten Blickrichtung: 357
+   Aufrufe im Hauptdurchgang aus nur **113 verschiedenen Paaren aus Geometrie
+   und Material**. Dieselbe Kiste steht dreiundzwanzigmal da (die Quader der
+   elf Zugbänder), derselbe Tresen zwölfmal — und jedes Mal einzeln gezeichnet.
+   Innerhalb **eines** Möbels ist da nichts mehr zu holen: Ein Band besteht aus
+   vier Netzen mit vier Materialien. Der Gewinn liegt **zwischen** den Möbeln,
+   und das ist genau die Rechnung, die `grid/gridBatch.ts` für die
+   Bodenkacheln schon macht — eine `InstancedMesh` je Paar. Der Haken ist auch
+   derselbe wie dort: Ein Möbel, das man aufnimmt und woanders hinstellt
+   (`kitchenCarry.ts`, `kitchenBuild.ts`), muss aus dem Bündel heraus und
+   einzeln weiterleben.
+
+Gemessen nach den ersten beiden: **399 → 379 Aufrufe je Bild** im Mittel, der
+Schattendurchgang von 196 auf 176. Der Rest liegt in Posten 3.
 
 #### Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht
 
