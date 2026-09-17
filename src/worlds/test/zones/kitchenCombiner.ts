@@ -80,6 +80,18 @@ export interface CombineState {
   readonly working: boolean;
   /** Von welcher Kachel; `null`, solange nichts läuft. */
   readonly from: string | null;
+  /**
+   * **Ob auf dieser Kachel etwas liegt, das der Kombinierer selbst
+   * zusammengelegt hat** — und damit die Regel, an der die ganze Straße hängt
+   * (`combinerHolds`).
+   *
+   * Es steht in der **Uhr** und nicht am Möbel, weil es dieselbe Lebensdauer
+   * hat wie sie: Die Zone stellt beide zurück, sobald sich der Inhalt der
+   * Kachel ändert (`kitchen.settle`) — hingelegt, weggenommen, abgefahren.
+   * Damit gilt es genau für das eine Gericht, das gerade obendrauf liegt, und
+   * nicht für das nächste.
+   */
+  readonly made: boolean;
 }
 
 /** Ein Kombinierer, der gerade nichts tut — und jede andere Station. */
@@ -87,6 +99,7 @@ export const IDLE_COMBINE: CombineState = Object.freeze({
   time: 0,
   working: false,
   from: null,
+  made: false,
 });
 
 /** Was ein Bild am Kombinierer geändert hat. */
@@ -132,31 +145,35 @@ export function combinerTakes(base: Dish | null, offer: Dish | null): Combined |
  * **Ob der Kombinierer das, was auf ihm liegt, noch für sich behält** — und
  * damit die Regel, ohne die eine Bandstraße nicht funktioniert.
  *
- * Der Fehler, gegen den sie steht, ist im Bild sofort zu sehen und in der
- * Rechnung fast unsichtbar: Ein Brötchen kommt auf dem Band an, liegt eine
- * Sekunde auf dem Kombinierer — und das Zugband dahinter nimmt es mit, **bevor
- * das Patty da ist**. Für die Bandrechnung war das völlig richtig (auf einem
- * Kombinierer liegt etwas, also darf man es holen), und die Straße lieferte
- * trotzdem nie einen Burger, sondern eine Reihe nackter Brötchen.
+ * Sie lautet: **Ein Kombinierer gibt nur her, was er selbst zusammengelegt
+ * hat.** Was man ihm hinlegt oder hinschiebt, ist eine **Unterlage** und
+ * bleibt liegen; erst wenn die Zutat von der Pfeilseite daraufgekommen ist,
+ * ist es ein Gericht, und erst dann darf ein Band es abholen.
  *
- * Also: **Was einzeln daliegt, ist eine Unterlage und wartet. Was etwas trägt,
- * ist ein Gericht und darf abgeholt werden.** Der Unterschied steht schon im
- * Ding selbst (`Dish.on`), es braucht kein Gedächtnis dafür und keinen Merker
- * am Möbel — ein leerer Teller wartet auf den Burger, ein Teller mit Burger
- * fährt weiter. Damit wartet die Straße so lange, wie der Koch zum Braten
- * braucht, und zwar ohne dass irgendwo eine Uhr mitliefe.
+ * **Zwei Fehler stecken dahinter, und beide kamen aus dem Spiel.** Der erste
+ * war offensichtlich: Ein Brötchen kam auf dem Band an, lag eine Sekunde auf
+ * dem Kombinierer — und das Zugband dahinter nahm es mit, **bevor das Patty da
+ * war**. Für die Bandrechnung völlig richtig (dort liegt etwas, also darf man
+ * es holen), und die Straße lieferte trotzdem nur nackte Brötchen.
+ *
+ * Der zweite ist der Grund, warum hier ein **Merker** steht und nicht die
+ * naheliegende Frage „liegt schon etwas darauf?" (`Dish.on.length`): In einer
+ * Straße mit mehreren Stufen ist die Unterlage des **zweiten** Kombinierers
+ * schon ein Gericht — ein Brötchen mit Patty. Nach jener Frage wäre es sofort
+ * abholbereit gewesen, und der Salat, der eine Kachel weiter wartete, wäre nie
+ * daraufgekommen. Der Merker unterscheidet, was die Form nicht unterscheiden
+ * kann: **angeliefert** oder **hier entstanden**.
  *
  * **Das gilt nur für Bänder, nicht für Hände.** Wer mit `A` an einen
- * Kombinierer tritt, nimmt das Brötchen mit, wie von jeder Arbeitsplatte
+ * Kombinierer tritt, nimmt mit, was darauf liegt, wie von jeder Arbeitsplatte
  * (`kitchenCarry.onTop`) — eine Küche, in der man ein Möbel nicht mehr
  * leerräumen kann, hat eine Sackgasse. Zurückgehalten wird gegen die
  * **Maschine**, und das ist derselbe Gedanke wie beim Mülleimer: Die
- * Stationsart allein reicht nicht, gefragt wird auch, was darauf liegt
- * (`kitchenBelt.beltReleases` gegen `kitchen.beltTarget`).
+ * Stationsart allein reicht nicht, gefragt wird auch, was dort los ist
+ * (`kitchenBelt.beltReleases` gegen `kitchen.beltSource`).
  */
-export function combinerHolds(on: Dish | null): boolean {
-  if (!on) return false;
-  return on.on.length === 0;
+export function combinerHolds(state: CombineState): boolean {
+  return !state.made;
 }
 
 /**
@@ -195,10 +212,14 @@ export function advanceCombine(
     if (!state.working && state.time === 0 && state.from === null) {
       return { state, done: null };
     }
-    return { state: IDLE_COMBINE, done: null };
+    // **Der Merker überlebt das Anhalten.** Wer nichts mehr anzubieten hat,
+    // bricht den Handgriff ab — an dem, was schon fertig obendrauf liegt,
+    // ändert das nichts. Zurückgestellt wird `made` erst, wenn der Inhalt der
+    // Kachel wechselt, und das tut die Zone (`kitchen.settle`).
+    return { state: { ...IDLE_COMBINE, made: state.made }, done: null };
   }
   if (!state.working || state.from !== from) {
-    return { state: { time: 0, working: true, from }, done: null };
+    return { state: { time: 0, working: true, from, made: state.made }, done: null };
   }
   const time = state.time + Math.max(0, Number.isFinite(dt) ? dt : 0);
   if (time < COMBINE_SECONDS) return { state: { ...state, time }, done: null };
@@ -207,7 +228,11 @@ export function advanceCombine(
   // gefragt — sie musste es, um `from` zu bestimmen —, und zweimal dieselbe
   // Frage zu stellen ist die Gelegenheit, zwei verschiedene Antworten zu
   // bekommen: Zwischen den beiden Aufrufen läge ein Band, das gerade abliefert.
-  return { state: IDLE_COMBINE, done: ready?.ok ? ready : null };
+  const done = ready?.ok ? ready : null;
+  // **Und hier wird der Merker gesetzt** — an der einen Stelle, an der wirklich
+  // etwas zusammengelegt wurde. Ein Kombinierer, der nichts zustande gebracht
+  // hat, bleibt auf dem Stand, den er hatte.
+  return { state: { ...IDLE_COMBINE, made: state.made || done !== null }, done };
 }
 
 /** Der Anteil 0…1 — für den Balken darüber und für die Fahrt dazwischen. */

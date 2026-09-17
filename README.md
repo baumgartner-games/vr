@@ -75,20 +75,28 @@ in den Mülleimer. Am Brett wird geschnitten, solange man davorsteht; wer
 weggeht, fängt von vorn an.
 
 Östlich der Küche liegt seit dem letzten Umbau die **Werkhalle** — acht freie
-Spalten, in denen eine **Bandstraße** steht, die einen Burger ohne Läufer
-zusammensetzt. Drei neue Möbel machen das möglich: Der **Kombinierer** (grün)
-hält, was man ihm auflegt, und holt sich von der Seite, auf die sein Pfeil
-zeigt, die Zutat dazu — Brötchen oben, gebratenes Patty von der Seite, Burger
-oben. Der **Mixer** ist ein Schneidebrett mit Motor: Er hackt, **ohne dass
-jemand danebensteht**, eine Stufe je Auflegen — eine Tomate muss also zweimal
-hindurch, bis Suppe daraus wird. Und das **Filterband** (violett) ist ein
-Zugband mit Gedächtnis: Wer ihm einmal etwas auflegt, dem zieht es danach nur
-noch genau das, und ein kleines Bild an seiner Greifkante sagt, was es sich
-gemerkt hat. In der Halle laufen damit drei Bahnen von selbst — Brötchen aus
-der Kiste zum Kombinierer, Salat durch den Mixer, Tomaten zweimal durch zwei
-Mixer zu Suppe — und am Ende steht ein angerichteter Teller. Gebraten wird
-weiter von Hand: Es gibt eine Pfanne, und die steht auf dem Herd. Der Rest der
-Halle ist leer und bleibt es — dort baut man seine eigene Straße.
+Spalten, in denen eine **Bandstraße** steht, die einen ganzen **Burger Deluxe**
+ohne Läufer zusammensetzt: vorn stehen vier Vorratskisten, hinten liegt der
+fertige Burger auf der Ausgabe, und dazwischen fasst ihn niemand an. Vier neue
+Möbel machen das möglich. Der **Kombinierer** (grün) hält, was man ihm auflegt,
+und holt sich von der Seite, auf die sein Pfeil zeigt, die Zutat dazu — und er
+gibt erst her, was er **selbst** zusammengelegt hat, sonst nähme das nächste
+Band das nackte Brötchen mit, bevor das Patty da ist. Der **Mixer** ist ein
+Schneidebrett mit Motor: Er hackt, **ohne dass jemand danebensteht**, eine Stufe
+je Auflegen — eine Tomate muss also zweimal hindurch, bis Suppe daraus wird. Die
+**sichere Kochstelle** (rot) ist dasselbe fürs Braten: eine freie Platte ohne
+Pfanne, auf die ein Band etwas hinschieben und ein anderes es abholen kann, und
+sie brät die eine Stufe und hört dann auf — hier verbrennt nichts, denn eine
+Bandstraße kommt nicht zurück, um die Pfanne vom Feuer zu nehmen. Und das
+**Filterband** (violett) ist ein Zugband mit Gedächtnis: Wer ihm einmal etwas
+auflegt, dem zieht es danach nur noch genau das, und ein kleines Bild an seiner
+Greifkante sagt, was es sich gemerkt hat. In der Halle laufen damit sechs
+Spalten von selbst: Das Patty geht aus der Kiste über eine Ablage auf die
+Kochstelle, ein Filterband zieht nur das **gebratene** herunter, ein Kombinierer
+legt es unter das Brötchen aus der zweiten Kiste — und weiter unten kommen
+nacheinander geschnittener Salat und geschnittene Tomate dazu, jede aus ihrer
+Kiste durch ihren Mixer und hinter ihrem Filterband her. Der Rest der Halle ist
+leer und bleibt es — dort baut man seine eigene Straße.
 
 **Über die Theke geht nur, was auf einem Teller liegt**, und der geht mit: Ein
 Gast setzt sich an einen freien Tisch, isst, und lässt dreckiges Geschirr
@@ -118,7 +126,7 @@ jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer nimmt das
 Brötchen, den Topf nicht, und vom Teller nur den Inhalt. Über die Möbel
 **springt** man dabei nicht: Sie sind für die Füße so hoch wie eine Wand, auch
 wenn der Tresen nur einen halben Meter misst. Östlich daneben liegt der
-**Schauraum**, in dem jedes der einundzwanzig Möbel noch einmal einzeln und
+**Schauraum**, in dem jedes der zweiundzwanzig Möbel noch einmal einzeln und
 beschriftet steht. Dazu drei **Portaltafeln**, eine davon oben auf dem Podest.
 
 Dazu kommt

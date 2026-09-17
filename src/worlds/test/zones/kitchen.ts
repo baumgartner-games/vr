@@ -41,6 +41,7 @@ import {
   meansContent,
   onWork,
   otherHand,
+  STATION_WORK,
   stovePhase,
   stoveProgress,
   stoveUnder,
@@ -147,6 +148,7 @@ import {
   type CombineState,
 } from './kitchenCombiner';
 import { MixerKit } from './kitchenMixer';
+import { GriddleKit } from './kitchenGriddle';
 import {
   DRY,
   SprayJet,
@@ -394,6 +396,24 @@ const FILTER_SIGN = 0.3;
  * zweier Bilder, die sich an der Naht berühren.
  */
 const FILTER_BACK = 0.33;
+
+/**
+ * **Wie eine laufende Arbeit gemeldet wird** — je Art ein Verb im Präsens.
+ *
+ * Eine Tabelle und keine Kette aus Fragezeichen: Es sind vier Arten
+ * (`kitchenWork.WorkKind`), und bei der fünften fragt der Übersetzer nach ihrem
+ * Eintrag, statt sie stillschweigend „schneiden" zu nennen. Das Spülen fehlt
+ * hier trotzdem, und das ist kein Versehen: Gespült wird **Geschirr** und
+ * nicht ein bestimmtes Ding — „Dreckiger Teller wird gespült" wäre falsches
+ * Deutsch, und derselbe Sonderfall steht aus demselben Grund schon in
+ * `kitchenCarry.kitchenPrompt`.
+ */
+const WORK_WORDS: Readonly<Record<WorkKind, string>> = {
+  chop: 'wird geschnitten',
+  blend: 'wird gemixt',
+  fry: 'brät',
+  wash: 'wird gespült',
+};
 
 const GHOST_ALPHA = 0.35;
 const GHOST_FREE = 0x7de88a;
@@ -846,6 +866,8 @@ export class KitchenZone implements TestZone {
   private joins: CombinerKit | null = null;
   /** Und der für die Mixer (`kitchenMixer.ts`). */
   private mixers: MixerKit | null = null;
+  /** Und der für die sicheren Kochstellen (`kitchenGriddle.ts`). */
+  private griddles: GriddleKit | null = null;
   /** Und der für Computer-Tisch und Kopierer (`kitchenDesk.ts`). */
   private desks: DeskKit | null = null;
   /** Der Nebel aus dem Feuerlöscher (`kitchenSpray.ts`). */
@@ -1025,6 +1047,7 @@ export class KitchenZone implements TestZone {
     this.belts = new BeltKit();
     this.joins = new CombinerKit();
     this.mixers = new MixerKit();
+    this.griddles = new GriddleKit();
     this.desks = new DeskKit();
     this.jet = new SprayJet(world.root);
     // **Zuerst der Boden**, denn auf ihm steht alles andere: Der Grundriss legt
@@ -1196,11 +1219,17 @@ export class KitchenZone implements TestZone {
         case 'board':
         case 'sink':
         case 'mixer':
-          // **Der Mixer steht in derselben Zeile wie Brett und Spüle**, und
-          // das ist die ganze Umsetzung seiner Sonderrolle: Dass er auch dann
-          // weiterläuft, wenn niemand danebensteht, entscheidet
-          // `kitchenWork.WORK_ALONE` und nicht dieser Zweig. Die Zone fragt
-          // nirgends, welches der drei Möbel sie gerade in der Hand hat.
+        case 'griddle':
+          // **Alle vier Arbeitsmöbel stehen in derselben Zeile**, und das ist
+          // die ganze Umsetzung ihrer Unterschiede: Dass Mixer und Kochstelle
+          // auch dann weiterlaufen, wenn niemand danebensteht, entscheidet
+          // `kitchenWork.WORK_ALONE`; dass auf der Kochstelle nichts
+          // verbrennt, entscheidet `kitchenWork.workStage`. Die Zone fragt
+          // nirgends, welches der vier Möbel sie gerade in der Hand hat.
+          //
+          // **Welche vier es sind, steht nicht hier**, sondern in
+          // `kitchenCarry.STATION_WORK` — die Aufzählung daneben ist nur die
+          // Gegenprobe des Übersetzers, dass jede Art einen Zweig hat.
           this.workFrame(spot, dt);
           break;
         case 'combiner':
@@ -1466,14 +1495,14 @@ export class KitchenZone implements TestZone {
     // auf nichts auf. Beide Uhren stehen nebeneinander im selben `oder`, weil
     // die Frage dieselbe ist: Arbeitet dieses Möbel gerade?
     if (!back || !beltReleases(back.kind, back.work.working || back.join.working)) return null;
-    // **Ein Kombinierer hält seine Unterlage fest**, bis etwas darauf liegt
+    // **Ein Kombinierer gibt nur her, was er selbst zusammengelegt hat**
     // (`kitchenCombiner.combinerHolds`). Ohne diese Zeile nähme ein Zugband
     // das Brötchen mit, bevor das Patty da ist — die Straße liefe, und
     // heraus kämen nackte Brötchen. Die Frage steht hier und nicht in
     // `beltReleases`, weil sie nicht nur die Stationsart braucht, sondern auch
-    // das, was daraufliegt — derselbe Fall wie beim Mülleimer eine Methode
+    // den Stand seiner Uhr — derselbe Fall wie beim Mülleimer eine Methode
     // weiter oben.
-    if (back.kind === 'combiner' && combinerHolds(back.on?.dish ?? null)) return null;
+    if (back.kind === 'combiner' && combinerHolds(back.join)) return null;
     // **Und ein Filterband fragt noch einmal nach**, diesmal nach dem Ding
     // (`kitchenBelt.beltWants`). Die Regel steht dort, hier steht nur, was
     // nebenan liegt — und bei einer Vorratskiste ist das, was sie hergibt, und
@@ -2515,6 +2544,8 @@ export class KitchenZone implements TestZone {
     this.joins = null;
     this.mixers?.dispose();
     this.mixers = null;
+    this.griddles?.dispose();
+    this.griddles = null;
     this.desks?.dispose();
     this.desks = null;
     this.jet?.dispose();
@@ -2578,16 +2609,18 @@ export class KitchenZone implements TestZone {
    * **Ein gebautes Stück** — alles, was in keiner Datei steht
    * (`KitchenPiece.built`).
    *
-   * Inzwischen sind es sieben, und die drei Bänder kommen aus demselben
+   * Inzwischen sind es acht, und die drei Bänder kommen aus demselben
    * Bausatz (`kitchenBelt.BeltKit.piece`) — sie sind ein Möbel mit drei
-   * Aufgaben. Kombinierer und Mixer bringen je einen eigenen mit, weil sie je
-   * ein eigenes Möbel sind; Rechner und Kopierer teilen sich ihren.
+   * Aufgaben. Kombinierer, Mixer und Kochstelle bringen je einen eigenen mit,
+   * weil sie je ein eigenes Möbel sind; Rechner und Kopierer teilen sich
+   * ihren.
    */
   private buildPiece(piece: KitchenPiece): THREE.Object3D | null {
     const kind = beltKind(piece.name);
     if (kind) return this.belts?.piece(kind) ?? null;
     if (piece.name === 'combiner') return this.joins?.piece() ?? null;
     if (piece.name === 'mixer') return this.mixers?.piece() ?? null;
+    if (piece.name === 'griddle') return this.griddles?.piece() ?? null;
     if (piece.name === 'desk') return this.desks?.deskPiece() ?? null;
     if (piece.name === 'copier') return this.desks?.copierPiece() ?? null;
     return null;
@@ -3516,13 +3549,16 @@ export class KitchenZone implements TestZone {
           );
           break;
         }
-        // Am Brett, im Mixer und in der Spüle fängt die Arbeit sofort an —
-        // `layOn` legt die Uhr an (`settle`), gesagt wird es hier.
+        // Am Brett, im Mixer, auf der Kochstelle und in der Spüle fängt die
+        // Arbeit sofort an — `layOn` legt die Uhr an (`settle`), gesagt wird es
+        // hier. Welches Wort zu welcher Arbeit gehört, steht in der Regel
+        // nebenan und wird hier nur ins Präsens gesetzt
+        // (`kitchenCarry.kitchenPrompt` sagt dieselben vier).
         world.notify(
           deed.do === 'work'
             ? deed.kind === 'wash'
               ? 'Geschirr wird gespült'
-              : `${ITEM_LABELS[deed.dish.item]} wird ${deed.kind === 'blend' ? 'gemixt' : 'geschnitten'}`
+              : `${ITEM_LABELS[deed.dish.item]} ${WORK_WORDS[deed.kind]}`
             : `${dishLabel(deed.dish)} auf ${spot.label}`,
         );
         break;
@@ -3899,13 +3935,14 @@ export class KitchenZone implements TestZone {
       spot.stove = stoveUnder(on);
       return;
     }
-    if (spot.kind === 'board' || spot.kind === 'sink' || spot.kind === 'mixer') {
-      // Drei Möbel, drei Arten, **eine** Uhr (`kitchenWork.ts`). Die Zuordnung
-      // steht hier, weil nur die Zone die Möbel kennt; was die Art bedeutet,
-      // steht dort.
-      const kind: WorkKind =
-        spot.kind === 'sink' ? 'wash' : spot.kind === 'mixer' ? 'blend' : 'chop';
-      spot.work = onWork(kind, on?.item ?? null);
+    // Vier Möbel, vier Arten, **eine** Uhr (`kitchenWork.ts`) — und die
+    // Zuordnung ist **eine Tabelle** und keine Kette aus Fragezeichen
+    // (`kitchenCarry.STATION_WORK`). Sie steht dort und nicht hier, weil `A`
+    // sie vor dem Ablegen schon einmal braucht: Zwei Ketten, die dasselbe
+    // sagen sollen, sagen es irgendwann nicht mehr.
+    const work = STATION_WORK[spot.kind];
+    if (work) {
+      spot.work = onWork(work, on?.item ?? null);
       return;
     }
     if (spot.kind === 'combiner') {

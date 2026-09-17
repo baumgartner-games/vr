@@ -44,7 +44,7 @@
  * selbst — der Zustand ist unveränderlich und gehört an die Station.
  */
 
-import { chopStage, type KitchenItem } from './kitchenRecipes';
+import { chopStage, fryStage, type KitchenItem } from './kitchenRecipes';
 
 /** Welche Arbeit an einer Station getan wird. */
 export type WorkKind =
@@ -52,6 +52,22 @@ export type WorkKind =
   | 'chop'
   /** An der Spüle: aus dreckigem Geschirr wird sauberes. */
   | 'wash'
+  /**
+   * **Auf der sicheren Kochstelle: dasselbe wie in der Pfanne, nur ohne das
+   * Verbrennen.**
+   *
+   * Der Herd braucht einen Koch, der aufpasst: Nach dem Braten kommt das
+   * Verbrannte und danach das Feuer (`kitchenClock.ts`) — das ist die Spannung,
+   * um die es dort geht. Eine Bandstraße kann das nicht leisten: Sie legt
+   * hinein und holt ab, und wenn zwischendurch niemand hinsieht, brennt
+   * irgendwann die Küche. Also gibt es ein zweites Möbel, das **eine** Stufe
+   * kann und dann stehen bleibt (`workStage`) — die sichere Kochstelle
+   * (`kitchenGriddle.ts`).
+   *
+   * Sie ist damit für das Braten genau das, was der Mixer für das Schneiden
+   * ist: dieselbe Arbeit, ohne jemanden davor, und dafür etwas langsamer.
+   */
+  | 'fry'
   /**
    * **Im Mixer: dasselbe wie am Brett, nur ohne jemanden davor.**
    *
@@ -86,6 +102,14 @@ export const WORK_SECONDS: Readonly<Record<WorkKind, number>> = {
   // Brett zu benutzen, und ein Möbel, das ein anderes wertlos macht, ist kein
   // zweites Möbel, sondern ein Ersatz.
   blend: 4,
+  // **Fünf, und dieselbe Rechnung, nur gegen den Herd.** Dort ist ein Patty
+  // nach vier Sekunden gebraten (`kitchenClock.FRY_SECONDS`) — aber nur, wenn
+  // jemand rechtzeitig zurückkommt, sonst verbrennt es nach weiteren vier. Die
+  // sichere Kochstelle nimmt einem dieses Zurückkommen ab und kostet dafür
+  // eine Sekunde mehr. Wäre sie gleich schnell, gäbe es keinen Grund mehr,
+  // jemals die Pfanne zu benutzen — und die Pfanne ist das Herzstück dieser
+  // Küche.
+  fry: 5,
 };
 
 /**
@@ -120,6 +144,9 @@ export const WORK_TO_HAND: Readonly<Record<WorkKind, boolean>> = {
   // die ganze Pipeline hängt daran, dass ein Zugband es dort **abholen** kann
   // (`kitchenBelt.beltReleases`).
   blend: false,
+  // Und auf der Kochstelle genauso: Das gebratene Patty bleibt liegen, bis ein
+  // Filterband es abholt.
+  fry: false,
 };
 
 /**
@@ -145,6 +172,7 @@ export const WORK_ALONE: Readonly<Record<WorkKind, boolean>> = {
   chop: false,
   wash: false,
   blend: true,
+  fry: true,
 };
 
 /**
@@ -185,6 +213,17 @@ export function workStage(kind: WorkKind, item: KitchenItem): KitchenItem | null
   // hinter „zweimal durch den Mixer": Was das Messer in zwei Stufen zerlegt,
   // zerlegt der Mixer in denselben zwei Stufen (`kitchenRecipes.CHOPS`).
   if (kind === 'chop' || kind === 'blend') return chopStage(item);
+  // **Und die Kochstelle fragt die Tabelle des Herdes** (`kitchenRecipes.FRIES`)
+  // — geht aber die eine Stufe nicht mit, die zum Verbrannten führt. Das ist
+  // die ganze Bauart dieses Möbels, und sie steht als **eine** Zeile da:
+  // weglassen statt nachbauen. Eine eigene Tabelle `{ patty: 'patty-cooked' }`
+  // sähe harmloser aus und wäre die zweite Wahrheit über das Braten — käme
+  // eines Tages ein Hähnchen dazu, brutzelte es in der Pfanne und läge auf der
+  // Kochstelle für immer roh.
+  if (kind === 'fry') {
+    const done = fryStage(item);
+    return done === 'patty-burnt' ? null : done;
+  }
   return item === 'plate-dirty' ? 'plate' : null;
 }
 

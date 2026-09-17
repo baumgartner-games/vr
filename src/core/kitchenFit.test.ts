@@ -215,6 +215,7 @@ describe('der Möbelkatalog', () => {
       'belt-smart',
       'combiner',
       'mixer',
+      'griddle',
       'desk',
       'copier',
     ]);

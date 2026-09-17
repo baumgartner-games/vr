@@ -348,7 +348,10 @@ describe('die Arbeitsflächen der Zeile', () => {
  * erst, wenn man selbst hereinkommt.
  */
 describe('die Tische vor der Theke', () => {
-  const row = WORKING.filter((spot) => spot.z === 10);
+  // **Nur die Küche**, nicht die Werkhalle: Seit die Burgerstraße bis in die
+  // letzte Reihe reicht, stehen in z = 10 auch ihr letzter Kombinierer und ihre
+  // Ausgabe — die haben mit dem Gastraum nichts zu tun (`KITCHEN_SIDE`).
+  const row = KITCHEN_SIDE.filter((spot) => spot.z === 10);
 
   it('stellt drei Gästetische und eine Rückgabe in eine Reihe', () => {
     expect(row.map((spot) => spot.name)).toEqual(['table', 'table', 'table', 'table']);
@@ -729,11 +732,16 @@ describe('die Werkhalle', () => {
     }
     expect(used.size).toBeLessThan((PIPELINE.w * PIPELINE.d) / 2);
     // Und zwar als ganze Spalten und nicht als Streusel: Von den acht Spalten
-    // sind mindestens vier vollständig leer.
+    // bleiben mindestens zwei vollständig leer, und sie liegen **am Stück** am
+    // östlichen Rand — dort, wo eine zweite Straße anfangen kann, ohne sich
+    // durch die erste zu fädeln.
     const empty = [...Array(PIPELINE.w).keys()]
       .map((dx) => PIPELINE.x + dx)
       .filter((x) => ![...used].some((key) => key.startsWith(`${x}/`)));
-    expect(empty.length).toBeGreaterThanOrEqual(4);
+    expect(empty.length).toBeGreaterThanOrEqual(2);
+    const east = PIPELINE.x + PIPELINE.w - 1;
+    expect(empty).toContain(east);
+    expect(empty).toContain(east - 1);
   });
 
   it('gibt jedem greifenden Band eine Kachel, von der es nehmen darf', () => {
@@ -764,6 +772,10 @@ describe('die Werkhalle', () => {
   it('lehrt jedes Filterband schon im Grundriss', () => {
     const smart = HALL.filter((spot) => spot.name === 'belt-smart');
     expect(smart.length).toBeGreaterThanOrEqual(3);
+    // **Und eines davon steht hinter der Kochstelle**, nicht hinter einem
+    // Mixer: Der Filter `patty-cooked` ist der, ohne den die Straße rohe
+    // Pattys auf das Brötchen legte.
+    expect(smart.map((spot) => spot.filter)).toContain('patty-cooked');
     for (const spot of smart) {
       const where = `belt-smart@${spot.x},${spot.z}`;
       expect({ where, filter: spot.filter ?? null }).not.toEqual({ where, filter: null });
@@ -809,7 +821,7 @@ describe('die Werkhalle', () => {
     // Filterbänder stehen hinter einem Mixer, der aus einer Kiste gespeist
     // wird. Ein Test, der sich durch `continue` selbst überspringt, prüft
     // nichts und sagt es nicht.
-    expect(checked).toBeGreaterThanOrEqual(3);
+    expect(checked).toBeGreaterThanOrEqual(2);
   });
 
   it('stellt jedem Kombinierer eine Zulieferkachel an die Pfeilseite', () => {
@@ -849,7 +861,7 @@ describe('die Werkhalle', () => {
     // Die Straße fängt bei einer Kiste an und nicht beim Koch: Genau dafür
     // zieht ein Zugband aus einer Vorratskiste (`kitchenBelt.beltRefills`).
     const gives = HALL.filter((spot) => spot.gives);
-    expect(gives.map((spot) => spot.gives).sort()).toEqual(['bun', 'lettuce', 'plate', 'tomato']);
+    expect(gives.map((spot) => spot.gives).sort()).toEqual(['bun', 'lettuce', 'patty', 'tomato']);
     for (const spot of gives) {
       expect(kindOf(spot)).toBe('box');
       expect(spot.label).toBeDefined();

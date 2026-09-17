@@ -689,6 +689,25 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     built: true,
   },
   {
+    name: 'griddle',
+    label: 'Sichere Kochstelle',
+    tiles: [1, 1],
+    // **0,55 m, und die Zahl ist vom Herd abgeschrieben** (`stove`) — auf den
+    // Millimeter. Eine Kochstelle, die neben einem Herd steht und drei
+    // Zentimeter höher wäre, wäre von oben eine Stufe in einer Reihe, die
+    // aussieht wie eine Reihe. Und ein Patty, das von einem Band herüberfährt,
+    // führe sichtbar bergauf.
+    //
+    // Es ist zugleich `deck`: Auf dieser Kochstelle steht keine Pfanne, das
+    // Patty liegt unmittelbar auf der Platte (`worlds/test/zones/kitchenGriddle.ts`).
+    // Genau das macht sie für eine Bandstraße brauchbar — ein Band kann nichts
+    // in eine Pfanne legen, die schon auf ihrer Kachel liegt, aber auf eine
+    // freie Platte kann es alles legen.
+    height: 0.55,
+    worktop: true,
+    built: true,
+  },
+  {
     name: 'desk',
     label: 'Computer-Tisch',
     tiles: [1, 1],

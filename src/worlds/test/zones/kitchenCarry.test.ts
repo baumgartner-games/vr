@@ -1,6 +1,8 @@
 import {
   CLEAN_STACK_MAX,
   ITEM_LABELS,
+  STATION_WORK,
+  WORK_ALONE,
   WORK_SECONDS,
   advanceWork,
   carrySlot,
@@ -19,7 +21,12 @@ import {
   type KitchenDeed,
   type KitchenItem,
   type Station,
+  type StationKind,
+  type WorkKind,
 } from './kitchenCarry';
+
+/** Die Tabelle als Paare — einmal getippt, dreimal gelesen. */
+const STATION_WORKS = Object.entries(STATION_WORK) as [StationKind, WorkKind | null][];
 
 /** Kurz geschrieben: `d('bun', 'patty-cooked')` ist ein belegtes Brötchen. */
 function d(item: KitchenItem, ...on: KitchenItem[]): Dish {
@@ -1047,6 +1054,53 @@ describe('wie eine Tat bedient werden will', () => {
   it('bietet nichts an, wo es nichts zu tun gibt', () => {
     expect(kitchenInteraction(press(null, { kind: 'top' }))).toBe('none');
     expect(kitchenInteraction(null)).toBe('none');
+  });
+});
+
+/**
+ * **Welche Station arbeitet** (`STATION_WORK`) — die Tabelle, die es gibt,
+ * weil eine `if`-Kette sie einmal nicht vollständig nachgezählt hat.
+ *
+ * Der Fehler war im Spiel zu sehen und in keinem Test: Die sichere Kochstelle
+ * stand im Grundriss, `A` legte das Patty darauf, und die Zone ließ keine Uhr
+ * an — ihre Aufzählung kannte Brett, Spüle und Mixer und nicht das vierte
+ * Möbel. Seitdem ist die Zuordnung **eine** Tabelle, die beide Seiten lesen,
+ * und hier steht, was in ihr stehen muss.
+ */
+describe('welche Station arbeitet', () => {
+  it('kennt jede Stationsart, und keine zweimal anders', () => {
+    // Vollständig ist sie schon durch ihren Typ (`Record<StationKind, …>`);
+    // hier steht, **was** darin steht — vier, die arbeiten, der Rest `null`.
+    const works = STATION_WORKS.filter(([, work]) => work !== null).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+    expect(works).toEqual([
+      ['board', 'chop'],
+      ['griddle', 'fry'],
+      ['mixer', 'blend'],
+      ['sink', 'wash'],
+    ]);
+  });
+
+  it('sagt dasselbe wie `A` vor dem Möbel', () => {
+    // **Die Gegenprobe zur Tabelle**: Wer mit einem rohen Patty vor einem
+    // Arbeitsmöbel steht, das es annimmt, fängt mit genau der Art an, die hier
+    // steht — ohne zweiten Druck.
+    for (const [kind, work] of STATION_WORKS) {
+      if (kind === 'sink') continue; // Die Spüle nimmt Geschirr, kein Patty.
+      const deed = kitchenDeed(dish('patty'), { kind });
+      const started = deed.do === 'work' ? deed.kind : null;
+      expect({ kind, started }).toEqual({ kind, started: work === 'fry' ? 'fry' : null });
+    }
+  });
+
+  it('lässt genau die beiden ohne Zuschauer laufen', () => {
+    // Und die zweite Tabelle daneben sagt, welche der vier weiterläuft, wenn
+    // niemand davorsteht (`kitchenWork.WORK_ALONE`) — Mixer und Kochstelle.
+    const alone = STATION_WORKS.filter(([, work]) => work !== null && WORK_ALONE[work])
+      .map(([kind]) => kind)
+      .sort();
+    expect(alone).toEqual(['griddle', 'mixer']);
   });
 });
 

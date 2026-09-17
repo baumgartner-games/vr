@@ -94,32 +94,50 @@ describe('combinerTakes — was er sich holen würde', () => {
 });
 
 describe('combinerHolds — was er für sich behält', () => {
-  it('hält die nackte Unterlage fest', () => {
+  it('hält alles fest, was er nicht selbst zusammengelegt hat', () => {
     // Der Fehler, gegen den die Regel steht: Ein Zugband nähme das Brötchen
     // mit, bevor das Patty da ist — die Straße liefe, und heraus kämen nackte
     // Brötchen.
-    expect(combinerHolds(dish('bun'))).toBe(true);
-    expect(combinerHolds(dish('plate'))).toBe(true);
+    expect(combinerHolds(IDLE_COMBINE)).toBe(true);
+    expect(combinerHolds({ time: 1, working: true, from: 'links', made: false })).toBe(true);
   });
 
-  it('gibt her, was etwas trägt', () => {
-    expect(combinerHolds(dish('bun', ['patty-cooked']))).toBe(false);
-    expect(combinerHolds(dish('plate', ['bun', 'patty-cooked']))).toBe(false);
+  it('gibt her, sobald er etwas zusammengelegt hat', () => {
+    const ready = combinerTakes(dish('bun'), dish('patty-cooked'));
+    const started = advanceCombine(IDLE_COMBINE, 0, 'links', ready).state;
+    const done = advanceCombine(started, COMBINE_SECONDS, 'links', ready);
+    expect(done.done?.ok).toBe(true);
+    expect(combinerHolds(done.state)).toBe(false);
   });
 
-  it('hält auf einer leeren Kachel nichts fest', () => {
-    expect(combinerHolds(null)).toBe(false);
+  it('merkt sich das auch, wenn die Zulieferkachel danach leer ist', () => {
+    // Der Normalfall in einer Straße: Der Salat ist aufgelegt, nebenan liegt
+    // nichts mehr — und trotzdem darf das Zugband den Burger holen. Ohne diese
+    // Zusage hinge die Kette an dem Augenblick, in dem die nächste Zutat
+    // ankommt.
+    const ready = combinerTakes(dish('bun'), dish('patty-cooked'));
+    const started = advanceCombine(IDLE_COMBINE, 0, 'links', ready).state;
+    const made = advanceCombine(started, COMBINE_SECONDS, 'links', ready).state;
+    const idle = advanceCombine(made, 1 / 60, null);
+    expect(idle.state.working).toBe(false);
+    expect(combinerHolds(idle.state)).toBe(false);
   });
 
-  it('liest den Unterschied am Ding und nicht an einem Merker', () => {
-    // Genau das ist der Punkt: Vorher und nachher ist es **dasselbe** Ding mit
-    // einem anderen Stand (`kitchenRecipes.Dish`), und daran hängt die Regel.
-    // Ein Gedächtnis am Möbel wäre eines, das der Umbau verlöre.
-    const took = combinerTakes(dish('bun'), dish('patty-cooked'));
-    expect(ok(took)).toBe(true);
-    if (!ok(took)) return;
-    expect(combinerHolds(dish('bun'))).toBe(true);
-    expect(combinerHolds(took.target)).toBe(false);
+  it('unterscheidet, was die Form allein nicht unterscheiden kann', () => {
+    // **Das ist der Grund für den Merker.** In einer Straße mit mehreren Stufen
+    // ist die Unterlage des zweiten Kombinierers schon ein Gericht — ein
+    // Brötchen mit Patty. Wer „liegt schon etwas darauf?" fragte, gäbe es
+    // sofort her, und der Salat käme nie darauf.
+    const burger = dish('bun', ['patty-cooked']);
+    expect(burger.on.length).toBeGreaterThan(0);
+    // Angeliefert, nicht hier entstanden: Er wartet.
+    expect(combinerHolds(IDLE_COMBINE)).toBe(true);
+    // Und erst der eigene Handgriff gibt ihn frei.
+    const ready = combinerTakes(burger, dish('lettuce-cut'));
+    const started = advanceCombine(IDLE_COMBINE, 0, 'rechts', ready).state;
+    const done = advanceCombine(started, COMBINE_SECONDS, 'rechts', ready);
+    expect(done.done?.ok).toBe(true);
+    expect(combinerHolds(done.state)).toBe(false);
   });
 });
 
@@ -143,7 +161,7 @@ describe('advanceCombine — die Uhr am Kombinierer', () => {
         expect(tick.done.ok).toBe(true);
         // Danach steht die Uhr wieder auf null: Der nächste Handgriff ist ein
         // neuer und bekommt seine ganzen zwei Sekunden.
-        expect(state).toEqual(IDLE_COMBINE);
+        expect(state).toEqual({ ...IDLE_COMBINE, made: true });
         return;
       }
     }
@@ -154,7 +172,7 @@ describe('advanceCombine — die Uhr am Kombinierer', () => {
     const start = advanceCombine(IDLE_COMBINE, 0, 'links', ready).state;
     const jump = advanceCombine(start, COMBINE_SECONDS * 10, 'links', ready);
     expect(jump.done?.ok).toBe(true);
-    expect(jump.state).toEqual(IDLE_COMBINE);
+    expect(jump.state).toEqual({ ...IDLE_COMBINE, made: true });
   });
 
   it('bricht ab, sobald nebenan nichts mehr liegt', () => {
@@ -216,8 +234,10 @@ describe('combineProgress — der Balken darüber', () => {
   });
 
   it('bleibt zwischen null und eins', () => {
-    expect(combineProgress({ time: -5, working: true, from: 'a' })).toBe(0);
-    expect(combineProgress({ time: COMBINE_SECONDS * 3, working: true, from: 'a' })).toBe(1);
+    expect(combineProgress({ time: -5, working: true, from: 'a', made: false })).toBe(0);
+    expect(
+      combineProgress({ time: COMBINE_SECONDS * 3, working: true, from: 'a', made: false }),
+    ).toBe(1);
   });
 });
 
