@@ -214,7 +214,8 @@ export abstract class GridWorld extends PortalWorld {
    * darin herum, liefe er draußen mit — und käme beim Verlassen irgendwo
    * heraus, nur nicht dort, wo er hineingegangen ist. Deshalb wird das Rig
    * gesperrt (`PlayerRig.locked`): Umsehen ja, gehen nein. Die Stücke stehen
-   * dafür alle in Armlänge (`construct.rackSlots`).
+   * dafür im Ring um den Anker herum (`construct.tileSlots`), und `A` reicht
+   * so weit, wie sie stehen (`useReach`).
    *
    * Gemerkt wird, was vorher galt: In einer Welt, die aus eigenen Gründen
    * sperrt, wäre ein hartes `false` beim Verlassen eine stille Freigabe.
@@ -980,12 +981,11 @@ export abstract class GridWorld extends PortalWorld {
     }
 
     const rack = (this.rack ??= new WardrobeRack());
-    const pieces = rack.pieces(appearance());
     this.enterConstruct({
       anchor,
       at: ctx.rig.position,
       title: 'Umkleide — greif dir etwas',
-      items: pieces.map((piece) => this.wearable(piece, pieces)),
+      items: rack.pieces(appearance()).map((piece) => this.wearable(piece, rack)),
     });
   }
 
@@ -1004,18 +1004,20 @@ export abstract class GridWorld extends PortalWorld {
    * abzureißen und neu zu stellen hieße, siebzehn Netze für eine Marke
    * wegzuwerfen — und die Stücke führen dabei ihre Auffahrt aus dem Boden
    * noch einmal vor.
+   *
+   * Wandern lässt ihn das Regal selbst (`WardrobeRack.wear`) und nicht diese
+   * Schleife: Es weiß, welche Stücke schon gebaut sind, und es merkt sich das
+   * Aussehen für die, die erst noch aus dem Boden kommen. Wer hier alle Stücke
+   * seines Fachs anfasste, baute genau die vorzeitig, die der Raum gerade
+   * langsam nachreicht.
    */
-  private wearable(piece: RackPiece, all: readonly RackPiece[]): ConstructItem {
+  private wearable(piece: RackPiece, rack: WardrobeRack): ConstructItem {
     return {
-      object: piece.object,
+      object: () => piece.object(),
       label: piece.sub ? `${piece.label} — ${piece.sub}` : piece.label,
       pick: () => {
-        saveAppearance({ [piece.slot]: piece.value } as Partial<Appearance>);
-        for (const other of all) {
-          if (other.slot !== piece.slot) continue;
-          const ring = other.object.getObjectByName('rack-worn');
-          if (ring) ring.visible = other === piece;
-        }
+        const look = saveAppearance({ [piece.slot]: piece.value } as Partial<Appearance>);
+        rack.wear(look);
         this.announce(`${piece.label} angezogen`);
         return false;
       },
@@ -1078,6 +1080,31 @@ export abstract class GridWorld extends PortalWorld {
   /** Ob gerade ein Konstrukt offen ist — die Küche fragt danach. */
   protected get inConstruct(): boolean {
     return this.construct?.open ?? false;
+  }
+
+  /**
+   * **Im Konstrukt reicht `A` bis zum letzten Stück** (`ConstructRoom.reach`).
+   *
+   * Sonst gilt überall dieselbe Armlänge und eine halbe wie in jeder anderen
+   * Welt. Die Ausnahme hängt an der Sperre und nicht am Geschmack: Wer im
+   * Konstrukt steht, **kann** nicht hingehen (`syncConstructLock`), und die
+   * Auswahl steht dort auf Kacheln drei Meter weiter draußen. Entweder der
+   * Strahl wird länger, oder die Figur dürfte laufen — und liefe dann in der
+   * echten Welt gegen Möbel, die sie gerade nicht sieht.
+   *
+   * Gefährlich wird die längere Reichweite dabei nicht: Im Konstrukt ist außer
+   * dem Anker und der Auswahl nichts mehr sichtbar, und was unsichtbar ist,
+   * steht gar nicht erst zur Wahl (`PortalWorld.collectUsables`).
+   */
+  protected override useReach(): number {
+    const room = this.construct;
+    return room?.open ? Math.max(super.useReach(), room.reach) : super.useReach();
+  }
+
+  /** Dasselbe für das Zeigen in der Brille — siehe `useReach`. */
+  protected override handUseRange(): number {
+    const room = this.construct;
+    return room?.open ? Math.max(super.handUseRange(), room.reach) : super.handUseRange();
   }
 
   // --- die Effekte ----------------------------------------------------------

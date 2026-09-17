@@ -10,7 +10,7 @@ import { RACK_PIECE_MAX, RACK_PIECE_MIN, WardrobeRack, type RackPiece } from './
  * Drei Dinge kann man an einem Kleiderständer falsch machen, und alle drei
  * sieht man in der Brille erst, wenn man schon drinsteht: ein Stück, das im
  * Boden steckt oder darüber schwebt; ein Stück, das so groß ist, dass es ins
- * nächste Brett ragt; und ein Regal, das etwas anderes zeigt, als die Figur
+ * nächste Feld ragt; und ein Regal, das etwas anderes zeigt, als die Figur
  * anhat. Hier sind das drei Rechnungen über einen `Box3` und eine Liste.
  *
  * Kein WebGL und keine Leinwand: Gebaut werden Geometrien und Materialien,
@@ -27,8 +27,25 @@ const OUTFITS: Array<[string, Appearance]> = [
 
 /** Der Kasten um ein Stück, mit aufgefrischten Weltmatrizen. */
 function boxOf(piece: RackPiece): THREE.Box3 {
-  piece.object.updateWorldMatrix(true, true);
-  return new THREE.Box3().setFromObject(piece.object);
+  const object = piece.object();
+  object.updateWorldMatrix(true, true);
+  return new THREE.Box3().setFromObject(object);
+}
+
+/** Alle Stücke wirklich bauen — `pieces` gibt nur die Auskunft heraus. */
+function built(rack: WardrobeRack, look: Appearance): RackPiece[] {
+  const pieces = rack.pieces(look);
+  for (const piece of pieces) piece.object();
+  return pieces;
+}
+
+/** Die Reife eines Stücks, in der Reihenfolge, in der sie im Baum hängen. */
+function worn(piece: RackPiece): boolean[] {
+  const rings: boolean[] = [];
+  piece.object().traverse((child) => {
+    if (child.name === 'rack-worn') rings.push(child.visible);
+  });
+  return rings;
 }
 
 describe('was auf dem Regal steht', () => {
@@ -51,7 +68,7 @@ describe('was auf dem Regal steht', () => {
       ...BODY_KINDS,
     ]);
 
-    // Nichts doppelt: Zwei Bretter mit derselben Mütze wären zwei Knöpfe, von
+    // Nichts doppelt: Zwei Kacheln mit derselben Mütze wären zwei Knöpfe, von
     // denen einer nichts tut.
     const seen = new Set(pieces.map((piece) => `${piece.slot}/${piece.value}`));
     expect(seen.size).toBe(pieces.length);
@@ -104,11 +121,7 @@ describe('was die Figur anhat', () => {
     // zu bauen (`GridWorld.wearable`), und schalten kann er nur, was da ist.
     const rack = new WardrobeRack();
     for (const piece of rack.pieces({ hat: 'tophat', head: 'beard', body: 'green' })) {
-      const rings: boolean[] = [];
-      piece.object.traverse((child) => {
-        if (child.name === 'rack-worn') rings.push(child.visible);
-      });
-      expect(rings).toEqual([piece.worn]);
+      expect(worn(piece)).toEqual([piece.worn]);
     }
     rack.dispose();
   });
@@ -125,7 +138,7 @@ describe('was die Figur anhat', () => {
   });
 });
 
-describe('wie ein Stück auf dem Brett steht', () => {
+describe('wie ein Stück auf seiner Kachel steht', () => {
   it('setzt jedem Stück den Ursprung unten in seine Mitte', () => {
     const rack = new WardrobeRack();
     for (const outfit of OUTFITS) {
@@ -134,8 +147,8 @@ describe('wie ein Stück auf dem Brett steht', () => {
         // Der Name steht im erwarteten Wert, damit ein Fehlschlag sagt,
         // **welches** der siebzehn Stücke schief steht.
         const where = `${piece.slot}/${piece.value}`;
-        // Auf dem Brett und nicht darin: `construct.ts` setzt die Gruppe auf
-        // die Ablage, ohne ein einziges Stück zu kennen.
+        // Auf der Kachel und nicht darin: `construct.ts` setzt die Gruppe auf
+        // die Kachelmitte, ohne ein einziges Stück zu kennen.
         expect([where, Math.abs(box.min.y) < 1e-6]).toEqual([where, true]);
         expect([where, Math.abs(box.min.x + box.max.x) < 1e-6]).toEqual([where, true]);
         expect([where, Math.abs(box.min.z + box.max.z) < 1e-6]).toEqual([where, true]);
@@ -150,7 +163,7 @@ describe('wie ein Stück auf dem Brett steht', () => {
       for (const piece of rack.pieces(outfit[1])) {
         const size = boxOf(piece).getSize(new THREE.Vector3());
         const span = Math.max(size.x, size.y, size.z);
-        // Ein Gegenstand auf einer Ablage — kein Knopf und kein abgetrenntes
+        // Ein Gegenstand auf einer Kachel — kein Knopf und kein abgetrenntes
         // Stück Avatar in Lebensgröße.
         const where = `${piece.slot}/${piece.value} misst ${span.toFixed(3)} m`;
         expect([where, span >= RACK_PIECE_MIN, span <= RACK_PIECE_MAX]).toEqual([
@@ -166,13 +179,13 @@ describe('wie ein Stück auf dem Brett steht', () => {
   it('macht aus „Ohne" ein Ding und kein Loch', () => {
     // `buildHeadgear('none')` gibt `null`. Eine Möglichkeit, die man nicht
     // sieht, kann man auch nicht anfassen — und ausgerechnet die Auslieferung
-    // wäre dann das leere Brett, auf dem niemand einen Strahl abstellt.
+    // wäre dann die leere Kachel, auf der niemand einen Strahl abstellt.
     const rack = new WardrobeRack();
     const none = rack.pieces(DEFAULT_APPEARANCE).find((piece) => piece.value === 'none')!;
     expect(none.slot).toBe('hat');
 
     let meshes = 0;
-    none.object.traverse((child) => {
+    none.object().traverse((child) => {
       if ((child as THREE.Mesh).isMesh) meshes++;
     });
     // Pfosten, Knauf, Fuß — und weil `none` hier getragen wird, der Reif.
@@ -184,18 +197,34 @@ describe('wie ein Stück auf dem Brett steht', () => {
 });
 
 describe('was der Bausatz teilt und wieder hergibt', () => {
-  it('gibt bei jedem Aufruf frische Stücke heraus', () => {
-    // Das Regal wird nach jedem Anziehen neu gebaut; zwei Aufrufe dürfen sich
-    // deshalb kein einziges Netz teilen, sonst hinge dasselbe Ding an zwei
-    // Brettern.
+  it('baut jedes Stück genau einmal und gibt es danach wieder heraus', () => {
+    // Umgekehrt als früher, und das ist der Umbau: Siebzehn Avatarteile je
+    // Öffnen zu bauen war die Pause, die man nach dem Druck auf den Schrank
+    // sah — und siebzehn Geometrien je Öffnen, die niemand wieder freigab.
+    // Der Reif wandert seitdem über `wear`, nicht über einen Neubau.
     const rack = new WardrobeRack();
-    const first = rack.pieces(DEFAULT_APPEARANCE);
+    const first = built(rack, DEFAULT_APPEARANCE);
     const second = rack.pieces(DEFAULT_APPEARANCE);
     expect(second).toHaveLength(first.length);
     for (let i = 0; i < first.length; i++) {
       expect(second[i]!.value).toBe(first[i]!.value);
-      expect(second[i]!.object).not.toBe(first[i]!.object);
+      expect(second[i]!.object()).toBe(first[i]!.object());
     }
+    rack.dispose();
+  });
+
+  it('lässt den Reif wandern, auch unter Stücken, die es noch gar nicht gibt', () => {
+    const rack = new WardrobeRack();
+    const pieces = rack.pieces({ hat: 'none', head: 'round', body: 'white' });
+    const hat = pieces.find((piece) => piece.value === 'cap')!;
+    // Gebaut wird nur dieses eine, und es trägt keinen Reif.
+    expect(worn(hat)).toEqual([false]);
+
+    rack.wear({ hat: 'cap', head: 'round', body: 'white' });
+    expect(worn(hat)).toEqual([true]);
+    // Und das Stück, das erst jetzt gebaut wird, weiß es auch.
+    const off = pieces.find((piece) => piece.value === 'none')!;
+    expect(worn(off)).toEqual([false]);
     rack.dispose();
   });
 
@@ -204,7 +233,7 @@ describe('was der Bausatz teilt und wieder hergibt', () => {
     const feet = new Set<THREE.BufferGeometry>();
     for (let i = 0; i < 3; i++) {
       for (const piece of rack.pieces(DEFAULT_APPEARANCE)) {
-        piece.object.traverse((child) => {
+        piece.object().traverse((child) => {
           if (child.name === 'rack-foot') feet.add((child as THREE.Mesh).geometry);
         });
       }
@@ -216,7 +245,7 @@ describe('was der Bausatz teilt und wieder hergibt', () => {
 
   it('gibt seine Formen und Farben frei und füllt sich danach wieder', () => {
     const rack = new WardrobeRack();
-    rack.pieces(DEFAULT_APPEARANCE);
+    built(rack, DEFAULT_APPEARANCE);
 
     const shapeGone = jest.spyOn(THREE.BufferGeometry.prototype, 'dispose');
     const skinGone = jest.spyOn(THREE.Material.prototype, 'dispose');
@@ -232,7 +261,7 @@ describe('was der Bausatz teilt und wieder hergibt', () => {
     // und das zweite `dispose` gibt genauso viel her wie das erste.
     shapeGone.mockClear();
     skinGone.mockClear();
-    rack.pieces(DEFAULT_APPEARANCE);
+    built(rack, DEFAULT_APPEARANCE);
     rack.dispose();
     expect(shapeGone).toHaveBeenCalledTimes(4);
     expect(skinGone).toHaveBeenCalledTimes(13);
