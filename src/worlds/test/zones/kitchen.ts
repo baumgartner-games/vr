@@ -687,7 +687,15 @@ export class KitchenZone implements TestZone {
    */
   private aim(ctx: WorldContext): void {
     ctx.rig.updateMatrixWorld(true);
-    _feet.set(ctx.rig.position.x, ctx.rig.getFloorY(), ctx.rig.position.z);
+    // **Unter dem Kopf und nicht unter dem Ursprung.** In der Brille ist
+    // `rig.position` die Mitte des Spielraums und nicht der Spieler: Wer einen
+    // Meter daneben steht, arbeitete an der Station einen Meter weiter, zielte
+    // mit dem Löscher daneben — und die Küche entschied an einem Punkt, der
+    // sich beim Beugen gar nicht mitbewegt, ob sie ihn stauchen soll
+    // (`fitEyes`). Dieselbe Rechnung wie in `PlayerRig.placeFeetAt`, und am
+    // Bildschirm ändert sie nichts: dort sitzt die Kamera über dem Ursprung.
+    ctx.rig.getHeadPosition(_feet);
+    _feet.setY(ctx.rig.getFloorY());
     _rigAhead.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_spin));
     ctx.rig.getHeadForward(_headAhead);
     const wanted = ctx.topDown ? _rigAhead : _headAhead;
