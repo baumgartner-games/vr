@@ -96,12 +96,33 @@ export const DEFAULT_ITEM_SIZE: ItemSize = {
  * **Der Stiel der Pfanne**, als Anteile der gemessenen Hülle — die beiden
  * Enden der Stange, an der die Faust liegt.
  *
- * Gemessen am Modell (`public/models/kitchen.glb`, Netz `stove-pan`, Material
- * `Kitchen_Utensils`) und nicht geschätzt: Der Stiel läuft von der Mulde bis
- * zum Ende der Hülle — er ist es, der ihr die Tiefe gibt, deshalb steht die
- * Spitze bei genau 1,0 —, und dabei steigt er um gut 8°, weshalb die beiden
- * Enden verschieden hoch liegen. `tip` ist die Spitze, `neck` die Stelle, an
- * der er aus der Mulde wächst; die Faust liegt in der Mitte dazwischen.
+ * Nachgemessen am Modell (`public/models/kitchen.glb`, Netz `stove-pan`,
+ * Material `Kitchen_Utensils`), und zwar an **derselben Hülle, die auch das
+ * Spiel misst**: Ursprung unten in der Mitte, halber Küchenmaßstab
+ * (`kitchenModel.takeUtensil`, `kitchen.markHandles`). Sie ist 62,8 cm breit,
+ * 1,079 m tief und 12,8 cm hoch. Der Stiel darin ist zweierlei:
+ *
+ * - ein **rundes Rohr** von `along` 0,19 bis 0,78, das dabei von 7,6 cm auf
+ *   9,3 cm Durchmesser zunimmt — das Stück, das die Faust umschließt;
+ * - eine **flache Fahne** am Ende (2,9 cm dick, 10 cm breit — die Aufhängung),
+ *   von 0,78 bis 1,00. Sie ist es, die der Hülle ihre Tiefe gibt, deshalb
+ *   steht die Spitze bei genau 1,0.
+ *
+ * Die Achse des Rohrs steigt gemessen um **7,4°** (Mitten von Scheiben quer zu
+ * z: bei `along` 0,20 liegt sie auf `lift` 0,340, bei 0,775 auf 0,654), die
+ * Fahne sitzt bei `lift` 0,82. Die Stange von 0,34 nach 0,82 legt beides
+ * zusammen und steigt dabei um **8,1°**; über den ganzen Stiel bleibt sie
+ * damit höchstens **4 mm** neben der gemessenen Achse — bei 4,6 cm Halbmesser
+ * steckt sie also überall im Rohr. Ein Test rechnet genau das nach.
+ *
+ * **Hier stand vorher 0,38/0,30 bis 0,83/1,00, und das war nicht falsch**:
+ * 8,7° statt 8,1°, ein halbes Grad, und der Zylinder lag im Bild schon auf dem
+ * Stiel. Die Rückmeldung aus der Brille — „der Zylinder-Halter muss weiter
+ * nach vorne gekippt werden, so 20° mehr" — meint deshalb **nicht** diese
+ * Zahlen; sie meint die **Faust**, und die steht eine Zeile tiefer
+ * (`PAN_GRIP_PITCH`). Geändert hat sich hier nur, dass der Fuß der Stange
+ * jetzt dort sitzt, wo das Rohr aus der Mulde wächst (0,20 statt 0,30), und
+ * nicht drei Zentimeter weiter hinten im Nichts.
  *
  * **Warum die Mitte und nicht das hintere Drittel.** Hier stand einmal ein
  * einzelner Punkt bei 0,72 der halben Tiefe, und er war nicht falsch — er
@@ -110,8 +131,8 @@ export const DEFAULT_ITEM_SIZE: ItemSize = {
  * Stange schon (`core/handleView.ts`), und deshalb steht jetzt die Stange da.
  */
 const PAN_STALK = {
-  tip: { lift: 0.83, along: 1.0 },
-  neck: { lift: 0.38, along: 0.3 },
+  tip: { lift: 0.82, along: 1.0 },
+  neck: { lift: 0.34, along: 0.2 },
 } as const;
 
 /**
@@ -120,11 +141,57 @@ const PAN_STALK = {
  * Die eine Zahl in dieser Datei, die **kein** Anteil der Hülle ist, und das
  * mit Absicht: Ein Anteil wovon? Die Dicke eines Stiels hat mit der Breite
  * einer Pfanne nichts zu tun — sie ist die Dicke eines Rohrs und am Modell
- * gemessen (9,6 cm Durchmesser im halbierten Küchenmaßstab). Wer das Modell
- * tauscht, misst hier nach; dass der Zylinder dann noch im Ding steckt, sagt
- * der Test daneben.
+ * gemessen: Das Rohr ist an seiner dicksten Stelle (`along` 0,75) **9,3 cm**
+ * quer, also 4,6 cm im Halbmesser, und zur Mulde hin dünner (7,6 cm dort, wo
+ * die Stange anfängt). Hier stand 0,048 aus einer früheren, gröberen Messung
+ * („9,6 cm Durchmesser"), also anderthalb Millimeter zu viel selbst an der
+ * dicksten Stelle. Dass ein Zylinder auf einem sich verjüngenden Rohr
+ * irgendwo herausschaut, lässt sich mit **einem** Halbmesser nicht vermeiden —
+ * dann lieber an der dicksten Stelle bündig als überall zu fett. Wer das
+ * Modell tauscht, misst hier nach; dass der Zylinder dann noch im Ding steckt,
+ * sagt der Test daneben.
  */
-const PAN_STALK_RADIUS = 0.048;
+const PAN_STALK_RADIUS = 0.046;
+
+/**
+ * **Wie weit die Faust am Pfannenstiel nach vorn kippt**, im Bogenmaß — und
+ * warum sie überhaupt kippt.
+ *
+ * Die Rückmeldung aus der Quest, Wort für Wort: „Die Pfanne in VR wird schon
+ * gut gehalten, aber der Griff bzw. der Zylinder-Halter muss weiter nach vorne
+ * gekippt werden, sodass es noch mehr dem Griff der Pfanne entspricht. Ich
+ * vermute so 20° mehr." Nachgerechnet sind es **20,7°**, und sie bestehen aus
+ * zwei Teilen, die beide gemessen sind und von denen keiner geraten ist:
+ *
+ * - **8,1°** — so weit steigt der Stiel in der Pfanne selbst (`PAN_STALK`).
+ *   Die Faustachse (`+Y` des Griffrahmens) stand bisher auf der Senkrechten
+ *   der Pfanne, also **schräg** auf der Stange, die sie hält: 81,9° statt 90°.
+ *   Eine Faust um einen Zylinder steht senkrecht darauf, sonst ist es keine.
+ * - **12,6°** — die Neigung, mit der **jedes** Werkzeug dieses Projekts im
+ *   Griffraum sitzt (`portal/tools/gripFit.STANDARD_GRIP`, −0,22 rad). Für
+ *   eine Pistole ist sie richtig, und die Pfanne kippt sie genauso weit nach
+ *   vorn: Die Mulde hing damit 12,6° schräg, und der Stiel lief nicht
+ *   waagerecht durch die Faust, sondern stieg um 20,7° an.
+ *
+ * Beides zusammen herausgedreht, und der Stiel liegt in der Hand
+ * **waagerecht** — das ist genau die Drehung, die aus der Brille gemeldet
+ * wurde, und sie ist nachgerechnet und nicht nachgestellt. Die Pfanne lehnt
+ * sich dabei um die 8,1° des Stiels nach hinten, also mit der Mulde zum
+ * Träger: Ein Stiel, der waagerecht in der Faust liegt, hebt das hintere Ende
+ * einer Pfanne — bei einer echten Pfanne genauso, und lieber so herum als
+ * nach vorn, wo alles herausrutscht.
+ *
+ * **Das Vorne bleibt, wie es war** (`AHEAD`): Die Mulde liegt weiterhin vor
+ * der Faust, der Stiel zeigt zum Handgelenk zurück. Es kippt nur die Achse,
+ * und sie kippt in der Ebene, in der auch der Stiel steigt.
+ *
+ * Die 0,22 stehen hier **abgeschrieben** und nicht importiert: Diese Datei ist
+ * die Tabelle der Küche und soll nicht am Werkzeugraum der Portal-Welt hängen
+ * (dieselbe Überlegung wie bei `grabHandles.MOORE_TILE`). Dass beide Zahlen
+ * dieselbe sind, hält ein Test fest — wer dort die −0,22 anfasst, bekommt ihn
+ * rot.
+ */
+const PAN_GRIP_PITCH = 0.22;
 
 /**
  * **Wo die beiden Ohren des Topfes sitzen** — Anteile der gemessenen Hülle,
@@ -214,30 +281,40 @@ const AHEAD: Vec3 = { x: 0, y: 0, z: -1 };
 /**
  * **Die Pfanne am Stiel.**
  *
- * Die Stange ist der gemessene Stiel (`PAN_STALK`), oben bleibt die Senkrechte
- * der Pfanne, und nach vorn kommt die Mulde: Damit liegt sie in der Hand
- * **waagerecht mit der Mulde nach oben und vor der Faust**, und der Stiel zeigt
- * zum Handgelenk zurück — so, wie man eine Pfanne trägt.
+ * Die Stange ist der gemessene Stiel (`PAN_STALK`), nach vorn kommt die Mulde,
+ * und die **Faustachse steht senkrecht auf der Stange** statt auf der
+ * Senkrechten der Pfanne: Sie kippt um die Steigung des Stiels nach vorn und
+ * um die Neigung des Standardgriffs dazu (`PAN_GRIP_PITCH`). Damit liegt der
+ * Stiel in der Hand **waagerecht**, die Mulde vor der Faust und nach oben
+ * offen, und der Stiel zeigt zum Handgelenk zurück — so, wie man eine Pfanne
+ * trägt, und so, wie es aus der Brille verlangt wurde.
  *
- * Vorher stand ihr **Stiel** in der Faustachse, und das war der gemeldete
- * Fehler in zwei Teilen: Er zeigte erstens von der Mulde **weg** (die Pfanne
- * hing hinter der Faust statt vor ihr), und zweitens machte er die Pfanne
- * hochkant, weil eine Faustachse in der Brille senkrecht steht. Beides
+ * Die Steigung wird dabei **nicht eingetragen, sondern ausgerechnet**, und
+ * zwar aus den beiden Enden der Stange, die selbst Anteile der gemessenen
+ * Hülle sind. Ein ausgetauschtes Modell mit einem steileren Stiel dreht damit
+ * auch die Faust mit, ohne dass jemand diese Datei aufmacht — dasselbe
+ * Versprechen wie bei den Anteilen, und aus demselben Grund: Eine Zahl, die
+ * man beim Modelltausch nachpflegen müsste, ist die, die man vergisst.
+ *
+ * Vorher stand ihr **Stiel** in der Faustachse, und das war der zuerst
+ * gemeldete Fehler in zwei Teilen: Er zeigte erstens von der Mulde **weg**
+ * (die Pfanne hing hinter der Faust statt vor ihr), und zweitens machte er die
+ * Pfanne hochkant, weil eine Faustachse in der Brille senkrecht steht. Beides
  * zusammen ist die halbe Drehung um die Hochachse plus die Vierteldrehung um
- * die Querachse, die der Auftrag beschreibt.
+ * die Querachse, die der Auftrag beschrieb. Was jetzt dazukommt, ist die
+ * dritte, viel kleinere Drehung derselben Baustelle — die 20°, um die der
+ * Halter noch nach vorn fehlte.
  */
 function panStalk(size: ItemSize): GrabHandle {
   const half = size.depth / 2;
-  return holdBar(
-    'stiel',
-    {
-      from: { x: 0, y: size.height * PAN_STALK.tip.lift, z: half * PAN_STALK.tip.along },
-      to: { x: 0, y: size.height * PAN_STALK.neck.lift, z: half * PAN_STALK.neck.along },
-      radius: PAN_STALK_RADIUS,
-    },
-    UP,
-    AHEAD,
-  );
+  const tip = { x: 0, y: size.height * PAN_STALK.tip.lift, z: half * PAN_STALK.tip.along };
+  const neck = { x: 0, y: size.height * PAN_STALK.neck.lift, z: half * PAN_STALK.neck.along };
+  // Wie steil der gemessene Stiel ansteigt — und die Achse senkrecht darauf,
+  // um die Neigung des Standardgriffs weiter nach vorn gekippt.
+  const rise = Math.atan2(tip.y - neck.y, tip.z - neck.z);
+  const tilt = rise + PAN_GRIP_PITCH;
+  const up: Vec3 = { x: 0, y: Math.cos(tilt), z: -Math.sin(tilt) };
+  return holdBar('stiel', { from: tip, to: neck, radius: PAN_STALK_RADIUS }, up, AHEAD);
 }
 
 /**
