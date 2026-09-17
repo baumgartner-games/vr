@@ -36,6 +36,9 @@ import { denyOutline } from '../../core/outlineShell';
 import { graphics } from '../../core/graphicsSettings';
 import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/Audio';
 import { disposeShapes } from '../shared/environment';
+import { ConstructRoom, type ConstructItem, type ConstructOptions } from '../shared/construct';
+import { WardrobeRack, type RackPiece } from '../shared/wardrobeRack';
+import { appearance, saveAppearance, type Appearance } from '../../core/appearance';
 import type { PlanSolid, PlanSolidKind } from './solids';
 import type { WorldContext } from '../../core/types';
 import type { MenuEntry } from '../../ui/menu';
@@ -159,6 +162,40 @@ export abstract class GridWorld extends PortalWorld {
    * darüber beim Hin- und Hertreten.
    */
   private rigLevel = 0;
+
+  /**
+   * **Der Konstrukt-Raum dieser Welt** (`shared/construct.ts`) — und es gibt
+   * genau einen.
+   *
+   * Er hängt an der Welt und nicht an dem, was ihn aufmacht, weil er die Welt
+   * ausblendet: Zwei davon gleichzeitig hießen zwei Meinungen darüber, was
+   * gerade sichtbar ist, und die zweite gewönne beim Verlassen. Der
+   * Kleiderschrank macht ihn auf (`openWardrobe`), die Küche über ihren
+   * Rechner (`test/zones/kitchen.ts`) — und weil beide durch denselben Raum
+   * gehen, kann nie eines von beidem das andere überschreiben.
+   *
+   * Er entsteht erst beim ersten Öffnen: Eine Welt, in der niemand vor einen
+   * Schrank tritt, baut keinen Boden aus zweihundert Kacheln.
+   */
+  private construct: ConstructRoom | null = null;
+
+  /** Das Regal dazu — die Kleidungsstücke, die im Schrank-Konstrukt stehen. */
+  private rack: WardrobeRack | null = null;
+
+  /**
+   * **Die Figur steht still, solange das Konstrukt offen ist.**
+   *
+   * Der ganze Raum beruht darauf: Wer hineingeht, bleibt in der echten Welt
+   * dort stehen, wo er war, und die anderen Spieler sehen ihn dort. Liefe er
+   * darin herum, liefe er draußen mit — und käme beim Verlassen irgendwo
+   * heraus, nur nicht dort, wo er hineingegangen ist. Deshalb wird das Rig
+   * gesperrt (`PlayerRig.locked`): Umsehen ja, gehen nein. Die Stücke stehen
+   * dafür alle in Armlänge (`construct.rackSlots`).
+   *
+   * Gemerkt wird, was vorher galt: In einer Welt, die aus eigenen Gründen
+   * sperrt, wäre ein hartes `false` beim Verlassen eine stille Freigabe.
+   */
+  private lockedWas: boolean | null = null;
 
   /**
    * **Der Grundriss dieser Welt.** Das Einzige, was eine Gitterwelt wirklich
@@ -789,7 +826,11 @@ export abstract class GridWorld extends PortalWorld {
         this.readAloud(event.title, event.text, event.markdown, ctx);
         break;
       case 'wardrobe':
-        this.openWardrobe(ctx);
+        // **Mit dem Schrank selbst.** Er ist im Konstrukt der eine Gegenstand,
+        // der nicht verblasst, und zugleich der Weg zurück — ohne ihn wüsste
+        // `openWardrobe` weder, was stehen bleibt, noch, worauf man drücken
+        // muss, um wieder herauszukommen.
+        this.openWardrobe(ctx, from.view.handle ?? from.view.object ?? null);
         break;
     }
   }
@@ -819,15 +860,124 @@ export abstract class GridWorld extends PortalWorld {
    * **Die Umkleide** — der Abnehmer für `wardrobe`-Ereignisse
    * (`fixtures/wardrobe.ts`).
    *
-   * Drei Zeilen, und alle drei sind eine Weitergabe: Die Welt besitzt die
-   * Umkleide nicht, sie kennt sie nicht einmal. Wer sich vor dem Schrank
-   * umzieht, läuft auch in der nächsten Welt so herum — das Aussehen hängt am
-   * Spieler (`core/appearance.ts`), also hängt auch das Menü dazu an `App`
-   * und nicht hier. Eine Methode und kein direkter Aufruf im `switch`, damit
-   * eine Welt sie überschreiben kann, die etwas anderes vorhat.
+   * **Aus dem Blatt vor dem Gesicht ist ein Raum geworden.** Bis eben klappte
+   * ein Druck auf den Schrank ein Menü auf — am Schirm ein Blatt
+   * (`ui/WardrobeMenu.ts`), in der Brille die Seite _Aussehen_ am Handgelenk.
+   * Das war eine Liste mit Pfeilen, und eine Liste mit Pfeilen ist die eine
+   * Bedienung, von der man in einer Brille nichts hat: Man sieht das
+   * Kleidungsstück nicht, man liest seinen Namen.
+   *
+   * Jetzt öffnet der Schrank ein **Konstrukt** (`shared/construct.ts`): Die
+   * Welt verblasst, ein weißer Kachelboden kommt herauf, der Schrank bleibt
+   * stehen — und um die Figur herum fahren die Sachen aus dem Boden, die sie
+   * anziehen kann (`shared/wardrobeRack.ts`). Man greift ein Oberteil an und
+   * hat es an. Zurück geht es **nur über den Schrank**, und zwar an genau der
+   * Stelle, an der man hineingegangen ist: Die Figur hat sich nicht bewegt,
+   * für die anderen Spieler steht sie die ganze Zeit vor ihrem Schrank.
+   *
+   * **Der Spiegel im Schrank ist dabei kein Zierrat, sondern die Rückmeldung**
+   * (`fixtures/wardrobe.ts`): Er ist mit dem Schrank das Einzige, was nicht
+   * verblasst, und zeigt die Figur in dem, was sie gerade anprobiert hat.
+   *
+   * Das Aussehen selbst hängt weiter am Spieler und nicht an der Welt
+   * (`core/appearance.ts`): Wer sich hier umzieht, läuft auch in der nächsten
+   * Welt so herum, und `saveAppearance` sagt es der Runde weiter
+   * (`core/App.applyAppearance`). Eine Methode und kein direkter Aufruf im
+   * `switch`, damit eine Welt sie überschreiben kann, die etwas anderes vorhat.
    */
-  protected openWardrobe(ctx: WorldContext): void {
-    ctx.openWardrobe();
+  protected openWardrobe(ctx: WorldContext, anchor: THREE.Object3D | null): void {
+    // Zweimal drücken heißt: wieder hinaus. Der Schrank ist im Konstrukt
+    // weiter benutzbar (er verblasst ja nicht), und er ist dort der **einzige**
+    // Weg zurück — alles andere ist unsichtbar und meldet sich deshalb gar
+    // nicht mehr (`PortalWorld.collectUsables`).
+    if (this.construct?.open) {
+      this.leaveConstruct();
+      return;
+    }
+    // Ohne Netz kein Konstrukt: Dann bleibt es beim Blatt von früher, und das
+    // ist kein Notbehelf, sondern der ehrliche Rückfall — ein Schrank ohne
+    // sichtbaren Korpus wäre im Konstrukt ein weißer Raum mit nichts darin.
+    if (!anchor) {
+      ctx.openWardrobe();
+      return;
+    }
+
+    const rack = (this.rack ??= new WardrobeRack());
+    const pieces = rack.pieces(appearance());
+    this.enterConstruct(ctx, {
+      anchor,
+      at: ctx.rig.position,
+      title: 'Umkleide — greif dir etwas',
+      items: pieces.map((piece) => this.wearable(piece, pieces)),
+    });
+  }
+
+  /**
+   * **Ein Kleidungsstück auf dem Regal, und was ein Druck darauf tut.**
+   *
+   * Er zieht es an (`saveAppearance`) und schließt den Raum **nicht**: Wer sich
+   * umzieht, probiert, und wer probiert, will den nächsten Hut sehen, ohne
+   * zweimal durch eine halbe Sekunde Überblendung zu gehen. Deshalb gibt
+   * `pick` hier `false` zurück, anders als beim Rechner der Küche, wo ein
+   * Griff das Möbel in die Hand legt und man damit hinaus will.
+   *
+   * **Der Reif wandert mit**, statt dass das Regal neu gebaut wird: Die Ringe
+   * heißen `rack-worn` und sind das Einzige, was sich am Stück ändert, wenn
+   * jemand etwas anderes anzieht (`shared/wardrobeRack.ts`). Das Regal
+   * abzureißen und neu zu stellen hieße, siebzehn Netze für eine Marke
+   * wegzuwerfen — und die Stücke führen dabei ihre Auffahrt aus dem Boden
+   * noch einmal vor.
+   */
+  private wearable(piece: RackPiece, all: readonly RackPiece[]): ConstructItem {
+    return {
+      object: piece.object,
+      label: piece.sub ? `${piece.label} — ${piece.sub}` : piece.label,
+      pick: () => {
+        saveAppearance({ [piece.slot]: piece.value } as Partial<Appearance>);
+        for (const other of all) {
+          if (other.slot !== piece.slot) continue;
+          const ring = other.object.getObjectByName('rack-worn');
+          if (ring) ring.visible = other === piece;
+        }
+        this.announce(`${piece.label} angezogen`);
+        return false;
+      },
+    };
+  }
+
+  /**
+   * **Den Konstrukt-Raum aufmachen** — der eine Weg hinein, für den Schrank
+   * wie für den Rechner der Küche (`test/zones/kitchen.ts` über
+   * `ZoneHost.enterConstruct`).
+   *
+   * Er sperrt dabei das Rig: Die Figur bleibt draußen dort stehen, wo sie
+   * steht (siehe `lockedWas`). Alles Übrige macht der Raum selbst.
+   */
+  protected enterConstruct(ctx: WorldContext, options: ConstructOptions): void {
+    const room = (this.construct ??= new ConstructRoom({
+      root: this.root,
+      addUsable: (object, usable, use) => this.addUsable(object, usable, use),
+      removeUsable: (object) => this.removeUsable(object),
+      notify: (message) => this.announce(message),
+    }));
+    if (room.open) return;
+    this.lockedWas = ctx.rig.locked;
+    ctx.rig.locked = true;
+    room.enter(options);
+  }
+
+  /** **Und wieder hinaus** — die Welt kommt zurück, die Figur darf wieder gehen. */
+  protected leaveConstruct(): void {
+    if (!this.construct?.open) return;
+    this.construct.leave();
+    const rig = this.context?.rig;
+    if (rig) rig.locked = this.lockedWas ?? false;
+    this.lockedWas = null;
+  }
+
+  /** Ob gerade ein Konstrukt offen ist — die Küche fragt danach. */
+  protected get inConstruct(): boolean {
+    return this.construct?.open ?? false;
   }
 
   // --- die Effekte ----------------------------------------------------------
@@ -1278,6 +1428,11 @@ export abstract class GridWorld extends PortalWorld {
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     this.editor?.update(ctx);
+    // **Vor allem anderen der Konstrukt-Raum**: Er blendet aus und wieder ein,
+    // und was in diesem Bild noch über Sichtbarkeit entscheidet (die
+    // Wandgeister, die Schnittebene von oben), soll auf dem Stand rechnen, den
+    // er gerade hergestellt hat.
+    this.construct?.update(dt);
     this.stepBursts(dt);
     this.trackLevel(ctx);
     this.showGridLines();
@@ -1470,6 +1625,14 @@ export abstract class GridWorld extends PortalWorld {
     // wird nur dieser Fall: Sonst bekäme jede Welt, die man einmal betreten
     // hat, einen gespeicherten Stand, den niemand angelegt hat.
     if (this.editor?.editing) this.saveWorld(true);
+    // **Erst heraus, dann abreißen.** Wer die Welt verlässt, während das
+    // Konstrukt offen steht, ließe sonst eine Handvoll unsichtbarer Äste und
+    // ein gesperrtes Rig zurück — und das Rig überlebt den Weltwechsel.
+    this.leaveConstruct();
+    this.construct?.dispose();
+    this.construct = null;
+    this.rack?.dispose();
+    this.rack = null;
     for (const burst of this.bursts) burst.dispose();
     this.bursts.length = 0;
     this.dropGridLines();

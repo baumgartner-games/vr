@@ -172,10 +172,27 @@ export const WARDROBE: FixtureKind<WardrobeState> = {
 
     return {
       object: group,
-      // Großzügig zu bedienen: Der Korpus steht an der Kante, und wer mitten
-      // auf der Kachel davor steht, soll ihn erreichen. Eine Kugel hält er
-      // nicht auf — das tut sein Korpus schon, und zwar als Körper.
-      use: { radius: 0.7, shot: 0, half: 1.1 },
+      // **So großzügig wie ein Küchenmöbel, und das ist nachgerechnet.**
+      //
+      // Der Halbmesser ist der Zylinder, den der Strahl treffen muss
+      // (`core/usable.pickUsable`) — nicht die Reichweite, die ist überall
+      // `USE_REACH`. Ein Küchenmöbel meldet sich ohne eigene Angabe und
+      // bekommt dann die **Ausdehnung seines Netzes** (`PortalWorld.addUsable`,
+      // `objectRadius`): bei einer Küchenzeile auf einer Kachel gut 0,7 m, bei
+      // der Ausgabetheke über zwei Kacheln das Doppelte. Der Schrank steht mit
+      // seinem Korpus an der Kante und mit seinen Türen davor, ist also so
+      // breit wie eine Kachel und so hoch wie zwei Menschen — nur ist von
+      // alledem bloß die Tür in der Gruppe, und 0,7 m maßen genau sie.
+      //
+      // Wer schräg davor stand, zielte damit daran vorbei und sah nichts
+      // leuchten, während jedes Möbel drei Meter weiter schon von der Seite
+      // antwortet. Ein Meter ist die halbe Diagonale der Kachel plus eine
+      // Handbreit — der Schrank meldet sich jetzt aus derselben Entfernung und
+      // unter denselben Winkeln wie alles andere, vor dem man stehen kann.
+      //
+      // Eine Kugel hält er nicht auf — das tut sein Korpus schon, und zwar als
+      // Körper.
+      use: { radius: 1, shot: 0, half: 1.1 },
       solids: wardrobeSolids(ctx.at.x, ctx.at.y, ctx.at.z, place),
       // Das Glas hält ein eigenes Material, und erst dessen `dispose` sagt der
       // Spiegel-Zählung, dass es eines weniger sind (`shared/Mirror.ts`). Ohne
