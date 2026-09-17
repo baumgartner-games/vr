@@ -36,7 +36,7 @@ export const LEVELS: readonly number[] = [0, STOREY];
  * portalfähige Bodenkacheln hießen, dass ein Bodenportal nebenbei die Wand
  * gegenüber aufmacht. Also genau eine Fläche je Welt, und das ist diese.
  */
-export const FIELD: NavRect = { x: -27, z: -34, w: 73, d: 80 };
+export const FIELD: NavRect = { x: -27, z: -59, w: 73, d: 105 };
 
 /**
  * **Die Farben des Bodens draußen** — grau und weiß im Wechsel, ein Meter je
@@ -126,6 +126,32 @@ export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
 export const KITCHEN: NavRect = { x: 12, z: -31, w: 33, d: 11 };
 
 /**
+ * **Die zweite Küche** — ein Restaurant aus einem zweiten Möbelkatalog, ganz
+ * oben im Norden über der ersten.
+ *
+ * Sie gibt es, weil ein zweiter Baukasten gekauft wurde (`core/dinerFit.ts`,
+ * 146 Stücke aus „Restaurant Bits"), und ein Katalog, den niemand aufstellt,
+ * ist eine Datei und kein Möbel — die erste Küche lag aus genau diesem Grund
+ * ein halbes Jahr ungenutzt da. Gebaut ist sie deshalb wie die erste: vorn ein
+ * Raum, in dem die Möbel **stehen**, und dahinter ein Schauraum, in dem jedes
+ * Stück des Katalogs **einzeln** steht.
+ *
+ * **Nach Norden und nicht nach Westen**, obwohl neben der ersten Küche Platz
+ * gewesen wäre: Ein Schauraum aus 146 Stücken braucht bei einer Kachel Luft
+ * zwischen zwei Stücken **acht Reihen** auf vierundvierzig Kacheln Breite, und
+ * die passen in die elf Kacheln Tiefe der Nordzeile nicht hinein. Das Gelände
+ * ist dafür nach Norden gewachsen (`FIELD` von 80 auf 105 m tief) — nach Norden, weil dort
+ * nichts liegt, was ausweichen müsste, und weil die beiden Küchen so
+ * übereinander stehen statt nebeneinander: Wer in der ersten am Tresen steht
+ * und nach Norden sieht, sieht die zweite.
+ *
+ * **Neunundsechzig Kacheln breit**, also breiter als alles andere hier, und
+ * das ist keine Großzügigkeit, sondern die Rechnung: 24 für das Restaurant,
+ * eine Spalte Luft, 44 für den Schauraum (`zones/dinerPlan.ts`, `SHOW_X`).
+ */
+export const DINER: NavRect = { x: -24, z: -56, w: 69, d: 24 };
+
+/**
  * **Die Gänge zwischen den Zonen**, drei Kacheln breit, wo es geht.
  *
  * Drei, weil zwei heißt „aneinander vorbei geht es gerade so" und einer heißt
@@ -164,6 +190,19 @@ export const PATHS: readonly NavRect[] = [
   // dessen Mitte stünde man unter dem Deck, und von oben verschwindet dann
   // genau das Stück Weg, das man gerade geht (`core/cutaway.ts`).
   { x: 12, z: -21, w: 3, d: 4 },
+  // Interaktionen → zweite Küche (der lange Weg nach Norden, an der Westseite
+  // entlang). Sechzehn Kacheln, und das ist die kürzeste Verbindung, die es
+  // gibt: Die erste Küche liegt dazwischen, und die ist auf drei Seiten
+  // zugemauert (`zones/kitchenPlan.stampKitchen`) — wer von dort nach Norden
+  // will, ginge gegen ihre Nordwand.
+  { x: -22, z: -33, w: 3, d: 16 },
+  // Und der kurze Weg von einer Küche in die andere, denn „nebenan" soll man
+  // auch gehen können: an der Westwand der ersten Küche entlang nach Süden…
+  { x: 9, z: -33, w: 3, d: 13 },
+  // …und unten herum in ihren eigenen Gang. Um die Wand herum und nicht durch
+  // sie: Eine Tür in eine fremde Zone zu schlagen hieße, ihren Grundriss von
+  // hier aus zu ändern.
+  { x: 9, z: -20, w: 6, d: 3 },
 ];
 
 /**
@@ -190,6 +229,10 @@ export const ZONE_TILES: Readonly<Record<string, { x: number; z: number; level: 
   climb: { x: CLIMB.x + 5, z: CLIMB.z + 4, level: 0 },
   // Die Mitte des Gangs zwischen Insel und Ausgabe — dort, wo ein Koch steht.
   kitchen: { x: KITCHEN.x + 1, z: KITCHEN.z + 7, level: 0 },
+  // Im Gastraum der zweiten Küche, mit Blick auf die Durchreiche — nicht im
+  // Schauraum: Wer „Zweite Küche" wählt, will in der Küche stehen und nicht
+  // vor ihrem Katalog.
+  diner: { x: DINER.x + 11, z: DINER.z + 15, level: 0 },
 };
 
 /**
@@ -210,6 +253,7 @@ export const ZONE_LABELS: Readonly<Record<string, string>> = {
   kart: 'Boxengasse',
   climb: 'Kletterwand',
   kitchen: 'Küche',
+  diner: 'Zweite Küche',
 };
 
 /** Die Mitte einer Kachel in Weltmetern — Zonen rechnen damit ihre Requisiten aus. */

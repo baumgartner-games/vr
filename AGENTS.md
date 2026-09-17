@@ -757,7 +757,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     von der zuletzt gerasterten: Sonst spränge das Bild nach einem Pinch beim
     ersten Radklick dorthin zurück, wo es vor dem Pinch stand. **Die beiden
     obersten Stufen sind nachgetragen worden**, und der Grund ist die
-    Testwelt: Ihr Gelände misst 64 × 80 m, und bei 30 m Abstand sieht man
+    Testwelt: Ihr Gelände misst 73 × 105 m, und bei 30 m Abstand sieht man
     davon einen Ausschnitt — wer wissen wollte, wo die Kartbahn relativ zur
     Kletterwand liegt, musste hinlaufen. 60 m fassen das Gelände als Ganzes;
     darüber hinaus wird die Figur zum Punkt, und ein Blickwinkel, in dem man
@@ -2122,8 +2122,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Kopf über dem Fußboden des Rigs, dieselbe Rechnung wie in
   `PlayerRig.placeFeetAt`; am Bildschirm ändert sie nichts.
 
-- **Die Testwelt** (`src/worlds/test/`): der Prüfstand — **zehn Zonen auf einem
-  Gelände**, in einer Minute zu Fuß abzulaufen.
+- **Die Testwelt** (`src/worlds/test/`): der Prüfstand — **elf Zonen auf einem
+  Gelände**, in zwei Minuten zu Fuß abzulaufen.
 
   Bis September 2026 gab es siebzehn Welten, und jede prüfte eine Sache: eine
   für die Portale, eine für den Schießstand, eine fürs Klettern, eine für die
@@ -2180,9 +2180,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   - **Klettern** (Südosten): eine Wand mit Griffen aus drei Materialien und
     zwei Sprungkissen davor. Ausführlich unter _Klettern_.
   - **Zu jeder Zone springt man auch** (_Menü → Zu einer Zone_,
-    `TestWorld.jumpMenu`): neun Ziele, eines je Zone, und zwar **dieselben
+    `TestWorld.jumpMenu`): zehn Ziele, eines je Zone, und zwar **dieselben
     Kacheln**, an denen der Grundrisstest misst, ob eine Zone überhaupt
-    erreichbar ist (`layout.ZONE_TILES`). Das Gelände misst 64 × 80 m; wer nur
+    erreichbar ist (`layout.ZONE_TILES`). Das Gelände misst 73 × 105 m; wer nur
     die Küche ansehen will, läuft sonst eine knappe Minute an drei Zonen
     vorbei, die er gerade nicht meint — und dieser Platz ist ein Prüfstand und
     keine Reise. Die Höhe kommt aus dem Graphen (`NavGraph.levelY`): Das Podest
@@ -2203,7 +2203,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     eindeutig ist (ein Wort statt einer Zahl, ein unbekannter Name, eine halbe
     Koordinate), gibt den gewöhnlichen Startplatz: Geraten wird nicht, sonst
     sucht man im Gelände, warum man woanders steht.
-  - **Küche** (ganz im Norden, hinter dem Podest): vierundzwanzig mal elf
+  - **Küche** (ganz im Norden, hinter dem Podest): dreiunddreißig mal elf
     Kacheln mit den Möbeln aus dem Katalog (`core/kitchenFit.ts`, siehe
     _Modelle im Repository_), und zwar in **zwei Hälften**. Unter allem liegt
     ein **karierter Boden** (`zones/kitchenFloor.ts`): cremeweiß und
@@ -2257,8 +2257,9 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     in dem sich jedes Möbel samt allem, was darauf steht, versetzen lässt — das
     Einschalten räumt die Küche dabei ab, wie `B`/`Y` es täte (beides unter
     _Anfassen in der Küche_). Sie ist
-    der Grund, warum das Gelände nach Norden gewachsen ist (`FIELD` ist jetzt
-    64 × 80 m): Die Möbel sind groß — eine Spüle misst in der Quelle 4 × 2,1 m,
+    der Grund, warum das Gelände nach Norden gewachsen ist (`FIELD` ist heute
+    73 × 105 m, und das letzte Stück davon hat die zweite Küche
+    gekostet): Die Möbel sind groß — eine Spüle misst in der Quelle 4 × 2,1 m,
 im Spiel also zwei Kacheln —, und in eine
     Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe. Hinter dem
     Podest und nicht neben dem Schießstand, weil dessen Bahnen quer über den
@@ -2272,6 +2273,62 @@ im Spiel also zwei Kacheln —, und in eine
     Ein Text an einer Wand ist ein Gemälde. Die Nordwand ist dafür die
     richtige, weil die Kamera von oben aus dem Süden schaut — an der Westwand
     hinge derselbe Aushang für diesen Blick hochkant.
+  - **Zweite Küche** (ganz oben im Norden, über der ersten): neunundsechzig mal
+    vierundzwanzig Kacheln aus einem **zweiten** Möbelkatalog
+    (`core/dinerFit.ts`, 146 Stücke aus _Restaurant Bits_, CC0 — siehe
+    _Modelle im Repository_), und zwar in denselben zwei Hälften wie die erste:
+    **vorn das Restaurant**, dahinter der **Schauraum**.
+
+    Im Restaurant steht, was man aus dem Baukasten bauen kann: die Zeile an der
+    Nordwand mit Spüle, zwei Herden, Backofen und Pizzaofen, darüber
+    Hängeschränke und zwei Abzugshauben, davor die Insel aus Arbeits- und
+    Spültischen, an der Westwand der Vorrat in Kisten, quer davor die
+    Durchreiche und dahinter sechs Gästetische mit Stühlen. Im Schauraum steht
+    **jedes der 146 Stücke einmal einzeln**, mit einer Tafel daneben, auf der
+    sein Name und sein **gemessenes Maß** stehen — nicht seine Kachelzahl: Wer
+    entscheiden soll, ob ein Stück brauchbar ist, will wissen, dass eine
+    Küchenzeile 1,00 × 1,02 m misst, und nicht, dass sie auf eine Kachel
+    gerundet wurde. Sortiert ist er alphabetisch, und das sortiert von selbst:
+    Die zwölf Vorratsgläser stehen beieinander, die vierundzwanzig
+    Küchenzeilen auch.
+
+    **Gespielt wird hier nicht** (`zones/diner.ts`): keine Stationen, keine
+    Uhren, keine Rezepte, kein Baumodus, kein `update`. Das ist keine halbe
+    Sache, sondern die Antwort auf die Frage, die diesen Raum gebaut hat — was
+    von dem gekauften Baukasten können wir brauchen? Die beantwortet man, indem
+    man die Sachen hinstellt und ansieht, und nicht, indem man ihnen
+    Spielregeln gibt, die noch niemand haben wollte. Was sich als brauchbar
+    herausstellt, wandert danach in die erste Küche; dort steht die Maschine,
+    die es aufnimmt.
+
+    **Und sie steht in neun Netzen da**, obwohl viermal so viele Stücke darin
+    stehen wie in der ersten. Alle 146 teilen sich **ein** Material und
+    **eine** Textur —
+    die Quelle ist ein Baukasten auf einem Farbstreifen-Atlas —, und damit
+    lässt sich zusammenfassen, was die erste Küche nur einzeln zeichnen kann:
+    Der Schauraum wird **reihenweise** verschmolzen (`zones/kitchenMerge.ts`,
+    dieselbe Rechnung wie beim Kopierer), das Restaurant zu **einem** Netz. Aus
+    **244 Netzen werden neun** — acht Schauraumreihen und das Restaurant.
+    Was das an Zeichenaufrufen je Bild spart, ist damit **nicht** gemessen;
+    gemessen wird das mit `npm run perf:kitchen`, und das Werkzeug misst
+    bisher nur an der Ankerkachel der ersten Küche. Reihenweise und nicht als
+    ein Klotz: Ein einziges Netz über den ganzen Schauraum wäre ein Aufruf
+    — und würde nie weggeschnitten, also zahlte auch der alle 85 000 Dreiecke,
+    der in die andere Richtung sieht. Was verschmolzen ist, lässt sich dafür
+    nicht mehr einzeln anfassen, und genau deshalb kann die **erste** Küche das
+    nicht so machen (`kitchenCarry.ts`, `kitchenBuild.ts`).
+
+    **Dafür ist das Gelände noch einmal nach Norden gewachsen** (`FIELD` von 80
+    auf 105 m tief): Ein Schauraum aus 146 Stücken mit einer Kachel Luft
+    dazwischen braucht acht Reihen auf vierundvierzig Kacheln Breite, und die
+    passen in die elf Kacheln Tiefe der Nordzeile nicht. Nach Norden, weil dort
+    nichts liegt, was ausweichen müsste — und weil die beiden Küchen so
+    übereinanderstehen: Wer in der ersten am Tresen steht und nach Norden
+    sieht, sieht die zweite. Hin kommt man über den Gang an der Westseite
+    (`layout.PATHS`), und von einer Küche in die andere über einen zweiten, der
+    an der Westwand der ersten entlangführt und unten in deren eigenen Gang
+    mündet — **um die Wand herum und nicht durch sie**: Eine Tür in eine fremde
+    Zone zu schlagen hieße, ihren Grundriss von außen zu ändern.
   - **Portaltafeln**: drei helle Tafeln — am Startplatz, auf dem Podest und an
     der Westwand der Navigation. Drei und nicht eine, weil ein Portal erst zu
     zweit etwas ist; die auf dem Podest ist der kürzeste Weg, die Treppe zu
@@ -2302,10 +2359,10 @@ im Spiel also zwei Kacheln —, und in eine
   Portale, das Menü und die Physik-Einstellungen. Nach dem dritten Umbau hätte
   eine davon etwas daran verstellt, und niemand wüsste welche. Sie dürfen
   bauen, anmelden und melden, und sonst nichts; dieselbe Entscheidung wie bei
-  den Einbauten und aus demselben Grund. Sechs von zehn haben überhaupt Leben
-  darin (Interaktionen, Navigation, Schießstand, Kart, Klettern), die anderen
-  vier sind ein **Stempel** auf dem Grundriss und fertig
-  (`stamp<Name>(plan)`).
+  den Einbauten und aus demselben Grund. Sieben von elf haben überhaupt Leben
+  darin (Interaktionen, Navigation, Schießstand, Kart, Klettern, Küche und
+  zweite Küche), die anderen vier sind ein **Stempel** auf dem Grundriss und
+  fertig (`stamp<Name>(plan)`).
 
   **Wo eine Zone liegt, steht in `layout.ts`** und nicht im Grundriss, und das
   ist kein Stilfehler, sondern ein Absturz weniger: Der Grundriss ruft die
@@ -6031,18 +6088,85 @@ jeder Nächste noch einmal haben muss.
 ### Modelle im Repository
 
 `public/models` ist der Ordner, in dem **fremde Arbeit** liegt: die Spielfigur
-(`chef.glb`) und die Küchenmöbel (`kitchen.glb`), beide CC-BY-4.0. Die
-Namensnennung steht in `public/models/CREDITS.md`, und sie ist **Pflicht**,
-nicht Höflichkeit — wer ein Modell aufnimmt, trägt es dort ein, **bevor** er
-es einbaut. Eine Datei ohne Zeile in dieser Liste ist eine Datei ohne Lizenz.
+(`chef.glb`) und die Küchenmöbel (`kitchen.glb`), beide CC-BY-4.0, und die
+Möbel der zweiten Küche (`diner.glb`, CC0). Die Namensnennung steht in
+`public/models/CREDITS.md`, und sie ist **Pflicht**, nicht Höflichkeit — wer
+ein Modell aufnimmt, trägt es dort ein, **bevor** er es einbaut. Eine Datei
+ohne Zeile in dieser Liste ist eine Datei ohne Lizenz. **Auch die
+CC0-Datei steht dort**, obwohl sie keine Nennung verlangt: Die Liste ist die
+Herkunftsliste und nicht nur die Lizenznennung, und eine, in der die freien
+Dateien fehlen, beantwortet die Frage nach der Herkunft nicht, sondern
+verschweigt sie.
 
-**Die Rohdateien liegen nicht im Repository.** Zusammen 32 MB, von denen nach
-der Aufbereitung 630 KB übrig bleiben. Was mit ihnen geschieht, steht
-vollständig in den beiden Werkzeugen — `tools/chef-model.mjs` und
-`tools/kitchen-model.mjs` —, und zwar mitsamt den Fehlern, die dabei gemacht
-wurden. Sie laufen von Hand, nicht bei jedem Build: Ein Modell ändert sich
-nicht, und `@gltf-transform` und `sharp` gehören nicht in die Abhängigkeiten
-eines Spiels, das sie nie ausführt (`npm install --no-save` beim Aufbereiten).
+**Die Rohdateien liegen nicht im Repository.** Zusammen 38 MB, von denen nach
+der Aufbereitung 1,7 MB übrig bleiben. Was mit ihnen geschieht, steht
+vollständig in den drei Werkzeugen — `tools/chef-model.mjs`,
+`tools/kitchen-model.mjs` und `tools/diner-model.mjs` —, und zwar mitsamt den
+Fehlern, die dabei gemacht wurden. Sie laufen von Hand, nicht bei jedem Build:
+Ein Modell ändert sich nicht, und `@gltf-transform`, `sharp` und
+`meshoptimizer` gehören nicht in die Abhängigkeiten eines Spiels, das sie nie
+ausführt (`npm install --no-save` beim Aufbereiten).
+
+#### Der zweite Katalog: 146 Stücke, ein Material, eine Textur
+
+`diner.glb` kommt aus _Restaurant Bits_ von Kenney (CC0) und ist in jeder
+Hinsicht das **Gegenteil** der Quelle der ersten Küche. Die ist ein aufgebautes
+Bild in vier Netzen, aus dem `tools/kitchen-model.mjs` dreizehn Möbel
+herausschneiden muss; diese ist ein Baukasten aus 225 Einzeldateien, alle auf
+demselben Raster und alle auf **einem** Farbstreifen-Atlas von 1024 px. Zu tun
+ist deshalb nicht das Zerlegen, sondern das **Zusammenlegen**
+(`tools/diner-model.mjs`).
+
+Vier Dinge sind daran wichtig genug, um sie hier zu nennen:
+
+- **Der Ursprung bleibt stehen, und deshalb gibt es kein `align`.** Das erste
+  Werkzeug zentriert jedes Möbel in seiner Hülle — und weil eine Hülle nicht
+  der Korpus ist, steht hinter jedem fünften Möbel des ersten Katalogs ein
+  nachgemessener Versatz (`KitchenPiece.align`, allein der Türgriff der
+  Küchenzeile macht 3,07 cm). Diese Quelle ist auf einem Raster gebaut: Ein
+  Hängeschrank fängt bei y = 1 an, eine Wand steht am hinteren Rand ihrer
+  Zelle, eine Tür im Türsturz. Wer das geradezieht, wirft genau die
+  Information weg, die er hinterher von Hand wieder nachmessen müsste. Der
+  Katalog beschreibt den Ursprung statt ihn zu verschieben: `foot` (Unterkante
+  über dem Ursprung), `height` (Oberkante), `at` (Mitte der Hülle) und `span`
+  (das ungerundete Maß).
+- **Der Katalog ist geschrieben und nicht getippt.**
+  `node tools/diner-model.mjs --in=… --list --fit=src/core/dinerFit.ts` ersetzt
+  die Liste in der Datei; von Hand gepflegt wird dort nichts. 146 nachgemessene
+  Hüllen sind keine Liste, die jemand pflegt, ohne sich zu vertun — und der
+  erste Anlauf des Schreibers bewies das gleich selbst: Er rechnete das Ende
+  des Blocks mit `indexOf(…) + Länge` aus und schrieb bei `-1` ab Zeichen drei
+  weiter, so dass aus einer Datei mit leerer Liste eine Datei wurde, die
+  zweimal anfing. Ein Suchergebnis, das `-1` sein kann, gehört geprüft und
+  nicht weitergerechnet.
+- **Halbiert wird wieder** (`DINER_SCALE`, dieselbe 0,5 wie bei der ersten
+  Küche), und das ist die Probe darauf, dass beide Quellen dasselbe meinen: Die
+  Küchenzeile kommt damit auf 0,50 m Arbeitshöhe — auf den Zentimeter die Zahl,
+  mit der die Zeile der ersten Küche dasteht. Ein Jest-Test hält genau das
+  fest.
+- **Ausgesiebt wird das Essen.** 79 der 225 Stücke bleiben draußen: die
+  `food_*` und das Eis-Zubehör. Diese Küche baut ihr Essen selbst
+  (`zones/kitchenProps.ts`), und 39 000 Dreiecke für Zutaten neben einem
+  fertigen Zutatensatz sind keine Ersparnis, sondern eine zweite Wahrheit. Der
+  Katalog beschreibt, was in der Küche **steht**, nicht, was gekauft wurde —
+  derselbe Satz wie beim ersten, nur andersherum angewendet.
+
+**Und sie ist gepackt.** 146 Möbel sind roh 3,1 MB; mit quantisierter Geometrie
+und `EXT_meshopt_compression` sind es 1,07 MB, die Textur eingerechnet. Die
+bleibt dabei **in voller Größe** — anders als beim ersten Katalog, wo 2048er
+PNGs auf 512 geschrumpft wurden: Dort ist die Textur eine Zeichnung, hier eine
+Farbtafel aus zweiunddreißig Feldern, und jede Verkleinerung rückt deren
+Grenzen zusammen, an denen der Filter zwei Farben zu einer dritten mischt. Der Preis ist ein Entpacker — genommen wird der, der three.js
+ohnehin beiliegt (`examples/jsm/libs/meshopt_decoder.module.js`, rund 25 KB,
+von Vite mitgebündelt) und **nicht** Draco: Das hätte die Datei auf gut 600 KB
+gedrückt und dafür 250 KB WebAssembly gebraucht, die jemand von Hand nach
+`public/` legt. Ein halbes Megabyte gespart und ein Auslieferungsfehler mehr
+möglich ist kein guter Tausch.
+
+Die Dateien: `core/dinerFit.ts` (Maße, ohne three.js), `core/dinerModel.ts`
+(Lader), `worlds/test/zones/dinerPlan.ts` (Aufbau und Stempel, ohne three.js),
+`worlds/test/zones/diner.ts` (die Zone). Dieselbe Teilung wie bei der ersten
+Küche und aus demselben Grund: Rechnung getrennt von Darstellung.
 
 **Der Küchenkatalog** (`core/kitchenFit.ts`) hat zweiundzwanzig Möbel:
 Tellerausgabe, Feuerlöscher, **Spülbecken**, **Abtropfbrett**, Mülleimer,

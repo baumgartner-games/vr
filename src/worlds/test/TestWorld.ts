@@ -15,6 +15,7 @@ import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
 import { KartZone } from './zones/kart';
+import { DinerZone } from './zones/diner';
 import { KitchenZone } from './zones/kitchen';
 import { NavigationZone } from './zones/navigation';
 import { RangeZone } from './zones/range';
@@ -39,7 +40,7 @@ import type { TestZone, ZoneHost } from './zones/zone';
  *
  * **Die Zonen bekommen einen Vertrag und nicht diese Welt**
  * (`zones/zone.ts`, `ZoneHost`): Sie dürfen bauen, anmelden und melden, und
- * sonst nichts. Fünf von neun haben überhaupt Leben darin; die anderen vier
+ * sonst nichts. Sechs von zehn haben überhaupt Leben darin; die anderen vier
  * sind ein Stempel auf dem Grundriss und fertig.
  */
 export class TestWorld extends GridWorld {
@@ -50,6 +51,7 @@ export class TestWorld extends GridWorld {
   private readonly kart = new KartZone();
   private readonly climb = new ClimbZone();
   private readonly kitchen = new KitchenZone();
+  private readonly diner = new DinerZone();
   private readonly zones: readonly TestZone[] = [
     this.interact,
     this.navigation,
@@ -57,6 +59,7 @@ export class TestWorld extends GridWorld {
     this.kart,
     this.climb,
     this.kitchen,
+    this.diner,
   ];
 
   /**

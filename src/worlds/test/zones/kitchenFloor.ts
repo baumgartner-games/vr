@@ -139,7 +139,13 @@ export class KitchenFloor {
   private mesh: THREE.Mesh | null = null;
   private texture: THREE.CanvasTexture | null = null;
 
-  constructor(root: THREE.Object3D) {
+  /**
+   * **Das Rechteck kommt von außen**, seit es eine zweite Küche gibt
+   * (`zones/diner.ts`): Derselbe Belag, ein anderer Raum. Ohne Angabe ist es
+   * die erste Küche — die zweihundert Stellen, die ihn dort erwarten, sollen
+   * nicht wegen eines zweiten Aufrufers umgeschrieben werden.
+   */
+  constructor(root: THREE.Object3D, rect: NavRect = KITCHEN, name = 'kitchen-floor') {
     if (!canLoadModels()) return;
 
     const texture = checkerTexture(
@@ -147,25 +153,25 @@ export class KitchenFloor {
       KITCHEN_CHECKER_JOINT,
       KITCHEN_CHECKER_DARK,
     );
-    const repeat = checkerRepeat(KITCHEN);
+    const repeat = checkerRepeat(rect);
     texture.repeat.set(repeat.x, repeat.z);
     this.texture = texture;
 
     const mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(KITCHEN.w * TILE, KITCHEN.d * TILE),
+      new THREE.PlaneGeometry(rect.w * TILE, rect.d * TILE),
       // Seidig und nicht matt: Der Boden des Geländes ist rau (0,95), eine
       // gewischte Fliese ist es nicht — der Unterschied im Glanz sagt schon
       // vor jedem Muster, dass hier ein anderer Belag liegt.
       new THREE.MeshStandardMaterial({ map: texture, roughness: 0.55, metalness: 0.04 }),
     );
-    mesh.name = 'kitchen-floor';
+    mesh.name = name;
     // Flach hingelegt, und die Mitte der Zone ist die Mitte der Fläche: Die
     // Kachelmitte der Nordwestkachel plus die halbe Ausdehnung der übrigen.
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(
-      centre(KITCHEN.x) + ((KITCHEN.w - 1) * TILE) / 2,
+      centre(rect.x) + ((rect.w - 1) * TILE) / 2,
       KITCHEN_FLOOR + KITCHEN_CHECKER_LIFT,
-      centre(KITCHEN.z) + ((KITCHEN.d - 1) * TILE) / 2,
+      centre(rect.z) + ((rect.d - 1) * TILE) / 2,
     );
     mesh.receiveShadow = true;
     root.add(mesh);
