@@ -1,9 +1,16 @@
 # Modelle: Herkunft und Lizenz
 
-In diesem Ordner liegen **fremde Arbeiten**. Sie stehen unter
+In diesem Ordner liegen **fremde Arbeiten**. Die meisten stehen unter
 [CC-BY-4.0](http://creativecommons.org/licenses/by/4.0/): kommerzielle Nutzung
 ist erlaubt, **Namensnennung ist Pflicht**. Diese Datei ist diese Nennung —
 und deshalb bleibt sie, wo sie ist, auch wenn sie sonst niemand liest.
+
+Eine steht unter [CC0](https://creativecommons.org/publicdomain/zero/1.0/) und
+verlangt gar keine Nennung. Sie steht trotzdem hier: Diese Datei ist die
+**Herkunftsliste** und nicht nur die Lizenznennung. Wer in einem Jahr wissen
+will, woher ein Modell kommt und ob man es weitergeben darf, sieht hier nach —
+und eine Liste, in der die CC0-Dateien fehlen, beantwortet die Frage nicht,
+sondern verschweigt sie.
 
 Wer ein weiteres Modell aufnimmt, trägt es hier ein, **bevor** er es einbaut.
 Eine Datei ohne Zeile in dieser Liste ist eine Datei ohne Lizenz.
@@ -28,6 +35,26 @@ Mütze, Kopf, Rumpf und zwei Hände, auf 1,6 m gestellt. Die Quelle (23 MB) lieg
 
 Aufbereitet mit `tools/kitchen-model.mjs`: eine Schauraum-Szene, zerlegt in
 einzeln platzierbare Möbel, Texturen verkleinert.
+
+## `diner.glb` — der zweite Möbelkatalog
+
+> This work is based on ["Restaurant Bits"](https://kenney.nl/assets/restaurant-bits)
+> by [Kenney](https://kenney.nl) — released under
+> [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain;
+> Namensnennung nicht verlangt, siehe oben, warum sie trotzdem hier steht).
+
+Aufbereitet mit `tools/diner-model.mjs`: aus 225 Einzeldateien (5,8 MB, je eine
+`.gltf` und eine `.bin`) wird **eine** Datei mit 146 Knoten — ein Material, eine
+Textur, 85 248 Dreiecke, 1,07 MB. Draußen bleiben 79 Stücke: das Essen und das
+Eis-Zubehör, für die es in `worlds/test/zones/kitchenProps.ts` längst einen
+eigenen Satz gibt. Die Geometrie ist quantisiert und mit
+`EXT_meshopt_compression` gepackt (roh wären es 3,1 MB); die Textur ist eine
+Farbtafel von 1024 px und bleibt in voller Größe, verlustfrei als WebP —
+verkleinert mischt ihr Filter an den Feldgrenzen Farben, die es im Atlas nicht
+gibt. Die Quelle liegt **nicht** im Repository.
+
+Aufgestellt wird sie in `worlds/test/zones/diner.ts`, vermessen in
+`core/dinerFit.ts`.
 
 ## Nicht hier, aber aus demselben Grund erwähnt
 

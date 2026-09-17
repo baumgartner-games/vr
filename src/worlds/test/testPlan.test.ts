@@ -10,6 +10,7 @@ import { keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
 import { KART_START, PIT_LANE } from '../kart/kartCourse';
 import {
   CLIMB,
+  DINER,
   EFFECTS,
   FIELD,
   INTERACT,
@@ -30,6 +31,8 @@ import { HUB_GATE, GATE_TILE } from './zones/start';
 import { SPIKES } from './zones/navigation';
 import { BERM } from './zones/range';
 import { KITCHEN_SHOWN, KITCHEN_SPOTS } from './zones/kitchen';
+import { DINER_SPOTS, dinerFootprint, dinerHangs } from './zones/diner';
+import { dinerPiece } from '../../core/dinerFit';
 import { KITCHEN_NAMES, kitchenPiece } from '../../core/kitchenFit';
 
 /** Einmal gebaut und von allen Behauptungen geteilt: er ändert sich nicht. */
@@ -112,7 +115,7 @@ describe('Das Gelände der Testwelt', () => {
   });
 
   it('hält jede Zone in ihrem eigenen Rechteck', () => {
-    const rects = { START, INTERACT, EFFECTS, PODIUM, NAVIGATION, RANGE, CLIMB, KITCHEN };
+    const rects = { START, INTERACT, EFFECTS, PODIUM, NAVIGATION, RANGE, CLIMB, KITCHEN, DINER };
     const pairs = Object.entries(rects);
     for (let i = 0; i < pairs.length; i++) {
       for (let j = i + 1; j < pairs.length; j++) {
@@ -403,6 +406,49 @@ describe('Die Zonen dazwischen', () => {
    */
   it('zeigt im Schauraum jedes Möbel des Katalogs einmal', () => {
     expect([...KITCHEN_SHOWN].sort()).toEqual([...KITCHEN_NAMES].sort());
+  });
+
+  /**
+   * **Dieselbe Zusage noch einmal für die zweite Küche**, und sie steht hier
+   * neben der ersten und nicht nur in `zones/dinerPlan.test.ts`: Dort wird der
+   * Aufbau gegen sich selbst geprüft, hier gegen den **gestempelten**
+   * Grundriss. Der Unterschied ist der Fehler, den es zu finden gilt — ein
+   * Aufbau, der stimmt, und ein Stempel, der ihn nicht überträgt.
+   *
+   * **Ohne die hängenden Stücke**: Zwölf Stücke dieses Katalogs fangen über
+   * dem Boden an (Hängeschränke, Abzugshauben, Wandfliesen). Sie stehen auf
+   * denselben Kacheln wie die Möbel darunter, und teuer gemacht hat die
+   * ohnehin schon der Schrank am Boden.
+   */
+  it('verteuert jede Kachel, auf der ein Stück der zweiten Küche steht', () => {
+    let checked = 0;
+    for (const spot of DINER_SPOTS) {
+      const piece = dinerPiece(spot.name);
+      expect({ name: spot.name, known: piece !== undefined }).toEqual({
+        name: spot.name,
+        known: true,
+      });
+      if (!piece || dinerHangs(piece)) continue;
+      const size = dinerFootprint(piece, spot.turn ?? 0);
+      for (let dz = 0; dz < size.d; dz++) {
+        for (let dx = 0; dx < size.w; dx++) {
+          const x = DINER.x + spot.x + dx;
+          const z = DINER.z + spot.z + dz;
+          const facts = plan.graph.tile(tileKey(x, z, 0));
+          expect({ x, z, cost: (facts?.cost ?? 0) > 1 }).toEqual({ x, z, cost: true });
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(140);
+  });
+
+  /** Und das Schild der zweiten Küche hängt unter eigener Kennung. */
+  it('hängt in die zweite Küche ein eigenes Schild', () => {
+    const sign = plan.fixture('schild-zweite-kueche');
+    expect(sign?.kind).toBe('sign');
+    expect(String(sign?.props.text ?? '')).toContain('Restaurant Bits');
+    expect(plan.fixture('schild-kueche')?.x).not.toBe(sign?.x);
   });
 
   /** Und der Aushang dort ist mehrzeilig — die Probe auf das Schild als Seite. */
