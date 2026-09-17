@@ -266,7 +266,25 @@ const SOUP_HEAP = 0.03;
 
 /** Die Farben — Krume, Kruste, Fleisch, Kohle, Grün, Tomate, Porzellan. */
 const CRUST = 0xd9a253;
-const CRUMB = 0xf0dcb4;
+
+/**
+ * **Die Krume ist gebräunt und nicht weiß.** Sie war `0xf0dcb4` und damit um
+ * 32 % heller als die Kruste (relative Helligkeit 221 gegen 168) — und das war
+ * ein Ton zu viel: Der Boden trägt den Belag, ragt also unter der Haube hervor,
+ * und ein fast weißer Ring unter einer braunen Kuppe liest sich nicht als
+ * aufgeschnittenes Brötchen, sondern als **Teller mit Deckel darauf**. Von oben
+ * ist das noch deutlicher als von vorn: In der Aufsicht
+ * (`core/topDownPose.TOP_DOWN_TILT`, 55°) sieht man vom Burger fast nur die
+ * Haube und genau diesen Rand.
+ *
+ * Jetzt ist es derselbe warme Ton wie die Kruste, nur um 9 % heller (183 gegen
+ * 168). Ganz gleich hell darf er nicht sein: Die Schnittkante zwischen Boden
+ * und Haube ist das, woran man ein **aufgeschnittenes** Brötchen erkennt, und
+ * ohne jeden Unterschied verschwände sie im Schatten der Kuppe. Neun Prozent
+ * sind der Kompromiss — genug für die Kante, zu wenig für einen Ring, der von
+ * oben als eigenes Ding durchgeht.
+ */
+const CRUMB = 0xe6b16a;
 const MEAT_RAW = 0xc4675c;
 const MEAT_DONE = 0x6f3f24;
 const CHAR = 0x211c19;
@@ -627,9 +645,15 @@ export class FoodKit {
 
   /** Das ganze Brötchen: Boden und Haube, so wie es aus der Ausgabe kommt. */
   private bun(): THREE.Object3D {
-    // Der helle Boden **steckt** in der Haube und trägt sie nicht: Ein ganzes
-    // Brötchen ist so hoch wie seine Kruste (`BUN_HEIGHT`), und ohne die
-    // Scheibe darunter wäre es von oben nur ein brauner Fleck.
+    // Der Fuß **steckt** in der Haube und trägt sie nicht: Ein ganzes Brötchen
+    // ist so hoch wie seine Kruste (`BUN_HEIGHT`), und die gedrückte Kugel läuft
+    // nach unten spitz zu — ohne den Zylinder darin stünde das Brötchen auf
+    // einem Punkt statt auf einem Rand. Seit die Krume denselben warmen Ton
+    // trägt wie die Kruste (`CRUMB`), ist er reine Silhouette und kein
+    // Farbkontrast mehr; zu sehen ist er trotzdem, weil die Kugel am Boden auf
+    // einen Punkt zuläuft und der Zylinder dort 0,26 m misst (0,86 ·
+    // `BUN_RADIUS`). Erst auf seiner Oberkante treffen sich beide: 0,276 m
+    // gegen 0,275 m Kugelradius auf dieser Höhe.
     const base = this.mesh(
       'bun-foot',
       () => new THREE.CylinderGeometry(BUN_RADIUS * 0.92, BUN_RADIUS * 0.86, BUN_HEIGHT * 0.3, 16),

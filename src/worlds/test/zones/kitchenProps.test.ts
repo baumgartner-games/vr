@@ -49,6 +49,33 @@ function layerName(item: KitchenItem): string {
   return item === 'bun' ? 'kitchen-bun-base' : `kitchen-${item}`;
 }
 
+/**
+ * Der Farbton einer Schicht — vom **ersten** Netz darin, weil eine Schicht aus
+ * mehreren Teilen bestehen kann (das verbrannte Patty trägt Risse, die Tomate
+ * zwei Scheibentöne) und der Körper immer zuerst gebaut wird.
+ */
+function layerColor(view: THREE.Object3D, name: string): THREE.Color {
+  const layer = view.getObjectByName(name);
+  expect(layer).toBeDefined();
+  let color: THREE.Color | undefined;
+  layer!.traverse((part) => {
+    if (!color && part instanceof THREE.Mesh) {
+      color = (part.material as THREE.MeshStandardMaterial).color;
+    }
+  });
+  expect(color).toBeDefined();
+  return color!;
+}
+
+/**
+ * Farbe in Ton/Sättigung/Helligkeit, und zwar in **sRGB**: `THREE.Color` rechnet
+ * intern linear, und linear verglichen wäre „nur ein bisschen heller" eine ganz
+ * andere Zahl als die, die man im Bild sieht.
+ */
+function hsl(color: THREE.Color): { h: number; s: number; l: number } {
+  return color.getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace);
+}
+
 describe('FoodKit.view', () => {
   let kit: FoodKit;
   beforeEach(() => {
@@ -104,6 +131,25 @@ describe('FoodKit.view', () => {
     );
     expect(layerSpan(view, 'kitchen-bun-base').min.y).toBeCloseTo(0, 5);
     expect(layerSpan(view, 'kitchen-bun-top').max.y).toBeCloseTo(box.max.y, 5);
+  });
+
+  it('gibt Boden und Haube denselben Brötchenton', () => {
+    // Der Boden war einmal fast weiß und las sich unter der braunen Haube als
+    // **Teller**, besonders in der Aufsicht, wo vom Burger kaum mehr zu sehen
+    // ist als Haube und Bodenrand. Festgehalten wird deshalb nicht der Wert,
+    // sondern der Abstand: gleicher Farbton, spürbar gesättigt, nur wenig
+    // heller — die Schnittkante soll bleiben, der weiße Ring nicht.
+    const view = kit.view(dish('bun', ['patty-cooked']))!;
+    const base = hsl(layerColor(view, 'kitchen-bun-base'));
+    const dome = hsl(layerColor(view, 'kitchen-bun-top'));
+    expect(Math.abs(base.h - dome.h)).toBeLessThan(0.02);
+    expect(base.s).toBeGreaterThan(dome.s * 0.7);
+    expect(base.l).toBeGreaterThan(dome.l);
+    expect(base.l).toBeLessThan(dome.l * 1.2);
+    // Und der Fuß des **ganzen** Brötchens ist derselbe Boden: Wer die Krume
+    // umfärbt, färbt sonst nur die Hälfte der Brötchen um.
+    const foot = layerColor(kit.view(dish('bun'))!, 'kitchen-bun');
+    expect(foot.getHex()).toBe(layerColor(view, 'kitchen-bun-base').getHex());
   });
 
   it('legt die Schichten lückenlos aufeinander, egal in welcher Reihenfolge gelegt wurde', () => {
