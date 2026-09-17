@@ -123,9 +123,31 @@ export class TextPlane extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMa
     if (options.face) faceCamera(this, options.face === true ? undefined : options.face);
   }
 
-  /** New words, and — for anything that changes with them — a new accent. */
+  /**
+   * **Neue Wörter** — und, für alles, was sich mit ihnen ändert, ein neuer
+   * Akzent.
+   *
+   * **Nichts zu tun ist hier der Normalfall.** Eine Tafel neu zu beschriften
+   * heißt, eine Leinwand von einem halben Megapixel neu zu malen und die Textur
+   * daraus ein weiteres Mal auf die Grafikkarte zu schieben — und die Aufrufer
+   * schreiben meistens dasselbe hin, was schon dasteht: Die Rundentafel der
+   * Kartzone ruft viermal je Sekunde, ob jemand fährt oder nicht
+   * (`worlds/test/zones/kart.ts`), und eine Runde dauert eine halbe Minute. Der
+   * Gedanke stand vorher schon bei einem einzelnen Aufrufer (`Kart.setTaken`:
+   * „Ein Schild neu zu zeichnen heißt eine Textur neu zu malen — also nur, wenn
+   * sich wirklich etwas geändert hat"); er gehört hierher, damit ihn nicht
+   * jeder Nächste noch einmal haben muss.
+   */
   setText(title: string, body?: string, accent?: number): void {
-    this.options = { ...this.options, title, body, accent: accent ?? this.options.accent };
+    const next = accent ?? this.options.accent;
+    if (
+      title === this.options.title &&
+      body === this.options.body &&
+      next === this.options.accent
+    ) {
+      return;
+    }
+    this.options = { ...this.options, title, body, accent: next };
     this.draw();
   }
 

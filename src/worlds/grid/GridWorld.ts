@@ -14,6 +14,7 @@ import type { NavGraph } from '../nav/navGraph';
 import { DIRS, NO_TILE, TILE, keyLevel, tileCentreX, tileCentreZ, type Dir } from '../nav/navTile';
 import { changeSlidingDoor } from './slidingDoor';
 import { blocksView, boxesBetween, type GhostCandidate } from './wallGhost';
+import { batchKey, joinsBatch } from './gridBatch';
 import { fixtureTile, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
 import { EFFECT_LIFT } from './fixtures/index';
@@ -31,6 +32,7 @@ import type {
 import { Burst } from '../effects/Burst';
 import { findEffect, scaleEffect } from '../effects/effectKinds';
 import { levelStep, type ViewLevel } from '../../core/cutaway';
+import { denyOutline } from '../../core/outlineShell';
 import { graphics } from '../../core/graphicsSettings';
 import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/Audio';
 import { disposeShapes } from '../shared/environment';
@@ -91,6 +93,16 @@ export abstract class GridWorld extends PortalWorld {
   /** Woran erkannt wird, dass am Plan etwas passiert ist. */
   private builtVersion = -1;
   private readonly batches: THREE.InstancedMesh[] = [];
+  /**
+   * **Die Quader, die in ein Bündel dürfen** — gefüllt beim Bauen, geleert beim
+   * Umbau (`gridBatch.joinsBatch`).
+   *
+   * Eine eigene Liste neben `slabs` und keine Marke am Mesh: Die Entscheidung
+   * fällt am `PlanSolid`, wo Portalfähigkeit und Türblatt stehen, und sie
+   * nachträglich aus einem fertigen Mesh zurückzulesen hieße, sie ein zweites
+   * Mal zu treffen.
+   */
+  private readonly batchable: THREE.Mesh[] = [];
   /** Ob die Quader gerade auch Körper in der Physik haben. */
   private solid = true;
   /** Was beim Bauen eingefroren wurde — und deshalb hinterher aufzutauen ist. */
@@ -251,6 +263,7 @@ export abstract class GridWorld extends PortalWorld {
     this.batches.length = 0;
     for (const mesh of this.slabs) this.dropSlab(mesh);
     this.slabs.length = 0;
+    this.batchable.length = 0;
     // **Das Blatt einer Einbau-Tür baut ihre Art selbst** (`fixtures/door.ts`):
     // Es fährt, und ein zweites, starres an derselben Stelle wäre eine Tür, die
     // aufgeht und trotzdem zu bleibt. Pfosten und Sturz kommen weiter aus dem
@@ -261,49 +274,69 @@ export abstract class GridWorld extends PortalWorld {
       if (solid.door && this.slidingGridDoors() && plan.graph.door(solid.door)?.open) continue;
       this.build(group, solid);
     }
-    if (this.batchGridGeometry()) {
-      // **Zusammengefasst wird je Material *und* je Ebene.** Ein Bündel über
-      // zwei Stockwerke ließe sich von oben nicht mehr aufschneiden — es ist
-      // ein Objekt, und ein Objekt hat eine Sichtbarkeit.
-      const byMaterial = new Map<
-        string,
-        { material: THREE.Material; level: number; meshes: THREE.Mesh<THREE.BoxGeometry>[] }
-      >();
-      for (const object of this.slabs) {
-        const mesh = object as THREE.Mesh<THREE.BoxGeometry>;
-        if (!mesh.visible || Array.isArray(mesh.material)) continue;
-        const level = typeof mesh.userData.level === 'number' ? mesh.userData.level : -1;
-        const key = `${mesh.material.uuid}:${level}`;
-        const group = byMaterial.get(key) ?? { material: mesh.material, level, meshes: [] };
-        group.meshes.push(mesh);
-        byMaterial.set(key, group);
-      }
-      for (const { material, level, meshes } of byMaterial.values()) {
-        const batch = new THREE.InstancedMesh(
-          new THREE.BoxGeometry(1, 1, 1),
-          material,
-          meshes.length,
-        );
-        if (level >= 0) batch.userData.level = level;
-        const matrix = new THREE.Matrix4();
-        const scale = new THREE.Vector3();
-        meshes.forEach((mesh, i) => {
-          const p = mesh.geometry.parameters;
-          scale.set(p.width, p.height, p.depth);
-          matrix.compose(mesh.position, mesh.quaternion, scale);
-          batch.setMatrixAt(i, matrix);
-          mesh.visible = false;
-        });
-        batch.computeBoundingSphere();
-        group.add(batch);
-        this.batches.push(batch);
-      }
-    }
+    // **Gebündelt wird immer** — die Frage ist nur, was hinein darf. Wer
+    // `batchGridGeometry()` anschaltet, nimmt alles und verzichtet dafür aufs
+    // Wand-Ghosting; sonst geht nur hinein, was ohnehin nie ghosten kann
+    // (`gridBatch.ts`).
+    this.buildBatches(group, this.batchGridGeometry() ? this.slabs : this.batchable);
     // **Nach den Bausteinen**, und zwar auch nach dem Zusammenfassen: Ein
     // Einbau hat ein eigenes Bild und eigene Körper, und in eine
     // `InstancedMesh` gehört er nicht — er bewegt sich.
     this.buildFixtures();
     this.buildGridLines();
+  }
+
+  /**
+   * **Aus vielen gleichen Kästen werden wenige Zeichenaufrufe.**
+   *
+   * Zusammengefasst wird je Material **und** je Ebene (`gridBatch.batchKey`):
+   * Ein Bündel über zwei Stockwerke ließe sich von oben nicht mehr aufschneiden
+   * — es ist ein Objekt, und ein Objekt hat eine Sichtbarkeit.
+   *
+   * Die einzelnen Quader bleiben **stehen und werden nur unsichtbar**. Das ist
+   * der Punkt, an dem diese Lösung billig ist: Ihre Körper in der Physik, ihr
+   * Eintrag in `solids` und damit jeder Strahl, der auf sie zeigt, arbeiten
+   * unverändert weiter — three prüft beim Abtasten keine Sichtbarkeit, beim
+   * Zeichnen dagegen schon. Ein Saum bekommen sie keinen mehr (`denyOutline`):
+   * Im Comic hängt der am sichtbaren Bündel, und tausend unsichtbare Hüllen
+   * daneben wären tausend Hüllen, die niemand sieht.
+   */
+  private buildBatches(group: THREE.Group, meshes: readonly THREE.Object3D[]): void {
+    const byKey = new Map<
+      string,
+      { material: THREE.Material; level: number | null; meshes: THREE.Mesh<THREE.BoxGeometry>[] }
+    >();
+    for (const object of meshes) {
+      const mesh = object as THREE.Mesh<THREE.BoxGeometry>;
+      if (!mesh.visible || Array.isArray(mesh.material)) continue;
+      const level = typeof mesh.userData.level === 'number' ? mesh.userData.level : null;
+      const key = batchKey(mesh.material.uuid, level);
+      const bundle = byKey.get(key) ?? { material: mesh.material, level, meshes: [] };
+      bundle.meshes.push(mesh);
+      byKey.set(key, bundle);
+    }
+
+    const matrix = new THREE.Matrix4();
+    const scale = new THREE.Vector3();
+    for (const { material, level, meshes: taken } of byKey.values()) {
+      // Einer allein ist kein Bündel: Ein `InstancedMesh` mit genau einem
+      // Eintrag kostet denselben Zeichenaufruf und eine Geometrie mehr.
+      if (taken.length < 2) continue;
+      const batch = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material, taken.length);
+      batch.name = 'grid-batch';
+      if (level !== null) batch.userData.level = level;
+      taken.forEach((mesh, i) => {
+        const p = mesh.geometry.parameters;
+        scale.set(p.width, p.height, p.depth);
+        matrix.compose(mesh.position, mesh.quaternion, scale);
+        batch.setMatrixAt(i, matrix);
+        mesh.visible = false;
+        denyOutline(mesh);
+      });
+      batch.computeBoundingSphere();
+      group.add(batch);
+      this.batches.push(batch);
+    }
   }
 
   // --- die Gitterlinien -----------------------------------------------------
@@ -939,12 +972,13 @@ export abstract class GridWorld extends PortalWorld {
    * muss.
    */
   private build(parent: THREE.Object3D, solid: PlanSolid): void {
+    const portal = solid.portal ?? solid.kind === 'panel';
     const mesh = this.slab(
       parent,
       this.materialFor(solid.kind),
       [solid.w, solid.h, solid.d],
       [solid.x, solid.y, solid.z],
-      solid.portal ?? solid.kind === 'panel',
+      portal,
       this.solid,
     );
     // **Die Ebene bleibt am Quader hängen** (`core/cutaway.ts`, Plan E8): Von
@@ -958,6 +992,19 @@ export abstract class GridWorld extends PortalWorld {
     }
     this.slabs.push(mesh);
     this.rememberGhost(mesh, solid);
+    // **Und ob er in ein Bündel darf** (`gridBatch.ts`): Ein Boden, eine
+    // Schwelle, eine Rampe wird nie durchsichtig — also kostet es nichts, sie
+    // mit ihresgleichen in einem Zug zu zeichnen.
+    if (
+      joinsBatch({
+        box: { x: solid.x, y: solid.y, z: solid.z, w: solid.w, h: solid.h, d: solid.d },
+        floor: solid.kind === 'floor',
+        portal,
+        door: !!solid.door,
+      })
+    ) {
+      this.batchable.push(mesh);
+    }
   }
 
   // --- Wand-Ghosting --------------------------------------------------------

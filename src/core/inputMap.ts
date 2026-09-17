@@ -107,6 +107,53 @@ export const DEFAULT_KEYS: Record<KeyAction, readonly string[]> = {
 };
 
 /**
+ * **Wie eine Taste heißt, wenn ein Mensch sie liest.**
+ *
+ * `KeyboardEvent.code` ist für Menschen keine Taste: `KeyW` ist ein W,
+ * `ArrowUp` ein Pfeil, und `ShiftLeft` heißt auf keiner Tastatur so. Gezeigt
+ * wird deshalb die Aufschrift — und die rohe Kennung nur dort, wo es keine
+ * gibt, denn geraten wird hier nichts.
+ *
+ * **Warum das hier steht und nicht dreimal daneben.** Dieselbe Tabelle stand
+ * bis eben in `core/App.ts` und noch einmal in `src/inputs/main.ts`, und die
+ * beiden liefen bereits auseinander: Die eine kannte `Escape`, die Rücktaste
+ * und den Ziffernblock, die andere nicht — je nachdem, in welchem Menü man
+ * seine Belegung nachlas, hieß dieselbe Taste anders. Eine Aufschrift ist eine
+ * Aussage über die Belegung; sie gehört zu ihr und nicht in jedes Bild, das
+ * sie anzeigt. Der dritte Leser ist `core/interaction.ts`, und er war der
+ * Anlass.
+ */
+export function keyLabel(code: string): string {
+  if (NAMED_KEYS[code]) return NAMED_KEYS[code];
+  const letter = /^Key([A-Z])$/.exec(code);
+  if (letter) return letter[1]!;
+  const digit = /^Digit([0-9])$/.exec(code);
+  if (digit) return digit[1]!;
+  const numpad = /^Numpad([0-9])$/.exec(code);
+  if (numpad) return `${numpad[1]} (Ziffernblock)`;
+  return code;
+}
+
+const NAMED_KEYS: Record<string, string> = {
+  Space: 'Leertaste',
+  Enter: 'Eingabe',
+  NumpadEnter: 'Eingabe (Ziffernblock)',
+  Tab: 'Tab',
+  Escape: 'Esc',
+  Backspace: 'Rücktaste',
+  ShiftLeft: 'Umschalt links',
+  ShiftRight: 'Umschalt rechts',
+  ControlLeft: 'Strg links',
+  ControlRight: 'Strg rechts',
+  AltLeft: 'Alt',
+  AltRight: 'Alt Gr',
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+};
+
+/**
  * **Die Karte eines Geräts: Nummer → Stelle.** Nur die Abweichungen stehen
  * darin; alles, was fehlt, sitzt dort, wo das Standard-Mapping es hinlegt.
  */

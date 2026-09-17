@@ -27,6 +27,7 @@ import {
   dishLabel,
   douse,
   kitchenDeed,
+  kitchenInteraction,
   kitchenPrompt,
   layered,
   meansContent,
@@ -1846,11 +1847,24 @@ export class KitchenZone implements TestZone {
       if (furnish.usable) world.removeUsable(furnish.usable);
       furnish.usable = target;
       if (!target || !spot) continue;
+      // Die Tat von **jetzt**, nicht die von der Anmeldung: Hinweis und
+      // Absicht unten fragen beide danach, und beide werden gelesen, während
+      // die Figur davorsteht.
+      const deedNow = (): KitchenDeed => kitchenDeed(this.held(), facts(spot));
       world.addUsable(
         target,
         {
           use: () => this.act(spot),
-          usePrompt: () => kitchenPrompt(kitchenDeed(this.held(), facts(spot)), spot.label),
+          usePrompt: () => kitchenPrompt(deedNow(), spot.label),
+          // **Ein Feld, das bei jedem Lesen neu fragt** — wie `usePrompt`
+          // daneben, und aus demselben Grund: Dieselbe Station will einmal
+          // gegriffen (das Brötchen aus der Ausgabe) und im nächsten
+          // Augenblick gedrückt werden (den Teller darauf ablegen), ohne dass
+          // sich das Netz dazwischen ändert. Eine einmal eingetragene Absicht
+          // wäre nach dem ersten Handgriff falsch.
+          get interaction() {
+            return kitchenInteraction(deedNow());
+          },
         },
         // **Nicht schießbar**: Eine Kugel, die den Topf vom Herd holt, ist ein
         // Scherz und keine Regel (`PortalWorld.shootUsable`).
@@ -2337,6 +2351,10 @@ export class KitchenZone implements TestZone {
           return this.toggleEdit();
         },
         usePrompt: () => (this.editing ? BUILD_BUTTON_LABELS.on : BUILD_BUTTON_LABELS.off),
+        // Ein Knopf will gedrückt werden — ausgeschrieben, obwohl es die
+        // Vorgabe ist: An einem Knopf ist die Absicht die Hälfte dessen, was
+        // er ist.
+        interaction: 'press',
       },
       // Der Knopf ist so groß wie seine Kuppel, und getroffen werden darf er
       // auch (Portal-Regel: was man drücken kann, kann man auch treffen).
@@ -2404,6 +2422,9 @@ export class KitchenZone implements TestZone {
       {
         use: () => this.liftPiece(furnish),
         usePrompt: () => `${furnish.piece.label} aufheben`,
+        // Aufheben ist greifen — ein Möbel im Umbau ist nichts anderes als
+        // ein sehr großes Brötchen.
+        interaction: 'grab',
       },
       { shot: 0 },
     );
@@ -2665,6 +2686,9 @@ export class KitchenZone implements TestZone {
             ? `${furnish.piece.label} nach ${TURN_LABELS[furnish.turn]} absetzen`
             : `${furnish.piece.label} hier absetzen`;
         },
+        // **Absetzen ist ein Druck und kein Griff**: Was man greifen will,
+        // liegt schon in der Hand — hier wird es nur noch hingestellt.
+        interaction: 'press',
       },
       { shot: 0 },
     );

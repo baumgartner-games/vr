@@ -5,6 +5,7 @@ import {
   advanceWork,
   dish,
   kitchenDeed,
+  kitchenInteraction,
   kitchenPrompt,
   meansContent,
   onWork,
@@ -858,5 +859,60 @@ describe('was eine Tat meint', () => {
     // Zone leuchtet dann das Möbel an, das den Satz trägt.
     expect(meansContent(press(d('bun'), { kind: 'rack' }))).toBe(false);
     expect(meansContent(press(null, { kind: 'top' }))).toBe(false);
+  });
+});
+
+/**
+ * **Gegriffen oder gedrückt** (`kitchenInteraction`, `core/interaction.ts`).
+ *
+ * Dieselbe Trennung wie darüber, aber die andere Frage: nicht *welches Netz
+ * ist gemeint*, sondern *was will es*. Von oben ändert das nichts — `A` bleibt
+ * `A` —, aus den Augen und in der Brille hängt daran, ob man klickt oder die
+ * Greif-Taste hält.
+ */
+describe('wie eine Tat bedient werden will', () => {
+  it('greift alles, was danach in der Hand liegt', () => {
+    // Das Brötchen aus der Ausgabe.
+    expect(kitchenInteraction(press(null, { kind: 'box', gives: 'bun' }))).toBe('grab');
+    // Die Pfanne vom Herd und der Topf von der Fläche.
+    expect(kitchenInteraction(press(null, { kind: 'stove', on: d('pan') }))).toBe('grab');
+    expect(kitchenInteraction(press(null, { kind: 'top', on: d('pot') }))).toBe('grab');
+    // Der Feuerlöscher aus seiner Halterung und der dreckige Teller vom Stapel.
+    expect(kitchenInteraction(press(null, { kind: 'rack', on: d('extinguisher') }))).toBe('grab');
+    expect(kitchenInteraction(press(null, { kind: 'return', stack: 3 }))).toBe('grab');
+  });
+
+  it('drückt alles, was an der Station passiert', () => {
+    expect(kitchenInteraction(press(d('plate'), { kind: 'top' }))).toBe('press');
+    expect(kitchenInteraction(press(d('lettuce'), { kind: 'board' }))).toBe('press');
+    expect(kitchenInteraction(press(d('plate-dirty'), { kind: 'sink' }))).toBe('press');
+    expect(kitchenInteraction(press(d('bun'), { kind: 'bin' }))).toBe('press');
+    expect(kitchenInteraction(press(d('plate', 'bun', 'patty-cooked'), { kind: 'serve' }))).toBe(
+      'press',
+    );
+    expect(
+      kitchenInteraction(press(d('extinguisher'), { kind: 'stove', on: d('pan'), fire: true })),
+    ).toBe('press');
+  });
+
+  /**
+   * **Auflegen ist kein Griff**, obwohl der Saum dabei am Liegenden hängt
+   * (`meansContent`). Wer ein gebratenes Patty aufs Brötchen legt, greift
+   * nicht danach — er legt es hin.
+   */
+  it('drückt auch dort, wo der Saum am Liegenden hängt', () => {
+    const deed = press(d('patty-cooked'), { kind: 'top', on: d('bun') });
+    expect(meansContent(deed)).toBe(true);
+    expect(kitchenInteraction(deed)).toBe('press');
+  });
+
+  it('lässt eine abgelehnte Tat trotzdem ein Drücken sein', () => {
+    // `refuse` hat einen Satz zu sagen, und den sagt es auf denselben Druck.
+    expect(kitchenInteraction(press(d('bun'), { kind: 'rack' }))).toBe('press');
+  });
+
+  it('bietet nichts an, wo es nichts zu tun gibt', () => {
+    expect(kitchenInteraction(press(null, { kind: 'top' }))).toBe('none');
+    expect(kitchenInteraction(null)).toBe('none');
   });
 });

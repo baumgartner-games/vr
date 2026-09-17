@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import type { InteractionLike } from './interaction';
 
 /**
  * **Benutzen** — was `A` (am Schreibtisch `E`) mit dem tut, was vor der Figur
@@ -16,6 +17,14 @@ import type * as THREE from 'three';
  * - der **Auswahl** `pickUsable`: welches von allen ist gemeint? Sie ist reine
  *   Rechnung, ohne Szene und ohne Raycaster, damit ein Test sie nachrechnen
  *   kann (Plan, E5).
+ *
+ * **Womit** man das Gemeinte dann bedient, steht nebenan (`core/interaction.ts`)
+ * und ausdrücklich nicht hier: Diese Datei beantwortet „was ist gemeint", jene
+ * „was will es" — `A` von oben, linke Maustaste oder `E` aus den Augen, Hand
+ * oder Trigger in der Brille, und beim Greifen dort die gehaltene Greif-Taste.
+ * Ein `Usable` trägt die Absicht als Feld (`interaction`) und weiß von den
+ * Ansichten nichts; die Auflösung macht die Welt, wenn sie weiß, in welcher
+ * sie gerade läuft.
  *
  * **Gerechnet wird auf dem Boden**, in x und z, und nicht im Raum. Ein
  * Knopf sitzt auf Hüfthöhe, ein Türgriff höher, eine Druckplatte am Boden —
@@ -54,10 +63,22 @@ export interface UseSource {
  * Tafel ist deshalb weg; der Satz bleibt, weil er die geprüfte Beschreibung
  * dessen ist, was ein Druck bewirkt (`kitchenCarry.kitchenPrompt` und die
  * Tests daneben), und weil eine Welt ihn jederzeit selbst melden kann.
+ *
+ * **Und `interaction` sagt, wie es benutzt werden will** (`core/interaction.ts`).
+ * Das ist die zweite Hälfte der Auskunft und die neuere: `usePrompt` sagt, was
+ * ein Druck **bewirkt** („Tomate nehmen"), `interaction` sagt, **womit** man
+ * ihn in der gerade laufenden Ansicht auslöst — `A` von oben, linke Maustaste
+ * oder `E` aus den Augen, Hand oder Trigger in der Brille, und beim Greifen
+ * dort die gehaltene Greif-Taste. Beides getrennt, weil das eine am Gericht
+ * hängt und das andere am Gerät.
+ *
+ * Es ist freiwillig, und wer nichts angibt, ist ein Knopf (`press`) — genau
+ * das Verhalten, das jedes Usable dieses Projekts vorher hatte.
  */
 export interface Usable {
   use(by: UseSource): boolean;
   usePrompt?(): string;
+  readonly interaction?: InteractionLike;
 }
 
 /**

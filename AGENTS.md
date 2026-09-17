@@ -2008,6 +2008,48 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
   Kopfhöhe — Vorbeugen im Sessel hob vorher die halbe Welt mit an
   (`core/posture.ts`, mit Test).
 
+  **Und in der Küche stimmt die gemessene Zahl nicht mehr.** Die Küche ist
+  **mit Absicht zu klein**: Ihre Möbel sind halbiert
+  (`core/kitchenFit.KITCHEN_SCALE`), die Arbeitsplatten liegen auf einem halben
+  Meter, und die Kochfigur dazwischen ist 1,60 m hoch mit Augen auf 0,91 m
+  (`core/chefFit.ts`) — eine Küche wie bei _Overcooked_ und kein Wohnhaus. Wer
+  dort mit seinen echten 1,65 m steht, hat alle Zahlen auf seiner Seite und
+  trotzdem den falschen Blick: Er schaut steil von oben in eine Puppenstube,
+  der Tresen liegt auf Kniehöhe, und ein Topf auf dem Herd ist ein Punkt weit
+  unten. Also wird in der Küche nicht die Küche größer, sondern der **Spieler
+  kleiner** — auf eine dritte, eigene Augenhöhe, ab Werk **140 cm**,
+  einstellbar unter _Menü → Bewegung → Augenhöhe → In der Küche_ (100 bis
+  180 cm, +5 pro Druck). 140, weil es zwischen den beiden liegt, die es schon
+  gibt: Aus 120 cm schaut man der Arbeitsplatte ins Gesicht, aus 160 steht man
+  wieder darüber.
+
+  **Ein Verhältnis und keine Differenz**, und daran hängt mehr, als es klingt.
+  Eingestellt wird eine absolute Zahl — das ist die Frage, die man sich stellt
+  („aus welcher Höhe will ich auf die Platte schauen?") —, umgesetzt wird sie
+  als Faktor auf die eigene gemessene Stehhöhe: 140/165 für den
+  voreingestellten Spieler, 140/195 für einen sehr großen. Beide landen damit
+  auf **derselben** Höhe, was eine feste Absenkung nicht kann; sie hielte den
+  Abstand und verfehlte einen von beiden. Und vor allem bleibt die Null die
+  Null: Gestaucht wird der **Abstand zum Boden**, also bleibt der Boden der
+  Boden. Wer sich in der Küche bückt, um etwas aufzuheben, kommt anteilig
+  tiefer und nie darunter — eine feste Absenkung um 25 cm hätte den Kopf bei
+  20 cm echter Augenhöhe fünf Zentimeter **unter** den Estrich gezogen, und
+  die Hände lange davor (`core/posture.kitchenEyeScale`, mit Test).
+
+  **Nur in der Brille, nur in der Küche.** Am Bildschirm — von oben wie aus den
+  Augen — setzt das Spiel die Kamera selbst, dort gibt es keine echte
+  Augenhöhe, die danebenliegen könnte; die Ansicht von oben ändert sich um
+  keinen Millimeter. Und „Küche" ist genau ein Rechteck, `layout.KITCHEN` mit
+  einem Meter Vorlauf nach außen, damit das Absacken vor der Türöffnung
+  passiert und nicht mitten in ihr (`kitchenPlan.inKitchen`,
+  `zones/kitchen.ts` → `fitEyes`). Gokart, Schießstand, Kletterwand, Haunting
+  und Portale sehen nie etwas anderes als „unverändert"; beim Verlassen der
+  Welt räumt `PlayerRig.standUp` zusätzlich auf. Im Rig ist es die dritte
+  Verschiebung neben Ducken und Sitz-Anhebung und wird genauso geführt: Das
+  Gestell sinkt, die **Füße bleiben stehen** (`PlayerRig.eyeScale`,
+  `getFloorY`, mit Test) — und wer mittendrin versetzt wird, landet mit den
+  Füßen auf dem Punkt und nicht einen Viertelmeter darunter.
+
 - **Die Testwelt** (`src/worlds/test/`): der Prüfstand — **zehn Zonen auf einem
   Gelände**, in einer Minute zu Fuß abzulaufen.
 
@@ -2696,6 +2738,7 @@ gilt für jeden, der nichts verstellt hat.
 | Menüseite blättern                                                                 | Stick der zeigenden Hand hoch/runter, **oder** Trigger halten und wischen. Der Stick bewegt dabei nicht den Spieler                                                                                                                                           | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Werkzeug-Einstellungen                                                             | im Regal auf die Zeile zielen und **Trigger** (Greifen/`A` nimmt es stattdessen in die Hand)                                                                                                                                                                  | Linksklick auf den Pfeil                                                                                                                                                                                                                                                                                                                       | –                                                           | tippen                                     |
 | Augenhöhe messen                                                                   | Menü → Bewegung → Augenhöhe → _Jetzt messen_ — stehend und sitzend je eine Zahl                                                                                                                                                                               | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
+| Augenhöhe in der Küche                                                              | Menü → Bewegung → Augenhöhe → _In der Küche_ — ab Werk 140 cm, 100 bis 180, +5 pro Druck; wirkt nur in der Brille und nur im Küchenrechteck                                                                                                                             | –                                                                                                                                                                                                                                                                                                                                                | –                                                             | –                                            |
 | Verbinden (in der Brille)                                                          | Menü → _Verbindung_ → _Raum betreten_ (Code tippen) oder _Neuen Raum aufmachen_; _Name_ ändert den eigenen Namen — beides geht mitten im Spiel                                                                                                                | Raum-Code auf der Startseite                                                                                                                                                                                                                                                                                                                   | –                                                           | –                                          |
 | Chat                                                                               | Menü → _Verbindung_ → _Chat_: letzte Zeilen lesen, _Schreiben_ macht die Tastatur auf; eine Zeile mit Konfig-Code auswählen übernimmt ihn                                                                                                                     | Panel _Verbindung_ → **Chat**: tippen, _Kopieren_ und _Übernehmen_ je Zeile, _Verlauf kopieren_                                                                                                                                                                                                                                                | –                                                           | dito                                       |
 | Handschuh an blanken Händen                                                        | Menü → Hände → _Blanke Hände_                                                                                                                                                                                                                                 | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
@@ -3093,6 +3136,190 @@ Ferngriff, der nicht ankommt, ist schlimmer als gar keiner. Die Bahn wird
 jeden Frame gegen die _aktuelle_ Handposition gerechnet, eine Hand, die sich
 bewegt, zieht das Objekt also mit. Genau das prüfen die Jest-Tests.
 
+### Was ein Ding will — und womit man es bekommt
+
+Bis hierher gab es über ein bedienbares Ding genau **eine** Auskunft:
+„benutzbar" (`core/usable.ts`). Gedrückt wurde `A`, und `A` tat je nach Möbel
+etwas anderes. Das reicht, solange es nur eine Taste gibt — und es reicht in
+dem Augenblick nicht mehr, in dem dieselbe Küche in drei Ansichten gespielt
+wird: von oben mit `A`, aus den Augen mit Maus und `E`, in der Brille mit Hand,
+Trigger und Griff.
+
+Ein Knopf will **gedrückt** werden, ein Brötchen will **gegriffen** werden, und
+das ist dieselbe Aussage in allen drei Ansichten. Was sich unterscheidet, ist
+nur, womit man sie ausspricht. Genau so steht es jetzt auch im Code
+(`core/interaction.ts`), in drei getrennten Stücken:
+
+| Stück           | Code                         | Was es ist                                                  |
+| --------------- | ---------------------------- | ----------------------------------------------------------- |
+| **Absicht**     | `InteractionKind`            | hängt am Ding: `press`, `grab`, `none`                       |
+| **Auflösung**   | `resolveInteraction`         | macht daraus je Ansicht Geber, Tippen/Halten und den Hinweis |
+| **Ausnahme**    | `InteractionSpec.views`      | ein einzelnes Ding weicht in einer einzelnen Ansicht ab      |
+
+Die Absicht ist das, was ein Mensch über das Ding sagen würde. `press` ist
+alles, was man **bedient**, ohne dass danach etwas in der Hand liegt — Knopf,
+Hebel, Schalter, Tür, Ausgabetheke, Mülleimer, Spüle, Schneidebrett. `grab` ist
+alles, was man **nimmt** — das Brötchen aus der Ausgabe, der Teller vom Stapel,
+die Pfanne vom Herd, der Topf, der Feuerlöscher aus der Halterung, im Umbau
+auch das Möbel selbst. `none` ist angemeldet und trotzdem ohne Angebot: die
+leere Hand vor der leeren Fläche. Es leuchtet dann kein Saum, und es steht kein
+Hinweis da.
+
+Mehr Absichten gibt es nicht, und das ist eine Entscheidung. Insbesondere ist
+**`hold` keine Absicht.** Dass man in der Brille die Greif-Taste gedrückt
+_hält_, liegt nicht daran, dass der Topf etwas anderes will als von oben — es
+liegt daran, dass ein Controller in der Hand das so am besten ausdrückt.
+_Halten_ ist deshalb eine Eigenschaft der **Bedienung** (`InteractionPress`)
+und keine der Absicht. Käme eines Tages ein Ding dazu, das wirklich eine eigene
+Absicht hat — ein Schalter, der umgelegt bleibt, eine Kurbel, die man dreht —,
+bekommt es eine eigene Zeile und eine Begründung daneben. Vorher nicht: Eine
+Absicht, die nirgends etwas anderes bewirkt, ist ein Wort und keine
+Unterscheidung.
+
+Die Ableitung steht als Tabelle da und nicht als `if`-Kette
+(`INTERACTION_DEFAULTS`):
+
+| Absicht | von oben (`topDown`) | aus den Augen (`firstPerson`) | in der Brille (`vr`)          |
+| ------- | -------------------- | ----------------------------- | ----------------------------- |
+| `press` | `A` / `E`, tippen    | linke Maustaste / `E`, tippen | Berühren / Trigger, tippen    |
+| `grab`  | `A` / `E`, tippen    | linke Maustaste / `E`, tippen | Greifen, **halten**           |
+| `none`  | —                    | —                             | —                             |
+
+**Von oben ändert sich nichts**, und das ist Absicht: `A` (am Schreibtisch `E`)
+tut, was es immer getan hat, für jede Absicht gleich. Dort gibt es keine Hand,
+keinen Zeigestrahl und keine zweite Taste, an der man unterscheiden könnte —
+und ein Brötchen, das man von oben plötzlich anders nähme als bisher, wäre eine
+Änderung ohne Gewinn.
+
+Welche Ansicht gerade läuft, sagt `interactionView(topDown, presenting)` — die
+eine Stelle, an der aus den zwei Wahrheitswerten der Welt eine Ansicht wird,
+samt Rangfolge: **die Brille sticht.**
+
+**Die Ausnahme ist Feld für Feld.** Ein Ding, das `press` sagt, in der Brille
+aber gehalten werden will, schreibt `views: { vr: { press: 'hold' } }` und
+behält die Geber der Ableitung. Wer die Geberliste einer Ansicht leer räumt,
+schaltet das Ding dort ab: `interactive` wird falsch, und der gelbe Saum bleibt
+aus — denn ein Ding, mit dem in dieser Ansicht nichts geht, hat nichts
+anzukündigen.
+
+**Der Hinweis gehört zum Datenmodell** und wird nicht in jeder Welt neu
+erfunden: „A / E", „Linke Maustaste / E", „Greifen halten". Er liest die
+**eingestellte** Belegung (`core/inputMap.ts`) und nicht eine feste Tabelle —
+wer _Benutzen_ im Menü auf `F` legt, liest danach „Linke Maustaste / F". Die
+Aufschrift einer Taste (`keyLabel`) steht seit dieser Änderung ebenfalls in
+`inputMap.ts`; sie stand vorher zweimal da — einmal in `core/App.ts`, einmal in
+`src/inputs/main.ts` —, und die beiden Tabellen liefen bereits auseinander.
+Solange keine Pad-Marke bekannt ist, heißt der Benutzen-Knopf `A`: Das ist
+keine geratene Xbox-Aufschrift, sondern die Aufschrift des Knopfes auf dem Glas
+(`index.html`, `#touch-a`).
+
+Und die Arbeitsteilung mit dem, was schon da war:
+`core/usable.ts` beantwortet **was ist gemeint** (`pickUsable`, der Strahl aus
+der Brust, die Reichweiten `USE_REACH`/`USE_TOUCH`), `core/interaction.ts`
+beantwortet **was will es**. Das `Usable` trägt die Absicht als Feld
+(`interaction`) und weiß von Ansichten nichts; aufgelöst wird sie dort, wo
+ohnehin schon feststeht, was gemeint ist (`PortalWorld.updateUsables`).
+`usePrompt` bleibt, was es war — der Satz über die **Wirkung** („Tomate
+nehmen"). Der Hinweis sagt das **Womit**. Beides getrennt, weil das eine am
+Gericht hängt und das andere am Gerät.
+
+In der Testküche ist die Absicht keine feste Eigenschaft eines Möbels, sondern
+kommt aus der Regel, die ohnehin entscheidet, was ein Druck bewirkt
+(`kitchenCarry.kitchenInteraction`): Was danach in der Hand liegt (`take`), ist
+`grab`; alles, was an der Station passiert — ablegen, schneiden, spülen,
+wegwerfen, servieren, löschen —, ist `press`. Auch `combine` ist ein Druck,
+obwohl der Saum dabei am Liegenden hängt (`meansContent`): Wer ein Patty aufs
+Brötchen legt, greift nicht danach, er legt es hin. Das Feld fragt bei jedem
+Lesen neu, genau wie `usePrompt` daneben — dieselbe Ausgabe will einmal
+gegriffen und im nächsten Augenblick gedrückt werden, ohne dass sich das Netz
+dazwischen ändert.
+
+Am Schirm aus den Augen benutzt seitdem auch die **linke Maustaste**, was vor
+einem steht — aber nur, wenn wirklich etwas dasteht
+(`PlayerRig.useCandidate`) und der Zeiger schon geholt ist, damit der Klick
+ins Bild nicht aus Versehen bedient. Anders als `A` ist sie kein Knopf für
+zwei Dinge: Ein Klick ins Leere tut nichts und springt vor allem nicht.
+
+### Benutzen mit der Hand — die Brille
+
+In der Brille gibt es die Figur, den Strahl aus ihrer Brust und `A` weiterhin,
+aber davor gibt es **zwei Hände**, und die sind die eigentliche Antwort. Was
+sie entscheiden, steht als reine Rechnung in `core/handUse.ts`, die Geometrie
+dazu kommt aus dem Greifen (`worlds/portal/grabReach.ts`) und nicht aus einer
+zweiten Nähe-Rechnung daneben:
+
+- **Anfassen**: Steckt die Hand in der Greifbox des Dings — seine **echte**
+  Ausdehnung plus die 9 cm aus `GRAB_MARGIN`, nicht der großzügige
+  Zielhalbmesser von oben —, ist das die Antwort, ohne dass irgendwohin
+  gezeigt werden müsste. Die Hand leuchtet dabei, genau wie beim Anfassen
+  eines Gegenstands.
+- **Zeigen**: Sonst entscheidet der Zielstrahl derselben Hand, bis
+  **3 m** (`HAND_USE_RANGE`). Nicht die neun Meter des Ferngreifens: Die sind
+  für Gegenstände gedacht, die man sich holt, und auf Knöpfe übertragen drückt
+  man damit die Tür am anderen Ende der Halle, weil man beim Umsehen einmal
+  dorthin gezeigt hat.
+
+**Anfassen sticht Zeigen**, unter Gleichen gewinnt das Nächste — dieselbe
+Rangfolge wie beim Greifen und wie bei `pickUsable` von oben. Es kann deshalb
+nie beides zugleich auslösen, auch wenn Hand und Strahl auf demselben Ding
+liegen.
+
+Und dann die Knöpfe, genau wie es die Tabelle oben verspricht: Ein `press`
+antwortet auf die **Berührung** selbst oder auf den **Trigger**; ein `grab`
+antwortet auf die **Greif-Taste** und auf sonst nichts.
+
+**Die Berührung muss entprellt werden**, sonst ist sie unbrauchbar: Ein Knopf,
+den die bloße Berührung drückt, wird sechzigmal je Sekunde gedrückt, solange
+die Hand darin liegt — in der Küche wanderte der Tellerstapel Bild für Bild
+durch die Hand. Es zählt deshalb die **Eintrittsflanke**: erst wieder heraus,
+dann antwortet dasselbe Ding erneut. Gemerkt wird dafür das **Objekt** und
+nicht die Anmeldung, und das ist der Unterschied zwischen einer Küche, die
+läuft, und einer Schleife: Eine Station meldet sich neu an, sobald sich
+ändert, was ein Druck bewirkt (die Ausgabe gibt erst ein Brötchen, dann nimmt
+sie einen Teller entgegen) — hinge die Entprellung an der Anmeldung, legte
+dieselbe liegende Hand im nächsten Bild zurück, was sie eben genommen hat.
+Der Trigger und die Greif-Taste brauchen das nicht: Sie sind selbst schon
+Flanken.
+
+**Greifen und Benutzen sind zusammengeführt und nicht nebeneinandergelegt.**
+Ein `grab`-Usable ist kein zweiter Draht auf der Greif-Taste, sondern derselbe:
+Ein Brötchen aus der Ausgabe *ist* ein Gegenstand, den man greifen will, es hat
+nur keinen Körper in der Physik, an dem die Faust sich festhalten könnte. Die
+Abfrage steht deshalb genau dort, wo die Hand sonst nach Gegenständen sucht
+(`PortalWorld.updateReach`) — und ausdrücklich **hinter** ihr: Was einen Körper
+hat, gewinnt. Am vorhandenen Greifen von Werkzeugen, Waffen, Gürtelplätzen und
+Gegenständen ändert sich damit nichts, und das war die Bedingung.
+
+Drei Vorfahrten stehen daneben, und alle drei sind die vorhandenen:
+
+- Eine Hand, die schon ein **Werkzeug** hält oder einen Gegenstand greift,
+  benutzt nichts — ihr Trigger gehört dem, was sie hält.
+- Liegt der Strahl einer Hand auf einer **Menüseite**, gehört ihr Trigger dem
+  Menü (`Pointer.hoveringWith`, dieselbe Regel wie bei den Werkzeugen). Die
+  andere Hand arbeitet weiter.
+- **Ein Druck, eine Wirkung**: Zwei Hände auf demselben Knopf lösen ihn im
+  selben Bild einmal aus.
+
+`A` am Controller bleibt daneben bestehen und benutzt weiter über den Strahl
+aus der Brust — ein dritter Weg, der niemandem im Weg steht: Er liegt auf einem
+Knopf, den weder die Hand noch der Griff belegen.
+
+**Was noch offen ist**, und zwar ausdrücklich:
+
+- Der `grab`-Griff in der Brille löst aus, wenn die Faust **zugeht**
+  (`squeeze.justPressed`) — genau wie beim Greifen eines Gegenstands. Was
+  danach passiert, ist aber nicht dasselbe: Ein Gegenstand fällt, sobald man
+  loslässt, ein genommenes Brötchen bleibt in der Hand des Kochs, denn es hat
+  keinen Körper, der fallen könnte. Der Hinweis „Greifen halten" beschreibt
+  also die Geste und noch nicht die volle Mechanik.
+- Der gelbe Saum folgt in der Brille weiter dem Strahl aus der Brust und nicht
+  der Hand; was die Hand meint, sagt ihr Leuchten. Zwei Auskünfte für zwei
+  Wege, und keine davon ist falsch — aber sie können auf zwei verschiedene
+  Dinge zeigen.
+- Einen Ort, an dem der Hinweistext angezeigt wird, gibt es noch nicht; er
+  steht bereit (`PortalWorld.useInteraction.hint`), die Tafel über der Figur
+  ist seinerzeit mit gutem Grund verschwunden.
+
 ### Die Waffe
 
 Jeder Wert der Pistole steht in `src/worlds/portal/tools/weaponSettings.ts` mit
@@ -3414,6 +3641,23 @@ eine halbe Welt für sich und nicht, was eine Testwelt prüft: Hier soll man
 merken, ob Lenkung, Traktion, Rundenzeit und Einsteigen noch tun. Die
 Buchführung dazu (`kartRace.ts`) ist unangetastet geblieben, samt Test — falls
 es wieder ein Rennen geben soll, fehlt nur der Kanal.
+
+
+**Die Bande ist gebündelt.** Randsteine und Reifenstapel folgen der
+Mittellinie, und das sind je rund hundert gleiche Kästen — hundert
+Zeichenaufrufe für etwas, das aus zwei Metern Entfernung wie eine einzige
+rot-weiße Linie aussieht. Sie entstehen deshalb als `InstancedMesh`: zwei
+Bündel für die Randsteine (rot und weiß, die Farbe wechselt je Schritt und
+quer über die Bahn nicht — sonst sähe die Gerade aus wie ein Reißverschluss)
+und eines für die Reifen. Die Plätze dazu rechnet `kartTrack.trimSpots` aus,
+mit Test daneben: Ein Bündel entsteht in einem Zug und lässt sich hinterher
+nicht mehr ändern, also muss die Liste beim ersten Mal stimmen.
+
+Die **Reifenstapel** stehen dabei doppelt da: als unsichtbarer Kasten, weil
+jeder einen Körper in der Physik und einen Platz in der Abtastliste braucht,
+und als Eintrag im Bündel, weil das das Bild ist. Dasselbe Verfahren wie beim
+Grundriss ([Wie schön es aussieht](#wie-schön-es-aussieht)), aus demselben
+Grund.
 
 ### Controller-Modelle
 
@@ -4941,6 +5185,80 @@ stapeln). Die reine Rechnung steht als `billboardAngles` daneben, damit ein
 Test sie ohne Szene nachrechnen kann — steht die Kamera **senkrecht** über dem
 Schild, ist jede Richtung gleich richtig, und dann bleibt das bisherige Gieren
 stehen, statt auf den kleinsten Rechenfehler hin herumzuspringen.
+
+
+#### Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind
+
+Eine Gitterwelt beschreibt sich als Grundriss, und der Grundriss wird Kachel
+für Kachel gebaut: Jeder `PlanSolid` ist ein eigenes `THREE.Mesh`. Das ist beim
+Bauen richtig — jede Kachel hat ihren eigenen Körper in der Physik, ihren
+eigenen Platz in der Abtastliste, und eine Wand muss sich einzeln durchsichtig
+schalten lassen. Beim **Zeichnen** ist es falsch: Die Testwelt hat 1 364
+Quader, und aus der Küche heraus liegen davon rund 950 gleichzeitig im Bild —
+die Küche steht ganz im Norden, die Kartstrecke ganz im Süden, und dazwischen
+liegt das Gelände offen da. Gemessen waren das **1 924 Zeichenaufrufe je Bild
+gegenüber 792**, wenn man in die andere Richtung sah. Genau dieser Unterschied
+war der Einbruch der Bildrate, den man in der Brille als fünfzehn Bilder
+merkte.
+
+Die Antwort heißt `InstancedMesh`: tausend gleiche Kästen in **einem** Aufruf.
+Es gab sie schon (`GridWorld.batchGridGeometry()`), und sie stand aus einem
+guten Grund überall auf `false` — ein Bündel hat **ein** Material, und das
+Wand-Ghosting braucht das Gegenteil. Von oben wird durchsichtig, was zwischen
+Kamera und Figur steht, und zwar *diese* eine Wand; gebündelt würde stattdessen
+jede Wand derselben Sorte auf derselben Ebene durchsichtig.
+
+Der Einwand gilt nur nicht für alle Quader. `wallGhost.blocksView` beantwortet
+längst die Frage, ob ein Quader überhaupt jemanden verdecken kann — **Böden
+nie, alles unter Kniehöhe auch nicht**. In der Testwelt sind das 1 130 von
+1 360: Bodenkacheln, Schwellen, Rampen, Druckplattenränder. Keiner davon wird
+je durchsichtig, also kostet es auch nichts, sie zusammenzufassen. Genau das
+steht in `grid/gridBatch.ts`, und zwar als **Umkehrung** von `blocksView` und
+nicht als zweite, ähnliche Regel daneben: Was ghosten kann, bleibt einzeln; was
+nicht ghosten kann, darf zusammen. Zwei Sorten kommen trotzdem nicht hinein,
+obwohl sie flach liegen — **Portalflächen** (ein Portal haftet an *einer*
+Fläche mit ihrer eigenen Kollisionsgruppe; gebündelt risse ein Bodenportal jede
+andere Bodenkachel mit auf) und **Türblätter** (sie gehen auf und zu, und ein
+Bündel hat genau eine Sichtbarkeit für alle darin).
+
+Der Trick, der das billig macht: **Die einzelnen Quader bleiben stehen und
+werden nur unsichtbar.** three prüft beim Abtasten keine Sichtbarkeit, beim
+Zeichnen dagegen schon — also arbeiten Körper, Abtastliste und jeder Strahl
+unverändert weiter, und gesehen wird das Bündel. Zusammengefasst wird je
+Material **und** je Ebene, denn das Aufschneiden von oben (`core/cutaway.ts`)
+hängt an `userData.level`, und ein Bündel über zwei Stockwerke ließe sich nicht
+mehr aufschneiden.
+
+Wer `batchGridGeometry()` weiterhin anschaltet, bekommt wie bisher **alles** im
+Bündel und verzichtet dafür aufs Ghosting; das ist der Weg für eine Welt mit
+zehntausend Kacheln.
+
+Gemessen, aus derselben Pose in der Küche mit Blick auf die Strecke:
+
+|                          | vorher | nachher |
+| ------------------------ | ------ | ------- |
+| Draw Calls je Bild       | 1 924  | **668** |
+| davon Schattendurchgang  | ~600   | ~120    |
+| Meshes im Blickkegel     | 1 231  | 399     |
+| Dreiecke je Bild         | 73 k   | 92 k    |
+
+Die Dreiecke steigen, und das ist kein Versehen: Ein Bündel ist **ein** Objekt
+und wird als Ganzes ausgesiebt oder gar nicht — der halbe Boden hinter dem
+Rücken wird also mitgezeichnet. Neunzehntausend Dreiecke mehr sind der Preis
+für tausendzweihundertfünfzig Aufrufe weniger, und das ist auf jeder Hardware
+dieses Jahrzehnts ein gutes Geschäft.
+
+#### Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht
+
+`TextPlane.setText` prüft seit dem Umbau, ob sich Überschrift, Text oder Akzent
+überhaupt geändert haben, und tut sonst nichts. Eine Tafel neu zu beschriften
+heißt, eine Leinwand von einem halben Megapixel neu zu malen und die Textur
+daraus ein weiteres Mal auf die Grafikkarte zu schieben — und die Aufrufer
+schreiben meistens dasselbe hin, was schon dasteht: Die Rundentafel der
+Kartzone ruft viermal je Sekunde, ob jemand fährt oder nicht, und eine Runde
+dauert eine halbe Minute. Der Gedanke stand vorher schon bei einem einzelnen
+Aufrufer (`Kart.setTaken`); jetzt steht er an der Stelle, an der ihn nicht
+jeder Nächste noch einmal haben muss.
 
 ### Modelle im Repository
 
