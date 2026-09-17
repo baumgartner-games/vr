@@ -247,6 +247,30 @@ export function rackLift(): number {
  */
 export const BUILD_BUTTON_TILE = { x: 0, z: 9 } as const;
 
+/**
+ * **Wo der zweite rote Knopf steht** — der, der in der Brille die zweite Hand
+ * freigibt (`kitchen.addHandsButton`,
+ * `core/grabSettings.GrabSettings.twoHands`).
+ *
+ * **Eine Kachel nördlich des Umbauknopfes**, an derselben Westwand, und damit
+ * zwischen ihm und dem Rechner (`desk`, x = 0, z = 7). Die drei stehen
+ * absichtlich in einer Spalte: Sie gehören zusammen — der Rechner gibt die
+ * Möbel her, der eine Knopf macht den Umbau auf, der andere die zweite Hand.
+ * Wer vom Gang hereinkommt, läuft an allen dreien vorbei.
+ *
+ * **Und die Kachel ist frei**, nachgesehen und nicht gehofft: In der Spalte
+ * x = 0 steht die Küchenzeile bei z = 0, der Rechner bei z = 7, und sonst
+ * nichts. Dass sie frei bleibt, hält ein Test fest (`kitchenPlan.test.ts`) —
+ * **zwei Dinge auf einer Kachel heißt: `A` erwischt immer nur eines davon**
+ * (`core/usable.pickUsable` nimmt das Nächste), und genau daran ließ sich der
+ * Feuerlöscher einmal nicht mehr abnehmen.
+ *
+ * **Nicht nach Süden** (x = 0, z = 10): Dort mündet der Gang vom Podest
+ * (`layout.PATHS`, in Kacheln der Zone x = 0…2 an der Südkante). Eine Säule in
+ * der Tür ist kein Knopf, sondern ein Hindernis.
+ */
+export const HANDS_BUTTON_TILE = { x: 0, z: 8 } as const;
+
 export const KITCHEN_SPOTS: readonly Spot[] = [
   // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ---------------
   // Sie ist eine durchgehende Arbeitsplatte auf 0,500 m, und dazu gehören
@@ -576,13 +600,16 @@ export function stampKitchen(plan: GridPlan): void {
     }
   }
 
-  // Der rote Umbauknopf ist kein Möbel und steht in keiner Liste — seine
-  // Säule steht trotzdem im Weg (`kitchen.ts`, `addBuildButton`). Derselbe
-  // Aufschlag wie für ein Möbel: Ein NPC geht darum herum, statt hindurch.
-  plan.floor(
-    { x: KITCHEN.x + BUILD_BUTTON_TILE.x, z: KITCHEN.z + BUILD_BUTTON_TILE.z, w: 1, d: 1 },
-    { cost: FURNITURE_COST },
-  );
+  // Die beiden roten Knöpfe sind keine Möbel und stehen in keiner Liste — ihre
+  // Säulen stehen trotzdem im Weg (`kitchen.ts`, `addBuildButton`,
+  // `addHandsButton`). Derselbe Aufschlag wie für ein Möbel: Ein NPC geht
+  // darum herum, statt hindurch.
+  for (const tile of [BUILD_BUTTON_TILE, HANDS_BUTTON_TILE]) {
+    plan.floor(
+      { x: KITCHEN.x + tile.x, z: KITCHEN.z + tile.z, w: 1, d: 1 },
+      { cost: FURNITURE_COST },
+    );
+  }
 }
 
 /**
