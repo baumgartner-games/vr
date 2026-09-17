@@ -250,7 +250,13 @@ async function measure(browser, world, item) {
 
   const page = await context.newPage();
   const errors = [];
-  page.on('pageerror', (error) => errors.push(String(error)));
+  // Getrennt gesammelt: Eine rote Zeile in der Konsole ist eine Notiz, ein
+  // unbehandelter Fehler ist das Ende der Messung.
+  const crashes = [];
+  page.on('pageerror', (error) => {
+    crashes.push(String(error));
+    errors.push(String(error));
+  });
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
   });
@@ -262,13 +268,25 @@ async function measure(browser, world, item) {
     // Szene auf und zeichnet etwas anderes als das, was in der Brille steht.
     await page.locator('#screen-view [data-view="3d"]').click();
     await page.locator('#enter').click();
-    await page.waitForFunction(
-      (id) => window.bgvr?.currentWorldId === id && window.bgvr.world,
-      world,
-      {
+    // **Und hier wartet man nicht blind.** Eine Welt kommt über einen
+    // dynamischen Import; schlägt der fehl — weil nebenan gerade jemand an
+    // `src/worlds/test/` schreibt —, wird `window.bgvr.world` nie wahr, und
+    // ohne diesen Ausgang stünde das Werkzeug zwei Minuten lang still und
+    // meldete danach eine Zeitüberschreitung statt des eigentlichen Fehlers.
+    await Promise.race([
+      page.waitForFunction((id) => window.bgvr?.currentWorldId === id && window.bgvr.world, world, {
         timeout: 120000,
-      },
-    );
+      }),
+      new Promise((_, reject) => {
+        const watch = setInterval(() => {
+          if (!crashes.length) return;
+          clearInterval(watch);
+          reject(new Error(`Die Welt ${world} lädt nicht: ${crashes[0]}`));
+        }, 250);
+        // Der Wächter darf den Lauf nicht am Leben halten.
+        watch.unref?.();
+      }),
+    ]);
 
     const sample = await page.evaluate(
       ({ warmup, seconds, minFrames, maxSeconds }) =>
@@ -410,6 +428,8 @@ const save = () => writeFile(out, JSON.stringify(report, null, 2));
  * Ausreißer weg.
  */
 const tasks = worlds.flatMap((world) => plan.map((item) => ({ world, item })));
+const failures = [];
+report.failures = failures;
 const collected = new Map(tasks.map((task) => [`${task.world}/${task.item.id}`, []]));
 
 try {
@@ -419,7 +439,21 @@ try {
       process.stdout.write(
         `… ${world} · ${item.id}${repeats > 1 ? ` (${repeat}/${repeats})` : ''}\n`,
       );
-      const run = await measure(browser, world, item);
+      // **Eine gescheiterte Messung beendet den Lauf nicht.** Nebenan wird
+      // gerade an einer Welt geschrieben; dass sie in dieser Minute nicht lädt,
+      // ist kein Grund, die zwanzig anderen Zeilen wegzuwerfen. Einmal wird es
+      // erneut versucht, danach steht die Zeile als Lücke im Bericht.
+      let run = null;
+      for (let attempt = 1; attempt <= 2 && !run; attempt++) {
+        try {
+          run = await measure(browser, world, item);
+        } catch (error) {
+          const message = error.message.split('\n')[0];
+          console.log(`  Versuch ${attempt} fehlgeschlagen: ${message}`);
+          failures.push({ world, case: item.id, repeat, attempt, message });
+        }
+      }
+      if (!run) continue;
       collected.get(key).push(run);
       console.log(
         `  ${run.frameMs.toFixed(1)} ms · ${run.fps.toFixed(1)} fps · ` +
@@ -527,6 +561,12 @@ if (basisRows.length > 1) {
         `${(row.triangles / 1000).toFixed(0)}k Dreiecke gegen ${(first.triangles / 1000).toFixed(0)}k.`,
     );
   }
+}
+
+if (failures.length) {
+  console.log('\nGescheiterte Messungen (die Zeile fehlt oder stützt sich auf weniger Läufe):');
+  for (const item of failures)
+    console.log(`  ${item.world}/${item.case} (${item.repeat}.${item.attempt}): ${item.message}`);
 }
 
 const broken = results.filter((row) => row.errors.length);
