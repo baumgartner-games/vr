@@ -518,16 +518,45 @@ console.log(
  * **Die Verhältnisse** — das, wofür es dieses Werkzeug gibt. Angegeben wird je
  * Fall, wie viel Bildzeit er gegenüber der Basis derselben Welt kostet oder
  * spart; ein Wert nahe null heißt: **dieser Schalter tut nichts.**
+ *
+ * **Und zwar paarweise gerechnet, nicht aus den Medianen der Tabelle oben.**
+ * Das ist der Unterschied zwischen einer belastbaren und einer erfundenen
+ * Prozentzahl: Die Maschine wird im Lauf schneller und langsamer, und beide
+ * Werte einer Tabellenzeile stammen aus verschiedenen Minuten. Verglichen wird
+ * deshalb **innerhalb eines Durchgangs** — `comic` des zweiten Durchgangs gegen
+ * `basis` des zweiten Durchgangs — und erst über diese Quotienten wird der
+ * Median gebildet. Der gemeinsame Geschwindigkeitsfaktor der Minute kürzt sich
+ * dabei heraus.
+ *
+ * Wie gut das funktioniert, liest man an `xr-0.85` und `xr-0.7` ab: Die beiden
+ * Fälle ändern nachweislich nichts am Bildschirm und müssen deshalb bei 0 %
+ * stehen. Was dort steht, ist der Rest an Rauschen, den auch dieses Verfahren
+ * nicht wegbekommt — und damit die Schwelle, unter der keine andere Zeile
+ * dieser Tabelle etwas bedeutet.
  */
 console.log('\n=== Was jeder Schalter kostet (Bildzeit gegen die Basis derselben Welt) ===\n');
 const relative = [];
 for (const world of worlds) {
-  const basis = results.find((row) => row.world === world && row.case === 'basis');
-  if (!basis) continue;
-  for (const row of results.filter((item) => item.world === world && item.case !== 'basis')) {
-    const delta = (row.frameMs - basis.frameMs) / basis.frameMs;
-    const jitter = (row.p99Ms - basis.p99Ms) / basis.p99Ms;
-    relative.push({ world, case: row.case, label: row.label, delta, jitter });
+  const basisRuns = collected.get(`${world}/basis`) ?? [];
+  if (!basisRuns.length) continue;
+  for (const item of plan) {
+    if (item.id === 'basis') continue;
+    const runs = collected.get(`${world}/${item.id}`) ?? [];
+    const pairs = runs
+      .map((run, index) => ({ run, basis: basisRuns[index] }))
+      .filter((pair) => pair.basis);
+    if (!pairs.length) continue;
+    const ratios = pairs.map((pair) => pair.run.frameMs / pair.basis.frameMs);
+    const jitters = pairs.map((pair) => pair.run.p99Ms / pair.basis.p99Ms);
+    relative.push({
+      world,
+      case: item.id,
+      label: item.label,
+      pairs: pairs.length,
+      delta: median(ratios) - 1,
+      jitter: median(jitters) - 1,
+      ratios,
+    });
   }
 }
 report.relative = relative;
@@ -543,6 +572,13 @@ console.log(
     {
       head: 'Ruckler (1 %)',
       cell: (row) => `${row.jitter >= 0 ? '+' : ''}${(row.jitter * 100).toFixed(0)} %`,
+      right: true,
+    },
+    {
+      head: 'Spanne',
+      cell: (row) =>
+        `${((Math.min(...row.ratios) - 1) * 100).toFixed(0)} … ` +
+        `${((Math.max(...row.ratios) - 1) * 100).toFixed(0)} %`,
       right: true,
     },
     { head: 'Bedeutung', cell: (row) => row.label },
