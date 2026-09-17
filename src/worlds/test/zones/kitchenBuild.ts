@@ -27,6 +27,13 @@
  * Millisekunden nach, die im Headset eine Viertelstunde Hin- und Herlaufen
  * wären.
  *
+ * **Und seit dem Umstellen mit Inhalt steht hier noch eine dritte Frage**: was
+ * beim Aufheben **mitfährt** und was dagegen spricht (`BuildLoad`,
+ * `ridesAlong`, `whyNotLifted`) — samt der einen Zeile, die aus dem
+ * gegriffenen Rand-Griff die Lage in den Händen macht (`holdForRim`). Auch das
+ * sind Fragen über Zahlen und Namen, also stehen sie hier und nicht in der
+ * Zone, die Netze umhängt.
+ *
  * **Gerechnet wird in Kacheln der Zone**, nicht in Metern der Welt: Dieselben
  * Zahlen, mit denen `KITCHEN_SPOTS` geschrieben ist (`kitchenPlan.ts`). Wer
  * hier in Metern rechnete, hätte zwei Koordinatensysteme für eine Küche, und
@@ -194,4 +201,110 @@ export function whyNotBuilt(
   }
   if (taken.some((other) => overlaps(spot, other))) return 'Hier steht schon etwas';
   return null;
+}
+
+// --- und was dabei mitfährt ------------------------------------------------
+
+/**
+ * **Was auf einem Möbel liegt und was daran läuft**, so wie der Umbau es
+ * sieht — und mehr braucht er nicht.
+ *
+ * Keine Teller, keine Pfannen, keine Uhren: Ob das Patty roh oder gebraten
+ * ist, geht den Umbau nichts an. Er will wissen, **ob** etwas mitfährt und
+ * **ob etwas dagegen spricht** — zwei Fragen, drei Zahlen, und alle drei kann
+ * ein Test hinschreiben, ohne eine Küche zu bauen.
+ */
+export interface BuildLoad {
+  /** Wie viele einzelne Dinge auf der Fläche liegen (`Station.on`: 0 oder 1). */
+  readonly things: number;
+  /** Wie viele Teller darauf gestapelt sind (`Station.stack`). */
+  readonly stack: number;
+  /** Ob es brennt (`kitchenClock.StoveState.fire`). */
+  readonly burning: boolean;
+}
+
+/** Ein leeres Möbel — was für die meisten immer gilt. */
+export const EMPTY_LOAD: BuildLoad = { things: 0, stack: 0, burning: false };
+
+/**
+ * **Ob beim Aufheben etwas mitfährt** — und damit beim Absetzen wieder
+ * hingestellt werden muss.
+ *
+ * Der Satz des Auftrags: „wenn zb eine Pfanne auf dem Herd steht. Dann wird
+ * dieses Element so mit Pfanne darauf bewegt." Es zählt beides, was auf der
+ * Fläche liegt **und** was darauf gestapelt ist: Auf der Ausgabe liegen
+ * Teller, auf dem Abtropfbrett stehen sie zu viert, und ein Stapel, der beim
+ * Umstellen stehen bliebe, stünde danach in der Luft.
+ */
+export function ridesAlong(load: BuildLoad): boolean {
+  return load.things > 0 || load.stack > 0;
+}
+
+/**
+ * **Warum dieses Möbel jetzt nicht in die Hände darf** — ein Satz, oder
+ * `null`, weil es darf.
+ *
+ * Hier stand bis eben die Sperre, um die es im Auftrag geht: „Was darauf
+ * liegt, bleibt der Grund, es **nicht** zu tun." Die ist weg. Ein Herd wird
+ * mit seiner Pfanne umgestellt, eine Ausgabe mit ihren Tellern, ein
+ * Abtropfbrett mit seinem Stapel — das ist der ganze Punkt, und `ridesAlong`
+ * daneben sagt, wann es etwas zu tragen gibt.
+ *
+ * **Ein Grund bleibt, und es ist das Feuer.** Ein brennender Herd
+ * (`kitchenClock.StoveState.fire`) ist der eine Zustand dieser Küche, der
+ * nicht wartet: Er frisst sich weiter, und ausgemacht wird er mit dem
+ * Feuerlöscher **in der Hand** (`kitchenSpray.sprayOn`). Wer ihn aufhöbe,
+ * hätte beide Hände voll Herd, bekäme den Löscher nicht mehr zu fassen und
+ * liefe mit einem Feuer vor dem Bauch durch die Küche. Es gibt in dieser
+ * Küche keinen zweiten Weg, ein Feuer auszumachen — also darf es gar nicht
+ * erst in die Hände.
+ *
+ * **Warum kein Wort über volle Hände.** Wer umbaut, trägt nichts: Das
+ * Anschalten räumt die Hände (`kitchen.toggleEdit`), und solange umgebaut
+ * wird, kommt auch nichts hinein — die Spüle behandelt den Umbau wie eine
+ * volle Hand und lässt den sauberen Teller im Wasser stehen
+ * (`kitchen.workFrame`). Ein Möbel und ein Topf zugleich gibt es also nicht,
+ * und ein Satz darüber wäre einer, den nie jemand zu lesen bekommt.
+ *
+ * @param label wie das Möbel heißt — der Satz nennt es beim Namen, wie jede
+ *              andere Absage dieser Küche auch (`whyNotBuilt`,
+ *              `kitchenCarry.KitchenDeed.refuse`)
+ */
+export function whyNotLifted(label: string, load: BuildLoad): string | null {
+  return load.burning ? `${label} brennt — erst löschen` : null;
+}
+
+/**
+ * **An welcher Kante man zugefasst hat, so liegt es in den Händen.**
+ *
+ * Die vier Rand-Griffe eines Möbels heißen nach der Richtung, in der sie
+ * liegen (`core/grabHandles.rimHandles`: `+x`, `-x`, `+z`, `-z`), und diese
+ * Zeile macht aus dem gegriffenen Griff die Art, wie das Möbel vor dem Bauch
+ * liegt (`kitchen.Furnish.hold`). Die Regel ist eine einzige: **Die Kante, an
+ * der man gepackt hat, bleibt die Kante, die einem zugewandt ist.** Wer den
+ * Herd an seiner rechten Seite nimmt, hält ihn rechts, und rechts steht er
+ * nachher auch — man dreht ein Möbel nicht um, nur weil man es anhebt.
+ *
+ * Nachgerechnet: Ein Möbel ohne Drehung zeigt mit **-z** nach vorn
+ * (`Spot.turn`, `turnAhead`), `hold` zählt Viertel gegen den Uhrzeigersinn.
+ * Damit die gegriffene Kante zur Figur schaut, muss sie nach hinten gedreht
+ * werden — also `+z → 0`, `-x → 1`, `-z → 2`, `+x → 3`.
+ *
+ * **Und ohne Griff bleibt alles, wie es war.** Von oben und am Schreibtisch
+ * gibt es keine Hand, die irgendwo zufasst (`core/usable.ts`): Dort ist die
+ * Antwort `0`, und `0` ist genau das, was bisher immer galt — „aufgenommen
+ * wird mit der Vorderseite nach vorn". Das alte Verhalten ist damit nicht
+ * abgelöst, sondern der Fall „hinten angefasst".
+ */
+export function holdForRim(id: string | null | undefined): Turn {
+  switch (id) {
+    case '-x':
+      return 1;
+    case '-z':
+      return 2;
+    case '+x':
+      return 3;
+    default:
+      return 0;
+  }
 }
