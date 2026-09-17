@@ -113,9 +113,28 @@ describe('something to grab in VR', () => {
     expect(handUseFires(potOverThere, GRIP, null)).toBe(true);
   });
 
-  it('does not jump onto the trigger', () => {
-    // Der Trigger gehört dem, was man in der Hand hält.
-    expect(handUseFires(bun, TRIGGER, null)).toBe(false);
+  /**
+   * **Und der Trigger tut es auch.** Hier stand das Gegenteil: „Der Trigger
+   * gehört dem, was man in der Hand hält." Er gehört ihm weiter — der
+   * Feuerlöscher spritzt mit ihm —, nur schließt das nicht mehr aus, dass er
+   * auch nimmt, was man anzielt (`core/interaction.INTERACTION_DEFAULTS`).
+   */
+  it('also comes with the trigger, on whatever the ray is on', () => {
+    expect(handUseFires(bun, TRIGGER, null)).toBe(true);
+    expect(handUseFires(potOverThere, TRIGGER, null)).toBe(true);
+  });
+
+  /**
+   * **Ein Ding, das nur die Greif-Taste anmeldet, bleibt beim Trigger stumm.**
+   * Das ist der Unterschied zwischen „jeder Geber für sich" und „irgendeine
+   * Taste tut es": Das getragene Möbel im Umbau wendet sich mit dem Trigger
+   * (`zones/kitchen.buildTurn`) und darf ihn deshalb nicht auch zum Aufheben
+   * haben.
+   */
+  it('stays with the grab button where only that one is asked for', () => {
+    const piece = { ...bun, inputs: ['grip'] as const };
+    expect(handUseFires(piece, GRIP, null)).toBe(true);
+    expect(handUseFires(piece, TRIGGER, null)).toBe(false);
   });
 
   it('is not taken by merely reaching into it', () => {

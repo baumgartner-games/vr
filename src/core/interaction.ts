@@ -151,7 +151,18 @@ export const INTERACTION_DEFAULTS: Readonly<
     // Antippen bekäme und durch Antippen wieder verlöre, klebte an der Hand,
     // bis man ihn absichtlich abschüttelt. Die Greif-Taste zu halten ist,
     // was jede Hand in diesem Projekt ohnehin tut (`worlds/portal/grabReach.ts`).
-    vr: { inputs: ['grip'], press: 'hold' },
+    //
+    // **Und der Trigger tut es auch**, seit dem Auftrag „aufheben und
+    // interagieren, in der Brille zusätzlich mit Trigger". Hier stand einmal,
+    // der Trigger gehöre dem, was man schon hält, und ein Brötchen, das auf
+    // den Zeigefinger springe, nähme dem Greifen seine Geste. Das erste
+    // stimmt weiter (der Feuerlöscher spritzt mit ihm, das getragene Möbel
+    // wendet mit ihm), das zweite hat sich in der Brille nicht bestätigt: Wer
+    // eine Pfanne **anzielt**, will sie haben, und wer sie nur greifen darf,
+    // muss mit der Faust hinlangen, auch wenn sie eine Armlänge weiter auf dem
+    // Herd steht. Beides nebeneinander kostet nichts — die Greif-Taste bleibt
+    // die Geste, der Trigger ist der Weg für das, was man ansieht.
+    vr: { inputs: ['grip', 'aimTrigger'], press: 'hold' },
   },
   none: {
     topDown: { inputs: [], press: 'tap' },

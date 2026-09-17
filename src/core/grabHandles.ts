@@ -42,13 +42,16 @@ import type { HoldPose } from '../worlds/portal/tools/toolPose';
  * - **Kein Griff, nur die Hitbox** — Brötchen, Tomate, Salat. „Wie beim
  *   Companion Cube": Man packt zu, wo man hinfasst, und das Ding sitzt in der
  *   Faust, wie es gerade liegt. Eine leere Griffliste sagt genau das.
- * - **Ein Griff** — die Pfanne und der Topf am Stiel, der Feuerlöscher oben am
- *   Ventil. Ein Mensch fasst sie an genau einer Stelle an, und wer sie
- *   woanders packte, hielte ein Gerät verkehrt herum.
+ * - **Ein Griff, und zwar ein Haltezylinder** (`HoldBar`, `holdBar`) — die
+ *   Pfanne am Stiel, der Feuerlöscher am Tragebügel. Kein Punkt mit einer
+ *   geratenen Achse, sondern die **gemessene Stange des Modells**: Man sieht
+ *   sie (`core/handleView.ts`) und rechnet nach, ob sie den Griff trifft.
+ *   Genau das ging vorher nicht, und deshalb standen drei Geräte in der Faust
+ *   verkehrt herum.
  * - **Mehrere Griffe** — der Teller: unsichtbar am **Rand** und an der
- *   **Unterseite**, denn so hält ein Mensch einen Teller. Welcher davon es
- *   wird, entscheidet nicht das Ding, sondern die **Hand**: der nächste
- *   gewinnt (`nearestHandle`).
+ *   **Unterseite**, denn so hält ein Mensch einen Teller; und der Topf an
+ *   seinen **beiden Ohren**. Welcher davon es wird, entscheidet nicht das
+ *   Ding, sondern die **Hand**: der nächste gewinnt (`nearestHandle`).
  *
  * **Und die Reichweite trägt das Ding selbst** (`GrabReach`). Der Auftrag will
  * für die Küchendinge ausdrücklich **kein** Heranziehen aus der Ferne: kein
@@ -82,6 +85,37 @@ export interface GrabHandle {
   readonly id: string;
   /** Wo und wie herum, im Raum des Dings. */
   readonly pose: HoldPose;
+  /**
+   * **Der Haltezylinder** — die Stange des Modells, an der diese Hand liegt.
+   *
+   * Freiwillig, und wer nichts angibt, hat keinen: Ein Brötchen packt man, wo
+   * man hinfasst, und der Rand eines Tellers ist eine Kante und keine Stange.
+   * Wo einer dasteht, ist er **das gemessene Stück des Modells** und keine
+   * zweite Erfindung daneben — er wird sichtbar, sobald _Griffe anzeigen_
+   * gesetzt ist (`core/handleView.ts`), und genau daran prüft man, ob ein
+   * Griff den Griff des Modells trifft.
+   */
+  readonly hold?: HoldBar;
+}
+
+/**
+ * **Eine Stange, an der eine Hand liegt** — im Raum des Dings, um
+ * `GrabHandle.pose.position` herum.
+ *
+ * Drei Zahlen und nicht mehr: wohin sie zeigt, wie lang sie ist, wie dick.
+ * Sie ist **nicht** die Achse der Faust (`pose.rotation`), und das ist keine
+ * Nachlässigkeit, sondern die Beobachtung, an der dieser Auftrag hängt: Eine
+ * Pfanne, deren Stiel in der Faustachse läge, stünde in der Brille hochkant,
+ * und dann liegt das Patty an der Wand. Der Zylinder sagt, **wo** die Hand
+ * liegt; die Drehung daneben sagt, **wie herum** das Ding dabei hängt.
+ */
+export interface HoldBar {
+  /** Richtung der Stange, im Raum des Dings — als Einheitsvektor. */
+  readonly along: Vec3;
+  /** Wie lang sie ist, in Metern. */
+  readonly length: number;
+  /** Und wie dick, als Halbmesser in Metern. */
+  readonly radius: number;
 }
 
 /**
@@ -149,6 +183,67 @@ export function grabsByHitbox(like: GrabLike | null | undefined): boolean {
  */
 export function handle(id: string, at: Vec3, axis: Vec3, back: Vec3): GrabHandle {
   return { id, pose: { position: { ...at }, rotation: gripFrame(axis, back) } };
+}
+
+/**
+ * **Ein Griff als Haltezylinder** — die Stange des Modells, und wie das Ding
+ * daran hängt.
+ *
+ * Das ist die Form, in der Pfanne, Topf und Feuerlöscher ihre Griffe angeben,
+ * und sie beantwortet die drei Fragen getrennt, die vorher in einem einzigen
+ * `axis` steckten und dabei durcheinandergerieten:
+ *
+ * - **Wo liegt die Hand?** In der Mitte der Stange, zwischen `from` und `to`.
+ *   Die beiden Enden sind am Modell gemessen, ihre Reihenfolge ist gleich —
+ *   eine Stange hat kein Vorn.
+ * - **Was bleibt oben?** `up` — die Richtung am Ding, die in der Hand nach
+ *   oben zeigt. Das ist die Faustachse (+Y), und das ist der ganze Unterschied
+ *   zu vorher: Nicht der Stiel steht in der Faustachse, sondern die
+ *   **Senkrechte der Pfanne**. Sonst hinge sie hochkant, und der Topf schüttete
+ *   sein Wasser aus, sobald jemand ihn anfasst.
+ * - **Was kommt nach vorn?** `ahead` — wohin vom Griff aus der Körper des
+ *   Dings liegt. Es muss senkrecht auf `up` stehen und wird zum Vorne (-Z) des
+ *   Griffrahmens; der Handrücken (`back`) fällt dabei ab und wird nicht mehr
+ *   von Hand geraten.
+ *
+ * Gerechnet: `back = ahead × up`, und damit ist
+ * `Z = back × up = (ahead × up) × up = −ahead`, also `−Z = ahead`. Ein Test
+ * rechnet genau das nach.
+ */
+export function holdBar(
+  id: string,
+  bar: { from: Vec3; to: Vec3; radius: number },
+  up: Vec3,
+  ahead: Vec3,
+): GrabHandle {
+  const along = {
+    x: bar.to.x - bar.from.x,
+    y: bar.to.y - bar.from.y,
+    z: bar.to.z - bar.from.z,
+  };
+  const length = Math.hypot(along.x, along.y, along.z);
+  const unit = length > 1e-6 ? length : 1;
+  const back = {
+    x: ahead.y * up.z - ahead.z * up.y,
+    y: ahead.z * up.x - ahead.x * up.z,
+    z: ahead.x * up.y - ahead.y * up.x,
+  };
+  return {
+    id,
+    pose: {
+      position: {
+        x: (bar.from.x + bar.to.x) / 2,
+        y: (bar.from.y + bar.to.y) / 2,
+        z: (bar.from.z + bar.to.z) / 2,
+      },
+      rotation: gripFrame(up, back),
+    },
+    hold: {
+      along: { x: along.x / unit, y: along.y / unit, z: along.z / unit },
+      length,
+      radius: bar.radius,
+    },
+  };
 }
 
 /**

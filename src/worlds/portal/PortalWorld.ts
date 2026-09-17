@@ -740,6 +740,22 @@ function copyPose(position: THREE.Vector3, rotation: THREE.Quaternion, out: Grab
   return out;
 }
 
+/**
+ * **Worauf eine Hand in der Brille zeigt oder liegt** — so viel, wie der Saum
+ * davon braucht.
+ *
+ * Dieselbe Rangfolge wie in `core/handUse.pickHandUse`: Anfassen sticht
+ * Zeigen, unter Gleichen gewinnt das Nächste. Sie steht hier ein zweites Mal
+ * für den Vergleich **zwischen** den beiden Händen — dort geht es nicht um
+ * Kandidaten einer Hand, sondern um zwei fertige Funde.
+ */
+interface HandPick {
+  readonly usable: Usable;
+  readonly object: THREE.Object3D;
+  readonly reach: 'touch' | 'aim';
+  readonly distance: number;
+}
+
 interface NearGrab {
   /** Wo der Gegenstand stand, als zugegriffen wurde. */
   objectStart: GrabPose;
@@ -825,6 +841,29 @@ export class PortalWorld implements World {
    * herauszieht, vergisst.
    */
   private readonly handUsed = new Map<Handedness, THREE.Object3D | null>();
+  /**
+   * **Worauf jede Hand gerade zeigt oder liegt** (`core/handUse.pickHandUse`) —
+   * je Bild neu, und die Grundlage des gelben Saums in der Brille.
+   *
+   * Der Saum hing bis eben am **Körper**: Gezeigt wurde, was `pickUsable` aus
+   * Brust und Blickrichtung wählt (`updateUsables`), und in der Brille war das
+   * regelmäßig das falsche Möbel — man hielt einen Salat in der Hand, zielte
+   * damit auf die Zeile links und sah die Zeile **vor** sich leuchten. Abgelegt
+   * wurde er trotzdem richtig, nämlich dort, wohin die Hand zeigte. Zwei
+   * Auskünfte über dieselbe Sache, und die sichtbare war die falsche.
+   *
+   * Hier steht deshalb, was die Hand meint, und `showUse` nimmt in der Brille
+   * genau das. Am Schirm bleibt alles beim Alten — dort gibt es keine Hand,
+   * auf die man sich berufen könnte.
+   */
+  private readonly handPicks = new Map<Handedness, HandPick | null>();
+  /**
+   * **Und was der Körper meint** — dieselbe Wahl wie immer, nur aufgehoben.
+   *
+   * Sie entscheidet weiter, ob `A` benutzt oder springt (`PlayerRig.useCandidate`)
+   * und ist in der Brille der Rückfall, solange keine Hand etwas meint.
+   */
+  private bodyPick: { readonly usable: Usable; readonly object: THREE.Object3D } | null = null;
   /**
    * **Der Stand der Greif-Taste zwischen Drücken und Loslassen**, je Hand
    * (`core/handUse.ts`, _Halten oder Tippen_).
@@ -1219,8 +1258,11 @@ export class PortalWorld implements World {
     this.portalRed.setTime(this.time);
 
     this.updateTools(dt, ctx);
-    this.updateUsables(dt, ctx);
+    this.updateUsables(ctx);
     this.updateGrabs(dt, ctx);
+    // **Erst jetzt der Saum**: Er hängt in der Brille an dem, worauf die Hand
+    // zeigt, und das steht erst nach `updateGrabs` fest (`showUse`).
+    this.showUse(dt, ctx);
     this.updateFoam(dt);
     this.updateGhosts(ctx);
     this.updateHandProbes(ctx);
@@ -6322,6 +6364,10 @@ export class PortalWorld implements World {
     // **Ein Druck, eine Wirkung**: Zwei Hände können auf demselben Knopf
     // liegen, und der soll trotzdem einmal antworten.
     this.handUseFired.clear();
+    // Und was die Hände meinen, wird in diesem Bild neu beantwortet: Eine Hand,
+    // die ein Werkzeug hält oder gar nicht mehr da ist, meint nichts mehr, und
+    // der Saum von eben soll ihr nicht nachlaufen.
+    this.handPicks.clear();
 
     for (const controller of ctx.input.controllers) {
       const hand = controller.handedness;
@@ -6439,8 +6485,10 @@ export class PortalWorld implements World {
     ctx.hands.setGlow(hand, false);
     // Eine Hand, die gerade etwas anderes tut, fasst auch nichts mehr an:
     // Sonst bliebe die Erinnerung stehen, und das Ding antwortete beim
-    // nächsten Hineinfassen nicht mehr.
+    // nächsten Hineinfassen nicht mehr. Und sie meint auch nichts mehr, also
+    // leuchtet auf ihr Zutun auch nichts (`showUse`).
     this.handUsed.set(hand, null);
+    this.handPicks.set(hand, null);
   }
 
   // --- benutzen mit der Hand (nur in der Brille) ----------------------------
@@ -6514,6 +6562,7 @@ export class PortalWorld implements World {
     // den Werkzeugen (`updateTools`), und die andere Hand arbeitet weiter.
     if (this.handUseAims.length === 0 || ctx.pointer.hoveringWith(hand)) {
       this.handUsed.set(hand, null);
+      this.handPicks.set(hand, null);
       return false;
     }
 
@@ -6573,6 +6622,24 @@ export class PortalWorld implements World {
     // Objekt ist das, worin die Hand steckt, und genau das soll sie erst
     // wieder verlassen.
     const find = pickHandUse(_handFinds);
+    // **Woran der Saum in der Brille hängt** (`showUse`): an dem, was diese
+    // Hand meint, und nicht an dem, was vor der Figur steht. Gemerkt wird es
+    // auch dann, wenn gerade keine Taste gedrückt ist — der Saum kündigt an,
+    // er quittiert nicht.
+    const found = find
+      ? this.handUseAims.find((aim) => aim.entry.object === find.item)?.entry
+      : null;
+    this.handPicks.set(
+      hand,
+      find && found
+        ? {
+            usable: found.usable,
+            object: found.object,
+            reach: find.reach,
+            distance: find.distance,
+          }
+        : null,
+    );
     // **Die Greif-Taste spricht zweimal**: beim Drücken und beim Loslassen —
     // und beim Loslassen nur dann, wenn dieser Druck etwas genommen hat und
     // ein **Halten** war (`core/handUse.gripPressDrops`). Genau das ist die
@@ -6595,7 +6662,7 @@ export class PortalWorld implements World {
     this.handUsed.set(hand, handUseMemory(find));
     if (!fires || !find) return false;
 
-    const usable = this.handUseAims.find((aim) => aim.entry.object === find.item)?.entry.usable;
+    const usable = found?.usable;
     if (!usable || this.handUseFired.has(usable)) return false;
     this.handUseFired.add(usable);
     _handForward.copy(_handRay.direction);
@@ -7900,7 +7967,7 @@ export class PortalWorld implements World {
    * Ohne diese eine Zeile spränge man in der Brille vor jeder Tür, statt sie
    * aufzumachen.
    */
-  private updateUsables(dt: number, ctx: WorldContext): void {
+  private updateUsables(ctx: WorldContext): void {
     if (ctx.rig.takeUse()) this.useForward(ctx);
     this.aimUse(ctx);
 
@@ -7909,17 +7976,45 @@ export class PortalWorld implements World {
         ? pickUsable(this.collectUsables(), _useAt, _useForward, this.useReach())
         : null;
     ctx.rig.useCandidate = pick !== null;
+    const object = pick?.candidate.object ?? null;
+    this.bodyPick = pick && object ? { usable: pick.candidate.usable, object } : null;
+  }
+
+  /**
+   * **Wer den Saum bekommt** — und in der Brille ist das die **Hand**.
+   *
+   * Gerufen **nach** `updateGrabs`, und das ist der Grund für die eigene
+   * Methode: Worauf eine Hand zeigt, steht erst dort fest (`useByHand`), und
+   * ein Saum, der einen Bildlauf hinterherhinkt, zeigt beim Umsehen
+   * regelmäßig auf das Möbel von eben.
+   *
+   * **Die Ansicht entscheidet, wer gefragt wird**, und beide Antworten gab es
+   * schon:
+   *
+   * - **Von oben und aus den Augen** wählt der Körper: ein Strahl aus der
+   *   Brust in Blickrichtung (`core/usable.pickUsable`). Dort gibt es keine
+   *   Hand, und `A` meint genau diesen Fund — Saum und Taste sagen dasselbe.
+   * - **In der Brille** wählt die Hand. Das ist der gemeldete Fehler: Wer mit
+   *   einem Salat in der Hand auf die Zeile **neben** sich zielt, legt ihn
+   *   dorthin ab (`useByHand` entscheidet), sieht aber die Zeile **vor** sich
+   *   leuchten (`pickUsable` entschied). Zwei Auskünfte, und die sichtbare war
+   *   die falsche.
+   *
+   * **Der Körper bleibt der Rückfall**, auch in der Brille: Zeigt keine Hand
+   * auf etwas, meint `A` weiter, was vor der Figur steht, und dann soll das
+   * auch leuchten. Ein Saum, der in dem Augenblick ausginge, in dem die Taste
+   * noch wirkt, wäre der gemeldete Fehler in der anderen Richtung.
+   */
+  private showUse(dt: number, ctx: WorldContext): void {
+    const view = interactionView(ctx.topDown, ctx.renderer.xr.isPresenting);
+    const chosen = (view === 'vr' ? this.handMeans() : null) ?? this.bodyPick;
 
     // **Und was das Gemeinte in dieser Ansicht will** (`core/interaction.ts`).
     // Ein Knopf will gedrückt werden, ein Brötchen gegriffen — dieselbe
     // Absicht in allen drei Ansichten, nur mit verschiedenen Gebern. Aufgelöst
     // wird sie hier, weil hier ohnehin schon feststeht, was gemeint ist.
-    this.useInteraction = pick
-      ? resolveInteraction(
-          pick.candidate.usable.interaction,
-          interactionView(ctx.topDown, ctx.renderer.xr.isPresenting),
-          { config: inputConfig() },
-        )
+    this.useInteraction = chosen
+      ? resolveInteraction(chosen.usable.interaction, view, { config: inputConfig() })
       : null;
 
     // **Der Saum ist die ganze Auskunft** — in der Brille, von oben und aus
@@ -7933,10 +8028,34 @@ export class PortalWorld implements World {
     // dieser Ansicht keinen Geber hat (`interactive`), kündigt auch nichts an.
     // Heute ändert das nichts — `press` und `grab` haben überall einen —, und
     // genau so soll es sein: Die Regel steht, bevor der erste Fall kommt.
-    this.highlighter.highlight(
-      this.useInteraction?.interactive ? (pick?.candidate.object ?? null) : null,
-    );
+    this.highlighter.highlight(this.useInteraction?.interactive ? (chosen?.object ?? null) : null);
     this.highlighter.update(dt);
+  }
+
+  /**
+   * **Was die beiden Hände zusammen meinen** — der bessere der zwei Funde.
+   *
+   * Dieselbe Rangfolge wie innerhalb einer Hand (`core/handUse.pickHandUse`):
+   * Anfassen sticht Zeigen, unter Gleichen gewinnt das Nächste. Eine Hand, die
+   * in einem Regal steckt, gewinnt damit gegen eine, die quer durch den Raum
+   * auf eine Tür zeigt — und das ist auch die Hand, die als Nächstes etwas tut.
+   */
+  private handMeans(): HandPick | null {
+    let best: HandPick | null = null;
+    for (const pick of this.handPicks.values()) {
+      if (!pick) continue;
+      if (!best) {
+        best = pick;
+        continue;
+      }
+      if (best.reach === 'touch' && pick.reach !== 'touch') continue;
+      if (pick.reach === 'touch' && best.reach !== 'touch') {
+        best = pick;
+        continue;
+      }
+      if (pick.distance < best.distance) best = pick;
+    }
+    return best;
   }
 
   /** Die Liste als Kandidaten für die Auswahl — Weltpositionen, je Bild frisch. */

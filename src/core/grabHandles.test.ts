@@ -8,6 +8,7 @@ import {
   grabsByHitbox,
   handle,
   handleInHand,
+  holdBar,
   handleInWorld,
   holdFor,
   holdForHandle,
@@ -21,6 +22,7 @@ import {
   type Vec3,
 } from './grabHandles';
 import { STANDARD_GRIP_IN_HAND } from '../worlds/portal/tools/gripFit';
+import { rotateVec } from '../worlds/portal/tools/aim';
 import { quatFromEulerXYZ } from '../worlds/portal/tools/toolPose';
 import { TILE } from '../worlds/nav/navTile';
 
@@ -132,6 +134,68 @@ describe('Wie das Ding dann in der Hand liegt', () => {
     expect(holdFor(null)).toEqual(HITBOX_HOLD);
     expect(HITBOX_HOLD.position).toEqual({ x: 0, y: 0, z: 0 });
     expect(HITBOX_HOLD.rotation).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+  });
+});
+
+/**
+ * **Der Haltezylinder** — die Form, in der Pfanne, Topf und Feuerlöscher ihre
+ * Griffe angeben (`worlds/test/zones/kitchenGrab.ts`).
+ *
+ * Drei Zusicherungen, und alle drei sind in der Brille eine Viertelstunde:
+ * Die Hand liegt in der **Mitte** der Stange, die Stange zeigt in ihre eigene
+ * Richtung, und `up`/`ahead` landen dort, wo der Griffrahmen sie haben will —
+ * +Y und -Z.
+ */
+describe('Ein Griff als Haltezylinder', () => {
+  const bar = {
+    from: { x: 0, y: 1, z: 2 },
+    to: { x: 0, y: 1, z: 0 },
+    radius: 0.05,
+  };
+
+  it('legt die Hand in die Mitte der Stange', () => {
+    const spot = holdBar('stiel', bar, UP, { x: 0, y: 0, z: -1 });
+    expect(spot.pose.position).toEqual({ x: 0, y: 1, z: 1 });
+    expect(spot.hold?.length).toBeCloseTo(2, 10);
+    expect(spot.hold?.radius).toBe(0.05);
+  });
+
+  it('merkt sich die Richtung der Stange als Einheitsvektor', () => {
+    const spot = holdBar('stiel', bar, UP, { x: 0, y: 0, z: -1 });
+    expect(spot.hold?.along.x).toBeCloseTo(0, 10);
+    expect(spot.hold?.along.y).toBeCloseTo(0, 10);
+    expect(spot.hold?.along.z).toBeCloseTo(-1, 10);
+  });
+
+  /**
+   * **Und das ist der Kern**: Die Stange liegt hier entlang z, die Faustachse
+   * zeigt nach oben. Beides fällt ausdrücklich nicht zusammen — sonst hinge
+   * eine Pfanne hochkant in der Hand.
+   */
+  it('setzt `up` auf die Faustachse und `ahead` auf das Vorne', () => {
+    const ahead: Vec3 = { x: 0, y: 0, z: -1 };
+    const spot = holdBar('stiel', bar, UP, ahead);
+    const axis = rotateVec(UP, spot.pose.rotation, { x: 0, y: 0, z: 0 });
+    expect(axis.x).toBeCloseTo(0, 10);
+    expect(axis.y).toBeCloseTo(1, 10);
+    expect(axis.z).toBeCloseTo(0, 10);
+    const front = rotateVec({ x: 0, y: 0, z: -1 }, spot.pose.rotation, { x: 0, y: 0, z: 0 });
+    expect(front.x).toBeCloseTo(ahead.x, 10);
+    expect(front.y).toBeCloseTo(ahead.y, 10);
+    expect(front.z).toBeCloseTo(ahead.z, 10);
+  });
+
+  it('dreht mit `ahead` um die Faustachse und nicht um die Stange', () => {
+    const spot = holdBar('stiel', bar, UP, { x: 1, y: 0, z: 0 });
+    const front = rotateVec({ x: 0, y: 0, z: -1 }, spot.pose.rotation, { x: 0, y: 0, z: 0 });
+    expect(front.x).toBeCloseTo(1, 10);
+    expect(front.z).toBeCloseTo(0, 10);
+    // Die Stange bleibt, wo sie war — sie hängt am Modell und nicht am Vorne.
+    expect(spot.hold?.along.z).toBeCloseTo(-1, 10);
+  });
+
+  it('lässt einen Griff ohne Stange ohne Zylinder', () => {
+    expect(handle('rand', { x: 0, y: 0, z: 0 }, UP, RIGHT).hold).toBeUndefined();
   });
 });
 

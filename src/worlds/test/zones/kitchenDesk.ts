@@ -209,11 +209,12 @@ export function pieceSide(turn: Turn, dx: number, dz: number): PieceSide {
  * der Tisch damit das eine Möbel, das aus der Zeile herausragt, ohne ein Herd
  * zu sein.
  *
- * Nach oben passt es ebenso: In der Küche schaut man aus 1,40 m
+ * Nach oben passt es ebenso: In der Küche schaut man aus 1,15 m
  * (`core/posture.DEFAULT_EYES.kitchen`), die Bildmitte liegt bei 1,06 m
- * (`SCREEN_FOOT` + halbe `SCREEN_HIGH`). Man schaut also **auf** den Bildschirm
- * herunter und nicht an ihm hoch — eine Scheibe auf Augenhöhe stünde einem in
- * der halben Küche im Bild.
+ * (`SCREEN_FOOT` + halbe `SCREEN_HIGH`). Der Bildschirm steht damit fast genau
+ * auf Augenhöhe — bei den 1,40 m, die hier einmal standen, schaute man auf ihn
+ * herunter, und beides geht: Er ist 0,42 m hoch, also fällt er in keiner der
+ * beiden Höhen aus dem Blick.
  */
 export const DESK_TOP = 0.75;
 

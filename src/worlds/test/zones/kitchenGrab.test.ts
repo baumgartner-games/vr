@@ -1,4 +1,11 @@
-import { grabsByHitbox, holdFor, nearestHandle, type GrabPose } from '../../../core/grabHandles';
+import {
+  grabsByHitbox,
+  holdFor,
+  nearestHandle,
+  type GrabHandle,
+  type GrabPose,
+} from '../../../core/grabHandles';
+import { rotateVec } from '../../portal/tools/aim';
 import {
   KITCHEN_PIECES,
   kitchenDeck,
@@ -21,7 +28,23 @@ import { PLATE_RADIUS } from './kitchenProps';
 import type { KitchenItem } from './kitchenRecipes';
 
 const PAN_SIZE = { width: 0.63, depth: 1.08, height: 0.18 };
-const TANK_SIZE = { width: 0.3, depth: 0.3, height: 0.8 };
+const POT_SIZE = { width: 0.86, depth: 0.63, height: 0.31 };
+const TANK_SIZE = { width: 0.62, depth: 0.39, height: 0.75 };
+
+/** Wohin die Faustachse (+Y) dieses Griffs im Raum des Dings zeigt, gerundet. */
+function axisOf(spot: GrabHandle): number[] {
+  return round(rotateVec({ x: 0, y: 1, z: 0 }, spot.pose.rotation, { x: 0, y: 0, z: 0 }));
+}
+
+/** Und wohin sein Vorne (-Z) zeigt — dorthin, wohin der Zeigefinger zeigt. */
+function frontOf(spot: GrabHandle): number[] {
+  return round(rotateVec({ x: 0, y: 0, z: -1 }, spot.pose.rotation, { x: 0, y: 0, z: 0 }));
+}
+
+/** Auf zwei Stellen: Ein Ohr, das 9° schräg steht, soll nicht am Vergleich scheitern. */
+function round(v: { x: number; y: number; z: number }): number[] {
+  return [v.x, v.y, v.z].map((one) => Math.round(one * 100) / 100 + 0);
+}
 
 function at(x: number, y: number, z: number): GrabPose {
   return { position: { x, y, z }, rotation: { x: 0, y: 0, z: 0, w: 1 } };
@@ -58,27 +81,86 @@ describe('Wie ein Küchending gegriffen werden will', () => {
     expect(holdFor(null).rotation).toEqual({ x: 0, y: 0, z: 0, w: 1 });
   });
 
-  it('gibt Pfanne und Topf genau einen Griff, und der sitzt am Stiel', () => {
-    for (const item of ['pan', 'pot'] as const) {
-      const handles = kitchenHandles(item, PAN_SIZE);
-      expect(handles).toHaveLength(1);
-      const [stalk] = handles;
-      expect(stalk!.id).toBe('stiel');
-      // Auf der Seite des Stiels, also **hinter** der Mulde (`kitchenFit.PAN_BOWL`
-      // rückt sie nach -z), und oben am Rand statt auf halber Höhe.
-      expect(stalk!.pose.position.z).toBeGreaterThan(0.3);
-      expect(stalk!.pose.position.z).toBeLessThan(PAN_SIZE.depth / 2);
-      expect(stalk!.pose.position.y).toBeGreaterThan(PAN_SIZE.height / 2);
-      expect(stalk!.pose.position.x).toBe(0);
+  /**
+   * **Die Pfanne am Stiel** — und zwar an der ganzen Stange, nicht an einem
+   * Punkt darauf.
+   */
+  it('legt den Griff der Pfanne auf den Stiel', () => {
+    const handles = kitchenHandles('pan', PAN_SIZE);
+    expect(handles).toHaveLength(1);
+    const [stalk] = handles;
+    expect(stalk!.id).toBe('stiel');
+    // Auf der Seite des Stiels, also **hinter** der Mulde (`kitchenFit.PAN_BOWL`
+    // rückt sie nach -z), und oben am Rand statt auf halber Höhe.
+    expect(stalk!.pose.position.z).toBeGreaterThan(0.3);
+    expect(stalk!.pose.position.z).toBeLessThan(PAN_SIZE.depth / 2);
+    expect(stalk!.pose.position.y).toBeGreaterThan(PAN_SIZE.height / 2);
+    expect(stalk!.pose.position.x).toBe(0);
+    // Die Stange liegt längs des Stiels und bleibt in der Hülle.
+    expect(Math.abs(stalk!.hold!.along.z)).toBeGreaterThan(0.95);
+    expect(stalk!.hold!.length).toBeGreaterThan(PAN_SIZE.depth * 0.3);
+    expect(stalk!.hold!.length).toBeLessThan(PAN_SIZE.depth);
+  });
+
+  /**
+   * **Und sie liegt waagerecht in der Faust, mit der Mulde vorn.** Das ist der
+   * gemeldete Fehler als Zusicherung: Vorher stand der Stiel in der
+   * Faustachse, also hing die Pfanne hochkant und hinter der Hand.
+   */
+  it('hält die Pfanne oben offen und die Mulde vorn', () => {
+    const [stalk] = kitchenHandles('pan', PAN_SIZE);
+    expect(axisOf(stalk!)).toEqual([0, 1, 0]);
+    expect(frontOf(stalk!)).toEqual([0, 0, -1]);
+  });
+
+  /**
+   * **Der Topf hat zwei Ohren und keinen Stiel** — er trug bis eben den Griff
+   * der Pfanne, und der lag mitten in der Suppe.
+   */
+  it('gibt dem Topf beide Ohren, gegenüberliegend', () => {
+    const handles = kitchenHandles('pot', POT_SIZE);
+    expect(handles).toHaveLength(2);
+    expect(handles.map((one) => one.id)).toEqual(['ohr+x', 'ohr-x']);
+    const [right, left] = handles;
+    // Außen an der Hülle, oben am Rand, und punktgespiegelt um die Mitte.
+    expect(right!.pose.position.x).toBeGreaterThan(POT_SIZE.width * 0.4);
+    expect(right!.pose.position.y).toBeGreaterThan(POT_SIZE.height * 0.7);
+    expect(left!.pose.position.x).toBeCloseTo(-right!.pose.position.x, 10);
+    expect(left!.pose.position.z).toBeCloseTo(-right!.pose.position.z, 10);
+    // Jedes Ohr ist eine Stange quer zum Radius, also im Wesentlichen entlang z.
+    for (const ear of handles) {
+      expect(Math.abs(ear.hold!.along.z)).toBeGreaterThan(0.9);
+      expect(ear.hold!.length).toBeGreaterThan(0.1);
     }
   });
 
-  it('gibt dem Feuerlöscher einen Griff oben, wie der Taschenlampe', () => {
+  it('hält den Topf oben offen und seinen Bauch vorn', () => {
+    const [right, left] = kitchenHandles('pot', POT_SIZE);
+    for (const ear of [right!, left!]) {
+      expect(axisOf(ear)).toEqual([0, 1, 0]);
+      // Nach vorn liegt die Mitte des Topfes, also zum Ohr hin gespiegelt.
+      expect(Math.sign(frontOf(ear)[0]!)).toBe(-Math.sign(ear.pose.position.x));
+    }
+  });
+
+  /**
+   * **Der Feuerlöscher hängt am Tragebügel und zielt nach vorn.**
+   *
+   * Die Vierteldrehung nach links aus dem Auftrag, als Zusicherung: Die Düse
+   * zeigt am Modell nach +x, und genau dorthin zeigt jetzt das Vorne des
+   * Griffs — vorher war es -z, also quer zur Hand.
+   */
+  it('hängt den Feuerlöscher an den Bügel und lässt ihn nach vorn zielen', () => {
     const handles = kitchenHandles('extinguisher', TANK_SIZE);
     expect(handles).toHaveLength(1);
-    expect(handles[0]!.id).toBe('kopf');
-    // Oben, dort wo das Ventil sitzt — nicht auf halber Höhe am Bauch.
-    expect(handles[0]!.pose.position.y).toBeGreaterThan(TANK_SIZE.height * 0.7);
+    const [grip] = handles;
+    expect(grip!.id).toBe('buegel');
+    // Ganz oben, wo der Bügel liegt — nicht auf halber Höhe am Bauch.
+    expect(grip!.pose.position.y).toBeGreaterThan(TANK_SIZE.height * 0.9);
+    // Die Stange liegt quer, entlang x.
+    expect(Math.abs(grip!.hold!.along.x)).toBeGreaterThan(0.95);
+    expect(axisOf(grip!)).toEqual([0, 1, 0]);
+    expect(frontOf(grip!)).toEqual([1, 0, 0]);
   });
 
   it('gibt dem Teller den Rand und die Unterseite', () => {
@@ -142,10 +224,11 @@ describe('Wie weit in der Küche gegriffen wird', () => {
 describe('Abgelegt wird erst beim Loslassen', () => {
   /**
    * Der gemeldete Fehler, als Regel: Sechs Taten geben etwas aus der Hand, und
-   * die sechs gehören in der Brille der Greif-Taste. Wer mit dem Topf an der
-   * Arbeitsplatte vorbeikommt, stellt ihn nicht ab.
+   * die sechs gehören in der Brille der Greif-Taste **und dem Trigger**. Die
+   * **Berührung** bleibt draußen — wer mit dem Topf an der Arbeitsplatte
+   * vorbeikommt, stellt ihn nicht ab.
    */
-  it('gibt jede Tat, die etwas aus der Hand gibt, der Greif-Taste', () => {
+  it('gibt jede Tat, die etwas aus der Hand gibt, Greif-Taste und Trigger', () => {
     const cases = [
       kitchenDeed(dish('plate'), { kind: 'top' }),
       kitchenDeed(dish('lettuce'), { kind: 'board' }),
@@ -157,7 +240,7 @@ describe('Abgelegt wird erst beim Loslassen', () => {
     for (const deed of cases) {
       expect(kitchenGivesUp(deed)).toBe(true);
       const spec = kitchenInteractionSpec(deed, KITCHEN_STATION_GRAB);
-      expect(vrInputs(spec)).toEqual(['grip']);
+      expect(vrInputs(spec)).toEqual(['grip', 'aimTrigger']);
       expect(resolveInteraction(spec, 'vr').press).toBe('hold');
     }
   });
@@ -167,6 +250,32 @@ describe('Abgelegt wird erst beim Loslassen', () => {
     expect(deed.do).toBe('douse');
     expect(kitchenGivesUp(deed)).toBe(false);
     expect(vrInputs(kitchenInteractionSpec(deed))).toEqual(['handTouch', 'aimTrigger']);
+  });
+
+  /**
+   * **Ein vergebener Trigger wird nicht zweimal vergeben.**
+   *
+   * Er spritzt den Feuerlöscher und wendet ein getragenes Möbel
+   * (`kitchen.spray`, `kitchen.buildTurn`). Bekäme er daneben das Ablegen,
+   * drückte man ihn zum Löschen und stellte den Löscher dabei auf die
+   * Arbeitsplatte. Die Greif-Taste bleibt in beiden Fällen, und von oben
+   * ändert sich wie immer nichts.
+   */
+  it('nimmt den Trigger zurück, solange die Hand ihn schon benutzt', () => {
+    const place = kitchenDeed(dish('extinguisher'), { kind: 'top' });
+    expect(place.do).toBe('place');
+    expect(vrInputs(kitchenInteractionSpec(place, KITCHEN_STATION_GRAB, false))).toEqual(['grip']);
+    expect(
+      resolveInteraction(kitchenInteractionSpec(place, KITCHEN_STATION_GRAB, false), 'vr').press,
+    ).toBe('hold');
+    // Und ebenso, wo sonst der Trigger allein zuständig wäre: Berühren bleibt.
+    const douse = kitchenDeed(dish('extinguisher'), { kind: 'stove', on: dish('pan'), fire: true });
+    expect(vrInputs(kitchenInteractionSpec(douse, undefined, false))).toEqual(['handTouch']);
+    // Von oben unverändert.
+    expect(
+      resolveInteraction(kitchenInteractionSpec(place, KITCHEN_STATION_GRAB, false), 'topDown')
+        .inputs,
+    ).toEqual(['useButton', 'useKey']);
   });
 
   /**
