@@ -91,6 +91,7 @@ import {
   beltReach,
   beltReleases,
   beltStep,
+  beltTrashes,
   type BeltFrame,
   type BeltState,
   type BeltTile,
@@ -707,7 +708,7 @@ export class KitchenZone implements TestZone {
    * Zahlen stimmen alle, der Blick stimmt nicht. Also wird in der Küche der
    * **Spieler** kleiner und nicht die Küche größer: `PlayerRig.eyeScale`
    * staucht ihn auf die eingestellte Augenhöhe (`posture.kitchenEyeScale`,
-   * voreingestellt 140 cm), die Füße bleiben auf dem Boden, und das Bücken
+   * voreingestellt 150 cm), die Füße bleiben auf dem Boden, und das Bücken
    * bleibt ein Bücken.
    *
    * **Drei Bedingungen, und alle drei stehen in einer Zeile:**
@@ -861,19 +862,30 @@ export class KitchenZone implements TestZone {
    *
    * `null` heißt für die Rechnung nebenan: Hier fährt nichts los. Das ist
    * derselbe Fall für dreierlei, und das ist Absicht — ein Band am Rand der
-   * Küche, eines, das auf einen Mülleimer zeigt, und eines, das auf die
-   * Ausgabetheke zeigt.
+   * Küche, eines, das auf die Ausgabetheke zeigt, und eines, das mit dem
+   * Kochtopf darauf auf einen Mülleimer zeigt.
    *
    * **Hier steht nur das Nachschlagen**, die Regel steht nebenan
-   * (`kitchenBelt.beltDelivers`, mit Test über alle elf Stationsarten): Welche
-   * Kachel der Nachbar ist, weiß nur die Zone; ob dorthin abgeliefert werden
-   * darf, ist eine Frage über Zahlen und Arten und gehört dorthin, wo ein Test
-   * sie ohne WebGL stellen kann.
+   * (`kitchenBelt.beltDelivers`, mit Test über alle zwölf Stationsarten):
+   * Welche Kachel der Nachbar ist, weiß nur die Zone; ob dorthin abgeliefert
+   * werden darf, ist eine Frage über Zahlen und Arten und gehört dorthin, wo
+   * ein Test sie ohne WebGL stellen kann.
+   *
+   * **Der Mülleimer ist der eine Nachbar, bei dem die Art allein nicht
+   * reicht.** Er nimmt Essen und sonst nichts (`kitchenCarry.intoBin`), und
+   * was auf dem Band liegt, weiß wieder nur die Zone. Gefragt wird deshalb
+   * dieselbe Regel, die auch `A` beantwortet, und zwar **vor** der Fahrt: Ein
+   * Kochtopf, der erst zwei Sekunden zum Eimer führe und dort abgewiesen
+   * würde, führe alle zwei Sekunden wieder los. So bleibt er einfach liegen —
+   * derselbe Fall wie ein Band, vor dem gar nichts steht.
    */
   private beltTarget(spot: Station): Station | null {
     const step = beltStep(spot.home.turn);
     const next = this.stationAt(spot.home.x + step.dx, spot.home.z + step.dz);
-    return next && beltDelivers(next.kind) ? next : null;
+    if (!next || !beltDelivers(next.kind)) return null;
+    if (next.kind !== 'bin') return next;
+    const load = spot.on?.dish;
+    return load && beltTrashes(kitchenDeed(load, facts(next))) ? next : null;
   }
 
   /**
@@ -883,9 +895,10 @@ export class KitchenZone implements TestZone {
    * Dieselbe Arbeitsteilung wie eine Zeile höher: Die Kachel schlägt die Zone
    * nach, was von dort mitgenommen werden darf, entscheidet
    * `kitchenBelt.beltReleases` — Herd und Löscherhalterung nicht (das ist
-   * Gerät), Mülleimer und Theke auch nicht (was man nicht hinschieben darf,
-   * zieht man nicht heraus), und was gerade unter dem Messer liegt, bleibt
-   * liegen.
+   * Gerät), die Theke nicht (was man nicht hinschieben darf, zieht man nicht
+   * heraus), der **Mülleimer** erst recht nicht (dort darf ein Band seit
+   * Neuestem hinein, aber niemals heraus), und was gerade unter dem Messer
+   * liegt, bleibt liegen.
    */
   private beltSource(spot: Station): Station | null {
     const step = beltReach(spot.home.turn);
@@ -969,6 +982,12 @@ export class KitchenZone implements TestZone {
       const to = this.stationByKey(move.to);
       const load = from?.on;
       if (!from || !to || !load) continue;
+      // **Beim Mülleimer wird nicht abgelegt, sondern weggeworfen** — auf ihm
+      // liegt nie etwas, und genau deshalb hat er auch keinen Stau.
+      if (to.kind === 'bin') {
+        this.dumpInBin(from, to, load);
+        continue;
+      }
       from.on = null;
       this.settle(from);
       this.layOn(to, load);
@@ -992,6 +1011,64 @@ export class KitchenZone implements TestZone {
       if (!from?.on || !to) continue;
       from.on.object.position.lerpVectors(from.deck, to.deck, carry.t);
     }
+  }
+
+  /**
+   * **Was ein Band in den Mülleimer fährt, ist weg** — und zwar auf demselben
+   * Weg, auf dem es auch aus der Hand hineinginge.
+   *
+   * Das ist der ganze Sinn dieser Methode: Sie rechnet **nichts** selbst aus.
+   * Was mit dem Angelieferten geschieht, entscheidet dieselbe Regel, die auch
+   * `A` beantwortet (`kitchenCarry.kitchenDeed` an einer Station der Art
+   * `bin`), und danach stehen hier dieselben zwei bis drei Zeilen wie in `act`
+   * — Netz weg beziehungsweise umbauen, es sagen. Eine zweite Lösch-Mechanik
+   * neben der ersten wäre die, die beim nächsten neuen Ding etwas anderes tut
+   * als der Handgriff, den sie nachahmt: Von Hand ginge es in den Müll, vom
+   * Band aus nicht, und niemand wüsste, welche der beiden recht hat.
+   *
+   * **Der Träger bleibt auf dem Band** (`scrape`, ein Teller mit einem halben
+   * Burger darauf). Beim Spieler bleibt er in der Hand, und das ist derselbe
+   * Gedanke: Abgeräumt wird, was **darauf** liegt. Auf dem Mülleimer kann er
+   * nicht landen — dort liegt nie etwas (`kitchenPlan`) —, also kommt er
+   * dorthin zurück, wo er herkam. Sichtbar springt er dabei die eine Kachel
+   * zurück, die er unterwegs war; das nächste Bild fragt dann erneut, und
+   * jetzt lautet die Antwort für den leeren Teller `refuse`, also bleibt er
+   * liegen, statt hin und her zu fahren (`beltTarget`).
+   *
+   * **Und wenn kurz hintereinander mehrere ankommen**, ist das kein eigener
+   * Fall: Ein Mülleimer wird nie belegt, also läuft die Rechnung nebenan
+   * gegen keine volle Kachel und staut nichts auf (`kitchenBelt.advanceBelts`
+   * liest `loaded` je Bild neu). Es kommt an, was ankommt — jedes für sich,
+   * jedes mit seiner eigenen Meldung.
+   *
+   * Einen **Ton** gibt der Mülleimer nicht, weder hier noch unter der Hand:
+   * Diese Küche hat überhaupt keinen, und einen zu erfinden, der nur bei
+   * Bandlieferungen klänge, wäre der Anfang zweier Mülleimer. Ein **Zähler**
+   * für Weggeworfenes existiert ebenso wenig — gezählt wird in dieser Küche
+   * nichts außer den Tellern auf den beiden Stapeln.
+   */
+  private dumpInBin(belt: Station, bin: Station, load: Carried): void {
+    const deed = kitchenDeed(load.dish, facts(bin));
+    if (deed.do === 'trash') {
+      belt.on = null;
+      this.settle(belt);
+      this.discard(load);
+      this.world?.notify(`${dishLabel(deed.dish)} weggeworfen`);
+    } else if (deed.do === 'scrape') {
+      this.restyle(load, deed.dish);
+      // Zurück auf das Band: `layOn` setzt das Netz auf die Kachelmitte, von
+      // der aus es losgefahren ist — unterwegs hat es die Fahrt dazwischen
+      // gezeichnet (`carry`), und stehen bleiben darf es dort nicht.
+      this.layOn(belt, load);
+      this.world?.notify(`${ITEM_LABELS[deed.dish.item]} abgeräumt`);
+    } else {
+      // Hierher kommt nichts: `beltTarget` fragt dieselbe Regel, bevor es
+      // losfährt. Bleibt trotzdem etwas übrig — eine dreizehnte Tat, ein
+      // Grundriss, der sich im selben Bild ändert —, dann bleibt es liegen,
+      // wo es liegt, statt spurlos zu verschwinden.
+      return;
+    }
+    this.refreshStations();
   }
 
   /** Eine Station an ihrem Anzeigenschlüssel — den vergibt `addStation`. */
