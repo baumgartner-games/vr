@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PAN_BOWL, SINK_BOWL } from '../../../core/kitchenFit';
+import { PAN_BOWL, POT_BOWL, SINK_BOWL } from '../../../core/kitchenFit';
 import { CLEAN_STACK_MAX } from './kitchenCarry';
 import { ITEM_LABELS, dish, layered, type Dish, type KitchenItem } from './kitchenRecipes';
 import {
@@ -12,6 +12,7 @@ import {
   PLATE_RADIUS,
   SINK_TILT,
   STACK_NAME,
+  WATER_LOOK,
   stackHeight,
 } from './kitchenProps';
 
@@ -493,6 +494,116 @@ describe('der Teller im Spülbecken', () => {
     // Quer dazu passt er, und genau dorthin fällt er beim Neigen zusammen:
     // 0,75 · cos 11,1° = 0,736 m in eine Öffnung von 0,808 m.
     expect(2 * PLATE_RADIUS * Math.cos(SINK_TILT)).toBeLessThan(SINK_BOWL.width);
+  });
+});
+
+/**
+ * **Das Wasser im Topf** — der zweite Ort, an dem es in dieser Küche Wasser
+ * gibt, und er muss aussehen wie der erste.
+ *
+ * Geprüft wird hier die Rechnung dahinter, denn genau an ihr fällt es auf:
+ * Steht der Spiegel zu hoch, läuft er über den Rand; zu tief, und man sieht aus
+ * 55° von oben (`core/topDownPose.TOP_DOWN_TILT`) nichts als Blech. Beide
+ * Fehler sieht ein `Box3` in Millisekunden und das Headset erst nach einer
+ * Viertelstunde.
+ */
+describe('das Wasser im Topf', () => {
+  let kit: FoodKit;
+  beforeEach(() => {
+    kit = new FoodKit();
+  });
+  afterEach(() => {
+    kit.dispose();
+  });
+
+  /**
+   * **Vom Innenboden bis zum Spiegel**, und das ist es, was die Zone
+   * hineinhängt: Sie hebt den Belag um `POT_BOWL.floor` (`kitchen.looseRim`),
+   * und die Oberkante muss danach genau auf `POT_BOWL.water` liegen.
+   */
+  it('steht vom Boden des Topfes bis auf Spiegelhöhe', () => {
+    const top = kit.topping(dish('pot', ['water']), POT_BOWL.floor)!;
+    expect(top).not.toBeNull();
+    const box = span(top);
+    expect(box.min.y).toBeCloseTo(POT_BOWL.floor, 5);
+    expect(box.max.y).toBeCloseTo(POT_BOWL.water, 5);
+    // Und das ist genau die Zahl, mit der der Satz selbst rechnet.
+    expect(ITEM_HEIGHT.water).toBeCloseTo(POT_BOWL.water - POT_BOWL.floor, 6);
+    expect(kit.height(dish('pot', ['water']))).toBeCloseTo(ITEM_HEIGHT.water, 6);
+  });
+
+  /**
+   * **Halb voll, wie im Becken** — und der Rand steht darüber.
+   *
+   * Ein Topf bis zum Rand wäre beim ersten Schritt übergelaufen, ein
+   * Fingerbreit Wasser wäre eine Pfütze. Die Begründung samt Sichtbarkeit aus
+   * 55° steht bei `core/kitchenFit.POT_BOWL`; hier steht die Gegenprobe.
+   */
+  it('steht halb im Topf und nicht über seinem Rand', () => {
+    expect(POT_BOWL.water).toBeCloseTo((POT_BOWL.floor + POT_BOWL.rim) / 2, 4);
+    expect(POT_BOWL.water).toBeLessThan(POT_BOWL.rim);
+    expect(POT_BOWL.water).toBeGreaterThan(POT_BOWL.floor);
+    // Aus 55° von oben verdeckt der nähere Rand weniger als ein Viertel der
+    // Scheibe: `Tiefe unter dem Rand / tan 55°` gegen den Durchmesser.
+    const hidden = (POT_BOWL.rim - POT_BOWL.water) / Math.tan((55 * Math.PI) / 180);
+    expect(hidden / (2 * POT_BOWL.radius)).toBeLessThan(0.25);
+  });
+
+  /**
+   * **Und es bleibt innerhalb des Blechs.** Der Innenradius ist gemessen
+   * (`POT_BOWL.radius`, 0,281 m gegen 0,2831 m an der engsten Stelle) — ein
+   * Wasser, das durch die Wand tritt, sieht man von außen als blauen Ring um
+   * den Topf.
+   */
+  it('bleibt in der Weite der Topföffnung', () => {
+    const box = span(kit.view(dish('water'))!);
+    expect(box.max.x - box.min.x).toBeLessThanOrEqual(2 * POT_BOWL.radius + 1e-6);
+    expect(box.max.z - box.min.z).toBeLessThanOrEqual(2 * POT_BOWL.radius + 1e-6);
+    // Achtzehn Seiten sind rund genug, um in einem runden Topf nicht als
+    // Vieleck aufzufallen: Die Ecken liegen höchstens 1,6 % unter dem Radius.
+    expect((box.max.x - box.min.x) / (2 * POT_BOWL.radius)).toBeGreaterThan(0.98);
+  });
+
+  /**
+   * **Ein Wasser und nicht zwei.** Der Ton kommt aus `WATER_LOOK`, und
+   * dasselbe `WATER_LOOK` baut die Fläche im Spülbecken
+   * (`worlds/test/zones/kitchen.addWater`). Zwei Blautöne nebeneinander wären
+   * zwei Flüssigkeiten.
+   */
+  it('trägt den Ton des Spülbeckens und ist durchsichtig', () => {
+    const view = kit.view(dish('water'))!;
+    let material: THREE.MeshStandardMaterial | undefined;
+    view.traverse((part) => {
+      if (!material && part instanceof THREE.Mesh) {
+        material = part.material as THREE.MeshStandardMaterial;
+      }
+    });
+    expect(material).toBeDefined();
+    expect(material!.color.getHex()).toBe(new THREE.Color(WATER_LOOK.color).getHex());
+    expect(material!.transparent).toBe(true);
+    expect(material!.opacity).toBeCloseTo(WATER_LOOK.opacity, 6);
+    expect(material!.roughness).toBeCloseTo(WATER_LOOK.roughness, 6);
+    expect(material!.metalness).toBeCloseTo(WATER_LOOK.metalness, 6);
+    // Es bleibt trotzdem ein eigenes Material und überschreibt nicht das der
+    // matten Zutaten: Der Schlüssel führt die Durchsichtigkeit mit.
+    const soup = kit.view(dish('tomato-soup'))!;
+    let other: THREE.MeshStandardMaterial | undefined;
+    soup.traverse((part) => {
+      if (!other && part instanceof THREE.Mesh) other = part.material as THREE.MeshStandardMaterial;
+    });
+    expect(other!.transparent).toBe(false);
+  });
+
+  /**
+   * **Es wirft keinen Schatten.** Ein Zylinder Wasser, der in den Topf hinein
+   * einen schwarzen Körper wirft, verdunkelt genau das, was man sehen soll —
+   * und der Schatten fiele ohnehin auf das Blech, das ihn verdeckt.
+   */
+  it('wirft keinen Schatten in den Topf', () => {
+    const view = kit.view(dish('water'))!;
+    view.traverse((part) => {
+      if (part instanceof THREE.Mesh) expect(part.castShadow).toBe(false);
+    });
   });
 });
 

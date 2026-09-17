@@ -3226,8 +3226,8 @@ Gericht hängt und das andere am Gerät.
 In der Testküche ist die Absicht keine feste Eigenschaft eines Möbels, sondern
 kommt aus der Regel, die ohnehin entscheidet, was ein Druck bewirkt
 (`kitchenCarry.kitchenInteraction`): Was danach in der Hand liegt (`take`), ist
-`grab`; alles, was an der Station passiert — ablegen, schneiden, spülen,
-wegwerfen, servieren, löschen —, ist `press`. Auch `combine` ist ein Druck,
+`grab`; alles, was an der Station passiert — ablegen, schneiden, spülen, **den
+Topf am Becken füllen**, wegwerfen, servieren, löschen —, ist `press`. Auch `combine` ist ein Druck,
 obwohl der Saum dabei am Liegenden hängt (`meansContent`): Wer ein Patty aufs
 Brötchen legt, greift nicht danach, er legt es hin. Das Feld fragt bei jedem
 Lesen neu, genau wie `usePrompt` daneben — dieselbe Ausgabe will einmal
@@ -5473,8 +5473,10 @@ rechnet etwas aus, das man ohne Szene prüfen kann.
 
 Und das sind die Regeln, die darin stehen:
 
-- **Träger statt Anrichte.** Es gibt genau drei Dinge, die etwas aufnehmen:
-  **Teller**, **Brötchen** und **Pfanne** (`isCarrier`). Ein getragenes Ding
+- **Träger statt Anrichte.** Es gibt genau drei Dinge, die über `combine`
+  etwas aufnehmen: **Teller**, **Brötchen** und **Pfanne** (`isCarrier`). Der
+  **Topf** hält zwar Wasser, steht aber mit Absicht in keiner Zeile von `TAKES`
+  — sein Inhalt kommt aus dem Hahn und nicht aus einer Hand, siehe unten. Ein getragenes Ding
   ist deshalb kein Name mehr, sondern `Dish = { item, on[] }` — ein Brötchen
   mit Patty und Salat ist ein `bun` mit zwei Sachen darauf. Damit fällt das
   Möbel weg, auf dem als einzigem ein Burger entstehen konnte: Kombiniert wird
@@ -5638,6 +5640,56 @@ Und das sind die Regeln, die darin stehen:
     aus, als stünde er weiter vorn, als er steht: Er wandert im Bild um
     `Höhe / tan 55° = 0,44 m` auf die Kamera zu, und das ist fast die ganze
     Tiefe des Möbels.
+- **Das Becken ist zugleich der Wasserhahn**, und der **Topf** wird davor
+  gefüllt (`atSink`, `KitchenDeed.fill`) — aus dem Auftrag: „Ich will einen
+  Kochtopf in der Hand mit dem Waschbecken interagieren können, um ihn mit
+  Wasser zu füllen… Egal ob dreckiger Teller drin ist." Genau daran hängt
+  alles Weitere:
+  - **Der Fall steht vor beiden Ablehnungen.** „In die Spüle gehört nur
+    Geschirr" und „In der Spüle steht schon …" sind für den Topf falsch, weil
+    er gar nicht **hineingelegt** wird: Er wird untergehalten. Ein dreckiger
+    Teller darf also gleichzeitig darin liegen und weitergespült werden — das
+    `fill` rührt die Station nicht an, und die Zone ruft dabei ausdrücklich
+    kein `settle`, sonst finge die Uhr des Tellers neben dem Topf von vorn an.
+  - **Wasser ist Inhalt, kein eigenes Ding.** Ein voller Topf ist
+    `dish('pot', ['water'])` und nicht ein `'pot-water'` — Topf und Pfanne
+    kommen aus dem Möbelmodell und tauschen nie ihr Netz, sondern nur ihren
+    **Belag** (`kitchen.restyle` → `FoodKit.topping`), und ein Ding mit leerem
+    `on` hätte dort nichts zu tauschen. Als Inhalt bekommt das Wasser dazu den
+    Rückweg geschenkt, den jeder Inhalt hat: Über dem **Mülleimer** wird der
+    Topf abgeräumt und bleibt in der Hand (`scrape`). Keine Sackgasse, keine
+    zweite Regel.
+  - **Und Wasser wird trotzdem nie zur Zutat.** Das garantiert `TAKES`:
+    `water` steht in **keiner** Zeile rechts, also nimmt kein Träger es an —
+    kein Brötchen, kein Teller, keine Pfanne —, und über die Theke geht es
+    schon gar nicht. Es kommt gar nicht erst über `combine` in den Topf.
+  - **Sofort und nicht mit der Uhr.** Ein dritter `WorkKind` neben `chop` und
+    `wash` lag nahe und ist an zwei Dingen gescheitert: Es gibt nichts
+    zuzusehen (ein Hahn ist ein Handgriff, keine Arbeit), und die Uhr gehört
+    der **Station** und rechnet mit einem Ding darin — der Topf liegt aber in
+    der Hand, während im Becken gespült wird. Das wären zwei Uhren an einer
+    Station, und genau **eine** ist der Sinn von `kitchenWork.ts`.
+  - **Bedient wird die Station**, nicht gegriffen: `fill` ist kein `take`, also
+    `press` — in der Brille **Berühren oder Trigger**, von oben `A`, am
+    Schreibtisch linke Maustaste oder `E`. Kein Sonderfall in einer der drei
+    Ansichten, und der gelbe Saum liegt auf dem Becken und nicht auf dem
+    dreckigen Teller darin (`meansContent`).
+  - **Das Bild ist gemessen** (`core/kitchenFit.POT_BOWL`, Quelle
+    `stove-pot`, halbiert mit `KITCHEN_SCALE`): Innenboden 0,0247 m über dem
+    Fuß des Topfes, Öffnung bei 0,3044 m — 27,97 cm tief. Das Wasser steht
+    **halb**, also auf 0,1646 m, dieselbe Entscheidung wie im Becken
+    (`SINK_BOWL.water`) und aus demselben Grund. Aus 55° von oben
+    (`TOP_DOWN_TILT`) verdeckt der nähere Rand davon 9,79 cm von 57,19 cm
+    Durchmesser, also **17 %** — es bleibt eine breite blaue Ellipse; beim
+    leeren Topf sieht man stattdessen den Innenboden, 28 cm tiefer und zu 34 %
+    verdeckt. Ton, Deckkraft und Rauheit teilt es sich mit dem Becken
+    (`kitchenProps.WATER_LOOK`, vorher in der Zone): Zwei Blautöne
+    nebeneinander wären zwei Flüssigkeiten.
+  - **Wozu das Wasser dann gut ist, steht absichtlich nirgends.** Verlangt war
+    das Füllen; ein Suppenrezept, das niemand bestellt hat, wäre eine zweite
+    Entscheidung im selben Handgriff. Die Stelle dafür ist da, falls es kommt:
+    Der Herd kocht, was in seinem Gefäß liegt, und `CHOPS`/`FRIES` sind
+    Tabellen — es fehlte eine Zeile, kein Zustand.
 - **Die Zutaten kommen aus dem Ausgabe-Möbel** des Katalogs, nicht mehr aus
   gebauten Holzkisten, und tragen ein **zur Laufzeit gerendertes Bild** ihrer
   Zutat (`zones/kitchenIcon.ts`): Der Ofen stellt das Ding vor eigenes Licht,

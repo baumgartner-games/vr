@@ -707,3 +707,60 @@ export function kitchenWorkHeight(piece: KitchenPiece): number {
  * Austausch der Quelle nachmisst.
  */
 export const PAN_BOWL: readonly [x: number, z: number] = [0, -0.225];
+
+/**
+ * **Wo im abgenommenen Topf das Wasser steht** — der Innenraum, in Metern über
+ * seinem **Fuß**, und der Innenradius dazu.
+ *
+ * Dieselbe Lesart wie `SINK_BOWL` und dieselbe Quelle wie `PAN_BOWL`: gemessen
+ * an `public/models/kitchen.glb`, Knoten `stove-pot`, Netz `Kitchen_Utensils`,
+ * Quellmaß in Klammern, halbiert mit `KITCHEN_SCALE`. Der Topf ist **oben
+ * offen** — das ist keine Annahme, sondern steht in der Datei: Über der
+ * Gefäßwand liegen zwei Ringe zu je 50 Ecken (außen 1,7181 bei r = 0,6339,
+ * innen 1,7182 bei r = 0,5627) und darüber die Deckfläche des umgeschlagenen
+ * Randes (1,7331, r = 0,5772…0,6188). Ein Deckel käme als geschlossene Kappe,
+ * und die gibt es nicht.
+ *
+ * - `floor` **0,0247** (1,1588 gegen den Fuß bei 1,1095) — der Innenboden, eine
+ *   Scheibe von r = 0,5661. Der Topf ist damit **27,97 cm tief**, bei 31,18 cm
+ *   Gesamthöhe: 3,2 cm Blech und Rand.
+ * - `rim` **0,3044** (1,7182) — die Öffnung, gemessen an der **Unterseite** des
+ *   Randes und nicht an seiner Oberkante (0,3118). Wasser steht im Gefäß, nicht
+ *   im Rand.
+ * - `water` **0,1646** — genau dazwischen, also **halb voll**, und das ist
+ *   dieselbe Entscheidung wie beim Spülbecken (`SINK_BOWL.water`) samt
+ *   derselben Begründung: Ein Topf bis zum Rand ist beim ersten Schritt
+ *   übergelaufen, ein Fingerbreit Wasser ist eine Pfütze. Nachgerechnet für die
+ *   Hauptansicht (55° von oben, `core/topDownPose.TOP_DOWN_TILT`): Der
+ *   Spiegel liegt 13,98 cm unter dem Rand, der nähere Rand verdeckt davon
+ *   13,98 / tan 55° = 9,79 cm eines Durchmessers von 57,19 cm — **17 %**. Es
+ *   bleibt eine breite Ellipse und kein Sichelchen. Zum Vergleich der leere
+ *   Topf: Sein Boden liegt 27,97 cm tief, davon verdeckt der Rand 34 % — dunkel
+ *   und weit unten gegen hell und knapp unter der Kante, das unterscheidet sich
+ *   auf einen Blick.
+ * - `radius` **0,281** — der Wasserspiegel als Scheibe. Die Innenwand läuft
+ *   nach oben leicht zusammen (0,2903 bei y = 0,0319, 0,2860 auf Spiegelhöhe,
+ *   0,2813 am Rand), und die engste Stelle zwischen Boden und Spiegel ist die
+ *   Kante des Bodens selbst mit 0,2831. 0,281 bleibt überall **innerhalb** der
+ *   Wand — ein Wasser, das durch das Blech tritt, sieht man von außen als
+ *   blauen Ring um den Topf.
+ *
+ * **Warum das hier steht und nicht im Zutatensatz.** Es ist an der Quelldatei
+ * gemessen wie `align`, `deck` und `PAN_BOWL` — das ist die Liste, die man beim
+ * Austausch der Quelle nachmisst. Der Satz, der das Wasser **baut**
+ * (`worlds/test/zones/kitchenProps.ts`), kennt kein geladenes Modell.
+ *
+ * **Anders als bei der Pfanne braucht es keinen Versatz in x/z.** Der Ursprung
+ * eines abgenommenen Geräts liegt in der Mitte seiner ganzen Hülle
+ * (`core/kitchenModel.takeUtensil`), und beim Topf ist das zugleich seine
+ * Achse: Seine beiden Griffe stehen sich gegenüber und ziehen die Hülle nach
+ * keiner Seite (x −0,8659…+0,8498, Mitte −0,0081; z −0,7785…+0,4826, Mitte
+ * −0,1480 — und das ist auf den Millimeter die Achse der Ringe). Der Stiel der
+ * Pfanne steht nur auf einer Seite, und genau dafür gibt es `PAN_BOWL`.
+ */
+export const POT_BOWL = {
+  floor: 0.0247,
+  rim: 0.3044,
+  water: 0.1646,
+  radius: 0.281,
+} as const;

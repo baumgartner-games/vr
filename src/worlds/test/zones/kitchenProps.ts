@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PAN_BOWL, SINK_BOWL } from '../../../core/kitchenFit';
+import { PAN_BOWL, POT_BOWL, SINK_BOWL } from '../../../core/kitchenFit';
 import { CLEAN_STACK_MAX } from './kitchenCarry';
 import { layered, type Dish, type KitchenItem } from './kitchenRecipes';
 
@@ -35,7 +35,9 @@ import { layered, type Dish, type KitchenItem } from './kitchenRecipes';
  * (`core/kitchenModel.takeUtensil`) — sie nachzubauen hieße, zwei Pfannen zu
  * pflegen, von denen eine schlechter aussieht. Damit trotzdem ein Patty **in**
  * der Pfanne liegen kann, gibt es `topping`: nur den Belag, zum Anhängen an
- * ein fremdes Netz.
+ * ein fremdes Netz. **Das Wasser im Topf geht denselben Weg**: Der Topf kommt
+ * aus dem Modell, das Wasser darin baut dieser Satz und hängt es hinein
+ * (`WATER_LOOK`, `water()`).
  *
  * **Und seit es die Spüle gibt, baut dieser Satz auch Geschirr, das schmutzig
  * ist.** Der dreckige Teller ist derselbe Teller mit Resten darauf, und der
@@ -264,6 +266,28 @@ const SOUP_RADIUS = BUN_RADIUS * 0.86;
 const SOUP_POOL = 0.045;
 const SOUP_HEAP = 0.03;
 
+/**
+ * **Das Wasser im Topf** — ein Körper und keine Haut.
+ *
+ * Es ist so hoch, wie das Wasser im Topf **tief** steht: vom Innenboden bis zum
+ * Spiegel, beides gemessen (`core/kitchenFit.POT_BOWL`, 0,1646 − 0,0247 =
+ * **13,99 cm**). Damit ist es ein Stück wie jedes andere in dieser Datei — Fuß
+ * auf `y = 0`, Höhe gleich `ITEM_HEIGHT` —, und der Aufrufer setzt es mit
+ * derselben einen Zeile an seinen Platz wie das Patty in die Pfanne
+ * (`FoodKit.topping`, gehoben um `POT_BOWL.floor`).
+ *
+ * **Eine Scheibe wäre kürzer und wäre falsch.** Eine Ebene wie im Becken ist
+ * dort richtig, weil die Beckenmulde selbst blau unterlegt sein soll und man
+ * nur von oben hineinsieht. In den Topf sieht man ebenfalls von oben — aber ein
+ * Stück, dessen Höhe nicht seine Höhe ist, bräuchte an der Hebestelle eine
+ * Subtraktion („Spiegel minus Dicke"), und genau solche Rechnungen sind es, die
+ * beim nächsten Gefäß danebengehen. Ein Körper rechnet sich selbst.
+ *
+ * Der Halbmesser ist der gemessene Innenradius abzüglich Sicherheitsabstand
+ * (`POT_BOWL.radius`) — warum genau dieser, steht dort.
+ */
+const WATER_DEEP = POT_BOWL.water - POT_BOWL.floor;
+
 /** Die Farben — Krume, Kruste, Fleisch, Kohle, Grün, Tomate, Porzellan. */
 const CRUST = 0xd9a253;
 
@@ -312,6 +336,29 @@ const MATTE = 0.85;
 const WET = 0.32;
 
 /**
+ * **Wie Wasser in dieser Küche aussieht** — ein Ton, eine Durchsichtigkeit,
+ * eine Rauheit, und zwar für **beide** Wasser.
+ *
+ * Es gab dieses Wasser zuerst nur im Spülbecken, und es wurde dort in der Zone
+ * gebaut (`worlds/test/zones/kitchen.addWater`), weil es am Möbel hängt und im
+ * Baumodus mitfährt. Seit der Topf am Hahn gefüllt wird, gibt es ein zweites —
+ * und zwei Wasser mit zwei Blautönen wären zwei Wasser: Im Bild stünde der Topf
+ * mit dem einen neben dem Becken mit dem anderen, und man hielte es für zwei
+ * Flüssigkeiten. Also stehen die Werte hier, wo ohnehin alle Farben dieser
+ * Küche stehen, und beide Stellen lesen sie.
+ *
+ * Die Zahlen selbst sind die des Beckens und unverändert: **nicht** so
+ * durchsichtig, dass man den Blechboden darunter sähe — dann wäre es eine blaue
+ * Folie —, und **nicht** rau, weil eine ruhige Fläche spiegelt.
+ */
+export const WATER_LOOK = {
+  color: 0x2e7ba6,
+  opacity: 0.78,
+  roughness: 0.12,
+  metalness: 0.2,
+} as const;
+
+/**
  * Und benutztes Porzellan ist stumpf: Die Glasur eines sauberen Tellers wirft
  * eine Kante Licht zurück, ein angetrockneter Teller nicht. Das ist der zweite,
  * kleinere Unterschied zum sauberen Teller — er kostet nichts, weil `material`
@@ -346,6 +393,11 @@ export const ITEM_HEIGHT: Record<KitchenItem, number> = {
   tomato: TOMATO_RADIUS * 2 * TOMATO_SQUASH + STALK_HEIGHT / 2,
   'tomato-cut': TOMATO_SLICE_THICK * SLICES,
   'tomato-soup': SOUP_POOL + SOUP_HEAP,
+  // Wasser steht **im** Topf und liegt auf nichts — es trägt trotzdem eine
+  // Höhe, weil sie dieselbe Zahl ist, mit der sein Netz gebaut wird. Auf einem
+  // Stapel taucht es nie auf: Kein Träger nimmt es an
+  // (`kitchenRecipes.TAKES`).
+  water: WATER_DEEP,
 };
 
 /** Was nicht gebaut, sondern aus dem Möbelmodell genommen wird. */
@@ -638,6 +690,8 @@ export class FoodKit {
         );
       case 'tomato-soup':
         return this.soup();
+      case 'water':
+        return this.water();
       default:
         return null;
     }
@@ -877,6 +931,41 @@ export class FoodKit {
     return wrap('kitchen-plate-dirty', ...parts);
   }
 
+  /**
+   * **Das Wasser im Topf** — ein Zylinder in der gemessenen Weite der
+   * Topföffnung, so tief, wie das Wasser steht (`WATER_DEEP`).
+   *
+   * **Zu sehen ist davon nur die Deckfläche**, und das ist kein Mangel, sondern
+   * der Punkt: Der Topf ist aus Blech und undurchsichtig, also sieht man in ihn
+   * hinein und sonst nirgendwohin. Was die Deckfläche leistet, ist an der
+   * Quelle nachgerechnet (`core/kitchenFit.POT_BOWL.water`): Aus der
+   * Hauptansicht (55° von oben) verdeckt der nähere Rand 17 % der Scheibe, es
+   * bleibt eine breite blaue Ellipse knapp unter der Kante. Ein **leerer** Topf
+   * zeigt an derselben Stelle seinen Innenboden — dunkel, 28 cm tief und zu
+   * 34 % verdeckt. Voll und leer sind damit zwei verschiedene Bilder und nicht
+   * zwei Farbtöne.
+   *
+   * **Achtzehn Seiten** und nicht sechzehn wie beim Brötchen: Der Rand des
+   * Topfes ist im Modell ein glatter Kreis, und ein sichtbar eckiger
+   * Wasserspiegel darin fiele auf — anders als unter einer Brötchenhaube, die
+   * selbst aus Kanten gebaut ist.
+   */
+  private water(): THREE.Object3D {
+    const water = this.mesh(
+      'pot-water',
+      () => new THREE.CylinderGeometry(POT_BOWL.radius, POT_BOWL.radius, WATER_DEEP, 18),
+      WATER_LOOK.color,
+      WATER_LOOK.roughness,
+      true,
+    );
+    water.position.y = WATER_DEEP / 2;
+    // **Kein Schatten.** Ein Wasserspiegel, der in den Topf hinein einen
+    // schwarzen Zylinder wirft, verdunkelt genau das, wofür er da ist — und
+    // geworfen würde er auf das Blech, das ihn ohnehin verdeckt.
+    water.castShadow = false;
+    return wrap('kitchen-water', water);
+  }
+
   /** Die Form beider Teller — einmal gebaut, von sauber und dreckig geteilt. */
   private plateShape(): THREE.BufferGeometry {
     return new THREE.CylinderGeometry(PLATE_RADIUS, PLATE_RADIUS * 0.7, PLATE_HEIGHT, 24);
@@ -889,13 +978,14 @@ export class FoodKit {
     make: () => THREE.BufferGeometry,
     color: number,
     gloss = MATTE,
+    clear = false,
   ): THREE.Mesh {
     let shape = this.shapes.get(key);
     if (!shape) {
       shape = make();
       this.shapes.set(key, shape);
     }
-    const mesh = new THREE.Mesh(shape, this.material(color, gloss));
+    const mesh = new THREE.Mesh(shape, this.material(color, gloss, clear));
     mesh.castShadow = true;
     return mesh;
   }
@@ -905,12 +995,25 @@ export class FoodKit {
    * einmal nass ist zweierlei Material, und ohne sie bekäme die Suppe den
    * Glanz der Tomate daneben — oder umgekehrt, je nachdem, wer zuerst gebaut
    * wird.
+   *
+   * **Und die Durchsichtigkeit gehört aus demselben Grund dazu.** Sie gibt es
+   * bisher genau einmal — für das Wasser —, und ein Schlüssel ohne sie wäre
+   * eine Falle für den Tag, an dem jemand denselben Blauton matt und
+   * undurchsichtig haben will. Was durchsichtig ist, holt sich Deckkraft und
+   * Metallanteil aus `WATER_LOOK`: Es gibt nur ein Wasser in dieser Küche, und
+   * eine zweite Zahlenreihe daneben wäre der Anfang zweier.
    */
-  private material(color: number, gloss: number): THREE.MeshStandardMaterial {
-    const key = `${color}-${gloss}`;
+  private material(color: number, gloss: number, clear = false): THREE.MeshStandardMaterial {
+    const key = `${color}-${gloss}${clear ? '-klar' : ''}`;
     let material = this.materials.get(key);
     if (!material) {
-      material = new THREE.MeshStandardMaterial({ color, roughness: gloss });
+      material = new THREE.MeshStandardMaterial({
+        color,
+        roughness: gloss,
+        ...(clear
+          ? { transparent: true, opacity: WATER_LOOK.opacity, metalness: WATER_LOOK.metalness }
+          : {}),
+      });
       this.materials.set(key, material);
     }
     return material;
