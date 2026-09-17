@@ -2587,6 +2587,14 @@ im Spiel also zwei Kacheln —, und in eine
   auseinander, und dann sucht man im Regal an der Stelle, an der im Menü etwas
   anderes stand.
 
+  Jedes Stück wird **einmal gebaut** und danach wiederverwendet (`made`), und
+  zwar erst in dem Bild, in dem es aus dem Boden kommt: Siebzehn Avatarteile je
+  Öffnen kosteten knapp eine Zehntelsekunde am Stück — genau die Pause nach dem
+  Druck auf den Schrank — und hinterließen siebzehn frische Geometrien samt
+  Materialien, die niemand wieder freigab (`buildHead` und die beiden anderen
+  bauen alles neu). Herausgegeben wird deshalb erst die **Auskunft** (Fach,
+  Name, ob man es anhat) und das Netz auf Abruf (`RackPiece.object`).
+
   Jedes Stück ist **handgroß** (30 bis 45 cm) und steht auf seinem eigenen Fuß,
   und die drei Verkleinerungen sind je eine Zahl pro Fach (0,55 für Köpfe, 0,44
   für Hüte, 0,5 für Oberteile), aus dem größten Stück des Fachs
@@ -2611,7 +2619,12 @@ im Spiel also zwei Kacheln —, und in eine
   Dafür bekommt **jedes** Stück seinen Reif, und sichtbar ist einer: Wandern
   kann nur, was da ist. Ein Ring, den es erst beim nächsten Neubau gäbe, wäre
   nach dem ersten Kleiderwechsel bei **keinem** Stück mehr zu sehen — der alte
-  ginge aus, ein neuer entstünde nie.
+  ginge aus, ein neuer entstünde nie. Wandern lässt ihn seit September 2026 das
+  Regal selbst (`WardrobeRack.wear`) und nicht mehr eine Schleife im Aufrufer:
+  Es weiß, welche Stücke schon gebaut sind, und es merkt sich das Aussehen für
+  die, die erst noch aufzufahren haben. Wer alle Stücke eines Fachs anfasste, um
+  einen Ring umzuschalten, baute genau die vorzeitig, die der Raum gerade
+  langsam nachreicht.
   Und der Raum bleibt dabei **offen**: Wer sich umzieht, probiert, und wer
   probiert, will den nächsten Hut sehen, ohne zweimal durch eine halbe Sekunde
   Überblendung zu gehen (`ConstructItem.pick` gibt `false`).
@@ -2936,7 +2949,7 @@ gilt für jeden, der nichts verstellt hat.
 | Küche: greifen                                                                     | **Greifen** nimmt Pfanne, Topf, Teller, Zutat und im Umbau das Möbel — nur im eigenen Feld und den acht daneben, und am nächstgelegenen Griff. Halten und beim Loslassen ablegen, **oder** tippen und beim nächsten Druck ablegen                             | `A`/`E` wie beim Kochen — die feinere Wahl (welches Feld, welcher Griff) gibt es nur in der Brille                                                                                                                                                                                                                                             | `A`                                                         | Knopf `A`                                  |
 | Küche: Feuerlöscher | erst vom Hocker nehmen (`A`), dann den **Trigger der rechten Hand gedrückt halten**; gezielt wird mit dem Kopf | **aus den Augen**: `E` gedrückt halten, gezielt mit dem Kopf. **Von oben**: ein **Schalter** — Linksklick an, noch einmal aus (oder `E`, solange nichts in Reichweite steht); gezielt mit dem rechten Stock, der dort die Figur dreht | aus den Augen `A` halten; von oben schaltet RT (oder `A`, solange nichts in Reichweite steht) | aus den Augen Knopf `A` halten; von oben schaltet Knopf `B` (oder `A`, solange nichts in Reichweite steht) |
 | Küche: umbauen | roter Knopf neben dem Eingang + `A` schaltet den Baumodus um (sein Schild sagt, wohin: _Küche umbauen_ / _Küche nutzen_); das Einschalten räumt die Küche ab wie `B`/`Y`, danach hebt **Greifen** am Möbel es **samt allem, was darauf steht** auf, **Loslassen** über dem Umriss setzt es ab (grün = passt, rot = passt nicht) | dito mit `E`: `E` am Möbel hebt es samt Inhalt auf, `E` auf dem Umriss setzt es ab | dito mit `A` | dito mit Knopf `A` |
-| Küche: Möbelkatalog | **vorn** an den Computer-Tisch treten und `A` — die Küche verblasst, ringsum stehen alle Möbel als Miniaturen; eines anfassen, und man hält es in der Küche in der Hand. Von der Seite oder von hinten hebt `A` im Umbau den Tisch selbst auf | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
+| Küche: Möbelkatalog | **vorn** an den Computer-Tisch treten und `A` — die Küche verblasst, ringsum stehen alle Möbel als Miniaturen auf den Kacheln; eines anfassen, und man hält es in der Küche in der Hand. Von der Seite oder von hinten hebt `A` im Umbau den Tisch selbst auf | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
 | Küche: kopieren | ein getragenes Möbel **links** auf den Kopierer legen (`A`), die durchscheinende Kopie **rechts** abholen (`A`) — die nächste wächst nach, solange die Vorlage liegt | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
 | Messband                                                                           | Trigger Punkt 1, Trigger Punkt 2                                                                                                                                                                                                                              | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
 | Stoppuhr                                                                           | Trigger je nach Modus (Zeit, Einzelbild, Schnellladen), Knopf/`A` öffnet das Panel                                                                                                                                                                            | –                                                                                                                                                                                                                                                                                                                                              | –                                                           | –                                          |
@@ -2965,7 +2978,7 @@ gilt für jeden, der nichts verstellt hat.
 | Karte weglegen (zum Bauen) | über der Hüfte loslassen, oder Menü → _Karte weglegen_ — erst dann steht das Gebaute fest da, und erst dann ist es gespeichert | Menü → _Karte weglegen_ | – | dito |
 | Welt speichern / mitnehmen | Bauplatz oder Testwelt, Menü → _Welt sichern_: im Browser speichern, als Datei exportieren, eine Datei importieren, Gespeichertes verwerfen | dito — Export und Import gehen nur hier sinnvoll | – | dito |
 | Aussehen                                                                           | Menü → _Aussehen_: drei Zeilen — **Kopf** (vier), **Hut** (acht, von der Kochmütze bis zur Krone), **Körper** (fünf Kochjacken); alle im Raum sehen es                                                                                                        | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | dito                                       |
-| Umkleide                                                                           | vor den **Kleiderschrank** stellen und `A` — die Welt verblasst, die siebzehn Sachen stehen greifbar um einen herum, der Spiegel an der Tür zeigt sie an einem; noch ein Druck auf den Schrank, und man steht wieder da, wo man stand                                                                                                                 | dieselbe Taste                                                                                                                                                                                                                                                                                                                                | `A`                                                         | Knopf `A`                                  |
+| Umkleide                                                                           | vor den **Kleiderschrank** stellen und `A` — die Welt verblasst, die siebzehn Sachen stehen im Ring auf den Kacheln um den Schrank herum, der Spiegel an der Tür zeigt sie an einem; noch ein Druck auf den Schrank, und man steht wieder da, wo man stand                                                                                                                 | dieselbe Taste                                                                                                                                                                                                                                                                                                                                | `A`                                                         | Knopf `A`                                  |
 | Kart: Helm                                                                         | Klemmbrett → _Helm_: Visierrand steht fest im Blick, gegen Übelkeit                                                                                                                                                                                           | dito                                                                                                                                                                                                                                                                                                                                           | –                                                           | –                                          |
 | Kart: Werte eintippen                                                              | Klemmbrett → _Werte eingeben_ → Zeile, dann der Zifferblock vor dem Kopf                                                                                                                                                                                      | dito, mit der echten Tastatur                                                                                                                                                                                                                                                                                                                  | –                                                           | –                                          |
 | Zurücksetzen                                                                       | `B` / `Y` oder Menü                                                                                                                                                                                                                                           | `R` oder Menü                                                                                                                                                                                                                                                                                                                                  | –                                                           | Menü                                       |
@@ -6669,17 +6682,31 @@ Und das sind die Regeln, die darin stehen:
     `Object3D.clone()`, Formen und Materialien bleiben also **geteilt**: eine
     Miniatur kostet einen Knoten und keine Geometrie. Ein zweiter Ladevorgang
     nur für Miniaturen wäre dieselbe Datei ein zweites Mal — 32 MB für ein
-    Regal.
-  - **Auf 28 cm gerechnet, nicht auf einen festen Faktor** (`MINI_SIZE`, längste
-    Kante). Das Regal setzt seine Stücke mit 34 cm Abstand nebeneinander
-    (`shared/construct.RACK_GAP`), also bleiben sechs Zentimeter Luft: Größer,
-    und zwei Nachbarn stecken ineinander; kleiner, und man erkennt eine Spüle
-    nicht mehr von einem Herd. Und zwischen
-    einem Mülleimer (45 cm) und einer Ausgabetheke über zwei Kacheln liegt der
-    Faktor vier: Mit einem festen Maßstab wäre entweder die Theke zu groß für
-    ihren Platz oder der Eimer ein Krümel. Der Ursprung wandert dabei nach unten
-    in die Mitte, weil das Regal seine Stücke auf ein Brett stellt und nicht an
-    ihrem Modellursprung aufhängt.
+    Regal. Geklont wird **einmal** und danach aufgehoben (`minis`): Achtzehn
+    Klone samt `Box3` je Öffnen waren die Hälfte der Pause vor dem ersten Regal.
+  - **Ein Klon eines ausgeblendeten Netzes ist ausgeblendet** (`cloneModel`).
+    Der Konstrukt-Raum setzt beim Betreten jedes oberste Kind der Weltgruppe auf
+    `visible = false` — und die Vorlagen in `models` sind genau solche Kinder.
+    Beim Verlassen wird das **Original** wieder sichtbar, weil es auf der Liste
+    `hidden` steht; ein Klon, der erst danach entstand, steht dort nie drauf und
+    bleibt für immer unsichtbar. Ein Möbel aus dem Katalog war deshalb weder in
+    der Hand noch auf seiner Kachel zu sehen, obwohl es beides gab und beides
+    funktionierte. Jeder Klon bekommt seine Sichtbarkeit jetzt an **einer**
+    Stelle zurück, und zwar nur auf der Wurzel: Was darunter aus eigenen Gründen
+    unsichtbar ist, soll es bleiben.
+  - **Auf 80 cm gerechnet, nicht auf einen festen Faktor** (`MINI_SIZE`, längste
+    Kante). Jedes Stück steht allein auf einer Kachel, und eine Kachel ist einen
+    Meter breit (`shared/construct.TILE_SIZE`): 80 cm lassen zu jeder Seite eine
+    Handbreit Luft zur Fuge, und der Nachbar steht ohnehin einen ganzen Meter
+    weiter. Die Zahl darf sich damit danach richten, was man **sieht**, statt
+    danach, was noch dazwischenpasst — und sehen muss man es aus drei, vier
+    Metern, denn so weit steht der Ring vom Anker weg. Bis September 2026 waren
+    es 28 cm, gerechnet auf den Abstand zweier Bretter im alten Bogen. Und
+    zwischen einem Mülleimer (45 cm) und einer Ausgabetheke über zwei Kacheln
+    liegt der Faktor vier: Mit einem festen Maßstab wäre entweder die Theke zu
+    groß für ihre Kachel oder der Eimer ein Krümel. Der Ursprung wandert dabei
+    nach unten in die Mitte, weil der Konstrukt-Raum seine Stücke auf eine
+    Kachelmitte stellt und nicht an ihrem Modellursprung aufhängt.
   - **Ein Stück aus dem Katalog entsteht neu und bekommt trotzdem eine
     Heimatkachel** (`takeFromCatalogue`, `freeTile`). Das ist kein Beiwerk:
     `B`/`Y` stellt jedes getragene Möbel heim, und eines ohne Zuhause landete
@@ -6941,48 +6968,92 @@ haben, das Weiß ist die Aussage und nicht die Beleuchtung. Und der Boden hält
 **keinen Strahl** auf; einer, der es täte, wäre das Erste, was `A` findet, und
 man meinte nie wieder ein Stück.
 
-**Jedes Stück steht in Armlänge** (`rackSlots`) — reine Rechnung, damit ein Test
-nachmessen kann, ob wirklich jedes davon zu erreichen ist, ohne einen Schritt zu
-machen. Gefüllt wird von innen nach außen und von der Mitte nach oben und unten:
-erst die mittlere Reihe auf **1,05 m** (die Höhe, in der eine stehende Hand von
-selbst hängt), dann die obere auf 1,55 m (auf Augenhöhe sieht man es wenigstens
-gut), dann die untere auf 0,55 m — Bücken ist von den dreien das Einzige, was in
-der Brille unangenehm ist, und wer nur drei Stücke zur Auswahl hat, soll dafür
-weder bücken noch greifen. Der innere Bogen liegt **1,15 m** vor der Figur
-(`RACK_REACH`), der äußere eine Griffbreite weiter draußen (`RACK_GAP`, 0,34 m):
-zusammen 1,49 m und damit knapp innerhalb der Reichweite, aus der `A` überhaupt
-etwas erwischt (`core/usable.USE_REACH`, 1,5 m). Einen **dritten** Bogen gibt es
-deshalb nicht — er läge 1,75 m vor der Figur, und dahin reicht kein Arm, ohne
-dass man einen Schritt macht. Wer mehr Stücke mitbringt, als in zwei Bögen
-passen, bekommt sie im äußeren enger gesetzt: zu eng ist unschön, außer
-Reichweite ist kaputt.
+**Jedes Stück steht auf einer Kachel** (`tileSlots`) — reine Rechnung, damit
+ein Test nachmessen kann, dass wirklich keines davon neben dem Boden im Nichts
+steht oder in einem anderen. Bis September 2026 hingen sie stattdessen in zwei
+Bögen in Armlänge vor der Figur, in drei Höhen übereinander. Das war für einen
+Raum gedacht, in dem man sich nicht umsieht und nicht hingeht — und es sah aus,
+wie es gemeint war: Möbel, die in der Luft schweben, über einem Kachelboden, auf
+dem nichts steht. Ein Kachelboden, den nichts benutzt, ist ein Kachelboden zu
+viel.
 
-Drei Zahlen dazu, und jede vermeidet etwas anderes:
+Das Muster ist ein Ring um den **Anker** (`C` ist er selbst, `x` ein Stück, `o`
+eine freie Kachel):
 
-- **200° Bogen** (`RACK_ARC`). Nicht 360°: Was hinter der Figur steht, findet
-  sie nicht, weil sie nicht hinsieht — sie könnte sich umdrehen, weiß aber
-  nicht, dass es sich lohnt. Und nicht 90°: Ein schmaler Bogen legt bei zehn
-  Stücken drei Reihen übereinander, und die oberste liegt dann über dem Kopf.
-  200° sind eine Vierteldrehung auf der Stelle nach links oder rechts, und man
-  hat alles gesehen.
-- **0,34 m zwischen zwei Nachbarn** (`RACK_GAP`, Sehne und nicht Winkel — weiter
-  draußen passen deshalb mehr Stücke auf denselben Bogen, ohne sich näher zu
-  kommen). Eine Hand ist gut 10 cm breit, ein Stück darf gut 20 cm breit sein;
-  bei weniger greift man daneben, und der gelbe Saum (`core/highlight.ts`)
-  springt beim kleinsten Kopfdrehen zwischen zweien hin und her. Denselben
-  Abstand hat der äußere Bogen vom inneren: Wäre er kleiner, griffe man von vorn
-  nach hinten daneben statt von links nach rechts.
-- **0,16 m Zielzylinder je Stück** und nicht die großzügige Vorgabe
-  (`core/usable.USE_RADIUS`, 0,4 m). Die Stücke stehen keine 40 cm auseinander,
-  man griffe also immer nach zweien gleichzeitig, und welches gewinnt,
-  entschiede der Zufall der Reihenfolge.
+```
+xxxoxxx
+xooooox
+xooooox
+oooCooo
+xooooox
+xooooox
+xxxoxxx
+```
 
-Eine angefangene Reihe steht **mittig** vor der Figur — bei einem einzigen Stück
-ist das genau geradeaus, und das ist die halbe Miete für einen Raum, in dem man
-sich nicht umsehen mag. Der äußere Bogen ist um einen halben Schritt versetzt,
-damit seine Stücke durch die Lücken des inneren zu sehen sind und nicht dahinter
-verschwinden. Und jedes Stück sieht die Figur an: Ein Regal, dessen Stücke alle
-in dieselbe Weltrichtung zeigen, zeigt ihr die Hälfte von hinten.
+Zwei Kacheln um den Anker bleiben frei (`TILE_CLEAR`) — er ist selbst so groß
+wie ein Möbel, und ein Regal, das ihm auf die Pelle rückt, verdeckt ausgerechnet
+den Weg zurück. Dann kommt der erste Ring, **bis auf die Kreuzmitte**: Die vier
+Kacheln genau vor, hinter, links und rechts vom Anker bleiben leer, und damit
+bleiben vier Gassen offen, durch die man von der Mitte aus bis nach draußen
+sieht. Zwanzig Stücke fasst dieser Ring, und damit beide Auswahlen dieses
+Projekts — siebzehn Kleidungsstücke, achtzehn Möbel. Wer mehr mitbringt, bekommt
+den nächsten Ring **zwei** Kacheln weiter draußen: Ein Ring direkt hinter dem
+anderen stünde in dessen Lücken und wäre von der Mitte aus halb verdeckt. Reicht
+der ausgelieferte Boden dafür nicht, wächst **der Boden** (`floorTilesFor`) und
+nicht der Abstand — ein Stück neben dem Boden ist genau der Fehler, den dieser
+Umbau beheben sollte.
+
+**Der Boden rastet dafür auf dem Kachelgitter der Welt ein**
+(`ConstructRoom.centre`). Die Mitte ist die Kachel, auf der der Anker steht, und
+nicht die Stelle, an der die Füße stehen. Vorher war es umgekehrt, und man sah
+es sofort: Der Kleiderschrank steht in der Welt mittig auf **seiner** Kachel,
+ein Boden um die Füße herum liegt aber um jeden Betrag verschoben, den die Figur
+gerade vom Kachelrand entfernt steht — und dann steht der Schrank quer über
+vieren. Weil Weltgitter und Konstruktboden dieselbe Kachelgröße haben
+(`nav/navTile.TILE`, 1 m), decken sie sich nach dem Einrasten vollständig.
+
+**Und `A` reicht so weit, wie die Stücke stehen** (`ConstructRoom.reach`,
+`PortalWorld.useReach`, `handUseRange`). Das ist die Folge aus beidem: Die Figur
+bleibt gesperrt stehen — daran hängt, dass die anderen Spieler sie vor ihrem
+Schrank sehen —, und der erste Ring liegt drei Kacheln weit draußen. Entweder
+der Strahl wird länger, oder die Figur dürfte laufen; liefe sie, liefe sie in
+der echten Welt gegen Möbel, die sie gerade nicht sieht. Gerechnet wird die
+Reichweite aus den Plätzen und nicht geraten, sonst wäre sie beim nächsten Ring
+wieder falsch, und sie gilt am Schirm (Strahl aus der Brust) wie in der Brille
+(Zeigen aus der Hand). Gefährlich ist sie nicht: Im Konstrukt ist außer dem
+Anker und der Auswahl nichts mehr sichtbar, und was unsichtbar ist, steht gar
+nicht erst zur Wahl (`PortalWorld.collectUsables`).
+
+Der Zielzylinder je Stück ist damit **0,45 m** und nicht mehr 0,16 m: Die Stücke
+stehen einen ganzen Meter auseinander, also darf die Trefferfläche fast bis an
+die Fuge reichen — und wer aus vier Metern auf eine Kommode zielt, soll sie auch
+treffen. Überlappen dürfen sich zwei Zylinder trotzdem nicht, sonst springt der
+gelbe Saum (`core/highlight.ts`) beim kleinsten Kopfdrehen hin und her.
+
+Gefüllt wird von innen nach außen und innerhalb eines Rings **von der
+Blickrichtung aus nach beiden Seiten**: Das erste Stück steht dort, wo die Figur
+nach dem Verblassen ohnehin hinsieht, das zweite daneben, und was hinter ihr
+landet, kommt zuletzt. Und jedes Stück sieht die Mitte an: Ein Regal, dessen
+Stücke alle in dieselbe Weltrichtung zeigen, zeigt der Figur die Hälfte von
+hinten.
+
+**Gebaut wird ein Stück erst, wenn es an der Reihe ist aufzufahren**
+(`ConstructItem.object`, `ConstructRoom.raise`). Das ist die Antwort auf die
+gemeldete Pause: Beim **ersten** Öffnen dauerte es spürbar, danach ging es
+schneller. Siebzehn Avatarteile zu bauen kostet knapp eine Zehntelsekunde, und
+achtzehn Miniaturen zu klonen kostet ähnlich — und das fiel bisher **ganz** in
+das eine Bild, in dem der Raum aufging. Über die Auffahrwelle verteilt
+(`RISE_STAGGER`, 0,04 s je Stück) ist es je Bild eines. Angemeldet wird ein
+Stück im selben Atemzug, und auch das ist richtig so: `A` soll nur meinen, was
+es sieht. Auf dem Rückweg entsteht gar nichts mehr — wer sich sofort wieder
+verdrückt, baut nichts, was er nie zu sehen bekommt.
+
+Dazu kommen zwei Zwischenspeicher, damit das **zweite** Öffnen gar nichts mehr
+kostet: Das Kleiderregal baut jedes Stück genau einmal und lässt danach nur noch
+den Reif wandern (`WardrobeRack.wear`), und der Möbelkatalog hält seine
+Miniaturen fest (`KitchenZone.minis`). Beim Regal war das obendrein ein Leck: Es
+baute je Öffnen siebzehn frische Geometrien samt Materialien, die niemand wieder
+freigab.
 
 **Zurück geht es über den Anker, und nur über ihn.** Alles andere ist unsichtbar
 und meldet sich deshalb gar nicht mehr (`PortalWorld.collectUsables`) — der
@@ -7017,12 +7088,15 @@ sonst bleibt eine Handvoll unsichtbarer Äste zurück, und das gesperrte Rig
 überlebt den Wechsel.
 
 **Geprüft wird das ohne Szene** (`shared/construct.test.ts`,
-`shared/wardrobeRack.test.ts`): dass jeder Platz aus `rackSlots` in Armlänge
-liegt, dass die Reihen von der Mitte nach außen füllen, dass der äußere Bogen
-genau eine Griffbreite weiter draußen liegt und dass Unsinn — `NaN`, null
-Stücke, eine gewünschte Reichweite von zehn Metern — nichts Unerreichbares
-ergibt. Das ist die Sorte Fehler, die man in der Brille erst merkt, wenn man vor
-einem Stück steht, das man nicht greifen kann.
+`shared/wardrobeRack.test.ts`): dass jeder Platz aus `tileSlots` auf einer
+Kachelmitte und auf dem Boden liegt, dass zwei Kacheln um die Mitte und die
+Kreuzmitte frei bleiben, dass die Ringe von innen nach außen füllen und der
+Boden mitwächst, dass der Boden auf der Kachel des **Ankers** einrastet und
+nicht auf den Füßen, dass `A` bis zum entferntesten Stück reicht und keinen
+Meter weiter, dass die Stücke nacheinander entstehen und jedes genau einmal —
+und dass Unsinn (`NaN`, null Stücke) nichts ergibt. Das ist die Sorte Fehler,
+die man in der Brille erst merkt, wenn man vor einem Stück steht, das man nicht
+greifen kann.
 
 ### Wie man aussieht
 

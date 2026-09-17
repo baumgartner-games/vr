@@ -256,6 +256,7 @@ import {
   SHOT_MARGIN,
   USE_CHEST,
   USE_RADIUS,
+  USE_REACH,
   aimForward,
   markUsable,
   pickUsable,
@@ -6444,7 +6445,7 @@ export class PortalWorld implements World {
     // Hand je reicht oder ein Zeigen trägt, fällt vorher heraus — dafür genügt
     // der Ort des Dings, und der kostet nur die Matrizen über ihm.
     ctx.rig.getHeadPosition(_handHead);
-    const far = HAND_USE_RANGE + HAND_USE_SLACK;
+    const far = this.handUseRange() + HAND_USE_SLACK;
     for (const entry of this.usables) {
       if (!entry.object.visible) continue;
       if (entry.object.getWorldPosition(_handSize).distanceTo(_handHead) > far) continue;
@@ -6536,7 +6537,7 @@ export class PortalWorld implements World {
         continue;
       }
       const along = rayReach(target, _handRay.origin, _handRay.direction);
-      if (along === null || along > HAND_USE_RANGE) continue;
+      if (along === null || along > this.handUseRange()) continue;
       _handFinds.push({ item: entry.object, reach: 'aim', distance: along, kind, inputs });
     }
 
@@ -7808,9 +7809,45 @@ export class PortalWorld implements World {
    */
   protected useForward(ctx: WorldContext): boolean {
     this.aimUse(ctx);
-    const pick = pickUsable(this.collectUsables(), _useAt, _useForward);
+    const pick = pickUsable(this.collectUsables(), _useAt, _useForward, this.useReach());
     if (!pick) return false;
     return pick.candidate.usable.use({ kind: 'player', at: _useAt, forward: _useForward });
+  }
+
+  /**
+   * **Wie weit `A` reicht**, in Metern — und warum das eine Methode ist.
+   *
+   * Für alles, was auf zwei Beinen zu einem Knopf hingeht, ist die Antwort
+   * `USE_REACH`: eine Armlänge und eine halbe, und keine Welt hat je etwas
+   * anderes gebraucht. Es gibt aber einen Zustand, in dem niemand hingeht —
+   * der Konstrukt-Raum sperrt das Rig, damit die Figur draußen stehen bleibt,
+   * wo die anderen Spieler sie sehen (`shared/construct.ts`). Was dort im Ring
+   * steht, ist dann weiter weg als jede Armlänge, und ohne diesen Haken sähe
+   * man eine Auswahl, die sich nicht bedienen lässt.
+   *
+   * Sie steht hier und nicht als zweite Auswahl daneben, weil es genau **eine**
+   * Auswahl geben soll: Der Saum, die Auflösung der Eingabe und der Druck
+   * selbst fragen dieselbe Reichweite, sonst leuchtet etwas, das `A` nicht
+   * erwischt.
+   */
+  protected useReach(): number {
+    return USE_REACH;
+  }
+
+  /**
+   * **Und wie weit ein Zeigen in der Brille reicht** (`core/handUse.ts`) — die
+   * Schwester von `useReach`, und aus demselben Grund überschreibbar.
+   *
+   * Die beiden gehören zusammen und müssen es auch: Am Schirm entscheidet der
+   * Strahl aus der Brust, in der Brille der Strahl aus der Hand, und ein Regal,
+   * das man von oben bedienen kann und in der Brille nicht, ist in einem
+   * Projekt, das mit der Brille anfängt, die falsche Hälfte.
+   *
+   * **Angefasst** wird unabhängig davon weiter, wo die Hand wirklich hinlangt:
+   * Das ist keine Reichweite, sondern eine Berührung.
+   */
+  protected handUseRange(): number {
+    return HAND_USE_RANGE;
   }
 
   /**
@@ -7844,7 +7881,9 @@ export class PortalWorld implements World {
     this.aimUse(ctx);
 
     const pick =
-      this.usables.length > 0 ? pickUsable(this.collectUsables(), _useAt, _useForward) : null;
+      this.usables.length > 0
+        ? pickUsable(this.collectUsables(), _useAt, _useForward, this.useReach())
+        : null;
     ctx.rig.useCandidate = pick !== null;
 
     // **Und was das Gemeinte in dieser Ansicht will** (`core/interaction.ts`).

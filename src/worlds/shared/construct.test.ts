@@ -4,31 +4,28 @@ import {
   ConstructRoom,
   FADE_SECONDS,
   FLOOR_TILES,
-  RACK_ARC,
-  RACK_GAP,
-  RACK_REACH,
-  RACK_RING_STEP,
-  RACK_ROW_HEIGHTS,
   RISE,
   RISE_SECONDS,
   RISE_STAGGER,
+  TILE_CLEAR,
   TILE_SIZE,
-  rackSlots,
+  floorTilesFor,
+  tileSlots,
   type ConstructHost,
   type ConstructItem,
-  type RackSlot,
+  type ConstructSlot,
 } from './construct';
 
 /**
  * **Der weiße Raum, nachgerechnet** (`worlds/shared/construct.ts`).
  *
  * Zwei Sorten Fehler kann dieser Raum machen, und beide sieht man in der
- * Brille erst, wenn es zu spät ist: Ein Stück, das außerhalb der Armlänge aus
- * dem Boden fährt, findet man nicht — man kann ja nicht hingehen. Und eine
- * Welt, die nach dem Verlassen nicht mehr ganz die alte ist (ein Material, das
- * durchsichtig geblieben ist, ein Möbel, das jetzt sichtbar ist, obwohl es
- * versteckt sein sollte), fällt erst drei Zonen später auf, und dann sucht man
- * dort.
+ * Brille erst, wenn es zu spät ist: Ein Stück, das neben dem Kachelboden im
+ * Nichts steht oder in einem anderen, findet man nicht — man kann ja nicht
+ * hingehen. Und eine Welt, die nach dem Verlassen nicht mehr ganz die alte ist
+ * (ein Material, das durchsichtig geblieben ist, ein Möbel, das jetzt sichtbar
+ * ist, obwohl es versteckt sein sollte), fällt erst drei Zonen später auf, und
+ * dann sucht man dort.
  *
  * Also hier: die Plätze rechnen wir nach, und die Buchführung des Verblassens
  * prüfen wir an einem Baum aus drei Netzen — ohne Renderer, wie alles hier.
@@ -40,118 +37,123 @@ const SOURCE: UseSource = {
   forward: new THREE.Vector3(0, 0, -1),
 };
 
-function distance(a: RackSlot, b: RackSlot): number {
-  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+/** Der Ring, auf dem ein Platz liegt, in Kacheln von der Mitte aus. */
+function ring(slot: ConstructSlot): number {
+  return Math.max(Math.abs(slot.x), Math.abs(slot.z)) / TILE_SIZE;
 }
 
 /** Der kleinste Abstand zweier Plätze — die Zahl, die über „greift daneben" entscheidet. */
-function closest(slots: readonly RackSlot[]): number {
+function closest(slots: readonly ConstructSlot[]): number {
   let least = Infinity;
   for (let i = 0; i < slots.length; i++) {
     for (let j = i + 1; j < slots.length; j++) {
-      least = Math.min(least, distance(slots[i]!, slots[j]!));
+      const a = slots[i]!;
+      const b = slots[j]!;
+      least = Math.min(least, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z));
     }
   }
   return least;
 }
 
-describe('Wo die Auswahl steht (`rackSlots`)', () => {
+describe('Wo die Auswahl steht (`tileSlots`)', () => {
   test('ohne Stücke gibt es kein Regal', () => {
-    expect(rackSlots(0)).toEqual([]);
-    expect(rackSlots(-3)).toEqual([]);
-    expect(rackSlots(Number.NaN)).toEqual([]);
-    expect(rackSlots(0.5)).toEqual([]);
-  });
-
-  test('ein einziges Stück steht geradeaus in Handhöhe', () => {
-    const [only] = rackSlots(1);
-    expect(only).toBeDefined();
-    expect(only!.x).toBeCloseTo(0, 9);
-    expect(only!.z).toBeCloseTo(-RACK_REACH, 9);
-    // Vorn ist −z, und die erste Reihe ist die mittlere.
-    expect(only!.y).toBe(RACK_ROW_HEIGHTS[0]);
+    expect(tileSlots(0)).toEqual([]);
+    expect(tileSlots(-3)).toEqual([]);
+    expect(tileSlots(Number.NaN)).toEqual([]);
+    expect(tileSlots(0.5)).toEqual([]);
   });
 
   test('es kommen genau so viele Plätze heraus, wie gefragt waren', () => {
     for (const count of [1, 2, 3, 7, 12, 13, 26, 39, 50, 120]) {
-      expect(rackSlots(count)).toHaveLength(count);
+      expect(tileSlots(count)).toHaveLength(count);
     }
+  });
+
+  test('jedes Stück steht auf einer Kachelmitte und auf dem Boden', () => {
+    for (const slot of tileSlots(120)) {
+      // Kachelmitten des Bodens sind ganze Vielfache der Kantenlänge, gemessen
+      // von der Mitte aus — und die Mitte ist die Kachel des Ankers.
+      expect(Number.isInteger(slot.x / TILE_SIZE)).toBe(true);
+      expect(Number.isInteger(slot.z / TILE_SIZE)).toBe(true);
+      // Auf dem Boden und nicht darüber: Das ist der ganze Umbau.
+      expect(slot.y).toBe(0);
+    }
+  });
+
+  test('um die Mitte herum bleiben zwei Kacheln frei', () => {
+    for (const slot of tileSlots(120)) {
+      expect(ring(slot)).toBeGreaterThan(TILE_CLEAR);
+    }
+  });
+
+  test('die Kreuzmitte bleibt frei — vier Gassen nach draußen', () => {
+    for (const slot of tileSlots(120)) {
+      expect(slot.x).not.toBe(0);
+      expect(slot.z).not.toBe(0);
+    }
+  });
+
+  test('der erste Ring fasst zwanzig Stücke, dann kommt der übernächste', () => {
+    // Der Rand eines Quadrats mit drei Kacheln Halbmesser sind 8 · 3 = 24
+    // Kacheln, abzüglich der vier der Kreuzmitte.
+    const full = tileSlots(20);
+    expect(full.every((slot) => ring(slot) === TILE_CLEAR + 1)).toBe(true);
+    expect(new Set(full.map((slot) => `${slot.x},${slot.z}`)).size).toBe(20);
+
+    const more = tileSlots(21);
+    expect(ring(more[20]!)).toBe(TILE_CLEAR + 3);
+    // Ein Ring dazwischen bleibt leer, damit der äußere nicht hinter dem
+    // inneren verschwindet.
+    expect(more.some((slot) => ring(slot) === TILE_CLEAR + 2)).toBe(false);
   });
 
   test('kein Stück steht in einem anderen', () => {
-    for (const count of [2, 3, 5, 12, 13, 24, 39, 50]) {
-      // Der Anspruch ist die Sehne `RACK_GAP`; die Rundung auf ganze Plätze
-      // je Bogen darf davon nichts abziehen.
-      expect(closest(rackSlots(count))).toBeGreaterThanOrEqual(RACK_GAP - 1e-9);
+    for (const count of [2, 3, 5, 12, 13, 24, 39, 50, 120]) {
+      expect(closest(tileSlots(count))).toBeGreaterThanOrEqual(TILE_SIZE - 1e-9);
     }
   });
 
-  test('alles bleibt in Reichweite einer Figur, die sich nicht von der Stelle bewegt', () => {
-    // Zwei Bögen, mehr gibt es nicht — auch nicht für zweihundert Stücke.
-    for (const count of [1, 20, 50, 200]) {
-      for (const slot of rackSlots(count)) {
-        expect(Math.hypot(slot.x, slot.z)).toBeLessThanOrEqual(RACK_REACH + RACK_RING_STEP + 1e-9);
-        expect(RACK_ROW_HEIGHTS).toContain(slot.y);
-        // Und innerhalb des Bogens: eine Vierteldrehung nach links oder rechts.
-        expect(Math.abs(Math.atan2(slot.x, -slot.z))).toBeLessThanOrEqual(RACK_ARC / 2 + 1e-9);
-      }
+  test('gefüllt wird von innen nach außen', () => {
+    const rings = tileSlots(120).map(ring);
+    for (let i = 1; i < rings.length; i++) {
+      expect(rings[i]!).toBeGreaterThanOrEqual(rings[i - 1]!);
     }
   });
 
-  test('gefüllt wird mittlere Reihe, obere Reihe, untere Reihe', () => {
-    const many = rackSlots(50);
-    const heights = many.map((slot) => slot.y);
-    const first = heights.indexOf(RACK_ROW_HEIGHTS[1]!);
-    const second = heights.indexOf(RACK_ROW_HEIGHTS[2]!);
-    // Die mittlere steht ganz vorn, und zwar voll, bevor die obere anfängt.
-    expect(heights[0]).toBe(RACK_ROW_HEIGHTS[0]);
-    expect(first).toBeGreaterThan(0);
-    expect(second).toBeGreaterThan(first);
-    expect(heights.slice(0, first).every((y) => y === RACK_ROW_HEIGHTS[0])).toBe(true);
-    expect(heights.slice(first, second).every((y) => y === RACK_ROW_HEIGHTS[1])).toBe(true);
-  });
-
-  test('eine Reihe stapelt nicht, sie geht nach außen', () => {
-    const slots = rackSlots(40, { rows: 1 });
-    expect(slots.every((slot) => slot.y === RACK_ROW_HEIGHTS[0])).toBe(true);
-    const radii = new Set(slots.map((slot) => Math.hypot(slot.x, slot.z).toFixed(6)));
-    expect(radii.size).toBe(2);
-  });
-
-  test('der zweite Bogen liegt weiter draußen und versetzt', () => {
-    const slots = rackSlots(50);
-    const outer = slots.filter(
-      (slot) => Math.hypot(slot.x, slot.z) > RACK_REACH + RACK_RING_STEP / 2,
-    );
-    expect(outer.length).toBeGreaterThan(0);
-    for (const slot of outer) {
-      expect(Math.hypot(slot.x, slot.z)).toBeCloseTo(RACK_REACH + RACK_RING_STEP, 9);
-    }
-    // Versetzt: kein Stück des äußeren Bogens steht genau hinter einem des inneren.
-    const inner = slots.filter((slot) => Math.hypot(slot.x, slot.z) < RACK_REACH + 1e-9);
-    for (const back of outer) {
-      const angle = Math.atan2(back.x, -back.z);
-      for (const front of inner) {
-        expect(Math.abs(Math.atan2(front.x, -front.z) - angle)).toBeGreaterThan(1e-3);
-      }
-    }
+  test('das erste Stück steht dort, wo die Figur hinsieht', () => {
+    // Blick nach −z: Die Kreuzmitte davor ist frei, also steht das erste Stück
+    // auf der Kachel gleich daneben — und das zweite spiegelbildlich.
+    const ahead = tileSlots(2);
+    expect(ahead[0]).toEqual({ x: TILE_SIZE, y: 0, z: -3 * TILE_SIZE });
+    expect(ahead[1]).toEqual({ x: -TILE_SIZE, y: 0, z: -3 * TILE_SIZE });
+    // Und wer nach +x sieht, bekommt dasselbe um eine Vierteldrehung gedreht.
+    const right = tileSlots(2, { facing: Math.PI / 2 });
+    expect(right[0]).toEqual({ x: 3 * TILE_SIZE, y: 0, z: TILE_SIZE });
+    expect(right[1]).toEqual({ x: 3 * TILE_SIZE, y: 0, z: -TILE_SIZE });
   });
 
   test('dieselbe Frage bekommt dieselbe Antwort', () => {
-    expect(rackSlots(17)).toEqual(rackSlots(17));
-    expect(rackSlots(17, { rows: 2, reach: 1 })).toEqual(rackSlots(17, { rows: 2, reach: 1 }));
-    // Und eine andere Frage eine andere: Die Reihe rückt mittig, wenn sie wächst.
-    expect(rackSlots(2)).not.toEqual(rackSlots(3).slice(0, 2));
+    expect(tileSlots(17)).toEqual(tileSlots(17));
+    expect(tileSlots(17, { facing: 1.2 })).toEqual(tileSlots(17, { facing: 1.2 }));
+    // Eine Blickrichtung ohne Zahl ist geradeaus.
+    expect(tileSlots(9, { facing: Number.NaN })).toEqual(tileSlots(9));
+    // Und ein Platz, der einmal vergeben ist, bleibt vergeben: Wer ein Stück
+    // mehr mitbringt, bekommt dieselbe Liste und eines hinten dran.
+    expect(tileSlots(9)).toEqual(tileSlots(10).slice(0, 9));
   });
 
-  test('Unsinn bei Reihen und Reichweite wird zurechtgerückt', () => {
-    expect(rackSlots(9, { rows: 0 })).toEqual(rackSlots(9, { rows: 1 }));
-    expect(rackSlots(9, { rows: 99 })).toEqual(rackSlots(9, { rows: RACK_ROW_HEIGHTS.length }));
-    expect(rackSlots(9, { rows: Number.NaN })).toEqual(rackSlots(9));
-    expect(rackSlots(9, { reach: Number.NaN })).toEqual(rackSlots(9));
-    // Eine Reichweite von zehn Metern ist keine Reichweite.
-    for (const slot of rackSlots(9, { reach: 10 })) {
-      expect(Math.hypot(slot.x, slot.z)).toBeLessThanOrEqual(RACK_REACH + RACK_RING_STEP + 1e-9);
+  test('der Boden wächst mit, bis das letzte Stück darauf steht', () => {
+    // Die üblichen Größen kommen auf dem ausgelieferten Boden unter.
+    expect(floorTilesFor(0)).toBe(FLOOR_TILES);
+    expect(floorTilesFor(20)).toBe(FLOOR_TILES);
+    // Und was darüber hinausgeht, bekommt mehr Boden statt weniger Kachel.
+    for (const count of [1, 20, 21, 57, 120, 400]) {
+      const half = floorTilesFor(count);
+      expect(half).toBeGreaterThanOrEqual(FLOOR_TILES);
+      for (const slot of tileSlots(count)) {
+        expect(Math.abs(slot.x) / TILE_SIZE).toBeLessThanOrEqual(half);
+        expect(Math.abs(slot.z) / TILE_SIZE).toBeLessThanOrEqual(half);
+      }
     }
   });
 });
@@ -211,15 +213,34 @@ function world(): {
   return { host, room: new ConstructRoom(host), anchor, furniture, ground };
 }
 
-function items(count: number, picked: string[], close = false): ConstructItem[] {
-  return Array.from({ length: count }, (_, i) => ({
-    object: mesh(`item-${i}`),
-    label: `Stück ${i}`,
-    pick: () => {
-      picked.push(`item-${i}`);
-      return close;
-    },
-  }));
+/**
+ * Ein Stück mit Mitschrift: `object()` gibt immer dasselbe Netz und zählt mit,
+ * wie oft danach gefragt wurde — daran hängt die Zusage, dass der Raum jedes
+ * Stück genau einmal je Besuch baut und keins auf Vorrat.
+ */
+interface TestItem extends ConstructItem {
+  readonly mesh: Block;
+  readonly builds: () => number;
+}
+
+function items(count: number, picked: string[], close = false): TestItem[] {
+  return Array.from({ length: count }, (_, i) => {
+    const block = mesh(`item-${i}`);
+    let builds = 0;
+    return {
+      mesh: block,
+      builds: () => builds,
+      object: () => {
+        builds++;
+        return block;
+      },
+      label: `Stück ${i}`,
+      pick: () => {
+        picked.push(`item-${i}`);
+        return close;
+      },
+    };
+  });
 }
 
 describe('Der Construct-Raum', () => {
@@ -320,9 +341,12 @@ describe('Der Construct-Raum', () => {
     const picked: string[] = [];
     const choice = items(4, picked);
     room.enter({ anchor, at: new THREE.Vector3(), items: choice });
+    // Angemeldet wird ein Stück, wenn es aufgefahren ist und nicht vorher —
+    // also erst die Welle abwarten (`die Stücke entstehen nacheinander`).
+    room.update(4 * RISE_STAGGER + RISE_SECONDS);
 
     expect(host.registered.size).toBe(4);
-    const usable = host.registered.get(choice[2]!.object)!;
+    const usable = host.registered.get(choice[2]!.mesh)!;
     expect(usable.usePrompt?.()).toBe('Stück 2');
     expect(usable.interaction).toBe('press');
 
@@ -334,29 +358,85 @@ describe('Der Construct-Raum', () => {
   test('die Stücke fahren aus dem Boden und stehen dann auf ihren Plätzen', () => {
     const { host, room, anchor } = world();
     const choice = items(3, []);
-    const slots = rackSlots(3);
-    room.enter({ anchor, at: new THREE.Vector3(), items: choice });
+    // Der Anker steht auf der Kachel 0/0, deren Mitte 0,5/0,5 ist; die Figur
+    // steht einen Meter südlich davon und sieht also nach −z. Das ist genau
+    // die Vorgabe, mit der `tileSlots` ohne Blickrichtung rechnet.
+    const slots = tileSlots(3);
+    room.enter({ anchor, at: new THREE.Vector3(0.5, 0, 1.5), items: choice });
 
-    // Vor dem ersten Bild steckt alles unter dem Boden — und das erste Stück
-    // kommt vor dem letzten heraus.
-    expect(choice[0]!.object.position.y).toBeCloseTo(slots[0]!.y - RISE, 6);
-    room.update(RISE_STAGGER);
-    expect(choice[0]!.object.position.y).toBeGreaterThan(choice[2]!.object.position.y);
+    // Im ersten Bild steckt das erste Stück ganz unten im Boden, und die
+    // beiden anderen gibt es noch gar nicht.
+    expect(choice[0]!.mesh.position.y).toBeCloseTo(slots[0]!.y - RISE, 6);
+    room.update(2 * RISE_STAGGER);
+    // Jetzt sind alle drei da — und das erste ist dem letzten voraus.
+    expect(choice[0]!.mesh.position.y).toBeGreaterThan(choice[2]!.mesh.position.y);
 
     room.update(2 * RISE_STAGGER + RISE_SECONDS);
     choice.forEach((item, i) => {
-      expect(item.object.parent).not.toBe(host.root);
-      expect(item.object.position.x).toBeCloseTo(slots[i]!.x, 6);
-      expect(item.object.position.y).toBeCloseTo(slots[i]!.y, 6);
-      expect(item.object.position.z).toBeCloseTo(slots[i]!.z, 6);
+      expect(item.mesh.parent).not.toBe(host.root);
+      expect(item.mesh.position.x).toBeCloseTo(slots[i]!.x, 6);
+      expect(item.mesh.position.y).toBeCloseTo(slots[i]!.y, 6);
+      expect(item.mesh.position.z).toBeCloseTo(slots[i]!.z, 6);
     });
+  });
+
+  test('die Stücke entstehen nacheinander, nicht alle in einem Bild', () => {
+    const { host, room, anchor } = world();
+    const choice = items(6, []);
+    room.enter({ anchor, at: new THREE.Vector3(0.5, 0, 1.5), items: choice });
+
+    // Im Bild des Betretens gibt es genau eines — das, das gerade auffährt.
+    // Sechs auf einmal zu bauen war die Pause, die man nach dem Druck sah.
+    expect(choice.map((item) => item.builds())).toEqual([1, 0, 0, 0, 0, 0]);
+    expect(host.registered.size).toBe(1);
+
+    room.update(RISE_STAGGER * 2.5);
+    expect(choice[2]!.builds()).toBe(1);
+    expect(choice[5]!.builds()).toBe(0);
+
+    // Am Ende der Welle stehen alle da, und jedes ist genau einmal gebaut.
+    room.update(RISE_STAGGER * 6 + RISE_SECONDS);
+    expect(choice.map((item) => item.builds())).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(host.registered.size).toBe(6);
+
+    // Auf dem Rückweg entsteht nichts mehr — und das gilt auch für den, der
+    // sich sofort wieder verdrückt.
+    const early = items(6, []);
+    const second = new ConstructRoom(host);
+    second.enter({ anchor, at: new THREE.Vector3(0.5, 0, 1.5), items: early });
+    second.leave();
+    second.update(FADE_SECONDS);
+    expect(early.map((item) => item.builds())).toEqual([1, 0, 0, 0, 0, 0]);
+  });
+
+  test('`A` reicht bis zum entferntesten Stück und keinen Meter weiter', () => {
+    const { room, anchor } = world();
+    const choice = items(20, []);
+    const at = new THREE.Vector3(0.5, 0, 1.5);
+    room.enter({ anchor, at, items: choice });
+
+    // Gemessen wird waagerecht von den Füßen, so wie `pickUsable` misst — und
+    // die Mitte ist die Kachel des Ankers, nicht die Figur.
+    const centre = { x: 0.5, z: 0.5 };
+    let far = 0;
+    for (const slot of tileSlots(20)) {
+      far = Math.max(far, Math.hypot(centre.x + slot.x - at.x, centre.z + slot.z - at.z));
+    }
+    expect(room.reach).toBeGreaterThan(far);
+    // Der Zuschlag ist der halbe Kachelabstand des Trefferzylinders, nicht mehr.
+    expect(room.reach).toBeLessThan(far + TILE_SIZE / 2);
+    // Und ohne Auswahl gibt es nichts zu verlängern.
+    room.leave();
+    room.update(FADE_SECONDS);
+    room.enter({ anchor, at, items: [] });
+    expect(room.reach).toBe(0);
   });
 
   test('geliehene Stücke gehen heil wieder hinaus', () => {
     const { room, anchor } = world();
     const choice = items(2, []);
     const spies = choice.map((item) => {
-      const object = item.object as Block;
+      const object = item.mesh;
       return [jest.spyOn(object.geometry, 'dispose'), jest.spyOn(object.material, 'dispose')];
     });
     room.enter({ anchor, at: new THREE.Vector3(), items: choice });
@@ -364,7 +444,7 @@ describe('Der Construct-Raum', () => {
     room.leave();
     room.update(FADE_SECONDS);
 
-    for (const item of choice) expect(item.object.parent).toBeNull();
+    for (const item of choice) expect(item.mesh.parent).toBeNull();
     for (const pair of spies) for (const spy of pair) expect(spy).not.toHaveBeenCalled();
   });
 
@@ -440,7 +520,7 @@ describe('Der Construct-Raum', () => {
     room.enter({ anchor, at: new THREE.Vector3(), items: choice });
     room.update(FADE_SECONDS);
 
-    expect(host.registered.get(choice[1]!.object)!.use(SOURCE)).toBe(true);
+    expect(host.registered.get(choice[1]!.mesh)!.use(SOURCE)).toBe(true);
     expect(picked).toEqual(['item-1']);
     // Noch ist alles angemeldet — die Auswahlschleife der Welt läuft ja noch.
     expect(host.registered.size).toBe(3);
@@ -460,11 +540,30 @@ describe('Der Construct-Raum', () => {
     const choice = items(2, picked, false);
     room.enter({ anchor, at: new THREE.Vector3(), items: choice });
     room.update(FADE_SECONDS);
-    host.registered.get(choice[0]!.object)!.use(SOURCE);
+    host.registered.get(choice[0]!.mesh)!.use(SOURCE);
     room.update(0.016);
     expect(picked).toEqual(['item-0']);
     expect(room.open).toBe(true);
     expect(host.registered.size).toBe(2);
+  });
+
+  test('der Boden rastet auf der Kachel des Ankers ein, nicht auf den Füßen', () => {
+    // Der Anker steht auf der Kachel 0/0 (Mitte 0,5/0,5), die Figur irgendwo
+    // daneben — und zwar mit Absicht auf keiner runden Zahl. Legte sich der
+    // Boden um die **Füße**, stünde der Schrank quer über vier Kacheln; genau
+    // das war der Fehler, den man in der Brille als Erstes sieht.
+    const { host, room, anchor } = world();
+    room.enter({ anchor, at: new THREE.Vector3(1.37, 0, -0.42), items: [] });
+    const stage = host.root.children.find((child) => child.name === 'construct')!;
+    expect(stage.position.x).toBeCloseTo(0.5, 6);
+    expect(stage.position.z).toBeCloseTo(0.5, 6);
+
+    // Und dieselbe Kachel, egal wo die Figur steht.
+    room.leave();
+    room.update(FADE_SECONDS);
+    room.enter({ anchor, at: new THREE.Vector3(-2.8, 0, 3.1), items: [] });
+    expect(stage.position.x).toBeCloseTo(0.5, 6);
+    expect(stage.position.z).toBeCloseTo(0.5, 6);
   });
 
   test('der Boden sind zwei Netze und nicht zweihundertfünfundzwanzig', () => {
@@ -472,8 +571,6 @@ describe('Der Construct-Raum', () => {
     room.enter({ anchor, at: new THREE.Vector3(2, 0, -3), items: [] });
     const stage = host.root.children.find((child) => child.name === 'construct')!;
     expect(stage).toBeDefined();
-    expect(stage.position.x).toBeCloseTo(2, 6);
-    expect(stage.position.z).toBeCloseTo(-3, 6);
     // Knapp unter der Fußhöhe, gegen das Flimmern mit dem echten Boden.
     expect(stage.position.y).toBeLessThan(0);
     expect(stage.position.y).toBeCloseTo(-0.01, 6);
@@ -514,6 +611,6 @@ describe('Der Construct-Raum', () => {
     expect(furniture.visible).toBe(true);
     expect(furniture.material.transparent).toBe(false);
     expect(furniture.material.opacity).toBe(1);
-    for (const item of choice) expect(item.object.parent).toBeNull();
+    for (const item of choice) expect(item.mesh.parent).toBeNull();
   });
 });

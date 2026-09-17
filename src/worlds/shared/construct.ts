@@ -11,6 +11,14 @@ import { TILE } from '../nav/navTile';
  * Kachelboden unter den Füßen und die Auswahl, die daraus hochfährt. Noch ein
  * Druck auf denselben Schrank, und die Welt ist wieder da.
  *
+ * **Die Auswahl steht auf den Kacheln** und nicht in der Luft (`tileSlots`):
+ * ein Ring um den Schrank herum, zwei Kacheln Abstand, die Kreuzmitte frei.
+ * Der Boden rastet dafür auf dem Kachelgitter der Welt ein (`enter`), damit
+ * der Schrank mittig auf **seiner** Kachel steht und nicht quer über vieren.
+ * Und weil ein Ring drei Kacheln weiter draußen keine Armlänge mehr ist,
+ * reicht `A` hier so weit, wie das entfernteste Stück steht (`reach`) — die
+ * Figur bleibt stehen, der Strahl wird länger.
+ *
  * **Und der Körper bleibt stehen.** Nichts hier versetzt den Spieler, dreht
  * ihn oder sperrt seine Steuerung: Die anderen im Raum sehen weiter eine
  * Figur, die vor ihrem Schrank steht — sie sehen nur nicht, dass die gerade in
@@ -48,8 +56,21 @@ export interface ConstructHost {
 
 /** Ein Stück zur Auswahl, das im Construct aus dem Boden fährt. */
 export interface ConstructItem {
-  /** Das Netz — der Raum hängt es ein und gibt es beim Verlassen nicht frei. */
-  readonly object: THREE.Object3D;
+  /**
+   * **Das Netz — auf Abruf**, und beim zweiten Abruf dasselbe.
+   *
+   * Der Raum ruft es genau dann ab, wenn das Stück an der Reihe ist,
+   * aufzufahren (`paint`), und nicht beim Betreten. Der Unterschied ist die
+   * Pause, die man sonst nach dem Druck auf den Schrank sieht: Zwanzig
+   * Miniaturen zu bauen kostet den Bruchteil einer Sekunde, und dieser
+   * Bruchteil fiel bisher **ganz** in das eine Bild, in dem der Raum aufging.
+   * Über die Auffahrwelle verteilt (`RISE_STAGGER`) ist es je Bild eine, und
+   * die sieht niemand.
+   *
+   * Der Raum hängt das Netz ein und gibt es beim Verlassen nicht frei — es
+   * gehört dem, der es gebaut hat.
+   */
+  object(): THREE.Object3D;
   readonly label: string;
   /** Was ein Druck darauf tut. `true` heißt: der Raum schließt danach. */
   pick(): boolean;
@@ -79,13 +100,17 @@ export const FADE_SECONDS = 0.5;
 export const TILE_SIZE = TILE;
 
 /**
- * **Wie weit der Boden reicht**, in Kacheln vom Spieler aus.
+ * **Wie weit der Boden mindestens reicht**, in Kacheln von der Mitte aus.
  *
  * Sieben zu jeder Seite sind fünfzehn mal fünfzehn Kacheln und damit ein
  * Quadrat von 15 m: weit genug, dass der Rand in der Brille am Bildrand liegt
  * und nicht vor den Füßen, und klein genug, dass der Boden nicht so tut, als
  * könnte man darauf spazieren gehen. Weiter draußen bräuchte er ohnehin einen
  * Nebel, und den gibt es hier nicht.
+ *
+ * **Mindestens**, weil die Stücke auf diesen Kacheln stehen (`tileSlots`): Wer
+ * mehr mitbringt, als die Ringe bis hierher fassen, bekommt einen größeren
+ * Boden statt Stücke, die neben ihm im Nichts stehen (`floorTilesFor`).
  */
 export const FLOOR_TILES = 7;
 
@@ -114,147 +139,139 @@ export const RISE_STAGGER = 0.04;
 /**
  * **Der Halbmesser, mit dem ein Stück angemeldet wird**, in Metern.
  *
- * Deutlich kleiner als die großzügige Vorgabe (`core/usable.USE_RADIUS`, 0,4 m)
- * und mit Absicht: Die Stücke stehen keine 40 cm auseinander (`RACK_GAP`),
- * also griffe man mit der Vorgabe immer nach zweien gleichzeitig, und welches
- * gewinnt, entschiede der Zufall der Reihenfolge.
+ * Knapp unter der halben Kachel: Die Stücke stehen jetzt auf Kachelmitten und
+ * damit einen ganzen Meter auseinander (`tileSlots`), also darf die
+ * Trefferfläche fast bis an die Fuge reichen, ohne dass zwei Nachbarn sich
+ * überlappen — und wer aus vier Metern auf eine Kommode zielt, soll sie auch
+ * treffen. Zwei sich überlappende Zylinder wären dagegen ein gelber Saum, der
+ * beim kleinsten Kopfdrehen hin und her springt (`core/highlight.ts`).
  */
-const PICK_RADIUS = 0.16;
+const PICK_RADIUS = 0.45;
 
 /** Die Zeile am Handgelenk, wenn die Welt keine eigene mitgibt. */
 const DEFAULT_TITLE = 'Konstrukt — wähle aus';
 
-/** Wohin ein Stück im Construct gehört, relativ zur Figur (−z ist vorn). */
-export interface RackSlot {
+/** Wohin ein Stück im Construct gehört, relativ zur Mitte (−z ist vorn). */
+export interface ConstructSlot {
   readonly x: number;
   readonly y: number;
   readonly z: number;
 }
 
 /**
- * **Die Regalhöhen**, in Metern über dem Boden — **in der Reihenfolge, in der
- * sie gefüllt werden**.
+ * **Wie viele Kachelringe um die Mitte frei bleiben.**
  *
- * Zuerst 1,05 m: Das ist die Höhe, in der eine stehende Hand von selbst
- * hängt, und wer nur drei Stücke zur Auswahl hat, soll dafür weder bücken
- * noch greifen. Dann 1,55 m — auf Augenhöhe sieht man es wenigstens gut. Und
- * zuletzt 0,55 m, denn Bücken ist von allen dreien das Einzige, was in der
- * Brille unangenehm ist.
+ * In der Mitte steht der Anker — der Schrank, der Rechner —, und um ihn herum
+ * braucht es Platz: Er ist so groß wie ein Möbel, und ein Regal, das ihm auf
+ * die Pelle rückt, verdeckt ihn und damit den Weg zurück. Zwei Kacheln sind
+ * zugleich der Radius, in dem die Figur steht, sich dreht und nirgends
+ * anstößt.
  */
-export const RACK_ROW_HEIGHTS: readonly number[] = [1.05, 1.55, 0.55];
+export const TILE_CLEAR = 2;
 
-/** Wie weit vorn der erste Bogen liegt, in Metern. */
-export const RACK_REACH = 1.15;
-
-/** Und die Grenzen, in denen eine eigene Angabe noch eine Armlänge ist. */
-const RACK_REACH_MIN = 0.45;
-const RACK_REACH_MAX = 1.3;
+/** Der erste besetzte Ring, in Kacheln von der Mitte aus. */
+const FIRST_RING = TILE_CLEAR + 1;
 
 /**
- * **Wie weit der Bogen herumgeht**, im Bogenmaß — gut 200°.
+ * **Und wie weit der nächste Ring draußen liegt**, in Kacheln.
  *
- * Nicht 360°: Was hinter der Figur steht, findet sie nicht, weil sie nicht
- * hinsieht; sie könnte sich zwar umdrehen, weiß aber nicht, dass es sich
- * lohnt. Und nicht 90°: Ein schmaler Bogen legt bei zehn Stücken drei
- * Reihen übereinander, und die oberste liegt dann über dem Kopf. 200° sind
- * der Kompromiss — eine Vierteldrehung auf der Stelle nach links oder rechts,
- * und man hat alles gesehen.
+ * Zwei, also bleibt zwischen zwei besetzten Ringen genau einer leer. Das ist
+ * keine Zierde, sondern die Sichtlinie: Ein Ring direkt hinter dem anderen
+ * stünde in dessen Lücken und wäre von der Mitte aus halb verdeckt — und
+ * verdeckt heißt hier „findet man nicht".
  */
-export const RACK_ARC = (200 * Math.PI) / 180;
+const RING_STEP = 2;
 
 /**
- * **Der kleinste Abstand zweier Nachbarn**, in Metern (Sehne, nicht Winkel).
+ * **Wo die Stücke stehen** — auf Kachelmitten, und zwar auf denen des
+ * Kachelbodens, den man sieht.
  *
- * Eine Hand ist gut 10 cm breit, ein Stück darf gut 20 cm breit sein — bei
- * weniger als 34 cm greift man daneben, und der gelbe Saum (`core/highlight.ts`)
- * springt beim kleinsten Kopfdrehen zwischen zweien hin und her.
- */
-export const RACK_GAP = 0.34;
-
-/**
- * **Wie viel weiter draußen der zweite Bogen liegt**, in Metern.
+ * Vorher hingen sie in einem Bogen in Armlänge vor der Figur, in drei Höhen
+ * übereinander. Das war für einen Raum gedacht, in dem man sich nicht umsieht
+ * und nicht hingeht — und es sah aus, wie es gemeint war: Möbel, die in der
+ * Luft schweben. Ein Konstrukt mit einem Kachelboden, auf dem nichts steht,
+ * ist ein Kachelboden zu viel. Also stehen sie jetzt **darauf**, jedes auf
+ * seiner eigenen Kachel, und der Raum liest sich als Ausstellung statt als
+ * Werkzeuggürtel.
  *
- * Genau eine Griffbreite (`RACK_GAP`), und keinen Zentimeter weniger: Zwei
- * Stücke, die hintereinander stehen, sind nur durch diesen Abstand getrennt —
- * wäre er kleiner als der Abstand innerhalb einer Reihe, griffe man von vorn
- * nach hinten daneben statt von links nach rechts. Ein Bogen weiter draußen
- * liegt damit knapp 1,5 m vor der Figur; das ist gestreckt, aber erreichbar,
- * und er kommt ohnehin erst zum Einsatz, wenn der innere voll ist.
- */
-export const RACK_RING_STEP = RACK_GAP;
-
-/**
- * **Und es gibt nur zwei Bögen.**
+ * Das Muster ist ein Ring um die Mitte, und zwar dieses (`C` ist der Anker,
+ * `x` ein Stück, `o` eine freie Kachel):
  *
- * Ein dritter läge 1,75 m vor der Figur, und dahin reicht kein Arm mehr, ohne
- * dass man einen Schritt macht — und einen Schritt zu machen ist genau das,
- * was dieser Raum nicht verlangt. Wer mehr Stücke mitbringt, als in zwei Bögen
- * passen, bekommt sie im äußeren enger gesetzt: zu eng ist unschön, außer
- * Reichweite ist kaputt.
- */
-const RACK_RINGS = 2;
-
-/**
- * **Wo die Stücke stehen** — reine Rechnung, damit ein Test nachmessen kann,
- * ob wirklich jedes davon in Reichweite einer Figur liegt, die sich nicht von
- * der Stelle bewegt.
+ * ```
+ * xxxoxxx
+ * xooooox
+ * xooooox
+ * oooCooo
+ * xooooox
+ * xooooox
+ * xxxoxxx
+ * ```
  *
- * Gefüllt wird von innen nach außen und von der Mitte nach oben und unten:
- * erst die mittlere Reihe des inneren Bogens (`RACK_ROW_HEIGHTS`), dann die
- * obere, dann die untere, dann dasselbe eine Armlänge weiter draußen. Eine
- * angefangene Reihe steht **mittig** vor der Figur — bei einem einzigen Stück
- * ist das genau geradeaus, und das ist die halbe Miete für einen Raum, in dem
- * man sich nicht umsehen mag.
+ * Zwei Kacheln um den Anker bleiben frei (`TILE_CLEAR`), dann kommt der erste
+ * Ring — **bis auf die Kreuzmitte**: Die vier Kacheln genau vor, hinter,
+ * links und rechts vom Anker bleiben leer, und damit bleiben vier Gassen
+ * offen, durch die man von der Mitte aus bis nach draußen sieht. Wer mehr
+ * Stücke mitbringt, als ein Ring fasst (20 sind es im ersten), bekommt den
+ * nächsten zwei Kacheln weiter draußen, nach demselben Muster.
  *
- * Der äußere Bogen ist um einen halben Schritt versetzt, damit seine Stücke
- * durch die Lücken des inneren zu sehen sind und nicht dahinter verschwinden.
+ * Gefüllt wird von innen nach außen und innerhalb eines Rings **von der
+ * Blickrichtung aus nach beiden Seiten**: Das erste Stück steht dort, wo die
+ * Figur ohnehin hinsieht, das zweite daneben, und was hinter ihr landet, ist
+ * das, was zuletzt kommt.
  *
  * @param count wie viele Plätze gebraucht werden; 0 und Unsinn ergeben nichts
- * @returns die Plätze in genau dieser Reihenfolge, relativ zur Figur
+ * @param options `facing` ist der Winkel, in den die Figur schaut (0 ist −z)
+ * @returns die Plätze in genau dieser Reihenfolge, relativ zur Mitte
  */
-export function rackSlots(count: number, options?: { rows?: number; reach?: number }): RackSlot[] {
+export function tileSlots(count: number, options?: { facing?: number }): ConstructSlot[] {
   const wanted = Number.isFinite(count) ? Math.floor(count) : 0;
   if (wanted <= 0) return [];
+  const asked = options?.facing;
+  const facing = Number.isFinite(asked) ? asked! : 0;
 
-  const asked = options?.rows;
-  const rows = Math.max(
-    1,
-    Math.min(RACK_ROW_HEIGHTS.length, Number.isFinite(asked) ? Math.floor(asked!) : 3),
-  );
-  const wish = options?.reach;
-  const reach = Number.isFinite(wish)
-    ? Math.max(RACK_REACH_MIN, Math.min(RACK_REACH_MAX, wish!))
-    : RACK_REACH;
-
-  const slots: RackSlot[] = [];
-  for (let ring = 0; slots.length < wanted; ring++) {
-    const last = ring >= RACK_RINGS - 1;
-    const radius = reach + Math.min(ring, RACK_RINGS - 1) * RACK_RING_STEP;
-    // Der Winkelschritt, bei dem die Sehne zwischen zwei Nachbarn genau
-    // `RACK_GAP` ist: weiter draußen passen deshalb mehr Stücke auf denselben
-    // Bogen, ohne dass sie sich näher kommen.
-    let pitch = 2 * Math.asin(Math.min(1, RACK_GAP / (2 * radius)));
-    const shift = ring % 2 === 0 ? 0 : pitch / 2;
-    let perRow = Math.max(1, Math.floor((RACK_ARC - 2 * shift) / pitch) + 1);
-    if (last) {
-      // Der letzte Bogen nimmt alles, was noch übrig ist — enger gesetzt, aber
-      // innerhalb derselben 200°. Damit endet diese Schleife immer.
-      const need = Math.ceil((wanted - slots.length) / rows);
-      if (need > perRow) {
-        perRow = need;
-        pitch = perRow > 1 ? (RACK_ARC - 2 * shift) / (perRow - 1) : 0;
+  const slots: ConstructSlot[] = [];
+  for (let ring = FIRST_RING; slots.length < wanted; ring += RING_STEP) {
+    const here: { x: number; z: number; turn: number }[] = [];
+    for (let z = -ring; z <= ring; z++) {
+      for (let x = -ring; x <= ring; x++) {
+        // Der Ring ist der Rand des Quadrats — und die Kreuzmitte bleibt frei.
+        if (Math.max(Math.abs(x), Math.abs(z)) !== ring) continue;
+        if (x === 0 || z === 0) continue;
+        here.push({ x, z, turn: wrapAngle(Math.atan2(x, -z) - facing) });
       }
     }
-    for (let row = 0; row < rows && slots.length < wanted; row++) {
-      const y = RACK_ROW_HEIGHTS[row]!;
-      const here = Math.min(perRow, wanted - slots.length);
-      for (let i = 0; i < here; i++) {
-        const angle = (i - (here - 1) / 2) * pitch + shift;
-        slots.push({ x: Math.sin(angle) * radius, y, z: -Math.cos(angle) * radius });
-      }
+    // Von der Blickrichtung aus nach beiden Seiten. Bei gleichem Winkel zuerst
+    // nach rechts, damit aus derselben Frage jedes Mal dieselbe Antwort wird.
+    here.sort((a, b) => Math.abs(a.turn) - Math.abs(b.turn) || b.turn - a.turn);
+    for (const tile of here) {
+      if (slots.length >= wanted) break;
+      slots.push({ x: tile.x * TILE_SIZE, y: 0, z: tile.z * TILE_SIZE });
     }
   }
   return slots;
+}
+
+/**
+ * **Wie groß der Boden für so viele Stücke sein muss**, in Kacheln von der
+ * Mitte aus.
+ *
+ * Der äußerste belegte Ring, mindestens aber `FLOOR_TILES`: Ein Stück, das
+ * neben dem Boden im weißen Nichts steht, ist genau der Fehler, den dieser
+ * Umbau beheben sollte.
+ */
+export function floorTilesFor(count: number): number {
+  const slots = tileSlots(count);
+  let outer = FLOOR_TILES;
+  for (const slot of slots) {
+    outer = Math.max(outer, Math.abs(slot.x) / TILE_SIZE, Math.abs(slot.z) / TILE_SIZE);
+  }
+  return outer;
+}
+
+/** Einen Winkel auf (−π, π] zurückholen. */
+function wrapAngle(angle: number): number {
+  const turn = ((angle + Math.PI) % (2 * Math.PI)) - Math.PI;
+  return turn <= -Math.PI ? turn + 2 * Math.PI : turn;
 }
 
 /** Was von einem Material gemerkt wird, damit es hinterher wieder es selbst ist. */
@@ -271,11 +288,18 @@ interface HiddenNode {
   readonly visible: boolean;
 }
 
-/** Ein Stück samt seinem Platz — so viel, wie der Raum je Bild davon braucht. */
+/**
+ * Ein Stück samt seinem Platz — so viel, wie der Raum je Bild davon braucht.
+ *
+ * `object` ist `null`, solange das Stück noch unter dem Boden wartet: Gebaut
+ * wird es erst, wenn es an der Reihe ist (`ConstructItem.object`), und
+ * angemeldet wird es im selben Atemzug. Ein Stück, das es noch nicht gibt,
+ * kann niemand greifen — und es steht auch in keiner Liste, die das behauptet.
+ */
 interface RackEntry {
   readonly item: ConstructItem;
-  readonly object: THREE.Object3D;
-  readonly slot: RackSlot;
+  object: THREE.Object3D | null;
+  readonly slot: ConstructSlot;
 }
 
 /** Die Materialien an einem Knoten — eins, mehrere oder keins. */
@@ -320,6 +344,28 @@ export class ConstructRoom {
   private floor: THREE.Group | null = null;
   private tiles: THREE.InstancedMesh | null = null;
   private grout: THREE.Mesh | null = null;
+  /** Wie weit der gebaute Boden reicht, in Kacheln — er wächst, aber schrumpft nie. */
+  private floorTiles = 0;
+
+  /**
+   * **Wie weit `A` gerade reichen muss**, in Metern — von den Füßen bis zum
+   * entferntesten Stück.
+   *
+   * Die Vorgabe (`core/usable.USE_REACH`, 1,5 m) ist eine Armlänge und eine
+   * halbe, und sie ist genau richtig für eine Welt, in der man zu einem Knopf
+   * hingeht. Hier geht niemand hin: Das Rig ist gesperrt, solange der Raum
+   * offen ist (`GridWorld.syncConstructLock`) — das ist der ganze Grund, warum
+   * die anderen Spieler weiter eine Figur vor ihrem Schrank stehen sehen. Die
+   * Stücke stehen dafür jetzt drei Kacheln weit draußen, und ein Regal, das
+   * man ansieht und nicht bedienen kann, ist kein Regal.
+   *
+   * Also reicht der Strahl im Konstrukt so weit, wie das entfernteste Stück
+   * steht, und keinen Meter weiter. **Gerechnet und nicht geraten**, weil die
+   * Zahl sonst bei jedem zusätzlichen Ring falsch wäre; und harmlos, weil im
+   * Konstrukt außer dem Anker und der Auswahl ohnehin nichts mehr sichtbar ist
+   * und damit nichts anderes antwortet (`PortalWorld.collectUsables`).
+   */
+  private far = 0;
 
   /** Ein Druck will hinaus — abgearbeitet wird das im nächsten `update`, siehe `pickedBy`. */
   private wantsLeave = false;
@@ -331,6 +377,11 @@ export class ConstructRoom {
   /** Ob der weiße Raum gerade gilt — beim Zurückblenden schon wieder `false`. */
   get open(): boolean {
     return this.phase === 'in' || this.phase === 'open';
+  }
+
+  /** Wie weit `A` reichen muss, damit jedes Stück erreichbar ist (siehe `far`). */
+  get reach(): number {
+    return this.far;
   }
 
   /**
@@ -349,25 +400,37 @@ export class ConstructRoom {
 
     this.collect(options.anchor);
 
-    const stage = this.ensureStage();
-    // Die Bühne steht im Baum der Welt, also in **deren** Koordinaten: `at`
-    // kommt in Weltmaß herein und muss umgerechnet werden, sonst liegt der
-    // Boden bei jeder Welt, die ihre Gruppe verschiebt, woanders als die Füße.
-    const local = this.host.root.worldToLocal(options.at.clone());
-    stage.position.set(local.x, local.y - this.dropBelow(options.anchor, options.at), local.z);
+    const stage = this.ensureStage(floorTilesFor(options.items.length));
+    // **Die Mitte ist der Anker und nicht die Figur**, und sie rastet auf dem
+    // Kachelgitter der Welt ein (`nav/navTile.tileCentreX`). Beides gehört
+    // zusammen: Der Schrank steht auf einer Kachel der Welt, und ein
+    // Kachelboden, der um die **Füße** herum ausgelegt wird, liegt gegenüber
+    // dieser Kachel um jeden Betrag verschoben, den die Figur gerade vom
+    // Kachelrand entfernt steht. Der Schrank stünde dann quer über vier
+    // Kacheln — man sieht es sofort, und es sieht nach Fehler aus. Eingerastet
+    // sind Weltgitter und Konstruktboden dieselben Kacheln, und der Anker
+    // steht mittig auf seiner.
+    const centre = this.centre(options.anchor, options.at);
+    // Die Bühne steht im Baum der Welt, also in **deren** Koordinaten: `centre`
+    // ist Weltmaß und muss umgerechnet werden, sonst liegt der Boden bei jeder
+    // Welt, die ihre Gruppe verschiebt, woanders als die Füße.
+    stage.position.copy(this.host.root.worldToLocal(centre.clone()));
     this.host.root.add(stage);
 
-    const slots = rackSlots(options.items.length);
-    this.entries = options.items.map((item, index) => {
-      const entry: RackEntry = { item, object: item.object, slot: slots[index]! };
-      stage.add(entry.object);
-      entry.object.visible = true;
-      // Jedes Stück sieht die Figur an: Ein Regal, dessen Stücke alle in
-      // dieselbe Weltrichtung zeigen, zeigt der Figur die Hälfte von hinten.
-      entry.object.rotation.y = Math.PI - Math.atan2(entry.slot.x, -entry.slot.z);
-      this.host.addUsable(entry.object, this.pickedBy(item), { radius: PICK_RADIUS });
-      return entry;
+    // Die Blickrichtung ist die von den Füßen zur Mitte: Wer den Schrank
+    // drückt, sieht den Schrank an, und was hinter ihm im Ring steht, ist das
+    // Erste, was nach dem Verblassen im Bild ist.
+    const slots = tileSlots(options.items.length, {
+      facing: Math.atan2(centre.x - options.at.x, -(centre.z - options.at.z)),
     });
+    this.far = this.reachFor(slots, options.at, centre);
+    // **Hier entsteht noch keins davon.** Die Plätze stehen fest, die Netze
+    // kommen einzeln dazu, wenn sie auffahren (`raise`).
+    this.entries = options.items.map((item, index) => ({
+      item,
+      object: null,
+      slot: slots[index]!,
+    }));
 
     this.phase = 'in';
     this.clock = 0;
@@ -395,7 +458,9 @@ export class ConstructRoom {
    */
   leave(): void {
     if (this.phase === 'closed' || this.phase === 'out') return;
-    for (const entry of this.entries) this.host.removeUsable(entry.object);
+    for (const entry of this.entries) {
+      if (entry.object) this.host.removeUsable(entry.object);
+    }
     // Erst wieder sichtbar machen, dann einblenden: Was auf `visible = false`
     // steht, blendet nicht ein, es erscheint.
     for (const node of this.hidden) node.object.visible = node.visible;
@@ -443,17 +508,25 @@ export class ConstructRoom {
   dispose(): void {
     if (this.phase !== 'closed') {
       if (this.open) {
-        for (const entry of this.entries) this.host.removeUsable(entry.object);
+        for (const entry of this.entries) {
+          if (entry.object) this.host.removeUsable(entry.object);
+        }
         for (const node of this.hidden) node.object.visible = node.visible;
       }
       this.settle();
     }
+    this.disposeFloor();
+    this.stage?.removeFromParent();
+    this.stage = null;
+    this.floorTiles = 0;
+  }
+
+  /** Nur der Boden — beim Weltwechsel, und wenn ein größerer gebraucht wird. */
+  private disposeFloor(): void {
     this.tiles?.geometry.dispose();
     (this.tiles?.material as THREE.Material | undefined)?.dispose();
     this.grout?.geometry.dispose();
     (this.grout?.material as THREE.Material | undefined)?.dispose();
-    this.stage?.removeFromParent();
-    this.stage = null;
     this.floor = null;
     this.tiles = null;
     this.grout = null;
@@ -584,14 +657,41 @@ export class ConstructRoom {
       // Hinein als Welle, hinaus alle zusammen: Beim Verlassen ist die Welt
       // nach einer halben Sekunde wieder da, und ein Stück, das dann noch
       // versinkt, versinkt im Küchenboden.
+      const due = this.clock - i * RISE_STAGGER;
       const risen =
         this.phase === 'out'
           ? 1 - clamp01(this.clock / RISE_SECONDS)
           : this.phase === 'open'
             ? 1
-            : clamp01((this.clock - i * RISE_STAGGER) / RISE_SECONDS);
-      entry.object.position.set(entry.slot.x, entry.slot.y - RISE * (1 - risen), entry.slot.z);
+            : clamp01(due / RISE_SECONDS);
+      // **Und hier kommt es zur Welt.** Solange die Welle dieses Stück noch
+      // nicht erreicht hat, gibt es gar nichts zu setzen — und auf dem Rückweg
+      // wird nichts mehr gebaut, was nie zu sehen war.
+      const waiting = this.phase === 'out' || (this.phase === 'in' && due < 0);
+      const object = entry.object ?? (waiting ? null : this.raise(entry));
+      if (!object) continue;
+      object.position.set(entry.slot.x, entry.slot.y - RISE * (1 - risen), entry.slot.z);
     }
+  }
+
+  /**
+   * **Ein Stück bauen, hinstellen und anmelden** — einmal je Stück und je
+   * Besuch, in dem Bild, in dem es aus dem Boden kommt.
+   *
+   * Angemeldet wird hier und nicht beim Betreten, und das ist mehr als eine
+   * Sparmaßnahme: `A` meint immer nur, was es sieht, und was noch nicht
+   * dasteht, soll auch nicht antworten.
+   */
+  private raise(entry: RackEntry): THREE.Object3D {
+    const object = entry.item.object();
+    entry.object = object;
+    this.stage?.add(object);
+    object.visible = true;
+    // Jedes Stück sieht die Figur an: Ein Regal, dessen Stücke alle in
+    // dieselbe Weltrichtung zeigen, zeigt der Figur die Hälfte von hinten.
+    object.rotation.y = Math.PI - Math.atan2(entry.slot.x, -entry.slot.z);
+    this.host.addUsable(object, this.pickedBy(entry.item), { radius: PICK_RADIUS });
+    return object;
   }
 
   /** Die gemerkten Flaggen zurück — genau so, wie sie waren. */
@@ -611,7 +711,7 @@ export class ConstructRoom {
    */
   private settle(): void {
     this.restore();
-    for (const entry of this.entries) entry.object.removeFromParent();
+    for (const entry of this.entries) entry.object?.removeFromParent();
     this.entries = [];
     this.faded = [];
     this.hidden = [];
@@ -628,12 +728,65 @@ export class ConstructRoom {
     return at.y - foot + FLOOR_DROP;
   }
 
-  private ensureStage(): THREE.Group {
-    if (this.stage) return this.stage;
-    const stage = new THREE.Group();
+  /**
+   * **Die Mitte des Raums in Weltkoordinaten** — die Kachelmitte, auf der der
+   * Anker steht, und die Fußhöhe der Figur.
+   *
+   * Gerechnet wird über dem **Ursprung** des Ankers und nicht über seinem
+   * Kasten: Ein Einbau steht mit seinem Ursprung auf der Kachelmitte
+   * (`GridWorld.buildFixtures`), sein Netz aber oft an der Kante davon (der
+   * Schrank steht an der Wand, `fixtures/wardrobe.edge`). Wer den Kasten
+   * mittelte, rastete deshalb ausgerechnet bei den Möbeln daneben ein, um die
+   * es hier geht.
+   */
+  private centre(anchor: THREE.Object3D, at: THREE.Vector3): THREE.Vector3 {
+    const world = anchor.getWorldPosition(new THREE.Vector3());
+    return new THREE.Vector3(
+      (Math.floor(world.x / TILE_SIZE) + 0.5) * TILE_SIZE,
+      at.y - this.dropBelow(anchor, at),
+      (Math.floor(world.z / TILE_SIZE) + 0.5) * TILE_SIZE,
+    );
+  }
+
+  /**
+   * **Wie weit `A` reichen muss** (siehe `far`): bis zum entferntesten Stück,
+   * von den Füßen aus und waagerecht gemessen — so, wie `pickUsable` misst.
+   *
+   * Der Halbmesser des Stücks kommt dazu, denn getroffen ist ein Zylinder
+   * schon an seiner Vorderkante; ohne ihn läge das äußerste Stück um genau
+   * diese Handbreit außerhalb.
+   */
+  private reachFor(
+    slots: readonly ConstructSlot[],
+    at: THREE.Vector3,
+    centre: THREE.Vector3,
+  ): number {
+    let far = 0;
+    for (const slot of slots) {
+      far = Math.max(far, Math.hypot(centre.x + slot.x - at.x, centre.z + slot.z - at.z));
+    }
+    return far > 0 ? far + PICK_RADIUS : 0;
+  }
+
+  /**
+   * **Die Bühne** — einmal gebaut, bei jedem Betreten versetzt. Nur der Boden
+   * wird noch einmal gebaut, wenn er für die Auswahl zu klein geworden ist.
+   *
+   * Er **wächst und schrumpft nicht**: Wer erst siebzehn Kleidungsstücke und
+   * danach ein einziges Möbel ansieht, bekommt beim zweiten Mal keinen
+   * kleineren Boden, sondern denselben. Ein Boden, der bei jeder Auswahl neu
+   * entsteht, ist genau der Posten, den das erste Öffnen schon teuer macht.
+   */
+  private ensureStage(tiles: number): THREE.Group {
+    const stage = (this.stage ??= new THREE.Group());
     stage.name = 'construct';
-    stage.add(this.buildFloor());
-    this.stage = stage;
+    if (this.floorTiles >= tiles) return stage;
+    if (this.floor) {
+      this.floor.removeFromParent();
+      this.disposeFloor();
+    }
+    stage.add(this.buildFloor(tiles));
+    this.floorTiles = tiles;
     return stage;
   }
 
@@ -652,15 +805,15 @@ export class ConstructRoom {
    * Beide Netze sind `MeshBasicMaterial`: Der Construct hat kein Licht, und er
    * soll auch keins haben — das Weiß ist die Aussage, nicht die Beleuchtung.
    */
-  private buildFloor(): THREE.Group {
+  private buildFloor(half: number): THREE.Group {
     const floor = new THREE.Group();
     floor.name = 'construct-floor';
 
-    const side = FLOOR_TILES * 2 + 1;
+    const side = half * 2 + 1;
     const tile = new THREE.PlaneGeometry(TILE_SIZE - GROUT, TILE_SIZE - GROUT).rotateX(
       -Math.PI / 2,
     );
-    const tiles = new THREE.InstancedMesh(
+    const mesh = new THREE.InstancedMesh(
       tile,
       new THREE.MeshBasicMaterial({
         color: 0xf4f6fa,
@@ -670,15 +823,15 @@ export class ConstructRoom {
       }),
       side * side,
     );
-    tiles.name = 'construct-tiles';
+    mesh.name = 'construct-tiles';
     const matrix = new THREE.Matrix4();
     for (let z = 0; z < side; z++) {
       for (let x = 0; x < side; x++) {
-        matrix.makeTranslation((x - FLOOR_TILES) * TILE_SIZE, 0, (z - FLOOR_TILES) * TILE_SIZE);
-        tiles.setMatrixAt(z * side + x, matrix);
+        matrix.makeTranslation((x - half) * TILE_SIZE, 0, (z - half) * TILE_SIZE);
+        mesh.setMatrixAt(z * side + x, matrix);
       }
     }
-    tiles.instanceMatrix.needsUpdate = true;
+    mesh.instanceMatrix.needsUpdate = true;
 
     const grout = new THREE.Mesh(
       new THREE.PlaneGeometry(side * TILE_SIZE, side * TILE_SIZE).rotateX(-Math.PI / 2),
@@ -692,18 +845,18 @@ export class ConstructRoom {
     grout.name = 'construct-grout';
     grout.position.y = -0.004;
 
-    for (const mesh of [tiles as THREE.Mesh, grout]) {
+    for (const part of [mesh as THREE.Mesh, grout]) {
       // Der Boden ist Kulisse: kein Schatten, kein Strahl. Ein Boden, der
       // Strahlen aufhält, ist der erste, den `A` findet — und dann meint man
       // nie wieder ein Stück (`core/usable.pickUsable`).
-      mesh.castShadow = false;
-      mesh.receiveShadow = false;
-      mesh.raycast = () => {};
+      part.castShadow = false;
+      part.receiveShadow = false;
+      part.raycast = () => {};
     }
 
-    floor.add(grout, tiles);
+    floor.add(grout, mesh);
     this.floor = floor;
-    this.tiles = tiles;
+    this.tiles = mesh;
     this.grout = grout;
     return floor;
   }
