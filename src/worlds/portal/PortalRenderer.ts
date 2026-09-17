@@ -65,8 +65,6 @@ export class PortalRenderer {
     const presenting = renderer.xr.isPresenting;
     const xrCamera = presenting ? renderer.xr.getCamera() : null;
 
-    scene.updateMatrixWorld(true);
-
     if (xrCamera && xrCamera.cameras.length > 0) {
       let width = 0;
       let height = 0;
@@ -88,6 +86,20 @@ export class PortalRenderer {
       this.trim(0, active);
       return;
     }
+
+    // **Erst hier**, und das ist der ganze Unterschied: Ein Portal wird aus
+    // einer Kamera gezeichnet, die aus der Weltmatrix seiner Fläche gerechnet
+    // wird (`prepareCamera`) — dafür muss der Graph fertig sein, **bevor** der
+    // erste Durchgang läuft. Steht aber gar kein Portal, ist dieser Durchlauf
+    // ein zweiter über die ganze Szene, den gleich darauf `renderer.render`
+    // ohnehin macht: In der Testwelt sind das 6 556 Knoten je Bild umsonst,
+    // und die Portalpistole liegt die meiste Zeit gar nicht in der Hand.
+    //
+    // Erzwungen bleibt er, weil ein Portal die Szene mitten im Bild in ein
+    // Renderziel zeichnet: Was `updateMatrixWorld()` an `matrixWorldNeedsUpdate`
+    // abarbeitet, ist danach abgehakt, und die nächste Sicht bekäme einen
+    // Graphen, den niemand mehr nachzieht.
+    scene.updateMatrixWorld(true);
 
     const depth = clampPortalDepth(this.depth);
     this.trim(depth, active);
