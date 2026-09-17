@@ -2087,6 +2087,30 @@ export class PortalWorld implements World {
       },
     };
 
+    /**
+     * **Zwei Gegenstände in der Brille** — derselbe Schalter, den in der Küche
+     * der zweite rote Knopf umlegt (`worlds/test/zones/kitchen.ts`).
+     *
+     * Er steht hier **auch**, und das ist kein zweiter Schalter: Beide
+     * schreiben `GrabSettings.twoHands`, und beide Seiten ziehen über
+     * `onGrabChange` nach. Ein Knopf in einer Zone erreicht nur, wer in dieser
+     * Zone steht; eine Menüzeile erreicht jeden, der die Einstellung sucht, wo
+     * alle anderen Greif-Einstellungen stehen.
+     */
+    const twoHandsOn: MenuEntry = {
+      id: 'setting:grab-two-hands',
+      label: 'Zwei Gegenstände',
+      sub: 'In jeder Hand etwas tragen — und jede Hand hebt hervor, worauf sie zeigt',
+      icon: 'glove',
+      accent,
+      checked: this.grabConfig.twoHands,
+      run: () => {
+        const on = !this.grabConfig.twoHands;
+        this.applyGrabSettings(saveGrabSettings({ twoHands: on }));
+        toggle(twoHandsOn, on, on ? 'Zwei Gegenstände an' : 'Zwei Gegenstände aus');
+      },
+    };
+
     const motion: MenuEntry = {
       id: 'setting:grab-motion',
       label: `Im Nahgriff: ${motionLabel(this.grabConfig.motion)}`,
@@ -2154,6 +2178,7 @@ export class PortalWorld implements World {
       icon: 'glove',
       accent,
       children: [
+        twoHandsOn,
         nearOn,
         ...GRAB_FIELDS.map(dial),
         motion,
