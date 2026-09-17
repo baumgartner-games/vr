@@ -327,3 +327,146 @@ describe('Der A-Knopf in der Brille', () => {
     expect(player.useCandidate).toBe(false);
   });
 });
+
+/**
+ * **Der Kopf bewegt sich mit** — in allen drei Achsen (`PlayerRig`).
+ *
+ * In der Brille misst das Headset, wo der Kopf steht, und `three` setzt die
+ * Kamera im Rig auf genau diesen Punkt. Wer sich nach links, rechts oder vorn
+ * beugt, verschiebt damit `camera.position` in **x** und **z** — und das muss
+ * unangetastet in der Welt ankommen. Kommt es das nicht, bleibt das Bild
+ * stehen, während das Innenohr Bewegung meldet: 3DoF statt 6DoF, und davon
+ * wird einem in der Brille schlecht.
+ *
+ * Die Stauchung der Küche (`eyeScale`) darf daran nichts ändern. Sie staucht
+ * den **Abstand zum Boden** und sonst nichts; x und z gehen sie nichts an.
+ */
+describe('Der Kopfversatz der Brille', () => {
+  /** 165 cm echte Augenhöhe auf 140 cm Küchenhöhe. */
+  const SCALE = 1.4 / 1.65;
+  const input = { get: () => undefined } as unknown as Parameters<PlayerRig['update']>[1];
+
+  /**
+   * Ein Bild in der Brille — lang genug, dass die Rampe der Stauchung durch
+   * ist. Die Matrizen zieht die Brille sonst selbst nach
+   * (`renderer.xr.updateCamera`); hier tut es der Test.
+   */
+  function frame(player: PlayerRig, dt = 1): void {
+    player.update(dt, input, true);
+    player.updateMatrixWorld(true);
+  }
+
+  /** Ein Rig, das in der Brille steckt: die Kamera trägt den gemessenen Kopf. */
+  function headset(scale = 1): PlayerRig {
+    const player = rig();
+    player.camera.position.set(0, 1.65, 0);
+    player.eyeScale = scale;
+    frame(player);
+    return player;
+  }
+
+  /**
+   * Den Kopf im Spielraum versetzen und ein Bild rechnen. Ein kurzes Bild
+   * reicht für x und z — sie kennen keine Rampe; die Höhe braucht ein langes,
+   * bis die Stauchung ihr nachgezogen ist.
+   */
+  function lean(player: PlayerRig, x: number, y: number, z: number, dt = 1 / 90): THREE.Vector3 {
+    player.camera.position.set(x, y, z);
+    frame(player, dt);
+    return player.getHeadPosition(new THREE.Vector3());
+  }
+
+  /** Vier Richtungen: links, rechts, nach vorn und schräg. */
+  const SIDES = [
+    [-0.35, 0],
+    [0.4, 0],
+    [0, -0.3],
+    [0.25, 0.2],
+  ] as const;
+
+  it('kommt ungestaucht in allen drei Achsen an', () => {
+    const player = headset();
+    for (const [x, z] of SIDES) {
+      const head = lean(player, x, 1.65, z);
+      expect(head.x).toBeCloseTo(x, 6);
+      expect(head.z).toBeCloseTo(z, 6);
+      expect(head.y).toBeCloseTo(1.65, 6);
+    }
+  });
+
+  /**
+   * **Und gestaucht genauso.** Das ist die Prüfung, an der die Küche hängt:
+   * Der Faktor greift an der Höhe an und an nichts sonst.
+   */
+  it('kommt gestaucht in x und z unverändert an — nur die Höhe wird gestaucht', () => {
+    const player = headset(SCALE);
+    expect(player.squash).toBeCloseTo(1.65 * (1 - SCALE), 4);
+    expect(player.getHeadPosition(new THREE.Vector3()).y).toBeCloseTo(1.4, 4);
+
+    for (const [x, z] of SIDES) {
+      const head = lean(player, x, 1.65, z);
+      expect(head.x).toBeCloseTo(x, 6);
+      expect(head.z).toBeCloseTo(z, 6);
+      // Die Höhe bleibt die gestauchte und wandert nicht mit.
+      expect(head.y).toBeCloseTo(1.4, 4);
+      expect(player.getFloorY()).toBeCloseTo(0, 4);
+    }
+  });
+
+  /**
+   * Beugen heißt: zur Seite **und** nach unten. Die Seite kommt ganz an, die
+   * Höhe anteilig — und die Füße bleiben, wo sie waren.
+   */
+  it('beugt sich anteilig hinunter und dabei ganz zur Seite', () => {
+    const player = headset(SCALE);
+    for (const [x, y, z] of [
+      [0.3, 1.2, -0.2],
+      [-0.25, 0.8, 0.15],
+      [0.1, 0.4, -0.4],
+      [0, 0.05, 0],
+    ] as const) {
+      const head = lean(player, x, y, z, 1);
+      expect(head.x).toBeCloseTo(x, 6);
+      expect(head.z).toBeCloseTo(z, 6);
+      expect(head.y).toBeCloseTo(y * SCALE, 4);
+      // Die Null bleibt die Null: nie unter den Estrich.
+      expect(head.y).toBeGreaterThan(0);
+      expect(player.getFloorY()).toBeCloseTo(0, 4);
+    }
+  });
+
+  /**
+   * Ducken und Sitz-Anhebung sind die beiden anderen Verschiebungen des Rigs
+   * (`crouchOffset`, `seatLift`). Auch sie rechnen an der Höhe und nirgends
+   * sonst — ein Kopf neben der Mitte des Spielraums bleibt daneben.
+   */
+  it('bleibt beim Ducken und beim Sitzen, wo er ist', () => {
+    const player = rig();
+    player.camera.position.set(0.7, 1.65, -0.45);
+    frame(player);
+    const standing = player.getHeadPosition(new THREE.Vector3());
+    expect(standing.x).toBeCloseTo(0.7, 6);
+    expect(standing.z).toBeCloseTo(-0.45, 6);
+
+    // Ducken: das Rig sinkt, die Füße bleiben, x und z rühren sich nicht.
+    player.updateDesktopCrouch(true, 1);
+    const ducked = player.getHeadPosition(new THREE.Vector3());
+    expect(player.crouch).toBeCloseTo(player.crouchDepth, 4);
+    expect(ducked.x).toBeCloseTo(0.7, 6);
+    expect(ducked.z).toBeCloseTo(-0.45, 6);
+    expect(ducked.y).toBeCloseTo(1.65 - player.crouchDepth, 4);
+    expect(player.getFloorY()).toBeCloseTo(0, 4);
+
+    // Und sitzend dasselbe in der anderen Richtung.
+    player.updateDesktopCrouch(false, 1);
+    player.posture = 'sit';
+    player.seatHeight = 0.4;
+    frame(player);
+    const sitting = player.getHeadPosition(new THREE.Vector3());
+    expect(player.seated).toBeCloseTo(0.4, 4);
+    expect(sitting.x).toBeCloseTo(0.7, 6);
+    expect(sitting.z).toBeCloseTo(-0.45, 6);
+    expect(sitting.y).toBeCloseTo(1.65 + 0.4, 4);
+    expect(player.getFloorY()).toBeCloseTo(0, 4);
+  });
+});
