@@ -467,88 +467,90 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // wäre zweimal derselbe Weg.
   { name: 'copier', x: 4, z: 7, turn: 2 },
 
-  // --- die Werkhalle: drei Straßen, die ohne Läufer auskommen -----------------
+  // --- die Werkhalle: eine Straße, die einen ganzen Burger baut --------------
   //
   // Acht Spalten östlich der Küche (`PIPELINE`), und darin steht das, wofür
-  // Kombinierer, Mixer und Filterband gebaut wurden: **eine Burgerstraße**.
-  // Sie belegt drei der acht Spalten; die anderen fünf sind leer und bleiben
-  // es, denn genau dafür ist die Halle da — wer eine eigene Straße bauen will,
-  // braucht Spalten am Stück und nicht Einzelkacheln zwischen zwei Herden.
+  // Kochstelle, Kombinierer, Mixer und Filterband gebaut wurden: **eine
+  // Burgerstraße, die vorn eine Vorratskiste hat und hinten einen Burger
+  // Deluxe** (`kitchenRecipes.RECIPES`: Brötchen, gebratenes Patty,
+  // geschnittener Salat, Tomatenscheibe). Dazwischen fasst sie niemand an.
   //
-  // **Was von selbst läuft und was nicht.** Gebraten wird weiter von Hand, und
-  // das ist keine Lücke: Es gibt genau **eine** Pfanne in dieser Küche
-  // (`kitchen.ts`), sie steht auf dem einen Herd, und ein Band kann nichts in
-  // eine Pfanne legen, die schon auf ihrer Kachel liegt — dafür ist der
-  // Kombinierer da, und der gehört nicht auf einen brennenden Herd. Die Straße
-  // nimmt einem deshalb alles **außer** dem Braten ab: Brötchen holen, Salat
-  // schneiden, Tomaten zweimal mixen, zusammenlegen, auf den Teller heben. Der
-  // Koch bratet und legt das fertige Patty auf die Pattyablage — den Rest
-  // sieht er fahren.
+  // Sie belegt sechs der acht Spalten; die anderen zwei sind leer und bleiben
+  // es, dazu alles östlich davon — wer eine eigene Straße bauen will, braucht
+  // Spalten am Stück und nicht Einzelkacheln zwischen zwei Herden.
   //
-  // **Spalte 12/13: der Burger.** Oben die Brötchenkiste, darunter ein Zugband,
-  // das sich von ihr bedient (`kitchenBelt.beltRefills`), dann zwei Bänder zum
-  // Kombinierer. Der hält das Brötchen und holt sich von **Osten** das Patty
-  // (sein Pfeil zeigt nach Westen, also auf den Ring zu — `turn: 1`,
-  // `kitchenBelt.beltReach`). Der fertige Burger geht per Zugband nach Süden
-  // auf eine Ablage, und dort holt ihn der **zweite** Kombinierer ab, auf dem
-  // schon ein Teller liegt. Dass der Teller **oben** liegt und der Burger von
-  // der Seite kommt und nicht umgekehrt, ist keine Laune: Ein Teller gehört
-  // unter das Essen (`kitchenRecipes.whyNot`), und der Kombinierer legt immer
-  // auf das, was auf ihm liegt (`kitchenRecipes.stackOn`).
-  { name: 'serve-counter', x: 12, z: 0, turn: 2, gives: 'bun', label: 'Brötchenvorrat' },
-  { name: 'belt-pull', x: 12, z: 1, turn: 2 },
-  { name: 'belt', x: 12, z: 2, turn: 2 },
-  { name: 'belt', x: 12, z: 3, turn: 2 },
-  { name: 'combiner', x: 12, z: 4, turn: 1 },
-  // Die Ablage, auf die der Koch das gebratene Patty legt — eine gewöhnliche
-  // Arbeitsplatte, und **absichtlich kein Band**: Ein Band davor schöbe das
-  // Patty auf den Kombinierer, sobald der leer ist, und dann läge dort das
-  // Patty als Unterlage und das Brötchen käme nicht mehr darauf (siehe oben).
-  // Eine stehende Ablage lässt sich nur **ziehen**, und ziehen tut hier nur
-  // der Kombinierer.
-  { name: 'table', x: 13, z: 4, label: 'Pattyablage' },
-  { name: 'belt-pull', x: 12, z: 5, turn: 2 },
-  { name: 'belt', x: 12, z: 6, turn: 2 },
-  { name: 'counter', x: 12, z: 7, label: 'Burgerablage' },
-  { name: 'plate-counter', x: 13, z: 5, turn: 2, gives: 'plate', label: 'Tellervorrat' },
-  { name: 'belt-pull', x: 13, z: 6, turn: 2 },
-  { name: 'combiner', x: 13, z: 7, turn: 3 },
-  { name: 'belt-pull', x: 13, z: 8, turn: 2 },
-  { name: 'counter', x: 13, z: 9, label: 'Ausgabeablage' },
+  // **Der Aufbau, von der Zutat zum Gericht:**
+  //
+  // - **Spalte 13, das Patty**: Kiste → Zugband → **Ablage** → Zugband →
+  //   sichere Kochstelle → Filterband (`patty-cooked`) → Übergabekachel. Die
+  //   Ablage in der Mitte ist keine Zierde: Sie ist die Stelle, an der man von
+  //   Hand eingreifen kann, ohne die Kette anzuhalten.
+  // - **Spalte 14, der Burger**: Kiste → Zugband → Band → **Kombinierer 1**
+  //   (Brötchen oben, Patty von Westen) → Zugband → **Kombinierer 2** (Salat
+  //   von Osten) → Zugband → **Kombinierer 3** (Tomate von Osten).
+  // - **Spalte 16 und 17, das Gemüse**: je Kiste → Zugband → Mixer →
+  //   Filterband (`lettuce-cut` beziehungsweise `tomato-cut`) → Bänder nach
+  //   Westen auf die Übergabekacheln in Spalte 15.
+  // - **Und am Ende** zieht ein Band den fertigen Burger aus Kombinierer 3 nach
+  //   Westen auf die **Burgerausgabe**, wo ihn der Koch abholt und über die
+  //   Theke gibt.
+  //
+  // **Warum drei Kombinierer und nicht einer.** Ein Kombinierer legt in einem
+  // Handgriff eine Zutat auf; danach gilt sein Ergebnis als fertig und darf
+  // abgeholt werden (`kitchenCombiner.combinerHolds`). Drei Zutaten sind drei
+  // Handgriffe, also drei Stufen hintereinander — und genau so ist es auch
+  // gemeint: Jede Stufe sieht man einzeln, und man kann an jeder abgreifen,
+  // wenn man nur einen Hamburger will.
+  //
+  // **Warum die Übergabekacheln Arbeitsplatten sind und keine Bänder.** Ein
+  // Band davor schöbe die Zutat auf den Kombinierer, sobald der leer ist — sie
+  // läge dort als Unterlage, und das Brötchen käme nicht mehr darauf. Eine
+  // stehende Ablage lässt sich nur **ziehen**, und ziehen tut dort nur der
+  // Kombinierer, dessen Pfeil darauf zeigt.
 
-  // **Spalte 15: der Salat**, und die kürzeste der drei Straßen. Kiste,
-  // Zugband, Mixer, Filterband, Ablage — fünf Kacheln, und niemand steht
-  // dabei. Am Brett wäre dieselbe Arbeit drei Sekunden Danebenstehen je Kopf
-  // (`kitchenWork.WORK_ALONE`).
-  //
-  // Das Filterband hier könnte auch ein gewöhnliches Zugband sein: Ein Mixer
-  // gibt nichts her, solange er läuft (`kitchenBelt.beltReleases`), es kann
-  // sich also ohnehin nur der geschnittene Salat auf den Weg machen. Es steht
-  // trotzdem eines da, und zwar als **Anschauung**: Man sieht an einer kurzen
-  // Straße, was der Filter tut, bevor man ihn eine Spalte weiter braucht.
-  { name: 'serve-counter', x: 15, z: 0, turn: 2, gives: 'lettuce', label: 'Salatvorrat' },
-  { name: 'belt-pull', x: 15, z: 1, turn: 2 },
-  { name: 'mixer', x: 15, z: 2 },
-  { name: 'belt-smart', x: 15, z: 3, turn: 2, filter: 'lettuce-cut' },
-  { name: 'counter', x: 15, z: 4, label: 'Salatablage' },
+  // Das Patty: aus der Kiste über eine Ablage auf die Kochstelle und als
+  // gebratenes wieder herunter.
+  { name: 'serve-counter', x: 13, z: 0, turn: 2, gives: 'patty', label: 'Pattyvorrat' },
+  { name: 'belt-pull', x: 13, z: 1, turn: 2 },
+  { name: 'table', x: 13, z: 2, label: 'Pattyablage' },
+  { name: 'belt-pull', x: 13, z: 3, turn: 2 },
+  { name: 'griddle', x: 13, z: 4 },
+  { name: 'belt-smart', x: 13, z: 5, turn: 2, filter: 'patty-cooked' },
+  { name: 'counter', x: 13, z: 6, label: 'Pattyübergabe' },
 
-  // **Spalte 16: die Tomate, und sie ist der Grund für den Filter.** Aus einer
-  // Tomate wird im Mixer eine Scheibe und aus der Scheibe erst im **zweiten**
-  // Durchgang Suppe (`kitchenRecipes.CHOPS`) — also stehen hier zwei Mixer
-  // hintereinander, und dazwischen ein Filterband, das die **Scheibe** holt.
-  // Am Ende eines, das die **Suppe** holt und die Scheiben liegen ließe, wenn
-  // dort eine läge.
-  //
-  // Zwei Mixer und nicht einer mit einer Schleife: Eine Bahn, die etwas zu
-  // ihrem Anfang zurückträgt, ist ein Ring, und ein voller Ring fährt nicht
-  // (`kitchenBelt.advanceBelts`).
-  { name: 'serve-counter', x: 16, z: 0, turn: 2, gives: 'tomato', label: 'Tomatenvorrat' },
-  { name: 'belt-pull', x: 16, z: 1, turn: 2 },
-  { name: 'mixer', x: 16, z: 2 },
-  { name: 'belt-smart', x: 16, z: 3, turn: 2, filter: 'tomato-cut' },
-  { name: 'mixer', x: 16, z: 4 },
-  { name: 'belt-smart', x: 16, z: 5, turn: 2, filter: 'tomato-soup' },
-  { name: 'counter', x: 16, z: 6, label: 'Suppenablage' },
+  // Der Burger: Brötchen aus der Kiste, dann drei Kombinierer untereinander.
+  { name: 'serve-counter', x: 14, z: 3, turn: 2, gives: 'bun', label: 'Brötchenvorrat' },
+  { name: 'belt-pull', x: 14, z: 4, turn: 2 },
+  { name: 'belt', x: 14, z: 5, turn: 2 },
+  { name: 'combiner', x: 14, z: 6, turn: 3 },
+  { name: 'belt-pull', x: 14, z: 7, turn: 2 },
+  { name: 'combiner', x: 14, z: 8, turn: 1 },
+  { name: 'belt-pull', x: 14, z: 9, turn: 2 },
+  { name: 'combiner', x: 14, z: 10, turn: 1 },
+
+  // Die beiden Übergabekacheln, an denen das Gemüse wartet.
+  { name: 'counter', x: 15, z: 8, label: 'Salatübergabe' },
+  { name: 'counter', x: 15, z: 10, label: 'Tomatenübergabe' },
+
+  // Der Salat: Kiste, Mixer, Filterband — und dann nach Westen.
+  { name: 'serve-counter', x: 16, z: 4, turn: 2, gives: 'lettuce', label: 'Salatvorrat' },
+  { name: 'belt-pull', x: 16, z: 5, turn: 2 },
+  { name: 'mixer', x: 16, z: 6 },
+  { name: 'belt-smart', x: 16, z: 7, turn: 2, filter: 'lettuce-cut' },
+  { name: 'belt', x: 16, z: 8, turn: 1 },
+
+  // Die Tomate: derselbe Weg, nur eine Spalte weiter und einen Bogen länger.
+  { name: 'serve-counter', x: 17, z: 5, turn: 2, gives: 'tomato', label: 'Tomatenvorrat' },
+  { name: 'belt-pull', x: 17, z: 6, turn: 2 },
+  { name: 'mixer', x: 17, z: 7 },
+  { name: 'belt-smart', x: 17, z: 8, turn: 2, filter: 'tomato-cut' },
+  { name: 'belt', x: 17, z: 9, turn: 2 },
+  { name: 'belt', x: 17, z: 10, turn: 1 },
+  { name: 'belt', x: 16, z: 10, turn: 1 },
+
+  // Und der fertige Burger nach Westen aus der Halle heraus.
+  { name: 'belt-pull', x: 13, z: 10, turn: 1 },
+  { name: 'counter', x: 12, z: 10, label: 'Burgerausgabe' },
 
   // --- der Schauraum: jedes Möbel einmal, einzeln und beschriftet -------------
   { name: 'plate-counter', x: SHOW_X, z: 1, show: true },
@@ -574,6 +576,13 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   { name: 'stove', x: SHOW_X + 2, z: 7, show: true },
   { name: 'stove-pot', x: SHOW_X + 4, z: 7, show: true },
   { name: 'stove-pan', x: SHOW_X + 6, z: 7, show: true },
+  // **Die sichere Kochstelle steht bei den Herden**, und das ist der einzige
+  // Platz, an dem sie etwas erklärt: Wer die drei roten Herde abgeht und dann
+  // auf eine vierte Kochstelle trifft, die keine Pfanne trägt, sieht den
+  // Unterschied, ohne das Schild zu lesen. Sie ist die letzte Kachel vor der
+  // Ostwand — und der Grund, warum die Zone um eine Spalte gewachsen ist
+  // (`layout.KITCHEN`).
+  { name: 'griddle', x: SHOW_X + 10, z: 7, show: true },
   // **Auch das gebaute Möbel steht hier.** Der Schauraum zeigt jedes
   // Katalogstück genau einmal (`worlds/test/testPlan.test.ts` rechnet
   // `KITCHEN_SHOWN` gegen `core/kitchenFit.KITCHEN_NAMES`), und ob ein Stück
@@ -936,6 +945,7 @@ const STATION_KINDS: Readonly<Record<string, StationKind>> = {
   // Rechnung.
   combiner: 'combiner',
   mixer: 'mixer',
+  griddle: 'griddle',
 };
 
 /**

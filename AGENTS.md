@@ -2239,13 +2239,14 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     **Computer-Tisch** neben der Ankunft, der den **Möbelkatalog** aufmacht,
     und der **Kopierer** in der freien Mitte, der von einem Möbel ein zweites
     hergibt. Östlich anschließend, ohne Wand dazwischen, die **Werkhalle**
-    (`kitchenPlan.PIPELINE`): acht freie Spalten für Bandstraßen, und in dreien
-    davon steht eine, die einen Burger ohne Läufer zusammensetzt — Vorratskiste,
-    Zugband, **Mixer** (hackt ohne jemanden davor), **Filterband** (zieht nur,
-    was es gelernt hat) und **Kombinierer** (legt zusammen, was auf ihm liegt,
-    mit dem, was von der Pfeilseite kommt). Die anderen fünf Spalten bleiben
-    leer: Genau dafür ist die Halle da. Im Osten der
-    **Schauraum**: jedes der einundzwanzig Möbel noch einmal, frei stehend und mit
+    (`kitchenPlan.PIPELINE`): acht freie Spalten für Bandstraßen, und in sechsen
+    davon steht eine, die einen **Burger Deluxe** ohne Läufer zusammensetzt —
+    Vorratskiste, Zugband, **sichere Kochstelle** (brät ohne jemanden davor und
+    ohne anzubrennen), **Mixer** (hackt ohne jemanden davor), **Filterband**
+    (zieht nur, was es gelernt hat) und **Kombinierer** (legt zusammen, was auf
+    ihm liegt, mit dem, was von der Pfeilseite kommt). Die anderen zwei Spalten
+    bleiben leer: Genau dafür ist die Halle da. Im Osten der
+    **Schauraum**: jedes der zweiundzwanzig Möbel noch einmal, frei stehend und mit
     einer Tafel daneben, auf der sein Name und sein Maß stehen — bis auf die
     beiden Hälften der Spüle, die dort **nebeneinander** stehen: Ihre
     Schnittflächen sind offen, und auf Lücke gestellt sähe man in zwei
@@ -5884,11 +5885,12 @@ wurden. Sie laufen von Hand, nicht bei jedem Build: Ein Modell ändert sich
 nicht, und `@gltf-transform` und `sharp` gehören nicht in die Abhängigkeiten
 eines Spiels, das sie nie ausführt (`npm install --no-save` beim Aufbereiten).
 
-**Der Küchenkatalog** (`core/kitchenFit.ts`) hat einundzwanzig Möbel:
+**Der Küchenkatalog** (`core/kitchenFit.ts`) hat zweiundzwanzig Möbel:
 Tellerausgabe, Feuerlöscher, **Spülbecken**, **Abtropfbrett**, Mülleimer,
 Arbeitstisch, Ausgabe, Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile,
 Herd, Herd mit Topf, Herd mit Pfanne — und das **Förderband**, das **Zugband**,
-das **Filterband**, den **Kombinierer**, den **Mixer**, den **Computer-Tisch**
+das **Filterband**, den **Kombinierer**, den **Mixer**, die **sichere
+Kochstelle**, den **Computer-Tisch**
 und den **Kopierer**, die in keiner Datei stecken, sondern gebaut werden
 (`KitchenPiece.built`, siehe
 _Anfassen in der Küche_). Der Katalog beschreibt, was in dieser Küche **steht**,
@@ -5896,8 +5898,8 @@ nicht, was gekauft wurde; wer `built` nicht liest, meldet eine fehlende Datei,
 die es nicht gibt, und stellt einen grauen Würfel dorthin, wo ein Band stehen
 soll.
 
-Einundzwanzig aus **dreizehn Knoten**, und zwei Sachen erklären den Rest. Die
-eine sind die **sieben gebauten** Stücke, die in keiner Datei stehen. Die andere ist
+Zweiundzwanzig aus **dreizehn Knoten**, und zwei Sachen erklären den Rest. Die
+eine sind die **acht gebauten** Stücke, die in keiner Datei stehen. Die andere ist
 die Spüle: Sie ist in
 der Datei **ein** Möbel von vier Metern — links ein Becken, rechts ein
 Abtropfbrett, in der Mitte die Armatur — und wird beim Laden in zwei Stücke von
@@ -6019,15 +6021,16 @@ den man im Bild sah:
 
 Was `A` vor einem Möbel tut, steht in **einer** Funktion
 (`worlds/test/zones/kitchenCarry.ts`, `kitchenDeed`) und nicht in elf
-`if`-Ketten in der Zone daneben. Zwölf Stationsarten (`StationKind`) — Ablage,
-Kiste, Mülleimer, Schneidebrett, Herd, Ausgabetheke, Löscherhalterung,
-Spülbecken, **Abtropfbrett**, Geschirrrückgabe, Gästetisch, Band — mal volle
+`if`-Ketten in der Zone daneben. Fünfzehn Stationsarten (`StationKind`) —
+Ablage, Kiste, Mülleimer, Schneidebrett, Herd, Ausgabetheke,
+Löscherhalterung, Spülbecken, **Abtropfbrett**, Geschirrrückgabe, Gästetisch,
+Band, **Kombinierer**, **Mixer**, **sichere Kochstelle** — mal volle
 oder leere Hand ergeben ein
 paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
 eine Viertelstunde Hin- und Herlaufen.
 
-Die Küche liegt seitdem in sechzehn Dateien, dazu eine siebzehnte im `ui/`, die
-längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
+Die Küche liegt seitdem in zwanzig Dateien, dazu eine einundzwanzigste im
+`ui/`, die längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
 getrennt von Darstellung** — was ohne three.js auskommt, kommt ohne three.js
 aus, und genau das ist der Grund, warum es so viele Dateien sind.
 
@@ -6035,12 +6038,16 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | --- | --- |
 | `zones/kitchenRecipes.ts` | Zutaten, Träger, Stufen, `combine`, Rezepte |
 | `zones/kitchenClock.ts` | die Uhr des **Herdes**: braten, verbrennen, entzünden |
-| `zones/kitchenWork.ts` | die Uhr der **Arbeit**: schneiden und spülen, eine Rechnung |
+| `zones/kitchenWork.ts` | die Uhr der **Arbeit**: schneiden, spülen, mixen, braten — eine Rechnung |
 | `zones/kitchenGuests.ts` | wer an einem Tisch isst, wie lange, und was stehen bleibt |
 | `zones/kitchenBuild.ts` | welche Kachel gemeint ist und ob dort Platz ist |
 | `zones/kitchenSpray.ts` | der Feuerlöscher: Kegel, Schalter, Fortschritt, Nebel |
 | `zones/kitchenBelt.ts` | die Bänder: Laufzeit, Laufrichtung, Ziehen, Nachbarn, Netz |
+| `zones/kitchenCombiner.ts` | der Kombinierer: seine Uhr, wann er hergibt, sein Netz |
+| `zones/kitchenMixer.ts` | der Mixer: das Möbel zur Uhr aus `kitchenWork.ts` |
+| `zones/kitchenGriddle.ts` | die sichere Kochstelle: das Möbel zur Bratstufe ohne Feuer |
 | `zones/kitchenDesk.ts` | Computer-Tisch und Kopierer: Seite, Felder, Netz |
+| `zones/kitchenGrab.ts` | welches Küchending die Hand wo anfasst |
 | `zones/kitchenCarry.ts` | Stationen und `kitchenDeed`; reicht alle Uhren weiter |
 | `zones/kitchenPlan.ts` | wo welches Möbel steht, der Grundriss, das Schild |
 | `zones/kitchen.ts` | die Zone: Netze, Körper, Anzeigen, Anfassen |
@@ -6051,10 +6058,23 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenFloor.ts` | der karierte Boden: Feldgröße, Töne, Fuge, die Fläche darüber |
 | `ui/billboard.ts` | `faceCamera`: was Auskunft gibt, steht parallel zum Bild |
 
-Die jüngsten sieben kamen mit dem Geschirr, den Gästen, dem Band, dem Löscher,
-dem Umbau und dem Rechner dazu, und jede ist aus demselben Grund eine **eigene**
-Datei: Sie rechnet etwas aus, das man ohne Szene prüfen kann.
+Die jüngsten kamen mit dem Geschirr, den Gästen, dem Band, dem Löscher, dem
+Umbau, dem Rechner und zuletzt der Bandstraße dazu, und jede ist aus demselben
+Grund eine **eigene** Datei: Sie rechnet etwas aus, das man ohne Szene prüfen
+kann.
 
+- **Welche Station arbeitet, steht in einer Tabelle und nicht in einer
+  `if`-Kette** (`kitchenCarry.STATION_WORK`, ein Eintrag je `StationKind`).
+  Das ist keine Kosmetik, sondern die Lehre aus einem Fehler, der durch alle
+  Tests kam und im Spiel sofort zu sehen war: Die sichere Kochstelle stand im
+  Grundriss, ihr Möbel war gebaut, ihre Regel war geschrieben und geprüft — nur
+  zählte die Zone beim Anlegen der Uhr (`settle`) und beim Weiterdrehen
+  (`cook`) je drei Möbel auf und nicht vier. Also lag das Patty da und wurde
+  nicht gebraten, und die Burgerstraße lieferte rohe Pattys. Eine **vollständige**
+  Tabelle über `StationKind` kann diesen Fehler nicht mehr haben: Wer eine
+  Stationsart dazutut, bekommt vom Übersetzer die Frage gestellt, ob an ihr
+  gearbeitet wird. `null` heißt „nein" und ist ein Eintrag wie jeder andere —
+  ein **fehlender** Schlüssel wäre dieselbe Lücke eine Ebene tiefer.
 - **`kitchenWork.ts` ist die eine Stelle für „Arbeit an einer Station über
   Zeit".** Das Schneidebrett hatte seine Uhr einmal für sich allein (sie stand
   in `kitchenClock.ts`); mit der Spüle hätte es daneben ein zweites
@@ -6182,7 +6202,8 @@ Und das sind die Regeln, die darin stehen:
   nicht erst zielen müssen. Wie die Ansichten den Auslöser lesen, steht unter
   _Steuerung_.
 - **Schneiden und Spülen sind dieselbe Uhr** (`kitchenWork.ts`,
-  `WORK_SECONDS` = 3 s für beides). Beide fangen mit dem **Ablegen** an und
+  `WORK_SECONDS` = 3 s für beides; Mixer und sichere Kochstelle hängen mit vier
+  und fünf Sekunden an derselben). Beide fangen mit dem **Ablegen** an und
   brauchen keinen zweiten Knopfdruck: Wer den Salatkopf auf das Brett legt,
   will schneiden, wer den dreckigen Teller ins Becken stellt, will spülen. Und
   beide laufen nur, solange jemand davorsteht (1,5 m um die Möbelmitte;
@@ -6627,16 +6648,27 @@ Und das sind die Regeln, die darin stehen:
     und lässt auch kein Zugband daran; umgekehrt gibt ein Kombinierer mitten im
     Handgriff selbst nichts her (`beltReleases` bekommt seine Uhr mitgereicht).
     Sonst entschiede die Reihenfolge der Stationen, wer das Patty bekommt.
-  - **Er hält seine Unterlage fest, bis etwas darauf liegt** (`combinerHolds`),
+  - **Er gibt nur her, was er selbst zusammengelegt hat** (`combinerHolds`),
     und ohne diese Regel funktionierte die ganze Straße nicht. Der Fehler war
     im Bild sofort zu sehen und in der Rechnung fast unsichtbar: Das Brötchen
     kam an, lag eine Sekunde auf dem Kombinierer — und das Zugband dahinter
     nahm es mit, **bevor das Patty da war**. Für die Bandrechnung völlig
     richtig (dort liegt etwas, also darf man es holen), und die Straße lieferte
-    trotzdem nie einen Burger, sondern eine Reihe nackter Brötchen. Jetzt gilt:
-    Was **einzeln** daliegt, ist eine Unterlage und wartet; was etwas **trägt**,
-    ist ein Gericht und fährt weiter. Der Unterschied steht im Ding selbst
-    (`Dish.on`) — kein Merker am Möbel, den der Umbau verlöre. Und er gilt nur
+    trotzdem nie einen Burger, sondern eine Reihe nackter Brötchen.
+
+    Der erste Anlauf las die Antwort aus dem **Ding**: Was einzeln daliegt, ist
+    eine Unterlage und wartet; was etwas trägt, ist fertig und fährt weiter
+    (`Dish.on`). Das ist für **einen** Kombinierer richtig und für eine
+    **Kette** falsch, und daran ist die Burgerstraße gescheitert: Ab dem
+    zweiten Kombinierer kommt die Unterlage schon beladen an — Brötchen mit
+    Patty —, trägt also etwas, und wäre nach dieser Lesart in dem Augenblick
+    abholbereit, in dem sie ankommt. Der Salat kam nie darauf.
+
+    Jetzt steht die Antwort im **Möbel** (`CombineState.made`): Ein
+    Kombinierer hält alles, was man ihm hinstellt, und lässt genau dann los,
+    wenn **er** einen Handgriff daran getan hat. Das ist ein Merker, den der
+    Umbau verliert — und das ist richtig so: Ein abgebautes und
+    wieder hingestelltes Möbel hat nichts zusammengelegt. Und er gilt nur
     gegen die **Maschine**: Mit `A` nimmt man das Brötchen mit wie von jeder
     Arbeitsplatte, sonst wäre der Kombinierer eine Sackgasse.
 - **Der Mixer** (`mixer`, `zones/kitchenMixer.ts`) ist ein Schneidebrett mit
@@ -6657,35 +6689,104 @@ Und das sind die Regeln, die darin stehen:
   damit man von oben hineinsieht — und ein Motorblock an der Nordkante bis
   0,92 m. Solange er läuft, gibt er nichts her (`beltReleases('mixer', true)`);
   ohne diese Zeile risse ein Zugband ihm den halb gehackten Salat weg.
+- **Die sichere Kochstelle** (`griddle`, `zones/kitchenGriddle.ts`, rote
+  Kochplatte) ist für das Braten, was der Mixer für das Schneiden ist — und sie
+  ist das Möbel, ohne das die Burgerstraße **nicht liefern konnte**. Zwei Sätze
+  über den **Herd** erklären, warum:
+  - **In eine Pfanne legt kein Band etwas hinein.** Auf dem Herd steht die
+    Pfanne, die Kachel ist damit belegt, und eine belegte Kachel nimmt nichts
+    an (`advanceBelts`). Die Kochstelle trägt deshalb **keine Pfanne**: Das
+    rohe Patty liegt unmittelbar auf der Platte, so wie der Salatkopf auf dem
+    Brett liegt — ein Band schiebt hin, ein anderes holt ab
+    (`beltDelivers('griddle')`, `beltReleases('griddle')`, und `'stove'` steht
+    in beiden Listen nicht: Von dort nähme ein Band die einzige Pfanne der
+    Küche mit).
+  - **Und ein Herd, den niemand bewacht, brennt.** Gebraten, verbrannt, Feuer —
+    das ist die Folge am Herd (`kitchenClock.ts`) und dort der ganze Reiz: Man
+    muss zurückkommen. **Eine Bandstraße kommt nicht zurück.** Die Platte geht
+    deshalb **die eine Stufe** und bleibt dann stehen (`workStage` für
+    `'fry'`): Sie fragt dieselbe Tabelle wie der Herd
+    (`kitchenRecipes.fryStage`), geht aber die Stufe zum Verbrannten nicht mit.
+    Kein zweites Rezept, ein `null` an der richtigen Stelle.
+
+  Der Rest ist Wort für Wort der Mixer: dieselbe Uhr (`advanceWork` mit
+  `WORK_ALONE.fry`), dasselbe Bleiben-Lassen des Fertigen
+  (`WORK_TO_HAND.fry === false`, damit ein Filterband es abholen kann), und
+  dieselbe **Sekunde Aufpreis** (`WORK_SECONDS.fry` gegen
+  `kitchenClock.FRY_SECONDS`) — ein Gerät, das einem die Anwesenheit abnimmt
+  **und** schneller ist, macht die Pfanne wertlos, und die Pfanne ist das
+  Herzstück dieser Küche. Gebaut auf **Herdhöhe** (0,55 m, die Zahl von
+  `stove`), damit eine Reihe eine Reihe bleibt, und obendrauf eine Kochplatte
+  aus einem Kern und drei Ringen: Aus 16 m Höhe (`core/topDownPose.ts`) ist
+  eine volle rote Scheibe ein roter Fleck, drei Ringe sind sofort eine
+  Kochplatte. Sie hat als einziges Küchenmöbel **keine Vorderseite** — rund in
+  der Mitte, von jeder Seite belieferbar —, und ihr Rot (`#ff5a3c`) ist
+  absichtlich kein Bandton, sondern das der Herde: Wer von oben über die Halle
+  sieht, findet die Stelle, an der gebraten wird, ohne die Beschriftung zu
+  lesen.
 - **Die Werkhalle** (`kitchenPlan.PIPELINE`) ist der Platz dafür. Die Küche ist
   dafür **acht Kacheln nach Osten gewachsen**, und der Schauraum ist mit nach
   Osten gerückt (`kitchenPlan.SHOW_X`) statt sitzen zu bleiben: Eine Halle
   hinter dem Schauraum wäre zwei Zimmer von der Küche weg, und die Straße soll
   dort anfangen, wo die Küche aufhört. Nach Süden ging es nicht — dort liegt
   das Podest. Die Halle hat **keine eigene Wand und keine eigene Tür**: Sie
-  ist die Küche, nur größer; ab z = 4 geht man geradeaus hinüber. Darin steht
-  eine Schaustraße aus drei Bahnen, die **drei** der acht Spalten belegt — die
-  anderen fünf sind leer und bleiben es, denn genau dafür ist die Halle da: Wer
-  eine eigene Straße bauen will, braucht Spalten am Stück und nicht
-  Einzelkacheln zwischen zwei Herden. Die drei Bahnen:
-  - **Brötchen und Teller**: Kiste → Zugband → zwei Bänder → Kombinierer
-    (Brötchen oben, Patty von Osten) → Zugband → Ablage → zweiter Kombinierer
-    (Teller oben, Burger von Westen) → Zugband → Ausgabeablage.
-  - **Salat**: Kiste → Zugband → Mixer → Filterband (`lettuce-cut`) → Ablage.
-  - **Tomate**: Kiste → Zugband → Mixer → Filterband (`tomato-cut`) → zweiter
-    Mixer → Filterband (`tomato-soup`) → Ablage. Zwei Mixer und keine Schleife:
-    Eine Bahn, die etwas zu ihrem Anfang zurückträgt, ist ein Ring, und ein
-    voller Ring fährt nicht.
-  **Gebraten wird weiter von Hand**, und das ist keine Lücke: Es gibt genau
-  **eine** Pfanne, sie steht auf dem Herd, und ein Band legt nichts in eine
-  Pfanne, die schon auf ihrer Kachel liegt. Der Koch brät und legt das Patty
-  auf die **Pattyablage** — und die ist mit Absicht eine Arbeitsplatte und kein
-  Band: Ein Band davor schöbe das Patty auf den leeren Kombinierer, es läge
+  ist die Küche, nur größer; ab z = 4 geht man geradeaus hinüber. Mit der
+  sicheren Kochstelle ist noch **eine** Kachel dazugekommen (`layout.KITCHEN`
+  ist 33 breit und `FIELD` entsprechend 73): Die Herdreihe des Schauraums war
+  bis zur Ostwand belegt, und ein zweiundzwanzigstes Möbel braucht einen Platz
+  neben seinesgleichen und nicht in der nächsten Reihe. Darin steht
+  eine **Burgerstraße**, die vorn vier Vorratskisten hat und hinten einen
+  **Burger Deluxe** (`kitchenRecipes.RECIPES`: Brötchen, gebratenes Patty,
+  geschnittener Salat, Tomatenscheibe) — und dazwischen fasst sie niemand an.
+  Sie belegt **sechs** der acht Spalten; die anderen zwei sind leer und bleiben
+  es, denn genau dafür ist die Halle da: Wer eine eigene Straße bauen will,
+  braucht Spalten am Stück und nicht Einzelkacheln zwischen zwei Herden. Der
+  Aufbau, von der Zutat zum Gericht:
+  - **Spalte 13, das Patty**: Kiste → Zugband → **Ablage** → Zugband →
+    **sichere Kochstelle** → Filterband (`patty-cooked`) → Übergabekachel. Die
+    Ablage in der Mitte ist keine Zierde: Sie ist die Stelle, an der man von
+    Hand eingreifen kann, ohne die Kette anzuhalten.
+  - **Spalte 14, der Burger**: Kiste → Zugband → Band → **Kombinierer 1**
+    (Brötchen oben, Patty von Westen) → Zugband → **Kombinierer 2** (Salat von
+    Osten) → Zugband → **Kombinierer 3** (Tomate von Osten) → und von dort ein
+    Zugband nach Westen auf die **Burgerausgabe**.
+  - **Spalte 16 und 17, das Gemüse**: je Kiste → Zugband → Mixer → Filterband
+    (`lettuce-cut` beziehungsweise `tomato-cut`) → Bänder nach Westen auf die
+    Übergabekacheln in Spalte 15.
+
+  **Warum drei Kombinierer und nicht einer.** Ein Kombinierer legt in einem
+  Handgriff **eine** Zutat auf; danach gilt sein Ergebnis als fertig und darf
+  abgeholt werden (`combinerHolds`). Drei Zutaten sind drei Handgriffe, also
+  drei Stufen hintereinander — und genau so ist es gemeint: Die Zutaten kommen
+  **nacheinander** und nicht auf einmal, man sieht jede Stufe einzeln, und man
+  kann an jeder abgreifen, wenn man nur einen Hamburger will.
+
+  **Warum die Übergabekacheln Arbeitsplatten sind und keine Bänder.** Ein Band
+  davor schöbe die Zutat auf den Kombinierer, sobald der leer ist — sie läge
   dort als Unterlage, und das Brötchen käme nicht mehr darauf. Eine stehende
-  Ablage lässt sich nur **ziehen**, und ziehen tut dort nur der Kombinierer.
+  Ablage lässt sich nur **ziehen**, und ziehen tut dort nur der Kombinierer,
+  dessen Pfeil darauf zeigt. Dieselbe Überlegung gilt der **Pattyablage** in
+  Spalte 13.
+
   Die **Filter der drei Filterbänder stehen schon im Grundriss**
-  (`Spot.filter`): Eine Schaustraße, die erst läuft, nachdem jemand drei
-  Bändern etwas aufgelegt hat, zeigt nichts, sondern steht herum.
+  (`Spot.filter`): Eine Straße, die erst läuft, nachdem jemand drei Bändern
+  etwas aufgelegt hat, zeigt nichts, sondern steht herum.
+
+  **Und dass sie wirklich liefert, steht als Test da**
+  (`zones/kitchenLine.test.ts`) — mit einer Grenze, die man kennen muss: Er
+  rechnet mit den **Regeln** und nicht mit der Zone. Dass die Zone jede dieser
+  Regeln auch anstöpselt, ist eine andere Frage, und sie hat genau einmal nein
+  gelautet (siehe `STATION_WORK` weiter oben). Deshalb steht neben ihm die
+  Runde im Browser und nicht statt ihrer. Er baut aus `KITCHEN_SPOTS` — dem echten
+  Grundriss, nicht einer Nachbildung — eine Halle ohne three.js, dreht sie eine
+  Minute lang mit 60 Bildern je Sekunde und sieht dann auf der Burgerausgabe
+  nach. Dort liegt ein Brötchen mit gebratenem Patty, geschnittenem Salat und
+  Tomatenscheibe, und `recipeOf` nennt es **Burger Deluxe**. Dazu, was auf dem
+  Weg dorthin nicht passieren darf: nichts Verbranntes irgendwo, kein
+  Filterband, das etwas anderes trägt als seinen Filter, kein Stück, das
+  verschwindet oder sich verdoppelt — und nach dem Abräumen kommt der nächste.
+  Wer an Grundriss, Uhren oder Regeln etwas ändert, erfährt es hier und nicht
+  im Browser.
 - **Der Baumodus hängt an einem Knopf in der Küche** (`zones/kitchenBuild.ts`).
   Bei _Overcooked_ steht die Küche, wie sie steht; bei _PlateUp_ baut man sie
   zwischen zwei Tagen um, und genau das ist gemeint. Es ist der **große rote
@@ -7043,7 +7144,7 @@ Und das sind die Regeln, die darin stehen:
   - **Wer ein Möbel trägt, legt es links als Miniatur ab** (`layOnPlate`) — und
     es bleibt **dasselbe** Möbel, nur klein, nicht seine Nachbildung. Klein
     heißt hier ein **Drittel** (`MINI_SCALE`) und damit eine andere Zahl als im
-    Katalog, weil die Frage eine andere ist: Dort geht es darum, einundzwanzig
+    Katalog, weil die Frage eine andere ist: Dort geht es darum, zweiundzwanzig
     Möbel nebeneinanderzustellen, hier darum, eines auf eine Kachel zu stellen. Ein
     Faktor und kein gerechnetes Maß — so bleibt der Größenunterschied zwischen
     Mülleimer und Ausgabetheke auf der Platte sichtbar, und man sieht der
@@ -7370,7 +7471,7 @@ Kacheln genau vor, hinter, links und rechts vom Anker bleiben leer, und damit
 bleiben vier Gassen offen, durch die man von der Mitte aus bis nach draußen
 sieht. Zwanzig Stücke fasst dieser Ring — genug für die siebzehn Kleidungsstücke
 dieses Projekts, und seit der Werkhalle **nicht** mehr für den Möbelkatalog:
-Der hat einundzwanzig Stücke, und das einundzwanzigste geht in den nächsten Ring
+Der hat zweiundzwanzig Stücke, und die beiden letzten gehen in den nächsten Ring
 **zwei** Kacheln weiter draußen. Ein Ring direkt hinter dem anderen stünde in
 dessen Lücken und wäre von der Mitte aus halb verdeckt. Reicht
 der ausgelieferte Boden dafür nicht, wächst **der Boden** (`floorTilesFor`) und

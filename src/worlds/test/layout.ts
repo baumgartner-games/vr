@@ -36,7 +36,7 @@ export const LEVELS: readonly number[] = [0, STOREY];
  * portalfähige Bodenkacheln hießen, dass ein Bodenportal nebenbei die Wand
  * gegenüber aufmacht. Also genau eine Fläche je Welt, und das ist diese.
  */
-export const FIELD: NavRect = { x: -27, z: -34, w: 72, d: 80 };
+export const FIELD: NavRect = { x: -27, z: -34, w: 73, d: 80 };
 
 /**
  * **Die Farben des Bodens draußen** — grau und weiß im Wechsel, ein Meter je
@@ -112,11 +112,18 @@ export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
  * Zimmer weit weg, und die Straße soll dort anfangen, wo die Küche aufhört.
  * Nach Süden ging es ohnehin nicht — dort liegt das Podest (`PODIUM`).
  *
+ * **Und danach noch einmal um eine einzige Kachel**, als die sichere
+ * Kochstelle in den Katalog kam: Der Schauraum zeigt jedes Stück einzeln, und
+ * seine vier Reihen waren bis auf die letzte Kachel vor der Ostwand voll. Eine
+ * Spalte mehr ist billiger als ein umgeräumter Schauraum — und sie ist die
+ * ehrlichere Buchhaltung: Der Katalog ist gewachsen, also wächst der Raum, der
+ * ihn zeigt.
+ *
  * Hinter dem Podest und nicht neben dem Schießstand: Dessen Bahnen laufen
  * quer über den ganzen Osten bis zum Kugelfang (`zones/range.ts`, `BERM`), und
  * eine Küche in der Schusslinie ist eine Küche mit Löchern.
  */
-export const KITCHEN: NavRect = { x: 12, z: -31, w: 32, d: 11 };
+export const KITCHEN: NavRect = { x: 12, z: -31, w: 33, d: 11 };
 
 /**
  * **Die Gänge zwischen den Zonen**, drei Kacheln breit, wo es geht.

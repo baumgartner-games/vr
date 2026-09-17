@@ -185,7 +185,53 @@ export type StationKind =
    */
   | 'combiner'
   /** Der Mixer: ein Schneidebrett, das ohne jemanden davor weiterhackt. */
-  | 'mixer';
+  | 'mixer'
+  /**
+   * **Die sichere Kochstelle**: brät ohne jemanden davor — und hört auf, bevor
+   * etwas verbrennen kann.
+   *
+   * Sie ist zum Herd, was der Mixer zum Schneidebrett ist, und trotzdem eine
+   * eigene Art und nicht `stove`: Auf dem Herd steht eine **Pfanne**, und was
+   * dort geschieht, ist eine ganz andere Regel (Feuer, Löschen, das Gerät als
+   * Inhalt — `kitchenClock.ts`). Hier liegt das Patty unmittelbar auf der
+   * Platte, und `A` findet eine Arbeitsfläche vor wie am Brett.
+   */
+  | 'griddle';
+
+/**
+ * **Welche Station welche Arbeit laufen lässt** — eine Zeile je Art, `null`
+ * für die, an denen nichts arbeitet.
+ *
+ * Es ist eine **vollständige** Tabelle über `StationKind`, und genau darum
+ * steht sie hier und nicht als `if`-Kette in der Zone: Wer eine Stationsart
+ * dazutut, bekommt vom Übersetzer die Frage gestellt, ob an ihr gearbeitet
+ * wird — und muss sie beantworten, statt sie zu übersehen. Der Fehler, gegen
+ * den das steht, ist genau einmal passiert und war im Spiel sofort zu sehen
+ * und im Test unsichtbar: Die sichere Kochstelle stand im Grundriss, `A` legte
+ * das Patty darauf — und die Zone ließ keine Uhr an, weil ihre `if`-Kette drei
+ * Möbel aufzählte und nicht vier. Die Straße lieferte rohe Pattys.
+ *
+ * `null` und kein fehlender Eintrag: Eine Ablage **hat** eine Antwort auf
+ * diese Frage, sie lautet nur „nichts". Ein fehlender Schlüssel wäre dieselbe
+ * Lücke noch einmal, nur eine Ebene tiefer.
+ */
+export const STATION_WORK: Readonly<Record<StationKind, WorkKind | null>> = {
+  board: 'chop',
+  mixer: 'blend',
+  griddle: 'fry',
+  sink: 'wash',
+  top: null,
+  bin: null,
+  box: null,
+  stove: null,
+  serve: null,
+  rack: null,
+  drain: null,
+  return: null,
+  table: null,
+  belt: null,
+  combiner: null,
+};
 
 /**
  * **Eine Station, so viel wie die Regel davon braucht.**
@@ -347,15 +393,19 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
     }
 
     case 'board':
-    case 'mixer': {
+    case 'mixer':
+    case 'griddle': {
       const on = station.on ?? null;
-      // **Brett und Mixer sind hier dieselbe Zeile**, und das ist die Absicht:
-      // Was zerkleinert werden kann, wird zerkleinert, sobald es daliegt —
-      // ohne zweiten Druck. Alles andere liegt hier wie auf jeder Ablage. Der
-      // ganze Unterschied zwischen den beiden steht in `kitchenWork`
-      // (`WORK_ALONE`: am Brett muss jemand danebenstehen, am Mixer nicht) und
-      // betrifft die Uhr, nicht den Handgriff.
-      const work: WorkKind = station.kind === 'board' ? 'chop' : 'blend';
+      // **Brett, Mixer und Kochstelle sind hier dieselbe Zeile**, und das ist
+      // die Absicht: Was bearbeitet werden kann, wird bearbeitet, sobald es
+      // daliegt — ohne zweiten Druck. Alles andere liegt hier wie auf jeder
+      // Ablage. Der ganze Unterschied zwischen den dreien steht in
+      // `kitchenWork` (`WORK_ALONE`: am Brett muss jemand danebenstehen, am
+      // Mixer und auf der Kochstelle nicht) und betrifft die Uhr, nicht den
+      // Handgriff.
+      // Gelesen und nicht noch einmal aufgezählt (`STATION_WORK`) — dieselbe
+      // Tabelle, die auch die Zone fragt, wenn sie die Uhr anlegt.
+      const work = STATION_WORK[station.kind]!;
       if (held && !on && workStage(work, held.item)) {
         return { do: 'work', kind: work, dish: held };
       }
@@ -831,6 +881,7 @@ export function kitchenPrompt(deed: KitchenDeed, what: string): string {
       // spülen" wäre falsches Deutsch, und der Dativ dafür stünde in keiner
       // Tabelle.
       if (deed.kind === 'wash') return 'Geschirr spülen';
+      if (deed.kind === 'fry') return `${ITEM_LABELS[deed.dish.item]} braten`;
       return `${ITEM_LABELS[deed.dish.item]} ${deed.kind === 'blend' ? 'mixen' : 'schneiden'}`;
     case 'fill':
       // „Topf mit Wasser füllen" — der Träger im Nominativ, der Inhalt hinter

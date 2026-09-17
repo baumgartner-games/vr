@@ -375,7 +375,7 @@ describe('was aus der Spüle herauskommt', () => {
    * wäre. Genau das soll sie leisten.
    */
   it('entscheidet allein über den Weg des Fertigen', () => {
-    expect(WORK_TO_HAND).toEqual({ chop: false, wash: true, blend: false });
+    expect(WORK_TO_HAND).toEqual({ chop: false, wash: true, blend: false, fry: false });
     for (const kind of Object.keys(WORK_TO_HAND) as WorkKind[]) {
       const item = kind === 'wash' ? 'plate-dirty' : 'lettuce';
       const tick = advanceWork(onWork(kind, item), WORK_SECONDS[kind], true, true);
