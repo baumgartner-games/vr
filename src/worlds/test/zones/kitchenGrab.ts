@@ -277,7 +277,7 @@ export const RIM_GRIP_IN = 0.06;
  * richtige.
  *
  * Nachgerechnet über den ganzen Katalog liegt sie damit zwischen **0,45 m**
- * (Mülleimer) und **0,56 m** (Ausgaberegal): Hüfthöhe bei einem Koch von
+ * (Spülbecken und Mülleimer) und **0,56 m** (Ausgaberegal): Hüfthöhe bei einem Koch von
  * 1,60 m (`core/chefFit.ts`), also genau dort, wo ein Mensch ein Möbel
  * anfasst, um es zu schieben. Eine feste Zahl für alle wäre bequemer und
  * stünde beim Mülleimer in der Luft oder im Becken; eine Ausnahmeliste für
