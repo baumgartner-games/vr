@@ -5360,11 +5360,24 @@ den man im Bild sah:
 
 - **`align`** — wie weit ein Möbel aus der Mitte seiner Kachel rückt. Der
   Ursprung liegt in der Mitte der **ganzen** Hülle (`tools/kitchen-model.mjs`),
-  und beim _Herd mit Pfanne_ gehört der Pfannenstiel dazu: Er ragt 16 cm nach
-  Süden heraus, also wanderte der Korpus beim Zentrieren 7,8 cm nach Norden und
-  stand als einziger Herd aus der Reihe. Die Zahl ist gemessen und nicht
-  geschätzt — der Korpus (Material `Kitchen_Cabins`) reicht in der Datei von
-  z = −0,610 bis z = +0,453.
+  und eine Hülle ist nicht der Korpus: Was übersteht, zieht den Ursprung zu
+  sich und schiebt den Korpus in die Gegenrichtung. Die Linie, an der die
+  Nordzeile ausgerichtet wird, ist deshalb **nachgemessen**: Der Korpus der
+  _Küchenzeile_ reicht in der Datei von z = −1,0612 bis +0,9386 (2,0000 tief),
+  die 2,1224 des Katalogs macht allein ihr **Türgriff** — die sichtbare
+  Vorderkante liegt bei 0,4693 m vor der Kachelmitte und nicht bei 0,5306 m.
+  Daran rücken fünf Möbel: _Schneidebrett_ und _Löscherhocker_ (gleich tief,
+  aber mittig zentriert) um 3,07 cm nach **Norden**, die drei _Herde_ um 8 cm
+  nach **Süden**, der _Herd mit Pfanne_ um weitere 7,8 cm, weil sein
+  Pfannenstiel 16 cm nach Süden aus der Hülle ragt. Beim Brett stand diese Zahl
+  lange mit dem falschen Vorzeichen (Hülle der Zeile gegen Korpus des Bretts
+  gerechnet), und es stand 6,1 cm zu weit vorn. Bei den Herden ist es die Wand:
+  Ihr Blech ist nur 0,9210 m tief, sprang vorn 8 cm hinter die Arbeitsplatten
+  zurück und stand hinten 13,2 cm hinter der Innenseite der 0,2 m dicken
+  Nordwand — sichtbar abgeschnitten, weil die Kochstelle ein aufgesetzter Klotz
+  ist. Ganz aus der Wand kommt sie nicht: Zwischen Wandinnenseite und
+  Zeilenlinie liegen 0,8693 m, 5,2 cm zu wenig. Die Vorderkante gewinnt, weil
+  man nur sie sieht.
 - **`deck`** — wo die Arbeitsfläche liegt, **über dem Fuß des Möbels**. Beim
   _Herd mit Topf_ ist `height` die Oberkante des **Topfes** (0,87 m) und nicht
   die der Platte (0,55 m); ein Brötchen, das auf `height` abgelegt würde,

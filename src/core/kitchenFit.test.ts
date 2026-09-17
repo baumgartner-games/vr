@@ -10,6 +10,9 @@ import {
   kitchenPiece,
   kitchenWorkHeight,
 } from './kitchenFit';
+import { PLAN_WALL_T } from '../worlds/editor/levelPlan';
+import { TILE } from '../worlds/nav/navTile';
+import { KITCHEN } from '../worlds/test/layout';
 
 /**
  * **Die Maße der Quelldatei**, in Metern und ungeteilt — abgelesen aus
@@ -51,6 +54,57 @@ const SOURCE: Readonly<Record<string, readonly [number, number, number]>> = {
   'stove-pot': [2, 1.73, 2.13],
   'stove-pan': [2, 1.35, 2.44],
 };
+
+/**
+ * **Der Korpus je Möbel**, ebenfalls in Quellmaß: seine **hintere** und seine
+ * **vordere** Kante in z, abgelesen aus `public/models/kitchen.glb` (Netz
+ * `Kitchen_Cabins`, bei Spüle und Theke `Kitchen_Cabins_Double`).
+ *
+ * Eine zweite Tabelle neben `SOURCE`, und sie misst ausdrücklich etwas
+ * anderes: `SOURCE` nennt die **Hülle** — was ein Möbel belegt, und daran
+ * hängen Kachelzahl und Höhe —, `BODY` die **Kanten, die man sieht**. Zwischen
+ * beiden liegt bei der Küchenzeile ihr **Türgriff** (z = +0,9291 … +1,0612 auf
+ * y = 0,3…0,5) und beim Herd die **Blende mit den Knöpfen** (+0,8180 …
+ * +1,0634 auf y = 0,3…0,7). Beides steht über, beides ist keine Arbeitsplatte,
+ * und beides zieht beim Zentrieren den Korpus in die Gegenrichtung
+ * (`core/kitchenFit.KitchenPiece.align`).
+ *
+ * **Genau an dieser Verwechslung hing der Versatz des Schneidebretts einmal
+ * mit dem falschen Vorzeichen**: Verglichen wurde die Hülle der Zeile (2,1224)
+ * mit dem Korpus des Bretts (1,9998), und der Unterschied zwischen ihnen war
+ * der Griff. Wer die Quelle austauscht, misst diese Kanten neu — und sieht an
+ * den Tests darunter, welcher Versatz nachzuziehen ist.
+ */
+const BODY: Readonly<Record<string, readonly [back: number, front: number]>> = {
+  counter: [-1.0612, 0.9386],
+  'plate-counter': [-1.0612, 0.9386],
+  // Beide Hälften der Spüle: Zerschnitten wird bei x = 0
+  // (`core/kitchenModel.splitSink`), in z bleibt das Profil der ganzen Spüle
+  // stehen — und es ist das der Küchenzeile, Griff inbegriffen.
+  'sink-basin': [-1.0612, 0.9386],
+  'sink-drain': [-1.0612, 0.9386],
+  // Ohne Griff, dafür mittig: gleich tief wie die Zeile, aber 0,0613 weiter
+  // südlich zentriert.
+  board: [-0.9999, 0.9999],
+  extinguisher: [-0.9999, 0.9999],
+  // Das Blech der Herde — 1,8420 tief und damit das flachste Möbel der Zeile.
+  stove: [-1.0634, 0.7786],
+  'stove-pot': [-1.0634, 0.7786],
+  // Dasselbe Blech, vom Pfannenstiel um 0,1564 nach Norden gezogen.
+  'stove-pan': [-1.2198, 0.6221],
+};
+
+/**
+ * **Wo eine Korpuskante im Spiel liegt**, in Metern vor (+, Süden) oder hinter
+ * (−, Norden) der Kachelmitte: Quellmaß halbiert, Versatz dazu.
+ *
+ * Die eine Rechnung, die alle Zeilenprüfungen teilen — sie ist dieselbe, die
+ * `worlds/test/zones/kitchen.ts`, `standAt`, beim Hinstellen macht, nur ohne
+ * Drehung: In der Nordzeile steht alles mit `turn: 0`.
+ */
+function edge(name: string, side: 0 | 1): number {
+  return BODY[name]![side] * KITCHEN_SCALE + (kitchenPiece(name)!.align?.[1] ?? 0);
+}
 
 /**
  * Am Katalog gibt es nichts zu rechnen — er ist eine Liste. Drei Sachen an ihm
@@ -250,53 +304,142 @@ describe('der Möbelkatalog', () => {
   });
 
   /**
-   * **Der Versatz bleibt in der Kachel.** Er gleicht einen überstehenden Griff
-   * aus (`KitchenPiece.align`, der Pfannenstiel) oder ein Möbel, das flacher
-   * ist als seine Nachbarn (das Schneidebrett), und ist damit ein paar
-   * Zentimeter — wer hier einen halben Meter einträgt, stellt ein Möbel auf
-   * die Nachbarkachel, ohne dass der Grundriss davon wüsste.
+   * **Der Versatz bleibt in der Kachel.** Er gleicht aus, dass der Ursprung
+   * eines Möbels in der Mitte seiner **Hülle** liegt und nicht in der seines
+   * Korpus (`KitchenPiece.align`) — ein Türgriff, ein Pfannenstiel, eine
+   * Blende mit Knöpfen. Das sind ein paar Zentimeter; wer hier einen halben
+   * Meter einträgt, stellt ein Möbel auf die Nachbarkachel, ohne dass der
+   * Grundriss davon wüsste.
    */
   it('rückt kein Möbel weiter als eine halbe Kachel aus der Mitte', () => {
     const shifted = KITCHEN_PIECES.filter((piece) => piece.align);
-    expect(shifted.map((piece) => piece.name)).toEqual(['board', 'stove-pan']);
+    // In der Reihenfolge des Katalogs, und es sind genau die fünf Möbel der
+    // Nordzeile, deren Korpus nicht von allein auf der Linie der Küchenzeile
+    // sitzt: der Löscherhocker, das Schneidebrett und die drei Herde.
+    expect(shifted.map((piece) => piece.name)).toEqual([
+      'extinguisher',
+      'board',
+      'stove',
+      'stove-pot',
+      'stove-pan',
+    ]);
     for (const piece of KITCHEN_PIECES) {
       const [x, z] = piece.align ?? [0, 0];
-      expect(Math.max(Math.abs(x), Math.abs(z))).toBeLessThan(0.5);
+      // **Zur Seite rückt keines.** Alle gemessenen Überstände dieser Quelle
+      // zeigen nach vorn oder nach hinten — ein Versatz in x wäre ein Möbel,
+      // das aus der Reihe nach links oder rechts tritt, und den gibt es nicht.
+      expect({ name: piece.name, x }).toEqual({ name: piece.name, x: 0 });
+      expect(Math.abs(z)).toBeLessThan(0.5);
     }
-    // Gemessen an der Datei: Der Korpus reicht von z = −0,610 bis z = +0,453,
-    // seine Mitte liegt also bei −0,078 — genau so weit rückt er zurück.
-    expect(kitchenPiece('stove-pan')!.align).toEqual([0, 0.078]);
+    // Der Herd mit der Pfanne trägt die Summe aus beidem: 7,8 cm gegen den
+    // Stiel (Korpus −1,2198 … +0,6221 statt −1,0634 … +0,7786) und 8,0 cm für
+    // die Vorderkante der Zeile.
+    const pan = kitchenPiece('stove-pan')!.align![1];
+    const stove = kitchenPiece('stove')!.align![1];
+    expect(pan - stove).toBeCloseTo((BODY['stove']![1] - BODY['stove-pan']![1]) * KITCHEN_SCALE, 3);
   });
 
   /**
-   * **Die Vorderkante des Schneidebretts fluchtet mit der Küchenzeile.**
+   * **Die Zeile an der Nordwand hat eine Vorderkante, und es ist die der
+   * Küchenzeile.**
    *
-   * Es ist flacher als sie — 2,00 m gegen 2,12 m in der Quelle —, und
-   * mittig auf derselben Kachelmitte sprang es vorn wie hinten drei
-   * Zentimeter zurück. Sichtbar ist davon nur die **Vorderkante**: Dort steht
-   * die Figur, dort greift sie zu. Der Versatz ist deshalb der **ganze**
-   * halbe Tiefenunterschied nach Süden und nicht die Hälfte davon — hinten
-   * wird die Lücke dafür doppelt so groß, und die zeigt zur Wand.
+   * Geprüft wird die **Beziehung** und nicht die Zahl: Aus den gemessenen
+   * Korpuskanten (`BODY`) und dem Versatz aus dem Katalog wird ausgerechnet,
+   * wo jedes Möbel der Reihe vorn aufhört — und das muss überall dieselbe
+   * Stelle sein. Wer eine der beiden Seiten ändert, sieht hier, was die andere
+   * kostet.
    *
-   * Gerechnet aus `SOURCE` und nicht abgeschrieben: Wer die Quelle
-   * austauscht, sieht hier, dass der Versatz nachzumessen ist.
+   * Dass es ohne Versatz **keine** Linie wäre, steht mit im Test: Vier
+   * verschiedene Vorderkanten liegen in der Quelle nebeneinander (0,469 der
+   * Zeile, 0,500 von Brett und Hocker, 0,389 der Herde, 0,311 des Herds mit
+   * Pfanne). Ein Test, der nur die fertigen Zahlen gegeneinanderhielte, wäre
+   * grün, auch wenn alle fünf Einträge fehlten.
    */
-  it('stellt das Schneidebrett vorn bündig zur Küchenzeile', () => {
-    const board = kitchenPiece('board')!;
-    const counter = kitchenPiece('counter')!;
-    const front = (name: string) => (SOURCE[name]![2] * KITCHEN_SCALE) / 2;
-    const [ax, az] = board.align!;
-    expect(ax).toBe(0);
-    // Nach Süden, also auf die Seite, an der die Figur steht.
-    expect(az).toBeGreaterThan(0);
-    // Auf den halben Zentimeter genau wie überall in diesem Katalog: Die
-    // Quellmaße daneben sind auf zwei Stellen gerundet.
-    expect(Math.abs(front('board') + az - front('counter'))).toBeLessThanOrEqual(0.005 + 1e-9);
-    // Und hinten bleibt genau die doppelte Lücke stehen — kein Versehen,
-    // sondern der Preis für die bündige Vorderkante.
-    const gap = front('counter') - front('board') + az;
-    expect(gap).toBeCloseTo(2 * az, 2);
-    expect(board.tiles).toEqual(counter.tiles);
+  it('stellt die Möbel der Nordzeile auf eine Vorderkante', () => {
+    // Die Zeile an der Nordwand, von Westen nach Osten
+    // (`worlds/test/zones/kitchenPlan.KITCHEN_SPOTS`, x = 0…10).
+    const row = [
+      'counter',
+      'stove',
+      'stove-pot',
+      'stove-pan',
+      'extinguisher',
+      'sink-basin',
+      'sink-drain',
+      'board',
+      'plate-counter',
+    ];
+    // Das Maß ist die Küchenzeile, und sie rückt selbst nicht: 0,9386 / 2.
+    const line = edge('counter', 1);
+    expect(kitchenPiece('counter')!.align).toBeUndefined();
+    expect(line).toBeCloseTo(0.4693, 4);
+    for (const name of row) {
+      expect({ name, front: edge(name, 1).toFixed(3) }).toEqual({ name, front: line.toFixed(3) });
+    }
+    // Und ohne Versatz stünde dort vierlei.
+    const raw = new Set(row.map((name) => (BODY[name]![1] * KITCHEN_SCALE).toFixed(3)));
+    expect([...raw].sort()).toEqual(['0.311', '0.389', '0.469', '0.500']);
+    // **Wer gleich tief ist, fluchtet danach auch hinten.** Brett und
+    // Löscherhocker sind auf den Millimeter so tief wie die Zeile (2,0000 in
+    // der Quelle) — eine bündige Vorderkante heißt bei ihnen also zugleich
+    // eine bündige Hinterkante, und die alte Klage über die doppelte Lücke zur
+    // Wand ist damit gegenstandslos.
+    for (const name of ['board', 'extinguisher', 'plate-counter', 'sink-basin', 'sink-drain']) {
+      const deep = (BODY[name]![1] - BODY[name]![0]) * KITCHEN_SCALE;
+      expect({ name, deep: deep.toFixed(4) }).toEqual({
+        name,
+        deep: ((BODY['counter']![1] - BODY['counter']![0]) * KITCHEN_SCALE).toFixed(4),
+      });
+      expect({ name, back: edge(name, 0).toFixed(3) }).toEqual({
+        name,
+        back: edge('counter', 0).toFixed(3),
+      });
+    }
+  });
+
+  /**
+   * **Die Kochstelle steht so weit vor der Wand, wie die Zeile es zulässt** —
+   * und das ist nicht ganz, sondern gemessen knapp.
+   *
+   * Der Herd war der Grund für den ganzen Umbau: Sein Blech ist ein
+   * **aufgesetzter Klotz** und keine flache Rückwand, und was davon hinter der
+   * Wandinnenseite liegt, ist im Bild abgeschnitten. Mit Versatz 0 waren das
+   * 13,2 cm von 92,1 — deutlich zu sehen, weil die Platte vorn zugleich 8 cm
+   * hinter den Arbeitsplatten zurückstand: hinten in der Wand, vorn eine Lücke.
+   *
+   * **Beides zugleich geht nicht**, und dieser Test rechnet genau das nach:
+   * Zwischen der Innenseite der 0,2 m dicken Nordwand und der Vorderkante der
+   * Zeile liegen 0,8693 m, das Blech ist 0,9210 m tief. Die 5,2 cm Unterschied
+   * bleiben hinten in der Wand — dort, wo die Küchenzeile daneben ohnehin mit
+   * 13,1 cm steht und wo von der Kamera aus (`core/topDownPose.ts`) nichts im
+   * Bild ist.
+   */
+  it('holt die Kochstelle so weit aus der Wand, wie die Zeile es zulässt', () => {
+    // **Wo die Wand steht, wird gerechnet und nicht angenommen**: Sie sitzt auf
+    // der Nordkante der Zone und ist 0,2 m dick (`worlds/editor/levelPlan`,
+    // `PLAN_WALL_T`), die Zeile steht auf der ersten Kachelreihe darin
+    // (`worlds/test/layout.KITCHEN`). Wer die Küche verschiebt oder die Wand
+    // dicker macht, kommt hier vorbei.
+    const face = (KITCHEN.z + 0.5) * TILE - (KITCHEN.z * TILE + PLAN_WALL_T / 2);
+    expect(face).toBeCloseTo(0.4, 6);
+    const line = edge('counter', 1);
+    /** Wie weit ein Möbel hinter die Innenseite der Wand reicht, in Metern. */
+    const buried = (name: string) => -edge(name, 0) - face;
+    // Die ganze Zeile steht in der Wand, und zwar seit je: Ihr Korpus ist
+    // 0,9999 m tief, die Kachel misst 1 m, und 0,1 m davon gehören der Wand.
+    expect(buried('counter')).toBeCloseTo(0.131, 3);
+    // Der Herd steckt jetzt **weniger** tief darin als jede Küchenzeile neben
+    // ihm — vorher waren es 13,2 cm und damit mehr.
+    expect(buried('stove')).toBeCloseTo(0.052, 3);
+    expect(buried('stove')).toBeLessThan(buried('counter'));
+    expect(buried('stove-pot')).toBeCloseTo(buried('stove'), 6);
+    expect(buried('stove-pan')).toBeCloseTo(buried('stove'), 2);
+    // **Und weiter geht es nicht, ohne die Vorderkante zu verlieren.** Das
+    // Blech ist um genau diese 5,2 cm tiefer als der Platz zwischen
+    // Wandinnenseite und Zeilenlinie.
+    const plate = (BODY['stove']![1] - BODY['stove']![0]) * KITCHEN_SCALE;
+    expect(plate).toBeCloseTo(0.921, 3);
+    expect(plate - (face + line)).toBeCloseTo(buried('stove'), 3);
   });
 
   /**
