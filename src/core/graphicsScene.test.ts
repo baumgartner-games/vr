@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { aimSun, applySceneQuality, findSun } from './graphicsScene';
+import { aimSun, applySceneQuality, denyShadow, findSun } from './graphicsScene';
 import { graphicsProfile } from './graphicsSettings';
 import { lookOf } from './materialLook';
 import { denyOutline, isOutline, outlineOf, stripOutlines } from './outlineShell';
@@ -271,6 +271,27 @@ describe('die Grafikstufe über einer Szene', () => {
 
     applySceneQuality(world.scene, SIMPLE);
     expect(lookOf(world.crate.material as THREE.Material)).toBe(0);
+  });
+
+  it('lässt ein Ding aus, das ausdrücklich keinen Schatten wirft', () => {
+    // Ein aufgemalter Pfeil auf einem Laufband, der Trog darunter, der Korpus
+    // darunter: Drei Kästen übereinander werfen zusammen einen Schatten, und
+    // ein `castShadow = false` am Modell hielt bis hierher keinen Durchlauf aus.
+    const world = build();
+    denyShadow(world.crate);
+    applySceneQuality(world.scene, COMIC);
+    expect(world.crate.castShadow).toBe(false);
+    // Empfangen darf er weiter — das kostet keinen Zeichenaufruf.
+    expect(world.crate.receiveShadow).toBe(true);
+  });
+
+  it('bleibt dabei über mehrere Durchläufe und einen Ausflug in Einfach', () => {
+    const world = build();
+    denyShadow(world.crate);
+    applySceneQuality(world.scene, COMIC);
+    applySceneQuality(world.scene, SIMPLE);
+    applySceneQuality(world.scene, COMIC);
+    expect(world.crate.castShadow).toBe(false);
   });
 
   it('lässt ein Ding aus, das ausdrücklich keinen Saum will', () => {

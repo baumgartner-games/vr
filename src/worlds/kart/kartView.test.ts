@@ -1,4 +1,11 @@
-import { MAX_LAG, shortestAngle, stepViewYaw, type ViewFollow } from './kartView';
+import {
+  DASHBOARD_RANGE,
+  MAX_LAG,
+  shortestAngle,
+  showsDashboard,
+  stepViewYaw,
+  type ViewFollow,
+} from './kartView';
 
 const DEG = Math.PI / 180;
 const STEP = 1 / 90;
@@ -138,5 +145,36 @@ describe('stepViewYaw', () => {
       const { view, kart } = drive({ lag: 0.15, dead: 10, rate: 5 }, 1.5, 3);
       expect(Math.abs(shortestAngle(kart - view))).toBeLessThanOrEqual(MAX_LAG * DEG + 1e-9);
     });
+  });
+});
+
+/**
+ * **Die Probe aufs Armaturenbrett.**
+ *
+ * Eine Zusage zählt hier wirklich: **Wer darin sitzt, sieht es immer.** Alles
+ * andere ist eine Entfernung, an der man drehen darf — aber ein Fahrer ohne
+ * Klemmbrett wäre ein Kart, an dem sich nichts mehr einstellen lässt.
+ */
+describe('showsDashboard', () => {
+  it('zeigt es dem Fahrer, egal wo das Kart gerade steht', () => {
+    expect(showsDashboard(0, true)).toBe(true);
+    expect(showsDashboard(500, true)).toBe(true);
+  });
+
+  it('zeigt es, solange man davorsteht', () => {
+    expect(showsDashboard(0, false)).toBe(true);
+    expect(showsDashboard(DASHBOARD_RANGE - 0.01, false)).toBe(true);
+    expect(showsDashboard(DASHBOARD_RANGE, false)).toBe(true);
+  });
+
+  it('lässt es weg, sobald davon nichts mehr zu lesen ist', () => {
+    expect(showsDashboard(DASHBOARD_RANGE + 0.01, false)).toBe(false);
+    // Die Pose, um die es geht: aus der Küche auf die Boxengasse, 56 Meter.
+    expect(showsDashboard(56, false)).toBe(false);
+  });
+
+  it('nimmt eine andere Reichweite entgegen', () => {
+    expect(showsDashboard(20, false, 25)).toBe(true);
+    expect(showsDashboard(30, false, 25)).toBe(false);
   });
 });

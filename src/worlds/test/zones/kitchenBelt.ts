@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../../core/chefFit';
+import { denyShadow } from '../../../core/graphicsScene';
 import { kitchenPiece } from '../../../core/kitchenFit';
 import { TILE } from '../../nav/navTile';
 import type { KitchenDeed, StationKind } from './kitchenCarry';
@@ -965,7 +966,16 @@ export class BeltKit {
     );
     band.position.y = BODY_HEIGHT + TOP_THICK + BAND_THICK / 2;
 
-    for (const mesh of [body, top, band]) mesh.castShadow = true;
+    // **Ein Band wirft einen Schatten und nicht drei** (`core/graphicsScene.ts`,
+    // `denyShadow`). Korpus, Platte und Trog stehen genau übereinander, und die
+    // **Platte** ist die breiteste von ihnen — `TOP_SIDE` ist die ganze Kachel,
+    // der Korpus vier Zentimeter weniger, der Trog liegt oben darauf. Ihr
+    // Schatten enthält die beiden anderen also schon; drei Werfer sind drei
+    // Zeichenaufrufe je Kachel für dasselbe Bild. Gemessen waren die beiden
+    // Bänder der Küche **45 von 243** Aufrufen im Schattendurchgang.
+    top.castShadow = true;
+    denyShadow(body);
+    denyShadow(band);
     group.add(body, top, band);
 
     // Die Pfeile liegen als eigene Ebene **auf** dem Trog und nicht als Textur
@@ -984,7 +994,10 @@ export class BeltKit {
     arrows.position.y = BELT_HEIGHT;
     // Aufgemalt und nicht gebaut: Ein Pfeil wirft keinen Schatten und hält
     // keinen Strahl auf (`core/usable.ts` zielt auf Möbel, nicht auf Farbe).
-    arrows.castShadow = false;
+    // **Und gesagt wird es mit `denyShadow`**: Ein bloßes `castShadow = false`
+    // hielt der nächste Durchlauf der Grafikstufe nicht aus — er setzt es an
+    // jedem undurchsichtigen Mesh wieder auf `true`.
+    denyShadow(arrows);
     arrows.receiveShadow = false;
     arrows.raycast = () => {};
     group.add(arrows);
@@ -997,7 +1010,7 @@ export class BeltKit {
         this.skin('mouth', new THREE.Color(BELT_COLORS.pull).getHex(), 0.6),
       );
       mouth.position.set(0, BELT_HEIGHT, (BAND_LONG - MOUTH_LONG) / 2);
-      mouth.castShadow = false;
+      denyShadow(mouth);
       mouth.receiveShadow = false;
       mouth.raycast = () => {};
       group.add(mouth);

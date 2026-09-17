@@ -73,6 +73,12 @@ export class Kart extends THREE.Group {
   /** Der Name des Mitspielers, der darin sitzt — `null`, solange es frei ist. */
   private takenBy: string | null = null;
   private readonly progress: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  /**
+   * Was zum Armaturenbrett gehört und aus der Ferne nicht gezeichnet wird —
+   * Klemmbrett, sein Rückenbrett und der Stiel des Schildchens
+   * (`kartView.showsDashboard`).
+   */
+  private readonly dashboard: THREE.Object3D[] = [];
   private readonly brakeLight: THREE.MeshStandardMaterial;
   private readonly owned: THREE.Material[] = [];
   /** What the clipboard currently lists — the panel only knows row numbers. */
@@ -136,6 +142,7 @@ export class Kart extends THREE.Group {
     stalk.position.set(0, 0.92, -0.41);
     stalk.rotation.x = -0.3;
     this.add(stalk);
+    this.dashboard.push(this.board, backing, stalk);
 
     // No turn about Y: the driver sits at +Z and a plane already looks that
     // way. Tipping it back by a little is all a dashboard needs.
@@ -335,6 +342,24 @@ export class Kart extends THREE.Group {
   faceHover(head: THREE.Vector3): void {
     if (!this.hover.visible) return;
     this.hover.lookAt(head);
+  }
+
+  /**
+   * **Das Armaturenbrett aus der Ferne weglassen** (`kartView.showsDashboard`).
+   *
+   * Klemmbrett, Rückenbrett und der Stiel des Schildchens: drei Zeichenaufrufe
+   * je Kart für etwas, dessen Zeilen aus fünfzig Metern kein Pixel hoch sind —
+   * und genau so weit weg stehen die beiden Karts, wenn man von der Küche aus
+   * über das Gelände sieht. Sechs Aufrufe, mehr ist es nicht; es ist nur auch
+   * nichts, was jemandem fehlt.
+   *
+   * Umgeschaltet wird nur beim Wechsel: Der Zeiger fragt jedes Ziel nach seiner
+   * eigenen Sichtbarkeit, und eine `visible`-Zuweisung je Bild wäre Arbeit ohne
+   * Ergebnis.
+   */
+  setDashboard(on: boolean): void {
+    if (this.dashboard[0]?.visible === on) return;
+    for (const part of this.dashboard) part.visible = on;
   }
 
   disposeKart(): void {
