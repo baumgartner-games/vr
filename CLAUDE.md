@@ -1,7 +1,9 @@
 # Projektwissen für Agenten
 
-Siehe [AGENTS.md](AGENTS.md) — dort steht alles: Arbeitsregeln, Features,
-vollständige Steuerung, Architektur, Portale, Netzwerk und Deployment.
+Siehe [AGENTS.md](AGENTS.md) — dort stehen die **Arbeitsregeln** und der
+**Wegweiser** über alles Übrige: Features, vollständige Steuerung, Architektur,
+Portale, Netzwerk und Deployment. Die Kapitel selbst liegen in `docs/agents/`,
+eines je Datei; `grep -rn "Stichwort" docs/agents/` sucht quer über alle.
 
 Zwei Regeln daraus, die zu oft untergehen und deshalb auch hier stehen:
 **alles geht direkt auf `main`** — und wer ausnahmsweise doch auf einem eigenen

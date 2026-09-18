@@ -103,6 +103,64 @@ describe('Kisten, Flächen, Mülleimer', () => {
     });
   });
 
+  /**
+   * **Die Vorratskiste** gibt aus und nimmt zurück — und sonst nichts. Sie ist
+   * offen und bis oben voll; was jemand darauf legte, balancierte auf einem
+   * Haufen Tomaten.
+   */
+  it('gibt aus der Vorratskiste aus und nimmt ihre eigene Zutat zurück', () => {
+    const crate: Station = { kind: 'crate', gives: 'tomato' };
+    expect(press(null, crate)).toEqual({ do: 'take', dish: d('tomato') });
+    // Wer sie doch nicht braucht, hält sie an die Kiste und ist sie los.
+    expect(press(d('tomato'), crate)).toEqual({ do: 'stow', dish: d('tomato') });
+    // Geschnitten gehört sie nicht mehr dorthin — sonst wäre der Schnitt weg.
+    expect(press(d('tomato-cut'), crate).do).toBe('refuse');
+    // Und auf der Kiste wird nichts abgestellt.
+    const laid = press(d('pot'), crate);
+    expect(laid.do).toBe('refuse');
+    expect(why(laid)).toContain('Vorratskiste');
+  });
+
+  /**
+   * **Die Tellerkiste richtet an** — der gemeldete Fehler, als Regel
+   * geschrieben.
+   *
+   * Wer den fertigen Burger in der Hand hat und vor den Tellervorrat tritt,
+   * will ihn **auf einen Teller** und nicht lesen, dass hier nichts abgestellt
+   * wird. Abgestellt wird dabei auch nichts: Der Teller kommt aus der Kiste,
+   * das Gericht geht darauf, und beides zusammen liegt danach in der Hand.
+   * Dasselbe von der anderen Seite ist die Brötchenkiste mit dem gebratenen
+   * Patty in der Hand.
+   */
+  it('nimmt an der Vorratskiste den Teller unter das Gericht', () => {
+    expect(press(d('bun', 'patty-cooked'), { kind: 'crate', gives: 'plate' })).toEqual({
+      do: 'combine',
+      held: d('plate', 'bun', 'patty-cooked'),
+      target: null,
+      moved: ['bun', 'patty-cooked'],
+    });
+    // Und die einzelne Zutat genauso — ein Teller mit Salat darauf.
+    expect(press(d('lettuce-cut'), { kind: 'crate', gives: 'plate' })).toEqual({
+      do: 'combine',
+      held: d('plate', 'lettuce-cut'),
+      target: null,
+      moved: ['lettuce-cut'],
+    });
+    // Andersherum: das gebratene Patty an der Brötchenkiste.
+    expect(press(d('patty-cooked'), { kind: 'crate', gives: 'bun' })).toEqual({
+      do: 'combine',
+      held: d('bun', 'patty-cooked'),
+      target: null,
+      moved: ['patty-cooked'],
+    });
+    // **Was zwei Hände bräuchte, geht nicht**: Die Pfanne gäbe ihr Patty auf
+    // das Brötchen ab — und das Brötchen hinge in der Luft, denn die Kiste hat
+    // keine Fläche, auf der es liegen bliebe.
+    const both = press(d('pan', 'patty-cooked'), { kind: 'crate', gives: 'bun' });
+    expect(both.do).toBe('refuse');
+    expect(why(both)).toContain('Vorratskiste');
+  });
+
   it('legt auf eine freie Fläche und nimmt von einer belegten', () => {
     expect(press(d('bun'), { kind: 'top', on: null })).toEqual({ do: 'place', dish: d('bun') });
     expect(press(null, { kind: 'top', on: d('pan') })).toEqual({ do: 'take', dish: d('pan') });
@@ -865,11 +923,45 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
   });
 
   it('lässt in das Abtropfgitter nur leere Teller', () => {
-    for (const held of [d('bun'), d('pan'), d('plate', 'bun'), d('plate-dirty', 'bun')]) {
+    for (const held of [d('pan'), d('plate', 'bun'), d('plate-dirty', 'bun')]) {
       const deed = press(held, { kind: 'drain', stack: 1, stacked: 'plate' });
       expect({ item: held.item, do: deed.do }).toEqual({ item: held.item, do: 'refuse' });
       expect(why(deed)).toContain('leere Teller');
     }
+    // Und die Zutat, wenn im Gitter **dreckige** Teller stehen: Auf die legt
+    // man nichts, und hineingestellt wird sie auch nicht.
+    const dirty = press(d('bun'), { kind: 'drain', stack: 1, stacked: 'plate-dirty' });
+    expect(dirty.do).toBe('refuse');
+    expect(why(dirty)).toContain('leere Teller');
+  });
+
+  /**
+   * **Das Gitter richtet an** — derselbe Handgriff wie an der Tellerkiste
+   * (`fromCrate`), nur aus einem Stapel.
+   *
+   * Wer den fertigen Burger trägt und vor vier gespülten Tellern steht, will
+   * ihn anrichten und nicht erst einen Teller nehmen, ihn irgendwo abstellen,
+   * den Burger wieder aufnehmen und zurücklaufen. Der Teller verlässt dabei
+   * den Stapel — die Zone zählt mit (`kitchen.merge`).
+   */
+  it('nimmt aus dem Gitter den Teller unter das Gericht', () => {
+    expect(press(d('bun', 'patty-cooked'), { kind: 'drain', stack: 4, stacked: 'plate' })).toEqual({
+      do: 'combine',
+      held: d('plate', 'bun', 'patty-cooked'),
+      target: null,
+      moved: ['bun', 'patty-cooked'],
+    });
+    expect(press(d('tomato-cut'), { kind: 'drain', stack: 1, stacked: 'plate' })).toEqual({
+      do: 'combine',
+      held: d('plate', 'tomato-cut'),
+      target: null,
+      moved: ['tomato-cut'],
+    });
+    // **Ein leeres Gitter hat nichts herzugeben**: Dort wird abgelegt, und
+    // eine Zutat ist kein leerer Teller.
+    const empty = press(d('bun'), { kind: 'drain', stack: 0 });
+    expect(empty.do).toBe('refuse');
+    expect(why(empty)).toContain('leere Teller');
   });
 
   /**

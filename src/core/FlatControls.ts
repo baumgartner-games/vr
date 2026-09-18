@@ -396,7 +396,11 @@ export class FlatControls {
    *
    * Zwei Geber meinen ausdrücklich **nur** benutzen: `E` und Enter. Zum
    * Springen gibt es am Schreibtisch die Leertaste, und die springt immer —
-   * auch direkt vor einem Knopf.
+   * auch direkt vor einem Knopf und auch mit dem Feuerlöscher in der Hand.
+   *
+   * **Und was die Figur trägt, zählt dabei mit** (`PlayerRig.useBusy`): Der
+   * Feuerlöscher hört von oben auf `A`, und solange er in der Hand liegt,
+   * gehört der Knopf ihm.
    *
    * @returns ob in diesem Bild gesprungen werden soll
    */
@@ -417,8 +421,12 @@ export class FlatControls {
     this.aQueued = false;
     let jump = false;
     if (buttonA) {
+      // **Und was die Figur _trägt_, hat denselben Vorrang wie das, was vor
+      // ihr steht** (`PlayerRig.useBusy`): Wer den Feuerlöscher in der Hand
+      // hält, schaltet ihn mit `A` an — und hüpft dabei nicht. Gesprungen wird
+      // nur, wenn `A` gerade niemandem gehört.
       if (this.rig.useCandidate) use = true;
-      else jump = true;
+      else if (!this.rig.useBusy) jump = true;
     }
     if (use) this.rig.requestUse();
     return jump;

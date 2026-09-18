@@ -19,6 +19,7 @@ import {
   KITCHEN_STATION_GRAB,
   PLATE_RIM_HANDLES,
   RIM_GRIP_IN,
+  kitchenCarryTurn,
   kitchenGrab,
   kitchenHandles,
   kitchenPieceGrab,
@@ -286,6 +287,31 @@ describe('Wie ein Küchending gegriffen werden will', () => {
     expect(Math.abs(grip!.hold!.along.x)).toBeGreaterThan(0.95);
     expect(axisOf(grip!)).toEqual([0, 1, 0]);
     expect(frontOf(grip!)).toEqual([1, 0, 0]);
+  });
+
+  /**
+   * **Und vor dem Bauch zielt er ebenfalls nach vorn** — die zweite Hälfte
+   * derselben Aussage.
+   *
+   * In der Brille dreht ihn sein Griff richtig herum; von oben und am Schirm
+   * gibt es keinen Griff, und dort hing er ungedreht am Gestell. Die Düse zeigt
+   * im Netz nach +x, also zeigte sie quer zur Figur, während der Strahl
+   * geradeaus ging — ein Löscher, den man seitlich hält und mit dem man nach
+   * vorn löscht. Eine Vierteldrehung stellt das gerade, und sie gilt nur für
+   * ihn: Ein Teller hat keine Vorderseite.
+   */
+  it('dreht den Feuerlöscher vor dem Bauch mit der Düse nach vorn', () => {
+    const turn = kitchenCarryTurn('extinguisher');
+    // Die Düse (+x im Netz) muss nach vorn zeigen, und vorn ist -z. Um die
+    // Gierachse gedreht wird aus `(1, 0, 0)` das Paar `(cos, -sin)` — dieselbe
+    // Rechnung, die `Object3D.rotation.y` im Spiel macht.
+    expect(Math.cos(turn)).toBeCloseTo(0, 6);
+    expect(-Math.sin(turn)).toBeCloseTo(-1, 6);
+    // Eine Vierteldrehung und nicht irgendeine.
+    expect(Math.abs(turn)).toBeCloseTo(Math.PI / 2, 6);
+    for (const item of ['plate', 'bun', 'pan', 'pot', 'patty-cooked'] as const) {
+      expect(kitchenCarryTurn(item)).toBe(0);
+    }
   });
 
   it('gibt dem Teller den Rand und die Unterseite', () => {

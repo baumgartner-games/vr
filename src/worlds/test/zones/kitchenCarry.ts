@@ -573,10 +573,13 @@ function fromBox(held: Dish | null, gives: KitchenItem | undefined, on: Dish | n
  *    Kiste. Wer sich vergriffen hat, soll nicht den Mülleimer suchen müssen —
  *    und ein Brötchen, das in seine Brötchenkiste zurückgeht, ist nichts
  *    verloren, denn dieselbe Kiste gibt es sofort wieder her.
- * 3. **Alles andere**: Die Hand nimmt das Frische auf, wenn sie kann — mit dem
- *    Teller an der Brötchenausgabe, mit der leeren Pfanne an der Pattykiste;
- *    das ist derselbe Handgriff wie an der `box` und steht dort im Langen.
- *    Geht auch das nicht, sagt sie es.
+ * 3. **Alles andere**: Was zusammengeht, geht zusammen und liegt danach in der
+ *    **Hand** — mit dem Teller an der Brötchenausgabe, mit der leeren Pfanne
+ *    an der Pattykiste, und **mit der Zutat an der Tellerkiste**. Der letzte
+ *    Fall ist derselbe Handgriff von der anderen Seite: Man hält den Burger an
+ *    den Tellervorrat und hat ihn auf dem Teller, ohne den Umweg über eine
+ *    freie Fläche. Das ist derselbe Handgriff wie an der `box` und steht dort
+ *    im Langen. Geht auch das nicht, sagt sie es.
  *
  * **Zurückgelegt wird nur, was blank ist.** Ein Brötchen mit Patty darauf
  * gehört in keine Brötchenkiste — was dabei mit dem Patty geschähe, wäre die
@@ -589,9 +592,20 @@ function fromCrate(held: Dish | null, gives: KitchenItem | undefined): KitchenDe
   const fresh = combine(held, dish(gives));
   // Dieselbe Bedingung wie an der `box`, und mit derselben Begründung: Was
   // nicht in die **Hand** geht, hinge in der Luft — die Kiste hat keine
-  // Fläche, auf der es liegen bliebe.
-  if (fresh.ok && fresh.held && !fresh.target) {
-    return { do: 'combine', held: fresh.held, target: null, moved: fresh.moved };
+  // Fläche, auf der es liegen bliebe. **Welche** der beiden Seiten das ist,
+  // steht dagegen nicht mehr hier: Die Pfanne nimmt das rohe Patty auf
+  // (`held`), der frische Teller nimmt den Burger aus der Hand (`target`) —
+  // und beide gehen denselben Weg in dieselbe Hand.
+  //
+  // Die zweite Hälfte war der gemeldete Fehler: An der **Tellerkiste** stand
+  // man mit dem fertigen Burger und las „Auf eine Vorratskiste wird nichts
+  // abgestellt". Abgestellt wurde dabei nie etwas — der Teller kommt aus der
+  // Kiste, das Gericht geht darauf, und beides zusammen liegt danach in der
+  // Hand. Genau das tut die Kiste mit Deckel seit jeher (`fromBox`); dass die
+  // offene es nicht tat, lag an dieser einen Zeile und nicht an der Regel.
+  if (fresh.ok && !(fresh.held && fresh.target)) {
+    const one = fresh.target ?? fresh.held;
+    if (one) return { do: 'combine', held: one, target: null, moved: fresh.moved };
   }
   return { do: 'refuse', why: 'Auf eine Vorratskiste wird nichts abgestellt' };
 }
@@ -746,11 +760,17 @@ function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
  * gespülter Teller zwischen drei schmutzigen ist der, den gleich jemand auf
  * die Theke stellt.
  *
+ * **Und es richtet an.** Wer eine Zutat trägt und vor sauberen Tellern steht,
+ * bekommt den obersten mit der Zutat darauf in die Hand — derselbe Handgriff
+ * wie an der Tellerkiste (`fromCrate`) und aus demselben Grund: Der Teller,
+ * den man gleich braucht, steht hier, und der Umweg über eine freie Fläche
+ * kostet bei _Overcooked_ die Runde.
+ *
  * Zwei weitere Zeilen, und beide sind dieselbe Aussage von zwei Seiten:
  *
- * - **Nur Teller**, und zwar nur **leere**. Ein Gitter ist eine Ablage für
- *   Geschirr und keine zweite Arbeitsplatte; ein Burger zwischen den Sprossen
- *   wäre beides nicht.
+ * - **Hineingestellt** werden nur Teller, und zwar nur **leere**. Ein Gitter
+ *   ist eine Ablage für Geschirr und keine zweite Arbeitsplatte; ein Burger
+ *   zwischen den Sprossen wäre beides nicht.
  * - Und es ist **voll** (`CLEAN_STACK_MAX`), während die Rückgabe nie voll ist.
  *   Der Grund steht dort — hier ist die Grenze dagegen sichtbar: Das Netz hat
  *   vier Fächer (`core/kitchenFit.RACK_SLOTS`), und ein fünfter Teller stünde
@@ -759,6 +779,34 @@ function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
 function inRack(held: Dish | null, stack: number, stacked: KitchenItem | null): KitchenDeed {
   if (!held) {
     return stack > 0 ? { do: 'take', dish: dish(stacked ?? 'plate') } : { do: 'nothing' };
+  }
+  // **Der oberste saubere Teller nimmt an, was auf ihn gehört** — und kommt
+  // mit dem Gericht darauf in die Hand.
+  //
+  // Es ist Zeile für Zeile der Handgriff an der Tellerkiste (`fromCrate`), nur
+  // aus einem Stapel statt aus einem Vorrat, und er ist aus demselben Grund
+  // gewollt: Wer den fertigen Burger in der Hand hat und vor vier sauberen
+  // Tellern steht, will ihn **anrichten** und nicht erst einen Teller nehmen,
+  // ihn irgendwo abstellen, den Burger aufnehmen und zurücklaufen. Was
+  // danebengeht, fällt durch auf die beiden Sätze darunter: Ein voller Teller,
+  // eine Pfanne, ein Brötchen über dreckigem Geschirr — nichts davon geht
+  // zusammen, und dann gilt weiter, dass in ein Gitter nur leere Teller
+  // gehören.
+  //
+  // **Nur mit sauberen**, und das ist keine zweite Regel, sondern dieselbe:
+  // Was aus dem Gitter kommt, ist der Teller, der darinsteht (`stacked`) —
+  // und auf einen dreckigen legt man nichts (`kitchenRecipes.TAKES`), der
+  // Versuch endet also ohnehin im Satz darunter. Gefragt wird trotzdem, damit
+  // hier steht, was gemeint ist.
+  if (stack > 0 && stacked === 'plate') {
+    const both = combine(held, dish('plate'));
+    // Dieselbe Bedingung wie an der Kiste: Was nicht in **eine** Hand geht,
+    // hinge in der Luft — ein Gitter hat vier Fächer für Teller und keine
+    // Ablage für den Rest.
+    if (both.ok && !(both.held && both.target)) {
+      const one = both.target ?? both.held;
+      if (one) return { do: 'combine', held: one, target: null, moved: both.moved };
+    }
   }
   if ((held.item !== 'plate' && held.item !== 'plate-dirty') || held.on.length) {
     return { do: 'refuse', why: 'In das Abtropfgitter gehören nur leere Teller' };

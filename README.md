@@ -707,7 +707,8 @@ Screenshots: [Archiv](docs/orbital/archive-desktop.png),
 > **Hinweis für Agenten:** Entwickelt und gepusht wird **direkt auf `main`** —
 > kein Feature-Branch, kein Pull Request, solange nichts anderes im Auftrag
 > steht. Das ganze Projektwissen — Features im Detail, vollständige Steuerung,
-> Architektur, Portale, Netzwerk, Deployment — steht in **[AGENTS.md](AGENTS.md)**.
+> Architektur, Portale, Netzwerk, Deployment — steht in **[AGENTS.md](AGENTS.md)**:
+> die Arbeitsregeln dort, alles Weitere in `docs/agents/`, ein Kapitel je Datei.
 
 ## Entwicklung
 
@@ -885,7 +886,7 @@ darin — eine einzelne Hand am Werkzeug, live über die Leitung, mit ihrem
 Konfig-Code darunter in einem Feld zum Herauskopieren. Die Gegenstelle dazu war
 der Poseraum des Eingaberaums, und den gibt es seit dem Umbau nicht mehr;
 diese Seite hört weiter zu, es schickt bloß gerade niemand. Details in
-[AGENTS.md](AGENTS.md#die-werkzeugseite).
+[Die Werkzeugseite](docs/agents/werkzeugseite.md).
 
 ## Eingabeseite
 
@@ -909,7 +910,7 @@ einen Motor gibt, **Rütteln testen**.
 
 Wenn dort „Kein Pad gefunden" steht: Ein Browser meldet ein angestecktes Pad
 erst, wenn daran **einmal ein Knopf gedrückt wurde**. Details in
-[AGENTS.md](AGENTS.md#die-eingabeseite).
+[Die Seite selbst](docs/agents/seite.md#die-eingabeseite).
 
 ### Belegung ändern — und die Karte des Geräts
 
@@ -1081,7 +1082,7 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Gitterlinien                  | Menü → Grafik → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |
 | Zurücksetzen                  | `B` / `Y` oder Menü                                                                                                                                                        | `R` oder Menü                                                          | Menü                     |
 
-Die vollständige Tabelle samt aller Werkzeuge steht in [AGENTS.md](AGENTS.md#steuerung).
+Die vollständige Tabelle samt aller Werkzeuge steht im [Kapitel Steuerung](docs/agents/steuerung.md).
 
 ## Konfig-Code
 
