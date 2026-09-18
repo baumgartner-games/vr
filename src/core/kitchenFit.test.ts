@@ -356,10 +356,10 @@ describe('der Möbelkatalog', () => {
    * in der Arbeitsplatte.
    */
   it('legt die Arbeitsflächen der Zeilenmöbel auf eine Höhe', () => {
-    // **Ohne die Tellerausgabe**, und das ist kein Vergessen: Sie ist seit dem
-    // Umbau eine Kiste voller Teller auf der Zeile (`plate-counter`), und ihre
-    // Ablage ist der Tellerstapel auf 0,85 m — keine Fläche der Zeile, sondern
-    // das, was darauf steht.
+    // **Ohne die Tellerkiste**, und das ist kein Vergessen: Sie ist seit dem
+    // Umbau eine Kiste auf dem Boden (`plate-counter`) und keine Arbeitsplatte
+    // — ihre Ablage ist der Kistenrand auf 0,40 m, wie bei den vier
+    // Vorratskisten an der Westwand.
     const line = ['counter', 'table', 'serve-counter', 'extinguisher'];
     for (const name of line) {
       const piece = kitchenPiece(name)!;

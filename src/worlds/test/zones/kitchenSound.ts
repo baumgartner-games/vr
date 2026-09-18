@@ -118,9 +118,11 @@ export const DEED_SOUNDS: Readonly<Record<DeedKind, KitchenCue | null>> = {
  * der Handgriff, mit dem in dieser Küche jede Zutat anfängt. Er klingt
  * deshalb anders als das Aufnehmen eines Tellers, obwohl beides `take` heißt.
  *
- * **Beide Kistenarten**: Die Tellerausgabe ist eine `box`, die vier
- * Vorratskisten sind ein `crate` (`kitchenCarry.StationKind`) — der
- * Unterschied ist, was man darauf abstellen darf, und nicht, wie es klingt.
+ * **Beide Kistenarten** klingen gleich: die Ablage, die etwas hergibt
+ * (`box` — heute die Ausgabe an der Theke), und die Kiste, auf der nichts
+ * steht (`crate` — die vier Vorratskisten und die Tellerkiste,
+ * `kitchenCarry.StationKind`). Der Unterschied zwischen ihnen ist, was man
+ * darauf abstellen darf, und nicht, wie es klingt.
  */
 export function deedSound(deed: DeedKind, station: StationKind): KitchenCue | null {
   if (deed === 'take' && (station === 'box' || station === 'crate')) return 'crate';

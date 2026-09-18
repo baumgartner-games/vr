@@ -25,6 +25,7 @@ import {
 import { showScreenPads } from './core/screenPads';
 import { INSTALL_TEXT } from './core/install';
 import { registerServiceWorker, watchInstall } from './core/pwa';
+import { armAudioUnlock, unlockAudio } from './core/audioUnlock';
 import { graphics, onGraphicsChange } from './core/graphicsSettings';
 import { firstGamepad } from './core/gamepad';
 
@@ -376,6 +377,12 @@ screenSeg.addEventListener('click', (event) => {
  * nicht mehr braucht.
  */
 enterButton.addEventListener('click', () => {
+  // **Hier und nicht später** wird der Ton aufgeschlossen: WebKit lässt einen
+  // `AudioContext` nur **im** Ereignis laufen, und alles danach — das Modul
+  // der Welt, das Modell, die Aufnahmen — dauert Sekunden
+  // (`core/audioUnlock.ts`). `armAudioUnlock` unten fängt jede weitere Geste
+  // ab, aber die erste ist diese.
+  unlockAudio();
   if (startOptions(headset, screenView(detectFlatRole())).way === 'vr') void startVR();
   else startFlat();
 });
@@ -652,6 +659,18 @@ installButton.addEventListener('click', () => {
  * Speicher von übermorgen.
  */
 window.addEventListener('load', registerServiceWorker);
+
+/**
+ * **Und jede Geste schließt den Ton auf**, bis er wirklich läuft
+ * (`core/audioUnlock.ts`).
+ *
+ * Der Druck auf _Starten_ tut es oben schon, und im Normalfall reicht das.
+ * Diese Zeile ist für alles daneben: den Weg über das Menü, einen Start per
+ * Adresse (`#kitchen`), eine Brille, die aus dem Ruhezustand zurückkommt und
+ * den Kontext dabei angehalten hat. Sie kostet nichts — sobald der Kontext
+ * läuft, meldet sie sich selbst wieder ab.
+ */
+armAudioUnlock();
 
 window.addEventListener('hashchange', () => {
   const id = window.location.hash.slice(1);

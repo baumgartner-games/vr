@@ -922,7 +922,7 @@ export function fitKitchen(plan: GridPlan): void {
         '',
         '- An der Westwand: vier Ausgaben — Brötchen, Patty, Salat, Tomate',
         '- An der Nordwand: Zeile, drei Herde, **Spülbecken** und',
-        '  **Abtropfbrett**, Tellerausgabe',
+        '  **Abtropfbrett**, Tellerkiste',
         '- In der Mitte: Schneidebrett, Mülleimer, Arbeitstisch',
         '- Quer hindurch: zwei Bahnen nach Süden — vier **Förderbänder**',
         '  (blau) im Osten, vier **Zugbänder** (orange) neben der Insel',

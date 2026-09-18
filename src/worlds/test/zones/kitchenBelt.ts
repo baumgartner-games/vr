@@ -762,8 +762,8 @@ export function beltReleases(kind: StationKind, working = false): boolean {
 
 /**
  * **Ob diese Sorte Station von selbst nachliefert** — die beiden Kistenarten
- * (`kitchenCarry.StationKind`: die Tellerausgabe `box`, die vier Vorratskisten
- * `crate`).
+ * (`kitchenCarry.StationKind`: die Ablage, die etwas hergibt, `box`; die
+ * Kisten, auf denen nichts steht, `crate`).
  *
  * Für die Bandrechnung ist eine Kachel entweder belegt oder frei
  * (`BeltTile.loaded`), und eine Kiste ist von beidem nichts: Auf ihr liegt
