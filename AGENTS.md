@@ -6221,6 +6221,52 @@ liegen in `public/` und werden unverändert kopiert. Sie durch den Bündler zu
 schicken, hieße 2,5 MB Modelle und Töne zu importieren, die niemand
 importiert, sondern die geladen werden, wenn eine Welt sie braucht.
 
+#### Und der Ton wird aufgeschlossen, nicht eingeschaltet
+
+**„Warum höre ich in der PWA nichts? Im Web schon."** Der Satz beschreibt den
+Fehler genauer, als er klingt — denn es ist kein Fehler am Ton, sondern einer
+an der **Reihenfolge**.
+
+Web Audio darf nicht von allein loslegen: Ein `AudioContext` fängt angehalten
+an und läuft erst nach einer Geste des Spielers. Nur sind die Browser sich
+nicht einig, wie lange eine Geste zählt. **Chromium** kennt _sticky
+activation_ — wer einmal geklickt hat, darf für den Rest der Sitzung einen
+Kontext aufmachen, und der läuft sofort. **WebKit** (iPhone, iPad und jede
+dorthin installierte App) kennt nur _transient activation_: Der Kontext muss
+**im Ereignis selbst** entstehen oder fortgesetzt werden. Ein `resume()`
+danach — aus dem Bildtakt, nach dem Laden einer Welt — wird still abgelehnt,
+und der Kontext bleibt für immer angehalten.
+
+Diese Spielwiese machte ihren Kontext genau dort auf, wo man es beim Schreiben
+für sparsam hält: **beim ersten Ton**, also wenn eine Zone ihre Aufnahmen holt
+(`zones/kitchenAudio.prime`). Zwischen dem Druck auf *Starten* und diesem
+Augenblick liegen ein Weltmodul, ein Modell und ein paar Megabyte Ton. Auf
+Chromium ging das gut, auf WebKit ist es Sekunden zu spät — und deshalb ist
+„im Browser ja, in der App nein" kein Zufall, sondern das erwartbare Bild.
+
+Seitdem gibt es `core/audioUnlock.ts`, und es sind zwei Zeilen Absicht:
+
+- **Im Klick auf *Starten*** (`main.ts`) wird der Kontext angefasst, nicht
+  danach. Das ist die Geste, die jeder Spieler ohnehin macht.
+- **Und jede weitere Geste versucht es wieder** (`armAudioUnlock`:
+  `pointerdown`, `pointerup`, `touchend`, `keydown`, `click`), solange der
+  Kontext nicht `running` meldet. Angemeldet bleibt das **für immer**, und das
+  ist der zweite Grund für die Datei: Ein laufender Kontext bleibt nicht
+  laufend. iOS kennt dafür sogar einen eigenen Zustand — `interrupted`, wenn
+  ein Anruf kommt oder man die App wegschiebt. Wer sich nach dem ersten Erfolg
+  abmeldete, hätte nach dem ersten App-Wechsel eine stille Küche, die sich mit
+  keiner Geste mehr heilen ließe. Der Preis ist ein Vergleich je Fingertipp.
+
+Dazu der **stille Puffer**: ein einzelnes Sample, eine
+Achtundvierzigtausendstelsekunde, nicht zu hören. `resume()` allein genügt
+WebKit nicht immer; ein abgespieltes Sample ist der Beweis, dass es aus einer
+Geste heraus geschah. Es ist die übliche und einzige Art, ein iPhone
+aufzuschließen.
+
+**Was daran zu prüfen ist, ist nicht der Klang**, sondern wann angefasst wird
+und wie oft — und genau das steht im Test (`core/audioUnlock.test.ts`, an
+einem nachgebauten Kontext, weil Jest kein Web Audio hat).
+
 #### Und dann zog die erste Küche in den zweiten Katalog um
 
 Der zweite Baukasten war als **Auslage** gebaut worden — hinstellen, ansehen,
@@ -6643,6 +6689,16 @@ Und das sind die Regeln, die darin stehen:
   `box` und damit eine Ablage, auf der Teller herumstanden. Heute ist sie eine
   Kiste mit sechs sichtbaren Tellern darin, gibt beliebig viele her und nimmt
   jeden blanken zurück.
+
+  **Und sie steht auf dem Boden**, seit einem Spieltest weiter: „Nur soll die
+  Teller Kiste nicht auf einer Arbeitsplatte stehen." Eine Kachel lang stand
+  sie auf einem Unterschrank, und das war wieder derselbe Widerspruch wie beim
+  Abtropfgitter davor — die vier Vorratskisten **sind** ihr Möbel und stehen
+  nicht auf einem. Eine fünfte Kiste mit eigenem Sockel sähe aus wie ein
+  Sonderfall, den es nicht gibt. `base` ist deshalb die Kiste selbst
+  (`dinerPiece('crate')`, 0,40 m), die sechs Teller stapeln sich darin von 0,05
+  bis 0,35 und bleiben unter dem Rand, und wie bei den Vorratskisten ist die
+  Oberkante zugleich die Ablage — ein eigener `deck` fällt damit weg.
 - **Der Herd hat vier Phasen** (`kitchenClock.ts`): vier Sekunden braten,
   sechs verbrennen, fünf bis zum Feuer, dann brennt es. Dazu gehören die
   Anzeigen: Flammen unter der Pfanne, ein Fortschrittsbalken in Warm, einer in
@@ -7502,12 +7558,18 @@ Und das sind die Regeln, die darin stehen:
   ein Mensch ein Möbel anfasst, um es zu schieben. Eine feste Zahl für alle wäre
   bequemer und stünde beim Mülleimer in der Luft; eine Ausnahmeliste wäre das,
   was der Auftrag nicht will. **Es braucht keine** — und das ist der Prüfstein,
-  nicht die Bequemlichkeit. Nach oben ist die Zahl trotzdem gedeckelt
-  (`PIECE_GRIP_HIGH`), und zwar auf die **Traghöhe** aus `core/chefFit`
-  (`CHEF_CARRY.y`, 0,62 m): Die Tellerkiste stellt ihre Teller auf 0,85 m aus,
-  und ein Griff dort oben wäre keine Hüfte mehr, sondern eine Schulter. Der
-  Deckel ist keine Ausnahmeliste, sondern dieselbe Regel mit einer Grenze —
-  angefasst wird ein Möbel dort, wo die Hand ohnehin ist.
+  nicht die Bequemlichkeit.
+
+  Einen Deckel nach oben (`PIECE_GRIP_HIGH`, die Traghöhe des Kochs) gab es
+  dazwischen **einen Umbau lang**, und er ist wieder weg. Er stand da für die
+  Tellerkiste, solange sie auf einer Arbeitsplatte stand und ihre Teller auf
+  0,85 m auslegte — ein Griff dort oben wäre eine Schulter gewesen und keine
+  Hüfte. Seit die Kiste auf dem Boden steht, gibt es kein Möbel mehr über der
+  Grenze, und eine Grenze, die nichts mehr begrenzt, ist eine Zeile, die beim
+  nächsten Lesen erklärt werden muss. Die untere Grenze im Test ist dafür
+  **einschließend** geworden: Eine Kiste ist genau 0,40 m hoch, und ein Möbel
+  abzulehnen, während sein Nachbar 1,2 mm höher durchgeht, prüfte eine Rundung
+  und keine Regel.
 
   **Die gegriffene Kante bleibt einem zugewandt** (`kitchenBuild.holdForRim`).
   Wer in der Brille den Herd an seiner rechten Seite packt, hält ihn rechts, und

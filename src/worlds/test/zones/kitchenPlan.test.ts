@@ -182,17 +182,18 @@ describe('die Rollen der Möbel', () => {
       'tomato',
     ]);
     for (const spot of gives) {
-      // **Zwei Kistenarten, und der Unterschied steht am Möbel**: Die
-      // Tellerausgabe ist eine Arbeitsplatte, die Teller hergibt (`box`); die
-      // vier Vorratskisten sind offen und bis oben voll, auf ihnen wird nichts
-      // abgestellt (`crate`, `core/kitchenFit.KitchenPiece.supply`).
+      // **Zwei Kistenarten, und der Unterschied steht am Möbel**: Eine
+      // Ablage, die etwas hergibt, ist eine `box` und nimmt auch etwas auf;
+      // eine Kiste ist offen und bis oben voll, auf ihr wird nichts abgestellt
+      // (`crate`, `core/kitchenFit.KitchenPiece.supply`). Seit die
+      // Tellerkiste eine Kiste ist, ist hier jede Ausgabe eine.
       const crate = kitchenPiece(spot.name)?.supply === true;
       expect({ name: spot.name, kind: stationKind(spot.name, spot.gives) }).toEqual({
         name: spot.name,
         kind: crate ? 'crate' : 'box',
       });
       // Jede **Zutaten**ausgabe heißt nach dem, was sie hergibt — im Katalog
-      // heißen alle vier gleich (`Spot.label`). Die Tellerausgabe braucht das
+      // heißen alle vier gleich (`Spot.label`). Die Tellerkiste braucht das
       // nicht: Sie heißt schon im Katalog nach ihrem Inhalt.
       if (crate && spot.gives !== 'plate') expect(spot.label).toBeDefined();
     }

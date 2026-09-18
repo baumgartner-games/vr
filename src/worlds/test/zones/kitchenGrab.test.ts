@@ -498,11 +498,20 @@ describe('Wie ein Küchenmöbel gegriffen werden will', () => {
    * weil man daran steht und nicht darauf schneidet. Sein Griff ist
    * mitgewandert, ohne dass jemand eine Zeile dafür geschrieben hätte — genau
    * dafür wird die Höhe abgeleitet und nicht eingetragen.
+   *
+   * **Die untere Grenze ist einschließend**, und das ist keine Aufweichung,
+   * sondern die Bauart der Kisten: Eine Kiste ist genau 0,40 m hoch
+   * (`dinerPiece('crate')`), und ihre Oberkante **ist** ihre Ablage. Die vier
+   * Vorratskisten liegen mit ihrem Inhalt ein paar Millimeter darüber
+   * (0,4012 bis 0,499) und kamen deshalb durch; die Tellerkiste, deren Teller
+   * unter dem Rand bleiben, landet auf dem Rand selbst. Ein Möbel an der
+   * Grenze abzulehnen, während sein Nachbar 1,2 mm höher durchgeht, prüfte
+   * eine Rundung und keine Regel.
    */
   it('landet damit bei jedem Möbel zwischen 0,40 m und 0,80 m', () => {
     for (const piece of KITCHEN_PIECES) {
       const y = pieceHandles(piece)[0].pose.position.y;
-      expect([piece.name, y > 0.4 && y < 0.8]).toEqual([piece.name, true]);
+      expect([piece.name, y >= 0.4 && y < 0.8]).toEqual([piece.name, true]);
     }
   });
 

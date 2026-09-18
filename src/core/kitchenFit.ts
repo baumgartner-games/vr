@@ -749,37 +749,47 @@ const SUPPLY_CRATES: readonly KitchenPiece[] = [
 export const KITCHEN_PIECES: readonly KitchenPiece[] = [
   {
     name: 'plate-counter',
-    label: 'Tellerausgabe',
+    label: 'Tellerkiste',
     tiles: [1, 1],
-    base: { file: 'diner', node: 'kitchencounter_straight_A' },
-    // **Eine Kiste voller Teller auf der Zeile**, und das ist eine Korrektur.
-    // Hier stand ein **Abtropfgitter** voller Teller, und es sah gut aus — nur
-    // sagte es das Falsche: Ein Abtropfgitter hat eine Kapazität und einen
-    // Inhalt, den man leer räumen kann (`sink-drain`, `RACK_SLOTS`). Diese
-    // Ausgabe wird nie leer, so wie die vier Vorratskisten an der Westwand
-    // auch nicht. Zwei Möbel, die dasselbe zeigen und Verschiedenes bedeuten,
-    // sind eins zu viel.
+    // **Eine Kiste voller Teller, und sie steht auf dem Boden.** Beides sind
+    // Korrekturen aus demselben Spieltest, und die zweite ist die ältere.
+    //
+    // Hier stand zuerst ein **Abtropfgitter** voller Teller, und es sah gut
+    // aus — nur sagte es das Falsche: Ein Abtropfgitter hat eine Kapazität und
+    // einen Inhalt, den man leer räumen kann (`sink-drain`, `RACK_SLOTS`).
+    // Diese Ausgabe wird nie leer, so wie die vier Vorratskisten an der
+    // Westwand auch nicht. Zwei Möbel, die dasselbe zeigen und Verschiedenes
+    // bedeuten, sind eins zu viel.
+    //
+    // Dann stand die Kiste eine Weile **auf einer Arbeitsplatte**, und das war
+    // wieder dieselbe Sorte Widerspruch: Die vier Vorratskisten stehen auf dem
+    // Boden — sie **sind** das Möbel und stehen nicht darauf. Eine fünfte
+    // Kiste, die als Einzige einen Unterschrank mitbringt, sähe aus wie ein
+    // Sonderfall, den es nicht gibt; und ein Stapel auf 0,85 m ist keine
+    // Ausgabe mehr, sondern ein Regalbrett über Hüfthöhe. Der Unterschrank ist
+    // deshalb weg: `base` ist die Kiste selbst, wie bei `SUPPLY_CRATES`.
     //
     // Der Boden der Kiste liegt 5 cm über ihrem Fuß (`crate`, nachgemessen),
-    // also fangen die Teller bei 0,55 an; sechs davon zu je 5 cm stapeln sich
-    // bis 0,85 und bleiben damit knapp unter dem Rand bei 0,90.
+    // also fangen die Teller bei 0,05 an; sechs davon zu je 5 cm
+    // (`dinerPiece('plate').height`) stapeln sich bis 0,35 und bleiben damit
+    // unter dem Rand bei 0,40.
     //
     // **Und jeder liegt verdreht auf dem vorigen.** Ein Stapel aus fluchtenden
     // Scheiben ist von oben **ein** Teller — dieselbe Überlegung wie beim
     // Stapel an der Rückgabe (`zones/kitchenProps.DIRTY_TWIST`, 13°), und hier
     // ausgeschrieben, weil der Katalog keine Zone kennt.
+    base: { file: 'diner', node: 'crate' },
     over: [
-      { file: 'diner', node: 'crate', at: 0.5 },
-      { file: 'diner', node: 'plate', at: 0.55, tilt: [0, 0.0, 0] },
-      { file: 'diner', node: 'plate', at: 0.6, tilt: [0, 0.2269, 0] },
-      { file: 'diner', node: 'plate', at: 0.65, tilt: [0, 0.4538, 0] },
-      { file: 'diner', node: 'plate', at: 0.7, tilt: [0, 0.6807, 0] },
-      { file: 'diner', node: 'plate', at: 0.75, tilt: [0, 0.9076, 0] },
-      { file: 'diner', node: 'plate', at: 0.8, tilt: [0, 1.1345, 0] },
+      { file: 'diner', node: 'plate', at: 0.05, tilt: [0, 0.0, 0] },
+      { file: 'diner', node: 'plate', at: 0.1, tilt: [0, 0.2269, 0] },
+      { file: 'diner', node: 'plate', at: 0.15, tilt: [0, 0.4538, 0] },
+      { file: 'diner', node: 'plate', at: 0.2, tilt: [0, 0.6807, 0] },
+      { file: 'diner', node: 'plate', at: 0.25, tilt: [0, 0.9076, 0] },
+      { file: 'diner', node: 'plate', at: 0.3, tilt: [0, 1.1345, 0] },
     ],
-    height: 0.9,
-    // Ausgegeben wird **oben aus dem Stapel** und nicht auf der Zeile daneben.
-    deck: 0.85,
+    // Kein eigener `deck`: Wie bei den vier Vorratskisten ist die Oberkante
+    // zugleich die Ablage — ausgegeben wird **oben aus der Kiste**.
+    height: 0.4,
     supply: true,
   },
   {
