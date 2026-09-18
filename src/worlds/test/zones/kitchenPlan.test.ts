@@ -111,7 +111,10 @@ describe('die Rollen der Möbel', () => {
     ['serve-counter', undefined, 'top'],
     // Dasselbe Möbel mit einer Zutat darin ist eine Ausgabe.
     ['serve-counter', 'bun', 'box'],
-    ['plate-counter', 'plate', 'box'],
+    // Und die Tellerausgabe ist eine **Vorratskiste** wie die vier an der
+    // Westwand: Sie wird nie leer, und abgestellt wird auf ihr nichts
+    // (`core/kitchenFit.KitchenPiece.supply`).
+    ['plate-counter', 'plate', 'crate'],
     // Die Spüle sind zwei Stationen geworden: Im Becken wird gespült, auf dem
     // Abtropfbrett stapeln sich die sauberen Teller. Möbel, die so heißen,
     // brauchen dafür keine Zeile im Aufbau.
@@ -188,9 +191,10 @@ describe('die Rollen der Möbel', () => {
         name: spot.name,
         kind: crate ? 'crate' : 'box',
       });
-      // Jede Ausgabe heißt nach dem, was sie hergibt — im Katalog heißen alle
-      // vier gleich (`Spot.label`).
-      if (crate) expect(spot.label).toBeDefined();
+      // Jede **Zutaten**ausgabe heißt nach dem, was sie hergibt — im Katalog
+      // heißen alle vier gleich (`Spot.label`). Die Tellerausgabe braucht das
+      // nicht: Sie heißt schon im Katalog nach ihrem Inhalt.
+      if (crate && spot.gives !== 'plate') expect(spot.label).toBeDefined();
     }
   });
 
@@ -317,7 +321,6 @@ describe('die Arbeitsflächen der Zeile', () => {
       'extinguisher',
       'counter',
       'counter',
-      'plate-counter',
       'counter',
       'counter',
       'table',

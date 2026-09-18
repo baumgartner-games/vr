@@ -54,11 +54,15 @@ ersetzt ist). Die Liste steht im Werkzeug, nicht nur im Ergebnis.
 
 Aufbereitet mit `tools/diner-model.mjs`: aus 225 Einzeldateien (5,8 MB, je eine
 `.gltf` und eine `.bin`) wird **eine** Datei mit 156 Knoten — ein Material, eine
-Textur, 88 234 Dreiecke, 1,10 MB. Draußen bleiben 69 Stücke: Pizzen, Eintöpfe,
+Textur, 87 978 Dreiecke, 1,09 MB. Draußen bleiben 69 Stücke: Pizzen, Eintöpfe,
 das Eis-Zubehör und dreißig Zutaten, für die es kein Rezept gibt. **Zehn
 Zutaten kommen mit** (`KEEP_FOOD`): Brötchen ganz, als Boden und als Deckel,
 das Patty roh, gebraten und verbrannt, Salat und Tomate je ganz und
-geschnitten. Sie sind seit dem Umbau das Essen **beider** Küchen — die erste
+geschnitten. Von der geschnittenen Tomate ist es **eine** Scheibe
+(`food_ingredient_tomato_slice`, 220 Dreiecke) und nicht der Dreierstapel
+(`…_tomato_slices`, 476): Auf einem Burger liegt eine, und drei übereinander
+machten aus jeder Tomate einen Turm. Zusammen wiegen die zehn 2 722 Dreiecke.
+Sie sind seit dem Umbau das Essen **beider** Küchen — die erste
 baute es bis dahin aus Zylindern (`worlds/test/zones/kitchenProps.ts`). Die
 Geometrie ist quantisiert und mit
 `EXT_meshopt_compression` gepackt (roh wären es 3,1 MB); die Textur ist eine

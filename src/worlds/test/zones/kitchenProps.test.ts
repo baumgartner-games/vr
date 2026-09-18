@@ -485,27 +485,53 @@ describe('FoodKit.dirtyStack', () => {
 });
 
 describe('der Teller im Spülbecken', () => {
-  it('liegt flach, weil die Wanne flach ist', () => {
-    expect(SINK_BOWL.rim - SINK_BOWL.floor).toBe(0);
-    expect(SINK_TILT).toBe(0);
-    // Und er liegt auf dem Wasserspiegel, nicht darunter: Die Ablage des
-    // Beckens ist der Spiegel (`kitchenFit.sink-basin.deck`).
-    expect(SINK_BOWL.water).toBeGreaterThan(SINK_BOWL.floor);
+  /**
+   * **Er liegt schräg, und der Winkel ist ausgerechnet und nicht gewählt.**
+   *
+   * Aus dem Spieltest: „Dreckige Teller in dem Waschbecken sollen wirklich
+   * schräg rein, also fast zur Hälfte ins Wasser." Genau das ist die Rechnung:
+   * untere Kante auf dem Beckenboden, obere auf Randhöhe — der Teller
+   * überspannt die Beckentiefe, und weil das Wasser auf halber Tiefe steht,
+   * liegt seine untere Hälfte darin.
+   *
+   * Es stand hier einmal das Gegenteil, und beides war richtig aufgeschrieben
+   * und trotzdem falsch: `SINK_BOWL.floor` war auf die **Randhöhe** gesetzt,
+   * das Becken also null tief, und dieselbe Formel gab folgerichtig null Grad.
+   */
+  it('lehnt vom Beckenboden bis auf Randhöhe', () => {
+    expect(SINK_BOWL.rim - SINK_BOWL.floor).toBeCloseTo(0.19, 3);
+    expect(SINK_TILT).toBeGreaterThan(0.3);
+    expect(SINK_TILT).toBeLessThan(Math.PI / 6);
+    // Die gekippte Scheibe überspannt genau die Beckentiefe: Ihre halbe Höhe
+    // ist die halbe Tiefe.
+    expect(Math.sin(SINK_TILT) * PLATE_RADIUS).toBeCloseTo(
+      (SINK_BOWL.rim - SINK_BOWL.floor) / 2,
+      6,
+    );
   });
 
   /**
-   * **Er liegt quer über der Mulde und fällt nicht hinein.**
-   *
-   * Der Teller misst seit dem Umbau 0,475 m (`plate` aus dem zweiten
-   * Baukasten, vorher ein gebauter Zylinder von 0,75 m), die Mulde 0,70 ×
-   * 0,385 m. Er ist damit **schmaler als die Wanne lang** und **breiter als
-   * sie tief** — er kommt also über den Rand zu liegen, quer zur langen Seite,
-   * und das ist das Bild, um das es geht: ein Teller im Abwasch und kein
-   * Teller, der auf dem Boden der Wanne verschwindet.
+   * **Und dabei steht er fast zur Hälfte im Wasser.** Der Spiegel liegt auf
+   * halber Beckentiefe, der Teller wird auf ihn gelegt (`kitchenFit`,
+   * `sink-basin.deck`) — also liegt die Hälfte darunter.
    */
-  it('liegt quer über der Mulde und nicht darin', () => {
-    expect(2 * PLATE_RADIUS).toBeGreaterThan(SINK_BOWL.depth);
+  it('taucht bis zur Hälfte ein', () => {
+    expect(SINK_BOWL.water).toBeCloseTo((SINK_BOWL.floor + SINK_BOWL.rim) / 2, 6);
+    const drop = Math.sin(SINK_TILT) * PLATE_RADIUS;
+    // Die tiefste Kante endet auf dem Beckenboden, die höchste auf dem Rand.
+    expect(SINK_BOWL.water - drop).toBeCloseTo(SINK_BOWL.floor, 6);
+    expect(SINK_BOWL.water + drop).toBeCloseTo(SINK_BOWL.rim, 6);
+  });
+
+  /**
+   * **Und er passt hinein**, seit er aus dem Baukasten kommt: 0,475 m gegen
+   * eine Öffnung von 0,80 × 0,50 m. Der gebaute Teller von 0,75 m konnte das
+   * nicht — er lag quer über dem Rand, und der Winkel war ein Kompromiss mit
+   * einer Mulde, in die nichts hineinging.
+   */
+  it('passt in die Mulde, auch gekippt', () => {
     expect(2 * PLATE_RADIUS).toBeLessThan(SINK_BOWL.width);
+    expect(2 * PLATE_RADIUS * Math.cos(SINK_TILT)).toBeLessThan(SINK_BOWL.depth);
   });
 });
 

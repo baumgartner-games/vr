@@ -16,6 +16,9 @@
  * liegt: Rechnung hier, Darstellung dort.
  */
 
+import { TILE } from '../../nav/navTile';
+import { FIELD, KITCHEN } from '../layout';
+
 import type { KitchenDeed, StationKind } from './kitchenCarry';
 
 /**
@@ -222,7 +225,106 @@ export interface KitchenCueSpec {
   readonly gain: number;
   /** Ob der Ton läuft, solange etwas gilt — statt einmal zu klingen. */
   readonly loop: boolean;
+  /**
+   * **Wie weit er trägt** — fehlt er, gilt `NEARBY`: ein Handgriff, den man
+   * dort hört, wo er geschieht.
+   *
+   * Drei Töne sind keine Handgriffe, sondern **Ansagen an den Raum**, und die
+   * stehen deshalb mit `EVERY_ROOM` darin: das Radio, das Feuer und die
+   * Warnung kurz davor. Ein Feuer, das man drei Schritte weiter nicht mehr
+   * hört, ist keine Warnung, sondern eine Überraschung.
+   */
+  readonly reach?: KitchenReach;
 }
+
+/**
+ * **Wie weit ein Küchengeräusch trägt**, in Metern.
+ *
+ * Acht: Die Küche misst elf Kacheln in der Breite (`kitchenPlan.KITCHEN_SPOTS`
+ * und `layout.KITCHEN`), acht Meter reichen also fast, aber nicht ganz von
+ * einer Ecke in die andere. Das ist der Zweck — wer an der Rückgabe steht,
+ * soll den Herd an der Nordwand **noch** hören.
+ */
+export const KITCHEN_EAR = 8;
+
+/**
+ * **Und auf welcher Entfernung es halb so laut ist**, in Metern.
+ *
+ * Zwei, also zwei Kacheln. Die Kurve ist damit vorn steil und hinten flach,
+ * und genau so hört man auch: Der Unterschied zwischen „vor mir" und „zwei
+ * Schritte weiter" ist der, auf den es ankommt; ob etwas sechs oder sieben
+ * Meter weg ist, hört ohnehin niemand.
+ */
+export const KITCHEN_HALF = 2;
+
+/**
+ * **Wo ein Ton zu hören ist** — bis wohin voll, und wo er aufhört.
+ *
+ * Bis eben hatte jeder Ton dieselbe Antwort: eine Kurve, die **an der Quelle**
+ * anfängt zu fallen. Für einen Handgriff ist das richtig — ein Teller, der
+ * abgestellt wird, gehört an die Stelle, an der er abgestellt wird. Für das
+ * **Radio** war es falsch: Vier Schritte weiter war es weg, und ein Radio, das
+ * man nur davor hört, ist ein Kopfhörer.
+ *
+ * Deshalb hat ein Ton jetzt zwei Zahlen statt einer. Innerhalb von `full` ist
+ * er **voll** zu hören, dahinter fällt er auf derselben Kurve wie bisher, und
+ * bei `gone` ist er weg. Die Balance bleibt davon unberührt: Auch ein Ton, der
+ * im ganzen Raum gleich laut ist, kommt von einer Seite.
+ */
+export interface KitchenReach {
+  /** Bis hierher voll zu hören, in Metern. */
+  readonly full: number;
+  /** Und hier ist Schluss. */
+  readonly gone: number;
+}
+
+/**
+ * **Ein Handgriff**: zu hören, wo er geschieht. Die alte, einzige Antwort —
+ * `full = 0` gibt Zeile für Zeile dieselbe Kurve wie vorher.
+ */
+export const NEARBY: KitchenReach = { full: 0, gone: KITCHEN_EAR };
+
+/** Wie schnell es hinter `full` abfällt — die alte Kurve, in einer Zahl. */
+const KITCHEN_FADE = KITCHEN_EAR / KITCHEN_HALF;
+
+/**
+ * **Der ganze Raum**: voll zu hören überall in der Küchenzone, danach acht
+ * Meter Auslauf.
+ *
+ * Gerechnet aus der Zone selbst (`layout.KITCHEN`) und nicht geschätzt: Ihre
+ * Diagonale ist die größte Entfernung, die zwei Punkte darin haben können.
+ * Wächst die Küche, wächst das Radio mit — und niemand sucht den Tag danach
+ * eine Zahl, die einmal gestimmt hat.
+ */
+export const EVERY_ROOM: KitchenReach = {
+  full: Math.hypot(KITCHEN.w, KITCHEN.d) * TILE,
+  gone: Math.hypot(KITCHEN.w, KITCHEN.d) * TILE + KITCHEN_EAR,
+};
+
+/**
+ * **Und die ganze Welt** — heute benutzt es niemand, und es steht trotzdem
+ * hier.
+ *
+ * Aus dem Spieltest: „ggf. wäre es auch interessant bei dem Radio, es
+ * einstellbar zu halten, dass das Radio in der gesamten Welt zu hören ist."
+ * Genau dafür ist es da: Wer das will, trägt in `KITCHEN_CUES.radio` statt
+ * `EVERY_ROOM` dieses hier ein, und sonst ändert sich nichts. Die Zahl ist die
+ * Diagonale des Geländes (`layout.FIELD`), also wirklich überall.
+ */
+export const EVERYWHERE: KitchenReach = {
+  full: Math.hypot(FIELD.w, FIELD.d) * TILE,
+  gone: Math.hypot(FIELD.w, FIELD.d) * TILE + KITCHEN_EAR,
+};
+
+/**
+ * **Wie weit die Balance ausschlägt**, 0…1.
+ *
+ * 0,8 und nicht 1: Ein Geräusch, das ganz auf einem Ohr liegt, klingt im
+ * Headset wie im Kopf und nicht wie im Raum — und wer sich einmal umdreht,
+ * bekommt es von einem Ohr auf das andere geworfen. Ein Rest auf der anderen
+ * Seite hält es draußen.
+ */
+export const KITCHEN_PAN = 0.8;
 
 /**
  * **Welche Aufnahme zu welchem Ereignis gehört** — eine Zeile je Ton.
@@ -255,15 +357,32 @@ export const KITCHEN_CUES: Readonly<Record<KitchenCue, KitchenCueSpec>> = {
   rinse: { files: ['water.ogg'], gain: 0.3, loop: true },
   combine: { files: ['combine-0.ogg', 'combine-1.ogg'], gain: 0.4, loop: false },
   crate: { files: ['crate-0.ogg'], gain: 0.4, loop: false },
-  warn: { files: ['warn.ogg'], gain: 0.45, loop: false },
-  fire: { files: ['fire.ogg'], gain: 0.5, loop: true },
+  warn: { files: ['warn.ogg'], gain: 0.45, loop: false, reach: EVERY_ROOM },
+  fire: { files: ['fire.ogg'], gain: 0.5, loop: true, reach: EVERY_ROOM },
   spray: { files: ['spray.ogg'], gain: 0.45, loop: true },
   douse: { files: ['douse.ogg'], gain: 0.45, loop: false },
   serve: { files: SOUND_TRIALS.serve[0]!.files, gain: 0.5, loop: false },
   place: { files: ['place-0.ogg', 'place-1.ogg', 'place-2.ogg'], gain: 0.35, loop: false },
   pick: { files: ['pick-0.ogg', 'pick-1.ogg'], gain: 0.3, loop: false },
-  radio: { files: ['radio-0.ogg', 'radio-1.ogg', 'radio-2.ogg'], gain: 0.3, loop: true },
+  radio: {
+    files: ['radio-0.ogg', 'radio-1.ogg', 'radio-2.ogg'],
+    gain: 0.3,
+    loop: true,
+    reach: EVERY_ROOM,
+  },
 };
+
+/**
+ * **Wie weit dieser Ton trägt** — die Zeile, die jeder Aufrufer braucht und
+ * niemand zweimal schreiben soll.
+ *
+ * Ohne Eintrag gilt `NEARBY`: ein Handgriff dort, wo er geschieht. Ein `??`
+ * an elf Aufrufstellen wäre elfmal dieselbe Entscheidung, und eine davon
+ * bekäme eines Tages eine andere.
+ */
+export function reachOf(cue: KitchenCue): KitchenReach {
+  return KITCHEN_CUES[cue].reach ?? NEARBY;
+}
 
 /** Alle Töne einmal — für das Vorladen und für die Tests. */
 export const KITCHEN_CUE_IDS = Object.keys(KITCHEN_CUES) as readonly KitchenCue[];
@@ -284,37 +403,6 @@ export function kitchenSoundFiles(): readonly string[] {
     for (const trial of SOUND_TRIALS[cue]) for (const file of trial.files) seen.add(file);
   return [...seen];
 }
-
-/**
- * **Wie weit ein Küchengeräusch trägt**, in Metern.
- *
- * Acht: Die Küche misst elf Kacheln in der Breite (`kitchenPlan.KITCHEN_SPOTS`
- * und `layout.KITCHEN`), acht Meter reichen also fast, aber nicht ganz von
- * einer Ecke in die andere. Das ist der Zweck — wer an der Rückgabe steht,
- * soll den Herd an der Nordwand **noch** hören und das Radio daneben schon
- * leiser.
- */
-export const KITCHEN_EAR = 8;
-
-/**
- * **Und auf welcher Entfernung es halb so laut ist**, in Metern.
- *
- * Zwei, also zwei Kacheln. Die Kurve ist damit vorn steil und hinten flach,
- * und genau so hört man auch: Der Unterschied zwischen „vor mir" und „zwei
- * Schritte weiter" ist der, auf den es ankommt; ob etwas sechs oder sieben
- * Meter weg ist, hört ohnehin niemand.
- */
-export const KITCHEN_HALF = 2;
-
-/**
- * **Wie weit die Balance ausschlägt**, 0…1.
- *
- * 0,8 und nicht 1: Ein Geräusch, das ganz auf einem Ohr liegt, klingt im
- * Headset wie im Kopf und nicht wie im Raum — und wer sich einmal umdreht,
- * bekommt es von einem Ohr auf das andere geworfen. Ein Rest auf der anderen
- * Seite hält es draußen.
- */
-export const KITCHEN_PAN = 0.8;
 
 /** Wo jemand steht und wohin er schaut — mehr braucht das Hören nicht. */
 export interface KitchenEar {
@@ -347,18 +435,28 @@ export interface KitchenHeard {
  * ein Teller darunter — wer davorsteht, hört sie alle von derselben Stelle,
  * und eine Höhe in der Rechnung machte aus dem Bücken ein Lauterwerden.
  *
- * Die Lautstärke fällt zweifach: erst die Kurve über `KITCHEN_HALF` (nah steil,
- * fern flach), dann ein linearer Auslauf bis `KITCHEN_EAR`. Der Auslauf ist
- * nicht Schönheit, sondern Arbeitsersparnis: Ohne ihn stünde am Rand der
- * Hörweite eine Stimme, die mit einem Sprung verstummt, und das hört man.
+ * Die Lautstärke fällt zweifach: erst die Kurve (nah steil, fern flach), dann
+ * ein linearer Auslauf bis ans Ende. Der Auslauf ist nicht Schönheit, sondern
+ * Arbeitsersparnis: Ohne ihn stünde am Rand der Hörweite eine Stimme, die mit
+ * einem Sprung verstummt, und das hört man.
+ *
+ * **Und beides fängt erst hinter `reach.full` an** (`KitchenReach`). Für einen
+ * Handgriff ist das null, und dann ist es Zeile für Zeile die Rechnung von
+ * vorher; für das Radio ist es die ganze Küche, und dann ist es drinnen überall
+ * gleich laut und wird erst draußen leiser.
  */
-export function kitchenHeard(ear: KitchenEar, at: KitchenSpotAt): KitchenHeard {
+export function kitchenHeard(
+  ear: KitchenEar,
+  at: KitchenSpotAt,
+  reach: KitchenReach = NEARBY,
+): KitchenHeard {
   const dx = at.x - ear.x;
   const dz = at.z - ear.z;
   const distance = Math.hypot(dx, dz);
-  if (distance >= KITCHEN_EAR) return { gain: 0, pan: 0 };
-  const near = 1 / (1 + (distance / KITCHEN_HALF) ** 2);
-  const gain = near * (1 - distance / KITCHEN_EAR);
+  if (distance >= reach.gone) return { gain: 0, pan: 0 };
+  const span = Math.max(reach.gone - reach.full, 1e-6);
+  const out = Math.max(0, distance - reach.full) / span;
+  const gain = (1 / (1 + (out * KITCHEN_FADE) ** 2)) * (1 - out);
   // Rechts vom Blick: die Vorwärtsrichtung eine Vierteldrehung im Uhrzeigersinn
   // (in three.js zeigt der Blick nach −z und die rechte Hand nach +x).
   const rx = -ear.az;
@@ -383,10 +481,11 @@ export function kitchenHeard(ear: KitchenEar, at: KitchenSpotAt): KitchenHeard {
 export function kitchenNearest(
   ear: KitchenEar,
   sources: readonly KitchenSpotAt[],
+  reach: KitchenReach = NEARBY,
 ): KitchenHeard | null {
   let best: KitchenHeard | null = null;
   for (const at of sources) {
-    const heard = kitchenHeard(ear, at);
+    const heard = kitchenHeard(ear, at, reach);
     if (heard.gain <= 0) continue;
     if (!best || heard.gain > best.gain) best = heard;
   }

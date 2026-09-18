@@ -459,41 +459,49 @@ export const SINK_SUNK = 0;
 /**
  * **Das Becken** — wo das Wasser steht und wie der Teller darin liegt.
  *
- * Alles in Metern über dem **Fuß** des Möbels (`sink-basin`), Quellmaß in
- * Klammern:
+ * Alles in Metern über dem **Fuß** des Möbels (`sink-basin`), nachgemessen an
+ * `kitchencounter_sink` des zweiten Baukastens — und zwar an der **Mulde**,
+ * dem Bauteil, das für sich in der Quelle steht (112 Dreiecke, x −0,80…0,80,
+ * y 0,70…1,08, z −0,40…0,60 im Quellmaß, halbiert von `DINER_SCALE`):
  *
- * - `rim` **0,5174** (1,034858) — der Rand ringsum, die Fläche, die sich mit
- *   `SINK_SUNK` in die Zeile einreiht.
- * - `floor` **0,3732** (0,746379) — der Beckenboden. Das Becken ist damit
- *   **14,4 cm tief**.
- * - `water` **0,4453** — genau dazwischen, also **halb voll**. Ein Becken, das
+ * - `rim` **0,54** — der Rand ringsum.
+ * - `floor` **0,35** — der Beckenboden. Das Becken ist damit **19 cm tief**.
+ * - `water` **0,445** — genau dazwischen, also **halb voll**. Ein Becken, das
  *   bis zum Rand stünde, hätte den Teller unter Wasser und von oben unsichtbar;
  *   eines mit einem Fingerbreit Wasser wäre kein Spülbecken, sondern eine
  *   Mulde. Die Mitte ist zugleich die Höhe, auf der der Teller **halb**
  *   eintaucht — siehe unten.
- * - `width` **0,8076** (1,6153) und `depth` **0,6410** (1,2821) — die Öffnung.
- * - `at` **[+0,0124, −0,0307]** — wo ihre Mitte gegenüber dem Ursprung der
- *   **Hälfte** liegt. Die Mulde sitzt in der Quelle bei x = −0,9751, die
- *   Hälfte reicht von −1,9999 bis 0 und wird um ihre Mitte (−0,99994)
- *   zentriert; es bleiben 0,0248 Quellmaß, halbiert 1,24 cm. In z sind es die
- *   3,07 cm, um die die Mulde in der Quelle nach Norden versetzt ist.
+ * - `width` **0,80** und `depth` **0,50** — die Öffnung.
+ * - `at` **[0, +0,05]** — wo ihre Mitte gegenüber dem Ursprung des Möbels
+ *   liegt: in z um 5 cm nach vorn, weil hinter der Mulde die Armatur steht
+ *   (z −0,365…−0,018).
  *
- * **Warum der Teller schräg liegt und wie schräg.** Ein Teller ist 0,75 m breit
- * (`worlds/test/zones/kitchenProps.PLATE_RADIUS`), das Becken 0,81 × 0,64 m —
- * er passt also gar nicht flach hinein, und flach auf den Rand gelegt stünde
- * kein Stück von ihm im Wasser. Er lehnt deshalb: **untere Kante auf dem
- * Beckenboden, obere Kante auf Randhöhe**. Damit ist der Winkel nicht gewählt,
- * sondern ausgerechnet — er ist der, bei dem der Teller genau die Beckentiefe
- * überspannt (`kitchenProps.SINK_TILT`, 11,1°) —, und weil das Wasser auf
- * halber Tiefe steht, liegt genau die untere Hälfte darin.
+ * **Hier stand `floor: 0.54`, und das war ein Ablesefehler mit Folgen.** Beim
+ * Umzug in den zweiten Baukasten wurde der Boden auf die **Randhöhe** gesetzt —
+ * ein Becken ohne Tiefe. Die Folge war eine Rechnung, die sich selbst auf null
+ * brachte: `kitchenProps.SINK_TILT` ist `asin((rim − floor) / 2 / Halbmesser)`,
+ * und bei rim = floor ist das null. Der dreckige Teller lag flach auf dem
+ * Beckenrand, und aus dem Spülen wurde ein Abstellen.
+ *
+ * **Warum der Teller schräg liegt und wie schräg.** Er lehnt: **untere Kante
+ * auf dem Beckenboden, obere Kante auf Randhöhe**. Damit ist der Winkel nicht
+ * gewählt, sondern ausgerechnet — er ist der, bei dem der Teller genau die
+ * Beckentiefe überspannt (`kitchenProps.SINK_TILT`, 23,6°) —, und weil das
+ * Wasser auf halber Tiefe steht, liegt genau die untere Hälfte darin.
+ *
+ * **Und er passt hinein**, seit er aus dem Baukasten kommt: 0,475 m breit
+ * gegen eine Öffnung von 0,80 m, und so gekippt belegt er in der Tiefe
+ * 0,475 · cos 23,6° = 0,435 m von 0,50 m. Der gebaute Teller von 0,75 m
+ * konnte das nicht; er lag quer über dem Rand, und der Winkel war ein
+ * Kompromiss mit einer Mulde, in die nichts hineinging.
  */
 export const SINK_BOWL = {
   rim: 0.54,
-  floor: 0.54,
-  water: 0.545,
-  width: 0.7,
-  depth: 0.385,
-  at: [0, 0.0575],
+  floor: 0.35,
+  water: 0.445,
+  width: 0.8,
+  depth: 0.5,
+  at: [0, 0.05],
 } as const;
 
 /**
@@ -611,6 +619,35 @@ export const RACK_SLOTS = {
 export const PAN_BOWL: readonly [x: number, z: number] = [0, -0.225];
 
 /**
+ * **Wo der Arbeitspunkt eines abgenommenen Geräts liegt** — in Metern (x, z)
+ * von seinem Ursprung aus.
+ *
+ * Ein Gerät, das von seinem Möbel genommen wird, bekommt seinen Ursprung in
+ * die **Mitte seiner Hülle** gesetzt (`core/kitchenModel.takeUtensil`,
+ * `stand`), und das ist für das Tragen genau richtig: Die Hand fasst es an
+ * einem gemessenen Griff, der ebenfalls von dieser Mitte aus beschrieben ist
+ * (`worlds/test/zones/kitchenGrab.ts`, `PAN_STALK`).
+ *
+ * **Zum Hinstellen ist die Hüllenmitte aber die falsche Zahl.** Eine Pfanne
+ * steht nicht mit ihrer Hüllenmitte auf der Flamme, sondern mit ihrer
+ * **Mulde** — und die liegt 22,5 cm daneben, weil der Stiel die halbe Hülle
+ * ausmacht. Genau so stand sie: Die Mulde saß auf der hinteren Kante der
+ * Kachel, der Rost lag zur Hälfte frei davor, und im Bild von oben sah es aus,
+ * als hätte jemand die Pfanne an die Wand geschoben.
+ *
+ * Es ist dieselbe Zahl wie `PAN_BOWL` und trotzdem eine eigene Funktion: Dort
+ * ist sie die Stelle, an die ein **Belag** kommt (`kitchenProps.topping`),
+ * hier die Stelle, die über der **Kachelmitte** liegen soll. Beides fällt beim
+ * Topf zusammen und bei der Pfanne nicht, und ein gemeinsamer Name hätte die
+ * beiden verwechselbar gemacht.
+ */
+export function kitchenHub(item: string): readonly [x: number, z: number] {
+  return item === 'pan' ? PAN_BOWL : ORIGIN_HUB;
+}
+
+const ORIGIN_HUB: readonly [x: number, z: number] = [0, 0];
+
+/**
  * **Die vier Vorratskisten** — je Zutat eine, und in jeder liegt das, was sie
  * hergibt.
  *
@@ -715,12 +752,35 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     label: 'Tellerausgabe',
     tiles: [1, 1],
     base: { file: 'diner', node: 'kitchencounter_straight_A' },
-    // Ein Abtropfgitter voller Teller auf der Zeile: Man sieht von weitem,
-    // dass es hier Teller gibt, und muss dafür kein Bild aufkleben.
-    over: [{ file: 'diner', node: 'dishrack_plates', at: 0.5 }],
-    height: 1.0476,
-    deck: 0.5,
-    worktop: true,
+    // **Eine Kiste voller Teller auf der Zeile**, und das ist eine Korrektur.
+    // Hier stand ein **Abtropfgitter** voller Teller, und es sah gut aus — nur
+    // sagte es das Falsche: Ein Abtropfgitter hat eine Kapazität und einen
+    // Inhalt, den man leer räumen kann (`sink-drain`, `RACK_SLOTS`). Diese
+    // Ausgabe wird nie leer, so wie die vier Vorratskisten an der Westwand
+    // auch nicht. Zwei Möbel, die dasselbe zeigen und Verschiedenes bedeuten,
+    // sind eins zu viel.
+    //
+    // Der Boden der Kiste liegt 5 cm über ihrem Fuß (`crate`, nachgemessen),
+    // also fangen die Teller bei 0,55 an; sechs davon zu je 5 cm stapeln sich
+    // bis 0,85 und bleiben damit knapp unter dem Rand bei 0,90.
+    //
+    // **Und jeder liegt verdreht auf dem vorigen.** Ein Stapel aus fluchtenden
+    // Scheiben ist von oben **ein** Teller — dieselbe Überlegung wie beim
+    // Stapel an der Rückgabe (`zones/kitchenProps.DIRTY_TWIST`, 13°), und hier
+    // ausgeschrieben, weil der Katalog keine Zone kennt.
+    over: [
+      { file: 'diner', node: 'crate', at: 0.5 },
+      { file: 'diner', node: 'plate', at: 0.55, tilt: [0, 0.0, 0] },
+      { file: 'diner', node: 'plate', at: 0.6, tilt: [0, 0.2269, 0] },
+      { file: 'diner', node: 'plate', at: 0.65, tilt: [0, 0.4538, 0] },
+      { file: 'diner', node: 'plate', at: 0.7, tilt: [0, 0.6807, 0] },
+      { file: 'diner', node: 'plate', at: 0.75, tilt: [0, 0.9076, 0] },
+      { file: 'diner', node: 'plate', at: 0.8, tilt: [0, 1.1345, 0] },
+    ],
+    height: 0.9,
+    // Ausgegeben wird **oben aus dem Stapel** und nicht auf der Zeile daneben.
+    deck: 0.85,
+    supply: true,
   },
   {
     name: 'extinguisher',

@@ -293,12 +293,11 @@ export const DINER_PIECES: readonly DinerPiece[] = [
     span: [0.375, 0.375],
   },
   {
-    name: 'food_ingredient_tomato_slices',
-    label: 'Tomate, geschnitten',
+    name: 'food_ingredient_tomato_slice',
+    label: 'Tomatenscheibe',
     tiles: [1, 1],
-    height: 0.15,
-    at: [0.0125, 0],
-    span: [0.38, 0.325],
+    height: 0.05,
+    span: [0.325, 0.325],
   },
   {
     name: 'fridge_A',

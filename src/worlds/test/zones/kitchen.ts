@@ -5,6 +5,7 @@ import {
   SINK_BOWL,
   kitchenDeck,
   kitchenPiece,
+  kitchenHub,
   kitchenPieceScale,
   type KitchenPiece,
 } from '../../../core/kitchenFit';
@@ -172,7 +173,9 @@ import {
   kitchenHeard,
   kitchenNearest,
   nextTrial,
+  reachOf,
   trialAt,
+  type KitchenCue,
   type KitchenEar,
   type KitchenHeard,
   type KitchenSpotAt,
@@ -1381,7 +1384,7 @@ export class KitchenZone implements TestZone {
       // rote Dreieck auf (`showGauges`). Ein Ton, der stattdessen am
       // Phasenwechsel der Anzeige hinge, käme dasselbe Bild später und wäre
       // beim nächsten Umbau der Anzeige weg.
-      if (tick.turned === 'patty-burnt') this.sound.play('warn', this.heardAt(spot.deck));
+      if (tick.turned === 'patty-burnt') this.sound.play('warn', this.heardAt(spot.deck, 'warn'));
       this.world?.notify(`${ITEM_LABELS[tick.turned]} in der Pfanne`);
       this.refreshStations();
     }
@@ -1437,7 +1440,7 @@ export class KitchenZone implements TestZone {
       // Der saubere Teller kommt von selbst in die Hand, ohne dass jemand
       // gegriffen hätte — zu hören ist trotzdem ein Griff, denn genau das
       // geschieht (`kitchenWork.WORK_TO_HAND`).
-      this.sound.play('pick', this.heardAt(spot.deck));
+      this.sound.play('pick', this.heardAt(spot.deck, 'pick'));
       this.world?.notify(`${label} in der Hand`);
     } else if (workWaits(tick)) {
       // **Volle Hand**: Der Teller ist sauber und bleibt im Wasser stehen.
@@ -1522,7 +1525,7 @@ export class KitchenZone implements TestZone {
     // genau die, an der es hing.
     if (was.working && !tick.state.working && !tick.done) {
       const last = was.from ? this.stationByKey(was.from) : null;
-      if (last?.on) last.on.object.position.copy(last.deck);
+      if (last?.on) this.restOn(last, last.on);
     }
 
     const done = tick.done;
@@ -1552,7 +1555,7 @@ export class KitchenZone implements TestZone {
     // `combine`): Ob eine Hand oder ein Möbel zwei Zutaten zu einer macht, ist
     // für die Ohren dasselbe Ereignis — und in einer Halle voller Bandstraßen
     // ist es das einzige, an dem man hört, dass sie noch läuft.
-    this.sound.play('combine', this.heardAt(spot.deck));
+    this.sound.play('combine', this.heardAt(spot.deck, 'combine'));
     this.world?.notify(
       `${layered(done.moved)
         .map((item) => ITEM_LABELS[item])
@@ -1688,12 +1691,12 @@ export class KitchenZone implements TestZone {
     spot.on = fresh;
     this.world?.root.add(fresh.object);
     fresh.object.rotation.set(0, 0, 0);
-    fresh.object.position.copy(spot.deck);
+    this.restOn(spot, fresh);
     // **Auch eine Kiste, die von selbst ausgibt, klappt auf.** Es ist derselbe
     // Ton wie beim Griff von Hand (`kitchenSound.deedSound`, Station `box`) —
     // und in der Werkhalle, wo niemand danebensteht, ist er der Anfang jeder
     // Bandstraße: Wer ihn hört, weiß, dass die Straße wieder nachschiebt.
-    this.sound.play('crate', this.heardAt(spot.deck));
+    this.sound.play('crate', this.heardAt(spot.deck, 'crate'));
     return true;
   }
 
@@ -2034,7 +2037,7 @@ export class KitchenZone implements TestZone {
     // **Hier und nicht in der Tabelle der Taten** (`kitchenSound.DEED_SOUNDS`):
     // Gelöscht wird auf zwei Wegen — mit `A` am Herd und mit dem Strahl quer
     // durch die Küche —, und beide kommen hier vorbei.
-    this.sound.play('douse', this.heardAt(spot.deck));
+    this.sound.play('douse', this.heardAt(spot.deck, 'douse'));
     this.world?.notify('Feuer gelöscht');
     this.refreshStations();
   }
@@ -2082,15 +2085,15 @@ export class KitchenZone implements TestZone {
       else if (spot.work.kind === 'fry') sizzling.push(at);
       else chopping.push(at);
     }
-    this.sound.loop('sizzle', kitchenNearest(ear, sizzling));
-    this.sound.loop('fire', kitchenNearest(ear, burning));
-    this.sound.loop('rinse', kitchenNearest(ear, rinsing));
+    this.sound.loop('sizzle', kitchenNearest(ear, sizzling, reachOf('sizzle')));
+    this.sound.loop('fire', kitchenNearest(ear, burning, reachOf('fire')));
+    this.sound.loop('rinse', kitchenNearest(ear, rinsing, reachOf('rinse')));
 
     // **Das Messer ist kein Dauerton, sondern ein Takt** — und er läuft nur,
     // solange irgendwo geschnitten wird. Hört das auf, fällt die Uhr auf null
     // zurück: Der nächste Schnitt soll mit dem ersten Schlag anfangen und
     // nicht mit dem Rest von vorhin.
-    const knife = kitchenNearest(ear, chopping);
+    const knife = kitchenNearest(ear, chopping, reachOf('chop'));
     if (!knife) {
       this.chopClock = 0;
     } else {
@@ -2100,19 +2103,30 @@ export class KitchenZone implements TestZone {
     }
 
     // Der Strahl zischt aus der Düse und nicht aus dem Herd, auf den er zielt.
-    this.sound.loop('spray', this.spraying ? this.heardAt(_nozzle) : null);
+    this.sound.loop('spray', this.spraying ? this.heardAt(_nozzle, 'spray') : null);
 
     // Und das Radio spielt seinen Sender, solange es an ist.
     this.sound.loop(
       'radio',
-      this.radioState.on ? kitchenHeard(ear, this.radioAt) : null,
+      this.radioState.on ? kitchenHeard(ear, this.radioAt, reachOf('radio')) : null,
       this.radioState.station,
     );
   }
 
-  /** Wie ein Ton von dieser Stelle beim Zuhörer ankommt — die Kurzform. */
-  private heardAt(at: THREE.Vector3): KitchenHeard {
-    return kitchenHeard({ x: _feet.x, z: _feet.z, ax: _aim.x, az: _aim.z }, { x: at.x, z: at.z });
+  /**
+   * **Wie ein Ton von dieser Stelle beim Zuhörer ankommt** — die Kurzform.
+   *
+   * Der Ton gehört mit dazu und ist kein Beiwerk: Wie weit etwas trägt, steht
+   * an ihm (`kitchenSound.KitchenCueSpec.reach`) und nicht an der Stelle. Das
+   * Radio ist in der ganzen Küche gleich laut, der Teller, der abgestellt
+   * wird, nur dort, wo er abgestellt wird.
+   */
+  private heardAt(at: THREE.Vector3, cue: KitchenCue): KitchenHeard {
+    return kitchenHeard(
+      { x: _feet.x, z: _feet.z, ax: _aim.x, az: _aim.z },
+      { x: at.x, z: at.z },
+      reachOf(cue),
+    );
   }
 
   /**
@@ -4102,7 +4116,7 @@ export class KitchenZone implements TestZone {
     // hätte sie niemand gestellt. Gehört wird sie **an der Station**, nicht am
     // Ohr: Die Kiste links klingt von links.
     const cue = deedSound(deed.do, spot.kind);
-    if (cue) this.sound.play(cue, this.heardAt(spot.deck));
+    if (cue) this.sound.play(cue, this.heardAt(spot.deck, cue));
     this.refreshStations();
     return true;
   }
@@ -4393,8 +4407,27 @@ export class KitchenZone implements TestZone {
     spot.on = thing;
     thing.object.rotation.set(spot.kind === 'sink' ? SINK_TILT : 0, 0, 0);
     if (world) world.root.add(thing.object);
-    thing.object.position.copy(spot.deck);
+    this.restOn(spot, thing);
     this.settle(spot);
+  }
+
+  /**
+   * **Ein liegendes Ding auf seine Kachel setzen** — mit seinem
+   * **Arbeitspunkt** über der Mitte und nicht mit seinem Ursprung
+   * (`core/kitchenFit.kitchenHub`).
+   *
+   * Für alles, was diese Küche baut, ist das dieselbe Zeile wie vorher: Ein
+   * Teller, ein Brötchen, ein Topf haben ihren Ursprung in ihrer Mitte.
+   *
+   * **Die Pfanne hat ihn nicht.** Sie wird von ihrem Herd abgenommen
+   * (`core/kitchenModel.takeUtensil`) und bekommt dabei die Mitte ihrer Hülle
+   * als Ursprung — die Hälfte davon ist Stiel, also liegt die Mulde 22,5 cm
+   * dahinter. Auf die Kachelmitte gesetzt saß sie damit sichtbar zu weit
+   * hinten, und der Rost lag frei davor.
+   */
+  private restOn(spot: Station, thing: Carried): void {
+    const [hx, hz] = kitchenHub(thing.dish.item);
+    thing.object.position.set(spot.deck.x - hx, spot.deck.y, spot.deck.z - hz);
   }
 
   /**
@@ -5445,10 +5478,13 @@ export class KitchenZone implements TestZone {
     const world = this.world;
     const station = furnish.station;
     if (!world || !station) return;
-    for (const object of [station.on?.object, station.pile]) {
-      if (!object) continue;
-      world.root.add(object);
-      object.position.copy(station.deck);
+    if (station.on) {
+      world.root.add(station.on.object);
+      this.restOn(station, station.on);
+    }
+    if (station.pile) {
+      world.root.add(station.pile);
+      station.pile.position.copy(station.deck);
     }
   }
 

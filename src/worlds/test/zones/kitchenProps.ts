@@ -100,7 +100,7 @@ export const FOOD_NODE = {
   lettuce: 'food_ingredient_lettuce',
   'lettuce-cut': 'food_ingredient_lettuce_slice',
   tomato: 'food_ingredient_tomato',
-  'tomato-cut': 'food_ingredient_tomato_slices',
+  'tomato-cut': 'food_ingredient_tomato_slice',
 } as const satisfies Partial<Record<KitchenItem, string>>;
 
 /**

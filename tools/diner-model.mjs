@@ -126,7 +126,12 @@ const SKIP = /^(food_|icecream_(?!machine)|stew_)/;
  * Tomate ganz und geschnitten, und das Brötchen dreimal: ganz, Unterteil,
  * Deckel (im Burger liegt der Belag dazwischen).
  *
- * Zusammen 2 978 Dreiecke. Die 46 Stücke, die draußen bleiben — Möhren, Käse,
+ * **Eine Scheibe und nicht drei**: Der Baukasten hat für die geschnittene
+ * Tomate zwei Stücke, `_slice` (eine Scheibe, 220 Dreiecke) und `_slices` (ein
+ * Stapel aus dreien, 476). Auf einem Burger liegt eine, und drei übereinander
+ * machten aus jeder Tomate einen Turm.
+ *
+ * Zusammen 2 722 Dreiecke. Die 46 Stücke, die draußen bleiben — Möhren, Käse,
  * Teig, Schinken, Pilze, Zwiebeln, Salami, Kartoffeln, Pizzen —, sind Zutaten
  * für Rezepte, die es nicht gibt; wer eines davon schreibt, trägt das Stück
  * hier nach und hat es im Katalog.
@@ -141,7 +146,7 @@ const KEEP_FOOD = new Set([
   'food_ingredient_lettuce',
   'food_ingredient_lettuce_slice',
   'food_ingredient_tomato',
-  'food_ingredient_tomato_slices',
+  'food_ingredient_tomato_slice',
 ]);
 
 /**
@@ -188,7 +193,7 @@ const LABELS = {
   food_ingredient_lettuce: 'Salatkopf',
   food_ingredient_lettuce_slice: 'Salat, geschnitten',
   food_ingredient_tomato: 'Tomate',
-  food_ingredient_tomato_slices: 'Tomate, geschnitten',
+  food_ingredient_tomato_slice: 'Tomatenscheibe',
   floor_kitchen_small: 'Bodenplatte',
   floor_kitchen_small_styleB: 'Bodenplatte, Muster B',
   floor_kitchen_styleB: 'Bodenplatte groß, Muster B',
