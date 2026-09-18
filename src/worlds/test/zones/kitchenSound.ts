@@ -5,10 +5,9 @@
  * Eine eigene Datei neben Uhr (`kitchenClock.ts`) und Arbeit
  * (`kitchenWork.ts`), aus demselben Grund wie dort: Was in der Küche klingt,
  * hängt an Zahlen, die niemand hört, bevor sie falsch sind. Wie laut ein Feuer
- * drei Kacheln weiter noch ist, wie oft das Messer aufschlägt, wann ein
- * Schritt fällt — das sind drei Rechnungen, die ein Test nachrechnen kann, und
- * genau eine davon (die Lautstärke) merkt man im Headset erst, wenn die halbe
- * Küche gleich laut ist.
+ * drei Kacheln weiter noch ist und wie oft das Messer aufschlägt — das sind
+ * zwei Rechnungen, die ein Test nachrechnen kann, und die erste davon merkt
+ * man im Headset erst, wenn die halbe Küche gleich laut ist.
  *
  * **Was hier nicht steht, ist Web Audio.** Die Datei kennt keinen Kontext,
  * keinen Knoten und keine Datei; sie sagt nur, welcher Ton wann, wie laut und
@@ -60,8 +59,6 @@ export type KitchenCue =
   | 'douse'
   /** Ein Gericht geht über die Theke. */
   | 'serve'
-  /** Ein Schritt. Vier Aufnahmen, damit zehn Schritte nicht zehnmal derselbe sind. */
-  | 'step'
   /** Etwas wird abgestellt. */
   | 'place'
   /** Und etwas wird aufgenommen. */
@@ -120,6 +117,87 @@ export function deedSound(deed: DeedKind, station: StationKind): KitchenCue | nu
   return DEED_SOUNDS[deed];
 }
 
+/**
+ * **Die Töne, über die noch nicht entschieden ist** — und die Auswahl, die
+ * dazu in der Küche steht.
+ *
+ * Zwei Geräusche haben ihren endgültigen Klang noch nicht gefunden: das
+ * **Messer auf dem Brett** und die **Abgabe eines Gerichts**. Bei beiden hilft
+ * kein Nachdenken, sondern nur Hinhören, und Hinhören heißt in dieser Küche:
+ * im Headset danebenstehen. Deshalb steht die Entscheidung nicht in dieser
+ * Datei, sondern auf zwei Knöpfen im Schauraum (`kitchen.addTrialButtons`) —
+ * einer schaltet weiter, einer spielt vor.
+ *
+ * **Eine Variante ist ein Satz und keine Datei.** Das Messer schlägt siebenmal
+ * je Schnitt auf (`CHOP_BEAT`); ein Satz aus drei Aufnahmen klingt dabei nach
+ * Arbeit, eine einzelne nach Maschine. Die Abgabe kommt dagegen einmal und
+ * soll wiedererkennbar sein — dort ist ein Satz genau eine Aufnahme. Beides
+ * ist dieselbe Liste, aus demselben Grund wie bei `KitchenCueSpec.files`.
+ *
+ * **Die erste Variante ist die, die läuft**, bis jemand weiterschaltet; sie
+ * steht deshalb auch in `KITCHEN_CUES`. Ist die Wahl gefallen, bleibt von
+ * diesem Abschnitt eine Zeile übrig — der Satz, der gewonnen hat — und der
+ * Rest fällt mitsamt den Knöpfen wieder heraus.
+ */
+export type TrialCue = 'chop' | 'serve';
+
+/** Beide, einmal — für die Knöpfe und für die Tests. */
+export const TRIAL_CUES: readonly TrialCue[] = ['chop', 'serve'];
+
+/** Eine Variante: wie sie heißt und woraus sie besteht. */
+export interface SoundTrial {
+  /** Was auf dem Schild des Knopfes steht — danach wird sie benannt. */
+  readonly label: string;
+  /** Die Aufnahmen, relativ zu `SOUND_DIR`, wie bei `KitchenCueSpec.files`. */
+  readonly files: readonly string[];
+}
+
+export const SOUND_TRIALS: Readonly<Record<TrialCue, readonly SoundTrial[]>> = {
+  chop: [
+    // Was bisher lief: ein Hieb aus einem Spielesatz und zwei aus einer echten
+    // Küche — gemischt, und genau deshalb nicht aus einem Guss.
+    { label: 'Messer und Brett', files: ['chop-0.ogg', 'chop-1.ogg', 'chop-2.ogg'] },
+    // Derselbe Mitschnitt, aber nur er: vier Hiebe auf dasselbe Holz, länger
+    // geschnitten, damit das Brett nachklingt.
+    {
+      label: 'Küchenbrett',
+      files: ['chop-board-0.ogg', 'chop-board-1.ogg', 'chop-board-2.ogg', 'chop-board-3.ogg'],
+    },
+    // Und dumpfes Holz statt Klinge: tiefer, weicher, näher am Hackblock.
+    { label: 'Hackblock', files: ['chop-wood-0.ogg', 'chop-wood-1.ogg', 'chop-wood-2.ogg'] },
+  ],
+  serve: [
+    // Die Glocke auf der Theke — das Geräusch, das eine Ausgabe in jedem
+    // Imbiss macht.
+    { label: 'Tresenglocke', files: ['serve-bell.ogg'] },
+    // Ein Takt Steeldrum: kurz, freundlich, und keine Fanfare.
+    { label: 'Steeldrum', files: ['serve-steel.ogg'] },
+    // Und ein Saxofonstoß, für den Fall, dass es doch Musik sein soll.
+    { label: 'Saxofon', files: ['serve-sax.ogg'] },
+  ],
+};
+
+/**
+ * **Die Variante an dieser Stelle der Liste** — im Kreis und ohne Absturz.
+ *
+ * Die Zahl kommt von einem Knopf, der immer weiterzählt und nie zurücksetzt
+ * (`nextTrial`); dass sie irgendwann über das Ende hinausläuft, ist der
+ * Normalfall und kein Fehler.
+ */
+export function trialAt(cue: TrialCue, index: number): SoundTrial {
+  const list = SOUND_TRIALS[cue];
+  const safe = Number.isFinite(index) ? Math.floor(index) : 0;
+  return list[((safe % list.length) + list.length) % list.length]!;
+}
+
+/** Und die nächste — der Druck auf den linken Knopf. */
+export function nextTrial(cue: TrialCue, index: number): number {
+  const safe = Number.isFinite(index) ? Math.floor(index) : 0;
+  return (
+    (((safe + 1) % SOUND_TRIALS[cue].length) + SOUND_TRIALS[cue].length) % SOUND_TRIALS[cue].length
+  );
+}
+
 /** Was zu einem Ton gehört. */
 export interface KitchenCueSpec {
   /**
@@ -151,29 +229,30 @@ export interface KitchenCueSpec {
  * die Schleife und nicht die Aufnahme. Zwei Dateien mit demselben Inhalt wären
  * zwei Dateien, von denen eines Tages eine getauscht wird.
  *
+ * **Zwei Zeilen holen ihre Dateien aus der Auswahl** (`SOUND_TRIALS`): Messer
+ * und Abgabe stehen noch zur Wahl, und was hier steht, ist die Variante, mit
+ * der die Küche anfängt. Wer im Schauraum weiterschaltet, ändert nicht diese
+ * Tabelle, sondern was der Spieler daraus nimmt
+ * (`kitchenAudio.KitchenAudio.choose`).
+ *
  * **Die Lautstärken sind nicht gleich**, und die Abstufung ist die halbe
- * Mischung: Ein Schritt (0,22) darf unter allem liegen, ein Feuer (0,5) muss
+ * Mischung: Ein Griff (0,3) darf unter allem liegen, ein Feuer (0,5) muss
  * quer durch die Küche zu hören sein, und die Musik (0,3) ist Hintergrund und
  * nicht Ereignis — wer sie so laut macht wie das Warndreieck, hört das
  * Warndreieck nicht mehr.
  */
 export const KITCHEN_CUES: Readonly<Record<KitchenCue, KitchenCueSpec>> = {
-  chop: { files: ['chop-0.ogg', 'chop-1.ogg', 'chop-2.ogg'], gain: 0.4, loop: false },
+  chop: { files: SOUND_TRIALS.chop[0]!.files, gain: 0.4, loop: false },
   sizzle: { files: ['sizzle.ogg'], gain: 0.35, loop: true },
   water: { files: ['water.ogg'], gain: 0.4, loop: false },
   rinse: { files: ['water.ogg'], gain: 0.3, loop: true },
   combine: { files: ['combine-0.ogg', 'combine-1.ogg'], gain: 0.4, loop: false },
-  crate: { files: ['crate-0.ogg', 'crate-1.ogg'], gain: 0.4, loop: false },
+  crate: { files: ['crate-0.ogg'], gain: 0.4, loop: false },
   warn: { files: ['warn.ogg'], gain: 0.45, loop: false },
   fire: { files: ['fire.ogg'], gain: 0.5, loop: true },
   spray: { files: ['spray.ogg'], gain: 0.45, loop: true },
   douse: { files: ['douse.ogg'], gain: 0.45, loop: false },
-  serve: { files: ['serve.ogg'], gain: 0.5, loop: false },
-  step: {
-    files: ['step-0.ogg', 'step-1.ogg', 'step-2.ogg', 'step-3.ogg'],
-    gain: 0.22,
-    loop: false,
-  },
+  serve: { files: SOUND_TRIALS.serve[0]!.files, gain: 0.5, loop: false },
   place: { files: ['place-0.ogg', 'place-1.ogg', 'place-2.ogg'], gain: 0.35, loop: false },
   pick: { files: ['pick-0.ogg', 'pick-1.ogg'], gain: 0.3, loop: false },
   radio: { files: ['radio-0.ogg', 'radio-1.ogg', 'radio-2.ogg'], gain: 0.3, loop: true },
@@ -182,10 +261,20 @@ export const KITCHEN_CUES: Readonly<Record<KitchenCue, KitchenCueSpec>> = {
 /** Alle Töne einmal — für das Vorladen und für die Tests. */
 export const KITCHEN_CUE_IDS = Object.keys(KITCHEN_CUES) as readonly KitchenCue[];
 
-/** Alle Dateien einmal, ohne Doppelte — `water.ogg` gehört zu zwei Tönen. */
+/**
+ * **Alle Dateien einmal, ohne Doppelte** — `water.ogg` gehört zu zwei Tönen.
+ *
+ * **Auch die Varianten, die gerade nicht laufen** (`SOUND_TRIALS`): Geholt
+ * wird beim Aufbau der Zone und entpackt, sobald es einen Kontext gibt
+ * (`kitchenAudio.KitchenAudio.prime`). Wer erst beim Druck auf den Knopf zu
+ * laden anfinge, bekäme eine Stille zu hören, wo er einen Ton vergleichen
+ * wollte — und verglichen wird hier genau einmal, bis die Wahl steht.
+ */
 export function kitchenSoundFiles(): readonly string[] {
   const seen = new Set<string>();
   for (const id of KITCHEN_CUE_IDS) for (const file of KITCHEN_CUES[id].files) seen.add(file);
+  for (const cue of TRIAL_CUES)
+    for (const trial of SOUND_TRIALS[cue]) for (const file of trial.files) seen.add(file);
   return [...seen];
 }
 
@@ -332,51 +421,4 @@ export function kitchenBeat(clock: number, dt: number, span: number): KitchenBea
   const next = clock - Math.max(0, dt);
   if (next > 0) return { clock: next, hit: false };
   return { clock: span, hit: true };
-}
-
-/**
- * **Wie weit ein Schritt trägt**, in Metern.
- *
- * 0,75, und das ist kürzer als die Schrittlänge der Raumstation
- * (`haunting/audio/soundscape.STRIDE`, ein Meter): Die Küche ist mit Absicht
- * zu klein gebaut (`core/kitchenFit.KITCHEN_SCALE`), und wer darin mit
- * Metern von draußen läuft, macht drei Schritte quer durch den Raum.
- */
-export const STEP_STRIDE = 0.75;
-
-/**
- * **Und ab welchem Sprung es kein Laufen mehr war**, in Metern.
- *
- * Wer teleportiert, durch ein Portal geht oder auf die Matte zurückgesetzt
- * wird, legt in einem Bild mehr zurück, als ein Bein schafft. Das ist kein
- * Schritt, sondern eine Versetzung — sie fällt aus der Rechnung, statt eine
- * Salve auszulösen.
- */
-export const STEP_JUMP = 2.5;
-
-/** Was ein Bild an der Schrittuhr geändert hat. */
-export interface KitchenStep {
-  /** Die angesammelte Strecke für das nächste Bild. */
-  readonly walked: number;
-  /** Ob in diesem Bild ein Schritt gefallen ist. */
-  readonly hit: boolean;
-}
-
-/**
- * **Ein Schritt je `STEP_STRIDE` Meter** — nach der Strecke und nicht nach der
- * Zeit.
- *
- * Nach der Zeit zu takten wäre einfacher und falsch: Wer langsam geht, setzt
- * seltener auf, und eine Uhr, die im Stehen weiterläuft, lässt einen auf der
- * Stelle marschieren. Die Strecke stimmt in jeder Ansicht — von oben, aus den
- * Augen und in der Brille, wo der Spieler auch wirklich läuft.
- *
- * Der Rest über `STEP_STRIDE` bleibt stehen und geht ins nächste Bild: Sonst
- * hinge die Schrittfolge an der Bildrate.
- */
-export function kitchenStep(walked: number, moved: number): KitchenStep {
-  if (!Number.isFinite(moved) || moved < 0 || moved > STEP_JUMP) return { walked: 0, hit: false };
-  const sum = walked + moved;
-  if (sum < STEP_STRIDE) return { walked: sum, hit: false };
-  return { walked: sum - STEP_STRIDE, hit: true };
 }

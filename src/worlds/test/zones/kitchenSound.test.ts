@@ -6,14 +6,15 @@ import {
   KITCHEN_EAR,
   KITCHEN_HALF,
   KITCHEN_PAN,
-  STEP_JUMP,
-  STEP_STRIDE,
+  SOUND_TRIALS,
+  TRIAL_CUES,
   deedSound,
   kitchenBeat,
   kitchenHeard,
   kitchenNearest,
   kitchenSoundFiles,
-  kitchenStep,
+  nextTrial,
+  trialAt,
   type DeedKind,
   type KitchenEar,
 } from './kitchenSound';
@@ -131,46 +132,6 @@ describe('der Takt', () => {
 });
 
 /**
- * **Die Schrittuhr geht nach der Strecke und nicht nach der Zeit** — sonst
- * marschiert man im Stehen.
- */
-describe('die Schritte', () => {
-  it('fällt genau alle `STEP_STRIDE` Meter', () => {
-    let walked = 0;
-    let steps = 0;
-    // Zehn Meter in Zentimeterschritten: dieselbe Strecke, viele Bilder.
-    for (let i = 0; i < 1000; i++) {
-      const step = kitchenStep(walked, 0.01);
-      walked = step.walked;
-      if (step.hit) steps++;
-    }
-    expect(steps).toBe(Math.floor(10 / STEP_STRIDE));
-  });
-
-  it('zählt dieselbe Strecke in wenigen Bildern genauso', () => {
-    let walked = 0;
-    let steps = 0;
-    for (let i = 0; i < 20; i++) {
-      const step = kitchenStep(walked, 0.5);
-      walked = step.walked;
-      if (step.hit) steps++;
-    }
-    expect(steps).toBe(Math.floor(10 / STEP_STRIDE));
-  });
-
-  it('macht im Stehen keinen Schritt', () => {
-    expect(kitchenStep(STEP_STRIDE - 0.001, 0).hit).toBe(false);
-  });
-
-  /** Ein Portal, ein Teleport, ein `B` auf die Matte: kein Laufen. */
-  it('hält eine Versetzung nicht für einen Schritt', () => {
-    const jump = kitchenStep(0.7, STEP_JUMP + 1);
-    expect(jump.hit).toBe(false);
-    expect(jump.walked).toBe(0);
-  });
-});
-
-/**
  * **Die Tabelle der Töne** — sie ist vollständig über den Union, und jede
  * Zeile nennt mindestens eine Datei. Ein Ton ohne Datei wäre eine Zeile, die
  * stumm bleibt, ohne dass irgendwo etwas rot wird.
@@ -197,16 +158,79 @@ describe('die Tabelle der Töne', () => {
   it('lässt die Musik leiser sein als das, was sie übertönen würde', () => {
     expect(KITCHEN_CUES.radio.gain).toBeLessThan(KITCHEN_CUES.warn.gain);
     expect(KITCHEN_CUES.radio.gain).toBeLessThan(KITCHEN_CUES.fire.gain);
-    // Und die Schritte liegen unter allem.
+    // Und der Griff liegt unter allem: Er fällt in dieser Küche am häufigsten.
     for (const id of KITCHEN_CUE_IDS) {
-      if (id === 'step') continue;
-      expect(KITCHEN_CUES.step.gain).toBeLessThanOrEqual(KITCHEN_CUES[id].gain);
+      expect(KITCHEN_CUES.pick.gain).toBeLessThanOrEqual(KITCHEN_CUES[id].gain);
     }
+  });
+
+  it('lässt die Vorratskiste nur eine Aufnahme haben', () => {
+    // Zwei waren es einmal, und die zweite war ein Oberflächenton aus einem
+    // Bedienfeld — im Wechsel klang die Kiste nach zwei verschiedenen Dingen.
+    expect(KITCHEN_CUES.crate.files).toEqual(['crate-0.ogg']);
   });
 
   it('hat für das Radio so viele Aufnahmen, wie es Sender gibt', () => {
     expect(KITCHEN_CUES.radio.loop).toBe(true);
     expect(KITCHEN_CUES.radio.files.length).toBeGreaterThan(1);
+  });
+});
+
+/**
+ * **Die Töne, über die noch nicht entschieden ist** — und die Knöpfe, die sie
+ * durchschalten (`kitchen.addTrialButtons`).
+ *
+ * Geprüft wird das, was sonst erst im Headset auffiele: dass jede Variante
+ * Aufnahmen hat, dass der Knopf im Kreis läuft und nicht aus der Liste, und
+ * dass die Küche mit der ersten anfängt. Ein Ton, den keine Datei trägt, wäre
+ * ein Knopf, der still schaltet.
+ */
+describe('die Töne zur Auswahl', () => {
+  it('gibt jeder Variante einen Namen und mindestens eine Aufnahme', () => {
+    for (const cue of TRIAL_CUES) {
+      const trials = SOUND_TRIALS[cue];
+      expect(trials.length).toBeGreaterThan(1);
+      for (const trial of trials) {
+        expect(trial.label.length).toBeGreaterThan(0);
+        expect(trial.files.length).toBeGreaterThan(0);
+        for (const file of trial.files) expect(file).toMatch(/\.ogg$/);
+      }
+    }
+  });
+
+  it('fängt mit der ersten an — sie steht auch in der Tabelle der Töne', () => {
+    for (const cue of TRIAL_CUES) {
+      expect(KITCHEN_CUES[cue].files).toEqual(SOUND_TRIALS[cue][0]!.files);
+      expect(trialAt(cue, 0)).toBe(SOUND_TRIALS[cue][0]);
+    }
+  });
+
+  it('läuft im Kreis, so oft jemand drückt', () => {
+    for (const cue of TRIAL_CUES) {
+      const count = SOUND_TRIALS[cue].length;
+      let index = 0;
+      const seen = new Set<number>();
+      for (let i = 0; i < count; i++) {
+        seen.add(index);
+        index = nextTrial(cue, index);
+      }
+      expect(seen.size).toBe(count);
+      expect(index).toBe(0);
+    }
+  });
+
+  it('nimmt auch eine Zahl, die es in der Liste nicht gibt', () => {
+    expect(trialAt('chop', 99)).toBe(SOUND_TRIALS.chop[99 % SOUND_TRIALS.chop.length]);
+    expect(trialAt('serve', -1)).toBe(SOUND_TRIALS.serve[SOUND_TRIALS.serve.length - 1]);
+    expect(trialAt('chop', Number.NaN)).toBe(SOUND_TRIALS.chop[0]);
+    expect(nextTrial('serve', Number.NaN)).toBe(1);
+  });
+
+  it('holt auch die Aufnahmen, die gerade nicht laufen', () => {
+    const files = kitchenSoundFiles();
+    for (const cue of TRIAL_CUES)
+      for (const trial of SOUND_TRIALS[cue])
+        for (const file of trial.files) expect(files).toContain(file);
   });
 });
 

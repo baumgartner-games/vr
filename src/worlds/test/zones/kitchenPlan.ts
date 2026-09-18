@@ -3,6 +3,7 @@ import { DIR_E, DIR_N, DIR_W, TILE } from '../../nav/navTile';
 import { KITCHEN_PIECES, kitchenPiece, type KitchenPiece } from '../../../core/kitchenFit';
 import { KITCHEN } from '../layout';
 import type { KitchenItem, StationKind } from './kitchenCarry';
+import type { TrialCue } from './kitchenSound';
 import { PLATE_HEIGHT } from './kitchenProps';
 
 /**
@@ -354,6 +355,58 @@ export const PIPELINE = { x: 12, z: 0, w: 8, d: 11 } as const;
  * von der Küche trennte.
  */
 export const SHOW_X = 21;
+
+/** Ein Paar Knöpfe: einer schaltet den Ton weiter, einer spielt ihn vor. */
+export interface TrialButtons {
+  /** Welcher Ton hier zur Wahl steht (`kitchenSound.SOUND_TRIALS`). */
+  readonly cue: TrialCue;
+  /** Das Möbel im Schauraum, vor dem die beiden stehen — für das Schild. */
+  readonly piece: string;
+  /** Die Kachel des linken Knopfes: weiterschalten. */
+  readonly turn: { readonly x: number; readonly z: number };
+  /** Und die des rechten: vorspielen. */
+  readonly play: { readonly x: number; readonly z: number };
+}
+
+/**
+ * **Die Knöpfe der Tonprobe** — zwei vor dem Schneidebrett, zwei vor der
+ * Ausgabetheke.
+ *
+ * Sie stehen im **Schauraum** und nicht in der Küche, und zwar vor genau dem
+ * Möbel, um dessen Ton es geht: Wer wissen will, wie das Messer klingt, steht
+ * ohnehin vor dem Brett, und wer die Abgabe vergleicht, vor der Theke. In der
+ * Küche selbst hätten vier weitere Säulen nichts zu suchen — dort wird
+ * gekocht, und jede Kachel, die ein Knopf belegt, fehlt einem Möbel.
+ *
+ * **Eine Reihe davor** (z = 5) und nicht daneben: Neben der Ausgabetheke
+ * (+7…+8) ist nur links Platz, rechts steht das Förderband (+9). Zwei Paare,
+ * die verschieden herum stehen, wären zwei Paare, die man verschieden bedient.
+ * So steht jedes Paar **um sein Möbel herum** — links weiterschalten, rechts
+ * vorspielen —, und die Reihe dahinter bleibt, wie sie ist.
+ *
+ * **Die vier Kacheln sind frei**, nachgesehen und nicht gehofft: Der Schauraum
+ * stellt in den Reihen z = 1, 4, 7 und 10 aus, dazwischen läuft man. Ein Test
+ * hält das fest (`kitchenPlan.test.ts`) — zwei Dinge auf einer Kachel heißt,
+ * dass `A` immer nur eines davon erwischt.
+ *
+ * **Und sie sind vorübergehend.** Steht die Wahl, fallen die Knöpfe mitsamt
+ * `kitchenSound.SOUND_TRIALS` wieder heraus; was bleibt, ist der Satz
+ * Aufnahmen, der gewonnen hat.
+ */
+export const TRIAL_BUTTONS: readonly TrialButtons[] = [
+  {
+    cue: 'chop',
+    piece: 'board',
+    turn: { x: SHOW_X + 1, z: 5 },
+    play: { x: SHOW_X + 3, z: 5 },
+  },
+  {
+    cue: 'serve',
+    piece: 'pass',
+    turn: { x: SHOW_X + 6, z: 5 },
+    play: { x: SHOW_X + 9, z: 5 },
+  },
+];
 
 export const KITCHEN_SPOTS: readonly Spot[] = [
   // --- die Zeile an der Nordwand: Geräte, Spüle, Arbeitsfläche ---------------
@@ -786,11 +839,18 @@ export function stampKitchen(plan: GridPlan): void {
     }
   }
 
-  // Die beiden roten Knöpfe und das Radio sind keine Möbel und stehen in
-  // keiner Liste — ihre Säulen und der Sockel stehen trotzdem im Weg
-  // (`kitchen.ts`, `addBuildButton`, `addHandsButton`, `addRadio`). Derselbe
-  // Aufschlag wie für ein Möbel: Ein NPC geht darum herum, statt hindurch.
-  for (const tile of [BUILD_BUTTON_TILE, HANDS_BUTTON_TILE, RADIO_TILE]) {
+  // Die roten Knöpfe und das Radio sind keine Möbel und stehen in keiner
+  // Liste — ihre Säulen und der Sockel stehen trotzdem im Weg (`kitchen.ts`,
+  // `addBuildButton`, `addHandsButton`, `addRadio`, `addTrialButtons`).
+  // Derselbe Aufschlag wie für ein Möbel: Ein NPC geht darum herum, statt
+  // hindurch.
+  const buttons: ReadonlyArray<{ readonly x: number; readonly z: number }> = [
+    BUILD_BUTTON_TILE,
+    HANDS_BUTTON_TILE,
+    RADIO_TILE,
+    ...TRIAL_BUTTONS.flatMap((pair) => [pair.turn, pair.play]),
+  ];
+  for (const tile of buttons) {
     plan.floor(
       { x: KITCHEN.x + tile.x, z: KITCHEN.z + tile.z, w: 1, d: 1 },
       { cost: FURNITURE_COST },

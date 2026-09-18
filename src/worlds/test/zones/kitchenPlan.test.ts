@@ -17,6 +17,7 @@ import {
   KITCHEN_EYE_MARGIN,
   KITCHEN_SHOWN,
   KITCHEN_SPOTS,
+  TRIAL_BUTTONS,
   PIPELINE,
   RADIO_TILE,
   RACK_AIR,
@@ -519,6 +520,52 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
     const dx = Math.abs(BUILD_BUTTON_TILE.x - HANDS_BUTTON_TILE.x);
     const dz = Math.abs(BUILD_BUTTON_TILE.z - HANDS_BUTTON_TILE.z);
     expect(dx + dz).toBe(1);
+  });
+
+  /**
+   * **Und die vier Knöpfe der Tonprobe stehen auf freien Kacheln**
+   * (`TRIAL_BUTTONS`, `kitchen.addTrialButtons`).
+   *
+   * Sie stehen im Schauraum, also wird hier gegen **alle** Möbel geprüft und
+   * nicht nur gegen die der arbeitenden Küche: Eine Säule im ausgestellten
+   * Möbel wäre dieselbe Falle wie eine in der Küche — `A` nähme das Nähere,
+   * und je nachdem ließe sich entweder der Knopf nicht drücken oder das Möbel
+   * nicht ansehen.
+   */
+  it('lässt die Kacheln der Tonprobe frei', () => {
+    const taken = (tile: { x: number; z: number }): boolean =>
+      KITCHEN_SPOTS.some((spot) => {
+        const size = footprint(kitchenPiece(spot.name)!, spot.turn ?? 0);
+        return (
+          tile.x >= spot.x &&
+          tile.x < spot.x + size.w &&
+          tile.z >= spot.z &&
+          tile.z < spot.z + size.d
+        );
+      });
+    const tiles = TRIAL_BUTTONS.flatMap((pair) => [pair.turn, pair.play]);
+    expect(tiles.length).toBe(4);
+    for (const tile of tiles) expect(taken(tile)).toBe(false);
+    // Und keine zwei davon aufeinander — auch das erwischte `A` nur einmal.
+    expect(new Set(tiles.map((tile) => `${tile.x}/${tile.z}`)).size).toBe(tiles.length);
+  });
+
+  /**
+   * **Jedes Paar steht vor seinem Möbel**, und zwar links und rechts davon:
+   * Ohne diese Zeile stünden die Knöpfe irgendwo im Schauraum, und niemand
+   * wüsste, zu welchem Möbel sie gehören.
+   */
+  it('stellt jedes Knopfpaar um das Möbel herum, dessen Ton es prüft', () => {
+    for (const pair of TRIAL_BUTTONS) {
+      const spot = KITCHEN_SPOTS.find((entry) => entry.name === pair.piece && entry.show);
+      expect(spot).toBeDefined();
+      const size = footprint(kitchenPiece(spot!.name)!, spot!.turn ?? 0);
+      // Eine Reihe davor, und die eine links, die andere rechts vom Möbel.
+      expect(pair.turn.z).toBe(spot!.z + size.d);
+      expect(pair.play.z).toBe(spot!.z + size.d);
+      expect(pair.turn.x).toBeLessThan(spot!.x);
+      expect(pair.play.x).toBeGreaterThanOrEqual(spot!.x + size.w);
+    }
   });
 
   /**

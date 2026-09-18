@@ -8,13 +8,20 @@ deshalb steht sie hier.
 Bearbeitet wurde alles mit ffmpeg auf **Mono, 44,1 kHz, Ogg Vorbis q3**, von
 führender Stille befreit und auf einen festen Spitzenpegel gebracht (−1 dBFS
 bei den einmaligen Tönen, −3 bis −4 dBFS bei den Schleifen, weil eine Schleife
-unter allem liegt und kein Ereignis ist). Die **Schleifen** sind zusätzlich
+unter allem liegt und kein Ereignis ist). Die letzten 30 ms eines einmaligen
+Tons sind ausgeblendet — ein Ausschnitt, der mitten im Ausklang endet, knackt. Die **Schleifen** sind zusätzlich
 geschlossen: Der Ausschnitt ist um die Blende länger geholt, und sein Ende ist
 mit gleicher Leistung (`afade=curve=qsin`) über seinen Anfang gelegt — sonst
 klickt jede Wiederholung.
 
 Welche Datei zu welchem Ereignis gehört, steht in
 `src/worlds/test/zones/kitchenSound.ts` (`KITCHEN_CUES`).
+
+**Drei Zeilen gehören zu einer Wahl, die noch aussteht** (`SOUND_TRIALS`
+ebendort): Für das Messer auf dem Brett liegen drei Sätze bereit
+(`chop-*`), für die Abgabe eines Gerichts drei einzelne Töne (`serve-*`).
+Umgeschaltet wird an zwei Knöpfen im Schauraum. Steht die Wahl, bleibt von
+jeder Gruppe ein Satz übrig, und der Rest fliegt hier wieder heraus.
 
 ## Geräusche
 
@@ -23,22 +30,34 @@ Welche Datei zu welchem Ereignis gehört, steht in
 | `chop-0.ogg`       | Kenney _RPG Audio_, `chop.ogg`                           | Kenney       | [kenney.nl](https://kenney.nl/assets/rpg-audio)                  | —                               |
 | `chop-1.ogg`       | `kitchencuttingboard01.wav`, Hieb bei 3,42 s             | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Ausschnitt 0,35 s         |
 | `chop-2.ogg`       | dieselbe Aufnahme, Hieb bei 6,99 s                       | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Ausschnitt 0,35 s         |
+| `chop-board-0..3.ogg` | dieselbe Aufnahme, Hiebe bei 3,68 / 14,42 / 25,37 / 49,44 s | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Hochpass 90 Hz, Ausschnitt 0,25 s |
+| `chop-wood-0..2.ogg` | Kenney _Impact Sounds_, `impactWood_light_000/001/002` | Kenney       | [kenney.nl](https://kenney.nl/assets/impact-sounds)             | —                               |
 | `sizzle.ogg`       | `fryingpan01.wav`                                        | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Schleife 4 s ab 20 s      |
 | `water.ogg`        | `kitchensink02.wav`                                      | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Schleife 2,2 s ab 40 s    |
 | `combine-0.ogg`    | _100 CC0 SFX_, `plop_01.ogg`                             | rubberduck   | [OGA](https://opengameart.org/content/100-cc0-sfx)              | —                               |
 | `combine-1.ogg`    | _100 CC0 SFX_, `plop_02.ogg`                             | rubberduck   | [OGA](https://opengameart.org/content/100-cc0-sfx)              | —                               |
 | `crate-0.ogg`      | _100 CC0 SFX_, `wooded_box_open.ogg`                     | rubberduck   | [OGA](https://opengameart.org/content/100-cc0-sfx)              | —                               |
-| `crate-1.ogg`      | Kenney _Interface Sounds_, `open_004.ogg`                | Kenney       | [kenney.nl](https://kenney.nl/assets/interface-sounds)          | —                               |
 | `warn.ogg`         | Kenney _Interface Sounds_, `question_003.ogg`            | Kenney       | [kenney.nl](https://kenney.nl/assets/interface-sounds)          | —                               |
 | `fire.ogg`         | _Fireplace Sound Loop_, `fire.wav`                       | PagDev       | [OGA](https://opengameart.org/content/fireplace-sound-loop)     | Schleife 5 s ab 6 s             |
 | `spray.ogg`        | `airfryer01.wav`                                         | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Hochpass 700 Hz ×2, Schleife 2,2 s |
 | `douse.ogg`        | _Steam Release Sounds_, `steam hisses - Marker #1.wav`   | bart         | [OGA](https://opengameart.org/content/steam-release-sounds)     | auf 1 s gekürzt                 |
-| `serve.ogg`        | Kenney _Music Jingles_, `jingles_PIZZI00.ogg`            | Kenney       | [kenney.nl](https://kenney.nl/assets/music-jingles)             | —                               |
-| `step-0..2.ogg`    | Kenney _Impact Sounds_, `footstep_carpet_000/001/003`    | Kenney       | [kenney.nl](https://kenney.nl/assets/impact-sounds)             | —                               |
-| `step-3.ogg`       | Kenney _RPG Audio_, `footstep00.ogg`                     | Kenney       | [kenney.nl](https://kenney.nl/assets/rpg-audio)                  | —                               |
+| `serve-bell.ogg`   | _4 Metal Dings/Rings_, `ding.4.ogg`                      | StarNinjas   | [OGA](https://opengameart.org/content/4-metal-dingsrings)       | —                               |
+| `serve-steel.ogg`  | Kenney _Music Jingles_, `jingles_STEEL09.ogg`            | Kenney       | [kenney.nl](https://kenney.nl/assets/music-jingles)             | —                               |
+| `serve-sax.ogg`    | Kenney _Music Jingles_, `jingles_SAX00.ogg`              | Kenney       | [kenney.nl](https://kenney.nl/assets/music-jingles)             | —                               |
 | `place-0..2.ogg`   | Kenney _Impact Sounds_, `impactWood_light_000/001/002`   | Kenney       | [kenney.nl](https://kenney.nl/assets/impact-sounds)             | —                               |
 | `pick-0.ogg`       | Kenney _RPG Audio_, `handleSmallLeather.ogg`             | Kenney       | [kenney.nl](https://kenney.nl/assets/rpg-audio)                  | —                               |
 | `pick-1.ogg`       | Kenney _RPG Audio_, `beltHandle1.ogg`                    | Kenney       | [kenney.nl](https://kenney.nl/assets/rpg-audio)                  | —                               |
+
+**Die Vorratskiste hat nur noch eine Aufnahme.** Daneben lag einmal ein
+Oberflächenton aus einem Bedienfeld (Kenney _Interface Sounds_,
+`open_004.ogg`); im Wechsel mit der Holzkiste klang die Ausgabe dadurch nach
+zwei verschiedenen Dingen — einmal nach Klappe, einmal nach Raumschiff. Eine
+Kiste ist aus Holz.
+
+**Schritte gibt es nicht mehr.** Es lagen vier hier (Kenney _Impact Sounds_
+und _RPG Audio_), getaktet nach der zurückgelegten Strecke. Beim Kochen läuft
+man ununterbrochen, und vier Aufnahmen im Wechsel wurden daraus ein Trommeln
+unter allem, was man hören wollte.
 
 **Der Strahl des Feuerlöschers ist eine Heißluftfritteuse**, und das ist kein
 Scherz, sondern die ehrlichste Lösung: Ein Löscher macht gleichmäßiges

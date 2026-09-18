@@ -57,6 +57,16 @@ export class KitchenAudio {
   /** Entpackte Aufnahmen je Datei — `water.ogg` gehört zu zwei Tönen. */
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly pending = new Map<string, ArrayBuffer>();
+  /**
+   * **Die Aufnahmen, die statt der eingetragenen gelten** — je Ton höchstens
+   * eine Liste, und im Normalfall ist die Liste leer.
+   *
+   * Sie hängt an den beiden Knöpfen im Schauraum
+   * (`kitchenSound.SOUND_TRIALS`, `kitchen.addTrialButtons`): Solange nicht
+   * entschieden ist, wie das Messer und die Abgabe klingen, wird hier
+   * umgestellt und nicht in der Tabelle. Steht die Wahl, fällt beides weg.
+   */
+  private readonly chosen = new Map<KitchenCue, readonly string[]>();
   private priming: Promise<void> | null = null;
   private decoding = false;
   private disposed = false;
@@ -123,7 +133,7 @@ export class KitchenAudio {
   play(cue: KitchenCue, heard: KitchenHeard): void {
     if (this.disposed || heard.gain <= 0.004 || !this.ensure()) return;
     const spec = KITCHEN_CUES[cue];
-    const buffer = this.pick(spec.files);
+    const buffer = this.pick(this.chosen.get(cue) ?? spec.files);
     if (!buffer) return;
     const voice = this.voices.find((slot) => slot.source === null);
     if (!voice) return;
@@ -185,6 +195,21 @@ export class KitchenAudio {
   }
 
   /**
+   * **Einen Ton auf andere Aufnahmen umstellen** — für die Knöpfe im
+   * Schauraum, mit denen sich Messer und Abgabe vergleichen lassen
+   * (`kitchenSound.SOUND_TRIALS`).
+   *
+   * Umgestellt wird **nur der Vorrat, aus dem gewürfelt wird**, und nicht der
+   * Pegel und nicht die Schleife: Eine Variante ist ein anderer Klang
+   * desselben Ereignisses und kein anderes Ereignis. Was gerade klingt, klingt
+   * zu Ende — ein Ton, der beim Umschalten abbräche, wäre der Vergleich, den
+   * man nicht hört.
+   */
+  choose(cue: KitchenCue, files: readonly string[]): void {
+    this.chosen.set(cue, files);
+  }
+
+  /**
    * **Alle Schleifen ausblenden** — im Umbau und beim Verlassen der Küche.
    *
    * `keep` lässt eine davon laufen, und es gibt genau eine, die das braucht:
@@ -218,6 +243,7 @@ export class KitchenAudio {
     this.master = null;
     this.buffers.clear();
     this.pending.clear();
+    this.chosen.clear();
   }
 
   /**
