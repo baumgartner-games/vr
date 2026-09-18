@@ -1088,7 +1088,10 @@ const STATION_KINDS: Readonly<Record<string, StationKind>> = {
  *    `gives`. Sie ist das, was jemand an dieser einen Stelle ausdrücklich
  *    hingeschrieben hat, und wer sie überstimmen ließe, hätte ein Feld, das
  *    manchmal wirkt.
- * 2. Was ausgibt, ist eine **Ausgabe**, egal welches Möbel darunter steht.
+ * 2. Was ausgibt, ist eine **Ausgabe** — eine `crate`, wenn das Möbel eine
+ *    Vorratskiste ist (`KitchenPiece.supply`: offen, voll, keine Ablage), sonst
+ *    eine `box`. Das ist der einzige Unterschied zwischen den beiden, und er
+ *    steht am Möbel und nicht am Platz: Eine Kiste Tomaten ist überall eine.
  * 3. Danach zählt die Tabelle der Möbel, die immer dasselbe sind (Mülleimer,
  *    Brett, Herd mit Pfanne, Theke, Halterung, Spülbecken, Abtropfbrett,
  *    Förderband).
@@ -1104,7 +1107,7 @@ export function stationKind(
   role?: StationKind,
 ): StationKind | null {
   if (role) return role;
-  if (gives) return 'box';
+  if (gives) return kitchenPiece(name)?.supply ? 'crate' : 'box';
   const kind = STATION_KINDS[name];
   if (kind) return kind;
   return kitchenPiece(name)?.worktop ? 'top' : null;

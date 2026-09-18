@@ -97,6 +97,9 @@ export const DEED_SOUNDS: Readonly<Record<DeedKind, KitchenCue | null>> = {
   combine: 'combine',
   fill: 'water',
   trash: 'place',
+  // **Zurücklegen klingt wie Herausholen**, und das ist keine Sparsamkeit: Es
+  // ist dieselbe Kistenklappe, nur andersherum — siehe `deedSound`.
+  stow: 'crate',
   scrape: 'place',
   serve: 'serve',
   douse: null,
@@ -111,9 +114,13 @@ export const DEED_SOUNDS: Readonly<Record<DeedKind, KitchenCue | null>> = {
  * kein Griff auf eine Fläche, sondern eine Klappe, die aufgeht — und es ist
  * der Handgriff, mit dem in dieser Küche jede Zutat anfängt. Er klingt
  * deshalb anders als das Aufnehmen eines Tellers, obwohl beides `take` heißt.
+ *
+ * **Beide Kistenarten**: Die Tellerausgabe ist eine `box`, die vier
+ * Vorratskisten sind ein `crate` (`kitchenCarry.StationKind`) — der
+ * Unterschied ist, was man darauf abstellen darf, und nicht, wie es klingt.
  */
 export function deedSound(deed: DeedKind, station: StationKind): KitchenCue | null {
-  if (deed === 'take' && station === 'box') return 'crate';
+  if (deed === 'take' && (station === 'box' || station === 'crate')) return 'crate';
   return DEED_SOUNDS[deed];
 }
 

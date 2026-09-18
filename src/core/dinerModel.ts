@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { DINER_SCALE } from './dinerFit';
+import { versioned } from './assetVersion';
 
 /**
  * **Die Möbel der zweiten Küche als Modell** — derselbe Weg wie bei der ersten
@@ -34,7 +35,7 @@ import { DINER_SCALE } from './dinerFit';
  */
 
 /** Wo die Datei liegt: unter uns, nie auf einem fremden Server. */
-const DINER_URL = `${import.meta.env.BASE_URL}models/diner.glb`;
+const DINER_URL = versioned(`${import.meta.env.BASE_URL}models/diner.glb`);
 
 let pending: Promise<THREE.Group | null> | null = null;
 

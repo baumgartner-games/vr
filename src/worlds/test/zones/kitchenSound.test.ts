@@ -249,6 +249,7 @@ describe('der Ton einer Tat', () => {
       'combine',
       'fill',
       'trash',
+      'stow',
       'scrape',
       'serve',
       'douse',

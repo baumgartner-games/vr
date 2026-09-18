@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { KITCHEN_SCALE, type PieceMesh, kitchenPiece } from './kitchenFit';
+import { KITCHEN_SCALE, type PieceMesh, type PieceStack, kitchenPiece } from './kitchenFit';
 import { dinerModel } from './dinerModel';
+import { versioned } from './assetVersion';
 
 /**
  * **Die Küchenmöbel als Modell** — aus **zwei** Dateien zusammengesetzt.
@@ -40,7 +41,7 @@ import { dinerModel } from './dinerModel';
  */
 
 /** Wo die Datei liegt: unter uns, nie auf einem fremden Server. */
-const KITCHEN_URL = `${import.meta.env.BASE_URL}models/kitchen.glb`;
+const KITCHEN_URL = versioned(`${import.meta.env.BASE_URL}models/kitchen.glb`);
 
 let pending: Promise<THREE.Group | null> | null = null;
 
@@ -106,7 +107,7 @@ export async function kitchenModel(name: string): Promise<THREE.Object3D | null>
     const step = stack[i]!;
     const over = await mesh(step);
     if (!over) continue;
-    lay(over, step.at);
+    lay(over, step);
     // **Was ganz oben steht, ist das, was man herunternimmt** — wenn das Möbel
     // überhaupt etwas hergibt (`KitchenPiece.holds`). Die Marke sitzt am
     // Objekt und nicht in einer Liste daneben: `takeUtensil` bekommt eine
@@ -118,23 +119,42 @@ export async function kitchenModel(name: string): Promise<THREE.Object3D | null>
 }
 
 /**
- * **Einen Aufsatz auf eine Fläche setzen** — mit seiner **Unterkante**, nicht
- * mit seinem Ursprung.
+ * **Einen Aufsatz auf eine Fläche setzen** — mit seiner **Unterkante** auf
+ * `at` und mit seiner **Mitte** über der Kachelmitte.
  *
- * Der erste Anlauf schrieb `over.position.y = at` und war damit bei jedem
- * Netz falsch, das seinen Ursprung nicht auf seinem Boden hat. Topf und Deckel
+ * Drei Handgriffe in dieser Reihenfolge, und die Reihenfolge ist die ganze
+ * Schwierigkeit:
+ *
+ * 1. **Drehen** (`PieceStack.tilt`), falls der Katalog es sagt. Das Messer
+ *    kommt stehend aus dem Baukasten und soll auf dem Brett liegen.
+ * 2. **Messen.** Erst jetzt — die Hülle eines gedrehten Netzes ist eine
+ *    andere, und wer vorher misst, legt ein flaches Messer eine halbe
+ *    Klingenlänge über das Brett.
+ * 3. **Setzen**: Unterkante auf `at`, Hüllenmitte (verschoben um
+ *    `PieceStack.hub`) auf `x/z = 0`.
+ *
+ * **Die Unterkante und nicht der Ursprung**, und das war eine Korrektur: Der
+ * erste Anlauf schrieb `over.position.y = at` und war damit bei jedem Netz
+ * falsch, das seinen Ursprung nicht auf seinem Boden hat. Topf und Deckel
  * haben ihn dort; die **Pfanne** nicht — sie trägt in ihren Eckpunkten noch
- * die 0,55 m des Herds, auf dem sie in ihrer alten Datei stand, und um 0,60
- * verschoben schwebte sie einen halben Meter über dem Rost.
+ * die 0,55 m des Herds, auf dem sie in ihrer alten Datei stand.
  *
- * Nachgemessen statt vorausgesetzt: Die Hülle sagt, wo der Aufsatz unten
- * aufhört, und genau diese Kante kommt auf `at`. Beim Messer ist das sogar
- * gewollt **unter** der Fläche (`kitchenFit`, `board`) — dann steckt es darin.
+ * **Die Mitte und nicht der Ursprung**, und das war die zweite: Die Pfanne
+ * trägt auch ihren alten Platz **auf** diesem Herd mit sich, und der lag
+ * daneben. Ein Aufsatz gehört über die Mitte seiner Kachel; wo bei ihm
+ * „Mitte" ist, sagt er selbst (`hub` — bei der Pfanne die Mulde und nicht die
+ * Mitte aus Mulde und Stiel).
  */
-function lay(over: THREE.Object3D, at: number): void {
+function lay(over: THREE.Object3D, step: PieceStack): void {
+  if (step.tilt) over.rotation.set(step.tilt[0], step.tilt[1], step.tilt[2]);
   over.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(over);
-  over.position.y += at - box.min.y;
+  const [hx, hz] = step.hub ?? [0, 0];
+  over.position.set(
+    over.position.x - (box.min.x + box.max.x) / 2 - hx,
+    over.position.y + step.at - box.min.y,
+    over.position.z - (box.min.z + box.max.z) / 2 - hz,
+  );
 }
 
 /** Den Ursprung einer abgenommenen Gruppe auf ihren eigenen Boden setzen. */

@@ -761,8 +761,9 @@ export function beltReleases(kind: StationKind, working = false): boolean {
 }
 
 /**
- * **Ob diese Sorte Station von selbst nachliefert** — heute genau die
- * Vorratskiste.
+ * **Ob diese Sorte Station von selbst nachliefert** — die beiden Kistenarten
+ * (`kitchenCarry.StationKind`: die Tellerausgabe `box`, die vier Vorratskisten
+ * `crate`).
  *
  * Für die Bandrechnung ist eine Kachel entweder belegt oder frei
  * (`BeltTile.loaded`), und eine Kiste ist von beidem nichts: Auf ihr liegt
@@ -776,7 +777,7 @@ export function beltReleases(kind: StationKind, working = false): boolean {
  * und dieselbe Gelegenheit, sie ohne WebGL nachzurechnen.
  */
 export function beltRefills(kind: StationKind): boolean {
-  return kind === 'box';
+  return kind === 'box' || kind === 'crate';
 }
 
 /**

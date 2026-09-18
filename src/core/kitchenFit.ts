@@ -64,6 +64,38 @@ export interface PieceMesh {
  */
 export interface PieceStack extends PieceMesh {
   readonly at: number;
+
+  /**
+   * **Wie der Aufsatz gedreht liegt**, in Bogenmaß um x, y und z — und ohne
+   * diese drei Zahlen liegt er so, wie der Zeichner ihn gebaut hat.
+   *
+   * **Das Messer ist der Fall, für den es sie gibt.** Der Baukasten liefert es
+   * **stehend**: 0,575 m hoch auf einer Fläche von 12,5 × 5 cm, Spitze unten,
+   * Griff oben — so, wie man es in ein Messerblock steckt. Auf einem
+   * Schneidebrett steht kein Messer, es **liegt** darauf, und eine Vierteldrehung
+   * um die Querachse macht aus der Höhe eine Länge.
+   *
+   * Gedreht wird **vor** dem Messen: Der Lader nimmt die Hülle des gedrehten
+   * Netzes und setzt deren Unterkante auf `at` (`core/kitchenModel.lay`).
+   * Andersherum läge ein flach gedrehtes Messer eine halbe Klingenlänge über
+   * dem Brett.
+   */
+  readonly tilt?: readonly [number, number, number];
+
+  /**
+   * **Welcher Punkt des Aufsatzes über der Kachelmitte liegen soll**, in Metern
+   * (x, z) von seiner eigenen Hüllenmitte aus gerechnet.
+   *
+   * Ohne ihn ist es die **Hüllenmitte** selbst, und das stimmt für alles, was
+   * rund und symmetrisch ist: Topf, Deckel, Abtropfgitter.
+   *
+   * **Die Pfanne hat einen Stiel**, und deshalb ist ihre Hüllenmitte nicht ihre
+   * Mulde: Sie liegt 22,5 cm daneben (`PAN_BOWL`, an der Quelle nachgemessen).
+   * Auf die Kachelmitte gestellt lag die Mulde sichtbar neben der Flamme — und
+   * zwar in jeder Ansicht. Was auf dem Rost stehen soll, ist die **Mulde**, und
+   * genau das sagt dieses Feld.
+   */
+  readonly hub?: readonly [number, number];
 }
 
 /** Ein Möbel im Katalog. */
@@ -177,22 +209,29 @@ export interface KitchenPiece {
   readonly worktop?: boolean;
 
   /**
-   * **Dieses Möbel zeigt selbst, was es hergibt** — und braucht deshalb kein
-   * Bild davon.
+   * **Dies ist eine Vorratskiste** — offen, voll, und keine Ablage.
    *
-   * Eine Ausgabe bekommt sonst ein gerendertes Bild ihrer Zutat oben
-   * aufgeklebt (`worlds/test/zones/kitchen.addIcon`, `kitchenIcon.IconOven`).
-   * Das war richtig, solange in der Ausgabe eine geschlossene Kiste mit Deckel
-   * stand: Von außen sah man ihr nichts an. Die vier Vorratskisten
-   * (`SUPPLY_CRATES`) sind offen und voll — eine Kiste Tomaten mit einem Bild
-   * einer Tomate darauf zeigt dieselbe Auskunft zweimal, und das Bild liegt
-   * dabei genau über dem, was es erklären soll: In der Aufsicht
-   * (`core/TopDownCamera.ts`) verdeckt der gerenderte Teller die ganze Kiste.
+   * Ein Feld mit zwei Folgen, und beide kommen aus derselben Eigenschaft: Eine
+   * Vorratskiste **zeigt ihren Inhalt**.
+   *
+   * - **Kein Bild darauf.** Eine Ausgabe bekommt sonst ein gerendertes Bild
+   *   ihrer Zutat oben aufgeklebt (`worlds/test/zones/kitchen.addIcon`,
+   *   `kitchenIcon.IconOven`). Das war richtig, solange dort eine geschlossene
+   *   Kiste mit Deckel stand: Von außen sah man ihr nichts an. Eine Kiste
+   *   Tomaten mit einem Bild einer Tomate darauf zeigt dieselbe Auskunft
+   *   zweimal — und das Bild liegt dabei genau über dem, was es erklären soll:
+   *   In der Aufsicht (`core/TopDownCamera.ts`) verdeckt der gerenderte Teller
+   *   die ganze Kiste.
+   * - **Und nichts darauf.** Sie ist bis oben voll; eine Pfanne, die auf
+   *   einem Haufen Tomaten balanciert, ist kein Abstellplatz, sondern ein
+   *   Fehler, den man sieht. Sie wird deshalb zu einer eigenen Stationsart
+   *   (`worlds/test/zones/kitchenPlan.stationKind` → `'crate'`), an der man
+   *   nimmt und **zurücklegt**, aber nicht ablegt.
    *
    * Es hängt am **Möbel** und nicht am Platz: Was eine Kiste zeigt, zeigt sie
    * überall — in der Küche, in der Werkhalle und im Schauraum.
    */
-  readonly shows?: boolean;
+  readonly supply?: boolean;
 
   /**
    * **Was man von diesem Möbel herunternehmen kann** — der Topf, die Pfanne,
@@ -495,6 +534,83 @@ export const SINK_TRAY = {
 export const HOB_TOP = 0.6038;
 
 /**
+ * **Die vier Fächer eines Abtropfgitters** — wo ein Teller darin steht und wie
+ * schräg.
+ *
+ * Alle vier Zahlen sind **am Netz abgelesen** und keine gewählten: Der
+ * Baukasten liefert das Gitter zweimal, leer (`dishrack`) und mit vier Tellern
+ * darin (`dishrack_plates`), und beide teilen sich denselben Rahmen. Wer die
+ * Teller des zweiten in seine Zusammenhangskomponenten zerlegt, bekommt vier
+ * gleiche Körper — und damit genau das Maß, nach dem die Küche ihre eigenen
+ * Teller hineinstellen muss, damit es aussieht wie das gezeichnete Stück.
+ *
+ * Aufgestellt wird nämlich das **leere** Gitter (`sink-drain`), und die Teller
+ * kommen einzeln dazu, sobald jemand welche hineinstellt. Das gezeichnete
+ * volle Gitter steht nur im Schauraum und auf der Tellerausgabe, wo es nichts
+ * zu zählen gibt.
+ *
+ * **Die Schräge ist die eine Zahl, die gerechnet ist.** Ein Teller liegt flach
+ * 0,475 m breit und 0,05 m dick; im Gitter misst seine Hülle 0,4722 m in der
+ * Höhe und 0,1274 m in der Tiefe. Aus beiden Gleichungen zusammen kommt ein
+ * Winkel von **80°** heraus — nicht ganz senkrecht, und genau das sieht man
+ * auch: Die Teller lehnen leicht nach hinten an die Sprossen.
+ */
+export const RACK_SLOTS = {
+  /** Wie viele Teller hineinpassen — vier Fächer, vier Teller. */
+  count: 4,
+  /**
+   * Wie hoch die **Mitte** eines Tellers über der Ablagehöhe des Möbels liegt
+   * (`kitchenDeck`, beim `sink-drain` 0,525 m): Die Teller des Netzes stehen
+   * 0,5754 bis 1,0476 m über dem Fuß des Möbels, ihre Mitte also auf 0,8115 m.
+   */
+  lift: 0.2865,
+  /** Wo das erste Fach liegt, in Metern von der Kachelmitte nach hinten. */
+  first: -0.1732,
+  /** Und wie weit das nächste davon entfernt ist. */
+  step: 0.1,
+  /** Wie schräg ein Teller darin steht, im Bogenmaß — 80°. */
+  tilt: (80 * Math.PI) / 180,
+} as const;
+
+/**
+ * **Wo in der abgenommenen Pfanne die Mulde liegt**, in Metern (x, z) — der
+ * Versatz von ihrem Ursprung zur Mitte des Bratraums.
+ *
+ * Ein abgenommenes Gerät bekommt seinen Ursprung in der Mitte seiner **ganzen**
+ * Hülle (`core/kitchenModel.takeUtensil`), und zur Hülle einer Pfanne gehört
+ * der **Stiel**. Genau daran lag das Patty schief: Es wird auf `x/z = 0` des
+ * Trägers gelegt (`worlds/test/zones/kitchen.ts`, `restyle` →
+ * `kitchenProps.FoodKit.topping`), und dieser Punkt ist nicht die Mulde,
+ * sondern die Mitte aus Mulde **und** Stiel — also ein gutes Stück zum Griff
+ * hin. Auf dem Bild lag das Fleisch halb über dem Pfannenrand.
+ *
+ * **Aus der Geometrie gerechnet und nicht geschätzt** (Quellmaß aus
+ * `public/models/kitchen.glb`, Knoten `stove-pan`, Netz `Kitchen_Utensils`):
+ *
+ * - Die ganze Hülle reicht in z von −0,9372 bis +1,2198; ihre Mitte liegt bei
+ *   **+0,1413** — dorthin setzt `takeUtensil` den Ursprung.
+ * - Die **Mulde ohne Stiel** ist ein Drehkörper: In x misst sie −0,6316 bis
+ *   +0,6244, also 1,2560 breit, und breiter wird die Pfanne nirgends — der
+ *   Stiel ist mit |x| ≤ 0,115 ein schmaler Balken. Derselbe Durchmesser gilt
+ *   in z, und weil die Mulde bei z = −0,9372 anfängt, liegt ihre Mitte bei
+ *   −0,9372 + 0,6280 = **−0,3092**. Der Stiel schließt dort an und läuft bis
+ *   +1,2198.
+ * - In x fallen beide Mitten auf −0,0036 zusammen: Der Stiel steht mittig.
+ *
+ * Bleibt in z ein Unterschied von −0,4505 in Quellmaß, halbiert
+ * (`KITCHEN_SCALE`) **−0,225 m** — knapp drei Viertel des Muldenhalbmessers
+ * (0,314 m). Genau so weit lag das Patty daneben.
+ *
+ * **Warum die Zahl hier steht und nicht am Netz.** Der Belag hängt nicht an der
+ * Pfanne, sondern neben ihr am selben Träger (`worlds/test/zones/kitchen.ts`,
+ * `addStation`), und der Zutatensatz, der ihn baut, kennt kein geladenes Modell
+ * (`kitchenProps.ts`). Ein gemessenes Maß aus der Quelldatei gehört damit in
+ * denselben Katalog wie `align` und `deck` — das ist die Liste, die man beim
+ * Austausch der Quelle nachmisst.
+ */
+export const PAN_BOWL: readonly [x: number, z: number] = [0, -0.225];
+
+/**
  * **Die vier Vorratskisten** — je Zutat eine, und in jeder liegt das, was sie
  * hergibt.
  *
@@ -520,7 +636,8 @@ export const HOB_TOP = 0.6038;
  * sie braucht `worktop` auch nicht, um zu wirken — was `gives` trägt, ist eine
  * Ausgabe (`kitchenPlan.stationKind`, Regel 2), und das genügt.
  *
- * **Und kein Bild** (`shows`): Jede zeigt ihren Inhalt, siehe dort.
+ * **Und kein Bild und keine Ablage** (`supply`): Jede zeigt ihren Inhalt,
+ * siehe dort.
  *
  * Die Höhen sind die gemessenen Oberkanten der Netze (`core/dinerFit.ts`) und
  * damit zugleich `deck`: Ausgegeben wird **oben aus der Kiste**.
@@ -532,7 +649,7 @@ const SUPPLY_CRATES: readonly KitchenPiece[] = [
     tiles: [1, 1],
     base: { file: 'diner', node: 'crate_buns' },
     height: 0.4012,
-    shows: true,
+    supply: true,
   },
   {
     name: 'crate-patty',
@@ -543,7 +660,7 @@ const SUPPLY_CRATES: readonly KitchenPiece[] = [
     // „Steaks" gibt es hier nicht, ein Rezept dafür auch nicht.
     base: { file: 'diner', node: 'crate_steak' },
     height: 0.4385,
-    shows: true,
+    supply: true,
   },
   {
     name: 'crate-lettuce',
@@ -551,7 +668,7 @@ const SUPPLY_CRATES: readonly KitchenPiece[] = [
     tiles: [1, 1],
     base: { file: 'diner', node: 'crate_lettuce' },
     height: 0.499,
-    shows: true,
+    supply: true,
   },
   {
     name: 'crate-tomatoes',
@@ -559,7 +676,7 @@ const SUPPLY_CRATES: readonly KitchenPiece[] = [
     tiles: [1, 1],
     base: { file: 'diner', node: 'crate_tomatoes' },
     height: 0.4617,
-    shows: true,
+    supply: true,
   },
 ];
 
@@ -679,17 +796,26 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     base: { file: 'diner', node: 'kitchencounter_straight_A' },
     over: [
       { file: 'diner', node: 'cuttingboard', at: 0.5 },
-      // **Und das Messer steckt darin.** Seine Klinge reicht 10,5 cm unter
-      // seinen eigenen Fuß (`dinerFit`, `knife.foot`); aufgesetzt wird es
-      // deshalb um genau diese 10,5 cm tiefer als die Brettoberfläche, und
-      // dann steht es im Brett statt darauf.
-      { file: 'diner', node: 'knife', at: 0.4696 },
+      // **Und das Messer liegt darauf** — flach, wie ein Messer auf einem
+      // Brett eben liegt. Der Baukasten liefert es stehend (siehe
+      // `PieceStack.tilt`); eine Vierteldrehung um die Querachse legt es hin,
+      // und aufgesetzt wird es dann auf die Brettoberfläche (0,575 m).
+      //
+      // Es stand hier einmal **im** Brett, um 10,5 cm versenkt — das war der
+      // Versuch, aus einem stehenden Messer ein steckendes zu machen, und aus
+      // der Nähe sah es aus wie ein Messer, das jemand in die Arbeitsplatte
+      // gerammt hat.
+      { file: 'diner', node: 'knife', at: 0.575, tilt: [Math.PI / 2, 0, 0] },
     ],
     // Das Brett ist 7,5 cm dick und liegt auf 0,50 m; die Schnittfläche liegt
     // damit 7,5 cm über der Zeile daneben. **Kein `bury` mehr**: Der alte
     // Katalog versenkte das Brett um 3,3 cm, damit seine Fläche mit der Zeile
     // fluchtete — dieses Brett liegt sichtbar **auf** einer Zeile.
-    height: 1.045,
+    //
+    // Darüber liegt nur noch das Messer, und flach ist es 5 cm dick (seine
+    // Breite in der Quelle, `dinerFit`, `knife.span`). Es stand hier einmal
+    // aufrecht, und das machte aus einem Brett ein Möbel von 1,05 m.
+    height: 0.625,
     deck: 0.575,
     worktop: true,
   },
@@ -739,7 +865,9 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // nachgemessener Muldenversatz (`PAN_BOWL`), den ein fremdes Netz nicht
     // mitbringt. Der Herd darunter kommt wie die anderen aus dem zweiten
     // Baukasten.
-    over: [{ file: 'kitchen', node: 'pan', at: HOB_TOP }],
+    // `hub` ist der Muldenversatz: Auf dem Rost soll die **Mulde** stehen und
+    // nicht die Mitte aus Mulde und Stiel.
+    over: [{ file: 'kitchen', node: 'pan', at: HOB_TOP, hub: PAN_BOWL }],
     // Rost plus 12,78 cm Pfanne.
     height: HOB_TOP + 0.1278,
     deck: HOB_TOP,
@@ -952,44 +1080,6 @@ export function kitchenDeck(piece: KitchenPiece): number {
 export function kitchenWorkHeight(piece: KitchenPiece): number {
   return kitchenDeck(piece) - (piece.bury ?? 0);
 }
-
-/**
- * **Wo in der abgenommenen Pfanne die Mulde liegt**, in Metern (x, z) — der
- * Versatz von ihrem Ursprung zur Mitte des Bratraums.
- *
- * Ein abgenommenes Gerät bekommt seinen Ursprung in der Mitte seiner **ganzen**
- * Hülle (`core/kitchenModel.takeUtensil`), und zur Hülle einer Pfanne gehört
- * der **Stiel**. Genau daran lag das Patty schief: Es wird auf `x/z = 0` des
- * Trägers gelegt (`worlds/test/zones/kitchen.ts`, `restyle` →
- * `kitchenProps.FoodKit.topping`), und dieser Punkt ist nicht die Mulde,
- * sondern die Mitte aus Mulde **und** Stiel — also ein gutes Stück zum Griff
- * hin. Auf dem Bild lag das Fleisch halb über dem Pfannenrand.
- *
- * **Aus der Geometrie gerechnet und nicht geschätzt** (Quellmaß aus
- * `public/models/kitchen.glb`, Knoten `stove-pan`, Netz `Kitchen_Utensils`):
- *
- * - Die ganze Hülle reicht in z von −0,9372 bis +1,2198; ihre Mitte liegt bei
- *   **+0,1413** — dorthin setzt `takeUtensil` den Ursprung.
- * - Die **Mulde ohne Stiel** ist ein Drehkörper: In x misst sie −0,6316 bis
- *   +0,6244, also 1,2560 breit, und breiter wird die Pfanne nirgends — der
- *   Stiel ist mit |x| ≤ 0,115 ein schmaler Balken. Derselbe Durchmesser gilt
- *   in z, und weil die Mulde bei z = −0,9372 anfängt, liegt ihre Mitte bei
- *   −0,9372 + 0,6280 = **−0,3092**. Der Stiel schließt dort an und läuft bis
- *   +1,2198.
- * - In x fallen beide Mitten auf −0,0036 zusammen: Der Stiel steht mittig.
- *
- * Bleibt in z ein Unterschied von −0,4505 in Quellmaß, halbiert
- * (`KITCHEN_SCALE`) **−0,225 m** — knapp drei Viertel des Muldenhalbmessers
- * (0,314 m). Genau so weit lag das Patty daneben.
- *
- * **Warum die Zahl hier steht und nicht am Netz.** Der Belag hängt nicht an der
- * Pfanne, sondern neben ihr am selben Träger (`worlds/test/zones/kitchen.ts`,
- * `addStation`), und der Zutatensatz, der ihn baut, kennt kein geladenes Modell
- * (`kitchenProps.ts`). Ein gemessenes Maß aus der Quelldatei gehört damit in
- * denselben Katalog wie `align` und `deck` — das ist die Liste, die man beim
- * Austausch der Quelle nachmisst.
- */
-export const PAN_BOWL: readonly [x: number, z: number] = [0, -0.225];
 
 /**
  * **In welchem Maßstab dieses Möbel in der Szene steht** — seit dem Umbau

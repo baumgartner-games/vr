@@ -9,7 +9,15 @@ import { TOP_DOWN_TILT } from '../../../core/topDownPose';
 import { KITCHEN } from '../layout';
 import { PLATE_HEIGHT, stackHeight } from './kitchenProps';
 import type { KitchenItem, StationKind } from './kitchenCarry';
-import { beltGrabs, beltKind, beltReach, beltReleases, beltStep, beltWants } from './kitchenBelt';
+import {
+  beltGrabs,
+  beltKind,
+  beltReach,
+  beltRefills,
+  beltReleases,
+  beltStep,
+  beltWants,
+} from './kitchenBelt';
 import { chopStage } from './kitchenRecipes';
 import {
   BUILD_BUTTON_TILE,
@@ -171,13 +179,18 @@ describe('die Rollen der Möbel', () => {
       'tomato',
     ]);
     for (const spot of gives) {
+      // **Zwei Kistenarten, und der Unterschied steht am Möbel**: Die
+      // Tellerausgabe ist eine Arbeitsplatte, die Teller hergibt (`box`); die
+      // vier Vorratskisten sind offen und bis oben voll, auf ihnen wird nichts
+      // abgestellt (`crate`, `core/kitchenFit.KitchenPiece.supply`).
+      const crate = kitchenPiece(spot.name)?.supply === true;
       expect({ name: spot.name, kind: stationKind(spot.name, spot.gives) }).toEqual({
         name: spot.name,
-        kind: 'box',
+        kind: crate ? 'crate' : 'box',
       });
       // Jede Ausgabe heißt nach dem, was sie hergibt — im Katalog heißen alle
       // vier gleich (`Spot.label`).
-      if (spot.name === 'serve-counter') expect(spot.label).toBeDefined();
+      if (crate) expect(spot.label).toBeDefined();
     }
   });
 
@@ -920,7 +933,10 @@ describe('die Werkhalle', () => {
     const gives = HALL.filter((spot) => spot.gives);
     expect(gives.map((spot) => spot.gives).sort()).toEqual(['bun', 'lettuce', 'patty', 'tomato']);
     for (const spot of gives) {
-      expect(kindOf(spot)).toBe('box');
+      expect(kindOf(spot)).toBe('crate');
+      // Und ein Zugband zieht auch aus dieser Art — sonst stünde die Straße
+      // vor einer vollen Kiste und meldete eine leere Kachel.
+      expect(beltRefills(kindOf(spot)!)).toBe(true);
       expect(spot.label).toBeDefined();
     }
   });

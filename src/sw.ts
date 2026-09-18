@@ -139,7 +139,22 @@ async function precache(): Promise<void> {
   );
 }
 
-/** **Aufräumen**: alles wegwerfen, was zu einem früheren Build gehörte. */
+/**
+ * **Aufräumen**: alles wegwerfen, was zu einem früheren Build gehörte.
+ *
+ * Zwei Sorten, und die zweite ist neu. Die **Hülle** trägt die Build-Nummer im
+ * Namen des Speichers, also genügt es, die fremden Namen zu löschen. Bei den
+ * **Medien** geht das nicht: Modelle und Töne liegen in einem Speicher, der
+ * über Builds hinweg stehen bleibt — genau dafür ist er da, denn ein
+ * Controller-Modell ändert sich nie und muss nicht nach jedem Deploy neu über
+ * das Netz.
+ *
+ * Seit die eigenen Medien ihre Build-Nummer in der Adresse tragen
+ * (`core/assetVersion.ts`), sammeln sich dort aber Altbestände: `kitchen.glb`
+ * von gestern, `kitchen.glb` von vorgestern. Weggeworfen wird deshalb hier,
+ * was ein `v=` trägt, das nicht dieses Build ist. Was **kein** `v=` hat,
+ * bleibt: Das sind die Dateien, die sich nicht mit dem Build ändern.
+ */
 async function sweep(): Promise<void> {
   const names = await caches.keys();
   await Promise.all(
@@ -147,7 +162,23 @@ async function sweep(): Promise<void> {
       .filter((name) => name.startsWith('bgvr-shell-') && name !== SHELL)
       .map((name) => caches.delete(name)),
   );
+  await dropOldMedia();
   await self.clients.claim();
+}
+
+/** Die Medien fremder Builds — erkannt an ihrem `v=` in der Adresse. */
+async function dropOldMedia(): Promise<void> {
+  if (!(await caches.has(MEDIA))) return;
+  const cache = await caches.open(MEDIA);
+  const keys = await cache.keys();
+  await Promise.all(
+    keys
+      .filter((request) => {
+        const stamp = new URL(request.url).searchParams.get('v');
+        return stamp !== null && stamp !== __BUILD_ID__;
+      })
+      .map((request) => cache.delete(request)),
+  );
 }
 
 /** Erst das Netz; erst wenn es nichts hat, der Speicher. */
