@@ -6404,9 +6404,11 @@ kann.
   (`kitchenHeard`: Entfernung und Balance auf dem Boden, wie beim Anfassen;
   `kitchenNearest`: von vier brennenden Herden zählt der nächste), der **Takt**
   des Messers (`kitchenBeat` — höchstens ein Schlag je Bild, sonst macht ein
-  Ruckler eine Salve daraus) und die **Schrittuhr** (`kitchenStep` — nach der
-  Strecke und nicht nach der Zeit, sonst marschiert man im Stehen). Daneben
-  liegt `kitchenAudio.ts` mit acht Stimmen und je Schleife einer, auf dem
+  Ruckler eine Salve daraus) und die **Auswahl** der beiden Töne, über die noch
+  nicht entschieden ist (`SOUND_TRIALS`, siehe unten). **Schritte macht die
+  Küche nicht**: Es gab vier Aufnahmen und eine Schrittuhr nach der Strecke,
+  und beim Kochen war das ein Trommeln unter allem, was man hören wollte.
+  Daneben liegt `kitchenAudio.ts` mit acht Stimmen und je Schleife einer, auf dem
   gemeinsamen Kontext aus `core/Audio.ts`; die Zone dazwischen sammelt in
   `listen(dt)` ein, was gerade zischt, und spielt in `act` **eine** Zeile ab
   statt in elf `case`-Zweigen. Die Aufnahmen sind CC0 und liegen in
@@ -6415,6 +6417,20 @@ kann.
   (`haunting/audio/cues.ts`): Bis eine Aufnahme entpackt ist, bleibt es still.
   Ein Platzhalter, der eine halbe Minute lang anders klingt als das, was danach
   kommt, ist kein Platzhalter, sondern ein zweites Geräusch.
+- **Zwei Töne stehen noch zur Wahl, und die Wahl steht im Schauraum**
+  (`kitchenSound.SOUND_TRIALS`, `kitchenPlan.TRIAL_BUTTONS`,
+  `kitchen.addTrialButtons`). Wie das **Messer** auf dem Brett klingt und wie
+  die **Abgabe** eines Gerichts, entscheidet niemand am Schreibtisch; also
+  stehen je zwei rote Knöpfe vor dem Schneidebrett und vor der Ausgabetheke —
+  links weiterschalten, rechts vorspielen —, und auf beiden Schildern steht,
+  welche Variante gerade gilt. Eine Variante ist ein **Satz** Aufnahmen und
+  keine Datei: Das Messer schlägt siebenmal je Schnitt auf, die Abgabe kommt
+  einmal. Geschaltet wird der Vorrat, aus dem der Spieler würfelt
+  (`kitchenAudio.choose`), also klingt die ganze Küche danach so und nicht nur
+  die Vorführung. Geladen wird beim Aufbau der Zone **alles**, auch was gerade
+  nicht läuft (`kitchenSoundFiles`) — wer erst beim Druck lädt, hört Stille,
+  wo er vergleichen wollte. **Das ist Gerüst**: Steht die Wahl, fallen Knöpfe
+  und Auswahl heraus, und übrig bleibt der Satz, der gewonnen hat.
 - **Das Radio ist kein Möbel** (`kitchenRadio.ts`, `kitchenPlan.RADIO_TILE`).
   Es steht in keiner Möbelliste und lässt sich nicht umbauen — dieselbe
   Begründung wie bei den beiden roten Knöpfen: Ein Gerät, das man im Baumodus

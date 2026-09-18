@@ -78,8 +78,16 @@ weggeht, fängt von vorn an.
 Brett, die Pfanne zischt, der Hahn läuft in den Topf, die Vorratskiste klappt
 auf, das verbrannte Patty meldet sich mit einem Warnton, bevor es brennt, das
 Feuer knistert, der Löscher zischt, und wer ein Gericht über die Theke gibt,
-bekommt ein Pizzicato dafür. Alles hat einen Ort: Der Herd an der Nordwand ist
+bekommt eine Glocke dafür. Alles hat einen Ort: Der Herd an der Nordwand ist
 leiser, wenn man am Gastraum steht, und liegt auf dem Ohr, auf dem er steht.
+Nur **die eigenen Schritte hört man nicht** — sie waren ein Trommeln unter
+allem, was man hören wollte.
+
+**Zwei davon stehen noch zur Wahl**, und die Wahl steht im Schauraum: vor dem
+Schneidebrett und vor der Ausgabetheke je zwei rote Knöpfe — links schaltet
+den Ton weiter, rechts spielt ihn vor, und auf beiden Schildern steht, welche
+Variante gerade gilt. Umgeschaltet wird die ganze Küche und nicht nur die
+Vorführung. Steht die Wahl, fallen die Knöpfe wieder heraus.
 An der Westwand steht dazu ein **Radio** — `A` macht es an, `A` macht es wieder
 aus, und jedes Anmachen ist ein Sender weiter (drei Stück, alle
 gemeinfrei). Seine Skala leuchtet, solange es läuft. Die Geräusche sind CC0 und
@@ -1067,6 +1075,7 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Küche: umbauen | der Knopf in der Küche schaltet um (und räumt dabei ab), dann `A` am leeren Möbel und `A` auf dem Umriss davor | dito mit `E` | dito mit `A` |
 | Küche: Möbel holen | vorn an den Computer-Tisch und `A` — im Katalog ringsum eines anfassen; auf dem Kopierer links ablegen, rechts die Kopie abholen | dito mit `E` | dito mit `A` |
 | Küche: Radio | an der Westwand, neben der Tomatenausgabe: `A` macht an, `A` macht aus — und jedes Anmachen ist ein Sender weiter | dito mit `E` | dito mit `A` |
+| Küche: Ton wählen | im Schauraum vor dem Schneidebrett und vor der Ausgabetheke: linker Knopf schaltet den Ton weiter, rechter spielt ihn vor | dito mit `E` | dito mit `A` |
 | Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`, dann greift man sich die Sachen im Schrank                                              | dito                                                                   | dito                     |
 | Hitboxen                      | Menü → Grafik → _Hitboxen_ — die Körper der Physik über allem, mit dem Spielerkreis                                                                                                             | dito                                                                   | dito                     |
 | Gitterlinien                  | Menü → Grafik → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |

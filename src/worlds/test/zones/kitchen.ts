@@ -86,6 +86,7 @@ import {
   KITCHEN_FLOOR,
   KITCHEN_SPOTS,
   RADIO_TILE,
+  TRIAL_BUTTONS,
   TURN_LABELS,
   footprint,
   inKitchen,
@@ -163,14 +164,18 @@ import { buildRedButton, BUTTON_DOME_R, type RedButton } from '../../shared/redB
 import { KitchenAudio } from './kitchenAudio';
 import {
   CHOP_BEAT,
+  SOUND_TRIALS,
+  TRIAL_CUES,
   deedSound,
   kitchenBeat,
   kitchenHeard,
   kitchenNearest,
-  kitchenStep,
+  nextTrial,
+  trialAt,
   type KitchenEar,
   type KitchenHeard,
   type KitchenSpotAt,
+  type TrialCue,
 } from './kitchenSound';
 import {
   RADIO_HEIGHT,
@@ -1011,10 +1016,25 @@ export class KitchenZone implements TestZone {
    * sonst einen Spieler, der nichts mehr spielt.
    */
   private sound = new KitchenAudio();
-  /** Wo die Füße im letzten Bild standen — für die Schrittuhr. */
-  private readonly stepWas = { x: 0, z: 0 };
-  /** Wie weit seit dem letzten Schritt gelaufen wurde (`kitchenStep`). */
-  private walked = 0;
+  /**
+   * **Welche Variante der beiden Töne gerade läuft, die noch zur Wahl stehen**
+   * (`kitchenSound.SOUND_TRIALS`) — der Stand der Knöpfe im Schauraum.
+   *
+   * Er steht in der Zone und nicht im Speicher des Browsers, wie der Sender
+   * des Radios daneben (`kitchenRadio.RadioState`): Es ist eine Frage, die
+   * einmal beantwortet wird, und bis dahin steht die Antwort auf dem Schild
+   * des Knopfes, an dem man ohnehin gerade steht.
+   */
+  private readonly trials = new Map<TrialCue, number>();
+  /**
+   * **Die Knöpfe dazu**, mit dem, was auf ihnen steht.
+   *
+   * Der Titel steht daneben und nicht nur im Schild: Weitergeschaltet wird der
+   * **Zusatz** darunter (`turnTrial`), und `RedButton.setTitle` setzt beides
+   * zusammen — wer den Titel nicht mehr hätte, schriebe ihn beim ersten
+   * Weiterschalten weg.
+   */
+  private readonly trialButtons: { button: RedButton; cue: TrialCue; title: string }[] = [];
   /** Die Uhr des Messers — sie läuft nur, solange irgendwo geschnitten wird. */
   private chopClock = 0;
   /** Das Radio, sein Stand und seine Stelle (`kitchenRadio.ts`). */
@@ -1119,6 +1139,7 @@ export class KitchenZone implements TestZone {
     }
     this.addBuildButton();
     this.addHandsButton();
+    this.addTrialButtons();
     this.addRadio();
     // **Die Töne werden jetzt geholt und nicht beim ersten Zischen**
     // (`kitchenAudio.prime`) — dieselbe Entscheidung wie bei den Möbeln
@@ -1128,6 +1149,11 @@ export class KitchenZone implements TestZone {
     // Ohne Web Audio geht dabei nicht eine einzige Anfrage hinaus.
     this.sound.dispose();
     this.sound = new KitchenAudio();
+    // **Der neue Spieler übernimmt, was an den Knöpfen gewählt ist**
+    // (`addTrialButtons`). Ohne diese Zeile stünde nach einem Umbau auf dem
+    // Schild eine Variante und aus dem Brett käme eine andere — der Spieler
+    // ist neu, die Wahl ist es nicht.
+    for (const cue of TRIAL_CUES) this.sound.choose(cue, trialAt(cue, this.trialIndex(cue)).files);
     void this.sound.prime();
     // Der Aushang an der Nordwand: dieselbe Wand, an der die Zeile steht, und
     // die einzige, deren Innenseite die Kamera von oben ansieht.
@@ -1186,6 +1212,7 @@ export class KitchenZone implements TestZone {
     // Die Knöpfe kommen nach dem Druck wieder hoch — von allein tun sie es nicht.
     this.buildButton?.update(dt);
     this.handsButton?.update(dt);
+    for (const trial of this.trialButtons) trial.button.update(dt);
     this.gauges?.update(dt);
     this.fadeTicket(dt);
     this.carryInHands(ctx);
@@ -1995,7 +2022,7 @@ export class KitchenZone implements TestZone {
   // --- was die Küche hören lässt ----------------------------------------------
 
   /**
-   * **Ein Bild für die Ohren** — Schritte, Schleifen, der Takt des Messers.
+   * **Ein Bild für die Ohren** — die Schleifen und der Takt des Messers.
    *
    * Sie steht **nach** den Uhren in `update`, und das ist keine Feinheit: Was
    * zu hören ist, ist der Zustand **nach** diesem Bild. Wer vorher hörte,
@@ -2010,18 +2037,6 @@ export class KitchenZone implements TestZone {
    */
   private listen(dt: number): void {
     const ear: KitchenEar = { x: _feet.x, z: _feet.z, ax: _aim.x, az: _aim.z };
-
-    // **Die Schritte gehen nach der Strecke** (`kitchenSound.kitchenStep`) —
-    // eine Uhr liefe im Stehen weiter und ließe einen auf der Stelle
-    // marschieren. Was hier hereingeht, ist der Weg der **Füße** und nicht der
-    // des Kopfes: Wer sich in der Brille umsieht, läuft nicht.
-    const moved = Math.hypot(_feet.x - this.stepWas.x, _feet.z - this.stepWas.z);
-    this.stepWas.x = _feet.x;
-    this.stepWas.z = _feet.z;
-    const step = kitchenStep(this.walked, moved);
-    this.walked = step.walked;
-    // Der eigene Schritt kommt vom eigenen Ort: voll und aus keiner Richtung.
-    if (step.hit) this.sound.play('step', { gain: 1, pan: 0 });
 
     const sizzling: KitchenSpotAt[] = [];
     const burning: KitchenSpotAt[] = [];
@@ -2738,6 +2753,9 @@ export class KitchenZone implements TestZone {
     this.buildButton = null;
     this.handsButton?.dispose();
     this.handsButton = null;
+    for (const trial of this.trialButtons) trial.button.dispose();
+    this.trialButtons.length = 0;
+    this.trials.clear();
     this.notice?.dispose();
     this.notice = null;
     // **Der Ton zuletzt und vollständig**: Eine Schleife, die eine Welt
@@ -3512,6 +3530,148 @@ export class KitchenZone implements TestZone {
         : 'Zurück zu einem Gegenstand in den Händen',
     );
     return true;
+  }
+
+  /**
+   * **Die Tonprobe im Schauraum** — vier Knöpfe, zwei Fragen.
+   *
+   * Zwei Geräusche dieser Küche stehen noch zur Wahl: wie das **Messer** auf
+   * dem Brett klingt und wie die **Abgabe** eines Gerichts
+   * (`kitchenSound.SOUND_TRIALS`). Beides lässt sich nicht am Schreibtisch
+   * entscheiden — man hört es oder man hört es nicht —, und beides lässt sich
+   * im Spiel schlecht vergleichen: Ein Schnitt dauert drei Sekunden, und wer
+   * die Abgabe hören will, muss erst einen Burger bauen.
+   *
+   * Also steht die Auswahl dort, wo die Möbel einzeln ausgestellt sind, und
+   * zwar vor dem Möbel, um das es geht (`kitchenPlan.TRIAL_BUTTONS`): links
+   * **weiterschalten**, rechts **vorspielen**. Auf beiden Schildern steht,
+   * welche Variante gerade gilt — ohne den Namen wüsste hinterher niemand zu
+   * sagen, welche es denn nun sein soll.
+   *
+   * **Sie schalten die ganze Küche um** und nicht nur die Vorführung
+   * (`kitchenAudio.KitchenAudio.choose`): Wer sich für einen Klang
+   * entscheidet, will ihn danach beim Kochen hören und nicht nur am Knopf.
+   *
+   * **Und sie sind vorübergehend.** Steht die Wahl, fallen die vier Knöpfe
+   * mitsamt der Auswahl wieder heraus; übrig bleibt der Satz Aufnahmen, der
+   * gewonnen hat.
+   */
+  private addTrialButtons(): void {
+    const world = this.world;
+    if (!world || typeof document === 'undefined') return;
+    for (const pair of TRIAL_BUTTONS) {
+      const label = kitchenPiece(pair.piece)?.label ?? pair.piece;
+      this.addTrialButton('turn', pair.turn, `${label}: Ton wechseln`, pair.cue, () => {
+        this.turnTrial(pair.cue);
+        return true;
+      });
+      this.addTrialButton('play', pair.play, `${label}: Ton abspielen`, pair.cue, () => {
+        // Aus dem eigenen Ort und ohne Seite: Wer den Knopf drückt, steht
+        // davor, und eine Balance, die das nachrechnete, vergliche am Ende
+        // zwei Töne von verschiedenen Seiten.
+        this.sound.play(pair.cue, { gain: 1, pan: 0 });
+        return true;
+      });
+    }
+  }
+
+  /**
+   * **Ein Knopf der Tonprobe** — Säule, Kasten, Anmeldung, wie die beiden an
+   * der Westwand (`addBuildButton`, dort steht es ausführlich).
+   *
+   * Der eine Unterschied ist das **Schild**: Es trägt nicht nur, was der Knopf
+   * tut, sondern auch, welche Variante gerade läuft. Beide Knöpfe eines Paares
+   * tragen denselben Zusatz, und beide werden nach jedem Weiterschalten neu
+   * beschriftet (`turnTrial`) — ein Schild, das stehen bliebe, nennte die
+   * Variante davor.
+   */
+  private addTrialButton(
+    role: 'turn' | 'play',
+    tile: { readonly x: number; readonly z: number },
+    title: string,
+    cue: TrialCue,
+    use: () => boolean,
+  ): void {
+    const world = this.world;
+    if (!world) return;
+    const button = buildRedButton({ title, body: this.trialBody(cue) });
+    button.group.name = `kitchen-trial-${cue}-${role}`;
+    button.group.position.set(
+      (KITCHEN.x + tile.x + 0.5) * TILE,
+      KITCHEN_FLOOR,
+      (KITCHEN.z + tile.z + 0.5) * TILE,
+    );
+    world.root.add(button.group);
+    button.group.updateWorldMatrix(true, true);
+    this.placed.push(button.group);
+    this.trialButtons.push({ button, cue, title });
+    // Durch die Säule läuft niemand — dasselbe Maß wie bei den Knöpfen an der
+    // Westwand.
+    const block = this.boxAt(
+      0.6,
+      1.0,
+      0.6,
+      button.group.position.x,
+      KITCHEN_FLOOR,
+      button.group.position.z,
+    );
+    world.root.add(block);
+    block.updateWorldMatrix(true, false);
+    this.placed.push(block);
+    this.bodies.push(world.addSolid(block));
+    world.addUsable(
+      button.dome,
+      {
+        use: () => {
+          button.press();
+          return use();
+        },
+        usePrompt: () => `${title} (${this.trialLabel(cue)})`,
+        interaction: 'press',
+      },
+      { radius: BUTTON_DOME_R, shot: BUTTON_DOME_R },
+    );
+  }
+
+  /**
+   * **Einen Ton weiterschalten** — und alles nachziehen, was ihn nennt.
+   *
+   * Drei Dinge hängen daran und nicht eines: der Vorrat, aus dem der Spieler
+   * würfelt (`kitchenAudio.choose`), die Schilder beider Knöpfe und die
+   * Meldung, die sagt, was jetzt gilt. Vorgespielt wird dabei **nicht**: Dafür
+   * ist der Knopf daneben da, und wer beim Durchschalten jedes Mal einen Ton
+   * bekäme, hörte drei Varianten in zwei Sekunden statt einer in Ruhe.
+   */
+  private turnTrial(cue: TrialCue): void {
+    const index = nextTrial(cue, this.trialIndex(cue));
+    this.trials.set(cue, index);
+    const trial = trialAt(cue, index);
+    this.sound.choose(cue, trial.files);
+    const body = this.trialBody(cue);
+    for (const entry of this.trialButtons) {
+      if (entry.cue === cue) entry.button.setTitle(entry.title, body);
+    }
+    this.world?.notify(`Ton ${this.trialNumber(cue)}: ${trial.label}`);
+  }
+
+  /** Welche Variante dieses Tons gerade läuft — ab Werk die erste. */
+  private trialIndex(cue: TrialCue): number {
+    return this.trials.get(cue) ?? 0;
+  }
+
+  /** Wie sie heißt. */
+  private trialLabel(cue: TrialCue): string {
+    return trialAt(cue, this.trialIndex(cue)).label;
+  }
+
+  /** „2 von 3" — damit man weiß, wie viele noch kommen. */
+  private trialNumber(cue: TrialCue): string {
+    return `${this.trialIndex(cue) + 1} von ${SOUND_TRIALS[cue].length}`;
+  }
+
+  /** Und was davon auf dem Schild steht. */
+  private trialBody(cue: TrialCue): string {
+    return `${this.trialNumber(cue)}: ${this.trialLabel(cue)}`;
   }
 
   /**
