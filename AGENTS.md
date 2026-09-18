@@ -6312,8 +6312,8 @@ oder leere Hand ergeben ein
 paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
 eine Viertelstunde Hin- und Herlaufen.
 
-Die Küche liegt seitdem in zwanzig Dateien, dazu eine einundzwanzigste im
-`ui/`, die längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
+Die Küche liegt seitdem in dreiundzwanzig Dateien, dazu eine
+vierundzwanzigste im `ui/`, die längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
 getrennt von Darstellung** — was ohne three.js auskommt, kommt ohne three.js
 aus, und genau das ist der Grund, warum es so viele Dateien sind.
 
@@ -6339,6 +6339,9 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenGauge.ts` | Balken, Warndreieck und Flammen über den Stationen |
 | `zones/kitchenNotice.ts` | der Aushang an der Nordwand: Markdown, gesetzt an der Wand |
 | `zones/kitchenFloor.ts` | der karierte Boden: Feldgröße, Töne, Fuge, die Fläche darüber |
+| `zones/kitchenSound.ts` | die Rechnung der Geräusche: Tabelle, Entfernung, Takt, Schritte |
+| `zones/kitchenAudio.ts` | der Spieler dazu: Stimmen, Schleifen, Dateien, Web Audio |
+| `zones/kitchenRadio.ts` | das Radio: Sender, Schalter, und der Kasten dazu |
 | `ui/billboard.ts` | `faceCamera`: was Auskunft gibt, steht parallel zum Bild |
 
 Die jüngsten kamen mit dem Geschirr, den Gästen, dem Band, dem Löscher, dem
@@ -6393,6 +6396,37 @@ kann.
   Kopierer baut. Beide Möbel stecken in keiner Quelldatei — ein Rechner ist
   keines der dreizehn gekauften Stücke —, tragen deshalb `built: true` und
   werden gebaut wie das Band nebenan.
+- **Der Ton ist genauso geteilt wie alles andere hier.** `kitchenSound.ts`
+  rechnet und kennt weder three.js noch Web Audio: die **Tabelle** der Töne
+  (`KITCHEN_CUES`, Datei, Pegel, Schleife ja/nein), die **Tabelle der Taten**
+  (`DEED_SOUNDS`, ein Eintrag je `KitchenDeed['do']` — dieselbe Vollständigkeit
+  wie bei `STATION_WORK`, und aus demselben Grund), das **Hörmodell**
+  (`kitchenHeard`: Entfernung und Balance auf dem Boden, wie beim Anfassen;
+  `kitchenNearest`: von vier brennenden Herden zählt der nächste), der **Takt**
+  des Messers (`kitchenBeat` — höchstens ein Schlag je Bild, sonst macht ein
+  Ruckler eine Salve daraus) und die **Schrittuhr** (`kitchenStep` — nach der
+  Strecke und nicht nach der Zeit, sonst marschiert man im Stehen). Daneben
+  liegt `kitchenAudio.ts` mit acht Stimmen und je Schleife einer, auf dem
+  gemeinsamen Kontext aus `core/Audio.ts`; die Zone dazwischen sammelt in
+  `listen(dt)` ein, was gerade zischt, und spielt in `act` **eine** Zeile ab
+  statt in elf `case`-Zweigen. Die Aufnahmen sind CC0 und liegen in
+  `public/audio/kitchen/` (`CREDITS.md` dort: Herkunft, Urheber, Bearbeitung).
+  **Es gibt keinen synthetisierten Ersatzton**, anders als bei der Raumstation
+  (`haunting/audio/cues.ts`): Bis eine Aufnahme entpackt ist, bleibt es still.
+  Ein Platzhalter, der eine halbe Minute lang anders klingt als das, was danach
+  kommt, ist kein Platzhalter, sondern ein zweites Geräusch.
+- **Das Radio ist kein Möbel** (`kitchenRadio.ts`, `kitchenPlan.RADIO_TILE`).
+  Es steht in keiner Möbelliste und lässt sich nicht umbauen — dieselbe
+  Begründung wie bei den beiden roten Knöpfen: Ein Gerät, das man im Baumodus
+  in eine Ecke stellen kann, spielt irgendwann und wird nicht mehr gefunden.
+  Es steht in derselben Spalte an der Westwand wie sie (x = 0), und ein Test
+  hält fest, dass seine Kachel frei ist. Sein Schalter ist ein **Schalter** und
+  keine Liste: `A` macht an, `A` macht aus — und jedes Anmachen rückt einen
+  Sender weiter (`radioToggle`). Die Musik selbst schaltet er nicht ein; er
+  setzt nur ein Feld, und `listen` legt die Schleife jedes Bild auf diesen
+  Stand. Wer hier eine Schleife startete, müsste sie auch beim Umbau, beim
+  Weggehen und beim Verlassen der Welt wieder abstellen — und die vierte
+  dieser Stellen ist die, die man vergisst.
 
 Und das sind die Regeln, die darin stehen:
 

@@ -18,6 +18,7 @@ import {
   KITCHEN_SHOWN,
   KITCHEN_SPOTS,
   PIPELINE,
+  RADIO_TILE,
   RACK_AIR,
   RACK_RAISE,
   SHOW_X,
@@ -518,6 +519,23 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
     const dx = Math.abs(BUILD_BUTTON_TILE.x - HANDS_BUTTON_TILE.x);
     const dz = Math.abs(BUILD_BUTTON_TILE.z - HANDS_BUTTON_TILE.z);
     expect(dx + dz).toBe(1);
+  });
+
+  /**
+   * **Und das Radio steht auf keinem von beidem** (`RADIO_TILE`,
+   * `kitchenRadio.ts`). Es ist das dritte Gerät in derselben Spalte an der
+   * Westwand, und für ein Gerät gilt, was für einen Knopf gilt: Wer es auf
+   * eine belegte Kachel stellt, nimmt `A` die Entscheidung ab — und zwar
+   * dauerhaft zugunsten des Näheren.
+   */
+  it('lässt die Kachel des Radios frei und stellt es neben die anderen Geräte', () => {
+    expect(busy(RADIO_TILE)).toBe(false);
+    expect(RADIO_TILE.x).toBe(BUILD_BUTTON_TILE.x);
+    for (const other of [BUILD_BUTTON_TILE, HANDS_BUTTON_TILE]) {
+      expect(Math.abs(RADIO_TILE.x - other.x) + Math.abs(RADIO_TILE.z - other.z)).toBeGreaterThan(
+        0,
+      );
+    }
   });
 });
 

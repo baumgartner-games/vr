@@ -85,6 +85,7 @@ import {
   HANDS_BUTTON_TILE,
   KITCHEN_FLOOR,
   KITCHEN_SPOTS,
+  RADIO_TILE,
   TURN_LABELS,
   footprint,
   inKitchen,
@@ -159,6 +160,28 @@ import {
   type DouseState,
 } from './kitchenSpray';
 import { buildRedButton, BUTTON_DOME_R, type RedButton } from '../../shared/redButton';
+import { KitchenAudio } from './kitchenAudio';
+import {
+  CHOP_BEAT,
+  deedSound,
+  kitchenBeat,
+  kitchenHeard,
+  kitchenNearest,
+  kitchenStep,
+  type KitchenEar,
+  type KitchenHeard,
+  type KitchenSpotAt,
+} from './kitchenSound';
+import {
+  RADIO_HEIGHT,
+  RADIO_OFF,
+  RADIO_STATIONS,
+  buildKitchenRadio,
+  radioPrompt,
+  radioToggle,
+  type KitchenRadio,
+  type RadioState,
+} from './kitchenRadio';
 import type { TestZone, ZoneHost } from './zone';
 
 /**
@@ -973,6 +996,32 @@ export class KitchenZone implements TestZone {
    */
   private readonly plates = new Map<Furnish, Plate>();
 
+  // --- was die Küche hören lässt (`kitchenSound.ts`, `kitchenAudio.ts`) ------
+  /**
+   * **Der Spieler der Küchengeräusche.**
+   *
+   * Er gehört der Zone und nicht der Welt: Was hier klingt, klingt nur hier,
+   * und beim Verlassen der Küche gehen die Schleifen mit aus (`dispose`). Er
+   * wird **beim Bauen** angelegt und nicht beim ersten Ton — ein Feld, das
+   * `null` sein kann, hätte in zwölf Zeilen darunter ein Fragezeichen.
+   *
+   * Beim Bauen wird er **ersetzt** und nicht weiterbenutzt: Ein `dispose`
+   * schließt ihn endgültig (die Schleifen müssen weg, sonst brennt der Herd im
+   * Gokart weiter), und wer dieselbe Welt ein zweites Mal aufbaut, bekommt
+   * sonst einen Spieler, der nichts mehr spielt.
+   */
+  private sound = new KitchenAudio();
+  /** Wo die Füße im letzten Bild standen — für die Schrittuhr. */
+  private readonly stepWas = { x: 0, z: 0 };
+  /** Wie weit seit dem letzten Schritt gelaufen wurde (`kitchenStep`). */
+  private walked = 0;
+  /** Die Uhr des Messers — sie läuft nur, solange irgendwo geschnitten wird. */
+  private chopClock = 0;
+  /** Das Radio, sein Stand und seine Stelle (`kitchenRadio.ts`). */
+  private radio: KitchenRadio | null = null;
+  private radioState: RadioState = RADIO_OFF;
+  private readonly radioAt = { x: 0, z: 0 };
+
   // --- der Feuerlöscher ------------------------------------------------------
   /** Ob er gerade pustet, und ob die Auslöser im vorigen Bild schon lagen. */
   private spraying = false;
@@ -1070,6 +1119,16 @@ export class KitchenZone implements TestZone {
     }
     this.addBuildButton();
     this.addHandsButton();
+    this.addRadio();
+    // **Die Töne werden jetzt geholt und nicht beim ersten Zischen**
+    // (`kitchenAudio.prime`) — dieselbe Entscheidung wie bei den Möbeln
+    // darüber, und sie kostet ungefähr dasselbe (1,5 MB gegen 1,7 MB). Eine
+    // Pfanne, die in der ersten Sekunde stumm brät, weil ihre Aufnahme noch
+    // unterwegs ist, wäre der Fehler, den man für einen fehlenden Ton hält.
+    // Ohne Web Audio geht dabei nicht eine einzige Anfrage hinaus.
+    this.sound.dispose();
+    this.sound = new KitchenAudio();
+    void this.sound.prime();
     // Der Aushang an der Nordwand: dieselbe Wand, an der die Zeile steht, und
     // die einzige, deren Innenseite die Kamera von oben ansieht.
     this.notice = buildKitchenNotice(world.root);
@@ -1108,6 +1167,10 @@ export class KitchenZone implements TestZone {
     this.runBelts(dt);
     this.cook(dt);
     this.spray(dt, ctx);
+    // **Nach den Uhren und nach dem Löscher**: Was zu hören ist, hängt an dem,
+    // was in diesem Bild geschehen ist — und der Strahl weiß erst nach
+    // `spray`, wo seine Düse steht.
+    this.listen(dt);
     this.buildTurn(ctx);
     this.facePiece();
     // **Bevor das Getragene gehängt wird**: Wer gerade übergeben hat, soll sein
@@ -1265,6 +1328,13 @@ export class KitchenZone implements TestZone {
       // Genau ein Patty in der Pfanne (`kitchenRecipes.TAKES`), also ersetzt
       // die neue Stufe den ganzen Inhalt.
       if (pan) this.restyle(pan, dish(pan.dish.item, [tick.turned]));
+      // **Der Warnton hängt am verbrannten Patty** und nicht an der Anzeige
+      // daneben: Genau in diesem Bild fängt die Frist an, in der man noch zum
+      // Löscher kommt (`kitchenClock.FIRE_SECONDS`), und genau dann geht das
+      // rote Dreieck auf (`showGauges`). Ein Ton, der stattdessen am
+      // Phasenwechsel der Anzeige hinge, käme dasselbe Bild später und wäre
+      // beim nächsten Umbau der Anzeige weg.
+      if (tick.turned === 'patty-burnt') this.sound.play('warn', this.heardAt(spot.deck));
       this.world?.notify(`${ITEM_LABELS[tick.turned]} in der Pfanne`);
       this.refreshStations();
     }
@@ -1317,6 +1387,10 @@ export class KitchenZone implements TestZone {
       // Rechnung, sondern dieselbe.
       const thing = this.pickUp(spot, on.dish);
       if (thing) this.takeInHand(thing);
+      // Der saubere Teller kommt von selbst in die Hand, ohne dass jemand
+      // gegriffen hätte — zu hören ist trotzdem ein Griff, denn genau das
+      // geschieht (`kitchenWork.WORK_TO_HAND`).
+      this.sound.play('pick', this.heardAt(spot.deck));
       this.world?.notify(`${label} in der Hand`);
     } else if (workWaits(tick)) {
       // **Volle Hand**: Der Teller ist sauber und bleibt im Wasser stehen.
@@ -1427,6 +1501,11 @@ export class KitchenZone implements TestZone {
     // Kombinierer führt keine Uhr, die davon anfinge, und `spot.join` steht
     // nach `advanceCombine` schon richtig.
     if (spot.on) this.restyle(spot.on, done.target ?? spot.on.dish);
+    // Derselbe Ton wie beim Zusammenlegen von Hand (`kitchenSound.DEED_SOUNDS`,
+    // `combine`): Ob eine Hand oder ein Möbel zwei Zutaten zu einer macht, ist
+    // für die Ohren dasselbe Ereignis — und in einer Halle voller Bandstraßen
+    // ist es das einzige, an dem man hört, dass sie noch läuft.
+    this.sound.play('combine', this.heardAt(spot.deck));
     this.world?.notify(
       `${layered(done.moved)
         .map((item) => ITEM_LABELS[item])
@@ -1563,6 +1642,11 @@ export class KitchenZone implements TestZone {
     this.world?.root.add(fresh.object);
     fresh.object.rotation.set(0, 0, 0);
     fresh.object.position.copy(spot.deck);
+    // **Auch eine Kiste, die von selbst ausgibt, klappt auf.** Es ist derselbe
+    // Ton wie beim Griff von Hand (`kitchenSound.deedSound`, Station `box`) —
+    // und in der Werkhalle, wo niemand danebensteht, ist er der Anfang jeder
+    // Bandstraße: Wer ihn hört, weiß, dass die Straße wieder nachschiebt.
+    this.sound.play('crate', this.heardAt(spot.deck));
     return true;
   }
 
@@ -1900,8 +1984,100 @@ export class KitchenZone implements TestZone {
     const pan = spot.on;
     if (pan) this.restyle(pan, dish(pan.dish.item));
     this.settle(spot);
+    // **Hier und nicht in der Tabelle der Taten** (`kitchenSound.DEED_SOUNDS`):
+    // Gelöscht wird auf zwei Wegen — mit `A` am Herd und mit dem Strahl quer
+    // durch die Küche —, und beide kommen hier vorbei.
+    this.sound.play('douse', this.heardAt(spot.deck));
     this.world?.notify('Feuer gelöscht');
     this.refreshStations();
+  }
+
+  // --- was die Küche hören lässt ----------------------------------------------
+
+  /**
+   * **Ein Bild für die Ohren** — Schritte, Schleifen, der Takt des Messers.
+   *
+   * Sie steht **nach** den Uhren in `update`, und das ist keine Feinheit: Was
+   * zu hören ist, ist der Zustand **nach** diesem Bild. Wer vorher hörte,
+   * hörte das Feuer von gestern — dieselbe Reihenfolge, aus der auch die
+   * Anzeigen nach den Uhren kommen.
+   *
+   * **Gesammelt wird, gerechnet wird nebenan.** Diese Methode weiß, welche
+   * Station gerade zischt und wo sie steht; wie laut das beim Zuhörer ankommt
+   * und von welcher Seite, rechnet `kitchenSound.ts` — und dort hat es einen
+   * Test. Von mehreren gleichen Quellen zählt die nächste (`kitchenNearest`):
+   * Vier brennende Herde sind ein Feuer und nicht vier.
+   */
+  private listen(dt: number): void {
+    const ear: KitchenEar = { x: _feet.x, z: _feet.z, ax: _aim.x, az: _aim.z };
+
+    // **Die Schritte gehen nach der Strecke** (`kitchenSound.kitchenStep`) —
+    // eine Uhr liefe im Stehen weiter und ließe einen auf der Stelle
+    // marschieren. Was hier hereingeht, ist der Weg der **Füße** und nicht der
+    // des Kopfes: Wer sich in der Brille umsieht, läuft nicht.
+    const moved = Math.hypot(_feet.x - this.stepWas.x, _feet.z - this.stepWas.z);
+    this.stepWas.x = _feet.x;
+    this.stepWas.z = _feet.z;
+    const step = kitchenStep(this.walked, moved);
+    this.walked = step.walked;
+    // Der eigene Schritt kommt vom eigenen Ort: voll und aus keiner Richtung.
+    if (step.hit) this.sound.play('step', { gain: 1, pan: 0 });
+
+    const sizzling: KitchenSpotAt[] = [];
+    const burning: KitchenSpotAt[] = [];
+    const rinsing: KitchenSpotAt[] = [];
+    const chopping: KitchenSpotAt[] = [];
+    for (const spot of this.stations) {
+      // Ein Möbel in den Händen arbeitet nicht (`cook`) — und klingt auch nicht.
+      if (spot.home.held) continue;
+      const at: KitchenSpotAt = { x: spot.deck.x, z: spot.deck.z };
+      if (spot.kind === 'stove') {
+        const phase = stovePhase(spot.stove);
+        if (phase === 'fire') burning.push(at);
+        else if (phase !== 'cold') sizzling.push(at);
+        continue;
+      }
+      if (!spot.work.working) continue;
+      // **Welche Arbeit wie klingt**, und das sind genau drei Antworten: Die
+      // Spüle rauscht, die Kochstelle brutzelt wie eine Pfanne, Brett und
+      // Mixer schlagen im Takt. Gefragt wird die **Arbeit** und nicht das
+      // Möbel — der Mixer soll klingen wie das Brett, weil er dasselbe tut
+      // (`kitchenWork.WorkKind`).
+      if (spot.work.kind === 'wash') rinsing.push(at);
+      else if (spot.work.kind === 'fry') sizzling.push(at);
+      else chopping.push(at);
+    }
+    this.sound.loop('sizzle', kitchenNearest(ear, sizzling));
+    this.sound.loop('fire', kitchenNearest(ear, burning));
+    this.sound.loop('rinse', kitchenNearest(ear, rinsing));
+
+    // **Das Messer ist kein Dauerton, sondern ein Takt** — und er läuft nur,
+    // solange irgendwo geschnitten wird. Hört das auf, fällt die Uhr auf null
+    // zurück: Der nächste Schnitt soll mit dem ersten Schlag anfangen und
+    // nicht mit dem Rest von vorhin.
+    const knife = kitchenNearest(ear, chopping);
+    if (!knife) {
+      this.chopClock = 0;
+    } else {
+      const beat = kitchenBeat(this.chopClock, dt, CHOP_BEAT);
+      this.chopClock = beat.clock;
+      if (beat.hit) this.sound.play('chop', knife);
+    }
+
+    // Der Strahl zischt aus der Düse und nicht aus dem Herd, auf den er zielt.
+    this.sound.loop('spray', this.spraying ? this.heardAt(_nozzle) : null);
+
+    // Und das Radio spielt seinen Sender, solange es an ist.
+    this.sound.loop(
+      'radio',
+      this.radioState.on ? kitchenHeard(ear, this.radioAt) : null,
+      this.radioState.station,
+    );
+  }
+
+  /** Wie ein Ton von dieser Stelle beim Zuhörer ankommt — die Kurzform. */
+  private heardAt(at: THREE.Vector3): KitchenHeard {
+    return kitchenHeard({ x: _feet.x, z: _feet.z, ax: _aim.x, az: _aim.z }, { x: at.x, z: at.z });
   }
 
   /**
@@ -2444,6 +2620,12 @@ export class KitchenZone implements TestZone {
    */
   private calmStations(): void {
     this.spraying = false;
+    // **Und es wird still** — bis auf das Radio, das an keiner Station hängt
+    // und deshalb auch nicht mit ihnen ausgeht (`KitchenAudio.silence`). Die
+    // übrigen Schleifen fielen im nächsten Bild ohnehin weg (`listen` findet
+    // dann nichts mehr, was zischt); dass sie **jetzt** aufhören, erspart die
+    // Viertelsekunde Feuer an einem Herd, der schon kalt ist.
+    this.sound.silence('radio');
     // Was unterwegs war, ist es danach nicht mehr: Eine Reservierung auf eine
     // Kachel, auf der gleich wieder alles frisch liegt, sperrte sie für einen
     // Handgriff, den niemand mehr erwartet.
@@ -2558,6 +2740,16 @@ export class KitchenZone implements TestZone {
     this.handsButton = null;
     this.notice?.dispose();
     this.notice = null;
+    // **Der Ton zuletzt und vollständig**: Eine Schleife, die eine Welt
+    // überlebt, ist ein Feuer, das man im Gokart noch brennen hört — und sie
+    // hängt am **gemeinsamen** Kontext (`core/Audio.ts`), den niemand sonst
+    // abstellt. Das Radio geht dabei mit aus und steht beim nächsten Besuch
+    // wieder auf seinem ersten Sender: Es gehört zur Küche und nicht zum
+    // Spieler.
+    this.sound.dispose();
+    this.radio?.dispose();
+    this.radio = null;
+    this.radioState = RADIO_OFF;
     for (const copier of [...this.plates.keys()]) this.clearCopy(copier);
     this.plates.clear();
     this.models.clear();
@@ -3322,6 +3514,76 @@ export class KitchenZone implements TestZone {
     return true;
   }
 
+  /**
+   * **Das Radio an der Westwand** (`kitchenRadio.ts`) — das dritte Gerät in
+   * derselben Spalte wie die beiden roten Knöpfe, und das einzige, das nichts
+   * mit dem Kochen zu tun hat.
+   *
+   * Es ist **kein Möbel** und steht deshalb in keiner Liste: Ein Radio, das
+   * man im Baumodus aufhebt und in eine Ecke stellt, ist ein Radio, das
+   * irgendwann spielt und nicht mehr gefunden wird — dieselbe Begründung wie
+   * beim Umbauknopf (`addBuildButton`). Es bleibt aus demselben Grund auch im
+   * Baumodus bedienbar: Musik beim Umräumen ist kein Widerspruch.
+   *
+   * Es schaut nach **Osten**, in die Küche hinein, wie die Ausgaben neben ihm
+   * (`kitchenPlan.KITCHEN_SPOTS`, `turn: 3`) — ungedreht zeigt die
+   * Vorderseite nach Norden, also eine Vierteldrehung nach rechts.
+   */
+  private addRadio(): void {
+    const world = this.world;
+    if (!world || typeof document === 'undefined') return;
+    const radio = buildKitchenRadio();
+    this.radio = radio;
+    const x = (KITCHEN.x + RADIO_TILE.x + 0.5) * TILE;
+    const z = (KITCHEN.z + RADIO_TILE.z + 0.5) * TILE;
+    radio.group.position.set(x, KITCHEN_FLOOR, z);
+    radio.group.rotation.y = Math.PI / 2;
+    radio.setOn(this.radioState.on);
+    world.root.add(radio.group);
+    radio.group.updateWorldMatrix(true, true);
+    this.placed.push(radio.group);
+    this.radioAt.x = x;
+    this.radioAt.z = z;
+    // Durch den Sockel läuft niemand — derselbe Handgriff wie bei den Knöpfen,
+    // nur schmaler: Das Radio ist kein halber Meter Säule, sondern ein Kasten.
+    const block = this.boxAt(0.4, RADIO_HEIGHT, 0.4, x, KITCHEN_FLOOR, z);
+    world.root.add(block);
+    block.updateWorldMatrix(true, false);
+    this.placed.push(block);
+    this.bodies.push(world.addSolid(block));
+    world.addUsable(
+      radio.face,
+      {
+        use: () => this.toggleRadio(),
+        usePrompt: () => radioPrompt(this.radioState),
+        // Ein Schalter will gedrückt werden und nicht gegriffen — sonst wollte
+        // die Hand in der Brille das Radio mitnehmen.
+        interaction: 'press',
+      },
+      { radius: 0.3 },
+    );
+  }
+
+  /**
+   * **Ein Druck aufs Radio**: an, aus — und jedes Anmachen ein Sender weiter
+   * (`kitchenRadio.radioToggle`).
+   *
+   * Die Musik selbst schaltet niemand hier ein: `listen` legt in jedem Bild
+   * die Schleife auf den Stand, den dieses Feld sagt. Das ist derselbe Weg wie
+   * beim Zischen der Pfanne — und der Grund ist derselbe: Wer hier eine
+   * Schleife startete, müsste sie auch beim Verlassen der Küche, beim Umbau
+   * und beim Weggehen wieder abstellen, und die vierte dieser Stellen ist die,
+   * die man vergisst.
+   */
+  private toggleRadio(): boolean {
+    this.radioState = radioToggle(this.radioState);
+    this.radio?.setOn(this.radioState.on);
+    this.world?.notify(
+      this.radioState.on ? `Radio an — ${RADIO_STATIONS[this.radioState.station]}` : 'Radio aus',
+    );
+    return true;
+  }
+
   /** Was auf dem zweiten Knopf steht — es sagt die **Tat**, siehe `showBuildLabel`. */
   private showHandsLabel(): void {
     this.handsButton?.setTitle(
@@ -3635,6 +3897,14 @@ export class KitchenZone implements TestZone {
       case 'nothing':
         return false;
     }
+    // **Eine Stelle für elf Taten** (`kitchenSound.deedSound`): Welche Tat wie
+    // klingt, steht in einer vollständigen Tabelle neben der Regel und nicht
+    // als elfter Zweig in diesem `switch`. Wer eine Tat dazutut, bekommt vom
+    // Übersetzer die Frage nach ihrem Ton gestellt — ein `case` mehr hier
+    // hätte sie niemand gestellt. Gehört wird sie **an der Station**, nicht am
+    // Ohr: Die Kiste links klingt von links.
+    const cue = deedSound(deed.do, spot.kind);
+    if (cue) this.sound.play(cue, this.heardAt(spot.deck));
     this.refreshStations();
     return true;
   }

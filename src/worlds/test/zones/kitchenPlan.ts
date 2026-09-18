@@ -291,6 +291,27 @@ export const BUILD_BUTTON_TILE = { x: 0, z: 9 } as const;
 export const HANDS_BUTTON_TILE = { x: 0, z: 8 } as const;
 
 /**
+ * **Wo das Radio steht** (`kitchenRadio.ts`) — an derselben Westwand, eine
+ * Kachel nördlich des Rechners.
+ *
+ * Damit steht es am oberen Ende derselben Spalte, in der auch die beiden roten
+ * Knöpfe und der Möbelkatalog stehen: x = 0 ist in dieser Küche die Wand der
+ * **Geräte**, an denen man etwas einstellt, und nicht die der Möbel, an denen
+ * man arbeitet. Wer hereinkommt, läuft an allen vieren vorbei.
+ *
+ * **Die Kachel ist frei**, nachgesehen und nicht gehofft: In der Spalte x = 0
+ * steht die Küchenzeile bei z = 0, der Rechner bei z = 7, die Knöpfe bei z = 8
+ * und z = 9. Dass sie frei bleibt, hält derselbe Test fest wie für die Knöpfe
+ * (`kitchenPlan.test.ts`) — zwei Dinge auf einer Kachel heißt, dass `A` immer
+ * nur eines davon erwischt.
+ *
+ * Und es steht **neben der Tomatenausgabe** (x = 1, z = 6) und nicht mitten im
+ * Weg: Die Ausgaben stehen an der Wand und schauen in die Küche, zwischen
+ * ihnen und dem Radio läuft niemand entlang.
+ */
+export const RADIO_TILE = { x: 0, z: 6 } as const;
+
+/**
  * **Die Werkhalle** — acht freie Spalten zwischen Küche und Schauraum, in
  * denen Bandstraßen stehen.
  *
@@ -765,11 +786,11 @@ export function stampKitchen(plan: GridPlan): void {
     }
   }
 
-  // Die beiden roten Knöpfe sind keine Möbel und stehen in keiner Liste — ihre
-  // Säulen stehen trotzdem im Weg (`kitchen.ts`, `addBuildButton`,
-  // `addHandsButton`). Derselbe Aufschlag wie für ein Möbel: Ein NPC geht
-  // darum herum, statt hindurch.
-  for (const tile of [BUILD_BUTTON_TILE, HANDS_BUTTON_TILE]) {
+  // Die beiden roten Knöpfe und das Radio sind keine Möbel und stehen in
+  // keiner Liste — ihre Säulen und der Sockel stehen trotzdem im Weg
+  // (`kitchen.ts`, `addBuildButton`, `addHandsButton`, `addRadio`). Derselbe
+  // Aufschlag wie für ein Möbel: Ein NPC geht darum herum, statt hindurch.
+  for (const tile of [BUILD_BUTTON_TILE, HANDS_BUTTON_TILE, RADIO_TILE]) {
     plan.floor(
       { x: KITCHEN.x + tile.x, z: KITCHEN.z + tile.z, w: 1, d: 1 },
       { cost: FURNITURE_COST },
