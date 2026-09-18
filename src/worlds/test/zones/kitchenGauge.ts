@@ -82,8 +82,8 @@ const BAR_EDGE = 0.018;
  * ein Vorschlag an die Zone, keine Vorschrift (sie gibt die Stelle vor).
  *
  * „Eine Handbreit über der Platte" stimmt erst, wenn man mitzählt, was **auf**
- * der Platte liegt: Die Pfanne trägt 13 cm auf (Herd 0,55 m, Herd mit Pfanne
- * 0,68 m — `core/kitchenFit.KITCHEN_PIECES`), ein Brötchen 26 cm
+ * der Platte liegt: Die Pfanne trägt 13 cm auf (Herd 0,604 m, Herd mit Pfanne
+ * 0,732 m — `core/kitchenFit.KITCHEN_PIECES`), ein Brötchen 25 cm
  * (`kitchenProps.BUN_HEIGHT`). 30 cm über der Platte liegt der Balken also
  * eine Handbreit über dem höchsten Ding darauf — und mit 0,85 m über dem Boden
  * immer noch **unter** den Augen der Figur (0,914 m, `core/chefFit.CHEF_EYE`),

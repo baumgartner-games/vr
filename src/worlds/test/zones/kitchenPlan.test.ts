@@ -321,11 +321,11 @@ describe('die Arbeitsflächen der Zeile', () => {
   it('legt die Ablage auf das Brett und nicht auf den Tisch darunter', () => {
     const board = kitchenPiece('board')!;
     // Der Tisch darunter steht auf Zeilenhöhe, das Brett liegt darauf.
-    expect(board.over!.at).toBeCloseTo(line, 6);
+    expect(board.over![0]!.at).toBeCloseTo(line, 6);
     expect(kitchenDeck(board)).toBeCloseTo(line + 0.075, 3);
-    // Über der Schnittfläche liegt nichts mehr: Die Oberkante des Möbels ist
-    // die Oberkante des Bretts.
-    expect(kitchenDeck(board)).toBe(board.height);
+    // Über der Schnittfläche steckt das **Messer** im Brett, und deshalb ist
+    // die Oberkante des Möbels seitdem höher als seine Ablage.
+    expect(board.height).toBeGreaterThan(kitchenDeck(board));
     // Und nichts steckt mehr im Estrich — `bury` hat keinen Fall mehr.
     const sunk = KITCHEN_SPOTS.filter((spot) => kitchenPiece(spot.name)?.bury);
     expect(sunk.map((spot) => spot.name)).toEqual([]);

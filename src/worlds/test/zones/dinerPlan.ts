@@ -16,7 +16,7 @@ import { DINER } from '../layout';
  * **Was hier nicht steht, ist Spiel.** Die erste Küche ist eine Maschine:
  * Stationen, Uhren, Rezepte, Bänder, ein Baumodus. Diese hier ist ein
  * **eingerichteter Raum** und ein **Katalog zum Abgehen** — man läuft hindurch
- * und sieht sich 146 Möbel an. Deshalb hat `DinerSpot` vier Felder und
+ * und sieht sich 156 Stücke an. Deshalb hat `DinerSpot` vier Felder und
  * `kitchenPlan.Spot` zehn: Es gibt hier nichts, was etwas ausgibt, annimmt
  * oder zählt, und ein Feld, das niemand liest, ist eine Zusage, die niemand
  * hält.
@@ -73,7 +73,7 @@ const FURNITURE_COST = 8;
  * Vierundzwanzig Kacheln für das Restaurant, eine Spalte Luft, ab hier der
  * Katalog. Die Zahl steht hier und nicht in jeder einzelnen Zeile des
  * Schauraums, und das ist die Lehre aus dem ersten Schauraum
- * (`kitchenPlan.SHOW_X`): Wer 146 Stücke mit absoluten Kachelzahlen hinstellt,
+ * (`kitchenPlan.SHOW_X`): Wer 156 Stücke mit absoluten Kachelzahlen hinstellt,
  * findet beim nächsten Verschieben heraus, dass die hundertste stimmt und die
  * hunderterste nicht.
  */
@@ -86,7 +86,7 @@ export const SHOW_W = DINER.w - SHOW_X;
  * **Eine Kachel Luft zwischen zwei Schaustücken**, und zwei Kacheln zwischen
  * zwei Reihen.
  *
- * Nicht mehr: Bei 146 Stücken ist jede zusätzliche Kachel Abstand eine Reihe
+ * Nicht mehr: Bei 156 Stücken ist jede zusätzliche Kachel Abstand eine Reihe
  * mehr, durch die jemand laufen muss. Nicht weniger: Ein Kühlschrank neben
  * einem Messer, beide auf Tuchfühlung, sind kein Katalog, sondern ein Haufen.
  */
@@ -362,7 +362,7 @@ export function fitDiner(plan: GridPlan): void {
         '',
         'Möbel aus *Restaurant Bits* von Kenney, CC0 — siehe',
         '`public/models/CREDITS.md`. Ein zweiter Baukasten neben dem der',
-        'ersten Küche, und ein anderer: 146 Stücke, **ein** Material, **eine**',
+        'ersten Küche, und ein anderer: 156 Stücke, **ein** Material, **eine**',
         'Textur.',
         '',
         '- An der Nordwand: die Zeile mit Spüle, zwei Herden, Backofen und',
@@ -371,7 +371,7 @@ export function fitDiner(plan: GridPlan): void {
         '- An der Westwand: der Vorrat in Kisten',
         '- Quer davor: die Durchreiche zum Gastraum',
         '- Im Süden: sechs Gästetische mit Stühlen',
-        '- Im Osten: der **Schauraum** — jedes der 146 Stücke einmal,',
+        '- Im Osten: der **Schauraum** — jedes der 156 Stücke einmal,',
         '  beschriftet mit Namen und Maß, alphabetisch sortiert',
         '',
         '## Gespielt wird hier nicht',
@@ -384,11 +384,11 @@ export function fitDiner(plan: GridPlan): void {
         '',
         '## Was nicht mitgekommen ist',
         '',
-        'Von den 225 Stücken des Baukastens fehlen 79: das Essen und das',
-        'Eis-Zubehör. Diese Küche baut ihr Essen selbst',
-        '(`zones/kitchenProps.ts`), und 39 000 Dreiecke für Zutaten neben',
-        'einem fertigen Zutatensatz sind keine Ersparnis, sondern eine zweite',
-        'Wahrheit.',
+        'Von den 225 Stücken des Baukastens fehlen 69: Pizzen, Eintöpfe, Eis',
+        'und dreißig Zutaten, für die es kein Rezept gibt. **Zehn Zutaten sind',
+        'da** — Brötchen, Patty, Salat, Tomate —, und die stehen nicht nur',
+        'hier: Sie sind das Essen der ersten Küche nebenan',
+        '(`zones/kitchenProps.ts`), die es bis vor kurzem aus Zylindern baute.',
       ].join('\n'),
     },
   });

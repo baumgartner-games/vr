@@ -457,16 +457,21 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // Der Knopf macht den Umbau auf, der Rechner gibt die Möbel dazu her.
   { name: 'desk', x: 0, z: 7, turn: 3 },
 
-  // --- die Ausgaben an der Westwand, zur Küche hin gedreht --------------------
+  // --- die Vorratskisten an der Westwand, zur Küche hin gedreht ---------------
+  // **Vier offene Kisten mit ihrer Zutat darin** (`kitchenFit.SUPPLY_CRATES`)
+  // und nicht mehr viermal dasselbe Möbel mit einem Bild darauf: Was in einer
+  // Kiste liegt, sieht man von oben wie von vorn, aus jeder Entfernung und
+  // ohne dass jemand es erst rendern muss.
+  //
   // Vier nebeneinander und nicht verteilt, seit es Rezepte gibt
   // (`kitchenRecipes.ts`): Wer für einen Deluxe vier Zutaten holt, läuft sonst
   // viermal quer durch den Raum, bevor überhaupt etwas in der Pfanne liegt.
   // Nicht auf der Ankunftskachel (`layout.SPAWNS.kitchen`, x = 1, z = 7): In
   // eine Ausgabe hineingesetzt zu werden ist ein Anfang, den niemand versteht.
-  { name: 'serve-counter', x: 1, z: 3, turn: 3, gives: 'bun', label: 'Brötchenausgabe' },
-  { name: 'serve-counter', x: 1, z: 4, turn: 3, gives: 'patty', label: 'Pattyausgabe' },
-  { name: 'serve-counter', x: 1, z: 5, turn: 3, gives: 'lettuce', label: 'Salatausgabe' },
-  { name: 'serve-counter', x: 1, z: 6, turn: 3, gives: 'tomato', label: 'Tomatenausgabe' },
+  { name: 'crate-buns', x: 1, z: 3, turn: 3, gives: 'bun', label: 'Brötchenausgabe' },
+  { name: 'crate-patty', x: 1, z: 4, turn: 3, gives: 'patty', label: 'Pattyausgabe' },
+  { name: 'crate-lettuce', x: 1, z: 5, turn: 3, gives: 'lettuce', label: 'Salatausgabe' },
+  { name: 'crate-tomatoes', x: 1, z: 6, turn: 3, gives: 'tomato', label: 'Tomatenausgabe' },
 
   // --- die Insel in der Mitte ------------------------------------------------
   // Zeile, Brett, Zeile — dieselbe Nachbarschaft wie an der Nordwand.
@@ -608,7 +613,7 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
 
   // Das Patty: aus der Kiste über eine Ablage auf die Kochstelle und als
   // gebratenes wieder herunter.
-  { name: 'serve-counter', x: 13, z: 0, turn: 2, gives: 'patty', label: 'Pattyvorrat' },
+  { name: 'crate-patty', x: 13, z: 0, turn: 2, gives: 'patty', label: 'Pattyvorrat' },
   { name: 'belt-pull', x: 13, z: 1, turn: 2 },
   { name: 'table', x: 13, z: 2, label: 'Pattyablage' },
   { name: 'belt-pull', x: 13, z: 3, turn: 2 },
@@ -617,7 +622,7 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   { name: 'counter', x: 13, z: 6, label: 'Pattyübergabe' },
 
   // Der Burger: Brötchen aus der Kiste, dann drei Kombinierer untereinander.
-  { name: 'serve-counter', x: 14, z: 3, turn: 2, gives: 'bun', label: 'Brötchenvorrat' },
+  { name: 'crate-buns', x: 14, z: 3, turn: 2, gives: 'bun', label: 'Brötchenvorrat' },
   { name: 'belt-pull', x: 14, z: 4, turn: 2 },
   { name: 'belt', x: 14, z: 5, turn: 2 },
   { name: 'combiner', x: 14, z: 6, turn: 3 },
@@ -631,14 +636,14 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   { name: 'counter', x: 15, z: 10, label: 'Tomatenübergabe' },
 
   // Der Salat: Kiste, Mixer, Filterband — und dann nach Westen.
-  { name: 'serve-counter', x: 16, z: 4, turn: 2, gives: 'lettuce', label: 'Salatvorrat' },
+  { name: 'crate-lettuce', x: 16, z: 4, turn: 2, gives: 'lettuce', label: 'Salatvorrat' },
   { name: 'belt-pull', x: 16, z: 5, turn: 2 },
   { name: 'mixer', x: 16, z: 6 },
   { name: 'belt-smart', x: 16, z: 7, turn: 2, filter: 'lettuce-cut' },
   { name: 'belt', x: 16, z: 8, turn: 1 },
 
   // Die Tomate: derselbe Weg, nur eine Spalte weiter und einen Bogen länger.
-  { name: 'serve-counter', x: 17, z: 5, turn: 2, gives: 'tomato', label: 'Tomatenvorrat' },
+  { name: 'crate-tomatoes', x: 17, z: 5, turn: 2, gives: 'tomato', label: 'Tomatenvorrat' },
   { name: 'belt-pull', x: 17, z: 6, turn: 2 },
   { name: 'mixer', x: 17, z: 7 },
   { name: 'belt-smart', x: 17, z: 8, turn: 2, filter: 'tomato-cut' },
@@ -717,6 +722,22 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   { name: 'belt-smart', x: SHOW_X + 5, z: 10, show: true },
   { name: 'combiner', x: SHOW_X + 7, z: 10, show: true },
   { name: 'mixer', x: SHOW_X + 9, z: 10, show: true },
+
+  // **Die vier Vorratskisten stehen nebeneinander** und nicht auf Lücke, und
+  // das ist der zweite Bruch mit der Regel „ein Möbel, eine Kachel Luft" nach
+  // den beiden Spülenhälften. Er hat denselben Grund: Sie gehören zusammen.
+  // Vier Kisten mit vier Zutaten sind der Vorrat dieser Küche, sie stehen an
+  // der Westwand ebenso in einer Reihe, und auseinandergezogen sähe man vier
+  // Einzelstücke statt eines Regals. Verwechseln kann man sie trotzdem nicht:
+  // Jede zeigt ihren Inhalt, und jede hat ihr eigenes Schild am Boden davor
+  // (`shared/showPlate.ts`).
+  //
+  // Sie sind der Grund, warum die Zone noch einmal um vier Spalten gewachsen
+  // ist (`layout.KITCHEN`): Die vier Reihen waren bis zur Ostwand voll.
+  { name: 'crate-buns', x: SHOW_X + 11, z: 10, show: true },
+  { name: 'crate-patty', x: SHOW_X + 12, z: 10, show: true },
+  { name: 'crate-lettuce', x: SHOW_X + 13, z: 10, show: true },
+  { name: 'crate-tomatoes', x: SHOW_X + 14, z: 10, show: true },
 ];
 
 /** Wie weit ein Möbel eine Kachel verteuert — teurer als ein Baustein. */

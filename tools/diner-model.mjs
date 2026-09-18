@@ -24,15 +24,16 @@
  *
  * 1. **Bündeln.** Aus 225 Dateien (5,8 MB, davon 450 Dateihüllen) wird eine
  *    `.glb` mit einem Knoten je Möbel. Ein Material, eine Textur, ein Puffer —
- *    das ist der eigentliche Gewinn dieser Quelle: Wer 146 Möbel aus **einem**
+ *    das ist der eigentliche Gewinn dieser Quelle: Wer 156 Stücke aus **einem**
  *    Material zeichnet, kann sie später zu einem Netz verschmelzen
  *    (`worlds/test/zones/diner.ts` tut das reihenweise).
- * 2. **Aussieben.** Von den 225 Stücken kommen 146 in die Datei. Draußen
- *    bleiben die 56 `food_*` und die 23 Eis-Beilagen: Diese Küche baut ihr
- *    Essen selbst (`worlds/test/zones/kitchenProps.ts`), und ein Katalog
- *    beschreibt, was in der Küche **steht**, nicht, was gekauft wurde. Wer sie
- *    doch will, streicht `SKIP` — der Rest des Werkzeugs kennt den
- *    Unterschied nicht.
+ * 2. **Aussieben.** Von den 225 Stücken kommen 156 in die Datei. Draußen
+ *    bleiben 69 Stück: das meiste Essen und das Eis-Zubehör. **Zehn Zutaten
+ *    kommen mit**, und die sind der Grund, warum das Sieb heute aus zwei
+ *    Zeilen besteht statt aus einer (`SKIP`, `KEEP_FOOD`) — die Küche baute
+ *    ihre Zutaten lange selbst, und seit sie es nicht mehr tut, sind Brötchen,
+ *    Patty, Salat und Tomate Netze aus dieser Datei
+ *    (`worlds/test/zones/kitchenProps.ts`, `FOOD_NODE`).
  * 3. **Nachmessen.** Zu jedem Stück werden Hülle und Grundfläche gerechnet,
  *    in **Spielmaß** (`DINER_SCALE`, siehe `core/dinerFit.ts`). Daraus wird der
  *    Katalog geschrieben, den Jest liest.
@@ -108,12 +109,40 @@ const fit = args.get('fit');
 const SCALE = 0.5;
 
 /**
- * **Was nicht mitkommt.** Die 56 `food_*`-Stücke und die 23 Eis-Beilagen sind
- * Essen, und Essen baut diese Küche selbst — 39 000 Dreiecke und anderthalb
- * Megabyte für Zutaten, die neben einem fertigen Zutatensatz liegen würden.
- * Die Softeismaschine ist ein Möbel und bleibt drin.
+ * **Was nicht mitkommt.** Die `food_*`-Stücke und die 23 Eis-Beilagen sind
+ * Essen, und das meiste davon kocht in dieser Küche niemand — 39 000 Dreiecke
+ * und anderthalb Megabyte für Pizzen, Eisbecher und Eintöpfe, die kein Rezept
+ * kennt (`worlds/test/zones/kitchenRecipes.RECIPES`). Die Softeismaschine ist
+ * ein Möbel und bleibt drin.
  */
 const SKIP = /^(food_|icecream_(?!machine)|stew_)/;
+
+/**
+ * **Und was vom Essen trotzdem mitkommt.** Zehn Stücke, und sie sind keine
+ * Ausnahme vom Sieb, sondern seine Begründung: Die Küche baute Brötchen,
+ * Patty, Salat und Tomate aus Zylindern und Kugeln, und seit es diese Quelle
+ * gibt, tut sie es nicht mehr. Was hier steht, ist **genau**, was ein Rezept
+ * braucht — die drei Zustände des Pattys, der Salat ganz und geschnitten, die
+ * Tomate ganz und geschnitten, und das Brötchen dreimal: ganz, Unterteil,
+ * Deckel (im Burger liegt der Belag dazwischen).
+ *
+ * Zusammen 2 978 Dreiecke. Die 46 Stücke, die draußen bleiben — Möhren, Käse,
+ * Teig, Schinken, Pilze, Zwiebeln, Salami, Kartoffeln, Pizzen —, sind Zutaten
+ * für Rezepte, die es nicht gibt; wer eines davon schreibt, trägt das Stück
+ * hier nach und hat es im Katalog.
+ */
+const KEEP_FOOD = new Set([
+  'food_ingredient_bun',
+  'food_ingredient_bun_bottom',
+  'food_ingredient_bun_top',
+  'food_ingredient_burger_uncooked',
+  'food_ingredient_burger_cooked',
+  'food_ingredient_burger_trash',
+  'food_ingredient_lettuce',
+  'food_ingredient_lettuce_slice',
+  'food_ingredient_tomato',
+  'food_ingredient_tomato_slices',
+]);
 
 /**
  * **Wie die Stücke im Spiel heißen.** Die Quelle spricht englisch und in
@@ -150,6 +179,16 @@ const LABELS = {
   door_B: 'Tür B',
   extractorhood: 'Dunstabzugshaube',
   floor_kitchen: 'Bodenplatte, groß',
+  food_ingredient_bun: 'Brötchen',
+  food_ingredient_bun_bottom: 'Brötchen, Unterteil',
+  food_ingredient_bun_top: 'Brötchen, Deckel',
+  food_ingredient_burger_cooked: 'Patty, gebraten',
+  food_ingredient_burger_trash: 'Patty, verbrannt',
+  food_ingredient_burger_uncooked: 'Patty, roh',
+  food_ingredient_lettuce: 'Salatkopf',
+  food_ingredient_lettuce_slice: 'Salat, geschnitten',
+  food_ingredient_tomato: 'Tomate',
+  food_ingredient_tomato_slices: 'Tomate, geschnitten',
   floor_kitchen_small: 'Bodenplatte',
   floor_kitchen_small_styleB: 'Bodenplatte, Muster B',
   floor_kitchen_styleB: 'Bodenplatte groß, Muster B',
@@ -277,7 +316,7 @@ const io = new NodeIO()
   .registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
 
 const files = (await readdir(source)).filter((f) => f.endsWith('.gltf')).sort();
-const taken = files.filter((f) => !SKIP.test(f));
+const taken = files.filter((f) => !SKIP.test(f) || KEEP_FOOD.has(f.slice(0, -5)));
 if (!taken.length) {
   console.error(`Keine .gltf-Dateien in ${source}.`);
   process.exit(1);

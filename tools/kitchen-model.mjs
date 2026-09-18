@@ -46,7 +46,8 @@ const source = args.get('in');
 const out = path.resolve(args.get('out') ?? 'public/models/kitchen.glb');
 
 /**
- * **Was von diesem Katalog übrig bleibt** — fünf Knoten von dreizehn.
+ * **Was von diesem Katalog übrig bleibt** — fünf Knoten von dreizehn, und drei
+ * davon sind noch Möbel.
  *
  * Seit es einen zweiten Baukasten gibt (`tools/diner-model.mjs`, 146 Stücke
  * aus einer Quelle), kommen Küchenzeile, Herd, Spüle, Arbeitstisch,
@@ -54,24 +55,38 @@ const out = path.resolve(args.get('out') ?? 'public/models/kitchen.glb');
  * der zweite Baukasten nicht hergibt oder was an einer Spielregel hängt, die
  * an genau dieses Netz gebunden ist:
  *
- * - `extinguisher` — Hocker **und** Löscher in einem Knoten, und der Löscher
- *   ist ein getragenes Gerät (`kitchenGrab.ts`).
  * - `bin` — der Mülleimer.
  * - `pass` — die Ausgabetheke, zwei Kacheln breit.
  * - `plate-rack` — das Ausgaberegal darüber.
- * - `stove-pan` — und davon **nur die Pfanne**: Der Herd darunter kommt aus
- *   dem zweiten Baukasten, die Pfanne bleibt, weil an ihr die Bratregeln und
- *   ein nachgemessener Muldenversatz hängen (`kitchenFit.PAN_BOWL`). Der
- *   Knoten heißt danach `pan` und trägt nur noch sein `Kitchen_Utensils`-Netz.
+ * - `stove-pan` und `extinguisher` — und davon **nur das Gerät**: Pfanne und
+ *   Feuerlöscher. Herd und Hocker darunter kommen aus dem zweiten Baukasten,
+ *   die Geräte bleiben, weil an ihnen Spielregeln hängen (`kitchenGrab.ts`,
+ *   `kitchenFit.PAN_BOWL`). Siehe `LOOSE`.
  *
  * Die Liste steht **hier** und nicht nur im Ergebnis: Wer die Quelle noch
  * einmal aufbereitet, soll dieselbe schlanke Datei bekommen und nicht wieder
  * dreizehn Knoten, von denen acht niemand aufstellt.
  */
-const KEEP = ['extinguisher', 'bin', 'pass', 'plate-rack'];
+const KEEP = ['bin', 'pass', 'plate-rack'];
 
-/** Der Knoten, von dem nur das Gerät bleibt — und wie es danach heißt. */
-const LOOSE = { from: 'stove-pan', to: 'pan', material: 'Kitchen_Utensils' };
+/**
+ * **Die Knoten, von denen nur das Gerät bleibt** — und wie es danach heißt.
+ *
+ * Zwei Stück, und beide standen in ihrer Datei mit ihrem Möbel in **einem**
+ * Knoten: die Pfanne auf ihrem Herd, der Feuerlöscher auf seinem Hocker. Beide
+ * Möbel kommen heute aus dem zweiten Baukasten — der Herd als `stove_single`,
+ * der Hocker als gewöhnliche Küchenzeile —, und was hier bleibt, ist nur noch
+ * das Gerät: das Netz aus dem Gerätematerial.
+ *
+ * **Der Hocker war der Grund.** Er war das letzte Möbel des ersten Baukastens,
+ * das in einer Zeile aus Möbeln des zweiten stand, und man sah ihn: anderes
+ * Holz, andere Höhe, andere Kante. Ein Löscher gehört auf die Arbeitsplatte
+ * wie alles andere auch.
+ */
+const LOOSE = [
+  { from: 'stove-pan', to: 'pan', material: 'Kitchen_Utensils' },
+  { from: 'extinguisher', to: 'extinguisher', material: 'Kitchen_Utensils' },
+];
 
 /**
  * **Nachträglich ausdünnen**, wenn die Quelle nicht mehr zur Hand ist.
@@ -92,18 +107,21 @@ if (args.has('trim')) {
   for (const node of root.listNodes()) {
     const name = node.getName();
     if (KEEP.includes(name)) continue;
-    if (name !== LOOSE.from) {
+    const loose = LOOSE.find((one) => one.from === name || one.to === name);
+    if (!loose) {
       node.dispose();
       continue;
     }
-    // Vom Herd mit der Pfanne bleibt die Pfanne: das Netz aus dem
-    // Gerätematerial, und der Knoten bekommt den Namen des Geräts.
+    // Vom Möbel bleibt das Gerät: das Netz aus dem Gerätematerial, und der
+    // Knoten bekommt dessen Namen. Ein zweiter Lauf findet den Knoten dann
+    // unter `to` wieder und lässt ihn in Ruhe — es ist ja schon nur noch das
+    // Gerät darin.
     const mesh = node.getMesh();
     for (const primitive of mesh?.listPrimitives() ?? []) {
-      if (primitive.getMaterial()?.getName() !== LOOSE.material) primitive.dispose();
+      if (primitive.getMaterial()?.getName() !== loose.material) primitive.dispose();
     }
-    node.setName(LOOSE.to);
-    mesh?.setName(LOOSE.to);
+    node.setName(loose.to);
+    mesh?.setName(loose.to);
   }
 
   await doc.transform(prune());
@@ -111,7 +129,8 @@ if (args.has('trim')) {
   await writeFile(out, bytes);
   console.log(
     `${path.relative(process.cwd(), out)}: ${scene.listChildren().length} Knoten ` +
-      `(${[...KEEP, LOOSE.to].join(', ')}), ${(bytes.length / 1024).toFixed(0)} KB`,
+      `(${[...KEEP, ...LOOSE.map((one) => one.to)].join(', ')}), ` +
+      `${(bytes.length / 1024).toFixed(0)} KB`,
   );
   process.exit(0);
 }

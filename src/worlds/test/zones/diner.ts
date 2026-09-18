@@ -29,7 +29,7 @@ export * from './dinerPlan';
 
 /**
  * **Die zweite Küche** — ein Restaurant aus dem zweiten Möbelkatalog, und
- * dahinter der Schauraum, in dem jedes seiner 146 Stücke einmal einzeln steht.
+ * dahinter der Schauraum, in dem jedes seiner 156 Stücke einmal einzeln steht.
  *
  * Wo was steht, rechnet der Aufbau daneben (`zones/dinerPlan.ts`); diese Datei
  * stellt es hin. Der Katalog selbst kommt aus `core/dinerFit.ts`, die Netze aus
@@ -51,7 +51,7 @@ export * from './dinerPlan';
  *
  * ## Und warum sie trotzdem in neun Netzen dasteht
  *
- * **Alle 146 Stücke teilen sich ein Material und eine Textur** (ein
+ * **Alle 156 Stücke teilen sich ein Material und eine Textur** (ein
  * Farbstreifen-Atlas, `core/dinerModel.dinerMaterial`). Damit lässt sich
  * zusammenfassen, was die erste Küche nur einzeln zeichnen kann: Der
  * Schauraum wird **reihenweise verschmolzen** (`zones/kitchenMerge.ts`), das
@@ -307,8 +307,8 @@ export class DinerZone implements TestZone {
    *
    * Die Tafel steht **unabhängig vom Modell**: Sie wird gebaut, bevor die
    * Datei angefragt ist, und bleibt auch dann stehen, wenn keine ankommt. Ein
-   * Schauraum aus 146 Namensschildern über leeren Kacheln sagt immer noch, was
-   * fehlt; 146 leere Kacheln sagen gar nichts.
+   * Schauraum aus 156 Namensschildern über leeren Kacheln sagt immer noch, was
+   * fehlt; 156 leere Kacheln sagen gar nichts.
    */
   private addLabel(world: ZoneHost, piece: DinerPiece, spot: DinerSpot): void {
     const size = dinerFootprint(piece, spot.turn ?? 0);

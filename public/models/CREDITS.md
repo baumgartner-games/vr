@@ -37,12 +37,13 @@ Aufbereitet mit `tools/kitchen-model.mjs`: eine Schauraum-Szene, zerlegt in
 einzeln platzierbare Möbel, Texturen verkleinert.
 
 **Und seitdem zusammengestrichen** (`tools/kitchen-model.mjs --trim`): Von den
-dreizehn Möbeln sind **fünf Knoten** übrig, 242 KB statt 480. Küchenzeile,
+dreizehn Möbeln sind **fünf Knoten** übrig, 233 KB statt 480. Küchenzeile,
 Herde, Spüle, Arbeitstisch, Schneidebrett, Ausgabe und Tellerausgabe kommen
-heute aus `diner.glb`; hier liegen nur noch der **Feuerlöscher** (samt Hocker),
-der **Mülleimer**, die **Ausgabetheke**, das **Ausgaberegal** und die
-**Pfanne** — letztere ohne ihren Herd, weil an ihr die Bratregeln hängen. Die
-Liste steht im Werkzeug, nicht nur im Ergebnis.
+heute aus `diner.glb`; hier liegen nur noch der **Mülleimer**, die
+**Ausgabetheke**, das **Ausgaberegal** und zwei **Geräte**: die **Pfanne**
+(ohne ihren Herd, weil an ihr die Bratregeln hängen) und der **Feuerlöscher**
+(ohne seinen Hocker, der ebenfalls durch eine Arbeitsplatte aus `diner.glb`
+ersetzt ist). Die Liste steht im Werkzeug, nicht nur im Ergebnis.
 
 ## `diner.glb` — der zweite Möbelkatalog
 
@@ -52,17 +53,23 @@ Liste steht im Werkzeug, nicht nur im Ergebnis.
 > Namensnennung nicht verlangt, siehe oben, warum sie trotzdem hier steht).
 
 Aufbereitet mit `tools/diner-model.mjs`: aus 225 Einzeldateien (5,8 MB, je eine
-`.gltf` und eine `.bin`) wird **eine** Datei mit 146 Knoten — ein Material, eine
-Textur, 85 248 Dreiecke, 1,07 MB. Draußen bleiben 79 Stücke: das Essen und das
-Eis-Zubehör, für die es in `worlds/test/zones/kitchenProps.ts` längst einen
-eigenen Satz gibt. Die Geometrie ist quantisiert und mit
+`.gltf` und eine `.bin`) wird **eine** Datei mit 156 Knoten — ein Material, eine
+Textur, 88 234 Dreiecke, 1,10 MB. Draußen bleiben 69 Stücke: Pizzen, Eintöpfe,
+das Eis-Zubehör und dreißig Zutaten, für die es kein Rezept gibt. **Zehn
+Zutaten kommen mit** (`KEEP_FOOD`): Brötchen ganz, als Boden und als Deckel,
+das Patty roh, gebraten und verbrannt, Salat und Tomate je ganz und
+geschnitten. Sie sind seit dem Umbau das Essen **beider** Küchen — die erste
+baute es bis dahin aus Zylindern (`worlds/test/zones/kitchenProps.ts`). Die
+Geometrie ist quantisiert und mit
 `EXT_meshopt_compression` gepackt (roh wären es 3,1 MB); die Textur ist eine
 Farbtafel von 1024 px und bleibt in voller Größe, verlustfrei als WebP —
 verkleinert mischt ihr Filter an den Feldgrenzen Farben, die es im Atlas nicht
 gibt. Die Quelle liegt **nicht** im Repository.
 
 Aufgestellt wird sie in `worlds/test/zones/diner.ts`, vermessen in
-`core/dinerFit.ts`.
+`core/dinerFit.ts`. Aus derselben Datei kommen auch die Möbel der **ersten**
+Küche (`core/kitchenFit.ts`, `KitchenPiece.base`) und ihre Zutaten
+(`worlds/test/zones/kitchenProps.ts`, `FOOD_NODE`).
 
 ## Nicht hier, aber aus demselben Grund erwähnt
 
