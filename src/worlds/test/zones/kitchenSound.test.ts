@@ -1,11 +1,14 @@
 import {
   CHOP_BEAT,
   DEED_SOUNDS,
+  EVERYWHERE,
+  EVERY_ROOM,
   KITCHEN_CUES,
   KITCHEN_CUE_IDS,
   KITCHEN_EAR,
   KITCHEN_HALF,
   KITCHEN_PAN,
+  NEARBY,
   SOUND_TRIALS,
   TRIAL_CUES,
   deedSound,
@@ -14,10 +17,14 @@ import {
   kitchenNearest,
   kitchenSoundFiles,
   nextTrial,
+  reachOf,
   trialAt,
   type DeedKind,
+  type KitchenReach,
   type KitchenEar,
 } from './kitchenSound';
+import { TILE } from '../../nav/navTile';
+import { FIELD, KITCHEN } from '../layout';
 
 /** Jemand im Ursprung, der nach Norden schaut (in three.js: nach −z). */
 const NORTH: KitchenEar = { x: 0, z: 0, ax: 0, az: -1 };
@@ -54,6 +61,76 @@ describe('wie laut ein Küchengeräusch ankommt', () => {
     expect(kitchenHeard(NORTH, { x: KITCHEN_EAR + 5, z: 0 }).gain).toBe(0);
     // Kurz davor ist es schon fast nichts — sonst wäre die Grenze zu hören.
     expect(kitchenHeard(NORTH, { x: KITCHEN_EAR - 0.05, z: 0 }).gain).toBeLessThan(0.01);
+  });
+
+  /**
+   * **Ein Ton mit Reichweite ist innerhalb davon überall gleich laut.**
+   *
+   * Aus dem Spieltest: „Die Entfernung, aus der man das Radio hören kann, ist
+   * zu gering. Ich würde für einige Audioquellen einstellen wollen, wo diese
+   * überall zu hören sind (z. B. in der gesamten Küche) und [sie] nehmen dann
+   * ab, wenn man außerhalb dieses Bereiches ist."
+   *
+   * Genau das prüft diese Zeile: voll bis `full`, danach dieselbe Kurve wie
+   * vorher, und bei `gone` Schluss.
+   */
+  it('bleibt innerhalb seiner Reichweite voll und fällt erst danach', () => {
+    const room: KitchenReach = { full: 12, gone: 20 };
+    for (const d of [0, 1, 6, 11.9]) {
+      expect(kitchenHeard(NORTH, { x: d, z: 0 }, room).gain).toBeCloseTo(1, 5);
+    }
+    let last = 1;
+    for (let d = 12.5; d < room.gone; d += 0.5) {
+      const next = kitchenHeard(NORTH, { x: d, z: 0 }, room).gain;
+      expect(next).toBeLessThan(last);
+      last = next;
+    }
+    expect(kitchenHeard(NORTH, { x: room.gone, z: 0 }, room).gain).toBe(0);
+  });
+
+  /**
+   * **Und ohne Reichweite ist alles wie vorher.** `NEARBY` ist `full = 0`, und
+   * damit ist die Rechnung Zeile für Zeile die alte — das ist der Grund, warum
+   * die Tests darüber unverändert stehen konnten.
+   */
+  it('rechnet ohne Reichweite genau wie die alte Kurve', () => {
+    for (const d of [0.5, 2, 4, 7.5]) {
+      const alt = (1 / (1 + (d / KITCHEN_HALF) ** 2)) * (1 - d / KITCHEN_EAR);
+      expect(kitchenHeard(NORTH, { x: d, z: 0 }).gain).toBeCloseTo(alt, 9);
+      expect(kitchenHeard(NORTH, { x: d, z: 0 }, NEARBY).gain).toBeCloseTo(alt, 9);
+    }
+  });
+
+  /**
+   * **Das Radio ist in der ganzen Küche zu hören**, und das war der Anlass.
+   * Seine Reichweite ist die **Diagonale der Zone** (`EVERY_ROOM`,
+   * `layout.KITCHEN`) — die größte Entfernung, die zwei Punkte darin haben
+   * können. Wächst die Küche, wächst sie mit.
+   */
+  it('gibt Radio, Feuer und Warnung den ganzen Raum', () => {
+    for (const cue of ['radio', 'fire', 'warn'] as const) {
+      expect({ cue, reach: reachOf(cue) }).toEqual({ cue, reach: EVERY_ROOM });
+    }
+    // Und der Handgriff bleibt ein Handgriff.
+    for (const cue of ['pick', 'place', 'chop', 'crate'] as const) {
+      expect({ cue, reach: reachOf(cue) }).toEqual({ cue, reach: NEARBY });
+    }
+    // Die Zone misst 37 × 11 Kacheln; quer hindurch sind es gut 38 m, und so
+    // weit trägt das Radio.
+    expect(EVERY_ROOM.full).toBeGreaterThan(Math.max(KITCHEN.w, KITCHEN.d) * TILE);
+    expect(EVERY_ROOM.gone - EVERY_ROOM.full).toBe(KITCHEN_EAR);
+    // Von der Westwand bis in den Schauraum, und dort ist es noch voll da.
+    expect(kitchenHeard(NORTH, { x: KITCHEN.w * TILE, z: 0 }, EVERY_ROOM).gain).toBeCloseTo(1, 5);
+  });
+
+  /**
+   * **Und die ganze Welt gäbe es auch** — heute benutzt es niemand, und
+   * deshalb steht hier, dass es funktioniert: Wer das Radio überall hören
+   * will, trägt `EVERYWHERE` ein, und es deckt das Gelände ab.
+   */
+  it('hält die Reichweite für die ganze Welt bereit', () => {
+    expect(EVERYWHERE.full).toBeGreaterThan(EVERY_ROOM.full);
+    expect(EVERYWHERE.full).toBeGreaterThanOrEqual(Math.max(FIELD.w, FIELD.d) * TILE);
   });
 
   /**

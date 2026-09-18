@@ -11,6 +11,7 @@ import {
 import { TILE } from '../../nav/navTile';
 import { PLATE_HEIGHT, PLATE_RADIUS } from './kitchenProps';
 import type { KitchenItem } from './kitchenRecipes';
+import { CHEF_CARRY } from '../../../core/chefFit';
 
 /**
  * **Wo die Hand ein Küchending anfasst** — die Griffe der Küche, und sonst
@@ -553,9 +554,26 @@ export function pieceHandles(piece: KitchenPiece): readonly GrabHandle[] {
       x: Math.max(RIM_GRIP_IN, (wide * TILE) / 2 - RIM_GRIP_IN),
       z: Math.max(RIM_GRIP_IN, (deep * TILE) / 2 - RIM_GRIP_IN),
     },
-    kitchenDeck(piece),
+    Math.min(kitchenDeck(piece), PIECE_GRIP_HIGH),
   );
 }
+
+/**
+ * **Und höher als bis hierher fasst niemand ein Möbel an**, in Metern.
+ *
+ * Die Griffhöhe kommt aus der **Ablage** des Möbels (`kitchenDeck`), und das
+ * ist für eine Küchenzeile, einen Herd und einen Computer-Tisch genau richtig:
+ * Wer schiebt, fasst dort an, wo die Platte ist. Für ein Möbel, dessen Ablage
+ * **über** der Brust liegt, ist es das nicht — und seit die Tellerausgabe eine
+ * Kiste auf der Zeile ist (`core/kitchenFit.ts`, `plate-counter`), gibt es so
+ * eines: Ihre Teller liegen auf 0,85 m, und das ist beim Koch von 1,60 m
+ * fingerbreit unter den Augen (`core/chefFit.CHEF_EYE`, 0,914 m).
+ *
+ * 0,62 m ist die Höhe, auf der die Figur ohnehin etwas vor dem Bauch trägt
+ * (`core/chefFit.CHEF_CARRY`) — also genau die Höhe, auf der ihre Hände sind.
+ * Abgeleitet und nicht gewählt: Wächst der Koch, wächst der Griff mit.
+ */
+const PIECE_GRIP_HIGH = CHEF_CARRY.y;
 
 /**
  * **Was ein Möbel über das Greifen sagt** — vier Rand-Griffe und derselbe

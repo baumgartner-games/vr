@@ -345,7 +345,7 @@ describe('der Möbelkatalog', () => {
   /**
    * **Die Zeile bleibt eine Platte** — bis auf das Brett, und das mit Absicht.
    *
-   * Küchenzeile, Arbeitstisch, Tellerausgabe, Ausgabe und Löscherplatte legen
+   * Küchenzeile, Arbeitstisch, Ausgabe und Löscherplatte legen
    * ihre Arbeitsfläche auf **einen halben Meter**: Wer daran entlanggeht,
    * schiebt etwas über eine durchgehende Fläche und hebt es nicht alle zwei
    * Kacheln über eine Stufe. Ein halber Meter ist zugleich die Zahl, die zum
@@ -356,7 +356,11 @@ describe('der Möbelkatalog', () => {
    * in der Arbeitsplatte.
    */
   it('legt die Arbeitsflächen der Zeilenmöbel auf eine Höhe', () => {
-    const line = ['counter', 'table', 'plate-counter', 'serve-counter', 'extinguisher'];
+    // **Ohne die Tellerausgabe**, und das ist kein Vergessen: Sie ist seit dem
+    // Umbau eine Kiste voller Teller auf der Zeile (`plate-counter`), und ihre
+    // Ablage ist der Tellerstapel auf 0,85 m — keine Fläche der Zeile, sondern
+    // das, was darauf steht.
+    const line = ['counter', 'table', 'serve-counter', 'extinguisher'];
     for (const name of line) {
       const piece = kitchenPiece(name)!;
       expect({ name, top: kitchenWorkHeight(piece).toFixed(3) }).toEqual({
@@ -463,19 +467,23 @@ describe('die Spüle', () => {
   });
 
   /**
-   * **Die Wanne ist flach, und das ist nachgemessen und nicht geschätzt.**
+   * **Das Becken hat eine Tiefe, und die ist nachgemessen.**
    *
-   * Im Netz gibt es zwischen Wannenboden und Wannenrand **keine** Stufe: Die
-   * einzige waagerechte Fläche im Beckenbereich liegt bei 0,54 m und misst
-   * 0,70 × 0,385 m. Der erste Baukasten hatte dort ein Becken von 14 cm Tiefe;
-   * dieses ist eine Mulde. Ein Teller liegt darin flach statt schräg — und
-   * genau deshalb rechnet `kitchenProps.SINK_TILT` heute null heraus, ohne dass
-   * jemand eine Sonderregel dafür schreiben musste.
+   * Hier stand einmal das Gegenteil — „die Wanne ist flach", `floor === rim` —,
+   * und das war ein Ablesefehler beim Umzug in den zweiten Baukasten. Die Mulde
+   * steht in der Quelle als eigenes Bauteil da und reicht im Spielmaß von 0,35
+   * bis 0,54 m: **19 cm tief**.
+   *
+   * Der Fehler war keiner, den man am Netz gesehen hätte, sondern einer, der
+   * eine Rechnung auf null brachte: `kitchenProps.SINK_TILT` ist
+   * `asin((rim − floor) / 2 / Halbmesser)` — bei rim = floor liegt der Teller
+   * flach auf dem Rand, und aus dem Spülen wird ein Abstellen.
    */
-  it('hat eine flache Wanne statt eines tiefen Beckens', () => {
-    expect(SINK_BOWL.floor).toBe(SINK_BOWL.rim);
-    expect(SINK_BOWL.water).toBeGreaterThan(SINK_BOWL.rim);
-    expect(SINK_BOWL.water - SINK_BOWL.rim).toBeLessThan(0.01);
+  it('hat ein Becken mit Tiefe und Wasser auf halber Höhe', () => {
+    expect(SINK_BOWL.floor).toBeLessThan(SINK_BOWL.rim);
+    expect(SINK_BOWL.rim - SINK_BOWL.floor).toBeCloseTo(0.19, 3);
+    // Halb voll: der Spiegel genau zwischen Boden und Rand.
+    expect(SINK_BOWL.water).toBeCloseTo((SINK_BOWL.floor + SINK_BOWL.rim) / 2, 6);
     // Die Ablage des Beckens ist der Wasserspiegel: Ein Teller liegt im Wasser
     // und nicht daneben.
     expect(kitchenDeck(basin)).toBe(SINK_BOWL.water);

@@ -182,7 +182,7 @@ describe('der Katalog der zweiten Küche', () => {
       'food_ingredient_lettuce',
       'food_ingredient_lettuce_slice',
       'food_ingredient_tomato',
-      'food_ingredient_tomato_slices',
+      'food_ingredient_tomato_slice',
     ]);
     expect(DINER_NAMES.filter((name) => name.startsWith('icecream_'))).toEqual([
       'icecream_machine',

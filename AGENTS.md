@@ -2227,7 +2227,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     wird, und der Belag liegt zwei Millimeter darüber, damit die beiden nicht
     um jeden Bildpunkt streiten. Im Westen die
     Küche selbst — Zeile, zwei Herde, **Spülbecken und Abtropfgitter** und die
-    Tellerausgabe an der Wand, vier
+    Tellerkiste an der Wand, vier
     **Vorratskisten** an der Westwand — je eine für Brötchen, Patty, Salat und
     Tomate, offen und mit ihrer Zutat darin —, eine Insel aus Schneidebrett und
     Mülleimer, **zwei Bandbahnen** quer durch den Raum — vier Förderbänder
@@ -6158,7 +6158,10 @@ Vier Dinge sind daran wichtig genug, um sie hier zu nennen:
   die es kein Rezept gibt. **Zehn kommen mit** (`KEEP_FOOD`), und sie sind
   genau das, was ein Rezept braucht: Brötchen ganz, als Boden und als Deckel,
   das Patty roh, gebraten und verbrannt, Salat und Tomate je ganz und
-  geschnitten. Zusammen 2 978 Dreiecke.
+  geschnitten. Von der geschnittenen Tomate **eine** Scheibe
+  (`food_ingredient_tomato_slice`, 220 Dreiecke) und nicht der Dreierstapel
+  daneben (`…_slices`, 476): Auf einem Burger liegt eine, und drei
+  übereinander machten aus jeder Tomate einen Turm. Zusammen 2 722 Dreiecke.
 
   Das war einmal anders, und der alte Satz stand an dieser Stelle: „Diese
   Küche baut ihr Essen selbst." Sie tat es aus Zylindern und Kugeln
@@ -6286,14 +6289,19 @@ die man im Spiel sieht:
   Oberkante der **Roste**; die Platte darunter liegt wie jede Arbeitsfläche
   auf 0,50 m. Die sichere Kochstelle ist mitgewachsen: Sie war schon immer so
   hoch wie ein Herd.
-- **Die Spüle ist eine flache Wanne** und kein tiefes Becken. Zwischen
-  Wannenboden und Wannenrand liegt im Netz **kein** Höhenunterschied, und
-  deshalb rechnet `kitchenProps.SINK_TILT` heute null heraus: Der Teller liegt
-  flach darin statt schräg. Keine Sonderregel, dieselbe Formel — sie bekommt
-  nur andere Zahlen.
+- **Das Spülbecken ist 19 cm tief**, und diese Zahl war eine Weile falsch. Beim
+  Umzug auf den zweiten Baukasten bekam `SINK_BOWL.floor` denselben Wert wie
+  `rim` — damit war die Wanne rechnerisch randvoll, `kitchenProps.SINK_TILT`
+  rechnete null heraus, und der Teller lag flach obendrauf statt schräg
+  darin. Nachgemessen am Becken von `kitchencounter_sink.gltf` (112 Dreiecke)
+  liegt der Boden auf 0,35 und der Rand auf 0,54, das Wasser dazwischen auf
+  0,445. Die Formel blieb dieselbe und liefert jetzt **23,6°**: Der Teller
+  lehnt vom Beckenboden bis auf Randhöhe und steckt dabei fast zur Hälfte im
+  Wasser. Dass er passt, ist kein Zufall, sondern dieselbe Rechnung —
+  0,475 m · cos 23,6° = 0,435 m, und die Mulde ist 0,5 m tief.
 
 **Der Küchenkatalog** (`core/kitchenFit.ts`) hat sechsundzwanzig Möbel:
-Tellerausgabe, Feuerlöscher, **Spülbecken**, **Abtropfgitter**, Mülleimer,
+Tellerkiste, Feuerlöscher, **Spülbecken**, **Abtropfgitter**, Mülleimer,
 Arbeitstisch, Ausgabe, die vier **Vorratskisten** (Brötchen, Patty, Salat,
 Tomate), Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile,
 Herd, Herd mit Topf, Herd mit Pfanne — und das **Förderband**, das **Zugband**,
@@ -6527,7 +6535,8 @@ kann.
   (`DEED_SOUNDS`, ein Eintrag je `KitchenDeed['do']` — dieselbe Vollständigkeit
   wie bei `STATION_WORK`, und aus demselben Grund), das **Hörmodell**
   (`kitchenHeard`: Entfernung und Balance auf dem Boden, wie beim Anfassen;
-  `kitchenNearest`: von vier brennenden Herden zählt der nächste), der **Takt**
+  `kitchenNearest`: von vier brennenden Herden zählt der nächste; die
+  **Reichweite** steht am Ton und nicht in der Formel, siehe unten), der **Takt**
   des Messers (`kitchenBeat` — höchstens ein Schlag je Bild, sonst macht ein
   Ruckler eine Salve daraus) und die **Auswahl** der beiden Töne, über die noch
   nicht entschieden ist (`SOUND_TRIALS`, siehe unten). **Schritte macht die
@@ -6542,6 +6551,21 @@ kann.
   (`haunting/audio/cues.ts`): Bis eine Aufnahme entpackt ist, bleibt es still.
   Ein Platzhalter, der eine halbe Minute lang anders klingt als das, was danach
   kommt, ist kein Platzhalter, sondern ein zweites Geräusch.
+- **Jeder Ton bringt seine eigene Reichweite mit** (`KitchenReach`,
+  `KitchenCueSpec.reach`, `reachOf`). Vorher galt für alles dieselbe Kurve: ab
+  dem ersten Meter leiser, nach `KITCHEN_EAR` still. Für das Zischen einer
+  Pfanne ist das richtig, für das Radio nicht — „die Entfernung aus der man das
+  Radio hören kann ist zu gering" —, und ein lauteres Radio hätte nur den Pegel
+  daneben verschoben, nicht die Reichweite. Eine Reichweite sind deshalb **zwei**
+  Zahlen: bis `full` voll, ab `gone` still, dazwischen derselbe Abfall wie
+  bisher. `NEARBY` (`full: 0`) ist die alte Kurve Zahl für Zahl — ein Test hält
+  das fest, und deshalb blieb jeder vorhandene Tontest unverändert grün.
+  `EVERY_ROOM` reicht über die ganze Küche und fällt erst draußen ab,
+  `EVERYWHERE` über das ganze Feld. Beide sind aus `layout.KITCHEN` bzw.
+  `layout.FIELD` gerechnet und nicht getippt: Wächst die Küche, wächst die
+  Reichweite mit. Warnung, Feueralarm und **Radio** stehen heute auf
+  `EVERY_ROOM`; wer das Radio in der **ganzen Welt** hören will, tauscht in
+  `KITCHEN_CUES` ein Wort.
 - **Zwei Töne stehen noch zur Wahl, und die Wahl steht im Schauraum**
   (`kitchenSound.SOUND_TRIALS`, `kitchenPlan.TRIAL_BUTTONS`,
   `kitchen.addTrialButtons`). Wie das **Messer** auf dem Brett klingt und wie
@@ -6597,18 +6621,28 @@ Und das sind die Regeln, die darin stehen:
   baut man damit einen Burger, den die Theke abweist — eine Sackgasse, die erst
   drei Schritte später auffällt. Die Pfanne behält es, weil es dort ohne Zutun
   entsteht, und man kippt sie in den Mülleimer aus.
-- **Eine Kiste gibt aus und ist zugleich Arbeitsplatte** (`fromBox`). Das
-  Zweite ist neu und hat einen sichtbaren Grund: Die vier Vorratsboxen stehen
-  an der Westwand nebeneinander, und wer dort mit vollen Händen ankommt, hatte
-  vorher keinen Platz, etwas abzulegen. Jetzt liegt auf dem Deckel, was jemand
-  genau dorthin gestellt hat — und **das** geht vor dem Frischen: Die Kiste
-  gibt ihr Frisches ja noch beliebig oft, das Liegende gibt es einmal. Damit
-  geht der überzählige **Teller an der Tellerausgabe zurück**, statt dass man
-  ihn quer durch die Küche trägt. Geblieben ist die Regel dahinter: Wer mit der
+- **Eine Kiste gibt aus und ist zugleich Arbeitsplatte** (`fromBox`, `'box'`).
+  Das Zweite hat einen sichtbaren Grund: Wer mit vollen Händen an einer Ausgabe
+  ankommt, braucht einen Platz, etwas abzulegen. Was auf dem Deckel liegt, geht
+  dabei **vor** dem Frischen: Die Kiste gibt ihr Frisches ja noch beliebig oft,
+  das Liegende gibt es einmal. Geblieben ist die Regel dahinter: Wer mit der
   vollen Pfanne an die Brötchenausgabe trat, bekam einmal ein Brötchen mit
   Patty, das niemandem gehörte — im Browser nachgestellt, das Patty war spurlos
   weg. Was aus dem Nichts kommt, muss deshalb in die **Hand** passen; alles
   andere ist „Erst die Hände frei machen".
+- **Eine Vorratskiste gibt aus und nimmt zurück, mehr nicht** (`fromCrate`,
+  `'crate'`, `KitchenPiece.supply`). Der Unterschied zur `box` ist eine Zeile:
+  Auf ihr wird **nichts abgestellt** — sie ist offen und bis oben voll, und was
+  jemand darauf legte, balancierte auf einem Haufen Tomaten. Dafür kann man
+  hineinlegen: Wer ihre Zutat **blank** in der Hand hält, legt sie zurück
+  (`'stow'`), statt den Mülleimer suchen zu müssen; ein Brötchen mit Patty
+  darauf nicht, denn was dabei mit dem Patty geschähe, wäre genau das stille
+  Verschwinden, gegen das der Rest dieser Liste steht. Und **leer wird sie
+  nie** — das ist der Unterschied zum Abtropfgitter, das gezählten Inhalt hat.
+  So kam auch die **Tellerkiste** (`plate-counter`) zu dieser Art: Sie war eine
+  `box` und damit eine Ablage, auf der Teller herumstanden. Heute ist sie eine
+  Kiste mit sechs sichtbaren Tellern darin, gibt beliebig viele her und nimmt
+  jeden blanken zurück.
 - **Der Herd hat vier Phasen** (`kitchenClock.ts`): vier Sekunden braten,
   sechs verbrennen, fünf bis zum Feuer, dann brennt es. Dazu gehören die
   Anzeigen: Flammen unter der Pfanne, ein Fortschrittsbalken in Warm, einer in
@@ -6696,7 +6730,7 @@ Und das sind die Regeln, die darin stehen:
 - **Über die Theke geht nur, was auf einem Teller liegt** (`atPass`), und
   **Teller und Gericht gehen zusammen weg**. Vorher verschwand der Burger und
   der Teller blieb in der Hand; damit endete ein Burger im Nichts und die
-  Tellerausgabe war ein Brunnen. Jetzt geht der Kreis weiter: Ein Gast setzt
+  Tellerkiste war ein Brunnen. Jetzt geht der Kreis weiter: Ein Gast setzt
   sich an einen freien **Gästetisch** und isst **8 s**
   (`kitchenGuests.EAT_SECONDS`, ungefähr so lang wie ein ganzer Burger von
   vorn) — an der Theke steht dabei vier Sekunden lang, was es geworden ist
@@ -6737,11 +6771,15 @@ Und das sind die Regeln, die darin stehen:
     seine Mitte bei −0,0040. Beide Hälften stecken 1,74 cm im Estrich
     (`SINK_SUNK`), damit ihr Rand mit der Zeile daneben auf 0,500 m fluchtet —
     derselbe Fall wie beim Schneidebrett, halb so hoch.
-  - **Der Teller liegt flach** (`kitchenProps.SINK_TILT` rechnet seit dem
-    Umbau null heraus): Die Wanne des zweiten Baukastens ist flach, es gibt
-    keine Tiefe mehr zu überspannen. Er ist mit 0,475 m schmaler als die Wanne
-    lang (0,70 m) und breiter als sie tief (0,385 m), liegt also quer über der
-    Öffnung — ein Teller im Abwasch und keiner, der auf dem Boden verschwindet.
+  - **Der Teller lehnt schräg im Wasser** (`kitchenProps.SINK_TILT`, heute
+    23,6°): Er steht mit der Unterkante auf dem Beckenboden und mit der
+    Oberkante am Rand, taucht also etwa zur Hälfte ein — genau das Bild, nach
+    dem der Spieltest gefragt hatte. Eine Zeit lang lag er flach obendrauf,
+    weil `SINK_BOWL.floor` beim Umzug auf den zweiten Baukasten irrtümlich auf
+    Randhöhe stand und die Formel damit null Schräge herausrechnete (siehe
+    oben). Dass er mit 0,475 m in die 0,8 × 0,5 m große Mulde passt, prüft ein
+    Test **gekippt** und nicht flach: Quer misst er im Grundriss nur noch
+    0,435 m.
   - **Vier Teller im Abtropfgitter** (`CLEAN_STACK_MAX`, `RACK_SLOTS`), und
     zwar **hochkant** in seinen vier Fächern und nicht gestapelt: Ein Gitter
     hält Teller auf der Kante, damit das Wasser abläuft, und genau so zeichnet
@@ -6890,6 +6928,21 @@ Und das sind die Regeln, die darin stehen:
   `align` und `deck`, also in der Liste, die man beim Austausch der Quelle
   nachmisst. Der Teller bekommt den Versatz nicht: Er ist rund und hat keinen
   Griff.
+- **Und dieselbe Mulde bestimmt auch, wo die Pfanne steht** (`kitchenHub`,
+  `kitchen.restOn`). Derselbe Ursprung in der Hüllenmitte, der den Belag
+  verschob, verschiebt auch die Pfanne selbst: Auf die Kachelmitte gesetzt,
+  landet dort die Mitte aus Mulde **und** Stiel — also die Mulde 22,5 cm zu
+  weit hinten, während der Stiel nach vorn über den Herd ragt. Im Bild ist das
+  eine Pfanne, die halb neben ihrem Rost sitzt. Gerechnet stimmte alles: Die
+  Hülle des Katalogstücks ist mittig, weil `KitchenPiece.holds` die Pfanne gar
+  nicht als Aufsatz aufstellt, sondern als **loses Gerät** (`takeUtensil`), und
+  das war die Stelle, an der niemand nachsah. Gefunden wurde es mit einem
+  magentafarbenen Zylinder auf `spot.deck` in der laufenden Szene — die
+  Kachelmitte war sichtbar woanders als die Mulde. Seitdem legt **eine**
+  Funktion jedes abgesetzte Gerät ab (`restOn`), und sie fragt vorher
+  `kitchenHub(item)`: Für die Pfanne kommt `PAN_BOWL` zurück, für alles andere
+  der Ursprung. Ein Hinstellen richtet sich nach dem Teil, das auf der Fläche
+  aufsteht, nicht nach dem, was darüber hinausragt.
 - **Getragen wird mit beiden Händen vor dem Körper** (`core/chefFit.CHEF_CARRY`),
   0,72 m vor der Figur und 0,62 m hoch. Beide Zahlen sind gemessen und nicht
   geraten: Der Kopf dieser Chibi-Figur ist 0,5 m breit, und ein Teller dicht
@@ -7449,7 +7502,12 @@ Und das sind die Regeln, die darin stehen:
   ein Mensch ein Möbel anfasst, um es zu schieben. Eine feste Zahl für alle wäre
   bequemer und stünde beim Mülleimer in der Luft; eine Ausnahmeliste wäre das,
   was der Auftrag nicht will. **Es braucht keine** — und das ist der Prüfstein,
-  nicht die Bequemlichkeit.
+  nicht die Bequemlichkeit. Nach oben ist die Zahl trotzdem gedeckelt
+  (`PIECE_GRIP_HIGH`), und zwar auf die **Traghöhe** aus `core/chefFit`
+  (`CHEF_CARRY.y`, 0,62 m): Die Tellerkiste stellt ihre Teller auf 0,85 m aus,
+  und ein Griff dort oben wäre keine Hüfte mehr, sondern eine Schulter. Der
+  Deckel ist keine Ausnahmeliste, sondern dieselbe Regel mit einer Grenze —
+  angefasst wird ein Möbel dort, wo die Hand ohnehin ist.
 
   **Die gegriffene Kante bleibt einem zugewandt** (`kitchenBuild.holdForRim`).
   Wer in der Brille den Herd an seiner rechten Seite packt, hält ihn rechts, und
