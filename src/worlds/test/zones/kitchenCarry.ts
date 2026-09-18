@@ -156,6 +156,22 @@ export type StationKind =
   | 'bin'
   /** Eine Kiste: Sie gibt aus, so oft man will — und ist zugleich Arbeitsplatte. */
   | 'box'
+  /**
+   * **Eine Vorratskiste**: offen, bis oben voll, und deshalb **keine**
+   * Arbeitsplatte.
+   *
+   * Sie gibt aus wie eine `box` und unterscheidet sich in genau einem Punkt:
+   * Auf ihr wird nichts **abgestellt**. Eine Kiste Tomaten mit einer Pfanne
+   * obendrauf ist kein Abstellplatz, sondern ein Fehler, den man sieht — und
+   * bis zum Umbau war sie eine geschlossene Kiste mit einem Deckel, auf dem
+   * genau das ging.
+   *
+   * Dafür kann man **zurücklegen**, was man ihr entnommen hat: Wer die Tomate
+   * doch nicht braucht, hält sie an die Tomatenkiste und ist sie los. Das ist
+   * kein Wegwerfen (dafür gibt es den Mülleimer), sondern der Handgriff, den
+   * jeder erwartet, der schon einmal etwas aus einer Kiste genommen hat.
+   */
+  | 'crate'
   /** Das Schneidebrett: auflegen, und es schneidet sich von selbst. */
   | 'board'
   /** Der Herd: Was darauf steht, ist die Pfanne — und manchmal brennt er. */
@@ -217,6 +233,7 @@ export type StationKind =
  * Lücke noch einmal, nur eine Ebene tiefer.
  */
 export const STATION_WORK: Readonly<Record<StationKind, WorkKind | null>> = {
+  crate: null,
   board: 'chop',
   mixer: 'blend',
   griddle: 'fry',
@@ -257,8 +274,22 @@ export interface Station {
   readonly gives?: KitchenItem;
   /** Ob der Herd brennt — nur bei `stove` (`kitchenClock.StoveState.fire`). */
   readonly fire?: boolean;
-  /** Wie viele Teller hier stapeln — bei `return` dreckige, bei `drain` saubere. */
+  /** Wie viele Teller hier stapeln — bei `return` dreckige, im `drain` beide. */
   readonly stack?: number;
+  /**
+   * **Welche Sorte darin steht** — `null`, solange das Gitter leer ist.
+   *
+   * Nur beim `drain`, und es ist die Zahl hinter der einen Regel, die ein
+   * Abtropfgitter von einem Stapel unterscheidet: In ein **leeres** darf
+   * beides, in ein **belegtes** nur noch dasselbe. Ein Gitter, in dem saubere
+   * und dreckige Teller nebeneinanderstehen, ist ein Gitter, an dem niemand
+   * mehr sieht, was gespült ist.
+   *
+   * Es steht am **Platz** und nicht am Möbel: Dasselbe Abtropfgitter ist heute
+   * das der sauberen und morgen das der dreckigen Teller, je nachdem, was
+   * jemand hineingestellt hat.
+   */
+  readonly stacked?: KitchenItem | null;
 }
 
 /**
@@ -338,6 +369,18 @@ export type KitchenDeed =
   | { do: 'fill'; dish: Dish }
   /** Alles aus der Hand in den Müll. */
   | { do: 'trash'; dish: Dish }
+  /**
+   * **Zurück in die Vorratskiste** — die Hand wird leer, die Kiste bleibt, wie
+   * sie war.
+   *
+   * Eine eigene Tat und kein `trash`, obwohl beide dasselbe Netz wegräumen:
+   * Weggeworfen wird in den **Mülleimer**, und das ist im Spiel ein Verlust
+   * (`kitchenRecipes.FOOD`). Was in seine Kiste zurückgeht, ist nichts
+   * verloren — die Kiste gibt es ja beliebig oft wieder her. Der Unterschied
+   * steht im Satz darüber (`kitchenPrompt`) und im Ton (`kitchenSound`), und
+   * ein gemeinsames `trash` hätte beides gleich klingen lassen.
+   */
+  | { do: 'stow'; dish: Dish }
   /** Nur den Inhalt in den Müll; der Träger bleibt (leer) in der Hand. */
   | { do: 'scrape'; dish: Dish }
   /**
@@ -363,6 +406,9 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
     case 'box':
       return fromBox(held, station.gives, station.on ?? null);
 
+    case 'crate':
+      return fromCrate(held, station.gives);
+
     case 'bin':
       return intoBin(held);
 
@@ -376,7 +422,7 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
       return atSink(held, station.on ?? null);
 
     case 'drain':
-      return atDrain(held, station.stack ?? 0);
+      return inRack(held, station.stack ?? 0, station.stacked ?? null);
 
     case 'return':
       return atReturn(held, station.stack ?? 0);
@@ -507,6 +553,47 @@ function fromBox(held: Dish | null, gives: KitchenItem | undefined, on: Dish | n
   const both = combine(held, on);
   if (!both.ok) return { do: 'refuse', why: both.why };
   return { do: 'combine', held: both.held, target: both.target, moved: both.moved };
+}
+
+/**
+ * **Die Vorratskiste** — sie gibt her, und sie nimmt zurück. Mehr nicht.
+ *
+ * Sie ist der kleine Bruder der `box` (`fromBox` gleich darüber), und der
+ * Unterschied ist genau eine Zeile: Auf ihr wird **nichts abgestellt**. Die
+ * Kiste ist offen und bis oben voll; was jemand darauf legte, balancierte auf
+ * einem Haufen Tomaten. Solange dort eine geschlossene Kiste mit Deckel stand,
+ * war der Deckel eine Ablage wie jede andere — seit es je Zutat eine eigene,
+ * offene Kiste gibt (`core/kitchenFit.SUPPLY_CRATES`), ist er weg und die
+ * Ablage mit ihm.
+ *
+ * **Drei Fälle, in dieser Reihenfolge:**
+ *
+ * 1. **Leere Hand** — sie gibt ihre Zutat her, so oft man will.
+ * 2. **Ihre eigene Zutat in der Hand**, blank und ohne Belag: zurück in die
+ *    Kiste. Wer sich vergriffen hat, soll nicht den Mülleimer suchen müssen —
+ *    und ein Brötchen, das in seine Brötchenkiste zurückgeht, ist nichts
+ *    verloren, denn dieselbe Kiste gibt es sofort wieder her.
+ * 3. **Alles andere**: Die Hand nimmt das Frische auf, wenn sie kann — mit dem
+ *    Teller an der Brötchenausgabe, mit der leeren Pfanne an der Pattykiste;
+ *    das ist derselbe Handgriff wie an der `box` und steht dort im Langen.
+ *    Geht auch das nicht, sagt sie es.
+ *
+ * **Zurückgelegt wird nur, was blank ist.** Ein Brötchen mit Patty darauf
+ * gehört in keine Brötchenkiste — was dabei mit dem Patty geschähe, wäre die
+ * Sorte stilles Verschwinden, gegen die schon der Rest dieser Datei steht.
+ */
+function fromCrate(held: Dish | null, gives: KitchenItem | undefined): KitchenDeed {
+  if (!gives) return { do: 'nothing' };
+  if (!held) return { do: 'take', dish: dish(gives) };
+  if (held.item === gives && !held.on.length) return { do: 'stow', dish: held };
+  const fresh = combine(held, dish(gives));
+  // Dieselbe Bedingung wie an der `box`, und mit derselben Begründung: Was
+  // nicht in die **Hand** geht, hinge in der Luft — die Kiste hat keine
+  // Fläche, auf der es liegen bliebe.
+  if (fresh.ok && fresh.held && !fresh.target) {
+    return { do: 'combine', held: fresh.held, target: null, moved: fresh.moved };
+  }
+  return { do: 'refuse', why: 'Auf eine Vorratskiste wird nichts abgestellt' };
 }
 
 /** Der Mülleimer: Inhalt weg, Träger behalten, Gerät gar nicht erst hinein. */
@@ -643,8 +730,7 @@ function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
 }
 
 /**
- * **Das Abtropfbrett** ist die Rückgabe, nur andersherum: Hier stapelt sich das
- * **saubere** Geschirr.
+ * **Das Abtropfgitter** ist die Rückgabe, nur mit einer Entscheidung darin.
  *
  * Es ist die zweite Hälfte der Spüle (`core/kitchenFit.ts`, `sink-drain`), und
  * es macht den Abwasch erst zu einem Weg mit einem Ende. Aus dem Becken kommt
@@ -653,23 +739,36 @@ function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
  * zwischenlagern, wo er beim nächsten Burger im Weg liegt. Hier stellt man ihn
  * ab und spült den nächsten — einen Schritt weiter, ohne den Platz zu wechseln.
  *
- * Der Fall ist Zeile für Zeile `atReturn`, mit zwei Unterschieden, und beide
- * sind gewollt:
+ * **Es nimmt beide Sorten — aber nicht gemischt.** Ein leeres Gitter steht für
+ * das, was als Nächstes hineinkommt: vier saubere Teller, die abtropfen, oder
+ * vier dreckige, die auf den Abwasch warten. Sobald der erste drinsteht, ist
+ * entschieden, was das Gitter ist, und der zweite muss dazu passen — ein
+ * gespülter Teller zwischen drei schmutzigen ist der, den gleich jemand auf
+ * die Theke stellt.
  *
- * - Hier gehört der **saubere** Teller hin und nichts sonst — ein dreckiger
- *   zwischen vier sauberen ist der, den jemand gleich auf die Theke stellt.
- *   Ein Teller **mit Belag** ebenfalls nicht: Das Brett ist eine Ablage für
- *   Geschirr und keine zweite Arbeitsplatte.
+ * Zwei weitere Zeilen, und beide sind dieselbe Aussage von zwei Seiten:
+ *
+ * - **Nur Teller**, und zwar nur **leere**. Ein Gitter ist eine Ablage für
+ *   Geschirr und keine zweite Arbeitsplatte; ein Burger zwischen den Sprossen
+ *   wäre beides nicht.
  * - Und es ist **voll** (`CLEAN_STACK_MAX`), während die Rückgabe nie voll ist.
- *   Der Grund steht dort.
+ *   Der Grund steht dort — hier ist die Grenze dagegen sichtbar: Das Netz hat
+ *   vier Fächer (`core/kitchenFit.RACK_SLOTS`), und ein fünfter Teller stünde
+ *   in der Luft.
  */
-function atDrain(held: Dish | null, stack: number): KitchenDeed {
-  if (!held) return stack > 0 ? { do: 'take', dish: dish('plate') } : { do: 'nothing' };
-  if (held.item !== 'plate' || held.on.length) {
-    return { do: 'refuse', why: 'Auf das Abtropfbrett gehören nur saubere Teller' };
+function inRack(held: Dish | null, stack: number, stacked: KitchenItem | null): KitchenDeed {
+  if (!held) {
+    return stack > 0 ? { do: 'take', dish: dish(stacked ?? 'plate') } : { do: 'nothing' };
+  }
+  if ((held.item !== 'plate' && held.item !== 'plate-dirty') || held.on.length) {
+    return { do: 'refuse', why: 'In das Abtropfgitter gehören nur leere Teller' };
+  }
+  if (stacked && held.item !== stacked) {
+    const drin = stacked === 'plate' ? 'saubere' : 'dreckige';
+    return { do: 'refuse', why: `Im Abtropfgitter stehen ${drin} Teller` };
   }
   if (stack >= CLEAN_STACK_MAX) {
-    return { do: 'refuse', why: `Auf dem Abtropfbrett stehen schon ${CLEAN_STACK_MAX} Teller` };
+    return { do: 'refuse', why: `Im Abtropfgitter stehen schon ${CLEAN_STACK_MAX} Teller` };
   }
   return { do: 'place', dish: held };
 }
@@ -896,6 +995,8 @@ export function kitchenPrompt(deed: KitchenDeed, what: string): string {
         .join(', ')} auflegen`;
     case 'trash':
       return `${dishLabel(deed.dish)} wegwerfen`;
+    case 'stow':
+      return `${dishLabel(deed.dish)} zurücklegen`;
     case 'scrape':
       return `${ITEM_LABELS[deed.dish.item]} abräumen`;
     case 'serve':

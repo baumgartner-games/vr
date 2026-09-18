@@ -2226,7 +2226,7 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     dem Grundriss bleibt darunter liegen: Er ist der Körper, auf dem gelaufen
     wird, und der Belag liegt zwei Millimeter darüber, damit die beiden nicht
     um jeden Bildpunkt streiten. Im Westen die
-    Küche selbst — Zeile, zwei Herde, **Spülbecken und Abtropfbrett** und die
+    Küche selbst — Zeile, zwei Herde, **Spülbecken und Abtropfgitter** und die
     Tellerausgabe an der Wand, vier
     **Vorratskisten** an der Westwand — je eine für Brötchen, Patty, Salat und
     Tomate, offen und mit ihrer Zutat darin —, eine Insel aus Schneidebrett und
@@ -6189,6 +6189,35 @@ Die Dateien: `core/dinerFit.ts` (Maße, ohne three.js), `core/dinerModel.ts`
 `worlds/test/zones/diner.ts` (die Zone). Dieselbe Teilung wie bei der ersten
 Küche und aus demselben Grund: Rechnung getrennt von Darstellung.
 
+#### Eine Build-Nummer an jeder Adresse
+
+Modelle und Töne liegen unter **festen** Namen (`models/kitchen.glb`,
+`audio/kitchen/pick-0.ogg`) — anders als die Skripte, deren Dateiname den Hash
+ihres Inhalts trägt. Der Service Worker beantwortet feste Namen mit
+_stale-while-revalidate_ (`core/swRoutes.ts`): sofort aus dem Speicher, und
+erst **danach** wird im Netz nachgesehen. Für ein Telefon ist das genau
+richtig — nur heißt es eben auch, dass man nach einem Deploy beim ersten Start
+noch den alten Stand sieht.
+
+**Und so ist es aufgefallen**: Ein Feuerlöscher stand auf einem Hocker, den es
+im Repository seit zwei Builds nicht mehr gab. Man sieht einem Bild nicht an,
+dass es an einem Speicher liegt und nicht am Katalog; gesucht wurde der Fehler
+im Modell.
+
+Seitdem hängt an jeder dieser Adressen die Build-Nummer
+(`core/assetVersion.ts`, `versioned`): `models/kitchen.glb?v=1a2b3c`. Darauf
+hat kein Speicher eine Antwort — auch der Service Worker des **vorigen**
+Builds nicht, der auf dem Telefon noch läuft, während die neue Seite schon
+geladen ist. Beim Aktivieren wirft der neue dann weg, was ein fremdes `v=`
+trägt (`sw.ts`, `dropOldMedia`); was **kein** `v=` hat, bleibt liegen — die
+Controller-Modelle ändern sich nicht mit dem Build und sollen nicht nach jedem
+Deploy neu über das Netz.
+
+Ein Hash im **Dateinamen** wäre das Übliche und geht hier nicht: Diese Dateien
+liegen in `public/` und werden unverändert kopiert. Sie durch den Bündler zu
+schicken, hieße 2,5 MB Modelle und Töne zu importieren, die niemand
+importiert, sondern die geladen werden, wenn eine Welt sie braucht.
+
 #### Und dann zog die erste Küche in den zweiten Katalog um
 
 Der zweite Baukasten war als **Auslage** gebaut worden — hinstellen, ansehen,
@@ -6264,7 +6293,7 @@ die man im Spiel sieht:
   nur andere Zahlen.
 
 **Der Küchenkatalog** (`core/kitchenFit.ts`) hat sechsundzwanzig Möbel:
-Tellerausgabe, Feuerlöscher, **Spülbecken**, **Abtropfbrett**, Mülleimer,
+Tellerausgabe, Feuerlöscher, **Spülbecken**, **Abtropfgitter**, Mülleimer,
 Arbeitstisch, Ausgabe, die vier **Vorratskisten** (Brötchen, Patty, Salat,
 Tomate), Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile,
 Herd, Herd mit Topf, Herd mit Pfanne — und das **Förderband**, das **Zugband**,
@@ -6400,9 +6429,9 @@ den man im Bild sah:
 
 Was `A` vor einem Möbel tut, steht in **einer** Funktion
 (`worlds/test/zones/kitchenCarry.ts`, `kitchenDeed`) und nicht in elf
-`if`-Ketten in der Zone daneben. Fünfzehn Stationsarten (`StationKind`) —
-Ablage, Kiste, Mülleimer, Schneidebrett, Herd, Ausgabetheke,
-Löscherhalterung, Spülbecken, **Abtropfbrett**, Geschirrrückgabe, Gästetisch,
+`if`-Ketten in der Zone daneben. Sechzehn Stationsarten (`StationKind`) —
+Ablage, Kiste, **Vorratskiste**, Mülleimer, Schneidebrett, Herd, Ausgabetheke,
+Löscherhalterung, Spülbecken, **Abtropfgitter**, Geschirrrückgabe, Gästetisch,
 Band, **Kombinierer**, **Mixer**, **sichere Kochstelle** — mal volle
 oder leere Hand ergeben ein
 paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
@@ -6708,20 +6737,26 @@ Und das sind die Regeln, die darin stehen:
     seine Mitte bei −0,0040. Beide Hälften stecken 1,74 cm im Estrich
     (`SINK_SUNK`), damit ihr Rand mit der Zeile daneben auf 0,500 m fluchtet —
     derselbe Fall wie beim Schneidebrett, halb so hoch.
-  - **Der Teller liegt schräg**, und zwar um **11,1°** (`kitchenProps.SINK_TILT`).
-    Der Winkel ist ausgerechnet: Ein Teller ist 0,75 m breit, die Beckenöffnung
-    nur 0,81 × 0,64 m — flach passt er gar nicht hinein, sondern läge quer über
-    dem Rand. Er lehnt deshalb mit der unteren Kante auf dem Beckenboden und der
-    oberen auf Randhöhe, überspannt also genau die Beckentiefe von 14,4 cm. Das
-    **Wasser** ist gebaut und steht auf halber Tiefe — also liegt genau die
-    untere Hälfte des Tellers darin.
-  - **Vier saubere Teller** auf dem Abtropfbrett (`CLEAN_STACK_MAX`), als
-    derselbe Stapel wie an der Rückgabe, nur mit sauberen Tellern und einer
-    anderen Grenze. Voll lehnt es ab — anders als die Rückgabe, die nie ablehnt,
-    weil ein Gast ohne Abstellplatz eine Sackgasse wäre. Gefüllt wird es **aus
-    der Hand**: Fertig gespült liegt der Teller dort (`WORK_TO_HAND`), und ein
-    Schritt zur Seite stellt ihn ab, statt ihn auf irgendeiner Arbeitsplatte
-    zwischenzulagern, wo er beim nächsten Burger im Weg läge.
+  - **Der Teller liegt flach** (`kitchenProps.SINK_TILT` rechnet seit dem
+    Umbau null heraus): Die Wanne des zweiten Baukastens ist flach, es gibt
+    keine Tiefe mehr zu überspannen. Er ist mit 0,475 m schmaler als die Wanne
+    lang (0,70 m) und breiter als sie tief (0,385 m), liegt also quer über der
+    Öffnung — ein Teller im Abwasch und keiner, der auf dem Boden verschwindet.
+  - **Vier Teller im Abtropfgitter** (`CLEAN_STACK_MAX`, `RACK_SLOTS`), und
+    zwar **hochkant** in seinen vier Fächern und nicht gestapelt: Ein Gitter
+    hält Teller auf der Kante, damit das Wasser abläuft, und genau so zeichnet
+    der Baukasten es auch (`dishrack_plates`). Alle vier Zahlen — Fachabstand,
+    Höhe, Schräge, Anzahl — sind an jenem Netz abgelesen, damit einzeln
+    hineingestellte Teller dasselbe Bild ergeben wie das gezeichnete volle
+    Gitter.
+  - **Und es entscheidet sich beim ersten Teller**, was es ist: In ein leeres
+    Gitter darf beides, sauber wie dreckig; sobald einer drinsteht, nimmt es
+    nur noch dieselbe Sorte (`Station.stacked`, `kitchenCarry.inRack`). Ein
+    gespülter Teller zwischen drei schmutzigen ist der, den gleich jemand auf
+    die Theke stellt. Voll lehnt es ab — anders als die Rückgabe, die nie
+    ablehnt, weil ein Gast ohne Abstellplatz eine Sackgasse wäre. Gefüllt wird
+    es **aus der Hand**: Fertig gespült liegt der Teller dort
+    (`WORK_TO_HAND`), und ein Schritt zur Seite stellt ihn ab.
   - **Der Wasserhahn war nicht verdreht.** Nachgemessen steht sein Fuß hinten
     (z = −0,90…−0,70) und der Bogen greift nach vorn über die Mulde — die
     Schauseite dieser Möbel ist ohnehin **+z**, dort sitzen die Türgriffe, und

@@ -1,6 +1,7 @@
 import { sharedAudio } from '../../../core/Audio';
 import { registerAsset, type AssetEntry } from '../registry';
 import { AUDIO_CUES, CUE_IDS, SOUND_DIR, cueAssetId, type AudioCue } from './cues';
+import { versioned } from '../../../core/assetVersion';
 
 /**
  * Meldet die Cues des Pakets Audio in der Asset-Registry an — aus einer
@@ -34,7 +35,7 @@ export function cueFiles(cue: AudioCue): Promise<ArrayBuffer[]> | null {
   const base = document.baseURI;
   return Promise.allSettled(
     cue.files.map((file) =>
-      fetch(new URL(`${SOUND_DIR}${file}`, base).toString()).then((response) => {
+      fetch(versioned(new URL(`${SOUND_DIR}${file}`, base).toString())).then((response) => {
         if (!response.ok) throw new Error(`${file}: HTTP ${response.status}`);
         return response.arrayBuffer();
       }),

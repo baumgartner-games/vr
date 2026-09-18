@@ -864,12 +864,47 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
     expect(press(null, { kind: 'drain' })).toEqual({ do: 'nothing' });
   });
 
-  it('lässt auf das Abtropfbrett nur leere saubere Teller', () => {
-    for (const held of [d('plate-dirty'), d('bun'), d('pan'), d('plate', 'bun')]) {
-      const deed = press(held, { kind: 'drain', stack: 1 });
+  it('lässt in das Abtropfgitter nur leere Teller', () => {
+    for (const held of [d('bun'), d('pan'), d('plate', 'bun'), d('plate-dirty', 'bun')]) {
+      const deed = press(held, { kind: 'drain', stack: 1, stacked: 'plate' });
       expect({ item: held.item, do: deed.do }).toEqual({ item: held.item, do: 'refuse' });
-      expect(why(deed)).toContain('saubere Teller');
+      expect(why(deed)).toContain('leere Teller');
     }
+  });
+
+  /**
+   * **In ein leeres Gitter darf beides, in ein belegtes nur noch dasselbe.**
+   *
+   * Das ist die eine Regel, die ein Abtropfgitter von einem Stapel
+   * unterscheidet: Es steht für **einen** Zustand — vier, die abtropfen, oder
+   * vier, die auf den Abwasch warten. Ein gespülter Teller zwischen drei
+   * schmutzigen ist der, den gleich jemand auf die Theke stellt.
+   */
+  it('nimmt in ein leeres Gitter beide Sorten und danach nur noch dieselbe', () => {
+    for (const first of ['plate', 'plate-dirty'] as const) {
+      expect(press(d(first), { kind: 'drain', stack: 0 })).toEqual({
+        do: 'place',
+        dish: d(first),
+      });
+    }
+    const other = { plate: 'plate-dirty', 'plate-dirty': 'plate' } as const;
+    for (const stacked of ['plate', 'plate-dirty'] as const) {
+      expect(press(d(stacked), { kind: 'drain', stack: 2, stacked })).toEqual({
+        do: 'place',
+        dish: d(stacked),
+      });
+      const mixed = press(d(other[stacked]), { kind: 'drain', stack: 2, stacked });
+      expect({ stacked, do: mixed.do }).toEqual({ stacked, do: 'refuse' });
+      expect(why(mixed)).toContain(stacked === 'plate' ? 'saubere' : 'dreckige');
+    }
+  });
+
+  /** Und herausgegeben wird, was darinsteht — nicht immer der saubere. */
+  it('gibt aus dem Gitter die Sorte her, die darinsteht', () => {
+    expect(press(null, { kind: 'drain', stack: 3, stacked: 'plate-dirty' })).toEqual({
+      do: 'take',
+      dish: d('plate-dirty'),
+    });
   });
 
   it('sagt am Abtropfbrett an, was gleich passiert', () => {

@@ -1,0 +1,61 @@
+/**
+ * **Die Build-Nummer an einer Adresse** — damit ein geändertes Modell und ein
+ * geänderter Ton beim nächsten Start auch wirklich ankommen.
+ *
+ * ## Der Fehler, den diese sechs Zeilen abstellen
+ *
+ * Modelle und Aufnahmen liegen unter **festen** Namen (`models/kitchen.glb`,
+ * `audio/kitchen/pick-0.ogg`) — anders als die Skripte, deren Dateiname den
+ * Hash ihres Inhalts trägt. Der Service Worker beantwortet feste Namen mit
+ * _stale-while-revalidate_ (`core/swRoutes.ts`, `revalidate`): Er gibt sofort
+ * her, was er hat, und sieht erst **danach** im Netz nach. Das ist für ein
+ * Telefon genau richtig — nur heißt es eben auch: Nach einem Deploy sieht man
+ * beim ersten Start noch den **alten** Stand, und erst der zweite zeigt den
+ * neuen.
+ *
+ * Und genau so ist es aufgefallen: Ein Feuerlöscher stand auf einem Hocker,
+ * den es im Repository seit dem Umbau nicht mehr gibt — die Datei im Telefon
+ * war zwei Builds alt. Man sieht es dem Bild nicht an, dass es an einem
+ * Speicher liegt und nicht am Katalog; man sucht den Fehler im Modell.
+ *
+ * **Die Nummer in der Adresse macht daraus einen anderen Namen.** Ein neuer
+ * Build fragt `models/kitchen.glb?v=1a2b3c`, und darauf hat kein Speicher
+ * eine Antwort — auch der Service Worker des **vorigen** Builds nicht, der auf
+ * dem Telefon noch läuft, während die neue Seite schon geladen ist. Er holt
+ * sie aus dem Netz, und das ist die richtige Antwort.
+ *
+ * ## Warum nicht der Dateiname
+ *
+ * Weil diese Dateien nicht durch das Bündeln gehen: Sie liegen in `public/`
+ * und werden unverändert kopiert (`vite.config.ts`). Ein Hash im Namen hieße,
+ * sie durch den Bündler zu schicken — für 2,5 MB Modelle und Töne, die
+ * niemand importiert, sondern die geladen werden, wenn eine Welt sie braucht.
+ *
+ * ## In Jest ist sie leer
+ *
+ * `__BUILD_ID__` setzt Vite beim Bauen ein (`define`); in einem Jest-Lauf gibt
+ * es die Kennung nicht. `typeof` auf einen unbekannten Namen ist in
+ * JavaScript kein Fehler, sondern `'undefined'` — deshalb steht hier `typeof`
+ * und keine Abfrage auf den Wert.
+ */
+
+declare const __BUILD_ID__: string | undefined;
+
+/**
+ * Die Kennung dieses Builds, oder ein leerer Text, wenn es keine gibt (Jest,
+ * `vite dev` ohne `define`).
+ */
+export const BUILD_ID: string = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : '';
+
+/**
+ * **Eine Adresse mit der Build-Nummer.** Ohne Nummer bleibt sie, wie sie ist —
+ * ein `?v=` ohne Wert wäre ein zweiter Name für dieselbe Datei und damit genau
+ * der Speicherfehler, den diese Datei abstellt, nur andersherum.
+ *
+ * Angehängt wird mit `?` oder `&`, je nachdem, ob schon eine Frage in der
+ * Adresse steht.
+ */
+export function versioned(url: string): string {
+  if (!BUILD_ID) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(BUILD_ID)}`;
+}

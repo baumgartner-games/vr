@@ -1,4 +1,5 @@
 import { sharedAudio } from '../../../core/Audio';
+import { versioned } from '../../../core/assetVersion';
 import {
   KITCHEN_CUES,
   SOUND_DIR,
@@ -102,7 +103,7 @@ export class KitchenAudio {
     const base = document.baseURI;
     this.priming = Promise.all(
       kitchenSoundFiles().map((file) =>
-        fetch(new URL(`${SOUND_DIR}${file}`, base).toString())
+        fetch(versioned(new URL(`${SOUND_DIR}${file}`, base).toString()))
           .then((response) => {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return response.arrayBuffer();

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { PAN_BOWL, POT_BOWL, SINK_BOWL } from '../../../core/kitchenFit';
+import { PAN_BOWL, POT_BOWL, RACK_SLOTS, SINK_BOWL } from '../../../core/kitchenFit';
 import { dinerHeight, dinerPiece } from '../../../core/dinerFit';
 import { CLEAN_STACK_MAX } from './kitchenCarry';
+import { TILE } from '../../nav/navTile';
 import { ITEM_LABELS, dish, type Dish, type KitchenItem } from './kitchenRecipes';
 import {
   BUN_BASE,
@@ -186,13 +187,20 @@ describe('FoodKit.view auf dem Teller', () => {
    * **Rechnung** und nicht das Gemüse: Der Stapel sitzt auf dem Tellerrand, und
    * das Ganze ist so hoch, wie `height` sagt.
    */
+  /**
+   * Geprüft am **Belag** und nicht am ganzen Teller: Das Porzellan ist seit dem
+   * Umbau ein geladenes Netz (`FOOD_NODE`), und ohne Datei gibt `view` dafür
+   * `null`. Was hier zählt, ist ohnehin die Zahl dazwischen — der Belag sitzt
+   * auf dem **Rand** des Tellers und nicht auf dem Tisch darunter, und das ist
+   * genau `PLATE_HEIGHT`.
+   */
   it('stellt das Gericht auf den Tellerrand', () => {
     const d = dish('plate', ['tomato-soup']);
-    const view = kit.view(d)!;
-    const stack = view.getObjectByName(STACK_NAME);
-    expect(stack).toBeDefined();
-    expect(span(stack!).min.y).toBeCloseTo(PLATE_HEIGHT, 5);
-    expect(span(view).max.y).toBeCloseTo(kit.height(d), 5);
+    expect(kit.view(d)).toBeNull();
+    const stack = kit.topping(d, PLATE_HEIGHT)!;
+    expect(stack.name).toBe(STACK_NAME);
+    expect(span(stack).min.y).toBeCloseTo(PLATE_HEIGHT, 5);
+    expect(kit.height(d)).toBeCloseTo(PLATE_HEIGHT + ITEM_HEIGHT['tomato-soup'], 5);
   });
 
   /**
@@ -221,15 +229,17 @@ describe('FoodKit.view auf dem Teller', () => {
 
   it('legt ein Gericht ohne Brötchen flach auf den Teller', () => {
     const d = dish('plate', ['tomato-soup']);
-    const view = kit.view(d)!;
-    expect(view.getObjectByName('kitchen-bun-top')).toBeUndefined();
-    expect(span(view).max.y).toBeCloseTo(kit.height(d), 5);
+    const stack = kit.topping(d, PLATE_HEIGHT)!;
+    expect(stack.getObjectByName('kitchen-bun-top')).toBeUndefined();
+    expect(span(stack).max.y).toBeCloseTo(kit.height(d), 5);
     expect(kit.height(d)).toBeCloseTo(PLATE_HEIGHT + ITEM_HEIGHT['tomato-soup'], 5);
   });
 
   it('gibt den leeren Teller mit seiner eigenen Höhe', () => {
     expect(kit.height(dish('plate'))).toBeCloseTo(PLATE_HEIGHT, 5);
-    expect(span(kit.view(dish('plate'))!).max.y).toBeCloseTo(PLATE_HEIGHT, 5);
+    // Und ohne Belag ist da auch kein Belag — `topping` gibt dafür `null`, und
+    // der Teller selbst kommt aus der Datei.
+    expect(kit.topping(dish('plate'), PLATE_HEIGHT)).toBeNull();
   });
 });
 
@@ -306,59 +316,48 @@ describe('FoodKit.topping', () => {
 });
 
 /**
- * **Der dreckige Teller** — dieselbe Scheibe, anderer Anblick.
+ * **Die beiden Teller** — seit dem Umbau zwei Netze der Quelle und keine
+ * gebauten Zylinder mehr (`FOOD_NODE`).
  *
  * Zwei Sachen daran sind Rechnung und nicht Geschmack, und beide stehen
- * deshalb hier: Er ist **genau so hoch** wie der saubere (sonst rechnet kein
- * Stapel), und er **bleibt in seiner Scheibe** (sonst wandert die Mitte des
- * Dings aus x/z = 0, und die Zone legt ihn versetzt ab).
+ * deshalb hier: Sie sind **gleich hoch** (sonst rechnet kein Stapel) und
+ * **gleich breit** (sonst wandert die Mitte, und die Zone legt einen davon
+ * versetzt ab). Geprüft wird das am Katalog und nicht am Netz — die Datei lädt
+ * hier niemand, und die Zahlen darin sind an ihr gemessen.
  */
-describe('der dreckige Teller', () => {
-  let kit: FoodKit;
-  beforeEach(() => {
-    kit = new FoodKit();
-  });
-  afterEach(() => {
-    kit.dispose();
-  });
-
-  it('ist genau so hoch wie der saubere', () => {
-    expect(ITEM_HEIGHT['plate-dirty']).toBe(ITEM_HEIGHT.plate);
-    const view = kit.view(dish('plate-dirty'))!;
-    expect(span(view).max.y).toBeCloseTo(PLATE_HEIGHT, 5);
-    expect(kit.height(dish('plate-dirty'))).toBeCloseTo(PLATE_HEIGHT, 5);
-  });
-
-  it('bleibt mit Krümeln und Fleck innerhalb der Scheibe', () => {
-    const clean = span(kit.view(dish('plate'))!);
-    const dirty = span(kit.view(dish('plate-dirty'))!);
-    for (const axis of ['x', 'z'] as const) {
-      expect(dirty.min[axis]).toBeCloseTo(clean.min[axis], 5);
-      expect(dirty.max[axis]).toBeCloseTo(clean.max[axis], 5);
+describe('die beiden Teller', () => {
+  it('nimmt beide aus der Quelle und nicht mehr aus Zylindern', () => {
+    expect(FOOD_NODE.plate).toBe('plate');
+    expect(FOOD_NODE['plate-dirty']).toBe('plate_dirty');
+    for (const node of [FOOD_NODE.plate, FOOD_NODE['plate-dirty']]) {
+      expect({ node, known: dinerPiece(node)?.name }).toEqual({ node, known: node });
     }
+  });
+
+  it('macht sie gleich hoch und gleich breit', () => {
+    const clean = dinerPiece(FOOD_NODE.plate)!;
+    const dirty = dinerPiece(FOOD_NODE['plate-dirty'])!;
+    expect(dinerHeight(dirty)).toBeCloseTo(dinerHeight(clean), 6);
+    expect(dirty.span[0]).toBeCloseTo(clean.span[0], 6);
+    expect(dirty.span[1]).toBeCloseTo(clean.span[1], 6);
+    // Und die Küche rechnet mit genau diesen Zahlen weiter.
+    expect(ITEM_HEIGHT['plate-dirty']).toBe(ITEM_HEIGHT.plate);
+    expect(PLATE_HEIGHT).toBeCloseTo(dinerHeight(clean), 6);
+    expect(2 * PLATE_RADIUS).toBeCloseTo(clean.span[0], 6);
   });
 
   /**
-   * **Von oben muss man ihn sehen**, und die Hauptansicht zeigt fast nur die
-   * Deckfläche: Der Unterschied darf also nicht nur im Ton liegen. Geprüft
-   * wird, was sich ohne Grafikkarte prüfen lässt — dass mehr auf der Scheibe
-   * liegt als beim sauberen Teller, und dass das Porzellan ein anderes
-   * Material bekommt.
+   * **Die Reste stecken im Teller und liegen nicht darauf.** Das ist die Zusage,
+   * an der ein Stapel hängt — und die Quelle hält sie von selbst ein, weil
+   * beide Netze dieselbe Hülle haben. Vorher trug dieselbe Zusage eine
+   * Rechnung: Der gebaute Tellerkörper war um die Krümeldicke flacher
+   * gestaucht.
    */
-  it('trägt Reste auf der Scheibe und ein anderes Porzellan', () => {
-    const clean = meshesOf(kit.view(dish('plate'))!);
-    const dirty = meshesOf(kit.view(dish('plate-dirty'))!);
-    expect(clean).toHaveLength(1);
-    expect(dirty.length).toBeGreaterThan(clean.length);
-    // Dieselbe Form, geteilt wie überall in dieser Datei — nur gestaucht.
-    expect(dirty[0]!.geometry).toBe(clean[0]!.geometry);
-    expect(dirty[0]!.material).not.toBe(clean[0]!.material);
-    // Und was darauf liegt, liegt wirklich darauf und nicht darin.
-    for (const scrap of dirty.slice(1)) {
-      const box = span(scrap);
-      expect(box.max.y).toBeLessThanOrEqual(PLATE_HEIGHT + 1e-9);
-      expect(box.min.y).toBeGreaterThan(0);
-    }
+  it('lässt den dreckigen Teller nicht höher auftragen als den sauberen', () => {
+    expect(dinerPiece(FOOD_NODE['plate-dirty'])!.height).toBeCloseTo(
+      dinerPiece(FOOD_NODE.plate)!.height,
+      6,
+    );
   });
 });
 
@@ -371,13 +370,17 @@ describe('FoodKit.dirtyStack', () => {
     kit.dispose();
   });
 
+  /**
+   * **Gezählt wird an den Lagen und nicht an der Hülle.** Ein Teller ist heute
+   * ein geladenes Netz (`FOOD_NODE`), und ohne Datei hat der Stapel keine
+   * Ausdehnung — seine **Rechnung** hat er trotzdem: Jede Lage ist eine Gruppe
+   * an ihrem Platz, ob ein Netz darin hängt oder nicht (`plateStack`).
+   */
   it('stapelt so hoch, wie die Teller zusammen sind', () => {
     for (const count of [1, 2, 3, 6]) {
       const stack = kit.dirtyStack(count);
       expect(stack.children).toHaveLength(count);
-      const box = span(stack);
-      expect(box.min.y).toBeCloseTo(0, 5);
-      expect(box.max.y).toBeCloseTo(count * PLATE_HEIGHT, 5);
+      expect(stack.children[count - 1]!.position.y).toBeCloseTo((count - 1) * PLATE_HEIGHT, 5);
     }
   });
 
@@ -417,67 +420,70 @@ describe('FoodKit.dirtyStack', () => {
   });
 
   /**
-   * **Und derselbe Turm aus sauberen Tellern** — der auf dem Abtropfbrett
-   * (`core/kitchenFit.ts`, `sink-drain`). Aus dem Spieltest: „Man kann saubere
-   * Teller (bis zu 4) auf dem Abtropf-Element sammeln."
+   * **Und das Abtropfgitter ist kein Turm mehr**, sondern vier Fächer.
    *
-   * Geprüft wird vor allem, dass es **derselbe** Stapel ist: gleiche Lagenhöhe,
-   * gleicher Verdrehwinkel, nur ein anderer Teller und eine andere Grenze. Zwei
-   * Fassungen davon wären zwei Stellen, an denen `DIRTY_TWIST` nachzuziehen ist.
+   * Aus dem Spieltest: „Es soll mit einem leeren Abtropfgitter begonnen werden
+   * und dann können bis zu 4 saubere Teller rein." Ein Gitter hält Teller
+   * **auf der Kante**, damit das Wasser abläuft — gestapelt lägen sie flach
+   * aufeinander, und dann wäre es ein Stapel auf einem Gitter.
+   *
+   * Alle vier Zahlen sind am gezeichneten vollen Gitter abgelesen
+   * (`core/kitchenFit.RACK_SLOTS`, `dishrack_plates`), und geprüft wird, dass
+   * unsere einzeln hineingestellten Teller wirklich dort landen.
    */
-  it('stapelt saubere Teller genauso, nur bis vier', () => {
-    expect(CLEAN_STACK_MAX).toBe(4);
+  it('stellt bis zu vier Teller hochkant in die Fächer', () => {
+    expect(RACK_SLOTS.count).toBe(CLEAN_STACK_MAX);
     for (const count of [1, 2, 4]) {
-      const stack = kit.cleanStack(count);
-      expect(stack.children).toHaveLength(count);
-      const box = span(stack);
-      expect(box.min.y).toBeCloseTo(0, 5);
-      expect(box.max.y).toBeCloseTo(count * PLATE_HEIGHT, 5);
+      expect(kit.rackPlates(count, 'plate').children).toHaveLength(count);
     }
     for (const count of [0, -4, Number.NaN]) {
-      expect(kit.cleanStack(count).children).toHaveLength(1);
+      expect(kit.rackPlates(count, 'plate').children).toHaveLength(1);
     }
     for (const count of [5, 40, Number.POSITIVE_INFINITY]) {
-      expect(kit.cleanStack(count).children).toHaveLength(CLEAN_STACK_MAX);
-    }
-    // Dieselbe Lage, dieselbe Drehung wie beim dreckigen Stapel.
-    const clean = kit.cleanStack(4).children;
-    const dirty = kit.dirtyStack(4).children;
-    for (let i = 0; i < clean.length; i++) {
-      expect(clean[i]!.position.y).toBeCloseTo(dirty[i]!.position.y, 6);
-      expect(clean[i]!.rotation.y).toBeCloseTo(dirty[i]!.rotation.y, 6);
+      expect(kit.rackPlates(count, 'plate').children).toHaveLength(RACK_SLOTS.count);
     }
   });
 
-  it('teilt Form und Farbe zwischen allen Tellern eines Stapels', () => {
-    const stack = kit.dirtyStack(4);
-    const meshes = stack.children.map((plate) => meshesOf(plate));
-    for (const plate of meshes.slice(1)) {
-      expect(plate).toHaveLength(meshes[0]!.length);
-      for (let i = 0; i < plate.length; i++) {
-        expect(plate[i]!.geometry).toBe(meshes[0]![i]!.geometry);
-        expect(plate[i]!.material).toBe(meshes[0]![i]!.material);
-      }
+  it('setzt die Fächer in gleichem Abstand hintereinander und kippt sie gleich', () => {
+    const rack = kit.rackPlates(4, 'plate');
+    rack.children.forEach((slot, i) => {
+      expect(slot.position.x).toBeCloseTo(0, 6);
+      expect(slot.position.y).toBeCloseTo(RACK_SLOTS.lift, 6);
+      expect(slot.position.z).toBeCloseTo(RACK_SLOTS.first + i * RACK_SLOTS.step, 6);
+      // Fast senkrecht, aber eben nicht ganz: Die Teller lehnen an den Sprossen.
+      expect(slot.rotation.x).toBeCloseTo(RACK_SLOTS.tilt, 6);
+    });
+    expect(RACK_SLOTS.tilt).toBeGreaterThan(Math.PI / 3);
+    expect(RACK_SLOTS.tilt).toBeLessThan(Math.PI / 2);
+  });
+
+  /**
+   * **Vier Teller passen nebeneinander und nicht ineinander.** Der Abstand der
+   * Fächer muss größer sein als ein Teller dick ist, sonst stecken sie
+   * ineinander — und kleiner als das Gitter tief ist, sonst steht der letzte
+   * daneben.
+   */
+  it('hält die Fächer weiter auseinander als ein Teller dick ist', () => {
+    expect(RACK_SLOTS.step).toBeGreaterThan(PLATE_HEIGHT);
+    const spread = RACK_SLOTS.step * (RACK_SLOTS.count - 1);
+    expect(Math.abs(RACK_SLOTS.first) * 2 + RACK_SLOTS.step).toBeGreaterThanOrEqual(spread);
+    expect(spread).toBeLessThan(TILE);
+  });
+
+  /**
+   * **Geteilt wird jetzt von der Datei und nicht mehr vom Satz.** Ein geladener
+   * Teller ist ein `clone(true)` seiner Vorlage, und ein Klon teilt Geometrie
+   * und Material mit ihr (`FoodKit.node`) — vier Teller in einem Gitter kosten
+   * vier Knoten und kein viertes Netz. Nachgeprüft wird das dort, wo es noch
+   * gebaute Stücke gibt (_der geteilte Satz_ weiter unten).
+   */
+  it('gibt jedem Stapel so viele Lagen, wie er Teller hat', () => {
+    for (const count of [1, 3, 6]) {
+      expect(kit.dirtyStack(count).children).toHaveLength(count);
     }
   });
 });
 
-/**
- * **Der Teller liegt flach in der Spüle** — und das ist seit dem Umbau keine
- * Nachlässigkeit mehr, sondern die Form der Wanne.
- *
- * Aus dem Spieltest kam einmal: „Wenn Teller gewaschen werden, sollen die
- * Teller leicht schräg sein, sodass ein Teil davon im Wasser steht." Das galt
- * für ein Becken von 14 cm Tiefe. Die Spüle des zweiten Baukastens hat keine:
- * Zwischen Wannenboden und Wannenrand liegt **kein** Höhenunterschied
- * (`core/kitchenFit.SINK_BOWL`, nachgemessen), und in einer Mulde ohne Tiefe
- * gibt es nichts, wogegen ein Teller lehnen könnte.
- *
- * Die Rechnung dahinter ist dieselbe geblieben und rechnet den Winkel von
- * selbst auf null (`SINK_TILT`). Das ist der Punkt: Wer die Quelle noch einmal
- * tauscht und wieder ein tiefes Becken bekommt, lehnt der Teller wieder, ohne
- * dass jemand eine Sonderregel entfernen muss.
- */
 describe('der Teller im Spülbecken', () => {
   it('liegt flach, weil die Wanne flach ist', () => {
     expect(SINK_BOWL.rim - SINK_BOWL.floor).toBe(0);
@@ -488,16 +494,18 @@ describe('der Teller im Spülbecken', () => {
   });
 
   /**
-   * **Er ist breiter als die Wanne, und das bleibt so.** Der Teller misst
-   * 0,75 m, die Mulde 0,70 × 0,385 m — er liegt also über ihr und nicht in
-   * ihr. Das ist kein Fehler des Aufbaus, sondern der Größenunterschied
-   * zwischen zwei Baukästen, und es steht hier, damit niemand es für einen
-   * Rechenfehler hält: Ein Teller, der halb über dem Rand liegt, sieht aus wie
-   * ein Teller im Abwasch.
+   * **Er liegt quer über der Mulde und fällt nicht hinein.**
+   *
+   * Der Teller misst seit dem Umbau 0,475 m (`plate` aus dem zweiten
+   * Baukasten, vorher ein gebauter Zylinder von 0,75 m), die Mulde 0,70 ×
+   * 0,385 m. Er ist damit **schmaler als die Wanne lang** und **breiter als
+   * sie tief** — er kommt also über den Rand zu liegen, quer zur langen Seite,
+   * und das ist das Bild, um das es geht: ein Teller im Abwasch und kein
+   * Teller, der auf dem Boden der Wanne verschwindet.
    */
-  it('liegt über der Mulde und nicht darin', () => {
-    expect(2 * PLATE_RADIUS).toBeGreaterThan(SINK_BOWL.width);
+  it('liegt quer über der Mulde und nicht darin', () => {
     expect(2 * PLATE_RADIUS).toBeGreaterThan(SINK_BOWL.depth);
+    expect(2 * PLATE_RADIUS).toBeLessThan(SINK_BOWL.width);
   });
 });
 
@@ -666,8 +674,8 @@ describe('der geteilte Satz', () => {
    */
   it('teilt Geometrie und Material zwischen zwei gleichen Dingen', () => {
     const kit = new FoodKit();
-    const first = meshesOf(kit.view(dish('plate', ['tomato-soup']))!);
-    const second = meshesOf(kit.view(dish('plate', ['tomato-soup']))!);
+    const first = meshesOf(kit.view(dish('tomato-soup'))!);
+    const second = meshesOf(kit.view(dish('tomato-soup'))!);
     expect(first.length).toBe(second.length);
     for (let i = 0; i < first.length; i++) {
       expect(first[i]!.geometry).toBe(second[i]!.geometry);

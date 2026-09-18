@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CHEF_PARTS, type ChefPart } from './chefFit';
+import { versioned } from './assetVersion';
 
 /**
  * **Der Koch als Modell** — geladen statt gebaut.
@@ -27,7 +28,7 @@ import { CHEF_PARTS, type ChefPart } from './chefFit';
  */
 
 /** Wo das Modell liegt: unter uns, nie auf einem fremden Server. */
-const CHEF_URL = `${import.meta.env.BASE_URL}models/chef.glb`;
+const CHEF_URL = versioned(`${import.meta.env.BASE_URL}models/chef.glb`);
 
 /**
  * Die Materialien, die eine Figur **für sich allein** braucht, weil sie ihre

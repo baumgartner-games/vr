@@ -597,8 +597,17 @@ interface Station {
   join: CombineState;
   /** Wie lange dieser Herd schon im Nebel steht; `DRY`, solange er es nicht tut. */
   wet: DouseState;
-  /** Wie viele dreckige Teller hier liegen — nur an der Rückgabe. */
+  /** Wie viele Teller hier liegen — an der Rückgabe und im Abtropfgitter. */
   stack: number;
+  /**
+   * **Welche Sorte darin steht** — `null`, solange nichts darinsteht.
+   *
+   * Die Zahl allein genügt dem Abtropfgitter nicht: In ein leeres darf beides,
+   * in ein belegtes nur noch dasselbe (`kitchenCarry.inRack`). Und gezeichnet
+   * wird ebenfalls danach — vier saubere Teller sehen anders aus als vier
+   * dreckige.
+   */
+  stacked: KitchenItem | null;
   /** Das Netz dieses Stapels, solange einer steht. */
   pile: THREE.Object3D | null;
   /** Was ihre Anzeigen zuletzt gezeigt haben — siehe `showGauges`. */
@@ -3199,10 +3208,10 @@ export class KitchenZone implements TestZone {
     const gives = spot.gives;
     const oven = this.oven;
     if (!gives || !oven) return;
-    // **Eine Vorratskiste erklärt sich selbst** (`KitchenPiece.shows`): In ihr
+    // **Eine Vorratskiste erklärt sich selbst** (`KitchenPiece.supply`): In ihr
     // liegt, was sie hergibt. Ein gerendertes Bild derselben Zutat obendrauf
     // wäre nicht nur doppelt, es läge in der Aufsicht genau darüber.
-    if (piece.shows) return;
+    if (piece.supply) return;
     // Was `build` liefert, gehört weiter dem Zutatensatz: Der Ofen hängt es
     // kurz in seine Szene und gibt nichts davon frei (`IconOven.bake`).
     const texture = oven.bake(
@@ -3281,6 +3290,7 @@ export class KitchenZone implements TestZone {
       join: IDLE_COMBINE,
       wet: DRY,
       stack: 0,
+      stacked: null,
       pile: null,
       shown: null,
     };
@@ -3963,11 +3973,13 @@ export class KitchenZone implements TestZone {
         if (!thing) return false;
         this.setHeld(side, null);
         if (stacks(spot.kind)) {
-          // An der Rückgabe und auf dem Abtropfbrett wird nicht abgelegt,
-          // sondern **gestapelt**: Der Teller geht im Stapel auf, sein Netz
-          // wird nicht gebraucht.
+          // An der Rückgabe und im Abtropfgitter wird nicht abgelegt, sondern
+          // **gestapelt**: Der Teller geht im Stapel auf, sein Netz wird nicht
+          // gebraucht. Seine **Sorte** geht mit — in ein leeres Gitter darf
+          // beides, und was hineinkommt, legt für die nächsten fest, was noch
+          // dazudarf (`kitchenCarry.inRack`).
           this.discard(thing);
-          this.setStack(spot, spot.stack + 1);
+          this.setStack(spot, spot.stack + 1, deed.dish.item);
           world.notify(`${dishLabel(deed.dish)} abgestellt (${spot.stack})`);
           break;
         }
@@ -4059,6 +4071,19 @@ export class KitchenZone implements TestZone {
         this.discard(thing);
         this.showTicket(spot, deed.recipe.label);
         world.notify(`${deed.recipe.label} serviert — ${this.toGuest()}`);
+        break;
+      }
+      case 'stow': {
+        // **Zurück in die Kiste**: Die Hand wird leer, die Kiste bleibt, wie
+        // sie war — sie gibt ihr Frisches ja beliebig oft wieder her. Das Netz
+        // wird weggeräumt wie beim Wegwerfen; der Unterschied zum Mülleimer
+        // steht in der Regel und im Satz darüber, nicht hier
+        // (`kitchenCarry.fromCrate`).
+        const thing = this.heldBy(side);
+        if (!thing) return false;
+        this.setHeld(side, null);
+        this.discard(thing);
+        world.notify(`${dishLabel(deed.dish)} zurückgelegt`);
         break;
       }
       case 'douse':
@@ -4169,9 +4194,16 @@ export class KitchenZone implements TestZone {
       this.setStack(spot, spot.stack - 1);
       return this.make(want);
     }
-    // Die Ausgabe gibt ihr Frisches nur dann, wenn ihr Deckel leer ist — liegt
-    // dort etwas, hat die Regel genau das gemeint (`kitchenCarry.fromBox`).
-    if (spot.kind === 'box' && !spot.on) return this.make(want);
+    // **Beide Kistenarten geben Frisches**, solange nichts auf ihnen liegt —
+    // liegt doch etwas, hat die Regel genau das gemeint
+    // (`kitchenCarry.fromBox`).
+    //
+    // Auf einer **Vorratskiste** liegt von Hand nie etwas (`fromCrate` lehnt
+    // das Ablegen ab); dort ist `on` der Griff, mit dem eine Bandstraße ihre
+    // nächste Zutat für ein Bild bereitlegt (`sprout`). Auch die gehört
+    // herausgegeben und nicht liegengelassen — sonst hinge sie in der Szene,
+    // während die Hand ein zweites, frisches Stück bekäme.
+    if ((spot.kind === 'box' || spot.kind === 'crate') && !spot.on) return this.make(want);
     const on = spot.on;
     spot.on = null;
     // Ein abgeräumter Gästetisch ist wieder ein freier Gästetisch.
@@ -4192,32 +4224,51 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Der Stapel an der Rückgabe und auf dem Abtropfbrett** — eine Zahl und
-   * ein Netz dazu.
+   * **Der Stapel an der Rückgabe und im Abtropfgitter** — eine Zahl, eine
+   * Sorte und ein Netz dazu.
    *
-   * Das Netz wird nur dann neu gebaut, wenn sich die Zahl geändert hat: Ein
-   * Stapel, der jedes Bild neu entsteht, wäre sechs Teller je Bild
-   * (`kitchenProps.FoodKit.dirtyStack`).
+   * Das Netz wird nur dann neu gebaut, wenn sich Zahl **oder** Sorte geändert
+   * haben: Ein Stapel, der jedes Bild neu entsteht, wäre sechs Teller je Bild.
    *
-   * **Zwei Stationen, eine Rechnung**: An der Rückgabe stehen bis zu sechs
-   * dreckige, auf dem Abtropfbrett bis zu vier saubere Teller
-   * (`kitchenCarry.CLEAN_STACK_MAX`). Was sich unterscheidet, sind die Grenze
-   * und das Netz; alles andere — zählen, altes Netz wegräumen, neues
-   * hinstellen — ist Zeile für Zeile dasselbe.
+   * **Zwei Stationen, eine Rechnung**: An der Rückgabe liegen bis zu sechs
+   * dreckige Teller übereinander, im Abtropfgitter stehen bis zu vier
+   * **hochkant** in seinen Fächern (`kitchenCarry.CLEAN_STACK_MAX`,
+   * `core/kitchenFit.RACK_SLOTS`). Was sich unterscheidet, sind die Grenze und
+   * das Netz; alles andere — zählen, altes Netz wegräumen, neues hinstellen —
+   * ist Zeile für Zeile dasselbe.
+   *
+   * **Die Sorte gehört dazu und ist nicht zu erraten.** Ein leeres Gitter nimmt
+   * saubere wie dreckige Teller an, und was drinsteht, entscheidet danach, was
+   * noch dazudarf (`kitchenCarry.inRack`). Wer die Sorte aus der Stationsart
+   * ableiten wollte, hätte ein Gitter, das immer sauber aussieht, auch wenn der
+   * Abwasch darin wartet.
    */
-  private setStack(spot: Station, count: number): void {
-    const clean = spot.kind === 'drain';
-    const want = Math.max(0, Math.min(clean ? CLEAN_STACK_MAX : DIRTY_STACK_MAX, count));
-    if (want === spot.stack && (want === 0) === (spot.pile === null)) return;
+  private setStack(spot: Station, count: number, item?: KitchenItem): void {
+    const rack = spot.kind === 'drain';
+    const want = Math.max(0, Math.min(rack ? CLEAN_STACK_MAX : DIRTY_STACK_MAX, count));
+    // Die Rückgabe kennt nur dreckiges Geschirr; das Gitter behält, was schon
+    // darinsteht, und übernimmt beim ersten Teller dessen Sorte.
+    const kind: KitchenItem | null =
+      want <= 0 ? null : rack ? (spot.stacked ?? item ?? 'plate') : 'plate-dirty';
+    if (want === spot.stack && kind === spot.stacked && (want === 0) === (spot.pile === null)) {
+      return;
+    }
     spot.stack = want;
+    spot.stacked = kind;
     if (spot.pile) {
       spot.pile.removeFromParent();
       this.forget(spot.pile);
       spot.pile = null;
     }
-    if (want <= 0) return;
-    const pile = clean ? this.food.cleanStack(want) : this.food.dirtyStack(want);
+    if (want <= 0 || !kind) return;
+    const pile = rack ? this.food.rackPlates(want, kind) : this.food.dirtyStack(want);
     pile.position.copy(spot.deck);
+    // **Der Stapel dreht sich mit seinem Möbel.** Ein Turm aus Tellern ist rund
+    // und hat es nie gebraucht; die vier Fächer eines Abtropfgitters liegen
+    // hintereinander, und quer zum Gitter stünden die Teller sichtbar daneben.
+    // Er hängt an der Welt und nicht am Möbel (er steht auf `deck`, einer
+    // Weltkoordinate), also wird die Drehung hier nachgezogen.
+    pile.rotation.y = spot.home.model.rotation.y;
     this.world?.root.add(pile);
     this.placed.push(pile);
     spot.pile = pile;
@@ -5761,6 +5812,7 @@ function facts(spot: Station): StationFacts {
     gives: spot.gives,
     fire: spot.stove.fire,
     stack: spot.stack,
+    stacked: spot.stacked,
   };
 }
 
@@ -5768,8 +5820,9 @@ function facts(spot: Station): StationFacts {
  * **Ob an dieser Station gestapelt statt abgelegt wird.**
  *
  * Zwei Arten tun das: die **Geschirrrückgabe** (dreckige Teller) und das
- * **Abtropfbrett** (saubere). Sie führen keinen `Dish`, sondern eine Zahl
- * (`Station.stack`) und ein Netz dazu (`Station.pile`), und deshalb sehen an
+ * **Abtropfgitter** (beide Sorten, aber nicht gemischt). Sie führen keinen
+ * `Dish`, sondern eine Zahl, eine Sorte (`Station.stack`, `Station.stacked`)
+ * und ein Netz dazu (`Station.pile`), und deshalb sehen an
  * vier Stellen die Handgriffe anders aus: nehmen, hinlegen, zielen, zeichnen.
  * Eine Zeile statt viermal derselben Oder-Bedingung — die fünfte Stelle wäre
  * die, an der eine davon fehlt.
