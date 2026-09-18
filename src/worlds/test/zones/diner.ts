@@ -9,7 +9,8 @@ import {
 } from '../../../core/dinerFit';
 import type { WorldContext } from '../../../core/types';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
-import { TextPlane } from '../../../ui/TextPlane';
+import { showPlate } from '../../shared/showPlate';
+import type { TextPlane } from '../../../ui/TextPlane';
 import { TILE } from '../../nav/navTile';
 import { DINER } from '../layout';
 import { KitchenFloor } from './kitchenFloor';
@@ -296,11 +297,13 @@ export class DinerZone implements TestZone {
   /**
    * **Das Schild am Schaustück** — Name und Maß, und es sieht die Kamera an.
    *
-   * Dieselbe Tafel wie im ersten Schauraum (`ui/TextPlane` mit `face`), und
-   * mit einem Unterschied im Text: Dort steht die **Kachelzahl**, hier das
-   * **gemessene Maß**. Das ist der Zweck dieses Raums — wer entscheiden soll,
-   * ob ein Stück brauchbar ist, will wissen, dass eine Küchenzeile 1,00 × 1,02
-   * misst, und nicht, dass sie auf eine Kachel gerundet wurde.
+   * Dasselbe Schild wie in den beiden anderen Schauräumen
+   * (`shared/showPlate.ts` — dort steht auch, warum es unten an der
+   * Vorderkante steht und nicht mehr über dem Möbel), und mit einem
+   * Unterschied im Text: Im ersten Schauraum steht die **Kachelzahl**, hier
+   * das **gemessene Maß**. Das ist der Zweck dieses Raums — wer entscheiden
+   * soll, ob ein Stück brauchbar ist, will wissen, dass eine Küchenzeile
+   * 1,00 × 1,02 misst, und nicht, dass sie auf eine Kachel gerundet wurde.
    *
    * Die Tafel steht **unabhängig vom Modell**: Sie wird gebaut, bevor die
    * Datei angefragt ist, und bleibt auch dann stehen, wenn keine ankommt. Ein
@@ -310,20 +313,17 @@ export class DinerZone implements TestZone {
   private addLabel(world: ZoneHost, piece: DinerPiece, spot: DinerSpot): void {
     const size = dinerFootprint(piece, spot.turn ?? 0);
     const [w, d] = piece.span;
-    const plate = new TextPlane({
-      width: Math.max(size.w * TILE, 1.1),
-      height: 0.42,
+    const plate = showPlate({
       title: piece.label,
       body: `${w.toFixed(2)} × ${d.toFixed(2)} m · ${dinerHeight(piece).toFixed(2)} m hoch`,
       accent: 0x8fd3ff,
-      align: 'center',
-      face: true,
+      tiles: size,
+      at: {
+        x: (DINER.x + spot.x + size.w / 2) * TILE,
+        z: (DINER.z + spot.z + size.d / 2) * TILE,
+      },
+      floor: DINER_FLOOR,
     });
-    plate.position.set(
-      (DINER.x + spot.x + size.w / 2) * TILE,
-      DINER_FLOOR + Math.max(dinerTop(piece), 0.3) + 0.5,
-      (DINER.z + spot.z + size.d / 2) * TILE + size.d / 2 - 0.05,
-    );
     world.root.add(plate);
     this.placed.push(plate);
     this.labels.push(plate);

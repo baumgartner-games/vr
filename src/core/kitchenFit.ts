@@ -33,12 +33,77 @@
  */
 export const KITCHEN_SCALE = 0.5;
 
+/**
+ * **Woher ein Netz kommt** — Datei und Knoten darin, ausgeschrieben.
+ *
+ * Zwei Baukästen stehen in dieser Küche nebeneinander, und welcher gemeint ist,
+ * soll man lesen können und nicht aus einer Namensliste erschließen müssen. Ein
+ * `kitchen`-Knoten heißt wie sein Katalogstück; ein `diner`-Knoten heißt, wie
+ * der fremde Zeichner ihn genannt hat (`core/dinerFit.DINER_PIECES`).
+ */
+export interface PieceMesh {
+  readonly file: 'kitchen' | 'diner';
+  readonly node: string;
+}
+
+/**
+ * **Ein aufgesetztes Netz** — dasselbe, plus die Höhe, auf der es steht.
+ *
+ * `at` ist die **Oberkante des Sockels** und nicht die Arbeitsfläche des
+ * fertigen Möbels: Auf die Kiste kommt der Deckel bei 0,40 m, und erst der
+ * Deckel ist die Ablage bei 0,50 m. Eine Zahl, die beides meinte, stimmte bei
+ * jedem zweiten Stück nicht.
+ */
+export interface PieceStack extends PieceMesh {
+  readonly at: number;
+}
+
 /** Ein Möbel im Katalog. */
 export interface KitchenPiece {
-  /** Der Name des Knotens in `public/models/kitchen.glb`. */
+  /**
+   * **Wie das Stück heißt** — der Schlüssel, an dem Aufbau, Stationen, Tests
+   * und der Möbelkatalog es wiederfinden.
+   *
+   * **Nicht mehr zugleich der Name eines Knotens in einer Datei.** Das war er,
+   * solange es eine Quelle gab; seit die Möbel aus zwei Baukästen kommen, sagt
+   * `base` (und `over`), woher das Netz stammt. Ohne beide ist es der
+   * gleichnamige Knoten in `public/models/kitchen.glb` — das gilt noch für
+   * Feuerlöscher, Mülleimer, Ausgabetheke und Ausgaberegal.
+   */
   readonly name: string;
   /** Wie es im Menü heißt. */
   readonly label: string;
+  /**
+   * **Der Sockel: woher das Netz kommt**, wenn nicht aus dem gleichnamigen
+   * Knoten der eigenen Datei.
+   *
+   * Neun Möbel dieser Küche stehen seit dem Umbau auf Netzen aus dem **zweiten**
+   * Baukasten (`core/dinerFit.ts`): Küchenzeile, Arbeitstisch, Schneidebrett,
+   * die drei Herde, beide Spülenhälften, Ausgabe und Tellerausgabe. Ihre alten
+   * Netze sind aus `public/models/kitchen.glb` verschwunden — dort blieben nur
+   * die fünf, für die der zweite Baukasten keinen Ersatz hat.
+   *
+   * **Die Spielregel bleibt am Namen.** Ein `board` schneidet, ein `sink-basin`
+   * spült, eine `serve-counter` gibt aus (`zones/kitchenPlan.stationKind`) — das
+   * hängt am Katalognamen und nicht am Netz. Wer das Netz tauscht, tauscht das
+   * Bild und nicht die Regel, und genau deshalb steht hier ein Feld und nicht
+   * ein zweiter Katalog.
+   */
+  readonly base?: PieceMesh;
+  /**
+   * **Was auf der Arbeitsfläche des Sockels steht** — das Brett auf dem Tisch,
+   * der Topf auf dem Herd, das Abtropfgitter auf der Zeile.
+   *
+   * Der erste Baukasten lieferte solche Paare als **ein** Netz mit zwei
+   * Materialien, und `core/kitchenModel.takeUtensil` schnitt sie am Material
+   * wieder auseinander. Der zweite liefert sie als **zwei Knoten**, und das ist
+   * die bessere Hälfte des Tauschs: Was aufgesetzt wird, steht hier, statt aus
+   * einem Materialnamen erschlossen zu werden.
+   *
+   * Aufgesetzt wird auf `deck` des Sockels — nicht auf dessen Oberkante: Beim
+   * Herd ist die Oberkante der Rost, und genau dort steht der Topf.
+   */
+  readonly over?: PieceStack;
   /** Wie viele Kacheln es belegt (`worlds/nav/navTile.TILE` = 1 m). */
   readonly tiles: readonly [x: number, z: number];
   /**
@@ -322,7 +387,7 @@ export interface KitchenPiece {
  * ±1,061) und in ihrem Schatten; zwischen y = 0,02 und y = 0,05 hat er
  * überhaupt keine Ecke. Im Estrich steckt eine glatte Sockelleiste.
  */
-export const SINK_SUNK = 0.0174;
+export const SINK_SUNK = 0;
 
 /**
  * **Das Becken** — wo das Wasser steht und wie der Teller darin liegt.
@@ -356,12 +421,12 @@ export const SINK_SUNK = 0.0174;
  * halber Tiefe steht, liegt genau die untere Hälfte darin.
  */
 export const SINK_BOWL = {
-  rim: 0.5174,
-  floor: 0.3732,
-  water: 0.4453,
-  width: 0.8076,
-  depth: 0.641,
-  at: [0.0124, -0.0307],
+  rim: 0.54,
+  floor: 0.54,
+  water: 0.545,
+  width: 0.7,
+  depth: 0.385,
+  at: [0, 0.0575],
 } as const;
 
 /**
@@ -376,10 +441,10 @@ export const SINK_BOWL = {
  * - `at` **[−0,0124, −0,0307]** — spiegelbildlich zum Becken.
  */
 export const SINK_TRAY = {
-  floor: 0.4794,
-  width: 0.7668,
-  depth: 0.6002,
-  at: [-0.0124, -0.0307],
+  floor: 0.525,
+  width: 0.48,
+  depth: 0.6,
+  at: [0, 0],
 } as const;
 
 /**
@@ -414,7 +479,11 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     name: 'plate-counter',
     label: 'Tellerausgabe',
     tiles: [1, 1],
-    height: 0.56,
+    base: { file: 'diner', node: 'kitchencounter_straight_A' },
+    // Ein Abtropfgitter voller Teller auf der Zeile: Man sieht von weitem,
+    // dass es hier Teller gibt, und muss dafür kein Bild aufkleben.
+    over: { file: 'diner', node: 'dishrack_plates', at: 0.5 },
+    height: 1.0476,
     deck: 0.5,
     worktop: true,
   },
@@ -430,162 +499,114 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     deck: 0.5,
     worktop: true,
     holds: 'extinguisher',
-    // 3,07 cm nach Norden, derselbe Fall wie beim Schneidebrett: Der Hocker
-    // ist in der Quelle ±0,9999 tief und mittig, die Küchenzeile gleich tief,
-    // aber wegen ihres Griffs um 0,0613 nach Norden zentriert. Der Hocker
-    // steht in der Nordzeile zwischen dem Herd mit der Pfanne und der Spüle
-    // (`worlds/test/zones/kitchenPlan.KITCHEN_SPOTS`) und sprang ohne diesen
-    // Versatz vorn aus der Arbeitsplattenreihe (`KitchenPiece.align`).
-    align: [0, -0.031],
   },
   {
     name: 'sink-basin',
     label: 'Spülbecken',
     tiles: [1, 1],
-    // **1,15 m ist die Oberkante der Armatur und nicht die des Möbels.** Der
-    // Beckenrand — die Fläche, die sich in die Zeile einreiht — liegt bei
-    // 0,5174 m (`SINK_BOWL.rim`, Quelle 1,034858); die 63 cm darüber sind der
-    // Wasserhahn (Quelle bis 2,297749).
-    height: 1.15,
-    // **Hier wird nicht darauf-, sondern hineingelegt.** Der Teller liegt im
-    // Wasser und nicht auf dem Rand — warum das genau diese Höhe ist, steht
-    // an `SINK_BOWL`.
+    base: { file: 'diner', node: 'kitchencounter_sink' },
+    // 0,90 m ist die Oberkante der **Armatur** und nicht die des Möbels; die
+    // Wanne liegt bei 0,54 m (`SINK_BOWL`).
+    height: 0.9008,
     deck: SINK_BOWL.water,
-    bury: SINK_SUNK,
   },
   {
     name: 'sink-drain',
     label: 'Abtropfbrett',
     tiles: [1, 1],
-    // Der Rand, und sonst nichts: Die Armatur steht auf der anderen Hälfte.
-    height: 0.52,
-    // Die Wanne, in der die sauberen Teller stehen — 7,6 cm tiefer als der
-    // Rand daneben (Quelle 0,958739 gegen 1,034858).
+    base: { file: 'diner', node: 'kitchencounter_straight_A' },
+    // Dasselbe Gitter wie an der Tellerausgabe, nur leer: Dort kommen Teller
+    // heraus, hier hinein.
+    over: { file: 'diner', node: 'dishrack', at: 0.5 },
+    height: 0.8,
     deck: SINK_TRAY.floor,
-    bury: SINK_SUNK,
   },
   { name: 'bin', label: 'Mülleimer', tiles: [1, 1], height: 0.45 },
-  { name: 'table', label: 'Arbeitstisch', tiles: [1, 1], height: 0.5, worktop: true },
-  { name: 'serve-counter', label: 'Ausgabe', tiles: [1, 1], height: 0.46, worktop: true },
+  {
+    name: 'table',
+    label: 'Arbeitstisch',
+    tiles: [1, 1],
+    base: { file: 'diner', node: 'kitchentable_A' },
+    height: 0.5,
+    worktop: true,
+  },
+  {
+    name: 'serve-counter',
+    label: 'Ausgabe',
+    tiles: [1, 1],
+    // Eine **Kiste mit Deckel**, und der Deckel ist die Ablage: Zutaten kommen
+    // aus Kisten, und welche aus welcher, malt die Küche als Bild darauf
+    // (`zones/kitchenIcon.ts`). Der zweite Baukasten hat für jede Zutat auch
+    // eine eigene Kiste — die stehen in seinem Schauraum; hier bliebe sonst je
+    // Zutat ein eigenes Katalogstück übrig, und das ist nicht, was
+    // `Spot.gives` meint.
+    base: { file: 'diner', node: 'crate' },
+    over: { file: 'diner', node: 'crate_lid', at: 0.4 },
+    height: 0.5,
+    worktop: true,
+  },
   {
     name: 'board',
     label: 'Schneidebrett',
     tiles: [1, 1],
-    height: 0.57,
-    // **0,533 m, und das ist die Oberseite des Bretts — nicht die des
-    // Messers.**
-    //
-    // Ohne diesen Eintrag war die Ablage `height`, und `height` ist hier die
-    // Spitze des **Hackmessers**, das auf dem Brett liegt: In der Datei reicht
-    // das Netz aus `Kitchen_Utensils` bis y = 1,148 (halbiert 0,574 m). Ein
-    // Salatkopf, der dort abgelegt wurde, schwebte eine gute Daumenbreite über
-    // dem Brett — 3,7 cm, und aus 55° von oben
-    // (`core/topDownPose.TOP_DOWN_TILT`) sieht man genau diesen Spalt.
-    //
-    // Gemessen und nicht geschätzt, alles in Quellmaß, halbiert daneben:
-    //
-    // - Der **Korpus** (`Kitchen_Cabins`) reicht von y = 0,000 bis 1,000 —
-    //   halbiert **0,500 m**, und das ist auf den Millimeter dieselbe Zahl wie
-    //   bei der Küchenzeile daneben (`counter`, ebenfalls 1,000 → 0,500 m).
-    //   Die **Korpusse** standen also von Anfang an gleich hoch — die Stufe war
-    //   allein das aufliegende Brett, und genau deshalb geht sie unten wieder
-    //   ab und nicht oben (`bury`).
-    // - Darauf **liegt das Brett**: eine Platte von y = 0,998 bis 1,065, ihre
-    //   Deckfläche halbiert **0,5326 m** (die größte waagerechte Fläche des
-    //   Netzes, 1,63 m² in Quellmaß — das Brett und nichts anderes).
-    // - Darüber das **Messer** bis 1,148 → 0,574 m, gerundet die 0,57 von
-    //   `height`.
-    //
-    // Die 3,3 cm, um die die Arbeitsfläche damit über dem Korpus liegt, **sind
-    // das Brett**: Es ist genau so dick (0,067 in der Quelle). Deshalb wird
-    // auch nicht an dieser Zahl gedreht — sie ist gemessen und stimmt.
-    deck: 0.533,
-    // **Und dieselben 3,3 cm gehen unten wieder ab.** Sie waren die Stufe
-    // zwischen Brett und Küchenzeile, und die Zeile soll eine Linie sein und
-    // keine Treppe: 0,533 − 0,033 = **0,500 m**, auf den Millimeter die
-    // Arbeitsplatte von `counter` (`kitchenWorkHeight`). Versenkt wird das
-    // **Möbel** und nicht das Brett — das bleibt obenauf sichtbar, im Boden
-    // steckt nur Sockelleiste (siehe `KitchenPiece.bury`).
-    bury: 0.033,
+    base: { file: 'diner', node: 'kitchentable_B' },
+    over: { file: 'diner', node: 'cuttingboard', at: 0.5 },
+    // Das Brett ist 7,5 cm dick und liegt auf 0,50 m; die Schnittfläche liegt
+    // damit 7,5 cm über der Zeile daneben. **Kein `bury` mehr**: Der alte
+    // Katalog versenkte das Brett um 3,3 cm, damit seine Fläche mit der Zeile
+    // fluchtete — dieses Brett liegt sichtbar **auf** einem Tisch, und ein
+    // Tisch, der im Estrich steckt, ist keiner.
+    height: 0.575,
+    deck: 0.575,
     worktop: true,
-    // **3,07 cm nach Norden — und hier stand dieselbe Zahl lange mit dem
-    // falschen Vorzeichen.**
-    //
-    // Der alte Eintrag +0,031 rechnete die **Hülle** der Küchenzeile (1,0612 m,
-    // Griff inbegriffen) gegen den **Korpus** des Bretts (0,9999 m) und schob
-    // das Brett um die Differenz nach Süden. Verglichen wurden damit zwei
-    // verschiedene Dinge: Beide Korpusse sind auf den Millimeter gleich tief
-    // (Quelle 2,0000), länger ist an der Zeile nur ihr Türgriff — und an einem
-    // Griff richtet man keine Arbeitsplatte aus.
-    //
-    // Weil die Zeile über ihre Hülle zentriert wird, steht ihr Korpus schon
-    // 3,07 cm weiter nördlich als der des Bretts (`KitchenPiece.align`). Das
-    // Brett stand also **ohne** Versatz 3,07 cm zu weit vorn und **mit** ihm
-    // 6,1 cm — eine Nase in einer Zeile aus Zeile, Brett, Zeile, also genau
-    // die Sorte Delle, gegen die der Versatz einmal eingetragen wurde. Nach
-    // Norden fluchten Vorder- und Hinterkante mit der Zeile, beide zugleich.
-    align: [0, -0.031],
   },
   { name: 'plate-rack', label: 'Ausgaberegal', tiles: [2, 1], height: 0.56 },
   { name: 'pass', label: 'Ausgabetheke', tiles: [2, 1], height: 0.53, worktop: true },
-  { name: 'counter', label: 'Küchenzeile', tiles: [1, 1], height: 0.5, worktop: true },
+  {
+    name: 'counter',
+    label: 'Küchenzeile',
+    tiles: [1, 1],
+    base: { file: 'diner', node: 'kitchencounter_straight_A' },
+    height: 0.5,
+    worktop: true,
+  },
   {
     name: 'stove',
     label: 'Herd',
     tiles: [1, 1],
-    // **0,55 m, und die bleiben, obwohl die Zeile auf 0,50 m arbeitet.** Das
-    // ist kein zweiter Fall von `board`: Das **Blech** des Herds endet in der
-    // Quelle bei y = 1,000 — halbiert 0,500 m, bündig mit `counter` —, und die
-    // 5 cm darüber sind die **Kochstelle** (Quelle bis 1,100). Auf der steht
-    // ein Topf und nicht ein Salatkopf: Der Topf von `stove-pot` fängt bei
-    // 1,110 an, sitzt also genau darauf. Wer den Herd um diese 5 cm tiefer
-    // stellte, versenkte jeden Topf in der Kochstelle.
-    height: 0.55,
+    base: { file: 'diner', node: 'stove_multi' },
+    // 0,60 m ist die Oberkante der **Roste**; die Platte darunter liegt auf
+    // 0,50 m wie jede Arbeitsfläche. Abgelegt wird auf dem Rost, also ist die
+    // Oberkante zugleich die Ablage.
+    height: 0.6,
     worktop: true,
-    // **8 cm nach Süden, und das ist die Zeile und die Wand in einer Zahl.**
-    // Das Blech reicht in der Quelle von z = −1,0634 bis +0,7786, ist also nur
-    // 0,9210 m tief (Spiel) und sitzt mittig auf der Kachel, weil die Blende
-    // mit den Knöpfen davor die Hülle wieder symmetrisch macht. Vorn sprang
-    // die Kochstelle damit 8 cm hinter die Arbeitsplatten zurück, hinten stand
-    // sie 13,2 cm hinter der Wandinnenseite — sichtbar abgeschnitten, weil die
-    // Platte ein aufgesetzter Klotz ist und keine flache Rückwand wie bei der
-    // Zeile. Beides ist derselbe Versatz (`KitchenPiece.align`).
-    align: [0, 0.08],
   },
   {
     name: 'stove-pot',
     label: 'Herd mit Topf',
     tiles: [1, 1],
-    height: 0.87,
-    deck: 0.55,
+    base: { file: 'diner', node: 'stove_multi' },
+    over: { file: 'diner', node: 'pot_A', at: 0.6 },
+    height: 0.85,
+    deck: 0.6,
     worktop: true,
     holds: 'pot',
-    // Derselbe Korpus wie beim leeren Herd, also derselbe Versatz: Der Topf
-    // ist ein eigenes Netz obendrauf (`Kitchen_Utensils`) und verschiebt die
-    // Hülle nicht nach Süden — anders als der Pfannenstiel eine Zeile weiter.
-    align: [0, 0.08],
   },
   {
     name: 'stove-pan',
     label: 'Herd mit Pfanne',
     tiles: [1, 1],
-    height: 0.68,
-    deck: 0.55,
+    base: { file: 'diner', node: 'stove_multi' },
+    // **Die Pfanne ist das einzige Stück, das aus der alten Datei geblieben
+    // ist**, und sie ist es mit Absicht: An ihr hängen die Bratregeln und ein
+    // nachgemessener Muldenversatz (`PAN_BOWL`), den ein fremdes Netz nicht
+    // mitbringt. Der Herd darunter kommt wie die anderen aus dem zweiten
+    // Baukasten.
+    over: { file: 'kitchen', node: 'pan', at: 0.6 },
+    height: 0.73,
+    deck: 0.6,
     worktop: true,
     holds: 'pan',
-    // **15,8 cm nach Süden, und die Zahl ist eine Summe aus zwei gemessenen.**
-    //
-    // 7,8 cm davon richten den Korpus gegen den **Pfannenstiel** auf: Er ragt
-    // 16 cm nach Süden aus der Hülle, also wanderte das Blech beim Zentrieren
-    // um die Hälfte nach Norden — in der Datei liegt es hier bei −1,2198 …
-    // +0,6221 statt bei −1,0634 … +0,7786 wie bei den beiden anderen Herden.
-    // Diese 7,8 cm standen hier schon immer, und sie stimmen.
-    //
-    // Die anderen 8,0 cm sind dieselben wie beim leeren Herd: die Vorderkante
-    // auf die Linie der Küchenzeile und die Kochstelle damit aus der Wand
-    // (`KitchenPiece.align`). Ein Herd, der nur einen der beiden Versätze
-    // bekäme, stünde wieder als einziger aus der Reihe.
-    align: [0, 0.158],
   },
   {
     name: 'belt',
@@ -703,7 +724,7 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // Genau das macht sie für eine Bandstraße brauchbar — ein Band kann nichts
     // in eine Pfanne legen, die schon auf ihrer Kachel liegt, aber auf eine
     // freie Platte kann es alles legen.
-    height: 0.55,
+    height: 0.6,
     worktop: true,
     built: true,
   },
@@ -832,24 +853,28 @@ export function kitchenWorkHeight(piece: KitchenPiece): number {
 export const PAN_BOWL: readonly [x: number, z: number] = [0, -0.225];
 
 /**
- * **In welchem Maßstab dieses Möbel in der Szene steht.**
+ * **In welchem Maßstab dieses Möbel in der Szene steht** — seit dem Umbau
+ * **eins**, und zwar für jedes Stück.
  *
- * Ein geladenes Stück kommt mit `KITCHEN_SCALE` aus dem Lader
- * (`core/kitchenModel.ts`) — die Quelle ist doppelt so groß, wie sie sein
- * soll, und halbiert wird am Lader und nicht in der Datei (siehe
- * `KITCHEN_SCALE`). Ein **gebautes** Stück (Förderband, Zugband) entsteht
- * dagegen schon in Metern und steht auf 1.
+ * Die Zahl war einmal die Hälfte: Der Lader reichte ein halbiertes Netz heraus
+ * (`KITCHEN_SCALE`), und wer etwas **an** ein Möbel hängte statt daneben — das
+ * Bild der Zutat auf dem Deckel, das Wasser im Becken, die Griffkreuze, das
+ * Getragene —, musste die Halbierung wieder aufheben. Ein gebautes Stück stand
+ * dagegen schon in Metern da, und deshalb gab es die Unterscheidung überhaupt.
  *
- * Das ist die eine Zahl, die jeder braucht, der etwas **an** ein Möbel hängt
- * statt daneben: das Bild der Zutat auf dem Deckel, das Wasser im Becken, die
- * Griffkreuze am Rand und seit dem Umbau auch das, was beim Tragen mitfährt
- * (`worlds/test/zones/kitchen.ts`). Alle vier stehen in Metern der Welt, alle
- * vier müssen den halben Maßstab wieder aufheben — und viermal
- * `piece.built ? 1 : 0.5` nebeneinander ist dreimal zu oft: Wer die Quelle
- * tauscht und `KITCHEN_SCALE` ändert, findet sonst drei von vier Stellen.
+ * Seit die Möbel aus **zwei** Dateien zusammengesetzt werden
+ * (`core/kitchenModel.ts`), gibt es sie nicht mehr: Der Lader hängt Sockel und
+ * Aufsatz in eine Gruppe, jeder Teil trägt seinen eigenen Maßstab, und die
+ * Gruppe steht auf **1**. Was man an sie hängt, steht in Metern der Welt — bei
+ * jedem Möbel gleich.
+ *
+ * **Die Funktion bleibt trotzdem stehen.** Sie ist die Stelle, an der diese
+ * Zusage steht, und ein Test hält sie fest; die zwölf Aufrufer rechnen seither
+ * mit eins und sind damit richtig. Wer eines Tages wieder ein Stück in einem
+ * anderen Maßstab hereinreicht, ändert eine Zeile statt zwölf.
  */
-export function kitchenPieceScale(piece: KitchenPiece): number {
-  return piece.built ? 1 : KITCHEN_SCALE;
+export function kitchenPieceScale(_piece: KitchenPiece): number {
+  return 1;
 }
 
 /**
@@ -903,8 +928,8 @@ export function kitchenPieceScale(piece: KitchenPiece): number {
  * Pfanne steht nur auf einer Seite, und genau dafür gibt es `PAN_BOWL`.
  */
 export const POT_BOWL = {
-  floor: 0.0247,
-  rim: 0.3044,
-  water: 0.1646,
-  radius: 0.281,
+  floor: 0.025,
+  rim: 0.25,
+  water: 0.1375,
+  radius: 0.225,
 } as const;

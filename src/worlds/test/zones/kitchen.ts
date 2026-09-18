@@ -21,6 +21,7 @@ import { kitchenEyeScale, onPostureChange } from '../../../core/posture';
 import type { WorldContext } from '../../../core/types';
 import { TextPlane } from '../../../ui/TextPlane';
 import { KITCHEN } from '../layout';
+import { showPlate } from '../../shared/showPlate';
 import {
   CLEAN_STACK_MAX,
   COLD_STOVE,
@@ -451,16 +452,18 @@ const GHOST_BLOCKED = 0xe5361c;
 const GHOST_HEIGHT = 0.6;
 
 /**
- * **Wie groß eine Miniatur im Möbelkatalog wird**, in Metern — die längste
- * Kante, und alle drei Achsen gehen mit demselben Faktor mit.
+ * **Um wie viel eine Miniatur kleiner ist als ihr Möbel** — ein Faktor und
+ * keine Zielgröße.
  *
- * 80 cm: Jedes Stück steht allein auf einer Kachel, und eine Kachel ist einen
- * Meter breit (`shared/construct.TILE_SIZE`). 80 cm lassen damit zu jeder Seite
- * eine Handbreit Luft zur Fuge — der Nachbar steht einen ganzen Meter weiter,
- * hier stößt also nichts mehr aneinander. Die Zahl darf sich damit danach
- * richten, was man sieht, statt danach, was noch dazwischenpasst — und sehen
- * muss man es aus drei, vier Metern Entfernung, denn so weit steht der Ring vom
- * Anker weg. Kleiner erkennt man eine Spüle nicht mehr von einem Herd.
+ * Vier Fünftel: Ein Möbel von einer Kachel steht damit auf 0,8 m seiner
+ * Kachel, und ringsum bleibt ein Zehntel Meter Luft zum Nachbarn. Zwei
+ * Kacheln werden zu 1,6 m auf zwei Kacheln — dieselbe Luft, dieselbe
+ * Verkleinerung.
+ *
+ * **Derselbe Faktor für alle, und das ist der Punkt.** Vorher war das eine
+ * Zielgröße: jedes Stück auf 0,8 m längste Kante. Damit war im Regal jedes
+ * Möbel gleich groß, und die Frage, für die man den Katalog aufmacht — passt
+ * das noch neben das da? — war aus dem Bild verschwunden.
  */
 const MINI_SIZE = 0.8;
 
@@ -3075,16 +3078,14 @@ export class KitchenZone implements TestZone {
     centreZ: number,
   ): void {
     const [w, d] = piece.tiles;
-    const plate = new TextPlane({
-      width: Math.max(size.w * TILE, 1.1),
-      height: 0.42,
+    const plate = showPlate({
       title: piece.label,
       body: `${w} × ${d} Kachel${w * d === 1 ? '' : 'n'} · ${piece.height.toFixed(2)} m hoch`,
       accent: 0xffd35a,
-      align: 'center',
-      face: true,
+      tiles: size,
+      at: { x: centreX, z: centreZ },
+      floor: KITCHEN_FLOOR,
     });
-    plate.position.set(centreX, KITCHEN_FLOOR + piece.height + 0.58, centreZ + size.d / 2 - 0.05);
     world.root.add(plate);
     this.placed.push(plate);
     this.labels.push(plate);
@@ -4759,20 +4760,30 @@ export class KitchenZone implements TestZone {
       world.notify('Erst die Hände frei machen');
       return true;
     }
-    const items: ConstructItem[] = [];
-    for (const piece of KITCHEN_PIECES) {
-      // **Gefragt wird nach der Vorlage, nicht nach der Miniatur.** Gebaut wird
-      // die erst, wenn sie an der Reihe ist aufzufahren
-      // (`shared/construct.ConstructItem.object`) — achtzehn Miniaturen in
-      // einem Bild waren genau die Pause nach dem Druck auf den Rechner. Ohne
-      // Vorlage gibt es nichts zu zeigen: Das Modell lädt dann noch.
-      if (!this.models.has(piece.name)) continue;
-      items.push({
-        // Die leere Gruppe ist der Fall, den es nicht gibt: Die Vorlage steht
-        // eine Zeile weiter oben als vorhanden fest, und `miniature` gibt
-        // danach nur noch für ein Netz ohne jede Ausdehnung nichts zurück.
-        object: () => this.miniature(piece.name) ?? new THREE.Group(),
+    // **Der Katalog zeigt den Katalog** — jedes Stück, das in
+    // `core/kitchenFit.KITCHEN_PIECES` steht, und keine zweite Liste daneben.
+    //
+    // Vorher stand hier ein Filter auf `this.models`: gezeigt wurde nur, wovon
+    // beim Aufbauen der Küche schon eine Vorlage angefallen war. Das ging gut,
+    // solange der Schauraum jedes Stück genau einmal aufstellt (ein Test hält
+    // das fest) — aber es koppelte den Katalog an den **Aufbau** statt an den
+    // Katalog, und wer ein Möbel eintrug, ohne es irgendwo hinzustellen, fand
+    // es hier nicht wieder. Jetzt holt sich die Miniatur ihre Vorlage selbst,
+    // wenn sie fehlt, und der Raum ist ohne Zutun aktuell.
+    const items: ConstructItem[] = KITCHEN_PIECES.map((piece) => {
+      const [w, d] = piece.tiles;
+      return {
+        // **Gebaut wird erst beim Auffahren** (`ConstructItem.object`):
+        // zweiundzwanzig Miniaturen in einem Bild waren genau die Pause nach
+        // dem Druck auf den Rechner.
+        object: () => this.miniature(piece.name),
         label: piece.label,
+        body: `${w} × ${d} Kachel${w * d === 1 ? '' : 'n'} · ${piece.height.toFixed(2)} m hoch`,
+        // **So viele Kacheln, wie es im Spiel belegt.** Der Raum stellt es auf
+        // ebenso viele, und die Miniatur wird auf diese Fläche skaliert — ein
+        // Mülleimer neben einer Ausgabetheke sieht damit aus wie ein Mülleimer
+        // neben einer Ausgabetheke.
+        tiles: { w, d },
         pick: () => {
           this.takeFromCatalogue(piece);
           // `true` heißt: Der Raum geht zu. Ein Möbel in der Hand hat in einem
@@ -4780,12 +4791,8 @@ export class KitchenZone implements TestZone {
           // es ohnehin draußen.
           return true;
         },
-      });
-    }
-    if (!items.length) {
-      world.notify('Der Katalog ist noch leer — die Möbel laden noch');
-      return true;
-    }
+      };
+    });
     world.enterConstruct({
       anchor: furnish.model,
       at: this.rig?.position ?? furnish.model.position,
@@ -4841,34 +4848,70 @@ export class KitchenZone implements TestZone {
    * beim ersten Öffnen noch lud, soll beim zweiten doch noch im Katalog
    * stehen und nicht an einem leeren Eintrag hängenbleiben.
    */
-  private miniature(name: string): THREE.Object3D | null {
+  private miniature(name: string): THREE.Object3D {
     const ready = this.minis.get(name);
     if (ready) return ready;
-    const model = this.cloneModel(this.models.get(name));
-    if (!model) return null;
-    model.position.set(0, 0, 0);
-    model.rotation.set(0, 0, 0);
-    // Auf 1 und nicht auf den Grundmaßstab: Gemessen wird gleich ohnehin, und
-    // gemessen werden soll die **Form** und nicht, wie groß sie zufällig gerade
-    // in der Küche steht (die Vorlage auf einer Kopierfläche steht im Drittel).
-    model.scale.set(1, 1, 1);
-    const box = new THREE.Box3().setFromObject(model);
-    if (box.isEmpty()) return null;
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const widest = Math.max(size.x, size.y, size.z);
-    const scale = widest > 1e-4 ? MINI_SIZE / widest : 1;
     const holder = new THREE.Group();
     holder.name = `kitchen-mini-${name}`;
-    model.scale.setScalar(scale);
+    this.minis.set(name, holder);
+
+    const piece = kitchenPiece(name);
+    if (!piece) return holder;
+    const template = this.models.get(name) ?? (piece.built ? this.buildPiece(piece) : null);
+    if (template) {
+      this.fitMini(holder, template);
+      return holder;
+    }
+
+    // **Keine Vorlage? Dann holt sie sich der Katalog selbst.** Bisher fiel ein
+    // Stück, das noch nirgends stand, ersatzlos aus dem Katalog — und wer ein
+    // Möbel eintrug, ohne es im Schauraum aufzustellen, suchte hier vergebens.
+    // Die Gruppe steht schon im Regal; das Netz wandert hinein, sobald es da
+    // ist. Wer in der Zwischenzeit auf die leere Kachel drückt, bekommt das
+    // Möbel trotzdem (`takeFromCatalogue` lädt denselben Weg).
+    if (canLoadModels()) {
+      void import('../../../core/kitchenModel').then(async (module) => {
+        if (this.gone) return;
+        const model = await module.kitchenModel(name);
+        if (!model || this.gone) return;
+        if (!this.models.has(name)) this.models.set(name, model);
+        this.fitMini(holder, model);
+      });
+    }
+    return holder;
+  }
+
+  /**
+   * **Die Miniatur in ihre Gruppe stellen** — geschrumpft, aber nicht
+   * eingeebnet.
+   *
+   * **Ein Maßstab für alle**, und das ist die Änderung: Vorher wurde jedes
+   * Stück auf 0,8 m **längste Kante** normiert. Nebeneinander sahen ein
+   * Mülleimer und eine zwei Kacheln breite Ausgabetheke damit gleich groß aus
+   * — die Form stimmte, die Größe log, und die Kachelzahl kam im Bild gar
+   * nicht vor. Jetzt schrumpft jedes Stück um **denselben Faktor**: Was im
+   * Spiel doppelt so breit ist, ist es auch im Regal, und weil der Raum ihm
+   * dort auch zwei Kacheln gibt (`ConstructItem.tiles`), passt es genau
+   * hinein.
+   *
+   * Der Ursprung kommt dabei unten in die Mitte — die Zusage, auf der der
+   * Konstrukt-Raum aufsetzt (`shared/construct.raise`).
+   */
+  private fitMini(holder: THREE.Object3D, template: THREE.Object3D): void {
+    const model = this.cloneModel(template);
+    if (!model) return;
+    model.position.set(0, 0, 0);
+    model.rotation.set(0, 0, 0);
+    model.scale.set(1, 1, 1);
+    const box = new THREE.Box3().setFromObject(model);
+    if (box.isEmpty()) return;
+    model.scale.setScalar(MINI_SIZE);
     model.position.set(
-      (-(box.min.x + box.max.x) / 2) * scale,
-      -box.min.y * scale,
-      (-(box.min.z + box.max.z) / 2) * scale,
+      (-(box.min.x + box.max.x) / 2) * MINI_SIZE,
+      -box.min.y * MINI_SIZE,
+      (-(box.min.z + box.max.z) / 2) * MINI_SIZE,
     );
     holder.add(model);
-    this.minis.set(name, holder);
-    return holder;
   }
 
   /**

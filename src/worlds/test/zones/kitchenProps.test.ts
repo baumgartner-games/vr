@@ -457,43 +457,41 @@ describe('FoodKit.dirtyStack', () => {
 });
 
 /**
- * **Der Teller liegt schräg im Wasser**, und der Winkel ist ausgerechnet.
+ * **Der Teller liegt flach in der Spüle** — und das ist seit dem Umbau keine
+ * Nachlässigkeit mehr, sondern die Form der Wanne.
  *
- * Aus dem Spieltest: „Wenn Teller gewaschen werden, sollen die Teller leicht
- * schräg sein, sodass ein Teil davon im Wasser steht." Vorher lag der Teller
- * flach — und er lag dabei nicht einmal im Becken, sondern quer über dessen
- * Rand, denn er ist breiter als die Mulde.
+ * Aus dem Spieltest kam einmal: „Wenn Teller gewaschen werden, sollen die
+ * Teller leicht schräg sein, sodass ein Teil davon im Wasser steht." Das galt
+ * für ein Becken von 14 cm Tiefe. Die Spüle des zweiten Baukastens hat keine:
+ * Zwischen Wannenboden und Wannenrand liegt **kein** Höhenunterschied
+ * (`core/kitchenFit.SINK_BOWL`, nachgemessen), und in einer Mulde ohne Tiefe
+ * gibt es nichts, wogegen ein Teller lehnen könnte.
+ *
+ * Die Rechnung dahinter ist dieselbe geblieben und rechnet den Winkel von
+ * selbst auf null (`SINK_TILT`). Das ist der Punkt: Wer die Quelle noch einmal
+ * tauscht und wieder ein tiefes Becken bekommt, lehnt der Teller wieder, ohne
+ * dass jemand eine Sonderregel entfernen muss.
  */
 describe('der Teller im Spülbecken', () => {
-  it('lehnt vom Beckenboden bis auf Randhöhe', () => {
-    // Die untere Kante geht um `r · sin α` herunter, die obere um ebenso viel
-    // herauf — zusammen ist das genau die Beckentiefe.
-    const reach = 2 * PLATE_RADIUS * Math.sin(SINK_TILT);
-    expect(reach).toBeCloseTo(SINK_BOWL.rim - SINK_BOWL.floor, 6);
-    // Von der Ablage aus (dem Wasserspiegel) sitzt die untere Kante auf dem
-    // Boden und die obere auf dem Rand.
-    expect(SINK_BOWL.water - reach / 2).toBeCloseTo(SINK_BOWL.floor, 6);
-    expect(SINK_BOWL.water + reach / 2).toBeCloseTo(SINK_BOWL.rim, 6);
-  });
-
-  it('neigt sich leicht und nicht senkrecht', () => {
-    // 11,1° — „leicht schräg" und nicht hochkant im Becken stehend.
-    expect((SINK_TILT * 180) / Math.PI).toBeCloseTo(11.1, 1);
-    expect(SINK_TILT).toBeGreaterThan(0.05);
-    expect(SINK_TILT).toBeLessThan(Math.PI / 8);
+  it('liegt flach, weil die Wanne flach ist', () => {
+    expect(SINK_BOWL.rim - SINK_BOWL.floor).toBe(0);
+    expect(SINK_TILT).toBe(0);
+    // Und er liegt auf dem Wasserspiegel, nicht darunter: Die Ablage des
+    // Beckens ist der Spiegel (`kitchenFit.sink-basin.deck`).
+    expect(SINK_BOWL.water).toBeGreaterThan(SINK_BOWL.floor);
   });
 
   /**
-   * **Und flach ginge es gar nicht.** Das ist die Messung, an der der Winkel
-   * hängt: Der Teller ist 0,75 m breit, die Beckenöffnung 0,81 × 0,64 m. In
-   * der Tiefe passt er also nicht hinein — flach abgelegt läge er auf dem Rand,
-   * und im Wasser stünde kein Stück von ihm.
+   * **Er ist breiter als die Wanne, und das bleibt so.** Der Teller misst
+   * 0,75 m, die Mulde 0,70 × 0,385 m — er liegt also über ihr und nicht in
+   * ihr. Das ist kein Fehler des Aufbaus, sondern der Größenunterschied
+   * zwischen zwei Baukästen, und es steht hier, damit niemand es für einen
+   * Rechenfehler hält: Ein Teller, der halb über dem Rand liegt, sieht aus wie
+   * ein Teller im Abwasch.
    */
-  it('passt flach nicht in das Becken', () => {
+  it('liegt über der Mulde und nicht darin', () => {
+    expect(2 * PLATE_RADIUS).toBeGreaterThan(SINK_BOWL.width);
     expect(2 * PLATE_RADIUS).toBeGreaterThan(SINK_BOWL.depth);
-    // Quer dazu passt er, und genau dorthin fällt er beim Neigen zusammen:
-    // 0,75 · cos 11,1° = 0,736 m in eine Öffnung von 0,808 m.
-    expect(2 * PLATE_RADIUS * Math.cos(SINK_TILT)).toBeLessThan(SINK_BOWL.width);
   });
 });
 

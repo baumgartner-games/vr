@@ -125,12 +125,88 @@ describe('Wo die Auswahl steht (`tileSlots`)', () => {
     // Blick nach −z: Die Kreuzmitte davor ist frei, also steht das erste Stück
     // auf der Kachel gleich daneben — und das zweite spiegelbildlich.
     const ahead = tileSlots(2);
-    expect(ahead[0]).toEqual({ x: TILE_SIZE, y: 0, z: -3 * TILE_SIZE });
-    expect(ahead[1]).toEqual({ x: -TILE_SIZE, y: 0, z: -3 * TILE_SIZE });
+    expect(ahead[0]).toEqual({ x: TILE_SIZE, y: 0, z: -3 * TILE_SIZE, w: 1, d: 1 });
+    expect(ahead[1]).toEqual({ x: -TILE_SIZE, y: 0, z: -3 * TILE_SIZE, w: 1, d: 1 });
     // Und wer nach +x sieht, bekommt dasselbe um eine Vierteldrehung gedreht.
     const right = tileSlots(2, { facing: Math.PI / 2 });
-    expect(right[0]).toEqual({ x: 3 * TILE_SIZE, y: 0, z: TILE_SIZE });
-    expect(right[1]).toEqual({ x: 3 * TILE_SIZE, y: 0, z: -TILE_SIZE });
+    expect(right[0]).toEqual({ x: 3 * TILE_SIZE, y: 0, z: TILE_SIZE, w: 1, d: 1 });
+    expect(right[1]).toEqual({ x: 3 * TILE_SIZE, y: 0, z: -TILE_SIZE, w: 1, d: 1 });
+  });
+
+  /**
+   * **Ein breites Stück bekommt seine Kacheln nebeneinander** — und zwar auf
+   * derselben Seite des Rings.
+   *
+   * Das ist die Zusage, für die es `ConstructItem.tiles` überhaupt gibt: Eine
+   * Ausgabetheke belegt in der Küche zwei Kacheln, also belegt sie auch im
+   * Regal zwei. Über Eck ginge das nicht — ein Möbel im Knick des Rings stünde
+   * halb zur einen und halb zur anderen Seite.
+   */
+  test('stellt ein breites Stück auf zwei Kacheln derselben Ringseite', () => {
+    const [wide] = tileSlots([{ w: 2, d: 1 }]);
+    expect(wide).toBeDefined();
+    expect(wide!.w).toBe(2);
+    // Die Mitte liegt **zwischen** zwei Kachelmitten, also auf einer halben.
+    const half = (value: number) => Math.abs((value / TILE_SIZE) % 1);
+    expect(half(wide!.x) === 0.5 || half(wide!.z) === 0.5).toBe(true);
+    // Und die beiden Kacheln liegen auf demselben Ring.
+    expect(Math.max(Math.abs(wide!.x), Math.abs(wide!.z)) / TILE_SIZE).toBe(TILE_CLEAR + 1);
+  });
+
+  /**
+   * **Ein tiefes Stück wächst nach außen** und nicht nach innen: Innen ist der
+   * Platz, auf dem man steht.
+   */
+  test('lässt ein tiefes Stück nach außen wachsen', () => {
+    const [deep] = tileSlots([{ w: 1, d: 2 }]);
+    expect(deep!.d).toBe(2);
+    // Mit der Blickrichtung geradeaus steht das erste Stück im Norden; seine
+    // Mitte rutscht damit um eine halbe Kachel weiter nach Norden.
+    expect(deep!.z).toBeCloseTo(-(TILE_CLEAR + 1.5) * TILE_SIZE, 9);
+  });
+
+  /**
+   * **Kein Stück steht in einem anderen**, auch wenn sie verschieden breit
+   * sind. Geprüft wird über die belegten Kacheln und nicht über den Abstand
+   * der Mitten: Zwei Stücke von zwei Kacheln können 1 m auseinanderstehen und
+   * sich trotzdem überlappen.
+   */
+  test('lässt auch verschieden breite Stücke einander in Ruhe', () => {
+    const sizes = [
+      { w: 2, d: 1 },
+      { w: 1, d: 1 },
+      { w: 2, d: 2 },
+      { w: 1, d: 2 },
+      { w: 2, d: 1 },
+      { w: 1, d: 1 },
+      { w: 1, d: 1 },
+      { w: 2, d: 1 },
+    ];
+    const slots = tileSlots(sizes);
+    expect(slots).toHaveLength(sizes.length);
+    const taken = new Map<string, number>();
+    slots.forEach((slot, index) => {
+      for (let dz = 0; dz < slot.d; dz++) {
+        for (let dx = 0; dx < slot.w; dx++) {
+          const x = Math.round(slot.x / TILE_SIZE - (slot.w - 1) / 2 + dx);
+          const z = Math.round(slot.z / TILE_SIZE - (slot.d - 1) / 2 + dz);
+          const key = `${x},${z}`;
+          expect({ key, free: !taken.has(key), by: taken.get(key) ?? index }).toEqual({
+            key,
+            free: true,
+            by: index,
+          });
+          taken.set(key, index);
+          // Und nichts steht auf dem Platz, auf dem man selbst steht.
+          expect(Math.max(Math.abs(x), Math.abs(z))).toBeGreaterThan(TILE_CLEAR);
+        }
+      }
+    });
+  });
+
+  /** Eine Zahl heißt weiter: lauter Stücke von einer Kachel. */
+  test('nimmt eine Zahl als lauter einzelne Kacheln', () => {
+    expect(tileSlots(5)).toEqual(tileSlots([1, 2, 3, 4, 5].map(() => ({ w: 1, d: 1 }))));
   });
 
   test('dieselbe Frage bekommt dieselbe Antwort', () => {
@@ -187,10 +263,10 @@ describe('Wie die Auswahl steht (`slotTurn`)', () => {
 
   test('stellt die vier Kacheln der Kreuzmitte genau nach vorn', () => {
     const step = TILE_SIZE * (TILE_CLEAR + 1);
-    expect(slotTurn({ x: 0, y: 0, z: -step })).toBeCloseTo(Math.PI, 12);
-    expect(slotTurn({ x: 0, y: 0, z: step })).toBeCloseTo(0, 12);
-    expect(slotTurn({ x: step, y: 0, z: 0 })).toBeCloseTo(Math.PI / 2, 12);
-    expect(slotTurn({ x: -step, y: 0, z: 0 })).toBeCloseTo(-Math.PI / 2, 12);
+    expect(slotTurn({ x: 0, z: -step })).toBeCloseTo(Math.PI, 12);
+    expect(slotTurn({ x: 0, z: step })).toBeCloseTo(0, 12);
+    expect(slotTurn({ x: step, z: 0 })).toBeCloseTo(Math.PI / 2, 12);
+    expect(slotTurn({ x: -step, z: 0 })).toBeCloseTo(-Math.PI / 2, 12);
   });
 
   test('stellt zwei spiegelbildliche Kacheln auch spiegelbildlich', () => {
