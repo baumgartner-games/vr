@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Baumgartner VR">
+  <!--
+    Das App-Symbol: dieselben zwei Portale wie auf dem Banner (`banner.svg`),
+    nur quadratisch und ohne Schrift. Auf einem Startbildschirm ist ein Symbol
+    48 Punkte groß — Buchstaben verschwinden dort, zwei leuchtende Ringe nicht.
+
+    Alles Wesentliche steht in `#art` und nur dort: Android schneidet aus einem
+    `maskable`-Symbol je nach Gerät einen Kreis, ein Quadrat mit runden Ecken
+    oder einen Tropfen heraus, und `tools/icons.mjs` schrumpft dafür genau
+    diese Gruppe — Himmel, Sterne und Gitter laufen weiter bis an den Rand.
+    Ein Symbol, das man als Ganzes schrumpft, hat einen Rand, und einen Rand
+    sieht man auf jedem hellen Startbildschirm.
+  -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0d1c"/>
+      <stop offset="55%" stop-color="#141a35"/>
+      <stop offset="100%" stop-color="#1d1230"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1d1230" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#2a1745" stop-opacity="0.9"/>
+    </linearGradient>
+    <radialGradient id="blueCore" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#bfe9ff"/>
+      <stop offset="45%" stop-color="#3aa6ff"/>
+      <stop offset="100%" stop-color="#0b3a7a" stop-opacity="0.25"/>
+    </radialGradient>
+    <radialGradient id="orangeCore" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffe3bf"/>
+      <stop offset="45%" stop-color="#ff8a2b"/>
+      <stop offset="100%" stop-color="#7a2f05" stop-opacity="0.25"/>
+    </radialGradient>
+    <filter id="glow" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <g opacity="0.8" fill="#ffffff">
+    <circle cx="86" cy="74" r="2.4"/><circle cx="168" cy="44" r="1.6"/>
+    <circle cx="344" cy="60" r="2"/><circle cx="430" cy="102" r="1.6"/>
+    <circle cx="256" cy="86" r="1.4"/><circle cx="60" cy="160" r="1.4"/>
+    <circle cx="452" cy="182" r="1.4"/>
+  </g>
+
+  <rect y="312" width="512" height="200" fill="url(#floor)"/>
+  <g stroke="#5b3fa8" stroke-opacity="0.55" stroke-width="1.6" fill="none">
+    <path d="M256 312 L-120 512"/><path d="M256 312 L60 512"/><path d="M256 312 L180 512"/>
+    <path d="M256 312 L332 512"/><path d="M256 312 L452 512"/><path d="M256 312 L632 512"/>
+    <path d="M0 330 H512" stroke-opacity="0.3"/>
+    <path d="M0 356 H512" stroke-opacity="0.35"/>
+    <path d="M0 396 H512" stroke-opacity="0.4"/>
+    <path d="M0 452 H512" stroke-opacity="0.45"/>
+  </g>
+
+  <g id="art" filter="url(#glow)">
+    <ellipse cx="184" cy="264" rx="72" ry="116" fill="url(#blueCore)" opacity="0.95"/>
+    <ellipse cx="184" cy="264" rx="72" ry="116" fill="none" stroke="#8fd4ff" stroke-width="10" opacity="0.92"/>
+    <ellipse cx="328" cy="264" rx="72" ry="116" fill="url(#orangeCore)" opacity="0.95"/>
+    <ellipse cx="328" cy="264" rx="72" ry="116" fill="none" stroke="#ffc48a" stroke-width="10" opacity="0.92"/>
+  </g>
+</svg>

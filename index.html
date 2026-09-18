@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#05070d" />
+    <!--
+      **Vollbild für die Geräte, die es nicht hergeben.** Die Zeile im Menü und
+      der Knopf oben rechts (`core/fullscreen.ts`) brauchen ein
+      `requestFullscreen` am Element — Android hat es, iPadOS hat es, **Safari
+      auf dem iPhone hat es nicht**: Dort gibt es Vollbild nur für ein `<video>`,
+      und das zeigte den Videoplayer und nicht die Spielwiese. Für genau dieses
+      Gerät gibt es nur einen ehrlichen Weg, und das sind diese drei Zeilen:
+      *Zum Home-Bildschirm hinzufügen*, und die Seite startet ohne Adresszeile
+      und ohne Systemleiste. `black-translucent` schiebt das Bild dabei unter die
+      Uhr; die Ränder fängt `viewport-fit=cover` oben schon ab.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BG VR" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!--
+      Dasselbe für alle anderen: Ein installiertes Web-App-Manifest mit
+      `display: fullscreen` startet ohne Browserrahmen. Die Pfade darin sind
+      **relativ** zur Manifestdatei, damit sie auf GitHub Pages unter
+      `/<repo>/` genauso stimmen wie lokal an der Wurzel (`vite.config.ts`,
+      `BASE_PATH`); den `href` hier schreibt Vite selbst auf die Basis um.
+
+      Das Symbol für den Startbildschirm holt sich iOS **nicht** aus dem
+      Manifest, sondern von dieser Zeile, und nur als PNG — `tools/icons.mjs`
+      macht es aus `public/icon.svg`.
+    -->
+    <link rel="manifest" href="/vr/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/vr/apple-touch-icon.png" />
+    <title>Baumgartner VR</title>
+    <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
+    <script type="module" crossorigin src="/vr/assets/main-KeCo1ocG.js"></script>
+    <link rel="modulepreload" crossorigin href="/vr/assets/pwa-C82_zIY8.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/navTile-B7jdpLD_.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/host-BwsYTFkI.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/graphicsScene-BkqZCWA1.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/lobby-DwdpptN-.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/inputStore-Bn-3PKUa.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/fullscreen-t6LUfsK2.js">
+    <link rel="stylesheet" crossorigin href="/vr/assets/main-B1u24mIX.css">
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="landing" class="landing">
+      <!--
+        Derselbe Knopf wie im Spiel (`#hud-menu`): oben links, und dahinter
+        dasselbe Menü als Seite (`ui/PageMenu.ts`) — Welten, Bewegung,
+        Aussehen, Grafik, schon vor dem Start. Auf dem Handy zuerst gedacht.
+      -->
+      <button id="landing-menu" class="hud__menu landing__menu" type="button" aria-label="Menü" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+      <!--
+        **Vollbild, wo keine Brille ist.** In der Brille stellt sich die Frage
+        nicht — eine XR-Sitzung ist Vollbild. Am Bildschirm ist sie die Antwort
+        auf eine ganze Klasse von Geräten: der Browser einer Konsole, ein
+        Fernseher, ein Telefon im Querformat, wo ein Fünftel der Fläche
+        Adresszeile ist. Derselbe Knopf steht im Spiel oben rechts
+        (`#hud-full`); gezeigt werden beide nur, wo der Browser Vollbild
+        wirklich erlaubt (`core/fullscreen.ts`).
+      -->
+      <button id="landing-full" class="hud__menu landing__full" type="button" aria-label="Vollbild" aria-pressed="false" hidden>
+        <svg class="icon--in" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+        <svg class="icon--out" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /></svg>
+      </button>
+      <div class="landing__inner">
+        <p class="eyebrow">Baumgartner Games</p>
+        <!--
+          Die Startseite hat zwei Gesichter: die Spielwiese — und unter
+          `#haunting` die Startseite einer Runde. `main.ts` setzt dafür
+          `data-landing="haunting"` auf `#landing`; was nur zum einen gehört,
+          trägt `only-generic` beziehungsweise `only-haunting` (`style.css`).
+        -->
+        <h1 id="landing-title">VR Spielwiese</h1>
+        <p class="lead only-generic">
+          Eine WebXR-Basis für Experimente: Hub-Welt mit Händen, Weltenauswahl am linken
+          Handgelenk und ein experimenteller Portal-Prototyp.
+        </p>
+        <p class="lead only-haunting">
+          Eine Runde, ein Raum: Brille, Bildschirm und die Handys der Einsatzzentrale
+          tragen denselben Raum-Code ein. Verbinden — und dann den eigenen Weg hinein wählen.
+        </p>
+
+        <!--
+          **Eine Frage, und zwar die, die dieses Gerät nicht schon beantwortet**
+          (`core/screenView.startOptions`): Mit Brille die Haltung, ohne Brille
+          die Ansicht. Welche der beiden steht, entscheidet `main.ts`, sobald
+          `detectXRSupport` geantwortet hat.
+
+          Die Haltung ist das eine, was ein Headset nicht selbst messen kann: Es
+          meldet den Kopf über dem Zimmerboden und weiß nichts von dem Stuhl
+          darunter. Ein Sitzender ist sonst einfach ein sehr kleiner Stehender,
+          und jede Theke, jeder Kartsitz und jeder Horizont ist plötzlich für
+          jemand Größeren gebaut. Später umzustellen geht unter
+          Menü → Bewegung → Haltung.
+        -->
+        <fieldset id="posture-field" class="posture" hidden>
+          <legend>Spielst du im Sitzen oder im Stehen?</legend>
+          <div id="posture" class="seg seg--two">
+            <button type="button" data-posture="stand">Stehend</button>
+            <button type="button" data-posture="sit">Sitzend</button>
+          </div>
+          <p class="field__hint">
+            Sitzend wird die Sicht auf Stehhöhe angehoben, damit Tische, Karts und
+            der Horizont da sind, wo sie hingehören.
+          </p>
+        </fieldset>
+
+        <!--
+          Und am Bildschirm: von oben oder aus den Augen. Ein Telefon ist ein
+          Gerät für die Sicht von oben, ein Schreibtisch für die Welt — deshalb
+          ist die Wahl nach Gerät vorbelegt (Handy: von oben) und wird nur
+          einmal getroffen (`core/screenView.ts`). Die Kennungen heißen weiter
+          `2d`/`3d`, weil sie so im Speicher jedes Browsers stehen; die Wörter
+          setzt `showScreenView` aus `SCREEN_VIEW_LABELS`.
+          **Sie entscheidet, wohin „Beitreten" führt**, und die Zeile darunter
+          sagt es vorher.
+        -->
+        <fieldset id="screen-view-field" class="posture screen-view" hidden>
+          <legend>Am Bildschirm: von oben oder aus den Augen?</legend>
+          <div id="screen-view" class="seg seg--two">
+            <button type="button" data-view="2d">Von oben</button>
+            <button type="button" data-view="3d">Aus den Augen</button>
+          </div>
+          <p id="screen-view-hint" class="field__hint"></p>
+        </fieldset>
+
+        <!--
+          Haunting: erst in die Lobby — Name und Raum-Code, Verbinden —, und erst
+          wer drin ist, sieht, wer noch da ist, und den einen Knopf hinein. Wohin
+          er führt, sagt das Gerät und die Wahl oben: Brille, oder am Bildschirm
+          die 2D Einsatzzentrale beziehungsweise der Techniker im Schiff. Alle
+          drei bleiben in diesem Raum. Ohne eigenen Code spielen alle im Raum `haunting`
+          (`worlds/haunting/net.ts`); ein eigener Code wandert als `?room=` in
+          die Adresse.
+        -->
+        <div id="haunt-start" class="haunt-start only-haunting">
+          <div class="field">
+            <label for="haunt-name">Dein Name</label>
+            <input id="haunt-name" type="text" autocomplete="nickname" placeholder="Späher" />
+          </div>
+          <div class="field">
+            <label for="haunt-room">Raum-Code</label>
+            <div class="field__row">
+              <input id="haunt-room" type="text" autocapitalize="none" autocorrect="off"
+                     spellcheck="false" placeholder="haunting" />
+              <button type="button" id="haunt-connect" class="btn--mini">Verbinden</button>
+            </div>
+            <p class="field__hint">
+              Alle Geräte einer Runde tragen denselben Code ein. Ohne eigenen Code spielt
+              ihr im Raum <code>haunting</code>.
+            </p>
+          </div>
+          <p id="haunt-status" class="status"></p>
+
+          <div id="haunt-lobby" class="haunt-lobby" hidden>
+            <h2 class="haunt-lobby__title">Lobby</h2>
+            <ul id="haunt-peers" class="haunt-peers" aria-live="polite"></ul>
+            <p class="field__hint">
+              Wer denselben Raum-Code eingibt, steht hier. Dann wählt jeder seinen Weg —
+              alle bleiben in diesem Raum.
+            </p>
+
+            <!--
+              **Ein Knopf, drei Wege** — welcher, sagt das Gerät und die Wahl
+              darüber: mit Brille der Techniker im Anzug (`Enter VR`), sonst am
+              Bildschirm die 2D Einsatzzentrale oder der Techniker im Schiff.
+              Die Zeile darunter schreibt `main.ts` bei jeder Änderung mit.
+            -->
+            <button type="button" id="haunt-enter" class="btn btn--primary">Beitreten</button>
+            <p id="haunt-enter-hint" class="haunt-start__hint"></p>
+            <p id="haunt-xr-status" class="status"></p>
+          </div>
+        </div>
+
+        <!-- Derselbe eine Knopf wie in der Lobby der Runde, siehe oben. -->
+        <button type="button" id="enter" class="btn btn--primary only-generic">Beitreten</button>
+
+        <!--
+          Die Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es
+          gibt — Werkzeuge, Welten, den Beutel — und wie ein Werkzeug in der
+          Hand liegt. Deshalb steht sie hier neben dem Knopf und nicht in einem
+          Menü, das man erst öffnen muss.
+        -->
+        <p class="landing__more only-generic"><a href="./tools.html">Werkzeuge, Welten und Beutel ansehen →</a></p>
+
+        <!--
+          Und die Eingabeseite. Sie steht hier und nicht in einem Menü, weil
+          man sie genau dann braucht, wenn man noch nicht drin ist: Ein Pad,
+          dessen Knöpfe im Spiel nichts tun, ist am Konsolenbrowser sonst
+          nicht zu untersuchen — dort gibt es keine Entwicklerwerkzeuge.
+        -->
+        <p class="landing__more only-generic"><a href="./inputs.html">Controller und Tasten prüfen →</a></p>
+
+        <!--
+          **Als App ablegen.** Der Knopf steht nur da, wo der Browser das
+          Installieren wirklich anbietet (`core/install.ts`); auf iPhone und
+          iPad, wo es nur über das Teilen-Menü geht, steht statt seiner der
+          Satz, der den Weg nennt, und wer schon installiert hat, sieht
+          nichts. Nicht `only-generic`: Auch wer zu einer Runde eingeladen
+          wurde, will sie auf dem Telefon wiederfinden.
+        -->
+        <div id="install" class="install" hidden>
+          <button type="button" id="install-btn" class="btn btn--ghost" hidden>Als App installieren</button>
+          <p id="install-hint" class="field__hint"></p>
+        </div>
+
+        <p id="xr-status" class="status only-generic"></p>
+
+        <details id="net-setup" class="net only-generic">
+          <summary class="net__summary">
+            Zusammen spielen <span class="net__tag">experimentell</span>
+          </summary>
+          <p class="net__lead">
+            Beide Geräte tragen denselben Raum-Code ein. Die Verbindung läuft danach
+            direkt von Browser zu Browser (WebRTC) — ohne eigenen Server.
+          </p>
+          <div class="field">
+            <label for="net-name-landing">Dein Name</label>
+            <input id="net-name-landing" type="text" autocomplete="nickname" placeholder="VR-Spieler" />
+          </div>
+          <div class="field">
+            <label for="net-room-landing">Raum-Code</label>
+            <div class="field__row">
+              <input id="net-room-landing" type="text" autocapitalize="none" autocorrect="off"
+                     spellcheck="false" placeholder="mond-riff-47" />
+              <button type="button" id="net-dice-landing" class="btn--mini">Würfeln</button>
+            </div>
+          </div>
+          <div class="net__actions">
+            <button type="button" id="net-connect-landing" class="btn btn--ghost">
+              Verbinden &amp; Enter VR
+            </button>
+            <button type="button" id="net-connect-flat-landing" class="btn btn--ghost">
+              Verbinden &amp; ohne VR starten
+            </button>
+          </div>
+          <p id="net-status-landing" class="status"></p>
+          <!--
+            Haunting steht hier nicht mehr: Wer `#haunting` öffnet, bekommt die
+            Startseite der Runde oben — mit Raum-Code, weil eine zweite Gruppe
+            einen eigenen Raum braucht.
+          -->
+          <p class="net__lead">
+            Für <strong>Haunting / Orbital</strong> gibt es eine eigene Startseite:
+            <a href="#haunting">#haunting</a>.
+          </p>
+        </details>
+
+      </div>
+    </div>
+
+    <!--
+      Die Kopfzeile im Web: oben links der Knopf zum Menü (dasselbe Menü wie
+      am Handgelenk, als Seite — `ui/PageMenu.ts`), oben rechts Weltname,
+      Verbindung und VR. Welten, die den oberen Rand selbst brauchen, schalten
+      sie ab (`core/pageHud.ts`) und drücken ihre Knöpfe stellvertretend.
+    -->
+    <div id="hud" class="hud" hidden>
+      <button id="hud-menu" class="hud__menu" type="button" aria-label="Menü" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+      <div class="hud__row">
+        <span id="hud-world" class="hud__world"></span>
+        <button id="hud-net" class="hud__btn">Verbindung</button>
+        <!-- Siehe `#landing-full` oben: derselbe Knopf, dieselbe Bedingung. -->
+        <button id="hud-full" class="hud__btn hud__btn--icon" type="button" aria-label="Vollbild" aria-pressed="false" hidden>
+          <svg class="icon--in" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+          <svg class="icon--out" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /></svg>
+        </button>
+        <button id="hud-vr" class="hud__btn">VR</button>
+      </div>
+    </div>
+
+    <section id="net-panel" class="panel" hidden aria-label="Verbindung und Kamera">
+      <header class="panel__head">
+        <strong>Verbindung</strong>
+        <button type="button" id="net-close" class="panel__x" aria-label="Schließen">×</button>
+      </header>
+
+      <p id="net-status" class="panel__status"></p>
+
+      <div class="field">
+        <label for="net-room">Raum-Code</label>
+        <div class="field__row">
+          <input id="net-room" type="text" autocapitalize="none" autocorrect="off"
+                 spellcheck="false" placeholder="mond-riff-47" />
+          <button type="button" id="net-dice" class="btn--mini">Würfeln</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="net-name">Dein Name</label>
+        <input id="net-name" type="text" autocomplete="nickname" placeholder="Desktop" />
+      </div>
+      <div class="field">
+        <label for="net-strategy">Vermittlung</label>
+        <select id="net-strategy">
+          <option value="nostr">Nostr-Relays (Standard)</option>
+          <option value="mqtt">Öffentliche MQTT-Broker</option>
+          <option value="torrent">BitTorrent-Tracker</option>
+        </select>
+        <p class="field__hint">
+          Nur für den Verbindungsaufbau. Klappt eine Variante im Netz nicht, hilft oft eine andere.
+        </p>
+      </div>
+      <div class="panel__row">
+        <button type="button" id="net-connect" class="btn--mini btn--grow">Verbinden</button>
+        <button type="button" id="net-link" class="btn--mini">Link kopieren</button>
+      </div>
+
+      <h3 class="panel__title">Sprache</h3>
+      <div class="panel__row">
+        <button type="button" id="net-voice" class="btn--mini btn--grow">Mikrofon an</button>
+      </div>
+      <p id="net-voice-hint" class="field__hint">
+        Aus. Antippen fragt nach dem Mikrofon; die Stimmen der anderen kommen aus der Richtung,
+        in der sie stehen.
+      </p>
+
+      <h3 class="panel__title">Zuschauen</h3>
+      <div id="net-peers" class="peers"></div>
+
+      <h3 class="panel__title">Chat</h3>
+      <div id="net-chat" class="chat" aria-live="polite"></div>
+      <div class="field__row">
+        <input id="net-chat-text" type="text" autocomplete="off" autocapitalize="sentences"
+               placeholder="Nachricht an den Raum" maxlength="2000" />
+        <button type="button" id="net-chat-send" class="btn--mini">Senden</button>
+      </div>
+      <div class="panel__row">
+        <button type="button" id="net-chat-copy" class="btn--mini btn--grow">Verlauf kopieren</button>
+        <button type="button" id="net-chat-clear" class="btn--mini">Leeren</button>
+      </div>
+      <p class="panel__hint">
+        Die Brille schickt Konfig-Codes hierher (<strong>Werkzeug senden</strong> im Schießgang):
+        Text markieren oder <strong>Kopieren</strong> am Eintrag drücken.
+      </p>
+
+      <h3 class="panel__title">Kamera</h3>
+      <div id="net-modes" class="seg">
+        <button type="button" data-mode="free">Frei</button>
+        <button type="button" data-mode="first">First Person</button>
+        <button type="button" data-mode="third">Third Person</button>
+      </div>
+
+      <div class="field" id="net-smooth-field">
+        <label for="net-smooth">Kamera-Glättung <output id="net-smooth-out"></output></label>
+        <input id="net-smooth" type="range" min="0" max="100" step="1" />
+        <p class="field__hint">Ganz links folgt die Kamera exakt, weiter rechts dreht sie träge nach.</p>
+      </div>
+
+      <div class="field" id="net-distance-field">
+        <label for="net-distance">Abstand <output id="net-distance-out"></output></label>
+        <input id="net-distance" type="range" min="60" max="800" step="10" />
+      </div>
+
+      <label class="check">
+        <input id="net-level" type="checkbox" /> Horizont stabilisieren
+      </label>
+
+      <button type="button" id="net-center" class="btn--mini btn--grow">Ansicht zentrieren</button>
+      <p class="panel__hint">Ziehen dreht die Kamera · Mausrad ändert den Abstand</p>
+      <p class="panel__hint">
+        Im Headset stehen dieselben Optionen unter <strong>Menü → Verbindung → Zuschauen</strong>.
+        Dort wird nur die Position des anderen Spielers übernommen, die Blickrichtung bleibt deine.
+      </p>
+    </section>
+
+    <!--
+      Der Werkzeug-Knopf: unten rechts, über den Knöpfen `A`/`B`. Er zeigt,
+      was am Bildschirm in der Hand liegt, und klappt die Liste auf
+      (`ui/ToolButton.ts`, `core/App.ts`; auch `Tab` und `Y` am Pad). In der
+      Brille gibt es ihn nicht — dort hängt das Regal am Handgelenk.
+    -->
+    <button id="hud-tool" class="hud-tool" type="button" aria-label="Werkzeug" aria-expanded="false" hidden></button>
+
+    <!--
+      **Die Steuerung auf dem Glas.** Ob sie überhaupt dasteht, entscheidet
+      eine einzige Rechnung (`src/core/screenPads.ts`, angewandt in
+      `src/main.ts`): die Einstellung unter **Menü → Grafik →
+      Bildschirm-Steuerung** (an / aus / automatisch), und in der Automatik das
+      Gerät — nur am Handy, und dort nur, solange kein Gamepad angesteckt ist.
+      In der Brille und in Welten mit eigener Steuerung nie.
+    -->
+    <div id="touch" class="touch" hidden>
+      <div id="touch-stick" class="touch__stick"><span></span></div>
+      <!-- Zielstock und A/B gehören der Ansicht von oben; FlatControls blendet sie dort ein. -->
+      <div id="touch-right" class="touch__right" hidden>
+        <div id="touch-aim" class="touch__stick touch__stick--aim"><span></span></div>
+        <div id="touch-a" class="touch__btn touch__btn--a">A</div>
+        <div id="touch-b" class="touch__btn touch__btn--b">B</div>
+      </div>
+      <div class="touch__hint">Links ziehen = gehen · rechts wischen = umsehen</div>
+    </div>
+
+  </body>
+</html>
