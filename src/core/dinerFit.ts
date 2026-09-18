@@ -12,7 +12,7 @@
  * vollständig: Wer die Quelle austauscht, lässt
  * `node tools/diner-model.mjs --in=… --list --fit=src/core/dinerFit.ts` laufen
  * und bekommt genau diesen Block ersetzt. Von Hand gepflegt wird hier nichts
- * — 146 nachgemessene Hüllen sind keine Liste, die jemand pflegt, ohne sich
+ * — 156 nachgemessene Hüllen sind keine Liste, die jemand pflegt, ohne sich
  * zu vertun.
  *
  * ## Warum dieser Katalog anders aussieht als der der ersten Küche
@@ -24,7 +24,7 @@
  * Versatz (`KitchenPiece.align`) — der Türgriff der Küchenzeile allein
  * verschiebt sie um 3,07 cm.
  *
- * Diese Quelle ist **auf einem Raster gebaut**. Jedes der 146 Stücke steht in
+ * Diese Quelle ist **auf einem Raster gebaut**. Jedes der 156 Stücke steht in
  * einer Zelle von 2 × 2 m (im Spiel: einer Kachel), und sein Ursprung ist der
  * Punkt, an dem es in dieser Zelle hängt: Ein Hängeschrank fängt bei y = 1 an,
  * eine Wand steht am hinteren Rand ihrer Zelle, eine Tür im Türsturz. Das
@@ -225,6 +225,80 @@ export const DINER_PIECES: readonly DinerPiece[] = [
     height: 0,
     foot: -0.25,
     span: [2, 2],
+  },
+  {
+    name: 'food_ingredient_bun',
+    label: 'Brötchen',
+    tiles: [1, 1],
+    height: 0.2536,
+    span: [0.35, 0.35],
+  },
+  {
+    name: 'food_ingredient_bun_bottom',
+    label: 'Brötchen, Unterteil',
+    tiles: [1, 1],
+    height: 0.1,
+    span: [0.3469, 0.3469],
+  },
+  {
+    name: 'food_ingredient_bun_top',
+    label: 'Brötchen, Deckel',
+    tiles: [1, 1],
+    height: 0.1536,
+    span: [0.35, 0.35],
+  },
+  {
+    name: 'food_ingredient_burger_cooked',
+    label: 'Patty, gebraten',
+    tiles: [1, 1],
+    height: 0.1,
+    span: [0.35, 0.35],
+  },
+  {
+    name: 'food_ingredient_burger_trash',
+    label: 'Patty, verbrannt',
+    tiles: [1, 1],
+    height: 0.1,
+    span: [0.35, 0.35],
+  },
+  {
+    name: 'food_ingredient_burger_uncooked',
+    label: 'Patty, roh',
+    tiles: [1, 1],
+    height: 0.1,
+    span: [0.35, 0.35],
+  },
+  {
+    name: 'food_ingredient_lettuce',
+    label: 'Salatkopf',
+    tiles: [1, 1],
+    height: 0.4052,
+    foot: -0.0051,
+    at: [0, -0.0259],
+    span: [0.5523, 0.5667],
+  },
+  {
+    name: 'food_ingredient_lettuce_slice',
+    label: 'Salat, geschnitten',
+    tiles: [1, 1],
+    height: 0.0271,
+    foot: -0.017,
+    span: [0.4034, 0.4034],
+  },
+  {
+    name: 'food_ingredient_tomato',
+    label: 'Tomate',
+    tiles: [1, 1],
+    height: 0.35,
+    span: [0.375, 0.375],
+  },
+  {
+    name: 'food_ingredient_tomato_slices',
+    label: 'Tomate, geschnitten',
+    tiles: [1, 1],
+    height: 0.15,
+    at: [0.0125, 0],
+    span: [0.38, 0.325],
   },
   {
     name: 'fridge_A',

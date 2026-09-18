@@ -18,8 +18,8 @@ import {
  * zueinander passen.
  */
 describe('der Katalog der zweiten Küche', () => {
-  it('trägt hundertsechsundvierzig Stücke', () => {
-    expect(DINER_PIECES).toHaveLength(146);
+  it('trägt hundertsechsundfünfzig Stücke', () => {
+    expect(DINER_PIECES).toHaveLength(156);
     expect(DINER_NAMES).toHaveLength(DINER_PIECES.length);
   });
 
@@ -160,16 +160,30 @@ describe('der Katalog der zweiten Küche', () => {
   });
 
   /**
-   * **Kein Essen im Katalog.** Das Werkzeug siebt 79 Stücke aus
-   * (`tools/diner-model.mjs`, `SKIP`), weil diese Küche ihr Essen selbst baut
-   * (`zones/kitchenProps.ts`). Die Zusage steht hier und nicht nur im
-   * Werkzeug: Wer das Sieb herausnimmt, bekommt eine Datei, die anderthalb
+   * **Vom Essen kommt nur mit, was ein Rezept braucht.** Das Werkzeug siebt 69
+   * Stücke aus und lässt zehn durch (`tools/diner-model.mjs`, `SKIP` und
+   * `KEEP_FOOD`) — die zehn sind Brötchen, Patty, Salat und Tomate in den
+   * Zuständen, die `zones/kitchenRecipes.ts` kennt; sie ersetzen seit dem
+   * Umbau die Zutaten, die die Küche aus Zylindern baute.
+   *
+   * Die Zusage steht hier und nicht nur im Werkzeug, und sie ist eine
+   * **Liste** und keine Regel: Wer das Sieb weiter aufmacht, bekommt Pizzen,
+   * Eintöpfe und dreißig Zutaten ohne Rezept in einer Datei, die anderthalb
    * Megabyte schwerer ist, und soll das absichtlich tun.
    */
-  it('lässt das Essen des Baukastens draußen', () => {
-    for (const name of DINER_NAMES) {
-      expect({ name, food: /^(food_|stew_)/.test(name) }).toEqual({ name, food: false });
-    }
+  it('nimmt vom Essen des Baukastens nur die zehn Zutaten mit', () => {
+    expect(DINER_NAMES.filter((name) => /^(food_|stew_)/.test(name))).toEqual([
+      'food_ingredient_bun',
+      'food_ingredient_bun_bottom',
+      'food_ingredient_bun_top',
+      'food_ingredient_burger_cooked',
+      'food_ingredient_burger_trash',
+      'food_ingredient_burger_uncooked',
+      'food_ingredient_lettuce',
+      'food_ingredient_lettuce_slice',
+      'food_ingredient_tomato',
+      'food_ingredient_tomato_slices',
+    ]);
     expect(DINER_NAMES.filter((name) => name.startsWith('icecream_'))).toEqual([
       'icecream_machine',
     ]);

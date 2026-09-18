@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { PAN_BOWL, POT_BOWL, SINK_BOWL } from '../../../core/kitchenFit';
+import { dinerHeight, dinerPiece } from '../../../core/dinerFit';
 import { CLEAN_STACK_MAX } from './kitchenCarry';
-import { ITEM_LABELS, dish, layered, type Dish, type KitchenItem } from './kitchenRecipes';
+import { ITEM_LABELS, dish, type Dish, type KitchenItem } from './kitchenRecipes';
 import {
   BUN_BASE,
+  BUN_DOME,
   BUN_HEIGHT,
   DIRTY_STACK_MAX,
+  FOOD_NODE,
   FoodKit,
   ITEM_HEIGHT,
   PLATE_HEIGHT,
@@ -29,52 +32,36 @@ import {
  *
  * three.js läuft in Jest, nur WebGL nicht (`core/avatarBody.test.ts`): Formen,
  * Matrizen und Hüllen sind reine Rechnung, gerendert wird hier nichts.
+ *
+ * **Und seit die acht Zutaten Netze sind, ist diese Suite zweigeteilt.**
+ * Brötchen, Patty, Salat und Tomate kommen aus `public/models/diner.glb`
+ * (`kitchenProps.FOOD_NODE`), und die Datei lädt hier niemand: `GLTFLoader`
+ * braucht `import.meta`, und `FoodKit.warm` macht ohne WebGL gar nichts erst.
+ * Geprüft wird an ihnen deshalb die **Kette** — dass es den Knoten gibt, dass
+ * seine Höhe in `ITEM_HEIGHT` steht und dass die Küche damit richtig rechnet.
+ * Das ist dieselbe Trennung, die der Möbelkatalog schon hat
+ * (`core/kitchenFit.test.ts`): Was aus einer Datei kommt, wird gegen den
+ * nachgemessenen Katalog geprüft und nicht gegen abgeschriebene Zahlen.
+ *
+ * Mit **Geometrie** geprüft wird, was gebaut geblieben ist: Teller, dreckiger
+ * Teller, Tomatensuppe, Wasser — und daran hängt alles Übrige, denn der Stapel,
+ * die Hüllen und die Höhen sind dieselbe Rechnung für beide Hälften.
  */
 
 const ALL_ITEMS = Object.keys(ITEM_LABELS) as KitchenItem[];
 
+/** Was aus dem Möbelnetz kommt und dieser Satz gar nicht hergibt. */
+const FROM_MODEL: readonly KitchenItem[] = ['pot', 'pan', 'extinguisher'];
+
+/** Was aus `diner.glb` kommt — ohne geladene Datei also nicht zu sehen. */
+const LOADED = Object.keys(FOOD_NODE) as KitchenItem[];
+
+/** Und was dieser Satz weiterhin selbst baut: die vier ohne fremdes Netz. */
+const BUILT = ALL_ITEMS.filter((item) => !FROM_MODEL.includes(item) && !LOADED.includes(item));
+
 /** Die Hülle eines gebauten Dings, in seinem eigenen Raum. */
 function span(object: THREE.Object3D): THREE.Box3 {
   return new THREE.Box3().setFromObject(object);
-}
-
-/** Die Hülle einer einzelnen Schicht im Stapel, an ihrem Namen gefunden. */
-function layerSpan(view: THREE.Object3D, name: string): THREE.Box3 {
-  const layer = view.getObjectByName(name);
-  expect(layer).toBeDefined();
-  return span(layer!);
-}
-
-/** Wie die Schicht einer Zutat im Stapel heißt. */
-function layerName(item: KitchenItem): string {
-  return item === 'bun' ? 'kitchen-bun-base' : `kitchen-${item}`;
-}
-
-/**
- * Der Farbton einer Schicht — vom **ersten** Netz darin, weil eine Schicht aus
- * mehreren Teilen bestehen kann (das verbrannte Patty trägt Risse, die Tomate
- * zwei Scheibentöne) und der Körper immer zuerst gebaut wird.
- */
-function layerColor(view: THREE.Object3D, name: string): THREE.Color {
-  const layer = view.getObjectByName(name);
-  expect(layer).toBeDefined();
-  let color: THREE.Color | undefined;
-  layer!.traverse((part) => {
-    if (!color && part instanceof THREE.Mesh) {
-      color = (part.material as THREE.MeshStandardMaterial).color;
-    }
-  });
-  expect(color).toBeDefined();
-  return color!;
-}
-
-/**
- * Farbe in Ton/Sättigung/Helligkeit, und zwar in **sRGB**: `THREE.Color` rechnet
- * intern linear, und linear verglichen wäre „nur ein bisschen heller" eine ganz
- * andere Zahl als die, die man im Bild sieht.
- */
-function hsl(color: THREE.Color): { h: number; s: number; l: number } {
-  return color.getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace);
 }
 
 describe('FoodKit.view', () => {
@@ -86,15 +73,10 @@ describe('FoodKit.view', () => {
     kit.dispose();
   });
 
-  it('baut jede Zutat mit dem Fuß auf dem Ursprung und der Mitte auf x/z = 0', () => {
-    for (const item of ALL_ITEMS) {
+  it('baut jede gebaute Zutat mit dem Fuß auf dem Ursprung und der Mitte auf x/z = 0', () => {
+    for (const item of BUILT) {
       const view = kit.view(dish(item));
-      if (item === 'pot' || item === 'pan' || item === 'extinguisher') {
-        // Sie kommen aus dem Möbelmodell (`core/kitchenModel.takeUtensil`).
-        expect(view).toBeNull();
-        continue;
-      }
-      expect(view).not.toBeNull();
+      expect({ item, built: view !== null }).toEqual({ item, built: true });
       const box = span(view!);
       expect(box.min.y).toBeCloseTo(0, 5);
       expect(box.max.y).toBeCloseTo(ITEM_HEIGHT[item], 5);
@@ -104,81 +86,86 @@ describe('FoodKit.view', () => {
     }
   });
 
-  it('hält für jede Zutat die versprochene Höhe ein', () => {
-    for (const item of ALL_ITEMS) {
-      const view = kit.view(dish(item));
-      if (!view) continue;
+  /**
+   * **Ohne Datei kein Netz, und zwar sichtbar als `null`.**
+   *
+   * Das ist derselbe Ausgang wie bei Topf, Pfanne und Feuerlöscher, und der
+   * Aufrufer kennt ihn: Er stellt dann nichts hin und meldet nichts
+   * (`zones/kitchen.make`). Eine **leere Gruppe** wäre hier das Schlechtere —
+   * sie würde abgelegt, vermessen und bekäme Griffe von null Zentimetern.
+   *
+   * Im Spiel gibt es diesen Zustand nur zwischen Zonenstart und `warm()`, und
+   * die Zone schließt ihn selbst: Sie wartet auf die Zutaten, bevor sie das
+   * erste Möbel hinstellt.
+   */
+  it('gibt ohne geladene Datei nichts heraus, was aus ihr kommt', () => {
+    for (const item of [...FROM_MODEL, ...LOADED]) {
+      expect({ item, view: kit.view(dish(item)) }).toEqual({ item, view: null });
+    }
+    // Auch der Stapel: ein Burger ohne ein einziges Netz ist kein Burger.
+    expect(kit.view(dish('bun', ['patty-cooked']))).toBeNull();
+    expect(kit.topping(dish('pan', ['patty']), 0.08)).toBeNull();
+  });
+
+  it('hält für jede gebaute Zutat die versprochene Höhe ein', () => {
+    for (const item of BUILT) {
+      const view = kit.view(dish(item))!;
       expect(kit.height(dish(item))).toBeCloseTo(span(view).max.y, 5);
     }
   });
 
-  it('gibt ein Brötchen ohne Belag als ganzes Brötchen', () => {
-    const view = kit.view(dish('bun'))!;
-    expect(span(view).max.y).toBeCloseTo(BUN_HEIGHT, 5);
-    // Kein Boden unter einem Belag — es ist gar nicht aufgeschnitten.
-    expect(view.getObjectByName('kitchen-bun-base')).toBeUndefined();
-    expect(view.getObjectByName('kitchen-bun')).toBeDefined();
-  });
-
-  it('baut das belegte Brötchen aus Boden, Belag und Haube', () => {
-    const d = dish('bun', ['patty-cooked', 'lettuce-cut']);
-    const view = kit.view(d)!;
-    const box = span(view);
-    expect(box.min.y).toBeCloseTo(0, 5);
-    expect(box.max.y).toBeCloseTo(kit.height(d), 5);
-    expect(box.max.y).toBeCloseTo(
-      BUN_BASE + ITEM_HEIGHT['patty-cooked'] + ITEM_HEIGHT['lettuce-cut'] + BUN_HEIGHT,
-      5,
-    );
-    expect(layerSpan(view, 'kitchen-bun-base').min.y).toBeCloseTo(0, 5);
-    expect(layerSpan(view, 'kitchen-bun-top').max.y).toBeCloseTo(box.max.y, 5);
-  });
-
-  it('gibt Boden und Haube denselben Brötchenton', () => {
-    // Der Boden war einmal fast weiß und las sich unter der braunen Haube als
-    // **Teller**, besonders in der Aufsicht, wo vom Burger kaum mehr zu sehen
-    // ist als Haube und Bodenrand. Festgehalten wird deshalb nicht der Wert,
-    // sondern der Abstand: gleicher Farbton, spürbar gesättigt, nur wenig
-    // heller — die Schnittkante soll bleiben, der weiße Ring nicht.
-    const view = kit.view(dish('bun', ['patty-cooked']))!;
-    const base = hsl(layerColor(view, 'kitchen-bun-base'));
-    const dome = hsl(layerColor(view, 'kitchen-bun-top'));
-    expect(Math.abs(base.h - dome.h)).toBeLessThan(0.02);
-    expect(base.s).toBeGreaterThan(dome.s * 0.7);
-    expect(base.l).toBeGreaterThan(dome.l);
-    expect(base.l).toBeLessThan(dome.l * 1.2);
-    // Und der Fuß des **ganzen** Brötchens ist derselbe Boden: Wer die Krume
-    // umfärbt, färbt sonst nur die Hälfte der Brötchen um.
-    const foot = layerColor(kit.view(dish('bun'))!, 'kitchen-bun');
-    expect(foot.getHex()).toBe(layerColor(view, 'kitchen-bun-base').getHex());
-  });
-
-  it('legt die Schichten lückenlos aufeinander, egal in welcher Reihenfolge gelegt wurde', () => {
-    const on: KitchenItem[] = ['tomato-soup', 'patty-cooked', 'tomato-cut', 'lettuce-cut'];
-    for (const order of [on, [...on].reverse()]) {
-      const view = kit.view(dish('bun', order))!;
-      let top = 0;
-      for (const item of layered(['bun', ...order])) {
-        const box = layerSpan(view, layerName(item));
-        // Jede Schicht sitzt genau auf der vorigen: kein Spalt, keine
-        // Überschneidung — sonst fällt der Burger in sich zusammen.
-        expect(box.min.y).toBeCloseTo(top, 5);
-        top = box.max.y;
-      }
-      // Und ganz oben die Haube, bündig mit dem versprochenen Maß.
-      const dome = layerSpan(view, 'kitchen-bun-top');
-      expect(dome.min.y).toBeCloseTo(top, 5);
-      expect(dome.max.y).toBeCloseTo(span(view).max.y, 5);
+  /**
+   * **Die Höhe einer geladenen Zutat ist die ihres Knotens** — nachgemessen im
+   * Katalog der Quelle und nicht hier abgeschrieben.
+   *
+   * Das ist die eine Zusage, an der in Jest alles hängt: Die Küche stapelt mit
+   * `ITEM_HEIGHT` (`pile`, `stackHeight`, `zones/kitchen.ts`), und das Netz ist
+   * genau so hoch, weil `onFoot` es auf seine gemessene Unterkante stellt.
+   * Stünde hier eine Zahl von Hand, wäre sie die, die beim nächsten Austausch
+   * der Quelle stehen bliebe — und dann steckte das Patty im Brötchen.
+   *
+   * `dinerHeight` und nicht `piece.height`: Salatkopf und Salatscheibe liegen
+   * ein Stück **unter** ihrem Ursprung.
+   */
+  it('nimmt die Höhe jeder geladenen Zutat aus dem Katalog der Quelle', () => {
+    for (const item of LOADED) {
+      const node = FOOD_NODE[item as keyof typeof FOOD_NODE];
+      const piece = dinerPiece(node);
+      // Erst: Den Knoten gibt es. Ein Tippfehler hier wäre sonst eine Zutat
+      // von null Metern, die lautlos in jedem Burger fehlt.
+      expect({ item, node: piece?.name }).toEqual({ item, node });
+      expect({ item, high: ITEM_HEIGHT[item].toFixed(6) }).toEqual({
+        item,
+        high: dinerHeight(piece!).toFixed(6),
+      });
+      // Und keine davon ist null: Eine Zutat ohne Höhe stapelt sich in sich
+      // selbst hinein.
+      expect(ITEM_HEIGHT[item]).toBeGreaterThan(0.02);
     }
   });
 
-  it('setzt das Patty unter den Salat und den Salat unter die Tomate', () => {
-    const view = kit.view(dish('bun', ['tomato-cut', 'lettuce-cut', 'patty-cooked']))!;
-    const patty = layerSpan(view, 'kitchen-patty-cooked').max.y;
-    const leaf = layerSpan(view, 'kitchen-lettuce-cut').max.y;
-    const tomato = layerSpan(view, 'kitchen-tomato-cut').max.y;
-    expect(patty).toBeLessThan(leaf);
-    expect(leaf).toBeLessThan(tomato);
+  /**
+   * **Boden und Deckel ergeben zusammen das ganze Brötchen** — auf den
+   * Zehntelmillimeter.
+   *
+   * Drei Knoten für ein Brötchen (`bun`, `bun_bottom`, `bun_top`), und diese
+   * Gleichung ist der Grund, warum man sie nebeneinander benutzen darf: Ein
+   * aufgeschnittenes Brötchen ohne Belag ist genauso hoch wie ein ganzes, also
+   * wächst ein Burger um **genau** das, was man hineinlegt, und um nichts
+   * sonst. Ginge sie nicht auf, spränge jeder Burger beim ersten Belegen um
+   * die Differenz.
+   */
+  it('teilt das Brötchen ohne Rest in Boden und Deckel', () => {
+    expect(BUN_BASE + BUN_DOME).toBeCloseTo(BUN_HEIGHT, 6);
+    expect(BUN_BASE).toBeGreaterThan(0.05);
+    expect(BUN_DOME).toBeGreaterThan(BUN_BASE);
+    // Und der Boden ist wirklich der Boden: Ein Deckel unter dem Fleisch wäre
+    // ein Stapel und kein Burger.
+    expect(stackHeight(['bun'])).toBeCloseTo(BUN_HEIGHT, 6);
+    expect(stackHeight(['bun', 'patty-cooked'])).toBeCloseTo(
+      BUN_HEIGHT + ITEM_HEIGHT['patty-cooked'],
+      6,
+    );
   });
 });
 
@@ -191,8 +178,16 @@ describe('FoodKit.view auf dem Teller', () => {
     kit.dispose();
   });
 
+  /**
+   * Geprüft wird das mit der **Tomatensuppe**, und das ist kein Zufall: Sie ist
+   * seit dem Umbau die einzige Burgerzutat, die dieser Satz noch selbst baut
+   * (`kitchenProps.ts`, der Kopf sagt warum), und damit die einzige, die ohne
+   * geladene Datei ein Netz hat. Was hier geprüft wird, ist ohnehin die
+   * **Rechnung** und nicht das Gemüse: Der Stapel sitzt auf dem Tellerrand, und
+   * das Ganze ist so hoch, wie `height` sagt.
+   */
   it('stellt das Gericht auf den Tellerrand', () => {
-    const d = dish('plate', ['bun', 'patty-cooked']);
+    const d = dish('plate', ['tomato-soup']);
     const view = kit.view(d)!;
     const stack = view.getObjectByName(STACK_NAME);
     expect(stack).toBeDefined();
@@ -200,33 +195,36 @@ describe('FoodKit.view auf dem Teller', () => {
     expect(span(view).max.y).toBeCloseTo(kit.height(d), 5);
   });
 
+  /**
+   * **Alles Übrige steckt im Brötchen und liegt nicht daneben** — nachgerechnet
+   * und nicht nachgemessen.
+   *
+   * Ein Patty **neben** dem Burger läge auf dem Porzellan, und der Teller wäre
+   * dann so hoch wie sein höchstes Ding statt so hoch wie sein Turm. Am Netz
+   * ließe sich das ohne geladene Datei nicht mehr zeigen; an der Zahl schon,
+   * und sie ist dieselbe: `height` addiert Teller, Brötchenboden, **jede**
+   * Zutat und den Deckel — wer eine danebenlegte, könnte sie nicht mitzählen.
+   */
   it('steckt alles Übrige ins Brötchen und legt es nicht daneben', () => {
     const d = dish('plate', ['bun', 'patty-cooked', 'tomato-cut']);
-    const view = kit.view(d)!;
-    // Ein Patty **neben** dem Burger läge auf dem Teller — es liegt aber im
-    // Brötchen, also über dem Boden und unter der Haube.
-    const patty = layerSpan(view, 'kitchen-patty-cooked');
-    expect(patty.min.y).toBeGreaterThan(layerSpan(view, 'kitchen-bun-base').min.y);
-    expect(patty.max.y).toBeLessThan(layerSpan(view, 'kitchen-bun-top').max.y);
     expect(kit.height(d)).toBeCloseTo(
-      PLATE_HEIGHT +
-        BUN_BASE +
-        ITEM_HEIGHT['patty-cooked'] +
-        ITEM_HEIGHT['tomato-cut'] +
-        BUN_HEIGHT,
+      PLATE_HEIGHT + BUN_BASE + ITEM_HEIGHT['patty-cooked'] + ITEM_HEIGHT['tomato-cut'] + BUN_DOME,
+      5,
+    );
+    // Und ohne Brötchen liegen sie flach nebeneinander auf dem Teller — dann
+    // fehlen Boden und Deckel in der Summe.
+    expect(kit.height(dish('plate', ['patty-cooked', 'tomato-cut']))).toBeCloseTo(
+      PLATE_HEIGHT + ITEM_HEIGHT['patty-cooked'] + ITEM_HEIGHT['tomato-cut'],
       5,
     );
   });
 
   it('legt ein Gericht ohne Brötchen flach auf den Teller', () => {
-    const d = dish('plate', ['lettuce-cut', 'tomato-cut']);
+    const d = dish('plate', ['tomato-soup']);
     const view = kit.view(d)!;
     expect(view.getObjectByName('kitchen-bun-top')).toBeUndefined();
     expect(span(view).max.y).toBeCloseTo(kit.height(d), 5);
-    expect(kit.height(d)).toBeCloseTo(
-      PLATE_HEIGHT + ITEM_HEIGHT['lettuce-cut'] + ITEM_HEIGHT['tomato-cut'],
-      5,
-    );
+    expect(kit.height(d)).toBeCloseTo(PLATE_HEIGHT + ITEM_HEIGHT['tomato-soup'], 5);
   });
 
   it('gibt den leeren Teller mit seiner eigenen Höhe', () => {
@@ -244,8 +242,14 @@ describe('FoodKit.topping', () => {
     kit.dispose();
   });
 
-  it('gibt das Patty für die geladene Pfanne, auf der angegebenen Höhe', () => {
-    const d = dish('pan', ['patty']);
+  /**
+   * Gezeigt am **Wasser** im Topf statt am Patty in der Pfanne: Beides ist
+   * derselbe eine Weg — ein Belag, der in ein geladenes Gefäß gehängt wird —,
+   * und das Wasser ist das, was dieser Satz noch selbst baut. Die Zahl, an der
+   * es hängt, ist `lift`, und die kommt vom Gefäß.
+   */
+  it('gibt den Belag für ein geladenes Gefäß, auf der angegebenen Höhe', () => {
+    const d = dish('pot', ['water']);
     expect(kit.view(d)).toBeNull();
     const lift = 0.08;
     const top = kit.topping(d, lift)!;
@@ -253,21 +257,23 @@ describe('FoodKit.topping', () => {
     expect(top.name).toBe(STACK_NAME);
     const box = span(top);
     expect(box.min.y).toBeCloseTo(lift, 5);
-    expect(box.max.y).toBeCloseTo(lift + ITEM_HEIGHT.patty, 5);
+    expect(box.max.y).toBeCloseTo(lift + ITEM_HEIGHT.water, 5);
     // Die Höhe eines Geräts ist die seines Belags: Das Gerät selbst baut
     // dieser Satz nicht.
-    expect(kit.height(d)).toBeCloseTo(ITEM_HEIGHT.patty, 5);
+    expect(kit.height(d)).toBeCloseTo(ITEM_HEIGHT.water, 5);
+    // Und die eines Pattys ist es auch — nur sein Netz kommt aus der Datei.
+    expect(kit.height(dish('pan', ['patty']))).toBeCloseTo(ITEM_HEIGHT.patty, 5);
   });
 
   it('gibt nichts, wo nichts daraufliegt', () => {
-    for (const d of [dish('pan'), dish('pot'), dish('plate'), dish('tomato')]) {
+    for (const d of [dish('pan'), dish('pot'), dish('plate'), dish('tomato-soup')]) {
       expect(kit.topping(d, 0.1)).toBeNull();
       expect(kit.height(dish(d.item))).toBeCloseTo(ITEM_HEIGHT[d.item], 5);
     }
   });
 
   it('baut denselben Stapel wie auf dem eigenen Teller', () => {
-    const d: Dish = dish('plate', ['bun', 'patty-cooked']);
+    const d: Dish = dish('plate', ['tomato-soup']);
     const loose = kit.topping(d, 0)!;
     expect(span(loose).max.y).toBeCloseTo(kit.height(d) - PLATE_HEIGHT, 5);
   });
@@ -281,7 +287,7 @@ describe('FoodKit.topping', () => {
    * die Rechnung; hier steht nur, dass es einzig die Pfanne betrifft.
    */
   it('rückt den Belag der Pfanne in die Mulde', () => {
-    const top = kit.topping(dish('pan', ['patty']), 0.04)!;
+    const top = kit.topping(dish('pan', ['tomato-soup']), 0.04)!;
     expect(top.position.x).toBeCloseTo(PAN_BOWL[0], 6);
     expect(top.position.z).toBeCloseTo(PAN_BOWL[1], 6);
     expect(top.position.y).toBeCloseTo(0.04, 6);
@@ -291,7 +297,7 @@ describe('FoodKit.topping', () => {
   });
 
   it('lässt jeden anderen Träger auf seiner Mitte', () => {
-    for (const d of [dish('plate', ['bun']), dish('bun', ['patty-cooked'])]) {
+    for (const d of [dish('plate', ['tomato-soup']), dish('pot', ['water'])]) {
       const top = kit.topping(d, 0)!;
       expect(top.position.x).toBeCloseTo(0, 6);
       expect(top.position.z).toBeCloseTo(0, 6);
@@ -606,22 +612,45 @@ describe('das Wasser im Topf', () => {
 });
 
 describe('stackHeight', () => {
-  it('rechnet den Stapel so, wie er gebaut wird', () => {
+  /**
+   * **Am gebauten Belag nachgemessen** — und das geht ohne Datei nur noch mit
+   * der Tomatensuppe und dem Wasser (siehe der Kopf dieser Datei). Geprüft wird
+   * damit trotzdem die ganze Rechnung: `pile` rückt jede Schicht um
+   * `ITEM_HEIGHT` weiter, `stackHeight` addiert dieselbe Tabelle, und was sich
+   * hier deckt, deckt sich für jede Zutat.
+   */
+  it('rechnet den gebauten Stapel so, wie er gebaut wird', () => {
     const kit = new FoodKit();
-    const stacks: KitchenItem[][] = [
-      [],
-      ['bun'],
-      ['patty-cooked'],
-      ['bun', 'patty-cooked'],
-      ['bun', 'patty-cooked', 'lettuce-cut', 'tomato-cut'],
-      ['bun', 'patty-burnt', 'tomato-soup'],
-      ['lettuce-cut', 'tomato-soup'],
-    ];
+    const stacks: KitchenItem[][] = [[], ['tomato-soup']];
     for (const items of stacks) {
       const top = kit.topping(dish('plate', items), 0);
       expect(stackHeight(items)).toBeCloseTo(top ? span(top).max.y : 0, 5);
     }
     kit.dispose();
+  });
+
+  /**
+   * **Und für die geladenen Zutaten aus der Tabelle** — dieselbe Rechnung,
+   * andere Quelle der Zahlen. Drei Fälle, und der mittlere ist der, den man
+   * vergisst: Ohne Brötchen liegen die Scheiben einfach übereinander; ein
+   * Brötchen **ohne** Belag ist gar nicht aufgeschnitten; erst ein belegtes
+   * ist Boden **plus** Belag **plus** Deckel.
+   */
+  it('rechnet den geladenen Stapel aus der Höhentabelle', () => {
+    expect(stackHeight(['patty-cooked'])).toBeCloseTo(ITEM_HEIGHT['patty-cooked'], 6);
+    expect(stackHeight(['lettuce-cut', 'tomato-cut'])).toBeCloseTo(
+      ITEM_HEIGHT['lettuce-cut'] + ITEM_HEIGHT['tomato-cut'],
+      6,
+    );
+    expect(stackHeight(['bun'])).toBeCloseTo(BUN_HEIGHT, 6);
+    expect(stackHeight(['bun', 'patty-cooked', 'lettuce-cut', 'tomato-cut'])).toBeCloseTo(
+      BUN_BASE +
+        ITEM_HEIGHT['patty-cooked'] +
+        ITEM_HEIGHT['lettuce-cut'] +
+        ITEM_HEIGHT['tomato-cut'] +
+        BUN_DOME,
+      6,
+    );
   });
 
   it('macht aus einem Brötchen ohne Belag kein aufgeschnittenes', () => {
@@ -637,8 +666,8 @@ describe('der geteilte Satz', () => {
    */
   it('teilt Geometrie und Material zwischen zwei gleichen Dingen', () => {
     const kit = new FoodKit();
-    const first = meshesOf(kit.view(dish('bun', ['patty-cooked']))!);
-    const second = meshesOf(kit.view(dish('bun', ['patty-cooked']))!);
+    const first = meshesOf(kit.view(dish('plate', ['tomato-soup']))!);
+    const second = meshesOf(kit.view(dish('plate', ['tomato-soup']))!);
     expect(first.length).toBe(second.length);
     for (let i = 0; i < first.length; i++) {
       expect(first[i]!.geometry).toBe(second[i]!.geometry);
@@ -649,9 +678,9 @@ describe('der geteilte Satz', () => {
 
   it('gibt nach dem Wegräumen nichts Weggeräumtes mehr aus', () => {
     const kit = new FoodKit();
-    const before = meshesOf(kit.view(dish('tomato'))!);
+    const before = meshesOf(kit.view(dish('tomato-soup'))!);
     kit.dispose();
-    const after = meshesOf(kit.view(dish('tomato'))!);
+    const after = meshesOf(kit.view(dish('tomato-soup'))!);
     // Der Satz ist leer, also baut er neu — und reicht keine freigegebene
     // Geometrie weiter.
     expect(after[0]!.geometry).not.toBe(before[0]!.geometry);

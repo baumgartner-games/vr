@@ -47,12 +47,20 @@ export interface PieceMesh {
 }
 
 /**
- * **Ein aufgesetztes Netz** — dasselbe, plus die Höhe, auf der es steht.
+ * **Ein aufgesetztes Netz** — dasselbe, plus die Höhe, auf der es **aufliegt**.
  *
- * `at` ist die **Oberkante des Sockels** und nicht die Arbeitsfläche des
- * fertigen Möbels: Auf die Kiste kommt der Deckel bei 0,40 m, und erst der
+ * `at` ist die Fläche, auf der der Aufsatz steht, und nicht die Arbeitsfläche
+ * des fertigen Möbels: Auf die Kiste kommt der Deckel bei 0,40 m, und erst der
  * Deckel ist die Ablage bei 0,50 m. Eine Zahl, die beides meinte, stimmte bei
  * jedem zweiten Stück nicht.
+ *
+ * **Gemeint ist die Unterkante des Aufsatzes**, und das ist eine Korrektur:
+ * Der erste Anlauf *verschob* das Netz um `at`, statt es dort aufzusetzen. Bei
+ * Topf und Deckel fiel das nicht auf — die fangen in ihrer eigenen Datei bei
+ * null an. Die **Pfanne** tut es nicht: Sie trägt in ihren Eckpunkten noch die
+ * 0,55 m ihres alten Herds, und um 0,60 verschoben schwebte sie einen halben
+ * Meter über dem Rost. Der Lader misst deshalb nach, wo der Aufsatz unten
+ * aufhört, und setzt genau diese Kante auf `at` (`core/kitchenModel.ts`).
  */
 export interface PieceStack extends PieceMesh {
   readonly at: number;
@@ -100,10 +108,12 @@ export interface KitchenPiece {
    * die bessere Hälfte des Tauschs: Was aufgesetzt wird, steht hier, statt aus
    * einem Materialnamen erschlossen zu werden.
    *
-   * Aufgesetzt wird auf `deck` des Sockels — nicht auf dessen Oberkante: Beim
-   * Herd ist die Oberkante der Rost, und genau dort steht der Topf.
+   * **Es dürfen mehrere sein**, und in der Reihenfolge, in der sie aufeinander
+   * stehen: Auf der Zeile liegt das Brett, und im Brett steckt das Messer. Was
+   * sich **herunternehmen** lässt (`holds`), ist dabei immer das **letzte** —
+   * oben liegt, was man greift.
    */
-  readonly over?: PieceStack;
+  readonly over?: readonly PieceStack[];
   /** Wie viele Kacheln es belegt (`worlds/nav/navTile.TILE` = 1 m). */
   readonly tiles: readonly [x: number, z: number];
   /**
@@ -165,6 +175,24 @@ export interface KitchenPiece {
    * her).
    */
   readonly worktop?: boolean;
+
+  /**
+   * **Dieses Möbel zeigt selbst, was es hergibt** — und braucht deshalb kein
+   * Bild davon.
+   *
+   * Eine Ausgabe bekommt sonst ein gerendertes Bild ihrer Zutat oben
+   * aufgeklebt (`worlds/test/zones/kitchen.addIcon`, `kitchenIcon.IconOven`).
+   * Das war richtig, solange in der Ausgabe eine geschlossene Kiste mit Deckel
+   * stand: Von außen sah man ihr nichts an. Die vier Vorratskisten
+   * (`SUPPLY_CRATES`) sind offen und voll — eine Kiste Tomaten mit einem Bild
+   * einer Tomate darauf zeigt dieselbe Auskunft zweimal, und das Bild liegt
+   * dabei genau über dem, was es erklären soll: In der Aufsicht
+   * (`core/TopDownCamera.ts`) verdeckt der gerenderte Teller die ganze Kiste.
+   *
+   * Es hängt am **Möbel** und nicht am Platz: Was eine Kiste zeigt, zeigt sie
+   * überall — in der Küche, in der Werkhalle und im Schauraum.
+   */
+  readonly shows?: boolean;
 
   /**
    * **Was man von diesem Möbel herunternehmen kann** — der Topf, die Pfanne,
@@ -448,31 +476,121 @@ export const SINK_TRAY = {
 } as const;
 
 /**
- * **Vierzehn Möbel aus dreizehn Knoten der Quelle und zwei gebaute dazu**, in
- * der Reihenfolge, in der sie aus der Datei fallen — mit den Maßen, die sie
- * **im Spiel** haben, also halbiert (`KITCHEN_SCALE`).
+ * **Wie hoch der Rost einer Kochstelle liegt**, in Metern — nachgemessen am
+ * einflammigen Herd des zweiten Baukastens (`core/dinerFit.ts`, `stove_single`:
+ * 0,6038 m).
  *
- * Vierzehn aus dreizehn, weil die **Spüle** in zwei Stücke zerfällt: Der Knoten
- * `sink` der Quelle ist vier Meter breit und wird beim Laden in `sink-basin`
- * und `sink-drain` zerschnitten (siehe der Block über `SINK_SUNK`). Wer die
- * Liste am Werkzeug nachrechnet, findet dort weiter **einen** Eintrag `sink`
- * — die beiden hier sind seine Hälften, und ihre Maße stehen in den Blöcken
- * darüber.
+ * **Eine Zahl für drei Möbel und eine gebaute Platte.** Herd, Herd mit Topf,
+ * Herd mit Pfanne und die sichere Kochstelle stehen in derselben Reihe, und
+ * eine Reihe sieht nur dann wie eine aus, wenn ihre Flächen auf einem Millimeter
+ * liegen: Ein Patty, das von einem Band auf die nächste Platte fährt, führe
+ * sonst sichtbar bergauf. Vorher stand viermal 0,60 in der Datei — eine runde
+ * Zahl, die zum vierflammigen Herd der alten Quelle gehörte und zum neuen um
+ * knapp vier Millimeter danebenlag. Das reicht, damit ein Topf schwebt.
  *
- * Die beiden gebauten sind das **Förderband** und das **Zugband**: Sie stehen
- * am Ende, sie tragen `built: true`, und sie sind die einzigen Stücke ohne
- * Knoten in der Quelle (siehe `KitchenPiece.built`). Wer das Werkzeug neu
- * laufen lässt, ersetzt die vierzehn davor und lässt die beiden stehen.
+ * **Nicht 0,50 wie die Arbeitsplatten daneben**, und das ist keine Stufe,
+ * sondern ein Rost: Auf einem Herd steht ein Topf, und der steht auf Gusseisen
+ * und nicht in der Platte.
+ */
+export const HOB_TOP = 0.6038;
+
+/**
+ * **Die vier Vorratskisten** — je Zutat eine, und in jeder liegt das, was sie
+ * hergibt.
+ *
+ * Vorher standen an ihrer Stelle vier gleiche Kisten mit Deckel
+ * (`serve-counter`), und was in welcher steckte, sagte ein **Bild**: Die Küche
+ * rendert die Zutat in eine Textur und klebt sie oben auf
+ * (`worlds/test/zones/kitchenIcon.ts`). Das war der Umweg, den es gab, solange
+ * die Zutaten aus Zylindern gebaut waren und es gar kein Netz gab, das man
+ * hätte hinstellen können. Der zweite Baukasten hat für jede Zutat eine
+ * **offene Kiste mit genau dieser Zutat darin** — ein Aufkleber daneben wäre
+ * die zweite Antwort auf dieselbe Frage.
+ *
+ * **Vier Einträge und nicht ein Eintrag mit vier Netzen**, und das ist die
+ * Frage, an der man sich hier vertut: `Spot.gives` gehört dem **Platz**
+ * (`worlds/test/zones/kitchenPlan.ts`), der Katalog beschreibt das **Möbel**.
+ * Ein `serve-counter`, dessen Netz vom `gives` seines Platzes abhinge, wäre
+ * ein Möbel, das an zwei Stellen verschieden aussieht — und im Möbelmenü am
+ * Computer (`shared/construct.ts`) ließe es sich gar nicht zeigen, weil dort
+ * kein Platz danebensteht. Vier Kisten dagegen kann man dort aufstellen,
+ * ansehen und einzeln in die Küche setzen.
+ *
+ * **Keine Ablage.** Auf einer offenen Kiste voller Tomaten liegt kein Teller;
+ * sie braucht `worktop` auch nicht, um zu wirken — was `gives` trägt, ist eine
+ * Ausgabe (`kitchenPlan.stationKind`, Regel 2), und das genügt.
+ *
+ * **Und kein Bild** (`shows`): Jede zeigt ihren Inhalt, siehe dort.
+ *
+ * Die Höhen sind die gemessenen Oberkanten der Netze (`core/dinerFit.ts`) und
+ * damit zugleich `deck`: Ausgegeben wird **oben aus der Kiste**.
+ */
+const SUPPLY_CRATES: readonly KitchenPiece[] = [
+  {
+    name: 'crate-buns',
+    label: 'Brötchenkiste',
+    tiles: [1, 1],
+    base: { file: 'diner', node: 'crate_buns' },
+    height: 0.4012,
+    shows: true,
+  },
+  {
+    name: 'crate-patty',
+    label: 'Pattykiste',
+    tiles: [1, 1],
+    // `crate_steak` heißt sie in der Quelle, und was darin liegt, ist das rohe
+    // Patty dieser Küche (`food_ingredient_burger_uncooked`) — eine Kiste
+    // „Steaks" gibt es hier nicht, ein Rezept dafür auch nicht.
+    base: { file: 'diner', node: 'crate_steak' },
+    height: 0.4385,
+    shows: true,
+  },
+  {
+    name: 'crate-lettuce',
+    label: 'Salatkiste',
+    tiles: [1, 1],
+    base: { file: 'diner', node: 'crate_lettuce' },
+    height: 0.499,
+    shows: true,
+  },
+  {
+    name: 'crate-tomatoes',
+    label: 'Tomatenkiste',
+    tiles: [1, 1],
+    base: { file: 'diner', node: 'crate_tomatoes' },
+    height: 0.4617,
+    shows: true,
+  },
+];
+
+/**
+ * **Sechsundzwanzig Möbel aus drei Herkünften** — mit den Maßen, die sie **im
+ * Spiel** haben, also in Metern der Welt.
+ *
+ * Die drei Herkünfte stehen am Eintrag und nicht in einer Liste daneben, und
+ * ein Möbel gehört zu genau einer (geprüft in `kitchenFit.test.ts`, _lässt nur
+ * gebaute und geliehene Möbel ohne eigenen Knoten durchgehen_):
+ *
+ * - **Fünfzehn leihen ihr Netz vom zweiten Baukasten** (`KitchenPiece.base`,
+ *   oft mit einem `over` darauf): Küchenzeile, Arbeitstisch, Spülbecken,
+ *   Abtropfseite, Tellerausgabe, Ausgabe, Schneidebrett samt Messer,
+ *   Löscherplatte, die drei Herde und die vier Vorratskisten
+ *   (`SUPPLY_CRATES`). Ihre Maße misst niemand hier nach — sie stehen in
+ *   `core/dinerFit.ts`, geschrieben vom Werkzeug, das die Quelle aufbereitet
+ *   hat, und was hier steht, ist daraus gerechnet.
+ * - **Drei haben noch einen eigenen Knoten** in `public/models/kitchen.glb`:
+ *   Mülleimer, Ausgabetheke, Ausgaberegal. Mehr ist von den dreizehn Möbeln des
+ *   ersten Baukastens nicht geblieben (`tools/kitchen-model.mjs --trim`), und
+ *   ihre Maße sind die halbierten der Quelle (`KITCHEN_SCALE`).
+ * - **Acht werden gebaut** (`built: true`): die drei Bänder, Kombinierer,
+ *   Mixer, sichere Kochstelle, Computer-Tisch und Kopierer. Sie haben kein Netz
+ *   und sind trotzdem vollwertige Möbel — siehe `KitchenPiece.built`.
  *
  * Die Kachelzahl ist die gerundete Grundfläche und nicht die aufgerundete:
  * Ein Unterschrank ist einen Meter breit und 1,06 m tief, und wer daraus zwei
  * Kacheln macht, stellt eine ganze Reihe davon mit einem Meter Luft dazwischen
  * auf. Ein Möbel darf ein paar Zentimeter über seine Kachel hinausragen; eine
  * Küche mit Lücken darin ist keine Küche.
- *
- * Die Maße der **Quelle** stehen daneben, damit ein zweiter Lauf des Werkzeugs
- * nachrechenbar bleibt: 2 × 2 m und 1 m hoch für einen Unterschrank, 4 m breit
- * für Spüle, Ausgabetheke und Regal — bei der Spüle je 2 m auf die Hälfte.
  */
 export const KITCHEN_PIECES: readonly KitchenPiece[] = [
   {
@@ -482,7 +600,7 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     base: { file: 'diner', node: 'kitchencounter_straight_A' },
     // Ein Abtropfgitter voller Teller auf der Zeile: Man sieht von weitem,
     // dass es hier Teller gibt, und muss dafür kein Bild aufkleben.
-    over: { file: 'diner', node: 'dishrack_plates', at: 0.5 },
+    over: [{ file: 'diner', node: 'dishrack_plates', at: 0.5 }],
     height: 1.0476,
     deck: 0.5,
     worktop: true,
@@ -491,11 +609,17 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     name: 'extinguisher',
     label: 'Feuerlöscher',
     tiles: [1, 1],
-    // 1,25 m ist die Oberkante des **Löschers**, 0,50 m die des Hockers
-    // darunter — dieselbe Teilung wie beim Herd mit Topf, und aus demselben
-    // Grund getrennt: Wer den Löscher abnimmt und wieder hinstellt, stellt
-    // ihn auf den Hocker und nicht auf seine eigene Kappe.
-    height: 1.25,
+    // **Auf der Arbeitsplatte wie alles andere**, und das ist eine Korrektur:
+    // Der Löscher stand bis zum Umbau auf seinem eigenen **Hocker** aus dem
+    // ersten Baukasten — anderes Holz, andere Kante, andere Höhe als die Zeile
+    // ringsum, und in einer Reihe aus Möbeln des zweiten Baukastens sah man
+    // genau ihn. Der Hocker ist aus der Datei geflogen
+    // (`tools/kitchen-model.mjs`, `LOOSE`); geblieben ist der Löscher.
+    base: { file: 'diner', node: 'kitchencounter_straight_A' },
+    over: [{ file: 'kitchen', node: 'extinguisher', at: 0.5 }],
+    // 0,748 m Löscher auf 0,50 m Zeile — auf den Millimeter dieselbe Oberkante
+    // wie vorher auf dem Hocker, denn der war auch einen halben Meter hoch.
+    height: 1.2479,
     deck: 0.5,
     worktop: true,
     holds: 'extinguisher',
@@ -517,7 +641,7 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     base: { file: 'diner', node: 'kitchencounter_straight_A' },
     // Dasselbe Gitter wie an der Tellerausgabe, nur leer: Dort kommen Teller
     // heraus, hier hinein.
-    over: { file: 'diner', node: 'dishrack', at: 0.5 },
+    over: [{ file: 'diner', node: 'dishrack', at: 0.5 }],
     height: 0.8,
     deck: SINK_TRAY.floor,
   },
@@ -534,29 +658,38 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     name: 'serve-counter',
     label: 'Ausgabe',
     tiles: [1, 1],
-    // Eine **Kiste mit Deckel**, und der Deckel ist die Ablage: Zutaten kommen
-    // aus Kisten, und welche aus welcher, malt die Küche als Bild darauf
-    // (`zones/kitchenIcon.ts`). Der zweite Baukasten hat für jede Zutat auch
-    // eine eigene Kiste — die stehen in seinem Schauraum; hier bliebe sonst je
-    // Zutat ein eigenes Katalogstück übrig, und das ist nicht, was
-    // `Spot.gives` meint.
+    // Eine **Kiste mit Deckel**, und der Deckel ist die Ablage. Sie gibt
+    // seitdem nur noch **Teller** aus und steht sonst als Durchreiche in der
+    // Zeile: Für die vier Zutaten gibt es eigene Kisten (gleich darunter), und
+    // die zeigen ihren Inhalt selbst, statt ihn als Bild aufgeklebt zu
+    // bekommen.
     base: { file: 'diner', node: 'crate' },
-    over: { file: 'diner', node: 'crate_lid', at: 0.4 },
+    over: [{ file: 'diner', node: 'crate_lid', at: 0.4 }],
     height: 0.5,
     worktop: true,
   },
+  ...SUPPLY_CRATES,
   {
     name: 'board',
     label: 'Schneidebrett',
     tiles: [1, 1],
-    base: { file: 'diner', node: 'kitchentable_B' },
-    over: { file: 'diner', node: 'cuttingboard', at: 0.5 },
+    // **Dieselbe Zeile wie nebenan**, und auch das ist eine Korrektur: Darunter
+    // stand ein `kitchentable_B`, und der ist in diesem Baukasten **türkis** —
+    // ein grüner Tisch zwischen lauter Küchenzeilen.
+    base: { file: 'diner', node: 'kitchencounter_straight_A' },
+    over: [
+      { file: 'diner', node: 'cuttingboard', at: 0.5 },
+      // **Und das Messer steckt darin.** Seine Klinge reicht 10,5 cm unter
+      // seinen eigenen Fuß (`dinerFit`, `knife.foot`); aufgesetzt wird es
+      // deshalb um genau diese 10,5 cm tiefer als die Brettoberfläche, und
+      // dann steht es im Brett statt darauf.
+      { file: 'diner', node: 'knife', at: 0.4696 },
+    ],
     // Das Brett ist 7,5 cm dick und liegt auf 0,50 m; die Schnittfläche liegt
     // damit 7,5 cm über der Zeile daneben. **Kein `bury` mehr**: Der alte
     // Katalog versenkte das Brett um 3,3 cm, damit seine Fläche mit der Zeile
-    // fluchtete — dieses Brett liegt sichtbar **auf** einem Tisch, und ein
-    // Tisch, der im Estrich steckt, ist keiner.
-    height: 0.575,
+    // fluchtete — dieses Brett liegt sichtbar **auf** einer Zeile.
+    height: 1.045,
     deck: 0.575,
     worktop: true,
   },
@@ -574,21 +707,25 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     name: 'stove',
     label: 'Herd',
     tiles: [1, 1],
-    base: { file: 'diner', node: 'stove_multi' },
-    // 0,60 m ist die Oberkante der **Roste**; die Platte darunter liegt auf
+    // **Einflammig und nicht vierflammig**: Eine Kachel ist ein Kochplatz, und
+    // vier Flammen auf einer Kachel sind drei Plätze, die das Spiel nicht
+    // kennt. Der vierflammige steht im Schauraum der zweiten Küche.
+    base: { file: 'diner', node: 'stove_single' },
+    // `HOB_TOP` ist die Oberkante des **Rosts**; die Platte darunter liegt auf
     // 0,50 m wie jede Arbeitsfläche. Abgelegt wird auf dem Rost, also ist die
     // Oberkante zugleich die Ablage.
-    height: 0.6,
+    height: HOB_TOP,
     worktop: true,
   },
   {
     name: 'stove-pot',
     label: 'Herd mit Topf',
     tiles: [1, 1],
-    base: { file: 'diner', node: 'stove_multi' },
-    over: { file: 'diner', node: 'pot_A', at: 0.6 },
-    height: 0.85,
-    deck: 0.6,
+    base: { file: 'diner', node: 'stove_single' },
+    over: [{ file: 'diner', node: 'pot_A', at: HOB_TOP }],
+    // Rost plus 25 cm Topf.
+    height: HOB_TOP + 0.25,
+    deck: HOB_TOP,
     worktop: true,
     holds: 'pot',
   },
@@ -596,15 +733,16 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     name: 'stove-pan',
     label: 'Herd mit Pfanne',
     tiles: [1, 1],
-    base: { file: 'diner', node: 'stove_multi' },
-    // **Die Pfanne ist das einzige Stück, das aus der alten Datei geblieben
+    base: { file: 'diner', node: 'stove_single' },
+    // **Die Pfanne ist das einzige Möbelteil, das aus der alten Datei geblieben
     // ist**, und sie ist es mit Absicht: An ihr hängen die Bratregeln und ein
     // nachgemessener Muldenversatz (`PAN_BOWL`), den ein fremdes Netz nicht
     // mitbringt. Der Herd darunter kommt wie die anderen aus dem zweiten
     // Baukasten.
-    over: { file: 'kitchen', node: 'pan', at: 0.6 },
-    height: 0.73,
-    deck: 0.6,
+    over: [{ file: 'kitchen', node: 'pan', at: HOB_TOP }],
+    // Rost plus 12,78 cm Pfanne.
+    height: HOB_TOP + 0.1278,
+    deck: HOB_TOP,
     worktop: true,
     holds: 'pan',
   },
@@ -713,18 +851,19 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     name: 'griddle',
     label: 'Sichere Kochstelle',
     tiles: [1, 1],
-    // **0,55 m, und die Zahl ist vom Herd abgeschrieben** (`stove`) — auf den
-    // Millimeter. Eine Kochstelle, die neben einem Herd steht und drei
+    // **Die Höhe ist die des Herdrosts** (`HOB_TOP`) — gelesen und nicht
+    // abgeschrieben. Eine Kochstelle, die neben einem Herd steht und drei
     // Zentimeter höher wäre, wäre von oben eine Stufe in einer Reihe, die
     // aussieht wie eine Reihe. Und ein Patty, das von einem Band herüberfährt,
-    // führe sichtbar bergauf.
+    // führe sichtbar bergauf. Abgeschrieben stand hier lange 0,55 und danach
+    // 0,60; beide Male ging der Herd darunter weiter und die Platte nicht mit.
     //
     // Es ist zugleich `deck`: Auf dieser Kochstelle steht keine Pfanne, das
     // Patty liegt unmittelbar auf der Platte (`worlds/test/zones/kitchenGriddle.ts`).
     // Genau das macht sie für eine Bandstraße brauchbar — ein Band kann nichts
     // in eine Pfanne legen, die schon auf ihrer Kachel liegt, aber auf eine
     // freie Platte kann es alles legen.
-    height: 0.6,
+    height: HOB_TOP,
     worktop: true,
     built: true,
   },

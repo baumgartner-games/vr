@@ -1167,6 +1167,14 @@ export class KitchenZone implements TestZone {
     // Modul dort gar nicht erst angefasst (`core/chefFit.canLoadModels`).
     if (!canLoadModels()) return;
     void import('../../../core/kitchenModel').then(async (module) => {
+      // **Erst die Zutaten, dann die Möbel** (`kitchenProps.FoodKit.warm`).
+      // Das Bild auf einer Ausgabe wird aus der Zutat selbst gebacken
+      // (`addIcon`), und der Ofen behält, was er einmal gebacken hat: Wer die
+      // Ausgaben vor den Zutaten hinstellt, klebt ein leeres Bild darauf und
+      // kommt nie wieder daran vorbei. Die paar Millisekunden kosten hier
+      // nichts — gewartet wird ohnehin schon auf die Möbeldatei, und beide
+      // liegen danach im selben Zwischenspeicher.
+      await this.food.warm();
       for (const spot of KITCHEN_SPOTS) {
         if (this.gone) return;
         const piece = kitchenPiece(spot.name);
@@ -3191,6 +3199,10 @@ export class KitchenZone implements TestZone {
     const gives = spot.gives;
     const oven = this.oven;
     if (!gives || !oven) return;
+    // **Eine Vorratskiste erklärt sich selbst** (`KitchenPiece.shows`): In ihr
+    // liegt, was sie hergibt. Ein gerendertes Bild derselben Zutat obendrauf
+    // wäre nicht nur doppelt, es läge in der Aufsicht genau darüber.
+    if (piece.shows) return;
     // Was `build` liefert, gehört weiter dem Zutatensatz: Der Ofen hängt es
     // kurz in seine Szene und gibt nichts davon frei (`IconOven.bake`).
     const texture = oven.bake(

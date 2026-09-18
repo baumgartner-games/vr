@@ -76,9 +76,10 @@ const TOP_SIDE = TILE;
 /**
  * **Die Schüssel** — 66 cm weit, 8,5 cm hoher Rand.
  *
- * Beide Zahlen sind gegen das gewählt, was hineinkommt. **66 cm** sind knapp
- * weiter als das Breiteste, was in dieser Küche gehackt wird (ein Salatkopf
- * misst 60 cm, `kitchenProps.BUN_RADIUS` zum Vergleich 30 cm Halbmesser), und
+ * Beide Zahlen sind gegen das gewählt, was hineinkommt. **66 cm** sind weiter
+ * als das Breiteste, was in dieser Küche gehackt wird (ein Salatkopf misst
+ * 55 cm, ein Brötchen 35 cm — `core/dinerFit.ts`, seit die Zutaten Netze
+ * sind), und
  * bleiben zugleich unter der Kachel: Zwischen zwei Mixern nebeneinander steht
  * eine sichtbare Fuge statt einer durchgehenden Wanne.
  *

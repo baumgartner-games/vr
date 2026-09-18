@@ -101,31 +101,40 @@ export async function kitchenModel(name: string): Promise<THREE.Object3D | null>
   holder.name = name;
   holder.add(base);
 
-  if (piece.over) {
-    const over = await mesh(piece.over);
-    if (over) {
-      over.position.y = piece.over.at;
-      // **Was obendrauf steht, ist das, was man herunternimmt** — wenn das
-      // Möbel überhaupt etwas hergibt (`KitchenPiece.holds`). Die Marke sitzt
-      // am Objekt und nicht in einer Liste daneben: `takeUtensil` bekommt eine
-      // fertige Gruppe in die Hand und nicht ihren Katalogeintrag.
-      if (piece.holds) over.userData.loose = true;
-      holder.add(over);
-    }
+  const stack = piece.over ?? [];
+  for (let i = 0; i < stack.length; i++) {
+    const step = stack[i]!;
+    const over = await mesh(step);
+    if (!over) continue;
+    lay(over, step.at);
+    // **Was ganz oben steht, ist das, was man herunternimmt** — wenn das Möbel
+    // überhaupt etwas hergibt (`KitchenPiece.holds`). Die Marke sitzt am
+    // Objekt und nicht in einer Liste daneben: `takeUtensil` bekommt eine
+    // fertige Gruppe in die Hand und nicht ihren Katalogeintrag.
+    if (piece.holds && i === stack.length - 1) over.userData.loose = true;
+    holder.add(over);
   }
   return holder;
 }
 
-/** Das Material, an dem der erste Baukasten sein Gerät vom Möbel trennte. */
-const UTENSIL_MATERIAL = 'Kitchen_Utensils';
-
-/** Ob dieses Netz zu dem gehört, was auf einem Möbel steht. */
-function isUtensil(object: THREE.Object3D): boolean {
-  const mesh = object as THREE.Mesh;
-  if (!mesh.isMesh) return false;
-  const material = mesh.material as THREE.Material | THREE.Material[];
-  const one = Array.isArray(material) ? material[0] : material;
-  return one?.name === UTENSIL_MATERIAL;
+/**
+ * **Einen Aufsatz auf eine Fläche setzen** — mit seiner **Unterkante**, nicht
+ * mit seinem Ursprung.
+ *
+ * Der erste Anlauf schrieb `over.position.y = at` und war damit bei jedem
+ * Netz falsch, das seinen Ursprung nicht auf seinem Boden hat. Topf und Deckel
+ * haben ihn dort; die **Pfanne** nicht — sie trägt in ihren Eckpunkten noch
+ * die 0,55 m des Herds, auf dem sie in ihrer alten Datei stand, und um 0,60
+ * verschoben schwebte sie einen halben Meter über dem Rost.
+ *
+ * Nachgemessen statt vorausgesetzt: Die Hülle sagt, wo der Aufsatz unten
+ * aufhört, und genau diese Kante kommt auf `at`. Beim Messer ist das sogar
+ * gewollt **unter** der Fläche (`kitchenFit`, `board`) — dann steckt es darin.
+ */
+function lay(over: THREE.Object3D, at: number): void {
+  over.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(over);
+  over.position.y += at - box.min.y;
 }
 
 /** Den Ursprung einer abgenommenen Gruppe auf ihren eigenen Boden setzen. */
@@ -147,40 +156,19 @@ function stand(loose: THREE.Object3D): THREE.Object3D {
  * **Was sich von diesem Möbel herunternehmen lässt** — Topf, Pfanne,
  * Feuerlöscher —, ausgehängt und auf den eigenen Fuß gestellt.
  *
- * Zwei Wege, und der erste ist der neue: Was der Katalog als `over` aufgesetzt
- * hat, trägt eine Marke und wird einfach ausgehängt. Der zweite ist der alte
- * Materialschnitt, und er ist nur noch für **ein** Möbel da — den
- * Feuerlöscher, der in seiner Datei mit seinem Hocker in einem Knoten steckt.
+ * Eine Zeile Suche und nicht mehr: Was der Katalog als obersten `over`
+ * aufgesetzt hat, trägt eine Marke (`kitchenModel`). **Der Materialschnitt ist
+ * weg** — der alte Lader erriet das Gerät am Materialnamen
+ * (`Kitchen_Utensils`), weil der erste Baukasten Möbel und Gerät in **einem**
+ * Knoten lieferte. Seit auch der Feuerlöscher seinen Hocker verloren hat
+ * (`tools/kitchen-model.mjs`, `LOOSE`), gibt es kein solches Möbel mehr.
  *
- * Wer das Gerät nimmt, lässt das Möbel stehen: den leeren Herd, den leeren
- * Hocker. Genau dafür sind sie getrennt.
+ * Wer das Gerät nimmt, lässt das Möbel stehen: den leeren Herd, die leere
+ * Arbeitsplatte. Genau dafür sind sie getrennt.
  */
 export function takeUtensil(model: THREE.Object3D): THREE.Object3D | null {
   const marked = model.children.find((child) => child.userData.loose === true);
-  if (marked) {
-    marked.removeFromParent();
-    return stand(marked);
-  }
-
-  const parts: THREE.Mesh[] = [];
-  model.traverse((object) => {
-    if (isUtensil(object)) parts.push(object as THREE.Mesh);
-  });
-  const part = parts[0];
-  if (!part) return null;
-  if (!part.geometry.boundingBox) part.geometry.computeBoundingBox();
-  const bounds = part.geometry.boundingBox!;
-  const centre = bounds.getCenter(new THREE.Vector3());
-  const loose = new THREE.Group();
-  loose.name = `${part.name || 'utensil'}-lose`;
-  // Der Maßstab des Möbels, aus dem es kommt — ein Löscher, der beim Umhängen
-  // auf die doppelte Größe zurückspränge, wäre ein Löscher, den niemand hält.
-  loose.scale.setScalar(KITCHEN_SCALE);
-  part.removeFromParent();
-  part.position.set(-centre.x, -bounds.min.y, -centre.z);
-  part.rotation.set(0, 0, 0);
-  part.scale.set(1, 1, 1);
-  part.castShadow = true;
-  loose.add(part);
-  return loose;
+  if (!marked) return null;
+  marked.removeFromParent();
+  return stand(marked);
 }

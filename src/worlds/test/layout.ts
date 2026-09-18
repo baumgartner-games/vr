@@ -36,7 +36,7 @@ export const LEVELS: readonly number[] = [0, STOREY];
  * portalfähige Bodenkacheln hießen, dass ein Bodenportal nebenbei die Wand
  * gegenüber aufmacht. Also genau eine Fläche je Welt, und das ist diese.
  */
-export const FIELD: NavRect = { x: -27, z: -59, w: 73, d: 105 };
+export const FIELD: NavRect = { x: -27, z: -59, w: 77, d: 105 };
 
 /**
  * **Die Farben des Bodens draußen** — grau und weiß im Wechsel, ein Meter je
@@ -119,11 +119,17 @@ export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
  * ehrlichere Buchhaltung: Der Katalog ist gewachsen, also wächst der Raum, der
  * ihn zeigt.
  *
+ * **Und zuletzt um vier**, als die vier Vorratskisten dazukamen
+ * (`core/kitchenFit.SUPPLY_CRATES`). Dieselbe Buchhaltung, nur viermal — und
+ * sie stehen im Schauraum nebeneinander statt auf vier Reihen verteilt: Sie
+ * sind eine Familie, sie stehen auch in der Küche in einer Reihe, und ein
+ * Regal mit vier Kisten liest sich als eines.
+ *
  * Hinter dem Podest und nicht neben dem Schießstand: Dessen Bahnen laufen
  * quer über den ganzen Osten bis zum Kugelfang (`zones/range.ts`, `BERM`), und
  * eine Küche in der Schusslinie ist eine Küche mit Löchern.
  */
-export const KITCHEN: NavRect = { x: 12, z: -31, w: 33, d: 11 };
+export const KITCHEN: NavRect = { x: 12, z: -31, w: 37, d: 11 };
 
 /**
  * **Die zweite Küche** — ein Restaurant aus einem zweiten Möbelkatalog, ganz

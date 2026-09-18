@@ -5,6 +5,7 @@ import {
   PAN_BOWL,
   SINK_BOWL,
   SINK_SUNK,
+  HOB_TOP,
   SINK_TRAY,
   kitchenDeck,
   kitchenPiece,
@@ -16,7 +17,7 @@ import { dinerPiece } from './dinerFit';
  * **Die Maße der eigenen Quelldatei**, in Metern und ungeteilt — abgelesen an
  * `public/models/kitchen.glb` (Breite, Höhe, Tiefe je Knoten).
  *
- * **Vier Zeilen, nicht mehr.** Seit dem Umbau kommen zehn der zweiundzwanzig
+ * **Drei Zeilen, nicht mehr.** Seit dem Umbau kommen fünfzehn der sechsundzwanzig
  * Katalogstücke aus dem **zweiten** Baukasten (`KitchenPiece.base`), und die
  * misst niemand hier nach: Ihre Maße stehen in `core/dinerFit.ts`, geschrieben
  * vom Werkzeug, das sie aufbereitet hat. Eine zweite Tabelle daneben wäre die,
@@ -24,13 +25,15 @@ import { dinerPiece } from './dinerFit';
  * anderen Katalog und nicht gegen abgeschriebene Zahlen
  * (_nimmt die Maße der neuen Möbel aus dem zweiten Katalog_).
  *
- * Was hier steht, sind die Knoten, die in der eigenen Datei geblieben sind:
- * Feuerlöscher, Mülleimer, Ausgabetheke und Ausgaberegal. Die **Pfanne** ist
- * der fünfte Knoten und steht trotzdem nicht darin — sie ist kein Möbel,
- * sondern das Gerät auf einem (`stove-pan.over`).
+ * Was hier steht, sind die Möbel, deren Knoten in der eigenen Datei geblieben
+ * sind: Mülleimer, Ausgabetheke und Ausgaberegal. Zwei Knoten liegen dort
+ * außerdem und stehen trotzdem nicht in dieser Tabelle — **Pfanne** und
+ * **Feuerlöscher**: Beides sind keine Möbel, sondern Geräte auf einem
+ * (`stove-pan.over`, `extinguisher.over`). Der Löscher stand hier, solange er
+ * seinen eigenen Hocker mitbrachte; der ist weg, und er steht seitdem auf
+ * einer Arbeitsplatte wie die Pfanne auf einem Herd.
  */
 const SOURCE: Readonly<Record<string, readonly [number, number, number]>> = {
-  extinguisher: [2, 2.5, 2],
   bin: [2, 0.9, 2],
   pass: [4, 1.06, 2],
   'plate-rack': [4, 1.13, 1.93],
@@ -124,10 +127,15 @@ describe('der Möbelkatalog', () => {
     const based = KITCHEN_PIECES.filter((piece) => piece.base);
     expect(based.map((piece) => piece.name)).toEqual([
       'plate-counter',
+      'extinguisher',
       'sink-basin',
       'sink-drain',
       'table',
       'serve-counter',
+      'crate-buns',
+      'crate-patty',
+      'crate-lettuce',
+      'crate-tomatoes',
       'board',
       'counter',
       'stove',
@@ -158,13 +166,15 @@ describe('der Möbelkatalog', () => {
         });
         continue;
       }
-      // Mit Aufsatz: Der steht auf dem Sockel und nicht darin, und das Möbel
-      // reicht mindestens so weit wie sein Aufsatz anfängt.
-      expect({ name: piece.name, on: piece.over.at <= base!.height + 1e-9 }).toEqual({
+      // Mit Aufsatz: Der erste steht auf dem Sockel und nicht darüber, und das
+      // Möbel reicht über den letzten hinaus.
+      const first = piece.over[0]!;
+      const last = piece.over[piece.over.length - 1]!;
+      expect({ name: piece.name, on: first.at <= base!.height + 1e-9 }).toEqual({
         name: piece.name,
         on: true,
       });
-      expect({ name: piece.name, over: piece.height > piece.over.at }).toEqual({
+      expect({ name: piece.name, over: piece.height > last.at }).toEqual({
         name: piece.name,
         over: true,
       });
@@ -271,7 +281,7 @@ describe('der Möbelkatalog', () => {
     // Ohne eigenen Eintrag ist die Oberkante die Arbeitsfläche.
     expect(kitchenDeck(kitchenPiece('counter')!)).toBe(kitchenPiece('counter')!.height);
     // Und mit: der Herd, nicht der Topfdeckel.
-    expect(kitchenDeck(kitchenPiece('stove-pot')!)).toBe(0.6);
+    expect(kitchenDeck(kitchenPiece('stove-pot')!)).toBe(HOB_TOP);
   });
 
   /**
@@ -322,20 +332,20 @@ describe('der Möbelkatalog', () => {
   it('legt die Schnittfläche auf das Brett und nicht auf den Tisch', () => {
     const board = kitchenPiece('board')!;
     const counter = kitchenPiece('counter')!;
-    expect(board.base?.node).toBe('kitchentable_B');
-    expect(board.over?.node).toBe('cuttingboard');
+    expect(board.base?.node).toBe('kitchencounter_straight_A');
+    expect(board.over?.map((step) => step.node)).toEqual(['cuttingboard', 'knife']);
     // Das Brett liegt auf der Tischplatte, und die liegt auf Zeilenhöhe.
-    expect(board.over!.at).toBeCloseTo(counter.height, 6);
-    // Und die Schnittfläche ist die Oberkante des Bretts — hier fällt beides
-    // zusammen, denn über dem Brett liegt nichts mehr.
-    expect(kitchenDeck(board)).toBe(board.height);
+    expect(board.over![0]!.at).toBeCloseTo(counter.height, 6);
+    // Die Schnittfläche ist die Oberkante des Bretts — und die Oberkante des
+    // **Möbels** ist seitdem das Messer, das darin steckt.
     expect(kitchenDeck(board) - counter.height).toBeCloseTo(0.075, 3);
+    expect(board.height).toBeGreaterThan(kitchenDeck(board));
   });
 
   /**
    * **Die Zeile bleibt eine Platte** — bis auf das Brett, und das mit Absicht.
    *
-   * Küchenzeile, Arbeitstisch, Tellerausgabe, Ausgabe und Löscherhocker legen
+   * Küchenzeile, Arbeitstisch, Tellerausgabe, Ausgabe und Löscherplatte legen
    * ihre Arbeitsfläche auf **einen halben Meter**: Wer daran entlanggeht,
    * schiebt etwas über eine durchgehende Fläche und hebt es nicht alle zwei
    * Kacheln über eine Stufe. Ein halber Meter ist zugleich die Zahl, die zum
@@ -354,12 +364,14 @@ describe('der Möbelkatalog', () => {
         top: (0.5).toFixed(3),
       });
     }
-    // Das Brett liegt eine Brettdicke darüber, die Herde auf ihrem Rost.
+    // Das Brett liegt eine Brettdicke darüber, die Herde auf ihrem Rost — und
+    // dessen Höhe ist nicht gerundet, sondern am Netz gemessen (`HOB_TOP`).
     expect(kitchenWorkHeight(kitchenPiece('board')!)).toBeCloseTo(0.575, 3);
-    for (const name of ['stove', 'stove-pot', 'stove-pan']) {
-      expect({ name, top: kitchenWorkHeight(kitchenPiece(name)!).toFixed(3) }).toEqual({
+    expect(HOB_TOP).toBeCloseTo(dinerPiece('stove_single')!.height, 6);
+    for (const name of ['stove', 'stove-pot', 'stove-pan', 'griddle']) {
+      expect({ name, top: kitchenWorkHeight(kitchenPiece(name)!).toFixed(4) }).toEqual({
         name,
-        top: (0.6).toFixed(3),
+        top: HOB_TOP.toFixed(4),
       });
     }
   });
@@ -470,7 +482,7 @@ describe('die Spüle', () => {
   });
 
   it('stellt die sauberen Teller in ein Gitter über der Zeile', () => {
-    expect(drain.over).toEqual({ file: 'diner', node: 'dishrack', at: 0.5 });
+    expect(drain.over).toEqual([{ file: 'diner', node: 'dishrack', at: 0.5 }]);
     expect(kitchenDeck(drain)).toBe(SINK_TRAY.floor);
     // Der Gitterboden liegt 2,5 cm über der Zeile — flach genug, dass ein
     // Teller darin liegt und nicht darüber schwebt.

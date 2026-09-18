@@ -2228,7 +2228,8 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     um jeden Bildpunkt streiten. Im Westen die
     Küche selbst — Zeile, zwei Herde, **Spülbecken und Abtropfbrett** und die
     Tellerausgabe an der Wand, vier
-    Zutatenausgaben an der Westwand, eine Insel aus Schneidebrett und
+    **Vorratskisten** an der Westwand — je eine für Brötchen, Patty, Salat und
+    Tomate, offen und mit ihrer Zutat darin —, eine Insel aus Schneidebrett und
     Mülleimer, **zwei Bandbahnen** quer durch den Raum — vier Förderbänder
     (blau) und vier Zugbänder (orange), die sich von selbst holen, was auf der
     Kachel dahinter liegt —, vorn die Ausgabetheke
@@ -2246,11 +2247,13 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     (zieht nur, was es gelernt hat) und **Kombinierer** (legt zusammen, was auf
     ihm liegt, mit dem, was von der Pfeilseite kommt). Die anderen zwei Spalten
     bleiben leer: Genau dafür ist die Halle da. Im Osten der
-    **Schauraum**: jedes der zweiundzwanzig Möbel noch einmal, frei stehend und mit
+    **Schauraum**: jedes der sechsundzwanzig Möbel noch einmal, frei stehend und mit
     einer Tafel daneben, auf der sein Name und sein Maß stehen — bis auf die
-    beiden Hälften der Spüle, die dort **nebeneinander** stehen: Ihre
+    beiden Hälften der Spüle, die dort **nebeneinander** stehen (ihre
     Schnittflächen sind offen, und auf Lücke gestellt sähe man in zwei
-    aufgesägte Schränke. In einer Zeile
+    aufgesägte Schränke), und die vier **Vorratskisten**, die dort wie an der
+    Westwand in einer Reihe stehen: Sie sind eine Familie, und
+    auseinandergezogen sähe man vier Einzelstücke statt eines Regals. In einer Zeile
     aus acht Schränken sieht man ein einzelnes Möbel nicht; der Katalog ist
     damit ein Rundgang statt einer Liste. **Das Schild steht dabei unten an der
     Vorderkante der Kachel** und nicht mehr über dem Möbel
@@ -2280,7 +2283,7 @@ im Spiel also zwei Kacheln —, und in eine
     hinge derselbe Aushang für diesen Blick hochkant.
   - **Zweite Küche** (ganz oben im Norden, über der ersten): neunundsechzig mal
     vierundzwanzig Kacheln aus einem **zweiten** Möbelkatalog
-    (`core/dinerFit.ts`, 146 Stücke aus _Restaurant Bits_, CC0 — siehe
+    (`core/dinerFit.ts`, 156 Stücke aus _Restaurant Bits_, CC0 — siehe
     _Modelle im Repository_), und zwar in denselben zwei Hälften wie die erste:
     **vorn das Restaurant**, dahinter der **Schauraum**.
 
@@ -2289,7 +2292,7 @@ im Spiel also zwei Kacheln —, und in eine
     Hängeschränke und zwei Abzugshauben, davor die Insel aus Arbeits- und
     Spültischen, an der Westwand der Vorrat in Kisten, quer davor die
     Durchreiche und dahinter sechs Gästetische mit Stühlen. Im Schauraum steht
-    **jedes der 146 Stücke einmal einzeln**, mit einer Tafel daneben, auf der
+    **jedes der 156 Stücke einmal einzeln**, mit einer Tafel daneben, auf der
     sein Name und sein **gemessenes Maß** stehen — nicht seine Kachelzahl: Wer
     entscheiden soll, ob ein Stück brauchbar ist, will wissen, dass eine
     Küchenzeile 1,00 × 1,02 m misst, und nicht, dass sie auf eine Kachel
@@ -2307,7 +2310,7 @@ im Spiel also zwei Kacheln —, und in eine
     die es aufnimmt.
 
     **Und sie steht in neun Netzen da**, obwohl viermal so viele Stücke darin
-    stehen wie in der ersten. Alle 146 teilen sich **ein** Material und
+    stehen wie in der ersten. Alle 156 teilen sich **ein** Material und
     **eine** Textur —
     die Quelle ist ein Baukasten auf einem Farbstreifen-Atlas —, und damit
     lässt sich zusammenfassen, was die erste Küche nur einzeln zeichnen kann:
@@ -2324,7 +2327,7 @@ im Spiel also zwei Kacheln —, und in eine
     nicht so machen (`kitchenCarry.ts`, `kitchenBuild.ts`).
 
     **Dafür ist das Gelände noch einmal nach Norden gewachsen** (`FIELD` von 80
-    auf 105 m tief): Ein Schauraum aus 146 Stücken mit einer Kachel Luft
+    auf 105 m tief): Ein Schauraum aus 156 Stücken mit einer Kachel Luft
     dazwischen braucht acht Reihen auf vierundvierzig Kacheln Breite, und die
     passen in die elf Kacheln Tiefe der Nordzeile nicht. Nach Norden, weil dort
     nichts liegt, was ausweichen müsste — und weil die beiden Küchen so
@@ -6113,7 +6116,7 @@ Ein Modell ändert sich nicht, und `@gltf-transform`, `sharp` und
 `meshoptimizer` gehören nicht in die Abhängigkeiten eines Spiels, das sie nie
 ausführt (`npm install --no-save` beim Aufbereiten).
 
-#### Der zweite Katalog: 146 Stücke, ein Material, eine Textur
+#### Der zweite Katalog: 156 Stücke, ein Material, eine Textur
 
 `diner.glb` kommt aus _Restaurant Bits_ von Kenney (CC0) und ist in jeder
 Hinsicht das **Gegenteil** der Quelle der ersten Küche. Die ist ein aufgebautes
@@ -6138,7 +6141,7 @@ Vier Dinge sind daran wichtig genug, um sie hier zu nennen:
   (das ungerundete Maß).
 - **Der Katalog ist geschrieben und nicht getippt.**
   `node tools/diner-model.mjs --in=… --list --fit=src/core/dinerFit.ts` ersetzt
-  die Liste in der Datei; von Hand gepflegt wird dort nichts. 146 nachgemessene
+  die Liste in der Datei; von Hand gepflegt wird dort nichts. 156 nachgemessene
   Hüllen sind keine Liste, die jemand pflegt, ohne sich zu vertun — und der
   erste Anlauf des Schreibers bewies das gleich selbst: Er rechnete das Ende
   des Blocks mit `indexOf(…) + Länge` aus und schrieb bei `-1` ab Zeichen drei
@@ -6150,15 +6153,27 @@ Vier Dinge sind daran wichtig genug, um sie hier zu nennen:
   Küchenzeile kommt damit auf 0,50 m Arbeitshöhe — auf den Zentimeter die Zahl,
   mit der die Zeile der ersten Küche dasteht. Ein Jest-Test hält genau das
   fest.
-- **Ausgesiebt wird das Essen.** 79 der 225 Stücke bleiben draußen: die
-  `food_*` und das Eis-Zubehör. Diese Küche baut ihr Essen selbst
-  (`zones/kitchenProps.ts`), und 39 000 Dreiecke für Zutaten neben einem
-  fertigen Zutatensatz sind keine Ersparnis, sondern eine zweite Wahrheit. Der
-  Katalog beschreibt, was in der Küche **steht**, nicht, was gekauft wurde —
-  derselbe Satz wie beim ersten, nur andersherum angewendet.
+- **Ausgesiebt wird das Essen — bis auf zehn Zutaten.** 69 der 225 Stücke
+  bleiben draußen: Pizzen, Eintöpfe, das Eis-Zubehör und dreißig Zutaten, für
+  die es kein Rezept gibt. **Zehn kommen mit** (`KEEP_FOOD`), und sie sind
+  genau das, was ein Rezept braucht: Brötchen ganz, als Boden und als Deckel,
+  das Patty roh, gebraten und verbrannt, Salat und Tomate je ganz und
+  geschnitten. Zusammen 2 978 Dreiecke.
 
-**Und sie ist gepackt.** 146 Möbel sind roh 3,1 MB; mit quantisierter Geometrie
-und `EXT_meshopt_compression` sind es 1,07 MB, die Textur eingerechnet. Die
+  Das war einmal anders, und der alte Satz stand an dieser Stelle: „Diese
+  Küche baut ihr Essen selbst." Sie tat es aus Zylindern und Kugeln
+  (`zones/kitchenProps.ts`), weil es nichts Besseres gab, und in der Datei
+  stand seit dem ersten Tag der Satz, dass ein Zutatensatz „genau diese Klasse
+  ersetzt", sobald einer da ist. Er ist da. Gebaut bleiben vier Dinge, und
+  jedes aus eigenem Grund: der **Teller** und der **dreckige Teller** (an
+  ihnen hängen Stapel, Verdrehwinkel, Reste und die Maße, mit denen die Spüle
+  rechnet), die **Tomatensuppe** (was der Baukasten dafür hätte, ist
+  Pizzasoße — eine Pfütze von 78 cm, breiter als der ganze Teller) und das
+  **Wasser im Topf** (kein Gegenstand, sondern ein Spiegel in einem Gefäß).
+
+**Und sie ist gepackt.** 156 Stücke sind roh 3,2 MB; mit quantisierter
+Geometrie und `EXT_meshopt_compression` sind es 1,1 MB, die Textur
+eingerechnet. Die
 bleibt dabei **in voller Größe** — anders als beim ersten Katalog, wo 2048er
 PNGs auf 512 geschrumpft wurden: Dort ist die Textur eine Zeichnung, hier eine
 Farbtafel aus zweiunddreißig Feldern, und jede Verkleinerung rückt deren
@@ -6178,15 +6193,17 @@ Küche und aus demselben Grund: Rechnung getrennt von Darstellung.
 
 Der zweite Baukasten war als **Auslage** gebaut worden — hinstellen, ansehen,
 entscheiden, was brauchbar ist. Die Antwort auf diese Frage war: fast alles.
-Von den zweiundzwanzig Stücken des ersten Katalogs stehen seitdem **zehn** auf
-Netzen aus `diner.glb`, und `kitchen.glb` ist von dreizehn Knoten auf **fünf**
-zusammengeschrumpft (480 → 242 KB).
+Von den sechsundzwanzig Stücken des ersten Katalogs stehen seitdem **fünfzehn**
+auf Netzen aus `diner.glb`, und `kitchen.glb` ist von dreizehn Knoten auf
+**fünf** zusammengeschrumpft (480 → 233 KB). Vier der fünfzehn sind gar nicht
+umgezogen, sondern **dazugekommen**: die Vorratskisten, die es in der ersten
+Quelle nie gab.
 
 **Was geblieben ist und warum:**
 
 | Knoten | Grund |
 | --- | --- |
-| `extinguisher` | Hocker **und** Löscher in einem Knoten; der Löscher ist ein getragenes Gerät (`kitchenGrab.ts`). |
+| `extinguisher` | **Nur noch der Löscher**, ohne seinen Hocker: Er ist ein getragenes Gerät (`kitchenGrab.ts`) und steht seitdem auf einer Arbeitsplatte wie die Pfanne auf einem Herd. |
 | `bin` | Der Mülleimer — im zweiten Baukasten gibt es keinen. |
 | `pass` | Die Ausgabetheke, zwei Kacheln breit. |
 | `plate-rack` | Das Ausgaberegal darüber. |
@@ -6207,12 +6224,18 @@ den Tausch deshalb unverändert überstanden.
 **Zwei neue Felder, und eines abgeschafft:**
 
 - **`base`** — der Sockel: Datei und Knoten (`{ file: 'diner', node: … }`).
-- **`over`** — was daraufsteht, mit der Höhe, auf der es steht: das Brett auf
-  dem Tisch, der Topf auf dem Herd, das Abtropfgitter auf der Zeile, der
-  Deckel auf der Zutatenkiste. Der erste Baukasten lieferte solche Paare als
-  **ein** Netz mit zwei Materialien, und der Lader schnitt sie am Material
-  wieder auseinander; der zweite liefert zwei Knoten, und der Katalog sagt
-  ausdrücklich, welcher obendrauf gehört.
+- **`over`** — eine **Liste** dessen, was daraufsteht, je mit der Höhe, auf der
+  es steht: das Brett auf der Zeile **und das Messer darin**, der Topf auf dem
+  Herd, das Abtropfgitter auf der Zeile, der Löscher auf der Platte, der Deckel
+  auf der Ausgabekiste. Der erste Baukasten lieferte solche Paare als **ein**
+  Netz mit zwei Materialien, und der Lader schnitt sie am Material wieder
+  auseinander; der zweite liefert zwei Knoten, und der Katalog sagt
+  ausdrücklich, welcher obendrauf gehört. **Aufgesetzt wird mit der Unterkante**
+  (`kitchenModel.lay`) und nicht mit dem Ursprung: Die Pfanne trägt in ihren
+  Eckpunkten noch die Höhe des Herds, auf dem sie in ihrer alten Datei stand,
+  und um 0,60 verschoben schwebte sie einen halben Meter über dem Rost. Beim
+  **Messer** ist die Unterkante sogar mit Absicht 10,5 cm **unter** der
+  Brettoberfläche — dann steckt es darin statt darauf.
 - **`align` und `bury` haben keinen Fall mehr.** Beide glichen aus, was der
   erste Baukasten schief lieferte — der Türgriff, der die Zeile um 3,07 cm
   verschob, die Herde, die 8 cm hinter sie zurücksprangen, das Brett, das um
@@ -6240,9 +6263,10 @@ die man im Spiel sieht:
   flach darin statt schräg. Keine Sonderregel, dieselbe Formel — sie bekommt
   nur andere Zahlen.
 
-**Der Küchenkatalog** (`core/kitchenFit.ts`) hat zweiundzwanzig Möbel:
+**Der Küchenkatalog** (`core/kitchenFit.ts`) hat sechsundzwanzig Möbel:
 Tellerausgabe, Feuerlöscher, **Spülbecken**, **Abtropfbrett**, Mülleimer,
-Arbeitstisch, Ausgabe, Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile,
+Arbeitstisch, Ausgabe, die vier **Vorratskisten** (Brötchen, Patty, Salat,
+Tomate), Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile,
 Herd, Herd mit Topf, Herd mit Pfanne — und das **Förderband**, das **Zugband**,
 das **Filterband**, den **Kombinierer**, den **Mixer**, die **sichere
 Kochstelle**, den **Computer-Tisch**
@@ -7136,9 +7160,10 @@ Und das sind die Regeln, die darin stehen:
   dort anfangen, wo die Küche aufhört. Nach Süden ging es nicht — dort liegt
   das Podest. Die Halle hat **keine eigene Wand und keine eigene Tür**: Sie
   ist die Küche, nur größer; ab z = 4 geht man geradeaus hinüber. Mit der
-  sicheren Kochstelle ist noch **eine** Kachel dazugekommen (`layout.KITCHEN`
-  ist 33 breit und `FIELD` entsprechend 73): Die Herdreihe des Schauraums war
-  bis zur Ostwand belegt, und ein zweiundzwanzigstes Möbel braucht einen Platz
+  sicheren Kochstelle ist noch **eine** Kachel dazugekommen und mit den vier
+  Vorratskisten noch **vier** (`layout.KITCHEN` ist seitdem 37 breit und
+  `FIELD` entsprechend 77): Die vier Reihen des Schauraums waren bis zur
+  Ostwand belegt, und ein weiteres Möbel braucht einen Platz
   neben seinesgleichen und nicht in der nächsten Reihe. Darin steht
   eine **Burgerstraße**, die vorn vier Vorratskisten hat und hinten einen
   **Burger Deluxe** (`kitchenRecipes.RECIPES`: Brötchen, gebratenes Patty,
@@ -7549,7 +7574,7 @@ Und das sind die Regeln, die darin stehen:
   - **Wer ein Möbel trägt, legt es links als Miniatur ab** (`layOnPlate`) — und
     es bleibt **dasselbe** Möbel, nur klein, nicht seine Nachbildung. Klein
     heißt hier ein **Drittel** (`MINI_SCALE`) und damit eine andere Zahl als im
-    Katalog, weil die Frage eine andere ist: Dort geht es darum, zweiundzwanzig
+    Katalog, weil die Frage eine andere ist: Dort geht es darum, sechsundzwanzig
     Möbel nebeneinanderzustellen, hier darum, eines auf eine Kachel zu stellen. Ein
     Faktor und kein gerechnetes Maß — so bleibt der Größenunterschied zwischen
     Mülleimer und Ausgabetheke auf der Platte sichtbar, und man sieht der
@@ -7756,7 +7781,7 @@ räumen das ab:
 - **Ein Schild vor jedem Stück**, unten an der zur Mitte zeigenden Kante
   (`shared/showPlate.ts`, dieselbe Tafel wie in den beiden Schauräumen). Bis
   dahin stand der Name nur in `usePrompt` — und den zeigt seit dem Umbau der
-  Bedienung niemand mehr an (`core/usable.ts`): Wer vor zweiundzwanzig
+  Bedienung niemand mehr an (`core/usable.ts`): Wer vor sechsundzwanzig
   Miniaturen stand, musste raten, welche davon das Filterband ist.
 
 **Und der Katalog zeigt den Katalog.** Vorher stand vor der Schleife ein Filter
@@ -7904,7 +7929,7 @@ Kacheln genau vor, hinter, links und rechts vom Anker bleiben leer, und damit
 bleiben vier Gassen offen, durch die man von der Mitte aus bis nach draußen
 sieht. Zwanzig Stücke fasst dieser Ring — genug für die siebzehn Kleidungsstücke
 dieses Projekts, und seit der Werkhalle **nicht** mehr für den Möbelkatalog:
-Der hat zweiundzwanzig Stücke, und die beiden letzten gehen in den nächsten Ring
+Der hat sechsundzwanzig Stücke, und die letzten sechs gehen in den nächsten Ring
 **zwei** Kacheln weiter draußen. Ein Ring direkt hinter dem anderen stünde in
 dessen Lücken und wäre von der Mitte aus halb verdeckt. Reicht
 der ausgelieferte Boden dafür nicht, wächst **der Boden** (`floorTilesFor`) und
