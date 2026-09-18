@@ -448,6 +448,33 @@ export function kitchenHandles(
 }
 
 /**
+ * **Wie ein getragenes Ding vor dem Bauch steht** — der Gierwinkel, der seine
+ * eigene Vorderseite nach vorn dreht (`-z`, die Blickrichtung des Gestells).
+ *
+ * Für fast alles ist das null: Ein Teller hat keine Vorderseite, ein Brötchen
+ * auch nicht, und die Pfanne liegt mit ihrem Stiel ohnehin quer, wie man sie
+ * trägt. **Der Feuerlöscher hat eine**, und sie ist die Düse.
+ *
+ * Das war der gemeldete Fehler, und er war nur von oben zu sehen: In der
+ * Brille liegt der Löscher in der **Faust**, und dort dreht ihn sein Griff
+ * schon richtig herum (`extinguisherNeck` mit `NOZZLE_AHEAD`). Vor dem Bauch
+ * gibt es keinen Griff — das Ding hängt ungedreht am Gestell
+ * (`zones/kitchen.backToBelly`) —, und ungedreht zeigt die Düse im Netz nach
+ * **+x**, also quer zur Figur. Der Strahl ging trotzdem nach vorn
+ * (`kitchen.spray` rechnet mit der Blickrichtung und nicht mit dem Netz): Man
+ * hielt einen Löscher, der zur Seite zeigte, und löschte damit geradeaus.
+ *
+ * **Gerechnet und nicht geschrieben**: Der Winkel kommt aus derselben
+ * Richtung, aus der auch der Griff seine Vorderseite nimmt. Stünde eines Tages
+ * ein anderes Netz in der Datei, änderte sich beides zusammen — ein
+ * hingeschriebenes `Math.PI / 2` änderte sich nur einmal.
+ */
+export function kitchenCarryTurn(item: KitchenItem): number {
+  if (item !== 'extinguisher') return 0;
+  return Math.atan2(NOZZLE_AHEAD.x, -NOZZLE_AHEAD.z);
+}
+
+/**
  * **Was ein Küchending über das Greifen sagt** — Griffe und Reichweite in
  * einem, so wie `InteractionSpec.grab` es haben will.
  */

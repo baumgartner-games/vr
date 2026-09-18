@@ -320,11 +320,34 @@ describe('Der A-Knopf in der Brille', () => {
     expect(player.takeUse()).toBe(false);
   });
 
+  /**
+   * **Und was die Figur _trägt_, hat denselben Vorrang** (`useBusy`).
+   *
+   * Der Feuerlöscher hört von oben und am Schirm auf denselben Knopf; ohne
+   * diese Auskunft ging er an, **und** die Figur hüpfte dazu. Ein Knopf, zwei
+   * Wirkungen auf einmal — genau der Fehler, gegen den schon `useCandidate`
+   * steht, nur mit dem Getragenen statt dem Danebenstehenden.
+   */
+  it('springt nicht, solange der Knopf dem Getragenen gehört', () => {
+    const player = rig();
+    const { input } = pressedInput();
+    let jumped = false;
+    player.locomotion = { apply: (_rig, _intent, jump) => void (jumped = jump) };
+    player.useBusy = true;
+
+    player.update(1 / 60, input, true);
+    expect(jumped).toBe(false);
+    // Und benutzt wird auch nichts: Es steht ja nichts da.
+    expect(player.takeUse()).toBe(false);
+  });
+
   it('vergisst die Auskunft beim Aufstehen — sie gehört der Welt von eben', () => {
     const player = rig();
     player.useCandidate = true;
+    player.useBusy = true;
     player.standUp();
     expect(player.useCandidate).toBe(false);
+    expect(player.useBusy).toBe(false);
   });
 });
 

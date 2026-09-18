@@ -63,6 +63,7 @@ import {
 import { DIRTY_STACK_MAX, FoodKit, SINK_TILT, WATER_LOOK } from './kitchenProps';
 import {
   KITCHEN_STATION_GRAB,
+  kitchenCarryTurn,
   kitchenGrab,
   kitchenHandles,
   kitchenPieceGrab,
@@ -159,6 +160,7 @@ import {
   advanceDouse,
   douseProgress,
   inSpray,
+  sprayClaimsUse,
   sprayOn,
   type DouseState,
 } from './kitchenSpray';
@@ -1956,6 +1958,13 @@ export class KitchenZone implements TestZone {
     const pressed = (trigger && !this.triggerWas) || (useFree && !this.useWas);
     this.triggerWas = trigger;
     this.useWas = useFree;
+    // **Und damit gehört `A` dem Löscher und nicht dem Sprung**
+    // (`core/PlayerRig.useBusy`). Ohne diese Zeile tat der Knopf zwei Dinge auf
+    // einmal: Der Löscher ging an, und die Figur hüpfte dazu — gemeldet aus dem
+    // Spiel, und von oben auch genau so zu sehen. Wann er vergeben ist, steht
+    // in der Regel nebenan (`kitchenSpray.sprayClaimsUse`) und wird dort
+    // nachgerechnet; hier steht nur, wer gefragt wird.
+    ctx.rig.useBusy = sprayClaimsUse(carrying, ctx.renderer.xr.isPresenting);
     this.spraying = sprayOn(this.spraying, {
       pressed,
       held: pulled,
@@ -2347,12 +2356,18 @@ export class KitchenZone implements TestZone {
    * wegfällt: Das Ding hängt dann am Controller, und dort bleibt es, wenn
    * niemand es zurückholt. Ein getragenes **Möbel** fasst das nicht an — es
    * hängt ohnehin am Rig und trägt seine eigene Drehung (`aimHeld`).
+   *
+   * **Und es steht dabei nach vorn** (`kitchenGrab.kitchenCarryTurn`). Für
+   * alles, was keine Vorderseite hat, ist das die Null von vorher; der
+   * **Feuerlöscher** hat eine, und ungedreht zeigte seine Düse quer zur Figur,
+   * während der Strahl geradeaus ging. Die Vierteldrehung steht dort, wo auch
+   * der Griff in der Faust seine Richtung hernimmt, und nicht hier.
    */
   private backToBelly(thing: Carried | null): void {
     if (!thing) return;
     const object = thing.object;
     if (object.parent !== this.rig) this.rig?.add(object);
-    object.quaternion.identity();
+    object.rotation.set(0, kitchenCarryTurn(thing.dish.item), 0);
   }
 
   /**
@@ -2824,6 +2839,10 @@ export class KitchenZone implements TestZone {
     this.ghostLive = false;
     this.editing = false;
     this.spraying = false;
+    // **Und der Benutzen-Knopf gehört wieder dem Sprung** (`PlayerRig.useBusy`):
+    // Er hängt am Gestell und nicht an der Zone, und ein Knopf, den eine Küche
+    // mitnimmt, ist ein Spieler, der in der nächsten Welt nicht mehr hüpft.
+    if (this.rig) this.rig.useBusy = false;
     this.ticket = null;
     this.ticketLeft = 0;
     this.beltNow = null;
@@ -4025,7 +4044,22 @@ export class KitchenZone implements TestZone {
         break;
       }
       case 'combine': {
+        // **Was vorher in der Hand lag** — gemerkt, bevor `merge` es
+        // umbaut. Es ist die einzige Auskunft, die der Tat fehlt: Sie sagt,
+        // was danach in der Hand liegt, und nicht, ob der **Träger** darunter
+        // ein anderer geworden ist.
+        const was = this.heldBy(side)?.dish.item ?? null;
         this.merge(spot, side, deed.held, deed.target);
+        // **Der Träger hat gewechselt**: An der Tellerkiste und am
+        // Abtropfgitter nimmt man einen Teller **und** richtet darauf an, und
+        // dasselbe geschieht mit dem Brötchen in der Hand vor einem Teller auf
+        // der Zeile. „Brötchen aufgenommen" wäre dort das Falsche — das
+        // Brötchen lag schon in der Hand; genommen wurde der Teller. Derselbe
+        // Satz wie beim Nehmen, denn es ist derselbe Handgriff.
+        if (deed.held && was && deed.held.item !== was) {
+          world.notify(`${dishLabel(deed.held)} in der Hand`);
+          break;
+        }
         // **Wer hat bekommen?** Zusammengelegt wird in beide Richtungen
         // (`kitchenRecipes.combine`), und die Meldung muss mitgehen: Wer mit
         // dem Teller zur Tomate läuft, hat sie aufgenommen und nicht
@@ -4162,6 +4196,11 @@ export class KitchenZone implements TestZone {
    *   war — der eine Fall, für den es `offer` in `kitchenRecipes.ts` gibt.
    * - An einer **Ausgabe** bleibt liegen, was dort liegt: Sie gibt ihr
    *   Frisches aus dem Nichts aus und rührt ihren Deckel dabei nicht an.
+   * - An einem **Stapel** wird gezählt statt umgeräumt: Zusammengelegt wird
+   *   dort nur mit dem obersten Teller (`kitchenCarry.inRack`), und der
+   *   verlässt den Stapel — er liegt danach in der Hand, unter dem Gericht.
+   *   Ohne diese Zeile stünden vier Teller im Gitter und der fünfte in der
+   *   Hand.
    *
    * **Ein geladenes Gerät verschwindet dabei nie.** Eine Pfanne gibt ihren
    * Inhalt ab und bleibt, ein Topf und ein Feuerlöscher nehmen gar nichts an
@@ -4176,6 +4215,13 @@ export class KitchenZone implements TestZone {
         this.setHeld(side, null);
         this.discard(hand);
       }
+    }
+    if (stacks(spot.kind)) {
+      // **Der Stapel gibt einen her.** Eine Rückgabe und ein Abtropfgitter
+      // führen keinen `Dish`, sondern eine Zahl (`stacks`); `target` ist an
+      // ihnen deshalb immer `null` und meint nichts, was hier umzuräumen wäre.
+      this.setStack(spot, spot.stack - 1);
+      return;
     }
     const on = spot.on;
     if (!target) {
@@ -4354,7 +4400,10 @@ export class KitchenZone implements TestZone {
     if (by?.hand) this.busyHand = by.hand;
     this.setHeld(this.sideOf(by), thing);
     thing.handle = this.grabbedAt(thing, spot, by);
-    thing.object.rotation.set(0, 0, 0);
+    // Dieselbe Drehung wie vor dem Bauch (`backToBelly`), damit der Löscher
+    // nicht ein Bild lang quer in der Hand hängt, bis `carryInHands` ihn
+    // nachzieht.
+    thing.object.rotation.set(0, kitchenCarryTurn(thing.dish.item), 0);
     if (rig) rig.add(thing.object);
     else thing.object.removeFromParent();
   }

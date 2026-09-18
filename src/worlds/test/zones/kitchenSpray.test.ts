@@ -13,6 +13,7 @@ import {
   advanceDouse,
   douseProgress,
   inSpray,
+  sprayClaimsUse,
   sprayHold,
   sprayMuzzle,
   sprayOn,
@@ -148,6 +149,22 @@ describe('sprayOn — ein Knopf, drei Ansichten', () => {
   it('sagt selbst, wie das Halten je Ansicht gemeint ist', () => {
     expect(sprayHold(true)).toBe('toggle');
     expect(sprayHold(false)).toBe('hold');
+  });
+
+  /**
+   * **Und wem der Knopf dabei gehört** (`core/PlayerRig.useBusy`).
+   *
+   * Der gemeldete Fehler: Von oben schaltete `A` den Löscher an **und** ließ
+   * die Figur hüpfen. Solange der Löscher in der Hand liegt, gehört der Knopf
+   * ihm — außer in der Brille, wo ihn der Trigger zieht.
+   */
+  it('vergibt den Benutzen-Knopf, solange der Löscher in der Hand liegt', () => {
+    expect(sprayClaimsUse(true, false)).toBe(true);
+    // Zurück in der Halterung: Der Knopf gehört wieder dem Sprung.
+    expect(sprayClaimsUse(false, false)).toBe(false);
+    // In der Brille zieht ihn der Trigger, also bleibt `A` frei.
+    expect(sprayClaimsUse(true, true)).toBe(false);
+    expect(sprayClaimsUse(false, true)).toBe(false);
   });
 });
 

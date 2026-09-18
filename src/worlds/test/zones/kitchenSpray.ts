@@ -170,6 +170,34 @@ export function sprayHold(topDown: boolean): SprayHold {
 }
 
 /**
+ * **Ob der Benutzen-Knopf gerade dem Löscher gehört** — und damit nicht mehr
+ * dem Sprung (`core/PlayerRig.useBusy`).
+ *
+ * Es ist der gemeldete Fehler, als Regel geschrieben: Von oben schaltet `A`
+ * den Löscher an, und solange nichts in Reichweite stand, tat derselbe Druck
+ * **beides** — der Löscher ging an, und die Figur hüpfte dazu.
+ *
+ * Zwei Zeilen, und beide stehen schon woanders:
+ *
+ * - **Ohne Löscher in der Hand** gehört der Knopf niemandem — wer ihn in die
+ *   Halterung zurückstellt, springt im nächsten Bild wieder. Dieselbe Bedingung
+ *   wie in `sprayOn`, und aus demselben Grund.
+ * - **In der Brille** zieht ihn der Trigger der Hand, die ihn hält, und nicht
+ *   `A`. Dort darf der Knopf daneben weiter springen; ihn auch hier zu
+ *   vergeben, nähme dem Spieler den Sprung für etwas, das den Knopf gar nicht
+ *   benutzt.
+ *
+ * Am Schirm aus den Augen gilt dagegen dasselbe wie von oben: Dort ist `A`
+ * (beziehungsweise `E` und die Maustaste) der Auslöser, also ist er vergeben.
+ *
+ * @param carried ob der Löscher in der Hand ist
+ * @param vr      ob gerade durch die Brille gespielt wird
+ */
+export function sprayClaimsUse(carried: boolean, vr: boolean): boolean {
+  return carried && !vr;
+}
+
+/**
  * **Ob der Löscher in diesem Bild an ist** — die eine Stelle, an der die drei
  * Ansichten zusammenkommen.
  *

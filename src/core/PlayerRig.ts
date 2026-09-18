@@ -262,6 +262,28 @@ export class PlayerRig extends THREE.Group {
   useCandidate = false;
 
   /**
+   * **Ob der Benutzen-Knopf schon vergeben ist** — an das, was die Figur
+   * **trägt**.
+   *
+   * `useCandidate` beantwortet die Frage nach dem, was **vor** der Figur
+   * steht; diese hier die nach dem, was sie **in der Hand hat**. Beide enden
+   * an derselben Stelle: Solange eine von beiden wahr ist, springt `A` nicht.
+   *
+   * Der Fall, für den es sie gibt, ist der **Feuerlöscher**
+   * (`worlds/test/zones/kitchen.spray`). Von oben und am Schirm schaltet ihn
+   * derselbe Knopf an, der sonst benutzt — steht dabei nichts in Reichweite,
+   * tat `A` bis hierher **beides**: Der Löscher ging an, und die Figur hüpfte
+   * dazu. Ein Knopf, der zwei Dinge auf einmal tut, ist der Fehler, gegen den
+   * schon `useCandidate` steht; hier ist es derselbe Fehler mit dem Getragenen
+   * statt mit dem Danebenstehenden.
+   *
+   * Gesetzt von der Welt, jedes Bild, und von niemandem sonst — wer nichts
+   * trägt, das den Knopf braucht, lässt sie auf `false`, und `A` springt wie
+   * eh und je.
+   */
+  useBusy = false;
+
+  /**
    * **Ob der Benutzen-Knopf gerade _liegt_** — nicht die Flanke, die Taste.
    *
    * `requestUse` ist eine Flanke, und das ist für Knöpfe, Türen und Schilder
@@ -388,6 +410,7 @@ export class PlayerRig extends THREE.Group {
   standUp(): void {
     this.locked = false;
     this.useCandidate = false;
+    this.useBusy = false;
     this.sprintScale = 1;
     // Die Stauchung gehört der Welt, die man gerade verlässt (`eyeScale`) —
     // wer sie mitnähme, stünde in der nächsten einen Viertelmeter zu tief.
@@ -553,7 +576,7 @@ export class PlayerRig extends THREE.Group {
       // drückt `A` und ist durch — statt davor zu hüpfen.
       if (!uiActive && !this.locked && input.get('right')?.primary.justPressed) {
         if (this.useCandidate) this.useWanted = true;
-        else this.intentJump = true;
+        else if (!this.useBusy) this.intentJump = true;
       }
     } else {
       // **Am Bildschirm wird nicht gestaucht.** Von oben und aus den Augen
