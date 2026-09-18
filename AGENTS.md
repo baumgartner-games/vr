@@ -2252,7 +2252,12 @@ selben WLAN am einfachsten über HTTPS-Tunnel oder `vite dev --https` testen.
     Schnittflächen sind offen, und auf Lücke gestellt sähe man in zwei
     aufgesägte Schränke. In einer Zeile
     aus acht Schränken sieht man ein einzelnes Möbel nicht; der Katalog ist
-    damit ein Rundgang statt einer Liste. **Angefasst wird mit `A`**, und ein
+    damit ein Rundgang statt einer Liste. **Das Schild steht dabei unten an der
+    Vorderkante der Kachel** und nicht mehr über dem Möbel
+    (`shared/showPlate.ts`): Oben verdeckte es das Stück in der Reihe dahinter,
+    gehörte auf zwei Metern Höhe zu keinem bestimmten Möbel mehr, und man
+    musste hochsehen, um zu lesen, wovor man steht. Unten steht das Stück frei
+    dahinter, und Schild und Möbel liegen in einem Blick übereinander. **Angefasst wird mit `A`**, und ein
     roter Knopf neben dem Eingang schaltet den **Baumodus** ein und wieder aus,
     in dem sich jedes Möbel samt allem, was darauf steht, versetzen lässt — das
     Einschalten räumt die Küche dabei ab, wie `B`/`Y` es täte (beides unter
@@ -6088,8 +6093,9 @@ jeder Nächste noch einmal haben muss.
 ### Modelle im Repository
 
 `public/models` ist der Ordner, in dem **fremde Arbeit** liegt: die Spielfigur
-(`chef.glb`) und die Küchenmöbel (`kitchen.glb`), beide CC-BY-4.0, und die
-Möbel der zweiten Küche (`diner.glb`, CC0). Die Namensnennung steht in
+(`chef.glb`) und der Rest des ersten Küchenkatalogs (`kitchen.glb`), beide
+CC-BY-4.0, und der zweite Katalog (`diner.glb`, CC0), aus dem inzwischen
+**beide** Küchen ihre Möbel beziehen. Die Namensnennung steht in
 `public/models/CREDITS.md`, und sie ist **Pflicht**, nicht Höflichkeit — wer
 ein Modell aufnimmt, trägt es dort ein, **bevor** er es einbaut. Eine Datei
 ohne Zeile in dieser Liste ist eine Datei ohne Lizenz. **Auch die
@@ -6167,6 +6173,72 @@ Die Dateien: `core/dinerFit.ts` (Maße, ohne three.js), `core/dinerModel.ts`
 (Lader), `worlds/test/zones/dinerPlan.ts` (Aufbau und Stempel, ohne three.js),
 `worlds/test/zones/diner.ts` (die Zone). Dieselbe Teilung wie bei der ersten
 Küche und aus demselben Grund: Rechnung getrennt von Darstellung.
+
+#### Und dann zog die erste Küche in den zweiten Katalog um
+
+Der zweite Baukasten war als **Auslage** gebaut worden — hinstellen, ansehen,
+entscheiden, was brauchbar ist. Die Antwort auf diese Frage war: fast alles.
+Von den zweiundzwanzig Stücken des ersten Katalogs stehen seitdem **zehn** auf
+Netzen aus `diner.glb`, und `kitchen.glb` ist von dreizehn Knoten auf **fünf**
+zusammengeschrumpft (480 → 242 KB).
+
+**Was geblieben ist und warum:**
+
+| Knoten | Grund |
+| --- | --- |
+| `extinguisher` | Hocker **und** Löscher in einem Knoten; der Löscher ist ein getragenes Gerät (`kitchenGrab.ts`). |
+| `bin` | Der Mülleimer — im zweiten Baukasten gibt es keinen. |
+| `pass` | Die Ausgabetheke, zwei Kacheln breit. |
+| `plate-rack` | Das Ausgaberegal darüber. |
+| `pan` | **Nur noch die Pfanne**, ohne ihren Herd: An ihr hängen die Bratregeln und ein nachgemessener Muldenversatz (`PAN_BOWL`). |
+
+Ausgedünnt wird mit `node tools/kitchen-model.mjs --trim`, und die Liste steht
+im Werkzeug (`KEEP`) und nicht nur im Ergebnis: Wer die Quelle — die nicht im
+Repository liegt — noch einmal aufbereitet, bekommt dieselbe schlanke Datei.
+
+**Die Spielregel hängt am Katalognamen und nicht am Netz.** Das ist der Satz,
+an dem dieser Umbau überhaupt möglich war: Ein `board` schneidet, ein
+`sink-basin` spült, eine `serve-counter` gibt aus — entschieden wird das in
+`zones/kitchenPlan.stationKind`, und zwar über den **Namen**. Der Katalog sagt
+mit `KitchenPiece.base` nur noch, **woher das Bild kommt**. Dreiundvierzig
+Aufstellorte, neun Stationsarten und rund zweihundertsiebzig Testfälle haben
+den Tausch deshalb unverändert überstanden.
+
+**Zwei neue Felder, und eines abgeschafft:**
+
+- **`base`** — der Sockel: Datei und Knoten (`{ file: 'diner', node: … }`).
+- **`over`** — was daraufsteht, mit der Höhe, auf der es steht: das Brett auf
+  dem Tisch, der Topf auf dem Herd, das Abtropfgitter auf der Zeile, der
+  Deckel auf der Zutatenkiste. Der erste Baukasten lieferte solche Paare als
+  **ein** Netz mit zwei Materialien, und der Lader schnitt sie am Material
+  wieder auseinander; der zweite liefert zwei Knoten, und der Katalog sagt
+  ausdrücklich, welcher obendrauf gehört.
+- **`align` und `bury` haben keinen Fall mehr.** Beide glichen aus, was der
+  erste Baukasten schief lieferte — der Türgriff, der die Zeile um 3,07 cm
+  verschob, die Herde, die 8 cm hinter sie zurücksprangen, das Brett, das um
+  seine eigene Dicke im Estrich versenkt wurde. Die Möbel des zweiten stehen
+  mittig auf ihrer Kachel und auf ihrem eigenen Boden. Die Felder bleiben
+  trotzdem: Die nächste Quelle tut es vielleicht nicht.
+
+**Und zwei große Blöcke sind weggefallen**, beide Notoperationen an einer
+Quelle, die es nicht mehr gibt: `splitSink` (knapp zweihundert Zeilen
+Geometriechirurgie, die aus einer Spüle von vier Metern zwei Kacheln schnitt —
+der zweite Baukasten hat eine von **einer** Kachel) und `erasePrintedPlate`
+(ein UV-Flicken gegen einen aufgedruckten Teller — die Ausgabe ist heute eine
+Kiste mit Deckel).
+
+**Nachgemessen ist wieder alles**, und zwei Zahlen haben sich dabei geändert,
+die man im Spiel sieht:
+
+- **Die Kochstellen liegen jetzt auf 0,60 m** statt 0,55 m — das ist die
+  Oberkante der **Roste**; die Platte darunter liegt wie jede Arbeitsfläche
+  auf 0,50 m. Die sichere Kochstelle ist mitgewachsen: Sie war schon immer so
+  hoch wie ein Herd.
+- **Die Spüle ist eine flache Wanne** und kein tiefes Becken. Zwischen
+  Wannenboden und Wannenrand liegt im Netz **kein** Höhenunterschied, und
+  deshalb rechnet `kitchenProps.SINK_TILT` heute null heraus: Der Teller liegt
+  flach darin statt schräg. Keine Sonderregel, dieselbe Formel — sie bekommt
+  nur andere Zahlen.
 
 **Der Küchenkatalog** (`core/kitchenFit.ts`) hat zweiundzwanzig Möbel:
 Tellerausgabe, Feuerlöscher, **Spülbecken**, **Abtropfbrett**, Mülleimer,
@@ -7650,6 +7722,34 @@ zusammen machen daraus einen abgeschnittenen eigenen Raum
   eingefroren — die anderen sehen eine Figur, die dasteht und sich umsieht,
   statt einer Statue. `hidden` wäre das Falsche gewesen: Das macht den Avatar
   bei den anderen ganz unsichtbar.
+
+**Der Möbelkatalog kennt seit dem Umbau Grundflächen.** Vorher bekam jedes
+Stück genau **eine** Kachel und wurde auf 0,8 m längste Kante gestaucht —
+nebeneinander sahen ein Mülleimer und eine zwei Kacheln breite Ausgabetheke
+damit gleich groß aus, und die Frage, für die man den Katalog aufmacht (passt
+das noch neben das da?), war aus dem Bild verschwunden. Drei Dinge zusammen
+räumen das ab:
+
+- **`ConstructItem.tiles`** sagt, wie viele Kacheln ein Stück belegt, und
+  `tileSlots` teilt ihm ebenso viele zu: nebeneinander auf **derselben**
+  Ringseite (über Eck stünde ein Möbel im Knick) und nach **außen** in die
+  Tiefe (innen ist der Platz, auf dem man steht). Zwei Ringe stehen zwei
+  auseinander, also passt ein zwei Kacheln tiefes Stück dazwischen.
+- **Ein Maßstab für alle** (`MINI_SIZE`, jetzt ein Faktor und keine
+  Zielgröße): Was im Spiel doppelt so breit ist, ist es auch im Regal.
+- **Ein Schild vor jedem Stück**, unten an der zur Mitte zeigenden Kante
+  (`shared/showPlate.ts`, dieselbe Tafel wie in den beiden Schauräumen). Bis
+  dahin stand der Name nur in `usePrompt` — und den zeigt seit dem Umbau der
+  Bedienung niemand mehr an (`core/usable.ts`): Wer vor zweiundzwanzig
+  Miniaturen stand, musste raten, welche davon das Filterband ist.
+
+**Und der Katalog zeigt den Katalog.** Vorher stand vor der Schleife ein Filter
+auf `this.models` — gezeigt wurde nur, wovon beim Aufbauen der Küche schon eine
+Vorlage angefallen war. Das ging gut, solange der Schauraum jedes Stück genau
+einmal aufstellt (ein Test hält das fest), koppelte den Katalog aber an den
+**Aufbau** statt an den Katalog: Wer ein Möbel eintrug, ohne es irgendwo
+hinzustellen, fand es hier nicht wieder. Jetzt holt sich die Miniatur ihre
+Vorlage selbst, wenn sie fehlt, und der Raum ist ohne Zutun aktuell.
 
 Und der Raum hört an seinem Boden auf (`ConstructRoom.keepInside`, eine halbe
 Kachel hinter der letzten Fuge): Ohne Schwerkraft und ohne Kollisionen hielte

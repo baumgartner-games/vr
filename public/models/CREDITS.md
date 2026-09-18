@@ -26,7 +26,7 @@ Aufbereitet mit `tools/chef-model.mjs`: 550 604 → 8 260 Dreiecke, zerlegt in
 Mütze, Kopf, Rumpf und zwei Hände, auf 1,6 m gestellt. Die Quelle (23 MB) liegt
 **nicht** im Repository — was von ihr bleibt, sind 160 KB.
 
-## `kitchen.glb` — Tresen, Herde, Geräte
+## `kitchen.glb` — was vom ersten Katalog blieb
 
 > This work is based on
 > ["Overcooked Kitchen Assets (Fan Art)"](https://sketchfab.com/3d-models/overcooked-kitchen-assets-fan-art-ec99c64c346347a89454f569054ddb86)
@@ -35,6 +35,14 @@ Mütze, Kopf, Rumpf und zwei Hände, auf 1,6 m gestellt. Die Quelle (23 MB) lieg
 
 Aufbereitet mit `tools/kitchen-model.mjs`: eine Schauraum-Szene, zerlegt in
 einzeln platzierbare Möbel, Texturen verkleinert.
+
+**Und seitdem zusammengestrichen** (`tools/kitchen-model.mjs --trim`): Von den
+dreizehn Möbeln sind **fünf Knoten** übrig, 242 KB statt 480. Küchenzeile,
+Herde, Spüle, Arbeitstisch, Schneidebrett, Ausgabe und Tellerausgabe kommen
+heute aus `diner.glb`; hier liegen nur noch der **Feuerlöscher** (samt Hocker),
+der **Mülleimer**, die **Ausgabetheke**, das **Ausgaberegal** und die
+**Pfanne** — letztere ohne ihren Herd, weil an ihr die Bratregeln hängen. Die
+Liste steht im Werkzeug, nicht nur im Ergebnis.
 
 ## `diner.glb` — der zweite Möbelkatalog
 

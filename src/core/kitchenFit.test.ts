@@ -10,101 +10,31 @@ import {
   kitchenPiece,
   kitchenWorkHeight,
 } from './kitchenFit';
-import { PLAN_WALL_T } from '../worlds/editor/levelPlan';
-import { TILE } from '../worlds/nav/navTile';
-import { KITCHEN } from '../worlds/test/layout';
+import { dinerPiece } from './dinerFit';
 
 /**
- * **Die Maße der Quelldatei**, in Metern und ungeteilt — abgelesen aus
+ * **Die Maße der eigenen Quelldatei**, in Metern und ungeteilt — abgelesen an
  * `public/models/kitchen.glb` (Breite, Höhe, Tiefe je Knoten).
  *
- * Sie stehen hier, damit die Halbierung nachrechenbar bleibt: Der Katalog
- * nennt die **fertigen** Maße, und ohne diese Liste daneben wäre nicht mehr zu
- * sehen, woher sie kommen. Wer die Quelle austauscht, trägt hier die neuen ein
- * und sieht am fehlschlagenden Test, was im Katalog nachzuziehen ist.
+ * **Vier Zeilen, nicht mehr.** Seit dem Umbau kommen zehn der zweiundzwanzig
+ * Katalogstücke aus dem **zweiten** Baukasten (`KitchenPiece.base`), und die
+ * misst niemand hier nach: Ihre Maße stehen in `core/dinerFit.ts`, geschrieben
+ * vom Werkzeug, das sie aufbereitet hat. Eine zweite Tabelle daneben wäre die,
+ * die beim nächsten Austausch stehen bleibt — geprüft wird deshalb gegen den
+ * anderen Katalog und nicht gegen abgeschriebene Zahlen
+ * (_nimmt die Maße der neuen Möbel aus dem zweiten Katalog_).
  *
- * **Ein gebautes Stück steht nicht darin, und genau das ist die Probe.** Der
- * Katalog führt seit dem Förderband auch Möbel, die es in
- * `public/models/kitchen.glb` gar nicht gibt (`KitchenPiece.built`) — für die
- * ist hier nichts nachzumessen. Wer ein Möbel vergisst einzutragen, bekommt
- * deshalb keine stille Lücke: Er muss es entweder hier nennen oder im Katalog
- * als `built` kennzeichnen.
+ * Was hier steht, sind die Knoten, die in der eigenen Datei geblieben sind:
+ * Feuerlöscher, Mülleimer, Ausgabetheke und Ausgaberegal. Die **Pfanne** ist
+ * der fünfte Knoten und steht trotzdem nicht darin — sie ist kein Möbel,
+ * sondern das Gerät auf einem (`stove-pan.over`).
  */
 const SOURCE: Readonly<Record<string, readonly [number, number, number]>> = {
-  'plate-counter': [2, 1.12, 2.12],
   extinguisher: [2, 2.5, 2],
-  // **Die Spüle steht als ihre beiden Hälften darin.** Der Knoten `sink` der
-  // Datei ist 4 × 2,3 × 2,12 m groß und wird beim Laden bei x = 0 zerschnitten
-  // (`core/kitchenModel.splitSink`) — nachzumessen sind also die Hälften, und
-  // ihre Breiten müssen die ganze Spüle wieder ergeben (siehe der Test unten).
-  // Das Becken behält dabei die volle Höhe: Auf ihm steht die Armatur.
-  'sink-basin': [2, 2.3, 2.12],
-  // Und 1,035 ausnahmsweise auf drei Stellen: Der Rand liegt bei y = 1,034858,
-  // halbiert 0,5174 m — auf zwei Stellen gerundet läge die Quelle mit 1,03
-  // genau auf der Grenze, ab der der Katalog auf 0,51 oder 0,52 rundet.
-  'sink-drain': [2, 1.035, 2.12],
   bin: [2, 0.9, 2],
-  table: [2, 1, 2],
-  'serve-counter': [2, 0.91, 2],
-  board: [2, 1.15, 2],
+  pass: [4, 1.06, 2],
   'plate-rack': [4, 1.13, 1.93],
-  pass: [4, 1.05, 2.02],
-  counter: [2, 1, 2.12],
-  stove: [2, 1.1, 2.13],
-  'stove-pot': [2, 1.73, 2.13],
-  'stove-pan': [2, 1.35, 2.44],
 };
-
-/**
- * **Der Korpus je Möbel**, ebenfalls in Quellmaß: seine **hintere** und seine
- * **vordere** Kante in z, abgelesen aus `public/models/kitchen.glb` (Netz
- * `Kitchen_Cabins`, bei Spüle und Theke `Kitchen_Cabins_Double`).
- *
- * Eine zweite Tabelle neben `SOURCE`, und sie misst ausdrücklich etwas
- * anderes: `SOURCE` nennt die **Hülle** — was ein Möbel belegt, und daran
- * hängen Kachelzahl und Höhe —, `BODY` die **Kanten, die man sieht**. Zwischen
- * beiden liegt bei der Küchenzeile ihr **Türgriff** (z = +0,9291 … +1,0612 auf
- * y = 0,3…0,5) und beim Herd die **Blende mit den Knöpfen** (+0,8180 …
- * +1,0634 auf y = 0,3…0,7). Beides steht über, beides ist keine Arbeitsplatte,
- * und beides zieht beim Zentrieren den Korpus in die Gegenrichtung
- * (`core/kitchenFit.KitchenPiece.align`).
- *
- * **Genau an dieser Verwechslung hing der Versatz des Schneidebretts einmal
- * mit dem falschen Vorzeichen**: Verglichen wurde die Hülle der Zeile (2,1224)
- * mit dem Korpus des Bretts (1,9998), und der Unterschied zwischen ihnen war
- * der Griff. Wer die Quelle austauscht, misst diese Kanten neu — und sieht an
- * den Tests darunter, welcher Versatz nachzuziehen ist.
- */
-const BODY: Readonly<Record<string, readonly [back: number, front: number]>> = {
-  counter: [-1.0612, 0.9386],
-  'plate-counter': [-1.0612, 0.9386],
-  // Beide Hälften der Spüle: Zerschnitten wird bei x = 0
-  // (`core/kitchenModel.splitSink`), in z bleibt das Profil der ganzen Spüle
-  // stehen — und es ist das der Küchenzeile, Griff inbegriffen.
-  'sink-basin': [-1.0612, 0.9386],
-  'sink-drain': [-1.0612, 0.9386],
-  // Ohne Griff, dafür mittig: gleich tief wie die Zeile, aber 0,0613 weiter
-  // südlich zentriert.
-  board: [-0.9999, 0.9999],
-  extinguisher: [-0.9999, 0.9999],
-  // Das Blech der Herde — 1,8420 tief und damit das flachste Möbel der Zeile.
-  stove: [-1.0634, 0.7786],
-  'stove-pot': [-1.0634, 0.7786],
-  // Dasselbe Blech, vom Pfannenstiel um 0,1564 nach Norden gezogen.
-  'stove-pan': [-1.2198, 0.6221],
-};
-
-/**
- * **Wo eine Korpuskante im Spiel liegt**, in Metern vor (+, Süden) oder hinter
- * (−, Norden) der Kachelmitte: Quellmaß halbiert, Versatz dazu.
- *
- * Die eine Rechnung, die alle Zeilenprüfungen teilen — sie ist dieselbe, die
- * `worlds/test/zones/kitchen.ts`, `standAt`, beim Hinstellen macht, nur ohne
- * Drehung: In der Nordzeile steht alles mit `turn: 0`.
- */
-function edge(name: string, side: 0 | 1): number {
-  return BODY[name]![side] * KITCHEN_SCALE + (kitchenPiece(name)!.align?.[1] ?? 0);
-}
 
 /**
  * Am Katalog gibt es nichts zu rechnen — er ist eine Liste. Drei Sachen an ihm
@@ -146,23 +76,15 @@ describe('der Möbelkatalog', () => {
     expect(kitchenPiece('')).toBeUndefined();
   });
 
-  /**
-   * **Die Quelle ist doppelt so groß, wie eine Küche sein darf**, und der
-   * Katalog nennt die halbierten Maße. Das ist die Zahl, an der die ganze
-   * Küche hängt: Neben einem Koch von 1,60 m reichte ein Tresen ungeteilt bis
-   * über die Augen.
-   */
-  it('nennt die Maße der Quelle halbiert', () => {
+  it('nennt die Maße der eigenen Quelle halbiert', () => {
     expect(KITCHEN_SCALE).toBe(0.5);
     for (const piece of KITCHEN_PIECES) {
       const source = SOURCE[piece.name];
-      // Aus der Datei kommt es oder es wird gebaut — ein drittes gibt es
-      // nicht, und ein Möbel, das in keiner der beiden Listen steht, ist ein
-      // vergessener Eintrag und kein Sonderfall.
-      expect({ name: piece.name, known: source !== undefined || piece.built === true }).toEqual({
-        name: piece.name,
-        known: true,
-      });
+      // Drei Herkünfte und keine vierte: aus der eigenen Datei, aus dem
+      // zweiten Baukasten, oder gebaut. Ein Möbel, das in keine davon fällt,
+      // ist ein vergessener Eintrag und kein Sonderfall.
+      const known = source !== undefined || piece.base !== undefined || piece.built === true;
+      expect({ name: piece.name, known }).toEqual({ name: piece.name, known: true });
       if (!source) continue;
       const [w, h, d] = source;
       // Auf den halben Zentimeter genau und nicht genauer: Der Katalog rundet
@@ -186,6 +108,70 @@ describe('der Möbelkatalog', () => {
   });
 
   /**
+   * **Die neuen Möbel werden gegen den zweiten Katalog geprüft und nicht gegen
+   * abgeschriebene Zahlen.**
+   *
+   * Zehn Stücke stehen auf Netzen aus `public/models/diner.glb`, und deren
+   * Maße hat das Werkzeug dort schon nachgemessen (`core/dinerFit.ts`). Wer
+   * sie hier noch einmal einträgt, führt eine zweite Wahrheit — und die ist
+   * beim nächsten Austausch der Quelle die, die stehen bleibt.
+   *
+   * Geprüft wird deshalb der **Zusammenhang**: Der Knoten muss es geben, die
+   * Kachelzahl muss dieselbe sein, und das Möbel darf nicht niedriger sein als
+   * das, worauf sein Aufsatz steht.
+   */
+  it('nimmt die Maße der neuen Möbel aus dem zweiten Katalog', () => {
+    const based = KITCHEN_PIECES.filter((piece) => piece.base);
+    expect(based.map((piece) => piece.name)).toEqual([
+      'plate-counter',
+      'sink-basin',
+      'sink-drain',
+      'table',
+      'serve-counter',
+      'board',
+      'counter',
+      'stove',
+      'stove-pot',
+      'stove-pan',
+    ]);
+    for (const piece of based) {
+      const base = dinerPiece(piece.base!.node);
+      expect({ name: piece.name, node: base?.name }).toEqual({
+        name: piece.name,
+        node: piece.base!.node,
+      });
+      expect({ name: piece.name, file: piece.base!.file }).toEqual({
+        name: piece.name,
+        file: 'diner',
+      });
+      // Dieselbe Grundfläche wie das Netz darunter: Ein Möbel, das auf einer
+      // Kachel steht und zwei belegt, lässt eine Lücke in der Zeile.
+      expect({ name: piece.name, tiles: [...piece.tiles] }).toEqual({
+        name: piece.name,
+        tiles: [...base!.tiles],
+      });
+      if (!piece.over) {
+        // Ohne Aufsatz ist die Oberkante die des Sockels.
+        expect({ name: piece.name, high: piece.height.toFixed(3) }).toEqual({
+          name: piece.name,
+          high: base!.height.toFixed(3),
+        });
+        continue;
+      }
+      // Mit Aufsatz: Der steht auf dem Sockel und nicht darin, und das Möbel
+      // reicht mindestens so weit wie sein Aufsatz anfängt.
+      expect({ name: piece.name, on: piece.over.at <= base!.height + 1e-9 }).toEqual({
+        name: piece.name,
+        on: true,
+      });
+      expect({ name: piece.name, over: piece.height > piece.over.at }).toEqual({
+        name: piece.name,
+        over: true,
+      });
+    }
+  });
+
+  /**
    * **In dieser Fassung der Quelle hängt keines.** Der Katalog führte das
    * Ausgaberegal einmal als hängendes Stück von 3,52 m; die Datei sagt etwas
    * anderes — es fängt wie jedes andere Möbel bei y = 0 an. Das war kein
@@ -196,18 +182,7 @@ describe('der Möbelkatalog', () => {
     expect(KITCHEN_PIECES.filter((piece) => piece.hanging)).toEqual([]);
   });
 
-  /**
-   * **Ohne Knoten in der Quelle darf nur auskommen, wer sich als gebaut
-   * ausweist** (`KitchenPiece.built`).
-   *
-   * Das ist die eine Regel, die das neue Feld überhaupt trägt: Ein `null` aus
-   * `core/kitchenModel.kitchenModel` heißt bei einem gebauten Stück „die Zone
-   * ist dran" und bei jedem anderen „der Name ist falsch geschrieben". Ohne
-   * diesen Test wäre ein Tippfehler im Katalog ein Möbel, das still zum
-   * Ersatzbaustein wird — und niemand sähe den Unterschied zum Förderband,
-   * das genauso wenig in der Datei steht.
-   */
-  it('lässt nur gebaute Möbel ohne Knoten in der Quelle durchgehen', () => {
+  it('lässt nur gebaute und geliehene Möbel ohne eigenen Knoten durchgehen', () => {
     const built = KITCHEN_PIECES.filter((piece) => piece.built);
     expect(built.map((piece) => piece.name)).toEqual([
       'belt',
@@ -220,20 +195,16 @@ describe('der Möbelkatalog', () => {
       'copier',
     ]);
     for (const piece of KITCHEN_PIECES) {
-      const inSource = SOURCE[piece.name] !== undefined;
-      expect({ name: piece.name, inSource }).toEqual({
+      const own = SOURCE[piece.name] !== undefined;
+      // Wer einen eigenen Knoten hat, leiht keinen und baut nichts — und
+      // umgekehrt. Ein Möbel, das beides hätte, stünde doppelt da.
+      expect({ name: piece.name, own }).toEqual({
         name: piece.name,
-        inSource: piece.built !== true,
+        own: piece.built !== true && piece.base === undefined,
       });
     }
     // Und ein gebautes Stück bleibt ein vollwertiges Möbel: Wer es nur halb
     // einträgt, stellt eine Kachel ohne Höhe auf.
-    //
-    // **Die Grundfläche steht hier nicht mehr mit**, seit der Kopierer zwei
-    // Kacheln belegt (`worlds/test/zones/kitchenDesk.ts`): Dass ein gebautes
-    // Möbel auf eine Kachel passt, war nie eine Regel, sondern der Zufall,
-    // dass die ersten beiden Förderbänder waren. Was zählt, ist eine
-    // Grundfläche aus ganzen Kacheln — eine halbe belegt keine.
     for (const piece of built) {
       expect(piece.height).toBeGreaterThan(0.1);
       const [w, d] = piece.tiles;
@@ -300,7 +271,7 @@ describe('der Möbelkatalog', () => {
     // Ohne eigenen Eintrag ist die Oberkante die Arbeitsfläche.
     expect(kitchenDeck(kitchenPiece('counter')!)).toBe(kitchenPiece('counter')!.height);
     // Und mit: der Herd, nicht der Topfdeckel.
-    expect(kitchenDeck(kitchenPiece('stove-pot')!)).toBe(0.55);
+    expect(kitchenDeck(kitchenPiece('stove-pot')!)).toBe(0.6);
   });
 
   /**
@@ -321,235 +292,89 @@ describe('der Möbelkatalog', () => {
   });
 
   /**
-   * **Der Versatz bleibt in der Kachel.** Er gleicht aus, dass der Ursprung
-   * eines Möbels in der Mitte seiner **Hülle** liegt und nicht in der seines
-   * Korpus (`KitchenPiece.align`) — ein Türgriff, ein Pfannenstiel, eine
-   * Blende mit Knöpfen. Das sind ein paar Zentimeter; wer hier einen halben
-   * Meter einträgt, stellt ein Möbel auf die Nachbarkachel, ohne dass der
-   * Grundriss davon wüsste.
+   * **Kein Möbel rückt mehr aus der Mitte seiner Kachel** — und das ist die
+   * Probe darauf, dass der zweite Baukasten hält, was er verspricht.
+   *
+   * Der erste zentrierte jedes Möbel in seiner **Hülle**, und weil eine Hülle
+   * nicht der Korpus ist, brauchten fünf Stücke einen nachgemessenen Versatz
+   * (`align`): Der Türgriff der Küchenzeile allein schob sie um 3,07 cm, die
+   * Herde sprangen 8 cm hinter die Zeile zurück, der Pfannenstiel noch einmal
+   * 7,8 cm. Der zweite Baukasten ist auf einem Raster gebaut und lässt jeden
+   * Ursprung stehen (`core/dinerFit.ts`) — da gibt es nichts auszugleichen.
+   *
+   * Das Feld bleibt trotzdem: Die vier Stücke aus der eigenen Datei stehen
+   * mittig, aber die nächste Quelle tut es vielleicht nicht.
    */
-  it('rückt kein Möbel weiter als eine halbe Kachel aus der Mitte', () => {
-    const shifted = KITCHEN_PIECES.filter((piece) => piece.align);
-    // In der Reihenfolge des Katalogs, und es sind genau die fünf Möbel der
-    // Nordzeile, deren Korpus nicht von allein auf der Linie der Küchenzeile
-    // sitzt: der Löscherhocker, das Schneidebrett und die drei Herde.
-    expect(shifted.map((piece) => piece.name)).toEqual([
-      'extinguisher',
-      'board',
-      'stove',
-      'stove-pot',
-      'stove-pan',
-    ]);
-    for (const piece of KITCHEN_PIECES) {
-      const [x, z] = piece.align ?? [0, 0];
-      // **Zur Seite rückt keines.** Alle gemessenen Überstände dieser Quelle
-      // zeigen nach vorn oder nach hinten — ein Versatz in x wäre ein Möbel,
-      // das aus der Reihe nach links oder rechts tritt, und den gibt es nicht.
-      expect({ name: piece.name, x }).toEqual({ name: piece.name, x: 0 });
-      expect(Math.abs(z)).toBeLessThan(0.5);
-    }
-    // Der Herd mit der Pfanne trägt die Summe aus beidem: 7,8 cm gegen den
-    // Stiel (Korpus −1,2198 … +0,6221 statt −1,0634 … +0,7786) und 8,0 cm für
-    // die Vorderkante der Zeile.
-    const pan = kitchenPiece('stove-pan')!.align![1];
-    const stove = kitchenPiece('stove')!.align![1];
-    expect(pan - stove).toBeCloseTo((BODY['stove']![1] - BODY['stove-pan']![1]) * KITCHEN_SCALE, 3);
+  it('rückt kein Möbel aus der Mitte seiner Kachel', () => {
+    expect(KITCHEN_PIECES.filter((piece) => piece.align)).toEqual([]);
   });
 
   /**
-   * **Die Zeile an der Nordwand hat eine Vorderkante, und es ist die der
-   * Küchenzeile.**
+   * **Auf dem Brett wird geschnitten, nicht auf dem Tisch darunter.**
    *
-   * Geprüft wird die **Beziehung** und nicht die Zahl: Aus den gemessenen
-   * Korpuskanten (`BODY`) und dem Versatz aus dem Katalog wird ausgerechnet,
-   * wo jedes Möbel der Reihe vorn aufhört — und das muss überall dieselbe
-   * Stelle sein. Wer eine der beiden Seiten ändert, sieht hier, was die andere
-   * kostet.
-   *
-   * Dass es ohne Versatz **keine** Linie wäre, steht mit im Test: Vier
-   * verschiedene Vorderkanten liegen in der Quelle nebeneinander (0,469 der
-   * Zeile, 0,500 von Brett und Hocker, 0,389 der Herde, 0,311 des Herds mit
-   * Pfanne). Ein Test, der nur die fertigen Zahlen gegeneinanderhielte, wäre
-   * grün, auch wenn alle fünf Einträge fehlten.
+   * Das Schneidebrett ist seit dem Umbau wirklich eines: ein Arbeitstisch
+   * (`kitchentable_B`) mit einem Brett von 7,5 cm darauf. Seine Schnittfläche
+   * liegt damit **über** der Zeile daneben und nicht mehr bündig mit ihr — der
+   * alte Katalog versenkte das Brett um 3,3 cm im Estrich, damit die Reihe eine
+   * durchgehende Platte ergab. Das ging, solange das Brett selbst das Möbel
+   * war; ein Tisch, der im Boden steckt, ist keiner.
    */
-  it('stellt die Möbel der Nordzeile auf eine Vorderkante', () => {
-    // Die Zeile an der Nordwand, von Westen nach Osten
-    // (`worlds/test/zones/kitchenPlan.KITCHEN_SPOTS`, x = 0…10).
-    const row = [
-      'counter',
-      'stove',
-      'stove-pot',
-      'stove-pan',
-      'extinguisher',
-      'sink-basin',
-      'sink-drain',
-      'board',
-      'plate-counter',
-    ];
-    // Das Maß ist die Küchenzeile, und sie rückt selbst nicht: 0,9386 / 2.
-    const line = edge('counter', 1);
-    expect(kitchenPiece('counter')!.align).toBeUndefined();
-    expect(line).toBeCloseTo(0.4693, 4);
-    for (const name of row) {
-      expect({ name, front: edge(name, 1).toFixed(3) }).toEqual({ name, front: line.toFixed(3) });
-    }
-    // Und ohne Versatz stünde dort vierlei.
-    const raw = new Set(row.map((name) => (BODY[name]![1] * KITCHEN_SCALE).toFixed(3)));
-    expect([...raw].sort()).toEqual(['0.311', '0.389', '0.469', '0.500']);
-    // **Wer gleich tief ist, fluchtet danach auch hinten.** Brett und
-    // Löscherhocker sind auf den Millimeter so tief wie die Zeile (2,0000 in
-    // der Quelle) — eine bündige Vorderkante heißt bei ihnen also zugleich
-    // eine bündige Hinterkante, und die alte Klage über die doppelte Lücke zur
-    // Wand ist damit gegenstandslos.
-    for (const name of ['board', 'extinguisher', 'plate-counter', 'sink-basin', 'sink-drain']) {
-      const deep = (BODY[name]![1] - BODY[name]![0]) * KITCHEN_SCALE;
-      expect({ name, deep: deep.toFixed(4) }).toEqual({
-        name,
-        deep: ((BODY['counter']![1] - BODY['counter']![0]) * KITCHEN_SCALE).toFixed(4),
-      });
-      expect({ name, back: edge(name, 0).toFixed(3) }).toEqual({
-        name,
-        back: edge('counter', 0).toFixed(3),
-      });
-    }
-  });
-
-  /**
-   * **Die Kochstelle steht so weit vor der Wand, wie die Zeile es zulässt** —
-   * und das ist nicht ganz, sondern gemessen knapp.
-   *
-   * Der Herd war der Grund für den ganzen Umbau: Sein Blech ist ein
-   * **aufgesetzter Klotz** und keine flache Rückwand, und was davon hinter der
-   * Wandinnenseite liegt, ist im Bild abgeschnitten. Mit Versatz 0 waren das
-   * 13,2 cm von 92,1 — deutlich zu sehen, weil die Platte vorn zugleich 8 cm
-   * hinter den Arbeitsplatten zurückstand: hinten in der Wand, vorn eine Lücke.
-   *
-   * **Beides zugleich geht nicht**, und dieser Test rechnet genau das nach:
-   * Zwischen der Innenseite der 0,2 m dicken Nordwand und der Vorderkante der
-   * Zeile liegen 0,8693 m, das Blech ist 0,9210 m tief. Die 5,2 cm Unterschied
-   * bleiben hinten in der Wand — dort, wo die Küchenzeile daneben ohnehin mit
-   * 13,1 cm steht und wo von der Kamera aus (`core/topDownPose.ts`) nichts im
-   * Bild ist.
-   */
-  it('holt die Kochstelle so weit aus der Wand, wie die Zeile es zulässt', () => {
-    // **Wo die Wand steht, wird gerechnet und nicht angenommen**: Sie sitzt auf
-    // der Nordkante der Zone und ist 0,2 m dick (`worlds/editor/levelPlan`,
-    // `PLAN_WALL_T`), die Zeile steht auf der ersten Kachelreihe darin
-    // (`worlds/test/layout.KITCHEN`). Wer die Küche verschiebt oder die Wand
-    // dicker macht, kommt hier vorbei.
-    const face = (KITCHEN.z + 0.5) * TILE - (KITCHEN.z * TILE + PLAN_WALL_T / 2);
-    expect(face).toBeCloseTo(0.4, 6);
-    const line = edge('counter', 1);
-    /** Wie weit ein Möbel hinter die Innenseite der Wand reicht, in Metern. */
-    const buried = (name: string) => -edge(name, 0) - face;
-    // Die ganze Zeile steht in der Wand, und zwar seit je: Ihr Korpus ist
-    // 0,9999 m tief, die Kachel misst 1 m, und 0,1 m davon gehören der Wand.
-    expect(buried('counter')).toBeCloseTo(0.131, 3);
-    // Der Herd steckt jetzt **weniger** tief darin als jede Küchenzeile neben
-    // ihm — vorher waren es 13,2 cm und damit mehr.
-    expect(buried('stove')).toBeCloseTo(0.052, 3);
-    expect(buried('stove')).toBeLessThan(buried('counter'));
-    expect(buried('stove-pot')).toBeCloseTo(buried('stove'), 6);
-    expect(buried('stove-pan')).toBeCloseTo(buried('stove'), 2);
-    // **Und weiter geht es nicht, ohne die Vorderkante zu verlieren.** Das
-    // Blech ist um genau diese 5,2 cm tiefer als der Platz zwischen
-    // Wandinnenseite und Zeilenlinie.
-    const plate = (BODY['stove']![1] - BODY['stove']![0]) * KITCHEN_SCALE;
-    expect(plate).toBeCloseTo(0.921, 3);
-    expect(plate - (face + line)).toBeCloseTo(buried('stove'), 3);
-  });
-
-  /**
-   * **Auf dem Schneidebrett liegt das Essen auf dem Brett und nicht auf dem
-   * Messer.**
-   *
-   * `height` ist hier die Spitze des Hackmessers (Quelle 1,148 → 0,574 m);
-   * ohne eigenen `deck`-Eintrag wurde genau dorthin abgelegt, und ein
-   * Salatkopf schwebte 3,7 cm über dem Brett. Die drei Höhen des Möbels stehen
-   * in der Quelle und sind hier nachgerechnet:
-   *
-   * - Korpus bis 1,000 → **0,500 m**, und das ist auf den Millimeter die
-   *   Oberkante der Küchenzeile daneben — die Möbel fluchten also bereits.
-   * - Brett darauf bis 1,065 → **0,5326 m**, gerundet die 0,533 des Katalogs.
-   * - Messer bis 1,148 → 0,574 m.
-   */
-  it('legt aufs Schneidebrett und nicht aufs Messer', () => {
+  it('legt die Schnittfläche auf das Brett und nicht auf den Tisch', () => {
     const board = kitchenPiece('board')!;
     const counter = kitchenPiece('counter')!;
-    // Das Brett liegt auf dem Korpus, also über ihm — und um genau seine
-    // eigene Dicke (0,067 in der Quelle, halbiert 3,3 cm). Gemessen wird ab
-    // **Fuß** des Möbels; wo die Fläche im Raum liegt, steht eine Prüfung
-    // weiter unten.
-    expect(kitchenDeck(board) - counter.height).toBeCloseTo(0.033, 2);
-    // Und deutlich unter der Messerspitze, die `height` ist.
-    expect(kitchenDeck(board)).toBeLessThan(board.height);
-    expect(board.height - kitchenDeck(board)).toBeCloseTo(0.041, 2);
-    // Die Korpusse selbst sind gleich hoch — beide 1,000 in der Quelle.
-    expect(SOURCE['board']![1] * KITCHEN_SCALE).toBeCloseTo(0.575, 3);
-    expect(SOURCE['counter']![1] * KITCHEN_SCALE).toBe(counter.height);
+    expect(board.base?.node).toBe('kitchentable_B');
+    expect(board.over?.node).toBe('cuttingboard');
+    // Das Brett liegt auf der Tischplatte, und die liegt auf Zeilenhöhe.
+    expect(board.over!.at).toBeCloseTo(counter.height, 6);
+    // Und die Schnittfläche ist die Oberkante des Bretts — hier fällt beides
+    // zusammen, denn über dem Brett liegt nichts mehr.
+    expect(kitchenDeck(board)).toBe(board.height);
+    expect(kitchenDeck(board) - counter.height).toBeCloseTo(0.075, 3);
   });
 
   /**
-   * **Die Arbeitsflächen der Zeilenmöbel liegen auf einer Höhe** — und das ist
-   * die Zusage, die dreimal gebrochen wurde.
+   * **Die Zeile bleibt eine Platte** — bis auf das Brett, und das mit Absicht.
    *
-   * Zweimal stand an dieser Stelle eine Begründung dafür, dass das
-   * Schneidebrett 3,3 cm höher arbeitet als die Küchenzeile: Die 3,3 cm *seien*
-   * das Brett, ein Brett liege nun einmal auf der Platte. Im Bild ist es
-   * trotzdem eine **Stufe** in einer Reihe aus Zeile, Brett, Zeile, und
-   * verlangt war eine durchgehende Platte. Sie kommt nicht daher, dass am Maß
-   * des Bretts gedreht wird (das ist gemessen), sondern daher, dass das **Möbel**
-   * um die Brettdicke tiefer steht (`KitchenPiece.bury`).
+   * Küchenzeile, Arbeitstisch, Tellerausgabe, Ausgabe und Löscherhocker legen
+   * ihre Arbeitsfläche auf **einen halben Meter**: Wer daran entlanggeht,
+   * schiebt etwas über eine durchgehende Fläche und hebt es nicht alle zwei
+   * Kacheln über eine Stufe. Ein halber Meter ist zugleich die Zahl, die zum
+   * Koch von 1,60 m passt (`core/chefFit.ts`).
    *
-   * Geprüft wird deshalb `kitchenWorkHeight` und nicht `kitchenDeck`: Das eine
-   * misst über dem Boden, das andere über dem Fuß des Möbels — und genau dieser
-   * Unterschied ist der ganze Umbau.
+   * **Die Kochstellen liegen höher**, und das ist keine Stufe, sondern ein
+   * Rost: Auf einem Herd steht ein Topf, und der steht auf Gusseisen und nicht
+   * in der Arbeitsplatte.
    */
   it('legt die Arbeitsflächen der Zeilenmöbel auf eine Höhe', () => {
-    const line = kitchenWorkHeight(kitchenPiece('counter')!);
-    // Die Küchenzeile ist das Maß: Korpus 1,000 in der Quelle, halbiert.
-    expect(line).toBeCloseTo(1 * KITCHEN_SCALE, 6);
-    // Die Möbel, die in dieser Küche in einer Reihe stehen — welche das sind,
-    // steht im Aufbau und wird dort auch geprüft
-    // (`worlds/test/zones/kitchenPlan.test.ts`).
-    for (const name of ['counter', 'board', 'table', 'plate-counter', 'extinguisher']) {
+    const line = ['counter', 'table', 'plate-counter', 'serve-counter', 'extinguisher'];
+    for (const name of line) {
       const piece = kitchenPiece(name)!;
       expect({ name, top: kitchenWorkHeight(piece).toFixed(3) }).toEqual({
         name,
-        top: line.toFixed(3),
+        top: (0.5).toFixed(3),
       });
     }
-    // Der Herd ist die begründete Ausnahme: Sein **Blech** liegt bei 1,000 in
-    // der Quelle, also bündig mit der Zeile; die 5 cm darüber sind die
-    // Kochstelle, und darauf steht ein Topf.
+    // Das Brett liegt eine Brettdicke darüber, die Herde auf ihrem Rost.
+    expect(kitchenWorkHeight(kitchenPiece('board')!)).toBeCloseTo(0.575, 3);
     for (const name of ['stove', 'stove-pot', 'stove-pan']) {
-      expect({ name, top: kitchenWorkHeight(kitchenPiece(name)!) }).toEqual({ name, top: 0.55 });
+      expect({ name, top: kitchenWorkHeight(kitchenPiece(name)!).toFixed(3) }).toEqual({
+        name,
+        top: (0.6).toFixed(3),
+      });
     }
-    expect(SOURCE['stove']![1] - 1).toBeCloseTo(0.1, 6);
   });
 
   /**
-   * **Im Boden steckt nur, was dort niemand vermisst.** `bury` ist ein
-   * Ausgleich von Zentimetern und keine Grube: Ein Möbel, das um einen halben
-   * Meter versenkt würde, wäre ein Loch im Fußboden mit einer Platte darüber —
-   * und seine Schubladen, seine Griffe und beim Schneidebrett das Brett selbst
-   * wären weg. Deshalb bleibt es unter einem Zehntelmeter und unter der eigenen
-   * Ablagehöhe.
+   * **Kein Möbel steckt mehr im Estrich.**
+   *
+   * `bury` glich aus, was der erste Baukasten schief lieferte: Das
+   * Schneidebrett lag 3,3 cm zu hoch, die Spülenhälften 1,7 cm. Die Möbel des
+   * zweiten stehen auf ihrem eigenen Boden, also gibt es nichts zu versenken —
+   * und `SINK_SUNK` ist folgerichtig null geworden.
    */
-  it('versenkt kein Möbel weiter als seine Sockelleiste', () => {
-    const sunk = KITCHEN_PIECES.filter((piece) => piece.bury);
-    expect(sunk.map((piece) => piece.name)).toEqual(['sink-basin', 'sink-drain', 'board']);
-    for (const piece of KITCHEN_PIECES) {
-      const bury = piece.bury ?? 0;
-      expect({ name: piece.name, ok: bury >= 0 && bury < 0.1 }).toEqual({
-        name: piece.name,
-        ok: true,
-      });
-      // Was oben herausragt, bleibt sichtbar — beim Brett 0,57 − 0,033 =
-      // 0,537 m bis zur Messerspitze, mit der Brettoberfläche bei 0,50 m.
-      expect(kitchenWorkHeight(piece)).toBeGreaterThan(0.1);
-      expect(piece.height - bury).toBeGreaterThan(kitchenWorkHeight(piece) - 1e-9);
-    }
+  it('versenkt kein Möbel mehr im Boden', () => {
+    expect(SINK_SUNK).toBe(0);
+    expect(KITCHEN_PIECES.filter((piece) => piece.bury)).toEqual([]);
   });
 
   /**
@@ -598,84 +423,65 @@ describe('der Möbelkatalog', () => {
 });
 
 /**
- * **Aus einer Spüle sind zwei Möbel geworden**, und dieser Block rechnet die
- * Zerlegung nach — nicht das Netz (das ist `core/kitchenModel.splitSink` und
- * braucht eine Datei), sondern die Zahlen, die im Katalog davon stehen.
+ * **Die Spüle** — zwei Möbel, und seit dem Umbau auch zwei Netze.
  *
- * Der Spieltest hat es so gefordert: „Das Waschbecken müssen wir in 2 Elemente
- * teilen. Das Waschbecken selbst und das Abstellbrett-Element." Die beiden
- * Hälften sind seither zwei Stücke mit zwei Stationen — im Becken wird gespült,
- * auf dem Brett stehen die sauberen Teller.
+ * Sie war einmal **ein** Knoten von vier Metern, aus dem der Lader zwei
+ * Kacheln schnitt (`core/kitchenModel.splitSink`, knapp zweihundert Zeilen
+ * Geometriechirurgie). Der zweite Baukasten hat eine Spüle von **einer**
+ * Kachel und ein Abtropfgitter, das man daneben stellt — geschnitten wird
+ * nichts mehr, und die beiden Hälften sind einfach zwei Möbel.
+ *
+ * Was bleibt, ist die Aufteilung der Arbeit: Im **Becken** wird gespült, auf
+ * dem **Abtropfbrett** stehen die sauberen Teller
+ * (`worlds/test/zones/kitchenPlan.STATION_KINDS`).
  */
-describe('die geteilte Spüle', () => {
+describe('die Spüle', () => {
   const basin = kitchenPiece('sink-basin')!;
   const drain = kitchenPiece('sink-drain')!;
 
-  it('macht aus dem einen Knoten zwei Möbel von je einer Kachel', () => {
-    expect([basin.name, drain.name]).toEqual(['sink-basin', 'sink-drain']);
+  it('steht auf zwei Netzen von je einer Kachel', () => {
     expect(basin.tiles).toEqual([1, 1]);
     expect(drain.tiles).toEqual([1, 1]);
-    // **Und zusammen sind sie wieder die ganze Spüle.** Der Knoten `sink` ist
-    // in der Quelle 4 m breit; jede Hälfte misst 2 m, weil die Naht auf x = 0
-    // liegt und das Netz dort von −2,000 bis +2,000 reicht. Wer die Naht
-    // verschiebt, sieht es hier.
-    expect(SOURCE['sink-basin']![0] + SOURCE['sink-drain']![0]).toBe(4);
-    // Tiefe unverändert: Geschnitten wird in x, nicht in z.
-    expect(SOURCE['sink-basin']![2]).toBe(SOURCE['sink-drain']![2]);
-    // Die Armatur steht auf dem Becken, also ist nur diese Hälfte hoch.
-    expect(basin.height).toBeGreaterThan(drain.height * 2);
+    expect(basin.base).toEqual({ file: 'diner', node: 'kitchencounter_sink' });
+    expect(drain.base).toEqual({ file: 'diner', node: 'kitchencounter_straight_A' });
+    // Das Becken ist deutlich höher als das Brett daneben, und das ist die
+    // **Armatur**: Sie steht auf 0,90 m, die Wanne liegt bei 0,54 m.
+    expect(basin.height).toBeGreaterThan(drain.height);
+    expect(SINK_BOWL.rim).toBeLessThan(basin.height);
   });
 
   /**
-   * **Der Beckenrand reiht sich in die Zeile ein.** Er liegt in der Quelle bei
-   * y = 1,034858 (halbiert 0,5174 m) und damit 1,74 cm über der Küchenzeile —
-   * eine Stufe mitten in der Nordwand, dieselbe Sorte Fehler wie beim
-   * Schneidebrett, nur halb so hoch. `SINK_SUNK` nimmt sie unten wieder weg.
+   * **Die Wanne ist flach, und das ist nachgemessen und nicht geschätzt.**
+   *
+   * Im Netz gibt es zwischen Wannenboden und Wannenrand **keine** Stufe: Die
+   * einzige waagerechte Fläche im Beckenbereich liegt bei 0,54 m und misst
+   * 0,70 × 0,385 m. Der erste Baukasten hatte dort ein Becken von 14 cm Tiefe;
+   * dieses ist eine Mulde. Ein Teller liegt darin flach statt schräg — und
+   * genau deshalb rechnet `kitchenProps.SINK_TILT` heute null heraus, ohne dass
+   * jemand eine Sonderregel dafür schreiben musste.
    */
-  it('legt den Rand beider Hälften auf die Höhe der Küchenzeile', () => {
-    const line = kitchenWorkHeight(kitchenPiece('counter')!);
-    expect(line).toBeCloseTo(0.5, 6);
-    expect(SINK_BOWL.rim - SINK_SUNK).toBeCloseTo(line, 3);
-    // Beide Hälften stecken gleich tief — zwei Hälften eines Möbels mit einer
-    // Kante dazwischen wären zwei Möbel.
-    expect(basin.bury).toBe(SINK_SUNK);
-    expect(drain.bury).toBe(SINK_SUNK);
-    // Und was im Boden steckt, ist Sockel und kein Stück Möbel: Unterhalb von
-    // y = 0,05 (Quelle) steht der Korpus ohnehin hinter der Deckplatte zurück.
-    expect(SINK_SUNK).toBeLessThan(0.05 * KITCHEN_SCALE);
-  });
-
-  /**
-   * **Im Becken wird hineingelegt und nicht daraufgelegt.** `deck` ist deshalb
-   * nicht der Rand, sondern der Wasserspiegel — und der liegt auf halber
-   * Beckentiefe, weil genau dort der schräge Teller zur Hälfte eintaucht
-   * (`worlds/test/zones/kitchenProps.SINK_TILT`).
-   */
-  it('setzt die Ablage des Beckens auf den Wasserspiegel', () => {
+  it('hat eine flache Wanne statt eines tiefen Beckens', () => {
+    expect(SINK_BOWL.floor).toBe(SINK_BOWL.rim);
+    expect(SINK_BOWL.water).toBeGreaterThan(SINK_BOWL.rim);
+    expect(SINK_BOWL.water - SINK_BOWL.rim).toBeLessThan(0.01);
+    // Die Ablage des Beckens ist der Wasserspiegel: Ein Teller liegt im Wasser
+    // und nicht daneben.
     expect(kitchenDeck(basin)).toBe(SINK_BOWL.water);
-    expect(SINK_BOWL.water).toBeCloseTo((SINK_BOWL.rim + SINK_BOWL.floor) / 2, 4);
-    // Das Becken ist 14,4 cm tief (Quelle 1,034858 − 0,746379 = 0,288479).
-    expect(SINK_BOWL.rim - SINK_BOWL.floor).toBeCloseTo(0.288479 * KITCHEN_SCALE, 3);
   });
 
-  /**
-   * **Und das Abtropfbrett ist flach.** Genau daran unterscheidet die Quelle
-   * die beiden Seiten: links eine Mulde von 14,4 cm, rechts eine Riffelwanne
-   * von 7,6 cm. Wäre es andersherum, hätten wir zwei Becken und kein Brett.
-   */
-  it('gibt dem Abtropfbrett eine flache Wanne statt eines zweiten Beckens', () => {
+  it('stellt die sauberen Teller in ein Gitter über der Zeile', () => {
+    expect(drain.over).toEqual({ file: 'diner', node: 'dishrack', at: 0.5 });
     expect(kitchenDeck(drain)).toBe(SINK_TRAY.floor);
-    const tray = SINK_BOWL.rim - SINK_TRAY.floor;
-    expect(tray).toBeCloseTo(0.038, 3);
-    expect(tray).toBeLessThan((SINK_BOWL.rim - SINK_BOWL.floor) / 2);
-    // Beide Mulden sitzen spiegelbildlich zur Naht — dieselbe Zahl mit
-    // umgekehrtem Vorzeichen, und in z gleich weit nach Norden versetzt.
-    expect(SINK_BOWL.at[0]).toBeCloseTo(-SINK_TRAY.at[0], 6);
-    expect(SINK_BOWL.at[1]).toBe(SINK_TRAY.at[1]);
-    // Und beide bleiben innerhalb ihrer Kachel (1 m).
-    for (const tub of [SINK_BOWL, SINK_TRAY]) {
-      expect(Math.abs(tub.at[0]) + tub.width / 2).toBeLessThan(0.5);
-      expect(Math.abs(tub.at[1]) + tub.depth / 2).toBeLessThan(0.5);
-    }
+    // Der Gitterboden liegt 2,5 cm über der Zeile — flach genug, dass ein
+    // Teller darin liegt und nicht darüber schwebt.
+    expect(SINK_TRAY.floor - 0.5).toBeCloseTo(0.025, 3);
+    // Und schmaler als die Wanne: Ein Gitter ist kein Becken.
+    expect(SINK_TRAY.width).toBeLessThan(SINK_BOWL.width);
+  });
+
+  it('lässt beide Hälften auf dem Boden stehen', () => {
+    expect(SINK_SUNK).toBe(0);
+    expect(basin.bury).toBeUndefined();
+    expect(drain.bury).toBeUndefined();
   });
 });

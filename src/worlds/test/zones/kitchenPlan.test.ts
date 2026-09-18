@@ -261,12 +261,18 @@ describe('die Arbeitsflächen der Zeile', () => {
   ] as const;
 
   /**
-   * **Die Kochstellen zählen nicht mit**, und das ist kein Schlupfloch: Das
-   * Blech des Herds liegt bei 0,50 m wie die Zeile, die 5 cm darüber sind die
-   * Kochstelle — und darauf steht ein **Topf** (`core/kitchenFit.ts`, `stove`).
+   * **Die Kochstellen zählen nicht mit**, und das ist kein Schlupfloch: Die
+   * Platte des Herds liegt bei 0,50 m wie die Zeile, die 10 cm darüber sind
+   * der **Rost** — und darauf steht ein Topf (`core/kitchenFit.ts`, `stove`).
    * Wer sie einebnete, versenkte jeden Topf im Herd.
+   *
+   * **Und das Brett zählt seit dem Umbau auch nicht mehr mit.** Es ist heute
+   * wirklich ein Brett auf einem Tisch (`board.over`), und ein Brett liegt
+   * **auf** der Platte und nicht darin — 7,5 cm höher als die Zeile daneben.
+   * Vorher war das Brett selbst das Möbel und wurde um seine Dicke im Estrich
+   * versenkt; ein Tisch, der im Boden steckt, ist keiner.
    */
-  const HOBS = new Set(['stove', 'stove-pot', 'stove-pan']);
+  const HOBS = new Set(['stove', 'stove-pot', 'stove-pan', 'board']);
 
   const line = kitchenWorkHeight(kitchenPiece('counter')!);
 
@@ -296,46 +302,32 @@ describe('die Arbeitsflächen der Zeile', () => {
       'counter',
       'extinguisher',
       'counter',
-      'board',
       'counter',
       'plate-counter',
       'counter',
-      'board',
       'counter',
       'table',
     ]);
   });
 
   /**
-   * **Und der Salatkopf liegt danach immer noch auf dem Brett.** Das ist die
-   * andere Hälfte der Zusage: Die Fläche darf nicht dadurch bündig werden, dass
-   * die Ablage ins Möbel rutscht. `deck` misst ab Fuß des Möbels, der Fuß liegt
-   * um die Brettdicke tiefer — beides zusammen ergibt die Zeilenhöhe.
+   * **Und der Salatkopf liegt auf dem Brett und nicht auf dem Tisch darunter.**
+   *
+   * Das ist die andere Hälfte der Zusage: Die Fläche der Zeile ist bündig, das
+   * Brett steht sichtbar darüber — und es steht darüber, weil es ein Brett ist
+   * und nicht, weil jemand eine Zahl falsch eingetragen hat.
    */
-  it('lässt das Brett dabei sichtbar und die Ablage darauf', () => {
+  it('legt die Ablage auf das Brett und nicht auf den Tisch darunter', () => {
     const board = kitchenPiece('board')!;
-    // Oberfläche des Bretts über dem Fuß: Quelle 1,065, halbiert 0,5326 m.
-    expect(kitchenDeck(board)).toBeCloseTo(0.533, 3);
-    // Genau darum steckt das Möbel tiefer, und genau so viel.
-    expect(board.bury).toBeCloseTo(0.033, 3);
-    expect(kitchenWorkHeight(board)).toBeCloseTo(line, 6);
-    // Was im Boden steckt, ist Sockel: Über ihm ragt das Möbel noch 0,537 m
-    // auf (0,57 − 0,033, die Spitze des Hackmessers), und die Brettoberfläche
-    // liegt bei 0,50 m.
-    expect(board.height - board.bury!).toBeCloseTo(0.537, 3);
-    // Eingelassen sind im Aufbau nur das Brett und die beiden Hälften der
-    // Spüle — die Zeile ist sonst gewachsen, nicht gesenkt worden. Je zweimal
-    // in der Küche und einmal im Schauraum, das Brett dreimal.
+    // Der Tisch darunter steht auf Zeilenhöhe, das Brett liegt darauf.
+    expect(board.over!.at).toBeCloseTo(line, 6);
+    expect(kitchenDeck(board)).toBeCloseTo(line + 0.075, 3);
+    // Über der Schnittfläche liegt nichts mehr: Die Oberkante des Möbels ist
+    // die Oberkante des Bretts.
+    expect(kitchenDeck(board)).toBe(board.height);
+    // Und nichts steckt mehr im Estrich — `bury` hat keinen Fall mehr.
     const sunk = KITCHEN_SPOTS.filter((spot) => kitchenPiece(spot.name)?.bury);
-    expect(sunk.map((spot) => spot.name)).toEqual([
-      'sink-basin',
-      'sink-drain',
-      'board',
-      'board',
-      'sink-basin',
-      'sink-drain',
-      'board',
-    ]);
+    expect(sunk.map((spot) => spot.name)).toEqual([]);
   });
 });
 

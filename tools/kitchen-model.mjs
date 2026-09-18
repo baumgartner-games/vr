@@ -44,8 +44,80 @@ const args = new Map(
 );
 const source = args.get('in');
 const out = path.resolve(args.get('out') ?? 'public/models/kitchen.glb');
+
+/**
+ * **Was von diesem Katalog übrig bleibt** — fünf Knoten von dreizehn.
+ *
+ * Seit es einen zweiten Baukasten gibt (`tools/diner-model.mjs`, 146 Stücke
+ * aus einer Quelle), kommen Küchenzeile, Herd, Spüle, Arbeitstisch,
+ * Schneidebrett, Ausgabe und Tellerausgabe von **dort**. Hier bleibt nur, was
+ * der zweite Baukasten nicht hergibt oder was an einer Spielregel hängt, die
+ * an genau dieses Netz gebunden ist:
+ *
+ * - `extinguisher` — Hocker **und** Löscher in einem Knoten, und der Löscher
+ *   ist ein getragenes Gerät (`kitchenGrab.ts`).
+ * - `bin` — der Mülleimer.
+ * - `pass` — die Ausgabetheke, zwei Kacheln breit.
+ * - `plate-rack` — das Ausgaberegal darüber.
+ * - `stove-pan` — und davon **nur die Pfanne**: Der Herd darunter kommt aus
+ *   dem zweiten Baukasten, die Pfanne bleibt, weil an ihr die Bratregeln und
+ *   ein nachgemessener Muldenversatz hängen (`kitchenFit.PAN_BOWL`). Der
+ *   Knoten heißt danach `pan` und trägt nur noch sein `Kitchen_Utensils`-Netz.
+ *
+ * Die Liste steht **hier** und nicht nur im Ergebnis: Wer die Quelle noch
+ * einmal aufbereitet, soll dieselbe schlanke Datei bekommen und nicht wieder
+ * dreizehn Knoten, von denen acht niemand aufstellt.
+ */
+const KEEP = ['extinguisher', 'bin', 'pass', 'plate-rack'];
+
+/** Der Knoten, von dem nur das Gerät bleibt — und wie es danach heißt. */
+const LOOSE = { from: 'stove-pan', to: 'pan', material: 'Kitchen_Utensils' };
+
+/**
+ * **Nachträglich ausdünnen**, wenn die Quelle nicht mehr zur Hand ist.
+ *
+ * `node tools/kitchen-model.mjs --trim` liest die **fertige**
+ * `public/models/kitchen.glb` und wirft daraus alles, was nicht in `KEEP`
+ * steht. Dasselbe Ergebnis wie ein voller Lauf aus der Quelle — nur ohne die
+ * 23 MB Rohdaten, die nicht im Repository liegen (AGENTS.md, _Modelle im
+ * Repository_). Zwei Wege zu einer Datei sind einer zu viel, und genau deshalb
+ * lesen beide dieselbe Liste.
+ */
+if (args.has('trim')) {
+  const io = new NodeIO();
+  const doc = await io.read(out);
+  const root = doc.getRoot();
+  const scene = root.listScenes()[0];
+
+  for (const node of root.listNodes()) {
+    const name = node.getName();
+    if (KEEP.includes(name)) continue;
+    if (name !== LOOSE.from) {
+      node.dispose();
+      continue;
+    }
+    // Vom Herd mit der Pfanne bleibt die Pfanne: das Netz aus dem
+    // Gerätematerial, und der Knoten bekommt den Namen des Geräts.
+    const mesh = node.getMesh();
+    for (const primitive of mesh?.listPrimitives() ?? []) {
+      if (primitive.getMaterial()?.getName() !== LOOSE.material) primitive.dispose();
+    }
+    node.setName(LOOSE.to);
+    mesh?.setName(LOOSE.to);
+  }
+
+  await doc.transform(prune());
+  const bytes = await io.writeBinary(doc);
+  await writeFile(out, bytes);
+  console.log(
+    `${path.relative(process.cwd(), out)}: ${scene.listChildren().length} Knoten ` +
+      `(${[...KEEP, LOOSE.to].join(', ')}), ${(bytes.length / 1024).toFixed(0)} KB`,
+  );
+  process.exit(0);
+}
+
 if (!source || !existsSync(source)) {
-  console.error('Gebraucht wird --in=<Ordner mit scene.gltf>');
+  console.error('Gebraucht wird --in=<Ordner mit scene.gltf> oder --trim');
   process.exit(1);
 }
 

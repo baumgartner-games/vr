@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import type { Usable } from '../../core/usable';
 import { TILE } from '../nav/navTile';
+import { canLoadModels } from '../../core/chefFit';
+import { showPlate } from './showPlate';
+import type { TextPlane } from '../../ui/TextPlane';
 
 /**
  * **Der Konstruktionsraum** — der weiße Raum aus _Matrix_, und zwar nur für
@@ -80,6 +83,23 @@ export interface ConstructItem {
    */
   object(): THREE.Object3D;
   readonly label: string;
+  /**
+   * **Die zweite Zeile auf dem Schild** — Maß, Kachelzahl, was der Lieferant
+   * für wissenswert hält. Ohne sie steht nur der Name da.
+   */
+  readonly body?: string;
+  /**
+   * **Wie viele Kacheln das Stück belegt**, wenn es einmal steht — ohne Angabe
+   * eine.
+   *
+   * Der Raum stellt es dann auch auf so viele: Eine Ausgabetheke von zwei
+   * Kacheln bekommt zwei nebeneinander, ein Möbel von zwei mal zwei deren
+   * vier. Vorher bekam jedes Stück genau eine und wurde auf 0,8 m
+   * zurechtgestaucht — nebeneinander sahen ein Mülleimer und eine Theke damit
+   * **gleich groß** aus, und wer im Katalog nach Platz suchte, fand ihn erst
+   * beim Hinstellen nicht.
+   */
+  readonly tiles?: ConstructSize;
   /** Was ein Druck darauf tut. `true` heißt: der Raum schließt danach. */
   pick(): boolean;
 }
@@ -179,13 +199,36 @@ export const RISE_STAGGER = 0.04;
 const PICK_RADIUS = 0.45;
 
 /** Die Zeile am Handgelenk, wenn die Welt keine eigene mitgibt. */
+/**
+ * **Die Farbe der Linie unter dem Namen** im Konstrukt — dasselbe kühle Blau
+ * wie die Kachelfugen des Raums. Die beiden Schauräume haben ihre eigenen
+ * (gelb in der ersten Küche, hellblau in der zweiten): Wer an einem Schild
+ * steht, soll auch daran sehen, in welchem der drei Kataloge er gerade ist.
+ */
+const PLATE_ACCENT = 0x9fb4d8;
+
 const DEFAULT_TITLE = 'Konstrukt — wähle aus';
 
-/** Wohin ein Stück im Construct gehört, relativ zur Mitte (−z ist vorn). */
+/** Eine Grundfläche in Kacheln. */
+export interface ConstructSize {
+  readonly w: number;
+  readonly d: number;
+}
+
+/**
+ * Wohin ein Stück im Construct gehört, relativ zur Mitte (−z ist vorn) — und
+ * wie viele Kacheln es dort belegt.
+ *
+ * `x`/`z` sind die **Mitte der Grundfläche** und nicht ihre Nordwestkachel:
+ * Ein Stück von zwei Kacheln steht zwischen zwei Kachelmitten, und wer es auf
+ * eine davon setzte, ließe es um einen halben Meter danebenstehen.
+ */
 export interface ConstructSlot {
   readonly x: number;
   readonly y: number;
   readonly z: number;
+  readonly w: number;
+  readonly d: number;
 }
 
 /**
@@ -213,54 +256,50 @@ const FIRST_RING = TILE_CLEAR + 1;
 const RING_STEP = 2;
 
 /**
- * **Wo die Stücke stehen** — auf Kachelmitten, und zwar auf denen des
- * Kachelbodens, den man sieht.
+ * **Wo die Auswahl steht** — ein Ring um die Mitte, und jedes Stück bekommt so
+ * viele Kacheln, wie es belegt.
  *
- * Vorher hingen sie in einem Bogen in Armlänge vor der Figur, in drei Höhen
- * übereinander. Das war für einen Raum gedacht, in dem man sich nicht umsieht
- * und nicht hingeht — und es sah aus, wie es gemeint war: Möbel, die in der
- * Luft schweben. Ein Konstrukt mit einem Kachelboden, auf dem nichts steht,
- * ist ein Kachelboden zu viel. Also stehen sie jetzt **darauf**, jedes auf
- * seiner eigenen Kachel, und der Raum liest sich als Ausstellung statt als
- * Werkzeuggürtel.
+ * Das Muster ist geblieben: ein quadratischer Ring, die vier Kreuzmitten frei,
+ * damit man geradeaus hinaus- und hineinsieht. Was sich geändert hat, ist die
+ * Zuteilung — vorher eine Kachel je Stück, heute **die Grundfläche des
+ * Stücks**:
  *
- * Das Muster ist ein Ring um die Mitte, und zwar dieses (`C` ist der Anker,
- * `x` ein Stück, `o` eine freie Kachel):
+ * - **In der Breite** belegt es so viele Kacheln nebeneinander, wie es breit
+ *   ist. Zwei müssen dafür *nebeneinander auf derselben Seite* des Rings
+ *   liegen: Ein Möbel über Eck stünde im Knick.
+ * - **In der Tiefe** wächst es nach **außen**. Die Ringe stehen zwei
+ *   auseinander (`RING_STEP`), also passt ein zwei Kacheln tiefes Stück
+ *   dazwischen, ohne dem nächsten Ring in die Quere zu kommen.
  *
- * ```
- * xxxoxxx
- * xooooox
- * xooooox
- * oooCooo
- * xooooox
- * xooooox
- * xxxoxxx
- * ```
+ * Die Reihenfolge ist die alte: von der Blickrichtung aus nach beiden Seiten,
+ * bei gleichem Winkel zuerst nach rechts. Aus derselben Frage kommt damit
+ * jedes Mal dieselbe Antwort — und wer ein Stück dazutut, findet die vorherigen
+ * noch dort, wo sie waren, solange keins davor breiter geworden ist.
  *
- * Zwei Kacheln um den Anker bleiben frei (`TILE_CLEAR`), dann kommt der erste
- * Ring — **bis auf die Kreuzmitte**: Die vier Kacheln genau vor, hinter,
- * links und rechts vom Anker bleiben leer, und damit bleiben vier Gassen
- * offen, durch die man von der Mitte aus bis nach draußen sieht. Wer mehr
- * Stücke mitbringt, als ein Ring fasst (20 sind es im ersten), bekommt den
- * nächsten zwei Kacheln weiter draußen, nach demselben Muster.
- *
- * Gefüllt wird von innen nach außen und innerhalb eines Rings **von der
- * Blickrichtung aus nach beiden Seiten**: Das erste Stück steht dort, wo die
- * Figur ohnehin hinsieht, das zweite daneben, und was hinter ihr landet, ist
- * das, was zuletzt kommt.
- *
- * @param count wie viele Plätze gebraucht werden; 0 und Unsinn ergeben nichts
- * @param options `facing` ist der Winkel, in den die Figur schaut (0 ist −z)
- * @returns die Plätze in genau dieser Reihenfolge, relativ zur Mitte
+ * `count` darf eine Zahl bleiben: Das sind dann lauter Stücke von einer
+ * Kachel, und genau so ruft die Umkleide es auf (`GridWorld.openWardrobe`).
  */
-export function tileSlots(count: number, options?: { facing?: number }): ConstructSlot[] {
-  const wanted = Number.isFinite(count) ? Math.floor(count) : 0;
-  if (wanted <= 0) return [];
+export function tileSlots(
+  count: number | readonly ConstructSize[],
+  options?: { facing?: number },
+): ConstructSlot[] {
+  const sizes: ConstructSize[] =
+    typeof count === 'number'
+      ? Array.from({ length: Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0 }, () => ({
+          w: 1,
+          d: 1,
+        }))
+      : count.map((size) => ({
+          w: Math.max(1, Math.floor(size.w)),
+          d: Math.max(1, Math.floor(size.d)),
+        }));
+  if (!sizes.length) return [];
   const asked = options?.facing;
   const facing = Number.isFinite(asked) ? asked! : 0;
 
   const slots: ConstructSlot[] = [];
-  for (let ring = FIRST_RING; slots.length < wanted; ring += RING_STEP) {
+  let next = 0;
+  for (let ring = FIRST_RING; next < sizes.length; ring += RING_STEP) {
     const here: { x: number; z: number; turn: number }[] = [];
     for (let z = -ring; z <= ring; z++) {
       for (let x = -ring; x <= ring; x++) {
@@ -273,12 +312,100 @@ export function tileSlots(count: number, options?: { facing?: number }): Constru
     // Von der Blickrichtung aus nach beiden Seiten. Bei gleichem Winkel zuerst
     // nach rechts, damit aus derselben Frage jedes Mal dieselbe Antwort wird.
     here.sort((a, b) => Math.abs(a.turn) - Math.abs(b.turn) || b.turn - a.turn);
-    for (const tile of here) {
-      if (slots.length >= wanted) break;
-      slots.push({ x: tile.x * TILE_SIZE, y: 0, z: tile.z * TILE_SIZE });
+
+    const free = new Set(here.map((tile) => `${tile.x},${tile.z}`));
+    const onRing = (x: number, z: number) => free.has(`${x},${z}`);
+
+    while (next < sizes.length) {
+      const size = sizes[next]!;
+      const span = placeOnRing(here, free, ring, size.w, onRing);
+      if (!span) break;
+      slots.push(slotFor(span, ring, size));
+      next++;
     }
   }
   return slots;
+}
+
+/** Auf welcher Seite des Rings eine Kachel liegt — dieselbe Regel wie `slotTurn`. */
+function sideOf(x: number, z: number): 'n' | 's' | 'e' | 'w' {
+  if (Math.abs(z) >= Math.abs(x)) return z < 0 ? 'n' : 's';
+  return x > 0 ? 'e' : 'w';
+}
+
+/** Die Richtung **längs** des Rings auf dieser Seite. */
+function alongSide(side: 'n' | 's' | 'e' | 'w'): { x: number; z: number } {
+  return side === 'n' || side === 's' ? { x: 1, z: 0 } : { x: 0, z: 1 };
+}
+
+/** Die Richtung **aus** dem Ring heraus. */
+function outOfRing(side: 'n' | 's' | 'e' | 'w'): { x: number; z: number } {
+  if (side === 'n') return { x: 0, z: -1 };
+  if (side === 's') return { x: 0, z: 1 };
+  return side === 'e' ? { x: 1, z: 0 } : { x: -1, z: 0 };
+}
+
+/**
+ * **Sucht `wide` freie Kacheln nebeneinander auf derselben Ringseite** und
+ * belegt sie — oder gibt `null`, wenn dieser Ring keine mehr hergibt.
+ *
+ * Gesucht wird in der Reihenfolge der Liste, also von der Blickrichtung aus
+ * nach außen: Das breiteste Stück bekommt nicht den besten Platz, sondern das
+ * erste, das noch passt. Eine Sortierung nach Breite brächte ein volleres
+ * Regal und eine Reihenfolge, die sich beim nächsten Katalogstück umwirft.
+ */
+function placeOnRing(
+  here: readonly { x: number; z: number }[],
+  free: Set<string>,
+  ring: number,
+  wide: number,
+  onRing: (x: number, z: number) => boolean,
+): { x: number; z: number }[] | null {
+  for (const tile of here) {
+    if (!free.has(`${tile.x},${tile.z}`)) continue;
+    const side = sideOf(tile.x, tile.z);
+    const along = alongSide(side);
+    for (const step of [1, -1]) {
+      const span: { x: number; z: number }[] = [];
+      for (let i = 0; i < wide; i++) {
+        const x = tile.x + along.x * step * i;
+        const z = tile.z + along.z * step * i;
+        // Auf demselben Ring, auf derselben Seite, und noch frei.
+        if (!onRing(x, z) || !free.has(`${x},${z}`) || sideOf(x, z) !== side) break;
+        span.push({ x, z });
+      }
+      if (span.length === wide) {
+        for (const one of span) free.delete(`${one.x},${one.z}`);
+        return span;
+      }
+      if (wide === 1) break;
+    }
+    // Diese Kachel trägt das Stück nicht — sie bleibt frei für ein schmaleres.
+    void ring;
+  }
+  return null;
+}
+
+/** Aus der belegten Spanne die Mitte, nach außen um die Tiefe verschoben. */
+function slotFor(
+  span: readonly { x: number; z: number }[],
+  ring: number,
+  size: ConstructSize,
+): ConstructSlot {
+  const first = span[0]!;
+  const side = sideOf(first.x, first.z);
+  const out = outOfRing(side);
+  const mx = span.reduce((sum, one) => sum + one.x, 0) / span.length;
+  const mz = span.reduce((sum, one) => sum + one.z, 0) / span.length;
+  const deep = (size.d - 1) / 2;
+  void ring;
+  return {
+    x: (mx + out.x * deep) * TILE_SIZE,
+    y: 0,
+    z: (mz + out.z * deep) * TILE_SIZE,
+    w: size.w,
+    d: size.d,
+  };
 }
 
 /**
@@ -304,7 +431,7 @@ export function tileSlots(count: number, options?: { facing?: number }): Constru
  * @param slot der Platz, relativ zur Mitte (−z ist vorn)
  * @returns die Drehung um y, in Bogenmaß und immer ein Vielfaches von 90°
  */
-export function slotTurn(slot: ConstructSlot): number {
+export function slotTurn(slot: Pick<ConstructSlot, 'x' | 'z'>): number {
   if (Math.abs(slot.z) >= Math.abs(slot.x)) return slot.z < 0 ? Math.PI : 0;
   return slot.x > 0 ? Math.PI / 2 : -Math.PI / 2;
 }
@@ -403,6 +530,12 @@ export class ConstructRoom {
   private settled = false;
 
   private entries: RackEntry[] = [];
+  /**
+   * Die Schilder vor den Stücken — je Eintrag eines, gebaut, wenn er auffährt.
+   * Sie gehören dem Raum und werden beim Verlassen freigegeben; die Stücke
+   * selbst gehören dem Lieferanten und werden nur ausgehängt.
+   */
+  private readonly plates = new Map<RackEntry, { holder: THREE.Object3D; plate: TextPlane }>();
 
   /** Die Bühne mit Boden und Stücken — einmal gebaut, bei jedem Betreten versetzt. */
   private stage: THREE.Group | null = null;
@@ -789,7 +922,65 @@ export class ConstructRoom {
     // Jedes Stück sieht zur Mitte — aber in Vierteln (`slotTurn`).
     object.rotation.y = slotTurn(entry.slot);
     this.host.addUsable(object, this.pickedBy(entry.item), { radius: PICK_RADIUS });
+    this.label(entry);
     return object;
+  }
+
+  /**
+   * **Das Schild vor dem Stück** — unten auf dem Boden, an der Kante, die zur
+   * Mitte zeigt.
+   *
+   * Dieselbe Tafel wie in den beiden Schauräumen (`shared/showPlate.ts`), und
+   * zum ersten Mal überhaupt eine im Konstrukt: Bisher stand der Name des
+   * Stücks nur in `usePrompt` — und den zeigt seit dem Umbau der Bedienung
+   * niemand mehr an (`core/usable.ts`). Wer vor zweiundzwanzig Miniaturen
+   * stand, musste raten, welche davon das Filterband ist.
+   *
+   * **Zur Mitte und nicht nach Süden**: Im Konstrukt steht man in der Mitte,
+   * also ist „vorn" die Seite, die dorthin zeigt. Das Schild wird deshalb wie
+   * das Stück selbst um `slotTurn` gedreht — dann liegt seine Vorderkante an
+   * derselben Seite wie dessen.
+   *
+   * **Ohne Leinwand kein Schild** (`core/chefFit.canLoadModels`): `TextPlane`
+   * malt auf ein Canvas, und der Test dieses Raums läuft ohne `document`.
+   */
+  private label(entry: RackEntry): void {
+    if (!this.stage || !canLoadModels() || this.plates.has(entry)) return;
+    const plate = showPlate({
+      title: entry.item.label,
+      body: entry.item.body,
+      accent: PLATE_ACCENT,
+      tiles: { w: entry.slot.w, d: entry.slot.d },
+      at: { x: 0, z: 0 },
+      floor: 0,
+    });
+    // **Eine halbe Umdrehung mehr als das Stück**, und die ist der Unterschied
+    // zwischen den beiden Räumen: In einem Schauraum geht man von Süden an die
+    // Reihe heran, dort ist „vorn" die Südkante — und genau dorthin setzt
+    // `showPlate` das Schild. Im Konstrukt steht man in der **Mitte**, und
+    // vorn ist die Seite, die dorthin zeigt (`slotTurn`, „−z ist vorn").
+    // Dieselbe Drehung wie beim Stück ließe das Schild hinter ihm landen.
+    const holder = new THREE.Group();
+    holder.name = 'construct-plate';
+    holder.add(plate);
+    holder.position.set(entry.slot.x, entry.slot.y, entry.slot.z);
+    holder.rotation.y = slotTurn(entry.slot) + Math.PI;
+    // Ein Schild fängt keinen Strahl: Sonst gewinnt es gegen das Stück
+    // dahinter, und ein Druck darauf wählt nichts aus.
+    holder.traverse((object) => {
+      object.raycast = () => {};
+    });
+    this.stage.add(holder);
+    this.plates.set(entry, { holder, plate });
+  }
+
+  /** Und wieder weg — die Schilder gehören dem Raum, nicht dem Lieferanten. */
+  private clearPlates(): void {
+    for (const { holder, plate } of this.plates.values()) {
+      holder.removeFromParent();
+      plate.dispose();
+    }
+    this.plates.clear();
   }
 
   /** Die gemerkten Flaggen zurück — genau so, wie sie waren. */
@@ -809,6 +1000,7 @@ export class ConstructRoom {
    */
   private settle(): void {
     this.restore();
+    this.clearPlates();
     for (const entry of this.entries) entry.object?.removeFromParent();
     this.entries = [];
     this.faded = [];
