@@ -1,5 +1,6 @@
 import { drawMenuIcon, type MenuEntry } from './menu';
 import { MenuNav } from './menuNav';
+import type { PagePreviewLayer } from './previewGrid';
 import './pageMenu.css';
 
 /**
@@ -31,6 +32,14 @@ import './pageMenu.css';
  * Welche der beiden Fassungen gerade gilt, entscheidet `WristMenus`: mit
  * aufgesetzter Brille die Handgelenke, sonst diese Seite. Kein three.js — nur
  * DOM, damit ein Test sie ohne Browser aufschlagen kann (`pageMenu.test.ts`).
+ *
+ * **Auch die drehenden Modelle nicht.** Eine Kachel des Asset-Regals zeigt
+ * nicht ihre Ikone, sondern das Ding selbst (`MenuEntry.preview`) — und das
+ * ist three.js. Die Seite hält dafür nur den Platz frei: ein Quadrat je
+ * Kachel (`.pmenu__prev`) und einen Rahmen über der Liste, in den eine
+ * Vorschauschicht ihre Leinwand hängen darf (`previewGrid.ts`,
+ * `PagePreviewLayer`). Gezeichnet wird dahinter (`PagePreviews.ts`); kommt
+ * niemand, bleibt im Quadrat die Ikone stehen, die dort ohnehin stünde.
  */
 
 interface Page {
@@ -65,6 +74,8 @@ export class PageMenu {
   private readonly backButton: HTMLButtonElement;
   private readonly titleEl: HTMLElement;
   private readonly statusEl: HTMLElement;
+  /** Der Rahmen um die Liste: Er trägt die Leinwand der Vorschau. */
+  private readonly stage: HTMLElement;
   private readonly list: HTMLElement;
   private readonly footEl: HTMLElement;
 
@@ -80,6 +91,10 @@ export class PageMenu {
   private readonly scrolls = new Map<string, number>();
   /** Welche Seite gerade in der Liste steht — `''`, wenn sie neu gebaut werden muss. */
   private renderedPage = '';
+  /** Wer die kleinen Modelle zeichnet, wenn es jemanden gibt. */
+  private previews: PagePreviewLayer | null = null;
+  /** Ob die Brille auf ist — dann zeichnet das Handgelenk und nicht die Seite. */
+  private presenting = false;
 
   constructor(options: PageMenuOptions = {}) {
     this.rootTitle = options.title ?? 'Menü';
@@ -105,9 +120,13 @@ export class PageMenu {
     this.statusEl = el('p', 'pmenu__status');
     this.statusEl.setAttribute('aria-live', 'polite');
     this.list = el('div', 'pmenu__list');
+    // Die Liste scrollt, die Leinwand darüber nicht: Sie liegt im Rahmen und
+    // zeigt immer genau den Ausschnitt, den man sieht (`PagePreviews.ts`).
+    this.stage = el('div', 'pmenu__stage');
+    this.stage.append(this.list);
     this.footEl = el('p', 'pmenu__foot');
 
-    this.sheet.append(head, this.statusEl, this.list, this.footEl);
+    this.sheet.append(head, this.statusEl, this.stage, this.footEl);
     this.element.append(this.sheet);
     (options.host ?? document.body).append(this.element);
 
@@ -157,6 +176,44 @@ export class PageMenu {
     this.statusEl.textContent = status;
   }
 
+  /**
+   * Wer die kleinen Modelle zeichnet — oder `null`, dann zeichnet sie niemand.
+   *
+   * Gesetzt wird das von `WristMenus`, wenn eine Welt ihre Modellfabrik
+   * abgibt, und beim Verlassen wieder weggenommen. Die Seite selbst weiß
+   * nichts über three.js und will es auch nicht wissen: Sie reicht ihren
+   * Rahmen und ihre Liste hinüber und sagt Bescheid, wenn sie auf- oder
+   * zugeht.
+   */
+  setPreviews(layer: PagePreviewLayer | null): void {
+    if (layer === this.previews) return;
+    this.previews?.dispose();
+    this.previews = layer;
+    if (!layer) {
+      // Ohne Vorschau steht in den Quadraten wieder die Ikone — aber nur,
+      // wenn gerade jemand hinsieht.
+      if (this.open) this.render();
+      return;
+    }
+    layer.mount(this.stage, this.list, this.onPreviewReady);
+    layer.setPresenting(this.presenting);
+    if (!this.open) return;
+    // Erst die Kacheln, dann die Schleife: Der Beobachter bekommt sonst eine
+    // leere Liste und lädt nichts.
+    this.render();
+    layer.setOpen(true);
+  }
+
+  /**
+   * Brille auf oder ab. In der Brille ist die Seite ohnehin zu (`WristMenus`);
+   * gesagt wird es der Vorschau trotzdem, denn eine zweite Zeichenschleife
+   * neben einer XR-Sitzung ist genau das, was dort fehlt.
+   */
+  setPresenting(on: boolean): void {
+    this.presenting = on;
+    this.previews?.setPresenting(on);
+  }
+
   toggle(force?: boolean): void {
     const next = force ?? !this.open;
     if (next === this.open) return;
@@ -164,8 +221,10 @@ export class PageMenu {
     this.element.hidden = !next;
     if (next) {
       this.render();
+      this.previews?.setOpen(true);
       this.sheet.focus({ preventScroll: true });
     } else {
+      this.previews?.setOpen(false);
       this.keepScroll();
       // Eine versteckte Liste vergisst ihre Blätterstellung; beim nächsten
       // Öffnen wird sie neu gebaut und dort aufgeschlagen, wo sie verlassen wurde.
@@ -181,6 +240,8 @@ export class PageMenu {
 
   dispose(): void {
     this.offNav();
+    this.previews?.dispose();
+    this.previews = null;
     window.removeEventListener('keydown', this.onKeyDown);
     this.element.remove();
   }
@@ -234,8 +295,9 @@ export class PageMenu {
     this.footEl.textContent = page.take
       ? 'Antippen nimmt es in die Hand · der Pfeil öffnet die Einstellungen'
       : '';
+    const ready = this.hasModel;
     const fresh = page.entries.map((entry, index) =>
-      page.grid ? tile(entry, index) : row(entry, index, page.take),
+      page.grid ? tile(entry, index, ready) : row(entry, index, page.take, ready),
     );
     const standing = [...this.list.children] as HTMLElement[];
     const sameRows =
@@ -252,7 +314,18 @@ export class PageMenu {
       this.list.scrollTop = this.scrolls.get(page.id) ?? 0;
     }
     this.renderedPage = page.id;
+    // Zum Schluss, und immer: Welche Quadrate jetzt dastehen, weiß nur, wer
+    // gerade neu gezeichnet hat.
+    this.previews?.observe(page.id, [...this.list.querySelectorAll<HTMLElement>('[data-preview]')]);
   }
+
+  /** Ob zu dieser Vorschau-Id schon ein Modell steht — dann bleibt die Ikone weg. */
+  private readonly hasModel = (id: string): boolean => this.previews?.has(id) ?? false;
+
+  /** Ein Modell ist angekommen: die Kachel darunter noch einmal zeichnen. */
+  private readonly onPreviewReady = (): void => {
+    if (this.open) this.render();
+  };
 
   // --- Bedienung ----------------------------------------------------------
 
@@ -300,7 +373,12 @@ function pageOf(entry: MenuEntry): Page {
   };
 }
 
-function row(entry: MenuEntry, index: number, take: boolean): HTMLElement {
+function row(
+  entry: MenuEntry,
+  index: number,
+  take: boolean,
+  ready: (id: string) => boolean,
+): HTMLElement {
   const accent = cssColor(entry.accent);
   const node = el('button', 'pmenu__row');
   node.type = 'button';
@@ -315,7 +393,7 @@ function row(entry: MenuEntry, index: number, take: boolean): HTMLElement {
   }
   if (entry.caption) node.title = entry.caption;
 
-  node.append(icon(entry, accent));
+  node.append(face(entry, accent, ready));
 
   const text = el('span', 'pmenu__text');
   text.append(el('strong', '', entry.label));
@@ -349,7 +427,7 @@ function row(entry: MenuEntry, index: number, take: boolean): HTMLElement {
   return node;
 }
 
-function tile(entry: MenuEntry, index: number): HTMLElement {
+function tile(entry: MenuEntry, index: number, ready: (id: string) => boolean): HTMLElement {
   const accent = cssColor(entry.accent);
   const node = el('button', 'pmenu__tile');
   node.type = 'button';
@@ -359,10 +437,30 @@ function tile(entry: MenuEntry, index: number): HTMLElement {
   node.style.setProperty('--accent', accent);
   if (entry.selected) node.classList.add('is-selected');
   if (entry.caption) node.title = entry.caption;
-  node.append(icon(entry, accent), el('strong', '', entry.label));
+  node.append(face(entry, accent, ready), el('strong', '', entry.label));
   if (entry.caption) node.append(el('small', '', entry.caption));
   if (entry.badge) node.append(el('span', 'pmenu__badge', entry.badge));
   return node;
+}
+
+/**
+ * **Was links (oder oben) in der Zeile steht** — und das ist zweierlei.
+ *
+ * Ohne `preview` die Ikone wie bisher. Mit `preview` ein **Quadrat**, in das
+ * eine Vorschauschicht ihr drehendes Modell zeichnet (`PagePreviews.ts`).
+ * Das Quadrat steht auch dann da, wenn niemand zeichnet — es hält den Platz,
+ * damit im Raster kein Loch entsteht —, und solange kein Modell angekommen
+ * ist, steht die Ikone darin. Erst wenn eines steht, geht sie weg: zwei
+ * Bilder übereinander wären nur Unruhe, und genau so hält es auch das Panel
+ * am Handgelenk.
+ */
+function face(entry: MenuEntry, accent: string, ready: (id: string) => boolean): HTMLElement {
+  const id = entry.preview;
+  if (!id) return icon(entry, accent);
+  const box = el('span', 'pmenu__prev');
+  box.dataset['preview'] = id;
+  if (!ready(id)) box.append(icon(entry, accent));
+  return box;
 }
 
 /**

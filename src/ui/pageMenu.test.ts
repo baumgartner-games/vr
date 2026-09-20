@@ -2,6 +2,7 @@
 import { PageMenu, cssColor } from './PageMenu';
 import { MenuNav } from './menuNav';
 import type { MenuEntry } from './menu';
+import type { PagePreviewLayer } from './previewGrid';
 
 /**
  * **Das Menü als Seite** (`PageMenu.ts`): derselbe Baum wie am Handgelenk,
@@ -240,6 +241,147 @@ describe('Das Menü als Seite', () => {
     menu.toggle(true);
     expect(menu.element.querySelector('[data-id="worlds"] canvas.pmenu__icon')).not.toBeNull();
     expect(menu.element.querySelector('[data-id="sprint"] .pmenu__icon--blank')).not.toBeNull();
+    menu.dispose();
+  });
+});
+
+/**
+ * **Das Regal in zwei Spalten, mit dem Modell in der Kachel.**
+ *
+ * Gezeichnet wird das Modell von einer Schicht aus three.js
+ * (`ui/PagePreviews.ts`), und die braucht eine Grafikkarte, die hier keine
+ * ist. Geprüft wird deshalb der Vertrag zwischen Seite und Schicht — und der
+ * ist es, an dem es hängt: dass jede Kachel ihr Quadrat bekommt, dass die
+ * Ikone darin stehen bleibt, bis ein Modell da ist, dass die Schicht nach
+ * jedem Neuzeichnen die Kacheln der **richtigen** Seite bekommt, und dass ein
+ * zugeklapptes Menü keine Schleife mehr laufen lässt.
+ */
+function shelf(): MenuEntry[] {
+  return [
+    {
+      id: 'assets',
+      label: 'Regal',
+      grid: true,
+      cols: 2,
+      children: [
+        { id: 'kaykit:barrel.glb', label: 'Fass', icon: 'cube', preview: 'kaykit:barrel.glb' },
+        { id: 'kaykit:crate.glb', label: 'Kiste', preview: 'kaykit:crate.glb' },
+        { id: 'kaykit:forest', label: 'Wald', icon: 'folder', children: [] },
+      ],
+    },
+  ];
+}
+
+/** Eine Attrappe der Vorschauschicht: Sie schreibt mit, statt zu zeichnen. */
+class FakeLayer implements PagePreviewLayer {
+  readonly seen: { page: string; ids: string[] }[] = [];
+  readonly opened: boolean[] = [];
+  readonly presented: boolean[] = [];
+  ready = new Set<string>();
+  mounted = false;
+  disposed = false;
+  onChange: (() => void) | null = null;
+
+  mount(_stage: HTMLElement, _list: HTMLElement, onChange: () => void): void {
+    this.mounted = true;
+    this.onChange = onChange;
+  }
+  observe(page: string, boxes: HTMLElement[]): void {
+    this.seen.push({ page, ids: boxes.map((box) => box.dataset['preview']!) });
+  }
+  has(id: string): boolean {
+    return this.ready.has(id);
+  }
+  setOpen(open: boolean): void {
+    this.opened.push(open);
+  }
+  setPresenting(on: boolean): void {
+    this.presented.push(on);
+  }
+  dispose(): void {
+    this.disposed = true;
+  }
+}
+
+describe('Die Kachel mit dem Modell darin', () => {
+  it('hält ein Quadrat frei — und stellt die Ikone hinein, solange nichts da ist', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(shelf());
+    menu.openSubmenu('assets');
+    const barrel = menu.element.querySelector<HTMLElement>('[data-id="kaykit:barrel.glb"]')!;
+    const box = barrel.querySelector<HTMLElement>('.pmenu__prev')!;
+    expect(box.dataset['preview']).toBe('kaykit:barrel.glb');
+    // Ohne Grafik bleibt die Ikone stehen: kein Fehler, kein Loch im Raster.
+    expect(box.querySelector('.pmenu__icon')).not.toBeNull();
+    // Eine Zeile ohne `preview` behält ihre Ikone ganz ohne Quadrat.
+    const forest = menu.element.querySelector<HTMLElement>('[data-id="kaykit:forest"]')!;
+    expect(forest.querySelector('.pmenu__prev')).toBeNull();
+    menu.dispose();
+  });
+
+  it('lässt die Ikone weg, sobald die Schicht ein Modell hat', () => {
+    const menu = new PageMenu({ host });
+    const layer = new FakeLayer();
+    menu.setPreviews(layer);
+    menu.setRoot(shelf());
+    menu.openSubmenu('assets');
+    expect(layer.mounted).toBe(true);
+    const id = 'kaykit:barrel.glb';
+    expect(menu.element.querySelector(`[data-preview="${id}"] .pmenu__icon`)).not.toBeNull();
+
+    layer.ready.add(id);
+    layer.onChange!();
+    expect(menu.element.querySelector(`[data-preview="${id}"] .pmenu__icon`)).toBeNull();
+    // Das Quadrat bleibt, sonst spränge die Kachel beim Ankommen des Modells.
+    expect(menu.element.querySelector(`[data-preview="${id}"]`)).not.toBeNull();
+    menu.dispose();
+  });
+
+  it('meldet der Schicht nach jedem Neuzeichnen die Kacheln ihrer Seite', () => {
+    const menu = new PageMenu({ host });
+    const layer = new FakeLayer();
+    menu.setPreviews(layer);
+    menu.setRoot(shelf());
+    menu.toggle(true);
+    // Die Wurzel hat keine Vorschau — gemeldet wird trotzdem, sonst gäbe eine
+    // verlassene Seite ihre Modelle nie her.
+    expect(layer.seen.at(-1)).toEqual({ page: 'root', ids: [] });
+    menu.openSubmenu('assets');
+    expect(layer.seen.at(-1)).toEqual({
+      page: 'assets',
+      ids: ['kaykit:barrel.glb', 'kaykit:crate.glb'],
+    });
+    menu.dispose();
+  });
+
+  it('lässt die Schleife nur laufen, solange das Menü offen ist', () => {
+    const menu = new PageMenu({ host });
+    const layer = new FakeLayer();
+    menu.setPreviews(layer);
+    menu.setRoot(shelf());
+    menu.toggle(true);
+    menu.toggle(false);
+    expect(layer.opened).toEqual([true, false]);
+    // Die Brille zeigt die Modelle am Handgelenk; hier läuft dann nichts.
+    menu.setPresenting(true);
+    expect(layer.presented.at(-1)).toBe(true);
+    menu.dispose();
+    expect(layer.disposed).toBe(true);
+  });
+
+  it('räumt die alte Schicht weg, wenn eine Welt ihre Fabrik zurücknimmt', () => {
+    const menu = new PageMenu({ host });
+    const layer = new FakeLayer();
+    menu.setPreviews(layer);
+    menu.setRoot(shelf());
+    menu.openSubmenu('assets');
+    layer.ready.add('kaykit:barrel.glb');
+    menu.setPreviews(null);
+    expect(layer.disposed).toBe(true);
+    // Und in der Kachel steht wieder, was ohne Vorschau dort stünde.
+    expect(
+      menu.element.querySelector('[data-preview="kaykit:barrel.glb"] .pmenu__icon'),
+    ).not.toBeNull();
     menu.dispose();
   });
 });

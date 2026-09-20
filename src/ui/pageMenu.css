@@ -87,8 +87,16 @@
 
 .pmenu__status:empty { display: none; }
 
+/* Der Rahmen um die Liste. Die Liste scrollt, die Leinwand darin nicht:
+   Sie liegt über dem sichtbaren Ausschnitt und schneidet oben und unten ab,
+   was aus dem Bild gescrollt ist (`ui/PagePreviews.ts`). */
+.pmenu__stage { position: relative; flex: 1; min-height: 0; display: flex; }
+
+.pmenu__canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
 .pmenu__list {
   flex: 1;
+  min-width: 0;
   display: grid;
   gap: 6px;
   align-content: start;
@@ -130,6 +138,10 @@
   width: 30px;
   height: 30px;
 }
+
+/* Das Quadrat für ein drehendes Modell (`MenuEntry.preview`). Es hält den
+   Platz, auch wenn niemand hineinzeichnet — solange bleibt die Ikone darin. */
+.pmenu__prev { flex: none; display: grid; place-items: center; width: 30px; height: 30px; }
 
 .pmenu__icon--blank {
   width: 10px;
@@ -218,6 +230,10 @@
 .pmenu__tile:hover { background: rgba(140, 170, 230, 0.16); }
 .pmenu__tile.is-selected { border-color: var(--accent); }
 .pmenu__tile .pmenu__icon { width: 40px; height: 40px; }
+/* In der Kachel ist das Modell die Hauptsache: ein Quadrat über der Zeile,
+   so breit wie die Kachel. Bei zwei Spalten auf einem Telefon sind das rund
+   160 Punkte — genug, um zwei ähnliche Fässer zu unterscheiden. */
+.pmenu__tile .pmenu__prev { width: 100%; height: auto; aspect-ratio: 1; max-height: 40dvh; }
 .pmenu__tile strong { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .pmenu__tile small { font-size: 11px; line-height: 1.3; color: var(--muted); }
 
