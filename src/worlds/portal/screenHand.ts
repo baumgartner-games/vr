@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ControllerState } from '../../core/XRInput';
 import { CHEF_EYE, CHEF_TOOL, POSE_SCALE } from '../../core/chefFit';
+import { screenCarryPoint, type CarrySpan, type ScreenCarryView } from '../../core/screenCarry';
 import type { PlayerRig } from '../../core/PlayerRig';
 
 /**
@@ -16,14 +17,32 @@ import type { PlayerRig } from '../../core/PlayerRig';
  * ohne Controller. Damit läuft der **ganze** bestehende Weg — `takeTool`,
  * `applyHold`, `onTrigger`, die Zielkorrektur, der Rückstoß —, und es gibt
  * keine zweite Art zu schießen, die beim nächsten Umbau vergessen wird. Was
- * fehlt, fehlt ehrlich: kein Greifen, kein Stick, kein Zeigestrahl, keine
- * Vibration.
+ * fehlt, fehlt ehrlich: kein Stick, kein Zeigestrahl, keine Vibration — und
+ * kein *Greifen*, wohl aber ein **Tragen** (siehe unten).
  *
  * **Sie hängt am Rig und nicht am Kopf.** Ein Werkzeug darin zeigt entlang
  * −z des Rigs, also genau dorthin, wohin die Figur schaut (`FlatControls`
  * dreht das Rig in die Laufrichtung, Paket P1 in die Zielrichtung). Die
  * Desktop-Kamera bleibt außen vor: Wohin die Maus zuletzt geschaut hat, hat
  * mit der Figur von oben nichts zu tun.
+ *
+ * ## Und sie trägt jetzt auch etwas, das kein Werkzeug ist
+ *
+ * Hier stand einmal „was fehlt, fehlt ehrlich: kein Greifen". Das galt,
+ * solange aus dem Beutel und dem Regal nichts anderes kam als ein Körper, der
+ * vor den Kopf fiel — und genau das war der gemeldete Fehler: *„Wenn ich ein
+ * Asset gewählt habe, hat der Spieler es in der Hand."*
+ *
+ * Also hat diese Hand einen **zweiten Anker** (`carry`), und der ist
+ * absichtlich nicht der Griff: Ein Werkzeug liegt an der rechten Faust der
+ * Figur (`CHEF_TOOL`), ein getragener Gegenstand vor ihrem Bauch oder — aus
+ * den Augen — vor der Kamera. Wo genau, rechnet `core/screenCarry.ts`; hier
+ * wird er nur hingehängt. Der Körper, der daran hängt, ist ein ganz normaler
+ * Nahgriff (`PortalWorld.attach`), nur dass die Hand keine getrackte ist.
+ *
+ * **Und es gibt sie jetzt in beiden flachen Ansichten**, nicht mehr nur von
+ * oben: Aus den Augen hält sie kein Werkzeug (dort schießt die Maus die
+ * Portale), aber tragen soll die Figur auch dort.
  */
 
 /** Ab wann der Trigger als gedrückt gilt — dieselbe Schwelle wie am Controller. */
@@ -34,6 +53,17 @@ export class ScreenHand {
   readonly state: ControllerState;
   /** Wo die Hand gerade liegt, im Raum des Rigs — der Avatar greift danach. */
   readonly at = new THREE.Vector3();
+
+  /**
+   * **Woran ein getragener Gegenstand hängt** — im Raum des Rigs und in
+   * seiner Größe, nicht in der der Figur.
+   *
+   * Nicht im Griff (`grip`), und das ist wichtig: Der ist auf Figurenmaß
+   * gestaucht (`POSE_SCALE`), damit eine Pistole in dieser Faust kein Balken
+   * ist. Ein Fass aus dem Regal soll aber so groß bleiben, wie es ist — es
+   * liegt ja auch nach dem Loslassen so im Raum.
+   */
+  readonly carry = new THREE.Group();
 
   private readonly grip = new THREE.Group();
   private readonly ray = new THREE.Group();
@@ -47,6 +77,8 @@ export class ScreenHand {
     // ein Werkzeug zeigt genau dorthin, wohin die Hand zeigt.
     this.grip.add(this.ray);
     rig.add(this.grip);
+    this.carry.name = 'screen-carry';
+    rig.add(this.carry);
 
     this.state = new ControllerState(
       2,
@@ -81,10 +113,24 @@ export class ScreenHand {
     this.state.trigger.value = value;
   }
 
+  /**
+   * **Den Trage-Anker an seinen Platz** — je Bild, solange etwas daran hängt.
+   *
+   * Die Stelle kommt aus `core/screenCarry.ts` und nicht von hier: Sie hängt
+   * an der Ansicht und an der Größe des Getragenen, und beides ist Rechnung
+   * und keine Darstellung.
+   */
+  placeCarry(view: ScreenCarryView, span: CarrySpan, bob: number): void {
+    const at = screenCarryPoint(view, span, this.rig.camera.position.y, bob);
+    this.carry.position.set(at.x, at.y, at.z);
+    this.carry.updateMatrixWorld(true);
+  }
+
   /** Gibt die Hand zurück an den Raum; was sie hielt, räumt die Welt weg. */
   dispose(): void {
     this.state.hold.removeFromParent();
     this.grip.removeFromParent();
+    this.carry.removeFromParent();
     this.state.reset();
   }
 

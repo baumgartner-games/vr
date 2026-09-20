@@ -281,6 +281,7 @@ import {
 import {
   interactionGrab,
   interactionKind,
+  inputLabel,
   interactionView,
   resolveInteraction,
   vrInputs,
@@ -303,6 +304,7 @@ import {
   type HandUseFind,
 } from '../../core/handUse';
 import { ScreenHand } from './screenHand';
+import type { CarrySpan, ScreenCarryView } from '../../core/screenCarry';
 import { Highlight } from '../../core/highlight';
 import type { ToolChoice, ToolOption } from '../../core/types';
 import { overBudget, type LooseEntry } from './tools/looseBudget';
@@ -491,6 +493,15 @@ const _funnelNormal = new THREE.Vector3();
 const _carryA = new THREE.Vector3();
 const _carryB = new THREE.Vector3();
 const _carried: THREE.Vector3[] = [];
+/** Wo der Trage-Anker der Bildschirmhand in diesem Bild steht. */
+const _screenCarryAt = new THREE.Vector3();
+/** Dieselbe Stelle im Raum des Rigs — dorthin gehen die Hände der Figur. */
+const _screenCarryHands = new THREE.Vector3();
+/** Die leere Menge für `carryGrab`: Die Bildschirmhand greift nicht aus der Nähe. */
+const _screenReach = new Set<PhysicsBody>();
+/** Für `spanOf` — die Hülle des Getragenen, einmal je Zugriff. */
+const _spanBox = new THREE.Box3();
+const _spanSize = new THREE.Vector3();
 const _otherHand = new THREE.Vector3();
 const _thisHand = new THREE.Vector3();
 const _localOrigin = new THREE.Vector3();
@@ -904,13 +915,61 @@ export class PortalWorld implements World {
   /** Was in **diesem** Bild schon von einer Hand benutzt wurde. */
   private readonly handUseFired = new Set<Usable>();
   /**
-   * **Die Hand am Schirm** (`screenHand.ts`) — nur in der Ansicht von oben.
+   * **Die Hand am Schirm** (`screenHand.ts`) — in beiden flachen Ansichten.
    *
-   * Sie hält das Werkzeug, dessen Trigger der Linksklick ist. In der Brille
-   * und aus den Augen gibt es sie nicht: Dort sind die Hände die getrackten,
-   * beziehungsweise gar keine.
+   * Von oben hält sie das Werkzeug, dessen Trigger der Linksklick ist; aus
+   * den Augen hält sie keines (dort schießt die Maus die Portale). **Tragen**
+   * tut sie in beiden: Was aus dem Beutel oder dem Regal kommt, hängt an
+   * ihrem zweiten Anker (`ScreenHand.carry`, `updateScreenCarry`) — vorher
+   * fiel es dort zu Boden. In der Brille gibt es sie nicht: Dort sind die
+   * Hände die getrackten.
    */
   private screenHand: ScreenHand | null = null;
+  /**
+   * **Ob die Bildschirmhand gerade ein Werkzeug halten soll** — das tut sie
+   * nur von oben, und der Merker sagt, ob beim Ansichtswechsel etwas zu tun
+   * ist.
+   */
+  private screenToolOn = false;
+  /**
+   * **Wie groß das ist, was die Bildschirmhand trägt** — halbe Ausdehnung,
+   * gemessen beim Zugreifen.
+   *
+   * Daran hängt, wie weit vor der Figur beziehungsweise vor der Kamera es
+   * liegt (`core/screenCarry.ts`): Ein Schlüssel darf dicht heran, ein Baum
+   * muss weg.
+   */
+  private screenSpan: CarrySpan = { radius: 0.2, half: 0.2 };
+  /**
+   * **Der Stand des Benutzen-Knopfes**, solange die Bildschirmhand trägt —
+   * dieselbe Rechnung wie für die Greif-Taste in der Brille
+   * (`core/handUse.ts`, _Halten oder Tippen_).
+   */
+  private screenPress: GripPress | null = null;
+  /** Wo der Trage-Anker stand, als der Knopf gedrückt wurde. */
+  private readonly screenPressFrom = new THREE.Vector3();
+  /** Ob der Knopf im letzten Bild schon lag (`PlayerRig.useHeld` ist kein Flankengeber). */
+  private screenUseWas = false;
+  /**
+   * **Ob das Getragene auf den nächsten Druck wartet.**
+   *
+   * Wahr, sobald ein **Tippen** es in der Hand gelassen hat — und dann legt
+   * der nächste Druck sofort ab, genau wie in der Brille. Falsch, solange es
+   * frisch aus dem Beutel oder dem Regal kommt: Dann ist der erste Druck der
+   * Griff darum, und erst sein Loslassen entscheidet.
+   */
+  private screenTapped = false;
+  /**
+   * **Ob die Bildschirmhand gerade zwei Dinge für sich beansprucht**: den
+   * Benutzen-Knopf (`PlayerRig.useBusy`) und die Hände der Figur
+   * (`PlayerAvatar.carry`).
+   *
+   * Gemerkt, damit beides wieder **freigegeben** wird, wenn sie loslässt —
+   * und nur dann. Beide Felder gehören der Welt gemeinsam mit ihren Zonen
+   * (die Küche schreibt in dieselben); wer sie jedes Bild blind auf `false`
+   * setzte, nähme der Küche ihren Feuerlöscher aus der Hand.
+   */
+  private screenClaim = false;
   /**
    * **Der gelbe Saum um das, was `A` gerade meint** (`core/highlight.ts`).
    *
@@ -3599,9 +3658,13 @@ export class PortalWorld implements World {
     for (const foam of this.foams) foam.dispose();
     this.foams.length = 0;
     // Die Hand am Schirm hängt am **Rig** und nicht an der Welt: Sie überlebte
-    // den Weltwechsel, wenn sie hier nicht abgenommen würde.
+    // den Weltwechsel, wenn sie hier nicht abgenommen würde. Und was sie trug,
+    // gibt sie vorher zurück — Knopf und Hände der Figur gehören danach wieder
+    // der nächsten Welt (`freeScreenClaim`).
+    this.dropScreenCarry(ctx);
     this.screenHand?.dispose();
     this.screenHand = null;
+    this.screenToolOn = false;
     ctx.avatar.screenHand = null;
     for (const entry of [...this.usables]) this.removeUsable(entry.object);
     // Der Saum hängt an einem Ding der Welt und darf ihr nicht folgen.
@@ -5102,6 +5165,9 @@ export class PortalWorld implements World {
     // Vor allem anderen: Die Hand am Schirm ist selbst eine Hand, und was in
     // ihr liegt, will gleich mit dem Rest der Werkzeuge nachgeführt werden.
     this.updateScreenHand(ctx);
+    // Und was sie **trägt**, noch davor — der Benutzen-Knopf gehört dann ihr
+    // und nicht dem, was vor der Figur steht (`updateUsables` kommt danach).
+    this.updateScreenCarry(dt, ctx);
     this.trackHands(dt, ctx);
 
     // The hips light up for whichever hand is carrying something.
@@ -6480,7 +6546,11 @@ export class PortalWorld implements World {
         // Und ebenso wenig ist es ein Druck: Eine Hand, die weg war, hat nicht
         // losgelassen, sie ist verschwunden. Was sie hielt, bleibt in ihr.
         this.gripPresses.set(hand, null);
-        if (grab) this.release(ctx, hand, grab, true);
+        // **Die Bildschirmhand steht auf derselben Seite und hat nie einen
+        // Controller** (`updateScreenCarry`). Was sie trägt, darf diese
+        // Zeile nicht fallen lassen — sonst fiele es in dem Bild wieder zu
+        // Boden, in dem es entstanden ist.
+        if (grab && hand !== this.screenCarrySide()) this.release(ctx, hand, grab, true);
         this.dropReach(ctx, hand);
         continue;
       }
@@ -7706,15 +7776,20 @@ export class PortalWorld implements World {
     const entry = this.createProp(id, kind, _point, null);
     this.sync?.spawned(id, kind, poseOf(entry));
 
-    const caught = Boolean(hand && anchor);
+    let caught = Boolean(hand && anchor);
     if (hand && anchor) {
       const tool = this.held.get(hand);
       if (tool) this.stowTool(tool);
       const existing = this.grabs.get(hand);
       if (existing) this.release(ctx, hand, existing, true);
       this.attach(hand, anchor, entry);
+    } else {
+      // **Und am Schirm fängt die Bildschirmhand es auf** (`screenCatch`).
+      // Hier fiel es bis vor Kurzem zu Boden, und der Beutel war der Grund,
+      // aus dem auch das Regal es tat.
+      caught = this.screenCatch(ctx, entry);
     }
-    ctx.notify(PROP_LABELS[kind]);
+    ctx.notify(caught ? this.carryNote(PROP_LABELS[kind]) : PROP_LABELS[kind]);
     return caught;
   }
 
@@ -7869,10 +7944,10 @@ export class PortalWorld implements World {
     if (anchor) {
       anchor.getWorldPosition(_point);
     } else {
-      // **Ohne Brille fällt es vor den Spieler**, und das ist keine
-      // Nachlässigkeit, sondern derselbe Weg, den der Beutel dort schon
-      // immer geht: Am Schirm hält keine Hand einen Gegenstand fest — die
-      // Greifzüge der Welt laufen über getrackte Controller (`updateGrabs`).
+      // **Ohne Brille entsteht es vor dem Kopf** — und wird von dort in die
+      // Bildschirmhand gerückt (`screenCatch`). Der Punkt hier ist nur der
+      // Platz für einen Wimpernschlag; gibt es keine Bildschirmhand, ist er
+      // der endgültige, und dann fällt es wie eh und je.
       ctx.rig.getHeadPosition(_point);
       ctx.rig.getHeadForward(_direction);
       _point.addScaledVector(_direction, 0.7);
@@ -7885,15 +7960,20 @@ export class PortalWorld implements World {
     // lädt dieselbe Datei und bekommt dasselbe Fass (`PortalSync`, `spawn`).
     this.sync?.spawned(id, kind, poseOf(entry));
 
-    const caught = Boolean(hand && anchor);
+    let caught = Boolean(hand && anchor);
     if (hand && anchor) {
       const tool = this.held.get(hand);
       if (tool) this.stowTool(tool);
       const existing = this.grabs.get(hand);
       if (existing) this.release(ctx, hand, existing, true);
       this.attach(hand, anchor, entry);
+    } else {
+      // **Am Schirm und auf dem Telefon in die Bildschirmhand** — das ist der
+      // ganze gemeldete Fehler: „Wenn ich ein Asset gewählt habe, hat der
+      // Spieler es in der Hand."
+      caught = this.screenCatch(ctx, entry);
     }
-    ctx.notify(propLabel(kind));
+    ctx.notify(caught ? this.carryNote(propLabel(kind)) : propLabel(kind));
     return caught;
   }
 
@@ -8464,33 +8544,244 @@ export class PortalWorld implements World {
   /**
    * **Die Bildschirmhand auf- und wieder absetzen** (`screenHand.ts`).
    *
-   * Sie entsteht mit der Ansicht von oben und vergeht mit ihr; was sie hielt,
-   * geht dabei an den Gürtel zurück. Damit ändert sich für die Brille und für
-   * die Sicht aus den Augen nichts — dort war noch nie eine Hand am Schirm,
-   * und es soll auch keine erscheinen.
+   * Sie entsteht mit jeder **flachen** Ansicht und vergeht mit der Brille;
+   * was sie hielt, geht dabei weg. Für die Brille ändert sich damit nichts —
+   * dort sind die Hände die getrackten.
+   *
+   * **Das Werkzeug bekommt sie nur von oben**, und das ist dieselbe
+   * Aufteilung wie bisher: Aus den Augen gehört der Linksklick den Portalen
+   * (`bindFlatInput`), und eine Pistole, die dort plötzlich in einer
+   * unsichtbaren Faust hinge, nähme ihn ihnen weg. Was sie in **beiden**
+   * Ansichten kann, ist **tragen** (`updateScreenCarry`) — dafür gibt es sie
+   * aus den Augen überhaupt erst.
    */
   private updateScreenHand(ctx: WorldContext): void {
-    const wanted = ctx.topDown && !ctx.renderer.xr.isPresenting;
+    const wanted = !ctx.renderer.xr.isPresenting;
     const hand = this.screenHand;
     if (!wanted) {
       if (!hand) return;
       // Was in dieser Hand lag, ist mit ihr entstanden und geht mit ihr
-      // (`dropScreenTool`).
+      // (`dropScreenTool`) — das Getragene fällt dabei ehrlich zu Boden.
+      this.dropScreenCarry(ctx);
       this.dropScreenTool();
+      this.screenToolOn = false;
       hand.dispose();
       this.screenHand = null;
       ctx.avatar.screenHand = null;
       return;
     }
-    if (!hand) {
-      const fresh = new ScreenHand(ctx.rig);
-      this.screenHand = fresh;
-      const id = this.screenTool();
-      const tool = id ? this.freshTool(id) : null;
-      if (tool) this.takeTool(ctx, fresh.state, tool);
+    const fresh = hand ?? new ScreenHand(ctx.rig);
+    this.screenHand = fresh;
+    // **Und das Werkzeug wechselt mit der Ansicht**: Wer von oben aus den
+    // Augen geht, legt es weg, und wer zurückkommt, bekommt es wieder.
+    if (ctx.topDown !== this.screenToolOn) {
+      this.screenToolOn = ctx.topDown;
+      if (ctx.topDown) {
+        const id = this.screenTool();
+        const tool = id ? this.freshTool(id) : null;
+        if (tool) this.takeTool(ctx, fresh.state, tool);
+      } else {
+        this.dropScreenTool();
+      }
     }
-    this.screenHand!.update();
-    ctx.avatar.screenHand = this.screenHand!.at;
+    fresh.update();
+    // Die Hand der Figur greift nur dort nach, wo man sie sieht — von oben.
+    ctx.avatar.screenHand = ctx.topDown ? fresh.at : null;
+  }
+
+  /**
+   * **Was die Bildschirmhand trägt** — die Seite, unter der es in `grabs`
+   * steht, oder `null`, wenn sie nichts hat.
+   *
+   * Es ist ausdrücklich **derselbe** Griff wie in der Brille und kein zweiter
+   * daneben: Dieselbe Karte, dieselbe `attach`/`release`-Buchführung, dasselbe
+   * `setCarried` in der Physik. Nur der Anker ist ein anderer — er hängt am
+   * Rig statt an einem Controller. Ein zweiter Weg, etwas in der Hand zu
+   * halten, wäre der, den beim nächsten Umbau jemand vergisst.
+   */
+  private screenCarrySide(): Handedness | null {
+    const hand = this.screenHand;
+    if (!hand) return null;
+    return hand.state.handedness ?? null;
+  }
+
+  /**
+   * **Ein frisch entstandener Körper in die Bildschirmhand** — der Ersatz für
+   * „fällt 70 cm vor dem Kopf zu Boden".
+   *
+   * Gerufen von beiden Herbeirufern (`conjureProp`, `spawnModel`), wenn keine
+   * getrackte Hand zugegriffen hat. Der Ablauf ist der des Beutels in der
+   * Brille, nur eine Zeile länger: Der Anker wird **erst** an seinen Platz
+   * gerechnet, dann rückt der Körper dorthin, und erst dann greift `attach`
+   * zu — sonst stünde im Versatz der Weg von der Kopfhöhe bis zum Bauch, und
+   * das Ding hinge schief neben der Figur.
+   *
+   * @returns ob die Hand es aufgefangen hat
+   */
+  private screenCatch(ctx: WorldContext, entry: PhysicsBody): boolean {
+    const hand = this.screenHand;
+    const side = this.screenCarrySide();
+    if (!hand || !side || !this.physics) return false;
+
+    // Eine Hand trägt eines. Was noch darin lag, geht vorher weg — dieselbe
+    // Regel wie in der Brille.
+    const busy = this.grabs.get(side);
+    if (busy) this.release(ctx, side, busy, true);
+
+    this.screenSpan = spanOf(entry.object);
+    hand.placeCarry(screenCarryView(ctx), this.screenSpan, ctx.avatar.bob);
+    hand.carry.getWorldPosition(_point);
+    entry.object.position.copy(_point);
+    entry.object.updateWorldMatrix(true, false);
+    entry.previousPosition.copy(_point);
+    entry.body.setTranslation({ x: _point.x, y: _point.y, z: _point.z }, true);
+
+    this.attach(side, hand.carry, entry);
+    // Frisch in der Hand und ohne Druck: Der **erste** Druck ist der Griff
+    // darum, sein Loslassen entscheidet (`updateScreenCarry`).
+    this.screenPress = null;
+    this.screenTapped = false;
+    this.screenUseWas = ctx.rig.useHeld;
+    return true;
+  }
+
+  /**
+   * **Ein Bild weiter mit dem, was die Bildschirmhand trägt**: der Anker an
+   * seinen Platz, der Körper hinterher, und der Benutzen-Knopf gefragt.
+   *
+   * **Warum der Benutzen-Knopf.** Am Schirm gibt es keine Greif-Taste — es
+   * gibt `A` auf dem Glas, `A` am Pad, `E` und Enter, und die heißen alle
+   * _Benutzen_ (`core/inputMap.ts`). Genau dieser Knopf gehört hier dem, was
+   * die Figur **trägt**, und das ist keine neue Regel, sondern die des
+   * Feuerlöschers in der Küche (`PlayerRig.useBusy`): Wer etwas in der Hand
+   * hat, hüpft damit nicht.
+   *
+   * **Und die Regel dahinter ist die der Brille** (`core/handUse.ts`,
+   * _Halten oder Tippen_): Wer drückt, läuft und **loslässt**, legt ab; wer
+   * nur **tippt**, behält es in der Hand, und der nächste Druck legt es ab.
+   * Dieselben zwei Zahlen entscheiden — 0,35 s und 8 cm —, nur ist die
+   * Strecke hier die der Figur und nicht die einer Faust: Wer mit dem Fass
+   * losgeht, meint „ich trage es dorthin".
+   */
+  private updateScreenCarry(dt: number, ctx: WorldContext): void {
+    const hand = this.screenHand;
+    const side = this.screenCarrySide();
+    const grab = hand && side ? this.grabs.get(side) : undefined;
+    if (!hand || !side || !grab) {
+      this.screenPress = null;
+      this.screenUseWas = ctx.rig.useHeld;
+      this.freeScreenClaim(ctx);
+      return;
+    }
+
+    // **Der Knopf gehört dem Getragenen** — sonst spränge die Figur dabei
+    // (`PlayerRig.useBusy`, dieselbe Regel wie beim Feuerlöscher der Küche).
+    ctx.rig.useBusy = true;
+    hand.placeCarry(screenCarryView(ctx), this.screenSpan, ctx.avatar.bob);
+    hand.carry.getWorldPosition(_screenCarryAt);
+    // **Und die Figur legt ihre Hände darunter** — aber nur von oben, denn
+    // nur dort sieht man sie (`PlayerAvatar.carry`).
+    ctx.avatar.carry = ctx.topDown ? _screenCarryHands.copy(hand.carry.position) : null;
+    this.screenClaim = true;
+
+    const held = ctx.rig.useHeld;
+    // **Die Flanke kommt aus zwei Quellen, und sie muss aus beiden kommen.**
+    // `E` und Enter rasten sie ein (`FlatControls` → `PlayerRig.requestUse`),
+    // der Knopf auf dem Glas und das Pad **liegen** nur (`useHeld`). Wer die
+    // Taste kürzer drückt, als ein Bild dauert, löst nur die erste aus — und
+    // ein Ablegen, das an der Bildrate hängt, ist keins.
+    //
+    // Und dass sie hier **abgeholt** wird, ist der zweite Teil: Derselbe Druck
+    // darf nicht auch noch benutzen, was vor der Figur steht (`updateUsables`
+    // fragt gleich danach). Der Knopf gehört dem Getragenen, ganz.
+    const down = ctx.rig.takeUse() || (held && !this.screenUseWas);
+    const up = !held && this.screenUseWas;
+    this.screenUseWas = held;
+
+    if (down) {
+      if (this.screenTapped) {
+        // Getippt genommen, jetzt wieder gedrückt: ablegen, sofort.
+        this.release(ctx, side, grab, true);
+        this.screenPress = null;
+        return;
+      }
+      this.screenPress = gripPressTook(beginGripPress());
+      this.screenPressFrom.copy(_screenCarryAt);
+      // Eine Taste, die im selben Bild schon wieder oben ist, **war** ein
+      // Tippen — und ein Tippen behält, was in der Hand liegt.
+      if (!held) {
+        this.screenPress = null;
+        this.keepInScreenHand(ctx, grab);
+      }
+    } else if (held && this.screenPress) {
+      this.screenPress = stepGripPress(
+        this.screenPress,
+        dt,
+        _screenCarryAt.distanceTo(this.screenPressFrom),
+      );
+    } else if (up) {
+      const press = this.screenPress;
+      this.screenPress = null;
+      if (gripPressDrops(press)) {
+        this.release(ctx, side, grab, true);
+        return;
+      }
+      // Ein Tippen behält es — und der nächste Druck legt es ab.
+      if (press) this.keepInScreenHand(ctx, grab);
+    }
+
+    // Und der Körper folgt dem Anker, Bild für Bild — dieselbe Rechnung wie
+    // in der Faust, nur ohne Nahgriff und ohne Zuggeste.
+    this.carryGrab(dt, ctx, side, grab, hand.state, hand.carry, _screenReach);
+    _screenReach.clear();
+  }
+
+  /**
+   * **Die Zeile, die beim Auffangen erscheint** — der Name und daneben, womit
+   * man es wieder loswird.
+   *
+   * Der Geber kommt aus der **eingestellten** Belegung und nicht aus einer
+   * festen Tabelle (`core/interaction.inputLabel`): Wer _Benutzen_ im Menü
+   * auf `F` legt, liest danach „A / F". Ohne diese Zeile wüsste niemand, dass
+   * der Knopf jetzt dem gehört, was er trägt.
+   */
+  private carryNote(label: string): string {
+    const config = inputConfig();
+    const givers = [inputLabel('useButton', { config }), inputLabel('useKey', { config })]
+      .filter((part) => part.length > 0)
+      .join(' / ');
+    return givers ? `${label} · ${givers} legt ab` : label;
+  }
+
+  /**
+   * **Ein Tippen behält, was in der Hand liegt** — und sagt es auch.
+   *
+   * Der Satz muss dastehen: Ein Knopf, der sichtbar nichts tut, sieht kaputt
+   * aus, und die Zeile beim Auffangen hat gerade versprochen, dass er ablegt.
+   * Einmal je Tippen, nicht je Bild — danach ist der Zustand gemerkt.
+   */
+  private keepInScreenHand(ctx: WorldContext, grab: HandGrab): void {
+    if (this.screenTapped) return;
+    this.screenTapped = true;
+    ctx.notify(`${labelOfProp(grab.entry.object)} bleibt in der Hand · nochmal drücken legt ab`);
+  }
+
+  /** Was die Bildschirmhand trug, fällt — beim Aufsetzen der Brille, beim Ende. */
+  private dropScreenCarry(ctx: WorldContext): void {
+    const side = this.screenCarrySide();
+    const grab = side ? this.grabs.get(side) : undefined;
+    if (side && grab) this.release(ctx, side, grab, true);
+    this.screenPress = null;
+    this.screenTapped = false;
+    this.freeScreenClaim(ctx);
+  }
+
+  /** Knopf und Hände wieder hergeben — und nur, wenn sie wirklich uns gehörten. */
+  private freeScreenClaim(ctx: WorldContext): void {
+    if (!this.screenClaim) return;
+    this.screenClaim = false;
+    ctx.rig.useBusy = false;
+    ctx.avatar.carry = null;
   }
 
   /**
@@ -8580,7 +8871,9 @@ export class PortalWorld implements World {
     this.toolPick = id;
     const ctx = this.context;
     const hand = this.screenHand;
-    if (!ctx || !hand) return;
+    // Aus den Augen hält diese Hand kein Werkzeug (`updateScreenHand`); die
+    // Wahl wird dann nur gemerkt und gilt, sobald man wieder von oben schaut.
+    if (!ctx || !hand || !this.screenToolOn) return;
     this.dropScreenTool();
     const tool = id ? this.freshTool(id) : null;
     if (tool) this.takeTool(ctx, hand.state, tool);
@@ -8624,7 +8917,10 @@ export class PortalWorld implements World {
       // **Von oben gehört der Klick der Hand**, nicht dem Fadenkreuz: Dort ist
       // er der Trigger der rechten Hand (Plan, E5), und ein Portal, das dabei
       // aus dem Kopf der Figur schießt, wäre ein zweiter, unsichtbarer Schuss.
-      if (this.screenHand) return;
+      // Gefragt wird die **Ansicht** und nicht, ob es eine Bildschirmhand
+      // gibt: Die gibt es seit dem Tragen auch aus den Augen, und dort ist
+      // der Linksklick weiter der Portalschuss.
+      if (ctx.topDown) return;
       if (event.button === 0) this.flatShoot(ctx, 'a');
       else if (event.button === 2) this.flatShoot(ctx, 'b');
     };
@@ -9474,6 +9770,27 @@ function aimTargetOf(entry: PhysicsBody): PropAim {
   target.halfExtents.y = entry.halfExtents.y;
   target.halfExtents.z = entry.halfExtents.z;
   return target;
+}
+
+/**
+ * **Wie groß etwas ist**, als halbe Ausdehnung — waagerecht und senkrecht.
+ *
+ * Genau das, was `core/screenCarry.ts` braucht, und nicht mehr: Wie weit vor
+ * der Figur ein Ding hängt, hängt an seiner Breite, und wie hoch, an seiner
+ * Höhe. Gemessen wird am fertigen Netz und nicht an der Datei — im Regal
+ * steht der Maßstab des Pakets schon darauf (`core/kaykitFit.kaykitScale`).
+ */
+function spanOf(object: THREE.Object3D): CarrySpan {
+  object.updateWorldMatrix(true, true);
+  _spanBox.setFromObject(object);
+  if (_spanBox.isEmpty()) return { radius: 0.2, half: 0.2 };
+  _spanBox.getSize(_spanSize);
+  return { radius: Math.max(_spanSize.x, _spanSize.z) / 2, half: _spanSize.y / 2 };
+}
+
+/** Welche der beiden flachen Ansichten gerade läuft (`core/screenCarry.ts`). */
+function screenCarryView(ctx: WorldContext): ScreenCarryView {
+  return ctx.topDown ? 'topDown' : 'firstPerson';
 }
 
 /** „gemessen: rechts" — oder nichts, wenn niemand es aufgeschrieben hat. */

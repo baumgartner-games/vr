@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import { KAYKIT_SCALE } from './kaykitFit';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { kaykitScale } from './kaykitFit';
 import type { KaykitIndex } from './kaykitIndex';
 import { versioned } from './assetVersion';
 
@@ -12,10 +13,18 @@ import { versioned } from './assetVersion';
  * Die anderen Kataloge dieses Spiels sind **eine** Datei mit vielen Knoten
  * darin (`core/mixedbagModel.ts`, `core/dinerModel.ts`): aufbereitet,
  * quantisiert, ein Atlas, zwei Materialien. Das Regal ist das Gegenteil und
- * muss es sein — es sind rund 4500 gekaufte Dateien in zwei Dutzend Paketen,
- * und sie werden **nicht angefasst**. Sie liegen so unter `public/`, wie sie
- * gekauft wurden, samt der `LICENSE.txt` ihres Pakets, und `tools/kaykit-model.mjs`
- * schreibt nur auf, was da ist.
+ * muss es sein — es sind rund 4500 Dateien in zwei Dutzend Paketen, und jede
+ * bleibt ihre eigene.
+ *
+ * **Aufbereitet sind sie trotzdem, und zwar alle.** `tools/kaykit-model.mjs`
+ * baut jede gekaufte Datei neu: Geometrie verschweißt, doppelte Knoten
+ * zusammengelegt, Ungenutztes entfernt, neu sortiert, quantisiert
+ * (`KHR_mesh_quantization`) und mit `EXT_meshopt_compression` gepackt — aus
+ * 154 MB werden 51. Die Texturen kommen dabei **aus** den Modellen heraus in
+ * einen Ordner `<paket>/textures/` je Paket und werden verlustfrei zu WebP,
+ * wo das kleiner ist (11,6 MB → 6,2 MB). Die Skelette der Figuren gehen
+ * durch dieselben Schritte. Was unverändert bleibt, ist die `LICENSE.txt`
+ * jedes Pakets und der Ordnerbaum darunter — die Namen sind die Adressen.
  *
  * Daraus folgt alles Weitere:
  *
@@ -34,9 +43,9 @@ import { versioned } from './assetVersion';
  * damit ein geändertes Modell nach einem Deploy auch wirklich ankommt. Hier
  * wäre das falsch, und zwar aus zwei Gründen zugleich:
  *
- * - Diese Dateien **ändern sich nicht**. Sie sind gekauft und liegen fest;
- *   was sich ändert, ist höchstens, dass ein Paket dazukommt — und das hat
- *   dann einen neuen Namen.
+ * - Diese Dateien **ändern sich nicht**. Sie werden einmal aufbereitet und
+ *   liegen dann fest; was sich ändert, ist höchstens, dass ein Paket
+ *   dazukommt — und das hat dann einen neuen Namen.
  * - Eine Nummer an der Adresse ist für den Speicher ein **neuer Name**. Nach
  *   jedem Deploy wären alle je angesehenen Modelle wieder fremd und müssten
  *   erneut über die Leitung. Bei hunderten kleiner Dateien ist das der
@@ -135,9 +144,10 @@ function template(path: string): Promise<THREE.Object3D | null> {
   // die Schrägstriche sind dagegen Teil der Adresse und bleiben stehen.
   const url = KAYKIT_BASE + path.split('/').map(encodeURIComponent).join('/');
   const pending = new GLTFLoader()
-    // Wie bei der Wundertüte: Der Entpacker kostet nichts, solange keine
-    // Datei komprimiert ist — und er ist der Unterschied zwischen „lädt" und
-    // „lädt nicht", sobald doch einmal eine dabei ist.
+    // **Ohne den Entpacker lädt hier gar nichts**: Jede Datei der Sammlung
+    // ist mit `EXT_meshopt_compression` gepackt (`tools/kaykit-model.mjs`).
+    // Das ist keine Vorsichtsmaßnahme wie bei der Wundertüte, sondern die
+    // Bedingung dafür, dass überhaupt ein Netz herauskommt.
     .setMeshoptDecoder(MeshoptDecoder)
     // Ohne eigenen `path`/`resourcePath` löst der GLTFLoader externe `.bin`-
     // und Texturdateien **relativ zur Adresse der Datei** auf
@@ -159,7 +169,8 @@ function template(path: string): Promise<THREE.Object3D | null> {
 }
 
 /**
- * **Eine Kopie der Vorlage**, mit dem Maßstab darüber.
+ * **Eine Kopie der Vorlage**, mit dem Maßstab ihres Pakets darüber
+ * (`core/kaykitFit.kaykitScale`).
  *
  * Geteilt wird die **Geometrie** — sie ist das Schwere, und hundert Fässer
  * sollen nicht hundertmal im Speicher liegen. Die **Materialien** bekommt
@@ -168,6 +179,21 @@ function template(path: string): Promise<THREE.Object3D | null> {
  * schreibt in ein Material hinein — und das dürfen nicht alle anderen Fässer
  * und die Vorschau im Menü gleich mit abbekommen. Ein Material ist ein paar
  * Zahlen und ein Zeiger auf die Textur; das kostet nichts.
+ *
+ * ## Eine Figur wird anders kopiert als ein Fass
+ *
+ * `Object3D.clone` kopiert bei einem `SkinnedMesh` **die Knochen nicht mit**:
+ * Die Kopie zeigt weiter auf das Skelett der **Vorlage**. Damit hängt jede
+ * Figur der Sammlung an einem Skelett, das gar nicht im Raum steht — und weil
+ * der Vertex-Shader beim Häuten allein die Knochen fragt, kam der Maßstab
+ * dieser Gruppe bei ihr **nie an**. Genau das war der gemeldete Fehler „die
+ * Figuren sind doppelt so groß": Ein Ritter stand mit seinen vollen 2,54 m im
+ * Raum, während das Fass daneben brav halbiert war.
+ *
+ * `SkeletonUtils.clone` kopiert Knochen und Bindung mit und ist die einzige
+ * richtige Antwort darauf. Es kostet mehr als ein `clone`, deshalb wird es
+ * nur gerufen, wo wirklich ein Skelett darin steckt — 85 Figuren unter 4470
+ * Dateien.
  */
 function copyOf(source: THREE.Object3D, path: string): THREE.Object3D {
   const holder = new THREE.Group();
@@ -176,7 +202,7 @@ function copyOf(source: THREE.Object3D, path: string): THREE.Object3D {
   // `disposeTree`): Die Geometrie darunter gehört der Vorlage und allen
   // anderen Kopien, nicht dieser einen.
   holder.userData.sharedAssets = true;
-  const clone = source.clone(true);
+  const clone = skinned(source) ? cloneSkinned(source) : source.clone(true);
   clone.traverse((object) => {
     const mesh = object as THREE.Mesh;
     if (!mesh.isMesh) return;
@@ -189,8 +215,20 @@ function copyOf(source: THREE.Object3D, path: string): THREE.Object3D {
     mesh.receiveShadow = true;
   });
   holder.add(clone);
-  holder.scale.setScalar(KAYKIT_SCALE);
+  holder.scale.setScalar(kaykitScale(path));
   return holder;
+}
+
+/**
+ * Ob in diesem Baum ein Skelett steckt — die einzige Frage, an der die Art
+ * des Kopierens hängt.
+ */
+function skinned(source: THREE.Object3D): boolean {
+  let found = false;
+  source.traverse((object) => {
+    if ((object as THREE.SkinnedMesh).isSkinnedMesh) found = true;
+  });
+  return found;
 }
 
 /**

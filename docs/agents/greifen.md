@@ -661,6 +661,103 @@ Bild hinterherhinkt, zeigt beim Umsehen regelmäßig auf das Möbel von eben.
 es nicht; er steht bereit (`PortalWorld.useInteraction.hint`), die Tafel über
 der Figur ist seinerzeit mit gutem Grund verschwunden.
 
+## Und am Schirm trägt die Figur
+
+Alles bisher Gesagte setzt eine **Hand** voraus, und die gibt es nur in der
+Brille. Von oben und aus den Augen gab es deshalb lange gar kein Greifen: Was
+aus dem magischen Beutel oder aus dem [KayKit-Regal](./assetregal.md) kam,
+entstand 70 cm vor dem Kopf und fiel zu Boden. Das war kein Vorsatz, sondern
+eine Lücke — und sie wurde als Fehler gemeldet: _„Wenn ich ein Asset gewählt
+habe, hat der Spieler es in der Hand."_
+
+**Die Bildschirmhand kann jetzt tragen** (`worlds/portal/screenHand.ts`). Sie
+ist, was sie immer war: ein `ControllerState` ohne Controller, an dem das
+Werkzeug der Figur hängt. Neu sind drei Dinge.
+
+### Ein zweiter Anker, und zwar nicht der Griff
+
+Ein Werkzeug liegt an der rechten Faust der Figur (`core/chefFit.CHEF_TOOL`),
+und dieser Griff ist auf **Figurenmaß** gestaucht (`POSE_SCALE`), damit eine
+Pistole darin kein Balken ist. Ein Fass aus dem Regal soll aber so groß bleiben,
+wie es ist — es liegt ja auch nach dem Loslassen so im Raum. Also hat die Hand
+einen zweiten Anker (`ScreenHand.carry`), ungestaucht, direkt am Rig.
+
+**Wohin er zeigt, ist eine Rechnung** und steht deshalb neben der Darstellung
+(`core/screenCarry.ts`, mit Test):
+
+| Ansicht       | Wo                                                                                |
+| ------------- | --------------------------------------------------------------------------------- |
+| von oben      | vor dem Bauch der Figur — dieselbe Stelle wie in der Küche (`chefFit.CHEF_CARRY`) |
+| aus den Augen | vor der Kamera, eine Handbreit unter der Blickachse                                |
+
+Und in **beiden** bleibt die Unterkante über dem Boden. Von oben ist das
+offensichtlich; aus den Augen war es genauso nötig: Ein Ritter von 1,78 m,
+dessen Oberkante eine Handbreit unter der Blickachse hängt, hat seine Füße
+einen Vierteilmeter **unter** dem Fußboden — und den sieht man zwei Meter vor
+sich liegen.
+
+Übernommen und nicht neu erfunden: Die Küche trägt seit jeher vor dem Bauch
+(`kitchen.carryInHands`), und der Grund dort ist der Grund hier — von oben
+verschwindet alles, was dicht an der Figur hängt, unter ihrem Kopf. Aus den
+Augen sieht man die Figur gar nicht, also muss das Getragene **ins Bild**.
+
+**Und beide Male entscheidet die Größe mit.** Das Regal gibt viertausend
+Modelle her, vom Schlüssel bis zum Baum von vier Metern; ein fester Punkt wäre
+für das eine unsichtbar und für das andere eine Wand vor dem Gesicht. Also
+rückt das Ding um seine eigene halbe Ausdehnung vor — und von oben steigt es
+so weit, dass es nicht im Boden steckt. Aus den Augen zählt dabei die
+**größere** der beiden Halben und nicht nur die Breite: Ein Ritter ist 1,78 m
+hoch und 1,36 m breit, und nach der Breite gerechnet hing er anderthalb Meter
+vor der Kamera — im ersten Bild davon sah man seinen Helm und sonst nichts.
+
+### Dieselbe Buchführung, kein zweiter Weg
+
+Was an diesem Anker hängt, steht in **derselben** Karte wie ein Griff in der
+Brille (`PortalWorld.grabs`, unter der Seite der Bildschirmhand) und geht durch
+dieselben drei Stellen: `attach` beim Zugreifen, `carryGrab` in jedem Bild,
+`release` beim Ablegen. Der Körper ist dabei kinematisch und für den Spieler
+weich (`PhysicsWorld.setCarried`), und beim Loslassen greift die
+[Räumung](#drei-dinge-drei-reichweiten--und-ihre-namen) wie überall.
+
+Ein zweiter Weg, etwas in der Hand zu halten, wäre der, den beim nächsten Umbau
+jemand vergisst. Genau eine Zeile musste dafür weichen: Die Schleife über die
+Controller lässt fallen, was eine Hand ohne Tracking hält — und die
+Bildschirmhand hat nie eins. Sie ist davon ausgenommen, und nur sie.
+
+### Der Benutzen-Knopf legt ab
+
+Am Schirm gibt es keine Greif-Taste. Es gibt `A` auf dem Glas, `A` am Pad, `E`
+und Enter, und die heißen alle _Benutzen_ (`core/inputMap.ts`,
+[Steuerung](./steuerung.md)). Solange die Figur etwas trägt, gehört dieser
+Knopf dem Getragenen: Er springt dann nicht (`PlayerRig.useBusy`, dieselbe
+Regel wie beim Feuerlöscher der Küche), und er bedient auch nicht, was vor der
+Figur steht — der Druck wird abgeholt, bevor `updateUsables` danach fragt.
+
+**Und darüber gilt _Halten oder Tippen_**, dieselbe Regel wie in der Brille
+(`core/handUse.gripPressKind`, 0,35 s oder 8 cm): Wer drückt, geht und
+**loslässt**, legt ab; wer nur **tippt**, behält es in der Hand, und der
+nächste Druck legt es ab. Die Strecke ist hier die der Figur und nicht die
+einer Faust — wer mit dem Fass losgeht, meint „ich trage es dorthin".
+
+**Und ein Tippen sagt, dass es bleibt.** „_Ritter_ bleibt in der Hand ·
+nochmal drücken legt ab" — einmal je Tippen, nicht je Bild. Der Satz muss
+dastehen: Beim Auffangen hat die Meldung gerade „A / E legt ab" versprochen,
+und ein Knopf, der sichtbar nichts tut, sieht kaputt aus.
+
+Die Flanke kommt dabei aus **zwei** Quellen, und sie muss aus beiden kommen:
+`E` und Enter rasten sie ein (`FlatControls` → `PlayerRig.requestUse`), der
+Knopf auf dem Glas und das Pad **liegen** nur (`PlayerRig.useHeld`). Wer kürzer
+drückt, als ein Bild dauert, löst nur die erste aus — und ein Ablegen, das an
+der Bildrate hängt, ist keins.
+
+### Was am Schirm weiter fehlt
+
+**Aufheben.** Was einmal liegt, bleibt liegen: Es gibt am Schirm keinen Griff,
+mit dem man danach greift, und der Benutzen-Knopf gehört dem, was vor der Figur
+steht (`core/usable.ts`). In die Hand kommt etwas nur, indem man es aus dem
+Beutel oder dem Regal holt. Das ist eine Grenze und keine Entscheidung gegen
+das Aufheben — wer es baut, baut es dort, wo `useByHand` in der Brille steht.
+
 ## Halten oder Tippen — zwei Greif-Arten, beide gültig
 
 In der Brille kommt ein Küchending auf zwei Arten in die Hand und auf zwei Arten
@@ -687,6 +784,12 @@ nach Ort etwas anderes heißt, lernt niemand.
 
 Die Regel steht in `core/handUse.ts` (`gripPressKind`, `gripPressDrops`) und wird
 dort geprüft; die Uhr und das Maßband laufen in `PortalWorld.trackGripPress`.
+
+**Und sie gilt auch ohne Brille**, seit die Bildschirmhand trägt: Dort steht
+statt der Greif-Taste der **Benutzen-Knopf**, und das Maßband misst statt der
+Faust die Figur (`PortalWorld.updateScreenCarry`, siehe _Und am Schirm trägt
+die Figur_). Zwei Zahlen, eine Regel, drei Ansichten — genau dafür steht sie im
+`core`.
 
 ## Abgelegt wird beim Loslassen und nicht beim Hinlangen
 
@@ -730,4 +833,7 @@ der bei einer getrackten Hand schon den Versatz zum Zeigestrahl trägt
 
 Von oben und am Schreibtisch bleibt alles beim Alten: Das Getragene hängt vor dem
 Bauch (`core/chefFit.CHEF_CARRY`). Fällt ein Controller weg oder wird die Brille
-abgesetzt, holt `kitchen.backToBelly` es dorthin zurück.
+abgesetzt, holt `kitchen.backToBelly` es dorthin zurück. Ein **Gegenstand der
+Welt** — einer mit Körper, aus dem Beutel oder dem Regal — hängt dort seit
+Kurzem ebenfalls, nur an einem eigenen Anker: siehe _Und am Schirm trägt die
+Figur_.

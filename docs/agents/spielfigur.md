@@ -310,7 +310,11 @@ Leinwand) und ohne three.js, damit es ohne Brille geprüft werden kann;
 > Dateien, durchblättert wie ein Dateibrowser. Der Unterschied ist der zwischen
 > einer Kiste mit Spielzeug und einem Lager: Was hier steht, ist von Hand
 > gebaut und heißt beim Namen; was dort steht, ist eine Datei, und ihr Pfad
-> **ist** ihr Name.
+> **ist** ihr Name. **Herausgeholt wird aus beiden gleich**, und zwar in jeder
+> Ansicht: In der Brille landet es in der Hand, die zugegriffen hat, am Schirm
+> und auf dem Telefon in der Bildschirmhand — vor dem Bauch der Figur
+> beziehungsweise vor der Kamera (siehe [Greifen](./greifen.md), _Und am Schirm
+> trägt die Figur_). Dass es dort einmal zu Boden fiel, ist vorbei.
 
 Der Beutel ist die Kiste mit dem Spielzeug, und alles darin steht in
 `worlds/portal/props.ts` — Sorte, Netz, Masse und Collider an _einer_ Stelle,

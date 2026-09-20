@@ -25,15 +25,26 @@ liegt in der Hand.
 
 ## Was wo liegt
 
-| Datei                    | Was darin steht                                                                                     |
-| ------------------------ | --------------------------------------------------------------------------------------------------- |
-| `public/models/kaykit/`  | Die gekauften Pakete, unverändert, je Paket mit eigener `LICENSE.txt`                               |
-| `…/kaykit/index.json`    | Der erzeugte Verzeichnisbaum — geschrieben von `tools/kaykit-model.mjs`                             |
-| `core/kaykitIndex.ts`    | **Rein**: Typen des Index, Adressen, Beschriftungen, und der Menübaum daraus (`kaykitMenu`)          |
-| `core/kaykitFit.ts`      | **Rein**: `KAYKIT_SCALE`, der Maßstab — dieselbe Zahl wie bei der Wundertüte                         |
-| `core/kaykitModel.ts`    | Der Lader: `loadKaykitIndex`, `kaykitModel`, `kaykitModelNow`                                        |
-| `worlds/portal/props.ts` | `ModelKind` (`model:<pfad>`) und `modelPropShape` — wie aus einem Modell ein Gegenstand wird          |
-| `worlds/portal/PortalWorld.ts` | Der Menüeintrag `assets`, `conjureModel`, und die Modellfabrik fürs Menü                       |
+| Datei                          | Was darin steht |
+| ------------------------------ | --------------- |
+| `public/models/kaykit/`        | Die aufbereiteten Pakete, je Paket mit eigener `LICENSE.txt` und eigenem `textures/`-Ordner |
+| `…/kaykit/index.json`          | Der erzeugte Verzeichnisbaum — geschrieben von `tools/kaykit-model.mjs` |
+| `core/kaykitIndex.ts`          | **Rein**: Typen des Index, Adressen, Beschriftungen, und der Menübaum daraus (`kaykitMenu`) |
+| `core/kaykitFit.ts`            | **Rein**: `KAYKIT_SCALE` als Vorgabe, `KAYKIT_PACK_SCALE` je Paket, `kaykitScale(pfad)` |
+| `core/kaykitModel.ts`          | Der Lader: `loadKaykitIndex`, `kaykitModel`, `kaykitModelNow` |
+| `core/screenCarry.ts`          | **Rein**: wo ein getragener Gegenstand am Schirm hängt — von oben und aus den Augen |
+| `worlds/portal/props.ts`       | `ModelKind` (`model:<pfad>`) und `modelPropShape` — wie aus einem Modell ein Gegenstand wird |
+| `worlds/portal/screenHand.ts`  | Die Bildschirmhand mit ihrem zweiten Anker (`carry`) |
+| `worlds/portal/PortalWorld.ts` | Der Menüeintrag `assets`, `conjureModel`, `screenCatch`/`updateScreenCarry`, die Modellfabrik |
+
+**Die Dateien sind nicht die gekauften.** `tools/kaykit-model.mjs` baut jede
+einzeln neu — verschweißt, entdoppelt, beschnitten, quantisiert
+(`KHR_mesh_quantization`) und mit `EXT_meshopt_compression` gepackt; aus 154 MB
+werden 51. Die Texturen liegen dabei **neben** den Modellen
+(`<paket>/textures/`) und sind verlustfrei WebP, wo das kleiner ist. Was bleibt,
+sind die Namen: Der Ordnerbaum ist die Adresse, und die Lizenz jedes Pakets
+liegt unverändert darin. Wer eine Datei im Original sucht, sucht sie beim
+Verkäufer und nicht hier.
 
 Ein Browser kann kein Verzeichnis auflisten; er kann nur holen, was er beim
 Namen kennt. Deshalb der Index: Ein Werkzeug schreibt den Baum einmal auf, und
@@ -145,17 +156,32 @@ eine Seite wieder auf.
 Dauert das Laden, sagt es das: `Lädt …` am Handgelenk. Kommt nichts an, steht
 dort `… nicht geladen`, und sonst passiert nichts.
 
-**Am Bildschirm und auf dem Telefon** entsteht das Modell 70 cm vor dem Kopf
-und fällt zu Boden. Das ist keine Nachlässigkeit, sondern derselbe Weg, den der
-Beutel dort schon immer geht: Die Greifzüge dieser Welt laufen über getrackte
-Controller (`PortalWorld.updateGrabs` geht `ctx.input.controllers` durch). Die
-Bildschirmhand (`worlds/portal/screenHand.ts`) ist ein `ControllerState` ohne
-Controller und hält **Werkzeuge**, aber sie steht in dieser Schleife nicht
-drin — was man ihr anhinge, bliebe kinematisch in der Luft stehen, statt der
-Hand zu folgen, und würde nie wieder losgelassen. Ein Gegenstand in der flachen
-Hand ist deshalb kein Nebenbei, sondern eine eigene Aufgabe: Sie hieße, die
-Bildschirmhand in `updateGrabs` mitlaufen zu lassen, samt Greifen und
-Loslassen über `A`/`E`.
+**Am Bildschirm und auf dem Telefon** liegt es ebenfalls in der Hand — seit
+die **Bildschirmhand** (`worlds/portal/screenHand.ts`) nicht nur Werkzeuge
+hält, sondern auch trägt. Hier stand einmal, das Modell entstehe 70 cm vor dem
+Kopf und falle zu Boden, und genau das war der gemeldete Fehler: _„Wenn ich ein
+Asset gewählt habe, hat der Spieler es in der Hand."_
+
+Drei Stücke waren dafür nötig; die lange Fassung steht in
+[Greifen](./greifen.md), _Und am Schirm trägt die Figur_:
+
+- **Ein zweiter Anker an der Bildschirmhand** (`ScreenHand.carry`) — nicht der
+  Griff, in dem die Pistole steckt. Wo er hängt, rechnet `core/screenCarry.ts`:
+  von oben vor dem Bauch der Figur wie in der Küche
+  (`core/chefFit.CHEF_CARRY`), aus den Augen vor der Kamera, beide Male um die
+  eigene Größe des Dings vorgerückt — ein Baum muss weiter weg als ein
+  Schlüssel.
+- **Dieselbe Buchführung wie in der Brille**: `attach`, `carryGrab`, `release`,
+  und der Körper ist dabei kinematisch und für den Spieler weich
+  (`PhysicsWorld.setCarried`). Kein zweiter Weg, etwas in der Hand zu halten.
+- **Der Benutzen-Knopf legt ab** — `A` auf dem Glas, `A` am Pad, `E` oder
+  Enter. Solange getragen wird, gehört er dem Getragenen und springt nicht
+  (`PlayerRig.useBusy`, dieselbe Regel wie beim Feuerlöscher der Küche), und
+  _Halten oder Tippen_ gilt wie in der Brille (`core/handUse.ts`).
+
+**Der Beutel geht denselben Weg mit.** Er hatte dasselbe Problem und war der
+Grund, aus dem das Regal es geerbt hatte — jetzt fängt die Bildschirmhand beide
+auf (`PortalWorld.screenCatch`).
 
 ## Aus einem Modell wird ein Gegenstand
 
@@ -180,6 +206,52 @@ Fass, das sich anfühlt wie eine Kiste, ist immer noch besser als eines, durch
 das man hindurchgreift. Das Modell wird dabei **in seine Mitte gerückt**, denn
 der Collider sitzt im Ursprung des Körpers — und diese Dateien haben ihren
 Ursprung meist unter den Füßen.
+
+## Ein Maßstab je Paket — und warum die Ritter zu groß waren
+
+`KAYKIT_SCALE` ist **0,5**, dieselbe Zahl wie bei der Wundertüte
+(`core/mixedbagFit.ts`) und beim Diner (`core/dinerFit.ts`): Diese Werkstatt
+baut in „Blender-Metern", in denen eine Kachel zwei sind. Nachgemessen an den
+Dateien stimmt das für die Requisiten — `dungeon/barrel_large.glb` ist 1,80 ×
+2,00 × 1,80 und wird zu einem Fass von 0,90 × 1,00 × 0,90 m, `dungeon/wall.glb`
+zu einer Wand von 2,00 m, `furniture-bits/bed_double_A.glb` zu einem Doppelbett
+von 1,55 × 1,50 m.
+
+Für die **Figuren** stimmt es nicht, und der gemeldete Fehler („die Figuren
+sind doppelt so groß") hatte zwei Ursachen, die sich addierten:
+
+1. **Der Maßstab kam bei ihnen gar nicht an.** Eine Kopie mit
+   `Object3D.clone` nimmt bei einem `SkinnedMesh` die **Knochen nicht mit** —
+   sie zeigt weiter auf das Skelett der Vorlage, und weil der Vertex-Shader
+   beim Häuten allein die Knochen fragt, blieb die Gruppe mit ihrem `0.5`
+   wirkungslos. Ein Ritter stand mit seinen vollen 2,54 m im Raum, während das
+   Fass daneben brav halbiert war. `core/kaykitModel.ts` kopiert Figuren
+   deshalb mit `SkeletonUtils.clone` — 85 von 4470 Dateien haben ein Skelett,
+   nur für die kostet es etwas.
+2. **Und halbiert wären sie zu klein.** Alle Figuren der Sammlung stehen auf
+   **zwei** Skeletten (`character-animations`): das mittlere ist 1,98 × 2,20 ×
+   1,01, das große 5,64 × 3,98 × 1,40. Eine mittlere Figur ist damit rund 2,3
+   hoch — halbiert 1,15 m, und das reicht einem Koch von 1,60 m
+   (`core/chefFit.CHEF_HEIGHT`) bis zur Brust.
+
+Also bekommen die **sieben Pakete mit Figuren** ihre eigene Zahl,
+`KAYKIT_FIGURE_SCALE` = **0,7** (`core/kaykitFit.KAYKIT_PACK_SCALE`):
+`adventurers`, `skeletons`, `character-animations`, `mystery-monthly-4`,
+`mystery-monthly-5`, `mystery-monthly-6` und `prototype-bits`. Der Ritter steht
+damit auf 1,78 m, das Mannequin auf 1,54 m, der Skelett-Krieger auf 1,81 m —
+Menschen neben einer Spielfigur.
+
+`prototype-bits` steht mit in der Liste, obwohl es „Bits" heißt: Es bringt
+dieselbe Figur mit (`character/Dummy.glb`, 2,40 hoch), und seine Tür ist 2,80
+hoch — halbiert 1,40 m, mit 0,7 dagegen 1,96 m. Durch die halbierte Tür käme
+die Figur nicht, die im selben Paket liegt.
+
+**Der Maßstab gehört dem Paket und nicht dem Modell**, und das ist die ganze
+Pointe: Innerhalb eines Pakets ist alles in derselben Einheit gebaut. In
+`adventurers` wächst mit dem Ritter auch sein Schwert (1,78 → 1,25 m) und seine
+Munitionskiste (0,57 → 0,40 m) — und genau so soll es sein. Sieben Zeilen liest
+man; viertausendfünfhundert nicht. Die Tests daneben halten die Tabelle
+ehrlich: Jeder Schlüssel muss ein Paket sein, das im Index wirklich steht.
 
 ## Keine Build-Nummer an diesen Adressen
 
@@ -206,6 +278,12 @@ und mit allen anderen Kopien; nur die **Materialien** bekommt jede für sich,
 damit der Pinsel und der Greif-Schimmer nicht in alle Fässer zugleich
 schreiben.
 
+**Ein Skelett teilt sich dagegen nichts**, und das ist die Ausnahme:
+`Object3D.clone` lässt eine kopierte Figur auf den Knochen der **Vorlage**
+stehen, und dann bewegt und skaliert sich die Kopie gar nicht mehr (siehe
+_Ein Maßstab je Paket_). Deshalb geht eine Datei mit `SkinnedMesh` durch
+`SkeletonUtils.clone` und alles andere durch `clone(true)`.
+
 Daraus folgt eine Regel, die man sonst erst in der Brille bemerkt:
 `disposeTree` hört an einem Knoten mit `userData.sharedAssets` auf
 (`worlds/shared/environment.ts`). Ohne sie nähme das Wegräumen **eines** Fasses
@@ -219,11 +297,19 @@ jedem `removeProp`, also an drei Stellen, die niemand im Verdacht hätte.
 - **Der Speicher wächst mit dem Blättern.** Wer viele Ordner durchsieht, sammelt
   Vorlagen an; freigegeben wird keine, weil vielleicht noch ein Fass daran
   hängt. Das sind kleine Dateien, aber unbegrenzt ist es nicht.
-- **Der Maßstab ist einer für alle** (`KAYKIT_SCALE`, 0,5 — dieselbe Zahl wie
-  bei der Wundertüte). Für Requisiten stimmt das; die **Figuren** der Sammlung
-  sind in der Quelle deutlich größer gebaut und stehen danach immer noch über
-  zwei Meter hoch im Raum. Wer das ändert, ändert es für alle oder gar nicht:
-  Eine Tabelle mit viertausendfünfhundert Ausnahmen pflegt niemand.
+- **Der Maßstab ist einer je Paket** und nicht einer für alle — siehe
+  _Ein Maßstab je Paket_ weiter oben. Was darin **nicht** steckt: ein Maß je
+  Modell. Ein Becher aus `furniture-bits` ist halbiert 26 cm hoch, und das ist
+  er auch weiterhin — die Sammlung ist so gebaut, und eine Tabelle mit
+  viertausendfünfhundert Ausnahmen pflegt niemand.
+- **Was am Schirm einmal liegt, bleibt liegen.** In die Hand kommt ein Modell
+  dort nur aus dem Regal (oder dem Beutel); ein **Aufheben** gibt es ohne
+  Brille nicht — siehe [Greifen](./greifen.md), _Was am Schirm weiter fehlt_.
+- **Die Figur trägt eines.** Wer am Schirm etwas Neues aus dem Regal holt,
+  legt ab, was er hatte. Ein **Werkzeug** bleibt dabei in der Faust — es hängt
+  an einer anderen Stelle der Figur (`chefFit.CHEF_TOOL`), und so hält es auch
+  die Küche (`PlayerAvatar.carry`: „Pistole rechts, Brötchen links"). Nur wer
+  das Werkzeug **wechselt**, legt das Getragene dabei ab.
 - **Kein Suchfeld.** Gefunden wird über Ordner und Fächer; wer den Namen weiß,
   muss trotzdem blättern.
 - **Griff, Farbe, Ton kennt ein Modell nicht.** Es wird angefasst, wo die Hand
