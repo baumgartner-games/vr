@@ -15,6 +15,7 @@ import {
   FIELD,
   INTERACT,
   KITCHEN,
+  KITCHEN_SPAWN,
   NAVIGATION,
   PODIUM,
   RANGE,
@@ -23,6 +24,7 @@ import {
   ZONE_LABELS,
   ZONE_TILES,
 } from './layout';
+import { DEFAULT_WORLD } from '../index';
 import { fitTest, testPlan } from './testPlan';
 import { DECK, STAIR_FOOT, STAIR_LANDING, STAIR_LENGTH, STAIR_X } from './zones/podium';
 import { DOORS, YARD } from './zones/interact';
@@ -187,6 +189,33 @@ describe('Start und Tor', () => {
   it('lässt den Startplatz frei — kein Tor auf der Kachel, auf der man ankommt', () => {
     expect(plan.graph.has(spawn)).toBe(true);
     expect(plan.fixturesOn(spawn)).toHaveLength(0);
+  });
+
+  /**
+   * **Angekommen wird aber in der Küche** (`TestWorld.spawnPoint`,
+   * `worlds/index.DEFAULT_WORLD`): Wer die Seite ohne Adresse öffnet, steht
+   * dort, wo gearbeitet wird, und nicht dreißig Meter davor.
+   *
+   * Geprüft wird das Einzige, was daran schiefgehen kann: dass die Kachel
+   * **begehbar** ist und dass sie dieselbe ist, auf die auch das Sprungmenü
+   * und `?at=kitchen` setzen (`layout.ZONE_TILES`). Zwei Zahlen, die
+   * auseinanderlaufen, wären eine Küche, die umgezogen ist, und ein Startplatz,
+   * der stehen geblieben ist — im Zweifel in einer Wand.
+   */
+  it('setzt den Startplatz der Welt in die Küche', () => {
+    // Die Welt, mit der die Seite ohne Adresse aufmacht — sonst führte diese
+    // Kachel niemanden irgendwohin.
+    expect(DEFAULT_WORLD).toBe('test');
+    const tile = tileKey(KITCHEN_SPAWN.x, KITCHEN_SPAWN.z, 0);
+    expect(plan.graph.has(tile)).toBe(true);
+    expect(plan.fixturesOn(tile)).toHaveLength(0);
+    expect(ZONE_TILES['kitchen']).toEqual({ ...KITCHEN_SPAWN, level: 0 });
+    // Und von dort kommt man auch wieder heraus — in jede Zone, die es gibt.
+    const field = flowField(plan.graph, [tile], { profile: HUMAN_PROFILE });
+    for (const [name, at] of Object.entries(ZONE_TILES)) {
+      const goal = tileKey(at.x, at.z, at.level);
+      expect({ name, reachable: field.cost.has(goal) }).toEqual({ name, reachable: true });
+    }
   });
 
   it('stellt das Tor drei Kacheln vom Startplatz weg', () => {

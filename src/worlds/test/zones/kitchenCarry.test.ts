@@ -694,6 +694,33 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
   });
 
   /**
+   * **Ein spritzendes Becken ist keine Spüle mehr** (`kitchenLeak.ts`) — Wort
+   * für Wort dieselbe Regel wie am brennenden Herd, und sie ist im Headset
+   * genauso teuer nachzustellen: Knopf drücken, Zange holen, hinlaufen.
+   */
+  it('nimmt nichts mehr an, solange es spritzt — außer der Zange', () => {
+    const broken = { kind: 'sink', on: null, leaking: true } as const;
+    expect(press(d('pliers'), broken)).toEqual({ do: 'repair' });
+    // Ohne Zange steht im Satz, was fehlt — und nicht, dass hier nichts geht.
+    expect(why(press(d('plate-dirty'), broken))).toContain('Wasserpumpenzange');
+    expect(why(press(null, broken))).toContain('Wasserpumpenzange');
+    // Auch der Topf wird nicht mehr gefüllt: Der Hahn läuft ja daneben.
+    expect(why(press(d('pot'), broken))).toContain('Wasserpumpenzange');
+    // Und was im Becken stand, bleibt darin stehen, bis es dicht ist.
+    expect(why(press(null, { kind: 'sink', on: d('plate'), leaking: true }))).toContain('spritzt');
+  });
+
+  /**
+   * **Und mit der Zange an einem heilen Becken gibt es nichts zu tun.** Der
+   * Satz ist die Auskunft, die man in dem Augenblick braucht: nicht „hier
+   * gehört nur Geschirr hinein" (richtig und am Thema vorbei), sondern dass
+   * nichts kaputt ist.
+   */
+  it('sagt an der heilen Spüle, dass nichts undicht ist', () => {
+    expect(why(press(d('pliers'), { kind: 'sink', on: null }))).toContain('undicht');
+  });
+
+  /**
    * **Der Nachgriff bei voller Hand.** Fertig gespült kommt der Teller von
    * selbst in die Hand (`kitchenWork.WORK_TO_HAND`) — außer die Hand war
    * voll, dann wartet er im Wasser. Dieser Griff ist der Ausweg daraus, und
@@ -1041,6 +1068,10 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
     );
     expect(kitchenPrompt(press(d('plate-dirty'), { kind: 'return' }), 'Rückgabe')).toBe(
       'Dreckiger Teller auf Rückgabe legen',
+    );
+    // Und am spritzenden Becken sagt er, was die Zange gleich tut.
+    expect(kitchenPrompt(press(d('pliers'), { kind: 'sink', leaking: true }), 'Spülbecken')).toBe(
+      'Leck abdichten',
     );
     // Und stumm ist, was nichts zu tun gibt.
     expect(kitchenPrompt(press(null, { kind: 'sink' }), 'Spüle')).toBe('');

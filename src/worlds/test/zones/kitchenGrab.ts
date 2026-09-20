@@ -259,6 +259,35 @@ const NOZZLE_RADIUS = 0.035;
 const NOZZLE_AHEAD: Vec3 = { x: 1, y: 0, z: 0 };
 
 /**
+ * **Wo die Faust die Wasserpumpenzange packt** — am hinteren Ende, quer über
+ * beide Griffe.
+ *
+ * Dieselbe Lesart wie beim Bügel des Löschers darüber, nur sind die Anteile
+ * hier nicht gemessen, sondern **gebaut**: Die Zange entsteht in dieser
+ * Werkstatt selbst (`kitchenProps.PLIERS`), also steht ihr Maß fest, und
+ * `across` −0,62 ist die Mitte der roten Griffe. Quer gefasst
+ * wird sie, weil man eine Zange so hält: Die Faust schließt sich **um beide
+ * Schenkel**, und deshalb läuft die Stange in z, über die ganze Breite des
+ * Werkzeugs.
+ */
+const GRIP_BAR = {
+  across: -0.62,
+  lift: 0.5,
+  half: 1,
+} as const;
+
+/**
+ * **Wohin die Zange zeigt**, im Raum ihres Netzes: nach **+x**, dorthin, wo
+ * ihre Backen sind (`kitchenProps.FoodKit.pliers`).
+ *
+ * Dieselbe Richtung wie die Düse des Löschers, und das ist keine
+ * Bequemlichkeit: Ein Werkzeug in der Faust soll nach vorn stehen, egal
+ * welches. Gerechnet wird daraus beides — die Drehung in der Faust (unten) und
+ * die vor dem Bauch (`kitchenCarryTurn`).
+ */
+const JAW_AHEAD: Vec3 = { x: 1, y: 0, z: 0 };
+
+/**
  * **Wie weit innen vom Tellerrand** die Finger fassen — ein Anteil des
  * Halbmessers.
  *
@@ -394,6 +423,36 @@ function extinguisherNeck(size: ItemSize): GrabHandle {
 }
 
 /**
+ * **Die Wasserpumpenzange an ihren Griffen.**
+ *
+ * Die Stange liegt quer über beide Schenkel (`GRIP_BAR`), oben bleibt die
+ * Flachseite der Zange — sie liegt in der Faust, wie sie auf der Platte lag —,
+ * und nach vorn zeigen die **Backen** (`JAW_AHEAD`). Dasselbe Muster wie beim
+ * Löscher (`extinguisherNeck`), und aus demselben Grund: Was man am
+ * spritzenden Becken benutzt, soll dorthin zeigen, wohin die Hand zeigt.
+ */
+function pliersGrip(size: ItemSize): GrabHandle {
+  const reach = (GRIP_BAR.half * size.depth) / 2;
+  const at = {
+    x: (GRIP_BAR.across * size.width) / 2,
+    y: GRIP_BAR.lift * size.height,
+    z: 0,
+  };
+  return holdBar(
+    'griffe',
+    {
+      from: { x: at.x, y: at.y, z: at.z - reach },
+      to: { x: at.x, y: at.y, z: at.z + reach },
+      // Die Faust liegt um **beide** Schenkel, also ist der Haltezylinder so
+      // dick wie die Zange hoch ist — und nicht so dick wie ein Schenkel.
+      radius: size.height / 2,
+    },
+    UP,
+    JAW_AHEAD,
+  );
+}
+
+/**
  * **Die Griffe eines Küchendings** — leer für alles, was man einfach packt.
  *
  * @param size die gemessene Hülle des Netzes; ohne Angabe die Verlegenheit
@@ -413,6 +472,9 @@ export function kitchenHandles(
 
     case 'extinguisher':
       return [extinguisherNeck(size)];
+
+    case 'pliers':
+      return [pliersGrip(size)];
 
     case 'plate':
     case 'plate-dirty':
@@ -470,9 +532,27 @@ export function kitchenHandles(
  * hingeschriebenes `Math.PI / 2` änderte sich nur einmal.
  */
 export function kitchenCarryTurn(item: KitchenItem): number {
-  if (item !== 'extinguisher') return 0;
-  return Math.atan2(NOZZLE_AHEAD.x, -NOZZLE_AHEAD.z);
+  const ahead = CARRY_FRONT[item];
+  if (!ahead) return 0;
+  return Math.atan2(ahead.x, -ahead.z);
 }
+
+/**
+ * **Was eine Vorderseite hat** — und wohin sie im eigenen Netz zeigt.
+ *
+ * Zwei Einträge, und beide sind Werkzeuge: die Düse des Löschers und die
+ * Backen der Zange. Alles andere fehlt hier und bekommt damit null
+ * (`kitchenCarryTurn`) — ein Teller hat keine Vorderseite, ein Brötchen auch
+ * nicht.
+ *
+ * Eine Tabelle und kein zweites `if`: Hier stand einmal der Löscher allein,
+ * und als die Zange dazukam, wäre daraus eine Kette geworden, in der beim
+ * dritten Werkzeug eines fehlt.
+ */
+const CARRY_FRONT: Partial<Record<KitchenItem, Vec3>> = {
+  extinguisher: NOZZLE_AHEAD,
+  pliers: JAW_AHEAD,
+};
 
 /**
  * **Was ein Küchending über das Greifen sagt** — Griffe und Reichweite in

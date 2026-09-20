@@ -50,6 +50,18 @@ export type KitchenItem =
   | 'pot'
   | 'pan'
   | 'extinguisher'
+  /**
+   * **Die Wasserpumpenzange** — das Werkzeug zum spritzenden Spülbecken
+   * (`kitchenLeak.ts`).
+   *
+   * Sie ist für diese Küche genau das, was der Feuerlöscher für den
+   * brennenden Herd ist: ein Gerät, das herumliegt, bis etwas kaputtgeht, und
+   * das dann **geholt** werden muss. Deshalb steht sie in derselben Zeile wie
+   * er und nicht bei den Zutaten — sie wird nie zu Essen, sie steht in keinem
+   * `TAKES`, `CHOPS` oder `FRIES`, und auf einen Teller gehört sie erst recht
+   * nicht.
+   */
+  | 'pliers'
   /** Träger: Sie nehmen auf, was fertig ist. */
   | 'plate'
   | 'bun'
@@ -88,6 +100,11 @@ export const ITEM_LABELS: Record<KitchenItem, string> = {
   pot: 'Topf',
   pan: 'Pfanne',
   extinguisher: 'Feuerlöscher',
+  // **Der ganze Name und keine „Zange".** So heißt das Werkzeug, so steht es
+  // im Auftrag, und der Satz über der Figur („Wasserpumpenzange nehmen") sagt
+  // damit, welches der Geräte dieser Küche gemeint ist — eine „Zange" wäre in
+  // einer Küche eher die, mit der man Steaks wendet.
+  pliers: 'Wasserpumpenzange',
   plate: 'Teller',
   bun: 'Brötchen',
   'plate-dirty': 'Dreckiger Teller',

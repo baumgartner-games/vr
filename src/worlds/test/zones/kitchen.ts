@@ -88,6 +88,8 @@ import {
   HANDS_BUTTON_TILE,
   KITCHEN_FLOOR,
   KITCHEN_SPOTS,
+  LEAK_BUTTON_TILE,
+  PLIERS_TILE,
   RADIO_TILE,
   TRIAL_BUTTONS,
   TURN_LABELS,
@@ -164,6 +166,15 @@ import {
   sprayOn,
   type DouseState,
 } from './kitchenSpray';
+import {
+  LeakJet,
+  TIGHT,
+  advanceFix,
+  fixProgress,
+  springLeak,
+  startFix,
+  type LeakState,
+} from './kitchenLeak';
 import { buildRedButton, BUTTON_DOME_R, type RedButton } from '../../shared/redButton';
 import { KitchenAudio } from './kitchenAudio';
 import {
@@ -379,6 +390,22 @@ const HANDS_BUTTON_LABELS = {
 /** Die zweite Zeile darunter — sie sagt, wozu das gut ist, und bleibt stehen. */
 const HANDS_BUTTON_BODY = 'In der Brille in jeder Hand etwas tragen';
 
+/**
+ * **Was auf dem Schild des dritten Knopfes steht** — der an der Spüle
+ * (`addLeakButton`, `kitchenLeak.ts`).
+ *
+ * Hier **wechselt** die Bauart, und das ist Absicht: Die beiden Schilder
+ * darüber sagen die Tat, weil ihre Knöpfe hin und her schalten. Dieser
+ * schaltet nicht zurück — ein Leck wird nicht per Knopf wieder dicht, sondern
+ * mit der Zange in der Hand. _Becken spritzt_ ist deshalb die **Lage** und
+ * kein Angebot, und die Zeile darunter sagt, was jetzt zu tun ist.
+ */
+const LEAK_BUTTON_LABELS = { off: 'Wasserleck auslösen', on: 'Becken spritzt' } as const;
+
+/** Die zweite Zeile darunter — vorher wozu, nachher wogegen. */
+const LEAK_BUTTON_BODY = 'Das Spülbecken läuft aus, bis es repariert ist';
+const LEAK_BUTTON_BODY_ON = 'Mit der Wasserpumpenzange von der Arbeitsplatte abdichten';
+
 /** Wie die beiden Hände in einer Meldung heißen — „Pfanne in die linke Hand". */
 const HAND_LABELS: Readonly<Record<Handedness, string>> = { left: 'linke', right: 'rechte' };
 
@@ -554,6 +581,20 @@ const _atStation: GrabPose = {
 // --- und was darin steht ----------------------------------------------------
 
 /**
+ * **Was eine Station gerade anzuzeigen hat** — eine Phase, kein Sammelsurium
+ * (`phaseOf`, `showGauges`).
+ *
+ * Die vier Herdphasen kommen aus der Uhr (`kitchenClock.StovePhase`), die
+ * übrigen vier sind die Arbeiten, die ebenfalls einen Balken haben: die Uhr
+ * an Brett, Spüle, Mixer und Kombinierer (`work`), der Gast am Tisch (`eat`),
+ * der Herd im Nebel (`douse`) und das Becken unter der Zange (`fix`).
+ *
+ * Ein eigener Name dafür, seit es acht sind: Die Aufzählung stand dreimal in
+ * dieser Datei ausgeschrieben, und beim vierten Mal hätte eine davon gefehlt.
+ */
+type KitchenPhase = StovePhase | 'work' | 'eat' | 'douse' | 'fix';
+
+/**
  * **Eine Stelle, an der `A` etwas bewirkt.**
  *
  * Alles, was hier liegt, ist **ein** `Dish` (`kitchenRecipes.ts`) — die Pfanne
@@ -602,6 +643,8 @@ interface Station {
   join: CombineState;
   /** Wie lange dieser Herd schon im Nebel steht; `DRY`, solange er es nicht tut. */
   wet: DouseState;
+  /** Ob dieses Becken spritzt und wie weit es repariert ist; `TIGHT` überall sonst. */
+  leak: LeakState;
   /** Wie viele Teller hier liegen — an der Rückgabe und im Abtropfgitter. */
   stack: number;
   /**
@@ -616,7 +659,7 @@ interface Station {
   /** Das Netz dieses Stapels, solange einer steht. */
   pile: THREE.Object3D | null;
   /** Was ihre Anzeigen zuletzt gezeigt haben — siehe `showGauges`. */
-  shown: StovePhase | 'work' | 'eat' | 'douse' | null;
+  shown: KitchenPhase | null;
 }
 
 /**
@@ -680,6 +723,20 @@ interface Furnish {
    * (`aimIcon`).
    */
   icon: THREE.Object3D | null;
+  /**
+   * **Das Wasser im Spülbecken** (`addWater`) — oder `null` bei jedem anderen
+   * Möbel.
+   *
+   * Gemerkt wird es, seit das Becken **lecken** kann (`kitchenLeak.ts`): Wer es
+   * kaputt macht, nimmt ihm sein Wasser — aus einem spritzenden Becken steht
+   * keines ruhig halb voll darin —, und wer es repariert, gibt es zurück. Das
+   * ist ein `visible` je Leck und kein Netz, das ab- und wieder aufgebaut
+   * würde.
+   *
+   * Es hängt am **Möbel** und nicht an der Station, wie das Schild auf dem
+   * Deckel daneben: Wer das Becken im Baumodus aufhebt, trägt sein Wasser mit.
+   */
+  water: THREE.Object3D | null;
   /**
    * **Was dieses Filterband gelernt hat** — oder `null` bei allem anderen.
    *
@@ -917,6 +974,8 @@ export class KitchenZone implements TestZone {
   private desks: DeskKit | null = null;
   /** Der Nebel aus dem Feuerlöscher (`kitchenSpray.ts`). */
   private jet: SprayJet | null = null;
+  /** Und die Fontäne aus dem undichten Spülbecken (`kitchenLeak.ts`). */
+  private leakJet: LeakJet | null = null;
   /** Der karierte Belag über dem Estrich der Zone (`kitchenFloor.ts`). */
   private floor: KitchenFloor | null = null;
   /**
@@ -1082,6 +1141,16 @@ export class KitchenZone implements TestZone {
    * vorbeikommt, schneller umgelegt als eine Zeile, die man erst aufschlägt.
    */
   private handsButton: RedButton | null = null;
+  /**
+   * **Der dritte rote Knopf** — er macht das Spülbecken kaputt
+   * (`addLeakButton`, `kitchenLeak.ts`).
+   *
+   * Er steht nicht bei den beiden anderen am Eingang, sondern **an der Spüle**
+   * (`kitchenPlan.LEAK_BUTTON_TILE`): Die beiden dort stellen etwas an der
+   * ganzen Küche ein, dieser hier richtet an einem bestimmten Möbel einen
+   * bestimmten Schaden an, und man soll von ihm aus sehen, was er anrichtet.
+   */
+  private leakButton: RedButton | null = null;
   /** Der Aushang an der Nordwand (`kitchenNotice.ts`) — eine Tafel, die hängt. */
   private notice: SignBoard | null = null;
   /**
@@ -1136,6 +1205,7 @@ export class KitchenZone implements TestZone {
     this.griddles = new GriddleKit();
     this.desks = new DeskKit();
     this.jet = new SprayJet(world.root);
+    this.leakJet = new LeakJet(world.root);
     // **Zuerst der Boden**, denn auf ihm steht alles andere: Der Grundriss legt
     // den Estrich (`stampKitchen`), die Zone die Fliesen darauf
     // (`kitchenFloor.ts`). Er hängt an der Welt und nicht an einem Möbel — im
@@ -1156,6 +1226,7 @@ export class KitchenZone implements TestZone {
     }
     this.addBuildButton();
     this.addHandsButton();
+    this.addLeakButton();
     this.addTrialButtons();
     this.addRadio();
     // **Die Töne werden jetzt geholt und nicht beim ersten Zischen**
@@ -1197,6 +1268,10 @@ export class KitchenZone implements TestZone {
         if (!model || this.gone) continue;
         this.place(model, piece, spot, module.takeUtensil);
       }
+      // **Zuletzt die Zange**, denn die Arbeitsplatte, auf der sie liegt, ist
+      // eines der geladenen Möbel — vorher gäbe es keine Ablage, auf die sie
+      // könnte (`layPliers`).
+      if (!this.gone) this.layPliers();
       if (!this.gone) this.refreshStations();
     });
     this.refreshStations();
@@ -1218,6 +1293,9 @@ export class KitchenZone implements TestZone {
     this.runBelts(dt);
     this.cook(dt);
     this.spray(dt, ctx);
+    // **Und die Fontäne aus dem undichten Becken** — nach den Uhren, weil
+    // `cook` in diesem Bild entschieden haben kann, dass es wieder dicht ist.
+    this.leakSpray(dt);
     // **Nach den Uhren und nach dem Löscher**: Was zu hören ist, hängt an dem,
     // was in diesem Bild geschehen ist — und der Strahl weiß erst nach
     // `spray`, wo seine Düse steht.
@@ -1237,6 +1315,7 @@ export class KitchenZone implements TestZone {
     // Die Knöpfe kommen nach dem Druck wieder hoch — von allein tun sie es nicht.
     this.buildButton?.update(dt);
     this.handsButton?.update(dt);
+    this.leakButton?.update(dt);
     for (const trial of this.trialButtons) trial.button.update(dt);
     this.gauges?.update(dt);
     this.fadeTicket(dt);
@@ -1331,20 +1410,32 @@ export class KitchenZone implements TestZone {
         case 'stove':
           this.stoveFrame(spot, dt);
           break;
-        case 'board':
         case 'sink':
+          // **Am Becken laufen zwei Uhren**, und es ist die einzige Station,
+          // an der das vorkommt: die Arbeit **darin** (der Teller wird
+          // gespült, dieselbe Zeile wie am Brett) und der Schaden **am Möbel
+          // selbst** (`kitchenLeak.ts`). Die beiden gehen sich nicht ins
+          // Gehege — solange es spritzt, nimmt das Becken ohnehin nichts an
+          // (`kitchenCarry.atSink`) —, und genau deshalb sind es zwei
+          // Rechnungen und nicht eine mit einem Sonderfall darin.
+          this.leakFrame(spot, dt);
+          this.workFrame(spot, dt);
+          break;
+        case 'board':
         case 'mixer':
         case 'griddle':
-          // **Alle vier Arbeitsmöbel stehen in derselben Zeile**, und das ist
+          // **Alle Arbeitsmöbel stehen in derselben Zeile**, und das ist
           // die ganze Umsetzung ihrer Unterschiede: Dass Mixer und Kochstelle
           // auch dann weiterlaufen, wenn niemand danebensteht, entscheidet
           // `kitchenWork.WORK_ALONE`; dass auf der Kochstelle nichts
           // verbrennt, entscheidet `kitchenWork.workStage`. Die Zone fragt
           // nirgends, welches der vier Möbel sie gerade in der Hand hat.
           //
-          // **Welche vier es sind, steht nicht hier**, sondern in
+          // **Welche es sind, steht nicht hier**, sondern in
           // `kitchenCarry.STATION_WORK` — die Aufzählung daneben ist nur die
-          // Gegenprobe des Übersetzers, dass jede Art einen Zweig hat.
+          // Gegenprobe des Übersetzers, dass jede Art einen Zweig hat. Die
+          // Spüle steht deshalb einen Zweig höher und ruft dieselbe Zeile:
+          // Sie arbeitet wie die anderen, sie kann nur zusätzlich kaputtgehen.
           this.workFrame(spot, dt);
           break;
         case 'combiner':
@@ -2084,6 +2175,15 @@ export class KitchenZone implements TestZone {
         else if (phase !== 'cold') sizzling.push(at);
         continue;
       }
+      // **Ein undichtes Becken rauscht wie ein spülendes** — es ist dasselbe
+      // Wasser aus demselben Hahn, nur an der falschen Stelle
+      // (`kitchenLeak.ts`). Es steht **vor** der Frage nach der Arbeit, weil
+      // darin gerade nicht gearbeitet wird: Solange es spritzt, nimmt die
+      // Spüle nichts an.
+      if (spot.leak.leaking) {
+        rinsing.push(at);
+        continue;
+      }
       if (!spot.work.working) continue;
       // **Welche Arbeit wie klingt**, und das sind genau drei Antworten: Die
       // Spüle rauscht, die Kochstelle brutzelt wie eine Pfanne, Brett und
@@ -2161,7 +2261,7 @@ export class KitchenZone implements TestZone {
       spot.shown = phase;
     }
     if (phase === 'cold') return;
-    if (phase === 'work' || phase === 'eat' || phase === 'douse') {
+    if (phase === 'work' || phase === 'eat' || phase === 'douse' || phase === 'fix') {
       const part =
         phase === 'work'
           ? spot.kind === 'combiner'
@@ -2169,7 +2269,9 @@ export class KitchenZone implements TestZone {
             : workProgress(spot.work)
           : phase === 'eat'
             ? eatProgress(spot.table)
-            : douseProgress(spot.wet);
+            : phase === 'fix'
+              ? fixProgress(spot.leak)
+              : douseProgress(spot.wet);
       gauges.bar(spot.key, this.hover(spot, GAUGE_LIFT), part, phase === 'douse' ? 'burn' : 'chop');
       // Am gelöschten Herd lodert es weiter, solange es lodert — der Balken
       // sagt nur, wie lange noch.
@@ -2199,7 +2301,12 @@ export class KitchenZone implements TestZone {
    * meinen könnte; er bekommt `douse`, denn was einen dann interessiert, ist
    * nicht mehr, wie lange es schon brennt, sondern wie lange noch.
    */
-  private phaseOf(spot: Station): StovePhase | 'work' | 'eat' | 'douse' {
+  private phaseOf(spot: Station): KitchenPhase {
+    // **Die Reparatur steht vor der Arbeit im Becken**, und zwar aus demselben
+    // Grund, aus dem der Nebel vor dem Feuer steht: Solange es spritzt, nimmt
+    // die Spüle nichts an (`kitchenCarry.atSink`) — was einen dann
+    // interessiert, ist, wie lange es noch bis dicht ist.
+    if (spot.leak.fixing) return 'fix';
     if (spot.kind === 'stove') {
       if (spot.stove.fire && spot.wet.time > 0) return 'douse';
       return stovePhase(spot.stove);
@@ -2709,6 +2816,12 @@ export class KitchenZone implements TestZone {
       spot.table = CLEAR_TABLE;
       spot.belt = BELT_EMPTY;
       spot.wet = DRY;
+      // **Und das Leck ist mit aufgeräumt.** `B` stellt diese Welt zurück, und
+      // ein Becken, das danach weiterspritzt, wäre das eine Möbel, das sich
+      // davon ausnimmt. Das Wasser kommt dabei ins Becken zurück
+      // (`showWater`) — es war nur unsichtbar, nicht weg.
+      spot.leak = TIGHT;
+      this.showWater(spot);
       this.setStack(spot, 0);
       // `settle` ist die **einzige** Stelle, die eine Uhr armiert: Sie setzt
       // den Herd auf `onStove(null)` und Brett wie Spüle auf `onWork(kind,
@@ -2720,6 +2833,10 @@ export class KitchenZone implements TestZone {
     for (const thing of loose) {
       if (thing) this.putBack(thing);
     }
+    // Und das Schild am Leck-Knopf sagt es auch — dieselbe Begründung wie beim
+    // Umbauknopf in `reset`: eine Beschriftung, die das Gegenteil dessen sagt,
+    // was gerade gilt, ist schlimmer als gar keine.
+    this.showLeakLabel();
     this.hideTicket();
   }
 
@@ -2796,12 +2913,16 @@ export class KitchenZone implements TestZone {
     this.desks = null;
     this.jet?.dispose();
     this.jet = null;
+    this.leakJet?.dispose();
+    this.leakJet = null;
     this.floor?.dispose();
     this.floor = null;
     this.buildButton?.dispose();
     this.buildButton = null;
     this.handsButton?.dispose();
     this.handsButton = null;
+    this.leakButton?.dispose();
+    this.leakButton = null;
     for (const trial of this.trialButtons) trial.button.dispose();
     this.trialButtons.length = 0;
     this.trials.clear();
@@ -2930,6 +3051,7 @@ export class KitchenZone implements TestZone {
       body: null,
       station: null,
       icon: null,
+      water: null,
       filter: spot.filter ?? null,
       held: false,
       cargo: null,
@@ -3322,6 +3444,7 @@ export class KitchenZone implements TestZone {
       belt: BELT_EMPTY,
       join: IDLE_COMBINE,
       wet: DRY,
+      leak: TIGHT,
       stack: 0,
       stacked: null,
       pile: null,
@@ -3392,6 +3515,11 @@ export class KitchenZone implements TestZone {
     holder.scale.setScalar(1 / kitchenPieceScale(piece));
     holder.add(water);
     model.add(holder);
+    // **Gemerkt, seit das Becken lecken kann** (`kitchenLeak.ts`): Ein
+    // spritzendes Becken hat kein Wasser darin, und das ist ein `visible` an
+    // dieser einen Fläche (`showWater`). Der **Träger** wird gemerkt und nicht
+    // die Fläche: Er ist es, der am Möbel hängt und im Baumodus mitfährt.
+    furnish.water = holder;
   }
 
   /** Die Station auf dieser Kachel — oder `null`, wenn dort keine steht. */
@@ -3567,6 +3695,211 @@ export class KitchenZone implements TestZone {
       },
       { radius: BUTTON_DOME_R, shot: BUTTON_DOME_R },
     );
+  }
+
+  /**
+   * **Der dritte Knopf: das Wasserleck** — gebaut wie die beiden davor und aus
+   * denselben Gründen (`addBuildButton`, `addHandsButton`).
+   *
+   * Was hier anders ist, ist zweierlei:
+   *
+   * - **Er steht an der Spüle** (`kitchenPlan.LEAK_BUTTON_TILE`) und nicht in
+   *   der Gerätespalte am Eingang. Er stellt nichts ein, er macht etwas
+   *   kaputt, und man soll den Schaden von ihm aus sehen.
+   * - **Und sein Schild sagt, was los ist**: _Wasserleck auslösen_, solange
+   *   das Becken hält, und _Becken spritzt_, sobald es das tut. Ein Knopf, auf
+   *   dem beim zweiten Druck noch dasselbe stünde wie beim ersten, verspräche
+   *   etwas, das er nicht mehr tun kann — dieselbe Überlegung wie beim
+   *   Umbauknopf (`showBuildLabel`).
+   */
+  private addLeakButton(): void {
+    const world = this.world;
+    if (!world || typeof document === 'undefined') return;
+    const button = buildRedButton({
+      title: LEAK_BUTTON_LABELS.off,
+      body: LEAK_BUTTON_BODY,
+    });
+    this.leakButton = button;
+    button.group.name = 'kitchen-leak-button';
+    button.group.position.set(
+      (KITCHEN.x + LEAK_BUTTON_TILE.x + 0.5) * TILE,
+      KITCHEN_FLOOR,
+      (KITCHEN.z + LEAK_BUTTON_TILE.z + 0.5) * TILE,
+    );
+    world.root.add(button.group);
+    button.group.updateWorldMatrix(true, true);
+    this.placed.push(button.group);
+    // Durch die Säule läuft niemand — dieselbe Begründung und dasselbe Maß wie
+    // bei den beiden anderen Knöpfen.
+    const block = this.boxAt(
+      0.6,
+      1.0,
+      0.6,
+      button.group.position.x,
+      KITCHEN_FLOOR,
+      button.group.position.z,
+    );
+    world.root.add(block);
+    block.updateWorldMatrix(true, false);
+    this.placed.push(block);
+    this.bodies.push(world.addSolid(block));
+    world.addUsable(
+      button.dome,
+      {
+        use: () => {
+          button.press();
+          return this.burstLeak();
+        },
+        usePrompt: () => (this.leaking() ? LEAK_BUTTON_LABELS.on : LEAK_BUTTON_LABELS.off),
+        interaction: 'press',
+      },
+      { radius: BUTTON_DOME_R, shot: BUTTON_DOME_R },
+    );
+  }
+
+  /**
+   * **Das Becken aufreißen** — und mehr tut dieser Knopf nicht.
+   *
+   * Die Regel steht nebenan (`kitchenLeak.springLeak`) und antwortet mit
+   * demselben Zustand, wenn es ohnehin schon spritzt; hier steht nur, was die
+   * Zone daraufhin am Bild ändert: Das Wasser **im** Becken geht weg
+   * (`showWater`), das Schild am Knopf wechselt, und die Station meldet sich
+   * neu an — mit der Zange in der Hand meint `A` dort ab jetzt etwas anderes.
+   *
+   * **Ein zweiter Druck ist kein Fehler, sondern eine Auskunft.** Wer in dem
+   * Augenblick davorsteht, in dem es ohnehin spritzt, hat den Knopf gedrückt,
+   * weil er etwas erwartet — er bekommt den Satz, der sagt, was stattdessen zu
+   * tun ist.
+   */
+  private burstLeak(): boolean {
+    const world = this.world;
+    if (!world) return false;
+    const spot = this.sink();
+    if (!spot) {
+      world.notify('Kein Spülbecken da, das lecken könnte');
+      return true;
+    }
+    const leak = springLeak(spot.leak);
+    if (leak === spot.leak) {
+      world.notify('Das Becken spritzt schon — Wasserpumpenzange holen');
+      return true;
+    }
+    spot.leak = leak;
+    this.showWater(spot);
+    this.showLeakLabel();
+    world.notify('Das Spülbecken spritzt — mit der Wasserpumpenzange abdichten');
+    this.refreshStations();
+    return true;
+  }
+
+  /**
+   * **Die Wasserpumpenzange auf ihre Arbeitsplatte** — einmal beim Aufbau, und
+   * danach nie wieder.
+   *
+   * Sie ist das Gegenstück zum Feuerlöscher, und sie kommt trotzdem auf einem
+   * anderen Weg in die Küche: Der Löscher **steckt im Möbelmodell** und wird
+   * beim Aufstellen abgenommen (`addStation`, `core/kitchenModel.takeUtensil`);
+   * die Zange ist **gebaut** (`kitchenProps.FoodKit.pliers`), also legt die
+   * Zone sie einfach hin — auf die Ablage der Station, die auf
+   * `kitchenPlan.PLIERS_TILE` steht.
+   *
+   * **Mit `home`**, und das ist die ganze Buchhaltung dahinter: Ein getragenes
+   * Ding mit einem Zuhause geht beim Aufräumen und beim Umbau dorthin zurück
+   * und wird nicht weggeworfen (`putBack`, `kitchenBuild.goesHomeOnEdit`) —
+   * dieselbe Zusage, die Topf, Pfanne und Löscher schon haben. In den Müll
+   * kann sie ohnehin nicht (`kitchenCarry.intoBin` nimmt nur Essen).
+   *
+   * **Liegt dort schon etwas, bleibt es liegen.** Gerufen wird das am Ende des
+   * Aufbaus, und da ist die Platte leer; die Zeile steht trotzdem da, damit
+   * ein zweiter Aufruf nicht die Zange über ein Brötchen legt.
+   */
+  private layPliers(): void {
+    const spot = this.stationAt(PLIERS_TILE.x, PLIERS_TILE.z);
+    if (!spot || spot.on) return;
+    const thing = this.make(dish('pliers'));
+    if (!thing) return;
+    this.layOn(spot, { ...thing, home: spot });
+  }
+
+  /**
+   * **Das Spülbecken dieser Küche** — das erste, das nicht getragen wird.
+   *
+   * Gesucht und nicht gemerkt, wie der Feuerlöscher in der Hand
+   * (`extinguisher`): Im Umbau darf man Becken aufstellen und wegnehmen, und
+   * ein Merker daneben zeigte danach auf ein Möbel, das anderswo steht. Wer
+   * mehrere hinstellt, bekommt das erste — der Knopf macht **ein** Becken
+   * kaputt, und zwei gleichzeitig spritzende Spülen sind keine Küche mehr,
+   * sondern ein Schwimmbad.
+   */
+  private sink(): Station | null {
+    return this.stations.find((spot) => spot.kind === 'sink' && !spot.home.held) ?? null;
+  }
+
+  /** Ob irgendein Becken dieser Küche gerade spritzt — für Schild und Fontäne. */
+  private leaking(): boolean {
+    return this.stations.some((spot) => spot.leak.leaking && !spot.home.held);
+  }
+
+  /** Was auf dem Leck-Knopf steht — beide Zeilen an einer Stelle, wie beim Umbau. */
+  private showLeakLabel(): void {
+    this.leakButton?.setTitle(
+      this.leaking() ? LEAK_BUTTON_LABELS.on : LEAK_BUTTON_LABELS.off,
+      this.leaking() ? LEAK_BUTTON_BODY_ON : LEAK_BUTTON_BODY,
+    );
+  }
+
+  /**
+   * **Wasser im Becken, oder eben nicht.**
+   *
+   * Die eine Zeile, mit der das Leck sichtbar wird, und sie hängt am **Möbel**
+   * (`Furnish.water`): Ein Becken, aus dem es spritzt, steht nicht zugleich
+   * ruhig halb voll da — genau das stand im Auftrag („soll dann kein Wasser im
+   * Becken haben"). Gebaut und abgebaut wird dafür nichts; das Wasser ist
+   * dasselbe Netz wie vorher, nur unsichtbar.
+   */
+  private showWater(spot: Station): void {
+    const water = spot.home.water;
+    if (water) water.visible = !spot.leak.leaking;
+  }
+
+  /**
+   * **Ein Bild am undichten Becken** — die Zange dichtet ab, solange jemand
+   * danebensteht.
+   *
+   * Dieselbe Bauart wie `workFrame` darüber, und dieselbe Reichweite
+   * (`WORK_REACH`): Wer weggeht, bricht ab. Was hier zusätzlich steht, ist das
+   * Bild — die Fontäne hört auf, das Wasser kommt zurück ins Becken, das
+   * Schild am Knopf wechselt zurück.
+   */
+  private leakFrame(spot: Station, dt: number): void {
+    const near = Math.hypot(_feet.x - spot.deck.x, _feet.z - spot.deck.z) <= WORK_REACH;
+    const tick = advanceFix(spot.leak, dt, near);
+    if (tick.state === spot.leak) return;
+    spot.leak = tick.state;
+    if (!tick.fixed) return;
+    this.showWater(spot);
+    this.showLeakLabel();
+    // **Zu hören ist das Ende und nicht der Anfang** (`kitchenSound.DEED_SOUNDS`,
+    // `repair`): Das Rauschen der Fontäne hört in diesem Bild auf, und das ist
+    // der Ton, an dem man es merkt, ohne hinzusehen.
+    this.world?.notify('Das Spülbecken ist wieder dicht');
+    this.refreshStations();
+  }
+
+  /**
+   * **Die Fontäne an das Becken, das spritzt** — eine je Zone, wie der Nebel
+   * des Löschers.
+   *
+   * Sie hängt nicht an der Station, sondern wird ihr je Bild nachgeführt, und
+   * zwar aus demselben Grund wie beim Strahl: Ein Becken darf im Umbau
+   * umziehen, und ein Effekt, der an seiner alten Kachel stehen bliebe, wäre
+   * ein zweites Leck an einer Stelle, an der nichts mehr steht. Ein Becken in
+   * den Händen spritzt gar nicht (`sink`, `leaking`) — man trägt keine
+   * Fontäne vor dem Bauch her.
+   */
+  private leakSpray(dt: number): void {
+    const spot = this.stations.find((one) => one.leak.leaking && !one.home.held) ?? null;
+    this.leakJet?.update(dt, spot?.deck ?? null);
   }
 
   /**
@@ -4136,6 +4469,15 @@ export class KitchenZone implements TestZone {
       }
       case 'douse':
         this.putOut(spot);
+        break;
+      case 'repair':
+        // **Angesetzt, mehr nicht** (`kitchenLeak.startFix`): Die Zange bleibt
+        // in der Hand, im Becken ändert sich nichts, und ab dem nächsten Bild
+        // läuft die Uhr, solange jemand danebensteht (`leakFrame`). Gesagt
+        // wird es trotzdem — ein Balken, der ohne ein Wort angeht, sieht aus
+        // wie etwas, das von selbst passiert.
+        spot.leak = startFix(spot.leak);
+        world.notify('Die Zange sitzt — dabeibleiben, bis es dicht ist');
         break;
       case 'refuse':
         world.notify(deed.why);
@@ -5896,6 +6238,7 @@ function facts(spot: Station): StationFacts {
     on: spot.on?.dish ?? null,
     gives: spot.gives,
     fire: spot.stove.fire,
+    leaking: spot.leak.leaking,
     stack: spot.stack,
     stacked: spot.stacked,
   };

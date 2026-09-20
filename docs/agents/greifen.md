@@ -325,7 +325,7 @@ Die Fälle unterscheiden sich nur in der Zahl der Griffe:
 | Fall                      | Beispiele                                     | Was es heißt                                      |
 | ------------------------- | --------------------------------------------- | ------------------------------------------------- |
 | **Kein Griff**            | Brötchen, Tomate, Salat, Patty                | „wie beim Companion Cube": zupacken, wo man fasst |
-| **Ein Haltezylinder**     | Pfanne am Stiel, Löscher am Tragebügel        | die gemessene Stange, und sonst hält man es verkehrt |
+| **Ein Haltezylinder**     | Pfanne am Stiel, Löscher am Tragebügel, Zange quer über beide Schenkel | die gemessene Stange, und sonst hält man es verkehrt |
 | **Mehrere**               | Teller: acht am Rand, einer von unten; Topf: beide Ohren | die **Hand** wählt: der nächste gewinnt |
 | **Vier, aus einer Regel** | jedes Küchenmöbel                             | Mitte jeder Kante — siehe _Anfassen in der Küche_ |
 
@@ -339,7 +339,11 @@ Die Tabelle für die Küche steht in `worlds/test/zones/kitchenGrab.ts` — dort
 nicht im `core`, weil nur die Küche weiß, was ein Stiel ist. Ihre Zahlen hängen
 an der **gemessenen Hülle** des Netzes und nicht an abgeschriebenen Zentimetern:
 Pfanne, Topf und Feuerlöscher kommen aus `public/models/kitchen.glb`, und ein
-ausgetauschtes Modell bringt neue Maße mit. Die einzigen absoluten Zahlen dort
+ausgetauschtes Modell bringt neue Maße mit. Die **Wasserpumpenzange** hängt an
+derselben Hülle und ist trotzdem der Sonderfall: Sie ist **gebaut**
+(`kitchenProps.FoodKit.pliers`, die Quelle hat kein Werkzeug), also steht ihr
+Maß ohnehin in diesem Repository — die Anteile in `GRIP_BAR` sind deshalb
+gewählt und nicht gemessen, und das steht dort auch so. Die einzigen absoluten Zahlen dort
 sind die drei **Halbmesser** der Zylinder, und die sind es aus einem Grund: Ein
 Anteil wovon? Die Dicke eines Stiels hat mit der Breite einer Pfanne nichts zu
 tun — sie ist die Dicke eines Rohrs, am Modell gemessen.
@@ -412,8 +416,8 @@ Die Absicht ist das, was ein Mensch über das Ding sagen würde. `press` ist
 alles, was man **bedient**, ohne dass danach etwas in der Hand liegt — Knopf,
 Hebel, Schalter, Tür, Ausgabetheke, Mülleimer, Spüle, Schneidebrett. `grab` ist
 alles, was man **nimmt** — das Brötchen aus der Ausgabe, der Teller vom Stapel,
-die Pfanne vom Herd, der Topf, der Feuerlöscher aus der Halterung, im Umbau
-auch das Möbel selbst. `none` ist angemeldet und trotzdem ohne Angebot: die
+die Pfanne vom Herd, der Topf, der Feuerlöscher aus der Halterung, die
+Wasserpumpenzange von der Arbeitsplatte, im Umbau auch das Möbel selbst. `none` ist angemeldet und trotzdem ohne Angebot: die
 leere Hand vor der leeren Fläche. Es leuchtet dann kein Saum, und es steht kein
 Hinweis da.
 

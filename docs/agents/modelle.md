@@ -399,8 +399,8 @@ oder leere Hand ergeben ein
 paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
 eine Viertelstunde Hin- und Herlaufen.
 
-Die Küche liegt seitdem in dreiundzwanzig Dateien, dazu eine
-vierundzwanzigste im `ui/`, die längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
+Die Küche liegt seitdem in vierundzwanzig Dateien, dazu eine
+fünfundzwanzigste im `ui/`, die längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
 getrennt von Darstellung** — was ohne three.js auskommt, kommt ohne three.js
 aus, und genau das ist der Grund, warum es so viele Dateien sind.
 
@@ -412,6 +412,7 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenGuests.ts` | wer an einem Tisch isst, wie lange, und was stehen bleibt |
 | `zones/kitchenBuild.ts` | welche Kachel gemeint ist und ob dort Platz ist |
 | `zones/kitchenSpray.ts` | der Feuerlöscher: Kegel, Schalter, Fortschritt, Nebel |
+| `zones/kitchenLeak.ts` | das Wasserleck am Becken: Schaden, Reparatur, Fontäne |
 | `zones/kitchenBelt.ts` | die Bänder: Laufzeit, Laufrichtung, Ziehen, Nachbarn, Netz |
 | `zones/kitchenCombiner.ts` | der Kombinierer: seine Uhr, wann er hergibt, sein Netz |
 | `zones/kitchenMixer.ts` | der Mixer: das Möbel zur Uhr aus `kitchenWork.ts` |
@@ -657,6 +658,28 @@ Und das sind die Regeln, die darin stehen:
   daneben bestehen (`kitchenDeed`, `do: 'douse'`): Wer schon davorsteht, soll
   nicht erst zielen müssen. Wie die Ansichten den Auslöser lesen, steht unter
   _Steuerung_.
+- **Das Wasserleck ist der zweite Schaden dieser Küche** (`kitchenLeak.ts`),
+  und es ist mit Absicht wie der erste gebaut: Ein roter Knopf **an der Spüle**
+  (`kitchenPlan.LEAK_BUTTON_TILE`, nicht in der Gerätespalte am Eingang — man
+  soll von ihm aus sehen, was er anrichtet) macht das Becken auf. Danach ist
+  **kein Wasser mehr darin** — das Netz bleibt stehen und wird unsichtbar
+  (`Furnish.water`, `kitchen.showWater`) —, aus der Armatur steht eine
+  **Fontäne** (`LeakJet`, eine Wurfparabel je Tropfen, gebaut wie der Nebel des
+  Löschers: eine Form, ein Material, keine Allokation je Bild), und die Station
+  nimmt nichts mehr an: `atSink` prüft `leaking` **vor** allem anderen, Wort
+  für Wort wie der brennende Herd eine Zeile darüber. Repariert wird mit der
+  **Wasserpumpenzange** — ein gebautes Gerät (`kitchenProps.FoodKit.pliers`,
+  die Quelle hat keines), das auf der Arbeitsplatte **neben** der Spüle liegt
+  (`PLIERS_TILE`), genau aus dem Grund, aus dem der Löscher neben dem einen
+  brennbaren Herd steht. Der Druck mit der Zange in der Hand ist eine eigene
+  Tat (`do: 'repair'`); sie **wirft nur die Uhr an** und nimmt der Hand nichts
+  weg. Die Uhr läuft **4 s** (`REPAIR_SECONDS`, die längste Handarbeit dieser
+  Küche — länger als Spülen mit 3 s, weil man die Zange wirklich holen soll,
+  und kürzer als alles, was man vergisst) und nur, **solange jemand
+  danebensteht**; wer weggeht, fängt von vorn an (dieselbe Regel wie am Brett,
+  `advanceWork`). Zwei Uhren an einer Station gibt es damit genau hier, und das
+  ist der Grund für die eigene Datei: `kitchenWork.ts` rechnet am **Ding auf**
+  der Station, dieses Leck am **Möbel selbst**.
 - **Schneiden und Spülen sind dieselbe Uhr** (`kitchenWork.ts`,
   `WORK_SECONDS` = 3 s für beides; Mixer und sichere Kochstelle hängen mit vier
   und fünf Sekunden an derselben). Beide fangen mit dem **Ablegen** an und

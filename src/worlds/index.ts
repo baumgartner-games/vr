@@ -47,7 +47,22 @@ export const WORLDS: WorldDefinition[] = [
   },
 ];
 
-export const DEFAULT_WORLD = 'hub';
+/**
+ * **Wo man landet, wenn die Adresse nichts sagt** — die Testwelt, und dort die
+ * Küche (`test/TestWorld.spawnPoint`).
+ *
+ * Hier stand der Hub, und das war richtig, solange er der Ort war, an dem
+ * etwas passiert: eine ruhige Halle mit einem Menü an der Wand, von der aus
+ * man sich eine Welt aussucht. Gearbeitet wird aber seit Monaten in der
+ * **Küche** — sie ist die Zone, in der gebaut, geprüft und gespielt wird —,
+ * und jeder Start im Hub war derselbe Umweg: Menü auf, Testwelt wählen, laden,
+ * und dann noch dreißig Meter nach Norden laufen.
+ *
+ * Der Hub ist damit nicht weg, sondern nur nicht mehr der Anfang: `#hub` in
+ * der Adresse führt weiter dorthin, und das Tor am Startplatz der Testwelt tut
+ * es auch (`test/zones/start.ts`).
+ */
+export const DEFAULT_WORLD = 'test';
 
 export function findWorld(id: string): WorldDefinition | undefined {
   return WORLDS.find((world) => world.id === id);

@@ -274,6 +274,14 @@ export interface Station {
   readonly gives?: KitchenItem;
   /** Ob der Herd brennt — nur bei `stove` (`kitchenClock.StoveState.fire`). */
   readonly fire?: boolean;
+  /**
+   * **Ob das Becken spritzt** — nur bei `sink` (`kitchenLeak.LeakState.leaking`).
+   *
+   * Die Schwester von `fire` eine Zeile darüber, und sie steht aus demselben
+   * Grund hier: Ein kaputtes Möbel ist keine Ablage mehr, und was `A` daran
+   * noch bewirkt, ist eine Frage an die **Regel** und nicht an die Zone.
+   */
+  readonly leaking?: boolean;
   /** Wie viele Teller hier stapeln — bei `return` dreckige, im `drain` beide. */
   readonly stack?: number;
   /**
@@ -392,6 +400,16 @@ export type KitchenDeed =
   | { do: 'serve'; recipe: Recipe; held: Dish | null }
   /** Feuer aus — das Patty ist weg, die Pfanne bleibt. */
   | { do: 'douse' }
+  /**
+   * **Die Zange angesetzt** — ab jetzt läuft die Reparatur des Beckens
+   * (`kitchenLeak.startFix`).
+   *
+   * Sie trägt **nichts** mit sich, und das ist der Unterschied zu `work`
+   * daneben: Dort wird etwas **abgelegt** und dabei bearbeitet, hier bleibt
+   * die Zange in der Hand und das Becken leer. Wie lange es dauert, weiß die
+   * Uhr nebenan; diese Tat ist der Druck, der sie anwirft.
+   */
+  | { do: 'repair' }
   | { do: 'refuse'; why: string }
   | { do: 'nothing' };
 
@@ -419,7 +437,7 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
       return atPass(held);
 
     case 'sink':
-      return atSink(held, station.on ?? null);
+      return atSink(held, station.on ?? null, station.leaking ?? false);
 
     case 'drain':
       return inRack(held, station.stack ?? 0, station.stacked ?? null);
@@ -726,8 +744,24 @@ function atPass(held: Dish | null): KitchenDeed {
  * `on.item === 'pan'`), und `CHOPS`/`FRIES` sind Tabellen. Was fehlte, wäre eine
  * Zeile darin — kein neuer Zustand.
  */
-function atSink(held: Dish | null, on: Dish | null): KitchenDeed {
+function atSink(held: Dish | null, on: Dish | null, leaking: boolean): KitchenDeed {
+  // **Ein spritzendes Becken ist keine Spüle mehr** — Wort für Wort dieselbe
+  // Regel wie am brennenden Herd darüber, und sie steht aus demselben Grund
+  // ganz oben: Solange es spritzt, geht genau **eines**, und wer ohne Zange
+  // davorsteht, liest, welches. Der Hahn läuft ins Leere, im Becken steht kein
+  // Wasser (`kitchenLeak.ts`), und ein Teller, den man dort hineinlegte,
+  // würde von nichts sauber.
+  if (leaking) {
+    if (held?.item === 'pliers') return { do: 'repair' };
+    return { do: 'refuse', why: 'Das Becken spritzt — das braucht die Wasserpumpenzange' };
+  }
   if (!held) return on ? { do: 'take', dish: on } : { do: 'nothing' };
+  // **Und mit der Zange an einem heilen Becken gibt es nichts zu tun.** Ohne
+  // diese Zeile fiele sie in die Prüfung darunter und bekäme „In die Spüle
+  // gehört nur Geschirr" zu lesen — richtig und trotzdem der falsche Satz:
+  // Wer mit dem Werkzeug in der Hand davorsteht, will nicht spülen, sondern
+  // reparieren, und die Antwort darauf ist, dass hier nichts kaputt ist.
+  if (held.item === 'pliers') return { do: 'refuse', why: 'Am Becken ist nichts undicht' };
   if (held.item === 'pot') {
     // `on` kann beim Topf nur `['water']` sein — er steht in keiner Zeile von
     // `TAKES`, nimmt über `combine` also nichts an. Ein voller Topf tut hier
@@ -1051,6 +1085,12 @@ export function kitchenPrompt(deed: KitchenDeed, what: string): string {
       return `${deed.recipe.label} servieren`;
     case 'douse':
       return 'Feuer löschen';
+    case 'repair':
+      // `what` steht nicht darin, obwohl es hier bekannt wäre: Es gibt genau
+      // ein Becken, das spritzen kann, und „Spülbecken reparieren" sagt
+      // dasselbe wie dieser Satz, nur umständlicher — derselbe Gedanke wie
+      // beim Feuer darüber.
+      return 'Leck abdichten';
     case 'refuse':
       return deed.why;
     case 'nothing':

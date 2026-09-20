@@ -43,7 +43,11 @@ Rechnung mitbrachten — Kartphysik, Trefferwertung, Kletterhalt, Effektzahlen,
 Türmathematik —, steht weiter als Modul da und wird von der Testwelt benutzt.
 
 Die **Testwelt** ist der Prüfstand: zehn Zonen auf einem Gelände, in einer
-Minute zu Fuß abzulaufen. Vom Startplatz mit Tor und Kleiderschrank geht es
+Minute zu Fuß abzulaufen. **Die Seite macht mit ihr auf, und zwar in der
+Küche** — dort wird gearbeitet, und der Umweg über Hub, Menü und dreißig Meter
+Fußweg war bei jedem Start derselbe. Der Hub ist deshalb nicht weg, nur nicht
+mehr der Anfang: `#hub` in der Adresse führt hin, und das Tor am Startplatz tut
+es auch. Vom Startplatz mit Tor und Kleiderschrank geht es
 nach Norden zu vier **Effektquellen** (Rauch, Feuer, Funken, Wasser, je ein
 Knopf davor), nach Nordwesten an eine **Türwand** mit Schiebetür, Flügeltür und
 Drucktür samt Knopf, Hebel und Druckplatte, nach Nordosten eine **Treppe** auf
@@ -125,7 +129,16 @@ wieder — ohne diesen Kreis wäre die Tellerausgabe ein Brunnen. Brennt der Her
 nimmt man den **Feuerlöscher** vom Hocker — er steht oben in der Zeile neben
 dem Herd, also dort, wo es brennt — und **hält** ihn ins Feuer, aus zwei
 Kacheln Abstand; ein Druck genügt nicht mehr. In der Brille hängt er am
-Tragebügel in der Faust und spritzt dorthin, wohin die **Hand** zeigt. Und ein großer roter Knopf neben
+Tragebügel in der Faust und spritzt dorthin, wohin die **Hand** zeigt.
+
+**Der zweite Schaden ist das Wasserleck.** Ein roter Knopf neben der Spüle
+reißt sie auf: Das Wasser im Becken ist weg, aus der Armatur schießt eine
+Fontäne, und solange sie läuft, nimmt die Spüle nichts mehr an — kein Geschirr,
+keinen Topf unter den Hahn. Repariert wird mit der **Wasserpumpenzange**, die
+eine Arbeitsplatte weiter östlich liegt: aufnehmen wie den Löscher, ans Becken
+treten, drücken und **dabeibleiben**. Vier Sekunden dauert es, ein Balken über
+dem Becken zählt sie ab, und wer dabei weggeht, fängt von vorn an. Danach steht
+das Wasser wieder im Becken. `B` räumt das Leck mit auf, wie alles andere. Und ein großer roter Knopf neben
 dem Eingang schaltet den **Baumodus** ein und wieder aus; sein Schild sagt,
 wohin der nächste Druck führt. Ist er an, lässt sich jedes leere Möbel aufheben,
 tragen wie die Pfanne und auf einer freien Kachel wieder absetzen — der Umriss
@@ -969,7 +982,7 @@ auch ohne Netz**.
 Wer sie schon installiert hat, bekommt den Knopf nicht mehr zu sehen: Die Seite
 merkt, dass sie in ihrem eigenen Fenster läuft (`core/install.ts`).
 
-**Ohne Netz** startet sie in die Hub-Welt, und jede Welt, jedes Modell und
+**Ohne Netz** startet sie in die Testwelt wie sonst auch, und jede Welt, jedes Modell und
 jeder Ton, der einmal geladen war, ist danach da: Ein Service Worker legt die
 Hülle der Anwendung beim Installieren ab und alles Weitere beim ersten
 Gebrauch (`src/sw.ts`). Was ohne Netz **nicht** geht, ist alles, wozu ein
@@ -1073,6 +1086,7 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Kart: aussteigen              | `A`/`X` halten                                                                                                                                                             | `E` halten                                                             | –                        |
 | Kart: zu zweit                | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge                                                                                           | dito                                                                   | –                        |
 | Küche: Feuerlöscher | vom Hocker nehmen und den Trigger der rechten Hand **halten**; gezielt wird mit der Hand, die ihn hält | aus den Augen `E` halten; von oben ein Schalter — Linksklick an, noch einmal aus, gezielt mit dem rechten Stock | aus den Augen `A` halten; von oben schaltet `B` |
+| Küche: Wasserleck | der rote Knopf neben der Spüle löst es aus; die Wasserpumpenzange von der Arbeitsplatte nehmen, ans Becken und dort **stehen bleiben**, bis der Balken voll ist | dito mit `E` | dito mit `A` |
 | Küche: umbauen | der Knopf in der Küche schaltet um (und räumt dabei ab), dann `A` am leeren Möbel und `A` auf dem Umriss davor | dito mit `E` | dito mit `A` |
 | Küche: Möbel holen | vorn an den Computer-Tisch und `A` — im Katalog ringsum eines anfassen; auf dem Kopierer links ablegen, rechts die Kopie abholen | dito mit `E` | dito mit `A` |
 | Küche: Radio | an der Westwand, neben der Tomatenausgabe: `A` macht an, `A` macht aus — und jedes Anmachen ist ein Sender weiter | dito mit `E` | dito mit `A` |

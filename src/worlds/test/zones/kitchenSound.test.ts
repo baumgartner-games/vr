@@ -330,6 +330,7 @@ describe('der Ton einer Tat', () => {
       'scrape',
       'serve',
       'douse',
+      'repair',
       'refuse',
       'nothing',
     ];

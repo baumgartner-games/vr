@@ -1500,6 +1500,14 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     keine Reise. Die Höhe kommt aus dem Graphen (`NavGraph.levelY`): Das Podest
     liegt auf Ebene 1, und wer dorthin auf y = 0 spränge, stünde unter seinem
     eigenen Deck.
+  - **Angekommen wird in der Küche** (`TestWorld.spawnPoint`,
+    `layout.KITCHEN_SPAWN`), und zwar auf genau der Kachel, auf die auch das
+    Menü und `?at=kitchen` setzen. Hier stand der Startplatz im Süden, und das
+    war die Ankunft für einen Besucher: Schild, Tor, neun Zonen ringsum. Seit
+    die Seite ohne Adresse mit dieser Welt aufmacht
+    (`worlds/index.DEFAULT_WORLD`), wäre er der zweite Umweg hintereinander —
+    wer hier ankommt, kommt zum Arbeiten. Der Startplatz bleibt, was er war:
+    der Anker seiner Zone und der Ort mit dem Tor zum Hub.
   - **Und auf eine einzelne Kachel setzt einen die Adresse** (`spawnAt.ts`):
     `/?at=21,-24#test` fängt auf genau dieser Kachel des Geländes an,
     `/?at=18,-16,1#test` eine Ebene höher auf dem Deck des Podests, und

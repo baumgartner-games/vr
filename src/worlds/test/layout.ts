@@ -55,7 +55,7 @@ export const HORIZON_COLORS = {
   line: 0x6c727a,
 } as const;
 
-/** Wo man ankommt: die Mitte des Startplatzes. */
+/** Die Mitte des Startplatzes — der Anker der Zone `start`. */
 export const SPAWN = { x: 0, z: 0 } as const;
 
 /**
@@ -130,6 +130,22 @@ export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
  * eine Küche in der Schusslinie ist eine Küche mit Löchern.
  */
 export const KITCHEN: NavRect = { x: 12, z: -31, w: 37, d: 11 };
+
+/**
+ * **Wo man in der Küche ankommt** — die Mitte des Gangs zwischen Insel und
+ * Ausgabe, dort, wo ein Koch steht.
+ *
+ * Es ist der Anker der Zone im Sprungmenü (`ZONE_TILES`), in der Adresse
+ * (`spawnAt.ts`, `?at=kitchen`) — **und seit die Seite mit der Testwelt
+ * aufmacht, der Startplatz der ganzen Welt** (`TestWorld.spawnPoint`,
+ * `worlds/index.DEFAULT_WORLD`). Drei Wege, eine Kachel: Wer die Küche
+ * verschiebt, verschiebt alle drei zusammen.
+ *
+ * Der **Startplatz** im Süden (`SPAWN`) bleibt davon unberührt. Er ist weiter
+ * der Anker seiner Zone und der Ort, an dem das Tor zum Hub steht
+ * (`zones/start.ts`); er ist nur nicht mehr der erste Ort, den man sieht.
+ */
+export const KITCHEN_SPAWN = { x: KITCHEN.x + 1, z: KITCHEN.z + 7 } as const;
 
 /**
  * **Die zweite Küche** — ein Restaurant aus einem zweiten Möbelkatalog, ganz
@@ -233,8 +249,7 @@ export const ZONE_TILES: Readonly<Record<string, { x: number; z: number; level: 
   range: { x: RANGE.x + 3, z: 0, level: 0 },
   kart: { x: -20, z: 22, level: 0 },
   climb: { x: CLIMB.x + 5, z: CLIMB.z + 4, level: 0 },
-  // Die Mitte des Gangs zwischen Insel und Ausgabe — dort, wo ein Koch steht.
-  kitchen: { x: KITCHEN.x + 1, z: KITCHEN.z + 7, level: 0 },
+  kitchen: { ...KITCHEN_SPAWN, level: 0 },
   // Im Gastraum der zweiten Küche, mit Blick auf die Durchreiche — nicht im
   // Schauraum: Wer „Zweite Küche" wählt, will in der Küche stehen und nicht
   // vor ihrem Katalog.
