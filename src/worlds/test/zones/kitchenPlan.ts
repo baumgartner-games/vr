@@ -313,6 +313,54 @@ export const HANDS_BUTTON_TILE = { x: 0, z: 8 } as const;
 export const RADIO_TILE = { x: 0, z: 6 } as const;
 
 /**
+ * **Wo der Knopf für das Wasserleck steht** (`kitchen.addLeakButton`) — vor
+ * der **Spüle**, und nicht bei den anderen dreien an der Westwand.
+ *
+ * Das ist der Unterschied zwischen einem Schalter und einem Knopf am Gerät:
+ * Umbau, zweite Hand und Radio stellen etwas an der **Küche** ein und stehen
+ * deshalb zusammen am Eingang. Dieser hier macht **ein bestimmtes Möbel**
+ * kaputt, und was er anrichtet, soll man von ihm aus sehen können — er steht
+ * neben dem Becken, das gleich spritzt.
+ *
+ * **Daneben, und eine Reihe zurück.** Die Zeile an der Nordwand steht auf
+ * z = 0, und auf z = 1 steht, wer an ihr arbeitet: Von dort nimmt man den
+ * Teller aus dem Becken, stellt ihn ins Abtropfgitter und setzt gleich die
+ * Zange an. Eine Säule in dieser Reihe nähme genau einen dieser Arbeitsplätze
+ * weg — in der Brille langt man nur einen Meter weit (`kitchenGrab`), über Eck
+ * wären es anderthalb, und dann bekommt man das Möbel dahinter nicht mehr zu
+ * fassen. Der Knopf steht deshalb auf z = 2, in der zweiten Reihe des Gangs,
+ * und auf x = 6 — zwischen Becken (x = 5) und Abtropfbrett (x = 6), also über
+ * Eck neben dem, was er kaputt macht.
+ *
+ * **Die Kachel ist frei**, nachgesehen und nicht gehofft: Der Gang zwischen
+ * der Zeile (z = 0) und der Insel (z = 4) ist auf ganzer Breite leer. Dass sie
+ * frei bleibt, hält derselbe Test fest wie für die anderen drei
+ * (`kitchenPlan.test.ts`) — zwei Dinge auf einer Kachel heißt, dass `A` immer
+ * nur eines davon erwischt (`core/usable.pickUsable` nimmt das Nächste).
+ */
+export const LEAK_BUTTON_TILE = { x: 6, z: 2 } as const;
+
+/**
+ * **Wo die Wasserpumpenzange liegt** — auf der Arbeitsplatte östlich der Spüle
+ * (`KITCHEN_SPOTS`, `counter` auf x = 7, z = 0).
+ *
+ * **Dieselbe Überlegung wie beim Feuerlöscher**, der neben dem einen Herd
+ * steht, an dem es brennen kann: Ein Werkzeug ist in den Sekunden, in denen
+ * man es braucht, entweder in Reichweite oder nutzlos. Die Spüle steht auf
+ * x = 5 und 6, die Zange auf 7 — einen Schritt daneben, sichtbar von dort, wo
+ * das Wasser herauskommt.
+ *
+ * **Sie liegt auf dem Möbel und ist keines** (anders als der Löscher, der ein
+ * eigenes Katalogstück mit `holds` hat, `core/kitchenFit.ts`): Die Zange ist
+ * gebaut (`kitchenProps.FoodKit.pliers`), und was gebaut ist, legt die Zone
+ * beim Aufbau einfach auf die Ablage dieser Station (`kitchen.layPliers`).
+ * Damit ist sie von der ersten Sekunde an ein gewöhnliches getragenes Ding:
+ * aufnehmen, hinlegen, mitnehmen — und beim Aufräumen kommt sie hierher
+ * zurück (`kitchen.putBack`).
+ */
+export const PLIERS_TILE = { x: 7, z: 0 } as const;
+
+/**
  * **Die Werkhalle** — acht freie Spalten zwischen Küche und Schauraum, in
  * denen Bandstraßen stehen.
  *

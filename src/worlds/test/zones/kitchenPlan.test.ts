@@ -22,6 +22,8 @@ import { chopStage } from './kitchenRecipes';
 import {
   BUILD_BUTTON_TILE,
   HANDS_BUTTON_TILE,
+  LEAK_BUTTON_TILE,
+  PLIERS_TILE,
   KITCHEN_EYE_MARGIN,
   KITCHEN_SHOWN,
   KITCHEN_SPOTS,
@@ -575,6 +577,56 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
       expect(pair.turn.x).toBeLessThan(spot!.x);
       expect(pair.play.x).toBeGreaterThanOrEqual(spot!.x + size.w);
     }
+  });
+
+  /**
+   * **Und der Knopf für das Wasserleck ebenso** (`LEAK_BUTTON_TILE`,
+   * `kitchen.addLeakButton`) — mit derselben Begründung wie bei den beiden
+   * oben, und mit einer zweiten dazu: Er steht als Einziger **nicht** in der
+   * Gerätespalte, sondern an der Spüle, die er kaputt macht.
+   *
+   * Nachgerechnet wird deshalb dreierlei: dass seine Kachel leer ist, dass sie
+   * **nicht in der Arbeitsreihe** vor der Zeile liegt — dort steht, wer am
+   * Becken hantiert, und in der Brille langt man nur einen Meter weit —, und
+   * dass sie trotzdem in Sichtweite des Beckens bleibt.
+   */
+  it('stellt den Leck-Knopf auf eine freie Kachel neben das Spülbecken', () => {
+    expect(busy(LEAK_BUTTON_TILE)).toBe(false);
+    const basin = WORKING.find((spot) => spot.name === 'sink-basin');
+    expect(basin).toBeDefined();
+    // Nicht in der Reihe vor der Zeile — die gehört dem, der dort arbeitet.
+    expect(LEAK_BUTTON_TILE.z).toBeGreaterThan(basin!.z + 1);
+    // Aber über Eck daneben und nicht am anderen Ende der Küche.
+    expect(LEAK_BUTTON_TILE.z - basin!.z).toBeLessThanOrEqual(2);
+    expect(Math.abs(LEAK_BUTTON_TILE.x - basin!.x)).toBeLessThanOrEqual(2);
+    // Und auf keiner der Kacheln, auf denen schon ein anderer Knopf steht.
+    for (const other of [BUILD_BUTTON_TILE, HANDS_BUTTON_TILE, RADIO_TILE]) {
+      expect(
+        Math.abs(LEAK_BUTTON_TILE.x - other.x) + Math.abs(LEAK_BUTTON_TILE.z - other.z),
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * **Und die Wasserpumpenzange liegt auf einer Arbeitsplatte** — auf einer,
+   * die es wirklich gibt, und neben der Spüle (`PLIERS_TILE`,
+   * `kitchen.layPliers`).
+   *
+   * Beides ist im Headset teuer: Eine Zange auf einer Kachel ohne Möbel läge
+   * auf dem Boden und wäre nicht zu sehen; eine drei Zimmer weiter wäre in dem
+   * Augenblick, in dem das Becken spritzt, genauso gut nicht da — dieselbe
+   * Überlegung, die den Feuerlöscher neben den Herd gestellt hat.
+   */
+  it('legt die Zange auf eine Arbeitsplatte neben der Spüle', () => {
+    const under = WORKING.find(
+      (spot) => spot.x === PLIERS_TILE.x && spot.z === PLIERS_TILE.z && !spot.show,
+    );
+    expect(under).toBeDefined();
+    expect(kindOf(under!)).toBe('top');
+    const basin = WORKING.find((spot) => spot.name === 'sink-basin')!;
+    const drain = WORKING.find((spot) => spot.name === 'sink-drain')!;
+    expect(PLIERS_TILE.z).toBe(basin.z);
+    expect(Math.min(...[basin, drain].map((spot) => Math.abs(PLIERS_TILE.x - spot.x)))).toBe(1);
   });
 
   /**

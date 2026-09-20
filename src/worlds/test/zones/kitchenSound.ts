@@ -106,6 +106,12 @@ export const DEED_SOUNDS: Readonly<Record<DeedKind, KitchenCue | null>> = {
   scrape: 'place',
   serve: 'serve',
   douse: null,
+  // **Und die Zange klingt beim Ansetzen nach nichts.** Das Becken rauscht in
+  // diesem Augenblick ohnehin (`kitchen.listen` schickt ein spritzendes Becken
+  // in dieselbe Schleife wie ein spülendes), und ein Klick darüber wäre ein
+  // Ton, den niemand hört. Zu hören ist dafür das **Ende**: Wenn es dicht ist,
+  // hört das Rauschen auf, und genau daran merkt man es auch, ohne hinzusehen.
+  repair: null,
   refuse: null,
   nothing: null,
 };

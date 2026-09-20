@@ -329,6 +329,50 @@ const WATER_DEEP = POT_BOWL.water - POT_BOWL.floor;
 /** Die eine Farbe, die von allem Gebauten blieb: die der Tomatensuppe. */
 const SOUP = 0xb02a18;
 
+/**
+ * **Die Wasserpumpenzange** — ihre sieben Maße, alle in Metern.
+ *
+ * Sie wird **gebaut und nicht geladen**, wie alles, was die Quelle nicht hat:
+ * In `kitchen.glb` steht ein Feuerlöscher, aber kein Werkzeug — und für ein
+ * Möbelmodell nachzuliefern, was aus zwei Kästen und einem Bolzen besteht,
+ * wäre ein Kauf für nichts.
+ *
+ * **30 cm lang**, und das ist keine echte Zange (die misst 25). Gezielt wird
+ * in dieser Küche von **oben**, aus 16 m Höhe (`core/topDownPose.ts`), und
+ * dort ist ein 25-cm-Werkzeug auf einer Arbeitsplatte ein Strich. 30 cm sind
+ * knapp ein Drittel der Kachel, auf der sie liegt — man sieht sie im
+ * Vorbeilaufen und hält sie trotzdem nicht für einen Besen.
+ *
+ * **Flach**, 2,6 cm hoch: Eine Zange liegt auf der Seite, so wie man sie
+ * hinlegt. Das ist zugleich ihre `ITEM_HEIGHT` — was flach liegt, trägt wenig
+ * auf, und auf einer Arbeitsplatte neben einem Teller fällt sie damit nicht
+ * um.
+ *
+ * Die übrigen fünf sind die Zange selbst: zwei **Schenkel** hinten, der
+ * **Bolzen** in der Mitte, zwei **Backen** vorn — und der Winkel, um den beide
+ * Paare auseinanderstehen. Eine Zange mit parallelen Schenkeln ist von oben
+ * ein Stab.
+ */
+const PLIERS = {
+  length: 0.3,
+  thick: 0.026,
+  /** Wie breit ein Schenkel und eine Backe sind. */
+  bar: 0.026,
+  /** Wo der Bolzen sitzt, vom hinteren Ende aus gemessen. */
+  pivot: 0.19,
+  /** Der Halbmesser des Bolzens. */
+  bolt: 0.02,
+  /** Wie weit Schenkel und Backen auseinanderstehen, im Bogenmaß. */
+  splay: 0.16,
+  /** Wie weit die Backen offen stehen — weiter als die Schenkel, sonst sähe
+   *  die Zange geschlossen aus und griffe nichts. */
+  jaw: 0.34,
+} as const;
+
+/** Der Stahl der Zange und das Rot ihrer Griffe. */
+const STEEL = 0x8b93a4;
+const GRIP_RED = 0xc7362a;
+
 /** Wie matt etwas ist — Essen schluckt Licht, Suppe wirft es zurück. */
 const MATTE = 0.85;
 const WET = 0.32;
@@ -371,6 +415,10 @@ export const ITEM_HEIGHT: Record<KitchenItem, number> = {
   pot: 0,
   pan: 0,
   extinguisher: 0,
+  // **Die Zange ist gebaut und trägt deshalb eine Zahl** — anders als die drei
+  // Geräte über ihr, die aus dem Möbelmodell kommen. Sie liegt flach, also ist
+  // ihre Höhe die ihres Bolzens, des höchsten Stücks daran (`pliers()`).
+  pliers: PLIERS.thick,
   plate: PLATE_HEIGHT,
   // **Genau so hoch wie der saubere.** Die Krümel stecken im Teller und sitzen
   // nicht darauf (siehe `DIRTY_DISH`) — nur deshalb rechnet ein Stapel aus
@@ -791,9 +839,105 @@ export class FoodKit {
         return this.soup();
       case 'water':
         return this.water();
+      case 'pliers':
+        return this.pliers();
       default:
         return null;
     }
+  }
+
+  /**
+   * **Die Wasserpumpenzange** — zwei Schenkel, ein Bolzen, zwei Backen, alles
+   * flach auf der Platte.
+   *
+   * Gebaut wie jedes Stück dieser Datei: Fuß auf `y = 0`, Mitte auf `x/z = 0`,
+   * Formen und Farben geteilt (`mesh`). Sie zeigt mit den **Backen nach +x**,
+   * und das ist dieselbe Richtung, in die auch der Feuerlöscher seine Düse
+   * hält (`kitchenSpray.NOZZLE_TIP`) — wer ein Werkzeug in die Hand bekommt,
+   * soll es nach vorn halten und nicht über die Schulter.
+   *
+   * **Die Griffe sind rot**, und zwar die hinteren zwei Drittel der Schenkel:
+   * Genau daran erkennt man eine Wasserpumpenzange von oben wieder, während
+   * ein Werkzeug ganz aus Stahl auf einer Edelstahlplatte verschwindet.
+   *
+   * Der **Bolzen** steht als Zylinder senkrecht durch beide Hälften; er ist
+   * die Stelle, an der die Zange knickt, und ohne ihn wären es zwei Kreuze aus
+   * Kästen, die sich zufällig berühren. Er ist zugleich das **höchste** Stück
+   * — alles andere bleibt eine Handbreit darunter —, und damit ist `PLIERS.thick`
+   * wirklich die Höhe der Zange und nicht eine Zahl daneben (`ITEM_HEIGHT`).
+   * Dass er über die Schenkel hinausragt, erspart obendrein zwei Deckflächen
+   * auf derselben Höhe, die im Bild um jedes Pixel streiten.
+   */
+  private pliers(): THREE.Object3D {
+    const parts: THREE.Object3D[] = [];
+    const half = PLIERS.length / 2;
+    // Der Bolzen liegt `PLIERS.pivot` vom hinteren Ende entfernt — in der
+    // Mitte gerechnet ist das sein Versatz nach vorn.
+    const pivot = -half + PLIERS.pivot;
+    const shank = PLIERS.pivot;
+    const jaw = PLIERS.length - PLIERS.pivot;
+
+    for (const side of [1, -1]) {
+      // **Der Schenkel** reicht vom hinteren Ende bis zum Bolzen, schräg
+      // gestellt: Sein Fußpunkt ist der Bolzen, seine Mitte liegt eine halbe
+      // Länge davor.
+      const bar = this.mesh(
+        'pliers-shank',
+        () => new THREE.BoxGeometry(shank, PLIERS.thick * 0.9, PLIERS.bar),
+        STEEL,
+        WET,
+      );
+      bar.position.set(pivot - shank / 2, PLIERS.thick * 0.45, (side * PLIERS.bar) / 2);
+      bar.rotation.y = side * PLIERS.splay;
+      parts.push(bar);
+
+      // **Der Griff** darüber: dieselbe Schräge, zwei Drittel der Länge, und
+      // er sitzt am **hinteren** Ende — dort, wo die Hand zupackt.
+      const grip = this.mesh(
+        'pliers-grip',
+        () => new THREE.BoxGeometry(shank * 0.62, PLIERS.thick * 0.96, PLIERS.bar * 1.15),
+        GRIP_RED,
+        MATTE,
+      );
+      grip.position.set(pivot - shank * 0.69, PLIERS.thick * 0.48, (side * PLIERS.bar) / 2);
+      grip.rotation.y = side * PLIERS.splay;
+      parts.push(grip);
+
+      // **Die Backe** vor dem Bolzen, weiter geöffnet als die Schenkel.
+      const bite = this.mesh(
+        'pliers-jaw',
+        () => new THREE.BoxGeometry(jaw, PLIERS.thick * 0.78, PLIERS.bar * 0.8),
+        STEEL,
+        WET,
+      );
+      bite.position.set(pivot + jaw / 2, PLIERS.thick * 0.39, (side * PLIERS.bar) / 2);
+      bite.rotation.y = -side * PLIERS.jaw;
+      parts.push(bite);
+    }
+
+    const bolt = this.mesh(
+      'pliers-bolt',
+      () => new THREE.CylinderGeometry(PLIERS.bolt, PLIERS.bolt, PLIERS.thick, 12),
+      STEEL,
+      WET,
+    );
+    bolt.position.set(pivot, PLIERS.thick / 2, 0);
+    parts.push(bolt);
+
+    const tool = wrap('kitchen-pliers', ...parts);
+    // **Zum Schluss gemessen und mittig gerückt**, statt die Mitte
+    // auszurechnen. Zwei gegeneinander gedrehte Kästen je Seite haben keine
+    // Mitte, die man hinschreiben könnte — sie hängt an jedem der beiden
+    // Winkel —, und jedes Stück dieser Datei muss mit seiner Mitte auf
+    // `x/z = 0` stehen (siehe der Block über `view`, und der Test daneben
+    // rechnet es nach). Gemessen wird einmal beim Bauen, nicht je Bild.
+    const box = new THREE.Box3().setFromObject(tool);
+    const shift = { x: (box.min.x + box.max.x) / 2, z: (box.min.z + box.max.z) / 2 };
+    for (const part of parts) {
+      part.position.x -= shift.x;
+      part.position.z -= shift.z;
+    }
+    return tool;
   }
 
   /** Die Tomatensuppe — eine glänzende Pfütze mit einem Häufchen darin. */

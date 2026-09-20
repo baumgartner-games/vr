@@ -9,7 +9,7 @@ import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { npcSkin } from '../npc/npcKinds';
-import { HORIZON_COLORS, SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
+import { HORIZON_COLORS, KITCHEN_SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
 import { spawnAt } from './spawnAt';
 import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
@@ -127,17 +127,29 @@ export class TestWorld extends GridWorld {
   }
 
   /**
-   * **Wo man ankommt** — die Mitte des Startplatzes, oder die Kachel, die in
-   * der Adresse steht (`spawnAt.ts`, `?at=`).
+   * **Wo man ankommt** — in der **Küche**, oder auf der Kachel, die in der
+   * Adresse steht (`spawnAt.ts`, `?at=`).
    *
-   * Der Startplatz ist nie eine Torkachel, dafür sorgt der Grundriss
-   * (`zones/start.ts`, mit Test). Die Adresse darf dagegen **jede** Kachel
-   * nennen: Sie ist das Werkzeug dessen, der die Welt prüft, und der weiß, wo
-   * er hinwill. Steht dort Unsinn, gilt der Startplatz — geraten wird nicht.
+   * **Hier stand der Startplatz im Süden**, und das war die Ankunft für den,
+   * der sich das Gelände ansieht: Schild, Tor, neun Zonen ringsum. Wer diese
+   * Welt öffnet, kommt aber nicht als Besucher — sie ist der Prüfstand, und
+   * geprüft wird in der Küche. Seit die Seite ohne Adresse mit der Testwelt
+   * aufmacht (`worlds/index.DEFAULT_WORLD`), wäre der Startplatz der zweite
+   * Umweg hintereinander: erst die Welt suchen, dann dreißig Meter nach Norden
+   * laufen.
+   *
+   * Die Kachel ist dieselbe, auf die auch das Sprungmenü und `?at=kitchen`
+   * setzen (`layout.KITCHEN_SPAWN`) — eine Küche, die umzieht, nimmt alle drei
+   * mit. Der Startplatz bleibt dabei, was er war: der Anker seiner Zone und
+   * der Ort mit dem Tor zum Hub, nur nicht mehr das Erste, was man sieht.
+   *
+   * Die Adresse darf dagegen **jede** Kachel nennen: Sie ist das Werkzeug
+   * dessen, der die Welt prüft, und der weiß, wo er hinwill. Steht dort
+   * Unsinn, gilt die Küche — geraten wird nicht.
    */
   protected override spawnPoint(): THREE.Vector3 {
     const at = spawnAt(typeof location === 'undefined' ? '' : location.search);
-    if (!at) return new THREE.Vector3(centre(SPAWN.x), 0, centre(SPAWN.z));
+    if (!at) return new THREE.Vector3(centre(KITCHEN_SPAWN.x), 0, centre(KITCHEN_SPAWN.z));
     // Die Ebene kommt aus dem Graphen und nicht aus einer Zahl hier: Das Deck
     // des Podests liegt oben, und wer auf y = 0 daruntersetzt, steckt drin.
     const y = this.grid?.graph.levelY(at.level) ?? 0;
@@ -145,7 +157,9 @@ export class TestWorld extends GridWorld {
   }
 
   protected override spawnYaw(): number {
-    // Nach Norden, also auf das Schild und die Effektquellen dahinter.
+    // **Nach Norden**, und das passt für beide Ankünfte: In der Küche liegt
+    // dort die Zeile mit Herd, Spüle und Arbeitsplatte, am Startplatz das
+    // Schild mit den Effektquellen dahinter.
     return 0;
   }
 

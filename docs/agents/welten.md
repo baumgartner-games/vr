@@ -436,6 +436,26 @@ erarbeiten musste:
   Quadern, die ohnehin dort liegen (siehe _Von oben_ und
   _Wie schön es aussieht_).
 
+## Womit die Seite aufmacht
+
+**Ohne Adresse landet man in der Testwelt, und dort in der Küche**
+(`worlds/index.DEFAULT_WORLD`, `test/TestWorld.spawnPoint`,
+`test/layout.KITCHEN_SPAWN`). Hier stand der Hub, und er war richtig, solange
+er der Ort war, an dem etwas passiert: eine ruhige Halle mit einem Menü an der
+Wand. Gearbeitet wird aber in der Küche, und jeder Start war derselbe Umweg —
+Menü auf, Testwelt wählen, laden, dreißig Meter nach Norden laufen.
+
+Drei Zahlen hängen daran, und sie stehen deshalb an **einer** Stelle
+(`layout.KITCHEN_SPAWN`): die Ankunft der Welt, das Ziel im Sprungmenü
+(`ZONE_TILES`) und `?at=kitchen` in der Adresse (`spawnAt.ts`). Eine Küche, die
+umzieht, nimmt alle drei mit; zwei Zahlen, die auseinanderlaufen, wären ein
+Startplatz in einer Wand. Ein Test rechnet nach, dass die Kachel begehbar ist
+und dass man von ihr in jede Zone kommt (`testPlan.test.ts`).
+
+Der Hub ist damit nicht weg, nur nicht mehr der Anfang: `#hub` in der Adresse
+führt hin, und das Tor am Startplatz der Testwelt tut es auch
+(`test/zones/start.ts`).
+
 ## Eine neue Welt hinzufügen
 
 1. `src/worlds/<name>/<Name>World.ts` anlegen und `World` implementieren
