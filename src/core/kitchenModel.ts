@@ -2,17 +2,19 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { KITCHEN_SCALE, type PieceMesh, type PieceStack, kitchenPiece } from './kitchenFit';
 import { dinerModel } from './dinerModel';
+import { mixedbagModel } from './mixedbagModel';
 import { versioned } from './assetVersion';
 
 /**
- * **Die Küchenmöbel als Modell** — aus **zwei** Dateien zusammengesetzt.
+ * **Die Küchenmöbel als Modell** — aus **drei** Dateien zusammengesetzt.
  *
- * Bis zum Umbau war das eine Datei und ein Knoten je Möbel. Heute stehen neun
- * der zweiundzwanzig Katalogstücke auf Netzen aus dem zweiten Baukasten
- * (`core/dinerModel.ts`, 146 Stücke aus _Restaurant Bits_), und was hier noch
- * liegt, sind **fünf** Knoten: Feuerlöscher, Mülleimer, Ausgabetheke,
- * Ausgaberegal — und die **Pfanne**, von der nur sie selbst übrig ist
- * (`tools/kitchen-model.mjs --trim`).
+ * Bis zum Umbau war das eine Datei und ein Knoten je Möbel. Heute stehen
+ * fünfzehn der sechsundzwanzig Katalogstücke auf Netzen aus dem zweiten
+ * Baukasten (`core/dinerModel.ts`, 156 Stücke aus _Restaurant Bits_), **ein**
+ * Aufsatz kommt aus der Wundertüte (`core/mixedbagModel.ts`) — der
+ * Feuerlöscher —, und was hier noch liegt, sind **vier** Knoten: Mülleimer,
+ * Ausgabetheke, Ausgaberegal und die **Pfanne**, von der nur sie selbst übrig
+ * ist (`tools/kitchen-model.mjs --trim`).
  *
  * ## Was dabei weggefallen ist
  *
@@ -27,17 +29,20 @@ import { versioned } from './assetVersion';
  *   von der Ausgabe wegradierte. Die Ausgabe ist heute eine Kiste mit Deckel,
  *   und auf einem Deckel ist nichts aufgedruckt.
  *
- * Geblieben ist der Materialschnitt für das **Gerät** auf einem Möbel
- * (`takeUtensil`) — aber nur noch für den Feuerlöscher: Bei allen anderen sagt
- * der Katalog mit `KitchenPiece.over` ausdrücklich, was obendrauf steht, statt
- * dass der Lader es an einem Materialnamen errät.
+ * Und mit dem Feuerlöscher ist auch der dritte gegangen: der
+ * **Materialschnitt** für das Gerät auf einem Möbel. Er war der letzte Rest
+ * der ersten Quelle, die Möbel und Gerät in **einem** Knoten lieferte, und der
+ * Löscher war das letzte Möbel, das ihn brauchte. Was obendrauf steht, sagt
+ * heute der Katalog (`KitchenPiece.over`), und abgenommen wird, was dort oben
+ * liegt (`takeUtensil`).
  *
  * ## Der Maßstab sitzt weiter am Lader
  *
- * Beide Quellen sind doppelt so groß gebaut, wie sie sein sollen
- * (`KITCHEN_SCALE`, `DINER_SCALE` — dieselbe 0,5, zweimal nachgemessen).
- * Herausgereicht wird deshalb eine **Gruppe in Metern**: Wer sie hinstellt,
- * rechnet nicht mehr um, und was man an sie hängt, steht in Metern der Welt.
+ * Alle drei Quellen sind doppelt so groß gebaut, wie sie sein sollen
+ * (`KITCHEN_SCALE`, `DINER_SCALE`, `MIXEDBAG_SCALE` — dieselbe 0,5, dreimal
+ * nachgemessen). Herausgereicht wird deshalb eine **Gruppe in Metern**: Wer
+ * sie hinstellt, rechnet nicht mehr um, und was man an sie hängt, steht in
+ * Metern der Welt.
  */
 
 /** Wo die Datei liegt: unter uns, nie auf einem fremden Server. */
@@ -73,9 +78,23 @@ async function ownNode(node: string): Promise<THREE.Object3D | null> {
   return copy;
 }
 
-/** Ein Netz, egal aus welcher der beiden Dateien. */
+/**
+ * **Ein Netz, egal aus welcher der drei Dateien.**
+ *
+ * Eine Zeile je Baukasten, und jeder bringt seinen eigenen Maßstab und seinen
+ * eigenen Entpacker schon mit — hier wird nur noch ausgewählt. Ein `switch`
+ * statt einer Kette aus `?:`, weil der Übersetzer dann meldet, wenn
+ * `PieceMesh.file` eine vierte Datei bekommt und niemand sie hier einträgt.
+ */
 function mesh(from: PieceMesh): Promise<THREE.Object3D | null> {
-  return from.file === 'diner' ? dinerModel(from.node) : ownNode(from.node);
+  switch (from.file) {
+    case 'diner':
+      return dinerModel(from.node);
+    case 'mixedbag':
+      return mixedbagModel(from.node);
+    case 'kitchen':
+      return ownNode(from.node);
+  }
 }
 
 /**

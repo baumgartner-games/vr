@@ -46,47 +46,50 @@ const source = args.get('in');
 const out = path.resolve(args.get('out') ?? 'public/models/kitchen.glb');
 
 /**
- * **Was von diesem Katalog übrig bleibt** — fünf Knoten von dreizehn, und drei
+ * **Was von diesem Katalog übrig bleibt** — vier Knoten von dreizehn, und drei
  * davon sind noch Möbel.
  *
- * Seit es einen zweiten Baukasten gibt (`tools/diner-model.mjs`, 146 Stücke
+ * Seit es einen zweiten Baukasten gibt (`tools/diner-model.mjs`, 156 Stücke
  * aus einer Quelle), kommen Küchenzeile, Herd, Spüle, Arbeitstisch,
  * Schneidebrett, Ausgabe und Tellerausgabe von **dort**. Hier bleibt nur, was
- * der zweite Baukasten nicht hergibt oder was an einer Spielregel hängt, die
- * an genau dieses Netz gebunden ist:
+ * kein anderer Baukasten hergibt oder was an einer Spielregel hängt, die an
+ * genau dieses Netz gebunden ist:
  *
  * - `bin` — der Mülleimer.
  * - `pass` — die Ausgabetheke, zwei Kacheln breit.
  * - `plate-rack` — das Ausgaberegal darüber.
- * - `stove-pan` und `extinguisher` — und davon **nur das Gerät**: Pfanne und
- *   Feuerlöscher. Herd und Hocker darunter kommen aus dem zweiten Baukasten,
- *   die Geräte bleiben, weil an ihnen Spielregeln hängen (`kitchenGrab.ts`,
+ * - `stove-pan` — und davon **nur das Gerät**: die Pfanne. Der Herd darunter
+ *   kommt aus dem zweiten Baukasten, die Pfanne bleibt, weil an ihr die
+ *   Bratregeln und ein nachgemessener Muldenversatz hängen (`kitchenGrab.ts`,
  *   `kitchenFit.PAN_BOWL`). Siehe `LOOSE`.
+ *
+ * **Der Feuerlöscher stand hier bis zuletzt und ist jetzt auch weg.** Er war
+ * das letzte Gerät dieser Quelle, für das es keinen Ersatz gab; seit es die
+ * Wundertüte gibt (`tools/mixedbag-model.mjs`), gibt es einen, und der Katalog
+ * holt ihn von dort (`core/kitchenFit.ts`, `extinguisher.over`). Von den
+ * dreizehn Möbeln dieser Datei ist damit die **Pfanne** das einzige Gerät.
  *
  * Die Liste steht **hier** und nicht nur im Ergebnis: Wer die Quelle noch
  * einmal aufbereitet, soll dieselbe schlanke Datei bekommen und nicht wieder
- * dreizehn Knoten, von denen acht niemand aufstellt.
+ * dreizehn Knoten, von denen neun niemand aufstellt.
  */
 const KEEP = ['bin', 'pass', 'plate-rack'];
 
 /**
  * **Die Knoten, von denen nur das Gerät bleibt** — und wie es danach heißt.
  *
- * Zwei Stück, und beide standen in ihrer Datei mit ihrem Möbel in **einem**
- * Knoten: die Pfanne auf ihrem Herd, der Feuerlöscher auf seinem Hocker. Beide
- * Möbel kommen heute aus dem zweiten Baukasten — der Herd als `stove_single`,
- * der Hocker als gewöhnliche Küchenzeile —, und was hier bleibt, ist nur noch
- * das Gerät: das Netz aus dem Gerätematerial.
+ * Noch einer, und er stand in seiner Datei mit seinem Möbel in **einem**
+ * Knoten: die Pfanne auf ihrem Herd. Der Herd kommt heute aus dem zweiten
+ * Baukasten (`stove_single`), und was hier bleibt, ist nur noch das Gerät: das
+ * Netz aus dem Gerätematerial.
  *
- * **Der Hocker war der Grund.** Er war das letzte Möbel des ersten Baukastens,
- * das in einer Zeile aus Möbeln des zweiten stand, und man sah ihn: anderes
- * Holz, andere Höhe, andere Kante. Ein Löscher gehört auf die Arbeitsplatte
- * wie alles andere auch.
+ * **Der Hocker war der Grund, aus dem diese Liste entstand.** Er trug den
+ * Feuerlöscher, war das letzte Möbel des ersten Baukastens in einer Zeile aus
+ * Möbeln des zweiten, und man sah ihn: anderes Holz, andere Höhe, andere
+ * Kante. Erst flog der Hocker, dann der Löscher hinterher — beide stehen
+ * heute woanders, und übrig ist die Zeile, die die Pfanne freilegt.
  */
-const LOOSE = [
-  { from: 'stove-pan', to: 'pan', material: 'Kitchen_Utensils' },
-  { from: 'extinguisher', to: 'extinguisher', material: 'Kitchen_Utensils' },
-];
+const LOOSE = [{ from: 'stove-pan', to: 'pan', material: 'Kitchen_Utensils' }];
 
 /**
  * **Nachträglich ausdünnen**, wenn die Quelle nicht mehr zur Hand ist.

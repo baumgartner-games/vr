@@ -31,8 +31,8 @@ import * as THREE from 'three';
  * reicht ihm den **Ursprung des Netzes** (`kitchen.spray`:
  * `held.object.getWorldPosition`), und der liegt bei jedem Gerät dieser Küche
  * **unten in der Mitte** (`core/kitchenModel.takeUtensil`). Beim Löscher ist
- * das sein **Fuß**, und genau daher kam der Rauch bisher: unten aus dem
- * Standring statt oben aus dem Rohr. `sprayMuzzle` setzt ihn dorthin, wo das
+ * das sein **Fuß**, und genau daher kam der Rauch einmal: unten aus dem
+ * Standring statt oben aus der Düse. `sprayMuzzle` setzt ihn dorthin, wo das
  * Modell seine Düse hat.
  */
 
@@ -308,12 +308,17 @@ export function douseProgress(state: DouseState): number {
  * **Die Hülle des Feuerlöschers**, in Metern — Breite (x), Höhe (y), Tiefe (z),
  * so wie er in der Hand hängt.
  *
- * Gemessen an `public/models/kitchen.glb`, Knoten `extinguisher`, und zwar nur
- * am Netz mit dem Material `Kitchen_Utensils` — das ist genau das, was
- * `core/kitchenModel.takeUtensil` abnimmt und in die Hand gibt; der Hocker
- * darunter gehört zu `Kitchen_Cabins` und zählt nicht mit. In Quellmaß sind es
- * 1,2325 × 1,4957 × 0,7717, und die Küche halbiert alles beim Laden
- * (`core/kitchenFit.KITCHEN_SCALE` = 0,5).
+ * Gemessen an `public/models/mixedbag.glb`, Knoten `fire_extinguisher` — das
+ * ist genau das, was `core/kitchenModel.takeUtensil` von der Arbeitsplatte
+ * abnimmt und in die Hand gibt. In Quellmaß sind es 0,8868 × 1,2050 × 0,4242,
+ * und die Küche halbiert alles beim Laden
+ * (`core/mixedbagFit.MIXEDBAG_SCALE` = 0,5).
+ *
+ * **Der alte Löscher stand hier mit 0,616 × 0,748 × 0,386.** Er kam aus dem
+ * ersten Baukasten und hatte ein Rohr, wo dieser einen Trichter hat; er war
+ * eine Handbreit höher und eine halbe breiter. Wer sich fragt, warum der
+ * Nebel seitdem tiefer und näher an der Hand austritt: Es sind dieselben
+ * Anteile an einer kleineren Hülle.
  *
  * **Warum die Zahlen hier abgeschrieben stehen.** Die Küche misst die Hülle je
  * Gerät im Bild (`kitchen.markHandles`, `kitchen.grabbedAt`) und reicht sie an
@@ -324,48 +329,48 @@ export function douseProgress(state: DouseState): number {
  * Zahlen dieser Küche in Zentimetern: **Wer das Modell tauscht, misst hier
  * nach.**
  */
-export const EXTINGUISHER_HULL = { width: 0.616, height: 0.748, depth: 0.386 } as const;
+export const EXTINGUISHER_HULL = { width: 0.4434, height: 0.6025, depth: 0.2121 } as const;
 
 /**
  * **Wo die Düse sitzt** — die Mitte ihrer Öffnung, in Anteilen der Hülle und in
  * derselben Form wie `kitchenGrab.NOZZLE_BAR`, an dem die Hand liegt.
  *
- * Gemessen und nicht geschätzt: Das Netz zerfällt in vier zusammenhängende
- * Teile, und man erkennt den Löscher an ihnen wieder — die **Flasche** (`lift`
- * 0,00…0,84), das **Ventil mit dem Tragebügel** (0,79…0,89, `across` bis −1,0:
- * dort liegt die Faust), der **Hebel** darüber (0,90…1,00) und das **Rohr**
- * (`across` 0,32…1,00). Das Rohr ist der vorderste Teil des ganzen Löschers —
- * es gibt der Hülle ihr +x, und genau deshalb zeigt `kitchenGrab.NOZZLE_AHEAD`
- * dorthin —, und sein Mund ist ein Ring aus 24 Punkten um (0,99 | 0,88 |
- * −0,06). Dessen Halbmesser ist knapp 5 cm, also auf den Zentimeter das
- * `PUFF_MIN` weiter unten: Das erste Bällchen ist so groß wie die Öffnung, aus
- * der es kommt.
+ * Gemessen und nicht geschätzt: Die **Flasche** steht von `lift` 0,00 bis 0,77
+ * und ist 10 cm im Halbmesser; darüber sitzt das **Ventil** mit dem roten
+ * Knopf (0,77…1,00), nach hinten gehen **Bügel und Hebel** (`across` −1,00 …
+ * −0,15, dort liegt die Faust, `kitchenGrab.NOZZLE_BAR`), und nach vorn der
+ * **Trichter**. Der ist der vorderste Teil des ganzen Löschers — er gibt der
+ * Hülle ihr +x, und genau deshalb zeigt `kitchenGrab.NOZZLE_AHEAD` dorthin —,
+ * und sein Mund ist ein Ring aus 24 Punkten um (1,00 | 0,87 | 0,00) mit knapp
+ * 7 cm Halbmesser: Der Trichter ist die Öffnung, aus der der Nebel kommt, und
+ * `PUFF_MIN` weiter unten ist genau sie.
  *
- * Der Mund liegt damit **knapp unter der Hand** (der Bügel sitzt auf 0,93, also
- * vier Zentimeter höher) und gut 30 cm **vor** ihr. Dass er unter dem Griff
- * liegt und nicht über ihm, ist der Löscher selbst: Man hält ihn oben am
- * Bügel, und das Rohr geht vom Ventil aus zur Seite weg.
+ * Der Mund liegt damit **auf der Höhe der Hand** (der Bügel sitzt auf 0,86,
+ * also einen Zentimeter tiefer) und 22 cm **vor** ihr. Beim alten Löscher war
+ * es andersherum: Sein Rohr ging unter dem Bügel weg, der Mund lag vier
+ * Zentimeter tiefer als die Faust und 30 cm vor ihr. Ein Trichter ist kürzer
+ * und sitzt höher — beides steht in diesen drei Zahlen und nirgends sonst.
  *
- * `shift` bleibt ungerechnet: 6 % der halben Tiefe sind gut ein Zentimeter
- * quer, und um mehr als das wackelt in der Brille jedes Handgelenk je Bild. Er
- * steht trotzdem hier, weil eine Messung ohne ihre dritte Zahl keine Messung
- * ist.
+ * `shift` ist **null**, und diesmal gemessen und nicht abgerundet: Der
+ * Trichter sitzt mittig auf der Achse, das Netz ist zu seiner Längsachse
+ * spiegelbildlich gebaut. Beim alten stand hier −0,06.
  */
-export const NOZZLE_TIP = { across: 0.99, lift: 0.88, shift: -0.06 } as const;
+export const NOZZLE_TIP = { across: 1.0, lift: 0.87, shift: 0 } as const;
 
 /**
- * **Wie hoch über dem Fuß des Löschers die Düse sitzt** — 66 cm, also gut über
- * seiner Mitte.
+ * **Wie hoch über dem Fuß des Löschers die Düse sitzt** — 52 cm, also weit
+ * über seiner Mitte.
  *
- * Das ist der gemeldete Fehler als eine Zahl: Der Nebel kam bisher genau diese
- * 66 cm zu tief heraus, nämlich am Ursprung des Netzes, und der liegt bei jedem
- * Gerät dieser Küche unten in der Mitte (`core/kitchenModel.takeUtensil`). Im
- * Headset sah man deshalb den Rauch **unten aus dem Standring** quellen, nicht
- * oben aus dem Rohr.
+ * Das ist ein gemeldeter Fehler als eine Zahl: Der Nebel kam einmal genau
+ * diese Strecke zu tief heraus, nämlich am Ursprung des Netzes, und der liegt
+ * bei jedem Gerät dieser Küche unten in der Mitte
+ * (`core/kitchenModel.takeUtensil`). Im Headset sah man deshalb den Rauch
+ * **unten aus dem Standring** quellen, nicht oben aus dem Trichter. Beim alten
+ * Löscher waren es 66 cm — dieselbe Rechnung an einer höheren Hülle.
  */
 export const MUZZLE_LIFT = NOZZLE_TIP.lift * EXTINGUISHER_HULL.height;
 
-/** **Wie weit vor der Achse des Löschers** die Düse steht — gut 30 cm. */
+/** **Wie weit vor der Achse des Löschers** die Düse steht — 22 cm. */
 export const MUZZLE_AHEAD = (NOZZLE_TIP.across * EXTINGUISHER_HULL.width) / 2;
 
 /**
@@ -409,15 +414,15 @@ export function sprayMuzzle(
 // --- der Strahl als Bild ------------------------------------------------------
 
 /**
- * **Wie weit der Nebel von der Düse aus noch fliegt**, in Metern — 2,20 m.
+ * **Wie weit der Nebel von der Düse aus noch fliegt**, in Metern — 2,28 m.
  *
  * Die Reichweite gilt ab der **Hand**: `kitchen.spray` misst den Kegel vom
  * Ursprung des Löschers aus (`inSpray(_nozzle, …)`, derselbe Punkt, den auch
- * `sprayMuzzle` bekommt), und die Düse steht davon schon `MUZZLE_AHEAD` = 30 cm
- * entfernt nach vorn. Der Nebel bekommt deshalb nur den Rest — 2,5 − 0,30 m —,
+ * `sprayMuzzle` bekommt), und die Düse steht davon schon `MUZZLE_AHEAD` = 22 cm
+ * entfernt nach vorn. Der Nebel bekommt deshalb nur den Rest — 2,5 − 0,22 m —,
  * und alles, was ihn ausmacht, hängt an dieser Zahl statt an `SPRAY_RANGE`.
  *
- * Ohne diesen Abzug stünde der Nebel am Ende um genau diese 30 cm **vor** dem
+ * Ohne diesen Abzug stünde der Nebel am Ende um genau diese 22 cm **vor** dem
  * Kegel, in dem Feuer ausgeht, und die Zusage von `PUFF_FAN` — was man im Weiß
  * stehen sieht, geht auch aus — wäre an der Spitze des Strahls keine mehr.
  */
@@ -452,12 +457,16 @@ const PUFF_LIFE = PUFF_RANGE / PUFF_SPEED;
  * **Wie groß ein Bällchen ist**, als Halbmesser in Metern — an der Düse und am
  * Ende seines Weges.
  *
- * 5 cm an der Düse ist die Öffnung des Löschers — nachgemessen, der Mund des
- * Rohrs hat 4,7 cm Halbmesser (`NOZZLE_TIP`) —, 28 cm am Ende sind eine
+ * 7 cm an der Düse ist die Öffnung des Löschers — nachgemessen, der Mund des
+ * Trichters hat 6,9 cm Halbmesser (`NOZZLE_TIP`) —, 28 cm am Ende sind eine
  * Nebelschwade. Dass es unterwegs wächst, ist der halbe Effekt: Ein Strahl aus
  * gleich großen Kugeln sieht aus wie eine Perlenkette.
+ *
+ * **Das erste Bällchen wuchs mit dem Modell mit**: Beim alten Löscher waren es
+ * 5 cm, weil sein Rohr 4,7 cm im Halbmesser hatte. Ein Trichter ist weiter als
+ * ein Rohr, und der Nebel fängt entsprechend breiter an.
  */
-const PUFF_MIN = 0.05;
+const PUFF_MIN = 0.07;
 const PUFF_MAX = 0.28;
 
 /**
@@ -471,10 +480,10 @@ const PUFF_MAX = 0.28;
  * nicht löscht.
  *
  * Gerechnet, und zwar an den **Mitten** der Bällchen und ab der **Hand**, weil
- * der Kegel dort seine Spitze hat: 0,6 · tan 25° · 2,20 m (`PUFF_RANGE`) =
- * 0,61 m seitlicher Versatz am Ende, gegen mindestens 0,30 + 1,58 = 1,88 m
+ * der Kegel dort seine Spitze hat: 0,6 · tan 25° · 2,28 m (`PUFF_RANGE`) =
+ * 0,64 m seitlicher Versatz am Ende, gegen mindestens 0,22 + 1,64 = 1,86 m
  * Abstand (`MUZZLE_AHEAD` plus die kürzeste Wurfweite, 0,72 · `PUFF_RANGE`) —
- * das sind 18,0° und damit sieben Grad Luft im Kegel.
+ * das sind 19,0° und damit sechs Grad Luft im Kegel.
  * Die weiche **Hülle** eines einzelnen Bällchens steht stellenweise darüber
  * hinaus, und das ist richtig so: Nebel hat keine Kante. Sie liegt dort, wo
  * ohnehin nur noch ein einzelnes durchsichtiges Bällchen hängt und niemand

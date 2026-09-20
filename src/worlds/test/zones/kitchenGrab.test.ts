@@ -42,7 +42,13 @@ import type { KitchenItem } from './kitchenRecipes';
  */
 const PAN_SIZE = { width: 0.628, depth: 1.0785, height: 0.1278 };
 const POT_SIZE = { width: 0.86, depth: 0.63, height: 0.31 };
-const TANK_SIZE = { width: 0.62, depth: 0.39, height: 0.75 };
+/**
+ * Und die des Feuerlöschers, aus `public/models/mixedbag.glb` — seit dem
+ * Modelltausch eine andere: schmaler, flacher und eine Handbreit niedriger als
+ * der alte aus `kitchen.glb` (0,62 × 0,39 × 0,75). Dieselbe Hülle steht in
+ * `kitchenSpray.EXTINGUISHER_HULL`, wo der Nebel sie braucht.
+ */
+const TANK_SIZE = { width: 0.4434, depth: 0.2121, height: 0.6025 };
 
 /**
  * **Die gemessene Achse des Stiels**, Anteil der halben Tiefe → Anteil der
@@ -275,14 +281,21 @@ describe('Wie ein Küchending gegriffen werden will', () => {
    * Die Vierteldrehung nach links aus dem Auftrag, als Zusicherung: Die Düse
    * zeigt am Modell nach +x, und genau dorthin zeigt jetzt das Vorne des
    * Griffs — vorher war es -z, also quer zur Hand.
+   *
+   * **Das +x hat den Modelltausch überlebt**, und diese Zeile ist die Probe
+   * darauf: Der neue Löscher kommt spiegelverkehrt aus seinem Baukasten und
+   * wird im Katalog um π gedreht (`core/kitchenFit.ts`, `extinguisher.over`).
+   * Wer die Drehung dort herausnimmt, bekommt hier nichts Rotes — aber einen
+   * Löscher, der im Regal falsch herum steht.
    */
   it('hängt den Feuerlöscher an den Bügel und lässt ihn nach vorn zielen', () => {
     const handles = kitchenHandles('extinguisher', TANK_SIZE);
     expect(handles).toHaveLength(1);
     const [grip] = handles;
     expect(grip!.id).toBe('buegel');
-    // Ganz oben, wo der Bügel liegt — nicht auf halber Höhe am Bauch.
-    expect(grip!.pose.position.y).toBeGreaterThan(TANK_SIZE.height * 0.9);
+    // Oben am Ventil, wo Bügel und Hebel sitzen — nicht auf halber Höhe am
+    // Bauch. Gemessen sind es 0,86 der Höhe (`kitchenGrab.NOZZLE_BAR`).
+    expect(grip!.pose.position.y).toBeGreaterThan(TANK_SIZE.height * 0.8);
     // Die Stange liegt quer, entlang x.
     expect(Math.abs(grip!.hold!.along.x)).toBeGreaterThan(0.95);
     expect(axisOf(grip!)).toEqual([0, 1, 0]);

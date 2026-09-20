@@ -332,8 +332,8 @@ const SOUP = 0xb02a18;
 /**
  * **Die Wasserpumpenzange** — ihre sieben Maße, alle in Metern.
  *
- * Sie wird **gebaut und nicht geladen**, wie alles, was die Quelle nicht hat:
- * In `kitchen.glb` steht ein Feuerlöscher, aber kein Werkzeug — und für ein
+ * Sie wird **gebaut und nicht geladen**, wie alles, was die Baukästen nicht
+ * haben: Einen Feuerlöscher gibt es dort, ein Werkzeug nicht — und für ein
  * Möbelmodell nachzuliefern, was aus zwei Kästen und einem Bolzen besteht,
  * wäre ein Kauf für nichts.
  *

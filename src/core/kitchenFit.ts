@@ -36,13 +36,21 @@ export const KITCHEN_SCALE = 0.5;
 /**
  * **Woher ein Netz kommt** — Datei und Knoten darin, ausgeschrieben.
  *
- * Zwei Baukästen stehen in dieser Küche nebeneinander, und welcher gemeint ist,
- * soll man lesen können und nicht aus einer Namensliste erschließen müssen. Ein
- * `kitchen`-Knoten heißt wie sein Katalogstück; ein `diner`-Knoten heißt, wie
- * der fremde Zeichner ihn genannt hat (`core/dinerFit.DINER_PIECES`).
+ * **Drei** Baukästen stehen in dieser Küche inzwischen nebeneinander, und
+ * welcher gemeint ist, soll man lesen können und nicht aus einer Namensliste
+ * erschließen müssen. Ein `kitchen`-Knoten heißt wie sein Katalogstück; ein
+ * `diner`- oder `mixedbag`-Knoten heißt, wie der fremde Zeichner ihn genannt
+ * hat (`core/dinerFit.DINER_PIECES`, `core/mixedbagFit.MIXEDBAG_PIECES`).
+ *
+ * Der dritte ist die **Wundertüte** und liefert bisher genau ein Stück: den
+ * Feuerlöscher. Dass dafür eine dritte Datei dazukommt, ist der Preis eines
+ * Katalogs, der als Ganzes im Repository liegt — die Alternative wäre, aus
+ * einer fremden Quelle einzelne Knoten herauszuschneiden und den Rest
+ * wegzuwerfen, und dann ist beim nächsten Stück wieder das Werkzeug dran statt
+ * der Katalog.
  */
 export interface PieceMesh {
-  readonly file: 'kitchen' | 'diner';
+  readonly file: 'kitchen' | 'diner' | 'mixedbag';
   readonly node: string;
 }
 
@@ -108,7 +116,7 @@ export interface KitchenPiece {
    * solange es eine Quelle gab; seit die Möbel aus zwei Baukästen kommen, sagt
    * `base` (und `over`), woher das Netz stammt. Ohne beide ist es der
    * gleichnamige Knoten in `public/models/kitchen.glb` — das gilt noch für
-   * Feuerlöscher, Mülleimer, Ausgabetheke und Ausgaberegal.
+   * Mülleimer, Ausgabetheke und Ausgaberegal.
    */
   readonly name: string;
   /** Wie es im Menü heißt. */
@@ -117,11 +125,12 @@ export interface KitchenPiece {
    * **Der Sockel: woher das Netz kommt**, wenn nicht aus dem gleichnamigen
    * Knoten der eigenen Datei.
    *
-   * Neun Möbel dieser Küche stehen seit dem Umbau auf Netzen aus dem **zweiten**
-   * Baukasten (`core/dinerFit.ts`): Küchenzeile, Arbeitstisch, Schneidebrett,
-   * die drei Herde, beide Spülenhälften, Ausgabe und Tellerausgabe. Ihre alten
-   * Netze sind aus `public/models/kitchen.glb` verschwunden — dort blieben nur
-   * die fünf, für die der zweite Baukasten keinen Ersatz hat.
+   * Fünfzehn Möbel dieser Küche stehen seit dem Umbau auf Netzen aus dem
+   * **zweiten** Baukasten (`core/dinerFit.ts`): Küchenzeile, Arbeitstisch,
+   * Schneidebrett, die drei Herde, beide Spülenhälften, Ausgabe,
+   * Tellerausgabe, Löscherplatte und die vier Vorratskisten. Ihre alten Netze
+   * sind aus `public/models/kitchen.glb` verschwunden — dort blieben nur die
+   * vier, für die kein anderer Baukasten einen Ersatz hat.
    *
    * **Die Spielregel bleibt am Namen.** Ein `board` schneidet, ein `sink-basin`
    * spült, eine `serve-counter` gibt aus (`zones/kitchenPlan.stationKind`) — das
@@ -237,20 +246,18 @@ export interface KitchenPiece {
    * **Was man von diesem Möbel herunternehmen kann** — der Topf, die Pfanne,
    * der Feuerlöscher.
    *
-   * Das Stück ist im Modell ein **eigenes Netz** (Material `Kitchen_Utensils`,
-   * `core/kitchenModel.ts`): Ein Herd mit Topf ist eine Gruppe aus Korpus und
-   * Topf, und wer den Topf nimmt, lässt einen leeren Herd stehen. Ohne dieses
-   * Feld wüsste die Küche nicht, dass es dort überhaupt etwas zu greifen gibt.
+   * Das Stück ist ein **eigener Aufsatz** (`over`, immer der oberste): Ein
+   * Herd mit Topf ist eine Gruppe aus Korpus und Topf, und wer den Topf nimmt,
+   * lässt einen leeren Herd stehen. Ohne dieses Feld wüsste die Küche nicht,
+   * dass es dort überhaupt etwas zu greifen gibt.
    *
-   * **Der Feuerlöscher gehört dazu, und das ist nachgemessen und nicht
-   * angenommen.** In der Datei ist `extinguisher` genau dieselbe Bauart wie
-   * ein Herd mit Topf: ein Korpus aus `Kitchen_Cabins` von y = 0,000 bis
-   * 1,000 (Quellmaß, halbiert 0,500 m) — das ist der **Hocker** — und darüber
-   * **ein einziges** Netz aus `Kitchen_Utensils` von y = 1,002 bis 2,497
-   * (halbiert 0,501 bis 1,249 m), der Löscher selbst.
-   * `core/kitchenModel.takeUtensil` nimmt das erste Netz dieses Materials und
-   * findet damit ohne eine Zeile Sonderfall den Löscher — und lässt den
-   * Hocker stehen, auf den er zurückgehört.
+   * **Dass das für alle drei gilt, war einmal eine Messung und ist heute eine
+   * Zeile.** Der erste Baukasten lieferte Möbel und Gerät in **einem** Knoten,
+   * und der Lader schnitt sie am Materialnamen wieder auseinander — der
+   * Feuerlöscher war dort ein Netz aus `Kitchen_Utensils` über einem Hocker
+   * aus `Kitchen_Cabins`. Weder der Hocker noch der Materialschnitt sind
+   * geblieben (`core/kitchenModel.takeUtensil`): Was obendrauf steht, sagt der
+   * Katalog, und abgenommen wird genau das.
    *
    * Die Namen sind die der **getragenen Dinge**
    * (`worlds/test/zones/kitchenRecipes.KitchenItem`) und keine zweite Liste:
@@ -740,6 +747,12 @@ const SUPPLY_CRATES: readonly KitchenPiece[] = [
  *   Mixer, sichere Kochstelle, Computer-Tisch und Kopierer. Sie haben kein Netz
  *   und sind trotzdem vollwertige Möbel — siehe `KitchenPiece.built`.
  *
+ * Die Herkunft zählt am **Sockel** (`base`), und deshalb sind es drei und
+ * nicht vier: Ein einziger **Aufsatz** kommt aus einer vierten Datei — der
+ * Feuerlöscher aus der Wundertüte (`core/mixedbagFit.ts`). Er steht auf einer
+ * Küchenzeile aus dem zweiten Baukasten und ist damit ein geliehenes Möbel wie
+ * die anderen vierzehn auch.
+ *
  * Die Kachelzahl ist die gerundete Grundfläche und nicht die aufgerundete:
  * Ein Unterschrank ist einen Meter breit und 1,06 m tief, und wer daraus zwei
  * Kacheln macht, stellt eine ganze Reihe davon mit einem Meter Luft dazwischen
@@ -801,12 +814,31 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // ersten Baukasten — anderes Holz, andere Kante, andere Höhe als die Zeile
     // ringsum, und in einer Reihe aus Möbeln des zweiten Baukastens sah man
     // genau ihn. Der Hocker ist aus der Datei geflogen
-    // (`tools/kitchen-model.mjs`, `LOOSE`); geblieben ist der Löscher.
+    // (`tools/kitchen-model.mjs`, `LOOSE`).
     base: { file: 'diner', node: 'kitchencounter_straight_A' },
-    over: [{ file: 'kitchen', node: 'extinguisher', at: 0.5 }],
-    // 0,748 m Löscher auf 0,50 m Zeile — auf den Millimeter dieselbe Oberkante
-    // wie vorher auf dem Hocker, denn der war auch einen halben Meter hoch.
-    height: 1.2479,
+    // **Und seitdem ist auch der Löscher selbst ein anderer**: Er kommt aus
+    // der Wundertüte (`core/mixedbagFit.ts`) und nicht mehr aus dem ersten
+    // Baukasten, dessen letztes Möbelnetz damit aus der Datei ist. Was man
+    // sieht, ist ein Löscher mit **Trichter** statt mit Rohr; was die Küche
+    // davon merkt, sind vier nachgemessene Zahlen (`kitchenGrab.NOZZLE_BAR`,
+    // `kitchenSpray.EXTINGUISHER_HULL` und `NOZZLE_TIP`) und diese halbe
+    // Drehung hier.
+    //
+    // **Die halbe Drehung ist die ganze Ausrichtung.** Im alten Netz zeigte
+    // die Düse nach +x und der Bügel nach −x; im neuen ist es andersherum. Der
+    // Rest der Küche rechnet mit +x — die Faust dreht den Löscher dorthin
+    // (`kitchenGrab.NOZZLE_AHEAD`), und der Nebel tritt dort aus
+    // (`kitchenSpray.sprayMuzzle`). Eine Drehung um π um die Senkrechte stellt
+    // das neue Netz so hin, wie das alte stand, und lässt alles andere, wie es
+    // war. Andersherum — das Vorzeichen in drei Dateien umdrehen — wäre
+    // dieselbe Drehung, nur verteilt auf drei Stellen, von denen die dritte
+    // beim nächsten Mal vergessen wird.
+    over: [{ file: 'mixedbag', node: 'fire_extinguisher', at: 0.5, tilt: [0, Math.PI, 0] }],
+    // 0,6025 m Löscher auf 0,50 m Zeile. Der alte war 0,748 m hoch und reichte
+    // damit bis 1,2479 m; der neue ist eine Handbreit kleiner — und damit
+    // ungefähr so groß, wie ein Feuerlöscher neben einem Koch von 1,60 m
+    // aussieht (`core/chefFit.ts`).
+    height: 1.1025,
     deck: 0.5,
     worktop: true,
     holds: 'extinguisher',

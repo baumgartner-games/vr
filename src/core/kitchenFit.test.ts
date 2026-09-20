@@ -26,12 +26,12 @@ import { dinerPiece } from './dinerFit';
  * (_nimmt die Maße der neuen Möbel aus dem zweiten Katalog_).
  *
  * Was hier steht, sind die Möbel, deren Knoten in der eigenen Datei geblieben
- * sind: Mülleimer, Ausgabetheke und Ausgaberegal. Zwei Knoten liegen dort
- * außerdem und stehen trotzdem nicht in dieser Tabelle — **Pfanne** und
- * **Feuerlöscher**: Beides sind keine Möbel, sondern Geräte auf einem
- * (`stove-pan.over`, `extinguisher.over`). Der Löscher stand hier, solange er
- * seinen eigenen Hocker mitbrachte; der ist weg, und er steht seitdem auf
- * einer Arbeitsplatte wie die Pfanne auf einem Herd.
+ * sind: Mülleimer, Ausgabetheke und Ausgaberegal. Ein Knoten liegt dort
+ * außerdem und steht trotzdem nicht in dieser Tabelle — die **Pfanne**: Sie
+ * ist kein Möbel, sondern ein Gerät auf einem (`stove-pan.over`). Der
+ * **Feuerlöscher** war der zweite; er kommt seit dem Modelltausch aus der
+ * Wundertüte (`core/mixedbagFit.ts`), und sein Knoten ist aus dieser Datei
+ * heraus (`tools/kitchen-model.mjs --trim`).
  */
 const SOURCE: Readonly<Record<string, readonly [number, number, number]>> = {
   bin: [2, 0.9, 2],
@@ -418,23 +418,26 @@ describe('der Möbelkatalog', () => {
   });
 
   /**
-   * **Der Feuerlöscher steht auf einem Hocker, und der Hocker ist die
-   * Ablage.** In der Datei ist `extinguisher` zweigeteilt wie ein Herd mit
-   * Topf: ein Korpus bis 1,00 m (Quellmaß) und darüber ein eigenes Netz aus
-   * `Kitchen_Utensils` bis 2,50 m. `height` ist die Oberkante des Löschers,
-   * `deck` die des Hockers — wer beides verwechselt, stellt den Löscher beim
+   * **Der Feuerlöscher steht auf einer Arbeitsplatte, und die Platte ist die
+   * Ablage.** Aufgebaut wie ein Herd mit Topf: eine Küchenzeile aus dem
+   * zweiten Baukasten und darauf ein eigener Aufsatz — seit dem Modelltausch
+   * der Löscher aus der Wundertüte. `height` ist die Oberkante des Löschers,
+   * `deck` die der Platte; wer beides verwechselt, stellt ihn beim
    * Zurückstellen auf seine eigene Kappe.
    */
-  it('nimmt den Feuerlöscher vom Hocker und legt ihn auf den Hocker zurück', () => {
+  it('nimmt den Feuerlöscher von der Platte und legt ihn auf die Platte zurück', () => {
     const piece = kitchenPiece('extinguisher')!;
     expect(piece.holds).toBe('extinguisher');
     // Ohne Ablage meldet sich die Stelle nicht, und dann wird auch nichts
     // abgenommen (`worlds/test/zones/kitchen.ts`, `addStations`).
     expect(piece.worktop).toBe(true);
-    // Der Hocker: halbe Höhe des Korpus aus der Quelle (1,00 m).
+    // Die Platte: halbe Höhe der Küchenzeile aus der Quelle (1,00 m).
     expect(kitchenDeck(piece)).toBeCloseTo(1 * KITCHEN_SCALE, 2);
-    // Der Löscher darüber: gut drei Viertel Meter hoch.
-    expect(piece.height - kitchenDeck(piece)).toBeCloseTo(0.75, 2);
+    // Der Löscher darüber: 0,60 m. Der alte war 0,75 m hoch — dieselbe Zeile
+    // an einem anderen Modell, und deshalb steht hier keine abgeschriebene
+    // Zahl, sondern die des Katalogs (`core/mixedbagFit.ts`,
+    // nachgerechnet in `mixedbagFit.test.ts`).
+    expect(piece.height - kitchenDeck(piece)).toBeCloseTo(0.6, 2);
   });
 });
 

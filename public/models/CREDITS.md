@@ -5,8 +5,8 @@ In diesem Ordner liegen **fremde Arbeiten**. Die meisten stehen unter
 ist erlaubt, **Namensnennung ist Pflicht**. Diese Datei ist diese Nennung —
 und deshalb bleibt sie, wo sie ist, auch wenn sie sonst niemand liest.
 
-Eine steht unter [CC0](https://creativecommons.org/publicdomain/zero/1.0/) und
-verlangt gar keine Nennung. Sie steht trotzdem hier: Diese Datei ist die
+Zwei stehen unter [CC0](https://creativecommons.org/publicdomain/zero/1.0/) und
+verlangen gar keine Nennung. Sie stehen trotzdem hier: Diese Datei ist die
 **Herkunftsliste** und nicht nur die Lizenznennung. Wer in einem Jahr wissen
 will, woher ein Modell kommt und ob man es weitergeben darf, sieht hier nach —
 und eine Liste, in der die CC0-Dateien fehlen, beantwortet die Frage nicht,
@@ -37,13 +37,12 @@ Aufbereitet mit `tools/kitchen-model.mjs`: eine Schauraum-Szene, zerlegt in
 einzeln platzierbare Möbel, Texturen verkleinert.
 
 **Und seitdem zusammengestrichen** (`tools/kitchen-model.mjs --trim`): Von den
-dreizehn Möbeln sind **fünf Knoten** übrig, 233 KB statt 480. Küchenzeile,
+dreizehn Möbeln sind **vier Knoten** übrig, 193 KB statt 480. Küchenzeile,
 Herde, Spüle, Arbeitstisch, Schneidebrett, Ausgabe und Tellerausgabe kommen
-heute aus `diner.glb`; hier liegen nur noch der **Mülleimer**, die
-**Ausgabetheke**, das **Ausgaberegal** und zwei **Geräte**: die **Pfanne**
-(ohne ihren Herd, weil an ihr die Bratregeln hängen) und der **Feuerlöscher**
-(ohne seinen Hocker, der ebenfalls durch eine Arbeitsplatte aus `diner.glb`
-ersetzt ist). Die Liste steht im Werkzeug, nicht nur im Ergebnis.
+heute aus `diner.glb`, der **Feuerlöscher** aus `mixedbag.glb`; hier liegen nur
+noch der **Mülleimer**, die **Ausgabetheke**, das **Ausgaberegal** und **ein**
+Gerät: die **Pfanne**, ohne ihren Herd, weil an ihr die Bratregeln hängen. Die
+Liste steht im Werkzeug, nicht nur im Ergebnis.
 
 ## `diner.glb` — der zweite Möbelkatalog
 
@@ -74,6 +73,28 @@ Aufgestellt wird sie in `worlds/test/zones/diner.ts`, vermessen in
 `core/dinerFit.ts`. Aus derselben Datei kommen auch die Möbel der **ersten**
 Küche (`core/kitchenFit.ts`, `KitchenPiece.base`) und ihre Zutaten
 (`worlds/test/zones/kitchenProps.ts`, `FOOD_NODE`).
+
+## `mixedbag.glb` — die Wundertüte
+
+> This work is based on ["KayKit - Mixed Bag 1"](https://kaylousberg.itch.io/mixed-bag-1)
+> by [Kay Lousberg](https://kaylousberg.itch.io) — released under
+> [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain;
+> „Free for personal and commercial use, no attribution required" — warum die
+> Zeile trotzdem hier steht, siehe oben).
+
+Aufbereitet mit `tools/mixedbag-model.mjs`: aus 59 Einzeldateien (2,6 MB, je
+eine `.gltf` und eine `.bin`) wird **eine** Datei mit 59 Knoten — 51 412
+Dreiecke, 600 KB, ein Farbstreifen-Atlas von 1024 px (verlustfrei als WebP) und
+zwei Materialien. Das zweite ist **Glas** und hat keine Textur: die Kuppel des
+Kaugummiautomaten, die drei Slush-Tanks, die Wasserflasche B. Die
+Platzhalterflächen der Quelle — fünf Stücke, auf deren Textur „replace this
+with your own" steht — bekommen statt dessen eine UV auf ein dunkles Feld des
+Atlas. Die Geometrie ist quantisiert und mit `EXT_meshopt_compression` gepackt;
+die Quelle liegt **nicht** im Repository.
+
+Gebraucht wird daraus bisher **ein** Stück: der **Feuerlöscher** der ersten
+Küche (`core/kitchenFit.ts`, `extinguisher`). Der Rest ist ein Katalog auf
+Vorrat, vermessen in `core/mixedbagFit.ts`.
 
 ## Nicht hier, aber aus demselben Grund erwähnt
 

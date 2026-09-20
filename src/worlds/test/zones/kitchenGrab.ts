@@ -223,38 +223,57 @@ const POT_EAR = {
 const POT_EAR_RADIUS = 0.024;
 
 /**
- * **Der Bügel des Feuerlöschers** — die Stange oben, an der man ihn trägt, in
- * Anteilen der gemessenen Hülle.
+ * **Der Bügel des Feuerlöschers** — die Stangen oben, an denen man ihn trägt,
+ * in Anteilen der gemessenen Hülle.
  *
  * Hier stand einmal ein Punkt „oben am Ventil", auf der Mittelachse und auf
  * drei Vierteln der Höhe — also **im Blech** und nicht an einem Griff. Am
- * Modell gibt es einen: der Tragebügel liegt quer über dem Ventil, läuft
- * entlang x und ist mit 10 cm Durchmesser genau eine Faust dick. Genau
- * darauf liegt jetzt die Hand, und man sieht es nach (_Griffe anzeigen_).
+ * Modell gibt es einen, und man sieht es nach (_Griffe anzeigen_).
  *
- * `across` ist die Mitte als Anteil der halben Breite (der Bügel sitzt
- * gegenüber der Düse, also nach -x versetzt), `lift` die Höhe als Anteil der
- * Gesamthöhe — fast ganz oben: zwischen Bügel und Hebel, wo die Finger
- * liegen, und der Löscher hängt darunter —, `shift` der kleine
- * Versatz quer dazu, und `half` die halbe Länge als Anteil der halben Breite.
+ * **Nachgemessen am neuen Löscher** (`public/models/mixedbag.glb`,
+ * `fire_extinguisher`, halbe Drehung um y wie im Katalog, `core/kitchenFit`):
+ * Aus dem Ventil ragen **zwei** schwarze Stangen nach hinten — der Tragebügel
+ * und der Hebel darunter. Frei in der Luft stehen sie ab x = −0,105 (bis
+ * dahin steht die Flasche selbst im Weg, sie ist 10 cm im Halbmesser) und
+ * enden bei −0,206; dazwischen, auf y = 0,461 … 0,576, liegt die Faust — um
+ * beide herum, so wie man einen Löscher trägt und dabei den Hebel schon mit
+ * anfasst.
+ *
+ * `across` ist die Mitte als Anteil der halben Breite (die Stangen sitzen
+ * gegenüber dem Trichter, also nach −x), `lift` die Höhe als Anteil der
+ * Gesamthöhe, `shift` der Versatz quer dazu — **null**, denn dieses Netz ist
+ * spiegelbildlich zu seiner Längsachse gebaut —, und `half` die halbe Länge
+ * als Anteil der halben Breite.
  */
 const NOZZLE_BAR = {
-  across: -0.29,
-  lift: 0.93,
-  shift: 0.11,
-  half: 0.49,
+  across: -0.77,
+  lift: 0.86,
+  shift: 0,
+  half: 0.23,
 } as const;
 
-/** Wie dick der Bügel ist, als Halbmesser in Metern — gemessen wie oben. */
-const NOZZLE_RADIUS = 0.035;
+/**
+ * Wie dick der Bügel ist, als Halbmesser in Metern — gemessen wie oben: 5 cm
+ * sind die 11,6 cm zwischen Hebel und Bügel, und damit liegt der Haltezylinder
+ * um **beide**.
+ */
+const NOZZLE_RADIUS = 0.05;
 
 /**
  * **Wohin der Feuerlöscher zielt**, im Raum seines Netzes: nach **+x**.
  *
- * Auch das ist am Modell abgelesen und nicht geraten — dort ragt die schwarze
- * Düse nach +x aus dem Kopf heraus, der Bügel nach -x. Vorher stand hier -z,
- * und deshalb zeigte die Düse in der Faust nach **rechts** statt nach vorn:
- * genau die Vierteldrehung nach links, die der Auftrag verlangt.
+ * Auch das ist am Modell abgelesen und nicht geraten — dort ragt der graue
+ * Trichter nach +x aus dem Ventil heraus, die beiden Stangen nach −x. Vorher
+ * stand hier -z, und deshalb zeigte die Düse in der Faust nach **rechts**
+ * statt nach vorn: genau die Vierteldrehung nach links, die der Auftrag
+ * verlangt.
+ *
+ * **Die Zeile hat den Modelltausch überlebt, und das war Absicht**: Der neue
+ * Löscher kommt spiegelverkehrt aus seinem Baukasten — Trichter nach −x,
+ * Stangen nach +x —, und der Katalog dreht ihn deshalb um π
+ * (`core/kitchenFit.ts`, `extinguisher.over`). Ein Vorzeichen hier wäre
+ * dieselbe Drehung gewesen, nur an der Stelle, an der sie niemand sucht, wenn
+ * der Löscher im Regal falsch herum steht.
  */
 const NOZZLE_AHEAD: Vec3 = { x: 1, y: 0, z: 0 };
 
@@ -396,9 +415,9 @@ function potEars(size: ItemSize): readonly GrabHandle[] {
 /**
  * **Der Feuerlöscher am Tragebügel.**
  *
- * Die Stange ist der Bügel über dem Ventil (`NOZZLE_BAR`), oben bleibt die
- * Senkrechte des Löschers — er hängt unter der Faust, wie man ihn trägt —, und
- * nach vorn zeigt die **Düse**. Das ist die Vierteldrehung nach links, die der
+ * Die Stange liegt um Bügel und Hebel hinter dem Ventil (`NOZZLE_BAR`), oben
+ * bleibt die Senkrechte des Löschers — er hängt unter der Faust, wie man ihn
+ * trägt —, und nach vorn zeigt die **Düse**. Das ist die Vierteldrehung nach links, die der
  * Auftrag nennt: Vorher zielte der Löscher quer zur Hand, jetzt dorthin, wohin
  * die Hand zeigt, und der Strahl folgt ihr (`kitchen.spray`).
  */
