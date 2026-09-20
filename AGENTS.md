@@ -153,10 +153,10 @@ Stichpunkten).
 
 - **[Die Werkzeugseite](docs/agents/werkzeugseite.md)** — `tools.html`: das Regal, die Vorschau und alles, was daran eingestellt wird.
   Darin: Eine Welt laufen lassen · Bearbeiten auf der Werkzeugseite · Verbinden: zusehen, während drüben gemessen wird.
-- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, Menü → Eingaben, Vollbild — und die Seite als App.
-  Darin: Die Eingabeseite · Menü → Eingaben · Vollbild, wo keine Brille ist · Die Seite als App: Manifest, Symbole, Service Worker.
+- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, Menü → Eingaben, Vollbild, der Start — und die Seite als App.
+  Darin: Die Eingabeseite · Menü → Eingaben · Vollbild, wo keine Brille ist · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker.
 
 ### Betrieb
 
 - **[Deployment](docs/agents/deployment.md)** — Was ein Deploy für den Service Worker bedeutet — und wie eine veraltete Seite zurückfindet.
-  Darin: Wenn eine Seite aus einem Build läuft, den es nicht mehr gibt · Was ein Deploy für den Service Worker bedeutet.
+  Darin: Wenn eine Seite aus einem Build läuft, den es nicht mehr gibt · Was ein Deploy für den Service Worker bedeutet · Der Start nach einem Deploy: was vorgewärmt wird.

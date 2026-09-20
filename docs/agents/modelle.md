@@ -274,6 +274,16 @@ trägt (`sw.ts`, `dropOldMedia`); was **kein** `v=` hat, bleibt liegen — die
 Controller-Modelle ändern sich nicht mit dem Build und sollen nicht nach jedem
 Deploy neu über das Netz.
 
+**Und seit der Messung des Starts gilt eine Einschränkung dazu**: Was die
+Nummer **dieses** Builds trägt, wird gar nicht mehr nachgeholt
+(`core/swRoutes.ts`, `isCurrentBuild`) — unter einer Adresse mit dem eigenen
+`v=` kann sich nichts geändert haben, und das Nachsehen im Netz war deshalb
+kein Auffrischen, sondern nur Datenvolumen. Gemessen waren es 33 Anfragen und
+1,6 MB bei jedem Start, sobald der HTTP-Speicher des Browsers abgelaufen war;
+übrig bleiben fünf Anfragen und 429 KB, und das sind die Controller-Modelle,
+die als einzige weiter ohne Nummer dastehen. Siehe
+[Die Seite selbst](seite.md), _Der Start: erst die Hülle, dann die Welt_.
+
 Ein Hash im **Dateinamen** wäre das Übliche und geht hier nicht: Diese Dateien
 liegen in `public/` und werden unverändert kopiert. Sie durch den Bündler zu
 schicken, hieße 2,5 MB Modelle und Töne zu importieren, die niemand
