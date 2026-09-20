@@ -28,6 +28,12 @@ const output = path.resolve(
 );
 await mkdir(output, { recursive: true });
 const screenshots = !args.has('no-screenshots');
+/**
+ * **Die Welt, mit der die Seite ohne Adresse aufmacht** — abgeschrieben aus
+ * `src/worlds/index.ts` (`DEFAULT_WORLD`); warum abgeschrieben, steht unten an
+ * der Stelle, die sie prüft.
+ */
+const START_WORLD = 'test';
 const results = [];
 const summary = () =>
   writeFile(path.join(output, 'report.json'), JSON.stringify({ base, output, results }, null, 2));
@@ -162,8 +168,16 @@ for (const name of browserNames) {
         // Umbau (`docs/plan-2d-hub-interaktion.md`) dieselbe three.js-Szene aus
         // einer festen Kamera darüber und keine gemalte Kachelwelt mehr. Also
         // wird sie auch so geprüft: Startseite, _Von oben_, _Beitreten_, und
-        // dann muss ein Bild da sein — der Hub auf dem Gitter, die Kamera oben,
-        // und keine Fehler in der Konsole.
+        // dann muss ein Bild da sein — die Welt auf dem Gitter, die Kamera
+        // oben, und keine Fehler in der Konsole.
+        //
+        // **Welche Welt das ist, steht in `src/worlds/index.ts`**
+        // (`DEFAULT_WORLD`) und hier abgeschrieben: Hier stand `hub`, und seit
+        // die Seite in der **Küche** der Testwelt aufmacht, steht hier `test`.
+        // Die Zahl lässt sich nicht importieren — geprüft wird die gebaute
+        // Seite und nicht der Quelltext —, und ein Test, der jede Welt
+        // durchgehen ließe, prüfte gar nichts mehr: Genau diese Zeile hat den
+        // Umzug gemeldet.
         await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 90000 });
         await page.locator('#screen-view [data-view="2d"]').click();
         await page.locator('#enter').click();
@@ -172,8 +186,8 @@ for (const name of browserNames) {
           world: window.bgvr.currentWorldId,
           rig: { x: window.bgvr.rig.position.x, z: window.bgvr.rig.position.z },
         }));
-        assert.equal(result.topDown.world, 'hub', 'Von oben startet man im Hub');
-        await shot('hub-top-down');
+        assert.equal(result.topDown.world, START_WORLD, 'Von oben startet man in der Startwelt');
+        await shot('start-top-down');
         assert.equal(
           result.pageErrors.length,
           0,
