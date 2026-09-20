@@ -25,10 +25,9 @@
  * Dateien, sodass ein Vorher und ein Nachher nebeneinanderliegen.
  */
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createAxes } from '../core/axesCross';
 import { holdFor, type GrabHandle } from '../core/grabHandles';
-import { KITCHEN_SCALE } from '../core/kitchenFit';
+import { kitchenModel, takeUtensil } from '../core/kitchenModel';
 import { HANDLE_BAR_ALPHA, HANDLE_BAR_COLOR } from '../core/handleView';
 import { kitchenHandles } from '../worlds/test/zones/kitchenGrab';
 import type { KitchenItem } from '../worlds/test/zones/kitchenRecipes';
@@ -52,41 +51,27 @@ const fill = new THREE.DirectionalLight(0x9fc4e8, 0.8);
 fill.position.set(-3, 2, -2);
 scene.add(fill);
 
-const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/kitchen.glb`);
-
 /**
- * **Ein Gerät, so wie die Küche es abnimmt** — dieselbe Kette wie
- * `core/kitchenModel.takeUtensil` und `kitchen.addStation`: das Netz mit dem
- * Material `Kitchen_Utensils`, der Ursprung unten in seiner Mitte, der halbe
- * Küchenmaßstab darum und ein Träger, der ihn wieder aufhebt. Nachgebaut und
- * nicht aufgerufen, weil `takeUtensil` das Netz aus seinem Möbel **heraus**
- * hängt und hier drei Kopien desselben Geräts nebeneinanderstehen.
+ * **Ein Gerät, so wie die Küche es abnimmt** — und zwar **aufgerufen** und
+ * nicht nachgebaut: `kitchenModel` baut das Möbel samt Aufsatz, `takeUtensil`
+ * hängt den Aufsatz wieder aus und stellt ihn auf seinen eigenen Fuß. Genau
+ * das bekommt eine Hand im Spiel in die Faust (`zones/kitchen.ts`).
+ *
+ * Hier stand einmal eine Kopie dieser Kette — das Netz mit dem Material
+ * `Kitchen_Utensils` heraussuchen, in seiner Hülle zentrieren, halbieren —,
+ * und sie war der zweite Weg zu einer Sache: Seit die Geräte aus **drei**
+ * Dateien kommen (die Pfanne aus `kitchen.glb`, der Topf aus `diner.glb`, der
+ * Löscher aus `mixedbag.glb`) und der Katalog sie dabei dreht
+ * (`core/kitchenFit.ts`, `PieceStack.tilt`), hätte diese Kopie den Löscher
+ * spiegelverkehrt gezeigt — also genau das Bild, für das es diesen Prüfstand
+ * gibt, falsch.
+ *
+ * Jeder Aufruf lädt neu und klont neu; die Datei liegt nach dem ersten ohnehin
+ * im Lader (`core/kitchenModel.ts`).
  */
-function utensilOf(node: string): THREE.Object3D | null {
-  const group = gltf.scene.getObjectByName(node);
-  if (!group) return null;
-  let part: THREE.Mesh | null = null;
-  group.traverse((object) => {
-    const mesh = object as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    const material = mesh.material as THREE.Material | THREE.Material[];
-    const one = Array.isArray(material) ? material[0] : material;
-    if (one?.name === 'Kitchen_Utensils') part = mesh;
-  });
-  if (!part) return null;
-  const clone = (part as THREE.Mesh).clone();
-  clone.geometry.computeBoundingBox();
-  const bounds = clone.geometry.boundingBox!;
-  const centre = bounds.getCenter(new THREE.Vector3());
-  clone.position.set(-centre.x, -bounds.min.y, -centre.z);
-  clone.rotation.set(0, 0, 0);
-  clone.scale.set(1, 1, 1);
-  const loose = new THREE.Group();
-  loose.scale.setScalar(KITCHEN_SCALE);
-  loose.add(clone);
-  const holder = new THREE.Group();
-  holder.add(loose);
-  return holder;
+async function utensilOf(piece: string): Promise<THREE.Object3D | null> {
+  const model = await kitchenModel(piece);
+  return model ? takeUtensil(model) : null;
 }
 
 /**
@@ -136,11 +121,11 @@ function barMesh(handle: GrabHandle): THREE.Object3D | null {
   return mesh;
 }
 
-/** Welches Gerät aus welchem Möbel kommt (`core/kitchenFit.KitchenPiece.holds`). */
-const SHOW: { item: KitchenItem; node: string }[] = [
-  { item: 'pan', node: 'stove-pan' },
-  { item: 'pot', node: 'stove-pot' },
-  { item: 'extinguisher', node: 'extinguisher' },
+/** Welches Gerät auf welchem Möbel steht (`core/kitchenFit.KitchenPiece.holds`). */
+const SHOW: { item: KitchenItem; piece: string }[] = [
+  { item: 'pan', piece: 'stove-pan' },
+  { item: 'pot', piece: 'stove-pot' },
+  { item: 'extinguisher', piece: 'extinguisher' },
 ];
 
 interface Stand {
@@ -154,8 +139,8 @@ const stands: Stand[] = [];
 const bounds = new THREE.Box3();
 const extent = new THREE.Vector3();
 
-for (const { item, node } of SHOW) {
-  const measured = utensilOf(node);
+for (const { item, piece: name } of SHOW) {
+  const measured = await utensilOf(name);
   if (!measured) continue;
   // Die Maße kommen aus der **gemessenen Hülle**, genau wie in der Küche
   // (`kitchen.markHandles`) — die Griffe sind Anteile davon.
@@ -166,7 +151,7 @@ for (const { item, node } of SHOW) {
   const handles = kitchenHandles(item, { width: size.x, depth: size.z, height: size.y });
 
   const raw = new THREE.Group();
-  raw.add(utensilOf(node)!);
+  raw.add((await utensilOf(name))!);
   raw.add(createAxes(Math.max(size.x, size.y, size.z) * 0.6));
   for (const spot of handles) {
     const bar = barMesh(spot);
@@ -187,7 +172,7 @@ for (const { item, node } of SHOW) {
   for (const spot of handles) {
     const stand = new THREE.Group();
     stand.add(handProxy());
-    const piece = utensilOf(node)!;
+    const piece = (await utensilOf(name))!;
     const hold = holdFor(spot);
     piece.position.set(hold.position.x, hold.position.y, hold.position.z);
     piece.quaternion.set(hold.rotation.x, hold.rotation.y, hold.rotation.z, hold.rotation.w);

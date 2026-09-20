@@ -5,8 +5,9 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 
 `public/models` ist der Ordner, in dem **fremde Arbeit** liegt: die Spielfigur
 (`chef.glb`) und der Rest des ersten Küchenkatalogs (`kitchen.glb`), beide
-CC-BY-4.0, und der zweite Katalog (`diner.glb`, CC0), aus dem inzwischen
-**beide** Küchen ihre Möbel beziehen. Die Namensnennung steht in
+CC-BY-4.0, der zweite Katalog (`diner.glb`, CC0), aus dem inzwischen **beide**
+Küchen ihre Möbel beziehen, und die **Wundertüte** (`mixedbag.glb`, CC0), aus
+der bisher ein einziges Stück gebraucht wird — der Feuerlöscher. Die Namensnennung steht in
 `public/models/CREDITS.md`, und sie ist **Pflicht**, nicht Höflichkeit — wer
 ein Modell aufnimmt, trägt es dort ein, **bevor** er es einbaut. Eine Datei
 ohne Zeile in dieser Liste ist eine Datei ohne Lizenz. **Auch die
@@ -15,11 +16,12 @@ Herkunftsliste und nicht nur die Lizenznennung, und eine, in der die freien
 Dateien fehlen, beantwortet die Frage nach der Herkunft nicht, sondern
 verschweigt sie.
 
-**Die Rohdateien liegen nicht im Repository.** Zusammen 38 MB, von denen nach
-der Aufbereitung 1,7 MB übrig bleiben. Was mit ihnen geschieht, steht
-vollständig in den drei Werkzeugen — `tools/chef-model.mjs`,
-`tools/kitchen-model.mjs` und `tools/diner-model.mjs` —, und zwar mitsamt den
-Fehlern, die dabei gemacht wurden. Sie laufen von Hand, nicht bei jedem Build:
+**Die Rohdateien liegen nicht im Repository.** Zusammen 41 MB, von denen nach
+der Aufbereitung 2,2 MB übrig bleiben. Was mit ihnen geschieht, steht
+vollständig in den vier Werkzeugen — `tools/chef-model.mjs`,
+`tools/kitchen-model.mjs`, `tools/diner-model.mjs` und
+`tools/mixedbag-model.mjs` —, und zwar mitsamt den Fehlern, die dabei gemacht
+wurden. Sie laufen von Hand, nicht bei jedem Build:
 Ein Modell ändert sich nicht, und `@gltf-transform`, `sharp` und
 `meshoptimizer` gehören nicht in die Abhängigkeiten eines Spiels, das sie nie
 ausführt (`npm install --no-save` beim Aufbereiten).
@@ -99,6 +101,50 @@ Die Dateien: `core/dinerFit.ts` (Maße, ohne three.js), `core/dinerModel.ts`
 (Lader), `worlds/test/zones/dinerPlan.ts` (Aufbau und Stempel, ohne three.js),
 `worlds/test/zones/diner.ts` (die Zone). Dieselbe Teilung wie bei der ersten
 Küche und aus demselben Grund: Rechnung getrennt von Darstellung.
+
+## Der dritte Katalog: die Wundertüte
+
+`mixedbag.glb` kommt aus der _Mixed Bag 1_ von Kay Lousberg (CC0) und ist
+gebaut wie der zweite Katalog: je eine `.gltf` mit einem Stück darin, alle auf
+**einem** Farbstreifen-Atlas von 1024 px, alle im selben doppelten Maßstab
+(`MIXEDBAG_SCALE` = 0,5, zum dritten Mal nachgemessen). Das Werkzeug
+(`tools/mixedbag-model.mjs`) ist deshalb die kleine Schwester von
+`tools/diner-model.mjs`: bündeln, nachmessen, quantisieren, mit
+`EXT_meshopt_compression` packen. Aus 59 Dateien (2,6 MB) wird **eine** mit 59
+Knoten, 51 412 Dreiecken und 600 KB; der Katalog dazu steht in
+`core/mixedbagFit.ts`, geschrieben von `--fit`, der Lader in
+`core/mixedbagModel.ts`.
+
+**Drei Unterschiede, und alle drei liegen an der Quelle.**
+
+- **Es gibt kein Sieb.** Der zweite Katalog wirft 69 von 225 Stücken weg, weil
+  sein Essen Rezepte bräuchte, die es nicht gibt. Eine Wundertüte hat kein
+  Thema, an dem man ein Stück messen könnte: Was darin liegt — Fahrrad,
+  Zirkuszelt, vier Regenschirme, drei Slush-Maschinen, ein Feuerlöscher —, hat
+  sich ein Publikum gewünscht, während der Zeichner es baute. Also kommt alles
+  mit.
+- **Ein zweites Material, und es ist Glas** (Alpha 0,2, ohne Textur): die
+  Kuppel des Kaugummiautomaten, die drei Slush-Tanks, die Wasserflasche B.
+  Eine Kuppel, durch die man die Kaugummis nicht sieht, ist nicht dieselbe
+  Kuppel. Alles andere hängt am einen Atlas — auch die Lampe des Grubenhelms,
+  deren `KHR_materials_emissive_strength` dabei verlorengeht: Dieses Spiel hat
+  für Selbstleuchten ohnehin keinen Weg.
+- **Der Platzhalter wird umgebogen und nicht mitgenommen.** Fünf Stücke tragen
+  ein Material namens `CustomTextureHere`, und auf dessen Textur steht wörtlich
+  „PLACEHOLDER IMAGE — REPLACE THIS WITH YOUR OWN TEXTURE/GRAPHIC": der
+  Bildschirm der beiden Spielautomaten, der Belag des Skateboards, der Umschlag
+  des Comichefts, das Sofortbild. Ausgeliefert wäre das ein Fehler, den man
+  **lesen** kann. Statt ein drittes Material für 78 Dreiecke mitzuschleppen,
+  bekommen deren Eckpunkte **eine einzige UV** auf das dunkelste Feld des
+  Atlas: ein Automat, der aus ist, ein Brett ohne Aufkleber.
+
+**Gebraucht wird bisher ein Stück**, und das ist der Grund, warum es diese
+Datei gibt: der **Feuerlöscher** der ersten Küche (siehe _Und dann zog die
+erste Küche in den zweiten Katalog um_). Die 600 KB sind damit vor allem ein
+Katalog auf Vorrat — wer das nächste Stück aufstellen will, hat es schon im
+Haus und misst es nicht noch einmal nach. Dass die erste Küche seitdem **drei**
+Dateien lädt statt zwei, ist der Preis dafür und steht hier, damit ihn jemand
+nachrechnen kann: 600 KB neben 1,09 MB `diner.glb` und 193 KB `kitchen.glb`.
 
 ## Eine Build-Nummer an jeder Adresse
 
@@ -181,7 +227,7 @@ Der zweite Baukasten war als **Auslage** gebaut worden — hinstellen, ansehen,
 entscheiden, was brauchbar ist. Die Antwort auf diese Frage war: fast alles.
 Von den sechsundzwanzig Stücken des ersten Katalogs stehen seitdem **fünfzehn**
 auf Netzen aus `diner.glb`, und `kitchen.glb` ist von dreizehn Knoten auf
-**fünf** zusammengeschrumpft (480 → 233 KB). Vier der fünfzehn sind gar nicht
+**vier** zusammengeschrumpft (480 → 193 KB). Vier der fünfzehn sind gar nicht
 umgezogen, sondern **dazugekommen**: die Vorratskisten, die es in der ersten
 Quelle nie gab.
 
@@ -189,7 +235,6 @@ Quelle nie gab.
 
 | Knoten | Grund |
 | --- | --- |
-| `extinguisher` | **Nur noch der Löscher**, ohne seinen Hocker: Er ist ein getragenes Gerät (`kitchenGrab.ts`) und steht seitdem auf einer Arbeitsplatte wie die Pfanne auf einem Herd. |
 | `bin` | Der Mülleimer — im zweiten Baukasten gibt es keinen. |
 | `pass` | Die Ausgabetheke, zwei Kacheln breit. |
 | `plate-rack` | Das Ausgaberegal darüber. |
@@ -198,6 +243,31 @@ Quelle nie gab.
 Ausgedünnt wird mit `node tools/kitchen-model.mjs --trim`, und die Liste steht
 im Werkzeug (`KEEP`) und nicht nur im Ergebnis: Wer die Quelle — die nicht im
 Repository liegt — noch einmal aufbereitet, bekommt dieselbe schlanke Datei.
+
+**Und dann ging auch der Feuerlöscher.** Er war das fünfte, was von der ersten
+Quelle blieb: erst ohne seinen **Hocker** — der war das letzte Möbel des ersten
+Baukastens in einer Zeile aus Möbeln des zweiten, anderes Holz, andere Kante,
+andere Höhe, und man sah genau ihn —, dann ganz. Der zweite Baukasten hat
+keinen Löscher, die **Wundertüte** hat einen, und seitdem kommt er von dort
+(`core/kitchenFit.ts`, `extinguisher.over`, Datei `mixedbag`). Was sich dabei
+geändert hat, sind vier nachgemessene Zahlen und eine Drehung:
+
+| | alt (`kitchen.glb`) | neu (`mixedbag.glb`) |
+| --- | --- | --- |
+| Hülle in Metern | 0,616 × 0,748 × 0,386 | 0,443 × 0,603 × 0,212 |
+| Düse | ein **Rohr**, Mund 4,7 cm | ein **Trichter**, Mund 6,9 cm |
+| Mund (`NOZZLE_TIP`) | 0,99 / 0,88 / −0,06 | 1,00 / 0,87 / 0,00 |
+| Griff (`NOZZLE_BAR`) | 0,29 hinter der Mitte, auf 0,93 | 0,77 hinter der Mitte, auf 0,86 |
+
+**Die Drehung ist die Ausrichtung.** Im alten Netz zeigte die Düse nach +x und
+der Bügel nach −x, im neuen ist es andersherum. Die ganze Küche rechnet mit
++x — die Faust dreht den Löscher dorthin (`kitchenGrab.NOZZLE_AHEAD`), der
+Nebel tritt dort aus (`kitchenSpray.sprayMuzzle`), und vor dem Bauch dreht ihn
+derselbe Vektor (`kitchenCarryTurn`). Eine halbe Drehung um die Senkrechte im
+Katalog (`PieceStack.tilt`) stellt das neue Netz deshalb so hin, wie das alte
+stand, und lässt alles andere in Ruhe. Das Vorzeichen in drei Dateien
+umzudrehen wäre dieselbe Drehung gewesen — verteilt auf drei Stellen, von
+denen die dritte beim nächsten Mal vergessen wird.
 
 **Die Spielregel hängt am Katalognamen und nicht am Netz.** Das ist der Satz,
 an dem dieser Umbau überhaupt möglich war: Ein `board` schneidet, ein
@@ -637,7 +707,7 @@ Und das sind die Regeln, die darin stehen:
   war einmal ein einzelner Druck auf `A` am brennenden Herd, und das ist kein
   Feuerlöscher, sondern ein Lichtschalter: Bei _Overcooked_ wie bei _PlateUp_
   **läuft** er, man hält ihn ins Feuer, und was im Strahl liegt, geht aus. Man
-  nimmt ihn vom Hocker, auf dem er im Modell steht (`KitchenPiece.holds`), und
+  nimmt ihn von der Arbeitsplatte, auf der er steht (`KitchenPiece.holds`), und
   zielt **in der Brille mit der Hand, die ihn hält** (`kitchen.aimJet`) — mit
   dem Zeigestrahl ihres Controllers, waagerecht gemacht, wie bei allem, was auf
   dem Boden gerechnet wird. Hier galt einmal auch dort der Kopf, und das war
@@ -1480,7 +1550,7 @@ Und das sind die Regeln, die darin stehen:
   Arbeitsfläche** (`kitchenFit.kitchenDeck`) und nicht die Oberkante. Die
   Oberkante wäre die naheliegende Antwort und ist beim Nachschlagen sofort
   falsch: `height` ist beim Spülbecken die Spitze der **Armatur** (1,15 m), beim
-  Feuerlöscher die Kappe des **Löschers** (1,25 m), beim Herd mit Topf der
+  Feuerlöscher die Kappe des **Löschers** (1,10 m), beim Herd mit Topf der
   **Topfdeckel** (0,87 m). Vier Griffe am Wasserhahn sind keine Griffe. `deck`
   ist dagegen genau die Zahl, die im Katalog eingeführt wurde, um „die Fläche des
   Möbels" von „das Höchste, was darauf steht" zu trennen. Nachgerechnet liegt sie

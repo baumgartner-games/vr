@@ -135,7 +135,7 @@ Stichpunkten).
 - **[Wie schön es aussieht](docs/agents/grafik.md)** — Licht, Schatten, Regler — und was ein Bild in der Brille kostet.
   Darin: Die schwarze Kante · Die Brille rechnet kleiner, wenn man es sagt · Die Gitterlinien · Die Hitboxen · Griffe zeigen · Was die Kamera ansieht · Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind · Und die Wände auch — nur nicht von oben · Wer sagt, dass er keinen Schatten wirft, wirft keinen · Zwei Zahlen, die man einmal kennen sollte · Die Messstrecke der Küche — und wer die Aufrufe verbraucht · Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht.
 - **[Modelle im Repository](docs/agents/modelle.md)** — Welche Datei welches Netz hergibt, wie zugeschnitten wird und was es wiegt.
-  Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
+  Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Der dritte Katalog: die Wundertüte · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
 - **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — und der Umbau, während man darin steht.
   Darin: Der Konstrukt-Raum · Bauen, während man darin steht.
 - **[Spielfigur, Karte und Beutel](docs/agents/spielfigur.md)** — Wie man aussieht, was am Handgelenk hängt und was aus dem Beutel kommt.

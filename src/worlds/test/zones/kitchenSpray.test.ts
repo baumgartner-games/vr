@@ -352,7 +352,7 @@ describe('SprayJet — der Nebel', () => {
     // Die Rückmeldung aus der Quest, Wort für Wort: „nur sollte der Rauch oben
     // aus dem Rohr kommen, nicht unten". Herein kommt der Ursprung des Netzes,
     // und der liegt unten in seiner Mitte — der Nebel gehört trotzdem an die
-    // Düse, und die sitzt auf 0,88 der Höhe (`NOZZLE_TIP`).
+    // Düse, und die sitzt auf 0,87 der Höhe (`NOZZLE_TIP`).
     const parent = stage();
     const jet = new SprayJet(parent);
     for (let i = 0; i < 40; i++) jet.update(0.016, true, HELD, AHEAD);
@@ -388,10 +388,12 @@ describe('SprayJet — der Nebel', () => {
   });
 
   it('setzt die Düse dorthin, wo das Modell sie hat', () => {
-    // Gemessen an `public/models/kitchen.glb` (`NOZZLE_TIP`): oben am Rohr,
-    // knapp unter dem Tragebügel auf 0,93 (`kitchenGrab.NOZZLE_BAR`) und vorn
-    // an der Hülle, deren +x das Rohr überhaupt erst macht.
-    expect(NOZZLE_TIP.lift).toBeLessThan(0.93);
+    // Gemessen an `public/models/mixedbag.glb` (`NOZZLE_TIP`): oben am
+    // Trichter, auf der Höhe des Tragebügels (0,86,
+    // `kitchenGrab.NOZZLE_BAR`) und vorn an der Hülle, deren +x der Trichter
+    // überhaupt erst macht. Unter dem Deckel des Löschers bleibt er in jedem
+    // Fall — was darüber austräte, käme aus dem roten Knopf.
+    expect(NOZZLE_TIP.lift).toBeLessThan(1);
     expect(MUZZLE_LIFT).toBeCloseTo(NOZZLE_TIP.lift * EXTINGUISHER_HULL.height, 6);
     expect(MUZZLE_AHEAD).toBeCloseTo((NOZZLE_TIP.across * EXTINGUISHER_HULL.width) / 2, 6);
 
