@@ -14,7 +14,7 @@
  * Nächstes dran ist — oder keiner. Kein DOM, kein `navigator`, kein three.js;
  * wer sie anwendet, ist `main.ts`, wer sie prüft, ist `warmStart.test.ts`.
  * Der Grund ist derselbe wie bei `core/screenPads.ts`: Eine Bedingung aus
- * vier Signalen, die an drei Stellen im Modulrumpf steht, ist eine, die beim
+ * fünf Signalen, die an drei Stellen im Modulrumpf steht, ist eine, die beim
  * nächsten Umbau an zwei Stellen stimmt.
  *
  * ## Die Reihenfolge ist die Wahrscheinlichkeit
@@ -32,14 +32,23 @@
  *    (`docs/agents/assetregal.md`). Wer es vorwärmte, hätte das Regal nicht
  *    schneller, sondern das Telefon voll.
  *
- * ## Und vier Gründe, es zu lassen
+ * ## Und fünf Gründe, es zu lassen
  *
  * Vorwärmen ist eine Freundlichkeit und kein Auftrag. Es unterbleibt, wenn
- * es jemandem zur Last fiele:
+ * es jemandem zur Last fiele — oder wenn es das Falsche täte:
  *
+ * - **Die Startseite ist eine Lobby** (`lobby`). Das ist die Bedingung, die
+ *   einen Abend gekostet hat, und sie ist keine Frage von Bandbreite: Wer
+ *   `#haunting` öffnet, trägt erst Namen und Raum-Code ein und wählt dann
+ *   seinen Weg hinein. Die Welt **liest diese Wahl beim Aufbau aus dem
+ *   Speicher** (`worlds/haunting/rules/lobby.ts`, `arriveAs`) — eine
+ *   vorgewärmte Runde ist also eine, die mit der falschen Rolle dasteht und
+ *   sich obendrein selbst schon einen Raum genommen hat (`joinTable`), bevor
+ *   die Lobby ihren kennt. Genau davor warnte der Kommentar in `main.ts`
+ *   schon vorher; jetzt ist es ein Signal statt einer Warnung.
  * - **Der Spieler hat selbst etwas angefordert** (`busy`). Was er wollte, hat
  *   die Leitung; was wir ihm vorschlagen, wartet. Das ist die wichtigste der
- *   vier Bedingungen, denn sie ist die einzige, die während des Wärmens
+ *   fünf Bedingungen, denn sie ist die einzige, die während des Wärmens
  *   umschlägt.
  * - **Der Tab liegt im Hintergrund** (`hidden`). Ein Megabyte für eine Seite,
  *   die niemand ansieht, ist einfach nur ein Megabyte.
@@ -70,6 +79,11 @@ export type WarmStep = (typeof WARM_ORDER)[number];
 
 /** So viel von der Lage braucht die Entscheidung. */
 export interface WarmSignals {
+  /**
+   * Ob die Startseite eine **Lobby** ist (`#haunting`): erst verbinden, dann
+   * die Rolle wählen, dann hinein. Dann wird gar nichts gewärmt — siehe oben.
+   */
+  lobby?: boolean | undefined;
   /** `document.hidden` — der Tab liegt im Hintergrund. */
   hidden: boolean;
   /** Ob der Spieler gerade selbst etwas angefordert hat. */
@@ -84,11 +98,12 @@ export interface WarmSignals {
 const TOO_THIN = new Set(['slow-2g', '2g']);
 
 /**
- * **Darf überhaupt gewärmt werden?** Die vier Bedingungen, die für jeden
+ * **Darf überhaupt gewärmt werden?** Die fünf Bedingungen, die für jeden
  * Schritt gelten — gefragt wird vor **jedem**, denn `busy` und `hidden`
  * schlagen mitten im Wärmen um.
  */
 export function mayWarm(signals: WarmSignals): boolean {
+  if (signals.lobby === true) return false;
   if (signals.busy || signals.hidden) return false;
   if (signals.saveData === true) return false;
   return !(signals.effectiveType !== undefined && TOO_THIN.has(signals.effectiveType));

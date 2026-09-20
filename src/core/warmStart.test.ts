@@ -8,6 +8,17 @@ describe('mayWarm', () => {
     expect(mayWarm(ruhig)).toBe(true);
   });
 
+  // Die Bedingung, die einen Abend gekostet hat: Auf `#haunting` steht eine
+  // Lobby, und die Welt liest die Rolle beim Aufbau aus dem Speicher. Eine
+  // vorgewärmte Runde steht mit der falschen Rolle da — und hat sich obendrein
+  // schon einen Raum genommen, bevor die Lobby ihren kennt. Der Rauchtest sah
+  // das als eine Einsatzzentrale, die nie kam.
+  it('wärmt nichts hinter einer Lobby', () => {
+    expect(mayWarm({ ...ruhig, lobby: true })).toBe(false);
+    expect(nextWarmStep([], { ...ruhig, lobby: true })).toBeNull();
+    expect(nextWarmStep(['welt'], { ...ruhig, lobby: true })).toBeNull();
+  });
+
   // Die wichtigste der Bedingungen: Sie schlägt mitten im Wärmen um, sobald
   // jemand „Beitreten" drückt.
   it('tritt zurück, sobald der Spieler selbst etwas angefordert hat', () => {

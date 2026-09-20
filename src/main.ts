@@ -243,6 +243,14 @@ netPanel = new NetPanel(app, {
 // zwei, die gleichzeitig verbinden wollen. Sichtbar ist ohnehin nur die
 // Startseite; die Welt kommt mit dem Knopf (`startHaunting`).
 //
+// **Und das Vorwärmen hält sich daran**, weil es danach fragt: `warmSignals`
+// meldet `lobby: hauntLanding`, und `core/warmStart.ts` wärmt dahinter gar
+// nichts. Dieser Absatz war vorher nur ein Kommentar, und ein Kommentar hält
+// niemanden auf — der Rauchtest fand die vorgewärmte Runde als eine
+// Einsatzzentrale, die nie kam: Die Welt stand schon, bevor `arriveAs` die
+// Wahl in den Speicher geschrieben hatte, und `App.goTo` sagte beim Druck auf
+// den Knopf nur noch „bin schon da".
+//
 // **Und die Spielwiese lädt hier auch nicht mehr.** An dieser Stelle stand ein
 // `void app.goTo(startWorld)`, und das war der Grund, warum die Startseite
 // zwar früh dastand, aber lange stumm blieb: Chunk, Physik-Engine, Modelle und
@@ -438,6 +446,9 @@ function warmSignals(): WarmSignals {
   const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } })
     .connection;
   return {
+    // Siehe `hauntLanding` weiter oben: Hinter einer Lobby wird nichts
+    // vorgewärmt, und das ist keine Frage der Bandbreite.
+    lobby: hauntLanding,
     hidden: document.hidden,
     busy: playerAsked,
     saveData: connection?.saveData,

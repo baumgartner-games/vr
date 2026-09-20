@@ -276,7 +276,7 @@ Laufzeit, im Fenster eines Telefons. Der Befund war nicht der erwartete:
 
 Was dabei gewärmt wird, steht in `core/warmStart.ts` — reine Rechnung mit
 Test, wie `core/screenPads.ts`, und aus demselben Grund: Die Bedingung hängt
-an vier Signalen, und eine Bedingung aus vier Signalen im Modulrumpf ist eine,
+an fünf Signalen, und eine Bedingung aus fünf Signalen im Modulrumpf ist eine,
 die beim nächsten Umbau nur noch halb stimmt. Zwei Schritte gibt es:
 
 | Schritt | Was | Warum in dieser Reihenfolge |
@@ -284,10 +284,19 @@ die beim nächsten Umbau nur noch halb stimmt. Zwei Schritte gibt es:
 | `welt` | Die Standardwelt betreten lassen — Chunk, Physik, ihre Modelle und Töne | Danach ist der erste Druck auf _Beitreten_ sofort da, und ein Start ohne Netz kommt in einer Welt heraus statt auf einer leeren Seite |
 | `regal` | **Nur** `models/kaykit/index.json`, 31 kB gezippt | Ein Vorrat für ein Menü. Das Regal selbst — 4470 Dateien, 57 MB — wird **nie** gewärmt: Sein ganzer Entwurf ist, dass ein Ordner erst lädt, wenn jemand ihn aufklappt |
 
-**Und vier Gründe, es zu lassen.** Vorwärmen ist eine Freundlichkeit und kein
-Auftrag; gefragt wird vor **jedem** Schritt neu, denn die ersten beiden
-schlagen mitten im Wärmen um:
+**Und fünf Gründe, es zu lassen.** Vorwärmen ist eine Freundlichkeit und kein
+Auftrag; gefragt wird vor **jedem** Schritt neu, denn zwei davon schlagen
+mitten im Wärmen um:
 
+- **Die Startseite ist eine Lobby** (`#haunting`). Der einzige der fünf
+  Gründe, der nichts mit Bandbreite zu tun hat — und der, der einen Abend
+  gekostet hat. Wer zu einer Runde eingeladen wurde, trägt erst Namen und
+  Raum-Code ein und wählt dann seinen Weg hinein; die Welt **liest diese Wahl
+  beim Aufbau aus dem Speicher** und nimmt sich einen Raum, wenn sie in keinem
+  ist. Eine vorgewärmte Runde steht deshalb mit der falschen Rolle da, hat sich
+  ihren eigenen Raum genommen, und `App.goTo` sagt beim Druck auf den Knopf nur
+  noch „bin schon da". Im Rauchtest (`tools/browser-smoke.mjs`) sah das aus wie
+  eine Einsatzzentrale, die nie kommt.
 - **Der Spieler hat selbst etwas angefordert.** Der Knopf, das Menü, eine Welt
   in der Adresse — alle drei rufen `stopWarming`, und ein laufender
   Vorrats-Abruf wird dabei wirklich abgebrochen (`AbortController`) und nicht
