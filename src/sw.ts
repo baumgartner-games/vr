@@ -41,7 +41,7 @@
  * Speicher ausliefert, friert den Build ein. Umgekehrt ist der Speicher genau
  * dann die richtige Antwort, wenn das Netz keine hat.
  */
-import { routeFor, type Strategy } from './core/swRoutes';
+import { isCurrentBuild, routeFor, type Strategy } from './core/swRoutes';
 
 /**
  * **Die Kennung dieses Builds**, gesetzt in `vite.config.ts`. Sie steckt im
@@ -258,5 +258,11 @@ self.addEventListener('fetch', (event) => {
   if (strategy === 'bypass') return;
   if (strategy === 'page') event.respondWith(fromNetwork(request, SHELL));
   else if (strategy === 'immutable') event.respondWith(fromCache(request, SHELL));
+  // **Nachholen, außer es kann sich nichts geändert haben.** Eine Adresse mit
+  // der Nummer *dieses* Builds ist so unveränderlich wie ein Dateiname mit
+  // Hash (`core/swRoutes.ts`, `isCurrentBuild`) — nur liegt sie im Speicher
+  // der Medien, der einen Deploy überlebt, und nicht in dem der Hülle, der
+  // beim nächsten Build gelöscht wird.
+  else if (isCurrentBuild(request.url, __BUILD_ID__)) event.respondWith(fromCache(request, MEDIA));
   else event.respondWith(revalidate(request, MEDIA));
 });

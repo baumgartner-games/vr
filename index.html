@@ -175,6 +175,17 @@
         <button type="button" id="enter" class="btn btn--primary only-generic">Beitreten</button>
 
         <!--
+          **Die Zeile, die „lädt" sagt.** Die Welt kommt seit dem
+          fortschreitenden Start nicht mehr im Modulrumpf, sondern erst, wenn
+          der Browser Luft hat (`core/warmStart.ts`) — wer schneller drückt,
+          als die Leitung liefert, wartet hier also sichtbar und nicht auf
+          einem Knopf, der stumm nichts tut. Sie steht nur da, solange sie
+          etwas zu sagen hat; `#xr-status` darunter gehört der Brille und wird
+          dafür nicht überschrieben.
+        -->
+        <p id="start-note" class="status only-generic" hidden></p>
+
+        <!--
           Die Werkzeugseite braucht weder Brille noch Welt: sie zeigt, was es
           gibt — Werkzeuge, Welten, den Beutel — und wie ein Werkzeug in der
           Hand liegt. Deshalb steht sie hier neben dem Knopf und nicht in einem

@@ -28,11 +28,15 @@ import { registerServiceWorker, watchInstall } from './core/pwa';
 import { armAudioUnlock, unlockAudio } from './core/audioUnlock';
 import { graphics, onGraphicsChange } from './core/graphicsSettings';
 import { firstGamepad } from './core/gamepad';
+import { nextWarmStep, type WarmSignals, type WarmStep } from './core/warmStart';
+import { versioned } from './core/assetVersion';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;
 const landingTitle = document.querySelector<HTMLElement>('#landing-title')!;
 const enterButton = document.querySelector<HTMLButtonElement>('#enter')!;
+/** Die Zeile unter dem Knopf, die „lädt" sagt — siehe `showStartNote`. */
+const startNote = document.querySelector<HTMLElement>('#start-note')!;
 const statusLine = document.querySelector<HTMLElement>('#xr-status')!;
 const hud = document.querySelector<HTMLElement>('#hud')!;
 const hudWorld = document.querySelector<HTMLElement>('#hud-world')!;
@@ -192,7 +196,18 @@ const app = (() => {
         netPanel?.refresh();
         refreshHaunt();
       },
-      onWorldFailed: (id, error) => recoverFromStaleBuild(id, error),
+      onWorldFailed: (id, error) => {
+        // Eine Welt, die nicht kam, darf noch einmal angefordert werden:
+        // `App.goTo` wirft nicht, also wüsste `ensureWorld` sonst nie davon
+        // und hielte für den Rest der Sitzung eine erfüllte Promise auf eine
+        // Welt, die es nicht gibt. Meistens lädt die Seite gleich darauf
+        // ohnehin neu (`recoverFromStaleBuild`) — aber eben nur meistens.
+        if (id === startWorld) {
+          worldPending = null;
+          worldReady = false;
+        }
+        recoverFromStaleBuild(id, error);
+      },
     });
   } catch (error) {
     const webgl = /webgl|graphics context/i.test(String(error));
@@ -216,11 +231,10 @@ netPanel = new NetPanel(app, {
   local: app.preferLocal,
   // Joining a room from the landing page also starts the game — the two
   // buttons there say which way. Ob die Welt dabei flach oder räumlich
-  // aussieht, sagt die Ansicht und nicht dieser Knopf.
-  onStart: (mode) => {
-    if (mode === 'vr') void startVR();
-    else startFlat();
-  },
+  // aussieht, sagt die Ansicht und nicht dieser Knopf. Derselbe Weg wie beim
+  // großen Knopf (`enterPlayground`): Die Welt kommt seit dem fortschreitenden
+  // Start nicht mehr von allein, also wird sie hier angefordert.
+  onStart: (mode) => void enterPlayground(mode === 'vr'),
 });
 
 // **Haunting lädt erst, wenn jemand hineinwill.** Die Welt holt sich beim
@@ -228,7 +242,14 @@ netPanel = new NetPanel(app, {
 // Startseite fragt genau das erst noch ab. Wer die Welt schon jetzt lüde, hätte
 // zwei, die gleichzeitig verbinden wollen. Sichtbar ist ohnehin nur die
 // Startseite; die Welt kommt mit dem Knopf (`startHaunting`).
-if (!hauntLanding) void app.goTo(startWorld);
+//
+// **Und die Spielwiese lädt hier auch nicht mehr.** An dieser Stelle stand ein
+// `void app.goTo(startWorld)`, und das war der Grund, warum die Startseite
+// zwar früh dastand, aber lange stumm blieb: Chunk, Physik-Engine, Modelle und
+// Töne — gemessen 2,6 MB — zogen los, bevor irgendjemand gedrückt hatte, und
+// nahmen der Seite die Leitung und den Hauptfaden weg. Jetzt kommt die Welt,
+// **wenn der Browser Luft hat** (`warmUp` weiter unten) oder wenn jemand
+// _Beitreten_ drückt (`ensureWorld`) — je nachdem, was zuerst passiert.
 
 // Handy for debugging from the browser console.
 (window as unknown as { bgvr: App }).bgvr = app;
@@ -364,10 +385,145 @@ screenSeg.addEventListener('click', (event) => {
   app.setScreenView(picked);
 });
 
+// --- Die Welt: angefordert oder vorgewärmt, aber nie im Modulrumpf ----------
+
+/**
+ * **Die Standardwelt, einmal und nur einmal.**
+ *
+ * Zwei können sie wollen, und beide sollen dieselbe bekommen: das Vorwärmen,
+ * wenn der Browser Luft hat, und der Spieler, wenn er drückt. Wer zuerst kommt,
+ * startet die Ladung; der Zweite hängt sich an dieselbe Promise, statt eine
+ * zweite loszuschicken. `App.goTo` wirft nie — es meldet einen Fehlschlag über
+ * `onWorldFailed` —, deshalb steht hier kein `catch`.
+ */
+let worldPending: Promise<void> | null = null;
+/** Ob die Standardwelt steht. Nur für die Frage, ob jemand warten muss. */
+let worldReady = false;
+function ensureWorld(): Promise<void> {
+  worldPending ??= app.goTo(startWorld).then(() => {
+    worldReady = true;
+  });
+  return worldPending;
+}
+
+/**
+ * **Vorwärmen: was nach dem Start nachkommt** — die Ausführung zu der
+ * Entscheidung in `core/warmStart.ts`.
+ *
+ * Hier steht nur das Drumherum: der richtige Augenblick (wenn der Browser
+ * nichts zu tun hat), das Lesen der Signale beim Browser, und das Anhalten,
+ * sobald der Spieler selbst etwas will. **Was** gewärmt wird und **in welcher
+ * Reihenfolge**, steht drüben, als reine Rechnung mit Test.
+ */
+const warmed: WarmStep[] = [];
+/** Ob der Spieler schon selbst etwas angefordert hat — dann nichts nebenher. */
+let playerAsked = false;
+/** Womit ein laufender Vorrats-Abruf abgebrochen wird. */
+let warmAbort: AbortController | null = null;
+
+/**
+ * **Das Vorwärmen tritt zurück.** Aufgerufen von allem, was der Spieler selbst
+ * auslöst: der Knopf, das Menü, eine Welt in der Adresse. Ein laufender
+ * Vorrats-Abruf wird dabei wirklich abgebrochen und nicht nur nicht mehr
+ * abgewartet — sonst nähme er der angeforderten Ladung weiter die Leitung weg.
+ */
+function stopWarming(): void {
+  playerAsked = true;
+  warmAbort?.abort();
+  warmAbort = null;
+}
+
+/** Was der Browser gerade über sich sagt. Die Netzwerk-API ist optional. */
+function warmSignals(): WarmSignals {
+  const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } })
+    .connection;
+  return {
+    hidden: document.hidden,
+    busy: playerAsked,
+    saveData: connection?.saveData,
+    effectiveType: connection?.effectiveType,
+  };
+}
+
+/**
+ * **Der Index des KayKit-Regals**, und ausdrücklich nur er (31 kB gezippt).
+ * Dieselbe Adresse, die `core/kaykitModel.ts` später anfragt — samt
+ * Build-Nummer, sonst läge im Speicher ein zweiter Name für dieselbe Datei und
+ * `dropOldMedia` fände ihn nach dem nächsten Deploy nicht wieder.
+ *
+ * `priority: 'low'` kennt heute nur Chromium; wo es fehlt, ist es ein
+ * unbekanntes Feld in einem Objekt und damit wirkungslos — kein Grund für eine
+ * Fallunterscheidung.
+ */
+async function warmShelfIndex(signal: AbortSignal): Promise<void> {
+  const url = versioned(`${import.meta.env.BASE_URL}models/kaykit/index.json`);
+  try {
+    await fetch(url, { signal, priority: 'low' } as RequestInit);
+  } catch {
+    // Ein Vorrat, der nicht kommt, ist kein Fehler: Das Regal holt ihn sich
+    // beim Aufklappen selbst.
+  }
+}
+
+/**
+ * Schritt für Schritt, und **vor jedem** noch einmal gefragt: `busy` und
+ * `hidden` schlagen mitten im Wärmen um, und dann soll der nächste Schritt
+ * nicht mehr losgehen.
+ */
+async function warmUp(): Promise<void> {
+  for (;;) {
+    const step = nextWarmStep(warmed, warmSignals());
+    if (step === null) return;
+    warmed.push(step);
+    if (step === 'welt') await ensureWorld();
+    else {
+      warmAbort = new AbortController();
+      await warmShelfIndex(warmAbort.signal);
+      warmAbort = null;
+    }
+  }
+}
+
+/**
+ * **Wenn der Browser Luft hat** — `requestIdleCallback` mit Frist, und ein
+ * Zeitgeber dort, wo es die Funktion nicht gibt: **Safari kennt sie bis
+ * heute nicht**, und das sind genau die Geräte (iPhone, iPad, jede dorthin
+ * installierte App), auf denen ein warmer Speicher am meisten wert ist.
+ */
+function whenIdle(run: () => void): void {
+  const idle = (
+    window as {
+      requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
+    }
+  ).requestIdleCallback;
+  if (idle) idle.call(window, run, { timeout: 1500 });
+  else window.setTimeout(run, 1200);
+}
+
+// Kommt der Tab aus dem Hintergrund zurück, ist ein übersprungener Schritt
+// wieder dran — `nextWarmStep` merkt sich nur, was gelaufen ist, nicht, was
+// abgelehnt wurde.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !playerAsked) whenIdle(() => void warmUp());
+});
+
+/**
+ * **Was auf den Knopf folgt, wenn die Welt noch unterwegs ist.**
+ *
+ * Eine Seite, die erkennbar dasteht und dann stumm arbeitet, ist schlimmer als
+ * eine, die „lädt" sagt. Also sagt sie es: der Knopf verliert seine
+ * Beschriftung nicht, sondern seine Bedienbarkeit, und darunter steht, worauf
+ * gewartet wird. Steht die Welt schon — der Normalfall, denn das Vorwärmen
+ * hatte die Sekunden davor —, passiert hier gar nichts.
+ */
+function showStartNote(text: string): void {
+  startNote.textContent = text;
+  startNote.hidden = text === '';
+}
+
 /**
  * **Der eine Knopf der Spielwiese.** Wohin er führt, steht eine Zeile darüber:
- * in die Brille — oder an den Bildschirm, in die Welt, die ohnehin schon
- * geladen ist.
+ * in die Brille — oder an den Bildschirm, in die Welt.
  *
  * Ob man sie von oben oder aus den Augen sieht, entscheidet nicht dieser
  * Knopf, sondern die Ansicht (`App.setScreenView`): **Jede** Welt kann von
@@ -375,7 +531,27 @@ screenSeg.addEventListener('click', (event) => {
  * die Wahl gilt für die, in der man steht. Vorher führte „2D" hier nach
  * Haunting, weil es die Karte von oben nur dort gab — ein Umweg, den es jetzt
  * nicht mehr braucht.
+ *
+ * **Die XR-Sitzung wird zuerst angefragt, die Welt läuft daneben** — dieselbe
+ * Reihenfolge wie in `startHaunting`, und aus demselben Grund: Ein Browser
+ * gibt eine immersive Sitzung nur auf eine frische Geste, und die wäre nach
+ * dem Warten auf einen Chunk verbraucht.
  */
+async function enterPlayground(vr: boolean): Promise<void> {
+  // Was der Spieler will, hat Vorrang vor allem, was wir ihm vorschlagen.
+  stopWarming();
+  const session = vr ? startVR() : null;
+  if (!worldReady) {
+    enterButton.disabled = true;
+    showStartNote('Die Welt wird geladen …');
+  }
+  await ensureWorld();
+  showStartNote('');
+  enterButton.disabled = false;
+  if (!vr) startFlat();
+  if (session) await session;
+}
+
 enterButton.addEventListener('click', () => {
   // **Hier und nicht später** wird der Ton aufgeschlossen: WebKit lässt einen
   // `AudioContext` nur **im** Ereignis laufen, und alles danach — das Modul
@@ -383,8 +559,7 @@ enterButton.addEventListener('click', () => {
   // (`core/audioUnlock.ts`). `armAudioUnlock` unten fängt jede weitere Geste
   // ab, aber die erste ist diese.
   unlockAudio();
-  if (startOptions(headset, screenView(detectFlatRole())).way === 'vr') void startVR();
-  else startFlat();
+  void enterPlayground(startOptions(headset, screenView(detectFlatRole())).way === 'vr');
 });
 
 // Dasselbe Menü wie im Spiel, schon auf der Startseite: Welten, Bewegung,
@@ -544,6 +719,8 @@ function writeRoomToAddress(code: string): void {
  * es beim Betreten noch einmal (`joinTable`) und sagt dort, woran es hängt.
  */
 async function startHaunting(way: 'vr' | Entry): Promise<void> {
+  // Auch hier gilt: Was der Spieler will, hat Vorrang vor dem Vorrat.
+  stopWarming();
   const session = way === 'vr' ? startVR(hauntEnter) : null;
   if (way !== 'vr') saveLobby(arriveAs(loadLobby(undefined, detectFlatRole()), way));
   await joinHaunting();
@@ -655,10 +832,18 @@ installButton.addEventListener('click', () => {
  * Und der Service Worker dahinter (`src/sw.ts`): Er macht aus der Seite die
  * App, die auch ohne Netz startet — und er ist die Bedingung dafür, dass ein
  * Browser das Installieren überhaupt anbietet. Angemeldet wird erst, wenn die
- * Seite steht: Beim Start ist jedes Byte für die Welt da und nicht für den
+ * Seite steht: Beim Start ist jedes Byte für die Hülle da und nicht für den
  * Speicher von übermorgen.
+ *
+ * **Und danach, wenn der Browser Luft hat, wird vorgewärmt** — in dieser
+ * Reihenfolge und nicht andersherum: Was das Vorwärmen holt, soll durch den
+ * Service Worker laufen und im Speicher liegenbleiben, sonst ist es beim
+ * nächsten Start wieder weg.
  */
-window.addEventListener('load', registerServiceWorker);
+window.addEventListener('load', () => {
+  registerServiceWorker();
+  whenIdle(() => void warmUp());
+});
 
 /**
  * **Und jede Geste schließt den Ton auf**, bis er wirklich läuft
@@ -674,7 +859,11 @@ armAudioUnlock();
 
 window.addEventListener('hashchange', () => {
   const id = window.location.hash.slice(1);
-  if (findWorld(id)) void app.goTo(id);
+  if (!findWorld(id)) return;
+  // Eine Welt in der Adresse ist eine Anforderung des Spielers: Das Vorwärmen
+  // tritt zurück, statt ihr die Leitung streitig zu machen.
+  stopWarming();
+  void app.goTo(id);
 });
 
 /**

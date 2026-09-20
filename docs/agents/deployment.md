@@ -74,6 +74,33 @@ alle drei ziehen in dieselbe Richtung wie der Abschnitt darüber:
   (kein `skipWaiting`). In der Zwischenzeit läuft die Seite aus dem alten
   Speicher weiter — was sie neu anfordert, hat ohnehin einen neuen Namen und
   kommt aus dem Netz.
+- **Und die Build-Nummer an einem Modell ist ein Versprechen, keine Notiz.**
+  Was `?v=<BUILD_ID>` trägt, holt der Service Worker nicht mehr nach, sondern
+  beantwortet aus dem Speicher (`core/swRoutes.ts`, `isCurrentBuild`) — es
+  kann sich unter dieser Adresse nichts geändert haben. Das spart einem
+  späteren Start gemessene 28 Anfragen und 1,2 MB, und es hat einen Preis,
+  den man kennen muss: **Wer eine Datei unter `public/` austauscht, ohne dass
+  ein neuer Build entsteht, kommt an kein Telefon mehr heran.** Auf
+  `gh-pages` gibt es diesen Fall nicht — jeder Deploy ist ein neuer Build mit
+  einer neuen Nummer —, wohl aber beim Herumprobieren an einem von Hand
+  hochgeladenen `dist`. Dort hilft nur, den Speicher zu leeren.
+
+## Der Start nach einem Deploy: was vorgewärmt wird
+
+Seit die Seite fortschreitend startet, holt sie nach dem ersten Bild von sich
+aus die Standardwelt nach — im Leerlauf, abbrechbar und nur, wenn die Leitung
+es hergibt (`core/warmStart.ts`; die ganze Reihenfolge samt Zahlen steht in
+[Die Seite selbst](seite.md#der-start-erst-die-hülle-dann-die-welt)). Für den
+Betrieb sind daran zwei Dinge wichtig:
+
+- **Ein Deploy kostet jedem laufenden Gerät genau einen warmen Speicher.** Die
+  neuen Adressen tragen eine neue `?v=`, der neue Service Worker wirft beim
+  Aktivieren die alten weg, und das Vorwärmen holt sie beim nächsten Start
+  einmal neu. Das ist gewollt und der Grund, warum zwischen zwei Deploys
+  nichts nachgeholt wird.
+- **Das Vorwärmen läuft durch den Service Worker und nicht daran vorbei.**
+  Angemeldet wird er auf `load`, gewärmt wird erst danach — sonst läge das
+  Gewärmte im HTTP-Cache und wäre beim nächsten Start ohne Netz nicht da.
 
 Wer den Service Worker beim Entwickeln vom Hals haben will, braucht nichts zu
 tun: Er meldet sich nur im fertigen Build an (`core/pwa.ts`). Wer ihn
