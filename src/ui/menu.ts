@@ -12,6 +12,10 @@ export type MenuIcon =
   | 'domino'
   | 'portal'
   | 'settings'
+  // Der Ordner: eine Mappe mit einem Reiter. Das Regal der gekauften Modelle
+  // ist ein Verzeichnisbaum, und ein Ordner sieht überall auf der Welt so aus
+  // — man muss nicht dazuschreiben, dass dahinter noch etwas kommt.
+  | 'folder'
   // Die offene Hand: kein Werkzeug, sondern der Verzicht darauf. Erste Zeile
   // der Werkzeugliste am Bildschirm (`ui/ToolButton.ts`, `#hud-tool`).
   | 'hand'
@@ -87,6 +91,11 @@ export interface MenuEntry {
   /** Draw the children as a grid of icons instead of a list. */
   grid?: boolean;
   /**
+   * Spalten im Raster; Standard 3, das Asset-Regal nimmt 2 — auf einem Telefon
+   * ist mehr nicht lesbar.
+   */
+  cols?: number;
+  /**
    * Entries on this page are *taken* rather than tapped: point at one and press
    * the grab button (or `A`) and it lands in that hand. The trigger does
    * nothing there, so aiming around cannot fill your hands by accident.
@@ -115,6 +124,18 @@ export interface MenuEntry {
    * Modell steht nur davor und fängt keinen Strahl ab.
    */
   preview?: string;
+  /**
+   * **Diese Seite wird gerade aufgeschlagen.**
+   *
+   * Gerufen von jeder Bedienfläche, die eine Ebene tiefer geht — am
+   * Handgelenk (`ui/WristMenu.ts`) wie auf der Seite (`ui/PageMenu.ts`) —,
+   * und zwar *bevor* der Weg umgestellt wird. Für alles, was erst dann
+   * geladen werden soll: Das Asset-Regal holt hier seinen Index, der ein paar
+   * hundert Kilobyte groß ist und niemanden etwas angeht, der das Regal nie
+   * aufmacht. Kommt mehrmals — beide Hände, zweimal hineingehen —, muss also
+   * selbst wissen, dass es schon gefragt wurde.
+   */
+  onOpen?(): void;
   /** @param hand the hand that selected the entry, when known. */
   run?(hand: Handedness | null): void;
 }
@@ -268,6 +289,20 @@ export function drawMenuIcon(
     case 'portal': {
       ctx.beginPath();
       ctx.ellipse(0, 0, s * 0.5, s * 0.78, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    // Die Mappe mit dem Reiter: Der Reiter sitzt links oben und ist der
+    // ganze Unterschied zu einem Rechteck.
+    case 'folder': {
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.78, -s * 0.34);
+      ctx.lineTo(-s * 0.78, -s * 0.6);
+      ctx.lineTo(-s * 0.18, -s * 0.6);
+      ctx.lineTo(-s * 0.02, -s * 0.34);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.78, -s * 0.34, s * 1.56, s * 0.94, s * 0.14);
       ctx.stroke();
       break;
     }

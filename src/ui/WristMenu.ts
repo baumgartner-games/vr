@@ -28,6 +28,8 @@ interface Page {
   title: string;
   entries: MenuEntry[];
   grid: boolean;
+  /** Spalten im Raster, wenn die Seite eigene will (`MenuEntry.cols`). */
+  cols?: number;
   /** Entries are taken with the grab button instead of tapped. */
   take: boolean;
   /** Id of the entry this page belongs to, for reopening it later. */
@@ -59,6 +61,19 @@ export type MenuModelFactory = (id: string) => THREE.Object3D | null;
 
 /** Wie schnell sich ein Vorschaumodell dreht, in Radiant pro Sekunde. */
 const PREVIEW_SPIN = 0.7;
+
+/**
+ * Wie lange nach einem `null` gewartet wird, bevor dieselbe Id noch einmal
+ * gefragt wird — in Sekunden.
+ *
+ * `null` heißt bei der Fabrik nicht „gibt es nicht", sondern **„noch nicht"**:
+ * Das Asset-Regal stößt damit das Laden an und hat das Modell ein paar hundert
+ * Millisekunden später (`core/kaykitModel.ts`, `kaykitModelNow`). Jedes Bild
+ * zu fragen wäre sechzigmal die Sekunde dieselbe Frage; einmal zu fragen und
+ * das `null` zu behalten wäre ein Fach, das für immer leer bleibt. Eine halbe
+ * Sekunde ist beides nicht.
+ */
+const PREVIEW_RETRY = 0.5;
 
 export interface WristMenuOptions {
   title?: string;
@@ -159,16 +174,33 @@ export class WristMenu extends THREE.Group {
    */
   private lastInput: XRInput | null = null;
   /**
-   * Die kleinen Modelle vor den Zeilen, nach Vorschau-Id.
+   * Die kleinen Modelle vor den Zeilen und in den Kacheln, nach Vorschau-Id.
    *
    * Sie hängen am Panel, nicht am Handgelenk: dann folgen sie ihm durch jede
    * Neigung, ohne dass hier eine einzige Matrix gerechnet wird. Gebaut werden
    * sie erst, wenn ihre Zeile das erste Mal zu sehen ist — ein Regal mit
    * zwanzig Werkzeugen zeigt nie mehr als sieben davon auf einmal.
+   *
+   * **Und weggeräumt, sobald sie es nicht mehr ist.** Früher wurden sie nur
+   * unsichtbar gestellt und behalten; bei zwanzig Werkzeugen ist das der
+   * richtige Handel. Beim Asset-Regal sind es viertausendfünfhundert Modelle,
+   * und ein Ordner, den man verlässt, muss seine wieder hergeben — sonst
+   * wächst das Panel mit jedem Ordner, den man aufmacht. Geteilt sind
+   * Geometrie und Material ohnehin mit der Vorlage im Speicher
+   * (`core/kaykitModel.ts`); weggeworfen wird hier nur der Rahmen.
+   *
+   * Die Größe steht daneben, weil dieselbe Id in einer Zeile anders groß ist
+   * als in einer Kachel.
    */
-  private readonly previews = new Map<string, THREE.Object3D>();
+  private readonly previews = new Map<string, { model: THREE.Object3D; size: number }>();
+  /**
+   * Wann zuletzt vergeblich nach einer Id gefragt wurde — die Uhr unten läuft
+   * in Sekunden seit dem Aufmachen des Menüs.
+   */
+  private readonly asked = new Map<string, number>();
   private models: MenuModelFactory | null = null;
   private spin = 0;
+  private previewClock = 0;
 
   constructor(
     private readonly pointer: Pointer,
@@ -478,6 +510,7 @@ export class WristMenu extends THREE.Group {
     const page = this.page;
     this.panel.setPage(page.title, this.displayed(), {
       grid: page.grid,
+      ...(page.cols === undefined ? {} : { cols: page.cols }),
       hint: page.take ? 'Greifen/A nimmt es · Trigger öffnet die Einstellungen' : undefined,
       // The same page again keeps its place; a different one starts where it
       // was left. Using a row is what changes its label, so a page is
@@ -678,6 +711,10 @@ export class WristMenu extends THREE.Group {
     }
     if (entry.children) {
       if (this.page.take && !viaTrigger) return;
+      // **Bevor** der Weg umgestellt wird: Wer erst beim Aufschlagen etwas
+      // laden will, soll es beim ersten Bild der neuen Seite schon getan
+      // haben (`MenuEntry.onOpen`).
+      entry.onOpen?.();
       this.pushPage(entry);
       return;
     }
@@ -700,50 +737,82 @@ export class WristMenu extends THREE.Group {
    */
   private updatePreviews(dt: number): void {
     if (!this.models || !this.open) {
-      for (const preview of this.previews.values()) preview.visible = false;
+      // Zu ist zu: Was das Panel nicht zeigt, hält es auch nicht im Speicher.
+      if (this.previews.size > 0) this.clearPreviews();
       return;
     }
     this.spin = (this.spin + dt * PREVIEW_SPIN) % (Math.PI * 2);
+    this.previewClock += dt;
 
     const shown = new Set<string>();
     const entries = this.displayed();
     for (let index = 0; index < entries.length; index++) {
       const id = entries[index]!.preview;
       if (!id) continue;
+      // **Nur was zu sehen ist.** Ohne Anker ist die Zeile weggescrollt, und
+      // eine weggescrollte Zeile lädt nichts — das ist der ganze Grund, warum
+      // ein Ordner mit 1588 Modellen sich überhaupt aufschlagen lässt.
       const anchor = this.panel.rowAnchor(index);
       if (!anchor) continue;
+      shown.add(id);
       const preview = this.preview(id, anchor.size);
       if (!preview) continue;
-      shown.add(id);
       preview.visible = true;
       preview.position.set(anchor.x, anchor.y, 0.004);
       preview.rotation.y = this.spin;
     }
-    for (const [id, preview] of this.previews) {
-      if (!shown.has(id)) preview.visible = false;
+    for (const [id, preview] of [...this.previews]) {
+      if (shown.has(id)) continue;
+      preview.model.removeFromParent();
+      this.previews.delete(id);
+      this.asked.delete(id);
+    }
+    for (const id of [...this.asked.keys()]) {
+      if (!shown.has(id)) this.asked.delete(id);
     }
   }
 
-  /** Das Modell zu einer Id, gebaut beim ersten Hinsehen und dann behalten. */
+  /**
+   * Das Modell zu einer Id, gebaut beim ersten Hinsehen und dann behalten —
+   * oder `null`, solange es keines gibt.
+   *
+   * **`null` wird nicht gemerkt.** Die Fabrik antwortet damit auch dann, wenn
+   * das Modell erst noch geladen wird (`MenuModelFactory`); wer das als
+   * „gibt es nicht" ablegte, hätte ein Fach, das für immer leer bleibt.
+   * Gefragt wird deshalb wieder — aber höchstens alle `PREVIEW_RETRY`, sonst
+   * stünde je Bild und Kachel dieselbe Frage.
+   */
   private preview(id: string, size: number): THREE.Object3D | null {
     const existing = this.previews.get(id);
-    if (existing) return existing;
+    // Dieselbe Id in einer Kachel ist größer als in einer Zeile: Stimmt das
+    // Maß nicht mehr, wird sie noch einmal abgeschrieben.
+    if (existing && Math.abs(existing.size - size) < 1e-4) return existing.model;
+    if (!existing) {
+      const last = this.asked.get(id);
+      if (last !== undefined && this.previewClock - last < PREVIEW_RETRY) return null;
+    }
     const source = this.models?.(id);
-    if (!source) return null;
+    if (!source) {
+      this.asked.set(id, this.previewClock);
+      return null;
+    }
+    this.asked.delete(id);
+    existing?.model.removeFromParent();
     const model = miniature(source, size);
     model.visible = false;
     this.panel.add(model);
-    this.previews.set(id, model);
+    this.previews.set(id, { model, size });
     return model;
   }
 
   private clearPreviews(): void {
     for (const preview of this.previews.values()) {
-      preview.removeFromParent();
-      // Geometrie und Material gehören dem Werkzeug, von dem abgeschrieben
-      // wurde — hier wird nur der Rahmen weggeräumt.
+      preview.model.removeFromParent();
+      // Geometrie und Material gehören dem Werkzeug oder der Vorlage, von der
+      // abgeschrieben wurde — hier wird nur der Rahmen weggeräumt.
     }
     this.previews.clear();
+    this.asked.clear();
   }
 
   // --- button -------------------------------------------------------------
@@ -863,6 +932,7 @@ function pageOf(entry: MenuEntry): Page {
     title: entry.label,
     entries: entry.children ?? [],
     grid,
+    ...(entry.cols === undefined ? {} : { cols: entry.cols }),
     take: entry.take ?? grid,
     id: entry.id,
   };

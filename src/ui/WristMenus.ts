@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WristMenu, type MenuModelFactory, type WristMenuOptions } from './WristMenu';
+import { PagePreviews } from './PagePreviews';
 import { MenuNav } from './menuNav';
 import type { MenuEntry } from './menu';
 import type { PageMenu } from './PageMenu';
@@ -82,6 +83,7 @@ export class WristMenus extends THREE.Group {
    */
   attachPage(page: PageMenu): void {
     this.page = page;
+    page.setPresenting(this.immersive);
   }
 
   /**
@@ -92,6 +94,7 @@ export class WristMenus extends THREE.Group {
   set presenting(on: boolean) {
     if (on === this.immersive) return;
     this.immersive = on;
+    this.page?.setPresenting(on);
     if (on) this.page?.toggle(false);
     else this.closeWrists();
   }
@@ -168,9 +171,17 @@ export class WristMenus extends THREE.Group {
   /**
    * Woher die kleinen Modelle in den Zeilen kommen — das Werkzeugregal setzt
    * das, wenn seine Welt startet, und nimmt es beim Gehen wieder weg.
+   *
+   * **Und die Seite bekommt sie auch.** Sie ging hier lange leer aus, und man
+   * sah es genau dort, wo es am meisten wehtut: im Asset-Regal auf dem
+   * Telefon, wo in jeder Kachel das Modell stehen soll und stattdessen nichts
+   * stand. Die Handgelenke bekommen die Fabrik selbst; die Seite bekommt eine
+   * Schicht darum, die ihr die Modelle auf eine Leinwand zeichnet
+   * (`PagePreviews.ts`) — sie selbst bleibt frei von three.js.
    */
   setModelFactory(factory: MenuModelFactory | null): void {
     for (const menu of this.menus) menu.setModelFactory(factory);
+    this.page?.setPreviews(factory ? new PagePreviews(factory) : null);
   }
 
   update(dt: number, input: XRInput, headWorld: THREE.Matrix4): void {

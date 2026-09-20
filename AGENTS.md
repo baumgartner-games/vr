@@ -121,7 +121,7 @@ Stichpunkten).
 
 - **[Steuerung](docs/agents/steuerung.md)** — Die Tabelle — welche Taste, welcher Knopf, welcher Stick, in jeder der drei Ansichten.
 - **[Greifen, Reichweite, Benutzen](docs/agents/greifen.md)** — Was ein Ding will und womit man es bekommt: Saum, Griff, Trigger und die drei Reichweiten.
-  Darin: Drei Dinge, drei Reichweiten — und ihre Namen · Ein Griff ist auch für das, was kein Werkzeug ist · Vier Reichweiten? Nein — drei, und eine Einschränkung · Was ein Ding will — und womit man es bekommt · Benutzen mit der Hand — die Brille · Halten oder Tippen — zwei Greif-Arten, beide gültig · Abgelegt wird beim Loslassen und nicht beim Hinlangen · Was in der Brille in der Hand liegt.
+  Darin: Drei Dinge, drei Reichweiten — und ihre Namen · Ein Griff ist auch für das, was kein Werkzeug ist · Vier Reichweiten? Nein — drei, und eine Einschränkung · Was ein Ding will — und womit man es bekommt · Benutzen mit der Hand — die Brille · Und am Schirm trägt die Figur · Halten oder Tippen — zwei Greif-Arten, beide gültig · Abgelegt wird beim Loslassen und nicht beim Hinlangen · Was in der Brille in der Hand liegt.
 - **[Die Waffe und die Kartzone](docs/agents/waffe-und-kart.md)** — Zwei Zonen, die ihre eigene Steuerung mitbringen.
   Darin: Die Waffe · Die Kartzone.
 - **[Hände, Controller und Griffe](docs/agents/haende.md)** — Controller-Modelle, Handhaltung, Handmodell — und die eingemessenen Griffe der Werkzeuge.
@@ -135,9 +135,11 @@ Stichpunkten).
 - **[Wie schön es aussieht](docs/agents/grafik.md)** — Licht, Schatten, Regler — und was ein Bild in der Brille kostet.
   Darin: Die schwarze Kante · Die Brille rechnet kleiner, wenn man es sagt · Die Gitterlinien · Die Hitboxen · Griffe zeigen · Was die Kamera ansieht · Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind · Und die Wände auch — nur nicht von oben · Wer sagt, dass er keinen Schatten wirft, wirft keinen · Zwei Zahlen, die man einmal kennen sollte · Die Messstrecke der Küche — und wer die Aufrufe verbraucht · Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht.
 - **[Modelle im Repository](docs/agents/modelle.md)** — Welche Datei welches Netz hergibt, wie zugeschnitten wird und was es wiegt.
-  Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Der dritte Katalog: die Wundertüte · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
+  Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Der dritte Katalog: die Wundertüte · Das vierte: ein Regal und kein Katalog · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
 - **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — und der Umbau, während man darin steht.
   Darin: Der Konstrukt-Raum · Bauen, während man darin steht.
+- **[Das KayKit-Regal](docs/agents/assetregal.md)** — Die gekaufte Sammlung als Menü: Ordner für Ordner, mit dem Modell in der Kachel.
+  Darin: Warum ein Regal und kein zweiter Beutel · Was wo liegt · Zwei Spalten · Geladen wird, was zu sehen ist · Fächer · Die Ids sind Adressen · Was beim Nehmen passiert · Aus einem Modell wird ein Gegenstand · Ein Maßstab je Paket — und warum die Ritter zu groß waren · Keine Build-Nummer · Geteilte Geometrie · Grenzen.
 - **[Spielfigur, Karte und Beutel](docs/agents/spielfigur.md)** — Wie man aussieht, was am Handgelenk hängt und was aus dem Beutel kommt.
   Darin: Wie man aussieht · Die Karte in der Hand · Was aus dem Beutel kommt.
 - **[NPCs](docs/agents/npcs.md)** — Wer hier herumläuft — und wie er sich orientiert: Wegnetz, Wegsuche, Verhalten.
@@ -151,10 +153,10 @@ Stichpunkten).
 
 - **[Die Werkzeugseite](docs/agents/werkzeugseite.md)** — `tools.html`: das Regal, die Vorschau und alles, was daran eingestellt wird.
   Darin: Eine Welt laufen lassen · Bearbeiten auf der Werkzeugseite · Verbinden: zusehen, während drüben gemessen wird.
-- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, Menü → Eingaben, Vollbild — und die Seite als App.
-  Darin: Die Eingabeseite · Menü → Eingaben · Vollbild, wo keine Brille ist · Die Seite als App: Manifest, Symbole, Service Worker.
+- **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, Menü → Eingaben, Vollbild, der Start — und die Seite als App.
+  Darin: Die Eingabeseite · Menü → Eingaben · Vollbild, wo keine Brille ist · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker.
 
 ### Betrieb
 
 - **[Deployment](docs/agents/deployment.md)** — Was ein Deploy für den Service Worker bedeutet — und wie eine veraltete Seite zurückfindet.
-  Darin: Wenn eine Seite aus einem Build läuft, den es nicht mehr gibt · Was ein Deploy für den Service Worker bedeutet.
+  Darin: Wenn eine Seite aus einem Build läuft, den es nicht mehr gibt · Was ein Deploy für den Service Worker bedeutet · Der Start nach einem Deploy: was vorgewärmt wird.

@@ -8,6 +8,14 @@ import { pageScroll } from './pageScroll';
 export interface PageOptions {
   /** Icons in a grid instead of one row per entry. */
   grid?: boolean;
+  /**
+   * Wie viele Kacheln nebeneinander stehen — ohne Angabe `GRID_COLS`.
+   *
+   * Das Asset-Regal nimmt zwei, weil in seinen Kacheln keine Strichzeichnung
+   * steht, sondern das Modell selbst: Bei drei Spalten ist es zu klein, um
+   * zwei ähnliche Fässer auseinanderzuhalten, und darum geht es dort.
+   */
+  cols?: number;
   /** Replaces the standing footer while this page is shown. */
   hint?: string;
   /**
@@ -57,10 +65,16 @@ const FOOTER_H = 76;
 const ROW_H = 122;
 const ROW_GAP = 14;
 
+/** Spalten im Raster, wo keine Seite etwas anderes sagt (`PageOptions.cols`). */
 const GRID_COLS = 3;
 const GRID_GAP = 16;
-const CELL_W = Math.floor((CANVAS_W - PAD * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
-const CELL_H = CELL_W + 44;
+/** Wie hoch eine Kachel über ihre Breite hinaus ist: die Zeile mit dem Namen. */
+const CELL_LABEL_H = 44;
+
+/** Die Breite einer Kachel folgt der Spaltenzahl, die Höhe ihr. */
+function cellWidth(cols: number): number {
+  return Math.floor((CANVAS_W - PAD * 2 - GRID_GAP * (cols - 1)) / cols);
+}
 
 /**
  * A canvas-textured panel that shows a page of menu entries — as a list, or as
@@ -72,6 +86,8 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private readonly texture: THREE.CanvasTexture;
   private entries: MenuEntry[] = [];
   private grid = false;
+  /** Spalten dieser Seite; die Breite einer Kachel hängt daran. */
+  private cols = GRID_COLS;
   private pinned = 0;
   private hover = -1;
   private title: string;
@@ -120,6 +136,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.title = title;
     this.entries = entries;
     this.grid = options.grid ?? false;
+    this.cols = Math.max(1, Math.floor(options.cols ?? GRID_COLS));
     this.pinned = Math.min(Math.max(0, Math.floor(options.pinned ?? 0)), entries.length);
     this.hint = options.hint ?? '';
     this.scroll = pageScroll({
@@ -155,29 +172,54 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   }
 
   /**
-   * Wo die Ikone eines Eintrags gerade sitzt — in Metern, im Raum des Panels.
+   * Wo das Bild eines Eintrags gerade sitzt — in Metern, im Raum des Panels.
    *
-   * Damit stellt `WristMenu` die kleinen Modelle vor die richtige Zeile, ohne
+   * Damit stellt `WristMenu` die kleinen Modelle vor die richtige Stelle, ohne
    * etwas über Kacheln, Kopfbalken und Blätterstand wissen zu müssen. `null`
-   * für alles, was gerade nicht als Zeile zu sehen ist — eine weggescrollte,
-   * und jede Kachel einer Rasterseite, wo für ein Modell kein Platz ist.
+   * für alles, was gerade **nicht zu sehen** ist; daran hängt drüben auch, was
+   * geladen wird und was wieder weggeräumt werden darf.
+   *
+   * **Auch eine Kachel hat jetzt eine Stelle.** Hier stand für jede Rasterseite
+   * ein `null` — Kacheln zeigten Strichzeichnungen, und für ein Modell war
+   * „kein Platz". Für das Asset-Regal ist das Bild in der Kachel aber der
+   * ganze Zweck: Ein Ordner voller Fässer, alle mit demselben Ordnersymbol,
+   * ist ein Regal, aus dem man nichts findet. Der Anker sitzt in der Mitte des
+   * oberen Quadrats — über dem Namen, dort, wo sonst die Ikone steht.
    */
   rowAnchor(index: number): { x: number; y: number; size: number } | null {
-    let top: number;
+    // Der Kopfbalken ist immer eine Zeile, auch über einem Raster.
     if (index < this.pinned) {
-      top = HEADER_H + index * (ROW_H + ROW_GAP);
-    } else {
-      if (this.grid) return null;
-      const row = index - this.pinned - this.scroll;
-      if (row < 0 || row >= this.visibleCount) return null;
-      top = this.bodyTop + row * (ROW_H + ROW_GAP);
+      return this.anchorOf(PAD + 58, HEADER_H + index * (ROW_H + ROW_GAP) + ROW_H / 2, ROW_H * 0.6);
     }
+    const slot = index - this.pinned - this.scroll;
+    if (slot < 0 || slot >= this.visibleCount) return null;
+    if (!this.grid) {
+      return this.anchorOf(
+        PAD + 58,
+        this.bodyTop + slot * (ROW_H + ROW_GAP) + ROW_H / 2,
+        ROW_H * 0.6,
+      );
+    }
+    const cellW = this.cellW;
+    const column = slot % this.cols;
+    const row = Math.floor(slot / this.cols);
+    return this.anchorOf(
+      PAD + column * (cellW + GRID_GAP) + cellW / 2,
+      this.bodyTop + row * (this.cellH + GRID_GAP) + cellW / 2,
+      // Etwas kleiner als das Quadrat: Ein Modell, das die Kachel ausfüllt,
+      // ragt beim Drehen über ihren Rand hinaus.
+      cellW * 0.62,
+    );
+  }
+
+  /** Aus Bildpunkten der Leinwand wird eine Stelle in Metern auf dem Panel. */
+  private anchorOf(x: number, y: number, size: number): { x: number; y: number; size: number } {
     const width = this.geometry.parameters.width;
     const height = this.geometry.parameters.height;
     return {
-      x: ((PAD + 58) / CANVAS_W - 0.5) * width,
-      y: (0.5 - (top + ROW_H / 2) / CANVAS_H) * height,
-      size: ((ROW_H * 0.6) / CANVAS_H) * height,
+      x: (x / CANVAS_W - 0.5) * width,
+      y: (0.5 - y / CANVAS_H) * height,
+      size: (size / CANVAS_H) * height,
     };
   }
 
@@ -208,7 +250,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
    */
   scrollBy(rows: number): boolean {
     if (!this.scrollable) return false;
-    return this.scrollTo(this.scroll + rows * (this.grid ? GRID_COLS : 1));
+    return this.scrollTo(this.scroll + rows * (this.grid ? this.cols : 1));
   }
 
   setStatus(status: string): void {
@@ -279,6 +321,16 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     this.draw();
   }
 
+  /** Die Breite einer Kachel auf dieser Seite. */
+  private get cellW(): number {
+    return cellWidth(this.cols);
+  }
+
+  /** Und ihre Höhe: quadratisch für das Bild, plus die Zeile mit dem Namen. */
+  private get cellH(): number {
+    return this.cellW + CELL_LABEL_H;
+  }
+
   /** Wo der scrollende Teil anfängt: unter dem Titel und dem Kopfbalken. */
   private get bodyTop(): number {
     return HEADER_H + this.pinned * (ROW_H + ROW_GAP);
@@ -288,7 +340,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private get pageSize(): number {
     const body = CANVAS_H - this.bodyTop - FOOTER_H;
     return this.grid
-      ? Math.max(GRID_COLS, Math.floor(body / (CELL_H + GRID_GAP)) * GRID_COLS)
+      ? Math.max(this.cols, Math.floor(body / (this.cellH + GRID_GAP)) * this.cols)
       : Math.max(1, Math.floor(body / (ROW_H + ROW_GAP)));
   }
 
@@ -313,12 +365,14 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     }
 
     if (this.grid) {
-      const column = Math.floor((x - PAD) / (CELL_W + GRID_GAP));
-      const row = Math.floor(y / (CELL_H + GRID_GAP));
-      if (column < 0 || column >= GRID_COLS || row < 0) return -1;
-      if ((x - PAD) % (CELL_W + GRID_GAP) > CELL_W) return -1;
-      if (y % (CELL_H + GRID_GAP) > CELL_H) return -1;
-      const index = row * GRID_COLS + column;
+      const cellW = this.cellW;
+      const cellH = this.cellH;
+      const column = Math.floor((x - PAD) / (cellW + GRID_GAP));
+      const row = Math.floor(y / (cellH + GRID_GAP));
+      if (column < 0 || column >= this.cols || row < 0) return -1;
+      if ((x - PAD) % (cellW + GRID_GAP) > cellW) return -1;
+      if (y % (cellH + GRID_GAP) > cellH) return -1;
+      const index = row * this.cols + column;
       return index < this.visibleCount ? this.pinned + this.scroll + index : -1;
     }
 
@@ -331,7 +385,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
   private cardHeight(): number {
     const count = this.visibleCount;
     const body = this.grid
-      ? Math.ceil(count / GRID_COLS) * (CELL_H + GRID_GAP)
+      ? Math.ceil(count / this.cols) * (this.cellH + GRID_GAP)
       : count * (ROW_H + ROW_GAP);
     return Math.min(CANVAS_H, this.bodyTop + body + FOOTER_H);
   }
@@ -370,12 +424,12 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
       const index = this.pinned + this.scroll + i;
       const entry = this.entries[index]!;
       if (this.grid) {
-        const column = i % GRID_COLS;
-        const row = Math.floor(i / GRID_COLS);
+        const column = i % this.cols;
+        const row = Math.floor(i / this.cols);
         this.drawCell(
           entry,
-          PAD + column * (CELL_W + GRID_GAP),
-          this.bodyTop + row * (CELL_H + GRID_GAP),
+          PAD + column * (this.cellW + GRID_GAP),
+          this.bodyTop + row * (this.cellH + GRID_GAP),
           index === this.hover,
         );
       } else {
@@ -515,11 +569,13 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
 
   private drawCell(entry: MenuEntry, x: number, y: number, hovered: boolean): void {
     const ctx = this.ctx;
+    const cellW = this.cellW;
+    const cellH = this.cellH;
     const accent = toCss(entry.accent ?? 0x4aa8ff);
     const active = hovered && this.flash > 0;
 
     ctx.beginPath();
-    ctx.roundRect(x, y, CELL_W, CELL_H, 22);
+    ctx.roundRect(x, y, cellW, cellH, 22);
     ctx.fillStyle = active
       ? withAlpha(accent, 0.45)
       : hovered
@@ -530,15 +586,18 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.strokeStyle = hovered ? accent : 'rgba(255,255,255,0.12)';
     ctx.stroke();
 
-    if (entry.icon) {
-      drawMenuIcon(ctx, entry.icon, x + CELL_W / 2, y + CELL_W / 2, CELL_W * 0.52, accent);
+    // Das obere Quadrat der Kachel gehört dem Bild — und wo ein **Modell**
+    // davorsteht (`WristMenu.updatePreviews`), bleibt es leer: Eine
+    // Strichzeichnung darunter wäre nur Unruhe, genau wie in einer Zeile.
+    if (entry.icon && !entry.preview) {
+      drawMenuIcon(ctx, entry.icon, x + cellW / 2, y + cellW / 2, cellW * 0.52, accent);
     }
 
     // A grid can be a choice as well as a shelf — then one cell is the one
     // that is on, and a dot in the corner says which.
     if (entry.selected) {
       ctx.beginPath();
-      ctx.arc(x + CELL_W - 18, y + 18, 7, 0, Math.PI * 2);
+      ctx.arc(x + cellW - 18, y + 18, 7, 0, Math.PI * 2);
       ctx.fillStyle = accent;
       ctx.fill();
     }
@@ -546,7 +605,7 @@ export class UIPanel extends THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMate
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     ctx.font = '600 24px system-ui, sans-serif';
-    ctx.fillText(clip(ctx, entry.label, CELL_W - 20), x + CELL_W / 2, y + CELL_H - 16);
+    ctx.fillText(clip(ctx, entry.label, cellW - 20), x + cellW / 2, y + cellH - 16);
     ctx.textAlign = 'left';
   }
 }

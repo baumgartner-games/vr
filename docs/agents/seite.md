@@ -234,6 +234,154 @@ verfehlt, für die er gedacht war. Drei Entscheidungen dazu:
   eine Bequemlichkeit, und eine Bequemlichkeit, die eine Ausnahme in die Konsole
   schreibt, hat niemandem geholfen.
 
+## Der Start: erst die Hülle, dann die Welt
+
+**Die Seite soll dastehen, bevor sie voll ist.** Das ist keine Feinheit,
+sondern seit dem KayKit-Regal eine Frage der Größenordnung: Im Netz liegen
+knapp 60 MB, und wer davon beim Start auch nur das Falsche anfasst, hat eine
+Seite, die auf einem Telefon minutenlang nichts zeigt.
+
+Gemessen wurde das, bevor daran etwas geändert wurde — mit einem Chromium über
+einem Server, der sich wie GitHub Pages verhält (gezippt, mit `ETag`,
+`max-age=600` für alles mit Hash im Namen), bei 1,5 Mbit/s und 150 ms
+Laufzeit, im Fenster eines Telefons. Der Befund war nicht der erwartete:
+
+- **Das Regal war nie im Weg.** Vor dem ersten Bild wird davon keine einzige
+  Datei angefasst, und `index.json` erst, wenn jemand das Regal aufklappt
+  (`docs/agents/assetregal.md`). Die 57 MB stehen im Netz und nicht im Start.
+- **Das erste Bild kam nach 1,3 s**, und es ist die fertige Startseite: Sie
+  steht als HTML in `index.html`, ihr Stil ist eine Datei, und beides zusammen
+  sind 11 kB gezippt.
+- **Aber danach war die Seite lange stumm.** An Ort und Stelle im Modulrumpf
+  von `main.ts` stand ein `void app.goTo(startWorld)`: Die Standardwelt lud
+  los, sobald das Skript lief — Chunk, Physik-Engine (1 MB gezippt), Modelle
+  und Töne, zusammen rund 2,6 MB — und zwar **bevor irgendjemand _Beitreten_
+  gedrückt hatte**. Bis die Seite auf eine Frage antwortete, waren 556 kB
+  über die Leitung gegangen; ein Klick in dieser Zeit lief ins Leere.
+- **Und jeder spätere Start holte 1,6 MB, die er schon hatte.** Modelle und
+  Töne beantwortet der Service Worker mit _stale-while-revalidate_ — sofort
+  aus dem Speicher, und danach noch einmal im Netz nachsehen. Nur tragen sie
+  die Build-Nummer in der Adresse: Es _kann_ nichts Neues geben.
+
+### Was jetzt passiert, und in welcher Reihenfolge
+
+1. **Die Hülle.** `index.html`, der Stil, das Hauptbündel samt three.js. Mehr
+   braucht die Startseite nicht, und mehr wird dafür auch nicht angefasst.
+2. **Der Service Worker**, sobald `load` gefeuert hat (`core/pwa.ts`) — vorher
+   nicht: Beim Start ist jedes Byte für die Hülle da.
+3. **Und dann, wenn der Browser Luft hat, das Vorwärmen** — `requestIdleCallback`
+   mit 1,5 s Frist und einem Zeitgeber dort, wo es die Funktion nicht gibt
+   (**Safari kennt sie bis heute nicht**, und das sind genau die Geräte, auf
+   denen ein warmer Speicher am meisten wert ist).
+
+Was dabei gewärmt wird, steht in `core/warmStart.ts` — reine Rechnung mit
+Test, wie `core/screenPads.ts`, und aus demselben Grund: Die Bedingung hängt
+an fünf Signalen, und eine Bedingung aus fünf Signalen im Modulrumpf ist eine,
+die beim nächsten Umbau nur noch halb stimmt. Zwei Schritte gibt es:
+
+| Schritt | Was | Warum in dieser Reihenfolge |
+| ------- | --- | --------------------------- |
+| `welt` | Die Standardwelt betreten lassen — Chunk, Physik, ihre Modelle und Töne | Danach ist der erste Druck auf _Beitreten_ sofort da, und ein Start ohne Netz kommt in einer Welt heraus statt auf einer leeren Seite |
+| `regal` | **Nur** `models/kaykit/index.json`, 31 kB gezippt | Ein Vorrat für ein Menü. Das Regal selbst — 4470 Dateien, 57 MB — wird **nie** gewärmt: Sein ganzer Entwurf ist, dass ein Ordner erst lädt, wenn jemand ihn aufklappt |
+
+**Und fünf Gründe, es zu lassen.** Vorwärmen ist eine Freundlichkeit und kein
+Auftrag; gefragt wird vor **jedem** Schritt neu, denn zwei davon schlagen
+mitten im Wärmen um:
+
+- **Die Startseite ist eine Lobby** (`#haunting`). Der einzige der fünf
+  Gründe, der nichts mit Bandbreite zu tun hat — und der, der einen Abend
+  gekostet hat. Wer zu einer Runde eingeladen wurde, trägt erst Namen und
+  Raum-Code ein und wählt dann seinen Weg hinein; die Welt **liest diese Wahl
+  beim Aufbau aus dem Speicher** und nimmt sich einen Raum, wenn sie in keinem
+  ist. Eine vorgewärmte Runde steht deshalb mit der falschen Rolle da, hat sich
+  ihren eigenen Raum genommen, und `App.goTo` sagt beim Druck auf den Knopf nur
+  noch „bin schon da". Im Rauchtest (`tools/browser-smoke.mjs`) sah das aus wie
+  eine Einsatzzentrale, die nie kommt.
+- **Der Spieler hat selbst etwas angefordert.** Der Knopf, das Menü, eine Welt
+  in der Adresse — alle drei rufen `stopWarming`, und ein laufender
+  Vorrats-Abruf wird dabei wirklich abgebrochen (`AbortController`) und nicht
+  nur nicht mehr abgewartet.
+- **Der Tab liegt im Hintergrund.** Kommt er zurück, ist der übersprungene
+  Schritt wieder dran (`visibilitychange`).
+- **Daten sparen** (`navigator.connection.saveData`) — wer das einschaltet,
+  hat die Frage beantwortet, bevor wir sie stellen.
+- **`effectiveType` ist `2g` oder `slow-2g`.** Auf `3g` lohnt sich die Welt
+  noch, der Index eines Menüs nicht mehr.
+
+**„Kein Netz" steht ausdrücklich nicht in dieser Liste**, und das war eine
+Korrektur: Es stand einen Nachmittag lang darin, und heraus kam eine
+installierte App, die im Funkloch zwar startete, aber auf der Startseite
+stehenblieb — obwohl jedes Modell und jeder Ton im Speicher lag. Ohne Netz
+kostet das Wärmen nichts; genau dann ist es am meisten wert.
+
+Die Netzwerk-API ist dabei **optional**, und `undefined` heißt „keine
+Auskunft" und nicht „schlecht": Sonst bekämen ausgerechnet iPhone und iPad nie
+einen warmen Speicher.
+
+### Und wer schneller drückt, als die Leitung liefert
+
+Die Welt kommt nicht mehr von allein, also wird sie beim Druck auf _Beitreten_
+angefordert (`ensureWorld` — dieselbe Promise, die auch das Vorwärmen benutzt,
+nie zwei Ladungen). Ist sie schon da, passiert gar nichts Sichtbares. Ist sie
+es nicht, **sagt die Seite das**: Der Knopf wird stumpf, und darunter steht
+`Die Welt wird geladen …` (`#start-note`). Vorher verschwand die Startseite in
+diesem Fall sofort und gab den Blick auf ein schwarzes Bild frei — das sah
+schneller aus und war es nicht.
+
+Die XR-Sitzung wird dabei **zuerst** angefragt und die Welt daneben geladen —
+dieselbe Reihenfolge wie in `startHaunting` und aus demselben Grund: Ein
+Browser gibt eine immersive Sitzung nur auf eine frische Geste, und die wäre
+nach dem Warten auf einen Chunk verbraucht.
+
+### Die Zahlen
+
+Median aus drei kalten Starts je Fassung, jedes Mal ein **frischer Browser**
+und nichts daneben (1,5 Mbit/s, 150 ms Laufzeit, Fenster eines Telefons).
+„Antwortet" heißt: Die Seite beantwortet eine Frage aus dem Skript — genau
+das, was ein Klick von ihr will. „Welt steht" heißt `App.currentWorldId`, also
+nach `init` und nicht, wenn die Startseite verschwindet; gedrückt wurde in der
+ersten Sekunde, in der es überhaupt ging.
+
+| Messpunkt | vorher | nachher |
+| --------- | -----: | ------: |
+| Erstes Bild (FCP) | 1060 ms | 1068 ms |
+| Seite antwortet | 3201 ms | 3205 ms |
+| **Anfragen bis dahin** | **16** | **14** |
+| **Bytes bis dahin** | **556 kB** | **305 kB** |
+| Welt steht (sofort gedrückt) | 3722 ms | 3439 ms |
+| Bytes bis die Welt steht | 1809 kB | 1810 kB |
+| **Späterer Start: Anfragen** | **33** | **5** |
+| **Späterer Start: Bytes** | **1611 kB** | **429 kB** |
+| Start ohne Netz nach einem Besuch | geht | geht |
+
+Ohne Drosselung derselbe Befund, nur deutlicher bei den Bytes: FCP
+680 → 756 ms, antwortet 2021 → 2152 ms, Welt 2318 → 2379 ms — alles innerhalb
+der Schwankung dieses Containers —, bis zur Antwort **755 → 305 kB**, bis zur
+Welt **3265 → 1810 kB**.
+
+**Und vier Sätze zur Ehrlichkeit dieser Tabelle:**
+
+- **Der Gewinn ist die Last und nicht die Uhr.** Bis die Seite antwortet, sind
+  es halb so viele Bytes; die Sekunde davor bleibt, wie sie war. Auf dieser
+  Strecke liegt nämlich three.js (`navTile`, 202 kB gezippt, rund 1,1 s bei
+  1,5 Mbit/s) und der Aufbau des Renderers — beides braucht die Startseite
+  nicht, aber `main.ts` importiert es **fest**. Das aufzulösen hieße, `App`
+  und `ui/NetPanel` dynamisch zu laden, und das ist ein eigener Umbau. Er ist
+  die nächste lohnende Sache an dieser Stelle.
+- **Die Welt kommt trotzdem nicht später.** Das war die Sorge, und sie hat
+  sich nicht bestätigt: Wer in der ersten Sekunde drückt, steht dreihundert
+  Millisekunden früher in der Welt als vorher. Die eigentliche Ladung fing
+  ohnehin erst an, als `main.ts` fertig ausgewertet war.
+- **Vorher log die Startseite.** Sie verschwand beim Druck sofort — nach
+  gemessenen 755 kB von 1809 — und gab den Blick auf eine Welt frei, die es
+  noch nicht gab. Jetzt bleibt sie stehen und sagt, worauf gewartet wird.
+- **Die 429 kB eines späteren Starts sind die Controller-Modelle**, und sie
+  bleiben mit Absicht: Sie tragen keine Build-Nummer, weil sie sich nicht mit
+  dem Build ändern, und sind damit die einzigen Dateien, die weiter nachgeholt
+  werden. Gemessen ist das der schlechteste Fall — ein Browser, dessen
+  HTTP-Cache ganz weg ist. Solange der noch steht, beantwortet GitHub Pages
+  dieselbe Frage mit `304` und ohne Inhalt.
+
 ## Die Seite als App: Manifest, Symbole, Service Worker
 
 **Die Spielwiese lässt sich installieren** — auf dem Telefon, am Schreibtisch
@@ -309,6 +457,17 @@ es, und mehr sollen es nicht werden:
 | `revalidate`   | Modelle, Töne, Controller-Profile, das Manifest | sofort da, im Hintergrund nachgeholt: feste Namen, großer Inhalt                    |
 | `bypass`       | fremde Server, `POST`, `Range`, Quellkarten    | gar nichts tun — und das ist bei den Relays der Verbindung die einzige richtige Wahl |
 
+**Mit einer Einschränkung des dritten Weges**, und die ist gemessen: Trägt die
+Adresse die Nummer **dieses** Builds (`?v=…`, `core/assetVersion.ts`), wird
+nichts nachgeholt — es _kann_ nichts Neues geben, denn der nächste Build fragt
+unter einer neuen Nummer, und was eine fremde trägt, wirft `dropOldMedia` beim
+Aktivieren weg. Ohne diese Frage kostete ein Start, dessen HTTP-Cache
+abgelaufen war (GitHub Pages erlaubt zehn Minuten), **33 Anfragen und 1,6 MB**
+für Bytes, die schon im Telefon lagen; mit ihr sind es **5 Anfragen und
+429 kB** — und die 429 kB sind die Controller-Modelle, die keine Nummer tragen.
+Wer **kein** `v=` hat — die Controller-Profile, das Manifest —, bleibt beim
+Nachholen: Diese Dateien ändern sich ohne Build-Nummer.
+
 Und fünf Dinge, die je einen Abend gekostet haben:
 
 - **`ignoreVary: true` bei jeder Suche im Speicher.** Ohne diese Zeile findet
@@ -348,7 +507,9 @@ Seite ihre Dateien, während der Service Worker gerade erst installiert wird,
 und er sieht davon nichts. Nicht in der Liste steht, was erst beim Betreten
 einer Welt geladen wird — jede Welt ist ein eigener Chunk, dazu die
 Physik-Engine mit ihren 2,8 MB. Das kommt in den Speicher, sobald es das erste
-Mal wirklich gebraucht wird.
+Mal wirklich gebraucht wird — und „wirklich gebraucht" heißt seit dem
+fortschreitenden Start auch: vorgewärmt, wenn der Browser Luft hat und die
+Leitung es hergibt (siehe [Der Start](#der-start-erst-die-hülle-dann-die-welt)).
 
 Der Service Worker ist deshalb ein **eigener Einstiegspunkt** im Build
 (`rollupOptions.input.sw`) mit einem Sonderfall in `entryFileNames`: Sein

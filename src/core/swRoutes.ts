@@ -24,6 +24,9 @@
  *   sofort da sein, aber auch nicht ewig alt bleiben.
  * - `bypass` — **gar nichts tun**. Alles, was nicht zu dieser Anwendung
  *   gehört, und alles, was ein Cache falsch machen würde.
+ *
+ * Und **eine Einschränkung des dritten Weges**, siehe `isCurrentBuild`: Was
+ * die Nummer dieses Builds in der Adresse trägt, wird nicht nachgeholt.
  */
 
 /** Die vier Wege. Siehe oben; `sw.ts` hat zu jedem genau einen Zweig. */
@@ -90,6 +93,43 @@ export function routeFor(request: RouteRequest, scope: string): Strategy {
   if (request.navigate) return 'page';
   if (path.includes('/assets/') && HASHED.test(path)) return 'immutable';
   return 'revalidate';
+}
+
+/**
+ * **Trägt diese Adresse die Nummer *dieses* Builds?** Dann ist sie so
+ * unveränderlich wie ein Dateiname mit Hash, und `revalidate` wird zu
+ * `fromCache`.
+ *
+ * Gemessen war das der teuerste Posten eines **späteren** Starts: **33
+ * Anfragen und 1,6 MB** — jedes Küchengeräusch, jedes Modell — gingen noch
+ * einmal über die Leitung, nur um dieselben Bytes zurückzubringen. Innerhalb
+ * der ersten zehn Minuten fällt das nicht auf, weil der HTTP-Cache des
+ * Browsers die Anfrage abfängt (GitHub Pages erlaubt `max-age=600`); danach
+ * fragt jedes `revalidate` wirklich wieder den Server. Die Seite hält das
+ * nicht auf — aus dem Speicher wird sofort geantwortet —, aber es ist auf
+ * einem Telefon jedes Mal echtes Datenvolumen, und auf einer schmalen Leitung
+ * nimmt es dem, was der Spieler gerade wirklich lädt, die Bandbreite weg.
+ * Mit dieser Frage sind es **5 Anfragen und 429 kB**, und die 429 kB sind die
+ * Controller-Modelle: Sie tragen keine Nummer und bleiben deshalb mit Absicht
+ * auf diesem Weg.
+ *
+ * Und es kann gar nichts anderes herauskommen: `models/kitchen.glb?v=1a2b3c`
+ * gehört zu Build `1a2b3c` und zu keinem anderen (`core/assetVersion.ts`).
+ * Der nächste Build fragt unter einem neuen `v=`, und was ein **fremdes** `v=`
+ * trägt, wirft `sw.ts` beim Aktivieren weg (`dropOldMedia`). Ein Nachholen
+ * kann also nur dieselben Bytes zurückbringen.
+ *
+ * Wer **kein** `v=` hat — die Controller-Profile, das Manifest —, bleibt beim
+ * Nachholen: Diese Dateien ändern sich ohne Build-Nummer, und für sie ist
+ * _stale-while-revalidate_ genau richtig.
+ */
+export function isCurrentBuild(url: string, build: string): boolean {
+  // Ohne Nummer gibt es keine Übereinstimmung — sonst gälte in einem Jest-Lauf
+  // (`BUILD_ID` ist dort leer) jede Adresse ohne `v=` als unveränderlich.
+  if (!build) return false;
+  // Dieselbe Lesart wie `dropOldMedia` in `sw.ts`. Eine zweite wäre eine, die
+  // beim nächsten Umbau anders entscheidet als die, die aufräumt.
+  return new URL(url).searchParams.get('v') === build;
 }
 
 /** Der Pfad ohne Query — `?t=123` an einem Modell ändert nichts am Dateityp. */

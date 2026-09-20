@@ -5,9 +5,10 @@ import type { MenuIcon } from '../../ui/menu';
 import { BODY_RADIUS, BOTTLE_HEIGHT, CHAMPAGNE_GRIP, buildChampagne } from './champagne';
 import { MIRROR_DEPTH, MIRROR_HEIGHT, MIRROR_WIDTH, buildStandingMirror } from './standingMirror';
 import type { PropGrip } from './propGrip';
+import { humanLabel } from '../../core/kaykitIndex';
 
 /** Everything the magic bag can conjure. The name travels over the network. */
-export type PropKind =
+export type BagKind =
   | 'cube'
   | 'domino'
   | 'sphere'
@@ -24,6 +25,33 @@ export type PropKind =
   | DieKind;
 
 /**
+ * **Ein Ding, das aus einer Datei kommt** — `model:<pfad>`, mit dem Pfad im
+ * Regal (`core/kaykitIndex.ts`, `kaykitPath`).
+ *
+ * Alles im Beutel ist eine Sorte, aus der beide Seiten einer Sitzung dasselbe
+ * bauen. Ein Modell aus dem Regal ist das auch — nur ist seine „Sorte" der
+ * Pfad selbst: Wer ihn hat, kann die Datei laden und bekommt dasselbe Fass
+ * wie der andere. Damit reist ein geholtes Modell über **dieselbe** Nachricht
+ * wie ein Würfel (`PortalSync`, `spawn`), ohne ein zweites Feld und ohne ein
+ * zweites Protokoll — der Duplizierer und der Inspektor bekommen es gratis
+ * mit, weil sie ohnehin nur die Sorte lesen.
+ */
+export type ModelKind = `model:${string}`;
+
+/** Was an einem Körper stehen kann: aus dem Beutel oder aus dem Regal. */
+export type PropKind = BagKind | ModelKind;
+
+/** Die Sorte zu einem Pfad im Regal. */
+export function modelKind(path: string): ModelKind {
+  return `model:${path}`;
+}
+
+/** Der Pfad hinter einer Sorte — `null` für alles aus dem Beutel. */
+export function modelPathOf(kind: PropKind | null | undefined): string | null {
+  return typeof kind === 'string' && kind.startsWith('model:') ? kind.slice('model:'.length) : null;
+}
+
+/**
  * Was der magische Beutel anbietet, in der Reihenfolge, in der das Raster es
  * zeigt — Sorte, Beschriftung, Symbol. Hier und nicht in der Welt, weil die
  * Werkzeugseite dieselbe Liste liest: ein Objekt, das es im Beutel gibt, gibt
@@ -34,7 +62,7 @@ export type PropKind =
  * Die fünf platonischen Körper stehen bewusst beieinander: sie sind ein Satz
  * und kein Sortiment, und wer den W20 sucht, sucht ihn neben dem W12.
  */
-export const BAG_ITEMS: ReadonlyArray<readonly [PropKind, string, MenuIcon]> = [
+export const BAG_ITEMS: ReadonlyArray<readonly [BagKind, string, MenuIcon]> = [
   ['cube', 'Cube', 'cube'],
   ['sphere', 'Kugel', 'sphere'],
   ['domino', 'Domino', 'domino'],
@@ -65,7 +93,7 @@ export const BAG_ITEMS: ReadonlyArray<readonly [PropKind, string, MenuIcon]> = [
  * `createPropShape` zu holen hieße: eine Geometrie, ein Material und beim
  * Würfel eine Textur bauen, um eine Zeichenkette zu lesen.
  */
-export const PROP_LABELS: Record<PropKind, string> = {
+export const PROP_LABELS: Record<BagKind, string> = {
   cube: 'Companion Cube',
   domino: 'Domino',
   sphere: 'Kugel',
@@ -165,13 +193,46 @@ export function createDominoes(count: number, accent: number): THREE.Mesh[] {
  * nur im Bauplan, weil die Welt beim Zugreifen nur die Sorte eines Dings
  * kennt und dafür keines bauen soll.
  */
-export const PROP_GRIPS: Partial<Record<PropKind, PropGrip>> = {
+export const PROP_GRIPS: Partial<Record<BagKind, PropGrip>> = {
   champagne: CHAMPAGNE_GRIP,
 };
 
-/** Mesh plus the physics the bag should give it. */
-export interface PropBlueprint {
-  mesh: THREE.Mesh;
+/**
+ * **Wie ein Ding heißt**, egal woher es kommt.
+ *
+ * Aus dem Beutel steht der Name in der Tabelle; aus dem Regal steht er im
+ * Dateinamen, und `humanLabel` macht daraus dasselbe, was auch im Menü unter
+ * der Kachel steht (`core/kaykitIndex.ts`). Zwei Wege, ein Name — die Meldung
+ * beim Herbeirufen und die Kachel, aus der es kam, sollen sich nicht
+ * widersprechen.
+ */
+export function propLabel(kind: PropKind): string {
+  const path = modelPathOf(kind);
+  if (path === null) return PROP_LABELS[kind as BagKind];
+  return humanLabel(path.slice(path.lastIndexOf('/') + 1));
+}
+
+/**
+ * Der **Griff** einer Sorte, wenn sie einen hat (`propGrip.ts`).
+ *
+ * Ein Modell aus dem Regal hat nie einen: Niemand hat eingemessen, wo man
+ * viertausendfünfhundert fremde Dinge anfasst — sie werden angefasst, wo die
+ * Hand sie berührt, und das ist für ein Fass auch richtig.
+ */
+export function propGripOf(kind: PropKind | null | undefined): PropGrip | undefined {
+  if (!kind || modelPathOf(kind) !== null) return undefined;
+  return PROP_GRIPS[kind as BagKind];
+}
+
+/**
+ * **Die Physik eines Gegenstands, ohne das Netz davor.**
+ *
+ * Herausgelöst, weil es zwei Wege zu einem Körper gibt und beide dieselben
+ * Zahlen brauchen: der Bauplan aus dem Beutel (`PropBlueprint`) und das
+ * geladene Modell aus dem Regal (`ModelBlueprint`). Die Welt baut daraus ihren
+ * Körper an genau einer Stelle (`PortalWorld.propBody`).
+ */
+export interface PropPhysics {
   mass: number;
   shape: ColliderShape;
   /** Half size of the collider, for the grab boxes. */
@@ -182,12 +243,24 @@ export interface PropBlueprint {
    * gedämpften Wert — eine Murmel und ein Würfel wollen mehr davon.
    */
   restitution?: number;
+}
+
+/** Mesh plus the physics the bag should give it. */
+export interface PropBlueprint extends PropPhysics {
+  mesh: THREE.Mesh;
   /**
    * Ein **Griff**, wenn das Ding einen hat (`propGrip.ts`): dann rastet es
    * beim Zugreifen damit in die Faust, statt dort zu bleiben, wo die Hand es
    * berührt hat — aufrecht oder über Kopf, je nachdem, wie es gerade lag.
    */
   grip?: PropGrip;
+  label: string;
+}
+
+/** Ein geladenes Modell plus die Physik, die die Welt ihm gibt. */
+export interface ModelBlueprint extends PropPhysics {
+  /** Der Knoten, der in die Welt kommt — mit dem Modell darin, mittig. */
+  object: THREE.Object3D;
   label: string;
 }
 
@@ -204,17 +277,83 @@ function solid(color: number): THREE.MeshStandardMaterial {
 }
 
 /**
+ * **Wie schwer ein Kubikmeter Regal ist**, in Kilogramm.
+ *
+ * Nachgerechnet am Beutel und nicht geraten: Der Companion Cube ist 32 cm
+ * groß und wiegt 4 kg, das sind 122 kg/m³; der Quader (0,44 × 0,22 × 0,28)
+ * wiegt 5 kg, das sind 184. Hundertfünfzig liegt dazwischen und macht aus
+ * einem Fass von 60 cm rund 32 kg — schwer genug, dass es nicht wegfliegt,
+ * wenn man es anstößt, und leicht genug, dass man es werfen kann.
+ *
+ * Gerechnet wird über die **Bounding-Box** und nicht über das Volumen des
+ * Netzes: Ein Zaun ist zum größten Teil Luft, und niemand will einen Zaun,
+ * der wie ein Blatt Papier umkippt.
+ */
+const MODEL_DENSITY = 150;
+
+/** Die Grenzen dafür: nichts wiegt weniger als ein Becher oder mehr als ein Schrank. */
+const MODEL_MASS_MIN = 0.3;
+const MODEL_MASS_MAX = 60;
+
+/** Ein Collider unter 2 cm ist keiner — dieselbe Grenze wie in der Physik. */
+const MODEL_HALF_MIN = 0.01;
+
+/**
+ * **Ein geladenes Modell als Gegenstand.**
+ *
+ * Aus dem Beutel kommt jede Sorte mit ihrem eigenen Bauplan — Netz, Masse und
+ * Collider von Hand aufeinander abgestimmt. Für viertausendfünfhundert
+ * gekaufte Dateien geht das nicht, und es muss auch nicht: Was die Welt über
+ * ein fremdes Modell weiß, ist seine **Bounding-Box**, und daraus folgt alles
+ * Übrige. Ein Kasten als Collider ist dabei die ehrliche Antwort — eine
+ * konvexe Hülle über ein paar tausend Ecken kostet bei jedem Herbeirufen
+ * spürbar Zeit, und ein Fass, das sich anfühlt wie eine Kiste, ist immer noch
+ * besser als eines, durch das man greift.
+ *
+ * **Das Modell wird dabei in seine Mitte gerückt.** Der Collider sitzt im
+ * Ursprung des Körpers (`physics/PhysicsWorld.ts`, `addBody`); ein Modell, dessen
+ * Ursprung unter seinen Füßen liegt — und das ist bei diesen Dateien die Regel
+ * —, hinge sonst schief in seinem eigenen Kasten und läge auf dem Boden halb
+ * darin.
+ */
+export function modelPropShape(model: THREE.Object3D, label: string): ModelBlueprint {
+  const object = new THREE.Group();
+  object.name = 'prop-model';
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  if (!box.isEmpty()) {
+    const centre = box.getCenter(new THREE.Vector3());
+    model.position.sub(centre);
+  }
+  object.add(model);
+
+  const size = box.isEmpty() ? new THREE.Vector3(0.2, 0.2, 0.2) : box.getSize(new THREE.Vector3());
+  const halfExtents = size
+    .clone()
+    .multiplyScalar(0.5)
+    .max(new THREE.Vector3(MODEL_HALF_MIN, MODEL_HALF_MIN, MODEL_HALF_MIN));
+  const volume = halfExtents.x * halfExtents.y * halfExtents.z * 8;
+  return {
+    object,
+    mass: THREE.MathUtils.clamp(volume * MODEL_DENSITY, MODEL_MASS_MIN, MODEL_MASS_MAX),
+    shape: { kind: 'box' },
+    halfExtents,
+    label,
+  };
+}
+
+/**
  * One conjured object. Everything the bag offers goes through here, so the
  * mesh, the collider and the mass can never drift apart — and both sides of a
  * session build the very same thing from the same `kind`.
  */
-export function createPropShape(kind: PropKind): PropBlueprint {
+export function createPropShape(kind: BagKind): PropBlueprint {
   // Der Name kommt aus der Tabelle und nicht aus dem Bauplan: so kann ihn auch
   // ablesen, wer gar nichts bauen will (`PROP_LABELS`).
   return { ...buildProp(kind), label: PROP_LABELS[kind] };
 }
 
-function buildProp(kind: PropKind): Omit<PropBlueprint, 'label'> {
+function buildProp(kind: BagKind): Omit<PropBlueprint, 'label'> {
   switch (kind) {
     case 'cube':
       return {

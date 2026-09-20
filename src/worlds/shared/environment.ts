@@ -126,16 +126,37 @@ export function disposeShapes(root: THREE.Object3D): void {
   root.removeFromParent();
 }
 
-/** Disposes every geometry/material below `root` and detaches it. */
+/**
+ * Disposes every geometry/material below `root` and detaches it.
+ *
+ * **Außer dort, wo `userData.sharedAssets` steht** — dann endet das Aufräumen
+ * an diesem Knoten, und alles darunter bleibt, wie es ist.
+ *
+ * Das ist die Ausnahme für alles, was sich seine Geometrie mit anderen teilt.
+ * Ein Modell aus dem Asset-Regal ist die Kopie einer Vorlage, die im Speicher
+ * liegen bleibt (`core/kaykitModel.ts`): Sie teilen sich den Puffer, und wer
+ * ihn beim Wegräumen **eines** Fasses freigibt, nimmt ihn allen anderen weg —
+ * auch der Vorlage, aus der das nächste gebaut würde. In der Brille steht
+ * danach ein Fass, das aus nichts besteht, und niemand sucht das in einer
+ * Aufräumfunktion.
+ *
+ * Deshalb eine eigene Rekursion statt `traverse`: Ein `return` in einem
+ * `traverse` überspringt nur den Knoten selbst, nicht seine Kinder — und die
+ * Netze hängen gerade unter dem markierten Knoten.
+ */
 export function disposeTree(root: THREE.Object3D): void {
-  root.traverse((object) => {
-    const mesh = object as Partial<THREE.Mesh> & THREE.Object3D;
-    mesh.geometry?.dispose();
-    const material = mesh.material;
-    if (Array.isArray(material)) material.forEach((m) => m.dispose());
-    else material?.dispose();
-  });
+  dropResources(root);
   root.removeFromParent();
+}
+
+function dropResources(object: THREE.Object3D): void {
+  if ((object.userData as { sharedAssets?: boolean }).sharedAssets) return;
+  const mesh = object as Partial<THREE.Mesh> & THREE.Object3D;
+  mesh.geometry?.dispose();
+  const material = mesh.material;
+  if (Array.isArray(material)) material.forEach((m) => m.dispose());
+  else material?.dispose();
+  for (const child of object.children) dropResources(child);
 }
 
 /**
