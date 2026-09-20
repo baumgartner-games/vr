@@ -106,7 +106,13 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.pmenu__list--grid { grid-template-columns: repeat(var(--pmenu-cols, 3), 1fr); }
+/* `max-content` und nicht `auto`, und das ist keine Feinheit: Sobald die
+   Liste scrollt, hat ein Raster mit `auto`-Zeilen keinen freien Platz mehr zu
+   verteilen — nach dem Grid-Algorithmus bleiben die Zeilen dann auf ihrer
+   Mindesthöhe stehen (hier `min-height: 96px`), und das Quadrat mit dem Modell
+   ragt aus seiner Kachel in die darunter. Mit sechs Kacheln sieht man davon
+   nichts, mit sechzig sofort. */
+.pmenu__list--grid { grid-template-columns: repeat(var(--pmenu-cols, 3), 1fr); grid-auto-rows: max-content; }
 
 /* Eine Zeile: Ikone, Text, rechts das, was sie ist — Pfeil, Schalter oder Punkt. */
 .pmenu__row {

@@ -297,10 +297,20 @@ export class PagePreviews implements PagePreviewLayer {
     return model;
   }
 
-  /** Nur der Rahmen: Geometrie und Material gehören der Vorlage im Speicher. */
+  /**
+   * Nur der Rahmen: Geometrie und Material gehören der Vorlage im Speicher.
+   *
+   * Die Seite zeichnet danach neu, denn in der Kachel steht jetzt wieder
+   * nichts — und was nichts zeigt, soll seine Ikone zurückbekommen. Sonst
+   * bliebe ein leeres Quadrat stehen, sobald man einmal daran vorbeigescrollt
+   * ist.
+   */
   private release(id: string): void {
-    this.models.get(id)?.removeFromParent();
+    const model = this.models.get(id);
+    if (!model) return;
+    model.removeFromParent();
     this.models.delete(id);
+    this.dirty = true;
   }
 }
 
