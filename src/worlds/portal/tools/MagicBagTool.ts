@@ -16,7 +16,7 @@ import {
 import { GRAB_GLOW, GRAB_TINT } from '../../../core/colors';
 import { playPick, playTone } from '../../../core/Audio';
 import { TextPlane } from '../../../ui/TextPlane';
-import { BAG_ITEMS, PROP_LABELS, createPropShape, type PropKind } from '../props';
+import { BAG_ITEMS, PROP_LABELS, createPropShape, type BagKind } from '../props';
 import type { ControllerState, Handedness } from '../../../core/XRInput';
 
 /** Die Farbe des Beutels — dieselbe wie die seiner Seite im Handgelenk-Menü. */
@@ -171,7 +171,7 @@ const _up = new THREE.Vector3();
 
 /** Ein Fach des Rasters: was darin liegt, wo es liegt, und das Feld darunter. */
 interface Slot {
-  kind: PropKind;
+  kind: BagKind;
   item: THREE.Object3D;
   tile: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   /** Die Seite, auf der es liegt, und der Platz darauf. */
@@ -753,7 +753,7 @@ export class MagicBagTool extends Tool {
  * liefe die Verschiebung durch die Drehung und die Miniatur eierte um eine
  * fremde Achse — derselbe Grund wie bei den Modellen im Handgelenk-Menü.
  */
-function miniature(kind: PropKind): THREE.Object3D {
+function miniature(kind: BagKind): THREE.Object3D {
   const mesh = createPropShape(kind).mesh;
   const box = new THREE.Box3().setFromObject(mesh);
   const size = box.getSize(new THREE.Vector3());

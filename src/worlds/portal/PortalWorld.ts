@@ -86,12 +86,26 @@ import {
   BAG_ITEMS,
   createCompanionCube,
   createPropShape,
-  type PropBlueprint,
+  modelKind,
+  modelPathOf,
+  modelPropShape,
+  propGripOf,
+  propLabel,
+  type BagKind,
+  type ModelKind,
+  type PropPhysics,
   DOMINO_SIZE,
-  PROP_GRIPS,
   PROP_LABELS,
   type PropKind,
 } from './props';
+import {
+  KAYKIT_ACCENT,
+  humanLabel,
+  kaykitMenu,
+  kaykitPathOf,
+  type KaykitIndex,
+} from '../../core/kaykitIndex';
+import { kaykitModel, kaykitModelNow, loadKaykitIndex } from '../../core/kaykitModel';
 import { snapToGrip } from './propGrip';
 import { CORK_LENGTH, CORK_NAME, CORK_RADIUS, CORK_SPEED, Foam, ShakeMeter } from './champagne';
 import {
@@ -1061,7 +1075,24 @@ export class PortalWorld implements World {
   private viewRotation: THREE.Quaternion | null = null;
   private readonly bodyHome = new THREE.Vector3();
   private readonly bodyHomeRotation = new THREE.Quaternion();
-  private reopenBag = false;
+  /**
+   * Welche Menüseite sich gleich wieder aufmachen soll.
+   *
+   * Wer aus dem Beutel etwas holt, holt meistens noch etwas — also geht das
+   * Panel zu, solange das Ding in der Hand ist, und danach wieder auf. Fürs
+   * Regal gilt dasselbe, nur eine Ebene tiefer: Dort soll nicht die oberste
+   * Seite aufgehen, sondern **der Ordner, aus dem man gerade etwas genommen
+   * hat**. Das kann das Menü von selbst (der Weg bleibt beim Zumachen
+   * stehen), also wird es hier auch nur aufgemacht.
+   */
+  private reopenMenu: 'bag' | 'shelf' | null = null;
+  /**
+   * Der Index des Regals: `undefined`, solange niemand danach gefragt hat,
+   * `null`, wenn es keinen gibt (ein Checkout ohne die gekauften Pakete).
+   */
+  private shelf: KaykitIndex | null | undefined;
+  /** Ob schon danach gefragt wurde — gefragt wird genau einmal je Welt. */
+  private shelfAsked = false;
   private readonly previousHead = new THREE.Vector3();
   /**
    * Labels that show a value. Anything that can be changed somewhere other
@@ -1280,7 +1311,7 @@ export class PortalWorld implements World {
     this.bindFlatInput(ctx);
     // Die kleinen Modelle in den Menüzeilen kommen aus demselben Regal wie
     // die Werkzeuge selbst — abgeschrieben, nicht gebaut (`WristMenu.ts`).
-    ctx.menu.setModelFactory((id) => this.tool(id));
+    ctx.menu.setModelFactory((id) => this.menuModel(id));
 
     ctx.notify(this.welcome());
   }
@@ -1384,6 +1415,7 @@ export class PortalWorld implements World {
           run: (hand: Handedness | null) => this.spawnProp(ctx(), hand, kind),
         })),
       },
+      this.assetMenu(ctx),
       this.npcMenu(),
       {
         id: 'settings',
@@ -4697,7 +4729,7 @@ export class PortalWorld implements World {
       domino.userData.propKind = 'domino';
       domino.position.set(-4.2 + index * 0.62, DOMINO_SIZE.y / 2 + 0.001, 1.6);
       this.root.add(domino);
-      this.registerProp(this.propBody(blueprint), `domino-${index}`);
+      this.registerProp(this.propBody(domino, blueprint), `domino-${index}`);
     }
   }
 
@@ -4709,9 +4741,9 @@ export class PortalWorld implements World {
    * (`buildProps`). Zwei Aufrufstellen mit je einem eigenen Satz Reibung und
    * Rückprall waren zwei Sorten desselben Dings.
    */
-  private propBody(blueprint: PropBlueprint): PhysicsBody {
-    blueprint.mesh.updateWorldMatrix(true, false);
-    return this.physics!.addDynamic(blueprint.mesh, {
+  private propBody(object: THREE.Object3D, blueprint: PropPhysics): PhysicsBody {
+    object.updateWorldMatrix(true, false);
+    return this.physics!.addDynamic(object, {
       shape: blueprint.shape,
       halfExtents: blueprint.halfExtents,
       mass: blueprint.mass,
@@ -7426,7 +7458,7 @@ export class PortalWorld implements World {
     // (`propGrip.ts`). Beim Nahgreifen nicht: da bleibt es liegen, und erst
     // der Zug holt es her — und dann hierher, ohne `controller`.
     const kind = (entry.object.userData as { propKind?: PropKind }).propKind ?? null;
-    const grip = kind ? PROP_GRIPS[kind] : undefined;
+    const grip = propGripOf(kind);
     if (grip && !controller) {
       const scale = new THREE.Vector3();
       offset.decompose(_point, _quaternion, scale);
@@ -7506,9 +7538,14 @@ export class PortalWorld implements World {
     const id = this.idOf(grab.entry);
     if (id) this.sync?.release(id, thrown);
 
-    if (this.reopenBag && this.spawned.has(grab.entry)) {
-      this.reopenBag = false;
-      ctx.menu.openSubmenu('bag');
+    if (this.reopenMenu && this.spawned.has(grab.entry)) {
+      const from = this.reopenMenu;
+      this.reopenMenu = null;
+      // Der Beutel schlägt seine eigene Seite auf; das Regal geht dort wieder
+      // auf, wo es zuging — beim Zumachen bleibt der Weg ja stehen, und das
+      // ist hier genau der Ordner, aus dem das Ding kam.
+      if (from === 'bag') ctx.menu.openSubmenu('bag');
+      else ctx.menu.toggle(true);
     }
   }
 
@@ -7636,9 +7673,9 @@ export class PortalWorld implements World {
    * sobald das Ding wieder losgelassen ist, geht es an derselben Stelle wieder
    * auf. Wer aus dem Beutel etwas holt, holt meistens noch etwas.
    */
-  private spawnProp(ctx: WorldContext, hand: Handedness | null, kind: PropKind): void {
+  private spawnProp(ctx: WorldContext, hand: Handedness | null, kind: BagKind): void {
     ctx.menu.toggle(false);
-    if (this.conjureProp(ctx, kind, hand)) this.reopenBag = true;
+    if (this.conjureProp(ctx, kind, hand)) this.reopenMenu = 'bag';
   }
 
   /**
@@ -7651,7 +7688,7 @@ export class PortalWorld implements World {
    *
    * @returns ob eine Hand es aufgefangen hat.
    */
-  private conjureProp(ctx: WorldContext, kind: PropKind, hand: Handedness | null): boolean {
+  private conjureProp(ctx: WorldContext, kind: BagKind, hand: Handedness | null): boolean {
     if (!this.physics) return false;
 
     const controller = hand ? ctx.input.get(hand) : null;
@@ -7679,6 +7716,221 @@ export class PortalWorld implements World {
     }
     ctx.notify(PROP_LABELS[kind]);
     return caught;
+  }
+
+  /**
+   * **Das KayKit-Regal** — der gekaufte Ordnerbaum als Menüseite.
+   *
+   * Der Beutel daneben ist eine Kiste mit Spielzeug: achtzehn Sorten, von
+   * Hand gebaut, jede mit ihrem Namen und ihrem Symbol. Das Regal ist eine
+   * **Sammlung**: rund viertausendfünfhundert fremde Dateien in zwei Dutzend
+   * Paketen, und niemand schreibt dafür achtzehnhundert Menüzeilen. Also
+   * zeigt es, was auf der Platte liegt, Ordner für Ordner — wie ein
+   * Dateibrowser, nur dass in jeder Kachel das Ding selbst steht und sich
+   * dreht (`core/kaykitIndex.ts` baut den Baum, `ui/WristMenu.ts` die
+   * Vorschau).
+   *
+   * **Geladen wird erst beim Aufschlagen** (`onOpen`): Der Index ist ein paar
+   * hundert Kilobyte groß, und wer heute nur Portale schießt, soll sie nicht
+   * herunterladen. Bis er da ist, steht dort eine Zeile „Lädt …" — und wenn
+   * es ihn nicht gibt, steht dort, dass es ihn nicht gibt. Werfen darf hier
+   * nichts: Ein Checkout ohne die gekauften Pakete ist ein normaler Zustand.
+   */
+  private assetMenu(ctx: () => WorldContext): MenuEntry {
+    return {
+      id: 'assets',
+      label: 'KayKit-Regal',
+      sub: 'Modelle aus der Sammlung',
+      icon: 'folder',
+      accent: KAYKIT_ACCENT,
+      grid: true,
+      cols: 2,
+      take: true,
+      onOpen: () => this.openShelf(),
+      children: this.shelfEntries(ctx),
+    };
+  }
+
+  /** Die oberste Seite des Regals — oder das, was statt ihrer dasteht. */
+  private shelfEntries(ctx: () => WorldContext): MenuEntry[] {
+    if (this.shelf === undefined) {
+      return [
+        {
+          id: 'assets:loading',
+          label: 'Lädt …',
+          sub: 'Das Verzeichnis der Sammlung',
+          icon: 'folder',
+          accent: 0x6f7d99,
+        },
+      ];
+    }
+    if (this.shelf === null) {
+      return [
+        {
+          id: 'assets:missing',
+          label: 'Kein Regal',
+          sub: 'models/kaykit/index.json fehlt',
+          icon: 'folder',
+          accent: 0x6f7d99,
+        },
+      ];
+    }
+    const entries = kaykitMenu(this.shelf, (path, hand) => this.takeModel(ctx(), path, hand));
+    if (entries.length > 0) return entries;
+    return [
+      {
+        id: 'assets:empty',
+        label: 'Leer',
+        sub: 'Kein Paket unter models/kaykit/',
+        icon: 'folder',
+        accent: 0x6f7d99,
+      },
+    ];
+  }
+
+  /**
+   * Den Index holen — einmal, und erst dann, wenn jemand das Regal aufmacht.
+   *
+   * Kommt mehrfach: zwei Handgelenke, die Seite im Browser, jedes erneute
+   * Hineingehen. Gefragt wird trotzdem nur einmal.
+   */
+  private openShelf(): void {
+    if (this.shelfAsked) return;
+    this.shelfAsked = true;
+    void this.fetchShelf();
+  }
+
+  private async fetchShelf(): Promise<void> {
+    const index = await loadKaykitIndex();
+    // `null` ist eine Antwort und keine Ausnahme: Dann steht im Menü, dass es
+    // kein Regal gibt.
+    this.shelf = index;
+    // Den Baum neu bauen lassen — der Weg durchs Menü bleibt dabei stehen,
+    // weil er an Ids hängt und nicht an Einträgen (`ui/menuNav.ts`).
+    this.context?.refreshWorldMenu();
+  }
+
+  /**
+   * **Ein Modell aus dem Regal in die Hand** — derselbe Ablauf wie beim
+   * Beutel (`spawnProp`), nur mit einem Ladevorgang davor.
+   *
+   * Das Panel geht **sofort** zu und nicht erst, wenn die Datei da ist: Ein
+   * Menü, das nach dem Zugreifen noch eine halbe Sekunde stehen bleibt, fühlt
+   * sich an wie ein Fehlgriff. Was danach kommt, kann dauern, also sagt es
+   * das auch.
+   */
+  private takeModel(ctx: WorldContext, path: string, hand: Handedness | null): void {
+    ctx.menu.toggle(false);
+    void this.conjureModel(ctx, path, hand);
+  }
+
+  /**
+   * Holt das Modell und stellt es her — in die Hand, die es genommen hat,
+   * oder vor den Kopf, wenn keine da ist.
+   */
+  private async conjureModel(
+    ctx: WorldContext,
+    path: string,
+    hand: Handedness | null,
+  ): Promise<void> {
+    let model = kaykitModelNow(path);
+    if (!model) {
+      // Nur, wenn wirklich gewartet wird: Was schon im Speicher liegt — und
+      // das ist alles, was man gerade in der Kachel gesehen hat — kommt ohne
+      // eine Meldung.
+      ctx.notify('Lädt …');
+      model = await kaykitModel(path);
+    }
+    // Nach dem Warten kann alles anders sein: eine andere Welt, keine Physik
+    // mehr. Was dann noch herbeigerufen würde, gehörte niemandem.
+    if (this.context !== ctx || !this.physics) return;
+    if (!model) {
+      ctx.notify(`${humanLabel(path.slice(path.lastIndexOf('/') + 1))} nicht geladen`);
+      return;
+    }
+    if (this.spawnModel(ctx, model, path, hand)) this.reopenMenu = 'shelf';
+  }
+
+  /**
+   * Stellt ein geladenes Modell her — Wort für Wort dasselbe wie
+   * `conjureProp`, nur dass die Sorte den Pfad trägt.
+   *
+   * @returns ob eine Hand es aufgefangen hat.
+   */
+  private spawnModel(
+    ctx: WorldContext,
+    model: THREE.Object3D,
+    path: string,
+    hand: Handedness | null,
+  ): boolean {
+    const controller = hand ? ctx.input.get(hand) : null;
+    const anchor = controller?.tracked ? gripOf(controller) : null;
+
+    if (anchor) {
+      anchor.getWorldPosition(_point);
+    } else {
+      // **Ohne Brille fällt es vor den Spieler**, und das ist keine
+      // Nachlässigkeit, sondern derselbe Weg, den der Beutel dort schon
+      // immer geht: Am Schirm hält keine Hand einen Gegenstand fest — die
+      // Greifzüge der Welt laufen über getrackte Controller (`updateGrabs`).
+      ctx.rig.getHeadPosition(_point);
+      ctx.rig.getHeadForward(_direction);
+      _point.addScaledVector(_direction, 0.7);
+    }
+
+    const kind = modelKind(path);
+    const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
+    const entry = this.createModelProp(id, kind, model, _point, null);
+    // Über das Netz geht die Sorte — und die *ist* hier der Pfad: Der andere
+    // lädt dieselbe Datei und bekommt dasselbe Fass (`PortalSync`, `spawn`).
+    this.sync?.spawned(id, kind, poseOf(entry));
+
+    const caught = Boolean(hand && anchor);
+    if (hand && anchor) {
+      const tool = this.held.get(hand);
+      if (tool) this.stowTool(tool);
+      const existing = this.grabs.get(hand);
+      if (existing) this.release(ctx, hand, existing, true);
+      this.attach(hand, anchor, entry);
+    }
+    ctx.notify(propLabel(kind));
+    return caught;
+  }
+
+  /**
+   * Ein Modell, das bei jemand anderem entstanden ist.
+   *
+   * Es kommt an dieselbe Stelle und mit derselben Lage; dass die Datei dafür
+   * erst geladen werden muss, sieht man höchstens daran, dass das Fass einen
+   * Wimpernschlag später umfällt als drüben.
+   */
+  private async spawnRemoteModel(id: string, path: string, pose: Pose7): Promise<void> {
+    const model = await kaykitModel(path);
+    if (!model || !this.physics) return;
+    // In der Zwischenzeit kann es schon da sein — oder wieder weg.
+    if (this.bodies.has(id)) return;
+    this.createModelProp(
+      id,
+      modelKind(path),
+      model,
+      new THREE.Vector3(pose[0], pose[1], pose[2]),
+      new THREE.Quaternion(pose[3], pose[4], pose[5], pose[6]),
+    );
+  }
+
+  /**
+   * **Was in einer Menüzeile als kleines Modell steht.**
+   *
+   * Eine Fabrik für beide Regale: Werkzeug-Ids beantwortet das Werkzeugregal
+   * wie eh und je, Ids aus dem Asset-Regal der Lader. `null` heißt dabei
+   * zweierlei, und das Menü behandelt beides gleich richtig: „gibt es nicht"
+   * (eine fremde Id) und **„noch nicht"** (die Datei ist unterwegs) — es
+   * fragt in einer halben Sekunde wieder (`ui/WristMenu.ts`, `PREVIEW_RETRY`).
+   */
+  private menuModel(id: string): THREE.Object3D | null {
+    const path = kaykitPathOf(id);
+    if (path !== null) return kaykitModelNow(path);
+    return this.tool(id);
   }
 
   /**
@@ -7754,21 +8006,54 @@ export class PortalWorld implements World {
   /** Builds a bag prop — locally conjured or mirrored from another player. */
   private createProp(
     id: string,
-    kind: PropKind,
+    kind: BagKind,
     position: THREE.Vector3,
     quaternion: THREE.Quaternion | null,
   ): PhysicsBody {
     const blueprint = createPropShape(kind);
-    const mesh = blueprint.mesh;
+    return this.placeProp(id, kind, blueprint.mesh, blueprint, position, quaternion);
+  }
+
+  /**
+   * **Dasselbe für ein geladenes Modell aus dem Regal.**
+   *
+   * Der Unterschied zum Beutel ist genau einer: Die Form kommt nicht aus einem
+   * Bauplan, sondern aus der Bounding-Box dessen, was geladen wurde
+   * (`props.modelPropShape`). Alles danach — Körper, Buchhaltung, Netz — ist
+   * dieselbe Zeile, und das ist der Punkt: Ein Fass aus dem Regal ist für die
+   * Welt ein Gegenstand wie jeder andere. Man kann es werfen, duplizieren,
+   * anmalen, festkleben und in der Sitzung teilen, ohne dass irgendwo ein
+   * zweiter Fall dafür steht.
+   */
+  private createModelProp(
+    id: string,
+    kind: ModelKind,
+    model: THREE.Object3D,
+    position: THREE.Vector3,
+    quaternion: THREE.Quaternion | null,
+  ): PhysicsBody {
+    const blueprint = modelPropShape(model, propLabel(kind));
+    return this.placeProp(id, kind, blueprint.object, blueprint, position, quaternion);
+  }
+
+  /** Der gemeinsame Teil: hinstellen, Körper geben, in die Bücher schreiben. */
+  private placeProp(
+    id: string,
+    kind: PropKind,
+    object: THREE.Object3D,
+    blueprint: PropPhysics,
+    position: THREE.Vector3,
+    quaternion: THREE.Quaternion | null,
+  ): PhysicsBody {
     // Woraus es gebaut wurde, bleibt am Objekt: der Duplizierer baut daraus
     // dasselbe noch einmal, und der Inspektor liest den Namen davon ab.
-    mesh.userData.propKind = kind;
-    mesh.position.copy(position);
-    if (quaternion) mesh.quaternion.copy(quaternion);
-    this.root.add(mesh);
-    mesh.updateWorldMatrix(true, false);
+    object.userData.propKind = kind;
+    object.position.copy(position);
+    if (quaternion) object.quaternion.copy(quaternion);
+    this.root.add(object);
+    object.updateWorldMatrix(true, false);
 
-    const entry = this.propBody(blueprint);
+    const entry = this.propBody(object, blueprint);
     entry.previousPosition.copy(position);
     this.props.push(entry);
     this.spawned.add(entry);
@@ -8717,9 +9002,17 @@ export class PortalWorld implements World {
         this.physics?.setCarried(entry, false);
       },
       spawnRemote: (id, kind, pose) => {
+        const path = modelPathOf(kind);
+        // Ein Modell muss erst geladen werden; der Rest steht sofort da.
+        // Absichtlich nicht abgewartet — die Nachricht ist beantwortet, auch
+        // wenn das Fass erst in zweihundert Millisekunden umfällt.
+        if (path !== null) {
+          void this.spawnRemoteModel(id, path, pose);
+          return;
+        }
         _point.set(pose[0], pose[1], pose[2]);
         _quaternion.set(pose[3], pose[4], pose[5], pose[6]);
-        this.createProp(id, kind, _point, _quaternion);
+        this.createProp(id, kind as BagKind, _point, _quaternion);
       },
       despawnRemote: (id) => {
         const entry = this.bodies.get(id);
@@ -9060,7 +9353,7 @@ function cloneVisual(source: THREE.Object3D): THREE.Object3D {
 /** Ein lesbarer Name für ein Objekt, aus dem, was es über sich weiß. */
 function labelOfProp(object: THREE.Object3D): string {
   const kind = (object.userData as { propKind?: PropKind }).propKind;
-  if (kind) return PROP_LABELS[kind];
+  if (kind) return propLabel(kind);
   const name = object.name.replace(/^prop-/, '').replace(/-\d+$/, '');
   return name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Objekt';
 }

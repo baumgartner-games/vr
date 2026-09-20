@@ -98,7 +98,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.pmenu__list--grid { grid-template-columns: repeat(3, 1fr); }
+.pmenu__list--grid { grid-template-columns: repeat(var(--pmenu-cols, 3), 1fr); }
 
 /* Eine Zeile: Ikone, Text, rechts das, was sie ist — Pfeil, Schalter oder Punkt. */
 .pmenu__row {

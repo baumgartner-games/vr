@@ -138,6 +138,8 @@ Stichpunkten).
   Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Der dritte Katalog: die Wundertüte · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
 - **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — und der Umbau, während man darin steht.
   Darin: Der Konstrukt-Raum · Bauen, während man darin steht.
+- **[Das KayKit-Regal](docs/agents/assetregal.md)** — Die gekaufte Sammlung als Menü: Ordner für Ordner, mit dem Modell in der Kachel.
+  Darin: Warum ein Regal und kein zweiter Beutel · Was wo liegt · Zwei Spalten · Geladen wird, was zu sehen ist · Fächer · Die Ids sind Adressen · Was beim Nehmen passiert · Aus einem Modell wird ein Gegenstand · Keine Build-Nummer · Geteilte Geometrie · Grenzen.
 - **[Spielfigur, Karte und Beutel](docs/agents/spielfigur.md)** — Wie man aussieht, was am Handgelenk hängt und was aus dem Beutel kommt.
   Darin: Wie man aussieht · Die Karte in der Hand · Was aus dem Beutel kommt.
 - **[NPCs](docs/agents/npcs.md)** — Wer hier herumläuft — und wie er sich orientiert: Wegnetz, Wegsuche, Verhalten.

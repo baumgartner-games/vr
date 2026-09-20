@@ -37,6 +37,8 @@ interface Page {
   title: string;
   entries: MenuEntry[];
   grid: boolean;
+  /** Spalten im Raster, wenn die Seite eigene will (`MenuEntry.cols`). */
+  cols?: number;
   /** Antippen **nimmt** die Zeile (Werkzeugregal); der Pfeil öffnet ihre Seite. */
   take: boolean;
   /** Id des Eintrags, zu dem die Seite gehört. */
@@ -225,6 +227,10 @@ export class PageMenu {
     this.titleEl.textContent = page.title;
     this.backButton.hidden = this.stack.length <= 1;
     this.list.classList.toggle('pmenu__list--grid', page.grid);
+    // Die Spaltenzahl steht als CSS-Variable am Raster und nicht als Klasse:
+    // So kann eine Seite zwei Spalten wollen (das Asset-Regal), ohne dass für
+    // jede denkbare Zahl eine Regel im Stylesheet steht.
+    this.list.style.setProperty('--pmenu-cols', String(page.cols ?? 3));
     this.footEl.textContent = page.take
       ? 'Antippen nimmt es in die Hand · der Pfeil öffnet die Einstellungen'
       : '';
@@ -263,6 +269,10 @@ export class PageMenu {
     const descend = entry.children && (more !== null || !(this.page.take && entry.run));
     if (descend) {
       this.keepScroll();
+      // **Bevor** der Weg umgestellt wird: Wer erst beim Aufschlagen etwas
+      // laden will, soll es beim ersten Bild der neuen Seite schon getan
+      // haben (`MenuEntry.onOpen`).
+      entry.onOpen?.();
       this.nav.push(entry.id);
       return;
     }
@@ -284,6 +294,7 @@ function pageOf(entry: MenuEntry): Page {
     title: entry.label,
     entries: entry.children ?? [],
     grid,
+    ...(entry.cols === undefined ? {} : { cols: entry.cols }),
     take: entry.take ?? grid,
     id: entry.id,
   };
