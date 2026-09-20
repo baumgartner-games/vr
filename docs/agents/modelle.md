@@ -6,8 +6,11 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 `public/models` ist der Ordner, in dem **fremde Arbeit** liegt: die Spielfigur
 (`chef.glb`) und der Rest des ersten Küchenkatalogs (`kitchen.glb`), beide
 CC-BY-4.0, der zweite Katalog (`diner.glb`, CC0), aus dem inzwischen **beide**
-Küchen ihre Möbel beziehen, und die **Wundertüte** (`mixedbag.glb`, CC0), aus
-der bisher ein einziges Stück gebraucht wird — der Feuerlöscher. Die Namensnennung steht in
+Küchen ihre Möbel beziehen, die **Wundertüte** (`mixedbag.glb`, CC0), aus
+der bisher ein einziges Stück gebraucht wird — der Feuerlöscher —, und seit
+Kurzem das **Regal**: `kaykit/`, 4 470 einzelne Dateien aus der gekauften
+_Complete KayKit Collection v7_ (CC0, 57 MB), aus denen sich ein Spieler
+aussucht, was er aufstellen will. Die Namensnennung steht in
 `public/models/CREDITS.md`, und sie ist **Pflicht**, nicht Höflichkeit — wer
 ein Modell aufnimmt, trägt es dort ein, **bevor** er es einbaut. Eine Datei
 ohne Zeile in dieser Liste ist eine Datei ohne Lizenz. **Auch die
@@ -16,11 +19,12 @@ Herkunftsliste und nicht nur die Lizenznennung, und eine, in der die freien
 Dateien fehlen, beantwortet die Frage nach der Herkunft nicht, sondern
 verschweigt sie.
 
-**Die Rohdateien liegen nicht im Repository.** Zusammen 41 MB, von denen nach
-der Aufbereitung 2,2 MB übrig bleiben. Was mit ihnen geschieht, steht
-vollständig in den vier Werkzeugen — `tools/chef-model.mjs`,
-`tools/kitchen-model.mjs`, `tools/diner-model.mjs` und
-`tools/mixedbag-model.mjs` —, und zwar mitsamt den Fehlern, die dabei gemacht
+**Die Rohdateien liegen nicht im Repository.** Die ersten drei Quellen sind
+zusammen 41 MB, von denen nach der Aufbereitung 2,2 MB übrig bleiben; die
+vierte ist ein Zip von 644 MB, aus dem 57 werden. Was mit ihnen geschieht, steht
+vollständig in den fünf Werkzeugen — `tools/chef-model.mjs`,
+`tools/kitchen-model.mjs`, `tools/diner-model.mjs`, `tools/mixedbag-model.mjs`
+und `tools/kaykit-model.mjs` —, und zwar mitsamt den Fehlern, die dabei gemacht
 wurden. Sie laufen von Hand, nicht bei jedem Build:
 Ein Modell ändert sich nicht, und `@gltf-transform`, `sharp` und
 `meshoptimizer` gehören nicht in die Abhängigkeiten eines Spiels, das sie nie
@@ -145,6 +149,106 @@ Katalog auf Vorrat — wer das nächste Stück aufstellen will, hat es schon im
 Haus und misst es nicht noch einmal nach. Dass die erste Küche seitdem **drei**
 Dateien lädt statt zwei, ist der Preis dafür und steht hier, damit ihn jemand
 nachrechnen kann: 600 KB neben 1,09 MB `diner.glb` und 193 KB `kitchen.glb`.
+
+## Das vierte: ein Regal und kein Katalog
+
+`public/models/kaykit/` ist die vierte Quelle, und sie ist in genau dem Punkt
+das Gegenteil der drei anderen: **Sie ist nicht gebündelt.** 4 470 `.glb`, je
+eine Datei für ein Modell, in 23 Paketordnern, zusammen 57 MB. Sie kommen aus
+der gekauften _Complete KayKit Collection v7_ von Kay Lousberg (CC0, siehe
+`public/models/CREDITS.md`), und gemacht hat sie `tools/kaykit-model.mjs`.
+
+**Warum nicht gebündelt?** Weil ein Bündel kein Regal ist. `diner.glb` und
+`mixedbag.glb` sind Kataloge: Eine Zone stellt daraus zwanzig Möbel auf, und
+zwanzig Netze aus **einer** Datei sind ein Ladevorgang statt zwanzig. Hier
+sucht dagegen ein **Spieler** aus, und er sucht, indem er durch Ordner geht —
+_Dungeon_, dann _Möbel_, dann das Fass. Durch ein Bündel geht niemand; ein
+Bündel hat keine Ordner, es hat einen Knotenbaum, den man erst laden muss, um
+ihn zu sehen. Und laden hieße hier: Wer **ein** Fass ansehen will, zöge sich
+50 MB Geometrie über die Leitung, von der er 12 KB braucht. Eine Datei je
+Modell heißt umgekehrt, dass der Preis eines Blicks der Preis des einen Modells
+ist.
+
+Der Preis dafür sind 4 648 Dateien im Repository und ein **Inhaltsverzeichnis**:
+`kaykit/index.json` (210 KB) beschreibt den Baum — je Ordner seine Unterordner
+und seine Dateien mit Größe, immer beide Listen, immer sortiert; `label` und
+`license` stehen nur an den 23 Paketen, denn nur die haben eine Herkunft. Das
+braucht es, weil ein statischer Server keine Ordnerlisten ausliefert: Ohne diese
+Datei müsste das Menü 4 470 Adressen erraten.
+
+**An diesen Adressen hängt keine Build-Nummer** — anders als an `diner.glb` und
+den Tönen, und aus demselben Grund, aus dem auch die Controller-Modelle keine
+tragen (siehe das nächste Kapitel). Diese Dateien ändern sich nicht mit einem
+Build: Sie kommen aus einem gekauften Zip, das einmal im Jahr eine neue Version
+bekommt, und ein `?v=` daran hieße, dass `dropOldMedia` nach **jedem** Deploy
+4 470 Dateien aus dem Speicher wirft, die niemand angefasst hat. Wer eines Tages
+ein Paket austauscht, ändert die Datei — und ändert damit ihren Namen nicht;
+dann gilt dieselbe Antwort wie für die Controller: Es ist ein
+_stale-while-revalidate_ zu viel und kein Fehler.
+
+**Die Texturen liegen außerhalb der Modelle.** Alle 283 Dateien des
+Dungeon-Pakets nennen dieselbe `dungeon_texture.png`; eingebettet wären das 283
+Kopien desselben Atlas. Statt dessen liegt er einmal in
+`dungeon/textures/dungeon_texture.webp`, und jede `.glb` zeigt mit einer
+relativen Adresse dorthin (`../textures/…`). Das darf eine GLB — glTF erlaubt
+einem `image` eine URI statt eines Puffers —, und three.js löst sie gegen die
+Adresse der `.glb` auf. Entdoppelt wird nach dem **Inhalt** und **je Paket**:
+nach dem Inhalt, weil zwei Pakete ihre Atlanten gleich nennen und zweierlei
+meinen; je Paket, weil ein Paketordner, der in einen anderen zeigt, einer ist,
+den man nicht mehr einzeln löschen kann. Aus 4 576 Bildbezügen in 4 449
+Modellen werden so **153** Dateien, 6,2 MB. Verkleinert wird keines davon —
+was ein Farbstreifen-Atlas beim Schrumpfen verliert, steht oben —; verlustfrei
+umkodiert dagegen schon, und zwar nur dort, wo das WebP kleiner ist als das
+PNG der Quelle: 11,6 MB werden 6,2, ohne dass sich ein Pixel ändert.
+
+**Die Zahlen.** Aus 4 470 Quelldateien (154 MB `.gltf` + `.bin` + `.glb`; die
+22 weggelassenen kommen unten) werden 4 470 Modelle mit 50,8 MB: quantisiert,
+mit `EXT_meshopt_compression` gepackt, 67 % weniger — dieselben sechs
+Durchgänge wie beim zweiten Katalog. Die vier schwersten Pakete:
+
+| Paket | Modelle | Modelle MB | Texturen MB |
+| --- | ---: | ---: | ---: |
+| `forest-nature` | 1 588 | 10,1 | 0,02 |
+| `medieval-hexagon` | 404 | 6,4 | 0,03 |
+| `board-game-bits` | 243 | 1,4 | **5,0** |
+| `platformer` | 525 | 4,5 | 0,02 |
+
+_Forest Nature_ und _Platformer_ sind so schwer, weil sie **Farbvarianten**
+liefern: 198 Pflanzen in acht Grüntönen, 118 Bausteine in vier Farben. Das sind
+achtmal dieselbe Geometrie mit anderen UVs, und glTF kennt keinen Weg, das zu
+teilen — acht Dateien bleiben acht Dateien. _Board Game Bits_ ist der
+umgekehrte Fall: 243 winzige Spielsteine, aber **80** Wappen zu 520 × 620 px,
+und die sind gemalte Bilder und keine Farbtafeln. Verkleinern dürfte man sie
+(`tools/kitchen-model.mjs` tut genau das mit einer Zeichnung); getan wird es
+nicht, solange niemand weiß, wie groß ein Wappen im Spiel je dasteht.
+
+**Draußen bleiben** 994 MB `.blend`, `.fbx`, `.obj` und `.mtl`, die
+Unity-Varianten, die Vorschaubilder und das Handbuch — und **22 Kopien der
+Animationsbibliothek**: Sieben Pakete bringen denselben Ordner `Animations/`
+mit byteweise denselben vier Dateien mit; ausgeliefert wird er nur von
+_Character Animations_, dem Paket, das nichts anderes **ist** als diese
+Bibliothek. Das spart 5,0 MB und ist keine Annahme — das Werkzeug hasht die
+Bibliothek vorher und lässt nur weg, was denselben Hash hat.
+
+**Neu bauen** geht so: die Sammlung irgendwohin entpacken (`.fbx`, `.obj`,
+`.mtl` und `.blend` kann man dabei weglassen, das ist die Hälfte), dann
+
+    npm install --no-save @gltf-transform/core @gltf-transform/functions \
+      @gltf-transform/extensions sharp meshoptimizer
+    node tools/kaykit-model.mjs --in="…/The Complete KayKit Collection v7"
+
+Das dauert gut zwei Minuten und schreibt den ganzen Ordner neu —
+`--pack=dungeon` macht nur eines, `--index` nur das Inhaltsverzeichnis. Stehen
+bleibt dabei allein `kaykit/README.md`, die von Hand geschrieben ist.
+
+**Geprüft wird im Browser und nicht im Werkzeug.** Ein Modell, dem der
+Umwandler nichts anmerkt, kann trotzdem eine Datei sein, die kein Lader
+aufbekommt; nachgesehen wurde deshalb mit einem Wegwerfskript, das 64 Dateien
+aus allen 23 Paketen in Chromium mit `GLTFLoader` und `MeshoptDecoder` lädt:
+alle 64 mit Dreiecken, 144 Materialien mit einer Textur, die auch wirklich
+ankam (kein einziges 404), 112 Skinned Meshes, 29 Animationsclips allein in
+`Rig_Medium_Tools.glb` — und die Hüllen gegenüber der Quelle um höchstens
+0,004 % verschoben, bei gleich vielen Dreiecken.
 
 ## Eine Build-Nummer an jeder Adresse
 

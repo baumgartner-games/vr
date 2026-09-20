@@ -5,7 +5,7 @@ In diesem Ordner liegen **fremde Arbeiten**. Die meisten stehen unter
 ist erlaubt, **Namensnennung ist Pflicht**. Diese Datei ist diese Nennung —
 und deshalb bleibt sie, wo sie ist, auch wenn sie sonst niemand liest.
 
-Zwei stehen unter [CC0](https://creativecommons.org/publicdomain/zero/1.0/) und
+Drei stehen unter [CC0](https://creativecommons.org/publicdomain/zero/1.0/) und
 verlangen gar keine Nennung. Sie stehen trotzdem hier: Diese Datei ist die
 **Herkunftsliste** und nicht nur die Lizenznennung. Wer in einem Jahr wissen
 will, woher ein Modell kommt und ob man es weitergeben darf, sieht hier nach —
@@ -95,6 +95,50 @@ die Quelle liegt **nicht** im Repository.
 Gebraucht wird daraus bisher **ein** Stück: der **Feuerlöscher** der ersten
 Küche (`core/kitchenFit.ts`, `extinguisher`). Der Rest ist ein Katalog auf
 Vorrat, vermessen in `core/mixedbagFit.ts`.
+
+## `kaykit/` — die gekaufte Sammlung
+
+> This work is based on
+> ["The Complete KayKit Collection v7"](https://www.kaylousberg.com)
+> by [Kay Lousberg](https://www.kaylousberg.com) — released under
+> [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain;
+> „This content is free to use in personal, educational and commercial
+> projects", Namensnennung nicht verlangt — warum die Zeile trotzdem hier steht,
+> siehe oben).
+
+**Gekauft**, und das ist der Unterschied zu allem anderen in diesem Ordner: Die
+Sammlung kostet Geld, die 23 Pakete darin stehen danach unter CC0. Der Wortlaut
+der Lizenz liegt deshalb nicht nur hier, sondern **im Ordner selbst** —
+`kaykit/LICENSE.txt` und noch einmal in jedem der 23 Paketordner, damit ein
+Paket seine Lizenz auch dann dabei hat, wenn es jemand einzeln weitergibt.
+Daneben steht `kaykit/README.md` und sagt dasselbe auf Deutsch.
+
+Aufbereitet mit `tools/kaykit-model.mjs`: aus 4 470 der 4 492 Quelldateien
+(154 MB `.gltf` + `.bin` + `.glb`) werden **4 470** einzelne `.glb` mit 50,8 MB
+— quantisiert und mit `EXT_meshopt_compression` gepackt, 67 % weniger. Dazu
+kommen 6,2 MB Texturen: 153 Bilder, je Paket einmal und **außerhalb** der
+Modelle, verlustfrei als WebP, wo das kleiner ist als das PNG der Quelle.
+Zusammen **57 MB** in 4 648 Dateien. Verkleinert wurde dabei kein einziges
+Bild — auch die 80 Wappen der Brettspielkiste nicht, die allein 5,0 MB wiegen.
+
+Draußen bleiben die 994 MB `.blend`, `.fbx`, `.obj` und `.mtl`, die
+Unity-Varianten, die Vorschaubilder, das Handbuch — und **22 Kopien der
+Animationsbibliothek**: Sieben Pakete liefern denselben Ordner `Animations/`
+mit byteweise denselben Dateien, und ausgeliefert wird er nur von _Character
+Animations_, dem Paket, das nichts anderes **ist** als diese Bibliothek. Die
+Rohsammlung selbst liegt **nicht** im Repository.
+
+**Und `mixedbag.glb` bleibt, wie es ist.** Die _Mixed Bag 1_ ist eines der 23
+Pakete und liegt seitdem zweimal hier: einmal gebündelt als `mixedbag.glb`
+(59 Knoten, 600 KB) und einmal als 59 einzelne Dateien in `kaykit/mixed-bag/`
+(0,8 MB). Das ist kein Versehen. An der gebündelten Datei hängt der
+**Feuerlöscher** der ersten Küche — `core/mixedbagFit.ts` beschreibt alle 59
+Stücke im Spielmaß, `core/mixedbagModel.ts` lädt sie, und ein Jest-Test hält die
+Maße fest. Der Regal-Ordner dagegen ist zum **Blättern** da: eine Datei je
+Stück, ohne Katalog und ohne nachgemessene Hülle. Wer die 600 KB sparen will,
+muss vorher den Katalog auf Einzeldateien umbauen — das ist eine Arbeit an
+`mixedbagFit.ts` und nicht eine an diesem Ordner. 600 KB sind dafür der falsche
+Anlass.
 
 ## Nicht hier, aber aus demselben Grund erwähnt
 
