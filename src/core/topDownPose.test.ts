@@ -162,7 +162,9 @@ describe('Die Drehung aus der Laufrichtung', () => {
 describe('Der Zoom von oben', () => {
   it('klemmt den stufenlosen Zoom auf die äußeren Stufen', () => {
     expect(zoomScaled(16, 1)).toBe(16);
-    expect(zoomScaled(16, 0.5)).toBe(12);
+    // Die Hälfte von 16 ist seit den beiden neuen Stufen unten kein Anschlag
+    // mehr, sondern ein Abstand wie jeder andere.
+    expect(zoomScaled(16, 0.5)).toBe(8);
     expect(zoomScaled(16, 2)).toBe(32);
     expect(zoomScaled(16, 1.1)).toBeCloseTo(17.6, 6);
     expect(zoomScaled(12, 0.01)).toBe(TOP_DOWN_MIN);
@@ -193,11 +195,14 @@ describe('Der Zoom von oben', () => {
     // Genau auf einer Stufe: die nächste, nicht dieselbe noch einmal.
     expect(stepFromDistance(16, 1)).toBe(22);
     expect(stepFromDistance(16, -1)).toBe(12);
+    // Und weiter heran, bis an die neue engste Stufe.
+    expect(stepFromDistance(12, -1)).toBe(8);
+    expect(stepFromDistance(8, -1)).toBe(5);
     // An den Enden rastet es.
-    expect(stepFromDistance(12, -1)).toBe(12);
+    expect(stepFromDistance(5, -1)).toBe(5);
     expect(stepFromDistance(30, 1)).toBe(42);
     expect(stepFromDistance(60, 1)).toBe(60);
-    expect(stepFromDistance(9, -1)).toBe(12);
+    expect(stepFromDistance(9, -1)).toBe(8);
     expect(stepFromDistance(70, 1)).toBe(60);
     // Keine Richtung heißt: nur klemmen.
     expect(stepFromDistance(18, 0)).toBe(18);

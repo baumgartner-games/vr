@@ -38,6 +38,18 @@ jobs:
       - name: Format check
         run: npm run format:check
 
+      # **Jeder Pull Request erhöht den Patch** (`AGENTS.md`, die Version
+      # steht auf der Startseite). Eine Regel, an die sich nur erinnert wird,
+      # ist keine — also sieht die CI nach. Nur im Pull Request: Wer direkt
+      # auf `main` pusht, hat keinen Zielbranch, gegen den zu vergleichen
+      # wäre.
+      - name: Version bump
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "$GITHUB_BASE_REF"
+          node tools/version-check.mjs FETCH_HEAD
+
       # Die Tests laufen hier und nicht nur auf dem Rechner dessen, der gerade
       # committet: AGENTS.md verlangt sie vor jedem Push, und eine Regel, an die
       # sich nur erinnert wird, ist keine. Die langsamen Rundensimulationen

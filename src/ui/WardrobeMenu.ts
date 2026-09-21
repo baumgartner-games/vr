@@ -4,6 +4,7 @@ import { appearance, appearanceSummary, onAppearanceChange } from '../core/appea
 import { CHEF_HEIGHT } from '../core/chefFit';
 import { createLighting } from '../worlds/shared/environment';
 import { cssColor } from './PageMenu';
+import { keepSafe } from './safeArea';
 import { wardrobeRows } from './wardrobeRows';
 import './wardrobe.css';
 
@@ -127,6 +128,9 @@ export class WardrobeMenu {
 
     this.sheet = el('div', 'wrobe__sheet');
     this.sheet.tabIndex = -1;
+    // Dieselben freien Ränder wie beim Menü (`ui/safeArea.ts`): Das Blatt
+    // zieht von unten auf, also unten und seitlich — oben berührt es nichts.
+    keepSafe(this.sheet, 'bottom', 'left', 'right');
     this.sheet.style.setProperty('--accent', cssColor(ACCENT));
 
     const head = el('header', 'wrobe__head');

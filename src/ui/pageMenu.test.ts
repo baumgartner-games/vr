@@ -768,3 +768,39 @@ describe('Die Blätterstellung über das Zumachen hinweg', () => {
     menu.dispose();
   });
 });
+
+/**
+ * **Die Ränder des Geräts** (`ui/safeArea.ts`). Gemeldet war ein Bild: Über
+ * der Überschrift des Katalogs stand die Uhr des Telefons, im
+ * Schließen-Knopf die Batterie.
+ */
+describe('Der sichere Bereich des Blattes', () => {
+  let host: HTMLElement;
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    document.body.append(host);
+    window.localStorage.clear();
+  });
+
+  afterEach(() => host.remove());
+
+  it('hält unten und seitlich immer frei, oben erst auf dem ganzen Schirm', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    const sheet = menu.element.querySelector<HTMLElement>('.pmenu__sheet')!;
+    expect(sheet.classList.contains('safe-area--bottom')).toBe(true);
+    expect(sheet.classList.contains('safe-area--left')).toBe(true);
+    expect(sheet.classList.contains('safe-area--right')).toBe(true);
+
+    menu.toggle(true);
+    // Ein Blatt von unten berührt den oberen Rand gar nicht.
+    expect(sheet.classList.contains('safe-area--top')).toBe(false);
+    menu.openSubmenu('assets');
+    expect(sheet.classList.contains('safe-area--top')).toBe(true);
+    // Und wieder heraus: dann ist es wieder ein Blatt.
+    menu.element.querySelector<HTMLElement>('.pmenu__back')!.click();
+    expect(sheet.classList.contains('safe-area--top')).toBe(false);
+    menu.dispose();
+  });
+});

@@ -1,6 +1,7 @@
 import { drawMenuIcon, type MenuEntry } from './menu';
 import { MenuNav } from './menuNav';
 import { clampColumns, fitColumns, readColumns, stepColumns, writeColumns } from './pageCols';
+import { keepSafe, setSafeEdge } from './safeArea';
 import type { PagePreviewLayer } from './previewGrid';
 import './pageMenu.css';
 
@@ -182,6 +183,12 @@ export class PageMenu {
 
     this.sheet = el('div', 'pmenu__sheet');
     this.sheet.tabIndex = -1;
+    // **Die Ränder des Geräts bleiben frei** (`ui/safeArea.ts`). Unten der
+    // Strich zum Wegschieben, seitlich die Kerbe im Querformat — der obere
+    // Rand kommt erst dazu, wenn die Seite wirklich bis dorthin reicht
+    // (`render`, `MenuEntry.full`): Ein Blatt, das von unten aufzieht,
+    // berührt ihn gar nicht.
+    keepSafe(this.sheet, 'bottom', 'left', 'right');
 
     const head = el('header', 'pmenu__head');
     this.backButton = iconButton('pmenu__nav pmenu__back', 'Zurück', 'M14 6l-6 6 6 6');
@@ -468,6 +475,9 @@ export class PageMenu {
     // Katalogmenüs kann meinetwegen auch gerne die gesamte Höhe des
     // Bildschirm einnehmen, sodass dann der Menü-Button verdeckt ist."
     this.element.classList.toggle('pmenu--full', page.full);
+    // Erst hier steht der Kopf unter der Uhr: Gemeldet war ein Katalog, in
+    // dessen Titel „20:36" stand und in dessen Schließen-Knopf die Batterie.
+    setSafeEdge(this.sheet, 'top', page.full);
     this.list.classList.toggle('pmenu__list--grid', page.grid);
     const columns = page.full && page.grid ? this.columns() : (page.cols ?? 3);
     // Die Spaltenzahl steht als CSS-Variable am Raster und nicht als Klasse:

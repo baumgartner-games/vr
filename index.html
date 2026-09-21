@@ -300,6 +300,16 @@
           </p>
         </details>
 
+        <!--
+          **Die Version, ganz unten und ganz klein.** `0.<Build>.<Patch>` aus
+          `package.json`, dahinter die Build-Nummer des Commits
+          (`core/appVersion.ts`, `main.ts`). Sie steht hier und nicht im Menü,
+          weil man sie genau dann sucht, wenn man etwas meldet — und dann ist
+          man auf der Startseite. Ohne beides bleibt der Absatz leer und
+          verschwindet (`.landing__version:empty`).
+        -->
+        <p id="app-version" class="landing__version"></p>
+
       </div>
     </div>
 
