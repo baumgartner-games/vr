@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { kaykitScale } from './kaykitFit';
+import { kaykitPlinth } from './kaykitCrate';
 import type { KaykitIndex } from './kaykitIndex';
 
 /**
@@ -143,8 +144,12 @@ const ready = new Map<string, THREE.Object3D>();
  * gleich große.
  */
 export async function kaykitModel(path: string): Promise<THREE.Object3D | null> {
-  const source = await template(path);
-  return source ? copyOf(source, path) : null;
+  const plinth = kaykitPlinth(path);
+  const [source, base] = await Promise.all([
+    template(path),
+    plinth ? template(plinth) : Promise.resolve(null),
+  ]);
+  return source ? copyOf(source, path, base) : null;
 }
 
 /**
@@ -157,10 +162,17 @@ export async function kaykitModel(path: string): Promise<THREE.Object3D | null> 
  * das für immer leer bleibt.
  */
 export function kaykitModelNow(path: string): THREE.Object3D | null {
+  const plinth = kaykitPlinth(path);
   const source = ready.get(path);
-  if (source) return copyOf(source, path);
+  // **Eine Kiste ist erst fertig, wenn auch ihr Sockel da ist**
+  // (`core/kaykitCrate.ts`). Sie ohne ihn herauszugeben hieße, sie im Menü
+  // erst eine Handbreit zu tief zu zeigen und beim nächsten Bild zu
+  // verschieben — zwei Bilder von derselben Kiste.
+  const base = plinth ? (ready.get(plinth) ?? null) : null;
+  if (source && (!plinth || base)) return copyOf(source, path, base);
   // Absichtlich nicht abgewartet: Das Anstoßen *ist* die Antwort.
   void template(path);
+  if (plinth) void template(plinth);
   return null;
 }
 
@@ -222,13 +234,43 @@ function template(path: string): Promise<THREE.Object3D | null> {
  * nur gerufen, wo wirklich ein Skelett darin steckt — 85 Figuren unter 4470
  * Dateien.
  */
-function copyOf(source: THREE.Object3D, path: string): THREE.Object3D {
+function copyOf(
+  source: THREE.Object3D,
+  path: string,
+  base: THREE.Object3D | null = null,
+): THREE.Object3D {
   const holder = new THREE.Group();
   holder.name = path;
   // **Hier endet jedes Aufräumen** (`worlds/shared/environment.ts`,
   // `disposeTree`): Die Geometrie darunter gehört der Vorlage und allen
   // anderen Kopien, nicht dieser einen.
   holder.userData.sharedAssets = true;
+  const clone = freshCopy(source);
+  // **Der Sockel unter der Kiste** (`core/kaykitCrate.ts`): Er kommt mit
+  // seiner Unterkante auf null, und die Kiste steht auf seiner Oberkante.
+  // Gemessen wird am geklonten Netz und nicht am Katalog — der Deckel ist
+  // fremde Arbeit, und eine abgeschriebene Höhe von 0,20 Quelleinheiten wäre
+  // die Zahl, die beim nächsten Paket-Update stehen bleibt.
+  if (base) {
+    const plinth = freshCopy(base);
+    const box = new THREE.Box3().setFromObject(plinth);
+    if (!box.isEmpty()) {
+      plinth.position.y -= box.min.y;
+      clone.position.y += box.max.y - box.min.y;
+    }
+    holder.add(plinth);
+  }
+  holder.add(clone);
+  holder.scale.setScalar(kaykitScale(path));
+  return holder;
+}
+
+/**
+ * Eine Kopie mit **eigenen** Materialien und mit Schatten — der Teil von
+ * `copyOf`, den eine Kiste zweimal braucht: einmal für sich und einmal für
+ * ihren Sockel.
+ */
+function freshCopy(source: THREE.Object3D): THREE.Object3D {
   const clone = skinned(source) ? cloneSkinned(source) : source.clone(true);
   clone.traverse((object) => {
     const mesh = object as THREE.Mesh;
@@ -241,9 +283,7 @@ function copyOf(source: THREE.Object3D, path: string): THREE.Object3D {
     mesh.castShadow = !(first as THREE.MeshStandardMaterial | undefined)?.transparent;
     mesh.receiveShadow = true;
   });
-  holder.add(clone);
-  holder.scale.setScalar(kaykitScale(path));
-  return holder;
+  return clone;
 }
 
 /**

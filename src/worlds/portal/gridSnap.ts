@@ -129,3 +129,82 @@ export function placesOnGrid(speed: number, placed: boolean): boolean {
   if (placed) return true;
   return Number.isFinite(speed) && speed <= PLACE_SPEED;
 }
+
+/**
+ * **Welche Kacheln ein Ding belegt** — die Mitten aller Kacheln, auf denen es
+ * wirklich steht.
+ *
+ * Die Zahl, die beim Hinstellen fehlte: Einrasten ist eine Rechnung, die man
+ * erst **nach** dem Loslassen sieht, und wer eine Reihe Fässer stellt, will
+ * vorher wissen, auf welche Kachel das nächste fällt. Genau diese Liste
+ * beleuchtet die Welt unter dem Getragenen (`PortalWorld.updatePlaceGrid`).
+ *
+ * Gerechnet wird über die **Grundfläche** und nicht über eine Kachelzahl je
+ * Modell: Ein Zaun ist einen Meter breit und zehn Zentimeter tief, ein
+ * Doppelbett anderthalb mal anderthalb, und eine Tabelle für
+ * viertausendfünfhundert Dateien pflegt niemand. Wer die Hülle hat, hat die
+ * Antwort.
+ *
+ * **Eine Kachel zählt, wenn mindestens ihre Hälfte bedeckt ist**, und diese
+ * Regel ist der ganze Unterschied zwischen einer Anzeige und einem Ärgernis.
+ * Gemessen an einem Apfel aus dem Regal: Er ist 1,025 m breit, steht mit
+ * seinem Ursprung auf der Kachelmitte und ragt damit **1,2 cm** über beide
+ * Fugen. Wer jede berührte Kachel zählt, leuchtet dafür neun Kacheln an — ein
+ * Gitter, das dreimal so groß ist wie das Ding darüber, beantwortet die
+ * Frage nicht mehr, für die es da ist. Mit der Hälfte als Schwelle ist es
+ * eine, und ein Möbel, das wirklich zwei Kacheln breit ist, bekommt zwei.
+ *
+ * **Die Hälfte zählt mit**, und das ist die andere Seite derselben Regel: Ein
+ * zwei Meter breites Möbel steht mit seinem Ursprung auf einer Kachelmitte
+ * und liegt damit auf drei Kacheln — einer ganzen und zwei halben. Genau das
+ * soll es zeigen, denn genau das passiert: Es ragt über seine Kachel hinaus,
+ * und ob daneben noch Platz ist, ist die Frage, für die das Gitter da ist.
+ *
+ * Bleibt danach **keine** übrig — ein Ding, das kleiner ist als eine halbe
+ * Kachel und genau auf einer Fuge liegt —, gewinnt die Kachel unter seiner
+ * Mitte. Eine leere Liste hieße „hier landet nichts", und das stimmt nie.
+ */
+
+/** Die Mitte einer Kachel, so wie `tilesCovered` sie ausgibt. */
+export interface GridTile {
+  readonly x: number;
+  readonly z: number;
+}
+
+/**
+ * **Die Notbremse**, und kein Maß: Eine Wand aus dem Regal ist zwei Meter
+ * breit, ein Waldstück kann zwanzig sein — und ein Ding, das aus irgendeinem
+ * Grund tausend Kacheln belegt, soll kein Gitter aus tausend Flächen
+ * aufspannen, sondern gar keines.
+ */
+export const MAX_TILES = 64;
+
+export function tilesCovered(minX: number, maxX: number, minZ: number, maxZ: number): GridTile[] {
+  if (![minX, maxX, minZ, maxZ].every((value) => Number.isFinite(value))) return [];
+  const across = axisTiles(minX, maxX);
+  const along = axisTiles(minZ, maxZ);
+  if (across.length * along.length > MAX_TILES) return [];
+  const tiles: GridTile[] = [];
+  for (const z of along) {
+    for (const x of across) tiles.push({ x: (x + 0.5) * TILE, z: (z + 0.5) * TILE });
+  }
+  return tiles;
+}
+
+/** Die Kachelnummern einer Achse, nach der Hälfte-Regel oben. */
+function axisTiles(a: number, b: number): number[] {
+  const low = Math.min(a, b);
+  const high = Math.max(a, b);
+  const first = Math.floor(low / TILE);
+  const last = Math.floor(high / TILE);
+  // Vor der Schleife und nicht darin: Wer eine Fläche von einem Kilometer
+  // hineinreicht, soll keine tausend Überlappungen ausrechnen lassen.
+  if (last - first + 1 > MAX_TILES) return [];
+  const out: number[] = [];
+  for (let index = first; index <= last; index++) {
+    const overlap = Math.min(high, (index + 1) * TILE) - Math.max(low, index * TILE);
+    if (overlap >= TILE / 2) out.push(index);
+  }
+  if (out.length === 0) out.push(Math.floor((low + high) / 2 / TILE));
+  return out;
+}

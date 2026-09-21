@@ -1,9 +1,15 @@
 import {
+  KAYKIT_CATEGORIES,
   KAYKIT_CHUNK,
   humanLabel,
+  kaykitCategoryOf,
+  kaykitFiles,
   kaykitMenu,
+  kaykitPackMenu,
   kaykitPath,
   kaykitPathOf,
+  kaykitSearch,
+  kaykitSearchEntries,
   kaykitSize,
   type KaykitIndex,
 } from './kaykitIndex';
@@ -81,10 +87,10 @@ describe('kaykitSize', () => {
   });
 });
 
-describe('kaykitMenu', () => {
+describe('kaykitPackMenu', () => {
   it('stellt Ordner vor Dateien und sortiert beide', () => {
     const { pick } = picks();
-    const entries = kaykitMenu(
+    const entries = kaykitPackMenu(
       index({
         name: 'kaykit',
         dirs: [
@@ -105,7 +111,7 @@ describe('kaykitMenu', () => {
 
   it('sortiert Zahlen als Zahlen', () => {
     const { pick } = picks();
-    const entries = kaykitMenu(
+    const entries = kaykitPackMenu(
       index({ name: 'kaykit', dirs: [], files: [{ name: 'tile_10.glb' }, { name: 'tile_2.glb' }] }),
       pick,
     );
@@ -114,7 +120,7 @@ describe('kaykitMenu', () => {
 
   it('gibt Ordnern ein Raster mit zwei Spalten und ihre Ids als Adresse', () => {
     const { pick } = picks();
-    const [pack] = kaykitMenu(
+    const [pack] = kaykitPackMenu(
       index({
         name: 'kaykit',
         dirs: [
@@ -147,7 +153,7 @@ describe('kaykitMenu', () => {
 
   it('gibt beim Nehmen die Adresse heraus, samt Hand', () => {
     const taken: Array<[string, string | null]> = [];
-    const [file] = kaykitMenu(
+    const [file] = kaykitPackMenu(
       index({ name: 'kaykit', dirs: [], files: [{ name: 'barrel.glb' }] }),
       (path, hand) => taken.push([path, hand]),
     );
@@ -157,7 +163,7 @@ describe('kaykitMenu', () => {
 
   it('steigt beliebig tief', () => {
     const { pick } = picks();
-    const entries = kaykitMenu(
+    const entries = kaykitPackMenu(
       index({
         name: 'kaykit',
         dirs: [
@@ -184,8 +190,8 @@ describe('kaykitMenu', () => {
 
   it('verträgt einen leeren Index', () => {
     const { pick } = picks();
-    expect(kaykitMenu(index({ name: 'kaykit' }), pick)).toEqual([]);
-    expect(kaykitMenu(index({ name: 'kaykit', dirs: [], files: [] }), pick)).toEqual([]);
+    expect(kaykitPackMenu(index({ name: 'kaykit' }), pick)).toEqual([]);
+    expect(kaykitPackMenu(index({ name: 'kaykit', dirs: [], files: [] }), pick)).toEqual([]);
   });
 
   /**
@@ -198,7 +204,7 @@ describe('kaykitMenu', () => {
       name: `tile_${String(i + 1).padStart(4, '0')}.glb`,
     }));
     const { pick } = picks();
-    const entries = kaykitMenu(index({ name: 'kaykit', dirs: [], files: many }), pick);
+    const entries = kaykitPackMenu(index({ name: 'kaykit', dirs: [], files: many }), pick);
 
     it('zerfällt in Fächer zu je KAYKIT_CHUNK', () => {
       expect(entries).toHaveLength(3);
@@ -221,7 +227,7 @@ describe('kaykitMenu', () => {
     });
 
     it('lässt einen Ordner an der Grenze ungeteilt', () => {
-      const exact = kaykitMenu(
+      const exact = kaykitPackMenu(
         index({ name: 'kaykit', dirs: [], files: many.slice(0, KAYKIT_CHUNK) }),
         pick,
       );
@@ -232,7 +238,7 @@ describe('kaykitMenu', () => {
 
   it('vergibt jede Id nur einmal', () => {
     const { pick } = picks();
-    const entries = kaykitMenu(
+    const entries = kaykitPackMenu(
       index({
         name: 'kaykit',
         dirs: [
@@ -252,5 +258,193 @@ describe('kaykitMenu', () => {
     };
     walk(entries);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+/**
+ * **Die Schubladen** — der zweite Weg ins Regal, neben dem Ordnerbaum.
+ *
+ * Geprüft wird nicht, ob die Einteilung „richtig" ist (das entscheidet, wer
+ * sie benutzt), sondern die drei Zusagen, an denen sie hängt: Jede Datei
+ * landet in **genau einer** Schublade, die Reihenfolge der Tabelle ist die
+ * Regel, und übrig bleibt niemand.
+ */
+describe('die Kategorien', () => {
+  it('stecken jede Datei in genau eine Schublade', () => {
+    const ids = new Set(KAYKIT_CATEGORIES.map((category) => category.id));
+    for (const path of [
+      'adventurers/characters/Knight.glb',
+      'furniture-bits/bed_double_A.glb',
+      'forest-nature/color1/Tree_1_A_Color1.glb',
+      'restaurant-bits/crate_buns.glb',
+      'rpg-tools-bits/anvil.glb',
+      'mixed-bag/bicycle.glb',
+    ]) {
+      expect(ids.has(kaykitCategoryOf(path))).toBe(true);
+    }
+  });
+
+  it('entscheidet nach der Reihenfolge der Tabelle', () => {
+    // Eine Kiste Brötchen ist Essen und nicht Kiste: Essen steht vorher.
+    expect(kaykitCategoryOf('restaurant-bits/crate_buns.glb')).toBe('food');
+    expect(kaykitCategoryOf('restaurant-bits/crate.glb')).toBe('containers');
+  });
+
+  it('kennt Figuren an ihrem Paket', () => {
+    expect(kaykitCategoryOf('adventurers/characters/Knight.glb')).toBe('figures');
+    expect(kaykitCategoryOf('medieval-hexagon/units/unit_archer_blue.glb')).toBe('figures');
+  });
+
+  it('liest ganze Wörter und keine Stücke', () => {
+    // `boxer` ist keine Kiste — sonst wäre jedes Wort mit `box` darin eine.
+    expect(kaykitCategoryOf('mixed-bag/boxer.glb')).toBe('rest');
+    expect(kaykitCategoryOf('mixed-bag/box_A.glb')).toBe('containers');
+  });
+
+  it('lässt nichts liegen', () => {
+    expect(kaykitCategoryOf('mixed-bag/etwas_ganz_neues.glb')).toBe('rest');
+    expect(kaykitCategoryOf('')).toBe('rest');
+  });
+});
+
+describe('die Suche', () => {
+  const files = kaykitFiles(
+    index({
+      name: 'kaykit',
+      dirs: [
+        {
+          name: 'furniture-bits',
+          dirs: [],
+          files: [{ name: 'chair_A.glb' }, { name: 'armchair.glb' }, { name: 'bed_single_A.glb' }],
+        },
+        { name: 'dungeon', dirs: [], files: [{ name: 'barrel_large.glb' }] },
+      ],
+      files: [],
+    }),
+  );
+
+  it('legt alle Dateien flach hin, mit Adresse und Beschriftung', () => {
+    expect(files.map((file) => file.path)).toEqual([
+      'dungeon/barrel_large.glb',
+      'furniture-bits/armchair.glb',
+      'furniture-bits/bed_single_A.glb',
+      'furniture-bits/chair_A.glb',
+    ]);
+    expect(files[0]!.label).toBe('Barrel Large');
+  });
+
+  it('findet auch mitten im Namen', () => {
+    expect(kaykitSearch(files, 'chair').map((file) => file.name)).toEqual([
+      'chair_A.glb',
+      'armchair.glb',
+    ]);
+  });
+
+  it('stellt den Namensanfang nach vorn', () => {
+    // `chair_A` fängt mit dem Gesuchten an, `armchair` enthält es nur.
+    expect(kaykitSearch(files, 'chair')[0]!.name).toBe('chair_A.glb');
+  });
+
+  it('verlangt alle Wörter', () => {
+    expect(kaykitSearch(files, 'dungeon barrel').map((file) => file.name)).toEqual([
+      'barrel_large.glb',
+    ]);
+    expect(kaykitSearch(files, 'dungeon chair')).toEqual([]);
+  });
+
+  it('nimmt auch den Pfad als Filter', () => {
+    expect(kaykitSearch(files, 'furniture')).toHaveLength(3);
+  });
+
+  it('gibt ohne Begriff nichts zurück', () => {
+    expect(kaykitSearch(files, '')).toEqual([]);
+    expect(kaykitSearch(files, '   ')).toEqual([]);
+  });
+
+  it('hält sich an die Obergrenze', () => {
+    expect(kaykitSearch(files, 'chair', 1)).toHaveLength(1);
+  });
+
+  it('macht aus den Treffern Kacheln, die dieselbe Adresse tragen', () => {
+    const taken: string[] = [];
+    const entries = kaykitSearchEntries(files, 'barrel', (path) => taken.push(path));
+    expect(entries.map((entry) => entry.id)).toEqual(['kaykit:dungeon/barrel_large.glb']);
+    expect(entries[0]!.preview).toBe('kaykit:dungeon/barrel_large.glb');
+    entries[0]!.run!(null);
+    expect(taken).toEqual(['dungeon/barrel_large.glb']);
+  });
+});
+
+describe('kaykitMenu', () => {
+  const tree = index({
+    name: 'kaykit',
+    dirs: [
+      {
+        name: 'furniture-bits',
+        label: 'Furniture Bits',
+        dirs: [],
+        files: [{ name: 'chair_A.glb' }],
+      },
+      { name: 'dungeon', dirs: [], files: [{ name: 'barrel_large.glb' }] },
+    ],
+    files: [],
+  });
+
+  it('stellt die Schubladen vor die Pakete', () => {
+    const { pick } = picks();
+    const entries = kaykitMenu(tree, pick);
+    const last = entries[entries.length - 1]!;
+    expect(last.id).toBe('kaykit#packs');
+    expect(last.sub).toBe('2 Pakete');
+    expect(entries.slice(0, -1).every((entry) => entry.id.startsWith('kaykit#cat:'))).toBe(true);
+  });
+
+  it('lässt leere Schubladen weg', () => {
+    const { pick } = picks();
+    const ids = kaykitMenu(tree, pick).map((entry) => entry.id);
+    expect(ids).toContain('kaykit#cat:furniture');
+    expect(ids).toContain('kaykit#cat:containers');
+    expect(ids).not.toContain('kaykit#cat:figures');
+  });
+
+  it('nimmt den ganzen Schirm und kennt seine Spalten', () => {
+    const { pick } = picks();
+    for (const entry of kaykitMenu(tree, pick)) {
+      expect(entry.full).toBe(true);
+      expect(entry.grid).toBe(true);
+      expect(entry.cols).toBe(2);
+    }
+  });
+
+  it('verträgt einen leeren Index', () => {
+    const { pick } = picks();
+    expect(kaykitMenu(index({ name: 'kaykit' }), pick)).toEqual([]);
+  });
+
+  /**
+   * **Ids müssen unter Geschwistern eindeutig sein** und nicht im ganzen Baum:
+   * Dieselbe Datei steht einmal in ihrer Schublade und einmal in ihrem Paket,
+   * und das ist der Sinn der Sache. Der Weg durchs Menü merkt sich Seiten
+   * (`ui/menuNav.ts`), und eine Seite wird immer bei ihren Geschwistern
+   * gesucht.
+   */
+  it('vergibt jede Id unter Geschwistern nur einmal', () => {
+    const { pick } = picks();
+    const walk = (list: MenuEntry[]): void => {
+      const ids = list.map((entry) => entry.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const entry of list) if (entry.children) walk(entry.children);
+    };
+    walk(kaykitMenu(tree, pick));
+  });
+
+  /** Die Fächer bleiben — nur darf die Seite sie überspringen. */
+  it('lässt seine Fächer am Schirm überspringen', () => {
+    const many = Array.from({ length: KAYKIT_CHUNK + 1 }, (_, i) => ({
+      name: `tile_${String(i + 1).padStart(4, '0')}.glb`,
+    }));
+    const { pick } = picks();
+    const [sheet] = kaykitPackMenu(index({ name: 'kaykit', dirs: [], files: many }), pick);
+    expect(sheet!.flatten).toBe(true);
   });
 });

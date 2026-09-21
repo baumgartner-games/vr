@@ -5,6 +5,10 @@ Universal](http://creativecommons.org/publicdomain/zero/1.0/), Public Domain).
 Namensnennung ist damit nicht nötig — die Urheber freuen sich trotzdem, und
 deshalb steht sie hier.
 
+**Eine Datei ist nicht gefunden, sondern gerechnet**: `ratchet.ogg` entsteht
+aus `tools/ratchet-sound.mjs` (siehe unten). Sie gehört damit diesem Projekt
+und ist ebenfalls CC0.
+
 Bearbeitet wurde alles mit ffmpeg auf **Mono, 44,1 kHz, Ogg Vorbis q3**, von
 führender Stille befreit und auf einen festen Spitzenpegel gebracht (−1 dBFS
 bei den einmaligen Tönen, −3 bis −4 dBFS bei den Schleifen, weil eine Schleife
@@ -46,6 +50,20 @@ zur Wahl standen, ist das Küchenbrett geblieben (`chop-board-*`); die Kenney-Hi
 | `place-0..2.ogg`   | Kenney _Impact Sounds_, `impactWood_light_000/001/002`   | Kenney       | [kenney.nl](https://kenney.nl/assets/impact-sounds)             | —                               |
 | `pick-0.ogg`       | Kenney _RPG Audio_, `handleSmallLeather.ogg`             | Kenney       | [kenney.nl](https://kenney.nl/assets/rpg-audio)                  | —                               |
 | `pick-1.ogg`       | Kenney _RPG Audio_, `beltHandle1.ogg`                    | Kenney       | [kenney.nl](https://kenney.nl/assets/rpg-audio)                  | —                               |
+| `ratchet.ogg`      | gerechnet, `tools/ratchet-sound.mjs`                     | dieses Projekt | —                                                               | Ogg Vorbis q3, Spitze −3,4 dBFS |
+
+**Die Ratsche ist gebaut und nicht gesammelt.** Eine Wasserpumpenzange klingt
+nach einer Folge sehr kurzer metallischer Anschläge — zwei Gruppen zu je sechs
+Zähnen, dazwischen die Pause, in der die Hand zurückgeht —, und genau das ist
+leichter zu rechnen als zu finden: In den CC0-Sammlungen, aus denen der Rest
+dieses Ordners kommt, liegt keine. Das Werkzeug daneben ist ihre Quelle; wer
+sie ändern will, ändert dort die Zahlen und lässt sie neu schreiben:
+
+```
+node tools/ratchet-sound.mjs > /tmp/ratchet.wav
+ffmpeg -i /tmp/ratchet.wav -ac 1 -ar 44100 -c:a libvorbis -q:a 3 \
+  public/audio/kitchen/ratchet.ogg
+```
 
 **Die Vorratskiste hat nur noch eine Aufnahme.** Daneben lag einmal ein
 Oberflächenton aus einem Bedienfeld (Kenney _Interface Sounds_,

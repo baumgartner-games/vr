@@ -98,12 +98,17 @@ import {
   PROP_LABELS,
   type PropKind,
 } from './props';
-import { gridPose, placesOnGrid } from './gridSnap';
+import { gridPose, placesOnGrid, tilesCovered } from './gridSnap';
+import { PlaceGrid } from './placeGrid';
 import {
   KAYKIT_ACCENT,
+  SHELF_COLS,
   humanLabel,
+  kaykitFiles,
   kaykitMenu,
   kaykitPathOf,
+  kaykitSearchEntries,
+  type KaykitFileRef,
   type KaykitIndex,
 } from '../../core/kaykitIndex';
 import { kaykitModel, kaykitModelNow, loadKaykitIndex } from '../../core/kaykitModel';
@@ -1158,6 +1163,22 @@ export class PortalWorld implements World {
   private shelf: KaykitIndex | null | undefined;
   /** Ob schon danach gefragt wurde — gefragt wird genau einmal je Welt. */
   private shelfAsked = false;
+  /**
+   * **Alle Dateien des Regals flach**, für das Suchfeld — einmal gerechnet und
+   * dann behalten.
+   *
+   * Der Menübaum wird bei jeder Änderung neu gebaut (`refreshWorldMenu`, die
+   * Bildratenzeile zweimal die Sekunde); diese Liste ändert sich dabei nie,
+   * und viertausendfünfhundert Einträge je Neubau abzulaufen wäre Arbeit für
+   * nichts.
+   */
+  private shelfFiles: readonly KaykitFileRef[] = [];
+  /**
+   * **Das Gitter unter dem Getragenen** (`placeGrid.ts`) — es zeigt vor dem
+   * Loslassen, auf welche Kacheln das Möbel fällt. Gebaut wird es beim Aufbau
+   * der Welt und weggeräumt mit ihr.
+   */
+  private placeGrid: PlaceGrid | null = null;
   private readonly previousHead = new THREE.Vector3();
   /**
    * Labels that show a value. Anything that can be changed somewhere other
@@ -1371,6 +1392,7 @@ export class PortalWorld implements World {
     this.host = this.buildHost(ctx);
     this.keys = new KeyPanel();
     this.root.add(this.keys);
+    this.placeGrid = new PlaceGrid(this.root);
     ctx.pointer.add(this.keys.asPointerTarget());
     this.setupTools(ctx);
     this.bindFlatInput(ctx);
@@ -1392,6 +1414,9 @@ export class PortalWorld implements World {
     this.updateTools(dt, ctx);
     this.updateUsables(ctx);
     this.updateGrabs(dt, ctx);
+    // **Und das Gitter unter dem, was getragen wird** — erst nachdem die Hände
+    // nachgeführt sind, sonst zeigte es auf die Kachel des letzten Bildes.
+    this.updatePlaceGrid(ctx);
     // **Erst jetzt der Saum**: Er hängt in der Brille an dem, worauf die Hand
     // zeigt, und das steht erst nach `updateGrabs` fest (`showUse`).
     this.showUse(dt, ctx);
@@ -3797,6 +3822,11 @@ export class PortalWorld implements World {
     this.bodies.clear();
     this.ids.clear();
     this.kinds.clear();
+    // **Vor `disposeTree`**: Das Gitter gehört sich selbst — Geometrie und
+    // Material sind seine und nicht die der Welt, und ein zweiter Aufbau baut
+    // sich ein neues.
+    this.placeGrid?.dispose();
+    this.placeGrid = null;
     disposeTree(this.root);
     ctx.scene.background = null;
     this.physics?.dispose();
@@ -7679,6 +7709,60 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Das Gitter unter dem Getragenen nachführen** — oder es wegnehmen, wenn
+   * gerade nichts getragen wird, das einrastet.
+   *
+   * Gezeigt wird genau das, was `snapPlaced` gleich tun würde: dieselbe
+   * eingerastete Lage, dieselbe Grundfläche, dieselben Kacheln. Zwei
+   * Rechnungen wären zwei Antworten, und die zweite fiele erst auf, wenn das
+   * Fass neben dem leuchtenden Feld landet.
+   *
+   * **Nur Modelle aus dem Regal**, und aus demselben Grund wie dort: Der
+   * Beutel gibt Spielzeug her, das gar nicht einrastet, und ein Gitter unter
+   * einem Würfel verspräche etwas, das nicht passiert.
+   */
+  private updatePlaceGrid(ctx: WorldContext): void {
+    const grid = this.placeGrid;
+    if (!grid) return;
+    const entry = this.carriedModel();
+    if (!entry) {
+      grid.hide();
+      return;
+    }
+    entry.object.getWorldPosition(_point);
+    entry.object.getWorldQuaternion(_quaternion);
+    const pose = gridPose(_point.x, _point.z, _quaternion);
+    // **Die Grundfläche einer Vierteldrehung** ist die des Colliders, bei einer
+    // Viertel- oder Dreivierteldrehung mit vertauschten Achsen. Genommen wird
+    // die Hülle, die auch die Physik benutzt (`props.modelPropShape`) — ein
+    // zweites Mal messen hieße, zwei Größen für ein Fass zu haben.
+    const turned = Math.abs(Math.sin(pose.yaw)) > 0.5;
+    const half = entry.halfExtents;
+    const halfX = turned ? half.z : half.x;
+    const halfZ = turned ? half.x : half.z;
+    grid.show(
+      tilesCovered(pose.x - halfX, pose.x + halfX, pose.z - halfZ, pose.z + halfZ),
+      ctx.rig.getFloorY(),
+    );
+  }
+
+  /**
+   * **Was gerade getragen wird und beim Hinstellen einrastet** — oder `null`.
+   *
+   * Beide Hände und die Bildschirmhand laufen über dieselben `grabs`
+   * (`screenCarrySide`), also genügt ein Blick in diese eine Liste. Hält
+   * jemand zwei Möbel, gewinnt das erste: Ein Gitter kann nur eine Antwort
+   * geben, und zwei übereinander wären keine.
+   */
+  private carriedModel(): PhysicsBody | null {
+    for (const grab of this.grabs.values()) {
+      const kind = (grab.entry.object.userData as { propKind?: PropKind }).propKind ?? null;
+      if (modelPathOf(kind) !== null) return grab.entry;
+    }
+    return null;
+  }
+
+  /**
    * Ob diese Hand gerade **leer** ist: kein Werkzeug darin, kein Gegenstand.
    *
    * Für Welten, die dem Greifknopf eine zweite Bedeutung geben. Die
@@ -7878,9 +7962,21 @@ export class PortalWorld implements World {
       icon: 'folder',
       accent: KAYKIT_ACCENT,
       grid: true,
-      cols: 2,
+      cols: SHELF_COLS,
+      // **Der ganze Schirm.** Die Kachel eines Katalogs zeigt das Ding selbst,
+      // und dafür ist Platz das Einzige, was hilft (`ui/PageMenu.ts`, `full`).
+      full: true,
       take: true,
       onOpen: () => this.openShelf(),
+      // **Das Suchfeld gibt es nur auf der Seite** (`MenuEntry.find`): In der
+      // Brille will niemand tippen, und dort bleiben Schubladen, Ordner und
+      // Fächer der Weg. Gesucht wird über die ganze Sammlung und nicht nur
+      // über den Ordner, in dem man steht — wer `lantern` eintippt, will
+      // wissen, ob es überhaupt eine gibt.
+      find: (query) =>
+        kaykitSearchEntries(this.shelfFiles, query, (path, hand) =>
+          this.takeModel(ctx(), path, hand),
+        ),
       children: this.shelfEntries(ctx),
     };
   }
@@ -7939,6 +8035,7 @@ export class PortalWorld implements World {
     // `null` ist eine Antwort und keine Ausnahme: Dann steht im Menü, dass es
     // kein Regal gibt.
     this.shelf = index;
+    this.shelfFiles = index ? kaykitFiles(index) : [];
     // Den Baum neu bauen lassen — der Weg durchs Menü bleibt dabei stehen,
     // weil er an Ids hängt und nicht an Einträgen (`ui/menuNav.ts`).
     this.context?.refreshWorldMenu();
@@ -7958,7 +8055,28 @@ export class PortalWorld implements World {
    */
   private takeModel(ctx: WorldContext, path: string, hand: Handedness | null): void {
     ctx.menu.toggle(false);
+    // **Erst fragen, ob daraus hier ein Möbel wird** — und nur sonst ein Fass
+    // (`takeFurniture`).
+    if (this.takeFurniture(ctx, path)) return;
     void this.conjureModel(ctx, path, hand);
+  }
+
+  /**
+   * **Ob aus dieser Adresse hier ein funktionierendes Möbel wird** statt eines
+   * Gegenstands mit Hülle und Masse.
+   *
+   * Die Antwort dieser Welt ist `nein`, und das ist die richtige: Ein Portal-
+   * Labor hat keine Küche, in der eine Vorratskiste jemandem etwas ausgeben
+   * könnte. Die Testwelt antwortet anders, solange die Figur in ihrer Küche
+   * steht (`TestWorld`, `KitchenZone.takeShelfPiece`) — dort war es der
+   * gemeldete Wunsch: „die platzierten Elemente sollen dann auch
+   * funktionsfähig sein."
+   *
+   * Wer `true` sagt, hat das Möbel **schon** hergestellt; der Aufrufer tut
+   * dann nichts mehr.
+   */
+  protected takeFurniture(_ctx: WorldContext, _path: string): boolean {
+    return false;
   }
 
   /**

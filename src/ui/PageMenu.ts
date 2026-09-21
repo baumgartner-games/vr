@@ -1,5 +1,6 @@
 import { drawMenuIcon, type MenuEntry } from './menu';
 import { MenuNav } from './menuNav';
+import { clampColumns, fitColumns, readColumns, stepColumns, writeColumns } from './pageCols';
 import type { PagePreviewLayer } from './previewGrid';
 import './pageMenu.css';
 
@@ -48,11 +49,45 @@ interface Page {
   grid: boolean;
   /** Spalten im Raster, wenn die Seite eigene will (`MenuEntry.cols`). */
   cols?: number;
+  /** Diese Seite nimmt den ganzen Bildschirm (`MenuEntry.full`). */
+  full: boolean;
   /** Antippen **nimmt** die Zeile (Werkzeugregal); der Pfeil öffnet ihre Seite. */
   take: boolean;
+  /** Das Suchfeld dieser Seite (`MenuEntry.find`). */
+  find?: (query: string) => MenuEntry[];
   /** Id des Eintrags, zu dem die Seite gehört. */
   id: string;
 }
+
+/**
+ * **Wie viele Zeilen auf einmal ins DOM kommen** — und wie viele beim
+ * Scrollen dazu.
+ *
+ * Das Regal hatte dafür **Fächer**: Ein Ordner mit 1588 Modellen zerfiel in
+ * Seiten zu je sechzig, weil 1588 echte Knöpfe kein Menü mehr sind. In der
+ * Brille ist das die richtige Antwort und bleibt es (dort blättert ein Stick);
+ * am Schirm wurde sie als das gemeldet, was sie dort ist: ein Klick, der
+ * nichts erklärt. „Ich denke diese Gruppierung 1–60, 61–120 brauche ich
+ * nicht, dafür kann dann einfach Lazy Loading die Elemente nachgeladen
+ * werden beim Scrollen."
+ *
+ * Also stehen die Fächer am Schirm offen (`MenuEntry.flatten`), und die Liste
+ * wächst stattdessen: sechzig Kacheln beim Aufschlagen, sechzig mehr, sobald
+ * das Ende in Sicht kommt. Dieselbe Zahl wie die eines Fachs
+ * (`core/kaykitIndex.KAYKIT_CHUNK`) — was dort eine Seite füllte, füllt hier
+ * einen Schwung.
+ */
+const PAGE_WINDOW = 60;
+
+/**
+ * **Wie nah am Ende nachgeladen wird**, in Bildpunkten.
+ *
+ * Anderthalb Fensterhöhen wären zu viel Vorrat (dann lädt alles auf einmal),
+ * null Punkte wären zu spät (dann sieht man das Ende, bevor der Nachschub
+ * kommt). 600 Punkte sind gut eine Telefonhöhe: Was der Daumen in einem
+ * Schwung schafft, steht schon da.
+ */
+const GROW_EDGE = 600;
 
 export interface PageMenuOptions {
   title?: string;
@@ -82,6 +117,11 @@ export class PageMenu {
   private readonly stage: HTMLElement;
   private readonly list: HTMLElement;
   private readonly footEl: HTMLElement;
+  /** Die Leiste über der Liste: Suchfeld und die beiden Spaltenknöpfe. */
+  private readonly toolsEl: HTMLElement;
+  private readonly searchEl: HTMLInputElement;
+  private readonly colsEl: HTMLElement;
+  private readonly colsValue: HTMLElement;
 
   private readonly nav: MenuNav;
   private readonly offNav: () => void;
@@ -93,8 +133,23 @@ export class PageMenu {
   private open = false;
   /** Wie weit jede Seite geblättert war, in Bildpunkten, nach Id. */
   private readonly scrolls = new Map<string, number>();
-  /** Welche Seite gerade in der Liste steht — `''`, wenn sie neu gebaut werden muss. */
+  /**
+   * Welche Seite mit welcher Suche gerade in der Liste steht — `''`, wenn sie
+   * neu gebaut werden muss. Die Suche gehört mit hinein: Dieselbe Seite mit
+   * einem anderen Suchbegriff ist eine andere Liste und fängt oben an.
+   */
   private renderedPage = '';
+  /** Wie viele Einträge der offenen Seite gerade im DOM stehen (`PAGE_WINDOW`). */
+  private window = PAGE_WINDOW;
+  /** Was im Suchfeld steht — leer heißt „nicht gesucht". */
+  private query = '';
+  /** Die Treffer dazu, einmal gerechnet und nicht bei jedem Neuzeichnen. */
+  private results: MenuEntry[] | null = null;
+  /**
+   * Die gewählte Spaltenzahl, oder `null` — dann rechnet sie die Seite aus
+   * ihrer Breite (`ui/pageCols.ts`).
+   */
+  private cols: number | null = readColumns();
   /** Wer die kleinen Modelle zeichnet, wenn es jemanden gibt. */
   private previews: PagePreviewLayer | null = null;
   /** Ob die Brille auf ist — dann zeichnet das Handgelenk und nicht die Seite. */
@@ -121,6 +176,24 @@ export class PageMenu {
     const close = iconButton('pmenu__nav pmenu__close', 'Schließen', 'M6 6l12 12M18 6L6 18');
     head.append(this.backButton, this.titleEl, close);
 
+    // **Die Leiste über der Liste.** Sie steht im Kopf und nicht in der Liste,
+    // und das ist der ganze Grund, warum das Tippen im Suchfeld nicht abreißt:
+    // Ein Neuzeichnen tauscht die Kinder der Liste aus — ein Feld darin hätte
+    // bei jedem Buchstaben den Fokus verloren.
+    this.toolsEl = el('div', 'pmenu__tools');
+    this.searchEl = document.createElement('input');
+    this.searchEl.className = 'pmenu__search';
+    this.searchEl.type = 'search';
+    this.searchEl.placeholder = 'Suchen …';
+    this.searchEl.setAttribute('aria-label', 'Im Katalog suchen');
+    this.colsEl = el('div', 'pmenu__cols');
+    const fewer = iconButton('pmenu__step', 'Weniger Spalten', 'M6 12h12');
+    const more = iconButton('pmenu__step', 'Mehr Spalten', 'M12 6v12M6 12h12');
+    this.colsValue = el('span', 'pmenu__colsnum');
+    this.colsValue.title = 'Spalten';
+    this.colsEl.append(fewer, this.colsValue, more);
+    this.toolsEl.append(this.searchEl, this.colsEl);
+
     this.statusEl = el('p', 'pmenu__status');
     this.statusEl.setAttribute('aria-live', 'polite');
     this.list = el('div', 'pmenu__list');
@@ -132,7 +205,7 @@ export class PageMenu {
     this.stage.append(this.list);
     this.footEl = el('p', 'pmenu__foot');
 
-    this.sheet.append(head, this.statusEl, this.stage, this.footEl);
+    this.sheet.append(head, this.toolsEl, this.statusEl, this.stage, this.footEl);
     this.element.append(this.sheet);
     (options.host ?? document.body).append(this.element);
 
@@ -147,6 +220,15 @@ export class PageMenu {
       this.nav.pop();
     });
     this.list.addEventListener('click', (event) => this.onListClick(event));
+    this.searchEl.addEventListener('input', () => this.onSearch());
+    fewer.addEventListener('click', () => this.stepCols(-1));
+    more.addEventListener('click', () => this.stepCols(1));
+    // **Nachgeladen wird beim Scrollen** (`PAGE_WINDOW`). Das `scroll`-Ereignis
+    // ist dafür gut genug: Es kommt zwar aus dem Hauptstrang und damit zu spät
+    // für eine Leinwand (siehe `PagePreviews.ts`), aber nicht zu spät für
+    // sechzig Knöpfe, die 600 Punkte vor dem Ende bestellt werden.
+    this.stage.addEventListener('scroll', this.onScroll, { passive: true });
+    window.addEventListener('resize', this.onResize);
     window.addEventListener('keydown', this.onKeyDown);
 
     this.offNav = this.nav.onChange(() => this.applyNav());
@@ -226,6 +308,7 @@ export class PageMenu {
     this.open = next;
     this.element.hidden = !next;
     if (next) {
+      this.window = PAGE_WINDOW;
       this.render();
       this.previews?.setOpen(true);
       this.sheet.focus({ preventScroll: true });
@@ -249,6 +332,7 @@ export class PageMenu {
     this.previews?.dispose();
     this.previews = null;
     window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('resize', this.onResize);
     this.element.remove();
   }
 
@@ -260,8 +344,16 @@ export class PageMenu {
 
   /** Der Weg aus dem geteilten Merkzettel, als Stapel von Seiten. */
   private applyNav(): void {
+    const before = this.stack.length > 0 ? this.page.id : '';
     this.stack = [
-      { title: this.rootTitle, entries: this.root, grid: false, take: false, id: 'root' },
+      {
+        title: this.rootTitle,
+        entries: spread(this.root),
+        grid: false,
+        full: false,
+        take: false,
+        id: 'root',
+      },
     ];
     let level: MenuEntry[] = this.root;
     for (const id of this.nav.path) {
@@ -270,11 +362,32 @@ export class PageMenu {
       this.stack.push(pageOf(entry));
       level = entry.children;
     }
+    // **Eine andere Seite fängt ohne Suchbegriff an.** Ein Feld, das beim
+    // Hineingehen stehen bliebe, filterte die neue Seite nach dem, was jemand
+    // auf der alten gesucht hat — und niemand sähe, warum sie fast leer ist.
+    if (this.page.id !== before) this.clearSearch();
     if (this.open) this.render();
   }
 
+  /** Seite **und** Suchbegriff: Dieselbe Seite gefiltert ist eine andere Liste. */
+  private get pageKey(): string {
+    return `${this.page.id}|${this.query}`;
+  }
+
   private keepScroll(): void {
-    this.scrolls.set(this.page.id, this.stage.scrollTop);
+    this.scrolls.set(this.pageKey, this.stage.scrollTop);
+  }
+
+  /** Die Einträge, die gerade gelten — die der Seite, oder die der Suche. */
+  private get source(): MenuEntry[] {
+    return this.results ?? this.page.entries;
+  }
+
+  private clearSearch(): void {
+    this.query = '';
+    this.results = null;
+    this.window = PAGE_WINDOW;
+    if (this.searchEl.value !== '') this.searchEl.value = '';
   }
 
   /**
@@ -293,21 +406,32 @@ export class PageMenu {
     const page = this.page;
     this.titleEl.textContent = page.title;
     this.backButton.hidden = this.stack.length <= 1;
+    // **Der Katalog nimmt den ganzen Schirm** (`MenuEntry.full`) — und damit
+    // auch die Knöpfe darunter. Genau so war es gewünscht: „die Höhe des
+    // Katalogmenüs kann meinetwegen auch gerne die gesamte Höhe des
+    // Bildschirm einnehmen, sodass dann der Menü-Button verdeckt ist."
+    this.element.classList.toggle('pmenu--full', page.full);
     this.list.classList.toggle('pmenu__list--grid', page.grid);
+    const columns = page.full && page.grid ? this.columns() : (page.cols ?? 3);
     // Die Spaltenzahl steht als CSS-Variable am Raster und nicht als Klasse:
     // So kann eine Seite zwei Spalten wollen (das Asset-Regal), ohne dass für
     // jede denkbare Zahl eine Regel im Stylesheet steht.
-    this.list.style.setProperty('--pmenu-cols', String(page.cols ?? 3));
-    this.footEl.textContent = page.take
-      ? 'Antippen nimmt es in die Hand · der Pfeil öffnet die Einstellungen'
-      : '';
+    this.list.style.setProperty('--pmenu-cols', String(columns));
+    this.searchEl.hidden = !page.find;
+    this.colsEl.hidden = !(page.full && page.grid);
+    this.toolsEl.hidden = this.searchEl.hidden && this.colsEl.hidden;
+    this.colsValue.textContent = String(columns);
+    const source = this.source;
+    const shown = source.slice(0, this.window);
+    this.footEl.textContent = this.footLine(page, source.length, shown.length);
     const ready = this.hasModel;
-    const fresh = page.entries.map((entry, index) =>
+    const fresh = shown.map((entry, index) =>
       page.grid ? tile(entry, index, ready) : row(entry, index, page.take, ready),
     );
     const standing = [...this.list.children] as HTMLElement[];
+    const key = this.pageKey;
     const sameRows =
-      this.renderedPage === page.id &&
+      this.renderedPage === key &&
       standing.length === fresh.length &&
       standing.every((node, index) => node.dataset['key'] === fresh[index]!.dataset['key']);
     if (sameRows) {
@@ -316,13 +440,99 @@ export class PageMenu {
         if (node.outerHTML !== next.outerHTML) node.replaceWith(next);
       });
     } else {
+      // **Nur eine andere Liste fängt oben an.** Ein Nachschub beim Scrollen
+      // hängt sechzig Kacheln unten an, und die Blätterstellung dabei
+      // zurückzusetzen hieße, dem Daumen die Liste unter dem Finger
+      // wegzuziehen.
+      const turned = this.renderedPage !== key;
       this.list.replaceChildren(...fresh);
-      this.stage.scrollTop = this.scrolls.get(page.id) ?? 0;
+      if (turned) this.stage.scrollTop = this.scrolls.get(key) ?? 0;
     }
-    this.renderedPage = page.id;
+    this.renderedPage = key;
     // Zum Schluss, und immer: Welche Quadrate jetzt dastehen, weiß nur, wer
     // gerade neu gezeichnet hat.
-    this.previews?.observe(page.id, [...this.list.querySelectorAll<HTMLElement>('[data-preview]')]);
+    this.previews?.observe(key, [...this.list.querySelectorAll<HTMLElement>('[data-preview]')]);
+    this.fill();
+  }
+
+  /**
+   * **Was unter der Liste steht** — der Hinweis zum Nehmen, und wie viel von
+   * ihr schon dasteht.
+   *
+   * Ohne die Zahl sähe ein Ordner mit 1588 Modellen aus wie einer mit sechzig:
+   * Die Liste wächst erst beim Scrollen, und was man nicht sieht, ist für
+   * einen Leser nicht da.
+   */
+  private footLine(page: Page, total: number, shown: number): string {
+    const parts: string[] = [];
+    if (page.take) parts.push('Antippen nimmt es in die Hand · der Pfeil öffnet die Einstellungen');
+    if (this.query && total === 0) parts.push('Nichts gefunden');
+    else if (shown < total) parts.push(`${shown} von ${total}`);
+    else if (this.query) parts.push(total === 1 ? '1 Treffer' : `${total} Treffer`);
+    return parts.join(' · ');
+  }
+
+  /** Die Spalten dieser Seite: die gewählte, oder die, die ins Fenster passen. */
+  private columns(): number {
+    if (this.cols !== null) return clampColumns(this.cols);
+    const width = this.stage.clientWidth || window.innerWidth || 0;
+    return fitColumns(width);
+  }
+
+  /**
+   * **Steht nach dem Zeichnen noch Platz frei, kommt mehr dazu.**
+   *
+   * Nötig, weil das `scroll`-Ereignis nie kommt, wenn gar nicht gescrollt
+   * werden kann: Auf einem breiten Schirm mit acht Spalten füllen sechzig
+   * Kacheln keine Seite, und ohne diese Zeile stünde das Regal nach dem
+   * Aufschlagen mit acht Zeilen da und rührte sich nicht mehr.
+   *
+   * **Ohne gemessene Höhe passiert nichts.** In jsdom ist jede Höhe null —
+   * dort wäre „es ist noch Platz" immer wahr, und die Schleife liefe bis zum
+   * letzten der 1588 Einträge.
+   */
+  private fill(): void {
+    if (!this.open) return;
+    const box = this.stage.clientHeight;
+    if (box <= 0) return;
+    if (this.stage.scrollHeight > box) return;
+    if (this.window >= this.source.length) return;
+    this.window += PAGE_WINDOW;
+    this.render();
+  }
+
+  /** Beim Scrollen: Kommt das Ende in Sicht, wird nachgelegt. */
+  private readonly onScroll = (): void => {
+    if (!this.open) return;
+    const rest = this.stage.scrollHeight - this.stage.scrollTop - this.stage.clientHeight;
+    if (rest > GROW_EDGE) return;
+    if (this.window >= this.source.length) return;
+    this.window += PAGE_WINDOW;
+    this.render();
+  };
+
+  /** Ein anderes Fenster heißt andere Spalten — solange niemand sie gewählt hat. */
+  private readonly onResize = (): void => {
+    if (this.open && this.cols === null) this.render();
+  };
+
+  private onSearch(): void {
+    const query = this.searchEl.value.trim();
+    if (query === this.query) return;
+    this.keepScroll();
+    this.query = query;
+    const find = this.page.find;
+    this.results = query && find ? find(query) : null;
+    this.window = PAGE_WINDOW;
+    this.render();
+  }
+
+  private stepCols(by: number): void {
+    const next = stepColumns(this.columns(), by);
+    if (next === this.cols) return;
+    this.cols = next;
+    writeColumns(next);
+    this.render();
   }
 
   /** Ob zu dieser Vorschau-Id schon ein Modell steht — dann bleibt die Ikone weg. */
@@ -341,7 +551,12 @@ export class PageMenu {
     const hit = more ?? target.closest<HTMLElement>('[data-index]');
     if (!hit || !this.list.contains(hit)) return;
     const index = Number(more ? more.dataset['more'] : hit.dataset['index']);
-    const entry = this.page.entries[index];
+    // **Die Liste, die dasteht** — und das ist bei laufender Suche nicht die
+    // der Seite (`source`). Hier stand `page.entries`, und dann traf ein Druck
+    // auf den ersten Treffer den ersten Eintrag der **ungefilterten** Seite:
+    // Wer im Regal `crate buns` suchte und zugriff, bekam die erste Figur der
+    // Sammlung. Der Index gehört dem, was gezeichnet wurde.
+    const entry = this.source[index];
     if (!entry) return;
     // Der Pfeil einer Nimm-Zeile geht in ihre Einstellungen; die Zeile selbst
     // nimmt. Überall sonst öffnet die Zeile ihre Seite, wenn sie eine hat.
@@ -371,12 +586,33 @@ function pageOf(entry: MenuEntry): Page {
   const grid = entry.grid ?? false;
   return {
     title: entry.label,
-    entries: entry.children ?? [],
+    entries: spread(entry.children ?? []),
     grid,
     ...(entry.cols === undefined ? {} : { cols: entry.cols }),
+    full: entry.full ?? false,
+    ...(entry.find ? { find: entry.find.bind(entry) } : {}),
     take: entry.take ?? grid,
     id: entry.id,
   };
+}
+
+/**
+ * **Die Fächer des Regals stehen am Schirm offen** (`MenuEntry.flatten`).
+ *
+ * Ein Eintrag, der nur eine Zwischenseite ist — „1–60", „61–120" —, gibt hier
+ * seine Kinder an seiner Stelle ab. In der Brille bleibt er, was er ist; dort
+ * blättert ein Stick, und vierhundert Seiten blättert niemand. Die **Ids
+ * bleiben dabei die der Modelle**, also merkt sich der Weg durchs Menü
+ * (`menuNav.ts`) weiter dasselbe, und die Vorschau muss nichts übersetzen.
+ */
+function spread(entries: readonly MenuEntry[]): MenuEntry[] {
+  if (!entries.some((entry) => entry.flatten && entry.children)) return [...entries];
+  const out: MenuEntry[] = [];
+  for (const entry of entries) {
+    if (entry.flatten && entry.children) out.push(...entry.children);
+    else out.push(entry);
+  }
+  return out;
 }
 
 function row(

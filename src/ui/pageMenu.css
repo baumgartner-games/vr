@@ -77,6 +77,68 @@
 .pmenu__chevron svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pmenu__back[hidden] { display: none; }
 
+/* Die Leiste über der Liste: das Suchfeld des Katalogs und die beiden Knöpfe
+   für die Spaltenzahl. Sie steht **im Kopf** und nicht in der scrollenden
+   Liste — ein Suchfeld, das mitscrollt, ist beim dritten Buchstaben weg, und
+   ein Feld, das bei jedem Neuzeichnen neu gebaut würde, verlöre den Fokus. */
+.pmenu__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 0;
+}
+
+.pmenu__tools[hidden] { display: none; }
+
+.pmenu__search {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg);
+  background: rgba(140, 170, 230, 0.1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+}
+
+.pmenu__search[hidden] { display: none; }
+.pmenu__search::placeholder { color: var(--muted); }
+.pmenu__search:focus { border-color: var(--accent, #4aa8ff); }
+
+/* Weniger und mehr Spalten. Die Zahl dazwischen ist keine Anzeige nebenbei:
+   Sie ist das Einzige, woran man sieht, dass man gerade acht eingestellt hat
+   und nicht sieben. */
+.pmenu__cols { display: flex; align-items: center; gap: 2px; flex: none; }
+.pmenu__cols[hidden] { display: none; }
+
+.pmenu__step {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--fg);
+  background: rgba(140, 170, 230, 0.12);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.pmenu__step:hover { background: rgba(140, 170, 230, 0.24); }
+.pmenu__step svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.pmenu__colsnum {
+  min-width: 22px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
 .pmenu__status {
   margin: 0;
   padding: 8px 14px 0;
@@ -276,4 +338,36 @@
     border-radius: 16px;
     box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
   }
+
+  /* **Der Katalog nimmt alles** (`MenuEntry.full`). Am Telefon tut er das
+     ohnehin — so breit wie der Schirm, von unten aufgezogen —, und genau das
+     war der Wunsch für den Schreibtisch: „Ich hätte nichts dagegen, wenn
+     dieser den gesamten Screen breit ist, wie es beim Handy bereits ist."
+     Dazu die Höhe: Der Kasten fängt oben an und hört unten auf, und damit
+     liegt er über dem Menüknopf und über Welt, Verbindung, Vollbild und VR
+     (die stehen auf z-index 5, dieses Blatt auf 20). Ein Katalog, in dem in
+     jeder Kachel ein Modell steht, hat für Platz die beste Verwendung. */
+  .pmenu.pmenu--full {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0;
+    background: rgba(2, 4, 10, 0.55);
+  }
+
+  .pmenu--full .pmenu__sheet {
+    width: 100%;
+    max-height: 100%;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+/* Und am Telefon nimmt er die Höhe dazu: Das Blatt geht sonst bis 85 % —
+   Platz für einen Blick auf die Welt darunter —, und im Katalog ist dieser
+   Streifen genau eine Kachelreihe weniger. */
+.pmenu--full .pmenu__sheet {
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
 }

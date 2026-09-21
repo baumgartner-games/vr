@@ -9,6 +9,7 @@ import {
   kitchenPieceScale,
   type KitchenPiece,
 } from '../../../core/kitchenFit';
+import { kitchenPieceForModel } from '../../../core/kitchenShelf';
 import { canLoadModels, CHEF_CARRY } from '../../../core/chefFit';
 import { USE_REACH, type UseSource } from '../../../core/usable';
 import { holdFor, nearestHandle, type GrabHandle, type GrabPose } from '../../../core/grabHandles';
@@ -2201,6 +2202,7 @@ export class KitchenZone implements TestZone {
     const burning: KitchenSpotAt[] = [];
     const rinsing: KitchenSpotAt[] = [];
     const chopping: KitchenSpotAt[] = [];
+    const fixing: KitchenSpotAt[] = [];
     for (const spot of this.stations) {
       // Ein Möbel in den Händen arbeitet nicht (`cook`) — und klingt auch nicht.
       if (spot.home.held) continue;
@@ -2218,6 +2220,14 @@ export class KitchenZone implements TestZone {
       // Spüle nichts an.
       if (spot.leak.leaking) {
         rinsing.push(at);
+        // **Und die Zange ratscht dazu**, solange jemand daran arbeitet
+        // (`kitchenLeak.LeakState.fixing`). Das war der gemeldete Wunsch:
+        // „beim Reparieren des Waschbecken bitte noch ein
+        // Schraubenschlüssel-Ratsch-Geräusch abspielen (erkennbar, dass es
+        // repariert wird)." Sie klingt **am Becken** und nicht in der Hand:
+        // Repariert wird, wo das Wasser ist, und wer danebensteht, hört es
+        // von derselben Seite wie das Rauschen.
+        if (spot.leak.fixing) fixing.push(at);
         continue;
       }
       if (!spot.work.working) continue;
@@ -2233,6 +2243,7 @@ export class KitchenZone implements TestZone {
     this.sound.loop('sizzle', kitchenNearest(ear, sizzling, reachOf('sizzle')));
     this.sound.loop('fire', kitchenNearest(ear, burning, reachOf('fire')));
     this.sound.loop('rinse', kitchenNearest(ear, rinsing, reachOf('rinse')));
+    this.sound.loop('ratchet', kitchenNearest(ear, fixing, reachOf('ratchet')));
 
     // **Das Messer ist kein Dauerton, sondern ein Takt** — und er läuft nur,
     // solange irgendwo geschnitten wird. Hört das auf, fällt die Uhr auf null
@@ -5441,6 +5452,44 @@ export class KitchenZone implements TestZone {
       (-(box.min.z + box.max.z) / 2) * MINI_SIZE,
     );
     holder.add(model);
+  }
+
+  /**
+   * **Ein Möbel aus dem KayKit-Regal** — dasselbe Netz, aber diesmal mit
+   * seiner Regel.
+   *
+   * Die Möbel dieser Küche stehen auf Netzen aus `restaurant-bits`
+   * (`core/kitchenFit.KitchenPiece.base`), und genau dieselben Dateien liegen
+   * einzeln im Regal. Wer dort die Brötchenkiste nahm, bekam deshalb ein Bild
+   * der Brötchenkiste: eine Hülle, eine Masse, und nichts darin. Gemeldet
+   * wurde es so: „die platzierten Elemente sollen dann auch funktionsfähig
+   * sein wenn ich z. B. Crate Vorratskiste mit Brötchen hinstelle oder Herd,
+   * Waschbecken etc."
+   *
+   * Also greift die Küche zu, wenn die Adresse eines ihrer Möbel meint
+   * (`core/kitchenShelf.ts`) — und dann entsteht nicht das Fass, sondern
+   * genau das Stück, das auch im Konstrukt-Raum im Regal stünde, mitsamt
+   * Station, Ablage und Uhr (`takeFromCatalogue`).
+   *
+   * **Nur, wer in der Küche steht.** Eine Vorratskiste auf der Wiese hätte
+   * niemanden, dem sie etwas ausgeben könnte, und sie käme obendrein sofort
+   * auf eine freie Kachel **der Küche** zurück (`freeTile`), sobald jemand
+   * `B` drückt — ein Möbel, das man hundert Meter weiter aufhebt und das
+   * dann hier landet, wäre ein Fehler, den niemand erklären kann. Draußen
+   * bleibt es deshalb ein Fass, und das ist die alte, gute Antwort.
+   *
+   * @returns ob die Küche es übernommen hat; sonst macht das Regal weiter
+   *          wie bisher (`PortalWorld.takeFurniture`)
+   */
+  takeShelfPiece(path: string): boolean {
+    const name = kitchenPieceForModel(path);
+    if (name === null || !this.world) return false;
+    // **Ohne Rand**: `inKitchen` lässt sonst eine Handbreit Wiese mitgelten
+    // (`KITCHEN_EYE_MARGIN`), und dort steht kein Möbel mehr.
+    if (!inKitchen(_feet.x, _feet.z, 0)) return false;
+    const piece = kitchenPiece(name);
+    if (!piece) return false;
+    return this.takeFromCatalogue(piece);
   }
 
   /**

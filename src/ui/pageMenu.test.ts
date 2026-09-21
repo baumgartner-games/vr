@@ -344,11 +344,13 @@ describe('Die Kachel mit dem Modell darin', () => {
     menu.setRoot(shelf());
     menu.toggle(true);
     // Die Wurzel hat keine Vorschau — gemeldet wird trotzdem, sonst gäbe eine
-    // verlassene Seite ihre Modelle nie her.
-    expect(layer.seen.at(-1)).toEqual({ page: 'root', ids: [] });
+    // verlassene Seite ihre Modelle nie her. Gemeldet wird dabei Seite **und**
+    // Suchbegriff: Dieselbe Seite gefiltert zeigt andere Kacheln, und was
+    // dabei herausfällt, soll sein Modell hergeben.
+    expect(layer.seen.at(-1)).toEqual({ page: 'root|', ids: [] });
     menu.openSubmenu('assets');
     expect(layer.seen.at(-1)).toEqual({
-      page: 'assets',
+      page: 'assets|',
       ids: ['kaykit:barrel.glb', 'kaykit:crate.glb'],
     });
     menu.dispose();
@@ -391,5 +393,227 @@ describe('Die Farbe eines Eintrags', () => {
     expect(cssColor(0x4aa8ff)).toBe('#4aa8ff');
     expect(cssColor(0x0000ff)).toBe('#0000ff');
     expect(cssColor(undefined)).toBe('#4aa8ff');
+  });
+});
+
+/**
+ * **Der Katalog** — das, was die Seite gegenüber dem Handgelenk zusätzlich
+ * kann: suchen, Spalten zählen, den ganzen Schirm nehmen und beim Scrollen
+ * nachladen.
+ *
+ * Geprüft wird das DOM und nicht das Bild: In jsdom hat nichts eine Höhe, also
+ * kann hier weder ein Raster gemessen noch ein Scrollen nachgestellt werden.
+ * Was bleibt, ist genau das, woran es hängt — welche Kacheln dastehen, was im
+ * Kopf sichtbar ist, und welche Zahl am Raster klebt.
+ */
+function catalogue(taken: string[]): MenuEntry[] {
+  const files = Array.from({ length: 140 }, (_, i) => ({
+    id: `kaykit:tile_${i}.glb`,
+    label: `Tile ${i}`,
+    run: () => taken.push(`tile_${i}`),
+  }));
+  return [
+    {
+      id: 'assets',
+      label: 'Regal',
+      grid: true,
+      cols: 2,
+      full: true,
+      take: true,
+      find: (query) =>
+        files.filter((file) => file.label.toLowerCase().includes(query.toLowerCase())),
+      children: [
+        // Zwei Fächer, wie sie `core/kaykitIndex.ts` baut — und beide
+        // übersprungen, weil die Seite scrollt statt zu blättern.
+        {
+          id: 'kaykit:#0',
+          label: '1–60',
+          grid: true,
+          flatten: true,
+          children: files.slice(0, 60),
+        },
+        {
+          id: 'kaykit:#60',
+          label: '61–140',
+          grid: true,
+          flatten: true,
+          children: files.slice(60),
+        },
+      ],
+    },
+  ];
+}
+
+describe('Der Katalog auf der Seite', () => {
+  let host: HTMLElement;
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    document.body.append(host);
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    host.remove();
+  });
+
+  it('überspringt die Fächer und zeigt die Modelle selbst', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.openSubmenu('assets');
+    // Kein „1–60" mehr: Die erste Kachel ist das erste Modell.
+    expect(rows(menu)[0]).toBe('kaykit:tile_0.glb');
+    expect(rows(menu)).not.toContain('kaykit:#0');
+    menu.dispose();
+  });
+
+  it('zeichnet erst einen Schwung und sagt, wie viele es sind', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.openSubmenu('assets');
+    expect(rows(menu)).toHaveLength(60);
+    expect(menu.element.querySelector('.pmenu__foot')!.textContent).toContain('60 von 140');
+    menu.dispose();
+  });
+
+  it('nimmt eine nachgeladene Kachel wie jede andere', () => {
+    const taken: string[] = [];
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue(taken));
+    menu.openSubmenu('assets');
+    click(menu, 'kaykit:tile_3.glb');
+    expect(taken).toEqual(['tile_3']);
+    menu.dispose();
+  });
+
+  it('nimmt den ganzen Schirm, und nur auf dieser Seite', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.toggle(true);
+    expect(menu.element.classList.contains('pmenu--full')).toBe(false);
+    menu.openSubmenu('assets');
+    expect(menu.element.classList.contains('pmenu--full')).toBe(true);
+    menu.dispose();
+  });
+
+  it('filtert, was im Suchfeld steht', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.openSubmenu('assets');
+    const search = menu.element.querySelector<HTMLInputElement>('.pmenu__search')!;
+    expect(search.hidden).toBe(false);
+    search.value = 'tile 13';
+    search.dispatchEvent(new Event('input'));
+    expect(rows(menu)).toEqual([
+      'kaykit:tile_13.glb',
+      'kaykit:tile_130.glb',
+      'kaykit:tile_131.glb',
+      'kaykit:tile_132.glb',
+      'kaykit:tile_133.glb',
+      'kaykit:tile_134.glb',
+      'kaykit:tile_135.glb',
+      'kaykit:tile_136.glb',
+      'kaykit:tile_137.glb',
+      'kaykit:tile_138.glb',
+      'kaykit:tile_139.glb',
+    ]);
+    expect(menu.element.querySelector('.pmenu__foot')!.textContent).toContain('11 Treffer');
+    menu.dispose();
+  });
+
+  /**
+   * **Ein Treffer nimmt den Treffer** — und nicht die Zeile, die ohne Suche an
+   * derselben Stelle stünde.
+   *
+   * Genau das ging schief: Der Druck las seinen Index in der Liste der
+   * **Seite** statt in der, die dasteht. Wer im Regal `crate buns` suchte und
+   * zugriff, stieg damit in die erste Kategorie ab.
+   */
+  it('nimmt den Treffer und nicht die Zeile darunter', () => {
+    const taken: string[] = [];
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue(taken));
+    menu.openSubmenu('assets');
+    const search = menu.element.querySelector<HTMLInputElement>('.pmenu__search')!;
+    search.value = 'tile 77';
+    search.dispatchEvent(new Event('input'));
+    expect(rows(menu)).toEqual(['kaykit:tile_77.glb']);
+    click(menu, 'kaykit:tile_77.glb');
+    expect(taken).toEqual(['tile_77']);
+    menu.dispose();
+  });
+
+  it('sagt es, wenn nichts gefunden wird', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.openSubmenu('assets');
+    const search = menu.element.querySelector<HTMLInputElement>('.pmenu__search')!;
+    search.value = 'Amboss';
+    search.dispatchEvent(new Event('input'));
+    expect(rows(menu)).toEqual([]);
+    expect(menu.element.querySelector('.pmenu__foot')!.textContent).toContain('Nichts gefunden');
+    menu.dispose();
+  });
+
+  it('räumt das Suchfeld, wenn eine andere Seite aufgeschlagen wird', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.openSubmenu('assets');
+    const search = menu.element.querySelector<HTMLInputElement>('.pmenu__search')!;
+    search.value = 'tile 13';
+    search.dispatchEvent(new Event('input'));
+    expect(rows(menu)).toHaveLength(11);
+    menu.element.querySelector<HTMLElement>('.pmenu__back')!.click();
+    expect(search.value).toBe('');
+    menu.openSubmenu('assets');
+    expect(rows(menu)).toHaveLength(60);
+    menu.dispose();
+  });
+
+  it('zeigt das Suchfeld nur, wo es eines gibt', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.toggle(true);
+    expect(menu.element.querySelector<HTMLInputElement>('.pmenu__search')!.hidden).toBe(true);
+    menu.dispose();
+  });
+
+  it('zählt die Spalten hoch und herunter und merkt sie sich', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.openSubmenu('assets');
+    const list = menu.element.querySelector<HTMLElement>('.pmenu__list')!;
+    const steps = menu.element.querySelectorAll<HTMLElement>('.pmenu__step');
+    const before = Number(list.style.getPropertyValue('--pmenu-cols'));
+    steps[1]!.click();
+    expect(Number(list.style.getPropertyValue('--pmenu-cols'))).toBe(before + 1);
+    expect(menu.element.querySelector('.pmenu__colsnum')!.textContent).toBe(String(before + 1));
+    steps[0]!.click();
+    expect(Number(list.style.getPropertyValue('--pmenu-cols'))).toBe(before);
+    menu.dispose();
+
+    // **Und der nächste Besuch fängt dort an**, wo man aufgehört hat: Die Zahl
+    // steht im Speicher des Browsers (`ui/pageCols.ts`). Sie ist hier `before`
+    // und trotzdem eine Entscheidung — das Feld steht jetzt im Speicher, und
+    // ein anders breites Fenster ändert daran nichts mehr.
+    expect(window.localStorage.getItem('bgvr.cols')).toBe(String(before));
+    const again = new PageMenu({ host });
+    again.setRoot(catalogue([]));
+    again.openSubmenu('assets');
+    const kept = again.element.querySelector<HTMLElement>('.pmenu__list')!;
+    expect(Number(kept.style.getPropertyValue('--pmenu-cols'))).toBe(before);
+    again.element.querySelectorAll<HTMLElement>('.pmenu__step')[1]!.click();
+    expect(Number(kept.style.getPropertyValue('--pmenu-cols'))).toBe(before + 1);
+    again.dispose();
+  });
+
+  it('lässt die Spaltenknöpfe weg, wo sie nichts zu sagen haben', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.toggle(true);
+    expect(menu.element.querySelector<HTMLElement>('.pmenu__cols')!.hidden).toBe(true);
+    menu.openSubmenu('assets');
+    expect(menu.element.querySelector<HTMLElement>('.pmenu__cols')!.hidden).toBe(false);
+    menu.dispose();
   });
 });

@@ -1,5 +1,5 @@
 import type { Handedness } from './XRInput';
-import type { MenuEntry } from '../ui/menu';
+import type { MenuEntry, MenuIcon } from '../ui/menu';
 
 /**
  * **Das Regal als Baum** — was in `public/models/kaykit/` liegt, und was im
@@ -137,7 +137,451 @@ export function kaykitPathOf(id: string): string | null {
 }
 
 /**
- * **Der Baum als Menü** — Ordner zuerst, dann die Modelle.
+ * **Wie viele Spalten das Regal am Handgelenk nimmt.**
+ *
+ * Zwei, und in der Brille bleibt es dabei: Dort steht in der Kachel das Modell,
+ * und bei drei Spalten sehen zwei ähnliche Fässer gleich aus. **Am Schirm ist
+ * diese Zahl nur noch die Vorgabe** — dort stellt sie die Seite selbst ein,
+ * nach Fensterbreite und nach dem, was der Spieler an den beiden Knöpfen
+ * gewählt hat (`ui/pageCols.ts`). Ein Bildschirm von 1600 Punkten mit zwei
+ * Spalten war der gemeldete Befund: „Auf Desktop sind 2 Columns sehr klein."
+ */
+export const SHELF_COLS = 2;
+
+/**
+ * **Eine Datei des Regals, flach** — Adresse, Name, Beschriftung.
+ *
+ * Der Baum ist zum Blättern da; **gesucht** wird in einer Liste. Sie wird
+ * einmal aus dem Index gerechnet (`kaykitFiles`) und danach von der Suche und
+ * von den Kategorien gelesen, beide ohne den Baum noch einmal abzulaufen.
+ */
+export interface KaykitFileRef {
+  /** Die Adresse ohne `models/kaykit/` davor — dieselbe wie im Menü. */
+  readonly path: string;
+  /** Der Dateiname mit Endung. */
+  readonly name: string;
+  /** Was im Raster darunter steht (`humanLabel`). */
+  readonly label: string;
+  readonly bytes?: number;
+}
+
+/**
+ * **Alle Dateien des Regals als eine Liste**, in der Reihenfolge, in der sie
+ * im Baum stehen.
+ *
+ * Viertausendfünfhundert Einträge aus Zeichenketten — das ist knapp ein halbes
+ * Megabyte im Speicher und kein einziges Modell. Gerechnet wird sie einmal je
+ * Index (der Aufrufer merkt sie sich, `PortalWorld.shelfFiles`), denn der
+ * Menübaum wird bei jeder Änderung neu gebaut und die Liste ändert sich dabei
+ * nie.
+ */
+export function kaykitFiles(index: KaykitIndex): KaykitFileRef[] {
+  const out: KaykitFileRef[] = [];
+  collect(index.root, [], out);
+  return out;
+}
+
+function collect(dir: KaykitDir, trail: readonly string[], out: KaykitFileRef[]): void {
+  const dirs = [...(dir.dirs ?? [])].sort((a, b) => byName(labelOf(a), labelOf(b)));
+  const files = [...(dir.files ?? [])].sort((a, b) => byName(a.name, b.name));
+  for (const file of files) {
+    out.push({
+      path: kaykitPath(trail, file.name),
+      name: file.name,
+      label: humanLabel(file.name),
+      ...(file.bytes === undefined ? {} : { bytes: file.bytes }),
+    });
+  }
+  for (const child of dirs) collect(child, [...trail, child.name], out);
+}
+
+/**
+ * **Eine Schublade des Regals** — Figuren, Möbel, Natur, und sieben weitere.
+ *
+ * Der Ordnerbaum ist die Adresse und bleibt es; als **Sortiment** taugt er
+ * nicht. Wer ein Bett sucht, weiß nicht, dass es in `furniture-bits` liegt,
+ * und wer eine Figur sucht, findet sie in sieben Paketen verteilt. Genau das
+ * war der Auftrag: „Ich denke auch Kategorien wären sinnvoll für die einzelnen
+ * Elemente wie z. B. Charaktere, Möbel, Items, etc."
+ *
+ * **Entschieden wird an Paket und Dateinamen**, nicht an einer Liste mit
+ * viertausendfünfhundert Zeilen — die pflegt niemand. Ein Paket, das ganz
+ * einer Kategorie gehört (`packs`), entscheidet allein; sonst zählt ein Wort
+ * im Dateinamen (`words`). Die **Reihenfolge ist die Regel**: Die erste
+ * Kategorie, auf die eine Datei passt, bekommt sie — `crate_buns.glb` ist
+ * damit Essen und nicht Kiste, weil Essen vorher steht.
+ *
+ * Die letzte Kategorie fängt alles übrige auf und hat deshalb weder `packs`
+ * noch `words`. Ohne sie fiele ein Modell aus dem Regal, nur weil niemand ein
+ * Wort dafür aufgeschrieben hat.
+ */
+export interface KaykitCategory {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: MenuIcon;
+  /** Pakete, die ganz hierher gehören — der erste Teil der Adresse. */
+  readonly packs?: readonly string[];
+  /** Ordner unterhalb eines Pakets, die ganz hierher gehören (`<paket>/<ordner>`). */
+  readonly dirs?: readonly string[];
+  /** Wörter im Dateinamen; ein Treffer genügt. */
+  readonly words?: readonly string[];
+}
+
+export const KAYKIT_CATEGORIES: readonly KaykitCategory[] = [
+  {
+    id: 'figures',
+    label: 'Figuren',
+    icon: 'npc',
+    // Dieselben sieben Pakete, die auch einen eigenen Maßstab bekommen
+    // (`core/kaykitFit.KAYKIT_PACK_SCALE`) — dort stehen sie, weil Figuren
+    // anders gebaut sind als Requisiten, und hier aus demselben Grund.
+    packs: [
+      'adventurers',
+      'character-animations',
+      'mystery-monthly-4',
+      'mystery-monthly-5',
+      'mystery-monthly-6',
+      'skeletons',
+    ],
+    dirs: ['medieval-hexagon/units', 'prototype-bits/character'],
+    words: ['character', 'knight', 'skeleton', 'mannequin', 'zombie', 'ghost', 'npc'],
+  },
+  {
+    id: 'food',
+    label: 'Essen & Trinken',
+    icon: 'bottle',
+    words: [
+      'food',
+      'bun',
+      'buns',
+      'burger',
+      'bread',
+      'cheese',
+      'tomato',
+      'tomatoes',
+      'lettuce',
+      'steak',
+      'ham',
+      'dough',
+      'pepperoni',
+      'mushroom',
+      'mushrooms',
+      'onion',
+      'onions',
+      'carrot',
+      'carrots',
+      'potato',
+      'potatoes',
+      'pizza',
+      'cake',
+      'candy',
+      'candycane',
+      'apple',
+      'pumpkin',
+      'bottle',
+      'mug',
+      'cup',
+      'plate',
+      'bowl',
+      'pan',
+      'pot',
+      'drink',
+      'coffee',
+      'soda',
+      'icecream',
+      'donut',
+      'cookie',
+    ],
+  },
+  {
+    id: 'furniture',
+    label: 'Möbel',
+    icon: 'plank',
+    packs: ['furniture-bits'],
+    words: [
+      'chair',
+      'table',
+      'bed',
+      'cabinet',
+      'shelf',
+      'bookcase',
+      'sofa',
+      'couch',
+      'bench',
+      'stool',
+      'desk',
+      'drawer',
+      'wardrobe',
+      'counter',
+      'stove',
+      'oven',
+      'sink',
+      'fridge',
+      'refrigerator',
+      'lamp',
+      'lantern',
+      'mirror',
+      'carpet',
+      'rug',
+      'curtain',
+      'toilet',
+      'bathtub',
+    ],
+  },
+  {
+    id: 'nature',
+    label: 'Natur',
+    icon: 'cone',
+    packs: ['forest-nature'],
+    words: [
+      'tree',
+      'bush',
+      'grass',
+      'plant',
+      'flower',
+      'rock',
+      'stone',
+      'log',
+      'stump',
+      'leaf',
+      'leaves',
+      'cactus',
+      'water',
+      'cliff',
+      'hill',
+      'mountain',
+    ],
+  },
+  {
+    id: 'building',
+    label: 'Gebäude & Bauteile',
+    icon: 'cube',
+    packs: ['city-builder-bits'],
+    dirs: ['medieval-hexagon/buildings', 'medieval-hexagon/tiles'],
+    words: [
+      'building',
+      'house',
+      'home',
+      'wall',
+      'walls',
+      'floor',
+      'roof',
+      'door',
+      'doorway',
+      'window',
+      'stairs',
+      'stair',
+      'pillar',
+      'column',
+      'arch',
+      'fence',
+      'gate',
+      'tile',
+      'bridge',
+      'tower',
+      'castle',
+      'church',
+      'road',
+      'path',
+      'basemodule',
+      'platform',
+    ],
+  },
+  {
+    id: 'weapons',
+    label: 'Waffen',
+    icon: 'gun',
+    packs: ['fantasy-weapons-bits'],
+    words: [
+      'sword',
+      'axe',
+      'bow',
+      'arrow',
+      'dagger',
+      'spear',
+      'shield',
+      'staff',
+      'crossbow',
+      'mace',
+      'gun',
+      'pistol',
+      'rifle',
+      'bomb',
+      'bullet',
+      'ammo',
+      'quiver',
+      'fistweapon',
+    ],
+  },
+  {
+    id: 'tools',
+    label: 'Werkzeug',
+    icon: 'wrench',
+    packs: ['rpg-tools-bits'],
+    words: [
+      'wrench',
+      'anvil',
+      'chisel',
+      'hammer',
+      'saw',
+      'shovel',
+      'pickaxe',
+      'bucket',
+      'fishing',
+      'grindstone',
+      'tongs',
+      'ladder',
+      'rope',
+      'torch',
+      'blueprint',
+      'toolbox',
+    ],
+  },
+  {
+    id: 'containers',
+    label: 'Kisten & Fässer',
+    icon: 'cylinder',
+    words: [
+      'crate',
+      'barrel',
+      'box',
+      'chest',
+      'container',
+      'containers',
+      'sack',
+      'bag',
+      'basket',
+      'cargo',
+      'pile',
+      'bucket',
+      'lid',
+      'pallet',
+    ],
+  },
+  {
+    id: 'games',
+    label: 'Spiel & Freizeit',
+    icon: 'd6',
+    packs: ['board-game-bits', 'platformer'],
+    words: ['dice', 'card', 'chess', 'ball', 'coin', 'token', 'meeple', 'arcademachine'],
+  },
+  {
+    id: 'decor',
+    label: 'Deko',
+    icon: 'palette',
+    packs: ['halloween-bits', 'holiday-bits'],
+    words: [
+      'banner',
+      'flag',
+      'candle',
+      'painting',
+      'statue',
+      'sign',
+      'gravestone',
+      'skull',
+      'bone',
+      'decoration',
+      'decorated',
+      'wreath',
+      'ornament',
+      'book',
+      'books',
+    ],
+  },
+  { id: 'rest', label: 'Alles Übrige', icon: 'folder' },
+];
+
+/**
+ * **In welche Schublade diese Adresse gehört** — immer genau eine, und immer
+ * eine, die es gibt.
+ *
+ * Die erste passende Kategorie gewinnt (siehe `KaykitCategory`); die letzte
+ * passt auf alles. Gelesen wird der **Dateiname** in Wörtern, klein
+ * geschrieben und ohne Endung: `Containers_Box_Large.glb` ist `containers`,
+ * `box`, `large`. Ein Teilwort zählt dabei **nicht** — sonst wäre jeder
+ * `Boxer` eine Kiste.
+ */
+export function kaykitCategoryOf(path: string): string {
+  const cut = path.lastIndexOf('/');
+  const dir = cut < 0 ? '' : path.slice(0, cut);
+  const pack = dir.split('/')[0] ?? '';
+  const words = new Set(
+    path
+      .slice(cut + 1)
+      .replace(/\.(glb|gltf)$/i, '')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length > 0),
+  );
+  for (const category of KAYKIT_CATEGORIES) {
+    if (category.packs?.includes(pack)) return category.id;
+    if (category.dirs?.some((under) => dir === under || dir.startsWith(`${under}/`))) {
+      return category.id;
+    }
+    if (category.words?.some((word) => words.has(word))) return category.id;
+    if (!category.packs && !category.dirs && !category.words) return category.id;
+  }
+  return KAYKIT_CATEGORIES[KAYKIT_CATEGORIES.length - 1]!.id;
+}
+
+/**
+ * **Wie viele Treffer eine Suche höchstens hergibt.**
+ *
+ * Zweihundert, und das ist großzügig: Wer nach `tree` sucht, bekommt im
+ * Waldpaket über tausend Treffer, und die letzten neunhundert sieht niemand
+ * an. Die Zahl begrenzt zugleich, was die Seite zeichnen muss — sie lädt zwar
+ * beim Scrollen nach (`ui/PageMenu.ts`), aber eine Liste, deren Ende nie
+ * kommt, ist keine Antwort auf eine Suche, sondern eine zweite Frage.
+ */
+export const SEARCH_LIMIT = 200;
+
+/**
+ * **Suchen heißt hier: alle Wörter müssen vorkommen.**
+ *
+ * `holz kiste` findet nichts, `crate wood` schon — gesucht wird im Dateinamen
+ * **und** im Pfad, damit auch ein Paketname als Filter taugt (`dungeon barrel`).
+ * Ein Wort zählt als Treffer, wenn es irgendwo darin vorkommt, und nicht nur
+ * am Wortanfang: Wer `lantern` eintippt, will auch `wall_lantern` finden.
+ *
+ * **Sortiert wird nach Güte**: Wer den Dateinamen trifft, steht vor dem, der
+ * nur im Ordnernamen vorkommt, und ein Name, der mit dem Gesuchten
+ * **anfängt**, vor einem, der es irgendwo enthält. Sonst steht bei `chair` die
+ * Kachel `restaurant-bits/chair_A` hinter dreißig Dateien aus einem Ordner,
+ * der zufällig `chairs` heißt.
+ */
+export function kaykitSearch(
+  files: readonly KaykitFileRef[],
+  query: string,
+  limit = SEARCH_LIMIT,
+): KaykitFileRef[] {
+  const terms = query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 0);
+  if (terms.length === 0) return [];
+  const hits: { file: KaykitFileRef; score: number }[] = [];
+  for (const file of files) {
+    const name = file.name.toLowerCase();
+    const path = file.path.toLowerCase();
+    let score = 0;
+    let all = true;
+    for (const term of terms) {
+      if (name.startsWith(term)) score += 4;
+      else if (name.includes(term)) score += 2;
+      else if (path.includes(term)) score += 1;
+      else {
+        all = false;
+        break;
+      }
+    }
+    if (all) hits.push({ file, score });
+  }
+  hits.sort((a, b) => b.score - a.score || byName(a.file.label, b.file.label));
+  return hits.slice(0, Math.max(0, limit)).map((hit) => hit.file);
+}
+
+/**
+ * **Der Baum als Menü** — erst die Schubladen, dann die Pakete.
  *
  * Gebaut wird der **ganze** Baum auf einmal, und das ist Absicht: Er besteht
  * aus Zeichenketten und Funktionen, kein einziges Modell hängt daran. Geladen
@@ -149,6 +593,11 @@ export function kaykitPathOf(id: string): string | null {
  * (`ui/menuNav.ts`). Ein Index, der zweimal dasselbe Regal beschreibt, ergibt
  * deshalb zweimal denselben Baum — auch nach einem neuen Build.
  *
+ * **Die Pakete sind nicht weg**, sie sind eine Ebene tiefer gerutscht: Die
+ * Schubladen beantworten „Ich will ein Bett", der Ordnerbaum beantwortet
+ * „Was ist eigentlich in `mixed-bag`?". Beides kommt vor, und keines ersetzt
+ * das andere.
+ *
  * @param pick was beim Nehmen passiert: Adresse und die Hand, die zugegriffen
  *             hat (in der Brille), oder `null` am Schirm.
  */
@@ -156,7 +605,89 @@ export function kaykitMenu(
   index: KaykitIndex,
   pick: (path: string, hand: Handedness | null) => void,
 ): MenuEntry[] {
+  const packs = kaykitPackMenu(index, pick);
+  if (packs.length === 0) return [];
+  const files = kaykitFiles(index);
+  const entries = [...categoryEntries(files, pick), packsEntry(packs)];
+  // **Das Suchfeld gilt auf jeder Seite des Regals** und nicht nur auf der
+  // ersten. Wer drei Ebenen tief im Waldpaket steht und `lantern` sucht, sucht
+  // die Sammlung und nicht den Ordner — eine Suche, die nur dort greift, wo
+  // man gerade steht, findet genau das, was man ohnehin sieht.
+  offerSearch(entries, (query) => kaykitSearchEntries(files, query, pick));
+  return entries;
+}
+
+/** Jedem Blatt-losen Eintrag das Suchfeld mitgeben — einmal je Baum. */
+function offerSearch(entries: readonly MenuEntry[], find: (query: string) => MenuEntry[]): void {
+  for (const entry of entries) {
+    if (!entry.children) continue;
+    entry.find = find;
+    offerSearch(entry.children, find);
+  }
+}
+
+/**
+ * **Der Ordnerbaum allein** — die Pakete, wie sie auf der Platte liegen.
+ *
+ * Das war einmal das ganze Regal und ist jetzt seine zweite Hälfte: Die
+ * Schubladen beantworten „Ich will ein Bett", der Baum beantwortet „Was ist
+ * eigentlich in `mixed-bag`?". Er steht hier für sich, weil er für sich
+ * geprüft wird — die Reihenfolge, die Fächer und die Ids hängen an ihm und
+ * nicht an den Schubladen.
+ */
+export function kaykitPackMenu(
+  index: KaykitIndex,
+  pick: (path: string, hand: Handedness | null) => void,
+): MenuEntry[] {
   return entriesOf(index.root, [], pick);
+}
+
+/** Die Schubladen als Kacheln — leere fallen weg. */
+function categoryEntries(
+  files: readonly KaykitFileRef[],
+  pick: (path: string, hand: Handedness | null) => void,
+): MenuEntry[] {
+  const drawers = new Map<string, KaykitFileRef[]>();
+  for (const file of files) {
+    const id = kaykitCategoryOf(file.path);
+    const list = drawers.get(id);
+    if (list) list.push(file);
+    else drawers.set(id, [file]);
+  }
+  const entries: MenuEntry[] = [];
+  for (const category of KAYKIT_CATEGORIES) {
+    const list = drawers.get(category.id);
+    if (!list || list.length === 0) continue;
+    entries.push({
+      id: `kaykit#cat:${category.id}`,
+      label: category.label,
+      sub: list.length === 1 ? '1 Modell' : `${list.length} Modelle`,
+      icon: category.icon,
+      accent: KAYKIT_ACCENT,
+      grid: true,
+      cols: SHELF_COLS,
+      full: true,
+      take: true,
+      children: refEntries(list, `cat:${category.id}`, pick),
+    });
+  }
+  return entries;
+}
+
+/** Der Ordnerbaum, eine Ebene tiefer — die Pakete, wie sie auf der Platte liegen. */
+function packsEntry(packs: MenuEntry[]): MenuEntry {
+  return {
+    id: 'kaykit#packs',
+    label: 'Pakete',
+    sub: packs.length === 1 ? '1 Paket' : `${packs.length} Pakete`,
+    icon: 'folder',
+    accent: KAYKIT_ACCENT,
+    grid: true,
+    cols: SHELF_COLS,
+    full: true,
+    take: true,
+    children: packs,
+  };
 }
 
 function entriesOf(
@@ -168,7 +699,7 @@ function entriesOf(
   const files = [...(dir.files ?? [])].sort((a, b) => byName(a.name, b.name));
   return [
     ...dirs.map((child) => folderEntry(child, [...trail, child.name], pick)),
-    ...fileEntries(files, trail, pick),
+    ...fileEntries(files, trail, trail.join('/'), pick),
   ];
 }
 
@@ -188,7 +719,8 @@ function folderEntry(
     icon: 'folder',
     accent: KAYKIT_ACCENT,
     grid: true,
-    cols: 2,
+    cols: SHELF_COLS,
+    full: true,
     take: true,
     children: entriesOf(dir, trail, pick),
   };
@@ -197,14 +729,45 @@ function folderEntry(
 /**
  * Die Dateien eines Ordners — und, wenn es zu viele sind, **Fächer** davor
  * (siehe `KAYKIT_CHUNK`).
+ *
+ * `key` ist das Stück Id, an dem ein Fach hängt: bei einem Ordner sein Pfad,
+ * bei einer Schublade `cat:<id>`. Es muss stabil sein, sonst verliert der Weg
+ * durchs Menü seine Stelle (`ui/menuNav.ts`).
  */
 function fileEntries(
   files: readonly KaykitFile[],
   trail: readonly string[],
+  key: string,
+  pick: (path: string, hand: Handedness | null) => void,
+): MenuEntry[] {
+  return sheetsOf(
+    files.map((file) => ({
+      path: kaykitPath(trail, file.name),
+      name: file.name,
+      label: humanLabel(file.name),
+      ...(file.bytes === undefined ? {} : { bytes: file.bytes }),
+    })),
+    key,
+    pick,
+  );
+}
+
+/** Dasselbe aus der flachen Liste — für die Schubladen und für die Suche. */
+function refEntries(
+  files: readonly KaykitFileRef[],
+  key: string,
+  pick: (path: string, hand: Handedness | null) => void,
+): MenuEntry[] {
+  return sheetsOf(files, key, pick);
+}
+
+function sheetsOf(
+  files: readonly KaykitFileRef[],
+  key: string,
   pick: (path: string, hand: Handedness | null) => void,
 ): MenuEntry[] {
   if (files.length <= KAYKIT_CHUNK) {
-    return files.map((file) => fileEntry(file, trail, pick));
+    return files.map((file) => fileEntry(file, pick));
   }
   const sheets: MenuEntry[] = [];
   for (let start = 0; start < files.length; start += KAYKIT_CHUNK) {
@@ -215,36 +778,56 @@ function fileEntries(
       // Die Nummer der ersten Datei und nicht die des Fachs: Kommt eine Datei
       // dazu, rutschen die Grenzen — die Id eines Fachs bleibt dann wenigstens
       // dieselbe, solange sein Anfang derselbe ist.
-      id: `kaykit:${trail.join('/')}#${start}`,
+      id: `kaykit:${key}#${start}`,
       label: `${start + 1}–${start + part.length}`,
-      sub: `${humanLabel(first.name)} … ${humanLabel(last.name)}`,
+      sub: `${first.label} … ${last.label}`,
       icon: 'folder',
       accent: KAYKIT_ACCENT,
       grid: true,
-      cols: 2,
+      cols: SHELF_COLS,
+      full: true,
       take: true,
-      children: part.map((file) => fileEntry(file, trail, pick)),
+      // **Am Schirm gibt es diese Fächer nicht** (`ui/menu.MenuEntry.flatten`):
+      // Dort wird gescrollt und nachgeladen, und ein Zwischenschritt „1–60"
+      // wäre ein Klick, der nichts erklärt. In der Brille bleiben sie, denn
+      // dort blättert ein Stick, und vierhundert Seiten blättert niemand.
+      flatten: true,
+      children: part.map((file) => fileEntry(file, pick)),
     });
   }
   return sheets;
 }
 
 function fileEntry(
-  file: KaykitFile,
-  trail: readonly string[],
+  file: KaykitFileRef,
   pick: (path: string, hand: Handedness | null) => void,
 ): MenuEntry {
-  const path = kaykitPath(trail, file.name);
   return {
-    id: `kaykit:${path}`,
-    label: humanLabel(file.name),
+    id: `kaykit:${file.path}`,
+    label: file.label,
     sub: kaykitSize(file.bytes),
     accent: KAYKIT_ACCENT,
     // Die Id der Vorschau **ist** die Id der Zeile: Was man sieht, ist das,
     // was man bekommt, und die Fabrik im Menü muss nichts übersetzen.
-    preview: `kaykit:${path}`,
-    run: (hand) => pick(path, hand),
+    preview: `kaykit:${file.path}`,
+    run: (hand) => pick(file.path, hand),
   };
+}
+
+/**
+ * **Die Treffer einer Suche als Menüseite** — dieselben Kacheln wie überall
+ * sonst, nur ohne Ordner darüber.
+ *
+ * Die Ids tragen dabei die Adresse des Modells und nicht die Suche: Wer
+ * zweimal dasselbe sucht, steht auf derselben Kachel, und die Vorschau muss
+ * nichts übersetzen.
+ */
+export function kaykitSearchEntries(
+  files: readonly KaykitFileRef[],
+  query: string,
+  pick: (path: string, hand: Handedness | null) => void,
+): MenuEntry[] {
+  return kaykitSearch(files, query).map((file) => fileEntry(file, pick));
 }
 
 /** Was unter dem Ordnernamen steht: die Lizenz des Pakets und der Inhalt. */
