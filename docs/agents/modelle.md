@@ -445,8 +445,8 @@ Tomate), Schneidebrett, Ausgaberegal, Ausgabetheke, Küchenzeile,
 Herd, Herd mit Topf, Herd mit Pfanne — und das **Förderband**, das **Zugband**,
 das **Filterband**, den **Kombinierer**, den **Mixer**, die **sichere
 Kochstelle**, den **Computer-Tisch**
-und den **Kopierer**, die in keiner Datei stecken, sondern gebaut werden
-(`KitchenPiece.built`, siehe
+und den **Kopierer**, die in keiner Datei **der Küche** stecken, sondern gebaut
+werden (`KitchenPiece.built`, siehe
 _Anfassen in der Küche_). Der Katalog beschreibt, was in dieser Küche **steht**,
 nicht, was gekauft wurde; wer `built` nicht liest, meldet eine fehlende Datei,
 die es nicht gibt, und stellt einen grauen Würfel dorthin, wo ein Band stehen
@@ -565,7 +565,7 @@ den man im Bild sah:
   `deck` allein tut es seitdem nicht mehr. Nicht zu verwechseln mit `Spot.lift`
   (`zones/kitchenPlan.ts`): Das gehört einer **Stelle** im Aufbau (das
   Ausgaberegal über der Theke) und lässt den Körper weg, `bury` gehört dem
-  **Möbel** und gilt überall, wo es steht — auch im Schauraum.
+  **Möbel** und gilt überall, wo es steht.
 - **`worktop`** — ob man darauf etwas ablegen kann. Nicht jede waagerechte
   Fläche ist eine: In den Mülleimer wird geworfen, auf einem Feuerlöscher steht
   nichts.
@@ -710,7 +710,7 @@ kann.
   Reichweite mit. Warnung, Feueralarm und **Radio** stehen heute auf
   `EVERY_ROOM`; wer das Radio in der **ganzen Welt** hören will, tauscht in
   `KITCHEN_CUES` ein Wort.
-- **Zwei Töne stehen noch zur Wahl, und die Wahl steht im Schauraum**
+- **Zwei Töne stehen noch zur Wahl, und die Wahl steht in der Küche**
   (`kitchenSound.SOUND_TRIALS`, `kitchenPlan.TRIAL_BUTTONS`,
   `kitchen.addTrialButtons`). Wie das **Messer** auf dem Brett klingt und wie
   die **Abgabe** eines Gerichts, entscheidet niemand am Schreibtisch; also
@@ -857,13 +857,15 @@ Und das sind die Regeln, die darin stehen:
   Löschers: eine Form, ein Material, keine Allokation je Bild), und die Station
   nimmt nichts mehr an: `atSink` prüft `leaking` **vor** allem anderen, Wort
   für Wort wie der brennende Herd eine Zeile darüber. Repariert wird mit der
-  **Wasserpumpenzange** — ein gebautes Gerät (`kitchenProps.FoodKit.pliers`,
-  die Quelle hat keines), das auf der Arbeitsplatte **neben** der Spüle liegt
+  **Wasserpumpenzange** — seit September 2026 ein **Schraubenschlüssel aus dem
+  Regal** (`kitchenProps.WRENCH_MODEL`, `rpg-tools-bits/wrench_A.glb`; vorher
+  ein aus sieben Kästen gebautes Gerät, denn die Küchenquelle hat keines), der
+  auf der Arbeitsplatte **neben** der Spüle liegt
   (`PLIERS_TILE`), genau aus dem Grund, aus dem der Löscher neben dem einen
-  brennbaren Herd steht. Der Druck mit der Zange in der Hand ist eine eigene
+  brennbaren Herd steht. Der Druck mit dem Schlüssel in der Hand ist eine eigene
   Tat (`do: 'repair'`); sie **wirft nur die Uhr an** und nimmt der Hand nichts
   weg. Die Uhr läuft **4 s** (`REPAIR_SECONDS`, die längste Handarbeit dieser
-  Küche — länger als Spülen mit 3 s, weil man die Zange wirklich holen soll,
+  Küche — länger als Spülen mit 3 s, weil man das Werkzeug wirklich holen soll,
   und kürzer als alles, was man vergisst) und nur, **solange jemand
   danebensteht**; wer weggeht, fängt von vorn an (dieselbe Regel wie am Brett,
   `advanceWork`). Zwei Uhren an einer Station gibt es damit genau hier, und das
@@ -916,9 +918,7 @@ Und das sind die Regeln, die darin stehen:
   und von schräg oben schnitt ein Brötchen quer durch das Wort — zu lesen war
   „Deluxe s…". Sie ist damit auch durch eine Wand zu sehen, und das ist der
   bewusste Handel: Sie steht vier Sekunden lang genau dort, wo gerade jemand
-  abgegeben hat. Die **Namensschilder im Schauraum** bekommen das deshalb
-  nicht — dort verdeckt ohnehin nichts ein Schild, und achtzehn Tafeln durch
-  jede Wand wären der schlechtere Tausch. Ist kein Tisch frei, landet das
+  abgegeben hat. Ist kein Tisch frei, landet das
   Geschirr gleich an der **Geschirrrückgabe**. Dort **stapeln** sich die
   dreckigen Teller, bis zu sechs (`DIRTY_STACK_MAX`, gerechnet aus dem
   Verdrehwinkel je Lage und aus der Brusthöhe der Figur), und von dort holt man
@@ -1176,8 +1176,8 @@ Und das sind die Regeln, die darin stehen:
   und eine zweite Quelldatei mit Lizenz, Aufbereitung und Eintrag in
   `public/models/CREDITS.md` wäre viel Aufwand für drei Quader. Trotzdem steht
   es im Katalog: Die Liste beschreibt, was in dieser Küche steht, nicht, was
-  gekauft wurde, und wer den Grundriss stempelt oder den Schauraum füllt, will
-  Grundfläche und Höhe haben und nicht wissen, woher das Netz kommt. Es ist
+  gekauft wurde, und wer den Grundriss stempelt oder den Möbelkatalog füllt,
+  will Grundfläche und Höhe haben und nicht wissen, woher das Netz kommt. Es ist
   eine Kachel groß und **0,53 m** hoch — die Zahl der Ausgabetheke, abgeschrieben
   mit Absicht: Ein Band, das drei Zentimeter höher stünde als die Theke daneben,
   wäre von oben eine Stufe, die niemand erklären kann. Ein Ding braucht **2 s**
@@ -1418,17 +1418,15 @@ Und das sind die Regeln, die darin stehen:
   sieht, findet die Stelle, an der gebraten wird, ohne die Beschriftung zu
   lesen.
 - **Die Werkhalle** (`kitchenPlan.PIPELINE`) ist der Platz dafür. Die Küche ist
-  dafür **acht Kacheln nach Osten gewachsen**, und der Schauraum ist mit nach
-  Osten gerückt (`kitchenPlan.SHOW_X`) statt sitzen zu bleiben: Eine Halle
-  hinter dem Schauraum wäre zwei Zimmer von der Küche weg, und die Straße soll
-  dort anfangen, wo die Küche aufhört. Nach Süden ging es nicht — dort liegt
-  das Podest. Die Halle hat **keine eigene Wand und keine eigene Tür**: Sie
-  ist die Küche, nur größer; ab z = 4 geht man geradeaus hinüber. Mit der
-  sicheren Kochstelle ist noch **eine** Kachel dazugekommen und mit den vier
-  Vorratskisten noch **vier** (`layout.KITCHEN` ist seitdem 37 breit und
-  `FIELD` entsprechend 77): Die vier Reihen des Schauraums waren bis zur
-  Ostwand belegt, und ein weiteres Möbel braucht einen Platz
-  neben seinesgleichen und nicht in der nächsten Reihe. Darin steht
+  dafür **acht Kacheln nach Osten gewachsen**: Die Straße soll dort anfangen,
+  wo die Küche aufhört. Nach Süden ging es nicht — dort liegt das Podest. Die
+  Halle hat **keine eigene Wand und keine eigene Tür**: Sie ist die Küche, nur
+  größer; ab z = 4 geht man geradeaus hinüber. Hinter ihr lag bis September
+  2026 der **Schauraum**, und jedes neue Katalogstück ließ die Zone um eine
+  weitere Spalte wachsen (`layout.KITCHEN` war zuletzt 37 breit). Den gibt es
+  nicht mehr — der Möbelkatalog steht am Rechner (_Bauen_, _Der
+  Konstrukt-Raum_) —, und die Zone ist seitdem **20** Kacheln breit: zwölf
+  Küche, acht Halle. Darin steht
   eine **Burgerstraße**, die vorn vier Vorratskisten hat und hinten einen
   **Burger Deluxe** (`kitchenRecipes.RECIPES`: Brötchen, gebratenes Patty,
   geschnittener Salat, Tomatenscheibe) — und dazwischen fasst sie niemand an.
@@ -1712,7 +1710,7 @@ Und das sind die Regeln, die darin stehen:
   Griffe mit demselben Häkchen wie alle anderen — _Grafik → Griffe zeigen_.
 - **Der Computer-Tisch ist das erste Möbel mit zwei Bedeutungen an einem Netz**
   (`zones/kitchenDesk.ts`), und welche gilt, entscheidet die **Seite**, von der
-  man herantritt (`pieceSide`): Vorn steht der Bildschirm, also wird vorn
+  man herantritt (`pieceSide`): Vorn steht der Rechner, also wird vorn
   bedient; von der Seite und von hinten greift man nach dem Tisch selbst. Das
   ist keine Spitzfindigkeit, sondern die einzige Aufteilung, bei der beides
   erreichbar bleibt — ein Tisch, den man nur über einen Modus aufhebt, wäre im
@@ -1751,6 +1749,20 @@ Und das sind die Regeln, die darin stehen:
     einer, den niemand aufmacht —, und zwei Kacheln weiter südlich steht der
     rote Umbauknopf: Der Knopf macht den Umbau auf, der Rechner gibt die Möbel
     dazu her.
+  - **Der Rechner selbst kommt seit September 2026 aus dem Regal**
+    (`kitchenDesk.COMPUTER_MODEL`, `block-bits/computer.glb`). Auf der Platte
+    stand bis dahin ein zusammengesetzter Computer: ein Turm unter dem Tisch,
+    eine Tastatur, ein Fuß, ein Hals, ein Gehäuse und eine leuchtende Scheibe
+    davor — sechs Kästen und ein Dutzend Zahlen für etwas, das die gekaufte
+    Sammlung fertig hergibt. Gebaut bleibt der **Tisch**; das Modell steht
+    darauf, um 180° gedreht (in seiner Datei schaut es nach +z, das Möbel nach
+    −z) und auf **0,46 m** gerechnet — genau die Höhe, die vorher Gehäuse plus
+    Ständer hatten, damit `DESK_HEIGHT` bei 1,21 m bleibt und der Katalog keine
+    neue Zahl braucht. Zwei Dinge kostet das: Die Scheibe **leuchtet nicht
+    mehr** (das Modell hat eine dunkle), und der Tisch steht einen
+    Wimpernschlag lang ohne Rechner da — er wird gebaut, bevor irgendeine Datei
+    angefragt ist, und bekommt seinen Anker sofort und sein Modell, sobald es
+    ankommt (`DeskKit.fillComputer`).
 - **Der Möbelkatalog ist das Konstrukt hinter dem Bildschirm** (`openCatalogue`,
   siehe _Der Konstrukt-Raum_). Die Küche verblasst, der Tisch bleibt stehen, und
   ringsum fahren alle Katalogstücke als **Miniaturen** aus dem Boden. Wer eines
@@ -1764,8 +1776,8 @@ Und das sind die Regeln, die darin stehen:
   Meter neben ihm herflöge, weil es niemand hinstellt.
   - **Die Miniaturen werden geklont, nicht gebaut** (`miniature`). Von jeder
     Sorte merkt sich die Zone das erste Netz, das ohnehin gebaut wird — und weil
-    der **Schauraum** jedes Katalogstück genau einmal zeigt
-    (`KITCHEN_SHOWN`, gegen `KITCHEN_NAMES` geprüft), ist diese Sammlung
+    ein Katalogstück, das im Aufbau fehlt, sich seine Vorlage selbst holt
+    (siehe _Bauen_, „Und der Katalog zeigt den Katalog"), ist diese Sammlung
     vollständig, ohne dass jemand eine zweite Liste führt. Geklont wird mit
     `Object3D.clone()`, Formen und Materialien bleiben also **geteilt**: eine
     Miniatur kostet einen Knoten und keine Geometrie. Ein zweiter Ladevorgang
@@ -1990,8 +2002,8 @@ seiner Kachelfläche. Zwei Dinge daran sind es wert, aufgeschrieben zu werden:
   Meter Scheitelhöhe (`PhysicsLocomotion.jumpSpeed`) — wer einmal oben stand,
   lief die ganze Wand entlang, über Spüle und Herd hinweg. Bei _Overcooked_ ist
   genau das der Witz an einer Küche: Man geht **herum**, nicht darüber. Im
-  Schauraum bleibt es bei der echten Höhe; dort gibt es kein „darüber hinweg",
-  nur ein Möbel zum Ansehen.
+  Dieselbe Sperre steht seit dem Wegfall des Schauraums über **jedem** Möbel
+  dieser Küche: Es gibt keines mehr, das nur zum Ansehen dasteht.
 - **Und es bleibt bei einem Kasten.** Der erste Versuch setzte die Sperre als
   zweiten Körper auf den ersten, damit eine Kugel über den Tresen fliegen kann.
   Zwei Körper übereinander an derselben Stelle sind für die Spielerkapsel aber

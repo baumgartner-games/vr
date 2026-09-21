@@ -5,12 +5,10 @@ import {
   COPIER_HEIGHT,
   COPIER_PLATE,
   COPIER_ZONE,
+  COMPUTER_HIGH,
   DESK_HEIGHT,
   DESK_TOP,
   DeskKit,
-  SCREEN_FOOT,
-  SCREEN_HIGH,
-  SCREEN_WIDE,
   copierField,
   copierSpot,
   pieceSide,
@@ -207,14 +205,15 @@ describe('Die Maße aus dem Katalog', () => {
   it('nennt für den Tisch eine Hülle über der Ablage', () => {
     // `height` ist die Hülle, `deck` die Ablage (`core/kitchenFit.KitchenPiece`):
     // Wer etwas auf diesen Tisch legt, legt es auf die Platte und nicht auf den
-    // Bildschirm.
+    // Rechner.
     expect(DESK_TOP).toBeCloseTo(0.75, 10);
-    expect(SCREEN_FOOT).toBeCloseTo(0.91, 10);
+    expect(COMPUTER_HIGH).toBeCloseTo(0.46, 10);
     expect(DESK_HEIGHT).toBeCloseTo(1.21, 10);
-    expect(DESK_HEIGHT).toBeCloseTo(SCREEN_FOOT + SCREEN_HIGH, 10);
+    expect(DESK_HEIGHT).toBeCloseTo(DESK_TOP + COMPUTER_HIGH, 10);
     expect(DESK_HEIGHT).toBeGreaterThan(DESK_TOP);
-    // Der Bildschirm passt in die Kachel, auf der der Tisch steht.
-    expect(SCREEN_WIDE).toBeLessThan(1);
+    // Und der Rechner passt auf die Kachel, auf der der Tisch steht — er ist
+    // so breit wie hoch (`block-bits/computer.glb`).
+    expect(COMPUTER_HIGH).toBeLessThan(1);
   });
 
   it('legt beide Felder des Kopierers auf dieselbe Höhe', () => {
@@ -256,7 +255,11 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
 
     // Ursprung **auf dem Boden in seiner Mitte**, wie jedes Küchenmöbel.
     expect(box.min.y).toBeCloseTo(0, 6);
-    expect(box.max.y).toBeCloseTo(DESK_HEIGHT, 6);
+    // **Bis zur Platte und nicht bis zur Hülle**: Der Rechner darauf ist ein
+    // geladenes Modell (`COMPUTER_MODEL`), und ohne WebGL wird hier nichts
+    // geholt. Die Hülle steht trotzdem fest — sie ist gerechnet (`DESK_HEIGHT`)
+    // und nicht gemessen, und der Katalog schreibt sie ab.
+    expect(box.max.y).toBeCloseTo(DESK_TOP, 6);
     expect((box.min.x + box.max.x) / 2).toBeCloseTo(0, 6);
     expect((box.min.z + box.max.z) / 2).toBeCloseTo(0, 6);
     // Eine Kachel und nicht mehr (`core/kitchenFit`, `tiles: [1, 1]`).
@@ -265,30 +268,24 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
     kit.dispose();
   });
 
-  it('stellt den leuchtenden Bildschirm nach vorn, über die Platte', () => {
+  /**
+   * **Der Rechner bekommt seinen Anker, auch ohne Datei.**
+   *
+   * Er hängt auf der Platte und schaut nach vorn (−z), also um 180° gedreht
+   * gegen die Datei. Ein Anker, der erst mit dem Modell entstünde, wäre einer,
+   * den der Umbau nicht mehr findet — und die Drehung wäre dann eine Zeile in
+   * einem Rückruf statt eine am Möbel.
+   */
+  it('hängt den Anker des Rechners auf die Platte und dreht ihn nach vorn', () => {
     const kit = new DeskKit();
     const desk = kit.deskPiece();
-    desk.updateWorldMatrix(true, true);
-
-    const lit = desk.children.filter((child) => {
-      const skin = (child as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-      return !!skin?.emissive && skin.emissive.getHex() !== 0;
-    });
-    // Genau eine leuchtende Fläche: der Bildschirm. Zwei wären zwei Geräte.
-    expect(lit).toHaveLength(1);
-    const face = new THREE.Box3().setFromObject(lit[0]!);
-    // Sie steht auf dem Tisch und nicht darunter …
-    expect(face.min.y).toBeGreaterThan(DESK_TOP);
-    expect(face.max.y).toBeLessThanOrEqual(DESK_HEIGHT + 1e-6);
-    // … und sie zeigt nach **−z**, also dorthin, wohin das Möbel schaut. Ein
-    // Bild, das nach hinten leuchtet, ist von vorn ein schwarzer Kasten.
-    const housing = new THREE.Box3().setFromObject(
-      desk.children.filter((child) => !lit.includes(child)).at(-1)!,
-    );
-    expect(face.max.z).toBeLessThanOrEqual(housing.min.z + 1e-6);
-    // Und sie bleibt im Rahmen ihres Gehäuses.
-    expect(face.min.x).toBeGreaterThan(housing.min.x);
-    expect(face.max.x).toBeLessThan(housing.max.x);
+    const holder = desk.getObjectByName('kitchen-desk-computer');
+    expect(holder).toBeDefined();
+    expect(holder!.position.y).toBeCloseTo(DESK_TOP, 10);
+    expect(holder!.position.x).toBeCloseTo(0, 10);
+    expect(holder!.rotation.y).toBeCloseTo(Math.PI, 10);
+    // Ohne WebGL hängt nichts darin — geholt wird erst mit `canLoadModels`.
+    expect(holder!.children).toHaveLength(0);
     kit.dispose();
   });
 
@@ -330,10 +327,12 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
     };
 
     for (let i = 0; i < 20; i++) collect(kit.deskPiece());
-    // Platte, Wange, Turm, Tastatur, Fuß, Ständer, Gehäuse, Scheibe — acht
-    // Formen für zwanzig Tische, und die beiden Wangen teilen sich eine.
-    expect(shapes.size).toBe(8);
-    expect(skins.size).toBe(5);
+    // Platte und Wange — **zwei** Formen für zwanzig Tische, und die beiden
+    // Wangen teilen sich eine. Es waren acht, solange der Rechner aus Kästen
+    // bestand; jetzt ist er ein geladenes Modell und bringt seine Geometrie
+    // selbst mit (`COMPUTER_MODEL`, geteilt über `core/kaykitModel.copyOf`).
+    expect(shapes.size).toBe(2);
+    expect(skins.size).toBe(2);
 
     for (let i = 0; i < 20; i++) collect(kit.copierPiece());
     // Sockel, Fuge, Glas, Wiege, Pfosten — fünf für die festen Teile, die vier
@@ -341,17 +340,17 @@ describe('DeskKit — der Bausatz ohne Leinwand', () => {
     // der Akzentfarbe (Bühne und Zielrahmen zusammen) und eine je Spitzenfarbe
     // der Spur (`kitchenMerge.ts`). Die Formen der einzelnen Zeichen stehen
     // nicht mehr im Modell — sie waren der Zwischenschritt dorthin.
-    expect(shapes.size).toBe(19);
-    // Und sieben Farben mehr: Glas, Akzent und fünf Spitzen — je Spitze eine,
-    // denn durch sie läuft das Licht (`DeskKit.update`). Korpus und Fuge sind
-    // dieselben wie am Tisch.
-    expect(skins.size).toBe(12);
+    expect(shapes.size).toBe(13);
+    // Und neun Farben mehr: Fuge, Glas, Akzent und fünf Spitzen — je Spitze
+    // eine, denn durch sie läuft das Licht (`DeskKit.update`). Der Korpus ist
+    // derselbe wie am Tisch.
+    expect(skins.size).toBe(10);
 
     const shapeGone = jest.spyOn(THREE.BufferGeometry.prototype, 'dispose');
     const skinGone = jest.spyOn(THREE.Material.prototype, 'dispose');
     kit.dispose();
-    expect(shapeGone).toHaveBeenCalledTimes(19);
-    expect(skinGone).toHaveBeenCalledTimes(12);
+    expect(shapeGone).toHaveBeenCalledTimes(13);
+    expect(skinGone).toHaveBeenCalledTimes(10);
     shapeGone.mockRestore();
     skinGone.mockRestore();
   });

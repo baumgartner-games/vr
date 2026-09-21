@@ -325,7 +325,7 @@ Die Fälle unterscheiden sich nur in der Zahl der Griffe:
 | Fall                      | Beispiele                                     | Was es heißt                                      |
 | ------------------------- | --------------------------------------------- | ------------------------------------------------- |
 | **Kein Griff**            | Brötchen, Tomate, Salat, Patty                | „wie beim Companion Cube": zupacken, wo man fasst |
-| **Ein Haltezylinder**     | Pfanne am Stiel, Löscher am Tragebügel, Zange quer über beide Schenkel | die gemessene Stange, und sonst hält man es verkehrt |
+| **Ein Haltezylinder**     | Pfanne am Stiel, Löscher am Tragebügel, Schraubenschlüssel quer über den Schaft | die gemessene Stange, und sonst hält man es verkehrt |
 | **Mehrere**               | Teller: acht am Rand, einer von unten; Topf: beide Ohren | die **Hand** wählt: der nächste gewinnt |
 | **Vier, aus einer Regel** | jedes Küchenmöbel                             | Mitte jeder Kante — siehe _Anfassen in der Küche_ |
 
@@ -339,11 +339,16 @@ Die Tabelle für die Küche steht in `worlds/test/zones/kitchenGrab.ts` — dort
 nicht im `core`, weil nur die Küche weiß, was ein Stiel ist. Ihre Zahlen hängen
 an der **gemessenen Hülle** des Netzes und nicht an abgeschriebenen Zentimetern:
 Pfanne, Topf und Feuerlöscher kommen aus `public/models/kitchen.glb`, und ein
-ausgetauschtes Modell bringt neue Maße mit. Die **Wasserpumpenzange** hängt an
-derselben Hülle und ist trotzdem der Sonderfall: Sie ist **gebaut**
-(`kitchenProps.FoodKit.pliers`, die Quelle hat kein Werkzeug), also steht ihr
-Maß ohnehin in diesem Repository — die Anteile in `GRIP_BAR` sind deshalb
-gewählt und nicht gemessen, und das steht dort auch so. Die einzigen absoluten Zahlen dort
+ausgetauschtes Modell bringt neue Maße mit. Der **Schraubenschlüssel** hängt an
+derselben Hülle und ist trotzdem der Sonderfall: Er kommt nicht aus der
+Küchendatei, sondern aus dem KayKit-Regal
+(`kitchenProps.WRENCH_MODEL`, `rpg-tools-bits/wrench_A.glb`), und wird beim
+Laden in eine **hingeschriebene** Hülle gerechnet (`kitchenProps.PLIERS`,
+`layFlat`). Damit steht sein Maß fest, auch wenn die Datei gar nicht ankommt,
+und die Anteile in `GRIP_BAR` sind so gut wie gemessene Zentimeter. `across` ist
+dort **0** und nicht mehr −0,62: Die gebaute Wasserpumpenzange, die hier bis
+September 2026 lag, hatte ihre Griffe hinten, der gekaufte Schlüssel hat seinen
+in der Mitte und an **beiden** Enden ein Maul. Die einzigen absoluten Zahlen dort
 sind die drei **Halbmesser** der Zylinder, und die sind es aus einem Grund: Ein
 Anteil wovon? Die Dicke eines Stiels hat mit der Breite einer Pfanne nichts zu
 tun — sie ist die Dicke eines Rohrs, am Modell gemessen.

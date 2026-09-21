@@ -387,27 +387,33 @@ export interface TrialButtons {
 }
 
 /**
- * **Die Knöpfe der Tonprobe** — zwei Paare an der Westwand, unter den anderen
- * Geräten dieser Küche.
+ * **Die Knöpfe der Tonprobe** — zwei Paare, jedes vor dem Möbel, um dessen Ton
+ * es geht: links **weiterschalten**, rechts **vorspielen**.
  *
- * Sie standen einmal im **Schauraum** östlich der Küche, jedes Paar vor dem
- * Möbel, um dessen Ton es geht — und mit dem Schauraum ist dieser Platz
- * weggefallen (`layout.KITCHEN`). Die Wand x = 0 ist der richtige Ersatz: Dort
- * steht in dieser Küche, woran man etwas **einstellt** und nicht woran man
- * arbeitet — Radio (z = 6), Rechner (z = 7), Umbauknopf und zweite Hand
- * (z = 8 und 9). Vier weitere Säulen in derselben Spalte sind damit dort, wo
- * jemand sie sucht, und nicht im Weg: Wer hereinkommt, läuft an allen vorbei.
+ * Sie standen einmal im **Schauraum** östlich der Küche, wo jedes Möbel
+ * einzeln stand; mit ihm ist dieser Platz weggefallen (`layout.KITCHEN`).
+ * Geblieben ist die Regel, die sie dort hatte: Wer wissen will, wie das Messer
+ * klingt, steht ohnehin vor dem **Brett**, und wer die Abgabe vergleicht, vor
+ * der **Ausgabetheke** — also stehen die Knöpfe dort und nicht in einer Reihe
+ * an der Wand. Vier Schilder übereinander liest niemand.
  *
- * **Ein Paar sind zwei Kacheln übereinander**: oben weiterschalten, darunter
- * vorspielen. Im Schauraum standen sie nebeneinander, weil dort eine Reihe
- * frei war; in einer Spalte liest sich dasselbe von oben nach unten.
+ * **Zwei Kacheln auseinander**, wie schon im Schauraum: Auf Lücke gestellt
+ * überdecken sich die beiden Schilder nicht, und zwischen den Säulen steht
+ * der, der vergleicht.
  *
- * **Die vier Kacheln sind frei**, nachgesehen und nicht gehofft: In der Spalte
- * x = 0 steht die Küchenzeile bei z = 0, der Rechner bei z = 7, Radio und
- * Knöpfe bei z = 6, 8 und 9 — z = 1 bis 5 ist leer, und z = 3 bleibt es als
- * Lücke zwischen den beiden Paaren. Ein Test hält das fest
- * (`kitchenPlan.test.ts`) — zwei Dinge auf einer Kachel heißt, dass `A` immer
- * nur eines davon erwischt.
+ * **Wo genau, ist je Möbel nachgesehen und nicht geraten:**
+ *
+ * - Das **Brett** steht in der Nordzeile (x = 8, z = 0). Die Knöpfe stehen auf
+ *   z = 2, in der **zweiten** Reihe des Gangs — dieselbe Überlegung wie beim
+ *   Leck-Knopf (`LEAK_BUTTON_TILE`): Auf z = 1 steht, wer an der Zeile
+ *   arbeitet, und in der Brille langt man nur einen Meter weit.
+ * - Die **Ausgabetheke** (x = 5…6, z = 9) schaut nach Süden, also stehen ihre
+ *   Knöpfe auf z = 10, im Gastraum davor. Auf z = 8 nähmen sie dem Koch genau
+ *   die Kacheln weg, von denen aus er über die Theke gibt.
+ *
+ * **Die vier Kacheln sind frei**, nachgesehen und nicht gehofft; ein Test hält
+ * das fest (`kitchenPlan.test.ts`) — zwei Dinge auf einer Kachel heißt, dass
+ * `A` immer nur eines davon erwischt.
  *
  * **Und sie sind vorübergehend.** Steht die Wahl, fallen die Knöpfe mitsamt
  * `kitchenSound.SOUND_TRIALS` wieder heraus; was bleibt, ist der Satz
@@ -417,14 +423,14 @@ export const TRIAL_BUTTONS: readonly TrialButtons[] = [
   {
     cue: 'chop',
     piece: 'board',
-    turn: { x: 0, z: 1 },
-    play: { x: 0, z: 2 },
+    turn: { x: 8, z: 2 },
+    play: { x: 10, z: 2 },
   },
   {
     cue: 'serve',
     piece: 'pass',
-    turn: { x: 0, z: 4 },
-    play: { x: 0, z: 5 },
+    turn: { x: 5, z: 10 },
+    play: { x: 7, z: 10 },
   },
 ];
 

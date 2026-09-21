@@ -34,6 +34,7 @@ liegt in der Hand.
 | `core/kaykitModel.ts`          | Der Lader: `loadKaykitIndex`, `kaykitModel`, `kaykitModelNow` |
 | `core/screenCarry.ts`          | **Rein**: wo ein getragener Gegenstand am Schirm hängt — von oben und aus den Augen |
 | `worlds/portal/props.ts`       | `ModelKind` (`model:<pfad>`) und `modelPropShape` — wie aus einem Modell ein Gegenstand wird |
+| `worlds/portal/gridSnap.ts`    | **Rein**: Kachelmitte, Vierteldrehung, und ab wann ein Loslassen ein Wurf ist |
 | `worlds/portal/screenHand.ts`  | Die Bildschirmhand mit ihrem zweiten Anker (`carry`) |
 | `worlds/portal/PortalWorld.ts` | Der Menüeintrag `assets`, `conjureModel`, `screenCatch`/`updateScreenCarry`, die Modellfabrik |
 
@@ -224,11 +225,19 @@ nächsten Bild die Pakete.
 
 In der **Brille**: zielen, Greifen oder `A` — das Modell wird geladen, bekommt
 einen Körper und landet über `attach` in genau dieser Hand, an derselben
-Stelle, an der jeder Griff dieser Welt endet. Das Panel geht dabei sofort zu
-(ein Menü, das nach dem Zugreifen noch stehen bleibt, fühlt sich an wie ein
-Fehlgriff) und beim Loslassen wieder auf — **im selben Ordner**, denn der Weg
-bleibt beim Zumachen stehen. Der Beutel macht es genauso, nur schlägt er seine
-eine Seite wieder auf.
+Stelle, an der jeder Griff dieser Welt endet. Das Panel geht dabei sofort zu:
+Ein Menü, das nach dem Zugreifen noch stehen bleibt, fühlt sich an wie ein
+Fehlgriff.
+
+**Und es geht beim Hinstellen nicht wieder auf**, anders als der Beutel — das
+war ein gemeldeter Fehler („wenn ich die platziere, soll sich das Menü nicht
+platzieren"). Der Beutel ist eine Kiste, aus der man greift: Wer daraus etwas
+holt, holt meistens noch etwas, also schlägt er seine eine Seite beim
+Loslassen wieder auf. Das Regal ist ein **Katalog, mit dem man einrichtet**,
+und zwischen zwei Stücken liegt ein Blick auf das, was man gerade hingestellt
+hat — kein Panel vor der Nase. Aufgeschlagen wird es wieder von Hand, und dann
+an derselben Stelle: Der Weg durchs Menü bleibt beim Zumachen stehen
+(`ui/menuNav.ts`).
 
 Dauert das Laden, sagt es das: `Lädt …` am Handgelenk. Kommt nichts an, steht
 dort `… nicht geladen`, und sonst passiert nichts.
@@ -259,6 +268,49 @@ Drei Stücke waren dafür nötig; die lange Fassung steht in
 **Der Beutel geht denselben Weg mit.** Er hatte dasselbe Problem und war der
 Grund, aus dem das Regal es geerbt hatte — jetzt fängt die Bildschirmhand beide
 auf (`PortalWorld.screenCatch`).
+
+## Was hingestellt wird, rastet auf dem Kachelgitter ein
+
+Ein Modell aus dem Regal ist ein **Möbel**: ein Fass, ein Zaun, eine Truhe,
+eine Wand. Die Möbel dieses Spiels stehen auf Kacheln und schauen in eine der
+vier Himmelsrichtungen — die Küche tut es (`test/zones/kitchenPlan.Spot`), der
+Editor tut es (`grid/gridTool.ts`), und der Konstrukt-Raum stellt seine Auswahl
+aus demselben Grund in Vierteldrehungen hin. Wer aus dem Regal eine Reihe
+Fässer hinstellt, will genau das: eine **Reihe** und keine Sammlung schräg
+stehender Fässer, die sich um ein paar Zentimeter verfehlen.
+
+Also rastet ein abgelegtes Modell ein (`worlds/portal/gridSnap.ts`,
+`PortalWorld.snapPlaced`), und zwar in beidem:
+
+- **Die Kachelmitte** in x und z. Dieselbe Kachel wie überall sonst
+  (`nav/navTile.TILE`, 1 m), also decken sich Regal, Küche und Editor ohne eine
+  zweite Zahl. Gerundet wird mit `Math.floor` und nicht mit `Math.round`:
+  Gesucht ist die Kachel, auf der das Ding **steht**, und die reicht von ihrer
+  Fuge bis zur nächsten. Sonst spränge ein Fass, das genau in der Kachelmitte
+  steht, beim nächsten Ablegen eine Kachel weiter.
+- **Die Vierteldrehung** um die Hochachse, und der Rest der Lage fällt weg: Ein
+  Fass, das man schief in der Faust hielt, steht danach aufrecht. Nicken und
+  Rollen zu behalten hieße, ein Möbel auf die Kante zu stellen, das man gerade
+  hinstellen wollte.
+
+**Die Höhe bleibt, wie sie ist**, und das ist Absicht: Wo der Boden unter einem
+Punkt liegt, weiß hier niemand — es kann der Estrich sein, ein Tisch oder das
+Dach eines Hauses. Also bleibt y stehen, Geschwindigkeit und Drall gehen auf
+null, und den letzten Zentimeter macht die Schwerkraft. Ein Kasten, der ohne
+Drall aufrecht auf eine ebene Fläche fällt, bleibt aufrecht stehen.
+
+**Geworfen wird trotzdem noch.** Einrasten soll, was jemand *hinstellt* — wer
+ein Fass durch den Raum wirft, meint etwas anderes, und ein Wurf, der mitten im
+Flug auf eine Kachelmitte springt, sähe aus wie ein Fehler. Die Grenze ist
+`PLACE_SPEED` (1,5 m/s), gemessen an derselben Zahl, die auch den Wurf antreibt
+(`grab.velocity`). **Am Schirm** sagt es der Ablegen-Knopf ausdrücklich: Dort
+ist ein Druck ein Hinstellen, auch wenn die Figur dabei gerade läuft.
+
+**Nur das Regal, nicht der Beutel.** Der gibt Spielzeug her — Würfel rollen,
+Murmeln kullern, Dominosteine stehen auf Lücke —, und ein Würfel, der beim
+Loslassen auf eine Kachelmitte springt, wäre kein Würfel mehr. Entschieden wird
+das an der **Sorte** (`props.modelPathOf`), also an derselben Zeichenkette, die
+auch über das Netz reist.
 
 ## Aus einem Modell wird ein Gegenstand
 
@@ -392,6 +444,10 @@ jedem `removeProp`, also an drei Stellen, die niemand im Verdacht hätte.
 - **Griff, Farbe, Ton kennt ein Modell nicht.** Es wird angefasst, wo die Hand
   es berührt (`PROP_GRIPS` hat keinen Eintrag dafür), und es klingt wie jedes
   andere Ding.
+- **Das Einrasten kennt keinen Boden.** Es setzt x, z und die Drehung, die
+  Höhe macht die Schwerkraft — wer ein Fass über einer Treppenstufe ablegt,
+  bekommt ein Fass, das auf die Stufe fällt und dort liegt, und nicht eines,
+  das auf ihre Oberkante gesetzt wird.
 - **Animationen bleiben liegen.** Was die Sammlung an Bewegung mitbringt, wird
   geladen und nicht abgespielt — ein Gegenstand aus dem Beutel bewegt sich auch
   nicht von selbst.

@@ -541,23 +541,32 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
   });
 
   /**
-   * **Jedes Paar steht beieinander und in der Gerätespalte.**
+   * **Jedes Paar steht in einer Reihe vor seinem Möbel, zwei Kacheln
+   * auseinander.**
    *
-   * Zwei Kacheln übereinander, oben weiterschalten, darunter vorspielen — und
-   * beide in derselben Spalte wie Radio, Rechner und die roten Knöpfe. Ohne
-   * diese Zeile läge ein Paar irgendwo in der Küche verstreut, und niemand
-   * wüsste, dass die beiden zusammengehören.
+   * Zwei Kacheln, damit die beiden Schilder sich nicht überdecken, und
+   * dieselbe Reihe, damit man sie als Paar liest. Und das Möbel, um dessen Ton
+   * es geht, gibt es wirklich (`piece`): Sein Name steht auf beiden Schildern,
+   * und ein Name, den der Aufbau nicht kennt, wäre eine Beschriftung, die auf
+   * nichts zeigt.
    *
-   * **Und das Möbel, um dessen Ton es geht, gibt es wirklich** (`piece`): Sein
-   * Name steht auf beiden Schildern, und ein Name, den der Aufbau nicht kennt,
-   * wäre eine Beschriftung, die auf nichts zeigt.
+   * **In Reichweite des Möbels**, denn darum stehen sie dort: höchstens zwei
+   * Kacheln neben seiner Grundfläche. Ohne diese Zeile wanderte ein Paar beim
+   * nächsten Umräumen ans andere Ende der Küche, und der Name auf dem Schild
+   * zeigte auf ein Möbel, das man von dort nicht sieht.
    */
-  it('stellt jedes Knopfpaar untereinander in die Gerätespalte', () => {
+  it('stellt jedes Knopfpaar in einer Reihe vor sein Möbel', () => {
     for (const pair of TRIAL_BUTTONS) {
-      expect(KITCHEN_SPOTS.some((spot) => spot.name === pair.piece)).toBe(true);
-      expect(pair.turn.x).toBe(BUILD_BUTTON_TILE.x);
-      expect(pair.play.x).toBe(BUILD_BUTTON_TILE.x);
-      expect(pair.play.z).toBe(pair.turn.z + 1);
+      const spot = KITCHEN_SPOTS.find((entry) => entry.name === pair.piece);
+      expect(spot).toBeDefined();
+      const size = footprint(kitchenPiece(spot!.name)!, spot!.turn ?? 0);
+      expect(pair.play.z).toBe(pair.turn.z);
+      expect(pair.play.x - pair.turn.x).toBe(2);
+      for (const tile of [pair.turn, pair.play]) {
+        const dx = Math.max(spot!.x - tile.x, tile.x - (spot!.x + size.w - 1), 0);
+        const dz = Math.max(spot!.z - tile.z, tile.z - (spot!.z + size.d - 1), 0);
+        expect({ tile, near: dx <= 2 && dz <= 2 }).toEqual({ tile, near: true });
+      }
     }
   });
 
