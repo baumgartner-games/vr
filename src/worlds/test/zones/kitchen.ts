@@ -1327,6 +1327,7 @@ export class KitchenZone implements TestZone {
   update(dt: number, ctx: WorldContext): void {
     this.aim(ctx);
     this.fitEyes(ctx);
+    this.holdFeet(ctx);
     this.runBelts(dt);
     this.cook(dt);
     this.spray(dt, ctx);
@@ -1423,6 +1424,33 @@ export class KitchenZone implements TestZone {
   private fitEyes(ctx: WorldContext): void {
     const inside = ctx.renderer.xr.isPresenting && !ctx.topDown && inKitchen(_feet.x, _feet.z);
     ctx.rig.eyeScale = inside ? this.eyeScale : 1;
+  }
+
+  /**
+   * **In der Küche wird nicht gesprungen** (`PlayerRig.jumpLock`).
+   *
+   * Dasselbe Rechteck wie bei der Augenhöhe (`kitchenPlan.inKitchen`,
+   * `layout.KITCHEN` mit einem Meter Vorlauf) — und wieder eine Rechnung
+   * statt einer zweiten Liste von Zahlen.
+   *
+   * Hier drin hat ein Sprung nichts zu suchen: Die Möbel sind ohnehin bis auf
+   * 1,40 m gesperrt, damit niemand auf der Küchenzeile steht
+   * (`kitchenBlocks.BLOCK_HEIGHT`) — was bleibt, ist ein Hüpfen zwischen Herd
+   * und Spüle, mitten in der Arbeit. In der Brille ist es zudem derselbe
+   * Knopf, der etwas benutzt (`A`, `PlayerRig.update`): Wer vor der Ausgabe
+   * daneben zielt, hüpfte bisher, statt den Teller zu nehmen.
+   *
+   * **Anders als die Augenhöhe gilt das in jeder Ansicht.** Die Stauchung
+   * korrigiert eine echte Augenhöhe und die gibt es nur in der Brille; der
+   * Sprung ist eine Regel des Raums, und eine Regel, die am Bildschirm nicht
+   * gälte, wäre keine.
+   *
+   * Jedes Bild neu gesetzt, drinnen wie draußen: Ein Merker, der nur gesetzt
+   * und nie gelöscht wird, ist ein Spieler, der nach der Küche auf der Wiese
+   * nicht mehr abspringt.
+   */
+  private holdFeet(ctx: WorldContext): void {
+    ctx.rig.jumpLock = inKitchen(_feet.x, _feet.z);
   }
 
   /**

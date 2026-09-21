@@ -159,6 +159,26 @@ export class PlayerRig extends THREE.Group {
    */
   locked = false;
   /**
+   * **Hier wird nicht gesprungen** — der Absprung fällt aus, und sonst bleibt
+   * alles, wie es ist.
+   *
+   * Der Unterschied zu `locked`: Dort steht die Figur still, weil gerade ihre
+   * Hände das Thema sind. Hier läuft, duckt, dreht und greift sie weiter, nur
+   * der Boden lässt sie nicht los — die Küche stellt den Sprung ab, weil dort
+   * gearbeitet und nicht geturnt wird (`zones/kitchen.ts`, `holdFeet`).
+   *
+   * Der Merker sitzt hier und nicht in der Fortbewegung, weil es hier genau
+   * eine Stelle gibt, durch die jeder Sprungwunsch muss: Brille, Tastatur, Pad
+   * und Bildschirmstock landen alle in `intentJump` (`setIntent`,
+   * `requestJump`). Eine Sperre je Steuerung wäre vier Sperren, und die vierte
+   * hätte jemand vergessen.
+   *
+   * Gesetzt wird er von der Welt, jedes Bild neu — und beim Verlassen räumt
+   * `standUp` auf: Ein Merker, der nur gesetzt und nie gelöscht wird, ist ein
+   * Spieler, der in der nächsten Welt nicht mehr springen kann.
+   */
+  jumpLock = false;
+  /**
    * Ein Stick, der diese Frame dem Menü gehört.
    *
    * Wer aufs Panel zeigt und mit dem Stick blättert, will blättern — und nicht
@@ -409,6 +429,8 @@ export class PlayerRig extends THREE.Group {
   /** Stands back up, e.g. when a world is left. */
   standUp(): void {
     this.locked = false;
+    // Die Sprungsperre gehört der Welt, die man gerade verlässt (`jumpLock`).
+    this.jumpLock = false;
     this.useCandidate = false;
     this.useBusy = false;
     this.sprintScale = 1;
@@ -591,7 +613,7 @@ export class PlayerRig extends THREE.Group {
     // festgehalten, bevor der Wunsch für das nächste Bild gelöscht wird.
     this.wished = this.intent.lengthSq() > 0.0025;
     this.sprintedNow = this.sprintWanted || this.intentSprint;
-    this.locomotion.apply(this, this.intent, this.intentJump, dt);
+    this.locomotion.apply(this, this.intent, this.intentJump && !this.jumpLock, dt);
     this.intent.set(0, 0, 0);
     this.intentJump = false;
     this.intentSprint = false;
