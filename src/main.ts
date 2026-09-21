@@ -1,15 +1,15 @@
 import './style.css';
-import { App } from './core/App';
-import { NetPanel } from './ui/NetPanel';
 import { detectFlatRole, detectXRSupport } from './core/device';
 import { normalizeRoomCode, rememberName, rememberedName } from './net/room';
-import { HAUNT_ROOM, hauntRoomFrom } from './worlds/haunting/net';
-import { arriveAs, loadLobby, saveLobby, type Entry } from './worlds/haunting/rules/lobby';
+import type { App } from './core/App';
+import type { NetPanel } from './ui/NetPanel';
+import type { Entry } from './worlds/haunting/rules/lobby';
 import { playerPosture, savePlayerPosture, type Posture } from './core/posture';
 import {
   SCREEN_VIEW_LABELS,
   SCREEN_VIEW_SUBS,
   onScreenViewChange,
+  saveScreenView,
   screenView,
   startOptions,
   type ScreenView,
@@ -29,13 +29,44 @@ import { armAudioUnlock, unlockAudio } from './core/audioUnlock';
 import { graphics, onGraphicsChange } from './core/graphicsSettings';
 import { firstGamepad } from './core/gamepad';
 import { nextWarmStep, type WarmSignals, type WarmStep } from './core/warmStart';
-import { versioned } from './core/assetVersion';
+import { BUILD_ID, versioned } from './core/assetVersion';
+import {
+  SHELF_INDEX,
+  Throughput,
+  etaSeconds,
+  fullHint,
+  fullLabel,
+  fullPlan,
+  fullShare,
+  fullWarning,
+  haveBytes,
+  mayStartFull,
+  pendingItems,
+  steadyEta,
+  type FullPlan,
+  type FullState,
+  type OfflineList,
+} from './core/fullDownload';
+import {
+  cachedUrls,
+  hasCacheStorage,
+  loadOfflineList,
+  runFull,
+  swControls,
+} from './core/fullDownloadRun';
+import type { KaykitIndex } from './core/kaykitIndex';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;
 const landingTitle = document.querySelector<HTMLElement>('#landing-title')!;
 const enterButton = document.querySelector<HTMLButtonElement>('#enter')!;
-/** Die Zeile unter dem Knopf, die „lädt" sagt — siehe `showStartNote`. */
+/**
+ * **Der Ladebalken des Starts** (`index.html`, `#boot`) — der Kasten und die
+ * Zeile darin. Beide stehen **im HTML** und nicht hier: Sie werden genau in
+ * der Zeit gebraucht, in der dieses Skript noch unterwegs ist. Was von hier
+ * kommt, ist nur das Ende — siehe `showStartNote`.
+ */
+const bootBox = document.querySelector<HTMLElement>('#boot')!;
 const startNote = document.querySelector<HTMLElement>('#start-note')!;
 const statusLine = document.querySelector<HTMLElement>('#xr-status')!;
 const hud = document.querySelector<HTMLElement>('#hud')!;
@@ -112,8 +143,6 @@ let hauntBusy = false;
 /** Was der letzte Versuch zu verbinden zu sagen hatte, wenn er scheiterte. */
 let hauntError = '';
 
-let netPanel: NetPanel | null = null;
-
 /**
  * **Wann die Stöcke auf dem Glas liegen** — die drei Stellen, die es einmal
  * waren, ziehen jetzt an einem Strang (`core/screenPads.ts`).
@@ -160,9 +189,56 @@ for (const event of ['gamepadconnected', 'gamepaddisconnected'])
   window.addEventListener(event, showPads);
 onGraphicsChange(showPads);
 
-const app = (() => {
+/**
+ * **Die App kommt nicht mehr mit der Seite** — sie wird geholt, wenn sie
+ * gebraucht wird.
+ *
+ * `core/App.ts` zieht three.js mit (gemessen 755 kB im Bündel, rund 202 kB
+ * gezippt), `ui/NetPanel.ts` die Verbindungsbibliothek, und beide hingen
+ * **fest** an `main.ts`. Damit lagen sie auf dem Weg zwischen dem ersten Bild
+ * und dem Augenblick, in dem die Startseite überhaupt auf eine Frage
+ * antwortet — für eine Seite, die zuerst nur einen Knopf und zwei Umschalter
+ * zeigt, ist das die falsche Reihenfolge. Der gemessene Befund stand schon im
+ * Kapitel [Die Seite selbst](../docs/agents/seite.md): „Das aufzulösen hieße,
+ * `App` und `ui/NetPanel` dynamisch zu laden, und das ist ein eigener Umbau."
+ * Das hier ist der Umbau.
+ *
+ * **Geholt wird sie von zwei Seiten**, und beide bekommen dieselbe:
+ *
+ * - **im Leerlauf nach dem Start** (`bootApp`), damit sie in aller Regel
+ *   längst dasteht, bevor jemand drückt;
+ * - **sofort bei der ersten Geste**, die sie braucht — jeder Knopf, jedes
+ *   Menü, jede Welt in der Adresse ruft `ensureApp`.
+ *
+ * `null` heißt „kein 3D auf diesem Gerät": Dann steht die Erklärung auf der
+ * Seite und jeder Knopf ist stumpf — dieselbe Behandlung wie vorher, nur
+ * eben ein paar hundert Millisekunden später.
+ */
+let app: App | null = null;
+let netPanel: NetPanel | null = null;
+let appPending: Promise<App | null> | null = null;
+
+function ensureApp(): Promise<App | null> {
+  appPending ??= startApp();
+  return appPending;
+}
+
+/** Für alles, was die App braucht, aber nicht auf sie warten kann. */
+function withApp(use: (app: App) => void): void {
+  void ensureApp().then((ready) => {
+    if (ready) use(ready);
+  });
+}
+
+async function startApp(): Promise<App | null> {
+  // Beide zusammen: Sie hängen ohnehin aneinander (`NetPanel` bekommt die
+  // App), und zwei Ladungen hintereinander wären eine Laufzeit zu viel.
+  const [{ App }, { NetPanel }] = await Promise.all([
+    import('./core/App'),
+    import('./ui/NetPanel'),
+  ]);
   try {
-    return new App(canvas, pads, {
+    app = new App(canvas, pads, {
       onWorldChanged: (id, title) => {
         hudWorld.textContent = title;
         if (window.location.hash.slice(1) !== id) {
@@ -221,21 +297,38 @@ const app = (() => {
     for (const button of [enterButton, hauntEnter]) button.textContent = '3D-Start nicht verfügbar';
     for (const button of landing.querySelectorAll<HTMLButtonElement>('button'))
       button.disabled = true;
-    throw error;
+    // Der Balken hört auf zu laufen: Es kommt nichts mehr.
+    showStartNote('');
+    console.error('[start] 3D ließ sich nicht einrichten', error);
+    return null;
   }
-})();
 
-app.preferLocal = params.get('net') === 'local';
+  app.preferLocal = params.get('net') === 'local';
 
-netPanel = new NetPanel(app, {
-  local: app.preferLocal,
-  // Joining a room from the landing page also starts the game — the two
-  // buttons there say which way. Ob die Welt dabei flach oder räumlich
-  // aussieht, sagt die Ansicht und nicht dieser Knopf. Derselbe Weg wie beim
-  // großen Knopf (`enterPlayground`): Die Welt kommt seit dem fortschreitenden
-  // Start nicht mehr von allein, also wird sie hier angefordert.
-  onStart: (mode) => void enterPlayground(mode === 'vr'),
-});
+  netPanel = new NetPanel(app, {
+    local: app.preferLocal,
+    // Joining a room from the landing page also starts the game — the two
+    // buttons there say which way. Ob die Welt dabei flach oder räumlich
+    // aussieht, sagt die Ansicht und nicht dieser Knopf. Derselbe Weg wie beim
+    // großen Knopf (`enterPlayground`): Die Welt kommt seit dem fortschreitenden
+    // Start nicht mehr von allein, also wird sie hier angefordert.
+    onStart: (mode) => void enterPlayground(mode === 'vr'),
+  });
+
+  // `?room=` prefills the code (a shared link), so only one tap is left to join.
+  const room = normalizeRoomCode(params.get('room') ?? '');
+  if (room) {
+    netPanel.setRoom(room);
+    document.querySelector<HTMLDetailsElement>('#net-setup')?.setAttribute('open', '');
+  } else {
+    netPanel.restoreLastRoom();
+  }
+
+  // Handy for debugging from the browser console.
+  (window as unknown as { bgvr: App }).bgvr = app;
+  refreshHaunt();
+  return app;
+}
 
 // **Haunting lädt erst, wenn jemand hineinwill.** Die Welt holt sich beim
 // Betreten selbst einen Raum, wenn sie in keinem ist (`joinTable`) — und die
@@ -259,20 +352,32 @@ netPanel = new NetPanel(app, {
 // **wenn der Browser Luft hat** (`warmUp` weiter unten) oder wenn jemand
 // _Beitreten_ drückt (`ensureWorld`) — je nachdem, was zuerst passiert.
 
-// Handy for debugging from the browser console.
-(window as unknown as { bgvr: App }).bgvr = app;
-
-// `?room=` prefills the code (a shared link), so only one tap is left to join.
-const room = normalizeRoomCode(params.get('room') ?? '');
-if (room) {
-  netPanel.setRoom(room);
-  document.querySelector<HTMLDetailsElement>('#net-setup')?.setAttribute('open', '');
-} else {
-  netPanel.restoreLastRoom();
+/**
+ * **Die Lobby-Bibliothek kommt erst, wenn sie gebraucht wird.**
+ * `worlds/haunting/net.ts` ist ein eigener Chunk (58 kB) und hing bisher fest
+ * an `main.ts` — für eine Seite, auf der niemand eine Runde spielen will, war
+ * das reine Ladezeit. Nur die Startseite einer Runde holt sie; die Spielwiese
+ * fasst sie nie an.
+ *
+ * **Und sie steht hier oben und nicht unten bei den anderen Helfern**, denn
+ * die Zeile darunter ruft sie im Modulrumpf. Eine Funktionsdeklaration wird
+ * hochgezogen, ein `let` daneben nicht — geschrieben war es einmal andersherum,
+ * und heraus kam ein `ReferenceError: Cannot access … before initialization`,
+ * der **nur** hinter `#haunting` auftrat und dort die halbe Startseite
+ * versteckt ließ. Gefunden hat ihn der Rauchtest und keine der vier Prüfungen.
+ */
+let hauntNetPending: Promise<typeof import('./worlds/haunting/net')> | null = null;
+function hauntNet(): Promise<typeof import('./worlds/haunting/net')> {
+  hauntNetPending ??= import('./worlds/haunting/net');
+  return hauntNetPending;
 }
 
 hauntName.value = rememberedName();
-hauntRoom.value = hauntRoomFrom(window.location.search);
+if (hauntLanding) {
+  void hauntNet().then((net) => {
+    hauntRoom.value = net.hauntRoomFrom(window.location.search);
+  });
+}
 refreshHaunt();
 
 /**
@@ -325,7 +430,9 @@ postureSeg.addEventListener('click', (event) => {
   const picked = button?.dataset['posture'];
   if (picked !== 'sit' && picked !== 'stand') return;
   savePlayerPosture(picked);
-  app.rig.posture = picked;
+  // Steht die App noch nicht, genügt der Speicher: `PlayerRig` liest die
+  // Haltung beim Aufbau von dort (`core/posture.ts`).
+  if (app) app.rig.posture = picked;
   showPosture(picked);
 });
 
@@ -387,10 +494,11 @@ screenSeg.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   const picked = button?.dataset['view'];
   if (picked !== '2d' && picked !== '3d') return;
-  // Die App merkt sich die Wahl selbst und schaltet die laufende Welt um; die
-  // Startseite liegt ja nur davor. `setScreenView` schreibt sie auch in den
-  // Speicher, deshalb hier kein zweites `saveScreenView`.
-  app.setScreenView(picked);
+  // Die App schaltet die laufende Welt um — solange es keine gibt, genügt der
+  // Speicher, und `App` liest ihn beim Aufbau. Deshalb steht hier beides:
+  // `saveScreenView` für den frühen Fall, `setScreenView` für den späten.
+  if (app) app.setScreenView(picked);
+  else saveScreenView(picked);
 });
 
 // --- Die Welt: angefordert oder vorgewärmt, aber nie im Modulrumpf ----------
@@ -408,9 +516,12 @@ let worldPending: Promise<void> | null = null;
 /** Ob die Standardwelt steht. Nur für die Frage, ob jemand warten muss. */
 let worldReady = false;
 function ensureWorld(): Promise<void> {
-  worldPending ??= app.goTo(startWorld).then(() => {
-    worldReady = true;
-  });
+  worldPending ??= ensureApp()
+    .then((ready) => ready?.goTo(startWorld))
+    .then(() => {
+      worldReady = true;
+      showStartNote('');
+    });
   return worldPending;
 }
 
@@ -426,6 +537,14 @@ function ensureWorld(): Promise<void> {
 const warmed: WarmStep[] = [];
 /** Ob der Spieler schon selbst etwas angefordert hat — dann nichts nebenher. */
 let playerAsked = false;
+/**
+ * Ob gerade **alles** heruntergeladen wird (weiter unten, `#offline`). Das ist
+ * dasselbe `busy` aus einem anderen Grund: Der große Download hat die Leitung,
+ * und was das Vorwärmen daneben holte, nähme sie ihm weg. Anders als
+ * `playerAsked` geht es hinterher wieder auf `false` — dann ist das Vorwärmen
+ * wieder dran, falls es überhaupt noch etwas zu wärmen gibt.
+ */
+let fullRunning = false;
 /** Womit ein laufender Vorrats-Abruf abgebrochen wird. */
 let warmAbort: AbortController | null = null;
 
@@ -450,11 +569,21 @@ function warmSignals(): WarmSignals {
     // vorgewärmt, und das ist keine Frage der Bandbreite.
     lobby: hauntLanding,
     hidden: document.hidden,
-    busy: playerAsked,
+    busy: playerAsked || fullRunning,
     saveData: connection?.saveData,
     effectiveType: connection?.effectiveType,
   };
 }
+
+/**
+ * **Die Basis der Seite, absolut** (`https://…/vr/`). Der Speicher führt seine
+ * Einträge unter absoluten Adressen, und ob etwas schon da ist, entscheidet
+ * ein Zeichenvergleich — eine relative Basis wäre hier eine Einladung.
+ */
+const PAGE_BASE = new URL(import.meta.env.BASE_URL, window.location.href).href;
+
+/** Der Index des Regals — dieselbe Adresse, die auch `core/kaykitModel.ts` anfragt. */
+const SHELF_INDEX_URL = versioned(`${PAGE_BASE}${SHELF_INDEX}`);
 
 /**
  * **Der Index des KayKit-Regals**, und ausdrücklich nur er (31 kB gezippt).
@@ -467,9 +596,8 @@ function warmSignals(): WarmSignals {
  * Fallunterscheidung.
  */
 async function warmShelfIndex(signal: AbortSignal): Promise<void> {
-  const url = versioned(`${import.meta.env.BASE_URL}models/kaykit/index.json`);
   try {
-    await fetch(url, { signal, priority: 'low' } as RequestInit);
+    await fetch(SHELF_INDEX_URL, { signal, priority: 'low' } as RequestInit);
   } catch {
     // Ein Vorrat, der nicht kommt, ist kein Fehler: Das Regal holt ihn sich
     // beim Aufklappen selbst.
@@ -529,7 +657,10 @@ document.addEventListener('visibilitychange', () => {
  */
 function showStartNote(text: string): void {
   startNote.textContent = text;
-  startNote.hidden = text === '';
+  // Der Balken **ist** die Zeile: Er läuft, solange etwas zu sagen ist, und
+  // geht mit ihr weg. Angefangen hat er im HTML, lange bevor dieses Skript da
+  // war — das ist sein ganzer Zweck.
+  bootBox.hidden = text === '';
 }
 
 /**
@@ -563,6 +694,15 @@ async function enterPlayground(vr: boolean): Promise<void> {
   if (session) await session;
 }
 
+// **Die erste Berührung der Startseite holt die App**, noch bevor klar ist,
+// wohin sie führen soll: Wer die Seite anfasst, will gleich hinein, und ein
+// Chunk, der in dieser Sekunde losgeht, ist eine Sekunde früher da. Einmal
+// und dann nie wieder (`once`) — `ensureApp` ist ohnehin idempotent, aber ein
+// Ereignis, das niemand mehr braucht, wird abgemeldet.
+for (const event of ['pointerdown', 'keydown'] as const) {
+  landing.addEventListener(event, () => void ensureApp(), { once: true, passive: true });
+}
+
 enterButton.addEventListener('click', () => {
   // **Hier und nicht später** wird der Ton aufgeschlossen: WebKit lässt einen
   // `AudioContext` nur **im** Ereignis laufen, und alles danach — das Modul
@@ -575,12 +715,14 @@ enterButton.addEventListener('click', () => {
 
 // Dasselbe Menü wie im Spiel, schon auf der Startseite: Welten, Bewegung,
 // Aussehen, Grafik — als Seite (`ui/PageMenu.ts`), weil hier keine Brille auf ist.
-landingMenu.addEventListener('click', () => app.toggleMenu());
+landingMenu.addEventListener('click', () => withApp((ready) => ready.toggleMenu()));
 
 async function startVR(button: HTMLButtonElement = enterButton): Promise<void> {
   button.disabled = true;
   try {
-    await app.enterVR();
+    const ready = await ensureApp();
+    if (!ready) return;
+    await ready.enterVR();
   } catch (error) {
     setXrStatus(`VR-Start fehlgeschlagen: ${(error as Error).message}`, true);
     button.disabled = false;
@@ -612,11 +754,13 @@ const DEVICE_LABELS: Record<string, string> = {
  */
 function refreshHaunt(): void {
   if (!hauntLanding) return;
-  const net = app.net;
+  // Ohne App gibt es noch keine Verbindung — und „noch nicht verbunden" ist
+  // dann die richtige Auskunft und nicht ein Fehler.
+  const net = app?.net ?? null;
   let text: string;
   if (hauntBusy) text = 'Verbinde …';
   else if (hauntError) text = `Verbindung fehlgeschlagen: ${hauntError}`;
-  else if (net.connected) {
+  else if (net?.connected) {
     const others = net.peers.size;
     text =
       `Lobby „${net.room}" · ` +
@@ -628,16 +772,16 @@ function refreshHaunt(): void {
   } else text = 'Noch nicht verbunden — Name und Raum-Code eintragen.';
   hauntStatus.textContent = text;
   hauntStatus.classList.toggle('is-error', Boolean(hauntError) && !hauntBusy);
-  hauntStatus.classList.toggle('is-online', !hauntError && !hauntBusy && net.connected);
-  hauntConnect.textContent = hauntBusy ? '…' : net.connected ? 'Neu verbinden' : 'Verbinden';
+  hauntStatus.classList.toggle('is-online', !hauntError && !hauntBusy && Boolean(net?.connected));
+  hauntConnect.textContent = hauntBusy ? '…' : net?.connected ? 'Neu verbinden' : 'Verbinden';
   for (const button of [hauntConnect, hauntEnter]) button.disabled = hauntBusy;
-  hauntLobby.hidden = !net.connected;
-  if (net.connected) renderHauntPeers();
+  hauntLobby.hidden = !net?.connected;
+  if (net?.connected) renderHauntPeers();
 }
 
 /** Die Liste der Lobby: ich zuerst, dann alle anderen im Raum. */
 function renderHauntPeers(): void {
-  const net = app.net;
+  const net = app!.net;
   const row = (name: string, role: string, note: string, me: boolean): HTMLElement => {
     const item = document.createElement('li');
     const dot = document.createElement('span');
@@ -678,11 +822,14 @@ function renderHauntPeers(): void {
  * @returns ob man danach im Raum steht.
  */
 async function joinHaunting(): Promise<boolean> {
+  const { HAUNT_ROOM } = await hauntNet();
+  const ready = await ensureApp();
+  if (!ready) return false;
   const wanted = normalizeRoomCode(hauntRoom.value) || HAUNT_ROOM;
   const name = hauntName.value.trim();
   rememberName(name);
-  if (app.net.connected && app.net.room === wanted) {
-    if (name && name !== app.net.name) app.setPlayerName(name);
+  if (ready.net.connected && ready.net.room === wanted) {
+    if (name && name !== ready.net.name) ready.setPlayerName(name);
     refreshHaunt();
     return true;
   }
@@ -691,9 +838,9 @@ async function joinHaunting(): Promise<boolean> {
   hauntError = '';
   refreshHaunt();
   try {
-    if (app.net.connected) app.disconnect();
-    await app.connect({ room: wanted, name, local: app.preferLocal });
-    writeRoomToAddress(wanted);
+    if (ready.net.connected) ready.disconnect();
+    await ready.connect({ room: wanted, name, local: ready.preferLocal });
+    writeRoomToAddress(wanted, HAUNT_ROOM);
     return true;
   } catch (error) {
     hauntError = (error as Error).message;
@@ -704,9 +851,9 @@ async function joinHaunting(): Promise<boolean> {
   }
 }
 
-function writeRoomToAddress(code: string): void {
+function writeRoomToAddress(code: string, shared: string): void {
   const url = new URL(window.location.href);
-  if (code === HAUNT_ROOM) url.searchParams.delete('room');
+  if (code === shared) url.searchParams.delete('room');
   else url.searchParams.set('room', code);
   window.history.replaceState(null, '', url);
 }
@@ -733,10 +880,13 @@ async function startHaunting(way: 'vr' | Entry): Promise<void> {
   // Auch hier gilt: Was der Spieler will, hat Vorrang vor dem Vorrat.
   stopWarming();
   const session = way === 'vr' ? startVR(hauntEnter) : null;
-  if (way !== 'vr') saveLobby(arriveAs(loadLobby(undefined, detectFlatRole()), way));
+  if (way !== 'vr') {
+    const { arriveAs, loadLobby, saveLobby } = await import('./worlds/haunting/rules/lobby');
+    saveLobby(arriveAs(loadLobby(undefined, detectFlatRole()), way));
+  }
   await joinHaunting();
   if (way !== 'vr') startFlat();
-  await app.goTo('haunting');
+  await (await ensureApp())?.goTo('haunting');
   if (session) await session;
 }
 
@@ -753,19 +903,21 @@ hauntEnter.addEventListener('click', () => {
   void startHaunting(way === 'vr' ? 'vr' : way === '2d' ? 'centre' : 'technician');
 });
 
-hudMenu.addEventListener('click', () => app.toggleMenu());
+hudMenu.addEventListener('click', () => withApp((ready) => ready.toggleMenu()));
 
 // `void (async () => …)()` statt eines `async`-Handlers: Ein Klick-Handler, der
 // eine Promise zurückgibt, wird von niemandem abgewartet — was darin schiefgeht,
 // fällt sonst still auf den Boden.
 hudVr.addEventListener('click', () => {
   void (async () => {
-    if (app.renderer.xr.isPresenting) {
-      await app.endVR();
+    const ready = await ensureApp();
+    if (!ready) return;
+    if (ready.renderer.xr.isPresenting) {
+      await ready.endVR();
       return;
     }
     try {
-      await app.enterVR();
+      await ready.enterVR();
     } catch (error) {
       console.warn('[xr] Sitzung konnte nicht gestartet werden', error);
     }
@@ -840,6 +992,204 @@ installButton.addEventListener('click', () => {
 });
 
 /**
+ * **Alles herunterladen** — der Block unter dem Installieren, und die zweite
+ * Hälfte derselben Sache: Installieren macht aus der Seite eine App, und das
+ * hier macht sie funklochfest.
+ *
+ * Gerechnet wird nebenan (`core/fullDownload.ts`, mit Test): was in den Plan
+ * gehört, in welcher Reihenfolge, wie weit der Balken steht, wie lange es noch
+ * dauert und was in jedem Zustand dasteht. Geholt wird in
+ * `core/fullDownloadRun.ts`. **Hier steht nur, welches Element was anzeigt** —
+ * und der eine Zustandsautomat dazwischen.
+ *
+ * **Der erste Druck lädt noch nichts.** Er holt die Liste, sieht im Speicher
+ * nach und sagt dann, um wie viel es überhaupt geht; erst der zweite lädt.
+ * Siebzig Megabyte sind nichts, was auf einen unbedachten Klick hin losgehen
+ * sollte — und die Frage „wie viel ist es denn?" ist genau die, die man vorher
+ * stellt. Beim Start kostet das nichts: Ungefragt wird hier **keine** Liste
+ * geholt, denn die Startseite hat auf ihre eigenen Bytes zu achten
+ * (`core/warmStart.ts`).
+ */
+const offlineButton = document.querySelector<HTMLButtonElement>('#offline-btn')!;
+const offlineBar = document.querySelector<HTMLProgressElement>('#offline-bar')!;
+const offlineHint = document.querySelector<HTMLElement>('#offline-hint')!;
+const offlineStop = document.querySelector<HTMLButtonElement>('#offline-stop')!;
+
+/** Was der Knopf gerade ist — die ganze Anzeige hängt an dieser einen Größe. */
+let fullState: FullState = { kind: 'unbekannt' };
+/** Die erzeugte Liste, einmal geholt und dann behalten. */
+let fullList: OfflineList | null = null;
+/** Der Index des Regals, ebenso — `null` heißt „kein Regal im Checkout". */
+let fullShelf: KaykitIndex | null = null;
+/** Der Plan aus beiden. */
+let fullPlanned: FullPlan | null = null;
+/** Was der Speicher davon schon hat. */
+let fullHave: ReadonlySet<string> = new Set<string>();
+/** Womit ein laufender Download angehalten wird. */
+let fullAbort: AbortController | null = null;
+
+function setFull(state: FullState): void {
+  fullState = state;
+  paintFull();
+}
+
+/**
+ * **Malen, und sonst nichts.** Vier Elemente, und jedes fragt dieselbe reine
+ * Rechnung: Beschriftung, Zeile, Balken, Halteknopf.
+ *
+ * Der Balken steht nur da, wenn er etwas zu zeigen hat — ein Balken auf Null
+ * neben einem Knopf, der noch gar nichts getan hat, sieht aus wie ein Fehler.
+ */
+function paintFull(): void {
+  offlineButton.textContent = fullLabel(fullState);
+  offlineButton.disabled =
+    fullState.kind === 'prüft' || fullState.kind === 'läuft' || fullState.kind === 'kein-speicher';
+  const warning = fullState.kind === 'offen' ? fullWarning(connectionInfo()) : '';
+  offlineHint.textContent = `${fullHint(fullState)}${warning ? ` ${warning}` : ''}`;
+  const share = fullShare(fullState);
+  offlineBar.hidden = !(
+    fullState.kind === 'läuft' ||
+    fullState.kind === 'angehalten' ||
+    fullState.kind === 'lückenhaft' ||
+    (fullState.kind !== 'unbekannt' && share > 0)
+  );
+  offlineBar.value = share;
+  offlineStop.hidden = fullState.kind !== 'läuft';
+}
+
+/** Was der Browser über die Leitung sagt. Die API ist optional (Safari). */
+function connectionInfo(): { saveData?: boolean | undefined; effectiveType?: string | undefined } {
+  const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } })
+    .connection;
+  return { saveData: connection?.saveData, effectiveType: connection?.effectiveType };
+}
+
+/** Der Index des Regals, einmal — ohne ihn fehlen im Plan die 4470 Modelle. */
+async function fullShelfIndex(): Promise<KaykitIndex | null> {
+  if (fullShelf) return fullShelf;
+  try {
+    const response = await fetch(SHELF_INDEX_URL);
+    if (!response.ok) return null;
+    fullShelf = (await response.json()) as KaykitIndex;
+  } catch {
+    // Kein Regal ist kein Fehler — siehe `docs/agents/assetregal.md`.
+    return null;
+  }
+  return fullShelf;
+}
+
+/**
+ * **Nachsehen, wo wir stehen**: Liste holen, Plan rechnen, Speicher auslesen.
+ * Das ist zugleich das _Nochmal prüfen_ des fertigen Zustands — es kostet eine
+ * kleine Datei und einen Blick in den Speicher, aber keine 60 MB.
+ */
+async function refreshFull(): Promise<void> {
+  if (!hasCacheStorage()) return setFull({ kind: 'kein-speicher', reason: 'cache' });
+  if (!swControls()) return setFull({ kind: 'kein-speicher', reason: 'sw' });
+  setFull({ kind: 'prüft' });
+  fullList ??= await loadOfflineList(PAGE_BASE, BUILD_ID);
+  if (!fullList) return setFull({ kind: 'keine-liste' });
+  fullPlanned = fullPlan(fullList, await fullShelfIndex(), PAGE_BASE, BUILD_ID);
+  fullHave = await cachedUrls();
+  settleFull();
+}
+
+/** Was nach einem Blick in den Speicher dasteht: fertig, offen — oder lückenhaft. */
+function settleFull(stopped = false, missing = 0): void {
+  const plan = fullPlanned;
+  if (!plan) return setFull({ kind: 'keine-liste' });
+  const have = haveBytes(plan, fullHave);
+  const open = pendingItems(plan, fullHave).length;
+  if (stopped) return setFull({ kind: 'angehalten', have, total: plan.totalBytes });
+  if (missing > 0) return setFull({ kind: 'lückenhaft', have, total: plan.totalBytes, missing });
+  if (open === 0) return setFull({ kind: 'fertig', total: plan.totalBytes });
+  setFull({ kind: 'offen', have, total: plan.totalBytes });
+}
+
+/**
+ * **Der Lauf.** Der Balken wird höchstens viermal je Sekunde neu geschrieben —
+ * bei sechs gleichzeitigen Dateien kämen sonst hunderte Anstriche je Sekunde
+ * zusammen, und das Einzige, was daran schneller würde, wäre der Akku.
+ *
+ * Die Restzeit kommt aus dem Durchsatz der letzten acht Sekunden und wird
+ * geglättet (`steadyEta`): kleiner sofort, größer nur mit Anlauf.
+ */
+async function runFullDownload(): Promise<void> {
+  const plan = fullPlanned;
+  if (!plan) return;
+  if (
+    !mayStartFull({
+      hasCache: hasCacheStorage(),
+      controlled: swControls(),
+      hidden: document.hidden,
+    })
+  ) {
+    return;
+  }
+  const todo = pendingItems(plan, fullHave);
+  if (todo.length === 0) return settleFull();
+
+  const rate = new Throughput(performance.now());
+  let eta: number | null = null;
+  let painted = 0;
+  fullRunning = true;
+  fullAbort = new AbortController();
+  setFull({
+    kind: 'läuft',
+    have: haveBytes(plan, fullHave),
+    total: plan.totalBytes,
+    eta: null,
+    missing: 0,
+  });
+
+  const result = await runFull(todo, haveBytes(plan, fullHave), fullAbort.signal, (tick) => {
+    const now = performance.now();
+    if (tick.justNow > 0) rate.add(now, tick.justNow);
+    eta = steadyEta(eta, etaSeconds(plan.totalBytes - tick.have, rate.rate(now)));
+    if (now - painted < 250) return;
+    painted = now;
+    setFull({
+      kind: 'läuft',
+      have: tick.have,
+      total: plan.totalBytes,
+      eta,
+      missing: tick.missing,
+    });
+  });
+
+  fullRunning = false;
+  fullAbort = null;
+  // Nachgezählt wird am Speicher und nicht an der eigenen Buchführung: Was der
+  // Service Worker wirklich abgelegt hat, ist die einzige Zahl, die im Funkloch
+  // zählt.
+  fullHave = await cachedUrls();
+  settleFull(result.stopped, result.missing);
+  // Und das Vorwärmen darf wieder — falls überhaupt noch etwas offen ist.
+  if (!playerAsked) whenIdle(() => void warmUp());
+}
+
+offlineButton.addEventListener('click', () => {
+  void (async () => {
+    if (fullRunning) return;
+    // Ein Zustand, in dem noch nichts feststeht, wird erst einmal nur geprüft;
+    // aus einem, der die Zahl schon genannt hat, wird geladen.
+    const lookOnly =
+      fullState.kind === 'unbekannt' ||
+      fullState.kind === 'fertig' ||
+      fullState.kind === 'keine-liste';
+    await refreshFull();
+    if (lookOnly) return;
+    await runFullDownload();
+  })();
+});
+
+offlineStop.addEventListener('click', () => {
+  fullAbort?.abort();
+});
+
+paintFull();
+
+/**
  * Und der Service Worker dahinter (`src/sw.ts`): Er macht aus der Seite die
  * App, die auch ohne Netz startet — und er ist die Bedingung dafür, dass ein
  * Browser das Installieren überhaupt anbietet. Angemeldet wird erst, wenn die
@@ -853,8 +1203,30 @@ installButton.addEventListener('click', () => {
  */
 window.addEventListener('load', () => {
   registerServiceWorker();
-  whenIdle(() => void warmUp());
+  whenIdle(() => void bootApp());
 });
+
+/**
+ * **Was nach dem ersten Bild kommt, und in welcher Reihenfolge.**
+ *
+ * Erst die App (three.js, der Renderer, das Menü), dann — und nur dann — das
+ * Vorwärmen der Welt. Andersherum ginge es nicht: Vorwärmen _ist_ ein
+ * `App.goTo`. Der Balken unter dem Knopf erzählt beides mit, und er hört auf,
+ * sobald es nichts mehr zu erzählen gibt: hinter einer Lobby sofort, sonst
+ * wenn die Welt steht — oder gleich, wenn gar nicht gewärmt wird (Daten
+ * sparen, schmale Leitung, Tab im Hintergrund).
+ */
+async function bootApp(): Promise<void> {
+  const ready = await ensureApp();
+  if (!ready) return;
+  if (hauntLanding || nextWarmStep(warmed, warmSignals()) !== 'welt') {
+    showStartNote('');
+    return;
+  }
+  showStartNote('Die Welt wird geladen …');
+  await warmUp();
+  showStartNote('');
+}
 
 /**
  * **Und jede Geste schließt den Ton auf**, bis er wirklich läuft
@@ -874,7 +1246,7 @@ window.addEventListener('hashchange', () => {
   // Eine Welt in der Adresse ist eine Anforderung des Spielers: Das Vorwärmen
   // tritt zurück, statt ihr die Leitung streitig zu machen.
   stopWarming();
-  void app.goTo(id);
+  withApp((ready) => void ready.goTo(id));
 });
 
 /**

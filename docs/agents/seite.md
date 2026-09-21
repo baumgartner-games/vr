@@ -265,8 +265,10 @@ Laufzeit, im Fenster eines Telefons. Der Befund war nicht der erwartete:
 
 ### Was jetzt passiert, und in welcher Reihenfolge
 
-1. **Die Hülle.** `index.html`, der Stil, das Hauptbündel samt three.js. Mehr
-   braucht die Startseite nicht, und mehr wird dafür auch nicht angefasst.
+1. **Die Hülle.** `index.html`, der Stil und das Hauptbündel — **ohne
+   three.js**: 23,6 kB Seite, 14,4 kB Stil und 22,5 kB Skript, zusammen rund
+   20 kB gezippt. Mehr braucht die Startseite nicht, und mehr wird dafür auch
+   nicht angefasst (siehe _Und three.js kommt erst nach der Startseite_).
 2. **Der Service Worker**, sobald `load` gefeuert hat (`core/pwa.ts`) — vorher
    nicht: Beim Start ist jedes Byte für die Hülle da.
 3. **Und dann, wenn der Browser Luft hat, das Vorwärmen** — `requestIdleCallback`
@@ -361,13 +363,14 @@ Welt **3265 → 1810 kB**.
 
 **Und vier Sätze zur Ehrlichkeit dieser Tabelle:**
 
-- **Der Gewinn ist die Last und nicht die Uhr.** Bis die Seite antwortet, sind
-  es halb so viele Bytes; die Sekunde davor bleibt, wie sie war. Auf dieser
-  Strecke liegt nämlich three.js (`navTile`, 202 kB gezippt, rund 1,1 s bei
+- **Der Gewinn war damals die Last und nicht die Uhr.** Bis die Seite
+  antwortete, waren es halb so viele Bytes; die Sekunde davor blieb, wie sie
+  war. Auf dieser Strecke lag nämlich three.js (202 kB gezippt, rund 1,1 s bei
   1,5 Mbit/s) und der Aufbau des Renderers — beides braucht die Startseite
-  nicht, aber `main.ts` importiert es **fest**. Das aufzulösen hieße, `App`
-  und `ui/NetPanel` dynamisch zu laden, und das ist ein eigener Umbau. Er ist
-  die nächste lohnende Sache an dieser Stelle.
+  nicht, aber `main.ts` importierte es **fest**. Hier stand einmal, das
+  aufzulösen sei „ein eigener Umbau" und „die nächste lohnende Sache an dieser
+  Stelle". Sie ist inzwischen getan; die Zahlen dazu stehen weiter unten unter
+  _Und three.js kommt erst nach der Startseite_.
 - **Die Welt kommt trotzdem nicht später.** Das war die Sorge, und sie hat
   sich nicht bestätigt: Wer in der ersten Sekunde drückt, steht dreihundert
   Millisekunden früher in der Welt als vorher. Die eigentliche Ladung fing
@@ -381,6 +384,140 @@ Welt **3265 → 1810 kB**.
   werden. Gemessen ist das der schlechteste Fall — ein Browser, dessen
   HTTP-Cache ganz weg ist. Solange der noch steht, beantwortet GitHub Pages
   dieselbe Frage mit `304` und ohne Inhalt.
+
+### Der Ladebalken, der schon dasteht, bevor ein Skript läuft
+
+Gemeldet wurde es so:
+
+> „Der Ladebalken war nicht sichtbar. Die startete langsam Index Start Page."
+
+Beides stimmte, und beides war dieselbe Sache. Die Startseite **stand** nach
+einer halben Sekunde — aber bis sie auf eine Frage antwortete, vergingen
+gemessene **2,1 Sekunden**, und in dieser Zeit sah sie fertig aus und erzählte
+nichts. Wer in dieser Lücke auf _Beitreten_ drückte, drückte ins Leere; und die
+einzige Anzeige, die es gab (`#start-note`), erschien erst **nach** dem Druck.
+
+**Also steht der Balken im HTML und nicht in `main.ts`** (`index.html`,
+`#boot`; der Lauf in `style.css`, `.boot__track`). Das ist der ganze Punkt:
+Eine Anzeige, die das Hauptbündel baut, kommt genau dann, wenn die Wartezeit
+vorbei ist. Diese hier ist da, sobald der erste Stil da ist — also im ersten
+Bild.
+
+Drei Entscheidungen stecken darin:
+
+- **Unbestimmt, nicht prozentual.** Wie lange ein Bündel über diese Leitung
+  braucht, weiß in dieser Sekunde niemand; ein geratener Prozentwert wäre eine
+  Lüge mit Nachkommastelle. Der Streifen läuft, er zählt nicht.
+- **Er ist dieselbe Zeile wie vorher.** `#start-note` liegt jetzt **im**
+  Balken, und `showStartNote(text)` schaltet beide zusammen: Text und Balken
+  gehen gemeinsam an und aus. Es gibt keinen zweiten Ort, an dem „lädt" steht.
+- **Er hört auf, wenn es nichts mehr zu sagen gibt** — und das ist die
+  Bedingung, die man leicht falsch macht: hinter einer Lobby sofort (dort wird
+  nichts vorgewärmt), sonst, wenn die Welt steht — und **gleich**, wenn gar
+  nicht gewärmt wird (Daten sparen, schmale Leitung, Tab im Hintergrund). Ein
+  Balken, der ewig läuft, ist schlimmer als keiner: Er behauptet eine Arbeit,
+  die niemand tut. Gefragt wird dafür dieselbe reine Rechnung wie beim
+  Vorwärmen (`core/warmStart.nextWarmStep`), und nicht ein zweites Mal geraten.
+
+Wer Bewegung abbestellt hat (`prefers-reduced-motion`), bekommt einen ruhigen
+Streifen statt keiner Auskunft: Die Frage war „passiert etwas?" und nicht
+„darf es wackeln?".
+
+### Und three.js kommt erst nach der Startseite
+
+`main.ts` importierte `core/App` und `ui/NetPanel` **fest**. Damit hingen
+three.js (722 kB im Bündel), der Renderer, die Verbindungsbibliothek und die
+Lobby-Regeln vor dem Augenblick, in dem die Seite auf eine Frage antwortet —
+für eine Seite, die zuerst nur einen Knopf und zwei Umschalter zeigt, ist das
+die falsche Reihenfolge.
+
+Jetzt werden sie **geholt, wenn sie gebraucht werden** (`main.ts`,
+`ensureApp`), und zwar von zwei Seiten, die dieselbe App bekommen:
+
+- **im Leerlauf nach dem Start** (`bootApp`, nach `load` und
+  `requestIdleCallback`), damit sie in aller Regel längst dasteht, bevor
+  jemand drückt — und **vor** dem Vorwärmen, denn Vorwärmen _ist_ ein
+  `App.goTo`;
+- **bei der ersten Geste auf der Startseite** (`pointerdown`, `keydown`, einmal
+  und dann abgemeldet) sowie in jedem Knopf, jedem Menü und jeder Welt in der
+  Adresse.
+
+Dasselbe gilt für die **Lobby-Bibliothek** (`worlds/haunting/net.ts`, 58 kB):
+Sie kommt nur noch auf der Startseite einer Runde, und die Spielwiese fasst sie
+nie an.
+
+**Was dabei zu beachten war**, und es ist mehr als ein `await`:
+
+- **Die Startseite muss ohne App vollständig bedienbar bleiben.** Haltung und
+  Ansicht werden deshalb in den Speicher geschrieben, wenn es noch keine App
+  gibt (`savePlayerPosture`, `saveScreenView`) — `PlayerRig` und `App` lesen
+  beides beim Aufbau, es geht also nichts verloren. Die Lobby-Zeile sagt ohne
+  App „noch nicht verbunden", und das ist die richtige Auskunft und kein
+  Fehler.
+- **`window.bgvr` kommt später.** Das ist die Konsolen-Abkürzung zum Debuggen,
+  und sie steht erst, wenn die App steht.
+- **Ein Gerät ohne 3D sagt es weiterhin.** Scheitert `new App` (kein WebGL),
+  steht die Erklärung auf der Seite, jeder Knopf ist stumpf und der Balken
+  hört auf — nur eben ein paar hundert Millisekunden später als vorher.
+- **Die Hülle im Service Worker schrumpft mit.** `precacheList` nimmt die
+  **festen** Importe mit; three.js ist keiner mehr. Es kommt beim ersten
+  Besuch trotzdem in den Speicher, nur eben als `immutable`-Antwort beim
+  Nachladen statt beim Einrichten (`core/swRoutes.ts`).
+
+#### Die Zahlen davor und danach
+
+Derselbe Aufbau wie oben: frischer Browser je Lauf, Fenster eines Telefons,
+1,5 Mbit/s und 150 ms Laufzeit, HTTP-Cache aus, Median aus drei kalten Starts.
+„Antwortet" heißt hier: Die Zeile unter der Frage steht — also der Augenblick,
+ab dem ein Klick etwas bewirkt.
+
+| Messpunkt | vorher | nachher |
+| --------- | -----: | ------: |
+| Erstes Bild (FCP) | 528 ms | **468 ms** |
+| **Seite antwortet** | **2129 ms** | **579 ms** |
+| Anfragen bis dahin | 13 | 10 |
+| **Bytes bis dahin** | **294 kB** | **31 kB** |
+| Welt angefordert (sofort gedrückt) | 2878 ms | 2304 ms |
+| Welt steht (HUD ist da) | 4919 ms | 5642 ms |
+
+**Drei Sätze zur Ehrlichkeit dieser Tabelle:**
+
+- **Der Gewinn ist diesmal die Uhr.** Bis die Seite antwortet, ist sie
+  **dreieinhalbmal** so schnell und braucht ein Zehntel der Bytes. Genau diese
+  zwei Sekunden hat der Spieler als „startet langsam" erlebt.
+- **Die Welt steht 0,7 s später, und das ist der Preis.** three.js kommt jetzt
+  **nach** der Startseite statt davor; wer in der allerersten Sekunde drückt,
+  wartet deshalb etwas länger auf den fertigen Aufbau. Das ist der richtige
+  Tausch — die zwei Sekunden davor waren stumm, diese sind es nicht mehr: Der
+  Balken läuft die ganze Zeit und sagt, worauf gewartet wird.
+- **Gemessen ist der Container und nicht ein Telefon.** Er malt in Software;
+  zwischen „Welt angefordert" und „Welt steht" liegt hier vor allem Rechenzeit
+  und kaum Leitung. Auf einem Gerät mit GPU verschiebt sich dieser Teil, die
+  Bytes bleiben.
+
+**Ohne Netz ist es dieselbe Reihenfolge**, nur ohne Leitung: Nach einem
+normalen Besuch (63 Einträge im Speicher) startet die abgeschaltete Seite in
+**998 ms**, antwortet nach **1053 ms** und steht nach **5208 ms** in der Welt —
+und der Balken war beim zweiten Blick auf die Startseite von selbst weg, weil
+nichts mehr zu holen war. Die Hülle des Service Workers ist dabei kleiner
+geworden; three.js kommt jetzt beim ersten Besuch als `immutable`-Antwort in
+den Speicher und nicht mehr beim Einrichten.
+
+#### Und ein Fehler, den nur der Rauchtest gefunden hat
+
+Die Lobby-Bibliothek wird über eine Funktion geholt (`hauntNet()`), und ihr
+Merker daneben ist ein `let`. Geschrieben stand beides zuerst **unter** der
+Zeile, die es im Modulrumpf aufruft: Die Funktion wird hochgezogen, das `let`
+nicht. Heraus kam ein `ReferenceError: Cannot access … before initialization`,
+und zwar **nur** hinter `#haunting` — dort bricht die Auswertung des Moduls an
+dieser Stelle ab, und die halbe Startseite bleibt versteckt stehen.
+
+`npm run typecheck`, `lint`, `format:check` und `test` fanden davon nichts:
+Es ist gültiges TypeScript, gültiges JavaScript und passiert erst zur Laufzeit,
+auf einer Seite, die kein Jest-Test öffnet. Gefunden hat es der Rauchtest
+(`tools/browser-smoke.mjs`), im zweiten Schritt, mit einem Knopf, der nicht
+sichtbar wurde — das ist der zweite Fall in Folge, in dem er etwas gefunden
+hat, was die vier Prüfungen nicht sehen können.
 
 ## Die Seite als App: Manifest, Symbole, Service Worker
 
@@ -543,3 +680,275 @@ da, wo er etwas bewirkt:
 Geprüft wird das mit Attrappen (`install.test.ts`): ein iPhone steht nicht in
 der CI, und ein Kennstring ist das Einzige, was man von einem Gerät hat, das
 man nicht hat.
+
+## Alles herunterladen: ein Knopf, ein Balken, eine ehrliche Dauer
+
+Das Vorwärmen einen Abschnitt weiter oben ist eine **Freundlichkeit**: Es holt,
+was der Spieler als Nächstes wahrscheinlich anfasst, und tritt bei der
+kleinsten Gelegenheit zurück. Dieser Knopf ist der **Gegenfall**, und er kam
+als ein Satz:
+
+> „Ich will dennoch einen Button haben um alle Ressourcen zu laden (für die
+> PWA), sodass ich in Ruhe spielen kann und alle Dateien habe, mit Ladebalken
+> und voraussichtlicher Dauer."
+
+Wer gleich in den Zug steigt, will nicht geschont werden, sondern versorgt.
+Also steht auf der Startseite unter dem Installieren ein zweiter Knopf,
+**Alles herunterladen**, und dahinter liegen 71,5 MB in 4741 Dateien — das
+ganze Programm, alle Modelle, alle Töne und das ganze KayKit-Regal.
+
+### Drei Dateien, und jede tut genau eines
+
+| Datei | Was darin steht |
+| ----- | --------------- |
+| `core/fullDownload.ts` | **Rein, mit Test**: der Plan, die Reihenfolge, die Stempelregel, der Fortschritt, die Restzeit — und jeder Satz, der auf dem Knopf steht |
+| `core/fullDownloadRun.ts` | Das Holen: sechs Dateien gleichzeitig, zweite Versuche, Abbrechen, im Speicher nachsehen |
+| `main.ts`, `#offline` | Vier Elemente und ein Zustandsautomat: Knopf, Balken, Zeile, Halteknopf |
+
+Derselbe Schnitt wie überall hier, nur mit einem schärferen Grund als sonst:
+**Ein Balken, der lügt, ist schlimmer als keiner** — und ob er lügt, sieht man
+nur, wenn man die Rechnung ohne Browser nachrechnen kann.
+
+### Die Liste steht nirgends — also schreibt der Build sie auf
+
+Die eine Frage, an der alles hängt, ist **wie viele Bytes es sind**. Ohne Zahl
+gibt es keinen Balken und erst recht keine Dauer, und die Zahl kennt zur
+Laufzeit niemand: Die Chunks heißen erst nach dem Bündeln so, wie sie heißen,
+und was unter `public/` liegt, weiß nur die Platte. Eine von Hand gepflegte
+Liste wäre nach dem dritten Paket falsch.
+
+Also schreibt der Build sie auf — `offline.json`, 15 kB, erzeugt von
+`offlineListPlugin` in `vite.config.ts`, dem Nachbarn des `precachePlugin`,
+das dem Service Worker seine Hüllenliste einsetzt. Zwei Listen darin, weil es
+zwei Sorten Datei sind: `bundle` sind die 35 erzeugten Dateien (die drei
+Seiten, jeder Chunk samt Welten und der 2,8 MB großen Physik-Engine, der
+Stil), `files` sind die 236 Dateien aus `public/`.
+
+**Die 4470 Modelle des Regals stehen nicht darin**, und das ist kein
+Versehen: Sie stehen schon in `models/kaykit/index.json`, mit ihren Größen.
+Zweimal aufgeschrieben wären sie zweimal zu pflegen und 210 kB doppelt. Ihre
+**Texturen** stehen dagegen sehr wohl in `offline.json` — im Index stehen nur
+`.glb` (`core/kaykitIndex.ts`), und ein heruntergeladenes Fass ohne seine
+Textur ist im Funkloch ein weißes Fass.
+
+Gelesen werden also zwei erzeugte Quellen und keine geschriebene. Wer ein Paket
+dazutut, tut nichts weiter; wer eine Welt dazutut, auch nicht.
+
+### Die Reihenfolge ist eine Aussage
+
+Nicht nach Größe, sondern danach, **ab wann man ohne Netz spielen kann**:
+
+| Abschnitt | Was | Wie viel |
+| --------- | --- | -------: |
+| `programm` | Die drei Seiten, alle Chunks, die Physik-Engine | 5,4 MB (35) |
+| `medien` | Die drei gebündelten Kataloge, der Koch, die Töne, die Controller-Modelle, die Symbole | 8,8 MB (82) |
+| `regal` | Der Index, die 153 Texturen, dann die 4470 Modelle | 57,2 MB (4624) |
+
+Nach dem zweiten Abschnitt — nach einem Fünftel der Bytes — ist das **Spiel**
+vollständig; die restlichen vier Fünftel sind das Regal, und genau das ist der
+Teil, den man guten Gewissens abbricht. Innerhalb des Regals kommen die
+Texturen **vor** den Modellen: Ein abgebrochener Download ergibt so ein Regal
+mit weniger Fässern und nicht eines mit lauter weißen.
+
+### Die Build-Nummer ist hier der teuerste Fehler
+
+Ob an eine Adresse `?v=` gehört, entscheidet `stamped` — und es muss **auf das
+Zeichen genau** so ausfallen wie in dem Lader, der die Datei später wirklich
+anfragt. Eine Adresse mit `?v=` ist für einen Speicher ein anderer Name: Wer
+hier falsch stempelt, lädt 71 MB herunter, sieht einen Balken durchlaufen und
+findet im Funkloch trotzdem nichts wieder. Vier Regeln, und jede steht schon
+woanders geschrieben:
+
+- **Töne und die gebündelten Kataloge** tragen sie (`core/assetVersion.ts`).
+- **Der Index des Regals** trägt sie, denn er ist erzeugt.
+- **Das Regal selbst und seine Texturen** tragen sie nicht — 4470 gekaufte
+  Dateien, die sich nie ändern ([Das KayKit-Regal](assetregal.md), _Keine
+  Build-Nummer_). Eine `.glb` zeigt mit einer **relativen** Adresse auf ihre
+  Textur, und three.js löst sie ohne Frage im Anhang auf.
+- **Die Controller-Profile** tragen sie nicht (`core/ControllerModels.ts`).
+
+Alles Übrige — Manifest, Symbole, Banner — fragt der **Browser** selbst an, und
+der hängt nichts an. Deshalb ist „nein" die Vorgabe und nicht „ja", und deshalb
+steht die Tabelle im Test.
+
+### Wer den Speicher füllt: der Service Worker
+
+In `core/fullDownloadRun.ts` steht **kein einziges `caches.open`** mit einem
+Namen darin, und das ist die Entscheidung, die man sich merken sollte. Ein
+`fetch` von der Seite läuft durch den Service Worker, und der legt die Antwort
+genau dort ab, wo sie hingehört: Chunks mit Hash in die Hülle, Modelle und
+Töne in die Medien — und beim Aufräumen wirft er wieder weg, was eine fremde
+Build-Nummer trägt.
+
+Die Seite **könnte** denselben Speicher selbst beschreiben; es ist derselbe
+Ursprung, `caches.open('bgvr-media')` ginge. Der Grund, es nicht zu tun, ist
+nicht Reinheit, sondern Haltbarkeit: Der Name des Speichers und die Regel, wer
+wohin gehört, stünden dann an **zwei** Stellen, und die zweite ist die, die
+beim nächsten Umbau vergessen wird. Ein Download, der 57 MB in einen Speicher
+legt, den niemand mehr aufräumt, fällt erst drei Deploys später auf — wenn das
+Telefon voll ist.
+
+Daraus folgt eine Zeile, die sonst wie Unsinn aussieht: **Der Rumpf jeder
+Antwort wird gelesen und weggeworfen.** Der Service Worker legt
+`response.clone()` ab, und ein geklonter Rumpf, den auf der anderen Seite
+niemand abholt, hält den ganzen Klon auf.
+
+**Und warum nicht der Service Worker selbst lädt:** Weil er dafür am Leben
+bleiben müsste. Ein Browser beendet ihn, sobald er nichts zu tun hat, und
+„71 MB über Mobilfunk" ist eine Viertelstunde, in der er das mehrfach darf.
+Die Seite dagegen steht ohnehin da, mit dem Balken darauf.
+
+### Sechs gleichzeitig, und keine einzelne bringt den Rest zu Fall
+
+`FULL_CONCURRENCY` ist **6** — genau so viele Verbindungen macht ein Browser
+über HTTP/1.1 zu einem Server auf. Wer 4470 Anfragen auf einmal stellt, stellt
+keine: Die Warteschlange wächst, jede einzelne dauert länger, und das Telefon
+ist dabei zäh. `priority: 'low'` steht trotzdem an jeder Anfrage, obwohl der
+Spieler sie selbst angefordert hat — er darf danebenher weiterspielen, und eine
+Welt, die er gerade betritt, soll nicht hinter 4470 Fässern in der Schlange
+stehen.
+
+Bei 4741 Dateien über Mobilfunk geht garantiert eine daneben, und ein Lauf, der
+daran stirbt, ist wertlos. Also: ein Netzfehler und ein `5xx` bekommen bis zu
+zwei weitere Versuche mit wachsender Pause, ein `404` **keinen** — eine Datei,
+die es nicht gibt, gibt es beim dritten Mal auch nicht, und drei Anläufe je
+fehlender Datei wären aus einem fehlenden Paket ein zehnminütiges Warten. Was
+am Ende fehlt, wird gezählt und gesagt, nicht verschwiegen.
+
+### Fortsetzen heißt fortsetzen
+
+Vor dem Lauf wird der Speicher **einmal am Stück** ausgelesen (`cachedUrls`),
+und was darin steht, wird übersprungen. Das ist zugleich die ganze
+Fortsetzung: Ein zweiter Druck rechnet denselben Plan und findet neun Zehntel
+davon schon vor. Übersprungen wird dabei wirklich — der Service Worker
+beantwortet Dateien ohne Build-Nummer mit _stale-while-revalidate_ und ginge
+sonst für jede von ihnen noch einmal ins Netz.
+
+Gefragt wird nicht Datei für Datei: `caches.match` je Eintrag wären nach einem
+vollen Lauf 4800 einzelne Fragen an eine Datenbank. Und nachgezählt wird am
+Ende ebenfalls am Speicher und nicht an der eigenen Buchführung — was der
+Service Worker wirklich abgelegt hat, ist die einzige Zahl, die im Funkloch
+zählt.
+
+### Die Dauer: warum die erste Minute lügt
+
+„Rest durch Mittelwert" wäre einfacher und wäre falsch, und zwar auf beide
+Seiten: Die ersten Sekunden eines Laufs sind die schnellsten, die er je hat
+(der HTTP-Cache hat noch etwas, die Verbindung ist frisch), und ein Lauf, der
+zwischendurch in ein Funkloch gerät, rechnet den Einbruch für immer mit.
+Beides zusammen ergibt eine Zahl, die springt — und eine springende Zahl ist
+schlimmer als eine grobe, weil man ihr beim Springen zusieht, statt zu warten.
+
+Drei Regeln halten sie ruhig:
+
+- **Ein gleitendes Fenster** über die letzten acht Sekunden (`Throughput`).
+  Vor drei Sekunden Strecke und sechs fertigen Dateien kommt gar keine Zahl
+  heraus, sondern `null` — und dann steht dort _Dauer wird noch geschätzt_ und
+  keine erfundene Minute.
+- **Kleiner sofort, größer nur mit Anlauf** (`steadyEta`): nach oben wandert
+  die Zahl erst, wenn sie um mehr als ein Viertel danebenliegt. Dann ist
+  wirklich etwas passiert.
+- **So grob, wie sie ehrlich ist** (`etaText`): bis zu einer Viertelminute
+  „noch ein paar Sekunden", danach Zehnersekunden, ab anderthalb Minuten ganze
+  Minuten, ab zehn Minuten Fünferschritte. Es steht dort „noch etwa 2 Minuten"
+  und nie eine tickende Sekundenzahl.
+
+### Was der Knopf in jedem Zustand sagt
+
+Der **erste Druck lädt noch nichts.** Er holt die Liste, sieht im Speicher nach
+und sagt dann, um wie viel es geht; erst der zweite lädt. Siebzig Megabyte sind
+nichts, was auf einen unbedachten Klick hin losgehen sollte — und „wie viel ist
+es denn?" ist genau die Frage, die man vorher stellt. Beim **Start** kostet das
+nichts: Ungefragt wird keine Liste geholt und kein Speicher ausgelesen, denn
+die Startseite hat auf ihre eigenen Bytes zu achten.
+
+| Zustand | Knopf | Zeile darunter |
+| ------- | ----- | -------------- |
+| `unbekannt` | _Alles herunterladen_ | „… Ein Druck sagt, um wie viel es geht." |
+| `prüft` | _Wird geprüft …_ (stumpf) | „Es wird nachgesehen, was schon da ist …" |
+| `offen` | _Alles herunterladen (71,5 MB)_ bzw. _Rest herunterladen (…)_ | wie viel schon da ist — und eine Warnung, wenn die Leitung danach aussieht |
+| `läuft` | _Lädt …_ (stumpf) | „12,4 MB von 71,5 MB · noch etwa 2 Minuten", Balken, **Anhalten** |
+| `angehalten` | _Weiter herunterladen (…)_ | „Angehalten bei … Das Geholte bleibt." |
+| `fertig` | _Nochmal prüfen_ | „Alles da — … im Gerät. Die Spielwiese läuft jetzt ohne Netz." |
+| `lückenhaft` | _Fehlende holen (…)_ | „… · 3 Dateien kamen nicht an." |
+| `kein-speicher` | stumpf | **warum** es nicht geht — kein Service Worker, oder kein Cache-API |
+| `keine-liste` | _Alles herunterladen_ | „Die Liste der Dateien ist nicht erreichbar." |
+
+**Fertig heißt fertig** und bietet nicht an, 71 MB ein zweites Mal zu holen:
+Der Knopf wird zum Nachsehen, und das kostet eine 15-kB-Datei und einen Blick
+in den Speicher.
+
+**Und ein Knopf, der nicht kann, sagt warum.** Im Entwicklungsbetrieb läuft
+kein Service Worker (`core/pwa.ts`); ein `fetch` landete dann im HTTP-Cache
+statt im Speicher, und sichtbar wäre davon nichts außer einem Balken, der
+durchläuft und nichts bewirkt. Genau dieser Fall steht ausgeschrieben da.
+
+### Die Rücksichten — und welche hier nicht gelten
+
+Vom Vorwärmen bleibt fast nichts übrig, denn **hier hat jemand gefragt**:
+
+- `saveData` und eine schmale Leitung werden **gesagt und nicht befolgt**
+  (`fullWarning`): „Achtung: ‚Daten sparen' ist eingeschaltet." Es ist seine
+  Entscheidung; er soll sie nur bewusst treffen.
+- **Die Lobby** spielt keine Rolle: Ein Download lädt keine Welt und nimmt
+  keinen Raum ein.
+- **Kein Speicher** ist keine Höflichkeit, sondern Physik.
+- **Im Hintergrund fängt nichts an** — ein laufender wird aber auch **nicht**
+  angehalten, wenn der Reiter wegschaltet. Siebzig Megabyte anzufangen und
+  dann beim Blick aufs Telefon abzubrechen wäre das Gegenteil dessen, wofür
+  der Knopf da ist.
+
+**Und das Vorwärmen tritt zurück, solange geladen wird.** `warmSignals` meldet
+`busy`, solange der große Download läuft — anders als bei `playerAsked` geht
+das hinterher wieder auf `false`, und dann ist das Vorwärmen wieder dran, falls
+es überhaupt noch etwas zu wärmen gibt. Nach einem vollen Lauf gibt es das
+nicht: Die Welt liegt dann samt Physik-Engine im Speicher.
+
+### Die Zahlen, gemessen
+
+Chromium über einem Server, der sich wie GitHub Pages verhält, mit einem Proxy
+davor, der die Leitung bremst. **Der Container ist dabei kein Telefon**, und
+zwar auf eine Art, die man wissen muss: Er malt in Software, und eine Welt, die
+hinter der Startseite gerendert wird, frisst ihm die CPU weg. Gemessen wurde
+deshalb hinter `#haunting` — dort wird nichts vorgewärmt, es steht keine Welt
+im Hintergrund, und man sieht den Download statt des Renderers.
+
+| Was | Gemessen |
+| --- | -------- |
+| Erster Druck (Liste holen, Index holen, Speicher lesen, Plan rechnen) | **297 ms** — mit einer Welt im Hintergrund dagegen 23 s, und das ist der Renderer und nicht der Plan |
+| Angekündigt | 71,5 MB in 4741 Dateien, davon 1,6 MB schon da (die Hülle aus dem Einrichten) |
+| Gedrosselt auf 600 kB/s | 20,8 MB in 31 s; über die Leitung **18,9 MB** — die Skripte gehen gezippt, die Modelle nicht |
+| Anhalten | sofort; vier Sekunden später **derselbe** Speicherstand (359 Einträge) |
+| Fortsetzen (neue Sitzung, neuer Browserstart) | findet 22,6 MB vor, nachgesehen in **203 ms**, holt die restlichen 49,0 MB |
+| Ungedrosselt | 49,0 MB in **40 s**, **4375 Anfragen** — eine je Datei, keine doppelt |
+| Angekündigt gegen wirklich geholt | 49,0 MiB angekündigt, **51 337 004 B** über die Leitung: dieselbe Zahl |
+| Speicher danach | **4743 Einträge** (36 Hülle, 4707 Medien) = 4741 Plandateien + `offline.json` + die Startseite |
+| _Nochmal prüfen_ | 8 s, **0 Bytes** über die Leitung — Liste und Index liegen selbst im Speicher |
+| Ohne Netz danach | Startseite in **265 ms**, Welt steht, Regal geht auf, Modelle **und Texturen** kommen aus dem Speicher (`dungeon_texture.webp`, 22 764 B, ohne Netz mit `200` beantwortet) |
+
+**Und wie sich die Restzeit benommen hat** (gedrosselt auf 600 kB/s, 67 MB
+offen — die ehrliche Antwort wäre „etwa 110 Sekunden"):
+
+```
+  1–4 s   Dauer wird noch geschätzt
+  5–7 s   noch etwa 2 Minuten
+  8–10 s  noch etwa 80 / 70 Sekunden
+ 11–31 s  pendelt zwischen „70 Sekunden" und „2 Minuten"
+```
+
+Die ersten vier Sekunden sagt sie nichts, und das ist richtig so. Danach steht
+sie auf anderthalb Minuten und pendelt um eine Stufe — der Grund dafür ist
+nicht Zufall, sondern **der Inhalt**: Das Programm geht gezippt über die
+Leitung (5,4 MB werden 2), die Modelle nicht. Genau beim Übergang von
+`programm` zu `medien` fällt der Durchsatz in Plan-Bytes, und die Schätzung
+wird länger. Sie darf das (`steadyEta` lässt sie nach oben, wenn sie um mehr
+als ein Viertel danebenliegt) — und sie tut es einmal und nicht im Sekundentakt.
+
+**Ein Ausfall mitten im Lauf** war dabei nicht geplant und ist trotzdem
+gemessen worden: Der Bremsproxy stürzte beim Umschalten ab, und ab da kam
+nichts mehr an. Der Download **lief weiter**, wie er soll — jede Datei zwei
+weitere Versuche, dann aufgegeben, keine Ausnahme, kein Abbruch —, und der
+Balken stand still, während die Restzeit ihre letzte Zahl behielt. Genau das
+war der Anlass, die Fehlschläge **schon im Lauf** in die Zeile zu schreiben
+(„… · 12 Dateien kamen nicht an") und nicht erst am Ende: Ein Balken, der
+steht, während daneben eine Restzeit steht, ist sonst nicht zu deuten.

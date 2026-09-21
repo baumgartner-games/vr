@@ -85,6 +85,44 @@ alle drei ziehen in dieselbe Richtung wie der Abschnitt darüber:
   einer neuen Nummer —, wohl aber beim Herumprobieren an einem von Hand
   hochgeladenen `dist`. Dort hilft nur, den Speicher zu leeren.
 
+## Und was ein Deploy für einen bedeutet, der alles heruntergeladen hat
+
+Seit es auf der Startseite den Knopf **Alles herunterladen** gibt (die ganze
+Mechanik steht in [Die Seite selbst](seite.md#alles-herunterladen-ein-knopf-ein-balken-eine-ehrliche-dauer)),
+liegen auf manchen Geräten 71,5 MB in 4741 Dateien. Ein Deploy macht davon
+einen Teil ungültig, und es lohnt sich, genau zu wissen, welchen — denn der
+Unterschied ist groß:
+
+| Was | Nach einem Deploy | Wie viel |
+| --- | ----------------- | -------: |
+| **Die Hülle** (`bgvr-shell-<build>`): die drei Seiten, alle Chunks, die Physik-Engine | **weg** — der neue Service Worker löscht beim Aktivieren die Speicher aller anderen Builds | 5,4 MB |
+| **Was `?v=` trägt**: Töne, die gebündelten Kataloge, der Index des Regals | **weg** — `dropOldMedia` wirft jede fremde Nummer hinaus | 4,0 MB |
+| **Was keine trägt**: die Controller-Modelle, die Symbole, das Manifest | **bleibt** | 5,0 MB |
+| **Das Regal**: 4470 Modelle und 153 Texturen | **bleibt** | 57,2 MB |
+
+**Neun Zehntel überleben jeden Deploy**, und das ist kein Zufall, sondern
+genau der Grund, aus dem an den Adressen des Regals keine Build-Nummer hängt
+(siehe [Das KayKit-Regal](assetregal.md), _Keine Build-Nummer_). Nachzuholen
+sind **9,4 MB** — ein Drittel einer Minute auf einer normalen Leitung, und
+nicht die siebzig Megabyte, nach denen es sich anfühlt.
+
+Drei Dinge folgen daraus für den Betrieb:
+
+- **Der Knopf sagt das von selbst.** Wer nach einem Deploy die Seite aufmacht
+  und drückt, liest _Rest herunterladen (9,4 MB)_ und nicht die volle Zahl:
+  Der Plan wird frisch gerechnet, der Speicher frisch ausgelesen, und was
+  schon da ist, wird übersprungen. Es gibt keinen Zustand, in dem er 71 MB
+  ein zweites Mal holen möchte.
+- **Ungefragt passiert dabei gar nichts.** Der vollständige Download wird
+  nicht automatisch erneuert — weder beim Start noch nach einem Deploy. Was
+  von allein nachkommt, ist das Vorwärmen des nächsten Abschnitts, und das
+  sind die Standardwelt und ein Index.
+- **Und `offline.json` selbst trägt eine Nummer.** Die Liste entsteht in jedem
+  Build neu (`vite.config.ts`, `offlineListPlugin`); mit `?v=` ist sie nach
+  einem Deploy eine andere Datei, wird einmal geholt und liegt danach im
+  Speicher — auch das ist der Grund, warum die Frage „ist alles da?" ohne Netz
+  beantwortet werden kann.
+
 ## Der Start nach einem Deploy: was vorgewärmt wird
 
 Seit die Seite fortschreitend startet, holt sie nach dem ersten Bild von sich
