@@ -700,9 +700,10 @@ export const KITCHEN_EYE_MARGIN = 1;
  * **Ob ein Punkt in der Küche steht** — in Weltmetern, waagerecht.
  *
  * Hier hängt „Küche" für alles, was nur dort gelten soll: die eigene
- * Augenhöhe des Spielers in der Brille (`kitchen.ts`, `fitEyes`). Eine
- * Rechnung und keine zweite Liste von Zahlen — das Rechteck steht in
- * `layout.KITCHEN` und nirgendwo sonst.
+ * Augenhöhe des Spielers in der Brille (`kitchen.ts`, `fitEyes`) und die
+ * Sprungsperre in jeder Ansicht (`kitchen.ts`, `holdFeet`). Eine Rechnung und
+ * keine zweite Liste von Zahlen — das Rechteck steht in `layout.KITCHEN` und
+ * nirgendwo sonst.
  *
  * Die Höhe zählt nicht mit: Die Küche hat keine zweite Etage, und ein Spieler,
  * der über ihr fliegt, ist ein Spieler im Sonderfall einer anderen Welt.

@@ -493,3 +493,73 @@ describe('Der Kopfversatz der Brille', () => {
     expect(player.getFloorY()).toBeCloseTo(0, 4);
   });
 });
+
+/**
+ * **Ein Raum, in dem nicht gesprungen wird** (`PlayerRig.jumpLock`).
+ *
+ * Die Küche stellt den Sprung ab (`zones/kitchen.ts`, `holdFeet`), und das
+ * Gestell ist die Stelle, an der das passiert: Brille, Tastatur, Pad und
+ * Bildschirmstock landen alle in demselben Wunsch (`setIntent`,
+ * `requestJump`), also braucht es auch nur eine Sperre. Gesperrt ist dabei
+ * **nur** der Absprung — wer nicht mehr hüpfen darf, soll trotzdem laufen.
+ */
+describe('PlayerRig.jumpLock — wo nicht gesprungen wird', () => {
+  const input = { get: () => undefined } as unknown as Parameters<PlayerRig['update']>[1];
+
+  /** Ein Gestell, das aufschreibt, was bei der Fortbewegung ankommt. */
+  function watched(): {
+    player: PlayerRig;
+    jumps: boolean[];
+    speeds: number[];
+  } {
+    const player = rig();
+    const jumps: boolean[] = [];
+    const speeds: number[] = [];
+    player.setLocomotion({
+      apply: (_rig, velocity, jump) => {
+        jumps.push(jump);
+        speeds.push(velocity.x);
+      },
+    });
+    return { player, jumps, speeds };
+  }
+
+  it('reicht den Wunsch durch, solange niemand ihn gesperrt hat', () => {
+    const { player, jumps } = watched();
+    player.requestJump();
+    player.update(1 / 60, input, false);
+    expect(jumps).toEqual([true]);
+  });
+
+  it('verschluckt ihn, solange die Sperre steht', () => {
+    const { player, jumps } = watched();
+    player.jumpLock = true;
+    player.requestJump();
+    player.update(1 / 60, input, false);
+    expect(jumps).toEqual([false]);
+
+    // Und auch den Wunsch aus `setIntent` — der zweite Weg zum selben Merker.
+    player.setIntent(new THREE.Vector3(0, 0, 0), true);
+    player.update(1 / 60, input, false);
+    expect(jumps).toEqual([false, false]);
+  });
+
+  it('sperrt den Sprung und nicht den Schritt', () => {
+    const { player, jumps, speeds } = watched();
+    player.jumpLock = true;
+    player.setIntent(new THREE.Vector3(1.5, 0, 0), true);
+    player.update(1 / 60, input, false);
+    expect(jumps).toEqual([false]);
+    expect(speeds).toEqual([1.5]);
+  });
+
+  it('gilt nur in der Welt, die sie gesetzt hat — `standUp` räumt auf', () => {
+    const { player, jumps } = watched();
+    player.jumpLock = true;
+    player.standUp();
+    expect(player.jumpLock).toBe(false);
+    player.requestJump();
+    player.update(1 / 60, input, false);
+    expect(jumps).toEqual([true]);
+  });
+});

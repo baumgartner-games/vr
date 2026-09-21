@@ -1379,6 +1379,26 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   `getFloorY`, mit Test) — und wer mittendrin versetzt wird, landet mit den
   Füßen auf dem Punkt und nicht einen Viertelmeter darunter.
 
+  **Und gesprungen wird hier nicht.** In demselben Rechteck, in dem die
+  Augenhöhe gilt, bleibt der Spieler am Boden — in **jeder** Ansicht, nicht
+  nur in der Brille: Die Stauchung korrigiert eine echte Augenhöhe und die
+  gibt es nur dort, der Sprung ist eine Regel des Raums. Die Möbel sind
+  ohnehin bis auf 1,40 m gesperrt, damit nach dem ersten Sprung niemand auf
+  der Küchenzeile steht und über Spüle und Herd hinweg die Wand entlangläuft
+  (`kitchenBlocks.BLOCK_HEIGHT`); was ohne diese Sperre übrig blieb, war ein
+  Hüpfen zwischen Herd und Spüle mitten in der Arbeit — und in der Brille ein
+  `A`, das neben der Ausgabe absprang, statt den Teller zu nehmen.
+
+  Der Merker sitzt im Gestell (`PlayerRig.jumpLock`, mit Test) und nicht in
+  einer Steuerung: Brille, Tastatur, Pad und Bildschirmstock landen alle in
+  demselben `intentJump`, also gibt es auch nur eine Prüfung — eine Sperre je
+  Steuerung wären vier gewesen, und die vierte hätte jemand vergessen (genau
+  der Fehler, an dem `PlayerRig.locked` im Konstrukt-Raum gescheitert ist,
+  siehe [Bauen](./bauen.md)). Gesetzt wird er jedes Bild neu, drinnen wie
+  draußen (`zones/kitchen.ts` → `holdFeet`), und beim Verlassen der Welt räumt
+  `PlayerRig.standUp` ihn weg. Gehen, Ducken, Sprinten und Greifen rührt er
+  nicht an.
+
   **Der Kopf bewegt sich mit — in allen drei Achsen.** Aus der Brille kam der
   Befund „wenn ich meinen Kopf bewege, scheint die Kameraposition starr zu
   bleiben; sie soll sich mitbewegen, wenn ich mich nach links, rechts oder

@@ -715,10 +715,11 @@ describe('das Ausgaberegal über der Theke', () => {
  * **Woran „Küche" hängt** (`kitchenPlan.inKitchen`).
  *
  * Die eigene Augenhöhe des VR-Spielers gilt in genau einem Rechteck
- * (`kitchen.ts`, `fitEyes`), und das ist `layout.KITCHEN` — keine zweite Liste
- * von Zahlen, keine Abstandsprüfung zu irgendeinem Möbel. Was hier
- * danebenginge, wäre ein Spieler, der auf der Wiese plötzlich einen
- * Viertelmeter kleiner wird.
+ * (`kitchen.ts`, `fitEyes`), und die Sprungsperre in demselben (`holdFeet`):
+ * `layout.KITCHEN` — keine zweite Liste von Zahlen, keine Abstandsprüfung zu
+ * irgendeinem Möbel. Was hier danebenginge, wäre ein Spieler, der auf der
+ * Wiese plötzlich einen Viertelmeter kleiner wird oder dort nicht mehr
+ * abspringt.
  */
 describe('Wo die Küche anfängt', () => {
   const west = KITCHEN.x;
