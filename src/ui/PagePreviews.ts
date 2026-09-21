@@ -1,12 +1,15 @@
 import * as THREE from 'three';
 import { createLighting } from '../worlds/shared/environment';
 import { menuMiniature } from './menuMiniature';
+import { PageDetail, type MenuClipSource } from './PageDetail';
 import {
   PREVIEW_FILL,
   PREVIEW_SPIN,
   PreviewLedger,
   previewSheet,
   previewSlot,
+  type DetailRequest,
+  type DetailView,
   type ListView,
   type PagePreviewLayer,
   type Sheet,
@@ -113,7 +116,44 @@ export class PagePreviews implements PagePreviewLayer {
   /** Ein Modell kam an: Die Seite soll neu zeichnen, aber nur einmal je Bild. */
   private dirty = false;
 
-  constructor(private readonly factory: MenuModelFactory) {}
+  constructor(
+    private readonly factory: MenuModelFactory,
+    /** Woher die Bewegungen kommen — ohne Quelle bleibt das Feld leer. */
+    private readonly clips: MenuClipSource | null = null,
+  ) {}
+
+  /**
+   * **Die große Vorschau der Detailseite** (`ui/PageDetail.ts`).
+   *
+   * Sie hat ihre **eigene** Leinwand und nicht die des Rasters, und das ist
+   * kein Versehen: Das Raster rechnet orthografisch in Bildpunkten und stellt
+   * sechzig Dinge nebeneinander, die Detailseite perspektivisch in Metern und
+   * stellt eines hin, um das man herumfährt. Zwei Aufgaben, zwei Kameras —
+   * und nie beide zugleich, denn die Seite hält das Raster solange an
+   * (`ui/PageMenu.syncPreviews`).
+   */
+  detail(request: DetailRequest): DetailView | null {
+    // Erst fragen, dann bauen — dieselbe Vorsicht wie beim Raster: three
+    // zeichnet nur noch auf WebGL 2, und wer das im Konstruktor herausfindet,
+    // schreibt dabei eine Fehlermeldung, die hier kein Fehler ist.
+    if (typeof WebGL2RenderingContext === 'undefined') return null;
+    try {
+      return new PageDetail(
+        request.host,
+        request.id,
+        this.factory,
+        this.clips,
+        // Weitergereicht als Aufruf und nicht als Zeiger: Eine Methode, die
+        // von ihrem Objekt getrennt herumgereicht wird, findet ihr `this`
+        // später nicht wieder (`eslint.config.js`, `unbound-method`).
+        (facts) => request.onFacts(facts),
+      );
+    } catch {
+      // Kein Kontext, kein Bild — und das ist kein Grund, den Steckbrief nicht
+      // zu zeigen. Die Zahlen darunter stehen auch ohne Leinwand da.
+      return null;
+    }
+  }
 
   mount(box: HTMLElement, onChange: () => void): void {
     this.box = box;

@@ -3,7 +3,7 @@ import { PageMenu, cssColor } from './PageMenu';
 import { MenuNav } from './menuNav';
 import { catalogRecall } from './menuRecall';
 import type { MenuEntry } from './menu';
-import type { PagePreviewLayer } from './previewGrid';
+import type { DetailRequest, DetailView, PagePreviewLayer } from './previewGrid';
 
 /**
  * **Das Menü als Seite** (`PageMenu.ts`): derselbe Baum wie am Handgelenk,
@@ -62,6 +62,16 @@ function click(menu: PageMenu, id: string): void {
 
 function title(menu: PageMenu): string {
   return menu.element.querySelector('.pmenu__title')!.textContent;
+}
+
+/** Das ⓘ neben einer Kachel — es liegt neben ihr, nicht in ihr. */
+function info(menu: PageMenu, id: string): HTMLElement {
+  const tile = menu.element.querySelector<HTMLElement>(`[data-id="${id}"]`)!;
+  return tile.parentElement!.querySelector<HTMLElement>('.pmenu__info')!;
+}
+
+function back(menu: PageMenu): HTMLElement {
+  return menu.element.querySelector<HTMLElement>('.pmenu__back')!;
 }
 
 let log: string[];
@@ -264,8 +274,20 @@ function shelf(): MenuEntry[] {
       label: 'Regal',
       grid: true,
       cols: 2,
+      take: true,
       children: [
-        { id: 'kaykit:barrel.glb', label: 'Fass', icon: 'cube', preview: 'kaykit:barrel.glb' },
+        {
+          id: 'kaykit:barrel.glb',
+          label: 'Fass',
+          icon: 'cube',
+          preview: 'kaykit:barrel.glb',
+          full: true,
+          detail: {
+            preview: 'kaykit:barrel.glb',
+            facts: [{ label: 'Paket', value: 'Dungeon' }],
+          },
+          run: () => log.push('take:barrel'),
+        },
         { id: 'kaykit:crate.glb', label: 'Kiste', preview: 'kaykit:crate.glb' },
         { id: 'kaykit:forest', label: 'Wald', icon: 'folder', children: [] },
       ],
@@ -299,9 +321,36 @@ class FakeLayer implements PagePreviewLayer {
   setPresenting(on: boolean): void {
     this.presented.push(on);
   }
+  detail(request: DetailRequest): DetailView | null {
+    this.asked.push(request.id);
+    const view: FakeDetail = {
+      id: request.id,
+      options: [],
+      gone: false,
+      set: (options) => view.options.push(options),
+      dispose: () => {
+        view.gone = true;
+      },
+    };
+    this.details.push(view);
+    // Was die echte Schicht erst nach dem Laden weiß, weiß die Attrappe
+    // sofort: So lässt sich prüfen, dass die Seite es auch hinschreibt.
+    request.onFacts({ size: [1, 2, 0.5], triangles: 42, clips: ['Idle_A', 'Running_A'] });
+    return view;
+  }
   dispose(): void {
     this.disposed = true;
   }
+
+  /** Welche Modelle eine große Vorschau bekamen, und was daraus wurde. */
+  readonly asked: string[] = [];
+  readonly details: FakeDetail[] = [];
+}
+
+interface FakeDetail extends DetailView {
+  id: string;
+  options: { floor: boolean; bounds: boolean; clip: string | null }[];
+  gone: boolean;
 }
 
 describe('Die Kachel mit dem Modell darin', () => {
@@ -385,6 +434,120 @@ describe('Die Kachel mit dem Modell darin', () => {
     expect(
       menu.element.querySelector('[data-preview="kaykit:barrel.glb"] .pmenu__icon'),
     ).not.toBeNull();
+    menu.dispose();
+  });
+});
+
+/**
+ * **Das ⓘ in der Ecke und die Seite dahinter.**
+ *
+ * Gewünscht war: „Jede Kachel hat zudem oben rechts einen Button, um mehr
+ * anzuzeigen. Beim Auswählen wird das Menü wie folgt aussehen: Name des
+ * Assets, darunter voll das 3D-Modell …" Zwei Zusagen hängen daran, und beide
+ * sind hier nachgeprüft: Der Knopf **nimmt nicht** (die Kachel tut das weiter
+ * selbst), und die Seite dahinter ist eine gewöhnliche Menüseite — mit
+ * *Zurück*, mit gemerktem Weg, und mit einem Modell statt einer Liste.
+ */
+describe('Der Steckbrief hinter der Kachel', () => {
+  function shelfMenu(layer?: PagePreviewLayer): PageMenu {
+    const menu = new PageMenu({ host });
+    if (layer) menu.setPreviews(layer);
+    menu.setRoot(shelf());
+    menu.openSubmenu('assets');
+    return menu;
+  }
+
+  it('stellt nur den Kacheln mit Steckbrief einen Knopf in die Ecke', () => {
+    const menu = shelfMenu();
+    const barrel = menu.element.querySelector('[data-id="kaykit:barrel.glb"]')!;
+    expect(barrel.parentElement!.querySelector('.pmenu__info')).not.toBeNull();
+    expect(barrel.parentElement!.className).toBe('pmenu__card');
+    // Die Kiste hat keinen — sie hat auch keinen Steckbrief, und sie steht
+    // deshalb ohne Rahmen darum direkt im Raster.
+    const crate = menu.element.querySelector('[data-id="kaykit:crate.glb"]')!;
+    expect(crate.parentElement!.className).toBe('pmenu__list pmenu__list--grid');
+    menu.dispose();
+  });
+
+  it('nimmt beim Antippen der Kachel weiter das Modell', () => {
+    const menu = shelfMenu();
+    click(menu, 'kaykit:barrel.glb');
+    expect(log).toEqual(['take:barrel']);
+    // Und bleibt dabei auf der Seite, auf der man war.
+    expect(title(menu)).toBe('Regal');
+    menu.dispose();
+  });
+
+  it('geht mit dem Knopf eine Seite tiefer — und mit Zurück wieder heraus', () => {
+    const menu = shelfMenu();
+    info(menu, 'kaykit:barrel.glb').click();
+    expect(log).toEqual([]);
+    expect(title(menu)).toBe('Fass');
+    // Eine Seite mit einem Ding darauf und keiner Liste.
+    expect(menu.element.querySelector<HTMLElement>('.pmenu__detail')!.hidden).toBe(false);
+    expect(menu.element.querySelector<HTMLElement>('.pmenu__list')!.hidden).toBe(true);
+    back(menu).click();
+    expect(title(menu)).toBe('Regal');
+    expect(menu.element.querySelector<HTMLElement>('.pmenu__detail')!.hidden).toBe(true);
+    menu.dispose();
+  });
+
+  it('bestellt die große Vorschau und räumt sie beim Verlassen weg', () => {
+    const layer = new FakeLayer();
+    const menu = shelfMenu(layer);
+    info(menu, 'kaykit:barrel.glb').click();
+    expect(layer.asked).toEqual(['kaykit:barrel.glb']);
+    const view = layer.details[0]!;
+    expect(view.gone).toBe(false);
+    // Solange der Steckbrief offen ist, läuft die Schleife des Rasters nicht:
+    // zwei Leinwände für dieselbe Seite wären eine zu viel.
+    expect(layer.opened.at(-1)).toBe(false);
+    back(menu).click();
+    expect(view.gone).toBe(true);
+    expect(layer.opened.at(-1)).toBe(true);
+    menu.dispose();
+  });
+
+  it('schreibt hin, was im Verzeichnis stand — und was gemessen wurde', () => {
+    const menu = shelfMenu(new FakeLayer());
+    info(menu, 'kaykit:barrel.glb').click();
+    const facts = [...menu.element.querySelectorAll('.pmenu__facts > *')].map(
+      (node) => node.textContent,
+    );
+    expect(facts).toContain('Paket');
+    expect(facts).toContain('Dungeon');
+    // Aus der Vorschau: Kantenlängen in Metern, Dreiecke, Bewegungen.
+    expect(facts).toContain('1,00 m × 2,00 m × 0,50 m');
+    expect(facts).toContain('Dreiecke');
+    menu.dispose();
+  });
+
+  it('bietet die Bewegungen an und schiebt die Wahl zur Vorschau durch', () => {
+    const layer = new FakeLayer();
+    const menu = shelfMenu(layer);
+    info(menu, 'kaykit:barrel.glb').click();
+    const select = menu.element.querySelector<HTMLSelectElement>('.pmenu__clipsel')!;
+    expect([...select.options].map((option) => option.textContent)).toEqual([
+      'keine',
+      'Idle A',
+      'Running A',
+    ]);
+    select.value = 'Running_A';
+    select.dispatchEvent(new Event('change'));
+    expect(layer.details[0]!.options.at(-1)!.clip).toBe('Running_A');
+    menu.dispose();
+  });
+
+  it('legt die Schalter um, ohne die Vorschau neu zu bestellen', () => {
+    const layer = new FakeLayer();
+    const menu = shelfMenu(layer);
+    info(menu, 'kaykit:barrel.glb').click();
+    const floor = menu.element.querySelectorAll<HTMLButtonElement>('.pmenu__opts .pmenu__row')[0]!;
+    floor.click();
+    expect(layer.details[0]!.options.at(-1)!.floor).toBe(true);
+    expect(floor.getAttribute('aria-checked')).toBe('true');
+    // Eine Leinwand je Modell und nicht je Klick.
+    expect(layer.asked).toEqual(['kaykit:barrel.glb']);
     menu.dispose();
   });
 });

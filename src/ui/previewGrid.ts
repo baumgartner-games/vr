@@ -282,5 +282,62 @@ export interface PagePreviewLayer {
   setOpen(open: boolean): void;
   /** Die Brille ist auf: Dort zeigt das Handgelenk die Modelle, nicht die Seite. */
   setPresenting(on: boolean): void;
+  /**
+   * **Die große Vorschau der Detailseite aufschlagen** — oder `null`, wenn
+   * hier niemand zeichnen kann (kein WebGL, keine Fabrik, keine Adresse).
+   *
+   * Die Seite gibt nur den Kasten her und bekommt eine Steuerung zurück; was
+   * darin geschieht — Leinwand, Licht, Mischer, Gitter, Hülle, und die Gesten
+   * darauf —, geht sie nichts an. Zugemacht wird über `dispose` der Steuerung
+   * und nicht über einen zweiten Aufruf hier: Wer eine Seite verlässt, räumt
+   * das weg, was er selbst aufgemacht hat.
+   */
+  detail(request: DetailRequest): DetailView | null;
+  dispose(): void;
+}
+
+/** Was die Seite der Vorschau über ihre Detailseite sagt. */
+export interface DetailRequest {
+  /** Der Kasten, in den die Leinwand kommt — er gibt auch die Größe vor. */
+  readonly host: HTMLElement;
+  /** Welches Modell (dieselbe Id wie `MenuEntry.preview`). */
+  readonly id: string;
+  /**
+   * **Was sich erst am geladenen Modell messen lässt**, nachgereicht.
+   *
+   * Gerufen, sobald das Modell da ist — und noch einmal, wenn die Bewegungen
+   * einer Figur nachkommen. Die Seite zeichnet daraufhin ihren Steckbrief neu;
+   * bis dahin steht dort, was schon im Verzeichnis stand.
+   */
+  onFacts(facts: DetailFacts): void;
+}
+
+/** Was die Vorschau am Modell selbst abliest. */
+export interface DetailFacts {
+  /** Die Kantenlängen in **Metern** — so groß wird das Ding in der Welt. */
+  readonly size?: readonly [number, number, number];
+  /** Wie viele Dreiecke darin stecken. */
+  readonly triangles?: number;
+  /** Die Namen aller Bewegungen, die es dazu gibt. */
+  readonly clips?: readonly string[];
+  /** Ob noch etwas unterwegs ist — die Bewegungen einer Figur kommen später. */
+  readonly loading?: boolean;
+}
+
+/** Die Schalter der Detailseite, so wie die Seite sie führt. */
+export interface DetailOptions {
+  /** Ein Gitter auf Höhe des tiefsten Punktes — wo das Ding steht. */
+  readonly floor: boolean;
+  /** Die Hülle als Kasten (`THREE.Box3Helper`). */
+  readonly bounds: boolean;
+  /** Welche Bewegung läuft, oder `null` für „keine". */
+  readonly clip: string | null;
+}
+
+/** Die Steuerung einer offenen Detailvorschau. */
+export interface DetailView {
+  /** Der Stand der Schalter — die Seite hält ihn und schiebt ihn hierher. */
+  set(options: DetailOptions): void;
+  /** Leinwand, Mischer, Gitter, Hülle und die Schleife: alles weg. */
   dispose(): void;
 }

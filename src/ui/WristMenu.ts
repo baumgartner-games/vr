@@ -5,7 +5,7 @@ import type { MenuEntry } from './menu';
 import { MenuNav } from './menuNav';
 import type { Pointer } from '../core/Pointer';
 import type { Handedness, XRInput } from '../core/XRInput';
-import { denyOutline, isOutline } from '../core/outlineShell';
+import { menuMiniature } from './menuMiniature';
 
 const _wrist = new THREE.Vector3();
 const _head = new THREE.Vector3();
@@ -19,10 +19,6 @@ const _mat = new THREE.Matrix4();
 const _local = new THREE.Matrix4();
 const _quat = new THREE.Quaternion();
 const _delta = new THREE.Quaternion();
-const _box = new THREE.Box3();
-const _size = new THREE.Vector3();
-const _centre = new THREE.Vector3();
-const _world = new THREE.Matrix4();
 
 interface Page {
   title: string;
@@ -844,7 +840,7 @@ export class WristMenu extends THREE.Group {
     }
     this.asked.delete(id);
     existing?.model.removeFromParent();
-    const model = miniature(source, size);
+    const model = menuMiniature(source, size);
     model.visible = false;
     this.panel.add(model);
     this.previews.set(id, { model, size });
@@ -909,66 +905,6 @@ export class WristMenu extends THREE.Group {
 
     this.buttonTexture.needsUpdate = true;
   }
-}
-
-/**
- * Ein Ding aus der Welt, klein genug für eine Menüzeile.
- *
- * Abgeschrieben statt geklont: `Object3D.clone()` ruft den Konstruktor der
- * Unterklasse noch einmal auf und baut damit ein ganzes zweites Werkzeug samt
- * seiner Leinwände. Hier werden nur die sichtbaren Netze abgegriffen, mit
- * derselben Geometrie und demselben Material — ein paar Dutzend Zeiger statt
- * ein paar Dutzend Kilobyte, und ein Werkzeug, das im Regal seine Farbe
- * ändert, ändert sie hier gleich mit.
- *
- * Danach wird das Ganze in seinen Mittelpunkt geschoben und auf `size`
- * heruntergerechnet, damit eine Drohne und ein Messer in derselben Zeile
- * gleich groß aussehen.
- */
-function miniature(source: THREE.Object3D, size: number): THREE.Object3D {
-  const inner = new THREE.Group();
-  source.updateMatrixWorld(true);
-  _world.copy(source.matrixWorld).invert();
-  source.traverseVisible((child) => {
-    const mesh = child as THREE.Mesh;
-    if (!mesh.isMesh || !mesh.geometry) return;
-    // Der schwarze Saum aus dem Comic-Modus ist kein Teil des Werkzeugs,
-    // sondern ein zweites Bild davon (`core/outlineShell.ts`). Abgeschrieben
-    // wäre er in der Menüzeile ein schwarzer Klotz — seine Breite ist für ein
-    // Werkzeug in Lebensgröße gerechnet, nicht für vier Zentimeter.
-    if (isOutline(mesh)) return;
-    const copy = denyOutline(new THREE.Mesh(mesh.geometry, mesh.material)) as THREE.Mesh;
-    copy.matrixAutoUpdate = false;
-    copy.matrix.multiplyMatrices(_world, mesh.matrixWorld);
-    copy.matrixWorldNeedsUpdate = true;
-    inner.add(copy);
-  });
-
-  _box.setFromObject(inner);
-  if (!_box.isEmpty()) {
-    _box.getCenter(_centre);
-    _box.getSize(_size);
-    const largest = Math.max(_size.x, _size.y, _size.z, 1e-4);
-    inner.position.copy(_centre).multiplyScalar(-1);
-    inner.scale.setScalar(size / largest);
-    // Der Mittelpunkt sitzt jetzt im Ursprung des inneren Knotens; die
-    // Skalierung wirkt danach, also muss die Verschiebung mitskaliert werden.
-    inner.position.multiplyScalar(size / largest);
-  }
-
-  // Drei Ebenen, und jede hat genau eine Aufgabe: `inner` rückt das Ding in
-  // seinen Mittelpunkt und auf Größe, `tilt` kippt es leicht nach vorn (eine
-  // reine Seitenansicht macht aus jedem Werkzeug einen Strich), und `holder`
-  // dreht sich. Würde `inner` selbst kippen, liefe die Verschiebung durch die
-  // Drehung und das Modell eierte um seine eigene Achse.
-  const tilt = new THREE.Group();
-  tilt.rotation.x = 0.32;
-  tilt.add(inner);
-
-  const holder = new THREE.Group();
-  holder.name = 'menu-preview';
-  holder.add(tilt);
-  return holder;
 }
 
 /** A menu page, derived from the entry that opens it. */

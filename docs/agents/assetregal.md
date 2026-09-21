@@ -32,6 +32,9 @@ liegt in der Hand.
 | `core/kaykitIndex.ts`          | **Rein**: Typen des Index, Adressen, Beschriftungen, und der Menübaum daraus (`kaykitMenu`) |
 | `core/kaykitFit.ts`            | **Rein**: `KAYKIT_SCALE` als Vorgabe, `KAYKIT_PACK_SCALE` je Paket, `kaykitScale(pfad)` |
 | `core/kaykitCrate.ts`          | **Rein**: unter welche Adresse ein Kistendeckel als Sockel gehört |
+| `core/kaykitClips.ts`          | **Rein**: welches Skelett eine Figur hat, welche Dateien seine Bewegungen tragen, wie eine Spur im Feld heißt |
+| `ui/detailDrag.ts`             | **Rein**: wem ein Finger auf der großen Vorschau gehört — Mitte oder Saum —, und was ein Wisch, ein Kneifen und eine Raste daraus machen |
+| `ui/PageDetail.ts`             | Die große Vorschau: eigener Renderer, Kamera um das Ding herum, Gitterboden, Hülle, Mischer |
 | `core/kitchenShelf.ts`         | **Rein**: welche Adresse in der Küche ein **funktionierendes Möbel** ist |
 | `ui/pageCols.ts`               | **Rein**: wie viele Spalten in ein Fenster passen, und die beiden Knöpfe |
 | `worlds/portal/placeGrid.ts`   | Das Gitter unter dem Getragenen — eine Fläche und ein Rahmen je Kachel |
@@ -285,6 +288,53 @@ Modell in seinem Fach bleibt, ist deshalb keine Schere, sondern eine Rechnung
 wann wieder gefragt, wer gibt sein Modell her — liegt ohne three.js in
 `ui/previewGrid.ts` und hat ihren eigenen Test.
 
+### In der Kachel stand nur der Kopf — und warum
+
+Gemeldet wurde es als Bild: Im Katalog standen unter _Characters_ vier
+Kacheln — _Hiker_, _Hoarder_, _Knight_, _Lorekeeper_ —, und in jeder war nur
+ein **Kopf** zu sehen, quer über die ganze Kachel. „Ich möchte die Charaktere
+voll dargestellt sehen in dem Katalog."
+
+Es war kein Zuschnitt, und es war auch nicht die Einpassung allein. Die
+Ursache liegt zwei Stockwerke tiefer, und sie hängt an der Aufbereitung: Jede
+Datei der Sammlung ist **quantisiert** (`tools/kaykit-model.mjs`,
+`KHR_mesh_quantization`). Bei einem gewöhnlichen Netz steckt die Rückrechnung
+dieser Quantisierung im Knoten darüber; bei einem **gehäuteten** geht das
+nicht — dort steckt sie in den **Bind-Matrizen des Skeletts**.
+
+Die Kachel schrieb das Netz aber ab, und zwar als gewöhnliches Netz:
+`new THREE.Mesh(geometrie, material)` (`ui/menuMiniature.ts`). Damit war es
+kein `SkinnedMesh` mehr, wurde ungehäutet gezeichnet — und zeigte die **rohen**
+Eckpunkte, die je Körperteil auf einen Würfel von −1 bis 1 normiert sind.
+Nachgemessen am Ritter: Kopf, Rumpf, Arme, Umhang, Helm lagen alle als Kästen
+von rund 2,0 Kantenlänge übereinander im Ursprung. Der Kopf ist davon der
+größte, also sah man den Kopf.
+
+**Und die Einpassung log gleich mit.** `Box3.setFromObject` fragt einen
+`SkinnedMesh` nach seiner **gehäuteten** Hülle und ein gewöhnliches `Mesh`
+nach der rohen Geometrie. Gemessen wurden deshalb 2,00 × 2,00 × 1,87 um den
+Ursprung statt der wirklichen Figur von 1,94 × 2,54 × 1,31, die mit den Füßen
+auf null steht — eine Kachel, die einen Würfel einpasst, wo eine Figur steht.
+
+Die Antwort ist kein Klon, sondern dasselbe Abschreiben, nur richtig: Aus
+einem `SkinnedMesh` wird wieder ein `SkinnedMesh`, gebunden an **dasselbe**
+Skelett wie die Vorlage (`bind` mit deren `bindMatrix`). Das kostet genauso
+wenig wie vorher — ein paar Zeiger — und stimmt in beidem, im Bild wie in der
+Hülle. Ein eigenes Skelett bräuchte nur, wer die Kopie anders bewegen will als
+die Vorlage, und eine Kachel will das nicht; wer es doch will, findet den Weg
+im Lader (`SkeletonUtils.clone`, siehe _Wer sich die Geometrie teilt_).
+
+Zwei Kleinigkeiten hängen daran:
+
+- **Die Hülle fürs Aussortieren geht aus** (`frustumCulled = false`). Sie wird
+  aus der rohen Geometrie gerechnet, und die liegt bei einer quantisierten
+  Figur ganz woanders als die Figur — eine Kachel, die je nach Blickwinkel leer
+  bleibt, wäre der nächste Fehlerbericht.
+- **Das Handgelenk rechnet jetzt mit.** `ui/WristMenu.ts` hatte eine eigene,
+  wortgleiche Fassung dieser Rechnung; derselbe Fehler steckte darin, und er
+  wäre in der Brille ein zweites Mal zu finden gewesen. Sie ist weg, das Panel
+  ruft `menuMiniature`.
+
 ### Die Leinwand scrollt mit, und das war ein gemeldeter Fehler
 
 „Beim Scrollen wackeln die 3D-Previews nach." — Sie taten es, und sie mussten
@@ -339,6 +389,143 @@ Was das Blatt **nicht** kann: Wer sehr schnell scrollt, sieht am einlaufenden
 Rand für ein Bild eine Kachel ohne Modell. Das ist dieselbe Lücke, die eine
 frisch sichtbare Kachel ohnehin hat, solange ihre Datei noch geholt wird — ein
 leeres Quadrat, kein wackelndes Modell.
+
+## Ein ⓘ in der Ecke jeder Kachel — und die Seite dahinter
+
+Eine Kachel des Regals hatte bisher genau ein Ziel: Antippen **nimmt** das
+Modell in die Hand. Das ist richtig für jemanden, der einrichtet, und zu wenig
+für jemanden, der aussucht — man sieht ein Fass von 160 Punkten Kantenlänge
+und weiß weder, wie groß es wirklich ist, noch, aus welchem Paket es kommt.
+Gewünscht war deshalb ein zweites Ziel: „Jede Kachel hat zudem oben rechts
+einen Button, um mehr anzuzeigen."
+
+**Der Knopf nimmt nicht.** Das ist die ganze Zusage: Die Kachel behält ihr
+Verhalten, und in ihrer oberen rechten Ecke sitzt ein kleiner runder Knopf,
+der eine Seite tiefer führt. Ein Knopf **im** Knopf ist kein gültiges DOM,
+also liegt er neben der Kachel und wird über sie gelegt (`.pmenu__card`) —
+dieselbe Bauweise wie beim Pfeil einer Nimm-Zeile (`.pmenu__pair`), nur über
+Eck statt nebeneinander. Er trägt dieselbe `data-more`-Kennung wie jener
+Pfeil, also geht er auch denselben Weg durch die Bedienung
+(`ui/PageMenu.onListClick`).
+
+**Warum ⓘ und nicht ⤢.** Beide wären zu haben. Das Pfeilkreuz verspricht ein
+**größeres Bild** — dieselbe Kachel, nur formatfüllend; hier kommt aber eine
+ganze Seite mit Namen, Zahlen und Schaltern, und die ist kein Vollbild,
+sondern eine Auskunft. Das ⓘ verspricht genau das. Gezeichnet ist es wie jedes
+andere Zeichen im Kopf der Seite: ein einziger `<path>` in einem `viewBox`
+von 24, ohne Füllung, mit `stroke-linecap: round` — der Punkt über dem Strich
+ist ein Strich von einem Zehntel Punkt Länge, den die runde Kappe zu einem
+Punkt macht. Ein zweiter Pfad wäre ein zweiter Pfad für einen Punkt.
+
+**In der Brille gibt es ihn nicht.** Das Feld, an dem er hängt
+(`MenuEntry.detail`), kennt nur die Seite; das Panel am Handgelenk liest es
+nicht und zeigt deshalb weiter eine Kachel mit einem Ziel. Das ist Absicht und
+keine Lücke: Die Seite dahinter lebt von Wischen, Kneifen und Scrollen, und
+davon hat ein Strahl nichts. Wer in der Brille wissen will, wie groß ein Fass
+ist, nimmt es in die Hand — das ist dort die bessere Antwort.
+
+### Was die Seite zeigt
+
+Von oben nach unten, und alles in **einem** scrollenden Kasten:
+
+1. **Der Name** im Kopf, dazu der Pfeil _Zurück_, das Haus _Von vorne_ und das
+   Kreuz _Schließen_ wie auf jeder anderen Seite des Katalogs. Sie nimmt auch
+   denselben ganzen Schirm (`MenuEntry.full`) und hält dieselben Geräteränder
+   frei (`ui/safeArea.ts`, `setSafeEdge`).
+2. **Das Modell**, groß: ein eigener Renderer mit **perspektivischer** Kamera
+   in Metern (`ui/PageDetail.ts`) und nicht das orthografische Raster von
+   nebenan. Gedreht wird dabei die **Kamera** und nicht das Modell — sonst
+   kippte der Gitterboden mit, und eine Hülle, die sich mitdreht, ist keine
+   achsenparallele Hülle mehr.
+3. **Die Schalter**: _Gitterboden_ legt ein Raster in Kachelschritten auf die
+   Höhe des tiefsten Punktes (dieselbe Kachel wie überall, 1 m — man sieht
+   damit, wie viele Kacheln das Ding belegen wird, siehe _Das Gitter unter dem
+   Getragenen_); _Bounding Box_ zeigt genau die Hülle, aus der beim Hinstellen
+   der Collider und die Masse werden (`props.modelPropShape`).
+4. **Die Animation**, wenn es eine gibt — siehe unten.
+5. **Der Steckbrief**: Paket, Ordner, Datei, Dateigröße und Schubladen kommen
+   aus dem Verzeichnis und stehen sofort da; Maße in **Metern**, Dreiecke und
+   die Zahl der Bewegungen werden am geladenen Modell gemessen und
+   nachgereicht (`DetailFacts`). Die Maße sind dabei die der **Welt**, also mit
+   dem Maßstab des Pakets darin (siehe _Ein Maßstab je Paket_) — das ist die
+   Zahl, für die jemand nachsieht.
+
+### Die Mitte dreht, der Saum scrollt
+
+Auf einem Telefon liegen über der Vorschau zwei Gesten übereinander: Wischen
+dreht das Modell, Wischen scrollt die Seite. Ein Finger kann nur eine davon
+meinen, und eine Vorschau, die die ganze Breite für sich nimmt, wäre eine
+Seite, aus der man nicht mehr herunterscrollt. Genau davor hat der Auftrag
+gewarnt: „seitlich sollte etwas Platz sein, da ich runterscrollen möchte."
+
+Also gehört dem Modell nur die **Mitte**. Links und rechts bleibt je ein Saum
+von 14 % der Breite (`ui/detailDrag.ts`, `DETAIL_GUTTER`), höchstens 90
+Bildpunkte — auf einem Telefon von 390 Punkten sind das 55, breit genug für
+einen Daumen; am Schreibtisch wären 14 % von 1400 Punkten eine Wüste, deshalb
+die Deckelung. Entschieden wird das nicht in JavaScript, sondern im Stil: Über
+der Mitte liegt ein Kasten mit `touch-action: none` (`.pmenu__grab`), der Rest
+der Fläche trägt `pan-y`. Damit scrollt der Browser am Saum wie überall sonst,
+ganz ohne dass der Hauptstrang gefragt würde — und die Zahl, mit der der
+Kasten gesetzt wird, ist dieselbe, die auch `detailZone` rechnet.
+
+Darauf liegen drei Gesten: **ein Finger** dreht (waagerecht eine ganze
+Umdrehung über die Breite) und kippt (senkrecht, gedeckelt bei rund 83° — genau
+über dem Modell fiele der Blick mit der Hochachse zusammen und die Ansicht
+spränge um ihre eigene Achse); **zwei Finger** kneifen den Zoom, von halb bis
+dreifach; das **Mausrad** tut dasselbe in Rasten, über dieselbe Umrechnung wie
+der Zoom von oben (`core/wheelZoom.ts`). Wer mit zwei Fingern zieht, dreht
+dabei nicht nebenher — ein Kneifen mit Schlenker ist kein Kneifen.
+
+### Animationen: Die Figur bringt keine mit, ihr Skelett schon
+
+„Bei Charakteren will ich die Animation auswählen können (Idle, Running, was
+diese eben noch so anbieten)." Der Haken daran steht in den Dateien:
+Nachgezählt über alle 4470 haben **78 ein Skelett, aber nur 14 eine
+Animationsspur** — und diese vierzehn sind die **Bibliotheken** unter
+`character-animations/animations/`, nicht die Figuren. KayKit liefert die
+Bewegungen einmal je Skelett und die Figuren dazu.
+
+Das ist kein Mangel, sondern der Entwurf, und er trägt: Alle Figuren der
+Sammlung stehen auf denselben zwei Skeletten mit denselben 23 Knochen
+(`root`, `hips`, `spine`, `upperarm.l`, …). Ein `AnimationMixer` bindet eine
+Spur über den **Namen** des Knotens — eine Spur aus `Rig_Medium_General.glb`
+passt deshalb auf jede Figur, ohne dass etwas umgerechnet werden müsste.
+
+`core/kaykitClips.ts` ist die Tabelle dazu, und sie ist kurz:
+
+- **Welches Skelett** — entschieden an der **Höhe** und nicht am Namen
+  (`KAYKIT_LARGE_RIG`, 3,2 in den Maßen der Quelle). Am Namen ginge es nicht:
+  `Barbarian_Large.glb` sagt es zwar, aber `Skeleton_Golem.glb` (4,23 hoch) und
+  `FrostGolem.glb` (4,16) stehen ebenso auf dem großen Skelett, ohne es im
+  Namen zu tragen. An der Höhe geht es mit großem Abstand — zwischen 2,6
+  (Skelett-Krieger) und 3,98 (Mannequin_Large) liegt nichts.
+- **Welche Dateien** — zwei je Skelett und nicht alle acht: `General` bringt
+  das Stehen, `MovementBasic` das Gehen, Laufen und Springen. Das sind 560 kB
+  für das mittlere Skelett und 340 kB für das große, geholt erst beim
+  Aufschlagen einer Figur und danach im Speicher wie jedes andere Modell des
+  Regals. Alle acht wären 2,8 MB für eine Vorschau.
+
+Die Namen stehen, wie der Zeichner sie schrieb, nur ohne Unterstriche
+(`Idle_A` → „Idle A"); doppelte fallen weg (beide Bibliotheken bringen eine
+`T-Pose` mit), und ganz oben steht **keine**. Abgespielt wird über einen
+`AnimationMixer` auf dem Modell der Vorschau — und nur dort: Was man aus dem
+Regal in die Hand nimmt, steht weiter still (siehe _Grenzen_).
+
+### Aufgeräumt wird beim Verlassen
+
+Eine Detailseite macht einen **zweiten** WebGL-Kontext auf, und davon gibt ein
+Telefon eine Handvoll her. Also gilt hier dieselbe Disziplin wie überall in
+diesem Menü, nur schärfer:
+
+- **Nie zwei zugleich.** Sobald eine Detailseite aufgeht, hält die Schleife des
+  Rasters an (`PageMenu.syncPreviews`) — und zwar *bevor* die große Leinwand
+  gebaut wird. Beim Zurückgehen läuft sie wieder an.
+- **Weg ist weg.** Beim Verlassen der Seite, beim Zumachen des Menüs und beim
+  Wechsel der Vorschauschicht geht alles: Schleife, Zuhörer, Mischer, Gitter,
+  Hülle, `renderer.dispose()` und `forceContextLoss()`.
+- **Das Modell selbst nicht.** Seine Geometrie gehört der Vorlage im Speicher
+  und allen anderen Kopien (siehe _Wer sich die Geometrie teilt_); weggeräumt
+  wird nur der Rahmen darum.
 
 ## Geladen wird, was zu sehen ist — und nur das
 
@@ -819,6 +1006,15 @@ jedem `removeProp`, also an drei Stellen, die niemand im Verdacht hätte.
   Möbel_); überall sonst — und für alles andere aus der Sammlung — bleibt es
   bei Hülle und Masse. Ein Herd auf einer Wiese hat niemanden, für den er
   braten könnte.
-- **Animationen bleiben liegen.** Was die Sammlung an Bewegung mitbringt, wird
-  geladen und nicht abgespielt — ein Gegenstand aus dem Beutel bewegt sich auch
-  nicht von selbst.
+- **Animationen bleiben liegen — außer in der Vorschau.** Was man aus dem Regal
+  in die Hand nimmt, steht still; ein Gegenstand aus dem Beutel bewegt sich
+  auch nicht von selbst. Abgespielt wird nur auf der **Detailseite** (siehe
+  _Ein ⓘ in der Ecke jeder Kachel_), und dort auch nur, was in den beiden
+  Grundbibliotheken des passenden Skeletts steht: Stehen, Gehen, Laufen,
+  Springen, Treffer, Sterben. Nahkampf, Fernkampf, Werkzeuge und die
+  Simulationen liegen daneben (`core/kaykitClips.KAYKIT_CLIP_FILES`) und
+  wären 2,8 MB.
+- **Den Steckbrief gibt es nur am Schirm.** In der Brille hat eine Kachel
+  weiter ein Ziel: greifen. Das Feld, an dem der Knopf hängt
+  (`MenuEntry.detail`), liest nur die Seite — eine Seite, die von Wischen,
+  Kneifen und Scrollen lebt, hat für einen Strahl nichts zu bieten.
