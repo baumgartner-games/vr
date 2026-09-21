@@ -113,6 +113,30 @@ die Einstellungen aufschlägt, bekommt weiter den Kasten oben links. Ein
 Katalog, in dem in jeder Kachel ein Modell steht, hat für Platz die beste
 Verwendung; eine Liste mit vier Schaltern hat sie nicht.
 
+## Drei Wege hinein: alles, Pakete, Kategorien
+
+Die erste Seite des Regals ist eine **Frage** und keine Liste: _Alles
+anschauen_, _Nach Paketen_, _Nach Kategorien_. Vorher standen die elf
+Schubladen und die Kachel _Pakete_ nebeneinander, und das war eine Liste aus
+zwei Sorten Dingen — man musste erst lesen, was davon eine Kategorie und was
+ein Paket ist. Gewünscht war die Gabelung: „Ich will bei dem Katalog auswählen
+können zu Beginn: Alles anschauen, Nach Packs, nach Kategorien und dann wird
+das jeweilige Menü gezeigt."
+
+- **Alles anschauen** — die ganze Sammlung als eine Liste, in der Reihenfolge
+  des Baumes. In der Brille zerfällt sie in Fächer zu sechzig, am Schirm
+  wächst sie beim Scrollen. Für „zeig mir einfach alles" der kürzeste Weg.
+- **Nach Paketen** — der Ordnerbaum, wie er immer war (`kaykitPackMenu`).
+  Er beantwortet „Was ist eigentlich in `mixed-bag`?".
+- **Nach Kategorien** — die elf Schubladen. Sie beantworten „Ich will ein
+  Bett".
+
+Gebaut wird der Baum weiter **auf einmal** — er besteht aus Zeichenketten —,
+aber nur noch **einmal je Index**: Die Welt hebt ihn auf (`PortalWorld.shelfMenu`).
+Das Menü wird bei jeder Änderung neu gesetzt, und mit den drei Wegen hängen
+über zehntausend Einträge daran; sie bei jedem Tastendruck neu zu bauen wäre
+Arbeit für nichts.
+
 ## Schubladen: Figuren, Möbel, Natur — und sieben weitere
 
 Der Ordnerbaum ist die Adresse und bleibt es. Als **Sortiment** taugt er
@@ -121,28 +145,77 @@ wer eine Figur sucht, findet sie in sieben Paketen verteilt. Gewünscht war
 deshalb eine zweite Ordnung: „Ich denke auch Kategorien wären sinnvoll für die
 einzelnen Elemente wie z. B. Charaktere, Möbel, Items, etc."
 
-Elf Schubladen stehen jetzt auf der ersten Seite des Regals
+Elf Schubladen stehen hinter _Nach Kategorien_
 (`core/kaykitIndex.KAYKIT_CATEGORIES`): Figuren, Essen & Trinken, Möbel,
 Natur, Gebäude & Bauteile, Waffen, Werkzeug, Kisten & Fässer, Spiel &
-Freizeit, Deko — und **Alles Übrige**. Darunter eine zwölfte Kachel,
-_Pakete_, und dahinter der Ordnerbaum, wie er immer war
-(`kaykitPackMenu`).
+Freizeit, Deko — und **Alles Übrige**.
 
 **Entschieden wird an Paket und Dateinamen**, nicht an einer Liste mit
 viertausendfünfhundert Zeilen — die pflegt niemand. Ein Paket, das ganz einer
-Schublade gehört (`packs`), entscheidet allein; sonst zählt ein **ganzes
-Wort** im Dateinamen (`words`, also ist `boxer` keine Kiste). Die
-**Reihenfolge der Tabelle ist die Regel**: Die erste Schublade, auf die eine
-Datei passt, bekommt sie — `crate_buns.glb` ist damit Essen und nicht Kiste,
-weil Essen vorher steht. Die letzte Schublade hat weder `packs` noch `words`
-und fängt alles auf; ohne sie fiele ein Modell aus dem Regal, nur weil niemand
-ein Wort dafür aufgeschrieben hat.
+Schublade gehört (`packs`), entscheidet; sonst zählt ein **ganzes Wort** im
+Dateinamen (`words`, also ist `boxer` keine Kiste). Die letzte Schublade hat
+weder `packs` noch `words` und fängt alles auf; ohne sie fiele ein Modell aus
+dem Regal, nur weil niemand ein Wort dafür aufgeschrieben hat.
 
-**Eine Datei steht damit an zwei Stellen** — einmal in ihrer Schublade, einmal
-in ihrem Paket —, und das ist der Sinn der Sache. Ids müssen deshalb nur
-**unter Geschwistern** eindeutig sein und nicht im ganzen Baum: Der Weg durchs
-Menü merkt sich Seiten (`ui/menuNav.ts`), und eine Seite wird immer bei ihren
-Geschwistern gesucht.
+**Eine Datei liegt in jeder Schublade, auf die sie passt** — und nicht in der
+ersten davon. Das war einmal anders und war falsch: `crate_buns.glb` ist eine
+Kiste **und** Essen, und wer Kisten durchsieht, will sie dort finden, auch
+wenn Essen in der Tabelle weiter oben steht. Der Auftrag sagt es selbst:
+„Jedes Modell soll mehrere Kategorien zugewiesen bekommen, sodass ich danach
+suchen kann." Die Reihenfolge der Tabelle ist damit keine Entscheidung mehr,
+sondern nur noch die Reihenfolge der Kacheln — und die erste passende bleibt
+die _Haupt_kategorie (`kaykitCategoryOf`) für alles, was genau eine braucht.
+Gerechnet wird das **einmal je Datei** beim Aufbau der flachen Liste
+(`KaykitFileRef.cats`): Die Suche fragt sie bei jedem Buchstaben.
+
+**Eine Datei steht damit an mehreren Stellen** — in _Alles_, in ihrem Paket
+und in jeder ihrer Schubladen —, und das ist der Sinn der Sache. Ids müssen
+deshalb nur **unter Geschwistern** eindeutig sein und nicht im ganzen Baum:
+Der Weg durchs Menü merkt sich Seiten (`ui/menuNav.ts`), und eine Seite wird
+immer bei ihren Geschwistern gesucht.
+
+## Wo man war, wenn man wiederkommt — und der Weg zurück an den Anfang
+
+Der Katalog ist tief: drei Wege hinein, darunter Pakete, Ordner, Fächer, und
+ganz unten viertausendfünfhundert Kacheln. Zwei Dinge gehören deshalb dazu,
+und sie sind Gegenstücke.
+
+**Der Weg wird gemerkt.** Innerhalb einer Sitzung tat er das immer schon — der
+Weg durchs Menü liegt einmal da und wird von beiden Handgelenken und von der
+Seite gelesen (`ui/menuNav.ts`), und wie weit eine Seite geblättert war, steht
+daneben. Jetzt überlebt der **Katalogweg** auch ein Neuladen
+(`ui/menuRecall.ts`, `localStorage` unter `bgvr.katalog`): „Es soll sich auch
+gemerkt werden, in welchem Ordner/Kategorie/Scroll-Bereich ich bin, wenn ich
+das Menü erneut öffne."
+
+Gemerkt wird **nur der Katalog** und nicht das ganze Menü: Eine Seite, die
+nach dem Neuladen mitten in den Grafikeinstellungen aufgeht, wäre keine
+Freundlichkeit, sondern ein Rätsel. Zwei Feinheiten hängen daran:
+
+- Der Zettel wird nur beschrieben, **während man im Katalog steht**. Wer
+  danebensteht, ändert ihn nicht.
+- Der gemerkte Weg zeigt drei Ebenen tief in ein Regal, dessen Verzeichnis in
+  diesem Augenblick erst geholt wird — bis dahin steht dort „Lädt …". Ein Weg,
+  der dann gekürzt _und vergessen_ würde, wäre nach dem ersten Neuaufbau weg.
+  Also hält `MenuNav` ihn als **Wunsch** fest, bis es seine Seiten wirklich
+  gibt, und zeigt in der Zwischenzeit so viel davon, wie schon da ist.
+
+**Und am Schirm fängt die gemerkte Stelle auch wirklich wieder dort an.** Eine
+Seite wird mit sechzig Kacheln aufgeschlagen und wächst erst beim Scrollen;
+wer das Regal bei Punkt 4000 zumachte, bekam eine Liste, die 900 Punkte hoch
+war, und `scrollTop` landete am Ende. Jetzt legt die Seite so lange nach, bis
+die gemerkte Stelle erreichbar ist (`ui/PageMenu.fill`).
+
+**Der Weg zurück an den Anfang** ist das Gegenstück: `MenuEntry.home` markiert
+die Seite, an der die Frage „wie willst du hineingehen?" steht. Darunter steht
+im Kopf ein Knopf, der dorthin springt — „Über den Header gibt es beim Menü
+auch die Möglichkeit von vorne durch den Katalog zu starten." Am Schirm ist es
+das Haus neben dem Titel, in der Brille die Zeile _Von vorne_ neben _Zurück_.
+
+In der Brille steht sie **nur auf Listenseiten fest**: Ein festgehaltener
+Kopfbalken kostet im Raster eine ganze Kachelreihe, und aus vier Kacheln je
+Seite zwei zu machen, wäre ein Katalog, durch den man in Zweierschritten
+blättert. Im Raster fährt _Von vorne_ deshalb als erste Kachel mit.
 
 ## Und ein Suchfeld — aber nur am Schirm
 
@@ -162,10 +235,22 @@ gibt, und nicht, ob im Wald eine liegt.
 Gesucht wird in einer flachen Liste, die einmal je Index gerechnet wird
 (`kaykitFiles`, `PortalWorld.shelfFiles`): viertausendfünfhundert Zeichenketten
 und kein einziges Modell. **Alle Wörter müssen vorkommen**, im Dateinamen oder
-im Pfad — `dungeon barrel` ist damit ein Filter auf ein Paket, und `holz
-kiste` findet nichts, weil die Sammlung englisch heißt. **Sortiert wird nach
-Güte**: Wer mit dem Gesuchten anfängt, steht vor dem, der es enthält, und der
-vor dem, bei dem es nur im Ordnernamen steht. Sonst stünde bei `chair` die
+im Pfad — `dungeon barrel` ist damit ein Filter auf ein Paket.
+
+**Und die Schubladen zählen mit.** `möbel` findet den Sessel, dessen Datei
+nirgends `furniture` heißt, `furniture` findet ihn auch (die Id der Kategorie
+zählt wie ihre Beschriftung), und `möbel holz` filtert innerhalb der
+Schublade weiter. Genau dafür bekommt jede Datei mehrere Kategorien: „sodass
+ich danach suchen kann". Umlaute werden dabei gefaltet (`möbel` → `mobel`) —
+sonst zerfiele das Wort am Zerteiler in `m` und `bel`, und wer auf einem
+englischen Pad tippt, schreibt es ohnehin ohne. Erst ab **drei Zeichen** darf
+ein Wort eine Schublade meinen: Ein einzelnes `d` passt auf `decor` und damit
+auf ein Zehntel der Sammlung, und ein Filter, der alles durchlässt, ist
+keiner. `holz kiste` findet weiter nichts, weil die Sammlung englisch heißt
+und keine Schublade so heißt. **Sortiert wird nach
+Güte**: Wer mit dem Gesuchten anfängt, steht vor dem, der es enthält, der vor
+dem, bei dem es nur im Ordnernamen steht — und ganz hinten der, bei dem nur
+die Schublade passt. Sonst stünde bei `chair` die
 Kachel `restaurant-bits/chair_A` hinter dreißig Dateien aus einem Ordner, der
 zufällig `chairs` heißt. Mehr als `SEARCH_LIMIT` (200) Treffer gibt es nicht:
 Wer nach `tree` sucht, bekommt im Wald über tausend, und die letzten

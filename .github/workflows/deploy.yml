@@ -50,13 +50,39 @@ jobs:
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
 
+      # Das Artefakt ist zum Nachsehen da und nicht zum Ausliefern. Die 4470
+      # gekauften Modelle stehen deshalb nicht darin: Sie liegen unverändert
+      # im Repository, machen aber vier Fünftel der 76 MB aus — und die bei
+      # **jedem** Push und jedem Pull Request hoch- und wieder herunterzuladen,
+      # kostet Minuten für etwas, das niemand ansieht.
       - name: Upload build output
         uses: actions/upload-artifact@v4
         with:
           name: web-build
-          path: dist
+          path: |
+            dist
+            !dist/models/kaykit
           retention-days: 7
 
+      # **Veröffentlicht wird als Fortsetzung und nicht als Neuanfang.**
+      #
+      # Hier stand `git init` im frischen `dist/`, ein Commit ohne Geschichte
+      # und ein `push --force`. Das funktionierte — und schickte bei **jedem**
+      # Deploy die vollen 76 MB über die Leitung, obwohl sich davon nur ein
+      # paar Bündeldateien geändert hatten: Ein Repository ohne gemeinsame
+      # Geschichte kann mit der Gegenseite nichts abgleichen, also lud es
+      # jedes der 4600 Modelle noch einmal hoch, und GitHub legte jedes davon
+      # noch einmal ab.
+      #
+      # Stattdessen wird `gh-pages` geholt (flach, ein Commit), der Inhalt
+      # ersetzt und ein gewöhnlicher Commit daraufgesetzt. Git schickt dann
+      # nur, was wirklich neu ist — nach einem Deploy ohne neue Modelle sind
+      # das ein paar Megabyte statt sechsundsiebzig. Die gekauften Dateien
+      # ändern sich nie und liegen deshalb genau einmal dort.
+      #
+      # Aufgeräumt wird dabei weiter: Was der Build nicht mehr erzeugt,
+      # verschwindet auch aus dem Branch — dieselbe Zusage wie vorher, nur
+      # ohne den Kahlschlag davor (`docs/agents/deployment.md`).
       - name: Publish to gh-pages
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
@@ -64,15 +90,43 @@ jobs:
         run: |
           set -euo pipefail
           touch dist/.nojekyll
-          cd dist
-          git init -b gh-pages
+          remote="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Den Branch, wenn es ihn gibt; sonst fängt er hier an.
+          if git clone --branch gh-pages --single-branch --depth 1 "$remote" gh-pages; then
+            :
+          else
+            mkdir -p gh-pages
+            git -C gh-pages init -b gh-pages
+          fi
+          # Erst leeren, dann füllen: Was der Build nicht mehr erzeugt, ist
+          # danach auch im Branch weg — dieselbe Zusage wie beim Kahlschlag
+          # vorher. Nur `.git` bleibt stehen, denn daran hängt der Abgleich,
+          # der diesen Schritt überhaupt billig macht.
+          find gh-pages -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          cp -a dist/. gh-pages/
+          cd gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+          # Ein Deploy, der nichts ändert, braucht keinen Commit — das kommt
+          # vor, sobald ein Push nur an Dateien rührt, die gar nicht ins
+          # Bündel gehen (Dokumentation, Workflows).
+          if git diff --cached --quiet; then
+            echo "Nichts Neues für gh-pages."
+            exit 0
+          fi
           git commit -m "Deploy ${GITHUB_SHA}"
-          git push --force \
-            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-            gh-pages
+          # Ohne `--force` kann ein zweiter Deploy dazwischengekommen sein.
+          # Dann wird der neue Stand geholt und derselbe Baum noch einmal
+          # daraufgesetzt — was hier steht, ist ohnehin der ganze Inhalt.
+          for attempt in 1 2 3; do
+            if git push "$remote" HEAD:gh-pages; then exit 0; fi
+            echo "Push abgelehnt — neuer Stand, Versuch $attempt."
+            git fetch --depth 1 "$remote" gh-pages
+            git reset --soft FETCH_HEAD
+            git commit -m "Deploy ${GITHUB_SHA}" --allow-empty
+          done
+          exit 1
 
   # Die Rundensimulationen (Bot-Runden, Training, Schächte, Glättung) dauern
   # Minuten; sie laufen neben dem Build, damit ein Push nicht an einer Uhr

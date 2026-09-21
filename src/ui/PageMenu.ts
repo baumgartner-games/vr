@@ -55,6 +55,8 @@ interface Page {
   take: boolean;
   /** Das Suchfeld dieser Seite (`MenuEntry.find`). */
   find?: (query: string) => MenuEntry[];
+  /** Hier fängt ein Katalog an (`MenuEntry.home`). */
+  home: boolean;
   /** Id des Eintrags, zu dem die Seite gehört. */
   id: string;
 }
@@ -107,6 +109,8 @@ export class PageMenu {
   readonly element: HTMLElement;
   private readonly sheet: HTMLElement;
   private readonly backButton: HTMLButtonElement;
+  /** Der Knopf zurück an den Anfang des Katalogs (`MenuEntry.home`). */
+  private readonly homeButton: HTMLButtonElement;
   private readonly titleEl: HTMLElement;
   private readonly statusEl: HTMLElement;
   /**
@@ -154,6 +158,16 @@ export class PageMenu {
   private previews: PagePreviewLayer | null = null;
   /** Ob die Brille auf ist — dann zeichnet das Handgelenk und nicht die Seite. */
   private presenting = false;
+  /**
+   * **Wohin die Liste noch springen will**, in Bildpunkten — oder `null`.
+   *
+   * Eine Seite wird mit sechzig Kacheln aufgeschlagen und wächst erst beim
+   * Scrollen. Wer das Regal bei Punkt 1700 zumacht und wieder aufmacht, bekäme
+   * deshalb eine Liste, die nur 900 Punkte hoch ist: `scrollTop` landet am
+   * Ende, und die gemerkte Stelle ist weg. Also bleibt sie hier stehen, bis
+   * genug Kacheln da sind, um wirklich dorthin zu kommen (`fill`).
+   */
+  private want: number | null = null;
 
   constructor(options: PageMenuOptions = {}) {
     this.rootTitle = options.title ?? 'Menü';
@@ -173,8 +187,15 @@ export class PageMenu {
     this.backButton = iconButton('pmenu__nav pmenu__back', 'Zurück', 'M14 6l-6 6 6 6');
     this.backButton.hidden = true;
     this.titleEl = el('h2', 'pmenu__title');
+    // Das Haus: zurück an den Anfang des Katalogs, ohne achtmal *Zurück*.
+    this.homeButton = iconButton(
+      'pmenu__nav pmenu__home',
+      'Von vorne durch den Katalog',
+      'M4 10.5l8-6 8 6V20H4z',
+    );
+    this.homeButton.hidden = true;
     const close = iconButton('pmenu__nav pmenu__close', 'Schließen', 'M6 6l12 12M18 6L6 18');
-    head.append(this.backButton, this.titleEl, close);
+    head.append(this.backButton, this.titleEl, this.homeButton, close);
 
     // **Die Leiste über der Liste.** Sie steht im Kopf und nicht in der Liste,
     // und das ist der ganze Grund, warum das Tippen im Suchfeld nicht abreißt:
@@ -219,6 +240,7 @@ export class PageMenu {
       this.keepScroll();
       this.nav.pop();
     });
+    this.homeButton.addEventListener('click', () => this.goHome());
     this.list.addEventListener('click', (event) => this.onListClick(event));
     this.searchEl.addEventListener('input', () => this.onSearch());
     fewer.addEventListener('click', () => this.stepCols(-1));
@@ -305,6 +327,14 @@ export class PageMenu {
   toggle(force?: boolean): void {
     const next = force ?? !this.open;
     if (next === this.open) return;
+    // **Zuerst merken, dann verstecken.** Ein `hidden` ist für den Browser ein
+    // `display: none`, und ein Kasten, der nicht angezeigt wird, hat keine
+    // Blätterstellung mehr: `scrollTop` steht danach auf null. Hier stand das
+    // Merken hinter dem Verstecken und merkte sich deshalb jedes Mal die Null
+    // — wer im Katalog weit unten war und das Menü zumachte, fing beim
+    // nächsten Öffnen wieder ganz oben an. In jsdom fällt das nicht auf, weil
+    // `scrollTop` dort eine gewöhnliche Zahl ist; im Browser sofort.
+    if (!next) this.keepScroll();
     this.open = next;
     this.element.hidden = !next;
     if (next) {
@@ -314,7 +344,6 @@ export class PageMenu {
       this.sheet.focus({ preventScroll: true });
     } else {
       this.previews?.setOpen(false);
-      this.keepScroll();
       // Eine versteckte Liste vergisst ihre Blätterstellung; beim nächsten
       // Öffnen wird sie neu gebaut und dort aufgeschlagen, wo sie verlassen wurde.
       this.renderedPage = '';
@@ -352,6 +381,7 @@ export class PageMenu {
         grid: false,
         full: false,
         take: false,
+        home: false,
         id: 'root',
       },
     ];
@@ -367,6 +397,30 @@ export class PageMenu {
     // auf der alten gesucht hat — und niemand sähe, warum sie fast leer ist.
     if (this.page.id !== before) this.clearSearch();
     if (this.open) this.render();
+  }
+
+  /**
+   * **Wie tief im Stapel der Anfang des Katalogs liegt** — oder `-1`, wenn es
+   * keinen gibt oder man schon auf ihm steht.
+   *
+   * Gesucht wird von unten: Läge je ein Katalog in einem Katalog, führte der
+   * Knopf an den **nächstgelegenen** Anfang und nicht an den äußersten.
+   */
+  private homeDepth(): number {
+    for (let depth = this.stack.length - 2; depth > 0; depth--) {
+      if (this.stack[depth]!.home) return depth;
+    }
+    return -1;
+  }
+
+  /** Zurück an den Anfang des Katalogs — ein Sprung, kein Stapel Rückschritte. */
+  private goHome(): void {
+    const depth = this.homeDepth();
+    if (depth < 0) return;
+    this.keepScroll();
+    // `stack[depth]` gehört zu `nav.path[depth - 1]`: Die Wurzel steht im
+    // Stapel, aber nicht im Weg.
+    this.nav.goTo(this.nav.path.slice(0, depth));
   }
 
   /** Seite **und** Suchbegriff: Dieselbe Seite gefiltert ist eine andere Liste. */
@@ -406,6 +460,9 @@ export class PageMenu {
     const page = this.page;
     this.titleEl.textContent = page.title;
     this.backButton.hidden = this.stack.length <= 1;
+    // Der Weg an den Anfang des Katalogs steht nur da, wenn er auch woanders
+    // hinführt als *Zurück* (`MenuEntry.home`).
+    this.homeButton.hidden = this.homeDepth() < 0;
     // **Der Katalog nimmt den ganzen Schirm** (`MenuEntry.full`) — und damit
     // auch die Knöpfe darunter. Genau so war es gewünscht: „die Höhe des
     // Katalogmenüs kann meinetwegen auch gerne die gesamte Höhe des
@@ -446,7 +503,13 @@ export class PageMenu {
       // wegzuziehen.
       const turned = this.renderedPage !== key;
       this.list.replaceChildren(...fresh);
-      if (turned) this.stage.scrollTop = this.scrolls.get(key) ?? 0;
+      if (turned) {
+        const back = this.scrolls.get(key) ?? 0;
+        this.stage.scrollTop = back;
+        // Nachlegen, bis die Stelle wirklich erreichbar ist — und nicht
+        // scheinbar, weil die Liste kürzer ist als die Erinnerung.
+        this.want = back > 0 ? back : null;
+      }
     }
     this.renderedPage = key;
     // Zum Schluss, und immer: Welche Quadrate jetzt dastehen, weiß nur, wer
@@ -495,10 +558,18 @@ export class PageMenu {
     if (!this.open) return;
     const box = this.stage.clientHeight;
     if (box <= 0) return;
-    if (this.stage.scrollHeight > box) return;
-    if (this.window >= this.source.length) return;
-    this.window += PAGE_WINDOW;
-    this.render();
+    // So viel Inhalt muss dastehen: eine Fensterhöhe — und wenn eine
+    // Blätterstellung wiederkommen soll, auch alles darüber.
+    const need = (this.want ?? 0) + box;
+    if (this.stage.scrollHeight <= need && this.window < this.source.length) {
+      this.window += PAGE_WINDOW;
+      this.render();
+      return;
+    }
+    if (this.want !== null) {
+      this.stage.scrollTop = this.want;
+      this.want = null;
+    }
   }
 
   /** Beim Scrollen: Kommt das Ende in Sicht, wird nachgelegt. */
@@ -592,6 +663,7 @@ function pageOf(entry: MenuEntry): Page {
     full: entry.full ?? false,
     ...(entry.find ? { find: entry.find.bind(entry) } : {}),
     take: entry.take ?? grid,
+    home: entry.home ?? false,
     id: entry.id,
   };
 }

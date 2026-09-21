@@ -7,6 +7,8 @@ import { HandVisuals } from './HandVisuals';
 import { PlayerAvatar } from './PlayerAvatar';
 import { FreeLocomotion } from './Locomotion';
 import { WristMenus } from '../ui/WristMenus';
+import { MenuNav } from '../ui/menuNav';
+import { catalogRecall } from '../ui/menuRecall';
 import { PageMenu } from '../ui/PageMenu';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
@@ -361,6 +363,10 @@ export class App {
     this.wristMenu = new WristMenus(this.pointer, {
       title: 'Menü',
       footer: 'Andere Hand: zielen + Trigger/A',
+      // Der Weg durchs Menü merkt sich den **Katalog** über das Neuladen
+      // hinaus (`ui/menuRecall.ts`) — alles andere fängt nach einem Neustart
+      // wieder oben an.
+      nav: new MenuNav(catalogRecall()),
     });
     this.rig.add(this.wristMenu);
     this.pageMenu = new PageMenu({

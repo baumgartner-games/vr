@@ -76,6 +76,10 @@
 .pmenu__more svg,
 .pmenu__chevron svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pmenu__back[hidden] { display: none; }
+/* Und das Haus: von vorne durch den Katalog. Es steht rechts neben dem Titel,
+   weil es kein Rückschritt ist, sondern ein Sprung — links neben dem Titel
+   säße es an der Stelle, an der man *Zurück* erwartet. */
+.pmenu__home[hidden] { display: none; }
 
 /* Die Leiste über der Liste: das Suchfeld des Katalogs und die beiden Knöpfe
    für die Spaltenzahl. Sie steht **im Kopf** und nicht in der scrollenden

@@ -239,6 +239,11 @@
           `core/fullDownload.ts`; hier stehen nur die Kästen dafür.
           Nicht `only-generic`, aus demselben Grund wie oben: Wer zu einer
           Runde eingeladen wurde, fährt genauso in den Tunnel.
+
+          **Geprüft wird beim Start von selbst**, und fehlt etwas, blinkt der
+          Knopf (`core/fullAuto.ts`). Der Haken darunter macht daraus ein
+          Nachladen ohne Nachfrage — er steht im Speicher des Browsers und
+          gilt damit auch nach dem nächsten Deploy.
         -->
         <div id="offline" class="install offline">
           <button type="button" id="offline-btn" class="btn btn--ghost">Alles herunterladen</button>
@@ -247,6 +252,10 @@
           <progress id="offline-bar" class="offline__bar" value="0" max="1" hidden></progress>
           <p id="offline-hint" class="field__hint"></p>
           <button type="button" id="offline-stop" class="btn btn--ghost offline__stop" hidden>Anhalten</button>
+          <label class="offline__auto" for="offline-auto">
+            <input type="checkbox" id="offline-auto" />
+            <span>Fehlendes automatisch herunterladen</span>
+          </label>
         </div>
 
         <p id="xr-status" class="status only-generic"></p>

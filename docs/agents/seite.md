@@ -703,7 +703,8 @@ ganze Programm, alle Modelle, alle Töne und das ganze KayKit-Regal.
 | ----- | --------------- |
 | `core/fullDownload.ts` | **Rein, mit Test**: der Plan, die Reihenfolge, die Stempelregel, der Fortschritt, die Restzeit — und jeder Satz, der auf dem Knopf steht |
 | `core/fullDownloadRun.ts` | Das Holen: sechs Dateien gleichzeitig, zweite Versuche, Abbrechen, im Speicher nachsehen |
-| `main.ts`, `#offline` | Vier Elemente und ein Zustandsautomat: Knopf, Balken, Zeile, Halteknopf |
+| `core/fullAuto.ts` | **Rein, mit Test**: ob der Knopf blinkt, ob von selbst geladen wird, und der Haken im Speicher |
+| `main.ts`, `#offline` | Fünf Elemente und ein Zustandsautomat: Knopf, Balken, Zeile, Halteknopf, Haken |
 
 Derselbe Schnitt wie überall hier, nur mit einem schärferen Grund als sonst:
 **Ein Balken, der lügt, ist schlimmer als keiner** — und ob er lügt, sieht man
@@ -883,6 +884,47 @@ kein Service Worker (`core/pwa.ts`); ein `fetch` landete dann im HTTP-Cache
 statt im Speicher, und sichtbar wäre davon nichts außer einem Balken, der
 durchläuft und nichts bewirkt. Genau dieser Fall steht ausgeschrieben da.
 
+### Geprüft wird von selbst, geladen nur auf Ansage
+
+Der erste Druck lud lange nichts: Er holte die Liste, sah im Speicher nach und
+sagte, um wie viel es geht; erst der zweite lud. Das war richtig, solange der
+Knopf die einzige Frage war — und es hieß, dass man nach einem Deploy zweimal
+drücken musste, um zu erfahren, dass einem etwas fehlt. Das fällt genau dann
+auf, wenn es zu spät ist: im Funkloch. Gewünscht wurde deshalb beides:
+
+> „Bei der Startseite soll immer automatisch geprüft werden, ob alle Modelle
+> heruntergeladen sind und dann der Button zum Download blinken, wenn etwas
+> fehlt. Ich will auch eine Checkbox da haben (der State wird mit gespeichert
+> über Reloads), ob automatisch neue Inhalte heruntergeladen werden sollen,
+> wenn diese fehlen."
+
+**Nachgesehen wird bei jedem Start**, sobald der Browser Luft hat
+(`whenIdle`) und ein Service Worker antwortet — ohne ihn wäre die Antwort
+ohnehin „kein Speicher", und beim allerersten Besuch übernimmt er erst nach
+dem Anmelden; dann wartet die Prüfung auf `controllerchange` oder auf den
+nächsten Start. Sie kostet die beiden erzeugten Listen (`offline.json`, den
+Index des Regals) und einen Blick in den Speicher — der Index ist ohnehin das,
+was das Vorwärmen als Nächstes holt.
+
+**Fehlt etwas, blinkt der Knopf** (`fullNags`, `.offline--nag`): genau in den
+drei Zuständen _offen_, _angehalten_ und _lückenhaft_. Nicht, während geladen
+wird (Unruhe ohne Aussage), nicht, wenn alles da ist (eine Lüge), und nicht,
+wenn der Browser gar keinen Speicher hat (eine Forderung, die niemand
+erfüllen kann). Gepulst wird der Rahmen und nicht die Schrift — eine blinkende
+Beschriftung ist nach dem dritten Takt nicht mehr zu lesen —, und wer Bewegung
+abbestellt hat (`prefers-reduced-motion`), bekommt denselben Hinweis ohne
+Takt.
+
+**Geladen wird von selbst nur mit Haken** (`#offline-auto`, `bgvr.autoload`,
+`autoStarts`). Nachsehen kostet zwei kleine Listen, siebzig Megabyte kosten
+eine Mobilfunkrechnung: Das eine darf die Seite von sich aus tun, das andere
+erst, wenn es jemand einmal gesagt hat — und dann bleibt es gesagt, auch über
+das Neuladen und den nächsten Deploy hinaus. Angefangen wird dabei nur aus
+_offen_: _angehalten_ ist eine Entscheidung dagegen, _lückenhaft_ das Ende
+eines Laufs, und beides von selbst fortzusetzen wäre eine Schleife gegen den,
+der davorsitzt. Ein frisch gesetzter Haken wartet nicht auf den nächsten
+Start.
+
 ### Die Rücksichten — und welche hier nicht gelten
 
 Vom Vorwärmen bleibt fast nichts übrig, denn **hier hat jemand gefragt**:
@@ -924,6 +966,7 @@ im Hintergrund, und man sieht den Download statt des Renderers.
 | Angekündigt gegen wirklich geholt | 49,0 MiB angekündigt, **51 337 004 B** über die Leitung: dieselbe Zahl |
 | Speicher danach | **4743 Einträge** (36 Hülle, 4707 Medien) = 4741 Plandateien + `offline.json` + die Startseite |
 | _Nochmal prüfen_ | 8 s, **0 Bytes** über die Leitung — Liste und Index liegen selbst im Speicher |
+| Die Prüfung beim Start | derselbe Weg wie _Nochmal prüfen_: zwei erzeugte Listen und ein Blick in den Speicher, nach dem ersten vollen Lauf beides aus dem Speicher |
 | Ohne Netz danach | Startseite in **265 ms**, Welt steht, Regal geht auf, Modelle **und Texturen** kommen aus dem Speicher (`dungeon_texture.webp`, 22 764 B, ohne Netz mit `200` beantwortet) |
 
 **Und wie sich die Restzeit benommen hat** (gedrosselt auf 600 kB/s, 67 MB

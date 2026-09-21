@@ -123,6 +123,24 @@ export interface MenuEntry {
    */
   flatten?: boolean;
   /**
+   * **Hier fängt ein Katalog an** — und im Kopf steht ab hier ein Knopf, der
+   * dorthin zurückführt.
+   *
+   * Das Regal ist tief: drei Wege hinein, darunter Pakete, Ordner, Fächer,
+   * und ganz unten viertausendfünfhundert Kacheln. Wer dort unten steht und
+   * etwas ganz anderes sucht, will weder achtmal *Zurück* drücken noch das
+   * Menü zumachen. Also gibt es einen Weg nach oben, der nur eine Ebene kennt:
+   * die, an der die Frage „wie willst du hineingehen?" steht. Gewünscht war
+   * genau das: „Über den Header gibt es beim Menü auch die Möglichkeit von
+   * vorne durch den Katalog zu starten."
+   *
+   * Der Knopf steht nur da, solange man **unterhalb** dieser Seite ist — auf
+   * ihr selbst wäre er ein Knopf, der nichts tut. Am Schirm ist es ein Knopf
+   * im Kopf (`ui/PageMenu.ts`), in der Brille eine feste Zeile neben
+   * *Zurück* (`ui/WristMenu.ts`).
+   */
+  home?: boolean;
+  /**
    * **Diese Seite hat ein Suchfeld** — was zurückkommt, steht statt ihrer
    * Liste da.
    *

@@ -1174,6 +1174,17 @@ export class PortalWorld implements World {
    */
   private shelfFiles: readonly KaykitFileRef[] = [];
   /**
+   * **Der fertige Katalogbaum**, einmal gebaut und dann behalten — aus
+   * demselben Grund wie `shelfFiles`, nur teurer.
+   *
+   * Hinter den drei Wegen hinein (alles, Pakete, Kategorien) stehen zusammen
+   * gut zehntausend Einträge, und der Menübaum wird bei jeder Änderung neu
+   * gesetzt. Sie hängen an nichts, was sich ändert: Beschriftungen, Ids und
+   * Größen kommen aus dem Index, und was beim Nehmen passiert, holt sich die
+   * Welt erst beim Zugreifen (`ctx()`).
+   */
+  private shelfMenu: MenuEntry[] | null = null;
+  /**
    * **Das Gitter unter dem Getragenen** (`placeGrid.ts`) — es zeigt vor dem
    * Loslassen, auf welche Kacheln das Möbel fällt. Gebaut wird es beim Aufbau
    * der Welt und weggeräumt mit ihr.
@@ -7966,7 +7977,13 @@ export class PortalWorld implements World {
       // **Der ganze Schirm.** Die Kachel eines Katalogs zeigt das Ding selbst,
       // und dafür ist Platz das Einzige, was hilft (`ui/PageMenu.ts`, `full`).
       full: true,
-      take: true,
+      // **Der Anfang des Katalogs**: Von hier aus fragt das Regal, auf welchem
+      // Weg man hineingeht, und ab hier steht im Kopf der Knopf, der wieder
+      // hierher zurückführt (`ui/menu.MenuEntry.home`).
+      home: true,
+      // Auf der Gabelung selbst wird nichts genommen — genommen wird eine
+      // Ebene tiefer, und dort sagt es jede Seite selbst.
+      take: false,
       onOpen: () => this.openShelf(),
       // **Das Suchfeld gibt es nur auf der Seite** (`MenuEntry.find`): In der
       // Brille will niemand tippen, und dort bleiben Schubladen, Ordner und
@@ -8005,7 +8022,8 @@ export class PortalWorld implements World {
         },
       ];
     }
-    const entries = kaykitMenu(this.shelf, (path, hand) => this.takeModel(ctx(), path, hand));
+    this.shelfMenu ??= kaykitMenu(this.shelf, (path, hand) => this.takeModel(ctx(), path, hand));
+    const entries = this.shelfMenu;
     if (entries.length > 0) return entries;
     return [
       {
@@ -8036,6 +8054,7 @@ export class PortalWorld implements World {
     // kein Regal gibt.
     this.shelf = index;
     this.shelfFiles = index ? kaykitFiles(index) : [];
+    this.shelfMenu = null;
     // Den Baum neu bauen lassen — der Weg durchs Menü bleibt dabei stehen,
     // weil er an Ids hängt und nicht an Einträgen (`ui/menuNav.ts`).
     this.context?.refreshWorldMenu();
