@@ -530,11 +530,71 @@ derselben Rangfolge wie `A`: Steht etwas in Reichweite, gehört der Klick dem
 Ding davor; steht nichts da, bleibt er der **Auslöser** dessen, was die Figur
 trägt (der Feuerlöscher, die Waffe — `PlayerRig.setTrigger`). Zwei Wirkungen
 auf einen Klick gibt es damit nie, und der Löscher verliert seinen Knopf nur
-dort, wo ohnehin etwas Näheres gemeint ist — seit September 2026 ist das
-**genau eine Sorte Möbel**: die Arbeitsplatte, auf der er abgestellt wird
-(`kitchenCarry.EXTINGUISHER_REST`). Vor allem anderen, auch vor dem brennenden
-Herd, meldet sich keine Station mehr an, solange er in der Hand liegt, und der
-Knopf gehört ihm.
+dort, wo ohnehin etwas Näheres gemeint ist — und das sind **die Flächen, auf
+denen er abgestellt wird** (`kitchenCarry.EXTINGUISHER_REST`, siehe den
+nächsten Abschnitt). Vor allem anderen, auch vor der brennenden Herdplatte,
+meldet sich keine Station mehr an, solange er in der Hand liegt, und der Knopf
+gehört ihm.
+
+## Der Feuerlöscher: wo er hingestellt wird und was ihn anmacht
+
+Er ist das einzige Ding dieser Spielwiese, das **selbst einen Knopf hat**, und
+deshalb steht seine Regel doppelt geschrieben: einmal als Frage an die Station
+davor (`kitchenCarry.extinguisherRests`) und einmal als Frage an den Auslöser
+(`kitchenSpray.ts`). Die beiden hängen zusammen — was die Station anbietet,
+nimmt dem Löscher den Knopf weg (`PlayerRig.useCandidate`), und was sie nicht
+anbietet, lässt ihn ihm.
+
+**Abgestellt wird er auf Flächen, und das sind vier Sorten**: die
+**Arbeitsplatte**, die **Kiste** (sie ist „zugleich Arbeitsplatte"), seine
+**Halterung** — und seit Neuestem das **Förderband**. Das Band fehlte, und es
+fehlte nicht aus einem Grund, sondern aus Vorsicht: Die Tabelle zählte drei
+Möbel auf, und alles Übrige blieb stumm. Für `A` ist ein Band aber eine Ablage
+wie die Zeile, also geht der Löscher darauf wie jedes andere Ding — **und fährt
+mit**. Die Bandrechnung musste dafür nicht angefasst werden: Sie kennt belegte
+und freie Kacheln und keine Zutaten (`kitchenBelt.ts`). Wer den Löscher am
+anderen Ende der Küche braucht, schickt ihn also hinüber, statt ihn zu tragen.
+
+**Und die Herdplatte entscheidet nach ihrem Stand.** Sie war ausdrücklich keine
+Ablage, und der Satz dazu stimmte auch — nur stimmte er zu weit: Vor dem
+**brennenden** Herd soll der Knopf dem Löscher gehören, das ist der ganze Sinn
+der Sache. Eine Platte, auf der **nichts** steht, ist aber eine Fläche wie die
+Zeile daneben; wer den Löscher dort abstellen will, soll das dürfen. Also:
+**leere Platte = ablegen, belegte Platte = löschen**, und „belegt" heißt, was
+es sagt — die Pfanne darauf, ob sie brennt oder bloß brät. Die Frage „steht da
+etwas?" ist an einem Herd zugleich die Frage „kann das gleich brennen?".
+
+Das ist **eine** Zeile Regel, und deshalb gilt es in allen drei Ansichten: In
+der Brille legt die Greif-Taste vor der leeren Platte ab, von oben und am
+Schirm derselbe `A`, der sonst den Löscher anmacht. Keine der drei fragt etwas
+anderes — sie fragen alle `kitchenDeed`.
+
+**Angemacht wird er mit dem Auslöser — und am Schirm auch mit dem Zielstock.**
+In der Brille ist es der Trigger **der Hand**, die ihn hält, am Schirm der
+Benutzen-Knopf (gehalten), von oben ein **Schalter** (`kitchenSpray.sprayOn`,
+`sprayHold`). Dazu kommt der rechte Stock: Wer am Schirm mit dem Löscher in der
+Hand den **Stock** auslenkt, pustet dabei, und beim Loslassen hört es auf
+(`kitchenSpray.sprayAims`, gefüttert von `core/PlayerRig.aiming` und
+`core/gamepad.aimHeld`). Die **Maus**, die von oben ebenfalls zielt, gehört
+ausdrücklich nicht dazu: Dort ist die linke Taste schon der Auslöser, und ein
+Löscher, der beim bloßen Bewegen des Zeigers anginge, wäre einer, den man gar
+nicht mehr ausbekommt. Der Grund ist der Daumen — am Pad wie auf dem Glas
+liegt er beim Zielen ohnehin auf diesem Stock, und ein Gerät, das man ins Feuer
+hält, ist ein Handgriff und nicht zwei. Gemessen wird dieselbe Totzone für
+beide Geber: Der Stock am Pad hat seine schon hinter sich, der gemalte auf dem
+Glas bekommt sie hier, sonst machte ein verrutschter Finger den Löscher an.
+
+Der **Schalter von oben bleibt daneben stehen und merkt sich seinen Stand**;
+der Stock merkt sich nichts. An ist der Löscher, wenn einer von beiden es sagt
+— hätten beide denselben Merker, bliebe er nach dem Loslassen an, ohne dass ihn
+jemand angemacht hätte.
+
+**Für andere Werkzeuge gilt das ausdrücklich nicht.** Die Regel steht in der
+Datei des Feuerlöschers und fragt nach ihm; die Waffe von oben hängt weiter an
+ihrem Auslöser (`PlayerRig.trigger`, [Die Waffe und die
+Kartzone](./waffe-und-kart.md)). Der Unterschied ist kein Geschmack: Ein
+Löscher richtet nichts an, eine Kugel schon — eine Pistole, die schon beim
+Zielen schießt, ist keine Pistole.
 
 ## Benutzen mit der Hand — die Brille
 
@@ -842,8 +902,8 @@ und die Regel steht in `kitchenCarry.ts`, wo sie ein Test nachrechnet; nur
 Das **Abdichten** (`repair`) gehört ausdrücklich nicht dazu: Es nimmt der Hand
 nichts weg, die Zange bleibt darin, und der Druck wirft nur die Uhr an. Hier
 stand bis September 2026 das **Löschen** (`douse`) mit demselben Satz — die Tat
-gibt es nicht mehr, weil der brennende Herd einer Hand mit dem Löscher darin
-gar nichts mehr anbietet (`kitchenCarry.EXTINGUISHER_REST`).
+gibt es nicht mehr, weil die belegte Herdplatte einer Hand mit dem Löscher
+darin gar nichts mehr anbietet (`kitchenCarry.extinguisherRests`).
 
 ## Was in der Brille in der Hand liegt
 

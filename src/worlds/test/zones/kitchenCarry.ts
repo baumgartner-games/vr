@@ -252,8 +252,19 @@ export const STATION_WORK: Readonly<Record<StationKind, WorkKind | null>> = {
 };
 
 /**
- * **Wo der Feuerlöscher aus der Hand darf** — eine Zeile je Stationsart,
- * `true` für die drei, an denen er abgestellt wird.
+ * **Wann eine Station den Feuerlöscher aus der Hand nimmt** — drei Antworten,
+ * und die dritte ist eine Bedingung.
+ *
+ * `never` und `always` sind die beiden, die es immer gab: Entweder die Station
+ * nimmt ihn entgegen, oder sie geht dem Knopf aus dem Weg. `free` ist die
+ * neue — eine Fläche, die ihn nimmt, **solange nichts darauf steht**. Es gibt
+ * sie wegen der **Herdplatte**, und warum, steht bei `EXTINGUISHER_REST`
+ * darunter.
+ */
+export type ExtinguisherRest = 'never' | 'always' | 'free';
+
+/**
+ * **Wo der Feuerlöscher aus der Hand darf** — eine Zeile je Stationsart.
  *
  * Das ist der gemeldete Wunsch als Tabelle: _„Wenn ich mit anderen Dingen als
  * einer Arbeitsplatte interagieren will, wird stattdessen einfach der
@@ -265,41 +276,83 @@ export const STATION_WORK: Readonly<Record<StationKind, WorkKind | null>> = {
  * wieder weg (`core/PlayerRig.useCandidate`): Man stünde vor dem brennenden
  * Herd, drückte — und legte den Löscher auf die Zeile, statt zu löschen.
  *
- * **Drei sagen `true`, und alle drei sind dasselbe**: eine Fläche, auf der er
- * steht. Die **Arbeitsplatte** (`top`) ist die aus dem Wunsch, die **Kiste**
- * (`box`) ist ausdrücklich „zugleich Arbeitsplatte" (siehe `StationKind`), und
- * die **Halterung** (`rack`) ist die Arbeitsplatte, auf die er gehört — ohne
- * sie käme er nie wieder dorthin zurück, wo ihn beim nächsten Feuer jemand
- * sucht.
+ * **Vier sagen `always`, und alle vier sind dasselbe**: eine Fläche, auf der
+ * er steht. Die **Arbeitsplatte** (`top`) ist die aus dem Wunsch, die **Kiste**
+ * (`box`) ist ausdrücklich „zugleich Arbeitsplatte" (siehe `StationKind`), die
+ * **Halterung** (`rack`) ist die Arbeitsplatte, auf die er gehört — ohne sie
+ * käme er nie wieder dorthin zurück, wo ihn beim nächsten Feuer jemand sucht —
+ * und seit Neuestem das **Förderband** (`belt`).
  *
- * **Alle anderen sagen `false`, auch der brennende Herd** — gerade der. Es gab
- * hier einmal einen zweiten Weg, das Feuer auszumachen: einen Druck auf `A`
- * davor (`do: 'douse'`). Er war bequem und er war der Lichtschalter, gegen den
- * `kitchenSpray.ts` in seinem ersten Absatz geschrieben ist; seit derselbe
- * Druck den Löscher anmacht, ist er nicht nur überflüssig, sondern im Weg.
+ * **Das Band stand hier auf Nein**, und das war keine Entscheidung, sondern
+ * die Vorsicht der ersten Fassung: Sie zählte drei Arbeitsplatten auf und
+ * ließ alles andere stumm. Für `A` ist ein Band aber eine Ablage und sonst
+ * nichts — es steht in `kitchenDeed` in derselben Zeile wie die Zeile und der
+ * Gästetisch —, also geht der Löscher darauf wie jedes andere Ding, und das
+ * Band fährt ihn weiter, ohne dass dafür eine einzige Zeile dazukommt. Genau
+ * das ist der Gewinn: Wer ihn am anderen Ende der Küche braucht, schickt ihn
+ * hinüber, statt ihn zu tragen.
+ *
+ * **Und die Herdplatte sagt `free`** — die zweite Änderung. Sie war ein Nein,
+ * und der Satz dazu stimmte auch: Vor dem **brennenden** Herd soll der Knopf
+ * dem Löscher gehören und nicht dem Möbel. Er stimmte nur zu weit. Eine
+ * Herdplatte, auf der **nichts** steht, ist eine Fläche wie die Zeile daneben,
+ * und wer den Löscher dort abstellen will, soll das dürfen; eine Platte, auf
+ * der die Pfanne steht — ob sie brennt oder bloß brät —, ist keine. Dort ist
+ * der Löscher gemeint und nicht das Ablegen, und die Frage „steht da etwas?"
+ * ist zugleich die Frage „kann das gleich brennen?".
+ *
+ * **Alle anderen sagen `never`.** Es gab hier einmal einen zweiten Weg, das
+ * Feuer auszumachen: einen Druck auf `A` davor (`do: 'douse'`). Er war bequem
+ * und er war der Lichtschalter, gegen den `kitchenSpray.ts` in seinem ersten
+ * Absatz geschrieben ist; seit derselbe Druck den Löscher anmacht, ist er
+ * nicht nur überflüssig, sondern im Weg.
  *
  * Vollständig über `StationKind` und aus demselben Grund wie `STATION_WORK`
  * darüber: Wer eine Stationsart dazutut, bekommt vom Übersetzer die Frage
  * gestellt, ob man den Löscher dort abstellt.
  */
-export const EXTINGUISHER_REST: Readonly<Record<StationKind, boolean>> = {
-  top: true,
-  box: true,
-  rack: true,
-  crate: false,
-  board: false,
-  mixer: false,
-  griddle: false,
-  sink: false,
-  bin: false,
-  stove: false,
-  serve: false,
-  drain: false,
-  return: false,
-  table: false,
-  belt: false,
-  combiner: false,
+export const EXTINGUISHER_REST: Readonly<Record<StationKind, ExtinguisherRest>> = {
+  top: 'always',
+  box: 'always',
+  rack: 'always',
+  belt: 'always',
+  stove: 'free',
+  crate: 'never',
+  board: 'never',
+  mixer: 'never',
+  griddle: 'never',
+  sink: 'never',
+  bin: 'never',
+  serve: 'never',
+  drain: 'never',
+  return: 'never',
+  table: 'never',
+  combiner: 'never',
 };
+
+/**
+ * **Ob diese Station den Löscher gerade entgegennimmt** — die Tabelle darüber,
+ * einmal gelesen und für `free` nachgefragt.
+ *
+ * Eine Funktion und keine zweite Tabelle, weil die Antwort bei der Herdplatte
+ * nicht mehr an der **Art** hängt, sondern am **Stand**: Dieselbe Platte nimmt
+ * ihn leer entgegen und geht belegt dem Knopf aus dem Weg. Gefragt wird nach
+ * beidem, was auf ihr los sein kann — was darauf steht (`on`, bei ihr die
+ * Pfanne) und ob es brennt (`fire`). Das Feuer steht ausdrücklich daneben,
+ * obwohl es heute nie ohne Pfanne vorkommt: Eine brennende Platte ist keine
+ * Ablage, und das soll hier stehen und nicht aus einer anderen Zeile folgen.
+ *
+ * **Und deshalb gilt es in allen drei Ansichten.** Wer in der Brille vor der
+ * leeren Platte steht, legt mit der Greif-Taste ab; von oben und am Schirm tut
+ * es derselbe `A`, der sonst den Löscher anmacht. Keine der drei fragt etwas
+ * anderes — sie fragen alle diese eine Zeile (`kitchenDeed`, und über sie
+ * `kitchen.refreshStations`).
+ */
+export function extinguisherRests(station: Station): boolean {
+  const rule = EXTINGUISHER_REST[station.kind];
+  if (rule !== 'free') return rule === 'always';
+  return !station.on && !station.fire;
+}
 
 /**
  * **Eine Station, so viel wie die Regel davon braucht.**
@@ -468,14 +521,18 @@ export type KitchenDeed =
  * @param held was sie trägt, oder `null` für die leere Hand
  */
 export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
-  // **Der Feuerlöscher zuerst, und zwar vor allem anderen** (`EXTINGUISHER_REST`).
-  // Wer ihn hält, bedient nichts als die Fläche, auf die er ihn stellt — an
-  // allem übrigen hat die Station nichts zu sagen, damit der Knopf dem Löscher
-  // gehört. `nothing` und nicht `refuse`: Es ist keine Ablehnung, die jemand
-  // lesen soll, sondern eine Station, die sich gar nicht erst meldet
-  // (`kitchen.refreshStations`) — kein Saum, kein Hinweis, kein zweiter Sinn
-  // auf demselben Knopf.
-  if (held?.item === 'extinguisher' && !EXTINGUISHER_REST[station.kind]) {
+  // **Der Feuerlöscher zuerst, und zwar vor allem anderen**
+  // (`extinguisherRests`). Wer ihn hält, bedient nichts als die Fläche, auf
+  // die er ihn stellt — an allem übrigen hat die Station nichts zu sagen,
+  // damit der Knopf dem Löscher gehört. `nothing` und nicht `refuse`: Es ist
+  // keine Ablehnung, die jemand lesen soll, sondern eine Station, die sich gar
+  // nicht erst meldet (`kitchen.refreshStations`) — kein Saum, kein Hinweis,
+  // kein zweiter Sinn auf demselben Knopf.
+  //
+  // **Und die Herdplatte entscheidet es nach ihrem Stand**: leer eine Fläche,
+  // belegt der Knopf des Löschers. Deshalb steht hier eine Frage an die
+  // **Station** und nicht mehr ein Blick in eine Tabelle über ihre Art.
+  if (held?.item === 'extinguisher' && !extinguisherRests(station)) {
     return { do: 'nothing' };
   }
 
@@ -507,9 +564,10 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
     case 'stove': {
       // **Ein brennender Herd ist keine Fläche mehr.** Solange es brennt, geht
       // nur eines, und wer ohne Feuerlöscher davorsteht, liest, welches. Wer
-      // einen **hat**, steht hier gar nicht mehr: Für ihn ist der Herd eine
-      // Station ohne Angebot (`EXTINGUISHER_REST`), und sein Knopf macht den
-      // Löscher an.
+      // einen **hat**, steht hier gar nicht mehr: Für ihn ist die belegte
+      // Platte eine Station ohne Angebot (`extinguisherRests`), und sein Knopf
+      // macht den Löscher an. Die **leere** Platte dagegen nimmt ihn
+      // entgegen — dort kommt er durch diese Zeilen hindurch bis zu `onTop`.
       if (station.fire) {
         return { do: 'refuse', why: 'Der Herd brennt — das braucht den Feuerlöscher' };
       }

@@ -96,8 +96,8 @@ gilt für jeden, der nichts verstellt hat.
 | Halt-Anzeige | sie taucht auf, sobald man vor der Kletterwand steht, und geht danach wieder weg — Ausdauer in der Mitte, je ein Haltbalken links und rechts | dito | – | dito |
 | Küche: kochen | davorstellen und `A` — die Station, die `A` gerade meint, trägt den gelben Saum, und mehr braucht es nicht | `E` oder Enter | `A` | Knopf `A` |
 | Küche: greifen                                                                     | **Greifen** oder **Trigger auf das Angezielte** nimmt Pfanne, Topf, Teller, Zutat und legt sie ab — nur im eigenen Feld und den acht daneben, und am nächstgelegenen Griff. Halten und beim Loslassen ablegen, **oder** tippen und beim nächsten Druck ablegen. Ein Möbel im Umbau nimmt **nur** Greifen: Der Trigger wendet es dort schon | `A`/`E` wie beim Kochen — die feinere Wahl (welches Feld, welcher Griff) gibt es nur in der Brille                                                                                                                                                                                                                                             | `A`                                                         | Knopf `A`                                  |
-| Küche: Feuerlöscher | erst vom Hocker nehmen, dann den **Trigger der Hand gedrückt halten**, die ihn hält; gezielt wird mit **derselben Hand** | **aus den Augen**: `E` gedrückt halten, gezielt mit dem Kopf. **Von oben**: ein **Schalter** — Linksklick an, noch einmal aus (oder `E`, siehe die Zeile darunter); gezielt mit dem rechten Stock, der dort die Figur dreht | aus den Augen `A` halten; von oben schaltet RT (oder `A`) | aus den Augen Knopf `A` halten; von oben schaltet Knopf `B` (oder `A`) |
-| Küche: Feuerlöscher in der Hand | solange er in der Hand liegt, bedient er **nichts anderes mehr**: Herd, Brett, Spüle, Mülleimer und Gästetisch bieten gar nichts an, also schaltet der Benutzen-Knopf ihn an und wieder aus. Nur eine **Arbeitsplatte** (auch eine Kiste und seine Halterung) nimmt ihn entgegen — dort legt derselbe Druck ihn ab | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
+| Küche: Feuerlöscher | erst vom Hocker nehmen, dann den **Trigger der Hand gedrückt halten**, die ihn hält; gezielt wird mit **derselben Hand** | **aus den Augen**: `E` gedrückt halten, gezielt mit dem Kopf. **Von oben**: ein **Schalter** — Linksklick an, noch einmal aus (oder `E`, siehe die Zeile darunter); gezielt mit dem rechten Stock, der dort die Figur dreht | aus den Augen `A` halten; von oben schaltet RT (oder `A`) — **und der rechte Stock macht ihn an, solange er ausgelenkt ist**: zielen heißt löschen, loslassen heißt aus | aus den Augen Knopf `A` halten; von oben schaltet Knopf `B` (oder `A`); **der Zielstock auf dem Glas pustet ebenfalls, solange der Daumen ihn hält** |
+| Küche: Feuerlöscher in der Hand | solange er in der Hand liegt, bedient er **nichts anderes mehr**: die **belegte** Herdplatte, Brett, Spüle, Mülleimer und Gästetisch bieten gar nichts an, also schaltet der Benutzen-Knopf ihn an und wieder aus. Entgegen nehmen ihn nur die Flächen, auf denen er steht: **Arbeitsplatte**, Kiste, seine Halterung, das **Förderband** (das ihn dann weiterfährt) — und die **leere** Herdplatte. Dort legt derselbe Druck ihn ab | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
 | Küche: Wasserleck | roter Knopf **neben der Spüle** + `A` reißt das Becken auf (sein Schild sagt danach _Becken spritzt_); die **Wasserpumpenzange** von der Arbeitsplatte östlich der Spüle greifen, ans Becken treten, `A` — und **stehen bleiben**, bis der Balken darüber voll ist; solange es läuft, **ratscht** die Zange am Becken (`kitchenSound`, `ratchet`), und mit dem Rauschen hört auch sie auf. Wer weggeht, fängt von vorn an; `B`/`Y` macht es mit allem anderen wieder heil | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
 | Küche: umbauen | roter Knopf neben dem Eingang + `A` schaltet den Baumodus um (sein Schild sagt, wohin: _Küche umbauen_ / _Küche nutzen_); das Einschalten räumt die Küche ab wie `B`/`Y`, danach hebt **Greifen** am Möbel es **samt allem, was darauf steht** auf, **Loslassen** über dem Umriss setzt es ab (grün = passt, rot = passt nicht) | dito mit `E`: `E` am Möbel hebt es samt Inhalt auf, `E` auf dem Umriss setzt es ab | dito mit `A` | dito mit Knopf `A` |
 | Küche: Möbelkatalog | **vorn** an den Computer-Tisch treten und `A` — die Küche verblasst, ringsum stehen alle Möbel als Miniaturen auf den Kacheln; eines anfassen, und man hält es in der Küche in der Hand. Von der Seite oder von hinten hebt `A` im Umbau den Tisch selbst auf | dito mit `E` | dito mit `A` | dito mit Knopf `A` |
@@ -164,6 +164,18 @@ der Figur steht. Es gilt dieselbe Regel wie in der Brille — kurz tippen behäl
 ihn in der Hand, drücken, gehen und **loslassen** legt ihn ab
 (`core/handUse.ts`, siehe [Greifen](./greifen.md), _Und am Schirm trägt die
 Figur_).
+
+**Und der rechte Stock zielt am Schirm nicht nur, er löst auch aus — aber nur
+den Feuerlöscher.** Wer ihn in der Hand hält und den Stock auslenkt, pustet,
+solange der Daumen ihn hält; loslassen macht aus. Das gilt für den echten Stock
+am Pad wie für den gemalten auf dem Glas, in beiden flachen Ansichten, und es
+ist eine Regel über den Löscher und nicht über das Zielen: Was gezielt wird,
+steht in `PlayerRig.aiming` (gefüllt von `FlatControls` über
+`core/gamepad.aimHeld`), was daraus folgt, in `kitchenSpray.sprayAims`. Die
+**Waffe** hängt weiter allein an ihrem Auslöser (siehe [Die Waffe und die
+Kartzone](./waffe-und-kart.md)) — eine Pistole, die schon beim Zielen schießt,
+ist keine. Der Schalter von oben bleibt daneben, wie er war, und merkt sich
+seinen Stand; der Stock merkt sich nichts.
 
 Die Seite einer prozeduralen Hand hängt an genau einer Konstante — `mirror` in
 `src/core/HandVisuals.ts`. Sieht die linke Hand im Headset nach einer rechten

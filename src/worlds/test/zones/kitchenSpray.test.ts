@@ -13,6 +13,7 @@ import {
   advanceDouse,
   douseProgress,
   inSpray,
+  sprayAims,
   sprayClaimsUse,
   sprayHold,
   sprayMuzzle,
@@ -165,6 +166,59 @@ describe('sprayOn — ein Knopf, drei Ansichten', () => {
     // In der Brille zieht ihn der Trigger, also bleibt `A` frei.
     expect(sprayClaimsUse(true, true)).toBe(false);
     expect(sprayClaimsUse(false, true)).toBe(false);
+  });
+});
+
+/**
+ * **Der Zielstock macht ihn am Schirm an** (`sprayAims`).
+ *
+ * Der Wunsch war einer über den Daumen: Am Schirm zielt der rechte Stock, und
+ * wer mit dem Löscher in der Hand zielt, will löschen — ein Daumen für einen
+ * Handgriff statt zweier. Was daraus wird, ist eine Regel neben dem Schalter
+ * und nicht in ihm: Der **Schalter** merkt sich seinen Stand
+ * (`sprayOn`, von oben), der **Stock** nicht.
+ */
+describe('sprayAims — zielen heißt löschen', () => {
+  it('pustet, solange der Stock liegt', () => {
+    expect(sprayAims(true, false, true)).toBe(true);
+    // Losgelassen ist aus — ein Halten und kein Schalter.
+    expect(sprayAims(true, false, false)).toBe(false);
+  });
+
+  it('macht nichts an, was niemand hält', () => {
+    // Gezielt wird am Schirm immerzu; ohne Löscher in der Hand bliebe sonst
+    // Nebel aus der leeren Hand.
+    expect(sprayAims(false, false, true)).toBe(false);
+  });
+
+  it('lässt die Brille in Ruhe', () => {
+    // Dort zielt die Hand, die ihn hält, und der Trigger derselben Hand löst
+    // aus (`sprayOn`). Der rechte Stock dreht die Figur — ein Löscher, der
+    // beim Umdrehen angeht, wäre ein Gerät, das sich selbst bedient.
+    expect(sprayAims(true, true, true)).toBe(false);
+  });
+
+  /**
+   * **Wie Schalter und Stock zusammenkommen** — so, wie die Zone die beiden
+   * liest (`kitchen.spray`): An ist der Löscher, wenn einer von beiden es
+   * sagt, und der Schalter behält dabei seinen Stand.
+   */
+  it('lässt den Schalter von oben unberührt', () => {
+    const top = { pressed: false, held: false, carried: true, topDown: true };
+    // Der Stock allein: Es pustet, aber geschaltet ist nichts …
+    let latch = sprayOn(false, top);
+    expect(latch).toBe(false);
+    expect(latch || sprayAims(true, false, true)).toBe(true);
+    // … und beim Loslassen hört es auf, statt hängenzubleiben. Genau dieser
+    // Fall wäre der Fehler, den ein einziger Merker gemacht hätte.
+    expect(latch || sprayAims(true, false, false)).toBe(false);
+
+    // Und andersherum: Wer den Schalter umgelegt hat, dem nimmt der Stock ihn
+    // nicht wieder weg.
+    latch = sprayOn(latch, { ...top, pressed: true });
+    expect(latch).toBe(true);
+    expect(latch || sprayAims(true, false, true)).toBe(true);
+    expect(latch || sprayAims(true, false, false)).toBe(true);
   });
 });
 

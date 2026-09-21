@@ -879,16 +879,24 @@ Und das sind die Regeln, die darin stehen:
   Der alte Griff am brennenden Herd (`kitchenDeed`, `do: 'douse'`, ein Druck
   und das Feuer war aus) ist seit September 2026 weg, und mit ihm jedes andere
   Angebot, das eine Station einer Hand mit dem Löscher darin machte. Wer ihn
-  trägt, findet nur noch **eine Arbeitsplatte** (auch die Kiste, auch seine
-  Halterung — `kitchenCarry.EXTINGUISHER_REST`), auf die er ihn stellt; an
-  allem anderen sagt die Regel `nothing`, die Station meldet sich gar nicht
-  erst an, und genau deshalb ist der Benutzen-Knopf davor frei für den
+  trägt, findet nur noch **Flächen**, auf die er ihn stellt
+  (`kitchenCarry.EXTINGUISHER_REST`): die Arbeitsplatte, die Kiste, seine
+  Halterung, das **Förderband** — das ihn dann weiterfährt wie jede andere
+  Ladung — und die **leere Herdplatte**; an allem anderen, auch an der
+  **belegten** Platte, sagt die Regel `nothing`, die Station meldet sich gar
+  nicht erst an, und genau deshalb ist der Benutzen-Knopf davor frei für den
   Löscher. Das ist der gemeldete Wunsch: _„Wenn ich mit anderen Dingen als
   einer Arbeitsplatte interagieren will, wird stattdessen einfach der
   Feuerlöscher aktiviert … Nur mit einer Arbeitsplatte wird er dann wieder
-  abgelegt."_ Von oben sagt der Schalter dazu, in welcher Stellung er steht
-  (_Feuerlöscher an_ / _aus_, `kitchenSpray.sprayHold`) — gehalten wird nichts
-  gemeldet. Wie die Ansichten den Auslöser lesen, steht unter _Steuerung_.
+  abgelegt."_ Dass die Herdplatte dabei nach ihrem **Stand** gefragt wird und
+  nicht nach ihrer Art (`kitchenCarry.extinguisherRests`), ist der Nachtrag
+  dazu: Leer ist sie eine Fläche wie die Zeile, belegt ist sie das, wofür es
+  den Löscher gibt. Von oben sagt der Schalter dazu, in welcher Stellung er
+  steht (_Feuerlöscher an_ / _aus_, `kitchenSpray.sprayHold`) — gehalten wird
+  nichts gemeldet. **Und am Schirm macht der Zielstock ihn mit an**, solange er
+  ausgelenkt ist (`kitchenSpray.sprayAims`): Zielen und Auslösen sind an einem
+  Gerät, das man ins Feuer hält, ein Daumen und nicht zwei. Wie die Ansichten
+  den Auslöser lesen, steht unter _Steuerung_.
 - **Das Wasserleck ist der zweite Schaden dieser Küche** (`kitchenLeak.ts`),
   und es ist mit Absicht wie der erste gebaut: Ein roter Knopf **an der Spüle**
   (`kitchenPlan.LEAK_BUTTON_TILE`, nicht in der Gerätespalte am Eingang — man

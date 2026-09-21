@@ -6,6 +6,7 @@ import {
   BUTTON_RB,
   BUTTON_RT,
   DEAD_ZONE,
+  aimHeld,
   firstGamepad,
   readGamepad,
   type GamepadLike,
@@ -118,5 +119,49 @@ describe('Das Gamepad lesen', () => {
     expect(firstGamepad([{ axes: [], buttons: [], connected: false }, second])).toBe(second);
     expect(firstGamepad([null, null])).toBeNull();
     expect(firstGamepad(null)).toBeNull();
+  });
+});
+
+/**
+ * **Ob gezielt wird** (`aimHeld`) — die Frage, an der am Schirm der
+ * Feuerlöscher hängt (`worlds/test/zones/kitchenSpray.sprayAims`).
+ *
+ * Zwei Geber meinen denselben rechten Stock, und sie melden verschieden: Der
+ * am Pad hat seine Totzone schon hinter sich, der auf dem Glas hat keine.
+ * Deshalb steht die Zahl genau einmal, hier — und nicht zweimal, einmal je
+ * Geber.
+ */
+describe('aimHeld — liegt der Zielstock?', () => {
+  const still = { x: 0, y: 0 };
+
+  it('sagt Nein, solange kein Stock angefasst ist', () => {
+    expect(aimHeld(still, still)).toBe(false);
+  });
+
+  it('nimmt vom Pad jede Auslenkung, die durch die Totzone gekommen ist', () => {
+    // `readGamepad` hat dort schon gerechnet: Was in der Totzone lag, ist
+    // glatt null, und was durchkam, ist es nicht.
+    const drift = readGamepad(pad([0, 0, 0.15, 0.12]));
+    expect(aimHeld(drift.aim, still)).toBe(false);
+
+    const aimed = readGamepad(pad([0, 0, DEAD_ZONE + 0.01, 0]));
+    expect(aimed.aim.x).toBeGreaterThan(0);
+    expect(aimHeld(aimed.aim, still)).toBe(true);
+  });
+
+  it('gibt dem Stock auf dem Glas dieselbe Totzone', () => {
+    // Der gemalte Stock rechnet nur den Weg des Fingers in −1…1 um
+    // (`core/FlatControls.ts`, `clampStick`) — ein Finger, der einen Punkt weit
+    // rutscht, dürfte den Löscher nicht anmachen.
+    expect(aimHeld(still, { x: 0.1, y: 0.1 })).toBe(false);
+    expect(aimHeld(still, { x: 0, y: DEAD_ZONE })).toBe(false);
+    expect(aimHeld(still, { x: 0, y: DEAD_ZONE + 0.01 })).toBe(true);
+    // Und rund gemessen wie überall: diagonal zählt die Länge, nicht die Achse.
+    expect(aimHeld(still, { x: 0.15, y: 0.15 })).toBe(true);
+  });
+
+  it('genügt sich mit einem der beiden', () => {
+    expect(aimHeld({ x: 0.5, y: 0 }, still)).toBe(true);
+    expect(aimHeld(still, { x: -1, y: 0 })).toBe(true);
   });
 });

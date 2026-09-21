@@ -201,6 +201,53 @@ export function sprayClaimsUse(carried: boolean, vr: boolean): boolean {
 }
 
 /**
+ * **Ob der Zielstock selbst den Löscher anmacht** — am Schirm, solange er
+ * ausgelenkt ist (`core/gamepad.aimHeld`, `core/PlayerRig.aiming`).
+ *
+ * Es ist der gemeldete Wunsch, und er ist beim zweiten Hinsehen keine
+ * Bequemlichkeit, sondern eine Geste: Am Schirm ist der rechte Stock das
+ * Zielen, und wer mit einem Feuerlöscher in der Hand auf etwas zielt, will
+ * genau eines. Einen zweiten Knopf danebenzulegen hieße, für einen Handgriff
+ * zwei Daumen zu verlangen — und auf dem Telefon liegt der zweite Daumen auf
+ * demselben Stock.
+ *
+ * **Drei Zeilen, und jede schließt etwas aus:**
+ *
+ * - **Ohne Löscher in der Hand** gar nichts — dieselbe erste Zeile wie in
+ *   `sprayOn`, und aus demselben Grund: Zielen tut man am Schirm immer, und
+ *   ein Zielen, das etwas anmacht, das niemand hält, wäre Nebel aus der
+ *   leeren Hand.
+ * - **In der Brille gar nichts.** Dort gibt es keinen Zielstock: Gezielt wird
+ *   mit der Hand, die ihn hält, und ausgelöst mit ihrem Trigger (`sprayOn`).
+ *   Der rechte Stock dreht dort die Figur, und ein Löscher, der beim Umdrehen
+ *   angeht, wäre ein Gerät, das sich selbst bedient.
+ * - **Und sonst: solange der Stock liegt.** Gemeint ist der **Stock** und
+ *   nicht jedes Zielen: Von oben zielt auch die Maus (`FlatControls.aimYaw`),
+ *   und dort ist die linke Taste schon der Auslöser — ein Löscher, der beim
+ *   Bewegen des Zeigers anginge, wäre einer, den man nicht mehr ausbekommt.
+ *   Was als Stock zählt, steht in `core/gamepad.aimHeld`.
+ *   Losgelassen ist aus — das ist ein
+ *   gehaltener Auslöser und kein Schalter, und deshalb merkt er sich auch
+ *   nichts. Der **Schalter** daneben (`sprayOn`, von oben) behält seinen
+ *   Stand unabhängig davon; beide zusammen liest die Zone, und an ist der
+ *   Löscher, wenn einer von beiden es sagt (`kitchen.spray`).
+ *
+ * **Und für andere Werkzeuge gilt es ausdrücklich nicht.** Die Regel steht in
+ * der Datei des Feuerlöschers und fragt nach ihm; die Waffe von oben hängt
+ * weiter an ihrem Auslöser (`PlayerRig.trigger`,
+ * `docs/agents/waffe-und-kart.md`), und das soll sie auch: Eine Pistole, die
+ * schon beim Zielen schießt, ist keine Pistole. Der Unterschied ist kein
+ * Geschmack — ein Löscher richtet nichts an, eine Kugel schon.
+ *
+ * @param carried ob der Löscher in der Hand ist
+ * @param vr      ob gerade durch die Brille gespielt wird
+ * @param aiming  ob der Zielstock liegt (`core/PlayerRig.aiming`)
+ */
+export function sprayAims(carried: boolean, vr: boolean, aiming: boolean): boolean {
+  return carried && !vr && aiming;
+}
+
+/**
  * **Ob der Löscher in diesem Bild an ist** — die eine Stelle, an der die drei
  * Ansichten zusammenkommen.
  *
