@@ -69,13 +69,17 @@ import {
   GRAPHICS_MODE_SUBS,
   SCREEN_PADS_LABELS,
   SCREEN_PADS_SUBS,
+  SQUISH_SCALE_LABELS,
+  SQUISH_SCALE_SUBS,
   XR_SCALE_LABELS,
   XR_SCALE_SUBS,
+  animationSummary,
   clearGraphics,
   graphics,
   graphicsSummary,
   nextGraphicsMode,
   nextScreenPads,
+  nextSquishScale,
   nextXrScale,
   saveGraphics,
 } from './graphicsSettings';
@@ -1668,6 +1672,7 @@ export class App {
             this.notify(next.shadows ? 'Schatten an' : 'Schatten aus');
           },
         },
+        this.animationMenu(accent),
         {
           id: 'gfx:mode',
           label: `Grafik-Modus: ${GRAPHICS_MODE_LABELS[settings.mode]}`,
@@ -1725,6 +1730,63 @@ export class App {
             clearGraphics();
             this.menuDirty = true;
             this.notify('Grafik zurückgesetzt');
+          },
+        },
+      ],
+    };
+  }
+
+  /**
+   * **Animationen** — eine Seite unter _Grafik_, und vorerst steht eine Sache
+   * darauf.
+   *
+   * Eine eigene Seite und nicht zwei weitere Zeilen im Grafik-Menü, und das
+   * ist Absicht: Die Zeilen darüber beantworten alle dieselbe Frage — was
+   * kostet das Bild, und was zeigt es. Wie sich eine **Figur** bewegt, ist
+   * eine andere, und sie wird nicht bei einer bleiben. Wer sie hier
+   * hereinbringt, hängt sie an diese Seite und nicht an das Ende einer Liste,
+   * die dann keine mehr ist.
+   *
+   * **Squishy Movement** ist die erste: Die Figur staucht und streckt sich im
+   * Takt ihrer Schritte (`core/squish.ts`). Daneben ein **Faktor**, der im
+   * Kreis schaltet — denn wie viel davon gut aussieht, ist Geschmack und
+   * keine Rechnung, und diese Frage beantwortet man am besten, indem man
+   * einmal durchklickt und hinsieht.
+   */
+  private animationMenu(accent: number): MenuEntry {
+    const settings = graphics();
+    return {
+      id: 'gfx:anim',
+      label: 'Animationen',
+      sub: animationSummary(settings),
+      icon: 'npc',
+      accent,
+      children: [
+        {
+          id: 'gfx:squish',
+          label: 'Squishy-Bewegung',
+          sub: 'Die Figur staucht und streckt sich im Takt ihrer Schritte',
+          caption: 'Squash and Stretch · zu sehen von oben, im Spiegel und durch ein Portal',
+          icon: 'npc',
+          accent,
+          checked: settings.squish,
+          run: () => {
+            const next = saveGraphics({ squish: !graphics().squish });
+            this.menuDirty = true;
+            this.notify(next.squish ? 'Squishy-Bewegung an' : 'Squishy-Bewegung aus');
+          },
+        },
+        {
+          id: 'gfx:squish-scale',
+          label: `Stärke: ${SQUISH_SCALE_LABELS[settings.squishScale]}`,
+          sub: SQUISH_SCALE_SUBS[settings.squishScale],
+          caption: '×0,5 → ×1 → ×1,5 → ×2 · wirkt nur bei eingeschalteter Squishy-Bewegung',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({ squishScale: nextSquishScale(graphics().squishScale) });
+            this.menuDirty = true;
+            this.notify(`Squishy-Stärke ${SQUISH_SCALE_LABELS[next.squishScale]}`);
           },
         },
       ],

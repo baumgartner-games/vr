@@ -1,17 +1,22 @@
 import {
   type GraphicsMode,
+  type SquishScale,
   DEFAULT_GRAPHICS,
   GRAPHICS_MODES,
+  SQUISH_SCALES,
   XR_SCALES,
+  animationSummary,
   clampGraphics,
   clearGraphics,
   graphics,
   graphicsProfile,
   graphicsSummary,
   nextGraphicsMode,
+  nextSquishScale,
   nextXrScale,
   onGraphicsChange,
   saveGraphics,
+  squishAmount,
 } from './graphicsSettings';
 
 describe('Grafikeinstellungen', () => {
@@ -24,6 +29,10 @@ describe('Grafikeinstellungen', () => {
       hitBoxes: false,
       showHandles: false,
       shadows: true,
+      // Die Animationen sind ab Werk aus — nachgerechnet wird die Kurve
+      // dahinter in `squish.test.ts`.
+      squish: false,
+      squishScale: 1,
       // Die Stöcke auf dem Glas entscheiden sich nach Gerät — nachgerechnet
       // wird das in `screenPads.test.ts`.
       screenPads: 'auto',
@@ -208,6 +217,47 @@ describe('Grafikeinstellungen', () => {
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true, showHandles: true })).toBe(
       'Einfach · Hitboxen · Griffe',
     );
+  });
+
+  /**
+   * **Squishy Movement** — ab Werk aus, und der Faktor daneben hat ohne den
+   * Schalter keine Wirkung. Beides steht hier, weil beides einzeln schiefgehen
+   * kann: ein Faktor, der aus einem alten Speicher als `3` hereinkommt, und
+   * eine Figur, die federt, obwohl das Häkchen aus ist.
+   */
+  it('federt nur auf ausdrückliches Ja — und kennt vier Stärken', () => {
+    expect(DEFAULT_GRAPHICS.squish).toBe(false);
+    expect([...SQUISH_SCALES]).toEqual([0.5, 1, 1.5, 2]);
+    expect(clampGraphics({ squish: true })).toEqual({ ...DEFAULT_GRAPHICS, squish: true });
+    expect(clampGraphics({ squish: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(clampGraphics({ squishScale: 3 as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(clampGraphics({ squishScale: 2 })).toEqual({ ...DEFAULT_GRAPHICS, squishScale: 2 });
+
+    // Der Kreis: ×0,5 → ×1 → ×1,5 → ×2 → wieder ×0,5.
+    let scale: SquishScale = SQUISH_SCALES[0]!;
+    for (const expected of [...SQUISH_SCALES.slice(1), SQUISH_SCALES[0]!]) {
+      scale = nextSquishScale(scale);
+      expect(scale).toBe(expected);
+    }
+
+    // Die eine Zahl, die die Figur bekommt: ohne Häkchen glatt 0, auch mit
+    // ×2 daneben.
+    expect(squishAmount({ squish: false, squishScale: 2 })).toBe(0);
+    expect(squishAmount({ squish: true, squishScale: 1.5 })).toBe(1.5);
+    expect(squishAmount({ squish: true })).toBe(DEFAULT_GRAPHICS.squishScale);
+  });
+
+  it('nennt die Stauchung in beiden Zeilen nur, wenn sie an ist', () => {
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, squish: false, squishScale: 2 })).toBe(
+      'Einfach',
+    );
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, squish: true, squishScale: 2 })).toBe(
+      'Einfach · Squishy ×2',
+    );
+    expect(animationSummary({ squish: false, squishScale: 2 })).toBe(
+      'Nichts Besonderes · die Figur läuft, wie sie immer lief',
+    );
+    expect(animationSummary({ squish: true, squishScale: 0.5 })).toBe('Squishy-Bewegung ×0,5');
   });
 
   it('überlebt einen Speicher, den es nicht gibt', () => {

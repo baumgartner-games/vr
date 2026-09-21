@@ -111,6 +111,12 @@ Bild nur `scale`, `position` und `rotation` — **niemals Geometrie**, sonst lä
 je Bild ein Netz für den Sammler da: `setHeight` stellt die Figur auf ihre
 Höhe, `setStride` watschelt.
 
+**Und eine Gruppe darüber kann sie federn**: Ist _Grafik → Animationen →
+Squishy-Bewegung_ eingeschaltet, staucht und streckt sich die ganze Figur im
+Takt ihrer Schritte — Rumpf und Kopf zusammen, um die Sohlen herum, nach einer
+Hermite-Kurve. Ab Werk ist das aus, und wie es rechnet, steht in
+[Wie schön es aussieht](grafik.md) unter _Squishy_.
+
 **Drei Zeilen, drei Listen** (`core/avatarLook.ts`). Vorher gab es nur den Hut,
 und alle sahen darunter gleich aus: derselbe Körper aus Kapseln, dieselbe Farbe
 nach Gerät, ein schwarzes Visier vorn. Für eine Werkstatt geht das, für eine
