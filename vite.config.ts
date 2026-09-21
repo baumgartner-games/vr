@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import type { OutputBundle } from 'rollup';
+import { BUILD_META } from './src/core/buildId';
 
 // On GitHub Pages the app is served from https://<user>.github.io/<repo>/,
 // so the asset base path has to match the repository name. The deploy
@@ -9,9 +11,22 @@ import type { OutputBundle } from 'rollup';
 const base = process.env['BASE_PATH'] ?? '/';
 
 /**
- * **Die Kennung dieses Builds** — sie steht im Namen des Speichers, den der
- * Service Worker anlegt (`src/sw.ts`). In der CI ist es der Commit, lokal die
- * Uhrzeit: Was zählt, ist nur, dass zwei Builds nicht dieselbe Nummer tragen.
+ * **Die Kennung dieses Builds** — sie steht im Namen des Speichers, in dem der
+ * Service Worker die **drei HTML-Seiten** hält (`src/sw.ts`), und sie steht
+ * auf der Startseite. In der CI ist es der Commit, lokal die Uhrzeit: Was
+ * zählt, ist nur, dass zwei Builds nicht dieselbe Nummer tragen.
+ *
+ * **An einer Datei hängt sie nicht mehr.** Das tat sie einmal — jede Adresse
+ * unter `public/` bekam `?v=<buildId>` —, und es kostete bei jedem Deploy
+ * 4 MB Töne und Modelle, die sich nicht geändert hatten. Was an einer Adresse
+ * hängt, ist seither die **Prüfsumme des Inhalts** (`ASSET_HASHES` weiter
+ * unten): Sie bleibt gleich, solange die Datei gleich bleibt.
+ *
+ * Und sie steht mit Absicht in **keinem** Modul: Rollup rechnet den Hash eines
+ * Chunks über die Namen seiner Importe mit, also machte eine 175 Bytes große
+ * `assetVersion.js` mit der Build-Nummer darin aus jedem Deploy 22 neue
+ * Dateinamen und 2,2 MB. Die Seite bekommt sie als `<meta>` mit
+ * (`buildTagPlugin`), und `src/core/buildId.ts` liest sie dort.
  */
 const buildId = process.env['GITHUB_SHA']?.slice(0, 12) ?? String(Date.now());
 
@@ -70,8 +85,33 @@ function precacheList(bundle: OutputBundle): string[] {
 }
 
 /**
- * Setzt Liste und Build-Nummer in den fertigen Service Worker ein. Das geht
- * erst hier, nach dem Bündeln: Vorher gibt es die Dateinamen nicht.
+ * **Alle Dateien dieses Builds mit Hash im Namen** — die Hülle, die Welten,
+ * die Physik-Engine, der Stil. Nicht die drei Seiten (feste Namen) und nicht
+ * der Service Worker selbst.
+ *
+ * Der Service Worker braucht diese Liste zum **Aufräumen**: Sein Speicher
+ * `bgvr-assets` überlebt den Build, und ohne eine Liste dessen, was es noch
+ * gibt, wüchse er mit jedem Deploy um die Chunks, die niemand mehr anfragt.
+ * Was darin steht, bleibt; was nicht darin steht, fliegt beim Aktivieren
+ * hinaus (`src/sw.ts`, `pruneAssets`).
+ */
+function bundleList(bundle: OutputBundle): string[] {
+  return Object.keys(bundle)
+    .filter((name) => name !== 'sw.js' && !name.endsWith('.map') && HASHED_NAME.test(name))
+    .sort();
+}
+
+/**
+ * Dieselbe Lesart wie `HASHED` in `src/core/swRoutes.ts`: unterhalb von
+ * `assets/`, und dort ein Hash am Ende des Namens.
+ */
+const HASHED_NAME = /(^|\/)assets\/.*-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/;
+
+/**
+ * Setzt die beiden Listen in den fertigen Service Worker ein — die **Hülle**,
+ * die er beim Einrichten holt, und **alles mit Hash**, an dem er hinterher
+ * erkennt, was noch gilt. Das geht erst hier, nach dem Bündeln: Vorher gibt es
+ * die Dateinamen nicht.
  */
 function precachePlugin(): Plugin {
   return {
@@ -84,14 +124,19 @@ function precachePlugin(): Plugin {
         this.warn('sw.js liegt nicht im Bündel — der Service Worker bleibt ohne Liste.');
         return;
       }
-      // Anführungszeichen beider Sorten: Welche der Minifizierer stehen
-      // lässt, ist seine Sache und nicht unsere.
-      const placeholder = /["']__PRECACHE__["']/;
-      if (!placeholder.test(sw.code)) {
-        this.warn('Der Platzhalter __PRECACHE__ steht nicht mehr im Service Worker.');
-        return;
+      for (const [name, list] of [
+        ['__PRECACHE__', precacheList(bundle)],
+        ['__BUNDLE__', bundleList(bundle)],
+      ] as const) {
+        // Anführungszeichen beider Sorten: Welche der Minifizierer stehen
+        // lässt, ist seine Sache und nicht unsere.
+        const placeholder = new RegExp(`["']${name}["']`);
+        if (!placeholder.test(sw.code)) {
+          this.warn(`Der Platzhalter ${name} steht nicht mehr im Service Worker.`);
+          continue;
+        }
+        sw.code = sw.code.replace(placeholder, JSON.stringify(list));
       }
-      sw.code = sw.code.replace(placeholder, JSON.stringify(precacheList(bundle)));
     },
   };
 }
@@ -154,6 +199,87 @@ function publicFiles(dir: string, root: string, out: [string, number][]): [strin
 }
 
 /**
+ * **Die Build-Nummer in die drei Seiten schreiben.**
+ *
+ * Sie steht dort und in keinem Modul, und der Grund steht ausführlich in
+ * `src/core/buildId.ts`: Rollup rechnet den Hash eines Chunks über die Namen
+ * seiner Importe mit, also benannte eine Zeichenkette, die sich bei jedem
+ * Deploy ändert, das halbe Bündel um. Eine HTML-Seite ist die einzige Datei
+ * mit festem Namen, die sich ohnehin bei jedem Deploy ändert — und die einzige,
+ * die der Service Worker erst aus dem Netz holt.
+ */
+function buildTagPlugin(): Plugin {
+  return {
+    name: 'bgvr:build-tag',
+    transformIndexHtml() {
+      return [
+        {
+          tag: 'meta',
+          attrs: { name: BUILD_META, content: buildId },
+          injectTo: 'head',
+        },
+      ];
+    },
+  };
+}
+
+/**
+ * **Welche Datei aus `public/` eine Prüfsumme in die Adresse bekommt** — und
+ * damit die einzige Stelle im Projekt, an der diese Frage beantwortet wird.
+ *
+ * Sie stand früher zweimal: einmal in `core/fullDownload.stamped` und einmal
+ * in jedem Lader. Zwei Lesarten derselben Regel sind eine, die beim nächsten
+ * Umbau auseinanderläuft — und das ist hier der teuerste Fehler überhaupt:
+ * Eine Adresse mit `?v=` ist für einen Speicher ein **anderer Name**. Wer
+ * falsch stempelt, lädt 71 MB herunter und findet sie im Funkloch trotzdem
+ * nicht wieder. Seither steht die Regel hier, und die Anwendung liest nur noch
+ * das Verzeichnis, das dabei herauskommt.
+ *
+ * Drei Ausnahmen, und jede ist anderswo schon begründet:
+ *
+ * - **Das Regal** (`models/kaykit/`) — 4470 gekaufte Dateien, die sich nie
+ *   ändern, und ihr Index, auf den das Menü wartet
+ *   (`docs/agents/assetregal.md`, _Keine Build-Nummer_).
+ * - **Die Controller-Profile** — three.js hängt diese Adressen selbst
+ *   zusammen und kennt unsere Prüfsummen nicht
+ *   (`core/ControllerModels.ts`).
+ * - **Alles Übrige** — Manifest, Symbole, Banner: Die fragt der Browser
+ *   selbst an, und der hängt nichts an.
+ */
+function isStamped(path: string): boolean {
+  if (path.startsWith('models/kaykit/')) return false;
+  if (path.startsWith('controllers/')) return false;
+  return path.startsWith('audio/') || path.startsWith('models/');
+}
+
+/**
+ * **Die Prüfsumme des Inhalts, je Datei** — `{'models/kitchen.glb': 'x7Kp2Qa1'}`.
+ *
+ * Das ist der Ersatz für die Build-Nummer an einer Adresse, und der ganze
+ * Unterschied steht in einem Satz: **Eine Prüfsumme ändert sich, wenn sich die
+ * Datei ändert, und eine Build-Nummer ändert sich immer.** Vorher holte jedes
+ * Telefon nach jedem Deploy 3,7 MB Töne und Modelle neu, die Byte für Byte
+ * dieselben waren; jetzt fragt der neue Build unter derselben Adresse wie der
+ * alte, und der Service Worker beantwortet sie aus dem Speicher.
+ *
+ * Acht Stellen Base64 aus SHA-256 — dieselbe Länge, die Vite an einen
+ * Chunk-Namen hängt, und aus demselben Grund: Ein Zusammenstoß ist bei 54
+ * Dateien kein Thema, und eine lange Zahl in jeder Adresse liest sich nur
+ * schlechter.
+ */
+function assetHashes(publicDir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [path] of publicFiles(publicDir, publicDir, [])) {
+    if (!isStamped(path)) continue;
+    out[path] = createHash('sha256')
+      .update(readFileSync(resolve(publicDir, path)))
+      .digest('base64url')
+      .slice(0, 8);
+  }
+  return out;
+}
+
+/**
  * Setzt `offline.json` neben die Seite. Das geht erst nach dem Bündeln: Vorher
  * gibt es die Dateinamen nicht, und ihre Größen schon gar nicht.
  *
@@ -185,16 +311,46 @@ function offlineListPlugin(publicDir: string): Plugin {
   };
 }
 
+/**
+ * **Gekaufte Bibliotheken bekommen ihren eigenen Chunk** — und der Grund ist
+ * ein gemessener: Rollup legte three.js zusammen mit **49 eigenen Modulen** in
+ * eine Datei von 741 kB. Ein Komma in einem dieser 49 Module benannte die
+ * Datei um, und jedes Telefon holte three.js noch einmal. Getrennt bleibt der
+ * Name von three.js gleich, solange `package-lock.json` gleich bleibt — und
+ * das ist er zwischen zwei Deploys praktisch immer.
+ *
+ * Genannt wird nur, was groß **und** eindeutig ist:
+ *
+ * - `three/build/…` — der Kern. Die Beiwerke unter `examples/jsm/`
+ *   (`GLTFLoader`, 45 kB) bleiben mit Absicht draußen: Sie werden einzeln
+ *   nachgeladen, und ein Chunk, der sie mitzieht, machte den ersten Start
+ *   teurer.
+ * - `@dimforge/rapier3d-compat` — die Physik-Engine mit ihren 2,8 MB. Sie lag
+ *   schon vorher allein; hier steht es jetzt, statt sich darauf zu verlassen.
+ *
+ * **Und trystero steht nicht hier.** Seine drei Chunks enthalten ohnehin
+ * nichts als gekauften Code und tragen über Deploys hinweg denselben Namen
+ * (nachgemessen); sie zu einem zusammenzuziehen hieße, die Verbindungsart, die
+ * gerade nicht benutzt wird, mitzuladen.
+ */
+function manualChunks(id: string): string | undefined {
+  if (id.includes('/node_modules/three/build/')) return 'three';
+  if (id.includes('/node_modules/@dimforge/')) return 'rapier';
+  return undefined;
+}
+
 export default defineConfig({
   base,
-  plugins: [precachePlugin(), offlineListPlugin(resolve(__dirname, 'public'))],
+  plugins: [buildTagPlugin(), precachePlugin(), offlineListPlugin(resolve(__dirname, 'public'))],
   define: {
     __BUILD_ID__: JSON.stringify(buildId),
     __APP_VERSION__: JSON.stringify(appVersion ?? ''),
-    // Der Platzhalter bleibt ein Platzhalter: Die echte Liste setzt
+    __ASSET_HASHES__: JSON.stringify(assetHashes(resolve(__dirname, 'public'))),
+    // Die Platzhalter bleiben Platzhalter: Die echten Listen setzt
     // `precachePlugin` ein, sobald die Dateinamen feststehen. `define` macht
     // daraus vorher einen gültigen Ausdruck, damit der Code bündelbar ist.
     __PRECACHE__: '"__PRECACHE__"',
+    __BUNDLE__: '"__BUNDLE__"',
   },
   build: {
     target: 'es2022',
@@ -219,6 +375,7 @@ export default defineConfig({
       },
       output: {
         entryFileNames: (chunk) => (chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js'),
+        manualChunks,
       },
     },
   },

@@ -53,8 +53,8 @@ import type { KaykitIndex } from './kaykitIndex';
  *
  * Genau so werden auch die Controller-Modelle gehandhabt (siehe
  * `docs/agents/modelle.md`, „Eine Build-Nummer an jeder Adresse"): Der Service
- * Worker wirft beim Aufräumen nur weg, was eine **veraltete** Nummer trägt —
- * was gar keine hat, bleibt liegen (`core/swRoutes.ts`, `dropOldMedia`).
+ * Worker wirft beim Aufräumen nur weg, was eine **veraltete** Prüfsumme trägt
+ * — was gar keine hat, bleibt liegen (`core/swRoutes.ts`, `isStaleMedia`).
  *
  * ## Und der Index trägt sie seit dem Befund „das Regal lädt ewig" auch nicht
  *
@@ -76,9 +76,14 @@ import type { KaykitIndex } from './kaykitIndex';
  * Minute Warten bei jedem Deploy. Wer den Index einmal hatte, wartet nie
  * wieder auf ihn.
  *
- * Dieselbe Regel steht im vollständigen Download (`core/fullDownload.stamped`)
- * — beide müssen dieselbe Adresse meinen, sonst liegt im Speicher etwas, das
- * niemand anfragt.
+ * Und **meinen müssen** beide dieselbe Adresse nicht mehr, sie tun es: Welche
+ * Datei aus `public/` eine Prüfsumme in die Adresse bekommt, steht seit dem
+ * Umbau auf Prüfsummen genau einmal (`vite.config.ts`, `isStamped`), und
+ * `models/kaykit/` steht nicht darin. Der vollständige Download
+ * (`core/fullDownload.ts`) und dieser Lader schlagen dasselbe Verzeichnis
+ * nach und können gar nicht mehr auseinanderlaufen. Das Vorwärmen der
+ * Startseite konnte es einmal und tat es auch: Es holte den Index unter einem
+ * `?v=`, das sonst niemand anfragte.
  */
 
 /** Wo das Regal liegt — unter uns, nie auf einem fremden Server. */

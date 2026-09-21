@@ -15,7 +15,6 @@ import {
   mb,
   pendingItems,
   retryDelay,
-  stamped,
   steadyEta,
   worthRetry,
   type OfflineList,
@@ -37,6 +36,18 @@ import {
 
 const BASE = 'https://example.test/vr/';
 const BUILD = 'abc123';
+
+/**
+ * **Das Verzeichnis der Prüfsummen** (`vite.config.ts`, `assetHashes`) — und
+ * zugleich die ganze Regel, welche Adresse ein `?v=` bekommt: Was darin steht,
+ * bekommt eins, was nicht darin steht, keines. Sie stand einmal ein zweites
+ * Mal in `stamped()` daneben; zwei Lesarten derselben Regel sind eine, die
+ * beim nächsten Umbau auseinanderläuft.
+ */
+const HASHES = {
+  'audio/kitchen/chop-board-0.ogg': 'Zz-11abc',
+  'models/diner.glb': 'Ab9_2cQ4',
+};
 
 const LIST: OfflineList = {
   version: 1,
@@ -73,19 +84,18 @@ const INDEX: KaykitIndex = {
   },
 };
 
-const PLAN = fullPlan(LIST, INDEX, BASE, BUILD);
+const PLAN = fullPlan(LIST, INDEX, BASE, HASHES);
 
-describe('welche Adresse eine Build-Nummer trägt', () => {
+describe('welche Adresse eine Prüfsumme trägt', () => {
   /**
-   * Die vier Regeln aus `stamped`, und jede einzelne steht so auch in dem
-   * Lader, der die Datei später wirklich anfragt. Das ist der Punkt, an dem
-   * dieses Feature stillschweigend nutzlos werden könnte: Was unter einem
-   * anderen Namen im Speicher liegt, ist im Funkloch nicht da.
+   * Gestempelt wird, was im Verzeichnis steht, und sonst gar nichts. Das ist
+   * der Punkt, an dem dieses Feature stillschweigend nutzlos werden könnte:
+   * Was unter einem anderen Namen im Speicher liegt, ist im Funkloch nicht da.
    */
   it('stempelt Töne und die gebündelten Kataloge', () => {
-    expect(stamped('audio/kitchen/chop-board-0.ogg')).toBe(true);
-    expect(stamped('models/diner.glb')).toBe(true);
-    expect(stamped('models/kitchen.glb')).toBe(true);
+    const urls = PLAN.items.map((item) => item.url);
+    expect(urls).toContain(`${BASE}audio/kitchen/chop-board-0.ogg?v=Zz-11abc`);
+    expect(urls).toContain(`${BASE}models/diner.glb?v=Ab9_2cQ4`);
   });
 
   /**
@@ -97,16 +107,28 @@ describe('welche Adresse eine Build-Nummer trägt', () => {
    * (`core/kaykitModel.ts`, `INDEX_URL`).
    */
   it('stempelt das Regal nicht — auch seinen Index nicht', () => {
-    expect(stamped('models/kaykit/dungeon/barrel.glb')).toBe(false);
-    expect(stamped('models/kaykit/dungeon/textures/dungeon.webp')).toBe(false);
-    expect(stamped('models/kaykit/index.json')).toBe(false);
+    const urls = PLAN.items.map((item) => item.url);
+    expect(urls).toContain(`${BASE}models/kaykit/dungeon/barrel.glb`);
+    expect(urls).toContain(`${BASE}models/kaykit/dungeon/textures/dungeon.webp`);
+    expect(urls).toContain(`${BASE}models/kaykit/index.json`);
   });
 
   it('lässt Controller-Profile und alles, was der Browser selbst holt, in Ruhe', () => {
-    expect(stamped('controllers/profilesList.json')).toBe(false);
-    expect(stamped('manifest.webmanifest')).toBe(false);
-    expect(stamped('icon-192.png')).toBe(false);
-    expect(stamped('banner.svg')).toBe(false);
+    const urls = PLAN.items.map((item) => item.url);
+    expect(urls).toContain(`${BASE}controllers/profilesList.json`);
+    expect(urls).toContain(`${BASE}manifest.webmanifest`);
+    expect(urls).toContain(`${BASE}icon-192.png`);
+  });
+
+  /**
+   * **Und dieselbe Datei bekommt in zwei Builds dieselbe Adresse**, solange
+   * sie sich nicht ändert. Genau das ist der Unterschied zur Build-Nummer, die
+   * hier einmal stand: Sie machte aus 3,7 MB Tönen und Modellen nach jedem
+   * Deploy 3,7 MB, die noch einmal über die Leitung gingen.
+   */
+  it('bleibt über einen Deploy hinweg dieselbe', () => {
+    const zweiter = fullPlan(LIST, INDEX, BASE, { ...HASHES });
+    expect(zweiter.items.map((item) => item.url)).toEqual(PLAN.items.map((item) => item.url));
   });
 });
 
@@ -118,9 +140,9 @@ describe('der Plan', () => {
     expect(PLAN.items).toHaveLength(12);
   });
 
-  it('hängt die Build-Nummer genau dort an, wo sie hingehört', () => {
+  it('hängt die Prüfsumme genau dort an, wo sie hingehört', () => {
     const urls = PLAN.items.map((item) => item.url);
-    expect(urls).toContain(`${BASE}audio/kitchen/chop-board-0.ogg?v=${BUILD}`);
+    expect(urls).toContain(`${BASE}audio/kitchen/chop-board-0.ogg?v=Zz-11abc`);
     // Das ganze Regal ohne Nummer, der Index eingeschlossen — er ist die
     // Datei, auf die das Menü wartet.
     expect(urls).toContain(`${BASE}models/kaykit/index.json`);
@@ -157,14 +179,14 @@ describe('der Plan', () => {
    * Programm und Medien, und der Knopf sagt eine kleinere Zahl.
    */
   it('kommt ohne Regal aus', () => {
-    const plain = fullPlan(LIST, null, BASE, BUILD);
+    const plain = fullPlan(LIST, null, BASE, HASHES);
     expect(plain.groupBytes.regal).toBe(130);
     expect(plain.items.some((item) => item.url.endsWith('barrel.glb'))).toBe(false);
   });
 
-  /** Ohne Build-Nummer (Jest, `vite dev`) wird nichts gestempelt. */
-  it('hängt ohne Nummer nichts an', () => {
-    const plain = fullPlan(LIST, null, BASE, '');
+  /** Ohne Verzeichnis (Jest, `vite dev`) wird nichts gestempelt. */
+  it('hängt ohne Verzeichnis nichts an', () => {
+    const plain = fullPlan(LIST, null, BASE, {});
     expect(plain.items.map((item) => item.url)).toContain(`${BASE}audio/kitchen/chop-board-0.ogg`);
   });
 });

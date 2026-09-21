@@ -30,7 +30,8 @@ import { graphics, onGraphicsChange } from './core/graphicsSettings';
 import { firstGamepad } from './core/gamepad';
 import { nextWarmStep, type WarmSignals, type WarmStep } from './core/warmStart';
 import { APP_VERSION, versionLine } from './core/appVersion';
-import { BUILD_ID, versioned } from './core/assetVersion';
+import { ASSET_HASHES } from './core/assetVersion';
+import { readBuildId } from './core/buildId';
 import {
   SHELF_INDEX,
   Throughput,
@@ -584,14 +585,25 @@ function warmSignals(): WarmSignals {
  */
 const PAGE_BASE = new URL(import.meta.env.BASE_URL, window.location.href).href;
 
+/**
+ * **Die Kennung dieses Builds**, gelesen aus dem `<meta>` der Seite. Warum sie
+ * dort steht und nicht in einem Modul, steht in `core/buildId.ts`: Eine
+ * Zeichenkette, die sich bei jedem Deploy ändert, benennt sonst das halbe
+ * Bündel um.
+ */
+const BUILD_ID = readBuildId(document);
+
 /** Der Index des Regals — dieselbe Adresse, die auch `core/kaykitModel.ts` anfragt. */
-const SHELF_INDEX_URL = versioned(`${PAGE_BASE}${SHELF_INDEX}`);
+const SHELF_INDEX_URL = `${PAGE_BASE}${SHELF_INDEX}`;
 
 /**
  * **Der Index des KayKit-Regals**, und ausdrücklich nur er (31 kB gezippt).
- * Dieselbe Adresse, die `core/kaykitModel.ts` später anfragt — samt
- * Build-Nummer, sonst läge im Speicher ein zweiter Name für dieselbe Datei und
- * `dropOldMedia` fände ihn nach dem nächsten Deploy nicht wieder.
+ * Dieselbe Adresse, die `core/kaykitModel.ts` später anfragt — **blank**, ohne
+ * irgendetwas in der Query. Hier stand einmal `versioned(…)`, und das war ein
+ * stiller Fehler: Der Lader fragt ohne, gewärmt wurde mit, also lagen 215 kB
+ * unter einem Namen im Speicher, den nie jemand anfragte — und nach jedem
+ * Deploy noch einmal dieselben 215 kB unter einem neuen. Wer zwei Adressen für
+ * eine Datei hat, wärmt nichts vor, sondern füllt einen Speicher.
  *
  * `priority: 'low'` kennt heute nur Chromium; wo es fehlt, ist es ein
  * unbekanntes Feld in einem Objekt und damit wirkungslos — kein Grund für eine
@@ -1105,7 +1117,7 @@ async function refreshFull(): Promise<void> {
   setFull({ kind: 'prüft' });
   fullList ??= await loadOfflineList(PAGE_BASE, BUILD_ID);
   if (!fullList) return setFull({ kind: 'keine-liste' });
-  fullPlanned = fullPlan(fullList, await fullShelfIndex(), PAGE_BASE, BUILD_ID);
+  fullPlanned = fullPlan(fullList, await fullShelfIndex(), PAGE_BASE, ASSET_HASHES);
   fullHave = await cachedUrls();
   settleFull();
 }

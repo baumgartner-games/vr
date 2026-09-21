@@ -272,23 +272,31 @@ im Repository seit zwei Builds nicht mehr gab. Man sieht einem Bild nicht an,
 dass es an einem Speicher liegt und nicht am Katalog; gesucht wurde der Fehler
 im Modell.
 
-Seitdem hängt an jeder dieser Adressen die Build-Nummer
-(`core/assetVersion.ts`, `versioned`): `models/kitchen.glb?v=1a2b3c`. Darauf
-hat kein Speicher eine Antwort — auch der Service Worker des **vorigen**
-Builds nicht, der auf dem Telefon noch läuft, während die neue Seite schon
-geladen ist. Beim Aktivieren wirft der neue dann weg, was ein fremdes `v=`
-trägt (`sw.ts`, `dropOldMedia`); was **kein** `v=` hat, bleibt liegen — die
-Controller-Modelle ändern sich nicht mit dem Build und sollen nicht nach jedem
-Deploy neu über das Netz.
+Seitdem hängt an jeder dieser Adressen die **Prüfsumme ihres Inhalts**
+(`core/assetVersion.ts`, `versioned`): `models/kitchen.glb?v=rSxNm45c`, acht
+Stellen aus SHA-256, gerechnet beim Bauen über die Datei selbst
+(`vite.config.ts`, `assetHashes`). Ändert sich das Modell, hat darauf kein
+Speicher eine Antwort — auch der Service Worker des **vorigen** Builds nicht,
+der auf dem Telefon noch läuft, während die neue Seite schon geladen ist. Beim
+Aktivieren wirft der neue dann weg, was ein `v=` trägt, das nicht der Inhalt
+dieser Datei ist (`sw.ts`, `dropOldMedia`); was **kein** `v=` hat, bleibt
+liegen — die Controller-Modelle ändern sich nicht mit dem Build und sollen
+nicht nach jedem Deploy neu über das Netz.
+
+**Hier stand einmal die Build-Nummer**, und das war die zu grobe Antwort auf
+dieselbe Frage: Sie ändert sich bei jedem Deploy, also holte jedes Telefon
+3,7 MB Töne und Modelle nach jeder Korrektur eines Kommentars noch einmal —
+Byte für Byte dieselben. Die ganze Rechnung steht in
+[Deployment](deployment.md#prüfsumme-statt-build-nummer--und-warum-das-9-mb-wert-war).
 
 **Und seit der Messung des Starts gilt eine Einschränkung dazu**: Was die
-Nummer **dieses** Builds trägt, wird gar nicht mehr nachgeholt
-(`core/swRoutes.ts`, `isCurrentBuild`) — unter einer Adresse mit dem eigenen
-`v=` kann sich nichts geändert haben, und das Nachsehen im Netz war deshalb
-kein Auffrischen, sondern nur Datenvolumen. Gemessen waren es 33 Anfragen und
+Prüfsumme seines eigenen Inhalts trägt, wird gar nicht mehr nachgeholt
+(`core/swRoutes.ts`, `isPinned`) — unter einer solchen Adresse kann sich nichts
+geändert haben, und das Nachsehen im Netz war deshalb kein Auffrischen,
+sondern nur Datenvolumen. Gemessen waren es 33 Anfragen und
 1,6 MB bei jedem Start, sobald der HTTP-Speicher des Browsers abgelaufen war;
 übrig bleiben fünf Anfragen und 429 KB, und das sind die Controller-Modelle,
-die als einzige weiter ohne Nummer dastehen. Siehe
+die als einzige weiter ohne Prüfsumme dastehen. Siehe
 [Die Seite selbst](seite.md), _Der Start: erst die Hülle, dann die Welt_.
 
 Ein Hash im **Dateinamen** wäre das Übliche und geht hier nicht: Diese Dateien
