@@ -130,6 +130,27 @@ export interface GraphicsSettings {
    */
   shadows: boolean;
   /**
+   * **Ob sich die Figur beim Laufen staucht und streckt** — _squishy
+   * movement_ (`core/squish.ts`, angewendet in `core/AvatarBody.ts`).
+   *
+   * Die erste Zeile unter _Animationen_, und sie steht dort, weil sie eine
+   * Frage des Geschmacks ist und keine der Bildrate: Sie kostet zwei
+   * Multiplikationen je Figur und Bild. Ab Werk **aus** — wer eine Figur
+   * federn sehen will, sagt es; wer nichts einstellt, sieht die Figur, die
+   * dieses Projekt immer hatte.
+   */
+  squish: boolean;
+  /**
+   * **Wie stark** — der Faktor auf den gemessenen Ausschlag
+   * (`squish.SQUISH_AMPLITUDE`, neun Prozent der Höhe).
+   *
+   * Vier Rasten und kein Schieberegler: Ein Menü, das in der Brille mit einem
+   * Strahl bedient wird, hat keine Stelle für einen Wert, den man auf zwei
+   * Nachkommastellen zieht. Und die vier decken die ganze Frage ab — von
+   * „gerade eben zu ahnen" bis „Gummiball".
+   */
+  squishScale: SquishScale;
+  /**
    * **Ob die Stöcke auf dem Glas liegen** — links der Stock zum Laufen, rechts
    * Zielstock und `A`/`B` (`index.html`, `#touch`).
    *
@@ -171,6 +192,27 @@ export const SCREEN_PADS_SUBS: Readonly<Record<ScreenPads, string>> = {
   off: 'Nie · Tastatur, Maus oder Gamepad',
 };
 
+/**
+ * **Die vier Rasten der Stauchung**, als Vielfaches des gemessenen
+ * Ausschlags. `1` ist der Wert, der in `core/squish.ts` steht.
+ */
+export type SquishScale = 0.5 | 1 | 1.5 | 2;
+export const SQUISH_SCALES: readonly SquishScale[] = [0.5, 1, 1.5, 2];
+
+export const SQUISH_SCALE_LABELS: Readonly<Record<SquishScale, string>> = {
+  0.5: '×0,5',
+  1: '×1',
+  1.5: '×1,5',
+  2: '×2',
+};
+
+export const SQUISH_SCALE_SUBS: Readonly<Record<SquishScale, string>> = {
+  0.5: 'Kaum zu sehen · ein Hauch Leben in der Figur',
+  1: 'Der gemessene Wert · knapp ein Zehntel der Höhe',
+  1.5: 'Deutlich · die Figur federt sichtbar bei jedem Schritt',
+  2: 'Cartoon · ein Gummiball mit Kochmütze',
+};
+
 /** Die drei Rasten des Reglers, von scharf nach flüssig. */
 export type XrScale = 1 | 0.85 | 0.7;
 export const XR_SCALES: readonly XrScale[] = [1, 0.85, 0.7];
@@ -196,6 +238,8 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   hitBoxes: false,
   showHandles: false,
   shadows: true,
+  squish: false,
+  squishScale: 1,
   screenPads: 'auto',
 };
 
@@ -349,13 +393,30 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   // Werk **an**, und ein gespeicherter Stand von gestern kennt das Feld noch
   // gar nicht. Wer sie ausmacht, hat `false` gespeichert und bekommt `false`.
   const shadows = raw.shadows ?? DEFAULT_GRAPHICS.shadows;
+  // Und hier wieder `=== true`: Die Stauchung ist ab Werk aus, ein alter
+  // Speicher kennt sie nicht, und „kenne ich nicht" heißt dann auch aus.
+  const squish = raw.squish === true;
+  const squishScale = SQUISH_SCALES.includes(raw.squishScale as SquishScale)
+    ? (raw.squishScale as SquishScale)
+    : DEFAULT_GRAPHICS.squishScale;
   // Aus demselben Grund kein `=== 'on'`: Ein Stand von gestern kennt die Raste
   // nicht, und „kenne ich nicht" heißt hier **automatisch** und nicht „aus" —
   // sonst stünde ein Telefon, das gestern noch Stöcke hatte, heute ohne da.
   const screenPads = SCREEN_PADS.includes(raw.screenPads as ScreenPads)
     ? (raw.screenPads as ScreenPads)
     : DEFAULT_GRAPHICS.screenPads;
-  return { mode, xrScale, showFps, gridLines, hitBoxes, showHandles, shadows, screenPads };
+  return {
+    mode,
+    xrScale,
+    showFps,
+    gridLines,
+    hitBoxes,
+    showHandles,
+    shadows,
+    squish,
+    squishScale,
+    screenPads,
+  };
 }
 
 /** Ein Druck auf die Zeile: die nächste Stufe, oben wieder von vorn. */
@@ -368,6 +429,42 @@ export function nextGraphicsMode(mode: GraphicsMode): GraphicsMode {
 export function nextXrScale(scale: XrScale): XrScale {
   const index = XR_SCALES.indexOf(scale);
   return XR_SCALES[(index + 1) % XR_SCALES.length]!;
+}
+
+/** Ein Druck auf den Faktor: die nächste Raste, oben wieder von vorn. */
+export function nextSquishScale(scale: SquishScale): SquishScale {
+  const index = SQUISH_SCALES.indexOf(scale);
+  return SQUISH_SCALES[(index + 1) % SQUISH_SCALES.length]!;
+}
+
+/**
+ * **Wie stark die Figur wirklich federt** — der Faktor, wenn der Schalter an
+ * ist, und sonst glatt 0.
+ *
+ * Die eine Stelle, an der die beiden Einstellungen zu einer Zahl werden:
+ * `AvatarBody` soll nicht wissen müssen, dass es zwei sind, und ein
+ * ausgeschalteter Schalter mit Faktor ×2 muss dasselbe ergeben wie gar keine
+ * Stauchung.
+ */
+export function squishAmount(
+  settings: Partial<Pick<GraphicsSettings, 'squish' | 'squishScale'>>,
+): number {
+  return settings.squish ? (settings.squishScale ?? DEFAULT_GRAPHICS.squishScale) : 0;
+}
+
+/**
+ * Wie die Zeile _Animationen_ unter ihrer Überschrift steht.
+ *
+ * Eine eigene Zeile und nicht ein Anhängsel der Grafik-Zeile: Unter der
+ * Überschrift steht, was **auf dieser Seite** eingestellt ist, und wer die
+ * Seite zumacht, will dort lesen, ob die Figur jetzt federt.
+ */
+export function animationSummary(
+  settings: Partial<Pick<GraphicsSettings, 'squish' | 'squishScale'>>,
+): string {
+  if (!settings.squish) return 'Nichts Besonderes · die Figur läuft, wie sie immer lief';
+  const scale = settings.squishScale ?? DEFAULT_GRAPHICS.squishScale;
+  return `Squishy-Bewegung ${SQUISH_SCALE_LABELS[scale]}`;
 }
 
 /** Ein Druck auf die Zeile: automatisch → an → aus und wieder von vorn. */
@@ -386,7 +483,16 @@ export function nextScreenPads(pads: ScreenPads): ScreenPads {
 export function graphicsSummary(
   settings: Pick<GraphicsSettings, 'mode' | 'xrScale'> &
     Partial<
-      Pick<GraphicsSettings, 'gridLines' | 'hitBoxes' | 'showHandles' | 'shadows' | 'screenPads'>
+      Pick<
+        GraphicsSettings,
+        | 'gridLines'
+        | 'hitBoxes'
+        | 'showHandles'
+        | 'shadows'
+        | 'squish'
+        | 'squishScale'
+        | 'screenPads'
+      >
     >,
 ): string {
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
@@ -396,6 +502,11 @@ export function graphicsSummary(
   // Genannt wird die Abweichung: „mit Schatten" sagt niemandem etwas, „ohne
   // Schatten" erklärt ein Bild, in dem alles zu schweben scheint.
   const shade = settings.shadows === false ? ' · ohne Schatten' : '';
+  // Und ebenso: Genannt wird die Stauchung nur, wenn es sie gibt — samt
+  // Faktor, denn zwischen ×0,5 und ×2 liegt der ganze Unterschied.
+  const squishy = settings.squish
+    ? ` · Squishy ${SQUISH_SCALE_LABELS[settings.squishScale ?? DEFAULT_GRAPHICS.squishScale]}`
+    : '';
   // Und ebenso hier: Die Automatik ist der Normalfall und steht nicht in der
   // Zeile — wer sie überstimmt hat, soll aber lesen können, warum sein Handy
   // ohne Stöcke oder sein Schreibtisch mit welchen dasteht.
@@ -403,7 +514,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${grips}${shade}${pads}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${grips}${shade}${squishy}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

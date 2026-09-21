@@ -140,6 +140,59 @@ describe('die Figur', () => {
     body.dispose();
   });
 
+  /**
+   * **Squishy Movement** (`core/squish.ts`, _Grafik → Animationen_). Die Kurve
+   * selbst steht in `squish.test.ts`; hier steht, dass sie an der Figur
+   * ankommt — und zwar an der **ganzen**: Rumpf und Kopf werden zusammen
+   * flacher und breiter, und die Sohlen bleiben dabei auf dem Boden. Eine
+   * Figur, die beim Stauchen im Boden steckt, ist schlimmer als eine, die
+   * gar nicht federt.
+   */
+  it('staucht und streckt sich beim Laufen, wenn es eingeschaltet ist', () => {
+    const body = new AvatarBody();
+    body.squish = 2;
+    const torso = torsoOf(body);
+    body.update(1 / 60, pose(1.6), null, null);
+    // Im Stehen passiert nichts, auch mit voller Stärke.
+    expect(torso.scale.y).toBeCloseTo(1, 5);
+    expect(torso.scale.x).toBeCloseTo(1, 5);
+
+    let flattest = 1;
+    let longest = 1;
+    for (let i = 0; i < 40; i++) {
+      body.position.x += 0.05;
+      body.update(1 / 60, pose(1.6), null, null);
+      flattest = Math.min(flattest, torso.scale.y);
+      longest = Math.max(longest, torso.scale.y);
+      // Breiter, wo sie flacher ist: Das Volumen bleibt.
+      expect(torso.scale.x).toBeCloseTo(1 / Math.sqrt(torso.scale.y), 5);
+      expect(torso.scale.z).toBeCloseTo(torso.scale.x, 10);
+      // Der Kopf macht dasselbe und fährt dabei mit dem Rumpf hinauf und
+      // hinunter — er sitzt auf ihm und nicht daneben.
+      expect(headOf(body).scale.y).toBeCloseTo(torso.scale.y, 10);
+      expect(headOf(body).position.y).toBeCloseTo(CHEF_EYE * torso.scale.y, 5);
+    }
+    expect(flattest).toBeLessThan(0.9);
+    expect(longest).toBeGreaterThan(1.1);
+    // Die Sohlen bleiben, wo sie sind: Gestreckt wird um den Boden.
+    expect(torso.position.y).toBeCloseTo(0, 10);
+    body.dispose();
+  });
+
+  it('federt nicht, solange niemand es einschaltet', () => {
+    // Der Auslieferungszustand: Die Figur läuft, wie sie immer lief.
+    const body = new AvatarBody();
+    expect(body.squish).toBe(0);
+    for (let i = 0; i < 20; i++) {
+      body.position.x += 0.05;
+      body.update(1 / 60, pose(1.6), null, null);
+    }
+    expect(torsoOf(body).scale.y).toBeCloseTo(1, 10);
+    expect(torsoOf(body).scale.x).toBeCloseTo(1, 10);
+    expect(headOf(body).position.y).toBeCloseTo(CHEF_EYE, 10);
+    body.dispose();
+  });
+
   it('ist breit genug, dass die Figur von oben gedrungen wirkt', () => {
     // Das Maß, an dem die erste Fassung scheiterte: eine Säule von einer
     // halben Kachel Breite über 1,7 m Höhe. Ein Koch ist eine Tonne.

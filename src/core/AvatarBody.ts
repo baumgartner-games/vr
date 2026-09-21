@@ -16,6 +16,8 @@ import {
 import { faceMarks, headBox } from './chefFace';
 import { cloth, skin as skinMaterial } from './chefStyle';
 import { canLoadModels, CHEF_EYE, POSE_SCALE } from './chefFit';
+import { graphics, onGraphicsChange, squishAmount } from './graphicsSettings';
+import { squishPose, type SquishPose } from './squish';
 import type { ChefParts } from './chefModel';
 
 /** Head + hand pose used to drive the body, in the body's parent space. */
@@ -92,6 +94,8 @@ function spanAt(root: THREE.Object3D, y: number, band: number): number {
 const _forward = new THREE.Vector3();
 const _hand = new THREE.Vector3();
 const _world = new THREE.Vector3();
+/** Höhe und Breite dieses Bildes (`core/squish.ts`) — eines für alle Figuren. */
+const _squish: SquishPose = { height: 1, width: 1 };
 
 /**
  * Wie weit die Kopfmitte hinter den Augen sitzt — dort steht auch der Rumpf.
@@ -238,6 +242,25 @@ export class AvatarBody extends THREE.Group {
   private bobNow = 0;
 
   /**
+   * **Wie stark sich die Figur beim Laufen staucht und streckt** — 0 heißt:
+   * gar nicht, und das ist der Auslieferungszustand (`core/squish.ts`).
+   *
+   * Der Wert kommt aus _Grafik → Animationen_ und wird nachgeführt, sobald
+   * dort etwas umgestellt wird (`onGraphicsChange`) — gelesen wird die
+   * Einstellung also einmal je Änderung und nicht je Bild und Figur. Er steht
+   * trotzdem offen: Wer eine Figur außerhalb des Spiels zeigt — die Vorschau,
+   * ein Test —, hat kein Menü und darf ihn selbst setzen.
+   *
+   * **Und er sitzt an der Figur, nicht an der Kamera**, genauso wie das
+   * Wippen darüber: Zu sehen ist das nur von außen. Wem beim Laufen die
+   * eigenen Augen zusammengedrückt würden, dem wäre in der Brille nach einer
+   * Minute schlecht.
+   */
+  squish = squishAmount(graphics());
+  /** Meldet die Figur wieder ab, wenn sie weggeräumt wird (`dispose`). */
+  private readonly stopGraphics: () => void;
+
+  /**
    * **Der Ausschlag dieses Bildes**, in Metern (negativ = tiefer).
    *
    * Damit wippt mit, was die Figur trägt (`worlds/test/zones/kitchen.ts`): Ein
@@ -304,6 +327,13 @@ export class AvatarBody extends THREE.Group {
 
     this.buildFace(this.look.head);
     this.buildTorso(this.look.body);
+
+    // Dieselbe Bauart wie bei den Griffen (`core/handleView.ts`): einmal
+    // zuhören, und jede Figur im Raum federt im selben Moment mit — auch die
+    // der Mitspieler, die niemand hier neu baut.
+    this.stopGraphics = onGraphicsChange(() => {
+      this.squish = squishAmount(graphics());
+    });
 
     // Das Modell kommt asynchron. Bis dahin steht die gebaute Figur; kommt es
     // gar nicht, bleibt sie für immer stehen. `void`, weil hier niemand
@@ -600,8 +630,20 @@ export class AvatarBody extends THREE.Group {
     // Das Wippen: zweimal je Schritt, so weit wie `headBob` erlaubt, und nur
     // am Kopf der Figur (siehe dort).
     this.bobNow = -Math.abs(Math.cos(this.walkPhase)) * stride * this.headBob;
-    this.head.position.y += this.bobNow;
     this.shape?.setStride(this.walkPhase, stride);
+    // **Squishy Movement**: die ganze Figur wird im Takt flacher und breiter
+    // bzw. länger und schmaler (`core/squish.ts`). Gestreckt wird um die
+    // **Sohlen** — der Rumpf steht mit seiner eigenen Null auf dem Boden, und
+    // der Kopf fährt mit, indem seine Höhe mitwächst. Andersherum stünde die
+    // Figur beim Stauchen im Boden.
+    //
+    // Und es liegt **über** dem Watscheln, nicht an seiner Stelle: Das
+    // Watscheln sitzt eine Gruppe tiefer (`BodyShape.setStride`) und bleibt
+    // auch dann, wenn hier nichts eingestellt ist.
+    const squish = squishPose(this.walkPhase, stride, this.squish, _squish);
+    this.torso.scale.set(squish.width, squish.height, squish.width);
+    this.head.scale.set(squish.width, squish.height, squish.width);
+    this.head.position.y = this.eyeY * squish.height + this.bobNow;
     // Dieselbe Bewegung auf den Rumpf des Modells — `setStride` kennt nur die
     // gebaute Figur, und die ist ausgeblendet, sobald das Modell da ist.
     if (this.sway && this.shape) {
@@ -635,8 +677,11 @@ export class AvatarBody extends THREE.Group {
         // `cos/-sin` ist die Rechte des Rumpfes, `-sin/-cos` seine
         // Blickrichtung.
         const phase = this.walkPhase + (i === 0 ? 0 : Math.PI);
-        const side = sign * (this.idleSide || bodyRadius(HAND_LIFT) + HAND_GAP);
-        const lift = this.idleLift || height * HAND_LIFT;
+        // Und beides geht mit der Stauchung mit: Eine Hand, die neben einer
+        // federnden Figur auf ihrer Höhe stehen bleibt, steckt bei jedem
+        // Schritt einmal in der Jacke und schwebt einmal daneben.
+        const side = sign * (this.idleSide || bodyRadius(HAND_LIFT) + HAND_GAP) * squish.width;
+        const lift = (this.idleLift || height * HAND_LIFT) * squish.height;
         const ahead = HAND_FRONT * POSE_SCALE + Math.sin(phase) * swing * POSE_SCALE;
         _hand.set(
           baseX + cos * side - sin * ahead,
@@ -668,6 +713,7 @@ export class AvatarBody extends THREE.Group {
 
   dispose(): void {
     this.gone = true;
+    this.stopGraphics();
     disposeTree(this);
     for (const material of this.kept) material.dispose();
     this.removeFromParent();

@@ -313,6 +313,66 @@ einmal roh mit seinen Zylindern und einmal in einer groben Hand hin,
 Weg wie beim Musterbogen des Avatars, und aus demselben Grund: Ob etwas in
 einer Hand richtig liegt, entscheidet kein Jest-Test.
 
+## Squishy: die Figur federt beim Laufen
+
+Unter den Häkchen steht eine eigene Seite: _Menü → Grafik → **Animationen**_
+(`App.animationMenu`). Sie hat vorerst eine Sache, und sie ist eine andere
+Frage als alles darüber — dort geht es darum, was ein Bild kostet und was es
+zeigt, hier darum, wie sich eine **Figur** bewegt. Die nächste Animation hängt
+sich an diese Seite und nicht an das Ende einer Liste, die dann keine mehr ist.
+
+**Squishy Movement** (`GraphicsSettings.squish`, ab Werk **aus**) staucht und
+streckt die Figur im Takt ihrer Schritte. Der Anlass ist eine Lücke: Diese
+Figuren haben **keine Auf-und-ab-Bewegung**, die man ihnen abnimmt. Der Kopf
+darf nicht wippen — in der Brille gehört er dem Menschen davor, und am Schirm
+ist ein nickendes Bild keine Gehbewegung, sondern Übelkeit —, und Beine, die
+abwechselnd aufsetzen, gibt es gar nicht: Unter dem Jackensaum sitzt eine
+geschlossene Kuppel (_Spielfigur_). Bleibt der Weg, den der Zeichentrick seit
+achtzig Jahren geht: **squash and stretch**. Wer aufsetzt, wird flach und
+breit; wer sich abstößt, wird lang und schmal.
+
+**Und dafür eine Hermite-Kurve** (`core/squish.ts`, `squishCurve`). Ein Sinus
+wäre die naheliegende Kurve und die falsche: Er ist symmetrisch, und diese
+Bewegung ist es nicht — das Strecken beim Abstoßen geht schnell, das
+Zurücksinken zieht sich, und daran erkennt das Auge einen Schritt statt eines
+Pulsierens. Eine kubische Hermite-Kurve bekommt zu jedem Stützpunkt **eine
+Steigung dazu**, und damit lässt sich genau das hinschreiben: vier Stützpunkte
+(Aufsetzen −1, Abstoßen +0,9 bei 0,28, Absinken +0,1 bei 0,62, Aufsetzen −1),
+und weil der letzte Punkt Wert **und** Steigung des ersten hat, läuft die Kurve
+über die Naht zwischen zwei Schritten ohne Knick weiter. Ein Knick dort wäre
+ein Zucken bei jedem Schritt — `squish.test.ts` misst die Steigung links und
+rechts der Naht und vergleicht sie.
+
+Gerechnet wird der Ausschlag als **Anteil der Höhe** (`SQUISH_AMPLITUDE`, 9 %
+— auf 1,6 m knapp fünfzehn Zentimeter zwischen der flachsten und der längsten
+Haltung), mal der Stärke aus dem Menü (`squishScale`, vier Rasten **×0,5 ×1
+×1,5 ×2**, im Kreis schaltbar) und mal dem **Tempo**: Im Stehen steht die Figur
+still, im Schlendern federt sie halb so weit wie im Rennen. Die Breite ist der
+Kehrwert der Wurzel aus der Höhe — **Breite mal Breite mal Höhe bleibt 1**,
+also behält die Figur ihr Volumen. Eine, die sich beim Strecken nur längt,
+sieht aus, als zöge man sie am Kopf hoch.
+
+Angewendet wird das in `AvatarBody.update`, und zwar auf **Rumpf und Kopf
+zusammen** — die ganze Figur wird flacher, nicht nur ihr Bauch. Der Rumpf steht
+mit seiner eigenen Null auf dem Boden, wird also um die **Sohlen** gestreckt;
+der Kopf fährt mit, indem seine Höhe mitwächst (`eyeY * height`), und die
+ungetrackten Hände tun dasselbe. Andersherum stünde die Figur beim Stauchen im
+Boden. Es liegt **über** dem Watscheln (`BodyShape.setStride`, eine Gruppe
+tiefer) und ersetzt es nicht: Das Watscheln bleibt auch, wenn hier nichts
+eingestellt ist.
+
+Zwei Dinge daran sind Absicht:
+
+- **Es sitzt an der Figur, nicht an der Kamera** — dieselbe Regel wie beim
+  Wippen des Tragenden (_Spielfigur_). Zu sehen ist es von oben, im Spiegel und
+  durch ein Portal; aus den eigenen Augen ist davon nichts zu sehen und nichts
+  zu spüren.
+- **Gelesen wird die Einstellung einmal je Änderung**, nicht je Bild und Figur:
+  Jede Figur hört beim Bau auf das Menü (`onGraphicsChange`) und hält den Wert
+  als eine Zahl (`AvatarBody.squish`, 0 heißt aus). Damit federt auch der
+  Mitspieler mit, den hier niemand neu baut (`net/RemoteAvatars.ts`) — und ein
+  Test oder eine Vorschau ohne Menü setzt die Zahl einfach selbst.
+
 ## Was die Kamera ansieht
 
 Ein Schild, ein Fortschrittsbalken, ein Warndreieck: Alles, was Auskunft gibt,
