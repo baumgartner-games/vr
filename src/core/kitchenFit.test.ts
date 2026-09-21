@@ -182,6 +182,74 @@ describe('der Möbelkatalog', () => {
   });
 
   /**
+   * **Jede Kiste steht auf einem Deckel und schließt bündig mit der Zeile ab.**
+   *
+   * Der Befund des Besitzers: Die Kiste **mit** Deckel war so hoch wie eine
+   * Arbeitsplatte, die offenen Vorratskisten standen eine Handbreit darunter.
+   * Eine Kiste misst 0,40 m, ein Deckel 0,10 m, die Zeile 0,50 m — der Deckel
+   * unter der Kiste schließt genau diese Lücke (`CRATE_PLINTH`).
+   *
+   * Und weil er unter **jeder** Kiste steht, auch unter der mit Deckel, fangen
+   * alle Korpusse auf derselben Höhe an: Ihre waagerechten Bretter liegen auf
+   * einer Linie, statt sich von Möbel zu Möbel um eine Deckelstärke zu
+   * verschieben. Der aufgelegte Deckel sitzt dafür im Rand statt darauf
+   * (`CRATE_LID_SUNK`) — sonst wäre die Kiste mit Deckel 0,60 m hoch.
+   *
+   * Geprüft wird der Zusammenhang und keine abgeschriebene Zahl: Sockel aus
+   * dem zweiten Katalog, ein Korpus je Kiste auf der Sockelhöhe, und oben die
+   * Zeile.
+   */
+  it('stellt jede Kiste auf einen Deckel und schließt bündig mit der Zeile ab', () => {
+    const lid = dinerPiece('crate_lid')!;
+    const crate = dinerPiece('crate')!;
+    const line = kitchenPiece('counter')!.height;
+    expect(lid.height + crate.height).toBeCloseTo(line, 6);
+
+    const crates = KITCHEN_PIECES.filter((piece) => piece.base?.node === 'crate_lid');
+    expect(crates.map((piece) => piece.name)).toEqual([
+      'plate-counter',
+      'serve-counter',
+      'crate-buns',
+      'crate-patty',
+      'crate-lettuce',
+      'crate-tomatoes',
+    ]);
+    for (const piece of crates) {
+      // Der Korpus steht auf dem Sockel — bei jeder Kiste auf derselben Höhe.
+      const body = piece.over![0]!;
+      expect({ name: piece.name, at: body.at }).toEqual({ name: piece.name, at: lid.height });
+      // Und oben liegt die Zeile: der **Rand** jeder Kiste. Was in den offenen
+      // liegt, schaut darüber hinaus — ein Salatkopf tut das, eine Kiste nicht.
+      const above = piece.height - line;
+      expect({ name: piece.name, flush: above >= 0 && above < 0.1 }).toEqual({
+        name: piece.name,
+        flush: true,
+      });
+    }
+
+    // Die beiden **geschlossenen** Kisten hören genau auf der Zeilenhöhe auf:
+    // Auf ihnen wird abgelegt, und eine Ablage, die einen Zentimeter über oder
+    // unter der Zeile daneben liegt, ist eine Stufe.
+    for (const name of ['serve-counter', 'plate-counter']) {
+      const piece = kitchenPiece(name)!;
+      expect({ name, top: kitchenWorkHeight(piece).toFixed(3) }).toEqual({
+        name,
+        top: line.toFixed(3),
+      });
+    }
+
+    // Der aufgelegte Deckel bleibt **im** Rand: Ohne das Versenken stünde
+    // seine Oberseite in derselben Ebene wie der Rand — zwei Flächen, die
+    // gegeneinander flimmern —, und mit einem ganzen Zentimeter wäre die
+    // Ablage eine Stufe unter der Zeile.
+    const serve = kitchenPiece('serve-counter')!;
+    const top = serve.over![serve.over!.length - 1]!;
+    const sunk = serve.height - (top.at + lid.height);
+    expect(sunk).toBeGreaterThan(0);
+    expect(sunk).toBeLessThan(0.005);
+  });
+
+  /**
    * **In dieser Fassung der Quelle hängt keines.** Der Katalog führte das
    * Ausgaberegal einmal als hängendes Stück von 3,52 m; die Datei sagt etwas
    * anderes — es fängt wie jedes andere Möbel bei y = 0 an. Das war kein

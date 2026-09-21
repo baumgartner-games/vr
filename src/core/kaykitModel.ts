@@ -4,7 +4,6 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { kaykitScale } from './kaykitFit';
 import type { KaykitIndex } from './kaykitIndex';
-import { versioned } from './assetVersion';
 
 /**
  * **Das Regal laden** — der Index einmal, und jedes Modell einzeln, wenn es
@@ -56,15 +55,36 @@ import { versioned } from './assetVersion';
  * Worker wirft beim Aufräumen nur weg, was eine **veraltete** Nummer trägt —
  * was gar keine hat, bleibt liegen (`core/swRoutes.ts`, `dropOldMedia`).
  *
- * Der **Index** trägt sie dagegen, denn er ist erzeugt und ändert sich mit
- * jedem neuen Paket.
+ * ## Und der Index trägt sie seit dem Befund „das Regal lädt ewig" auch nicht
+ *
+ * Er trug sie, mit der Begründung, dass er erzeugt ist und mit jedem neuen
+ * Paket wandert. Das stimmt — und war trotzdem die falsche Antwort, weil eine
+ * Nummer an dieser einen Adresse den ganzen Rest wertlos macht: Das Regal
+ * macht erst auf, wenn der Index da ist („Lädt …",
+ * `PortalWorld.assetMenu`), und mit `?v=` ist er **nach jedem Deploy** ein
+ * Name, auf den kein Speicher eine Antwort hat. Dann stehen 215 kB über eine
+ * schlechte Leitung zwischen dem Spieler und einem Regal, dessen 4470 Modelle
+ * längst im Gerät liegen. Genau so wurde es gemeldet: „lädt ewig lang bei
+ * schlechtem Internet, obwohl alle Dateien lokal vorliegen."
+ *
+ * Ohne Nummer beantwortet ihn der Service Worker wie jede Datei mit festem
+ * Namen: **sofort aus dem Speicher, und im Hintergrund nachgesehen**
+ * (`core/swRoutes.ts`, `revalidate`). Das Regal geht damit auch im Funkloch
+ * auf, und ein neues Paket steht spätestens beim nächsten Start darin — für
+ * eine Datei, die nur wächst, ist ein Besuch Verzögerung nichts gegen eine
+ * Minute Warten bei jedem Deploy. Wer den Index einmal hatte, wartet nie
+ * wieder auf ihn.
+ *
+ * Dieselbe Regel steht im vollständigen Download (`core/fullDownload.stamped`)
+ * — beide müssen dieselbe Adresse meinen, sonst liegt im Speicher etwas, das
+ * niemand anfragt.
  */
 
 /** Wo das Regal liegt — unter uns, nie auf einem fremden Server. */
 const KAYKIT_BASE = `${import.meta.env.BASE_URL}models/kaykit/`;
 
-/** Der Index: erzeugt, also mit Build-Nummer. */
-const INDEX_URL = versioned(`${KAYKIT_BASE}index.json`);
+/** Der Index: fester Name wie das Regal selbst — siehe oben. */
+const INDEX_URL = `${KAYKIT_BASE}index.json`;
 
 let indexPending: Promise<KaykitIndex | null> | null = null;
 
@@ -75,6 +95,12 @@ let indexPending: Promise<KaykitIndex | null> | null = null;
  * `null` ist kein Fehlerpfad, sondern der normale Ausgang eines Checkouts
  * ohne die gekauften Pakete: Das Menü sagt dann, dass kein Regal da ist, und
  * sonst passiert nichts. Geworfen wird hier nie.
+ *
+ * **Gemerkt wird nur der Erfolg.** Ein Fehlschlag löscht die Zusage wieder,
+ * und das nächste Aufschlagen fragt neu: Auf einer schlechten Leitung ist der
+ * erste Versuch manchmal einer, der abreißt — wer ihn behielte, hätte ein
+ * Regal, das bis zum Neuladen der Seite leer bleibt, obwohl das Netz zwei
+ * Sekunden später wieder da ist.
  */
 export function loadKaykitIndex(): Promise<KaykitIndex | null> {
   indexPending ??= fetch(INDEX_URL)
@@ -86,6 +112,7 @@ export function loadKaykitIndex(): Promise<KaykitIndex | null> {
       // Einmal sagen und nicht je Ordner: Wer ohne die Pakete entwickelt,
       // soll keine Konsole voller gleicher Zeilen finden.
       console.warn(`KayKit-Regal nicht geladen (${INDEX_URL}).`, error);
+      indexPending = null;
       return null;
     });
   return indexPending;

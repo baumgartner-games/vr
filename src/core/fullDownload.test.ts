@@ -88,10 +88,18 @@ describe('welche Adresse eine Build-Nummer trägt', () => {
     expect(stamped('models/kitchen.glb')).toBe(true);
   });
 
-  it('stempelt das Regal nicht — aber seinen Index', () => {
+  /**
+   * **Auch den Index nicht, und das ist eine Korrektur.** Er trug die Nummer,
+   * weil er erzeugt ist — und war damit die einzige Datei des Regals, die nach
+   * jedem Deploy wieder über die Leitung musste. Das Regal macht erst auf,
+   * wenn er da ist; auf einer schlechten Leitung waren das 215 kB Wartezeit
+   * vor einem Regal, das vollständig im Gerät liegt
+   * (`core/kaykitModel.ts`, `INDEX_URL`).
+   */
+  it('stempelt das Regal nicht — auch seinen Index nicht', () => {
     expect(stamped('models/kaykit/dungeon/barrel.glb')).toBe(false);
     expect(stamped('models/kaykit/dungeon/textures/dungeon.webp')).toBe(false);
-    expect(stamped('models/kaykit/index.json')).toBe(true);
+    expect(stamped('models/kaykit/index.json')).toBe(false);
   });
 
   it('lässt Controller-Profile und alles, was der Browser selbst holt, in Ruhe', () => {
@@ -113,7 +121,9 @@ describe('der Plan', () => {
   it('hängt die Build-Nummer genau dort an, wo sie hingehört', () => {
     const urls = PLAN.items.map((item) => item.url);
     expect(urls).toContain(`${BASE}audio/kitchen/chop-board-0.ogg?v=${BUILD}`);
-    expect(urls).toContain(`${BASE}models/kaykit/index.json?v=${BUILD}`);
+    // Das ganze Regal ohne Nummer, der Index eingeschlossen — er ist die
+    // Datei, auf die das Menü wartet.
+    expect(urls).toContain(`${BASE}models/kaykit/index.json`);
     expect(urls).toContain(`${BASE}models/kaykit/dungeon/barrel.glb`);
     expect(urls).toContain(`${BASE}controllers/profilesList.json`);
     // Namen mit Hash brauchen keine: Sie *sind* ihre Version.
@@ -133,7 +143,7 @@ describe('der Plan', () => {
   /** Innerhalb des Regals: Index, Texturen, dann die Modelle. */
   it('holt die Texturen vor den Modellen', () => {
     const shelf = PLAN.items.filter((item) => item.group === 'regal').map((item) => item.url);
-    expect(shelf[0]).toBe(`${BASE}models/kaykit/index.json?v=${BUILD}`);
+    expect(shelf[0]).toBe(`${BASE}models/kaykit/index.json`);
     expect(shelf[1]).toBe(`${BASE}models/kaykit/dungeon/textures/dungeon.webp`);
     expect(shelf.slice(2)).toEqual([
       `${BASE}models/kaykit/dungeon/barrel.glb`,

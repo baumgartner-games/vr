@@ -13,7 +13,7 @@ import {
 import type { NavGraph } from '../nav/navGraph';
 import { DIRS, NO_TILE, TILE, keyLevel, tileCentreX, tileCentreZ, type Dir } from '../nav/navTile';
 import { changeSlidingDoor } from './slidingDoor';
-import { blocksView, boxesBetween, type GhostCandidate } from './wallGhost';
+import { blocksView, wallsHiding, type GhostCandidate } from './wallGhost';
 import { batchKey, joinsBatch, joinsGhostBatch } from './gridBatch';
 import { fixtureTile, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
@@ -1450,6 +1450,12 @@ export abstract class GridWorld extends PortalWorld {
    * - **Gezielt wird auf die Mitte der Figur** (`GHOST_AIM`) und nicht auf
    *   ihre Füße: Der Strahl zu den Füßen streift jede Bodenplatte und jede
    *   Schwelle davor.
+   * - **Und die Auswahl trifft `wallGhost.wallsHiding`** und nicht mehr ein
+   *   Strahl von der Kamera aus: Sie fragt in der **Spalte der Figur** und nur
+   *   nach Wänden, von denen die Kamera die andere Seite sieht. Der Strahl von
+   *   der nachziehenden Kamera aus erwischte beim Laufen die Wand **neben**
+   *   der Figur — nach Westen die eine, nach Osten spiegelbildlich die
+   *   andere. Die lange Fassung steht dort.
    * - **Getauscht wird nur, was sich geändert hat.** Ein Material jedes Bild
    *   neu zuzuweisen ist für three.js ein neuer Zustand — und bei tausend
    *   Quadern eine Liste, die nichts tut außer Arbeit zu machen.
@@ -1467,7 +1473,7 @@ export abstract class GridWorld extends PortalWorld {
     }
     const rig = ctx.rig.position;
     const aim = { x: rig.x, y: rig.y + GHOST_AIM, z: rig.z };
-    const hidden = new Set(boxesBetween(ctx.camera.position, aim, this.wallGhosts));
+    const hidden = new Set(wallsHiding(ctx.camera.position, aim, this.wallGhosts));
     for (const one of this.wallGhosts) this.setGhost(one, hidden.has(one));
   }
 

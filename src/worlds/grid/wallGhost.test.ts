@@ -1,4 +1,4 @@
-import { GHOST_KNEE, blocksView, boxesBetween, type GhostCandidate } from './wallGhost';
+import { GHOST_KNEE, blocksView, wallsHiding, type GhostCandidate } from './wallGhost';
 
 /** Ein Quader: Mitte und Kantenlängen, wie ein `PlanSolid`. */
 function box(
@@ -30,7 +30,7 @@ describe('Was zwischen Kamera und Figur steht', () => {
   it('findet die Wand, die dazwischen steht', () => {
     // Einen Meter vor der Figur, zwei Meter achtzig hoch.
     const wall = box(0, 1.4, 1, 4, 2.8, 0.2);
-    expect(boxesBetween(CAMERA, FIGURE, [wall])).toEqual([wall]);
+    expect(wallsHiding(CAMERA, FIGURE, [wall])).toEqual([wall]);
   });
 
   it('lässt die Wand stehen, die hinter der Figur liegt', () => {
@@ -38,12 +38,43 @@ describe('Was zwischen Kamera und Figur steht', () => {
     // gerechnet wird.** Was hinter der Figur steht, verdeckt sie nicht — ein
     // Strahl ohne Ende nähme die halbe Welt mit.
     const behind = box(0, 1.4, -1, 4, 2.8, 0.2);
-    expect(boxesBetween(CAMERA, FIGURE, [behind])).toEqual([]);
+    expect(wallsHiding(CAMERA, FIGURE, [behind])).toEqual([]);
   });
 
   it('lässt die Wand stehen, die daneben steht', () => {
     const beside = box(8, 1.4, 1, 4, 2.8, 0.2);
-    expect(boxesBetween(CAMERA, FIGURE, [beside])).toEqual([]);
+    expect(wallsHiding(CAMERA, FIGURE, [beside])).toEqual([]);
+  });
+
+  /**
+   * **Die Seitenwand bleibt stehen**, auch wenn sie dicht neben der Figur
+   * steht — der gemeldete Befund: „Ich will nicht die Wände links und rechts
+   * vom Spieler durchsichtig haben." Sie läuft an ihr vorbei nach hinten,
+   * also sieht die Kamera dieselbe Seite wie die Figur, und es geht nichts
+   * verloren.
+   */
+  it('lässt die Wand stehen, die neben der Figur entlangläuft', () => {
+    const along = box(1.1, 1.4, 0, 0.2, 2.8, 6);
+    expect(wallsHiding(CAMERA, FIGURE, [along])).toEqual([]);
+  });
+
+  /**
+   * **Und der Versatz, der den Befund ausgelöst hat.** Die Kamera zieht der
+   * Figur weich nach (`TopDownCamera`, `FOLLOW_TAU`); wer nach Westen läuft,
+   * hat sie einen halben Meter im Osten. Ein Strahl von dort erwischte die
+   * Wand **neben** der Figur statt der vor ihr — und nach Osten gelaufen
+   * dieselbe Wand auf der anderen Seite. Beide Richtungen stehen hier: Die
+   * Wand vor der Figur geht auf, die daneben nicht, egal wohin die Kamera
+   * gerade hinterherhinkt.
+   */
+  it('hängt nicht daran, wie weit die Kamera gerade nachhinkt', () => {
+    const ahead = box(0, 1.4, 1, 1, 2.8, 0.2);
+    const west = box(-1, 1.4, 1, 1, 2.8, 0.2);
+    const east = box(1, 1.4, 1, 1, 2.8, 0.2);
+    for (const lag of [-0.6, 0, 0.6]) {
+      const camera = { x: FIGURE.x + lag, y: CAMERA.y, z: CAMERA.z };
+      expect([lag, wallsHiding(camera, FIGURE, [ahead, west, east])]).toEqual([lag, [ahead]]);
+    }
   });
 
   it('lässt die Wand stehen, unter der der Blick hindurchgeht', () => {
@@ -52,13 +83,13 @@ describe('Was zwischen Kamera und Figur steht', () => {
     // sie stehen — ein Ghosting, das jede Wand im Süden mitnimmt, ist eines,
     // bei dem von der Welt nichts übrig bleibt.
     const far = box(0, 1.4, 6, 4, 2.8, 0.2);
-    expect(boxesBetween(CAMERA, FIGURE, [far])).toEqual([]);
+    expect(wallsHiding(CAMERA, FIGURE, [far])).toEqual([]);
   });
 
   it('nimmt die Wand mit, in der die Kamera selbst steckt', () => {
     // Dann schaut man aus einer Wand heraus, und sie gehört erst recht weg.
     const around = box(0, 9, 12, 2, 2.8, 2);
-    expect(boxesBetween(CAMERA, FIGURE, [around])).toHaveLength(1);
+    expect(wallsHiding(CAMERA, FIGURE, [around])).toHaveLength(1);
   });
 
   it('kommt mit einer senkrechten Sicht zurecht', () => {
@@ -67,7 +98,7 @@ describe('Was zwischen Kamera und Figur steht', () => {
     const above = box(0, 3, 0, 2, 0.3, 2);
     const beside = box(4, 3, 0, 2, 0.3, 2);
     const straight = { x: 0, y: 9, z: 0 };
-    expect(boxesBetween(straight, FIGURE, [above, beside])).toEqual([above]);
+    expect(wallsHiding(straight, FIGURE, [above, beside])).toEqual([above]);
   });
 
   it('gibt jede Wand zurück, die dazwischen steht, und nicht nur die erste', () => {
@@ -78,7 +109,7 @@ describe('Was zwischen Kamera und Figur steht', () => {
       box(0, 1.4, 1.5, 6, 2.8, 0.2),
       box(0, 1.4, 0.5, 6, 2.8, 0.2),
     ];
-    expect(boxesBetween(CAMERA, FIGURE, walls)).toHaveLength(3);
+    expect(wallsHiding(CAMERA, FIGURE, walls)).toHaveLength(3);
   });
 });
 
@@ -89,7 +120,7 @@ describe('Was gar nicht erst mitzählt', () => {
     // durchsichtig — und darunter ist nichts als Nacht.
     const ground = box(0, -0.15, 3, 20, 0.3, 20, true);
     expect(blocksView(ground)).toBe(false);
-    expect(boxesBetween(CAMERA, FIGURE, [ground])).toEqual([]);
+    expect(wallsHiding(CAMERA, FIGURE, [ground])).toEqual([]);
   });
 
   it('lässt alles unter Kniehöhe in Ruhe', () => {
@@ -97,7 +128,7 @@ describe('Was gar nicht erst mitzählt', () => {
     // niemanden, und ein Flackern an ihnen wäre reine Unruhe.
     const sill = box(0, 0.1, 1, 2, 0.2, 1);
     expect(blocksView(sill)).toBe(false);
-    expect(boxesBetween(CAMERA, FIGURE, [sill])).toEqual([]);
+    expect(wallsHiding(CAMERA, FIGURE, [sill])).toEqual([]);
     // Knapp darüber zählt es wieder — die **Oberkante** entscheidet und nicht
     // die Dicke.
     const higher = box(0, GHOST_KNEE, 1, 2, 0.2, 1);
@@ -109,6 +140,6 @@ describe('Was gar nicht erst mitzählt', () => {
     // ist der Fall, in dem eine Brüstung eine Figur verdeckt.
     const parapet = box(0, 1.45, 1, 4, 0.9, 0.2);
     expect(blocksView(parapet)).toBe(true);
-    expect(boxesBetween(CAMERA, FIGURE, [parapet])).toHaveLength(1);
+    expect(wallsHiding(CAMERA, FIGURE, [parapet])).toHaveLength(1);
   });
 });

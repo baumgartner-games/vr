@@ -22,6 +22,41 @@
  * darunter ist nichts als Nacht. Also: die Sorte `floor` nie, und alles, was
  * flach und unter Kniehöhe liegt, auch nicht (eine Schwelle, eine Rampe, eine
  * Druckplatte).
+ *
+ * ## Der Strahl läuft in der **Spalte der Figur** und nicht von der Kamera aus
+ *
+ * Das ist die Korrektur aus dem gemeldeten Befund: „die Wände werden zwar
+ * durchsichtig, aber ganz links auf der Karte stimmt der Versatz nicht, und
+ * rechts liegt er gespiegelt daneben." Die Ursache steht nicht in dieser
+ * Datei, sondern in der Kamera: Sie steht **genau südlich** der Figur
+ * (`core/topDownPose.topDownPosition` übernimmt deren `x` unverändert) — aber
+ * sie zieht der Figur **weich nach** (`TopDownCamera`, `FOLLOW_TAU` 0,12 s).
+ * Wer nach Westen läuft, hat die Kamera für einen Augenblick im Osten, und ein
+ * Strahl von dort zur Figur schneidet die Wand **neben** ihr statt der vor
+ * ihr. Nach Osten gelaufen kippt derselbe Fehler auf die andere Seite — genau
+ * die Spiegelung, die gemeldet wurde.
+ *
+ * Also wird die Seitwärtsfrage gar nicht erst am Strahl entschieden: Er läuft
+ * senkrecht über der Figur nach oben-hinten, in **ihrer** Spalte
+ * (`figure.x`), und wie breit diese Spalte ist, sagt `GHOST_SHOULDER`. Was
+ * seitlich danebensteht, verdeckt sie auch nicht.
+ *
+ * ## Und nur, wovon die Kamera die **andere Seite** sieht
+ *
+ * Der zweite Teil desselben Befunds: „Ich will nicht die Wände links und
+ * rechts vom Spieler durchsichtig haben, sondern die, hinter die die Kamera
+ * nicht blicken kann." Das ist eine Aussage über die **Seiten** einer Wand:
+ * Steht sie ganz zwischen Figur und Kamera, dann sieht die Figur ihre eine
+ * Seite und die Kamera die andere — was dahinter liegt, fällt für den Spieler
+ * aus, und genau das ist der Informationsverlust. Eine Wand, die neben der
+ * Figur **entlangläuft**, reicht dagegen an ihr vorbei nach hinten: Kamera und
+ * Figur sehen dieselbe Seite, es geht nichts verloren, und sie bleibt stehen.
+ *
+ * Geprüft wird das an der **vorderen Kante** (`turnsItsBack`): Der Quader muss
+ * vollständig auf der Kameraseite der Figur liegen. Eine Wand, die die Figur
+ * nur streift, weil ihre Zelle dieselbe Reihe belegt, zählt damit nicht mehr
+ * mit — und die Seitenwände eines Raums bleiben stehen, auch wenn man in der
+ * Ecke steht.
  */
 
 /** Ein Punkt im Raum. */
@@ -71,39 +106,76 @@ export function blocksView(one: GhostCandidate, knee = GHOST_KNEE): boolean {
 }
 
 /**
- * **Welche Kästen zwischen zwei Punkten liegen.**
+ * **Wie breit die Spalte der Figur ist**, in Metern nach jeder Seite.
  *
- * Die Strecke läuft von `from` (der Kamera) nach `to` (der Figur); gesucht ist,
- * was **davor** liegt, also alles, was sie schneidet, bevor sie ankommt. Was
- * hinter der Figur steht, verdeckt sie nicht — und weil die Strecke dort endet,
- * fällt es von selbst heraus.
- *
- * Gerechnet wird mit dem **Plattenverfahren** (slab test): Für jede Achse die
- * beiden Parameter, bei denen die Strecke die beiden Seitenflächen kreuzt, das
- * Maximum der Eintritte gegen das Minimum der Austritte. Überholt der Eintritt
- * den Austritt, geht die Strecke daneben. Das sind neun Zeilen und keine
- * Bibliothek — und es ist dieselbe Rechnung, die jeder Raycaster für eine
- * Bounding Box macht.
- *
- * Ein Kasten, **in** dem die Kamera steckt, zählt mit: Dann ist der Eintritt
- * negativ, der Austritt positiv, und man schaut aus einer Wand heraus. Genau
- * dann soll sie weg.
+ * Eine Wand verdeckt keinen Punkt, sondern einen Körper: Wer die Figur nur an
+ * der Schulter abschneidet, verdeckt sie für den Spieler trotzdem. 0,45 m ist
+ * eine halbe Kachel weniger ein Rand — breiter, und die Nachbarwand ginge mit
+ * auf, schmaler, und die Figur schaute neben ihrer eigenen Lücke hervor.
  */
-export function boxesBetween<T extends GhostCandidate>(
-  from: GhostPoint,
-  to: GhostPoint,
+export const GHOST_SHOULDER = 0.45;
+
+/**
+ * **Welche Wände die Figur verdecken.**
+ *
+ * Die Strecke läuft von der Kamera zur Figur, und gesucht ist, was **davor**
+ * liegt. Zwei Dinge macht diese Funktion anders als ein Strahl von der Kamera
+ * zum Punkt, und beide stehen oben ausführlich:
+ *
+ * 1. **Seitwärts zählt die Spalte der Figur**, nicht die Richtung des Strahls:
+ *    Er startet senkrecht über ihr (`figure.x`), und der Quader wird um
+ *    `shoulder` verbreitert. Damit hängt die Auswahl nicht mehr daran, wie
+ *    weit die Kamera der Figur gerade nachhinkt.
+ * 2. **Nur Wände, von denen die Kamera die andere Seite sieht** als die Figur
+ *    (`turnsItsBack`) — was neben ihr entlangläuft, bleibt stehen.
+ *
+ * Dazwischen liegt dieselbe Rechnung wie zuvor: das **Plattenverfahren** (slab
+ * test) über die drei Achsen, `t` zwischen 0 und 1. Was hinter der Figur
+ * steht, verdeckt sie nicht — und weil die Strecke dort endet, fällt es von
+ * selbst heraus. Ein Kasten, **in** dem die Kamera steckt, zählt dagegen mit:
+ * Dann ist der Eintritt negativ, der Austritt positiv, und man schaut aus
+ * einer Wand heraus. Genau dann soll sie weg.
+ */
+export function wallsHiding<T extends GhostCandidate>(
+  camera: GhostPoint,
+  figure: GhostPoint,
   boxes: readonly T[],
   knee = GHOST_KNEE,
+  shoulder = GHOST_SHOULDER,
 ): T[] {
   const out: T[] = [];
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const dz = to.z - from.z;
+  // Der Strahl beginnt in der Spalte der Figur — die Höhe und die Tiefe kommen
+  // von der Kamera, die Seite von ihr selbst.
+  const from = { x: figure.x, y: camera.y, z: camera.z };
+  const dy = figure.y - from.y;
+  const dz = figure.z - from.z;
   for (const one of boxes) {
     if (!blocksView(one, knee)) continue;
-    if (crosses(from, dx, dy, dz, one.box)) out.push(one);
+    if (!turnsItsBack(one.box, figure, camera)) continue;
+    const wide = { ...one.box, w: one.box.w + 2 * shoulder };
+    if (crosses(from, 0, dy, dz, wide)) out.push(one);
   }
   return out;
+}
+
+/**
+ * **Zeigt dieser Quader der Kamera seine andere Seite?**
+ *
+ * Er tut es, wenn er **vollständig** auf der Kameraseite der Figur liegt: Dann
+ * steht die Figur davor und die Kamera dahinter, und was zwischen beiden
+ * liegt, sieht der Spieler nicht mehr. Reicht er an der Figur vorbei — eine
+ * Wand, die neben ihr nach hinten weiterläuft —, sehen beide dieselbe Seite,
+ * und er bleibt stehen.
+ *
+ * Steht die Kamera **senkrecht** über der Figur, gibt es keine Seite, auf die
+ * man sich beziehen könnte; dann entscheidet allein die Strecke (der Blick
+ * geht von oben durch die Decke und nicht durch eine Wand).
+ */
+function turnsItsBack(box: GhostBox, figure: GhostPoint, camera: GhostPoint): boolean {
+  const toward = camera.z - figure.z;
+  if (Math.abs(toward) < 1e-9) return true;
+  const near = toward > 0 ? box.z - box.d / 2 : box.z + box.d / 2;
+  return toward > 0 ? near >= figure.z : near <= figure.z;
 }
 
 /**
