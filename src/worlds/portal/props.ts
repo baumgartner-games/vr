@@ -4,6 +4,7 @@ import type { ColliderShape } from '../../physics/PhysicsWorld';
 import type { MenuIcon } from '../../ui/menu';
 import { BODY_RADIUS, BOTTLE_HEIGHT, CHAMPAGNE_GRIP, buildChampagne } from './champagne';
 import { MIRROR_DEPTH, MIRROR_HEIGHT, MIRROR_WIDTH, buildStandingMirror } from './standingMirror';
+import { BLANKET_SIZE, buildHeatedBlanket } from './heatedBlanket';
 import type { PropGrip } from './propGrip';
 import { humanLabel } from '../../core/kaykitIndex';
 
@@ -22,6 +23,7 @@ export type BagKind =
   | 'marble'
   | 'champagne'
   | 'mirror'
+  | 'blanket'
   | DieKind;
 
 /**
@@ -78,6 +80,9 @@ export const BAG_ITEMS: ReadonlyArray<readonly [BagKind, string, MenuIcon]> = [
   // Der Standspiegel: das einzige Ding im Beutel, das man nicht umwirft,
   // sondern hinstellt und sich davorstellt (`standingMirror.ts`).
   ['mirror', 'Spiegel', 'mirror-stand'],
+  // Die Heizdecke: das Ding, das man jemandem abnimmt — die erste Aktion, die
+  // ein übernommener NPC gelernt hat (`heatedBlanket.ts`).
+  ['blanket', 'Heizdecke', 'blanket'],
   ['d4', 'W4', 'd4'],
   ['d6', 'W6', 'd6'],
   ['d8', 'W8', 'd8'],
@@ -107,6 +112,7 @@ export const PROP_LABELS: Record<BagKind, string> = {
   marble: 'Murmel',
   champagne: 'Sektflasche',
   mirror: 'Standspiegel',
+  blanket: 'Heizdecke',
   d4: DICE.d4.label,
   d6: DICE.d6.label,
   d8: DICE.d8.label,
@@ -541,6 +547,17 @@ function buildProp(kind: BagKind): Omit<PropBlueprint, 'label'> {
         halfExtents: new THREE.Vector3(MIRROR_WIDTH, MIRROR_HEIGHT, MIRROR_DEPTH).multiplyScalar(
           0.5,
         ),
+      };
+    }
+    case 'blanket': {
+      // Eine gefaltete Decke: leicht, flach, und mit CCD, damit sie beim
+      // Wegziehen nicht durch die Puppe oder den Tisch fällt.
+      return {
+        mesh: buildHeatedBlanket(),
+        mass: 1.6,
+        shape: { kind: 'box' },
+        halfExtents: BLANKET_SIZE.clone().multiplyScalar(0.5),
+        ccd: true,
       };
     }
     case 'd4':

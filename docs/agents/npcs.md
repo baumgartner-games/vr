@@ -246,6 +246,122 @@ verschiedene Zombies. Der Weg dahin, dass sie denselben sehen, führt über
 `PortalSync` und über eine Antwort auf die Frage, wer von beiden das Hirn
 rechnet; das ist der nächste Schritt und nicht dieser.
 
+## Charakter: übernehmen, vormachen, nachspielen
+
+Bis hierher war ein NPC etwas, das man setzt und dem man zusieht. Seit der
+Übungspuppe mit der Heizdecke ist er auch etwas, das man **wird** — und dem
+man etwas beibringt. _Menü → NPC → Charakter_ hat dafür vier Zeilen, und alle
+vier lesen dieselbe Klasse (`worlds/npc/Puppeteer.ts`, der **Puppenspieler**):
+
+- **Übernehmen** nimmt den NPC, den man anschaut (`NpcDirector.pickAlong`,
+  derselbe Strahl wie beim Wegnehmen, nur ohne die Antwort zu beseitigen),
+  sonst den nächsten im Umkreis von acht Metern (`nearest`). Der Spieler wird
+  **zu ihm** gestellt und nicht er zum Spieler — wer vor der Puppe mit der
+  Decke steht, soll dort bleiben. Ab dann steht er, wo man steht, dreht sich,
+  wohin man schaut, und seine Arme zeigen dorthin, wo die eigenen Hände sind.
+  Die Zeile heißt jetzt _Loslassen_; danach bleibt er stehen, wo man gerade
+  ist, und denkt wieder selbst.
+- **Aktion aufnehmen** schreibt mit, was man von da an tut — ohne
+  übernommenen NPC wird erst einer übernommen, denn wer „aufnehmen" sagt,
+  meint nicht „erst einmal übernehmen". Angefasst wird dabei, was man will:
+  die Heizdecke aus dem Beutel, die auf der Puppe liegt, wegziehen und
+  fallen lassen. _Aufnahme stoppen_ macht daraus die **Aktion** des
+  Charakters und speichert ihn gleich im Browser — unter einem Namen, den
+  niemand eintippen muss („Übungspuppe 14:32").
+- **Aktion abspielen** lässt ihn das Ganze allein tun. Ein übernommener NPC
+  wird dafür losgelassen; man steht dann daneben und sieht zu, wie die Puppe
+  die Decke noch einmal abnimmt.
+- **Charaktere laden** ist die Liste der gespeicherten, die neuesten zuerst.
+  Jeder ist eine Seite: _Hinstellen_ (dort, wo seine Aufnahme beginnt, mit dem
+  Hirn „Stehen", damit er wartet), _Hinstellen und abspielen_, _Löschen_.
+
+**Wer an den Fäden hängt, ist kinematisch und ein Geist** (`Npc.possess`).
+Das Hirn rechnet nicht, der Körper wird jedes Bild dorthin gesetzt, wo die
+Fäden ihn haben wollen, und stößt dabei an nichts — aus zwei Gründen, die
+beide nicht verhandelbar sind. Der Spieler, der ihn übernommen hat, steht mit
+seiner Kapsel **in** ihm; ein fester Zylinder dort schöbe ihn jedes Bild aus
+sich selbst heraus. Und eine Aufnahme, die beim Abspielen ein Ding wegschiebt,
+das beim Aufnehmen nicht da war, ist keine Wiederholung mehr, sondern ein
+neues Ereignis. Die Dinge, die zur Aufnahme gehören, führt der Puppenspieler
+selbst — genau wie eine Hand es täte (`setNextKinematicTranslation`, siehe
+`PortalWorld.carryGrab`), und am Ende werden sie wieder Körper und behalten
+den Schwung ihrer letzten Bilder: Eine Decke, die im letzten Bild noch fiel,
+fällt zu Ende.
+
+**Wie man aussieht, während man ihn ist: wie die eigene Figur.** Die steht
+auf `LAYER_SELF_ONLY` — das eigene Auge zeichnet sie nicht, Spiegel, Portal
+und die Ansicht von oben schon. Ein übernommener NPC bekommt dieselbe Ebene,
+und die Figur des Spielers verschwindet solange (`PortalWorld.wearNpc`): Im
+Standspiegel steht dann die Übungspuppe, wo sonst der Koch steht. Die
+Alternative wäre ein Kopf aus Klötzen vor der eigenen Kamera gewesen.
+
+**Die Arme sind ein Gelenk, keine Ellbogen** (`NpcBody.puppet`,
+`NpcBody.pull`). Jeder Arm, der ein Ziel hat, zeigt von seiner Schulter
+dorthin — `setFromUnitVectors` von „hängt" nach „dorthin", im Raum des
+Modells, mit dem Gierwinkel schon herausgerechnet (`Npc.setPuppet`). Ob die
+Hand der Puppe die Decke wirklich erreicht, hängt davon ab, ob die eigene
+Hand so weit weg war wie ihre, und das ist ihr egal: Man sieht, dass sie
+danach greift, und die Decke bewegt sich, weil ihre Spur es sagt — nicht,
+weil eine Hand sie hält. Der Kopf nimmt Nicken und Drehung des Spielerkopfs,
+gedeckelt, damit die Puppe ihn nicht auf den Rücken dreht. Die Beine gehen
+weiter ihren Schritt: Der kommt aus dem Tempo, und das stimmt.
+
+**Die Aufnahme ist reine Rechnung** (`worlds/npc/npcRecording.ts`, mit Test):
+Füße, Gierwinkel, Kopf und Hände, alles in Weltkoordinaten, mit **zwanzig**
+Bildern je Sekunde (`RECORD_RATE`) und nicht neunzig — eine Minute davon wäre
+ein halbes Megabyte im Browser —, gerundet auf Millimeter, längstens drei
+Minuten. Dazwischen wird gerechnet (`poseAt`: Ort linear, Drehung normiert
+gemischt, Winkel über den kürzeren Bogen), nicht gesprungen. **Absolut und
+nicht relativ zum Start**, mit Absicht: „Die Heizdecke von der Puppe nehmen"
+gehört an den Ort, an dem die Decke liegt; ein geladener Charakter wird
+deshalb dort hingestellt, wo sein erstes Bild ihn hat.
+
+**Und die Dinge in der Hand laufen als eigene Spuren mit** (`PropTrack`). Was
+während der Aufnahme einmal angefasst wurde, wird von da an bis zum Ende
+mitgeschrieben — auch nachdem es losgelassen ist, denn wo die Decke hinfällt,
+gehört zur Aktion dazu. Jede Spur trägt ihre **Sorte** (`kind`, dieselbe wie
+im Beutel) und nicht nur ihre Id: Die Id kennt nur diese Sitzung. Wer einen
+alten Charakter in einer neuen Sitzung abspielt, bekommt das Ding aus der
+Sorte **nachgebaut**, dort, wo seine Spur beginnt (`Puppeteer.stageProps`,
+`PuppetStage.spawnProp`) — aus dem Beutel sofort; ein Modell aus dem Regal
+müsste erst geladen werden, und eine Aufnahme wartet nicht, also wird es
+gemeldet und ausgelassen. Liegt ein Ding der Aufnahme gerade in der eigenen
+Hand, bleibt es dort, und die Spur läuft ohne es.
+
+**Gespeichert wird unter einem eigenen Schlüssel** (`bgvr.characters`,
+`worlds/npc/characterStore.ts`, mit Test): Der Rest der Ausrüstung sind ein
+paar Zahlen, eine Aufnahme sind tausend Bilder, und läge beides unter einem
+Schlüssel, würde jede Einstellung am Hirn die Aufnahmen mit umschreiben. Vor
+dem Schreiben wird gemessen (`STORE_LIMIT`, 3,5 Millionen Zeichen): Ein
+Charakter, der nicht mehr hineinpasst, wird gemeldet und nicht halb
+geschrieben. Was unlesbar ist, wird beim Lesen übersprungen, nicht repariert
+(`readRecording`) — lieber ein Eintrag weniger als eine Puppe, die ins
+Nichts fliegt, weil in einer Zahl `null` stand. Das Format trägt vom ersten
+Tag an eine Versionsnummer.
+
+**Die Heizdecke** (`worlds/portal/heatedBlanket.ts`) ist deshalb ein Ding im
+Beutel: 1,50 × 0,80 m, sechs Zentimeter dick, als **gefaltete Decke** und
+nicht als Tuch — ein Tuch über einem Körper wäre Stoffsimulation, und die
+kostet in der Brille mehr als alles andere in diesem Raum zusammen. Ein
+flacher Kasten mit Steppnähten und dem Regler am Kabel liegt auf einer Puppe
+wie eine zusammengelegte Decke auf einem Patienten; man sieht, was gemeint
+ist, und die Physik trägt ihn wie eine Planke. CCD hat sie, damit sie beim
+Wegziehen nicht durch die Puppe fällt.
+
+**Geprüft wird mit echter Physik** (`puppeteer.test.ts`, ein paar Sekunden):
+dass ein übernommener NPC steht, wo der Spieler steht, und danach wieder ein
+Körper ist, der nicht durch den Boden fällt; dass eine Aufnahme mit der Decke
+in der Hand hinterher allein abläuft, samt Decke, und die Decke am Ende dort
+liegt, wo die Aufnahme sie ließ; dass ein Charakter aus einer fremden Sitzung
+seine Decke nachgebaut bekommt und ein Regalmodell gemeldet wird; und dass ein
+weggeräumter NPC alles mitnimmt, was an ihm hing.
+
+**Was noch nicht geht**: das Netz — ein übernommener NPC ist für die anderen
+in der Sitzung derselbe unsichtbare Zombie wie jeder andere (siehe oben); und
+die Hände der Puppe tragen beim Abspielen nichts, die Decke bewegt sich
+allein. Beides führt über `PortalSync`, wie alles, was hier geteilt werden
+soll.
+
 ## Wie sich NPCs orientieren
 
 Die Navigation ist eine **eigene Schicht** unter den NPCs (`worlds/nav/`), und

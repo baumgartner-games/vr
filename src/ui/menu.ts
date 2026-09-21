@@ -62,6 +62,9 @@ export type MenuIcon =
   // Raster einen Spiegel und nicht irgendeinen Rahmen.
   | 'mirror'
   | 'mirror-stand'
+  // Die Heizdecke: ein gefaltetes Rechteck mit Steppnähten und dem Kabel
+  // an der Ecke — ohne das Kabel wäre es irgendeine Decke.
+  | 'blanket'
   // Die NPC-Kategorie: einer, der herumläuft, das Hirn dahinter, der Zombie
   // selbst und der Käfig, aus dem immer wieder einer kommt.
   | 'npc'
@@ -1156,6 +1159,27 @@ export function drawMenuIcon(
       ctx.lineTo(s * 0.78, s * 0.82);
       ctx.stroke();
       shine(ctx, -s * 0.18, s * 0.2, s * 0.42);
+      break;
+    }
+    case 'blanket': {
+      // Die Decke liegt flach: ein breites Rechteck, zwei Steppnähte quer,
+      // und aus der Ecke rechts unten hängt das Kabel mit dem Regler.
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.82, -s * 0.5, s * 1.64, s * 0.86, s * 0.12);
+      ctx.stroke();
+      ctx.beginPath();
+      for (const x of [-s * 0.27, s * 0.27]) {
+        ctx.moveTo(x, -s * 0.5);
+        ctx.lineTo(x, s * 0.36);
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 0.6, s * 0.36);
+      ctx.quadraticCurveTo(s * 0.6, s * 0.78, s * 0.2, s * 0.78);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.roundRect(-s * 0.1, s * 0.66, s * 0.3, s * 0.24, s * 0.05);
+      ctx.fill();
       break;
     }
     case 'd4':

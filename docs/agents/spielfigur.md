@@ -352,6 +352,10 @@ teilen sich in zwei Gruppen:
   unten.
 - **Der Standspiegel** (`worlds/portal/standingMirror.ts`): 1,65 m Glas im
   Bügel auf einem Fuß, hoch genug, um sich ganz darin zu sehen.
+- **Die Heizdecke** (`worlds/portal/heatedBlanket.ts`): das Ding, das man
+  jemandem **abnimmt** — die erste Aktion, die ein übernommener NPC gelernt
+  hat (siehe [NPCs](./npcs.md), _Charakter_). Eine gefaltete Decke, kein
+  Tuch: flach, leicht, mit Steppnähten und dem Regler am Kabel.
 
 **Warum der Standspiegel ein Ding und kein Werkzeug ist.** Die nächstliegende
 Vorlage wäre die **Staffelei** gewesen: ein Werkzeug, das etwas hinstellt und

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { NpcBody, type BarMode } from './NpcBody';
+import { NpcBody, type BarMode, type PuppetPose } from './NpcBody';
 import { newBrainState, stepBrain, wrapAngle, type BrainState, type Point } from './npcBrain';
 import { brainOf, type BrainId, type BrainTuning } from './npcBrains';
 import { hitZone, type HitBody, type HitZone } from './npcHit';
@@ -127,6 +127,23 @@ export class Npc {
   private navigator: NpcNavigator | null = null;
   private navigatorTuning: BrainTuning | null = null;
   private externallyNavigated = false;
+  /**
+   * **An den Fäden** — ob gerade jemand anderes ihn führt: der Spieler, der
+   * ihn übernommen hat, oder eine Aufnahme, die abgespielt wird
+   * (`worlds/npc/Puppeteer.ts`).
+   *
+   * Solange das gilt, rechnet das Hirn nicht, und der Körper ist
+   * **kinematisch und ein Geist**: Er wird jedes Bild dorthin gesetzt, wo die
+   * Fäden ihn haben wollen, und stößt dabei an nichts. Beides ist Absicht.
+   * Der Spieler, der ihn übernommen hat, steht mit seiner Kapsel genau in
+   * ihm — ein fester Zylinder dort schöbe ihn jedes Bild aus sich selbst
+   * heraus. Und eine Aufnahme, die ein Ding wegschiebt, das beim Aufnehmen
+   * nicht da war, ist keine Wiederholung mehr, sondern ein neues Ereignis.
+   * Die Dinge, die zur Aufnahme gehören, führt der Puppenspieler selbst.
+   */
+  private puppet: PuppetTarget | null = null;
+  /** Wo die Füße im letzten Bild standen — daraus kommt das Tempo des Gangs. */
+  private readonly puppetFeet = new THREE.Vector3();
 
   constructor(options: {
     physics: PhysicsWorld;
@@ -321,6 +338,10 @@ export class Npc {
     // die Meldung „Die Tür ist hin" käme sechzigmal je Sekunde.
     this.brokeDoor = '';
     this.hammering = false;
+    if (this.puppet) {
+      this.followPuppet(dt);
+      return false;
+    }
     if (this.dying !== null) {
       this.dying += dt;
       // Das Umfallen dauert eine halbe Sekunde, das Liegenbleiben besorgt der
@@ -682,6 +703,139 @@ export class Npc {
     return this.dying ?? 0;
   }
 
+  /** Ob ihn gerade jemand führt (siehe `puppet`). */
+  get puppeted(): boolean {
+    return this.puppet !== null;
+  }
+
+  /** Der Gierwinkel des Modells — vorn ist −Z, wie überall hier. */
+  get heading(): number {
+    return this.yaw;
+  }
+
+  /**
+   * **Hängt ihn an die Fäden.** Ab jetzt ist er kinematisch und ein Geist,
+   * und `setPuppet` sagt jedes Bild, wo er steht. Ein Liegender lässt sich
+   * nicht führen, ein Körperloser auch nicht.
+   */
+  possess(): boolean {
+    if (!this.bodied || !this.alive || this.puppet) return false;
+    const { RigidBodyType } = this.physics.rapier;
+    this.entry.body.setBodyType(RigidBodyType.KinematicPositionBased, true);
+    this.physics.setGhost(this.entry, true);
+    this.feet(this.puppetFeet);
+    this.puppet = {
+      feet: this.puppetFeet.clone(),
+      yaw: this.yaw,
+      head: null,
+      left: null,
+      right: null,
+      moved: false,
+    };
+    this.agent?.clear();
+    this.flying = 0;
+    this.falling = 0;
+    return true;
+  }
+
+  /**
+   * **Schneidet die Fäden durch.** Er bleibt stehen, wo er ist, wird wieder
+   * ein Körper mit Schwerkraft, und das Hirn übernimmt vom nächsten Bild an
+   * — mit dem Kurs, in den ihn die Fäden zuletzt gedreht haben.
+   */
+  release(): void {
+    if (!this.puppet) return;
+    this.puppet = null;
+    this.model.puppet = null;
+    if (!this.bodied) return;
+    const { RigidBodyType } = this.physics.rapier;
+    this.entry.body.setBodyType(RigidBodyType.Dynamic, true);
+    this.entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.physics.setGhost(this.entry, false);
+    this.state.course = this.yaw;
+  }
+
+  /**
+   * **Wo die Fäden ihn hinhaben wollen** — Füße und Gierwinkel in der Welt,
+   * dazu Kopf und Hände, wenn es sie gibt. Angewendet wird es im nächsten
+   * `update`; bis dahin darf man es mehrmals setzen, es zählt das letzte.
+   */
+  setPuppet(pose: {
+    feet: THREE.Vector3;
+    yaw: number;
+    head: { position: THREE.Vector3; quaternion: THREE.Quaternion } | null;
+    left: THREE.Vector3 | null;
+    right: THREE.Vector3 | null;
+  }): void {
+    const puppet = this.puppet;
+    if (!puppet) return;
+    puppet.feet.copy(pose.feet);
+    puppet.yaw = pose.yaw;
+    puppet.head = pose.head
+      ? { position: pose.head.position.clone(), quaternion: pose.head.quaternion.clone() }
+      : null;
+    puppet.left = pose.left ? pose.left.clone() : null;
+    puppet.right = pose.right ? pose.right.clone() : null;
+    puppet.moved = true;
+  }
+
+  /** Ein Bild an den Fäden: Körper setzen, Gang aus dem Tempo, Arme zu den Händen. */
+  private followPuppet(dt: number): void {
+    const puppet = this.puppet!;
+    const feet = puppet.feet;
+    const speed = puppet.moved ? feet.distanceTo(this.puppetFeet) / Math.max(dt, 1e-4) : 0;
+    this.puppetFeet.copy(feet);
+    puppet.moved = false;
+    this.yaw = wrapAngle(puppet.yaw);
+    this.model.rotation.y = this.yaw;
+    if (this.bodied) {
+      const y = feet.y + this.skin.height / 2;
+      this.entry.body.setNextKinematicTranslation({ x: feet.x, y, z: feet.z });
+      // Der Regisseur liest die Füße vom Körper ab — und der steht erst nach
+      // dem nächsten Physikschritt dort. Der Halter zieht sofort nach, damit
+      // Modell und Kapsel nie ein Bild auseinanderliegen.
+      this.holder.position.set(feet.x, y, feet.z);
+      this.entry.previousPosition.copy(this.holder.position);
+    }
+    this.model.puppet = this.stringsFor(puppet);
+    this.speed = Math.min(speed, 6);
+    this.model.update(dt, this.speed, false);
+    this.model.setAlert(false);
+  }
+
+  /**
+   * Aus Weltkoordinaten die Fäden im Raum des Modells: Ursprung zwischen den
+   * Füßen, Gierwinkel herausgedreht. Kopfnicken und -drehung kommen aus der
+   * Blickrichtung des aufgenommenen Kopfes.
+   */
+  private stringsFor(puppet: PuppetTarget): PuppetPose {
+    const strings = this.strings;
+    for (const [side, hand] of [
+      ['left', puppet.left],
+      ['right', puppet.right],
+    ] as const) {
+      if (!hand) {
+        strings[side] = null;
+        continue;
+      }
+      const target = (strings[side] ??= new THREE.Vector3());
+      target.copy(hand).sub(puppet.feet);
+      target.applyAxisAngle(_up, -puppet.yaw);
+    }
+    if (puppet.head) {
+      _look.set(0, 0, -1).applyQuaternion(puppet.head.quaternion);
+      strings.headPitch = Math.asin(THREE.MathUtils.clamp(_look.y, -1, 1));
+      strings.headYaw = wrapAngle(Math.atan2(-_look.x, -_look.z) - puppet.yaw);
+    } else {
+      strings.headPitch = 0;
+      strings.headYaw = 0;
+    }
+    return strings;
+  }
+
+  private readonly strings: PuppetPose = { left: null, right: null, headPitch: 0, headYaw: 0 };
+
   /**
    * Nimmt ihn aus der Physik heraus, ohne das Modell wegzuwerfen.
    *
@@ -730,6 +884,20 @@ export interface NpcNavigationInput {
 
 /** Return the next metre waypoint; null explicitly stops horizontal movement. */
 export type NpcNavigator = (input: NpcNavigationInput) => Point | null;
+
+/** Wo die Fäden ihn hinhaben wollen — alles in der Welt (`Npc.setPuppet`). */
+interface PuppetTarget {
+  feet: THREE.Vector3;
+  yaw: number;
+  head: { position: THREE.Vector3; quaternion: THREE.Quaternion } | null;
+  left: THREE.Vector3 | null;
+  right: THREE.Vector3 | null;
+  /** Ob seit dem letzten Bild etwas gesetzt wurde — sonst steht er, und der Gang weiß es. */
+  moved: boolean;
+}
+
+const _up = new THREE.Vector3(0, 1, 0);
+const _look = new THREE.Vector3();
 
 /** Wie hoch ein Sprung über das höhere Ende hinausgeht, in Metern. */
 const LEAP_RISE = 0.7;
