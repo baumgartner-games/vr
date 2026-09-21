@@ -72,6 +72,83 @@ einer Kachel nie ein Modell. Jetzt liefert er die Mitte des oberen Quadrats —
 dort, wo sonst die Ikone steht —, und die Ikone bleibt bei einem Eintrag mit
 `preview` weg: zwei Bilder übereinander wären nur Unruhe.
 
+## Das Modell in der Kachel — und wie es auf dem Telefon dorthin kommt
+
+Am Handgelenk zeichnet das Panel seine Vorschauen selbst (`ui/WristMenu.ts`):
+eine Leinwand, ein Bild, fertig. Im Browserfenster ist das Menü dagegen DOM
+(`ui/PageMenu.ts`, siehe [Die Seite selbst](./seite.md)), und ein Knopf im DOM
+kann kein Fass drehen. Die Seite hält deshalb nur den **Platz** frei — ein
+Quadrat je Kachel (`.pmenu__prev`) —, und wer zeichnen will, hängt sich als
+Schicht ein (`ui/previewGrid.ts`, `PagePreviewLayer`). Im Spiel tut das
+`ui/PagePreviews.ts`, im Test eine Attrappe aus zehn Zeilen; kommt niemand,
+steht im Quadrat die Ikone, die dort ohnehin stünde.
+
+Gezeichnet wird mit **einer** Leinwand für das ganze Raster und nicht mit einer
+je Kachel: Ein Browser gibt eine Handvoll WebGL-Kontexte her, und ein Fach hat
+sechzig Kacheln. Darauf steht eine Szene mit einer **orthografischen Kamera,
+die in Bildpunkten rechnet** — links 0, rechts die Breite —, und jedes Modell
+steht an der Stelle seiner Kachel, skaliert auf deren Kantenlänge. Das ist ein
+einziger `render` je Bild statt eines Scherenschnitts je Kachel; dass ein
+Modell in seinem Fach bleibt, ist deshalb keine Schere, sondern eine Rechnung
+(`PREVIEW_FILL`, 0,68). Die Buchführung daneben — wer ist zu sehen, wer wird
+wann wieder gefragt, wer gibt sein Modell her — liegt ohne three.js in
+`ui/previewGrid.ts` und hat ihren eigenen Test.
+
+### Die Leinwand scrollt mit, und das war ein gemeldeter Fehler
+
+„Beim Scrollen wackeln die 3D-Previews nach." — Sie taten es, und sie mussten
+es tun. Die Leinwand lag zuerst **über** dem sichtbaren Ausschnitt, fest im
+Rahmen, während die Liste darunter scrollte; jedes Bild las die Schleife die
+Rechtecke der Kacheln (`getBoundingClientRect`) und setzte die Modelle dorthin.
+Auf einem Standbild stimmt das immer, in Bewegung nie: **Gescrollt wird im
+Compositor, gerechnet im Hauptstrang.** Zwischen dem Bild, in dem die Rechtecke
+gelesen wurden, und dem Bild, das auf dem Schirm landet, ist der Inhalt schon
+weiter — die Kachel steht an der neuen Stelle, ihr Modell noch an der alten.
+Kein `scroll`-Ereignis behebt das: Das kommt aus demselben Hauptstrang, der
+ohnehin zu spät ist, und beim Ausrollen unter dem Finger kommt es obendrein
+zusammengefasst.
+
+Nachgemessen wurde nicht in Bildern je Sekunde, sondern in **Bildpunkten und
+innerhalb eines Bildes**: Ein Screencast liefert genau die Bilder, die der
+Compositor zeigt, und in jedem davon stehen die Kachel und ihr Modell
+nebeneinander. Vorher liefen die Modelle beim Scrollen bis zu **50 Bildpunkte**
+hinter ihren Kacheln her, ein Drittel aller Bilder über zehn; nachher misst
+dasselbe Verfahren höchstens **zehn** — und das ist der Rest, den es selbst
+erzeugt, wenn zwischendurch Modelle kommen und gehen. In Ruhe lag der Messwert
+beide Male bei null.
+
+Also liegt die Leinwand jetzt **im** scrollenden Kasten: `.pmenu__stage`
+scrollt, und sie ist dessen zweites Kind neben der Liste. Damit bewegt sie
+dieselbe Hand wie die Kacheln, und nachlaufen kann nichts mehr — der Compositor
+schiebt beides zusammen, ganz ohne JavaScript. Abgeschnitten wird am Rand des
+Kastens statt am Rand der Leinwand, also mit demselben Schnitt, den auch die
+Kachel bekommt.
+
+**So hoch wie der Inhalt ist sie deshalb nicht.** Sechzig Kacheln in zwei
+Spalten sind rund 6700 Bildpunkte, auf einem Telefon mit doppelter Punktdichte
+also ein Zeichenpuffer von 13 400 Zeilen — mehr, als viele Geräte überhaupt
+hergeben (oft ist bei 8192 oder gar 4096 Schluss), und jedes Bild würde eine
+Fläche gelöscht, von der man ein Zehntel sieht. Die Leinwand ist deshalb ein
+**Blatt**: der sichtbare Ausschnitt plus `PREVIEW_OVERSCAN` (vier Zehntel) an
+jedem Ende, im Inhalt verankert und nur dann umgehängt, wenn der Ausschnitt
+seinem Rand nahe kommt (`previewSheet`). Gemessen sind das 388 × 1051 Punkte
+statt 388 × 6734. Der Rand ist der Puffer für das, was der Finger zwischen zwei
+Bildern noch schafft; das Umhängen selbst sieht niemand, weil es in demselben
+Bild geschieht, in dem die Modelle ihre neuen Plätze auf dem Blatt bekommen.
+
+Zwei weitere Wege wurden verworfen, und beide aus demselben Grund: Sie lassen
+die Leinwand stehen, wo sie war. **Zusätzlich beim `scroll`-Ereignis zeichnen**
+ist billig, kommt aber aus dem zu späten Hauptstrang; **die Leinwand per
+`transform` aus JavaScript nachführen** nimmt den Wert für die Verschiebung aus
+derselben verspäteten Ablesung. `position: sticky` wäre sogar genau die alte
+Bauweise — nur ohne den JavaScript-Anteil, der sie bisher überhaupt in die Nähe
+der Kacheln brachte.
+
+Was das Blatt **nicht** kann: Wer sehr schnell scrollt, sieht am einlaufenden
+Rand für ein Bild eine Kachel ohne Modell. Das ist dieselbe Lücke, die eine
+frisch sichtbare Kachel ohnehin hat, solange ihre Datei noch geholt wird — ein
+leeres Quadrat, kein wackelndes Modell.
+
 ## Geladen wird, was zu sehen ist — und nur das
 
 Drei Stufen, und jede ist nötig:

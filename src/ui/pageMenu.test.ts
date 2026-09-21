@@ -282,7 +282,7 @@ class FakeLayer implements PagePreviewLayer {
   disposed = false;
   onChange: (() => void) | null = null;
 
-  mount(_stage: HTMLElement, _list: HTMLElement, onChange: () => void): void {
+  mount(_box: HTMLElement, onChange: () => void): void {
     this.mounted = true;
     this.onChange = onChange;
   }

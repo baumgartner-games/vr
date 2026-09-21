@@ -5,8 +5,11 @@ import {
   PREVIEW_FILL,
   PREVIEW_SPIN,
   PreviewLedger,
+  previewSheet,
   previewSlot,
+  type ListView,
   type PagePreviewLayer,
+  type Sheet,
 } from './previewGrid';
 import type { MenuModelFactory } from './WristMenu';
 
@@ -24,7 +27,7 @@ import type { MenuModelFactory } from './WristMenu';
  *
  * Die naheliegende Bauweise wäre eine Leinwand je Kachel. Sie scheidet aus:
  * Ein Browser gibt nur eine Handvoll WebGL-Kontexte her, und ein Ordner hat
- * hier bis zu sechzig Kacheln. Also **eine** Leinwand über der ganzen Liste.
+ * hier bis zu sechzig Kacheln. Also **eine** Leinwand für die ganze Liste.
  *
  * Die zweite naheliegende Bauweise ist die aus dem Lehrbuch: `setScissorTest`
  * an, und je sichtbarer Kachel ein `setViewport`/`setScissor` und ein
@@ -37,12 +40,30 @@ import type { MenuModelFactory } from './WristMenu';
  * auf (links 0, rechts die Breite, oben 0, unten die negative Höhe), und jedes
  * Modell steht an der Stelle seiner Kachel, auf deren Kantenlänge skaliert.
  * Dass ein Modell in seinem Fach bleibt, ist keine Schere, sondern eine
- * Rechnung (`PREVIEW_FILL`); dass eine halb weggescrollte Kachel oben sauber
- * abgeschnitten wird, besorgt der Rand der Leinwand, denn die liegt über dem
- * **sichtbaren** Ausschnitt der Liste und scrollt nicht mit. Orthografisch,
- * weil sonst die Kachel am Rand ihr Modell schräg von der Seite zeigte,
- * während die in der Mitte es von vorn zeigt — im Raster sieht man diesen
- * Unterschied sofort, und er sieht aus wie ein Fehler.
+ * Rechnung (`PREVIEW_FILL`). Orthografisch, weil sonst die Kachel am Rand ihr
+ * Modell schräg von der Seite zeigte, während die in der Mitte es von vorn
+ * zeigt — im Raster sieht man diesen Unterschied sofort, und er sieht aus wie
+ * ein Fehler.
+ *
+ * ## Die Leinwand scrollt mit — sonst laufen die Modelle nach
+ *
+ * Zuerst hing sie **über** dem sichtbaren Ausschnitt, fest im Rahmen, und
+ * jedes Bild rechnete neu, wo jede Kachel gerade liegt. Das ist die Bauweise,
+ * die beim Scrollen wackelt, und zwar unvermeidbar: Gescrollt wird im
+ * Compositor, gerechnet im Hauptstrang. Zwischen dem Bild, in dem die
+ * Rechtecke gelesen wurden, und dem Bild auf dem Schirm ist der Inhalt schon
+ * weiter — die Kacheln stehen an der neuen Stelle, die Modelle an der alten.
+ * Gemessen wurde das mit einem Screencast: ein Bild, zwei Wahrheiten, über
+ * hundert Bildpunkte auseinander.
+ *
+ * Also liegt die Leinwand jetzt **im** scrollenden Kasten und wird von
+ * derselben Hand bewegt wie die Kacheln. Damit kann nichts mehr nachlaufen:
+ * Der Compositor schiebt beides zusammen, ganz ohne JavaScript. Sie ist dabei
+ * nicht so hoch wie der ganze Inhalt (sechzig Kacheln wären siebentausend
+ * Bildpunkte und ein Zeichenpuffer, den kein Telefon hergibt), sondern ein
+ * **Blatt**: der sichtbare Ausschnitt mit Rand, im Inhalt verankert und nur
+ * ab und zu umgehängt (`previewSheet`). Abgeschnitten wird jetzt vom Kasten
+ * selbst — dieselbe Kante, die auch die Kachel abschneidet.
  *
  * ## Und sie läuft nur, wenn man hinsieht
  *
@@ -73,12 +94,14 @@ export class PagePreviews implements PagePreviewLayer {
   private readonly seen = new Set<string>();
   private readonly watched = new Set<HTMLElement>();
 
-  private stage: HTMLElement | null = null;
-  private list: HTMLElement | null = null;
+  /** Der scrollende Kasten: Er trägt die Leinwand und die Kacheln. */
+  private box: HTMLElement | null = null;
   private onChange: (() => void) | null = null;
   private watcher: IntersectionObserver | null = null;
 
   private view: PreviewStage | null = null;
+  /** Wo das Blatt gerade im Inhalt hängt — `null`, solange keines liegt. */
+  private sheet: Sheet | null = null;
   private open = false;
   private presenting = false;
 
@@ -92,9 +115,8 @@ export class PagePreviews implements PagePreviewLayer {
 
   constructor(private readonly factory: MenuModelFactory) {}
 
-  mount(stage: HTMLElement, list: HTMLElement, onChange: () => void): void {
-    this.stage = stage;
-    this.list = list;
+  mount(box: HTMLElement, onChange: () => void): void {
+    this.box = box;
     this.onChange = onChange;
   }
 
@@ -169,15 +191,14 @@ export class PagePreviews implements PagePreviewLayer {
 
   private start(): void {
     if (this.view) return;
-    const stage = this.stage;
-    const list = this.list;
-    if (!stage || !list) return;
+    const box = this.box;
+    if (!box) return;
     try {
       // Erst fragen, dann bauen: three zeichnet seit r15x nur noch auf WebGL 2,
       // und ein Renderer, der das im Konstruktor herausfindet, schreibt dabei
       // eine Fehlermeldung in die Konsole, die hier kein Fehler ist.
       if (typeof WebGL2RenderingContext === 'undefined') throw new Error('kein WebGL 2');
-      this.view = new PreviewStage(stage);
+      this.view = new PreviewStage(box);
     } catch {
       // Kein Kontext, kein Bild — und das ist kein Grund, das Menü nicht zu
       // zeigen. In der Kachel bleibt dann die Ikone stehen, die sie ohne
@@ -186,13 +207,13 @@ export class PagePreviews implements PagePreviewLayer {
       return;
     }
     if (typeof IntersectionObserver !== 'undefined' && !this.watcher) {
-      // Der Ausschnitt der Liste ist die Bühne: Was darin steht, wird geladen,
-      // und mehr nicht. Ohne diesen Beobachter holte ein Ordner mit sechzig
-      // Kacheln sechzig Dateien, von denen man vier sieht.
-      this.watcher = new IntersectionObserver((entries) => this.onSeen(entries), { root: list });
-      for (const box of this.boxes.values()) {
-        this.watcher.observe(box);
-        this.watched.add(box);
+      // Der sichtbare Ausschnitt des Kastens ist die Bühne: Was darin steht,
+      // wird geladen, und mehr nicht. Ohne diesen Beobachter holte ein Ordner
+      // mit sechzig Kacheln sechzig Dateien, von denen man vier sieht.
+      this.watcher = new IntersectionObserver((entries) => this.onSeen(entries), { root: box });
+      for (const cell of this.boxes.values()) {
+        this.watcher.observe(cell);
+        this.watched.add(cell);
       }
     }
     document.addEventListener('visibilitychange', this.onVisibility);
@@ -211,6 +232,7 @@ export class PagePreviews implements PagePreviewLayer {
     this.ledger.turnTo('');
     this.view.dispose();
     this.view = null;
+    this.sheet = null;
   }
 
   private readonly onVisibility = (): void => this.sync();
@@ -228,23 +250,29 @@ export class PagePreviews implements PagePreviewLayer {
 
   private readonly loop = (): void => {
     this.frame = requestAnimationFrame(this.loop);
-    const view = this.view;
-    const list = this.list;
-    if (!view || !list) return;
+    const stage = this.view;
+    const box = this.box;
+    if (!stage || !box) return;
 
     const dt = Math.min(this.clock.getDelta(), 0.1);
     this.now += dt;
     this.spin = (this.spin + dt * PREVIEW_SPIN) % (Math.PI * 2);
-    if (!view.fit()) return;
 
-    const bounds = list.getBoundingClientRect();
+    const view = measure(box);
+    // Das Blatt zuerst: Wo es hängt, entscheidet, wo jedes Modell darauf
+    // steht — und beides geschieht in **diesem** Bild, also sieht niemand,
+    // dass es überhaupt umgehängt wurde.
+    const sheet = previewSheet(view, this.sheet);
+    this.sheet = sheet;
+    if (!stage.fit(view, sheet)) return;
+
     const shown: string[] = [];
     for (const id of this.candidates()) {
-      const box = this.boxes.get(id);
-      if (!box) continue;
+      const cell = this.boxes.get(id);
+      if (!cell) continue;
       // Der Beobachter meldet verzögert; das Rechteck lügt nicht. Es
       // entscheidet, und der Beobachter hält bloß die Liste der Anwärter kurz.
-      const slot = previewSlot(bounds, box.getBoundingClientRect());
+      const slot = previewSlot(view, sheet, cell.getBoundingClientRect());
       if (!slot) continue;
       shown.push(id);
       const model = this.model(id);
@@ -255,7 +283,7 @@ export class PagePreviews implements PagePreviewLayer {
     }
     for (const id of this.ledger.keepOnly(shown)) this.release(id);
 
-    view.render();
+    stage.render();
 
     // **Nach** dem Bild und höchstens einmal: Die Seite zeichnet die Kachel
     // neu, deren Modell angekommen ist, und lässt dabei ihre Ikone weg.
@@ -320,13 +348,35 @@ function visible(): boolean {
 }
 
 /**
- * Die Leinwand über der Liste: Renderer, Licht und eine Kamera, die in
+ * **Den scrollenden Kasten ausmessen** — einmal je Bild, und alles, was die
+ * Rechnung braucht, aus derselben Ablesung.
+ *
+ * `clientTop`/`clientLeft` sind die Rahmenbreite: Die Leinwand liegt an der
+ * **Innenkante**, und dort fangen auch die Inhaltskoordinaten an. `clientWidth`
+ * lässt außerdem die Rollleiste weg, die auf dem Schirm neben der Liste steht.
+ */
+function measure(box: HTMLElement): ListView {
+  const rect = box.getBoundingClientRect();
+  return {
+    rect: {
+      left: rect.left + box.clientLeft,
+      top: rect.top + box.clientTop,
+      width: box.clientWidth,
+      height: box.clientHeight,
+    },
+    scrollTop: box.scrollTop,
+    content: box.scrollHeight,
+  };
+}
+
+/**
+ * Das Blatt im scrollenden Kasten: Renderer, Licht und eine Kamera, die in
  * Bildpunkten rechnet.
  *
  * Die Kamera steht im Ursprung und schaut nach −z; ihr Rahmen ist die
  * Leinwand, gemessen von links oben. Ein Modell an der Stelle `(x, −y)` steht
- * damit genau dort, wo die Kachel im DOM liegt — keine Umrechnung, keine
- * Perspektive, kein Rechenweg, den man beim Lesen nachvollziehen müsste.
+ * damit genau dort, wo die Kachel auf dem Blatt liegt — keine Umrechnung,
+ * keine Perspektive, kein Rechenweg, den man beim Lesen nachvollziehen müsste.
  */
 class PreviewStage {
   readonly scene = new THREE.Scene();
@@ -334,15 +384,19 @@ class PreviewStage {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly camera = new THREE.OrthographicCamera(0, 1, 0, -1, -1000, 1000);
   private readonly lighting: THREE.Group;
-  private size = 0;
+  private width = 0;
+  private height = 0;
+  private top = Number.NaN;
 
-  constructor(private readonly stage: HTMLElement) {
+  constructor(box: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.domElement.className = 'pmenu__canvas';
     this.renderer.domElement.setAttribute('aria-hidden', 'true');
-    stage.append(this.renderer.domElement);
+    // **In** den Kasten, nicht darüber: Von hier aus schiebt der Compositor
+    // sie mit dem Inhalt, und kein Modell kann seiner Kachel hinterherlaufen.
+    box.append(this.renderer.domElement);
 
     // Dasselbe Licht wie im Spiel: Ein Fass im Menü soll aussehen wie das
     // Fass, das man gleich in der Hand hält.
@@ -351,20 +405,31 @@ class PreviewStage {
   }
 
   /**
-   * Die Leinwand auf die Größe der Liste bringen — und sagen, ob es überhaupt
-   * etwas zu zeichnen gibt. Ein Blatt, das gerade aufklappt, ist null hoch.
+   * Die Leinwand auf die Größe des Blattes bringen und sie dorthin hängen, wo
+   * das Blatt im Inhalt liegt — und sagen, ob es überhaupt etwas zu zeichnen
+   * gibt. Eine Seite, die gerade aufklappt, ist null hoch.
+   *
+   * Gehängt wird mit `transform` und nicht mit `top`: Das ist eine Eigenschaft
+   * der Ebene, die der Compositor ohnehin führt, und kostet damit kein neues
+   * Layout — dieselbe Ebene, die er beim Scrollen verschiebt.
    */
-  fit(): boolean {
-    const width = this.stage.clientWidth;
-    const height = this.stage.clientHeight;
-    if (width <= 0 || height <= 0) return false;
-    const stamp = width * 4096 + height;
-    if (stamp === this.size) return true;
-    this.size = stamp;
-    this.renderer.setSize(width, height, false);
-    this.camera.right = width;
-    this.camera.bottom = -height;
-    this.camera.updateProjectionMatrix();
+  fit(view: ListView, sheet: Sheet): boolean {
+    const width = view.rect.width;
+    if (width <= 0 || sheet.height <= 0) return false;
+    if (width !== this.width || sheet.height !== this.height) {
+      this.width = width;
+      this.height = sheet.height;
+      this.renderer.setSize(width, sheet.height, false);
+      this.renderer.domElement.style.width = `${width}px`;
+      this.renderer.domElement.style.height = `${sheet.height}px`;
+      this.camera.right = width;
+      this.camera.bottom = -sheet.height;
+      this.camera.updateProjectionMatrix();
+    }
+    if (sheet.top !== this.top) {
+      this.top = sheet.top;
+      this.renderer.domElement.style.transform = `translate3d(0, ${sheet.top}px, 0)`;
+    }
     return true;
   }
 
