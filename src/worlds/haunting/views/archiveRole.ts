@@ -8,6 +8,7 @@ import { archiveDeskOf, type ArchiveDesk } from './archiveDesk';
 import { clickedKey } from '../ui/dom';
 import { pillKey } from '../ui/widgets';
 import { Toast, code, el, fact } from './roleShell';
+import { wheelPixels } from '../../../core/wheelZoom';
 
 /**
  * **Der Archivar** — die ganze Karte, mit der Fracht und den Zielräumen.
@@ -589,8 +590,9 @@ class ArchiveView implements ArchiveRoleView {
       (event: WheelEvent) => {
         if (!this.desk) return;
         event.preventDefault();
-        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
-        this.desk.zoom(Math.exp(-event.deltaY * unit * WHEEL_RATE));
+        // Die Umrechnung der drei Einheiten steht einmal (`core/wheelZoom.ts`)
+        // und nicht hier: Der Zoom von oben braucht dieselbe.
+        this.desk.zoom(Math.exp(-wheelPixels(event) * WHEEL_RATE));
       },
       { passive: false },
     );

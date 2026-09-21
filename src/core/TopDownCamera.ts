@@ -4,6 +4,7 @@ import type { PoseArray } from '../net/types';
 import { bringBack, cutAway, type ViewLevel } from './cutaway';
 import type { PlayerRig } from './PlayerRig';
 import { viewLayers } from './viewLayers';
+import { wheelPixels, wheelStep, wheelTakenByUi } from './wheelZoom';
 import {
   TOP_DOWN_FOCUS,
   TOP_DOWN_FOV,
@@ -99,7 +100,12 @@ export class TopDownCamera {
     // Das Rad gehört am Fenster abgehört und nicht an der Leinwand: Über der
     // Leinwand liegen HUD und Menü, und ein Zoom, der unter dem Weltnamen
     // aufhört, ist ein kaputter Zoom.
-    this.on(window, 'wheel', (event: WheelEvent) => this.wheel(event.deltaY), { passive: true });
+    //
+    // **Einer darf die Drehung aber behalten**: der Kasten, der selbst scrollt
+    // (`wheelZoom.wheelTakenByUi`). Wer im geöffneten Menü durch die Liste
+    // rollte, scrollte bisher die Liste **und** zoomte die Welt dahinter — zwei
+    // Wirkungen auf eine Drehung, und die zweite sah niemand kommen.
+    this.on(window, 'wheel', (event: WheelEvent) => this.rolled(event), { passive: true });
   }
 
   setAspect(aspect: number): void {
@@ -227,12 +233,19 @@ export class TopDownCamera {
     this.disposers = [];
   }
 
-  /** Das Rad sammelt, wie in der Kachelwelt: eine Stufe je 50 Einheiten. */
-  private wheel(deltaY: number): void {
-    this.wheelAcc += deltaY;
-    if (Math.abs(this.wheelAcc) < WHEEL_NOTCH) return;
-    this.zoomBy(this.wheelAcc < 0 ? -1 : 1);
-    this.wheelAcc = 0;
+  /**
+   * **Eine Drehung am Rad** — erst die Frage, wem sie gehört, dann die Stufe.
+   *
+   * Gerechnet wird in `core/wheelZoom.ts`, und zwar alles: die Umrechnung der
+   * drei Einheiten, in denen ein Rad melden darf, und der Sammler für die
+   * kleinen Beträge eines Trackpads. Hier steht nur der Draht dazwischen.
+   */
+  private rolled(event: WheelEvent): void {
+    const target = event.target instanceof Element ? event.target : null;
+    if (wheelTakenByUi(target, overflowOf)) return;
+    const { acc, step } = wheelStep(this.wheelAcc, wheelPixels(event));
+    this.wheelAcc = acc;
+    if (step !== 0) this.zoomBy(step);
   }
 
   private on<E extends Event>(
@@ -251,7 +264,15 @@ export class TopDownCamera {
 const FOLLOW_TAU = 0.12;
 /** Dasselbe für den Zoom — etwas träger, weil er seltener und größer springt. */
 const ZOOM_TAU = 0.18;
-/** Wie viel Rad eine Stufe ist — so viel sammelte auch die alte Kachelwelt. */
-const WHEEL_NOTCH = 50;
+/**
+ * **Der geltende `overflow-y` eines Elements** — für die Frage, ob ein Kasten
+ * der Oberfläche die Drehung nimmt.
+ *
+ * `getComputedStyle` und nicht `style`: Was ein Menü scrollen lässt, steht in
+ * der Stilvorlage (`ui/pageMenu.css`, `style.css`) und nicht am Element.
+ */
+function overflowOf(node: Element): string {
+  return window.getComputedStyle?.(node).overflowY ?? '';
+}
 
 const _target = new THREE.Vector3();

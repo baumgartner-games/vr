@@ -635,10 +635,23 @@ export class FlatControls {
     this.on(this.canvas, 'pointerdown', (event: PointerEvent) => {
       if (!this.enabled) return;
       if (event.pointerType === 'mouse') {
-        // Von oben ist die linke Maustaste der Trigger; sonst holt sie sich
-        // wie bisher den Zeiger.
+        // Von oben ist die linke Maustaste der Trigger — **solange nichts in
+        // Reichweite steht**; sonst holt sie sich wie bisher den Zeiger.
         if (this.topDownOn) {
-          if (event.button === 0) this.mouseFire = true;
+          // **Und sie benutzt auch von oben** (`core/interaction.ts`,
+          // `topDown`: „A / E / Linke Maustaste"). Wer eine Küche mit der Maus
+          // spielt, führt die Figur ohnehin mit ihr — und greift dann zur
+          // Tastatur, nur um ein Brötchen zu nehmen. Der Klick tut hier
+          // dasselbe wie `E`, mit derselben Rangfolge wie `A`
+          // (`applyUse`): Was vor der Figur steht, gehört der Taste
+          // (`PlayerRig.useCandidate`), und erst wenn dort nichts steht, ist
+          // sie der Auslöser. So bleibt der Feuerlöscher auf freier Fläche der
+          // linken Maustaste, und ein Klick vor der Ausgabetheke gibt aus,
+          // statt ins Leere zu spritzen.
+          if (event.button === 0) {
+            if (this.rig.useCandidate) this.useQueued = true;
+            else this.mouseFire = true;
+          }
           return;
         }
         if (!this.pointerLocked) {

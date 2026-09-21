@@ -11,7 +11,8 @@ import { defaultInputConfig, keyLabel, keysFor, padSlotsFor, type InputConfig } 
  * solange es nur eine Taste gibt — und es reicht in dem Augenblick nicht mehr,
  * in dem dieselbe Küche in drei Ansichten gespielt wird:
  *
- * - **von oben** (`topDown`) steht die Figur irgendwo und drückt `A`;
+ * - **von oben** (`topDown`) steht die Figur irgendwo und drückt `A` — oder
+ *   klickt, denn die Maus führt dort ohnehin schon die Figur;
  * - **aus den Augen** (`firstPerson`) zeigt man mit der Maus hin und klickt
  *   oder drückt `E`;
  * - **in der Brille** (`vr`) legt man die Hand auf einen Knopf oder zieht den
@@ -97,7 +98,10 @@ export const INTERACTION_VIEWS: readonly InteractionView[] = ['topDown', 'firstP
  *   der untere Gesichtsknopf, auf dem Glas der Knopf mit dem `A` darauf
  *   (`index.html`, `#touch-a`).
  * - `useKey`: die eingestellte **Taste** für _Benutzen_ — ab Werk `E`.
- * - `pointer`: die linke Maustaste, wenn der Zeiger auf dem Ding liegt.
+ * - `pointer`: die linke Maustaste — aus den Augen, wenn der Blick auf dem
+ *   Ding liegt, von oben, wenn die Figur davorsteht. Beide Male meint sie
+ *   genau das, was ohnehin gemeint ist (`PlayerRig.useCandidate`), und
+ *   beide Male tut ein Klick ins Leere nichts.
  * - `handTouch`: die Hand in der Brille, auf dem Ding.
  * - `aimTrigger`: der Trigger in der Brille, während der Zeigestrahl daraufliegt.
  * - `grip`: die Greif-Taste am Controller (`squeeze`), die Faust bei Handtracking.
@@ -130,22 +134,31 @@ export interface InteractionControl {
  * da und nicht als `if`-Kette — eine Zeile hier ist eine Zeile, die ein Test
  * nachliest, und eine vierte Ansicht wäre eine Spalte und kein Umbau.
  *
- * **Von oben ändert sich nichts**, und das ist Absicht: `A` (am Schreibtisch
- * `E`) tut, was es immer getan hat, für jede Absicht gleich. Dort gibt es
- * keine Hand, keinen Zeigestrahl und keine zweite Taste, an der man
- * unterscheiden könnte — und ein Brötchen, das man von oben plötzlich anders
- * nähme als bisher, wäre eine Änderung ohne Gewinn.
+ * **Von oben unterscheiden die Absichten sich nicht**, und das ist Absicht:
+ * `A` (am Schreibtisch `E`) tut, was es immer getan hat, für jede Absicht
+ * gleich. Dort gibt es keine Hand, keinen Zeigestrahl und keine zweite Taste,
+ * an der man unterscheiden könnte — und ein Brötchen, das man von oben anders
+ * nähme als einen Knopf, wäre eine Unterscheidung ohne Gewinn.
+ *
+ * **Dazugekommen ist dort die linke Maustaste**, und zwar für beide Absichten
+ * zugleich: Von oben zielt und führt die Maus die Figur ohnehin
+ * (`FlatControls.aimYaw`), und wer sie in der Hand hat, soll für ein Brötchen
+ * nicht zur Tastatur greifen müssen. Sie ist damit derselbe Geber wie aus den
+ * Augen — dort zeigt der Blick hin, hier steht die Figur davor —, und sie gilt
+ * wie dort **nur**, solange wirklich etwas in Reichweite steht
+ * (`PlayerRig.useCandidate`): Ein Klick ins Leere bleibt von oben der Auslöser
+ * dessen, was die Figur trägt (`FlatControls`, `applyTopDownButtons`).
  */
 export const INTERACTION_DEFAULTS: Readonly<
   Record<InteractionKind, Readonly<Record<InteractionView, InteractionControl>>>
 > = {
   press: {
-    topDown: { inputs: ['useButton', 'useKey'], press: 'tap' },
+    topDown: { inputs: ['useButton', 'useKey', 'pointer'], press: 'tap' },
     firstPerson: { inputs: ['pointer', 'useKey'], press: 'tap' },
     vr: { inputs: ['handTouch', 'aimTrigger'], press: 'tap' },
   },
   grab: {
-    topDown: { inputs: ['useButton', 'useKey'], press: 'tap' },
+    topDown: { inputs: ['useButton', 'useKey', 'pointer'], press: 'tap' },
     firstPerson: { inputs: ['pointer', 'useKey'], press: 'tap' },
     // **Gehalten**, nicht getippt: Ein Topf, den man in der Brille durch
     // Antippen bekäme und durch Antippen wieder verlöre, klebte an der Hand,

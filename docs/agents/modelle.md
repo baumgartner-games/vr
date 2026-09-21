@@ -1011,8 +1011,8 @@ Und das sind die Regeln, die darin stehen:
     der Hand, während im Becken gespült wird. Das wären zwei Uhren an einer
     Station, und genau **eine** ist der Sinn von `kitchenWork.ts`.
   - **Bedient wird die Station**, nicht gegriffen: `fill` ist kein `take`, also
-    `press` — in der Brille **Berühren oder Trigger**, von oben `A`, am
-    Schreibtisch linke Maustaste oder `E`. Kein Sonderfall in einer der drei
+    `press` — in der Brille **Berühren oder Trigger**, von oben `A`, `E` oder
+    die linke Maustaste, am Schreibtisch linke Maustaste oder `E`. Kein Sonderfall in einer der drei
     Ansichten, und der gelbe Saum liegt auf dem Becken und nicht auf dem
     dreckigen Teller darin (`meansContent`).
   - **Das Bild ist gemessen** (`core/kitchenFit.POT_BOWL`, Quelle
