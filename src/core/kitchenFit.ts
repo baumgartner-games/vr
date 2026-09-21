@@ -655,6 +655,43 @@ export function kitchenHub(item: string): readonly [x: number, z: number] {
 const ORIGIN_HUB: readonly [x: number, z: number] = [0, 0];
 
 /**
+ * **Wie dick ein Kistendeckel ist**, in Metern — nachgemessen in
+ * `core/dinerFit.ts` (`crate_lid`), und die nützlichste Zahl dieses Katalogs:
+ * Sie ist genau die Handbreit, die einer Kiste (0,40 m) zur Arbeitsfläche
+ * (0,50 m) fehlt.
+ */
+const CRATE_LID = 0.1;
+
+/**
+ * **Der Sockel unter jeder Kiste** — derselbe Deckel, nur andersherum
+ * gebraucht. Er ist oben und unten gleich geformt (ein Brett mit umlaufendem
+ * Band), also sieht man ihm nicht an, dass er eigentlich ein Deckel ist.
+ */
+const CRATE_PLINTH = CRATE_LID;
+
+/** Die Oberkante jeder Kiste: Sockel plus Kiste — und damit die Zeilenhöhe. */
+const CRATE_TOP = CRATE_PLINTH + 0.4;
+
+/**
+ * **Wie tief der aufgelegte Deckel im Rand sitzt**, in Metern.
+ *
+ * Er liegt nicht mehr **auf** der Kiste, sondern in ihren obersten 10 cm —
+ * anders bekäme man beides nicht zugleich: eine Kiste mit Deckel, die bündig
+ * mit der Zeile abschließt, **und** Bretter, die mit denen der offenen Kisten
+ * daneben fluchten (siehe `SUPPLY_CRATES`). Der Deckel ist genau so dick wie
+ * der Sockel, also endet er sonst **exakt** auf der Höhe des Kistenrands: zwei
+ * waagerechte Flächen in einer Ebene, und die flimmern gegeneinander
+ * (Z-Fighting), sobald die Kamera sich bewegt.
+ *
+ * Zwei Millimeter trennen sie sicher — der Tiefenpuffer löst auf dieser
+ * Entfernung Zehntelmillimeter auf —, und zwei Millimeter sieht niemand: Der
+ * Rand ringsum bleibt die Oberkante des Möbels (0,50 m, `CRATE_TOP`), und dort
+ * liegt auch weiterhin die Ablage. Ein Zentimeter wäre dagegen eine Stufe in
+ * der Zeile gewesen, und die prüft `kitchenFit.test.ts` zu Recht nach.
+ */
+const CRATE_LID_SUNK = 0.002;
+
+/**
  * **Die vier Vorratskisten** — je Zutat eine, und in jeder liegt das, was sie
  * hergibt.
  *
@@ -683,16 +720,37 @@ const ORIGIN_HUB: readonly [x: number, z: number] = [0, 0];
  * **Und kein Bild und keine Ablage** (`supply`): Jede zeigt ihren Inhalt,
  * siehe dort.
  *
- * Die Höhen sind die gemessenen Oberkanten der Netze (`core/dinerFit.ts`) und
- * damit zugleich `deck`: Ausgegeben wird **oben aus der Kiste**.
+ * ## Jede steht auf einem Deckel, und das ist die Höhenkorrektur
+ *
+ * Eine Kiste ist 0,40 m hoch (`dinerPiece('crate')`), eine Arbeitsfläche
+ * **0,50 m** (`counter`, `table`, `pass`). Die offenen Kisten standen damit
+ * eine Handbreit unter der Zeile daneben — in der Sicht von oben eine Stufe,
+ * die niemand erklären kann, und zu tief zum Hineingreifen. Die Kiste **mit**
+ * Deckel (`serve-counter`) schloss dagegen schon immer bündig ab, weil der
+ * Deckel genau 0,10 m misst.
+ *
+ * Genau dieser Deckel steht jetzt auch **unter** jeder Kiste: 0,10 m Sockel
+ * plus 0,40 m Kiste sind 0,50 m, und der Rand fluchtet mit der Zeile. Ein
+ * Sockel aus demselben Baukasten und nicht aus einem neuen Quader — es ist
+ * dasselbe Holz, dieselbe Kante, und von oben sieht man ihn ohnehin kaum.
+ *
+ * **Und alle Kisten dieser Küche stehen damit auf derselben Höhe**, auch die
+ * mit Deckel (siehe dort): Ihre waagerechten Bretter liegen auf einer Linie,
+ * statt sich von Möbel zu Möbel um eine Deckelstärke zu verschieben. Das war
+ * der zweite Teil des Auftrags und die eigentliche Arbeit daran.
+ *
+ * Die Höhen sind die gemessenen Oberkanten der Netze (`core/dinerFit.ts`) plus
+ * der Sockel und damit zugleich `deck`: Ausgegeben wird **oben aus der
+ * Kiste**.
  */
 const SUPPLY_CRATES: readonly KitchenPiece[] = [
   {
     name: 'crate-buns',
     label: 'Brötchenkiste',
     tiles: [1, 1],
-    base: { file: 'diner', node: 'crate_buns' },
-    height: 0.4012,
+    base: { file: 'diner', node: 'crate_lid' },
+    over: [{ file: 'diner', node: 'crate_buns', at: CRATE_PLINTH }],
+    height: CRATE_PLINTH + 0.4012,
     supply: true,
   },
   {
@@ -702,24 +760,27 @@ const SUPPLY_CRATES: readonly KitchenPiece[] = [
     // `crate_steak` heißt sie in der Quelle, und was darin liegt, ist das rohe
     // Patty dieser Küche (`food_ingredient_burger_uncooked`) — eine Kiste
     // „Steaks" gibt es hier nicht, ein Rezept dafür auch nicht.
-    base: { file: 'diner', node: 'crate_steak' },
-    height: 0.4385,
+    base: { file: 'diner', node: 'crate_lid' },
+    over: [{ file: 'diner', node: 'crate_steak', at: CRATE_PLINTH }],
+    height: CRATE_PLINTH + 0.4385,
     supply: true,
   },
   {
     name: 'crate-lettuce',
     label: 'Salatkiste',
     tiles: [1, 1],
-    base: { file: 'diner', node: 'crate_lettuce' },
-    height: 0.499,
+    base: { file: 'diner', node: 'crate_lid' },
+    over: [{ file: 'diner', node: 'crate_lettuce', at: CRATE_PLINTH }],
+    height: CRATE_PLINTH + 0.499,
     supply: true,
   },
   {
     name: 'crate-tomatoes',
     label: 'Tomatenkiste',
     tiles: [1, 1],
-    base: { file: 'diner', node: 'crate_tomatoes' },
-    height: 0.4617,
+    base: { file: 'diner', node: 'crate_lid' },
+    over: [{ file: 'diner', node: 'crate_tomatoes', at: CRATE_PLINTH }],
+    height: CRATE_PLINTH + 0.4617,
     supply: true,
   },
 ];
@@ -782,27 +843,32 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // Ausgabe mehr, sondern ein Regalbrett über Hüfthöhe. Der Unterschrank ist
     // deshalb weg: `base` ist die Kiste selbst, wie bei `SUPPLY_CRATES`.
     //
+    // **Und sie steht auf demselben Deckel wie die vier Vorratskisten**
+    // (`CRATE_PLINTH`, siehe dort): 0,10 m Sockel plus 0,40 m Kiste sind die
+    // Höhe der Zeile, und die Bretter aller Kisten liegen auf einer Linie.
+    //
     // Der Boden der Kiste liegt 5 cm über ihrem Fuß (`crate`, nachgemessen),
-    // also fangen die Teller bei 0,05 an; sechs davon zu je 5 cm
-    // (`dinerPiece('plate').height`) stapeln sich bis 0,35 und bleiben damit
-    // unter dem Rand bei 0,40.
+    // also fangen die Teller 5 cm über dem Sockel an; sechs davon zu je 5 cm
+    // (`dinerPiece('plate').height`) stapeln sich bis 0,45 und bleiben damit
+    // unter dem Rand bei 0,50.
     //
     // **Und jeder liegt verdreht auf dem vorigen.** Ein Stapel aus fluchtenden
     // Scheiben ist von oben **ein** Teller — dieselbe Überlegung wie beim
     // Stapel an der Rückgabe (`zones/kitchenProps.DIRTY_TWIST`, 13°), und hier
     // ausgeschrieben, weil der Katalog keine Zone kennt.
-    base: { file: 'diner', node: 'crate' },
+    base: { file: 'diner', node: 'crate_lid' },
     over: [
-      { file: 'diner', node: 'plate', at: 0.05, tilt: [0, 0.0, 0] },
-      { file: 'diner', node: 'plate', at: 0.1, tilt: [0, 0.2269, 0] },
-      { file: 'diner', node: 'plate', at: 0.15, tilt: [0, 0.4538, 0] },
-      { file: 'diner', node: 'plate', at: 0.2, tilt: [0, 0.6807, 0] },
-      { file: 'diner', node: 'plate', at: 0.25, tilt: [0, 0.9076, 0] },
-      { file: 'diner', node: 'plate', at: 0.3, tilt: [0, 1.1345, 0] },
+      { file: 'diner', node: 'crate', at: CRATE_PLINTH },
+      { file: 'diner', node: 'plate', at: CRATE_PLINTH + 0.05, tilt: [0, 0.0, 0] },
+      { file: 'diner', node: 'plate', at: CRATE_PLINTH + 0.1, tilt: [0, 0.2269, 0] },
+      { file: 'diner', node: 'plate', at: CRATE_PLINTH + 0.15, tilt: [0, 0.4538, 0] },
+      { file: 'diner', node: 'plate', at: CRATE_PLINTH + 0.2, tilt: [0, 0.6807, 0] },
+      { file: 'diner', node: 'plate', at: CRATE_PLINTH + 0.25, tilt: [0, 0.9076, 0] },
+      { file: 'diner', node: 'plate', at: CRATE_PLINTH + 0.3, tilt: [0, 1.1345, 0] },
     ],
     // Kein eigener `deck`: Wie bei den vier Vorratskisten ist die Oberkante
     // zugleich die Ablage — ausgegeben wird **oben aus der Kiste**.
-    height: 0.4,
+    height: CRATE_TOP,
     supply: true,
   },
   {
@@ -882,9 +948,23 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     // Zeile: Für die vier Zutaten gibt es eigene Kisten (gleich darunter), und
     // die zeigen ihren Inhalt selbst, statt ihn als Bild aufgeklebt zu
     // bekommen.
-    base: { file: 'diner', node: 'crate' },
-    over: [{ file: 'diner', node: 'crate_lid', at: 0.4 }],
-    height: 0.5,
+    //
+    // **Sie steht auf demselben Sockel wie jede andere Kiste**, und ihr
+    // Deckel sitzt dafür **im** Rand statt darauf (`CRATE_LID_SUNK`). Die
+    // Gesamthöhe ist dieselbe wie vorher — 0,50 m, bündig mit der Zeile —,
+    // aber der Korpus steht jetzt so hoch wie der der offenen Kisten, und
+    // damit liegen die waagerechten Bretter aller Kisten dieser Küche auf
+    // einer Linie. Ohne den Sockel fehlten ihr genau die 10 cm, und zwei
+    // Kisten nebeneinander sahen aus wie zwei verschiedene Möbel.
+    base: { file: 'diner', node: 'crate_lid' },
+    over: [
+      { file: 'diner', node: 'crate', at: CRATE_PLINTH },
+      { file: 'diner', node: 'crate_lid', at: CRATE_TOP - CRATE_LID - CRATE_LID_SUNK },
+    ],
+    // Kein eigener `deck`: Die Ablage ist der Rand der Kiste und damit die
+    // Zeilenhöhe — der Deckel darin liegt zwei Millimeter tiefer, und die
+    // sieht niemand (`CRATE_LID_SUNK`).
+    height: CRATE_TOP,
     worktop: true,
   },
   ...SUPPLY_CRATES,

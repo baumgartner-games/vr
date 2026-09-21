@@ -45,18 +45,39 @@ export const WHEEL_NOTCH = 40;
 export interface WheelLike {
   readonly deltaY: number;
   readonly deltaMode: number;
+  /**
+   * **Die Querachse** — dieselbe Drehung, wenn der Browser sie umgelegt hat.
+   * Siehe `wheelPixels`; ohne Angabe zählt sie als null.
+   */
+  readonly deltaX?: number;
 }
 
 /**
- * **Die Drehung in Bildpunkten** — egal, in welcher Einheit sie gemeldet wird.
+ * **Die Drehung in Bildpunkten** — egal, in welcher Einheit sie gemeldet wird,
+ * und egal, auf welcher der beiden Achsen sie ankommt.
  *
  * Eine unbekannte Einheit gilt als Bildpunkte: Ein Rad, das wegen eines
  * vierten `deltaMode` gar nicht mehr zoomt, wäre schlimmer als eines, das
  * etwas zu fein zoomt.
+ *
+ * **Und `deltaX` zählt mit, wenn auf `deltaY` nichts steht.** Das ist der
+ * gemeldete Fehler „ich kann nicht gleichzeitig laufen und zoomen": Wer
+ * **rennt**, hält `Shift` (siehe `docs/agents/steuerung.md`, _Sprinten_) — und
+ * ein Browser legt eine Raste bei gedrückter Umschalttaste auf die **Querachse**
+ * um. Chrome und Firefox tun das auf Windows und Linux, macOS tut es im
+ * System. Die Folge sah für den Spieler aus, als ginge immer nur eines:
+ * Sobald er lief, meldete jede Raste `deltaY: 0` und `deltaX: ±100`, und das
+ * Rad tat nichts.
+ *
+ * Genommen wird deshalb die Achse mit dem **größeren Betrag**: Eine senkrechte
+ * Drehung bleibt eine senkrechte, ein waagerechtes Wischen auf dem Trackpad
+ * zoomt genauso, und keine der beiden kann die andere aufheben.
  */
 export function wheelPixels(event: WheelLike): number {
   const unit = event.deltaMode === 1 ? WHEEL_LINE : event.deltaMode === 2 ? WHEEL_PAGE : 1;
-  return event.deltaY * unit;
+  const sideways = event.deltaX ?? 0;
+  const along = Math.abs(sideways) > Math.abs(event.deltaY) ? sideways : event.deltaY;
+  return along * unit;
 }
 
 /** Was aus einer Drehung wird: der neue Stand des Sammlers und die Stufe dazu. */

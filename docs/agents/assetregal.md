@@ -398,7 +398,20 @@ wäre das falsch, und zwar zweifach:
 Der Service Worker verträgt das von sich aus: Beim Aufräumen wirft er nur weg,
 was eine **veraltete** Nummer trägt; was gar keine hat, bleibt liegen
 (`core/swRoutes.ts`, `dropOldMedia`) — genau wie bei den Controller-Modellen.
-Der **Index** trägt seine Nummer dagegen, denn er ist erzeugt.
+
+**Und der Index trägt seit dem Befund „das Regal lädt ewig" auch keine.** Er
+trug sie, weil er erzeugt ist und mit jedem neuen Paket wandert; das stimmt und
+war trotzdem die falsche Antwort. An ihm hängt, ob das Regal überhaupt aufgeht
+— bis er da ist, steht dort „Lädt …" (`PortalWorld.assetMenu`) —, und mit `?v=`
+ist er nach jedem Deploy ein Name, auf den kein Speicher eine Antwort hat.
+Gemeldet wurde es so: „lädt ewig lang bei schlechtem Internet, obwohl alle
+Dateien lokal vorliegen", und genau das war es: 215 kB über eine schlechte
+Leitung vor einem Regal, dessen 4470 Modelle längst im Gerät lagen. Ohne Nummer
+antwortet der Service Worker sofort aus dem Speicher und sieht im Hintergrund
+nach (`revalidate`); ein neues Paket steht dann spätestens beim nächsten Start
+im Regal. Dieselbe Adresse nennt der vollständige Download
+(`core/fullDownload.stamped`) — beide müssen sie gleich schreiben, sonst liegt
+im Speicher etwas, das niemand anfragt.
 
 ## Wer sich die Geometrie teilt, gibt sie nicht frei
 

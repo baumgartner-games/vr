@@ -689,10 +689,10 @@ kann.
   `kitchenNearest`: von vier brennenden Herden zählt der nächste; die
   **Reichweite** steht am Ton und nicht in der Formel, siehe unten), der **Takt**
   des Messers (`kitchenBeat` — höchstens ein Schlag je Bild, sonst macht ein
-  Ruckler eine Salve daraus; alle 0,15 s ein Schlag, `CHOP_BEAT`, also zwanzig
-  je Schnitt: schnelles Schneiden, wobei der Ton selbst eine viertel Sekunde
-  lang bleibt und ein Schlag darum in den vorigen greift — zwei Stimmen von
-  acht) und die **Auswahl** des einen Tons, über den noch nicht entschieden ist
+  Ruckler eine Salve daraus; alle 0,25 s ein Schlag, `CHOP_BEAT`, also zwölf
+  je Schnitt: so schnell, wie der Ton selbst lang ist, damit ein Schlag neben
+  dem anderen steht und nicht im anderen) und die **Auswahl** des einen Tons,
+  über den noch nicht entschieden ist
   (`SOUND_TRIALS`, siehe unten). **Schritte macht die
   Küche nicht**: Es gab vier Aufnahmen und eine Schrittuhr nach der Strecke,
   und beim Kochen war das ein Trommeln unter allem, was man hören wollte.
@@ -808,10 +808,27 @@ Und das sind die Regeln, die darin stehen:
   sie auf einem Unterschrank, und das war wieder derselbe Widerspruch wie beim
   Abtropfgitter davor — die vier Vorratskisten **sind** ihr Möbel und stehen
   nicht auf einem. Eine fünfte Kiste mit eigenem Sockel sähe aus wie ein
-  Sonderfall, den es nicht gibt. `base` ist deshalb die Kiste selbst
-  (`dinerPiece('crate')`, 0,40 m), die sechs Teller stapeln sich darin von 0,05
-  bis 0,35 und bleiben unter dem Rand, und wie bei den Vorratskisten ist die
-  Oberkante zugleich die Ablage — ein eigener `deck` fällt damit weg.
+  Sonderfall, den es nicht gibt. `base` ist deshalb die Kiste selbst, die sechs
+  Teller stapeln sich darin und bleiben unter dem Rand, und wie bei den
+  Vorratskisten ist die Oberkante zugleich die Ablage — ein eigener `deck`
+  fällt damit weg.
+- **Jede Kiste steht auf einem Kistendeckel** (`kitchenFit.CRATE_PLINTH`), und
+  das ist die Antwort auf einen Befund des Besitzers: Eine Kiste ist 0,40 m
+  hoch, eine Arbeitsplatte 0,50 m — die offenen Kisten standen also eine
+  Handbreit unter der Zeile daneben, während die Kiste **mit** Deckel bündig
+  abschloss, weil ein Deckel genau 0,10 m misst. Derselbe Deckel steht jetzt
+  auch unter jeder Kiste und schließt die Lücke; er ist oben und unten gleich
+  geformt, also sieht man ihm nicht an, dass er eigentlich ein Deckel ist.
+
+  **Auch unter der mit Deckel**, und darin liegt die eigentliche Arbeit: Sonst
+  fingen die Korpusse auf zwei verschiedenen Höhen an, und die waagerechten
+  Bretter zweier Kisten nebeneinander verschöben sich um eine Deckelstärke
+  gegeneinander. Der aufgelegte Deckel sitzt dafür **im** Rand statt darauf
+  (`CRATE_LID_SUNK`, zwei Millimeter unter der Kante): genau bündig lägen
+  Deckeloberseite und Rand in einer Ebene und flimmerten gegeneinander, einen
+  Zentimeter tiefer wäre die Ablage eine Stufe unter der Zeile. Oben ist die
+  Kiste damit so hoch wie vorher — nur ihr Korpus steht jetzt dort, wo der
+  aller anderen auch steht.
 - **Der Herd hat vier Phasen** (`kitchenClock.ts`): vier Sekunden braten,
   sechs verbrennen, fünf bis zum Feuer, dann brennt es. Dazu gehören die
   Anzeigen: Flammen unter der Pfanne, ein Fortschrittsbalken in Warm, einer in

@@ -499,20 +499,20 @@ export function kitchenNearest(
 /**
  * **Wie oft das Messer aufschlägt**, in Sekunden.
  *
- * 0,15: Ein Schnitt dauert drei Sekunden (`kitchenWork.WORK_SECONDS.chop`),
- * das sind zwanzig Schläge. Hier stand erst 0,42 — gut sieben Schläge —, dann
- * 0,30, und beides klang noch nach jemandem, der sich das Schneiden überlegt.
- * Schnelles Schneiden ist die Bewegung, die man aus jeder Küche kennt.
+ * 0,25: Ein Schnitt dauert drei Sekunden (`kitchenWork.WORK_SECONDS.chop`),
+ * das sind zwölf Schläge. Die Zahl ist dreimal gewandert — 0,42 (gut sieben
+ * Schläge) klang nach jemandem, der sich das Schneiden überlegt, 0,30 auch
+ * noch, und 0,15 war dann eine Spur zu hektisch. 0,25 ist der Schritt
+ * dazwischen, bei dem es nach Arbeit klingt, ohne zu rasen.
  *
- * **Der Ton selbst wird dabei nicht schneller**: Er ist eine viertel Sekunde
- * lang, vier Aufnahmen wechseln sich ab (`KITCHEN_CUES.chop`). Unterhalb von
- * 0,25 greift also ein Schlag in den vorigen — genau das ist der Klang eines
- * Messers, das läuft, und keine Notlage: Jeder Schlag bekommt in
- * `kitchenAudio.ts` seine eigene Stimme, von acht braucht das Brett damit
- * zwei, und die übrigen bleiben für Herd, Kiste und Radio übrig. Viel tiefer
- * geht es allerdings nicht mehr, ohne dass aus dem Takt ein Dauerton wird.
+ * **Genau dort hört der Ton auch auf**: Er ist eine viertel Sekunde lang,
+ * vier Aufnahmen wechseln sich ab (`KITCHEN_CUES.chop`). Bei 0,25 steht damit
+ * ein Schlag neben dem anderen statt einer im anderen — kürzer und sie
+ * greifen ineinander, was die Mischung zwar aushält (jeder Schlag bekommt in
+ * `kitchenAudio.ts` seine eigene Stimme), aber aus dem Takt allmählich einen
+ * Dauerton macht.
  */
-export const CHOP_BEAT = 0.15;
+export const CHOP_BEAT = 0.25;
 
 /** Was ein Takt in diesem Bild ergeben hat. */
 export interface KitchenBeat {

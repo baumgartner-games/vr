@@ -118,8 +118,11 @@ export interface FullPlan {
  *
  * Vier Regeln, und jede steht schon woanders geschrieben:
  *
- * - **Der Index des Regals** ist erzeugt und wandert mit jedem neuen Paket;
- *   er trägt sie (`core/kaykitModel.ts`, `INDEX_URL`).
+ * - **Der Index des Regals** trägt sie **nicht**, obwohl er erzeugt ist und mit
+ *   jedem neuen Paket wandert: An ihm hängt, ob das Regal aufgeht („Lädt …"),
+ *   und eine Nummer machte aus der Datei im Gerät nach jedem Deploy eine
+ *   fremde. Warum das die teuerste Nummer im ganzen Projekt war, steht in
+ *   `core/kaykitModel.ts` über `INDEX_URL`.
  * - **Das Regal selbst** trägt sie nicht: 4470 gekaufte Dateien, die sich nie
  *   ändern, und eine Nummer daran hieße, dass `dropOldMedia` sie nach jedem
  *   Deploy alle wegwirft (`docs/agents/assetregal.md`, _Keine Build-Nummer_).
@@ -136,7 +139,6 @@ export interface FullPlan {
  * und der hängt nichts an. Deshalb ist „nein" die Vorgabe und nicht „ja".
  */
 export function stamped(path: string): boolean {
-  if (path === SHELF_INDEX) return true;
   if (path.startsWith(SHELF_BASE)) return false;
   if (path.startsWith('controllers/')) return false;
   return path.startsWith('audio/') || path.startsWith('models/');
@@ -181,7 +183,7 @@ export function fullPlan(
   // Der Index zuerst, dann die Texturen, dann die Modelle: Wer abbricht, hat
   // weniger Fässer und nicht lauter weiße.
   for (const [path, bytes] of shelfFiles) {
-    if (path === SHELF_INDEX) add(path, bytes, 'regal', true);
+    if (path === SHELF_INDEX) add(path, bytes, 'regal', stamped(path));
   }
   for (const [path, bytes] of shelfFiles) {
     if (path !== SHELF_INDEX) add(path, bytes, 'regal', false);

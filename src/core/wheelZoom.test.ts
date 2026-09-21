@@ -35,6 +35,28 @@ describe('how much a turn of the wheel is', () => {
     expect(wheelPixels({ deltaY: 100, deltaMode: 7 })).toBe(100);
   });
 
+  /**
+   * **Der gemeldete Fehler „laufen oder zoomen, aber nicht beides".** Wer
+   * rennt, hält `Shift`, und ein Browser legt die Raste dann auf die
+   * Querachse: `deltaY` ist null, `deltaX` trägt die ganze Drehung. Wer nur
+   * `deltaY` liest, hat für den Spieler ein Rad, das beim Rennen kaputt ist.
+   */
+  it('takes the turn from the sideways axis when the browser moved it there', () => {
+    expect(wheelPixels({ deltaX: 100, deltaY: 0, deltaMode: 0 })).toBe(100);
+    expect(wheelPixels({ deltaX: -3, deltaY: 0, deltaMode: 1 })).toBe(-3 * WHEEL_LINE);
+    expect(wheelStep(0, wheelPixels({ deltaX: 100, deltaY: 0, deltaMode: 0 })).step).toBe(1);
+  });
+
+  /**
+   * **Die größere Achse gewinnt**, und beide heben sich nie auf: Ein Trackpad
+   * meldet beim senkrechten Wischen ein paar Punkte Seitwärtsdrift mit, und
+   * eine Summe der beiden wäre ein Zoom, der nach der Handhaltung geht.
+   */
+  it('keeps the bigger axis and ignores the drift on the other', () => {
+    expect(wheelPixels({ deltaX: 4, deltaY: -100, deltaMode: 0 })).toBe(-100);
+    expect(wheelPixels({ deltaX: -100, deltaY: 4, deltaMode: 0 })).toBe(-100);
+  });
+
   /** Und damit ist **eine** Raste überall **eine** Stufe. */
   it('makes one notch one step in either browser', () => {
     expect(wheelStep(0, wheelPixels({ deltaY: 100, deltaMode: 0 })).step).toBe(1);

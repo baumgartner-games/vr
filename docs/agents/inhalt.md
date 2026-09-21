@@ -331,7 +331,14 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     bleibt, wird aber durchsichtig.
     - **Gerechnet wird eine Strecke, kein Strahl in die Szene.** Jedes Bild
       geht eine Linie von der Kamera zur Mitte des Rigs gegen die Kästen des
-      Gitters (`slabs`, Massen eingeschlossen), und was sie schneidet, bekommt
+      Gitters (`slabs`, Massen eingeschlossen) — seitwärts aber in der
+      **Spalte der Figur** und nur gegen Wände, von denen die Kamera die andere
+      Seite sieht als sie (`wallsHiding`, `GHOST_SHOULDER`). Beides ist eine
+      Korrektur: Die Kamera zieht der Figur weich nach, und ein Strahl von der
+      nachhinkenden Kamera aus erwischte beim Laufen die Wand **neben** ihr —
+      nach Westen die eine, nach Osten spiegelbildlich die andere. Eine Wand,
+      die neben der Figur entlangläuft, verliert keine Auskunft und bleibt
+      deshalb stehen. Was sie schneidet, bekommt
       für dieses eine Bild ein **durchsichtiges Zwillingsmaterial** — gleiche
       Farbe, `transparent`, `opacity 0.25`, `depthWrite false` — und danach
       sein eigenes zurück. Die Zwillinge liegen in einer zweiten Palette und
