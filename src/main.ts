@@ -57,6 +57,16 @@ import {
   swControls,
 } from './core/fullDownloadRun';
 import type { KaykitIndex } from './core/kaykitIndex';
+import { trackViewport } from './ui/safeArea';
+
+/**
+ * **Wie groß der Schirm wirklich ist**, als Erstes und vor allem anderen: Die
+ * Leinwand hängt an `--app-height` (`style.css`, `#scene`), und die steht
+ * nirgends, bis hier einmal gemessen wurde. Zwei Zeilen weiter unten holt
+ * `App` aus denselben beiden Zahlen seinen Bildpuffer — dass beide dasselbe
+ * Fenster meinen, ist der ganze Punkt (`ui/safeArea.ts`).
+ */
+trackViewport();
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')!;
 const landing = document.querySelector<HTMLElement>('#landing')!;

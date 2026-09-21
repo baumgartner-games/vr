@@ -194,6 +194,36 @@ for (const name of browserNames) {
           `Die Ansicht von oben läuft ohne Fehler: ${result.pageErrors.join(' | ')}`,
         );
 
+        // **Die Leinwand nimmt das ganze Fenster** — Kasten wie Bildpuffer.
+        // Gemeldet wurde das Gegenteil, vom Telefon im Hochformat: Die Welt
+        // hörte über der Unterkante auf, darunter stand der Hintergrund der
+        // Seite als schwarzer Streifen. Die Leinwand hing an `height: 100%`,
+        // und `100%` ist auf einem iPhone, das als App läuft, um Kerbe und
+        // Strich kürzer als das Fenster; jetzt hängt sie an `--app-height`
+        // (`src/ui/safeArea.ts`, `trackViewport`). Geprüft wird beides
+        // zusammen: Ein Puffer, der nicht zum Kasten passt, ist derselbe
+        // Fehler noch einmal, nur verzerrt statt abgeschnitten.
+        result.canvas = await page.evaluate(() => {
+          const canvas = document.querySelector('#scene');
+          const box = canvas.getBoundingClientRect();
+          return {
+            box: { x: box.x, y: box.y, width: box.width, height: box.height },
+            window: { width: window.innerWidth, height: window.innerHeight },
+            buffer: { width: canvas.width, height: canvas.height },
+            ratio: window.devicePixelRatio,
+          };
+        });
+        const { box, window: win, buffer, ratio } = result.canvas;
+        assert.deepEqual(
+          { x: box.x, y: box.y, width: box.width, height: box.height },
+          { x: 0, y: 0, width: win.width, height: win.height },
+          `Die Leinwand deckt das Fenster: ${JSON.stringify(result.canvas)}`,
+        );
+        assert.ok(
+          Math.abs(buffer.height / buffer.width - win.height / win.width) < 0.01,
+          `Der Bildpuffer hat das Seitenverhältnis des Fensters (${ratio}×): ${JSON.stringify(buffer)}`,
+        );
+
         const url = new URL(base);
         url.searchParams.set('net', 'local');
         url.searchParams.set('room', `smoke-${name}-${Date.now()}`);
