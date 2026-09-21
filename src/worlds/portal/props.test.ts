@@ -41,6 +41,17 @@ describe('die Griffe der Beutel-Objekte', () => {
     }
   });
 
+  it('baut die Heizdecke als flachen Kasten, den eine Hand fassen kann', () => {
+    const blanket = createPropShape('blanket');
+    expect(blanket.label).toBe('Heizdecke');
+    expect(blanket.shape.kind).toBe('box');
+    // Flach genug, um auf jemandem zu liegen; breit genug, um ihn zu decken.
+    expect(blanket.halfExtents.y).toBeLessThan(0.05);
+    expect(blanket.halfExtents.x).toBeGreaterThan(0.6);
+    expect(blanket.mass).toBeLessThan(3);
+    expect(blanket.ccd).toBe(true);
+  });
+
   it('gibt der Sektflasche einen — und dem Würfel keinen', () => {
     expect(PROP_GRIPS.champagne).toBeDefined();
     expect(PROP_GRIPS.cube).toBeUndefined();

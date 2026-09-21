@@ -172,6 +172,17 @@ import {
 } from '../shared/environment';
 import { NpcDirector, type NpcControl } from '../npc/NpcDirector';
 import type { Npc } from '../npc/Npc';
+import { Puppeteer, type PuppetStage, type StagePose, type StageProp } from '../npc/Puppeteer';
+import { formatDuration, isPlayable } from '../npc/npcRecording';
+import {
+  deleteCharacter,
+  listCharacters,
+  onCharactersChange,
+  saveCharacter,
+  type SavedCharacter,
+} from '../npc/characterStore';
+import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
+import { yawOfForward } from '../../core/walkFrame';
 import { SignRoom, type SignControl } from '../signs/SignRoom';
 import {
   FONT_STEPS,
@@ -515,6 +526,10 @@ const _rotationB = new THREE.Quaternion();
 const _localRotation = new THREE.Quaternion();
 const _size = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
+/** Der Kopf des Spielers, für die Fäden eines übernommenen NPC. */
+const _puppetHead = new THREE.Matrix4();
+/** So weit darf der nächste NPC weg sein, wenn man keinen anschaut (`takeOverNpc`). */
+const TAKEOVER_RANGE = 8;
 // Benutzen mit der Hand (`core/handUse.ts`) — eigene Zwischenlagen, damit die
 // Rechnung dem Greifen daneben nicht in seine fährt.
 const _handBox = new THREE.Box3();
@@ -1257,6 +1272,15 @@ export class PortalWorld implements World {
    */
   protected director: NpcDirector | null = null;
   /**
+   * **Der Puppenspieler** (`worlds/npc/Puppeteer.ts`): einen NPC übernehmen,
+   * ihm eine Aktion vormachen, sie ihn nachspielen lassen. Er hängt am
+   * Regisseur und lebt genau so lange wie er.
+   */
+  private puppeteer: Puppeteer | null = null;
+  private unsubscribeCharacters: (() => void) | null = null;
+  /** Sekunden seit dem letzten Neuzeichnen der Charakter-Zeilen im Menü. */
+  private puppetTick = 0;
+  /**
    * Die aufgestellten Schilder dieser Welt (`worlds/signs/SignRoom.ts`).
    *
    * Sie hängen am Raum und nicht am Werkzeug: Wer eines hinstellt, kann sein
@@ -1385,6 +1409,10 @@ export class PortalWorld implements World {
     });
     this.director.setBars(this.npcBars);
     this.director.setHitView(this.npcHitView);
+    this.puppeteer = new Puppeteer(this.director, this.puppetStage(this.physics));
+    // Ein gespeicherter Charakter ist eine Menüzeile — die Liste wird beim
+    // Bauen des Menüs gelesen, also wird es neu gebaut, wenn sie sich ändert.
+    this.unsubscribeCharacters = onCharactersChange(() => this.context?.refreshWorldMenu());
     this.signs = new SignRoom({
       root: this.root,
       context: () => this.context,
@@ -1451,6 +1479,9 @@ export class PortalWorld implements World {
     // soll in demselben Schritt schweben und nicht erst im nächsten fallen.
     this.updateFloatZone();
     this.updateBullets(dt);
+    // Vor dem Regisseur: Die Fäden eines übernommenen NPC werden *vor* seinem
+    // Bild gezogen, sonst stünde er ein Bild hinter dem Spieler.
+    this.updatePuppeteer(dt, ctx);
     // Vor dem Schritt: was das Hirn in dieser Frame will, soll in *dieser*
     // Frame gelaufen werden und nicht in der nächsten.
     this.director?.update(dt * this.timeScale);
@@ -2058,6 +2089,7 @@ export class PortalWorld implements World {
         brainRow,
         barsRow,
         hitsRow,
+        this.characterMenu(ctx),
         this.navMenu(),
         this.navSwitchMenu(),
         {
@@ -2128,6 +2160,400 @@ export class PortalWorld implements World {
         },
       ],
     };
+  }
+
+  // --- Charakter: übernehmen, vormachen, nachspielen ------------------------
+
+  /**
+   * **Die Seite „Charakter"** im NPC-Menü — vier Zeilen und eine Liste.
+   *
+   * Übernehmen, Aufnehmen, Abspielen und die gespeicherten Charaktere. Die
+   * Beschriftungen tragen den Stand (`Loslassen`, `Aufnahme stoppen · 0:12`)
+   * und werden über `menuLabels` nachgezogen, wie die Zeilen daneben; solange
+   * eine Aufnahme oder ein Abspielen läuft, einmal je Sekunde
+   * (`updatePuppeteer`), damit die Uhr darin läuft.
+   */
+  private characterMenu(ctx: () => WorldContext): MenuEntry {
+    const puppeteer = (): Puppeteer | null => this.puppeteer;
+    const characterLabel = (): string => puppeteer()?.character?.skin.label ?? 'NPC';
+
+    const possessRow: MenuEntry = {
+      id: 'npc:possess',
+      label: 'Übernehmen',
+      sub: 'Den NPC, den du anschaust — oder den nächsten. Er tut dann, was du tust',
+      icon: 'npc',
+      accent: 0x7fbf5a,
+      run: () => this.takeOverNpc(ctx()),
+    };
+    const recordRow: MenuEntry = {
+      id: 'npc:record',
+      label: 'Aktion aufnehmen',
+      sub: 'Was du dann vormachst, kann er nachspielen — etwa die Heizdecke abnehmen',
+      icon: 'stopwatch',
+      accent: COLOR_RED,
+      run: () => this.toggleRecording(ctx()),
+    };
+    const playRow: MenuEntry = {
+      id: 'npc:play',
+      label: 'Aktion abspielen',
+      sub: 'Erst aufnehmen oder einen Charakter laden',
+      icon: 'zombie',
+      accent: 0x5ee0a0,
+      run: () => this.togglePlayback(ctx()),
+    };
+    this.menuLabels.push(() => {
+      const p = puppeteer();
+      const possessed = p?.state === 'possessed';
+      possessRow.label = possessed ? `${characterLabel()} loslassen` : 'Übernehmen';
+      possessRow.sub = possessed
+        ? 'Er bleibt stehen, wo du gerade bist, und denkt wieder selbst'
+        : 'Den NPC, den du anschaust — oder den nächsten. Er tut dann, was du tust';
+      recordRow.label = p?.recording
+        ? `Aufnahme stoppen · ${formatDuration(p.recordElapsed)}`
+        : 'Aktion aufnehmen';
+      const action = p?.action ?? null;
+      playRow.label = p?.state === 'playing' ? 'Abspielen stoppen' : 'Aktion abspielen';
+      playRow.sub =
+        p?.state === 'playing'
+          ? `${characterLabel()} · ${formatDuration(p.playClock)} von ${formatDuration(action?.duration ?? 0)}`
+          : action
+            ? `${characterLabel()} · ${formatDuration(action.duration)} · ${action.props.length} Ding${action.props.length === 1 ? '' : 'e'}`
+            : 'Erst aufnehmen oder einen Charakter laden';
+    });
+
+    const page: MenuEntry = {
+      id: 'npc:character',
+      label: 'Charakter',
+      sub: 'Übernehmen, vormachen, nachspielen lassen',
+      icon: 'npc',
+      accent: 0xe58aa8,
+      children: [possessRow, recordRow, playRow, this.charactersMenu(ctx)],
+    };
+    this.menuLabels.push(() => {
+      const p = puppeteer();
+      page.sub =
+        p?.state === 'possessed'
+          ? p.recording
+            ? `${characterLabel()} übernommen · Aufnahme läuft`
+            : `${characterLabel()} übernommen`
+          : p?.state === 'playing'
+            ? `${characterLabel()} spielt`
+            : 'Übernehmen, vormachen, nachspielen lassen';
+    });
+    return page;
+  }
+
+  /** Die gespeicherten Charaktere, die neuesten zuerst — je einer eine Seite. */
+  private charactersMenu(ctx: () => WorldContext): MenuEntry {
+    const saved = listCharacters();
+    const children: MenuEntry[] = saved.map((character) => {
+      const skin = npcSkin(character.kind);
+      const when = new Date(character.created);
+      const day = Number.isNaN(when.getTime())
+        ? ''
+        : ` · ${when.getDate().toString().padStart(2, '0')}.${(when.getMonth() + 1).toString().padStart(2, '0')}.`;
+      return {
+        id: `npc:character:${character.id}`,
+        label: character.name,
+        sub: `${skin.label} · ${formatDuration(character.recording.duration)}${day}`,
+        icon: skin.icon,
+        accent: skin.accent,
+        children: [
+          {
+            id: `npc:character:${character.id}:place`,
+            label: 'Hinstellen',
+            sub: 'Dort, wo seine Aufnahme beginnt — abspielen dann über „Charakter"',
+            icon: skin.icon,
+            accent: skin.accent,
+            run: () => this.loadCharacter(ctx(), character, false),
+          },
+          {
+            id: `npc:character:${character.id}:play`,
+            label: 'Hinstellen und abspielen',
+            sub: 'Er steht auf und macht es gleich vor',
+            icon: 'zombie',
+            accent: 0x5ee0a0,
+            run: () => this.loadCharacter(ctx(), character, true),
+          },
+          {
+            id: `npc:character:${character.id}:delete`,
+            label: 'Löschen',
+            sub: 'Aus dem Speicher des Browsers',
+            icon: 'reset',
+            accent: COLOR_RED,
+            run: () => {
+              ctx().notify(
+                deleteCharacter(character.id) ? `${character.name} gelöscht` : 'War schon weg',
+              );
+            },
+          },
+        ],
+      };
+    });
+    if (children.length === 0) {
+      children.push({
+        id: 'npc:characters:none',
+        label: 'Noch keiner gespeichert',
+        sub: 'Übernehmen → Aktion aufnehmen → vormachen → stoppen. Dann steht er hier',
+        icon: 'npc',
+        accent: 0x8a94a6,
+      });
+    }
+    return {
+      id: 'npc:characters',
+      label: 'Charaktere laden',
+      sub: saved.length
+        ? `${saved.length} gespeichert${saved.length === 1 ? '' : 'e'}`
+        : 'Noch keiner gespeichert',
+      icon: 'folder',
+      accent: 0xffc857,
+      children,
+    };
+  }
+
+  /**
+   * **Übernehmen** — oder loslassen, wenn schon einer an den Fäden hängt.
+   *
+   * Genommen wird, wen man anschaut; sonst der nächste im Umkreis von acht
+   * Metern. Der Spieler wird zu ihm gestellt und nicht er zum Spieler: Ein
+   * NPC, der vor der Puppe mit der Heizdecke steht, soll dort bleiben.
+   */
+  private takeOverNpc(ctx: WorldContext): void {
+    const puppeteer = this.puppeteer;
+    const director = this.director;
+    if (!puppeteer || !director) return;
+    if (puppeteer.state === 'possessed') {
+      const npc = puppeteer.release();
+      ctx.notify(npc ? `${npc.skin.label} losgelassen` : 'Losgelassen');
+      this.refreshMenuLabels();
+      return;
+    }
+    if (puppeteer.state === 'playing') puppeteer.stopPlaying();
+    this.headRay(ctx, _ray);
+    const npc =
+      director.pickAlong(_ray.origin, _ray.direction) ??
+      (this.playerFeet(_point) ? director.nearest(_point, TAKEOVER_RANGE) : null);
+    if (!npc) {
+      ctx.notify('Kein NPC in der Nähe — erst einen setzen');
+      return;
+    }
+    npc.feet(_point);
+    const yaw = npc.heading;
+    if (!puppeteer.possess(npc)) {
+      ctx.notify(`${npc.skin.label} lässt sich nicht übernehmen`);
+      return;
+    }
+    this.movePlayerTo(ctx, _point, yaw);
+    ctx.notify(`${npc.skin.label} übernommen — du bist jetzt er`);
+    this.refreshMenuLabels();
+  }
+
+  /**
+   * **Aufnahme an oder aus.** Ohne übernommenen NPC wird erst einer
+   * übernommen — wer „aufnehmen" sagt, meint nicht „erst einmal übernehmen".
+   * Am Ende wird die Aufnahme gleich als Charakter gespeichert: Ein Name
+   * kommt von selbst (`characterStore.nextCharacterName`), und eine Aufnahme,
+   * die nur im Speicher dieser Sitzung liegt, ist nach dem Neuladen weg.
+   */
+  private toggleRecording(ctx: WorldContext): void {
+    const puppeteer = this.puppeteer;
+    if (!puppeteer) return;
+    if (puppeteer.recording) {
+      const recording = puppeteer.stopRecording();
+      if (!recording) {
+        ctx.notify('Die Aufnahme war leer');
+      } else {
+        const saved = saveCharacter({ kind: recording.kind, recording });
+        const length = formatDuration(recording.duration);
+        ctx.notify(
+          saved
+            ? `Aufnahme ${length} · gespeichert als „${saved.name}"`
+            : `Aufnahme ${length} — im Browser ist kein Platz mehr dafür`,
+        );
+      }
+      this.refreshMenuLabels();
+      return;
+    }
+    // Zweimal gefragt und nicht einmal gemerkt: `takeOverNpc` ändert den
+    // Stand, und der Typprüfer weiß das nicht.
+    const possessed = (): boolean => puppeteer.state === 'possessed';
+    if (!possessed()) {
+      this.takeOverNpc(ctx);
+      if (!possessed()) return;
+    }
+    if (!puppeteer.startRecording()) return;
+    this.puppetTick = 0;
+    ctx.notify('Aufnahme läuft — jetzt vormachen');
+    this.refreshMenuLabels();
+  }
+
+  /** **Abspielen an oder aus.** Ein übernommener NPC wird dafür losgelassen. */
+  private togglePlayback(ctx: WorldContext): void {
+    const puppeteer = this.puppeteer;
+    if (!puppeteer) return;
+    if (puppeteer.state === 'playing') {
+      puppeteer.stopPlaying();
+      ctx.notify('Abspielen gestoppt');
+      this.refreshMenuLabels();
+      return;
+    }
+    const npc = puppeteer.character;
+    if (!npc || !isPlayable(puppeteer.action)) {
+      ctx.notify('Keine Aktion — erst aufnehmen oder einen Charakter laden');
+      return;
+    }
+    if (!puppeteer.play()) {
+      ctx.notify(`${npc.skin.label} kann gerade nicht spielen`);
+      return;
+    }
+    this.puppetTick = 0;
+    ctx.notify(`${npc.skin.label} spielt · ${formatDuration(puppeteer.action!.duration)}`);
+    this.refreshMenuLabels();
+  }
+
+  /**
+   * **Ein gespeicherter Charakter kommt zurück**: seine Haut, dort, wo seine
+   * Aufnahme beginnt, mit dem Hirn „Stehen" — er soll warten, bis man ihn
+   * spielen lässt, und nicht weglaufen. Die Dinge seiner Aufnahme baut das
+   * Abspielen nach, wenn sie fehlen (`Puppeteer.stageProps`).
+   */
+  private loadCharacter(ctx: WorldContext, character: SavedCharacter, playNow: boolean): void {
+    const puppeteer = this.puppeteer;
+    const director = this.director;
+    if (!puppeteer || !director) return;
+    const first = character.recording.frames[0];
+    if (!first) {
+      ctx.notify('Die Aufnahme ist leer');
+      return;
+    }
+    _point.set(first.feet[0], first.feet[1] + 0.05, first.feet[2]);
+    const npc = director.spawn({
+      kind: character.kind,
+      brain: 'idle',
+      at: _point,
+      yaw: first.yaw,
+      health: npcSettings().health,
+    });
+    if (!npc) return;
+    puppeteer.adopt(npc, character.recording);
+    if (playNow && puppeteer.play()) {
+      ctx.notify(`${character.name} spielt`);
+    } else {
+      ctx.notify(`${character.name} steht — Abspielen unter NPC → Charakter`);
+    }
+    ctx.menu.toggle(false);
+    this.refreshMenuLabels();
+  }
+
+  /**
+   * Was der Puppenspieler von der Welt braucht (`PuppetStage`): die Pose des
+   * Spielers, die Dinge in seinen Händen, ein Ding nach seiner Id — und wie
+   * ein NPC aussieht, während man ihn ist.
+   */
+  private puppetStage(physics: PhysicsWorld): PuppetStage {
+    return {
+      physics,
+      playerPose: (out) => this.fillPlayerPose(out),
+      heldProps: (out) => this.fillHeldProps(out),
+      propById: (id) => {
+        const entry = this.bodies.get(id);
+        if (!entry || entry.removed) return null;
+        return { entry, held: this.handHolding(entry) !== null };
+      },
+      spawnProp: (kind, position, quaternion) => {
+        // Nur der Beutel baut sofort; ein Modell aus dem Regal müsste erst
+        // geladen werden, und eine Aufnahme wartet nicht.
+        if (modelPathOf(kind as PropKind) !== null || !(kind in PROP_LABELS)) return null;
+        const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
+        const entry = this.createProp(id, kind as BagKind, position, quaternion);
+        this.sync?.spawned(id, kind as BagKind, poseOf(entry));
+        return { id, entry };
+      },
+      onPossess: (npc) => this.wearNpc(npc, true),
+      onRelease: (npc) => this.wearNpc(npc, false),
+      notify: (message) => this.announce(message),
+    };
+  }
+
+  /**
+   * **Wie ein NPC aussieht, während man ihn ist**: wie die eigene Figur.
+   *
+   * Die steht auf `LAYER_SELF_ONLY` — das eigene Auge zeichnet sie nicht,
+   * der Spiegel, das Portal und die Ansicht von oben schon. Ein übernommener
+   * NPC bekommt dieselbe Ebene, und die Figur des Spielers verschwindet
+   * solange: Im Spiegel steht dann die Übungspuppe, wo sonst der Koch steht.
+   * Ein Kopf aus Klötzen vor der eigenen Kamera wäre die Alternative.
+   */
+  private wearNpc(npc: Npc, on: boolean): void {
+    npc.model.traverse((object) => object.layers.set(on ? LAYER_SELF_ONLY : 0));
+    const ctx = this.context;
+    if (ctx) ctx.avatar.visible = !on;
+  }
+
+  /** Füße, Gierwinkel, Kopf und Hände des Spielers in der Welt — für die Fäden. */
+  private fillPlayerPose(out: StagePose): boolean {
+    const ctx = this.context;
+    if (!ctx || !this.playerFeet(out.feet)) return false;
+    ctx.rig.getHeadForward(_direction);
+    out.yaw = yawOfForward(_direction.x, _direction.z);
+    ctx.rig.getHeadMatrix(_puppetHead);
+    out.head.position.setFromMatrixPosition(_puppetHead);
+    out.head.quaternion.setFromRotationMatrix(_puppetHead);
+    const presenting = ctx.renderer.xr.isPresenting;
+    for (const side of ['left', 'right'] as const) {
+      const controller = presenting ? ctx.input.get(side) : null;
+      const hand = side === 'left' ? out.left : out.right;
+      let tracked = Boolean(controller?.tracked);
+      if (controller && tracked) {
+        const anchor = gripOf(controller);
+        anchor.updateWorldMatrix(true, false);
+        anchor.getWorldPosition(hand.position);
+        anchor.getWorldQuaternion(hand.quaternion);
+      } else if (side === 'right' && !presenting && this.screenHand) {
+        // Am Schirm trägt die Bildschirmhand, was aus dem Beutel kommt — sie
+        // ist die rechte, und sie zählt nur, solange etwas darin liegt.
+        const carrying = this.screenCarrySide();
+        if (carrying && this.grabs.has(carrying)) {
+          const carry = this.screenHand.carry;
+          carry.updateWorldMatrix(true, false);
+          carry.getWorldPosition(hand.position);
+          carry.getWorldQuaternion(hand.quaternion);
+          tracked = true;
+        }
+      }
+      if (side === 'left') out.leftTracked = tracked;
+      else out.rightTracked = tracked;
+    }
+    return true;
+  }
+
+  /** Was gerade in den Händen liegt — mit Id und Sorte, damit es in die Aufnahme kann. */
+  private fillHeldProps(out: StageProp[]): StageProp[] {
+    out.length = 0;
+    for (const grab of this.grabs.values()) {
+      const id = this.idOf(grab.entry);
+      const kind = (grab.entry.object.userData as { propKind?: PropKind }).propKind;
+      if (!id || !kind) continue;
+      out.push({ id, kind, entry: grab.entry });
+    }
+    return out;
+  }
+
+  /** Ein Bild Puppenspiel — und einmal je Sekunde die Uhr in den Menüzeilen. */
+  private updatePuppeteer(dt: number, ctx: WorldContext): void {
+    const puppeteer = this.puppeteer;
+    if (!puppeteer) return;
+    const busy = puppeteer.recording || puppeteer.state === 'playing';
+    if (puppeteer.update(dt * this.timeScale, this.time)) {
+      ctx.notify('Aktion zu Ende');
+      this.refreshMenuLabels();
+      return;
+    }
+    if (!busy) return;
+    this.puppetTick += dt;
+    if (this.puppetTick < 1) return;
+    this.puppetTick = 0;
+    this.refreshMenuLabels();
   }
 
   /**
@@ -3740,6 +4166,10 @@ export class PortalWorld implements World {
     this.pendingSteps = 0;
     this.horizonFloor = null;
     this.hasLastGround = false;
+    this.puppeteer?.dispose();
+    this.puppeteer = null;
+    this.unsubscribeCharacters?.();
+    this.unsubscribeCharacters = null;
     this.director?.dispose();
     this.director = null;
     this.signs?.dispose();

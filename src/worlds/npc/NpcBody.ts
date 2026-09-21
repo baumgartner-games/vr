@@ -104,6 +104,21 @@ export class NpcBody extends THREE.Group {
   /** Wie weit der Arm gerade ausholt: 0 = hängt, 1 = trifft. */
   private strike = 0;
 
+  /**
+   * **Die Puppe an den Fäden** — oder `null`, wenn der Gang die Arme führt.
+   *
+   * Ein übernommener oder abgespielter NPC (`Npc.puppet`) hat Hände, die
+   * irgendwo *sind*: dort, wo die Hand des Spielers war, als er die Heizdecke
+   * wegzog. Der Gang weiß davon nichts und würde die Arme jedes Bild wieder
+   * pendeln lassen. Solange hier etwas steht, zeigen die Arme deshalb auf
+   * ihre Ziele, und der Kopf dreht sich mit dem des Spielers; die Beine
+   * gehen weiter ihren Schritt, denn der kommt aus dem Tempo und stimmt.
+   *
+   * Ziele stehen im **Raum des Modells**: Ursprung zwischen den Füßen, vorn
+   * ist −Z, und der Gierwinkel ist schon herausgerechnet (`Npc.setPuppet`).
+   */
+  puppet: PuppetPose | null = null;
+
   constructor(kind: NpcKind) {
     super();
     const skin = npcSkin(kind);
@@ -421,9 +436,44 @@ export class NpcBody extends THREE.Group {
     // hängender Arme, also gegen die Grundhaltung.
     const hit = this.strike * (Math.sin(this.phase * 3.4) * 0.5 + 0.5) * 0.9;
     const sway = (1 - this.strike) * -step * 0.6;
-    this.armLeft.rotation.x = base - hit + sway;
-    this.armRight.rotation.x = base - hit - sway;
+    // `set` und nicht `.x`: Eine Puppe hat den Arm womöglich seitlich gedreht,
+    // und ein Gang, der nur die X-Drehung schreibt, ließe das stehen.
+    this.armLeft.rotation.set(base - hit + sway, 0, 0);
+    this.armRight.rotation.set(base - hit - sway, 0, 0);
+    this.head.rotation.set(0, 0, 0);
+    if (this.puppet) this.pull(this.puppet);
     this.faceBar();
+  }
+
+  /**
+   * Zieht an den Fäden: Jeder Arm, der ein Ziel hat, zeigt von seiner
+   * Schulter dorthin — ein Gelenk, keine Ellbogen; die Länge stimmt nur, wenn
+   * die Hand des Spielers gerade so weit weg war wie die der Puppe, und das
+   * ist ihr egal. Der Kopf nimmt Nick- und Gierwinkel des Spielerkopfes,
+   * gedeckelt, damit die Puppe ihn nicht auf den Rücken dreht.
+   */
+  private pull(pose: PuppetPose): void {
+    for (const [arm, target] of [
+      [this.armLeft, pose.left],
+      [this.armRight, pose.right],
+    ] as const) {
+      if (!target) continue;
+      // Die Schulter im Raum des Modells: Rumpf plus Gelenk. Der Rumpf wiegt
+      // um Y mit (`chest.rotation.y`), also wird das Ziel in seinen Raum
+      // gedreht, bevor gerechnet wird.
+      _shoulder.copy(arm.position).add(this.chest.position);
+      _reach.copy(target).sub(_shoulder);
+      _reach.applyAxisAngle(_up, -this.chest.rotation.y);
+      if (_reach.lengthSq() < 1e-6) continue;
+      _reach.normalize();
+      arm.quaternion.setFromUnitVectors(_down, _reach);
+    }
+    this.head.rotation.set(
+      THREE.MathUtils.clamp(pose.headPitch, -HEAD_PITCH, HEAD_PITCH),
+      THREE.MathUtils.clamp(pose.headYaw, -HEAD_YAW, HEAD_YAW),
+      0,
+      'YXZ',
+    );
   }
 
   /**
@@ -478,6 +528,26 @@ export class NpcBody extends THREE.Group {
 
 /** Wann ein Lebensbalken zu sehen ist. */
 export type BarMode = 'off' | 'hurt' | 'always';
+
+/** Die Fäden einer Puppe — siehe `NpcBody.puppet`. */
+export interface PuppetPose {
+  /** Wohin die linke Hand zeigt, im Raum des Modells; `null` lässt den Arm dem Gang. */
+  left: THREE.Vector3 | null;
+  right: THREE.Vector3 | null;
+  /** Nicken des Kopfes in Bogenmaß, positiv nach oben. */
+  headPitch: number;
+  /** Drehung des Kopfes gegen den Körper, in Bogenmaß, positiv nach links. */
+  headYaw: number;
+}
+
+/** Weiter nickt und dreht keine Puppe den Kopf. */
+const HEAD_PITCH = Math.PI * 0.35;
+const HEAD_YAW = Math.PI * 0.4;
+
+const _shoulder = new THREE.Vector3();
+const _reach = new THREE.Vector3();
+const _down = new THREE.Vector3(0, -1, 0);
+const _up = new THREE.Vector3(0, 1, 0);
 
 /** Die drei Stellungen, wie das Menü sie durchschaltet und beschriftet. */
 export const NPC_BAR_MODES: ReadonlyArray<{ id: BarMode; label: string; sub: string }> = [

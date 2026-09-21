@@ -477,6 +477,35 @@ export class NpcDirector implements NpcControl {
     return this.npcs.reduce((sum, npc) => sum + (npc.alive ? 1 : 0), 0);
   }
 
+  /**
+   * **Wen man anschaut** — der erste Stehende auf dem Strahl, oder `null`.
+   *
+   * Dieselbe Frage wie beim Wegnehmen (`removeAlong`), nur ohne die Antwort
+   * gleich zu beseitigen: Wer einen NPC übernehmen will, will ihn behalten.
+   */
+  pickAlong(origin: THREE.Vector3, direction: THREE.Vector3, range = REMOVE_RANGE): Npc | null {
+    _to.copy(origin).addScaledVector(direction, range);
+    for (let i = this.npcs.length - 1; i >= 0; i--) {
+      const npc = this.npcs[i]!;
+      if (npc.solid && npc.zoneOf(origin, _to)) return npc;
+    }
+    return null;
+  }
+
+  /** Der nächste Stehende innerhalb von `range` Metern um einen Punkt — oder `null`. */
+  nearest(point: THREE.Vector3, range: number): Npc | null {
+    let best: Npc | null = null;
+    let bestDistance = range * range;
+    for (const npc of this.npcs) {
+      if (!npc.solid) continue;
+      const distance = npc.feet(_probe).distanceToSquared(point);
+      if (distance >= bestDistance) continue;
+      best = npc;
+      bestDistance = distance;
+    }
+    return best;
+  }
+
   // --- das Bild -------------------------------------------------------------
 
   update(dt: number): void {
