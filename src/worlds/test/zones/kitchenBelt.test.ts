@@ -875,11 +875,17 @@ describe('beltDelivers / beltReleases — was die Nachbarkachel darf', () => {
     expect(beltTrashes(loaded)).toBe(true);
     // Gerät und leeres Geschirr gehören nicht in den Müll — ein Band davor
     // fährt gar nicht erst los (`kitchen.beltTarget`).
-    for (const item of ['pot', 'pan', 'plate', 'extinguisher'] as const) {
+    for (const item of ['pot', 'pan', 'plate'] as const) {
       const deed = kitchenDeed(dish(item), bin);
       expect(deed.do).toBe('refuse');
       expect(beltTrashes(deed)).toBe(false);
     }
+    // **Und der Feuerlöscher genauso, nur mit einem anderen Wort.** Seit er
+    // den Knopf für sich hat, sagt der Mülleimer mit ihm gar nichts mehr
+    // (`kitchenCarry.EXTINGUISHER_REST`) statt „gehört nicht in den Müll" —
+    // für das Band ist beides dasselbe: Es fährt nicht los.
+    expect(kitchenDeed(dish('extinguisher'), bin).do).toBe('nothing');
+    expect(beltTrashes(kitchenDeed(dish('extinguisher'), bin))).toBe(false);
     // Und ein Band ohne Ladung hat nichts wegzuwerfen.
     expect(beltTrashes(kitchenDeed(null, bin))).toBe(false);
   });

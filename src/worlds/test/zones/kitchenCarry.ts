@@ -252,6 +252,56 @@ export const STATION_WORK: Readonly<Record<StationKind, WorkKind | null>> = {
 };
 
 /**
+ * **Wo der Feuerlöscher aus der Hand darf** — eine Zeile je Stationsart,
+ * `true` für die drei, an denen er abgestellt wird.
+ *
+ * Das ist der gemeldete Wunsch als Tabelle: _„Wenn ich mit anderen Dingen als
+ * einer Arbeitsplatte interagieren will, wird stattdessen einfach der
+ * Feuerlöscher aktiviert. Nur mit einer Arbeitsplatte wird er wieder
+ * abgelegt."_ Wer ihn trägt, trägt kein Werkzeug für die Küche, sondern **ein
+ * Gerät mit einem eigenen Knopf** — und solange er in der Hand liegt, gehört
+ * der Benutzen-Knopf diesem Gerät (`kitchenSpray.sprayOn`) und nicht dem Möbel
+ * davor. Eine Station, die dabei trotzdem etwas anböte, nähme ihm den Knopf
+ * wieder weg (`core/PlayerRig.useCandidate`): Man stünde vor dem brennenden
+ * Herd, drückte — und legte den Löscher auf die Zeile, statt zu löschen.
+ *
+ * **Drei sagen `true`, und alle drei sind dasselbe**: eine Fläche, auf der er
+ * steht. Die **Arbeitsplatte** (`top`) ist die aus dem Wunsch, die **Kiste**
+ * (`box`) ist ausdrücklich „zugleich Arbeitsplatte" (siehe `StationKind`), und
+ * die **Halterung** (`rack`) ist die Arbeitsplatte, auf die er gehört — ohne
+ * sie käme er nie wieder dorthin zurück, wo ihn beim nächsten Feuer jemand
+ * sucht.
+ *
+ * **Alle anderen sagen `false`, auch der brennende Herd** — gerade der. Es gab
+ * hier einmal einen zweiten Weg, das Feuer auszumachen: einen Druck auf `A`
+ * davor (`do: 'douse'`). Er war bequem und er war der Lichtschalter, gegen den
+ * `kitchenSpray.ts` in seinem ersten Absatz geschrieben ist; seit derselbe
+ * Druck den Löscher anmacht, ist er nicht nur überflüssig, sondern im Weg.
+ *
+ * Vollständig über `StationKind` und aus demselben Grund wie `STATION_WORK`
+ * darüber: Wer eine Stationsart dazutut, bekommt vom Übersetzer die Frage
+ * gestellt, ob man den Löscher dort abstellt.
+ */
+export const EXTINGUISHER_REST: Readonly<Record<StationKind, boolean>> = {
+  top: true,
+  box: true,
+  rack: true,
+  crate: false,
+  board: false,
+  mixer: false,
+  griddle: false,
+  sink: false,
+  bin: false,
+  stove: false,
+  serve: false,
+  drain: false,
+  return: false,
+  table: false,
+  belt: false,
+  combiner: false,
+};
+
+/**
  * **Eine Station, so viel wie die Regel davon braucht.**
  *
  * Vier Felder für elf Arten, und das ist keine Sparsamkeit: Alles, was in
@@ -398,8 +448,6 @@ export type KitchenDeed =
    * „nichts mehr".
    */
   | { do: 'serve'; recipe: Recipe; held: Dish | null }
-  /** Feuer aus — das Patty ist weg, die Pfanne bleibt. */
-  | { do: 'douse' }
   /**
    * **Die Zange angesetzt** — ab jetzt läuft die Reparatur des Beckens
    * (`kitchenLeak.startFix`).
@@ -420,6 +468,17 @@ export type KitchenDeed =
  * @param held was sie trägt, oder `null` für die leere Hand
  */
 export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
+  // **Der Feuerlöscher zuerst, und zwar vor allem anderen** (`EXTINGUISHER_REST`).
+  // Wer ihn hält, bedient nichts als die Fläche, auf die er ihn stellt — an
+  // allem übrigen hat die Station nichts zu sagen, damit der Knopf dem Löscher
+  // gehört. `nothing` und nicht `refuse`: Es ist keine Ablehnung, die jemand
+  // lesen soll, sondern eine Station, die sich gar nicht erst meldet
+  // (`kitchen.refreshStations`) — kein Saum, kein Hinweis, kein zweiter Sinn
+  // auf demselben Knopf.
+  if (held?.item === 'extinguisher' && !EXTINGUISHER_REST[station.kind]) {
+    return { do: 'nothing' };
+  }
+
   switch (station.kind) {
     case 'box':
       return fromBox(held, station.gives, station.on ?? null);
@@ -447,9 +506,11 @@ export function kitchenDeed(held: Dish | null, station: Station): KitchenDeed {
 
     case 'stove': {
       // **Ein brennender Herd ist keine Fläche mehr.** Solange es brennt, geht
-      // nur eines, und wer ohne Feuerlöscher davorsteht, liest, welches.
+      // nur eines, und wer ohne Feuerlöscher davorsteht, liest, welches. Wer
+      // einen **hat**, steht hier gar nicht mehr: Für ihn ist der Herd eine
+      // Station ohne Angebot (`EXTINGUISHER_REST`), und sein Knopf macht den
+      // Löscher an.
       if (station.fire) {
-        if (held?.item === 'extinguisher') return { do: 'douse' };
         return { do: 'refuse', why: 'Der Herd brennt — das braucht den Feuerlöscher' };
       }
       // Sonst ist er eine Fläche, auf der die Pfanne steht: Man nimmt sie mit
@@ -894,9 +955,9 @@ function atReturn(held: Dish | null, stack: number): KitchenDeed {
  *
  * Alles andere meint wirklich die Station: Auf eine Fläche wird **abgelegt**
  * (`place`), am Brett wird **angefangen** (`work`), am Becken der Topf
- * **gefüllt** (`fill`), in den Mülleimer geworfen (`trash`, `scrape`), über die
- * Theke geschoben (`serve`), ein Herd gelöscht (`douse`). Dort ist das Möbel
- * das Ziel, und es leuchtet auch so.
+ * **gefüllt** (`fill`) und das Leck **abgedichtet** (`repair`), in den
+ * Mülleimer geworfen (`trash`, `scrape`), über die Theke geschoben (`serve`).
+ * Dort ist das Möbel das Ziel, und es leuchtet auch so.
  *
  * **Beim Füllen ist das der ganze Witz**: Im Becken kann ein dreckiger Teller
  * liegen, und der hat mit dem Topf unter dem Hahn nichts zu tun. Leuchtete er,
@@ -920,8 +981,8 @@ export function meansContent(deed: KitchenDeed): boolean {
  * der Ausgabe, der Teller vom Stapel, die Pfanne vom Herd, der Topf, der
  * Feuerlöscher aus seiner Halterung. Alles andere ist eine Bedienung der
  * Station — ablegen, schneiden, spülen, **den Topf füllen**, wegwerfen,
- * servieren, löschen —, und das ist ein Druck, auch wenn dabei etwas die Hand
- * verlässt.
+ * servieren, abdichten —, und das ist ein Druck, auch wenn dabei etwas die
+ * Hand verlässt.
  *
  * **Und deshalb steht `fill` in keiner Zeile hier.** Es ist kein `take`, fällt
  * also in denselben Zweig wie alles andere und wird gedrückt — in der Brille
@@ -962,10 +1023,11 @@ export function kitchenInteraction(deed: KitchenDeed | null | undefined): Intera
  * aufnehmen), `trash`, `scrape` (der Belag geht, der Träger bleibt) und
  * `serve`.
  *
- * **`douse` gehört ausdrücklich nicht dazu.** Das Feuer zu löschen nimmt der
- * Hand nichts weg — der Löscher bleibt darin. Wer mit ihm an den brennenden
- * Herd tritt, soll ihn auch weiter durch Hinlangen löschen können; das ist
- * eine Bedienung und kein Ablegen.
+ * **`repair` gehört ausdrücklich nicht dazu.** Die Zange anzusetzen nimmt der
+ * Hand nichts weg — sie bleibt darin, und nur die Uhr fängt an zu laufen; das
+ * ist eine Bedienung und kein Ablegen. (Hier stand bis September 2026 `douse`
+ * mit demselben Satz. Die Tat gibt es nicht mehr: Wer den Löscher hält, macht
+ * mit demselben Knopf den Löscher an — `EXTINGUISHER_REST`.)
  *
  * **Und von oben ändert sich dadurch nichts**: `A` tut, was `A` immer getan
  * hat. Was hier entsteht, ist eine Ausnahme **nur für die Ansicht `vr`**
@@ -1083,8 +1145,6 @@ export function kitchenPrompt(deed: KitchenDeed, what: string): string {
       return `${ITEM_LABELS[deed.dish.item]} abräumen`;
     case 'serve':
       return `${deed.recipe.label} servieren`;
-    case 'douse':
-      return 'Feuer löschen';
     case 'repair':
       // `what` steht nicht darin, obwohl es hier bekannt wäre: Es gibt genau
       // ein Becken, das spritzen kann, und „Spülbecken reparieren" sagt

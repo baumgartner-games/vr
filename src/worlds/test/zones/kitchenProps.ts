@@ -353,18 +353,29 @@ export const WRENCH_MODEL = 'rpg-tools-bits/wrench_A.glb';
  * Datei und nicht geschätzt.
  *
  * `rpg-tools-bits/wrench_A.glb` misst 0,264 × 0,819 × 0,110 in den Einheiten
- * seines Pakets; mit dem Maßstab des Regals (`core/kaykitFit.KAYKIT_SCALE`,
- * 0,5) sind das 0,132 × 0,410 × 0,055. **Hingelegt** wird er dann so, wie man
- * ein Werkzeug hinlegt: die lange Achse nach **+x**, die Flachseite nach oben
- * — also `length` in x, `thick` in y, `bar` in z.
+ * seines Pakets. **Hingelegt** wird er so, wie man ein Werkzeug hinlegt: die
+ * lange Achse nach **+x**, die Flachseite nach oben — also `length` in x,
+ * `thick` in y, `bar` in z.
  *
- * **41 cm lang**, und das ist keine echte Zange (die misst 25). Gezielt wird
+ * **70 cm lang**, und das ist keine echte Zange (die misst 25). Gezielt wird
  * in dieser Küche von **oben**, aus 16 m Höhe, und dort ist ein
- * 25-cm-Werkzeug auf einer Arbeitsplatte ein Strich. 41 cm sind knapp die
- * halbe Kachel, auf der er liegt — man sieht ihn im Vorbeilaufen und hält ihn
- * trotzdem nicht für einen Besen.
+ * 25-cm-Werkzeug auf einer Arbeitsplatte ein Strich.
  *
- * **Flach**, 5,5 cm hoch: Ein Schlüssel liegt auf der Seite. Das ist zugleich
+ * **Hier standen bis September 2026 41 cm** — der Maßstab des Regals
+ * (`core/kaykitFit.KAYKIT_SCALE`, 0,5) auf die Datei angewandt. Das war die
+ * Zahl, die das Paket vorgab, und nicht die, die man von oben braucht:
+ * _„Der Schraubenschlüssel sollte 1,5–2 fach größer sein."_ 70 cm sind das
+ * **1,7fache** davon und damit die Mitte dieser Spanne — gut zwei Drittel der
+ * Kachel, auf der er liegt. Man erkennt ihn im Vorbeilaufen als Werkzeug und
+ * nicht als Strich, und ein Besen ist er immer noch nicht.
+ *
+ * **Die beiden anderen Maße folgen der Datei** und sind nicht mitgeraten: Sie
+ * stehen zur Länge im Seitenverhältnis von `wrench_A` (0,264 : 0,819 : 0,110),
+ * genau wie vorher — `layFlat` skaliert das Netz ohnehin nach der Länge, und
+ * eine Hülle mit einem anderen Verhältnis wäre eine Hülle, die nicht mehr um
+ * das Modell passt.
+ *
+ * **Flach**, 9,4 cm hoch: Ein Schlüssel liegt auf der Seite. Das ist zugleich
  * seine `ITEM_HEIGHT` — was flach liegt, trägt wenig auf, und auf einer
  * Arbeitsplatte neben einem Teller fällt er damit nicht um.
  *
@@ -375,9 +386,9 @@ export const WRENCH_MODEL = 'rpg-tools-bits/wrench_A.glb';
  * (`layFlat`) statt umgekehrt.
  */
 const PLIERS = {
-  length: 0.41,
-  thick: 0.055,
-  bar: 0.132,
+  length: 0.7,
+  thick: 0.094,
+  bar: 0.226,
 } as const;
 
 /** Der Stahl des Schraubenschlüssels — nur noch für seine unsichtbare Hülle. */

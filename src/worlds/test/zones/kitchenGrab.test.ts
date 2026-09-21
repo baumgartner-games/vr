@@ -409,9 +409,13 @@ describe('Abgelegt wird erst beim Loslassen', () => {
     }
   });
 
-  it('lässt das Löschen eine Berührung bleiben — es nimmt der Hand nichts weg', () => {
-    const deed = kitchenDeed(dish('extinguisher'), { kind: 'stove', on: dish('pan'), fire: true });
-    expect(deed.do).toBe('douse');
+  it('lässt das Abdichten eine Berührung bleiben — es nimmt der Hand nichts weg', () => {
+    // Hier stand bis September 2026 das **Löschen** mit demselben Satz. Die
+    // Tat gibt es nicht mehr (`kitchenCarry.EXTINGUISHER_REST`); die Zange am
+    // spritzenden Becken ist die andere, die nur eine Uhr anwirft und der Hand
+    // nichts wegnimmt.
+    const deed = kitchenDeed(dish('pliers'), { kind: 'sink', leaking: true });
+    expect(deed.do).toBe('repair');
     expect(kitchenGivesUp(deed)).toBe(false);
     expect(vrInputs(kitchenInteractionSpec(deed))).toEqual(['handTouch', 'aimTrigger']);
   });
@@ -433,8 +437,12 @@ describe('Abgelegt wird erst beim Loslassen', () => {
       resolveInteraction(kitchenInteractionSpec(place, KITCHEN_STATION_GRAB, false), 'vr').press,
     ).toBe('hold');
     // Und ebenso, wo sonst der Trigger allein zuständig wäre: Berühren bleibt.
-    const douse = kitchenDeed(dish('extinguisher'), { kind: 'stove', on: dish('pan'), fire: true });
-    expect(vrInputs(kitchenInteractionSpec(douse, undefined, false))).toEqual(['handTouch']);
+    // Der Fall dazu ist die **belegte** Arbeitsplatte — der Löscher legt sich
+    // auf nichts drauf, die Station sagt es, und der Trigger ist dabei
+    // weiterhin mit dem Löscher beschäftigt.
+    const refused = kitchenDeed(dish('extinguisher'), { kind: 'top', on: dish('plate') });
+    expect(refused.do).toBe('refuse');
+    expect(vrInputs(kitchenInteractionSpec(refused, undefined, false))).toEqual(['handTouch']);
     // Von oben unverändert — dort gilt die Ableitung der Tabelle.
     expect(
       resolveInteraction(kitchenInteractionSpec(place, KITCHEN_STATION_GRAB, false), 'topDown')
