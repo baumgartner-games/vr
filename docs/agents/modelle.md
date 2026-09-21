@@ -272,23 +272,31 @@ im Repository seit zwei Builds nicht mehr gab. Man sieht einem Bild nicht an,
 dass es an einem Speicher liegt und nicht am Katalog; gesucht wurde der Fehler
 im Modell.
 
-Seitdem hängt an jeder dieser Adressen die Build-Nummer
-(`core/assetVersion.ts`, `versioned`): `models/kitchen.glb?v=1a2b3c`. Darauf
-hat kein Speicher eine Antwort — auch der Service Worker des **vorigen**
-Builds nicht, der auf dem Telefon noch läuft, während die neue Seite schon
-geladen ist. Beim Aktivieren wirft der neue dann weg, was ein fremdes `v=`
-trägt (`sw.ts`, `dropOldMedia`); was **kein** `v=` hat, bleibt liegen — die
-Controller-Modelle ändern sich nicht mit dem Build und sollen nicht nach jedem
-Deploy neu über das Netz.
+Seitdem hängt an jeder dieser Adressen die **Prüfsumme ihres Inhalts**
+(`core/assetVersion.ts`, `versioned`): `models/kitchen.glb?v=rSxNm45c`, acht
+Stellen aus SHA-256, gerechnet beim Bauen über die Datei selbst
+(`vite.config.ts`, `assetHashes`). Ändert sich das Modell, hat darauf kein
+Speicher eine Antwort — auch der Service Worker des **vorigen** Builds nicht,
+der auf dem Telefon noch läuft, während die neue Seite schon geladen ist. Beim
+Aktivieren wirft der neue dann weg, was ein `v=` trägt, das nicht der Inhalt
+dieser Datei ist (`sw.ts`, `dropOldMedia`); was **kein** `v=` hat, bleibt
+liegen — die Controller-Modelle ändern sich nicht mit dem Build und sollen
+nicht nach jedem Deploy neu über das Netz.
+
+**Hier stand einmal die Build-Nummer**, und das war die zu grobe Antwort auf
+dieselbe Frage: Sie ändert sich bei jedem Deploy, also holte jedes Telefon
+3,7 MB Töne und Modelle nach jeder Korrektur eines Kommentars noch einmal —
+Byte für Byte dieselben. Die ganze Rechnung steht in
+[Deployment](deployment.md#prüfsumme-statt-build-nummer--und-warum-das-9-mb-wert-war).
 
 **Und seit der Messung des Starts gilt eine Einschränkung dazu**: Was die
-Nummer **dieses** Builds trägt, wird gar nicht mehr nachgeholt
-(`core/swRoutes.ts`, `isCurrentBuild`) — unter einer Adresse mit dem eigenen
-`v=` kann sich nichts geändert haben, und das Nachsehen im Netz war deshalb
-kein Auffrischen, sondern nur Datenvolumen. Gemessen waren es 33 Anfragen und
+Prüfsumme seines eigenen Inhalts trägt, wird gar nicht mehr nachgeholt
+(`core/swRoutes.ts`, `isPinned`) — unter einer solchen Adresse kann sich nichts
+geändert haben, und das Nachsehen im Netz war deshalb kein Auffrischen,
+sondern nur Datenvolumen. Gemessen waren es 33 Anfragen und
 1,6 MB bei jedem Start, sobald der HTTP-Speicher des Browsers abgelaufen war;
 übrig bleiben fünf Anfragen und 429 KB, und das sind die Controller-Modelle,
-die als einzige weiter ohne Nummer dastehen. Siehe
+die als einzige weiter ohne Prüfsumme dastehen. Siehe
 [Die Seite selbst](seite.md), _Der Start: erst die Hülle, dann die Welt_.
 
 Ein Hash im **Dateinamen** wäre das Übliche und geht hier nicht: Diese Dateien
@@ -879,16 +887,24 @@ Und das sind die Regeln, die darin stehen:
   Der alte Griff am brennenden Herd (`kitchenDeed`, `do: 'douse'`, ein Druck
   und das Feuer war aus) ist seit September 2026 weg, und mit ihm jedes andere
   Angebot, das eine Station einer Hand mit dem Löscher darin machte. Wer ihn
-  trägt, findet nur noch **eine Arbeitsplatte** (auch die Kiste, auch seine
-  Halterung — `kitchenCarry.EXTINGUISHER_REST`), auf die er ihn stellt; an
-  allem anderen sagt die Regel `nothing`, die Station meldet sich gar nicht
-  erst an, und genau deshalb ist der Benutzen-Knopf davor frei für den
+  trägt, findet nur noch **Flächen**, auf die er ihn stellt
+  (`kitchenCarry.EXTINGUISHER_REST`): die Arbeitsplatte, die Kiste, seine
+  Halterung, das **Förderband** — das ihn dann weiterfährt wie jede andere
+  Ladung — und die **leere Herdplatte**; an allem anderen, auch an der
+  **belegten** Platte, sagt die Regel `nothing`, die Station meldet sich gar
+  nicht erst an, und genau deshalb ist der Benutzen-Knopf davor frei für den
   Löscher. Das ist der gemeldete Wunsch: _„Wenn ich mit anderen Dingen als
   einer Arbeitsplatte interagieren will, wird stattdessen einfach der
   Feuerlöscher aktiviert … Nur mit einer Arbeitsplatte wird er dann wieder
-  abgelegt."_ Von oben sagt der Schalter dazu, in welcher Stellung er steht
-  (_Feuerlöscher an_ / _aus_, `kitchenSpray.sprayHold`) — gehalten wird nichts
-  gemeldet. Wie die Ansichten den Auslöser lesen, steht unter _Steuerung_.
+  abgelegt."_ Dass die Herdplatte dabei nach ihrem **Stand** gefragt wird und
+  nicht nach ihrer Art (`kitchenCarry.extinguisherRests`), ist der Nachtrag
+  dazu: Leer ist sie eine Fläche wie die Zeile, belegt ist sie das, wofür es
+  den Löscher gibt. Von oben sagt der Schalter dazu, in welcher Stellung er
+  steht (_Feuerlöscher an_ / _aus_, `kitchenSpray.sprayHold`) — gehalten wird
+  nichts gemeldet. **Und am Schirm macht der Zielstock ihn mit an**, solange er
+  ausgelenkt ist (`kitchenSpray.sprayAims`): Zielen und Auslösen sind an einem
+  Gerät, das man ins Feuer hält, ein Daumen und nicht zwei. Wie die Ansichten
+  den Auslöser lesen, steht unter _Steuerung_.
 - **Das Wasserleck ist der zweite Schaden dieser Küche** (`kitchenLeak.ts`),
   und es ist mit Absicht wie der erste gebaut: Ein roter Knopf **an der Spüle**
   (`kitchenPlan.LEAK_BUTTON_TILE`, nicht in der Gerätespalte am Eingang — man

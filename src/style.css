@@ -12,9 +12,17 @@
 
 * { box-sizing: border-box; }
 
+/*
+  Die Höhe kommt aus `ui/safeArea.ts` (`trackViewport`) und nicht aus `100%`:
+  Auf einem iPhone, das als App vom Startbildschirm läuft, ist `100%` mit
+  `viewport-fit=cover` **kürzer** als der Schirm — Kerbe und Strich fehlen
+  darin, `window.innerHeight` meldet sie mit. Der Ersatz dahinter ist das alte
+  Verhalten, für den Augenblick, in dem der Stil schon da ist und das Skript
+  noch nicht.
+*/
 html, body {
   margin: 0;
-  height: 100%;
+  height: var(--app-height, 100%);
   overflow: hidden;
   background: var(--bg);
   color: var(--fg);
@@ -22,11 +30,20 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/*
+  **Die Welt reicht bis an die Kanten des Geräts** — unter die Kerbe und unter
+  den Strich zum Wegschieben. Dieselben zwei Zahlen wie oben, und aus
+  demselben Grund: `height: 100%` ließ auf dem Telefon im Hochformat einen
+  schwarzen Streifen unter der Leinwand stehen, weil die Seite kürzer gerechnet
+  wurde als das Fenster (`ui/safeArea.ts`, `trackViewport`). Freigehalten wird
+  weiter der **Inhalt** und nicht die Fläche: Stöcke, Knöpfe und Blätter
+  rechnen unverändert mit `env(safe-area-inset-*)`.
+*/
 #scene {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  width: var(--app-width, 100%);
+  height: var(--app-height, 100%);
   display: block;
   touch-action: none;
 }

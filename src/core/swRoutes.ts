@@ -25,9 +25,16 @@
  * - `bypass` — **gar nichts tun**. Alles, was nicht zu dieser Anwendung
  *   gehört, und alles, was ein Cache falsch machen würde.
  *
- * Und **eine Einschränkung des dritten Weges**, siehe `isCurrentBuild`: Was
- * die Nummer dieses Builds in der Adresse trägt, wird nicht nachgeholt.
+ * Und **eine Einschränkung des dritten Weges**, siehe `isPinned`: Was die
+ * Prüfsumme seines Inhalts in der Adresse trägt, wird nicht nachgeholt.
+ *
+ * ## Dazu drei Fragen zum Aufräumen
+ *
+ * Ein Speicher, der nur wächst, ist so falsch wie einer, der alles wegwirft.
+ * Welcher Eintrag einen Deploy überlebt, entscheiden `isStaleMedia` und
+ * `isStaleAsset` — auch sie hier, ohne `caches`, und mit Test.
  */
+import { assetHashOf, type AssetHashes } from './assetVersion';
 
 /** Die vier Wege. Siehe oben; `sw.ts` hat zu jedem genau einen Zweig. */
 export type Strategy = 'page' | 'immutable' | 'revalidate' | 'bypass';
@@ -57,6 +64,21 @@ export interface RouteRequest {
  * gilt, bleibt bis zum nächsten Deploy im Speicher stehen.
  */
 const HASHED = /-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/;
+
+/**
+ * **Trägt dieser Pfad den Hash seines Inhalts im Namen?** Die eine Lesart für
+ * alle drei Stellen, die sie brauchen: der Weg `immutable` unten, die
+ * Aufteilung der Vorratsliste auf zwei Speicher (`precacheStore`) und das
+ * Aufräumen (`isStaleAsset`). Eine zweite wäre eine, die beim nächsten Umbau
+ * anders entscheidet als die, die aufräumt.
+ *
+ * Gefragt wird mit einem Pfad — einer ganzen Adresse (`https://…/vr/assets/…`)
+ * genauso wie einem Eintrag der Vorratsliste (`assets/…`): Der Ordner zählt
+ * am Anfang wie in der Mitte.
+ */
+export function isHashedAsset(path: string): boolean {
+  return /(^|\/)assets\//.test(path) && HASHED.test(path);
+}
 
 /**
  * Liegt die Adresse im Geltungsbereich dieser Anwendung?
@@ -91,12 +113,29 @@ export function routeFor(request: RouteRequest, scope: string): Strategy {
   if (path.endsWith('/sw.js')) return 'bypass';
 
   if (request.navigate) return 'page';
-  if (path.includes('/assets/') && HASHED.test(path)) return 'immutable';
+  if (isHashedAsset(path)) return 'immutable';
   return 'revalidate';
 }
 
 /**
- * **Trägt diese Adresse die Nummer *dieses* Builds?** Dann ist sie so
+ * **In welchen Speicher eine Datei der Vorratsliste gehört.**
+ *
+ * Zwei Sorten liegen darin, und sie haben verschiedene Lebensdauern:
+ *
+ * - `assets` — was den Hash seines Inhalts im Namen trägt. Diese Datei
+ *   **überlebt den Deploy**: Ihr Name ist ihr Inhalt, ein neuer Build fragt
+ *   entweder genau dieselbe Datei oder eine anders heißende. Sie liegt deshalb
+ *   in `bgvr-assets`, einem Speicher ohne Build-Nummer im Namen.
+ * - `shell` — die drei HTML-Seiten. Feste Namen, wechselnder Inhalt, und sie
+ *   nennen die Namen aller anderen Dateien: Sie gehören in den Speicher
+ *   **dieses** Builds und nirgendwo sonst.
+ */
+export function precacheStore(path: string): 'assets' | 'shell' {
+  return isHashedAsset(path) ? 'assets' : 'shell';
+}
+
+/**
+ * **Trägt diese Adresse die Prüfsumme ihres eigenen Inhalts?** Dann ist sie so
  * unveränderlich wie ein Dateiname mit Hash, und `revalidate` wird zu
  * `fromCache`.
  *
@@ -110,26 +149,86 @@ export function routeFor(request: RouteRequest, scope: string): Strategy {
  * einem Telefon jedes Mal echtes Datenvolumen, und auf einer schmalen Leitung
  * nimmt es dem, was der Spieler gerade wirklich lädt, die Bandbreite weg.
  * Mit dieser Frage sind es **5 Anfragen und 429 kB**, und die 429 kB sind die
- * Controller-Modelle: Sie tragen keine Nummer und bleiben deshalb mit Absicht
- * auf diesem Weg.
+ * Controller-Modelle: Sie tragen keine Prüfsumme und bleiben deshalb mit
+ * Absicht auf diesem Weg.
  *
- * Und es kann gar nichts anderes herauskommen: `models/kitchen.glb?v=1a2b3c`
- * gehört zu Build `1a2b3c` und zu keinem anderen (`core/assetVersion.ts`).
- * Der nächste Build fragt unter einem neuen `v=`, und was ein **fremdes** `v=`
- * trägt, wirft `sw.ts` beim Aktivieren weg (`dropOldMedia`). Ein Nachholen
- * kann also nur dieselben Bytes zurückbringen.
+ * Und es kann gar nichts anderes herauskommen: `models/kitchen.glb?v=x7Kp2Qa1`
+ * ist dieser Inhalt und kein anderer (`core/assetVersion.ts`). Ändert sich die
+ * Datei, fragt der nächste Build unter einer neuen Prüfsumme, und was eine
+ * **fremde** trägt, wirft `sw.ts` beim Aktivieren weg (`isStaleMedia`). Ein
+ * Nachholen kann also nur dieselben Bytes zurückbringen.
  *
- * Wer **kein** `v=` hat — die Controller-Profile, das Manifest —, bleibt beim
- * Nachholen: Diese Dateien ändern sich ohne Build-Nummer, und für sie ist
- * _stale-while-revalidate_ genau richtig.
+ * **Und genau das ist der Unterschied zur Build-Nummer, die hier einmal
+ * stand.** Die wechselte bei jedem Deploy, also traf diese Frage nach jedem
+ * Deploy auf keinen einzigen Eintrag mehr: 3,7 MB Töne und Modelle
+ * gingen noch einmal über die Leitung, weil irgendwo ein Kommentar anders
+ * lautete. Eine Prüfsumme wechselt, wenn sich die Datei ändert — sonst nie.
+ *
+ * Wer **kein** `v=` hat — die Controller-Profile, das Manifest, das Regal —,
+ * bleibt beim Nachholen: Für sie ist _stale-while-revalidate_ genau richtig.
  */
-export function isCurrentBuild(url: string, build: string): boolean {
-  // Ohne Nummer gibt es keine Übereinstimmung — sonst gälte in einem Jest-Lauf
-  // (`BUILD_ID` ist dort leer) jede Adresse ohne `v=` als unveränderlich.
-  if (!build) return false;
-  // Dieselbe Lesart wie `dropOldMedia` in `sw.ts`. Eine zweite wäre eine, die
-  // beim nächsten Umbau anders entscheidet als die, die aufräumt.
-  return new URL(url).searchParams.get('v') === build;
+export function isPinned(url: string, hashes: AssetHashes): boolean {
+  const stamp = new URL(url).searchParams.get('v');
+  // Ohne Prüfsumme in der Adresse gibt es keine Übereinstimmung — sonst gälte
+  // in einem Jest-Lauf (das Verzeichnis ist dort leer) jede Adresse ohne `v=`
+  // als unveränderlich.
+  if (stamp === null || stamp === '') return false;
+  return stamp === assetHashOf(url, hashes);
+}
+
+/**
+ * **Ist dieser Eintrag des Medienspeichers veraltet?** Die Gegenfrage zu
+ * `isPinned`, und mit Absicht dieselbe Rechnung: Was `sw.ts` beim Aktivieren
+ * wegwirft, muss genau das sein, was es nicht mehr aus dem Speicher
+ * beantworten würde.
+ *
+ * Weggeworfen wird, was ein `v=` trägt, das nicht die Prüfsumme dieser Datei
+ * ist: `kitchen.glb` von vorgestern, und ebenso `offline.json?v=<Build>` des
+ * vorigen Builds — die Liste gibt es in jedem Build wirklich neu.
+ *
+ * Was **kein** `v=` hat, bleibt: die Controller-Modelle, die Symbole, das
+ * Manifest und die 4470 Dateien des Regals. Das sind 62 MB, die sich nicht mit
+ * dem Build ändern, und der ganze Grund, warum `bgvr-media` einen Deploy
+ * überlebt.
+ */
+export function isStaleMedia(url: string, hashes: AssetHashes): boolean {
+  const stamp = new URL(url).searchParams.get('v');
+  if (stamp === null) return false;
+  return stamp !== assetHashOf(url, hashes);
+}
+
+/**
+ * **Und kennt dieser Build diese Datei mit Hash im Namen noch?**
+ *
+ * `bgvr-assets` trägt keine Build-Nummer im Namen und überlebt deshalb den
+ * Deploy — das ist der Sinn der Sache: Ein Chunk, dessen Name gleich geblieben
+ * ist, hat denselben Inhalt und muss nicht noch einmal über die Leitung. Nur
+ * wüchse dieser Speicher sonst mit jedem Deploy um die Chunks, die es nicht
+ * mehr gibt. Also wird beim Aktivieren verglichen: Was in der Liste dieses
+ * Builds steht (`vite.config.ts`, `bundleList`), bleibt; was nicht darin
+ * steht, fliegt hinaus.
+ *
+ * Damit gilt die alte Zusage weiter, nur an einer anderen Stelle: **Ein halber
+ * alter Build kann nicht liegenbleiben.** Vorher hing sie am Namen des
+ * Speichers, jetzt hängt sie am Namen der Datei — und der ist der Hash ihres
+ * Inhalts, also die schärfere der beiden Auskünfte.
+ *
+ * Was **nicht** unter `assets/` liegt, geht diese Frage nichts an: `false`,
+ * und der Eintrag bleibt.
+ */
+export function isStaleAsset(url: string, scope: string, bundle: ReadonlySet<string>): boolean {
+  const path = scopedPath(url, scope);
+  if (path === null || !isHashedAsset(path)) return false;
+  return !bundle.has(path);
+}
+
+/**
+ * Der Pfad einer Adresse unter dem Geltungsbereich (`assets/main-C3aB9x2Q.js`)
+ * — oder `null`, wenn sie gar nicht darunter liegt.
+ */
+export function scopedPath(url: string, scope: string): string | null {
+  if (!inScope(url, scope)) return null;
+  return pathOf(url).slice(scope.length);
 }
 
 /** Der Pfad ohne Query — `?t=123` an einem Modell ändert nichts am Dateityp. */

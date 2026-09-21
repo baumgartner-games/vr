@@ -53,6 +53,7 @@
  * eines mit lauter weißen.
  */
 
+import { versionedWith, type AssetHashes } from './assetVersion';
 import type { KaykitDir, KaykitIndex } from './kaykitIndex';
 
 /** Die erzeugte Liste neben der Seite — siehe `vite.config.ts`. */
@@ -108,41 +109,41 @@ export interface FullPlan {
 }
 
 /**
- * **Trägt diese Datei aus `public/` eine Build-Nummer?**
+ * **Woran eine Datei aus `public/` ihre Prüfsumme bekommt.**
  *
- * Das ist keine Geschmacksfrage, sondern muss **auf das Zeichen genau** so
- * ausfallen wie in dem Lader, der die Datei später wirklich anfragt: Eine
- * Adresse mit `?v=` ist für einen Speicher ein anderer Name. Wer hier falsch
- * stempelt, lädt 57 MB herunter und findet sie im Funkloch trotzdem nicht
+ * Hier stand einmal `stamped(path)` — eine zweite Fassung derselben Regel, die
+ * auch in jedem Lader steht. Das musste **auf das Zeichen genau** passen: Eine
+ * Adresse mit `?v=` ist für einen Speicher ein anderer Name, und wer hier
+ * falsch stempelte, lud 57 MB herunter und fand sie im Funkloch trotzdem nicht
  * wieder — der teuerste Fehler, den dieses Feature machen kann.
  *
- * Vier Regeln, und jede steht schon woanders geschrieben:
+ * Die Regel steht jetzt genau einmal, im Build (`vite.config.ts`,
+ * `isStamped`), und was dabei herauskommt, ist ein Verzeichnis aus Pfad und
+ * Prüfsumme. Beide Seiten lesen dasselbe Verzeichnis durch dieselbe Funktion
+ * (`core/assetVersion.ts`, `versionedWith`): Der Plan hier und der Lader
+ * dort **können** nicht mehr auseinanderlaufen, statt nur zu sollen.
  *
- * - **Der Index des Regals** trägt sie **nicht**, obwohl er erzeugt ist und mit
+ * Was darin steht, steht auch anderswo geschrieben:
+ *
+ * - **Der Index des Regals** steht nicht darin, obwohl er erzeugt ist und mit
  *   jedem neuen Paket wandert: An ihm hängt, ob das Regal aufgeht („Lädt …"),
- *   und eine Nummer machte aus der Datei im Gerät nach jedem Deploy eine
- *   fremde. Warum das die teuerste Nummer im ganzen Projekt war, steht in
- *   `core/kaykitModel.ts` über `INDEX_URL`.
- * - **Das Regal selbst** trägt sie nicht: 4470 gekaufte Dateien, die sich nie
- *   ändern, und eine Nummer daran hieße, dass `dropOldMedia` sie nach jedem
- *   Deploy alle wegwirft (`docs/agents/assetregal.md`, _Keine Build-Nummer_).
- *   Dasselbe gilt für ihre Texturen: Eine `.glb` zeigt mit einer **relativen**
- *   Adresse dorthin, und three.js löst sie ohne Frage im Anhang auf.
- * - **Die Controller-Profile** tragen sie nicht — three.js hängt sie hinter
+ *   und eine wechselnde Adresse machte aus der Datei im Gerät nach jedem
+ *   Deploy eine fremde. Warum das die teuerste Nummer im ganzen Projekt war,
+ *   steht in `core/kaykitModel.ts` über `INDEX_URL`.
+ * - **Das Regal selbst** steht nicht darin: 4470 gekaufte Dateien, die sich
+ *   nie ändern (`docs/agents/assetregal.md`, _Keine Build-Nummer_). Dasselbe
+ *   gilt für ihre Texturen: Eine `.glb` zeigt mit einer **relativen** Adresse
+ *   dorthin, und three.js löst sie ohne Frage im Anhang auf.
+ * - **Die Controller-Profile** stehen nicht darin — three.js hängt sie hinter
  *   `CONTROLLER_PROFILES` zusammen, und dort steht keine
  *   (`core/ControllerModels.ts`).
- * - **Töne und die drei gebündelten Kataloge** tragen sie
+ * - **Töne und die gebündelten Kataloge** stehen darin
  *   (`core/kitchenModel.ts`, `dinerModel.ts`, `mixedbagModel.ts`,
  *   `chefModel.ts`, `worlds/…/kitchenAudio.ts`, `…/cues.register.ts`).
  *
  * Alles Übrige — Manifest, Symbole, Banner — fragt der **Browser** selbst an,
- * und der hängt nichts an. Deshalb ist „nein" die Vorgabe und nicht „ja".
+ * und der hängt nichts an.
  */
-export function stamped(path: string): boolean {
-  if (path.startsWith(SHELF_BASE)) return false;
-  if (path.startsWith('controllers/')) return false;
-  return path.startsWith('audio/') || path.startsWith('models/');
-}
 
 /**
  * **Der Plan.** Aus den beiden erzeugten Listen wird eine geordnete Reihe von
@@ -155,19 +156,20 @@ export function stamped(path: string): boolean {
  * @param base  Die absolute Basis der Seite (`https://…/vr/`). Absolut, weil
  *              der Speicher seine Einträge unter absoluten Adressen führt und
  *              nur ein Zeichenvergleich entscheidet, ob etwas schon da ist.
- * @param build Die Build-Nummer, oder `''` — dann wird nichts gestempelt,
- *              genau wie in `core/assetVersion.ts`.
+ * @param hashes Das Verzeichnis der Prüfsummen (`core/assetVersion.ts`), oder
+ *               `{}` — dann wird nichts gestempelt, genau wie dort.
  */
 export function fullPlan(
   list: OfflineList,
   index: KaykitIndex | null,
   base: string,
-  build: string,
+  hashes: AssetHashes,
 ): FullPlan {
   const items: FullItem[] = [];
   const seen = new Set<string>();
   const add = (path: string, bytes: number, group: FullGroup, stamp: boolean): void => {
-    const url = `${base}${path}${stamp && build ? `?v=${encodeURIComponent(build)}` : ''}`;
+    const plain = `${base}${path}`;
+    const url = stamp ? versionedWith(plain, hashes) : plain;
     if (seen.has(url)) return;
     seen.add(url);
     items.push({ url, bytes, group });
@@ -177,13 +179,13 @@ export function fullPlan(
 
   const shelfFiles = list.files.filter(([path]) => path.startsWith(SHELF_BASE));
   for (const [path, bytes] of list.files) {
-    if (!path.startsWith(SHELF_BASE)) add(path, bytes, 'medien', stamped(path));
+    if (!path.startsWith(SHELF_BASE)) add(path, bytes, 'medien', true);
   }
 
   // Der Index zuerst, dann die Texturen, dann die Modelle: Wer abbricht, hat
   // weniger Fässer und nicht lauter weiße.
   for (const [path, bytes] of shelfFiles) {
-    if (path === SHELF_INDEX) add(path, bytes, 'regal', stamped(path));
+    if (path === SHELF_INDEX) add(path, bytes, 'regal', false);
   }
   for (const [path, bytes] of shelfFiles) {
     if (path !== SHELF_INDEX) add(path, bytes, 'regal', false);

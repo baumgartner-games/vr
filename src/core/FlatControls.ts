@@ -3,6 +3,7 @@ import type { PlayerRig } from './PlayerRig';
 import type { TopDownCamera } from './TopDownCamera';
 import { ButtonState } from './XRInput';
 import {
+  aimHeld,
   firstGamepad,
   readGamepad,
   type ButtonPlan,
@@ -276,9 +277,23 @@ export class FlatControls {
    *           die Figur weich in ihre Laufrichtung zu drehen.
    */
   update(dt = 1 / 60): void {
-    if (!this.enabled) return;
+    if (!this.enabled) {
+      // **Was nicht gesteuert wird, zielt auch nicht.** Ohne diese Zeile bliebe
+      // die letzte Auslenkung stehen, wenn die Brille aufgeht oder das Menü
+      // zumacht (`core/App.ts`) — und der Feuerlöscher pustete dort weiter,
+      // wo niemand mehr einen Stock in der Hand hat.
+      this.rig.aiming = false;
+      return;
+    }
 
     const pad = this.readPad();
+
+    // **Ob gerade gezielt wird**, über beide Stöcke zusammen
+    // (`core/gamepad.aimHeld`) — in **beiden** flachen Ansichten und nicht nur
+    // von oben: Aus den Augen dreht derselbe Stock den Blick, und das ist für
+    // ein Gerät, das man ins Feuer hält, dieselbe Geste. Was daraus wird, weiß
+    // die Welt (`PlayerRig.aiming`); hier wird nur abgelesen, was anliegt.
+    this.rig.aiming = aimHeld(pad.aim, this.aimStick);
 
     let x = this.stick.x + pad.move.x;
     let z = this.stick.y + pad.move.y;
@@ -626,6 +641,9 @@ export class FlatControls {
       this.keys.clear();
       this.mouseFire = false;
       this.rig.useHeld = false;
+      // Derselbe Gedanke eine Zeile höher: Ein Fenster, das den Fokus verliert,
+      // hält keinen Stock mehr (`PlayerRig.aiming`).
+      this.rig.aiming = false;
     });
 
     this.on(document, 'pointerlockchange', () => {

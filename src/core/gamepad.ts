@@ -164,6 +164,30 @@ export function readGamepad(
   return frame;
 }
 
+/**
+ * **Ob der Zielstock gerade ausgelenkt ist** — über beide Geber, die es dafür
+ * am Schirm gibt.
+ *
+ * Gezielt wird von oben mit dem **rechten Stock**, und den gibt es zweimal:
+ * als echten am Pad (`GamepadFrame.aim`) und als gemalten auf dem Glas
+ * (`core/FlatControls.ts`, `#pad-aim`). Dass beide dasselbe meinen, steht
+ * schon in `FlatControls.aimYaw`; **ob** einer von ihnen liegt, ist dieselbe
+ * Frage und steht deshalb hier — einmal, als Rechnung, die ein Test ohne
+ * Finger und ohne Pad nachprüft.
+ *
+ * **Zwei Zahlen für zwei Geber**, und das ist kein Versehen: Der Stock am Pad
+ * hat seine Totzone schon hinter sich (`readGamepad` gibt darin glatt null
+ * zurück, `stick`), der auf dem Glas hat keine — ein Finger, der einen
+ * Bildpunkt weit rutscht, meldet dort eine Auslenkung. Also bekommt der
+ * zweite hier dieselbe Totzone, mit der der erste schon gerechnet hat.
+ *
+ * Wer danach fragt, ist der **Feuerlöscher**: Er geht an, solange gezielt wird
+ * (`worlds/test/zones/kitchenSpray.sprayAims`).
+ */
+export function aimHeld(pad: Stick, touch: Stick): boolean {
+  return Math.hypot(pad.x, pad.y) > 0 || Math.hypot(touch.x, touch.y) > DEAD_ZONE;
+}
+
 /** Ob **irgendeiner** der Knöpfe dieser Absicht anliegt. */
 function any(pad: GamepadLike, indices: readonly number[]): boolean {
   for (const index of indices) {

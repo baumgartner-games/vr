@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { kaykitScale } from './kaykitFit';
+import { kaykitClipFiles } from './kaykitClips';
 import { kaykitPlinth } from './kaykitCrate';
 import type { KaykitIndex } from './kaykitIndex';
 
@@ -53,8 +54,8 @@ import type { KaykitIndex } from './kaykitIndex';
  *
  * Genau so werden auch die Controller-Modelle gehandhabt (siehe
  * `docs/agents/modelle.md`, „Eine Build-Nummer an jeder Adresse"): Der Service
- * Worker wirft beim Aufräumen nur weg, was eine **veraltete** Nummer trägt —
- * was gar keine hat, bleibt liegen (`core/swRoutes.ts`, `dropOldMedia`).
+ * Worker wirft beim Aufräumen nur weg, was eine **veraltete** Prüfsumme trägt
+ * — was gar keine hat, bleibt liegen (`core/swRoutes.ts`, `isStaleMedia`).
  *
  * ## Und der Index trägt sie seit dem Befund „das Regal lädt ewig" auch nicht
  *
@@ -76,9 +77,14 @@ import type { KaykitIndex } from './kaykitIndex';
  * Minute Warten bei jedem Deploy. Wer den Index einmal hatte, wartet nie
  * wieder auf ihn.
  *
- * Dieselbe Regel steht im vollständigen Download (`core/fullDownload.stamped`)
- * — beide müssen dieselbe Adresse meinen, sonst liegt im Speicher etwas, das
- * niemand anfragt.
+ * Und **meinen müssen** beide dieselbe Adresse nicht mehr, sie tun es: Welche
+ * Datei aus `public/` eine Prüfsumme in die Adresse bekommt, steht seit dem
+ * Umbau auf Prüfsummen genau einmal (`vite.config.ts`, `isStamped`), und
+ * `models/kaykit/` steht nicht darin. Der vollständige Download
+ * (`core/fullDownload.ts`) und dieser Lader schlagen dasselbe Verzeichnis
+ * nach und können gar nicht mehr auseinanderlaufen. Das Vorwärmen der
+ * Startseite konnte es einmal und tat es auch: Es holte den Index unter einem
+ * `?v=`, das sonst niemand anfragte.
  */
 
 /** Wo das Regal liegt — unter uns, nie auf einem fremden Server. */
@@ -134,6 +140,16 @@ const templates = new Map<string, Promise<THREE.Object3D | null>>();
 const ready = new Map<string, THREE.Object3D>();
 
 /**
+ * Und die Bewegungen, die in einer Datei lagen — nach Adresse.
+ *
+ * Fast immer leer: Nachgezählt über die ganze Sammlung tragen **14 von 4470**
+ * Dateien eine Animationsspur, und alle vierzehn sind die Bibliotheken unter
+ * `character-animations/animations/`. Eine leere Liste ist hier deshalb keine
+ * Ausnahme, sondern der Normalfall (siehe `core/kaykitClips.ts`).
+ */
+const clips = new Map<string, THREE.AnimationClip[]>();
+
+/**
  * **Ein Modell aus dem Regal**, fertig skaliert — oder `null`, wenn die Datei
  * nicht ankam.
  *
@@ -176,6 +192,41 @@ export function kaykitModelNow(path: string): THREE.Object3D | null {
   return null;
 }
 
+/**
+ * **Die Bewegungen zu einem Modell** — seine eigenen und, wenn es eine Figur
+ * ist, die seines Skeletts.
+ *
+ * `height` ist die Höhe in den Maßen der **Quelle** und entscheidet, welches
+ * der beiden Skelette gemeint ist (`core/kaykitClips.kaykitRigOf`); `null`
+ * heißt „keine Figur" — dann kommen nur die Spuren der Datei selbst zurück,
+ * und das sind meistens keine.
+ *
+ * Geworfen wird nie: Eine Bibliothek, die nicht ankommt, ist ein Auswahlfeld
+ * ohne Einträge und kein Fehler. Geholt wird sie **einmal je Sitzung** — sie
+ * geht durch denselben Zwischenspeicher wie jedes andere Modell des Regals,
+ * und der Service Worker beantwortet sie danach sofort (keine Build-Nummer an
+ * diesen Adressen, siehe oben).
+ */
+export async function kaykitClips(
+  path: string,
+  height: number | null,
+): Promise<THREE.AnimationClip[]> {
+  const files = [path, ...(height === null ? [] : kaykitClipFiles(height))];
+  await Promise.all(files.map((file) => template(file)));
+  const out: THREE.AnimationClip[] = [];
+  const seen = new Set<string>();
+  for (const file of files) {
+    for (const clip of clips.get(file) ?? []) {
+      // Dieselbe Spur zweimal (beide Bibliotheken bringen eine `T-Pose` mit)
+      // wäre zweimal dieselbe Zeile im Auswahlfeld.
+      if (seen.has(clip.name)) continue;
+      seen.add(clip.name);
+      out.push(clip);
+    }
+  }
+  return out;
+}
+
 function template(path: string): Promise<THREE.Object3D | null> {
   const known = templates.get(path);
   if (known) return known;
@@ -197,6 +248,7 @@ function template(path: string): Promise<THREE.Object3D | null> {
     .then((gltf) => {
       tuneTextures(gltf.scene);
       ready.set(path, gltf.scene);
+      clips.set(path, gltf.animations);
       return gltf.scene as THREE.Object3D;
     })
     .catch((error: unknown) => {

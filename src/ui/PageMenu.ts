@@ -1,8 +1,9 @@
-import { drawMenuIcon, type MenuEntry } from './menu';
+import { drawMenuIcon, type MenuDetail, type MenuEntry, type MenuFact } from './menu';
 import { MenuNav } from './menuNav';
 import { clampColumns, fitColumns, readColumns, stepColumns, writeColumns } from './pageCols';
 import { keepSafe, setSafeEdge } from './safeArea';
-import type { PagePreviewLayer } from './previewGrid';
+import { clipLabel } from '../core/kaykitClips';
+import type { DetailFacts, DetailOptions, DetailView, PagePreviewLayer } from './previewGrid';
 import './pageMenu.css';
 
 /**
@@ -58,6 +59,11 @@ interface Page {
   find?: (query: string) => MenuEntry[];
   /** Hier fängt ein Katalog an (`MenuEntry.home`). */
   home: boolean;
+  /**
+   * **Diese Seite zeigt ein Ding und keine Liste** (`MenuEntry.detail`):
+   * oben groß das Modell, darunter Schalter und Steckbrief.
+   */
+  detail?: MenuDetail;
   /** Id des Eintrags, zu dem die Seite gehört. */
   id: string;
 }
@@ -160,6 +166,38 @@ export class PageMenu {
   /** Ob die Brille auf ist — dann zeichnet das Handgelenk und nicht die Seite. */
   private presenting = false;
   /**
+   * Ob die Schicht gerade laufen soll. Sie wird nur bei **Änderung** gesagt:
+   * `render` kommt zweimal die Sekunde, und eine Schleife, der man sechzigmal
+   * sagt, dass sie laufen soll, wäre sechzig Meldungen für nichts.
+   */
+  private previewsOn = false;
+
+  // --- die Detailseite ------------------------------------------------------
+  /** Das Blatt der Detailseite: oben das Modell, darunter Schalter und Zahlen. */
+  private readonly detailEl: HTMLElement;
+  /** Der Kasten, in den die Vorschau ihre große Leinwand hängt. */
+  private readonly viewEl: HTMLElement;
+  private readonly optsEl: HTMLElement;
+  private readonly floorButton: HTMLButtonElement;
+  private readonly boundsButton: HTMLButtonElement;
+  private readonly clipsEl: HTMLElement;
+  private readonly clipsSelect: HTMLSelectElement;
+  private readonly factsEl: HTMLElement;
+  /** Die offene große Vorschau — oder `null`, wenn keine Seite eine will. */
+  private detailView: DetailView | null = null;
+  /** Welches Modell darin steht; `''`, solange keines darin steht. */
+  private detailId = '';
+  /**
+   * **Die Schalter überleben den Wechsel des Modells**, die Bewegung nicht:
+   * Wer den Gitterboden anschaltet, will ihn beim nächsten Stück wiedersehen —
+   * ein `Running_A`, das auf einem Fass weiterliefe, gibt es dagegen nicht.
+   */
+  private detailOpts: DetailOptions = { floor: false, bounds: false, clip: null };
+  /** Was am Modell gemessen wurde, sobald es da ist. */
+  private detailFacts: DetailFacts | null = null;
+  /** Welche Bewegungen im Feld stehen — damit es nicht bei jedem Bild neu baut. */
+  private detailClips = '';
+  /**
    * **Wohin die Liste noch springen will**, in Bildpunkten — oder `null`.
    *
    * Eine Seite wird mit sechzig Kacheln aufgeschlagen und wächst erst beim
@@ -230,7 +268,31 @@ export class PageMenu {
     // wie die Kacheln (`PagePreviews.ts`). Ein Neubau der Liste tauscht nur
     // deren Kinder aus und lässt die Leinwand deshalb stehen.
     this.stage = el('div', 'pmenu__stage');
-    this.stage.append(this.list);
+
+    // **Die Detailseite liegt im selben scrollenden Kasten wie die Liste** —
+    // und genau deshalb kann man an ihr herunterscrollen, während oben das
+    // Modell stehen bleibt: „seitlich sollte etwas Platz sein, da ich
+    // runterscrollen möchte in dem Menü, um darunter weitere Infos zu sehen."
+    this.viewEl = el('div', 'pmenu__view');
+    this.optsEl = el('div', 'pmenu__opts');
+    this.floorButton = switchRow('Gitterboden', 'Ein Raster auf Höhe des tiefsten Punktes');
+    this.boundsButton = switchRow('Bounding Box', 'Die Hülle, mit der das Ding anfasst');
+    this.optsEl.append(this.floorButton, this.boundsButton);
+    this.clipsEl = el('div', 'pmenu__clips');
+    const clipsLabel = el('label', 'pmenu__cliplabel', 'Animation');
+    this.clipsSelect = document.createElement('select');
+    this.clipsSelect.className = 'pmenu__clipsel';
+    clipsLabel.htmlFor = 'pmenu-clip';
+    this.clipsSelect.id = 'pmenu-clip';
+    this.clipsEl.append(clipsLabel, this.clipsSelect);
+    this.factsEl = el('dl', 'pmenu__facts');
+    const about = el('div', 'pmenu__about');
+    about.append(this.optsEl, this.clipsEl, this.factsEl);
+    this.detailEl = el('div', 'pmenu__detail');
+    this.detailEl.hidden = true;
+    this.detailEl.append(this.viewEl, about);
+
+    this.stage.append(this.list, this.detailEl);
     this.footEl = el('p', 'pmenu__foot');
 
     this.sheet.append(head, this.toolsEl, this.statusEl, this.stage, this.footEl);
@@ -252,6 +314,15 @@ export class PageMenu {
     this.searchEl.addEventListener('input', () => this.onSearch());
     fewer.addEventListener('click', () => this.stepCols(-1));
     more.addEventListener('click', () => this.stepCols(1));
+    this.floorButton.addEventListener('click', () =>
+      this.stepDetail({ floor: !this.detailOpts.floor }),
+    );
+    this.boundsButton.addEventListener('click', () =>
+      this.stepDetail({ bounds: !this.detailOpts.bounds }),
+    );
+    this.clipsSelect.addEventListener('change', () =>
+      this.stepDetail({ clip: this.clipsSelect.value || null }),
+    );
     // **Nachgeladen wird beim Scrollen** (`PAGE_WINDOW`). Das `scroll`-Ereignis
     // ist dafür gut genug: Es kommt zwar aus dem Hauptstrang und damit zu spät
     // für eine Leinwand (siehe `PagePreviews.ts`), aber nicht zu spät für
@@ -304,8 +375,10 @@ export class PageMenu {
    */
   setPreviews(layer: PagePreviewLayer | null): void {
     if (layer === this.previews) return;
+    this.closeDetail();
     this.previews?.dispose();
     this.previews = layer;
+    this.previewsOn = false;
     if (!layer) {
       // Ohne Vorschau steht in den Quadraten wieder die Ikone — aber nur,
       // wenn gerade jemand hinsieht.
@@ -316,9 +389,8 @@ export class PageMenu {
     layer.setPresenting(this.presenting);
     if (!this.open) return;
     // Erst die Kacheln, dann die Schleife: Der Beobachter bekommt sonst eine
-    // leere Liste und lädt nichts.
+    // leere Liste und lädt nichts — `render` sagt es am Ende selbst.
     this.render();
-    layer.setOpen(true);
   }
 
   /**
@@ -347,10 +419,13 @@ export class PageMenu {
     if (next) {
       this.window = PAGE_WINDOW;
       this.render();
-      this.previews?.setOpen(true);
       this.sheet.focus({ preventScroll: true });
     } else {
-      this.previews?.setOpen(false);
+      // Eine zugeklappte Seite zeichnet nichts — auch keine große Vorschau.
+      // Sie entsteht beim nächsten Aufschlagen wieder, und bis dahin liegt
+      // kein zweiter WebGL-Kontext herum.
+      this.closeDetail();
+      this.syncPreviews();
       // Eine versteckte Liste vergisst ihre Blätterstellung; beim nächsten
       // Öffnen wird sie neu gebaut und dort aufgeschlagen, wo sie verlassen wurde.
       this.renderedPage = '';
@@ -365,6 +440,7 @@ export class PageMenu {
 
   dispose(): void {
     this.offNav();
+    this.closeDetail();
     this.previews?.dispose();
     this.previews = null;
     window.removeEventListener('keydown', this.onKeyDown);
@@ -395,7 +471,14 @@ export class PageMenu {
     let level: MenuEntry[] = this.root;
     for (const id of this.nav.path) {
       const entry = level.find((candidate) => candidate.id === id);
-      if (!entry?.children) break;
+      if (!entry) break;
+      // **Eine Detailseite hat keine Kinder** und ist trotzdem eine Seite
+      // (`MenuEntry.detail`): Sie zeigt ein Modell, also endet der Weg auf ihr
+      // — dieselbe Regel wie in `menuNav.walkPath`.
+      if (!entry.children) {
+        if (entry.detail) this.stack.push(pageOf(entry));
+        break;
+      }
       this.stack.push(pageOf(entry));
       level = entry.children;
     }
@@ -475,6 +558,13 @@ export class PageMenu {
     // Katalogmenüs kann meinetwegen auch gerne die gesamte Höhe des
     // Bildschirm einnehmen, sodass dann der Menü-Button verdeckt ist."
     this.element.classList.toggle('pmenu--full', page.full);
+    // **Eine Detailseite zeigt ein Ding und keine Liste.** Beide liegen im
+    // selben scrollenden Kasten; hier wird nur entschieden, welche dasteht.
+    const detail = page.detail ?? null;
+    this.list.hidden = detail !== null;
+    this.detailEl.hidden = detail === null;
+    if (detail) this.showDetail(detail);
+    else this.closeDetail();
     // Erst hier steht der Kopf unter der Uhr: Gemeldet war ein Katalog, in
     // dessen Titel „20:36" stand und in dessen Schließen-Knopf die Batterie.
     setSafeEdge(this.sheet, 'top', page.full);
@@ -525,7 +615,112 @@ export class PageMenu {
     // Zum Schluss, und immer: Welche Quadrate jetzt dastehen, weiß nur, wer
     // gerade neu gezeichnet hat.
     this.previews?.observe(key, [...this.list.querySelectorAll<HTMLElement>('[data-preview]')]);
+    this.syncPreviews();
     this.fill();
+  }
+
+  // --- die Detailseite ------------------------------------------------------
+
+  /**
+   * **Die Schleife der Kacheln läuft nicht neben der großen Vorschau.**
+   *
+   * Zwei Zeichenschleifen auf zwei WebGL-Kontexten für dieselbe Seite wären
+   * einer zu viel — auf einem Telefon ist ein Kontext knapp, und die Kacheln
+   * stehen währenddessen ohnehin nicht im Bild. Dieselbe Disziplin wie beim
+   * Zumachen des Menüs und beim Aufsetzen der Brille.
+   */
+  private syncPreviews(): void {
+    const on = this.open && this.stack.length > 0 && this.page.detail === undefined;
+    if (on === this.previewsOn) return;
+    this.previewsOn = on;
+    this.previews?.setOpen(on);
+  }
+
+  /**
+   * **Den Steckbrief aufschlagen** — und die große Vorschau dazu bestellen.
+   *
+   * Gerufen bei **jedem** Neuzeichnen, also zweimal die Sekunde: Gebaut wird
+   * deshalb nur, was sich geändert hat. Steht schon dasselbe Modell da, bleibt
+   * die Leinwand stehen — ein Modell, das bei jedem Bild neu geladen würde,
+   * drehte sich nie.
+   */
+  private showDetail(detail: MenuDetail): void {
+    if (detail.preview !== this.detailId) {
+      this.closeDetail();
+      // **Erst das Raster anhalten, dann die große Leinwand bauen.** Zwei
+      // WebGL-Kontexte gleichzeitig aufzumachen ist auf einem Telefon genau
+      // einer zu viel — und der zweite bekäme dann keinen.
+      this.syncPreviews();
+      this.detailId = detail.preview;
+      // Eine andere Sache bewegt sich nicht so wie die vorige.
+      this.detailOpts = { ...this.detailOpts, clip: null };
+      this.detailView =
+        this.previews?.detail({
+          host: this.viewEl,
+          id: detail.preview,
+          onFacts: this.onDetailFacts,
+        }) ?? null;
+      this.detailView?.set(this.detailOpts);
+    }
+    this.paintDetail(detail);
+  }
+
+  /** Leinwand, Mischer, Gitter, Hülle: weg. Und der Steckbrief fängt neu an. */
+  private closeDetail(): void {
+    if (!this.detailView && this.detailId === '') return;
+    this.detailView?.dispose();
+    this.detailView = null;
+    this.detailId = '';
+    this.detailFacts = null;
+    this.detailClips = '';
+    this.clipsSelect.replaceChildren();
+  }
+
+  /** Ein Schalter wurde gedrückt — der Stand liegt hier, die Wirkung dort. */
+  private stepDetail(change: Partial<DetailOptions>): void {
+    this.detailOpts = { ...this.detailOpts, ...change };
+    this.detailView?.set(this.detailOpts);
+    if (this.open) this.render();
+  }
+
+  /** Das Modell ist da (oder seine Bewegungen sind es): neu zeichnen. */
+  private readonly onDetailFacts = (facts: DetailFacts): void => {
+    this.detailFacts = facts;
+    if (this.open) this.render();
+  };
+
+  /**
+   * **Was unter dem Modell steht** — Schalter, Bewegungen, Steckbrief.
+   *
+   * Geschrieben wird nur, was sich geändert hat: Diese Seite wird zweimal die
+   * Sekunde gezeichnet, und ein `<select>`, das dabei neu gebaut würde, wäre
+   * beim Aufklappen jedes Mal wieder zu.
+   */
+  private paintDetail(detail: MenuDetail): void {
+    setSwitch(this.floorButton, this.detailOpts.floor);
+    setSwitch(this.boundsButton, this.detailOpts.bounds);
+
+    const clips = this.detailFacts?.clips ?? [];
+    const key = clips.join('|');
+    if (key !== this.detailClips) {
+      this.detailClips = key;
+      const options = [option('', 'keine'), ...clips.map((name) => option(name, clipLabel(name)))];
+      this.clipsSelect.replaceChildren(...options);
+    }
+    if (this.clipsSelect.value !== (this.detailOpts.clip ?? '')) {
+      this.clipsSelect.value = this.detailOpts.clip ?? '';
+    }
+    // Ohne Bewegungen keine Zeile: Ein Fass, dem man „keine" auswählen darf,
+    // beantwortet eine Frage, die niemand gestellt hat.
+    this.clipsEl.hidden = clips.length === 0;
+
+    const facts: MenuFact[] = [...detail.facts, ...measured(this.detailFacts)];
+    const line = facts.map((fact) => `${fact.label}\u0000${fact.value}`).join('\u0001');
+    if (this.factsEl.dataset['line'] === line) return;
+    this.factsEl.dataset['line'] = line;
+    this.factsEl.replaceChildren(
+      ...facts.flatMap((fact) => [el('dt', '', fact.label), el('dd', '', fact.value)]),
+    );
   }
 
   /**
@@ -639,9 +834,13 @@ export class PageMenu {
     // Sammlung. Der Index gehört dem, was gezeichnet wurde.
     const entry = this.source[index];
     if (!entry) return;
-    // Der Pfeil einer Nimm-Zeile geht in ihre Einstellungen; die Zeile selbst
-    // nimmt. Überall sonst öffnet die Zeile ihre Seite, wenn sie eine hat.
-    const descend = entry.children && (more !== null || !(this.page.take && entry.run));
+    // Der Pfeil einer Nimm-Zeile geht in ihre Einstellungen, das ⓘ einer
+    // Kachel in ihren Steckbrief; die Zeile selbst nimmt. Überall sonst öffnet
+    // die Zeile ihre Seite, wenn sie eine hat. **Eine Detailseite erreicht man
+    // nur über den Knopf**: Antippen soll weiter nehmen und nicht auf einmal
+    // etwas aufschlagen.
+    const opens = Boolean(entry.children) || (more !== null && Boolean(entry.detail));
+    const descend = opens && (more !== null || !(this.page.take && entry.run));
     if (descend) {
       this.keepScroll();
       // **Bevor** der Weg umgestellt wird: Wer erst beim Aufschlagen etwas
@@ -674,6 +873,7 @@ function pageOf(entry: MenuEntry): Page {
     ...(entry.find ? { find: entry.find.bind(entry) } : {}),
     take: entry.take ?? grid,
     home: entry.home ?? false,
+    ...(entry.detail ? { detail: entry.detail } : {}),
     id: entry.id,
   };
 }
@@ -764,7 +964,23 @@ function tile(entry: MenuEntry, index: number, ready: (id: string) => boolean): 
   node.append(face(entry, accent, ready), el('strong', '', entry.label));
   if (entry.caption) node.append(el('small', '', entry.caption));
   if (entry.badge) node.append(el('span', 'pmenu__badge', entry.badge));
-  return node;
+  if (!entry.detail) return node;
+  // **Zwei Ziele in einer Kachel** — und ein Knopf im Knopf ist kein gültiges
+  // DOM. Also liegt das ⓘ **neben** der Kachel in einem Rahmen, der beide
+  // übereinanderlegt (`.pmenu__card`): Die Kachel nimmt wie bisher, der Knopf
+  // in der Ecke schlägt den Steckbrief auf. Dieselbe Bauweise wie beim Pfeil
+  // einer Nimm-Zeile (`.pmenu__pair`), nur über Eck statt nebeneinander.
+  const wrap = el('div', 'pmenu__card');
+  wrap.dataset['key'] = `card:${entry.id}`;
+  const info = iconButton(
+    'pmenu__info',
+    `${entry.label}: Mehr anzeigen`,
+    'M12 4a8 8 0 100 16 8 8 0 000-16zM12 11v5M12 8.2v.1',
+  );
+  info.dataset['more'] = String(index);
+  info.style.setProperty('--accent', accent);
+  wrap.append(node, info);
+  return wrap;
 }
 
 /**
@@ -805,6 +1021,67 @@ function icon(entry: MenuEntry, accent: string): HTMLElement {
   const ctx = canvas.getContext('2d');
   if (ctx) drawMenuIcon(ctx, entry.icon, ICON_PX / 2, ICON_PX / 2, ICON_PX * 0.68, accent);
   return canvas;
+}
+
+/**
+ * **Ein Schalter als Zeile** — dieselbe Zeile wie im Menü, nur ohne Eintrag
+ * dahinter: Text links, Wippe rechts (`.pmenu__switch`).
+ */
+function switchRow(label: string, hint: string): HTMLButtonElement {
+  const node = el('button', 'pmenu__row');
+  node.type = 'button';
+  node.setAttribute('role', 'switch');
+  node.setAttribute('aria-checked', 'false');
+  node.title = hint;
+  const text = el('span', 'pmenu__text');
+  text.append(el('strong', '', label), el('small', '', hint));
+  node.append(text, el('span', 'pmenu__switch'));
+  return node;
+}
+
+/** Die Wippe einer Schalterzeile umlegen — ohne sie neu zu bauen. */
+function setSwitch(node: HTMLButtonElement, on: boolean): void {
+  node.setAttribute('aria-checked', on ? 'true' : 'false');
+  node.querySelector('.pmenu__switch')?.classList.toggle('is-on', on);
+}
+
+function option(value: string, label: string): HTMLOptionElement {
+  const node = document.createElement('option');
+  node.value = value;
+  node.textContent = label;
+  return node;
+}
+
+/**
+ * **Was am Modell gemessen wurde**, als Zeilen des Steckbriefs — oder nichts,
+ * solange es noch lädt.
+ *
+ * Die Maße stehen in **Metern**, also so, wie das Ding in der Welt steht und
+ * nicht wie es in der Datei liegt: Der Maßstab des Pakets
+ * (`core/kaykitFit.ts`) ist schon darin, und genau diese Zahl beantwortet die
+ * Frage, für die jemand nachsieht.
+ */
+function measured(facts: DetailFacts | null): MenuFact[] {
+  if (!facts) return [];
+  const out: MenuFact[] = [];
+  const size = facts.size;
+  if (size)
+    out.push({
+      label: 'Maße',
+      value: `${metres(size[0])} × ${metres(size[1])} × ${metres(size[2])}`,
+    });
+  if (facts.triangles !== undefined) {
+    out.push({ label: 'Dreiecke', value: facts.triangles.toLocaleString('de-DE') });
+  }
+  const clips = facts.clips?.length ?? 0;
+  if (facts.loading) out.push({ label: 'Animationen', value: 'lädt …' });
+  else if (clips > 0) out.push({ label: 'Animationen', value: clips === 1 ? '1' : String(clips) });
+  return out;
+}
+
+/** Ein Maß, wie man es liest: zwei Nachkommastellen und ein Komma. */
+function metres(value: number): string {
+  return `${value.toFixed(2).replace('.', ',')} m`;
 }
 
 function chevron(): HTMLElement {

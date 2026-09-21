@@ -158,13 +158,22 @@ export class MenuNav {
  * sich, eine Welt wird verlassen, ein Werkzeug fällt aus dem Regal. Der Weg
  * dorthin endet dann bei ihrer Elternseite, statt ins Leere zu zeigen oder den
  * Spieler wortlos auf die oberste Ebene zu werfen.
+ *
+ * **Eine Detailseite ist eine Seite ohne Kinder** (`MenuEntry.detail`): Sie
+ * zeigt ein Modell und keine Liste, also endet der Weg auf ihr. Ohne diese
+ * Zeile fiele der Steckbrief beim nächsten Neubau des Baums wieder zu — und
+ * der wird zweimal die Sekunde gebaut.
  */
 export function walkPath(entries: readonly MenuEntry[], path: readonly string[]): string[] {
   const out: string[] = [];
   let level: readonly MenuEntry[] = entries;
   for (const id of path) {
     const entry = level.find((candidate) => candidate.id === id);
-    if (!entry?.children) break;
+    if (!entry) break;
+    if (!entry.children) {
+      if (entry.detail) out.push(id);
+      break;
+    }
     out.push(id);
     level = entry.children;
   }

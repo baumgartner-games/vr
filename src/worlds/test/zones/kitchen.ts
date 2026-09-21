@@ -163,6 +163,7 @@ import {
   advanceDouse,
   douseProgress,
   inSpray,
+  sprayAims,
   sprayClaimsUse,
   sprayHold,
   sprayOn,
@@ -1139,6 +1140,20 @@ export class KitchenZone implements TestZone {
   // --- der Feuerlöscher ------------------------------------------------------
   /** Ob er gerade pustet, und ob die Auslöser im vorigen Bild schon lagen. */
   private spraying = false;
+  /**
+   * **Der Stand des Schalters** — und deshalb ein zweiter Merker neben
+   * `spraying` darüber.
+   *
+   * Von oben ist der Löscher ein Schalter (`kitchenSpray.sprayHold`): Ein
+   * Druck an, der nächste aus, und dazwischen merkt er sich seinen Stand. Der
+   * **Zielstock** daneben merkt sich nichts — er macht an, solange er liegt
+   * (`kitchenSpray.sprayAims`). Beides in **einem** Merker zu führen, war der
+   * Fehler, der beim Schreiben schon auffiel: Der Stock hätte den Schalter
+   * umgelegt, und nach dem Loslassen pustete der Löscher weiter, ohne dass
+   * ihn jemand angemacht hätte. Also steht hier, was **geschaltet** ist, und
+   * oben, was **an** ist.
+   */
+  private sprayLatch = false;
   private triggerWas = false;
   private useWas = false;
 
@@ -2076,12 +2091,21 @@ export class KitchenZone implements TestZone {
    * dabei mit derselben Richtung, in die auch `A` zeigt: von oben dreht der
    * rechte Stock die Figur, und damit den Strahl.
    *
+   * **Und derselbe Stock macht ihn am Schirm auch an**
+   * (`kitchenSpray.sprayAims`). Zielen und Auslösen sind an einem Gerät, das
+   * man ins Feuer hält, ein Handgriff: Wer mit dem Löscher in der Hand den
+   * rechten Stock auslenkt, pustet — und hört auf, sobald er ihn loslässt. Der
+   * Schalter daneben bleibt, wie er war; welcher von beiden gerade anhat,
+   * steht in `sprayLatch` und `spraying`.
+   *
    * **Und es gibt keinen zweiten Weg mehr.** Neben dem Strahl stand lange ein
    * `douse`-Griff am brennenden Herd — ein Druck auf `A` davor, und das Feuer
    * war aus. Er ist weg: Wer den Löscher trägt, findet an keiner Station mehr
    * ein Angebot außer der Fläche, auf die er ihn stellt
-   * (`kitchenCarry.EXTINGUISHER_REST`), und genau deshalb ist der Knopf vor dem
+   * (`kitchenCarry.extinguisherRests`), und genau deshalb ist der Knopf vor dem
    * brennenden Herd frei für das, was der Auftrag will — den Löscher anmachen.
+   * Die **leere** Herdplatte ist so eine Fläche: Dort legt derselbe Druck ihn
+   * ab, genau wie auf der Zeile und seit Neuestem auf dem **Förderband**.
    */
   private spray(dt: number, ctx: WorldContext): void {
     // **Der Löscher kann in jeder der beiden Hände liegen**, seit beide tragen
@@ -2118,10 +2142,11 @@ export class KitchenZone implements TestZone {
     // **Und mit dem Löscher in der Hand steht fast nie mehr etwas da.** Das ist
     // dieselbe Zeile wie vorher und trotzdem der ganze Unterschied: Seit eine
     // Station, an der man den Löscher nicht abstellt, gar nichts mehr anbietet
-    // (`kitchenCarry.EXTINGUISHER_REST`), meldet sie sich auch nicht mehr an —
-    // `useCandidate` bleibt vor dem brennenden Herd, dem Brett und der Spüle
-    // falsch, und `A` gehört dem Löscher. Vor einer **Arbeitsplatte** bleibt es,
-    // wie es war: Dort legt derselbe Druck ihn ab.
+    // (`kitchenCarry.extinguisherRests`), meldet sie sich auch nicht mehr an —
+    // `useCandidate` bleibt vor der **belegten** Herdplatte, dem Brett und der
+    // Spüle falsch, und `A` gehört dem Löscher. Vor einer **Arbeitsplatte**
+    // bleibt es, wie es war: Dort legt derselbe Druck ihn ab, und ebenso auf
+    // der leeren Herdplatte und auf dem Band.
     const trigger = ctx.rig.trigger > 0.5;
     const useFree = ctx.rig.useHeld && !ctx.rig.useCandidate;
     const pressed = (trigger && !this.triggerWas) || (useFree && !this.useWas);
@@ -2134,13 +2159,21 @@ export class KitchenZone implements TestZone {
     // in der Regel nebenan (`kitchenSpray.sprayClaimsUse`) und wird dort
     // nachgerechnet; hier steht nur, wer gefragt wird.
     ctx.rig.useBusy = sprayClaimsUse(carrying, ctx.renderer.xr.isPresenting);
-    const sprayed = this.spraying;
-    this.spraying = sprayOn(this.spraying, {
+    const sprayed = this.sprayLatch;
+    this.sprayLatch = sprayOn(this.sprayLatch, {
       pressed,
       held: pulled,
       carried: carrying,
       topDown: ctx.topDown,
     });
+    // **Und der Zielstock macht ihn auch an** (`kitchenSpray.sprayAims`). Am
+    // Schirm zielt der rechte Stock, und wer mit dem Löscher in der Hand
+    // zielt, will löschen — das ist ein Daumen für einen Handgriff statt
+    // zweier. Er steht **neben** dem Schalter und nicht in ihm: Der Schalter
+    // merkt sich seinen Stand (`sprayLatch`), der Stock nicht, und an ist der
+    // Löscher, wenn einer von beiden es sagt.
+    this.spraying =
+      this.sprayLatch || sprayAims(carrying, ctx.renderer.xr.isPresenting, ctx.rig.aiming);
     // **Ein Schalter sagt, in welcher Stellung er steht** — aber nur, wo er
     // einer ist (`kitchenSpray.sprayHold`). Von oben bleibt der Löscher an,
     // ohne dass jemand eine Taste hält, und seit der Herd davor nichts mehr
@@ -2148,9 +2181,10 @@ export class KitchenZone implements TestZone {
     // Wort wäre das erste Anmachen ein Druck ins Nichts, der irgendwo Nebel
     // macht. Gehalten wird dagegen nichts gesagt: Wer den Finger auf dem
     // Auslöser hat, weiß, dass es läuft, und bekäme bei jedem Antippen eine
-    // Meldung.
-    if (this.spraying !== sprayed && sprayHold(ctx.topDown) === 'toggle') {
-      this.world?.notify(this.spraying ? 'Feuerlöscher an' : 'Feuerlöscher aus');
+    // Meldung — und **der Zielstock ist ein Halten** und kein Schalter, also
+    // wird hier der Schalter verglichen und nicht das, was am Ende pustet.
+    if (this.sprayLatch !== sprayed && sprayHold(ctx.topDown) === 'toggle') {
+      this.world?.notify(this.sprayLatch ? 'Feuerlöscher an' : 'Feuerlöscher aus');
     }
 
     // **Und wohin er zielt**: in der Brille dorthin, wohin die Hand zeigt, die
@@ -2896,6 +2930,7 @@ export class KitchenZone implements TestZone {
    */
   private calmStations(): void {
     this.spraying = false;
+    this.sprayLatch = false;
     // **Und es wird still** — bis auf das Radio, das an keiner Station hängt
     // und deshalb auch nicht mit ihnen ausgeht (`KitchenAudio.silence`). Die
     // übrigen Schleifen fielen im nächsten Bild ohnehin weg (`listen` findet
@@ -3069,6 +3104,7 @@ export class KitchenZone implements TestZone {
     this.ghostLive = false;
     this.editing = false;
     this.spraying = false;
+    this.sprayLatch = false;
     // **Und der Benutzen-Knopf gehört wieder dem Sprung** (`PlayerRig.useBusy`):
     // Er hängt am Gestell und nicht an der Zone, und ein Knopf, den eine Küche
     // mitnimmt, ist ein Spieler, der in der nächsten Welt nicht mehr hüpft.

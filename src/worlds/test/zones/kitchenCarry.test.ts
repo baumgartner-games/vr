@@ -8,6 +8,7 @@ import {
   advanceWork,
   carrySlot,
   dish,
+  extinguisherRests,
   handsOver,
   keptOnFold,
   kitchenDeed,
@@ -1291,9 +1292,12 @@ describe('was der Feuerlöscher in der Hand bedeutet', () => {
   /** Alle Arten, so wie der Typ sie aufzählt. */
   const KINDS = Object.keys(EXTINGUISHER_REST) as StationKind[];
 
-  it('legt ihn auf Arbeitsplatte, Kiste und Halterung — und sonst nirgends', () => {
-    const rests = KINDS.filter((kind) => EXTINGUISHER_REST[kind]).sort();
-    expect(rests).toEqual(['box', 'rack', 'top']);
+  it('legt ihn auf Arbeitsplatte, Kiste, Halterung und Band — und sonst nirgends', () => {
+    const rests = KINDS.filter((kind) => EXTINGUISHER_REST[kind] === 'always').sort();
+    expect(rests).toEqual(['belt', 'box', 'rack', 'top']);
+    // Und genau eine Art fragt nach dem Stand statt nach der Art: die
+    // Herdplatte (`extinguisherRests`, eigener Block weiter unten).
+    expect(KINDS.filter((kind) => EXTINGUISHER_REST[kind] === 'free')).toEqual(['stove']);
   });
 
   it('lässt jede andere Station stumm', () => {
@@ -1301,7 +1305,7 @@ describe('was der Feuerlöscher in der Hand bedeutet', () => {
     // anmeldet, nimmt dem Löscher den Knopf nicht weg
     // (`kitchen.refreshStations`, `PlayerRig.useCandidate`).
     for (const kind of KINDS) {
-      if (EXTINGUISHER_REST[kind]) continue;
+      if (EXTINGUISHER_REST[kind] !== 'never') continue;
       const deed = press(d('extinguisher'), { kind, gives: 'bun', stack: 2, fire: true });
       expect({ kind, do: deed.do }).toEqual({ kind, do: 'nothing' });
     }
@@ -1335,6 +1339,115 @@ describe('was der Feuerlöscher in der Hand bedeutet', () => {
       do: 'take',
       dish: d('extinguisher'),
     });
+  });
+});
+
+/**
+ * **Die Herdplatte: leer eine Fläche, belegt der Knopf des Löschers**
+ * (`extinguisherRests`).
+ *
+ * Der gemeldete Wunsch, in zwei Sätzen: _„Auf eine leere Herdplatte soll ich
+ * den Feuerlöscher abstellen dürfen wie auf jede andere Fläche. Steht etwas
+ * darauf, will ich mit demselben Knopf löschen und nicht ablegen."_ Beides
+ * hängt an **einer** Zeile Regel, und deshalb gilt es in allen drei Ansichten:
+ * Die Brille fragt sie über `kitchen.refreshStations` genauso wie `A` von
+ * oben und `E` am Schirm — keine der drei hat eine eigene.
+ */
+describe('der Feuerlöscher an der Herdplatte', () => {
+  it('stellt ihn auf die leere Platte', () => {
+    expect(extinguisherRests({ kind: 'stove', on: null })).toBe(true);
+    expect(press(d('extinguisher'), { kind: 'stove', on: null })).toEqual({
+      do: 'place',
+      dish: d('extinguisher'),
+    });
+  });
+
+  it('gibt den Knopf an der belegten Platte dem Löscher', () => {
+    // Die Pfanne steht darauf — ob sie brät oder nicht, ist einerlei: Eine
+    // belegte Platte ist keine Ablage, und `nothing` heißt, dass sie sich gar
+    // nicht erst anmeldet (`kitchen.refreshStations`).
+    const pan: Station = { kind: 'stove', on: d('pan') };
+    expect(extinguisherRests(pan)).toBe(false);
+    expect(press(d('extinguisher'), pan)).toEqual({ do: 'nothing' });
+    // Und mit Patty darin genauso — gefragt wird nach dem Stand der Platte
+    // und nicht nach dem, was in der Pfanne liegt.
+    expect(press(d('extinguisher'), { kind: 'stove', on: d('pan', 'patty') })).toEqual({
+      do: 'nothing',
+    });
+  });
+
+  it('gibt ihn der brennenden Platte erst recht nicht zurück', () => {
+    // Der Fall, für den es den Löscher gibt: Es brennt, und derselbe Druck
+    // macht ihn an, statt ihn in die Flammen zu stellen.
+    const fire: Station = { kind: 'stove', on: d('pan'), fire: true };
+    expect(extinguisherRests(fire)).toBe(false);
+    expect(press(d('extinguisher'), fire)).toEqual({ do: 'nothing' });
+    // Auch ohne Pfanne, obwohl es das heute nicht gibt: Das Feuer steht
+    // ausdrücklich in der Regel und nicht nur mittelbar über die Pfanne.
+    expect(extinguisherRests({ kind: 'stove', on: null, fire: true })).toBe(false);
+  });
+
+  it('lässt den Hinweis über der Platte stumm, solange er ihn hält', () => {
+    // `nothing` hat keinen Satz, und das ist der Unterschied zu `refuse`: kein
+    // Saum, kein Wort, kein zweiter Sinn auf demselben Knopf.
+    expect(kitchenPrompt(press(d('extinguisher'), { kind: 'stove', on: d('pan') }), 'Herd')).toBe(
+      '',
+    );
+    // Auf der leeren Platte steht dagegen, was gleich passiert.
+    expect(kitchenPrompt(press(d('extinguisher'), { kind: 'stove', on: null }), 'Herd')).toBe(
+      'Feuerlöscher auf Herd legen',
+    );
+  });
+
+  it('ändert für alle anderen Hände nichts am Herd', () => {
+    // Die Regel fragt nach dem, was in der Hand liegt: Ohne Löscher ist die
+    // leere Platte weiter die Fläche, auf die die Pfanne gehört.
+    expect(press(d('pan'), { kind: 'stove', on: null })).toEqual({
+      do: 'place',
+      dish: d('pan'),
+    });
+    expect(press(null, { kind: 'stove', on: d('pan') })).toEqual({
+      do: 'take',
+      dish: d('pan'),
+    });
+  });
+});
+
+/**
+ * **Der Feuerlöscher darf auf das Förderband** (`EXTINGUISHER_REST`, `belt`).
+ *
+ * Er durfte es nicht, und das war kein Entschluss, sondern die Vorsicht der
+ * ersten Fassung: Sie zählte drei Arbeitsplatten auf und ließ alles andere
+ * stumm. Für `A` ist ein Band aber eine Ablage wie die Zeile (`kitchenDeed`
+ * stellt beide in dieselbe Zeile), und was darauf liegt, fährt weiter —
+ * **ohne** dass die Bandrechnung ihn kennen müsste (`kitchenBelt.ts` fragt
+ * nach der Station und nicht nach dem Ding).
+ */
+describe('der Feuerlöscher auf dem Förderband', () => {
+  it('legt ihn auf das leere Band', () => {
+    expect(extinguisherRests({ kind: 'belt', on: null })).toBe(true);
+    expect(press(d('extinguisher'), { kind: 'belt', on: null })).toEqual({
+      do: 'place',
+      dish: d('extinguisher'),
+    });
+    expect(kitchenPrompt(press(d('extinguisher'), { kind: 'belt' }), 'Förderband')).toBe(
+      'Feuerlöscher auf Förderband legen',
+    );
+  });
+
+  it('holt ihn vom Band auch wieder herunter', () => {
+    expect(press(null, { kind: 'belt', on: d('extinguisher') })).toEqual({
+      do: 'take',
+      dish: d('extinguisher'),
+    });
+  });
+
+  it('legt ihn nicht auf ein belegtes Band', () => {
+    // Dieselbe Antwort wie auf der belegten Arbeitsplatte: Zusammenlegen geht
+    // nicht, und warum, sagt der Satz (`kitchenRecipes.combine`).
+    const deed = press(d('extinguisher'), { kind: 'belt', on: d('plate') });
+    expect(deed.do).toBe('refuse');
+    expect(why(deed)).toContain('Feuerlöscher');
   });
 });
 

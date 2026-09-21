@@ -319,6 +319,23 @@ export class PlayerRig extends THREE.Group {
    */
   useHeld = false;
 
+  /**
+   * **Ob der Zielstock gerade _liegt_** — der rechte Stock am Pad oder der
+   * gemalte auf dem Glas (`core/gamepad.aimHeld`).
+   *
+   * Die Schwester von `useHeld` darüber, und sie ist aus demselben Grund hier:
+   * Am Schirm zielt man mit einem Stock, und wer wissen will, ob gerade
+   * gezielt wird, hätte sonst vier Geber selbst abzuhören. `FlatControls`
+   * setzt sie jedes Bild und nimmt sie zurück, sobald die Steuerung nicht
+   * läuft — in der Brille bleibt sie deshalb falsch, und dort zielt ja auch
+   * die Hand und kein Stock.
+   *
+   * Der Fall, für den es sie gibt, ist wieder der **Feuerlöscher**
+   * (`worlds/test/zones/kitchenSpray.sprayAims`): Zielen und Anmachen sind an
+   * einem Gerät, das man ins Feuer hält, ein Handgriff und nicht zwei.
+   */
+  aiming = false;
+
   /** Den Zettel lesen und wegnehmen — je Bild höchstens einmal wahr. */
   takeUse(): boolean {
     const wanted = this.useWanted;
@@ -433,6 +450,7 @@ export class PlayerRig extends THREE.Group {
     this.jumpLock = false;
     this.useCandidate = false;
     this.useBusy = false;
+    this.aiming = false;
     this.sprintScale = 1;
     // Die Stauchung gehört der Welt, die man gerade verlässt (`eyeScale`) —
     // wer sie mitnähme, stünde in der nächsten einen Viertelmeter zu tief.

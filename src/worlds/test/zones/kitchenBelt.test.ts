@@ -890,6 +890,34 @@ describe('beltDelivers / beltReleases — was die Nachbarkachel darf', () => {
     expect(beltTrashes(kitchenDeed(null, bin))).toBe(false);
   });
 
+  /**
+   * **Der Feuerlöscher fährt mit** (`kitchenCarry.EXTINGUISHER_REST`, `belt`).
+   *
+   * Er durfte lange nicht auf ein Band — und das war keine Bandregel, sondern
+   * die Tabelle, die nur drei Arbeitsplatten aufzählte. Jetzt darf er, und
+   * damit ist für diese Datei **nichts** zu tun: Die Bandrechnung kennt keine
+   * Zutaten, sie kennt belegte und freie Kacheln (`BeltTile.loaded`). Genau
+   * das steht hier als Zeile — was das Band angeht, ist der Löscher eine
+   * Ladung wie jede andere.
+   */
+  it('nimmt den Feuerlöscher wie jede andere Ladung', () => {
+    // Auf das Band gelegt wird er wie auf die Zeile …
+    expect(kitchenDeed(dish('extinguisher'), { kind: 'belt' })).toEqual({
+      do: 'place',
+      dish: dish('extinguisher'),
+    });
+    // … und vom Band nimmt ihn, wer die Hand frei hat.
+    expect(kitchenDeed(null, { kind: 'belt', on: dish('extinguisher') })).toEqual({
+      do: 'take',
+      dish: dish('extinguisher'),
+    });
+    // Und er fährt: Ein volles Band vor einer freien Ablage legt seine Ladung
+    // genau einmal um, und welche Ladung das ist, fragt die Rechnung nie.
+    const run = new Run(belt('band', 'ablage'), shelf('ablage'));
+    expect(handOvers(run.run(BELT_SECONDS * 2))).toEqual(['band>ablage']);
+    expect(run.holds).toBe('ablage');
+  });
+
   it('lässt liegen, was gerade unter dem Messer liegt', () => {
     // Die laufende Uhr am Brett oder in der Spüle hält das Band an; steht sie,
     // ist es eine Ablage wie jede andere.
