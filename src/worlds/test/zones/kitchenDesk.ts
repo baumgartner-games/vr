@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { canLoadModels } from '../../../core/chefFit';
 import { denyShadow } from '../../../core/graphicsScene';
 import { TILE } from '../../nav/navTile';
 import { mergeMeshes, mergedMesh } from './kitchenMerge';
@@ -18,10 +19,16 @@ import type { Turn } from './kitchenPlan';
  * Katalog hat dreizehn Stücke, und ein Rechner ist keines davon
  * (`core/kitchenFit.KITCHEN_PIECES`); die Einträge tragen deshalb `built: true`
  * und werden hier gebaut, wie schon das Förderband nebenan
- * (`kitchenBelt.BeltKit`) und der Zutatensatz (`kitchenProps.FoodKit`). Eine
- * zweite Quelldatei aufzunehmen, mit Lizenz, Aufbereitung und Eintrag in
- * `public/models/CREDITS.md`, wäre viel Aufwand für einen Kasten mit einer
- * leuchtenden Scheibe darauf.
+ * (`kitchenBelt.BeltKit`) und der Zutatensatz (`kitchenProps.FoodKit`).
+ *
+ * **Der Rechner selbst ist seit dem Regal keiner mehr.** Auf der Platte stand
+ * einmal ein zusammengesetzter Computer: ein Turm unter dem Tisch, eine
+ * Tastatur, ein Fuß, ein Hals, ein Gehäuse und eine leuchtende Scheibe davor —
+ * sechs Kästen und ein Dutzend Zahlen. Seit die gekaufte KayKit-Sammlung im
+ * Regal liegt (`core/kaykitModel.ts`), gibt es dafür ein Modell:
+ * `block-bits/computer.glb`, ein Kastenrechner mit Bildschirm, zwei Knöpfen
+ * und einem Laufwerksschlitz. Gebaut bleibt der **Tisch** — der ist ein Tisch
+ * und kein Computer —, und darauf steht das Modell (`COMPUTER_MODEL`).
  *
  * **Zwei Teile, und nur der untere kennt three.js.** Von welcher Seite jemand
  * vor einem Möbel steht (`pieceSide`) und wo auf einem gedrehten Kopierer die
@@ -212,44 +219,60 @@ export function pieceSide(turn: Turn, dx: number, dz: number): PieceSide {
  * zu sein.
  *
  * Nach oben passt es ebenso: In der Küche schaut man aus 1,15 m
- * (`core/posture.DEFAULT_EYES.kitchen`), die Bildmitte liegt bei 1,06 m
- * (`SCREEN_FOOT` + halbe `SCREEN_HIGH`). Der Bildschirm steht damit fast genau
- * auf Augenhöhe — bei den 1,40 m, die hier einmal standen, schaute man auf ihn
- * herunter, und beides geht: Er ist 0,42 m hoch, also fällt er in keiner der
- * beiden Höhen aus dem Blick.
+ * (`core/posture.DEFAULT_EYES.kitchen`), die Mitte des Rechners liegt bei
+ * 0,98 m (`DESK_TOP` + halbe `COMPUTER_HIGH`). Der Bildschirm steht damit fast
+ * genau auf Augenhöhe — bei den 1,40 m, die hier einmal standen, schaute man
+ * auf ihn herunter.
  */
 export const DESK_TOP = 0.75;
 
 /**
- * **Wie weit oben der Bildschirm anfängt** und wie groß er ist, in Metern —
- * `SCREEN_WIDE`/`SCREEN_HIGH` sind das **Gehäuse**, die leuchtende Fläche ist
- * ringsum eine Rahmenbreite kleiner (`SCREEN_EDGE`).
+ * **Die Adresse des Rechners im Regal** — eine Datei der gekauften
+ * KayKit-Sammlung (`core/kaykitModel.ts`, `public/models/kaykit/`).
  *
- * 16 cm über der Platte fängt das Bild an: Darunter stehen Fuß und Ständer, und
- * ein Bildschirm, der direkt auf der Platte aufsäße, wäre von vorn ein
- * Aufsteller und kein Gerät. 46 × 30 cm sind knapp die halbe Kachel — groß
- * genug, dass die leuchtende Fläche aus der Ferne ein Bildschirm ist, und klein
- * genug, dass der Tisch dahinter noch ein Tisch bleibt.
+ * `block-bits/computer.glb` ist ein Kastenrechner mit Bildschirm: ein Gehäuse,
+ * eine dunkle Scheibe, ein grüner und ein roter Knopf, ein Schlitz darunter.
+ * Er schaut in seiner Datei nach **+z** und wird deshalb auf dem Tisch um 180°
+ * gedreht — der Tisch schaut nach −z, und ein Bildschirm, der nach hinten
+ * zeigt, ist von vorn ein grauer Kasten.
  */
-export const SCREEN_FOOT = DESK_TOP + 0.16;
-export const SCREEN_WIDE = 0.46;
-export const SCREEN_HIGH = 0.3;
+export const COMPUTER_MODEL = 'block-bits/computer.glb';
+
+/**
+ * **Wie hoch der Rechner auf der Platte ist**, in Metern — und wie weit hinten
+ * er steht.
+ *
+ * 46 cm, und das ist genau die Höhe, die hier vorher das Bildschirmgehäuse
+ * hatte (0,30 m) plus sein Ständer (0,16 m): Der Tisch bleibt damit 1,21 m
+ * hoch, und keine Zahl im Katalog musste sich rühren
+ * (`core/kitchenFit.KITCHEN_PIECES`, `desk.height`). In der Brille schaut man
+ * in der Küche aus 1,15 m (`core/posture.DEFAULT_EYES.kitchen`), die Scheibe
+ * liegt damit knapp darunter — man sieht sie an, ohne sich zu bücken.
+ *
+ * Das Modell ist so breit wie hoch und eine Idee tiefer; bei 46 cm Höhe belegt
+ * es rund 46 × 49 cm der 94 × 70 cm großen Platte. **10 cm nach hinten**
+ * gerückt bleibt davor die vordere Hälfte frei — dort, wo vorher die Tastatur
+ * lag und wo im Spiel die Hand hinlangt.
+ */
+export const COMPUTER_HIGH = 0.46;
+const COMPUTER_AT = 0.1;
 
 /**
  * **Wie hoch das ganze Möbel ist**, in Metern — 1,21 m, die Oberkante des
- * Bildschirmgehäuses.
+ * Rechners.
  *
- * Gerechnet und nicht geschätzt, aus denselben Zahlen, aus denen das Netz
- * gebaut wird: Wer am Bildschirm etwas ändert, ändert damit die Zahl, die im
- * Katalog steht (`core/kitchenFit.KitchenPiece.height`) — und nicht bloß das
- * Bild. Ein Eintrag, der ein paar Zentimeter zu niedrig ist, ist ein Möbel, das
- * beim Aufstellen durch die Hand des Trägers ragt.
+ * Gerechnet und nicht geschätzt, aus denselben beiden Zahlen, aus denen das
+ * Möbel entsteht: Wer die Platte höher legt oder den Rechner größer macht,
+ * ändert damit die Zahl, die im Katalog steht
+ * (`core/kitchenFit.KitchenPiece.height`) — und nicht bloß das Bild. Ein
+ * Eintrag, der ein paar Zentimeter zu niedrig ist, ist ein Möbel, das beim
+ * Aufstellen durch die Hand des Trägers ragt.
  *
  * **`height` ist die Hülle, `DESK_TOP` die Ablage** (`KitchenPiece.deck`) —
  * dieselbe Teilung wie beim Herd mit Topf: Wer etwas auf diesen Tisch legt,
- * legt es auf die Platte und nicht auf den Bildschirm.
+ * legt es auf die Platte und nicht auf den Rechner.
  */
-export const DESK_HEIGHT = SCREEN_FOOT + SCREEN_HIGH;
+export const DESK_HEIGHT = DESK_TOP + COMPUTER_HIGH;
 
 /**
  * **Die Grundfläche des Tisches**, in Metern — 94 × 70 cm auf einer Kachel.
@@ -271,53 +294,13 @@ const DESK_DEEP = 0.7;
  * Sie stehen bis unter die Platte (`DESK_TOP` − `DESK_PLATE`), damit der Tisch
  * nicht auf Stelzen steht.
  *
- * **Vorn und hinten bleibt er offen**, und das ist keine Ersparnis: Unter der
- * Platte steht der Rechner, und er ist das Einzige an diesem Möbel, woran man
- * ohne Beschriftung erkennt, dass hier ein Computer steht. Eine Blende davor
- * wäre ein Schreibtisch mit einem Geheimnis.
+ * **Vorn und hinten bleibt er offen**, und das ist keine Ersparnis: Ein Tisch,
+ * unter dessen Platte man hindurchsieht, ist ein Tisch; einer mit einer Blende
+ * davor ist ein Schrank.
  */
 const DESK_PLATE = 0.04;
 const DESK_CHEEK = 0.04;
 const DESK_LEG = DESK_TOP - DESK_PLATE;
-
-/**
- * **Der Rechner unter der Platte**, in Metern — 20 × 42 × 40 cm, rechts hinten.
- *
- * Er steht **nicht** mittig, sondern an der +x-Seite und ein Stück nach hinten
- * gerückt: In der Mitte wäre er das Erste, was der Blick unter der Platte
- * trifft, und der Tisch läse sich als Schrank. So bleibt die vordere Hälfte
- * offen — dort stehen im Spiel die Füße dessen, der davorsteht.
- */
-const TOWER_WIDE = 0.2;
-const TOWER_HIGH = 0.42;
-const TOWER_DEEP = 0.4;
-const TOWER_AT: readonly [x: number, z: number] = [0.26, 0.12];
-
-/** Tastatur und Bildschirmfuß, in Metern — flach, damit beides Zubehör bleibt. */
-const KEYS_WIDE = 0.34;
-const KEYS_HIGH = 0.018;
-const KEYS_DEEP = 0.12;
-const KEYS_AT = -0.19;
-const STAND_WIDE = 0.2;
-const STAND_HIGH = 0.014;
-const STAND_DEEP = 0.12;
-const STEM_WIDE = 0.05;
-const STEM_DEEP = 0.04;
-const SCREEN_THICK = 0.03;
-const SCREEN_AT = 0.18;
-
-/**
- * **Der Rand um die leuchtende Fläche**, in Metern — 1,5 cm.
- *
- * Ohne ihn wäre die Scheibe genauso groß wie ihr Gehäuse, und zwei Flächen auf
- * derselben Kante flimmern gegeneinander, sobald sich die Kamera bewegt
- * (derselbe Fall wie `kitchenBelt.BAND_LIFT`). Mit ihm ist es ein Bildschirm
- * mit Rahmen, und das ist ohnehin, wonach es aussehen soll.
- */
-const SCREEN_EDGE = 0.015;
-
-/** Wie weit die Scheibe vor dem Gehäuse schwebt — 2 mm, gegen dasselbe Flimmern. */
-const SCREEN_LIFT = 0.002;
 
 /**
  * **Wie hoch die beiden Felder des Kopierers liegen**, in Metern — und sie
@@ -515,16 +498,30 @@ const DARK_COLOR = 0x171b21;
 const GLOW_COLOR = 0x2fd6a8;
 
 /**
- * **Wie hell die Scheibe glüht** — 0,55, und das ist nach unten und nicht nach
- * oben gewählt.
+ * **Den geladenen Rechner in sein Maß rechnen** — auf `COMPUTER_HIGH` hoch,
+ * mit dem Fuß auf `y = 0` und der Mitte auf `x/z = 0`.
  *
- * Der Bildschirm soll quer durch die Küche als **eingeschaltet** zu erkennen
- * sein, und mehr nicht. Eine Fläche mit `emissiveIntensity: 1` ist in einer
- * Szene mit weichem Licht ein Loch im Bild: Sie überstrahlt ihren eigenen
- * Rahmen, und aus der Ferne bleibt ein weißer Fleck, dem man nicht mehr ansieht,
- * dass er rechteckig ist. Bei 0,55 bleibt das Grüncyan eine Farbe.
+ * Skaliert wird nach der **Höhe** und nicht nach Breite oder Tiefe: An ihr
+ * hängt die Zahl, die im Katalog steht (`DESK_HEIGHT`), und die beiden anderen
+ * folgen dem Seitenverhältnis der Datei. Gemessen wird dabei und nicht
+ * gerechnet — wo der Zeichner den Ursprung hingelegt hat, steht in keiner Zahl,
+ * die man abschreiben könnte (bei dieser Datei liegt er in der Mitte und nicht
+ * unter den Füßen, wie sonst in dieser Sammlung).
  */
-const GLOW_STRENGTH = 0.55;
+function fitComputer(model: THREE.Object3D): THREE.Object3D {
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  if (box.isEmpty()) return model;
+  const span = box.getSize(new THREE.Vector3());
+  const fit = span.y > 1e-6 ? COMPUTER_HIGH / span.y : 1;
+  model.scale.multiplyScalar(fit);
+  model.position.set(
+    (-(box.min.x + box.max.x) / 2) * fit,
+    -box.min.y * fit,
+    (-(box.min.z + box.max.z) / 2) * fit,
+  );
+  return model;
+}
 
 /**
  * **Der Bausatz für Computer-Tisch und Kopierer** — geteilte Formen, geteilte
@@ -555,6 +552,15 @@ export class DeskKit {
    * Zahl für alle Kopierer dieser Küche (`update`).
    */
   private run = 0;
+
+  /** Die Vorlage des Rechners, sobald sie da ist — geklont, nie herausgegeben. */
+  private computer: THREE.Object3D | null = null;
+  /** Die Anker, die noch auf sie warten (`fillComputer`). */
+  private readonly waiting: THREE.Group[] = [];
+  /** Ob die Datei schon angefragt ist — gefragt wird einmal je Bausatz. */
+  private asked = false;
+  /** Ob der Bausatz schon abgeräumt ist, während die Datei noch unterwegs war. */
+  private gone = false;
 
   /**
    * **Der Computer-Tisch**, Ursprung **auf dem Boden in seiner Mitte** — wie
@@ -595,73 +601,54 @@ export class DeskKit {
     const right = new THREE.Mesh(cheekShape, body);
     right.position.set((DESK_WIDE - DESK_CHEEK) / 2, DESK_LEG / 2, 0);
 
-    const tower = new THREE.Mesh(
-      this.shape('tower', () => new THREE.BoxGeometry(TOWER_WIDE, TOWER_HIGH, TOWER_DEEP)),
-      body,
-    );
-    tower.position.set(TOWER_AT[0], TOWER_HIGH / 2, TOWER_AT[1]);
+    for (const mesh of [plate, left, right]) mesh.castShadow = true;
+    group.add(plate, left, right);
 
-    const keys = new THREE.Mesh(
-      this.shape('keys', () => new THREE.BoxGeometry(KEYS_WIDE, KEYS_HIGH, KEYS_DEEP)),
-      this.skin('keys', { color: DARK_COLOR, roughness: 0.7 }),
-    );
-    keys.position.set(0, DESK_TOP + KEYS_HIGH / 2, KEYS_AT);
-
-    const stand = new THREE.Mesh(
-      this.shape('stand', () => new THREE.BoxGeometry(STAND_WIDE, STAND_HIGH, STAND_DEEP)),
-      body,
-    );
-    stand.position.set(0, DESK_TOP + STAND_HIGH / 2, SCREEN_AT + 0.02);
-
-    const stem = new THREE.Mesh(
-      this.shape('stem', () => new THREE.BoxGeometry(STEM_WIDE, SCREEN_FOOT - DESK_TOP, STEM_DEEP)),
-      body,
-    );
-    stem.position.set(0, (DESK_TOP + SCREEN_FOOT) / 2, SCREEN_AT + 0.02);
-
-    const screen = new THREE.Mesh(
-      this.shape('screen', () => new THREE.BoxGeometry(SCREEN_WIDE, SCREEN_HIGH, SCREEN_THICK)),
-      this.skin('screen', { color: DARK_COLOR, roughness: 0.6 }),
-    );
-    screen.position.set(0, SCREEN_FOOT + SCREEN_HIGH / 2, SCREEN_AT);
-
-    for (const mesh of [plate, left, right, tower, keys, stand, stem, screen]) {
-      mesh.castShadow = true;
-    }
-    group.add(plate, left, right, tower, keys, stand, stem, screen);
-
-    // Die leuchtende Fläche sitzt **vor** dem Gehäuse, auf der −z-Seite: Das
-    // ist die Seite, von der aus gelesen wird. Ein Bildschirm, dessen Bild
-    // hinten leuchtet, ist von vorn ein schwarzer Kasten — und vom Gang aus
-    // sähe die halbe Küche in eine eingeschaltete Rückwand.
-    const face = new THREE.Mesh(
-      this.shape(
-        'screen-face',
-        () =>
-          new THREE.BoxGeometry(
-            SCREEN_WIDE - 2 * SCREEN_EDGE,
-            SCREEN_HIGH - 2 * SCREEN_EDGE,
-            SCREEN_LIFT,
-          ),
-      ),
-      this.skin('glow', {
-        color: 0x08221d,
-        emissive: GLOW_COLOR,
-        emissiveIntensity: GLOW_STRENGTH,
-        roughness: 0.4,
-      }),
-    );
-    face.position.set(
-      0,
-      SCREEN_FOOT + SCREEN_HIGH / 2,
-      SCREEN_AT - (SCREEN_THICK + SCREEN_LIFT) / 2,
-    );
-    // Dieselbe Falle wie bei den Zeichen des Kopierers: `castShadow = false`
-    // allein hält gegen `applySceneQuality` nicht.
-    denyShadow(face);
-    group.add(face);
+    // **Und der Platz für den Rechner**, gedreht und auf der Platte. Er steht
+    // da, ob die Datei schon angekommen ist oder nicht: Ein Anker, der erst
+    // mit ihr entstünde, wäre einer, den der Umbau nicht mehr findet.
+    const holder = new THREE.Group();
+    holder.name = 'kitchen-desk-computer';
+    holder.position.set(0, DESK_TOP, COMPUTER_AT);
+    holder.rotation.y = Math.PI;
+    group.add(holder);
+    this.fillComputer(holder);
 
     return group;
+  }
+
+  /**
+   * **Den Rechner in seinen Anker hängen** — sofort, wenn die Datei schon da
+   * ist, und sonst, sobald sie ankommt.
+   *
+   * Der Tisch wird **synchron** gebaut (`kitchen.ts`: „Was gebaut wird, steht
+   * sofort"), das Modell kommt über die Leitung — dazwischen liegt ein Anker
+   * und eine Liste. Die Liste ist keine Vorsichtsmaßnahme: In einer Küche
+   * stehen mehrere Tische, sobald jemand im Baumodus einen zweiten aufstellt,
+   * und die Datei wird trotzdem genau einmal geholt (`core/kaykitModel.ts`
+   * behält die Vorlage, `copyOf` gibt Kopien heraus).
+   *
+   * **Ohne WebGL passiert gar nichts** (`core/chefFit.canLoadModels`): In Jest
+   * bringt `GLTFLoader` samt `import.meta` den Lauf zum Stehen, und ein Tisch
+   * ohne Rechner ist dort genau das, was geprüft wird — die gebauten Maße.
+   */
+  private fillComputer(holder: THREE.Group): void {
+    if (this.computer) {
+      holder.add(fitComputer(this.computer.clone(true)));
+      return;
+    }
+    this.waiting.push(holder);
+    if (!canLoadModels() || this.asked) return;
+    this.asked = true;
+    void import('../../../core/kaykitModel').then(async (module) => {
+      const model = await module.kaykitModel(COMPUTER_MODEL);
+      // Eine fehlende Datei ist kein Abbruch: Dann steht dort ein Tisch, und
+      // der Rest der Küche läuft weiter.
+      if (!model || this.gone) return;
+      this.computer = model;
+      for (const anchor of this.waiting) anchor.add(fitComputer(model.clone(true)));
+      this.waiting.length = 0;
+    });
   }
 
   /**
@@ -938,6 +925,16 @@ export class DeskKit {
     this.shapes.clear();
     this.skins.clear();
     this.run = 0;
+    // **Die Vorlage des Rechners wird nur vergessen und nicht freigegeben**:
+    // Geometrie und Textur darin gehören der geladenen Datei und werden von
+    // jeder Kopie mitbenutzt (`core/kaykitModel.copyOf`, `userData.sharedAssets`).
+    // Wer sie hier freigäbe, nähme dem nächsten Tisch sein Netz weg.
+    this.computer = null;
+    this.waiting.length = 0;
+    // Ein abgeräumter Bausatz wird nicht wiederverwendet (`kitchen.ts` baut
+    // einen neuen), und eine Datei, die danach noch ankommt, hängt sich
+    // nirgends mehr ein.
+    this.gone = true;
   }
 
   // --- geteilte Formen und Farben ---------------------------------------------

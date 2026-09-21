@@ -89,47 +89,27 @@ export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
  * Spüle misst 4 × 3 m, ein Herd 3 × 3 (`core/kitchenFit.ts`) —, und in eine
  * Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe.
  *
- * **Sie ist doppelt so breit geworden**, und die zweite Hälfte ist der
- * Schauraum. Zwölf Kacheln reichten für die Küche selbst — drei Bänder:
- * Geräte an der Wand, eine Insel, die Ausgabe —, aber nicht für das, was
- * daneben fehlte: **jedes Möbel einmal einzeln**. Dreizehn Stücke mit einer
- * Kachel Luft dazwischen brauchen achtundzwanzig Kacheln, und in einer Zeile
- * aus acht Schränken sieht man keines davon (`zones/kitchen.ts`). Also
- * vierundzwanzig Kacheln in der Breite: im Westen die Küche, im Osten der
- * Katalog zum Abgehen.
+ * **Zwölf Kacheln sind die Küche selbst** — drei Bänder: Geräte an der Wand,
+ * eine Insel, die Ausgabe. **Acht weitere sind die Werkhalle**
+ * (`zones/kitchenPlan.PIPELINE`): Mit Kombinierer, Mixer und Filterband lässt
+ * sich eine Straße bauen, die einen Burger ohne Läufer zusammensetzt — nur
+ * passte sie nirgends hin, denn die Küche war bis auf verstreute Einzelkacheln
+ * voll, und eine Bandstraße braucht **Spalten am Stück**. Sie fängt deshalb
+ * dort an, wo die Küche aufhört, und neben der Straße ist noch Platz für eine
+ * eigene.
  *
- * **Und dann kam acht Kacheln später die Werkhalle dazwischen.** Mit
- * Kombinierer, Mixer und Filterband lässt sich eine Straße bauen, die einen
- * Burger ohne Läufer zusammensetzt — nur passte sie nirgends hin: Die Küche
- * war bis auf verstreute Einzelkacheln voll, und eine Bandstraße braucht
- * **Spalten am Stück**. Also stehen jetzt zwischen Küche und Schauraum acht
- * freie Spalten (`zones/kitchenPlan.PIPELINE`), in denen die Straße steht und
- * neben der noch Platz zum Weiterbauen ist.
- *
- * **Gewachsen ist sie dafür wieder nach Osten**, und der Schauraum ist mit
- * nach Osten gerückt (`zones/kitchenPlan.SHOW_X`) statt sitzen zu bleiben:
- * Eine Werkhalle **hinter** dem Schauraum wäre von der Küche aus zwei
- * Zimmer weit weg, und die Straße soll dort anfangen, wo die Küche aufhört.
- * Nach Süden ging es ohnehin nicht — dort liegt das Podest (`PODIUM`).
- *
- * **Und danach noch einmal um eine einzige Kachel**, als die sichere
- * Kochstelle in den Katalog kam: Der Schauraum zeigt jedes Stück einzeln, und
- * seine vier Reihen waren bis auf die letzte Kachel vor der Ostwand voll. Eine
- * Spalte mehr ist billiger als ein umgeräumter Schauraum — und sie ist die
- * ehrlichere Buchhaltung: Der Katalog ist gewachsen, also wächst der Raum, der
- * ihn zeigt.
- *
- * **Und zuletzt um vier**, als die vier Vorratskisten dazukamen
- * (`core/kitchenFit.SUPPLY_CRATES`). Dieselbe Buchhaltung, nur viermal — und
- * sie stehen im Schauraum nebeneinander statt auf vier Reihen verteilt: Sie
- * sind eine Familie, sie stehen auch in der Küche in einer Reihe, und ein
- * Regal mit vier Kisten liest sich als eines.
+ * **Hinter der Halle lag einmal ein Schauraum**, in dem jedes Möbel des
+ * Katalogs einzeln stand und beschriftet war — siebzehn Kacheln Breite nur
+ * dafür. Den Katalog gibt es jetzt am Rechner (`shared/construct.ts`): Wer vor
+ * dem Computer-Tisch `A` drückt, steht mitten in ihm und hat jedes Stück in
+ * Reichweite, statt daran vorbeizulaufen. Die Zone ist damit wieder auf
+ * zwanzig Kacheln geschrumpft.
  *
  * Hinter dem Podest und nicht neben dem Schießstand: Dessen Bahnen laufen
  * quer über den ganzen Osten bis zum Kugelfang (`zones/range.ts`, `BERM`), und
  * eine Küche in der Schusslinie ist eine Küche mit Löchern.
  */
-export const KITCHEN: NavRect = { x: 12, z: -31, w: 37, d: 11 };
+export const KITCHEN: NavRect = { x: 12, z: -31, w: 20, d: 11 };
 
 /**
  * **Wo man in der Küche ankommt** — die Mitte des Gangs zwischen Insel und
@@ -154,24 +134,24 @@ export const KITCHEN_SPAWN = { x: KITCHEN.x + 1, z: KITCHEN.z + 7 } as const;
  * Sie gibt es, weil ein zweiter Baukasten gekauft wurde (`core/dinerFit.ts`,
  * 146 Stücke aus „Restaurant Bits"), und ein Katalog, den niemand aufstellt,
  * ist eine Datei und kein Möbel — die erste Küche lag aus genau diesem Grund
- * ein halbes Jahr ungenutzt da. Gebaut ist sie deshalb wie die erste: vorn ein
- * Raum, in dem die Möbel **stehen**, und dahinter ein Schauraum, in dem jedes
- * Stück des Katalogs **einzeln** steht.
+ * ein halbes Jahr ungenutzt da. Sie ist ein **eingerichteter Raum**: die Zeile
+ * an der Wand, die Insel davor, der Vorrat, die Durchreiche, der Gastraum.
  *
  * **Nach Norden und nicht nach Westen**, obwohl neben der ersten Küche Platz
- * gewesen wäre: Ein Schauraum aus 146 Stücken braucht bei einer Kachel Luft
- * zwischen zwei Stücken **acht Reihen** auf vierundvierzig Kacheln Breite, und
- * die passen in die elf Kacheln Tiefe der Nordzeile nicht hinein. Das Gelände
- * ist dafür nach Norden gewachsen (`FIELD` von 80 auf 105 m tief) — nach Norden, weil dort
- * nichts liegt, was ausweichen müsste, und weil die beiden Küchen so
- * übereinander stehen statt nebeneinander: Wer in der ersten am Tresen steht
- * und nach Norden sieht, sieht die zweite.
+ * gewesen wäre: Das Gelände ist dafür nach Norden gewachsen — dort liegt
+ * nichts, was ausweichen müsste, und die beiden Küchen stehen so übereinander
+ * statt nebeneinander: Wer in der ersten am Tresen steht und nach Norden
+ * sieht, sieht die zweite.
  *
- * **Neunundsechzig Kacheln breit**, also breiter als alles andere hier, und
- * das ist keine Großzügigkeit, sondern die Rechnung: 24 für das Restaurant,
- * eine Spalte Luft, 44 für den Schauraum (`zones/dinerPlan.ts`, `SHOW_X`).
+ * **Vierundzwanzig Kacheln breit**, und das war sie einmal dreimal: Hinter dem
+ * Restaurant lag ein **Schauraum**, in dem jedes der 146 Stücke einzeln stand
+ * — vierundvierzig Kacheln Breite für einen Katalog zum Abgehen. Den gibt es
+ * jetzt am Rechner (`shared/construct.ts`, der Möbelkatalog im
+ * Konstrukt-Raum), und ein Katalog, den man in der Hand hat, braucht kein
+ * zweites Zimmer. Geblieben ist der Raum, für den der Baukasten gekauft
+ * wurde.
  */
-export const DINER: NavRect = { x: -24, z: -56, w: 69, d: 24 };
+export const DINER: NavRect = { x: -24, z: -56, w: 24, d: 24 };
 
 /**
  * **Die Gänge zwischen den Zonen**, drei Kacheln breit, wo es geht.
@@ -212,19 +192,27 @@ export const PATHS: readonly NavRect[] = [
   // dessen Mitte stünde man unter dem Deck, und von oben verschwindet dann
   // genau das Stück Weg, das man gerade geht (`core/cutaway.ts`).
   { x: 12, z: -21, w: 3, d: 4 },
-  // Interaktionen → zweite Küche (der lange Weg nach Norden, an der Westseite
-  // entlang). Sechzehn Kacheln, und das ist die kürzeste Verbindung, die es
-  // gibt: Die erste Küche liegt dazwischen, und die ist auf drei Seiten
-  // zugemauert (`zones/kitchenPlan.stampKitchen`) — wer von dort nach Norden
-  // will, ginge gegen ihre Nordwand.
-  { x: -22, z: -33, w: 3, d: 16 },
-  // Und der kurze Weg von einer Küche in die andere, denn „nebenan" soll man
-  // auch gehen können: an der Westwand der ersten Küche entlang nach Süden…
+  // Von einer Küche in die andere, denn „nebenan" soll man auch gehen können:
+  // an der Westwand der ersten Küche entlang nach Süden…
   { x: 9, z: -33, w: 3, d: 13 },
   // …und unten herum in ihren eigenen Gang. Um die Wand herum und nicht durch
   // sie: Eine Tür in eine fremde Zone zu schlagen hieße, ihren Grundriss von
   // hier aus zu ändern.
   { x: 9, z: -20, w: 6, d: 3 },
+  // Und oben herum zur Südseite der zweiten Küche. **Nicht an ihrer Ostwand
+  // entlang**: Die steht bis in die letzte Reihe (`zones/dinerPlan.stampDiner`),
+  // und wer gegen sie liefe, käme nie an. Die zweite Küche ist nach **Süden**
+  // offen, also stößt der Gang eine Reihe südlich davon an — bei z = −32, und
+  // von dort geht es geradeaus hinein.
+  //
+  // Hier lag einmal ein zweiter Weg, an der Westseite des Geländes entlang von
+  // den Interaktionen herauf (`{ x: -22, z: -33, w: 3, d: 16 }`). Der war nie
+  // einer: Die Interaktionszone ist nach Norden zugemauert
+  // (`zones/interact.ts`), also endete er nach sechzehn Kacheln vor einer Wand.
+  // Aufgefallen ist das erst, als die zweite Küche auf ihre 24 Kacheln
+  // schrumpfte und damit die Kachelreihe verlor, über die sie bis dahin
+  // *nebenbei* am Gang der ersten hing.
+  { x: -1, z: -33, w: 11, d: 3 },
 ];
 
 /**

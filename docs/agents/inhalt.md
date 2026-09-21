@@ -1566,21 +1566,13 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     ohne anzubrennen), **Mixer** (hackt ohne jemanden davor), **Filterband**
     (zieht nur, was es gelernt hat) und **Kombinierer** (legt zusammen, was auf
     ihm liegt, mit dem, was von der Pfeilseite kommt). Die anderen zwei Spalten
-    bleiben leer: Genau dafür ist die Halle da. Im Osten der
-    **Schauraum**: jedes der sechsundzwanzig Möbel noch einmal, frei stehend und mit
-    einer Tafel daneben, auf der sein Name und sein Maß stehen — bis auf die
-    beiden Hälften der Spüle, die dort **nebeneinander** stehen (ihre
-    Schnittflächen sind offen, und auf Lücke gestellt sähe man in zwei
-    aufgesägte Schränke), und die vier **Vorratskisten**, die dort wie an der
-    Westwand in einer Reihe stehen: Sie sind eine Familie, und
-    auseinandergezogen sähe man vier Einzelstücke statt eines Regals. In einer Zeile
-    aus acht Schränken sieht man ein einzelnes Möbel nicht; der Katalog ist
-    damit ein Rundgang statt einer Liste. **Das Schild steht dabei unten an der
-    Vorderkante der Kachel** und nicht mehr über dem Möbel
-    (`shared/showPlate.ts`): Oben verdeckte es das Stück in der Reihe dahinter,
-    gehörte auf zwei Metern Höhe zu keinem bestimmten Möbel mehr, und man
-    musste hochsehen, um zu lesen, wovor man steht. Unten steht das Stück frei
-    dahinter, und Schild und Möbel liegen in einem Blick übereinander. **Angefasst wird mit `A`**, und ein
+    bleiben leer: Genau dafür ist die Halle da. **Der Schauraum dahinter ist
+    weg** (September 2026): siebzehn Kacheln, auf denen jedes Katalogstück noch
+    einmal einzeln und beschriftet stand. Denselben Katalog gibt es seit dem
+    Konstrukt-Raum am **Rechner** — dort steht man mitten darin und hat jedes
+    Stück in Reichweite, statt daran vorbeizulaufen —, und zwei Kataloge
+    nebeneinander sind einer zu viel. Die Zone ist damit von siebenunddreißig
+    auf zwanzig Kacheln geschrumpft (Küche plus Werkhalle). **Angefasst wird mit `A`**, und ein
     roter Knopf neben dem Eingang schaltet den **Baumodus** ein und wieder aus,
     in dem sich jedes Möbel samt allem, was darauf steht, versetzen lässt — das
     Einschalten räumt die Küche dabei ab, wie `B`/`Y` es täte (beides unter
@@ -1601,24 +1593,23 @@ im Spiel also zwei Kacheln —, und in eine
     Ein Text an einer Wand ist ein Gemälde. Die Nordwand ist dafür die
     richtige, weil die Kamera von oben aus dem Süden schaut — an der Westwand
     hinge derselbe Aushang für diesen Blick hochkant.
-  - **Zweite Küche** (ganz oben im Norden, über der ersten): neunundsechzig mal
+  - **Zweite Küche** (ganz oben im Norden, über der ersten): vierundzwanzig mal
     vierundzwanzig Kacheln aus einem **zweiten** Möbelkatalog
     (`core/dinerFit.ts`, 156 Stücke aus _Restaurant Bits_, CC0 — siehe
-    _Modelle im Repository_), und zwar in denselben zwei Hälften wie die erste:
-    **vorn das Restaurant**, dahinter der **Schauraum**.
+    _Modelle im Repository_) — ein **eingerichteter Raum**, und sonst nichts.
 
-    Im Restaurant steht, was man aus dem Baukasten bauen kann: die Zeile an der
+    Darin steht, was man aus dem Baukasten bauen kann: die Zeile an der
     Nordwand mit Spüle, zwei Herden, Backofen und Pizzaofen, darüber
     Hängeschränke und zwei Abzugshauben, davor die Insel aus Arbeits- und
     Spültischen, an der Westwand der Vorrat in Kisten, quer davor die
-    Durchreiche und dahinter sechs Gästetische mit Stühlen. Im Schauraum steht
-    **jedes der 156 Stücke einmal einzeln**, mit einer Tafel daneben, auf der
-    sein Name und sein **gemessenes Maß** stehen — nicht seine Kachelzahl: Wer
-    entscheiden soll, ob ein Stück brauchbar ist, will wissen, dass eine
-    Küchenzeile 1,00 × 1,02 m misst, und nicht, dass sie auf eine Kachel
-    gerundet wurde. Sortiert ist er alphabetisch, und das sortiert von selbst:
-    Die zwölf Vorratsgläser stehen beieinander, die vierundzwanzig
-    Küchenzeilen auch.
+    Durchreiche und dahinter sechs Gästetische mit Stühlen.
+
+    **Der Schauraum dahinter ist weg** (September 2026): vierundvierzig Kacheln
+    Breite, auf denen jedes der 156 Stücke einzeln und beschriftet stand. Es
+    war ein Katalog zum Abgehen, und genau den gibt es am Rechner der ersten
+    Küche (siehe _Der Konstrukt-Raum_) — nur hat man ihn dort in Reichweite
+    statt zwei Zimmer weiter. Die Zone ist damit von neunundsechzig auf
+    vierundzwanzig Kacheln geschrumpft.
 
     **Gespielt wird hier nicht** (`zones/diner.ts`): keine Stationen, keine
     Uhren, keine Rezepte, kein Baumodus, kein `update`. Das ist keine halbe
@@ -1634,29 +1625,26 @@ im Spiel also zwei Kacheln —, und in eine
     **eine** Textur —
     die Quelle ist ein Baukasten auf einem Farbstreifen-Atlas —, und damit
     lässt sich zusammenfassen, was die erste Küche nur einzeln zeichnen kann:
-    Der Schauraum wird **reihenweise** verschmolzen (`zones/kitchenMerge.ts`,
-    dieselbe Rechnung wie beim Kopierer), das Restaurant zu **einem** Netz. Aus
-    **244 Netzen werden neun** — acht Schauraumreihen und das Restaurant.
-    Was das an Zeichenaufrufen je Bild spart, ist damit **nicht** gemessen;
-    gemessen wird das mit `npm run perf:kitchen`, und das Werkzeug misst
-    bisher nur an der Ankerkachel der ersten Küche. Reihenweise und nicht als
-    ein Klotz: Ein einziges Netz über den ganzen Schauraum wäre ein Aufruf
-    — und würde nie weggeschnitten, also zahlte auch der alle 85 000 Dreiecke,
-    der in die andere Richtung sieht. Was verschmolzen ist, lässt sich dafür
-    nicht mehr einzeln anfassen, und genau deshalb kann die **erste** Küche das
-    nicht so machen (`kitchenCarry.ts`, `kitchenBuild.ts`).
+    Das ganze Restaurant wird zu **einem** Netz verschmolzen
+    (`zones/kitchenMerge.ts`, dieselbe Rechnung wie beim Kopierer). Solange der
+    Schauraum dahinter über vierundvierzig Kacheln lief, wurde **reihenweise**
+    verschmolzen — acht Reihen plus das Restaurant —, damit der Blickkegel den
+    halben Katalog wegwerfen konnte; seit es ihn nicht mehr gibt, steht der
+    Raum ohnehin ganz im Bild, wenn man darin steht. Was das an
+    Zeichenaufrufen je Bild spart, ist damit **nicht** gemessen; gemessen wird
+    das mit `npm run perf:kitchen`, und das Werkzeug misst bisher nur an der
+    Ankerkachel der ersten Küche. Was verschmolzen ist, lässt sich dafür nicht
+    mehr einzeln anfassen, und genau deshalb kann die **erste** Küche das nicht
+    so machen (`kitchenCarry.ts`, `kitchenBuild.ts`).
 
-    **Dafür ist das Gelände noch einmal nach Norden gewachsen** (`FIELD` von 80
-    auf 105 m tief): Ein Schauraum aus 156 Stücken mit einer Kachel Luft
-    dazwischen braucht acht Reihen auf vierundvierzig Kacheln Breite, und die
-    passen in die elf Kacheln Tiefe der Nordzeile nicht. Nach Norden, weil dort
-    nichts liegt, was ausweichen müsste — und weil die beiden Küchen so
-    übereinanderstehen: Wer in der ersten am Tresen steht und nach Norden
-    sieht, sieht die zweite. Hin kommt man über den Gang an der Westseite
-    (`layout.PATHS`), und von einer Küche in die andere über einen zweiten, der
-    an der Westwand der ersten entlangführt und unten in deren eigenen Gang
-    mündet — **um die Wand herum und nicht durch sie**: Eine Tür in eine fremde
-    Zone zu schlagen hieße, ihren Grundriss von außen zu ändern.
+    **Dafür ist das Gelände nach Norden gewachsen** (`FIELD` von 80 auf 105 m
+    tief) — nach Norden, weil dort nichts liegt, was ausweichen müsste, und
+    weil die beiden Küchen so übereinanderstehen: Wer in der ersten am Tresen
+    steht und nach Norden sieht, sieht die zweite. Hin kommt man von der ersten
+    Küche aus (`layout.PATHS`): an ihrer Westwand entlang nach Norden und dann
+    nach Westen zur **Südseite** der zweiten, die als einzige offen ist —
+    **um die Wände herum und nicht durch sie**: Eine Tür in eine fremde Zone
+    zu schlagen hieße, ihren Grundriss von außen zu ändern.
   - **Portaltafeln**: drei helle Tafeln — am Startplatz, auf dem Podest und an
     der Westwand der Navigation. Drei und nicht eine, weil ein Portal erst zu
     zweit etwas ist; die auf dem Podest ist der kürzeste Weg, die Treppe zu

@@ -1,6 +1,6 @@
 import type { GridPlan } from '../../grid/gridPlan';
 import { DIR_E, DIR_N, DIR_W } from '../../nav/navTile';
-import { DINER_PIECES, type DinerPiece, dinerPiece } from '../../../core/dinerFit';
+import { type DinerPiece, dinerPiece } from '../../../core/dinerFit';
 import { DINER } from '../layout';
 
 /**
@@ -15,11 +15,17 @@ import { DINER } from '../layout';
  *
  * **Was hier nicht steht, ist Spiel.** Die erste Küche ist eine Maschine:
  * Stationen, Uhren, Rezepte, Bänder, ein Baumodus. Diese hier ist ein
- * **eingerichteter Raum** und ein **Katalog zum Abgehen** — man läuft hindurch
- * und sieht sich 156 Stücke an. Deshalb hat `DinerSpot` vier Felder und
- * `kitchenPlan.Spot` zehn: Es gibt hier nichts, was etwas ausgibt, annimmt
- * oder zählt, und ein Feld, das niemand liest, ist eine Zusage, die niemand
- * hält.
+ * **eingerichteter Raum** — man läuft hindurch und sieht, was der zweite
+ * Baukasten hergibt, wenn man ihn wirklich aufbaut. Deshalb hat `DinerSpot`
+ * drei Felder und `kitchenPlan.Spot` zehn: Es gibt hier nichts, was etwas
+ * ausgibt, annimmt oder zählt, und ein Feld, das niemand liest, ist eine
+ * Zusage, die niemand hält.
+ *
+ * **Den Schauraum dahinter gibt es nicht mehr.** Er stellte jedes der 156
+ * Stücke einzeln auf vierundvierzig Kacheln — ein Katalog zum Abgehen, und
+ * genau den gibt es jetzt am Rechner in der ersten Küche
+ * (`shared/construct.ts`). Zwei Kataloge nebeneinander sind einer zu viel,
+ * und der, für den man ein Zimmer durchqueren muss, ist der schlechtere.
  */
 
 /** Wie viele Viertelumdrehungen ein Stück gedreht wird — wie in der ersten Küche. */
@@ -34,17 +40,6 @@ export interface DinerSpot {
   readonly z: number;
   /** Vierteldrehungen; 0 ist, wie es aus der Datei kommt (Vorderseite nach Süden). */
   readonly turn?: Turn;
-  /**
-   * **Ob es im Schauraum steht** statt im Restaurant.
-   *
-   * Ein Schaustück bekommt eine Tafel mit Namen und Maß und sonst nichts —
-   * und es bekommt **keine Mindesthöhe über sich**: Wer durch einen Schauraum
-   * geht, soll nicht gegen Luft laufen. Dieselbe Unterscheidung wie
-   * `kitchenPlan.Spot.show`, und sie steht hier aus demselben Grund noch
-   * einmal: Beide Küchen füllen ihren Schauraum aus derselben Schleife, aus
-   * der sie auch ihre Möbel stellen.
-   */
-  readonly show?: boolean;
 }
 
 /**
@@ -66,70 +61,6 @@ export const DINER_FLOOR = 0.02;
  * bekommt eine Küche, die keiner betritt.
  */
 const FURNITURE_COST = 8;
-
-/**
- * **Wo der Schauraum anfängt**, in Kacheln vom Westrand der Zone.
- *
- * Vierundzwanzig Kacheln für das Restaurant, eine Spalte Luft, ab hier der
- * Katalog. Die Zahl steht hier und nicht in jeder einzelnen Zeile des
- * Schauraums, und das ist die Lehre aus dem ersten Schauraum
- * (`kitchenPlan.SHOW_X`): Wer 156 Stücke mit absoluten Kachelzahlen hinstellt,
- * findet beim nächsten Verschieben heraus, dass die hundertste stimmt und die
- * hunderterste nicht.
- */
-export const SHOW_X = 25;
-
-/** Wie breit der Schauraum ist, in Kacheln — der Rest der Zone. */
-export const SHOW_W = DINER.w - SHOW_X;
-
-/**
- * **Eine Kachel Luft zwischen zwei Schaustücken**, und zwei Kacheln zwischen
- * zwei Reihen.
- *
- * Nicht mehr: Bei 156 Stücken ist jede zusätzliche Kachel Abstand eine Reihe
- * mehr, durch die jemand laufen muss. Nicht weniger: Ein Kühlschrank neben
- * einem Messer, beide auf Tuchfühlung, sind kein Katalog, sondern ein Haufen.
- */
-const SHOW_AIR = 1;
-const SHOW_ROW_AIR = 1;
-
-/**
- * **Der Schauraum: jedes Stück des Katalogs genau einmal**, in acht Reihen von
- * Norden nach Süden gepackt.
- *
- * **Gepackt und nicht gerastert.** Der erste Schauraum stellt seine
- * zweiundzwanzig Möbel auf feste Kachelzahlen, weil zweiundzwanzig Zahlen eine
- * Liste sind, die man liest. Hundertsechsundvierzig sind es nicht — und
- * sechsundzwanzig davon sind zwei Kacheln breit, so dass ein festes Raster von
- * zwei Kacheln entweder die Hälfte der Luft verschluckt oder überall dort
- * Lücken lässt, wo ein schmales Stück steht. Also wird gepackt: Jedes Stück
- * bekommt seine Grundfläche plus eine Kachel Luft, und wenn die Reihe zu Ende
- * ist, fängt die nächste an.
- *
- * **Die Reihenfolge ist die des Katalogs**, und der ist alphabetisch. Das ist
- * hier kein Zufall, sondern sortiert von selbst: `kitchencounter_*` steht
- * beieinander, alle zwölf Vorratsgläser in einer Reihe, die vier Bodenplatten
- * nebeneinander. Wer vergleichen will, was die Varianten unterscheidet, steht
- * ohne eine Zeile Sortierung davor.
- */
-function showroom(): DinerSpot[] {
-  const spots: DinerSpot[] = [];
-  let x = SHOW_X;
-  let z = 0;
-  let deepest = 0;
-  for (const piece of DINER_PIECES) {
-    const [w, d] = piece.tiles;
-    if (x + w > SHOW_X + SHOW_W) {
-      z += deepest + SHOW_ROW_AIR;
-      x = SHOW_X;
-      deepest = 0;
-    }
-    spots.push({ name: piece.name, x, z, show: true });
-    x += w + SHOW_AIR;
-    deepest = Math.max(deepest, d);
-  }
-  return spots;
-}
 
 /**
  * **Ein Gästetisch mit Stühlen ringsum** — der Tisch auf seiner Grundfläche,
@@ -183,7 +114,7 @@ const ROOM: readonly DinerSpot[] = [
   // --- die Zeile an der Nordwand, Vorderseite nach Süden ---------------------
   // Gerade Stücke an den Enden dieser Zeile und keine Eckstücke: Eine Ecke
   // gehört an eine Ecke, und hier läuft die Zeile gerade durch. Ansehen kann
-  // man die vier Ecktypen im Schauraum, wo sie einzeln stehen.
+  // man die vier Ecktypen im Möbelkatalog am Rechner der ersten Küche.
   { name: 'kitchencounter_straight_B_backsplash', x: 1, z: 1 },
   { name: 'kitchencounter_straight_A_backsplash', x: 2, z: 1 },
   { name: 'kitchencounter_sink_backsplash', x: 3, z: 1 },
@@ -258,23 +189,16 @@ const ROOM: readonly DinerSpot[] = [
 ];
 
 /**
- * **Alle Stücke der zweiten Küche** — erst das Restaurant, dann der Schauraum.
+ * **Alle Stücke der zweiten Küche.**
  *
- * Eine Liste und nicht zwei, weil die Zone genau eine Schleife darüber legt
- * (`zones/diner.ts`) und `show` der einzige Unterschied ist. Getrennt von
- * `kitchenPlan.KITCHEN_SPOTS` ist sie trotzdem, und zwar mit Absicht: Die
- * Tests der ersten Küche zählen über ihre Liste ab, dass es **genau einen**
- * Herd mit Pfanne und **genau eine** Ausgabetheke gibt
- * (`kitchenPlan.test.ts`). Eine zweite Küche in derselben Liste verdoppelte
- * jede dieser Zahlen, und die Zusage, die dabei zerbräche, ist keine
- * Formsache — an ihr hängt, dass eine Runde überhaupt endet.
+ * Getrennt von `kitchenPlan.KITCHEN_SPOTS`, und zwar mit Absicht: Die Tests
+ * der ersten Küche zählen über ihre Liste ab, dass es **genau einen** Herd mit
+ * Pfanne und **genau eine** Ausgabetheke gibt (`kitchenPlan.test.ts`). Eine
+ * zweite Küche in derselben Liste verdoppelte jede dieser Zahlen, und die
+ * Zusage, die dabei zerbräche, ist keine Formsache — an ihr hängt, dass eine
+ * Runde überhaupt endet.
  */
-export const DINER_SPOTS: readonly DinerSpot[] = [...ROOM, ...showroom()];
-
-/** Die Namen der Schaustücke — gegen den Katalog geprüft. */
-export const DINER_SHOWN: readonly string[] = DINER_SPOTS.filter((spot) => spot.show).map(
-  (spot) => spot.name,
-);
+export const DINER_SPOTS: readonly DinerSpot[] = ROOM;
 
 /**
  * **Wie viele Kacheln ein Stück belegt, so herum, wie es steht** — Breite und
@@ -371,8 +295,6 @@ export function fitDiner(plan: GridPlan): void {
         '- An der Westwand: der Vorrat in Kisten',
         '- Quer davor: die Durchreiche zum Gastraum',
         '- Im Süden: sechs Gästetische mit Stühlen',
-        '- Im Osten: der **Schauraum** — jedes der 156 Stücke einmal,',
-        '  beschriftet mit Namen und Maß, alphabetisch sortiert',
         '',
         '## Gespielt wird hier nicht',
         '',
@@ -381,6 +303,10 @@ export function fitDiner(plan: GridPlan): void {
         'ist ein **eingerichteter Katalog** — er zeigt, was der zweite',
         'Baukasten hergibt, damit man entscheiden kann, was davon in ein Spiel',
         'gehört.',
+        '',
+        'Den **Schauraum** dahinter gibt es nicht mehr: Jedes einzelne Stück',
+        'steht jetzt im Möbelkatalog am Rechner der ersten Küche, und den hat',
+        'man beim Bauen in der Hand statt zwei Zimmer weiter.',
         '',
         '## Was nicht mitgekommen ist',
         '',

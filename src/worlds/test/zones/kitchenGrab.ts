@@ -278,26 +278,32 @@ const NOZZLE_RADIUS = 0.05;
 const NOZZLE_AHEAD: Vec3 = { x: 1, y: 0, z: 0 };
 
 /**
- * **Wo die Faust die Wasserpumpenzange packt** — am hinteren Ende, quer über
- * beide Griffe.
+ * **Wo die Faust den Schraubenschlüssel packt** — in der **Mitte**, quer über
+ * den Schaft.
  *
- * Dieselbe Lesart wie beim Bügel des Löschers darüber, nur sind die Anteile
- * hier nicht gemessen, sondern **gebaut**: Die Zange entsteht in dieser
- * Werkstatt selbst (`kitchenProps.PLIERS`), also steht ihr Maß fest, und
- * `across` −0,62 ist die Mitte der roten Griffe. Quer gefasst
- * wird sie, weil man eine Zange so hält: Die Faust schließt sich **um beide
- * Schenkel**, und deshalb läuft die Stange in z, über die ganze Breite des
- * Werkzeugs.
+ * Dieselbe Lesart wie beim Bügel des Löschers darüber, nur steht das Maß hier
+ * fest: Das Werkzeug wird beim Laden in eine hingeschriebene Hülle gerechnet
+ * (`kitchenProps.PLIERS`, `layFlat`), also sind Anteile davon so gut wie
+ * gemessene Zentimeter.
+ *
+ * **`across` ist 0**, und das war beim Modelltausch die eine Zahl, die sich
+ * ändern musste: Die gebaute Wasserpumpenzange hatte ihre roten Griffe hinten
+ * (−0,62), der gekaufte Schlüssel (`rpg-tools-bits/wrench_A.glb`) hat seinen
+ * ledernen Griff in der Mitte und an **beiden** Enden ein Maul. Wer ihn am
+ * Ende packte, hielte ihn am Werkzeug statt am Griff.
+ *
+ * Quer gefasst wird er trotzdem: Die Faust schließt sich **um den Schaft**,
+ * und deshalb läuft die Stange in z, über die ganze Breite des Werkzeugs.
  */
 const GRIP_BAR = {
-  across: -0.62,
+  across: 0,
   lift: 0.5,
   half: 1,
 } as const;
 
 /**
- * **Wohin die Zange zeigt**, im Raum ihres Netzes: nach **+x**, dorthin, wo
- * ihre Backen sind (`kitchenProps.FoodKit.pliers`).
+ * **Wohin der Schraubenschlüssel zeigt**, im Raum seines Netzes: nach **+x**
+ * (`kitchenProps.layFlat`).
  *
  * Dieselbe Richtung wie die Düse des Löschers, und das ist keine
  * Bequemlichkeit: Ein Werkzeug in der Faust soll nach vorn stehen, egal
@@ -442,11 +448,11 @@ function extinguisherNeck(size: ItemSize): GrabHandle {
 }
 
 /**
- * **Die Wasserpumpenzange an ihren Griffen.**
+ * **Der Schraubenschlüssel an seinem Schaft.**
  *
- * Die Stange liegt quer über beide Schenkel (`GRIP_BAR`), oben bleibt die
- * Flachseite der Zange — sie liegt in der Faust, wie sie auf der Platte lag —,
- * und nach vorn zeigen die **Backen** (`JAW_AHEAD`). Dasselbe Muster wie beim
+ * Die Stange liegt quer über die Mitte (`GRIP_BAR`), oben bleibt die
+ * Flachseite — er liegt in der Faust, wie er auf der Platte lag —, und nach
+ * vorn zeigt das vordere **Maul** (`JAW_AHEAD`). Dasselbe Muster wie beim
  * Löscher (`extinguisherNeck`), und aus demselben Grund: Was man am
  * spritzenden Becken benutzt, soll dorthin zeigen, wohin die Hand zeigt.
  */
@@ -462,8 +468,8 @@ function pliersGrip(size: ItemSize): GrabHandle {
     {
       from: { x: at.x, y: at.y, z: at.z - reach },
       to: { x: at.x, y: at.y, z: at.z + reach },
-      // Die Faust liegt um **beide** Schenkel, also ist der Haltezylinder so
-      // dick wie die Zange hoch ist — und nicht so dick wie ein Schenkel.
+      // Die Faust liegt um den ganzen Schaft, also ist der Haltezylinder so
+      // dick wie das Werkzeug hoch ist.
       radius: size.height / 2,
     },
     UP,
@@ -560,12 +566,12 @@ export function kitchenCarryTurn(item: KitchenItem): number {
  * **Was eine Vorderseite hat** — und wohin sie im eigenen Netz zeigt.
  *
  * Zwei Einträge, und beide sind Werkzeuge: die Düse des Löschers und die
- * Backen der Zange. Alles andere fehlt hier und bekommt damit null
+ * Maul des Schraubenschlüssels. Alles andere fehlt hier und bekommt damit null
  * (`kitchenCarryTurn`) — ein Teller hat keine Vorderseite, ein Brötchen auch
  * nicht.
  *
  * Eine Tabelle und kein zweites `if`: Hier stand einmal der Löscher allein,
- * und als die Zange dazukam, wäre daraus eine Kette geworden, in der beim
+ * und als der Schlüssel dazukam, wäre daraus eine Kette geworden, in der beim
  * dritten Werkzeug eines fehlt.
  */
 const CARRY_FRONT: Partial<Record<KitchenItem, Vec3>> = {

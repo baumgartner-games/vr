@@ -25,7 +25,7 @@ import { KITCHEN_FLOOR, KITCHEN_SPOTS, footprint, type Spot, type Turn } from '.
  * Der Nachbar macht es längst so (`zones/diner.ts`, `addBody`: „erst die
  * Körper, dann die Bilder — und die Körper auch ohne Bild"); hier steht
  * dieselbe Entscheidung noch einmal, weil die Küche mehr Fälle kennt —
- * gebaute Möbel, gehobene Stücke, den Schauraum.
+ * gebaute Möbel und gehobene Stücke.
  */
 
 /**
@@ -87,8 +87,6 @@ export interface BlockStand {
   readonly turn?: Turn;
   /** Steht es über einem anderen Möbel (`Spot.lift`), bekommt es keinen. */
   readonly lift?: number;
-  /** Im Schauraum gilt die echte Höhe und nicht `BLOCK_HEIGHT`. */
-  readonly show?: boolean;
 }
 
 /**
@@ -114,10 +112,7 @@ export function kitchenBlock(piece: KitchenPiece, stand: BlockStand): KitchenBlo
   if (piece.hanging || stand.lift) return null;
   const size = footprint(piece, stand.turn ?? 0);
   const stands = piece.height - (piece.bury ?? 0);
-  // Im Schauraum steht jedes Stück für sich: Dort gibt es kein „darüber
-  // hinweg", nur ein Möbel zum Ansehen — und keinen Grund, über ihm gegen
-  // Luft zu laufen.
-  const h = Math.max(stand.show ? stands : Math.max(stands, BLOCK_HEIGHT), MIN_BLOCK);
+  const h = Math.max(stands, BLOCK_HEIGHT, MIN_BLOCK);
   return {
     x: (KITCHEN.x + stand.x + size.w / 2) * TILE,
     y: KITCHEN_FLOOR + h / 2,

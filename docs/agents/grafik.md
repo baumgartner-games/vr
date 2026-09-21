@@ -645,7 +645,7 @@ Das ist der Posten hinter **M4** in `docs/quest3-referenz.md`, und es ist die
 Zahl, die dort fehlte.
 
 **Zwei Drittel des Hauptdurchgangs sind sechs gebaute Maschinen.** In der
-teuersten Richtung (300°, nach Osten in Werkhalle und Schauraum) sind von 357
+teuersten Richtung (300°, nach Osten in die Werkhalle) sind von 357
 Aufrufen **226** der Kopierer, das Zugband, das Förderband, der Mixer, das
 Filterband und der Kombinierer — und die zeichnen zusammen gut **3 000
 Dreiecke**. Der Kopierer allein sind 60 Aufrufe für 500 Dreiecke, aus 9

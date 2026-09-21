@@ -87,8 +87,8 @@ leiser, wenn man am Gastraum steht, und liegt auf dem Ohr, auf dem er steht.
 Nur **die eigenen Schritte hört man nicht** — sie waren ein Trommeln unter
 allem, was man hören wollte.
 
-**Zwei davon stehen noch zur Wahl**, und die Wahl steht im Schauraum: vor dem
-Schneidebrett und vor der Ausgabetheke je zwei rote Knöpfe — links schaltet
+**Zwei davon stehen noch zur Wahl**, und die Wahl steht dort, wo es klingt: vor
+dem Schneidebrett und vor der Ausgabetheke je zwei rote Knöpfe — links schaltet
 den Ton weiter, rechts spielt ihn vor, und auf beiden Schildern steht, welche
 Variante gerade gilt. Umgeschaltet wird die ganze Küche und nicht nur die
 Vorführung. Steht die Wahl, fallen die Knöpfe wieder heraus.
@@ -158,9 +158,10 @@ Getragen wird mit beiden Händen vor dem Bauch, und was in der Hand liegt, läss
 jede Ablage gelb aufleuchten, auf die es darf — der Mülleimer nimmt das
 Brötchen, den Topf nicht, und vom Teller nur den Inhalt. Über die Möbel
 **springt** man dabei nicht: Sie sind für die Füße so hoch wie eine Wand, auch
-wenn der Tresen nur einen halben Meter misst. Östlich daneben liegt der
-**Schauraum**, in dem jedes der zweiundzwanzig Möbel noch einmal einzeln und
-beschriftet steht. Dazu drei **Portaltafeln**, eine davon oben auf dem Podest.
+wenn der Tresen nur einen halben Meter misst. Östlich daneben liegt die
+**Werkhalle** mit einer Bandstraße, die einen Burger Deluxe ohne Läufer
+zusammensetzt — und daneben Platz für eine eigene. Dazu drei **Portaltafeln**,
+eine davon oben auf dem Podest.
 
 Dazu kommt
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
@@ -1090,7 +1091,7 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Küche: umbauen | der Knopf in der Küche schaltet um (und räumt dabei ab), dann `A` am leeren Möbel und `A` auf dem Umriss davor | dito mit `E` | dito mit `A` |
 | Küche: Möbel holen | vorn an den Computer-Tisch und `A` — im Katalog ringsum eines anfassen; auf dem Kopierer links ablegen, rechts die Kopie abholen | dito mit `E` | dito mit `A` |
 | Küche: Radio | an der Westwand, neben der Tomatenausgabe: `A` macht an, `A` macht aus — und jedes Anmachen ist ein Sender weiter | dito mit `E` | dito mit `A` |
-| Küche: Ton wählen | im Schauraum vor dem Schneidebrett und vor der Ausgabetheke: linker Knopf schaltet den Ton weiter, rechter spielt ihn vor | dito mit `E` | dito mit `A` |
+| Küche: Ton wählen | vor dem Schneidebrett und vor der Ausgabetheke: linker Knopf schaltet den Ton weiter, rechter spielt ihn vor | dito mit `E` | dito mit `A` |
 | Aussehen                      | Menü → _Aussehen_: Kopf, Hut, Körper — oder vor den Kleiderschrank stellen und `A`, dann greift man sich die Sachen im Schrank                                              | dito                                                                   | dito                     |
 | Hitboxen                      | Menü → Grafik → _Hitboxen_ — die Körper der Physik über allem, mit dem Spielerkreis                                                                                                             | dito                                                                   | dito                     |
 | Gitterlinien                  | Menü → Grafik → _Gitterlinien_ — die Kacheln der eigenen Ebene                                                                                                             | dito                                                                   | dito                     |

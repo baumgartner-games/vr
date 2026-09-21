@@ -62,6 +62,17 @@ räumen das ab:
   Bedienung niemand mehr an (`core/usable.ts`): Wer vor sechsundzwanzig
   Miniaturen stand, musste raten, welche davon das Filterband ist.
 
+**Und der Katalog hat die beiden Schauräume abgelöst.** Östlich der ersten
+Küche stand siebzehn Kacheln breit jedes ihrer Möbel noch einmal einzeln,
+östlich des Restaurants auf vierundvierzig Kacheln jedes der 156 Stücke des
+zweiten Baukastens — beide beschriftet, beide zum Abgehen. Das war die richtige
+Antwort, solange es diesen Raum hier nicht gab: Ein Katalog, durch den man
+**läuft**, ist besser als gar keiner. Seit man mitten in ihm steht und jedes
+Stück in Reichweite hat, ist er der schlechtere, und zwei Kataloge nebeneinander
+sind einer zu viel. Die beiden Zonen sind im September 2026 auf ihren
+bespielten Teil geschrumpft (`worlds/test/layout.ts`: `KITCHEN` von 37 auf 20,
+`DINER` von 69 auf 24 Kacheln Breite).
+
 **Und der Katalog zeigt den Katalog.** Vorher stand vor der Schleife ein Filter
 auf `this.models` — gezeigt wurde nur, wovon beim Aufbauen der Küche schon eine
 Vorlage angefallen war. Das ging gut, solange der Schauraum jedes Stück genau

@@ -316,7 +316,7 @@ class Hall {
 }
 
 /** Nur die Möbel der Werkhalle — der Rest der Küche steht nicht mit im Bild. */
-const HALL = KITCHEN_SPOTS.filter((spot) => !spot.show && spot.x >= PIPELINE.x);
+const HALL = KITCHEN_SPOTS.filter((spot) => spot.x >= PIPELINE.x);
 
 describe('die Werkhalle baut einen ganzen Burger', () => {
   it('steht ausschließlich auf einzelnen Kacheln', () => {

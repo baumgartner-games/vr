@@ -330,48 +330,58 @@ const WATER_DEEP = POT_BOWL.water - POT_BOWL.floor;
 const SOUP = 0xb02a18;
 
 /**
- * **Die Wasserpumpenzange** — ihre sieben Maße, alle in Metern.
+ * **Wo der Schraubenschlüssel im Regal liegt** — die Adresse in der gekauften
+ * KayKit-Sammlung (`core/kaykitModel.ts`, `public/models/kaykit/`).
  *
- * Sie wird **gebaut und nicht geladen**, wie alles, was die Baukästen nicht
- * haben: Einen Feuerlöscher gibt es dort, ein Werkzeug nicht — und für ein
- * Möbelmodell nachzuliefern, was aus zwei Kästen und einem Bolzen besteht,
- * wäre ein Kauf für nichts.
+ * Hier stand einmal eine **gebaute** Wasserpumpenzange: zwei Schenkel, ein
+ * Bolzen, zwei Backen, sieben Zahlen und achtzig Zeilen Geometrie. Sie war
+ * richtig, solange es nichts Gekauftes gab, das dasselbe kann — und seit die
+ * ganze Sammlung im Regal liegt, gibt es das: `wrench_A` aus `rpg-tools-bits`
+ * ist ein doppelt offener Schraubenschlüssel mit einem ledernen Griff in der
+ * Mitte, und er sieht aus wie ein Werkzeug und nicht wie vier Kästen.
  *
- * **30 cm lang**, und das ist keine echte Zange (die misst 25). Gezielt wird
- * in dieser Küche von **oben**, aus 16 m Höhe (`core/topDownPose.ts`), und
- * dort ist ein 25-cm-Werkzeug auf einer Arbeitsplatte ein Strich. 30 cm sind
- * knapp ein Drittel der Kachel, auf der sie liegt — man sieht sie im
- * Vorbeilaufen und hält sie trotzdem nicht für einen Besen.
+ * **`_A` und nicht `_B`**: Beide sind gleich lang, nur trägt `_A` den Griff.
+ * Genau der ist der Grund, warum man das Ding von oben aus 16 m Höhe
+ * wiedererkennt (`core/topDownPose.ts`) — ein Werkzeug ganz aus Stahl
+ * verschwindet auf einer Edelstahlplatte, und das hatte schon die gebaute
+ * Zange mit ihren roten Griffen abfangen müssen.
+ */
+export const WRENCH_MODEL = 'rpg-tools-bits/wrench_A.glb';
+
+/**
+ * **Die Hülle des Schraubenschlüssels**, in Metern — nachgemessen an der
+ * Datei und nicht geschätzt.
  *
- * **Flach**, 2,6 cm hoch: Eine Zange liegt auf der Seite, so wie man sie
- * hinlegt. Das ist zugleich ihre `ITEM_HEIGHT` — was flach liegt, trägt wenig
- * auf, und auf einer Arbeitsplatte neben einem Teller fällt sie damit nicht
- * um.
+ * `rpg-tools-bits/wrench_A.glb` misst 0,264 × 0,819 × 0,110 in den Einheiten
+ * seines Pakets; mit dem Maßstab des Regals (`core/kaykitFit.KAYKIT_SCALE`,
+ * 0,5) sind das 0,132 × 0,410 × 0,055. **Hingelegt** wird er dann so, wie man
+ * ein Werkzeug hinlegt: die lange Achse nach **+x**, die Flachseite nach oben
+ * — also `length` in x, `thick` in y, `bar` in z.
  *
- * Die übrigen fünf sind die Zange selbst: zwei **Schenkel** hinten, der
- * **Bolzen** in der Mitte, zwei **Backen** vorn — und der Winkel, um den beide
- * Paare auseinanderstehen. Eine Zange mit parallelen Schenkeln ist von oben
- * ein Stab.
+ * **41 cm lang**, und das ist keine echte Zange (die misst 25). Gezielt wird
+ * in dieser Küche von **oben**, aus 16 m Höhe, und dort ist ein
+ * 25-cm-Werkzeug auf einer Arbeitsplatte ein Strich. 41 cm sind knapp die
+ * halbe Kachel, auf der er liegt — man sieht ihn im Vorbeilaufen und hält ihn
+ * trotzdem nicht für einen Besen.
+ *
+ * **Flach**, 5,5 cm hoch: Ein Schlüssel liegt auf der Seite. Das ist zugleich
+ * seine `ITEM_HEIGHT` — was flach liegt, trägt wenig auf, und auf einer
+ * Arbeitsplatte neben einem Teller fällt er damit nicht um.
+ *
+ * Die Zahlen stehen hier und werden nicht aus dem geladenen Netz gelesen, und
+ * zwar aus demselben Grund wie überall in dieser Küche: Jest lädt keine
+ * Dateien, und jede Regel hier rechnet mit Höhen. Damit beides nicht
+ * auseinanderläuft, wird das geladene Modell **in** diese Hülle gerechnet
+ * (`layFlat`) statt umgekehrt.
  */
 const PLIERS = {
-  length: 0.3,
-  thick: 0.026,
-  /** Wie breit ein Schenkel und eine Backe sind. */
-  bar: 0.026,
-  /** Wo der Bolzen sitzt, vom hinteren Ende aus gemessen. */
-  pivot: 0.19,
-  /** Der Halbmesser des Bolzens. */
-  bolt: 0.02,
-  /** Wie weit Schenkel und Backen auseinanderstehen, im Bogenmaß. */
-  splay: 0.16,
-  /** Wie weit die Backen offen stehen — weiter als die Schenkel, sonst sähe
-   *  die Zange geschlossen aus und griffe nichts. */
-  jaw: 0.34,
+  length: 0.41,
+  thick: 0.055,
+  bar: 0.132,
 } as const;
 
-/** Der Stahl der Zange und das Rot ihrer Griffe. */
+/** Der Stahl des Schraubenschlüssels — nur noch für seine unsichtbare Hülle. */
 const STEEL = 0x8b93a4;
-const GRIP_RED = 0xc7362a;
 
 /** Wie matt etwas ist — Essen schluckt Licht, Suppe wirft es zurück. */
 const MATTE = 0.85;
@@ -415,9 +425,10 @@ export const ITEM_HEIGHT: Record<KitchenItem, number> = {
   pot: 0,
   pan: 0,
   extinguisher: 0,
-  // **Die Zange ist gebaut und trägt deshalb eine Zahl** — anders als die drei
-  // Geräte über ihr, die aus dem Möbelmodell kommen. Sie liegt flach, also ist
-  // ihre Höhe die ihres Bolzens, des höchsten Stücks daran (`pliers()`).
+  // **Der Schraubenschlüssel trägt eine Zahl** — anders als die drei Geräte
+  // über ihm, die aus dem Möbelmodell kommen. Er liegt flach auf der Seite,
+  // also ist seine Höhe die seiner Flachseite (`PLIERS.thick`); dass das
+  // geladene Netz wirklich so hoch ist, sorgt `layFlat`.
   pliers: PLIERS.thick,
   plate: PLATE_HEIGHT,
   // **Genau so hoch wie der saubere.** Die Krümel stecken im Teller und sitzen
@@ -527,6 +538,13 @@ export class FoodKit {
       // und der Rest der Küche läuft weiter (`view` gibt dafür `null`).
       if (model) this.nodes.set(node, onFoot(model));
     }
+    // **Und der Schraubenschlüssel aus dem Regal** — eine einzelne Datei aus
+    // einer anderen Quelle (`core/kaykitModel.ts`) und deshalb hinter den
+    // zehn Zutaten und nicht mitten in ihrer Schleife. Fehlt sie, bleibt vom
+    // Werkzeug seine unsichtbare Hülle (`pliers`), und die Küche läuft weiter.
+    const { kaykitModel } = await import('../../../core/kaykitModel');
+    const wrench = await kaykitModel(WRENCH_MODEL);
+    if (wrench) this.nodes.set(WRENCH_MODEL, layFlat(wrench));
   }
 
   /**
@@ -847,97 +865,41 @@ export class FoodKit {
   }
 
   /**
-   * **Die Wasserpumpenzange** — zwei Schenkel, ein Bolzen, zwei Backen, alles
-   * flach auf der Platte.
+   * **Der Schraubenschlüssel**, flach auf der Platte — die unsichtbare Hülle
+   * und, sobald die Datei da ist, das Modell darin.
    *
-   * Gebaut wie jedes Stück dieser Datei: Fuß auf `y = 0`, Mitte auf `x/z = 0`,
-   * Formen und Farben geteilt (`mesh`). Sie zeigt mit den **Backen nach +x**,
-   * und das ist dieselbe Richtung, in die auch der Feuerlöscher seine Düse
-   * hält (`kitchenSpray.NOZZLE_TIP`) — wer ein Werkzeug in die Hand bekommt,
-   * soll es nach vorn halten und nicht über die Schulter.
+   * Er zeigt mit der langen Achse nach **+x**, und das ist dieselbe Richtung,
+   * in die auch der Feuerlöscher seine Düse hält
+   * (`kitchenSpray.NOZZLE_TIP`): Wer ein Werkzeug in die Hand bekommt, soll es
+   * nach vorn halten und nicht über die Schulter.
    *
-   * **Die Griffe sind rot**, und zwar die hinteren zwei Drittel der Schenkel:
-   * Genau daran erkennt man eine Wasserpumpenzange von oben wieder, während
-   * ein Werkzeug ganz aus Stahl auf einer Edelstahlplatte verschwindet.
+   * **Die Hülle steht auch ohne Datei**, und das ist keine Vorsichtsmaßnahme,
+   * sondern dieselbe Entscheidung wie beim Nachbarn (`zones/diner.addBody`:
+   * „erst die Körper, dann die Bilder — und die Körper auch ohne Bild"). An
+   * dieser Hülle hängen die Griffe (`kitchenGrab.pliersGrip` rechnet in
+   * Anteilen der gemessenen Ausdehnung), die Stapelhöhe (`ITEM_HEIGHT`) und
+   * jeder Test, der nachmisst, dass ein Stück dieser Datei mit dem Fuß auf
+   * `y = 0` und der Mitte auf `x/z = 0` steht. Wäre sie erst da, wenn die
+   * Datei ankommt, wäre der Schlüssel in der Sekunde davor ein Ding ohne Maß.
    *
-   * Der **Bolzen** steht als Zylinder senkrecht durch beide Hälften; er ist
-   * die Stelle, an der die Zange knickt, und ohne ihn wären es zwei Kreuze aus
-   * Kästen, die sich zufällig berühren. Er ist zugleich das **höchste** Stück
-   * — alles andere bleibt eine Handbreit darunter —, und damit ist `PLIERS.thick`
-   * wirklich die Höhe der Zange und nicht eine Zahl daneben (`ITEM_HEIGHT`).
-   * Dass er über die Schenkel hinausragt, erspart obendrein zwei Deckflächen
-   * auf derselben Höhe, die im Bild um jedes Pixel streiten.
+   * Sie ist **unsichtbar**: Zu sehen ist das Modell, und wo es fehlt, soll
+   * kein grauer Kasten auf der Arbeitsplatte liegen.
    */
   private pliers(): THREE.Object3D {
-    const parts: THREE.Object3D[] = [];
-    const half = PLIERS.length / 2;
-    // Der Bolzen liegt `PLIERS.pivot` vom hinteren Ende entfernt — in der
-    // Mitte gerechnet ist das sein Versatz nach vorn.
-    const pivot = -half + PLIERS.pivot;
-    const shank = PLIERS.pivot;
-    const jaw = PLIERS.length - PLIERS.pivot;
-
-    for (const side of [1, -1]) {
-      // **Der Schenkel** reicht vom hinteren Ende bis zum Bolzen, schräg
-      // gestellt: Sein Fußpunkt ist der Bolzen, seine Mitte liegt eine halbe
-      // Länge davor.
-      const bar = this.mesh(
-        'pliers-shank',
-        () => new THREE.BoxGeometry(shank, PLIERS.thick * 0.9, PLIERS.bar),
-        STEEL,
-        WET,
-      );
-      bar.position.set(pivot - shank / 2, PLIERS.thick * 0.45, (side * PLIERS.bar) / 2);
-      bar.rotation.y = side * PLIERS.splay;
-      parts.push(bar);
-
-      // **Der Griff** darüber: dieselbe Schräge, zwei Drittel der Länge, und
-      // er sitzt am **hinteren** Ende — dort, wo die Hand zupackt.
-      const grip = this.mesh(
-        'pliers-grip',
-        () => new THREE.BoxGeometry(shank * 0.62, PLIERS.thick * 0.96, PLIERS.bar * 1.15),
-        GRIP_RED,
-        MATTE,
-      );
-      grip.position.set(pivot - shank * 0.69, PLIERS.thick * 0.48, (side * PLIERS.bar) / 2);
-      grip.rotation.y = side * PLIERS.splay;
-      parts.push(grip);
-
-      // **Die Backe** vor dem Bolzen, weiter geöffnet als die Schenkel.
-      const bite = this.mesh(
-        'pliers-jaw',
-        () => new THREE.BoxGeometry(jaw, PLIERS.thick * 0.78, PLIERS.bar * 0.8),
-        STEEL,
-        WET,
-      );
-      bite.position.set(pivot + jaw / 2, PLIERS.thick * 0.39, (side * PLIERS.bar) / 2);
-      bite.rotation.y = -side * PLIERS.jaw;
-      parts.push(bite);
-    }
-
-    const bolt = this.mesh(
-      'pliers-bolt',
-      () => new THREE.CylinderGeometry(PLIERS.bolt, PLIERS.bolt, PLIERS.thick, 12),
+    const hull = this.mesh(
+      'pliers-hull',
+      () => new THREE.BoxGeometry(PLIERS.length, PLIERS.thick, PLIERS.bar),
       STEEL,
       WET,
     );
-    bolt.position.set(pivot, PLIERS.thick / 2, 0);
-    parts.push(bolt);
-
-    const tool = wrap('kitchen-pliers', ...parts);
-    // **Zum Schluss gemessen und mittig gerückt**, statt die Mitte
-    // auszurechnen. Zwei gegeneinander gedrehte Kästen je Seite haben keine
-    // Mitte, die man hinschreiben könnte — sie hängt an jedem der beiden
-    // Winkel —, und jedes Stück dieser Datei muss mit seiner Mitte auf
-    // `x/z = 0` stehen (siehe der Block über `view`, und der Test daneben
-    // rechnet es nach). Gemessen wird einmal beim Bauen, nicht je Bild.
-    const box = new THREE.Box3().setFromObject(tool);
-    const shift = { x: (box.min.x + box.max.x) / 2, z: (box.min.z + box.max.z) / 2 };
-    for (const part of parts) {
-      part.position.x -= shift.x;
-      part.position.z -= shift.z;
-    }
-    return tool;
+    hull.name = 'pliers-hull';
+    hull.position.y = PLIERS.thick / 2;
+    hull.visible = false;
+    hull.castShadow = false;
+    const parts: THREE.Object3D[] = [hull];
+    const model = this.nodes.get(WRENCH_MODEL);
+    if (model) parts.push(model.clone(true));
+    return wrap('kitchen-pliers', ...parts);
   }
 
   /** Die Tomatensuppe — eine glänzende Pfütze mit einem Häufchen darin. */
@@ -1057,6 +1019,45 @@ export class FoodKit {
  * eine Schicht im Stapel mit **einer** Zeile verschoben wird, egal aus wie
  * vielen Teilen sie besteht.
  */
+/**
+ * **Ein Werkzeug aus dem Regal hinlegen** — gedreht, auf das Maß der Hülle
+ * gebracht, mit dem Fuß auf `y = 0` und der Mitte auf `x/z = 0`.
+ *
+ * Drei Schritte, und jeder hat seinen Grund:
+ *
+ * - **Gedreht.** In der Datei steht der Schlüssel aufrecht: lange Achse nach
+ *   +y, Flachseite nach z. Hingelegt gehört die lange Achse nach **+x** und
+ *   die Flachseite nach oben — das ist `Rx(90°)·Rz(−90°)`, und three rechnet
+ *   genau diese Reihenfolge, wenn man die Eulerwinkel in der voreingestellten
+ *   Ordnung `XYZ` hinschreibt.
+ * - **Auf das Maß der Hülle.** Skaliert wird nach der **Länge** (`PLIERS.length`)
+ *   und nicht nach Höhe oder Breite: Sie ist das Maß, das man sieht, und die
+ *   beiden anderen folgen dem Seitenverhältnis der Datei. Damit stimmt die
+ *   gemessene Ausdehnung des Netzes mit den Zahlen überein, mit denen die
+ *   Küche ohne Netz rechnet — und nicht ungefähr, sondern auf die Stelle.
+ * - **Gemessen und gerückt**, statt die Mitte auszurechnen: Wo der Zeichner
+ *   den Ursprung hingelegt hat, steht in keiner Zahl, die man abschreiben
+ *   könnte. Gemessen wird einmal beim Laden, nicht je Schlüssel.
+ */
+function layFlat(model: THREE.Object3D): THREE.Object3D {
+  model.rotation.set(Math.PI / 2, 0, -Math.PI / 2);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  if (box.isEmpty()) return model;
+  const span = box.getSize(new THREE.Vector3());
+  const fit = span.x > 1e-6 ? PLIERS.length / span.x : 1;
+  model.scale.multiplyScalar(fit);
+  model.position.set(
+    (-(box.min.x + box.max.x) / 2) * fit,
+    -box.min.y * fit,
+    (-(box.min.z + box.max.z) / 2) * fit,
+  );
+  const holder = new THREE.Group();
+  holder.name = 'kitchen-wrench';
+  holder.add(model);
+  return holder;
+}
+
 function wrap(name: string, ...parts: readonly THREE.Object3D[]): THREE.Object3D {
   const group = new THREE.Group();
   group.name = name;

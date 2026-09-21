@@ -32,10 +32,10 @@ import { EMITTERS } from './zones/effects';
 import { HUB_GATE, GATE_TILE } from './zones/start';
 import { SPIKES } from './zones/navigation';
 import { BERM } from './zones/range';
-import { KITCHEN_SHOWN, KITCHEN_SPOTS } from './zones/kitchen';
+import { KITCHEN_SPOTS } from './zones/kitchen';
 import { DINER_SPOTS, dinerFootprint, dinerHangs } from './zones/diner';
 import { dinerPiece } from '../../core/dinerFit';
-import { KITCHEN_NAMES, kitchenPiece } from '../../core/kitchenFit';
+import { kitchenPiece } from '../../core/kitchenFit';
 
 /** Einmal gebaut und von allen Behauptungen geteilt: er ändert sich nicht. */
 const plan = testPlan();
@@ -430,16 +430,8 @@ describe('Die Zonen dazwischen', () => {
   });
 
   /**
-   * **Der Schauraum zeigt jedes Möbel genau einmal** — er ist der Katalog zum
-   * Abgehen, und ein Katalog, in dem ein Stück fehlt, ist eine Liste.
-   */
-  it('zeigt im Schauraum jedes Möbel des Katalogs einmal', () => {
-    expect([...KITCHEN_SHOWN].sort()).toEqual([...KITCHEN_NAMES].sort());
-  });
-
-  /**
-   * **Dieselbe Zusage noch einmal für die zweite Küche**, und sie steht hier
-   * neben der ersten und nicht nur in `zones/dinerPlan.test.ts`: Dort wird der
+   * **Jede Kachel unter einem Möbel der zweiten Küche ist teurer**, und das
+   * steht hier und nicht nur in `zones/dinerPlan.test.ts`: Dort wird der
    * Aufbau gegen sich selbst geprüft, hier gegen den **gestempelten**
    * Grundriss. Der Unterschied ist der Fehler, den es zu finden gilt — ein
    * Aufbau, der stimmt, und ein Stempel, der ihn nicht überträgt.
@@ -469,7 +461,7 @@ describe('Die Zonen dazwischen', () => {
         }
       }
     }
-    expect(checked).toBeGreaterThan(140);
+    expect(checked).toBeGreaterThan(100);
   });
 
   /** Und das Schild der zweiten Küche hängt unter eigener Kennung. */
