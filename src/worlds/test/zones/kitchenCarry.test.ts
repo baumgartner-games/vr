@@ -1,5 +1,6 @@
 import {
   CLEAN_STACK_MAX,
+  EXTINGUISHER_REST,
   ITEM_LABELS,
   STATION_WORK,
   WORK_ALONE,
@@ -251,8 +252,12 @@ describe('Kisten, Flächen, Mülleimer', () => {
     expect(press(d('bun'), { kind: 'bin' })).toEqual({ do: 'trash', dish: d('bun') });
   });
 
+  // Der Feuerlöscher fehlt in dieser Liste, und zwar seit er den Knopf für
+  // sich beansprucht: Am Mülleimer sagt die Regel mit ihm in der Hand gar
+  // nichts mehr (`EXTINGUISHER_REST`, eigener Block weiter unten) — statt
+  // eines Satzes, den niemand mehr zu lesen bekäme.
   it('nimmt Gerät und leeren Teller nicht in den Müll', () => {
-    for (const item of ['pot', 'pan', 'plate', 'plate-dirty', 'extinguisher'] as const) {
+    for (const item of ['pot', 'pan', 'plate', 'plate-dirty'] as const) {
       const deed = press(d(item), { kind: 'bin' });
       expect({ item, do: deed.do }).toEqual({ item, do: 'refuse' });
       expect(why(deed)).toContain(ITEM_LABELS[item]);
@@ -337,12 +342,17 @@ describe('Brett, Herd und Ausgabe', () => {
   });
 
   /**
-   * **Ein brennender Herd ist keine Fläche mehr.** Solange es brennt, geht
-   * genau eines — und wer ohne Feuerlöscher davorsteht, liest, welches.
+   * **Ein brennender Herd ist keine Fläche mehr.** Solange es brennt, nimmt er
+   * nichts an — und wer ohne Feuerlöscher davorsteht, liest, was er braucht.
+   *
+   * **Mit Löscher in der Hand sagt er gar nichts**, und das ist der Umbau vom
+   * September 2026: Hier stand einmal `do: 'douse'`, ein Druck, und das Feuer
+   * war aus. Heute gehört derselbe Druck dem Löscher (`EXTINGUISHER_REST`,
+   * eigener Block weiter unten), und gelöscht wird mit dem Strahl.
    */
-  it('lässt einen brennenden Herd nur löschen', () => {
+  it('lässt einen brennenden Herd niemanden mehr bedienen', () => {
     const fire: Station = { kind: 'stove', on: d('pan', 'patty-burnt'), fire: true };
-    expect(press(d('extinguisher'), fire)).toEqual({ do: 'douse' });
+    expect(press(d('extinguisher'), fire)).toEqual({ do: 'nothing' });
     for (const held of [null, d('bun'), d('pan')]) {
       const deed = press(held, fire);
       expect(deed.do).toBe('refuse');
@@ -437,9 +447,12 @@ describe('der Hinweis über der Figur', () => {
     expect(
       kitchenPrompt(press(d('plate', 'bun', 'patty-cooked'), { kind: 'serve' }), 'Ausgabe'),
     ).toBe('Hamburger servieren');
-    expect(kitchenPrompt(press(d('extinguisher'), { kind: 'stove', fire: true }), 'Herd')).toBe(
-      'Feuer löschen',
+    expect(kitchenPrompt(press(d('pliers'), { kind: 'sink', leaking: true }), 'Spüle')).toBe(
+      'Leck abdichten',
     );
+    // Und mit dem Löscher in der Hand steht über dem brennenden Herd gar
+    // nichts mehr: Der Knopf gehört dem Löscher (`EXTINGUISHER_REST`).
+    expect(kitchenPrompt(press(d('extinguisher'), { kind: 'stove', fire: true }), 'Herd')).toBe('');
   });
 
   it('nennt beim Nehmen auch, was daraufliegt', () => {
@@ -747,7 +760,9 @@ describe('Spüle, Rückgabe und Gästetisch', () => {
    * darunter). Alles andere lehnt die Spüle weiterhin mit demselben Satz ab.
    */
   it('lässt in die Spüle nur Geschirr', () => {
-    for (const item of ['bun', 'pan', 'lettuce', 'extinguisher'] as const) {
+    // Ohne den Feuerlöscher: Mit ihm in der Hand sagt die Spüle gar nichts
+    // mehr, weil der Knopf ihm gehört (`EXTINGUISHER_REST`).
+    for (const item of ['bun', 'pan', 'lettuce'] as const) {
       const deed = press(d(item), { kind: 'sink' });
       expect({ item, do: deed.do }).toEqual({ item, do: 'refuse' });
       expect(why(deed)).toContain('Geschirr');
@@ -1143,13 +1158,11 @@ describe('was eine Tat meint', () => {
     // Schneiden und Spülen fangen an der Station an.
     expect(meansContent(press(d('lettuce'), { kind: 'board' }))).toBe(false);
     expect(meansContent(press(d('plate-dirty'), { kind: 'sink' }))).toBe(false);
-    // Mülleimer, Ausgabetheke und brennender Herd sind selbst das Ziel.
+    // Mülleimer, Ausgabetheke und spritzendes Becken sind selbst das Ziel.
     expect(meansContent(press(d('bun'), { kind: 'bin' }))).toBe(false);
     expect(meansContent(press(d('plate', 'bun', 'patty-cooked'), { kind: 'bin' }))).toBe(false);
     expect(meansContent(press(d('plate', 'bun', 'patty-cooked'), { kind: 'serve' }))).toBe(false);
-    expect(
-      meansContent(press(d('extinguisher'), { kind: 'stove', on: d('pan'), fire: true })),
-    ).toBe(false);
+    expect(meansContent(press(d('pliers'), { kind: 'sink', leaking: true }))).toBe(false);
   });
 
   it('macht aus einem abgelehnten oder leeren Griff nichts zum Leuchten', () => {
@@ -1188,9 +1201,7 @@ describe('wie eine Tat bedient werden will', () => {
     expect(kitchenInteraction(press(d('plate', 'bun', 'patty-cooked'), { kind: 'serve' }))).toBe(
       'press',
     );
-    expect(
-      kitchenInteraction(press(d('extinguisher'), { kind: 'stove', on: d('pan'), fire: true })),
-    ).toBe('press');
+    expect(kitchenInteraction(press(d('pliers'), { kind: 'sink', leaking: true }))).toBe('press');
   });
 
   /**
@@ -1259,6 +1270,71 @@ describe('welche Station arbeitet', () => {
       .map(([kind]) => kind)
       .sort();
     expect(alone).toEqual(['griddle', 'mixer']);
+  });
+});
+
+/**
+ * **Der Feuerlöscher hat den Knopf** (`EXTINGUISHER_REST`).
+ *
+ * Der Auftrag, Satz für Satz: _„Wenn ich mit anderen Dingen als einer
+ * Arbeitsplatte interagieren will, wird stattdessen einfach der Feuerlöscher
+ * aktiviert. So ist es gut, wenn ich ein Feuer einer Herdplatte löschen will.
+ * Wenn ich nochmal interagiere, wird der Feuerlöscher deaktiviert. Nur mit
+ * einer Arbeitsplatte wird er dann wieder abgelegt."_
+ *
+ * Die beiden mittleren Sätze sind der **Schalter** und stehen nebenan
+ * (`kitchenSpray.sprayOn`, dort geprüft); hier steht der erste und der letzte
+ * — dass eine Station dem Knopf aus dem Weg geht, solange er dem Löscher
+ * gehört, und dass die Fläche es nicht tut.
+ */
+describe('was der Feuerlöscher in der Hand bedeutet', () => {
+  /** Alle Arten, so wie der Typ sie aufzählt. */
+  const KINDS = Object.keys(EXTINGUISHER_REST) as StationKind[];
+
+  it('legt ihn auf Arbeitsplatte, Kiste und Halterung — und sonst nirgends', () => {
+    const rests = KINDS.filter((kind) => EXTINGUISHER_REST[kind]).sort();
+    expect(rests).toEqual(['box', 'rack', 'top']);
+  });
+
+  it('lässt jede andere Station stumm', () => {
+    // `nothing` und nicht `refuse`: Eine Station, die sich gar nicht erst
+    // anmeldet, nimmt dem Löscher den Knopf nicht weg
+    // (`kitchen.refreshStations`, `PlayerRig.useCandidate`).
+    for (const kind of KINDS) {
+      if (EXTINGUISHER_REST[kind]) continue;
+      const deed = press(d('extinguisher'), { kind, gives: 'bun', stack: 2, fire: true });
+      expect({ kind, do: deed.do }).toEqual({ kind, do: 'nothing' });
+    }
+  });
+
+  it('legt ihn auf der Arbeitsplatte trotzdem ab', () => {
+    expect(press(d('extinguisher'), { kind: 'top', on: null })).toEqual({
+      do: 'place',
+      dish: d('extinguisher'),
+    });
+    // Die Kiste ist „zugleich Arbeitsplatte" (`StationKind`) …
+    expect(press(d('extinguisher'), { kind: 'box', gives: 'bun', on: null })).toEqual({
+      do: 'place',
+      dish: d('extinguisher'),
+    });
+    // … und die Halterung ist die Fläche, auf die er gehört.
+    expect(press(d('extinguisher'), { kind: 'rack', on: null })).toEqual({
+      do: 'place',
+      dish: d('extinguisher'),
+    });
+  });
+
+  it('nimmt der leeren Hand nichts weg', () => {
+    // Die Regel fragt nach dem, was in der Hand liegt, und nach nichts sonst:
+    // Ohne Löscher ist der brennende Herd weiter der brennende Herd, und aus
+    // der Halterung nimmt man ihn heraus wie eh und je.
+    const fire: Station = { kind: 'stove', on: d('pan'), fire: true };
+    expect(press(null, fire).do).toBe('refuse');
+    expect(press(d('pan'), fire).do).toBe('refuse');
+    expect(press(null, { kind: 'rack', on: d('extinguisher') })).toEqual({
+      do: 'take',
+      dish: d('extinguisher'),
+    });
   });
 });
 

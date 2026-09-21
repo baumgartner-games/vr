@@ -530,7 +530,11 @@ derselben Rangfolge wie `A`: Steht etwas in Reichweite, gehört der Klick dem
 Ding davor; steht nichts da, bleibt er der **Auslöser** dessen, was die Figur
 trägt (der Feuerlöscher, die Waffe — `PlayerRig.setTrigger`). Zwei Wirkungen
 auf einen Klick gibt es damit nie, und der Löscher verliert seinen Knopf nur
-dort, wo ohnehin etwas Näheres gemeint ist.
+dort, wo ohnehin etwas Näheres gemeint ist — seit September 2026 ist das
+**genau eine Sorte Möbel**: die Arbeitsplatte, auf der er abgestellt wird
+(`kitchenCarry.EXTINGUISHER_REST`). Vor allem anderen, auch vor dem brennenden
+Herd, meldet sich keine Station mehr an, solange er in der Hand liegt, und der
+Knopf gehört ihm.
 
 ## Benutzen mit der Hand — die Brille
 
@@ -835,9 +839,11 @@ Löscher dabei auf die Arbeitsplatte. Die Greif-Taste bleibt in beiden Fällen,
 und die Regel steht in `kitchenCarry.ts`, wo sie ein Test nachrechnet; nur
 **wissen**, was in der Hand liegt, kann die Zone.
 
-Das **Löschen** (`douse`) gehört ausdrücklich nicht dazu: Es nimmt der Hand
-nichts weg, der Löscher bleibt darin, und wer damit an den brennenden Herd
-tritt, soll ihn auch weiter durch Hinlangen löschen können.
+Das **Abdichten** (`repair`) gehört ausdrücklich nicht dazu: Es nimmt der Hand
+nichts weg, die Zange bleibt darin, und der Druck wirft nur die Uhr an. Hier
+stand bis September 2026 das **Löschen** (`douse`) mit demselben Satz — die Tat
+gibt es nicht mehr, weil der brennende Herd einer Hand mit dem Löscher darin
+gar nichts mehr anbietet (`kitchenCarry.EXTINGUISHER_REST`).
 
 ## Was in der Brille in der Hand liegt
 

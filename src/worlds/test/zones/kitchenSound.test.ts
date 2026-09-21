@@ -355,7 +355,6 @@ describe('der Ton einer Tat', () => {
       'stow',
       'scrape',
       'serve',
-      'douse',
       'repair',
       'refuse',
       'nothing',
@@ -370,13 +369,14 @@ describe('der Ton einer Tat', () => {
   });
 
   /**
-   * **Das Löschen klingt, aber nicht von hier**: Es geschieht auf zwei Wegen
-   * — `A` am Herd und der Strahl quer durch die Küche —, und beide laufen
-   * durch dieselbe Stelle der Zone. Stünde der Ton auch in dieser Tabelle,
-   * käme er auf dem einen Weg doppelt.
+   * **Das Löschen klingt, steht aber in keiner Tat mehr.** Es gab dafür einmal
+   * eine (`douse`, ein Druck auf `A` am brennenden Herd), und sie war hier
+   * stumm, weil der Ton an der einen Stelle der Zone steht, durch die jedes
+   * ausgehende Feuer läuft. Die Tat ist weg — gelöscht wird nur noch mit dem
+   * Strahl (`kitchenCarry.EXTINGUISHER_REST`) —, der Ton ist geblieben.
    */
-  it('lässt das Löschen hier stumm, weil es die Zone selbst sagt', () => {
-    expect(deedSound('douse', 'stove')).toBeNull();
+  it('kennt den Ton des ausgehenden Feuers, ohne eine Tat dafür zu haben', () => {
+    expect(DEED_SOUNDS).not.toHaveProperty('douse');
     expect(KITCHEN_CUES.douse.files.length).toBeGreaterThan(0);
   });
 

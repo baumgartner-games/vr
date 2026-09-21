@@ -164,6 +164,7 @@ import {
   douseProgress,
   inSpray,
   sprayClaimsUse,
+  sprayHold,
   sprayOn,
   type DouseState,
 } from './kitchenSpray';
@@ -2051,7 +2052,7 @@ export class KitchenZone implements TestZone {
       this.world?.notify(`${ITEM_LABELS[deed.dish.item]} abgeräumt`);
     } else {
       // Hierher kommt nichts: `beltTarget` fragt dieselbe Regel, bevor es
-      // losfährt. Bleibt trotzdem etwas übrig — eine dreizehnte Tat, ein
+      // losfährt. Bleibt trotzdem etwas übrig — eine zwölfte Tat, ein
       // Grundriss, der sich im selben Bild ändert —, dann bleibt es liegen,
       // wo es liegt, statt spurlos zu verschwinden.
       return;
@@ -2075,8 +2076,12 @@ export class KitchenZone implements TestZone {
    * dabei mit derselben Richtung, in die auch `A` zeigt: von oben dreht der
    * rechte Stock die Figur, und damit den Strahl.
    *
-   * Der `douse`-Griff am brennenden Herd bleibt daneben bestehen: Wer schon
-   * davorsteht, soll nicht erst zielen müssen (`kitchenCarry.kitchenDeed`).
+   * **Und es gibt keinen zweiten Weg mehr.** Neben dem Strahl stand lange ein
+   * `douse`-Griff am brennenden Herd — ein Druck auf `A` davor, und das Feuer
+   * war aus. Er ist weg: Wer den Löscher trägt, findet an keiner Station mehr
+   * ein Angebot außer der Fläche, auf die er ihn stellt
+   * (`kitchenCarry.EXTINGUISHER_REST`), und genau deshalb ist der Knopf vor dem
+   * brennenden Herd frei für das, was der Auftrag will — den Löscher anmachen.
    */
   private spray(dt: number, ctx: WorldContext): void {
     // **Der Löscher kann in jeder der beiden Hände liegen**, seit beide tragen
@@ -2109,6 +2114,14 @@ export class KitchenZone implements TestZone {
     // Löscher, der dabei mit angeht, wäre ein Knopf mit zwei Wirkungen. Steht
     // nichts da, ist `A` frei — und dann ist es der Knopf, den der Auftrag
     // meint („von oben Interaktionsknopf drücken").
+    //
+    // **Und mit dem Löscher in der Hand steht fast nie mehr etwas da.** Das ist
+    // dieselbe Zeile wie vorher und trotzdem der ganze Unterschied: Seit eine
+    // Station, an der man den Löscher nicht abstellt, gar nichts mehr anbietet
+    // (`kitchenCarry.EXTINGUISHER_REST`), meldet sie sich auch nicht mehr an —
+    // `useCandidate` bleibt vor dem brennenden Herd, dem Brett und der Spüle
+    // falsch, und `A` gehört dem Löscher. Vor einer **Arbeitsplatte** bleibt es,
+    // wie es war: Dort legt derselbe Druck ihn ab.
     const trigger = ctx.rig.trigger > 0.5;
     const useFree = ctx.rig.useHeld && !ctx.rig.useCandidate;
     const pressed = (trigger && !this.triggerWas) || (useFree && !this.useWas);
@@ -2121,12 +2134,24 @@ export class KitchenZone implements TestZone {
     // in der Regel nebenan (`kitchenSpray.sprayClaimsUse`) und wird dort
     // nachgerechnet; hier steht nur, wer gefragt wird.
     ctx.rig.useBusy = sprayClaimsUse(carrying, ctx.renderer.xr.isPresenting);
+    const sprayed = this.spraying;
     this.spraying = sprayOn(this.spraying, {
       pressed,
       held: pulled,
       carried: carrying,
       topDown: ctx.topDown,
     });
+    // **Ein Schalter sagt, in welcher Stellung er steht** — aber nur, wo er
+    // einer ist (`kitchenSpray.sprayHold`). Von oben bleibt der Löscher an,
+    // ohne dass jemand eine Taste hält, und seit der Herd davor nichts mehr
+    // anbietet, steht dort auch kein Hinweis mehr über der Station; ohne ein
+    // Wort wäre das erste Anmachen ein Druck ins Nichts, der irgendwo Nebel
+    // macht. Gehalten wird dagegen nichts gesagt: Wer den Finger auf dem
+    // Auslöser hat, weiß, dass es läuft, und bekäme bei jedem Antippen eine
+    // Meldung.
+    if (this.spraying !== sprayed && sprayHold(ctx.topDown) === 'toggle') {
+      this.world?.notify(this.spraying ? 'Feuerlöscher an' : 'Feuerlöscher aus');
+    }
 
     // **Und wohin er zielt**: in der Brille dorthin, wohin die Hand zeigt, die
     // ihn hält — sonst weiter dorthin, wohin die Figur schaut (`aimHand`).
@@ -4548,9 +4573,6 @@ export class KitchenZone implements TestZone {
         world.notify(`${dishLabel(deed.dish)} zurückgelegt`);
         break;
       }
-      case 'douse':
-        this.putOut(spot);
-        break;
       case 'repair':
         // **Angesetzt, mehr nicht** (`kitchenLeak.startFix`): Die Zange bleibt
         // in der Hand, im Becken ändert sich nichts, und ab dem nächsten Bild
@@ -4566,9 +4588,9 @@ export class KitchenZone implements TestZone {
       case 'nothing':
         return false;
     }
-    // **Eine Stelle für elf Taten** (`kitchenSound.deedSound`): Welche Tat wie
+    // **Eine Stelle für zehn Taten** (`kitchenSound.deedSound`): Welche Tat wie
     // klingt, steht in einer vollständigen Tabelle neben der Regel und nicht
-    // als elfter Zweig in diesem `switch`. Wer eine Tat dazutut, bekommt vom
+    // als zehnter Zweig in diesem `switch`. Wer eine Tat dazutut, bekommt vom
     // Übersetzer die Frage nach ihrem Ton gestellt — ein `case` mehr hier
     // hätte sie niemand gestellt. Gehört wird sie **an der Station**, nicht am
     // Ohr: Die Kiste links klingt von links.

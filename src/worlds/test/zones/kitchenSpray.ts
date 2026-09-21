@@ -159,9 +159,12 @@ export function inSpray(
  * **Wie das Halten je Ansicht gemeint ist.**
  *
  * `toggle` heißt: Ein Druck an, der nächste aus. `hold`: an, solange der
- * Auslöser liegt. Die Zone braucht das für den Hinweis über der Figur — _A ·
- * Feuerlöscher an_ ist ein anderer Satz als _Halten zum Löschen_ —, und sie
- * bekommt ihn aus derselben Quelle, aus der `sprayOn` gleich entscheidet.
+ * Auslöser liegt. Die Zone fragt danach, bevor sie ein Wort dazu sagt
+ * (`kitchen.spray`): Ein **Schalter** darf melden, in welcher Stellung er
+ * steht — von oben sieht man sonst nur Nebel und weiß nicht, dass man ihn
+ * wieder ausmachen muss —, ein **gehaltener** Auslöser meldet nichts, weil
+ * jedes Antippen sonst eine Zeile schriebe. Dieselbe Quelle, aus der `sprayOn`
+ * gleich entscheidet, und deshalb sind die beiden Antworten nie verschieden.
  */
 export type SprayHold = 'toggle' | 'hold';
 

@@ -875,10 +875,20 @@ Und das sind die Regeln, die darin stehen:
   also knapp eine Kachel, auf die volle Reichweite 2,33 m. Nah und genau, weit
   und ungefähr. Ein Herd im Strahl braucht **1,5 s** (`SPRAY_SECONDS`) — null
   wäre der alte Knopfdruck zurück, und viel mehr ginge nicht, weil eine Küche
-  mit zwei brennenden Herden steht. Der alte Griff am brennenden Herd bleibt
-  daneben bestehen (`kitchenDeed`, `do: 'douse'`): Wer schon davorsteht, soll
-  nicht erst zielen müssen. Wie die Ansichten den Auslöser lesen, steht unter
-  _Steuerung_.
+  mit zwei brennenden Herden steht. **Und es gibt keinen zweiten Weg mehr**:
+  Der alte Griff am brennenden Herd (`kitchenDeed`, `do: 'douse'`, ein Druck
+  und das Feuer war aus) ist seit September 2026 weg, und mit ihm jedes andere
+  Angebot, das eine Station einer Hand mit dem Löscher darin machte. Wer ihn
+  trägt, findet nur noch **eine Arbeitsplatte** (auch die Kiste, auch seine
+  Halterung — `kitchenCarry.EXTINGUISHER_REST`), auf die er ihn stellt; an
+  allem anderen sagt die Regel `nothing`, die Station meldet sich gar nicht
+  erst an, und genau deshalb ist der Benutzen-Knopf davor frei für den
+  Löscher. Das ist der gemeldete Wunsch: _„Wenn ich mit anderen Dingen als
+  einer Arbeitsplatte interagieren will, wird stattdessen einfach der
+  Feuerlöscher aktiviert … Nur mit einer Arbeitsplatte wird er dann wieder
+  abgelegt."_ Von oben sagt der Schalter dazu, in welcher Stellung er steht
+  (_Feuerlöscher an_ / _aus_, `kitchenSpray.sprayHold`) — gehalten wird nichts
+  gemeldet. Wie die Ansichten den Auslöser lesen, steht unter _Steuerung_.
 - **Das Wasserleck ist der zweite Schaden dieser Küche** (`kitchenLeak.ts`),
   und es ist mit Absicht wie der erste gebaut: Ein roter Knopf **an der Spüle**
   (`kitchenPlan.LEAK_BUTTON_TILE`, nicht in der Gerätespalte am Eingang — man
@@ -892,7 +902,9 @@ Und das sind die Regeln, die darin stehen:
   **Wasserpumpenzange** — seit September 2026 ein **Schraubenschlüssel aus dem
   Regal** (`kitchenProps.WRENCH_MODEL`, `rpg-tools-bits/wrench_A.glb`; vorher
   ein aus sieben Kästen gebautes Gerät, denn die Küchenquelle hat keines), der
-  auf der Arbeitsplatte **neben** der Spüle liegt
+  **70 cm** lang ist (`kitchenProps.PLIERS`; der Maßstab des Regals gab 41 cm
+  her, und das war von oben aus 16 m ein Strich — 1,7fach größer ist er ein
+  Werkzeug) und auf der Arbeitsplatte **neben** der Spüle liegt
   (`PLIERS_TILE`), genau aus dem Grund, aus dem der Löscher neben dem einen
   brennbaren Herd steht. Der Druck mit dem Schlüssel in der Hand ist eine eigene
   Tat (`do: 'repair'`); sie **wirft nur die Uhr an** und nimmt der Hand nichts

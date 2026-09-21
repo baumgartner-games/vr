@@ -90,10 +90,12 @@ export const SOUND_DIR = 'audio/kitchen/';
  * dazu wäre ein Fehlersummer, den man nach dem dritten Mal nicht mehr hören
  * will.
  *
- * **Und `douse` ebenfalls**, obwohl es zu hören ist: Das Feuer geht auf zwei
- * Wegen aus — mit `A` am Herd und mit dem Strahl des Löschers quer durch die
- * Küche —, und beide laufen durch `kitchen.putOut`. Dort steht der Ton, und
- * damit genau einmal.
+ * **Und das ausgehende Feuer steht gar nicht mehr darin.** Es gab dafür einmal
+ * eine Tat (`douse`, ein Druck auf `A` am brennenden Herd) und sie klang hier
+ * nach nichts, weil der Ton an der einen Stelle steht, durch die jedes
+ * ausgehende Feuer läuft (`kitchen.putOut`). Die Tat ist weg — gelöscht wird
+ * nur noch mit dem Strahl (`kitchenCarry.EXTINGUISHER_REST`) —, der Ton steht
+ * unverändert dort.
  */
 export const DEED_SOUNDS: Readonly<Record<DeedKind, KitchenCue | null>> = {
   take: 'pick',
@@ -107,7 +109,6 @@ export const DEED_SOUNDS: Readonly<Record<DeedKind, KitchenCue | null>> = {
   stow: 'crate',
   scrape: 'place',
   serve: 'serve',
-  douse: null,
   // **Die Zange klingt beim Ansetzen nach nichts** — sie fängt dafür an zu
   // **ratschen**, und zwar solange die Reparatur läuft (`kitchen.listen`,
   // `LeakState.fixing`). Ein einzelner Klick beim Ansetzen wäre unter dem

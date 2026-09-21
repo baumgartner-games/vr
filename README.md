@@ -128,7 +128,9 @@ zurück. Das stapelt sich an der Rückgabe, wandert in die Spüle und kommt saub
 wieder — ohne diesen Kreis wäre die Tellerausgabe ein Brunnen. Brennt der Herd,
 nimmt man den **Feuerlöscher** vom Hocker — er steht oben in der Zeile neben
 dem Herd, also dort, wo es brennt — und **hält** ihn ins Feuer, aus zwei
-Kacheln Abstand; ein Druck genügt nicht mehr. In der Brille hängt er am
+Kacheln Abstand; ein Druck genügt nicht mehr. Solange er in der Hand liegt,
+bedient er **nichts anderes**: Der Benutzen-Knopf macht ihn an und wieder aus,
+und nur eine **Arbeitsplatte** nimmt ihn entgegen. In der Brille hängt er am
 Tragebügel in der Faust und spritzt dorthin, wohin die **Hand** zeigt.
 
 **Der zweite Schaden ist das Wasserleck.** Ein roter Knopf neben der Spüle
@@ -1086,7 +1088,7 @@ gespeichert und jederzeit auf Standard zurücksetzbar.
 | Kart: fahren                  | rechter Trigger Gas, linker bremst, linker Stick lenkt                                                                                                                     | `W`/`S`, `A`/`D`                                                       | –                        |
 | Kart: aussteigen              | `A`/`X` halten                                                                                                                                                             | `E` halten                                                             | –                        |
 | Kart: zu zweit                | im selben Raum verbinden — jeder nimmt ein Kart, die Tafel zeigt die Reihenfolge                                                                                           | dito                                                                   | –                        |
-| Küche: Feuerlöscher | vom Hocker nehmen und den Trigger der rechten Hand **halten**; gezielt wird mit der Hand, die ihn hält | aus den Augen `E` halten; von oben ein Schalter — Linksklick an, noch einmal aus, gezielt mit dem rechten Stock | aus den Augen `A` halten; von oben schaltet `B` |
+| Küche: Feuerlöscher | vom Hocker nehmen und den Trigger der Hand **halten**, die ihn hält; gezielt wird mit derselben Hand. Solange er in der Hand liegt, bietet keine Station mehr etwas an außer der Arbeitsplatte, auf der man ihn ablegt | aus den Augen `E` halten; von oben ein Schalter — Linksklick an, noch einmal aus (oder `E`), gezielt mit dem rechten Stock | aus den Augen `A` halten; von oben schaltet `B` (oder `A`) |
 | Küche: Wasserleck | der rote Knopf neben der Spüle löst es aus; die Wasserpumpenzange von der Arbeitsplatte nehmen, ans Becken und dort **stehen bleiben**, bis der Balken voll ist | dito mit `E` | dito mit `A` |
 | Küche: umbauen | der Knopf in der Küche schaltet um (und räumt dabei ab), dann `A` am leeren Möbel und `A` auf dem Umriss davor | dito mit `E` | dito mit `A` |
 | Küche: Möbel holen | vorn an den Computer-Tisch und `A` — im Katalog ringsum eines anfassen; auf dem Kopierer links ablegen, rechts die Kopie abholen | dito mit `E` | dito mit `A` |
