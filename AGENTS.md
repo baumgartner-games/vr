@@ -33,6 +33,21 @@ Lösch-Push kommt dann als `HTTP 403` zurück. Dann wird das nicht stillschweige
 liegengelassen, sondern im Ergebnis gesagt: welcher Branch übrig ist und mit
 welchem Befehl er wegkommt.
 
+**Jeder Pull Request erhöht die Patch-Version.** Auf der Startseite steht
+`0.<Build>.<Patch>` aus `package.json` (siehe
+[Die Seite selbst](docs/agents/seite.md#die-version-auf-der-startseite)), und
+sie ist nur etwas wert, wenn sie sich bewegt:
+
+```
+npm version patch --no-git-tag-version
+```
+
+Die CI prüft das bei jedem Pull Request gegen den Zielbranch
+(`tools/version-check.mjs`) — bei einem direkten Push auf `main` gibt es
+keinen Zielbranch und damit nichts zu prüfen; wer dort etwas ablädt, das
+jemand merken soll, erhöht sie trotzdem. Den mittleren Teil (`Build`) setzt
+von Hand, wer findet, dass etwas Großes fertig ist.
+
 Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
@@ -154,7 +169,7 @@ Stichpunkten).
 - **[Die Werkzeugseite](docs/agents/werkzeugseite.md)** — `tools.html`: das Regal, die Vorschau und alles, was daran eingestellt wird.
   Darin: Eine Welt laufen lassen · Bearbeiten auf der Werkzeugseite · Verbinden: zusehen, während drüben gemessen wird.
 - **[Die Seite selbst](docs/agents/seite.md)** — Eingabeseite, Menü → Eingaben, Vollbild, der Start — und die Seite als App.
-  Darin: Die Eingabeseite · Menü → Eingaben · Vollbild, wo keine Brille ist · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker · Alles herunterladen: ein Knopf, ein Balken, eine ehrliche Dauer — geprüft wird von selbst, geladen nur auf Ansage.
+  Darin: Die Eingabeseite · Menü → Eingaben · Vollbild, wo keine Brille ist · Die Ränder des Geräts: der sichere Bereich · Die Version auf der Startseite · Der Start: erst die Hülle, dann die Welt · Die Seite als App: Manifest, Symbole, Service Worker · Alles herunterladen: ein Knopf, ein Balken, eine ehrliche Dauer — geprüft wird von selbst, geladen nur auf Ansage.
 
 ### Betrieb
 

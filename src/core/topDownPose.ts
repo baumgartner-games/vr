@@ -53,11 +53,20 @@ export const TOP_DOWN_FOV = 30;
  * relativ zur Kletterwand liegt, musste bisher hinlaufen. 60 m fassen das
  * Gelände als Ganzes; darüber hinaus wird die Figur zum Punkt, und ein
  * Blickwinkel, in dem man sich selbst sucht, ist keiner mehr.
+ *
+ * **Und unten zwei weitere**, gemeldet aus der App auf dem Telefon: „In der
+ * PWA ist leider die maximale Zoom noch zu gering, da will ich näher rein
+ * zoomen können." Bei 12 m sieht man gut sechs Meter Breite — genug für einen
+ * Raum, zu wenig für das, was auf einem Tisch steht oder was man gerade in
+ * der Hand hält. 5 m sind knapp drei Meter Breite: die Figur und das, woran
+ * sie arbeitet. Hier stand einmal, ein Zoom, der bis in die Kacheln
+ * hineinfährt, sei kein Blickwinkel mehr — das stimmt für die Kachel unter
+ * den Füßen und stimmte nicht für den Tisch davor.
  */
-export const TOP_DOWN_DISTANCES: readonly number[] = [12, 16, 22, 30, 42, 60];
+export const TOP_DOWN_DISTANCES: readonly number[] = [5, 8, 12, 16, 22, 30, 42, 60];
 
-/** Womit angefangen wird: 16 m. */
-export const TOP_DOWN_ZOOM = 1;
+/** Womit angefangen wird: 16 m — die vierte Stufe, seit unten zwei dazukamen. */
+export const TOP_DOWN_ZOOM = 3;
 
 /**
  * Wie weit über den Füßen die Kamera zielt, in Metern.

@@ -234,6 +234,71 @@ verfehlt, für die er gedacht war. Drei Entscheidungen dazu:
   eine Bequemlichkeit, und eine Bequemlichkeit, die eine Ausnahme in die Konsole
   schreibt, hat niemandem geholfen.
 
+## Die Ränder des Geräts: der sichere Bereich
+
+Ein Telefon hat keine rechteckige Anzeige mehr. Oben sitzt die Uhr in einer
+Kerbe, unten liegt der Strich zum Wegschieben, und im Querformat rutscht
+beides an die Seite. Die Seite nimmt trotzdem den **ganzen** Schirm
+(`viewport-fit=cover` in `index.html`) — anders wäre ein Spiel mit Rändern
+kein Spiel —, und deshalb muss sie selbst wissen, wo sie nichts hinschreiben
+darf.
+
+Gemeldet wurde es an einem Bild: Über der Überschrift des Katalogs stand
+`20:36`, halb im Titel, und im Schließen-Knopf die Batterie. „Wir müssen noch
+darauf achten, dass wir für Menüs diese noch wrappen in Safe-Area-Views."
+
+`ui/safeArea.ts` ist genau das, nur ohne Rahmenwerk:
+
+- Die vier Zahlen des Browsers stehen **einmal** als CSS-Variablen
+  (`--safe-top` und die drei anderen, `ui/safeArea.css`) statt in jeder Datei
+  noch einmal.
+- Ein Kasten bekommt sie als **Polster** und nicht als Abstand. Der
+  Hintergrund eines Blattes soll bis unter die Uhr reichen; ein Abstand ließe
+  dort einen helleren Streifen stehen, und der sähe nach einem Fehler aus,
+  weil es einer wäre. Freigehalten wird der **Inhalt**, nicht die Fläche.
+- **Ränder werden einzeln bestellt** (`keepSafe(sheet, 'bottom', 'left',
+  'right')`). Ein Blatt, das von unten aufzieht, berührt den oberen Rand gar
+  nicht — 47 Punkte Polster in seinem Kopf wären dort nur ein Loch. Der obere
+  kommt dazu, sobald eine Seite wirklich bis dorthin reicht
+  (`setSafeEdge(sheet, 'top', page.full)`, also im Katalog).
+- Am Schreibtisch steht das Blatt als **Kasten im Bild**, und die Ränder hält
+  schon sein Hintergrund frei (`.pmenu`, `.wrobe`). Dort fällt das Polster
+  des Blattes weg: Auf einem Tablet im Querformat läge sonst der doppelte
+  Rand in einem Kasten von 380 Punkten.
+
+Benutzt wird es von den beiden Blättern, die es gibt — dem Menü als Seite
+(`ui/PageMenu.ts`) und der Umkleide (`ui/WardrobeMenu.ts`). Alles andere auf
+der Startseite und im HUD rechnet schon länger mit `max(…, env(…))`; die
+Variablen stehen jetzt daneben und lassen sich dort nachziehen, wenn jemand
+ohnehin in der Datei ist.
+
+## Die Version auf der Startseite
+
+Ganz unten, klein und still: `v0.1.1 · Build 96ba100782ea`. Die erste Zahl ist
+`0.<Build>.<Patch>` aus `package.json`, die zweite der Commit dieses Builds
+(`core/appVersion.ts`, `core/assetVersion.ts`). Gewünscht war: „Ich möchte auf
+der Startseite eine Versionsnummer sehen."
+
+**Warum beides.** Zwei Geräte mit derselben Version können aus verschiedenen
+Builds laufen — ein Deploy, der die Version nicht angefasst hat, oder ein
+Telefon, das noch aus seinem Speicher startet (`docs/agents/deployment.md`).
+Dann ist der Commit das Einzige, was die beiden unterscheidet, und genau der
+gehört in einen Fehlerbericht.
+
+**Wer die Zahl erhöht.** Jeder Pull Request den Patch — die Regel steht in
+[AGENTS.md](../../AGENTS.md), und die CI sieht nach
+(`tools/version-check.mjs`, Schritt _Version bump_ in
+`.github/workflows/deploy.yml`). Verglichen wird mit dem **Zielbranch**: Zwei
+Pull Requests nebeneinander gehen beide von `main` aus, und wer zuletzt
+mergt, merkt beim Rebase selbst, dass seine Zahl schon vergeben ist. Wer
+direkt auf `main` pusht, hat keinen Zielbranch — dann läuft der Schritt gar
+nicht erst.
+
+Die Zahl steht an **einer** Stelle (`package.json`), denn eine Zahl, die an
+zwei Stellen steht, ist an einer davon falsch. Vite setzt sie beim Bauen ein
+(`define`, `__APP_VERSION__`); in einem Jest-Lauf ist sie leer, und dann
+bleibt der Absatz leer und verschwindet (`.landing__version:empty`).
+
 ## Der Start: erst die Hülle, dann die Welt
 
 **Die Seite soll dastehen, bevor sie voll ist.** Das ist keine Feinheit,

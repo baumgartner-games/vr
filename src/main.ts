@@ -29,6 +29,7 @@ import { armAudioUnlock, unlockAudio } from './core/audioUnlock';
 import { graphics, onGraphicsChange } from './core/graphicsSettings';
 import { firstGamepad } from './core/gamepad';
 import { nextWarmStep, type WarmSignals, type WarmStep } from './core/warmStart';
+import { APP_VERSION, versionLine } from './core/appVersion';
 import { BUILD_ID, versioned } from './core/assetVersion';
 import {
   SHELF_INDEX,
@@ -1011,6 +1012,14 @@ installButton.addEventListener('click', () => {
  * geholt, denn die Startseite hat auf ihre eigenen Bytes zu achten
  * (`core/warmStart.ts`).
  */
+/**
+ * **Die Version, ganz unten auf der Startseite.** `0.<Build>.<Patch>` aus
+ * `package.json`, dahinter der Commit dieses Builds — gerechnet wird das
+ * nebenan (`core/appVersion.ts`, mit Test), hier steht nur, wo es hingehört.
+ */
+const versionEl = document.querySelector<HTMLElement>('#app-version');
+if (versionEl) versionEl.textContent = versionLine(APP_VERSION, BUILD_ID);
+
 const offlineBox = document.querySelector<HTMLElement>('#offline')!;
 const offlineButton = document.querySelector<HTMLButtonElement>('#offline-btn')!;
 const offlineBar = document.querySelector<HTMLProgressElement>('#offline-bar')!;

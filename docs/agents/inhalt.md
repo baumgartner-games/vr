@@ -62,7 +62,7 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     ist die **Mitte des Rigs** und nicht der Kopf — sonst schöbe jedes Ducken
     das Bild —, die Kamera steht im Süden darüber (`topDownPosition`) und nickt
     genau so weit, dass sie das Ziel ansieht (`topDownPitch`). Der **Zoom**
-    geht in **sechs** Stufen als Abstand: 12 · 16 · 22 · 30 · 42 · 60 m,
+    geht in **acht** Stufen als Abstand: 5 · 8 · 12 · 16 · 22 · 30 · 42 · 60 m,
     Vorgabe 16, das Rad
     sammelt 50 Einheiten je Stufe wie schon in der alten Kachelwelt — und die
     nächste Stufe wird **vom Abstand aus gerechnet, der gerade gilt**, nicht
@@ -73,7 +73,12 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     davon einen Ausschnitt — wer wissen wollte, wo die Kartbahn relativ zur
     Kletterwand liegt, musste hinlaufen. 60 m fassen das Gelände als Ganzes;
     darüber hinaus wird die Figur zum Punkt, und ein Blickwinkel, in dem man
-    sich selbst sucht, ist keiner mehr. Beides läuft
+    sich selbst sucht, ist keiner mehr. **Und die beiden untersten ebenso**,
+    gemeldet aus der App auf dem Telefon: „In der PWA ist leider die maximale
+    Zoom noch zu gering, da will ich näher rein zoomen können." Bei 12 m sieht
+    man gut sechs Meter Breite — genug für einen Raum, zu wenig für das, was
+    auf einem Tisch steht; 5 m sind knapp drei Meter, also die Figur und das,
+    woran sie arbeitet. Beides läuft
     **weich** nach (`net/PoseSmoothing.SmoothPose`, 0,12 s): Ein Rig, das an
     jeder Fuge einen Zentimeter versetzt wird, zitterte sonst im ganzen Bild.
     Perspektivisch und nicht orthografisch, weil ein Podest und der Boden

@@ -66,7 +66,7 @@ export const BAR_WIDTH = 0.55;
  * **Und wie hoch**, in Metern — ein Neuntel seiner Breite.
  *
  * Gemessen an der Ansicht, für die er gedacht ist: Die Kamera von oben steht
- * 16 m weg und öffnet 30° (`core/topDownPose.ts`, `TOP_DOWN_DISTANCES[1]`,
+ * 16 m weg und öffnet 30° (`core/topDownPose.ts`, `TOP_DOWN_DISTANCES`, Stufe `TOP_DOWN_ZOOM`,
  * `TOP_DOWN_FOV`), sieht also gut 8,5 m Bildhöhe. 6 cm wären dort ein Strich
  * von unter einem Prozent der Bildhöhe — bei 1080p sieben Pixel, und davon
  * gehen zwei an den Rand. 10 cm sind gut ein Prozent und bleiben auch auf der

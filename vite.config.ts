@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import type { OutputBundle } from 'rollup';
@@ -14,6 +14,22 @@ const base = process.env['BASE_PATH'] ?? '/';
  * Uhrzeit: Was zählt, ist nur, dass zwei Builds nicht dieselbe Nummer tragen.
  */
 const buildId = process.env['GITHUB_SHA']?.slice(0, 12) ?? String(Date.now());
+
+/**
+ * **Die Version, die auf der Startseite steht** — `0.<Build>.<Patch>` aus
+ * `package.json`.
+ *
+ * Sie steht dort und nicht hier, weil eine Zahl, die an zwei Stellen steht,
+ * an einer davon falsch ist: `npm version` schreibt sie, die CI prüft sie
+ * (`.github/workflows/deploy.yml`), und die Seite liest sie. **Jeder Pull
+ * Request erhöht den Patch** — die Regel steht in `AGENTS.md`.
+ *
+ * Nicht zu verwechseln mit `buildId` darüber: Der sagt, *welcher Build* das
+ * ist (der Commit), diese Zahl sagt, *der wievielte*.
+ */
+const appVersion = (
+  JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version?: string }
+).version;
 
 /**
  * **Was der Service Worker beim Einrichten mitnimmt.**
@@ -174,6 +190,7 @@ export default defineConfig({
   plugins: [precachePlugin(), offlineListPlugin(resolve(__dirname, 'public'))],
   define: {
     __BUILD_ID__: JSON.stringify(buildId),
+    __APP_VERSION__: JSON.stringify(appVersion ?? ''),
     // Der Platzhalter bleibt ein Platzhalter: Die echte Liste setzt
     // `precachePlugin` ein, sobald die Dateinamen feststehen. `define` macht
     // daraus vorher einen gültigen Ausdruck, damit der Code bündelbar ist.

@@ -1,0 +1,27 @@
+/* ---------- Der sichere Bereich (`safeArea.ts`) ----------
+
+   Ein Telefon hat keine rechteckige Anzeige mehr: Oben sitzt die Uhr in einer
+   Kerbe, unten liegt der Strich, mit dem man die App wegschiebt, und im
+   Querformat rutscht beides an die Seite. Der Browser sagt, wie viel davon wo
+   liegt (`env(safe-area-inset-*)`) — aber nur, wenn die Seite den ganzen
+   Schirm nimmt, und genau das tut sie (`viewport-fit=cover` in `index.html`).
+
+   Die vier Zahlen stehen hier **einmal** als Variablen, damit sie nicht in
+   jeder Datei noch einmal geschrieben werden, und darunter je eine Klasse je
+   Rand. Wer sie setzt, ist `safeArea.ts`; wer sie braucht, sagt es dort.
+
+   Warum Polster und kein Abstand: Der Hintergrund eines Menüs soll bis unter
+   die Uhr reichen — sonst läge über einem dunklen Blatt ein hellerer Streifen.
+   Freigehalten wird der **Inhalt**, nicht die Fläche. */
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-area--top { padding-top: var(--safe-top); }
+.safe-area--right { padding-right: var(--safe-right); }
+.safe-area--bottom { padding-bottom: var(--safe-bottom); }
+.safe-area--left { padding-left: var(--safe-left); }
