@@ -214,6 +214,50 @@ describe('die Figur', () => {
     expect(half).toBeLessThanOrEqual(Math.ceil(full / 2) + 1);
   });
 
+  /**
+   * **Das Atmen im Stehen** — die zweite Bewegung, und die einzige, die man
+   * an einer Figur sieht, die gar nichts tut. Geprüft wird genau das: dass
+   * sie sich im **Stand** bewegt (das Federn tut es dort ausdrücklich nicht),
+   * dass sie es flacher tut, und dass ihre Höhe nach außen dieselbe ist, an
+   * der das Werkzeug in ihrer Faust hängt (`stretch`).
+   */
+  it('atmet im Stehen, wenn es eingeschaltet ist', () => {
+    const body = new AvatarBody();
+    body.idleSquish = 1;
+    const torso = torsoOf(body);
+    let flattest = 1;
+    let longest = 1;
+    // Vier Sekunden auf der Stelle — bei Vorgabe-Tempo ist das gut ein
+    // Atemzug, und die Figur steht dabei still (kein `position.x`).
+    for (let i = 0; i < 240; i++) {
+      body.update(1 / 60, pose(1.6), null, null);
+      flattest = Math.min(flattest, torso.scale.y);
+      longest = Math.max(longest, torso.scale.y);
+      // Das Volumen bleibt auch beim Atmen, und der Kopf fährt mit.
+      expect(torso.scale.x).toBeCloseTo(1 / Math.sqrt(torso.scale.y), 5);
+      expect(headOf(body).position.y).toBeCloseTo(CHEF_EYE * torso.scale.y, 5);
+      // Und `stretch` ist genau diese Höhe — daran hängt, was die Figur hält
+      // (`worlds/portal/screenHand.ts`, `core/screenCarry.ts`).
+      expect(body.stretch).toBeCloseTo(torso.scale.y, 10);
+    }
+    expect(flattest).toBeLessThan(0.99);
+    expect(longest).toBeGreaterThan(1.01);
+    // Flacher als ein Schritt: Der Atem ist ein Lebenszeichen und kein Pumpen.
+    expect(longest - flattest).toBeLessThan(0.1);
+    // Die Sohlen bleiben auch dabei auf dem Boden.
+    expect(torso.position.y).toBeCloseTo(0, 10);
+    body.dispose();
+  });
+
+  it('atmet nicht, solange niemand es einschaltet', () => {
+    const body = new AvatarBody();
+    expect(body.idleSquish).toBe(0);
+    for (let i = 0; i < 120; i++) body.update(1 / 60, pose(1.6), null, null);
+    expect(torsoOf(body).scale.y).toBeCloseTo(1, 10);
+    expect(body.stretch).toBeCloseTo(1, 10);
+    body.dispose();
+  });
+
   it('federt nicht, solange niemand es einschaltet', () => {
     // Der Auslieferungszustand: Die Figur läuft, wie sie immer lief.
     const body = new AvatarBody();

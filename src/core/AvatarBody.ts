@@ -16,8 +16,15 @@ import {
 import { faceMarks, headBox } from './chefFace';
 import { cloth, skin as skinMaterial } from './chefStyle';
 import { canLoadModels, CHEF_EYE, POSE_SCALE } from './chefFit';
-import { graphics, onGraphicsChange, squishAmount, squishTempo } from './graphicsSettings';
-import { squishPose, type SquishPose } from './squish';
+import {
+  graphics,
+  idleSquishAmount,
+  idleSquishTempo,
+  onGraphicsChange,
+  squishAmount,
+  squishTempo,
+} from './graphicsSettings';
+import { squishPose, type SquishDrive, type SquishPose } from './squish';
 import type { ChefParts } from './chefModel';
 
 /** Head + hand pose used to drive the body, in the body's parent space. */
@@ -96,6 +103,10 @@ const _hand = new THREE.Vector3();
 const _world = new THREE.Vector3();
 /** Höhe und Breite dieses Bildes (`core/squish.ts`) — eines für alle Figuren. */
 const _squish: SquishPose = { height: 1, width: 1 };
+/** Und was dort hineingerechnet wird — ebenso eines, je Bild neu beschrieben. */
+const _drive: {
+  -readonly [K in keyof SquishDrive]-?: number;
+} = { phase: 0, stride: 0, clock: 0, amount: 0, tempo: 1, idleAmount: 0, idleTempo: 1 };
 
 /**
  * Wie weit die Kopfmitte hinter den Augen sitzt — dort steht auch der Rumpf.
@@ -267,6 +278,27 @@ export class AvatarBody extends THREE.Group {
    * zwei, sondern ein Flimmern.
    */
   squishSpeed = squishTempo(graphics());
+  /**
+   * **Wie tief sie im Stehen atmet** — 0 heißt: gar nicht, und das ist der
+   * Auslieferungszustand (`core/squish.ts`, `IDLE_AMPLITUDE`).
+   *
+   * Dieselbe Bauart wie die beiden Zahlen darüber, und aus demselben Grund
+   * eine eigene: Wer die Figur beim Laufen federn sehen will, will damit noch
+   * lange nicht, dass sie im Stand pumpt.
+   */
+  idleSquish = idleSquishAmount(graphics());
+  /** **Wie schnell sie atmet** — 1 ist ein Atemzug je `IDLE_PERIOD`. */
+  idleSquishSpeed = idleSquishTempo(graphics());
+  /**
+   * **Die Uhr des Atmens**, in Sekunden — sie läuft, solange die Figur da ist.
+   *
+   * Eine eigene Uhr und nicht die Taktphase des Laufens: Die steht im Stand
+   * still, und genau dort soll der Atem gehen. Sie läuft auch beim Laufen
+   * weiter, damit das Atmen nicht bei jedem Halt von vorn anfängt.
+   */
+  private idleClock = 0;
+  /** Die Höhe dieses Bildes als Vielfaches — nach außen `stretch`. */
+  private stretchNow = 1;
   /** Meldet die Figur wieder ab, wenn sie weggeräumt wird (`dispose`). */
   private readonly stopGraphics: () => void;
 
@@ -279,6 +311,22 @@ export class AvatarBody extends THREE.Group {
    */
   get bob(): number {
     return this.bobNow;
+  }
+
+  /**
+   * **Wie hoch die Figur in diesem Bild steht**, als Vielfaches ihrer Höhe —
+   * 1 heißt: ungestaucht.
+   *
+   * Das Gegenstück zu `bob` und aus demselben Grund öffentlich: Was die Figur
+   * **hält**, muss mitgehen. Von oben hängt ein Werkzeug an einer festen
+   * Stelle vor ihrer rechten Faust (`worlds/portal/screenHand.ts`) und ein
+   * getragener Gegenstand vor ihrem Bauch (`core/screenCarry.ts`) — beide am
+   * Rig und nicht an dieser Figur, denn in der Brille gibt es sie hier gar
+   * nicht. Ohne diese Zahl bliebe die Pistole auf ihrer Höhe stehen, während
+   * die Hand darunter auf und ab federt, und genau das sah man sofort.
+   */
+  get stretch(): number {
+    return this.stretchNow;
   }
 
   /**
@@ -345,6 +393,8 @@ export class AvatarBody extends THREE.Group {
       const settings = graphics();
       this.squish = squishAmount(settings);
       this.squishSpeed = squishTempo(settings);
+      this.idleSquish = idleSquishAmount(settings);
+      this.idleSquishSpeed = idleSquishTempo(settings);
     });
 
     // Das Modell kommt asynchron. Bis dahin steht die gebaute Figur; kommt es
@@ -652,7 +702,21 @@ export class AvatarBody extends THREE.Group {
     // Und es liegt **über** dem Watscheln, nicht an seiner Stelle: Das
     // Watscheln sitzt eine Gruppe tiefer (`BodyShape.setStride`) und bleibt
     // auch dann, wenn hier nichts eingestellt ist.
-    const squish = squishPose(this.walkPhase, stride, this.squish, this.squishSpeed, _squish);
+    //
+    // **Und im Stehen atmet sie** — dieselbe Rechnung mit einer eigenen Uhr
+    // und einem Drittel des Ausschlags (`squish.IDLE_AMPLITUDE`). Die Uhr
+    // läuft immer, auch während die Figur geht: Ein Atem, der bei jedem Halt
+    // von vorn anfinge, setzte bei jedem Halt einen Ruck.
+    this.idleClock += dt;
+    _drive.phase = this.walkPhase;
+    _drive.stride = stride;
+    _drive.clock = this.idleClock;
+    _drive.amount = this.squish;
+    _drive.tempo = this.squishSpeed;
+    _drive.idleAmount = this.idleSquish;
+    _drive.idleTempo = this.idleSquishSpeed;
+    const squish = squishPose(_drive, _squish);
+    this.stretchNow = squish.height;
     this.torso.scale.set(squish.width, squish.height, squish.width);
     this.head.scale.set(squish.width, squish.height, squish.width);
     this.head.position.y = this.eyeY * squish.height + this.bobNow;

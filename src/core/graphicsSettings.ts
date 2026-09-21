@@ -169,6 +169,39 @@ export interface GraphicsSettings {
    */
   squishSpeed: SquishSpeed;
   /**
+   * **Ob die Figur im Stehen atmet** — dieselbe Stauchung, nur langsamer und
+   * flacher (`core/squish.ts`, `IDLE_AMPLITUDE`).
+   *
+   * Ein **eigener** Schalter und kein Anhängsel des Laufens, obwohl beide
+   * dieselbe Rechnung benutzen: Wer die Figur beim Laufen federn sehen will,
+   * will damit noch lange nicht, dass sie im Stand pumpt — und wer im
+   * Gegenteil nur ein Lebenszeichen vor dem Tresen möchte, soll es bekommen,
+   * ohne dass die Figur beim Gehen zum Gummiball wird. Zwei Fragen, zwei
+   * Schalter, und darunter je eine Stärke und ein Tempo.
+   *
+   * Ab Werk **aus**, aus demselben Grund wie die Zeile darüber: Wer nichts
+   * einstellt, sieht die Figur, die dieses Projekt immer hatte.
+   */
+  idleSquish: boolean;
+  /**
+   * **Wie tief** — der Faktor auf `squish.IDLE_AMPLITUDE` (drei Prozent der
+   * Höhe, ein Drittel des Laufwertes).
+   *
+   * Dieselben acht Rasten wie beim Laufen, damit man nicht zwei Leitern
+   * lernen muss — aber eben auf einen kleineren Grundwert, damit ×1 hier und
+   * ×1 dort beide „ruhig" heißen und nicht dieselbe Strecke.
+   */
+  idleSquishScale: SquishScale;
+  /**
+   * **Wie oft** — der Faktor auf die Atemuhr (`squish.IDLE_PERIOD`, drei
+   * Sekunden je Atemzug bei ×1).
+   *
+   * **Ab Werk ×1**, anders als beim Laufen: Dort ist ×0,5 die Vorgabe, weil
+   * das Federn gegen das Watscheln anläuft. Der Atem läuft gegen nichts — er
+   * hat seine eigene Uhr, und drei Sekunden sind schon der ruhige Wert.
+   */
+  idleSquishSpeed: SquishSpeed;
+  /**
    * **Ob die Stöcke auf dem Glas liegen** — links der Stock zum Laufen, rechts
    * Zielstock und `A`/`B` (`index.html`, `#touch`).
    *
@@ -211,48 +244,104 @@ export const SCREEN_PADS_SUBS: Readonly<Record<ScreenPads, string>> = {
 };
 
 /**
- * **Die vier Rasten der Stauchung**, als Vielfaches des gemessenen
- * Ausschlags. `1` ist der Wert, der in `core/squish.ts` steht.
+ * **Die acht Rasten der Stärke**, als Vielfaches des gemessenen Ausschlags.
+ * `1` ist der Wert, der in `core/squish.ts` steht.
+ *
+ * **Viertelschritte, und zwar überall dieselben.** Erst waren es fünf Rasten
+ * mit einem Loch zwischen ×1 und ×1,5, und spätestens neben dem Atmen war
+ * das nicht mehr zu halten: Vier Regler mit drei verschiedenen Leitern sind
+ * vier Regler, die man einzeln lernen muss. Jetzt geht jeder von ihnen in
+ * Vierteln von ×0,25 bis ×2 — acht Drücke im Kreis, und wer einen davon
+ * kennt, kennt alle.
  */
-export type SquishScale = 0.25 | 0.5 | 1 | 1.5 | 2;
-export const SQUISH_SCALES: readonly SquishScale[] = [0.25, 0.5, 1, 1.5, 2];
+export type SquishScale = 0.25 | 0.5 | 0.75 | 1 | 1.25 | 1.5 | 1.75 | 2;
+export const SQUISH_SCALES: readonly SquishScale[] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
+/**
+ * **Die Beschriftung einer Raste** — dieselbe Leiter für Stärke und Tempo,
+ * beim Laufen wie im Stehen, deshalb genau eine Tabelle.
+ */
 export const SQUISH_SCALE_LABELS: Readonly<Record<SquishScale, string>> = {
   0.25: '×0,25',
   0.5: '×0,5',
+  0.75: '×0,75',
   1: '×1',
+  1.25: '×1,25',
   1.5: '×1,5',
+  1.75: '×1,75',
   2: '×2',
 };
 
 export const SQUISH_SCALE_SUBS: Readonly<Record<SquishScale, string>> = {
   0.25: 'Gerade eben zu ahnen · zwei Zentimeter auf die ganze Figur',
   0.5: 'Kaum zu sehen · ein Hauch Leben in der Figur',
+  0.75: 'Zurückhaltend · ein Stück unter dem gemessenen Wert',
   1: 'Der gemessene Wert · knapp ein Zehntel der Höhe',
+  1.25: 'Eine Spur mehr · zu sehen, ohne aufzufallen',
   1.5: 'Deutlich · die Figur federt sichtbar bei jedem Schritt',
+  1.75: 'Kräftig · einen Schritt vor dem Gummiball',
   2: 'Cartoon · ein Gummiball mit Kochmütze',
 };
 
 /**
- * **Die drei Rasten des Tempos** — der Faktor auf die Taktphase.
+ * **Die acht Rasten des Tempos** — der Faktor auf die Taktphase.
  *
- * Nach oben ist bei ×1 Schluss, und das ist Absicht: Ein Federn je Schritt
- * war die erste Fassung, und die war der Anlass für diese Zeile. Eine Raste,
- * die noch schneller ist, wäre eine, die niemand will.
+ * Dieselbe Leiter wie bei der Stärke, und nach oben ist jetzt ×2 und nicht
+ * mehr ×1 Schluss. Das ×1 als Decke war eine Vorsichtsmaßnahme aus der
+ * ersten Fassung — ein Federn je Schritt war zu schnell, also sollte es
+ * nichts Schnelleres geben. Wer einen Trickfilm will, darf jetzt trotzdem
+ * darüber hinaus: Die Vorgabe bleibt ×0,5, und was darüber liegt, sucht sich
+ * aus, wer hinsieht.
  */
-export type SquishSpeed = 0.25 | 0.5 | 1;
-export const SQUISH_SPEEDS: readonly SquishSpeed[] = [0.25, 0.5, 1];
+export type SquishSpeed = SquishScale;
+export const SQUISH_SPEEDS: readonly SquishSpeed[] = SQUISH_SCALES;
 
-export const SQUISH_SPEED_LABELS: Readonly<Record<SquishSpeed, string>> = {
-  0.25: '×0,25',
-  0.5: '×0,5',
-  1: '×1',
-};
+export const SQUISH_SPEED_LABELS: Readonly<Record<SquishSpeed, string>> = SQUISH_SCALE_LABELS;
 
 export const SQUISH_SPEED_SUBS: Readonly<Record<SquishSpeed, string>> = {
   0.25: 'Ganz ruhig · ein Heben und Senken auf vier Schritte',
   0.5: 'Die Vorgabe · ein Federn auf zwei Schritte, ruhiger als der Schritt',
+  0.75: 'Etwas flüssiger · ein Federn auf knapp anderthalb Schritte',
   1: 'Im Takt der Schritte · so schnell wie das Watscheln, und damit hektisch',
+  1.25: 'Schneller als der Schritt · fünf Federn auf vier Schritte',
+  1.5: 'Anderthalbfach · das Federn läuft dem Watscheln davon',
+  1.75: 'Fast zweimal je Schritt · ein Flirren, und das mit Absicht',
+  2: 'Zweimal je Schritt · Trickfilm mit aufgedrehtem Tempo',
+};
+
+/**
+ * **Wie tief die Figur im Stehen atmet** — dieselben acht Rasten, nur mit
+ * einem anderen Grundwert dahinter (`squish.IDLE_AMPLITUDE`, drei Prozent
+ * statt neun). Bei ×2 ist das Atmen deshalb immer noch flacher als ein
+ * Schritt bei ×1.
+ */
+export const IDLE_SQUISH_SCALE_SUBS: Readonly<Record<SquishScale, string>> = {
+  0.25: 'Kaum ein Zittern · gut einen Zentimeter',
+  0.5: 'Der Atem eines Schlafenden',
+  0.75: 'Leise · ein Stück unter dem gemessenen Wert',
+  1: 'Der gemessene Wert · knapp fünf Zentimeter, ruhiger Atem',
+  1.25: 'Etwas tiefer · quer durch den Raum zu sehen',
+  1.5: 'Tief · die Figur holt sichtbar Luft',
+  1.75: 'Sehr tief · als käme sie gerade vom Laufen',
+  2: 'Außer Atem · der Brustkorb geht wie ein Blasebalg',
+};
+
+/**
+ * **Wie schnell sie das tut** — der Faktor auf die Atemuhr, und die zählt in
+ * Sekunden (`squish.IDLE_PERIOD`, drei je Atemzug bei ×1). Deshalb stehen
+ * hier Sekunden und keine Schritte: Ein Atemzug hat mit dem Gehtempo nichts
+ * zu tun, und eine Figur, die im Stand die Luft anhält, war genau der
+ * Fehler, den diese Uhr behebt.
+ */
+export const IDLE_SQUISH_SPEED_SUBS: Readonly<Record<SquishSpeed, string>> = {
+  0.25: 'Ein Atemzug auf zwölf Sekunden · Tiefschlaf',
+  0.5: 'Ein Atemzug auf sechs Sekunden · sehr ruhig',
+  0.75: 'Ein Atemzug auf vier Sekunden · entspannt',
+  1: 'Die Vorgabe · ein Atemzug auf drei Sekunden',
+  1.25: 'Ein Atemzug auf gut zwei Sekunden · wach',
+  1.5: 'Ein Atemzug auf zwei Sekunden · aufmerksam',
+  1.75: 'Ein Atemzug auf knapp zwei Sekunden · angespannt',
+  2: 'Ein Atemzug auf anderthalb Sekunden · außer Puste',
 };
 
 /** Die drei Rasten des Reglers, von scharf nach flüssig. */
@@ -283,6 +372,9 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   squish: false,
   squishScale: 1,
   squishSpeed: 0.5,
+  idleSquish: false,
+  idleSquishScale: 1,
+  idleSquishSpeed: 1,
   screenPads: 'auto',
 };
 
@@ -447,6 +539,17 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const squishSpeed = SQUISH_SPEEDS.includes(raw.squishSpeed as SquishSpeed)
     ? (raw.squishSpeed as SquishSpeed)
     : DEFAULT_GRAPHICS.squishSpeed;
+  // Und das Atmen ist die jüngere der beiden Bewegungen: Ein Stand von
+  // gestern kennt keines der drei Felder, und „kenne ich nicht" heißt auch
+  // hier aus — wer die Seite nie geöffnet hat, bekommt keine atmende Figur
+  // untergeschoben.
+  const idleSquish = raw.idleSquish === true;
+  const idleSquishScale = SQUISH_SCALES.includes(raw.idleSquishScale as SquishScale)
+    ? (raw.idleSquishScale as SquishScale)
+    : DEFAULT_GRAPHICS.idleSquishScale;
+  const idleSquishSpeed = SQUISH_SPEEDS.includes(raw.idleSquishSpeed as SquishSpeed)
+    ? (raw.idleSquishSpeed as SquishSpeed)
+    : DEFAULT_GRAPHICS.idleSquishSpeed;
   // Aus demselben Grund kein `=== 'on'`: Ein Stand von gestern kennt die Raste
   // nicht, und „kenne ich nicht" heißt hier **automatisch** und nicht „aus" —
   // sonst stünde ein Telefon, das gestern noch Stöcke hatte, heute ohne da.
@@ -464,6 +567,9 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     squish,
     squishScale,
     squishSpeed,
+    idleSquish,
+    idleSquishScale,
+    idleSquishSpeed,
     screenPads,
   };
 }
@@ -519,6 +625,25 @@ export function squishTempo(settings: Partial<Pick<GraphicsSettings, 'squishSpee
 }
 
 /**
+ * **Wie tief die Figur im Stehen atmet** — das Gegenstück zu `squishAmount`,
+ * und aus demselben Grund eine eigene kleine Funktion: `AvatarBody` soll
+ * nicht wissen müssen, dass hinter dem Atem ein Schalter und eine Raste
+ * stehen.
+ */
+export function idleSquishAmount(
+  settings: Partial<Pick<GraphicsSettings, 'idleSquish' | 'idleSquishScale'>>,
+): number {
+  return settings.idleSquish ? (settings.idleSquishScale ?? DEFAULT_GRAPHICS.idleSquishScale) : 0;
+}
+
+/** **Wie schnell sie atmet** — der Faktor auf `squish.IDLE_PERIOD`. */
+export function idleSquishTempo(
+  settings: Partial<Pick<GraphicsSettings, 'idleSquishSpeed'>>,
+): number {
+  return settings.idleSquishSpeed ?? DEFAULT_GRAPHICS.idleSquishSpeed;
+}
+
+/**
  * Wie die Zeile _Animationen_ unter ihrer Überschrift steht.
  *
  * Eine eigene Zeile und nicht ein Anhängsel der Grafik-Zeile: Unter der
@@ -526,14 +651,36 @@ export function squishTempo(settings: Partial<Pick<GraphicsSettings, 'squishSpee
  * Seite zumacht, will dort lesen, ob die Figur jetzt federt.
  */
 export function animationSummary(
-  settings: Partial<Pick<GraphicsSettings, 'squish' | 'squishScale' | 'squishSpeed'>>,
+  settings: Partial<
+    Pick<
+      GraphicsSettings,
+      | 'squish'
+      | 'squishScale'
+      | 'squishSpeed'
+      | 'idleSquish'
+      | 'idleSquishScale'
+      | 'idleSquishSpeed'
+    >
+  >,
 ): string {
-  if (!settings.squish) return 'Nichts Besonderes · die Figur läuft, wie sie immer lief';
-  const scale = settings.squishScale ?? DEFAULT_GRAPHICS.squishScale;
-  const speed = settings.squishSpeed ?? DEFAULT_GRAPHICS.squishSpeed;
-  // Beide Zahlen, auch die vorgegebene: Auf dieser Seite stehen genau zwei
-  // Regler, und wer von ihr zurückkommt, will lesen, wie **beide** stehen.
-  return `Squishy-Bewegung ${SQUISH_SCALE_LABELS[scale]} · Tempo ${SQUISH_SPEED_LABELS[speed]}`;
+  // Beide Zahlen je Bewegung, auch die vorgegebene: Auf dieser Seite steht
+  // je Bewegung ein Paar aus Stärke und Tempo, und wer von ihr zurückkommt,
+  // will lesen, wie **beide** stehen. Und beide Bewegungen stehen
+  // nebeneinander — seit es das Atmen gibt, ist „Squishy an" keine Antwort
+  // mehr auf die Frage, was die Figur tut.
+  const parts: string[] = [];
+  if (settings.squish) {
+    const scale = settings.squishScale ?? DEFAULT_GRAPHICS.squishScale;
+    const speed = settings.squishSpeed ?? DEFAULT_GRAPHICS.squishSpeed;
+    parts.push(`Laufen ${SQUISH_SCALE_LABELS[scale]} im Tempo ${SQUISH_SPEED_LABELS[speed]}`);
+  }
+  if (settings.idleSquish) {
+    const scale = settings.idleSquishScale ?? DEFAULT_GRAPHICS.idleSquishScale;
+    const speed = settings.idleSquishSpeed ?? DEFAULT_GRAPHICS.idleSquishSpeed;
+    parts.push(`Atmen ${SQUISH_SCALE_LABELS[scale]} im Tempo ${SQUISH_SPEED_LABELS[speed]}`);
+  }
+  if (parts.length === 0) return 'Nichts Besonderes · die Figur läuft, wie sie immer lief';
+  return parts.join(' · ');
 }
 
 /** Ein Druck auf die Zeile: automatisch → an → aus und wieder von vorn. */
@@ -560,6 +707,8 @@ export function graphicsSummary(
         | 'shadows'
         | 'squish'
         | 'squishScale'
+        | 'idleSquish'
+        | 'idleSquishScale'
         | 'screenPads'
       >
     >,
@@ -576,6 +725,11 @@ export function graphicsSummary(
   const squishy = settings.squish
     ? ` · Squishy ${SQUISH_SCALE_LABELS[settings.squishScale ?? DEFAULT_GRAPHICS.squishScale]}`
     : '';
+  // Und das Atmen daneben, nach derselben Regel: Eine Figur, die im Stand
+  // nicht mehr stillsteht, erklärt sich mit einem Wort.
+  const breath = settings.idleSquish
+    ? ` · Atmen ${SQUISH_SCALE_LABELS[settings.idleSquishScale ?? DEFAULT_GRAPHICS.idleSquishScale]}`
+    : '';
   // Und ebenso hier: Die Automatik ist der Normalfall und steht nicht in der
   // Zeile — wer sie überstimmt hat, soll aber lesen können, warum sein Handy
   // ohne Stöcke oder sein Schreibtisch mit welchen dasteht.
@@ -583,7 +737,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${grips}${shade}${squishy}${pads}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${grips}${shade}${squishy}${breath}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

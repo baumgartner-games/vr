@@ -117,14 +117,19 @@ export const CARRY_BELOW = 0.1;
  * der Figur drehte, drehte um null — dieselbe Rechnung wie beim Werkzeug in
  * der Bildschirmhand (`worlds/portal/screenHand.ts`).
  *
- * @param headY Höhe des Kopfes im Raum des Rigs (`PlayerRig.camera.position.y`)
- * @param bob   das Wippen der Figur beim Gehen (`PlayerAvatar.bob`), nur von oben
+ * @param headY   Höhe des Kopfes im Raum des Rigs (`PlayerRig.camera.position.y`)
+ * @param bob     das Wippen der Figur beim Gehen (`PlayerAvatar.bob`), nur von oben
+ * @param stretch wie hoch die Figur gerade steht (`AvatarBody.stretch`), ebenso
+ *                nur von oben: Aus den Augen sieht man sie gar nicht, und ein
+ *                Teller, der vor der Kamera im Takt fremder Schritte hüpfte,
+ *                wäre dort nur ein Wackeln ohne Grund.
  */
 export function screenCarryPoint(
   view: ScreenCarryView,
   span: CarrySpan,
   headY: number,
   bob = 0,
+  stretch = 1,
 ): CarryPoint {
   const radius = Math.max(0, span.radius);
   const half = Math.max(0, span.half);
@@ -136,9 +141,17 @@ export function screenCarryPoint(
   }
   // Von oben: die Stelle der Küche, nur weit genug vorgerückt und hoch genug
   // gehoben für das, was dort liegt.
+  //
+  // **Und sie federt mit der Figur** (`stretch`), genau wie das Werkzeug in
+  // ihrer Faust: Die Stelle ist eine an einem Bauch, und der geht mit, wenn
+  // die Figur sich staucht oder streckt. Ein Fass, das ruhig in der Luft
+  // stünde, während die Hände darunter auf und ab gehen, wäre genau das
+  // Auseinanderlaufen, das diese Datei verhindern soll. Der Boden darunter
+  // bleibt unverändert: Im Fußboden steckt es auch dann nicht, wenn die Figur
+  // gerade am flachsten ist.
   return {
     x: CHEF_CARRY.x,
-    y: Math.max(CHEF_CARRY.y + bob, half + CARRY_FLOOR),
+    y: Math.max(CHEF_CARRY.y * stretch + bob, half + CARRY_FLOOR),
     z: Math.min(CHEF_CARRY.z, -(CARRY_CLEAR + radius)),
   };
 }

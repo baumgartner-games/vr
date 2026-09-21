@@ -73,6 +73,8 @@ import {
   SQUISH_SCALE_SUBS,
   SQUISH_SPEED_LABELS,
   SQUISH_SPEED_SUBS,
+  IDLE_SQUISH_SCALE_SUBS,
+  IDLE_SQUISH_SPEED_SUBS,
   XR_SCALE_LABELS,
   XR_SCALE_SUBS,
   animationSummary,
@@ -1740,8 +1742,8 @@ export class App {
   }
 
   /**
-   * **Animationen** — eine Seite unter _Grafik_, und vorerst steht eine Sache
-   * darauf.
+   * **Animationen** — eine Seite unter _Grafik_, und inzwischen stehen zwei
+   * Bewegungen darauf.
    *
    * Eine eigene Seite und nicht zwei weitere Zeilen im Grafik-Menü, und das
    * ist Absicht: Die Zeilen darüber beantworten alle dieselbe Frage — was
@@ -1757,6 +1759,19 @@ export class App {
    * beantwortet man am besten, indem man einmal durchklickt und hinsieht.
    * Zwei Zeilen und nicht eine: Ein Regler, der beides zugleich stellt, kann
    * ein zu schnelles Federn nur kleiner machen und nicht langsamer.
+   *
+   * **Darunter dieselben drei Zeilen noch einmal, für das Stehen**: _Atmen im
+   * Stehen_, Stärke, Tempo. Genau dieselbe Aufteilung, weil es genau dieselbe
+   * Frage ist — nur eben an einer Figur, die gerade nichts tut. Und genau
+   * deshalb sind es sechs Zeilen und nicht vier: Ein gemeinsamer Schalter für
+   * beide Bewegungen nähme einem die Wahl, im Stand zu leben und beim Laufen
+   * ruhig zu bleiben, und ein gemeinsamer Regler für die Stärke machte aus
+   * „tief atmen" ein „wie ein Gummiball laufen".
+   *
+   * **Und alle vier Regler gehen dieselbe Leiter**: ×0,25 bis ×2 in
+   * Vierteln, acht Drücke im Kreis (`core/graphicsSettings.SQUISH_SCALES`).
+   * Vier Regler mit drei verschiedenen Leitern wären vier, die man einzeln
+   * lernen muss.
    */
   private animationMenu(accent: number): MenuEntry {
     const settings = graphics();
@@ -1785,7 +1800,7 @@ export class App {
           id: 'gfx:squish-scale',
           label: `Stärke: ${SQUISH_SCALE_LABELS[settings.squishScale]}`,
           sub: SQUISH_SCALE_SUBS[settings.squishScale],
-          caption: '×0,25 → ×0,5 → ×1 → ×1,5 → ×2 · wie weit die Figur federt',
+          caption: '×0,25 bis ×2 in Vierteln · wie weit die Figur federt',
           icon: 'sphere',
           accent,
           run: () => {
@@ -1803,13 +1818,64 @@ export class App {
           id: 'gfx:squish-speed',
           label: `Tempo: ${SQUISH_SPEED_LABELS[settings.squishSpeed]}`,
           sub: SQUISH_SPEED_SUBS[settings.squishSpeed],
-          caption: '×0,25 → ×0,5 → ×1 · wie oft sie es tut, gemessen am Schritt',
+          caption: '×0,25 bis ×2 in Vierteln · wie oft sie es tut, gemessen am Schritt',
           icon: 'stopwatch',
           accent,
           run: () => {
             const next = saveGraphics({ squishSpeed: nextSquishSpeed(graphics().squishSpeed) });
             this.menuDirty = true;
             this.notify(`Squishy-Tempo ${SQUISH_SPEED_LABELS[next.squishSpeed]}`);
+          },
+        },
+        {
+          // **Und dasselbe noch einmal für das Stehen.** Drei Zeilen, genau
+          // die drei darüber — Schalter, Stärke, Tempo —, und das ist keine
+          // Verdopplung aus Bequemlichkeit: Wer die Figur beim Laufen federn
+          // sieht und im Stand zur Statue erstarren, sieht genau an der
+          // Stelle, an der er sie am längsten ansieht, dass sie tot ist. Die
+          // Rechnung dahinter ist dieselbe, nur flacher und langsamer
+          // (`core/squish.ts`, `IDLE_AMPLITUDE` und `IDLE_PERIOD`).
+          id: 'gfx:idle-squish',
+          label: 'Atmen im Stehen',
+          sub: 'Die Figur hebt und senkt sich, während sie wartet',
+          caption: 'Idle Squish · dieselbe Stauchung, nur flacher und langsamer',
+          icon: 'npc',
+          accent,
+          checked: settings.idleSquish,
+          run: () => {
+            const next = saveGraphics({ idleSquish: !graphics().idleSquish });
+            this.menuDirty = true;
+            this.notify(next.idleSquish ? 'Atmen an' : 'Atmen aus');
+          },
+        },
+        {
+          id: 'gfx:idle-squish-scale',
+          label: `Stärke: ${SQUISH_SCALE_LABELS[settings.idleSquishScale]}`,
+          sub: IDLE_SQUISH_SCALE_SUBS[settings.idleSquishScale],
+          caption: '×0,25 bis ×2 in Vierteln · wie tief die Figur atmet',
+          icon: 'sphere',
+          accent,
+          run: () => {
+            const next = saveGraphics({
+              idleSquishScale: nextSquishScale(graphics().idleSquishScale),
+            });
+            this.menuDirty = true;
+            this.notify(`Atem-Stärke ${SQUISH_SCALE_LABELS[next.idleSquishScale]}`);
+          },
+        },
+        {
+          id: 'gfx:idle-squish-speed',
+          label: `Tempo: ${SQUISH_SPEED_LABELS[settings.idleSquishSpeed]}`,
+          sub: IDLE_SQUISH_SPEED_SUBS[settings.idleSquishSpeed],
+          caption: '×0,25 bis ×2 in Vierteln · ein Atemzug je drei Sekunden bei ×1',
+          icon: 'stopwatch',
+          accent,
+          run: () => {
+            const next = saveGraphics({
+              idleSquishSpeed: nextSquishSpeed(graphics().idleSquishSpeed),
+            });
+            this.menuDirty = true;
+            this.notify(`Atem-Tempo ${SQUISH_SPEED_LABELS[next.idleSquishSpeed]}`);
           },
         },
       ],

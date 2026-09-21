@@ -313,13 +313,15 @@ einmal roh mit seinen Zylindern und einmal in einer groben Hand hin,
 Weg wie beim Musterbogen des Avatars, und aus demselben Grund: Ob etwas in
 einer Hand richtig liegt, entscheidet kein Jest-Test.
 
-## Squishy: die Figur federt beim Laufen
+## Squishy: die Figur federt beim Laufen und atmet im Stehen
 
 Unter den Häkchen steht eine eigene Seite: _Menü → Grafik → **Animationen**_
-(`App.animationMenu`). Sie hat vorerst eine Sache, und sie ist eine andere
-Frage als alles darüber — dort geht es darum, was ein Bild kostet und was es
-zeigt, hier darum, wie sich eine **Figur** bewegt. Die nächste Animation hängt
-sich an diese Seite und nicht an das Ende einer Liste, die dann keine mehr ist.
+(`App.animationMenu`). Sie ist eine andere Frage als alles darüber — dort geht
+es darum, was ein Bild kostet und was es zeigt, hier darum, wie sich eine
+**Figur** bewegt. Inzwischen stehen zwei Bewegungen darauf, und jede hat
+dieselben drei Zeilen: **Schalter, Stärke, Tempo**. Die nächste Animation
+hängt sich an diese Seite und nicht an das Ende einer Liste, die dann keine
+mehr ist.
 
 **Squishy Movement** (`GraphicsSettings.squish`, ab Werk **aus**) staucht und
 streckt die Figur, während sie läuft. Der Anlass ist eine Lücke: Diese
@@ -345,15 +347,15 @@ rechts der Naht und vergleicht sie.
 
 Gerechnet wird der Ausschlag als **Anteil der Höhe** (`SQUISH_AMPLITUDE`, 9 %
 — auf 1,6 m knapp fünfzehn Zentimeter zwischen der flachsten und der längsten
-Haltung), mal der Stärke aus dem Menü (`squishScale`, fünf Rasten **×0,25 ×0,5
-×1 ×1,5 ×2**, im Kreis schaltbar) und mal dem **Lauftempo**: Im Stehen steht
+Haltung), mal der Stärke aus dem Menü (`squishScale`, acht Rasten von **×0,25
+bis ×2 in Vierteln**, im Kreis schaltbar) und mal dem **Lauftempo**: Im Stehen steht
 die Figur still, im Schlendern federt sie halb so weit wie im Rennen. Die
 Breite ist der Kehrwert der Wurzel aus der Höhe — **Breite mal Breite mal Höhe
 bleibt 1**, also behält die Figur ihr Volumen. Eine, die sich beim Strecken nur
 längt, sieht aus, als zöge man sie am Kopf hoch.
 
-**Und wie oft sie federt, ist eine zweite Frage** (`squishSpeed`, drei Rasten
-**×0,25 ×0,5 ×1**, ab Werk **×0,5**). Die erste Fassung hatte sie nicht, und
+**Und wie oft sie federt, ist eine zweite Frage** (`squishSpeed`, dieselben
+acht Rasten **×0,25 bis ×2 in Vierteln**, ab Werk **×0,5**). Die erste Fassung hatte sie nicht, und
 das war der Fehler: Sie federte einmal je Schritt, und das ist zu schnell —
 der Takt des Watschelns ist schon zweimal je Doppelschritt, und eine Figur,
 die dazu ebenso oft ihre Höhe wechselt, flimmert, statt zu federn. Bei ×0,5
@@ -361,8 +363,15 @@ zieht sich ein Federn über **zwei** Schritte und legt damit eine ruhige Welle
 über das schnellere Watscheln. Gerechnet wird der Faktor auf die **Phase**
 (`squishPose(phase * tempo …)`) und nicht auf den Ausschlag: Wie weit die
 Figur federt, sagt die Stärke, und mit einem Regler für beides ließe sich ein
-zu schnelles Federn nur kleiner machen und nicht langsamer. Nach oben ist bei
-×1 Schluss — eine Raste, die noch schneller wäre, will niemand.
+zu schnelles Federn nur kleiner machen und nicht langsamer.
+
+**Alle vier Regler gehen dieselbe Leiter** (`SQUISH_SCALES`, acht Rasten in
+Vierteln von ×0,25 bis ×2). Erst waren es fünf Stärken mit einem Loch zwischen
+×1 und ×1,5 und drei Tempi mit einer Decke bei ×1; spätestens neben dem Atmen
+war das nicht mehr zu halten — vier Regler mit drei verschiedenen Leitern sind
+vier, die man einzeln lernen muss. Die Decke bei ×1 war ohnehin eine
+Vorsichtsmaßnahme („schneller will niemand"), und wer einen Trickfilm will,
+darf jetzt darüber hinaus.
 
 Ein gespeicherter Stand aus der ersten Fassung kennt das Feld nicht und bekommt
 damit genau das, was die Zeile beheben soll: das halbe Tempo (`clampGraphics`).
@@ -376,6 +385,62 @@ Boden. Es liegt **über** dem Watscheln (`BodyShape.setStride`, eine Gruppe
 tiefer) und ersetzt es nicht: Das Watscheln bleibt auch, wenn hier nichts
 eingestellt ist.
 
+### Und im Stehen atmet sie
+
+**Idle Squish** (`GraphicsSettings.idleSquish`, ab Werk **aus**) ist die zweite
+Bewegung derselben Seite und dieselbe Rechnung noch einmal — nur **flacher und
+langsamer**. Der Anlass ist die Lücke, die die erste offen ließ: Eine Figur,
+die beim Laufen federt und im Stand zur Statue wird, sieht in dem Moment tot
+aus, in dem man sie am längsten ansieht — vor dem Tresen, im Menü, beim Warten
+auf die anderen.
+
+Drei Unterschiede zum Federn, und jeder ist einer aus dem Bild:
+
+- **Ein Sinus, und zwar mit Absicht** (`breathCurve`). Für den Schritt war er
+  falsch, weil dort etwas aufsetzt; ein Atemzug ist ein Hin und Her ohne
+  Ereignis, ein und aus dauern gleich lang. Bei `u = 0` steht die Figur in
+  ihrer natürlichen Höhe — ein Atem, den man einschaltet, soll sie nicht im
+  selben Bild um fünf Zentimeter kürzer machen.
+- **Ein Drittel des Ausschlags** (`IDLE_AMPLITUDE`, 3 % der Höhe gegen 9 %).
+  Damit heißt ×1 hier und ×1 dort beides „ruhig" und nicht dieselbe Strecke,
+  und selbst ×2 bleibt flacher als ein Schritt bei ×1.
+- **Eine eigene Uhr** (`IDLE_PERIOD`, drei Sekunden je Atemzug bei ×1,
+  `AvatarBody.idleClock`). Die Taktphase des Laufens steht im Stand still, und
+  eine Figur, deren Atem daran hinge, hielte beim Warten die Luft an. Die Uhr
+  läuft auch beim Gehen weiter, damit der Atem nicht bei jedem Halt von vorn
+  anfängt und einen Ruck setzt.
+
+**Überblendet wird über `stride`**, nicht addiert: Im Stand ist die Figur ganz
+beim Atem, im vollen Lauf ganz beim Schritt, dazwischen liegt genau die
+Mischung, die man auch sieht. Beide Gewichte zusammen sind immer eins, also
+blitzt beim Losgehen nichts auf. Zwei Wellen übereinander gäben eine dritte,
+die keiner von beiden gehört.
+
+### Und was die Figur hält, geht mit
+
+Von oben hängt ein **Werkzeug** an einer festen Stelle vor ihrer rechten Faust
+(`worlds/portal/screenHand.ts`, `CHEF_TOOL`) und ein **getragener Gegenstand**
+vor ihrem Bauch (`core/screenCarry.ts`, `CHEF_CARRY`) — beide am **Rig** und
+nicht an der Figur, denn in der Brille gibt es diese Hand gar nicht. Damit
+bekamen sie die Stauchung nicht geschenkt: Die Pistole stand ruhig in der Luft,
+während die Faust darunter bei jedem Schritt auf und ab ging.
+
+Deshalb gibt jede Figur ihre Höhe nach außen (`AvatarBody.stretch`, 1 heißt
+ungestaucht) — das Gegenstück zu `bob`, das schon immer das Wippen
+weiterreichte. Beide Stellen nehmen sie mal: `CHEF_TOOL.y * stretch` und
+`CHEF_CARRY.y * stretch + bob`, und dieselbe Zahl geht an die **Hände** der
+Figur (`PlayerAvatar.carry`, `kitchen.carryY`) — zwei Rechnungen für eine
+Stelle wären zwei, die auseinanderlaufen. Die **Waagerechte** bleibt dabei, wie
+sie ist: Beim Strecken wird die Figur schmaler, und ein Werkzeug, das dabei
+nach innen rutschte, steckte im Ärmel. Der Boden sticht die Stauchung ebenfalls
+(`CARRY_FLOOR`): Im Fußboden steckt auch dann nichts, wenn die Figur am
+flachsten ist. Gelesen wird die Zahl des **vorigen** Bildes — die Welt rechnet
+vor dem Avatar (`App.update`) —, und ein Bild Versatz sieht niemand.
+
+Aus den Augen bleibt alles, wie es war: Dort sieht man die Figur gar nicht, und
+ein Teller, der vor der Kamera im Takt fremder Schritte hüpfte, wäre ein
+Wackeln ohne Grund.
+
 Zwei Dinge daran sind Absicht:
 
 - **Es sitzt an der Figur, nicht an der Kamera** — dieselbe Regel wie beim
@@ -384,8 +449,9 @@ Zwei Dinge daran sind Absicht:
   zu spüren.
 - **Gelesen wird die Einstellung einmal je Änderung**, nicht je Bild und Figur:
   Jede Figur hört beim Bau auf das Menü (`onGraphicsChange`) und hält die
-  beiden Werte als zwei Zahlen (`AvatarBody.squish`, 0 heißt aus, und
-  `AvatarBody.squishSpeed`). Damit federt auch der
+  vier Werte als vier Zahlen (`AvatarBody.squish`, 0 heißt aus,
+  `AvatarBody.squishSpeed`, `AvatarBody.idleSquish`, `AvatarBody.idleSquishSpeed`).
+  Damit federt und atmet auch der
   Mitspieler mit, den hier niemand neu baut (`net/RemoteAvatars.ts`) — und ein
   Test oder eine Vorschau ohne Menü setzt die Zahl einfach selbst.
 

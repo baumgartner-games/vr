@@ -35,6 +35,44 @@ describe('was die Figur am Schirm vor sich her trägt', () => {
       expect(at.y).toBeCloseTo(CHEF_CARRY.y + 0.02, 6);
     });
 
+    /**
+     * **Und es federt mit der Figur.** Seit sie sich beim Laufen staucht und
+     * im Stehen atmet (`core/squish.ts`), ist „vor dem Bauch" keine feste
+     * Höhe mehr: Ein Fass, das ruhig in der Luft stünde, während die Hände
+     * darunter auf und ab gehen, ist genau das, was man von oben sieht.
+     */
+    it('geht mit der Höhe der Figur mit', () => {
+      const lang = screenCarryPoint('topDown', small, 1.6, 0, 1.08);
+      expect(lang.y).toBeCloseTo(CHEF_CARRY.y * 1.08, 6);
+      const flach = screenCarryPoint('topDown', small, 1.6, 0, 0.92);
+      expect(flach.y).toBeCloseTo(CHEF_CARRY.y * 0.92, 6);
+      // Wippen und Stauchung zusammen: das eine als Faktor, das andere als
+      // Strecke — und keines von beiden verrechnet das andere.
+      expect(screenCarryPoint('topDown', small, 1.6, 0.02, 1.08).y).toBeCloseTo(
+        CHEF_CARRY.y * 1.08 + 0.02,
+        6,
+      );
+      // Die Waagerechte bleibt, wo sie ist: Beim Strecken wird die Figur
+      // schmaler, und was sie trägt, soll dabei nicht in sie hineinrutschen.
+      expect(lang.x).toBe(CHEF_CARRY.x);
+      expect(lang.z).toBe(flach.z);
+    });
+
+    it('bleibt auch bei flachster Figur über dem Boden', () => {
+      // Der Boden sticht die Stauchung: Ein Fass im Fußboden sieht aus wie
+      // ein Fehler, und beim Stauchen käme es ihm am nächsten.
+      const at = screenCarryPoint('topDown', barrel, 1.6, 0, 0.8);
+      expect(at.y).toBeGreaterThanOrEqual(barrel.half + CARRY_FLOOR);
+    });
+
+    it('lässt die Stauchung aus den Augen außen vor', () => {
+      // Dort sieht man die Figur gar nicht — ein Teller, der im Takt fremder
+      // Schritte vor der Kamera hüpfte, wäre ein Wackeln ohne Grund.
+      expect(screenCarryPoint('firstPerson', small, 1.6, 0, 1.2)).toEqual(
+        screenCarryPoint('firstPerson', small, 1.6, 0, 1),
+      );
+    });
+
     it('rückt Großes vor, statt es in die Figur zu stecken', () => {
       const at = screenCarryPoint('topDown', tree, 1.6);
       // Die Hinterkante bleibt vor dem Rumpf.
