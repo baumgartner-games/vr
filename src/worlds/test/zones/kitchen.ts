@@ -267,10 +267,27 @@ export * from './kitchenBlocks';
  * **Wo das Getragene hängt** (`core/chefFit.CHEF_CARRY`) — als Vektor, weil
  * die Figur einen bekommt und keine drei Zahlen (`PlayerAvatar.carry`).
  *
- * Einer für die ganze Zone: Er wird jedes Bild weitergereicht und nie
- * verändert, und ein neuer je Bild wäre ein Vektor je Bild.
+ * Einer für die ganze Zone: Er wird jedes Bild weitergereicht, und ein neuer
+ * je Bild wäre ein Vektor je Bild. Beschrieben wird er trotzdem je Bild
+ * (`carryY`) — seit die Figur wippt, federt und atmet, ist „vor dem Bauch"
+ * keine feste Höhe mehr.
  */
 const CARRY_POINT = new THREE.Vector3(CHEF_CARRY.x, CHEF_CARRY.y, CHEF_CARRY.z);
+
+/**
+ * **Auf welcher Höhe der Bauch in diesem Bild ist**, im Raum des Rigs.
+ *
+ * Drei Dinge stecken darin, und alle drei kommen von der Figur: ihre
+ * **Stauchung** beim Laufen und ihr **Atmen** im Stehen (`core/squish.ts`,
+ * `AvatarBody.stretch`) als Faktor auf die Höhe, und ihr **Wippen**
+ * (`AvatarBody.bob`) als Strecke obendrauf. Eine Pfanne, die ruhig in der Luft
+ * stünde, während die Hände darunter auf und ab gehen, ist das, was man von
+ * oben sofort sieht — und dieselbe Zahl geht deshalb an das Getragene **und**
+ * an die Hände der Figur (`PlayerAvatar.carry`).
+ */
+function carryY(ctx: WorldContext): number {
+  return CHEF_CARRY.y * ctx.avatar.stretch + ctx.avatar.bob;
+}
 
 /**
  * **Wie hoch der Belag in der Pfanne liegt**, über deren Fuß.
@@ -2383,8 +2400,8 @@ export class KitchenZone implements TestZone {
         piece.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
         ctx.avatar.carry = null;
       } else {
-        piece.position.set(CHEF_CARRY.x, CHEF_CARRY.y + ctx.avatar.bob, CHEF_CARRY.z);
-        ctx.avatar.carry = CARRY_POINT;
+        piece.position.set(CHEF_CARRY.x, carryY(ctx), CHEF_CARRY.z);
+        ctx.avatar.carry = CARRY_POINT.set(CHEF_CARRY.x, carryY(ctx), CHEF_CARRY.z);
       }
       return;
     }
@@ -2425,7 +2442,7 @@ export class KitchenZone implements TestZone {
         // (`worlds/portal/screenHand.ts`).
         thing.object.position.set(
           CHEF_CARRY.x + this.bellyShift(atBelly),
-          CHEF_CARRY.y + ctx.avatar.bob,
+          carryY(ctx),
           CHEF_CARRY.z,
         );
       }
@@ -2433,7 +2450,12 @@ export class KitchenZone implements TestZone {
     }
     // Die Hände der Figur gehen nur unter das, was wirklich vor dem Bauch
     // hängt; was in einer echten Hand liegt, braucht sie nicht.
-    ctx.avatar.carry = !ctx.renderer.xr.isPresenting && atBelly > 0 ? CARRY_POINT : null;
+    // Und die Hände gehen auf **dieselbe** Höhe wie das, was dort hängt: Zwei
+    // Rechnungen für eine Stelle wären zwei, die auseinanderlaufen.
+    ctx.avatar.carry =
+      !ctx.renderer.xr.isPresenting && atBelly > 0
+        ? CARRY_POINT.set(CHEF_CARRY.x, carryY(ctx), CHEF_CARRY.z)
+        : null;
   }
 
   /**

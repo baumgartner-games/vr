@@ -20,6 +20,15 @@
  * Schritten weder ein Knick noch ein Sprung. Vier Stützpunkte, und die Kurve
  * dazwischen ist gerechnet und nicht aus einer Tabelle abgelesen.
  *
+ * **Und im Stehen atmet sie.** Das ist die zweite Bewegung dieser Datei, und
+ * sie beantwortet die Lücke, die die erste offen ließ: Eine Figur, die beim
+ * Laufen federt und im Stand zur Statue wird, sieht in dem Moment tot aus, in
+ * dem man sie am längsten ansieht — vor dem Tresen, im Menü, beim Warten auf
+ * die anderen. Das Atmen ist dasselbe Squash and Stretch, nur **langsamer und
+ * flacher** (`IDLE_AMPLITUDE`, `IDLE_PERIOD`) — und es blendet sich mit dem
+ * Laufen über `stride` aus, statt neben ihm zu laufen: Wer geht, federt; wer
+ * steht, atmet; dazwischen liegt eine Überblendung und kein Umschalter.
+ *
  * Diese Datei ist **reine Rechnung** — kein three.js, keine Einstellung, kein
  * Speicher. Wer sie anwendet, ist `core/AvatarBody.ts`; ob überhaupt und wie
  * stark, steht unter _Grafik → Animationen_ (`core/graphicsSettings.ts`).
@@ -104,6 +113,49 @@ export function squishCurve(u: number): number {
   return CURVE[CURVE.length - 1]!.value;
 }
 
+/**
+ * **Wie flach die Figur im Stehen atmet**, als Anteil ihrer Höhe.
+ *
+ * Ein Drittel des Laufwertes und keine zweite Zahl aus demselben Topf: Drei
+ * Prozent sind auf 1,6 m knapp fünf Zentimeter, und genau so viel will man im
+ * Stand haben — man soll sehen, dass die Figur lebt, und nicht, dass sie
+ * pumpt. Wer mehr will, stellt die Stärke daneben hoch; sie multipliziert
+ * genau diese Zahl, und bei ×2 ist das Atmen immer noch flacher als ein
+ * Schritt bei ×1.
+ */
+export const IDLE_AMPLITUDE = 0.03;
+
+/**
+ * **Wie lange ein Atemzug bei Tempo ×1 dauert**, in Sekunden.
+ *
+ * Drei Sekunden sind der ruhige Atem eines Menschen, der nichts tut — und sie
+ * sind der Grund, warum das Tempo des Atmens eine eigene Uhr hat und nicht die
+ * Taktphase des Laufens: Die steht im Stand still, und eine Figur, deren Atem
+ * daran hinge, hielte beim Warten die Luft an. Der Regler im Menü streckt
+ * diese Sekunden: ×0,25 ist ein Atemzug auf zwölf Sekunden, ×2 einer auf
+ * anderthalb.
+ */
+export const IDLE_PERIOD = 3;
+
+/**
+ * **Der Ausschlag des Atmens an der Stelle `u`** — −1 ausgeatmet, +1
+ * eingeatmet, und `u` zählt die Atemzüge.
+ *
+ * **Und hier ist der Sinus genau richtig**, derselbe, der für den Schritt
+ * falsch war. Ein Schritt ist ein Stoß mit einem Aufprall darin, also
+ * unsymmetrisch; ein Atemzug ist ein Hin und Her ohne Ereignis — ein und aus
+ * dauern gleich lang, es gibt keinen Moment, in dem etwas aufsetzt. Wer ihm
+ * die Hermite-Kurve des Schrittes gäbe, bekäme eine Figur, die im Stehen
+ * hechelt.
+ *
+ * Bei `u = 0` steht die Figur in ihrer **natürlichen** Höhe und nicht am
+ * flachsten (dort fängt der Schritt an): Ein Atem, der eingeschaltet wird,
+ * soll die Figur nicht in demselben Bild um fünf Zentimeter kürzer machen.
+ */
+export function breathCurve(u: number): number {
+  return Math.sin(2 * Math.PI * u);
+}
+
 /** Höhe und Breite als Vielfaches — 1 und 1 heißt: unverändert. */
 export interface SquishPose {
   height: number;
@@ -111,14 +163,41 @@ export interface SquishPose {
 }
 
 /**
+ * **Alles, was ein Bild über die Stauchung einer Figur weiß.**
+ *
+ * Ein Objekt und keine sieben Stellen in einer Klammer, und das ist eine
+ * Lehre aus der zweiten Bewegung: Aus `(phase, stride, amount, tempo)` wurden
+ * beim Atmen sieben Zahlen, und eine Aufrufstelle, in der `1, 0.5, 0, 1`
+ * steht, sagt niemandem mehr, welche davon die Stärke war. Die Felder haben
+ * Namen; wer eines wegdenkt, bekommt die Vorgabe.
+ */
+export interface SquishDrive {
+  /** Die Taktphase des Laufens im Bogenmaß (`AvatarBody.walkPhase`). */
+  readonly phase: number;
+  /** 0 im Stand, 1 im vollen Lauf — dazwischen wird übergeblendet. */
+  readonly stride: number;
+  /**
+   * **Die Uhr des Atmens**, in Sekunden — sie läuft auch im Stehen weiter.
+   *
+   * Absichtlich nicht die Phase darüber: Die steht still, sobald die Figur
+   * steht, und genau dann soll das Atmen anfangen.
+   */
+  readonly clock?: number;
+  /** Die Stärke beim Laufen; 0 heißt: keine Stauchung. */
+  readonly amount?: number;
+  /** Das Tempo beim Laufen; 1 ist ein Federn je Schritt. */
+  readonly tempo?: number;
+  /** Die Stärke im Stehen; 0 heißt: kein Atmen. */
+  readonly idleAmount?: number;
+  /** Das Tempo des Atmens; 1 ist ein Atemzug je `IDLE_PERIOD`. */
+  readonly idleTempo?: number;
+}
+
+/**
  * **Wie hoch und wie breit die Figur in diesem Bild steht.**
  *
- * @param phase  die Taktphase des Laufens im Bogenmaß (`AvatarBody.walkPhase`)
- * @param stride 0 im Stand, 1 im vollen Lauf — im Stehen steht die Figur still
- * @param amount der Faktor aus dem Menü; 0 heißt: keine Stauchung
- * @param tempo  wie schnell die Kurve durchlaufen wird; 1 ist ein Federn je
- *               Schritt, 0,5 eines auf zwei Schritte
- * @param out    ein Objekt zum Hineinschreiben, damit kein Bild etwas wegwirft
+ * @param drive was die Figur gerade tut und was das Menü dazu sagt
+ * @param out   ein Objekt zum Hineinschreiben, damit kein Bild etwas wegwirft
  *
  * **Breite mal Breite mal Höhe bleibt konstant**: Die Breite ist der Kehrwert
  * der Wurzel aus der Höhe, und damit behält die Figur ihr Volumen. Eine, die
@@ -134,24 +213,43 @@ export interface SquishPose {
  * ihm um dieselbe Frequenz zu streiten. Gerechnet wird das als Faktor auf die
  * **Phase**, nicht auf den Ausschlag: Wie weit die Figur federt, sagt
  * `amount`, und die beiden Fragen sollen sich nicht gegenseitig verstellen.
+ *
+ * **Laufen und Atmen werden überblendet und nicht addiert.** `stride` wiegt
+ * das eine hoch und das andere herunter: Im Stand ist die Figur ganz beim
+ * Atem, im vollen Lauf ganz beim Schritt, und dazwischen liegt genau die
+ * Mischung, die man auch sieht — wer losgeht, hört nicht auf zu atmen, er
+ * fängt an zu federn. Zwei Wellen, die sich übereinanderlegten, gäben
+ * stattdessen eine dritte, die keiner von beiden gehört.
  */
 export function squishPose(
-  phase: number,
-  stride: number,
-  amount: number,
-  tempo = 1,
+  drive: SquishDrive,
   out: SquishPose = { height: 1, width: 1 },
 ): SquishPose {
-  if (amount <= 0 || stride <= 0 || tempo <= 0) {
-    out.height = 1;
-    out.width = 1;
-    return out;
+  const stride = Math.min(Math.max(drive.stride, 0), 1);
+  const amount = drive.amount ?? 0;
+  const tempo = drive.tempo ?? 1;
+  const idleAmount = drive.idleAmount ?? 0;
+  const idleTempo = drive.idleTempo ?? 1;
+
+  let swing = 0;
+  // Das Laufen: nur, solange die Figur auch läuft, und mit `stride` als
+  // Gewicht — im Schlendern federt niemand wie im Rennen.
+  if (amount > 0 && tempo > 0 && stride > 0) {
+    swing += SQUISH_AMPLITUDE * amount * stride * squishCurve((drive.phase * tempo) / Math.PI);
   }
-  const swing = SQUISH_AMPLITUDE * amount * Math.min(stride, 1);
+  // Und das Atmen: das Gegenstück dazu, `1 − stride`, damit die Summe der
+  // beiden Gewichte immer eins ist und beim Losgehen nichts aufblitzt.
+  if (idleAmount > 0 && idleTempo > 0 && stride < 1) {
+    swing +=
+      IDLE_AMPLITUDE *
+      idleAmount *
+      (1 - stride) *
+      breathCurve(((drive.clock ?? 0) * idleTempo) / IDLE_PERIOD);
+  }
   // Der Boden ist Vorsicht und keine Gestaltung: Kein Faktor aus dem Menü
   // kommt ihm nahe, aber eine Figur mit der Höhe 0 wäre ein Strich und ihre
   // Breite eine Division durch null.
-  out.height = Math.max(1 + swing * squishCurve((phase * tempo) / Math.PI), 0.2);
+  out.height = Math.max(1 + swing, 0.2);
   out.width = 1 / Math.sqrt(out.height);
   return out;
 }

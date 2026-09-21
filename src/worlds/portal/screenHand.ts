@@ -99,9 +99,11 @@ export class ScreenHand {
   /**
    * **Ein Bild weiter**: die Hand an ihren Platz, und der Trigger von der
    * Eingabe (`PlayerRig.setTrigger`) auf die Flanken, die ein Werkzeug kennt.
+   *
+   * @param stretch wie hoch die Figur in diesem Bild steht (`AvatarBody.stretch`)
    */
-  update(): void {
-    this.place();
+  update(stretch = 1): void {
+    this.place(stretch);
     const value = this.rig.trigger;
     const down = value > TRIGGER_DOWN;
     if (down !== this.down) {
@@ -120,8 +122,8 @@ export class ScreenHand {
    * an der Ansicht und an der Größe des Getragenen, und beides ist Rechnung
    * und keine Darstellung.
    */
-  placeCarry(view: ScreenCarryView, span: CarrySpan, bob: number): void {
-    const at = screenCarryPoint(view, span, this.rig.camera.position.y, bob);
+  placeCarry(view: ScreenCarryView, span: CarrySpan, bob: number, stretch = 1): void {
+    const at = screenCarryPoint(view, span, this.rig.camera.position.y, bob, stretch);
     this.carry.position.set(at.x, at.y, at.z);
     this.carry.updateMatrixWorld(true);
   }
@@ -150,8 +152,21 @@ export class ScreenHand {
    * macht. Er staucht jede Handpose auf Figurenmaß (`AvatarBody.update`,
    * `POSE_SCALE`) — hier steht die Umkehrung davon und keine zweite geratene
    * Zahl, die beim nächsten Umbau danebenläge.
+   *
+   * **Und sie federt mit der Figur.** Seit diese sich beim Laufen staucht und
+   * beim Stehen atmet (`core/squish.ts`), ist `CHEF_TOOL.y` keine feste Höhe
+   * mehr, sondern eine an einem Körper, der gerade flacher oder länger ist —
+   * also geht sie mit seiner Höhe mal (`AvatarBody.stretch`). Ohne das blieb
+   * die Pistole von oben ruhig in der Luft stehen, während die Faust darunter
+   * bei jedem Schritt auf und ab ging: Diese Hand hängt am **Rig** und nicht
+   * an der Figur (siehe oben), sie bekommt die Stauchung also nicht geschenkt.
+   *
+   * Die **Waagerechte** bleibt, wie sie ist. Beim Strecken wird die Figur
+   * schmaler, und ein Werkzeug, das dabei nach innen rutschte, steckte im
+   * Ärmel — die Hand daneben rechnet aus demselben Grund nur ihre freie
+   * Ruhelage mit der Breite (`AvatarBody.update`), nicht eine gehaltene Pose.
    */
-  private place(): void {
+  private place(stretch = 1): void {
     // Der Kopf im Raum des Rigs — ohne Brille sitzt die Kamera genau dort, und
     // sie bleibt dort: Ducken senkt das **Rig** und nicht die Kamera darin
     // (`PlayerRig.getFloorY`), und der Avatar hängt am Rig.
@@ -160,14 +175,15 @@ export class ScreenHand {
     // jede Handpose auf Figurenmaß (`AvatarBody.update`, `POSE_SCALE`); damit
     // die Hand genau dort landet, wo das Werkzeug liegt, wird hier die
     // Umkehrung gerechnet und nicht eine zweite Zahl geraten.
+    const toolY = CHEF_TOOL.y * stretch;
     this.at.set(
       CHEF_TOOL.x / POSE_SCALE,
-      headY + (CHEF_TOOL.y - CHEF_EYE) / POSE_SCALE,
+      headY + (toolY - CHEF_EYE) / POSE_SCALE,
       CHEF_TOOL.z / POSE_SCALE,
     );
     // Und der Griff selbst steht direkt an der Stelle — in Figurengröße, damit
     // ein Werkzeug in dieser Faust kein Balken ist.
-    this.grip.position.set(CHEF_TOOL.x, CHEF_TOOL.y, CHEF_TOOL.z);
+    this.grip.position.set(CHEF_TOOL.x, toolY, CHEF_TOOL.z);
     this.grip.scale.setScalar(POSE_SCALE);
     this.grip.updateMatrixWorld(true);
   }

@@ -8643,7 +8643,12 @@ export class PortalWorld implements World {
         this.dropScreenTool();
       }
     }
-    fresh.update();
+    // **Mit der Höhe der Figur**: Von oben federt sie beim Laufen und atmet im
+    // Stehen (`core/squish.ts`), und das Werkzeug in ihrer Faust geht mit
+    // (`ScreenHand.place`). Die Zahl ist die des vorigen Bildes — der Avatar
+    // rechnet erst nach der Welt (`App.update`) —, und ein Bild Versatz sieht
+    // niemand; ein Werkzeug, das auf halber Höhe stehen bliebe, sieht jeder.
+    fresh.update(ctx.avatar.stretch);
     // Die Hand der Figur greift nur dort nach, wo man sie sieht — von oben.
     ctx.avatar.screenHand = ctx.topDown ? fresh.at : null;
   }
@@ -8688,7 +8693,7 @@ export class PortalWorld implements World {
     if (busy) this.release(ctx, side, busy, true);
 
     this.screenSpan = spanOf(entry.object);
-    hand.placeCarry(screenCarryView(ctx), this.screenSpan, ctx.avatar.bob);
+    hand.placeCarry(screenCarryView(ctx), this.screenSpan, ctx.avatar.bob, ctx.avatar.stretch);
     hand.carry.getWorldPosition(_point);
     entry.object.position.copy(_point);
     entry.object.updateWorldMatrix(true, false);
@@ -8736,7 +8741,7 @@ export class PortalWorld implements World {
     // **Der Knopf gehört dem Getragenen** — sonst spränge die Figur dabei
     // (`PlayerRig.useBusy`, dieselbe Regel wie beim Feuerlöscher der Küche).
     ctx.rig.useBusy = true;
-    hand.placeCarry(screenCarryView(ctx), this.screenSpan, ctx.avatar.bob);
+    hand.placeCarry(screenCarryView(ctx), this.screenSpan, ctx.avatar.bob, ctx.avatar.stretch);
     hand.carry.getWorldPosition(_screenCarryAt);
     // **Und die Figur legt ihre Hände darunter** — aber nur von oben, denn
     // nur dort sieht man sie (`PlayerAvatar.carry`).

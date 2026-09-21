@@ -59,12 +59,19 @@ const head = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion()
  * Stärke und Tempo der Stauchung von Hand (`core/squish.ts`): Diese Seite hat
  * kein Menü, und die Frage, wie viel davon gut aussieht, beantwortet ohnehin
  * nur ein Bild neben dem anderen.
+ *
+ * Für das **Atmen im Stehen** gibt es dieselben zwei Schalter noch einmal:
+ * `?idle=1&idleTempo=2`. Es ist die Bewegung, die man hier am besten sieht —
+ * ohne `?walk=1` steht die ganze Reihe still, und dann ist alles, was sich
+ * bewegt, der Atem.
  */
 const params = new URLSearchParams(location.search);
 const hatChoice = params.get('hat') ?? 'chef';
 const walking = params.get('walk') === '1';
 const squish = params.has('squish') ? Number(params.get('squish')) : null;
 const tempo = params.has('tempo') ? Number(params.get('tempo')) : null;
+const idle = params.has('idle') ? Number(params.get('idle')) : null;
+const idleTempo = params.has('idleTempo') ? Number(params.get('idleTempo')) : null;
 
 const count = Math.max(HEAD_KINDS.length, BODY_KINDS.length, hatChoice === 'all' ? 8 : 5);
 const spacing = 1.15;
@@ -81,6 +88,8 @@ for (let i = 0; i < count; i++) {
   });
   if (squish !== null && Number.isFinite(squish)) body.squish = squish;
   if (tempo !== null && Number.isFinite(tempo)) body.squishSpeed = tempo;
+  if (idle !== null && Number.isFinite(idle)) body.idleSquish = idle;
+  if (idleTempo !== null && Number.isFinite(idleTempo)) body.idleSquishSpeed = idleTempo;
   scene.add(body);
   bodies.push(body);
 }

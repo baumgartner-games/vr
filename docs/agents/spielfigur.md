@@ -115,7 +115,12 @@ Höhe, `setStride` watschelt.
 Squishy-Bewegung_ eingeschaltet, staucht und streckt sich die ganze Figur beim
 Laufen — Rumpf und Kopf zusammen, um die Sohlen herum, nach einer
 Hermite-Kurve, und ab Werk mit einem Federn auf zwei Schritte (_Stärke_ und
-_Tempo_ stehen daneben). Ab Werk ist das aus, und wie es rechnet, steht in
+_Tempo_ stehen daneben). Darunter stehen dieselben drei Zeilen noch einmal für
+das **Atmen im Stehen** — dieselbe Stauchung, nur ein Drittel so tief und mit
+einer eigenen Uhr, damit eine wartende Figur nicht wie eine Statue dasteht.
+Was die Figur dabei **hält**, geht mit ihrer Höhe auf und ab
+(`AvatarBody.stretch`): das Werkzeug in ihrer Faust wie der Teller vor ihrem
+Bauch. Ab Werk ist beides aus, und wie es rechnet, steht in
 [Wie schön es aussieht](grafik.md) unter _Squishy_.
 
 **Drei Zeilen, drei Listen** (`core/avatarLook.ts`). Vorher gab es nur den Hut,

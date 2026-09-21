@@ -21,6 +21,8 @@ import {
   saveGraphics,
   squishAmount,
   squishTempo,
+  idleSquishAmount,
+  idleSquishTempo,
 } from './graphicsSettings';
 
 describe('Grafikeinstellungen', () => {
@@ -39,6 +41,11 @@ describe('Grafikeinstellungen', () => {
       squishScale: 1,
       // Und das Tempo ab Werk halb: ein Federn auf zwei Schritte.
       squishSpeed: 0.5,
+      // Das Atmen im Stehen ebenso aus — und sein Tempo ab Werk ganz: Der
+      // Atem läuft gegen kein Watscheln an, drei Sekunden sind schon ruhig.
+      idleSquish: false,
+      idleSquishScale: 1,
+      idleSquishSpeed: 1,
       // Die Stöcke auf dem Glas entscheiden sich nach Gerät — nachgerechnet
       // wird das in `screenPads.test.ts`.
       screenPads: 'auto',
@@ -231,9 +238,11 @@ describe('Grafikeinstellungen', () => {
    * kann: ein Faktor, der aus einem alten Speicher als `3` hereinkommt, und
    * eine Figur, die federt, obwohl das Häkchen aus ist.
    */
-  it('federt nur auf ausdrückliches Ja — und kennt fünf Stärken', () => {
+  it('federt nur auf ausdrückliches Ja — und kennt acht Stärken', () => {
     expect(DEFAULT_GRAPHICS.squish).toBe(false);
-    expect([...SQUISH_SCALES]).toEqual([0.25, 0.5, 1, 1.5, 2]);
+    // Viertelschritte von ×0,25 bis ×2, und dieselbe Leiter gilt für das
+    // Tempo und für beide Bewegungen: vier Regler, eine Leiter.
+    expect([...SQUISH_SCALES]).toEqual([0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]);
     expect(clampGraphics({ squish: true })).toEqual({ ...DEFAULT_GRAPHICS, squish: true });
     expect(clampGraphics({ squish: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
     expect(clampGraphics({ squishScale: 3 as never })).toEqual(DEFAULT_GRAPHICS);
@@ -246,7 +255,7 @@ describe('Grafikeinstellungen', () => {
       squishScale: 0.25,
     });
 
-    // Der Kreis: ×0,25 → ×0,5 → ×1 → ×1,5 → ×2 → wieder von vorn.
+    // Der Kreis: ×0,25 → … → ×2 → wieder von vorn.
     let scale: SquishScale = SQUISH_SCALES[0]!;
     for (const expected of [...SQUISH_SCALES.slice(1), SQUISH_SCALES[0]!]) {
       scale = nextSquishScale(scale);
@@ -267,11 +276,14 @@ describe('Grafikeinstellungen', () => {
    * Feld nicht und bekommt deshalb die Vorgabe und keine 0: Mit 0 fröre die
    * Figur in einer Haltung ein.
    */
-  it('federt ab Werk im halben Tempo und kennt drei Rasten', () => {
+  it('federt ab Werk im halben Tempo und geht dieselbe Leiter wie die Stärke', () => {
     expect(DEFAULT_GRAPHICS.squishSpeed).toBe(0.5);
-    expect([...SQUISH_SPEEDS]).toEqual([0.25, 0.5, 1]);
+    expect([...SQUISH_SPEEDS]).toEqual([...SQUISH_SCALES]);
     expect(clampGraphics({ squishSpeed: 1 })).toEqual({ ...DEFAULT_GRAPHICS, squishSpeed: 1 });
-    expect(clampGraphics({ squishSpeed: 2 as never })).toEqual(DEFAULT_GRAPHICS);
+    // Nach oben ist jetzt bei ×2 Schluss und nicht mehr bei ×1 — dazwischen
+    // liegt nichts Krummes, und alles darüber fällt auf die Vorgabe zurück.
+    expect(clampGraphics({ squishSpeed: 2 })).toEqual({ ...DEFAULT_GRAPHICS, squishSpeed: 2 });
+    expect(clampGraphics({ squishSpeed: 2.5 as never })).toEqual(DEFAULT_GRAPHICS);
     expect(clampGraphics({ squishSpeed: 'schnell' as never })).toEqual(DEFAULT_GRAPHICS);
     expect(squishTempo({})).toBe(0.5);
     expect(squishTempo({ squishSpeed: 0.25 })).toBe(0.25);
@@ -290,17 +302,59 @@ describe('Grafikeinstellungen', () => {
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, squish: true, squishScale: 2 })).toBe(
       'Einfach · Squishy ×2',
     );
+    // Und das Atmen daneben, nach derselben Regel.
+    expect(
+      graphicsSummary({ mode: 'simple', xrScale: 1, idleSquish: true, idleSquishScale: 1.5 }),
+    ).toBe('Einfach · Atmen ×1,5');
     expect(animationSummary({ squish: false, squishScale: 2 })).toBe(
       'Nichts Besonderes · die Figur läuft, wie sie immer lief',
     );
-    // Auf der Seite stehen zwei Regler, also nennt ihre Überschrift beide —
-    // auch den, der auf der Vorgabe steht.
-    expect(animationSummary({ squish: true, squishScale: 0.5 })).toBe(
-      'Squishy-Bewegung ×0,5 · Tempo ×0,5',
-    );
+    // Auf der Seite stehen je Bewegung zwei Regler, also nennt ihre
+    // Überschrift beide — auch den, der auf der Vorgabe steht.
+    expect(animationSummary({ squish: true, squishScale: 0.5 })).toBe('Laufen ×0,5 im Tempo ×0,5');
     expect(animationSummary({ squish: true, squishScale: 0.25, squishSpeed: 1 })).toBe(
-      'Squishy-Bewegung ×0,25 · Tempo ×1',
+      'Laufen ×0,25 im Tempo ×1',
     );
+    // Das Atmen allein — und beide nebeneinander, denn seit es zwei
+    // Bewegungen gibt, ist „Squishy an" keine Antwort mehr auf die Frage,
+    // was die Figur tut.
+    expect(animationSummary({ idleSquish: true, idleSquishScale: 2, idleSquishSpeed: 0.25 })).toBe(
+      'Atmen ×2 im Tempo ×0,25',
+    );
+    expect(animationSummary({ squish: true, idleSquish: true })).toBe(
+      'Laufen ×1 im Tempo ×0,5 · Atmen ×1 im Tempo ×1',
+    );
+  });
+
+  /**
+   * **Das Atmen im Stehen** — dieselben drei Fragen wie beim Laufen, und
+   * deshalb dieselben drei Prüfungen: Ohne Häkchen ist die Stärke glatt 0,
+   * eine Raste, die es nicht gibt, fällt auf die Vorgabe zurück, und ein
+   * gespeicherter Stand von gestern kennt keines der drei Felder.
+   */
+  it('atmet nur auf ausdrückliches Ja — mit denselben Rasten wie das Laufen', () => {
+    expect(DEFAULT_GRAPHICS.idleSquish).toBe(false);
+    expect(DEFAULT_GRAPHICS.idleSquishSpeed).toBe(1);
+    expect(clampGraphics({ idleSquish: true })).toEqual({ ...DEFAULT_GRAPHICS, idleSquish: true });
+    expect(clampGraphics({ idleSquish: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(clampGraphics({ idleSquishScale: 1.75 })).toEqual({
+      ...DEFAULT_GRAPHICS,
+      idleSquishScale: 1.75,
+    });
+    expect(clampGraphics({ idleSquishScale: 3 as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(clampGraphics({ idleSquishSpeed: 0.75 })).toEqual({
+      ...DEFAULT_GRAPHICS,
+      idleSquishSpeed: 0.75,
+    });
+    expect(clampGraphics({ idleSquishSpeed: 0 as never })).toEqual(DEFAULT_GRAPHICS);
+
+    // Die eine Zahl, die die Figur bekommt: ohne Häkchen glatt 0, auch mit
+    // ×2 daneben — und das Tempo nie 0, denn 0 wäre eine eingefrorene Figur.
+    expect(idleSquishAmount({ idleSquish: false, idleSquishScale: 2 })).toBe(0);
+    expect(idleSquishAmount({ idleSquish: true, idleSquishScale: 1.25 })).toBe(1.25);
+    expect(idleSquishAmount({ idleSquish: true })).toBe(DEFAULT_GRAPHICS.idleSquishScale);
+    expect(idleSquishTempo({})).toBe(1);
+    expect(idleSquishTempo({ idleSquishSpeed: 0.25 })).toBe(0.25);
   });
 
   it('überlebt einen Speicher, den es nicht gibt', () => {
