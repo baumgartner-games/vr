@@ -31,6 +31,10 @@ liegt in der Hand.
 | `…/kaykit/index.json`          | Der erzeugte Verzeichnisbaum — geschrieben von `tools/kaykit-model.mjs` |
 | `core/kaykitIndex.ts`          | **Rein**: Typen des Index, Adressen, Beschriftungen, und der Menübaum daraus (`kaykitMenu`) |
 | `core/kaykitFit.ts`            | **Rein**: `KAYKIT_SCALE` als Vorgabe, `KAYKIT_PACK_SCALE` je Paket, `kaykitScale(pfad)` |
+| `core/kaykitCrate.ts`          | **Rein**: unter welche Adresse ein Kistendeckel als Sockel gehört |
+| `core/kitchenShelf.ts`         | **Rein**: welche Adresse in der Küche ein **funktionierendes Möbel** ist |
+| `ui/pageCols.ts`               | **Rein**: wie viele Spalten in ein Fenster passen, und die beiden Knöpfe |
+| `worlds/portal/placeGrid.ts`   | Das Gitter unter dem Getragenen — eine Fläche und ein Rahmen je Kachel |
 | `core/kaykitModel.ts`          | Der Lader: `loadKaykitIndex`, `kaykitModel`, `kaykitModelNow` |
 | `core/screenCarry.ts`          | **Rein**: wo ein getragener Gegenstand am Schirm hängt — von oben und aus den Augen |
 | `worlds/portal/props.ts`       | `ModelKind` (`model:<pfad>`) und `modelPropShape` — wie aus einem Modell ein Gegenstand wird |
@@ -53,25 +57,126 @@ die Seite liest diese eine Datei. Ihr Format ist ein **Vertrag** zwischen zwei
 Programmen und steht in `core/kaykitIndex.ts`; was dort optional ist, darf
 fehlen, und auf `size` verlässt sich nichts.
 
-## Zwei Spalten, und warum nicht drei
+## Zwei Spalten in der Brille — und so viele, wie passen, am Schirm
 
 Ein Raster im Menü hatte immer drei Spalten (`ui/UIPanel.ts`, `GRID_COLS`) —
 für Strichzeichnungen ist das die richtige Zahl. Im Regal steht in der Kachel
 aber das Modell, und bei drei Spalten ist es so klein, dass zwei ähnliche
 Fässer gleich aussehen. Genau das soll es ja nicht.
 
-Also kann eine Seite jetzt sagen, wie viele Spalten sie will: `MenuEntry.cols`
-→ `PageOptions.cols` → die Kachelbreite. Das Regal nimmt **zwei**; alles
-andere bleibt bei drei, ohne dass irgendwo etwas geändert werden musste. Auf
-einem Telefon ist mehr als zwei ohnehin nicht lesbar — dieselbe Zahl gilt
-deshalb auch für die Seite (`ui/PageMenu.ts` setzt sie als CSS-Variable
-`--pmenu-cols` ans Raster).
+Also kann eine Seite sagen, wie viele Spalten sie will: `MenuEntry.cols`
+→ `PageOptions.cols` → die Kachelbreite. Das Regal nimmt **zwei**
+(`core/kaykitIndex.SHELF_COLS`); alles andere bleibt bei drei, ohne dass
+irgendwo etwas geändert werden musste.
 
-Dazu kam die zweite Hälfte: **Eine Kachel hat jetzt einen Anker.**
-`UIPanel.rowAnchor` gab für jede Rasterseite `null` zurück, und damit stand vor
-einer Kachel nie ein Modell. Jetzt liefert er die Mitte des oberen Quadrats —
-dort, wo sonst die Ikone steht —, und die Ikone bleibt bei einem Eintrag mit
-`preview` weg: zwei Bilder übereinander wären nur Unruhe.
+**Am Schirm ist diese Zahl nur noch die Vorgabe**, und das war ein gemeldeter
+Befund: „Auf Desktop sind 2 Columns sehr klein." Stimmt — zwei Kacheln auf
+1600 Bildpunkten sind zwei Briefmarken mit sehr viel Luft daneben. Dort
+rechnet die Seite deshalb selbst (`ui/pageCols.ts`, `fitColumns`): **eine
+Spalte je 190 Bildpunkte**, abgerundet, höchstens zehn. 190, weil ein Telefon
+genau das liefert — 390 Punkte, zwei Spalten —, und was dort lesbar ist, ist
+es am Schreibtisch auch; es passt nur mehr davon nebeneinander. Ein Fenster
+von 1600 Punkten bekommt damit acht.
+
+**Und zwei Knöpfe daneben.** Über der Liste stehen `−` und `+` mit der Zahl
+dazwischen (`.pmenu__cols`); ein Druck darauf ist eine **Entscheidung** und
+bleibt: Sie steht danach im Speicher des Browsers (`readColumns`,
+`writeColumns`), und ein anders breites Fenster ändert nichts mehr daran.
+Solange niemand gedrückt hat, richtet sich das Raster nach dem Fenster — wer
+das Telefon dreht oder das Fenster zieht, bekommt die passende Zahl, ohne
+etwas einzustellen. An den Enden halten die Knöpfe an, statt umzuspringen: Ein
+Knopf, der von zehn auf eins fällt, ist einer, den man nicht gedrückt halten
+kann.
+
+**In der Brille bleibt es bei zwei.** Dort ist das Panel so groß, wie es ist,
+und eine Spaltenzahl, die man mit zwei Knöpfen nachstellt, wäre zwei Knöpfe zu
+viel in einer Bedienfläche, die ohnehin schon mit einem Strahl bedient wird.
+
+## Der Katalog nimmt den ganzen Schirm
+
+`MenuEntry.full` ist ein Feld, das nur die Seite kennt: Sie legt das Blatt
+dann über den ganzen Bildschirm, in der Breite **und** in der Höhe. Am Telefon
+war es immer so breit; am Schreibtisch war es ein Kasten von 380 Punkten unter
+dem Knopf oben links, und das war für ein Menü richtig und für einen Katalog
+falsch.
+
+Gewünscht war beides: „Zudem kann der Katalog auch gern mehr Breite von dem
+Screen einnehmen. Ich hätte nichts dagegen, wenn dieser den gesamten Screen
+breit ist, wie es beim Handy bereits ist." Und: „die Höhe des Katalogmenüs
+kann meinetwegen auch gerne die gesamte Höhe des Bildschirm einnehmen, sodass
+dann der Menü-Button verdeckt ist, wie auch Welt, Verbindung, Fullscreen VR."
+
+Genau das tut es. Verdeckt wird dabei nichts zugebaut: Das Blatt liegt auf
+`z-index: 20`, die Knöpfe darunter auf 5 — zugemacht wird es mit demselben
+Kreuz wie vorher. Und es gilt **nur für die Seiten des Regals**: Wer im Menü
+die Einstellungen aufschlägt, bekommt weiter den Kasten oben links. Ein
+Katalog, in dem in jeder Kachel ein Modell steht, hat für Platz die beste
+Verwendung; eine Liste mit vier Schaltern hat sie nicht.
+
+## Schubladen: Figuren, Möbel, Natur — und sieben weitere
+
+Der Ordnerbaum ist die Adresse und bleibt es. Als **Sortiment** taugt er
+nicht: Wer ein Bett sucht, weiß nicht, dass es in `furniture-bits` liegt, und
+wer eine Figur sucht, findet sie in sieben Paketen verteilt. Gewünscht war
+deshalb eine zweite Ordnung: „Ich denke auch Kategorien wären sinnvoll für die
+einzelnen Elemente wie z. B. Charaktere, Möbel, Items, etc."
+
+Elf Schubladen stehen jetzt auf der ersten Seite des Regals
+(`core/kaykitIndex.KAYKIT_CATEGORIES`): Figuren, Essen & Trinken, Möbel,
+Natur, Gebäude & Bauteile, Waffen, Werkzeug, Kisten & Fässer, Spiel &
+Freizeit, Deko — und **Alles Übrige**. Darunter eine zwölfte Kachel,
+_Pakete_, und dahinter der Ordnerbaum, wie er immer war
+(`kaykitPackMenu`).
+
+**Entschieden wird an Paket und Dateinamen**, nicht an einer Liste mit
+viertausendfünfhundert Zeilen — die pflegt niemand. Ein Paket, das ganz einer
+Schublade gehört (`packs`), entscheidet allein; sonst zählt ein **ganzes
+Wort** im Dateinamen (`words`, also ist `boxer` keine Kiste). Die
+**Reihenfolge der Tabelle ist die Regel**: Die erste Schublade, auf die eine
+Datei passt, bekommt sie — `crate_buns.glb` ist damit Essen und nicht Kiste,
+weil Essen vorher steht. Die letzte Schublade hat weder `packs` noch `words`
+und fängt alles auf; ohne sie fiele ein Modell aus dem Regal, nur weil niemand
+ein Wort dafür aufgeschrieben hat.
+
+**Eine Datei steht damit an zwei Stellen** — einmal in ihrer Schublade, einmal
+in ihrem Paket —, und das ist der Sinn der Sache. Ids müssen deshalb nur
+**unter Geschwistern** eindeutig sein und nicht im ganzen Baum: Der Weg durchs
+Menü merkt sich Seiten (`ui/menuNav.ts`), und eine Seite wird immer bei ihren
+Geschwistern gesucht.
+
+## Und ein Suchfeld — aber nur am Schirm
+
+„Ein Suchfeld wäre die richtige Antwort — nur will in einer Brille niemand
+tippen." Der Satz stand hier, und er stimmt weiter; er stimmt nur nicht **am
+Schirm**, wo eine Tastatur liegt. Gewünscht: „dass ich oben auch eine
+Suchleiste habe, bei der ich einen Begriff eingeben kann und dann gefiltert
+wird, was dazu alles gefunden wird."
+
+`MenuEntry.find` ist deshalb ein Feld, das nur die Seite liest: Steht es da,
+zeigt sie über der Liste ein Suchfeld, und was zurückkommt, steht statt ihrer
+Liste da. Das Regal hängt es an **jede** seiner Seiten (`offerSearch`), und
+gesucht wird immer über die **ganze** Sammlung: Wer drei Ebenen tief im
+Waldpaket steht und `lantern` eintippt, will wissen, ob es überhaupt eine
+gibt, und nicht, ob im Wald eine liegt.
+
+Gesucht wird in einer flachen Liste, die einmal je Index gerechnet wird
+(`kaykitFiles`, `PortalWorld.shelfFiles`): viertausendfünfhundert Zeichenketten
+und kein einziges Modell. **Alle Wörter müssen vorkommen**, im Dateinamen oder
+im Pfad — `dungeon barrel` ist damit ein Filter auf ein Paket, und `holz
+kiste` findet nichts, weil die Sammlung englisch heißt. **Sortiert wird nach
+Güte**: Wer mit dem Gesuchten anfängt, steht vor dem, der es enthält, und der
+vor dem, bei dem es nur im Ordnernamen steht. Sonst stünde bei `chair` die
+Kachel `restaurant-bits/chair_A` hinter dreißig Dateien aus einem Ordner, der
+zufällig `chairs` heißt. Mehr als `SEARCH_LIMIT` (200) Treffer gibt es nicht:
+Wer nach `tree` sucht, bekommt im Wald über tausend, und die letzten
+neunhundert sieht niemand an.
+
+**Das Feld steht im Kopf und nicht in der Liste**, und das ist kein Zufall:
+Die Liste wird bei jedem Neuzeichnen ausgetauscht (zweimal die Sekunde, siehe
+`ui/PageMenu.ts`), und ein Eingabefeld darin hätte beim dritten Buchstaben den
+Fokus verloren. **Und eine andere Seite fängt ohne Suchbegriff an** — ein Feld,
+das beim Hineingehen stehen bliebe, filterte die neue Seite nach dem, was
+jemand auf der alten gesucht hat, und niemand sähe, warum sie fast leer ist.
 
 ## Das Modell in der Kachel — und wie es auf dem Telefon dorthin kommt
 
@@ -191,25 +296,51 @@ Lader, alles andere ist eine Werkzeug-Id wie bisher. Die Vorschau-Id eines
 Modells ist dabei seine Zeilen-Id — `kaykit:<pfad>`, mit dem Pfad ohne
 `models/kaykit/` davor.
 
-## Fächer: was ein Ordner mit 1588 Dateien tut
+## Fächer in der Brille — und Nachladen beim Scrollen am Schirm
 
 Der Waldordner hat rund 1588 Modelle, der Sechseck-Satz 404. In zwei Spalten
 und zwei Zeilen je Seite wären das vierhundert Seiten Blättern; mit dem Stick
-dauert das über eine Minute, und niemand kommt dort je an. Ein Suchfeld wäre
-die richtige Antwort — nur will in einer Brille niemand tippen.
+dauert das über eine Minute, und niemand kommt dort je an.
 
 Also zerfällt ein Ordner mit mehr als `KAYKIT_CHUNK` (60) Dateien in **Fächer**
 zu je sechzig, und die stehen als Kacheln davor: `1–60`, `61–120`, darunter
 jeweils der erste und der letzte Name. Fünfzehn Seiten bis zum letzten Fach,
-vier bis zur letzten Datei darin. Das ist die billigste Form eines Suchfelds,
-die es gibt, und sie fällt aus dem Baum heraus, ohne dass jemand eine Tastatur
-braucht. Nebenbei rettet sie die Seite im Browser: Die zeichnet jede Zeile
-ihrer Seite als echten Knopf ins DOM, und 1588 Knöpfe auf einmal sind kein
-Menü mehr.
+vier bis zur letzten Datei darin. **In der Brille ist das weiter die Antwort**:
+Dort blättert ein Stick, dort tippt niemand, und die Fächer fallen aus dem Baum
+heraus, ohne dass jemand eine Tastatur braucht.
+
+**Am Schirm sind sie weg**, und das war ein gemeldeter Befund: „Ich denke diese
+Gruppierung 1–60, 61–120 brauche ich nicht, dafür kann dann einfach Lazy
+Loading die Elemente nachgeladen werden beim Scrollen." Dort wird gescrollt,
+und ein Zwischenschritt „1–60" ist ein Klick, der nichts erklärt.
+
+Gelöst ist das mit **einem Feld statt mit einem zweiten Baum**:
+`MenuEntry.flatten` sagt „diese Zwischenseite darf übersprungen werden", und
+die Seite hängt ihre Kinder an ihrer Stelle in die Liste (`ui/PageMenu.ts`,
+`spread`). Wer das Feld nicht kennt — das Panel am Handgelenk —, sieht die
+Fächer wie bisher. Ein zweiter Baum wäre die zweite Wahrheit gewesen, und
+die Ids, an denen der Weg durchs Menü hängt, hätten auseinanderlaufen müssen.
+
+**Und die Liste wächst beim Scrollen.** 1588 echte Knöpfe im DOM sind kein
+Menü mehr, also stehen erst `PAGE_WINDOW` (60) davon da — dieselbe Zahl wie
+die eines Fachs —, und sobald das Ende auf `GROW_EDGE` (600 Bildpunkte)
+herankommt, kommen sechzig dazu. Die Blätterstellung bleibt dabei stehen: Nur
+eine **andere** Liste fängt oben an, ein Nachschub hängt unten an. Unter der
+Liste steht, wie weit man ist (`60 von 1668`) — ohne diese Zahl sähe ein
+Ordner mit 1588 Modellen aus wie einer mit sechzig.
+
+Nachgeladen wird beim `scroll`-Ereignis, und das ist hier gut genug: Es kommt
+aus dem Hauptstrang und damit zu spät für eine Leinwand (siehe oben), aber
+nicht zu spät für sechzig Knöpfe, die 600 Punkte vor dem Ende bestellt werden.
+Dazu ein zweiter Weg (`fill`): Passt der erste Schwung gar nicht erst in den
+Kasten — acht Spalten auf einem breiten Schirm sind sechzig Kacheln in acht
+Zeilen —, kommt sofort nachgelegt, denn ein `scroll` kommt nie, wenn nichts zu
+scrollen ist.
 
 ## Die Ids sind Adressen
 
-Jeder Eintrag heißt `kaykit:<pfad>`, ein Fach `kaykit:<ordner>#<n>`. Das ist
+Jeder Eintrag heißt `kaykit:<pfad>`, ein Fach `kaykit:<ordner>#<n>`, eine
+Schublade `kaykit#cat:<id>` und der Ordnerbaum `kaykit#packs`. Das ist
 kein Schmuck: Der Weg durchs Menü und die Blätterstellung jeder Seite werden
 **nach Id** gemerkt (`ui/menuNav.ts`), von beiden Handgelenken und der Seite
 gemeinsam. Derselbe Index ergibt deshalb zweimal denselben Baum, auch nach
@@ -311,6 +442,134 @@ Murmeln kullern, Dominosteine stehen auf Lücke —, und ein Würfel, der beim
 Loslassen auf eine Kachelmitte springt, wäre kein Würfel mehr. Entschieden wird
 das an der **Sorte** (`props.modelPathOf`), also an derselben Zeichenkette, die
 auch über das Netz reist.
+
+## Das Gitter unter dem Getragenen
+
+Einrasten ist eine Rechnung, die man bis eben erst **nach** dem Loslassen sah.
+Gemeldet wurde genau das: „auch beim Platzieren der Gegenstände würde ich
+gerne die Grid-Kachel/n gehighlighted sehen wollen, damit ich weiß wohin ich
+das platzieren werde."
+
+Also liegt jetzt ein Rechteck auf dem Boden, solange etwas getragen wird, das
+einrastet (`worlds/portal/placeGrid.ts`, `PortalWorld.updatePlaceGrid`). Eine
+Fläche **je Kachel** und nicht eine große: Ein zwei Kacheln breites Möbel soll
+man als zwei Kacheln sehen, sonst weiß man nachher nicht, ob die Nachbarkachel
+noch frei ist. Die Fugen dazwischen sind der ganze Sinn der Anzeige.
+
+Gerechnet wird mit **derselben** Rechnung, die `snapPlaced` gleich ausführen
+wird — dieselbe eingerastete Lage, dieselbe Hülle des Colliders
+(`props.modelPropShape`), dieselben Kacheln. Zwei Rechnungen wären zwei
+Antworten, und die zweite fiele erst auf, wenn das Fass neben dem leuchtenden
+Feld landet. Nur Modelle aus dem Regal bekommen es, aus demselben Grund wie
+beim Einrasten selbst: Ein Gitter unter einem Würfel verspräche etwas, das
+nicht passiert.
+
+### Eine Kachel zählt ab der Hälfte
+
+`gridSnap.tilesCovered` nimmt eine Kachel, wenn **mindestens ihre Hälfte**
+bedeckt ist, und diese Zahl ist der Unterschied zwischen einer Anzeige und
+einem Ärgernis. Nachgemessen am Apfel aus `block-bits`: Er ist **1,025 m**
+breit, steht mit seinem Ursprung auf der Kachelmitte und ragt damit 1,2 cm
+über beide Fugen. Wer jede berührte Kachel zählt, leuchtet dafür **neun**
+Kacheln an — ein Gitter, das dreimal so groß ist wie das Ding darüber,
+beantwortet die Frage nicht mehr, für die es da ist. Mit der Hälfte als
+Schwelle ist es eine.
+
+**Die Hälfte zählt dabei mit**, und das ist die andere Seite derselben Regel:
+Ein zwei Meter breites Möbel steht mit seinem Ursprung auf einer Kachelmitte
+und liegt damit auf einer ganzen und zwei halben Kacheln. Alle drei leuchten —
+es ragt wirklich dorthin, und ob daneben noch Platz ist, ist die Frage, für
+die das Gitter da ist.
+
+### Warum ein Rahmen und nicht nur eine Fläche
+
+Die Fläche allein ist genau dann nicht zu sehen, wenn man sie braucht: Das
+Getragene hängt vor der Figur, und von oben wie aus den Augen liegt die Kachel
+**dahinter**. Ein Apfel von 1,02 m deckt seine eigene Kachel vollständig ab.
+
+Über der Fläche liegt deshalb ein **Rahmen** von 8 cm, und der wird ohne
+Tiefenprüfung gezeichnet (`depthTest: false`): Er liegt über allem, auch über
+dem, was man trägt. Schmal genug, dass er das Modell nicht einfärbt, breit
+genug, dass man ihn aus der Aufsicht erkennt. Die Fläche darunter bleibt
+tiefengeprüft — sie ist das, was auf freiem Boden gut aussieht, und soll nicht
+durch Wände scheinen.
+
+### Und es liegt auf Fußhöhe
+
+Das Einrasten kennt keinen Boden (siehe oben): Es setzt x, z und die Drehung,
+die Höhe macht die Schwerkraft. Einen Boden zu suchen hieße, hier eine zweite
+Antwort auf eine Frage zu geben, die das Einrasten bewusst offen lässt — und
+die beiden liefen beim ersten Tisch auseinander. Also liegt das Gitter auf der
+Höhe, auf der die **Figur** steht (`PlayerRig.getFloorY`). Wer auf einem Dach
+steht, sieht es auf dem Dach.
+
+## Die Kisten des Regals stehen auf einem Deckel
+
+Eine Kiste aus `restaurant-bits` ist 0,40 m hoch, eine Arbeitsplatte 0,50 m.
+In der Küche stand deshalb jede Kiste eine Handbreit unter der Zeile daneben —
+eine Stufe, die niemand erklären kann, und zu tief zum Hineingreifen. Die
+Antwort dort war ein **Kistendeckel als Sockel**
+(`core/kitchenFit.CRATE_PLINTH`): derselbe Baukasten, dasselbe Holz, dieselbe
+Kante, und oben schließt alles bündig ab.
+
+Im Regal stand dieselbe Kiste weiterhin ohne Sockel, und genau das war der
+Bruch beim Einrichten: Wer aus dem Regal eine Kiste neben eine Küchenzeile
+stellte, bekam die Stufe zurück, die in der Küche gerade weggerechnet worden
+war. Gemeldet als: „dass bei dem KayKit-Regal-Menü die Crates immer wie in der
+Küche modifiziert sind."
+
+Also gilt die Änderung jetzt für **jede** Kiste dieses Pakets — in der Kachel
+des Menüs, in der Hand und auf dem Boden. `core/kaykitCrate.kaykitPlinth`
+beantwortet für eine Adresse, ob ein zweites Netz darunter gehört, und der
+Lader setzt beide zusammen (`kaykitModel.copyOf`): der Deckel mit seiner
+Unterkante auf null, die Kiste auf dessen Oberkante. **Gemessen wird dabei am
+geklonten Netz** und nicht am Katalog — der Deckel ist fremde Arbeit, und eine
+abgeschriebene Höhe wäre die Zahl, die beim nächsten Paket-Update stehen
+bleibt.
+
+Erkannt wird an Paket und Dateinamen und nicht an einer Liste: Was in
+`restaurant-bits` mit `crate` anfängt, ist eine Kiste. Der **Deckel selbst**
+bekommt keinen — er *ist* der Sockel, und ein Deckel auf einem Deckel wäre ein
+Brett von 0,20 m, das niemand bestellt hat. Und `kaykitModelNow` gibt eine
+Kiste erst heraus, wenn **beide** Dateien da sind: Sie ohne Sockel zu zeigen
+und im nächsten Bild zu verschieben wären zwei Bilder von derselben Kiste.
+
+## Aus dem Regal wird in der Küche ein Möbel
+
+Ein Modell aus dem Regal ist ein **Bild**: eine Hülle als Collider, eine
+Masse, und damit ein Fass, durch das man nicht hindurchgeht. Ein Möbel der
+Küche ist dagegen eine **Regel**: Eine Vorratskiste gibt Brötchen heraus, ein
+Herd brät, ein Becken spült.
+
+Der Unterschied war bis eben unsichtbar, denn **beide zeigen dasselbe Netz**:
+Die Möbel der Küche stehen auf Netzen aus `restaurant-bits`
+(`core/kitchenFit.KitchenPiece.base`), und dieselben Dateien liegen einzeln im
+Regal. Wer die Brötchenkiste aus dem Regal nahm, bekam also die Kiste, die in
+der Küche Brötchen ausgibt — nur eben als Fass. Gemeldet: „die platzierten
+Elemente sollen dann auch funktionsfähig sein wenn ich z. B. Crate
+Vorratskiste mit Brötchen hinstelle oder Herd, Waschbecken etc."
+
+`core/kitchenShelf.ts` schließt die Lücke: dreizehn Zeilen, links eine
+Adresse, rechts ein Möbel des Küchenkatalogs. Steht die Figur **in der Küche**
+und nimmt eine davon, entsteht statt des Fasses das Stück, das auch im
+Konstrukt-Raum im Regal stünde — mitsamt Station, Ablage und Uhr
+(`KitchenZone.takeShelfPiece` → `takeFromCatalogue`). Es liegt dann in den
+Händen wie jedes andere Möbel im Umbau und wird mit `A` hingestellt.
+
+Den Weg dorthin öffnet ein Haken in der Welt: `PortalWorld.takeFurniture`
+antwortet überall `nein`, und nur die Testwelt reicht die Frage an ihre Küche
+weiter. **Draußen bleibt es ein Fass**, und das ist die richtige Antwort: Eine
+Vorratskiste auf der Wiese hätte niemanden, dem sie etwas ausgeben könnte —
+und sie käme obendrein sofort auf eine freie Kachel **der Küche** zurück,
+sobald jemand `B` drückt.
+
+**Warum eine Tabelle und keine Rechnung.** Aus dem Katalog der Küche ließe
+sich die Zuordnung fast ableiten — jedes Möbel nennt den Knoten, auf dem es
+steht. Fast: Vier Vorratskisten, die Tellerkiste und die Ausgabe stehen
+**alle** auf `crate_lid`, und drei Möbel teilen sich `kitchencounter_straight_A`.
+Eine Rechnung müsste raten; dreizehn Zeilen liest man. Der Test daneben hält
+sie ehrlich: Jeder Name muss ein Möbel sein, das es wirklich gibt, und jede
+Adresse eine Datei, die wirklich im Regal liegt.
 
 ## Aus einem Modell wird ein Gegenstand
 
@@ -452,15 +711,29 @@ jedem `removeProp`, also an drei Stellen, die niemand im Verdacht hätte.
   an einer anderen Stelle der Figur (`chefFit.CHEF_TOOL`), und so hält es auch
   die Küche (`PlayerAvatar.carry`: „Pistole rechts, Brötchen links"). Nur wer
   das Werkzeug **wechselt**, legt das Getragene dabei ab.
-- **Kein Suchfeld.** Gefunden wird über Ordner und Fächer; wer den Namen weiß,
-  muss trotzdem blättern.
+- **In der Brille gibt es kein Suchfeld.** Dort führen Schubladen, Ordner und
+  Fächer zum Ziel; wer den Namen weiß, blättert trotzdem. Am Schirm gibt es
+  eines (siehe oben), und es sucht nur in **Dateinamen und Pfaden** — englisch,
+  so wie die Sammlung heißt. `holz` findet nichts, `wood` schon.
+- **Die Schubladen sind eine Schätzung.** Sie entscheiden an Paket und
+  Dateinamen (siehe oben), und eine Datei, für die niemand ein Wort
+  aufgeschrieben hat, liegt in _Alles Übrige_. Das ist kein Fehler, sondern der
+  Preis dafür, dass niemand viertausendfünfhundert Zeilen pflegt — wer etwas
+  vermisst, trägt ein Wort in `KAYKIT_CATEGORIES` nach.
 - **Griff, Farbe, Ton kennt ein Modell nicht.** Es wird angefasst, wo die Hand
   es berührt (`PROP_GRIPS` hat keinen Eintrag dafür), und es klingt wie jedes
   andere Ding.
 - **Das Einrasten kennt keinen Boden.** Es setzt x, z und die Drehung, die
   Höhe macht die Schwerkraft — wer ein Fass über einer Treppenstufe ablegt,
   bekommt ein Fass, das auf die Stufe fällt und dort liegt, und nicht eines,
-  das auf ihre Oberkante gesetzt wird.
+  das auf ihre Oberkante gesetzt wird. **Das Gitter darunter ebenso wenig**: Es
+  liegt auf der Höhe, auf der die Figur steht (siehe _Das Gitter unter dem
+  Getragenen_).
+- **Funktionierende Möbel gibt es nur in der Küche.** Dreizehn Adressen werden
+  dort zu echten Küchenmöbeln (siehe _Aus dem Regal wird in der Küche ein
+  Möbel_); überall sonst — und für alles andere aus der Sammlung — bleibt es
+  bei Hülle und Masse. Ein Herd auf einer Wiese hat niemanden, für den er
+  braten könnte.
 - **Animationen bleiben liegen.** Was die Sammlung an Bewegung mitbringt, wird
   geladen und nicht abgespielt — ein Gegenstand aus dem Beutel bewegt sich auch
   nicht von selbst.

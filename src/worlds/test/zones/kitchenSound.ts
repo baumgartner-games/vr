@@ -48,6 +48,8 @@ export type KitchenCue =
   | 'water'
   /** Das Becken, solange darin gespült wird: dieselbe Aufnahme als Schleife. */
   | 'rinse'
+  /** Die Wasserpumpenzange am undichten Becken: eine Schleife, solange sie ratscht. */
+  | 'ratchet'
   /** Zwei Zutaten werden eine — von Hand oder im Kombinierer. */
   | 'combine'
   /** Eine Kiste gibt etwas heraus. */
@@ -106,11 +108,13 @@ export const DEED_SOUNDS: Readonly<Record<DeedKind, KitchenCue | null>> = {
   scrape: 'place',
   serve: 'serve',
   douse: null,
-  // **Und die Zange klingt beim Ansetzen nach nichts.** Das Becken rauscht in
-  // diesem Augenblick ohnehin (`kitchen.listen` schickt ein spritzendes Becken
-  // in dieselbe Schleife wie ein spülendes), und ein Klick darüber wäre ein
-  // Ton, den niemand hört. Zu hören ist dafür das **Ende**: Wenn es dicht ist,
-  // hört das Rauschen auf, und genau daran merkt man es auch, ohne hinzusehen.
+  // **Die Zange klingt beim Ansetzen nach nichts** — sie fängt dafür an zu
+  // **ratschen**, und zwar solange die Reparatur läuft (`kitchen.listen`,
+  // `LeakState.fixing`). Ein einzelner Klick beim Ansetzen wäre unter dem
+  // rauschenden Becken ohnehin nicht zu hören; vier Sekunden Ratsche sind
+  // dagegen die Auskunft, um die es geht: **dass gerade repariert wird**. Zu
+  // hören ist danach auch das Ende — wenn es dicht ist, hören Rauschen und
+  // Ratsche zugleich auf.
   repair: null,
   refuse: null,
   nothing: null,
@@ -359,6 +363,10 @@ export const KITCHEN_CUES: Readonly<Record<KitchenCue, KitchenCueSpec>> = {
   sizzle: { files: ['sizzle.ogg'], gain: 0.35, loop: true },
   water: { files: ['water.ogg'], gain: 0.4, loop: false },
   rinse: { files: ['water.ogg'], gain: 0.3, loop: true },
+  // **Lauter als das Rauschen, unter dem sie liegt** (0,45 gegen 0,3): Ein
+  // spritzendes Becken rauscht die ganze Zeit, und eine Ratsche, die genauso
+  // laut ist, geht darin unter — dann sähe man die Reparatur nur am Balken.
+  ratchet: { files: ['ratchet.ogg'], gain: 0.45, loop: true },
   combine: { files: ['combine-0.ogg', 'combine-1.ogg'], gain: 0.4, loop: false },
   crate: { files: ['crate-0.ogg'], gain: 0.4, loop: false },
   warn: { files: ['warn.ogg'], gain: 0.45, loop: false, reach: EVERY_ROOM },

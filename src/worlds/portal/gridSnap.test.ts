@@ -8,7 +8,15 @@
  */
 import * as THREE from 'three';
 import { TILE } from '../nav/navTile';
-import { PLACE_SPEED, gridPose, placesOnGrid, quarterYaw, tileCentre, yawOf } from './gridSnap';
+import {
+  PLACE_SPEED,
+  gridPose,
+  placesOnGrid,
+  quarterYaw,
+  tileCentre,
+  tilesCovered,
+  yawOf,
+} from './gridSnap';
 
 /** Eine Drehung um die Hochachse, so wie sie an einem Gegenstand steht. */
 function turned(yaw: number): THREE.Quaternion {
@@ -107,5 +115,80 @@ describe('placesOnGrid', () => {
   /** Am Schirm legt ein Knopfdruck ab — auch im Laufen. */
   it('rastet ein, wenn ausdrücklich abgelegt wird', () => {
     expect(placesOnGrid(9, true)).toBe(true);
+  });
+});
+
+/**
+ * **Welche Kacheln unter dem Getragenen leuchten** — die Liste, die dem
+ * Spieler vor dem Loslassen sagt, wohin es fällt (`tilesCovered`).
+ *
+ * Geprüft wird hier das, was man sonst erst im Headset sieht: dass ein
+ * kachelbreites Möbel **eine** Kachel beleuchtet und nicht neun.
+ */
+describe('die Kacheln unter dem Getragenen', () => {
+  it('nimmt für ein kleines Ding genau seine Kachel', () => {
+    expect(tilesCovered(3.3, 3.7, -1.7, -1.3)).toEqual([{ x: 3.5, z: -1.5 }]);
+  });
+
+  it('zählt die Fuge nicht mit', () => {
+    expect(tilesCovered(0, 1, 0, 1)).toEqual([{ x: 0.5, z: 0.5 }]);
+  });
+
+  /**
+   * Der gemessene Fall, für den es die Hälfte-Regel gibt: Der Apfel aus
+   * `block-bits` ist 1,025 m breit und ragt damit 1,2 cm über beide Fugen.
+   * Wer jede berührte Kachel zählte, leuchtete dafür drei je Achse an.
+   */
+  it('lässt einen Überstand von einem Zentimeter nicht zählen', () => {
+    expect(tilesCovered(-0.0125, 1.0125, -0.0125, 1.0125)).toEqual([{ x: 0.5, z: 0.5 }]);
+  });
+
+  it('beleuchtet unter einem breiten Möbel beide Kacheln', () => {
+    expect(tilesCovered(0.1, 1.9, 0.2, 0.8)).toEqual([
+      { x: 0.5, z: 0.5 },
+      { x: 1.5, z: 0.5 },
+    ]);
+  });
+
+  /**
+   * Zwei Meter, mit dem Ursprung auf einer Kachelmitte: eine ganze Kachel und
+   * zwei halbe. Alle drei leuchten — das Möbel ragt wirklich dorthin, und ob
+   * daneben noch Platz ist, ist die Frage, für die das Gitter da ist.
+   */
+  it('zeigt auch die halb bedeckten Nachbarkacheln', () => {
+    expect(tilesCovered(-0.5, 1.5, 0.2, 0.8)).toEqual([
+      { x: -0.5, z: 0.5 },
+      { x: 0.5, z: 0.5 },
+      { x: 1.5, z: 0.5 },
+    ]);
+  });
+
+  it('liest von Norden nach Süden und von Westen nach Osten', () => {
+    expect(tilesCovered(0.2, 1.8, 0.2, 1.8)).toEqual([
+      { x: 0.5, z: 0.5 },
+      { x: 1.5, z: 0.5 },
+      { x: 0.5, z: 1.5 },
+      { x: 1.5, z: 1.5 },
+    ]);
+  });
+
+  it('kommt mit negativen Kacheln zurecht', () => {
+    expect(tilesCovered(-1.8, -1.2, -0.8, -0.2)).toEqual([{ x: -1.5, z: -0.5 }]);
+  });
+
+  /** Ein Ding ohne Ausdehnung landet trotzdem irgendwo. */
+  it('gibt bei einem Punkt die Kachel darunter', () => {
+    expect(tilesCovered(2.5, 2.5, 2.5, 2.5)).toEqual([{ x: 2.5, z: 2.5 }]);
+    // Und genau auf der Fuge gewinnt die Kachel unter der Mitte.
+    expect(tilesCovered(2, 2, 2, 2)).toEqual([{ x: 2.5, z: 2.5 }]);
+  });
+
+  /** Die Notbremse: Was zu groß ist, bekommt gar kein Gitter. */
+  it('gibt für eine riesige Fläche nichts aus', () => {
+    expect(tilesCovered(0, 100, 0, 100)).toEqual([]);
+  });
+
+  it('hält Unsinn aus', () => {
+    expect(tilesCovered(Number.NaN, 1, 0, 1)).toEqual([]);
   });
 });

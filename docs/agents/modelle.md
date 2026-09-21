@@ -902,7 +902,17 @@ Und das sind die Regeln, die darin stehen:
   danebensteht**; wer weggeht, fängt von vorn an (dieselbe Regel wie am Brett,
   `advanceWork`). Zwei Uhren an einer Station gibt es damit genau hier, und das
   ist der Grund für die eigene Datei: `kitchenWork.ts` rechnet am **Ding auf**
-  der Station, dieses Leck am **Möbel selbst**.
+  der Station, dieses Leck am **Möbel selbst**. **Und man hört, dass repariert
+  wird** (`kitchenSound.KITCHEN_CUES.ratchet`): Solange die Uhr läuft, ratscht
+  die Zange am Becken — eine Schleife aus zwei Gruppen zu je sechs Zähnen und
+  der Pause dazwischen, in der die Hand zurückgeht. Sie ist lauter als das
+  Rauschen, unter dem sie liegt (0,45 gegen 0,3), und sie klingt **am Becken**
+  und nicht in der Hand: Repariert wird, wo das Wasser ist. Das **Ansetzen**
+  bleibt dafür still (`DEED_SOUNDS.repair`) — ein einzelner Klick unter einem
+  spritzenden Becken hört niemand, vier Sekunden Ratsche dagegen sind die
+  Auskunft, um die es geht. Die Aufnahme ist die einzige dieser Küche, die
+  nicht gefunden, sondern **gerechnet** ist (`tools/ratchet-sound.mjs`; warum,
+  steht in `public/audio/kitchen/CREDITS.md`).
 - **Schneiden und Spülen sind dieselbe Uhr** (`kitchenWork.ts`,
   `WORK_SECONDS` = 3 s für beides; Mixer und sichere Kochstelle hängen mit vier
   und fünf Sekunden an derselben). Beide fangen mit dem **Ablegen** an und

@@ -91,10 +91,46 @@ export interface MenuEntry {
   /** Draw the children as a grid of icons instead of a list. */
   grid?: boolean;
   /**
-   * Spalten im Raster; Standard 3, das Asset-Regal nimmt 2 — auf einem Telefon
-   * ist mehr nicht lesbar.
+   * Spalten im Raster; Standard 3, das Asset-Regal nimmt 2 — in der Brille ist
+   * mehr nicht lesbar.
+   *
+   * **Am Schirm ist es nur noch die Vorgabe.** Dort entscheidet die Seite
+   * selbst, wie viele Spalten in ihr Fenster passen, und der Spieler stellt
+   * sie mit zwei Knöpfen im Kopf nach (`ui/pageCols.ts`, `ui/PageMenu.ts`).
    */
   cols?: number;
+  /**
+   * **Diese Seite nimmt den ganzen Bildschirm** — Breite wie Höhe, und damit
+   * auch die Knöpfe darunter (Menü, Welt, Verbindung, Vollbild, VR).
+   *
+   * Nur die Seite kennt das (`ui/PageMenu.ts`); am Handgelenk ist jedes Panel
+   * gleich groß. Gesetzt hat es bisher genau ein Menü: der Katalog des Regals,
+   * in dem in jeder Kachel ein Modell steht und Platz das Einzige ist, was
+   * hilft.
+   */
+  full?: boolean;
+  /**
+   * **Diese Zwischenseite darf die Seite überspringen** und ihre Kinder an
+   * ihrer Stelle in die Liste hängen.
+   *
+   * Es gibt sie für die **Fächer** des Regals (`core/kaykitIndex.ts`,
+   * `KAYKIT_CHUNK`): In der Brille blättert ein Stick, und ein Ordner mit 1588
+   * Modellen wären vierhundert Seiten — dort sind „1–60" und „61–120" die
+   * billigste Form eines Suchfelds. Am Schirm wird gescrollt und beim Scrollen
+   * nachgeladen (`ui/PageMenu.ts`), und dort ist dieselbe Zwischenseite nur
+   * ein Klick, der nichts erklärt. Eine Bedienfläche, die das Feld nicht
+   * kennt, sieht die Fächer wie bisher.
+   */
+  flatten?: boolean;
+  /**
+   * **Diese Seite hat ein Suchfeld** — was zurückkommt, steht statt ihrer
+   * Liste da.
+   *
+   * Nur die Seite zeigt es: In der Brille will niemand tippen, und deshalb
+   * gibt es dort weiter Ordner und Fächer. Ein leerer Suchbegriff heißt „nicht
+   * gesucht"; dann steht wieder die eigene Liste da.
+   */
+  find?(query: string): MenuEntry[];
   /**
    * Entries on this page are *taken* rather than tapped: point at one and press
    * the grab button (or `A`) and it lands in that hand. The trigger does

@@ -74,6 +74,18 @@ export class TestWorld extends GridWorld {
     return 'test';
   }
 
+  /**
+   * **Aus dem Regal wird in der Küche ein Küchenmöbel** — und draußen ein
+   * Fass wie bisher.
+   *
+   * Die Welt reicht die Frage nur weiter; die Antwort gibt die Zone, denn nur
+   * sie weiß, ob die Figur in ihr steht und ob noch eine Kachel frei ist
+   * (`zones/kitchen.takeShelfPiece`, `core/kitchenShelf.ts`).
+   */
+  protected override takeFurniture(_ctx: WorldContext, path: string): boolean {
+    return this.kitchen.takeShelfPiece(path);
+  }
+
   protected override editorTitle(): string {
     return 'Testwelt';
   }
