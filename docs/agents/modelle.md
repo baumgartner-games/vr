@@ -682,8 +682,10 @@ kann.
   `kitchenNearest`: von vier brennenden Herden zählt der nächste; die
   **Reichweite** steht am Ton und nicht in der Formel, siehe unten), der **Takt**
   des Messers (`kitchenBeat` — höchstens ein Schlag je Bild, sonst macht ein
-  Ruckler eine Salve daraus) und die **Auswahl** der beiden Töne, über die noch
-  nicht entschieden ist (`SOUND_TRIALS`, siehe unten). **Schritte macht die
+  Ruckler eine Salve daraus; alle 0,30 s ein Schlag, `CHOP_BEAT`, also zehn je
+  Schnitt: schnelles Schneiden, ohne dass der Ton selbst schneller liefe) und
+  die **Auswahl** des einen Tons, über den noch nicht entschieden ist
+  (`SOUND_TRIALS`, siehe unten). **Schritte macht die
   Küche nicht**: Es gab vier Aufnahmen und eine Schrittuhr nach der Strecke,
   und beim Kochen war das ein Trommeln unter allem, was man hören wollte.
   Daneben liegt `kitchenAudio.ts` mit acht Stimmen und je Schleife einer, auf dem
@@ -710,20 +712,25 @@ kann.
   Reichweite mit. Warnung, Feueralarm und **Radio** stehen heute auf
   `EVERY_ROOM`; wer das Radio in der **ganzen Welt** hören will, tauscht in
   `KITCHEN_CUES` ein Wort.
-- **Zwei Töne stehen noch zur Wahl, und die Wahl steht in der Küche**
+- **Ein Ton steht noch zur Wahl, und die Wahl steht in der Küche**
   (`kitchenSound.SOUND_TRIALS`, `kitchenPlan.TRIAL_BUTTONS`,
-  `kitchen.addTrialButtons`). Wie das **Messer** auf dem Brett klingt und wie
-  die **Abgabe** eines Gerichts, entscheidet niemand am Schreibtisch; also
-  stehen je zwei rote Knöpfe vor dem Schneidebrett und vor der Ausgabetheke —
-  links weiterschalten, rechts vorspielen —, und auf beiden Schildern steht,
-  welche Variante gerade gilt. Eine Variante ist ein **Satz** Aufnahmen und
-  keine Datei: Das Messer schlägt siebenmal je Schnitt auf, die Abgabe kommt
-  einmal. Geschaltet wird der Vorrat, aus dem der Spieler würfelt
+  `kitchen.addTrialButtons`). Wie die **Abgabe** eines Gerichts klingt,
+  entscheidet niemand am Schreibtisch; also stehen zwei rote Knöpfe vor der
+  Ausgabetheke — links weiterschalten, rechts vorspielen —, und auf beiden
+  Schildern steht, welche Variante gerade gilt. Eine Variante ist ein **Satz**
+  Aufnahmen und keine Datei: Die Abgabe kommt einmal, das Messer schlug
+  mehrmals je Schnitt. Geschaltet wird der Vorrat, aus dem der Spieler würfelt
   (`kitchenAudio.choose`), also klingt die ganze Küche danach so und nicht nur
   die Vorführung. Geladen wird beim Aufbau der Zone **alles**, auch was gerade
   nicht läuft (`kitchenSoundFiles`) — wer erst beim Druck lädt, hört Stille,
   wo er vergleichen wollte. **Das ist Gerüst**: Steht die Wahl, fallen Knöpfe
   und Auswahl heraus, und übrig bleibt der Satz, der gewonnen hat.
+- **Beim Messer ist das schon passiert** (`KITCHEN_CUES.chop`). Von den drei
+  Sätzen, die vor dem Schneidebrett zur Wahl standen, ist das **Küchenbrett**
+  geblieben — vier Hiebe auf dasselbe Holz —; die beiden anderen sind mitsamt
+  ihren Aufnahmen (`chop-*.ogg`, `chop-wood-*.ogg`) und den zwei Knöpfen davor
+  weg. So sieht eine entschiedene Wahl aus: eine Zeile in `KITCHEN_CUES`,
+  keine Liste daneben und kein Knopf im Gang.
 - **Das Radio ist kein Möbel** (`kitchenRadio.ts`, `kitchenPlan.RADIO_TILE`).
   Es steht in keiner Möbelliste und lässt sich nicht umbauen — dieselbe
   Begründung wie bei den beiden roten Knöpfen: Ein Gerät, das man im Baumodus

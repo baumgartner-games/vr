@@ -139,28 +139,29 @@ export function deedSound(deed: DeedKind, station: StationKind): KitchenCue | nu
  * **Die Töne, über die noch nicht entschieden ist** — und die Auswahl, die
  * dazu in der Küche steht.
  *
- * Zwei Geräusche haben ihren endgültigen Klang noch nicht gefunden: das
- * **Messer auf dem Brett** und die **Abgabe eines Gerichts**. Bei beiden hilft
- * kein Nachdenken, sondern nur Hinhören, und Hinhören heißt in dieser Küche:
- * im Headset danebenstehen. Deshalb steht die Entscheidung nicht in dieser
- * Datei, sondern auf zwei Knöpfen im Schauraum (`kitchen.addTrialButtons`) —
- * einer schaltet weiter, einer spielt vor.
+ * Noch ein Geräusch hat seinen endgültigen Klang nicht gefunden: die **Abgabe
+ * eines Gerichts**. Dabei hilft kein Nachdenken, sondern nur Hinhören, und
+ * Hinhören heißt in dieser Küche: im Headset danebenstehen. Deshalb steht die
+ * Entscheidung nicht in dieser Datei, sondern auf zwei Knöpfen im Schauraum
+ * (`kitchen.addTrialButtons`) — einer schaltet weiter, einer spielt vor.
  *
- * **Eine Variante ist ein Satz und keine Datei.** Das Messer schlägt siebenmal
- * je Schnitt auf (`CHOP_BEAT`); ein Satz aus drei Aufnahmen klingt dabei nach
- * Arbeit, eine einzelne nach Maschine. Die Abgabe kommt dagegen einmal und
- * soll wiedererkennbar sein — dort ist ein Satz genau eine Aufnahme. Beides
- * ist dieselbe Liste, aus demselben Grund wie bei `KitchenCueSpec.files`.
+ * **Eine Variante ist ein Satz und keine Datei.** Die Abgabe kommt einmal und
+ * soll wiedererkennbar sein — dort ist ein Satz genau eine Aufnahme; ein
+ * Geräusch, das wie das Messer mehrmals hintereinander schlägt, bekäme mehrere
+ * (`KITCHEN_CUES.chop`). Beides ist dieselbe Liste, aus demselben Grund wie
+ * bei `KitchenCueSpec.files`.
  *
  * **Die erste Variante ist die, die läuft**, bis jemand weiterschaltet; sie
- * steht deshalb auch in `KITCHEN_CUES`. Ist die Wahl gefallen, bleibt von
- * diesem Abschnitt eine Zeile übrig — der Satz, der gewonnen hat — und der
- * Rest fällt mitsamt den Knöpfen wieder heraus.
+ * steht deshalb auch in `KITCHEN_CUES`. Ist die Wahl gefallen, fällt dieser
+ * Abschnitt mitsamt den Knöpfen heraus, und der Satz, der gewonnen hat, steht
+ * danach als Datei in `KITCHEN_CUES` — so, wie es das **Messer** gerade
+ * vorgemacht hat: Von seinen drei Sätzen ist das Küchenbrett übrig, die
+ * beiden anderen sind samt Aufnahmen und Knöpfen weg.
  */
-export type TrialCue = 'chop' | 'serve';
+export type TrialCue = 'serve';
 
-/** Beide, einmal — für die Knöpfe und für die Tests. */
-export const TRIAL_CUES: readonly TrialCue[] = ['chop', 'serve'];
+/** Einmal, der Reihe nach — für die Knöpfe und für die Tests. */
+export const TRIAL_CUES: readonly TrialCue[] = ['serve'];
 
 /** Eine Variante: wie sie heißt und woraus sie besteht. */
 export interface SoundTrial {
@@ -171,19 +172,6 @@ export interface SoundTrial {
 }
 
 export const SOUND_TRIALS: Readonly<Record<TrialCue, readonly SoundTrial[]>> = {
-  chop: [
-    // Was bisher lief: ein Hieb aus einem Spielesatz und zwei aus einer echten
-    // Küche — gemischt, und genau deshalb nicht aus einem Guss.
-    { label: 'Messer und Brett', files: ['chop-0.ogg', 'chop-1.ogg', 'chop-2.ogg'] },
-    // Derselbe Mitschnitt, aber nur er: vier Hiebe auf dasselbe Holz, länger
-    // geschnitten, damit das Brett nachklingt.
-    {
-      label: 'Küchenbrett',
-      files: ['chop-board-0.ogg', 'chop-board-1.ogg', 'chop-board-2.ogg', 'chop-board-3.ogg'],
-    },
-    // Und dumpfes Holz statt Klinge: tiefer, weicher, näher am Hackblock.
-    { label: 'Hackblock', files: ['chop-wood-0.ogg', 'chop-wood-1.ogg', 'chop-wood-2.ogg'] },
-  ],
   serve: [
     // Die Glocke auf der Theke — das Geräusch, das eine Ausgabe in jedem
     // Imbiss macht.
@@ -359,7 +347,15 @@ export const KITCHEN_PAN = 0.8;
  * Warndreieck nicht mehr.
  */
 export const KITCHEN_CUES: Readonly<Record<KitchenCue, KitchenCueSpec>> = {
-  chop: { files: SOUND_TRIALS.chop[0]!.files, gain: 0.4, loop: false },
+  // **Das Messer ist entschieden**: das Küchenbrett, vier Hiebe auf dasselbe
+  // Holz aus einem Mitschnitt — länger geschnitten, damit das Brett nachklingt.
+  // Die beiden anderen Sätze, die hier zur Wahl standen, sind mitsamt ihren
+  // Aufnahmen und den zwei Knöpfen davor weg.
+  chop: {
+    files: ['chop-board-0.ogg', 'chop-board-1.ogg', 'chop-board-2.ogg', 'chop-board-3.ogg'],
+    gain: 0.4,
+    loop: false,
+  },
   sizzle: { files: ['sizzle.ogg'], gain: 0.35, loop: true },
   water: { files: ['water.ogg'], gain: 0.4, loop: false },
   rinse: { files: ['water.ogg'], gain: 0.3, loop: true },
@@ -503,11 +499,15 @@ export function kitchenNearest(
 /**
  * **Wie oft das Messer aufschlägt**, in Sekunden.
  *
- * 0,42: Ein Schnitt dauert drei Sekunden (`kitchenWork.WORK_SECONDS.chop`),
- * das sind gut sieben Schläge — genug, dass es nach Arbeit klingt, und wenig
- * genug, dass es keine Maschinenpistole wird.
+ * 0,30: Ein Schnitt dauert drei Sekunden (`kitchenWork.WORK_SECONDS.chop`),
+ * das sind zehn Schläge. Hier stand 0,42 — gut sieben Schläge —, und das
+ * klang nach jemandem, der sich das Schneiden überlegt. Schnelles Schneiden
+ * ist die Bewegung, die man aus jeder Küche kennt, und **der Ton selbst wird
+ * dabei nicht schneller**: Er ist eine viertel Sekunde lang, vier Aufnahmen
+ * wechseln sich ab (`KITCHEN_CUES.chop`), und damit steht auch bei 0,30 noch
+ * ein Schlag neben dem anderen statt einer im anderen.
  */
-export const CHOP_BEAT = 0.42;
+export const CHOP_BEAT = 0.3;
 
 /** Was ein Takt in diesem Bild ergeben hat. */
 export interface KitchenBeat {
