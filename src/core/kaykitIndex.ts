@@ -164,6 +164,14 @@ export interface KaykitFileRef {
   readonly label: string;
   readonly bytes?: number;
   /**
+   * **Wie das Paket heißt, in dem sie liegt** — „Adventurers 2.0" und nicht
+   * `adventurers`. Der Steckbrief der Detailseite zeigt es
+   * (`ui/menu.MenuDetail`), und dort ist der Ordnername die falsche Antwort:
+   * Der Index trägt den wirklichen Namen des Pakets, und genau dafür steht er
+   * darin.
+   */
+  readonly pack: string;
+  /**
    * **Alle** Schubladen, in die diese Datei gehört — mindestens eine
    * (`kaykitCategoriesOf`). Sie steht einmal hier und wird nicht bei jedem
    * Tastendruck neu gerechnet: Die Suche fragt sie bei jedem Buchstaben, und
@@ -189,7 +197,7 @@ export function kaykitFiles(index: KaykitIndex): KaykitFileRef[] {
   return out;
 }
 
-function collect(dir: KaykitDir, trail: readonly string[], out: KaykitFileRef[]): void {
+function collect(dir: KaykitDir, trail: readonly string[], out: KaykitFileRef[], pack = ''): void {
   const dirs = [...(dir.dirs ?? [])].sort((a, b) => byName(labelOf(a), labelOf(b)));
   const files = [...(dir.files ?? [])].sort((a, b) => byName(a.name, b.name));
   for (const file of files) {
@@ -199,10 +207,13 @@ function collect(dir: KaykitDir, trail: readonly string[], out: KaykitFileRef[])
       name: file.name,
       label: humanLabel(file.name),
       ...(file.bytes === undefined ? {} : { bytes: file.bytes }),
+      pack,
       cats: kaykitCategoriesOf(path),
     });
   }
-  for (const child of dirs) collect(child, [...trail, child.name], out);
+  // Auf der ersten Ebene unter der Wurzel stehen die Pakete; von dort an gilt
+  // derselbe Name für alles darunter.
+  for (const child of dirs) collect(child, [...trail, child.name], out, pack || labelOf(child));
 }
 
 /**
@@ -744,7 +755,7 @@ export function kaykitPackMenu(
   index: KaykitIndex,
   pick: (path: string, hand: Handedness | null) => void,
 ): MenuEntry[] {
-  return entriesOf(index.root, [], pick);
+  return entriesOf(index.root, [], pick, '');
 }
 
 /**
@@ -864,12 +875,18 @@ function entriesOf(
   dir: KaykitDir,
   trail: readonly string[],
   pick: (path: string, hand: Handedness | null) => void,
+  pack: string,
 ): MenuEntry[] {
   const dirs = [...(dir.dirs ?? [])].sort((a, b) => byName(labelOf(a), labelOf(b)));
   const files = [...(dir.files ?? [])].sort((a, b) => byName(a.name, b.name));
   return [
-    ...dirs.map((child) => folderEntry(child, [...trail, child.name], pick)),
-    ...fileEntries(files, trail, trail.join('/'), pick),
+    // Die erste Ebene unter der Wurzel sind die Pakete; ab dort trägt jeder
+    // Ordner den Namen seines Pakets weiter — der Steckbrief einer Datei nennt
+    // ihn (`ui/menu.MenuDetail`).
+    ...dirs.map((child) =>
+      folderEntry(child, [...trail, child.name], pick, pack || labelOf(child)),
+    ),
+    ...fileEntries(files, trail, trail.join('/'), pick, pack),
   ];
 }
 
@@ -881,6 +898,7 @@ function folderEntry(
   dir: KaykitDir,
   trail: readonly string[],
   pick: (path: string, hand: Handedness | null) => void,
+  pack: string,
 ): MenuEntry {
   return {
     id: `kaykit:${trail.join('/')}`,
@@ -892,7 +910,7 @@ function folderEntry(
     cols: SHELF_COLS,
     full: true,
     take: true,
-    children: entriesOf(dir, trail, pick),
+    children: entriesOf(dir, trail, pick, pack),
   };
 }
 
@@ -909,6 +927,7 @@ function fileEntries(
   trail: readonly string[],
   key: string,
   pick: (path: string, hand: Handedness | null) => void,
+  pack: string,
 ): MenuEntry[] {
   return sheetsOf(
     files.map((file) => {
@@ -918,6 +937,7 @@ function fileEntries(
         name: file.name,
         label: humanLabel(file.name),
         ...(file.bytes === undefined ? {} : { bytes: file.bytes }),
+        pack,
         cats: kaykitCategoriesOf(path),
       };
     }),
@@ -984,8 +1004,40 @@ function fileEntry(
     // Die Id der Vorschau **ist** die Id der Zeile: Was man sieht, ist das,
     // was man bekommt, und die Fabrik im Menü muss nichts übersetzen.
     preview: `kaykit:${file.path}`,
+    // **Die Detailseite hinter dem ⓘ in der Ecke der Kachel**
+    // (`ui/menu.MenuDetail`, `ui/PageMenu.ts`). Sie nimmt den ganzen Schirm,
+    // wie der Katalog darüber: Was sie zeigt, ist ein Modell in Lebensgröße
+    // und keine Liste mit vier Zeilen.
+    full: true,
+    detail: {
+      preview: `kaykit:${file.path}`,
+      facts: fileFacts(file),
+    },
     run: (hand) => pick(file.path, hand),
   };
+}
+
+/**
+ * **Der Steckbrief einer Datei** — das, was schon im Index steht.
+ *
+ * Alles andere misst die Vorschau am geladenen Modell (Kantenlängen in Metern,
+ * Dreiecke, Bewegungen) und reicht es nach; hier steht nur, was ohne eine
+ * einzige geladene Datei zu haben ist. Eine Zeile ohne Wert fällt weg — ein
+ * Steckbrief ist kein Formular.
+ */
+function fileFacts(file: KaykitFileRef): { label: string; value: string }[] {
+  const cut = file.path.lastIndexOf('/');
+  const folder = cut < 0 ? '' : file.path.slice(0, cut);
+  const drawers = file.cats
+    .map((id) => KAYKIT_CATEGORIES.find((category) => category.id === id)?.label ?? id)
+    .join(' · ');
+  return [
+    { label: 'Paket', value: file.pack },
+    { label: 'Ordner', value: folder },
+    { label: 'Datei', value: file.name },
+    { label: 'Dateigröße', value: kaykitSize(file.bytes) },
+    { label: 'Schubladen', value: drawers },
+  ].filter((fact) => fact.value.length > 0);
 }
 
 /**

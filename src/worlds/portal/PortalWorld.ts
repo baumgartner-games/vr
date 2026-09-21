@@ -111,7 +111,7 @@ import {
   type KaykitFileRef,
   type KaykitIndex,
 } from '../../core/kaykitIndex';
-import { kaykitModel, kaykitModelNow, loadKaykitIndex } from '../../core/kaykitModel';
+import { kaykitClips, kaykitModel, kaykitModelNow, loadKaykitIndex } from '../../core/kaykitModel';
 import { snapToGrip } from './propGrip';
 import { CORK_LENGTH, CORK_NAME, CORK_RADIUS, CORK_SPEED, Foam, ShakeMeter } from './champagne';
 import {
@@ -1409,7 +1409,10 @@ export class PortalWorld implements World {
     this.bindFlatInput(ctx);
     // Die kleinen Modelle in den Menüzeilen kommen aus demselben Regal wie
     // die Werkzeuge selbst — abgeschrieben, nicht gebaut (`WristMenu.ts`).
-    ctx.menu.setModelFactory((id) => this.menuModel(id));
+    ctx.menu.setModelFactory(
+      (id) => this.menuModel(id),
+      (id, height) => this.menuClips(id, height),
+    );
 
     ctx.notify(this.welcome());
   }
@@ -8207,6 +8210,22 @@ export class PortalWorld implements World {
     const path = kaykitPathOf(id);
     if (path !== null) return kaykitModelNow(path);
     return this.tool(id);
+  }
+
+  /**
+   * **Und welche Bewegungen es zu einer Menüzeile gibt** — für die
+   * Detailseite des Regals (`ui/PageDetail.ts`).
+   *
+   * Nur das Regal antwortet darauf: Ein Werkzeug ist von Hand gebaut und
+   * bewegt sich, wenn es sich bewegt, aus dem Code heraus. `height` ist die
+   * Höhe in den Maßen der Quelle und entscheidet über das Skelett
+   * (`core/kaykitClips.ts`); `null` heißt „keine Figur" und holt gar keine
+   * Bibliothek.
+   */
+  private menuClips(id: string, height: number | null): Promise<THREE.AnimationClip[]> {
+    const path = kaykitPathOf(id);
+    if (path === null) return Promise.resolve([]);
+    return kaykitClips(path, height);
   }
 
   /**

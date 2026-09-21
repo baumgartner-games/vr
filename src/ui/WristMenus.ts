@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WristMenu, type MenuModelFactory, type WristMenuOptions } from './WristMenu';
 import { PagePreviews } from './PagePreviews';
+import type { MenuClipSource } from './PageDetail';
 import { MenuNav } from './menuNav';
 import type { MenuEntry } from './menu';
 import type { PageMenu } from './PageMenu';
@@ -178,10 +179,14 @@ export class WristMenus extends THREE.Group {
    * stand. Die Handgelenke bekommen die Fabrik selbst; die Seite bekommt eine
    * Schicht darum, die ihr die Modelle auf eine Leinwand zeichnet
    * (`PagePreviews.ts`) — sie selbst bleibt frei von three.js.
+   *
+   * `clips` gehört zur **Detailseite** und nur zu ihr: Dort darf man bei einer
+   * Figur die Bewegung wählen (`ui/PageDetail.ts`), und woher die kommen, weiß
+   * die Welt und nicht das Menü. Ohne Quelle bleibt das Auswahlfeld weg.
    */
-  setModelFactory(factory: MenuModelFactory | null): void {
+  setModelFactory(factory: MenuModelFactory | null, clips: MenuClipSource | null = null): void {
     for (const menu of this.menus) menu.setModelFactory(factory);
-    this.page?.setPreviews(factory ? new PagePreviews(factory) : null);
+    this.page?.setPreviews(factory ? new PagePreviews(factory, clips) : null);
   }
 
   update(dt: number, input: XRInput, headWorld: THREE.Matrix4): void {

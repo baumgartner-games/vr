@@ -57,7 +57,8 @@
 
 /* Zurück, Schließen und der Pfeil einer Nimm-Zeile: rund, 40 Punkte, ein Strich. */
 .pmenu__nav,
-.pmenu__more {
+.pmenu__more,
+.pmenu__info {
   display: grid;
   place-items: center;
   flex: none;
@@ -72,9 +73,11 @@
 }
 
 .pmenu__nav:hover,
-.pmenu__more:hover { background: rgba(140, 170, 230, 0.24); }
+.pmenu__more:hover,
+.pmenu__info:hover { background: rgba(140, 170, 230, 0.24); }
 .pmenu__nav svg,
 .pmenu__more svg,
+.pmenu__info svg,
 .pmenu__chevron svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pmenu__back[hidden] { display: none; }
 /* Und das Haus: von vorne durch den Katalog. Es steht rechts neben dem Titel,
@@ -316,6 +319,115 @@
 .pmenu__tile strong { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .pmenu__tile small { font-size: 11px; line-height: 1.3; color: var(--muted); }
 
+/* **Die Kachel und ihr ⓘ** — zwei Ziele, ein Platz im Raster.
+
+   Ein Knopf im Knopf ist kein gültiges DOM, also liegt der kleine Knopf
+   *neben* der Kachel und wird über sie gelegt (dieselbe Bauweise wie
+   `.pmenu__pair`, nur über Eck). Die Kachel selbst füllt den Rahmen und nimmt
+   weiter das Modell in die Hand; der Knopf oben rechts schlägt den Steckbrief
+   auf (`ui/PageMenu.ts`, `MenuEntry.detail`). */
+.pmenu__card { position: relative; display: grid; }
+.pmenu__card .pmenu__tile { width: 100%; }
+
+.pmenu__info {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 30px;
+  height: 30px;
+  /* Der Knopf liegt auf der Kachel, und dort ist es dunkel genug, dass ein
+     halbdurchsichtiger Kreis verschwindet. Also ein eigener Grund. */
+  background: rgba(8, 12, 22, 0.72);
+  color: var(--accent);
+}
+
+.pmenu__info svg { width: 17px; height: 17px; }
+/* Das ⓘ ist ein Kreis und zwei Striche; der Punkt darüber ist ein Strich von
+   einem Zehntel Punkt Länge, den `stroke-linecap: round` zu einem Punkt macht.
+   Ein zweiter Pfad dafür wäre ein zweiter Pfad für einen Punkt. */
+
+/* ---------- Die Detailseite eines Modells (`ui/PageDetail.ts`) ----------
+
+   Oben das Modell, darunter Schalter, Bewegung und Steckbrief. Beides liegt im
+   **scrollenden** Kasten: Genau das war gewünscht — „seitlich sollte etwas
+   Platz sein, da ich runterscrollen möchte in dem Menü, um darunter weitere
+   Infos zu sehen." */
+.pmenu__detail { display: grid; gap: 10px; padding: 10px; }
+.pmenu__detail[hidden] { display: none; }
+
+/* Alles unter dem Modell: Schalter, Bewegung, Steckbrief. Eine Spalte, in der
+   Reihenfolge, in der man danach sucht. */
+.pmenu__about { display: grid; gap: 10px; align-content: start; }
+
+/* So hoch wie ein halber Schirm, aber nie höher als breit: Ein Quadrat zeigt
+   ein Fass wie eine Figur, und was darunter steht, bleibt in Sichtweite —
+   sonst sähe niemand, dass es weitergeht. */
+.pmenu__view {
+  position: relative;
+  width: 100%;
+  height: min(52dvh, 100vw);
+  background: rgba(140, 170, 230, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  /* Der Saum links und rechts gehört dem Scrollen — hier steht, dass er es
+     darf. Die Mitte darüber sagt gleich das Gegenteil. */
+  touch-action: pan-y;
+}
+
+.pmenu__big { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+/* **Die Mitte dreht.** Ihre Breite setzt `ui/PageDetail.ts` aus derselben
+   Rechnung, die auch entscheidet, wem ein Finger gehört (`ui/detailDrag.ts`);
+   hier steht nur, dass der Browser hier nichts mehr zu scrollen hat. */
+.pmenu__grab {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 14%;
+  right: 14%;
+  touch-action: none;
+  cursor: grab;
+}
+
+.pmenu__grab:active { cursor: grabbing; }
+
+.pmenu__opts { display: grid; gap: 6px; }
+.pmenu__opts .pmenu__row { text-align: left; }
+
+.pmenu__clips { display: flex; align-items: center; gap: 10px; }
+.pmenu__clips[hidden] { display: none; }
+.pmenu__cliplabel { flex: none; font-size: 13px; font-weight: 600; }
+
+.pmenu__clipsel {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--fg);
+  background: rgba(140, 170, 230, 0.1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* Der Steckbrief: links, wie es heißt, rechts, was dasteht. Zwei Spalten,
+   damit die Werte untereinander stehen und sich vergleichen lassen. */
+.pmenu__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 13px;
+  background: rgba(140, 170, 230, 0.06);
+  border-radius: 12px;
+}
+
+.pmenu__facts dt { color: var(--muted); }
+.pmenu__facts dd { margin: 0; overflow-wrap: anywhere; }
+
 .pmenu__foot {
   margin: 0;
   padding: 6px 14px 10px;
@@ -375,6 +487,13 @@
     border-radius: 0;
     box-shadow: none;
   }
+
+  /* Am Schreibtisch ist der Schirm breiter als hoch, und ein Quadrat von
+     100vw wäre dort höher als das Fenster. Die Vorschau nimmt deshalb zwei
+     Drittel der Höhe und steht in der Mitte; der Steckbrief darunter bleibt
+     eine Spalte, denn er ist eine Liste und kein Formular. */
+  .pmenu__detail { max-width: 900px; margin: 0 auto; width: 100%; }
+  .pmenu__view { height: min(62dvh, 640px); }
 }
 
 /* Und am Telefon nimmt er die Höhe dazu: Das Blatt geht sonst bis 85 % —

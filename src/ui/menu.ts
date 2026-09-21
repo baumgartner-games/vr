@@ -77,6 +77,40 @@ export type MenuIcon =
   | 'd12'
   | 'd20';
 
+/**
+ * **Eine Zeile des Steckbriefs** — links, wie sie heißt, rechts, was dasteht.
+ *
+ * Beides fertige Zeichenketten: Wer den Steckbrief baut, weiß, was eine
+ * Dateigröße ist und wie ein Maß geschrieben wird; wer ihn zeichnet, weiß es
+ * nicht und soll es auch nicht wissen müssen.
+ */
+export interface MenuFact {
+  readonly label: string;
+  readonly value: string;
+}
+
+/**
+ * **Was die Detailseite eines Modells zeigt.**
+ *
+ * Gewünscht war sie so: „Name des Assets, darunter voll das 3D-Modell, welches
+ * ich durch Swipen drehen kann, Pinch zum Zoomen; seitlich sollte etwas Platz
+ * sein, da ich runterscrollen möchte in dem Menü, um darunter weitere Infos zu
+ * sehen." Der Name ist die Beschriftung des Eintrags, das Modell steht hinter
+ * `preview` — und die „weiteren Infos" sind zum einen die Schalter
+ * (Gitterboden, Hülle, Bewegung) und zum anderen dieser Steckbrief.
+ *
+ * Hier steht nur, was **ohne** eine geladene Datei zu haben ist. Kantenlängen,
+ * Dreiecke und die Liste der Bewegungen misst die Vorschau selbst und reicht
+ * sie nach (`ui/previewGrid.DetailFacts`): Der Menübaum wird gebaut, bevor
+ * irgendein Modell geladen ist, und eine Zahl, die dort stünde, wäre geraten.
+ */
+export interface MenuDetail {
+  /** Welches Modell — dieselbe Id wie `MenuEntry.preview`. */
+  readonly preview: string;
+  /** Paket, Ordner, Dateigröße: was schon im Verzeichnis steht. */
+  readonly facts: readonly MenuFact[];
+}
+
 /** One row (or grid cell) of the wrist menu. */
 export interface MenuEntry {
   id: string;
@@ -178,6 +212,18 @@ export interface MenuEntry {
    * Modell steht nur davor und fängt keinen Strahl ab.
    */
   preview?: string;
+  /**
+   * **Und dahinter liegt eine Seite, die das Ding selbst zeigt** — der Knopf
+   * in der Ecke der Kachel führt dorthin (`ui/PageMenu.ts`, `MenuDetail`).
+   *
+   * Eine Kachel des Regals hat zwei Ziele: Antippen **nimmt** das Modell in
+   * die Hand, das ⓘ oben rechts schlägt seinen Steckbrief auf. Diese Seite ist
+   * ein Sonderfall und keine Liste — deshalb hängt sie nicht an `children`,
+   * sondern hier: Wer das Feld nicht kennt (das Panel am Handgelenk), sieht
+   * weiter eine Kachel ohne zweites Ziel, und ein Greifen in der Brille steigt
+   * nicht versehentlich in eine leere Seite ab.
+   */
+  detail?: MenuDetail;
   /**
    * **Diese Seite wird gerade aufgeschlagen.**
    *
