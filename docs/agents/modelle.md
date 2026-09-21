@@ -689,9 +689,10 @@ kann.
   `kitchenNearest`: von vier brennenden Herden zählt der nächste; die
   **Reichweite** steht am Ton und nicht in der Formel, siehe unten), der **Takt**
   des Messers (`kitchenBeat` — höchstens ein Schlag je Bild, sonst macht ein
-  Ruckler eine Salve daraus; alle 0,30 s ein Schlag, `CHOP_BEAT`, also zehn je
-  Schnitt: schnelles Schneiden, ohne dass der Ton selbst schneller liefe) und
-  die **Auswahl** des einen Tons, über den noch nicht entschieden ist
+  Ruckler eine Salve daraus; alle 0,15 s ein Schlag, `CHOP_BEAT`, also zwanzig
+  je Schnitt: schnelles Schneiden, wobei der Ton selbst eine viertel Sekunde
+  lang bleibt und ein Schlag darum in den vorigen greift — zwei Stimmen von
+  acht) und die **Auswahl** des einen Tons, über den noch nicht entschieden ist
   (`SOUND_TRIALS`, siehe unten). **Schritte macht die
   Küche nicht**: Es gab vier Aufnahmen und eine Schrittuhr nach der Strecke,
   und beim Kochen war das ein Trommeln unter allem, was man hören wollte.
