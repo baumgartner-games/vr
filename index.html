@@ -35,14 +35,14 @@
     <title>Baumgartner VR</title>
     <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
-    <script type="module" crossorigin src="/vr/assets/main-nybZ5IoL.js"></script>
+    <script type="module" crossorigin src="/vr/assets/main-CTUf0LxJ.js"></script>
     <link rel="modulepreload" crossorigin href="/vr/assets/pwa-C82_zIY8.js">
-    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-Bi3ydDWK.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-DFv3zt-S.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/posture-BiXtEZiL.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/fullscreen-t6LUfsK2.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/gamepad-CnXQ1Mtf.js">
-    <link rel="modulepreload" crossorigin href="/vr/assets/assetVersion-4uQ4_Pqs.js">
-    <link rel="stylesheet" crossorigin href="/vr/assets/main-ig1YzlCG.css">
+    <link rel="modulepreload" crossorigin href="/vr/assets/assetVersion-DZV-x2ta.js">
+    <link rel="stylesheet" crossorigin href="/vr/assets/main-XcZbJv6g.css">
   </head>
   <body>
     <canvas id="scene"></canvas>
@@ -247,6 +247,11 @@
           `core/fullDownload.ts`; hier stehen nur die Kästen dafür.
           Nicht `only-generic`, aus demselben Grund wie oben: Wer zu einer
           Runde eingeladen wurde, fährt genauso in den Tunnel.
+
+          **Geprüft wird beim Start von selbst**, und fehlt etwas, blinkt der
+          Knopf (`core/fullAuto.ts`). Der Haken darunter macht daraus ein
+          Nachladen ohne Nachfrage — er steht im Speicher des Browsers und
+          gilt damit auch nach dem nächsten Deploy.
         -->
         <div id="offline" class="install offline">
           <button type="button" id="offline-btn" class="btn btn--ghost">Alles herunterladen</button>
@@ -255,6 +260,10 @@
           <progress id="offline-bar" class="offline__bar" value="0" max="1" hidden></progress>
           <p id="offline-hint" class="field__hint"></p>
           <button type="button" id="offline-stop" class="btn btn--ghost offline__stop" hidden>Anhalten</button>
+          <label class="offline__auto" for="offline-auto">
+            <input type="checkbox" id="offline-auto" />
+            <span>Fehlendes automatisch herunterladen</span>
+          </label>
         </div>
 
         <p id="xr-status" class="status only-generic"></p>
