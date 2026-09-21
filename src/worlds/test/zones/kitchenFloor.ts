@@ -140,10 +140,12 @@ export class KitchenFloor {
   private texture: THREE.CanvasTexture | null = null;
 
   /**
-   * **Das Rechteck kommt von außen**, seit es eine zweite Küche gibt
-   * (`zones/diner.ts`): Derselbe Belag, ein anderer Raum. Ohne Angabe ist es
-   * die erste Küche — die zweihundert Stellen, die ihn dort erwarten, sollen
-   * nicht wegen eines zweiten Aufrufers umgeschrieben werden.
+   * **Das Rechteck kommt von außen**, seit eine zweite Küche denselben Belag
+   * in einem anderen Raum brauchte. Die ist wieder weg; das Rechteck bleibt
+   * ein Parameter, denn der nächste Raum mit diesem Boden kostet damit eine
+   * Zeile. Ohne Angabe ist es die Küche — die zweihundert Stellen, die ihn
+   * dort erwarten, sollen nicht wegen eines zweiten Aufrufers umgeschrieben
+   * werden.
    */
   constructor(root: THREE.Object3D, rect: NavRect = KITCHEN, name = 'kitchen-floor') {
     if (!canLoadModels()) return;

@@ -101,10 +101,17 @@ gedrückt und dafür 250 KB WebAssembly gebraucht, die jemand von Hand nach
 `public/` legt. Ein halbes Megabyte gespart und ein Auslieferungsfehler mehr
 möglich ist kein guter Tausch.
 
-Die Dateien: `core/dinerFit.ts` (Maße, ohne three.js), `core/dinerModel.ts`
-(Lader), `worlds/test/zones/dinerPlan.ts` (Aufbau und Stempel, ohne three.js),
-`worlds/test/zones/diner.ts` (die Zone). Dieselbe Teilung wie bei der ersten
-Küche und aus demselben Grund: Rechnung getrennt von Darstellung.
+Die Dateien: `core/dinerFit.ts` (Maße, ohne three.js) und `core/dinerModel.ts`
+(Lader) — dieselbe Teilung wie bei der Küche und aus demselben Grund: Rechnung
+getrennt von Darstellung.
+
+**Den Raum dazu gibt es nicht mehr.** Der Katalog hatte einmal eine eigene
+Zone, die **zweite Küche** (`worlds/test/zones/diner.ts`, `dinerPlan.ts`, ein
+Restaurant über der ersten im Norden); sie ist entfernt. Gebraucht wird der
+Katalog trotzdem jeden Tag: Aus ihm kommen die **Zutaten** der Küche —
+Brötchen, Patty, Salat, Tomate, Teller, Kisten (`zones/kitchenProps.ts`) —,
+und durchblättern lässt er sich im Konstrukt-Raum (`shared/construct.ts`). Ein
+Baukasten braucht keinen eigenen Raum, sobald das Spiel ihn benutzt.
 
 ## Der dritte Katalog: die Wundertüte
 
@@ -2071,8 +2078,9 @@ zweiter Körper, kein Ruck. Der Test dazu wartet auf nichts —
 `kitchenBlocks.test.ts` kennt keinen Lader, weil die Rechnung keinen kennt,
 und ein Test, der erst nach einem `await` grün würde, prüfte etwas anderes.
 
-**Der Nachbar machte es von Anfang an so** (`zones/diner.ts`: „erst die Körper,
-dann die Bilder — und die Körper auch ohne Bild"). Dort stand sogar
+**Die zweite Küche machte es von Anfang an so** („erst die Körper, dann die
+Bilder — und die Körper auch ohne Bild"). In ihrer Datei stand sogar
 aufgeschrieben, dass die erste Küche es anders macht und dass das der
 schlechtere Weg ist. Aufgefallen ist es trotzdem erst dem, der in der Küche
-durch einen Herd gelaufen ist.
+durch einen Herd gelaufen ist. Die Zone ist inzwischen weg, die Regel ist
+geblieben (`zones/kitchenBlocks.ts`).

@@ -50,9 +50,9 @@ function template(): Promise<THREE.Group | null> {
     .catch((error: unknown) => {
       // Einmal sagen, nicht je Möbel: Wer offline baut, soll nicht
       // hundertsechsundvierzig gleiche Zeilen in der Konsole finden. Ohne
-      // Modell bleibt die zweite Küche leer, und die Zone verträgt das
-      // (`worlds/test/zones/diner.ts`).
-      console.warn(`Modelle der zweiten Küche nicht geladen (${DINER_URL}).`, error);
+      // Modell bleiben die Zutaten der Küche unsichtbar, und die Zone verträgt
+      // das — ihre Körper stehen auch ohne Bild (`zones/kitchenBlocks.ts`).
+      console.warn(`Modelle des zweiten Katalogs nicht geladen (${DINER_URL}).`, error);
       return null;
     });
   return pending;

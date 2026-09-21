@@ -22,10 +22,10 @@ import { KITCHEN_FLOOR, KITCHEN_SPOTS, footprint, type Spot, type Turn } from '.
  * `core/kitchenModel.ts`, und aus demselben Grund: Was eine Rechnung ist, wird
  * von Jest nachgerechnet und nicht im Headset nachgesehen.
  *
- * Der Nachbar macht es längst so (`zones/diner.ts`, `addBody`: „erst die
- * Körper, dann die Bilder — und die Körper auch ohne Bild"); hier steht
- * dieselbe Entscheidung noch einmal, weil die Küche mehr Fälle kennt —
- * gebaute Möbel und gehobene Stücke.
+ * Und dieselbe Reihenfolge wie überall, wo ein Katalogstück hingestellt wird:
+ * erst die Körper, dann die Bilder — und die Körper auch ohne Bild. Die Küche
+ * kennt davon mehr Fälle als jeder andere Raum: gebaute Möbel und gehobene
+ * Stücke.
  */
 
 /**

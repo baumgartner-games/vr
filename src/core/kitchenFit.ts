@@ -937,7 +937,7 @@ export const KITCHEN_PIECES: readonly KitchenPiece[] = [
     tiles: [1, 1],
     // **Einflammig und nicht vierflammig**: Eine Kachel ist ein Kochplatz, und
     // vier Flammen auf einer Kachel sind drei Plätze, die das Spiel nicht
-    // kennt. Der vierflammige steht im Schauraum der zweiten Küche.
+    // kennt. Den vierflammigen aus derselben Quelle stellt niemand auf.
     base: { file: 'diner', node: 'stove_single' },
     // `HOB_TOP` ist die Oberkante des **Rosts**; die Platte darunter liegt auf
     // 0,50 m wie jede Arbeitsfläche. Abgelegt wird auf dem Rost, also ist die

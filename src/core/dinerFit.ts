@@ -1,8 +1,15 @@
 /**
- * **Der Möbelkatalog der zweiten Küche** — was es gibt, wie groß es ist und
- * wie es heißt. Ohne three.js, ohne Vite, ohne Datei.
+ * **Der zweite Möbelkatalog** — was es gibt, wie groß es ist und wie es heißt.
+ * Ohne three.js, ohne Vite, ohne Datei.
  *
- * Dieselbe Teilung wie bei der ersten Küche (`core/kitchenFit.ts` neben
+ * Gekauft wurde er für die **zweite Küche**, ein Restaurant über der ersten;
+ * die Zone ist wieder weg (`worlds/test/layout.ts`), der Katalog nicht. Aus
+ * ihm kommen die **Zutaten** der Küche — Brötchen, Patty, Salat, Tomate,
+ * Teller, Kisten (`worlds/test/zones/kitchenProps.ts`) —, mehrere ihrer Möbel
+ * (`core/kitchenFit.ts`, `file: 'diner'`), und im Konstrukt-Raum steht er zum
+ * Durchblättern (`worlds/shared/construct.ts`).
+ *
+ * Dieselbe Teilung wie bei der Küche (`core/kitchenFit.ts` neben
  * `core/kitchenModel.ts`) und aus demselben Grund: Der Lader braucht
  * `GLTFLoader` und `import.meta`, und beides gibt es in Jest nicht. Was ein
  * Grundriss über ein Möbel wissen muss — Name, Beschriftung, Grundfläche,
@@ -88,7 +95,7 @@ export interface DinerPiece {
    * Positiv heißt **es hängt**: Der Hängeschrank fängt bei 1,00 m an, die
    * Dunstabzugshaube ebenso, die Wandfliesen bei 0,50 m. Darunter läuft man
    * durch, und eine Kachel, die es teuer machte, wäre eine Kachel, um die ein
-   * NPC grundlos herumginge (`worlds/test/zones/dinerPlan.ts`).
+   * NPC grundlos herumginge.
    *
    * Negativ heißt **es steckt unter seinem Ursprung**: Die Bodenplatten
    * reichen 25 cm nach unten (ihr Ursprung ist ihre Oberfläche), der
@@ -1088,8 +1095,8 @@ export function dinerStand(piece: DinerPiece): number {
 
 /**
  * **Wie hoch ein frei hingestelltes Stück über dem Boden endet**, in Metern —
- * die Zahl, über der die Tafel im Schauraum schwebt und unter der der
- * Körper endet (`worlds/test/zones/diner.ts`).
+ * die Zahl, über der die Tafel eines Schaustücks schwebt und unter der sein
+ * Körper endet (`worlds/shared/showPlate.ts`).
  *
  * `height` allein tut es nicht: Bei einer Bodenplatte ist das null, und eine
  * Tafel auf null Metern steckt im Fußboden; beim Hängeschrank ist es 2,00 m,

@@ -1,6 +1,5 @@
 import { GridPlan } from '../grid/gridPlan';
 import {
-  DINER,
   EFFECTS,
   FIELD,
   INTERACT,
@@ -14,7 +13,6 @@ import {
   CLIMB,
 } from './layout';
 import { fitClimb, stampClimb } from './zones/climb';
-import { fitDiner, stampDiner } from './zones/diner';
 import { fitEffects, stampEffects } from './zones/effects';
 import { fitInteract, stampInteract } from './zones/interact';
 import { fitKart, stampKart } from './zones/kart';
@@ -85,7 +83,6 @@ export function testPlan(): GridPlan {
     RANGE,
     CLIMB,
     KITCHEN,
-    DINER,
     ...PATHS,
   ]) {
     plan.floor(rect);
@@ -99,7 +96,6 @@ export function testPlan(): GridPlan {
   stampKart(plan);
   stampClimb(plan);
   stampKitchen(plan);
-  stampDiner(plan);
   // Nach dem Boden des Obergeschosses, und deshalb als vorletzte: Die Treppe
   // schlägt das Loch über sich selbst, und was danach noch Boden legt, legt es
   // wieder zu.
@@ -132,7 +128,6 @@ export function fitTest(plan: GridPlan): void {
   fitKart(plan);
   fitClimb(plan);
   fitKitchen(plan);
-  fitDiner(plan);
   fitPodium(plan);
   fitPortals(plan);
 }
