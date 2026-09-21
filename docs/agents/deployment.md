@@ -15,12 +15,50 @@ nur die einmalige Einstellung:
 Der Basispfad kommt aus `BASE_PATH` (im Workflow `/<repo-name>/`), lokal wird
 von `/` ausgegangen.
 
+## Veröffentlicht wird als Fortsetzung und nicht als Neuanfang
+
+`dist` ist 76 MB groß, und vier Fünftel davon sind die 4470 gekauften Modelle,
+die sich **nie** ändern. Genau daran hing ein Deploy, der teurer war, als er
+aussah: Hier stand ein `git init` im frischen `dist/`, ein Commit ohne
+Geschichte und ein `push --force`. Ein Repository ohne gemeinsame Geschichte
+kann mit der Gegenseite nichts abgleichen — also lud jeder Deploy alle 4600
+Dateien noch einmal hoch, und GitHub legte jede davon noch einmal ab. Der
+Verdacht war richtig gestellt: „Bei jedem Deploy müssen die ganzen Assets neu
+gebundelt bzw. gebaut werden? Wäre es nicht sinnvoller, diese auf einem extra
+Branch oder so auszulagern?"
+
+Ausgelagert wird deshalb **nichts** — die Antwort liegt eine Ebene tiefer:
+
+1. `gh-pages` wird geholt (flach, ein Commit), geleert, mit `dist` gefüllt und
+   bekommt einen **gewöhnlichen Commit** obendrauf.
+2. Git schickt dann nur, was wirklich neu ist. Nach einem Deploy ohne neue
+   Modelle sind das die geänderten Bündeldateien — ein paar Megabyte statt
+   sechsundsiebzig. Die gekauften Dateien liegen genau **einmal** dort.
+3. Ändert ein Push gar nichts am Ergebnis (Dokumentation, Workflows), gibt es
+   keinen Commit und keinen Push.
+
+Aufgeräumt wird dabei weiter: Was der Build nicht mehr erzeugt, verschwindet
+auch aus dem Branch — dieselbe Zusage wie beim Kahlschlag davor, und damit
+gilt der Abschnitt unten über alte Dateinamen unverändert. Ohne `--force`
+kann ein zweiter Deploy dazwischenkommen; dann wird der neue Stand geholt und
+derselbe Baum noch einmal daraufgesetzt (dreimal, dann scheitert der Schritt
+lieber, als zu raten).
+
+**Und das Artefakt trägt die Modelle nicht mehr mit.** Es ist zum Nachsehen da
+und nicht zum Ausliefern; 60 MB bei jedem Push und jedem Pull Request hoch-
+und wieder herunterzuladen kostet Minuten für etwas, das niemand ansieht — und
+dieselben Dateien liegen unverändert im Repository.
+
+**Und die Bündelei selbst?** Die bleibt, wie sie ist: `vite build` kopiert
+`public/` nach `dist/`, und das sind ein paar Sekunden Plattenarbeit im
+Container. Teuer war nie das Bauen, sondern das Hochladen.
+
 ## Wenn eine Seite aus einem Build läuft, den es nicht mehr gibt
 
 Jede Welt wird erst beim Betreten nachgeladen — ein `import()` je Eintrag in
 `worlds/index.ts`, also ein eigener Chunk je Welt, und jeder Chunk trägt den
-Hash seines Inhalts im Dateinamen. Der Deploy schreibt `gh-pages` komplett neu;
-danach gibt es die alten Dateinamen nicht mehr.
+Hash seines Inhalts im Dateinamen. Der Deploy ersetzt den Inhalt von
+`gh-pages` vollständig; danach gibt es die alten Dateinamen nicht mehr.
 
 Eine Seite, die vorher geöffnet wurde, läuft trotzdem weiter — und in einer
 Brille bleibt eine Seite schnell einen halben Tag offen, während zwischendurch

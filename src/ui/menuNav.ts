@@ -1,4 +1,5 @@
 import type { MenuEntry } from './menu';
+import type { NavRecall } from './menuRecall';
 
 /**
  * Wo im Menü man gerade ist — **einmal für beide Hände**.
@@ -24,6 +25,21 @@ export class MenuNav {
   private steps: string[] = [];
   private readonly listeners = new Set<() => void>();
   /**
+   * **Ein Weg, der noch nicht ganz gehbar ist.**
+   *
+   * Der gemerkte Katalogweg (`menuRecall.ts`) zeigt drei Ebenen tief in ein
+   * Regal, dessen Verzeichnis in diesem Augenblick erst geholt wird
+   * (`MenuEntry.onOpen`): Unter der Seite steht bis dahin nur „Lädt …", und
+   * `prune` müsste den Weg kürzen und wäre ihn los. Also steht der ganze
+   * Wunsch hier, bis er einmal wirklich dastand — und in der Zwischenzeit
+   * zeigt das Panel so viel davon, wie es schon gibt.
+   *
+   * Nur für den gemerkten Weg, und das mit Absicht: Ein Wunsch, der jede
+   * verschwundene Seite wiederkommen lässt, würde einen in die Seite eines
+   * Mitspielers werfen, sobald der wieder auftaucht.
+   */
+  private pending: string[] | null = null;
+  /**
    * Wie weit jede Seite geblättert war, nach Id.
    *
    * Ebenfalls geteilt, und zwar aus demselben Grund: eine Seite an der anderen
@@ -31,6 +47,12 @@ export class MenuNav {
    * geteilte Seite gerade beseitigt hat, nur eine Ebene kleiner.
    */
   private readonly scrolls = new Map<string, number>();
+
+  /**
+   * @param recall wo ein Katalogweg über das Neuladen hinweg liegt, oder
+   *               `null` — dann merkt sich der Weg nur diese Sitzung.
+   */
+  constructor(private readonly recall: NavRecall | null = null) {}
 
   /** Die Ids der Seiten unterhalb der obersten Ebene, von oben nach unten. */
   get path(): readonly string[] {
@@ -43,23 +65,43 @@ export class MenuNav {
     return () => this.listeners.delete(listener);
   }
 
-  /** Eine Ebene tiefer. */
+  /**
+   * Eine Ebene tiefer — **oder zurück dorthin, wo man im Katalog aufgehört
+   * hat.**
+   *
+   * Von ganz oben in den Katalog hinein ist kein Schritt um eine Ebene,
+   * sondern ein Wiederaufschlagen: Es geht dahin, wo der Zettel steht
+   * (`menuRecall.ts`). Beim ersten Mal ist der leer, und dann ist es doch
+   * wieder nur ein Schritt.
+   */
   push(id: string): void {
-    this.steps = [...this.steps, id];
+    const rest = this.steps.length === 0 && this.recall?.root === id ? this.recall.read() : [];
+    if (rest.length > 0) {
+      this.pending = [id, ...rest];
+      this.steps = this.pending;
+    } else {
+      this.pending = null;
+      this.steps = [...this.steps, id];
+    }
+    this.remember();
     this.announce();
   }
 
   /** Eine Ebene zurück. Ganz oben passiert nichts. */
   pop(): void {
     if (this.steps.length === 0) return;
+    this.pending = null;
     this.steps = this.steps.slice(0, -1);
+    this.remember();
     this.announce();
   }
 
   /** Direkt auf einen Weg springen — das Untermenü aus einer Aktion heraus. */
   goTo(path: readonly string[]): void {
     if (samePath(this.steps, path)) return;
+    this.pending = null;
     this.steps = [...path];
+    this.remember();
     this.announce();
   }
 
@@ -70,7 +112,12 @@ export class MenuNav {
    * ohnehin gleich neu zeichnen: eine Meldung wäre eine Schleife.
    */
   prune(entries: readonly MenuEntry[]): void {
-    const walked = walkPath(entries, this.steps);
+    // Solange ein gemerkter Weg auf seine Seite wartet, wird **er** abgelaufen
+    // und nicht das, was gerade davon übrig ist — sonst wäre er nach dem
+    // ersten Neuaufbau weg.
+    const wish = this.pending ?? this.steps;
+    const walked = walkPath(entries, wish);
+    if (this.pending && samePath(walked, this.pending)) this.pending = null;
     if (!samePath(walked, this.steps)) this.steps = walked;
   }
 
@@ -82,6 +129,21 @@ export class MenuNav {
   /** Merkt sich, wo eine Seite steht. Still, wie `prune`. */
   setScroll(id: string, offset: number): void {
     this.scrolls.set(id, Math.max(0, Math.floor(offset)));
+  }
+
+  /**
+   * **Aufgeschrieben wird nur der Katalog** — und nur dann, wenn man wirklich
+   * darin steht. Wer danebensteht, ändert den Zettel nicht: Sonst hieße jeder
+   * Blick in die Einstellungen, dass das Regal seine Stelle verliert.
+   *
+   * Nicht aus `prune` heraus: Dort ist der Weg vielleicht gerade gekürzt,
+   * weil das Verzeichnis noch lädt, und ein gekürzter Weg ist keine
+   * Entscheidung.
+   */
+  private remember(): void {
+    const recall = this.recall;
+    if (!recall || this.steps[0] !== recall.root) return;
+    recall.write(this.steps.slice(1));
   }
 
   private announce(): void {

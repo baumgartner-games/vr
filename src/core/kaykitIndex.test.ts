@@ -2,6 +2,7 @@ import {
   KAYKIT_CATEGORIES,
   KAYKIT_CHUNK,
   humanLabel,
+  kaykitCategoriesOf,
   kaykitCategoryOf,
   kaykitFiles,
   kaykitMenu,
@@ -265,12 +266,12 @@ describe('kaykitPackMenu', () => {
  * **Die Schubladen** — der zweite Weg ins Regal, neben dem Ordnerbaum.
  *
  * Geprüft wird nicht, ob die Einteilung „richtig" ist (das entscheidet, wer
- * sie benutzt), sondern die drei Zusagen, an denen sie hängt: Jede Datei
- * landet in **genau einer** Schublade, die Reihenfolge der Tabelle ist die
- * Regel, und übrig bleibt niemand.
+ * sie benutzt), sondern die Zusagen, an denen sie hängt: Jede Datei landet in
+ * **mindestens einer** Schublade und in jeder, auf die sie passt; die erste
+ * davon ist die Hauptkategorie; und übrig bleibt niemand.
  */
 describe('die Kategorien', () => {
-  it('stecken jede Datei in genau eine Schublade', () => {
+  it('stecken jede Datei in eine Schublade, die es gibt', () => {
     const ids = new Set(KAYKIT_CATEGORIES.map((category) => category.id));
     for (const path of [
       'adventurers/characters/Knight.glb',
@@ -284,10 +285,30 @@ describe('die Kategorien', () => {
     }
   });
 
-  it('entscheidet nach der Reihenfolge der Tabelle', () => {
-    // Eine Kiste Brötchen ist Essen und nicht Kiste: Essen steht vorher.
+  it('nimmt als Hauptkategorie die erste der Tabelle', () => {
+    // Eine Kiste Brötchen ist Essen und Kiste: Essen steht vorher.
     expect(kaykitCategoryOf('restaurant-bits/crate_buns.glb')).toBe('food');
     expect(kaykitCategoryOf('restaurant-bits/crate.glb')).toBe('containers');
+  });
+
+  /**
+   * **Mehrere Schubladen je Datei** — der Kern des Auftrags. Wer Kisten
+   * durchsieht, findet die Kiste Brötchen, obwohl sie „eigentlich" Essen ist.
+   */
+  it('legt eine Datei in jede Schublade, auf die sie passt', () => {
+    expect(kaykitCategoriesOf('restaurant-bits/crate_buns.glb')).toEqual(['food', 'containers']);
+    expect(kaykitCategoriesOf('furniture-bits/table_lamp.glb')).toEqual(['furniture']);
+    // Das Paket entscheidet, und das Wort im Namen kommt dazu.
+    expect(kaykitCategoriesOf('forest-nature/wooden_bench.glb')).toEqual(['furniture', 'nature']);
+  });
+
+  it('gibt jede Schublade nur einmal heraus', () => {
+    const cats = kaykitCategoriesOf('furniture-bits/chair_table_set.glb');
+    expect(new Set(cats).size).toBe(cats.length);
+  });
+
+  it('lässt auch beim Auffangen nichts doppelt oder leer', () => {
+    expect(kaykitCategoriesOf('mixed-bag/etwas_ganz_neues.glb')).toEqual(['rest']);
   });
 
   it('kennt Figuren an ihrem Paket', () => {
@@ -365,6 +386,32 @@ describe('die Suche', () => {
     expect(kaykitSearch(files, 'chair', 1)).toHaveLength(1);
   });
 
+  /**
+   * **Nach Kategorien suchen** — der zweite Teil des Auftrags. In keinem
+   * dieser Dateinamen steht `möbel`, und trotzdem sollen die drei Möbel
+   * kommen, wenn man es eintippt.
+   */
+  it('findet auch über die Schublade', () => {
+    expect(
+      kaykitSearch(files, 'möbel')
+        .map((file) => file.name)
+        .sort(),
+    ).toEqual(['armchair.glb', 'bed_single_A.glb', 'chair_A.glb']);
+    // Dieselbe Schublade auf Englisch — ihre Id zählt genauso.
+    expect(kaykitSearch(files, 'furniture')).toHaveLength(3);
+    expect(kaykitSearch(files, 'kisten').map((file) => file.name)).toEqual(['barrel_large.glb']);
+  });
+
+  it('lässt sich mit der Schublade auch filtern', () => {
+    expect(kaykitSearch(files, 'möbel bed').map((file) => file.name)).toEqual(['bed_single_A.glb']);
+    expect(kaykitSearch(files, 'kisten chair')).toEqual([]);
+  });
+
+  /** Ein einzelner Buchstabe ist kein Kategoriename — sonst filtert nichts mehr. */
+  it('nimmt kurze Wörter nicht für Schubladen', () => {
+    expect(kaykitSearch(files, 'mö')).toEqual([]);
+  });
+
   it('macht aus den Treffern Kacheln, die dieselbe Adresse tragen', () => {
     const taken: string[] = [];
     const entries = kaykitSearchEntries(files, 'barrel', (path) => taken.push(path));
@@ -390,18 +437,32 @@ describe('kaykitMenu', () => {
     files: [],
   });
 
-  it('stellt die Schubladen vor die Pakete', () => {
+  /** Die Gabelung am Anfang: drei Wege und sonst nichts. */
+  it('fragt zuerst, auf welchem Weg man hineingeht', () => {
     const { pick } = picks();
     const entries = kaykitMenu(tree, pick);
-    const last = entries[entries.length - 1]!;
-    expect(last.id).toBe('kaykit#packs');
-    expect(last.sub).toBe('2 Pakete');
-    expect(entries.slice(0, -1).every((entry) => entry.id.startsWith('kaykit#cat:'))).toBe(true);
+    expect(entries.map((entry) => entry.id)).toEqual(['kaykit#all', 'kaykit#packs', 'kaykit#cats']);
+    expect(entries.map((entry) => entry.label)).toEqual([
+      'Alles anschauen',
+      'Nach Paketen',
+      'Nach Kategorien',
+    ]);
+    expect(entries.map((entry) => entry.sub)).toEqual(['2 Modelle', '2 Pakete', '2 Kategorien']);
+  });
+
+  it('legt hinter „Alles anschauen" die ganze Sammlung', () => {
+    const { pick } = picks();
+    const all = kaykitMenu(tree, pick)[0]!;
+    expect(all.children!.map((entry) => entry.id)).toEqual([
+      'kaykit:dungeon/barrel_large.glb',
+      'kaykit:furniture-bits/chair_A.glb',
+    ]);
   });
 
   it('lässt leere Schubladen weg', () => {
     const { pick } = picks();
-    const ids = kaykitMenu(tree, pick).map((entry) => entry.id);
+    const cats = kaykitMenu(tree, pick)[2]!;
+    const ids = cats.children!.map((entry) => entry.id);
     expect(ids).toContain('kaykit#cat:furniture');
     expect(ids).toContain('kaykit#cat:containers');
     expect(ids).not.toContain('kaykit#cat:figures');
@@ -409,7 +470,10 @@ describe('kaykitMenu', () => {
 
   it('nimmt den ganzen Schirm und kennt seine Spalten', () => {
     const { pick } = picks();
-    for (const entry of kaykitMenu(tree, pick)) {
+    const pages = kaykitMenu(tree, pick)
+      .flatMap((way) => [way, ...(way.children ?? [])])
+      .filter((entry) => entry.children);
+    for (const entry of pages) {
       expect(entry.full).toBe(true);
       expect(entry.grid).toBe(true);
       expect(entry.cols).toBe(2);

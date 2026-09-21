@@ -47,6 +47,7 @@ import {
   type FullState,
   type OfflineList,
 } from './core/fullDownload';
+import { autoStarts, fullNags, readAutoFull, writeAutoFull } from './core/fullAuto';
 import {
   cachedUrls,
   hasCacheStorage,
@@ -1010,10 +1011,12 @@ installButton.addEventListener('click', () => {
  * geholt, denn die Startseite hat auf ihre eigenen Bytes zu achten
  * (`core/warmStart.ts`).
  */
+const offlineBox = document.querySelector<HTMLElement>('#offline')!;
 const offlineButton = document.querySelector<HTMLButtonElement>('#offline-btn')!;
 const offlineBar = document.querySelector<HTMLProgressElement>('#offline-bar')!;
 const offlineHint = document.querySelector<HTMLElement>('#offline-hint')!;
 const offlineStop = document.querySelector<HTMLButtonElement>('#offline-stop')!;
+const offlineAuto = document.querySelector<HTMLInputElement>('#offline-auto')!;
 
 /** Was der Knopf gerade ist — die ganze Anzeige hängt an dieser einen Größe. */
 let fullState: FullState = { kind: 'unbekannt' };
@@ -1055,6 +1058,10 @@ function paintFull(): void {
   );
   offlineBar.value = share;
   offlineStop.hidden = fullState.kind !== 'läuft';
+  // **Und er blinkt, wenn etwas fehlt** (`core/fullAuto.ts`). Das ist das
+  // Ergebnis der Prüfung, die beim Start von selbst gelaufen ist — ohne sie
+  // säße hier ein Knopf, der aussieht wie jeder andere.
+  offlineBox.classList.toggle('offline--nag', fullNags(fullState));
 }
 
 /** Was der Browser über die Leitung sagt. Die API ist optional (Safari). */
@@ -1187,6 +1194,59 @@ offlineStop.addEventListener('click', () => {
   fullAbort?.abort();
 });
 
+/**
+ * **Der Haken: Fehlendes von selbst holen.** Er steht im Speicher des
+ * Browsers und gilt damit auch nach dem nächsten Deploy — genau dann ist er
+ * etwas wert, denn dann ist wieder etwas neu.
+ *
+ * Frisch gesetzt wartet er nicht auf den nächsten Start: Steht gerade etwas
+ * offen, geht es los.
+ */
+offlineAuto.checked = readAutoFull();
+offlineAuto.addEventListener('change', () => {
+  writeAutoFull(offlineAuto.checked);
+  if (!offlineAuto.checked || fullRunning) return;
+  void (async () => {
+    if (fullState.kind === 'unbekannt') await refreshFull();
+    if (autoStarts(fullState, true)) await runFullDownload();
+  })();
+});
+
+/**
+ * **Nachsehen, ohne dass jemand drückt** — einmal je Start.
+ *
+ * Die Startseite holte hier lange ungefragt gar nichts, und das war richtig,
+ * solange der Knopf die einzige Frage war. Jetzt ist die Frage eine andere:
+ * „Fehlt mir etwas?" ist genau das, was man **vor** dem Funkloch wissen will
+ * und nicht darin. Sie kostet zwei erzeugte Listen (`offline.json`, den Index
+ * des Regals) und einen Blick in den Speicher — der Index ist ohnehin das,
+ * was das Vorwärmen als Nächstes holt (`core/warmStart.ts`).
+ *
+ * **Erst wenn ein Service Worker antwortet.** Ohne ihn ist die Antwort immer
+ * „kein Speicher", und beim allerersten Besuch übernimmt er erst nach dem
+ * Anmelden. Dann wartet die Prüfung eben auf `controllerchange` — oder auf den
+ * nächsten Start.
+ */
+let fullLookedOnce = false;
+
+function watchFullState(): void {
+  if (!hasCacheStorage()) return;
+  const look = (): void => {
+    if (!swControls() || fullLookedOnce) return;
+    fullLookedOnce = true;
+    whenIdle(() => void lookAtFull());
+  };
+  look();
+  navigator.serviceWorker?.addEventListener('controllerchange', look);
+}
+
+async function lookAtFull(): Promise<void> {
+  if (fullRunning || fullState.kind === 'läuft') return;
+  await refreshFull();
+  if (!autoStarts(fullState, offlineAuto.checked)) return;
+  await runFullDownload();
+}
+
 paintFull();
 
 /**
@@ -1204,6 +1264,8 @@ paintFull();
 window.addEventListener('load', () => {
   registerServiceWorker();
   whenIdle(() => void bootApp());
+  // Und, sobald der Service Worker antwortet: nachsehen, ob noch etwas fehlt.
+  watchFullState();
 });
 
 /**

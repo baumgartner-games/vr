@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 import { PageMenu, cssColor } from './PageMenu';
 import { MenuNav } from './menuNav';
+import { catalogRecall } from './menuRecall';
 import type { MenuEntry } from './menu';
 import type { PagePreviewLayer } from './previewGrid';
 
@@ -614,6 +615,156 @@ describe('Der Katalog auf der Seite', () => {
     expect(menu.element.querySelector<HTMLElement>('.pmenu__cols')!.hidden).toBe(true);
     menu.openSubmenu('assets');
     expect(menu.element.querySelector<HTMLElement>('.pmenu__cols')!.hidden).toBe(false);
+    menu.dispose();
+  });
+});
+
+/**
+ * **Von vorne durch den Katalog** (`MenuEntry.home`) — der Knopf im Kopf, der
+ * nicht eine Ebene zurückgeht, sondern an den Anfang springt.
+ *
+ * Der Katalog ist tief: drei Wege hinein, darunter Pakete, Ordner und
+ * viertausendfünfhundert Kacheln. Wer dort unten steht, soll nicht achtmal
+ * *Zurück* drücken müssen, um etwas ganz anderes zu suchen.
+ */
+function deepCatalogue(): MenuEntry[] {
+  const tile = { id: 'kaykit:barrel.glb', label: 'Fass' };
+  return [
+    {
+      id: 'assets',
+      label: 'Regal',
+      home: true,
+      children: [
+        {
+          id: 'kaykit#cats',
+          label: 'Nach Kategorien',
+          children: [{ id: 'kaykit#cat:food', label: 'Essen', children: [tile] }],
+        },
+        { id: 'kaykit#packs', label: 'Nach Paketen', children: [tile] },
+      ],
+    },
+    { id: 'move', label: 'Bewegung', children: [{ id: 'move:posture', label: 'Haltung' }] },
+  ];
+}
+
+describe('Von vorne durch den Katalog', () => {
+  let host: HTMLElement;
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    document.body.append(host);
+    window.localStorage.clear();
+  });
+
+  afterEach(() => host.remove());
+
+  function home(menu: PageMenu): HTMLButtonElement {
+    return menu.element.querySelector<HTMLButtonElement>('.pmenu__home')!;
+  }
+
+  it('steht erst unterhalb des Anfangs da', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(deepCatalogue());
+    menu.toggle(true);
+    expect(home(menu).hidden).toBe(true);
+    menu.openSubmenu('assets');
+    // Auf der Gabelung selbst wäre er ein Knopf, der nichts tut.
+    expect(home(menu).hidden).toBe(true);
+    click(menu, 'kaykit#cats');
+    expect(home(menu).hidden).toBe(false);
+    menu.dispose();
+  });
+
+  it('springt aus jeder Tiefe an den Anfang', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(deepCatalogue());
+    menu.openSubmenu('assets');
+    click(menu, 'kaykit#cats');
+    click(menu, 'kaykit#cat:food');
+    expect(title(menu)).toBe('Essen');
+    home(menu).click();
+    expect(title(menu)).toBe('Regal');
+    expect(rows(menu)).toEqual(['kaykit#cats', 'kaykit#packs']);
+    expect(home(menu).hidden).toBe(true);
+    menu.dispose();
+  });
+
+  it('bleibt weg, wo kein Katalog ist', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(deepCatalogue());
+    menu.openSubmenu('move');
+    expect(home(menu).hidden).toBe(true);
+    menu.dispose();
+  });
+
+  /**
+   * Der Weg durchs Menü merkt sich den Katalog über das Neuladen hinaus
+   * (`ui/menuRecall.ts`); das Zumachen hat er ohnehin nie vergessen.
+   */
+  it('schlägt den Katalog wieder dort auf, wo er zumachte', () => {
+    const menu = new PageMenu({ host, nav: new MenuNav(catalogRecall()) });
+    menu.setRoot(deepCatalogue());
+    menu.openSubmenu('assets');
+    click(menu, 'kaykit#cats');
+    menu.toggle(false);
+    menu.toggle(true);
+    expect(title(menu)).toBe('Nach Kategorien');
+    menu.dispose();
+
+    // Und nach einem Neuladen — ein zweites Menü mit einem zweiten Weg, das
+    // nur den Zettel im Speicher gemeinsam hat.
+    const again = new PageMenu({ host, nav: new MenuNav(catalogRecall()) });
+    again.setRoot(deepCatalogue());
+    again.toggle(true);
+    expect(title(again)).toBe('Menü');
+    click(again, 'assets');
+    expect(title(again)).toBe('Nach Kategorien');
+    again.dispose();
+  });
+});
+
+/**
+ * **Die Blätterstellung überlebt das Zumachen** — und das hängt an einer
+ * Reihenfolge, die man nur im Browser sieht.
+ *
+ * `hidden` ist für den Browser ein `display: none`, und ein Kasten, der nicht
+ * angezeigt wird, hat kein `scrollTop` mehr. Gemerkt werden muss also
+ * **vorher**. In jsdom ist `scrollTop` eine gewöhnliche Zahl und vergisst
+ * nichts — deshalb stellt dieser Test das Vergessen nach.
+ */
+describe('Die Blätterstellung über das Zumachen hinweg', () => {
+  let host: HTMLElement;
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    document.body.append(host);
+    window.localStorage.clear();
+  });
+
+  afterEach(() => host.remove());
+
+  it('merkt sich die Stelle, bevor die Liste versteckt wird', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(catalogue([]));
+    menu.openSubmenu('assets');
+    const stage = menu.element.querySelector<HTMLElement>('.pmenu__stage')!;
+
+    // Wie im Browser: Wer versteckt wird, steht wieder oben.
+    const element = menu.element;
+    Object.defineProperty(element, 'hidden', {
+      configurable: true,
+      get: () => element.hasAttribute('hidden'),
+      set: (on: boolean) => {
+        if (!on) return element.removeAttribute('hidden');
+        element.setAttribute('hidden', '');
+        stage.scrollTop = 0;
+      },
+    });
+
+    stage.scrollTop = 1740;
+    menu.toggle(false);
+    menu.toggle(true);
+    expect(stage.scrollTop).toBe(1740);
     menu.dispose();
   });
 });

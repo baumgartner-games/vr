@@ -32,11 +32,23 @@ interface Page {
   cols?: number;
   /** Entries are taken with the grab button instead of tapped. */
   take: boolean;
+  /** Hier fängt ein Katalog an (`MenuEntry.home`). */
+  home: boolean;
   /** Id of the entry this page belongs to, for reopening it later. */
   id: string;
 }
 
 const BACK: MenuEntry = { id: 'menu:back', label: 'Zurück', icon: 'back', accent: 0x6f7d99 };
+/**
+ * **Von vorne durch den Katalog** — dieselbe Zeile, die am Schirm ein Knopf im
+ * Kopf ist (`MenuEntry.home`, `ui/PageMenu.ts`).
+ *
+ * Sie steht neben *Zurück* und bleibt wie diese oben stehen, egal wie weit man
+ * unten ist: Aus viertausendfünfhundert Kacheln mit dem Stick zurückzublättern,
+ * nur um wieder nach oben zu kommen, ist genau die Falle, gegen die das
+ * Festhalten der ersten Zeilen erfunden wurde.
+ */
+const HOME: MenuEntry = { id: 'menu:home', label: 'Von vorne', icon: 'reset', accent: 0x6f7d99 };
 
 /** Stick deflection that counts as "scroll", and the one that re-arms it. */
 const SCROLL_ON = 0.55;
@@ -328,7 +340,14 @@ export class WristMenu extends THREE.Group {
   private applyNav(): void {
     const path = this.nav.path;
     this.stack = [
-      { title: this.rootTitle, entries: this.root, grid: false, take: this.rootTake, id: 'root' },
+      {
+        title: this.rootTitle,
+        entries: this.root,
+        grid: false,
+        take: this.rootTake,
+        home: false,
+        id: 'root',
+      },
     ];
     let level: MenuEntry[] = this.root;
     for (const id of path) {
@@ -503,7 +522,19 @@ export class WristMenu extends THREE.Group {
 
   private displayed(): MenuEntry[] {
     const entries = this.page.entries;
-    return this.stack.length > 1 ? [BACK, ...entries] : entries;
+    if (this.stack.length <= 1) return entries;
+    return this.homeDepth() < 0 ? [BACK, ...entries] : [BACK, HOME, ...entries];
+  }
+
+  /**
+   * **Wie tief im Stapel der Anfang des Katalogs liegt** — oder `-1`, wenn es
+   * keinen gibt oder man schon auf ihm steht. Wie am Schirm (`ui/PageMenu.ts`).
+   */
+  private homeDepth(): number {
+    for (let depth = this.stack.length - 2; depth > 0; depth--) {
+      if (this.stack[depth]!.home) return depth;
+    }
+    return -1;
   }
 
   private applyPage(): void {
@@ -521,7 +552,13 @@ export class WristMenu extends THREE.Group {
       // Die *Zurück*-Zeile bleibt als Kopf stehen, egal wie weit man unten
       // ist. Eine lange Seite, aus der man nur wieder herauskommt, indem man
       // erst blind nach oben blättert, ist eine Falle.
-      pinned: this.stack.length > 1 ? 1 : 0,
+      //
+      // *Von vorne* steht daneben — aber **nur auf einer Listenseite**. Ein
+      // festgehaltener Kopfbalken kostet im Raster eine ganze Kachelreihe:
+      // Zwei Zeilen über zwei Spalten ließen von vier Kacheln je Seite zwei
+      // übrig, und ein Katalog, durch den man in Zweierschritten blättert, ist
+      // keiner mehr. Im Raster fährt *Von vorne* deshalb als erste Kachel mit.
+      pinned: this.stack.length > 1 ? (this.homeDepth() < 0 || this.page.grid ? 1 : 2) : 0,
     });
   }
 
@@ -546,7 +583,7 @@ export class WristMenu extends THREE.Group {
     const { index, hand } = this.panel.hovered;
     if (!hand) return;
     const entry = this.displayed()[index];
-    if (!entry || entry === BACK || !entry.run) return;
+    if (!entry || entry === BACK || entry === HOME || !entry.run) return;
 
     const controller = input.get(hand);
     if (!controller?.tracked) return;
@@ -707,6 +744,15 @@ export class WristMenu extends THREE.Group {
     if (entry === BACK) {
       this.keepScroll();
       this.nav.pop();
+      return;
+    }
+    if (entry === HOME) {
+      const depth = this.homeDepth();
+      if (depth < 0) return;
+      this.keepScroll();
+      // `stack[depth]` gehört zu `nav.path[depth - 1]` — die Wurzel steht im
+      // Stapel, aber nicht im Weg.
+      this.nav.goTo(this.nav.path.slice(0, depth));
       return;
     }
     if (entry.children) {
@@ -934,6 +980,7 @@ function pageOf(entry: MenuEntry): Page {
     grid,
     ...(entry.cols === undefined ? {} : { cols: entry.cols }),
     take: entry.take ?? grid,
+    home: entry.home ?? false,
     id: entry.id,
   };
 }
