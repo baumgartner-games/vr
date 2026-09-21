@@ -191,10 +191,16 @@ describe('der Takt', () => {
   });
 
   it('schlägt erst wieder, wenn die Spanne um ist', () => {
+    // Acht Bilder je Spanne, drei Spannen lang — und je Spanne ein Bild
+    // Luft, weil die Uhr herunterzählt und die Rundungsreste der Subtraktion
+    // einen Schlag um höchstens ein Bild verspäten können. Der Schritt hängt
+    // an `CHOP_BEAT` und nicht an einer festen Zahl: Sonst misst der Test bei
+    // einer geänderten Spanne deren Rest statt den Takt.
+    const dt = CHOP_BEAT / 8;
     let clock = CHOP_BEAT;
     let hits = 0;
-    for (let t = 0; t < CHOP_BEAT * 3; t += 0.02) {
-      const beat = kitchenBeat(clock, 0.02, CHOP_BEAT);
+    for (let frame = 0; frame < 3 * 9; frame++) {
+      const beat = kitchenBeat(clock, dt, CHOP_BEAT);
       clock = beat.clock;
       if (beat.hit) hits++;
     }
