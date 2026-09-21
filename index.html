@@ -35,14 +35,14 @@
     <title>Baumgartner VR</title>
     <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
-    <script type="module" crossorigin src="/vr/assets/main-CTUf0LxJ.js"></script>
+    <script type="module" crossorigin src="/vr/assets/main-EcnoRCYf.js"></script>
     <link rel="modulepreload" crossorigin href="/vr/assets/pwa-C82_zIY8.js">
-    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-DFv3zt-S.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-Djc-b243.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/posture-BiXtEZiL.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/fullscreen-t6LUfsK2.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/gamepad-CnXQ1Mtf.js">
-    <link rel="modulepreload" crossorigin href="/vr/assets/assetVersion-DZV-x2ta.js">
-    <link rel="stylesheet" crossorigin href="/vr/assets/main-XcZbJv6g.css">
+    <link rel="modulepreload" crossorigin href="/vr/assets/assetVersion-ohckrRN2.js">
+    <link rel="stylesheet" crossorigin href="/vr/assets/main-DkqRJZhZ.css">
   </head>
   <body>
     <canvas id="scene"></canvas>
@@ -307,6 +307,16 @@
             <a href="#haunting">#haunting</a>.
           </p>
         </details>
+
+        <!--
+          **Die Version, ganz unten und ganz klein.** `0.<Build>.<Patch>` aus
+          `package.json`, dahinter die Build-Nummer des Commits
+          (`core/appVersion.ts`, `main.ts`). Sie steht hier und nicht im Menü,
+          weil man sie genau dann sucht, wenn man etwas meldet — und dann ist
+          man auf der Startseite. Ohne beides bleibt der Absatz leer und
+          verschwindet (`.landing__version:empty`).
+        -->
+        <p id="app-version" class="landing__version"></p>
 
       </div>
     </div>
