@@ -507,6 +507,10 @@ sind daran wichtig genug, um sie hier zu nennen:
   Jedes Stück verteuert seine Kacheln (`stampKitchen`), und damit geht ein NPC
   um den Tresen herum statt hindurch. Ein Möbel, das nur im Bild existiert, ist
   ein Möbel, durch das gelaufen wird — ein Jest-Test hält das fest.
+  **Und seit _Der Körper unter dem Möbel_ gilt derselbe Satz für die Füße des
+  Spielers** (`zones/kitchenBlocks.ts`): Die Sperren stehen beim Aufbau der
+  Zone und nicht im `.then()` des Laders. Vorher gab der Grundriss diese Zusage
+  nur den NPCs — der Spieler lief durch dieselben Möbel, um die sie herumgingen.
 - **Ein Name darf mehrmals vorkommen.** Eine Küche hat mehr als einen
   Unterschrank, und seit die Möbel auf ihr richtiges Maß halbiert sind, passt
   auch eine **durchgehende Zeile** an die Wand — eine, an der man entlanggeht,
@@ -583,8 +587,8 @@ oder leere Hand ergeben ein
 paar Dutzend Fälle, und jeder davon ist hier eine Zeile im Test und im Headset
 eine Viertelstunde Hin- und Herlaufen.
 
-Die Küche liegt seitdem in vierundzwanzig Dateien, dazu eine
-fünfundzwanzigste im `ui/`, die längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
+Die Küche liegt seitdem in fünfundzwanzig Dateien, dazu eine
+sechsundzwanzigste im `ui/`, die längst nicht mehr nur ihr gehört. Die Grenze ist jedes Mal dieselbe: **Rechnung
 getrennt von Darstellung** — was ohne three.js auskommt, kommt ohne three.js
 aus, und genau das ist der Grund, warum es so viele Dateien sind.
 
@@ -605,6 +609,7 @@ aus, und genau das ist der Grund, warum es so viele Dateien sind.
 | `zones/kitchenGrab.ts` | welches Küchending die Hand wo anfasst |
 | `zones/kitchenCarry.ts` | Stationen und `kitchenDeed`; reicht alle Uhren weiter |
 | `zones/kitchenPlan.ts` | wo welches Möbel steht, der Grundriss, das Schild |
+| `zones/kitchenBlocks.ts` | aus Kachel und Katalogmaß wird der Kasten, gegen den man läuft |
 | `zones/kitchen.ts` | die Zone: Netze, Körper, Anzeigen, Anfassen |
 | `zones/kitchenProps.ts` | `FoodKit`: aus einem Gericht wird ein Netz |
 | `zones/kitchenIcon.ts` | der Ofen, der aus einer Zutat eine Textur backt |
@@ -1994,3 +1999,61 @@ seiner Kachelfläche. Zwei Dinge daran sind es wert, aufgeschrieben zu werden:
   halber Höhe davor hängen und fiel nicht mehr herunter — im Browser gemessen,
   an derselben Stelle, an der eine gewöhnliche Wand einen sauber abprallen
   lässt. Eine Wand ist ein Kasten, also ist auch das hier einer.
+
+### Und er steht, bevor das Möbel zu sehen ist
+
+Der Kasten stimmte danach — er kam nur **zu spät**. Gebaut wurde er in `place`,
+und `place` lief erst, wenn `kitchenModel` die Datei hergegeben hatte. Wer die
+Küche auf einer langsamen Leitung betritt, steht also in einem Raum, der aus
+Fliesen und drei Wänden besteht, und läuft in diesen Sekunden mitten durch
+Zeile, Insel und Ausgabe. Gemessen im Browser, mit angehaltenen `models/*.glb`:
+Der Spieler ging von der Kachel südlich der Insel **6,24 m** geradeaus nach
+Norden — durch drei Möbelreihen — und blieb erst an der Nordwand stehen, im
+Spülbecken. In der Welt standen zu diesem Zeitpunkt 48 Trefferkästen; nachdem
+die Dateien eintrafen, waren es 107. Die neunundfünfzig dazwischen sind die
+Möbel, durch die man gelaufen ist.
+
+Der Grundriss kannte sie die ganze Zeit (`stampKitchen`), und das ist die
+eigentliche Auskunft dieses Fehlers: Für den NPC war der Tresen da, für den
+Spieler nicht. Zwei Meinungen über dieselbe Wand, und die langsamere gewann.
+
+**Die Sperren kommen deshalb aus dem Katalog und nicht aus dem Netz**
+(`zones/kitchenBlocks.ts`, `kitchenBlock` — Kachel und Katalogmaß in einen
+Kasten in Weltmetern, ohne three.js, mit Jest daneben). Die Zone stellt beim
+Aufbau **alle** auf einmal hin, in einem Zug und ohne `await` davor; kommt das
+Modell später, stellt es sich in seinen Kasten und bekommt keinen zweiten
+(`addBody` übernimmt ihn und streicht ihn aus der Liste). Drei Entscheidungen
+stecken darin:
+
+- **Der Katalog gewinnt gegen die Hülle des Netzes.** Er ist ohnehin das,
+  wonach die Küche aufgebaut ist — Kachelfläche, Höhe, Versatz, Wegkosten und
+  Umbau lesen alle dieselben Zahlen. Eine Sperre, die sich beim Eintreffen
+  der Datei nachjustierte, wäre ein Hindernis, das unter den Füßen des
+  Spielers verspringt — und zwar genau in dem Augenblick, in dem er es zum
+  ersten Mal sieht.
+- **Was durchlässig ist, bleibt durchlässig.** Ein hängendes Stück bekommt
+  keinen Kasten (`KitchenPiece.hanging` — in dieser Fassung des Katalogs setzt
+  es keines), und ein **gehobenes** auch nicht: Das Ausgaberegal steht über der
+  Theke (`Spot.lift`), und die hat ihren Kasten schon. Ein zweiter darüber wäre
+  eine unsichtbare Wand in der Durchreiche.
+- **Die gebauten Stücke stehen in derselben Liste** (`KitchenPiece.built`:
+  Bänder, Kombinierer, Mixer, sichere Kochstelle, Rechner, Kopierer). Sie
+  standen schon immer sofort, weil sie an keiner Datei hängen; jetzt kommt ihr
+  Kasten aus derselben Rechnung wie jeder andere — eine Liste für alle ist eine
+  Wahrheit weniger als zwei.
+
+Neunundneunzig Kästen sind es, die die Küche auf diesem Weg hinstellt —
+vierzig für die gebauten Stücke, neunundfünfzig für die aus den Dateien.
+Nachgemessen ist beides: Mit angehaltenen Dateien stehen jetzt von Anfang an
+107 Trefferkästen in der Welt (die acht übrigen sind die Knopfsäulen und das
+Radio), der Spieler bleibt 26 cm vor der Insel stehen — so dick ist die
+Kapsel —, und wenn die Möbel danach eintreffen, bleibt es bei 107: kein
+zweiter Körper, kein Ruck. Der Test dazu wartet auf nichts —
+`kitchenBlocks.test.ts` kennt keinen Lader, weil die Rechnung keinen kennt,
+und ein Test, der erst nach einem `await` grün würde, prüfte etwas anderes.
+
+**Der Nachbar machte es von Anfang an so** (`zones/diner.ts`: „erst die Körper,
+dann die Bilder — und die Körper auch ohne Bild"). Dort stand sogar
+aufgeschrieben, dass die erste Küche es anders macht und dass das der
+schlechtere Weg ist. Aufgefallen ist es trotzdem erst dem, der in der Küche
+durch einen Herd gelaufen ist.
