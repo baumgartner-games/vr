@@ -297,10 +297,30 @@ describe('die Töne zur Auswahl', () => {
   });
 
   it('nimmt auch eine Zahl, die es in der Liste nicht gibt', () => {
-    expect(trialAt('chop', 99)).toBe(SOUND_TRIALS.chop[99 % SOUND_TRIALS.chop.length]);
+    expect(trialAt('serve', 99)).toBe(SOUND_TRIALS.serve[99 % SOUND_TRIALS.serve.length]);
     expect(trialAt('serve', -1)).toBe(SOUND_TRIALS.serve[SOUND_TRIALS.serve.length - 1]);
-    expect(trialAt('chop', Number.NaN)).toBe(SOUND_TRIALS.chop[0]);
+    expect(trialAt('serve', Number.NaN)).toBe(SOUND_TRIALS.serve[0]);
     expect(nextTrial('serve', Number.NaN)).toBe(1);
+  });
+
+  /**
+   * **Und das Messer steht nicht mehr zur Wahl.** Es klingt nach dem
+   * Küchenbrett, und die beiden anderen Sätze sind samt ihren Aufnahmen und
+   * den zwei Knöpfen davor weg (`kitchenPlan.TRIAL_BUTTONS`). Ein Satz, der
+   * nur noch in einer Liste steht, ist eine Datei, die niemand mehr lädt.
+   */
+  it('lässt das Messer aus der Auswahl heraus — es ist entschieden', () => {
+    expect(TRIAL_CUES).not.toContain('chop');
+    expect(KITCHEN_CUES.chop.files).toEqual([
+      'chop-board-0.ogg',
+      'chop-board-1.ogg',
+      'chop-board-2.ogg',
+      'chop-board-3.ogg',
+    ]);
+    const files = kitchenSoundFiles();
+    for (const gone of ['chop-0.ogg', 'chop-1.ogg', 'chop-2.ogg', 'chop-wood-0.ogg']) {
+      expect(files).not.toContain(gone);
+    }
   });
 
   it('holt auch die Aufnahmen, die gerade nicht laufen', () => {

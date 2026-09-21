@@ -26,18 +26,33 @@ import { bindKey, bindPad, defaultInputConfig } from './inputMap';
 const KINDS: readonly InteractionKind[] = ['press', 'grab'];
 
 describe('what a thing wants, per view', () => {
-  it('presses with A and E from above — exactly as before', () => {
+  it('presses with A, E and the mouse from above', () => {
     const press = resolveInteraction('press', 'topDown');
-    expect(press.inputs).toEqual(['useButton', 'useKey']);
+    expect(press.inputs).toEqual(['useButton', 'useKey', 'pointer']);
     expect(press.press).toBe('tap');
-    expect(press.hint).toBe('A / E');
+    expect(press.hint).toBe('A / E / Linke Maustaste');
   });
 
-  it('grabs from above with the very same button', () => {
+  it('grabs from above with the very same givers', () => {
     const grab = resolveInteraction('grab', 'topDown');
     expect(grab.inputs).toEqual(resolveInteraction('press', 'topDown').inputs);
     expect(grab.press).toBe('tap');
-    expect(grab.hint).toBe('A / E');
+    expect(grab.hint).toBe('A / E / Linke Maustaste');
+  });
+
+  /**
+   * **Die Maus ist von oben derselbe Geber wie aus den Augen** — und das ist
+   * der Punkt dieser Zeile: Wer eine Küche mit der Maus spielt, soll für ein
+   * Brötchen nicht zur Tastatur greifen. Was der Klick dort tut, hängt daran,
+   * ob überhaupt etwas dasteht (`FlatControls`, `PlayerRig.useCandidate`);
+   * hier steht nur, dass er ein Geber ist.
+   */
+  it('offers the mouse in both screen views, for both kinds', () => {
+    for (const kind of KINDS) {
+      expect(resolveInteraction(kind, 'topDown').inputs).toContain('pointer');
+      expect(resolveInteraction(kind, 'firstPerson').inputs).toContain('pointer');
+      expect(resolveInteraction(kind, 'vr').inputs).not.toContain('pointer');
+    }
   });
 
   it('offers mouse or E in first person, for both kinds', () => {
@@ -114,7 +129,7 @@ describe('an exception for one thing in one view', () => {
   it('leaves the other views alone', () => {
     const spec = { kind: 'grab', views: { vr: { inputs: ['aimTrigger'] } } } as const;
     expect(resolveInteraction(spec, 'vr').inputs).toEqual(['aimTrigger']);
-    expect(resolveInteraction(spec, 'topDown').inputs).toEqual(['useButton', 'useKey']);
+    expect(resolveInteraction(spec, 'topDown').inputs).toEqual(['useButton', 'useKey', 'pointer']);
   });
 
   it('switches a view off by taking away its inputs', () => {
@@ -131,7 +146,7 @@ describe('an exception for one thing in one view', () => {
   it('takes a hint of its own when one is written down', () => {
     const spec = { kind: 'grab', views: { vr: { hint: 'Mit beiden Händen' } } } as const;
     expect(resolveInteraction(spec, 'vr').hint).toBe('Mit beiden Händen');
-    expect(resolveInteraction(spec, 'topDown').hint).toBe('A / E');
+    expect(resolveInteraction(spec, 'topDown').hint).toBe('A / E / Linke Maustaste');
   });
 
   it('shows an own hint even where nothing else would be offered', () => {

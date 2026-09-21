@@ -47,11 +47,11 @@ describe('der Katalog der zweiten Küche', () => {
    * **Mindestens eine Kachel, höchstens zwei**, und die Kachelzahl ist das
    * **gerundete** Maß.
    *
-   * Beides hängt am Schauraum: Der packt seine Reihen aus `tiles` und stellt
-   * daneben eine Kachel Luft (`zones/dinerPlan.ts`). Ein Stück, das drei
-   * Kacheln belegte, sprengte keine Reihe — aber ein Stück, dessen Kachelzahl
-   * nicht zu seinem Maß passt, stünde im Schauraum entweder im Nachbarn oder
-   * mit zwei Metern Luft daneben.
+   * Beides hängt an dem, was aus `tiles` eine Reihe packt — der Möbelkatalog
+   * im Konstrukt-Raum stellt neben jedes Stück eine Kachel Luft
+   * (`worlds/shared/construct.ts`). Ein Stück, das drei Kacheln belegte,
+   * sprengte keine Reihe — aber ein Stück, dessen Kachelzahl nicht zu seinem
+   * Maß passt, stünde entweder im Nachbarn oder mit zwei Metern Luft daneben.
    */
   it('rundet jede Grundfläche auf mindestens eine und höchstens zwei Kacheln', () => {
     for (const piece of DINER_PIECES) {

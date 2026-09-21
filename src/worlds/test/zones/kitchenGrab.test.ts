@@ -435,21 +435,21 @@ describe('Abgelegt wird erst beim Loslassen', () => {
     // Und ebenso, wo sonst der Trigger allein zuständig wäre: Berühren bleibt.
     const douse = kitchenDeed(dish('extinguisher'), { kind: 'stove', on: dish('pan'), fire: true });
     expect(vrInputs(kitchenInteractionSpec(douse, undefined, false))).toEqual(['handTouch']);
-    // Von oben unverändert.
+    // Von oben unverändert — dort gilt die Ableitung der Tabelle.
     expect(
       resolveInteraction(kitchenInteractionSpec(place, KITCHEN_STATION_GRAB, false), 'topDown')
         .inputs,
-    ).toEqual(['useButton', 'useKey']);
+    ).toEqual(['useButton', 'useKey', 'pointer']);
   });
 
   /**
-   * **Von oben ändert sich nichts.** `A` tut, was `A` immer getan hat — die
-   * Ausnahme gilt nur für die Ansicht `vr`.
+   * **Von oben ändert die Ausnahme nichts.** `A`, `E` und die linke Maustaste
+   * tun, was die Tabelle sagt — die Ausnahme gilt nur für die Ansicht `vr`.
    */
   it('lässt `A` von oben und am Schreibtisch unberührt', () => {
     const deed = kitchenDeed(dish('plate'), { kind: 'top' });
     const spec = kitchenInteractionSpec(deed, KITCHEN_STATION_GRAB);
-    expect(resolveInteraction(spec, 'topDown').inputs).toEqual(['useButton', 'useKey']);
+    expect(resolveInteraction(spec, 'topDown').inputs).toEqual(['useButton', 'useKey', 'pointer']);
     expect(resolveInteraction(spec, 'topDown').press).toBe('tap');
     expect(resolveInteraction(spec, 'firstPerson').inputs).toEqual(['pointer', 'useKey']);
   });

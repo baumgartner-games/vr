@@ -387,45 +387,37 @@ export interface TrialButtons {
 }
 
 /**
- * **Die Knöpfe der Tonprobe** — zwei Paare, jedes vor dem Möbel, um dessen Ton
- * es geht: links **weiterschalten**, rechts **vorspielen**.
+ * **Die Knöpfe der Tonprobe** — ein Paar vor dem Möbel, um dessen Ton es geht:
+ * links **weiterschalten**, rechts **vorspielen**.
  *
  * Sie standen einmal im **Schauraum** östlich der Küche, wo jedes Möbel
  * einzeln stand; mit ihm ist dieser Platz weggefallen (`layout.KITCHEN`).
- * Geblieben ist die Regel, die sie dort hatte: Wer wissen will, wie das Messer
- * klingt, steht ohnehin vor dem **Brett**, und wer die Abgabe vergleicht, vor
- * der **Ausgabetheke** — also stehen die Knöpfe dort und nicht in einer Reihe
- * an der Wand. Vier Schilder übereinander liest niemand.
+ * Geblieben ist die Regel, die sie dort hatte: Wer die Abgabe vergleicht,
+ * steht ohnehin vor der **Ausgabetheke** — also stehen die Knöpfe dort und
+ * nicht in einer Reihe an der Wand. Vier Schilder übereinander liest niemand.
  *
  * **Zwei Kacheln auseinander**, wie schon im Schauraum: Auf Lücke gestellt
  * überdecken sich die beiden Schilder nicht, und zwischen den Säulen steht
  * der, der vergleicht.
  *
- * **Wo genau, ist je Möbel nachgesehen und nicht geraten:**
+ * Die **Ausgabetheke** (x = 5…6, z = 9) schaut nach Süden, also stehen ihre
+ * Knöpfe auf z = 10, im Gastraum davor. Auf z = 8 nähmen sie dem Koch genau
+ * die Kacheln weg, von denen aus er über die Theke gibt.
  *
- * - Das **Brett** steht in der Nordzeile (x = 8, z = 0). Die Knöpfe stehen auf
- *   z = 2, in der **zweiten** Reihe des Gangs — dieselbe Überlegung wie beim
- *   Leck-Knopf (`LEAK_BUTTON_TILE`): Auf z = 1 steht, wer an der Zeile
- *   arbeitet, und in der Brille langt man nur einen Meter weit.
- * - Die **Ausgabetheke** (x = 5…6, z = 9) schaut nach Süden, also stehen ihre
- *   Knöpfe auf z = 10, im Gastraum davor. Auf z = 8 nähmen sie dem Koch genau
- *   die Kacheln weg, von denen aus er über die Theke gibt.
+ * **Das Paar vor dem Brett ist weg** (x = 8 und x = 10 auf z = 2): Wie das
+ * Messer klingt, ist entschieden (`kitchenSound.KITCHEN_CUES.chop`), und ein
+ * Knopf, der eine Wahl anbietet, die es nicht mehr gibt, ist ein Schild mit
+ * einer Lüge darauf. Der Gang vor der Nordzeile ist damit wieder frei.
  *
- * **Die vier Kacheln sind frei**, nachgesehen und nicht gehofft; ein Test hält
+ * **Die zwei Kacheln sind frei**, nachgesehen und nicht gehofft; ein Test hält
  * das fest (`kitchenPlan.test.ts`) — zwei Dinge auf einer Kachel heißt, dass
  * `A` immer nur eines davon erwischt.
  *
  * **Und sie sind vorübergehend.** Steht die Wahl, fallen die Knöpfe mitsamt
  * `kitchenSound.SOUND_TRIALS` wieder heraus; was bleibt, ist der Satz
- * Aufnahmen, der gewonnen hat.
+ * Aufnahmen, der gewonnen hat — beim Messer ist das gerade geschehen.
  */
 export const TRIAL_BUTTONS: readonly TrialButtons[] = [
-  {
-    cue: 'chop',
-    piece: 'board',
-    turn: { x: 8, z: 2 },
-    play: { x: 10, z: 2 },
-  },
   {
     cue: 'serve',
     piece: 'pass',

@@ -1578,8 +1578,8 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     Einschalten räumt die Küche dabei ab, wie `B`/`Y` es täte (beides unter
     _Anfassen in der Küche_). Sie ist
     der Grund, warum das Gelände nach Norden gewachsen ist (`FIELD` ist heute
-    73 × 105 m, und das letzte Stück davon hat die zweite Küche
-    gekostet): Die Möbel sind groß — eine Spüle misst in der Quelle 4 × 2,1 m,
+    73 × 105 m; das letzte Stück davon hatte die zweite Küche gekostet, die es
+    nicht mehr gibt): Die Möbel sind groß — eine Spüle misst in der Quelle 4 × 2,1 m,
 im Spiel also zwei Kacheln —, und in eine
     Lücke zwischen zwei bestehenden Zonen passt davon keine Reihe. Hinter dem
     Podest und nicht neben dem Schießstand, weil dessen Bahnen quer über den
@@ -1593,58 +1593,23 @@ im Spiel also zwei Kacheln —, und in eine
     Ein Text an einer Wand ist ein Gemälde. Die Nordwand ist dafür die
     richtige, weil die Kamera von oben aus dem Süden schaut — an der Westwand
     hinge derselbe Aushang für diesen Blick hochkant.
-  - **Zweite Küche** (ganz oben im Norden, über der ersten): vierundzwanzig mal
-    vierundzwanzig Kacheln aus einem **zweiten** Möbelkatalog
+  - **Die zweite Küche ist weg** (September 2026). Ganz oben im Norden stand
+    über der ersten ein Restaurant aus dem **zweiten** Möbelkatalog
     (`core/dinerFit.ts`, 156 Stücke aus _Restaurant Bits_, CC0 — siehe
-    _Modelle im Repository_) — ein **eingerichteter Raum**, und sonst nichts.
+    _Modelle im Repository_): vierundzwanzig mal vierundzwanzig Kacheln, ein
+    **eingerichteter Raum** ohne Stationen, Uhren, Rezepte und ohne `update`.
+    Er war die Antwort auf die Frage, die ihn gebaut hat — was von dem
+    gekauften Baukasten können wir brauchen? —, und die ist beantwortet: Die
+    Zutaten der ersten Küche kommen heute aus diesem Katalog
+    (`zones/kitchenProps.ts`), durchblättern lässt er sich im Konstrukt-Raum,
+    und ein Raum zum Ansehen daneben kostete nur Wege. Mit der Zone sind
+    `zones/diner.ts`, `zones/dinerPlan.ts`, das Rechteck `DINER`, der Gang
+    dorthin und der Eintrag _Zweite Küche_ im Sprungmenü gegangen; **der
+    Katalog bleibt**.
 
-    Darin steht, was man aus dem Baukasten bauen kann: die Zeile an der
-    Nordwand mit Spüle, zwei Herden, Backofen und Pizzaofen, darüber
-    Hängeschränke und zwei Abzugshauben, davor die Insel aus Arbeits- und
-    Spültischen, an der Westwand der Vorrat in Kisten, quer davor die
-    Durchreiche und dahinter sechs Gästetische mit Stühlen.
-
-    **Der Schauraum dahinter ist weg** (September 2026): vierundvierzig Kacheln
-    Breite, auf denen jedes der 156 Stücke einzeln und beschriftet stand. Es
-    war ein Katalog zum Abgehen, und genau den gibt es am Rechner der ersten
-    Küche (siehe _Der Konstrukt-Raum_) — nur hat man ihn dort in Reichweite
-    statt zwei Zimmer weiter. Die Zone ist damit von neunundsechzig auf
-    vierundzwanzig Kacheln geschrumpft.
-
-    **Gespielt wird hier nicht** (`zones/diner.ts`): keine Stationen, keine
-    Uhren, keine Rezepte, kein Baumodus, kein `update`. Das ist keine halbe
-    Sache, sondern die Antwort auf die Frage, die diesen Raum gebaut hat — was
-    von dem gekauften Baukasten können wir brauchen? Die beantwortet man, indem
-    man die Sachen hinstellt und ansieht, und nicht, indem man ihnen
-    Spielregeln gibt, die noch niemand haben wollte. Was sich als brauchbar
-    herausstellt, wandert danach in die erste Küche; dort steht die Maschine,
-    die es aufnimmt.
-
-    **Und sie steht in neun Netzen da**, obwohl viermal so viele Stücke darin
-    stehen wie in der ersten. Alle 156 teilen sich **ein** Material und
-    **eine** Textur —
-    die Quelle ist ein Baukasten auf einem Farbstreifen-Atlas —, und damit
-    lässt sich zusammenfassen, was die erste Küche nur einzeln zeichnen kann:
-    Das ganze Restaurant wird zu **einem** Netz verschmolzen
-    (`zones/kitchenMerge.ts`, dieselbe Rechnung wie beim Kopierer). Solange der
-    Schauraum dahinter über vierundvierzig Kacheln lief, wurde **reihenweise**
-    verschmolzen — acht Reihen plus das Restaurant —, damit der Blickkegel den
-    halben Katalog wegwerfen konnte; seit es ihn nicht mehr gibt, steht der
-    Raum ohnehin ganz im Bild, wenn man darin steht. Was das an
-    Zeichenaufrufen je Bild spart, ist damit **nicht** gemessen; gemessen wird
-    das mit `npm run perf:kitchen`, und das Werkzeug misst bisher nur an der
-    Ankerkachel der ersten Küche. Was verschmolzen ist, lässt sich dafür nicht
-    mehr einzeln anfassen, und genau deshalb kann die **erste** Küche das nicht
-    so machen (`kitchenCarry.ts`, `kitchenBuild.ts`).
-
-    **Dafür ist das Gelände nach Norden gewachsen** (`FIELD` von 80 auf 105 m
-    tief) — nach Norden, weil dort nichts liegt, was ausweichen müsste, und
-    weil die beiden Küchen so übereinanderstehen: Wer in der ersten am Tresen
-    steht und nach Norden sieht, sieht die zweite. Hin kommt man von der ersten
-    Küche aus (`layout.PATHS`): an ihrer Westwand entlang nach Norden und dann
-    nach Westen zur **Südseite** der zweiten, die als einzige offen ist —
-    **um die Wände herum und nicht durch sie**: Eine Tür in eine fremde Zone
-    zu schlagen hieße, ihren Grundriss von außen zu ändern.
+    Das Gelände behält dabei seine Ausdehnung nach Norden (`FIELD`, 73 × 105 m):
+    Es wächst mit dem, was darin steht, und einen Plan zu beschneiden, weil
+    gerade nichts darauf steht, verschiebt jede Zahl darunter ein zweites Mal.
   - **Portaltafeln**: drei helle Tafeln — am Startplatz, auf dem Podest und an
     der Westwand der Navigation. Drei und nicht eine, weil ein Portal erst zu
     zweit etwas ist; die auf dem Podest ist der kürzeste Weg, die Treppe zu
@@ -1675,10 +1640,10 @@ im Spiel also zwei Kacheln —, und in eine
   Portale, das Menü und die Physik-Einstellungen. Nach dem dritten Umbau hätte
   eine davon etwas daran verstellt, und niemand wüsste welche. Sie dürfen
   bauen, anmelden und melden, und sonst nichts; dieselbe Entscheidung wie bei
-  den Einbauten und aus demselben Grund. Sieben von elf haben überhaupt Leben
-  darin (Interaktionen, Navigation, Schießstand, Kart, Klettern, Küche und
-  zweite Küche), die anderen vier sind ein **Stempel** auf dem Grundriss und
-  fertig (`stamp<Name>(plan)`).
+  den Einbauten und aus demselben Grund. Sechs von zehn haben überhaupt Leben
+  darin (Interaktionen, Navigation, Schießstand, Kart, Klettern und Küche), die
+  anderen vier sind ein **Stempel** auf dem Grundriss und fertig
+  (`stamp<Name>(plan)`).
 
   **Wo eine Zone liegt, steht in `layout.ts`** und nicht im Grundriss, und das
   ist kein Stilfehler, sondern ein Absturz weniger: Der Grundriss ruft die

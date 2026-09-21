@@ -440,11 +440,11 @@ Unterscheidung.
 Die Ableitung steht als Tabelle da und nicht als `if`-Kette
 (`INTERACTION_DEFAULTS`):
 
-| Absicht | von oben (`topDown`) | aus den Augen (`firstPerson`) | in der Brille (`vr`)          |
-| ------- | -------------------- | ----------------------------- | ----------------------------- |
-| `press` | `A` / `E`, tippen    | linke Maustaste / `E`, tippen | Berühren / Trigger, tippen      |
-| `grab`  | `A` / `E`, tippen    | linke Maustaste / `E`, tippen | Greifen / Trigger, **halten**   |
-| `none`  | —                    | —                             | —                               |
+| Absicht | von oben (`topDown`)              | aus den Augen (`firstPerson`) | in der Brille (`vr`)          |
+| ------- | --------------------------------- | ----------------------------- | ----------------------------- |
+| `press` | `A` / `E` / linke Maustaste, tippen | linke Maustaste / `E`, tippen | Berühren / Trigger, tippen      |
+| `grab`  | `A` / `E` / linke Maustaste, tippen | linke Maustaste / `E`, tippen | Greifen / Trigger, **halten**   |
+| `none`  | —                                 | —                             | —                               |
 
 **„Halten" heißt dabei nicht „nur halten".** Die Greif-Taste geht beim Zufassen
 herunter und legt beim Loslassen ab — wer sie nur kurz antippt, behält das Ding
@@ -521,6 +521,16 @@ einem steht — aber nur, wenn wirklich etwas dasteht
 (`PlayerRig.useCandidate`) und der Zeiger schon geholt ist, damit der Klick
 ins Bild nicht aus Versehen bedient. Anders als `A` ist sie kein Knopf für
 zwei Dinge: Ein Klick ins Leere tut nichts und springt vor allem nicht.
+
+**Und von oben tut sie dasselbe** (`FlatControls`, der Zweig `topDownOn` in
+`pointerdown`). Wer eine Küche am Schreibtisch spielt, führt die Figur mit der
+Maus — sie zielt, also dreht sie die Figur —, und griff bisher für jedes
+Brötchen zur Tastatur. Der Klick ist dort jetzt derselbe Geber wie `E`, mit
+derselben Rangfolge wie `A`: Steht etwas in Reichweite, gehört der Klick dem
+Ding davor; steht nichts da, bleibt er der **Auslöser** dessen, was die Figur
+trägt (der Feuerlöscher, die Waffe — `PlayerRig.setTrigger`). Zwei Wirkungen
+auf einen Klick gibt es damit nie, und der Löscher verliert seinen Knopf nur
+dort, wo ohnehin etwas Näheres gemeint ist.
 
 ## Benutzen mit der Hand — die Brille
 

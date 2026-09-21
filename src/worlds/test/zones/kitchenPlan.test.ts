@@ -515,12 +515,17 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
   });
 
   /**
-   * **Und die vier Knöpfe der Tonprobe stehen auf freien Kacheln**
+   * **Und die Knöpfe der Tonprobe stehen auf freien Kacheln**
    * (`TRIAL_BUTTONS`, `kitchen.addTrialButtons`).
    *
    * Dieselbe Falle wie bei jedem anderen Knopf: Zwei Dinge auf einer Kachel
    * heißt, dass `A` nur das Nähere erwischt — und je nachdem ließe sich dann
    * entweder der Knopf nicht drücken oder das Möbel nicht benutzen.
+   *
+   * **Ein Paar je offene Frage**, und offen ist nur noch die Abgabe: Das
+   * Messer ist entschieden (`kitchenSound.KITCHEN_CUES.chop`), sein Paar vor
+   * dem Brett ist weg. Gezählt wird deshalb paarweise und nicht auf eine feste
+   * Vier — die Zahl fällt mit jeder Entscheidung.
    */
   it('lässt die Kacheln der Tonprobe frei', () => {
     const taken = (tile: { x: number; z: number }): boolean =>
@@ -534,7 +539,8 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
         );
       });
     const tiles = TRIAL_BUTTONS.flatMap((pair) => [pair.turn, pair.play]);
-    expect(tiles.length).toBe(4);
+    expect(tiles.length).toBe(TRIAL_BUTTONS.length * 2);
+    expect(TRIAL_BUTTONS.map((pair) => pair.cue)).toEqual(['serve']);
     for (const tile of tiles) expect(taken(tile)).toBe(false);
     // Und keine zwei davon aufeinander — auch das erwischte `A` nur einmal.
     expect(new Set(tiles.map((tile) => `${tile.x}/${tile.z}`)).size).toBe(tiles.length);

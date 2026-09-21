@@ -1092,8 +1092,8 @@ export class KitchenZone implements TestZone {
    */
   private sound = new KitchenAudio();
   /**
-   * **Welche Variante der beiden Töne gerade läuft, die noch zur Wahl stehen**
-   * (`kitchenSound.SOUND_TRIALS`) — der Stand der Knöpfe im Schauraum.
+   * **Welche Variante des Tons gerade läuft, der noch zur Wahl steht**
+   * (`kitchenSound.SOUND_TRIALS`) — der Stand der Knöpfe vor dem Möbel.
    *
    * Er steht in der Zone und nicht im Speicher des Browsers, wie der Sender
    * des Radios daneben (`kitchenRadio.RadioState`): Es ist eine Frage, die
@@ -3939,14 +3939,17 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Die Tonprobe im Schauraum** — vier Knöpfe, zwei Fragen.
+   * **Die Tonprobe** — zwei Knöpfe, eine Frage.
    *
-   * Zwei Geräusche dieser Küche stehen noch zur Wahl: wie das **Messer** auf
-   * dem Brett klingt und wie die **Abgabe** eines Gerichts
-   * (`kitchenSound.SOUND_TRIALS`). Beides lässt sich nicht am Schreibtisch
-   * entscheiden — man hört es oder man hört es nicht —, und beides lässt sich
-   * im Spiel schlecht vergleichen: Ein Schnitt dauert drei Sekunden, und wer
-   * die Abgabe hören will, muss erst einen Burger bauen.
+   * Ein Geräusch dieser Küche steht noch zur Wahl: wie die **Abgabe** eines
+   * Gerichts klingt (`kitchenSound.SOUND_TRIALS`). Das lässt sich nicht am
+   * Schreibtisch entscheiden — man hört es oder man hört es nicht —, und es
+   * lässt sich im Spiel schlecht vergleichen: Wer die Abgabe hören will, muss
+   * erst einen Burger bauen.
+   *
+   * **Das Paar vor dem Brett ist weg**: Wie das Messer klingt, ist
+   * entschieden (das Küchenbrett, `kitchenSound.KITCHEN_CUES.chop`), und damit
+   * hat die Küche dort nichts mehr zu fragen.
    *
    * Also steht die Auswahl dort, wo die Möbel einzeln ausgestellt sind, und
    * zwar vor dem Möbel, um das es geht (`kitchenPlan.TRIAL_BUTTONS`): links
@@ -3958,9 +3961,9 @@ export class KitchenZone implements TestZone {
    * (`kitchenAudio.KitchenAudio.choose`): Wer sich für einen Klang
    * entscheidet, will ihn danach beim Kochen hören und nicht nur am Knopf.
    *
-   * **Und sie sind vorübergehend.** Steht die Wahl, fallen die vier Knöpfe
-   * mitsamt der Auswahl wieder heraus; übrig bleibt der Satz Aufnahmen, der
-   * gewonnen hat.
+   * **Und sie sind vorübergehend.** Steht die Wahl, fallen die Knöpfe mitsamt
+   * der Auswahl wieder heraus; übrig bleibt der Satz Aufnahmen, der gewonnen
+   * hat — beim Messer ist das gerade geschehen.
    */
   private addTrialButtons(): void {
     const world = this.world;

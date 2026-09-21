@@ -17,21 +17,20 @@ klickt jede Wiederholung.
 Welche Datei zu welchem Ereignis gehört, steht in
 `src/worlds/test/zones/kitchenSound.ts` (`KITCHEN_CUES`).
 
-**Drei Zeilen gehören zu einer Wahl, die noch aussteht** (`SOUND_TRIALS`
-ebendort): Für das Messer auf dem Brett liegen drei Sätze bereit
-(`chop-*`), für die Abgabe eines Gerichts drei einzelne Töne (`serve-*`).
-Umgeschaltet wird an zwei Knöpfen im Schauraum. Steht die Wahl, bleibt von
-jeder Gruppe ein Satz übrig, und der Rest fliegt hier wieder heraus.
+**Eine Zeile gehört zu einer Wahl, die noch aussteht** (`SOUND_TRIALS`
+ebendort): Für die Abgabe eines Gerichts liegen drei einzelne Töne bereit
+(`serve-*`). Umgeschaltet wird an zwei Knöpfen vor der Ausgabetheke. Steht die
+Wahl, bleibt ein Ton übrig, und der Rest fliegt hier wieder heraus.
+
+**Beim Messer auf dem Brett ist das schon geschehen**: Von den drei Sätzen, die
+zur Wahl standen, ist das Küchenbrett geblieben (`chop-board-*`); die Kenney-Hiebe
+(`chop-*`) und der Hackblock (`chop-wood-*`) sind mitsamt ihren Knöpfen weg.
 
 ## Geräusche
 
 | Datei              | Quelle                                                   | Urheber      | Seite                                                           | Bearbeitung                     |
 | ------------------ | -------------------------------------------------------- | ------------ | --------------------------------------------------------------- | ------------------------------- |
-| `chop-0.ogg`       | Kenney _RPG Audio_, `chop.ogg`                           | Kenney       | [kenney.nl](https://kenney.nl/assets/rpg-audio)                  | —                               |
-| `chop-1.ogg`       | `kitchencuttingboard01.wav`, Hieb bei 3,42 s             | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Ausschnitt 0,35 s         |
-| `chop-2.ogg`       | dieselbe Aufnahme, Hieb bei 6,99 s                       | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Ausschnitt 0,35 s         |
 | `chop-board-0..3.ogg` | dieselbe Aufnahme, Hiebe bei 3,68 / 14,42 / 25,37 / 49,44 s | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Hochpass 90 Hz, Ausschnitt 0,25 s |
-| `chop-wood-0..2.ogg` | Kenney _Impact Sounds_, `impactWood_light_000/001/002` | Kenney       | [kenney.nl](https://kenney.nl/assets/impact-sounds)             | —                               |
 | `sizzle.ogg`       | `fryingpan01.wav`                                        | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Schleife 4 s ab 20 s      |
 | `water.ogg`        | `kitchensink02.wav`                                      | bretbernhoft | [OGA](https://opengameart.org/content/general-household-sound-effects) | Schleife 2,2 s ab 40 s    |
 | `combine-0.ogg`    | _100 CC0 SFX_, `plop_01.ogg`                             | rubberduck   | [OGA](https://opengameart.org/content/100-cc0-sfx)              | —                               |

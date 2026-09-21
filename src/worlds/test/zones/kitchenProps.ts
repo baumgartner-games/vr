@@ -752,8 +752,9 @@ export class FoodKit {
     // **Die Vorlagen werden nur vergessen und nicht freigegeben.** Geometrie
     // und Material darin gehören der geladenen Datei und werden von jedem
     // Möbel derselben Quelle mitbenutzt (`core/dinerModel.ts`); wer sie hier
-    // freigäbe, nähme der zweiten Küche nebenan ihre Netze weg. Ein neuer
-    // `warm()`-Lauf holt sie aus demselben Zwischenspeicher zurück.
+    // freigäbe, nähme jedem anderen Leser derselben Datei seine Netze weg —
+    // dem Möbelkatalog im Konstrukt-Raum zum Beispiel. Ein neuer `warm()`-Lauf
+    // holt sie aus demselben Zwischenspeicher zurück.
     this.nodes.clear();
     this.warming = null;
   }
@@ -874,8 +875,8 @@ export class FoodKit {
    * nach vorn halten und nicht über die Schulter.
    *
    * **Die Hülle steht auch ohne Datei**, und das ist keine Vorsichtsmaßnahme,
-   * sondern dieselbe Entscheidung wie beim Nachbarn (`zones/diner.addBody`:
-   * „erst die Körper, dann die Bilder — und die Körper auch ohne Bild"). An
+   * sondern die Regel dieser Zone: erst die Körper, dann die Bilder — und die
+   * Körper auch ohne Bild (`kitchenBlocks.ts`). An
    * dieser Hülle hängen die Griffe (`kitchenGrab.pliersGrip` rechnet in
    * Anteilen der gemessenen Ausdehnung), die Stapelhöhe (`ITEM_HEIGHT`) und
    * jeder Test, der nachmisst, dass ein Stück dieser Datei mit dem Fuß auf

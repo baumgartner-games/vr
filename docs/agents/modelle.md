@@ -101,10 +101,17 @@ gedrückt und dafür 250 KB WebAssembly gebraucht, die jemand von Hand nach
 `public/` legt. Ein halbes Megabyte gespart und ein Auslieferungsfehler mehr
 möglich ist kein guter Tausch.
 
-Die Dateien: `core/dinerFit.ts` (Maße, ohne three.js), `core/dinerModel.ts`
-(Lader), `worlds/test/zones/dinerPlan.ts` (Aufbau und Stempel, ohne three.js),
-`worlds/test/zones/diner.ts` (die Zone). Dieselbe Teilung wie bei der ersten
-Küche und aus demselben Grund: Rechnung getrennt von Darstellung.
+Die Dateien: `core/dinerFit.ts` (Maße, ohne three.js) und `core/dinerModel.ts`
+(Lader) — dieselbe Teilung wie bei der Küche und aus demselben Grund: Rechnung
+getrennt von Darstellung.
+
+**Den Raum dazu gibt es nicht mehr.** Der Katalog hatte einmal eine eigene
+Zone, die **zweite Küche** (`worlds/test/zones/diner.ts`, `dinerPlan.ts`, ein
+Restaurant über der ersten im Norden); sie ist entfernt. Gebraucht wird der
+Katalog trotzdem jeden Tag: Aus ihm kommen die **Zutaten** der Küche —
+Brötchen, Patty, Salat, Tomate, Teller, Kisten (`zones/kitchenProps.ts`) —,
+und durchblättern lässt er sich im Konstrukt-Raum (`shared/construct.ts`). Ein
+Baukasten braucht keinen eigenen Raum, sobald das Spiel ihn benutzt.
 
 ## Der dritte Katalog: die Wundertüte
 
@@ -682,8 +689,10 @@ kann.
   `kitchenNearest`: von vier brennenden Herden zählt der nächste; die
   **Reichweite** steht am Ton und nicht in der Formel, siehe unten), der **Takt**
   des Messers (`kitchenBeat` — höchstens ein Schlag je Bild, sonst macht ein
-  Ruckler eine Salve daraus) und die **Auswahl** der beiden Töne, über die noch
-  nicht entschieden ist (`SOUND_TRIALS`, siehe unten). **Schritte macht die
+  Ruckler eine Salve daraus; alle 0,30 s ein Schlag, `CHOP_BEAT`, also zehn je
+  Schnitt: schnelles Schneiden, ohne dass der Ton selbst schneller liefe) und
+  die **Auswahl** des einen Tons, über den noch nicht entschieden ist
+  (`SOUND_TRIALS`, siehe unten). **Schritte macht die
   Küche nicht**: Es gab vier Aufnahmen und eine Schrittuhr nach der Strecke,
   und beim Kochen war das ein Trommeln unter allem, was man hören wollte.
   Daneben liegt `kitchenAudio.ts` mit acht Stimmen und je Schleife einer, auf dem
@@ -710,20 +719,25 @@ kann.
   Reichweite mit. Warnung, Feueralarm und **Radio** stehen heute auf
   `EVERY_ROOM`; wer das Radio in der **ganzen Welt** hören will, tauscht in
   `KITCHEN_CUES` ein Wort.
-- **Zwei Töne stehen noch zur Wahl, und die Wahl steht in der Küche**
+- **Ein Ton steht noch zur Wahl, und die Wahl steht in der Küche**
   (`kitchenSound.SOUND_TRIALS`, `kitchenPlan.TRIAL_BUTTONS`,
-  `kitchen.addTrialButtons`). Wie das **Messer** auf dem Brett klingt und wie
-  die **Abgabe** eines Gerichts, entscheidet niemand am Schreibtisch; also
-  stehen je zwei rote Knöpfe vor dem Schneidebrett und vor der Ausgabetheke —
-  links weiterschalten, rechts vorspielen —, und auf beiden Schildern steht,
-  welche Variante gerade gilt. Eine Variante ist ein **Satz** Aufnahmen und
-  keine Datei: Das Messer schlägt siebenmal je Schnitt auf, die Abgabe kommt
-  einmal. Geschaltet wird der Vorrat, aus dem der Spieler würfelt
+  `kitchen.addTrialButtons`). Wie die **Abgabe** eines Gerichts klingt,
+  entscheidet niemand am Schreibtisch; also stehen zwei rote Knöpfe vor der
+  Ausgabetheke — links weiterschalten, rechts vorspielen —, und auf beiden
+  Schildern steht, welche Variante gerade gilt. Eine Variante ist ein **Satz**
+  Aufnahmen und keine Datei: Die Abgabe kommt einmal, das Messer schlug
+  mehrmals je Schnitt. Geschaltet wird der Vorrat, aus dem der Spieler würfelt
   (`kitchenAudio.choose`), also klingt die ganze Küche danach so und nicht nur
   die Vorführung. Geladen wird beim Aufbau der Zone **alles**, auch was gerade
   nicht läuft (`kitchenSoundFiles`) — wer erst beim Druck lädt, hört Stille,
   wo er vergleichen wollte. **Das ist Gerüst**: Steht die Wahl, fallen Knöpfe
   und Auswahl heraus, und übrig bleibt der Satz, der gewonnen hat.
+- **Beim Messer ist das schon passiert** (`KITCHEN_CUES.chop`). Von den drei
+  Sätzen, die vor dem Schneidebrett zur Wahl standen, ist das **Küchenbrett**
+  geblieben — vier Hiebe auf dasselbe Holz —; die beiden anderen sind mitsamt
+  ihren Aufnahmen (`chop-*.ogg`, `chop-wood-*.ogg`) und den zwei Knöpfen davor
+  weg. So sieht eine entschiedene Wahl aus: eine Zeile in `KITCHEN_CUES`,
+  keine Liste daneben und kein Knopf im Gang.
 - **Das Radio ist kein Möbel** (`kitchenRadio.ts`, `kitchenPlan.RADIO_TILE`).
   Es steht in keiner Möbelliste und lässt sich nicht umbauen — dieselbe
   Begründung wie bei den beiden roten Knöpfen: Ein Gerät, das man im Baumodus
@@ -1011,8 +1025,8 @@ Und das sind die Regeln, die darin stehen:
     der Hand, während im Becken gespült wird. Das wären zwei Uhren an einer
     Station, und genau **eine** ist der Sinn von `kitchenWork.ts`.
   - **Bedient wird die Station**, nicht gegriffen: `fill` ist kein `take`, also
-    `press` — in der Brille **Berühren oder Trigger**, von oben `A`, am
-    Schreibtisch linke Maustaste oder `E`. Kein Sonderfall in einer der drei
+    `press` — in der Brille **Berühren oder Trigger**, von oben `A`, `E` oder
+    die linke Maustaste, am Schreibtisch linke Maustaste oder `E`. Kein Sonderfall in einer der drei
     Ansichten, und der gelbe Saum liegt auf dem Becken und nicht auf dem
     dreckigen Teller darin (`meansContent`).
   - **Das Bild ist gemessen** (`core/kitchenFit.POT_BOWL`, Quelle
@@ -2064,8 +2078,9 @@ zweiter Körper, kein Ruck. Der Test dazu wartet auf nichts —
 `kitchenBlocks.test.ts` kennt keinen Lader, weil die Rechnung keinen kennt,
 und ein Test, der erst nach einem `await` grün würde, prüfte etwas anderes.
 
-**Der Nachbar machte es von Anfang an so** (`zones/diner.ts`: „erst die Körper,
-dann die Bilder — und die Körper auch ohne Bild"). Dort stand sogar
+**Die zweite Küche machte es von Anfang an so** („erst die Körper, dann die
+Bilder — und die Körper auch ohne Bild"). In ihrer Datei stand sogar
 aufgeschrieben, dass die erste Küche es anders macht und dass das der
 schlechtere Weg ist. Aufgefallen ist es trotzdem erst dem, der in der Küche
-durch einen Herd gelaufen ist.
+durch einen Herd gelaufen ist. Die Zone ist inzwischen weg, die Regel ist
+geblieben (`zones/kitchenBlocks.ts`).

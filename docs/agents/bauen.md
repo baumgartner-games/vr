@@ -71,7 +71,8 @@ Antwort, solange es diesen Raum hier nicht gab: Ein Katalog, durch den man
 Stück in Reichweite hat, ist er der schlechtere, und zwei Kataloge nebeneinander
 sind einer zu viel. Die beiden Zonen sind im September 2026 auf ihren
 bespielten Teil geschrumpft (`worlds/test/layout.ts`: `KITCHEN` von 37 auf 20,
-`DINER` von 69 auf 24 Kacheln Breite).
+`DINER` von 69 auf 24 Kacheln Breite) — und die zweite Küche ist seither ganz
+gegangen; geblieben ist ihr Katalog im Konstrukt-Raum.
 
 **Und der Katalog zeigt den Katalog.** Vorher stand vor der Schleife ein Filter
 auf `this.models` — gezeigt wurde nur, wovon beim Aufbauen der Küche schon eine

@@ -127,31 +127,23 @@ export const KITCHEN: NavRect = { x: 12, z: -31, w: 20, d: 11 };
  */
 export const KITCHEN_SPAWN = { x: KITCHEN.x + 1, z: KITCHEN.z + 7 } as const;
 
-/**
- * **Die zweite Küche** — ein Restaurant aus einem zweiten Möbelkatalog, ganz
- * oben im Norden über der ersten.
+/*
+ * **Hier lag die zweite Küche** — ein Restaurant aus dem zweiten Möbelkatalog
+ * (`DINER`, 24 × 24 Kacheln bei x = −24, z = −56, ganz oben im Norden über der
+ * ersten). Sie ist weg, samt ihrer Zone (`zones/diner.ts`, `zones/dinerPlan.ts`)
+ * und ihrem Eintrag im Sprungmenü.
  *
- * Sie gibt es, weil ein zweiter Baukasten gekauft wurde (`core/dinerFit.ts`,
- * 146 Stücke aus „Restaurant Bits"), und ein Katalog, den niemand aufstellt,
- * ist eine Datei und kein Möbel — die erste Küche lag aus genau diesem Grund
- * ein halbes Jahr ungenutzt da. Sie ist ein **eingerichteter Raum**: die Zeile
- * an der Wand, die Insel davor, der Vorrat, die Durchreiche, der Gastraum.
+ * **Der Katalog bleibt** (`core/dinerFit.ts`, `core/dinerModel.ts`,
+ * `public/models/diner.glb`): Aus ihm kommen die Zutaten der ersten Küche —
+ * Brötchen, Patty, Salat, Tomate, Teller, Kisten (`zones/kitchenProps.ts`) —,
+ * und im Konstrukt-Raum steht er als Möbelkatalog zum Durchblättern
+ * (`shared/construct.ts`). Ein zweiter eingerichteter Raum dafür war es, was
+ * nicht mehr gebraucht wurde, nicht der Baukasten selbst.
  *
- * **Nach Norden und nicht nach Westen**, obwohl neben der ersten Küche Platz
- * gewesen wäre: Das Gelände ist dafür nach Norden gewachsen — dort liegt
- * nichts, was ausweichen müsste, und die beiden Küchen stehen so übereinander
- * statt nebeneinander: Wer in der ersten am Tresen steht und nach Norden
- * sieht, sieht die zweite.
- *
- * **Vierundzwanzig Kacheln breit**, und das war sie einmal dreimal: Hinter dem
- * Restaurant lag ein **Schauraum**, in dem jedes der 146 Stücke einzeln stand
- * — vierundvierzig Kacheln Breite für einen Katalog zum Abgehen. Den gibt es
- * jetzt am Rechner (`shared/construct.ts`, der Möbelkatalog im
- * Konstrukt-Raum), und ein Katalog, den man in der Hand hat, braucht kein
- * zweites Zimmer. Geblieben ist der Raum, für den der Baukasten gekauft
- * wurde.
+ * Das Gelände (`FIELD`) behält seine Ausdehnung nach Norden: Es wächst mit
+ * dem, was darin steht, und einen Plan zu beschneiden, weil gerade nichts
+ * darauf steht, verschiebt jede Zahl darunter ein zweites Mal.
  */
-export const DINER: NavRect = { x: -24, z: -56, w: 24, d: 24 };
 
 /**
  * **Die Gänge zwischen den Zonen**, drei Kacheln breit, wo es geht.
@@ -192,27 +184,13 @@ export const PATHS: readonly NavRect[] = [
   // dessen Mitte stünde man unter dem Deck, und von oben verschwindet dann
   // genau das Stück Weg, das man gerade geht (`core/cutaway.ts`).
   { x: 12, z: -21, w: 3, d: 4 },
-  // Von einer Küche in die andere, denn „nebenan" soll man auch gehen können:
-  // an der Westwand der ersten Küche entlang nach Süden…
+  // Und der Gang an der Westwand der ersten Küche entlang nach Süden, unten
+  // herum in ihren eigenen Gang. Er führte einmal weiter nach Norden in die
+  // zweite Küche; die ist weg, und was bleibt, ist der zweite Zugang zur
+  // ersten — um ihre Wand herum und nicht durch sie, denn eine Tür in eine
+  // fremde Zone zu schlagen hieße, ihren Grundriss von hier aus zu ändern.
   { x: 9, z: -33, w: 3, d: 13 },
-  // …und unten herum in ihren eigenen Gang. Um die Wand herum und nicht durch
-  // sie: Eine Tür in eine fremde Zone zu schlagen hieße, ihren Grundriss von
-  // hier aus zu ändern.
   { x: 9, z: -20, w: 6, d: 3 },
-  // Und oben herum zur Südseite der zweiten Küche. **Nicht an ihrer Ostwand
-  // entlang**: Die steht bis in die letzte Reihe (`zones/dinerPlan.stampDiner`),
-  // und wer gegen sie liefe, käme nie an. Die zweite Küche ist nach **Süden**
-  // offen, also stößt der Gang eine Reihe südlich davon an — bei z = −32, und
-  // von dort geht es geradeaus hinein.
-  //
-  // Hier lag einmal ein zweiter Weg, an der Westseite des Geländes entlang von
-  // den Interaktionen herauf (`{ x: -22, z: -33, w: 3, d: 16 }`). Der war nie
-  // einer: Die Interaktionszone ist nach Norden zugemauert
-  // (`zones/interact.ts`), also endete er nach sechzehn Kacheln vor einer Wand.
-  // Aufgefallen ist das erst, als die zweite Küche auf ihre 24 Kacheln
-  // schrumpfte und damit die Kachelreihe verlor, über die sie bis dahin
-  // *nebenbei* am Gang der ersten hing.
-  { x: -1, z: -33, w: 11, d: 3 },
 ];
 
 /**
@@ -238,10 +216,6 @@ export const ZONE_TILES: Readonly<Record<string, { x: number; z: number; level: 
   kart: { x: -20, z: 22, level: 0 },
   climb: { x: CLIMB.x + 5, z: CLIMB.z + 4, level: 0 },
   kitchen: { ...KITCHEN_SPAWN, level: 0 },
-  // Im Gastraum der zweiten Küche, mit Blick auf die Durchreiche — nicht im
-  // Schauraum: Wer „Zweite Küche" wählt, will in der Küche stehen und nicht
-  // vor ihrem Katalog.
-  diner: { x: DINER.x + 11, z: DINER.z + 15, level: 0 },
 };
 
 /**
@@ -262,7 +236,6 @@ export const ZONE_LABELS: Readonly<Record<string, string>> = {
   kart: 'Boxengasse',
   climb: 'Kletterwand',
   kitchen: 'Küche',
-  diner: 'Zweite Küche',
 };
 
 /** Die Mitte einer Kachel in Weltmetern — Zonen rechnen damit ihre Requisiten aus. */

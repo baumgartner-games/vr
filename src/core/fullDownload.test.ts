@@ -47,7 +47,7 @@ const LIST: OfflineList = {
     ['index.html', 100],
   ],
   files: [
-    ['audio/kitchen/chop-0.ogg', 10],
+    ['audio/kitchen/chop-board-0.ogg', 10],
     ['controllers/profilesList.json', 20],
     ['icon-192.png', 30],
     ['manifest.webmanifest', 40],
@@ -83,7 +83,7 @@ describe('welche Adresse eine Build-Nummer trägt', () => {
    * anderen Namen im Speicher liegt, ist im Funkloch nicht da.
    */
   it('stempelt Töne und die gebündelten Kataloge', () => {
-    expect(stamped('audio/kitchen/chop-0.ogg')).toBe(true);
+    expect(stamped('audio/kitchen/chop-board-0.ogg')).toBe(true);
     expect(stamped('models/diner.glb')).toBe(true);
     expect(stamped('models/kitchen.glb')).toBe(true);
   });
@@ -112,7 +112,7 @@ describe('der Plan', () => {
 
   it('hängt die Build-Nummer genau dort an, wo sie hingehört', () => {
     const urls = PLAN.items.map((item) => item.url);
-    expect(urls).toContain(`${BASE}audio/kitchen/chop-0.ogg?v=${BUILD}`);
+    expect(urls).toContain(`${BASE}audio/kitchen/chop-board-0.ogg?v=${BUILD}`);
     expect(urls).toContain(`${BASE}models/kaykit/index.json?v=${BUILD}`);
     expect(urls).toContain(`${BASE}models/kaykit/dungeon/barrel.glb`);
     expect(urls).toContain(`${BASE}controllers/profilesList.json`);
@@ -155,7 +155,7 @@ describe('der Plan', () => {
   /** Ohne Build-Nummer (Jest, `vite dev`) wird nichts gestempelt. */
   it('hängt ohne Nummer nichts an', () => {
     const plain = fullPlan(LIST, null, BASE, '');
-    expect(plain.items.map((item) => item.url)).toContain(`${BASE}audio/kitchen/chop-0.ogg`);
+    expect(plain.items.map((item) => item.url)).toContain(`${BASE}audio/kitchen/chop-board-0.ogg`);
   });
 });
 
