@@ -375,7 +375,7 @@ Laufzeit, im Fenster eines Telefons. Der Befund war nicht der erwartete:
 - **Und jeder spätere Start holte 1,6 MB, die er schon hatte.** Modelle und
   Töne beantwortet der Service Worker mit _stale-while-revalidate_ — sofort
   aus dem Speicher, und danach noch einmal im Netz nachsehen. Nur tragen sie
-  die Build-Nummer in der Adresse: Es _kann_ nichts Neues geben.
+  die Prüfsumme ihres Inhalts in der Adresse: Es _kann_ nichts Neues geben.
 
 ### Was jetzt passiert, und in welcher Reihenfolge
 
@@ -493,9 +493,9 @@ Welt **3265 → 1810 kB**.
   gemessenen 755 kB von 1809 — und gab den Blick auf eine Welt frei, die es
   noch nicht gab. Jetzt bleibt sie stehen und sagt, worauf gewartet wird.
 - **Die 429 kB eines späteren Starts sind die Controller-Modelle**, und sie
-  bleiben mit Absicht: Sie tragen keine Build-Nummer, weil sie sich nicht mit
-  dem Build ändern, und sind damit die einzigen Dateien, die weiter nachgeholt
-  werden. Gemessen ist das der schlechteste Fall — ein Browser, dessen
+  bleiben mit Absicht: Sie tragen keine Prüfsumme, weil three.js ihre Adressen
+  selbst zusammenhängt, und sind damit die einzigen Dateien, die weiter
+  nachgeholt werden. Gemessen ist das der schlechteste Fall — ein Browser, dessen
   HTTP-Cache ganz weg ist. Solange der noch steht, beantwortet GitHub Pages
   dieselbe Frage mit `304` und ohne Inhalt.
 
@@ -709,15 +709,21 @@ es, und mehr sollen es nicht werden:
 | `bypass`       | fremde Server, `POST`, `Range`, Quellkarten    | gar nichts tun — und das ist bei den Relays der Verbindung die einzige richtige Wahl |
 
 **Mit einer Einschränkung des dritten Weges**, und die ist gemessen: Trägt die
-Adresse die Nummer **dieses** Builds (`?v=…`, `core/assetVersion.ts`), wird
-nichts nachgeholt — es _kann_ nichts Neues geben, denn der nächste Build fragt
-unter einer neuen Nummer, und was eine fremde trägt, wirft `dropOldMedia` beim
-Aktivieren weg. Ohne diese Frage kostete ein Start, dessen HTTP-Cache
-abgelaufen war (GitHub Pages erlaubt zehn Minuten), **33 Anfragen und 1,6 MB**
-für Bytes, die schon im Telefon lagen; mit ihr sind es **5 Anfragen und
-429 kB** — und die 429 kB sind die Controller-Modelle, die keine Nummer tragen.
-Wer **kein** `v=` hat — die Controller-Profile, das Manifest —, bleibt beim
-Nachholen: Diese Dateien ändern sich ohne Build-Nummer.
+Adresse die **Prüfsumme ihres eigenen Inhalts** (`?v=…`,
+`core/assetVersion.ts`), wird nichts nachgeholt — es _kann_ nichts Neues geben,
+denn ändert sich die Datei, fragt der nächste Build unter einer neuen
+Prüfsumme, und was eine fremde trägt, wirft `isStaleMedia` beim Aktivieren weg.
+Ohne diese Frage kostete ein Start, dessen HTTP-Cache abgelaufen war (GitHub
+Pages erlaubt zehn Minuten), **33 Anfragen und 1,6 MB** für Bytes, die schon im
+Telefon lagen; mit ihr sind es **5 Anfragen und 429 kB** — und die 429 kB sind
+die Controller-Modelle, die keine Prüfsumme tragen. Wer **kein** `v=` hat —
+die Controller-Profile, das Manifest, das Regal —, bleibt beim Nachholen.
+
+**Hier stand einmal die Build-Nummer**, und sie war zwar richtig, aber viel zu
+grob: Sie ändert sich bei jedem Deploy, also traf die Frage nach einem Deploy
+auf keinen einzigen Eintrag mehr, und 3,7 MB Töne und Modelle gingen noch
+einmal über die Leitung, weil irgendwo ein Kommentar anders lautete. Die ganze
+Rechnung steht in [Deployment](deployment.md#prüfsumme-statt-build-nummer--und-warum-das-9-mb-wert-war).
 
 Und fünf Dinge, die je einen Abend gekostet haben:
 
@@ -732,11 +738,17 @@ Und fünf Dinge, die je einen Abend gekostet haben:
   Base64 und enthalten selbst Bindestriche (`main-Bd7_x-1a.js`) — nach dem
   Muster allein wäre `apple-touch-icon.png` eine unveränderliche Datei, und das
   Symbol ließe sich bis zum nächsten Deploy nicht mehr austauschen.
-- **Zwei Speicher.** `bgvr-shell-<build>` trägt die Nummer des Builds und wird
-  beim Aktivieren des nächsten gelöscht; `bgvr-media` überlebt ihn. Modelle und
-  Töne sind zweistellige Megabytes mit festen Namen — sie nach jedem Deploy neu
-  über Mobilfunk zu ziehen, wäre die unfreundlichste Art, einen Tippfehler zu
-  korrigieren.
+- **Drei Speicher, und nur einer trägt die Build-Nummer.**
+  `bgvr-shell-<build>` hält die drei HTML-Seiten (58 kB) und wird beim
+  Aktivieren des nächsten Builds gelöscht — sie nennen die Namen aller anderen
+  Dateien, also darf keine alte liegenbleiben. `bgvr-assets` hält alles mit
+  Hash im Namen und **überlebt den Deploy**: Ein Name mit Hash ist ein
+  Versprechen über den Inhalt, und beim Aktivieren fliegt nur hinaus, was in
+  der Dateiliste dieses Builds nicht mehr steht (`isStaleAsset`). `bgvr-media`
+  hält die festen Namen aus `public/` und überlebt ebenfalls. Vorher lagen die
+  ersten beiden in **einem** Speicher mit der Build-Nummer im Namen, und jeder
+  Deploy warf 5,4 MB weg, die er danach unter genau denselben Namen wieder
+  holte.
 - **Kein `skipWaiting`.** Ein neuer Build übernimmt beim nächsten Start und
   nicht mittendrin: Wer gerade in der Brille steht, verliert sonst die Welt
   unter den Füßen, weil im Hintergrund ein Deploy lief. Solange der alte
@@ -835,9 +847,9 @@ Liste wäre nach dem dritten Paket falsch.
 Also schreibt der Build sie auf — `offline.json`, 15 kB, erzeugt von
 `offlineListPlugin` in `vite.config.ts`, dem Nachbarn des `precachePlugin`,
 das dem Service Worker seine Hüllenliste einsetzt. Zwei Listen darin, weil es
-zwei Sorten Datei sind: `bundle` sind die 35 erzeugten Dateien (die drei
-Seiten, jeder Chunk samt Welten und der 2,8 MB großen Physik-Engine, der
-Stil), `files` sind die 236 Dateien aus `public/`.
+zwei Sorten Datei sind: `bundle` sind die 49 erzeugten Dateien (die drei
+Seiten, jeder Chunk samt Welten, three.js und der 2,8 MB großen
+Physik-Engine, der Stil), `files` sind die 231 Dateien aus `public/`.
 
 **Die 4470 Modelle des Regals stehen nicht darin**, und das ist kein
 Versehen: Sie stehen schon in `models/kaykit/index.json`, mit ihren Größen.
@@ -855,7 +867,7 @@ Nicht nach Größe, sondern danach, **ab wann man ohne Netz spielen kann**:
 
 | Abschnitt | Was | Wie viel |
 | --------- | --- | -------: |
-| `programm` | Die drei Seiten, alle Chunks, die Physik-Engine | 5,4 MB (35) |
+| `programm` | Die drei Seiten, alle Chunks, three.js, die Physik-Engine | 5,5 MB (49) |
 | `medien` | Die drei gebündelten Kataloge, der Koch, die Töne, die Controller-Modelle, die Symbole | 8,8 MB (82) |
 | `regal` | Der Index, die 153 Texturen, dann die 4470 Modelle | 57,2 MB (4624) |
 
@@ -865,22 +877,31 @@ Teil, den man guten Gewissens abbricht. Innerhalb des Regals kommen die
 Texturen **vor** den Modellen: Ein abgebrochener Download ergibt so ein Regal
 mit weniger Fässern und nicht eines mit lauter weißen.
 
-### Die Build-Nummer ist hier der teuerste Fehler
+### Die Prüfsumme ist hier der teuerste Fehler
 
-Ob an eine Adresse `?v=` gehört, entscheidet `stamped` — und es muss **auf das
-Zeichen genau** so ausfallen wie in dem Lader, der die Datei später wirklich
-anfragt. Eine Adresse mit `?v=` ist für einen Speicher ein anderer Name: Wer
-hier falsch stempelt, lädt 71 MB herunter, sieht einen Balken durchlaufen und
-findet im Funkloch trotzdem nichts wieder. Vier Regeln, und jede steht schon
-woanders geschrieben:
+Ob an eine Adresse `?v=` gehört, muss **auf das Zeichen genau** so ausfallen
+wie in dem Lader, der die Datei später wirklich anfragt. Eine Adresse mit `?v=`
+ist für einen Speicher ein anderer Name: Wer hier falsch stempelt, lädt 71 MB
+herunter, sieht einen Balken durchlaufen und findet im Funkloch trotzdem nichts
+wieder.
 
-- **Töne und die gebündelten Kataloge** tragen sie (`core/assetVersion.ts`).
-- **Der Index des Regals** trägt sie, denn er ist erzeugt.
-- **Das Regal selbst und seine Texturen** tragen sie nicht — 4470 gekaufte
-  Dateien, die sich nie ändern ([Das KayKit-Regal](assetregal.md), _Keine
-  Build-Nummer_). Eine `.glb` zeigt mit einer **relativen** Adresse auf ihre
-  Textur, und three.js löst sie ohne Frage im Anhang auf.
-- **Die Controller-Profile** tragen sie nicht (`core/ControllerModels.ts`).
+Deshalb wird die Frage **nur noch einmal beantwortet**, und zwar im Build:
+`isStamped` in `vite.config.ts` entscheidet, welche Datei aus `public/` eine
+Prüfsumme bekommt, `assetHashes` rechnet sie aus, und beide Seiten — der Plan
+hier und der Lader dort — schlagen dasselbe Verzeichnis durch dieselbe Funktion
+nach (`core/assetVersion.ts`, `versionedWith`). Hier stand einmal eine zweite
+Fassung derselben Regel, `stamped()`; zwei Lesarten derselben Regel sind eine,
+die beim nächsten Umbau auseinanderläuft. Was im Verzeichnis steht, ist
+schnell gesagt:
+
+- **Töne und die gebündelten Kataloge** stehen darin — `audio/**` und
+  `models/*.glb`.
+- **Das Regal, seine Texturen und sein Index** stehen nicht darin: 4470
+  gekaufte Dateien, die sich nie ändern ([Das KayKit-Regal](assetregal.md),
+  _Keine Build-Nummer_). Eine `.glb` zeigt mit einer **relativen** Adresse auf
+  ihre Textur, und three.js löst sie ohne Frage im Anhang auf.
+- **Die Controller-Profile** stehen nicht darin (`core/ControllerModels.ts`):
+  three.js hängt diese Adressen selbst zusammen.
 
 Alles Übrige — Manifest, Symbole, Banner — fragt der **Browser** selbst an, und
 der hängt nichts an. Deshalb ist „nein" die Vorgabe und nicht „ja", und deshalb
@@ -891,9 +912,9 @@ steht die Tabelle im Test.
 In `core/fullDownloadRun.ts` steht **kein einziges `caches.open`** mit einem
 Namen darin, und das ist die Entscheidung, die man sich merken sollte. Ein
 `fetch` von der Seite läuft durch den Service Worker, und der legt die Antwort
-genau dort ab, wo sie hingehört: Chunks mit Hash in die Hülle, Modelle und
-Töne in die Medien — und beim Aufräumen wirft er wieder weg, was eine fremde
-Build-Nummer trägt.
+genau dort ab, wo sie hingehört: Chunks mit Hash in `bgvr-assets`, Modelle und
+Töne in `bgvr-media` — und beim Aufräumen wirft er wieder weg, was dieser Build
+nicht mehr kennt.
 
 Die Seite **könnte** denselben Speicher selbst beschreiben; es ist derselbe
 Ursprung, `caches.open('bgvr-media')` ginge. Der Grund, es nicht zu tun, ist

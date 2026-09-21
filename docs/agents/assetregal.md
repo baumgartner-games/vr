@@ -753,9 +753,14 @@ Dateien lokal vorliegen", und genau das war es: 215 kB über eine schlechte
 Leitung vor einem Regal, dessen 4470 Modelle längst im Gerät lagen. Ohne Nummer
 antwortet der Service Worker sofort aus dem Speicher und sieht im Hintergrund
 nach (`revalidate`); ein neues Paket steht dann spätestens beim nächsten Start
-im Regal. Dieselbe Adresse nennt der vollständige Download
-(`core/fullDownload.stamped`) — beide müssen sie gleich schreiben, sonst liegt
-im Speicher etwas, das niemand anfragt.
+im Regal. Dieselbe Adresse nennt der vollständige Download, und **müssen** muss dabei
+niemand mehr: Welche Datei aus `public/` eine Prüfsumme bekommt, entscheidet
+seit dem Umbau auf Prüfsummen genau eine Stelle (`vite.config.ts`,
+`isStamped`), und `models/kaykit/` steht nicht darin — Plan und Lader schlagen
+dasselbe Verzeichnis nach und **können** nicht mehr auseinanderlaufen. Das
+Vorwärmen der Startseite tat es vorher: Es holte den Index unter einem
+`?v=<BUILD_ID>`, das sonst niemand anfragte
+([Deployment](deployment.md#der-start-nach-einem-deploy-was-vorgewärmt-wird)).
 
 ## Wer sich die Geometrie teilt, gibt sie nicht frei
 
