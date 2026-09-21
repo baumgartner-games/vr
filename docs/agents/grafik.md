@@ -322,7 +322,7 @@ zeigt, hier darum, wie sich eine **Figur** bewegt. Die nächste Animation hängt
 sich an diese Seite und nicht an das Ende einer Liste, die dann keine mehr ist.
 
 **Squishy Movement** (`GraphicsSettings.squish`, ab Werk **aus**) staucht und
-streckt die Figur im Takt ihrer Schritte. Der Anlass ist eine Lücke: Diese
+streckt die Figur, während sie läuft. Der Anlass ist eine Lücke: Diese
 Figuren haben **keine Auf-und-ab-Bewegung**, die man ihnen abnimmt. Der Kopf
 darf nicht wippen — in der Brille gehört er dem Menschen davor, und am Schirm
 ist ein nickendes Bild keine Gehbewegung, sondern Übelkeit —, und Beine, die
@@ -345,12 +345,27 @@ rechts der Naht und vergleicht sie.
 
 Gerechnet wird der Ausschlag als **Anteil der Höhe** (`SQUISH_AMPLITUDE`, 9 %
 — auf 1,6 m knapp fünfzehn Zentimeter zwischen der flachsten und der längsten
-Haltung), mal der Stärke aus dem Menü (`squishScale`, vier Rasten **×0,5 ×1
-×1,5 ×2**, im Kreis schaltbar) und mal dem **Tempo**: Im Stehen steht die Figur
-still, im Schlendern federt sie halb so weit wie im Rennen. Die Breite ist der
-Kehrwert der Wurzel aus der Höhe — **Breite mal Breite mal Höhe bleibt 1**,
-also behält die Figur ihr Volumen. Eine, die sich beim Strecken nur längt,
-sieht aus, als zöge man sie am Kopf hoch.
+Haltung), mal der Stärke aus dem Menü (`squishScale`, fünf Rasten **×0,25 ×0,5
+×1 ×1,5 ×2**, im Kreis schaltbar) und mal dem **Lauftempo**: Im Stehen steht
+die Figur still, im Schlendern federt sie halb so weit wie im Rennen. Die
+Breite ist der Kehrwert der Wurzel aus der Höhe — **Breite mal Breite mal Höhe
+bleibt 1**, also behält die Figur ihr Volumen. Eine, die sich beim Strecken nur
+längt, sieht aus, als zöge man sie am Kopf hoch.
+
+**Und wie oft sie federt, ist eine zweite Frage** (`squishSpeed`, drei Rasten
+**×0,25 ×0,5 ×1**, ab Werk **×0,5**). Die erste Fassung hatte sie nicht, und
+das war der Fehler: Sie federte einmal je Schritt, und das ist zu schnell —
+der Takt des Watschelns ist schon zweimal je Doppelschritt, und eine Figur,
+die dazu ebenso oft ihre Höhe wechselt, flimmert, statt zu federn. Bei ×0,5
+zieht sich ein Federn über **zwei** Schritte und legt damit eine ruhige Welle
+über das schnellere Watscheln. Gerechnet wird der Faktor auf die **Phase**
+(`squishPose(phase * tempo …)`) und nicht auf den Ausschlag: Wie weit die
+Figur federt, sagt die Stärke, und mit einem Regler für beides ließe sich ein
+zu schnelles Federn nur kleiner machen und nicht langsamer. Nach oben ist bei
+×1 Schluss — eine Raste, die noch schneller wäre, will niemand.
+
+Ein gespeicherter Stand aus der ersten Fassung kennt das Feld nicht und bekommt
+damit genau das, was die Zeile beheben soll: das halbe Tempo (`clampGraphics`).
 
 Angewendet wird das in `AvatarBody.update`, und zwar auf **Rumpf und Kopf
 zusammen** — die ganze Figur wird flacher, nicht nur ihr Bauch. Der Rumpf steht
@@ -368,8 +383,9 @@ Zwei Dinge daran sind Absicht:
   durch ein Portal; aus den eigenen Augen ist davon nichts zu sehen und nichts
   zu spüren.
 - **Gelesen wird die Einstellung einmal je Änderung**, nicht je Bild und Figur:
-  Jede Figur hört beim Bau auf das Menü (`onGraphicsChange`) und hält den Wert
-  als eine Zahl (`AvatarBody.squish`, 0 heißt aus). Damit federt auch der
+  Jede Figur hört beim Bau auf das Menü (`onGraphicsChange`) und hält die
+  beiden Werte als zwei Zahlen (`AvatarBody.squish`, 0 heißt aus, und
+  `AvatarBody.squishSpeed`). Damit federt auch der
   Mitspieler mit, den hier niemand neu baut (`net/RemoteAvatars.ts`) — und ein
   Test oder eine Vorschau ohne Menü setzt die Zahl einfach selbst.
 

@@ -1,9 +1,11 @@
 import {
   type GraphicsMode,
   type SquishScale,
+  type SquishSpeed,
   DEFAULT_GRAPHICS,
   GRAPHICS_MODES,
   SQUISH_SCALES,
+  SQUISH_SPEEDS,
   XR_SCALES,
   animationSummary,
   clampGraphics,
@@ -13,10 +15,12 @@ import {
   graphicsSummary,
   nextGraphicsMode,
   nextSquishScale,
+  nextSquishSpeed,
   nextXrScale,
   onGraphicsChange,
   saveGraphics,
   squishAmount,
+  squishTempo,
 } from './graphicsSettings';
 
 describe('Grafikeinstellungen', () => {
@@ -33,6 +37,8 @@ describe('Grafikeinstellungen', () => {
       // dahinter in `squish.test.ts`.
       squish: false,
       squishScale: 1,
+      // Und das Tempo ab Werk halb: ein Federn auf zwei Schritte.
+      squishSpeed: 0.5,
       // Die Stöcke auf dem Glas entscheiden sich nach Gerät — nachgerechnet
       // wird das in `screenPads.test.ts`.
       screenPads: 'auto',
@@ -225,15 +231,22 @@ describe('Grafikeinstellungen', () => {
    * kann: ein Faktor, der aus einem alten Speicher als `3` hereinkommt, und
    * eine Figur, die federt, obwohl das Häkchen aus ist.
    */
-  it('federt nur auf ausdrückliches Ja — und kennt vier Stärken', () => {
+  it('federt nur auf ausdrückliches Ja — und kennt fünf Stärken', () => {
     expect(DEFAULT_GRAPHICS.squish).toBe(false);
-    expect([...SQUISH_SCALES]).toEqual([0.5, 1, 1.5, 2]);
+    expect([...SQUISH_SCALES]).toEqual([0.25, 0.5, 1, 1.5, 2]);
     expect(clampGraphics({ squish: true })).toEqual({ ...DEFAULT_GRAPHICS, squish: true });
     expect(clampGraphics({ squish: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
     expect(clampGraphics({ squishScale: 3 as never })).toEqual(DEFAULT_GRAPHICS);
     expect(clampGraphics({ squishScale: 2 })).toEqual({ ...DEFAULT_GRAPHICS, squishScale: 2 });
 
-    // Der Kreis: ×0,5 → ×1 → ×1,5 → ×2 → wieder ×0,5.
+    // Die unterste Raste ist nachgereicht: Für ein Federn, das man nur
+    // bemerkt, wenn es fehlt, war selbst ×0,5 noch zu viel.
+    expect(clampGraphics({ squishScale: 0.25 })).toEqual({
+      ...DEFAULT_GRAPHICS,
+      squishScale: 0.25,
+    });
+
+    // Der Kreis: ×0,25 → ×0,5 → ×1 → ×1,5 → ×2 → wieder von vorn.
     let scale: SquishScale = SQUISH_SCALES[0]!;
     for (const expected of [...SQUISH_SCALES.slice(1), SQUISH_SCALES[0]!]) {
       scale = nextSquishScale(scale);
@@ -247,6 +260,29 @@ describe('Grafikeinstellungen', () => {
     expect(squishAmount({ squish: true })).toBe(DEFAULT_GRAPHICS.squishScale);
   });
 
+  /**
+   * **Das Tempo ist ab Werk das halbe**, und das ist eine Korrektur: Ein
+   * Federn je Schritt war zu schnell — der Takt des Watschelns ist schon
+   * zweimal je Doppelschritt. Ein gespeicherter Stand von gestern kennt das
+   * Feld nicht und bekommt deshalb die Vorgabe und keine 0: Mit 0 fröre die
+   * Figur in einer Haltung ein.
+   */
+  it('federt ab Werk im halben Tempo und kennt drei Rasten', () => {
+    expect(DEFAULT_GRAPHICS.squishSpeed).toBe(0.5);
+    expect([...SQUISH_SPEEDS]).toEqual([0.25, 0.5, 1]);
+    expect(clampGraphics({ squishSpeed: 1 })).toEqual({ ...DEFAULT_GRAPHICS, squishSpeed: 1 });
+    expect(clampGraphics({ squishSpeed: 2 as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(clampGraphics({ squishSpeed: 'schnell' as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(squishTempo({})).toBe(0.5);
+    expect(squishTempo({ squishSpeed: 0.25 })).toBe(0.25);
+
+    let speed: SquishSpeed = SQUISH_SPEEDS[0]!;
+    for (const expected of [...SQUISH_SPEEDS.slice(1), SQUISH_SPEEDS[0]!]) {
+      speed = nextSquishSpeed(speed);
+      expect(speed).toBe(expected);
+    }
+  });
+
   it('nennt die Stauchung in beiden Zeilen nur, wenn sie an ist', () => {
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, squish: false, squishScale: 2 })).toBe(
       'Einfach',
@@ -257,7 +293,14 @@ describe('Grafikeinstellungen', () => {
     expect(animationSummary({ squish: false, squishScale: 2 })).toBe(
       'Nichts Besonderes · die Figur läuft, wie sie immer lief',
     );
-    expect(animationSummary({ squish: true, squishScale: 0.5 })).toBe('Squishy-Bewegung ×0,5');
+    // Auf der Seite stehen zwei Regler, also nennt ihre Überschrift beide —
+    // auch den, der auf der Vorgabe steht.
+    expect(animationSummary({ squish: true, squishScale: 0.5 })).toBe(
+      'Squishy-Bewegung ×0,5 · Tempo ×0,5',
+    );
+    expect(animationSummary({ squish: true, squishScale: 0.25, squishSpeed: 1 })).toBe(
+      'Squishy-Bewegung ×0,25 · Tempo ×1',
+    );
   });
 
   it('überlebt einen Speicher, den es nicht gibt', () => {

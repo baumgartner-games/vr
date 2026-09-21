@@ -112,9 +112,10 @@ je Bild ein Netz für den Sammler da: `setHeight` stellt die Figur auf ihre
 Höhe, `setStride` watschelt.
 
 **Und eine Gruppe darüber kann sie federn**: Ist _Grafik → Animationen →
-Squishy-Bewegung_ eingeschaltet, staucht und streckt sich die ganze Figur im
-Takt ihrer Schritte — Rumpf und Kopf zusammen, um die Sohlen herum, nach einer
-Hermite-Kurve. Ab Werk ist das aus, und wie es rechnet, steht in
+Squishy-Bewegung_ eingeschaltet, staucht und streckt sich die ganze Figur beim
+Laufen — Rumpf und Kopf zusammen, um die Sohlen herum, nach einer
+Hermite-Kurve, und ab Werk mit einem Federn auf zwei Schritte (_Stärke_ und
+_Tempo_ stehen daneben). Ab Werk ist das aus, und wie es rechnet, steht in
 [Wie schön es aussieht](grafik.md) unter _Squishy_.
 
 **Drei Zeilen, drei Listen** (`core/avatarLook.ts`). Vorher gab es nur den Hut,

@@ -71,6 +71,8 @@ import {
   SCREEN_PADS_SUBS,
   SQUISH_SCALE_LABELS,
   SQUISH_SCALE_SUBS,
+  SQUISH_SPEED_LABELS,
+  SQUISH_SPEED_SUBS,
   XR_SCALE_LABELS,
   XR_SCALE_SUBS,
   animationSummary,
@@ -80,6 +82,7 @@ import {
   nextGraphicsMode,
   nextScreenPads,
   nextSquishScale,
+  nextSquishSpeed,
   nextXrScale,
   saveGraphics,
 } from './graphicsSettings';
@@ -1747,11 +1750,13 @@ export class App {
    * hereinbringt, hängt sie an diese Seite und nicht an das Ende einer Liste,
    * die dann keine mehr ist.
    *
-   * **Squishy Movement** ist die erste: Die Figur staucht und streckt sich im
-   * Takt ihrer Schritte (`core/squish.ts`). Daneben ein **Faktor**, der im
-   * Kreis schaltet — denn wie viel davon gut aussieht, ist Geschmack und
-   * keine Rechnung, und diese Frage beantwortet man am besten, indem man
-   * einmal durchklickt und hinsieht.
+   * **Squishy Movement** ist die erste: Die Figur staucht und streckt sich
+   * beim Laufen (`core/squish.ts`). Darunter **zwei** Faktoren, die im Kreis
+   * schalten — **Stärke** (wie weit) und **Tempo** (wie oft) —, denn wie viel
+   * davon gut aussieht, ist Geschmack und keine Rechnung, und diese Frage
+   * beantwortet man am besten, indem man einmal durchklickt und hinsieht.
+   * Zwei Zeilen und nicht eine: Ein Regler, der beides zugleich stellt, kann
+   * ein zu schnelles Federn nur kleiner machen und nicht langsamer.
    */
   private animationMenu(accent: number): MenuEntry {
     const settings = graphics();
@@ -1765,7 +1770,7 @@ export class App {
         {
           id: 'gfx:squish',
           label: 'Squishy-Bewegung',
-          sub: 'Die Figur staucht und streckt sich im Takt ihrer Schritte',
+          sub: 'Die Figur staucht und streckt sich beim Laufen',
           caption: 'Squash and Stretch · zu sehen von oben, im Spiegel und durch ein Portal',
           icon: 'npc',
           accent,
@@ -1780,13 +1785,31 @@ export class App {
           id: 'gfx:squish-scale',
           label: `Stärke: ${SQUISH_SCALE_LABELS[settings.squishScale]}`,
           sub: SQUISH_SCALE_SUBS[settings.squishScale],
-          caption: '×0,5 → ×1 → ×1,5 → ×2 · wirkt nur bei eingeschalteter Squishy-Bewegung',
+          caption: '×0,25 → ×0,5 → ×1 → ×1,5 → ×2 · wie weit die Figur federt',
           icon: 'sphere',
           accent,
           run: () => {
             const next = saveGraphics({ squishScale: nextSquishScale(graphics().squishScale) });
             this.menuDirty = true;
             this.notify(`Squishy-Stärke ${SQUISH_SCALE_LABELS[next.squishScale]}`);
+          },
+        },
+        {
+          // **Und wie oft** — die zweite Frage, und sie hat eine eigene Zeile
+          // bekommen, weil die erste Fassung sie mit der Stärke beantworten
+          // musste: Ein Federn je Schritt war zu schnell, und wer es ruhiger
+          // wollte, konnte nur den Ausschlag kleiner machen, bis man gar
+          // nichts mehr sah.
+          id: 'gfx:squish-speed',
+          label: `Tempo: ${SQUISH_SPEED_LABELS[settings.squishSpeed]}`,
+          sub: SQUISH_SPEED_SUBS[settings.squishSpeed],
+          caption: '×0,25 → ×0,5 → ×1 · wie oft sie es tut, gemessen am Schritt',
+          icon: 'stopwatch',
+          accent,
+          run: () => {
+            const next = saveGraphics({ squishSpeed: nextSquishSpeed(graphics().squishSpeed) });
+            this.menuDirty = true;
+            this.notify(`Squishy-Tempo ${SQUISH_SPEED_LABELS[next.squishSpeed]}`);
           },
         },
       ],
