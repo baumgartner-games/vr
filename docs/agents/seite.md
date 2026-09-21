@@ -272,6 +272,55 @@ der Startseite und im HUD rechnet schon länger mit `max(…, env(…))`; die
 Variablen stehen jetzt daneben und lassen sich dort nachziehen, wenn jemand
 ohnehin in der Datei ist.
 
+### Die Welt geht bis an die Kante — `100%` ist nicht der ganze Schirm
+
+Gemeldet wurde es wieder an einem Bild, diesmal vom Telefon im Hochformat:
+„Die Safe Area scheint unten zu viel abzuschneiden im Hochkant-Modus. Die
+UI-Elemente passen, aber den Rand unten könnte man noch für die Welt-Render
+nutzen." Die Welt hörte ein gutes Stück über der Unterkante auf, darunter lag
+ein schwarzer Streifen — ungefähr der Strich zum Wegschieben, und noch etwas
+mehr. Die Stöcke und die Knöpfe saßen richtig.
+
+Der Streifen war **kein Rand**, sondern der Hintergrund der Seite unter einer
+Leinwand, die kürzer ist als das Fenster. `#scene` hing an `height: 100%`, und
+`100%` rechnet gegen den Kasten, den der Browser der Seite zuteilt. Auf einem
+iPhone, das als App vom Startbildschirm läuft, ist dieser Kasten mit
+`viewport-fit=cover` **nicht** der ganze Schirm: Kerbe und Strich fehlen darin,
+`window.innerHeight` meldet sie aber mit. Die Leinwand steht oben an der Kante,
+also fehlt unten die Summe aus beidem — und genau deshalb war der Streifen
+höher als der Strich allein. Dass niemand die Ränder abgezogen hatte, machte
+die Sache dabei nicht besser: Abgezogen hat sie der Browser.
+
+Also steht die Größe des Fensters jetzt dort, wo die vier Ränder schon stehen —
+als zwei weitere Variablen in `ui/safeArea.css`, gefüllt von `trackViewport`
+aus `ui/safeArea.ts`:
+
+- `--app-width` und `--app-height` sind `window.innerWidth`/`innerHeight` in
+  Pixeln, am `<html>` gesetzt und bei `resize`, `orientationchange` und am
+  `visualViewport` nachgezogen. `main.ts` misst einmal, bevor irgendetwas
+  anderes passiert.
+- **Es sind dieselben beiden Zahlen, aus denen `core/App.ts` den Bildpuffer
+  baut** (`renderer.setSize(window.innerWidth, window.innerHeight, false)`).
+  Kasten und Puffer können damit gar nicht mehr auseinanderlaufen — weder
+  abgeschnitten noch verzerrt.
+- Die Vorgabe in `:root` ist `100%`, also das alte Verhalten, und jede Stelle
+  schreibt den Ersatz noch einmal dazu (`var(--app-height, 100%)`): Zwischen
+  dem ersten Stil und der ersten Zeile Skript liegt ein Augenblick, und eine
+  Leinwand von null Pixeln wäre ein schlechterer Fehler als der, der hier
+  behoben wird.
+
+**Was sich nicht ändert, ist die Steuerung.** Freigehalten wird weiter der
+_Inhalt_ und nicht die Fläche: Stöcke, Knöpfe, Werkzeugknopf und Blätter
+rechnen unverändert mit `max(…, env(…))` beziehungsweise den vier
+`--safe-*`-Variablen. Die Welt reicht ab jetzt bis unter den Strich, die Finger
+bleiben davor — das ist die Aufteilung, die auf einem Telefon ohnehin die
+einzig richtige ist.
+
+Geprüft wird es in `tools/browser-smoke.mjs`, gleich nach dem ersten Bild der
+Ansicht von oben: Die Leinwand muss das Fenster genau decken, und der
+Bildpuffer muss sein Seitenverhältnis haben. Die Rechnung dahinter hängt an
+keinem Browser und steht in `ui/safeArea.test.ts`.
+
 ## Die Version auf der Startseite
 
 Ganz unten, klein und still: `v0.1.1 · Build 96ba100782ea`. Die erste Zahl ist
