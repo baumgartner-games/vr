@@ -55,15 +55,16 @@ const head = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion()
 /**
  * `?hat=chef` zeigt alle Sorten mit derselben Mütze (die Vorgabe, weil es um
  * die Figur geht), `?hat=all` geht das Hutregal durch, `?walk=1` lässt sie
- * laufen — daran sieht man das Watscheln. Und `?squish=2` stellt die Stärke
- * der Stauchung von Hand (`core/squish.ts`): Diese Seite hat kein Menü, und
- * die Frage, wie viel davon gut aussieht, beantwortet ohnehin nur ein Bild
- * neben dem anderen.
+ * laufen — daran sieht man das Watscheln. Und `?squish=2&tempo=1` stellt
+ * Stärke und Tempo der Stauchung von Hand (`core/squish.ts`): Diese Seite hat
+ * kein Menü, und die Frage, wie viel davon gut aussieht, beantwortet ohnehin
+ * nur ein Bild neben dem anderen.
  */
 const params = new URLSearchParams(location.search);
 const hatChoice = params.get('hat') ?? 'chef';
 const walking = params.get('walk') === '1';
 const squish = params.has('squish') ? Number(params.get('squish')) : null;
+const tempo = params.has('tempo') ? Number(params.get('tempo')) : null;
 
 const count = Math.max(HEAD_KINDS.length, BODY_KINDS.length, hatChoice === 'all' ? 8 : 5);
 const spacing = 1.15;
@@ -79,6 +80,7 @@ for (let i = 0; i < count; i++) {
     hat,
   });
   if (squish !== null && Number.isFinite(squish)) body.squish = squish;
+  if (tempo !== null && Number.isFinite(tempo)) body.squishSpeed = tempo;
   scene.add(body);
   bodies.push(body);
 }

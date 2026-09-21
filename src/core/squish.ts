@@ -116,20 +116,33 @@ export interface SquishPose {
  * @param phase  die Taktphase des Laufens im Bogenmaß (`AvatarBody.walkPhase`)
  * @param stride 0 im Stand, 1 im vollen Lauf — im Stehen steht die Figur still
  * @param amount der Faktor aus dem Menü; 0 heißt: keine Stauchung
+ * @param tempo  wie schnell die Kurve durchlaufen wird; 1 ist ein Federn je
+ *               Schritt, 0,5 eines auf zwei Schritte
  * @param out    ein Objekt zum Hineinschreiben, damit kein Bild etwas wegwirft
  *
  * **Breite mal Breite mal Höhe bleibt konstant**: Die Breite ist der Kehrwert
  * der Wurzel aus der Höhe, und damit behält die Figur ihr Volumen. Eine, die
  * beim Strecken nur länger wird, sieht aus, als zöge man sie am Kopf hoch;
  * eine, die dabei schmaler wird, federt.
+ *
+ * **Und das Tempo ist ausdrücklich nicht an den Schritt gebunden.** Ein Federn
+ * je Schritt (`tempo` 1) war die erste Fassung, und es war zu schnell: Der
+ * Takt des Watschelns ist schon zweimal je Doppelschritt, und eine Figur, die
+ * dabei auch noch zweimal die Höhe wechselt, flimmert eher, als dass sie
+ * federt. Bei 0,5 — der Vorgabe — zieht sich ein Federn über zwei Schritte,
+ * und damit liegt eine ruhige Welle über dem schnelleren Watscheln, statt mit
+ * ihm um dieselbe Frequenz zu streiten. Gerechnet wird das als Faktor auf die
+ * **Phase**, nicht auf den Ausschlag: Wie weit die Figur federt, sagt
+ * `amount`, und die beiden Fragen sollen sich nicht gegenseitig verstellen.
  */
 export function squishPose(
   phase: number,
   stride: number,
   amount: number,
+  tempo = 1,
   out: SquishPose = { height: 1, width: 1 },
 ): SquishPose {
-  if (amount <= 0 || stride <= 0) {
+  if (amount <= 0 || stride <= 0 || tempo <= 0) {
     out.height = 1;
     out.width = 1;
     return out;
@@ -138,7 +151,7 @@ export function squishPose(
   // Der Boden ist Vorsicht und keine Gestaltung: Kein Faktor aus dem Menü
   // kommt ihm nahe, aber eine Figur mit der Höhe 0 wäre ein Strich und ihre
   // Breite eine Division durch null.
-  out.height = Math.max(1 + swing * squishCurve(phase / Math.PI), 0.2);
+  out.height = Math.max(1 + swing * squishCurve((phase * tempo) / Math.PI), 0.2);
   out.width = 1 / Math.sqrt(out.height);
   return out;
 }

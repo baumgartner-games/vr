@@ -16,7 +16,7 @@ import {
 import { faceMarks, headBox } from './chefFace';
 import { cloth, skin as skinMaterial } from './chefStyle';
 import { canLoadModels, CHEF_EYE, POSE_SCALE } from './chefFit';
-import { graphics, onGraphicsChange, squishAmount } from './graphicsSettings';
+import { graphics, onGraphicsChange, squishAmount, squishTempo } from './graphicsSettings';
 import { squishPose, type SquishPose } from './squish';
 import type { ChefParts } from './chefModel';
 
@@ -257,6 +257,16 @@ export class AvatarBody extends THREE.Group {
    * Minute schlecht.
    */
   squish = squishAmount(graphics());
+  /**
+   * **Wie schnell sie dabei durch die Kurve läuft** — 1 ist ein Federn je
+   * Schritt, die Vorgabe 0,5 eines auf zwei Schritte.
+   *
+   * Eine zweite Zahl neben der Stärke darüber, und aus demselben Grund
+   * öffentlich. Ein Federn im Takt des Watschelns war die erste Fassung und
+   * zu hektisch: Zwei Bewegungen derselben Frequenz übereinander sind keine
+   * zwei, sondern ein Flimmern.
+   */
+  squishSpeed = squishTempo(graphics());
   /** Meldet die Figur wieder ab, wenn sie weggeräumt wird (`dispose`). */
   private readonly stopGraphics: () => void;
 
@@ -332,7 +342,9 @@ export class AvatarBody extends THREE.Group {
     // zuhören, und jede Figur im Raum federt im selben Moment mit — auch die
     // der Mitspieler, die niemand hier neu baut.
     this.stopGraphics = onGraphicsChange(() => {
-      this.squish = squishAmount(graphics());
+      const settings = graphics();
+      this.squish = squishAmount(settings);
+      this.squishSpeed = squishTempo(settings);
     });
 
     // Das Modell kommt asynchron. Bis dahin steht die gebaute Figur; kommt es
@@ -640,7 +652,7 @@ export class AvatarBody extends THREE.Group {
     // Und es liegt **über** dem Watscheln, nicht an seiner Stelle: Das
     // Watscheln sitzt eine Gruppe tiefer (`BodyShape.setStride`) und bleibt
     // auch dann, wenn hier nichts eingestellt ist.
-    const squish = squishPose(this.walkPhase, stride, this.squish, _squish);
+    const squish = squishPose(this.walkPhase, stride, this.squish, this.squishSpeed, _squish);
     this.torso.scale.set(squish.width, squish.height, squish.width);
     this.head.scale.set(squish.width, squish.height, squish.width);
     this.head.position.y = this.eyeY * squish.height + this.bobNow;

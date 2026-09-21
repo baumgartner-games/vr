@@ -179,6 +179,41 @@ describe('die Figur', () => {
     body.dispose();
   });
 
+  /**
+   * **Das Tempo kommt an der Figur an.** Die erste Fassung federte einmal je
+   * Schritt und war damit zu schnell — der Takt des Watschelns ist schon
+   * zweimal je Doppelschritt. Ab Werk läuft die Kurve jetzt halb so schnell,
+   * und dieser Test zählt genau das nach: halbes Tempo, halb so viele Hügel.
+   */
+  it('federt im halben Tempo halb so oft', () => {
+    const peaks = (speed: number): number => {
+      const body = new AvatarBody();
+      body.squish = 2;
+      body.squishSpeed = speed;
+      const torso = torsoOf(body);
+      const heights: number[] = [];
+      for (let i = 0; i < 160; i++) {
+        body.position.x += 0.05;
+        body.update(1 / 60, pose(1.6), null, null);
+        heights.push(torso.scale.y);
+      }
+      body.dispose();
+      // Die ersten Bilder fallen weg: Dort läuft das Tempo der Figur erst an
+      // (`travelSpeed` wird geglättet), und ein halber Hügel ist keiner.
+      let count = 0;
+      for (let i = 21; i < heights.length - 1; i++) {
+        if (heights[i]! > heights[i - 1]! && heights[i]! >= heights[i + 1]!) count++;
+      }
+      return count;
+    };
+    const full = peaks(1);
+    const half = peaks(0.5);
+    expect(full).toBeGreaterThan(2);
+    // Halb so oft, mit einem Hügel Spiel an den Rändern des Fensters.
+    expect(half).toBeGreaterThanOrEqual(Math.floor(full / 2) - 1);
+    expect(half).toBeLessThanOrEqual(Math.ceil(full / 2) + 1);
+  });
+
   it('federt nicht, solange niemand es einschaltet', () => {
     // Der Auslieferungszustand: Die Figur läuft, wie sie immer lief.
     const body = new AvatarBody();

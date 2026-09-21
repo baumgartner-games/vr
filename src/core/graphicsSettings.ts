@@ -144,12 +144,30 @@ export interface GraphicsSettings {
    * **Wie stark** — der Faktor auf den gemessenen Ausschlag
    * (`squish.SQUISH_AMPLITUDE`, neun Prozent der Höhe).
    *
-   * Vier Rasten und kein Schieberegler: Ein Menü, das in der Brille mit einem
+   * Rasten und kein Schieberegler: Ein Menü, das in der Brille mit einem
    * Strahl bedient wird, hat keine Stelle für einen Wert, den man auf zwei
-   * Nachkommastellen zieht. Und die vier decken die ganze Frage ab — von
-   * „gerade eben zu ahnen" bis „Gummiball".
+   * Nachkommastellen zieht. Und die fünf decken die ganze Frage ab — von
+   * „gerade eben zu ahnen" bis „Gummiball". Die unterste (×0,25) ist
+   * nachgereicht: Für ein Federn, das man nur bemerkt, wenn es fehlt, war
+   * selbst ×0,5 noch zu viel.
    */
   squishScale: SquishScale;
+  /**
+   * **Wie schnell** — der Faktor auf die Taktphase, mit der die Figur durch
+   * die Kurve läuft (`squish.squishPose`).
+   *
+   * **Ab Werk ×0,5**, und das ist eine Korrektur: Ein Federn je Schritt war
+   * die erste Fassung und zu schnell — der Takt des Watschelns ist schon
+   * zweimal je Doppelschritt, und eine Figur, die dazu ebenso oft ihre Höhe
+   * wechselt, flimmert, statt zu federn. Bei ×0,5 zieht sich ein Federn über
+   * zwei Schritte und legt damit eine ruhige Welle über das schnellere
+   * Watscheln.
+   *
+   * Eine eigene Zeile und kein zweiter Sinn der Stärke: Wie **weit** die
+   * Figur federt und wie **oft** sie es tut, sind zwei Fragen, und wer die
+   * eine mit der anderen beantworten muss, bekommt keine von beiden richtig.
+   */
+  squishSpeed: SquishSpeed;
   /**
    * **Ob die Stöcke auf dem Glas liegen** — links der Stock zum Laufen, rechts
    * Zielstock und `A`/`B` (`index.html`, `#touch`).
@@ -196,10 +214,11 @@ export const SCREEN_PADS_SUBS: Readonly<Record<ScreenPads, string>> = {
  * **Die vier Rasten der Stauchung**, als Vielfaches des gemessenen
  * Ausschlags. `1` ist der Wert, der in `core/squish.ts` steht.
  */
-export type SquishScale = 0.5 | 1 | 1.5 | 2;
-export const SQUISH_SCALES: readonly SquishScale[] = [0.5, 1, 1.5, 2];
+export type SquishScale = 0.25 | 0.5 | 1 | 1.5 | 2;
+export const SQUISH_SCALES: readonly SquishScale[] = [0.25, 0.5, 1, 1.5, 2];
 
 export const SQUISH_SCALE_LABELS: Readonly<Record<SquishScale, string>> = {
+  0.25: '×0,25',
   0.5: '×0,5',
   1: '×1',
   1.5: '×1,5',
@@ -207,10 +226,33 @@ export const SQUISH_SCALE_LABELS: Readonly<Record<SquishScale, string>> = {
 };
 
 export const SQUISH_SCALE_SUBS: Readonly<Record<SquishScale, string>> = {
+  0.25: 'Gerade eben zu ahnen · zwei Zentimeter auf die ganze Figur',
   0.5: 'Kaum zu sehen · ein Hauch Leben in der Figur',
   1: 'Der gemessene Wert · knapp ein Zehntel der Höhe',
   1.5: 'Deutlich · die Figur federt sichtbar bei jedem Schritt',
   2: 'Cartoon · ein Gummiball mit Kochmütze',
+};
+
+/**
+ * **Die drei Rasten des Tempos** — der Faktor auf die Taktphase.
+ *
+ * Nach oben ist bei ×1 Schluss, und das ist Absicht: Ein Federn je Schritt
+ * war die erste Fassung, und die war der Anlass für diese Zeile. Eine Raste,
+ * die noch schneller ist, wäre eine, die niemand will.
+ */
+export type SquishSpeed = 0.25 | 0.5 | 1;
+export const SQUISH_SPEEDS: readonly SquishSpeed[] = [0.25, 0.5, 1];
+
+export const SQUISH_SPEED_LABELS: Readonly<Record<SquishSpeed, string>> = {
+  0.25: '×0,25',
+  0.5: '×0,5',
+  1: '×1',
+};
+
+export const SQUISH_SPEED_SUBS: Readonly<Record<SquishSpeed, string>> = {
+  0.25: 'Ganz ruhig · ein Heben und Senken auf vier Schritte',
+  0.5: 'Die Vorgabe · ein Federn auf zwei Schritte, ruhiger als der Schritt',
+  1: 'Im Takt der Schritte · so schnell wie das Watscheln, und damit hektisch',
 };
 
 /** Die drei Rasten des Reglers, von scharf nach flüssig. */
@@ -240,6 +282,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   shadows: true,
   squish: false,
   squishScale: 1,
+  squishSpeed: 0.5,
   screenPads: 'auto',
 };
 
@@ -399,6 +442,11 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const squishScale = SQUISH_SCALES.includes(raw.squishScale as SquishScale)
     ? (raw.squishScale as SquishScale)
     : DEFAULT_GRAPHICS.squishScale;
+  // Ein Stand von gestern kennt das Tempo noch nicht — und bekommt damit
+  // genau das, was die Zeile beheben soll: das halbe.
+  const squishSpeed = SQUISH_SPEEDS.includes(raw.squishSpeed as SquishSpeed)
+    ? (raw.squishSpeed as SquishSpeed)
+    : DEFAULT_GRAPHICS.squishSpeed;
   // Aus demselben Grund kein `=== 'on'`: Ein Stand von gestern kennt die Raste
   // nicht, und „kenne ich nicht" heißt hier **automatisch** und nicht „aus" —
   // sonst stünde ein Telefon, das gestern noch Stöcke hatte, heute ohne da.
@@ -415,6 +463,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     shadows,
     squish,
     squishScale,
+    squishSpeed,
     screenPads,
   };
 }
@@ -437,6 +486,12 @@ export function nextSquishScale(scale: SquishScale): SquishScale {
   return SQUISH_SCALES[(index + 1) % SQUISH_SCALES.length]!;
 }
 
+/** Ein Druck auf das Tempo: die nächste Raste, oben wieder von vorn. */
+export function nextSquishSpeed(speed: SquishSpeed): SquishSpeed {
+  const index = SQUISH_SPEEDS.indexOf(speed);
+  return SQUISH_SPEEDS[(index + 1) % SQUISH_SPEEDS.length]!;
+}
+
 /**
  * **Wie stark die Figur wirklich federt** — der Faktor, wenn der Schalter an
  * ist, und sonst glatt 0.
@@ -453,6 +508,17 @@ export function squishAmount(
 }
 
 /**
+ * **Wie schnell die Figur federt** — der Faktor für `squish.squishPose`.
+ *
+ * Aus demselben Grund eine eigene kleine Funktion wie `squishAmount`: Ein
+ * gespeicherter Stand, der das Feld noch nicht kennt, bekommt die Vorgabe und
+ * nicht die 0 — und 0 hieße hier, dass die Figur in einer Haltung einfriert.
+ */
+export function squishTempo(settings: Partial<Pick<GraphicsSettings, 'squishSpeed'>>): number {
+  return settings.squishSpeed ?? DEFAULT_GRAPHICS.squishSpeed;
+}
+
+/**
  * Wie die Zeile _Animationen_ unter ihrer Überschrift steht.
  *
  * Eine eigene Zeile und nicht ein Anhängsel der Grafik-Zeile: Unter der
@@ -460,11 +526,14 @@ export function squishAmount(
  * Seite zumacht, will dort lesen, ob die Figur jetzt federt.
  */
 export function animationSummary(
-  settings: Partial<Pick<GraphicsSettings, 'squish' | 'squishScale'>>,
+  settings: Partial<Pick<GraphicsSettings, 'squish' | 'squishScale' | 'squishSpeed'>>,
 ): string {
   if (!settings.squish) return 'Nichts Besonderes · die Figur läuft, wie sie immer lief';
   const scale = settings.squishScale ?? DEFAULT_GRAPHICS.squishScale;
-  return `Squishy-Bewegung ${SQUISH_SCALE_LABELS[scale]}`;
+  const speed = settings.squishSpeed ?? DEFAULT_GRAPHICS.squishSpeed;
+  // Beide Zahlen, auch die vorgegebene: Auf dieser Seite stehen genau zwei
+  // Regler, und wer von ihr zurückkommt, will lesen, wie **beide** stehen.
+  return `Squishy-Bewegung ${SQUISH_SCALE_LABELS[scale]} · Tempo ${SQUISH_SPEED_LABELS[speed]}`;
 }
 
 /** Ein Druck auf die Zeile: automatisch → an → aus und wieder von vorn. */
