@@ -140,6 +140,24 @@ h1 {
 
 .status.is-error { color: #ff8f8f; }
 
+/* Der Ladebalken des Starts (`index.html`, `#boot`). Er steht im HTML und
+   läuft hier, damit er schon da ist, bevor irgendein Skript ihn bauen könnte —
+   gemeldet war „der Ladebalken war nicht sichtbar", und das war er auch nicht:
+   Es gab ihn erst nach dem Bündel. Unbestimmt, weil niemand weiß, wie lange
+   ein Bündel über diese Leitung braucht; eine geratene Prozentzahl wäre eine
+   Lüge mit Nachkommastelle. `main.ts` nimmt ihn weg, wenn nichts mehr kommt. */
+.boot { margin: 14px 0 0; }
+.boot[hidden] { display: none; }
+.boot__track { position: relative; height: 4px; border-radius: 999px; background: rgba(140, 170, 230, 0.16); overflow: hidden; }
+.boot__track i { position: absolute; top: 0; bottom: 0; left: 0; width: 38%; border-radius: 999px; background: linear-gradient(90deg, transparent, var(--accent), transparent); animation: boot-sweep 1.25s ease-in-out infinite; }
+@keyframes boot-sweep { from { transform: translateX(-110%); } to { transform: translateX(300%); } }
+/* Wer Bewegung abbestellt hat, bekommt einen ruhigen Streifen statt keiner
+   Auskunft — die Frage war „passiert etwas?", nicht „darf es wackeln?". */
+@media (prefers-reduced-motion: reduce) {
+  .boot__track i { animation: none; width: 100%; opacity: 0.55; }
+}
+.boot__note { min-height: 1.4em; margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+
 /* ---------- HUD (Web) ----------
    Oben links der Knopf zum Menü, oben rechts Weltname, Verbindung und VR. Der
    Streifen selbst fängt keine Tipps ab — nur seine Knöpfe, damit die Welt
@@ -402,6 +420,20 @@ h1 {
 .install[hidden] { display: none; }
 .install .btn { font-size: 14px; }
 .install .btn[hidden] { display: none; }
+
+/* Alles herunterladen (`core/fullDownload.ts`): derselbe Kasten wie beim
+   Installieren, plus ein Balken und ein zweiter Knopf zum Anhalten. Ein
+   `<progress>` und kein gebautes `<div>` — es kennt „unbestimmt" von selbst,
+   liest sich vor, und ein Balken, den man nicht bauen muss, ist einer, der auf
+   jedem Gerät richtig aussieht. Die eigene Farbe bekommt er trotzdem: Die
+   Vorgabe ist auf dunklem Grund fast unsichtbar. */
+.offline { border-top: 1px solid var(--border); padding-top: 14px; }
+.offline__bar { display: block; width: 100%; height: 6px; margin: 9px 0 0; border: 0; border-radius: 999px; background: rgba(140, 170, 230, 0.16); appearance: none; -webkit-appearance: none; overflow: hidden; }
+.offline__bar[hidden] { display: none; }
+.offline__bar::-webkit-progress-bar { background: rgba(140, 170, 230, 0.16); }
+.offline__bar::-webkit-progress-value { background: var(--accent); transition: width 0.3s linear; }
+.offline__bar::-moz-progress-bar { background: var(--accent); }
+.offline__stop { margin-top: 8px; }
 
 /* Zwei Gesichter der Startseite (`index.html`): `main.ts` setzt unter `#haunting`
    `data-landing="haunting"`, und dann steht dort die Startseite der Runde statt

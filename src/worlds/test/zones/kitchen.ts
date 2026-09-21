@@ -99,6 +99,7 @@ import {
   type Spot,
   type Turn,
 } from './kitchenPlan';
+import { kitchenBlock, kitchenBlocks, type KitchenBlock } from './kitchenBlocks';
 import {
   CLEAR_TABLE,
   advanceTable,
@@ -258,21 +259,10 @@ import type { TestZone, ZoneHost } from './zone';
  */
 
 export * from './kitchenPlan';
-
-/**
- * **Wie hoch ein Küchenmöbel für die Füße mindestens ist**, in Metern.
- *
- * Ein Tresen ist einen halben Meter hoch, und der Spieler springt mit 4,4 m/s
- * ab — das ist gut ein Meter Scheitelhöhe (`PhysicsLocomotion.jumpSpeed`).
- * Ohne diese Zahl steht man nach dem ersten Sprung **auf** der Küchenzeile und
- * läuft die ganze Wand entlang, über Spüle und Herd hinweg.
- *
- * Anderthalb Köpfe über dem Tresen, und damit ein gutes Stück über dem, was
- * ein Sprung hergibt. Der Kasten ist unsichtbar (siehe `addBody`), das Möbel
- * darunter bleibt einen halben Meter hoch — man greift also weiter über den
- * Tresen, man steigt nur nicht mehr darauf.
- */
-const BLOCK_HEIGHT = 1.4;
+// Die Rechnung „Katalogstück → Kasten" liegt daneben und three.js-frei
+// (`kitchenBlocks.ts`); weitergereicht wird sie, damit `BLOCK_HEIGHT` dort
+// zitiert werden kann, wo es schon immer zitiert wurde: als Zahl der Küche.
+export * from './kitchenBlocks';
 
 /**
  * **Wo das Getragene hängt** (`core/chefFit.CHEF_CARRY`) — als Vektor, weil
@@ -946,6 +936,16 @@ export class KitchenZone implements TestZone {
   private gone = false;
   private readonly placed: THREE.Object3D[] = [];
   private readonly bodies: PhysicsBody[] = [];
+  /**
+   * **Die Kästen, die schon stehen, bevor ihr Möbel zu sehen ist**
+   * (`kitchenBlocks.ts`) — je Stelle im Aufbau einer.
+   *
+   * Sie sind der ganze Sinn dieser Karte: Kommt das Modell später an, soll es
+   * sich in seinen Kasten stellen und keinen zweiten daneben bauen. `addBody`
+   * holt ihn hier heraus und **streicht ihn dabei** — was einmal einem Möbel
+   * gehört, gehört danach ihm allein, samt Aufheben und Umstellen im Baumodus.
+   */
+  private readonly blocks = new Map<Spot, { box: THREE.Mesh; body: PhysicsBody }>();
   private readonly owned: THREE.Material[] = [];
   private readonly shapes: THREE.BufferGeometry[] = [];
   /** Ein Material für alle Trefferkästen — unsichtbar ist unsichtbar. */
@@ -1214,6 +1214,26 @@ export class KitchenZone implements TestZone {
     // Der Ofen braucht den Renderer und gibt ohne WebGL und in der Brille
     // `null` zurück (`IconOven.bake`) — dann eben kein Schild an der Ausgabe.
     this.oven = new IconOven(ctx.renderer);
+
+    // **Zuerst die Sperren, und zwar alle** (`kitchenBlocks.ts`). Der
+    // Grundriss macht die Kacheln der Möbel schon beim Stempeln teuer
+    // (`stampKitchen`), und ein NPC geht deshalb um den Tresen herum, auch
+    // wenn nie eine Datei ankommt. Für den Spieler galt das bis hierher
+    // nicht: Sein Hindernis entstand erst mit dem Modell, und wer die Küche
+    // auf einer langsamen Leitung betritt, lief in diesen Sekunden mitten
+    // durch Zeile, Spüle und Herd hindurch — sichtbar wurde es erst, wenn das
+    // Bild ihn plötzlich umgab.
+    //
+    // Die Maße dafür stehen im Katalog und nicht im Netz, und der Katalog ist
+    // ohnehin das, wonach diese Küche aufgebaut ist: Was gleich geladen wird,
+    // stellt sich in einen Kasten, der schon steht (`addBody` übernimmt ihn),
+    // und rückt ihn nicht. Weicht ein Netz von seinen Zahlen ab, gewinnt der
+    // Katalog — die Kachelfläche ist der Vertrag, den Aufbau, Wegnetz und
+    // Umbau lesen, die Hülle des Netzes ist eine Messung von gestern.
+    for (const { spot, block } of kitchenBlocks()) {
+      const raised = this.raiseBlock(block);
+      if (raised) this.blocks.set(spot, raised);
+    }
 
     // **Was gebaut wird, steht sofort.** Es hängt an keiner Datei, also wartet
     // es auch nicht auf eine: Die Förderbänder stehen, bevor der Lader
@@ -2954,6 +2974,10 @@ export class KitchenZone implements TestZone {
     this.stations.length = 0;
     this.furniture.length = 0;
     this.bodies.length = 0;
+    // Die vorab gestellten Kästen hängen in `placed` und `bodies` wie jeder
+    // andere und sind damit schon weg; hier fällt nur die Zuordnung, die sie
+    // einem Möbel zuhalten wollte.
+    this.blocks.clear();
     this.holds.clear();
     this.lifted = null;
     this.ghost = null;
@@ -3171,28 +3195,66 @@ export class KitchenZone implements TestZone {
    * fliegen kann. Zwei Körper übereinander an derselben Stelle sind für die
    * Spielerkapsel aber keine Wand, sondern eine Falle: Sie blieb beim Springen
    * dagegen auf halber Höhe davor **hängen** und fiel nicht mehr herunter.
+   *
+   * **Gerechnet wird er nicht mehr hier** (`kitchenBlocks.kitchenBlock`), und
+   * meistens steht er schon, bevor diese Methode das erste Mal läuft: Die
+   * Küche macht sich beim Aufbau fest, aus dem Katalog und ohne auf eine Datei
+   * zu warten. Was hier bleibt, sind die beiden Wege dorthin — den fertigen
+   * Kasten übernehmen oder, nach einem Umbau, einen auf der neuen Kachel
+   * hinstellen.
    */
   private addBody(furnish: Furnish): void {
+    const { piece, spot } = furnish;
+    // **Der Kasten steht meistens schon** (`build`, `kitchenBlocks`), und dann
+    // wird er übernommen statt neu gebaut. Ein zweiter an derselben Stelle
+    // wäre genau die Falle aus dem Absatz darüber — und die Zahlen dahinter
+    // wären dieselben, weil beide aus demselben Katalog kommen: Das Möbel
+    // rückt beim Ankommen nichts.
+    //
+    // Gestrichen wird er dabei, denn ab jetzt gehört er dem Möbel: Wer es im
+    // Baumodus aufhebt, nimmt seinen Kasten mit (`dropBody`), und beim
+    // Absetzen entsteht einer auf der neuen Kachel.
+    const ready = this.blocks.get(spot);
+    if (ready) {
+      this.blocks.delete(spot);
+      furnish.box = ready.box;
+      furnish.body = ready.body;
+      return;
+    }
+    const block = kitchenBlock(piece, {
+      // Die **jetzige** Kachel und nicht die aus dem Plan: Nach einem Umbau
+      // steht das Möbel woanders (`dropPiece`).
+      x: furnish.x,
+      z: furnish.z,
+      turn: furnish.turn,
+      lift: spot.lift,
+      show: spot.show,
+    });
+    if (!block) return;
+    const raised = this.raiseBlock(block);
+    if (!raised) return;
+    furnish.box = raised.box;
+    furnish.body = raised.body;
+  }
+
+  /**
+   * **Einen gerechneten Kasten wirklich hinstellen** — Netz in die Welt,
+   * Körper in die Physik, beides in die Aufräumliste.
+   *
+   * Die eine Stelle, an der aus einer Rechnung (`kitchenBlocks.ts`) ein
+   * Hindernis wird: Der Aufbau ruft sie für die ganze Küche auf einmal auf,
+   * `addBody` für das einzelne Möbel, das im Baumodus umgestellt wurde.
+   */
+  private raiseBlock(block: KitchenBlock): { box: THREE.Mesh; body: PhysicsBody } | null {
     const world = this.world;
-    const { piece, spot, size } = furnish;
-    if (!world || piece.hanging || spot.lift) return;
-    // Im Schauraum steht jedes Stück für sich: Dort gibt es kein „darüber
-    // hinweg", nur ein Möbel zum Ansehen — und keinen Grund, über ihm gegen
-    // Luft zu laufen. Was im Boden steckt, zählt dabei nicht mit
-    // (`KitchenPiece.bury`): Der Kasten steht auf dem Boden, also reicht er so
-    // weit, wie das Möbel darüber hinausragt, und nicht drei Zentimeter höher.
-    const stands = piece.height - (piece.bury ?? 0);
-    const height = spot.show ? stands : Math.max(stands, BLOCK_HEIGHT);
-    const centreX = (KITCHEN.x + furnish.x + size.w / 2) * TILE;
-    const centreZ = (KITCHEN.z + furnish.z + size.d / 2) * TILE;
-    const box = this.boxAt(size.w * TILE, height, size.d * TILE, centreX, KITCHEN_FLOOR, centreZ);
+    if (!world) return null;
+    const box = this.boxAt(block.w, block.h, block.d, block.x, block.y - block.h / 2, block.z);
     world.root.add(box);
     box.updateWorldMatrix(true, false);
     this.placed.push(box);
     const body = world.addSolid(box);
     this.bodies.push(body);
-    furnish.box = box;
-    furnish.body = body;
+    return { box, body };
   }
 
   /** Und wieder heraus — beim Aufheben im Baumodus (`ZoneHost.removeSolid`). */

@@ -21,6 +21,31 @@ export interface Rect {
 }
 
 /**
+ * **Der scrollende Kasten, so wie die Vorschau ihn sieht.**
+ *
+ * `rect` ist sein sichtbarer Ausschnitt im Fenster, gemessen an der
+ * **Innenkante** (`clientWidth`/`clientHeight` an der linken oberen Ecke des
+ * Inhalts) — dieselbe Kante, an der auch die Leinwand darin sitzt. `scrollTop`
+ * und `content` (`scrollHeight`) sagen, wo in seinem Inhalt dieser Ausschnitt
+ * gerade steht und wie lang der Inhalt insgesamt ist.
+ */
+export interface ListView {
+  rect: Rect;
+  scrollTop: number;
+  content: number;
+}
+
+/**
+ * **Das Blatt**: die Leinwand, im Inhalt des Kastens verankert — `top` sind
+ * Inhaltskoordinaten (also unabhängig davon, wie weit gerade gescrollt ist),
+ * `height` ihre Höhe in Bildpunkten.
+ */
+export interface Sheet {
+  top: number;
+  height: number;
+}
+
+/**
  * Wo ein Modell auf der Leinwand steht: die **Mitte** seiner Kachel, gemessen
  * von der linken oberen Ecke der Liste, und die Kantenlänge des Quadrats, in
  * das es passen muss. Beides in Bildpunkten.
@@ -66,17 +91,75 @@ export const PREVIEW_TILT = 0.32;
 export const PREVIEW_FILL = 0.68;
 
 /**
- * Wo das Modell einer Kachel auf der Leinwand steht — oder `null`, wenn die
+ * **Wie weit das Blatt über den sichtbaren Ausschnitt hinaussteht**, als
+ * Anteil seiner Höhe — oben wie unten.
+ *
+ * Der Rand ist kein Luxus, sondern der Puffer gegen genau das, was diese
+ * Datei sonst nicht in den Griff bekommt: Zwischen dem Bild, in dem gerechnet
+ * wurde, und dem Bild, das der Compositor zeigt, scrollt der Finger weiter.
+ * Was in dieser Zeit neu ins Bild rutscht, ist noch gezeichnet, weil das Blatt
+ * dort schon hinreicht. Vier Zehntel sind bei einem Telefonmenü rund 230
+ * Bildpunkte — mehr, als ein Schwung zwischen zwei Bildern schafft, und
+ * trotzdem eine Leinwand, die kleiner bleibt als das Doppelte des Fensters.
+ */
+export const PREVIEW_OVERSCAN = 0.4;
+
+/**
+ * **Wo das Blatt im Inhalt liegt** — und wann es umgehängt wird.
+ *
+ * Die Leinwand liegt **im** scrollenden Kasten und wird deshalb vom
+ * Compositor mitbewegt, genau wie die Kacheln (siehe `ui/PagePreviews.ts`).
+ * Sie ist aber nicht so hoch wie der ganze Inhalt — sechzig Kacheln sind
+ * siebentausend Bildpunkte, und ein Zeichenpuffer dieser Höhe ist auf einem
+ * Telefon weder erlaubt noch bezahlbar. Sie ist ein **Fenster**: der
+ * sichtbare Ausschnitt plus `PREVIEW_OVERSCAN` an jedem Ende.
+ *
+ * Umgehängt wird erst, wenn der Ausschnitt dem Rand nahe kommt: Ein Blatt,
+ * das bei jedem Bild ein Stück weiterrückt, schriebe bei jedem Bild eine neue
+ * Verschiebung in den Stil, und das ist die Arbeit, die man hier gerade
+ * losgeworden ist. Der Sprung selbst ist unsichtbar, denn er passiert in
+ * demselben Bild, in dem die Modelle ihre neuen Plätze auf dem Blatt bekommen.
+ *
+ * Zurück kommt das übergebene Blatt selbst, solange es noch passt — der
+ * Aufrufer erkennt am Vergleich, ob sich etwas geändert hat.
+ */
+export function previewSheet(view: ListView, current: Sheet | null): Sheet {
+  const shown = Math.max(view.rect.height, 0);
+  const margin = shown * PREVIEW_OVERSCAN;
+  const content = Math.max(view.content, shown);
+  // Nie höher als der Inhalt: Sonst wüchse der scrollbare Bereich um den
+  // Überstand, und die Liste hätte unten Platz, in dem nichts steht.
+  // Ganze Bildpunkte, und das hat einen Grund: `scrollHeight` kommt gerundet
+  // aus dem DOM. Ein Blatt mit Nachkommastellen ragte sonst ein Haar über den
+  // Inhalt hinaus, machte den Kasten dadurch länger — und wäre beim nächsten
+  // Bild wieder zu lang.
+  const height = Math.floor(Math.min(content, shown + 2 * margin));
+  const last = Math.max(content - height, 0);
+  const top = Math.floor(Math.min(Math.max(view.scrollTop - margin, 0), last));
+  if (current && current.height === height && Math.abs(current.top - top) <= margin / 2) {
+    return current;
+  }
+  return { top, height };
+}
+
+/**
+ * Wo das Modell einer Kachel auf dem Blatt steht — oder `null`, wenn die
  * Kachel gar nicht zu sehen ist.
  *
- * Die Leinwand liegt über dem **sichtbaren** Ausschnitt der Liste und scrollt
- * nicht mit; die Kacheln tun es. Also wird hier jedes Bild neu gerechnet, wo
- * eine Kachel gerade liegt. Was die Liste oben oder unten verlässt, schneidet
- * der Rand der Leinwand ab — eine halb sichtbare Kachel bekommt deshalb ihren
- * Platz und wird halb gezeichnet, und erst eine ganz draußen liegende bekommt
- * `null`.
+ * Gemessen wird in **Inhaltskoordinaten** des Kastens, abzüglich der Stelle,
+ * an der das Blatt hängt: `x`/`y` sagen, wo das Modell auf der Leinwand
+ * gezeichnet wird, und die Leinwand scrollt mit. Deshalb steht hier `scrollTop`
+ * in der Rechnung, obwohl das Ergebnis nicht vom Scrollen abhängt — die beiden
+ * heben sich auf, solange das Blatt hängen bleibt.
+ *
+ * Gefragt wird trotzdem nur nach **sichtbaren** Kacheln: Nur die bekommen ein
+ * Modell, und was hinausscrollt, gibt seines wieder her. Eine halb sichtbare
+ * bekommt ihren Platz und wird ganz gezeichnet; abgeschnitten wird sie nicht
+ * mehr vom Rand der Leinwand, sondern vom scrollenden Kasten selbst, und das
+ * ist der Schnitt, den auch die Kachel bekommt.
  */
-export function previewSlot(list: Rect, cell: Rect): Slot | null {
+export function previewSlot(view: ListView, sheet: Sheet, cell: Rect): Slot | null {
+  const list = view.rect;
   if (cell.width <= 0 || cell.height <= 0) return null;
   if (list.width <= 0 || list.height <= 0) return null;
   const outside =
@@ -87,7 +170,7 @@ export function previewSlot(list: Rect, cell: Rect): Slot | null {
   if (outside) return null;
   return {
     x: cell.left - list.left + cell.width / 2,
-    y: cell.top - list.top + cell.height / 2,
+    y: cell.top - list.top + view.scrollTop - sheet.top + cell.height / 2,
     size: Math.min(cell.width, cell.height),
   };
 }
@@ -178,18 +261,19 @@ export class PreviewLedger {
  * `ui/PageMenu.ts` ist DOM und sonst nichts; das ist der Grund, warum ein Test
  * sie ohne Browser aufschlagen kann. Eine Schicht aus three.js darin hätte das
  * aufgegeben. Also steht hier die Schnittstelle, und die Seite kennt nur sie:
- * Sie hängt die Vorschau in ihr eigenes DOM, sagt ihr nach jedem Neubau,
+ * Sie reicht ihren scrollenden Kasten hinüber, sagt ihr nach jedem Neubau,
  * welche Kacheln dastehen, und sagt ihr, wenn sie zugeht. Wer das erfüllt, darf
  * dahinter zeichnen, wie er will — im Spiel tut es `ui/PagePreviews.ts`, im
  * Test eine Attrappe aus zehn Zeilen.
  */
 export interface PagePreviewLayer {
   /**
-   * Einhängen: `stage` ist der Rahmen, in dem die Leinwand liegt, `list` der
-   * scrollende Kasten mit den Kacheln. `onChange` meldet, dass ein Modell
-   * angekommen ist — die Seite zeichnet dann neu und lässt die Ikone weg.
+   * Einhängen: `box` ist der **scrollende** Kasten — die Leinwand kommt
+   * hinein und scrollt mit, die Kacheln stehen darin. `onChange` meldet, dass
+   * ein Modell angekommen ist; die Seite zeichnet dann neu und lässt die Ikone
+   * weg.
    */
-  mount(stage: HTMLElement, list: HTMLElement, onChange: () => void): void;
+  mount(box: HTMLElement, onChange: () => void): void;
   /** Nach jedem Neubau der Liste: welche Seite, und welche Kacheln stehen da. */
   observe(page: string, boxes: HTMLElement[]): void;
   /** Ob zu dieser Id schon ein Modell dasteht. */

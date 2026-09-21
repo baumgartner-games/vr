@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import { readdirSync, statSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import type { OutputBundle } from 'rollup';
 
@@ -79,9 +80,98 @@ function precachePlugin(): Plugin {
   };
 }
 
+/**
+ * **Die Liste für den vollständigen Download** (`offline.json`) — was ein
+ * Spieler holt, der auf der Startseite _Alles herunterladen_ drückt.
+ *
+ * Sie beantwortet die eine Frage, die zur Laufzeit niemand beantworten kann:
+ * **Wie viele Bytes sind es?** Ohne Zahl gibt es keinen ehrlichen Balken und
+ * erst recht keine Dauer — und die Zahl steht nirgends sonst: Die Chunks
+ * heißen erst nach dem Bündeln so, wie sie heißen, und was unter `public/`
+ * liegt, weiß nur die Platte. Eine von Hand gepflegte Liste wäre nach dem
+ * dritten Paket falsch, und falsch heißt hier: ein Balken, der bei 80 %
+ * fertig ist, oder eine App, der offline ein Ton fehlt.
+ *
+ * Zwei Listen, weil es zwei Sorten Datei sind:
+ *
+ * - `bundle` — was der Build erzeugt hat: die drei Seiten, jeder Chunk (auch
+ *   die Welten und die Physik-Engine, die sonst niemand vorher kennt) und der
+ *   Stil. Ihre Namen tragen den Hash ihres Inhalts, also wird nichts daran
+ *   gestempelt.
+ * - `files` — was unverändert aus `public/` kopiert wird: Modelle, Töne,
+ *   Controller-Profile, Symbole. Feste Namen, und deshalb entscheidet
+ *   `core/fullDownload.ts`, an welche davon eine Build-Nummer gehört.
+ *
+ * **Nicht darin stehen die 4470 Modelle des Regals.** Die stehen schon in
+ * `models/kaykit/index.json`, mit ihren Größen — zweimal aufgeschrieben wären
+ * sie zweimal zu pflegen, und 210 kB doppelt. Ihre **Texturen** stehen dagegen
+ * hier, denn im Index stehen nur `.glb` (siehe `core/kaykitIndex.ts`), und
+ * ohne Textur ist ein heruntergeladenes Fass im Funkloch ein weißes Fass.
+ */
+const OFFLINE_MANIFEST = 'offline.json';
+
+/**
+ * Was nie angefragt wird, muss auch nicht ins Telefon: Lizenz- und
+ * Quellentexte, und die Punktdateien, die nur den Server angehen
+ * (`.nojekyll`).
+ */
+const NOT_ASSETS = /(^|\/)\.|\.(md|txt)$/i;
+
+/** Die Modelle des Regals — sie stehen im Index und nicht hier. */
+const IN_SHELF_INDEX = /^models\/kaykit\/.*\.(glb|gltf)$/i;
+
+/** Alle Dateien unter `public/`, rekursiv, mit ihrer Größe in Bytes. */
+function publicFiles(dir: string, root: string, out: [string, number][]): [string, number][] {
+  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  )) {
+    const full = resolve(dir, entry.name);
+    if (entry.isDirectory()) {
+      publicFiles(full, root, out);
+      continue;
+    }
+    const path = relative(root, full).split('\\').join('/');
+    if (NOT_ASSETS.test(path) || IN_SHELF_INDEX.test(path)) continue;
+    out.push([path, statSync(full).size]);
+  }
+  return out;
+}
+
+/**
+ * Setzt `offline.json` neben die Seite. Das geht erst nach dem Bündeln: Vorher
+ * gibt es die Dateinamen nicht, und ihre Größen schon gar nicht.
+ *
+ * Draußen bleiben die Quellkarten und der Service Worker selbst — beide
+ * beantwortet er mit `bypass` (`core/swRoutes.ts`), sie kämen also gar nicht
+ * erst in einen Speicher. Und die Liste selbst steht nicht in sich: Ihre
+ * Größe stünde fest, bevor sie geschrieben ist.
+ */
+function offlineListPlugin(publicDir: string): Plugin {
+  return {
+    name: 'bgvr:offline-list',
+    apply: 'build',
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      const files = publicFiles(publicDir, publicDir, []);
+      const built: [string, number][] = [];
+      for (const [name, chunk] of Object.entries(bundle)) {
+        if (name === 'sw.js' || name.endsWith('.map') || name === OFFLINE_MANIFEST) continue;
+        const source = chunk.type === 'chunk' ? chunk.code : chunk.source;
+        built.push([name, typeof source === 'string' ? Buffer.byteLength(source) : source.length]);
+      }
+      built.sort((a, b) => a[0].localeCompare(b[0]));
+      this.emitFile({
+        type: 'asset',
+        fileName: OFFLINE_MANIFEST,
+        source: JSON.stringify({ version: 1, build: buildId, bundle: built, files }),
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base,
-  plugins: [precachePlugin()],
+  plugins: [precachePlugin(), offlineListPlugin(resolve(__dirname, 'public'))],
   define: {
     __BUILD_ID__: JSON.stringify(buildId),
     // Der Platzhalter bleibt ein Platzhalter: Die echte Liste setzt

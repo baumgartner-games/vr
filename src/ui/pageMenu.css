@@ -87,31 +87,37 @@
 
 .pmenu__status:empty { display: none; }
 
-/* Der Rahmen um die Liste. Die Liste scrollt, die Leinwand darin nicht:
-   Sie liegt über dem sichtbaren Ausschnitt und schneidet oben und unten ab,
-   was aus dem Bild gescrollt ist (`ui/PagePreviews.ts`). */
-.pmenu__stage { position: relative; flex: 1; min-height: 0; display: flex; }
-
-.pmenu__canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-
-.pmenu__list {
+/* Der Kasten, der scrollt — und darin **zwei** Dinge: die Liste mit den
+   Zeilen und die Leinwand der Vorschau. Beide liegen im selben Inhalt, also
+   schiebt der Compositor sie beim Scrollen gemeinsam; früher hing die
+   Leinwand darüber und fest, und die Modelle liefen ihren Kacheln hinterher
+   (`ui/PagePreviews.ts`). Abgeschnitten wird am Rand dieses Kastens. */
+.pmenu__stage {
+  position: relative;
   flex: 1;
-  min-width: 0;
-  display: grid;
-  gap: 6px;
-  align-content: start;
-  padding: 10px;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-/* `max-content` und nicht `auto`, und das ist keine Feinheit: Sobald die
-   Liste scrollt, hat ein Raster mit `auto`-Zeilen keinen freien Platz mehr zu
-   verteilen — nach dem Grid-Algorithmus bleiben die Zeilen dann auf ihrer
-   Mindesthöhe stehen (hier `min-height: 96px`), und das Quadrat mit dem Modell
-   ragt aus seiner Kachel in die darunter. Mit sechs Kacheln sieht man davon
-   nichts, mit sechzig sofort. */
+/* Sie hängt an der Innenkante des Kastens; Größe und Stelle im Inhalt setzt
+   die Vorschauschicht selbst (`transform`, damit nur der Compositor arbeitet). */
+.pmenu__canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+.pmenu__list {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 10px;
+}
+
+/* `max-content` und nicht `auto`, und das ist keine Feinheit: Sobald das
+   Raster mehr Zeilen hat, als in den Kasten passen, hat es mit `auto`-Zeilen
+   keinen freien Platz mehr zu verteilen — nach dem Grid-Algorithmus bleiben
+   die Zeilen dann auf ihrer Mindesthöhe stehen (hier `min-height: 96px`), und
+   das Quadrat mit dem Modell ragt aus seiner Kachel in die darunter. Mit
+   sechs Kacheln sieht man davon nichts, mit sechzig sofort. */
 .pmenu__list--grid { grid-template-columns: repeat(var(--pmenu-cols, 3), 1fr); grid-auto-rows: max-content; }
 
 /* Eine Zeile: Ikone, Text, rechts das, was sie ist — Pfeil, Schalter oder Punkt. */

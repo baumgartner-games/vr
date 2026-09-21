@@ -36,7 +36,7 @@ import './pageMenu.css';
  * **Auch die drehenden Modelle nicht.** Eine Kachel des Asset-Regals zeigt
  * nicht ihre Ikone, sondern das Ding selbst (`MenuEntry.preview`) — und das
  * ist three.js. Die Seite hält dafür nur den Platz frei: ein Quadrat je
- * Kachel (`.pmenu__prev`) und einen Rahmen über der Liste, in den eine
+ * Kachel (`.pmenu__prev`) und den **scrollenden Kasten**, in den eine
  * Vorschauschicht ihre Leinwand hängen darf (`previewGrid.ts`,
  * `PagePreviewLayer`). Gezeichnet wird dahinter (`PagePreviews.ts`); kommt
  * niemand, bleibt im Quadrat die Ikone stehen, die dort ohnehin stünde.
@@ -74,7 +74,11 @@ export class PageMenu {
   private readonly backButton: HTMLButtonElement;
   private readonly titleEl: HTMLElement;
   private readonly statusEl: HTMLElement;
-  /** Der Rahmen um die Liste: Er trägt die Leinwand der Vorschau. */
+  /**
+   * Der scrollende Kasten. Er trägt zweierlei: die Liste mit den Zeilen und
+   * die Leinwand der Vorschau — **beide** im selben Inhalt, damit sie beim
+   * Scrollen zusammenbleiben (`PagePreviews.ts`).
+   */
   private readonly stage: HTMLElement;
   private readonly list: HTMLElement;
   private readonly footEl: HTMLElement;
@@ -120,8 +124,10 @@ export class PageMenu {
     this.statusEl = el('p', 'pmenu__status');
     this.statusEl.setAttribute('aria-live', 'polite');
     this.list = el('div', 'pmenu__list');
-    // Die Liste scrollt, die Leinwand darüber nicht: Sie liegt im Rahmen und
-    // zeigt immer genau den Ausschnitt, den man sieht (`PagePreviews.ts`).
+    // Gescrollt wird der Kasten, nicht die Liste: Die Leinwand der Vorschau
+    // liegt als zweites Kind darin und wird damit von derselben Hand bewegt
+    // wie die Kacheln (`PagePreviews.ts`). Ein Neubau der Liste tauscht nur
+    // deren Kinder aus und lässt die Leinwand deshalb stehen.
     this.stage = el('div', 'pmenu__stage');
     this.stage.append(this.list);
     this.footEl = el('p', 'pmenu__foot');
@@ -195,7 +201,7 @@ export class PageMenu {
       if (this.open) this.render();
       return;
     }
-    layer.mount(this.stage, this.list, this.onPreviewReady);
+    layer.mount(this.stage, this.onPreviewReady);
     layer.setPresenting(this.presenting);
     if (!this.open) return;
     // Erst die Kacheln, dann die Schleife: Der Beobachter bekommt sonst eine
@@ -268,7 +274,7 @@ export class PageMenu {
   }
 
   private keepScroll(): void {
-    this.scrolls.set(this.page.id, this.list.scrollTop);
+    this.scrolls.set(this.page.id, this.stage.scrollTop);
   }
 
   /**
@@ -311,7 +317,7 @@ export class PageMenu {
       });
     } else {
       this.list.replaceChildren(...fresh);
-      this.list.scrollTop = this.scrolls.get(page.id) ?? 0;
+      this.stage.scrollTop = this.scrolls.get(page.id) ?? 0;
     }
     this.renderedPage = page.id;
     // Zum Schluss, und immer: Welche Quadrate jetzt dastehen, weiß nur, wer
