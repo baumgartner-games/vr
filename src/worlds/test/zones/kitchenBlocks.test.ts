@@ -48,12 +48,11 @@ describe('die Sperren der Küche, gerechnet aus dem Katalog', () => {
     }
   });
 
-  it('sperrt in der Küche bis Sprunghöhe und im Schauraum nur so hoch wie das Möbel', () => {
+  it('sperrt jedes Möbel bis Sprunghöhe', () => {
     for (const { spot, block } of kitchenBlocks()) {
       const piece = kitchenPiece(spot.name)!;
       const stands = piece.height - (piece.bury ?? 0);
-      if (spot.show) expect(block.h).toBeCloseTo(Math.max(stands, 0.02), 6);
-      else expect(block.h).toBeCloseTo(Math.max(stands, BLOCK_HEIGHT), 6);
+      expect(block.h).toBeCloseTo(Math.max(stands, BLOCK_HEIGHT), 6);
     }
     // Die Küchenzeile ist einen halben Meter hoch und wird trotzdem
     // abgesperrt: Wer darauf stünde, liefe die ganze Wand entlang.

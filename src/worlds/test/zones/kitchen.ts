@@ -22,7 +22,6 @@ import { kitchenEyeScale, onPostureChange } from '../../../core/posture';
 import type { WorldContext } from '../../../core/types';
 import { TextPlane } from '../../../ui/TextPlane';
 import { KITCHEN } from '../layout';
-import { showPlate } from '../../shared/showPlate';
 import {
   CLEAN_STACK_MAX,
   COLD_STOVE,
@@ -954,7 +953,7 @@ export class KitchenZone implements TestZone {
   private pond: THREE.MeshStandardMaterial | null = null;
   private readonly labels: TextPlane[] = [];
   private readonly stations: Station[] = [];
-  /** Jedes aufgestellte Möbel der Küche — der Schauraum steht nicht darin. */
+  /** Jedes aufgestellte Möbel der Küche. */
   private readonly furniture: Furnish[] = [];
   /** Zutaten und Teller — ein Satz für die ganze Zone. */
   private readonly food = new FoodKit();
@@ -3082,22 +3081,14 @@ export class KitchenZone implements TestZone {
       usable: null,
     };
     const foot = this.standAt(furnish);
-    // **Das erste Netz je Sorte wird die Vorlage** (`models`). Gebaut wird es
-    // ohnehin, ob im Schauraum oder in der Küche — und aus ihm klont der
-    // Möbelkatalog seine Miniaturen (`miniature`).
+    // **Das erste Netz je Sorte wird die Vorlage** (`models`) — aus ihm klont
+    // der Möbelkatalog seine Miniaturen (`miniature`).
     if (!this.models.has(piece.name)) this.models.set(piece.name, model);
-    if (!spot.show) this.furniture.push(furnish);
-    // **Das Wasser gehört dem Möbel und nicht der Station** — also steht es
-    // auch im Schauraum im Becken, wo es gar nichts zu spülen gibt. Ein
-    // Spülbecken ohne Wasser ist eine Blechmulde, und der Schauraum zeigt, wie
-    // ein Möbel aussieht.
+    this.furniture.push(furnish);
+    // **Das Wasser gehört dem Möbel und nicht der Station**: Ein Spülbecken
+    // ohne Wasser ist eine Blechmulde.
     if (stationKind(piece.name, spot.gives, spot.role) === 'sink') this.addWater(furnish);
 
-    if (spot.show) {
-      this.addBody(furnish);
-      this.addLabel(world, piece, size, model.position.x, model.position.z);
-      return furnish;
-    }
     this.addBody(furnish);
     this.addIcon(furnish);
     // Und das Bild dessen, was ein Filterband schon gelernt hat — beim Aufbau
@@ -3228,7 +3219,6 @@ export class KitchenZone implements TestZone {
       z: furnish.z,
       turn: furnish.turn,
       lift: spot.lift,
-      show: spot.show,
     });
     if (!block) return;
     const raised = this.raiseBlock(block);
@@ -3288,41 +3278,6 @@ export class KitchenZone implements TestZone {
     box.visible = false;
     box.position.set(x, bottom + tall / 2, z);
     return box;
-  }
-
-  /**
-   * **Das Schild am Schaustück** — Name und Maße, und es sieht die Kamera an.
-   *
-   * Eine Tafel und kein Einbau (`fixtures/sign.ts`): Ein Schild im Grundriss
-   * will eine Kachelkante, eine Kennung und einen Eintrag im gespeicherten
-   * Stand. Vierzehn davon wären vierzehn Einbauten, die jeder Umbau der Welt
-   * mitschleppt — für eine Beschriftung, die sich nie ändert.
-   *
-   * **Es steht nicht mehr fest geneigt da** (`face`, `ui/billboard.ts`).
-   * Vorher lehnte es sich um 20° zurück, und das war ein Kompromiss zwischen
-   * zwei Ansichten, der in beiden nur fast stimmte: von oben zu steil, aus den
-   * Augen zu flach. Jetzt richtet es sich beim **Zeichnen** aus, also je
-   * Kamera — und in der Brille sogar je Auge.
-   */
-  private addLabel(
-    world: ZoneHost,
-    piece: KitchenPiece,
-    size: { w: number; d: number },
-    centreX: number,
-    centreZ: number,
-  ): void {
-    const [w, d] = piece.tiles;
-    const plate = showPlate({
-      title: piece.label,
-      body: `${w} × ${d} Kachel${w * d === 1 ? '' : 'n'} · ${piece.height.toFixed(2)} m hoch`,
-      accent: 0xffd35a,
-      tiles: size,
-      at: { x: centreX, z: centreZ },
-      floor: KITCHEN_FLOOR,
-    });
-    world.root.add(plate);
-    this.placed.push(plate);
-    this.labels.push(plate);
   }
 
   /**
@@ -6231,12 +6186,6 @@ export class KitchenZone implements TestZone {
    * (`TICKET_SECONDS`) an genau der Theke, an der gerade jemand etwas
    * abgegeben hat, und wer das war, steht davor.
    *
-   * **Die Namensschilder im Schauraum bekommen ihn nicht** (`addLabel`), und
-   * das ist nachgesehen und nicht vergessen: Dort steht jedes Möbel frei, die
-   * drei Reihen liegen drei Meter auseinander (`kitchenPlan`, `show`), und
-   * nichts steht darauf — bei 55° Blickwinkel von oben müsste ein Nachbar über
-   * vier Meter hoch sein, um ein Schild anzuschneiden. Fünfzehn Tafeln, die
-   * dafür dauerhaft durch jede Wand leuchten, wären der schlechtere Tausch.
    */
   private showTicket(spot: Station, label: string): void {
     const world = this.world;

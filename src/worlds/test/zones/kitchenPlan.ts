@@ -70,7 +70,7 @@ export interface Spot {
    * sondern aus dem Möbel `serve-counter` des Katalogs, mit einem gerenderten
    * Bild der Zutat an der Vorderseite (`kitchenIcon.IconOven`). Eine Kiste,
    * die es nur in dieser einen Küche gibt, war ein Möbel, das nirgends im
-   * Schauraum stand und in keiner Liste auftauchte.
+   * Katalog stand und in keiner Liste auftauchte.
    */
   readonly gives?: KitchenItem;
   /**
@@ -120,15 +120,6 @@ export interface Spot {
    * und wer ein eigenes bauen will, sieht daran, was ihn erwartet.
    */
   readonly filter?: KitchenItem;
-  /**
-   * **Ob es im Schauraum steht** statt in der Küche.
-   *
-   * Ein Schaustück wird beschriftet, gibt nichts her und nimmt nichts an —
-   * und es bekommt **keine Sperre über sich** (`BLOCK_HEIGHT`): Wer durch
-   * einen Schauraum geht, soll nicht gegen Luft laufen, die dort steht, damit
-   * niemand auf eine Arbeitsplatte springt.
-   */
-  readonly show?: boolean;
 }
 
 /**
@@ -361,8 +352,8 @@ export const LEAK_BUTTON_TILE = { x: 6, z: 2 } as const;
 export const PLIERS_TILE = { x: 7, z: 0 } as const;
 
 /**
- * **Die Werkhalle** — acht freie Spalten zwischen Küche und Schauraum, in
- * denen Bandstraßen stehen.
+ * **Die Werkhalle** — acht freie Spalten östlich der Küche, in denen
+ * Bandstraßen stehen.
  *
  * Sie ist der „neue Bereich", um den die Küche gewachsen ist, und sie musste
  * es sein: Eine Straße aus Vorratskiste, Zugband, Mixer, Filterband und
@@ -383,32 +374,11 @@ export const PLIERS_TILE = { x: 7, z: 0 } as const;
  */
 export const PIPELINE = { x: 12, z: 0, w: 8, d: 11 } as const;
 
-/**
- * **Wo der Schauraum anfängt** — seine westlichste Kachel.
- *
- * Er stand einmal fest auf x = 13, und jede seiner achtzehn Zeilen trug ihre
- * Zahl selbst. Dann wuchs die Werkhalle zwischen Küche und Schauraum, und
- * damit wanderten alle achtzehn um denselben Betrag nach Osten — genau die
- * Sorte Änderung, bei der die siebzehnte Zahl stimmt und die achtzehnte
- * nicht.
- *
- * Also rechnet der Schauraum jetzt ab seiner eigenen Kante, wie die Küche
- * schon immer ab ihrer rechnet (der Kopf dieser Datei sagt es für die Zone:
- * „damit sich die ganze Küche verschieben lässt, ohne dreißig Zeilen
- * nachzurechnen"). Die Abstände dahinter bleiben, was sie waren: ein Möbel,
- * eine Kachel Luft.
- *
- * 21 ist die Kachel nach der Werkhalle (x = 12…19) und der einen Spalte
- * Abstand dahinter (x = 20) — dieselbe Kachel Luft, die den Schauraum vorher
- * von der Küche trennte.
- */
-export const SHOW_X = 21;
-
 /** Ein Paar Knöpfe: einer schaltet den Ton weiter, einer spielt ihn vor. */
 export interface TrialButtons {
   /** Welcher Ton hier zur Wahl steht (`kitchenSound.SOUND_TRIALS`). */
   readonly cue: TrialCue;
-  /** Das Möbel im Schauraum, vor dem die beiden stehen — für das Schild. */
+  /** Das Möbel, um dessen Ton es geht — sein Name steht auf dem Schild. */
   readonly piece: string;
   /** Die Kachel des linken Knopfes: weiterschalten. */
   readonly turn: { readonly x: number; readonly z: number };
@@ -417,25 +387,27 @@ export interface TrialButtons {
 }
 
 /**
- * **Die Knöpfe der Tonprobe** — zwei vor dem Schneidebrett, zwei vor der
- * Ausgabetheke.
+ * **Die Knöpfe der Tonprobe** — zwei Paare an der Westwand, unter den anderen
+ * Geräten dieser Küche.
  *
- * Sie stehen im **Schauraum** und nicht in der Küche, und zwar vor genau dem
- * Möbel, um dessen Ton es geht: Wer wissen will, wie das Messer klingt, steht
- * ohnehin vor dem Brett, und wer die Abgabe vergleicht, vor der Theke. In der
- * Küche selbst hätten vier weitere Säulen nichts zu suchen — dort wird
- * gekocht, und jede Kachel, die ein Knopf belegt, fehlt einem Möbel.
+ * Sie standen einmal im **Schauraum** östlich der Küche, jedes Paar vor dem
+ * Möbel, um dessen Ton es geht — und mit dem Schauraum ist dieser Platz
+ * weggefallen (`layout.KITCHEN`). Die Wand x = 0 ist der richtige Ersatz: Dort
+ * steht in dieser Küche, woran man etwas **einstellt** und nicht woran man
+ * arbeitet — Radio (z = 6), Rechner (z = 7), Umbauknopf und zweite Hand
+ * (z = 8 und 9). Vier weitere Säulen in derselben Spalte sind damit dort, wo
+ * jemand sie sucht, und nicht im Weg: Wer hereinkommt, läuft an allen vorbei.
  *
- * **Eine Reihe davor** (z = 5) und nicht daneben: Neben der Ausgabetheke
- * (+7…+8) ist nur links Platz, rechts steht das Förderband (+9). Zwei Paare,
- * die verschieden herum stehen, wären zwei Paare, die man verschieden bedient.
- * So steht jedes Paar **um sein Möbel herum** — links weiterschalten, rechts
- * vorspielen —, und die Reihe dahinter bleibt, wie sie ist.
+ * **Ein Paar sind zwei Kacheln übereinander**: oben weiterschalten, darunter
+ * vorspielen. Im Schauraum standen sie nebeneinander, weil dort eine Reihe
+ * frei war; in einer Spalte liest sich dasselbe von oben nach unten.
  *
- * **Die vier Kacheln sind frei**, nachgesehen und nicht gehofft: Der Schauraum
- * stellt in den Reihen z = 1, 4, 7 und 10 aus, dazwischen läuft man. Ein Test
- * hält das fest (`kitchenPlan.test.ts`) — zwei Dinge auf einer Kachel heißt,
- * dass `A` immer nur eines davon erwischt.
+ * **Die vier Kacheln sind frei**, nachgesehen und nicht gehofft: In der Spalte
+ * x = 0 steht die Küchenzeile bei z = 0, der Rechner bei z = 7, Radio und
+ * Knöpfe bei z = 6, 8 und 9 — z = 1 bis 5 ist leer, und z = 3 bleibt es als
+ * Lücke zwischen den beiden Paaren. Ein Test hält das fest
+ * (`kitchenPlan.test.ts`) — zwei Dinge auf einer Kachel heißt, dass `A` immer
+ * nur eines davon erwischt.
  *
  * **Und sie sind vorübergehend.** Steht die Wahl, fallen die Knöpfe mitsamt
  * `kitchenSound.SOUND_TRIALS` wieder heraus; was bleibt, ist der Satz
@@ -445,14 +417,14 @@ export const TRIAL_BUTTONS: readonly TrialButtons[] = [
   {
     cue: 'chop',
     piece: 'board',
-    turn: { x: SHOW_X + 1, z: 5 },
-    play: { x: SHOW_X + 3, z: 5 },
+    turn: { x: 0, z: 1 },
+    play: { x: 0, z: 2 },
   },
   {
     cue: 'serve',
     piece: 'pass',
-    turn: { x: SHOW_X + 6, z: 5 },
-    play: { x: SHOW_X + 9, z: 5 },
+    turn: { x: 0, z: 4 },
+    play: { x: 0, z: 5 },
   },
 ];
 
@@ -488,7 +460,7 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   { name: 'counter', x: 9, z: 0 },
   { name: 'plate-counter', x: 10, z: 0, gives: 'plate' },
 
-  // --- die Ecke nach Osten: sie trennt die Küche vom Schauraum ----------------
+  // --- die Ecke nach Osten: sie trennt die Küche von der Werkhalle -----------
   { name: 'counter', x: 11, z: 1 },
   { name: 'counter', x: 11, z: 2 },
   { name: 'bin', x: 11, z: 3 },
@@ -702,90 +674,6 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
   // Und der fertige Burger nach Westen aus der Halle heraus.
   { name: 'belt-pull', x: 13, z: 10, turn: 1 },
   { name: 'counter', x: 12, z: 10, label: 'Burgerausgabe' },
-
-  // --- der Schauraum: jedes Möbel einmal, einzeln und beschriftet -------------
-  { name: 'plate-counter', x: SHOW_X, z: 1, show: true },
-  { name: 'extinguisher', x: SHOW_X + 2, z: 1, show: true },
-  // **Die beiden Hälften stehen auch im Schauraum nebeneinander**, auf genau
-  // den zwei Kacheln, die die ganze Spüle vorher belegt hat. Der Schauraum
-  // zeigt sonst jedes Stück für sich, mit einer Kachel Luft — hier nicht: Ihre
-  // Schnittflächen sind offen (`core/kitchenModel.splitSink`), und auf Lücke
-  // gestellt sähe man in zwei aufgeschnittene Schränke. Zwei Schilder gibt es
-  // trotzdem, und sie liegen nicht übereinander, weil sie über dem jeweiligen
-  // Möbel hängen: das des Beckens auf 1,15 m, das des Bretts auf 0,52 m.
-  { name: 'sink-basin', x: SHOW_X + 4, z: 1, show: true },
-  { name: 'sink-drain', x: SHOW_X + 5, z: 1, show: true },
-  { name: 'bin', x: SHOW_X + 7, z: 1, show: true },
-  { name: 'table', x: SHOW_X + 9, z: 1, show: true },
-
-  { name: 'serve-counter', x: SHOW_X, z: 4, show: true },
-  { name: 'board', x: SHOW_X + 2, z: 4, show: true },
-  { name: 'plate-rack', x: SHOW_X + 4, z: 4, show: true },
-  { name: 'pass', x: SHOW_X + 7, z: 4, show: true },
-
-  { name: 'counter', x: SHOW_X, z: 7, show: true },
-  { name: 'stove', x: SHOW_X + 2, z: 7, show: true },
-  { name: 'stove-pot', x: SHOW_X + 4, z: 7, show: true },
-  { name: 'stove-pan', x: SHOW_X + 6, z: 7, show: true },
-  // **Die sichere Kochstelle steht bei den Herden**, und das ist der einzige
-  // Platz, an dem sie etwas erklärt: Wer die drei roten Herde abgeht und dann
-  // auf eine vierte Kochstelle trifft, die keine Pfanne trägt, sieht den
-  // Unterschied, ohne das Schild zu lesen. Sie ist die letzte Kachel vor der
-  // Ostwand — und der Grund, warum die Zone um eine Spalte gewachsen ist
-  // (`layout.KITCHEN`).
-  { name: 'griddle', x: SHOW_X + 10, z: 7, show: true },
-  // **Auch das gebaute Möbel steht hier.** Der Schauraum zeigt jedes
-  // Katalogstück genau einmal (`worlds/test/testPlan.test.ts` rechnet
-  // `KITCHEN_SHOWN` gegen `core/kitchenFit.KITCHEN_NAMES`), und ob ein Stück
-  // aus der Datei kommt oder gebaut wird (`KitchenPiece.built`), ist dem
-  // Schauraum egal — er zeigt, was in dieser Küche stehen kann.
-  //
-  // `SHOW_X + 9` ist die letzte Kachel dieser Reihe, nachgesehen in ihr: Davor
-  // stehen `serve-counter` (+0), `board` (+2), `plate-rack` (+4…+5) und `pass`
-  // (+7…+8) — rechts davon ist bis zur Ostwand Platz, und +9 ist die erste
-  // freie Kachel. In der Reihe z = 1 steht dort zwar der Arbeitstisch, aber
-  // das sind drei Kacheln Abstand.
-  { name: 'belt', x: SHOW_X + 9, z: 4, show: true },
-
-  // Das Zugband steht in der dritten Reihe, im selben Takt wie die Herde
-  // daneben (+0, +2, +4, +6 — also +8). Dass es dort nichts zu ziehen hat, ist
-  // richtig so: Der Schauraum zeigt Möbel und keine Aufbauten.
-  { name: 'belt-pull', x: SHOW_X + 8, z: 7, show: true },
-
-  // **Die vierte Reihe** — sie kam mit dem Rechner und dem Kopierer dazu. In
-  // den drei Reihen darüber war kein Platz mehr für zwei Kacheln am Stück:
-  // z = 1 ist bis +9 belegt, z = 4 bis +9, z = 7 bis +8, und rechts davon
-  // steht die Ostwand. Eine Reihe weiter unten ist billiger als ein
-  // umgeräumter Schauraum — er zeigt eine Liste und keine Komposition.
-  //
-  // **Und sie hat die drei neuen Möbel aufgenommen.** Filterband,
-  // Kombinierer und Mixer stehen im selben Takt dahinter (+5, +7, +9); in
-  // den Reihen darüber war keine Lücke mehr, die zwei Möbel auseinander
-  // gehalten hätte. Dass das Filterband hier nichts gelernt hat und der
-  // Kombinierer nichts zusammenlegt, ist richtig so — der Schauraum zeigt
-  // Möbel und keine Aufbauten, und wie sie **zusammen** aussehen, zeigt die
-  // Straße in der Werkhalle.
-  { name: 'desk', x: SHOW_X, z: 10, show: true },
-  { name: 'copier', x: SHOW_X + 2, z: 10, show: true },
-  { name: 'belt-smart', x: SHOW_X + 5, z: 10, show: true },
-  { name: 'combiner', x: SHOW_X + 7, z: 10, show: true },
-  { name: 'mixer', x: SHOW_X + 9, z: 10, show: true },
-
-  // **Die vier Vorratskisten stehen nebeneinander** und nicht auf Lücke, und
-  // das ist der zweite Bruch mit der Regel „ein Möbel, eine Kachel Luft" nach
-  // den beiden Spülenhälften. Er hat denselben Grund: Sie gehören zusammen.
-  // Vier Kisten mit vier Zutaten sind der Vorrat dieser Küche, sie stehen an
-  // der Westwand ebenso in einer Reihe, und auseinandergezogen sähe man vier
-  // Einzelstücke statt eines Regals. Verwechseln kann man sie trotzdem nicht:
-  // Jede zeigt ihren Inhalt, und jede hat ihr eigenes Schild am Boden davor
-  // (`shared/showPlate.ts`).
-  //
-  // Sie sind der Grund, warum die Zone noch einmal um vier Spalten gewachsen
-  // ist (`layout.KITCHEN`): Die vier Reihen waren bis zur Ostwand voll.
-  { name: 'crate-buns', x: SHOW_X + 11, z: 10, show: true },
-  { name: 'crate-patty', x: SHOW_X + 12, z: 10, show: true },
-  { name: 'crate-lettuce', x: SHOW_X + 13, z: 10, show: true },
-  { name: 'crate-tomatoes', x: SHOW_X + 14, z: 10, show: true },
 ];
 
 /** Wie weit ein Möbel eine Kachel verteuert — teurer als ein Baustein. */
@@ -976,7 +864,8 @@ export function fitKitchen(plan: GridPlan): void {
         '  (blau) im Osten, vier **Zugbänder** (orange) neben der Insel',
         '- Vorn: die Ausgabetheke mit den Wärmeschirmen darüber',
         '- Ganz im Süden: drei Gästetische und die **Geschirrrückgabe**',
-        '- Im Osten: der Schauraum — jedes Möbel einmal, beschriftet',
+        '- Im Osten: die **Werkhalle** — eine Bandstraße, die einen Burger',
+        '  Deluxe ohne Läufer zusammensetzt, und daneben Platz für eine eigene',
         '',
         '## Ein Burger',
         '',
@@ -1170,8 +1059,3 @@ export function unusedKitchenPieces(): readonly string[] {
     (piece) => piece.name,
   );
 }
-
-/** Die Möbel, die der Schauraum einzeln zeigt — jedes genau einmal. */
-export const KITCHEN_SHOWN: readonly string[] = KITCHEN_SPOTS.filter((spot) => spot.show).map(
-  (spot) => spot.name,
-);

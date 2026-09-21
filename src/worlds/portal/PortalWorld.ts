@@ -98,6 +98,7 @@ import {
   PROP_LABELS,
   type PropKind,
 } from './props';
+import { gridPose, placesOnGrid } from './gridSnap';
 import {
   KAYKIT_ACCENT,
   humanLabel,
@@ -1135,16 +1136,21 @@ export class PortalWorld implements World {
   private readonly bodyHome = new THREE.Vector3();
   private readonly bodyHomeRotation = new THREE.Quaternion();
   /**
-   * Welche Menüseite sich gleich wieder aufmachen soll.
+   * Ob sich die Beutelseite gleich wieder aufmachen soll.
    *
    * Wer aus dem Beutel etwas holt, holt meistens noch etwas — also geht das
-   * Panel zu, solange das Ding in der Hand ist, und danach wieder auf. Fürs
-   * Regal gilt dasselbe, nur eine Ebene tiefer: Dort soll nicht die oberste
-   * Seite aufgehen, sondern **der Ordner, aus dem man gerade etwas genommen
-   * hat**. Das kann das Menü von selbst (der Weg bleibt beim Zumachen
-   * stehen), also wird es hier auch nur aufgemacht.
+   * Panel zu, solange das Ding in der Hand ist, und danach wieder auf.
+   *
+   * **Für das Regal gilt das ausdrücklich nicht**, und das war ein gemeldeter
+   * Fehler: Wer ein Modell hinstellt, stellt es irgendwohin — und bekam dabei
+   * das Menü vor die Nase, das er gerade zugemacht hatte. Ein Beutel ist eine
+   * Kiste, aus der man greift; das Regal ist ein Katalog, aus dem man
+   * **einrichtet**, und dazwischen liegt ein Blick auf das, was man gerade
+   * hingestellt hat. Aufgeschlagen wird es wieder von Hand — und dann an
+   * derselben Stelle, denn der Weg durchs Menü bleibt beim Zumachen stehen
+   * (`ui/menuNav.ts`).
    */
-  private reopenMenu: 'bag' | 'shelf' | null = null;
+  private reopenMenu = false;
   /**
    * Der Index des Regals: `undefined`, solange niemand danach gefragt hat,
    * `null`, wenn es keinen gibt (ein Checkout ohne die gekauften Pakete).
@@ -7594,7 +7600,18 @@ export class PortalWorld implements World {
     };
   }
 
-  private release(ctx: WorldContext, hand: Handedness, grab: HandGrab, drop: boolean): void {
+  /**
+   * @param placed Ob das ausdrücklich ein **Hinstellen** war — der
+   *   Benutzen-Knopf am Schirm sagt das, eine geöffnete Faust in der Brille
+   *   nicht (`gridSnap.placesOnGrid`).
+   */
+  private release(
+    ctx: WorldContext,
+    hand: Handedness,
+    grab: HandGrab,
+    drop: boolean,
+    placed = false,
+  ): void {
     const physics = this.physics!;
     this.grabs.delete(hand);
     if (!drop) return;
@@ -7602,6 +7619,11 @@ export class PortalWorld implements World {
     physics.setCarried(grab.entry, false);
     grab.entry.body.setBodyType(physics.rapier.RigidBodyType.Dynamic, true);
     const thrown = grab.velocity.clampLength(0, 9);
+    // **Ein Modell aus dem Regal rastet beim Hinstellen ein** — Kachelmitte und
+    // Vierteldrehung, wie jedes Möbel dieser Welt (`gridSnap.ts`). Dann ist es
+    // kein Wurf mehr, also fliegt es auch nicht: Die Geschwindigkeit, die der
+    // Körper und das Netz gleich bekommen, ist null.
+    if (this.snapPlaced(grab.entry, placed, thrown.length())) thrown.set(0, 0, 0);
     grab.entry.body.setLinvel({ x: thrown.x, y: thrown.y, z: thrown.z }, true);
 
     // Whoever simulates picks the throw up from here.
@@ -7609,14 +7631,51 @@ export class PortalWorld implements World {
     if (id) this.sync?.release(id, thrown);
 
     if (this.reopenMenu && this.spawned.has(grab.entry)) {
-      const from = this.reopenMenu;
-      this.reopenMenu = null;
-      // Der Beutel schlägt seine eigene Seite auf; das Regal geht dort wieder
-      // auf, wo es zuging — beim Zumachen bleibt der Weg ja stehen, und das
-      // ist hier genau der Ordner, aus dem das Ding kam.
-      if (from === 'bag') ctx.menu.openSubmenu('bag');
-      else ctx.menu.toggle(true);
+      this.reopenMenu = false;
+      ctx.menu.openSubmenu('bag');
     }
+  }
+
+  /**
+   * **Ein hingestelltes Modell auf das Kachelgitter setzen** — oder es liegen
+   * lassen, wenn es keines ist oder geworfen wurde.
+   *
+   * Nur Modelle aus dem Regal (`props.ModelKind`): Der Beutel gibt Spielzeug
+   * her — Würfel rollen, Murmeln kullern, Dominosteine stehen auf Lücke —, und
+   * ein Würfel, der beim Loslassen auf eine Kachelmitte springt, wäre kein
+   * Würfel mehr. Das Regal gibt **Möbel** her, und die stehen auf Kacheln.
+   *
+   * Die Höhe bleibt stehen und die Drehung um die Hochachse ist die einzige,
+   * die übrig bleibt (`gridSnap.gridPose`). Den Rest macht die Schwerkraft:
+   * Der Körper geht ohne Dreh und ohne Schwung los und fällt auf das, was
+   * unter ihm liegt.
+   *
+   * @returns ob eingerastet wurde
+   */
+  private snapPlaced(entry: PhysicsBody, placed: boolean, speed: number): boolean {
+    const kind = (entry.object.userData as { propKind?: PropKind }).propKind ?? null;
+    if (modelPathOf(kind) === null) return false;
+    if (!placesOnGrid(speed, placed)) return false;
+
+    entry.object.getWorldPosition(_point);
+    entry.object.getWorldQuaternion(_quaternion);
+    const pose = gridPose(_point.x, _point.z, _quaternion);
+    _point.set(pose.x, _point.y, pose.z);
+    _quaternion.setFromAxisAngle(UP, pose.yaw);
+
+    entry.object.position.copy(_point);
+    entry.object.quaternion.copy(_quaternion);
+    entry.object.updateWorldMatrix(true, false);
+    entry.previousPosition.copy(_point);
+    entry.body.setTranslation({ x: _point.x, y: _point.y, z: _point.z }, true);
+    entry.body.setRotation(
+      { x: _quaternion.x, y: _quaternion.y, z: _quaternion.z, w: _quaternion.w },
+      true,
+    );
+    // Ohne diese Zeile dreht sich das Möbel nach dem Einrasten weiter aus der
+    // Drehung heraus, die die Hand ihm mitgegeben hat.
+    entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    return true;
   }
 
   /**
@@ -7745,7 +7804,7 @@ export class PortalWorld implements World {
    */
   private spawnProp(ctx: WorldContext, hand: Handedness | null, kind: BagKind): void {
     ctx.menu.toggle(false);
-    if (this.conjureProp(ctx, kind, hand)) this.reopenMenu = 'bag';
+    if (this.conjureProp(ctx, kind, hand)) this.reopenMenu = true;
   }
 
   /**
@@ -7893,6 +7952,9 @@ export class PortalWorld implements World {
    * Menü, das nach dem Zugreifen noch eine halbe Sekunde stehen bleibt, fühlt
    * sich an wie ein Fehlgriff. Was danach kommt, kann dauern, also sagt es
    * das auch.
+   *
+   * **Und es geht beim Hinstellen nicht wieder auf** — anders als der Beutel
+   * (`reopenMenu`): Wer einrichtet, will sehen, was er hingestellt hat.
    */
   private takeModel(ctx: WorldContext, path: string, hand: Handedness | null): void {
     ctx.menu.toggle(false);
@@ -7923,21 +7985,19 @@ export class PortalWorld implements World {
       ctx.notify(`${humanLabel(path.slice(path.lastIndexOf('/') + 1))} nicht geladen`);
       return;
     }
-    if (this.spawnModel(ctx, model, path, hand)) this.reopenMenu = 'shelf';
+    this.spawnModel(ctx, model, path, hand);
   }
 
   /**
    * Stellt ein geladenes Modell her — Wort für Wort dasselbe wie
    * `conjureProp`, nur dass die Sorte den Pfad trägt.
-   *
-   * @returns ob eine Hand es aufgefangen hat.
    */
   private spawnModel(
     ctx: WorldContext,
     model: THREE.Object3D,
     path: string,
     hand: Handedness | null,
-  ): boolean {
+  ): void {
     const controller = hand ? ctx.input.get(hand) : null;
     const anchor = controller?.tracked ? gripOf(controller) : null;
 
@@ -7974,7 +8034,6 @@ export class PortalWorld implements World {
       caught = this.screenCatch(ctx, entry);
     }
     ctx.notify(caught ? this.carryNote(propLabel(kind)) : propLabel(kind));
-    return caught;
   }
 
   /**
@@ -8701,7 +8760,7 @@ export class PortalWorld implements World {
     if (down) {
       if (this.screenTapped) {
         // Getippt genommen, jetzt wieder gedrückt: ablegen, sofort.
-        this.release(ctx, side, grab, true);
+        this.release(ctx, side, grab, true, true);
         this.screenPress = null;
         return;
       }
@@ -8723,7 +8782,7 @@ export class PortalWorld implements World {
       const press = this.screenPress;
       this.screenPress = null;
       if (gripPressDrops(press)) {
-        this.release(ctx, side, grab, true);
+        this.release(ctx, side, grab, true, true);
         return;
       }
       // Ein Tippen behält es — und der nächste Druck legt es ab.

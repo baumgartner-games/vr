@@ -1,16 +1,8 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../../core/chefFit';
-import {
-  type DinerPiece,
-  dinerHeight,
-  dinerPiece,
-  dinerStand,
-  dinerTop,
-} from '../../../core/dinerFit';
+import { type DinerPiece, dinerPiece, dinerStand, dinerTop } from '../../../core/dinerFit';
 import type { WorldContext } from '../../../core/types';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
-import { showPlate } from '../../shared/showPlate';
-import type { TextPlane } from '../../../ui/TextPlane';
 import { TILE } from '../../nav/navTile';
 import { DINER } from '../layout';
 import { KitchenFloor } from './kitchenFloor';
@@ -118,7 +110,6 @@ export class DinerZone implements TestZone {
 
   private readonly placed: THREE.Object3D[] = [];
   private readonly shapes: THREE.BufferGeometry[] = [];
-  private readonly labels: TextPlane[] = [];
   /**
    * Die Körper unter den Möbeln bleiben in der Hand: Beim Abräumen muss jeder
    * einzeln wieder aus der Physik heraus (`ZoneHost.removeSolid`) — ein Netz,
@@ -150,11 +141,6 @@ export class DinerZone implements TestZone {
     // mit, der nur den Grundriss nachrechnen wollte.
     if (!canLoadModels()) return;
 
-    for (const spot of DINER_SPOTS) {
-      const piece = dinerPiece(spot.name);
-      if (piece && spot.show) this.addLabel(world, piece, spot);
-    }
-
     void import('../../../core/dinerModel').then(async (module) => {
       if (this.gone) return;
       await this.furnish(world, module.dinerModel);
@@ -162,22 +148,25 @@ export class DinerZone implements TestZone {
   }
 
   /**
-   * **Alle Möbel laden, hinstellen und reihenweise zusammenfassen.**
+   * **Alle Möbel laden, hinstellen und zu einem Netz zusammenfassen.**
    *
-   * Die Reihen sind die des Schauraums (eine Reihe ist eine gemeinsame
-   * Nordkante, `zones/dinerPlan.ts`) und dazu eine für das ganze Restaurant.
+   * Eine Gruppe und nicht mehrere: Der Raum ist vierundzwanzig Kacheln breit,
+   * und wer darin steht, sieht ihn ohnehin ganz. Reihenweise zu verschmelzen
+   * lohnte sich, solange der Schauraum dahinter über vierundvierzig Kacheln
+   * lief und der Blickkegel den halben Katalog wegwerfen konnte — den gibt es
+   * nicht mehr (`zones/dinerPlan.ts`).
    *
-   * **Geht das Verschmelzen nicht, bleibt die Reihe einzeln stehen.** Das ist
-   * keine Ausnahmebehandlung, sondern die Antwort von `mergeMeshes`: Eine
-   * Reihe aus einem Stück lässt sich nicht zusammenfassen, und eine, deren
-   * Attribute nicht zueinander passen, soll man nicht. Sichtbar ist beides
+   * **Geht das Verschmelzen nicht, bleibt jedes Stück einzeln stehen.** Das
+   * ist keine Ausnahmebehandlung, sondern die Antwort von `mergeMeshes`: Was
+   * aus einem Stück besteht, lässt sich nicht zusammenfassen, und was nicht
+   * zueinander passende Attribute hat, soll man nicht. Sichtbar ist beides
    * dasselbe Bild.
    */
   private async furnish(
     world: ZoneHost,
     load: (name: string) => Promise<THREE.Object3D | null>,
   ): Promise<void> {
-    const rows = new Map<number, THREE.Mesh[]>();
+    const group: THREE.Mesh[] = [];
     for (const spot of DINER_SPOTS) {
       if (this.gone) return;
       const piece = dinerPiece(spot.name);
@@ -185,30 +174,22 @@ export class DinerZone implements TestZone {
       const model = await load(spot.name);
       if (!model || this.gone) return;
       this.standAt(model, piece, spot);
-      // Das Restaurant ist eine Reihe für sich (`-1`), der Schauraum eine je
-      // Kachelzeile — mehr Gruppen als das brächte nichts, weniger wäre ein
-      // Netz, das der Blickkegel nie wegwirft.
-      const row = spot.show ? spot.z : -1;
-      const list = rows.get(row) ?? [];
-      list.push(...parts(model));
-      rows.set(row, list);
+      group.push(...parts(model));
     }
 
-    for (const group of rows.values()) {
-      const merged = mergeMeshes(group);
-      if (merged) {
-        this.shapes.push(merged);
-        const mesh = mergedMesh(merged, group);
-        mesh.name = 'diner-row';
-        mesh.receiveShadow = true;
-        world.root.add(mesh);
-        this.placed.push(mesh);
-      } else {
-        for (const part of group) {
-          world.root.add(part);
-          this.placed.push(part);
-        }
-      }
+    const merged = mergeMeshes(group);
+    if (merged) {
+      this.shapes.push(merged);
+      const mesh = mergedMesh(merged, group);
+      mesh.name = 'diner-room';
+      mesh.receiveShadow = true;
+      world.root.add(mesh);
+      this.placed.push(mesh);
+      return;
+    }
+    for (const part of group) {
+      world.root.add(part);
+      this.placed.push(part);
     }
   }
 
@@ -294,41 +275,6 @@ export class DinerZone implements TestZone {
     this.bodies.push({ object: box, body: world.addSolid(box) });
   }
 
-  /**
-   * **Das Schild am Schaustück** — Name und Maß, und es sieht die Kamera an.
-   *
-   * Dasselbe Schild wie in den beiden anderen Schauräumen
-   * (`shared/showPlate.ts` — dort steht auch, warum es unten an der
-   * Vorderkante steht und nicht mehr über dem Möbel), und mit einem
-   * Unterschied im Text: Im ersten Schauraum steht die **Kachelzahl**, hier
-   * das **gemessene Maß**. Das ist der Zweck dieses Raums — wer entscheiden
-   * soll, ob ein Stück brauchbar ist, will wissen, dass eine Küchenzeile
-   * 1,00 × 1,02 misst, und nicht, dass sie auf eine Kachel gerundet wurde.
-   *
-   * Die Tafel steht **unabhängig vom Modell**: Sie wird gebaut, bevor die
-   * Datei angefragt ist, und bleibt auch dann stehen, wenn keine ankommt. Ein
-   * Schauraum aus 156 Namensschildern über leeren Kacheln sagt immer noch, was
-   * fehlt; 156 leere Kacheln sagen gar nichts.
-   */
-  private addLabel(world: ZoneHost, piece: DinerPiece, spot: DinerSpot): void {
-    const size = dinerFootprint(piece, spot.turn ?? 0);
-    const [w, d] = piece.span;
-    const plate = showPlate({
-      title: piece.label,
-      body: `${w.toFixed(2)} × ${d.toFixed(2)} m · ${dinerHeight(piece).toFixed(2)} m hoch`,
-      accent: 0x8fd3ff,
-      tiles: size,
-      at: {
-        x: (DINER.x + spot.x + size.w / 2) * TILE,
-        z: (DINER.z + spot.z + size.d / 2) * TILE,
-      },
-      floor: DINER_FLOOR,
-    });
-    world.root.add(plate);
-    this.placed.push(plate);
-    this.labels.push(plate);
-  }
-
   dispose(): void {
     this.gone = true;
     const world = this.world;
@@ -339,8 +285,6 @@ export class DinerZone implements TestZone {
     // verschmolzenen Reihen und die Kästen darunter.
     for (const object of this.placed) object.removeFromParent();
     this.placed.length = 0;
-    for (const label of this.labels) label.dispose();
-    this.labels.length = 0;
     for (const shape of this.shapes) shape.dispose();
     this.shapes.length = 0;
     this.hidden?.dispose();

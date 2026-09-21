@@ -1,10 +1,5 @@
 import { CHEF_HEIGHT } from '../../../core/chefFit';
-import {
-  KITCHEN_NAMES,
-  kitchenDeck,
-  kitchenPiece,
-  kitchenWorkHeight,
-} from '../../../core/kitchenFit';
+import { kitchenDeck, kitchenPiece, kitchenWorkHeight } from '../../../core/kitchenFit';
 import { TOP_DOWN_TILT } from '../../../core/topDownPose';
 import { KITCHEN } from '../layout';
 import { PLATE_HEIGHT, stackHeight } from './kitchenProps';
@@ -25,14 +20,12 @@ import {
   LEAK_BUTTON_TILE,
   PLIERS_TILE,
   KITCHEN_EYE_MARGIN,
-  KITCHEN_SHOWN,
   KITCHEN_SPOTS,
   TRIAL_BUTTONS,
   PIPELINE,
   RADIO_TILE,
   RACK_AIR,
   RACK_RAISE,
-  SHOW_X,
   footprint,
   inKitchen,
   passTop,
@@ -60,8 +53,8 @@ import {
  * steht eine Zone weiter oben (`worlds/test/testPlan.test.ts`).
  */
 
-/** Nur die Möbel der Küche; der Schauraum spielt nicht mit. */
-const WORKING = KITCHEN_SPOTS.filter((spot) => !spot.show);
+/** Die Möbel der Küche — alle, seit der Schauraum daneben weggefallen ist. */
+const WORKING = KITCHEN_SPOTS;
 
 /**
  * **Und davon nur die alte Küche** — alles westlich der Werkhalle
@@ -78,9 +71,6 @@ const KITCHEN_SIDE = WORKING.filter((spot) => spot.x < PIPELINE.x);
 
 /** Und die Straße in der Werkhalle für sich. */
 const HALL = WORKING.filter((spot) => spot.x >= PIPELINE.x);
-
-/** Und andersherum: die Schaustücke allein. */
-const SHOWN = KITCHEN_SPOTS.filter((spot) => spot.show);
 
 /**
  * Was an diesem Platz steht — mit **allen drei** Angaben, die `stationKind`
@@ -201,13 +191,6 @@ describe('die Rollen der Möbel', () => {
     }
   });
 
-  /** Ein Schaustück gibt nichts her: Dort wird gesehen und nicht gekocht. */
-  it('lässt den Schauraum aus dem Spiel heraus', () => {
-    for (const spot of KITCHEN_SPOTS.filter((spot) => spot.show)) {
-      expect({ name: spot.name, gives: spot.gives }).toEqual({ name: spot.name, gives: undefined });
-    }
-  });
-
   /**
    * **Genau ein Herd brät**, und genau eine Theke gibt aus. Zwei Herde mit
    * Pfanne wären zwei Pfannen — und die zweite käme aus einem Modell, das es
@@ -237,15 +220,13 @@ describe('die Rollen der Möbel', () => {
    * Schnittflächen nach außen — aus einer Spüle würden zwei aufgesägte.
    */
   it('stellt Becken und Abtropfbrett nebeneinander, Becken links', () => {
-    for (const shown of [false, true]) {
-      const basin = KITCHEN_SPOTS.find((s) => s.name === 'sink-basin' && !!s.show === shown)!;
-      const drain = KITCHEN_SPOTS.find((s) => s.name === 'sink-drain' && !!s.show === shown)!;
-      expect({ shown, z: drain.z }).toEqual({ shown, z: basin.z });
-      expect({ shown, x: drain.x }).toEqual({ shown, x: basin.x + 1 });
-      // Ungedreht: Bei `turn: 0` zeigt die linke Hälfte des Netzes nach Westen.
-      expect({ shown, turn: basin.turn ?? 0 }).toEqual({ shown, turn: 0 });
-      expect({ shown, turn: drain.turn ?? 0 }).toEqual({ shown, turn: 0 });
-    }
+    const basin = KITCHEN_SPOTS.find((spot) => spot.name === 'sink-basin')!;
+    const drain = KITCHEN_SPOTS.find((spot) => spot.name === 'sink-drain')!;
+    expect(drain.z).toBe(basin.z);
+    expect(drain.x).toBe(basin.x + 1);
+    // Ungedreht: Bei `turn: 0` zeigt die linke Hälfte des Netzes nach Westen.
+    expect(basin.turn ?? 0).toBe(0);
+    expect(drain.turn ?? 0).toBe(0);
   });
 });
 
@@ -537,11 +518,9 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
    * **Und die vier Knöpfe der Tonprobe stehen auf freien Kacheln**
    * (`TRIAL_BUTTONS`, `kitchen.addTrialButtons`).
    *
-   * Sie stehen im Schauraum, also wird hier gegen **alle** Möbel geprüft und
-   * nicht nur gegen die der arbeitenden Küche: Eine Säule im ausgestellten
-   * Möbel wäre dieselbe Falle wie eine in der Küche — `A` nähme das Nähere,
-   * und je nachdem ließe sich entweder der Knopf nicht drücken oder das Möbel
-   * nicht ansehen.
+   * Dieselbe Falle wie bei jedem anderen Knopf: Zwei Dinge auf einer Kachel
+   * heißt, dass `A` nur das Nähere erwischt — und je nachdem ließe sich dann
+   * entweder der Knopf nicht drücken oder das Möbel nicht benutzen.
    */
   it('lässt die Kacheln der Tonprobe frei', () => {
     const taken = (tile: { x: number; z: number }): boolean =>
@@ -562,20 +541,23 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
   });
 
   /**
-   * **Jedes Paar steht vor seinem Möbel**, und zwar links und rechts davon:
-   * Ohne diese Zeile stünden die Knöpfe irgendwo im Schauraum, und niemand
-   * wüsste, zu welchem Möbel sie gehören.
+   * **Jedes Paar steht beieinander und in der Gerätespalte.**
+   *
+   * Zwei Kacheln übereinander, oben weiterschalten, darunter vorspielen — und
+   * beide in derselben Spalte wie Radio, Rechner und die roten Knöpfe. Ohne
+   * diese Zeile läge ein Paar irgendwo in der Küche verstreut, und niemand
+   * wüsste, dass die beiden zusammengehören.
+   *
+   * **Und das Möbel, um dessen Ton es geht, gibt es wirklich** (`piece`): Sein
+   * Name steht auf beiden Schildern, und ein Name, den der Aufbau nicht kennt,
+   * wäre eine Beschriftung, die auf nichts zeigt.
    */
-  it('stellt jedes Knopfpaar um das Möbel herum, dessen Ton es prüft', () => {
+  it('stellt jedes Knopfpaar untereinander in die Gerätespalte', () => {
     for (const pair of TRIAL_BUTTONS) {
-      const spot = KITCHEN_SPOTS.find((entry) => entry.name === pair.piece && entry.show);
-      expect(spot).toBeDefined();
-      const size = footprint(kitchenPiece(spot!.name)!, spot!.turn ?? 0);
-      // Eine Reihe davor, und die eine links, die andere rechts vom Möbel.
-      expect(pair.turn.z).toBe(spot!.z + size.d);
-      expect(pair.play.z).toBe(spot!.z + size.d);
-      expect(pair.turn.x).toBeLessThan(spot!.x);
-      expect(pair.play.x).toBeGreaterThanOrEqual(spot!.x + size.w);
+      expect(KITCHEN_SPOTS.some((spot) => spot.name === pair.piece)).toBe(true);
+      expect(pair.turn.x).toBe(BUILD_BUTTON_TILE.x);
+      expect(pair.play.x).toBe(BUILD_BUTTON_TILE.x);
+      expect(pair.play.z).toBe(pair.turn.z + 1);
     }
   });
 
@@ -618,9 +600,7 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
    * Überlegung, die den Feuerlöscher neben den Herd gestellt hat.
    */
   it('legt die Zange auf eine Arbeitsplatte neben der Spüle', () => {
-    const under = WORKING.find(
-      (spot) => spot.x === PLIERS_TILE.x && spot.z === PLIERS_TILE.z && !spot.show,
-    );
+    const under = WORKING.find((spot) => spot.x === PLIERS_TILE.x && spot.z === PLIERS_TILE.z);
     expect(under).toBeDefined();
     expect(kindOf(under!)).toBe('top');
     const basin = WORKING.find((spot) => spot.name === 'sink-basin')!;
@@ -647,47 +627,11 @@ describe('der Feuerlöscher und der Umbauknopf', () => {
   });
 });
 
-/**
- * **Der Schauraum zeigt jedes Möbel des Katalogs genau einmal**, und das gilt
- * auch für ein Möbel, das gar nicht aus der Datei kommt
- * (`core/kitchenFit.KitchenPiece.built`).
- *
- * Dieselbe Regel steht eine Zone weiter oben noch einmal
- * (`worlds/test/testPlan.test.ts`) — hier, weil sie zum Aufbau gehört: Wer ein
- * Möbel in den Katalog schreibt und den Schauraum vergisst, soll es an der
- * Datei merken, in der er gerade arbeitet.
- */
-describe('der Schauraum', () => {
-  it('zeigt jedes Katalogmöbel genau einmal', () => {
-    expect([...KITCHEN_SHOWN].sort()).toEqual([...KITCHEN_NAMES].sort());
-    expect(new Set(KITCHEN_SHOWN).size).toBe(KITCHEN_SHOWN.length);
-  });
-
-  it('stellt die beiden Bänder auf freie Kacheln', () => {
-    const pull = KITCHEN_SPOTS.find((spot) => spot.name === 'belt-pull' && spot.show);
-    expect({ x: pull?.x, z: pull?.z }).toEqual({ x: SHOW_X + 8, z: 7 });
-    // In der Reihe z = 7 stehen die Herde auf +0, +2, +4 und +6 — +8 hält den
-    // Takt und bleibt innerhalb der Zone.
-    expect(pull!.x).toBeLessThan(KITCHEN.w);
-    const stove = SHOWN.find((spot) => spot.name === 'stove-pan')!;
-    expect(pull!.x).toBeGreaterThanOrEqual(stove.x + 2);
-
-    const belt = KITCHEN_SPOTS.find((spot) => spot.name === 'belt' && spot.show);
-    expect({ x: belt?.x, z: belt?.z }).toEqual({ x: SHOW_X + 9, z: 4 });
-    // Innerhalb der Zone.
-    expect(belt!.x).toBeLessThan(KITCHEN.w);
-    // Und rechts von der Ausgabetheke, die in derselben Reihe x = 20…21 hält.
-    const pass = KITCHEN_SPOTS.find((spot) => spot.name === 'pass' && spot.show)!;
-    const wide = kitchenPiece('pass')!.tiles[0];
-    expect(belt!.x).toBeGreaterThanOrEqual(pass.x + wide);
-  });
-});
-
 describe('das Ausgaberegal über der Theke', () => {
-  const rack = KITCHEN_SPOTS.find((spot) => spot.name === 'plate-rack' && !spot.show);
+  const rack = KITCHEN_SPOTS.find((spot) => spot.name === 'plate-rack');
 
   it('steht auf derselben Kachel wie die Ausgabetheke', () => {
-    const pass = KITCHEN_SPOTS.find((spot) => spot.name === 'pass' && !spot.show);
+    const pass = KITCHEN_SPOTS.find((spot) => spot.name === 'pass');
     expect(rack).toBeDefined();
     expect({ x: rack?.x, z: rack?.z, turn: rack?.turn }).toEqual({
       x: pass?.x,
@@ -823,12 +767,9 @@ describe('die Werkhalle', () => {
     });
   }
 
-  it('liegt östlich der Küche und westlich des Schauraums', () => {
-    // Die eine Kachel Luft zum Schauraum ist dieselbe, die ihn vorher von der
-    // Küche trennte — der Schauraum zeigt Möbel einzeln und nicht in einer
-    // Reihe mit einer Bandstraße.
+  it('liegt östlich der Küche und füllt den Rest der Zone', () => {
     expect(PIPELINE.x).toBe(12);
-    expect(PIPELINE.x + PIPELINE.w).toBeLessThan(SHOW_X);
+    expect(PIPELINE.x + PIPELINE.w).toBe(KITCHEN.w);
     expect(PIPELINE.z).toBe(0);
     expect(PIPELINE.d).toBe(KITCHEN.d);
     // Und sie liegt vollständig in der Zone.
