@@ -137,7 +137,28 @@ export const RAMP_LIFT = 0.35;
 
 export const BLOCKS: Readonly<Record<BlockKind, BlockFacts>> = {
   counter: { label: 'Küchenzeile', rise: 0, cost: 1.6, height: 0.9 },
-  shelf: { label: 'Regal', rise: 0, cost: 1.3, height: 1.9 },
+  // **Das Regal ist 1,50 m hoch, und das ist die Höhe seines Modells**
+  // (`BLOCK_MODELS`, `dungeon/bookcase_single.glb`). Es stand einmal auf 1,90
+  // m, und diese Zahl wäre mit dem Modell zu einem Regal geworden, das über
+  // seine Kachel hinaussteht: Das Modell ist in der Quelle 2,000 × 3,000 ×
+  // 0,500 groß, also halbiert (`core/kaykitFit.KAYKIT_SCALE`) **1,00 × 1,50 ×
+  // 0,25 m** — genau eine Kachel breit (`TILE`). Gleichmäßig auf 1,90 m
+  // gestreckt wären das 1,27 m Breite, dreizehn Zentimeter in jede
+  // Nachbarkachel hinein, und `BUILD.shelf` baut seine Böden mit Absicht genau
+  // eine Kachel breit, egal wie hoch jemand es stellt.
+  //
+  // Die zweite Möglichkeit wäre gewesen, das Modell auf die Kachelbreite zu
+  // zwingen und den Baustein auf 1,90 m stehen zu lassen. Dann stünde ein
+  // sichtbares Regal von 1,50 m vor einem unsichtbaren Hindernis von 1,90 m —
+  // vierzig Zentimeter Luft, gegen die man läuft. Ein Modell ersetzt das Bild
+  // und nicht die Rechnung (`docs/agents/modelle.md`), also muss die Rechnung
+  // stimmen, und zwar in beide Richtungen.
+  //
+  // Bleibt die dritte: den Baustein auf die natürliche Höhe des Modells
+  // stellen. 1,50 m ist ein Bücherregal, wie es in einem Zimmer steht, die
+  // vier Böden liegen damit alle 0,49 m, und gebautes Regal, Körper,
+  // Wegekosten und Modell sind dieselbe Kiste — mit Modell wie ohne.
+  shelf: { label: 'Regal', rise: 0, cost: 1.3, height: 1.5 },
   table: { label: 'Tisch', rise: 0, cost: 2.2, height: 0.75 },
   bench: { label: 'Bank', rise: 0, cost: 1.6, height: 0.46 },
   // Zwei Kisten von 0,45 m übereinander — mehr passt auf eine Kachel von einem
@@ -195,6 +216,10 @@ export function blockSolids(kind: BlockKind, at: BlockSite): PlanSolid[] {
   const lift = at.lift ?? 0;
   return turned(local, at.dir).map((one) => ({
     ...one,
+    // **Woher der Quader kommt**, und nur das (`solids.PlanSolid.block`):
+    // Nach dieser Zeile ist ein Regal eine Handvoll Kästen, und ohne sie wäre
+    // nicht mehr herauszufinden, welche davon zusammengehören.
+    block: kind,
     x: one.x + at.x,
     y: one.y + at.base + lift,
     z: one.z + at.z,
@@ -442,6 +467,138 @@ const BUILD: Readonly<Record<BlockKind, (height: number) => PlanSolid[]>> = {
     ),
   ],
 };
+
+// --- und was davon ein Modell aus dem Regal ist ----------------------------
+
+/**
+ * **Welcher Baustein durch ein Modell aus dem KayKit-Regal ersetzt wird** —
+ * und durch welches.
+ *
+ * Die Tabelle steht hier und nicht in der Gitterwelt, weil sie zu den
+ * Bausteinen gehört und nicht zum Zeichnen: Wer `BUILD.shelf` ändert, muss
+ * eine Zeile weiter sehen, dass an derselben Stelle ein Modell steht. Was
+ * daraus wird — laden, drehen, hinstellen, aufräumen — ist Sache von
+ * `GridWorld.buildBlockModels()`; hier stehen nur die Adresse und die
+ * Rechnung dazu (`blockModelSpot`), und beides ohne three.js, damit es ein
+ * Test in Millisekunden nachrechnet.
+ *
+ * **Es ist ein Bild und kein Vertrag** (`docs/agents/modelle.md`, „Drei
+ * Regeln, die für jeden Tausch gelten"): Die Quader des Bausteins bleiben
+ * stehen, sie tragen weiter den Körper und ihren Aufschlag im
+ * Navigationsgraphen, und sie werden lediglich unsichtbar — und zwar erst,
+ * wenn die Datei wirklich angekommen ist. In einem Checkout ohne die
+ * gekauften Pakete und in jedem Jest-Lauf steht das gerechnete Regal da und
+ * tut, was es immer tat.
+ *
+ * **Das Regal ist der erste Eintrag**, weil es der einzige Baustein ist, bei
+ * dem das Modell ohne Umrechnung passt: `dungeon/bookcase_single.glb` ist in
+ * der Quelle 2,000 × 3,000 × 0,500 groß, mit dem Maßstab des Pakets
+ * (`core/kaykitFit.KAYKIT_SCALE`, 0,5) also 1,00 × 1,50 × 0,25 m — eine
+ * Kachel breit, so hoch wie `BLOCKS.shelf` (siehe die Begründung dort) und
+ * fünf Zentimeter flacher als die gerechneten 0,30 m. Sein Ursprung liegt in
+ * der Mitte seiner Unterkante, seine Rückwand bei z = −0,25 und seine Front
+ * bei z = +0,25 — also genau herum wie ein Baustein, der an seiner Kante
+ * steht und in den Raum schaut.
+ */
+export const BLOCK_MODELS: Readonly<Partial<Record<BlockKind, string>>> = {
+  shelf: 'dungeon/bookcase_single.glb',
+};
+
+/** Die Adresse im Regal, oder `null` — der einzige Eingang zu `BLOCK_MODELS`. */
+export function blockModel(kind: BlockKind): string | null {
+  return BLOCK_MODELS[kind] ?? null;
+}
+
+/**
+ * **Der Umriss eines geladenen Modells** in Metern, achsenparallel — dasselbe,
+ * was `THREE.Box3` hergibt, nur ohne three.js.
+ */
+export interface ModelBounds {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+}
+
+/** Wohin das Modell kommt: Platz, Drehung und der Maßstab obendrauf. */
+export interface BlockModelSpot {
+  /**
+   * Was **zusätzlich** auf die geladene Gruppe kommt, die den Maßstab ihres
+   * Pakets schon trägt (`core/kaykitModel.copyOf`). Passt das Modell von
+   * selbst, ist es genau `1`.
+   */
+  scale: number;
+  x: number;
+  y: number;
+  z: number;
+  /** Um die Hochachse, in Bogenmaß — dieselbe Drehung, die `turned()` rechnet. */
+  yaw: number;
+}
+
+/**
+ * **Wo das Modell eines Bausteins steht** — gemessen am Modell und nicht
+ * abgeschrieben.
+ *
+ * Der Aufrufer misst den geladenen Baum (`THREE.Box3().setFromObject(…)`) und
+ * gibt den Umriss hier herein; was zurückkommt, ist fertig zum Hinstellen. Der
+ * Grund für diesen Schnitt steht schon bei der Druckplatte
+ * (`fixtures/plate.ts`): Eine Zahl aus einer Datei, die man einmal nachgemessen
+ * und dann in den Code geschrieben hat, liegt nach dem nächsten Paket-Update
+ * daneben, und niemand rechnet sie nach. Gemessen wird also jedes Mal, und die
+ * Rechnung darüber steht hier, wo ein Test sie ohne Brille prüfen kann.
+ *
+ * **Drei Sachen werden entschieden, und jede hat ihren Grund:**
+ *
+ * - **Der Maßstab ist der kleinere von zwei Wünschen**: so hoch wie der
+ *   Baustein (`blockHeight`) und höchstens so breit wie seine Kachel (`TILE`).
+ *   Der zweite Wunsch ist der, den man vergisst. Ein Möbel wird gleichmäßig
+ *   skaliert — ein Regal, das in der Höhe gestreckt und in der Breite gestaucht
+ *   wird, sieht aus wie ein Fehler —, und damit wächst mit der Höhe die Breite
+ *   mit. `BUILD.shelf` dagegen baut seine Böden bei **jeder** Höhe genau eine
+ *   Kachel breit. Wer ein Regal doppelt so hoch stellt, bekäme sonst ein
+ *   Modell, das in die Nachbarkachel ragt, während sein Körper brav auf der
+ *   eigenen steht.
+ * - **Die Rückwand kommt an dieselbe Kante wie die Quader**: `EDGE + CLEAR`,
+ *   dieselben beiden Zahlen, aus denen `BUILD.shelf` sein `mid` rechnet. Sie
+ *   stehen deshalb in dieser Datei und nicht in zweien — ein Modell, das eine
+ *   Handbreit vor seinem eigenen Körper steht, ist genau der Fehler, den man
+ *   erst in der Brille sieht.
+ * - **Gerechnet wird nach Norden und danach gedreht**, wie überall hier. Der
+ *   Winkel ist derselbe, den `turned()` auf die Quader anwendet und
+ *   `fixtures/index.fixtureYaw` auf die Einbauten; der Test daneben hält die
+ *   beiden zusammen, indem er nicht den Winkel vergleicht, sondern wo die
+ *   Rückwand landet.
+ *
+ * Der Umriss wird dabei **nicht** als mittig angenommen: Verschoben wird nach
+ * seiner gemessenen Mitte in x, seiner Unterkante in y und seiner Rückkante in
+ * z. Ein Modell mit einem Ursprung irgendwo im Nirgendwo steht damit trotzdem
+ * richtig — und das ist bei 4 470 fremden Dateien keine Vorsicht, sondern die
+ * Regel.
+ */
+export function blockModelSpot(kind: BlockKind, at: BlockSite, box: ModelBounds): BlockModelSpot {
+  // Ein leeres oder entartetes Maß ist kein Absturz wert: Dann bleibt der
+  // Maßstab 1, und das Modell steht so da, wie es aus der Datei kam.
+  const tall = Math.max(1e-6, box.maxY - box.minY);
+  const wide = Math.max(1e-6, box.maxX - box.minX);
+  const scale = Math.min(blockHeight(kind, at.height) / tall, TILE / wide);
+  // In der kleinen Welt des Bausteins: Mitte auf der Kachelachse, Unterkante
+  // auf dem Boden, Rückwand an der Kante.
+  const lx = (-(box.minX + box.maxX) / 2) * scale;
+  const ly = -box.minY * scale;
+  const lz = EDGE + CLEAR - box.minZ * scale;
+  const yaw = (-at.dir * Math.PI) / 2;
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  return {
+    scale,
+    x: at.x + lx * cos + lz * sin,
+    y: at.base + (at.lift ?? 0) + ly,
+    z: at.z - lx * sin + lz * cos,
+    yaw,
+  };
+}
 
 /** Nur damit die vier Richtungen einmal namentlich in dieser Datei stehen. */
 export const BLOCK_FACINGS: readonly Dir[] = [DIR_N, DIR_E, DIR_S, DIR_W];

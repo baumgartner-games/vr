@@ -39,6 +39,10 @@ import { blocksView, GHOST_KNEE, type GhostCandidate } from './wallGhost';
  * - **Türblätter.** Sie gehen auf und zu, also ändert sich ihre Sichtbarkeit
  *   (`GridWorld.gridDoorVisible`, `slidingDoor.ts`) — und ein Bündel hat genau
  *   eine, für alle darin gemeinsam.
+ * - **Was ein Modell aus dem Regal ersetzt** (`blocks.BLOCK_MODELS`). Dieselbe
+ *   Begründung wie beim Türblatt, nur einmalig statt fortwährend: Der Quader
+ *   wird unsichtbar, sobald die Datei da ist, und ein Bündel kennt nur alle
+ *   oder keinen — siehe `BatchCandidate.modelled`.
  *
  * Wie überall in diesem Verzeichnis: **reine Rechnung, kein three.js.** Wer die
  * Entscheidung anwendet, ist `GridWorld.rebuildGrid`; was ein Bündel auf der
@@ -51,6 +55,22 @@ export interface BatchCandidate extends GhostCandidate {
   portal?: boolean;
   /** Ob ein Türblatt daran hängt (`PlanSolid.door`). */
   door?: boolean;
+  /**
+   * Ob ein Modell aus dem Regal an seine Stelle tritt (`blocks.blockModel`).
+   *
+   * Die dritte Ausnahme, und sie kam mit dem Regal als Möbel: Ein Quader, den
+   * ein Modell ersetzt, wird unsichtbar — aber erst, wenn die Datei da ist,
+   * und das ist im Zweifel ein paar hundert Millisekunden nach dem Bündeln.
+   * Ein Bündel hat genau eine Sichtbarkeit, und wer ihn hineinließe, hätte ein
+   * Regal, das im Bündel weiter dasteht, während das Modell davorsteht: zwei
+   * Regale auf einer Kachel, und das zweite ließe sich nicht mehr ausschalten,
+   * ohne jedes andere Brett derselben Sorte mit auszuschalten.
+   *
+   * Der Preis dafür ist ein Zeichenaufruf je Brett, solange kein Modell da
+   * ist — sechs Quader je Regal. Das ist billiger als die Alternative, nach
+   * dem Eintreffen jeder einzelnen Datei alle Bündel neu zu bauen.
+   */
+  modelled?: boolean;
 }
 
 /**
@@ -63,7 +83,7 @@ export interface BatchCandidate extends GhostCandidate {
  * im Bündel steckt und trotzdem durchsichtig werden soll.
  */
 export function joinsBatch(one: BatchCandidate, knee = GHOST_KNEE): boolean {
-  if (one.portal === true || one.door === true) return false;
+  if (one.portal === true || one.door === true || one.modelled === true) return false;
   return !blocksView(one, knee);
 }
 
@@ -92,13 +112,14 @@ export function joinsBatch(one: BatchCandidate, knee = GHOST_KNEE): boolean {
  * von 243** im Schattendurchgang — zusammen 37 % eines Bildes, und in der
  * Brille das Doppelte davon, weil der Hauptdurchgang je Auge einmal läuft.
  *
- * Die beiden Ausnahmen bleiben dieselben wie oben und aus denselben Gründen:
- * **Portalflächen** und **Türblätter**. Und die beiden Listen bleiben
+ * Die Ausnahmen bleiben dieselben wie oben und aus denselben Gründen:
+ * **Portalflächen**, **Türblätter** und **was ein Modell ersetzt**. Und die
+ * beiden Listen bleiben
  * ausdrücklich komplementär — was `joinsBatch` nimmt, lässt diese Frage liegen
  * und umgekehrt; ein Quader steckt nie in beiden Bündeln.
  */
 export function joinsGhostBatch(one: BatchCandidate, knee = GHOST_KNEE): boolean {
-  if (one.portal === true || one.door === true) return false;
+  if (one.portal === true || one.door === true || one.modelled === true) return false;
   return blocksView(one, knee);
 }
 
