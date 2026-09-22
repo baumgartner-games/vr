@@ -52,7 +52,7 @@ Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
 keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist **alles, was es
-gibt** und in gut einer halben Minute durch (4776 Tests) — eine zweite,
+gibt** und in gut einer halben Minute durch (5015 Tests) — eine zweite,
 langsame Suite und den CI-Job daneben gab es einmal, sie sind weg (siehe
 [Tests](docs/agents/tests.md)).
 
@@ -140,7 +140,7 @@ Stichpunkten).
 - **[Die Waffe und die Kartzone](docs/agents/waffe-und-kart.md)** — Zwei Zonen, die ihre eigene Steuerung mitbringen.
   Darin: Die Waffe · Die Kartzone.
 - **[Hände, Controller und Griffe](docs/agents/haende.md)** — Controller-Modelle, Handhaltung, Handmodell — und die eingemessenen Griffe der Werkzeuge.
-  Darin: Controller-Modelle · Handhaltung · Handmodell: Boxhand oder weißer Handschuh · Eingemessene Griffe · Eine Faust, und sie ist gerechnet · Ein Griff für alle Werkzeuge.
+  Darin: Controller-Modelle · Handhaltung · Handmodell: Boxhand oder weißer Handschuh · Eingemessene Griffe · Eine Faust, und sie ist gerechnet · Ein Griff für alle Werkzeuge · Und jetzt hängt ein gekauftes Netz am Halterzylinder.
 - **[Konfig-Code](docs/agents/konfig-code.md)** — Alle Einstellungen als eine Zeichenkette: teilen, einlesen, zurücksetzen.
   Darin: Der Kurzcode · Über die Leitung · Live auf die Werkzeugseite.
 
@@ -154,7 +154,7 @@ Stichpunkten).
 - **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — und der Umbau, während man darin steht.
   Darin: Der Konstrukt-Raum · Bauen, während man darin steht.
 - **[Das KayKit-Regal](docs/agents/assetregal.md)** — Die gekaufte Sammlung als Menü: Schubladen, Suchfeld, Ordner für Ordner, mit dem Modell in der Kachel.
-  Darin: Warum ein Regal und kein zweiter Beutel · Was wo liegt · Zwei Spalten in der Brille — und so viele, wie passen, am Schirm · Der Katalog nimmt den ganzen Schirm · Drei Wege hinein: alles, Pakete, Kategorien · Schubladen: Figuren, Möbel, Natur — und sieben weitere · Wo man war, wenn man wiederkommt — und der Weg zurück an den Anfang · Und ein Suchfeld — aber nur am Schirm · Deutsch suchen — ein Wörterbuch und keine 4470 Zeilen · Das Modell in der Kachel — und wie es auf dem Telefon dorthin kommt · In der Kachel stand nur der Kopf — und warum · Ein ⓘ in der Ecke jeder Kachel — und die Seite dahinter · Geladen wird, was zu sehen ist · Fächer in der Brille — und Nachladen beim Scrollen am Schirm · Die Ids sind Adressen · Was beim Nehmen passiert · Was hingestellt wird, rastet auf dem Kachelgitter ein · Das Gitter unter dem Getragenen · Die Kisten des Regals stehen auf einem Deckel · Aus dem Regal wird in der Küche ein Möbel · Aus einem Modell wird ein Gegenstand · Eine Figur, die läuft · Ein Maßstab je Paket — und warum die Ritter zu groß waren · Keine Build-Nummer · Geteilte Geometrie · Grenzen.
+  Darin: Warum ein Regal und kein zweiter Beutel · Was wo liegt · Zwei Spalten in der Brille — und so viele, wie passen, am Schirm · Der Katalog nimmt den ganzen Schirm · Drei Wege hinein: alles, Pakete, Kategorien · Schubladen: Figuren, Möbel, Natur — und sieben weitere · Wo man war, wenn man wiederkommt — und der Weg zurück an den Anfang · Und ein Suchfeld — aber nur am Schirm · Deutsch suchen — ein Wörterbuch und keine 4470 Zeilen · Das Modell in der Kachel — und wie es auf dem Telefon dorthin kommt · In der Kachel stand nur der Kopf — und warum · Ein ⓘ in der Ecke jeder Kachel — und die Seite dahinter · Die genaue Bezeichnung — die Adresse an einem Stück, und ein Knopf daneben · Geladen wird, was zu sehen ist · Fächer in der Brille — und Nachladen beim Scrollen am Schirm · Die Ids sind Adressen · Was beim Nehmen passiert · Was hingestellt wird, rastet auf dem Kachelgitter ein · Das Gitter unter dem Getragenen · Die Kisten des Regals stehen auf einem Deckel · Aus dem Regal wird in der Küche ein Möbel · Aus einem Modell wird ein Gegenstand · Eine Figur, die läuft · Ein Maßstab je Paket — und warum die Ritter zu groß waren · Keine Build-Nummer · Geteilte Geometrie · Grenzen.
 - **[Spielfigur, Karte und Beutel](docs/agents/spielfigur.md)** — Wie man aussieht, was am Handgelenk hängt und was aus dem Beutel kommt.
   Darin: Wie man aussieht · Die Karte in der Hand · Was aus dem Beutel kommt.
 - **[NPCs](docs/agents/npcs.md)** — Wer hier herumläuft — und wie er sich orientiert: Wegnetz, Wegsuche, Verhalten.

@@ -118,6 +118,39 @@ Die Pose eines **Anbauteils** liegt im Raum **des Werkzeugs** (nicht der Hand),
 deshalb bleibt ein einmal ausgerichteter Rotpunkt ausgerichtet, egal wie die
 Waffe später gehalten wird.
 
+**Zu sehen ist inzwischen ein gekauftes Netz.** Die Pistole war das erste
+Werkzeug, das sein Bild aus dem KayKit-Regal bekommen hat
+(`prototype-bits/Gun_Pistol.glb`), und der Griff, an dem das bisher
+scheiterte, wird jetzt am Netz **gefunden** statt geraten — die Rechnung dazu
+steht in [Hände](./haende.md), _Und jetzt hängt ein gekauftes Netz am
+Halterzylinder_. Für diese Seite zählen drei Folgen:
+
+- **Kein Schlittenweg mehr.** Die Datei hat zwei Knoten, Waffe und Magazin,
+  und keinen davon als Schlitten; die ganze Waffe zurückzuschieben hieße, sie
+  durch die Faust rutschen zu lassen. Der sichtbare Rückstoß ist deshalb
+  allein das **Hochschlagen der Mündung** — dieselbe Zahl, dieselbe
+  Abklingzeit, nur ohne das Klacken daneben.
+- **Mündung, Zielschiene und Rundenzähler sind umgezogen**, auf gemessene
+  Stellen am Modell. Die Schiene rückt um genau die Strecke, um die die
+  Mündung nach vorn und die Oberkante nach oben gewandert ist: Damit behält
+  jede Zielhilfe ihren Abstand zur Mündung — die **Visierlinie**, auf die es
+  bei einer Kimme ankommt — und ihre Handbreit über dem Gehäuse. Wer eine
+  davon am Justierstand verschoben hat, behält seine Verschiebung; sie steht
+  gegenüber der Schiene und nicht gegenüber dem Werkzeug. Der Zähler klebt
+  jetzt auf dem Magazin, und zwar aufrecht: Das gebaute steckte schräg im
+  Griff, dieses steht gerade unter dem Lauf.
+- **Und die Kugeln sind Patronen.** `spawnBullet` zeigt statt einer Kugel in
+  Gelb `prototype-bits/Bullet.glb`, auf ihre Flugrichtung gelegt. Der Körper
+  bleibt eine **Kugel**, ihr Halbmesser hängt weiter an der Masse, und
+  getroffen wird weiter gegen die **Strecke** und nicht gegen ein Netz.
+  „Doppelt so groß" ist dabei auf die Länge gerechnet — 5,6 cm statt 2,8 cm
+  Kugeldurchmesser, damit 1,87 cm dick: von der Seite knapp das Doppelte, von
+  vorn **weniger** als vorher. Die Leuchtspur glüht voll orange, die
+  gewöhnliche gedämpft gelb.
+
+Ohne WebGL und in einem Checkout ohne die gekauften Pakete bleibt beides
+gebaut — das ist der normale Ausgang und keine Notlösung.
+
 ## Die Kartzone
 
 Ein Kart ist sieben reine Module und ein bisschen Verdrahtung:
@@ -355,3 +388,21 @@ jeder einen Körper in der Physik und einen Platz in der Abtastliste braucht,
 und als Eintrag im Bündel, weil das das Bild ist. Dasselbe Verfahren wie beim
 Grundriss ([Wie schön es aussieht](./grafik.md#wie-schön-es-aussieht)), aus demselben
 Grund.
+
+**Und ein Stapel waren sie nie.** Sie hießen so und waren ein
+anthrazitfarbener Quader; seit dem Umbau sind sie ein **Stein** aus dem
+KayKit-Regal (`block-bits/bricks_B.glb`), fünfundvierzig Stück, weiter in
+**einem** Bündel — 844 Dreiecke hat einer, einzeln wären das fünfundvierzig
+Zeichenaufrufe, in der Brille je Auge. Der Name bleibt, damit man beides noch
+findet.
+
+Der Stein ist in der Datei ein Würfel von einem Meter, der Kasten hier ist
+1 × 0,6 × 1. **Also wird die Höhe gestaucht und nicht der ganze Würfel**
+(`test/zones/propFit.ts`): Gleichmäßig auf 0,60 m verkleinert wäre der Stein
+auch nur 0,60 m **breit** und stünde 20 cm schmaler da als der Körper, der ihn
+trägt — ein Hindernis, gegen das man läuft, bevor man es sieht, auf einer
+Strecke, auf der mit 60 km/h gefahren wird. Den Körper auf die natürlichen
+1,00 m zu bringen wäre die andere Möglichkeit gewesen und hätte die Bande um
+zwei Drittel erhöht: keine Frage des Bildes mehr, sondern eine Änderung daran,
+was ein Kart trifft. Der Preis sind Ziegelreihen, die 40 % flacher sind als
+beim Zeichner; das merkt im Vorbeifahren niemand.
