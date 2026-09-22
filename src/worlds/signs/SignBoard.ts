@@ -11,6 +11,7 @@ import {
   type AutoScrollState,
 } from './signScroll';
 import { GRAB_TINT, GRAB_TINT_EMISSIVE } from '../../core/colors';
+import { kaykitAtHeight, kaykitSkins } from '../../core/kaykitHeight';
 
 /**
  * **Die Tafel selbst** — ein Schild, das man hinstellt und beschreibt.
@@ -60,6 +61,26 @@ export const SIGN_BACK_DEPTH = 0.025 + BACK_T / 2;
 /** Höhe des Pfostens unter der Tafel und der Halbmesser seines Fußes. */
 const POST_H = 1.05;
 const FOOT_R = 0.22;
+
+/**
+ * **Der Pfosten kommt aus dem Regal** — dieselbe Datei wie unter dem Schild
+ * der Gitterwelt (`worlds/grid/fixtures/sign.ts`), nur kürzer.
+ *
+ * Hier stand ein Zylinder von 7 cm: ein Rohr, das eine Tafel trägt.
+ * `dungeon/post.glb` ist in der Quelle 0,400 × 4,000 × 0,400 Einheiten groß
+ * und mit dem Maßstab seines Pakets 2,00 m hoch — eingepasst auf die 1,05 m
+ * dieses Pfostens wird daraus ein Vierkant von 0,105 m
+ * (`core/kaykitHeight.kaykitAtHeight`, dort steht, warum gemessen und nicht
+ * abgeschrieben wird).
+ *
+ * **Der Fuß bleibt, was er war.** Ein Pfosten aus dem Verlies steckt dort im
+ * Boden; dieses Schild dagegen stellt jemand mitten in einen Raum und nimmt
+ * es gleich wieder mit — ohne Teller darunter stünde es auf einer Kante. Der
+ * Fuß ist also nicht das, was der Pfosten ersetzt, sondern das, was ihn
+ * stehen lässt.
+ */
+const POST_MODEL = 'dungeon/post.glb';
+
 /** Wie nah eine Hand an einen Traggriff kommen muss, um ihn zu fassen. */
 export const SIGN_HANDLE_REACH = 0.19;
 
@@ -100,6 +121,12 @@ export class SignBoard extends THREE.Group {
   private readonly post: THREE.Group;
   private readonly back: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>;
   private readonly handles: THREE.Object3D[] = [];
+  /** Der Pfosten aus dem Regal, sobald er da ist — sonst `null`. */
+  private pole: THREE.Object3D | null = null;
+  /** Seine Materialien: Die gehören dieser Kopie, seine Geometrie nicht. */
+  private readonly poleSkins: THREE.Material[] = [];
+  /** Ob die Tafel schon weg ist, während die Datei noch unterwegs war. */
+  private disposed = false;
 
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
@@ -155,13 +182,13 @@ export class SignBoard extends THREE.Group {
       roughness: 0.45,
       metalness: 0.5,
     });
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, POST_H, 12), metal);
-    pole.position.y = -POST_H / 2;
-    this.post.add(pole);
     const foot = new THREE.Mesh(new THREE.CylinderGeometry(FOOT_R, FOOT_R * 1.15, 0.05, 20), metal);
     foot.position.y = -POST_H;
     this.post.add(foot);
     this.add(this.post);
+    // Der Pfosten dazwischen kommt aus dem Regal und damit erst gleich
+    // (`fillPost`) — der Teller darunter ist gebaut und sofort da.
+    this.fillPost();
 
     // Die beiden Traggriffe: dieselbe türkise Farbe wie an jedem Werkzeug, und
     // sie heißt hier dasselbe wie dort — hier anfassen.
@@ -278,7 +305,17 @@ export class SignBoard extends THREE.Group {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.texture.dispose();
+    // **Der Pfosten geht als Erstes und für sich**, und zwar aus dem Baum
+    // heraus: Seine Geometrie gehört der Vorlage im Speicher und jeder
+    // anderen Kopie (`core/kaykitModel.copyOf`, `userData.sharedAssets`) —
+    // der Durchgang unten gäbe sie frei und nähme sie damit allen anderen
+    // Schildern weg. Ihm gehören seine **Materialien**, und die müssen weg.
+    this.pole?.removeFromParent();
+    this.pole = null;
+    for (const skin of this.poleSkins) skin.dispose();
+    this.poleSkins.length = 0;
     this.traverse((child) => {
       const mesh = child as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -292,6 +329,39 @@ export class SignBoard extends THREE.Group {
   }
 
   // --- Aufbau ---------------------------------------------------------------
+
+  /**
+   * **Den Pfosten holen** — sofort nichts, später vielleicht etwas.
+   *
+   * Die Tafel wird **synchron** gebaut und ist sofort lesbar; das Modell kommt
+   * über die Leitung. Bleibt es aus — in Jest, in einem Checkout ohne die
+   * gekauften Pakete, auf einer abreißenden Leitung —, steht die Tafel auf
+   * ihrem Fuß und sonst nichts, und man liest sie trotzdem
+   * (`core/kaykitHeight.kaykitAtHeight` beantwortet alle drei Fälle mit
+   * `null`, und das ist hier kein Zweig, sondern eine Zeile).
+   *
+   * Der Pfosten hängt **nach unten**: Der Ursprung dieser Gruppe ist die
+   * Unterkante der Tafel (`applyShape`), sein Fuß steht auf dem Ursprung der
+   * Gruppe, die der Helfer zurückgibt — also kommt er um seine ganze Höhe
+   * nach unten und trifft dort den Teller.
+   *
+   * Und wer ein Schild hinstellt, nimmt es gleich wieder mit: Ist die Tafel
+   * beim Eintreffen schon abgeräumt, gehen die Materialien der Kopie sofort
+   * weg statt nie.
+   */
+  private fillPost(): void {
+    void kaykitAtHeight(POST_MODEL, POST_H).then((pole) => {
+      if (!pole) return;
+      if (this.disposed) {
+        for (const skin of kaykitSkins(pole)) skin.dispose();
+        return;
+      }
+      pole.position.y = -POST_H;
+      this.pole = pole;
+      this.post.add(pole);
+      for (const skin of kaykitSkins(pole)) this.poleSkins.push(skin);
+    });
+  }
 
   /** Die Maße der Teile aus den Maßen der Tafel. */
   private applyShape(): void {
