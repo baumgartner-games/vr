@@ -28,6 +28,9 @@ import {
   type WeaponSettings,
 } from './weaponSettings';
 import { playEmpty, playReload, playShot } from '../../../core/Audio';
+import { canLoadModels } from '../../../core/chefFit';
+import { kaykitSkins } from '../../../core/kaykitHeight';
+import { fitGun, gunBox } from './pistolModel';
 import type { ControllerState } from '../../../core/XRInput';
 
 const _origin = new THREE.Vector3();
@@ -35,6 +38,52 @@ const _direction = new THREE.Vector3();
 const _quaternion = new THREE.Quaternion();
 const _kick = new THREE.Quaternion();
 const _axisX = new THREE.Vector3(1, 0, 0);
+
+/**
+ * **Wie lang der Halterzylinder dieser Waffe ist** — die eine Zahl, die der
+ * gebaute Griff und die Einpassung des Modells sich teilen müssen.
+ *
+ * Eine Faust ist ungefähr so breit (`grip.GRIP_LENGTH`), und die Pistole hat
+ * schon immer zwei Millimeter mehr gehabt als die Vorgabe. Stünde sie unten
+ * zweimal da, könnte das Modell auf einen Griff gerechnet werden, den es nicht
+ * gibt.
+ */
+const GRIP_LENGTH = 0.1;
+
+/**
+ * **Die Pistole aus dem Regal** — und warum sie erst jetzt kommt.
+ *
+ * In der Bestandsaufnahme der Regalmodelle steht sie seit der ersten Runde mit
+ * der Entscheidung „Kandidat da, **Griff fehlt**" (`docs/agents/modelle.md`),
+ * und das war kein Zögern, sondern Regel 3: Die achtzehn Werkzeuge halten
+ * ihren Griff gerechnet und nicht ungefähr, und ein Regalmodell bringt seinen
+ * eigenen Ursprung, seine eigene Achse und gar keinen Griffzylinder mit. Die
+ * Absage ist jetzt **eingelöst statt übergangen**: `pistolFit.ts` findet den
+ * Griff am Netz, und die Waffe wird um ihn herum gehängt statt um ihre Mitte.
+ *
+ * Zwei Dinge sind dabei herausgekommen, die niemand vorher wissen konnte:
+ * Diese Pistole trägt ihr Magazin **vorn** unter dem Lauf und nicht im Griff,
+ * und sie ist ein Klotz — mit einem Griff von 10 cm wird sie 37 cm lang, fast
+ * doppelt so lang wie die gebaute. Beides steht ausführlich in `pistolFit.ts`.
+ */
+const GUN_MODEL = 'prototype-bits/Gun_Pistol.glb';
+
+/**
+ * **Der Knoten, auf dem der Rundenzähler klebt.**
+ *
+ * Die Datei hat zwei Knoten, und dass der zweite einen Namen trägt, ist das
+ * Geschenk daran: Ein Magazin ist die Fläche, auf die ein Zähler gehört —
+ * genau dort klebte er auch an der gebauten Pistole. Gesucht wird beim
+ * **Namen** und nicht beim Index (dieselbe Begründung wie an der Druckplatte,
+ * `worlds/grid/fixtures/plate.ts`): Ein `children[0]`, das nach dem nächsten
+ * Paket-Update auf den Rahmen zeigt, klebte den Zähler quer über die Waffe.
+ * Findet sich der Name nicht, bleibt die gebaute Pistole stehen — ein normaler
+ * Ausgang und kein Fehler.
+ */
+const GUN_MODEL_MAGAZINE = 'Gun_Pistol_Magazine';
+
+/** Wie weit der Zähler von der Magazinwand absteht, damit er nicht flimmert. */
+const COUNTER_LIFT = 0.001;
 
 /**
  * A pistol you can take apart in the menu.
@@ -59,6 +108,29 @@ export class PistolTool extends Tool {
   private readonly rail = new THREE.Object3D();
   private readonly slide: THREE.Mesh;
   private readonly counter: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  /**
+   * Beide Zähler — links und rechts derselbe Text auf derselben Textur. Sie
+   * wandern mit, wenn das Modell kommt, und sind deshalb keine Einzelstücke
+   * mehr, sondern eine Liste.
+   */
+  private readonly counters: THREE.Mesh[] = [];
+  /**
+   * Was das Modell ersetzt: Schlitten, Lauf und Magazin aus Quadern. Sie
+   * verschwinden, sobald die Datei da ist — und bleiben stehen, solange sie es
+   * nicht ist (in Jest für immer).
+   */
+  private readonly built: THREE.Object3D[] = [];
+  /** Die Gruppe um das Regalmodell, sobald es hängt — sonst `null`. */
+  private gun: THREE.Object3D | null = null;
+  /**
+   * **Die Materialien der Regalkopie** — sie gehören ihr allein und müssen
+   * weg; ihre **Geometrie** gehört der Vorlage und darf nie freigegeben werden
+   * (`core/kaykitModel.copyOf`, `userData.sharedAssets`). `disposeToolTree`
+   * unterscheidet das nicht, also wird das Modell vor ihm abgehängt.
+   */
+  private readonly gunSkins: THREE.Material[] = [];
+  /** Ob das Werkzeug schon abgeräumt ist, während die Datei noch unterwegs war. */
+  private gone = false;
   private readonly canvas: HTMLCanvasElement;
   private readonly texture: THREE.CanvasTexture;
   /** The aiming aids currently clipped on, by their kind. */
@@ -96,22 +168,25 @@ export class PistolTool extends Tool {
     this.slide = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.038, 0.17), steel);
     this.slide.position.set(0, 0.012, -0.06);
     this.add(this.slide);
+    this.built.push(this.slide);
 
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.05, 10), steel);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.012, -0.155);
     this.add(barrel);
+    this.built.push(barrel);
 
     // Der Griff: **der** Griff, derselbe wie an sechs anderen Werkzeugen, und
     // er sitzt hier, wo er in der Faust landet (`grip.ts`). Die Pistole ist die
     // Messlatte dafür — was hier gebaut wird, ist genau die Lage, die ihr
     // Kasten in Greiffarbe vorher hatte, nur nicht mehr von Hand hingesetzt.
-    this.mountGrip({ length: 0.1 });
+    this.mountGrip({ length: GRIP_LENGTH });
 
     const magazine = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.075, 0.032), steel);
     magazine.position.set(0, -0.052, 0.008);
     magazine.rotation.x = -0.22;
     this.add(magazine);
+    this.built.push(magazine);
 
     // The round counter sits flat against the magazine, where a glance down
     // the sights catches it.
@@ -132,6 +207,7 @@ export class PistolTool extends Tool {
     mirrored.position.x = -0.014;
     mirrored.rotation.y = -Math.PI / 2;
     this.add(mirrored);
+    this.counters.push(this.counter, mirrored);
 
     this.muzzle.position.set(0, 0.012, -0.19);
     this.add(this.muzzle);
@@ -143,6 +219,114 @@ export class PistolTool extends Tool {
 
     this.mountSights(this.settings.sights);
     this.draw();
+    this.fillGun();
+  }
+
+  /**
+   * **Das Modell holen und die gebaute Pistole darunter verstecken** — sofort
+   * nichts, später vielleicht etwas.
+   *
+   * Dasselbe Muster wie an der Druckplatte (`worlds/grid/fixtures/plate.ts`,
+   * `fillPlate`) und aus denselben zwei Gründen: Ein Werkzeug wird **synchron**
+   * gebaut und in derselben Zeile in eine Hand gelegt, und `GLTFLoader` samt
+   * `import.meta` bringt jeden Jest-Lauf zum Stehen. Bis die Datei da ist — und
+   * in einem Checkout ohne die gekauften Pakete für immer — steht die gebaute
+   * Pistole da und tut, was sie immer tat. Das ist der **normale** Ausgang und
+   * keine Notlösung.
+   *
+   * **Was nicht wandert, ist die Haltung.** `holdPosition`/`holdRotation`
+   * rühren sich hier nicht: Das Modell wird in den **Werkzeugraum** gehängt,
+   * und wie das Werkzeug in der Hand liegt, ist davon unberührt. Damit bleibt
+   * auch der zweite Justierstand heil — wer dort nachmisst, verschiebt das
+   * Werkzeug samt Griff **und** Modell gegen die Hand, und `resetHold`
+   * findet dieselbe `factoryPosition` vor wie vorher (`Tool.mountGrip`).
+   */
+  private fillGun(): void {
+    if (!canLoadModels()) return;
+    void import('../../../core/kaykitModel').then(async (module) => {
+      const model = await module.kaykitModel(GUN_MODEL);
+      if (!model) return;
+      // Gemessen wird, **solange das Modell an nichts hängt**: Dann ist sein
+      // Weltraum sein eigener, und die Zahlen sind die der Datei mal dem
+      // Maßstab ihres Pakets. Hinge es schon im Werkzeug, stünde die halbe
+      // Brille mit in der Rechnung.
+      const magazine = model.getObjectByName(GUN_MODEL_MAGAZINE);
+      const anchor = this.gripPart;
+      const fit = anchor ? fitGun(model, GRIP_LENGTH, anchor.position) : null;
+      // Drei Wege hier heraus, und alle drei sind normal: Das Werkzeug ist
+      // inzwischen weg, die Datei hat den Magazinknoten nicht (Paket-Update),
+      // oder aus dem Netz war kein Griff zu lesen. Die Kopie steht in allen
+      // drei Fällen schon, und ihre **Materialien** gehören ihr allein — sie
+      // gehen hier weg und nicht erst, wenn niemand mehr weiß, dass es sie gab.
+      if (this.gone || !magazine || !fit) {
+        for (const skin of kaykitSkins(model)) skin.dispose();
+        return;
+      }
+      const magazineBox = gunBox(new THREE.Box3().setFromObject(magazine), fit, new THREE.Box3());
+
+      const mount = new THREE.Group();
+      mount.name = 'pistol-model';
+      // **Die halbe Drehung um die Hochachse ist die eigentliche Nachricht**:
+      // Die Datei zeigt nach +z, die gebaute Pistole nach −z — und dorthin
+      // schießt sie auch (`fire`). Der Maßstab kommt aus dem Griff, der Ort
+      // legt diesen Griff auf den Halterzylinder (`pistolFit.ts`).
+      mount.rotation.y = Math.PI;
+      mount.scale.setScalar(fit.scale);
+      mount.position.copy(fit.at);
+      mount.add(model);
+
+      this.fitParts(fit, magazineBox);
+      this.add(mount);
+      this.gun = mount;
+      for (const skin of kaykitSkins(model)) this.gunSkins.push(skin);
+      for (const part of this.built) part.visible = false;
+    });
+  }
+
+  /**
+   * **Was am Modell dranbleiben muss** — Mündung, Zielschiene und der
+   * Rundenzähler, jedes an der Stelle, an der es am Modell sitzen müsste.
+   *
+   * Sie auf ihren alten Zahlen stehen zu lassen wäre das Nächstliegende und
+   * das Falscheste: Der Lauf der gebauten Pistole endet auf `z = −0,18`, der
+   * des Modells 14 cm weiter vorn — eine Kugel käme aus der Mitte der Waffe,
+   * ein Leuchtpunkt schwebte hinter ihr in der Luft.
+   *
+   * Gemessen wird dabei auf **beiden** Seiten: die neue Lage am Netz, die alte
+   * an der gebauten Geometrie, die gleich unsichtbar wird. Die Schiene rückt
+   * um genau die Strecke, um die die Mündung nach vorn und die Oberkante nach
+   * oben gewandert ist — damit behält jede Zielhilfe ihren Abstand zur Mündung
+   * (die **Visierlinie**, auf die es bei einer Kimme ankommt) und ihre
+   * Handbreit über dem Gehäuse. Wer eine davon am Justierstand verschoben hat,
+   * behält seine Verschiebung: Sie steht gegenüber der Schiene und nicht
+   * gegenüber dem Werkzeug (`attachments.ts`, `applyStoredPose`).
+   */
+  private fitParts(fit: { muzzle: THREE.Vector3; top: number }, magazine: THREE.Box3): void {
+    const builtMuzzle = this.muzzle.position.z;
+    // **Am Quader gemessen und nicht an der Welt.** `Box3.setFromObject`
+    // rechnet über `matrixWorld`, und das Werkzeug liegt zu diesem Zeitpunkt
+    // längst in einer Hand, die sich bewegt — die Oberkante käme in Metern des
+    // Raums heraus und nicht in denen des Werkzeugs. Der Schlitten ist ein
+    // gerader Quader an einem geraden Kind, also reicht seine eigene Hülle
+    // plus seine Lage.
+    this.slide.geometry.computeBoundingBox();
+    const builtTop = this.slide.position.y + (this.slide.geometry.boundingBox?.max.y ?? 0);
+    this.rail.position.set(0, fit.top - builtTop, fit.muzzle.z - builtMuzzle);
+    // Genau auf die Mündungsfläche und keinen Zentimeter davor: Die Kugel
+    // startet ohnehin fünf Zentimeter weiter in Flugrichtung (`spawnBullet`),
+    // und was davor liegt, wäre eine Zahl ohne Messung dahinter.
+    this.muzzle.position.copy(fit.muzzle);
+
+    // Der Zähler zieht auf das Magazin des Modells um — flach an seine beiden
+    // Wangen, aufrecht und nicht mehr um 0,22 rad gekippt: Das gebaute Magazin
+    // steckte schräg im Griff, dieses steht gerade unter dem Lauf.
+    const centre = magazine.getCenter(new THREE.Vector3());
+    const cheek = Math.max(Math.abs(magazine.min.x), Math.abs(magazine.max.x)) + COUNTER_LIFT;
+    for (const [index, plate] of this.counters.entries()) {
+      const side = index === 0 ? 1 : -1;
+      plate.position.set(side * cheek, centre.y, centre.z);
+      plate.rotation.set(0, (side * Math.PI) / 2, 0);
+    }
   }
 
   override onTrigger(controller: ControllerState, host: ToolHost): void {
@@ -175,6 +359,14 @@ export class PistolTool extends Tool {
       }
     }
     // The slide kicks back and settles again.
+    //
+    // **Am Regalmodell nicht**, und das ist die eine Sache, die der Tausch
+    // gekostet hat: `Gun_Pistol.glb` hat zwei Knoten, Waffe und Magazin, und
+    // keinen davon als Schlitten. Ein Schlitten, den es nicht gibt, lässt sich
+    // nicht zurückziehen, und die ganze Waffe zurückzuschieben hieße, sie
+    // durch die Faust rutschen zu lassen. Der sichtbare Rückstoß ist deshalb
+    // dort allein das Hochschlagen der Mündung — dieselbe Zahl, dieselbe
+    // Abklingzeit, nur ohne das Klacken daneben.
     this.recoil = Math.max(0, this.recoil - dt * 7);
     this.slide.position.z = -0.06 + this.recoil * 0.016;
     // The muzzle flip rides on top of the aim the base class just set, so the
@@ -190,8 +382,20 @@ export class PistolTool extends Tool {
   }
 
   override disposeTool(): void {
+    this.gone = true;
     for (const sight of this.sights.values()) sight.disposeAttachment();
     this.sights.clear();
+    // **Erst das Modell abhängen, dann aufräumen.** `disposeToolTree` gibt
+    // jede Geometrie unter dem Werkzeug frei — und die einer Regalkopie gehört
+    // der **Vorlage** im Speicher und allen anderen Kopien (`kaykitModel`,
+    // `userData.sharedAssets`). Genau dieser Fehler hat in diesem Projekt schon
+    // zweimal wehgetan (`environment.disposeShapes`, `SignBoard.dispose`, siehe
+    // `docs/agents/modelle.md`); hier kostet er eine Zeile Reihenfolge. Die
+    // **Materialien** dagegen gehören der Kopie allein und müssen weg.
+    this.gun?.removeFromParent();
+    this.gun = null;
+    for (const skin of this.gunSkins) skin.dispose();
+    this.gunSkins.length = 0;
     disposeToolTree(this);
     this.texture.dispose();
   }
