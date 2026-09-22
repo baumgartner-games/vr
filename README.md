@@ -165,6 +165,28 @@ wenn der Tresen nur einen halben Meter misst. Östlich daneben liegt die
 zusammensetzt — und daneben Platz für eine eigene. Dazu drei **Portaltafeln**,
 eine davon oben auf dem Podest.
 
+**Und sie sieht seit Neuestem gezeichnet aus statt gerechnet.** Was in der
+Testwelt aus Zylindern und Quadern zusammengesetzt war, kommt jetzt aus der
+gekauften KayKit-Sammlung: die **Laternen** an Hof und Treppe, der **Pfosten**
+unter jedem Schild, das **Stachelfeld**, durch das der NPC läuft, die
+**Regale** in der Kartbox und am Schießstand, die **Hebel** — und die
+**Zielscheiben** samt ihren Ständern. Die zerspringen bei einem guten Treffer
+(ab zehn Punkten) in sechs Stücke, die auseinanderfliegen und liegenbleiben,
+bis `B`/`Y` die Zone zurückstellt. Gerechnet wird dabei nichts anders: Wertung,
+Kollisionskörper und Wegekosten sind dieselben wie vorher — getauscht ist nur
+das Bild. Draußen, wo das Gelände aufhört, liegt statt der gemalten Kachelung
+ein **Plattenboden**, hell und dunkel im Schachbrett, 32 Meter weit in alle
+Richtungen.
+
+**Im Katalog am Handgelenk sucht man das alles auch auf Deutsch.** Die 4 470
+Dateien der Sammlung heißen englisch (`barrel_large`, `bookcase_single`), und
+wer `fass`, `regal` oder `laterne` eintippte, fand nichts. Ein Wörterbuch mit
+710 Wörtern übersetzt jetzt die **Eingabe** — 99 % der Sammlung tragen damit
+mindestens ein deutsches Wort —, Umlaute zählen dabei gefaltet (`fässer` findet
+dasselbe wie `fasser`), und gemischt geht es auch: `holz kiste` findet
+`crate_wood`. Unter dem englischen Dateinamen steht in der Kachel die deutsche
+Bedeutung, und im Steckbrief hinter dem ⓘ ist sie die erste Zeile.
+
 Dazu kommt
 ein **Bauplatz**, in dem man die Karte vom Gürtel zieht und der Grundriss als
 Miniatur vor einem hängt — eine Hand trägt sie, zwei drehen, kippen und zoomen,

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { kaykitAtHeight, kaykitSkins } from '../../../core/kaykitHeight';
 import { TextPlane } from '../../../ui/TextPlane';
 import { TILE } from '../../nav/navTile';
 import { signSummary } from '../../signs/signMarkup';
@@ -70,6 +71,15 @@ export function signMarkdown(place: FixturePlacement): boolean {
 /** Das Bild dazu — ein Pfosten, ein Brett, und das Brett kann Text. */
 interface SignView extends FixtureView {
   board: TextPlane;
+  /**
+   * **Die Materialien des Pfostens aus dem Regal** — sie gehören dieser Kopie
+   * allein und müssen beim Abräumen weg (`core/kaykitHeight.kaykitSkins`).
+   * Seine **Geometrie** gehört der Vorlage und allen anderen Schildern und
+   * bleibt liegen.
+   */
+  postSkins: THREE.Material[];
+  /** Ob der Einbau schon abgeräumt ist, während die Datei noch unterwegs war. */
+  gone: boolean;
 }
 
 /** Wie hoch das Brett hängt und wie breit es ist. */
@@ -78,6 +88,65 @@ const POST_H = 1.35;
 // Brett, auf einem Meter wären dieselben 62 % ein Schildchen, das man nicht
 // mehr liest.
 const BOARD_W = TILE * 0.9;
+
+/**
+ * **Der Pfosten kommt aus dem Regal** — und der gerechnete Stab ist weg.
+ *
+ * Hier stand ein `BoxGeometry(0.08, POST_H, 0.08)` aus dem Stahl der Welt: ein
+ * Strich, der eine Tafel trägt. Das Regal hat dafür ein Modell, und zwar
+ * genau eines, das ein Pfosten ist und kein Balken — `dungeon/post.glb`, ein
+ * Knoten, 0,400 × 4,000 × 0,400 Quelleinheiten, Ursprung in der Mitte der
+ * Unterkante wie bei einem Möbel. Mit dem Maßstab seines Pakets
+ * (`core/kaykitFit.KAYKIT_SCALE` = 0,5) ist er 2,00 m hoch und 0,20 m dick:
+ * ein Pfosten für ein Verlies und nicht für dieses Schild.
+ *
+ * **Also wird er gemessen und eingepasst** (`core/kaykitHeight.kaykitAtHeight`),
+ * auf die 1,35 m, die das Brett über dem Boden hängen. Die 0,675, die dabei
+ * herauskommen, stehen ausdrücklich nirgends: Eine abgeschriebene Zahl ist
+ * die, die nach dem nächsten Paket-Update stehen bleibt, während das Netz
+ * daneben wandert (die lange Fassung steht im Helfer und an der Druckplatte,
+ * `fixtures/plate.ts`). Dick wird der Pfosten dabei mit: 0,135 m statt 0,08 m
+ * — sichtbar mehr Holz, und immer noch eine halbe Kachel von jeder Wand weg.
+ *
+ * **Und es steht nicht beides da.** Anders als an der Druckplatte, wo die
+ * gerechnete Scheibe als Rückfall stehen bleibt, weil ein Auslöser ohne Bild
+ * kaputt wäre, ist das Schild sein **Text**: Kommt keine Datei — in Jest, in
+ * einem Checkout ohne die gekauften Pakete, auf einer abreißenden Leitung —,
+ * hängt die Tafel ohne Pfosten in der Luft, und man liest sie trotzdem. Das
+ * ist der ausdrücklich hingenommene Ausgang und keine Notlösung.
+ */
+const POST_MODEL = 'dungeon/post.glb';
+
+/**
+ * **Den Pfosten holen und an die Kante stellen** — sofort nichts, später
+ * vielleicht etwas.
+ *
+ * Der Einbau wird **synchron** gebaut, das Modell kommt über die Leitung;
+ * dazwischen liegt diese Funktion. Sie fragt nicht nach WebGL und nicht nach
+ * dem Regal — beides tut der Helfer, und „es kommt nichts" ist hier eine
+ * Zeile und kein Zweig (`core/kaykitHeight.kaykitAtHeight`).
+ *
+ * `gone` ist der Fall, den die Gitterwelt besonders oft macht: Sie baut ihre
+ * Einbauten bei **jeder** Änderung neu (`GridWorld.rebuildFixtures`), im
+ * Baumodus also dutzendfach je Minute. Dann hängt der fertige Pfosten an
+ * einer Gruppe, die niemand mehr ansieht — seine Materialien gehen deshalb
+ * hier weg und nicht erst, wenn niemand mehr weiß, dass es sie gab.
+ */
+function fillPost(view: SignView, group: THREE.Group, at: number): void {
+  void kaykitAtHeight(POST_MODEL, POST_H).then((post) => {
+    if (!post) return;
+    if (view.gone) {
+      for (const skin of kaykitSkins(post)) skin.dispose();
+      return;
+    }
+    // Sein Fuß steht auf dem Ursprung der Gruppe, die der Helfer zurückgibt —
+    // hingestellt wird er damit wie ein Möbel und nicht auf halbe Höhe
+    // gerechnet.
+    post.position.set(0, 0, at);
+    group.add(post);
+    for (const skin of kaykitSkins(post)) view.postSkins.push(skin);
+  });
+}
 
 export const SIGN: FixtureKind<SignState> = {
   kind: 'sign',
@@ -119,11 +188,9 @@ export const SIGN: FixtureKind<SignState> = {
     group.rotation.y = yaw;
 
     // Gebaut wird nach Norden: Der Pfosten steht an der Nordkante, das Brett
-    // schaut nach Süden in den Raum.
+    // schaut nach Süden in den Raum. Der Pfosten selbst kommt erst gleich
+    // (`fillPost`) — er hängt an einer Datei, das Brett nicht.
     const edge = -TILE / 2 + 0.16;
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, POST_H, 0.08), ctx.material('steel'));
-    post.position.set(0, POST_H / 2, edge);
-    group.add(post);
 
     // **Auf der Tafel steht die erste Zeile**, nicht der ganze Aushang: Sie ist
     // ein Wegweiser und keine Wand voller Text — was mehr ist als eine Zeile,
@@ -149,8 +216,28 @@ export const SIGN: FixtureKind<SignState> = {
     const view: SignView = {
       object: group,
       board,
-      dispose: () => board.dispose(),
+      postSkins: [],
+      gone: false,
+      dispose: () => {
+        view.gone = true;
+        board.dispose();
+        // Nur die Materialien: Die Geometrie der Regalkopie gehört der
+        // Vorlage, und `disposeShapes` hält an ihr an
+        // (`shared/environment.ts`, `userData.sharedAssets`).
+        for (const skin of view.postSkins) skin.dispose();
+        view.postSkins.length = 0;
+      },
     };
+    // **Anfassen und Lesen hängen nicht am Pfosten**, und deshalb braucht es
+    // hier keinen unsichtbaren Stellvertreter für ihn. Angemeldet wird die
+    // **Gruppe** (`GridWorld.attachUsable`), und wie weit sie reicht, misst
+    // die Welt einmal beim Anmelden und **waagerecht**
+    // (`PortalWorld.objectRadius`: das größere von x und z, halbiert). Das
+    // waren schon vorher die 0,45 m des Bretts und nicht die 0,04 m des
+    // Stabs; ob der Pfosten gleich kommt oder nie, ändert daran nichts. Und
+    // ein Strahl, der ihn trifft, findet das Schild über die Gruppe darüber
+    // (`GridWorld.fixtureIdOf`).
+    fillPost(view, group, edge);
     return view;
   },
 

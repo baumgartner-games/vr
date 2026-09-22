@@ -11,11 +11,23 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
-import { DIRS, NO_TILE, TILE, keyLevel, tileCentreX, tileCentreZ, type Dir } from '../nav/navTile';
+import {
+  DIRS,
+  NO_TILE,
+  TILE,
+  keyLevel,
+  tileCentreX,
+  tileCentreZ,
+  tileIndexAt,
+  tileKey,
+  type Dir,
+  type TileKey,
+} from '../nav/navTile';
+import { blockModel, blockModelSpot, type BlockKind } from './blocks';
 import { changeSlidingDoor } from './slidingDoor';
 import { blocksView, wallsHiding, type GhostCandidate } from './wallGhost';
 import { batchKey, joinsBatch, joinsGhostBatch } from './gridBatch';
-import { fixtureTile, type GridPlan } from './gridPlan';
+import { fixtureTile, type BlockPlacement, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
 import { EFFECT_LIFT } from './fixtures/index';
 import { signRows } from './fixtures/signRows';
@@ -32,6 +44,7 @@ import type {
 import { Burst } from '../effects/Burst';
 import { findEffect, scaleEffect } from '../effects/effectKinds';
 import { levelStep, type ViewLevel } from '../../core/cutaway';
+import { canLoadModels } from '../../core/chefFit';
 import { denyOutline } from '../../core/outlineShell';
 import { graphics } from '../../core/graphicsSettings';
 import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/Audio';
@@ -136,6 +149,39 @@ export abstract class GridWorld extends PortalWorld {
    * Gruppe da hängen, wo sie hingehört.
    */
   private readonly batched: THREE.Mesh[] = [];
+  /**
+   * **Die Quader, an deren Stelle ein Modell aus dem Regal tritt** — je Möbel
+   * eine Liste, unter Sorte und Kachel abgelegt (`blockSlabKey`).
+   *
+   * Sie steht hier, weil ein Quader nur weiß, aus **welchem** Möbel er kommt
+   * (`solids.PlanSolid.block`) und nicht aus welchem einzelnen: Aus sechs
+   * Brettern wieder ein Regal zu machen ist eine Rechnung über Kachel und
+   * Etage, und die läuft beim Bauen einmal statt beim Eintreffen jeder Datei
+   * noch einmal.
+   */
+  private readonly modelledSlabs = new Map<string, THREE.Mesh[]>();
+  /** Die Modelle selbst — was beim nächsten Umbau wieder abzuhängen ist. */
+  private readonly blockModels: THREE.Object3D[] = [];
+  /**
+   * **Ihre Materialien** — sie gehören den Kopien allein und müssen weg.
+   *
+   * Dieselbe Zusage und derselbe Grund wie bei der Druckplatte
+   * (`fixtures/plate.ts`, `modelSkins`): Die **Geometrie** einer Regalkopie
+   * gehört der Vorlage im Speicher (`userData.sharedAssets`) und wird nie
+   * freigegeben, die Materialien klont `core/kaykitModel.copyOf` je Kopie.
+   * Wer sie liegen ließe, sammelte hier besonders schnell — im Baumodus baut
+   * diese Welt ihr Gitter dutzendfach je Minute neu.
+   */
+  private readonly blockModelSkins: THREE.Material[] = [];
+  /**
+   * **Die Runde, für die ein Modell bestellt wurde.**
+   *
+   * Zwischen Bestellung und Ankunft liegt die Leitung, und in der Zeit kann
+   * jemand zweimal umgebaut haben. Eine Kopie aus einer vergangenen Runde
+   * gehört an keine Gruppe mehr — sie gibt ihre Materialien zurück und
+   * verschwindet, statt als zweites Regal auf derselben Kachel zu stehen.
+   */
+  private blockModelRound = 0;
   /** Ob gerade die Bündel zu sehen sind (aus den Augen) oder die Quader (von oben). */
   private ghostBatchView = true;
   /** Ob zuletzt von oben geschaut wurde — ein Umbau muss die Ansicht wiederherstellen. */
@@ -333,6 +379,7 @@ export abstract class GridWorld extends PortalWorld {
     // Umbau stehen ließe, hätte nach dem dritten Handgriff zwei Schilder auf
     // einer Kachel, von denen eines in keinem Plan mehr steht.
     this.clearFixtures();
+    this.dropBlockModels();
     this.dropGridLines();
     // Die Quader sind gleich alle weg; was hier stehen bliebe, wäre eine Wand,
     // die es nicht mehr gibt und die trotzdem durchsichtig wird.
@@ -385,6 +432,9 @@ export abstract class GridWorld extends PortalWorld {
     // Einbau hat ein eigenes Bild und eigene Körper, und in eine
     // `InstancedMesh` gehört er nicht — er bewegt sich.
     this.buildFixtures();
+    // **Und zuletzt die Möbel, die es im Regal schon gibt** — sie kommen über
+    // die Leitung und damit erst lange nach diesem Bild (`buildBlockModels`).
+    this.buildBlockModels();
     this.buildGridLines();
   }
 
@@ -1386,6 +1436,13 @@ export abstract class GridWorld extends PortalWorld {
     }
     this.slabs.push(mesh);
     this.rememberGhost(mesh, solid);
+    // **Und ob an seiner Stelle einmal ein Modell steht** (`blocks.blockModel`).
+    // Die Frage fällt hier und nicht erst bei der Ankunft der Datei: Gebündelt
+    // wird gleich, unsichtbar wird der Quader frühestens ein paar hundert
+    // Millisekunden später — und wer bis dahin wartete, hätte ihn im Bündel.
+    // Vorgemerkt wird er deshalb sofort, damit ihn `fillBlockModel` wiederfindet.
+    const modelled = solid.block !== undefined && blockModel(solid.block) !== null;
+    if (solid.block !== undefined && modelled) this.rememberModelled(mesh, solid, solid.block);
     // **Und ob er in ein Bündel darf** (`gridBatch.ts`): Ein Boden, eine
     // Schwelle, eine Rampe wird nie durchsichtig — also kostet es nichts, sie
     // mit ihresgleichen in einem Zug zu zeichnen.
@@ -1394,12 +1451,167 @@ export abstract class GridWorld extends PortalWorld {
       floor: solid.kind === 'floor',
       portal,
       door: !!solid.door,
+      modelled,
     };
     if (joinsBatch(candidate)) this.batchable.push(mesh);
     // **Und eine Wand in das Bündel, das nur aus den Augen gilt.** Geghostet
     // wird ausschließlich von oben (`stepWallGhosts`), und dort stehen die
     // Quader wieder einzeln da.
     else if (joinsGhostBatch(candidate)) this.ghostable.push(mesh);
+  }
+
+  // --- die Möbel, die aus dem Regal kommen ----------------------------------
+
+  /**
+   * **Unter welchem Namen die Quader eines Möbels wiederzufinden sind**: seine
+   * Sorte und seine Kachel.
+   *
+   * Der Quader weiß nur, aus **welcher** Sorte Möbel er kommt
+   * (`solids.PlanSolid.block`) — und mehr soll er auch nicht wissen. Welches
+   * Regal von dreien gemeint ist, sagt seine Kachel, und die steht in seinen
+   * Metern: Ein Baustein baut ausschließlich auf seiner eigenen Kachel
+   * (`blocks.BUILD`, alle Maße innerhalb von `TILE`), also liegt die Mitte
+   * jedes seiner Quader darin. Die Etage kommt dazu, weil zwei Regale
+   * übereinander zwei Regale sind.
+   */
+  private static blockSlabKey(kind: BlockKind, tile: TileKey): string {
+    return `${kind}@${tile}`;
+  }
+
+  /** Diesen Quader für sein Möbel vormerken — er wird später unsichtbar. */
+  private rememberModelled(mesh: THREE.Mesh, solid: PlanSolid, kind: BlockKind): void {
+    const tile = tileKey(tileIndexAt(solid.x), tileIndexAt(solid.z), solid.level ?? 0);
+    const key = GridWorld.blockSlabKey(kind, tile);
+    const list = this.modelledSlabs.get(key);
+    if (list) list.push(mesh);
+    else this.modelledSlabs.set(key, [mesh]);
+  }
+
+  /**
+   * **Für jeden Baustein, den es im Regal schon gibt, ein Modell bestellen.**
+   *
+   * Die Gegenrichtung zu `plan.solids()`: Dort wird jedes Möbel zu Quadern
+   * plattgedrückt, hier wird die Liste der Möbel selbst noch einmal
+   * durchgegangen (`plan.blocks()`) — denn erst sie sagt, wo **ein** Regal
+   * anfängt und aufhört. Aus sechs Brettern lässt sich das nicht zurücklesen.
+   *
+   * **Ohne WebGL passiert gar nichts** (`core/chefFit.canLoadModels`), genau
+   * wie bei der Druckplatte (`fixtures/plate.ts`): In Jest zieht `GLTFLoader`
+   * samt `import.meta` den ganzen Lauf mit herein, und was an einer Gitterwelt
+   * zu prüfen ist, braucht kein Netz. Dann steht das gerechnete Regal da und
+   * tut, was es immer tat — und in einem Checkout ohne die gekauften Pakete
+   * für immer.
+   */
+  private buildBlockModels(): void {
+    const plan = this.grid;
+    const group = this.group;
+    if (!plan || !group || !canLoadModels()) return;
+    for (const place of plan.blocks()) {
+      const file = blockModel(place.kind);
+      if (file) this.fillBlockModel(group, place, file);
+    }
+  }
+
+  /**
+   * **Ein Modell holen und das Gerechnete dahinter verstecken** — sofort
+   * nichts, später vielleicht etwas.
+   *
+   * Dasselbe Muster wie überall, wo ein Regalmodell eine gebaute Form ablöst
+   * (`fixtures/plate.ts`, `docs/agents/modelle.md`): dynamisch geladen, damit
+   * Jest den `GLTFLoader` nicht mitzieht, und **erst wenn die Datei wirklich
+   * angekommen ist**, verschwindet das Gebaute. Unsichtbar heißt dabei nur
+   * unsichtbar — die Quader bleiben stehen, ihr Körper trägt weiter die
+   * Kollision und ihr Aufschlag steht weiter im Navigationsgraphen. Ein Modell
+   * ist ein Bild und kein Vertrag.
+   *
+   * **Gemessen wird am geladenen Baum und nicht am Katalog**
+   * (`blocks.blockModelSpot`). Die Gruppe, die der Lader zurückgibt, trägt den
+   * Maßstab ihres Pakets schon (`core/kaykitFit.kaykitScale`); was hier
+   * dazukommt, ist die Umrechnung auf die Höhe des Bausteins und die Breite
+   * seiner Kachel. Eine abgeschriebene Zahl wäre die, die nach dem nächsten
+   * Paket-Update danebenliegt und die niemand nachrechnet.
+   */
+  private fillBlockModel(group: THREE.Group, place: BlockPlacement, file: string): void {
+    const round = this.blockModelRound;
+    void import('../../core/kaykitModel').then(async (module) => {
+      const model = await module.kaykitModel(file);
+      if (!model) return;
+      const plan = this.grid;
+      // Inzwischen umgebaut (oder die Welt ist weg): Die Kopie ist schon
+      // gebaut, und ihre Materialien gehören ihr allein — sie gehen hier weg
+      // und nicht erst, wenn niemand mehr weiß, dass es sie gab.
+      if (round !== this.blockModelRound || !plan) {
+        for (const skin of modelSkins(model)) skin.dispose();
+        return;
+      }
+      // **Erst messen, dann hängen.** Der Baum hat noch keinen Elternteil,
+      // also ist seine Weltmatrix seine eigene — gemessen wird damit genau
+      // das, was gleich in der Hülle steckt.
+      model.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(model);
+      if (box.isEmpty()) {
+        for (const skin of modelSkins(model)) skin.dispose();
+        return;
+      }
+      const level = keyLevel(place.tile);
+      const spot = blockModelSpot(
+        place.kind,
+        {
+          x: tileCentreX(place.tile),
+          z: tileCentreZ(place.tile),
+          base: plan.graph.levelY(level),
+          dir: place.dir,
+          ...(place.height === undefined ? {} : { height: place.height }),
+          ...(place.lift === undefined ? {} : { lift: place.lift }),
+        },
+        {
+          minX: box.min.x,
+          minY: box.min.y,
+          minZ: box.min.z,
+          maxX: box.max.x,
+          maxY: box.max.y,
+          maxZ: box.max.z,
+        },
+      );
+      // Eine eigene Hülle und nicht der Maßstab auf der geladenen Gruppe: Dort
+      // steht der des Pakets, und wer ihn überschriebe, machte aus verschieden
+      // großen Dingen gleich große (`core/kaykitModel.copyOf`).
+      const holder = new THREE.Group();
+      holder.name = `block:${place.kind}`;
+      holder.position.set(spot.x, spot.y, spot.z);
+      holder.rotation.y = spot.yaw;
+      holder.scale.setScalar(spot.scale);
+      // Auf welcher Etage es steht — von oben verschwindet es mit ihr
+      // (`core/cutaway.ts`).
+      holder.userData.level = level;
+      holder.add(model);
+      group.add(holder);
+      this.blockModels.push(holder);
+      for (const skin of modelSkins(model)) this.blockModelSkins.push(skin);
+      // **Und erst jetzt** geht das Gerechnete aus dem Bild. Vorher wäre die
+      // Kachel eine Weile lang leer gewesen, und in einem Checkout ohne die
+      // Pakete für immer.
+      const slabs = this.modelledSlabs.get(GridWorld.blockSlabKey(place.kind, place.tile));
+      for (const mesh of slabs ?? []) mesh.visible = false;
+    });
+  }
+
+  /**
+   * **Die Modelle wieder abhängen** — beim Umbau und beim Verlassen der Welt.
+   *
+   * Die Runde zählt dabei weiter, und das ist der halbe Zweck dieser Methode:
+   * Was noch unterwegs ist, gehört danach zu keiner Runde mehr und räumt sich
+   * bei der Ankunft selbst weg (`fillBlockModel`).
+   */
+  private dropBlockModels(): void {
+    this.blockModelRound++;
+    for (const model of this.blockModels) model.removeFromParent();
+    this.blockModels.length = 0;
+    // Die Geometrie gehört der Vorlage und bleibt liegen, die Materialien
+    // nicht — siehe `blockModelSkins`.
+    for (const skin of this.blockModelSkins) skin.dispose();
+    this.blockModelSkins.length = 0;
+    this.modelledSlabs.clear();
   }
 
   // --- Wand-Ghosting --------------------------------------------------------
@@ -1906,6 +2118,7 @@ export abstract class GridWorld extends PortalWorld {
     this.ghostPalette.clear();
     this.rigLevel = 0;
     this.clearFixtures();
+    this.dropBlockModels();
     this.editor?.dispose();
     this.editor = null;
     this.grid = null;
@@ -2157,4 +2370,26 @@ function playFixtureSound(name: FixtureSound): void {
       playEmpty();
       break;
   }
+}
+
+/**
+ * **Die Materialien unter einem Knoten**, jedes einmal.
+ *
+ * Abgeschrieben von der Druckplatte (`fixtures/plate.ts`, `skinsOf`) und nicht
+ * geteilt: Es sind acht Zeilen, und der gemeinsame Ort dafür wäre
+ * `worlds/shared/environment.ts` — dort stehen die beiden Aufräumer, und
+ * genau die dürfen hier nicht genommen werden. Sie halten an
+ * `userData.sharedAssets` an, und darunter liegen die Netze, deren Materialien
+ * gesucht sind.
+ */
+function modelSkins(root: THREE.Object3D): THREE.Material[] {
+  const out = new Set<THREE.Material>();
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    for (const skin of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      out.add(skin);
+    }
+  });
+  return [...out];
 }

@@ -2,6 +2,7 @@ import type { Handedness } from './XRInput';
 import type { MenuDetail, MenuEntry, MenuIcon } from '../ui/menu';
 import { FIGURE_CHEF, asFigure } from './avatarFigures';
 import { saveAppearance } from './appearance';
+import { kaykitEnglish, kaykitGerman } from './kaykitTerms';
 
 /**
  * **Das Regal als Baum** — was in `public/models/kaykit/` liegt, und was im
@@ -181,6 +182,29 @@ export interface KaykitFileRef {
    * man am Telefon.
    */
   readonly cats: readonly string[];
+  /**
+   * **Alle Wörter der Adresse, mit Leerzeichen davor und dahinter** — also
+   * ` dungeon barrel large ` für `dungeon/barrel_large.glb`.
+   *
+   * Eine Zeichenkette und keine Liste, und das ist der ganze Trick: Die
+   * Übersetzung sucht ein **ganzes Wort** (` fass`) und nicht ein Stück
+   * davon (sonst fände `dose` jede `candle`), und ein ganzes Wort ist in
+   * dieser Form ein gewöhnliches `includes` — genauso billig wie das, was
+   * die Suche ohnehin schon tut. Gerechnet wird sie **einmal je Datei** beim
+   * Aufbau der flachen Liste, wie `cats` auch: Bei jedem Tastendruck
+   * viertausendfünfhundert Namen zu zerteilen, merkt man am Telefon.
+   */
+  readonly words: string;
+  /**
+   * **Was der Name auf Deutsch heißt** — `Fass Groß`, oder leer, wenn kein
+   * Wort des Namens im Wörterbuch steht (`core/kaykitTerms.kaykitGerman`).
+   *
+   * Sie steht in der Kachel unter dem englischen Namen und im Steckbrief
+   * (`fileFacts`). **Die Suche braucht sie nicht**: Übersetzt wird die
+   * Anfrage und nicht die 4470 Namen — das ist der Unterschied zwischen ein
+   * paar Wörtern und der ganzen Sammlung, bei jedem Tastendruck.
+   */
+  readonly german: string;
 }
 
 /**
@@ -202,17 +226,7 @@ export function kaykitFiles(index: KaykitIndex): KaykitFileRef[] {
 function collect(dir: KaykitDir, trail: readonly string[], out: KaykitFileRef[], pack = ''): void {
   const dirs = [...(dir.dirs ?? [])].sort((a, b) => byName(labelOf(a), labelOf(b)));
   const files = [...(dir.files ?? [])].sort((a, b) => byName(a.name, b.name));
-  for (const file of files) {
-    const path = kaykitPath(trail, file.name);
-    out.push({
-      path,
-      name: file.name,
-      label: humanLabel(file.name),
-      ...(file.bytes === undefined ? {} : { bytes: file.bytes }),
-      pack,
-      cats: kaykitCategoriesOf(path),
-    });
-  }
+  for (const file of files) out.push(fileRef(file, kaykitPath(trail, file.name), pack));
   // Auf der ersten Ebene unter der Wurzel stehen die Pakete; von dort an gilt
   // derselbe Name für alles darunter.
   for (const child of dirs) collect(child, [...trail, child.name], out, pack || labelOf(child));
@@ -640,30 +654,89 @@ function hitsCategory(cats: readonly string[], term: string): boolean {
 export const SEARCH_LIMIT = 200;
 
 /**
+ * **Wie viel ein Treffer wert ist** — und warum genau in dieser Reihenfolge.
+ *
+ * Sortiert wird nach der Summe über alle gesuchten Wörter, und die Stufen
+ * sagen, was ein Treffer _bedeutet_. Ganz oben steht, wer heißt, wonach
+ * gefragt wurde: `chair_A` vor `armchair`, sonst stünde die Kachel, die man
+ * meint, hinter dreißig aus einem Ordner, der zufällig `chairs` heißt.
+ *
+ * **Die Übersetzung steht darunter.** Wer `laterne` tippt, hat `lantern`
+ * nicht geschrieben — die Zuordnung ist eine **Vermutung über die Absicht**
+ * (`core/kaykitTerms.ts`), und eine Vermutung darf einen Namen, der wirklich
+ * so heißt, nicht überholen. Sie steht aber über dem Ordnernamen und über
+ * der Schublade: Wer `kiste` sucht, meint die Kiste und nicht jede Datei,
+ * die zufällig in einem Ordner namens `containers` liegt. Damit ist die
+ * ganze Leiter: Name, dann Übersetzung, dann Ordner und Schublade.
+ */
+const HIT_NAME_START = 8;
+const HIT_NAME_IN = 4;
+const HIT_TERM = 3;
+const HIT_PATH = 1;
+const HIT_CATEGORY = 1;
+
+/**
+ * **Ab wie vielen Buchstaben ein übersetztes Wort auch vorn treffen darf.**
+ *
+ * Fünf, und aus demselben Grund wie `CATEGORY_TERM_MIN`: `küche` soll
+ * `kitchencounter` finden, denn ein Zeichner, der zwei Wörter
+ * zusammenschreibt, hat damit keine neue Sache gemeint. `dose` darf dagegen
+ * nicht jede `candle` mitbringen, nur weil `can` drei Buchstaben davon sind.
+ * Kurze Wörter treffen deshalb nur ganz.
+ */
+const TERM_PREFIX_MIN = 5;
+
+/** Ob eines der übersetzten Wörter in der Adresse dieser Datei steht. */
+function hitsTerms(words: string, english: readonly string[]): boolean {
+  for (const word of english) {
+    // `words` trägt vor jedem Wort ein Leerzeichen: ` barrel` findet den
+    // Wortanfang, ` barrel ` das ganze Wort — und beides ist ein `includes`.
+    if (words.includes(word.length >= TERM_PREFIX_MIN ? ` ${word}` : ` ${word} `)) return true;
+  }
+  return false;
+}
+
+/**
  * **Suchen heißt hier: alle Wörter müssen vorkommen.**
  *
- * `holz kiste` findet nichts, `crate wood` schon — gesucht wird im Dateinamen
- * **und** im Pfad, damit auch ein Paketname als Filter taugt (`dungeon barrel`).
- * Ein Wort zählt als Treffer, wenn es irgendwo darin vorkommt, und nicht nur
- * am Wortanfang: Wer `lantern` eintippt, will auch `wall_lantern` finden.
+ * `crate wood` findet die hölzerne Kiste — und seit es das Wörterbuch gibt,
+ * findet `holz kiste` sie auch. Gesucht wird im Dateinamen **und** im Pfad,
+ * damit ein Paketname als Filter taugt (`dungeon barrel`); ein Wort zählt als
+ * Treffer, wenn es irgendwo darin vorkommt, und nicht nur am Wortanfang: Wer
+ * `lantern` eintippt, will auch `wall_lantern` finden.
+ *
+ * **Und Deutsch zählt mit.** Die Sammlung heißt englisch, und wer `fass`,
+ * `regal` oder `zielscheibe` eintippt, fand hier einmal nichts. Jetzt wird
+ * jedes gesuchte Wort um das erweitert, was es auf Englisch heißen könnte
+ * (`core/kaykitTerms.kaykitEnglish`), und danach rechnet dieselbe Schleife
+ * wie vorher weiter — es gibt **keine zweite Suche** daneben, die morgen
+ * anders sortiert.
+ *
+ * **Übersetzt wird die Anfrage und nicht die Sammlung**, und das ist der
+ * ganze Grund, warum man von alledem nichts merkt: Die Suche läuft bei jedem
+ * Tastendruck über viertausendfünfhundert Einträge, und ein Wörterbuch, das
+ * dabei 4470 Namen übersetzte, wäre viertausendfünfhundert Nachschlagewerke
+ * je Buchstabe. Ein Suchbegriff hat zwei Wörter. Was je Datei nötig ist —
+ * ihre Wörter, ihre Schubladen —, steht längst da (`KaykitFileRef.words`,
+ * `.cats`) und ist einmal beim Aufbau der flachen Liste gerechnet.
  *
  * **Und die Schubladen zählen mit** (`hitsCategory`). `möbel` findet den
  * Sessel, dessen Datei nirgends `furniture` heißt, und `möbel holz` findet
  * das hölzerne darunter — genau dafür bekommt jede Datei mehrere Kategorien.
  * Eine Schublade zählt dabei am wenigsten: Wer den Namen trifft, steht vorn.
  *
- * **Sortiert wird nach Güte**: Wer den Dateinamen trifft, steht vor dem, der
- * nur im Ordnernamen vorkommt, und ein Name, der mit dem Gesuchten
- * **anfängt**, vor einem, der es irgendwo enthält. Sonst steht bei `chair` die
- * Kachel `restaurant-bits/chair_A` hinter dreißig Dateien aus einem Ordner,
- * der zufällig `chairs` heißt.
+ * **Sortiert wird nach Güte** (`HIT_NAME_START` und die Stufen darunter): Wer
+ * den Dateinamen trifft, steht vor dem, der ihn nur übersetzt trifft, und
+ * der vor dem, bei dem es nur im Ordnernamen oder in der Schublade steht.
  */
 export function kaykitSearch(
   files: readonly KaykitFileRef[],
   query: string,
   limit = SEARCH_LIMIT,
 ): KaykitFileRef[] {
-  const wanted = terms(query);
+  // Einmal je Anfrage und nicht je Datei: Das Wörterbuch wird für zwei
+  // Wörter aufgeschlagen und danach viertausendfünfhundertmal benutzt.
+  const wanted = terms(query).map((term) => ({ term, english: kaykitEnglish(term) }));
   if (wanted.length === 0) return [];
   const hits: { file: KaykitFileRef; score: number }[] = [];
   for (const file of files) {
@@ -671,11 +744,12 @@ export function kaykitSearch(
     const path = file.path.toLowerCase();
     let score = 0;
     let all = true;
-    for (const term of wanted) {
-      if (name.startsWith(term)) score += 4;
-      else if (name.includes(term)) score += 2;
-      else if (path.includes(term)) score += 1;
-      else if (hitsCategory(file.cats, term)) score += 1;
+    for (const { term, english } of wanted) {
+      if (name.startsWith(term)) score += HIT_NAME_START;
+      else if (name.includes(term)) score += HIT_NAME_IN;
+      else if (hitsTerms(file.words, english)) score += HIT_TERM;
+      else if (path.includes(term)) score += HIT_PATH;
+      else if (hitsCategory(file.cats, term)) score += HIT_CATEGORY;
       else {
         all = false;
         break;
@@ -932,20 +1006,37 @@ function fileEntries(
   pack: string,
 ): MenuEntry[] {
   return sheetsOf(
-    files.map((file) => {
-      const path = kaykitPath(trail, file.name);
-      return {
-        path,
-        name: file.name,
-        label: humanLabel(file.name),
-        ...(file.bytes === undefined ? {} : { bytes: file.bytes }),
-        pack,
-        cats: kaykitCategoriesOf(path),
-      };
-    }),
+    files.map((file) => fileRef(file, kaykitPath(trail, file.name), pack)),
     key,
     pick,
   );
+}
+
+/**
+ * **Aus einer Zeile des Index eine Datei der flachen Liste.**
+ *
+ * Er steht hier für sich, weil ihn zwei Wege brauchen — die flache Liste
+ * (`kaykitFiles`) und der Ordnerbaum (`fileEntries`) —, und weil alles, was
+ * einmal je Datei gerechnet wird, an genau einer Stelle stehen soll:
+ * Schubladen, Wörter und die deutsche Bedeutung. Zwei Kopien davon wären
+ * zwei Kacheln, die morgen Verschiedenes sagen.
+ */
+function fileRef(file: KaykitFile, path: string, pack: string): KaykitFileRef {
+  return {
+    path,
+    name: file.name,
+    label: humanLabel(file.name),
+    ...(file.bytes === undefined ? {} : { bytes: file.bytes }),
+    pack,
+    cats: kaykitCategoriesOf(path),
+    words: ` ${path
+      .toLowerCase()
+      .replace(/\.(glb|gltf)$/i, '')
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length > 0)
+      .join(' ')} `,
+    german: kaykitGerman(file.name),
+  };
 }
 
 /** Dasselbe aus der flachen Liste — für die Schubladen und für die Suche. */
@@ -1026,6 +1117,16 @@ function fileEntry(
     id: `kaykit:${file.path}`,
     label: file.label,
     sub: kaykitSize(file.bytes),
+    // **Die deutsche Bedeutung steht unter dem Namen** und nicht an seiner
+    // Stelle (`ui/PageMenu.tile` zeigt `caption` als kleine zweite Zeile, das
+    // Panel am Handgelenk als Fahne über der Kachel). Der englische
+    // Dateiname bleibt die Beschriftung, denn er ist die **Adresse**: Wer
+    // `barrel_large` sucht, sucht genau diese Zeichenkette, und eine Kachel,
+    // die „Fass Groß" heißt, findet er nicht wieder. Wer dagegen nicht weiß,
+    // wie `bookcase` auf Deutsch heißt, liest es jetzt in der Kachel.
+    // Dateien, für die das Wörterbuch nichts hergibt, bekommen keine leere
+    // Zeile — eine Kachel ist kein Formular.
+    ...(file.german.length > 0 ? { caption: file.german } : {}),
     accent: KAYKIT_ACCENT,
     // Die Id der Vorschau **ist** die Id der Zeile: Was man sieht, ist das,
     // was man bekommt, und die Fabrik im Menü muss nichts übersetzen.
@@ -1093,6 +1194,10 @@ function fileFacts(file: KaykitFileRef): { label: string; value: string }[] {
     .map((id) => KAYKIT_CATEGORIES.find((category) => category.id === id)?.label ?? id)
     .join(' · ');
   return [
+    // **Deutsch steht oben** und nicht unter der Dateigröße: Wer den
+    // Steckbrief aufschlägt, weil er nicht weiß, was `Target Stand A` ist,
+    // bekommt die Antwort als Erstes und nicht nach drei Zeilen Buchführung.
+    { label: 'Deutsch', value: file.german },
     { label: 'Paket', value: file.pack },
     { label: 'Ordner', value: folder },
     { label: 'Datei', value: file.name },

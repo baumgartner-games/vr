@@ -17,6 +17,8 @@
  * dem Editor allein, sondern jeder Welt, die auf dem Kachelgitter steht.
  */
 
+import type { BlockKind } from './blocks';
+
 /**
  * **Woraus ein Quader ist.** Entscheidet über Farbe, Härte und ob ein Portal
  * daran haftet — und sonst über nichts.
@@ -83,6 +85,27 @@ export interface PlanSolid {
    * Ohne Angabe: keine Meinung, und dann wird der Quader nie ausgeblendet.
    */
   level?: number;
+  /**
+   * **Aus welchem Möbel er kommt** — gesetzt von `blocks.blockSolids()`, sonst
+   * nirgends.
+   *
+   * Ein Baustein wird beim Bauen zu einer Handvoll Quadern plattgedrückt, und
+   * danach wusste niemand mehr, dass es ein Regal war: Aus zwei Wangen und
+   * vier Böden lässt sich das nicht zurücklesen, und wer es versuchte, hätte
+   * eine zweite, stillschweigend mitgepflegte Liste von Maßen. Genau das ist
+   * die Frage, die aufkam, als das erste Möbel ein Modell aus dem Regal
+   * bekommen sollte (`blocks.blockModel`): **Welche dieser Kästen gehören
+   * zusammen, und zu was?**
+   *
+   * Hier steht die Antwort, und zwar nur sie. Der Quader weiß, aus welchem
+   * Möbel er kommt — nicht, wie groß das Möbel ist, nicht, wo es steht, nicht,
+   * ob es ein Modell gibt. Alles Weitere schlägt nach, wer es braucht
+   * (`GridWorld.buildBlockModels`), und das bleibt eine Stelle und nicht acht.
+   *
+   * Ohne Angabe: Boden, Wand, Tür, Masse — alles, was aus dem Grundriss selbst
+   * kommt und aus keinem Möbel.
+   */
+  block?: BlockKind;
   /**
    * Ob ein Portal daran haftet.
    *

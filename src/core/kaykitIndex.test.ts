@@ -14,7 +14,10 @@ import {
   kaykitSize,
   type KaykitIndex,
 } from './kaykitIndex';
+import { KAYKIT_TERMS, KAYKIT_TERM_COVERAGE, kaykitEnglish, kaykitGerman } from './kaykitTerms';
 import type { MenuEntry } from '../ui/menu';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * **Das Regal ist ein Baum aus Zeichenketten**, und genau deshalb steht es
@@ -421,6 +424,199 @@ describe('die Suche', () => {
     expect(taken).toEqual(['dungeon/barrel_large.glb']);
   });
 });
+
+/**
+ * **Die Sammlung heißt englisch, gesucht wird deutsch** — der dritte Teil des
+ * Auftrags: „ich möchte zudem translations (deutsch, english) für die kaykit
+ * elemente haben, sodass ich auch auf deutsch danach suchen kann."
+ *
+ * Geprüft wird die Zusage und nicht das Wörterbuch: Ein deutsches Wort muss
+ * **dieselbe** Datei finden wie sein englisches Gegenstück, alle Wörter der
+ * Anfrage müssen weiter vorkommen, und ein Name, der wirklich so heißt, muss
+ * vor einer Übersetzung stehen.
+ */
+describe('die Suche auf Deutsch', () => {
+  const files = kaykitFiles(
+    index({
+      name: 'kaykit',
+      dirs: [
+        {
+          name: 'restaurant-bits',
+          dirs: [],
+          files: [
+            { name: 'crate_A.glb' },
+            { name: 'crate_wood.glb' },
+            // Eine Datei, die wirklich so heißt, wie jemand tippt — es gibt
+            // sie in der Sammlung nicht, und genau deshalb steht sie hier:
+            // Die Wertung muss sie vor die Übersetzung stellen.
+            { name: 'kiste_A.glb' },
+          ],
+        },
+        {
+          name: 'furniture-bits',
+          dirs: [],
+          files: [{ name: 'bookcase_single.glb' }, { name: 'lantern.glb' }],
+        },
+        {
+          name: 'dungeon',
+          dirs: [],
+          files: [{ name: 'barrel_large.glb' }, { name: 'barrels.glb' }],
+        },
+      ],
+      files: [],
+    }),
+  );
+
+  const found = (query: string): string[] => kaykitSearch(files, query).map((file) => file.name);
+
+  it('findet mit dem deutschen Wort dieselbe Datei wie mit dem englischen', () => {
+    expect(found('laterne')).toEqual(found('lantern'));
+    expect(found('laterne')).toEqual(['lantern.glb']);
+    expect(found('bücherregal')).toEqual(['bookcase_single.glb']);
+    // `fass` bringt darüber hinaus die Schublade _Kisten & Fässer_ mit und
+    // damit auch die Kisten — aber eben erst hinter den Fässern.
+    expect(found('fass').slice(0, 2)).toEqual(found('barrel'));
+  });
+
+  it('nimmt Umlaute und die getippte Schreibweise gleichermaßen', () => {
+    // `terms()` faltet `ä→a`; wer auf einem englischen Pad sitzt, schreibt
+    // ohnehin `fasser` — beide müssen dasselbe finden.
+    expect(found('fässer')).toEqual(found('fasser'));
+    expect(found('bücherregal')).toEqual(found('bucherregal'));
+    // Und der Plural zeigt auf die Einzahl: `barrel` steckt in `barrels`.
+    expect(found('fässer').slice(0, 2)).toEqual(['barrel_large.glb', 'barrels.glb']);
+  });
+
+  it('verlangt auch gemischt alle Wörter', () => {
+    // Das stand einmal als Gegenbeispiel im Kommentar von `kaykitSearch`:
+    // „`holz kiste` findet nichts". Jetzt findet es genau die eine Datei.
+    expect(found('holz kiste')).toEqual(['crate_wood.glb']);
+    expect(found('kiste holz')).toEqual(['crate_wood.glb']);
+    expect(found('holz laterne')).toEqual([]);
+  });
+
+  it('stellt den echten Namen vor die Übersetzung und die vor die Schublade', () => {
+    // `kiste_A` heißt so, `crate_A` heißt übersetzt so, und `barrel_large`
+    // liegt nur in derselben Schublade (_Kisten & Fässer_).
+    const hits = found('kiste');
+    expect(hits.indexOf('kiste_A.glb')).toBe(0);
+    expect(hits.indexOf('crate_A.glb')).toBeLessThan(hits.indexOf('barrel_large.glb'));
+  });
+
+  it('lässt sich vom Wörterbuch nicht mehr Dateien andrehen', () => {
+    // Übersetzt wird gegen **ganze** Wörter: `dose` heißt `can`, und `can`
+    // steckt in `candle` — gefunden werden darf die Kerze trotzdem nicht.
+    expect(found('dose')).toEqual([]);
+  });
+
+  it('schreibt die deutsche Bedeutung an die Datei', () => {
+    const crate = files.find((file) => file.name === 'crate_wood.glb')!;
+    expect(crate.german).toBe('Kiste Holz');
+    // Und sie steht auch in der Kachel und im Steckbrief.
+    const { pick } = picks();
+    const entry = kaykitSearchEntries(files, 'crate wood', pick)[0]!;
+    expect(entry.label).toBe('Crate Wood');
+    expect(entry.caption).toBe('Kiste Holz');
+    expect(entry.detail!.facts[0]).toEqual({ label: 'Deutsch', value: 'Kiste Holz' });
+  });
+});
+
+/**
+ * **Das Wörterbuch selbst** — 710 Einträge, und jeder einzelne ist eine
+ * Behauptung über die Sammlung: „dieses englische Wort kommt darin vor, und
+ * auf Deutsch heißt es so". Die erste Hälfte davon lässt sich gegen
+ * `index.json` prüfen, und genau das passiert hier.
+ */
+describe('das Wörterbuch', () => {
+  it('hat zu jedem Wort mindestens ein deutsches, und keines doppelt', () => {
+    for (const [english, german] of Object.entries(KAYKIT_TERMS)) {
+      expect(english).toMatch(/^[a-z0-9]+$/);
+      expect(german.length).toBeGreaterThan(0);
+      for (const word of german) expect(word.trim().length).toBeGreaterThan(0);
+      expect(new Set(german).size).toBe(german.length);
+    }
+  });
+
+  it('bildet kein Wort auf sich selbst ab', () => {
+    // `hammer: ['Hammer']` wäre eine Zeile, die keinen Treffer bringt, den es
+    // nicht ohnehin gibt — die Grenze der Liste steht genau hier.
+    for (const [english, german] of Object.entries(KAYKIT_TERMS)) {
+      expect(german.map((word) => word.toLowerCase())).not.toContain(english);
+    }
+  });
+
+  it('übersetzt zurück, gefaltet und in Wörtern', () => {
+    expect(kaykitEnglish('fass')).toContain('barrel');
+    expect(kaykitEnglish('fasser')).toContain('barrel');
+    // Ein Plural zeigt auf die Einzahl: `barrel` steckt in `barrels` drin.
+    expect(kaykitEnglish('fässer'.replace('ä', 'a'))).toEqual(kaykitEnglish('fasser'));
+    // Mehrteilige Bedeutungen stehen unter jedem ihrer Wörter.
+    expect(kaykitEnglish('ritter')).toContain('knight');
+    // Und was nichts heißt, heißt nichts.
+    expect(kaykitEnglish('xyzzy')).toEqual([]);
+  });
+
+  it('glossiert einen Dateinamen Wort für Wort, ohne Doppelung', () => {
+    expect(kaykitGerman('barrel_large.glb')).toBe('Fass Groß');
+    expect(kaykitGerman('Rock_Large_A.glb')).toBe('Stein Groß');
+    // Zählbuchstaben und Maßkürzel bedeuten nichts und fallen weg.
+    expect(kaykitGerman('block_4x4x2_B.glb')).toBe('Klotz');
+    expect(kaykitGerman('Paladin.glb')).toBe('');
+  });
+
+  /**
+   * **Ein Eintrag, der auf kein einziges Modell zeigt**, ist ein Vertipper
+   * oder ein Rest aus einem Paket, das es nicht mehr gibt — beides fällt hier
+   * auf und nicht erst beim vergeblichen Suchen.
+   */
+  it('nennt nur Wörter, die im Index wirklich stehen', () => {
+    const index = readIndex();
+    if (!index) return;
+    const words = new Set<string>();
+    for (const path of allPaths(index)) {
+      for (const word of path.toLowerCase().split(/[^a-z0-9]+/)) if (word) words.add(word);
+    }
+    const stray = Object.keys(KAYKIT_TERMS).filter((english) => !words.has(english));
+    expect(stray).toEqual([]);
+  });
+
+  /**
+   * **Die Abdeckung ist eine Zusage und keine Messung** — sie steht als Zahl
+   * im Wörterbuch (`KAYKIT_TERM_COVERAGE`), und hier wird nachgerechnet, ob
+   * sie noch stimmt. Wer ein Paket dazunimmt, dessen Wörter niemand
+   * übersetzt hat, merkt es dann hier und nicht erst am leeren Suchfeld.
+   */
+  it('gibt fast jeder Datei ein deutsches Wort', () => {
+    const index = readIndex();
+    if (!index) return;
+    const paths = allPaths(index);
+    const named = paths.filter(
+      (path) => kaykitGerman(path.slice(path.lastIndexOf('/') + 1)) !== '',
+    );
+    expect(named.length / paths.length).toBeGreaterThanOrEqual(KAYKIT_TERM_COVERAGE);
+  });
+});
+
+/** Der Index von der Platte — oder `null`, wenn die Pakete nicht da sind. */
+function readIndex(): KaykitIndex | null {
+  try {
+    // Von der Wurzel des Projekts aus, denn Jest läuft dort — und
+    // `import.meta` gibt es im CommonJS-Lauf der Tests nicht.
+    return JSON.parse(
+      readFileSync(join(process.cwd(), 'public', 'models', 'kaykit', 'index.json'), 'utf8'),
+    ) as KaykitIndex;
+  } catch {
+    // Ohne die gekauften Pakete gibt es nichts zu prüfen — und das ist ein
+    // normaler Zustand und kein Fehler (`core/kaykitFit.test.ts` macht es
+    // genauso).
+    return null;
+  }
+}
+
+/** Alle Adressen des Index, flach — ohne den Umweg über `kaykitFiles`. */
+function allPaths(tree: KaykitIndex): string[] {
+  return kaykitFiles(tree).map((file) => file.path);
+}
 
 describe('kaykitMenu', () => {
   const tree = index({

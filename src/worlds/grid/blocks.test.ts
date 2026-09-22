@@ -6,10 +6,14 @@ import {
   STAIR_LIFT,
   STEP_RISE,
   STEP_RUN,
+  blockModel,
+  blockModelSpot,
   blockRise,
   blockSolids,
   turned,
   type BlockKind,
+  type BlockSite,
+  type ModelBounds,
 } from './blocks';
 import { solidBounds, type PlanSolid } from './solids';
 
@@ -293,5 +297,177 @@ describe('Regal, Tisch, Bank und Kisten', () => {
     const crates = at('crate');
     const upper = crates.filter((one) => one.y - one.h / 2 > 0.1);
     expect(upper.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * **Das Modell, das an die Stelle eines Bausteins tritt** — die Rechnung dazu,
+ * ohne three.js und ohne Datei.
+ *
+ * Gemessen wird im Spiel am **geladenen** Baum und nie an einer abgeschriebenen
+ * Zahl (`blocks.blockModelSpot`, der Grund steht dort). Ein Test braucht
+ * deshalb keinen Lader, sondern nur einen Umriss — und genau das ist der
+ * Schnitt, den diese Datei überall macht: Was Rechnung ist, wird nachgerechnet.
+ */
+
+/**
+ * Der Umriss von `dungeon/bookcase_single.glb`, nachgemessen an der Datei und
+ * mit dem Maßstab seines Pakets multipliziert (`core/kaykitFit.KAYKIT_SCALE`,
+ * 0,5): 2,000 × 3,000 × 0,500 Quelleinheiten werden **1,00 × 1,50 × 0,25 m**,
+ * mit dem Ursprung in der Mitte der Unterkante und der Rückwand bei z = −0,125.
+ */
+const BOOKCASE: ModelBounds = {
+  minX: -0.5,
+  maxX: 0.5,
+  minY: 0,
+  maxY: 1.5,
+  minZ: -0.125,
+  maxZ: 0.125,
+};
+
+/**
+ * Der Kasten, den das Modell am Ende wirklich einnimmt: Umriss, Maßstab,
+ * Drehung und Platz zusammengerechnet.
+ *
+ * Über die vier Ecken und nicht über Breite und Tiefe, denn genau dort steckt
+ * der Fehler, den dieser Test finden soll — bei Ost und West tauschen die
+ * beiden, und wer das von Hand schreibt, schreibt es einmal falsch.
+ */
+function placed(
+  kind: BlockKind,
+  dir: Dir,
+  box: ModelBounds = BOOKCASE,
+  extra: Partial<BlockSite> = {},
+) {
+  const spot = blockModelSpot(kind, { x: 0, base: 0, z: 0, dir, ...extra }, box);
+  const cos = Math.cos(spot.yaw);
+  const sin = Math.sin(spot.yaw);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const cx of [box.minX, box.maxX]) {
+    for (const cz of [box.minZ, box.maxZ]) {
+      const x = spot.x + cx * spot.scale * cos + cz * spot.scale * sin;
+      const z = spot.z - cx * spot.scale * sin + cz * spot.scale * cos;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minZ = Math.min(minZ, z);
+      maxZ = Math.max(maxZ, z);
+    }
+  }
+  return {
+    spot,
+    minX,
+    maxX,
+    minZ,
+    maxZ,
+    minY: spot.y + box.minY * spot.scale,
+    maxY: spot.y + box.maxY * spot.scale,
+  };
+}
+
+describe('Woher ein Quader kommt', () => {
+  it('schreibt jedem Quader sein Möbel an', () => {
+    for (const kind of BLOCK_KINDS) {
+      for (const one of at(kind)) expect(one.block).toBe(kind);
+    }
+  });
+
+  it('gibt nur dem Regal ein Modell aus dem Regal', () => {
+    expect(blockModel('shelf')).toBe('dungeon/bookcase_single.glb');
+    for (const kind of BLOCK_KINDS) {
+      if (kind !== 'shelf') expect(blockModel(kind)).toBeNull();
+    }
+  });
+});
+
+describe('Das Bücherregal aus dem Regal', () => {
+  it('passt ohne Umrechnung — der Baustein steht auf der Höhe des Modells', () => {
+    const one = placed('shelf', DIR_N);
+    // Genau `1`: Die Höhe des Bausteins ist die des Modells, und seine Breite
+    // ist die Kachel. Wäre eine der beiden Zahlen verstellt, stünde hier
+    // etwas anderes — und das ist der Zweck dieser Zeile.
+    expect(one.spot.scale).toBeCloseTo(1, 6);
+    expect(one.minY).toBeCloseTo(0, 6);
+    expect(one.maxY).toBeCloseTo(BLOCKS.shelf.height, 6);
+  });
+
+  /**
+   * **Die Zeile, wegen der es diese Rechnung gibt.** Ein Modell, das eine
+   * Handbreit vor seinem eigenen Körper steht, sieht man erst in der Brille —
+   * hier fällt es in einer Millisekunde auf, und zwar in allen vier
+   * Richtungen.
+   */
+  for (const dir of [DIR_N, DIR_E, DIR_S, DIR_W] as const) {
+    it(`stellt es an dieselbe Kante wie seine Quader (Richtung ${dir})`, () => {
+      const model = placed('shelf', dir);
+      const built = solidBounds(at('shelf', dir))!;
+      // Die Rückwand liegt auf der Rückseite der gebauten Wangen …
+      if (dir === DIR_N) expect(model.minZ).toBeCloseTo(built.minZ, 6);
+      if (dir === DIR_S) expect(model.maxZ).toBeCloseTo(built.maxZ, 6);
+      if (dir === DIR_E) expect(model.maxX).toBeCloseTo(built.maxX, 6);
+      if (dir === DIR_W) expect(model.minX).toBeCloseTo(built.minX, 6);
+      // … und quer dazu füllt es die Kachel genauso weit wie sie.
+      const acrossModel =
+        dir === DIR_N || dir === DIR_S ? model.maxX - model.minX : model.maxZ - model.minZ;
+      const acrossBuilt =
+        dir === DIR_N || dir === DIR_S ? built.maxX - built.minX : built.maxZ - built.minZ;
+      expect(acrossModel).toBeCloseTo(acrossBuilt, 6);
+    });
+
+    it(`lässt es auf seiner Kachel (Richtung ${dir})`, () => {
+      const one = placed('shelf', dir);
+      expect(one.minX).toBeGreaterThanOrEqual(-TILE / 2 - 1e-6);
+      expect(one.maxX).toBeLessThanOrEqual(TILE / 2 + 1e-6);
+      expect(one.minZ).toBeGreaterThanOrEqual(-TILE / 2 - 1e-6);
+      expect(one.maxZ).toBeLessThanOrEqual(TILE / 2 + 1e-6);
+    });
+  }
+
+  it('wächst nicht über die Kachel hinaus, wenn jemand den Baustein höher stellt', () => {
+    // Drei Meter hoch gewünscht, doppelt so hoch wie das Modell — gleichmäßig
+    // gestreckt wären das zwei Meter Breite auf einer Kachel von einem. Also
+    // bleibt es bei der Kachel und wird eben nicht so hoch.
+    const one = placed('shelf', DIR_N, BOOKCASE, { height: 3 });
+    expect(one.spot.scale).toBeCloseTo(1, 6);
+    expect(one.maxX - one.minX).toBeCloseTo(TILE, 6);
+    expect(one.maxY).toBeCloseTo(1.5, 6);
+  });
+
+  it('macht es kleiner, wenn der Baustein niedriger steht', () => {
+    const one = placed('shelf', DIR_N, BOOKCASE, { height: 0.75 });
+    expect(one.spot.scale).toBeCloseTo(0.5, 6);
+    expect(one.maxY).toBeCloseTo(0.75, 6);
+    expect(one.maxX - one.minX).toBeCloseTo(TILE / 2, 6);
+  });
+
+  it('setzt es auf den Boden seiner Etage — und auf seinen Fuß', () => {
+    const one = placed('shelf', DIR_N, BOOKCASE, { base: 2.8, lift: 0.7 });
+    expect(one.minY).toBeCloseTo(3.5, 6);
+  });
+
+  /**
+   * **Ein fremder Ursprung ist hier die Regel und nicht die Ausnahme.** Unter
+   * 4 470 gekauften Dateien steht der Nullpunkt mal in der Mitte der
+   * Unterkante, mal irgendwo daneben; gerechnet wird deshalb mit dem
+   * gemessenen Umriss und nicht mit der Annahme, dass er mittig sitzt.
+   */
+  it('stellt auch ein Modell mit verschobenem Ursprung richtig hin', () => {
+    const shifted: ModelBounds = {
+      minX: 2,
+      maxX: 3,
+      minY: 5,
+      maxY: 6.5,
+      minZ: -1.125,
+      maxZ: -0.875,
+    };
+    const one = placed('shelf', DIR_N, shifted);
+    expect(one.spot.scale).toBeCloseTo(1, 6);
+    // Mitte auf der Kachelachse, Unterkante auf dem Boden, Rückwand an der
+    // Kante — dieselben drei Zusagen wie beim Bücherregal.
+    expect((one.minX + one.maxX) / 2).toBeCloseTo(0, 6);
+    expect(one.minY).toBeCloseTo(0, 6);
+    expect(one.minZ).toBeCloseTo(solidBounds(at('shelf', DIR_N))!.minZ, 6);
   });
 });

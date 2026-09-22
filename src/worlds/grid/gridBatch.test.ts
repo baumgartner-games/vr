@@ -51,6 +51,14 @@ describe('joinsBatch', () => {
     expect(joinsBatch({ box: box(0.1, 0.2), door: true })).toBe(false);
   });
 
+  it('lässt einen Quader einzeln, an dessen Stelle ein Modell tritt', () => {
+    // Ein Regalbrett liegt flach und dürfte deshalb ins Bündel — aber es wird
+    // unsichtbar, sobald das Modell da ist, und ein Bündel kennt nur alle oder
+    // keinen (`blocks.BLOCK_MODELS`).
+    expect(joinsBatch({ box: box(0.1, 0.03) })).toBe(true);
+    expect(joinsBatch({ box: box(0.1, 0.03), modelled: true })).toBe(false);
+  });
+
   it('nimmt die Kniehöhe entgegen, wenn eine Welt eine andere hat', () => {
     expect(joinsBatch({ box: box(0.6, 0.2) }, 1)).toBe(true);
     expect(joinsBatch({ box: box(0.6, 0.2) })).toBe(false);
@@ -86,6 +94,13 @@ describe('joinsGhostBatch', () => {
     expect(joinsGhostBatch({ box: box(1.4, 2.8), door: true })).toBe(false);
   });
 
+  it('lässt auch hier einzeln, was ein Modell ersetzt', () => {
+    // Die Wange eines Regals steht hüfthoch und könnte ghosten — sie bleibt
+    // trotzdem draußen, aus demselben Grund wie im dauerhaften Bündel.
+    expect(joinsGhostBatch({ box: box(0.75, 1.5) })).toBe(true);
+    expect(joinsGhostBatch({ box: box(0.75, 1.5), modelled: true })).toBe(false);
+  });
+
   it('nimmt genau das, was ghosten kann', () => {
     for (const y of [0, 0.15, 0.4, 0.49, 0.5, 0.51, 1, 2.5]) {
       for (const h of [0.1, 0.3, 0.9, 2.8]) {
@@ -101,10 +116,18 @@ describe('joinsGhostBatch', () => {
         for (const floor of [false, true]) {
           for (const portal of [false, true]) {
             for (const door of [false, true]) {
-              const one = { box: box(y, h), floor, portal, door };
-              expect(joinsBatch(one) && joinsGhostBatch(one)).toBe(false);
-              // Und zusammen decken sie alles ab, was kein Portal und keine Tür ist.
-              if (!portal && !door) expect(joinsBatch(one) || joinsGhostBatch(one)).toBe(true);
+              for (const modelled of [false, true]) {
+                const one = { box: box(y, h), floor, portal, door, modelled };
+                expect(joinsBatch(one) && joinsGhostBatch(one)).toBe(false);
+                // Und zusammen decken sie alles ab, was weder Portal noch Tür
+                // ist und an dessen Stelle kein Modell tritt.
+                if (!portal && !door && !modelled) {
+                  expect(joinsBatch(one) || joinsGhostBatch(one)).toBe(true);
+                }
+                // Was ein Modell ersetzt, steckt dagegen in **keinem** der
+                // beiden: Es wird einzeln unsichtbar oder gar nicht.
+                if (modelled) expect(joinsBatch(one) || joinsGhostBatch(one)).toBe(false);
+              }
             }
           }
         }

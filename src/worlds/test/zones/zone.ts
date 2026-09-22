@@ -33,6 +33,30 @@ export interface ZoneHost {
   addProp(entry: PhysicsBody, id: string): PhysicsBody;
 
   /**
+   * **Und einen Gegenstand wieder heraus** (`PortalWorld.removeProp`) — Körper,
+   * Netz und die ganze Buchhaltung der Welt dazu.
+   *
+   * Dasselbe Zugeständnis wie `removeSolid` weiter unten und aus demselben
+   * Grund: Fast alles in dieser Welt meldet einmal an und lässt stehen. Der
+   * Schießstand tut es nicht — eine zersprungene Scheibe hinterlässt sechs
+   * Stücke, und `B`/`Y` räumt sie wieder weg (`zones/range.ts`).
+   *
+   * Warum nicht `physics.remove` und daneben selbst aufräumen: An einem
+   * angemeldeten Gegenstand hängt ein halbes Dutzend Zettel der Welt — die
+   * Liste, gegen die Hände und Kugeln prüfen, seine Kennung im Netz, sein
+   * Rückstellpunkt für genau dieses `B`/`Y`. Wer nur den Körper nähme, ließe
+   * alle liegen; und ein Körper, den Rapier nicht mehr kennt und die Welt
+   * noch, reißt beim nächsten Bild die ganze wasm mit
+   * (`PhysicsBody.removed`).
+   *
+   * Die **Materialien** einer Regalkopie gehören dabei weiter dem Aufrufer:
+   * Das Aufräumen der Welt endet an `userData.sharedAssets`
+   * (`worlds/shared/environment.ts`, `disposeTree`), weil die Geometrie
+   * darunter der Vorlage gehört und allen anderen Kopien.
+   */
+  removeProp(entry: PhysicsBody): void;
+
+  /**
    * **Etwas Festes hinstellen**: Körper in der Physik und Eintrag in der Liste,
    * gegen die Strahlen geprüft werden (Kletterwand, Reifenstapel, Pfosten).
    *
