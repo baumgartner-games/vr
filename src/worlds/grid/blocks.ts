@@ -123,6 +123,54 @@ export interface BlockFacts {
    * (`blockRise`, `BlockSite.lift`).
    */
   steps?: boolean;
+  /**
+   * **Ob sein Modell je Achse in die gebaute Form gepresst wird** — und um wie
+   * viele Vierteldrehungen es dafür vorher gedreht werden muss.
+   *
+   * Steht hier nichts, wird gleichmäßig skaliert, und das ist bei einem Möbel
+   * das Richtige: Ein Regal, das in der Höhe gestreckt und in der Breite
+   * gestaucht wird, sieht aus wie ein Fehler (der lange Grund steht bei
+   * `blockModelSpot`). Steht hier etwas, gilt das Gegenteil, und auch das hat
+   * einen Grund — denselben wie bei den Requisiten
+   * (`worlds/test/zones/propFit.ts`) und bei der Rampe auf das Sprungkissen
+   * (`worlds/climb/padRamp.ts`): **Auf Theke und Treppe kommt es auf die Form
+   * an und nicht auf die Proportion.** Eine Treppe, deren Stufen nicht genau
+   * dort liegen, wo die gebauten liegen, ist eine, auf der man sichtbar in der
+   * Luft geht; eine Theke, die einen halben Meter tiefer ist als ihr Körper,
+   * ragt in den Gang, in dem nichts steht.
+   *
+   * **Eine Eigenschaft des Bausteins und keine Fallunterscheidung im Rumpf** —
+   * dieselbe Überlegung wie bei `edge` eine Zeile darüber: Wer einen Baustein
+   * dazutut, sieht hier, was mit seinem Modell geschieht, statt es in
+   * `blockModelSpot` zu suchen.
+   */
+  fit?: BlockModelFit;
+}
+
+/**
+ * **Wie das Modell eines Bausteins in seine gebaute Form kommt**, wenn es
+ * nicht gleichmäßig skaliert wird (`BlockFacts.fit`).
+ *
+ * Dass dieser Satz überhaupt eine Struktur ist und kein `true`, liegt an der
+ * Treppe: Ihr Modell steigt in seine eigene **−x**-Richtung, der Baustein
+ * steigt nach vorn, also in −z. Das ist eine Vierteldrehung, und sie gehört zu
+ * derselben Entscheidung — wer das Einpassen anschaltet, muss im selben Atemzug
+ * sagen, welche Achse des Modells welche des Bausteins ist, sonst presst er die
+ * Breite in die Tiefe.
+ */
+export interface BlockModelFit {
+  /**
+   * **Vierteldrehungen um die Hochachse**, bevor eingepasst wird: `0` heißt
+   * „das Modell liegt schon so herum wie der Baustein", `-1` sind −90° — genau
+   * der Winkel, den `blockModelSpot` auch für `DIR_E` rechnet, und damit
+   * dieselbe Drehrichtung wie in `turned()`.
+   *
+   * Gemessen und nicht geraten: Am Netz von `Primitive_Stairs_Half.glb` liegen
+   * die vier Trittflächen bei x = 1,5…2 (unten) bis x = 0…0,5 (oben) — es
+   * steigt also nach −x. Der Baustein steigt nach −z (`BUILD.stairs`,
+   * „hinten ist unten"), und −90° bilden −x auf −z ab.
+   */
+  turn: number;
 }
 
 /**
@@ -153,7 +201,15 @@ export const STAIR_LIFT = 0.7;
 export const RAMP_LIFT = 0.35;
 
 export const BLOCKS: Readonly<Record<BlockKind, BlockFacts>> = {
-  counter: { label: 'Küchenzeile', rise: 0, cost: 1.6, height: 0.9, edge: true },
+  // **Die Theke behält ihre 0,90 m**, und ihr Modell richtet sich nach ihr und
+  // nicht umgekehrt (`BLOCK_MODELS`, `dungeon/bar_straight_B_short.glb`): Der
+  // Bartresen ist in der Quelle im Aufriss quadratisch und 1,24 tief, also
+  // gleichmäßig auf Arbeitshöhe gebracht 1,12 m tief — einen halben Meter mehr,
+  // als `BUILD.counter` baut. Das ist der Fall, für den es `fit` gibt: Der
+  // Umriss des Modells wird zum Umriss der Quader, und die Tiefe wird dabei
+  // gestaucht. Eine Arbeitshöhe ist eine Zahl, die man am Körper misst und
+  // nicht an einer gekauften Datei — 0,90 m bleiben 0,90 m.
+  counter: { label: 'Küchenzeile', rise: 0, cost: 1.6, height: 0.9, edge: true, fit: { turn: 0 } },
   // **Das Regal ist 1,50 m hoch, und das ist die Höhe seines Modells**
   // (`BLOCK_MODELS`, `dungeon/bookcase_single.glb`). Es stand einmal auf 1,90
   // m, und diese Zahl wäre mit dem Modell zu einem Regal geworden, das über
@@ -218,7 +274,20 @@ export const BLOCKS: Readonly<Record<BlockKind, BlockFacts>> = {
   parapet: { label: 'Brüstung', rise: 0, cost: 1, height: 0.55, edge: true },
   // **Die Höhe einer Treppenkachel ist ihr Teilanstieg** und nicht mehr die
   // ganze Etage: Sie liegt zu mehreren hintereinander (`GridPlan.stairs`).
-  stairs: { label: 'Treppe', rise: 0, cost: 1.8, height: STAIR_LIFT, steps: true },
+  //
+  // **Und sie ist die Zahl, an der ihr Modell hängt.** Die vier gebauten Stufen
+  // bleiben der Körper; das Modell (`BLOCK_MODELS`) legt sich je Achse genau
+  // darauf, samt der Vierteldrehung, die es dafür braucht (`fit`). Nichts an
+  // dieser Zeile darf sich nach dem Modell richten — `STEP_RISE`, `STEP_RUN`
+  // und `STAIR_LIFT` sind gelaufene Maße und keine gezeichneten.
+  stairs: {
+    label: 'Treppe',
+    rise: 0,
+    cost: 1.8,
+    height: STAIR_LIFT,
+    steps: true,
+    fit: { turn: -1 },
+  },
   ramp: { label: 'Rampe', rise: 0, cost: 1.2, height: RAMP_LIFT, steps: true },
   // Ein Podest **ist** der Boden, auf dem man dort steht — deshalb hebt es ihn
   // an, statt ein Hindernis darauf zu sein.
@@ -606,39 +675,50 @@ const BUILD: Readonly<Record<BlockKind, (height: number) => PlanSolid[]>> = {
  *   von 1 × 1 × 1 und kein Geländer: Er deckte die ganze Kachel zu, auch die
  *   Hälfte, auf der man steht.
  *
- * **Und zwei, die gebaut bleiben** — das gehört hierher, weil sonst der
- * nächste dieselbe Stunde mit denselben Dateien verbringt:
+ * **Und zwei, bei denen das Verhältnis nicht aufgeht** — die beiden, die hier
+ * eine Weile als „bleibt gebaut" standen, und der Grund, warum es
+ * `BlockFacts.fit` gibt:
  *
- * - **Die Theke.** Gesucht ist eine ganze Kachel breit, 0,90 m hoch, 0,60 m
- *   tief. Die Bartresen des Dungeon-Pakets (`bar_straight_A_short.glb` und
- *   seine Geschwister, 1,000 × 1,000 × 1,200) sind im Aufriss quadratisch und
- *   haben eine überkragende Platte: auf 0,90 m Höhe sind sie 0,90 m breit —
- *   das ginge noch — und **1,08 m tief**. Das ist einen halben Meter tiefer
- *   als der Baustein und achtzehn Zentimeter mehr, als die Kachel hat; ein
- *   Drittel des sichtbaren Schranks stünde dort, wo man durchläuft. Der lange
- *   Bruder (`bar_straight_A.glb`, 2,000 × 1,000 × 1,200) ist auf Kachelbreite
- *   0,50 m hoch, also eine halbe Küchenzeile. Beides ließe sich nur
- *   geraderücken, indem die Theke so tief wird, wie sie hoch ist — dann ist
- *   sie ein Tresen und keine Küchenzeile mehr, und die Nische für die Füße und
- *   die durchgehende Zeile aus zwei Nachbarn gehen mit.
- * - **Die Treppe.** Eine Treppenkachel steigt `STAIR_LIFT` (0,70 m) auf einen
- *   Meter Lauf — Steigung 0,7 : 1. Nachgezählt an den Netzen selbst (die
- *   waagerechten Trittflächen, Stufe für Stufe): `dungeon/
- *   stairs_modular_center.glb` hat über seine 4 × 4 Quelleinheiten **acht**
- *   Stufen von je 0,5 × 0,5 — Steigung 1 : 1, nicht vier Stufen, wie die
- *   Außenmaße vermuten lassen. `prototype-bits/Primitive_Stairs_Half.glb` hat
- *   vier Stufen, auch sie 0,5 hoch auf 0,5 tief, also ebenfalls 1 : 1, und
- *   `stairs.glb`/`stairs_narrow.glb` sind ganze Läufe mit Geländer (5,100 hoch
- *   auf 4,000 tief). Gleichmäßig skaliert wird aus 1 : 1 niemals 0,7 : 1: Wer
- *   die Höhe trifft, ist 30 cm zu kurz, wer den Lauf trifft, 30 cm zu hoch —
- *   und beides sieht man, weil man auf dem Gerechneten geht und nicht auf dem
- *   Bild. Ungleichmäßig stauchen wäre hier ausnahmsweise kein Fehler (eine
- *   Treppe ist kein Regal), aber `BlockModelSpot` gibt **einen** Maßstab
- *   heraus, und die Gitterwelt setzt ihn mit `scale.setScalar` — für drei
- *   Zahlen müssten beide umgebaut werden, und selbst dann läge beim
- *   Acht-Stufen-Modell jede zweite Stufe 8,75 cm unter der Trittfläche, auf
- *   der man wirklich steht. Also bleiben die vier gerechneten Stufen von
- *   0,175 m auf 0,25 m stehen.
+ * - **Die Theke** — `dungeon/bar_straight_B_short.glb`, 1,000 × 1,000 × 1,243:
+ *   im Aufriss quadratisch, mit einer überkragenden Platte und einer
+ *   Schubladenfront samt zwei Griffen. Gleichmäßig auf 0,90 m Arbeitshöhe
+ *   gebracht wäre sie 1,12 m tief und stünde mit 22 cm in die Nachbarkachel
+ *   hinein — also genau dorthin, wo man vor einer Theke steht. Dabei wäre sie
+ *   nur 0,90 m breit, und zwei nebeneinander ließen eine Fuge von zehn
+ *   Zentimetern; eingepasst ergeben sie die durchgehende Zeile, die
+ *   `BUILD.counter` baut. Die drei Zeichnungen unterscheiden sich nur an der
+ *   Front: `_A` ist ein glatter Kasten, `_C` trägt ein aufgesetztes Schnitzwerk,
+ *   das 9 cm vorsteht, und `_B` hat die Schublade mit den beiden Knäufen.
+ *   Gesucht ist hier eine **Werkbank** — die Schießbank des Stands ist eine
+ *   Küchenzeile (`test/zones/range.ts`) —, also `_B`. Die langen Geschwister
+ *   (`_A`/`_B`/`_C` ohne `_short`, 2,000 breit) sind doppelt so breit wie hoch
+ *   und ergäben auf Kachelbreite eine Theke von 0,50 m, also eine halbe
+ *   Küchenzeile.
+ * - **Die Treppe** — `prototype-bits/Primitive_Stairs_Half.glb`: **vier**
+ *   Stufen von 0,5 × 0,5 über 2 × 2 Quelleinheiten, 4 breit, und sie steigen
+ *   über **x**. Nachgezählt am Netz selbst, Trittfläche für Trittfläche, und
+ *   das ist der Unterschied zu den Außenmaßen: `dungeon/
+ *   stairs_modular_center.glb` sieht mit 4 × 4 genauso aus und hat **acht**
+ *   Stufen; `stairs.glb`/`stairs_narrow.glb` sind ganze Läufe mit Geländer
+ *   (5,100 auf 4,000). Vier Stufen sind genau das, was `BUILD.stairs` auf eine
+ *   Kachel baut — und weil sie dort wie hier **gleich hoch** sind, fällt jede
+ *   Trittfläche des eingepassten Modells auf die des gebauten Keils, solange
+ *   die Kachel vier Stufen baut. Das tut sie bei jedem Teilanstieg über 0,6 m,
+ *   also bei `STAIR_LIFT` und bei allem, was `GridPlan.flight` daraus rechnet
+ *   (der Test daneben rechnet die vier Höhen nach).
+ *
+ * Beide brauchen dafür dasselbe: **je Achse einpassen statt gleichmäßig**
+ * (`BlockFacts.fit`, `BlockModelSpot.scale`). Das war einmal der Einwand gegen
+ * sie — `scale` war eine Zahl und die Gitterwelt setzte sie mit
+ * `scale.setScalar` —, und es war kein Einwand gegen die Modelle, sondern
+ * gegen drei Zeilen Code. Dieselbe Rechnung steht im Projekt seit den
+ * Requisiten zweimal da (`test/zones/propFit.ts`, `climb/padRamp.ts`), und dort
+ * steht auch das Argument, warum sie bei einer Schräge **exakt** ist: Eine
+ * ungleichmäßige Skalierung bildet eine Ebene auf eine Ebene ab. Der Preis ist
+ * eine Theke, die 43 % flacher ist, als der Zeichner sie gezeichnet hat; das
+ * sieht man nur von der Seite, und an einer Küchenzeile in einer Reihe steht
+ * niemand seitlich. Bei einem Stuhl wäre derselbe Handgriff falsch, und
+ * deshalb steht er am Baustein und nicht im Rumpf.
  */
 export const BLOCK_MODELS: Readonly<Partial<Record<BlockKind, string>>> = {
   shelf: 'dungeon/bookcase_single.glb',
@@ -646,6 +726,8 @@ export const BLOCK_MODELS: Readonly<Partial<Record<BlockKind, string>>> = {
   bench: 'furniture-bits/chair_A.glb',
   pillar: 'platformer/neutral/pillar_1x1x4.glb',
   parapet: 'dungeon/barrier_half.glb',
+  counter: 'dungeon/bar_straight_B_short.glb',
+  stairs: 'prototype-bits/Primitive_Stairs_Half.glb',
 };
 
 /** Die Adresse im Regal, oder `null` — der einzige Eingang zu `BLOCK_MODELS`. */
@@ -666,18 +748,38 @@ export interface ModelBounds {
   maxZ: number;
 }
 
+/** Drei Zahlen — three.js-frei, damit die Rechnung prüfbar bleibt. */
+export interface BlockVec {
+  x: number;
+  y: number;
+  z: number;
+}
+
 /** Wohin das Modell kommt: Platz, Drehung und der Maßstab obendrauf. */
 export interface BlockModelSpot {
   /**
    * Was **zusätzlich** auf die geladene Gruppe kommt, die den Maßstab ihres
-   * Pakets schon trägt (`core/kaykitModel.copyOf`). Passt das Modell von
-   * selbst, ist es genau `1`.
+   * Pakets schon trägt (`core/kaykitModel.copyOf`), **in den eigenen Achsen des
+   * Modells** — die Drehung kommt danach. Passt das Modell von selbst, ist es
+   * überall genau `1`.
+   *
+   * **Drei Zahlen und nicht eine**, seit Theke und Treppe dazugekommen sind.
+   * Es wäre bequemer gewesen, hier eine Zahl stehen zu lassen und die beiden
+   * Ausnahmen daneben zu schreiben, aber dann gäbe es zwei Wege, ein Modell
+   * hinzustellen, und der zweite wäre der ungeprüfte. Ein gleichmäßig
+   * skaliertes Möbel ist jetzt der Sonderfall, in dem alle drei Zahlen
+   * dieselbe sind — und genau das prüft der Test daneben für die fünf, bei
+   * denen es so bleiben soll.
    */
-  scale: number;
+  scale: BlockVec;
   x: number;
   y: number;
   z: number;
-  /** Um die Hochachse, in Bogenmaß — dieselbe Drehung, die `turned()` rechnet. */
+  /**
+   * Um die Hochachse, in Bogenmaß — die Drehung, die `turned()` rechnet, und
+   * dazu die Vierteldrehung des Modells selbst (`BlockModelFit.turn`), falls es
+   * eine braucht.
+   */
   yaw: number;
 }
 
@@ -693,7 +795,9 @@ export interface BlockModelSpot {
  * daneben, und niemand rechnet sie nach. Gemessen wird also jedes Mal, und die
  * Rechnung darüber steht hier, wo ein Test sie ohne Brille prüfen kann.
  *
- * **Vier Sachen werden entschieden, und jede hat ihren Grund:**
+ * **Vier Sachen werden entschieden, und jede hat ihren Grund** — so lange, wie
+ * gleichmäßig skaliert wird, und das ist bei einem Möbel immer (die beiden
+ * Ausnahmen stehen unten):
  *
  * - **Der Maßstab ist der kleinere von zwei Wünschen**: so hoch wie der
  *   Baustein und höchstens so breit wie seine Kachel (`TILE`).
@@ -734,6 +838,15 @@ export interface BlockModelSpot {
  * steht damit trotzdem richtig, und das ist bei 4 470 fremden Dateien keine
  * Vorsicht, sondern die Regel: Die Brüstung ist so eine (ihre x-Achse läuft
  * von 0 bis 2 statt von −1 bis 1).
+ *
+ * **Und für zwei Bausteine gilt das alles nicht** (`BlockFacts.fit`): Theke und
+ * Treppe werden **je Achse** eingepasst, und dann ist die ganze Rechnung ein
+ * Satz — *der Umriss des Modells wird der Umriss der Quader*. Kein kleinerer
+ * von zwei Wünschen, keine Kante, keine Mitte: Wenn das Bild denselben Kasten
+ * füllt wie der Körper, stehen Rückwand und Mitte von selbst richtig. Was
+ * dafür dazukommt, ist die Vierteldrehung des Modells (`BlockModelFit.turn`) —
+ * sie muss **vor** dem Einpassen stattfinden, sonst presst man die Breite des
+ * Modells in die Tiefe des Bausteins.
  */
 export function blockModelSpot(kind: BlockKind, at: BlockSite, box: ModelBounds): BlockModelSpot {
   // **Der Baustein, wie er ohne Modell dastünde** — nach Norden gebaut, also
@@ -748,28 +861,78 @@ export function blockModelSpot(kind: BlockKind, at: BlockSite, box: ModelBounds)
     maxY: height,
     maxZ: 0,
   };
+  const facts = BLOCKS[kind];
+  const fitted = facts.fit !== undefined;
+  // Vierteldrehungen, auf 0…3 gebracht — negative Zahlen sind dasselbe von der
+  // anderen Seite, und `spun` will es nur einmal wissen.
+  const quarter = (((facts.fit?.turn ?? 0) % 4) + 4) % 4;
+  // **Das Modell in den Achsen des Bausteins.** Bei einer Vierteldrehung
+  // tauschen Breite und Tiefe — dieselbe Zeile, die bei den Quadern `turned()`
+  // schreibt, und dieselbe, die man vergisst.
+  const front = spun(box, quarter);
   // Ein leeres oder entartetes Maß ist kein Absturz wert: Dann bleibt der
   // Maßstab 1, und das Modell steht so da, wie es aus der Datei kam.
-  const tall = Math.max(1e-6, box.maxY - box.minY);
-  const wide = Math.max(1e-6, box.maxX - box.minX);
-  const scale = Math.min(built.maxY / tall, TILE / wide);
+  const tall = Math.max(1e-6, front.maxY - front.minY);
+  const wide = Math.max(1e-6, front.maxX - front.minX);
+  const deep = Math.max(1e-6, front.maxZ - front.minZ);
+  // **Gleichmäßig**: der kleinere von zwei Wünschen — so hoch wie die Quader
+  // und höchstens so breit wie die Kachel.
+  const even = Math.min((built.maxY - built.minY) / tall, TILE / wide);
+  // **Oder je Achse**: der Umriss des Modells wird der Umriss der Quader. In
+  // den Achsen des **Bausteins**, denn erst dort heißt x Breite und z Tiefe.
+  const size: BlockVec = facts.fit
+    ? {
+        x: (built.maxX - built.minX) / wide,
+        y: (built.maxY - built.minY) / tall,
+        z: (built.maxZ - built.minZ) / deep,
+      }
+    : { x: even, y: even, z: even };
   // In der kleinen Welt des Bausteins: Mitte auf der Kachelachse, Unterkante
-  // auf dem Boden, Rückwand an der Kante — oder eben mittig auf der Kachel.
-  const lx = (-(box.minX + box.maxX) / 2) * scale;
-  const ly = -box.minY * scale;
-  const lz = BLOCKS[kind].edge
-    ? built.minZ - box.minZ * scale
-    : (-(box.minZ + box.maxZ) / 2) * scale;
-  const yaw = (-at.dir * Math.PI) / 2;
-  const cos = Math.cos(yaw);
-  const sin = Math.sin(yaw);
+  // auf der der Quader, Rückwand an der Kante — oder eben mittig auf der
+  // Kachel. Eingepasst fallen die drei zusammen, denn dann deckt sich der
+  // ganze Kasten, und deshalb steht das Eingepasste bei beiden auf derselben
+  // Seite des Fragezeichens.
+  const lx = fitted ? built.minX - front.minX * size.x : (-(front.minX + front.maxX) / 2) * size.x;
+  const ly = built.minY - front.minY * size.y;
+  const lz =
+    fitted || facts.edge
+      ? built.minZ - front.minZ * size.z
+      : (-(front.minZ + front.maxZ) / 2) * size.z;
+  const spin = (-at.dir * Math.PI) / 2;
+  const cos = Math.cos(spin);
+  const sin = Math.sin(spin);
   return {
-    scale,
+    // **Zurück in die Achsen des Modells**: `holder.scale` wirkt vor der
+    // Drehung (three.js setzt `T · R · S` zusammen), eine Vierteldrehung
+    // tauscht also x und z wieder zurück.
+    scale: quarter % 2 === 0 ? size : { x: size.z, y: size.y, z: size.x },
     x: at.x + lx * cos + lz * sin,
     y: at.base + (at.lift ?? 0) + ly,
     z: at.z - lx * sin + lz * cos,
-    yaw,
+    yaw: spin + (quarter * Math.PI) / 2,
   };
+}
+
+/**
+ * **Derselbe rechte Winkel, nur auf einen Umriss** — `turned()` dreht Quader,
+ * das hier dreht die gemessene Hülle eines Modells.
+ *
+ * Vier rechte Winkel, also bleibt ein achsenparalleler Kasten achsenparallel;
+ * gerechnet wird mit Vertauschen und Vorzeichen und nicht mit `Math.cos`, damit
+ * eine Vierteldrehung **genau** eine ist und nicht 6,1 · 10⁻¹⁷ daneben.
+ *
+ * `quarter` ist schon auf 0…3 gebracht — der Aufrufer weiß, ob er nach links
+ * oder nach rechts dreht, hier ist beides dieselbe Vertauschung.
+ */
+function spun(box: ModelBounds, quarter: number): ModelBounds {
+  const high = { minY: box.minY, maxY: box.maxY };
+  if (quarter === 1)
+    return { ...high, minX: box.minZ, maxX: box.maxZ, minZ: -box.maxX, maxZ: -box.minX };
+  if (quarter === 2)
+    return { ...high, minX: -box.maxX, maxX: -box.minX, minZ: -box.maxZ, maxZ: -box.minZ };
+  if (quarter === 3)
+    return { ...high, minX: -box.maxZ, maxX: -box.minZ, minZ: box.minX, maxZ: box.maxX };
+  return { ...box };
 }
 
 /** Nur damit die vier Richtungen einmal namentlich in dieser Datei stehen. */
