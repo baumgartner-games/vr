@@ -35,15 +35,15 @@
     <title>Baumgartner VR</title>
     <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
-    <script type="module" crossorigin src="/vr/assets/main-g9CZ7n4k.js"></script>
+    <script type="module" crossorigin src="/vr/assets/main-CRtn4eSw.js"></script>
     <link rel="modulepreload" crossorigin href="/vr/assets/pwa-C82_zIY8.js">
-    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-DvkXn9iN.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-Dm2iMlMO.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/posture-BiXtEZiL.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/fullscreen-t6LUfsK2.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/gamepad-ts0qtVAS.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/assetVersion-B6OvxHBA.js">
-    <link rel="stylesheet" crossorigin href="/vr/assets/main-DyliSqpU.css">
-    <meta name="bgvr-build" content="20ef08c4e15f">
+    <link rel="stylesheet" crossorigin href="/vr/assets/main-DI2_qyNO.css">
+    <meta name="bgvr-build" content="9491166062eb">
   </head>
   <body>
     <canvas id="scene"></canvas>
@@ -180,8 +180,28 @@
           </div>
         </div>
 
-        <!-- Derselbe eine Knopf wie in der Lobby der Runde, siehe oben. -->
-        <button type="button" id="enter" class="btn btn--primary only-generic">Beitreten</button>
+        <!--
+          Derselbe eine Knopf wie in der Lobby der Runde, siehe oben — nur
+          steht er hier **stumpf** da, und das ist Absicht.
+
+          In der Sekunde vor dem Bündel ist die Welt mit Sicherheit nicht
+          geladen; ein Knopf, der dort bedienbar aussieht, verspricht etwas,
+          das erst `main.ts` einlösen kann — und genau das war der Befund: Wer
+          in dieser Lücke drückte, drückte ins Leere. Also sagt er von Anfang
+          an dasselbe wie der Balken darunter.
+
+          Der Preis ist ein toter Knopf, wenn das Bündel **gar nicht** kommt.
+          Dann ist die Seite allerdings ohnehin nur ein Bild, und ein grauer
+          Knopf ist die ehrlichere Hälfte davon. Freigegeben wird er im
+          Modulrumpf von `main.ts` (`paintStart`) — sofort, wo gar nicht
+          vorgewärmt wird (Daten sparen, `2g`, Tab im Hintergrund), sonst,
+          wenn die Welt samt ihrer Startladung steht.
+
+          Die Lobby (`#haunt-enter`, oben) bekommt das **nicht**: Dort wird
+          mit Absicht nichts vorgewärmt, es gibt also auch nichts, worauf ein
+          Knopf warten könnte.
+        -->
+        <button type="button" id="enter" class="btn btn--primary only-generic" disabled>Beitreten</button>
 
         <!--
           **Der Ladebalken des Starts — und warum er hier steht und nicht in
