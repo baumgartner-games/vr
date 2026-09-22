@@ -374,11 +374,34 @@ describe('Woher ein Quader kommt', () => {
     }
   });
 
-  it('gibt nur dem Regal ein Modell aus dem Regal', () => {
-    expect(blockModel('shelf')).toBe('dungeon/bookcase_single.glb');
-    for (const kind of BLOCK_KINDS) {
-      if (kind !== 'shelf') expect(blockModel(kind)).toBeNull();
-    }
+  /**
+   * **Fünf Adressen, und der Rest bleibt gerechnet.** Die Liste steht hier
+   * ausgeschrieben und wird nicht aus `BLOCK_MODELS` abgeleitet: Ein Test, der
+   * die Tabelle mit sich selbst vergleicht, prüft nichts. Dieser sagt, welche
+   * Datei gemeint ist, und fällt um, wenn jemand sie stillschweigend
+   * austauscht.
+   */
+  const MODELLED: Readonly<Partial<Record<BlockKind, string>>> = {
+    shelf: 'dungeon/bookcase_single.glb',
+    table: 'furniture-bits/table_small.glb',
+    bench: 'furniture-bits/chair_A.glb',
+    pillar: 'platformer/neutral/pillar_1x1x4.glb',
+    parapet: 'dungeon/barrier_half.glb',
+  };
+
+  it('gibt fünf Bausteinen ein Modell aus dem Regal und den anderen keines', () => {
+    for (const kind of BLOCK_KINDS) expect(blockModel(kind)).toBe(MODELLED[kind] ?? null);
+  });
+
+  /**
+   * **Theke und Treppe bleiben gebaut, und das ist eine Entscheidung und kein
+   * Vergessen** — die Begründung samt Maßen steht bei `BLOCK_MODELS`. Wer
+   * ihnen doch eines gibt, kommt an dieser Zeile vorbei und liest dort nach,
+   * warum es bisher keines gab.
+   */
+  it('lässt die Theke und die Treppe gerechnet', () => {
+    expect(blockModel('counter')).toBeNull();
+    expect(blockModel('stairs')).toBeNull();
   });
 });
 
@@ -469,5 +492,176 @@ describe('Das Bücherregal aus dem Regal', () => {
     expect((one.minX + one.maxX) / 2).toBeCloseTo(0, 6);
     expect(one.minY).toBeCloseTo(0, 6);
     expect(one.minZ).toBeCloseTo(solidBounds(at('shelf', DIR_N))!.minZ, 6);
+  });
+});
+
+/**
+ * **Die vier Modelle, die zum Bücherregal dazugekommen sind** — jedes mit dem
+ * Umriss, den seine Datei hergibt, multipliziert mit dem Maßstab seines Pakets
+ * (`core/kaykitFit`, überall 0,5).
+ *
+ * Abgeschriebene Zahlen, ja — aber an der richtigen Stelle: Im Spiel misst der
+ * Aufrufer den **geladenen** Baum, und diese Konstanten sind der Beleg dafür,
+ * woran die Rechnung hier nachgerechnet wurde. Wer ein Paket aktualisiert und
+ * andere Maße vorfindet, schreibt sie hier hin und sieht in derselben Minute,
+ * ob die Bausteine noch aufgehen.
+ */
+
+/** `furniture-bits/table_small.glb`: 1,000 × 1,000 × 1,000 — im Aufriss quadratisch. */
+const TABLE: ModelBounds = { minX: -0.25, maxX: 0.25, minY: 0, maxY: 0.5, minZ: -0.25, maxZ: 0.25 };
+
+/**
+ * `furniture-bits/chair_A.glb`: 0,750 × 1,258 × 0,845, mit der Lehne bei −z —
+ * also herum wie ein Baustein, der an seiner Kante steht und in den Raum
+ * schaut.
+ */
+const CHAIR: ModelBounds = {
+  minX: -0.1875,
+  maxX: 0.1875,
+  minY: 0,
+  maxY: 0.629,
+  minZ: -0.235,
+  maxZ: 0.1875,
+};
+
+/** `platformer/neutral/pillar_1x1x4.glb`: 0,800 × 4,000 × 0,800 — ein Fünftel so breit wie hoch. */
+const PILLAR: ModelBounds = { minX: -0.2, maxX: 0.2, minY: 0, maxY: 2, minZ: -0.2, maxZ: 0.2 };
+
+/**
+ * `dungeon/barrier_half.glb`: 2,000 × 1,100 × 0,500 — und der Ursprung sitzt
+ * **nicht** in der Mitte: Die x-Achse läuft von 0 bis 2. Genau dafür rechnet
+ * `blockModelSpot` mit der gemessenen Mitte und nicht mit der Annahme.
+ */
+const BARRIER: ModelBounds = { minX: 0, maxX: 1, minY: 0, maxY: 0.55, minZ: -0.125, maxZ: 0.125 };
+
+/** Welcher Umriss zu welchem Baustein gehört — für die Läufe über alle vier. */
+const BOXES: Readonly<Partial<Record<BlockKind, ModelBounds>>> = {
+  shelf: BOOKCASE,
+  table: TABLE,
+  bench: CHAIR,
+  pillar: PILLAR,
+  parapet: BARRIER,
+};
+
+describe('Tisch, Bank, Säule und Brüstung aus dem Regal', () => {
+  it('bringt den Tisch auf Tischhöhe und lässt ihn quadratisch', () => {
+    const one = placed('table', DIR_N, TABLE);
+    // 0,75 m hoch aus 0,50 m Modell: anderthalbmal so groß, und weil der
+    // Aufriss quadratisch ist, ist er damit auch 0,75 m breit.
+    expect(one.spot.scale).toBeCloseTo(1.5, 6);
+    expect(one.maxY).toBeCloseTo(BLOCKS.table.height, 6);
+    expect(one.maxX - one.minX).toBeCloseTo(0.75, 6);
+    expect(one.maxZ - one.minZ).toBeCloseTo(0.75, 6);
+  });
+
+  /**
+   * **Die Zeile, wegen der die Höhe am Gebauten gemessen wird und nicht in der
+   * Tabelle nachgeschlagen.** `BLOCKS.bench.height` ist die **Sitzfläche**
+   * (0,46 m); die Lehne steht darüber. Ein Stuhl, der auf 0,46 m eingepasst
+   * würde, wäre samt Lehne so hoch wie seine eigene Sitzfläche.
+   */
+  it('passt den Stuhl auf die Oberkante der Bank ein und nicht auf ihre Sitzfläche', () => {
+    const one = placed('bench', DIR_N, CHAIR);
+    const built = solidBounds(at('bench', DIR_N))!;
+    expect(one.maxY).toBeCloseTo(built.maxY, 6);
+    expect(one.maxY).toBeGreaterThan(BLOCKS.bench.height * 1.5);
+  });
+
+  it('macht die Säule so hoch, wie sie bestellt ist — und dabei schlank', () => {
+    const one = placed('pillar', DIR_N, PILLAR);
+    // Wandhoch (2,80 m) aus 2,00 m Modell: Faktor 1,4, und ein Fünftel davon
+    // ist die Breite.
+    expect(one.spot.scale).toBeCloseTo(1.4, 6);
+    expect(one.maxY).toBeCloseTo(BLOCKS.pillar.height, 6);
+    expect(one.maxX - one.minX).toBeCloseTo(0.56, 6);
+    // Auch eine kürzere Säule bleibt maßstäblich: 2,60 m in der Boxengasse.
+    const short = placed('pillar', DIR_N, PILLAR, { height: 2.6 });
+    expect(short.spot.scale).toBeCloseTo(1.3, 6);
+    expect(short.maxX - short.minX).toBeCloseTo(0.52, 6);
+  });
+
+  it('nimmt die Brüstung ohne Umrechnung — der Baustein steht auf der Höhe des Modells', () => {
+    const one = placed('parapet', DIR_N, BARRIER);
+    expect(one.spot.scale).toBeCloseTo(1, 6);
+    expect(one.maxY).toBeCloseTo(BLOCKS.parapet.height, 6);
+    // Genau eine Kachel breit, und damit ergeben zwei nebeneinander ein
+    // durchgehendes Geländer.
+    expect(one.maxX - one.minX).toBeCloseTo(TILE, 6);
+  });
+
+  /**
+   * **Die Brüstung steht auf der Kachelkante, das Regal eine Handbreit davor**
+   * — und beide Modelle stehen dort, wo ihre eigenen Quader stehen. Eine feste
+   * Zahl für beide gäbe es nicht: Hinter dem Regal kann eine Wand stecken,
+   * hinter der Brüstung ist die Luft, über der sie steht.
+   */
+  for (const kind of ['shelf', 'bench', 'parapet'] as const) {
+    for (const dir of [DIR_N, DIR_E, DIR_S, DIR_W] as const) {
+      it(`stellt ${kind} an dieselbe Kante wie seine Quader (Richtung ${dir})`, () => {
+        const model = placed(kind, dir, BOXES[kind]);
+        const built = solidBounds(at(kind, dir))!;
+        if (dir === DIR_N) expect(model.minZ).toBeCloseTo(built.minZ, 6);
+        if (dir === DIR_S) expect(model.maxZ).toBeCloseTo(built.maxZ, 6);
+        if (dir === DIR_E) expect(model.maxX).toBeCloseTo(built.maxX, 6);
+        if (dir === DIR_W) expect(model.minX).toBeCloseTo(built.minX, 6);
+      });
+    }
+  }
+
+  /**
+   * **Und Tisch und Säule stehen mittig** — in beiden Achsen und in jeder
+   * Richtung. Sie waren es, an denen die feste Kante falsch war: Ein Tisch mit
+   * dem Rücken an der Wand steht nicht über seinen vier Beinen.
+   */
+  for (const kind of ['table', 'pillar'] as const) {
+    for (const dir of [DIR_N, DIR_E, DIR_S, DIR_W] as const) {
+      it(`stellt ${kind} mitten auf seine Kachel (Richtung ${dir})`, () => {
+        const one = placed(kind, dir, BOXES[kind]);
+        expect((one.minX + one.maxX) / 2).toBeCloseTo(0, 6);
+        expect((one.minZ + one.maxZ) / 2).toBeCloseTo(0, 6);
+      });
+    }
+  }
+
+  /** Dieselbe Zusage wie für die Quader: Keines ragt in die Nachbarkachel. */
+  for (const kind of BLOCK_KINDS) {
+    const box = BOXES[kind];
+    if (!box) continue;
+    for (const dir of [DIR_N, DIR_E, DIR_S, DIR_W] as const) {
+      it(`lässt ${kind} auf seiner Kachel (Richtung ${dir})`, () => {
+        const one = placed(kind, dir, box);
+        expect(one.minX).toBeGreaterThanOrEqual(-TILE / 2 - 1e-6);
+        expect(one.maxX).toBeLessThanOrEqual(TILE / 2 + 1e-6);
+        expect(one.minZ).toBeGreaterThanOrEqual(-TILE / 2 - 1e-6);
+        expect(one.maxZ).toBeLessThanOrEqual(TILE / 2 + 1e-6);
+        expect(one.minY).toBeCloseTo(0, 6);
+      });
+    }
+  }
+});
+
+/**
+ * **Die Zahlen, die mit einem Modell gewandert sind.**
+ *
+ * Beim Regal war es die Höhe (1,90 → 1,50 m), bei der Brüstung dieselbe Sache
+ * (0,90 → 0,55 m): Das Modell ist genau eine Kachel breit, breiter darf es
+ * nicht werden, und ein sichtbares Geländer vor einem unsichtbaren Hindernis
+ * ist der Fehler, den diese Datei verhindern soll. Steht hier eine andere
+ * Zahl, gehört das Modell dazu nachgemessen.
+ */
+describe('Was ein Modell an der Tabelle verändert hat', () => {
+  it('hält Regal und Brüstung auf der Höhe ihrer Modelle', () => {
+    expect(BLOCKS.shelf.height).toBeCloseTo(1.5, 6);
+    expect(BLOCKS.parapet.height).toBeCloseTo(0.55, 6);
+  });
+
+  /**
+   * **Und die Brüstung hält immer noch auf**: Der Character-Controller steigt
+   * 0,32 m (`physics/PhysicsLocomotion`), eine Mauer von 0,55 m ist mehr. Wäre
+   * sie es nicht, wäre aus einem Geländer eine Schwelle geworden.
+   */
+  it('lässt die Brüstung höher als ein Schritt', () => {
+    expect(BLOCKS.parapet.height).toBeGreaterThan(0.32);
+    expect(solidBounds(at('parapet', DIR_N))!.maxY).toBeCloseTo(BLOCKS.parapet.height, 6);
   });
 });
