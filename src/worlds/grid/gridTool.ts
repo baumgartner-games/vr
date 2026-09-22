@@ -6,7 +6,7 @@ import {
   type PlanTool,
 } from '../editor/levelPlan';
 import { DIR_N, keyLevel, keyX, keyZ } from '../nav/navTile';
-import { BLOCKS, type BlockKind } from './blocks';
+import { BLOCKS, BLOCK_KINDS, type BlockKind } from './blocks';
 import { fixtureKind, type Props } from './fixtures/index';
 import type { GridPlan } from './gridPlan';
 
@@ -85,15 +85,18 @@ export const PALETTE_BLOCKS: readonly BlockKind[] = [
  * Nicht dieselbe Liste wie „hat eine Blickrichtung" — die haben alle. Es ist
  * die Liste derer, bei denen die Blickrichtung **keine Auswahl** ist, sondern
  * die Wand, an der sie kleben.
+ *
+ * **Sie steht nicht mehr hier**, sondern bei den Bausteinen selbst
+ * (`blocks.BlockFacts.edge`), und das ist der Unterschied zwischen einer
+ * Antwort und einer Abschrift: Inzwischen hängt auch der Platz des Modells aus
+ * dem Regal daran (`blocks.blockModelSpot`), und eine zweite Liste, die
+ * dasselbe wissen muss, wird irgendwann die erste sein, die jemand vergisst.
+ * Der Name bleibt, weil der Bauplatz ihn an zwei Stellen liest
+ * (`editor/planPaint.ts`).
  */
-export const EDGE_BLOCKS: ReadonlySet<BlockKind> = new Set<BlockKind>([
-  'counter',
-  'shelf',
-  'bench',
-  'railing',
-  'parapet',
-  'panel',
-]);
+export const EDGE_BLOCKS: ReadonlySet<BlockKind> = new Set<BlockKind>(
+  BLOCK_KINDS.filter((kind) => BLOCKS[kind].edge),
+);
 
 export function isBlockTool(tool: string): tool is BlockKind {
   return tool in BLOCKS;
