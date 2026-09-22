@@ -30,6 +30,7 @@ liegt in der Hand.
 | `public/models/kaykit/`        | Die aufbereiteten Pakete, je Paket mit eigener `LICENSE.txt` und eigenem `textures/`-Ordner |
 | `…/kaykit/index.json`          | Der erzeugte Verzeichnisbaum — geschrieben von `tools/kaykit-model.mjs` |
 | `core/kaykitIndex.ts`          | **Rein**: Typen des Index, Adressen, Beschriftungen, und der Menübaum daraus (`kaykitMenu`) |
+| `core/kaykitTerms.ts`          | **Rein**: das Wörterbuch Englisch ↔ Deutsch — 710 Wörter der Sammlung, die Rückrichtung für die Suche und die deutsche Bedeutung eines Dateinamens |
 | `core/kaykitFit.ts`            | **Rein**: `KAYKIT_SCALE` als Vorgabe, `KAYKIT_PACK_SCALE` je Paket, `kaykitScale(pfad)` |
 | `core/kaykitCrate.ts`          | **Rein**: unter welche Adresse ein Kistendeckel als Sockel gehört |
 | `core/kaykitClips.ts`          | **Rein**: welches Skelett eine Figur hat, welche Dateien seine Bewegungen tragen, wie eine Spur im Feld heißt |
@@ -251,10 +252,12 @@ sonst zerfiele das Wort am Zerteiler in `m` und `bel`, und wer auf einem
 englischen Pad tippt, schreibt es ohnehin ohne. Erst ab **drei Zeichen** darf
 ein Wort eine Schublade meinen: Ein einzelnes `d` passt auf `decor` und damit
 auf ein Zehntel der Sammlung, und ein Filter, der alles durchlässt, ist
-keiner. `holz kiste` findet weiter nichts, weil die Sammlung englisch heißt
-und keine Schublade so heißt. **Sortiert wird nach
+keiner. `holz kiste` fand hier einmal nichts, weil die Sammlung englisch
+heißt und keine Schublade so hieß; seit es das Wörterbuch gibt, findet es
+`crate_wood` (siehe unten). **Sortiert wird nach
 Güte**: Wer mit dem Gesuchten anfängt, steht vor dem, der es enthält, der vor
-dem, bei dem es nur im Ordnernamen steht — und ganz hinten der, bei dem nur
+dem, den nur die Übersetzung trifft, der vor dem, bei dem es nur im
+Ordnernamen steht — und ganz hinten der, bei dem nur
 die Schublade passt. Sonst stünde bei `chair` die
 Kachel `restaurant-bits/chair_A` hinter dreißig Dateien aus einem Ordner, der
 zufällig `chairs` heißt. Mehr als `SEARCH_LIMIT` (200) Treffer gibt es nicht:
@@ -267,6 +270,99 @@ Die Liste wird bei jedem Neuzeichnen ausgetauscht (zweimal die Sekunde, siehe
 Fokus verloren. **Und eine andere Seite fängt ohne Suchbegriff an** — ein Feld,
 das beim Hineingehen stehen bliebe, filterte die neue Seite nach dem, was
 jemand auf der alten gesucht hat, und niemand sähe, warum sie fast leer ist.
+
+## Deutsch suchen — ein Wörterbuch und keine 4470 Zeilen
+
+Die Sammlung ist englisch beschriftet, Datei für Datei: `barrel_large.glb`,
+`bookcase_single.glb`, `lantern.glb`, `target_stand_A.glb`. Wer `fass`,
+`regal`, `laterne` oder `zielscheibe` eintippte, fand nichts — und das ist
+keine Kleinigkeit, sondern der Unterschied zwischen einem Katalog, den man
+durchsucht, und einem, durch den man blättert, bis man aufgibt. Gewünscht war
+deshalb: „ich möchte zudem translations (deutsch, english) für die kaykit
+elemente haben, sodass ich auch auf deutsch danach suchen kann."
+
+**Übersetzt werden die Wörter und nicht die Dateien.** Eine deutsche Zeile
+neben jedes der 4470 Modelle zu schreiben, wäre eine Liste, die niemand
+schreibt und erst recht niemand pflegt: Kommt ein Paket dazu, fehlen tausend
+Zeilen, und was fehlt, sieht man nicht — man findet es bloß nicht. Die
+Sammlung besteht aber gar nicht aus 4470 verschiedenen Wörtern, sondern aus
+**913**, und ein paar hundert davon tragen fast alles: `rock` steht in 543
+Namen, `hill` in 491, `tree` in 281. Also hängt die Übersetzung an den Wörtern
+(`core/kaykitTerms.ts`, `KAYKIT_TERMS`), und ein neues Paket mit
+`barrel_small.glb` darin ist vom ersten Tag an deutsch durchsuchbar, ohne dass
+jemand etwas nachträgt.
+
+**Die Liste ist aus den Daten gezogen und nicht geraten.** Ein Wegwerf-Skript
+hat alle Dateinamen aus `index.json` zerlegt, gezählt und sortiert; von oben
+nach unten ist abgearbeitet worden, was etwas bedeutet. Draußen bleibt, was
+nichts heißt — Zählbuchstaben (`A`, `B`), Maßkürzel (`4x4x2`), die Farbordner
+des Waldes (`color1` … `color8`), Stilkürzel (`styleB`) — und alles, was auf
+Deutsch genauso heißt: Ein Eintrag `hammer: ['Hammer']` bringt keinen Treffer,
+den es nicht schon gibt, und ein Test besteht darauf. Übrig bleiben **710
+Einträge**, und damit tragen **4433 der 4470 Dateien** mindestens ein
+deutsches Wort im Namen: 99,2 %. Die Zahl steht nicht nur im Kommentar — sie
+ist eine Zusage (`KAYKIT_TERM_COVERAGE`), und der Test rechnet sie über den
+echten Index nach. Was danach noch übrig ist, sind Eigennamen (`Paladin`,
+`Ninja`, `4GTN`) und Wörter wie `Lava`, `Taco`, `Ketchup`.
+
+**Mehrere deutsche Wörter je englischem sind der Normalfall**: `crate` ist
+Kiste und Verschlag, `barrel` Fass und Tonne, `rock` Stein und Fels. Für die
+Suche zählen alle gleich; für die **Anzeige** zählt nur das erste.
+
+**Gesucht wird weiter genau einmal.** Die Übersetzung ist keine zweite Suche
+neben der ersten, sondern eine Erweiterung der **Anfrage**: Aus `laterne` wird
+beim Suchen auch `lantern`, und danach rechnet dieselbe Schleife mit denselben
+Güte-Punkten weiter wie vorher. Das ist auch der Grund, warum man von alledem
+nichts merkt — die Suche läuft bei jedem Tastendruck über 4470 Einträge, und
+ein Wörterbuch, das dabei 4470 Namen nachschlüge, wäre 4470 Nachschlagewerke
+je Buchstabe. Ein Suchbegriff hat zwei Wörter. Was je Datei nötig ist, steht
+längst da und ist **einmal** beim Aufbau der flachen Liste gerechnet: ihre
+Schubladen (`KaykitFileRef.cats`) und ihre Wörter (`.words`) — Letztere als
+eine Zeichenkette mit Leerzeichen um jedes Wort (` dungeon barrel large `),
+denn damit ist „ganzes Wort" ein gewöhnliches `includes` und keine Zerlegung.
+
+**Ein ganzes Wort, und am Wortanfang erst ab fünf Buchstaben**
+(`TERM_PREFIX_MIN`). `küche` soll `kitchencounter` finden — wer zwei Wörter
+zusammenschreibt, meint keine neue Sache —, aber `dose` darf nicht jede
+`candle` mitbringen, nur weil `can` drei Buchstaben davon sind. Dieselbe
+Überlegung wie bei `CATEGORY_TERM_MIN`, nur von der anderen Seite.
+
+**Die Wertung bleibt ehrlich.** Wer `laterne` tippt, hat `lantern` nicht
+geschrieben: Die Zuordnung ist eine Vermutung über die Absicht, und eine
+Vermutung darf einen Namen, der wirklich so heißt, nicht überholen. Ein
+Übersetzungstreffer zählt deshalb weniger als jeder direkte Namenstreffer —
+und mehr als der Ordnername und die Schublade, denn wer `kiste` sucht, meint
+die Kiste und nicht jede Datei, die zufällig in einem Ordner namens
+`containers` liegt. Die Leiter ist damit: Name von vorn, Name irgendwo,
+Übersetzung, Ordner, Schublade.
+
+**Umlaute sind erlaubt und müssen es sein.** Der Zerteiler faltet sie
+ohnehin (`terms()`, `ä→a`, `ö→o`, `ü→u`, `ß→ss`) — im Wörterbuch steht deshalb
+die richtige Schreibweise (`Fässer`), und gefunden wird mit ihr **und** mit
+`fasser`, wie es tippt, wer an einem englischen Pad sitzt. Ein Plural zeigt
+dabei auf die Einzahl, wo es sie gibt: `Fässer` → `barrel`, denn `barrel`
+steckt in `barrels_stacked.glb` ohnehin drin.
+
+**Und englische Synonyme sind die Kür**, fünfzehn Zeilen lang
+(`KAYKIT_SYNONYMS`): Ein Fass heißt auch `cask`, ein Sofa `sofa` statt
+`couch`, eine Taschenlampe `flashlight` statt `torch`. Wer so sucht, soll
+nicht leer ausgehen, bloß weil der Zeichner das andere Wort gewählt hat.
+
+**Zu sehen ist die Übersetzung an zwei Stellen — und der Name bleibt
+englisch.** Der Dateiname ist die **Adresse**: Wer `barrel_large` sucht, sucht
+genau diese Zeichenkette, und eine Kachel, die „Fass Groß" hieße, fände er nie
+wieder. Die deutsche Bedeutung steht deshalb **darunter** —
+in der Kachel als kleine zweite Zeile (`MenuEntry.caption`, am Handgelenk die
+Fahne über dem Panel) und im Steckbrief hinter dem ⓘ als erste Zeile
+_Deutsch_, noch vor Paket und Ordner: Wer den Steckbrief aufschlägt, weil er
+nicht weiß, was `Target Stand A` ist, bekommt die Antwort als Erstes und nicht
+nach drei Zeilen Buchführung. Was dort steht, ist eine **Glosse** und keine
+Übersetzung: Wort für Wort in der Reihenfolge des Namens, je Wort das erste
+deutsche (`kaykitGerman`, `barrel_large.glb` → „Fass Groß"). Daraus Grammatik
+zu machen — „großes Fass" — hieße, für jedes Wort zu wissen, ob es Ding oder
+Eigenschaft ist; das wüsste eine zweite Tabelle mit 500 Zeilen, und die pflegt
+wieder niemand. Dateien, für die das Wörterbuch nichts hergibt, bekommen keine
+leere Zeile.
 
 ## Das Modell in der Kachel — und wie es auf dem Telefon dorthin kommt
 
