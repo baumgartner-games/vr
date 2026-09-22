@@ -3,13 +3,21 @@ import * as THREE from 'three';
 /**
  * Die bemalte Scheibe einer Zielscheibe — fünf Ringe, der innerste rot.
  *
- * Sie hängt an zwei Stellen: draußen auf dem **Schießstand**, wo sie auf
- * hundert Meter noch lesbar sein muss, und im **Schießgang des
- * Eingaberaums**, wo sie zehn Meter weit weg steht und nur eine Aufgabe hat —
- * eine Richtung zu sein, in die ein Werkzeug zeigen kann. Dass beide dieselbe
- * Scheibe zeigen, ist kein Zufall, sondern der Grund, warum das hier ein
- * eigener Bauteil ist: eine zweite, „ähnliche" Scheibe wäre in dem Moment
- * falsch, in dem jemand an einer von beiden etwas ändert.
+ * Sie hängt heute an **einer** Stelle: draußen auf dem **Schießstand**
+ * (`worlds/test/zones/range.ts`, `RangeZone.face`), wo sie auf zwanzig Meter
+ * noch lesbar sein muss. Hier stand einmal, dass es zwei seien — die zweite
+ * war der **Schießgang des Eingaberaums**, und den gibt es nicht mehr: Die
+ * sechs Zahlen einer Werkzeug-Pose zieht man inzwischen auf der Werkzeugseite
+ * (siehe `docs/agents/waffe-und-kart.md`). Ein eigener Bauteil bleibt sie
+ * trotzdem, und zwar aus dem Grund, aus dem sie einer wurde: Eine zweite,
+ * „ähnliche" Scheibe wäre in dem Moment falsch, in dem jemand an einer von
+ * beiden etwas ändert.
+ *
+ * **Und sie bleibt gemalt.** Im Regal liegt eine gekaufte Scheibe
+ * (`prototype-bits/target.glb`), aber ihre Ringe sind nicht die, nach denen
+ * hier gezählt wird — vier Felder statt fünf, und an anderen Halbmessern. Die
+ * lange Fassung steht in `docs/agents/modelle.md`, „Was aus dem Regal die
+ * gebaute Geometrie ersetzt — und was nicht".
  *
  * Jeder Aufruf baut ein **eigenes** Material samt Textur — wer es baut, gibt
  * es auch wieder frei, und ein weltweit geteiltes Material überlebt sonst die
