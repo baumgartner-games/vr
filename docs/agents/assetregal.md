@@ -1342,6 +1342,16 @@ nächste gebaut würde —, und danach stünde dort ein Fass, das aus nichts
 besteht. Das passiert beim Zurücksetzen der Welt, beim Weltwechsel und bei
 jedem `removeProp`, also an drei Stellen, die niemand im Verdacht hätte.
 
+**Und es ist inzwischen dreimal dieselbe Falle gewesen**, jedes Mal an einem
+anderen Aufräumer: `GridWorld.disposeShapes` hielt an der Marke nicht an,
+`SignBoard.dispose()` lief mit `traverse` über alles, und
+`disposeToolTree` in `portal/tools/Tool.ts` kannte sie ebenfalls nicht — der
+Letzte fiel auf, als die Pistole ihr Netz aus dem Regal holte. Alle drei halten
+jetzt an, und die Lehre daraus steht ausführlich in
+[Modelle](./modelle.md): **Der Handgriff, der freigibt, soll die Marke kennen —
+nicht jeder, der ihn ruft.** Wer ein Regalmodell in etwas hängt, das schon
+aufräumt, sieht dort als Erstes nach.
+
 ## Grenzen
 
 - **Der Speicher wächst mit dem Blättern.** Wer viele Ordner durchsieht, sammelt

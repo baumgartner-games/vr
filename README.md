@@ -174,9 +174,24 @@ unter jedem Schild, das **Stachelfeld**, durch das der NPC läuft, die
 (ab zehn Punkten) in sechs Stücke, die auseinanderfliegen und liegenbleiben,
 bis `B`/`Y` die Zone zurückstellt. Gerechnet wird dabei nichts anders: Wertung,
 Kollisionskörper und Wegekosten sind dieselben wie vorher — getauscht ist nur
-das Bild. Draußen, wo das Gelände aufhört, liegt statt der gemalten Kachelung
-ein **Plattenboden**, hell und dunkel im Schachbrett, 32 Meter weit in alle
-Richtungen.
+das Bild.
+
+**Und es sind noch einmal ein Dutzend dazugekommen.** Tisch, Bank, Säule,
+Brüstung, Theke und Treppe sind als **Bausteine** getauscht, also überall dort,
+wo jemand sie hinstellt; dazu die Steine am Streckenrand der Kartbahn, die
+Rampe und das Sprungkissen an der Kletterwand — aus dem einen blauen Quader
+sind achtundvierzig Klötze geworden, die beim Aufkommen mit einsinken. Der
+**rote Knopf** ist jetzt eine Steinsäule mit einer roten Spielfigur darauf, und
+sogar die **Pistole** samt ihrer Munition kommt aus der Sammlung: Statt eines
+gelben Kügelchens fliegt eine Patrone, die so liegt, wie sie fliegt. Angefasst,
+getroffen und gezählt wird weiter dasselbe wie vorher.
+
+Draußen, wo das Gelände aufhört, liegt statt der gemalten Kachelung ein
+**Plattenboden** — eine Platte je Meter, bündig aneinander, achtundvierzig
+Meter weit in alle Richtungen. Auf dem Gelände selbst liegt er inzwischen auch:
+Prototypenplatten unten, Steinplatten oben auf dem Podest, nichts in der Küche,
+die ihren eigenen Belag hat. Das sind gut vierunddreißigtausend Platten, und
+die Grafikkarte zeichnet sie in **zwei** Zügen.
 
 **Im Katalog am Handgelenk sucht man das alles auch auf Deutsch.** Die 4 470
 Dateien der Sammlung heißen englisch (`barrel_large`, `bookcase_single`), und
