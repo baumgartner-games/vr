@@ -290,8 +290,14 @@ nachschlagen, und genau das ist der Zweck.
    Stand **gemessen** worden. Ein Modell aus dem Regal bringt seinen eigenen
    Ursprung, seine eigene Achse und gar keinen Griffzylinder mit — es zu
    nehmen heißt, dieselbe Messung noch einmal zu machen, und zwar je Werkzeug.
-   Deshalb steht in der Spalte _Entscheidung_ bei den Werkzeugen nirgends
-   „ersetzt", sondern höchstens „Kandidat da, Griff fehlt".
+   Die Regel sagt **nicht** „kein Regalmodell an einem Werkzeug" — sie sagt
+   „nicht, bevor gemessen ist". Eine ganze Weile war das dasselbe, und in der
+   Spalte _Entscheidung_ stand bei den Werkzeugen nirgends „ersetzt", sondern
+   höchstens „Kandidat da, Griff fehlt". Seit der dritten Runde steht es genau
+   einmal da, bei der **Pistole** — und zwar **weil** die Messung gemacht
+   wurde: `tools/pistolFit.ts` findet den Griff am Netz, an seiner Form, und
+   der Halterzylinder bleibt, wo er war. Alle anderen Werkzeugzeilen stehen
+   unverändert, aus demselben Grund wie vorher.
 
 ### Die Tabelle
 
@@ -311,10 +317,10 @@ den Knotentransformationen) und dann mit dem Maßstab des Pakets multipliziert
 | dieselbe | dieselbe | `halloween-bits/post_lantern.glb` — 0,64 × 3,30 × 1,57 Quelle → **0,32 × 1,65 × 0,78 m** | **bleibt gebaut** | Das einzige Stück im Regal, dessen Bauart wirklich passt (Mast, Ausleger, hängende Laterne). Es ist eine **Halloween-Laterne**, und die beiden Lampen im Spiel stehen in einem Hof und an einer Treppe. Stil, nicht Maß. |
 | Zimmer- und Handlampen | — | `furniture-bits/lamp_standing.glb` (→ 0,50 × 1,26 × 0,50 m), `lamp_table.glb` (→ 0,50 × 0,51 × 0,50 m), `lamp_desk.glb` (→ 0,26 × 0,59 × 0,55 m), `rpg-tools-bits/lantern.glb` (→ 0,38 × 0,55 × 0,38 m), `holiday-bits/lantern_decorated/mini.glb`, `halloween-bits/lantern_hanging/standing.glb`, `mystery-monthly-5/6-december-2024-helpers/Lamp_Workbench.glb` (→ 0,33 × 0,79 × 0,77 m), `space-base-bits/lights.glb` (→ 0,34 × 0,50 × 0,34 m) | **nichts zu ersetzen** | Es gibt im Spiel **keine** gebaute Zimmerlampe, Handlaterne oder Werkbanklampe. (`holiday-bits/lantern.glb` stand hier einmal mit in der Aufzählung und gehörte nie hierher: Sie ist mit 3,938 Quelleinheiten **1,97 m** hoch, also ein Laternenmast und keine Tischlampe — genau deshalb steht sie heute im Spiel.) Wer eine hinstellen will, nimmt sie aus dem Regal, wie jedes andere Ding — dafür ist es da. |
 | „Lampen", die keine Körper sind | `hub/HubWorld.ts` `buildCorridorLights` (Leuchtbänder über die ganze Ganglänge), `portal/PortalWorld.ts` (Laborlichter), `shared/construct.ts` (`buildLight`) | — | **nichts zu ersetzen** | Das sind `PointLight`s und ein Quader, der so lang ist wie der Gang. Ein Band von fünfzehn Metern gibt es im Regal nicht, und ein Licht hat ohnehin keine Geometrie. |
-| **Roter Kuppelknopf** (Säule, Kragen, Kuppel, Schild) | `worlds/shared/redButton.ts` `buildRedButton`; verbaut in `grid/fixtures/button.ts`, `zones/navigation.ts` und viermal in `zones/kitchen.ts` | `platformer/<farbe>/button_base_<farbe>.glb` — Rahmen 1,75 × 0,20 × 1,75 Quelle → **0,875 × 0,10 × 0,875 m**, Deckel 1,35 × 0,23 × 1,35 → **0,675 × 0,115 × 0,675 m** | **bleibt gebaut** | Der einzige Knopf im Regal ist ein **Bodenknopf**, quadratisch und flach, und keine Kuppel auf einer Säule. `BUTTON_DOME_R` (0,17 m) ist an sechs Stellen zugleich Zeigerziel **und** Trefferkörper — „was man drücken kann, kann man auch treffen". Ein Deckel von 6 cm Höhe unter einer Halbkugel von 17 cm ließe elf Zentimeter Luft treffen. |
+| **Roter Kuppelknopf** (Säule, Kragen, Kuppel, Schild) | `worlds/shared/redButton.ts` `buildRedButton`; verbaut in `grid/fixtures/button.ts`, `zones/navigation.ts` und viermal in `zones/kitchen.ts` | `platformer/<farbe>/button_base_<farbe>.glb` — Rahmen 1,75 × 0,20 × 1,75 Quelle → **0,875 × 0,10 × 0,875 m**, Deckel 1,35 × 0,23 × 1,35 → **0,675 × 0,115 × 0,675 m** | **ersetzt** (dritte Runde, siehe unten) — aber nicht durch diesen Knopf | Der einzige Knopf im Regal ist ein **Bodenknopf**, quadratisch und flach, und keine Kuppel auf einer Säule. `BUTTON_DOME_R` (0,17 m) ist an sechs Stellen zugleich Zeigerziel **und** Trefferkörper — „was man drücken kann, kann man auch treffen". Ein Deckel von 6 cm Höhe unter einer Halbkugel von 17 cm ließe elf Zentimeter Luft treffen. Diese Absage gilt unverändert: Genommen wurden am Ende zwei ganz andere Stücke, eine **Steinsäule** und eine **Spielfigur**, und `BUTTON_DOME_R` hat den Umbau unangetastet überlebt. |
 | **Druckplatte** (Ring, Scheibe, Eintauchen, Glühen) | `worlds/grid/fixtures/plate.ts` `PLATE.build`/`PLATE.apply` | `platformer/yellow/button_base_yellow.glb` | **ersetzt** | Derselbe Knopf, diesmal am richtigen Ort: ein Bodenknopf für eine Bodenplatte. Er hat einen **eigenen drückbaren Teil** (Knoten `button_yellow`, 0,205 Quelleinheiten über dem Rahmen), er passt **ohne Umrechnung** in die Kachel von einem Meter (Rahmen 0,875 m, ringsum gut 6 cm Luft), und sein Ursprung liegt in der Mitte seiner Unterkante. Ring und Scheibe bleiben als Ersatz stehen, `PLATE_R`, `weightOn` und das Auslösen je Bild rühren sich nicht. |
 | **Wände** | `worlds/grid/GridWorld.ts` (Quader je Wandstück, danach zu `InstancedMesh` gebündelt) | `dungeon/wall.glb`, `prototype-bits/Wall.glb`, `Primitive_Wall*.glb` und ein paar hundert weitere | **bleiben gebaut** | Zwei Gründe, und beide sind Zahlen. **Erstens** sind es zwölf Dreiecke — „geometrisch wirklich einfach", wie es im Auftrag steht. **Zweitens** werden sie gebündelt und einzeln durchsichtig: 156 von 414 Zeichenaufrufen waren einmal einzelne Wandquader ([Grafik](./grafik.md), _Und die Wände auch — nur nicht von oben_), und von oben verschwindet genau die Wand, die im Weg steht (`GridWorld.stepWallGhosts`, `grid/wallGhost.ts`). Ein Regalmodell bringt eigene Geometrie und eigenes Material mit und kann weder in ein Bündel noch für sich allein durchsichtig werden. |
-| **Pistole** | `portal/tools/PistolTool.ts` | `prototype-bits/Gun_Pistol.glb` (0,37 × 0,54 × 0,87 Quelle → **0,26 × 0,38 × 0,61 m**), `Gun_Rifle.glb`, `Gun_Sniper.glb`, `adventurers/shotgun.glb` (→ 0,32 × 0,41 × 1,17 m) | **Kandidat da, Griff fehlt** | Es liegt wirklich eine Pistole im Regal, und sie ist mit 0,61 m Länge eine Idee zu groß. Entscheidend ist aber Regel 3: Der Griff ist eingemessen, das Modell bringt keinen. Und `Gun_Pistol` zeigt in seiner Datei nach **+z** — Achse und Ursprung wären beide neu zu bestimmen. |
+| **Pistole** | `portal/tools/PistolTool.ts` | `prototype-bits/Gun_Pistol.glb` (0,37 × 0,54 × 0,87 Quelle → **0,26 × 0,38 × 0,61 m**), `Gun_Rifle.glb`, `Gun_Sniper.glb`, `adventurers/shotgun.glb` (→ 0,32 × 0,41 × 1,17 m) | **ersetzt** (dritte Runde, siehe unten) | Die Absage hieß „Kandidat da, Griff fehlt", und beide Hälften sind eingelöst worden. Die 0,61 m waren die Gesamtlänge im Paketmaßstab und sind gar nicht die Zahl, um die es geht: Gerechnet wird am **Griff**, und damit wird die Waffe 0,37 m lang. Der Griff wiederum wird am Netz **gefunden** und nicht geraten (`tools/pistolFit.ts`), und das ist genau das, was Regel 3 verlangt. Dass `Gun_Pistol` in seiner Datei nach **+z** zeigt, stimmt weiter — es ist eine halbe Drehung um die Hochachse und steht heute in `gunPoint`. |
 | **Messer** | `portal/tools/KnifeTool.ts` | `rpg-tools-bits/knife.glb` (→ 0,14 × 0,65 × 0,08 m), `fantasy-weapons-bits/dagger_A–C.glb` (→ 0,22 × 0,64 × 0,08 m), `adventurers/dagger.glb` | **Kandidat da, Griff fehlt** | Dasselbe. Beide stehen in ihrer Datei **aufrecht** (die lange Achse ist y), das gebaute Messer liegt nach vorn — eine Vierteldrehung, die man messen und nicht raten will. |
 | **Hammer** | `portal/tools/HammerTool.ts` | `rpg-tools-bits/hammer.glb` (→ 0,27 × 0,41 × 0,16 m), `mallet.glb`, `fantasy-weapons-bits/hammer_A–D.glb` | **Kandidat da, Griff fehlt** | Dasselbe. |
 | **Lupe** (Inspektor) | `portal/tools/InspectTool.ts` | `rpg-tools-bits/magnifying_glass.glb` — 0,46 × 0,95 × 0,13 Quelle → **0,23 × 0,48 × 0,06 m** | **Kandidat da, Griff fehlt** | Der sauberste Kandidat unter den Werkzeugen: eine richtige Lupe mit Stiel. Der Inspektor lehnt heute 2,8 cm neben dem Pistolengriff (`gripFit.test.ts`), und genau diese Zahl müsste für das Modell neu entstehen. |
@@ -347,9 +353,13 @@ den Knotentransformationen) und dann mit dem Maßstab des Pakets multipliziert
   Entfernungsmarken daneben genau umgekehrt (`position.set(FIRING_LINE +
   distance, …, centre(RANGE.z - 1))`). Geschossen wird nach **Osten**, die
   Zone liegt zwischen `RANGE.z = -3` und `+3` — die Scheiben landen damit 5,
-  10 und 20 m **nördlich** der Zone. Hier nicht angefasst, weil das eine
+  10 und 20 m **nördlich** der Zone. Damals nicht angefasst, weil das eine
   Ortsänderung im Spiel ist und kein Bild; aufgeschrieben, damit es nicht
-  wieder zufällig gefunden wird.
+  wieder zufällig gefunden wird. **Inzwischen behoben**: Die Rechnung steht
+  einmal in `zones/range.targetSpot` statt viermal mit je einem Vorzeichen,
+  das man falsch schreiben kann, und ein Test daneben hält die Scheiben vor
+  der Linie. Der Befund bleibt trotzdem stehen — er ist der Grund, warum es
+  diese eine Funktion gibt.
 
 ### Die zweite Runde: acht Dinge kommen jetzt doch aus dem Regal
 
@@ -378,7 +388,7 @@ dabei kein einziges Mal gebrochen worden.
 | **Ständer** | `zones/range.ts` `buildPost` | `prototype-bits/target_stand_A.glb` (2,000 Quelle → 1,40 m) | `POST_HEIGHT` 1,90 → `STAND_HEIGHT` 1,40, weil der Ständer 1,40 m hoch ist und eine Scheibe auf 1,55 m sichtbar über ihm schwebte. Der schlanke Körper des gebauten Pfostens bleibt: Ein Collider in Modellgröße finge Kugeln ab, die heute vorbeifliegen. |
 | **Scherben** | — (neu) | `prototype-bits/target_pieces_A–F.glb` | Sechs Tortenstücke, die zusammengesetzt genau die Scheibe ergeben. **Ab der Zehn** (`SHATTER_POINTS`) zerspringt eine Scheibe in sie: sechs dynamische Körper mit der echten Hülle (sechs Kästen um sechs Keile überlappen sich schon beim Entstehen und Rapier antwortet mit einer Explosion), Schwung über `setLinvel`/`setAngvel` wie überall sonst in diesem Projekt. Die Richtungen rechnet `range/shatter.pieceBurst` — ohne three.js und deshalb geprüft. Nicht jeder Treffer: Neun Scheiben, die beim ersten Streifschuss zerspringen, sind ein Stand, auf dem nach zehn Sekunden nichts mehr steht. |
 | **Hebel** | `grid/fixtures/lever.ts` | `platformer/red/lever_floor_base_red.glb` (1,728 Quelle → 0,864 m) | Fast genau die 0,90 m der gerechneten Säule; die vier Prozent rechnet `leverFit`. Der Bügel ist ein eigener Knoten (`lever_floor_red`) und kippt weiter um `±TILT` — aber um das **mitgebaute Gelenk** unten in der Mulde und nicht um seine Mitte: Der Zapfen ist achteckig, liegt quer zur X-Achse und hat in der Mulde drei Millimeter Luft. Eine Drehung um die Sockeloberkante hätte ihn sichtbar durch den Rand geschoben. |
-| **Boden draußen** | `shared/environment.createGround` (Textur auf einem Kasten) | `prototype-bits/Floor_Prototype.glb` (4,000 Quelle → auf **2,00 m** gerechnet) | Kein Tausch, sondern eine **Schürze darüber**: 4 059 Platten in zwei `InstancedMesh` (hell und dunkel, `PLATE_DARK`), zwei Zeichenaufrufe, rings um `FIELD` und 32 m weit — die Kantenlänge, in der diese Engine scharfe Schatten zeichnet. Der texturierte Kasten bleibt darunter und trägt weiter den Collider; die Platten liegen 2 cm über `GROUND_TOP`, man steht also **in** ihnen. Welche Kachel eine Platte bekommt und welche dunkel ist, rechnet `shared/plateField.ts` ohne three.js. |
+| **Boden draußen** | `shared/environment.createGround` (Textur auf einem Kasten) | `prototype-bits/Floor_Prototype.glb` (4,000 Quelle → auf **eine Kachel** gebracht) | Kein Tausch, sondern eine **Schürze darüber**: ein Ring aus Platten rings um `FIELD`, in **einem** `InstancedMesh`. Der texturierte Kasten bleibt darunter und trägt weiter den Collider; die Platten liegen 2 cm über `GROUND_TOP`, man steht also **in** ihnen. Welche Kachel eine Platte bekommt, rechnet `shared/plateField.ts` ohne three.js. **Die Zahlen dazu sind seit dieser Runde alle andere** — Plattengröße, Reichweite, Bündelzahl, Farben —, und warum, steht gleich unten. |
 
 **Was dabei zum zweiten Mal wehgetan hat:** `SignBoard.dispose()` lief mit
 `traverse` über alle Netze und gab jede Geometrie frei. Bei einer Regalkopie
@@ -386,6 +396,268 @@ hätte das die **geteilte** Geometrie allen anderen Kopien und der Vorlage
 weggenommen — derselbe Fehler wie bei `disposeShapes` eine Runde vorher, nur
 an einer anderen Stelle. Wer ein Regalmodell in etwas hängt, das schon
 aufräumt, sieht dort zuerst nach.
+
+**Und zum dritten Mal, in der Runde danach:** `disposeToolTree` in
+`portal/tools/Tool.ts` kannte die Marke auch nicht. Solange kein Werkzeug ein
+Regalmodell trug, war das folgenlos; seit die Pistole eines trägt, wäre es der
+dritte Fall gewesen. Er ist behoben — eigene Rekursion, Halt an der Marke,
+`tools/disposeToolTree.test.ts` mit Gegenprobe —, und die Lehre daraus ist
+inzwischen dieselbe wie bei den beiden davor, nur schärfer formuliert: **Der
+Handgriff, der freigibt, soll die Marke kennen — nicht jeder, der ihn ruft.**
+Das Werkzeug hängt sein Modell vor dem Abräumen trotzdem ab, aber das ist jetzt
+eine Aufräumzeile und keine Vorsichtsmaßnahme mehr.
+
+### Der Plattenboden: eine Kachel je Platte, und er zieht ins Gelände ein
+
+Die Zeile in der Tabelle oben beschrieb eine Schürze von 4 059 Platten zu je
+zwei Metern, in zwei Bündeln, hell und dunkel im Schachbrett, 32 m weit. Davon
+stimmt heute kein einziges Stück mehr, und jede Änderung hat ihren eigenen
+Grund.
+
+**Eine Kachel je Platte** (`PLATE_SIZE = TILE`). Die zwei Meter waren am
+Lineal des Geländes geborgt und kosteten mehr, als sie einbrachten: Nur jede
+zweite Plattenfuge war eine Kachelkante — wer eine Wand setzen wollte, zählte
+Felder und traf die Hälfte —, und an der gegenüberliegenden Kante lag
+zwangsläufig eine Platte halb im Gelände. Bei einer Kachel geht beides auf: Das
+Geländerechteck ist 77 × 105 **ganze** Kacheln (`layout.FIELD`), und eine
+Platte von einer Kachel geht darin restlos auf. Der Faktor dafür wird am
+**geladenen** Modell gemessen, und zwar in x und z **getrennt** — eine Fuge
+von einem Millimeter wäre über vierunddreißigtausend Platten ein zweites
+Raster.
+
+**Kein dunkles Bündel mehr.** `PLATE_DARK` und `plateDark()` sind weg, und mit
+ihnen das zweite `InstancedMesh`. Der Befund dazu war kurz: „das dunklere
+brauche ich nicht, da die alle einen weißen rand haben, das reicht." Das
+stimmt — die umlaufende **Fase** der Platte ist heller als ihre Deckfläche und
+zeichnet jede Fuge von selbst. Ein Schachbrett darüber wäre ein zweites Raster
+auf demselben Boden.
+
+**Die Schürze geht 48 m statt 32.** Eine Platte sind 20 Dreiecke, ein Bündel
+ist ein Zeichenaufruf, und die Zahl der Instanzen wächst im Quadrat der
+Reichweite; die Tabelle dazu steht bei `PLATE_SKIRT` und nennt drei Zeilen:
+32 m sind 15 744 Instanzen, **48 m sind 26 688** (533 760 Dreiecke), 64 m wären
+39 680. Bei 48 ist Schluss, und das ist gerechnet und nicht gegriffen: Die Fase
+misst 2,5 cm, und bei den rund zwanzig Bildpunkten je Grad, die eine Brille
+hergibt, liegt sie ab etwa **29 m** unter einem Bildpunkt. Dahinter
+unterscheiden sich Platte und Anstrich nur noch in der Farbe — und die ist
+dieselbe geworden (siehe unten). 64 m wären die Hälfte mehr an allem für
+sechzehn Meter, in denen nichts mehr passiert.
+
+**Und der Plattenboden zieht ins Gelände ein.** Er lag bis dahin nur dort, wo
+_nichts_ gebaut war; jetzt bekommt jede Bodenkachel des Grundrisses ihre
+Platte auf die Oberkante: **7 865** Prototyp-Platten (77 × 105 Kacheln minus
+die 220 der Küche) und **25 Steinplatten** auf dem Podest
+(`dungeon/floor_tile_small.glb` — im Spiel genau eine Kachel, also gar keine
+Umrechnung). Mit der Schürze zusammen sind das **34 553 Platten, rund 691 000
+Dreiecke, zwei Zeichenaufrufe**. Schatten werfen sie keine: Was Kulisse ist,
+gehört nicht in den Schattendurchgang.
+
+**Die Küche bleibt außen vor** — und zwar exakt `layout.KITCHEN` und
+ausdrücklich nicht `kitchenPlan.inKitchen()`. Die beiden Grenzen sehen gleich
+aus und sind es nicht: `inKitchen()` trägt einen Meter Vorlauf für die
+Augenhöhe, damit niemand im Türrahmen absackt. Dieser Meter gehört zum Gehen
+und nicht zum Boden; mit ihm gerechnet bliebe rings um die Küche ein Ring
+nackter Geländemasse liegen.
+
+**Der unsichtbare Quader wird hier anders gelöst als beim Regal.** Ein Quader,
+über den eine Platte kommt, muss verschwinden, sobald die Datei da ist — und
+„unsichtbar" kann ein Bündel nur für **alle** darin. Beim Regal wird ein
+Quader, den ein Modell ersetzt, deshalb gar nicht erst gebündelt
+(`BatchCandidate.modelled`); bei sechs Brettern je Regal ist das die billigere
+Antwort. Hier sind es **896 Bodenquader** und eine Masse über das ganze
+Gelände, und sie einzeln stehen zu lassen hieße, in einem Checkout ohne die
+gekauften Pakete neunhundert Zeichenaufrufe für einen Boden auszugeben, der
+heute einer ist. Also wird gebündelt wie bisher, nur **getrennt**: `batchKey`
+trägt seit dieser Runde eine dritte Frage — worauf dieser Quader wartet.
+
+**Die Farben draußen sind jetzt die der Platte**, am Atlas ihrer eigenen Datei
+gemessen: `#3493ce` als Grund (90,1 % der Bildpunkte im UV-Rechteck der
+Oberseite), `#43acdf` als Fuge (die Bildzeile, auf die jede Fase zeigt). Beide
+stehen in `shared/plateField.ts` und kommen von dort in
+`layout.HORIZON_COLORS`. Damit ist das Schachbrett draußen **kein Schachbrett
+mehr** — die beiden Felder tragen dieselbe Farbe, und übrig bleibt die Linie
+jeden Meter. Das ist kein Verlust, sondern der Zweck: Eine Schürze endet nun
+einmal irgendwo, und ob man das sieht, entscheidet nicht ihre Reichweite
+allein, sondern die Farbe dahinter.
+
+### Die dritte Runde: zwölf Dinge, und zwei Absagen, die eingelöst wurden
+
+Wieder dieselbe Abwägung wie in der zweiten Runde, wieder mit denselben drei
+Regeln — und diesmal fallen zwei Zeilen der Tabelle oben mit um, weil die
+Messung dahinter nachgeholt wurde und nicht, weil jemand sie übergangen hat.
+Zwei Dinge sind dabei neu: Ein **Baustein** bekommt sein Modell zum ersten Mal
+je Achse eingepasst statt gleichmäßig (`BlockFacts.fit`), und ein **Werkzeug**
+bekommt überhaupt zum ersten Mal eines.
+
+| Ding | Wo gebaut | Modell | Wie eingepasst |
+| --- | --- | --- | --- |
+| **Tisch** (Baustein `table`) | `grid/blocks.ts` `BUILD.table` | `furniture-bits/table_small.glb` (1,000 × 1,000 × 1,000 Quelle) | Im Aufriss **quadratisch** — auf die 0,75 m Tischhöhe gebracht wird er 0,75 m breit und tief, eine Handbreit schmaler als die gebauten 0,90 m, und die Kachel bleibt ringsum frei. `BLOCKS.table.height` bleibt deshalb, wie es war. Der große Bruder (`table_medium.glb`) wäre auf Kachelbreite 0,50 m hoch — ein Couchtisch. |
+| **Bank** (`bench`) | dito, `BUILD.bench` | `furniture-bits/chair_A.glb` (0,750 × 1,258 × 0,845) | Ein Stuhl mit Lehne, und genau das baut der Baustein auch. Eingepasst wird auf die **gemessene** Oberkante der Quader und nicht auf `BLOCKS.bench.height` — die 0,46 m sind die Sitzfläche, die Lehne steht darüber. Die Parkbank aus dem Städtebaukasten (`city-builder-bits/bench.glb`) ist **nachgemessen** 0,400 × 0,100 × 0,150: eine Miniatur für die Vogelperspektive, kein Möbel zum Danebenstehen. |
+| **Säule** (`pillar`) | dito, `BUILD.pillar` | `platformer/neutral/pillar_1x1x4.glb` (0,800 × 4,000 × 0,800) | Der einzige Eintrag, bei dem das **Bild breiter ist als sein Körper**: Das Modell ist ein Fünftel seiner Höhe breit, auf Wandhöhe also 0,56 m gegen die gerechneten 0,34 m. Die beiden sind nicht zur Deckung zu bringen — die Modellbreite folgt der Höhe, und eine Säule wird hier in jeder Höhe bestellt, es gibt also keine _eine_ Zahl zum Mitwandern. Der Quader breiter zu machen ginge auch nicht: 0,56 m auf einer Kachel ließen daneben 0,22 m, und die Spielerkapsel misst 0,24 m im Halbmesser. Aus „kostet mehr" würde „geht nicht mehr". |
+| **Brüstung** (`parapet`) | dito, `BUILD.parapet` | `dungeon/barrier_half.glb` (2,000 × 1,100 × 0,500 → 1,00 × 0,55 × 0,25 m) | Dieselbe Rechnung wie beim Regal eine Runde vorher: `BLOCKS.parapet.height` geht 0,90 → **0,55**, weil das Modell genau eine Kachel breit ist und breiter nicht werden darf. **Was dabei nicht kippt:** Der Character-Controller steigt 0,32 m, 0,55 m sind deutlich mehr — die Brüstung hält weiter auf, wen sie aufhalten soll. Sie ist jetzt eine Balustrade und keine Brustwehr, und **das** sieht man von oben durch. `platformer/neutral/barrier_1x1x1.glb` ist — nachgemessen und nicht nach dem Namen geraten — ein massiver Würfel und kein Geländer. |
+| **Theke** (`counter`) | dito, `BUILD.counter` | `dungeon/bar_straight_B_short.glb` (1,000 × 1,000 × 1,243) | Erst abgesagt, dann eingelöst — die Geschichte dazu steht unten. Eingepasst: 1,00 × 0,90 × 0,64 m, die Arbeitshöhe bleibt bei 0,90 m. |
+| **Treppe** (`stairs`) | dito, `BUILD.stairs` | `prototype-bits/Primitive_Stairs_Half.glb` (2 × 2 × 4 → 1,40 × 1,40 × 2,80 m) | Erst abgesagt, dann eingelöst — siehe unten. Vierteldrehung −90°, danach liegen die vier Trittflächen des Modells auf denen des gebauten Keils. |
+| **Reifenstapel** | `test/zones/kart.ts` `buildBarriers` | `block-bits/bricks_B.glb` (2,000 Quelle → 1,00 m im Würfel) | 45 Stapel, **ein** `InstancedMesh`, je Achse eingepasst auf 1,00 × 0,60 × 1,00 — die Maße des Kastens, der schon dasteht. Gleichmäßig auf 0,60 m verkleinert wäre der Stein auch nur 0,60 m **breit** und stünde 20 cm schmaler da als sein Körper: ein Hindernis, gegen das man läuft, bevor man es sieht, an einer Strecke mit 60 km/h. Der Preis sind Ziegelreihen, die 40 % flacher sind als beim Zeichner. |
+| **Rampe** an der Kletterwand | `test/zones/climb.ts`, Rechnung in `climb/padRamp.ts` | `prototype-bits/Primitive_Slope.glb` (4,000 in jeder Richtung → 2,80 m, Steigung 1:1) | Ungleichmäßig eingepasst auf 2,20 × 1,40 × 1,60 — und hier ist das nicht bloß erlaubt, sondern **exakt**: Eine ungleichmäßige Skalierung bildet eine Ebene wieder auf eine Ebene ab, die Schräge liegt danach **überall** auf der Lauffläche und nicht nur an den Enden. `Primitive_Slope_Half.glb` klingt nach „halb so hoch" und ist es nicht: nachgemessen hat es einen **flachen Deckel auf voller Höhe** und fällt erst ab der Mitte — man liefe die halbe Rampe _im_ Modell statt darauf. |
+| **Sprungkissen** | dito, Rechnung in `climb/padBlocks.ts` | `block-bits/colored_block_blue.glb` (2,000 → 1,00 m, genau die Kachel) | 8 × 3 × **2 Lagen** = 48 Klötze zu je 108 Dreiecken, in **einem** Bündel, und das Bündel hängt in einer Gruppe, die beim Einsinken dieselbe Stauchung bekommt wie vorher der eine Quader. Zwei Lagen zu 0,70 m verziehen den Würfel um 30 %; eine Lage auf 1,40 m gestreckt wären 40 %, und ein Sockel darunter wäre wieder der gebaute Quader, den hier gerade jemand loswerden wollte. |
+| **Roter Knopf** | `shared/redButton.ts`, Rechnung neu in `shared/redButtonFit.ts` | `dungeon/column.glb` als Sockel + `board-game-bits/pawn_B_red.glb` als Kopf | Die Pyramide — siehe unten. |
+| **Pistole** | `portal/tools/PistolTool.ts`, Rechnung neu in `pistolFit.ts`/`pistolModel.ts` | `prototype-bits/Gun_Pistol.glb` | Der Griff — siehe unten, und in [Hände](./haende.md). |
+| **Patrone** | `portal/PortalWorld.spawnBullet`, Rechnung neu in `portal/bulletFit.ts` | `prototype-bits/Bullet.glb` (0,0525 × 0,0525 × 0,1575 m, lange Achse +z) | Das erste Regalmodell, das **je Schuss** entsteht: `kaykitModelNow` antwortet ohne Warten — Kopie, wenn die Vorlage im Speicher liegt, sonst `null` und das Laden ist angestoßen. Ein `GLTFLoader`-Aufruf je Schuss wäre absurd, ein `await` je Schuss eine Kugel, die einen Wimpernschlag nach dem Knall losfliegt. Damit nicht ausgerechnet der erste Schuss der einzige ohne Modell ist, wird die Datei beim Betreten der Welt vorgewärmt. |
+
+#### Die Treppe: eine Absage, die an einer Fehlmessung hing
+
+Sie stand eine Weile als „bleibt gebaut" da, und die Begründung war richtig —
+nur für die falsche Datei. `dungeon/stairs_modular_center.glb` hat über 4 × 4
+Quelleinheiten **acht** Stufen; achsenweise auf eine Kachel gepresst läge jede
+zweite 8,75 cm unter der Trittfläche des Kollisionskörpers, und man ginge
+sichtbar in der Luft. Der Fehler war, `prototype-bits/Primitive_Stairs_Half.glb`
+mit derselben Begründung gleich mit abzuräumen: Von außen sehen die beiden
+gleich aus.
+
+Nachgemessen am Netz selbst — waagerechte Flächen mit der Normalen nach oben,
+aus der dekodierten Datei, Fläche für Fläche — hat es **vier** Stufen, alle
+gleich groß, bei y = 0,5 / 1,0 / 1,5 / 2,0 Quelleinheiten, und sie steigen nach
+**−x**: Die unterste Trittfläche liegt bei x = 1,5…2,0, die oberste bei
+x = 0…0,5. Der Baustein steigt nach −z („hinten ist unten"), und das sind −90°
+— genau die Vierteldrehung, die heute in `BLOCKS.stairs.fit` steht.
+
+Achsenweise eingepasst liegen die vier Trittflächen dann bei **0,175 / 0,350 /
+0,525 / 0,700 m**, und das sind haargenau die vier, die `BUILD.stairs` aus
+`STEP_RISE` und `STEP_RUN` rechnet; auch die Lauf-Rechtecke decken sich. **Der
+Grund dafür ist strukturell und kein Zufall:** Beide teilen ihre Kachel in vier
+**gleich hohe** Stufen. Also geht es bei jedem Teilanstieg auf, bei dem die
+Kachel vier Stufen baut — und das tut `steps()` bei allem über 0,6 m, also bei
+`STAIR_LIFT` und allem, was `GridPlan.flight` daraus rechnet. Darunter baut sie
+drei; dann stimmt der Umriss weiter, die Stufen liegen aber versetzt. Im Spiel
+kommt das nirgends vor.
+
+#### Die Theke: dieselbe Absage, derselbe Grund
+
+`dungeon/bar_straight_B_short.glb` und ausdrücklich nicht `_A` oder `_C`: Die
+drei unterscheiden sich nur an der Front — `_A` ist ein glatter Kasten, `_C`
+trägt ein aufgesetztes Schnitzwerk, das 9 cm vorsteht, und `_B` hat die
+Schubladenfront mit zwei Knäufen. Gesucht ist eine **Werkbank**, denn die
+Schießbank des Stands ist im Grundriss eine Küchenzeile — also `_B`.
+
+1,000 × 1,000 × 1,243 Quelleinheiten, im Aufriss quadratisch. Gleichmäßig auf
+0,90 m Arbeitshöhe gebracht wäre sie 1,12 m tief und stünde mit 22 cm in die
+Nachbarkachel hinein — also genau dorthin, wo man vor einer Theke steht —,
+dabei nur 0,90 m breit, und zwei nebeneinander ließen eine Fuge von zehn
+Zentimetern. Eingepasst ergibt sie 1,00 × 0,90 × 0,64 m und damit die
+durchgehende Zeile, die der Baustein baut.
+
+**Die Tiefe wird dabei um 43 % gestaucht und die Breite um 11 % gestreckt.**
+Das ist vertretbar, weil die gestauchte Achse die ist, die man an einer Zeile
+in einer Reihe nicht sieht — seitlich vor einer Küchenzeile steht niemand. Bei
+einem **Stuhl** wäre derselbe Handgriff falsch, und genau deshalb ist das
+Einpassen ein **Schalter am Baustein** (`BlockFacts.fit`) und keine
+Fallunterscheidung im Rumpf: Wer einen Baustein dazutut, sieht in derselben
+Zeile, was mit seinem Modell geschieht.
+
+#### Der rote Knopf: die Pyramide
+
+`dungeon/column.glb` läuft oben in eine vierseitige Pyramide aus, und ihre
+Oberkante ist ein **Punkt**. Wer den Kopf darauf stellte, stellte ihn auf eine
+Spitze, unter deren Rand eine Handbreit Luft bliebe. Gemessen wird deshalb
+nicht die Oberkante, sondern mit einem **Strahl von oben am Rand des
+Figurenfußes** — und zwar in der Achse und nicht in der Diagonale, denn bei
+einem quadratischen Querschnitt liegt der tiefste Punkt dort, wo der Kreis die
+Seitenmitte kreuzt. Die Säule trägt dort bei **0,890 m** statt bei 0,950 m, und
+die Pyramide verschwindet dafür im Fuß der Figur, statt sie schweben zu lassen.
+
+Der Kopf bekommt die **Breite** der alten Kuppel (0,34 m) als seine **Höhe** —
+er wird damit zu dem Würfel, in dem die Halbkugel saß. Seine eigene Breite
+fällt daraus ab (0,210 m) und bleibt damit **unter** dem Trefferhalbmesser: Der
+Knopf ist nie knapper zu treffen, als er aussieht. Die naheliegende Alternative
+wäre gewesen, der Figur die Breite der Kuppel zu geben; sie wäre 0,55 m hoch
+geworden und hätte oben ins Schild gestanden. Der Knopf wächst so um fünf
+Zentimeter — seine Spitze liegt bei 1,230 m statt bei 1,180 m.
+
+`BUTTON_DOME_R` ist dabei unverändert 0,17 m. Die Zahl ist nur nach
+`redButtonFit.ts` umgezogen und wird von `redButton.ts` weiter exportiert: An
+sechs Stellen ist sie zugleich Zeigerziel und Trefferkörper, und angemeldet,
+gezielt und getroffen wird weiter derselbe Körper an derselben Stelle. Das ist
+Regel 1, wörtlich.
+
+**Ehrlicher Befund dazu:** `pawn_B_red.glb` ist ein Knoten mit **einem**
+Material — für die Kugel allein gibt es keines. Beim Drücken glüht deshalb die
+ganze Figur und nicht ihr Scheitel. Das ist auch richtig so: Der Knopf **ist**
+jetzt die Figur.
+
+#### Die Pistole: der Griff, und was er gekostet hat
+
+Der naheliegende Anker war falsch. Die Hoffnung war, dass ein Magazin im Griff
+steckt und ihn damit verrät — `Gun_Pistol.glb` hat es als eigenen Knoten. Nur
+sitzt `Gun_Pistol_Magazine` bei z 0,17…0,45, also **vor** dem Abzugsbügel und
+unter dem Lauf: ein Vordermagazin wie an einer Maschinenpistole. Der Griff
+hängt hinten bei z −0,17…−0,02.
+
+Gefunden wird er deshalb **an seiner Form**, über zwei eindimensionale Profile
+(`pistolFit.ts`, three.js-frei und geprüft): `lobeEnd` nimmt den tiefsten Punkt
+je Längsscheibe und findet, wo der hintere Lappen über die Schwelle des
+Abzugsbügels steigt; `frameFlare` nimmt die Breite je Höhenscheibe und findet,
+wo sich der Rahmen aufweitet — 5,8 cm über die ganze Griffhöhe, dann in einer
+Scheibe 8,4 cm, der Sprung ist ein Sprung und keine Steigung. Heraus kommt eine
+Griffbox von 0,058 × 0,166 × 0,114 m; der Maßstab ist **Zylinderlänge geteilt
+durch Griffhöhe**, also 0,1 / 0,1661 = **0,602**, und die ganze Waffe wird
+damit 0,368 m lang statt 0,612 m. Dazu eine halbe Drehung um die Hochachse,
+denn die Datei zeigt nach +z und geschossen wird nach −z. Die Griffmitte liegt
+danach exakt auf der Mitte des Halterzylinders.
+
+**Zwei Reste bleiben stehen, und beide mit Grund.** Der Modellgriff lehnt 18°,
+der Zylinder 12,6°; die 5,4° geradezuziehen ginge nur, indem man das Modell um
+die Querachse nachkippt — dann stünde der **Lauf** um dieselben 5,4° neben der
+Zielrichtung, und mit ihm die Kimme auf der Schiene. Eine Waffe, die dorthin
+zeigt, wohin sie schießt, ist mehr wert. Und der Zylinder ist mit 4 cm dicker
+als der Griff mit 3,5 cm, guckt also gut zwei Millimeter seitlich heraus; er
+bleibt sichtbar, weil er das Anfassbare markiert.
+
+**Was der Tausch gekostet hat:** Der Schlittenweg beim Rückstoß entfällt. Die
+Datei hat zwei Knoten, Waffe und Magazin, und keinen davon als Schlitten; die
+ganze Waffe zurückzuschieben hieße, sie durch die Faust rutschen zu lassen. Das
+**Hochschlagen der Mündung** bleibt, mit derselben Zahl und derselben
+Abklingzeit. Mündung, Zielschiene und Rundenzähler sind auf gemessene Stellen
+am Modell gewandert — auf ihren alten Zahlen stehen zu lassen wäre das
+Nächstliegende und das Falscheste gewesen: Der Lauf des Modells endet 14 cm
+weiter vorn, eine Kugel käme aus der Mitte der Waffe.
+
+#### Die Patrone: „doppelt so groß" ist eine Entscheidung und keine Zahl
+
+Gemessen 0,0525 × 0,0525 × 0,1575 m, lange Achse +z, also Länge zu Dicke wie
+3 : 1. Damit gibt es zwei ehrliche Lesarten von „doppelt so groß": auf die
+**Dicke** gerechnet wären es 5,6 cm stark und 16,8 cm lang — eine Rakete —,
+auf die **Länge** gerechnet 5,6 cm lang und 1,87 cm stark. Genommen ist die
+Länge (Faktor 0,356 auf das paketskalierte Netz), denn die Länge ist das, was
+man von einer Patrone im Flug überhaupt sieht: Der Seitenumriss geht von
+6,2 cm² auf 10,5 cm², knapp das Doppelte.
+
+**Ehrlich dazu, zweimal.** Von vorn ist sie mit 1,87 cm _dünner_ als das alte
+Kügelchen mit 2,8 cm — wer geradeaus schießt und der Kugel hinterhersieht,
+sieht weniger als vorher. Und sie ist beleuchtete Geometrie, wo vorher ein
+`MeshBasicMaterial` mit `toneMapped: false` saß, also im Dunkeln schlechter zu
+sehen. Dafür trennen sich die beiden Sorten jetzt: Die **Leuchtspur** glüht
+voll orange, die gewöhnliche Patrone gedämpft gelb.
+
+### Was beim Tausch nebenbei herauskam
+
+- **Der Hebel war kaputt, und es war kein Modellfehler.**
+  `PortalWorld.collectUsables` übersprang jedes angemeldete Ding, dessen Objekt
+  unsichtbar ist. Der Hebel hatte beim Umbau seine gerechnete Säule als Griff
+  **behalten und ausgeknipst** — damit war er kein Kandidat mehr: `A` fand ihn
+  nicht, und es leuchtete auch nichts. Behoben über `FixtureBuild.rehandle` /
+  `GridWorld.rehandle`: Der Griff zieht auf das Modell um, sobald die Datei da
+  ist, und die alte Anmeldung wird dabei **wirklich** abgemeldet (`view.handle`
+  mitschreiben ist die Zeile, die man vergisst — sonst bliebe bei jedem Umbau
+  ein Hebel in der Liste stehen, den es nicht mehr gibt und der weiter Türen
+  öffnet). Die Regel selbst steht jetzt als reine Funktion `usableShows()` in
+  `core/usable.ts` und wird von `collectUsables` **und** von den Tests benutzt
+  — ein Fehler dieser Art fällt sonst nur dem auf, der in der Welt davorsteht.
+- **Die Lampe war dabei _nicht_ kaputt.** Sie hängt ihren Griff an einen
+  leeren Knoten, bis die Laterne da ist, und ein leerer Knoten hat keine Netze
+  zum Umranden. `core/highlight.ts` fällt in genau diesem Fall auf einen Ring
+  am Boden zurück, und der wurde auch gezeichnet. Nur sagt ein Ring „hier
+  ungefähr" und nicht „diese Laterne" — deshalb zieht der Griff auch dort auf
+  das Modell um und bekommt eine echte Hülle.
 
 ## Eine Build-Nummer an jeder Adresse
 

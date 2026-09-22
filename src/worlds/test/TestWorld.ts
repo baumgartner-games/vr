@@ -4,7 +4,8 @@ import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
 import { createSky } from '../shared/environment';
 import { DustTrail } from '../shared/dustTrail';
-import { PlateFloor } from '../shared/plateFloor';
+import { PLATE_TOP, PlateFloor } from '../shared/plateFloor';
+import { plateSpots, type PlateTile } from '../shared/plateField';
 import { TILE } from '../nav/navTile';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { WorldContext } from '../../core/types';
@@ -13,6 +14,7 @@ import type { MenuEntry } from '../../ui/menu';
 import { npcSkin } from '../npc/npcKinds';
 import { FIELD, HORIZON_COLORS, KITCHEN_SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
 import { spawnAt } from './spawnAt';
+import { floorPlate, PLATE_PROTOTYPE } from './floorPlate';
 import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
@@ -74,7 +76,11 @@ export class TestWorld extends GridWorld {
 
   /**
    * **Der Plattenboden draußen** (`shared/plateFloor.ts`) — die Schürze aus
-   * `Floor_Prototype`-Platten um das Gelände herum.
+   * `Floor_Prototype`-Platten **um** das Gelände herum.
+   *
+   * Nur der Ring: Innerhalb des Geländes legt die Gitterwelt ihre Platten
+   * selbst, eine je gebauter Bodenkachel (`GridWorld.buildFloorPlates`,
+   * `floorPlate.ts`). Zwei Lagen wären dort zwei Rechnungen für ein Bild.
    *
    * Er hängt an der **Testwelt** und nicht an der Basis, obwohl er in
    * `worlds/shared/` wohnt, und das ist die Antwort auf die Frage, wem er
@@ -145,9 +151,33 @@ export class TestWorld extends GridWorld {
     fitTest(plan);
   }
 
-  /** Draußen: Kies, Beton, Holz — kein Innenraumgrau. */
+  /**
+   * Draußen: Kies, Beton, Holz — kein Innenraumgrau.
+   *
+   * **Das Grün ist seit dem Plattenboden ein Ersatzteil.** Über jeder
+   * Bodenkachel liegt eine Platte aus dem Regal (`floorPlate.ts`), und der
+   * Quader darunter wird unsichtbar, sobald sie da ist
+   * (`GridWorld.buildFloorPlates`). Zu sehen ist dieser Ton deshalb nur noch
+   * dort, wo es keine Platten gibt: in einem Checkout ohne die gekauften
+   * Pakete und in der Sekunde, bevor die Datei ankommt. Genau dafür bleibt er
+   * stehen — ein Gelände, das erst grün ist und dann blau wird, ist besser als
+   * eines, das eine Sekunde lang gar nicht da ist.
+   */
   protected override tint(): Partial<Record<PlanSolidKind, number>> {
     return { floor: 0x7c8a6a, stone: 0x9a9481, wood: 0x8a5f38, wall: 0xb3b8c2 };
+  }
+
+  /**
+   * **Welche Platte auf welcher Bodenkachel liegt** — die ganze Entscheidung
+   * steht nebenan und rechnet ohne three.js (`floorPlate.ts`).
+   *
+   * Hier steht nur die Weitergabe, und das ist der Punkt: Was „Küche",
+   * „Podest" und „Gelände" heißt, weiß diese Welt; wie daraus ein Bündel wird,
+   * weiß die Gitterwelt; und dazwischen liegt eine Funktion, die man in
+   * Millisekunden prüfen kann.
+   */
+  protected override floorPlate(tile: PlateTile): string | null {
+    return floorPlate(tile);
   }
 
   /**
@@ -192,22 +222,25 @@ export class TestWorld extends GridWorld {
   }
 
   /**
-   * **Draußen ist ein Schachbrett**, grau und weiß im Wechsel, ein Meter je
-   * Feld (`shared/environment.createGround`).
+   * **Draußen ist die Platte, gemalt** — ein Meter je Feld
+   * (`shared/environment.createGround`).
    *
-   * Vorher lag hier eine olivgrüne Wiese mit einem Raster von vier Metern —
-   * eine Kachelgröße, die es in dieser Welt gar nicht gibt: Gebaut wird auf
-   * einem **Metergitter** (`worlds/grid/`), und wer eine Wand setzen will,
-   * zählt Kacheln. Ein Raster daneben, das nicht dazu passt, ist schlimmer
-   * als keines. Das Vorbild ist der Prüfkammerboden aus Portal — es ist
-   * dasselbe, aus dem auch die Portalflächen dieses Projekts kommen, und es
-   * sagt auf einen Blick, wie weit etwas weg ist.
+   * Hier lag einmal eine olivgrüne Wiese mit einem Raster von vier Metern,
+   * danach ein Schachbrett in Grau und Weiß nach dem Vorbild des
+   * Prüfkammerbodens aus Portal. Beides ist Geschichte, und beide Male aus
+   * demselben Grund: **Ein Raster daneben, das nicht dazu passt, ist schlimmer
+   * als keines.** Gebaut wird auf einem Metergitter (`worlds/grid/`), gelaufen
+   * wird inzwischen auf echten Platten von einer Kachel
+   * (`shared/plateFloor.ts`) — und was hinter ihnen bis zum Horizont steht,
+   * soll ihre Fortsetzung sein und nicht ihr Rand. Die drei Farben kommen
+   * deshalb **von der Platte selbst** (`layout.HORIZON_COLORS`,
+   * `shared/plateField.PLATE_FACE`).
    *
-   * **Die Küche hat seitdem ein zweites Brett**, und die beiden grenzen
-   * unmittelbar aneinander (`zones/kitchenFloor.ts`): halbe Felder, warme und
-   * dunkle Töne, damit der Küchenboden ein Küchenboden bleibt und nicht die
-   * Fortsetzung dieses hier wird. Die drei Farben unten stehen deshalb in
-   * `layout.HORIZON_COLORS` — der Boden nebenan wird gegen sie gemessen.
+   * **Die Küche hat ein zweites Brett**, und die beiden grenzen unmittelbar
+   * aneinander (`zones/kitchenFloor.ts`): halbe Felder, warme und dunkle Töne,
+   * damit der Küchenboden ein Küchenboden bleibt und nicht die Fortsetzung
+   * dieses hier wird. Ein Test misst das eine gegen das andere — und deshalb
+   * stehen die Farben in `layout.ts` und nicht in diesen drei Methodenrümpfen.
    */
   protected override horizonColor(): number {
     return HORIZON_COLORS.ground;
@@ -275,19 +308,29 @@ export class TestWorld extends GridWorld {
     // Unterschied zwischen der laufenden Welt und einer **Vorschau** — in
     // `PortalWorld.preview` steht kein `context`, und deshalb bauen dort schon
     // die Zonen und der Staub nicht. Für das Standbild auf der Werkzeugseite
-    // sind viertausend Platten zu viel, und aufgeräumt wird eine Vorschau
-    // allein mit `disposeTree` — das die Instanzpuffer eines Bündels gar nicht
-    // kennt.
+    // sind sechsundzwanzigtausend Platten zu viel, und aufgeräumt wird eine
+    // Vorschau allein mit `disposeTree` — das die Instanzpuffer eines Bündels
+    // gar nicht kennt.
     //
     // **In Metern und nicht in Kacheln**: `FIELD` steht im Kachelgitter, und
     // dass eine Kachel ein Meter ist, sagt `nav/navTile.TILE` und nicht diese
     // Zeile.
-    this.plates ??= new PlateFloor(this.root, {
-      x: FIELD.x * TILE,
-      z: FIELD.z * TILE,
-      w: FIELD.w * TILE,
-      d: FIELD.d * TILE,
-    });
+    //
+    // **Ausgelassen wird das Gelände selbst**, denn dort liegen inzwischen
+    // eigene Platten — eine je gebauter Bodenkachel, gelegt von der Gitterwelt
+    // (`floorPlate.ts`, `GridWorld.buildFloorPlates`). Die Schürze ist
+    // ausschließlich das, was **davor** steht: der Ring, unter dem gar nichts
+    // gebaut ist.
+    this.plates ??= new PlateFloor(
+      this.root,
+      PLATE_PROTOTYPE,
+      plateSpots({
+        x: FIELD.x * TILE,
+        z: FIELD.z * TILE,
+        w: FIELD.w * TILE,
+        d: FIELD.d * TILE,
+      }).map((spot) => ({ x: spot.x, y: PLATE_TOP, z: spot.z })),
+    );
   }
 
   override update(dt: number, ctx: WorldContext): void {

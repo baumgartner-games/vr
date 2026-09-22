@@ -15,7 +15,7 @@ import {
   type KaykitIndex,
 } from './kaykitIndex';
 import { KAYKIT_TERMS, KAYKIT_TERM_COVERAGE, kaykitEnglish, kaykitGerman } from './kaykitTerms';
-import type { MenuEntry } from '../ui/menu';
+import type { MenuEntry, MenuFact } from '../ui/menu';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -151,7 +151,9 @@ describe('kaykitPackMenu', () => {
     const inner = pack!.children!;
     expect(inner[0]!.id).toBe('kaykit:dungeon-remastered/characters');
     expect(inner[1]!.id).toBe('kaykit:dungeon-remastered/barrel.glb');
-    expect(inner[1]!.sub).toBe('12 KB');
+    // Der Untertitel einer Modellkachel ist die **Adresse** — in der Brille
+    // ist das Fähnchen über dem Panel die einzige Stelle, an der sie steht.
+    expect(inner[1]!.sub).toBe('dungeon-remastered/barrel.glb');
     expect(inner[1]!.preview).toBe('kaykit:dungeon-remastered/barrel.glb');
   });
 
@@ -517,7 +519,67 @@ describe('die Suche auf Deutsch', () => {
     const entry = kaykitSearchEntries(files, 'crate wood', pick)[0]!;
     expect(entry.label).toBe('Crate Wood');
     expect(entry.caption).toBe('Kiste Holz');
-    expect(entry.detail!.facts[0]).toEqual({ label: 'Deutsch', value: 'Kiste Holz' });
+    expect(entry.detail!.facts[1]).toEqual({ label: 'Deutsch', value: 'Kiste Holz' });
+  });
+});
+
+/**
+ * **Der Steckbrief hinter dem ⓘ** — und darin die Zeile, für die es ihn gibt.
+ *
+ * Zwei Modelle waren einmal als „block b" und „block column" bestellt worden,
+ * und beide Namen gibt es in der Sammlung nicht: Die Kachel beschriftet mit
+ * `humanLabel` („Bricks B"), und der Steckbrief zerlegte die Adresse in
+ * Ordner und Datei. Seither steht sie an einem Stück darin — und das ist eine
+ * reine Rechnung aus einem `KaykitFileRef`, also steht sie hier auf dem
+ * Prüfstand.
+ */
+describe('Der Steckbrief einer Datei', () => {
+  function facts(): MenuFact[] {
+    const { pick } = picks();
+    const [pack] = kaykitPackMenu(
+      index({
+        name: 'kaykit',
+        dirs: [
+          {
+            name: 'dungeon-remastered',
+            label: 'Dungeon Remastered',
+            license: 'CC0-1.0',
+            dirs: [],
+            files: [{ name: 'barrel_large.glb', bytes: 12345 }],
+          },
+        ],
+        files: [],
+      }),
+      pick,
+    );
+    return [...pack!.children![0]!.detail!.facts];
+  }
+
+  it('stellt die Adresse an den Anfang — an einem Stück und ohne `models/kaykit/`', () => {
+    expect(facts()[0]).toEqual({
+      label: 'Adresse',
+      value: 'dungeon-remastered/barrel_large.glb',
+      copy: true,
+    });
+  });
+
+  it('buchstabiert sie nicht mehr in Ordner und Datei', () => {
+    const labels = facts().map((fact) => fact.label);
+    expect(labels).not.toContain('Ordner');
+    expect(labels).not.toContain('Datei');
+    // Das Paket bleibt: Es ist der wirkliche Name aus dem Index und nicht der
+    // Ordnername, steht also in keinem Pfad.
+    expect(labels).toEqual(['Adresse', 'Deutsch', 'Paket', 'Dateigröße', 'Schubladen']);
+    expect(facts()[2]!.value).toBe('Dungeon Remastered');
+  });
+
+  it('erlaubt das Mitnehmen genau dort, wo es etwas nützt', () => {
+    // Eine Dateigröße kopiert niemand, und „Kiste Holz" ist keine Adresse.
+    expect(
+      facts()
+        .filter((fact) => fact.copy)
+        .map((fact) => fact.label),
+    ).toEqual(['Adresse']);
   });
 });
 

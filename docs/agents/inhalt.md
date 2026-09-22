@@ -255,7 +255,11 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     - **Die Portal-Regel: Was man drücken kann, kann man auch treffen.** Der
       rote Knopf (`worlds/shared/redButton.ts`) hat einen Kollisionskörper an
       der Kuppel, und eine Kugel, die ihn unterwegs streift, ruft sein `use`
-      auf und ist danach aufgebraucht (`PortalWorld.bulletTravelled`). Die
+      auf und ist danach aufgebraucht (`PortalWorld.bulletTravelled`). **Zu
+      sehen ist inzwischen eine Steinsäule mit einer roten Spielfigur darauf**
+      ([Modelle](./modelle.md), _Die dritte Runde_) — die Kuppel ist als Bild
+      weg, als Zahl geblieben: Gezielt und getroffen wird weiter derselbe
+      Körper an derselben Stelle. Die
       Trefferfläche ist dabei um `SHOT_MARGIN` größer als der Körper: Eine
       Kugel fliegt nicht *in* einen Knopf hinein, sie bleibt an ihm stehen, und
       ihre Strecke endete sonst knapp außerhalb.
@@ -804,6 +808,12 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     Kimme & Korn, Flugbahn, Röntgen, **Fernrohr** — oder alles ab), der
     **Zoom** des Fernrohrs (16×, 20×, 24×, 28×, 32×, 36× durchklicken oder
     zwischen 1 und 60 tippen) und die **Munition** (normal oder Leuchtspur).
+    **Die Waffe selbst kommt inzwischen aus dem KayKit-Regal**, und die Kugeln
+    auch: Statt eines gelben Kügelchens fliegt eine Patrone, doppelt so lang
+    wie das Kügelchen dick war und auf ihrer Flugrichtung liegend — die
+    Leuchtspur glüht voll orange, die gewöhnliche gedämpft gelb. Was der
+    Tausch gekostet hat, ist der zurückschnellende Schlitten; das Hochschlagen
+    der Mündung ist geblieben ([Modelle](./modelle.md), _Die dritte Runde_).
   - **Messer**: das eine Werkzeug, das zum Loslassen gedacht ist. Aus der
     Bewegung heraus losgelassen fällt es nicht, sondern **fliegt weiter** —
     geradeaus, ohne Bogen, und überschlägt sich dabei **vorwärts**: die Spitze
@@ -1500,7 +1510,13 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   - **Treppe und Podest** (Nordosten): fünf mal fünf Kacheln auf Ebene 1, eine
     Brüstung ringsum, vier Säulen darunter und eine **vier Kacheln lange**
     Treppe hinauf. Oben ein Hebel, der unten eine Lampe schaltet — der Beweis,
-    dass ein `trigger` keine Etagengrenze kennt. Auf Säulen und nicht auf einer
+    dass ein `trigger` keine Etagengrenze kennt. Alle vier — Brüstung, Säule,
+    Treppe und der Steinboden des Decks — kommen inzwischen als Modell aus dem
+    KayKit-Regal ([Modelle](./modelle.md), _Die dritte Runde_); die Brüstung
+    ist dabei von 0,90 m auf die 0,55 m ihres Modells heruntergegangen und
+    damit von einer Brustwehr zu einer **Balustrade** geworden, durch die man
+    von oben hindurchsieht. Aufhalten tut sie weiter: Der Character-Controller
+    steigt 0,32 m. Auf Säulen und nicht auf einer
     Wand, weil man von oben sonst nur sähe, dass etwas erscheint, und nie, dass
     darunter etwas war.
   - **Navigation** (Westen): ein enger Gang mit einer Kiste darin, eine Tür an
@@ -1524,7 +1540,9 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     zwanzig Meter und nicht zehn bis hundert: Der alte Stand war 125 m tief,
     und das wäre hier der ganze Osten samt halber Kartbahn. Die Bank ist das,
     was sie in Wirklichkeit ist — eine **Küchenzeile**, derselbe geprüfte
-    Baustein auf derselben Arbeitshöhe.
+    Baustein auf derselben Arbeitshöhe; als Bild trägt sie seit der dritten
+    Runde eine Werkbank aus dem Regal, in die gebaute Form gepresst statt
+    gleichmäßig skaliert.
     **Geschossen wird nach Osten**: Die Entfernung ist eine Strecke in X
     hinter der Linie, die drei Bahnen liegen quer dazu in Z, und wo eine
     Scheibe steht, rechnet genau eine Funktion (`zones/range.ts`,
@@ -1580,12 +1598,15 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     Felder auf jeder Kachel des Meterrasters — eine Fuge, die schräg unter der
     Küchenzeile durchliefe, wäre schlimmer als gar keine. Er ist der
     Unterschied zwischen „hier stehen Möbel auf dem Gelände" und „hier ist ein
-    Raum", und er ist bewusst **gegen das Schachbrett draußen** gewählt
-    (`layout.HORIZON_COLORS`): Das ist grau auf weiß mit einem Meter je Feld,
-    also zwei helle kühle Töne — drinnen sind die Felder halb so groß, die Töne
-    wärmer und der Sprung zwischen ihnen mehr als doppelt so groß. Damit liest
-    sich die Kante zwischen beiden als Schwelle und nicht als Versehen; ein
-    Jest-Test rechnet Feldgröße, Kontrast und Ausrichtung nach. Gezeichnet wird
+    Raum", und er ist bewusst **gegen den Boden draußen** gewählt
+    (`layout.HORIZON_COLORS`): Dort liegt seit dem Plattenboden **ein** Ton —
+    das mittlere Blau der Platte —, unterbrochen nur von der helleren Fuge an
+    jeder Kachelkante; drinnen sind die Felder halb so groß, die Töne wärmer
+    und der Sprung zwischen ihnen mehr als doppelt so groß. Damit liest sich
+    die Kante zwischen beiden als Schwelle und nicht als Versehen; ein
+    Jest-Test rechnet Feldgröße, Kontrast und Ausrichtung nach — und zwar
+    gegen **Grund und Fuge** draußen, seit die beiden Felder dort dieselbe
+    Farbe tragen: Eine Farbe mit sich selbst zu vergleichen ginge immer aus. Gezeichnet wird
     das Muster vom selben Schachbrettzeichner wie der Boden bis zum Horizont
     (`shared/environment.checkerTexture`, samt Farbraum, Mipmaps und
     `anisotropy` gegen das Flimmern aus der Aufsicht); die Fliesen sind ein
@@ -1899,6 +1920,16 @@ im Spiel also zwei Kacheln —, und in eine
   als eines in Ruhe, so wie Luft in einem Sack. Eine **Rampe** an seiner Kante
   führt wieder hinauf, flacher als das, was der Körper noch steigt.
 
+  **Zu sehen sind von beiden inzwischen Modelle aus dem KayKit-Regal.** Aus
+  dem einen blauen Quader ist ein **Feld aus 48 Klötzen** geworden — acht mal
+  drei je Lage, zwei Lagen übereinander, so wie in einer Halle mehrere Matten
+  nebeneinander liegen und nicht eine genähte von acht Metern. Sie hängen in
+  einer Gruppe und sinken deshalb mit ein: Ein Kissen, das beim Federn stehen
+  bliebe, wäre ein Spieler, der in der Luft steht. Die Rampe ist ein Keil, und
+  weil eine ungleichmäßige Skalierung eine Ebene wieder auf eine Ebene abbildet,
+  liegt seine Schräge **überall** auf der Lauffläche und nicht nur an den
+  Enden. Gerechnet wird an beiden weiter dasselbe wie vorher.
+
   Die Griffe tragen die **Greif-Farben** aus `core/colors.ts` und keine zweiten:
   Sprossen leuchten hell, rauer Fels trägt den ruhigen Ton, glatter den dunklen;
   den Rest macht die Oberfläche, denn glatter Fels glänzt auch. Wer im Spiel
@@ -2208,19 +2239,32 @@ im Spiel also zwei Kacheln —, und in eine
   kaum von Nebel zu unterscheiden, und ein Raster, dessen Felder man nicht
   **zählen** kann, sagt einem nicht, wie weit man gelaufen ist. Die zweite
   Farbe kommt ohne Angabe eine Spur heller als die erste heraus, damit jede
-  Welt ihr Brett bekommt, ohne ihren Ton zu verlieren; wer es wie in **Portal**
-  will — grau und weiß —, nennt sie (`horizonChecker()`, so macht es die
-  Testwelt).
+  Welt ihr Brett bekommt, ohne ihren Ton zu verlieren; wer einen eigenen will,
+  nennt ihn (`horizonChecker()`).
 
-  **In der Testwelt liegt darauf seit Neuestem ein Plattenboden.** Rings um
-  das Gelände, 32 m weit — die Kantenlänge, in der diese Engine scharfe
-  Schatten zeichnet —, stehen 4 059 Platten aus `prototype-bits/Floor_Prototype.glb`
-  in zwei `InstancedMesh`: hell und dunkel im Schachbrett, zwei Zeichenaufrufe
-  (`shared/plateFloor.ts`, die Rechnung dahinter in `shared/plateField.ts`).
-  Der texturierte Kasten bleibt darunter liegen und trägt weiter den Collider;
-  die Platten sind reine Zierde und liegen zwei Zentimeter über ihm, man steht
-  also **in** ihnen. Wo das Gelände selbst einen Boden hat (`FIELD`), liegt
-  keine Platte — dort stünde sie mit dem gebauten Boden im Streit.
+  **In der Testwelt ist genau das jetzt eine Ausnahme**, und zwar eine
+  gewollte: Dort ist das zweite Feld **dasselbe** wie das erste. Draußen liegt
+  ein Plattenboden, und die Leinwand dahinter hat nur noch eine Aufgabe —
+  weitergehen. Sie trägt deshalb die Farben der Platte selbst, an deren Textur
+  gemessen: das mittlere Blau der Deckfläche als Grund, der hellere Ton der
+  umlaufenden Fase als Linie. Ein Schachbrett draußen neben lauter gleichen
+  Platten davor wäre wieder genau die Kante, die keiner sehen soll. Gezählt
+  werden kann trotzdem: Die Fuge sitzt jeden Meter.
+
+  **Und der Plattenboden liegt nicht nur draußen.** Rings um das Gelände geht
+  eine **Schürze** 48 m weit, und auf jeder Bodenkachel des Geländes selbst
+  liegt eine Platte auf der Oberkante — Prototypenplatten unten, Steinplatten
+  oben auf dem Podest, nichts in der Küche, die ihren eigenen Belag hat.
+  Zusammen sind das gut vierunddreißigtausend Platten und rund 691 000 Dreiecke
+  in **zwei** Zeichenaufrufen (`shared/plateFloor.ts`, die Rechnung dahinter in
+  `shared/plateField.ts` und `test/floorPlate.ts`); einen Schatten wirft davon
+  keine. Eine Platte ist dabei genau **eine Kachel** groß, damit jede
+  Plattenfuge auch eine Kachelkante ist — bei zwei Metern war nur jede zweite
+  eine, und wer eine Wand setzen wollte, zählte Felder und traf die Hälfte. Der
+  texturierte Kasten bleibt unter der Schürze liegen und trägt weiter den
+  Collider; die Platten sind reine Zierde und liegen zwei Zentimeter über ihm,
+  man steht also **in** ihnen. Der gebaute Boden darunter bleibt ebenfalls
+  stehen, nur unsichtbar — er trägt weiter Kollision, Etage und Wegenetz.
 
   Den Zeichner teilt sich dieser Boden inzwischen mit einem zweiten
   (`checkerTexture`): Die **Küche der Testwelt** ist ebenfalls kariert, mit

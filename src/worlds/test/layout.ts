@@ -1,5 +1,6 @@
 import type { NavRect } from '../nav/navBuild';
 import { TILE } from '../nav/navTile';
+import { PLATE_FACE, PLATE_SEAM } from '../shared/plateField';
 
 /**
  * **Wo in der Testwelt was liegt** — nichts als Zahlen.
@@ -11,8 +12,11 @@ import { TILE } from '../nav/navTile';
  * Konstanten noch `undefined`. Das ist kein Stilfehler, das ist ein Absturz
  * beim ersten Import.
  *
- * Also liegen die Zahlen hier, ganz unten, und importieren selbst nichts außer
- * der Kachelgröße.
+ * Also liegen die Zahlen hier, ganz unten, und importieren selbst nur, was
+ * selbst nichts importiert: die Kachelgröße und die beiden am Plattenatlas
+ * gemessenen Farben (`shared/plateField.ts`). Beide Dateien wissen von den
+ * Zonen nichts — der Kreis, vor dem dieser Absatz warnt, entsteht erst, wenn
+ * eine Zone hier hereingezogen wird.
  */
 
 // --- das Gelände ------------------------------------------------------------
@@ -39,8 +43,9 @@ export const LEVELS: readonly number[] = [0, STOREY];
 export const FIELD: NavRect = { x: -27, z: -59, w: 77, d: 105 };
 
 /**
- * **Die Farben des Bodens draußen** — grau und weiß im Wechsel, ein Meter je
- * Feld (`shared/environment.createGround`, `TestWorld.horizonColor`).
+ * **Die Farben des Bodens draußen** — und zwar die der Platte, Bildpunkt für
+ * Bildpunkt an ihrem Atlas gemessen (`shared/plateField.PLATE_FACE`,
+ * `PLATE_SEAM`).
  *
  * Die drei Zahlen standen in drei Methodenrümpfen der Welt, und dort kam
  * niemand an sie heran, der sie braucht. Gebraucht werden sie seit dem
@@ -48,11 +53,29 @@ export const FIELD: NavRect = { x: -27, z: -59, w: 77, d: 105 };
  * grenzt unmittelbar an diesen hier, und genau deshalb muss er sich von ihm
  * abheben — feinere Felder, wärmere und dunklere Töne. Ein Test rechnet das
  * nach, und dafür muss er beide Böden in die Hand bekommen.
+ *
+ * **Hier stand grau auf weiß**, das Schachbrett aus Portal, und es war
+ * richtig, solange draußen ein Anstrich lag. Jetzt liegen dort Platten
+ * (`shared/plateFloor.ts`), und die Leinwand dahinter hat genau eine Aufgabe:
+ * **weitergehen**. Der Befund dazu lautete „naja die floor teile scheinen ja
+ * nicht sehr weit dann zu sein" — eine Schürze endet nun einmal irgendwo, und
+ * ob man das sieht, entscheidet nicht ihre Reichweite allein, sondern die
+ * Farbe dahinter.
+ *
+ * - `ground` ist die **Deckfläche** der Platte,
+ * - `line` ihre umlaufende **Fase** — der helle Saum, der jede Fuge zeichnet,
+ * - und `checker` ist **dasselbe** wie `ground`: Das zweite, dunklere Feld ist
+ *   weg, hier wie dort („das dunklere brauche ich nicht, da die alle einen
+ *   weißen rand haben, das reicht"). Ein Schachbrett draußen neben lauter
+ *   gleichen Platten davor wäre wieder genau die Kante, die keiner sehen soll.
+ *   Gezählt werden kann trotzdem: Die Fuge sitzt jeden Meter
+ *   (`environment.CHECKER_TILE`), und das ist dieselbe Einteilung, auf der
+ *   auch gebaut wird.
  */
 export const HORIZON_COLORS = {
-  ground: 0x9aa0a8,
-  checker: 0xe8ebef,
-  line: 0x6c727a,
+  ground: PLATE_FACE,
+  checker: PLATE_FACE,
+  line: PLATE_SEAM,
 } as const;
 
 /** Die Mitte des Startplatzes — der Anker der Zone `start`. */

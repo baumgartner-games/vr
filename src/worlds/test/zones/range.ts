@@ -251,8 +251,9 @@ export function stampRange(plan: GridPlan): void {
    * Linie vorbei nach vorn.
    */
   for (const lane of LANES) plan.put('counter', BENCH_X, lane, DIR_E);
-  // Die Trennwände zwischen den Bahnen: brusthoch, damit der Stand offen
-  // bleibt. Nur zwischen den Bahnen, nicht an ihren Außenseiten.
+  // Die Trennwände zwischen den Bahnen: eine Brüstung und keine Wand — sie
+  // reicht bis über das Knie (`BLOCKS.parapet`, 0,55 m), und darüber bleibt
+  // der Stand offen. Nur zwischen den Bahnen, nicht an ihren Außenseiten.
   for (const lane of LANES.slice(0, -1)) plan.put('parapet', BENCH_X, lane, DIR_S);
 
   // Eine Bank und ein Regal an der Nordwand: das, was auf einem Stand

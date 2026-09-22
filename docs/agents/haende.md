@@ -826,3 +826,55 @@ die Boxhand um den Versatz _und_ um die 30° zwischen Faust und Zeigestrahl weg
 und lag sichtbar neben der Lampe. _Zurücksetzen_ schreibt deshalb die Lage des
 Werkzeugs im Griff selbst, und die Hand steht danach exakt daran; von dort
 justiert man nach außen, statt sich erst wieder heranzutasten.
+
+## Und jetzt hängt ein gekauftes Netz am Halterzylinder
+
+Achtzehn Werkzeuge tragen ihren Griff gerechnet, und genau daran ist der
+Tausch der gebauten Geometrie gegen die gekaufte bisher gescheitert: Ein
+Modell aus dem KayKit-Regal bringt seinen eigenen Ursprung mit, seine eigene
+Achse — und keinen Griffzylinder. Die Absage dazu steht seit der ersten
+Bestandsaufnahme in [Modelle](./modelle.md) und hieß „Kandidat da, Griff
+fehlt". Sie ist eingelöst, und zwar an der **Pistole**: dem Werkzeug, dessen
+Griff die Messlatte für alle anderen ist (siehe _Ein Griff für alle
+Werkzeuge_: „Die Lage des Griffs selbst ist die des Pistolengriffs").
+
+**Umgekehrt wird gerechnet, nicht am Zylinder.** Nicht der Halterzylinder
+zieht zum Modell, sondern das Modell zum Zylinder — dieselbe Umkehrung wie
+damals bei den Werkzeugen selbst, nur eine Ebene tiefer. `mountGrip()` setzt
+den Zylinder weiter dorthin, wo die Faust ihn erwartet;
+`holdPosition`/`holdRotation` rühren sich nicht, und damit bleibt auch der
+zweite Justierstand heil. Was dazukommt, ist eine Frage an das fremde Netz:
+**Welcher Teil davon ist der Griff?**
+
+**Die Antwort wird gemessen, damit sie ein Paket-Update überlebt**
+(`portal/tools/pistolFit.ts`, three.js-frei und geprüft; das Messen selbst in
+`pistolModel.ts`). Der naheliegende Anker trägt nicht: `Gun_Pistol_Magazine`
+ist ein eigener Knoten, sitzt aber **vor** dem Abzugsbügel unter dem Lauf — ein
+Vordermagazin. Gefunden wird der Griff deshalb an seiner **Form**, über zwei
+eindimensionale Profile: `lobeEnd` nimmt den tiefsten Punkt je Längsscheibe und
+findet, wo der hintere Lappen in den Abzugsbügel übergeht; `frameFlare` nimmt
+die Breite je Höhenscheibe und findet, wo der Rahmen ausladet. Der Maßstab ist
+dann **Zylinderlänge geteilt durch Griffhöhe** — 0,1 / 0,1661 = 0,602 — und
+ausdrücklich nicht die Gesamtlänge: Eine Waffe darf länger sein als die
+gebaute, ihr Griff darf es nicht.
+
+**Zwei Reste bleiben stehen, und sie gehören in diese Datei**, weil sie die
+Faust betreffen:
+
+- **5,4°.** Der Griff des Modells lehnt 18°, der Halterzylinder 12,6° (die
+  Lage des Pistolengriffs, wie er im Spiel schon lag). Geradezuziehen ginge
+  das nur, indem man das Modell um die Querachse nachkippt — dann stünde der
+  **Lauf** um dieselben 5,4° neben der Zielrichtung, und mit ihm die Kimme auf
+  der Schiene. Über die halbe Grifflänge sind 5,4° knapp fünf Millimeter, und
+  die liegen in der Faust; eine Waffe, die dorthin zeigt, wohin sie schießt,
+  ist mehr wert als ein Griff ohne Restwinkel.
+- **2 mm.** Der Zylinder ist 4 cm dick, der Griff des Modells 3,5 cm — der
+  grüne Halter schaut also gut zwei Millimeter seitlich heraus. Ihn dünner zu
+  machen wäre eine Zahl, die dem Modell folgt statt umgekehrt, und er ist das,
+  was man anfassen kann: Das soll man auch dann sehen, wenn die Waffe im
+  Halfter steckt.
+
+**Die gebaute Pistole ist damit nicht weg, sondern Ersatz.** Ohne WebGL und in
+einem Checkout ohne die gekauften Pakete steht sie da und tut, was sie immer
+tat — der normale Ausgang und keine Notlösung. Wer am Griffstand nachmisst,
+misst weiter gegen den Zylinder und nicht gegen ein Netz.

@@ -125,7 +125,8 @@ export function joinsGhostBatch(one: BatchCandidate, knee = GHOST_KNEE): boolean
 
 /**
  * **Der Schlüssel, unter dem zwei Quader ins selbe Bündel gehören**: gleiches
- * Material **und** gleiche Etage.
+ * Material, gleiche Etage **und dieselbe Antwort auf die Frage, welche Platte
+ * einmal über ihnen liegt**.
  *
  * Die Etage steht dabei, weil das Aufschneiden von oben (`core/cutaway.ts`) an
  * `userData.level` hängt und ein Objekt genau eine Sichtbarkeit hat: Ein Bündel
@@ -135,7 +136,28 @@ export function joinsGhostBatch(one: BatchCandidate, knee = GHOST_KNEE): boolean
  * `level` darf `null` sein: Eine Welt ohne Etagenmarken (das Portal-Labor, das
  * Interaktionslabor) wird nicht aufgeschnitten, und ihre Quader gehören
  * deshalb alle in dasselbe Bündel.
+ *
+ * **Und `plates` ist die dritte Frage, aus demselben Grund wie die zweite.**
+ * Ein Boden, über den Platten aus dem Regal gelegt werden, wird unsichtbar,
+ * sobald die Datei da ist (`GridWorld.buildFloorPlates`) — und „unsichtbar"
+ * kann ein Bündel nur für **alle** darin. Wer die Bodenkacheln der Küche, über
+ * die keine Platte kommt, mit denen des Geländes in ein Bündel wirft, hat
+ * hinterher die Wahl zwischen einem Gelände ohne Platten und einer Küche ohne
+ * Boden.
+ *
+ * **Warum nicht der Weg des Regals** (`BatchCandidate.modelled`): Dort wird
+ * ein Quader, den ein Modell ersetzt, gar nicht erst gebündelt, und das ist
+ * bei sechs Brettern je Regal die billigere Antwort. Hier sind es **896
+ * Bodenquader und eine Masse über das ganze Gelände**; sie einzeln stehen zu
+ * lassen hieße, in einem Checkout ohne die gekauften Pakete neunhundert
+ * Zeichenaufrufe für einen Boden auszugeben, der heute einer ist. Also
+ * gebündelt wie bisher, nur **getrennt** — und unsichtbar wird dann das Bündel.
+ *
+ * Der Inhalt von `plates` ist die sortierte Liste der Dateien, auf die dieser
+ * Quader wartet (`shared/plateField.floorPlateModels`): Zwei Quader, die auf
+ * verschiedene Dateien warten, verschwinden zu verschiedenen Zeiten und
+ * gehören deshalb auch nicht zusammen.
  */
-export function batchKey(material: string, level: number | null): string {
-  return `${material}:${level ?? 'frei'}`;
+export function batchKey(material: string, level: number | null, plates = ''): string {
+  return `${material}:${level ?? 'frei'}:${plates}`;
 }

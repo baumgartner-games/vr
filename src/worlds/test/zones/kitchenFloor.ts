@@ -67,17 +67,21 @@ export const KITCHEN_CHECKER = TILE / 2;
  * **Die beiden Töne** — warmes Cremeweiß und dunkler Schiefer.
  *
  * Sie sind gegen den Boden **daneben** gewählt und nicht für sich allein: Die
- * Küche grenzt ohne Zaun an das Schachbrett des Geländes (`HORIZON_COLORS`),
- * und das ist grau auf weiß — zwei helle, kühle Töne mit wenig Abstand
- * zueinander. Ein weiteres Grau daneben wäre aus der Vogelperspektive dasselbe
- * Brett mit einer anderen Feldgröße.
+ * Küche grenzt ohne Zaun an den Plattenboden des Geländes
+ * (`layout.HORIZON_COLORS`, `shared/plateField.PLATE_FACE`), und der ist ein
+ * mittleres, kühles Blau mit einem helleren Saum an jeder Fuge — zwei Töne mit
+ * wenig Abstand zueinander. Ein weiteres kühles Feld daneben wäre aus der
+ * Vogelperspektive derselbe Boden mit einer anderen Feldgröße. (Hier stand
+ * einmal „grau auf weiß": das Schachbrett, das vor den Platten draußen lag.
+ * Die Begründung hat den Wechsel überlebt, weil sie nie an der Farbe hing,
+ * sondern am Abstand zu ihr.)
  *
  * Also **dunkler und wärmer**: Das helle Feld hat einen Gelbstich (Creme statt
- * Weiß), das dunkle liegt weit unter allem, was draußen vorkommt. Der Sprung
- * zwischen den beiden Feldern ist damit gut doppelt so groß wie der draußen —
- * und genau dieser Sprung ist es, den man aus 16 m Höhe zuerst sieht. Die
- * Kante zwischen beiden Böden liest sich dadurch als **Schwelle**: hier hört
- * die Wiese auf, hier fängt der Raum an. Ein Test hält beides fest
+ * Weiß), das dunkle liegt deutlich unter allem, was draußen vorkommt. Der
+ * Sprung zwischen den beiden Feldern ist damit gut doppelt so groß wie der
+ * draußen — und genau dieser Sprung ist es, den man aus 16 m Höhe zuerst
+ * sieht. Die Kante zwischen beiden Böden liest sich dadurch als **Schwelle**:
+ * hier hört das Gelände auf, hier fängt der Raum an. Ein Test hält beides fest
  * (`kitchenFloor.test.ts`).
  */
 export const KITCHEN_CHECKER_LIGHT = 0xe7ddc9;

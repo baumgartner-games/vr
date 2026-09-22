@@ -113,6 +113,8 @@ import {
   type KaykitIndex,
 } from '../../core/kaykitIndex';
 import { kaykitClips, kaykitModel, kaykitModelNow, loadKaykitIndex } from '../../core/kaykitModel';
+import { kaykitSkins } from '../../core/kaykitHeight';
+import { BULLET_MODEL, bulletAim, bulletScale } from './bulletFit';
 import { snapToGrip } from './propGrip';
 import { CORK_LENGTH, CORK_NAME, CORK_RADIUS, CORK_SPEED, Foam, ShakeMeter } from './champagne';
 import {
@@ -293,6 +295,7 @@ import {
   markUsable,
   pickUsable,
   shotHitsUsable,
+  usableShows,
   type UseCandidate,
   type Usable,
 } from '../../core/usable';
@@ -457,6 +460,32 @@ const _toolInverse = new THREE.Matrix4();
 const STICK_MARGIN = 0.06;
 /** Bullets are cleaned up again after this long. */
 const BULLET_LIFETIME = 4;
+/**
+ * **Wie schnell ein Drall an einer Patrone stirbt.**
+ *
+ * Eine Kugel ist rund und darf sich drehen, wie sie will — man sieht es nicht.
+ * Eine Patrone hat eine Spitze, und eine Patrone, die seitlich durch die Luft
+ * schlittert, sieht falscher aus als das Kügelchen, das sie ersetzt. Der
+ * Körper bleibt trotzdem eine Kugel (die Rechnung wird nicht getauscht, nur
+ * das Bild), und eine Kugel nimmt bei jedem Streifschuss Drall auf. Acht heißt:
+ * Nach einem Zehntel Sekunde ist davon die Hälfte weg, nach einer halben so gut
+ * wie nichts.
+ */
+const BULLET_SPIN_DAMPING = 8;
+/**
+ * **Wie stark eine Patrone von sich aus leuchtet**, als Anteil der Farbe, die
+ * das Kügelchen vorher hatte.
+ *
+ * Das Kügelchen war ein `MeshBasicMaterial` mit `toneMapped: false`: ein Fleck
+ * in genau seiner Farbe, egal wie dunkel der Raum ist. Das Modell ist
+ * beleuchtete Geometrie und damit im Dunkeln erst einmal dunkel. Beides ganz
+ * ist keine Lösung — ein voll glühendes Geschoss wäre eine Leuchtspur, und
+ * genau die soll unterscheidbar bleiben. Also glüht die **Leuchtspur** in
+ * ihrem Orange voll und die gewöhnliche Patrone in ihrem Gelb gedämpft: hell
+ * genug, um sie im Schatten noch zu finden, matt genug, um neben einer
+ * Leuchtspur die langweiligere zu sein.
+ */
+const BULLET_GLOW = 0.35;
 /** How many points a tracer's streak is made of. */
 const TRACER_POINTS = 12;
 
@@ -659,6 +688,16 @@ interface Bullet {
   from: THREE.Vector3;
   /** Already counted somewhere. A round only ever hits once. */
   spent: boolean;
+  /**
+   * Die Materialien ihres Bildes, wenn es aus dem Regal kommt — leer, wenn es
+   * das gerechnete Kügelchen ist.
+   *
+   * Die **Geometrie** einer Regalkopie gehört der Vorlage und allen anderen
+   * Kopien, und `disposeTree` hält an dieser Marke an; ihre **Materialien**
+   * klont jede Kopie für sich (`core/kaykitModel.copyOf`). Bei hundert
+   * Schüssen in der Minute sammelt sich das, wenn es hier nicht stünde.
+   */
+  skins: readonly THREE.Material[];
 }
 
 /** The streak behind a tracer: the last few places it has been. */
@@ -1435,6 +1474,11 @@ export class PortalWorld implements World {
     this.placeGrid = new PlaceGrid(this.root);
     ctx.pointer.add(this.keys.asPointerTarget());
     this.setupTools(ctx);
+    // **Und die Patrone dazu**: Sie gehört zur Pistole, die hier gerade
+    // entsteht, und sie ist das einzige Regalmodell dieser Welt, das im
+    // Sekundentakt gebraucht wird (`bulletView`). Wer sie erst beim ersten
+    // Abzug holt, sieht die ersten Schüsse als gerechnete Kügelchen.
+    this.warmBullet();
     this.bindFlatInput(ctx);
     // Die kleinen Modelle in den Menüzeilen kommen aus demselben Regal wie
     // die Werkzeuge selbst — abgeschrieben, nicht gebaut (`WristMenu.ts`).
@@ -6883,21 +6927,32 @@ export class PortalWorld implements World {
     const radius = 0.014 * Math.cbrt(mass / 0.06);
     const tracer = options.tracer === true;
 
-    const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(radius, 10, 8),
-      new THREE.MeshBasicMaterial({ color: tracer ? 0xff7a2f : 0xffd98a, toneMapped: false }),
-    );
+    const round = this.bulletView(radius, tracer);
+    const mesh = round.object;
     mesh.name = 'bullet';
     mesh.position.copy(origin).addScaledVector(direction, 0.05);
+    // **Sie fliegt, wie sie zeigt.** Eine Kugel ist rund und hat keine
+    // Richtung; eine Patrone hat eine Spitze, und `Bullet.glb` legt sie auf
+    // +z. Die Drehung steht hier und nicht erst im Körper, weil der Körper sie
+    // beim Anlegen aus der Weltmatrix liest (`PhysicsWorld.addBody`) und von da
+    // an jedes Bild zurückschreibt.
+    const aim = bulletAim(direction);
+    mesh.quaternion.set(aim.x, aim.y, aim.z, aim.w);
     this.root.add(mesh);
     mesh.updateWorldMatrix(true, false);
 
     const entry = physics.addDynamic(mesh, {
+      // **Der Körper bleibt eine Kugel**, auch wenn das Bild eine Patrone ist:
+      // Was eine Zahl im Spiel bewegt, wird nicht getauscht (`modelle.md`,
+      // Regel 1). Der Halbmesser hängt weiter an der Masse, die Trefferrechnung
+      // des Schießstands rechnet weiter gegen die **Strecke** der Kugel
+      // (`worlds/range/scoring.faceHit`) und nicht gegen ein Netz.
       shape: { kind: 'ball' },
       halfExtents: new THREE.Vector3(radius, radius, radius),
       mass,
       friction: 0.4,
       restitution: 0.2,
+      angularDamping: BULLET_SPIN_DAMPING,
       ccd: true,
       membership: GROUP_PROP,
       // Bullets ignore the player who fired them, otherwise the recoil is you.
@@ -6919,7 +6974,99 @@ export class PortalWorld implements World {
       trail: tracer ? this.newTrail() : null,
       from: mesh.position.clone(),
       spent: false,
+      skins: round.skins,
     });
+  }
+
+  /**
+   * **Das Bild einer Patrone** — aus dem Regal, wenn es da ist, sonst das
+   * gerechnete Kügelchen.
+   *
+   * `kaykitModelNow` antwortet **ohne Warten**: Ist die Vorlage im Speicher,
+   * kommt eine Kopie zurück, sonst `null` und das Laden ist angestoßen (siehe
+   * `core/kaykitModel.ts`). Genau dafür ist es da, und genau das braucht eine
+   * Stelle, an der im Sekundentakt Dinge entstehen — ein `GLTFLoader`-Aufruf je
+   * Schuss wäre absurd, ein `await` je Schuss wäre eine Kugel, die einen
+   * Wimpernschlag nach dem Knall losfliegt. Damit nicht ausgerechnet der erste
+   * Schuss der einzige ohne Modell ist, wird die Datei beim Betreten der Welt
+   * vorgewärmt (`warmBullet`).
+   *
+   * ## Wie groß, und warum das eine Entscheidung ist
+   *
+   * Der Halbmesser der gerechneten Kugel bleibt, was er war — er ist die Hülle
+   * des Körpers. Das Modell wird daran gemessen: `bulletScale` macht es so
+   * lang wie **vier Halbmesser**, also doppelt so lang wie das Kügelchen dick
+   * war. Die Rechnung dahinter und was sie kostet, steht in `bulletFit.ts`;
+   * kurz: Von der Seite ist die Patrone knapp doppelt so groß wie vorher, von
+   * vorn ist sie dünner.
+   *
+   * ## Und sie wirft keinen Schatten
+   *
+   * Eine Regalkopie tut das sonst (`core/kaykitModel.freshCopy`). Bei einem
+   * Ding von zwei Zentimetern, das vier Sekunden lebt und zu dritt im Raum
+   * steht, ist ein Schattenwurf pro Stück reine Rechenzeit für ein Bild, das
+   * niemand je zu Gesicht bekommt.
+   */
+  private bulletView(
+    radius: number,
+    tracer: boolean,
+  ): { object: THREE.Object3D; skins: THREE.Material[] } {
+    const model = kaykitModelNow(BULLET_MODEL);
+    if (model) {
+      // **Erst messen, dann skalieren.** Wie viele Meter eine Quelleinheit
+      // ist, sagt der Maßstab des Pakets (`core/kaykitFit.kaykitScale`), und
+      // der hängt schon an dieser Gruppe — eine abgeschriebene Länge von 0,225
+      // Quelleinheiten wäre die Zahl, die beim nächsten Paket danebenliegt.
+      const box = new THREE.Box3().setFromObject(model);
+      if (!box.isEmpty()) {
+        model.scale.multiplyScalar(bulletScale(box.max.z - box.min.z, radius));
+        const skins: THREE.Material[] = [];
+        for (const skin of kaykitSkins(model)) {
+          const paint = skin as THREE.MeshStandardMaterial;
+          if (paint.isMeshStandardMaterial) {
+            paint.emissive = new THREE.Color(tracer ? 0xff7a2f : 0xffd98a);
+            paint.emissiveIntensity = tracer ? 1 : BULLET_GLOW;
+          }
+          skins.push(skin);
+        }
+        model.traverse((object) => {
+          (object as THREE.Mesh).castShadow = false;
+        });
+        return { object: model, skins };
+      }
+      // Ein leeres Netz ist kein Bild: Die Kopie geht weg, das Kügelchen
+      // kommt. Ihre Materialien gehören ihr allein und müssen dabei mit.
+      for (const skin of kaykitSkins(model)) skin.dispose();
+    }
+    return {
+      object: new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 10, 8),
+        new THREE.MeshBasicMaterial({ color: tracer ? 0xff7a2f : 0xffd98a, toneMapped: false }),
+      ),
+      // Geometrie und Material der gerechneten Kugel räumt `disposeTree` ab;
+      // nur bei einer Regalkopie hält es an `sharedAssets` an, und dann bleiben
+      // die Materialien liegen, wenn sie hier nicht stünden.
+      skins: [],
+    };
+  }
+
+  /**
+   * **Die Patrone vorwärmen**, damit der erste Schuss nicht der einzige ohne
+   * Modell ist.
+   *
+   * Eine Vorlage bleibt nach dem ersten Laden im Speicher, und bis dahin
+   * antwortet `kaykitModelNow` mit `null`. Ohne das hier wären die ersten paar
+   * Schüsse einer Sitzung gerechnete Kügelchen und alle folgenden Patronen —
+   * ein Unterschied, den man sieht und für einen Fehler hält.
+   *
+   * Beim zweiten Betreten derselben Welt ist die Vorlage schon da, und dann
+   * kommt hier eine fertige Kopie zurück statt nichts. Sie wird nicht
+   * gebraucht, ihre **Materialien** gehören aber ihr allein — die gehen gleich
+   * wieder weg, damit das Vorwärmen nichts liegen lässt.
+   */
+  private warmBullet(): void {
+    const spare = kaykitModelNow(BULLET_MODEL);
+    if (spare) for (const skin of kaykitSkins(spare)) skin.dispose();
   }
 
   /**
@@ -6991,6 +7138,7 @@ export class PortalWorld implements World {
       physics.remove(bullet.entry);
       this.dropTrail(bullet.trail);
       disposeTree(bullet.entry.object);
+      for (const skin of bullet.skins) skin.dispose();
     }
   }
 
@@ -7036,6 +7184,7 @@ export class PortalWorld implements World {
       this.physics?.remove(bullet.entry);
       this.dropTrail(bullet.trail);
       disposeTree(bullet.entry.object);
+      for (const skin of bullet.skins) skin.dispose();
     }
     this.bullets.length = 0;
   }
@@ -9252,11 +9401,21 @@ export class PortalWorld implements World {
     );
   }
 
-  /** Die Liste als Kandidaten für die Auswahl — Weltpositionen, je Bild frisch. */
+  /**
+   * **Die Liste als Kandidaten für die Auswahl** — Weltpositionen, je Bild
+   * frisch.
+   *
+   * **Was man nicht sieht, meint man nicht** (`core/usable.usableShows`). Hier
+   * stand einmal ein `entry.object.visible`, und das war die halbe Frage: Es
+   * übersah eine ausgeknipste Gruppe über dem Griff, und es übersah eine
+   * sichtbare Gruppe, deren Formen alle aus sind. Genau daran ist der
+   * Bodenhebel verschwunden, als sein Bild aus dem Regal kam — die Regel steht
+   * deshalb als eigene Funktion nebenan, wo ein Test sie nachhält.
+   */
   private collectUsables(): readonly UseCandidate[] {
     this.useCandidates.length = 0;
     for (const entry of this.usables) {
-      if (!entry.object.visible) continue;
+      if (!usableShows(entry.object)) continue;
       const candidate: UseCandidate = {
         usable: entry.usable,
         position: entry.object.getWorldPosition(new THREE.Vector3()),

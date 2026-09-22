@@ -95,7 +95,8 @@ export function stampPit(plan: GridPlan): GridPlan {
    * herein, wer zu Fuß zu seinem Kart geht. Ein Kart fährt dort nicht hinaus —
    * es wird von der Fläche gehalten und nicht von der Brüstung
    * (`kartTrack.confineToCourse`) —, aber ein Mensch läuft sonst gegen eine
-   * hüfthohe Mauer, über die ihn kein Autostep hebt.
+   * Mauer, über die ihn kein Autostep hebt: Die Brüstung ist 0,55 m hoch
+   * (`BLOCKS.parapet`), und gestiegen wird 0,32 m (`PhysicsLocomotion`).
    */
   const laneEnd = PIT_LANE.z + PIT_LANE.d - 1;
   plan.run(PIT_LANE.x, PIT_LANE.z, PIT_LANE.w, 'x', (x, z) => {

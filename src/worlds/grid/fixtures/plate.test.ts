@@ -91,6 +91,11 @@ describe('Die Druckplatte', () => {
       at: { x: 3.5, y: 0, z: 5.5 },
       material: () => skin,
       notify: () => {},
+      // **Die Platte reicht keinen Griff nach**, und sie braucht es auch
+      // nicht: Angemeldet ist ihre Gruppe, und in der steht immer ein
+      // sichtbares Netz — erst die gebaute Scheibe, später das Modell
+      // (`core/usable.usableShows`).
+      rehandle: () => {},
     };
     const view = PLATE.build(pad(), ctx);
     const plate = view.object!;

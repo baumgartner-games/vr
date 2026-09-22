@@ -237,6 +237,12 @@ export const SIGN: FixtureKind<SignState> = {
     // Stabs; ob der Pfosten gleich kommt oder nie, ändert daran nichts. Und
     // ein Strahl, der ihn trifft, findet das Schild über die Gruppe darüber
     // (`GridWorld.fixtureIdOf`).
+    //
+    // **Damit braucht es auch kein Nachreichen** (`FixtureBuild.rehandle`):
+    // In der Gruppe steht von der ersten Zeile an die Tafel, und sie bleibt
+    // stehen, wenn der Pfosten dazukommt — angemeldet ist also durchweg etwas
+    // Sichtbares (`core/usable.usableShows`). Der Hebel hat genau hier seinen
+    // Fehler gehabt, das Schild hat ihn nie gehabt.
     fillPost(view, group, edge);
     return view;
   },

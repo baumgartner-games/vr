@@ -3,7 +3,7 @@ import { PageMenu, cssColor } from './PageMenu';
 import { MenuNav } from './menuNav';
 import { catalogRecall } from './menuRecall';
 import type { MenuEntry } from './menu';
-import type { DetailRequest, DetailView, PagePreviewLayer } from './previewGrid';
+import type { DetailFacts, DetailRequest, DetailView, PagePreviewLayer } from './previewGrid';
 
 /**
  * **Das Menü als Seite** (`PageMenu.ts`): derselbe Baum wie am Handgelenk,
@@ -284,7 +284,10 @@ function shelf(): MenuEntry[] {
           full: true,
           detail: {
             preview: 'kaykit:barrel.glb',
-            facts: [{ label: 'Paket', value: 'Dungeon' }],
+            facts: [
+              { label: 'Adresse', value: 'dungeon/barrel.glb', copy: true },
+              { label: 'Paket', value: 'Dungeon' },
+            ],
           },
           run: () => log.push('take:barrel'),
         },
@@ -323,6 +326,10 @@ class FakeLayer implements PagePreviewLayer {
   }
   detail(request: DetailRequest): DetailView | null {
     this.asked.push(request.id);
+    // Was die Schicht später noch einmal meldet, meldet in einem Test dieser
+    // Rückruf: So lässt sich nachstellen, dass die gemessenen Zahlen erst
+    // nach dem Aufschlagen ankommen.
+    this.onFacts = (facts) => request.onFacts(facts);
     const view: FakeDetail = {
       id: request.id,
       options: [],
@@ -345,6 +352,8 @@ class FakeLayer implements PagePreviewLayer {
   /** Welche Modelle eine große Vorschau bekamen, und was daraus wurde. */
   readonly asked: string[] = [];
   readonly details: FakeDetail[] = [];
+  /** Der Rückruf der zuletzt bestellten Vorschau — für Nachschlag im Test. */
+  onFacts: ((facts: DetailFacts) => void) | null = null;
 }
 
 interface FakeDetail extends DetailView {
@@ -548,6 +557,99 @@ describe('Der Steckbrief hinter der Kachel', () => {
     expect(floor.getAttribute('aria-checked')).toBe('true');
     // Eine Leinwand je Modell und nicht je Klick.
     expect(layer.asked).toEqual(['kaykit:barrel.glb']);
+    menu.dispose();
+  });
+});
+
+/**
+ * **Der Knopf *Kopieren* am Steckbrief.**
+ *
+ * Gewünscht als das, was er ist: „damit wir über die genau gleichen Elemente
+ * sprechen." Zwei Modelle waren als „block b" und „block column" bestellt
+ * worden — beide Namen gibt es in der Sammlung nicht. Geprüft wird deshalb
+ * dreierlei: dass der Knopf nur an einer Zeile hängt, die es sagt
+ * (`MenuFact.copy`), dass er das kopiert, was **dasteht**, und dass er
+ * stehenbleibt, wenn die gemessenen Zahlen nachkommen — sonst verlöre er beim
+ * ersten geladenen Modell den Fokus und die Meldung darunter.
+ */
+describe('Eine Zeile des Steckbriefs mitnehmen', () => {
+  function shelfMenu(layer: PagePreviewLayer): PageMenu {
+    const menu = new PageMenu({ host });
+    menu.setPreviews(layer);
+    menu.setRoot(shelf());
+    menu.openSubmenu('assets');
+    menu.element.querySelector<HTMLElement>('.pmenu__info')!.click();
+    return menu;
+  }
+
+  function copyButton(menu: PageMenu): HTMLButtonElement | null {
+    return menu.element.querySelector<HTMLButtonElement>('.pmenu__copy');
+  }
+
+  function note(menu: PageMenu): string {
+    return menu.element.querySelector('.pmenu__note')!.textContent;
+  }
+
+  /** Bis die Zwischenablage geantwortet hat — sie ist ein Versprechen. */
+  async function settle(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  function withClipboard(writeText: (text: string) => Promise<void>): void {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'clipboard');
+  });
+
+  it('hängt den Knopf an die Zeile, die es sagt — und nur an die', () => {
+    const menu = shelfMenu(new FakeLayer());
+    const buttons = [...menu.element.querySelectorAll<HTMLElement>('.pmenu__copy')];
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]!.parentElement!.textContent).toContain('dungeon/barrel.glb');
+    menu.dispose();
+  });
+
+  it('kopiert, was dasteht, und sagt es', async () => {
+    const written: string[] = [];
+    withClipboard(async (text) => {
+      written.push(text);
+      return Promise.resolve();
+    });
+    const menu = shelfMenu(new FakeLayer());
+    copyButton(menu)!.click();
+    await settle();
+    expect(written).toEqual(['dungeon/barrel.glb']);
+    expect(note(menu)).toBe('Adresse kopiert: dungeon/barrel.glb');
+    menu.dispose();
+  });
+
+  it('markiert den Text, wenn der Browser die Zwischenablage nicht hergibt', async () => {
+    // Ohne `https` und ohne Fokus gibt es `navigator.clipboard` schlicht
+    // nicht — „ging nicht" wäre darauf die schlechteste aller Antworten.
+    const menu = shelfMenu(new FakeLayer());
+    copyButton(menu)!.click();
+    await settle();
+    expect(note(menu)).toContain('Strg+C');
+    const field = document.querySelector('textarea');
+    expect(field?.value).toBe('dungeon/barrel.glb');
+    field?.remove();
+    menu.dispose();
+  });
+
+  it('bleibt stehen, wenn die gemessenen Zahlen nachkommen', () => {
+    const layer = new FakeLayer();
+    const menu = shelfMenu(layer);
+    const button = copyButton(menu)!;
+    // Dieselben Zeilen, andere Zahlen: Die Seite schreibt die Wörter um und
+    // baut den Steckbrief **nicht** neu.
+    layer.onFacts!({ size: [3, 4, 5], triangles: 99, clips: ['Idle_A', 'Running_A'] });
+    expect(copyButton(menu)).toBe(button);
+    const facts = [...menu.element.querySelectorAll('.pmenu__facts > *')].map(
+      (node) => node.textContent,
+    );
+    expect(facts).toContain('3,00 m × 4,00 m × 5,00 m');
     menu.dispose();
   });
 });
