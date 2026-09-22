@@ -426,7 +426,36 @@
 }
 
 .pmenu__facts dt { color: var(--muted); }
-.pmenu__facts dd { margin: 0; overflow-wrap: anywhere; }
+.pmenu__facts dd { display: flex; gap: 8px; align-items: baseline; margin: 0; overflow-wrap: anywhere; }
+
+/* Der Wert selbst — er darf umbrechen, der Knopf daneben nicht. Die Adresse
+   eines Modells ist lang, und eine Zeile, die sie abschneidet, ist genau die
+   Zeile, für die man hergekommen ist. */
+.pmenu__factval { min-width: 0; }
+
+/* *Kopieren* neben einer Zeile, die man mitnehmen darf (`ui/menu.MenuFact`).
+   Klein und still: Er steht neben jeder solchen Zeile und soll sie nicht
+   überschreien. */
+.pmenu__copy {
+  flex: none;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--fg);
+  cursor: pointer;
+  background: rgba(140, 170, 230, 0.14);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.pmenu__copy:hover { background: rgba(140, 170, 230, 0.24); }
+
+/* Was daraus wurde. Sie verschwindet nach vier Sekunden von selbst
+   (`PageMenu.setNote`) — und solange nichts dasteht, nimmt sie auch keinen
+   Platz weg. */
+.pmenu__note { margin: 0; padding: 0 2px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.pmenu__note:empty { display: none; }
+.pmenu__note.is-error { color: #ff8f8f; }
 
 .pmenu__foot {
   margin: 0;
