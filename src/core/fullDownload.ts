@@ -406,10 +406,9 @@ export function mb(bytes: number): string {
  */
 export type FullState =
   /**
-   * **Noch nicht nachgesehen.** Der Anfangszustand, und er ist Absicht: Die
-   * Startseite holt ungefragt keine Liste und liest ungefragt keinen Speicher
-   * aus — beides kostet, und niemand hat danach gefragt. Der erste Druck tut
-   * genau das und sonst nichts.
+   * **Noch nicht nachgesehen.** Der Anfangszustand: Nachgesehen wird erst,
+   * wenn der Browser Luft hat und ein Service Worker antwortet (`main.ts`,
+   * `watchFullState`). Bis dahin hält er _Beitreten_ nicht auf.
    */
   | { readonly kind: 'unbekannt' }
   /** Kein Service Worker (Entwicklungsbetrieb) oder kein Cache-API. */
@@ -452,39 +451,34 @@ export function fullShare(state: FullState): number {
   return 0;
 }
 
-/** Was auf dem Knopf steht. */
-export function fullLabel(state: FullState): string {
+/**
+ * **Was auf _Beitreten_ steht, solange der Download ihn braucht** — sonst
+ * `null`, und der Knopf heißt, wie er immer heißt (`core/screenView.ts`).
+ *
+ * Einen eigenen Knopf für den Download gibt es nicht mehr: Gespielt wird mit
+ * allem, was dazugehört, und geholt wird es von selbst. Also sagt der eine
+ * Knopf, woran er gerade ist, und der Balken steht direkt darunter.
+ */
+export function fullLabel(state: FullState): string | null {
   switch (state.kind) {
-    case 'unbekannt':
-    case 'kein-speicher':
-    case 'keine-liste':
-      return 'Alles herunterladen';
     case 'prüft':
       return 'Wird geprüft …';
-    case 'offen':
-      return state.have > 0
-        ? `Rest herunterladen (${mb(state.total - state.have)})`
-        : `Alles herunterladen (${mb(state.total)})`;
     case 'läuft':
-      return 'Lädt …';
-    case 'angehalten':
-      return `Weiter herunterladen (${mb(state.total - state.have)})`;
-    case 'fertig':
-      return 'Nochmal prüfen';
-    case 'lückenhaft':
-      return `Fehlende holen (${mb(state.total - state.have)})`;
+      return `Lädt … ${Math.floor(fullShare(state) * 100)}\u00a0%`;
+    default:
+      return null;
   }
 }
 
 /**
- * **Und die Zeile darunter.** Sie ist der eigentliche Knopf: Sie sagt, wie
- * viel von wie viel, wie lange es noch dauert, und im Zweifel, warum gar
- * nichts geht.
+ * **Und die Zeile unter dem Balken.** Sie sagt, wie viel von wie viel, wie
+ * lange es noch dauert, und im Zweifel, warum gar nichts geht. Leer heißt:
+ * nichts zu sagen.
  */
 export function fullHint(state: FullState): string {
   switch (state.kind) {
     case 'unbekannt':
-      return 'Programm, Modelle, Töne und das ganze Regal — damit die Spielwiese ohne Netz läuft. Ein Druck sagt, um wie viel es geht.';
+      return '';
     case 'kein-speicher':
       return state.reason === 'sw'
         ? 'Geht nur in der gebauten Seite: Im Entwicklungsbetrieb läuft kein Service Worker, und ohne ihn landet nichts im Speicher.'
@@ -505,9 +499,9 @@ export function fullHint(state: FullState): string {
         state.missing > 0 ? ` · ${missingText(state.missing)}` : ''
       }`;
     case 'angehalten':
-      return `Angehalten bei ${mb(state.have)} von ${mb(state.total)}. Das Geholte bleibt.`;
+      return `Übersprungen bei ${mb(state.have)} von ${mb(state.total)}. Das Geholte bleibt, der Rest kommt beim nächsten Start.`;
     case 'fertig':
-      return `Alles da — ${mb(state.total)} im Gerät. Die Spielwiese läuft jetzt ohne Netz.`;
+      return `Alles da — ${mb(state.total)} im Gerät, die Spielwiese läuft auch ohne Netz.`;
     case 'lückenhaft':
       return `${mb(state.have)} von ${mb(state.total)} · ${missingText(state.missing)}.`;
   }

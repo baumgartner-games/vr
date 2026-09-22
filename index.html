@@ -195,6 +195,26 @@
         <button type="button" id="enter" class="btn btn--primary only-generic" disabled>Beitreten</button>
 
         <!--
+          **Alles herunterladen — ohne eigenen Knopf.** Gespielt wird mit
+          allem, was dazugehört: Programm, Modelle, Töne und das ganze Regal.
+          Nachgesehen wird beim Start von selbst, und fehlt etwas, wird es
+          geholt (`core/fullAuto.ts`). Solange das läuft, sagt _Beitreten_
+          (bzw. `#haunt-enter` in der Lobby) „Wird geprüft …" oder „Lädt …
+          17 %", und der Balken steht direkt darunter. Nicht
+          `only-generic`: Wer zu einer Runde eingeladen wurde, fährt genauso
+          in den Tunnel.
+
+          Der Balken steht nur da, solange er etwas zu zeigen hat; `max` ist 1,
+          `main.ts` schreibt den Anteil mit. „Überspringen" hält den Lauf an —
+          das Geholte bleibt, der Rest kommt beim nächsten Start.
+        -->
+        <div id="offline" class="offline">
+          <progress id="offline-bar" class="offline__bar" value="0" max="1" hidden></progress>
+          <p id="offline-hint" class="field__hint"></p>
+          <button type="button" id="offline-stop" class="btn btn--ghost offline__stop" hidden>Überspringen</button>
+        </div>
+
+        <!--
           **Der Ladebalken des Starts — und warum er hier steht und nicht in
           `main.ts`.**
 
@@ -248,34 +268,6 @@
         <div id="install" class="install" hidden>
           <button type="button" id="install-btn" class="btn btn--ghost" hidden>Als App installieren</button>
           <p id="install-hint" class="field__hint"></p>
-        </div>
-
-        <!--
-          **Alles herunterladen.** Der Knopf steht hier und nicht in einem
-          Menü, weil er zu dem daneben gehört: Installieren macht aus der
-          Seite eine App, und *das* hier macht sie funklochfest — gut 70 MB
-          Programm, Modelle, Töne und das ganze Regal, auf einmal und mit
-          Ansage. Was er in welchem Zustand sagt, rechnet
-          `core/fullDownload.ts`; hier stehen nur die Kästen dafür.
-          Nicht `only-generic`, aus demselben Grund wie oben: Wer zu einer
-          Runde eingeladen wurde, fährt genauso in den Tunnel.
-
-          **Geprüft wird beim Start von selbst**, und fehlt etwas, blinkt der
-          Knopf (`core/fullAuto.ts`). Der Haken darunter macht daraus ein
-          Nachladen ohne Nachfrage — er steht im Speicher des Browsers und
-          gilt damit auch nach dem nächsten Deploy.
-        -->
-        <div id="offline" class="install offline">
-          <button type="button" id="offline-btn" class="btn btn--ghost">Alles herunterladen</button>
-          <!-- Der Balken steht nur da, solange er etwas zu zeigen hat. `max`
-               ist die Gesamtzahl der Bytes; `main.ts` schreibt beides mit. -->
-          <progress id="offline-bar" class="offline__bar" value="0" max="1" hidden></progress>
-          <p id="offline-hint" class="field__hint"></p>
-          <button type="button" id="offline-stop" class="btn btn--ghost offline__stop" hidden>Anhalten</button>
-          <label class="offline__auto" for="offline-auto">
-            <input type="checkbox" id="offline-auto" />
-            <span>Fehlendes automatisch herunterladen</span>
-          </label>
         </div>
 
         <p id="xr-status" class="status only-generic"></p>

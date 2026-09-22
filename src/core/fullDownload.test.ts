@@ -302,11 +302,28 @@ describe('die Restzeit', () => {
 describe('was der Knopf sagt', () => {
   it('nennt im Leerlauf die ganze Zahl — und später nur den Rest', () => {
     const leer = { kind: 'offen', have: 0, total: 62_914_560 } as const;
-    expect(fullLabel(leer)).toBe('Alles herunterladen (60,0 MB)');
     expect(fullHint(leer)).toBe('60,0 MB für Spiel und Regal — danach läuft alles ohne Netz.');
     const halb = { kind: 'offen', have: 31_457_280, total: 62_914_560 } as const;
-    expect(fullLabel(halb)).toBe('Rest herunterladen (30,0 MB)');
     expect(fullHint(halb)).toBe('30,0 MB von 60,0 MB liegen schon im Gerät.');
+  });
+
+  /**
+   * **Beitreten sagt, woran es gerade ist** — und heißt sonst, wie es immer
+   * heißt. Einen eigenen Download-Knopf gibt es nicht mehr.
+   */
+  it('beschriftet Beitreten nur beim Prüfen und beim Laden um', () => {
+    expect(fullLabel({ kind: 'prüft' })).toBe('Wird geprüft …');
+    expect(
+      fullLabel({ kind: 'läuft', have: 10_485_760, total: 62_914_560, eta: null, missing: 0 }),
+    ).toBe('Lädt … 16\u00a0%');
+    expect(fullLabel({ kind: 'unbekannt' })).toBeNull();
+    expect(fullLabel({ kind: 'offen', have: 0, total: 1 })).toBeNull();
+    expect(fullLabel({ kind: 'fertig', total: 1 })).toBeNull();
+    expect(fullLabel({ kind: 'angehalten', have: 0, total: 1 })).toBeNull();
+  });
+
+  it('sagt vor der ersten Prüfung nichts', () => {
+    expect(fullHint({ kind: 'unbekannt' })).toBe('');
   });
 
   it('zeigt im Lauf beide Zahlen und die Restzeit', () => {
@@ -334,21 +351,16 @@ describe('was der Knopf sagt', () => {
     ).toBe('10,0 MB von 60,0 MB · noch etwa 2 Minuten · 12 Dateien kamen nicht an');
   });
 
-  /**
-   * **Fertig heißt fertig — und bietet nicht an, 60 MB noch einmal zu holen.**
-   * Der Knopf wird zum Nachsehen, und das kostet nichts.
-   */
-  it('bietet am Ende das Nachsehen an und nicht den zweiten Download', () => {
+  it('sagt am Ende, dass alles da ist', () => {
     const fertig = { kind: 'fertig', total: 62_914_560 } as const;
-    expect(fullLabel(fertig)).toBe('Nochmal prüfen');
     expect(fullHint(fertig)).toContain('Alles da');
     expect(fullShare(fertig)).toBe(1);
   });
 
-  it('sagt, was angehalten wurde — und dass es bleibt', () => {
+  it('sagt, was übersprungen wurde — und dass es bleibt', () => {
     const halt = { kind: 'angehalten', have: 10_485_760, total: 62_914_560 } as const;
-    expect(fullLabel(halt)).toBe('Weiter herunterladen (50,0 MB)');
-    expect(fullHint(halt)).toContain('Das Geholte bleibt.');
+    expect(fullHint(halt)).toContain('Das Geholte bleibt');
+    expect(fullHint(halt)).toContain('nächsten Start');
   });
 
   it('zählt Lücken einzeln und in der Mehrzahl', () => {

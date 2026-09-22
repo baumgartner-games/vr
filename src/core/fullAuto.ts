@@ -1,75 +1,47 @@
 import type { FullState } from './fullDownload';
 
 /**
- * **Der Haken „von selbst nachladen" — und wann der Knopf blinkt.**
+ * **Der Download gehört zum Beitreten — und läuft von selbst.**
  *
- * Der große Download war bis hierher eine Frage, die nur gestellt wurde, wenn
- * jemand sie stellte: Die Startseite holte ungefragt keine Liste, sah
- * ungefragt in keinen Speicher, und wer nach einem Deploy wissen wollte, ob
- * ihm etwas fehlt, musste zweimal drücken. Das fiel genau dann auf, wenn es
- * zu spät war — im Funkloch. Gewünscht wurde deshalb beides: „Bei der
- * Startseite soll immer automatisch geprüft werden, ob alle Modelle
- * heruntergeladen sind und dann der Button zum Download blinken, wenn etwas
- * fehlt. Ich will auch eine Checkbox da haben (der State wird mit gespeichert
- * über Reloads), ob automatisch neue Inhalte heruntergeladen werden sollen,
- * wenn diese fehlen."
+ * Es gab einmal zwei Knöpfe: _Beitreten_ und darunter _Alles herunterladen_,
+ * der blinkte, wenn etwas fehlte, und einen Haken „Fehlendes automatisch
+ * herunterladen", der im Speicher des Browsers stand. Gewünscht wurde dann:
+ * „Da man eh nicht beitreten kann, wenn nicht alle Assets da sind, sollten
+ * wir das anpassen, sodass der ‚Download assets' und der Beitreten-Button in
+ * eins sind. Also der Button zeigt an ‚Downloading' bzw. prüfen, und darunter
+ * ist direkt der Progress-Bar. Das ‚Fehlendes automatisch herunterladen' kann
+ * weg und ist default true, sonst kann man ja eh nicht spielen."
  *
- * Hier stehen die beiden Entscheidungen dazu als reine Rechnung, und daneben
- * der Zettel im Speicher. Was sie **anzeigt**, ist `main.ts`; was sie
- * ausführt, `core/fullDownloadRun.ts`.
- *
- * **Warum geprüft immer, geladen aber nur mit Haken.** Nachsehen kostet zwei
- * kleine erzeugte Listen und einen Blick in den Speicher; siebzig Megabyte
- * kosten eine Mobilfunkrechnung. Das eine darf die Seite von sich aus tun,
- * das andere erst, wenn es jemand einmal gesagt hat — und dann bleibt es
- * gesagt, auch über das Neuladen hinaus.
+ * Hier stehen die beiden Entscheidungen dazu als reine Rechnung. Was sie
+ * **anzeigt**, ist `main.ts`; was sie ausführt, `core/fullDownloadRun.ts`.
  */
-
-/** Wo der Haken liegt — dieselbe Schreibweise wie überall (`bgvr.…`). */
-const KEY = 'bgvr.autoload';
 
 /**
- * **Soll der Knopf blinken?**
+ * **Hält der Download _Beitreten_ gerade auf?**
  *
- * Genau dann, wenn etwas fehlt und gerade nichts dagegen getan wird. Ein
- * Knopf, der blinkt, während er lädt, wäre Unruhe ohne Aussage; einer, der
- * blinkt, obwohl alles da ist, wäre eine Lüge; und einer, der blinkt, weil
- * der Browser keinen Speicher hat, verlangt etwas, das niemand tun kann.
+ * Solange geprüft oder geladen wird — und sonst nie. Alles andere ist ein
+ * Ende: fertig, übersprungen, lückenhaft, oder ein Browser, der gar nichts
+ * ablegen kann. Keines davon darf einen Knopf für den Rest der Sitzung tot
+ * machen; gespielt wird dann eben mit dem, was das Netz liefert.
+ *
+ * _Offen_ hält ebenfalls nicht auf: Das ist der Augenblick zwischen Prüfung
+ * und Lauf — oder ein Tab im Hintergrund, der erst beim Zurückkommen anfängt
+ * (`mayStartFull`). Ein Knopf, der dort wartete, wartete womöglich auf
+ * niemanden.
  */
-export function fullNags(state: FullState): boolean {
-  return state.kind === 'offen' || state.kind === 'angehalten' || state.kind === 'lückenhaft';
+export function fullBlocks(state: FullState): boolean {
+  return state.kind === 'prüft' || state.kind === 'läuft';
 }
 
 /**
  * **Darf die Prüfung gleich in einen Download übergehen?**
  *
- * Nur mit Haken, und nur aus dem Zustand heraus, den eine Prüfung überhaupt
- * ergeben kann: _offen_. _Angehalten_ ist eine Entscheidung gegen das Laden,
- * und _lückenhaft_ ist das Ende eines Laufs — von selbst wieder anzufangen,
- * wäre in beiden Fällen eine Schleife gegen den Willen dessen, der davorsitzt.
+ * Nur aus dem Zustand heraus, den eine Prüfung überhaupt ergeben kann:
+ * _offen_. _Angehalten_ ist eine Entscheidung gegen das Laden (für diese
+ * Sitzung — beim nächsten Start ist es wieder _offen_), und _lückenhaft_ ist
+ * das Ende eines Laufs; von selbst wieder anzufangen, wäre in beiden Fällen
+ * eine Schleife gegen den Willen dessen, der davorsitzt.
  */
-export function autoStarts(state: FullState, auto: boolean): boolean {
-  return auto && state.kind === 'offen';
-}
-
-/**
- * Ob der Haken gesetzt ist. Ohne Speicher (privates Fenster, gesperrte Seite)
- * ist er es nicht: Der teure Fall braucht ein Ja und nicht die Abwesenheit
- * eines Neins.
- */
-export function readAutoFull(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-/** Und zurückgeschrieben — siehe `ui/pageCols.ts`. */
-export function writeAutoFull(on: boolean): void {
-  try {
-    globalThis.localStorage?.setItem(KEY, on ? '1' : '0');
-  } catch {
-    // Ein Speicher, der nicht will, kostet hier nur die Erinnerung.
-  }
+export function autoStarts(state: FullState): boolean {
+  return state.kind === 'offen';
 }
