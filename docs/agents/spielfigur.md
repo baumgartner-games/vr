@@ -134,17 +134,52 @@ seinen Namen dafür. Jetzt sind es drei:
   **Hände** mit, es sind ja seine (`skinTone`).
 - **Hut** — acht Sorten aus Zylindern, Kugeln und Quadern wie alles hier:
   **ohne** (die Auslieferung), **Kochmütze**, **Basecap**, **Helm**,
-  **Bauhelm**, **Mütze**, **Zylinder**, **Krone**. Die Kochmütze ist das
-  Vorbild für alles andere: **dunkles Stirnband**, schmaler Rand, darüber eine
-  Haube aus **fünf Lappen**, die über den Rand hinauskragt, das Ganze so hoch
-  wie der Kopf und gut zehn Grad nach hinten gekippt. Jedes dieser Stücke ist
-  nachgemessen, und jedes einzelne fehlte in der ersten Fassung — die war ein
-  Marshmallow auf einem Kegel.
+  **Bauhelm**, **Mütze**, **Zylinder**, **Krone**. Sieben davon sind
+  Grundkörper; die **Kochmütze** ist seit der dritten Fassung **ein Netz**
+  (`core/chefHat.ts`, `core/headgear.ts`).
+
+  Sie ist nach einer **Vorlage** gebaut — einem Low-Poly-Drahtgitter: unten
+  ein zylindrisches **Stirnband**, darauf eine feine **Naht**, die ein Stück
+  darüber hinaussteht, und darüber eine bauschige **Haube** mit **sechs**
+  weichen Falten, die in eine unregelmäßig gewölbte Kuppel laufen; das Ganze
+  **flächig schattiert** und nach hinten gekippt. Die Zahlen: Rand bei 0,45
+  Kopfhalbmessern, Bandoberkante bei 0,95, Spitze bei 2,54 — also **0,67 m
+  hoch bei einem 0,64 m hohen Kopf** —, die Haube mit 1,22 Halbmessern gut ein
+  Fünftel breiter als das Band, 24 Ecken je Ring, **480 Dreiecke**.
+
+  **Warum ein Netz und keine Grundkörper.** Vorher waren es sieben Teile:
+  zwei Rohre und fünf ineinandergeschobene Kugeln als „Lappen". Das ergibt
+  keine Falte, sondern eine Wolke — eine Falte ist eine **Kerbe**, und eine
+  Kerbe entsteht, indem ein Ring an sechs Stellen enger wird, nicht indem
+  Kugeln sich überlappen. Dazu kommt der Preis: sieben Netze, sieben Hüllen,
+  sieben Zeichenaufrufe für ein Stück Stoff, das an jeder Figur im Raum hängt.
+  Jetzt ist es **ein** Netz und **ein** Zeichenaufruf — die beiden Farben
+  stecken in den Ecken (`vertexColors`) und nicht in zwei Materialien. Das
+  Band trägt dabei die **Rollenfarbe**, kräftig ins Dunkle gezogen: Es ist
+  dazu da, Weiß von Haut zu trennen, und ein Band in vollem Rot wäre eine
+  zweite bunte Fläche neben der Jacke.
+
+  Die **Form steht in `core/chefHat.ts` und ist reine Rechnung**: Ringe mit
+  Höhe, Halbmesser, Kerbtiefe und Schräglage, daraus nicht indizierte
+  Dreiecke (nicht indiziert, weil geteilte Ecken geteilte Normalen hätten und
+  damit die flache Schattierung verlören). Was daran stimmen muss, prüft
+  `chefHat.test.ts` in Millisekunden: Höhe ungefähr Kopfhöhe, Haube über dem
+  Band, nichts unter 0,45 Halbmessern, links wie rechts gleich, unter 700
+  Dreiecke. Wie sie **aussieht**, entscheidet weiter nur der Musterbogen.
 
   Wer einen Hut baut, der den Kopf **umfasst**, rechnet mit `HEAD_SPREAD`: An
   seinen vier Ecken ist die gefaste Kiste ein Viertel weiter draußen als eine
   Kugel, und ohne diese Zahl blitzt dort die Haut durch (`around()` in
-  `core/headgear.ts`).
+  `core/headgear.ts`, `spread` in `chefHatVertices`).
+
+  **Und sie passt auch auf fremde Köpfe.** `headgearFor(kind, headRadius,
+  tint)` liefert dieselbe Gruppe, auf `headRadius / HEAD_RADIUS` skaliert, und
+  `HEADGEAR_SEAT` (0,45) sagt, wie weit über der Kopf**mitte** der Rand
+  aufsitzt. Wer sie an den Kopfknochen einer KayKit-Figur hängt, misst dessen
+  Schädel, gibt die **kleinere** der beiden Hälften (Breite, Höhe) herein —
+  in der Breite stecken die Ohren — und setzt die Gruppe in die Mitte der
+  Hülle. Auf dem Modellkopf des Kochs ist genau das nachgestellt:
+  `avatar-preview.html?built=model`.
 - **Körper** — fünf Kochjacken: weiß, rot, blau, grün, gestreift.
 
 **Alle drei Zeilen wirken auch auf das Modell**, und das ist nachgetragen
@@ -209,6 +244,16 @@ und **die Kamera, unter der wirklich gespielt wird** (16 m, 55°, 30°
 Öffnung). Was dort nicht lesbar ist, ist es nirgends. `?hat=all` geht statt
 der Kochmütze das Hutregal durch, `?walk=1` lässt die Figuren laufen — daran
 sieht man das Watscheln, und im Stand sieht man das nie.
+
+`?built=1` setzt die **gebaute** Kochmütze auf den gebauten Kopf (das Modell
+tritt dafür zurück), `?built=model` dieselbe über `headgearFor` auf den Kopf
+des Modells. Ohne diesen Schalter bekommt man sie auf dem Bogen gar nicht zu
+sehen: Wer das Modell trägt, trägt dessen eigene Mütze. Und **geschossen wird
+erst, wenn das Modell wirklich angezogen ist** (`window.previewDressed`):
+`networkidle` heißt nur, dass die Datei durch die Leitung ist — wer vorher
+auslöst, fotografiert die gebaute Figur und hält sie für die geladene. Genau
+dieser Irrtum hat schon zwei Mal ein „unverändert" erzeugt, wo zwei
+verschiedene Figuren standen.
 
 Drei Regeln stecken darin, und alle drei sind es wert, aufgeschrieben zu
 werden:
