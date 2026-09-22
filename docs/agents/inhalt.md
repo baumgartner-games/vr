@@ -1508,10 +1508,19 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     B schickt. Der Gang ist ein **Umweg und keine Sackgasse**: Man kommt auch
     außen herum, und genau das zeigt er — eine Kiste macht ihre Kachel _teuer_
     und nicht _zu_. Das Stachelfeld ist eine Kachelnotiz und kein Objekt
-    (`TileFacts.hazard`), also weiß ein NPC davon, bevor er hineinläuft.
+    (`TileFacts.hazard`), also weiß ein NPC davon, bevor er hineinläuft. Was
+    man davon **sieht**, sind seit dem Umbau neun Bodenfallen aus dem
+    KayKit-Regal — eine je Kachel, mit der Platte im Boden und den Spitzen
+    darüber ([Modelle](./modelle.md), _Die zweite Runde_). Die Gefahr selbst
+    steht weiter im Graphen und nicht im Bild.
   - **Schießstand** (Osten), **ohne Dach**: eine Schießlinie, Scheiben auf 5,
     10 und 20 m, zwei Stahlplatten und ein Kugelfang als Masse dahinter. Jeder
-    Treffer zählt (`range/scoring.ts`), die Scheibe nach ihrem Ring. Fünf bis
+    Treffer zählt (`range/scoring.ts`), die Scheibe nach ihrem Ring — und ab
+    zehn Punkten **zerspringt** sie in sechs Stücke, die auseinanderfliegen
+    und liegenbleiben, bis `B`/`Y` die Zone zurückstellt. Scheibe, Ständer und
+    Stücke kommen aus dem KayKit-Regal ([Modelle](./modelle.md), _Die zweite
+    Runde_); gewertet wird weiter gegen die gerechnete Fläche und nicht gegen
+    das Netz. Fünf bis
     zwanzig Meter und nicht zehn bis hundert: Der alte Stand war 125 m tief,
     und das wäre hier der ganze Osten samt halber Kartbahn. Die Bank ist das,
     was sie in Wirklichkeit ist — eine **Küchenzeile**, derselbe geprüfte
@@ -2202,6 +2211,16 @@ im Spiel also zwei Kacheln —, und in eine
   Welt ihr Brett bekommt, ohne ihren Ton zu verlieren; wer es wie in **Portal**
   will — grau und weiß —, nennt sie (`horizonChecker()`, so macht es die
   Testwelt).
+
+  **In der Testwelt liegt darauf seit Neuestem ein Plattenboden.** Rings um
+  das Gelände, 32 m weit — die Kantenlänge, in der diese Engine scharfe
+  Schatten zeichnet —, stehen 4 059 Platten aus `prototype-bits/Floor_Prototype.glb`
+  in zwei `InstancedMesh`: hell und dunkel im Schachbrett, zwei Zeichenaufrufe
+  (`shared/plateFloor.ts`, die Rechnung dahinter in `shared/plateField.ts`).
+  Der texturierte Kasten bleibt darunter liegen und trägt weiter den Collider;
+  die Platten sind reine Zierde und liegen zwei Zentimeter über ihm, man steht
+  also **in** ihnen. Wo das Gelände selbst einen Boden hat (`FIELD`), liegt
+  keine Platte — dort stünde sie mit dem gebauten Boden im Streit.
 
   Den Zeichner teilt sich dieser Boden inzwischen mit einem zweiten
   (`checkerTexture`): Die **Küche der Testwelt** ist ebenfalls kariert, mit
