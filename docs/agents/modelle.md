@@ -353,9 +353,13 @@ den Knotentransformationen) und dann mit dem Maßstab des Pakets multipliziert
   Entfernungsmarken daneben genau umgekehrt (`position.set(FIRING_LINE +
   distance, …, centre(RANGE.z - 1))`). Geschossen wird nach **Osten**, die
   Zone liegt zwischen `RANGE.z = -3` und `+3` — die Scheiben landen damit 5,
-  10 und 20 m **nördlich** der Zone. Hier nicht angefasst, weil das eine
+  10 und 20 m **nördlich** der Zone. Damals nicht angefasst, weil das eine
   Ortsänderung im Spiel ist und kein Bild; aufgeschrieben, damit es nicht
-  wieder zufällig gefunden wird.
+  wieder zufällig gefunden wird. **Inzwischen behoben**: Die Rechnung steht
+  einmal in `zones/range.targetSpot` statt viermal mit je einem Vorzeichen,
+  das man falsch schreiben kann, und ein Test daneben hält die Scheiben vor
+  der Linie. Der Befund bleibt trotzdem stehen — er ist der Grund, warum es
+  diese eine Funktion gibt.
 
 ### Die zweite Runde: acht Dinge kommen jetzt doch aus dem Regal
 
