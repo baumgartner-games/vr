@@ -8502,7 +8502,9 @@ export class PortalWorld implements World {
       // Brille will niemand tippen, und dort bleiben Schubladen, Ordner und
       // Fächer der Weg. Gesucht wird über die ganze Sammlung und nicht nur
       // über den Ordner, in dem man steht — wer `lantern` eintippt, will
-      // wissen, ob es überhaupt eine gibt.
+      // wissen, ob es überhaupt eine gibt. Und wer `laterne` eintippt,
+      // ebenso: Die Sammlung heißt englisch, gesucht werden darf auf
+      // Deutsch (`core/kaykitTerms.ts`).
       find: (query) =>
         kaykitSearchEntries(this.shelfFiles, query, (path, hand) =>
           this.takeModel(ctx(), path, hand),
