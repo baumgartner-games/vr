@@ -37,6 +37,7 @@ import {
   rememberedRoom,
 } from '../net/room';
 import { KeyPanel, type KeyPanelRequest } from '../ui/KeyPanel';
+import { AssetGate } from './assetGate';
 import { detectFlatRole } from './device';
 import { firstGamepad, readGamepad, type GamepadLike } from './gamepad';
 import { PAD_BUTTONS, padButtonLabel, padKind, padSlotLabel, padSnapshot } from './gamepadReport';
@@ -274,6 +275,13 @@ export class App {
   private loading: string | null = null;
   /** Welche Ladung gerade die gültige ist — siehe `goTo`. */
   private loadToken = 0;
+  /**
+   * **Was noch im Netz steht**, nachdem `goTo` zurückgekommen ist
+   * (`core/assetGate.ts`). Er hängt sich an den Lade-Manager von three.js, und
+   * zwar **hier im Feld** und nicht später: Er muss die erste Welle
+   * mitbekommen, sonst hielte er eine laufende Ladung für Stille.
+   */
+  private readonly assets = new AssetGate(THREE.DefaultLoadingManager);
   private elapsed = 0;
   private lastTime = 0;
   private role: PlayerRole;
@@ -561,6 +569,29 @@ export class App {
     } finally {
       if (token === this.loadToken) this.loading = null;
     }
+  }
+
+  /**
+   * **Ob die Startladung der Welt durch ist** — die ehrliche Fassung von
+   * „geladen".
+   *
+   * `goTo` kommt zurück, sobald `World.init` gebaut hat; die Modelle einer
+   * Welt kommen danach (die Küche holt ihre Möbel mit `void import(…)`, der
+   * Koch ebenso). Wer den Knopf auf der Startseite freigibt, sobald `goTo`
+   * aufgelöst hat, gibt ihn frei, während die halbe Welt noch im Netz steht.
+   * Also wird hier gewartet, bis der Lade-Manager von three.js eine Weile
+   * nichts mehr zu tun hatte (`core/assetGate.ts`).
+   *
+   * `true` heißt „still geworden", `false` „der Deckel war schneller, es lädt
+   * noch". Abgelehnt wird **nie**: Eine Datei, die nicht kommt, meldet sich
+   * beim Lade-Manager trotzdem ab, und die Welt steht mit ihrem gebauten
+   * Ersatz da.
+   *
+   * @param cap   Der Deckel in Millisekunden — wie lange höchstens gewartet wird.
+   * @param quiet So lange muss es still bleiben, bis „fertig" gilt.
+   */
+  assetsSettled(cap: number, quiet = 1000): Promise<boolean> {
+    return this.assets.settle({ cap, quiet });
   }
 
   /**

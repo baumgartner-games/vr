@@ -28,7 +28,13 @@ import { registerServiceWorker, watchInstall } from './core/pwa';
 import { armAudioUnlock, unlockAudio } from './core/audioUnlock';
 import { graphics, onGraphicsChange } from './core/graphicsSettings';
 import { firstGamepad } from './core/gamepad';
-import { nextWarmStep, type WarmSignals, type WarmStep } from './core/warmStart';
+import {
+  nextWarmStep,
+  startButton,
+  type WarmSignals,
+  type WarmStep,
+  type WorldPhase,
+} from './core/warmStart';
 import { APP_VERSION, versionLine } from './core/appVersion';
 import { ASSET_HASHES } from './core/assetVersion';
 import { readBuildId } from './core/buildId';
@@ -153,6 +159,19 @@ if (hauntLanding) {
 }
 /** Ob gerade von dieser Seite aus verbunden wird — dann wartet jeder Knopf. */
 let hauntBusy = false;
+/**
+ * **Und ob gerade jemand hineingeht** (`startHaunting`). Das ist nicht
+ * dasselbe wie `hauntBusy`: Verbinden dauert eine Sekunde, aber danach kommt
+ * die Welt — Chunk, Physik, das Schiff —, und in dieser Zeit stand der Knopf
+ * bisher wieder bedienbar da. Ein zweiter Druck schickte eine zweite Runde
+ * los. Wer schon verbunden ist und im selben Raum steht, kam obendrein gar
+ * nicht erst an `hauntBusy` vorbei (`joinHaunting` antwortet dann sofort).
+ *
+ * **Vorgewärmt wird hier mit Absicht nichts** (die Welt nimmt sich beim Aufbau
+ * einen Raum, siehe oben), der Knopf ist also von Haus aus bedienbar — er
+ * wird es nur, solange er etwas tut, nicht bleiben.
+ */
+let hauntEntering = false;
 /** Was der letzte Versuch zu verbinden zu sagen hatte, wenn er scheiterte. */
 let hauntError = '';
 
@@ -230,6 +249,11 @@ onGraphicsChange(showPads);
 let app: App | null = null;
 let netPanel: NetPanel | null = null;
 let appPending: Promise<App | null> | null = null;
+/**
+ * Ob dieses Gerät kein 3D hergibt. Dann steht die Erklärung auf der Seite,
+ * jeder Knopf ist stumpf — und bleibt es auch, wenn sonst jemand malt.
+ */
+let noGraphics = false;
 
 function ensureApp(): Promise<App | null> {
   appPending ??= startApp();
@@ -293,7 +317,12 @@ async function startApp(): Promise<App | null> {
         // ohnehin neu (`recoverFromStaleBuild`) — aber eben nur meistens.
         if (id === startWorld) {
           worldPending = null;
-          worldReady = false;
+          // Und der Knopf wird wieder frei — mit einer Zeile, die sagt, was
+          // war. Ein Knopf, der stumpf bleibt, weil eine Datei nicht kam, ist
+          // ein Deadlock: Das Einzige, was hier noch helfen könnte, ist genau
+          // der Druck, den er nicht mehr zulässt.
+          worldPhase = 'fehlt';
+          paintStart();
         }
         recoverFromStaleBuild(id, error);
       },
@@ -310,6 +339,11 @@ async function startApp(): Promise<App | null> {
     for (const button of [enterButton, hauntEnter]) button.textContent = '3D-Start nicht verfügbar';
     for (const button of landing.querySelectorAll<HTMLButtonElement>('button'))
       button.disabled = true;
+    // **Und niemand malt das wieder weg.** `paintStart` rechnet aus dem Stand
+    // der Welt und kennt diesen Fall nicht; ohne diesen Merker gäbe schon der
+    // nächste Wechsel aus dem Hintergrund den Knopf wieder frei — für ein 3D,
+    // das es auf diesem Gerät nicht gibt.
+    noGraphics = true;
     // Der Balken hört auf zu laufen: Es kommt nichts mehr.
     showStartNote('');
     console.error('[start] 3D ließ sich nicht einrichten', error);
@@ -526,16 +560,78 @@ screenSeg.addEventListener('click', (event) => {
  * `onWorldFailed` —, deshalb steht hier kein `catch`.
  */
 let worldPending: Promise<void> | null = null;
-/** Ob die Standardwelt steht. Nur für die Frage, ob jemand warten muss. */
-let worldReady = false;
+/**
+ * **Wie weit die Standardwelt ist**, so genau, wie der Knopf es wissen muss
+ * (`core/warmStart.WorldPhase`). Daran hängt die ganze Anzeige: `paintStart`
+ * rechnet daraus und aus den Signalen des Browsers, ob _Beitreten_ stumpf ist
+ * und was darunter steht.
+ */
+let worldPhase: WorldPhase = 'ruht';
+
+/**
+ * **Der Deckel: zwanzig Sekunden.**
+ *
+ * Er ist keine gemessene Dauer, sondern eine Grenze, und sie steht dort, wo
+ * jede vernünftige Ladung längst durch ist: Gemessen steht die Welt nach gut
+ * fünf Sekunden (1,5 Mbit/s, 150 ms Laufzeit), und ihre Modelle kamen in
+ * diesem Container noch dreieinhalb bis viereinhalb Sekunden später. Neun
+ * Sekunden ist also der gemessene schlechte Fall; zwanzig lässt einer noch
+ * schlechteren Leitung das Doppelte und greift trotzdem, bevor jemand glaubt,
+ * die Seite sei kaputt.
+ *
+ * Und er greift **nicht** gegen langsame Leitungen, sondern gegen stumme: Eine
+ * Datei, die weder ankommt noch scheitert, meldet sich bei keinem Lade-Manager
+ * wieder ab (`core/assetGate.ts`). Was danach doch noch kommt, kommt nach —
+ * der Knopf wartet nur nicht mehr darauf.
+ */
+const ASSET_CAP_MS = 20000;
+
 function ensureWorld(): Promise<void> {
-  worldPending ??= ensureApp()
-    .then((ready) => ready?.goTo(startWorld))
-    .then(() => {
-      worldReady = true;
-      showStartNote('');
-    });
+  worldPending ??= loadWorld();
   return worldPending;
+}
+
+/**
+ * **Die Standardwelt, und „geladen" ehrlich gemeint.**
+ *
+ * `App.goTo` kommt zurück, sobald `World.init` gebaut hat — die Modelle der
+ * Welt kommen **danach**: Die Küche holt ihre Möbel mit `void import(…)`, der
+ * Koch und die Wundertüte ebenso, und keiner davon wird von `init` abgewartet.
+ * Deshalb wartet hier noch ein zweiter Schritt: bis der Lade-Manager von
+ * three.js eine Weile nichts mehr zu tun hatte (`App.assetsSettled`,
+ * `core/assetGate.ts`). Erst dann heißt „die Welt steht" wirklich, dass sie
+ * steht.
+ *
+ * `App.goTo` wirft nie — es meldet einen Fehlschlag über `onWorldFailed`, und
+ * der räumt `worldPending` ab. Genau daran wird unten erkannt, dass hier
+ * nichts mehr zu melden ist: Sonst schriebe diese Funktion „steht" über eine
+ * Welt, die es nicht gibt.
+ */
+async function loadWorld(): Promise<void> {
+  worldPhase = 'lädt';
+  paintStart();
+  const ready = await ensureApp();
+  // Kein 3D auf diesem Gerät: Die Erklärung steht schon auf der Seite, und
+  // jeder Knopf ist stumpf (`startApp`). Hier ist nichts mehr zu malen.
+  if (!ready) return;
+  await ready.goTo(startWorld);
+  if (worldPending === null) return;
+  const settled = await ready.assetsSettled(ASSET_CAP_MS);
+  if (worldPending === null) return;
+  worldPhase = settled ? 'steht' : 'dauert';
+  paintStart();
+  // Der Deckel hat den Knopf freigegeben, die Ladung läuft weiter — und wenn
+  // sie dann doch ankommt, verschwindet auch die Zeile darüber. Ohne dieses
+  // Nachfassen bliebe „lädt noch" stehen, bis jemand die Seite neu lädt.
+  if (!settled) void watchLateAssets(ready);
+}
+
+/** Der zweite Blick nach dem Deckel — großzügig, aber auch nicht endlos. */
+async function watchLateAssets(ready: App): Promise<void> {
+  const late = await ready.assetsSettled(5 * 60000);
+  if (!late || worldPhase !== 'dauert') return;
+  worldPhase = 'steht';
+  paintStart();
 }
 
 /**
@@ -667,25 +763,71 @@ function whenIdle(run: () => void): void {
 // wieder dran — `nextWarmStep` merkt sich nur, was gelaufen ist, nicht, was
 // abgelehnt wurde.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !playerAsked) whenIdle(() => void warmUp());
+  if (document.hidden || playerAsked) return;
+  // **Und der Knopf weiß es sofort**, nicht erst im Leerlauf: Wer zurückkommt,
+  // sieht sonst eine Sekunde lang „wird beim Beitreten geladen" und danach
+  // einen Knopf, der ihm unter der Hand stumpf wird.
+  paintStart();
+  whenIdle(() => void warmUp());
 });
 
 /**
- * **Was auf den Knopf folgt, wenn die Welt noch unterwegs ist.**
+ * **Was unter dem Knopf steht, solange die Welt unterwegs ist.**
  *
  * Eine Seite, die erkennbar dasteht und dann stumm arbeitet, ist schlimmer als
  * eine, die „lädt" sagt. Also sagt sie es: der Knopf verliert seine
  * Beschriftung nicht, sondern seine Bedienbarkeit, und darunter steht, worauf
  * gewartet wird. Steht die Welt schon — der Normalfall, denn das Vorwärmen
- * hatte die Sekunden davor —, passiert hier gar nichts.
+ * hatte die Sekunden davor —, ist hier nichts zu sagen.
  */
-function showStartNote(text: string): void {
+function showStartNote(text: string, running = text !== ''): void {
   startNote.textContent = text;
   // Der Balken **ist** die Zeile: Er läuft, solange etwas zu sagen ist, und
   // geht mit ihr weg. Angefangen hat er im HTML, lange bevor dieses Skript da
   // war — das ist sein ganzer Zweck.
   bootBox.hidden = text === '';
+  // **Eine Ausnahme davon gibt es seit dem stumpfen Knopf**: Wo gar nicht
+  // vorgewärmt wird (Daten sparen, schmale Leitung), steht unter dem Knopf,
+  // dass die Welt erst beim Druck kommt — und dann ist etwas zu _sagen_, aber
+  // nichts zu _zeigen_. Ein Streifen, der dabei liefe, behauptete eine Arbeit,
+  // die niemand tut, und das ist schlimmer als keiner (`style.css`,
+  // `.boot--still`).
+  bootBox.classList.toggle('boot--still', !running);
 }
+
+/**
+ * **Der Knopf und seine Zeile, aus dem Stand der Welt.** Gerechnet wird
+ * nebenan (`core/warmStart.startButton`, mit Test); hier steht nur, welches
+ * Element was davon ist.
+ *
+ * Gemalt wird nach jeder Änderung, die daran etwas ändert: beim ersten Lauf
+ * des Skripts, wenn die Ladung anfängt, wenn sie steht, wenn sie scheitert,
+ * und wenn der Tab aus dem Hintergrund zurückkommt.
+ */
+function paintStart(): void {
+  // Kein 3D auf diesem Gerät: Was dann dasteht, hat `startApp` geschrieben,
+  // und es ist endgültig (`noGraphics`).
+  if (noGraphics) return;
+  const state = startButton(warmSignals(), worldPhase);
+  enterButton.disabled = state.disabled;
+  showStartNote(state.note, state.busy);
+}
+
+/**
+ * **Und einmal sofort**, im Modulrumpf und vor allem, was wartet.
+ *
+ * `#enter` steht im HTML **stumpf** da (`index.html`, `disabled`), denn in der
+ * Sekunde davor ist die Welt mit Sicherheit nicht geladen — ein Knopf, der
+ * dort bedienbar aussieht, verspricht etwas, das erst dieses Skript einlösen
+ * kann. Der Preis dafür ist ein toter Knopf, wenn das Bündel gar nicht kommt;
+ * dann ist die Seite allerdings ohnehin nur ein Bild, und ein grauer Knopf ist
+ * die ehrlichere Hälfte davon.
+ *
+ * Diese Zeile ist die Gegenrechnung: Sie läuft, sobald das Bündel ausgewertet
+ * wird, und gibt den Knopf in genau den Fällen wieder frei, in denen niemand
+ * vorwärmt (Daten sparen, `2g`, Tab im Hintergrund, Lobby).
+ */
+paintStart();
 
 /**
  * **Der eine Knopf der Spielwiese.** Wohin er führt, steht eine Zeile darüber:
@@ -707,13 +849,11 @@ async function enterPlayground(vr: boolean): Promise<void> {
   // Was der Spieler will, hat Vorrang vor allem, was wir ihm vorschlagen.
   stopWarming();
   const session = vr ? startVR() : null;
-  if (!worldReady) {
-    enterButton.disabled = true;
-    showStartNote('Die Welt wird geladen …');
-  }
+  // Und der Knopf sagt es von selbst: `ensureWorld` setzt den Stand, und
+  // `paintStart` malt ihn — dieselben zwei Zeilen wie beim Vorwärmen. Hier
+  // stand einmal beides noch einmal von Hand, und das war die Fassung, in der
+  // der Knopf **erst nach** dem Klick stumpf wurde.
   await ensureWorld();
-  showStartNote('');
-  enterButton.disabled = false;
   if (!vr) startFlat();
   if (session) await session;
 }
@@ -798,7 +938,7 @@ function refreshHaunt(): void {
   hauntStatus.classList.toggle('is-error', Boolean(hauntError) && !hauntBusy);
   hauntStatus.classList.toggle('is-online', !hauntError && !hauntBusy && Boolean(net?.connected));
   hauntConnect.textContent = hauntBusy ? '…' : net?.connected ? 'Neu verbinden' : 'Verbinden';
-  for (const button of [hauntConnect, hauntEnter]) button.disabled = hauntBusy;
+  for (const button of [hauntConnect, hauntEnter]) button.disabled = hauntBusy || hauntEntering;
   hauntLobby.hidden = !net?.connected;
   if (net?.connected) renderHauntPeers();
 }
@@ -903,15 +1043,27 @@ function writeRoomToAddress(code: string, shared: string): void {
 async function startHaunting(way: 'vr' | Entry): Promise<void> {
   // Auch hier gilt: Was der Spieler will, hat Vorrang vor dem Vorrat.
   stopWarming();
+  // Und für die ganze Strecke — verbinden **und** die Welt — ist der Knopf
+  // stumpf: Ein zweiter Druck schickte sonst eine zweite Runde los.
+  hauntEntering = true;
+  refreshHaunt();
   const session = way === 'vr' ? startVR(hauntEnter) : null;
-  if (way !== 'vr') {
-    const { arriveAs, loadLobby, saveLobby } = await import('./worlds/haunting/rules/lobby');
-    saveLobby(arriveAs(loadLobby(undefined, detectFlatRole()), way));
+  try {
+    if (way !== 'vr') {
+      const { arriveAs, loadLobby, saveLobby } = await import('./worlds/haunting/rules/lobby');
+      saveLobby(arriveAs(loadLobby(undefined, detectFlatRole()), way));
+    }
+    await joinHaunting();
+    if (way !== 'vr') startFlat();
+    await (await ensureApp())?.goTo('haunting');
+    if (session) await session;
+  } finally {
+    // Im Normalfall ist die Startseite längst weg; für jeden anderen — eine
+    // XR-Sitzung, die der Browser ablehnt, eine Welt, die nicht kam — steht
+    // hier, dass es noch einmal gehen darf.
+    hauntEntering = false;
+    refreshHaunt();
   }
-  await joinHaunting();
-  if (way !== 'vr') startFlat();
-  await (await ensureApp())?.goTo('haunting');
-  if (session) await session;
 }
 
 hauntConnect.addEventListener('click', () => void joinHaunting());
@@ -1312,13 +1464,12 @@ window.addEventListener('load', () => {
 async function bootApp(): Promise<void> {
   const ready = await ensureApp();
   if (!ready) return;
-  if (hauntLanding || nextWarmStep(warmed, warmSignals()) !== 'welt') {
-    showStartNote('');
-    return;
-  }
-  showStartNote('Die Welt wird geladen …');
   await warmUp();
-  showStartNote('');
+  // Was das Wärmen an der Welt geändert hat, hat `ensureWorld` schon gemalt.
+  // Diese Zeile ist für den anderen Fall: Es wurde gar nicht gewärmt, und dann
+  // soll unter dem Knopf nicht länger „die Spielwiese wird geladen" stehen —
+  // die Hülle ist ja da.
+  paintStart();
 }
 
 /**

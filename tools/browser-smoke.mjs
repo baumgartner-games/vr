@@ -180,6 +180,26 @@ for (const name of browserNames) {
         // Umzug gemeldet.
         await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 90000 });
         await page.locator('#screen-view [data-view="2d"]').click();
+        // **Der Knopf ist stumpf, bis die Welt geladen ist** — samt der
+        // Modelle, die sie beim Aufbau anfordert (`core/warmStart.startButton`,
+        // `core/assetGate.ts`). Hier wurde bis dahin sofort gedrückt, und das
+        // ging nur deshalb gut, weil Playwright von sich aus auf einen
+        // bedienbaren Knopf wartet — mit seiner eigenen Frist von 30 s und
+        // einer Fehlermeldung, die von alldem nichts erzählt. Also steht es
+        // jetzt da, und zwar mit der Frist dieser Seite.
+        await page.locator('#enter:not([disabled])').waitFor({ timeout: 90000 });
+        // Und die Gegenprobe zur Behauptung „geladen": Wenn der Knopf frei
+        // wird, **steht** die Welt — oder darunter steht eine Zeile, die sagt,
+        // dass sie erst beim Druck kommt (kein Vorwärmen: Daten sparen,
+        // schmale Leitung, Tab im Hintergrund).
+        const before = await page.evaluate(() => ({
+          world: window.bgvr?.currentWorldId ?? '',
+          note: document.querySelector('#start-note')?.textContent ?? '',
+        }));
+        assert.ok(
+          before.world === START_WORLD || before.note !== '',
+          `Der Knopf wird erst frei, wenn die Welt steht — oder mit einer Zeile, die es erklärt (Welt "${before.world}", Zeile "${before.note}")`,
+        );
         await page.locator('#enter').click();
         await page.waitForFunction(() => window.bgvr?.topDown && window.bgvr.currentWorldId);
         result.topDown = await page.evaluate(() => ({
