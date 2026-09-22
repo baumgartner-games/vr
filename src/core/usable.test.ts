@@ -7,6 +7,7 @@ import {
   pickUsable,
   shotHitsUsable,
   usableOf,
+  usableShows,
   type UseCandidate,
   type Usable,
 } from './usable';
@@ -195,5 +196,73 @@ describe('Die Richtung beim Benutzen', () => {
       aimForward(false, rig, head, new THREE.Vector3()),
     );
     expect(fromEyes?.candidate).toBe(east);
+  });
+});
+
+/**
+ * **Ein Griff ist ein sichtbares Netz** (`usableShows`) — die Regel, an der
+ * ein angemeldetes Ding in die Auswahl kommt oder nicht.
+ *
+ * Sie steht hier und nicht bloß in `PortalWorld.collectUsables`, weil der
+ * Fehler, den sie beantwortet, genau einmal vorgekommen ist und beim nächsten
+ * Modelltausch wiederkäme: Der Bodenhebel behielt beim Umzug auf sein
+ * Regalmodell die gerechnete Säule als Griff und knipste sie nur aus. Was
+ * angemeldet war, sah niemand mehr — `A` fand ihn nicht, und der gelbe Saum
+ * lag auf etwas Unsichtbarem. Ein Netz braucht es dafür nicht zu zeichnen;
+ * ein paar Knoten genügen.
+ */
+describe('Ein Griff ist ein sichtbares Netz', () => {
+  function mesh(visible = true): THREE.Mesh {
+    const one = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2));
+    one.visible = visible;
+    return one;
+  }
+
+  it('nimmt ein sichtbares Netz an', () => {
+    expect(usableShows(mesh())).toBe(true);
+  });
+
+  it('übergeht das ausgeknipste — der gemeldete Fehler', () => {
+    expect(usableShows(mesh(false))).toBe(false);
+  });
+
+  /**
+   * `visible` gilt in three.js für den ganzen Ast darunter: Ein Griff unter
+   * einer ausgeknipsten Gruppe ist so unsichtbar wie ein ausgeknipster Griff,
+   * und das sah die alte Frage (`entry.object.visible`) nicht.
+   */
+  it('übergeht auch, was unter einer ausgeknipsten Gruppe hängt', () => {
+    const group = new THREE.Group();
+    const handle = mesh();
+    group.add(handle);
+    expect(usableShows(handle)).toBe(true);
+    group.visible = false;
+    expect(usableShows(handle)).toBe(false);
+  });
+
+  /**
+   * Der Fall des Hebels in seiner zweiten Gestalt: Angemeldet ist die Gruppe,
+   * und alles darin ist aus. Eine Gruppe ist immer noch `visible` — zu sehen
+   * ist trotzdem nichts.
+   */
+  it('übergeht eine Gruppe, deren Formen alle aus sind', () => {
+    const group = new THREE.Group();
+    group.add(mesh(false), mesh(false));
+    expect(usableShows(group)).toBe(false);
+    group.add(mesh());
+    expect(usableShows(group)).toBe(true);
+  });
+
+  /**
+   * **Und wer gar keine Netze hat, gilt.** Ein Usable darf eine leere Gruppe
+   * sein — eine Zone, ein Platz, ein Ort, an dem etwas passiert; dort legt
+   * `core/highlight.ts` einen Ring auf den Boden statt einer Hülle. Nur wer
+   * Geometrie hat und sie versteckt, versteckt sich.
+   */
+  it('lässt den leeren Knoten durch — er bekommt seinen Ring', () => {
+    expect(usableShows(new THREE.Object3D())).toBe(true);
+    const zone = new THREE.Group();
+    zone.add(new THREE.Object3D());
+    expect(usableShows(zone)).toBe(true);
   });
 });

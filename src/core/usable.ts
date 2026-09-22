@@ -143,6 +143,67 @@ export const USE_RADIUS = 0.4;
  */
 export const SHOT_MARGIN = 0.12;
 
+/**
+ * **Ein Griff ist ein sichtbares Netz** — die Regel, nach der eine Welt einen
+ * angemeldeten Kandidaten annimmt oder übergeht (`PortalWorld.collectUsables`).
+ *
+ * Sie steht hier als reine Frage an einen Knoten, ohne Welt und ohne Liste,
+ * und das hat einen Anlass: In `collectUsables` stand dafür ein
+ * `entry.object.visible`, und genau daran ist der Bodenhebel hängengeblieben.
+ * Er hatte beim Umzug auf das Regalmodell seine gerechnete Säule als Griff
+ * **behalten** und sie nur ausgeknipst; angemeldet war damit etwas, das
+ * niemand mehr sah. `A` fand ihn nicht mehr, und weil der gelbe Saum auf
+ * demselben Knoten liegt (`core/highlight.ts`), leuchtete auch nichts. Ein
+ * Fehler dieser Art fällt nur dem auf, der in der Welt davorsteht — und er
+ * kommt beim nächsten Modelltausch wieder. Als Funktion lässt er sich
+ * aufschreiben und von einem Test nachhalten, ohne dass dafür WebGL läuft.
+ *
+ * Gefragt wird zweierlei, und beides ist dieselbe Frage aus zwei Richtungen:
+ *
+ * - **Hängt es im Sichtbaren?** `visible` gilt in three.js für den ganzen Ast
+ *   darunter; ein Griff unter einer ausgeknipsten Gruppe ist so unsichtbar wie
+ *   ein ausgeknipster Griff. Der Weg nach oben kostet ein paar Knoten und
+ *   beantwortet den Fall, den das bloße `visible` des Griffs übersieht.
+ * - **Ist etwas davon zu sehen?** Wer Netze mitbringt, muss mindestens eines
+ *   zeigen. Eine Gruppe, deren Formen alle aus sind, ist ein Stück Luft mit
+ *   einem Namen — und genau das war der Hebel.
+ *
+ * **Wer gar keine Netze hat, gilt trotzdem.** Ein Usable darf ausdrücklich
+ * eine leere Gruppe sein — eine Zone, ein Platz, ein Ort, an dem etwas
+ * passiert. Der Saum wird dort zu einem Ring auf dem Boden
+ * (`core/highlight.ts`, `Highlight.showRing`), und das ist die Auskunft, die
+ * gemeint war. Nur wer Geometrie hat und sie versteckt, versteckt sich.
+ */
+export function usableShows(object: THREE.Object3D): boolean {
+  for (let node: THREE.Object3D | null = object; node; node = node.parent) {
+    if (!node.visible) return false;
+  }
+  let meshes = 0;
+  let shown = 0;
+  object.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    meshes++;
+    if (shownWithin(mesh, object)) shown++;
+  });
+  return meshes === 0 || shown > 0;
+}
+
+/**
+ * Ob dieses Netz **unterhalb von `root`** zu sehen ist.
+ *
+ * Über `root` hinaus wird nicht gefragt: Das hat `usableShows` schon getan,
+ * und zweimal denselben Ast hinaufzulaufen kostet bei einer Küche voller
+ * Stationen in jedem Bild mehr, als es beantwortet.
+ */
+function shownWithin(mesh: THREE.Object3D, root: THREE.Object3D): boolean {
+  for (let node: THREE.Object3D | null = mesh; node; node = node.parent) {
+    if (!node.visible) return false;
+    if (node === root) break;
+  }
+  return true;
+}
+
 /** Ein Ding, das benutzt werden könnte — so viel, wie die Auswahl davon braucht. */
 export interface UseCandidate {
   usable: Usable;

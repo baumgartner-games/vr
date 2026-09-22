@@ -293,6 +293,7 @@ import {
   markUsable,
   pickUsable,
   shotHitsUsable,
+  usableShows,
   type UseCandidate,
   type Usable,
 } from '../../core/usable';
@@ -9252,11 +9253,21 @@ export class PortalWorld implements World {
     );
   }
 
-  /** Die Liste als Kandidaten für die Auswahl — Weltpositionen, je Bild frisch. */
+  /**
+   * **Die Liste als Kandidaten für die Auswahl** — Weltpositionen, je Bild
+   * frisch.
+   *
+   * **Was man nicht sieht, meint man nicht** (`core/usable.usableShows`). Hier
+   * stand einmal ein `entry.object.visible`, und das war die halbe Frage: Es
+   * übersah eine ausgeknipste Gruppe über dem Griff, und es übersah eine
+   * sichtbare Gruppe, deren Formen alle aus sind. Genau daran ist der
+   * Bodenhebel verschwunden, als sein Bild aus dem Regal kam — die Regel steht
+   * deshalb als eigene Funktion nebenan, wo ein Test sie nachhält.
+   */
   private collectUsables(): readonly UseCandidate[] {
     this.useCandidates.length = 0;
     for (const entry of this.usables) {
-      if (!entry.object.visible) continue;
+      if (!usableShows(entry.object)) continue;
       const candidate: UseCandidate = {
         usable: entry.usable,
         position: entry.object.getWorldPosition(new THREE.Vector3()),
