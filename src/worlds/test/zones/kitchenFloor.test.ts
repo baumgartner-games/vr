@@ -24,8 +24,9 @@ import { KITCHEN_FLOOR } from './kitchenPlan';
  *   unter der Küchenzeile statt an ihr entlang. Von oben sieht man das als
  *   „irgendwas stimmt nicht" und sucht es beim Möbel.
  * - **Er verschwimmt mit dem Boden daneben.** Die Küche grenzt ohne Zaun an
- *   das Schachbrett des Geländes (`HORIZON_COLORS`), und zwei ähnliche Bretter
- *   nebeneinander sind kein Raum, sondern ein Fehler im Bild.
+ *   den Plattenboden des Geländes (`HORIZON_COLORS`, die Farben der Platte
+ *   selbst), und zwei ähnliche Böden nebeneinander sind kein Raum, sondern ein
+ *   Fehler im Bild.
  * - **Er streitet mit dem Estrich unter sich.** Zwei Flächen auf derselben
  *   Höhe flackern gegeneinander, sobald die Kamera flach darübersteht.
  */
@@ -97,28 +98,43 @@ describe('der Küchenboden hebt sich vom Boden daneben ab', () => {
   });
 
   /**
-   * **Und mehr als doppelt so viel Kontrast.** Draußen ist grau auf weiß, also
-   * zwei helle Töne dicht beieinander; drinnen liegt ein dunkles Feld neben
-   * einem cremefarbenen. Der Sprung ist das, was aus 16 m Höhe zuerst ankommt.
+   * **Und mehr als doppelt so viel Kontrast.** Draußen liegt seit dem
+   * Plattenboden **ein** Ton, und das Einzige, was ihn unterbricht, ist die
+   * Fuge an jeder Kachelkante (`HORIZON_COLORS.line`, die Fase der Platte);
+   * drinnen liegt ein dunkles Feld neben einem cremefarbenen. Der Sprung ist
+   * das, was aus 16 m Höhe zuerst ankommt.
+   *
+   * **Gemessen wird deshalb gegen Grund und Fuge** und nicht mehr gegen zwei
+   * Felder: `checker` ist draußen dasselbe wie `ground`, und ein Vergleich
+   * einer Farbe mit sich selbst ist keiner — er ginge immer aus.
    */
   it('springt zwischen seinen Feldern weiter als der Boden draußen', () => {
     const inside = step(KITCHEN_CHECKER_LIGHT, KITCHEN_CHECKER_DARK);
-    const outside = step(HORIZON_COLORS.ground, HORIZON_COLORS.checker);
+    const outside = step(HORIZON_COLORS.ground, HORIZON_COLORS.line);
+    expect(HORIZON_COLORS.checker).toBe(HORIZON_COLORS.ground);
     expect(inside).toBeGreaterThan(outside * 2);
   });
 
   /**
-   * **Kein Feld der Küche ist ein Feld des Geländes.** Das dunkle liegt weit
-   * unter beiden Tönen draußen, das helle ist deutlich **wärmer** als das
-   * kühle Weiß dort — ein zweites Grau daneben wäre dasselbe Brett mit einer
+   * **Kein Ton der Küche ist ein Ton des Geländes.** Das dunkle Feld liegt
+   * deutlich unter beiden Blautönen draußen, das helle ist deutlich **wärmer**
+   * als sie — ein zweites kühles Feld daneben wäre derselbe Boden mit einer
    * anderen Feldgröße gewesen.
+   *
+   * **Der Abstand war einmal 0,3**, und das ging, solange draußen Grau auf
+   * Weiß lag (Helligkeit 0,63 und 0,91). Die Platte ist ein **mittleres** Blau
+   * (0,51), und gegen sie ist ein Abstand von 0,3 nicht zu halten, ohne das
+   * Küchenfeld schwarz zu machen. Der Gedanke bleibt derselbe, die Zahl wird
+   * kleiner: 0,25, und der wirkliche Abstand ist 0,295 — Luft genug, um einen
+   * Ton nachzujustieren, und zu wenig, um versehentlich dasselbe Blau
+   * hinzuschreiben.
    */
   it('borgt sich keinen der beiden Töne von draußen', () => {
-    for (const outside of [HORIZON_COLORS.ground, HORIZON_COLORS.checker]) {
-      expect(brightness(KITCHEN_CHECKER_DARK)).toBeLessThan(brightness(outside) - 0.3);
+    for (const outside of [HORIZON_COLORS.ground, HORIZON_COLORS.line]) {
+      expect(brightness(KITCHEN_CHECKER_DARK)).toBeLessThan(brightness(outside) - 0.25);
       expect(warmth(KITCHEN_CHECKER_LIGHT)).toBeGreaterThan(warmth(outside) + 0.05);
     }
-    expect(warmth(HORIZON_COLORS.checker)).toBeLessThanOrEqual(0);
+    expect(warmth(HORIZON_COLORS.ground)).toBeLessThanOrEqual(0);
   });
 
   /**
