@@ -49,6 +49,8 @@ import { denyOutline } from '../../core/outlineShell';
 import { graphics } from '../../core/graphicsSettings';
 import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/Audio';
 import { disposeShapes } from '../shared/environment';
+import { PlateFloor, type PlateSeat } from '../shared/plateFloor';
+import { floorPlateModels, floorPlateSpots, type PlateTile } from '../shared/plateField';
 import { ConstructRoom, type ConstructItem, type ConstructOptions } from '../shared/construct';
 import { WardrobeRack, type RackPiece } from '../shared/wardrobeRack';
 import { appearance, saveAppearance, type Appearance } from '../../core/appearance';
@@ -149,6 +151,35 @@ export abstract class GridWorld extends PortalWorld {
    * Gruppe da hängen, wo sie hingehört.
    */
   private readonly batched: THREE.Mesh[] = [];
+  /**
+   * **Was verschwindet, sobald die Platten darüber da sind** — nach Warteliste
+   * sortiert (`shared/plateField.floorPlateModels`, `gridBatch.batchKey`).
+   *
+   * Der Schlüssel ist die sortierte Liste der Dateien, auf die die Dinge darin
+   * warten; drin liegen die **Bündel** und die einzeln gebliebenen Quader. Dass
+   * beides in derselben Liste steht, ist Absicht: Ein Quader, der in ein
+   * Bündel gewandert ist, ist ohnehin schon unsichtbar, und ein zweites Mal
+   * unsichtbar zu werden kostet nichts — die Alternative wäre eine zweite
+   * Liste, die genau einmal von der ersten abweicht und dann eine Masse
+   * stehen lässt, die niemand mehr wegbekommt.
+   */
+  private readonly plated = new Map<string, THREE.Object3D[]>();
+  /** Welche Plattendateien wirklich angekommen sind — erst dann wird versteckt. */
+  private readonly plateReady = new Set<string>();
+  /** Die Plattenböden selbst (`shared/plateFloor.ts`) — beim Umbau wieder weg. */
+  private readonly platesBuilt: PlateFloor[] = [];
+  /** Und die Bodenquader, aus denen ihre Kacheln gerechnet werden. */
+  private readonly plateSolids: PlanSolid[] = [];
+  /**
+   * **Die Entscheidung als Funktion**, einmal gebunden statt je Aufruf neu.
+   *
+   * `floorPlate` ist eine Methode, und eine Methode, die man aus ihrem Objekt
+   * heraushebt, verliert ihr `this` — der Linter dieses Projekts hält genau
+   * danach Ausschau (`AGENTS.md`, _Linter und Formatierer_). Sie läuft
+   * achttausendmal je Umbau durch `floorPlateSpots`, also wird sie einmal
+   * gebunden und nicht in jeder Schleife neu erzeugt.
+   */
+  private readonly plateChoice = (tile: PlateTile): string | null => this.floorPlate(tile);
   /**
    * **Die Quader, an deren Stelle ein Modell aus dem Regal tritt** — je Möbel
    * eine Liste, unter Sorte und Kachel abgelegt (`blockSlabKey`).
@@ -323,6 +354,25 @@ export abstract class GridWorld extends PortalWorld {
   }
 
   /**
+   * **Welche Platte aus dem Regal auf einer Bodenkachel liegt** — `null` heißt:
+   * keine, und das ist die Vorgabe.
+   *
+   * Der Haken, an dem der ganze Plattenboden hängt (`shared/plateFloor.ts`),
+   * und er ist bewusst leer voreingestellt: Ein Zimmer im Bauplatz, das
+   * Portal-Labor, das Dunkelhaus — die stehen auf gebauten Quadern und sollen
+   * sich nicht ändern, weil eine andere Welt einen Steinboden bestellt hat.
+   * Wer Platten will, sagt es (`worlds/test/TestWorld.ts` →
+   * `worlds/test/floorPlate.ts`).
+   *
+   * Gefragt wird je **Kachel** und nicht je Quader: Die Masse des Geländes ist
+   * ein einziger Quader über 77 × 105 Kacheln, und mitten darin liegt eine
+   * Küche, die keine Platte will.
+   */
+  protected floorPlate(_tile: PlateTile): string | null {
+    return null;
+  }
+
+  /**
    * Was mit dem fertigen Grundriss noch passieren soll: Leitern eintragen,
    * Stacheln malen, ein Podest verbinden (`nav/navBuild.ts`).
    */
@@ -380,6 +430,7 @@ export abstract class GridWorld extends PortalWorld {
     // einer Kachel, von denen eines in keinem Plan mehr steht.
     this.clearFixtures();
     this.dropBlockModels();
+    this.dropFloorPlates();
     this.dropGridLines();
     // Die Quader sind gleich alle weg; was hier stehen bliebe, wäre eine Wand,
     // die es nicht mehr gibt und die trotzdem durchsichtig wird.
@@ -435,6 +486,9 @@ export abstract class GridWorld extends PortalWorld {
     // **Und zuletzt die Möbel, die es im Regal schon gibt** — sie kommen über
     // die Leitung und damit erst lange nach diesem Bild (`buildBlockModels`).
     this.buildBlockModels();
+    // **Und der Boden bekommt Platten**, aus demselben Regal und mit derselben
+    // Verzögerung (`buildFloorPlates`).
+    this.buildFloorPlates();
     this.buildGridLines();
   }
 
@@ -467,27 +521,39 @@ export abstract class GridWorld extends PortalWorld {
   ): void {
     const byKey = new Map<
       string,
-      { material: THREE.Material; level: number | null; meshes: THREE.Mesh<THREE.BoxGeometry>[] }
+      {
+        material: THREE.Material;
+        level: number | null;
+        plates: string;
+        meshes: THREE.Mesh<THREE.BoxGeometry>[];
+      }
     >();
     for (const object of meshes) {
       const mesh = object as THREE.Mesh<THREE.BoxGeometry>;
       if (!mesh.visible || Array.isArray(mesh.material)) continue;
       const level = typeof mesh.userData.level === 'number' ? mesh.userData.level : null;
-      const key = batchKey(mesh.material.uuid, level);
-      const bundle = byKey.get(key) ?? { material: mesh.material, level, meshes: [] };
+      // **Und auf welche Platten dieser Quader wartet** (`gridBatch.batchKey`):
+      // Was verschwinden soll, sobald ein Modell da ist, gehört nicht mit dem
+      // in ein Bündel, was stehen bleibt.
+      const plates = typeof mesh.userData.plates === 'string' ? mesh.userData.plates : '';
+      const key = batchKey(mesh.material.uuid, level, plates);
+      const bundle = byKey.get(key) ?? { material: mesh.material, level, plates, meshes: [] };
       bundle.meshes.push(mesh);
       byKey.set(key, bundle);
     }
 
     const matrix = new THREE.Matrix4();
     const scale = new THREE.Vector3();
-    for (const { material, level, meshes: taken } of byKey.values()) {
+    for (const { material, level, plates, meshes: taken } of byKey.values()) {
       // Einer allein ist kein Bündel: Ein `InstancedMesh` mit genau einem
       // Eintrag kostet denselben Zeichenaufruf und eine Geometrie mehr.
       if (taken.length < 2) continue;
       const batch = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material, taken.length);
       batch.name = 'grid-batch';
       if (level !== null) batch.userData.level = level;
+      // Das Bündel wartet auf dasselbe wie seine Quader — und geht mit ihnen
+      // zusammen aus dem Bild (`plateArrived`).
+      if (plates) this.rememberPlated(plates, batch);
       taken.forEach((mesh, i) => {
         const p = mesh.geometry.parameters;
         scale.set(p.width, p.height, p.depth);
@@ -1483,6 +1549,19 @@ export abstract class GridWorld extends PortalWorld {
     // Vorgemerkt wird er deshalb sofort, damit ihn `fillBlockModel` wiederfindet.
     const modelled = solid.block !== undefined && blockModel(solid.block) !== null;
     if (solid.block !== undefined && modelled) this.rememberModelled(mesh, solid, solid.block);
+    // **Und ob Platten über ihn gelegt werden** (`shared/plateField.ts`).
+    // Dieselbe Frage zum selben Zeitpunkt und aus demselben Grund wie eine
+    // Zeile höher — nur, dass ein Boden nicht aus dem Bündel fällt, sondern in
+    // ein eigenes kommt (`gridBatch.batchKey`): Es sind neunhundert Quader und
+    // eine Masse über das ganze Gelände, und die einzeln zu zeichnen wäre
+    // teurer als alles, was hier gespart wird.
+    const plates = floorPlateModels(solid, this.plateChoice);
+    if (plates.length > 0) {
+      const key = plates.join('|');
+      mesh.userData.plates = key;
+      this.rememberPlated(key, mesh);
+      this.plateSolids.push(solid);
+    }
     // **Und ob er in ein Bündel darf** (`gridBatch.ts`): Ein Boden, eine
     // Schwelle, eine Rampe wird nie durchsichtig — also kostet es nichts, sie
     // mit ihresgleichen in einem Zug zu zeichnen.
@@ -1498,6 +1577,96 @@ export abstract class GridWorld extends PortalWorld {
     // wird ausschließlich von oben (`stepWallGhosts`), und dort stehen die
     // Quader wieder einzeln da.
     else if (joinsGhostBatch(candidate)) this.ghostable.push(mesh);
+  }
+
+  // --- der Boden, der aus dem Regal kommt -----------------------------------
+
+  /** Dieses Ding wartet auf diese Dateien — gemerkt für `plateArrived`. */
+  private rememberPlated(key: string, object: THREE.Object3D): void {
+    const list = this.plated.get(key);
+    if (list) list.push(object);
+    else this.plated.set(key, [object]);
+  }
+
+  /**
+   * **Für jede Bodenkachel eine Platte bestellen** — je Datei ein Bündel.
+   *
+   * Die Gegenrichtung zu `build()`: Dort wird Quader für Quader entschieden,
+   * **ob** Platten kommen; hier wird aus denselben Quadern ausgerechnet, **wo**
+   * sie liegen (`shared/plateField.floorPlateSpots`, ohne three.js und deshalb
+   * geprüft). Zwei Durchgänge, weil eine Kachel von zwei Quadern getragen
+   * werden kann — der Masse des Geländes und der Bodenkachel darauf —, und
+   * darauf gehört genau **eine** Platte.
+   *
+   * **Ohne WebGL passiert gar nichts** (`core/chefFit.canLoadModels`), genau
+   * wie bei den Möbeln (`buildBlockModels`): In Jest zieht `GLTFLoader` samt
+   * `import.meta` den ganzen Lauf mit herein. Dann steht der gebaute Boden da
+   * und tut, was er immer tat — und in einem Checkout ohne die gekauften
+   * Pakete für immer.
+   *
+   * **Und ohne Spieler auch nicht.** Der Riegel auf `context` ist derselbe wie
+   * bei der Schürze draußen (`worlds/test/TestWorld.buildProps`) und meint
+   * dasselbe: eine **Vorschau** (`PortalWorld.preview`). Für ein Standbild auf
+   * der Werkzeugseite sind achttausend Platten zu viel, und aufgeräumt wird
+   * eine Vorschau allein mit `disposeTree` — das die Instanzpuffer eines
+   * Bündels gar nicht kennt.
+   */
+  private buildFloorPlates(): void {
+    const group = this.group;
+    if (!group || !this.context || !canLoadModels()) return;
+    // **Je Datei und je Etage ein Bündel.** Die Datei, weil ein
+    // `InstancedMesh` genau eine Geometrie hat; die Etage, weil es genau eine
+    // Sichtbarkeit hat und von oben aufgeschnitten wird (`core/cutaway.ts`).
+    const byBundle = new Map<string, { file: string; level: number; seats: PlateSeat[] }>();
+    for (const spot of floorPlateSpots(this.plateSolids, this.plateChoice)) {
+      const key = `${spot.model}@${spot.level}`;
+      const bundle = byBundle.get(key) ?? { file: spot.model, level: spot.level, seats: [] };
+      bundle.seats.push({ x: spot.x, y: spot.y, z: spot.z });
+      byBundle.set(key, bundle);
+    }
+    for (const { file, level, seats } of byBundle.values()) {
+      this.platesBuilt.push(
+        new PlateFloor(group, file, seats, { level, ready: () => this.plateArrived(file) }),
+      );
+    }
+  }
+
+  /**
+   * **Eine Datei ist da** — und jetzt darf weg, was nur noch auf sie gewartet
+   * hat.
+   *
+   * Erst jetzt und keinen Moment früher: Vorher wäre der Boden eine Weile lang
+   * gar nicht da gewesen, und in einem Checkout ohne die Pakete für immer.
+   * Dieselbe Reihenfolge wie beim Regal (`fillBlockModel`, „**und erst jetzt**
+   * geht das Gerechnete aus dem Bild").
+   *
+   * Gewartet wird auf **alle** Dateien einer Gruppe. Meistens ist es eine; ein
+   * Quader, über dem zweierlei Platten liegen — Prototyp hier, Stein dort —,
+   * verschwindet erst, wenn beide angekommen sind, denn sonst bliebe unter der
+   * fehlenden ein Loch.
+   */
+  private plateArrived(file: string): void {
+    this.plateReady.add(file);
+    for (const [key, objects] of this.plated) {
+      if (!key.split('|').every((one) => this.plateReady.has(one))) continue;
+      for (const object of objects) object.visible = false;
+    }
+  }
+
+  /**
+   * **Die Platten wieder abhängen** — beim Umbau und beim Verlassen der Welt.
+   *
+   * `PlateFloor.dispose` gibt dabei mehr frei, als `disposeTree` je fände: den
+   * Instanzpuffer des Bündels, seine Geometrie und sein Material. Und was noch
+   * unterwegs ist, räumt sich bei der Ankunft selbst weg — die Gruppe weiß,
+   * dass sie abgeräumt wurde.
+   */
+  private dropFloorPlates(): void {
+    for (const plates of this.platesBuilt) plates.dispose();
+    this.platesBuilt.length = 0;
+    this.plated.clear();
+    this.plateReady.clear();
+    this.plateSolids.length = 0;
   }
 
   // --- die Möbel, die aus dem Regal kommen ----------------------------------
@@ -2159,6 +2328,7 @@ export abstract class GridWorld extends PortalWorld {
     this.rigLevel = 0;
     this.clearFixtures();
     this.dropBlockModels();
+    this.dropFloorPlates();
     this.editor?.dispose();
     this.editor = null;
     this.grid = null;
