@@ -733,7 +733,7 @@ npm install
 npm run dev      # http://localhost:5173
 npm run build    # Typecheck + Produktionsbuild nach dist/
 npm run preview  # gebautes Ergebnis lokal servieren
-npm test         # Jest (schnell); npm run test:slow für die Rundensimulationen
+npm test         # Jest — ein Lauf, gut eine halbe Minute
 npm run icons    # public/icon.svg → die PNG-Symbole der App (braucht Chromium)
 npm run fps      # Bildraten-Matrix gegen einen laufenden Dev-Server (braucht Chromium)
 npm run perf:kitchen  # Zeichenaufrufe der Küche, Rundumblick aus Augenhöhe

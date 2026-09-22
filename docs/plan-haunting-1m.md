@@ -492,12 +492,11 @@ einer Lampe ist ihr Lichtkegel.
 
 ### H4 — Nacharbeit
 
-Alles, was danach noch rot ist, insbesondere `npm run test:slow`
-(`rules/botRound.test`, `rules/monsterStuck.test`, `map/flatRound.test`,
-`vents/flatVents.test`, `navmesh/stationSmoothing.test`, `botTraining.test`,
-`navmesh/flatWalk.test`, `shipArt.test`, `rules/cargo.test`): Nav, Monster
-und Bots auf den neuen Maßen. Wenn `botTraining.test` mit `DEFAULT_TUNING`
-aus dem Band fällt, wird neu gelernt wie beim Paket „Rechenkern"
+Alles, was danach noch rot ist: Nav, Monster und Bots auf den neuen Maßen.
+Die Rundensimulationen, die das früher nachwiesen (`npm run test:slow` mit
+`rules/botRound.test`, `map/flatRound.test`, `botTraining.test` und den
+übrigen elf), sind mit dem langsamen Lauf gegangen — wer die Balance wieder
+nachmessen will, holt sie aus der Geschichte (`docs/agents/tests.md`)
 (`TrainingRun(DEFAULT_TUNING, 'both', 12, { rounds: 64 }, 99)`, Ergebnis mit
 Messreihe in den Test) — die Ungleichung der Tempi (`botTuning.test`) bleibt
 dabei unangetastet. Dazu `npm test` ganz, `npm run build`, und die Liste der

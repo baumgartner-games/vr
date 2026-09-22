@@ -3,46 +3,63 @@
 Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 über alle, und dort stehen die Arbeitsregeln.
 
-**Zwei Geschwindigkeiten.** `jest.config.cjs` führt eine Liste `SLOW`: die
-Suiten, die ganze Runden ausspielen — Bot-Runden über die echte 2D-Runde
-(`rules/botRound.test.ts`, 150 s), die 2D-Runde selbst (`map/flatRound.test.ts`,
-90 s), Schächte, Glättung, Training, Modelltechniker, Fracht,
-Schiffsart — und dazu die fünf, die ganze Schiffe und Navigationsnetze stellen
-(unten) — zusammen gut siebeneinhalb Minuten Rechenzeit, bei zwei CI-Kernen die
-Hälfte der Wartezeit. `npm test` lässt sie aus und ist in unter einer Minute
-durch; `npm run test:slow` fährt genau diese Liste; die CI macht beides in
-getrennten Jobs (`Build` und `Slow tests`), damit ein Push nicht an einer Uhr
-scheitert, sondern nur an einem Fehler. Die langsamen Suiten sind gewollt
-langsam: Sie sind der Beleg, dass eine Runde von selbst endet und die Balance
-hält (`botTraining.test.ts` misst 1600 Runden nach) — Rechnung, keine
-Browser-Smokes, und darum gehören sie in Jest und nicht in Playwright. Wer
-eine neue Suite schreibt, die mehr als zehn Sekunden braucht, trägt sie in
-`SLOW` ein.
+**Ein Lauf, und der ist schnell.** `npm test` fährt alles, was es gibt: 338
+Suiten, 4776 Tests, **gut eine halbe Minute** (31 s auf vier Kernen, 53 s auf
+den zwei Kernen der CI). Es gibt kein zweites Skript und keinen zweiten Job.
 
-**Und wer sie eintragen will, muss sie erst wiegen.** Die schnelle Suite war
-unbemerkt auf **acht Minuten** gewachsen — die Zusage „unter einer Minute" stand
-noch da, gestimmt hat sie lange nicht mehr. Zwei Dinge standen dahinter, und nur
-eines davon war Absicht:
+Das war einmal anders, und beide Male lohnt die Geschichte:
 
-- **Eine Fixture mit einer quadratischen Schleife.**
-  `npc/characterStore.test.ts` baut eine Aufnahme, die den Speicherdeckel
-  sprengt (`STORE_LIMIT`), und prüfte die Größe mit einem `JSON.stringify` über
-  die **ganze** Liste — in der Schleifenbedingung. Bei 36 000 Anhängen wurde die
-  mitwachsende Liste also 36 000-mal neu serialisiert: rund 65 GB JSON für eine
-  einzige Fixture, **312 Sekunden für acht Tests**, die nichts als eine `Map`
-  anfassen. Heute wird eine Bildzeile einmal gewogen und die Anzahl gerechnet:
-  **0,8 Sekunden**, dieselben acht Tests, dazu die Zusage ausdrücklich geprüft.
-  Eine Suite, die lange braucht, ohne lange rechnen zu wollen, ist kein Fall für
-  `SLOW`, sondern ein Fehler.
-- **Fünf Suiten, die ganze Schiffe stellen.** `ShipExperience`,
-  `navmesh/flatNavigation`, `haunt`, `stationLayout` und `roundSim` kosten je
-  zehn bis dreißig Sekunden und rissen damit genau die Grenze, die hier steht.
-  Sie sind gewollt teuer und stehen jetzt in `SLOW`.
+**Erst war eine Zeile schuld.** Die schnelle Suite war unbemerkt auf **acht
+Minuten** gewachsen. Nachgemessen — Suite für Suite, nicht geschätzt — steckten
+312 der 505 Sekunden in einer einzigen Fixture:
+`npc/characterStore.test.ts` prüft, dass eine zu große Aufnahme nicht
+geschrieben wird, und stellte ihre Größe mit einem `JSON.stringify` über die
+**ganze** Liste fest — in der Schleifenbedingung. Bei 36 000 Anhängen wurde die
+mitwachsende Liste 36 000-mal neu serialisiert: rund 65 GB JSON für acht Tests,
+die nichts als eine `Map` anfassen. Heute wird eine Bildzeile einmal gewogen
+und die Anzahl gerechnet, 0,8 s. **Eine Suite, die lange braucht, ohne lange
+rechnen zu wollen, ist kein Fall für einen Nebenjob, sondern ein Fehler.**
 
-Zusammen: **acht Minuten auf gut eine halbe** (31 s auf vier Kernen), ohne dass
-ein einziger Test weggefallen ist — 4776 laufen weiter. Wer das nächste Mal
-nachsehen will, wohin die Zeit geht, lässt sich die Suiten einzeln ausgeben und
-nicht die Summe:
+**Dann ging der langsame Lauf.** Übrig blieben vierzehn Suiten, die ganze
+Runden ausspielten — Bot-Runden über die echte 2D-Runde, das Training der
+Gewichte über 1600 Runden, Schächte, Glättung, Fracht, Schiffsart. Sie standen
+in einer Liste `SLOW`, liefen über `npm run test:slow` und in einem eigenen
+CI-Job. Das Verhältnis trug nicht: **214 Tests für über acht Minuten
+Rechenzeit** gegen 4776 Tests für gut eine halbe. Sie kosteten damit allein mehr
+als die ganze übrige Suite, hielten bei jedem Push einen zweiten Runner
+besetzt und standen zwischen jedem Agenten und seinem Ergebnis. Sie sind
+gelöscht, samt Liste, Skript und Job.
+
+| entfallene Suite                    | Zeit    | Tests |
+| ----------------------------------- | ------- | ----- |
+| `haunting/botTraining`              | 148,8 s | 13    |
+| `haunting/rules/botRound`           | 119,2 s | 8     |
+| `haunting/map/flatRound`            | 66,0 s  | 36    |
+| `haunting/navmesh/flatNavigation`   | 28,3 s  | 14    |
+| `haunting/ShipExperience`           | 23,9 s  | 56    |
+| `haunting/rules/cargo`              | 21,7 s  | 10    |
+| `haunting/haunt`                    | 19,0 s  | 32    |
+| `haunting/shipArt`                  | 16,9 s  | 9     |
+| `haunting/vents/flatVents`          | 14,0 s  | 4     |
+| `haunting/stationLayout`            | 11,7 s  | 4     |
+| `haunting/roundSim`                 | 10,2 s  | 15    |
+| `haunting/rules/monsterStuck`       | 10,0 s  | 2     |
+| `haunting/navmesh/stationSmoothing` | 9,1 s   | 5     |
+| `haunting/navmesh/flatWalk`         | 3,4 s   | 6     |
+
+**Was damit weg ist, ist weg** und soll es wissen: Der Beleg, dass eine Runde
+von selbst endet und die Balance hält, wird nicht mehr bei jedem Push geführt.
+Wer an Runde, Bots oder Wegsuche rechnet, prüft das jetzt selbst — im Browser
+(`npm run test:browser`) oder indem er die Suite aus der Geschichte holt:
+
+```
+git show 336f520:src/worlds/haunting/botTraining.test.ts
+```
+
+**Die Regel, die bleibt.** Wer eine neue Suite schreibt, wiegt sie. Mehr als
+zehn Sekunden für eine Suite heißt: entweder steckt ein Fehler darin wie oben,
+oder sie gehört nicht in diesen Lauf. Nachsehen, wohin die Zeit geht, geht so
+— und nicht über die Summe:
 
 ```
 npx jest --silent --json --outputFile=/tmp/fast.json
@@ -51,10 +68,10 @@ node -e "JSON.parse(require('fs').readFileSync('/tmp/fast.json')).testResults \
   .slice(0,15).forEach(([ms,n]) => console.log((ms/1000).toFixed(1)+'s', n))"
 ```
 
-Die Erfahrung dahinter: Bei 343 Suiten sieht „acht Minuten" nach zu vielen
-Tests aus, und es waren in Wahrheit **eine falsche Zeile und fünf Ausreißer** —
-82 % der Zeit steckten in sechs Dateien, die restlichen 337 kosteten zusammen
-90 Sekunden. Wer nach Gefühl streicht, verliert die Tests und behält die
+Die Erfahrung dahinter gehört ins lange Gedächtnis: Bei 343 Suiten sieht „acht
+Minuten" nach zu vielen Tests aus, und es waren eine falsche Zeile und ein
+Dutzend Ausreißer. Die restlichen 323 Suiten kosten zusammen **41 Sekunden**
+für 4182 Tests. Wer nach Gefühl streicht, verliert die Tests und behält die
 Wartezeit.
 
 Getestet wird das, was ohne Browser läuft und wo Fehler nicht auffallen: die
