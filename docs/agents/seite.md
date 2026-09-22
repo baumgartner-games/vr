@@ -935,9 +935,10 @@ als ein Satz:
 > und voraussichtlicher Dauer."
 
 Wer gleich in den Zug steigt, will nicht geschont werden, sondern versorgt.
-Also steht auf der Startseite unter dem Installieren ein zweiter Knopf,
-**Alles herunterladen**, und dahinter liegen 71,5 MB in 4741 Dateien — das
-ganze Programm, alle Modelle, alle Töne und das ganze KayKit-Regal.
+Also gab es auf der Startseite einen zweiten Knopf, **Alles herunterladen**
+(heute ist er in _Beitreten_ aufgegangen, siehe unten), und dahinter liegen
+71,5 MB in 4741 Dateien — das ganze Programm, alle Modelle, alle Töne und das
+ganze KayKit-Regal.
 
 ### Drei Dateien, und jede tut genau eines
 
@@ -945,8 +946,8 @@ ganze Programm, alle Modelle, alle Töne und das ganze KayKit-Regal.
 | ----- | --------------- |
 | `core/fullDownload.ts` | **Rein, mit Test**: der Plan, die Reihenfolge, die Stempelregel, der Fortschritt, die Restzeit — und jeder Satz, der auf dem Knopf steht |
 | `core/fullDownloadRun.ts` | Das Holen: sechs Dateien gleichzeitig, zweite Versuche, Abbrechen, im Speicher nachsehen |
-| `core/fullAuto.ts` | **Rein, mit Test**: ob der Knopf blinkt, ob von selbst geladen wird, und der Haken im Speicher |
-| `main.ts`, `#offline` | Fünf Elemente und ein Zustandsautomat: Knopf, Balken, Zeile, Halteknopf, Haken |
+| `core/fullAuto.ts` | **Rein, mit Test**: ob der Download _Beitreten_ aufhält, und ob eine Prüfung gleich in einen Lauf übergeht |
+| `main.ts`, `#offline` | Drei Elemente unter _Beitreten_ und ein Zustandsautomat: Balken, Zeile, Überspringen — beschriftet wird der eine Knopf |
 
 Derselbe Schnitt wie überall hier, nur mit einem schärferen Grund als sonst:
 **Ein Balken, der lügt, ist schlimmer als keiner** — und ob er lügt, sieht man
@@ -1105,91 +1106,76 @@ Drei Regeln halten sie ruhig:
   Minuten, ab zehn Minuten Fünferschritte. Es steht dort „noch etwa 2 Minuten"
   und nie eine tickende Sekundenzahl.
 
-### Was der Knopf in jedem Zustand sagt
+### Ein Knopf: Beitreten und der Download davor
 
-Der **erste Druck lädt noch nichts.** Er holt die Liste, sieht im Speicher nach
-und sagt dann, um wie viel es geht; erst der zweite lädt. Siebzig Megabyte sind
-nichts, was auf einen unbedachten Klick hin losgehen sollte — und „wie viel ist
-es denn?" ist genau die Frage, die man vorher stellt. Beim **Start** kostet das
-nichts: Ungefragt wird keine Liste geholt und kein Speicher ausgelesen, denn
-die Startseite hat auf ihre eigenen Bytes zu achten.
+Lange waren es zwei Knöpfe: _Beitreten_, und darunter _Alles herunterladen_,
+der blinkte, wenn etwas fehlte, mit einem Haken „Fehlendes automatisch
+herunterladen" (`bgvr.autoload`). Gewünscht wurde dann:
 
-| Zustand | Knopf | Zeile darunter |
-| ------- | ----- | -------------- |
-| `unbekannt` | _Alles herunterladen_ | „… Ein Druck sagt, um wie viel es geht." |
-| `prüft` | _Wird geprüft …_ (stumpf) | „Es wird nachgesehen, was schon da ist …" |
-| `offen` | _Alles herunterladen (71,5 MB)_ bzw. _Rest herunterladen (…)_ | wie viel schon da ist — und eine Warnung, wenn die Leitung danach aussieht |
-| `läuft` | _Lädt …_ (stumpf) | „12,4 MB von 71,5 MB · noch etwa 2 Minuten", Balken, **Anhalten** |
-| `angehalten` | _Weiter herunterladen (…)_ | „Angehalten bei … Das Geholte bleibt." |
-| `fertig` | _Nochmal prüfen_ | „Alles da — … im Gerät. Die Spielwiese läuft jetzt ohne Netz." |
-| `lückenhaft` | _Fehlende holen (…)_ | „… · 3 Dateien kamen nicht an." |
-| `kein-speicher` | stumpf | **warum** es nicht geht — kein Service Worker, oder kein Cache-API |
-| `keine-liste` | _Alles herunterladen_ | „Die Liste der Dateien ist nicht erreichbar." |
+> „Da man eh nicht beitreten kann, wenn nicht alle Assets da sind, sollten wir
+> das anpassen, sodass der ‚Download assets' und der Beitreten-Button in eins
+> sind. Also der Button zeigt an ‚Downloading' bzw. prüfen, und darunter ist
+> direkt der Progress-Bar. Das ‚Fehlendes automatisch herunterladen' kann weg
+> und ist default true, sonst kann man ja eh nicht spielen."
 
-**Fertig heißt fertig** und bietet nicht an, 71 MB ein zweites Mal zu holen:
-Der Knopf wird zum Nachsehen, und das kostet eine 15-kB-Datei und einen Blick
-in den Speicher.
+Seitdem gibt es keinen eigenen Download-Knopf, keinen Haken und kein Blinken
+mehr. **Nachgesehen wird bei jedem Start**, sobald der Browser Luft hat
+(`whenIdle`) und ein Service Worker antwortet — beim allerersten Besuch
+übernimmt er erst nach dem Anmelden (`clients.claim`), dann wartet die Prüfung
+auf `controllerchange`. Sie kostet die beiden erzeugten Listen (`offline.json`,
+den Index des Regals) und einen Blick in den Speicher. **Fehlt etwas, wird es
+sofort geholt** (`autoStarts`, nur aus _offen_).
 
-**Und ein Knopf, der nicht kann, sagt warum.** Im Entwicklungsbetrieb läuft
+Solange geprüft oder geladen wird, **hält das _Beitreten_ auf**
+(`fullBlocks`), und der Knopf sagt selbst, woran er ist (`fullLabel`); der
+Balken steht direkt darunter. Dasselbe gilt für `#haunt-enter` in der Lobby.
+Die Zeile der Welt (`#start-note`) schweigt in dieser Zeit — zwei Balken, die
+beide „lädt" sagen, sagen nichts mehr.
+
+| Zustand | _Beitreten_ | Balken und Zeile darunter |
+| ------- | ----------- | ------------------------- |
+| `unbekannt` | wie immer (_Beitreten_ / _Enter VR_) | nichts |
+| `prüft` | _Wird geprüft …_ (stumpf) | Balken unbestimmt, „Es wird nachgesehen, was schon da ist …" |
+| `läuft` | _Lädt … 17 %_ (stumpf) | Balken, „12,4 MB von 71,5 MB · noch etwa 2 Minuten", **Überspringen** |
+| `offen` | wie immer | wie viel schon da ist (nur, solange der Tab im Hintergrund war und der Lauf beim Zurückkommen anfängt) |
+| `angehalten` | wie immer | Balken, „Übersprungen bei … Das Geholte bleibt, der Rest kommt beim nächsten Start." |
+| `fertig` | wie immer | „Alles da — … im Gerät, die Spielwiese läuft auch ohne Netz." |
+| `lückenhaft` | wie immer | Balken, „… · 3 Dateien kamen nicht an." |
+| `kein-speicher` | wie immer | **warum** es nicht geht — kein Service Worker, oder kein Cache-API |
+| `keine-liste` | wie immer | „Die Liste der Dateien ist nicht erreichbar." |
+
+**Aufhalten nur, solange jemand arbeitet.** Jeder andere Zustand ist ein
+Ende, und keines davon darf einen Knopf für den Rest der Sitzung tot machen:
+Gespielt wird dann mit dem, was das Netz liefert. Auch _offen_ hält nicht
+auf — ein Tab im Hintergrund fängt nicht an (`mayStartFull`), und ein Knopf,
+der darauf wartete, wartete womöglich auf niemanden. Der Lauf kommt dann beim
+Zurückkommen (`visibilitychange`).
+
+**Überspringen** ist der Ausweg für eine schmale Leitung: Es hält den Lauf an,
+das Geholte bleibt, und beim nächsten Start ist der Stand wieder _offen_ und
+es geht von selbst weiter. In derselben Sitzung wird aus _angehalten_ und
+_lückenhaft_ nicht von selbst wieder angefangen — das wäre eine Schleife gegen
+den, der davorsitzt.
+
+**Und ein Zustand, der nicht kann, sagt warum.** Im Entwicklungsbetrieb läuft
 kein Service Worker (`core/pwa.ts`); ein `fetch` landete dann im HTTP-Cache
-statt im Speicher, und sichtbar wäre davon nichts außer einem Balken, der
-durchläuft und nichts bewirkt. Genau dieser Fall steht ausgeschrieben da.
-
-### Geprüft wird von selbst, geladen nur auf Ansage
-
-Der erste Druck lud lange nichts: Er holte die Liste, sah im Speicher nach und
-sagte, um wie viel es geht; erst der zweite lud. Das war richtig, solange der
-Knopf die einzige Frage war — und es hieß, dass man nach einem Deploy zweimal
-drücken musste, um zu erfahren, dass einem etwas fehlt. Das fällt genau dann
-auf, wenn es zu spät ist: im Funkloch. Gewünscht wurde deshalb beides:
-
-> „Bei der Startseite soll immer automatisch geprüft werden, ob alle Modelle
-> heruntergeladen sind und dann der Button zum Download blinken, wenn etwas
-> fehlt. Ich will auch eine Checkbox da haben (der State wird mit gespeichert
-> über Reloads), ob automatisch neue Inhalte heruntergeladen werden sollen,
-> wenn diese fehlen."
-
-**Nachgesehen wird bei jedem Start**, sobald der Browser Luft hat
-(`whenIdle`) und ein Service Worker antwortet — ohne ihn wäre die Antwort
-ohnehin „kein Speicher", und beim allerersten Besuch übernimmt er erst nach
-dem Anmelden; dann wartet die Prüfung auf `controllerchange` oder auf den
-nächsten Start. Sie kostet die beiden erzeugten Listen (`offline.json`, den
-Index des Regals) und einen Blick in den Speicher — der Index ist ohnehin das,
-was das Vorwärmen als Nächstes holt.
-
-**Fehlt etwas, blinkt der Knopf** (`fullNags`, `.offline--nag`): genau in den
-drei Zuständen _offen_, _angehalten_ und _lückenhaft_. Nicht, während geladen
-wird (Unruhe ohne Aussage), nicht, wenn alles da ist (eine Lüge), und nicht,
-wenn der Browser gar keinen Speicher hat (eine Forderung, die niemand
-erfüllen kann). Gepulst wird der Rahmen und nicht die Schrift — eine blinkende
-Beschriftung ist nach dem dritten Takt nicht mehr zu lesen —, und wer Bewegung
-abbestellt hat (`prefers-reduced-motion`), bekommt denselben Hinweis ohne
-Takt.
-
-**Geladen wird von selbst nur mit Haken** (`#offline-auto`, `bgvr.autoload`,
-`autoStarts`). Nachsehen kostet zwei kleine Listen, siebzig Megabyte kosten
-eine Mobilfunkrechnung: Das eine darf die Seite von sich aus tun, das andere
-erst, wenn es jemand einmal gesagt hat — und dann bleibt es gesagt, auch über
-das Neuladen und den nächsten Deploy hinaus. Angefangen wird dabei nur aus
-_offen_: _angehalten_ ist eine Entscheidung dagegen, _lückenhaft_ das Ende
-eines Laufs, und beides von selbst fortzusetzen wäre eine Schleife gegen den,
-der davorsitzt. Ein frisch gesetzter Haken wartet nicht auf den nächsten
-Start.
+statt im Speicher. Dort wird deshalb gar nicht erst geprüft, und _Beitreten_
+bleibt, wie es ist.
 
 ### Die Rücksichten — und welche hier nicht gelten
 
 Vom Vorwärmen bleibt fast nichts übrig, denn **hier hat jemand gefragt**:
 
 - `saveData` und eine schmale Leitung werden **gesagt und nicht befolgt**
-  (`fullWarning`): „Achtung: ‚Daten sparen' ist eingeschaltet." Es ist seine
-  Entscheidung; er soll sie nur bewusst treffen.
+  (`fullWarning`): „Achtung: ‚Daten sparen' ist eingeschaltet." Gespielt wird
+  mit allem, was dazugehört; wer es eilig hat, drückt _Überspringen_.
 - **Die Lobby** spielt keine Rolle: Ein Download lädt keine Welt und nimmt
   keinen Raum ein.
 - **Kein Speicher** ist keine Höflichkeit, sondern Physik.
 - **Im Hintergrund fängt nichts an** — ein laufender wird aber auch **nicht**
   angehalten, wenn der Reiter wegschaltet. Siebzig Megabyte anzufangen und
   dann beim Blick aufs Telefon abzubrechen wäre das Gegenteil dessen, wofür
-  der Knopf da ist.
+  er da ist.
 
 **Und das Vorwärmen tritt zurück, solange geladen wird.** `warmSignals` meldet
 `busy`, solange der große Download läuft — anders als bei `playerAsked` geht

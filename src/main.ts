@@ -55,7 +55,7 @@ import {
   type FullState,
   type OfflineList,
 } from './core/fullDownload';
-import { autoStarts, fullNags, readAutoFull, writeAutoFull } from './core/fullAuto';
+import { autoStarts, fullBlocks } from './core/fullAuto';
 import {
   cachedUrls,
   hasCacheStorage,
@@ -254,6 +254,13 @@ let appPending: Promise<App | null> | null = null;
  * jeder Knopf ist stumpf — und bleibt es auch, wenn sonst jemand malt.
  */
 let noGraphics = false;
+/**
+ * **Wie weit „Alles herunterladen" ist** (`core/fullDownload.FullState`). Es
+ * steht hier oben und nicht unten beim Download, weil _Beitreten_ daran hängt
+ * und schon im Modulrumpf gemalt wird — ein `let` weiter unten wäre in diesem
+ * Augenblick noch nicht angelegt (siehe `hauntNet`).
+ */
+let fullState: FullState = { kind: 'unbekannt' };
 
 function ensureApp(): Promise<App | null> {
   appPending ??= startApp();
@@ -529,10 +536,21 @@ function showStart(): void {
   const options = startOptions(headset, view);
   postureField.hidden = !options.askPosture;
   screenField.hidden = !options.askView;
-  for (const button of [enterButton, hauntEnter]) button.textContent = options.label;
+  paintEnterLabel();
   hauntEnterHint.textContent = ENTRY_HINTS[options.way];
   showPosture(playerPosture());
   showScreenView(view);
+}
+
+/**
+ * **Was auf dem einen Knopf steht** — auf beiden Gesichtern der Seite. Solange
+ * der Download prüft oder lädt, sagt er das (`fullLabel`), sonst, wohin er
+ * führt (`startOptions`). Ohne 3D steht dort schon das Endgültige.
+ */
+function paintEnterLabel(): void {
+  if (noGraphics) return;
+  const label = fullLabel(fullState) ?? startOptions(headset, screenView(detectFlatRole())).label;
+  for (const button of [enterButton, hauntEnter]) button.textContent = label;
 }
 
 showStart();
@@ -809,8 +827,13 @@ function paintStart(): void {
   // und es ist endgültig (`noGraphics`).
   if (noGraphics) return;
   const state = startButton(warmSignals(), worldPhase);
-  enterButton.disabled = state.disabled;
-  showStartNote(state.note, state.busy);
+  // **Und der Download hält ihn genauso auf** (`core/fullAuto.fullBlocks`):
+  // Solange geprüft oder geladen wird, sagt der Knopf das selbst, und der
+  // Balken darunter zeigt, wie weit. Die Zeile der Welt schweigt dann — zwei
+  // Balken, die beide „lädt" sagen, sagen nichts mehr.
+  const waiting = fullBlocks(fullState);
+  enterButton.disabled = state.disabled || waiting;
+  showStartNote(waiting ? '' : state.note, state.busy);
 }
 
 /**
@@ -938,7 +961,8 @@ function refreshHaunt(): void {
   hauntStatus.classList.toggle('is-error', Boolean(hauntError) && !hauntBusy);
   hauntStatus.classList.toggle('is-online', !hauntError && !hauntBusy && Boolean(net?.connected));
   hauntConnect.textContent = hauntBusy ? '…' : net?.connected ? 'Neu verbinden' : 'Verbinden';
-  for (const button of [hauntConnect, hauntEnter]) button.disabled = hauntBusy || hauntEntering;
+  hauntConnect.disabled = hauntBusy || hauntEntering;
+  hauntEnter.disabled = hauntBusy || hauntEntering || fullBlocks(fullState);
   hauntLobby.hidden = !net?.connected;
   if (net?.connected) renderHauntPeers();
 }
@@ -1178,13 +1202,12 @@ installButton.addEventListener('click', () => {
  * `core/fullDownloadRun.ts`. **Hier steht nur, welches Element was anzeigt** —
  * und der eine Zustandsautomat dazwischen.
  *
- * **Der erste Druck lädt noch nichts.** Er holt die Liste, sieht im Speicher
- * nach und sagt dann, um wie viel es überhaupt geht; erst der zweite lädt.
- * Siebzig Megabyte sind nichts, was auf einen unbedachten Klick hin losgehen
- * sollte — und die Frage „wie viel ist es denn?" ist genau die, die man vorher
- * stellt. Beim Start kostet das nichts: Ungefragt wird hier **keine** Liste
- * geholt, denn die Startseite hat auf ihre eigenen Bytes zu achten
- * (`core/warmStart.ts`).
+ * **Einen eigenen Knopf gibt es nicht mehr.** Nachgesehen wird beim Start
+ * von selbst, und was fehlt, wird geholt — ohne Haken und ohne Nachfrage,
+ * denn gespielt wird mit allem, was dazugehört (`core/fullAuto.ts`). Solange
+ * das läuft, sagt _Beitreten_ „Wird geprüft …" bzw. „Lädt … 17 %",
+ * und der Balken steht direkt darunter. „Überspringen" hält den Lauf für diese
+ * Sitzung an; beim nächsten Start geht es weiter.
  */
 /**
  * **Die Version, ganz unten auf der Startseite.** `0.<Build>.<Patch>` aus
@@ -1194,15 +1217,10 @@ installButton.addEventListener('click', () => {
 const versionEl = document.querySelector<HTMLElement>('#app-version');
 if (versionEl) versionEl.textContent = versionLine(APP_VERSION, BUILD_ID);
 
-const offlineBox = document.querySelector<HTMLElement>('#offline')!;
-const offlineButton = document.querySelector<HTMLButtonElement>('#offline-btn')!;
 const offlineBar = document.querySelector<HTMLProgressElement>('#offline-bar')!;
 const offlineHint = document.querySelector<HTMLElement>('#offline-hint')!;
 const offlineStop = document.querySelector<HTMLButtonElement>('#offline-stop')!;
-const offlineAuto = document.querySelector<HTMLInputElement>('#offline-auto')!;
 
-/** Was der Knopf gerade ist — die ganze Anzeige hängt an dieser einen Größe. */
-let fullState: FullState = { kind: 'unbekannt' };
 /** Die erzeugte Liste, einmal geholt und dann behalten. */
 let fullList: OfflineList | null = null;
 /** Der Index des Regals, ebenso — `null` heißt „kein Regal im Checkout". */
@@ -1220,31 +1238,27 @@ function setFull(state: FullState): void {
 }
 
 /**
- * **Malen, und sonst nichts.** Vier Elemente, und jedes fragt dieselbe reine
- * Rechnung: Beschriftung, Zeile, Balken, Halteknopf.
+ * **Malen, und sonst nichts.** Balken, Zeile, Überspringen — und der eine
+ * Knopf, der jetzt beides ist: _Beitreten_ und der Download davor.
  *
- * Der Balken steht nur da, wenn er etwas zu zeigen hat — ein Balken auf Null
- * neben einem Knopf, der noch gar nichts getan hat, sieht aus wie ein Fehler.
+ * Der Balken steht nur da, wenn er etwas zu zeigen hat. Beim Prüfen läuft er
+ * unbestimmt (ohne `value`): Wie viel fehlt, weiß in dieser Sekunde niemand.
  */
 function paintFull(): void {
-  offlineButton.textContent = fullLabel(fullState);
-  offlineButton.disabled =
-    fullState.kind === 'prüft' || fullState.kind === 'läuft' || fullState.kind === 'kein-speicher';
   const warning = fullState.kind === 'offen' ? fullWarning(connectionInfo()) : '';
   offlineHint.textContent = `${fullHint(fullState)}${warning ? ` ${warning}` : ''}`;
-  const share = fullShare(fullState);
   offlineBar.hidden = !(
+    fullState.kind === 'prüft' ||
     fullState.kind === 'läuft' ||
     fullState.kind === 'angehalten' ||
-    fullState.kind === 'lückenhaft' ||
-    (fullState.kind !== 'unbekannt' && share > 0)
+    fullState.kind === 'lückenhaft'
   );
-  offlineBar.value = share;
+  if (fullState.kind === 'prüft') offlineBar.removeAttribute('value');
+  else offlineBar.value = fullShare(fullState);
   offlineStop.hidden = fullState.kind !== 'läuft';
-  // **Und er blinkt, wenn etwas fehlt** (`core/fullAuto.ts`). Das ist das
-  // Ergebnis der Prüfung, die beim Start von selbst gelaufen ist — ohne sie
-  // säße hier ein Knopf, der aussieht wie jeder andere.
-  offlineBox.classList.toggle('offline--nag', fullNags(fullState));
+  paintEnterLabel();
+  paintStart();
+  refreshHaunt();
 }
 
 /** Was der Browser über die Leitung sagt. Die API ist optional (Safari). */
@@ -1358,41 +1372,8 @@ async function runFullDownload(): Promise<void> {
   if (!playerAsked) whenIdle(() => void warmUp());
 }
 
-offlineButton.addEventListener('click', () => {
-  void (async () => {
-    if (fullRunning) return;
-    // Ein Zustand, in dem noch nichts feststeht, wird erst einmal nur geprüft;
-    // aus einem, der die Zahl schon genannt hat, wird geladen.
-    const lookOnly =
-      fullState.kind === 'unbekannt' ||
-      fullState.kind === 'fertig' ||
-      fullState.kind === 'keine-liste';
-    await refreshFull();
-    if (lookOnly) return;
-    await runFullDownload();
-  })();
-});
-
 offlineStop.addEventListener('click', () => {
   fullAbort?.abort();
-});
-
-/**
- * **Der Haken: Fehlendes von selbst holen.** Er steht im Speicher des
- * Browsers und gilt damit auch nach dem nächsten Deploy — genau dann ist er
- * etwas wert, denn dann ist wieder etwas neu.
- *
- * Frisch gesetzt wartet er nicht auf den nächsten Start: Steht gerade etwas
- * offen, geht es los.
- */
-offlineAuto.checked = readAutoFull();
-offlineAuto.addEventListener('change', () => {
-  writeAutoFull(offlineAuto.checked);
-  if (!offlineAuto.checked || fullRunning) return;
-  void (async () => {
-    if (fullState.kind === 'unbekannt') await refreshFull();
-    if (autoStarts(fullState, true)) await runFullDownload();
-  })();
 });
 
 /**
@@ -1426,9 +1407,16 @@ function watchFullState(): void {
 async function lookAtFull(): Promise<void> {
   if (fullRunning || fullState.kind === 'läuft') return;
   await refreshFull();
-  if (!autoStarts(fullState, offlineAuto.checked)) return;
+  if (!autoStarts(fullState)) return;
   await runFullDownload();
 }
+
+// Wer den Tab weggeschaltet hatte, bevor der Lauf anfing (`mayStartFull`),
+// bekommt ihn beim Zurückkommen — der Haken dafür ist nicht mehr abzuwählen.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || fullRunning || !autoStarts(fullState)) return;
+  void runFullDownload();
+});
 
 paintFull();
 
