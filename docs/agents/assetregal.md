@@ -33,6 +33,8 @@ liegt in der Hand.
 | `core/kaykitFit.ts`            | **Rein**: `KAYKIT_SCALE` als Vorgabe, `KAYKIT_PACK_SCALE` je Paket, `kaykitScale(pfad)` |
 | `core/kaykitCrate.ts`          | **Rein**: unter welche Adresse ein Kistendeckel als Sockel gehört |
 | `core/kaykitClips.ts`          | **Rein**: welches Skelett eine Figur hat, welche Dateien seine Bewegungen tragen, wie eine Spur im Feld heißt |
+| `core/kaykitFigureFit.ts`      | **Rein**: der Gang zum Tempo (`gaitFor`), die Clipnamen je Gang und Aktion, die Knochennamen, der Maßstab auf eine erklärte Höhe, die Blickrichtung |
+| `core/kaykitFigure.ts`         | Der Lader für **laufende Figuren**: `loadKaykitFigure(pfad, höhe)` — Skelett, Mischer, Gänge, Aktionen, Anker, Aufräumen |
 | `ui/detailDrag.ts`             | **Rein**: wem ein Finger auf der großen Vorschau gehört — Mitte oder Saum —, und was ein Wisch, ein Kneifen und eine Raste daraus machen |
 | `ui/PageDetail.ts`             | Die große Vorschau: eigener Renderer, Kamera um das Ding herum, Gitterboden, Hülle, Mischer |
 | `core/kitchenShelf.ts`         | **Rein**: welche Adresse in der Küche ein **funktionierendes Möbel** ist |
@@ -499,11 +501,15 @@ passt deshalb auf jede Figur, ohne dass etwas umgerechnet werden müsste.
   `FrostGolem.glb` (4,16) stehen ebenso auf dem großen Skelett, ohne es im
   Namen zu tragen. An der Höhe geht es mit großem Abstand — zwischen 2,6
   (Skelett-Krieger) und 3,98 (Mannequin_Large) liegt nichts.
-- **Welche Dateien** — zwei je Skelett und nicht alle acht: `General` bringt
-  das Stehen, `MovementBasic` das Gehen, Laufen und Springen. Das sind 560 kB
-  für das mittlere Skelett und 340 kB für das große, geholt erst beim
-  Aufschlagen einer Figur und danach im Speicher wie jedes andere Modell des
-  Regals. Alle acht wären 2,8 MB für eine Vorschau.
+- **Welche Dateien** — drei je Skelett und nicht alle acht: `General` bringt
+  das Stehen, das Einstecken und das Sterben, `MovementBasic` das Gehen,
+  Laufen und Springen, `CombatMelee` den Angriff. Das sind 936 kB für das
+  mittlere Skelett und 676 kB für das große, geholt erst beim Aufschlagen
+  einer Figur und danach im Speicher wie jedes andere Modell des Regals. Alle
+  acht wären 2,8 MB für eine Vorschau. Die dritte Datei kam dazu, als die
+  Figuren laufen lernten (siehe _Eine Figur, die läuft_): Ohne sie gibt es in
+  der ganzen Sammlung keinen Schlag, und ein Monster, das nur herangeht, ist
+  keines. Bezahlt hat es die Vorschau mit 380 bzw. 340 kB.
 
 Die Namen stehen, wie der Zeichner sie schrieb, nur ohne Unterstriche
 (`Idle_A` → „Idle A"); doppelte fallen weg (beide Bibliotheken bringen eine
@@ -866,6 +872,137 @@ Fass, das sich anfühlt wie eine Kiste, ist immer noch besser als eines, durch
 das man hindurchgreift. Das Modell wird dabei **in seine Mitte gerückt**, denn
 der Collider sitzt im Ursprung des Körpers — und diese Dateien haben ihren
 Ursprung meist unter den Füßen.
+
+## Eine Figur, die läuft
+
+Ein Fass aus dem Regal ist ein Netz: laden, hinstellen, fertig. Eine **Figur**
+ist das nicht, und deshalb hat sie einen eigenen Lader
+(`core/kaykitFigure.ts`, `loadKaykitFigure(pfad, höhe)`), der fünf Dinge tut,
+die ein Fass nie braucht:
+
+- **Ein Skelett, das wirklich ihres ist.** Die Kopie kommt aus
+  `SkeletonUtils.clone` (siehe _Ein Maßstab je Paket_) — sonst hinge jede Figur
+  an den Knochen der Vorlage und alle bewegten sich gleichzeitig.
+- **Fremde Bewegungen.** Keine Figur bringt eine eigene mit; die Spuren liegen
+  bei den beiden Skeletten (`core/kaykitClips.ts`) und binden über die
+  **Namen** der Knochen.
+- **Einen Mischer**, der je Bild weiterläuft, und ein Umschalten zwischen den
+  Gängen, das überblendet statt springt.
+- **Eine Drehung**, weil KayKit in die andere Richtung schaut als dieses Spiel.
+- **Eine Höhe in Metern** statt eines Paketmaßstabs.
+
+### Die Höhe ist die erklärte, nicht die gemessene
+
+`loadKaykitFigure(pfad, 1.7)` liefert eine Figur, die **genau 1,70 m** hoch
+ist, mit dem Ursprung zwischen den Füßen auf y=0 und dem Blick nach −Z. Die
+Richtung ist Absicht und steht auch so im Code: Die Hülle einer Zone —
+Collider, Trefferzone, Augenhöhe, Greifweite — ist eine feste Zahl, und die
+Figur richtet sich danach. Umgekehrt hätte jede neue Figur eine andere Hülle,
+und eine Übungspuppe von 1,68 m (Dummy) und ein Mannequin von 1,54 m wären
+zwei verschiedene Gegner mit denselben Regeln.
+
+Gerechnet wird das in `core/kaykitFigureFit.figureScale`: Der Paketmaßstab
+(0,7 für alle Figurenpakete) bleibt, wo er ist, und darüber kommt ein
+**zusätzlicher Faktor**. Die Quellhöhe dafür wird am geladenen Modell gemessen
+— Box3, in der Bindepose, **vor** dem ersten Bild —, durch den Paketmaßstab
+geteilt und an `kaykitRigOf` weitergereicht: An dieser einen Zahl hängt, ob die
+Figur die Spuren des mittleren oder des großen Skeletts bekommt. Nachgemessen
+im Browser (Quelle / daraus mit 0,7):
+
+| Datei | Quelle | mit 0,7 | Skelett |
+| ----- | ------ | ------- | ------- |
+| `character-animations/mannequin-character/characters/Mannequin_Medium.glb` | 2,204 | 1,543 m | medium |
+| `character-animations/mannequin-character/characters/Mannequin_Large.glb` | 3,981 | 2,787 m | large |
+| `prototype-bits/character/Dummy.glb` | 2,396 | 1,677 m | medium |
+| `mystery-monthly-4/12-june-2024-robot/characters/Robot_One.glb` | 2,175 | 1,522 m | medium |
+| `mystery-monthly-4/12-june-2024-robot/characters/Robot_Two.glb` | 2,405 | 1,683 m | medium |
+
+### Drei Gänge und drei Aktionen
+
+`gait(tempo)` nimmt Meter je Sekunde und macht daraus Stehen, Gehen oder
+Laufen (`gaitFor`); überblendet wird **nur beim Wechsel**, sonst liefe jedes
+Bild ein neuer Clip an. Die Schwellen sind an den Tempi dieses Spiels gemessen:
+unter 0,05 m/s steht die Figur (ein Bot am Ziel bekommt aus der Wegsuche
+Millimeter, und die sollen ihn nicht zappeln lassen), ab 2,2 m/s rennt sie. Die
+NPCs gehen mit 1,1 bis 1,8 m/s (`worlds/npc/npcKinds.ts`), die Bots der
+Raumstation traben mit 3,56 und sprinten mit 4,94
+(`worlds/haunting/mission.ts`) — die Schwelle liegt dazwischen.
+
+`act('attack' | 'hit' | 'death')` spielt **einmal** und hält am Ende
+(`clampWhenFinished`); danach nimmt die Figur den Gang wieder auf, den sie
+inzwischen gemeint hat — außer beim Tod, denn wer tot ist, geht nicht mehr.
+Welche Spur das ist, steht in `GAIT_CLIPS` und `FIGURE_ACTIONS`, und zwar als
+**Liste bevorzugter Namen**: Die beiden Skelette können verschieden viel und
+nennen dieselbe Bewegung verschieden — das mittlere hat `Walking_A`…`C`,
+`Running_A`/`B` und `Melee_1H_Attack_Chop`, das große je eine Spur und
+`Melee_1H_Slash`. `pickClip` nimmt den ersten Namen, den es gibt, und `null`
+ist auch hier ein gültiger Ausgang: Eine Figur ohne Gehspur geht eben nicht,
+statt zu stürzen.
+
+Der Angriff kostete eine dritte Bibliothek je Skelett (`CombatMelee`, 380 bzw.
+340 kB, siehe oben) — es ist die einzige in der ganzen Sammlung, in der
+überhaupt jemand zuschlägt.
+
+### Die Blickrichtung — nachgesehen, nicht angenommen
+
+Alles mit einer Vorderseite schaut in diesem Spiel nach **−Z**: NpcBody,
+Crewmate, Koch, Küchenmöbel. glTF schreibt das Gegenteil vor („the front of
+the object faces +Z"), und KayKit hält sich daran — die Figur wird also um π um
+die Hochachse gedreht (`FIGURE_FACING`, **eine** Konstante, damit es eine Zeile
+bleibt, falls ein Paket es einmal anders macht).
+
+Geraten ist das nicht: Ein Playwright-Bild vom `Mannequin_Medium.glb` mit der
+Kamera bei +Z zeigt das Gesicht, dasselbe Bild von −Z den Rücken; und in der
+Bindepose liegen die Zehen **vor** dem Fuß in +Z (`toes.l` bei z = +0,0675,
+`foot.l` bei z = −0,013, bei allen sieben nachgemessenen Figuren gleich). Nach
+der Drehung sieht die gehende Figur eine Kamera an, die bei −Z steht.
+
+### Die Knochen heißen im Baum anders als in der Datei
+
+`figure.bones` gibt die drei Anker heraus, an die etwas gehängt wird: rechte
+Hand, linke Hand, Kopf. In der Datei heißen sie `handslot.r`, `handslot.l` und
+`head` — im Szenenbaum `handslotr`, `handslotl`, `head`: Der `GLTFLoader`
+schickt jeden Namen durch `PropertyBinding.sanitizeNodeName`, und der Punkt ist
+dort reserviert, weil er in einem Spurnamen den Knoten von der Eigenschaft
+trennt (`handslotr.quaternion`). `figureBoneName` macht dieselbe Umformung, und
+der Test hält beide Schreibweisen gegeneinander.
+
+**Und nicht jede Figur hat jeden Knochen.** `tools/kaykit-model.mjs` wirft beim
+Aufbereiten weg, was nichts häutet, und `handslot` ist kein Gelenk der
+Häutung: `Mannequin_Medium.glb` hat ihn **nicht**, `Dummy.glb`, die beiden
+Roboter, der Ritter und der Skelett-Krieger haben ihn. Deshalb steht in
+`FIGURE_BONES` hinter `handslot.r` noch `hand.r` — und deshalb wirft der Lader
+beim Laden jede Spur weg, die auf einen Knochen zeigt, den diese Figur nicht
+hat. Sonst stünde bei jeder Figur dieselbe Zeile in der Konsole, und eine
+Konsole, in der immer dasselbe steht, liest niemand mehr.
+
+### Kein Jest-Import — nur dynamisch hinter `canLoadModels()`
+
+`core/kaykitFigure.ts` hängt über `core/kaykitModel.ts` an `GLTFLoader` und
+`import.meta`, und beides bringt einen Jest-Lauf zum Stehen. Die Regel ist
+dieselbe wie beim Küchenrechner (`worlds/test/zones/kitchenDesk.ts`,
+`fillComputer`): **Erst fragen, dann laden.**
+
+```ts
+if (!canLoadModels()) return;
+void import('../../../core/kaykitFigure').then(async (module) => {
+  const figure = await module.loadKaykitFigure(path, 1.7);
+  if (!figure) return; // Kein Regal, keine Figur — und die Zone läuft weiter.
+  anchor.add(figure.root);
+});
+```
+
+Gerechnet wird deshalb nebenan, in `core/kaykitFigureFit.ts` — ohne three.js,
+und das ist die Datei mit dem Test. Er prüft die Namen **gegen die wirklichen
+Dateien**: Der JSON-Teil einer `.glb` liegt unverpackt darin, auch wenn alles
+andere `EXT_meshopt_compression` ist, und dort stehen `animations[].name` und
+`nodes[].name`. Ein Clipname, der sich verschreibt, ist sonst eine Figur, die
+stumm mit ausgestreckten Armen im Raum steht — und das sucht niemand in einer
+Namensliste.
+
+`dispose()` räumt Mischer und Gruppe ab und hält dabei an
+`userData.sharedAssets` an (siehe _Wer sich die Geometrie teilt_): Geometrie
+und Textur gehören der Vorlage im Speicher und allen anderen Kopien.
 
 ## Ein Maßstab je Paket — und warum die Ritter zu groß waren
 

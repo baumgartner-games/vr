@@ -50,17 +50,26 @@ export function kaykitRigOf(height: number): KaykitRig {
 }
 
 /**
- * **Welche Dateien die Bewegungen für eine Vorschau hergeben** — zwei je
- * Skelett und nicht alle.
+ * **Welche Dateien die Bewegungen einer Figur hergeben** — drei je Skelett und
+ * nicht alle acht.
  *
- * Es gibt mehr: Nahkampf, Fernkampf, Werkzeuge, Simulation, Spezielles —
- * zusammen 2,8 MB für das mittlere Skelett allein. Eine Vorschau im Katalog
- * ist aber kein Animationsbrowser; gefragt war „Idle, Running", und genau die
- * beiden Dateien bringen das: `General` hat das Stehen (und das Sterben),
- * `MovementBasic` das Gehen, Laufen und Springen. Das sind 560 kB für das
- * mittlere Skelett und 340 kB für das große — einmal je Sitzung, und danach
- * liegen sie im Speicher des Browsers wie jedes andere Modell des Regals
- * (`core/kaykitModel.ts`, keine Build-Nummer an dieser Adresse).
+ * Es gibt mehr: Fernkampf, Werkzeuge, Simulation, Spezielles, fortgeschrittene
+ * Bewegung — zusammen 2,8 MB für das mittlere Skelett allein. Ein Katalog ist
+ * kein Animationsbrowser; gefragt war „Idle, Running", und die ersten beiden
+ * Dateien bringen das: `General` hat das Stehen, das Einstecken und das
+ * Sterben, `MovementBasic` das Gehen, Laufen und Springen.
+ *
+ * **Und seit die Figuren auch laufen, steht `CombatMelee` dabei.** Es ist die
+ * einzige Bibliothek mit einem **Angriff** (`core/kaykitFigureFit.ts`,
+ * `FIGURE_ACTIONS.attack`), und ein Monster, das seinem Opfer nur entgegengeht,
+ * ist kein Monster. Bezahlt wird es in Kilobyte: 380 kB für das mittlere
+ * Skelett (556 → 936 kB) und 340 kB für das große (336 → 676 kB). Das ist die
+ * Hälfte mehr für eine Sitzung, in der überhaupt eine Figur vorkommt — einmal
+ * je Sitzung, und danach liegen die Dateien im Speicher des Browsers wie jedes
+ * andere Modell des Regals (`core/kaykitModel.ts`, keine Build-Nummer an
+ * dieser Adresse). Die Detailseite im Regal bekommt die Nahkampfspuren damit
+ * gratis mit, und das ist kein Schaden: „was diese eben noch so anbieten" war
+ * genau die Frage.
  *
  * Wer mehr will, trägt hier eine Datei nach; der Test daneben prüft, dass
  * jede davon wirklich im Regal liegt.
@@ -69,10 +78,12 @@ export const KAYKIT_CLIP_FILES: Readonly<Record<KaykitRig, readonly string[]>> =
   medium: [
     'character-animations/animations/rig-medium/Rig_Medium_General.glb',
     'character-animations/animations/rig-medium/Rig_Medium_MovementBasic.glb',
+    'character-animations/animations/rig-medium/Rig_Medium_CombatMelee.glb',
   ],
   large: [
     'character-animations/animations/rig-large/Rig_Large_General.glb',
     'character-animations/animations/rig-large/Rig_Large_MovementBasic.glb',
+    'character-animations/animations/rig-large/Rig_Large_CombatMelee.glb',
   ],
 };
 
