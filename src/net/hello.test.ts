@@ -60,23 +60,43 @@ function hello(extra: Record<string, unknown>): NetMessage {
 }
 
 describe('das Aussehen in der Anmeldung', () => {
-  it('sagt Hut, Kopf und Körper mit an', async () => {
+  it('sagt Hut, Kopf, Körper und Figur mit an', async () => {
     const { net, link } = await session();
-    net.look = { hat: 'chef', head: 'beard', body: 'striped' };
+    net.look = {
+      ...DEFAULT_APPEARANCE,
+      hat: 'chef',
+      head: 'beard',
+      body: 'striped',
+      figure: 'adventurers/characters/Knight.glb',
+    };
     net.announce();
 
     const last = link.sent.at(-1)!;
-    expect(last).toMatchObject({ type: 'hello', hat: 'chef', head: 'beard', body: 'striped' });
+    expect(last).toMatchObject({
+      type: 'hello',
+      hat: 'chef',
+      head: 'beard',
+      body: 'striped',
+      figure: 'adventurers/characters/Knight.glb',
+    });
   });
 
   it('nimmt an, was ein Mitspieler von sich sagt', async () => {
     const { net, link } = await session();
-    link.deliver(hello({ hat: 'crown', head: 'moustache', body: 'green' }));
+    link.deliver(
+      hello({
+        hat: 'crown',
+        head: 'moustache',
+        body: 'green',
+        figure: 'skeletons/characters/Skeleton_Warrior.glb',
+      }),
+    );
 
     expect(net.peers.get('fremd')!.look).toEqual({
       hat: 'crown',
       head: 'moustache',
       body: 'green',
+      figure: 'skeletons/characters/Skeleton_Warrior.glb',
     });
   });
 
@@ -89,7 +109,16 @@ describe('das Aussehen in der Anmeldung', () => {
 
   it('lässt fremden Text nicht durch', async () => {
     const { net, link } = await session();
-    link.deliver(hello({ hat: 'sombrero', head: 17, body: { jacke: 'rot' } }));
+    link.deliver(
+      hello({
+        hat: 'sombrero',
+        head: 17,
+        body: { jacke: 'rot' },
+        // Eine Adresse, die aus dem Modellordner hinausführte: Sie wird nicht
+        // etwa geputzt, sondern zum Koch (`core/avatarFigures.asFigure`).
+        figure: '../../etc/passwd.glb',
+      }),
+    );
 
     expect(net.peers.get('fremd')!.look).toEqual(DEFAULT_APPEARANCE);
   });

@@ -1584,7 +1584,14 @@ export class App {
     const look = { ...appearance(), hat: this.worn ?? appearance().hat };
     this.avatar.setLook(look);
     const known = this.net.look;
-    if (known.hat === look.hat && known.head === look.head && known.body === look.body) return;
+    if (
+      known.hat === look.hat &&
+      known.head === look.head &&
+      known.body === look.body &&
+      known.figure === look.figure
+    ) {
+      return;
+    }
     this.net.look = look;
     // Das Aussehen steht in der Vorstellung und nicht in der Pose: einmal
     // ansagen reicht, zwanzigmal in der Sekunde wäre Unfug.

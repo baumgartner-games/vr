@@ -504,3 +504,10 @@
   max-height: 100%;
   border-radius: 0;
 }
+
+/* Der eine Knopf, der auf einer Detailseite etwas *tut* statt etwas zu zeigen
+   (`ui/menu.MenuDetail.action`) — „Als Figur tragen" bei einer Figur. Er sieht
+   aus wie eine Schalterzeile darüber, hat aber keine Wippe: Er ist kein
+   Zustand, sondern eine Tat, und deshalb ist er der einzige mit Farbe am Rand. */
+.pmenu__deed { border-color: var(--accent); }
+.pmenu__deed[hidden] { display: none; }

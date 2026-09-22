@@ -3,7 +3,7 @@ import { AvatarBody } from './AvatarBody';
 import { bodyRadius, BODY_KINDS, BODY_RADIUS, HEAD_KINDS, HEAD_RADIUS } from './avatarLook';
 import { CHEF_EYE, POSE_SCALE } from './chefFit';
 import { HEADGEAR_KINDS } from './headgear';
-import type { Appearance } from './appearance';
+import { DEFAULT_APPEARANCE, type Appearance } from './appearance';
 
 /**
  * Der Körper selbst ist Geometrie, und wie er aussieht, entscheidet kein Test.
@@ -58,7 +58,7 @@ describe('die Figur', () => {
     for (const head of HEAD_KINDS) {
       for (const kind of BODY_KINDS) {
         for (const hat of HEADGEAR_KINDS) {
-          const look: Appearance = { head, body: kind, hat };
+          const look: Appearance = { ...DEFAULT_APPEARANCE, head, body: kind, hat };
           body.setLook(look);
           body.update(1 / 60, pose(1.6), null, null);
         }
@@ -388,7 +388,7 @@ describe('die Figur', () => {
   it('räumt den alten Rumpf weg, wenn die Jacke wechselt', () => {
     const body = new AvatarBody();
     const before = torsoOf(body).children[0]!;
-    body.setLook({ hat: 'chef', head: 'beard', body: 'striped' });
+    body.setLook({ ...DEFAULT_APPEARANCE, hat: 'chef', head: 'beard', body: 'striped' });
     const torso = torsoOf(body);
     expect(torso.children).toHaveLength(1);
     expect(torso.children[0]).not.toBe(before);
@@ -452,6 +452,48 @@ describe('der Kopf beim Tragen', () => {
       expect(at.position.y).toBe(CHEF_EYE);
       expect(body.bob).toBeLessThanOrEqual(0);
     }
+    body.dispose();
+  });
+});
+
+/**
+ * **Die vierte Zeile der Umkleide: die Figur** (`core/avatarFigures.ts`).
+ *
+ * Was eine geladene KayKit-Figur wirklich tut, kann hier niemand prüfen: Der
+ * Lader braucht `GLTFLoader` und `import.meta`, und `canLoadModels()` sagt in
+ * Jest deshalb Nein. Genau das ist aber die Zusage, die hier zu prüfen ist —
+ * **ohne WebGL bleibt der Koch stehen**, und zwar ganz, mit Kopf, Rumpf und
+ * Händen. Eine Umkleide, in der eine Zeile die Figur unsichtbar macht, sobald
+ * eine Datei fehlt, ist schlimmer als eine ohne diese Zeile.
+ */
+describe('die Figur aus dem Regal', () => {
+  const KNIGHT = 'adventurers/characters/Knight.glb';
+
+  it('lässt ohne WebGL den Koch stehen', () => {
+    const body = new AvatarBody({ hands: true });
+    body.setLook({ ...DEFAULT_APPEARANCE, figure: KNIGHT });
+    body.update(1 / 60, pose(1.6), null, null);
+
+    expect(torsoOf(body).visible).toBe(true);
+    expect(headOf(body).visible).toBe(true);
+    // Und keine halbe Figur im Baum: Gebaut wird erst, wenn wirklich etwas
+    // geladen wurde.
+    expect(body.children.some((child) => child.name.startsWith('avatar-figure:'))).toBe(false);
+    body.dispose();
+  });
+
+  it('nimmt einen Wechsel hin und wieder zurück', () => {
+    const body = new AvatarBody({ hands: true });
+    for (const figure of [KNIGHT, 'chef', KNIGHT, 'chef']) {
+      body.setLook({ ...DEFAULT_APPEARANCE, hat: 'chef', figure });
+      body.update(1 / 60, pose(1.6), null, null);
+    }
+    // Der Hut überlebt jeden Wechsel und liegt genau einmal im Kopf: Er wird
+    // beim Umziehen neu gesetzt (`setHeadgear(kind, swap)`), und ein zweiter
+    // wäre einer, den niemand mehr aufräumt.
+    const hats = headOf(body).children.filter((child) => child.name === 'headgear-chef');
+    expect(hats).toHaveLength(1);
+    expect(torsoOf(body).visible).toBe(true);
     body.dispose();
   });
 });

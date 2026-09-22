@@ -112,6 +112,25 @@ export interface MenuDetail {
   readonly preview: string;
   /** Paket, Ordner, Dateigröße: was schon im Verzeichnis steht. */
   readonly facts: readonly MenuFact[];
+  /**
+   * **Der eine Knopf, der hier etwas tut** — oder keiner.
+   *
+   * Die Schalter der Detailseite zeigen etwas an (Gitterboden, Hülle,
+   * Bewegung); das hier ist das Gegenteil: eine Tat, und sie gilt außerhalb
+   * dieser Seite. Gebraucht wird sie von den **Figuren** — _Als Figur tragen_
+   * macht aus dem Ding vor einem die eigene Spielfigur
+   * (`core/avatarFigures.ts`). Genau dafür ist dieser Weg da: Der
+   * Kleiderschrank stellt nur die kuratierte Handvoll hin, hier steht jede der
+   * rund 85, und man sieht sie sogar schon in Lebensgröße vor sich.
+   *
+   * `sub` ist die Zeile darunter — wer einen Knopf drückt, der sein Aussehen
+   * ändert, soll vorher lesen können, was daran anders wird.
+   */
+  readonly action?: {
+    readonly label: string;
+    readonly sub: string;
+    run(): void;
+  };
 }
 
 /** One row (or grid cell) of the wrist menu. */

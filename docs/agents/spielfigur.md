@@ -5,9 +5,9 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 
 ## Wie man aussieht
 
-_Menü → Aussehen_ und der **Kleiderschrank** — drei Zeilen, und dahinter die
+_Menü → Aussehen_ und der **Kleiderschrank** — vier Zeilen, und dahinter die
 ganze Figur (`core/AvatarBody.ts`, `core/avatarLook.ts`, `core/appearance.ts`,
-`core/headgear.ts`).
+`core/headgear.ts`, `core/avatarFigures.ts`).
 
 **Die Figur ist ein Koch**, und seit dem dritten Anlauf ist sie ein
 **Modell** statt gebauter Geometrie: „Little Chef (Overcooked like)" von
@@ -123,11 +123,12 @@ Was die Figur dabei **hält**, geht mit ihrer Höhe auf und ab
 Bauch. Ab Werk ist beides aus, und wie es rechnet, steht in
 [Wie schön es aussieht](grafik.md) unter _Squishy_.
 
-**Drei Zeilen, drei Listen** (`core/avatarLook.ts`). Vorher gab es nur den Hut,
-und alle sahen darunter gleich aus: derselbe Körper aus Kapseln, dieselbe Farbe
-nach Gerät, ein schwarzes Visier vorn. Für eine Werkstatt geht das, für eine
-Sitzung mit drei Leuten nicht — wer sich unterscheiden will, hat sonst nur
-seinen Namen dafür. Jetzt sind es drei:
+**Drei Zeilen, drei Listen** (`core/avatarLook.ts`) — und darunter seit dem
+Kleiderschrank eine vierte, die **Figur** (siehe unten). Vorher gab es nur den
+Hut, und alle sahen darunter gleich aus: derselbe Körper aus Kapseln, dieselbe
+Farbe nach Gerät, ein schwarzes Visier vorn. Für eine Werkstatt geht das, für
+eine Sitzung mit drei Leuten nicht — wer sich unterscheiden will, hat sonst nur
+seinen Namen dafür. Diese drei gehören dem **Koch**:
 
 - **Kopf** — vier Sorten, Hautton plus ein Merkmal im Gesicht: `round` (die
   Auslieferung), `freckles`, `beard`, `moustache`. Den Hautton tragen die
@@ -225,6 +226,129 @@ Drei Zeilen richten das:
 Was eine **Anzugfarbe** trägt und keine eigene hat — Schürze, Halstuch —, trägt
 die des Trägers: Ein Spieler hat eine Farbe und nicht drei.
 
+### Und eine vierte Zeile: die Figur
+
+**Man muss kein Koch mehr sein** (`core/avatarFigures.ts`). `Appearance.figure`
+ist entweder `'chef'` — die gebaute Figur samt ihrem Modell, so wie es immer war
+— oder die **Adresse einer Figur aus dem Regal**
+(`adventurers/characters/Knight.glb`). Der Wunsch war beiläufig formuliert und
+trifft trotzdem den Kern: „Die Charaktere im Kleiderschrank könnten wir gut
+durch die KayKit-Charaktere ersetzen." Dort liegen rund 85 fertige Figuren, die
+gehen, rennen, zuschlagen und umfallen können (`core/kaykitFigure.ts`) — sie als
+NPC durch die Welt laufen zu lassen und selbst nicht hineinschlüpfen zu dürfen,
+wäre schwer zu erklären.
+
+**Eine Adresse und keine Sorte aus einer Aufzählung**, und das ist die
+Entscheidung dieser Datei. Eine Liste mit 85 Namen wäre eine Liste, die beim
+nächsten Paket lügt; das Regal kennt jede Datei ohnehin beim Namen
+(`kaykitIndex.humanLabel`). Weil der Wert damit aus dem Speicher und aus dem
+Netz als **Adresse einer Datei** hereinkommt, ist `asFigure` keine Formsache:
+erlaubt sind mindestens zwei Abschnitte aus Buchstaben, Ziffern, `.`, `_` und
+`-`, jeder mit einem Buchstaben oder einer Ziffer beginnend, am Ende `.glb` —
+kein `..`, kein `#`, kein `?`, kein Leerzeichen, nichts Längeres als 200
+Zeichen. Alles andere wird zum Koch, nicht zu `undefined` (dieselbe Regel wie
+bei `asHeadgear`).
+
+**Die Höhenregel: nicht die Höhe wird angeglichen, sondern der Kopf.** Der Koch
+ist 1,6 m hoch und hat seine Augen bei 0,91 m; an dieser einen Zahl hängt alles,
+was er tut — die Hände rechnen ihren Abstand zu ihr (`POSE_SCALE`), das Werkzeug
+in der Bildschirmhand steht in ihrem Raum (`CHEF_TOOL`), der Teller vor ihrem
+Bauch auch (`CHEF_CARRY`), und die Kamera schaut aus 16 m genau dorthin. Eine
+Figur, die dieselbe Höhe hätte, aber ihren Kopf woanders trüge, hielte ihre
+Pistole neben dem Ohr. Also wird eine geladene Figur so gestaucht oder
+gestreckt, dass ihr **Kopfknochen** auf `CHEF_EYE` steht (`figureLift`).
+
+Dass dabei etwas Vernünftiges herauskommt, ist kein Zufall: **Die
+KayKit-Figuren sind genauso chibi wie der Koch.** Das mittlere Skelett setzt den
+Knochen `head` bei jeder einzelnen Figur auf dieselbe Höhe — nachgemessen mit
+einem Playwright-Lauf über sieben Dateien: 0,869 m bei Paketmaßstab, bei
+Mannequin, Ritter, Magier, Roboter und Skelett-Krieger gleichermaßen —, und
+darüber sitzt bei allen derselbe Schädel. Das Mannequin steht mit dieser Regel
+auf **1,62 m**, also praktisch auf Kochhöhe. Ein Ritter wird höher, weil sein
+Helmkamm höher ist, und das ist richtig so. Nach oben und unten gibt es einen
+Deckel (`FIGURE_MIN_HEIGHT` 1,3 m, `FIGURE_MAX_HEIGHT` 2,4 m): Ein Golem auf dem
+**großen** Skelett trägt seinen Kopf ganz oben, und sein Kopfknochen auf
+Kochhöhe wäre ein Zwerg mit Riesenschultern — dann gewinnt die Höhe gegen die
+Kopfhöhe.
+
+**Was auf eine Figur aus dem Regal nicht wirkt**: die Zeilen _Kopf_ und
+_Körper_. Ein Ritter bringt sein Kettenhemd mit, ein Roboter hat kein Gesicht,
+und ein Hautton auf einem Skelett wäre eine Farbe ohne Haut. Gebaut werden sie
+trotzdem weiter — sie gelten wieder, sobald jemand zum Koch zurückschaltet —,
+und `appearanceSummary` lässt sie weg, solange eine fremde Figur steht: Eine
+Überschrift, die _Vollbart_ meldet, während ein Roboter dasteht, ist keine
+Auskunft, sondern ein Irrtum zum Mitlesen.
+
+**Der Hut wirkt.** Er sitzt auf dem **Kopfknochen** und geht damit beim Nicken,
+Gehen und Umfallen von selbst mit, ohne dass ihn jemand je Bild nachführt;
+`headgearFor(kind, kopfHalbmesser, tint)` rechnet ihn auf die Größe dieses
+Kopfes (`core/headgear.ts`). Der Halbmesser kommt dabei aus der **Höhe des
+Knochens** und nicht aus der Hülle der Figur (`FIGURE_HEAD`, 0,39
+Knochenhöhen): Die Hülle sagt beim Magier, wie lang sein Hut ist, und beim
+Ritter, wie hoch sein Helmkamm steht — über den Kopf darunter sagt sie nichts.
+Weil der Knochen unten am Hals sitzt und nicht in der Kopfmitte, wird die Gruppe
+um genau einen Halbmesser angehoben: So liegt eine Kugel, die auf diesem Punkt
+aufsitzt.
+
+**Wie sie angetrieben wird** (`AvatarBody.driveFigure`), immer noch aus Kopf und
+zwei Händen:
+
+- **Ort und Drehung** kommen aus denselben Zahlen wie beim Rumpf des Kochs
+  (`bodyYaw`); die Figur steht mit ihren Sohlen auf dem Boden.
+- **Der Gang kommt aus dem Tempo** und nicht aus einer Taktkurve: Die Figur
+  weiß je Bild, wie schnell sie ist, und sucht sich die passende Spur
+  (`kaykitFigure.gait`). Das Tempo wird dafür ein zweites Mal geglättet —
+  `gait` blendet bei jedem Wechsel 0,2 s über, und ein Tempo, das um die
+  Schwelle zappelt, sähe aus wie ein Wackelkontakt.
+- **Der Kopfknochen folgt dem Blick, gedeckelt** (70° Gieren, 40° Nicken), wie
+  die Puppe im NPC (`NpcBody.pull`). Der Nickwinkel kehrt dabei sein Vorzeichen
+  um, und das ist kein Vorzeichenfehler: Die Figur ist einmal um die Hochachse
+  gedreht, weil KayKit nach +Z schaut und dieses Spiel nach −Z
+  (`FIGURE_FACING`).
+- **Die Arme gehören dem Gang**, solange niemand sie führt. Eine getrackte Hand
+  übernimmt ihren Oberarm — und zwar so, dass die **Faust** auf das Ziel zeigt
+  und nicht der Oberarm. Der erste Versuch zielte mit der Ruherichtung zum
+  Ellbogen und traf jedes Ziel um **26°** daneben, immer um dieselben 26°
+  (nachgemessen an vier ganz verschiedenen Zielen): Ellbogen und Handgelenk
+  haben ihre eigene Beuge, und die steckt zwischen Oberarm und Faust. Jetzt
+  wird die **gegenwärtige** Richtung genommen, die der Gang gerade gebaut hat,
+  und um genau den Winkel weitergedreht, der sie aufs Ziel legt — das stimmt
+  auch bei gebeugtem Ellbogen. Die Länge stimmt nicht; das ist dieselbe
+  Vereinfachung wie bei der Puppe, und aus 16 m Höhe sieht man sie nicht.
+- **Wo keine Hand geführt wird, sagt die Figur, wo ihre ist**: Der Handanker
+  folgt dem Handknochen, damit ein Werkzeug dort hängt, wo sie hingreift.
+
+**`setSelfView` blendet sie ganz aus.** Beim Koch bleiben die Hände stehen, wenn
+der Kopf weggeblendet wird — das ist der Sinn einer Ich-Ansicht. Eine gehäutete
+Figur hat keinen Kopf zum Ausblenden: Schädel, Rumpf und Hände hängen in
+**einem** Netz an einem Skelett. Also geht sie ganz; wer in ihren Augen steckt,
+sieht statt ihrer Hände die getrackten, und das sind ohnehin die eigenen. Der
+eigene Körper liegt davon unberührt auf `LAYER_SELF_ONLY` (`PlayerAvatar`) und
+ist damit nur im Spiegel und durch ein Portal zu sehen.
+
+**Kommt sie nicht, bleibt der Koch stehen.** Dasselbe Muster wie beim
+Koch-Modell selbst: dynamischer Import hinter `canLoadModels()`, der Koch
+bleibt sichtbar, bis die Figur wirklich da ist, und ein Nachzügler, der nicht
+mehr gemeint ist, wirft sich weg (`figureEra` — eine **Nummer** und nicht die
+Adresse, denn wer vom Ritter zum Koch und zurück schaltet, hat zwei
+Bestellungen für dieselbe Adresse unterwegs). In Jest gibt es kein WebGL, und
+dort steht deshalb immer der Koch — ein Jest-Test hält das fest.
+
+**Zwei Wege hinein, und der zweite ist der eigentliche.** Die Zeile _Figur_
+schaltet durch eine **kuratierte Liste** von zwölf (Koch, Mannequin, Ritter,
+Barbar, Magier, Waldläufer, Schurke, Roboter Eins und Zwei, Skelett-Krieger,
+Ninja, Space Ranger) — eine Zeile, die man 85-mal drücken müsste, ist keine
+Auswahl, und 85 Ständer sprengten den Ring im Kleiderschrank. Wer eine der
+übrigen will, schlägt sie im Regal auf und drückt dort auf der **Detailseite**
+den Knopf **_Als Figur tragen_** (`ui/menu.MenuDetail.action`,
+`kaykitIndex.figureAction`). Er steht nur bei dem, was in der Schublade
+_Figuren_ liegt, und er steht dort genau richtig: Man sieht die Figur schon
+groß vor sich, mit Gitterboden, Hülle und der Bewegung, die man sich ausgesucht
+hat.
+
+**Über das Netz geht sie wie alles andere in der Anmeldung**: ein optionales
+Feld `figure` im `hello`, geprüft mit `asFigure`, unbekannt heißt Koch.
+
 **Wie man die Figur ansieht, bevor man sie ändert.** Die Optik ist das eine
 hier, was kein Jest-Test abnehmen kann — `avatarBody.test.ts` prüft
 Proportionen und Rechnung, aber ob eine Figur nach Koch aussieht, entscheidet
@@ -244,6 +368,13 @@ und **die Kamera, unter der wirklich gespielt wird** (16 m, 55°, 30°
 Öffnung). Was dort nicht lesbar ist, ist es nirgends. `?hat=all` geht statt
 der Kochmütze das Hutregal durch, `?walk=1` lässt die Figuren laufen — daran
 sieht man das Watscheln, und im Stand sieht man das nie.
+
+`?figure=all` stellt die **kuratierte Figurenliste** nebeneinander, und das ist
+die Ansicht, an der die Höhenregel hängt: Alle Köpfe müssen auf derselben Höhe
+stehen, und zwar auf der des Kochs. `?figure=<adresse>` setzt eine einzelne
+Figur in jede Spalte — zusammen mit `?hat=all` ist das die Probe auf den Sitz
+der Mütze auf einem fremden Kopf. `npm run avatar -- --figure=all --hat=chef`
+schießt denselben Bogen in Dateien.
 
 `?built=1` setzt die **gebaute** Kochmütze auf den gebauten Kopf (das Modell
 tritt dafür zurück), `?built=model` dieselbe über `headgearFor` auf den Kopf
@@ -270,19 +401,21 @@ werden:
   das Kart tut es für den Helm —, und `null` gibt den Kopf wieder der
   Einstellung zurück. Wer aussteigt, hat wieder seinen eigenen Hut auf.
 - **Es geht über das Netz**, und zwar in der **Anmeldung** und nicht in der
-  Pose (`net/NetSession.ts`, Felder `hat`, `head`, `body` im `hello`). Ein
-  Aussehen ändert sich einmal am Abend, eine Pose zwanzigmal in der Sekunde:
-  Wer etwas wechselt, sagt sich neu an (`App.applyAppearance` schickt erst,
-  wenn sich wirklich etwas geändert hat). Alle drei Felder sind **optional** —
-  eine ältere Fassung schickt sie nicht mit —, und was hereinkommt, ist fremder
-  Text und geht durch `asHeadgear`, `asHead` und `asBody`; ein unbekannter Wert
-  wird zur Vorgabe und nicht zu `undefined`.
+  Pose (`net/NetSession.ts`, Felder `hat`, `head`, `body` und `figure` im
+  `hello`). Ein Aussehen ändert sich einmal am Abend, eine Pose zwanzigmal in
+  der Sekunde: Wer etwas wechselt, sagt sich neu an (`App.applyAppearance`
+  schickt erst, wenn sich wirklich etwas geändert hat). Alle vier Felder sind
+  **optional** — eine ältere Fassung schickt sie nicht mit —, und was
+  hereinkommt, ist fremder Text und geht durch `asHeadgear`, `asHead`, `asBody`
+  und `asFigure`; ein unbekannter Wert wird zur Vorgabe und nicht zu
+  `undefined`. Bei `figure` ist das keine Formsache, sondern eine Adresse, mit
+  der hinterher eine Datei geholt wird.
 
 **Geändert wird an zwei Stellen, und beide lesen denselben Speicher**: die Seite
-_Aussehen_ im Menü (drei Zeilen, jede schaltet im Kreis, die Überschrift zeigt
+_Aussehen_ im Menü (vier Zeilen, jede schaltet im Kreis, die Überschrift zeigt
 die Wahl gleich mit — `appearanceSummary`) und die **Umkleide** am
 Kleiderschrank — und die ist keine Liste mehr, sondern ein **Regal im
-Konstrukt**, in dem dieselben siebzehn Sachen als Sachen dastehen und der
+Konstrukt**, in dem dieselben neunundzwanzig Sachen als Sachen dastehen und der
 Spiegel an der Tür zeigt, was man gerade angezogen hat (siehe
 _Der Konstrukt-Raum_ und _Der Kleiderschrank und die Umkleide_). Gespeichert
 wird sofort (`saveAppearance`), und wer zuhören will, hängt sich an

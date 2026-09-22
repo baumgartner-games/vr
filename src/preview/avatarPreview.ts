@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { AvatarBody } from '../core/AvatarBody';
 import { BODY_KINDS, HEAD_KINDS } from '../core/avatarLook';
 import { HEADGEAR_KINDS, buildHeadgear, headgearFor, type HeadgearKind } from '../core/headgear';
+import { FIGURE_CHEF, FIGURE_PATHS, asFigure } from '../core/avatarFigures';
 
 const WIDTH = 1600;
 const HEIGHT = 900;
@@ -83,18 +84,47 @@ const idle = params.has('idle') ? Number(params.get('idle')) : null;
 const idleTempo = params.has('idleTempo') ? Number(params.get('idleTempo')) : null;
 const builtHat = params.get('built');
 
-const count = Math.max(HEAD_KINDS.length, BODY_KINDS.length, hatChoice === 'all' ? 8 : 5);
-const spacing = 1.15;
+/**
+ * **`?figure=…` setzt eine Figur aus dem Regal an die Stelle des Kochs**
+ * (`core/avatarFigures.ts`).
+ *
+ * `?figure=all` stellt die ganze kuratierte Liste nebeneinander — das ist die
+ * Ansicht, an der man sieht, ob die Höhenregel stimmt: Alle Köpfe müssen auf
+ * **derselben** Höhe stehen (`figureLift`, `CHEF_EYE`), und zwar auf der des
+ * Kochs, denn an ihr hängen Hände, Werkzeug und Kamera. Eine einzelne Adresse
+ * (`?figure=adventurers/characters/Knight.glb`) setzt dieselbe Figur in jede
+ * Spalte und damit jedem Hut einen anderen Kopf darunter — zusammen mit
+ * `?hat=all` ist das die Probe auf den Sitz der Mütze.
+ *
+ * Und `?walk=1` gilt hier genauso: Eine Figur aus dem Regal geht mit ihrer
+ * eigenen Bewegung, und ob sie dabei rutscht oder läuft, sieht man nur in
+ * Bewegung.
+ */
+const figureChoice = params.get('figure') ?? FIGURE_CHEF;
+const figureList = figureChoice === 'all' ? FIGURE_PATHS : null;
+
+const count = Math.max(
+  HEAD_KINDS.length,
+  BODY_KINDS.length,
+  hatChoice === 'all' ? 8 : 5,
+  figureList?.length ?? 0,
+);
+const spacing = figureList || figureChoice !== FIGURE_CHEF ? 1.35 : 1.15;
+/** Welche Figur in welcher Spalte steht — `previewDressed` wartet darauf. */
+const wanted: string[] = [];
 const bodies: AvatarBody[] = [];
 for (let i = 0; i < count; i++) {
   const body = new AvatarBody({ color: ROLES[i % ROLES.length]!, hands: true });
   body.position.set((i - (count - 1) / 2) * spacing, 0, 0);
   const hat: HeadgearKind =
     hatChoice === 'all' ? HEADGEAR_KINDS[i % HEADGEAR_KINDS.length]! : (hatChoice as HeadgearKind);
+  const figure = asFigure(figureList ? figureList[i % figureList.length] : figureChoice);
+  wanted.push(figure);
   body.setLook({
     head: HEAD_KINDS[i % HEAD_KINDS.length]!,
     body: BODY_KINDS[i % BODY_KINDS.length]!,
     hat,
+    figure,
   });
   if (squish !== null && Number.isFinite(squish)) body.squish = squish;
   if (tempo !== null && Number.isFinite(tempo)) body.squishSpeed = tempo;
@@ -240,4 +270,13 @@ window.previewViews = views.map((view) => view.name);
  * hält sie für die geladene — genau dieser Irrtum hat hier schon zwei Mal ein
  * „unverändert" erzeugt, wo in Wirklichkeit zwei verschiedene Figuren standen.
  */
-window.previewDressed = () => bodies.every((body) => Boolean(body.head.getObjectByName('head')));
+window.previewDressed = () =>
+  bodies.every((body, i) => {
+    // Eine Figur aus dem Regal kommt ebenso asynchron — und wer auf sie nicht
+    // wartet, fotografiert den Koch und hält ihn für den Ritter.
+    const figure = wanted[i] ?? FIGURE_CHEF;
+    if (figure !== FIGURE_CHEF) {
+      return body.children.some((child) => child.name === `avatar-figure:${figure}`);
+    }
+    return Boolean(body.head.getObjectByName('head'));
+  });

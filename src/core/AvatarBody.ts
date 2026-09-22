@@ -1,6 +1,9 @@
 import * as THREE from 'three';
-import { buildHeadgear, type HeadgearKind } from './headgear';
+import { buildHeadgear, headgearFor, type HeadgearKind } from './headgear';
 import { DEFAULT_APPEARANCE, type Appearance } from './appearance';
+import { FIGURE_CHEF, figureHeadRadius, figureHeight, figureLift } from './avatarFigures';
+import { figureBoneName } from './kaykitFigureFit';
+import type { KaykitFigure } from './kaykitFigure';
 import {
   bodyJacket,
   bodyRadius,
@@ -101,6 +104,11 @@ function spanAt(root: THREE.Object3D, y: number, band: number): number {
 const _forward = new THREE.Vector3();
 const _hand = new THREE.Vector3();
 const _world = new THREE.Vector3();
+/** Zwischenlagen für die Knochenrechnung einer Figur — je Bild, nie neu angelegt. */
+const _reach = new THREE.Vector3();
+const _aim = new THREE.Vector3();
+const _swing = new THREE.Quaternion();
+const _angles = new THREE.Euler();
 /** Höhe und Breite dieses Bildes (`core/squish.ts`) — eines für alle Figuren. */
 const _squish: SquishPose = { height: 1, width: 1 };
 /** Und was dort hineingerechnet wird — ebenso eines, je Bild neu beschrieben. */
@@ -137,6 +145,32 @@ const HAND_FRONT = 0.12;
 
 /** Auf welchem Anteil der Rumpfhöhe — auf der dicksten Stelle der Jacke. */
 const HAND_LIFT = 0.6;
+
+/**
+ * **Wie weit der Kopf einer Figur aus dem Regal dem eigenen folgen darf**, in
+ * Bogenmaß.
+ *
+ * Dieselben Deckel wie bei der Puppe im NPC (`worlds/npc/NpcBody.pull`) und aus
+ * demselben Grund: Ein Mensch dreht seinen Kopf gegen den Rumpf bis etwa 70°
+ * und nickt gut 40°; was darüber hinausgeht, hat er in Wahrheit mit dem ganzen
+ * Körper gemacht. Ohne Deckel dreht eine Figur, deren Träger sich umschaut, den
+ * Kopf auf den Rücken — und mit einem Skelett sieht das nicht drollig aus,
+ * sondern kaputt.
+ */
+const FIGURE_HEAD_YAW = 1.2;
+const FIGURE_HEAD_PITCH = 0.7;
+
+/**
+ * **Wie schnell eine Figur ihren Gang wechselt** — die Zeitkonstante, mit der
+ * das Tempo geglättet wird, bevor `gait` es zu sehen bekommt.
+ *
+ * `AvatarBody.speed` ist schon geglättet; das hier ist die zweite Glättung und
+ * sie hat einen eigenen Grund: `gait` blendet bei jedem Wechsel 0,2 s über
+ * (`kaykitFigureFit.FIGURE_FADE`), und ein Tempo, das um die Schwelle herum
+ * zappelt, blendet dann zwanzigmal in der Sekunde zwischen Gehen und Rennen —
+ * das sieht aus wie ein Wackelkontakt.
+ */
+const FIGURE_GAIT_DAMP = 3;
 
 /**
  * **Die Figur** — ein Koch nach dem Vorbild von Overcooked, angetrieben von
@@ -199,6 +233,18 @@ export class AvatarBody extends THREE.Group {
 
   /** Ob die Hände gezeichnet werden — `setHandsVisible` merkt es sich hier. */
   private handsOn = true;
+
+  /**
+   * **Ob der Koch überhaupt zu sehen ist** — er tritt ab, sobald eine Figur
+   * aus dem Regal da ist, und kommt zurück, wenn sie wieder abgelegt wird.
+   *
+   * Ausgeblendet und nicht weggeworfen, dieselbe Regel wie beim Koch-Modell
+   * (`wearModel`): Wer zweimal umschaltet, soll nicht zweimal warten.
+   */
+  private chefOn = true;
+
+  /** Ob der Träger gerade in seinen eigenen Augen steckt (`setSelfView`). */
+  private selfView = false;
 
   /** Trägt den Rumpf des Modells und sein Watscheln (`wearModel`). */
   private sway: THREE.Group | null = null;
@@ -346,6 +392,46 @@ export class AvatarBody extends THREE.Group {
   /** Ob diese Figur schon weggeräumt wurde, als das Modell ankam. */
   private gone = false;
 
+  // --- die Figur aus dem Regal (`core/avatarFigures.ts`) ---------------------
+
+  /**
+   * **Die geladene Figur**, oder `null` für den Koch.
+   *
+   * Sie hängt als eigenes Kind an dieser Gruppe und nicht unter `torso`: Sie
+   * bringt Beine mit, steht also auf dem Boden und dreht sich um ihre eigene
+   * Hochachse — der Rumpf des Kochs dagegen ist eine Form ohne Unterbau, die
+   * von der Kopfhöhe gestaucht wird.
+   */
+  private figure: KaykitFigure | null = null;
+  /**
+   * **Die wievielte Bestellung gerade gilt.**
+   *
+   * Eine Figur kommt über das Netz und braucht dafür ein paar hundert
+   * Millisekunden; wer in dieser Zeit zweimal weiterschaltet, bekommt zwei
+   * Antworten in unbekannter Reihenfolge. Jede Antwort vergleicht ihre Nummer
+   * mit dieser und wirft sich weg, wenn sie nicht mehr gemeint ist.
+   *
+   * Eine **Nummer** und nicht die Adresse: Wer vom Ritter zum Koch und zurück
+   * zum Ritter schaltet, hat zwei Bestellungen für dieselbe Adresse unterwegs
+   * — ein Vergleich der Adressen ließe beide herein, und die zweite Figur
+   * stünde in der ersten.
+   */
+  private figureEra = 0;
+  /** Ihr Kopfknochen — daran hängt der Hut und der Blick. */
+  private figureHeadBone: THREE.Object3D | null = null;
+  /** Seine Drehung in der Bindepose (siehe `pullFigure`). */
+  private readonly figureHeadRest = new THREE.Quaternion();
+  /** Wie hoch der Kopfknochen über den Sohlen steht, in Metern, nach Maßstab. */
+  private figureHeadY = 0;
+  /** Die Verkleinerung, mit der ihr Kopf auf Kochhöhe kommt (`figureLift`). */
+  private figureScale = 1;
+  /** Die beiden Oberarme — links, rechts; `null`, wo das Skelett keinen hat. */
+  private figureArms: [THREE.Object3D | null, THREE.Object3D | null] = [null, null];
+  /** Der Hut auf ihrem Kopfknochen — sie hat ja keinen `head`-Knoten wie der Koch. */
+  private figureHat: THREE.Group | null = null;
+  /** Ihr geglättetes Tempo, aus dem `gait` den Gang wählt. */
+  private figurePace = 0;
+
   constructor(options: AvatarBodyOptions = {}) {
     super();
     this.name = 'avatar-body';
@@ -444,11 +530,10 @@ export class AvatarBody extends THREE.Group {
       const hand = i === 0 ? parts.parts.handLeft : parts.parts.handRight;
       this.add(hand);
       this.modelHands.push(hand);
-      // Die gebaute Hand tritt ab, sobald die richtige da ist.
-      const built = this.handMeshes[i];
-      if (built) built.visible = false;
-      hand.visible = built ? built.visible || this.handsOn : this.handsOn;
     }
+    // Die gebaute Hand tritt ab, sobald die richtige da ist — und wer sonst
+    // noch mitredet, steht an einer Stelle (`applyBodyVisible`).
+    this.applyBodyVisible();
 
     // Die gebaute Figur verschwindet, ihre Gruppen bleiben: An ihnen hängen
     // Drehung, Höhe und die Ebenen-Maske.
@@ -539,6 +624,285 @@ export class AvatarBody extends THREE.Group {
     built.crown.visible = this.look.hat === 'none';
   }
 
+  // --- die Figur aus dem Regal ------------------------------------------------
+
+  /**
+   * **Eine andere Figur bestellen** (`core/avatarFigures.ts`).
+   *
+   * Drei Dinge stehen hier zusammen, und alle drei sind schon einmal einzeln
+   * falsch gewesen:
+   *
+   * - **Der Koch bleibt stehen, bis die andere da ist.** Eine Figur kommt über
+   *   die Leitung; wer sie vorher ausblendet, steht für seine Mitspieler eine
+   *   halbe Sekunde lang gar nicht da. Dieselbe Regel wie beim Koch-Modell
+   *   selbst (`core/chefModel.ts`) und bei den Controllern.
+   * - **Wer nicht mehr gemeint ist, wird weggeworfen.** Zweimal weiterschalten
+   *   heißt zwei Antworten in unbekannter Reihenfolge; ohne den Vergleich mit
+   *   `figureEra` gewänne die langsamere.
+   * - **Der Import ist dynamisch und die Frage steht davor.**
+   *   `core/kaykitFigure.ts` zieht `GLTFLoader` und `import.meta` mit sich, und
+   *   beides bringt einen Jest-Lauf zum Stehen (`canLoadModels`). Ohne WebGL
+   *   bleibt es deshalb beim Koch — genau wie ohne Netz.
+   */
+  private changeFigure(path: string): void {
+    const era = ++this.figureEra;
+    this.dropFigure();
+    if (path === FIGURE_CHEF || !canLoadModels()) return;
+    void import('./kaykitFigure')
+      .then(async (module) => module.loadKaykitFigure(path, figureHeight(path)))
+      .then((figure) => {
+        if (!figure) return;
+        if (this.gone || era !== this.figureEra) {
+          figure.dispose();
+          return;
+        }
+        this.wearFigure(figure);
+      });
+  }
+
+  /**
+   * **Die Figur anziehen** — messen, stauchen, anhängen, Koch abblenden.
+   *
+   * Gemessen wird der **Kopfknochen**, und daran hängt alles Weitere: Die
+   * ganze Figur wird so weit gestaucht oder gestreckt, dass er dort steht, wo
+   * der Kopf des Kochs steht (`avatarFigures.figureLift`, und dort steht auch
+   * das Warum). Erst danach stimmen Hände, Werkzeug, Teller und `POSE_SCALE`
+   * wieder, denn die rechnen alle ihren Abstand **zum Kopf**.
+   *
+   * Gemessen wird, **bevor** die Figur angehängt wird: Solange ihre Wurzel
+   * nirgends hängt, ist die Weltmatrix ihrer Knochen ihre Matrix im Raum
+   * dieser Wurzel — und genau die ist gefragt. Danach wäre es die Matrix im
+   * Raum des Avatars, und die trägt schon Drehung und Ort der Figur.
+   */
+  private wearFigure(figure: KaykitFigure): void {
+    const root = figure.root;
+    root.updateMatrixWorld(true);
+    const bone = figure.bones.head;
+    const headY = bone ? _world.setFromMatrixPosition(bone.matrixWorld).y : 0;
+    const lift = figureLift(headY, figure.height);
+
+    this.figure = figure;
+    this.figureHeadBone = bone;
+    this.figureHeadY = headY * lift;
+    this.figureScale = lift;
+    if (bone) this.figureHeadRest.copy(bone.quaternion);
+    this.figureArms = [this.armOf(root, 'l'), this.armOf(root, 'r')];
+    this.figurePace = this.speed;
+
+    root.scale.setScalar(lift);
+    root.name = `avatar-figure:${figure.path}`;
+    this.add(root);
+    // Neue Kinder erben die Ebene nicht von selbst — dieselbe Zeile wie bei
+    // Gesicht, Rumpf und Hut des Kochs, und ohne sie stünde dem Spieler seine
+    // eigene Figur mitten im Bild (`core/PlayerAvatar.ts`, `LAYER_SELF_ONLY`).
+    root.traverse((object) => (object.layers.mask = this.layers.mask));
+
+    this.chefOn = false;
+    this.applyBodyVisible();
+    // Der Hut muss an den neuen Kopf — er hing bis eben am Kopf des Kochs.
+    this.setHeadgear(this.look.hat, true);
+  }
+
+  /**
+   * **Die Figur wieder ablegen** — beim Wechsel und beim Aufräumen.
+   *
+   * Der Hut geht mit: Er hängt an ihrem Kopfknochen, und ein Knochen, der
+   * verschwindet, nimmt ihn sonst mit ins Nichts, ohne dass ihn jemand
+   * freigibt. Was danach zu sehen ist, entscheidet `setHeadgear` neu.
+   */
+  private dropFigure(): void {
+    this.dropFigureHat();
+    this.figureHeadBone = null;
+    this.figureArms = [null, null];
+    this.figureHeadY = 0;
+    this.figureScale = 1;
+    const figure = this.figure;
+    this.figure = null;
+    if (figure) {
+      figure.root.removeFromParent();
+      figure.dispose();
+    }
+    this.chefOn = true;
+    this.applyBodyVisible();
+  }
+
+  private dropFigureHat(): void {
+    if (!this.figureHat) return;
+    this.figureHat.removeFromParent();
+    disposeTree(this.figureHat, this.kept);
+    this.figureHat = null;
+  }
+
+  /**
+   * **Den Oberarm einer Seite suchen.**
+   *
+   * Die Namen stehen in der Datei mit einem Punkt (`upperarm.r`) und im Baum
+   * ohne (`upperarmr`) — `figureBoneName` ist dieselbe Regel, die auch der
+   * Lader benutzt (`core/kaykitFigureFit.ts`).
+   */
+  private armOf(root: THREE.Object3D, side: 'l' | 'r'): THREE.Object3D | null {
+    return root.getObjectByName(figureBoneName(`upperarm.${side}`)) ?? null;
+  }
+
+  /**
+   * **Wie der Hut auf einer Figur aus dem Regal sitzt.**
+   *
+   * Nicht am `head`-Knoten des Kochs, den es hier gar nicht gibt, sondern am
+   * **Kopfknochen** — damit er beim Nicken, Gehen und Umfallen mitgeht, ohne
+   * dass ihn jemand je Bild nachführt. `headgearFor` rechnet ihn auf den
+   * Halbmesser dieses Kopfes (`core/headgear.ts`), und die eine Zahl dafür
+   * kommt aus der Höhe des Knochens (`avatarFigures.figureHeadRadius`).
+   *
+   * **Der Knochen ist nicht die Kopfmitte**, sondern sitzt unten am Hals: Die
+   * Gruppe wird deshalb um einen Halbmesser angehoben — genau so weit, wie
+   * eine Kugel, die auf diesem Punkt aufliegt, ihre Mitte darüber hat.
+   *
+   * Der **Maßstab der Figur** steht auf ihrer Wurzel (`root.scale`) und wirkt
+   * damit auch auf den Hut; der Halbmesser ist aber schon in Metern gemessen,
+   * also wird er wieder herausgerechnet. Sonst wüchse die Mütze ein zweites
+   * Mal mit.
+   */
+  private fitFigureHat(kind: HeadgearKind): void {
+    this.dropFigureHat();
+    const bone = this.figureHeadBone;
+    const figure = this.figure;
+    if (!bone || !figure) return;
+    const radius = figureHeadRadius(figure.path, this.figureHeadY);
+    if (radius <= 0) return;
+    const built = headgearFor(kind, radius, this.suit.color.getHex());
+    if (!built) return;
+    // **Die Verkleinerung und nicht die Skalierung dieses Bildes**: Auf
+    // `root.scale` liegt je Bild auch die Stauchung (`core/squish.ts`), und
+    // ein Hut, der sie herausrechnete, wüchse genau dann, wenn die Figur sich
+    // duckt.
+    const scale = this.figureScale || 1;
+    built.scale.multiplyScalar(1 / scale);
+    built.position.y = radius / scale;
+    bone.add(built);
+    built.traverse((object) => (object.layers.mask = this.layers.mask));
+    this.figureHat = built;
+  }
+
+  /**
+   * **Ein Bild einer Figur aus dem Regal** — stehen, gehen, hinsehen, greifen.
+   *
+   * Der Antrieb ist derselbe wie beim Koch: Kopf und zwei Hände, mehr weiß ein
+   * Headset über seinen Träger nicht. Was daraus wird, ist hier ein anderes:
+   *
+   * - **Der Ort und die Drehung** kommen aus denselben Zahlen wie beim Rumpf
+   *   des Kochs (`bodyYaw`) — die Figur steht mit ihren Sohlen auf dem Boden
+   *   und dreht sich um ihre Hochachse.
+   * - **Der Gang kommt aus dem Tempo** und nicht aus einer Taktkurve: Die
+   *   Figur weiß je Bild, wie schnell sie ist, und sucht sich die passende
+   *   Spur (`kaykitFigure.gait`). Das Tempo wird ein zweites Mal geglättet,
+   *   siehe `FIGURE_GAIT_DAMP`.
+   * - **Die Arme gehören dem Gang**, solange niemand sie führt. Eine getrackte
+   *   Hand übernimmt ihren Oberarm und zeigt von der Schulter dorthin — ein
+   *   Gelenk, kein Ellbogen, dieselbe Vereinfachung wie bei der Puppe im NPC
+   *   (`worlds/npc/NpcBody.pull`). Die Länge stimmt dabei nicht; das ist ihr
+   *   egal, und aus 16 m Höhe sieht man es nicht.
+   * - **Der Kopf folgt gedeckelt** (`FIGURE_HEAD_YAW`, `FIGURE_HEAD_PITCH`).
+   *
+   * Geschrieben wird **nach** dem Mischer und nicht vor ihm: Er schreibt jedes
+   * Bild alle Knochen neu, und wer vorher zielt, zielt ins Vergangene.
+   */
+  private driveFigure(
+    dt: number,
+    figure: KaykitFigure,
+    baseX: number,
+    baseZ: number,
+    headYaw: number,
+    headPitch: number,
+    squish: SquishPose,
+    left: AvatarLimb | null,
+    right: AvatarLimb | null,
+  ): void {
+    const root = figure.root;
+    root.position.set(baseX, 0, baseZ);
+    root.rotation.set(0, this.bodyYaw, 0);
+    // **Der Maßstab wird je Bild neu gesetzt und nicht multipliziert.** Auf
+    // derselben Achse liegen zwei Dinge: die Verkleinerung der Figur
+    // (`figureScale`, einmal gemessen) und die Stauchung dieses Bildes
+    // (`core/squish.ts`). Wer die Stauchung auf den stehenden Maßstab
+    // draufmultipliziert, hat nach zehn Sekunden eine Figur von der Größe
+    // eines Streichholzes — genau so herum ist es leicht falsch.
+    root.scale.set(
+      this.figureScale * squish.width,
+      this.figureScale * squish.height,
+      this.figureScale * squish.width,
+    );
+
+    this.figurePace += (this.speed - this.figurePace) * Math.min(1, dt * FIGURE_GAIT_DAMP);
+    figure.gait(this.figurePace);
+    figure.update(dt);
+
+    // Erst jetzt stehen die Knochen dort, wo sie in diesem Bild hingehören —
+    // und erst mit frischen Weltmatrizen lässt sich von einer Schulter aus auf
+    // eine Hand zielen.
+    this.updateMatrixWorld(true);
+
+    const bone = this.figureHeadBone;
+    if (bone) {
+      // **Der Nickwinkel kehrt sich um**, und das ist kein Vorzeichenfehler:
+      // Die Figur ist einmal um die Hochachse gedreht, weil KayKit nach +Z
+      // schaut und dieses Spiel nach −Z (`kaykitFigureFit.FIGURE_FACING`). Um
+      // die Hochachse macht das nichts, um die Querachse dreht es die
+      // Richtung um.
+      _angles.set(
+        -THREE.MathUtils.clamp(headPitch, -FIGURE_HEAD_PITCH, FIGURE_HEAD_PITCH),
+        THREE.MathUtils.clamp(wrapAngle(headYaw - this.bodyYaw), -FIGURE_HEAD_YAW, FIGURE_HEAD_YAW),
+        0,
+        'YXZ',
+      );
+      bone.quaternion.setFromEuler(_angles).multiply(this.figureHeadRest);
+    }
+
+    for (let i = 0; i < 2; i++) {
+      const bone = this.figureArms[i];
+      const limb = i === 0 ? left : right;
+      const hand = i === 0 ? figure.bones.handLeft : figure.bones.handRight;
+      const parent = bone?.parent;
+      if (!bone || !parent || !limb || !hand) continue;
+      // **Gedreht wird auf die Hand und nicht auf den Oberarm.** Der erste
+      // Versuch zielte mit der Ruherichtung des Oberarms — der Richtung zum
+      // Ellbogen — und traf damit jedes Ziel um **26° daneben**, immer um
+      // dieselben 26°: Ellbogen und Handgelenk haben ihre eigene Beuge, und
+      // die steckt zwischen Oberarm und Faust. Nachgemessen an vier ganz
+      // verschiedenen Zielen, und viermal kam dieselbe Zahl heraus — das ist
+      // kein Zielfehler, sondern ein fester Versatz.
+      //
+      // Also wird die **gegenwärtige** Richtung genommen, die der Gang gerade
+      // gebaut hat, und um genau den Winkel weitergedreht, der sie aufs Ziel
+      // legt. Das stimmt auch bei gebeugtem Ellbogen, denn es rechnet mit dem
+      // Arm, der wirklich dasteht, statt mit dem aus der Bindepose.
+      _aim.setFromMatrixPosition(hand.matrixWorld);
+      parent.worldToLocal(_aim).sub(bone.position);
+      // Das Handziel steht im Raum des Avatars; der Oberarm rechnet im Raum
+      // seines Elternknochens. Der Umweg über die Welt ist der kürzeste, der
+      // ohne eine eigene Matrizenkette auskommt — und beide Richtungen gehen
+      // durch dieselben Weltmatrizen, die gerade aufgefrischt wurden.
+      _reach.copy(this.handAnchors[i]!.position);
+      this.localToWorld(_reach);
+      parent.worldToLocal(_reach).sub(bone.position);
+      if (_aim.lengthSq() < 1e-8 || _reach.lengthSq() < 1e-8) continue;
+      bone.quaternion.premultiply(_swing.setFromUnitVectors(_aim.normalize(), _reach.normalize()));
+    }
+
+    // **Und wo keine Hand geführt wird, sagt die Figur, wo ihre ist.** Was an
+    // einem Anker hängt — ein Werkzeug, ein Teller —, soll dort hängen, wo die
+    // Figur gerade hingreift, und das weiß nur ihre Bewegung. Beim Koch war es
+    // eine Stelle neben dem Rumpf, weil er keine Arme hat, die irgendwohin
+    // führen.
+    for (let i = 0; i < 2; i++) {
+      const limb = i === 0 ? left : right;
+      const hand = i === 0 ? figure.bones.handLeft : figure.bones.handRight;
+      if (limb || !hand) continue;
+      _reach.setFromMatrixPosition(hand.matrixWorld);
+      this.worldToLocal(_reach);
+      this.handAnchors[i]!.position.copy(_reach);
+    }
+  }
+
   /**
    * **Wie diese Figur aussieht** — Kopf, Hut und Körper auf einmal
    * (`core/appearance.ts`).
@@ -551,9 +915,19 @@ export class AvatarBody extends THREE.Group {
   setLook(look: Appearance): void {
     if (look.head !== this.look.head) this.buildFace(look.head);
     if (look.body !== this.look.body) this.buildTorso(look.body);
-    this.look = { ...this.look, head: look.head, body: look.body };
+    // **Auf eine Figur aus dem Regal wirken Kopf und Jacke nicht**, und das
+    // ist keine Lücke, sondern der Punkt: Ein Ritter bringt sein Kettenhemd
+    // mit, ein Roboter hat kein Gesicht, und ein Hautton auf einem Skelett
+    // wäre eine Farbe ohne Haut. Gebaut werden sie trotzdem weiter — sie
+    // gelten wieder, sobald jemand zum Koch zurückschaltet. Der **Hut** ist
+    // die Ausnahme: Er sitzt auf dem Kopfknochen und geht überall mit.
+    const swap = look.figure !== this.look.figure;
+    this.look = { ...this.look, head: look.head, body: look.body, figure: look.figure };
+    if (swap) this.changeFigure(look.figure);
     this.applyModelLook();
-    this.setHeadgear(look.hat);
+    // `force`, wenn die Figur gewechselt hat: Derselbe Hut muss dann an einen
+    // anderen Kopf, und ohne das bliebe er am alten hängen.
+    this.setHeadgear(look.hat, swap);
   }
 
   setColor(color: number): void {
@@ -571,10 +945,38 @@ export class AvatarBody extends THREE.Group {
    */
   protected setHandsVisible(on: boolean): void {
     this.handsOn = on;
+    this.applyBodyVisible();
+  }
+
+  /**
+   * **Wer gerade zu sehen ist** — an einer Stelle, weil drei Schalter darüber
+   * mitreden: der Koch tritt ab, wenn eine Figur aus dem Regal da ist
+   * (`chefOn`), die Hände lassen sich einzeln abstellen (`handsOn`), und wer
+   * in seinen eigenen Augen steckt, sieht seinen Kopf nicht (`selfView`).
+   *
+   * Vorher standen diese Regeln in zwei Methoden, und die zweite machte die
+   * erste rückgängig: `setHandsVisible` schaltete die Hände an, obwohl der
+   * Koch gerade gar nicht dastand.
+   */
+  private applyBodyVisible(): void {
+    const chef = this.chefOn;
+    const seen = !this.selfView;
+    this.head.visible = chef && seen;
+    this.torso.visible = chef && seen;
     // Sichtbar ist immer nur eine Sorte Hand: das Modell, wenn es da ist,
     // sonst die gebaute.
-    for (const built of this.handMeshes) built.visible = on && !this.model;
-    for (const hand of this.modelHands) hand.visible = on;
+    for (const built of this.handMeshes) built.visible = chef && this.handsOn && !this.model;
+    for (const hand of this.modelHands) hand.visible = chef && this.handsOn;
+    // **Eine Figur aus dem Regal verschwindet ganz.** Beim Koch bleiben die
+    // Hände stehen, wenn der Kopf weggeblendet wird — das ist der Sinn einer
+    // Ich-Ansicht. Eine gehäutete Figur hat keinen Kopf zum Ausblenden: Ihr
+    // Schädel, ihr Rumpf und ihre Hände hängen in **einem** Netz an einem
+    // Skelett, und wer daraus den Kopf herausschneiden wollte, müsste die
+    // Gewichte lesen. Also geht sie ganz — wer in ihren Augen steckt, sieht
+    // statt ihrer Hände die getrackten (`core/HandVisuals.ts`), und das sind
+    // ohnehin die eigenen.
+    const root = this.figure?.root;
+    if (root) root.visible = seen;
   }
 
   /**
@@ -611,6 +1013,17 @@ export class AvatarBody extends THREE.Group {
     // brauner Fladen über deren Rand.
     if (this.modelCrown) this.modelCrown.visible = kind === 'none';
 
+    // **Wer eine Figur aus dem Regal trägt, bekommt den Hut auf ihren
+    // Kopfknochen** (`fitFigureHat`) und nicht in den `head`-Knoten des Kochs,
+    // der dann gar nicht mehr dasteht. Das war der ausdrückliche Wunsch:
+    // „Die Kochmütze sollten wir beim Kleiderschrank auch einbauen — zusätzlich
+    // auf Charaktere setzen können."
+    if (this.figure) {
+      this.fitFigureHat(kind);
+      return;
+    }
+    this.dropFigureHat();
+
     // Und mit Modell braucht die Kochmütze keine zweite: Das Modell bringt
     // seine eigene mit.
     if (this.model && kind === 'chef') return;
@@ -629,9 +1042,8 @@ export class AvatarBody extends THREE.Group {
    * whatever hangs off them stay — that is the point of a first-person view.
    */
   setSelfView(self: boolean): void {
-    const visible = !self;
-    this.head.visible = visible;
-    this.torso.visible = visible;
+    this.selfView = self;
+    this.applyBodyVisible();
   }
 
   /**
@@ -646,6 +1058,11 @@ export class AvatarBody extends THREE.Group {
     if (head.quaternion) _forward.set(0, 0, -1).applyQuaternion(head.quaternion);
     else _forward.set(0, 0, -1);
     const headYaw = Math.atan2(-_forward.x, -_forward.z);
+    // Wie weit der Blick nach oben geht, positiv nach oben — gebraucht nur von
+    // einer Figur aus dem Regal, deren Kopfknochen mitnickt (`driveFigure`).
+    // Der Koch hat dafür keinen Knochen: Sein Kopf ist eine Gruppe und nimmt
+    // die Drehung ganz.
+    const headPitch = Math.asin(THREE.MathUtils.clamp(_forward.y, -1, 1));
     const difference = wrapAngle(headYaw - this.bodyYaw);
     const slack = THREE.MathUtils.degToRad(38);
     if (Math.abs(difference) > slack) {
@@ -785,11 +1202,26 @@ export class AvatarBody extends THREE.Group {
         else modelled.rotation.set(0, this.bodyYaw, 0);
       }
     }
+
+    // **Ganz zum Schluss die Figur aus dem Regal**, und zwar aus zwei Gründen
+    // in dieser Reihenfolge: Sie zielt mit ihren Oberarmen auf die Handanker,
+    // und die stehen erst jetzt; und sie setzt umgekehrt die Anker, die
+    // niemand führt, auf ihre eigenen Hände, was die Schleife oben sonst
+    // gleich wieder überschriebe.
+    const figure = this.figure;
+    if (figure) {
+      this.driveFigure(dt, figure, baseX, baseZ, headYaw, headPitch, squish, left, right);
+    }
   }
 
   dispose(): void {
     this.gone = true;
     this.stopGraphics();
+    // Zuerst die Figur: Ihre Geometrie gehört der Vorlage im Speicher und
+    // allen anderen Kopien, und nur sie selbst weiß das (`KaykitFigure.dispose`
+    // hält bei `userData.sharedAssets` an). Ein `disposeTree` darüber gäbe
+    // Netze frei, die noch in drei anderen Figuren stecken.
+    this.dropFigure();
     disposeTree(this);
     for (const material of this.kept) material.dispose();
     this.removeFromParent();

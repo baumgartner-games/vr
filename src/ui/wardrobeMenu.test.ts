@@ -9,8 +9,8 @@ import { WardrobeMenu } from './WardrobeMenu';
  *
  * Genau das ist der Fall, für den die Seite gebaut ist, sich nicht auf ihre
  * zweite Szene zu verlassen: In jsdom gibt es keinen Kontext, die Figur
- * daneben bleibt weg — und die drei Zeilen müssen trotzdem stehen und
- * schalten. Geprüft wird deshalb das, worum es geht: dass es drei Zeilen mit
+ * daneben bleibt weg — und die vier Zeilen müssen trotzdem stehen und
+ * schalten. Geprüft wird deshalb das, worum es geht: dass es vier Zeilen mit
  * ‹ und › sind, dass ein Druck sofort speichert, dass eine Änderung von
  * außen mitzieht und dass `Escape` zumacht.
  */
@@ -36,13 +36,14 @@ describe('Die Umkleide', () => {
     globalThis.localStorage?.clear();
   });
 
-  it('hat drei Zeilen: Kopf, Hut, Körper', () => {
+  it('hat vier Zeilen: Kopf, Hut, Körper, Figur', () => {
     menu.toggle(true);
-    expect(rows(menu).map((row) => row.dataset['slot'])).toEqual(['head', 'hat', 'body']);
+    expect(rows(menu).map((row) => row.dataset['slot'])).toEqual(['head', 'hat', 'body', 'figure']);
     expect(rows(menu).map((row) => row.querySelector('.wrobe__label')!.textContent)).toEqual([
       'Kopf',
       'Hut',
       'Körper',
+      'Figur',
     ]);
   });
 
@@ -108,6 +109,6 @@ describe('Die Umkleide', () => {
     menu.toggle(true);
     const stage = menu.element.querySelector<HTMLElement>('.wrobe__stage')!;
     expect(stage.hidden).toBe(true);
-    expect(rows(menu)).toHaveLength(3);
+    expect(rows(menu)).toHaveLength(4);
   });
 });

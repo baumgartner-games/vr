@@ -445,7 +445,20 @@ Von oben nach unten, und alles in **einem** scrollenden Kasten:
    Getragenen_); _Bounding Box_ zeigt genau die Hülle, aus der beim Hinstellen
    der Collider und die Masse werden (`props.modelPropShape`).
 4. **Die Animation**, wenn es eine gibt — siehe unten.
-5. **Der Steckbrief**: Paket, Ordner, Datei, Dateigröße und Schubladen kommen
+5. **_Als Figur tragen_**, aber nur bei einer **Figur**
+   (`ui/menu.MenuDetail.action`, `core/kaykitIndex.figureAction`): der eine
+   Knopf dieser Seite, der etwas **tut** statt etwas zu zeigen. Er macht aus
+   dem Ding, das man gerade vor sich hat, die eigene Spielfigur
+   (`saveAppearance({ figure })`, siehe [Spielfigur](spielfigur.md),
+   _Und eine vierte Zeile: die Figur_) — im Spiegel, im Kleiderschrank und für
+   alle im Raum. Er steht hier und nicht nur im Kleiderschrank, weil der dort
+   nur zwölf Ständer hat: Über diesen Weg ist **jede** der rund 85 Figuren der
+   Sammlung wählbar, und man sieht sie vorher groß, mit Gitterboden, Hülle und
+   der Bewegung, die man sich ausgesucht hat. Gezeigt wird er nach derselben
+   Auskunft, nach der auch das Regal einsortiert (die Schublade _Figuren_,
+   `kaykitCategoriesOf`) — es gibt keine zweite Liste, die morgen etwas
+   anderes sagt. Ohne Wippe, dafür mit farbigem Rand: Er ist kein Zustand.
+6. **Der Steckbrief**: Paket, Ordner, Datei, Dateigröße und Schubladen kommen
    aus dem Verzeichnis und stehen sofort da; Maße in **Metern**, Dreiecke und
    die Zahl der Bewegungen werden am geladenen Modell gemessen und
    nachgereicht (`DetailFacts`). Die Maße sind dabei die der **Welt**, also mit
