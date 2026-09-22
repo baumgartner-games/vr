@@ -5,7 +5,8 @@ import { MARKS, type HouseSpec, type MarkId } from './house';
 import { buildFixture } from './fixtureModels';
 import { FIXTURE_CATALOG } from './fixtureDimensions';
 import { MONSTERS, lockerCode, repairsFor, type Repair } from './mission';
-import { SHIP, buildCreature, label } from './shipArt';
+import { SHIP, label } from './shipArt';
+import { buildActor, type ShipActor } from './actorArt';
 import { TRAINING_ROOMS, trainingBounds, type TrainingRoomId } from './trainingLayout';
 
 interface TrainingDeckHost {
@@ -18,6 +19,17 @@ interface TrainingDeckHost {
   visit(id: TrainingRoomId): void;
   home(): void;
   effect(kind: string, at: THREE.Vector3): void;
+  /**
+   * **Ein Akteur, der je Bild einen Takt braucht** und am Ende weggeräumt
+   * werden will.
+   *
+   * Das Deck selbst hat keine Bildschleife — es wird einmal gebaut und steht
+   * dann. Die Attrappen stehen zwar auch nur herum, aber eine Figur aus dem
+   * Regal hängt an einem `AnimationMixer`, und der ohne Bild ist eine Figur in
+   * ihrer Bindepose mit ausgestreckten Armen. Also reicht das Deck sie nach
+   * oben durch (`ShipExperience.bayActors`).
+   */
+  actor(actor: ShipActor): void;
 }
 
 /** Independent teaching cases, with dimensions and explicit solutions beside each object. */
@@ -137,10 +149,15 @@ export function buildTrainingDeck(host: TrainingDeckHost): MirrorSurface {
   MONSTERS.forEach((monster, i) => {
     const x = models.minX + 2 + i * 3.8,
       z = models.maxZ - 1.2;
-    const dummy = buildCreature(monster.id);
-    dummy.position.set(x, 0, z);
-    root.add(dummy);
-    sign(`${monster.name}\nUNBEWEGTE ATTRAPPE · HARMLOS`, x, 2.2, z + 0.65, 2.7, 0.45);
+    // **Die Attrappe ist derselbe Körper wie im Ernstfall** (`actorArt.ts`) —
+    // einschließlich der Figur aus dem Regal, wo es eine gibt. Genau dafür ist
+    // das Modellzimmer da: Wer hier nachsieht, wie ein Wächter aussieht, soll
+    // nicht nachher im Gang etwas anderes treffen.
+    const dummy = buildActor(monster.id);
+    dummy.root.position.set(x, 0, z);
+    root.add(dummy.root);
+    host.actor(dummy);
+    sign(`${monster.name}\nATTRAPPE · GEHT NICHT LOS · HARMLOS`, x, 2.2, z + 0.65, 2.7, 0.45);
   });
   sign(
     `SCHIEBESCHOTT

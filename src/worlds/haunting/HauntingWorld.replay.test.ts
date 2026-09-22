@@ -35,8 +35,16 @@ import { freshGhosts, GHOST_LIVE, GHOST_TTL } from './rules/ghosts';
 import { HOST_BUSY, SHIP_NEEDS_TECHNICIAN, SHIP_OCCUPIED } from './rules/worldMenu';
 import { defaultSetup, withPower, withWho, type RoundSetup } from './rules/roundSetup';
 import type { Intent } from './rules/lobby';
+import type { ShipActor } from './actorArt';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
+
+/**
+ * Ein Bild, so lang wie eines bei 60 Hz. Die Körper im Schiff sind seit
+ * `actorArt.ts` Akteure mit einem Mischer, und der bekommt einen Zeitschritt
+ * statt einer Uhr (`ShipActor.update`).
+ */
+const FRAME = 1 / 60;
 
 jest.mock('../grid/GridWorld', () => ({ GridWorld: class {} }));
 jest.mock('./haunting.css', () => ({}));
@@ -50,12 +58,12 @@ interface ReplayWorld {
   automaticDoors: AutomaticDoors;
   buildHouse: jest.Mock;
   parkDrone: jest.Mock;
-  blob: THREE.Object3D | null;
+  blob: ShipActor | null;
   live: THREE.Group;
   hostId: string;
   context: unknown;
   adopt(state: HauntState): void;
-  applyBlob(): void;
+  applyBlob(dt: number): void;
   refreshHost(ctx: unknown): void;
   receive(data: unknown, from: string): void;
   requestBotRound(ctx: unknown): void;
@@ -75,8 +83,8 @@ interface ReplayWorld {
   kernel: FlatKernel | null;
   kernelLoco: KernelLocomotion | null;
   stepKernel(dt: number, ctx: unknown): void;
-  technicianArt: THREE.Object3D | null;
-  showTechnician(): void;
+  technicianArt: ShipActor | null;
+  showTechnician(dt: number): void;
   readonly waitingHandover: boolean;
   /** Die Buchführung, die nur beim Gastgeber liegt — und beim Wechsel mitreisen muss. */
   locks: DoorLocks;
@@ -91,8 +99,8 @@ interface ReplayWorld {
   bloodArt: THREE.Group | null;
   paintTrail(): void;
   /** Und die halbdurchsichtige Kopie an der zuletzt gesehenen Stelle (`rules/ghosts.ts`). */
-  ghostArt: THREE.Object3D | null;
-  paintGhost(): void;
+  ghostArt: ShipActor | null;
+  paintGhost(dt: number): void;
 }
 
 function snapshot(seed = 391): HauntState {
@@ -228,16 +236,18 @@ test('ordinary damage and inventory snapshots retain the existing scene', () => 
 
 test('a spectator replaces its old monster model when the host changes creature type', () => {
   const world = replay();
-  world.applyBlob();
+  world.applyBlob(FRAME);
   const old = world.blob!;
-  expect(old.name).toBe('creature-stalker');
+  expect(old.kind).toBe('stalker');
+  expect(old.root.name).toBe('creature-stalker');
   const next = snapshot();
   next.crew.options.monster = 'sentinel';
   world.adopt(next);
-  world.applyBlob();
-  expect(world.blob?.uuid).not.toBe(old.uuid);
-  expect(world.blob?.name).toBe('creature-sentinel');
-  expect(old.parent).toBeNull();
+  world.applyBlob(FRAME);
+  expect(world.blob).not.toBe(old);
+  expect(world.blob?.kind).toBe('sentinel');
+  expect(world.blob?.root.name).toBe('creature-sentinel');
+  expect(old.root.parent).toBeNull();
 });
 
 function election(role: 'vr' | 'desktop', remote = false) {
@@ -342,11 +352,11 @@ test('a former desktop technician gives up its host priority as soon as it retur
 
 test('a new host hides its obsolete spectator model even when no monster remains', () => {
   const world = replay();
-  world.applyBlob();
+  world.applyBlob(FRAME);
   world.hostId = 'local';
   world.state.monster = null;
-  world.applyBlob();
-  expect(world.blob?.visible).toBe(false);
+  world.applyBlob(FRAME);
+  expect(world.blob?.root.visible).toBe(false);
 });
 
 test.each(['vr', 'desktop'])(
@@ -484,12 +494,16 @@ test('simulation perception reads the bot position and ignores the observer rig'
 test('der Techniker aus dem Stand bekommt einen Körper — und verschwindet im Schutzschrank', () => {
   const world = replay();
   // Ohne Pose kein Körper: Wer im Headset spielt, hat einen Avatar.
-  world.showTechnician();
+  world.showTechnician(FRAME);
   expect(world.technicianArt).toBeNull();
 
   world.state.technician = { x: 4, z: 7, yaw: Math.PI / 2, moving: true };
-  world.showTechnician();
-  const body = world.technicianArt!;
+  world.showTechnician(FRAME);
+  const actor = world.technicianArt!;
+  const body = actor.root;
+  expect(actor.kind).toBe('crew');
+  // Ohne WebGL bleibt es beim gebauten Crewmate — in Jest ist das der Normalfall.
+  expect(actor.built).toBe(true);
   expect(body.parent).toBe(world.live);
   expect(body.visible).toBe(true);
   expect([body.position.x, body.position.z]).toEqual([4, 7]);
@@ -497,8 +511,8 @@ test('der Techniker aus dem Stand bekommt einen Körper — und verschwindet im 
   expect(body.rotation.y).toBeCloseTo(Math.PI / 2 + Math.PI);
 
   world.state.crew.hidden = 'raum-1';
-  world.showTechnician();
-  expect(world.technicianArt).toBe(body);
+  world.showTechnician(FRAME);
+  expect(world.technicianArt).toBe(actor);
   expect(body.visible).toBe(false);
 });
 
@@ -514,19 +528,19 @@ test('der Ghost des Monsters erscheint nach dem Sichtverlust und verfällt mit d
   world.state.time = 100;
   world.state.ghosts.monster = { x: 3, z: -4, yaw: 1, since: 100 };
   // Gerade eben gesehen: kein Doppelgänger neben dem echten Vieh.
-  world.paintGhost();
-  expect(world.ghostArt?.visible ?? false).toBe(false);
+  world.paintGhost(FRAME);
+  expect(world.ghostArt?.root.visible ?? false).toBe(false);
   // Eine Sekunde später ist es eine Erinnerung.
   world.state.time = 100 + GHOST_LIVE + 0.5;
-  world.paintGhost();
-  expect(world.ghostArt!.visible).toBe(true);
-  expect(world.ghostArt!.position.x).toBe(3);
-  expect(world.ghostArt!.position.z).toBe(-4);
-  expect(world.ghostArt!.rotation.y).toBe(1);
+  world.paintGhost(FRAME);
+  expect(world.ghostArt!.root.visible).toBe(true);
+  expect(world.ghostArt!.root.position.x).toBe(3);
+  expect(world.ghostArt!.root.position.z).toBe(-4);
+  expect(world.ghostArt!.root.rotation.y).toBe(1);
   // Und mit `GHOST_TTL` ist sie weg.
   world.state.time = 100 + GHOST_TTL;
-  world.paintGhost();
-  expect(world.ghostArt!.visible).toBe(false);
+  world.paintGhost(FRAME);
+  expect(world.ghostArt!.root.visible).toBe(false);
 });
 
 test('die Blutflecken liegen flach auf dem Boden und werden wiederverwendet', () => {
