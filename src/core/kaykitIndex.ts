@@ -1,5 +1,7 @@
 import type { Handedness } from './XRInput';
-import type { MenuEntry, MenuIcon } from '../ui/menu';
+import type { MenuDetail, MenuEntry, MenuIcon } from '../ui/menu';
+import { FIGURE_CHEF, asFigure } from './avatarFigures';
+import { saveAppearance } from './appearance';
 
 /**
  * **Das Regal als Baum** — was in `public/models/kaykit/` liegt, und was im
@@ -960,8 +962,32 @@ function sheetsOf(
   key: string,
   pick: (path: string, hand: Handedness | null) => void,
 ): MenuEntry[] {
+  return kaykitSheets(files, key, (file) => fileEntry(file, pick));
+}
+
+/**
+ * **Dieselben Fächer für eine Liste, die etwas anderes tut** — die
+ * Blätterlogik des Regals, ohne das Regal.
+ *
+ * Gebraucht hat sie zuerst das NPC-Menü: _NPC → Figur aus dem Regal_ zeigt die
+ * Schublade `figures`, und was dort beim Nehmen passiert, ist nicht „in die
+ * Hand", sondern „hinstellen und loslaufen lassen"
+ * (`PortalWorld.npcShelfMenu`). Alles andere an so einer Seite ist dasselbe:
+ * fünfundachtzig Kacheln, zwei Spalten, in der Brille in Fächer zerlegt und am
+ * Schirm flach (`flatten`). Eine zweite Kopie davon wäre eine zweite
+ * Blätterstellung, die morgen anders bricht.
+ *
+ * `make` baut die Kachel, `key` ist das Stück Id, an dem die Fächer hängen —
+ * es muss stabil sein, sonst verliert der Weg durchs Menü seine Stelle
+ * (`ui/menuNav.ts`).
+ */
+export function kaykitSheets(
+  files: readonly KaykitFileRef[],
+  key: string,
+  make: (file: KaykitFileRef) => MenuEntry,
+): MenuEntry[] {
   if (files.length <= KAYKIT_CHUNK) {
-    return files.map((file) => fileEntry(file, pick));
+    return files.map((file) => make(file));
   }
   const sheets: MenuEntry[] = [];
   for (let start = 0; start < files.length; start += KAYKIT_CHUNK) {
@@ -986,7 +1012,7 @@ function sheetsOf(
       // wäre ein Klick, der nichts erklärt. In der Brille bleiben sie, denn
       // dort blättert ein Stick, und vierhundert Seiten blättert niemand.
       flatten: true,
-      children: part.map((file) => fileEntry(file, pick)),
+      children: part.map((file) => make(file)),
     });
   }
   return sheets;
@@ -1012,8 +1038,43 @@ function fileEntry(
     detail: {
       preview: `kaykit:${file.path}`,
       facts: fileFacts(file),
+      ...(figureAction(file) ?? {}),
     },
     run: (hand) => pick(file.path, hand),
+  };
+}
+
+/**
+ * **_Als Figur tragen_ — der Knopf unter einer Figur** (`MenuDetail.action`).
+ *
+ * Er steht nur bei dem, was in der Schublade _Figuren_ liegt: Ein Fass als
+ * Spielfigur wäre ein Fass, das keinen Kopfknochen hat und in der T-Pose durch
+ * die Küche rutscht. Die Schublade ist dabei dieselbe Auskunft, die auch das
+ * Regal benutzt (`kaykitCategoriesOf`) — es gibt keine zweite Liste, die
+ * morgen etwas anderes sagt.
+ *
+ * **Warum das Regal hier vom Kleiderschrank weiß.** Es sieht nach einer
+ * Kopplung aus, ist aber keine: Das Aussehen gehört dem **Spieler** und keiner
+ * Welt (`core/appearance.ts`), es liegt im Browser wie die Augenhöhe, und jede
+ * Stelle darf es lesen und schreiben. Die Alternative wäre, einen
+ * `wear`-Rückruf durch fünf Menüfunktionen und zwei Welten zu fädeln, damit am
+ * Ende dieselbe eine Zeile steht.
+ *
+ * Und es ist der ganze Sinn dieses Wegs: Der Kleiderschrank stellt zwölf
+ * Figuren hin (`core/avatarFigures.FIGURE_KINDS`), hier steht **jede** der
+ * rund 85 — und zwar schon groß vor einem, mit Gitterboden, Hülle und der
+ * Bewegung, die man sich aussuchen kann.
+ */
+function figureAction(file: KaykitFileRef): Pick<MenuDetail, 'action'> | null {
+  if (!file.cats.includes('figures')) return null;
+  const path = asFigure(file.path);
+  if (path === FIGURE_CHEF) return null;
+  return {
+    action: {
+      label: 'Als Figur tragen',
+      sub: 'Ersetzt den Koch — im Spiegel, im Kleiderschrank und für alle im Raum',
+      run: () => void saveAppearance({ figure: path }),
+    },
   };
 }
 

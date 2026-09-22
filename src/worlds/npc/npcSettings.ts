@@ -1,5 +1,5 @@
 import { BRAIN_IDS, brainOf, type BrainId } from './npcBrains';
-import { NPC_KINDS, npcSkin, type NpcKind } from './npcKinds';
+import { NPC_KINDS, npcSkin, shelfPath, type NpcKind } from './npcKinds';
 import { SPAWNER_DEFAULTS } from './npcSpawn';
 import { nextInSteps } from '../../core/steps';
 
@@ -153,7 +153,16 @@ export function npcFieldLabel(field: NpcField, value: number): string {
 /** Eine Einstellung, in der jede Zahl und jede Id stimmt. */
 export function clampNpc(settings: Partial<NpcSettings> | undefined): NpcSettings {
   const next = { ...DEFAULT_NPC, ...settings };
-  if (!NPC_KINDS.includes(next.kind)) next.kind = DEFAULT_NPC.kind;
+  // **Eine Sorte ist eine der Vorgaben oder eine Adresse im Regal**
+  // (`npcKinds.shelfPath` — `kaykit:…`, kein Fach, Endung `.glb`). Geprüft
+  // wird die *Form* und nicht, ob die Datei wirklich dort liegt: Das weiß erst
+  // das Regal, und ein Speicher, der auf sein Eintreffen wartete, käme nie
+  // heraus. Eine Adresse, hinter der nichts liegt, ergibt später einen
+  // Klötzchen-Körper und keine Ausnahme.
+  const shelf = shelfPath(next.kind) !== null;
+  if (!shelf && !NPC_KINDS.includes(next.kind as (typeof NPC_KINDS)[number])) {
+    next.kind = DEFAULT_NPC.kind;
+  }
   if (!BRAIN_IDS.includes(next.brain)) next.brain = DEFAULT_NPC.brain;
   if (!NPC_MODE_IDS.includes(next.mode)) next.mode = DEFAULT_NPC.mode;
   for (const field of NPC_FIELDS) next[field.key] = clampNpcField(field, next[field.key]);

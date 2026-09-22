@@ -8,6 +8,7 @@ import {
   type KeyStore,
 } from './characterStore';
 import { Recorder, type Recording } from './npcRecording';
+import type { NpcKind } from './npcKinds';
 
 function memoryStore(): KeyStore & { data: Map<string, string> } {
   const data = new Map<string, string>();
@@ -20,8 +21,8 @@ function memoryStore(): KeyStore & { data: Map<string, string> } {
   };
 }
 
-function recording(): Recording {
-  const recorder = new Recorder('dummy');
+function recording(kind: NpcKind = 'dummy'): Recording {
+  const recorder = new Recorder(kind);
   const head = { position: { x: 0, y: 1.6, z: 0 }, quaternion: { x: 0, y: 0, z: 0, w: 1 } };
   recorder.sample(0, { feet: { x: 0, y: 0, z: 0 }, yaw: 0, head, left: null, right: null }, []);
   recorder.sample(1, { feet: { x: 1, y: 0, z: 0 }, yaw: 0, head, left: null, right: null }, []);
@@ -49,6 +50,24 @@ describe('Der Charakter-Speicher', () => {
     expect(listCharacters(store)).toHaveLength(1);
     expect(characterById(saved.id, store)?.recording.duration).toBe(1);
     expect(characterById('nope', store)).toBeNull();
+  });
+
+  /**
+   * **Ein Charakter darf eine Figur aus dem Regal sein** (`kaykit:<pfad>`).
+   * Beide Wege durch den Speicher müssen die Id unverändert durchlassen: die
+   * Aufnahme selbst (`npcRecording.readRecording` — sie trägt die Sorte mit,
+   * damit man ihr später ansieht, wer da gespielt hat) und der Eintrag darum
+   * herum. Wer sie unterwegs „repariert", bekommt beim Laden einen Zombie
+   * statt seines Ritters.
+   */
+  it('lässt eine Figur aus dem Regal durch — Eintrag und Aufnahme', () => {
+    const store = memoryStore();
+    const kind = 'kaykit:adventurers/characters/Knight.glb' as const;
+    const saved = saveCharacter({ name: 'Ritter', kind, recording: recording(kind) }, store)!;
+    expect(saved.kind).toBe(kind);
+    const read = characterById(saved.id, store);
+    expect(read?.kind).toBe(kind);
+    expect(read?.recording.kind).toBe(kind);
   });
 
   it('stellt den neuesten nach vorn', () => {

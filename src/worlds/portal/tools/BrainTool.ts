@@ -420,6 +420,13 @@ export class BrainTool extends Tool {
     const host = this.hostRef;
 
     if (index === 0) {
+      // **Durchgeschaltet werden die Vorgaben** und nicht die fünfundachtzig
+      // Figuren des Regals: Wer eine von ihnen gesetzt hat, steht auf keiner
+      // dieser drei Zeilen (`nextIn` findet sie nicht) und landet beim ersten
+      // — das ist der Weg zurück. Ausgesucht wird eine Figur im Menü, wo sie
+      // als Kachel mit ihrem Modell steht (_NPC → Figur aus dem Regal_); eine
+      // Runde durch fünfundachtzig Einträge wäre kein Knopf, sondern eine
+      // Geduldsprobe.
       saveNpcSettings(withKind(settings, nextIn(NPC_KINDS, settings.kind)));
     } else if (index === 1) {
       saveNpcSettings(withBrain(settings, nextIn(BRAIN_IDS, settings.brain)));
