@@ -16,43 +16,14 @@
  * (Die vierte war `navlab/labPhysics.test.ts` — sie lief über die Quader des
  * Navigationslabors und ist mit dieser Welt gegangen.)
  *
- * **Zwei Geschwindigkeiten.** Ein paar Suiten spielen ganze Runden aus —
- * Bot-Runden über die echte 2D-Runde, das Training der Gewichte, Schächte,
- * Glättung von Wegen —, und die kosten zusammen mehrere Minuten (`SLOW`).
- * `npm test` lässt sie aus, damit die vier Prüfungen vor jedem Push in
- * Sekunden durch sind; `npm run test:slow` fährt genau diese Suiten, und die
- * CI tut beides, in getrennten Jobs. Wer an Runde, Bots oder Wegsuche
- * arbeitet, lässt die langsamen selbst laufen, bevor er pusht.
+ * **Eine Geschwindigkeit.** Hier standen einmal zwei: eine Liste `SLOW` mit
+ * vierzehn Suiten, die ganze Runden ausspielten (Bot-Runden, das Training der
+ * Gewichte, Schächte, Glättung), ein zweites Skript `test:slow` und ein
+ * zweiter CI-Job daneben. Zusammen kosteten sie über acht Minuten Rechenzeit
+ * für 214 Tests — und damit mehr als die 4776 Tests dieser Suite, die in gut
+ * einer halben Minute durch sind. Sie sind weg (`docs/agents/tests.md`): Was
+ * hier läuft, läuft in einem Lauf, und `npm test` ist alles, was es gibt.
  */
-const SLOW = [
-  'worlds/haunting/rules/botRound.test.ts',
-  'worlds/haunting/rules/monsterStuck.test.ts',
-  'worlds/haunting/map/flatRound.test.ts',
-  'worlds/haunting/vents/flatVents.test.ts',
-  'worlds/haunting/navmesh/stationSmoothing.test.ts',
-  'worlds/haunting/botTraining.test.ts',
-  'worlds/haunting/navmesh/flatWalk.test.ts',
-  'worlds/haunting/shipArt.test.ts',
-  // Die Kisten prüfen hundert Häuser, und jedes davon muss erst gestellt
-  // werden (`stationLayout`, gut eine fünftel Sekunde je Haus): rund
-  // dreiviertel Minute, die in der schnellen Runde nichts zu suchen hat.
-  'worlds/haunting/rules/cargo.test.ts',
-  // **Nachgemessen, nicht geschätzt.** Die schnelle Suite war auf acht Minuten
-  // gewachsen, ohne dass jemand eine Suite dazu eingeladen hätte: Diese fünf
-  // stellen ganze Schiffe, Häuser und Navigationsnetze und kosten je zehn bis
-  // dreißig Sekunden — zusammen gut anderthalb Minuten. Damit reißen sie die
-  // Zehn-Sekunden-Grenze, die dieses Kapitel selbst aufstellt, und gehen
-  // denselben Weg wie die Rundensimulationen: in den Nebenjob, wo niemand
-  // darauf wartet.
-  'worlds/haunting/ShipExperience.test.ts',
-  'worlds/haunting/navmesh/flatNavigation.test.ts',
-  'worlds/haunting/haunt.test.ts',
-  'worlds/haunting/stationLayout.test.ts',
-  'worlds/haunting/roundSim.test.ts',
-];
-
-const slowOnly = process.env.JEST_SLOW === '1';
-
 module.exports = {
   // The suite does not need a system Watchman service; sandboxed macOS runs
   // must not fail before collecting tests because Watchman's socket is private.
@@ -62,8 +33,8 @@ module.exports = {
   // CSS-Importe gehören zu Vite und nicht zu Jest: Was eine Datei an Stil
   // mitbringt, ist für einen Test nichts (`tools/cssStub.cjs`).
   moduleNameMapper: { '\\.css$': '<rootDir>/tools/cssStub.cjs' },
-  testMatch: slowOnly ? SLOW.map((file) => `<rootDir>/src/${file}`) : ['**/*.test.ts'],
-  testPathIgnorePatterns: slowOnly ? ['/node_modules/'] : ['/node_modules/', ...SLOW],
+  testMatch: ['**/*.test.ts'],
+  testPathIgnorePatterns: ['/node_modules/'],
   transform: {
     '^.+\\.ts$': [
       'ts-jest',

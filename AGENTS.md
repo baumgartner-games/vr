@@ -51,10 +51,10 @@ von Hand, wer findet, dass etwas Großes fertig ist.
 Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
-keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist die **schnelle**
-Suite (unter einer Minute); die Rundensimulationen laufen mit
-`npm run test:slow` (siehe [Tests](docs/agents/tests.md)) — wer an Runde, Bots oder Wegsuche
-arbeitet, lässt sie vor dem Push selbst laufen, die CI tut es in jedem Fall.
+keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist **alles, was es
+gibt** und in gut einer halben Minute durch (4776 Tests) — eine zweite,
+langsame Suite und den CI-Job daneben gab es einmal, sie sind weg (siehe
+[Tests](docs/agents/tests.md)).
 
 ### Sessions, die nicht auf `main` pushen dürfen
 
