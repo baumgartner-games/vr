@@ -386,6 +386,13 @@ export class TestWorld extends GridWorld {
         this.registerProp(entry, id);
         return entry;
       },
+      // **Und nicht geteilt**: Was hier wieder herausgeht, ist nie über das
+      // Netz entstanden. Die Stücke einer zersprungenen Scheibe gibt es nur
+      // dort, wo auch der Treffer gezählt wurde — ein `despawned` an die
+      // anderen wäre eine Nachricht über einen Gegenstand, den sie nie hatten.
+      removeProp: (entry) => {
+        this.removeProp(entry, false);
+      },
       addSolid: (object) => {
         this.solids.push(object);
         return this.physics!.addStatic(object, { membership: GROUP_WORLD, filter: ALL_GROUPS });
