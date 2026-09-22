@@ -25,12 +25,18 @@ import {
 import { fatigueTick, landingBuzz, slipTick, ticksBetween } from '../../climb/gripHaptics';
 import { gripReport, seatOf, type ClimbPose, type HandGrip } from '../../climb/gripQuality';
 import { holdColor, holdLabel, type HoldFeature, type HoldMaterial } from '../../climb/holds';
+import { padBlockField } from '../../climb/padBlocks';
+import { rampStand } from '../../climb/padRamp';
 import { GRAB_AT, SLIP_AT, freshStamina, stepStamina, type Stamina } from '../../climb/stamina';
 import { GRAB_GLOW } from '../../../core/colors';
+import { canLoadModels } from '../../../core/chefFit';
+import { kaykitSkins } from '../../../core/kaykitHeight';
 import { gripAnchor, type ControllerState, type Handedness } from '../../../core/XRInput';
 import type { WorldContext } from '../../../core/types';
 import { ALL_GROUPS, GROUP_WORLD, type PhysicsBody } from '../../../physics/PhysicsWorld';
 import { CLIMB } from '../layout';
+import { PROP_FOOT, propFit } from './propFit';
+import { propMeasure, propPart, propShape } from './propModel';
 import type { TestZone, ZoneHost } from './zone';
 
 /**
@@ -90,6 +96,68 @@ const RAMP_X = CLIMB.x + 2;
 const RAMP_W = 1.6;
 const RAMP_FOOT = PAD.maxZ + 2.2;
 
+/**
+ * **Der Klotz des Sprungkissens** — `block-bits/colored_block_blue.glb`,
+ * „mehrere davon; mit der Eigenschaft, als Kissen zu dienen".
+ *
+ * Der zweite Halbsatz ist die eigentliche Bestellung, und er heißt: Das
+ * Kissen muss weiter **federn**. Körper, Kinematik und die ganze Rechnung in
+ * `climb/crashPad.ts` bleiben deshalb unangetastet; getauscht wird das Bild.
+ * Aus dem einen blauen Quader wird ein **Feld** aus Klötzen, so wie in einer
+ * Halle mehrere Matten nebeneinander liegen und nicht eine genähte von acht
+ * Metern — wie viele und wie groß, rechnet `climb/padBlocks.ts` und prüft der
+ * Test daneben.
+ *
+ * Nachgemessen an der Datei: ein Würfel von 2,000 Quelleinheiten mit dem
+ * Ursprung in der Mitte, halbiert also **1,00 m** — genau die Kachel dieser
+ * Welt, und deshalb geht das Kissen von 8 × 3 m ohne Rest in 24 Klötze je
+ * Lage auf.
+ *
+ * **Und sie stauchen mit.** Das Kissen wird beim Einsinken flacher (`showPad`,
+ * und der Grund steht über `buildPad`), und ein Feld aus Klötzen, das dabei
+ * stehen bliebe, wäre ein Spieler, der in der Luft über einem unveränderten
+ * Kissen steht. Die Klötze hängen deshalb in **einer** Gruppe, die genau das
+ * tut, was der Quader heute tut — eine Zeile Maßstab, und nicht achtundvierzig
+ * einzeln gerechnete.
+ *
+ * **Ein Bündel, und die Zahl dazu**: 8 × 3 × 2 = 48 Klötze zu je 108
+ * Dreiecken. Einzeln wären das achtundvierzig Zeichenaufrufe für ein Kissen —
+ * in der Brille je Auge einmal —, als `InstancedMesh` ist es einer. Dass ein
+ * Bündel mit seiner Gruppe mitskaliert, ist dabei kein Sonderfall: Es hängt
+ * an ihr wie jedes andere Netz auch.
+ */
+const PAD_MODEL = 'block-bits/colored_block_blue.glb';
+
+/**
+ * **Die Rampe zurück hinauf** — `prototype-bits/Primitive_Slope.glb`.
+ *
+ * Nachgemessen an der Datei: ein Prisma von 4,000 Quelleinheiten in jeder
+ * Richtung mit dem Fuß auf null, bei Paketmaßstab 0,7 also 2,80 m und eine
+ * Steigung von 1:1. Die hohe Kante liegt auf `x = −2`, die Fußkante auf
+ * `x = +2`; es fällt also in seine eigene +x-Richtung, und das ist die eine
+ * Beobachtung, aus der `climb/padRamp.ts` seine Vierteldrehung nimmt.
+ *
+ * **Die gebaute Rampe ist viel flacher**: 1,40 m Höhe auf 2,20 m Lauflänge,
+ * also 32,5° statt 45°. Eingepasst wird deshalb **je Achse einzeln**
+ * (`propFit.ts`) — 2,20 × 1,40 × 1,60 —, und das ist hier nicht bloß erlaubt,
+ * sondern die einzige Art, die stimmt: Eine ungleichmäßige Skalierung bildet
+ * eine Ebene wieder auf eine Ebene ab, die Schräge des Keils liegt danach also
+ * **überall** auf der Lauffläche des Quaders und nicht nur an den Enden.
+ *
+ * **`Primitive_Slope_Half.glb` wäre das gewesen, was es nicht ist.** Auch
+ * nachgemessen, denn der Name legt „halb so hoch bei gleicher Länge" nahe: In
+ * Wirklichkeit ist es ein Stück mit einem **flachen Deckel** — von der hohen
+ * Kante bis zur Mitte läuft es auf voller Höhe waagerecht und fällt erst
+ * danach, und es endet unten nicht auf null, sondern auf halber Höhe. Sein
+ * Deckel läge damit **über** der Lauffläche, und man liefe die halbe Rampe
+ * hinauf im Modell statt darauf. Der einfache Keil trifft die Ebene exakt und
+ * kostet acht Dreiecke.
+ *
+ * **Der Körper bleibt der gekippte Quader** (`crashPad.rampBox`): Auf ihm
+ * läuft man, an ihm hängt der Autostep. Der Keil ist das Bild darüber.
+ */
+const RAMP_MODEL = 'prototype-bits/Primitive_Slope.glb';
+
 /** Wie weit eine Hand neben einem Griff noch zupacken darf. */
 const REACH = 0.16;
 /** Wie schnell der Zug den Körper höchstens bewegt und wie weich er dabei ist. */
@@ -142,6 +210,21 @@ interface Hold {
   half: number;
   radius: number;
   normal: THREE.Vector3;
+}
+
+/**
+ * **Das Sprungkissen**, so wie die Zone es in der Hand hält: der gerechnete
+ * Quader, der Körper darunter, die Gruppe mit den Klötzen darüber und der
+ * Zustand seiner Feder.
+ *
+ * `mesh` und `blocks` sind dabei zwei Bilder desselben Dings und nie beide zu
+ * sehen — welches, entscheidet allein, ob die Datei ankam (`showBlocks`).
+ */
+interface Pad {
+  mesh: THREE.Mesh;
+  body: PhysicsBody;
+  blocks: THREE.Group;
+  spring: PadSpring;
 }
 
 /** Eine Hand, die gerade hängt. */
@@ -233,6 +316,8 @@ const _seat = new THREE.Vector3();
 const _drop = new THREE.Vector3();
 const _cushion = new THREE.Vector3();
 const _down = new THREE.Vector3(0, -1, 0);
+/** Wiederverwendet statt je Klotz neu — achtundvierzig Matrizen sind achtundvierzig. */
+const _at = new THREE.Matrix4();
 
 export class ClimbZone implements TestZone {
   private readonly holds: Hold[] = [];
@@ -243,13 +328,15 @@ export class ClimbZone implements TestZone {
   private readonly owned: THREE.Material[] = [];
   private readonly shapes = new Map<WallFeature, THREE.BufferGeometry>();
   private readonly extra: THREE.BufferGeometry[] = [];
+  /** Das Bündel der Kissenklötze — sein Matrizenpuffer will beim Abräumen zurück. */
+  private readonly bundles: THREE.InstancedMesh[] = [];
 
   private stamina: Stamina = freshStamina();
   private hud: ClimbHud | null = null;
   private lockedByUs = false;
 
-  /** Das Kissen, seine Feder und der Sprung, der gerade darin ausläuft. */
-  private pad: { mesh: THREE.Mesh; body: PhysicsBody; spring: PadSpring } | null = null;
+  /** Das Kissen, seine Klötze, seine Feder und der Sprung, der darin ausläuft. */
+  private pad: Pad | null = null;
   private landing: { slideX: number; slideZ: number; time: number } | null = null;
   /** Das höchste Falltempo seit dem letzten Bodenkontakt, in m/s. */
   private fell = 0;
@@ -339,6 +426,14 @@ export class ClimbZone implements TestZone {
     this.lit.clear();
     this.holds.length = 0;
     this.pad = null;
+    // **Erst die Bündel, dann alles Übrige**: Ein `InstancedMesh` hält mehr
+    // als Netz und Material — sein `instanceMatrix` ist ein Puffer auf der
+    // Grafikkarte und kommt nur über `dispose()` zurück.
+    for (const bundle of this.bundles) {
+      bundle.removeFromParent();
+      bundle.dispose();
+    }
+    this.bundles.length = 0;
     for (const material of this.owned) material.dispose();
     this.owned.length = 0;
     this.skins.clear();
@@ -427,7 +522,23 @@ export class ClimbZone implements TestZone {
       friction: 0.95,
       restitution: 0,
     });
-    this.pad = { mesh, body, spring: padAtRest() };
+
+    /**
+     * **Die Klötze hängen neben dem Quader und nicht an ihm** (`PAD_MODEL`).
+     *
+     * Ein Kind wäre bequemer — es erbte den Maßstab der Stauchung von selbst —,
+     * aber eben auch die **Sichtbarkeit**: Wer den Quader ausschaltet, sobald
+     * das Modell da ist, schaltete seine Klötze gleich mit aus. Also eine
+     * eigene Gruppe an derselben Stelle, die in `showPad` dieselben zwei Zeilen
+     * bekommt.
+     */
+    const blocks = new THREE.Group();
+    blocks.name = 'crash-pad-blocks';
+    blocks.position.copy(mesh.position);
+    world.root.add(blocks);
+
+    this.pad = { mesh, body, blocks, spring: padAtRest() };
+    this.fillPadBlocks(mesh, blocks);
 
     /**
      * Die Rampe zurück hinauf: ein flach gekippter Quader, dessen
@@ -446,6 +557,119 @@ export class ClimbZone implements TestZone {
     world.root.add(ramp);
     ramp.updateWorldMatrix(true, false);
     world.addSolid(ramp);
+    this.fillRamp(world, ramp);
+  }
+
+  /**
+   * **Die Klötze holen** — sofort nichts, später vielleicht etwas.
+   *
+   * Gebaut wird **synchron**, das Modell kommt über die Leitung; bis es da ist
+   * — und in einem Checkout ohne die gekauften Pakete für immer — liegt der
+   * gerechnete Quader da und federt, wie er immer federte. Das ist der normale
+   * Ausgang und keine Notlösung. **Ohne WebGL passiert gar nichts**
+   * (`core/chefFit.canLoadModels`): In Jest zieht `GLTFLoader` samt
+   * `import.meta` den ganzen Lauf mit herein, und was an diesem Kissen geprüft
+   * wird, ist die Feder und kein Netz (`climb/crashPad.test.ts`).
+   */
+  private fillPadBlocks(mesh: THREE.Mesh, blocks: THREE.Group): void {
+    if (!canLoadModels()) return;
+    void import('../../../core/kaykitModel').then(async (module) => {
+      const model = await module.kaykitModel(PAD_MODEL);
+      if (model) this.showBlocks(mesh, blocks, model);
+    });
+  }
+
+  /**
+   * **Aus der Kopie wird das Feld** — ein Bündel aus achtundvierzig Klötzen in
+   * der Gruppe, die mitstaucht.
+   *
+   * Drei Wege enden hier ohne Klötze, und alle drei sind normal: Die Zone ist
+   * abgeräumt, während die Datei unterwegs war; die Datei gibt kein Bündel her
+   * (`propPart`: ein Netz, ein Material); ihr Netz ist leer. Dann bleibt der
+   * blaue Quader stehen, und die **Materialien** der Kopie gehen weg — sie
+   * gehören ihr allein (`core/kaykitModel.copyOf`), während ihre Geometrie der
+   * Vorlage gehört und deshalb nur **kopiert** ins Bündel wandert
+   * (`propShape`).
+   */
+  private showBlocks(mesh: THREE.Mesh, blocks: THREE.Group, model: THREE.Object3D): void {
+    const part = propPart(model);
+    const box = propMeasure(model);
+    if (!this.world || !part || !box) {
+      for (const skin of kaykitSkins(model)) skin.dispose();
+      return;
+    }
+    // **Das Fach rechnet die Zone, die Größe misst das Netz.** Der Würfel der
+    // Datei ist zufällig genau einen Meter groß; verlassen wird sich darauf
+    // nicht (siehe `PAD_MODEL`).
+    const field = padBlockField(PAD, PAD_HEIGHT);
+    const shape = this.keep(propShape(part.mesh, propFit(box, field.size)));
+    const bundle = new THREE.InstancedMesh(shape, this.own(part.skin), field.spots.length);
+    bundle.name = 'crash-pad-blocks:bundle';
+    field.spots.forEach((spot, i) => {
+      _at.makeTranslation(spot.x, spot.y, spot.z);
+      bundle.setMatrixAt(i, _at);
+    });
+    bundle.instanceMatrix.needsUpdate = true;
+    // Ohne diese Zeile rechnet three die Hülle aus einem einzigen Klotz am
+    // Nullpunkt und siebte das halbe Kissen weg, sobald man daneben steht.
+    bundle.computeBoundingSphere();
+    blocks.add(bundle);
+    this.bundles.push(bundle);
+
+    // Erst jetzt, und nicht vorher: Ein Quader, der verschwindet, bevor die
+    // Klötze hängen, ist ein Loch, in das man fällt — jedenfalls dem Auge nach.
+    mesh.visible = false;
+  }
+
+  /**
+   * **Den Keil über die gebaute Rampe legen** — dieselbe Vorsicht wie beim
+   * Kissen, aus denselben Gründen.
+   *
+   * Anders als dort ist es hier **ein** Stück und kein Bündel: Das Modell
+   * selbst wird eingepasst und in eine Gruppe gehängt, die es dreht und
+   * hinstellt (`climb/padRamp.ts`). Der gekippte Quader darunter bleibt
+   * liegen — er ist der Körper und der Eintrag in der Abtastliste —, er wird
+   * nur nicht mehr gezeichnet.
+   */
+  private fillRamp(world: ZoneHost, ramp: THREE.Mesh): void {
+    if (!canLoadModels()) return;
+    void import('../../../core/kaykitModel').then(async (module) => {
+      const model = await module.kaykitModel(RAMP_MODEL);
+      if (model) this.showRamp(world, ramp, model);
+    });
+  }
+
+  private showRamp(world: ZoneHost, ramp: THREE.Mesh, model: THREE.Object3D): void {
+    const box = propMeasure(model);
+    if (!this.world || !box) {
+      for (const skin of kaykitSkins(model)) skin.dispose();
+      return;
+    }
+    const place = rampStand(RAMP_X, PAD.maxZ, RAMP_FOOT, RAMP_W);
+    // **Mit dem Fuß auf dem Boden** (`PROP_FOOT`): Der Keil steht auf dem
+    // Hallenboden, und seine hohe Kante trifft die Kissenkante — das ist
+    // dieselbe Ebene, die auch die Oberseite des Quaders bildet, und der Test
+    // in `climb/padRamp.test.ts` rechnet beide gegeneinander.
+    const fit = propFit(box, place.size, PROP_FOOT);
+    model.scale.set(
+      model.scale.x * fit.scale.x,
+      model.scale.y * fit.scale.y,
+      model.scale.z * fit.scale.z,
+    );
+    model.position.set(fit.shift.x, fit.shift.y, fit.shift.z);
+
+    const stand = new THREE.Group();
+    stand.name = 'crash-pad-ramp:model';
+    stand.rotation.y = place.yaw;
+    stand.position.set(place.at.x, place.at.y, place.at.z);
+    stand.add(model);
+    world.root.add(stand);
+
+    // Die Materialien der Kopie gehören ihr allein und müssen weg; ihre
+    // Geometrie gehört der Vorlage und darf es nicht (`disposeTree` hält an
+    // `userData.sharedAssets` an und lässt dann auch die Materialien liegen).
+    for (const skin of kaykitSkins(model)) this.own(skin);
+    ramp.visible = false;
   }
 
   // --- klettern -------------------------------------------------------------
@@ -837,11 +1061,19 @@ export class ClimbZone implements TestZone {
    * Beides bleibt dabei bündig, weil der Collider seine **volle** Höhe behält
    * und nur um die Einsinktiefe nach unten geht — seine Oberkante liegt damit
    * genau dort, wo auch die des gestauchten Quaders liegt.
+   *
+   * **Und die Klötze bekommen dieselben zwei Zeilen** (`PAD_MODEL`). Sie
+   * hängen an einer eigenen Gruppe, die an derselben Stelle steht wie der
+   * Quader; ein Feld aus achtundvierzig Klötzen wird damit genauso flach wie
+   * der eine Quader vorher, ohne dass irgendwo eine zweite Federrechnung
+   * entsteht.
    */
-  private showPad(pad: { mesh: THREE.Mesh; body: PhysicsBody; spring: PadSpring }): void {
+  private showPad(pad: Pad): void {
     const height = PAD_HEIGHT - pad.spring.sink;
     pad.mesh.scale.y = height / PAD_HEIGHT;
     pad.mesh.position.y = height / 2;
+    pad.blocks.scale.y = pad.mesh.scale.y;
+    pad.blocks.position.y = pad.mesh.position.y;
     pad.body.body.setNextKinematicTranslation({
       x: (PAD.minX + PAD.maxX) / 2,
       y: PAD_HEIGHT / 2 - pad.spring.sink,

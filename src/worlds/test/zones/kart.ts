@@ -30,6 +30,8 @@ import { shortestAngle, showsDashboard, stepViewYaw } from '../../kart/kartView'
 import { TextPlane } from '../../../ui/TextPlane';
 import { LAYER_HUD } from '../../../ui/ScoreHud';
 import type { MenuEntry } from '../../../ui/menu';
+import { canLoadModels } from '../../../core/chefFit';
+import { kaykitSkins } from '../../../core/kaykitHeight';
 import { playPick, playTone } from '../../../core/Audio';
 import { gripAnchor, type Handedness } from '../../../core/XRInput';
 import { visorFrame } from '../../../core/headgear';
@@ -41,6 +43,8 @@ import {
   GROUP_WORLD,
   type PhysicsBody,
 } from '../../../physics/PhysicsWorld';
+import { propFit } from './propFit';
+import { propMeasure, propPart, propShape } from './propModel';
 import type { TestZone, ZoneHost } from './zone';
 
 /**
@@ -77,6 +81,64 @@ const HALF_WIDTH = KART_COURSE.halfWidth;
 const BARRIER_SPACING = 4.5;
 /** Und wie weit außerhalb des Asphalts sie sitzen. */
 const BARRIER_OFFSET = 1.1;
+
+/**
+ * **Wie groß ein Stein der Bande ist**, in Metern — ein Meter im Quadrat,
+ * 60 cm hoch.
+ *
+ * Die Maße standen bis hierher dreimal in `buildBarriers` herum: in der
+ * Geometrie, als halbe Höhe unter dem unsichtbaren Kasten und noch einmal als
+ * halbe Höhe unter dem Bündel. Sie stehen jetzt hier, weil ein **vierter**
+ * Leser dazugekommen ist — das Regalmodell wird in genau diesen Kasten
+ * eingepasst (`propFit.ts`) —, und eine Zahl mit vier Lesern, die viermal
+ * dasteht, ist eine, die beim nächsten Mal an drei Stellen geändert wird.
+ */
+const BARRIER_SIZE = { x: 1, y: 0.6, z: 1 } as const;
+
+/**
+ * **Der Stein am Streckenrand** — `block-bits/bricks_B.glb`. Er ersetzt das
+ * Bild und nicht den Körper.
+ *
+ * Gemeint sind die **Reifenstapel**, wie sie im Rest des Projekts heißen
+ * (`kart/kartTrack.ts`, `docs/agents/waffe-und-kart.md`): Ein Stapel waren sie
+ * nie, sondern ein anthrazitfarbener Quader, und seit diesem Tausch sind sie
+ * ein Stein. Der Name bleibt, damit man beides noch findet.
+ *
+ * Bestellt („die schwarzen Steine können durch Block B ersetzt werden") und
+ * nachgemessen an der Datei: ein Würfel von 2,000 Quelleinheiten mit dem
+ * Ursprung in seiner **Mitte**, halbiert wie alles aus dieser Werkstatt
+ * (`core/kaykitFit.KAYKIT_SCALE`), also 1,00 m in jeder Richtung. Der Stein
+ * hier ist 1 × 0,6 × 1 — die Grundfläche passt auf den Zentimeter, die Höhe
+ * nicht.
+ *
+ * **Also wird die Höhe gestaucht und nicht der ganze Würfel.** Drei Wege gab
+ * es, und zwei scheiden an einer Zahl aus:
+ *
+ * - **Gleichmäßig auf 0,60 m verkleinern.** Dann ist der Stein auch nur 0,60 m
+ *   **breit** und steht 20 cm schmaler da als der Körper, der ihn trägt. Ein
+ *   Bild, das kleiner ist als sein Körper, ist ein Hindernis, gegen das man
+ *   läuft, bevor man es sieht — an einer Strecke, auf der mit 60 km/h gefahren
+ *   wird, ist das kein Schönheitsfehler.
+ * - **Den Körper auf die natürlichen 1,00 m bringen.** Dann wandern die
+ *   `BARRIER_SIZE` und der Collider mit, und die Bande wird um zwei Drittel
+ *   höher. Das ist keine Frage des Bildes mehr, sondern eine Änderung daran,
+ *   was ein Kart trifft und was ein Fahrer über den Rand hinweg sieht. Genau
+ *   das soll ein Modelltausch nicht tun.
+ * - **Je Achse einpassen** (`propFit.ts`): 1,00 × 0,60 × 1,00, das Bild
+ *   deckungsgleich mit dem Körper, und keine Zahl der Strecke bewegt sich. Der
+ *   Preis sind Ziegelreihen, die 40 % flacher sind als beim Zeichner — das
+ *   merkt im Vorbeifahren niemand, die Lücke zwischen Bild und Körper hätte
+ *   jeder gemerkt.
+ *
+ * **Und es bleibt ein Bündel.** 45 Steine stehen um die Strecke, 844 Dreiecke
+ * hat einer: als Einzelmodelle fünfundvierzig Zeichenaufrufe, in der Brille je
+ * Auge einmal — dieselbe Geschichte wie bei den Randsteinen (`buildKerbs`).
+ * Die Datei bringt dafür mit, was ein Bündel verlangt: **ein** Netz und
+ * **ein** Material. Nachgesehen wird das trotzdem (`propPart`), und wenn die
+ * nächste Version des Pakets zwei daraus macht, bleiben die gebauten Quader
+ * stehen.
+ */
+const BARRIER_MODEL = 'block-bits/bricks_B.glb';
 /**
  * Wie weit Randstein und Reifenstapel von der Boxengasse wegbleiben.
  *
@@ -920,19 +982,24 @@ export class KartZone implements TestZone {
   }
 
   /**
-   * Reifenstapel außerhalb der Randsteine — fest, damit niemand vom Feld läuft.
+   * Die Bande außerhalb der Randsteine — fest, damit niemand vom Feld läuft.
    *
-   * **Gezeichnet als ein Bündel, angefasst als einzelne Kästen.** Ein Stapel
+   * **Gezeichnet als ein Bündel, angefasst als einzelne Kästen.** Ein Stein
    * ist ein Körper in der Physik und ein Eintrag in der Abtastliste der Welt
    * (`ZoneHost.addSolid`) — beides braucht ein eigenes Objekt mit eigener
    * Stelle. Beides braucht aber **nicht**, dass es auch gezeichnet wird: three
    * prüft beim Abtasten keine Sichtbarkeit, beim Zeichnen dagegen schon. Also
    * stehen die Kästen unsichtbar da, wo sie stehen, und gesehen wird das
    * Bündel.
+   *
+   * **Und das Bündel wird später getauscht**, nicht der Kasten: Bis das
+   * Regalmodell da ist (`fillBarriers`), steht hier der gerechnete Quader in
+   * seinem Anthrazit, und in einem Checkout ohne die gekauften Pakete steht er
+   * für immer.
    */
   private buildBarriers(world: ZoneHost): void {
     const tyre = this.own(new THREE.MeshStandardMaterial({ color: 0x1b1e26, roughness: 0.95 }));
-    const shape = this.shape(new THREE.BoxGeometry(1, 0.6, 1));
+    const shape = this.shape(new THREE.BoxGeometry(BARRIER_SIZE.x, BARRIER_SIZE.y, BARRIER_SIZE.z));
     const spots = trimSpots({
       path: this.path,
       lapLength: this.lapLength,
@@ -942,7 +1009,7 @@ export class KartZone implements TestZone {
     });
     for (const spot of spots) {
       const stack = new THREE.Mesh(shape, tyre);
-      stack.position.set(spot.x, 0.3, spot.z);
+      stack.position.set(spot.x, BARRIER_SIZE.y / 2, spot.z);
       stack.rotation.y = spot.yaw;
       stack.visible = false;
       denyOutline(stack);
@@ -950,8 +1017,76 @@ export class KartZone implements TestZone {
       stack.updateWorldMatrix(true, false);
       world.addSolid(stack);
     }
-    const batch = this.batch(shape, tyre, spots, 0.3);
+    const batch = this.batch(shape, tyre, spots, BARRIER_SIZE.y / 2);
     if (batch) world.root.add(batch);
+    this.fillBarriers(world, spots, batch);
+  }
+
+  /**
+   * **Das Modell holen und das gebaute Bündel ablösen** — sofort nichts,
+   * später vielleicht etwas.
+   *
+   * Der Aufbau ist **synchron**, das Modell kommt über die Leitung; dazwischen
+   * liegt genau diese Funktion, und dasselbe Muster steht an der Druckplatte
+   * (`worlds/grid/fixtures/plate.ts`) und unter dem Plattenboden
+   * (`worlds/shared/plateFloor.ts`). **Ohne WebGL passiert gar nichts**
+   * (`core/chefFit.canLoadModels`): In Jest zieht `GLTFLoader` samt
+   * `import.meta` den ganzen Lauf mit herein, und was an dieser Zone geprüft
+   * wird — Strecke, Lenkung, Rundenzeit —, braucht kein Netz.
+   */
+  private fillBarriers(
+    world: ZoneHost,
+    spots: readonly TrimSpot[],
+    built: THREE.InstancedMesh | null,
+  ): void {
+    if (!canLoadModels() || spots.length === 0) return;
+    void import('../../../core/kaykitModel').then(async (module) => {
+      const model = await module.kaykitModel(BARRIER_MODEL);
+      if (model) this.swapBarriers(world, spots, built, model);
+    });
+  }
+
+  /**
+   * **Aus der Kopie wird das Bündel** — und die gebauten Quader bleiben stehen,
+   * wenn sie es nicht hergibt.
+   *
+   * Drei Wege enden hier ohne Modell, und alle drei sind ein **normaler**
+   * Ausgang: Die Zone ist abgeräumt, während die Datei unterwegs war; die
+   * Datei hat nicht genau ein Netz mit genau einem Material (`propPart`); ihr
+   * Netz ist leer. In allen drei Fällen ist die Kopie schon gebaut, und ihre
+   * **Materialien** gehören ihr allein (`core/kaykitModel.copyOf`) — sie gehen
+   * hier weg und nicht erst, wenn niemand mehr weiß, dass es sie gab. Die
+   * **Geometrie** dagegen gehört der Vorlage und wird nie freigegeben; was
+   * unten ins Bündel wandert, ist deshalb eine **Kopie** (`propShape`).
+   */
+  private swapBarriers(
+    world: ZoneHost,
+    spots: readonly TrimSpot[],
+    built: THREE.InstancedMesh | null,
+    model: THREE.Object3D,
+  ): void {
+    const part = propPart(model);
+    const box = propMeasure(model);
+    if (!this.world || !part || !box) {
+      for (const skin of kaykitSkins(model)) skin.dispose();
+      return;
+    }
+    // **Erst gemessen, dann gerechnet** — die Maße aus der Datei stehen oben
+    // als Beleg für die Auswahl und nicht als Eingabe für diese Zeile.
+    const shape = this.shape(propShape(part.mesh, propFit(box, BARRIER_SIZE)));
+    const batch = this.batch(shape, this.own(part.skin), spots, BARRIER_SIZE.y / 2);
+    if (!batch) return;
+    world.root.add(batch);
+
+    // Das gebaute Bündel geht jetzt, und zwar ganz: Sein Matrizenpuffer liegt
+    // auf der Grafikkarte und kommt nur über `dispose()` zurück. Seine
+    // **Geometrie** bleibt — auf ihr stehen die unsichtbaren Kästen, die die
+    // Physik anfasst.
+    if (!built) return;
+    const at = this.batches.indexOf(built);
+    if (at >= 0) this.batches.splice(at, 1);
+    built.removeFromParent();
+    built.dispose();
   }
 
   /** Aus einer Liste von Plätzen ein Bündel — oder `null`, wenn keiner übrig ist. */
