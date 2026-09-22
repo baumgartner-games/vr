@@ -4,12 +4,14 @@ import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolidKind } from '../grid/solids';
 import { createSky } from '../shared/environment';
 import { DustTrail } from '../shared/dustTrail';
+import { PlateFloor } from '../shared/plateFloor';
+import { TILE } from '../nav/navTile';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { npcSkin } from '../npc/npcKinds';
-import { HORIZON_COLORS, KITCHEN_SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
+import { FIELD, HORIZON_COLORS, KITCHEN_SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
 import { spawnAt } from './spawnAt';
 import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
@@ -69,6 +71,19 @@ export class TestWorld extends GridWorld {
    * anfinge, wäre ein Effekt, dessen Regel man erraten müsste.
    */
   private dust: DustTrail | null = null;
+
+  /**
+   * **Der Plattenboden draußen** (`shared/plateFloor.ts`) — die Schürze aus
+   * `Floor_Prototype`-Platten um das Gelände herum.
+   *
+   * Er hängt an der **Testwelt** und nicht an der Basis, obwohl er in
+   * `worlds/shared/` wohnt, und das ist die Antwort auf die Frage, wem er
+   * gehört: Er braucht ein **Gelände**, um das er herumgelegt werden kann
+   * (`layout.FIELD`) — und eine Welt ohne diese Kulisse, das Portal-Labor oder
+   * der Editor, hat keines und soll sich auch nicht ändern. Die Datei nebenan
+   * ist deshalb ein Angebot, und diese Welt ist die, die es bestellt.
+   */
+  private plates: PlateFloor | null = null;
 
   protected override worldId(): string {
     return 'test';
@@ -253,6 +268,26 @@ export class TestWorld extends GridWorld {
     const host = this.zoneHost();
     for (const zone of this.zones) zone.build(ctx, host);
     this.dust ??= new DustTrail(this.root);
+    // **Und der Boden draußen bekommt Platten** (`shared/plateFloor.ts`).
+    //
+    // Hier und nicht in `buildEnvironment`, obwohl eine Schürze Kulisse ist
+    // und keine Requisite: Der Riegel drei Zeilen weiter oben ist zugleich der
+    // Unterschied zwischen der laufenden Welt und einer **Vorschau** — in
+    // `PortalWorld.preview` steht kein `context`, und deshalb bauen dort schon
+    // die Zonen und der Staub nicht. Für das Standbild auf der Werkzeugseite
+    // sind viertausend Platten zu viel, und aufgeräumt wird eine Vorschau
+    // allein mit `disposeTree` — das die Instanzpuffer eines Bündels gar nicht
+    // kennt.
+    //
+    // **In Metern und nicht in Kacheln**: `FIELD` steht im Kachelgitter, und
+    // dass eine Kachel ein Meter ist, sagt `nav/navTile.TILE` und nicht diese
+    // Zeile.
+    this.plates ??= new PlateFloor(this.root, {
+      x: FIELD.x * TILE,
+      z: FIELD.z * TILE,
+      w: FIELD.w * TILE,
+      d: FIELD.d * TILE,
+    });
   }
 
   override update(dt: number, ctx: WorldContext): void {
@@ -359,6 +394,12 @@ export class TestWorld extends GridWorld {
     for (const zone of this.zones) zone.dispose();
     this.dust?.dispose();
     this.dust = null;
+    // **Vor `super.dispose`**, und das ist bei den Platten keine Stilfrage:
+    // Dort räumt am Ende `disposeTree` auf, und das kennt weder die
+    // Instanzpuffer eines Bündels noch die Reihenfolge, in der sie weg müssen
+    // (`shared/plateFloor.PlateFloor.dispose`).
+    this.plates?.dispose();
+    this.plates = null;
     super.dispose(ctx);
   }
 
