@@ -1737,8 +1737,9 @@ export abstract class GridWorld extends PortalWorld {
    * (`blocks.blockModelSpot`). Die Gruppe, die der Lader zurückgibt, trägt den
    * Maßstab ihres Pakets schon (`core/kaykitFit.kaykitScale`); was hier
    * dazukommt, ist die Umrechnung auf die Höhe des Bausteins und die Breite
-   * seiner Kachel. Eine abgeschriebene Zahl wäre die, die nach dem nächsten
-   * Paket-Update danebenliegt und die niemand nachrechnet.
+   * seiner Kachel — und bei Theke und Treppe auf seine Tiefe dazu. Eine
+   * abgeschriebene Zahl wäre die, die nach dem nächsten Paket-Update
+   * danebenliegt und die niemand nachrechnet.
    */
   private fillBlockModel(group: THREE.Group, place: BlockPlacement, file: string): void {
     const round = this.blockModelRound;
@@ -1789,7 +1790,12 @@ export abstract class GridWorld extends PortalWorld {
       holder.name = `block:${place.kind}`;
       holder.position.set(spot.x, spot.y, spot.z);
       holder.rotation.y = spot.yaw;
-      holder.scale.setScalar(spot.scale);
+      // **Drei Faktoren und nicht einer** (`blocks.BlockModelSpot.scale`): Bei
+      // einem Möbel sind sie derselbe, bei Theke und Treppe nicht — dort wird
+      // je Achse in die gebaute Form eingepasst, weil es auf die Form ankommt
+      // und nicht auf die Proportion. Der Maßstab wirkt in den Achsen des
+      // Modells und vor der Drehung, und genau so ist er gerechnet.
+      holder.scale.set(spot.scale.x, spot.scale.y, spot.scale.z);
       // Auf welcher Etage es steht — von oben verschwindet es mit ihr
       // (`core/cutaway.ts`).
       holder.userData.level = level;
