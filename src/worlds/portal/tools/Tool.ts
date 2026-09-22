@@ -692,14 +692,40 @@ export function grabMaterial(
   });
 }
 
-/** Disposes every geometry and material below an object. */
+/**
+ * **Gibt jede Geometrie und jedes Material unter einem Objekt frei — außer
+ * unter einer Marke `sharedAssets`.**
+ *
+ * Die Ausnahme ist dieselbe wie in `worlds/shared/environment.disposeTree`
+ * und aus demselben Grund, und sie steht hier, weil sie hier **zum dritten
+ * Mal** gebraucht wurde: Ein Modell aus dem KayKit-Regal ist die Kopie einer
+ * Vorlage, die im Speicher liegen bleibt (`core/kaykitModel.copyOf`). Die
+ * **Geometrie** gehört der Vorlage und allen anderen Kopien; wer sie beim
+ * Wegräumen **eines** Werkzeugs freigibt, nimmt sie allen anderen weg — auch
+ * der Vorlage, aus der das nächste gebaut würde. Die **Materialien** klont
+ * jede Kopie für sich und gibt sie selbst wieder her.
+ *
+ * Zweimal hat genau das schon wehgetan, beide Male an einer anderen Stelle:
+ * `GridWorld.disposeShapes` hielt an der Marke nicht an, und
+ * `SignBoard.dispose` lief mit `traverse` über alles. Seit die Pistole ihr
+ * Netz aus dem Regal holt (`tools/pistolModel.ts`), wäre das hier der dritte
+ * Fall gewesen — dort wird das Modell deshalb vor dem Abräumen abgehängt. Das
+ * ist Vorsicht an der falschen Stelle: Der Handgriff, der freigibt, soll die
+ * Marke kennen, und nicht jeder, der ihn ruft.
+ *
+ * **Eine eigene Rekursion statt `traverse`**, aus demselben Grund wie drüben:
+ * Ein `return` in einem `traverse` überspringt nur den Knoten selbst, nicht
+ * seine Kinder — und die geteilten Netze hängen gerade **unter** dem
+ * markierten Knoten.
+ */
 export function disposeToolTree(object: THREE.Object3D): void {
-  object.traverse((child) => {
-    const mesh = child as THREE.Mesh;
-    if (!mesh.isMesh) return;
+  if ((object.userData as { sharedAssets?: boolean }).sharedAssets) return;
+  const mesh = object as Partial<THREE.Mesh> & THREE.Object3D;
+  if (mesh.isMesh === true) {
     mesh.geometry?.dispose();
-    const material = mesh.material as THREE.Material | THREE.Material[];
+    const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
     if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
     else material?.dispose();
-  });
+  }
+  for (const child of object.children) disposeToolTree(child);
 }

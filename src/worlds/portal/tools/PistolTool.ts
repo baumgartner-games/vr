@@ -385,13 +385,13 @@ export class PistolTool extends Tool {
     this.gone = true;
     for (const sight of this.sights.values()) sight.disposeAttachment();
     this.sights.clear();
-    // **Erst das Modell abhängen, dann aufräumen.** `disposeToolTree` gibt
-    // jede Geometrie unter dem Werkzeug frei — und die einer Regalkopie gehört
-    // der **Vorlage** im Speicher und allen anderen Kopien (`kaykitModel`,
-    // `userData.sharedAssets`). Genau dieser Fehler hat in diesem Projekt schon
-    // zweimal wehgetan (`environment.disposeShapes`, `SignBoard.dispose`, siehe
-    // `docs/agents/modelle.md`); hier kostet er eine Zeile Reihenfolge. Die
-    // **Materialien** dagegen gehören der Kopie allein und müssen weg.
+    // **Das Modell wird abgehängt und seine Materialien gehen weg.** Die
+    // **Geometrie** gehört der Vorlage im Speicher und allen anderen Kopien
+    // (`kaykitModel`, `userData.sharedAssets`) und bleibt liegen — darauf
+    // achtet inzwischen `disposeToolTree` selbst, es hält an der Marke an wie
+    // `environment.disposeTree`. Das Abhängen hier ist deshalb keine
+    // Vorsichtsmaßnahme mehr, sondern schlicht das, was es sagt: Das Modell
+    // gehört nicht mehr zu diesem Werkzeug.
     this.gun?.removeFromParent();
     this.gun = null;
     for (const skin of this.gunSkins) skin.dispose();
