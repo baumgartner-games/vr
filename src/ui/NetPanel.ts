@@ -10,6 +10,7 @@ import type { App } from '../core/App';
 import type { SpectatorMode } from '../net/SpectatorCamera';
 import type { SignalingStrategy } from '../net/TrysteroTransport';
 import { chatTranscript, formatChatTime, type ChatEntry } from '../net/chat';
+import { COPY_FALLBACK, copyText } from './clipboard';
 import type { NetStatus } from '../net/types';
 
 const STORAGE_STRATEGY = 'bgvr:strategy';
@@ -411,18 +412,14 @@ export class NetPanel {
 
   /**
    * In die Zwischenablage — und wenn der Browser das verbietet, wenigstens
-   * markiert. Ohne Fokus oder ohne `https` gibt es `navigator.clipboard`
-   * nämlich schlicht nicht, und dann ist „ging nicht" die schlechteste aller
-   * Antworten auf einen Knopf namens *Kopieren*.
+   * markiert (`ui/clipboard.ts`). Der Handgriff selbst steht dort und nicht
+   * mehr hier: Der Katalog hat denselben Knopf, und zwei Fassungen derselben
+   * Ersatzantwort laufen beim ersten Nachbessern auseinander. Was hier bleibt,
+   * ist die Meldung — die kennt nur dieses Panel.
    */
   private async toClipboard(text: string, done: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text);
-      this.setMessage(done);
-    } catch {
-      this.setMessage('Kopieren ging nicht — Text ist markiert, Strg+C.', true);
-      selectText(text);
-    }
+    if (await copyText(text)) this.setMessage(done);
+    else this.setMessage(COPY_FALLBACK, true);
   }
 
   private mirror(inputs: HTMLInputElement[], source: HTMLInputElement): void {
@@ -467,10 +464,12 @@ export class NetPanel {
   private async copyLink(): Promise<void> {
     const url = new URL(window.location.href);
     url.searchParams.set('room', normalizeRoomCode(this.room));
-    try {
-      await navigator.clipboard.writeText(url.toString());
+    // Denselben Weg wie jeder andere Knopf *Kopieren* hier — nur die Notzeile
+    // ist eine andere: Ein Link, den man nicht kopieren kann, will wenigstens
+    // dastehen, damit ihn jemand abtippen oder anlangen kann.
+    if (await copyText(url.toString())) {
       this.setMessage('Link kopiert — auf dem anderen Gerät öffnen.');
-    } catch {
+    } else {
       this.setMessage(url.toString());
     }
   }
@@ -491,24 +490,6 @@ export class NetPanel {
 
 /** Same order as `connectButtons`: in-game panel, then the two landing ones. */
 const CONNECT_LABELS = ['Verbinden', 'Verbinden & Enter VR', 'Verbinden & ohne VR starten'];
-
-/**
- * Der letzte Ausweg: den Text in ein unsichtbares Feld legen und markieren.
- *
- * Damit funktioniert `Strg+C` auch dort, wo die Zwischenablage-API nicht zur
- * Verfügung steht — und das ist keine Ausnahme, sondern jede Seite, die nicht
- * über `https` läuft.
- */
-function selectText(text: string): void {
-  const field = document.createElement('textarea');
-  field.value = text;
-  field.setAttribute('readonly', '');
-  field.style.position = 'fixed';
-  field.style.opacity = '0';
-  document.body.append(field);
-  field.select();
-  window.setTimeout(() => field.remove(), 30_000);
-}
 
 function describeSmoothing(value: number): string {
   if (value < 0.08) return 'exakt';

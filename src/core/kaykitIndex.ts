@@ -1,5 +1,5 @@
 import type { Handedness } from './XRInput';
-import type { MenuDetail, MenuEntry, MenuIcon } from '../ui/menu';
+import type { MenuDetail, MenuEntry, MenuFact, MenuIcon } from '../ui/menu';
 import { FIGURE_CHEF, asFigure } from './avatarFigures';
 import { saveAppearance } from './appearance';
 import { kaykitEnglish, kaykitGerman } from './kaykitTerms';
@@ -1116,7 +1116,18 @@ function fileEntry(
   return {
     id: `kaykit:${file.path}`,
     label: file.label,
-    sub: kaykitSize(file.bytes),
+    // **Der Untertitel ist die Adresse** und nicht mehr die Dateigröße.
+    //
+    // Eine Rasterkachel zeigt den Untertitel nirgends — weder am Schirm
+    // (`ui/PageMenu.tile`) noch im Panel (`ui/UIPanel.drawCell`); die
+    // Dateigröße stand hier also seit jeher an einer Stelle, an der sie
+    // niemand las, und im Steckbrief steht sie ohnehin. Was ein Rasterfeld
+    // dagegen **doch** zeigt, ist das Fähnchen über dem Panel, sobald der
+    // Strahl auf einer Kachel liegt (`ui/WristMenu.updateCaption`) — und
+    // genau dorthin gehört die Adresse: In der Brille gibt es keine
+    // Zwischenablage und keinen Steckbrief, wohl aber jemanden, der den
+    // Namen vorlesen oder abtippen will.
+    sub: file.path,
     // **Die deutsche Bedeutung steht unter dem Namen** und nicht an seiner
     // Stelle (`ui/PageMenu.tile` zeigt `caption` als kleine zweite Zeile, das
     // Panel am Handgelenk als Fahne über der Kachel). Der englische
@@ -1187,20 +1198,31 @@ function figureAction(file: KaykitFileRef): Pick<MenuDetail, 'action'> | null {
  * einzige geladene Datei zu haben ist. Eine Zeile ohne Wert fällt weg — ein
  * Steckbrief ist kein Formular.
  */
-function fileFacts(file: KaykitFileRef): { label: string; value: string }[] {
-  const cut = file.path.lastIndexOf('/');
-  const folder = cut < 0 ? '' : file.path.slice(0, cut);
+function fileFacts(file: KaykitFileRef): MenuFact[] {
   const drawers = file.cats
     .map((id) => KAYKIT_CATEGORIES.find((category) => category.id === id)?.label ?? id)
     .join(' · ');
   return [
-    // **Deutsch steht oben** und nicht unter der Dateigröße: Wer den
+    // **Die Adresse steht ganz oben, an einem Stück, und darf mitgenommen
+    // werden.** Sie ist die einzige Zeile des Steckbriefs, die außerhalb
+    // dieser Seite etwas wert ist: `BLOCK_MODELS`, `LAMP_MODEL`,
+    // `kaykitModel()` und jeder Auftrag an einen Agenten benutzen genau diese
+    // Zeichenkette. Zwei Bestellungen — „block b" und „block column" — gingen
+    // ins Leere, weil es beide Namen in der Sammlung nicht gibt; gemeint
+    // waren `block-bits/bricks_B.glb` und `dungeon/column.glb`.
+    { label: 'Adresse', value: file.path, copy: true },
+    // **Deutsch steht darunter** und nicht unter der Dateigröße: Wer den
     // Steckbrief aufschlägt, weil er nicht weiß, was `Target Stand A` ist,
-    // bekommt die Antwort als Erstes und nicht nach drei Zeilen Buchführung.
+    // bekommt die Antwort als Zweites und nicht nach drei Zeilen Buchführung.
     { label: 'Deutsch', value: file.german },
+    // **`Ordner` und `Datei` sind weg**, und zwar ersatzlos: Sie waren die
+    // Adresse, nur in zwei Stücken und mit dem Schrägstrich dazwischen
+    // weggelassen. Zwei Zeilen, die dieselbe Zeichenkette buchstabieren wie
+    // die darüber, sagen nichts mehr — sie luden bloß dazu ein, sie wieder
+    // zusammenzusetzen, und genau dabei entsteht „block b". `Paket` bleibt:
+    // Es ist **nicht** der Ordnername, sondern der wirkliche Name des Pakets
+    // („Adventurers 2.0"), und der steht in keinem Pfad.
     { label: 'Paket', value: file.pack },
-    { label: 'Ordner', value: folder },
-    { label: 'Datei', value: file.name },
     { label: 'Dateigröße', value: kaykitSize(file.bytes) },
     { label: 'Schubladen', value: drawers },
   ].filter((fact) => fact.value.length > 0);

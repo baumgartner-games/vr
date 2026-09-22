@@ -123,6 +123,8 @@ export class WristMenu extends THREE.Group {
   /** One line about the entry under the pointer, floating over the panel. */
   private readonly caption: TextPlane;
   private captionText = '';
+  /** Die kleine zweite Zeile darin — im Raster der Untertitel der Kachel. */
+  private captionBody = '';
 
   /** Which hand carries the menu. */
   readonly hand: Handedness;
@@ -256,7 +258,11 @@ export class WristMenu extends THREE.Group {
     // here instead, above the panel, while the pointer rests on it.
     this.caption = new TextPlane({
       width: 0.3,
-      height: 0.06,
+      // Etwas höher als eine Zeile: Im Raster steht unter der Überschrift
+      // noch der Untertitel der Kachel (`updateCaption`), und eine Tafel, die
+      // ihn erst auf ein Viertel verkleinern muss, damit er hineinpasst,
+      // zeigt ihn zwar an, aber niemandem.
+      height: 0.08,
       title: '',
       accent: 0x9fd0ff,
       align: 'center',
@@ -490,11 +496,27 @@ export class WristMenu extends THREE.Group {
   private updateCaption(): void {
     const entry = this.open ? this.displayed()[this.panel.hovered.index] : undefined;
     const text = entry?.caption ?? '';
-    if (text !== this.captionText) {
+    // **Und im Raster auch die zweite Zeile** (`MenuEntry.sub`). In einer
+    // Liste steht sie in der Zeile selbst; eine Kachel hat dafür keinen Platz
+    // und zeigt nur die Beschriftung (`ui/UIPanel.drawCell`), also ist das
+    // Fähnchen die **einzige** Stelle, an der sie in der Brille überhaupt zu
+    // lesen wäre. Für den Katalog ist das die Adresse des Modells
+    // (`core/kaykitIndex.fileEntry`): Hier gibt es keine Zwischenablage und
+    // keinen Steckbrief, wohl aber jemanden, der den genauen Namen vorlesen
+    // oder abtippen will.
+    //
+    // Sie geht als **Rumpf** hinein und nicht hinter die Überschrift: Eine
+    // Tafel verkleinert einen Rumpf, bis er hineinpasst, und quetscht eine
+    // Überschrift stattdessen in die Breite (`ui/TextPlane.draw`) — bei
+    // `characters/enemies/skeleton_warrior_A.glb` ist das der Unterschied
+    // zwischen lesbar und Tapete.
+    const body = entry && this.page.grid ? (entry.sub ?? '') : '';
+    if (text !== this.captionText || body !== this.captionBody) {
       this.captionText = text;
-      if (text) this.caption.setText(text);
+      this.captionBody = body;
+      if (text || body) this.caption.setText(text, body || undefined);
     }
-    this.caption.visible = text.length > 0;
+    this.caption.visible = text.length > 0 || body.length > 0;
   }
 
   dispose(): void {

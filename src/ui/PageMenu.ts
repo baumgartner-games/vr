@@ -1,4 +1,5 @@
 import { drawMenuIcon, type MenuDetail, type MenuEntry, type MenuFact } from './menu';
+import { COPY_FALLBACK, copyText } from './clipboard';
 import { MenuNav } from './menuNav';
 import { clampColumns, fitColumns, readColumns, stepColumns, writeColumns } from './pageCols';
 import { keepSafe, setSafeEdge } from './safeArea';
@@ -98,6 +99,12 @@ const PAGE_WINDOW = 60;
  */
 const GROW_EDGE = 600;
 
+/**
+ * **Wie lange eine Bestätigung unter dem Steckbrief stehenbleibt**, in
+ * Millisekunden — dieselben vier Sekunden wie im Netzpanel.
+ */
+const NOTE_MS = 4000;
+
 export interface PageMenuOptions {
   title?: string;
   /** Der geteilte Weg durch den Baum — derselbe wie an den Handgelenken. */
@@ -188,6 +195,27 @@ export class PageMenu {
   private readonly clipsEl: HTMLElement;
   private readonly clipsSelect: HTMLSelectElement;
   private readonly factsEl: HTMLElement;
+  /**
+   * **Woran der Steckbrief merkt, dass er neu gebaut gehört** — und woran,
+   * dass er nur neu beschriftet gehört.
+   *
+   * `factsShape` sind die Beschriftungen samt der Auskunft, welche Zeile
+   * mitgenommen werden darf; `factsLine` sind die Werte. Warum zweierlei und
+   * nicht eine Zeichenkette wie vorher: Diese Seite wird zweimal die Sekunde
+   * gezeichnet, und die **Werte ändern sich dabei wirklich** — Maße, Dreiecke
+   * und die Zahl der Bewegungen kommen erst, wenn das Modell geladen ist. Ein
+   * Steckbrief, der dabei seine Kinder austauscht, wirft den Knopf *Kopieren*
+   * weg, auf dem gerade der Finger liegt. Bleibt die **Form** gleich, werden
+   * deshalb nur die Wörter ersetzt, und der Knopf bleibt stehen.
+   */
+  private factsShape = '';
+  private factsLine = '';
+  /** Die Kästchen mit den Werten, in derselben Reihenfolge wie die Zeilen. */
+  private factValues: HTMLElement[] = [];
+  /** Die kleine Zeile unter dem Steckbrief: „Adresse kopiert." */
+  private readonly noteEl: HTMLElement;
+  private noteText = '';
+  private noteTimer = 0;
   /** Die offene große Vorschau — oder `null`, wenn keine Seite eine will. */
   private detailView: DetailView | null = null;
   /** Welches Modell darin steht; `''`, solange keines darin steht. */
@@ -297,8 +325,16 @@ export class PageMenu {
     this.clipsSelect.id = 'pmenu-clip';
     this.clipsEl.append(clipsLabel, this.clipsSelect);
     this.factsEl = el('dl', 'pmenu__facts');
+    // **Die Rückmeldung steht unter dem Steckbrief und nicht im Kopf.** Der
+    // Kopf hat schon eine Zeile (`setStatus`), aber die gehört der Welt
+    // draußen — wer sie hier überschriebe, löschte, was eine Welt gerade
+    // gemeldet hat. Und sie steht **nicht** im Steckbrief selbst: Der wird
+    // neu geschrieben, sobald das Modell seine Maße nachreicht, und eine
+    // Meldung darin wäre nach einer Sekunde weg.
+    this.noteEl = el('p', 'pmenu__note');
+    this.noteEl.setAttribute('aria-live', 'polite');
     const about = el('div', 'pmenu__about');
-    about.append(this.optsEl, this.clipsEl, this.factsEl);
+    about.append(this.optsEl, this.clipsEl, this.factsEl, this.noteEl);
     this.detailEl = el('div', 'pmenu__detail');
     this.detailEl.hidden = true;
     this.detailEl.append(this.viewEl, about);
@@ -322,6 +358,11 @@ export class PageMenu {
     });
     this.homeButton.addEventListener('click', () => this.goHome());
     this.list.addEventListener('click', (event) => this.onListClick(event));
+    // Ein Zuhörer am Steckbrief und keiner je Knopf: Die Zeilen werden neu
+    // gebaut, sobald eine andere Sache davorsteht, und ein Zuhörer, der mit
+    // seinem Knopf weggeworfen wird, ist einer, den man nicht vergessen darf
+    // wegzunehmen. Dieselbe Bauweise wie bei der Liste darüber.
+    this.factsEl.addEventListener('click', (event) => this.onFactsClick(event));
     this.searchEl.addEventListener('input', () => this.onSearch());
     fewer.addEventListener('click', () => this.stepCols(-1));
     more.addEventListener('click', () => this.stepCols(1));
@@ -459,6 +500,9 @@ export class PageMenu {
   dispose(): void {
     this.offNav();
     this.closeDetail();
+    // Auch dann, wenn gar kein Steckbrief offen war: Ein Zeitgeber, der ein
+    // abgeräumtes Menü anspricht, ist der Fehler, den niemand mehr zuordnet.
+    window.clearTimeout(this.noteTimer);
     this.previews?.dispose();
     this.previews = null;
     window.removeEventListener('keydown', this.onKeyDown);
@@ -692,6 +736,13 @@ export class PageMenu {
     this.detailFacts = null;
     this.detailClips = '';
     this.clipsSelect.replaceChildren();
+    // Eine andere Sache hat einen anderen Steckbrief — und die Meldung zur
+    // vorigen Adresse ginge hier als Bestätigung für die neue durch.
+    this.factsShape = '';
+    this.factsLine = '';
+    this.factValues = [];
+    this.factsEl.replaceChildren();
+    this.setNote('', false);
     this.deed = null;
     this.deedLine = '';
     this.deedButton.hidden = true;
@@ -750,12 +801,88 @@ export class PageMenu {
     this.clipsEl.hidden = clips.length === 0;
 
     const facts: MenuFact[] = [...detail.facts, ...measured(this.detailFacts)];
-    const line = facts.map((fact) => `${fact.label}\u0000${fact.value}`).join('\u0001');
-    if (this.factsEl.dataset['line'] === line) return;
-    this.factsEl.dataset['line'] = line;
+    const shape = facts.map((fact) => `${fact.label}\u0000${fact.copy ? '+' : ''}`).join('\u0001');
+    const line = facts.map((fact) => fact.value).join('\u0001');
+    if (shape === this.factsShape) {
+      // Dieselben Zeilen, andere Wörter: nur die Wörter. Der Knopf *Kopieren*
+      // daneben bleibt derselbe Knopf, mit demselben Fokus.
+      if (line === this.factsLine) return;
+      this.factsLine = line;
+      facts.forEach((fact, index) => {
+        const box = this.factValues[index];
+        if (box) box.textContent = fact.value;
+      });
+      return;
+    }
+    this.factsShape = shape;
+    this.factsLine = line;
+    this.factValues = facts.map(() => el('span', 'pmenu__factval'));
     this.factsEl.replaceChildren(
-      ...facts.flatMap((fact) => [el('dt', '', fact.label), el('dd', '', fact.value)]),
+      ...facts.flatMap((fact, index) => {
+        const box = this.factValues[index]!;
+        box.textContent = fact.value;
+        const value = el('dd');
+        value.append(box);
+        // **Der Knopf hängt an der Zeile und nicht an ihrer Beschriftung**
+        // (`MenuFact.copy`): Was mitgenommen werden darf, sagt der, der den
+        // Steckbrief schreibt — die Seite sucht nicht nach dem Wort
+        // „Adresse".
+        if (fact.copy) {
+          const copy = el('button', 'pmenu__copy', 'Kopieren');
+          copy.type = 'button';
+          copy.dataset['copy'] = fact.label;
+          copy.title = `${fact.label} in die Zwischenablage`;
+          value.append(copy);
+        }
+        return [el('dt', '', fact.label), value];
+      }),
     );
+  }
+
+  /**
+   * **Eine Zeile des Steckbriefs mitnehmen.**
+   *
+   * Gewünscht war sie als das, was sie ist: „damit wir über die genau gleichen
+   * Elemente sprechen." Zwei Modelle waren als „block b" und „block column"
+   * bestellt worden, und beide Namen gibt es in der Sammlung nicht — es kostete
+   * eine Rückfrage mit vier Vorschlägen, `block-bits/bricks_B.glb` und
+   * `dungeon/column.glb` daraus zu machen.
+   *
+   * Kopiert wird, was **dasteht**, und nicht eine zweite Fassung davon: Der
+   * Knopf holt sich den Text aus dem Kästchen neben sich. Damit kann gar nicht
+   * etwas anderes in der Zwischenablage landen, als der Leser gelesen hat.
+   */
+  private onFactsClick(event: Event): void {
+    const button = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-copy]');
+    if (!button) return;
+    const text = button.parentElement?.querySelector('.pmenu__factval')?.textContent ?? '';
+    if (!text) return;
+    void this.copyFact(button.dataset['copy'] ?? 'Zeile', text);
+  }
+
+  /** Mitgenommen — oder wenigstens markiert (`ui/clipboard.ts`). */
+  private async copyFact(label: string, text: string): Promise<void> {
+    if (await copyText(text)) this.setNote(`${label} kopiert: ${text}`, false);
+    else this.setNote(COPY_FALLBACK, true);
+  }
+
+  /**
+   * **Die Meldung unter dem Steckbrief** — und sie geht von selbst wieder weg.
+   *
+   * Eine Bestätigung, die stehenbleibt, ist nach dem zweiten Blick keine mehr,
+   * sondern Möblierung: Wer sie dann liest, weiß nicht, ob sie von eben ist
+   * oder von vorhin. Dieselbe Frist wie im Netzpanel (`ui/NetPanel.setMessage`).
+   */
+  private setNote(text: string, isError: boolean): void {
+    this.noteText = text;
+    this.noteEl.textContent = text;
+    this.noteEl.classList.toggle('is-error', isError);
+    window.clearTimeout(this.noteTimer);
+    if (!text) return;
+    this.noteTimer = window.setTimeout(() => {
+      if (this.noteText !== text) return;
+      this.setNote('', false);
+    }, NOTE_MS);
   }
 
   /**

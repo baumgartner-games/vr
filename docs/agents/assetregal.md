@@ -38,6 +38,7 @@ liegt in der Hand.
 | `core/kaykitFigure.ts`         | Der Lader für **laufende Figuren**: `loadKaykitFigure(pfad, höhe)` — Skelett, Mischer, Gänge, Aktionen, Anker, Aufräumen |
 | `ui/detailDrag.ts`             | **Rein**: wem ein Finger auf der großen Vorschau gehört — Mitte oder Saum —, und was ein Wisch, ein Kneifen und eine Raste daraus machen |
 | `ui/PageDetail.ts`             | Die große Vorschau: eigener Renderer, Kamera um das Ding herum, Gitterboden, Hülle, Mischer |
+| `ui/clipboard.ts`              | Einen Text mitnehmen — und wenn der Browser das verbietet, wenigstens markieren (`copyText`, `COPY_FALLBACK`); geteilt mit dem Netzpanel |
 | `core/kitchenShelf.ts`         | **Rein**: welche Adresse in der Küche ein **funktionierendes Möbel** ist |
 | `ui/pageCols.ts`               | **Rein**: wie viele Spalten in ein Fenster passen, und die beiden Knöpfe |
 | `worlds/portal/placeGrid.ts`   | Das Gitter unter dem Getragenen — eine Fläche und ein Rahmen je Kachel |
@@ -554,12 +555,13 @@ Von oben nach unten, und alles in **einem** scrollenden Kasten:
    Auskunft, nach der auch das Regal einsortiert (die Schublade _Figuren_,
    `kaykitCategoriesOf`) — es gibt keine zweite Liste, die morgen etwas
    anderes sagt. Ohne Wippe, dafür mit farbigem Rand: Er ist kein Zustand.
-6. **Der Steckbrief**: Paket, Ordner, Datei, Dateigröße und Schubladen kommen
-   aus dem Verzeichnis und stehen sofort da; Maße in **Metern**, Dreiecke und
-   die Zahl der Bewegungen werden am geladenen Modell gemessen und
-   nachgereicht (`DetailFacts`). Die Maße sind dabei die der **Welt**, also mit
-   dem Maßstab des Pakets darin (siehe _Ein Maßstab je Paket_) — das ist die
-   Zahl, für die jemand nachsieht.
+6. **Der Steckbrief**: Adresse, Deutsch, Paket, Dateigröße und Schubladen
+   kommen aus dem Verzeichnis und stehen sofort da; Maße in **Metern**,
+   Dreiecke und die Zahl der Bewegungen werden am geladenen Modell gemessen
+   und nachgereicht (`DetailFacts`). Die Maße sind dabei die der **Welt**, also
+   mit dem Maßstab des Pakets darin (siehe _Ein Maßstab je Paket_) — das ist
+   die Zahl, für die jemand nachsieht. Ganz oben steht die Adresse, und neben
+   ihr ein Knopf _Kopieren_ — siehe _Die genaue Bezeichnung_.
 
 ### Die Mitte dreht, der Saum scrollt
 
@@ -641,6 +643,130 @@ diesem Menü, nur schärfer:
 - **Das Modell selbst nicht.** Seine Geometrie gehört der Vorlage im Speicher
   und allen anderen Kopien (siehe _Wer sich die Geometrie teilt_); weggeräumt
   wird nur der Rahmen darum.
+
+## Die genaue Bezeichnung — die Adresse an einem Stück, und ein Knopf daneben
+
+Es fing mit zwei Bestellungen an, die ins Leere gingen. In einer Sitzung waren
+**„block b"** und **„block column"** in Auftrag gegeben — und beide Namen gibt
+es in der Sammlung nicht. Es kostete eine Rückfrage mit vier Vorschlägen,
+herauszufinden, dass `block-bits/bricks_B.glb` und `dungeon/column.glb`
+gemeint waren. Danach kam der Satz, um den es hier geht: „Wir sollten zudem im
+Katalog noch die genaue Bezeichnung angehen oder als copy Button für den
+Namen, damit wir über die genau gleichen Elemente sprechen."
+
+Das war kein Einfall, sondern ein Bericht. Und die Ursache lag offen da: Die
+Kachel beschriftet mit `humanLabel` — aus `bricks_B.glb` wird „Bricks B" —,
+und der Steckbrief zerlegte die Adresse in **Ordner** und **Datei**, zwei
+Zeilen ohne den Schrägstrich dazwischen. Nirgends im ganzen Katalog stand die
+Zeichenkette, die der Code wirklich benutzt (`BLOCK_MODELS`, `LAMP_MODEL`,
+`kaykitModel()`, jeder Auftrag), an einem Stück und zum Mitnehmen. Wer über
+ein Modell reden wollte, musste sie sich aus drei Stellen zusammenreimen — und
+genau dabei entsteht „block b".
+
+### Eine Zeile mehr, und zwei weniger
+
+Im Steckbrief steht jetzt **`Adresse`** ganz oben: `dungeon/bookcase_single.glb`,
+ohne `models/kaykit/` davor, also genau das, was `KaykitFileRef.path` schon
+immer war und was jede Stelle im Haus erwartet — dieselbe Zeichenkette, die
+auch in der Id der Kachel steckt (siehe _Die Ids sind Adressen_).
+
+**`Ordner` und `Datei` sind dafür weg**, ersatzlos. Sie waren dieselbe
+Zeichenkette, nur in zwei Stücken und mit dem Trennzeichen weggelassen — zwei
+Zeilen, die nichts sagen, was die eine darüber nicht sagt, die aber dazu
+einladen, sie von Hand wieder zusammenzusetzen. **`Paket` bleibt**, und das
+ist kein Widerspruch: Es ist nicht der Ordnername, sondern der wirkliche Name
+aus dem Index („Adventurers 2.0"), und der steht in keinem Pfad.
+
+Dass die Adresse **über** dem Deutschen steht, ist eine Umkehrung der alten
+Reihenfolge. Sie war richtig, solange der Steckbrief die Frage „was ist
+_Target Stand A_?" beantwortete; jetzt beantwortet er zuerst die Frage „wie
+heißt das Ding, damit ich es bestellen kann?" — und die wird öfter gestellt.
+
+### Kopieren ist ein Feld an der Zeile, keine Sonderbehandlung
+
+Der Knopf hängt an `MenuFact.copy` (`ui/menu.ts`) — einem Feld an der
+Steckbriefzeile, das sagt: „diese Zeile darf man mitnehmen". Die Seite baut
+daraufhin ein kleines _Kopieren_ neben den Wert und sucht **nicht** nach der
+Beschriftung `Adresse`. Der Unterschied ist der zwischen einer Erweiterung und
+einem Sonderfall: Mitnehmen will man irgendwann auch einen Konfig-Code, einen
+Raum-Code oder den Namen einer Bewegung, und alle drei sagen es dann selbst.
+
+Kopiert wird, was **dasteht** — der Knopf holt sich den Text aus dem Kästchen
+neben sich (`.pmenu__factval`). Damit kann gar nicht etwas anderes in der
+Zwischenablage landen als das, was der Leser gelesen hat.
+
+**Der Handgriff selbst steht seit diesem Umbau nur noch einmal im Haus**
+(`ui/clipboard.ts`, `copyText`). Vorher stand er im Netzpanel: in die
+Zwischenablage schreiben, und wenn der Browser das verbietet — ohne `https`,
+ohne Fokus gibt es `navigator.clipboard` schlicht nicht —, den Text in ein
+unsichtbares Feld legen und **markieren**, damit wenigstens `Strg+C` wirkt.
+Der Kommentar dort sagt, warum es die Ersatzantwort überhaupt gibt: „‚ging
+nicht' ist die schlechteste aller Antworten auf einen Knopf namens
+_Kopieren_." Eine zweite Fassung davon wäre beim ersten Nachbessern von der
+ersten weggelaufen; jetzt teilen sich Netzpanel und Katalog eine, samt der
+ehrlichen Zeile dazu (`COPY_FALLBACK`).
+
+### Und die Rückmeldung verschwindet wieder
+
+Unter dem Steckbrief steht nach dem Druck eine Zeile: „Adresse kopiert:
+dungeon/barrel.glb" — oder, wenn es nur zum Markieren reichte, die ehrliche
+Auskunft samt `Strg+C`. Nach vier Sekunden ist sie weg, dieselbe Frist wie im
+Netzpanel (`NetPanel.setMessage`): Eine Bestätigung, die stehenbleibt, ist
+beim zweiten Blick keine mehr, sondern Möblierung — man weiß dann nicht, ob
+sie von eben ist oder von vorhin.
+
+Sie steht **unter** dem Steckbrief und nicht im Kopf der Seite: Der Kopf hat
+schon eine Zeile (`PageMenu.setStatus`), aber die gehört der Welt draußen, und
+wer sie hier überschriebe, löschte, was eine Welt gerade gemeldet hat.
+
+### Und der Knopf bleibt stehen, wenn die Zahlen nachkommen
+
+Die Detailseite wird **zweimal die Sekunde** gezeichnet, und ihr Steckbrief
+ändert sich dabei wirklich: Maße, Dreiecke und die Zahl der Bewegungen kommen
+erst, wenn das Modell geladen ist (`DetailFacts`). Bisher verglich die Seite
+alle Zeilen als **eine** Zeichenkette und tauschte bei jedem Unterschied den
+ganzen Steckbrief aus. Für Wörter reicht das; für einen Knopf nicht — er wäre
+genau in dem Moment weggeworfen worden, in dem ein Finger daraufliegt, samt
+Fokus und samt der Meldung darunter.
+
+Also wird jetzt zweierlei verglichen: die **Form** (Beschriftungen samt der
+Auskunft, welche Zeile kopierbar ist) und die **Werte**. Ändert sich nur der
+Wert, werden nur die Wörter ersetzt und die Kästchen bleiben dieselben
+Kästchen. Erst eine andere Form baut neu — dasselbe Maß, das die Liste darüber
+schon anlegt (siehe `PageMenu.render`, `sameRows`), und dieselbe Regel wie
+überall im Haus: Eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht
+(siehe [Wie schön es aussieht](grafik.md)).
+
+### Und in der Brille?
+
+Dort gibt es **keinen Knopf**, und das ist Absicht: Es gibt keine
+Zwischenablage, auf die jemand zugreifen könnte, und keine Tastatur daneben,
+in die das Kopierte wandern würde. Der Knopf hängt deshalb an einem Feld, das
+nur die Seite liest — dieselbe Aufteilung wie beim Suchfeld (_Und ein Suchfeld
+— aber nur am Schirm_), bei den Spaltenknöpfen und beim ⓘ selbst.
+
+**Die Adresse als Text gibt es dort trotzdem**, denn wer sie liest, kann sie
+vorlesen oder abtippen — und genau darum ging es dem Auftraggeber. Nur steht
+sie nicht im Steckbrief: Den gibt es in der Brille nicht. Sie steht im
+**Fähnchen über dem Panel**, das anzeigt, worauf der Strahl gerade liegt
+(`WristMenu.updateCaption`). Das Fähnchen trug bisher nur die Bildunterschrift
+(die deutsche Bedeutung); im **Raster** kommt jetzt der Untertitel der Kachel
+dazu — und der ist bei einer Modellkachel die Adresse.
+
+Zwei Kleinigkeiten hängen daran:
+
+- **Der Untertitel einer Modellkachel ist nicht mehr die Dateigröße, sondern
+  die Adresse** (`kaykitIndex.fileEntry`). Eine Rasterkachel zeigt den
+  Untertitel nirgends — weder am Schirm (`PageMenu.tile`) noch im Panel
+  (`UIPanel.drawCell`) —, die Größe stand dort also seit jeher an einer
+  Stelle, an der sie niemand las, und im Steckbrief steht sie ohnehin. Das
+  Fähnchen ist die einzige Stelle, an der ein Rastereintrag in der Brille
+  überhaupt eine zweite Zeile bekommt.
+- **Sie geht als _Rumpf_ in die Tafel und nicht hinter die Überschrift.** Eine
+  Tafel verkleinert einen Rumpf, bis er hineinpasst, und quetscht eine
+  Überschrift stattdessen in die Breite (`ui/TextPlane.draw`) — bei
+  `characters/enemies/skeleton_warrior_A.glb` ist das der Unterschied zwischen
+  lesbar und Tapete. Das Fähnchen ist dafür ein Stück höher geworden.
 
 ## Geladen wird, was zu sehen ist — und nur das
 

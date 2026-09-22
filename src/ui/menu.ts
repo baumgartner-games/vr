@@ -90,6 +90,28 @@ export type MenuIcon =
 export interface MenuFact {
   readonly label: string;
   readonly value: string;
+  /**
+   * **Diese Zeile darf man mitnehmen** — die Seite hängt dann ein *Kopieren*
+   * daneben (`ui/PageMenu.paintDetail`, `ui/clipboard.ts`).
+   *
+   * Gebraucht hat es zuerst die **Adresse** eines Modells im Katalog: Der
+   * Auftraggeber bestellte „block b" und „block column", und beide Namen gibt
+   * es in der Sammlung nicht — gemeint waren `block-bits/bricks_B.glb` und
+   * `dungeon/column.glb`. Eine Zeichenkette, über die zwei Leute reden,
+   * schreibt man nicht ab, sondern nimmt sie mit.
+   *
+   * **Ein Feld und keine Sonderbehandlung.** Die Alternative wäre gewesen, im
+   * Steckbrief nach der Beschriftung `Adresse` zu suchen und genau dort einen
+   * Knopf zu bauen — das hätte für diese eine Zeile funktioniert und für die
+   * nächste nicht. Mitnehmen will man auch einen Konfig-Code, einen Raum-Code
+   * oder den Namen einer Bewegung; alle drei sagen es jetzt selbst, statt dass
+   * die Seite sie an ihrer Beschriftung erkennen müsste.
+   *
+   * **Nur die Seite liest es.** Am Handgelenk gibt es weder Zwischenablage
+   * noch Tastatur daneben — dieselbe Aufteilung wie beim Suchfeld
+   * (`MenuEntry.find`) und beim Steckbrief selbst (`MenuEntry.detail`).
+   */
+  readonly copy?: boolean;
 }
 
 /**
