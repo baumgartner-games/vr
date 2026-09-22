@@ -206,6 +206,42 @@ export interface FixtureBuild {
   material(kind: PlanSolidKind): THREE.Material;
   /** Eine Zeile ans Handgelenk (`WorldContext.notify`). */
   notify(message: string): void;
+  /**
+   * **Den Griff nachreichen**, sobald das Bild aus dem Regal da ist — und das
+   * ist der einzige Weg dorthin.
+   *
+   * Ein benutzbares Ding muss ein **sichtbares Netz** sein
+   * (`core/usable.usableShows`): Was `A` findet, ist dasselbe, worauf der
+   * gelbe Saum liegt, und beides hängt an dem einen Knoten, den `view.handle`
+   * nennt. Solange ein Einbau seine gerechnete Form zeigt, ist sie dieser
+   * Knoten; sobald das Modell da ist, muss der Griff **mitwandern**, sonst
+   * hängt die Anmeldung an etwas, das niemand mehr sieht. Genau so ist der
+   * Bodenhebel verschwunden: Seine Säule blieb `handle` und wurde ausgeknipst.
+   *
+   * **Warum die Anmeldung nicht gleich beim Modell anfangen kann:** Es ist
+   * beim Bauen noch nicht da. Ein Einbau entsteht synchron
+   * (`GridWorld.buildFixtures`), das Modell kommt über die Leitung und in
+   * einem Checkout ohne die gekauften Pakete nie. Ein Hebel, der erst eine
+   * halbe Sekunde später einer wird, ist in dieser halben Sekunde kaputt —
+   * und in einem leeren Checkout für immer.
+   *
+   * **Warum kein zweites Register daneben:** Die Welt merkt sich beim Anmelden
+   * genau ein Objekt und meldet beim Umbau unter demselben wieder ab
+   * (`GridWorld.attachUsable`, `clearFixtures`). Wer den Griff einfach
+   * austauschte, meldete auf dem einen an und auf dem anderen ab und ließe bei
+   * jedem Umbau einen Eintrag in der Liste der Welt liegen — im Baumodus
+   * Dutzende je Minute, und jeder davon ein Knopf, den es nicht mehr gibt und
+   * der trotzdem seine Tür aufmacht. Eine zweite Liste „Griffe, die noch
+   * kommen" hätte dieselbe Buchführung ein zweites Mal, und zwei Listen, die
+   * dasselbe wissen müssen, wissen es nach der nächsten Änderung verschieden.
+   * Also: abmelden, anmelden, `view.handle` mitschreiben — an einer Stelle.
+   *
+   * **Ist der Einbau längst abgeräumt**, während die Datei noch unterwegs war,
+   * läuft der Aufruf ins Leere. Die Arten prüfen das vorher selbst (`gone`),
+   * und die Welt prüft es noch einmal: Ein Nachzügler darf nichts anmelden,
+   * was niemand mehr abmeldet.
+   */
+  rehandle(view: FixtureView, object: THREE.Object3D | null): void;
 }
 
 /**
@@ -254,6 +290,12 @@ export interface FixtureView {
    * (Portal-Regel), und getroffen werden soll der rote Punkt und nicht die
    * Säule darunter — die steht einen halben Meter tiefer, und eine Kugel auf
    * Hüfthöhe flöge sonst daran vorbei.
+   *
+   * **Es muss ein sichtbares Netz sein** (`core/usable.usableShows`), und
+   * deshalb darf es wandern: Wer sein Bild aus dem Regal holt, reicht den
+   * Griff nach, sobald die Datei da ist (`FixtureBuild.rehandle`) — dort und
+   * nicht von Hand, denn geschrieben werden muss dabei beides, die Liste der
+   * Welt und dieses Feld.
    */
   handle?: THREE.Object3D | null;
   /** Seine Maße fürs Bedienen und fürs Treffen. */

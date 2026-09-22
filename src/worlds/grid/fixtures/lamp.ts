@@ -137,7 +137,7 @@ const LAMP_MODEL = 'holiday-bits/lantern.glb';
  */
 const LAMP_MODEL_GLOW = 'holiday_glow';
 
-interface LampView extends FixtureView {
+export interface LampView extends FixtureView {
   light: THREE.PointLight;
   colour: number;
   /**
@@ -211,7 +211,13 @@ export function lampFit(measured: number, height: number): number {
  * `lamp.test.ts` prüft — schalten, weitergeben, rechnen —, braucht kein Netz.
  * Der Import steht deshalb **hinter** der Frage und nicht davor.
  */
-function fillLamp(view: LampView, group: THREE.Group, height: number, foot: number): void {
+function fillLamp(
+  view: LampView,
+  ctx: FixtureBuild,
+  group: THREE.Group,
+  height: number,
+  foot: number,
+): void {
   if (!canLoadModels()) return;
   void import('../../../core/kaykitModel').then(async (module) => {
     const model = await module.kaykitModel(LAMP_MODEL);
@@ -224,50 +230,85 @@ function fillLamp(view: LampView, group: THREE.Group, height: number, foot: numb
       for (const skin of skinsOf([model])) skin.dispose();
       return;
     }
-
-    // **Gemessen wird, solange sie an keiner Gruppe hängt.** Dann ist ihre
-    // Weltmatrix ihre eigene, und `Box3` liefert Meter — den Maßstab ihres
-    // Pakets trägt die zurückgegebene Gruppe schon (`kaykitScale`). Erst
-    // danach wird gerechnet, gehängt und gestellt; andersherum müsste man
-    // sich darauf verlassen, dass die Matrizen der halben Welt gerade
-    // stimmen.
-    const box = new THREE.Box3().setFromObject(model);
-    const factor = lampFit(box.max.y - box.min.y, height);
-
-    // **Wo die Leuchte sitzt, sagt das Modell** und nicht `height`: Die
-    // Scheiben stehen oben im Kasten und nicht an der Mastspitze, und ein
-    // Punktlicht eine Handbreit darüber wäre eine Laterne, die neben sich
-    // leuchtet. Gefunden wird der Kasten über sein Material (siehe
-    // `LAMP_MODEL_GLOW`); ohne ihn bleibt das Licht, wo es gebaut wurde.
-    const lit = glowParts(model);
-    if (lit.length > 0) {
-      const glow = new THREE.Box3();
-      for (const mesh of lit) glow.expandByObject(mesh);
-      view.light.position.y = ((glow.min.y + glow.max.y) / 2) * factor;
-    }
-
-    model.scale.multiplyScalar(factor);
-    // Der Ursprung der Datei liegt in der Mitte ihrer Unterkante — sie steht
-    // damit auf dem Boden der Kachel und muss nur noch an den Platz des
-    // Mastes.
-    model.position.set(0, 0, foot);
-    group.add(model);
-
-    for (const skin of skinsOf([model])) view.modelSkins.push(skin);
-    // Zweimal durchgegangen, und beide Male mit einem anderen Ziel: Der ganze
-    // Baum liefert, was am Ende freizugeben ist; das Leuchtteil liefert, was
-    // umgefärbt wird. Ist keines ausgewiesen, ist das der ganze Baum — dann
-    // geht die Laterne im Ganzen an und aus.
-    for (const skin of skinsOf(lit.length > 0 ? lit : [model])) {
-      if ((skin as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
-        view.glow.push(skin as THREE.MeshStandardMaterial);
-      }
-    }
-    // Gefärbt wird hier nicht: `apply` läuft in **jedem** Bild
-    // (`GridWorld.stepFixtures`) und holt das im nächsten nach. Eine Lampe,
-    // die ihren Zustand beim Laden noch einmal selbst herstellte, hätte zwei
-    // Stellen, die dasselbe wissen müssen.
+    dressLamp(view, model, ctx, group, height, foot);
   });
+}
+
+/**
+ * **Die geladene Laterne anziehen** — messen, das Licht in ihren Kasten
+ * setzen, hinstellen und den Griff nachreichen.
+ *
+ * Eigene Funktion und **ohne Lader**, aus demselben Grund wie beim Hebel
+ * (`fixtures/lever.dressLever`): In Jest gibt es kein WebGL, aber ein Modell
+ * ist am Ende ein Baum aus Knoten, und den kann ein Test von Hand hinlegen.
+ * Was hier passiert, ist der Augenblick, in dem aus einem leeren Griff ein
+ * sichtbares Netz wird — und genau das will nachgehalten werden.
+ *
+ * **Gemessen wird, solange sie an keiner Gruppe hängt.** Dann ist ihre
+ * Weltmatrix ihre eigene, und `Box3` liefert Meter — den Maßstab ihres Pakets
+ * trägt die zurückgegebene Gruppe schon (`kaykitScale`). Erst danach wird
+ * gerechnet, gehängt und gestellt; andersherum müsste man sich darauf
+ * verlassen, dass die Matrizen der halben Welt gerade stimmen.
+ */
+export function dressLamp(
+  view: LampView,
+  model: THREE.Object3D,
+  ctx: FixtureBuild,
+  group: THREE.Group,
+  height: number,
+  foot: number,
+): void {
+  // **Gemessen wird, solange sie an keiner Gruppe hängt.** Dann ist ihre
+  // Weltmatrix ihre eigene, und `Box3` liefert Meter — den Maßstab ihres
+  // Pakets trägt die zurückgegebene Gruppe schon (`kaykitScale`). Erst
+  // danach wird gerechnet, gehängt und gestellt; andersherum müsste man
+  // sich darauf verlassen, dass die Matrizen der halben Welt gerade
+  // stimmen.
+  const box = new THREE.Box3().setFromObject(model);
+  const factor = lampFit(box.max.y - box.min.y, height);
+
+  // **Wo die Leuchte sitzt, sagt das Modell** und nicht `height`: Die
+  // Scheiben stehen oben im Kasten und nicht an der Mastspitze, und ein
+  // Punktlicht eine Handbreit darüber wäre eine Laterne, die neben sich
+  // leuchtet. Gefunden wird der Kasten über sein Material (siehe
+  // `LAMP_MODEL_GLOW`); ohne ihn bleibt das Licht, wo es gebaut wurde.
+  const lit = glowParts(model);
+  if (lit.length > 0) {
+    const glow = new THREE.Box3();
+    for (const mesh of lit) glow.expandByObject(mesh);
+    view.light.position.y = ((glow.min.y + glow.max.y) / 2) * factor;
+  }
+
+  model.scale.multiplyScalar(factor);
+  // Der Ursprung der Datei liegt in der Mitte ihrer Unterkante — sie steht
+  // damit auf dem Boden der Kachel und muss nur noch an den Platz des
+  // Mastes.
+  model.position.set(0, 0, foot);
+  group.add(model);
+
+  // **Und ab jetzt fasst man die Laterne an und nicht die Luft neben ihr**
+  // (`FixtureBuild.rehandle`). Der Stellvertreter von oben stand an
+  // derselben Stelle — dieselbe Kachel, derselbe Fuß, `(0, 0, foot)` —,
+  // ausgewählt wird also weiterhin dasselbe (`core/usable.pickUsable`
+  // rechnet nur in x und z). Was sich ändert, ist die Auskunft: Der gelbe
+  // Saum bekommt jetzt ein Netz, um das er sich legen kann, statt eines
+  // Rings von Mindestmaß um einen Punkt.
+  ctx.rehandle(view, model);
+
+  for (const skin of skinsOf([model])) view.modelSkins.push(skin);
+  // Zweimal durchgegangen, und beide Male mit einem anderen Ziel: Der ganze
+  // Baum liefert, was am Ende freizugeben ist; das Leuchtteil liefert, was
+  // umgefärbt wird. Ist keines ausgewiesen, ist das der ganze Baum — dann
+  // geht die Laterne im Ganzen an und aus.
+  for (const skin of skinsOf(lit.length > 0 ? lit : [model])) {
+    if ((skin as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+      view.glow.push(skin as THREE.MeshStandardMaterial);
+    }
+  }
+  // Gefärbt wird hier nicht: `apply` läuft in **jedem** Bild
+  // (`GridWorld.stepFixtures`) und holt das im nächsten nach. Eine Lampe,
+  // die ihren Zustand beim Laden noch einmal selbst herstellte, hätte zwei
+  // Stellen, die dasselbe wissen müssen.
 }
 
 /**
@@ -344,26 +385,35 @@ export const LAMP: FixtureKind<LampState> = {
     const foot = -TILE / 2 + 0.2;
 
     /**
-     * **Der Stellvertreter zum Anfassen** — ein Punkt im Raum, sonst nichts.
+     * **Der Stellvertreter zum Anfassen, bis die Laterne da ist** — ein Punkt
+     * im Raum, sonst nichts.
      *
      * Die Welt meldet einen Einbau **beim Bauen** als benutzbar an
      * (`GridWorld.attachUsable`) und merkt sich genau dieses Objekt, um es
      * beim Umbau wieder abzumelden. Das Modell ist zu diesem Zeitpunkt noch
      * unterwegs; wer den Griff daran hängte, hätte eine Lampe, die erst eine
-     * halbe Sekunde später eine wird — und beim Abräumen ein Objekt, das nie
-     * angemeldet war. Also steht hier ein eigenes, leeres Objekt, und es
-     * steht von der ersten Zeile an.
+     * halbe Sekunde später eine wird — und in einem Checkout ohne die
+     * gekauften Pakete nie. Also steht hier ein eigenes, leeres Objekt, und es
+     * steht von der ersten Zeile an. **Sobald die Datei da ist, zieht der
+     * Griff auf die Laterne um** (`dressLamp` → `FixtureBuild.rehandle`); der
+     * leere Knoten bleibt hängen, kostet nichts und hat seine Aufgabe hinter
+     * sich.
      *
      * **Unten am Mast**, und das ist keine Zier: Ausgewählt wird waagerecht
-     * (`core/usable.pickUsable` rechnet nur in x und z), und die Leuchte
-     * hängt drei Meter hoch — wer sie anfassen will, steht neben ihrem Fuß.
-     * Derselbe Ort, an dem bis eben der gerechnete Mast stand, also dieselbe
-     * Reichweite wie vorher.
+     * (`core/usable.pickUsable` rechnet nur in x und z), und die Leuchte hängt
+     * drei Meter hoch — wer sie anfassen will, steht neben ihrem Fuß. Derselbe
+     * Ort, an dem bis eben der gerechnete Mast stand, und derselbe, an dem
+     * gleich die Laterne steht: dieselbe Reichweite in allen drei Fällen.
      *
-     * Und weil ein leeres Objekt keine Geometrie hat, wird der gelbe Saum zu
-     * einem **Ring auf dem Boden** (`core/highlight.ts`, „Wo es keine
-     * Geometrie gibt, liegt ein Ring auf dem Boden") — bei einer Laterne, die
-     * über einem steht, die bessere Auskunft als eine umrandete Mastspitze.
+     * **Und was ein leerer Knoten leuchtet, ist ein Ring.** Das ist
+     * nachgesehen und stimmt: `core/highlight.ts` baut seine Hülle aus Netzen
+     * (`highlightTargets` — `isMesh`, sichtbar, mit Geometrie), und findet es
+     * keines, legt es statt dessen einen Ring auf den Boden
+     * (`Highlight.showRing`). Der hat dann allerdings das Mindestmaß
+     * (`RING_MIN`, 0,4 m), denn ein Punkt hat keine Ausdehnung, aus der sich
+     * etwas anderes rechnen ließe. Genau deshalb wandert der Griff: Ein Saum
+     * **um die Laterne** sagt „diese hier", ein Ring von Mindestmaß am Fuß
+     * sagt „hier ungefähr".
      */
     const handle = new THREE.Object3D();
     handle.position.set(0, 0, foot);
@@ -395,7 +445,7 @@ export const LAMP: FixtureKind<LampState> = {
         view.glow.length = 0;
       },
     };
-    fillLamp(view, group, height, foot);
+    fillLamp(view, ctx, group, height, foot);
     return view;
   },
 

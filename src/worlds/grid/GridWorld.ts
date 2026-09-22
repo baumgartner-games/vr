@@ -765,6 +765,11 @@ export abstract class GridWorld extends PortalWorld {
         },
         material: (sort: PlanSolidKind) => this.materialFor(sort),
         notify: (message: string) => this.announce(message),
+        // Der Weg für ein Bild, das erst über die Leitung kommt: Der Griff
+        // wandert von der gerechneten Form auf das Modell, und die Anmeldung
+        // wandert mit (`rehandle`).
+        rehandle: (built: FixtureView, object: THREE.Object3D | null) =>
+          this.rehandle(place, kind, built, object),
       });
       // Woran ein Strahl ihn wiedererkennt — der Haken für `use` (P2) und für
       // die Kugel, die den Knopf trifft (P6).
@@ -826,6 +831,41 @@ export abstract class GridWorld extends PortalWorld {
       },
       view.use ?? {},
     );
+  }
+
+  /**
+   * **Den Griff eines Einbaus umhängen**, wenn sein Bild aus dem Regal
+   * eintrifft (`fixtures/index.ts`, `FixtureBuild.rehandle`).
+   *
+   * Die drei Zeilen sind der ganze Punkt, und sie gehören **zusammen**: alte
+   * Anmeldung weg, neue hin, `view.handle` mitgeschrieben. Das letzte ist das,
+   * was man vergisst — und es ist das, woran der Umbau sonst hängenbleibt:
+   * `clearFixtures` meldet unter `view.handle ?? view.object` wieder ab, und
+   * wer den Griff austauscht, ohne es dort einzutragen, meldet auf dem einen
+   * an und auf dem anderen ab. Übrig bliebe bei jedem Umbau ein Eintrag in der
+   * Liste der Welt — ein Hebel, den es nicht mehr gibt und der weiter Türen
+   * öffnet. Im Baumodus wäre das dutzendfach je Minute.
+   *
+   * **Ein Nachzügler läuft ins Leere.** Zwischen dem Bauen und dem Eintreffen
+   * der Datei liegt eine halbe Sekunde, in der jemand umgebaut haben kann;
+   * dann hängt das Modell an einer Gruppe, die niemand mehr ansieht, und
+   * `clearFixtures` ist längst durch. Die Arten merken sich das selbst
+   * (`gone`) — hier wird trotzdem noch einmal nachgesehen, ob dieser Einbau
+   * überhaupt noch läuft, denn eine Anmeldung, die niemand mehr abmeldet, ist
+   * genau der Eintrag, den es zu vermeiden gilt.
+   */
+  private rehandle(
+    place: FixturePlacement,
+    kind: FixtureKind<unknown>,
+    view: FixtureView,
+    object: THREE.Object3D | null,
+  ): void {
+    if (!object) return;
+    if (!this.fixtures.some((run) => run.view === view)) return;
+    const old = view.handle ?? view.object;
+    if (old && old !== object) this.removeUsable(old);
+    view.handle = object;
+    this.attachUsable(place, kind, view);
   }
 
   /**

@@ -279,6 +279,14 @@ export const PLATE: FixtureKind<PlateState> = {
     // **Die Maße bleiben die gerechneten**, auch wenn gleich ein Modell
     // darüberkommt: `PLATE_R` ist der Halbmesser fürs Zeigen, und was auf der
     // Kachel steht, zählt die Welt (`weightOn`) und nicht ein Netz.
+    //
+    // **Und einen eigenen Griff braucht sie nicht** (`FixtureView.handle`,
+    // `FixtureBuild.rehandle`): Angemeldet wird die **Gruppe**, und in der
+    // steht immer ein sichtbares Netz — erst Scheibe und Ring, dann das
+    // Modell, und der Tausch geschieht in dieser Reihenfolge (`fillPlate`:
+    // erst hängen, dann ausknipsen). Was der Hebel sich eingehandelt hat —
+    // eine Anmeldung auf einer ausgeknipsten Form —, kann hier nicht
+    // passieren (`core/usable.usableShows`).
     fillPlate(view, group);
     return view;
   },

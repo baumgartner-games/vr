@@ -149,12 +149,20 @@ export function leverFit(height: number): number {
   return height > 1e-6 ? COLUMN_H / height : 1;
 }
 
-interface LeverView extends FixtureView {
+export interface LeverView extends FixtureView {
   /** Die gerechnete Bügelgruppe — sie kippt, solange kein Modell da ist. */
   arm: THREE.Group;
-  /** Die gerechnete Säule: Rückfallbild **und** Griff, siehe `handle`. */
+  /**
+   * Die gerechnete Säule — der **Rückfall**, solange nichts geladen ist, und
+   * solange auch der Griff (siehe `handle`).
+   *
+   * Kommt das Modell, geht sie mitsamt Kopf und Bügel **weg** und wird nicht
+   * ausgeknipst: Ein Griff muss ein sichtbares Netz sein
+   * (`core/usable.usableShows`), und eine unsichtbare Säule, an der die
+   * Anmeldung hängt, ist genau der Hebel, den `A` nicht mehr findet.
+   */
   column: THREE.Mesh;
-  /** Der gerechnete Kopf darauf — er verschwindet mit der Säule. */
+  /** Der gerechnete Kopf darauf — er geht mit der Säule. */
   head: THREE.Mesh;
   /**
    * Der Drehpunkt des Regalmodells, sobald er da ist — sonst `null`.
@@ -178,30 +186,24 @@ interface LeverView extends FixtureView {
 }
 
 /**
- * **Das Modell holen und die gerechnete Form darunter ausknipsen** — sofort
- * nichts, später vielleicht etwas.
+ * **Das Modell holen** — sofort nichts, später vielleicht etwas.
  *
  * Der Einbau wird **synchron** gebaut, das Modell kommt über die Leitung;
  * dazwischen liegt genau diese Funktion. Bis die Datei da ist — und in einem
  * Checkout ohne die gekauften Pakete für immer — steht die gerechnete Säule
- * mit ihrem Knauf da und kippt wie eh und je. **Die bleibt deshalb stehen**
- * und wird nicht gelöscht: Ein Hebel ist ein Schalter, den man sehen muss, um
- * ihn zu finden, und ein unsichtbarer Schalter vor einer Tür ist schlimmer als
- * ein hässlicher. Nebeneinander stehen die beiden nie — kommt das Modell,
- * geht die gerechnete Form aus.
+ * mit ihrem Knauf da und kippt wie eh und je. Ein Hebel ist ein Schalter, den
+ * man sehen muss, um ihn zu finden; ein unsichtbarer Schalter vor einer Tür
+ * ist schlimmer als ein hässlicher. Nebeneinander stehen die beiden nie —
+ * kommt das Modell, geht die gerechnete Form weg (`dressLever`).
  *
  * **Ohne WebGL passiert gar nichts** (`core/chefFit.canLoadModels`): In Jest
  * zieht `GLTFLoader` samt `import.meta` den ganzen Lauf mit herein, und was
  * `lever.test.ts` prüft — umlegen, auslösen, liegen bleiben —, braucht kein
- * Netz.
- *
- * **Gemessen wird, solange das Modell frei hängt.** Erst danach kommt es in
- * die Gruppe des Einbaus, und die ist nach `place.dir` gedreht
- * (`fixtureYaw`): Eine Vierteldrehung später wäre „tief" nicht mehr Z, sondern
- * X, und die ganze Ausrichtung ginge in die Irre. Das ist der Unterschied zur
- * Platte, die rund ist und der es deshalb gleich war.
+ * Netz. Was das Eintreffen des Modells **danach** anrichtet, prüft derselbe
+ * Test trotzdem: Dafür steht es als eigene, synchrone Funktion daneben, der
+ * man ein Modell auch von Hand hinlegen kann.
  */
-function fillLever(view: LeverView, group: THREE.Group, edge: number): void {
+function fillLever(view: LeverView, ctx: FixtureBuild, group: THREE.Group, edge: number): void {
   if (!canLoadModels()) return;
   void import('../../../core/kaykitModel').then(async (module) => {
     const model = await module.kaykitModel(LEVER_MODEL);
@@ -212,89 +214,157 @@ function fillLever(view: LeverView, group: THREE.Group, edge: number): void {
     // die gerechnete Form stehen (siehe `LEVER_MODEL_ARM`). Beide Male ist die
     // Kopie schon gebaut, und ihre **Materialien** gehören ihr allein: Sie
     // gehen hier weg und nicht erst, wenn niemand mehr weiß, dass es sie gab.
-    const arm = model.getObjectByName(LEVER_MODEL_ARM);
-    const stem = arm?.parent ?? null;
-    if (view.gone || !arm || !stem) {
+    if (view.gone || !dressLever(view, model, ctx, group, edge)) {
       for (const skin of skinsOf(model)) skin.dispose();
-      return;
     }
-
-    // **Erst messen, dann strecken.** Auf der Gruppe sitzt schon der Maßstab
-    // des Pakets (`core/kaykitFit.kaykitScale`); was hier dazukommt, ist der
-    // Rest bis `COLUMN_H`. Multipliziert und nicht gesetzt: Die Vorgabe des
-    // Pakets bleibt damit die Grundlage, und ein Paket, das eines Tages anders
-    // eingemessen wird, zieht diesen Hebel mit.
-    model.updateMatrixWorld(true);
-    const rough = new THREE.Box3().setFromObject(model);
-    model.scale.multiplyScalar(leverFit(rough.max.y - rough.min.y));
-    model.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(model);
-    const limb = new THREE.Box3().setFromObject(arm);
-
-    // **Der Drehpunkt sitzt am Fuß des Bügels und nicht in seiner Mitte.**
-    // Der Knoten aus der Datei hat seinen Ursprung genau auf halber Höhe
-    // (0,8925 von 1,729) — würde man ihn selbst drehen, führe das Gelenk unten
-    // in die eine und der Knauf oben in die andere Richtung, und die Stange
-    // scherte seitlich aus der Mulde. Er bekommt deshalb eine eigene
-    // Zwischengruppe, die im Gelenk steht; gedreht wird die.
-    //
-    // Und **seine Ruhelage bleibt ihm**: Position wie Drehung des Knotens
-    // gehen unverändert mit in die Gruppe (die Position um genau den Betrag
-    // versetzt, um den die Gruppe vorrückt). Eine Drehung, die das nächste
-    // Paket dem Bügel mitgibt, überlebt das hier — anders als ein
-    // `rotation.x = …` auf dem Knoten selbst, das sie überschriebe.
-    //
-    // Wo das Gelenk liegt, ist gemessen: Der Bügel endet unten in einem runden
-    // Zapfen, und ein runder Zapfen liegt so weit über dem tiefsten Punkt des
-    // Bügels, wie er dick ist — quer zur Kipprichtung (Z) gemessen, denn dort
-    // ist der Bügel an genau dieser Stelle am breitesten (0,487 gegen 0,474 am
-    // Knauf). Das Ergebnis, 0,300 Quelleinheiten, steht nirgends im Quelltext.
-    const unit = stem.getWorldScale(new THREE.Vector3()).y || 1;
-    const hinge = new THREE.Group();
-    hinge.name = 'hebel:gelenk';
-    hinge.position.set(
-      arm.position.x,
-      (limb.min.y + (limb.max.z - limb.min.z) / 2) / unit,
-      arm.position.z,
-    );
-    arm.position.sub(hinge.position);
-    stem.add(hinge);
-    hinge.add(arm);
-
-    // **Die Ausrichtung** — gebaut wird nach Norden, gedreht wird danach
-    // (`fixtureYaw`). Die Grundplatte liegt mittig über dem Ursprung des
-    // Modells und mit ihrer Unterkante auf null; beides wird hier trotzdem
-    // nachgemessen statt geglaubt.
-    //
-    // Nach Norden geschoben wird, so weit **zwei** Schranken es zulassen: Die
-    // Grundplatte geht höchstens bis an die Kachelkante — ein Sockel, der
-    // darüber hinausragte, stünde auf der Kachel des Nachbarn und vor einer
-    // Tür im Türrahmen. Und näher als `STANDOFF` kommt sie ihr nie, dem Maß,
-    // das die gerechnete Säule von jeher vor dem Rahmen hielt. Bei dieser
-    // Datei hält die erste Schranke (die Platte ist 0,62 m tief; bei
-    // `STANDOFF` bliebe ein Streifen jenseits der Kante), bei einem
-    // schmaleren Sockel die zweite. Beide zusammen sind dieselbe Zusage wie
-    // bisher: nahe der Kante, aber auf der eigenen Kachel.
-    model.position.set(
-      -(box.min.x + box.max.x) / 2,
-      -box.min.y,
-      Math.max(-TILE / 2 - box.min.z, edge),
-    );
-    group.add(model);
-    view.hinge = hinge;
-    for (const skin of skinsOf(model)) view.modelSkins.push(skin);
-
-    // Der Griff rückt unter den Sockel des Modells — er ist ab jetzt nur noch
-    // ein Ziel und kein Bild (siehe `handle`), und ein Ziel, das einen halben
-    // Fuß neben dem steht, worauf man zeigt, ist ein schlechtes.
-    view.column.position.z = model.position.z + (box.min.z + box.max.z) / 2;
-
-    // Erst jetzt, und nicht vorher: eine Kachel, auf der weder das eine noch
-    // das andere steht, wäre ein Hebel, den es kurz nicht gibt.
-    view.column.visible = false;
-    view.head.visible = false;
-    view.arm.visible = false;
   });
+}
+
+/**
+ * **Das geladene Modell anziehen** — messen, hinstellen, den Griff nachreichen
+ * und die gerechnete Form abhängen.
+ *
+ * Eigene Funktion und **ohne Lader**, damit ein Test sie anfassen kann: In
+ * Jest gibt es kein WebGL, aber ein Modell ist am Ende nur ein Baum aus
+ * Knoten, und den kann ein Test von Hand hinlegen. Genau hier ist der Hebel
+ * einmal kaputtgegangen — er hat seine ausgeknipste Säule als Griff behalten
+ * —, und genau hier hält der Test das jetzt nach.
+ *
+ * **Gemessen wird, solange das Modell frei hängt.** Erst danach kommt es in
+ * die Gruppe des Einbaus, und die ist nach `place.dir` gedreht
+ * (`fixtureYaw`): Eine Vierteldrehung später wäre „tief" nicht mehr Z, sondern
+ * X, und die ganze Ausrichtung ginge in die Irre. Das ist der Unterschied zur
+ * Platte, die rund ist und der es deshalb gleich war.
+ *
+ * @returns ob das Modell übernommen wurde — sonst gehört es weiterhin dem
+ *          Aufrufer, samt seiner Materialien.
+ */
+export function dressLever(
+  view: LeverView,
+  model: THREE.Object3D,
+  ctx: FixtureBuild,
+  group: THREE.Group,
+  edge: number,
+): boolean {
+  const arm = model.getObjectByName(LEVER_MODEL_ARM);
+  const stem = arm?.parent ?? null;
+  if (!arm || !stem) return false;
+  // **Der Sockel ist der namenlose Knoten neben dem Bügel** — das eine Netz
+  // dieses Modells, das steht, wo es steht, und sich nicht umlegt. Gesucht
+  // wird er als „der andere", bevor der Bügel gleich in seine Gelenkgruppe
+  // umzieht und `stem.children` ein Kind mehr hat. Findet sich keiner, tut es
+  // das ganze Modell: ein Griff, der etwas zu weit ist, ist ein Griff; ein
+  // Griff, den es nicht gibt, ist ein Hebel, den `A` nicht findet.
+  const base = stem.children.find((child) => child !== arm) ?? model;
+
+  // **Erst messen, dann strecken.** Auf der Gruppe sitzt schon der Maßstab
+  // des Pakets (`core/kaykitFit.kaykitScale`); was hier dazukommt, ist der
+  // Rest bis `COLUMN_H`. Multipliziert und nicht gesetzt: Die Vorgabe des
+  // Pakets bleibt damit die Grundlage, und ein Paket, das eines Tages anders
+  // eingemessen wird, zieht diesen Hebel mit.
+  model.updateMatrixWorld(true);
+  const rough = new THREE.Box3().setFromObject(model);
+  model.scale.multiplyScalar(leverFit(rough.max.y - rough.min.y));
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const limb = new THREE.Box3().setFromObject(arm);
+
+  // **Der Drehpunkt sitzt am Fuß des Bügels und nicht in seiner Mitte.**
+  // Der Knoten aus der Datei hat seinen Ursprung genau auf halber Höhe
+  // (0,8925 von 1,729) — würde man ihn selbst drehen, führe das Gelenk unten
+  // in die eine und der Knauf oben in die andere Richtung, und die Stange
+  // scherte seitlich aus der Mulde. Er bekommt deshalb eine eigene
+  // Zwischengruppe, die im Gelenk steht; gedreht wird die.
+  //
+  // Und **seine Ruhelage bleibt ihm**: Position wie Drehung des Knotens
+  // gehen unverändert mit in die Gruppe (die Position um genau den Betrag
+  // versetzt, um den die Gruppe vorrückt). Eine Drehung, die das nächste
+  // Paket dem Bügel mitgibt, überlebt das hier — anders als ein
+  // `rotation.x = …` auf dem Knoten selbst, das sie überschriebe.
+  //
+  // Wo das Gelenk liegt, ist gemessen: Der Bügel endet unten in einem runden
+  // Zapfen, und ein runder Zapfen liegt so weit über dem tiefsten Punkt des
+  // Bügels, wie er dick ist — quer zur Kipprichtung (Z) gemessen, denn dort
+  // ist der Bügel an genau dieser Stelle am breitesten (0,487 gegen 0,474 am
+  // Knauf). Das Ergebnis, 0,300 Quelleinheiten, steht nirgends im Quelltext.
+  const unit = stem.getWorldScale(new THREE.Vector3()).y || 1;
+  const hinge = new THREE.Group();
+  hinge.name = 'hebel:gelenk';
+  hinge.position.set(
+    arm.position.x,
+    (limb.min.y + (limb.max.z - limb.min.z) / 2) / unit,
+    arm.position.z,
+  );
+  arm.position.sub(hinge.position);
+  stem.add(hinge);
+  hinge.add(arm);
+
+  // **Die Ausrichtung** — gebaut wird nach Norden, gedreht wird danach
+  // (`fixtureYaw`). Die Grundplatte liegt mittig über dem Ursprung des
+  // Modells und mit ihrer Unterkante auf null; beides wird hier trotzdem
+  // nachgemessen statt geglaubt.
+  //
+  // Nach Norden geschoben wird, so weit **zwei** Schranken es zulassen: Die
+  // Grundplatte geht höchstens bis an die Kachelkante — ein Sockel, der
+  // darüber hinausragte, stünde auf der Kachel des Nachbarn und vor einer
+  // Tür im Türrahmen. Und näher als `STANDOFF` kommt sie ihr nie, dem Maß,
+  // das die gerechnete Säule von jeher vor dem Rahmen hielt. Bei dieser
+  // Datei hält die erste Schranke (die Platte ist 0,62 m tief; bei
+  // `STANDOFF` bliebe ein Streifen jenseits der Kante), bei einem
+  // schmaleren Sockel die zweite. Beide zusammen sind dieselbe Zusage wie
+  // bisher: nahe der Kante, aber auf der eigenen Kachel.
+  model.position.set(
+    -(box.min.x + box.max.x) / 2,
+    -box.min.y,
+    Math.max(-TILE / 2 - box.min.z, edge),
+  );
+  group.add(model);
+  view.hinge = hinge;
+  for (const skin of skinsOf(model)) view.modelSkins.push(skin);
+
+  // **Der Griff zieht auf den Sockel um** (`FixtureBuild.rehandle`), und zwar
+  // an genau dieselbe Stelle: Der namenlose Knoten hat seinen Ursprung auf dem
+  // Ursprung des Modells (nachgemessen: 0 in x und z, 0,2 Quelleinheiten
+  // hoch), und die Grundplatte liegt mittig darüber. Er steht damit dort, wo
+  // bis eben die Säule stand, nachdem sie unter das Modell gerückt war —
+  // ausgewählt wird waagerecht (`core/usable.pickUsable` rechnet nur in x und
+  // z), und in x und z ist das derselbe Punkt.
+  //
+  // Die Höhe ändert sich dabei (der Sockel liegt am Boden, die Säulenmitte lag
+  // auf 0,45 m), und das zählt nur für die Kugel: Ihr Zylinder reicht `half`
+  // = 0,8 m über die Mitte und damit bis 0,9 m — genau bis zum Knauf dieses
+  // Hebels. Vorher endete er über dem Hebel, in der Luft.
+  ctx.rehandle(view, base);
+
+  // **Und erst jetzt geht die gerechnete Form weg** — abgehängt, nicht
+  // ausgeknipst. Eine Kachel, auf der weder das eine noch das andere steht,
+  // wäre ein Hebel, den es kurz nicht gibt; ein unsichtbarer Zylinder, an dem
+  // noch die Anmeldung hinge, wäre der Fehler, der hier einmal stand.
+  shedSpare(view);
+  return true;
+}
+
+/**
+ * **Die gerechnete Form abräumen**, wenn das Modell sie abgelöst hat.
+ *
+ * Abgehängt **und** freigegeben, und das zweite ist der Grund, warum es hier
+ * steht: Was beim Umbau von selbst weggeht, ist der Baum unter `view.object`
+ * (`GridWorld.clearFixtures` → `disposeShapes`). Was daneben hängt, hängt
+ * nirgends — seine Geometrie käme nie zurück, und die Gitterwelt baut ihre
+ * Einbauten bei **jeder** Änderung neu.
+ *
+ * Die Materialien bleiben: Säule und Kopf tragen `steel` aus der Palette der
+ * Welt (geteilt, wer sie freigäbe, nähme sie allen), der Knauf sein eigenes —
+ * und das gehört dem `dispose` des Einbaus.
+ */
+function shedSpare(view: LeverView): void {
+  for (const spare of [view.column, view.head, view.arm]) {
+    spare.removeFromParent();
+    spare.traverse((node) => {
+      const mesh = node as THREE.Mesh;
+      if (mesh.isMesh) mesh.geometry.dispose();
+    });
+  }
 }
 
 /**
@@ -394,16 +464,16 @@ export const LEVER: FixtureKind<LeverState> = {
       // sich mit seinem eigenen Zustand verschiebt, ist eines, das man nach dem
       // ersten Umlegen nicht mehr erwischt. Der Sockel steht.
       //
-      // Und es bleibt die **gerechnete** Säule, auch wenn gleich das Modell
-      // darüberkommt und sie ausgeknipst wird: Die Welt meldet den Griff genau
-      // einmal an, nämlich direkt nach `build` (`GridWorld.attachUsable`), und
-      // meldet ihn beim Umbau unter demselben Knoten wieder ab. Ein `handle`,
-      // das später auf den Sockel des Modells umspränge, wäre eine Anmeldung
-      // auf dem einen und eine Abmeldung auf dem anderen Ding — ein Hebel, der
-      // nach dem Umbau weiterhin Türen öffnet. Ein unsichtbarer, schlanker
-      // Zylinder an derselben Stelle ist das kleinere Übel, und er kostet
-      // nichts: Gezeigt und getroffen wird über Abstände und nicht über
-      // Strahlen (`core/usable.ts`), unsichtbar stört also nicht.
+      // Und es ist der Sockel dessen, was man **gerade sieht**: jetzt die
+      // gerechnete Säule, nach dem Eintreffen der Datei die Grundplatte des
+      // Modells (`dressLever` → `FixtureBuild.rehandle`). Hier stand einmal
+      // das Gegenteil — die Säule blieb Griff und wurde nur ausgeknipst, weil
+      // die Welt den Griff genau einmal anmeldet und unter demselben Knoten
+      // wieder abmeldet. Das Ergebnis war ein Hebel, den `A` nicht mehr fand
+      // und der nicht mehr leuchtete: Was angemeldet ist, muss ein sichtbares
+      // Netz sein (`core/usable.usableShows`). Das Umhängen ist deshalb kein
+      // Sonderweg mehr, sondern ein Handgriff der Welt, der beides schreibt,
+      // die Liste und dieses Feld.
       handle: column,
       // Großzügig zu bedienen, knapp zu treffen: Der Sockel steht am Rand der
       // Kachel, und wer mitten darauf steht, soll ihn erreichen.
@@ -417,7 +487,7 @@ export const LEVER: FixtureKind<LeverState> = {
         view.modelSkins.length = 0;
       },
     };
-    fillLever(view, group, edge);
+    fillLever(view, ctx, group, edge);
     return view;
   },
 
