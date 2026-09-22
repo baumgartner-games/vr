@@ -152,6 +152,11 @@ export function fitNavigation(plan: GridPlan): void {
 const CRATE_SIZE = 0.62;
 /** Wie hoch der Zielmast steht. */
 const MARK_HEIGHT = 1.8;
+/**
+ * **Und woher sein Bild kommt** — dieselbe Datei wie unter jedem anderen
+ * Schild dieser Welt (`core/kaykitHeight.ts`).
+ */
+const MARK_MODEL = 'dungeon/post.glb';
 
 /**
  * **Die Bodenfalle aus dem Regal** — neun Kopien, eine je Kachel.
@@ -409,12 +414,58 @@ export class NavigationZone implements TestZone {
     });
   }
 
-  /** Der Zielmast am Ende: ein Mast und eine Tafel, die die Kamera ansieht. */
+  /**
+   * **Den Zielmast aus dem Regal nachliefern.**
+   *
+   * Dieselben zwei Schranken wie beim Stachelfeld (`fillSpikes`, dort steht
+   * die lange Fassung): `canLoadModels` hält den Lader aus einem Lauf ohne
+   * WebGL heraus, und `import()` ist dynamisch, damit Jest den `GLTFLoader`
+   * samt `import.meta` gar nicht erst mitzieht. Kommt nichts an, bleibt der
+   * gerechnete Mast stehen — er trägt die Tafel, und eine Tafel ohne Mast
+   * wäre schlechter als ein Mast aus einem Quader.
+   *
+   * Die **Materialien** der Kopie gehören ihr allein und gehen in `owned`;
+   * ihre **Geometrie** gehört der Vorlage und allen anderen Pfosten
+   * (`core/kaykitModel.copyOf`, `userData.sharedAssets`) und darf gerade
+   * **nicht** in `shapes`.
+   */
+  private fillMark(world: ZoneHost, post: THREE.Mesh): void {
+    if (!canLoadModels()) return;
+    void import('../../../core/kaykitHeight').then(async (module) => {
+      const stand = await module.kaykitAtHeight(MARK_MODEL, MARK_HEIGHT);
+      if (!stand) return;
+      if (this.gone) {
+        for (const skin of skinsOf(stand)) skin.dispose();
+        return;
+      }
+      // Der Helfer legt den Fuß auf den Ursprung seiner Gruppe — hingestellt
+      // wird sie auf den Boden und nicht auf halbe Höhe gerechnet.
+      stand.position.set(centre(POINT_B.x), 0, centre(POINT_B.z));
+      world.root.add(stand);
+      for (const skin of skinsOf(stand)) this.owned.push(skin);
+      post.visible = false;
+    });
+  }
+
+  /**
+   * Der Zielmast am Ende: ein Mast und eine Tafel, die die Kamera ansieht.
+   *
+   * **Der Mast kommt aus dem Regal** — derselbe `dungeon/post.glb`, der auch
+   * unter dem Schild der Gitterwelt, unter der tragbaren Tafel und unter den
+   * Entfernungsmarken des Schießstands steht (`core/kaykitHeight.ts`, dort
+   * steht die Begründung fürs Messen statt Abschreiben). Vier Stäbe mit
+   * derselben Aufgabe aus vier Geometrien wären vier Antworten auf eine
+   * Frage.
+   *
+   * Der gerechnete Quader bleibt stehen, bis das Modell da ist, und wird
+   * **dann** ausgeblendet — dieselbe Zusage wie beim Stachelfeld darüber.
+   */
   private buildMark(world: ZoneHost): void {
     const steel = this.own(new THREE.MeshStandardMaterial({ color: 0x9aa6bd, roughness: 0.5 }));
     const post = new THREE.Mesh(this.shape(new THREE.BoxGeometry(0.09, MARK_HEIGHT, 0.09)), steel);
     post.position.set(centre(POINT_B.x), MARK_HEIGHT / 2, centre(POINT_B.z));
     world.root.add(post);
+    this.fillMark(world, post);
 
     const plate = new TextPlane({
       width: 1.3,

@@ -6,6 +6,7 @@ import { pieceBurst } from '../../range/shatter';
 import { bullseyeFace } from '../../shared/target';
 import { TextPlane } from '../../../ui/TextPlane';
 import { canLoadModels } from '../../../core/chefFit';
+import { kaykitFitHeight } from '../../../core/kaykitHeight';
 import { playTone } from '../../../core/Audio';
 import type { WorldContext } from '../../../core/types';
 import type { PhysicsBody } from '../../../physics/PhysicsWorld';
@@ -106,6 +107,19 @@ const TARGET_MODEL = 'prototype-bits/target.glb';
 const PIECE_MODELS: readonly string[] = ['A', 'B', 'C', 'D', 'E', 'F'].map(
   (piece) => `prototype-bits/target_pieces_${piece}.glb`,
 );
+
+/**
+ * **Wie hoch die Pfosten der Entfernungsmarken stehen** — und woher ihr Bild
+ * kommt.
+ *
+ * Die Zahl stand bisher zweimal im Rumpf von `buildMarks`: einmal als Höhe,
+ * einmal halbiert als Mitte. Sie steht jetzt einmal hier, weil sie eine
+ * dritte Verwendung bekommen hat — auf sie wird das Modell aus dem Regal
+ * gemessen (`core/kaykitHeight.kaykitFitHeight`). Eine Zahl, die an drei
+ * Stellen dieselbe sein muss, ist eine Konstante.
+ */
+const MARK_POST_H = 1.5;
+const MARK_POST_MODEL = 'dungeon/post.glb';
 
 /**
  * **Wie hoch eine Scheibe hängt, und wie groß sie ist.**
@@ -918,7 +932,21 @@ export class RangeZone implements TestZone {
     });
   }
 
-  /** Die Entfernungsmarken am Nordrand, lesbar von der Linie aus. */
+  /**
+   * Die Entfernungsmarken am Nordrand, lesbar von der Linie aus.
+   *
+   * **Ihr Pfosten kommt aus dem Regal** — derselbe `dungeon/post.glb`, der
+   * auch unter dem Schild der Gitterwelt und unter der tragbaren Tafel steht
+   * (`core/kaykitHeight.ts`, dort steht die Begründung fürs Messen statt
+   * Abschreiben). Es ist dieselbe Sache am selben Ort: ein Stab, auf dem eine
+   * Tafel sitzt. Drei Stäbe aus drei Dateien wären drei Antworten auf eine
+   * Frage.
+   *
+   * Der gerechnete Quader bleibt stehen, bis das Modell wirklich da ist, und
+   * wird **dann** ausgeblendet — dieselbe Zusage wie beim Ständer der
+   * Scheiben (`dress`): nie beides nebeneinander, und in einem Lauf ohne
+   * WebGL steht weiter, was gebaut wurde.
+   */
   private buildMarks(world: ZoneHost): void {
     for (const distance of TARGET_ROWS) {
       const mark = new TextPlane({
@@ -932,10 +960,44 @@ export class RangeZone implements TestZone {
       world.root.add(mark);
       this.marks.push(mark);
 
-      const post = new THREE.Mesh(this.shape(new THREE.BoxGeometry(0.07, 1.5, 0.07)), this.steel!);
-      post.position.set(FIRING_LINE + distance, 0.75, centre(RANGE.z - 1));
+      const spot = { x: FIRING_LINE + distance, z: centre(RANGE.z - 1) };
+      const post = new THREE.Mesh(
+        this.shape(new THREE.BoxGeometry(0.07, MARK_POST_H, 0.07)),
+        this.steel!,
+      );
+      post.position.set(spot.x, MARK_POST_H / 2, spot.z);
       world.root.add(post);
+      this.dressMark(world, post, spot);
     }
+  }
+
+  /**
+   * **Den Pfosten einer Entfernungsmarke aus dem Regal nachliefern.**
+   *
+   * Eigener Handgriff und keine Zeile in `buildMarks`, weil hier drei Dinge
+   * zusammenkommen, die es dort nicht gibt: das Warten auf die Datei, der
+   * Fall „die Zone ist weg, während sie unterwegs war" (`gone`) und die
+   * Materialien der Kopie, die ihr allein gehören und deshalb ins Abräumen
+   * müssen. Die **Geometrie** darunter gehört der Vorlage und allen anderen
+   * Pfosten (`core/kaykitModel.copyOf`, `userData.sharedAssets`) — sie darf
+   * gerade **nicht** in `shapes`.
+   */
+  private dressMark(world: ZoneHost, post: THREE.Mesh, spot: { x: number; z: number }): void {
+    this.withShelf(async (shelf) => {
+      const model = await shelf.kaykitModel(MARK_POST_MODEL);
+      if (!model) return;
+      const stand = kaykitFitHeight(model, MARK_POST_H);
+      if (this.gone) {
+        for (const skin of skinsOf(stand)) skin.dispose();
+        return;
+      }
+      // Der Helfer legt den Fuß auf den Ursprung seiner Gruppe — hingestellt
+      // wird sie damit auf den Boden und nicht auf halbe Höhe gerechnet.
+      stand.position.set(spot.x, 0, spot.z);
+      world.root.add(stand);
+      for (const skin of skinsOf(stand)) this.own(skin);
+      post.visible = false;
+    });
   }
 
   /** Die Punktetafel neben der Linie. */
