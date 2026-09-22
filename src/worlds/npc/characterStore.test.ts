@@ -1,5 +1,6 @@
 import {
   CHARACTER_KEY,
+  STORE_LIMIT,
   characterById,
   deleteCharacter,
   listCharacters,
@@ -107,10 +108,20 @@ describe('Der Charakter-Speicher', () => {
     const store = memoryStore();
     const huge = recording();
     // Eine Aufnahme, die allein den Deckel sprengt: Bilder bis über die Grenze.
+    //
+    // Gewogen wird **eine** Bildzeile, und daraus wird die Anzahl gerechnet.
+    // Vorher stand das `JSON.stringify` über die ganze Liste in der
+    // Schleifenbedingung — und damit wurde bei jedem der 36 000 Anhänge die
+    // komplette, mitwachsende Liste neu serialisiert: rund 65 GB JSON für eine
+    // einzige Fixture, fünf der acht Minuten der schnellen Suite
+    // (`docs/agents/tests.md`).
     const frames = huge.frames;
-    while (JSON.stringify(frames).length < 3_600_000) {
-      frames.push({ ...frames[frames.length - 1]!, t: frames.length });
+    const frame = frames[frames.length - 1]!;
+    const perFrame = JSON.stringify(frame).length + 1;
+    while (frames.length * perFrame < STORE_LIMIT + 100_000) {
+      frames.push({ ...frame, t: frames.length });
     }
+    expect(JSON.stringify(huge).length).toBeGreaterThan(STORE_LIMIT);
     expect(saveCharacter({ kind: 'dummy', recording: huge }, store)).toBeNull();
     expect(listCharacters(store)).toEqual([]);
   });

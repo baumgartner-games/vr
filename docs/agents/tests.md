@@ -7,7 +7,8 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
 Suiten, die ganze Runden ausspielen — Bot-Runden über die echte 2D-Runde
 (`rules/botRound.test.ts`, 150 s), die 2D-Runde selbst (`map/flatRound.test.ts`,
 90 s), Schächte, Glättung, Training, Modelltechniker, Fracht,
-Schiffsart — zusammen gut sechs Minuten Rechenzeit, bei zwei CI-Kernen die
+Schiffsart — und dazu die fünf, die ganze Schiffe und Navigationsnetze stellen
+(unten) — zusammen gut siebeneinhalb Minuten Rechenzeit, bei zwei CI-Kernen die
 Hälfte der Wartezeit. `npm test` lässt sie aus und ist in unter einer Minute
 durch; `npm run test:slow` fährt genau diese Liste; die CI macht beides in
 getrennten Jobs (`Build` und `Slow tests`), damit ein Push nicht an einer Uhr
@@ -17,6 +18,44 @@ hält (`botTraining.test.ts` misst 1600 Runden nach) — Rechnung, keine
 Browser-Smokes, und darum gehören sie in Jest und nicht in Playwright. Wer
 eine neue Suite schreibt, die mehr als zehn Sekunden braucht, trägt sie in
 `SLOW` ein.
+
+**Und wer sie eintragen will, muss sie erst wiegen.** Die schnelle Suite war
+unbemerkt auf **acht Minuten** gewachsen — die Zusage „unter einer Minute" stand
+noch da, gestimmt hat sie lange nicht mehr. Zwei Dinge standen dahinter, und nur
+eines davon war Absicht:
+
+- **Eine Fixture mit einer quadratischen Schleife.**
+  `npc/characterStore.test.ts` baut eine Aufnahme, die den Speicherdeckel
+  sprengt (`STORE_LIMIT`), und prüfte die Größe mit einem `JSON.stringify` über
+  die **ganze** Liste — in der Schleifenbedingung. Bei 36 000 Anhängen wurde die
+  mitwachsende Liste also 36 000-mal neu serialisiert: rund 65 GB JSON für eine
+  einzige Fixture, **312 Sekunden für acht Tests**, die nichts als eine `Map`
+  anfassen. Heute wird eine Bildzeile einmal gewogen und die Anzahl gerechnet:
+  **0,8 Sekunden**, dieselben acht Tests, dazu die Zusage ausdrücklich geprüft.
+  Eine Suite, die lange braucht, ohne lange rechnen zu wollen, ist kein Fall für
+  `SLOW`, sondern ein Fehler.
+- **Fünf Suiten, die ganze Schiffe stellen.** `ShipExperience`,
+  `navmesh/flatNavigation`, `haunt`, `stationLayout` und `roundSim` kosten je
+  zehn bis dreißig Sekunden und rissen damit genau die Grenze, die hier steht.
+  Sie sind gewollt teuer und stehen jetzt in `SLOW`.
+
+Zusammen: **acht Minuten auf gut eine halbe** (31 s auf vier Kernen), ohne dass
+ein einziger Test weggefallen ist — 4776 laufen weiter. Wer das nächste Mal
+nachsehen will, wohin die Zeit geht, lässt sich die Suiten einzeln ausgeben und
+nicht die Summe:
+
+```
+npx jest --silent --json --outputFile=/tmp/fast.json
+node -e "JSON.parse(require('fs').readFileSync('/tmp/fast.json')).testResults \
+  .map(r => [r.endTime - r.startTime, r.name]).sort((a,b) => b[0]-a[0]) \
+  .slice(0,15).forEach(([ms,n]) => console.log((ms/1000).toFixed(1)+'s', n))"
+```
+
+Die Erfahrung dahinter: Bei 343 Suiten sieht „acht Minuten" nach zu vielen
+Tests aus, und es waren in Wahrheit **eine falsche Zeile und fünf Ausreißer** —
+82 % der Zeit steckten in sechs Dateien, die restlichen 337 kosteten zusammen
+90 Sekunden. Wer nach Gefühl streicht, verliert die Tests und behält die
+Wartezeit.
 
 Getestet wird das, was ohne Browser läuft und wo Fehler nicht auffallen: die
 Mathematik hinter dem Greifen (`src/worlds/portal/grabReach.ts` — Zielen,

@@ -37,6 +37,18 @@ const SLOW = [
   // werden (`stationLayout`, gut eine fünftel Sekunde je Haus): rund
   // dreiviertel Minute, die in der schnellen Runde nichts zu suchen hat.
   'worlds/haunting/rules/cargo.test.ts',
+  // **Nachgemessen, nicht geschätzt.** Die schnelle Suite war auf acht Minuten
+  // gewachsen, ohne dass jemand eine Suite dazu eingeladen hätte: Diese fünf
+  // stellen ganze Schiffe, Häuser und Navigationsnetze und kosten je zehn bis
+  // dreißig Sekunden — zusammen gut anderthalb Minuten. Damit reißen sie die
+  // Zehn-Sekunden-Grenze, die dieses Kapitel selbst aufstellt, und gehen
+  // denselben Weg wie die Rundensimulationen: in den Nebenjob, wo niemand
+  // darauf wartet.
+  'worlds/haunting/ShipExperience.test.ts',
+  'worlds/haunting/navmesh/flatNavigation.test.ts',
+  'worlds/haunting/haunt.test.ts',
+  'worlds/haunting/stationLayout.test.ts',
+  'worlds/haunting/roundSim.test.ts',
 ];
 
 const slowOnly = process.env.JEST_SLOW === '1';
