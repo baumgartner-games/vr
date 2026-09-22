@@ -268,6 +268,12 @@ async function measure(browser, world, item) {
     // Aus den Augen und nicht von oben: Von oben schneidet `TopDownCamera` die
     // Szene auf und zeichnet etwas anderes als das, was in der Brille steht.
     await page.locator('#screen-view [data-view="3d"]').click();
+    // **Der Knopf ist stumpf, bis die Welt geladen ist** (`core/warmStart.ts`,
+    // `startButton`). Playwright wartete von sich aus darauf, aber mit seiner
+    // eigenen Frist von 30 s — und eine Welt aus dem Entwicklungsserver
+    // braucht länger. Die Frist steht deshalb hier und passt zu der weiter
+    // unten.
+    await page.locator('#enter:not([disabled])').waitFor({ timeout: 120000 });
     await page.locator('#enter').click();
     // **Und hier wartet man nicht blind.** Eine Welt kommt über einen
     // dynamischen Import; schlägt der fehl — weil nebenan gerade jemand an

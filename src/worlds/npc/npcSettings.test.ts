@@ -78,6 +78,31 @@ describe('Haut und Hirn ziehen ihre Zahlen mit', () => {
   });
 });
 
+/**
+ * **Eine Figur aus dem Regal ist eine Sorte wie jede andere** — sie kommt aus
+ * dem Menü in dieselbe Einstellung und liegt im selben Browser-Speicher
+ * (`kaykit:<pfad>`, `npcKinds.shelfPath`).
+ */
+describe('Die Sorte aus dem Regal', () => {
+  const knight = 'kaykit:adventurers/characters/Knight.glb';
+
+  it('kommt durch die Prüfung, ohne dass das Regal geladen sein muss', () => {
+    expect(clampNpc({ kind: knight }).kind).toBe(knight);
+  });
+
+  it('bringt das Leben ihrer abgeleiteten Haut mit', () => {
+    expect(withKind(DEFAULT_NPC, knight).health).toBe(npcSkin(knight).health);
+    expect(withKind(DEFAULT_NPC, knight).kind).toBe(knight);
+  });
+
+  it('nimmt weder ein Fach des Menüs noch einen Ordner', () => {
+    expect(clampNpc({ kind: 'kaykit:adventurers#60' as never }).kind).toBe(DEFAULT_NPC.kind);
+    expect(clampNpc({ kind: 'kaykit:adventurers/characters' as never }).kind).toBe(
+      DEFAULT_NPC.kind,
+    );
+  });
+});
+
 describe('Der Reihe nach', () => {
   it('geht jede Liste im Kreis', () => {
     expect(nextIn(NPC_MODE_IDS, NPC_MODE_IDS[NPC_MODE_IDS.length - 1]!)).toBe(NPC_MODE_IDS[0]);

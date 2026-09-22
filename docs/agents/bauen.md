@@ -217,10 +217,11 @@ wie ein Möbel, und ein Regal, das ihm auf die Pelle rückt, verdeckt ausgerechn
 den Weg zurück. Dann kommt der erste Ring, **bis auf die Kreuzmitte**: Die vier
 Kacheln genau vor, hinter, links und rechts vom Anker bleiben leer, und damit
 bleiben vier Gassen offen, durch die man von der Mitte aus bis nach draußen
-sieht. Zwanzig Stücke fasst dieser Ring — genug für die siebzehn Kleidungsstücke
-dieses Projekts, und seit der Werkhalle **nicht** mehr für den Möbelkatalog:
-Der hat sechsundzwanzig Stücke, und die letzten sechs gehen in den nächsten Ring
-**zwei** Kacheln weiter draußen. Ein Ring direkt hinter dem anderen stünde in
+sieht. Zwanzig Stücke fasst dieser Ring — und das reicht seit der Werkhalle für
+keinen der beiden Kataloge mehr: Der Möbelkatalog hat sechsundzwanzig Stücke,
+die Umkleide seit den Figuren **neunundzwanzig**, und was übrig bleibt, geht in
+den nächsten Ring **zwei** Kacheln weiter draußen. Ein Ring direkt hinter dem
+anderen stünde in
 dessen Lücken und wäre von der Mitte aus halb verdeckt. Reicht
 der ausgelieferte Boden dafür nicht, wächst **der Boden** (`floorTilesFor`) und
 nicht der Abstand — ein Stück neben dem Boden ist genau der Fehler, den dieser
@@ -273,8 +274,8 @@ spiegelbildlich, sondern die eine nach Süden und die andere nach Osten.
 **Gebaut wird ein Stück erst, wenn es an der Reihe ist aufzufahren**
 (`ConstructItem.object`, `ConstructRoom.raise`). Das ist die Antwort auf die
 gemeldete Pause: Beim **ersten** Öffnen dauerte es spürbar, danach ging es
-schneller. Siebzehn Avatarteile zu bauen kostet knapp eine Zehntelsekunde, und
-achtzehn Miniaturen zu klonen kostet ähnlich — und das fiel bisher **ganz** in
+schneller. Ein Regal voller Avatarteile zu bauen kostet knapp eine
+Zehntelsekunde, und achtzehn Miniaturen zu klonen kostet ähnlich — und das fiel bisher **ganz** in
 das eine Bild, in dem der Raum aufging. Über die Auffahrwelle verteilt
 (`RISE_STAGGER`, 0,04 s je Stück) ist es je Bild eines. Angemeldet wird ein
 Stück im selben Atemzug, und auch das ist richtig so: `A` soll nur meinen, was
@@ -287,6 +288,32 @@ den Reif wandern (`WardrobeRack.wear`), und der Möbelkatalog hält seine
 Miniaturen fest (`KitchenZone.minis`). Beim Regal war das obendrein ein Leck: Es
 baute je Öffnen siebzehn frische Geometrien samt Materialien, die niemand wieder
 freigab.
+
+**Ein viertes Fach: die Figuren** (`worlds/shared/wardrobeRack.figurePiece`,
+`core/avatarFigures.ts`). Neben Gesichtern, Hüten und Oberteilen stehen seit
+dem Umbau zwölf **Spielfiguren** im Ring — der Koch und elf Charaktere aus dem
+KayKit-Regal —, und wer eine benutzt, ist sie (siehe
+[Spielfigur](spielfigur.md), _Wie man aussieht_). Sie sind das erste, was auf
+einer Kachel des Konstrukts **nicht** aus Grundkörpern entsteht, sondern aus
+einer Datei, und daraus folgen zwei Dinge:
+
+- **Bis sie da ist, steht eine Spielfigur wie vom Brettspiel darauf** — Kegel
+  und Kugel, zwei geteilte Formen für alle zwölf. Eine leere Kachel sieht nicht
+  aus wie „wird noch", sondern wie „ist kaputt"; es ist dieselbe Überlegung wie
+  beim leeren Hutständer für _Ohne_. Ohne WebGL — im Test — bleibt der
+  Platzhalter für immer stehen, und genau deshalb lässt sich das Regal
+  weiterhin ohne Browser nachmessen.
+- **Ihre Höhe wird gemessen, nicht mit einer Zahl verkleinert.** Die drei
+  anderen Fächer haben je **eine** Verkleinerung, damit man die Stücke an ihren
+  Verhältnissen wiedererkennt (ein Zylinder ist höher als eine Krone). Bei
+  Figuren sagt der Größenunterschied nichts — er sagt nur, wer einen Spitzhut
+  trägt —, und welche Höhe eine Datei hat, weiß man erst, wenn sie da ist. Also
+  stehen sie alle 40 cm hoch auf ihrem Fuß, wie Zinnfiguren im Schaufenster.
+
+Im Regal steht dabei nur die **kuratierte Handvoll**. Die rund 85 Figuren der
+Sammlung hätten 85 Ständer gebraucht, also fünf Ringe; wer eine der übrigen
+will, nimmt den Weg über die Detailseite des Regals (_Als Figur tragen_, siehe
+[Das KayKit-Regal](assetregal.md)).
 
 **Zurück geht es über den Anker, und nur über ihn.** Alles andere ist unsichtbar
 und meldet sich deshalb gar nicht mehr (`PortalWorld.collectUsables`) — der

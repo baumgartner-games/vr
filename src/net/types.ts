@@ -23,14 +23,19 @@ export type NetMessage =
    * Uhrzeit nie einig sind, über die Länge einer Minute aber schon.
    */
   /**
-   * `hat`, `head` und `body` sind das **Aussehen** dieses Spielers
-   * (`core/appearance.ts`): was er auf dem Kopf trägt, welchen Kopf er hat und
-   * welche Kochjacke. Es steht in der Anmeldung und nicht in der Pose — ein
-   * Aussehen ändert sich einmal am Abend, eine Pose zwanzigmal in der Sekunde.
+   * `hat`, `head`, `body` und `figure` sind das **Aussehen** dieses Spielers
+   * (`core/appearance.ts`): was er auf dem Kopf trägt, welchen Kopf er hat,
+   * welche Kochjacke — und als was er überhaupt herumläuft, denn seit dem
+   * Kleiderschrank kann das auch eine Figur aus dem Regal sein
+   * (`core/avatarFigures.ts`, eine Adresse wie `adventurers/characters/Knight.glb`).
+   * Es steht in der Anmeldung und nicht in der Pose — ein Aussehen ändert sich
+   * einmal am Abend, eine Pose zwanzigmal in der Sekunde.
    *
-   * Alle drei sind optional, weil eine ältere Fassung sie nicht mitschickt,
-   * und alle drei sind **fremder Text**: Was hereinkommt, geht durch
-   * `asHeadgear`/`asHead`/`asBody`, unbekannte Werte werden zur Vorgabe.
+   * Alle vier sind optional, weil eine ältere Fassung sie nicht mitschickt,
+   * und alle vier sind **fremder Text**: Was hereinkommt, geht durch
+   * `asHeadgear`/`asHead`/`asBody`/`asFigure`, unbekannte Werte werden zur
+   * Vorgabe. Bei `figure` ist das keine Formsache, sondern eine Adresse, mit
+   * der hinterher eine Datei geholt wird — siehe `asFigure`.
    */
   | {
       type: 'hello';
@@ -42,6 +47,7 @@ export type NetMessage =
       hat?: string;
       head?: string;
       body?: string;
+      figure?: string;
     }
   | { type: 'bye'; from: string }
   | { type: 'world'; from: string; world: string; since: number }

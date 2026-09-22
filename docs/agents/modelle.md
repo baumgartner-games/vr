@@ -257,6 +257,100 @@ ankam (kein einziges 404), 112 Skinned Meshes, 29 Animationsclips allein in
 `Rig_Medium_Tools.glb` — und die Hüllen gegenüber der Quelle um höchstens
 0,004 % verschoben, bei gleich vielen Dreiecken.
 
+## Was aus dem Regal die gebaute Geometrie ersetzt — und was nicht
+
+Seit das Regal liegt, stellt sich bei jedem gerechneten Ding dieselbe Frage:
+**Gibt es das schon?** 4 470 Dateien sind genug, dass die Antwort oft ja ist —
+der Rechner auf dem Schreibtisch (`zones/kitchenDesk.ts`, `COMPUTER_MODEL`)
+und der Schraubenschlüssel in der Küche (`zones/kitchenProps.ts`,
+`WRENCH_MODEL`) sind die beiden, die den Weg gegangen sind. Dieser Abschnitt
+ist die **Bestandsaufnahme** dazu: was nachgesehen wurde, was gemessen dabei
+herauskam und was daraus folgt. Er ist ausdrücklich auch eine Liste der
+**Absagen** — eine Absage mit einer Zahl daneben muss niemand ein zweites Mal
+nachschlagen, und genau das ist der Zweck.
+
+### Drei Regeln, die für jeden Tausch gelten
+
+1. **Ersetzt wird nur das Bild, nie die Rechnung.** Kollisionskörper,
+   Trefferlogik, Halbmesser fürs Zeigen und alles, was eine Zahl im Spiel
+   bewegt, bleiben, wo sie sind. Ein Modell ist eine Sichtbarkeit und kein
+   Vertrag.
+2. **Die gebaute Geometrie bleibt stehen, bis die Datei da ist** — und in einem
+   Checkout ohne die gekauften Pakete bleibt sie für immer. Geladen wird
+   dynamisch und hinter `core/chefFit.canLoadModels()`, weil `GLTFLoader` samt
+   `import.meta` jeden Jest-Lauf zum Stehen bringt; `nicht geladen` ist der
+   **normale** Ausgang und kein Fehlerpfad. Das Muster steht zweimal fertig da:
+   `zones/kitchenDesk.ts` (`fillComputer`) und `zones/kitchenProps.ts`
+   (`FoodKit.load`).
+3. **Werkzeuge erst nach dem Einmessen.** Die achtzehn Werkzeuge des
+   Eingaberaums halten ihren Griff nicht ungefähr, sondern gerechnet
+   ([Hände](./haende.md), _Eingemessene Griffe_ und _Ein Griff für alle
+   Werkzeuge_): `mountGrip()` setzt den Halterzylinder dorthin, wo die Faust
+   ihn erwartet, und `holdPosition`/`holdRotation` sind an einem stillstehenden
+   Stand **gemessen** worden. Ein Modell aus dem Regal bringt seinen eigenen
+   Ursprung, seine eigene Achse und gar keinen Griffzylinder mit — es zu
+   nehmen heißt, dieselbe Messung noch einmal zu machen, und zwar je Werkzeug.
+   Deshalb steht in der Spalte _Entscheidung_ bei den Werkzeugen nirgends
+   „ersetzt", sondern höchstens „Kandidat da, Griff fehlt".
+
+### Die Tabelle
+
+Die Maße sind an den Dateien genommen (JSON-Chunk, `accessors` min/max samt
+den Knotentransformationen) und dann mit dem Maßstab des Pakets multipliziert
+(`core/kaykitFit.kaykitScale` — 0,5, bei den sieben Figurenpaketen 0,7).
+„Quelle" heißt die Zahl aus der Datei, alles andere sind Meter im Spiel.
+
+| Ding | Wo gebaut | Kandidat im Regal | Entscheidung | Grund |
+| --- | --- | --- | --- | --- |
+| **Zielscheibe** (Ringe, 10–2 Punkte) | `worlds/shared/target.ts` `bullseyeFace` → `zones/range.ts` `RangeZone.spawnTarget` (Zylinder r 0,30 m, 6 cm dick) | `prototype-bits/target.glb` — 1,00 × 1,00 × 0,20 Quelle → **0,70 × 0,70 × 0,14 m** | **bleibt gebaut** | Das Modell **hat** Ringe, aber die falschen: an der Vorderseite liegen die Grenzen bei 0,267 / 0,597 / 0,912 des Halbmessers — **vier** Felder in zwei Farben. Gezählt wird nach **fünf** (`worlds/range/scoring.ts`, `RINGS`: 0,21 / 0,40 / 0,58 / 0,77 / 1). Dort steht „the same five rings the face is painted with, so what is counted is what is seen", und genau das wäre weg: Wer in den zweiten Ring träfe, bekäme 6 oder 8 Punkte, je nachdem, welchen Ring man meint. |
+| **Ständer der Scheibe** | `zones/range.ts` `RangeZone.buildPost` — Quader 0,10 × 1,90 × 0,10 m, die Scheibe hängt an seiner Spitze im Scharnier | `prototype-bits/target_stand_A/B.glb` — 1,00 × 2,00 × 1,50 Quelle → **0,70 × 1,40 × 1,05 m** | **bleibt gebaut** | Das ist kein Ständer, sondern eine **eigene, ganze Scheibe**: ein Brett von 0,18 bis 0,79 m auf einem Fuß, darüber ein Rahmen. Darunter unsere hängende Scheibe zu montieren hieße zwei Scheiben zu zeigen, von denen nur eine zählt — dieselbe Lüge wie eine Zeile höher. Und der Pfosten selbst ist ein Quader von zwölf Dreiecken: „geometrisch wirklich einfach", und da lohnt es nicht. |
+| Stahlplatten, Schiene, Marken | `zones/range.ts` `spawnPlate`, `buildRail`, `buildMarks` | `prototype-bits/target_wall_small.glb` (1,18 × 1,14 × 0,33 Quelle → 0,83 × 0,80 × 0,23 m), `target_wall_large_A/B.glb` (→ 1,40 × 1,40 × 0,14 m), `Wall_Target.glb` (→ 2,80 × 2,80 × 0,69 m) | **bleibt gebaut** | Alle drei sind **Wandscheiben**: Ihr Ursprung liegt in der Wandebene, und sie ragen nach vorn heraus (bei `target_wall_small` 0,23 m). Die Platte ist 5 cm dick und fällt um; ihre Trefferebene ist ihr eigenes `z = 0` (`scoring.faceHit`, `plate: true`). Ein Bild, das 12 cm vor seiner Trefferebene steht, ist schlechter als ein ehrlicher Stahlquader. |
+| Scherben, Deko-Scheibe | — | `prototype-bits/target_pieces_A–F.glb`, `medieval-hexagon/decoration/props/target.glb` (0,24 × 0,30 × 0,14 Quelle → **0,12 × 0,15 × 0,07 m**) | **nichts zu ersetzen** | Die Scherben sind das, was von einer zerschossenen Scheibe übrig bleibt — dafür gibt es hier nichts. Die Sechseck-Scheibe ist 15 cm hoch: Tischdekoration, keine Zielscheibe. |
+| **Straßenlampe** (Mast, Ausleger, Haube, Glas, `PointLight`) | `worlds/grid/fixtures/lamp.ts` `LAMP.build`; aufgestellt in `zones/interact.ts` und `zones/podium.ts`, beide mit `height: 3.2` | `city-builder-bits/streetlight.glb` — 0,269 × 0,960 × 0,069 Quelle → **0,13 × 0,48 × 0,03 m** | **bleibt gebaut** | Die Bauart stimmt (Mast, Ausleger, Kopf), die **Verhältnisse** nicht: Der Ausleger des Modells misst 0,239 von 0,960, also **25 %** seiner Höhe; der gebaute misst 0,30 m bei 3,20 m, also **10 %**. Auf 3,20 m gebracht (×6,7) ragt der Kopf 0,80 m vom Mast — einen halben Meter neben das Licht, das in der Kachelmitte hängt. Rückt man den Mast unter den Kopf, steht er auf der **Nachbarkachel**, und der Mast steht mit Absicht am Rand („Ein Mast mitten auf der Kachel stünde genau dort, wo man stehen will"). |
+| dieselbe | dieselbe | `city-builder-bits/streetlight_old_single/double.glb` → 0,06 × 0,35 × 0,06 bzw. 0,16 × 0,35 × 0,06 m | **bleibt gebaut** | Gaslaternen mit der Leuchte **oben auf** dem Mast und ohne Ausleger. Der Mast stünde damit in der Kachelmitte — siehe eine Zeile höher. |
+| dieselbe | dieselbe | `halloween-bits/post_lantern.glb` — 0,64 × 3,30 × 1,57 Quelle → **0,32 × 1,65 × 0,78 m** | **bleibt gebaut** | Das einzige Stück im Regal, dessen Bauart wirklich passt (Mast, Ausleger, hängende Laterne). Es ist eine **Halloween-Laterne**, und die beiden Lampen im Spiel stehen in einem Hof und an einer Treppe. Stil, nicht Maß. |
+| Zimmer- und Handlampen | — | `furniture-bits/lamp_standing.glb` (→ 0,50 × 1,26 × 0,50 m), `lamp_table.glb` (→ 0,50 × 0,51 × 0,50 m), `lamp_desk.glb` (→ 0,26 × 0,59 × 0,55 m), `rpg-tools-bits/lantern.glb` (→ 0,38 × 0,55 × 0,38 m), `holiday-bits/lantern*.glb`, `halloween-bits/lantern_hanging/standing.glb`, `mystery-monthly-5/6-december-2024-helpers/Lamp_Workbench.glb` (→ 0,33 × 0,79 × 0,77 m), `space-base-bits/lights.glb` (→ 0,34 × 0,50 × 0,34 m) | **nichts zu ersetzen** | Es gibt im Spiel **keine** gebaute Zimmerlampe, Handlaterne oder Werkbanklampe. Wer eine hinstellen will, nimmt sie aus dem Regal, wie jedes andere Ding — dafür ist es da. |
+| „Lampen", die keine Körper sind | `hub/HubWorld.ts` `buildCorridorLights` (Leuchtbänder über die ganze Ganglänge), `portal/PortalWorld.ts` (Laborlichter), `shared/construct.ts` (`buildLight`) | — | **nichts zu ersetzen** | Das sind `PointLight`s und ein Quader, der so lang ist wie der Gang. Ein Band von fünfzehn Metern gibt es im Regal nicht, und ein Licht hat ohnehin keine Geometrie. |
+| **Roter Kuppelknopf** (Säule, Kragen, Kuppel, Schild) | `worlds/shared/redButton.ts` `buildRedButton`; verbaut in `grid/fixtures/button.ts`, `zones/navigation.ts` und viermal in `zones/kitchen.ts` | `platformer/<farbe>/button_base_<farbe>.glb` — Rahmen 1,75 × 0,20 × 1,75 Quelle → **0,875 × 0,10 × 0,875 m**, Deckel 1,35 × 0,23 × 1,35 → **0,675 × 0,115 × 0,675 m** | **bleibt gebaut** | Der einzige Knopf im Regal ist ein **Bodenknopf**, quadratisch und flach, und keine Kuppel auf einer Säule. `BUTTON_DOME_R` (0,17 m) ist an sechs Stellen zugleich Zeigerziel **und** Trefferkörper — „was man drücken kann, kann man auch treffen". Ein Deckel von 6 cm Höhe unter einer Halbkugel von 17 cm ließe elf Zentimeter Luft treffen. |
+| **Druckplatte** (Ring, Scheibe, Eintauchen, Glühen) | `worlds/grid/fixtures/plate.ts` `PLATE.build`/`PLATE.apply` | `platformer/yellow/button_base_yellow.glb` | **ersetzt** | Derselbe Knopf, diesmal am richtigen Ort: ein Bodenknopf für eine Bodenplatte. Er hat einen **eigenen drückbaren Teil** (Knoten `button_yellow`, 0,205 Quelleinheiten über dem Rahmen), er passt **ohne Umrechnung** in die Kachel von einem Meter (Rahmen 0,875 m, ringsum gut 6 cm Luft), und sein Ursprung liegt in der Mitte seiner Unterkante. Ring und Scheibe bleiben als Ersatz stehen, `PLATE_R`, `weightOn` und das Auslösen je Bild rühren sich nicht. |
+| **Wände** | `worlds/grid/GridWorld.ts` (Quader je Wandstück, danach zu `InstancedMesh` gebündelt) | `dungeon/wall.glb`, `prototype-bits/Wall.glb`, `Primitive_Wall*.glb` und ein paar hundert weitere | **bleiben gebaut** | Zwei Gründe, und beide sind Zahlen. **Erstens** sind es zwölf Dreiecke — „geometrisch wirklich einfach", wie es im Auftrag steht. **Zweitens** werden sie gebündelt und einzeln durchsichtig: 156 von 414 Zeichenaufrufen waren einmal einzelne Wandquader ([Grafik](./grafik.md), _Und die Wände auch — nur nicht von oben_), und von oben verschwindet genau die Wand, die im Weg steht (`GridWorld.stepWallGhosts`, `grid/wallGhost.ts`). Ein Regalmodell bringt eigene Geometrie und eigenes Material mit und kann weder in ein Bündel noch für sich allein durchsichtig werden. |
+| **Pistole** | `portal/tools/PistolTool.ts` | `prototype-bits/Gun_Pistol.glb` (0,37 × 0,54 × 0,87 Quelle → **0,26 × 0,38 × 0,61 m**), `Gun_Rifle.glb`, `Gun_Sniper.glb`, `adventurers/shotgun.glb` (→ 0,32 × 0,41 × 1,17 m) | **Kandidat da, Griff fehlt** | Es liegt wirklich eine Pistole im Regal, und sie ist mit 0,61 m Länge eine Idee zu groß. Entscheidend ist aber Regel 3: Der Griff ist eingemessen, das Modell bringt keinen. Und `Gun_Pistol` zeigt in seiner Datei nach **+z** — Achse und Ursprung wären beide neu zu bestimmen. |
+| **Messer** | `portal/tools/KnifeTool.ts` | `rpg-tools-bits/knife.glb` (→ 0,14 × 0,65 × 0,08 m), `fantasy-weapons-bits/dagger_A–C.glb` (→ 0,22 × 0,64 × 0,08 m), `adventurers/dagger.glb` | **Kandidat da, Griff fehlt** | Dasselbe. Beide stehen in ihrer Datei **aufrecht** (die lange Achse ist y), das gebaute Messer liegt nach vorn — eine Vierteldrehung, die man messen und nicht raten will. |
+| **Hammer** | `portal/tools/HammerTool.ts` | `rpg-tools-bits/hammer.glb` (→ 0,27 × 0,41 × 0,16 m), `mallet.glb`, `fantasy-weapons-bits/hammer_A–D.glb` | **Kandidat da, Griff fehlt** | Dasselbe. |
+| **Lupe** (Inspektor) | `portal/tools/InspectTool.ts` | `rpg-tools-bits/magnifying_glass.glb` — 0,46 × 0,95 × 0,13 Quelle → **0,23 × 0,48 × 0,06 m** | **Kandidat da, Griff fehlt** | Der sauberste Kandidat unter den Werkzeugen: eine richtige Lupe mit Stiel. Der Inspektor lehnt heute 2,8 cm neben dem Pistolengriff (`gripFit.test.ts`), und genau diese Zahl müsste für das Modell neu entstehen. |
+| **Schraubenschlüssel** | — (schon ersetzt) | `rpg-tools-bits/wrench_A.glb`, `adventurers/engineer_Wrench.glb` (→ 0,50 × 1,03 × 0,15 m) | **ersetzt** (Küche) | Steht hier zum Vergleich: Der Küchen-Schraubenschlüssel ist kein Werkzeug des Eingaberaums, sondern ein Ding, das herumliegt und aufgehoben wird — er hat keinen eingemessenen Griff und musste deshalb keinen mitbringen (`zones/kitchenProps.ts`, `WRENCH_MODEL`). |
+| **Taschenlampe** | `portal/tools/FlashlightTool.ts` | `rpg-tools-bits/lantern.glb`, `torch.glb`, `dungeon/torch.glb` | **bleibt gebaut** | Im Regal gibt es **keine** elektrische Taschenlampe — nur Öllaternen und Fackeln. Eine Fackel mit einem `SpotLight` und einem einstellbaren Kegel wäre etwas anderes als das, was das Werkzeug ist. |
+| **Schweißgerät** | `portal/tools/WelderTool.ts` | — | **bleibt gebaut** | Nichts im Regal. Gesucht wurde nach `weld`; die 23 Pakete kennen Ambosse, Zangen und Schleifsteine, aber keinen Brenner. |
+| **Radar / Scanner / Röntgen** | `portal/tools/RadarTool.ts`, `XrayTool.ts`, `scannerModel.ts` | — | **bleibt gebaut** | Nichts im Regal. `space-base-bits` hat Solarpaneele, Windräder und Landeplätze, aber kein Handgerät. |
+| **Pinsel, Staffelei, Tafel** | `portal/tools/BrushTool.ts`, `EaselTool.ts`, `SignTool.ts` | — (`rpg-tools-bits/pencil_*.glb` sind Bleistifte) | **bleibt gebaut** | Kein Pinsel in 4 470 Dateien. Die Leinwand ist ohnehin kein Modell, sondern eine Zeichenfläche, auf die gemalt wird (`tools/paintCanvas.ts`). |
+| **Handschuhe** (Schwerkraft, Superman, Versetzen) | `portal/tools/GravityGloveTool.ts`, `SupermanGloveTool.ts`, `TranslateGloveTool.ts` | — | **bleiben gebaut**, ausdrücklich | Sie sollen bleiben. Ein Handschuh ist kein Gegenstand in der Faust, sondern das, was die Faust **ist** — er sitzt auf der Hand und nicht in ihr, und dafür gibt es im Regal nichts. |
+
+### Was beim Nachsehen nebenbei herauskam
+
+- **`bullseyeFace` hat nur noch einen Aufrufer.** Der Kommentar in
+  `worlds/shared/target.ts` nennt zwei Stellen — den Schießstand und den
+  Schießgang des Eingaberaums —, aber den Schießgang gibt es nicht mehr
+  ([Die Waffe](./waffe-und-kart.md): „Der Stand dafür war der Schießgang des
+  Eingaberaums; heute zieht man dieselben sechs Zahlen auf der
+  Werkzeugseite"). Die Datei sagt das jetzt selbst.
+- **`disposeShapes` hielt an `userData.sharedAssets` nicht an**, `disposeTree`
+  dagegen schon (`worlds/shared/environment.ts`). Das war kein Schaden,
+  solange kein Einbau ein Regalmodell trug — und wäre einer geworden, sobald
+  einer es tut: Die Gitterwelt räumt ihre Einbauten bei **jedem** Umbau mit
+  `disposeShapes` ab (`GridWorld`, Zeile ~832), und das hätte der Vorlage im
+  Speicher und allen anderen Kopien den Puffer weggenommen. Jetzt hält sie
+  an derselben Marke an, aus demselben Grund und mit derselben eigenen
+  Rekursion (ein `return` in einem `traverse` überspringt die Kinder nicht).
+- **Die Scheiben des Schießstands stehen quer zum Stand.** `buildPost`,
+  `spawnTarget`, `buildRail` und `spawnPlate` setzen die Bahn in `x` und die
+  Entfernung in `z` (`position.set(x, …, FIRING_LINE + distance)`), die
+  Entfernungsmarken daneben genau umgekehrt (`position.set(FIRING_LINE +
+  distance, …, centre(RANGE.z - 1))`). Geschossen wird nach **Osten**, die
+  Zone liegt zwischen `RANGE.z = -3` und `+3` — die Scheiben landen damit 5,
+  10 und 20 m **nördlich** der Zone. Hier nicht angefasst, weil das eine
+  Ortsänderung im Spiel ist und kein Bild; aufgeschrieben, damit es nicht
+  wieder zufällig gefunden wird.
+
 ## Eine Build-Nummer an jeder Adresse
 
 Modelle und Töne liegen unter **festen** Namen (`models/kitchen.glb`,

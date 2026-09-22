@@ -114,7 +114,8 @@ import {
   type PuzzleState,
   type StationOptions,
 } from './mission';
-import { SHIP, animateCreature, buildCrewmate, label } from './shipArt';
+import { SHIP, label } from './shipArt';
+import { buildActor, type ShipActor } from './actorArt';
 import type { HauntState } from './net';
 
 interface ShipHost {
@@ -469,7 +470,14 @@ export class ShipExperience {
   private trainingNote = '';
   private trainingLine: HTMLElement | null = null;
   private trainedAt = 0;
-  private simulated: THREE.Object3D | null = null;
+  /** Der Techniker der Bot-Runde — das Mannequin aus dem Regal (`actorArt.ts`). */
+  private simulated: ShipActor | null = null;
+  /**
+   * Die Attrappen auf dem Testdeck. Sie stehen bloß herum, brauchen aber
+   * trotzdem einen Takt: Eine Figur aus dem Regal ohne Mischerbild stünde in
+   * ihrer Bindepose mit ausgestreckten Armen da (`actorArt.ShipActor.update`).
+   */
+  private readonly bayActors: ShipActor[] = [];
   private followBot = true;
   private readonly followEye = new THREE.Vector3();
   private readonly followTarget = new THREE.Vector3();
@@ -1794,6 +1802,7 @@ export class ShipExperience {
         this.burst(kind, at);
         this.sound('error');
       },
+      actor: (actor) => this.bayActors.push(actor),
     });
     const lift = label(
       `TESTDECK
@@ -2143,6 +2152,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     // kostet in der Station keinen Bildpunkt.
     this.bayLight.visible = this.bayLight.intensity > 0;
     if (lab) this.bayLight.position.set(_head.x, 2.6, _head.z);
+    // **Die Attrappen atmen, gehen aber nicht** (`actorArt.ts`): ein Takt mit
+    // Tempo null. Und nur, solange das Deck überhaupt zu sehen ist — ein
+    // Mischer hinter einer unsichtbaren Gruppe rechnet für niemanden.
+    if (this.bay.visible) for (const actor of this.bayActors) actor.update(dt, 0);
     if (this.labMirror)
       this.labMirror.visible =
         this.player && lab?.id === 'models' && _head.distanceTo(this.labMirror.position) < 8;
@@ -3360,7 +3373,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
   }
 
   get botPosition(): THREE.Vector3 | null {
-    return this.crew.simulation ? (this.simulated?.position ?? null) : null;
+    return this.crew.simulation ? (this.simulated?.root.position ?? null) : null;
   }
 
   /** Begins a complete, repeatable mission demonstration on the safe test deck. */
@@ -3387,10 +3400,10 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.setFollowBot(true);
     this.hiddenWas = false;
     if (!this.simulated) {
-      this.simulated = buildCrewmate();
-      this.simulated.name = 'simulated-astronaut';
+      this.simulated = buildActor('crew');
+      this.simulated.root.name = 'simulated-astronaut';
     }
-    this.root.add(this.simulated);
+    this.root.add(this.simulated.root);
     this.messages.length = 0;
     // **Der Techniker aus Zahlen ist der der 2D-Runde** (`rules/technicianBot.ts`):
     // Der Kern der Welt setzt ihn im nächsten Bild an den Stock
@@ -3398,7 +3411,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.log(
       'BOT-RUNDE: Der Techniker sucht Ersatzteile, repariert drei Systeme und kehrt zurück.',
     );
-    this.simulated.position.set(COMMAND_HOME.x, 0, COMMAND_HOME.z);
+    this.simulated.root.position.set(COMMAND_HOME.x, 0, COMMAND_HOME.z);
     if (this.host.ctx.renderer.xr.isPresenting)
       this.host.travel(new THREE.Vector3(COMMAND_HOME.x, 6, COMMAND_HOME.z + 5));
     else this.followBotCamera(0, true);
@@ -3438,7 +3451,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (!this.crew.simulation) return;
     this.crew.hidden = '';
     this.crew.simulation = false;
-    this.simulated?.removeFromParent();
+    this.simulated?.root.removeFromParent();
     this.host.ctx.rig.frozen = false;
     this.host.ctx.refreshWorldMenu();
     this.home();
@@ -3460,23 +3473,22 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       ctx.rig.position.y = Math.max(0, Math.min(120, ctx.rig.position.y));
       ctx.rig.updateMatrixWorld(true);
     }
-    const beforeX = this.simulated.position.x,
-      beforeZ = this.simulated.position.z;
-    this.simulated.visible = !this.crew.hidden;
+    const bot = this.simulated.root;
+    const beforeX = bot.position.x,
+      beforeZ = bot.position.z;
+    bot.visible = !this.crew.hidden;
     const pose = this.botPose;
     if (pose) {
-      this.simulated.position.set(pose.x, 0, pose.z);
-      this.simulated.rotation.y = pose.yaw + Math.PI;
+      bot.position.set(pose.x, 0, pose.z);
+      bot.rotation.y = pose.yaw + Math.PI;
     }
-    if (
-      Math.hypot(this.simulated.position.x - beforeX, this.simulated.position.z - beforeZ) > 0.001
-    )
-      animateCreature(this.simulated, performance.now() / 1000);
-    else
-      for (const limb of this.simulated.children) {
-        if (limb.name === 'arm' || limb.name === 'leg')
-          limb.rotation.x = THREE.MathUtils.damp(limb.rotation.x, 0, 10, dt);
-      }
+    // **Das Tempo kommt aus dem Schritt** und nicht mehr aus der Wanduhr: Wie
+    // weit der Bot seit dem letzten Bild gekommen ist, geteilt durch die Zeit,
+    // ist die Zahl, aus der die Figur ihren Gang zieht. Vorher lief hier
+    // `performance.now()` in eine Sinuskurve — eine zweite Uhr für dieselbe
+    // Frage, und eine, die auch dann weitertickt, wenn die Runde steht.
+    const step = Math.hypot(bot.position.x - beforeX, bot.position.z - beforeZ);
+    this.simulated.update(dt, dt > 0 ? step / dt : 0);
     this.followBotCamera(dt);
   }
   /**
@@ -3488,22 +3500,23 @@ ANTIPPEN: ZUM SAFE-RAUM`,
   private followBotCamera(dt: number, immediately = false): void {
     const ctx = this.host.ctx;
     if (!this.followBot || !this.simulated || ctx.renderer.xr.isPresenting) return;
+    const bot = this.simulated.root;
     if (ctx.topDown) {
       const k = immediately ? 1 : 1 - Math.exp(-6 * Math.max(0, dt));
-      ctx.rig.position.x += (this.simulated.position.x - ctx.rig.position.x) * k;
-      ctx.rig.position.z += (this.simulated.position.z - ctx.rig.position.z) * k;
+      ctx.rig.position.x += (bot.position.x - ctx.rig.position.x) * k;
+      ctx.rig.position.z += (bot.position.z - ctx.rig.position.z) * k;
       ctx.rig.position.y = 0;
       ctx.rig.updateMatrixWorld(true);
       return;
     }
-    this.followTarget.copy(this.simulated.position);
+    this.followTarget.copy(bot.position);
     this.followTarget.x += 8;
     this.followTarget.y += 12;
     this.followTarget.z += 10;
     ctx.rig.getHeadPosition(this.followEye);
     this.followEye.lerp(this.followTarget, immediately ? 1 : 1 - Math.exp(-3 * Math.max(0, dt)));
     ctx.rig.setHeadWorldPosition(this.followEye);
-    this.followTarget.copy(this.simulated.position).y += 1;
+    this.followTarget.copy(bot.position).y += 1;
     ctx.camera.lookAt(this.followTarget);
     ctx.rig.updateMatrixWorld(true);
   }
@@ -3618,6 +3631,14 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       if (this.crew.simulation) this.toggleSimulation();
     }
     this.disposed = true;
+    // **Die Akteure zuerst, und einzeln.** Sie tragen Figuren aus dem Regal,
+    // deren Geometrie der Vorlage im Speicher und allen anderen Kopien gehört
+    // (`core/kaykitModel.ts`); `disposeObject(this.root)` am Ende dieser
+    // Methode kennt die Ausnahme nicht und gäbe sie allen weg.
+    this.simulated?.dispose();
+    this.simulated = null;
+    for (const actor of this.bayActors) actor.dispose();
+    this.bayActors.length = 0;
     if (this.player) {
       window.removeEventListener('keydown', this.keyDown);
       window.removeEventListener('keyup', this.keyUp);

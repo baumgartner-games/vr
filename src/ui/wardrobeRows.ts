@@ -8,9 +8,10 @@ import {
   HEAD_LABELS,
   HEAD_SUBS,
 } from '../core/avatarLook';
+import { FIGURE_PATHS, figureLabel, figureSub } from '../core/avatarFigures';
 
 /**
- * **Die drei Zeilen der Umkleide** — Kopf, Hut, Körper, jede mit ‹ und ›.
+ * **Die vier Zeilen der Umkleide** — Kopf, Hut, Körper, Figur, jede mit ‹ und ›.
  *
  * Sie stehen hier und nicht in der Umkleide selbst, und zwar aus demselben
  * Grund, aus dem `init`/`step` einer Einbau-Art rein sind: Was eine Zeile
@@ -25,7 +26,7 @@ import {
  * dem man vor dem Spiegel steht und die Änderung nicht sieht.
  */
 
-/** Welche der drei Zeilen — und zugleich das Feld in `Appearance`. */
+/** Welche der vier Zeilen — und zugleich das Feld in `Appearance`. */
 export type WardrobeSlot = keyof Appearance;
 
 export interface WardrobeRow {
@@ -55,12 +56,20 @@ function around<T>(list: readonly T[], current: T, delta: number): T {
 }
 
 /**
- * Die drei Zeilen zu einem Aussehen.
+ * Die vier Zeilen zu einem Aussehen.
  *
  * `look` wird hereingereicht und nicht hier gelesen: Die Umkleide zeichnet
  * sich nach jeder Änderung neu, und dann soll sie das Aussehen zeigen, das sie
  * gerade bekommen hat — und nicht eines, das sie sich nebenher noch einmal aus
  * dem Speicher holt.
+ *
+ * **Die Figur steht hinten**, obwohl sie das Meiste entscheidet. Das ist
+ * Absicht und eine Abschrift: Das Regal im Konstrukt stellt seine Stücke in
+ * derselben Reihenfolge hin (`worlds/shared/wardrobeRack.ts`), und zwei
+ * Umkleiden, die dieselben Sachen verschieden sortieren, driften nach der
+ * zweiten neuen Mütze auseinander. Wer eine Figur aus dem Regal trägt, an dem
+ * wirken die Zeilen _Kopf_ und _Körper_ nicht mehr — sie bleiben trotzdem
+ * stehen, denn sie gelten wieder, sobald jemand zum Koch zurückschaltet.
  */
 export function wardrobeRows(look: Appearance): WardrobeRow[] {
   return [
@@ -90,6 +99,19 @@ export function wardrobeRows(look: Appearance): WardrobeRow[] {
       index: BODY_KINDS.indexOf(look.body),
       count: BODY_KINDS.length,
       step: (delta) => saveAppearance({ body: around(BODY_KINDS, look.body, delta) }),
+    },
+    {
+      slot: 'figure',
+      label: 'Figur',
+      value: figureLabel(look.figure),
+      sub: figureSub(look.figure),
+      // **Eine fremde Figur steht nicht in der Liste**, und dann zählt sie
+      // auch nicht mit: Wer über die Detailseite des Regals einen Zombie
+      // angezogen hat, steht hier bei `-1` von 12 — und das nächste ›
+      // bringt ihn zum Anfang der kuratierten Liste zurück (`around`).
+      index: FIGURE_PATHS.indexOf(look.figure),
+      count: FIGURE_PATHS.length,
+      step: (delta) => saveAppearance({ figure: around(FIGURE_PATHS, look.figure, delta) }),
     },
   ];
 }

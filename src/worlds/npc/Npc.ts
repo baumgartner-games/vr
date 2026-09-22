@@ -399,6 +399,12 @@ export class Npc {
     this.lunging = Math.max(0, this.lunging - dt);
     this.striking = step.gait === 'strike' || this.hammering || this.lunging > 0;
     this.model.update(dt, this.speed, this.striking);
+    // **Ein Schlag ist ein Ereignis und kein Zustand.** Die Klötzchen-Arme
+    // holen aus, solange `striking` steht — eine Figur mit Skelett spielt
+    // dagegen eine Spur, und die fängt genau dann an, wenn wirklich einer
+    // sitzt (`NpcBody.swing`). Wer in Reichweite steht, hat `striking` die
+    // ganze Zeit an und schlägt trotzdem nur im Takt seines Hirns.
+    if (step.attack) this.model.swing();
     this.model.setAlert(step.sees);
     return step.attack;
   }

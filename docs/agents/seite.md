@@ -436,18 +436,127 @@ einen warmen Speicher.
 
 ### Und wer schneller drückt, als die Leitung liefert
 
-Die Welt kommt nicht mehr von allein, also wird sie beim Druck auf _Beitreten_
-angefordert (`ensureWorld` — dieselbe Promise, die auch das Vorwärmen benutzt,
-nie zwei Ladungen). Ist sie schon da, passiert gar nichts Sichtbares. Ist sie
-es nicht, **sagt die Seite das**: Der Knopf wird stumpf, und darunter steht
-`Die Welt wird geladen …` (`#start-note`). Vorher verschwand die Startseite in
-diesem Fall sofort und gab den Blick auf ein schwarzes Bild frei — das sah
-schneller aus und war es nicht.
+**Der kann es gar nicht mehr.** _Beitreten_ steht stumpf da, solange die Welt
+nicht geladen ist, und wird frei, sobald sie steht — nicht andersherum. Hier
+stand lange die schwächere Fassung: Der Knopf war vom ersten Bild an
+bedienbar, und erst **nach** dem Klick wurde er stumpf, während `ensureWorld`
+lief. Das war schon besser als die Fassung davor (die Startseite verschwand
+sofort und gab den Blick auf ein schwarzes Bild frei), aber es war immer noch
+ein Knopf, der eine Bereitschaft behauptete, die er nicht hatte.
+
+**„Geladen" heißt dabei mehr, als es aussieht.** `App.goTo` kommt zurück,
+sobald `World.init` gebaut hat — die Modelle kommen **danach**: Die Küche holt
+ihre Möbel mit `void import('core/kitchenModel').then(…)`, der Koch und die
+Wundertüte ebenso, und keiner davon wird von `init` abgewartet. Gemessen (in
+diesem Container, örtlicher Server, Software-Rendering, drei Läufe) steht
+`App.currentWorldId` nach 2,7–3,7 s, und die Modelle kamen noch **3,5–4,6 s**
+danach. Wer den Knopf bei `goTo` freigäbe, gäbe ihn dreieinhalb Sekunden zu
+früh frei.
+
+Also wartet `ensureWorld` einen zweiten Schritt: bis der **Lade-Manager von
+three.js** eine Sekunde lang nichts mehr zu tun hatte (`App.assetsSettled`,
+`core/assetGate.ts`). Warum an dieser einen Stelle und nicht als `assetsReady`
+in jeder Welt: Eine Promise, die eine Welt aus ihren Erst-Ladungen
+zusammensetzt, müsste an jeder Stelle nachgetragen werden, die etwas nachlädt
+— in der Küche allein an fünf —, und eine solche Liste ist nach dem zweiten
+Umbau unvollständig. Sie meldete dann „fertig", weil jemand seine Ladung
+vergessen hat. Der Lade-Manager dagegen weiß von jedem `GLTFLoader` und jedem
+`TextureLoader` ohne eigenen Manager — und das sind hier alle —, auch von
+denen, die es morgen gibt.
+
+**Und „still" statt „leer"**, weil ein Lade-Manager zwischen zwei Wellen leer
+ist, obwohl die Welt noch lädt: Die Küche hat dann ihren Chunk, aber noch kein
+Modell angefordert. Eine Sekunde Stille ist die Frist; kürzer, und die Pause
+zwischen zwei Wellen sähe aus wie das Ende.
+
+**Der Deckel: zwanzig Sekunden** (`ASSET_CAP_MS` in `main.ts`). Er ist keine
+gemessene Dauer, sondern eine Grenze — eine Datei, die weder ankommt noch
+scheitert, meldet sich bei keinem Lade-Manager wieder ab, und ein Knopf, der
+darauf wartet, wäre für den Rest der Sitzung tot. Danach wird er frei, und
+darunter steht, dass noch nachgeladen wird. Kommt die Ladung doch noch an,
+verschwindet auch diese Zeile wieder.
+
+**Die Fälle, und was der Knopf in jedem tut** — gerechnet wird das in
+`core/warmStart.startButton`, einer reinen Rechnung mit Test, damit `main.ts`
+nur noch ausführt:
+
+| Lage | Knopf | Zeile darunter | Balken |
+| ---- | ----- | -------------- | ------ |
+| Die Welt wird vorgewärmt oder ist nach dem Klick unterwegs (`lädt`) | stumpf | `Die Welt wird geladen …` | läuft |
+| Sie steht, samt ihrer Startladung (`steht`) | frei | — | weg |
+| Es wird **gar nicht** vorgewärmt: Daten sparen, `2g`/`slow-2g`, Tab im Hintergrund (`ruht`) | **frei** | `Die Welt wird beim Beitreten geladen.` | steht still |
+| Der Deckel war schneller als die Leitung (`dauert`) | frei | `Die Welt lädt noch — Beitreten geht trotzdem.` | läuft |
+| Sie kam nicht (`fehlt`, `App.onWorldFailed`) | frei | `Die Welt kam nicht an — Beitreten versucht es noch einmal.` | steht still |
+| Hinter einer Lobby (`#haunting`) | frei | — | weg |
+
+**Die dritte Zeile ist die Entscheidung**, die man leicht andersherum trifft.
+Wo nicht vorgewärmt wird, lädt niemand — ein Knopf, der dort auf das Ende
+einer Ladung wartete, wartete auf nichts, und _Daten sparen_ hätte sich einen
+toten Knopf eingehandelt. Die Ladung trotzdem bei der ersten Geste
+anzuwerfen, wäre die andere Möglichkeit gewesen und die falsche: Wer `2g` oder
+_Daten sparen_ meldet, hat die Frage nach 2,6 MB ungefragter Last schon
+beantwortet. Also bleibt der Knopf bedienbar, lädt beim Druck wie eh und je,
+und die Zeile darunter sagt es **vorher**. Kommt der Tab aus dem Hintergrund
+zurück, malt die Seite sofort neu und fängt an zu wärmen.
+
+**Ohne Netz** gilt dieselbe Regel und nichts Besonderes: Nach einem früheren
+Besuch beantwortet der Service Worker alles aus dem Speicher — die Welt steht,
+der Knopf wird frei. Ohne Netz und ohne früheren Besuch scheitert die Ladung,
+`onWorldFailed` räumt sie ab, und der Knopf ist wieder frei mit der Zeile aus
+der vorletzten Tabellenzeile. Einen Zustand, in dem nichts mehr geht, gibt es
+in keinem der Fälle.
+
+**Im HTML steht `disabled`** (`index.html`, `#enter`), und das ist eine
+Abwägung: In der Sekunde vor dem Bündel ist die Welt mit Sicherheit nicht
+geladen, ein bedienbar aussehender Knopf verspricht dort also etwas, das erst
+`main.ts` einlösen kann — genau die Lücke, in der gemeldet wurde, dass der
+Druck ins Leere geht. Der Preis ist ein toter Knopf, wenn das Bündel **gar
+nicht** kommt; dann ist die Seite allerdings ohnehin nur ein Bild. Die
+Gegenrechnung steht im Modulrumpf von `main.ts` (`paintStart`) und läuft,
+sobald das Bündel ausgewertet wird.
+
+**Der Balken ist dabei nicht mehr dasselbe wie die Zeile.** Er läuft nur, wenn
+wirklich etwas unterwegs ist (`.boot--still` in `style.css` hält ihn an);
+sonst behauptete er eine Arbeit, die niemand tut — und genau das war die
+Bedingung, die im Abschnitt darunter schon einmal falsch war.
 
 Die XR-Sitzung wird dabei **zuerst** angefragt und die Welt daneben geladen —
 dieselbe Reihenfolge wie in `startHaunting` und aus demselben Grund: Ein
 Browser gibt eine immersive Sitzung nur auf eine frische Geste, und die wäre
-nach dem Warten auf einen Chunk verbraucht.
+nach dem Warten auf einen Chunk verbraucht. Mit vorgeladener Welt ist der
+Klick diese Geste, und `enterPlayground` ruft `startVR()` weiterhin vor jedem
+`await`.
+
+**In der Lobby (`#haunting`) gilt nichts davon**, und zwar mit Absicht: Dort
+wird nicht vorgewärmt (die Welt nähme sich beim Aufbau einen Raum, bevor die
+Lobby ihren kennt), also gibt es nichts, worauf `#haunt-enter` warten könnte.
+Stumpf wird er nur, **solange er etwas tut** — und das ist seit diesem Umbau
+die ganze Strecke und nicht mehr nur das Verbinden: `hauntEntering` deckt
+`startHaunting` von der ersten Zeile bis zur fertigen Welt ab. Vorher gab
+`joinHaunting` den Knopf in seinem `finally` wieder frei, während die Welt
+noch lud — und wer schon verbunden war und im selben Raum stand, kam gar nicht
+erst an `hauntBusy` vorbei: Sein zweiter Druck schickte eine zweite Runde los.
+
+**Was hier nicht gemessen werden konnte**, damit es niemand für gemessen hält:
+
+- **Die Zahlen oben stammen aus diesem Container** (Software-Rendering,
+  Server auf demselben Rechner), nicht von einem Telefon an einer
+  Mobilfunkleitung. Der Abstand zwischen „Welt steht" und „Knopf frei" ist
+  dort vor allem Rechenzeit; über eine schmale Leitung wird er größer, denn
+  dann liegen die Modelle wirklich im Netz.
+- **Der Deckel ist nie zugeschlagen.** Zwanzig Sekunden sind hier nie
+  erreicht worden; dass er greift, steht im Test von `core/assetGate.ts` und
+  nicht in einer Messung.
+- **Die Aufnahmen der Küche zählen nicht mit.** Die 26 `.ogg`
+  (`worlds/test/zones/kitchenAudio.ts`) kommen über ein blankes `fetch` und
+  werden erst entpackt, wenn der Ton aufgeschlossen ist — also **nach** dem
+  Druck. Auf sie zu warten hieße, auf etwas zu warten, das ohne den Klick gar
+  nicht anfängt; eine fehlende Aufnahme ist obendrein Stille und keine kaputte
+  Welt. Alles andere, was hier klingt, ist ohnehin gerechnet und nicht
+  geladen (`core/Audio.ts`: ein paar Oszillatoren).
+- **Ebenso wenig zählen Chunks mit**, die eine Welt nachlädt: Der Browser holt
+  sie ohne Lade-Manager. Dafür ist die Frist da — wer einen Chunk holt, um
+  danach ein Modell zu laden, ist binnen einer Sekunde wieder zu hören.
 
 ### Die Zahlen
 
@@ -532,6 +641,13 @@ Drei Entscheidungen stecken darin:
   Balken, der ewig läuft, ist schlimmer als keiner: Er behauptet eine Arbeit,
   die niemand tut. Gefragt wird dafür dieselbe reine Rechnung wie beim
   Vorwärmen (`core/warmStart.nextWarmStep`), und nicht ein zweites Mal geraten.
+- **Eine Ausnahme ist seit dem stumpfen Knopf dazugekommen**, und sie ist
+  genau derselbe Gedanke: Wo nicht gewärmt wird, steht unter dem Knopf, dass
+  die Welt erst beim Druck kommt — da ist etwas zu _sagen_, aber nichts zu
+  _zeigen_. Die Zeile bleibt, der Streifen hält an (`showStartNote(text,
+  running)`, `.boot--still`). Was davon gilt, sagt dieselbe Rechnung wie für
+  den Knopf: `core/warmStart.startButton` gibt `note` und `busy` getrennt
+  zurück.
 
 Wer Bewegung abbestellt hat (`prefers-reduced-motion`), bekommt einen ruhigen
 Streifen statt keiner Auskunft: Die Frage war „passiert etwas?" und nicht

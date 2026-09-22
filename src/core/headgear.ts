@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { HEAD_RADIUS, HEAD_SPREAD } from './avatarLook';
+import { CHEF_HAT_SEAT, chefHatVertices } from './chefHat';
 
 /**
  * **Was man auf dem Kopf trägt** — die erste Sorte Kleidung in diesem Projekt.
@@ -39,7 +40,18 @@ import { HEAD_RADIUS, HEAD_SPREAD } from './avatarLook';
  * Nichts sitzt tiefer als **0,45 Halbmesser über der Kopfmitte**, außer der
  * Helm, der den ganzen Kopf einschließt: Darunter liegen die Augen, und eine
  * Mütze, die jemandem über die Augen rutscht, sieht nicht nach Mütze aus,
- * sondern nach Fehler.
+ * sondern nach Fehler. Diese Zahl steht als `HEADGEAR_SEAT` auch nach außen —
+ * wer einen Hut an einen **fremden** Kopf hängt, muss sie nicht raten.
+ *
+ * **Und für fremde Köpfe gibt es `headgearFor`.** Die Hüte hier sind in den
+ * Maßen der eigenen Figur gebaut (`HEAD_RADIUS`, 32 cm Halbmesser); ein
+ * KayKit-Ritter hat einen anderen Kopf, und sein Kopfknochen weiß nur, wie
+ * groß er ist. `headgearFor(kind, headRadius, tint)` liefert deshalb dieselbe
+ * Gruppe, schon auf `headRadius / HEAD_RADIUS` skaliert: Wer sie an den
+ * Kopfknochen hängt, bekommt den Hut in der Größe dieses Kopfes, und mit
+ * `HEADGEAR_SEAT * headRadius` weiß er, wie weit über der Kopf**mitte** der
+ * Rand aufsitzt. Liegt der Ursprung des Knochens nicht in der Kopfmitte —
+ * beim Hals zum Beispiel —, ist genau diese Differenz noch dazuzugeben.
  */
 
 /** Was es zu tragen gibt. `none` ist ausdrücklich einer davon. */
@@ -144,11 +156,80 @@ function domeMesh(
 }
 
 /**
+ * **Auf welcher Höhe über der Kopfmitte ein Hut aufsitzt**, in Halbmessern.
+ *
+ * Dieselbe Zahl, die oben als Regel steht — hier als Konstante, weil sie nach
+ * außen gebraucht wird: Wer eine Gruppe aus `headgearFor` an einen fremden
+ * Kopfknochen hängt, rechnet damit aus, wo der Rand zu liegen kommt, statt es
+ * an einem Bild abzulesen.
+ */
+export const HEADGEAR_SEAT = CHEF_HAT_SEAT;
+
+/**
+ * **Die Kochmütze als ein einziges Netz** (`core/chefHat.ts`).
+ *
+ * Hier steht nur noch die Übersetzung von Zahlen in three.js: Ecken mal
+ * Kopfhalbmesser, eine Farbe je Ecke, flache Normalen. Die Form selbst — das
+ * Profil, die sechs Falten, die Schräglage — steht in `chefHat.ts` und wird
+ * dort auch geprüft.
+ *
+ * **Die Farbe steckt in den Ecken und nicht in zwei Materialien.** Eine Mütze
+ * aus weißer Haube und dunklem Band sind zwei Farben, und zwei Materialien
+ * wären zwei Zeichenaufrufe für ein Stück Stoff, das an jeder Figur im Raum
+ * hängt. Mit `vertexColors` ist es **einer**: Das Band trägt die Farbe des
+ * Anzugs, allerdings kräftig ins Dunkle gezogen. Genau dafür ist es da — es
+ * trennt Weiß von Haut, und ohne diese Trennung verschwimmt die obere
+ * Kopfhälfte zu einem hellen Fleck. Ein Band in vollem Rollenrot wäre eine
+ * zweite bunte Fläche neben der Jacke und keine Trennung mehr.
+ *
+ * **Und die Normalen sind flach.** Die Vorlage ist ein Low-Poly-Gitter, in dem
+ * jede Fläche ihre eigene Helligkeit hat; weiche Normalen machten daraus
+ * wieder die gedrechselte Wolke, die vorher hier stand. Das Netz kommt deshalb
+ * **nicht indiziert** herein — geteilte Ecken hätten geteilte Normalen.
+ */
+function chefHatMesh(tint: number): THREE.Mesh {
+  const { positions, band } = chefHatVertices({ spread: HEAD_SPREAD });
+  const count = positions.length / 3;
+  const xyz = new Float32Array(positions.length);
+  const rgb = new Float32Array(positions.length);
+  const linen = new THREE.Color(0xf6f3ea);
+  // Die Rollenfarbe, zu zwei Dritteln ins Beinahe-Schwarz gezogen: Man sieht
+  // noch, wessen Mütze es ist, und trotzdem bleibt es ein dunkles Band.
+  const stripe = new THREE.Color(tint).lerp(new THREE.Color(0x24262c), 0.62);
+  for (let v = 0; v < count; v++) {
+    const color = band[Math.floor(v / 3)] ? stripe : linen;
+    xyz[v * 3] = positions[v * 3]! * HEAD_RADIUS;
+    xyz[v * 3 + 1] = positions[v * 3 + 1]! * HEAD_RADIUS;
+    xyz[v * 3 + 2] = positions[v * 3 + 2]! * HEAD_RADIUS;
+    rgb[v * 3] = color.r;
+    rgb[v * 3 + 1] = color.g;
+    rgb[v * 3 + 2] = color.b;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(xyz, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(rgb, 3));
+  geometry.computeVertexNormals();
+  const mesh = new THREE.Mesh(
+    geometry,
+    new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      flatShading: true,
+      roughness: 0.92,
+      metalness: 0.02,
+    }),
+  );
+  mesh.name = 'chef-hat';
+  return mesh;
+}
+
+/**
  * **Der Hut auf dem Kopf** — oder `null`, wenn keiner getragen wird.
  *
  * Aus Zylindern, Kugeln und Quadern wie alles hier: Dieses Projekt lädt keine
  * Modelldateien, und ein Helm aus vier Grundkörpern steht in derselben Sekunde
- * da wie der Rest der Welt.
+ * da wie der Rest der Welt. **Eine Ausnahme gibt es**, und sie hat sich
+ * verdient: Die Kochmütze ist ein gerechnetes Netz (`core/chefHat.ts`), weil
+ * an ihr sechs weiche Falten hängen, die aus Kugeln nie welche wurden.
  *
  * @param tint Farbe des Anzugs — was sich danach richtet, tut es hier auch,
  *   damit ein Spieler eine Farbe hat und nicht drei.
@@ -161,68 +242,10 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
   switch (kind) {
     case 'chef': {
       // **Die Kochmütze** — das Erkennungszeichen dieser Figuren, und deshalb
-      // das Stück, an dem sich der Umbau am meisten entschied.
-      //
-      // Vorher waren es drei glatte Drehkörper: Wulst, Rohr, Kuppel. Von vorn
-      // ein Marshmallow auf einem Kegel. Bei den Vorbildern besteht die Haube
-      // aus **mehreren Lappen**, die sich überlappen — das ist es, was den
-      // Stoff wie Stoff aussehen lässt und nicht wie gedrehtes Holz, und man
-      // sieht es noch aus 16 m Höhe an der Kante, die nicht rund ist.
-      //
-      // Dazu drei Maße, die vorher fehlten: Die Mütze ist **breiter als der
-      // Kopf** (sonst ist sie eine Zipfelmütze), sie ist **höher**, und unter
-      // ihr sitzt ein **dunkles Stirnband**. Das Band ist der Kniff: Es
-      // trennt Weiß von Haut, und ohne diese Trennung verschwimmt die obere
-      // Kopfhälfte zu einem hellen Fleck.
-      const linen = solid(0xf6f3ea, 0.92);
-      const dark = solid(0x24262c, 0.85);
-      // Alles an dieser Mütze sitzt in einer eigenen Gruppe, weil sie als
-      // Ganzes **nach hinten gekippt** getragen wird — gut zehn Grad, und ein
-      // Stück nach hinten versetzt. Gerade aufgesetzt sähe sie aus wie ein
-      // Hut auf einem Schneemann; gekippt gibt sie der Figur die Stirn frei,
-      // auf der Brauen und Blick sitzen.
-      const toque = new THREE.Group();
-      toque.rotation.x = -0.2;
-      toque.position.z = r(0.1);
-      group.add(toque);
-
-      // Das Stirnband: ein Rohr über den Brauen, das den Kopf ringsum fasst.
-      // Es steht über die Kopfform hinaus, damit es auch von vorn ein Band ist
-      // und kein aufgemalter Strich — und es trennt Weiß von Haut. Ohne diese
-      // Trennung verschwimmt die obere Kopfhälfte zu einem hellen Fleck.
-      const headband = new THREE.Mesh(
-        new THREE.CylinderGeometry(around(0.9), around(0.94), r(0.32), 26),
-        dark,
-      );
-      headband.position.y = r(0.66);
-      toque.add(headband);
-
-      // Der Rand der Mütze liegt auf dem Band auf — und ist **schmaler als
-      // die Haube darüber**. Dieser Überhang mit dem Schatten darunter ist
-      // das, woran man eine Kochmütze auch als Scherenschnitt erkennt.
-      const brim = new THREE.Mesh(
-        new THREE.CylinderGeometry(around(0.95), around(0.92), r(0.42), 28),
-        linen,
-      );
-      brim.position.y = r(1.03);
-      toque.add(brim);
-
-      // **Die Haube aus Lappen.** Fünf Kugeln im Kreis plus eine in der Mitte,
-      // alle ineinandergeschoben: zusammen eine Wolke mit sichtbaren Beulen.
-      // Sechs Netze für die Silhouette, die diese Figur ausmacht — billiger
-      // als jede Textur, die dasselbe versuchen würde.
-      const lobes = 5;
-      for (let i = 0; i < lobes; i++) {
-        const angle = (i / lobes) * Math.PI * 2 + Math.PI / lobes;
-        const lobe = new THREE.Mesh(new THREE.SphereGeometry(r(0.6), 16, 12), linen);
-        lobe.position.set(Math.sin(angle) * around(0.62), r(1.68), Math.cos(angle) * around(0.62));
-        lobe.scale.set(1.02, 1.2, 1.02);
-        toque.add(lobe);
-      }
-      const crown = new THREE.Mesh(new THREE.SphereGeometry(r(0.76), 20, 14), linen);
-      crown.scale.set(1.0, 0.9, 1.0);
-      crown.position.y = r(1.86);
-      toque.add(crown);
+      // das Stück, an dem sich der Umbau am meisten entschied. Sie ist als
+      // einzige hier **kein** Haufen Grundkörper mehr, sondern ein Netz:
+      // `chefHatMesh` baut sie aus dem Profil in `core/chefHat.ts`.
+      group.add(chefHatMesh(tint));
       break;
     }
     case 'cap': {
@@ -325,6 +348,37 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
     }
   }
 
+  return group;
+}
+
+/**
+ * **Derselbe Hut für einen fremden Kopf** — auf dessen Halbmesser skaliert.
+ *
+ * Die Hüte hier rechnen in Kopfhalbmessern der eigenen Figur (`HEAD_RADIUS`,
+ * 32 cm). Ein Mannequin, ein Roboter, ein Ritter aus dem KayKit-Regal haben
+ * andere Köpfe, und ihr **Kopfknochen** weiß von alldem nur eines: wie groß er
+ * ist. Also bekommt er genau diese eine Zahl zu sagen, und den Rest rechnet
+ * diese Funktion.
+ *
+ * Was herauskommt, ist die Gruppe aus `buildHeadgear`, im **Kopfrahmen**:
+ * Ursprung ist die Kopfmitte, −z ist vorn, und der Rand sitzt
+ * `HEADGEAR_SEAT * headRadius` darüber. Wer sie an einen Knochen hängt, dessen
+ * Ursprung woanders liegt — am Hals, zwischen den Augen —, verschiebt sie um
+ * die Differenz und sonst nichts.
+ *
+ * @param headRadius Halbmesser des fremden Kopfes in Metern (halbe Breite
+ *   seiner Hülle, nicht ihre Höhe: Ein Hut umfasst einen Kopf, er bedeckt ihn
+ *   nicht).
+ * @param tint Farbe des Anzugs, wie bei `buildHeadgear`.
+ */
+export function headgearFor(
+  kind: HeadgearKind,
+  headRadius: number,
+  tint?: number,
+): THREE.Group | null {
+  const group = buildHeadgear(kind, tint);
+  if (!group) return null;
+  group.scale.setScalar(headRadius / HEAD_RADIUS);
   return group;
 }
 

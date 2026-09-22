@@ -12,20 +12,24 @@ bewusst keine von beiden — was hier herauskommt, läuft von selbst weiter.
 
 **Ein NPC besteht aus zwei Hälften, und sie werden einzeln ausgesucht.**
 
-- Die **Haut** (`worlds/npc/npcKinds.ts`) sagt, wie er aussieht: Modell,
-  Größe, Masse, Leben, seine Farben und ob die Arme **nach vorn** zeigen wie
-  beim Zombie oder neben ihm hängen wie bei allem anderen — die eine
-  Silhouette, an der man auf dreißig Meter erkennt, was da kommt. Vorne ist
-  −Z, dort sitzen auch die Augen; mit dem falschen Vorzeichen streckte der
-  Zombie sie eine Weile nach hinten und sah aus, als ergäbe er sich. Drei
-  Häute gibt es: den **Zombie**, die **Übungspuppe** — beide sterben nach
-  denselben Regeln, die Puppe hält nur mehr aus (160 statt 100) — und den
-  **Hamster**, denselben Körper in klein (60 cm, 20 Leben). Er ist keine
-  Zierde: Er ist die Sorte, die vor einer Dachkante stehen bleibt, weil sie den
-  Aufprall nicht überlebt (`nav/navFall.ts`), und ohne ihn wäre der Fallschaden
-  eine Zahl ohne sichtbare Folge. Ein eigenes Modell hat er nicht — was ihn
-  ausmacht, sind zwei Zahlen und ein Profil, und dafür baut man keine zweite
-  Geometrie.
+- Die **Haut** (`worlds/npc/npcKinds.ts`) sagt, wie er aussieht: **welche
+  Figur aus dem Regal** er trägt (`figure`, siehe unten), wie groß er ist, was er wiegt, wie viel er aushält — und
+  daneben das, was der gebaute Körper darunter braucht: drei Farben und ob die
+  Arme **nach vorn** zeigen wie beim Zombie oder neben ihm hängen wie bei
+  allem anderen. Vorne ist −Z, dort sitzen auch die Augen; mit dem falschen
+  Vorzeichen streckte der Zombie sie eine Weile nach hinten und sah aus, als
+  ergäbe er sich. Drei Häute sind fest eingebaut: der **Zombie** (ein
+  Mannequin), die **Übungspuppe** (der Dummy aus den Prototyp-Bausteinen) —
+  beide sterben nach denselben Regeln, die Puppe hält nur mehr aus (160 statt
+  100) — und der **Hamster**, derselbe gebaute Körper in klein (60 cm, 20
+  Leben). Er ist keine Zierde: Er ist die Sorte, die vor einer Dachkante stehen
+  bleibt, weil sie den Aufprall nicht überlebt (`nav/navFall.ts`), und ohne ihn
+  wäre der Fallschaden eine Zahl ohne sichtbare Folge. Eine Figur aus dem Regal
+  hat er nicht, und zwar weil es dort keine gibt: Die Sammlung kennt Ritter,
+  Skelette, Roboter und Mannequins, alle auf zwei menschlichen Skeletten, und
+  ein auf 60 cm gestauchter Mensch ist kein Nager. **Dazu kommt jede einzelne
+  Figur des Regals als eigene Sorte** — fünfundachtzig weitere Häute, die
+  niemand aufgeschrieben hat (siehe unten).
 - Das **Hirn** (`worlds/npc/npcBrains.ts`) sagt, was er tut: **Stehen**
   (bleibt, dreht sich zum Spieler, schlägt nie zu), **Schlendern** (läuft
   einen gewürfelten Kurs, bis ihm ein anderer einfällt, und bemerkt niemanden),
@@ -92,16 +96,138 @@ der Gruppe selbst, sonst sähe man ihn genau ein Bild lang.
 **Der Ursprung liegt zwischen den Füßen.** Collider, Trefferzonen und der
 Punkt, an den einer gesetzt wird, rechnen alle von der Standfläche aus; ein
 Modell mit dem Ursprung in der Mitte versinkt bei jeder dieser Rechnungen zur
-Hälfte im Boden. Das Modell selbst (`worlds/npc/NpcBody.ts`) ist ein Skelett
-aus Klötzen mit vier Gelenken — zwei Hüften, zwei Schultern —, deren
-X-Drehung der Schritt ist; die Schrittfrequenz hängt am Tempo, damit ein
-stehender NPC nicht auf der Stelle tanzt. Die Augen leuchten auf, sobald das
-Hirn jemanden bemerkt hat. **In den Händen sitzt je ein leerer Anker**
-(`NpcBody.hands`): er trägt heute nichts und ist die Stelle, an der später ein
-Werkzeug hängt — ein NPC mit einer Schusswaffe ist genau das, dieselbe
-`Tool`-Instanz wie in einer Spielerhand, nur an diesem Anker statt am
-Griffraum eines Controllers. Dass der Anker schon jetzt mitschwingt, ist der
-Unterschied zwischen „später einhängen" und „später umbauen".
+Hälfte im Boden. Das gilt für beide Körper, die ein NPC haben kann — den
+gebauten und den geladenen —, und dass es für beide dieselbe Stelle ist, ist
+der Grund, warum sie sich einfach überlagern dürfen.
+
+**Was man sieht, ist eine Figur aus dem Regal.** Bis zum September 2026 war
+ein NPC ein **Skelett aus Klötzen**, und das war
+eine Behauptung: „ein Skelett mit Gelenken an den richtigen Stellen bewegt sich
+besser als ein gekaufter Charakter, der still steht". Seit die Figuren des
+Regals laufen können (`core/kaykitFigure.ts`, siehe
+[Das KayKit-Regal](assetregal.md) → _Eine Figur, die läuft_), stimmt sie nicht
+mehr — der gekaufte Charakter steht nicht mehr still. Der Auftrag dazu war
+knapp: „Ich ärgere mich, dass die Charaktere aus dem KayKit-Regal nicht auch
+Default-NPC sind. … Zombie durch Mannequin."
+
+**Beides ist jetzt da, und zwar übereinander.** Der Körper aus Klötzen wird
+weiter gebaut, und zwar **sofort** — keine Datei, keine Leitung, kein WebGL —;
+die Figur kommt nach und blendet ihn aus (`visible = false`, nicht
+weggeworfen). Welche Datei welche Haut trägt:
+
+| Haut             | Figur                                                                      | Höhe   |
+| ---------------- | -------------------------------------------------------------------------- | ------ |
+| **Zombie**       | `character-animations/mannequin-character/characters/Mannequin_Medium.glb` | 1,78 m |
+| **Übungspuppe**  | `prototype-bits/character/Dummy.glb`                                       | 1,70 m |
+| **Hamster**      | — (gebaut; im Regal steht kein Nager)                                      | 0,60 m |
+| Figur aus dem Regal | die ausgesuchte Datei                                                   | 1,75 m (2,80 m auf dem großen Skelett) |
+
+**Die Klötze sind damit der Ersatz und nicht das Provisorium**, und das ist
+kein Wortspiel, sondern die Antwort auf drei Fälle, die es wirklich gibt: In
+**Jest** gibt es kein WebGL (`core/chefFit.canLoadModels`, dynamischer Import —
+`core/kaykitFigure.ts` zieht `GLTFLoader` und `import.meta` mit sich und bringt
+den Lauf sonst zum Stehen), in einem **Checkout ohne die gekauften Pakete**
+gibt es die Datei nicht, und über eine **Leitung** kann alles schiefgehen. In
+allen dreien steht trotzdem ein NPC da, der läuft, schlägt und umfällt — nur
+eben als Kasten mit vier Gelenken. Die Tests messen weiter an ihm
+(`npcBody.test.ts`: Kopf, Rumpf, Beine gegen `npcHit.bodyShape`), und die
+Trefferzonen sind ohnehin gerechnet und nicht abgetastet: Getroffen wird die
+Hülle, nicht das Netz.
+
+**Die Höhe ist die erklärte und nicht die gemessene.** `loadKaykitFigure(pfad,
+höhe)` bringt jede Figur auf die Zahl, die in der Haut steht — der Zombie bleibt
+1,78 m, die Puppe 1,70 m, und beides bleibt genau deshalb stehen: Collider,
+Trefferzonen, Lebensbalken und die Stelle, an die einer gesetzt wird, hängen
+daran und stehen fest, **bevor** irgendeine Datei angekommen ist. Umgekehrt
+hätte jede neue Figur eine andere Hülle — ein Mannequin von 1,54 m und ein
+Dummy von 1,68 m wären zwei verschiedene Gegner mit denselben Regeln. Für die
+Figuren aus dem Regal gilt dieselbe Zahl für alle (1,75 m, die Mitte zwischen
+Zombie und Puppe); nur die des **großen** Skeletts dürfen groß bleiben (2,80 m,
+`npcKinds.shelfHeight`), und erkannt werden sie am Namen (`_Large`, `Golem`),
+weil die Höhe erst am geladenen Modell feststeht und hier vorher gebraucht wird.
+
+**Was einen Zombie zum Zombie macht, ist die Bewegung** — die Sammlung hat
+keine Zombie-Figur, und das Mannequin ist die namenloseste, die es gibt. Eine
+Haut darf deshalb **bevorzugte Spuren** mitbringen (`NpcSkin.gaits`,
+`npc/npcFigure.ts`, mit Test), und der Zombie tut es: Er steht in
+`Melee_Unarmed_Idle`, der Kampfhaltung mit erhobenen Fäusten — das ist die
+Silhouette der Klötze (`arms: 'out'`), nur als Bewegung —, und er geht in
+`Walking_C`. Beides ist nachgemessen und nicht
+geraten (rechte Hand gegen die Hüfte, über einen Zyklus, am laufenden Mischer
+im Browser): Im Stand stehen die Hände in der Kampfhaltung 44 cm über der
+Hüfte statt 20 wie bei `Idle_A`; beim Gehen schwingt `Walking_A` die Arme weit
+mit — die Hand kommt bis 23 cm vor die Hüfte —, bei `Walking_C` bleibt sie über
+den ganzen Schritt dahinter. Ein
+Zombie schlurft, er spaziert nicht. Angehängt wird die allgemeine Liste
+trotzdem immer (`core/kaykitFigureFit.GAIT_CLIPS`): Das **große** Skelett hat
+überhaupt nur eine Gehspur (`Walking_A`), und eine Figur, die deshalb gar nicht
+mehr geht, wäre der teuerste Weg, einen Geschmack durchzusetzen. Die
+Kampfhaltung kennt es dagegen auch — ein Golem als Zombie steht also ebenfalls
+mit erhobenen Fäusten da.
+
+**Zwei Dinge tut eine Figur einmal statt dauernd: zuschlagen und sterben.**
+Der Schlag ist ein **Ereignis** und kein Zustand — die Klötzchen-Arme holen
+aus, solange das Hirn `strike` sagt (das steht an, solange einer in Reichweite
+steht), die Spur einer Figur fängt dagegen genau dann an, wenn wirklich ein
+Schlag sitzt (`Npc.update` → `NpcBody.swing()`, dazu die Flanke für den Hieb
+gegen eine **Tür**, die das Hirn gar nicht kennt). Abgespielt wird er mit
+`play(…, {once:true})` und nicht mit `act('attack')`, weil nur die Spur selbst
+sagt, **wie lang** sie ist: Danach findet der Körper in seinen Gang zurück, und
+bis dahin wechselt er ihn nicht — ein Schlag, den der nächste Schritt
+abschneidet, ist ein Zucken. Wer **stirbt**, spielt `Death_A` (einmal, endet
+liegend, `clampWhenFinished`); gekippt wird dabei nur der gebaute Körper, denn
+der hat keine Spur dafür. Die **Augen** leuchten nur an ihm: Die Materialien
+einer Figur gehören der Vorlage im Speicher **und allen anderen Kopien** —
+wer sie aufleuchten ließe, ließe jeden Zombie der Halle mitleuchten.
+
+**In den Händen sitzt je ein leerer Anker** (`NpcBody.hands`): er trägt heute
+nichts und ist die Stelle, an der später ein Werkzeug hängt — ein NPC mit einer
+Schusswaffe ist genau das, dieselbe `Tool`-Instanz wie in einer Spielerhand,
+nur an diesem Anker statt am Griffraum eines Controllers. Dass der Anker schon
+jetzt mitschwingt, ist der Unterschied zwischen „später einhängen" und „später
+umbauen" — und **mit einer Figur zieht er in ihren Handknochen um**
+(`bones.handLeft/Right`, nachgemessen: `handl`/`handr` beim Mannequin, das die
+`handslot`-Griffpunkte nicht hat). Was dort hängt, nimmt den Maßstab der Figur
+an; fehlt der Knochen, bleibt der Anker am unsichtbaren Klötzchen-Arm, und das
+ist immer noch ungefähr die richtige Stelle.
+
+**Und jede Figur des Regals ist eine eigene Sorte.** Die Sorte eines NPC ist
+eine Zeichenkette, und sie darf eine Adresse sein
+(`npcKinds.NpcKind`): `kaykit:adventurers/characters/Knight.glb` gilt überall
+dort, wo bisher `zombie` stand — im Menü, in der gespeicherten Einstellung des
+Hirn-Werkzeugs (`npcSettings.ts`, `bgvr.npc`) und in einem gespeicherten
+Charakter (`characterStore.ts`, samt der Aufnahme darin). Eine Aufzählung wäre
+die falsche Form: Es sind fünfundachtzig Figuren, morgen sind es mehr, und
+diese Liste stünde dann in vier Dateien noch einmal. Die **Haut** dazu wird
+gerechnet und nicht aufgeschrieben (`shelfSkin`, reine Funktion mit Test): Die
+Beschriftung kommt aus dem Dateinamen (`Knight`), der Rest sind die Zahlen
+eines gewöhnlichen Menschen — 29 cm Radius, 70 kg, 100 Leben, 1,5 m/s, Profil
+`human`, Hirn _Verfolgen_. Geprüft wird beim Einlesen nur die **Form**
+(`kaykit:`, kein `#` — das sind die Fächer des Regalmenüs —, Endung `.glb`);
+ob die Datei wirklich dort liegt, weiß erst das Regal, und ein Speicher, der
+darauf wartete, käme nie heraus. Liegt dort nichts, steht ein Körper aus
+Klötzen da, und sonst passiert nichts.
+
+**Ausgesucht wird unter _Menü → NPC → Figur aus dem Regal_**: die Schublade
+_Figuren_ des Katalogs (`core/kaykitIndex.KAYKIT_CATEGORIES`), dieselben
+Kacheln mit dem Modell darin, dieselben zwei Spalten, dieselbe Blätterei in
+Fächern zu sechzig (`kaykitSheets` — dieselbe Funktion wie im Regal, damit es
+nicht zwei Blätterstellungen gibt, die verschieden brechen). Nur was beim
+Aussuchen passiert, ist ein anderes: Im Regal nimmt man ein Modell **in die
+Hand**, hier wird einer **hingestellt** — deshalb der Trigger und nicht der
+Griff. Wer eine Figur setzt, setzt damit auch die Sorte im Hirn-Werkzeug
+(`withKind`), und der nächste Brutkäfig speit Ritter aus.
+
+**Was die Puppe mit einem Skelett kann und was nicht** (`Puppeteer.ts`, siehe
+unten): Ein übernommener NPC **mit** Figur folgt in Ort, Drehung und **Tempo**
+— er geht, während man geht, weil der Gang aus dem Tempo der Fäden kommt. Seine
+**Arme und sein Kopf** folgen nicht. Sie müssten über die Knochen laufen, und
+dort stünde ein Oberarm, den `setFromUnitVectors` auf ein Ziel dreht, gegen
+einen Mischer, der ihn im selben Bild zurückschreibt — der Ellbogen darunter
+bliebe, wo die Spur ihn hat, und heraus käme ein Arm, der halb zeigt und halb
+geht. Wer die Arme der Puppe wirklich führen will, nimmt eine Haut **ohne**
+Figur (den Hamster, oder eine Sitzung ohne die Pakete): Dort führt `pull`
+weiter jeden Klotz, und das ist nach wie vor das, was eine Aufnahme aussagt.
 
 **Getroffen wird mit der Strecke, nicht mit der Kugel** (`worlds/npc/npcHit.ts`,
 mit Test). Eine Kugel legt zwischen zwei Bildern Meter zurück; was sie

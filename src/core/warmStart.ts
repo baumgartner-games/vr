@@ -69,6 +69,15 @@
  * und `undefined` heißt hier „keine Auskunft" und nicht „schlecht". Ohne
  * Auskunft wird gewärmt — die Alternative wäre, dass ausgerechnet iPhone und
  * iPad nie einen warmen Speicher bekommen.
+ *
+ * ## Und derselbe Stand sagt, was der Knopf tut
+ *
+ * Ganz unten steht `startButton`: ob _Beitreten_ stumpf ist, was darunter
+ * steht und ob der Balken dazu läuft. Es ist dieselbe Frage von der anderen
+ * Seite — wer nicht vorwärmt, hat keine Welt, auf die ein Knopf warten
+ * könnte —, und deshalb steht sie hier und nicht in `main.ts`: Sonst stünde
+ * die Bedingung aus fünf Signalen zum zweiten Mal da, diesmal mit anderem
+ * Vorzeichen, und stimmte beim nächsten Umbau nur noch einfach.
  */
 
 /** Die Schritte, in genau der Reihenfolge, in der sie drankommen. */
@@ -138,4 +147,93 @@ export function nextWarmStep(done: readonly WarmStep[], signals: WarmSignals): W
   const open = WARM_ORDER.find((step) => !done.includes(step));
   if (open === undefined) return null;
   return mayWarmStep(open, signals) ? open : null;
+}
+
+/**
+ * **Wie es um die Standardwelt steht** — aus der Sicht des einen Knopfes, und
+ * nur so genau, wie er es wissen muss.
+ *
+ * - `ruht` — es lädt nichts. Entweder hat noch niemand angefangen, oder es
+ *   wird gar nicht vorgewärmt (Daten sparen, schmale Leitung, Tab im
+ *   Hintergrund, Lobby).
+ * - `lädt` — die Welt ist unterwegs: Chunk, Physik, Aufbau, und danach ihre
+ *   Modelle (`core/assetGate.ts`).
+ * - `dauert` — der Deckel war schneller als die Leitung. Es lädt noch, aber
+ *   gewartet wird nicht mehr.
+ * - `steht` — die Welt ist aufgebaut **und** ihre Startladung ist still.
+ * - `fehlt` — sie kam nicht (`App.onWorldFailed`).
+ */
+export type WorldPhase = 'ruht' | 'lädt' | 'dauert' | 'steht' | 'fehlt';
+
+/** Was auf der Startseite dasteht, während die Welt kommt — oder nicht kommt. */
+export interface StartButton {
+  /** Ob _Beitreten_ stumpf ist. */
+  disabled: boolean;
+  /** Die Zeile darunter (`#start-note`). Leer heißt: nichts zu sagen. */
+  note: string;
+  /**
+   * Ob der Balken dazu **laufen** soll. Er ist nicht dasselbe wie die Zeile:
+   * Ein Streifen, der läuft, behauptet eine Arbeit, und wenn gerade niemand
+   * lädt, ist diese Behauptung falsch. Die Zeile darf trotzdem etwas sagen.
+   */
+  busy: boolean;
+}
+
+/** Was dasteht, solange die Welt kommt. Ein Satz, zwei Stellen — hier. */
+export const LOADING_NOTE = 'Die Welt wird geladen …';
+
+/**
+ * **Der Knopf, aus der Lage gerechnet.** Reine Rechnung: `main.ts` führt sie
+ * aus und entscheidet nichts selbst.
+ *
+ * Vier Überlegungen stecken darin, und die dritte ist die, die man leicht
+ * falsch macht:
+ *
+ * 1. **Stumpf heißt „es passiert gerade etwas".** Ein Knopf, der lädt, wenn
+ *    man ihn drückt, ist kein Fehler — aber einer, der erkennbar dasteht und
+ *    dann drei Sekunden stumm arbeitet, ist eine Lüge. Solange die Welt
+ *    unterwegs ist, sagt der Knopf das, statt es zu verschweigen.
+ * 2. **Aber nie ohne Ausweg.** `dauert` und `fehlt` geben ihn wieder frei.
+ *    Eine Datei, die nicht ankommt, darf keinen Knopf für den Rest der
+ *    Sitzung tot machen — sie darf ihn höchstens eine Zeile kosten.
+ * 3. **Wo nicht vorgewärmt wird, bleibt er bedienbar.** Das ist die
+ *    Entscheidung zu `ruht`: Wer _Daten sparen_ eingeschaltet hat, auf `2g`
+ *    sitzt oder den Tab im Hintergrund liegen hat, bekommt die Welt nicht
+ *    ungefragt — und darf deshalb auch nicht auf sie warten müssen. Der Knopf
+ *    lädt sie dann beim Druck, so wie er es immer getan hat, und die Zeile
+ *    darunter sagt es vorher. Andersherum — stumpf, bis etwas lädt, das
+ *    niemand lädt — wäre genau der Deadlock, den `2g` und `saveData` sich
+ *    eingehandelt hätten.
+ * 4. **Hinter einer Lobby gilt nichts davon.** Dort wird mit Absicht nicht
+ *    vorgewärmt (die Welt nimmt sich beim Aufbau einen Raum, siehe oben), der
+ *    Knopf heißt `#haunt-enter` und hat seine eigene Zeile. Hier ist dann
+ *    nichts zu sagen und nichts anzuzeigen.
+ */
+export function startButton(signals: WarmSignals, world: WorldPhase): StartButton {
+  if (signals.lobby === true) return { disabled: false, note: '', busy: false };
+  switch (world) {
+    case 'steht':
+      return { disabled: false, note: '', busy: false };
+    case 'lädt':
+      return { disabled: true, note: LOADING_NOTE, busy: true };
+    case 'dauert':
+      return {
+        disabled: false,
+        note: 'Die Welt lädt noch — Beitreten geht trotzdem.',
+        busy: true,
+      };
+    case 'fehlt':
+      return {
+        disabled: false,
+        note: 'Die Welt kam nicht an — Beitreten versucht es noch einmal.',
+        busy: false,
+      };
+    case 'ruht':
+      // Gleich geht es los (das Vorwärmen wartet nur noch auf den Leerlauf) —
+      // oder eben nie. Gefragt wird dieselbe Rechnung wie beim Wärmen selbst,
+      // damit hier nicht ein zweites Mal geraten wird.
+      return mayWarmStep('welt', signals)
+        ? { disabled: true, note: LOADING_NOTE, busy: true }
+        : { disabled: false, note: 'Die Welt wird beim Beitreten geladen.', busy: false };
+  }
 }

@@ -423,6 +423,11 @@ await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 90000 });
 // Aus den Augen und nicht von oben — von oben zeichnet `TopDownCamera` etwas
 // anderes, und `GridWorld.stepWallGhosts` schaltet dort sogar die Wandbündel um.
 await page.locator('#screen-view [data-view="3d"]').click();
+// **Der Knopf ist stumpf, bis die Welt geladen ist** (`core/warmStart.ts`,
+// `startButton`) — und gerade hier dauert das: Die Küche ist die schwerste
+// Kachel, die es gibt. Playwright wartete von sich aus, aber nur 30 s; die
+// Frist steht deshalb hier und passt zu der weiter unten.
+await page.locator('#enter:not([disabled])').waitFor({ timeout: 180000 });
 await page.locator('#enter').click();
 // Und hier wartet man nicht blind: Lädt die Welt nicht, soll der Fehler kommen
 // und nicht die Zeitüberschreitung.

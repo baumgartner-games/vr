@@ -1,6 +1,7 @@
 import { DEFAULT_APPEARANCE } from '../core/appearance';
 import { BODY_KINDS, HEAD_KINDS } from '../core/avatarLook';
 import { HEADGEAR_KINDS } from '../core/headgear';
+import { FIGURE_PATHS } from '../core/avatarFigures';
 import { wardrobeRows } from './wardrobeRows';
 
 /**
@@ -12,19 +13,39 @@ import { wardrobeRows } from './wardrobeRows';
  * erst vor dem Spiegel auf.
  */
 describe('Die Zeilen der Umkleide', () => {
-  it('sind Kopf, Hut und Körper — in dieser Reihenfolge', () => {
+  it('sind Kopf, Hut, Körper und Figur — in dieser Reihenfolge', () => {
     const rows = wardrobeRows(DEFAULT_APPEARANCE);
-    expect(rows.map((row) => row.slot)).toEqual(['head', 'hat', 'body']);
-    expect(rows.map((row) => row.label)).toEqual(['Kopf', 'Hut', 'Körper']);
+    expect(rows.map((row) => row.slot)).toEqual(['head', 'hat', 'body', 'figure']);
+    expect(rows.map((row) => row.label)).toEqual(['Kopf', 'Hut', 'Körper', 'Figur']);
     expect(rows.map((row) => row.count)).toEqual([
       HEAD_KINDS.length,
       HEADGEAR_KINDS.length,
       BODY_KINDS.length,
+      FIGURE_PATHS.length,
     ]);
   });
 
+  it('schaltet die Figur weiter und lässt die anderen drei stehen', () => {
+    const next = wardrobeRows(DEFAULT_APPEARANCE)[3]!.step(1);
+    expect(next.figure).toBe(FIGURE_PATHS[1]);
+    expect(next.head).toBe(DEFAULT_APPEARANCE.head);
+    expect(next.hat).toBe(DEFAULT_APPEARANCE.hat);
+    expect(next.body).toBe(DEFAULT_APPEARANCE.body);
+  });
+
+  it('holt eine Figur von außerhalb der Liste beim nächsten Druck zurück', () => {
+    // Über die Detailseite des Regals kommt jede der rund 85 Figuren herein —
+    // in der kuratierten Liste steht sie dann nicht, und `indexOf` sagt −1.
+    // Ein › darf daraus keine leere Zeile machen.
+    const odd = { ...DEFAULT_APPEARANCE, figure: 'skeletons/characters/Necromancer.glb' };
+    const row = wardrobeRows(odd)[3]!;
+    expect(row.index).toBe(-1);
+    expect(row.value).toBe('Necromancer');
+    expect(row.step(1).figure).toBe(FIGURE_PATHS[1]);
+  });
+
   it('sagt, der wievielte gerade gilt', () => {
-    const rows = wardrobeRows({ hat: 'cap', head: 'beard', body: 'green' });
+    const rows = wardrobeRows({ ...DEFAULT_APPEARANCE, hat: 'cap', head: 'beard', body: 'green' });
     expect(rows[0]!.index).toBe(HEAD_KINDS.indexOf('beard'));
     expect(rows[1]!.index).toBe(HEADGEAR_KINDS.indexOf('cap'));
     expect(rows[2]!.index).toBe(BODY_KINDS.indexOf('green'));
@@ -41,7 +62,13 @@ describe('Die Zeilen der Umkleide', () => {
 
   /** ‹ am Anfang der Liste geht ans Ende und nicht ins Leere. */
   it('läuft mit ‹ im Kreis nach hinten', () => {
-    const first = { hat: HEADGEAR_KINDS[0]!, head: HEAD_KINDS[0]!, body: BODY_KINDS[0]! };
+    const first = {
+      ...DEFAULT_APPEARANCE,
+      hat: HEADGEAR_KINDS[0]!,
+      head: HEAD_KINDS[0]!,
+      body: BODY_KINDS[0]!,
+      figure: FIGURE_PATHS[0]!,
+    };
     const rows = wardrobeRows(first);
     expect(rows[0]!.step(-1).head).toBe(HEAD_KINDS[HEAD_KINDS.length - 1]);
     expect(rows[1]!.step(-1).hat).toBe(HEADGEAR_KINDS[HEADGEAR_KINDS.length - 1]);

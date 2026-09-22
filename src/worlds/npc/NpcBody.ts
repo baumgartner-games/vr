@@ -1,16 +1,26 @@
 import * as THREE from 'three';
+import { canLoadModels } from '../../core/chefFit';
+import { FIGURE_FADE, gaitFor, type FigureGait } from '../../core/kaykitFigureFit';
 import { disposeTree } from '../shared/environment';
+import { figureGaitClip, figureStrikeClip } from './npcFigure';
 import { npcSkin, type NpcKind, type NpcSkin } from './npcKinds';
 import { bodyShape, hitParts } from './npcHit';
+import type { KaykitFigure } from '../../core/kaykitFigure';
 
 /**
  * **Das Modell eines NPC** — die Haut aus `npcKinds.ts`, gebaut.
  *
- * Ein Körper aus Klötzen und zwei Kugeln, und mehr soll es auch nicht sein:
- * Was einen NPC ausmacht, ist, dass er sich bewegt, und ein Skelett mit
- * Gelenken an den richtigen Stellen bewegt sich besser als ein gekaufter
- * Charakter, der still steht. Die Gelenke sind vier: zwei Hüften, zwei
+ * Ein Körper aus Klötzen und zwei Kugeln, und der steht **sofort**: keine
+ * Datei, keine Leitung, kein WebGL. Die Gelenke sind vier — zwei Hüften, zwei
  * Schultern, jedes eine eigene Gruppe, deren X-Drehung der Schritt ist.
+ *
+ * **Und darüber kommt, wenn die Haut eine nennt, eine Figur aus dem Regal**
+ * (`NpcSkin.figure`, `core/kaykitFigure.ts`). Sie kommt eine halbe Sekunde
+ * später als der Körper, hängt in **derselben** Gruppe — Ursprung zwischen den
+ * Füßen, vorn ist −Z, beides deckt sich — und blendet die Klötze aus, statt
+ * sie wegzuwerfen: An ihnen hängen die Tests, die Maße und alles, was ohne
+ * Datei weiterlaufen muss. Der Klötzchen-Körper ist damit kein Provisorium
+ * mehr, sondern der **Ersatz**, und beide Wege sind gültige Ausgänge.
  *
  * **Der Ursprung liegt zwischen den Füßen.** Alles, was mit einem NPC
  * rechnet — der Collider, die Trefferzonen (`npcHit.ts`), der Punkt, an dem
@@ -27,6 +37,18 @@ import { bodyShape, hitParts } from './npcHit';
  */
 export class NpcBody extends THREE.Group {
   readonly skin: NpcSkin;
+
+  /**
+   * **Der gebaute Körper, alles in einer Gruppe.**
+   *
+   * Sie ist erst mit der Figur entstanden, und zwar für genau zwei Handgriffe:
+   * Ausblenden (`wearFigure`) und **Umfallen** (`setFallen`). Beides betrifft
+   * die Klötze und nicht den NPC — eine Figur mit einem Skelett fällt um,
+   * indem sie umfällt (`act('death')`), und nicht, indem jemand sie um die
+   * Querachse kippt. Lebensbalken, Sichtkegel und Trefferzonen hängen
+   * weiterhin darüber, denn sie sind Anzeigen und kein Körperteil.
+   */
+  private readonly blocks = new THREE.Group();
 
   /** Die vier Gelenke, deren X-Drehung den Gang macht. */
   private readonly legLeft = new THREE.Group();
@@ -116,14 +138,57 @@ export class NpcBody extends THREE.Group {
    *
    * Ziele stehen im **Raum des Modells**: Ursprung zwischen den Füßen, vorn
    * ist −Z, und der Gierwinkel ist schon herausgerechnet (`Npc.setPuppet`).
+   *
+   * **Mit einer Figur führen die Fäden nur Ort, Drehung und Tempo.** Die Arme
+   * einer Puppe mit Skelett müssten über ihre Knochen laufen, und dabei stünde
+   * ein Oberarm, den `setFromUnitVectors` auf ein Ziel dreht, gegen einen
+   * Mischer, der ihn im selben Bild wieder zurückschreibt — der Ellbogen
+   * darunter bliebe, wo die Spur ihn hat. Was dabei herauskäme, wäre ein Arm,
+   * der halb zeigt und halb geht. Gezeigt wird deshalb, was stimmt: Die Figur
+   * steht, wo der Spieler steht, dreht sich, wohin er schaut, und **geht**,
+   * während er geht (der Gang kommt aus dem Tempo der Fäden) — die Arme gehen
+   * mit ihrem Gang. Wer die Arme der Puppe sehen will, nimmt eine Haut ohne
+   * Figur; dort führen die Fäden weiter jeden Klotz (`pull`).
    */
   puppet: PuppetPose | null = null;
+
+  /**
+   * Die Figur aus dem Regal, sobald sie da ist — und `null`, solange oder
+   * falls sie es nicht wird.
+   */
+  private figure: KaykitFigure | null = null;
+  /**
+   * Ob dieser Körper schon weggeräumt war, als die Figur ankam.
+   *
+   * Der Wettlauf ist echt und nicht hypothetisch: Ein Zombie, den man im
+   * selben Atemzug setzt und wieder wegräumt, bekommt seine Datei danach —
+   * und eine Figur, die niemandem mehr gehört, hinge für immer im Speicher
+   * (dasselbe `gone` wie in `core/AvatarBody.ts` und `zones/kitchenDesk.ts`).
+   */
+  private gone = false;
+  /** Der Gang, den die Figur gerade zeigt — `null`, solange keiner gesetzt ist. */
+  private figureGait: FigureGait | null = null;
+  /**
+   * Wie lange der Schlag der Figur noch läuft, in Sekunden.
+   *
+   * Solange etwas darin steht, wird der Gang **nicht** gewechselt: Ein Schlag,
+   * den der nächste Schritt abschneidet, ist ein Zucken. Die Zahl ist die
+   * Länge der Spur selbst und keine geschätzte — deshalb spielt der Körper den
+   * Schlag mit `play()` ab und nicht mit `act()` (`npcFigure.ts`).
+   */
+  private figureStriking = 0;
+  /** Ob der Körper im letzten Bild schon ausgeholt hat (`update`). */
+  private swung = false;
+  /** Ob die Figur ihren Tod schon gespielt hat — einmal und nicht je Bild. */
+  private figureDead = false;
 
   constructor(kind: NpcKind) {
     super();
     const skin = npcSkin(kind);
     this.skin = skin;
     this.name = `npc-${skin.id}`;
+    this.blocks.name = 'npc-blocks';
+    this.add(this.blocks);
 
     const flesh = new THREE.MeshStandardMaterial({ color: skin.palette.skin, roughness: 0.85 });
     const cloth = new THREE.MeshStandardMaterial({ color: skin.palette.cloth, roughness: 0.95 });
@@ -169,12 +234,12 @@ export class NpcBody extends THREE.Group {
       const foot = box(width * 0.36, h * 0.045, skin.radius * 1.15, cloth);
       foot.position.set(0, -legLength + h * 0.02, -skin.radius * 0.14);
       group.add(foot);
-      this.add(group);
+      this.blocks.add(group);
     }
 
     // --- Rumpf ---------------------------------------------------------------
     this.chest.position.y = hip;
-    this.add(this.chest);
+    this.blocks.add(this.chest);
     const torso = box(width, shoulder - hip, shape.depth, cloth);
     torso.name = 'npc-torso';
     torso.position.y = (shoulder - hip) / 2;
@@ -246,6 +311,80 @@ export class NpcBody extends THREE.Group {
     this.bar.add(this.barBack, this.barFill);
     this.add(this.bar);
     this.setHealth(1);
+
+    this.callFigure();
+  }
+
+  /**
+   * **Die Figur bestellen** — wenn die Haut eine nennt und die Umgebung eine
+   * laden kann.
+   *
+   * **Der Import ist dynamisch und die Frage steht davor**
+   * (`core/chefFit.canLoadModels`): `core/kaykitFigure.ts` zieht `GLTFLoader`
+   * und `import.meta` mit sich, und beides bringt einen Jest-Lauf zum Stehen.
+   * Wo es kein WebGL gibt, wird das Modul deshalb gar nicht erst angefasst —
+   * dasselbe Muster wie beim Koch (`core/AvatarBody.ts`) und beim Rechner auf
+   * dem Küchentisch (`worlds/test/zones/kitchenDesk.ts`).
+   *
+   * `void`, weil hier niemand wartet: Ein NPC, der erst erscheint, wenn eine
+   * Datei da ist, ist in der Brille ein NPC, der fehlt.
+   */
+  private callFigure(): void {
+    const path = this.skin.figure;
+    if (!path || !canLoadModels()) return;
+    void import('../../core/kaykitFigure').then(async (module) => {
+      const figure = await module.loadKaykitFigure(path, this.skin.height);
+      if (!figure) return;
+      // **Wer zu spät kommt, wird sofort wieder weggeworfen.** Sonst hinge
+      // eine Figur samt Mischer an einem Körper, den es nicht mehr gibt.
+      if (this.gone) {
+        figure.dispose();
+        return;
+      }
+      this.wearFigure(figure);
+    });
+  }
+
+  /**
+   * **Die Figur anziehen** — sie kommt in dieselbe Gruppe, die Klötze gehen
+   * aus.
+   *
+   * Ausgeblendet und nicht weggeworfen (`visible = false`): An den Klötzen
+   * hängen die Maße, die Tests und der Fall, dass später doch jemand ohne
+   * Figur dasteht. Sie kosten unsichtbar nichts — three.js zeichnet einen
+   * unsichtbaren Teilbaum gar nicht erst.
+   *
+   * **Die Hände ziehen um.** Der Anker, an dem später ein Werkzeug hängt,
+   * sitzt bis hierher am Klötzchen-Arm und schwingt mit ihm; ab jetzt sitzt er
+   * **im Handknochen** der Figur und schwingt mit ihr (`bones.handLeft/Right`).
+   * Fehlt der Knochen — nicht jede Figur hat einen —, bleibt er, wo er war:
+   * ein Anker an einem unsichtbaren Arm ist immer noch an der ungefähr
+   * richtigen Stelle, und das ist mehr als keiner.
+   */
+  private wearFigure(figure: KaykitFigure): void {
+    this.figure = figure;
+    this.blocks.visible = false;
+    this.add(figure.root);
+
+    for (const [anchor, bone] of [
+      [this.hands.left, figure.bones.handLeft],
+      [this.hands.right, figure.bones.handRight],
+    ] as const) {
+      if (!bone) continue;
+      // Im Knochen gilt sein Maßstab: Die Figur ist auf ihre Höhe gerechnet,
+      // und was in ihrer Hand hängt, wird mit ihr größer und kleiner. Das ist
+      // dieselbe Abmachung wie bei der Spielerfigur (`core/AvatarBody.ts`,
+      // `POSE_SCALE`) — nur kommt die Zahl hier aus dem Modell.
+      anchor.position.set(0, 0, 0);
+      anchor.quaternion.identity();
+      bone.add(anchor);
+    }
+
+    // Welchen Gang sie zeigt, entscheidet das nächste Bild (`update`): Der
+    // Lader lässt sie stehen, und wer gerade läuft, läuft eine Sechzigstel
+    // Sekunde später auch als Figur. Ein Gang, der hier geraten würde, wäre
+    // genau diese eine Sechzigstel früher und dafür womöglich falsch.
+    this.figureGait = null;
   }
 
   /**
@@ -443,6 +582,76 @@ export class NpcBody extends THREE.Group {
     this.head.rotation.set(0, 0, 0);
     if (this.puppet) this.pull(this.puppet);
     this.faceBar();
+
+    // **Und dasselbe Bild für die Figur, wenn sie da ist.** Sie bekommt
+    // dieselben zwei Zahlen wie die Klötze — Tempo und „holt gerade aus" —,
+    // macht aber etwas anderes daraus: einen Gang und einen Schlag statt
+    // Gelenkwinkeln.
+    if (this.figure) {
+      if (striking && !this.swung) this.swing();
+      this.driveFigure(dt, speed);
+    }
+    this.swung = striking;
+  }
+
+  /**
+   * **Ein Schlag** — einmal je Schlag und nicht je Bild.
+   *
+   * Zwei rufen das: der Körper selbst, sobald er zu schlagen anfängt (die
+   * Flanke von `striking` — das ist auch der Hieb gegen eine Tür), und `Npc`,
+   * sobald das Hirn wirklich trifft (`stepBrain`, `attack`). Beides ist nötig
+   * und beides ist zu wenig für sich allein: `striking` steht die ganze Zeit
+   * an, solange einer in Reichweite steht (dann käme genau **ein** Schlag),
+   * und `attack` kennt die Tür nicht.
+   *
+   * Wer schon schlägt, schlägt nicht noch einmal: Eine Spur, die jedes Bild
+   * von vorn anfängt, ist ein Zittern.
+   */
+  swing(): void {
+    const figure = this.figure;
+    if (!figure || this.figureDead || this.figureStriking > 0) return;
+    const name = figureStrikeClip(clipNames(figure));
+    if (name === null) return;
+    // **`play` und nicht `act`**, und zwar wegen der Dauer: Nur die Spur
+    // selbst weiß, wie lang sie ist, und der Körper braucht die Zahl, um
+    // danach in seinen Gang zurückzufinden (`npcFigure.ts`).
+    const action = figure.play(name, { once: true });
+    if (!action) return;
+    this.figureStriking = Math.max(0.1, action.getClip().duration);
+    this.figureGait = null;
+  }
+
+  /**
+   * **Der Gang der Figur** — aus dem Tempo, und nur beim Wechsel.
+   *
+   * Hier steht, was sonst `KaykitFigure.gait` täte, und der Grund steht in
+   * `npcFigure.ts`: Welche Spur ein Gang ist, entscheidet die **Haut**
+   * (`NpcSkin.gaits`) — ein Zombie steht mit erhobenen Fäusten da und eine
+   * Übungspuppe nicht, und mehr als die Wahl der Spur trennt die beiden
+   * nicht.
+   */
+  private driveFigure(dt: number, speed: number): void {
+    const figure = this.figure!;
+    if (this.figureStriking > 0) {
+      this.figureStriking = Math.max(0, this.figureStriking - dt);
+      figure.update(dt);
+      return;
+    }
+    if (!this.figureDead) this.playGait(gaitFor(speed), FIGURE_FADE);
+    figure.update(dt);
+  }
+
+  /** Auf einen Gang überblenden — oder nichts tun, wenn er schon läuft. */
+  private playGait(gait: FigureGait, fade: number): void {
+    const figure = this.figure;
+    if (!figure || gait === this.figureGait) return;
+    const name = figureGaitClip(this.skin, gait, clipNames(figure));
+    // **Kein Name ist ein gültiger Ausgang**: Die Figur bleibt stehen, wie sie
+    // steht, statt in ihre Bindepose zu fallen. Gemerkt wird der Gang
+    // trotzdem, sonst wird es bei jedem Bild noch einmal versucht.
+    this.figureGait = gait;
+    if (name === null) return;
+    figure.play(name, { fade });
   }
 
   /**
@@ -493,7 +702,16 @@ export class NpcBody extends THREE.Group {
     this.bar.rotation.y = -this.rotation.y;
   }
 
-  /** Ob die Augen leuchten: der NPC hat jemanden bemerkt. */
+  /**
+   * Ob die Augen leuchten: der NPC hat jemanden bemerkt.
+   *
+   * **Eine Figur aus dem Regal bemerkt nichts sichtbar**, und das bleibt auch
+   * so: Sie hat keine Augen als eigenes Teil, und ihre Materialien gehören der
+   * Vorlage im Speicher und **allen anderen Kopien** (`core/kaykitModel.ts`,
+   * geteilte Geometrie). Wer hier ein Material aufleuchten ließe, ließe jeden
+   * Zombie in der Halle aufleuchten, sobald einer von ihnen jemanden sieht.
+   * Wer sehen will, wer wen bemerkt hat, schaltet die Sichtbereiche ein.
+   */
   setAlert(alert: boolean): void {
     this.eyes.emissive.setHex(this.skin.palette.eye);
     this.eyes.emissive.multiplyScalar(alert ? 0.9 : 0.25);
@@ -505,8 +723,18 @@ export class NpcBody extends THREE.Group {
    */
   setFallen(t: number): void {
     const eased = Math.min(1, Math.max(0, t));
-    this.rotation.x = -eased * Math.PI * 0.5;
-    this.position.y = -eased * this.skin.radius * 0.5;
+    // **Eine Figur fällt nicht, sie stirbt.** Sie hat eine Spur dafür
+    // (`Death_A`), und die ist alles, was ein Sterbender braucht: Sie endet
+    // liegend und bleibt dort stehen (`clampWhenFinished`). Gekippt wird nur
+    // der gebaute Körper — der hat keine Spur, und für ihn ist Umkippen die
+    // ehrlichste Form von Umfallen, die vier Klötze hergeben.
+    if (this.figure && eased > 0 && !this.figureDead) {
+      this.figureDead = true;
+      this.figureStriking = 0;
+      this.figure.act('death');
+    }
+    this.blocks.rotation.x = -eased * Math.PI * 0.5;
+    this.blocks.position.y = -eased * this.skin.radius * 0.5;
     // Wer liegt, hat keinen Balken mehr: er kippte mit dem Körper nach vorn und
     // läge quer über ihm. Und keine Trefferzone: Ein Gefallener wird nicht mehr
     // getroffen (`Npc.zoneOf`), und ein Kasten um ihn herum behauptete das
@@ -519,11 +747,28 @@ export class NpcBody extends THREE.Group {
   }
 
   dispose(): void {
+    this.gone = true;
+    // **Die Figur zuerst und für sich**: Sie hält einen Mischer und hängt an
+    // einem Modell, das sie sich mit allen anderen Kopien teilt — was daran
+    // wirklich ihres ist, weiß nur sie (`core/kaykitFigure.dispose`).
+    if (this.figure) {
+      this.figure.dispose();
+      this.figure.root.removeFromParent();
+      this.figure = null;
+    }
     disposeTree(this);
     this.eyes.dispose();
     this.barBack.material.dispose();
     this.barFill.material.dispose();
   }
+}
+
+/**
+ * Die Namen der Spuren einer Figur — `pickClip` fragt danach, und eine Liste
+ * aus Clips ist keine aus Namen.
+ */
+function* clipNames(figure: KaykitFigure): Iterable<string> {
+  for (const clip of figure.clips) yield clip.name;
 }
 
 /** Wann ein Lebensbalken zu sehen ist. */

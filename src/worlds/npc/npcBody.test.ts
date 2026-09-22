@@ -310,3 +310,46 @@ describe('Kopf und Trefferzone', () => {
     body.dispose();
   });
 });
+
+/**
+ * **Ohne WebGL bleibt es bei den Klötzen** (`core/chefFit.canLoadModels`).
+ *
+ * In Jest gibt es kein `document` und keine Leinwand, also wird
+ * `core/kaykitFigure.ts` gar nicht erst angefasst — und genau das ist der
+ * Fall, den dieser Test festhält: Ein NPC steht auch dann da, geht, schlägt
+ * und fällt um, wenn nie eine Datei ankommt. Der gebaute Körper ist der
+ * **Ersatz** und nicht das Provisorium.
+ */
+describe('Der gebaute Körper ohne Figur', () => {
+  it('steht sichtbar da, obwohl die Haut eine Figur nennt', () => {
+    const body = new NpcBody('zombie');
+    expect(body.skin.figure).toBeDefined();
+    expect(body.getObjectByName('npc-blocks')?.visible).toBe(true);
+    body.dispose();
+  });
+
+  it('läuft, schlägt und fällt, ohne dass jemand eine Figur geladen hat', () => {
+    const body = new NpcBody('zombie');
+    expect(() => {
+      body.update(1 / 60, 1.5, false);
+      body.swing();
+      body.update(1 / 60, 1.5, true);
+      body.setFallen(0.5);
+      body.update(1 / 60, 0, false);
+    }).not.toThrow();
+    body.dispose();
+  });
+
+  /**
+   * Umgefallen wird mit den Klötzen und nicht mit der ganzen Gruppe: An ihr
+   * hängen der Lebensbalken, der Sichtkegel und die Trefferzonen, und eine
+   * Figur mit Skelett fällt um, indem sie ihre Sterbespur spielt.
+   */
+  it('kippt die Klötze und nicht den NPC', () => {
+    const body = new NpcBody('zombie');
+    body.setFallen(1);
+    expect(body.rotation.x).toBe(0);
+    expect(body.getObjectByName('npc-blocks')!.rotation.x).toBeCloseTo(-Math.PI / 2, 6);
+    body.dispose();
+  });
+});

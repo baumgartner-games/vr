@@ -28,9 +28,12 @@ const args = new Map(
 const query = new URLSearchParams();
 if (args.has('hat')) query.set('hat', args.get('hat'));
 if (args.has('walk')) query.set('walk', '1');
+// `--figure=all` stellt die kuratierte Liste nebeneinander, `--figure=<adresse>`
+// eine einzelne Figur aus dem Regal in jede Spalte (`core/avatarFigures.ts`).
+// Damit sieht man die Höhenregel und den Sitz der Mütze auf einem fremden Kopf.
+if (args.has('figure')) query.set('figure', args.get('figure'));
 const url =
-  args.get('url') ??
-  `http://127.0.0.1:5173/avatar-preview.html${query.size ? `?${query}` : ''}`;
+  args.get('url') ?? `http://127.0.0.1:5173/avatar-preview.html${query.size ? `?${query}` : ''}`;
 const out = path.resolve(args.get('out') ?? '.artifacts/avatar');
 const tag = args.get('tag') ?? 'now';
 await mkdir(out, { recursive: true });
@@ -48,6 +51,14 @@ page.on('console', (message) => {
 });
 await page.goto(url, { waitUntil: 'networkidle' });
 await page.waitForFunction(() => Boolean(window.previewDraw), null, { timeout: 30000 });
+// **Und dann auf das Modell warten.** `networkidle` sagt nur, dass die Datei
+// durch die Leitung ist — zerlegt und angezogen ist sie ein paar Bilder
+// später (`core/chefModel.ts`). Wer vorher auslöst, fotografiert die gebaute
+// Figur und hält sie für die geladene. Bleibt das Modell ganz aus, wird
+// trotzdem geschossen: Dann ist die gebaute Figur das richtige Bild.
+await page
+  .waitForFunction(() => window.previewDressed?.() ?? true, null, { timeout: 15000 })
+  .catch(() => console.warn('Kein Modell — die gebaute Figur steht auf dem Bogen.'));
 const views = await page.evaluate(() => window.previewViews);
 for (let i = 0; i < views.length; i++) {
   await page.evaluate((index) => window.previewDraw(index), i);

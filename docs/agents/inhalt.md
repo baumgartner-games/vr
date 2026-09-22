@@ -1516,6 +1516,14 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
     und das wäre hier der ganze Osten samt halber Kartbahn. Die Bank ist das,
     was sie in Wirklichkeit ist — eine **Küchenzeile**, derselbe geprüfte
     Baustein auf derselben Arbeitshöhe.
+    **Geschossen wird nach Osten**: Die Entfernung ist eine Strecke in X
+    hinter der Linie, die drei Bahnen liegen quer dazu in Z, und wo eine
+    Scheibe steht, rechnet genau eine Funktion (`zones/range.ts`,
+    `targetSpot`, mit Test). Das steht hier, weil es eine Zeit lang nicht so
+    war: Pfosten, Scheiben, Schiene und Platten schrieben Bahn und Entfernung
+    vertauscht, und die Scheiben standen fünf bis zwanzig Meter **nördlich**
+    des Stands, quer zur Schussrichtung — während die Marken am Rand, der
+    Kugelfang und das Gelenk der Scheibe die ganze Zeit nach Osten rechneten.
   - **Gokart** (Süden): eine Rundstrecke von 35 × 25 m aus Streckenteilen auf
     dem Gitter und eine Boxengasse mit zwei Karts darin. **Eingestiegen wird
     mit `A`** — das Kart meldet sich als `Usable` mit dem Hinweis

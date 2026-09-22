@@ -180,6 +180,11 @@ export class PageMenu {
   private readonly optsEl: HTMLElement;
   private readonly floorButton: HTMLButtonElement;
   private readonly boundsButton: HTMLButtonElement;
+  /** Der Knopf, der auf einer Detailseite etwas **tut** (`MenuDetail.action`). */
+  private readonly deedButton: HTMLButtonElement;
+  /** Was er gerade tut — und woran man merkt, dass er neu beschriftet gehört. */
+  private deed: MenuDetail['action'] | null = null;
+  private deedLine = '';
   private readonly clipsEl: HTMLElement;
   private readonly clipsSelect: HTMLSelectElement;
   private readonly factsEl: HTMLElement;
@@ -277,7 +282,13 @@ export class PageMenu {
     this.optsEl = el('div', 'pmenu__opts');
     this.floorButton = switchRow('Gitterboden', 'Ein Raster auf Höhe des tiefsten Punktes');
     this.boundsButton = switchRow('Bounding Box', 'Die Hülle, mit der das Ding anfasst');
-    this.optsEl.append(this.floorButton, this.boundsButton);
+    // Ohne Wippe: Er ist keine Einstellung, sondern eine Tat, und er steht nur
+    // da, wenn die Seite eine anzubieten hat.
+    this.deedButton = el('button', 'pmenu__row pmenu__deed');
+    this.deedButton.type = 'button';
+    this.deedButton.hidden = true;
+    this.deedButton.append(el('span', 'pmenu__text'));
+    this.optsEl.append(this.floorButton, this.boundsButton, this.deedButton);
     this.clipsEl = el('div', 'pmenu__clips');
     const clipsLabel = el('label', 'pmenu__cliplabel', 'Animation');
     this.clipsSelect = document.createElement('select');
@@ -323,6 +334,13 @@ export class PageMenu {
     this.clipsSelect.addEventListener('change', () =>
       this.stepDetail({ clip: this.clipsSelect.value || null }),
     );
+    this.deedButton.addEventListener('click', () => {
+      this.deed?.run();
+      // Die Tat wirkt außerhalb dieser Seite (das Aussehen, der Avatar, das
+      // Netz); hier bleibt nur, den Steckbrief neu zu schreiben — der Knopf
+      // kann danach anders heißen.
+      if (this.open) this.render();
+    });
     // **Nachgeladen wird beim Scrollen** (`PAGE_WINDOW`). Das `scroll`-Ereignis
     // ist dafür gut genug: Es kommt zwar aus dem Hauptstrang und damit zu spät
     // für eine Leinwand (siehe `PagePreviews.ts`), aber nicht zu spät für
@@ -674,6 +692,9 @@ export class PageMenu {
     this.detailFacts = null;
     this.detailClips = '';
     this.clipsSelect.replaceChildren();
+    this.deed = null;
+    this.deedLine = '';
+    this.deedButton.hidden = true;
   }
 
   /** Ein Schalter wurde gedrückt — der Stand liegt hier, die Wirkung dort. */
@@ -699,6 +720,20 @@ export class PageMenu {
   private paintDetail(detail: MenuDetail): void {
     setSwitch(this.floorButton, this.detailOpts.floor);
     setSwitch(this.boundsButton, this.detailOpts.bounds);
+
+    // Der Tat-Knopf: neu beschriftet wird er nur, wenn wirklich etwas anderes
+    // daraufstehen soll — diese Seite wird zweimal die Sekunde gezeichnet.
+    const deed = detail.action ?? null;
+    this.deed = deed;
+    this.deedButton.hidden = deed === null;
+    const deedLine = deed ? `${deed.label}\u0000${deed.sub}` : '';
+    if (deedLine !== this.deedLine) {
+      this.deedLine = deedLine;
+      this.deedButton.title = deed?.sub ?? '';
+      this.deedButton
+        .querySelector('.pmenu__text')
+        ?.replaceChildren(el('strong', '', deed?.label ?? ''), el('small', '', deed?.sub ?? ''));
+    }
 
     const clips = this.detailFacts?.clips ?? [];
     const key = clips.join('|');

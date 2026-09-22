@@ -118,12 +118,31 @@ export function createLighting(intensity = 1): THREE.Group {
  * `disposeTree` nimmt, gibt dieselben acht hundertmal frei und lädt sie im
  * nächsten Bild wieder hoch. Die Geometrie dagegen gehört jedem Quader
  * allein, und sie muss weg.
+ *
+ * **Außer dort, wo `userData.sharedAssets` steht** — dieselbe Ausnahme und
+ * derselbe Grund wie bei `disposeTree` weiter unten, nur hier leichter zu
+ * übersehen: „Gehört jedem Quader allein" gilt für Quader, die diese Welt
+ * selbst gebaut hat, und nicht für die Kopie eines Modells aus dem Regal
+ * (`core/kaykitModel.ts`). Deren Puffer gehört der Vorlage im Speicher und
+ * allen anderen Kopien; wer ihn beim **Umbauen** freigibt, nimmt ihn allen
+ * weg — und die Gitterwelt baut bei jeder Änderung um
+ * (`grid/GridWorld.ts`, `rebuildFixtures`). Die Druckplatte
+ * (`grid/fixtures/plate.ts`) hängt genau so ein Modell in ihren Einbau, und
+ * ohne diese Zeile wäre sie nach dem ersten Umbau eine Platte aus nichts.
+ *
+ * Eine eigene Rekursion statt `traverse`, und zwar aus demselben Grund wie
+ * dort: Ein `return` in einem `traverse` überspringt den Knoten und **nicht**
+ * seine Kinder — und die Netze hängen gerade unter dem markierten Knoten.
  */
 export function disposeShapes(root: THREE.Object3D): void {
-  root.traverse((object) => {
-    (object as Partial<THREE.Mesh>).geometry?.dispose();
-  });
+  dropShapes(root);
   root.removeFromParent();
+}
+
+function dropShapes(object: THREE.Object3D): void {
+  if ((object.userData as { sharedAssets?: boolean }).sharedAssets) return;
+  (object as Partial<THREE.Mesh>).geometry?.dispose();
+  for (const child of object.children) dropShapes(child);
 }
 
 /**

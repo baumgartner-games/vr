@@ -57,6 +57,22 @@ const TARGET_R = 0.3;
 /** Wie weit vor ihrem Pfosten sie hängt — zwei Körper am selben Ort zanken. */
 const STANDOFF = 0.14;
 
+/**
+ * **Wo eine Scheibe steht** — die Entfernung liegt in X, die Bahn in Z.
+ *
+ * Geschossen wird nach **Osten**, und das wissen hier alle: die Marken am
+ * Nordrand, der Kugelfang, die um Z gekippte Scheibe, das Gelenk um die
+ * Z-Achse. Nur die vier Bauer von Pfosten, Scheibe, Schiene und Platte
+ * schrieben eine Zeit lang die Bahn nach X und die Entfernung nach Z — und
+ * die Scheiben standen fünf bis zwanzig Meter **nördlich** der Bahnen, quer
+ * zum Stand, während die Marken daneben die richtige Strecke abmaßen. Eine
+ * Rechnung an einer Stelle statt vier Zeilen mit je einem Vorzeichen, das man
+ * falsch schreiben kann; der Test daneben hält sie vor die Linie.
+ */
+export function targetSpot(lane: number, distance: number): { x: number; z: number } {
+  return { x: FIRING_LINE + distance, z: centre(lane) };
+}
+
 export function stampRange(plan: GridPlan): void {
   // Die Seitenwände der Linie: Nach Osten bleibt offen, dorthin wird
   // geschossen, und nach Westen kommt der Gang von der Mitte herein.
@@ -160,15 +176,15 @@ export class RangeZone implements TestZone {
     let index = 0;
     for (const distance of TARGET_ROWS) {
       for (const lane of LANES) {
-        this.hangTarget(world, centre(lane), distance, `test-scheibe-${index++}`);
+        this.hangTarget(world, lane, distance, `test-scheibe-${index++}`);
       }
     }
 
     // Zwei Stahlplatten auf halber Strecke: klein, schwer, und sie fallen
     // richtig um.
     for (const lane of [-1, 1]) {
-      this.buildRail(world, centre(lane), PLATE_ROW);
-      this.spawnPlate(world, centre(lane), PLATE_ROW, `test-platte-${index++}`);
+      this.buildRail(world, targetSpot(lane, PLATE_ROW));
+      this.spawnPlate(world, targetSpot(lane, PLATE_ROW), PLATE_ROW, `test-platte-${index++}`);
     }
 
     this.buildMarks(world);
@@ -267,15 +283,11 @@ export class RangeZone implements TestZone {
    * kommt wieder herunter: Das liest sich noch auf zwanzig Meter und kann nicht
    * damit enden, dass jede Scheibe im Gras liegt.
    */
-  private hangTarget(world: ZoneHost, x: number, distance: number, id: string): void {
-    const post = this.buildPost(world, x, distance, POST_HEIGHT);
-    const entry = this.spawnTarget(
-      world,
-      x,
-      POST_HEIGHT - TARGET_R,
-      FIRING_LINE + distance - STANDOFF,
-      id,
-    );
+  private hangTarget(world: ZoneHost, lane: number, distance: number, id: string): void {
+    const spot = targetSpot(lane, distance);
+    const post = this.buildPost(world, spot, POST_HEIGHT);
+    // Die Scheibe hängt **vor** dem Pfosten, also westlich, dem Schützen zu.
+    const entry = this.spawnTarget(world, spot.x - STANDOFF, POST_HEIGHT - TARGET_R, spot.z, id);
 
     const physics = world.physics;
     const rapier = physics.rapier;
@@ -295,9 +307,9 @@ export class RangeZone implements TestZone {
   }
 
   /** Der Pfosten, an dem eine Scheibe hängt. */
-  private buildPost(world: ZoneHost, x: number, distance: number, height: number): PhysicsBody {
+  private buildPost(world: ZoneHost, spot: { x: number; z: number }, height: number): PhysicsBody {
     const post = new THREE.Mesh(this.shape(new THREE.BoxGeometry(0.1, height, 0.1)), this.steel!);
-    post.position.set(x, height / 2, FIRING_LINE + distance);
+    post.position.set(spot.x, height / 2, spot.z);
     world.root.add(post);
     post.updateWorldMatrix(true, false);
     return world.addSolid(post);
@@ -333,16 +345,21 @@ export class RangeZone implements TestZone {
   }
 
   /** Die Schiene, auf der eine Stahlplatte steht. */
-  private buildRail(world: ZoneHost, x: number, distance: number): void {
+  private buildRail(world: ZoneHost, spot: { x: number; z: number }): void {
     const rail = new THREE.Mesh(this.shape(new THREE.BoxGeometry(0.1, 0.7, 0.6)), this.steel!);
-    rail.position.set(x, 0.35, FIRING_LINE + distance);
+    rail.position.set(spot.x, 0.35, spot.z);
     world.root.add(rail);
     rail.updateWorldMatrix(true, false);
     world.addSolid(rail);
   }
 
   /** Eine Stahlplatte: schwerer, und sie geht mit einem ehrlichen Klong um. */
-  private spawnPlate(world: ZoneHost, x: number, distance: number, id: string): void {
+  private spawnPlate(
+    world: ZoneHost,
+    spot: { x: number; z: number },
+    distance: number,
+    id: string,
+  ): void {
     const skin = this.own(
       new THREE.MeshStandardMaterial({ color: 0xd9dee8, roughness: 0.5, metalness: 0.3 }),
     );
@@ -351,7 +368,7 @@ export class RangeZone implements TestZone {
     // bis ihr eigenes Vorn nach Osten schaut.
     const plate = new THREE.Mesh(this.shape(new THREE.BoxGeometry(0.44, 0.44, 0.05)), skin);
     plate.rotation.y = Math.PI / 2;
-    plate.position.set(x, 0.93, FIRING_LINE + distance);
+    plate.position.set(spot.x, 0.93, spot.z);
     world.root.add(plate);
     plate.updateWorldMatrix(true, false);
 

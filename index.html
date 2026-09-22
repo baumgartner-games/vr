@@ -171,8 +171,28 @@
           </div>
         </div>
 
-        <!-- Derselbe eine Knopf wie in der Lobby der Runde, siehe oben. -->
-        <button type="button" id="enter" class="btn btn--primary only-generic">Beitreten</button>
+        <!--
+          Derselbe eine Knopf wie in der Lobby der Runde, siehe oben — nur
+          steht er hier **stumpf** da, und das ist Absicht.
+
+          In der Sekunde vor dem Bündel ist die Welt mit Sicherheit nicht
+          geladen; ein Knopf, der dort bedienbar aussieht, verspricht etwas,
+          das erst `main.ts` einlösen kann — und genau das war der Befund: Wer
+          in dieser Lücke drückte, drückte ins Leere. Also sagt er von Anfang
+          an dasselbe wie der Balken darunter.
+
+          Der Preis ist ein toter Knopf, wenn das Bündel **gar nicht** kommt.
+          Dann ist die Seite allerdings ohnehin nur ein Bild, und ein grauer
+          Knopf ist die ehrlichere Hälfte davon. Freigegeben wird er im
+          Modulrumpf von `main.ts` (`paintStart`) — sofort, wo gar nicht
+          vorgewärmt wird (Daten sparen, `2g`, Tab im Hintergrund), sonst,
+          wenn die Welt samt ihrer Startladung steht.
+
+          Die Lobby (`#haunt-enter`, oben) bekommt das **nicht**: Dort wird
+          mit Absicht nichts vorgewärmt, es gibt also auch nichts, worauf ein
+          Knopf warten könnte.
+        -->
+        <button type="button" id="enter" class="btn btn--primary only-generic" disabled>Beitreten</button>
 
         <!--
           **Der Ladebalken des Starts — und warum er hier steht und nicht in

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { DEFAULT_APPEARANCE, type Appearance } from '../../core/appearance';
 import { BODY_KINDS, BODY_LABELS, HEAD_KINDS, HEAD_LABELS, HEAD_SUBS } from '../../core/avatarLook';
 import { HEADGEAR_KINDS, HEADGEAR_LABELS, HEADGEAR_SUBS } from '../../core/headgear';
+import { FIGURE_KINDS } from '../../core/avatarFigures';
 import { RACK_PIECE_MAX, RACK_PIECE_MIN, WardrobeRack, type RackPiece } from './wardrobeRack';
 
 /**
@@ -20,9 +21,15 @@ import { RACK_PIECE_MAX, RACK_PIECE_MIN, WardrobeRack, type RackPiece } from './
 
 const OUTFITS: Array<[string, Appearance]> = [
   ['die Auslieferung', DEFAULT_APPEARANCE],
-  ['barhäuptig, aber gestreift', { hat: 'none', head: 'moustache', body: 'striped' }],
-  ['Krone und Vollbart', { hat: 'crown', head: 'beard', body: 'red' }],
-  ['Kochmütze zur blauen Jacke', { hat: 'chef', head: 'freckles', body: 'blue' }],
+  [
+    'barhäuptig, aber gestreift',
+    { ...DEFAULT_APPEARANCE, hat: 'none', head: 'moustache', body: 'striped' },
+  ],
+  ['Krone und Vollbart', { ...DEFAULT_APPEARANCE, hat: 'crown', head: 'beard', body: 'red' }],
+  [
+    'Kochmütze zur blauen Jacke',
+    { ...DEFAULT_APPEARANCE, hat: 'chef', head: 'freckles', body: 'blue' },
+  ],
 ];
 
 /** Der Kasten um ein Stück, mit aufgefrischten Weltmatrizen. */
@@ -53,19 +60,23 @@ describe('was auf dem Regal steht', () => {
     const rack = new WardrobeRack();
     const pieces = rack.pieces(DEFAULT_APPEARANCE);
 
-    expect(pieces).toHaveLength(HEAD_KINDS.length + HEADGEAR_KINDS.length + BODY_KINDS.length);
-    // Gesicht, Hut, Oberteil — abgeschrieben von `ui/wardrobeRows.ts`, und
-    // genau deshalb steht es hier noch einmal: Wer die eine Reihenfolge
+    expect(pieces).toHaveLength(
+      HEAD_KINDS.length + HEADGEAR_KINDS.length + BODY_KINDS.length + FIGURE_KINDS.length,
+    );
+    // Gesicht, Hut, Oberteil, Figur — abgeschrieben von `ui/wardrobeRows.ts`,
+    // und genau deshalb steht es hier noch einmal: Wer die eine Reihenfolge
     // ändert, soll über die andere stolpern.
     expect(pieces.map((piece) => piece.slot)).toEqual([
       ...HEAD_KINDS.map(() => 'head'),
       ...HEADGEAR_KINDS.map(() => 'hat'),
       ...BODY_KINDS.map(() => 'body'),
+      ...FIGURE_KINDS.map(() => 'figure'),
     ]);
     expect(pieces.map((piece) => piece.value)).toEqual([
       ...HEAD_KINDS,
       ...HEADGEAR_KINDS,
       ...BODY_KINDS,
+      ...FIGURE_KINDS.map((kind) => kind.path),
     ]);
 
     // Nichts doppelt: Zwei Kacheln mit derselben Mütze wären zwei Knöpfe, von
@@ -86,11 +97,16 @@ describe('was auf dem Regal steht', () => {
         expect(HEADGEAR_KINDS).toContain(piece.value);
         expect(piece.label).toBe(HEADGEAR_LABELS[piece.value as (typeof HEADGEAR_KINDS)[number]]);
         expect(piece.sub).toBe(HEADGEAR_SUBS[piece.value as (typeof HEADGEAR_KINDS)[number]]);
-      } else {
+      } else if (piece.slot === 'body') {
         expect(BODY_KINDS).toContain(piece.value);
         expect(piece.label).toBe(BODY_LABELS[piece.value as (typeof BODY_KINDS)[number]]);
         // Beim Oberteil bleibt die Zeile leer — die Jacke steht ja da.
         expect(piece.sub).toBe('');
+      } else {
+        const kind = FIGURE_KINDS.find((one) => one.path === piece.value)!;
+        expect(kind).toBeDefined();
+        expect(piece.label).toBe(kind.label);
+        expect(piece.sub).toBe(kind.sub);
       }
     }
     rack.dispose();
@@ -102,11 +118,12 @@ describe('was die Figur anhat', () => {
     const rack = new WardrobeRack();
     const worn = rack.pieces(look).filter((piece) => piece.worn);
 
-    expect(worn).toHaveLength(3);
+    expect(worn).toHaveLength(4);
     expect(worn.map((piece) => [piece.slot, piece.value])).toEqual([
       ['head', look.head],
       ['hat', look.hat],
       ['body', look.body],
+      ['figure', look.figure],
     ]);
     rack.dispose();
   });
@@ -120,7 +137,12 @@ describe('was die Figur anhat', () => {
     // Aufrufer schaltet ihn um, wenn jemand etwas anzieht, ohne das Regal neu
     // zu bauen (`GridWorld.wearable`), und schalten kann er nur, was da ist.
     const rack = new WardrobeRack();
-    for (const piece of rack.pieces({ hat: 'tophat', head: 'beard', body: 'green' })) {
+    for (const piece of rack.pieces({
+      ...DEFAULT_APPEARANCE,
+      hat: 'tophat',
+      head: 'beard',
+      body: 'green',
+    })) {
       expect(worn(piece)).toEqual([piece.worn]);
     }
     rack.dispose();
@@ -128,8 +150,13 @@ describe('was die Figur anhat', () => {
 
   it('zieht den Reif mit, wenn sich das Aussehen ändert', () => {
     const rack = new WardrobeRack();
-    const before = rack.pieces({ hat: 'none', head: 'round', body: 'white' });
-    const after = rack.pieces({ hat: 'cap', head: 'round', body: 'white' });
+    const before = rack.pieces({
+      ...DEFAULT_APPEARANCE,
+      hat: 'none',
+      head: 'round',
+      body: 'white',
+    });
+    const after = rack.pieces({ ...DEFAULT_APPEARANCE, hat: 'cap', head: 'round', body: 'white' });
     const hats = (pieces: RackPiece[]): string[] =>
       pieces.filter((piece) => piece.slot === 'hat' && piece.worn).map((piece) => piece.value);
     expect(hats(before)).toEqual(['none']);
@@ -198,7 +225,7 @@ describe('wie ein Stück auf seiner Kachel steht', () => {
 
 describe('was der Bausatz teilt und wieder hergibt', () => {
   it('baut jedes Stück genau einmal und gibt es danach wieder heraus', () => {
-    // Umgekehrt als früher, und das ist der Umbau: Siebzehn Avatarteile je
+    // Umgekehrt als früher, und das ist der Umbau: Alle Avatarteile je
     // Öffnen zu bauen war die Pause, die man nach dem Druck auf den Schrank
     // sah — und siebzehn Geometrien je Öffnen, die niemand wieder freigab.
     // Der Reif wandert seitdem über `wear`, nicht über einen Neubau.
@@ -215,12 +242,17 @@ describe('was der Bausatz teilt und wieder hergibt', () => {
 
   it('lässt den Reif wandern, auch unter Stücken, die es noch gar nicht gibt', () => {
     const rack = new WardrobeRack();
-    const pieces = rack.pieces({ hat: 'none', head: 'round', body: 'white' });
+    const pieces = rack.pieces({
+      ...DEFAULT_APPEARANCE,
+      hat: 'none',
+      head: 'round',
+      body: 'white',
+    });
     const hat = pieces.find((piece) => piece.value === 'cap')!;
     // Gebaut wird nur dieses eine, und es trägt keinen Reif.
     expect(worn(hat)).toEqual([false]);
 
-    rack.wear({ hat: 'cap', head: 'round', body: 'white' });
+    rack.wear({ ...DEFAULT_APPEARANCE, hat: 'cap', head: 'round', body: 'white' });
     expect(worn(hat)).toEqual([true]);
     // Und das Stück, das erst jetzt gebaut wird, weiß es auch.
     const off = pieces.find((piece) => piece.value === 'none')!;
@@ -228,7 +260,7 @@ describe('was der Bausatz teilt und wieder hergibt', () => {
     rack.dispose();
   });
 
-  it('dreht den Fuß einmal und stellt alle siebzehn Stücke darauf', () => {
+  it('dreht den Fuß einmal und stellt alle neunundzwanzig Stücke darauf', () => {
     const rack = new WardrobeRack();
     const feet = new Set<THREE.BufferGeometry>();
     for (let i = 0; i < 3; i++) {
@@ -250,12 +282,14 @@ describe('was der Bausatz teilt und wieder hergibt', () => {
     const shapeGone = jest.spyOn(THREE.BufferGeometry.prototype, 'dispose');
     const skinGone = jest.spyOn(THREE.Material.prototype, 'dispose');
     rack.dispose();
-    // Vier Formen: Fuß, Reif, Pfosten und Knauf des leeren Ständers.
-    expect(shapeGone).toHaveBeenCalledTimes(4);
-    // Dreizehn Farben: das dunkle Holz der Füße, der warme Reif, das Holz des
-    // Ständers — dazu je Jacke ihr Halstuch (`bodyTrim`) und ihr Fuß
-    // (`bodyJacket`), also zweimal fünf.
-    expect(skinGone).toHaveBeenCalledTimes(13);
+    // Sechs Formen: Fuß, Reif, Pfosten und Knauf des leeren Ständers — dazu
+    // Rumpf und Kopf der Spielfigur, die auf jeder Figurenkachel steht, bis
+    // die Datei da ist (in Jest bleibt sie es).
+    expect(shapeGone).toHaveBeenCalledTimes(6);
+    // Vierzehn Farben: das dunkle Holz der Füße, der warme Reif, das Holz des
+    // Ständers, der Stein der Spielfigur — dazu je Jacke ihr Halstuch
+    // (`bodyTrim`) und ihr Fuß (`bodyJacket`), also zweimal fünf.
+    expect(skinGone).toHaveBeenCalledTimes(14);
 
     // Danach ist der Bausatz leer: Der nächste Aufruf baut alles noch einmal,
     // und das zweite `dispose` gibt genauso viel her wie das erste.
@@ -263,8 +297,8 @@ describe('was der Bausatz teilt und wieder hergibt', () => {
     skinGone.mockClear();
     built(rack, DEFAULT_APPEARANCE);
     rack.dispose();
-    expect(shapeGone).toHaveBeenCalledTimes(4);
-    expect(skinGone).toHaveBeenCalledTimes(13);
+    expect(shapeGone).toHaveBeenCalledTimes(6);
+    expect(skinGone).toHaveBeenCalledTimes(14);
 
     // Und ein drittes, auf dem leeren Bausatz, tut gar nichts.
     shapeGone.mockClear();

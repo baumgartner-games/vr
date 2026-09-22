@@ -29,15 +29,8 @@ import {
 import { housePlan } from './plan';
 import { flickerLevel, freshSpook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
-import {
-  buildShip,
-  buildCorridorBeacons,
-  buildCreature,
-  buildCrewmate,
-  animateCreature,
-  roomAccent,
-  type StationBeacon,
-} from './shipArt';
+import { buildShip, buildCorridorBeacons, roomAccent, type StationBeacon } from './shipArt';
+import { buildActor, type ShipActor } from './actorArt';
 import { defaultLens, throughEyes, type WatchLens } from './watchLens';
 import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
@@ -474,11 +467,12 @@ export class HauntingWorld extends GridWorld {
    * Seine Stelle steht seit `STATION_PROTOCOL` 7 im Stand
    * (`HauntState.technician`) — die Karte des Monster-Telefons zeichnet ihn
    * daraus längst, die 3D-Welt aber gar nicht: Wer am Fernseher zusah, sah
-   * eine leere Station, in der Türen von selbst aufgingen. Ein einfacher
-   * Crewmate (`shipArt.buildCrewmate`) reicht; er läuft nicht, er steht dort,
-   * wo der Stand ihn hinsetzt.
+   * eine leere Station, in der Türen von selbst aufgingen. Ein Akteur der
+   * Sorte `crew` reicht (`actorArt.buildActor`): das Mannequin aus dem Regal,
+   * bis es da ist der gebaute Crewmate, und beide stehen dort, wo der Stand
+   * ihn hinsetzt.
    */
-  private technicianArt: THREE.Object3D | null = null;
+  private technicianArt: ShipActor | null = null;
   /** Worauf die Kamera des Zuschauers gerade zielt, wenn sie jemandem folgt. */
   private readonly showFocus = new THREE.Vector3();
   /** Ob sie schon einmal gezielt hat — der erste Sprung darf hart sein. */
@@ -562,8 +556,8 @@ export class HauntingWorld extends GridWorld {
    * deshalb die eigene Tafel.
    */
   private setupTouchedAt = -Infinity;
-  /** Bei allen anderen nur ein Klotz an der angesagten Stelle. */
-  private blob: THREE.Object3D | null = null;
+  /** Bei allen anderen nur das Monster an der angesagten Stelle (`actorArt.ts`). */
+  private blob: ShipActor | null = null;
   /** Die flachen Flecken auf dem Boden — Weltgeometrie, damit sie in der Brille steht. */
   private bloodArt: THREE.Group | null = null;
   /**
@@ -572,9 +566,7 @@ export class HauntingWorld extends GridWorld {
    * Weltgeometrie und kein Bildschirmzeichen — sonst gäbe es sie im Headset
    * nicht, und ausgerechnet dort braucht man sie am meisten.
    */
-  private ghostArt: THREE.Object3D | null = null;
-  /** Für welche Sorte die Kopie gebaut wurde — wechselt die Sorte, wird sie neu gebaut. */
-  private ghostKind = '';
+  private ghostArt: ShipActor | null = null;
   /** Die eine Scheibe, aus der alle Blutflecken gemacht sind. */
   private bloodShape: THREE.CircleGeometry | null = null;
 
@@ -1074,6 +1066,12 @@ export class HauntingWorld extends GridWorld {
     this.dropFixtures();
     this.fixtureMaterial.dispose();
     this.roomArt.clear();
+    // **Die Akteure zuerst, und einzeln.** Sie tragen Figuren aus dem Regal,
+    // deren Geometrie der Vorlage im Speicher und allen anderen Kopien gehört
+    // (`core/kaykitModel.ts`); `dispose(this.live)` weiter unten kennt diese
+    // Ausnahme nicht und gäbe sie allen weg. `ShipActor.dispose` hält an der
+    // richtigen Stelle an — und nimmt den Körper gleich aus `live` heraus.
+    this.releaseActors();
     dispose(this.stage);
     dispose(this.live);
     this.bloodShape?.dispose();
@@ -1084,7 +1082,6 @@ export class HauntingWorld extends GridWorld {
     this.doorMarks.clear();
     this.roomWalls.clear();
     this.lamps.clear();
-    this.blob = null;
     this.stationTorch = null;
     this.automaticDoors.clear();
     this.technicians.clear();
@@ -1723,11 +1720,11 @@ export class HauntingWorld extends GridWorld {
     this.applyDoors(dt);
     this.applyLights(dt);
     this.cullRoomArt(dt, ctx);
-    this.applyBlob();
+    this.applyBlob(dt);
     this.paintTrail();
-    this.paintGhost();
+    this.paintGhost(dt);
     this.experience?.update(dt);
-    this.showTechnician();
+    this.showTechnician(dt);
     // **Das Overlay läuft auch außerhalb der Simulation** (Paket U4/M4): Es
     // war an die Bot-Runde gebunden, weil es dafür gebaut wurde — der
     // Zuschauer braucht es aber gerade dann, wenn Menschen spielen.
@@ -2247,11 +2244,33 @@ export class HauntingWorld extends GridWorld {
   // --- was im Haus passiert -------------------------------------------------
 
   /**
+   * **Alle drei Körper aus dem Regal wegräumen** — Monster, Erinnerung,
+   * Techniker.
+   *
+   * Sie stehen in `this.live` und würden dort vom groben `dispose` mit
+   * erwischt; der kennt die Ausnahme für geteilte Geometrie nicht (siehe
+   * `dispose` am Dateiende). Eine eigene Zeile also, und zwar **vor** jedem
+   * Aufräumen der Gruppe, in der sie hängen.
+   */
+  private releaseActors(): void {
+    for (const actor of [this.blob, this.ghostArt, this.technicianArt]) actor?.dispose();
+    this.blob = null;
+    this.ghostArt = null;
+    this.technicianArt = null;
+  }
+
+  /**
    * **Das Monster, gezeichnet aus dem Stand** — beim Gastgeber wie bei allen
    * anderen. Es gibt keinen NPC-Körper mehr: Die Runde rechnet, wo es steht
    * und wohin es schaut (`flatKernel.ts`), das Schiff stellt die Figur hin.
+   *
+   * **Das Tempo kommt aus dem Weg und nicht aus einer Ansage**: Wie weit das
+   * Monster seit dem letzten Bild gekommen ist, geteilt durch die Zeit, ist
+   * genau die Zahl, aus der die Figur ihren Gang zieht
+   * (`core/kaykitFigureFit.gaitFor`) — ein Stalker auf der Jagd rennt damit
+   * wirklich, statt seine Beine im Gehschritt zu schwenken.
    */
-  private applyBlob(): void {
+  private applyBlob(dt: number): void {
     const at = this.state.monster;
     const shown =
       at &&
@@ -2259,24 +2278,23 @@ export class HauntingWorld extends GridWorld {
       (this.state.phase === 'running' || this.state.phase === 'briefing') &&
       this.state.crew.venting <= 0;
     if (!at || !shown) {
-      if (this.blob) this.blob.visible = false;
+      if (this.blob) this.blob.root.visible = false;
       return;
     }
-    if (this.blob && this.blob.name !== `creature-${this.state.crew.options.monster}`) {
-      this.blob.removeFromParent();
-      dispose(this.blob);
+    if (this.blob && this.blob.kind !== this.state.crew.options.monster) {
+      this.blob.dispose();
       this.blob = null;
     }
     if (!this.blob) {
-      const blob = buildCreature(this.state.crew.options.monster);
-      this.live.add(blob);
-      this.blob = blob;
+      this.blob = buildActor(this.state.crew.options.monster);
+      this.live.add(this.blob.root);
     }
-    this.blob.visible = true;
-    const moved = Math.hypot(this.blob.position.x - at.x, this.blob.position.z - at.z) > 1e-4;
-    this.blob.position.set(at.x, 0, at.z);
-    if (this.kernel) this.blob.rotation.y = this.kernel.round.monster.yaw;
-    if (moved) animateCreature(this.blob, this.state.time);
+    const body = this.blob.root;
+    body.visible = true;
+    const step = Math.hypot(body.position.x - at.x, body.position.z - at.z);
+    body.position.set(at.x, 0, at.z);
+    if (this.kernel) body.rotation.y = this.kernel.round.monster.yaw;
+    this.blob.update(dt, dt > 0 ? step / dt : 0);
   }
 
   /**
@@ -2352,48 +2370,37 @@ export class HauntingWorld extends GridWorld {
    * steht gerade im Blick". Ein zweiter Sichttest hier wäre eine zweite
    * Wahrheit.
    */
-  private paintGhost(): void {
+  private paintGhost(dt: number): void {
     const ghost = this.state.monsterOn ? this.state.ghosts.monster : null;
     const now = this.state.time;
     const alpha = ghost ? ghostAlpha(ghost, now) : 0;
     const show = !!ghost && alpha > 0 && ghostAge(ghost, now) >= GHOST_LIVE;
     const kind = this.state.crew.options.monster;
-    if (this.ghostArt && this.ghostKind !== kind) {
-      this.ghostArt.removeFromParent();
-      dispose(this.ghostArt);
+    if (this.ghostArt && this.ghostArt.kind !== kind) {
+      this.ghostArt.dispose();
       this.ghostArt = null;
     }
     if (show && !this.ghostArt) {
-      const art = buildCreature(kind);
-      art.name = `ghost-${kind}`;
-      // Eigene Materialien, sonst wäre das echte Monster gleich mit
-      // durchsichtig; `depthWrite: false`, damit die Kopie sich nicht selbst
-      // in Streifen zerschneidet.
-      art.traverse((child) => {
-        const mesh = child as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        const material = (mesh.material as THREE.Material).clone() as THREE.MeshStandardMaterial;
-        material.transparent = true;
-        material.depthWrite = false;
-        material.emissive = new THREE.Color(GHOST_GLOW);
-        material.emissiveIntensity = 0.6;
-        mesh.material = material;
-        mesh.castShadow = false;
-        mesh.receiveShadow = false;
-      });
-      this.ghostArt = art;
-      this.ghostKind = kind;
-      this.live.add(art);
+      // **Ein zweiter Akteur derselben Sorte**, und der Anstrich macht die
+      // Erinnerung daraus (`actorArt.setGhost`): durchsichtig, kalt leuchtend,
+      // ohne Tiefenschreiben. Eigene Materialien braucht dafür niemand mehr zu
+      // klonen — `buildCreature` gibt jedem Aufruf seine eigenen, und auch die
+      // Figur aus dem Regal bekommt sie je Kopie (`core/kaykitModel.freshCopy`).
+      this.ghostArt = buildActor(kind);
+      this.ghostArt.root.name = `ghost-${kind}`;
+      this.live.add(this.ghostArt.root);
     }
     if (!this.ghostArt) return;
-    this.ghostArt.visible = show;
+    const art = this.ghostArt.root;
+    art.visible = show;
+    // **Eine Erinnerung geht nicht** — sie steht, wo sie zuletzt gesehen
+    // wurde. Das Bild braucht sie trotzdem: Ohne einen Takt stünde die Figur
+    // aus dem Regal in ihrer Bindepose mit ausgestreckten Armen da.
+    this.ghostArt.update(dt, 0);
     if (!show || !ghost) return;
-    this.ghostArt.position.set(ghost.x, 0, ghost.z);
-    this.ghostArt.rotation.y = ghost.yaw;
-    this.ghostArt.traverse((child) => {
-      const mesh = child as THREE.Mesh;
-      if (mesh.isMesh) (mesh.material as THREE.Material).opacity = GHOST_SOLID * alpha;
-    });
+    art.position.set(ghost.x, 0, ghost.z);
+    art.rotation.y = ghost.yaw;
+    this.ghostArt.setGhost(GHOST_SOLID * alpha);
   }
 
   /** Schläge des NPC-Hirns gibt es hier nicht mehr (`setNavigator`, `reach` 0): getroffen wird in `stepCrew`. */
@@ -2907,8 +2914,8 @@ export class HauntingWorld extends GridWorld {
     // drinstecken; über dem Puppenhaus wäre er nur eine Milchglasscheibe.
     const fog = ctx.scene.fog;
     if ((show && !eyes) || archive) ctx.scene.fog = null;
-    const creatureVisible = this.blob?.visible;
-    if (archive && this.blob) this.blob.visible = false;
+    const creatureVisible = this.blob?.root.visible;
+    if (archive && this.blob) this.blob.root.visible = false;
     if (this.showLight) this.showLight.intensity = show && !eyes ? 3.4 : 0;
     if (this.showSun) this.showSun.intensity = show && !eyes ? 2.2 : 0;
 
@@ -2917,7 +2924,7 @@ export class HauntingWorld extends GridWorld {
     renderer.setScissor(rect.x, y, rect.w, rect.h);
     renderer.setViewport(rect.x, y, rect.w, rect.h);
     renderer.render(ctx.scene, camera);
-    if (this.blob && creatureVisible !== undefined) this.blob.visible = creatureVisible;
+    if (this.blob && creatureVisible !== undefined) this.blob.root.visible = creatureVisible;
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, _size.x, _size.y);
     this.live.visible = true;
@@ -3098,18 +3105,18 @@ export class HauntingWorld extends GridWorld {
    * leere Station, in der Türen von selbst aufgingen, und der Zuschauer
    * konnte der Runde nicht folgen, obwohl sie vor ihm lief.
    */
-  private showTechnician(): void {
+  private showTechnician(dt: number): void {
     const at = this.state.technician;
     if (!at) {
-      if (this.technicianArt) this.technicianArt.visible = false;
+      if (this.technicianArt) this.technicianArt.root.visible = false;
       return;
     }
     if (!this.technicianArt) {
-      this.technicianArt = buildCrewmate();
-      this.technicianArt.name = 'flat-technician';
-      this.live.add(this.technicianArt);
+      this.technicianArt = buildActor('crew');
+      this.technicianArt.root.name = 'flat-technician';
+      this.live.add(this.technicianArt.root);
     }
-    const body = this.technicianArt;
+    const body = this.technicianArt.root;
     // Im Schrank und im Schacht ist er weg — dasselbe, was die Karte tut.
     body.visible = !this.state.crew.hidden && this.state.crew.venting <= 0;
     body.position.set(at.x, 0, at.z);
@@ -3117,8 +3124,10 @@ export class HauntingWorld extends GridWorld {
     // (`map/mapSnapshot`, Kopf der Datei) — dieselbe halbe Drehung wie beim
     // Modelltechniker der Bot-Runde (`ShipExperience`).
     body.rotation.y = at.yaw + Math.PI;
-    if (at.moving) animateCreature(body, this.state.time);
-    else for (const limb of body.children) limb.rotation.x = 0;
+    // **Ein `moving` und kein Tempo**: Mehr sagt der Stand über ihn nicht
+    // (`HauntState.technician`), also wird daraus ein Gehschritt
+    // (`actorFit.ACTOR_PACE`) — wer rennt, sagt eine Zahl.
+    this.technicianArt.update(dt, at.moving);
   }
 
   /**
@@ -4121,11 +4130,8 @@ export class HauntingWorld extends GridWorld {
     this.kernel = null;
     this.grid?.replaceWith(housePlan(this.spec, new Set(), options.test));
     this.builtDoors = '?';
-    if (this.blob) {
-      dispose(this.blob);
-      this.blob.removeFromParent();
-      this.blob = null;
-    }
+    this.blob?.dispose();
+    this.blob = null;
     this.buildHouse();
     if (this.context) this.movePlayerTo(this.context, this.spawnPoint());
     this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
@@ -4169,8 +4175,6 @@ const BLOOD_COLOR = 0x6b0d13;
 const BLOOD_OPACITY = 0.8;
 /** Wie deckend der Ghost höchstens steht — eine Erinnerung ist kein Körper. */
 const GHOST_SOLID = 0.4;
-/** Das kalte Eigenleuchten, an dem man den Ghost auch im Dunkeln als Kopie erkennt. */
-const GHOST_GLOW = 0x4a6a8a;
 
 /** Ein Gedächtnis ohne Inhalt — für eine Runde, in der noch kein Monster steht. */
 function emptyBook(): MonsterBook {

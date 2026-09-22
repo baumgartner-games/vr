@@ -15,6 +15,7 @@ import {
   type HeadKind,
 } from '../../core/avatarLook';
 import { cloth, trim } from '../../core/chefStyle';
+import { CHEF_EYE, canLoadModels } from '../../core/chefFit';
 import {
   HEADGEAR_KINDS,
   HEADGEAR_LABELS,
@@ -22,6 +23,13 @@ import {
   buildHeadgear,
   type HeadgearKind,
 } from '../../core/headgear';
+import { FIGURE_CHEF, FIGURE_KINDS, type FigureKind } from '../../core/avatarFigures';
+import { FIGURE_FACING } from '../../core/kaykitFigureFit';
+
+/** Aus einer Regaladresse ein Name, der in `Object3D.name` nicht stört. */
+function slug(path: string): string {
+  return path.replace(/[^A-Za-z0-9]+/g, '-');
+}
 
 /**
  * **Das Regal im Konstrukt** — die Umkleide, wenn sie kein Menü mehr ist.
@@ -42,10 +50,16 @@ import {
  * Jedes Stück ist ein Kasten mit bekanntem Ursprung und bekannter Größe.
  *
  * **Die Reihenfolge ist abgeschrieben und nicht neu erfunden.** Gesicht, Hut,
- * Oberteil — genau wie `wardrobeRows` seine drei Zeilen baut. Zwei Umkleiden,
- * die dieselben Sachen in verschiedener Reihenfolge zeigen, driften nach der
- * zweiten neuen Mütze auseinander, und dann sucht man im Regal an der Stelle,
- * an der im Menü etwas anderes stand.
+ * Oberteil, Figur — genau wie `wardrobeRows` seine vier Zeilen baut. Zwei
+ * Umkleiden, die dieselben Sachen in verschiedener Reihenfolge zeigen, driften
+ * nach der zweiten neuen Mütze auseinander, und dann sucht man im Regal an der
+ * Stelle, an der im Menü etwas anderes stand.
+ *
+ * **Und ein Fach ist anders als die drei anderen**: Die Figuren sind Dateien
+ * aus dem Regal und keine Grundkörper (`figurePiece`). Sie kommen über die
+ * Leitung, sie brauchen WebGL, und in Jest gibt es keines — deshalb steht dort
+ * bis auf Weiteres eine Spielfigur als Platzhalter, und dieser Test läuft
+ * trotzdem durch.
  */
 
 /**
@@ -95,6 +109,25 @@ const HAT_SCALE = 0.44;
 const BODY_SCALE = 0.5;
 
 /**
+ * **Und die Figuren: auf eine Höhe gebracht statt mit einer Zahl verkleinert.**
+ *
+ * Die drei Zahlen darüber sind je Fach **eine**, damit man die Stücke an ihren
+ * Verhältnissen wiedererkennt: Ein Zylinder ist höher als eine Krone, und das
+ * soll er auf der Kachel auch sein. Bei den Figuren trägt dieser Unterschied
+ * nichts: Sie sind zwischen 1,52 m (Roboter Eins) und 1,86 m (Magier, wegen
+ * seines Spitzhuts) hoch, und ein Regal, in dem der Magier fünfzehn Prozent
+ * größer dasteht, sagt damit nur „der hat einen Hut". Dafür stünde die Hälfte
+ * von ihnen unter `RACK_PIECE_MIN` oder über `RACK_PIECE_MAX`, je nachdem,
+ * welche Zahl man wählte — und welche Höhe eine Datei hat, weiß man erst, wenn
+ * sie da ist.
+ *
+ * Also werden sie **gemessen und auf diese Höhe gestellt**, wie Zinnfiguren im
+ * Schaufenster. Dieselbe Regel gilt für den Koch, damit er neben ihnen nicht
+ * aus der Reihe fällt.
+ */
+const FIGURE_STAND = 0.4;
+
+/**
  * **Auf wie viel Rumpfhöhe der Torso gestaucht wird**, bevor er verkleinert
  * wird (`BodyShape.setHeight`).
  *
@@ -114,6 +147,24 @@ const BODY_STAND = 0.62;
 const STAND_HEIGHT = HEAD_RADIUS * 1.56;
 const STAND_KNOB = HEAD_RADIUS * 0.62;
 
+/**
+ * **Der Platzhalter, solange eine Figur noch unterwegs ist** — eine Spielfigur
+ * wie vom Brettspiel, in Metern einer Figur von etwa einem Meter.
+ *
+ * Er hat zwei Aufgaben, und die zweite ist die wichtigere: Er füllt die Kachel,
+ * bis die Datei da ist (sie kommt über die Leitung, wie alles aus dem Regal),
+ * **und** er sagt schon vorher, dass hier eine Figur steht und kein Hut. Eine
+ * leere Kachel sieht nicht aus wie „wird noch", sondern wie „ist kaputt" —
+ * dieselbe Überlegung wie beim leeren Hutständer für _Ohne_.
+ *
+ * Kegel und Kugel, zwei geteilte Formen für alle zwölf: Ein Platzhalter, der
+ * teurer wäre als das, worauf er wartet, wäre ein schlechter Tausch.
+ */
+const PAWN_BODY = 0.72;
+const PAWN_TOP = 0.16;
+const PAWN_FOOT = 0.26;
+const PAWN_HEAD = 0.2;
+
 /** Halbmesser und Höhe des Fußes, auf dem jedes Stück steht. */
 const FOOT_RADIUS = 0.105;
 const FOOT_HEIGHT = 0.014;
@@ -124,7 +175,7 @@ const WORN_TUBE = 0.014;
 
 /** Ein Stück auf dem Regal — Netz, Name, und was Anziehen heißt. */
 export interface RackPiece {
-  /** Welches Fach: Gesicht, Hut oder Oberteil. */
+  /** Welches Fach: Gesicht, Hut, Oberteil oder Figur. */
   readonly slot: keyof Appearance;
   /** Der Wert, den `saveAppearance` bekommt, wenn man es nimmt. */
   readonly value: string;
@@ -193,9 +244,19 @@ export class WardrobeRack {
   private readonly made = new Map<string, THREE.Object3D>();
   /** Was die Figur zuletzt anhatte — daran hängt der Reif, auch bei Nachzüglern. */
   private look: Appearance | null = null;
+  /**
+   * **Die wievielte Auflage dieses Bausatzes gerade gilt.**
+   *
+   * Eine Figur aus dem Regal kommt asynchron (`core/kaykitModel.ts`), und
+   * zwischen Bestellung und Ankunft kann der Raum längst zugegangen sein
+   * (`dispose`). Der Nachzügler vergleicht deshalb, für welche Auflage er
+   * bestellt wurde, und legt sich sonst gar nicht erst in einen Halter, den
+   * niemand mehr ansieht.
+   */
+  private era = 0;
 
   /**
-   * **Alle Stücke, in der Reihenfolge Gesicht, Hut, Oberteil.**
+   * **Alle Stücke, in der Reihenfolge Gesicht, Hut, Oberteil, Figur.**
    *
    * Was hier herauskommt, ist die **Auskunft** über das Regal und noch kein
    * Regal: Namen, Fächer und die Frage, ob man es anhat. Die Netze kommen
@@ -222,6 +283,15 @@ export class WardrobeRack {
         // auf der Kachel. Eine Bildunterschrift, die das Bild vorliest, ist im
         // Menü eine Hilfe und vor dem Regal Text, den niemand liest.
         this.entry('body', kind, BODY_LABELS[kind], '', () => this.bodyPiece(kind)),
+      ),
+      // **Und zuletzt die Figuren** (`core/avatarFigures.ts`). Hinten, weil
+      // `ui/wardrobeRows.ts` sie hinten hat, und das ist die einzige Regel,
+      // die zwischen den beiden Umkleiden gilt: dieselbe Reihenfolge. Nur die
+      // kuratierte Handvoll — wer eine der übrigen rund 85 will, nimmt die
+      // Detailseite des Regals (_Als Figur tragen_); 85 Ständer sprengten den
+      // Ring, und der Konstrukt-Raum müsste einen dritten aufmachen.
+      ...FIGURE_KINDS.map((kind) =>
+        this.entry('figure', kind.path, kind.label, kind.sub, () => this.figurePiece(kind)),
       ),
     ];
   }
@@ -251,6 +321,9 @@ export class WardrobeRack {
     for (const skin of this.skins.values()) skin.dispose();
     this.shapes.clear();
     this.skins.clear();
+    // Eine Figur, die noch unterwegs ist, kommt jetzt in einen Halter, den es
+    // nicht mehr gibt — sie soll gar nicht erst einziehen (`fetchFigure`).
+    this.era++;
     // Die Stücke hängen im Konstrukt-Raum, wenn der beim Weltwechsel noch
     // offen stand; er hängt sie zwar selbst wieder aus, aber die Reihenfolge
     // der beiden `dispose` ist nicht unsere Sache (`GridWorld.dispose`).
@@ -359,6 +432,131 @@ export class WardrobeRack {
     );
   }
 
+  /**
+   * **Eine Figur auf der Kachel** — als Miniatur auf ihrem Ständer.
+   *
+   * Zwei Dinge unterscheiden sie von den drei Fächern darüber, und beide
+   * folgen daraus, dass sie **eine Datei** ist und kein Grundkörper:
+   *
+   * - **Sie ist erst später da.** Geladen wird über das Regal
+   *   (`core/kaykitModel.ts`), also hinter einem dynamischen Import und hinter
+   *   `canLoadModels()` — dieselbe Regel wie beim Koch-Modell und bei der
+   *   Figur am Avatar selbst. Bis dahin steht ein Platzhalter (`pawn`), und
+   *   ohne WebGL steht er für immer: In Jest gibt es keines, und ein Regal,
+   *   das dort ins Leere greift, wäre kein prüfbares Regal mehr.
+   * - **Ihre Höhe wird gemessen und nicht geraten** (`FIGURE_STAND`).
+   *
+   * Der Koch braucht beides nicht: Er wird gebaut wie Kopf und Jacke daneben —
+   * ein Rumpf mit einem Kopf darauf, in **seinen** eigenen Maßen
+   * (`core/chefFit.ts`), damit die Kachel zeigt, wofür man sich entscheidet.
+   */
+  private figurePiece(kind: FigureKind): THREE.Object3D {
+    const group = new THREE.Group();
+    group.name = `rack-figure-${slug(kind.path)}`;
+    const holder = new THREE.Group();
+    holder.name = 'rack-figure-holder';
+    group.add(holder);
+    this.showFigure(holder, kind.path === FIGURE_CHEF ? this.chefDoll() : this.pawn());
+    this.plinth(group, this.look?.figure === kind.path, this.footSkin());
+    if (kind.path !== FIGURE_CHEF) this.fetchFigure(kind.path, holder);
+    return group;
+  }
+
+  /**
+   * **Was gerade im Halter steht** — der Platzhalter oder die geladene Figur.
+   *
+   * Der Vorgänger fliegt heraus und wird **nicht** freigegeben: Der Platzhalter
+   * besteht aus geteilten Formen dieses Bausatzes (`shape`, `skin`), und eine
+   * Figur aus dem Regal teilt ihre Geometrie mit jeder anderen Kopie davon
+   * (`core/kaykitModel.ts`, `userData.sharedAssets`). Wer hier `dispose` riefe,
+   * nähme sie allen anderen weg.
+   */
+  private showFigure(holder: THREE.Group, part: THREE.Object3D): void {
+    for (const child of [...holder.children]) child.removeFromParent();
+    part.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(part);
+    const high = box.max.y - box.min.y;
+    if (high > 1e-4) part.scale.multiplyScalar(FIGURE_STAND / high);
+    this.place(part);
+    holder.add(part);
+  }
+
+  /**
+   * **Die Figur bestellen**; kommt sie an, tritt der Platzhalter ab.
+   *
+   * Sie kommt als **rohes Modell** (`kaykitModel`) und nicht als laufende
+   * Figur (`kaykitFigure.loadKaykitFigure`): Die zöge die Bewegungsbibliothek
+   * ihres Skeletts nach — knapp ein Megabyte, für einen Kleiderschrank —, und
+   * sie bräuchte je Bild einen Mischer, den das Regal gar nicht hat. Sie steht
+   * deshalb in ihrer **Bindepose**, also mit ausgestreckten Armen. Das ist
+   * genau das Bild, das man aus einem Schaufenster kennt, und für ein Stück,
+   * das auf einem Ständer steht, das richtige.
+   *
+   * **Gedreht wird sie einmal** (`FIGURE_FACING`): KayKit schaut nach +Z,
+   * dieses Spiel nach −Z, und der Konstrukt-Raum dreht jedes Stück so, dass
+   * seine −Z-Seite zur Mitte zeigt (`construct.slotTurn`). Ohne diese halbe
+   * Umdrehung stünde das ganze Regal mit dem Rücken zu einem.
+   */
+  private fetchFigure(path: string, holder: THREE.Group): void {
+    if (!canLoadModels()) return;
+    const era = this.era;
+    void import('../../core/kaykitModel')
+      .then(async (module) => module.kaykitModel(path))
+      .then((model) => {
+        if (!model || era !== this.era) return;
+        model.rotation.y = FIGURE_FACING;
+        this.showFigure(holder, model);
+      });
+  }
+
+  /**
+   * **Der Koch als Miniatur** — Rumpf und Kopf in den Maßen, in denen der
+   * Avatar sie zusammensetzt (`core/AvatarBody.update`): Der Rumpf reicht bis
+   * knapp unter die Kugel, der Kopf sitzt auf Augenhöhe.
+   *
+   * Abgeschrieben und nicht neu geraten: Eine Kachel, auf der der Koch andere
+   * Verhältnisse hat als der Koch, wäre eine Anprobe, der man nicht trauen
+   * kann — dieselbe Regel wie beim Hut, der die Jackenfarbe mitbekommt.
+   *
+   * **Weiß und rundköpfig**, unabhängig davon, was man gerade anhat: Auf dieser
+   * Kachel wird die _Figur_ gewählt und nicht die Jacke; die steht drei Kacheln
+   * weiter, und dort ist sie auch die Aussage.
+   */
+  private chefDoll(): THREE.Object3D {
+    const group = new THREE.Group();
+    group.name = 'rack-figure-chef-doll';
+    const shape = buildBody(
+      'white',
+      this.skin('suit:white', () => cloth(bodyTrim('white'))),
+    );
+    shape.setHeight(CHEF_EYE - HEAD_RADIUS * 0.86);
+    const head = buildHead('round');
+    head.position.y = CHEF_EYE;
+    group.add(shape.group, head);
+    return group;
+  }
+
+  /** Und der Platzhalter für alles, was noch unterwegs ist (`PAWN_BODY`). */
+  private pawn(): THREE.Object3D {
+    const group = new THREE.Group();
+    group.name = 'rack-figure-pawn';
+    const stone = this.skin('pawn', () => trim(0x7c8698, 0.8));
+    const body = new THREE.Mesh(
+      this.shape('pawn-body', () => new THREE.CylinderGeometry(PAWN_TOP, PAWN_FOOT, PAWN_BODY, 16)),
+      stone,
+    );
+    body.position.y = PAWN_BODY / 2;
+    const head = new THREE.Mesh(
+      this.shape('pawn-head', () => new THREE.SphereGeometry(PAWN_HEAD, 16, 12)),
+      stone,
+    );
+    // Halb im Rumpf wie der Knauf auf dem Hutständer — eine Kugel, die oben
+    // aufliegt, ist ein Lutscher und keine Spielfigur.
+    head.position.y = PAWN_BODY + PAWN_HEAD * 0.55;
+    group.add(body, head);
+    return group;
+  }
+
   // --- Fuß, Reif, Ständer ------------------------------------------------------
 
   /**
@@ -386,15 +584,31 @@ export class WardrobeRack {
   ): THREE.Group {
     const group = new THREE.Group();
     group.name = name;
-
     part.scale.multiplyScalar(scale);
+    this.place(part);
+    group.add(part);
+    this.plinth(group, worn, footSkin);
+    return group;
+  }
+
+  /**
+   * **Ein Teil mittig auf den Fuß setzen** — die Messung aus `stand`, allein,
+   * weil die Figuren sie ein zweites Mal brauchen: Bei ihnen steht der
+   * Platzhalter zuerst und das Modell kommt nach, und dann muss dieselbe
+   * Rechnung noch einmal laufen (`showFigure`).
+   */
+  private place(part: THREE.Object3D): void {
+    part.position.set(0, 0, 0);
+    part.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(part);
     part.position.x -= (box.min.x + box.max.x) / 2;
     part.position.z -= (box.min.z + box.max.z) / 2;
     // Aufgesetzt, nicht eingelassen: Das Teil fängt oben auf dem Fuß an.
     part.position.y += FOOT_HEIGHT - box.min.y;
-    group.add(part);
+  }
 
+  /** **Fuß und Reif** unter ein Stück — der Rest von `stand`. */
+  private plinth(group: THREE.Group, worn: boolean, footSkin: THREE.Material): void {
     const foot = new THREE.Mesh(
       this.shape(
         'foot',
@@ -418,7 +632,6 @@ export class WardrobeRack {
     const ring = this.wornRing();
     ring.visible = worn;
     group.add(ring);
-    return group;
   }
 
   /**

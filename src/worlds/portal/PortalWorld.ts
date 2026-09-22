@@ -108,6 +108,7 @@ import {
   kaykitMenu,
   kaykitPathOf,
   kaykitSearchEntries,
+  kaykitSheets,
   type KaykitFileRef,
   type KaykitIndex,
 } from '../../core/kaykitIndex';
@@ -232,7 +233,7 @@ import type { LivePreview, PreviewButton } from '../shared/livePreview';
 import { PreviewWalk } from '../shared/previewWalk';
 import type { NavGraph } from '../nav/navGraph';
 import { TILE } from '../nav/navTile';
-import { NPC_SKINS, npcSkin, type NpcKind } from '../npc/npcKinds';
+import { NPC_SKINS, npcSkin, shelfKind, type NpcKind } from '../npc/npcKinds';
 import { BODY_DAMAGE } from '../npc/npcHit';
 import { NPC_BAR_MODES, type BarMode } from '../npc/NpcBody';
 import { newSwing, swingHit, swingStep, type SwingState } from './tools/meleeSwing';
@@ -2086,6 +2087,7 @@ export class PortalWorld implements World {
           accent: skin.accent,
           run: () => this.placeNpc(ctx(), skin.id),
         })),
+        this.npcShelfMenu(ctx),
         brainRow,
         barsRow,
         hitsRow,
@@ -2575,6 +2577,84 @@ export class PortalWorld implements World {
       health: settings.health,
     });
     if (placed) ctx.notify(`${npcSkin(kind).label} · ${brainLabel(settings.brain)}`);
+  }
+
+  /**
+   * *Menü → NPC → **Figur aus dem Regal*** — die Schublade _Figuren_ des
+   * Katalogs, und was man dort antippt, steht gleich darauf im Raum und läuft
+   * los.
+   *
+   * Dieselbe Seite wie im Regal und mit Absicht kein zweiter Katalog: dieselben
+   * Kacheln mit dem Modell darin (dieselbe Id `kaykit:<pfad>`, also dieselbe
+   * Vorschau-Fabrik, `menuModel`), dieselben zwei Spalten, dieselben Fächer in
+   * der Brille (`kaykitSheets`). Nur das, was beim Aussuchen passiert, ist ein
+   * anderes: nicht „in die Hand", sondern „hinstellen".
+   *
+   * Der Index kommt wie überall erst beim Aufmachen (`openShelf`), und bis
+   * dahin steht dort dasselbe, was auch im Regal stünde.
+   */
+  private npcShelfMenu(ctx: () => WorldContext): MenuEntry {
+    return {
+      id: 'npc:shelf',
+      label: 'Figur aus dem Regal',
+      sub: 'Ritter, Skelette, Roboter — jede als NPC',
+      icon: 'npc',
+      accent: KAYKIT_ACCENT,
+      grid: true,
+      cols: SHELF_COLS,
+      full: true,
+      take: false,
+      onOpen: () => this.openShelf(),
+      children: this.npcShelfEntries(ctx),
+    };
+  }
+
+  /** Die Kacheln dazu — oder das, was statt ihrer dasteht. */
+  private npcShelfEntries(ctx: () => WorldContext): MenuEntry[] {
+    if (this.shelf === undefined) {
+      return [
+        {
+          id: 'npc:shelf:loading',
+          label: 'Lädt …',
+          sub: 'Das Verzeichnis der Sammlung',
+          icon: 'folder',
+          accent: 0x6f7d99,
+        },
+      ];
+    }
+    // **Die Schublade und nicht der ganze Baum**: Eine Kiste als NPC ist keine
+    // Figur, sondern eine Kiste, die einem hinterherläuft. Welche Datei eine
+    // Figur ist, hat der Katalog längst entschieden
+    // (`core/kaykitIndex.KAYKIT_CATEGORIES`, `figures`) — und das ist genau
+    // die Frage, die eine Schublade beantwortet.
+    const figures = this.shelfFiles.filter((file) => file.cats.includes('figures'));
+    if (figures.length === 0) {
+      return [
+        {
+          id: 'npc:shelf:empty',
+          label: 'Keine Figuren',
+          sub: 'Die Schublade „Figuren" ist leer',
+          icon: 'folder',
+          accent: 0x6f7d99,
+        },
+      ];
+    }
+    const sheets = kaykitSheets(figures, 'npc', (file) => ({
+      id: `kaykit:${file.path}`,
+      label: file.label,
+      sub: 'Figur aus dem Regal',
+      accent: KAYKIT_ACCENT,
+      // Die Vorschau **ist** die Id: dieselbe Kachel mit demselben Modell wie
+      // im Regal, ohne dass irgendjemand etwas übersetzen müsste.
+      preview: `kaykit:${file.path}`,
+      full: true,
+      run: () => this.placeNpc(ctx(), shelfKind(file.path)),
+    }));
+    // Genommen wird hier nichts. Die Fächer des Regals bringen ihr `take` mit,
+    // weil man dort Modelle greift; ein NPC wandert aber nicht in die Hand,
+    // sondern auf den Boden — und dafür ist der Trigger der richtige Knopf.
+    for (const sheet of sheets) sheet.take = false;
+    return sheets;
   }
 
   /**

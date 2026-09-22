@@ -1,4 +1,12 @@
-import { mayWarm, mayWarmStep, nextWarmStep, WARM_ORDER, type WarmSignals } from './warmStart';
+import {
+  LOADING_NOTE,
+  mayWarm,
+  mayWarmStep,
+  nextWarmStep,
+  startButton,
+  WARM_ORDER,
+  type WarmSignals,
+} from './warmStart';
 
 /** Eine Lage, in der gewärmt werden darf — Schreibtisch, Tab vorn, nichts los. */
 const ruhig: WarmSignals = { hidden: false, busy: false };
@@ -93,5 +101,73 @@ describe('nextWarmStep', () => {
   it('hält an, sobald der Spieler selbst lädt', () => {
     expect(nextWarmStep([], { ...ruhig, busy: true })).toBeNull();
     expect(nextWarmStep(['welt'], { ...ruhig, busy: true })).toBeNull();
+  });
+});
+
+describe('startButton', () => {
+  it('ist stumpf, solange die Welt unterwegs ist', () => {
+    expect(startButton(ruhig, 'lädt')).toEqual({
+      disabled: true,
+      note: LOADING_NOTE,
+      busy: true,
+    });
+  });
+
+  // Gewärmt wird gleich — der Knopf steht schon stumpf da, bevor der Leerlauf
+  // kommt, statt eine Sekunde lang eine Bedienbarkeit zu behaupten.
+  it('ist auch stumpf, wenn gleich gewärmt wird', () => {
+    expect(startButton(ruhig, 'ruht').disabled).toBe(true);
+    expect(startButton(ruhig, 'ruht').note).toBe(LOADING_NOTE);
+  });
+
+  it('gibt ihn frei, sobald die Welt samt Startladung steht', () => {
+    expect(startButton(ruhig, 'steht')).toEqual({ disabled: false, note: '', busy: false });
+  });
+
+  // Die wichtigste Bedingung dieser Rechnung: Wo nicht gewärmt wird, wartet
+  // der Knopf auf nichts — sonst wäre „Daten sparen" ein toter Knopf.
+  it('bleibt bedienbar, wo gar nicht vorgewärmt wird', () => {
+    for (const signals of [
+      { ...ruhig, saveData: true },
+      { ...ruhig, effectiveType: '2g' },
+      { ...ruhig, effectiveType: 'slow-2g' },
+      { ...ruhig, hidden: true },
+    ] satisfies WarmSignals[]) {
+      const state = startButton(signals, 'ruht');
+      expect(state.disabled).toBe(false);
+      expect(state.note).not.toBe('');
+      // Und der Balken läuft dabei **nicht**: Es lädt ja niemand.
+      expect(state.busy).toBe(false);
+    }
+  });
+
+  // Ein Deckel, der nur die Wartezeit begrenzte, aber den Knopf stumpf ließe,
+  // wäre kein Deckel.
+  it('gibt ihn nach dem Deckel frei und sagt, dass noch geladen wird', () => {
+    const state = startButton(ruhig, 'dauert');
+    expect(state.disabled).toBe(false);
+    expect(state.note).toMatch(/lädt noch/);
+    expect(state.busy).toBe(true);
+  });
+
+  // Ohne Netz und ohne früheren Besuch: Die Ladung scheitert. Kein Deadlock —
+  // der Knopf darf es noch einmal versuchen.
+  it('lässt eine Welt, die nicht kam, noch einmal anfordern', () => {
+    const state = startButton(ruhig, 'fehlt');
+    expect(state.disabled).toBe(false);
+    expect(state.note).not.toBe('');
+    expect(state.busy).toBe(false);
+  });
+
+  // Hinter einer Lobby wird nichts vorgewärmt, und der Knopf dort ist ein
+  // anderer (`#haunt-enter`). Also ist hier auch nichts zu sagen.
+  it('sagt hinter einer Lobby gar nichts', () => {
+    for (const phase of ['ruht', 'lädt', 'steht', 'fehlt'] as const) {
+      expect(startButton({ ...ruhig, lobby: true }, phase)).toEqual({
+        disabled: false,
+        note: '',
+        busy: false,
+      });
+    }
   });
 });

@@ -121,7 +121,75 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Fracht und Konsolen. Geometrie wird je Material zusammengefasst; technische
   Grenzmaße bleiben testbar. `shipArt.ts` zeichnet helle Marine-Paneele,
   Raumfarben, Deckfugen, Wegmarken, doppelseitige Schilder mit Wandabstand,
-  Kreaturen und den Demo-Techniker. Keine fremden Spielassets verwendet.
+  Kreaturen und den Demo-Techniker. **Die Station selbst ist weiter ganz
+  gebaut** — kein Paneel, keine Konsole und kein Schild kommt aus einem
+  gekauften Katalog. **Wer darin herumläuft, kommt jetzt aus dem Regal**
+  (siehe _Wer im Schiff einen Körper hat_).
+- **Wer im Schiff einen Körper hat** (`actorArt.ts`, `actorFit.ts`): Techniker
+  und Monster sind seit dem KayKit-Regal (`docs/agents/assetregal.md`,
+  _Eine Figur, die läuft_) **Akteure** und keine Gruppen mehr —
+  `buildActor(kind)` gibt ein `{ root, update(dt, moving), setGhost, dispose }`
+  heraus. Jeder Akteur baut **sofort** seinen gebauten Körper
+  (`shipArt.buildCrewmate` / `buildCreature`) und lädt, wenn es WebGL gibt
+  (`core/chefFit.canLoadModels`, dynamisches `import()` — der Lader bringt
+  Jest sonst zum Stehen), die Figur nach:
+  - **crew → `character-animations/…/Mannequin_Medium.glb`, 1,75 m.** Fünf
+    Zentimeter unter dem gebauten Crewmate, weil dessen 1,80 m die Kuppe eines
+    Helms sind.
+  - **stalker → `mystery-monthly-4/12-june-2024-robot/…/Robot_Two.glb`,
+    1,90 m** — der verlassene EVA-Anzug als der schlaksigere der beiden
+    Roboter.
+  - **sentinel → `…/Robot_One.glb`, 1,90 m** — der „defekte
+    Sicherheitsroboter" ist einer.
+  - **crawler → bleibt gebaut.** Das Regal hat kein sechsbeiniges Gegenstück;
+    was am nächsten käme (`mystery-monthly-6/4-october-2025-monstrosity`),
+    steht auf demselben mittleren Skelett wie die Roboter — aufrecht, zwei
+    Beine, 1,9 m. Er sähe aus wie der Stalker in einer anderen Farbe, und drei
+    Monster, die sich nur in der Farbe unterscheiden, sind eines.
+  **Der gebaute Körper bleibt der Ersatz** und wird beim Eintreffen der Figur
+  nur ausgeblendet, nie weggeworfen (dasselbe Muster wie `core/AvatarBody`
+  mit dem Koch): Eine Runde, die erst anfängt, wenn ein Monster geladen ist,
+  fängt manchmal gar nicht an, und ein Checkout ohne die gekauften Pakete ist
+  ein normaler Zustand. Die Höhen sind deshalb die der gebauten Körper, die
+  sie ersetzen — sonst verschöbe der Ersatz stillschweigend Sichtlinien,
+  Ghost und Karte.
+- **Lesbarkeit im Dunkeln**, zwei Wege, und die **Datei** entscheidet:
+  Beide Roboter bringen ein Material `robot_glow` mit (`emissiveFactor`
+  [1,1,1], dieselbe Atlas-Textur auch als `emissiveTexture`), und das bekommt
+  die Augenfarbe der Kreatur, die es ersetzt — `SHIP.amber` für den Wächter,
+  `SHIP.red` sonst, `toneMapped: false` wie die gebauten Augen. Weil die
+  Textur an den Augen schon rot ist, wirkt die Farbe als **Faktor**: Der
+  Wächter wird bernsteinrot. Das Mannequin hat nur `Character_Material` und
+  damit keine Leuchtfläche; der Techniker bekommt deshalb ein **Visier** —
+  eine 3,5-cm-Kugel in `SHIP.cyan`, eingemessen am Kopfknochen (der sitzt bei
+  1,75 m Höhe auf y = 0,968, das Kopfnetz reicht bis 1,75 und vorn bis
+  z = −0,43; also 33 cm darüber und 40 cm davor) und mit `attach` angehängt,
+  damit sie ihre Weltgröße behält. Ein Test hält beides gegen die wirklichen
+  Dateien (`actorFit.test.ts` liest den JSON-Teil der `.glb`).
+- **Das Tempo kommt aus dem Schritt.** `update(dt, moving)` nimmt eine Zahl in
+  m/s — Weg seit dem letzten Bild durch die Zeit — und gibt sie der Figur als
+  Gang weiter (`core/kaykitFigureFit.gaitFor`: steht / geht / rennt); der
+  gebaute Körper schwenkt dafür weiter seine Sinuskurve und lässt im Stehen
+  gedämpft sinken. Wo es nur ein `moving: boolean` gibt (der Techniker eines
+  anderen Geräts kommt so über die Leitung), wird daraus ein Gehschritt
+  (`actorFit.ACTOR_PACE`). Die beiden alten Uhren — `state.time` hier,
+  `performance.now()` dort — sind damit weg; der Akteur hält seine eigene und
+  zählt nur hoch, solange er geht.
+- **Wo Akteure stehen**: das Monster beim Zuschauer (`HauntingWorld.applyBlob`),
+  seine Erinnerung (`paintGhost`), der Techniker eines anderen Geräts
+  (`showTechnician`), der Techniker der Bot-Runde
+  (`ShipExperience.simulated`) und die drei Attrappen im Modellzimmer des
+  Testdecks (`trainingDeck.ts` → `ShipExperience.bayActors`). Die Attrappen
+  bekommen je Bild einen Takt mit Tempo null — ohne ein Mischerbild stünde
+  eine Figur aus dem Regal in ihrer Bindepose mit ausgestreckten Armen da —,
+  und nur solange das Deck sichtbar ist.
+- **Aufgeräumt wird einzeln und zuerst** (`HauntingWorld.releaseActors`,
+  `ShipExperience.dispose`): Die groben `dispose`-Helfer beider Dateien
+  traversieren alles und kennen die Ausnahme `userData.sharedAssets` nicht —
+  wer eine Figur damit erwischt, gibt die Geometrie frei, die der Vorlage im
+  Speicher und allen anderen Kopien gehört. `ShipActor.dispose` hält an der
+  richtigen Stelle an, nimmt den Körper aus seiner Gruppe und wirft auch eine
+  Figur weg, die **nach** dem Aufräumen noch eintrifft.
 - `stationVisibility.ts` kann alle Räume **und Gänge** berücksichtigen.
   Standard-Grid-Hülle und Collider bleiben bestehen; Detailgruppen sind
   raumweise sichtbar. Emissive Schilder brauchen keinen eigenen PointLight.
@@ -986,8 +1054,19 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   Ring mit Blickstrich, und die Monster-Ansicht schreibt „Zuletzt gesehen:
   Werkstatt · vor 6 s" in ihre Kopfzeile (`ghostAgeText`). In 3D ist es
   **Weltgeometrie** und kein Bildschirmzeichen (`HauntingWorld.paintGhost`):
-  eine Kopie des Monstermodells mit eigenen Materialien, `transparent`,
-  `depthWrite: false`, an `state.ghosts.monster`. Sichtbar ist sie, sobald der
+  ein **zweiter Akteur** derselben Sorte (`actorArt.ts`, siehe _Wer im Schiff
+  einen Körper hat_), den `setGhost(deckkraft)` zur Erinnerung macht —
+  `transparent`, `depthWrite: false`, kalt leuchtend (`GHOST_GLOW`), ohne
+  Schatten —, an `state.ghosts.monster`. Materialien muss dafür niemand mehr
+  klonen: `buildCreature` gibt jedem Aufruf eigene, und die Figur aus dem
+  Regal bekommt sie je Kopie (`core/kaykitModel.freshCopy`). Die
+  **Material-Flags liegen genau einmal** und je Bild wird nur noch die
+  Deckkraft gesetzt — `transparent` umzustellen kostet three.js eine neue
+  Übersetzung des Shaders. Trifft die Figur erst **nach** dem ersten
+  `setGhost` ein, bekommt sie den Anstrich beim Einhängen: Sonst stünde ein
+  leibhaftiges zweites Monster an der Erinnerungsstelle. Die Erinnerung geht
+  nicht, bekommt aber trotzdem einen Takt mit Tempo null — sonst stünde sie in
+  ihrer Bindepose. Sichtbar ist sie, sobald der
   Marker älter als `GHOST_LIVE` 0,5 s ist — „gerade gesehen" steht schon im
   Marker, ein zweiter Sichttest wäre eine zweite Wahrheit. Die Blutspur
   dieselbe Bauart: `drawBloodDrop` (flache Ellipse mit Spritzer, dunkelrot,
@@ -1196,7 +1275,14 @@ raum)` gibt dieselbe Auskunft nach außen, und `monsterRoutine` stellt seinen
   weiterzuwachsen; die Leuchten sind `MeshBasicMaterial` und keine Lichtquellen.
 - `trainingLayout`/`trainingDeck` bieten getrennte Lehrzimmer. Übungspuzzles
   haben eigene Zustände; erneutes Drücken setzt nur das jeweilige Beispiel
-  zurück. Dunkler Test bleibt sicher; Lampen sind tatsächlich nötig.
+  zurück. Dunkler Test bleibt sicher; Lampen sind tatsächlich nötig. Im
+  **Modellzimmer** stehen die drei Monster als Attrappen — und zwar als
+  dieselben Akteure wie im Ernstfall (`actorArt.buildActor`, siehe _Wer im
+  Schiff einen Körper hat_), samt Figur aus dem Regal, wo es eine gibt. Wer
+  hier nachsieht, wie ein Wächter aussieht, soll im Gang nicht etwas anderes
+  treffen. Sie stehen still (das Schild sagt es: „ATTRAPPE · GEHT NICHT LOS ·
+  HARMLOS"), bekommen aber über `TrainingDeckHost.actor` einen Takt aus der
+  Bildschleife des Schiffs — das Deck selbst hat keine.
 
 **Telefone und Netzwerk**
 
