@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
+import { buildSync } from 'esbuild';
 import { defineConfig, type Plugin } from 'vite';
 import type { OutputBundle } from 'rollup';
 import { BUILD_META } from './src/core/buildId';
@@ -108,22 +109,56 @@ function bundleList(bundle: OutputBundle): string[] {
 const HASHED_NAME = /(^|\/)assets\/.*-[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/;
 
 /**
- * Setzt die beiden Listen in den fertigen Service Worker ein — die **Hülle**,
- * die er beim Einrichten holt, und **alles mit Hash**, an dem er hinterher
+ * **Der Service Worker, gebaut für sich allein** — eine Datei, kein Import.
+ *
+ * Er stand einmal als vierter Eingang in `rollupOptions.input`, und das ging
+ * gut, solange er mit der Seite kein Modul teilte. Seit er
+ * `core/assetVersion.ts` braucht (Prüfsumme statt Build-Nummer), zog Rollup
+ * dieses Modul in einen gemeinsamen Chunk, und `sw.js` begann mit
+ * `import … from "./assets/assetVersion-….js"`. Angemeldet wird er aber als
+ * klassisches Skript (`core/pwa.ts`) — und ein klassisches Skript mit `import`
+ * scheitert beim Auswerten: „ServiceWorker script evaluation failed". Der
+ * Build war grün, die Seite lief, nur **kein** Service Worker mehr: kein
+ * Speicher, kein Start ohne Netz, und „Alles herunterladen" lief nie an.
+ *
+ * `type: 'module'` beim Anmelden hätte Chromium gereicht, Safari aber erst ab
+ * 16.4 — und iPhone und iPad sind die Geräte, auf denen die App am meisten
+ * zählt. Also baut esbuild ihn hier als eine geschlossene Datei (`iife`), mit
+ * denselben `define`s wie der Rest, und kein geteiltes Modul kann ihn je
+ * wieder aufspalten.
+ */
+function buildServiceWorker(defines: Record<string, string>): { code: string; map: string } {
+  const result = buildSync({
+    entryPoints: [resolve(__dirname, 'src/sw.ts')],
+    bundle: true,
+    format: 'iife',
+    target: 'es2022',
+    minify: true,
+    sourcemap: 'external',
+    write: false,
+    outfile: 'sw.js',
+    define: defines,
+  });
+  const code = result.outputFiles.find((file) => file.path.endsWith('sw.js'));
+  const map = result.outputFiles.find((file) => file.path.endsWith('sw.js.map'));
+  if (!code || !map) throw new Error('esbuild hat keinen Service Worker geschrieben.');
+  return { code: `${code.text}//# sourceMappingURL=sw.js.map\n`, map: map.text };
+}
+
+/**
+ * Baut den Service Worker und setzt die beiden Listen ein — die **Hülle**, die
+ * er beim Einrichten holt, und **alles mit Hash**, an dem er hinterher
  * erkennt, was noch gilt. Das geht erst hier, nach dem Bündeln: Vorher gibt es
  * die Dateinamen nicht.
  */
-function precachePlugin(): Plugin {
+function precachePlugin(defines: Record<string, string>): Plugin {
   return {
     name: 'bgvr:sw-precache',
     apply: 'build',
     enforce: 'post',
     generateBundle(_options, bundle) {
-      const sw = bundle['sw.js'];
-      if (!sw || sw.type !== 'chunk') {
-        this.warn('sw.js liegt nicht im Bündel — der Service Worker bleibt ohne Liste.');
-        return;
-      }
+      const sw = buildServiceWorker(defines);
+      let code = sw.code;
       for (const [name, list] of [
         ['__PRECACHE__', precacheList(bundle)],
         ['__BUNDLE__', bundleList(bundle)],
@@ -131,12 +166,18 @@ function precachePlugin(): Plugin {
         // Anführungszeichen beider Sorten: Welche der Minifizierer stehen
         // lässt, ist seine Sache und nicht unsere.
         const placeholder = new RegExp(`["']${name}["']`);
-        if (!placeholder.test(sw.code)) {
-          this.warn(`Der Platzhalter ${name} steht nicht mehr im Service Worker.`);
-          continue;
+        if (!placeholder.test(code)) {
+          this.error(`Der Platzhalter ${name} steht nicht mehr im Service Worker.`);
         }
-        sw.code = sw.code.replace(placeholder, JSON.stringify(list));
+        code = code.replace(placeholder, JSON.stringify(list));
       }
+      // **Und nie wieder ein `import`** — siehe oben. Ein Service Worker, der
+      // nicht startet, fällt sonst niemandem auf außer dem Telefon im Funkloch.
+      if (/(^|[;}\s])(import|export)\s*[{*\w]/.test(code.slice(0, 200))) {
+        this.error('sw.js beginnt mit import/export — als klassisches Skript startet er so nicht.');
+      }
+      this.emitFile({ type: 'asset', fileName: 'sw.js', source: code });
+      this.emitFile({ type: 'asset', fileName: 'sw.js.map', source: sw.map });
     },
   };
 }
@@ -339,19 +380,29 @@ function manualChunks(id: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Was beim Bauen fest eingesetzt wird — für die Seite und, dieselbe Tabelle,
+ * für den Service Worker (`buildServiceWorker`).
+ */
+const defines: Record<string, string> = {
+  __BUILD_ID__: JSON.stringify(buildId),
+  __APP_VERSION__: JSON.stringify(appVersion ?? ''),
+  __ASSET_HASHES__: JSON.stringify(assetHashes(resolve(__dirname, 'public'))),
+  // Die Platzhalter bleiben Platzhalter: Die echten Listen setzt
+  // `precachePlugin` ein, sobald die Dateinamen feststehen. `define` macht
+  // daraus vorher einen gültigen Ausdruck, damit der Code bündelbar ist.
+  __PRECACHE__: '"__PRECACHE__"',
+  __BUNDLE__: '"__BUNDLE__"',
+};
+
 export default defineConfig({
   base,
-  plugins: [buildTagPlugin(), precachePlugin(), offlineListPlugin(resolve(__dirname, 'public'))],
-  define: {
-    __BUILD_ID__: JSON.stringify(buildId),
-    __APP_VERSION__: JSON.stringify(appVersion ?? ''),
-    __ASSET_HASHES__: JSON.stringify(assetHashes(resolve(__dirname, 'public'))),
-    // Die Platzhalter bleiben Platzhalter: Die echten Listen setzt
-    // `precachePlugin` ein, sobald die Dateinamen feststehen. `define` macht
-    // daraus vorher einen gültigen Ausdruck, damit der Code bündelbar ist.
-    __PRECACHE__: '"__PRECACHE__"',
-    __BUNDLE__: '"__BUNDLE__"',
-  },
+  plugins: [
+    buildTagPlugin(),
+    precachePlugin(defines),
+    offlineListPlugin(resolve(__dirname, 'public')),
+  ],
+  define: defines,
   build: {
     target: 'es2022',
     outDir: 'dist',
@@ -361,20 +412,18 @@ export default defineConfig({
     // anderen lägen im Netz als Dateien, die auf ein `src/`-Modul zeigen, das
     // es dort nicht gibt.
     //
-    // Dazu der **Service Worker**. Er ist kein Modul der Seite, sondern ein
-    // eigenes Programm, das der Browser unter einer festen Adresse erwartet:
-    // Sein Geltungsbereich ist das Verzeichnis, in dem er liegt, ein
-    // `sw-C3aB9x2Q.js` in `assets/` könnte also nur `assets/` beantworten.
-    // Deshalb der Sonderfall in `entryFileNames`.
+    // Der **Service Worker** steht nicht hier: Er ist kein Modul der Seite,
+    // sondern ein eigenes Programm unter einer festen Adresse (`sw.js`, sein
+    // Geltungsbereich ist das Verzeichnis, in dem er liegt), und er darf mit
+    // der Seite kein Modul teilen. Gebaut wird er in `precachePlugin`.
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         tools: resolve(__dirname, 'tools.html'),
         inputs: resolve(__dirname, 'inputs.html'),
-        sw: resolve(__dirname, 'src/sw.ts'),
       },
       output: {
-        entryFileNames: (chunk) => (chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js'),
+        entryFileNames: 'assets/[name]-[hash].js',
         manualChunks,
       },
     },

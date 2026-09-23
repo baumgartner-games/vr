@@ -890,12 +890,23 @@ Mal wirklich gebraucht wird — und „wirklich gebraucht" heißt seit dem
 fortschreitenden Start auch: vorgewärmt, wenn der Browser Luft hat und die
 Leitung es hergibt (siehe [Der Start](#der-start-erst-die-hülle-dann-die-welt)).
 
-Der Service Worker ist deshalb ein **eigener Einstiegspunkt** im Build
-(`rollupOptions.input.sw`) mit einem Sonderfall in `entryFileNames`: Sein
-Geltungsbereich ist das Verzeichnis, in dem er liegt — ein `sw-C3aB9x2Q.js` in
-`assets/` könnte nur `assets/` beantworten. Er importiert nichts außer
-`core/swRoutes.ts`, und deshalb bündelt Rollup ihn zu einer Datei ohne
-`import`: ein klassisches Skript, wie es Firefox bis heute verlangt.
+Der Service Worker wird deshalb **für sich allein gebaut**: `precachePlugin`
+lässt esbuild `src/sw.ts` zu einer geschlossenen Datei (`iife`, dieselben
+`define`s wie die Seite) bündeln und legt sie als `sw.js` neben die Seiten —
+sein Geltungsbereich ist das Verzeichnis, in dem er liegt, ein
+`sw-C3aB9x2Q.js` in `assets/` könnte nur `assets/` beantworten. Er muss ein
+**klassisches Skript ohne `import`** sein, denn so meldet `core/pwa.ts` ihn an
+(`type: 'module'` kann Safari erst ab 16.4).
+
+Das war einmal anders, und daran ging es kaputt: Er stand als vierter Eingang
+in `rollupOptions.input`, und solange er mit der Seite kein Modul teilte,
+bündelte Rollup ihn zu einer Datei. Seit er `core/assetVersion.ts` braucht
+(Prüfsumme statt Build-Nummer), lag dieses Modul in einem gemeinsamen Chunk,
+`sw.js` begann mit `import … from "./assets/assetVersion-….js"`, und der
+Browser lehnte ihn ab („ServiceWorker script evaluation failed"). Der Build war
+grün und die Seite lief — nur ohne Service Worker: kein Speicher, kein Start
+ohne Netz, und der automatische Download lief nie an. Jetzt bricht der Build
+ab, wenn `sw.js` je wieder mit `import` oder `export` beginnt.
 
 ### Der Knopf (`core/install.ts`, `core/pwa.ts`, `#install`)
 
