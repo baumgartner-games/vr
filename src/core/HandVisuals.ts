@@ -881,7 +881,35 @@ export class HandVisuals extends THREE.Group {
     return 'open';
   }
 
+  /**
+   * **Hände ohne Controller**, die trotzdem gezeichnet werden wollen — die
+   * Bildschirmhand _aus den Augen_ (`worlds/portal/screenHand.ts`).
+   *
+   * Sie sind `ControllerState`s wie die echten und gehen deshalb durch
+   * dieselbe Zeile (`updateControllerHand`): dieselbe Haltung, dieselbe Faust
+   * um dasselbe Werkzeug. Nur **greifen** sie immer — am Schirm gibt es keine
+   * Greif-Taste, die losgelassen werden könnte, und eine Hand, deren Griff
+   * aufgeht, öffnete sich von der Pistole weg.
+   */
+  private screen: readonly ControllerState[] = [];
+
+  /** Welche Bildschirmhände gezeichnet werden; was nicht mehr darin steht, geht weg. */
+  setScreenHands(states: readonly ControllerState[]): void {
+    if (states.length === this.screen.length && states.every((s, i) => s === this.screen[i])) {
+      return;
+    }
+    for (const controller of this.screen) {
+      if (states.includes(controller)) continue;
+      const hand = this.hands.get(controller);
+      if (hand) this.disposeHand(hand);
+      this.hands.delete(controller);
+      controller.fingertip = null;
+    }
+    this.screen = [...states];
+  }
+
   update(dt: number): void {
+    for (const controller of this.screen) this.updateControllerHand(dt, controller, true);
     for (const controller of this.input.controllers) {
       if (controller.isHand) {
         this.updateTrackedHand(dt, controller);
@@ -1117,7 +1145,8 @@ export class HandVisuals extends THREE.Group {
     }
   }
 
-  private updateControllerHand(dt: number, controller: ControllerState): void {
+  /** @param gripped ob die Hand als geschlossen gilt, egal was der Griffknopf sagt */
+  private updateControllerHand(dt: number, controller: ControllerState, gripped = false): void {
     if (!controller.handedness) return;
     let hand = this.hands.get(controller);
     // The runtime may hand the same slot to the other hand later on — a left
@@ -1162,7 +1191,7 @@ export class HandVisuals extends THREE.Group {
       // darüberzulegen würfe zwanzig gemessene Winkel für einen Zeigefinger weg.
       hand.setCurlOverrides(
         buttonCurlLayer(fingerMovesOf(toolId), {
-          grab: controller.squeeze.pressed,
+          grab: gripped || controller.squeeze.pressed,
           trigger: controller.trigger.pressed,
         }),
       );
