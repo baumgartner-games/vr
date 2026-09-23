@@ -121,8 +121,21 @@ import {
   PROP_LABELS,
   type PropKind,
 } from './props';
-import { gridPose, placesOnGrid, tilesCovered, turnedHalf, wallEdges } from './gridSnap';
+import { gridPose, placesOnGrid, tilesCovered, turnedHalf, wallEdges, yawOf } from './gridSnap';
 import { PlaceGrid } from './placeGrid';
+import {
+  AREA_MAX,
+  AreaSelect,
+  areaCount,
+  areaPlan,
+  areaRect,
+  areaSize,
+  needsConfirm,
+  tileAt,
+  type AreaRect,
+  type AreaTile,
+} from './areaPaint';
+import { AreaPad, type AreaEvent } from './areaPad';
 import {
   KAYKIT_ACCENT,
   SHELF_COLS,
@@ -401,6 +414,15 @@ const PREVIEW_REACH = DEFAULT_NEAR_RADIUS * 2;
  */
 const GHOST_PATH_COLOR = 0x39d0ff;
 const UP = new THREE.Vector3(0, 1, 0);
+/** Wie viele Kacheln die Vorschau einer Fläche höchstens zeigt (`PlaceGrid.show`). */
+const AREA_PREVIEW = 1600;
+/** Wie hoch über dem Boden eine Kopie der Fläche entsteht, in Metern — sie fällt das Stück. */
+const AREA_LIFT = 0.01;
+/** Wie weit der Strahl einer Fläche höchstens reicht, in Metern. */
+const AREA_REACH = 120;
+const _areaNdc = new THREE.Vector2();
+const _areaPlane = new THREE.Plane();
+const _areaHit = new THREE.Vector3();
 const FUNNEL_DEPTH = 1.1;
 /** The portal surface stays at least this far in front of the eye. */
 const NEAR_PAD = 0.12;
@@ -1279,6 +1301,19 @@ export class PortalWorld implements World {
    * der Welt und weggeräumt mit ihr.
    */
   private placeGrid: PlaceGrid | null = null;
+  /**
+   * **Flächen setzen im Baukasten** (`areaPaint.ts`, `areaPad.ts`) — die
+   * Leiste mit _▦ Fläche_, gebaut beim ersten Mal, wenn sie etwas zu zeigen
+   * hat, und weggeräumt mit der Welt.
+   */
+  private areaPad: AreaPad | null = null;
+  /** Ob _Fläche_ gerade an ist. */
+  private areaOn = false;
+  /** Die Ecken der Fläche, zwischen Drücken, Ziehen und Nachfrage. */
+  private readonly areaSelect = new AreaSelect();
+  /** Die Kachel unter der Maus, bevor gedrückt wird — sie leuchtet schon. */
+  private areaHover: AreaTile | null = null;
+  private readonly areaRay = new THREE.Raycaster();
   private readonly previousHead = new THREE.Vector3();
   /**
    * Labels that show a value. Anything that can be changed somewhere other
@@ -1538,6 +1573,9 @@ export class PortalWorld implements World {
     // **Und das Gitter unter dem, was getragen wird** — erst nachdem die Hände
     // nachgeführt sind, sonst zeigte es auf die Kachel des letzten Bildes.
     this.updatePlaceGrid(ctx);
+    // **Und die gezogene Fläche darüber** — ist _Fläche_ an, zeigt das Gitter
+    // die Fläche und nicht das eine Stück in der Hand.
+    this.updateAreaPaint(ctx);
     // **Erst jetzt der Saum**: Er hängt in der Brille an dem, worauf die Hand
     // zeigt, und das steht erst nach `updateGrabs` fest (`showUse`).
     this.showUse(dt, ctx);
@@ -3127,23 +3165,38 @@ export class PortalWorld implements World {
    * Fass doppelt hin.
    */
   private async placeModelChange(change: ModelChange): Promise<void> {
-    const physics = this.physics;
-    if (!this.context || !physics) return;
-    const kind = modelKind(change.path);
     const at = new THREE.Vector3(change.at.x, change.at.y, change.at.z);
+    await this.placeModelAt(change.path, at, (change.yaw * Math.PI) / 180);
+  }
+
+  /**
+   * **Ein Modell an eine feste Stelle setzen** — für eine eingefügte Liste
+   * und für eine gezogene Fläche (`commitArea`). Steht genau dieses Modell
+   * dort schon, passiert nichts: Dieselbe Liste zweimal einzufügen oder
+   * dieselbe Fläche zweimal zu ziehen stellt nichts doppelt hin.
+   *
+   * @param yaw Drehung um die Hochachse, in Bogenmaß
+   * @returns ob es hingestellt wurde
+   */
+  private async placeModelAt(path: string, at: THREE.Vector3, yaw: number): Promise<boolean> {
+    const physics = this.physics;
+    if (!this.context || !physics) return false;
+    const kind = modelKind(path);
     for (const body of this.bodies.values()) {
+      if (body.carried || body.removed) continue;
       const has = (body.object.userData as { propKind?: PropKind }).propKind;
-      if (has === kind && body.object.position.distanceTo(at) < 0.05) return;
+      if (has === kind && body.object.position.distanceTo(at) < 0.05) return false;
     }
-    const model = kaykitModelNow(change.path) ?? (await kaykitModel(change.path));
+    const model = kaykitModelNow(path) ?? (await kaykitModel(path));
     // An der Physik und nicht am Kontext — der ist jedes Bild ein neuer
     // (siehe `conjureModel`).
-    if (!this.context || this.physics !== physics || !model) return;
-    const spin = new THREE.Quaternion().setFromAxisAngle(UP, (change.yaw * Math.PI) / 180);
+    if (!this.context || this.physics !== physics || !model) return false;
+    const spin = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
     const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
     const entry = this.createModelProp(id, kind, model, at, spin);
     this.sync?.spawned(id, kind, poseOf(entry));
-    this.noteModel(entry, change.path);
+    this.noteModel(entry, path);
+    return true;
   }
 
   /** Ein hingestelltes Modell in die Liste der Weltänderungen. */
@@ -4659,6 +4712,11 @@ export class PortalWorld implements World {
     // sich ein neues.
     this.placeGrid?.dispose();
     this.placeGrid = null;
+    this.areaPad?.dispose();
+    this.areaPad = null;
+    this.areaOn = false;
+    this.areaSelect.reset();
+    this.areaHover = null;
     disposeTree(this.root);
     ctx.scene.background = null;
     this.physics?.dispose();
@@ -8739,6 +8797,209 @@ export class PortalWorld implements World {
       if (modelPathOf(kind) !== null) return grab.entry;
     }
     return null;
+  }
+
+  /**
+   * **Flächen setzen** — die Leiste nachführen, gemeldete Drücke in Kacheln
+   * übersetzen und die Fläche aufs Gitter legen.
+   *
+   * Angeboten wird _▦ Fläche_ nur, wenn es etwas zu setzen gibt: im
+   * **Baukasten** (`core/gameMode.refillsCatalogue`), am Schirm oder auf dem
+   * Telefon, mit einem Modell aus dem Regal in der Bildschirmhand
+   * (`areaBrush`). Das Stück in der Hand ist der Pinsel: Es bleibt dort, und
+   * jede Kachel der Fläche bekommt eine Kopie in genau seiner Drehung.
+   */
+  private updateAreaPaint(ctx: WorldContext): void {
+    const brush = this.areaBrush(ctx);
+    if (!brush) {
+      if (this.areaOn) this.endArea();
+      if (this.areaPad) {
+        this.areaPad.take();
+        this.areaPad.show({ kind: 'hidden' });
+      }
+      return;
+    }
+    const pad = (this.areaPad ??= new AreaPad());
+    const floor = ctx.rig.getFloorY();
+    for (const event of pad.take()) this.areaEvent(ctx, event, brush, floor);
+    if (!this.areaOn) {
+      pad.show({ kind: 'offer' });
+      return;
+    }
+
+    const { path, entry } = brush;
+    entry.object.getWorldQuaternion(_quaternion);
+    const yaw = yawOf(_quaternion);
+    const select = this.areaSelect;
+    const hover = this.areaHover;
+    const rect = select.rect() ?? (hover ? areaRect(hover, hover) : null);
+    const plan = rect ? areaPlan(rect, entry.halfExtents, yaw) : null;
+    const grid = this.placeGrid;
+    if (grid) {
+      if (!plan) grid.hide();
+      else if (plan.edges.length) grid.showEdges(plan.edges, floor, AREA_PREVIEW);
+      else grid.show(plan.tiles, floor, AREA_PREVIEW);
+    }
+
+    const label = propLabel(modelKind(path));
+    if (select.phase === 'confirm' && rect && plan) {
+      const pieces = plan.slots.length;
+      pad.show({
+        kind: 'confirm',
+        text:
+          pieces > AREA_MAX
+            ? `${areaSize(rect)} · ${pieces} Stück sind zu viele — höchstens ${AREA_MAX}`
+            : `${areaSize(rect)} = ${areaCount(rect)} Kacheln · ${pieces}× ${label} setzen?`,
+      });
+      return;
+    }
+    pad.show({
+      kind: 'active',
+      text:
+        select.phase === 'second'
+          ? 'Erste Ecke steht · jetzt die zweite antippen'
+          : select.phase === 'drag' && rect
+            ? `${areaSize(rect)} Kacheln`
+            : `${label}: Fläche ziehen oder zwei Ecken antippen`,
+    });
+  }
+
+  /**
+   * **Womit gerade eine Fläche gesetzt werden kann** — das Modell in der
+   * Bildschirmhand und seine Adresse im Regal, oder `null`.
+   *
+   * In der Brille nicht: Dort gibt es keinen Zeiger über einem Bild, und die
+   * Leiste wäre DOM, das niemand sieht.
+   */
+  private areaBrush(ctx: WorldContext): { entry: PhysicsBody; path: string } | null {
+    if (ctx.renderer.xr.isPresenting) return null;
+    if (!refillsCatalogue(gameMode())) return null;
+    const side = this.screenCarrySide();
+    const entry = side ? this.grabs.get(side)?.entry : undefined;
+    if (!entry) return null;
+    const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
+    return path === null ? null : { entry, path };
+  }
+
+  /** Ein Knopf oder ein Druck von der Leiste (`AreaPad`). */
+  private areaEvent(
+    ctx: WorldContext,
+    event: AreaEvent,
+    brush: { entry: PhysicsBody; path: string },
+    floor: number,
+  ): void {
+    const select = this.areaSelect;
+    switch (event.kind) {
+      case 'toggle':
+        if (this.areaOn) {
+          this.endArea();
+          return;
+        }
+        this.areaOn = true;
+        select.reset();
+        // **Die Maus muss frei sein**, sonst gibt es keinen Zeiger, mit dem man
+        // zieht — aus den Augen hält die Steuerung sie sonst gefangen.
+        if (document.pointerLockElement) document.exitPointerLock();
+        ctx.notify('Fläche: ziehen oder zwei Ecken antippen · Esc beendet');
+        return;
+      case 'escape':
+        // Erst eine halbe Auswahl zurück, dann den Modus.
+        if (!select.reset()) this.endArea();
+        return;
+      case 'cancel':
+        select.reset();
+        return;
+      case 'confirm': {
+        const rect = select.rect();
+        if (select.phase === 'confirm' && rect) this.commitArea(ctx, brush, rect, floor);
+        return;
+      }
+      case 'down':
+      case 'move':
+      case 'up': {
+        const tile = this.tileUnder(ctx, event.x, event.y, floor);
+        if (event.kind === 'down') {
+          if (tile) select.down(tile);
+          return;
+        }
+        if (event.kind === 'move') {
+          if (!tile) return;
+          if (select.phase === 'idle') this.areaHover = tile;
+          else select.move(tile);
+          return;
+        }
+        if (!select.up(tile)) return;
+        const rect = select.rect();
+        if (!rect) return;
+        if (needsConfirm(rect)) select.ask();
+        else this.commitArea(ctx, brush, rect, floor);
+        return;
+      }
+    }
+  }
+
+  /**
+   * **Die Fläche setzen** — auf jede Stelle eine Kopie des Pinsels, über
+   * denselben Weg wie eine eingefügte Liste (`placeModelAt`), also auch in
+   * die Weltänderungen und ins Netz.
+   *
+   * Hingestellt wird eine Handbreit über dem Boden, auf dem man steht, und
+   * den Rest macht die Schwerkraft — wie beim Einrasten einzeln.
+   */
+  private commitArea(
+    ctx: WorldContext,
+    brush: { entry: PhysicsBody; path: string },
+    rect: AreaRect,
+    floor: number,
+  ): void {
+    const { entry, path } = brush;
+    entry.object.getWorldQuaternion(_quaternion);
+    const plan = areaPlan(rect, entry.halfExtents, yawOf(_quaternion));
+    this.areaSelect.reset();
+    if (plan.slots.length > AREA_MAX) {
+      ctx.notify(`Zu groß: ${plan.slots.length} Stück · höchstens ${AREA_MAX}`);
+      return;
+    }
+    const y = floor + entry.halfExtents.y + AREA_LIFT;
+    const label = propLabel(modelKind(path));
+    let placed = 0;
+    const done = plan.slots.map(async (slot) => {
+      if (await this.placeModelAt(path, new THREE.Vector3(slot.x, y, slot.z), slot.yaw)) {
+        placed += 1;
+      }
+    });
+    void Promise.all(done).then(() => {
+      const skipped = plan.slots.length - placed;
+      this.context?.notify(
+        `${placed}× ${label} gesetzt` + (skipped ? ` · ${skipped} standen schon` : ''),
+      );
+    });
+  }
+
+  /** _Fläche_ aus — die Auswahl geht mit, das Gitter gehört wieder dem Stück in der Hand. */
+  private endArea(): void {
+    this.areaOn = false;
+    this.areaSelect.reset();
+    this.areaHover = null;
+  }
+
+  /**
+   * **Die Kachel unter einem Punkt auf dem Schirm** — ein Strahl aus der
+   * Kamera, die das Bild zeichnet (`WorldContext.viewCamera`), auf die Ebene
+   * des Bodens, auf dem man steht. `null`, wenn er sie nicht trifft: über dem
+   * Horizont oder weiter weg, als eine Fläche sinnvoll ist.
+   */
+  private tileUnder(ctx: WorldContext, x: number, y: number, floor: number): AreaTile | null {
+    const box = ctx.renderer.domElement.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) return null;
+    _areaNdc.set(((x - box.left) / box.width) * 2 - 1, -((y - box.top) / box.height) * 2 + 1);
+    const camera = ctx.viewCamera ?? ctx.camera;
+    camera.updateMatrixWorld();
+    this.areaRay.setFromCamera(_areaNdc, camera);
+    _areaPlane.set(UP, -floor);
+    const hit = this.areaRay.ray.intersectPlane(_areaPlane, _areaHit);
+    if (!hit || hit.distanceTo(this.areaRay.ray.origin) > AREA_REACH) return null;
+    return tileAt(hit.x, hit.z);
   }
 
   /**
