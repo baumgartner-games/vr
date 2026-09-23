@@ -5,7 +5,13 @@ import type { PlanSolidKind } from '../grid/solids';
 import { createSky } from '../shared/environment';
 import { DustTrail } from '../shared/dustTrail';
 import { PLATE_TOP, PlateFloor } from '../shared/plateFloor';
-import { plateSpots, type PlateTile } from '../shared/plateField';
+import {
+  plateAnchor,
+  plateCapacity,
+  plateSpots,
+  type PlateSpot,
+  type PlateTile,
+} from '../shared/plateField';
 import { TILE } from '../nav/navTile';
 import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { WorldContext } from '../../core/types';
@@ -77,9 +83,10 @@ export class TestWorld extends GridWorld {
 
   /**
    * **Der Plattenboden draußen** (`shared/plateFloor.ts`) — die Schürze aus
-   * `Floor_Prototype`-Platten **um** das Gelände herum.
+   * `Floor_Prototype`-Platten, die **mit der Figur wandert**
+   * (`plateField.plateSpots`, `followPlates`).
    *
-   * Nur der Ring: Innerhalb des Geländes legt die Gitterwelt ihre Platten
+   * Nur außerhalb des Geländes: Darin legt die Gitterwelt ihre Platten
    * selbst, eine je gebauter Bodenkachel (`GridWorld.buildFloorPlates`,
    * `floorPlate.ts`). Zwei Lagen wären dort zwei Rechnungen für ein Bild.
    *
@@ -91,6 +98,8 @@ export class TestWorld extends GridWorld {
    * ist deshalb ein Angebot, und diese Welt ist die, die es bestellt.
    */
   private plates: PlateFloor | null = null;
+  /** Um welche Kachel die Schürze gerade liegt — `null`, bis sie das erste Mal liegt. */
+  private platesAround: PlateSpot | null = null;
 
   protected override worldId(): string {
     return 'test';
@@ -317,35 +326,50 @@ export class TestWorld extends GridWorld {
     // Unterschied zwischen der laufenden Welt und einer **Vorschau** — in
     // `PortalWorld.preview` steht kein `context`, und deshalb bauen dort schon
     // die Zonen und der Staub nicht. Für das Standbild auf der Werkzeugseite
-    // sind sechsundzwanzigtausend Platten zu viel, und aufgeräumt wird eine
-    // Vorschau allein mit `disposeTree` — das die Instanzpuffer eines Bündels
-    // gar nicht kennt.
+    // sind neuntausend Platten zu viel, und aufgeräumt wird eine Vorschau
+    // allein mit `disposeTree` — das die Instanzpuffer eines Bündels gar
+    // nicht kennt.
     //
-    // **In Metern und nicht in Kacheln**: `FIELD` steht im Kachelgitter, und
-    // dass eine Kachel ein Meter ist, sagt `nav/navTile.TILE` und nicht diese
-    // Zeile.
-    //
-    // **Ausgelassen wird das Gelände selbst**, denn dort liegen inzwischen
-    // eigene Platten — eine je gebauter Bodenkachel, gelegt von der Gitterwelt
-    // (`floorPlate.ts`, `GridWorld.buildFloorPlates`). Die Schürze ist
-    // ausschließlich das, was **davor** steht: der Ring, unter dem gar nichts
-    // gebaut ist.
-    this.plates ??= new PlateFloor(
-      this.root,
-      PLATE_PROTOTYPE,
-      plateSpots({
-        x: FIELD.x * TILE,
-        z: FIELD.z * TILE,
-        w: FIELD.w * TILE,
-        d: FIELD.d * TILE,
-      }).map((spot) => ({ x: spot.x, y: PLATE_TOP, z: spot.z })),
-    );
+    // **Leer angelegt und so groß, wie sie je wird** (`plateCapacity`): Wo
+    // sie liegt, entscheidet erst das erste Bild (`followPlates`), und dann
+    // jedes, in dem die Figur ein paar Kacheln weiter ist.
+    this.plates ??= new PlateFloor(this.root, PLATE_PROTOTYPE, [], {
+      capacity: plateCapacity(),
+    });
+    this.platesAround = null;
   }
 
   override update(dt: number, ctx: WorldContext): void {
     super.update(dt, ctx);
     for (const zone of this.zones) zone.update?.(dt, ctx);
     this.trailDust(dt, ctx);
+    this.followPlates(ctx);
+  }
+
+  /**
+   * **Die Schürze zieht der Figur nach** — gemeldet war: „die prototype floor
+   * tiles sind nicht überall zu sehen". Sie waren ein fester Ring von 48 m um
+   * das Gelände, und wer weiter hinauslief, stand am Ende auf der Leinwand.
+   *
+   * Jetzt liegen sie als Quadrat um die Kachel der Figur, und nachgezogen
+   * wird erst nach ein paar Kacheln (`plateField.plateAnchor`,
+   * `PLATE_STEP`): Neuntausend Matrizen je Kachelwechsel wären an einer Fuge
+   * ein Flackern der Bildrate. Ausgelassen wird das Gelände — dort liegen
+   * seine eigenen Platten, eine je Bodenkachel.
+   *
+   * **In Metern und nicht in Kacheln**: `FIELD` steht im Kachelgitter, und
+   * dass eine Kachel ein Meter ist, sagt `nav/navTile.TILE` und nicht diese
+   * Zeile.
+   */
+  private followPlates(ctx: WorldContext): void {
+    if (!this.plates) return;
+    const at = plateAnchor(this.platesAround, ctx.rig.position.x, ctx.rig.position.z);
+    if (!at) return;
+    this.platesAround = at;
+    const field = { x: FIELD.x * TILE, z: FIELD.z * TILE, w: FIELD.w * TILE, d: FIELD.d * TILE };
+    this.plates.reseat(
+      plateSpots(field, at).map((spot) => ({ x: spot.x, y: PLATE_TOP, z: spot.z })),
+    );
   }
 
   /**
@@ -452,6 +476,7 @@ export class TestWorld extends GridWorld {
     // (`shared/plateFloor.PlateFloor.dispose`).
     this.plates?.dispose();
     this.plates = null;
+    this.platesAround = null;
     super.dispose(ctx);
   }
 

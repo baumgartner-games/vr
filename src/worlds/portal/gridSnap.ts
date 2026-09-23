@@ -17,7 +17,9 @@ import { TILE } from '../nav/navTile';
  *
  * - **Die Kachelmitte** in x und z (`tileCentre`). Dieselbe Kachel wie überall
  *   sonst (`nav/navTile.TILE`, 1 m), also decken sich Regal, Küche und Editor
- *   ohne eine zweite Zahl.
+ *   ohne eine zweite Zahl. Was eine **gerade** Zahl Kacheln breit ist, rastet
+ *   stattdessen auf eine Fuge, und eine **Wand** steht quer immer auf einer
+ *   (`gridPose`, `snapAxis`) — dazwischen und nicht darauf.
  * - **Die Vierteldrehung** um die Hochachse (`quarterYaw`), und der Rest der
  *   Lage fällt weg: Ein Fass, das man schief in der Faust hielt, steht danach
  *   aufrecht. Nicken und Rollen zu behalten hieße, ein Möbel auf die Kante zu
@@ -110,11 +112,157 @@ export function quarterYaw(yaw: number): number {
 }
 
 /**
- * **Die eingerastete Lage** — Kachelmitte in x und z, Vierteldrehung um die
- * Hochachse, und sonst nichts.
+ * **Die eingerastete Lage** — Vierteldrehung um die Hochachse, und die Stelle
+ * so, dass das Ding **auf ganzen Kacheln** steht.
+ *
+ * Ohne `half` (die halbe Grundfläche im eigenen Rahmen des Dings, wie sie an
+ * `PhysicsBody.halfExtents` steht) ist das die Kachelmitte. Mit ihr rechnet
+ * jede Achse für sich (`snapAxis`), und das ist die Korrektur aus dem
+ * gemeldeten Befund: „die Wand steht mittig, statt am Rand der Kacheln" und
+ * „steht über 3 Kacheln, obwohl es auf 2 Kacheln stehen könnte".
  */
-export function gridPose(x: number, z: number, rotation: Turned): GridPose {
-  return { x: tileCentre(x), z: tileCentre(z), yaw: quarterYaw(yawOf(rotation)) };
+export function gridPose(
+  x: number,
+  z: number,
+  rotation: Turned,
+  half?: { readonly x: number; readonly z: number },
+): PlacePose {
+  const yaw = quarterYaw(yawOf(rotation));
+  if (!half) return { x: tileCentre(x), z: tileCentre(z), yaw, wall: null };
+  const { halfX, halfZ } = turnedHalf(half, yaw);
+  const wall = wallAxis(2 * halfX, 2 * halfZ);
+  return {
+    x: snapAxis(x, 2 * halfX, wall === 'x'),
+    z: snapAxis(z, 2 * halfZ, wall === 'z'),
+    yaw,
+    wall,
+  };
+}
+
+/**
+ * **Eine eingerastete Lage, und ob sie eine Wand ist.**
+ *
+ * `wall` nennt die Weltachse, die **quer** durch die Wand geht — die dünne.
+ * `'z'` heißt also: Die Wand läuft von Westen nach Osten und steht auf einer
+ * Fuge zwischen zwei Kachelreihen; `null` heißt, das Ding steht auf Kacheln.
+ */
+export interface PlacePose extends GridPose {
+  readonly wall: 'x' | 'z' | null;
+}
+
+/**
+ * **Die halbe Grundfläche in Weltachsen** — nach einer Vierteldrehung sind
+ * Breite und Tiefe vertauscht. Genommen wird die Hülle, die auch die Physik
+ * benutzt (`props.modelPropShape`): ein zweites Mal messen hieße, zwei Größen
+ * für ein Fass zu haben.
+ */
+export function turnedHalf(
+  half: { readonly x: number; readonly z: number },
+  yaw: number,
+): { halfX: number; halfZ: number } {
+  const turned = Math.abs(Math.sin(yaw)) > 0.5;
+  return { halfX: turned ? half.z : half.x, halfZ: turned ? half.x : half.z };
+}
+
+/**
+ * **Wie viele Kacheln ein Maß belegt** — gerundet, und mindestens eine.
+ *
+ * Gerundet und nicht aufgerundet: Eine Wand aus dem Regal ist 2,00 m breit
+ * und belegt zwei Kacheln, ein Apfel von 1,025 m eine. Wer aufrundete, gäbe
+ * dem Apfel zwei und schöbe ihn dafür auf eine Fuge.
+ */
+export function tileSpan(size: number): number {
+  if (!Number.isFinite(size)) return 1;
+  return Math.max(1, Math.round(size / TILE));
+}
+
+/**
+ * **Bis zu welcher Dicke ein Ding als Wand gilt**, in Metern — eine halbe
+ * Kachel.
+ *
+ * Nachgemessen an den Wänden des Regals: `restaurant-bits/wall` ist 0,25 m
+ * dick, die Prototyp-Wand 0,37 m, die Mauer aus `medieval-hexagon` 0,40 m.
+ * Was dicker ist als eine halbe Kachel, belegt seine Kachel und gehört auf
+ * ihre Mitte; was dünner ist, gehört **zwischen** zwei Kacheln — dorthin, wo
+ * auch die Wände des Grundrisses stehen (`nav/navGraph.ts`: „eine Wand steht
+ * zwischen zwei Kacheln").
+ */
+export const WALL_THIN = TILE / 2;
+
+/**
+ * **Wie lang eine Wand mindestens ist**, in Metern — drei Viertel einer
+ * Kachel. Ein Schild von einer Handbreit ist auch dünn, aber keine Wand, und
+ * gehört auf die Mitte seiner Kachel.
+ */
+export const WALL_LONG = 0.75 * TILE;
+
+/**
+ * **Ob eine Grundfläche eine Wand ist — und welche Achse quer durch sie geht.**
+ *
+ * Eine Wand ist dünn (`WALL_THIN`), lang (`WALL_LONG`) und mindestens doppelt
+ * so lang wie dick. Das ist eine Frage an die Grundfläche und nicht an den
+ * Dateinamen: Ein Zaun, eine Brüstung und eine Wand aus Lebkuchen gehören
+ * alle auf die Kante, und eine Liste über viertausend Dateien pflegt niemand.
+ */
+export function wallAxis(width: number, depth: number): 'x' | 'z' | null {
+  if (!Number.isFinite(width) || !Number.isFinite(depth)) return null;
+  const thin = Math.min(width, depth);
+  const long = Math.max(width, depth);
+  if (thin > WALL_THIN || long < WALL_LONG || long < 2 * thin) return null;
+  return width <= depth ? 'x' : 'z';
+}
+
+/**
+ * **Eine Achse einrasten** — auf eine Kachelmitte oder auf eine Fuge.
+ *
+ * - **Quer durch eine Wand** (`edge`): auf die nächste Fuge. Die Wand steht
+ *   dann zwischen zwei Kacheln und nicht mitten auf einer.
+ * - **Eine ungerade Zahl Kacheln** (`tileSpan`): auf die Kachelmitte — ein
+ *   Fass, ein Tisch, ein Möbel von drei Metern.
+ * - **Eine gerade Zahl**: auf die Fuge. Ein zwei Meter breites Möbel liegt
+ *   dann auf genau zwei Kacheln statt auf einer ganzen und zwei halben — genau
+ *   das war der zweite Teil des Befunds.
+ *
+ * Auf der Fuge wird mit `Math.round` gerastet: Die nächste Fuge ist gemeint,
+ * und ein Ding, das schon darauf steht, bleibt dort.
+ */
+export function snapAxis(value: number, size: number, edge: boolean): number {
+  if (edge || tileSpan(size) % 2 === 0) return Math.round(value / TILE) * TILE;
+  return tileCentre(value);
+}
+
+/**
+ * **Die Fugen, auf denen eine Wand steht** — je Kachel ihrer Länge ein Stück,
+ * als Mitte des Stücks.
+ *
+ * Das ist die Anzeige, die im Befund fehlte: „es ist nicht ersichtlich, wo
+ * genau die Wand stehen wird (Anzeige des Randes)". Ein Gitter aus Kacheln
+ * beantwortet die Frage bei einer Wand nicht — sie steht ja **zwischen**
+ * ihnen —, also leuchtet die Kante (`placeGrid.PlaceGrid.showEdges`). Ein
+ * Stück je Kachel und nicht ein Strich über alles, aus demselben Grund wie
+ * beim Gitter: Man soll zählen können, wie viele Kacheln lang sie ist.
+ */
+export interface GridEdge {
+  readonly x: number;
+  readonly z: number;
+  /** Ob die Kante von Westen nach Osten läuft (sonst von Norden nach Süden). */
+  readonly alongX: boolean;
+}
+
+export function wallEdges(pose: PlacePose, halfX: number, halfZ: number): GridEdge[] {
+  if (pose.wall === null) return [];
+  const alongX = pose.wall === 'z';
+  const length = alongX ? 2 * halfX : 2 * halfZ;
+  const count = tileSpan(length);
+  if (count > MAX_TILES) return [];
+  const centre = alongX ? pose.x : pose.z;
+  const first = centre - (count * TILE) / 2 + TILE / 2;
+  const out: GridEdge[] = [];
+  for (let index = 0; index < count; index++) {
+    const along = first + index * TILE;
+    out.push(alongX ? { x: along, z: pose.z, alongX } : { x: pose.x, z: along, alongX });
+  }
+  return out;
 }
 
 /**

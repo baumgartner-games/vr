@@ -13,8 +13,13 @@ import {
   gridPose,
   placesOnGrid,
   quarterYaw,
+  snapAxis,
   tileCentre,
+  tileSpan,
   tilesCovered,
+  turnedHalf,
+  wallAxis,
+  wallEdges,
   yawOf,
 } from './gridSnap';
 
@@ -98,6 +103,95 @@ describe('gridPose', () => {
     const first = gridPose(7.3 * TILE, 2.8 * TILE, turned(0.9));
     const again = gridPose(first.x, first.z, turned(first.yaw));
     expect(again).toEqual(first);
+  });
+});
+
+/**
+ * **Die Wand aus dem Regal** — `restaurant-bits/wall.glb`, mit dem Maßstab
+ * ihres Pakets 2,00 m breit, 2,00 m hoch und 0,25 m dick. Gemeldet: „die Wand
+ * steht mittig, statt am Rand der Kacheln" und „steht über 3 Kacheln, obwohl
+ * es auf 2 Kacheln stehen könnte".
+ */
+describe('Wände und breite Möbel', () => {
+  const WALL = { x: 1, z: 0.125 };
+
+  it('stellt eine Wand auf die Fuge zwischen zwei Kachelreihen', () => {
+    const pose = gridPose(3.3 * TILE, -2.2 * TILE, turned(0.1), WALL);
+    expect(pose.wall).toBe('z');
+    // Quer: auf der nächsten Fuge, nicht auf der Kachelmitte.
+    expect(pose.z).toBeCloseTo(-2 * TILE, 9);
+    // Längs: zwei Kacheln, also ebenfalls auf eine Fuge — genau zwei Kacheln
+    // und nicht eine ganze und zwei halbe.
+    expect(pose.x).toBeCloseTo(3 * TILE, 9);
+  });
+
+  it('dreht die Frage mit der Wand', () => {
+    const pose = gridPose(3.3 * TILE, -2.2 * TILE, turned(Math.PI / 2 - 0.1), WALL);
+    expect(pose.wall).toBe('x');
+    expect(pose.x).toBeCloseTo(3 * TILE, 9);
+    expect(pose.z).toBeCloseTo(-2 * TILE, 9);
+    const { halfX, halfZ } = turnedHalf(WALL, pose.yaw);
+    expect(halfX).toBeCloseTo(0.125, 9);
+    expect(halfZ).toBeCloseTo(1, 9);
+  });
+
+  it('bleibt beim zweiten Hinstellen, wo sie steht', () => {
+    const first = gridPose(5.49 * TILE, 1.51 * TILE, turned(0.2), WALL);
+    const again = gridPose(first.x, first.z, turned(first.yaw), WALL);
+    expect(again).toEqual(first);
+  });
+
+  it('legt ein zwei Kacheln breites Möbel auf genau zwei Kacheln', () => {
+    const pose = gridPose(4.2 * TILE, 0.7 * TILE, turned(0), { x: 1, z: 0.5 });
+    expect(pose.wall).toBeNull();
+    expect(pose.x).toBeCloseTo(4 * TILE, 9);
+    expect(pose.z).toBeCloseTo(0.5 * TILE, 9);
+    expect(tilesCovered(pose.x - 1, pose.x + 1, pose.z - 0.5, pose.z + 0.5)).toHaveLength(2);
+  });
+
+  it('lässt ein Fass und einen Apfel auf der Kachelmitte', () => {
+    expect(gridPose(2.3, 2.3, turned(0), { x: 0.3, z: 0.3 })).toMatchObject({ x: 2.5, z: 2.5 });
+    expect(gridPose(2.3, 2.3, turned(0), { x: 0.5125, z: 0.5125 })).toMatchObject({
+      x: 2.5,
+      z: 2.5,
+      wall: null,
+    });
+  });
+
+  it('erkennt eine Wand an der Grundfläche und nicht am Namen', () => {
+    expect(wallAxis(2, 0.25)).toBe('z');
+    expect(wallAxis(0.4, 1)).toBe('x');
+    // Zu dick, zu kurz, zu gedrungen: keine Wand.
+    expect(wallAxis(2, 0.8)).toBeNull();
+    expect(wallAxis(0.5, 0.1)).toBeNull();
+    expect(wallAxis(0.8, 0.45)).toBeNull();
+    expect(wallAxis(Number.NaN, 0.1)).toBeNull();
+  });
+
+  it('zählt Kacheln gerundet und nie weniger als eine', () => {
+    expect(tileSpan(2)).toBe(2);
+    expect(tileSpan(1.025)).toBe(1);
+    expect(tileSpan(0.1)).toBe(1);
+    expect(tileSpan(2.8)).toBe(3);
+    expect(tileSpan(Number.NaN)).toBe(1);
+    expect(snapAxis(2.3, 3, false)).toBeCloseTo(2.5, 9);
+    expect(snapAxis(2.3, 2, false)).toBeCloseTo(2, 9);
+    expect(snapAxis(2.7, 0.2, true)).toBeCloseTo(3, 9);
+  });
+
+  it('zeigt die Kante der Wand, ein Stück je Kachel', () => {
+    const pose = gridPose(3.3, -2.2, turned(0), WALL);
+    const edges = wallEdges(pose, 1, 0.125);
+    expect(edges).toEqual([
+      { x: 2.5, z: -2, alongX: true },
+      { x: 3.5, z: -2, alongX: true },
+    ]);
+    const across = gridPose(3.3, -2.2, turned(Math.PI / 2), WALL);
+    expect(wallEdges(across, 0.125, 1)).toEqual([
+      { x: 3, z: -2.5, alongX: false },
+      { x: 3, z: -1.5, alongX: false },
+    ]);
+    expect(wallEdges(gridPose(1, 1, turned(0), { x: 0.3, z: 0.3 }), 0.3, 0.3)).toEqual([]);
   });
 });
 

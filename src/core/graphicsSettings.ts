@@ -95,6 +95,19 @@ export interface GraphicsSettings {
    */
   hitBoxes: boolean;
   /**
+   * **Was das Wand-Ghosting sieht** (`worlds/grid/ghostView.ts`) — von oben.
+   *
+   * Jede Wand, jede Masse und jedes hingestellte Modell, das die Figur
+   * verdecken **könnte**, als gelbes Drahtgitter; was gerade durchsichtig ist,
+   * rot; und die Spalte, in der gefragt wird, weiß. Gewünscht, um Fehler im
+   * Ghosting zu finden: „wenn wir sehen könnten, welche Box/Felder unsichtbar
+   * werden sollen".
+   *
+   * Ab Werk **aus**, eine Werkstattansicht wie die Hitboxen daneben. In der
+   * Brille und aus den Augen zeigt sie nichts — dort wird nicht geghostet.
+   */
+  ghostBoxes: boolean;
+  /**
    * **Ob die unsichtbaren Griffe sichtbar sind** (`core/handleView.ts`).
    *
    * Ein Griff ist eine Stelle mit Lage und Achse, an der die Hand andockt —
@@ -367,6 +380,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   showFps: false,
   gridLines: false,
   hitBoxes: false,
+  ghostBoxes: false,
   showHandles: false,
   shadows: true,
   squish: false,
@@ -523,6 +537,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const showFps = raw.showFps === true;
   const gridLines = raw.gridLines === true;
   const hitBoxes = raw.hitBoxes === true;
+  const ghostBoxes = raw.ghostBoxes === true;
   const showHandles = raw.showHandles === true;
   // **Nicht `=== true`**, anders als die beiden darüber: Die Schatten sind ab
   // Werk **an**, und ein gespeicherter Stand von gestern kennt das Feld noch
@@ -562,6 +577,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     showFps,
     gridLines,
     hitBoxes,
+    ghostBoxes,
     showHandles,
     shadows,
     squish,
@@ -703,6 +719,7 @@ export function graphicsSummary(
         GraphicsSettings,
         | 'gridLines'
         | 'hitBoxes'
+        | 'ghostBoxes'
         | 'showHandles'
         | 'shadows'
         | 'squish'
@@ -716,6 +733,7 @@ export function graphicsSummary(
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
   const grid = settings.gridLines ? ' · Gitterlinien' : '';
   const boxes = settings.hitBoxes ? ' · Hitboxen' : '';
+  const ghosts = settings.ghostBoxes ? ' · Ghosting' : '';
   const grips = settings.showHandles ? ' · Griffe' : '';
   // Genannt wird die Abweichung: „mit Schatten" sagt niemandem etwas, „ohne
   // Schatten" erklärt ein Bild, in dem alles zu schweben scheint.
@@ -737,7 +755,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${grips}${shade}${squishy}${breath}${pads}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${ghosts}${grips}${shade}${squishy}${breath}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

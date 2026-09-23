@@ -482,6 +482,7 @@ export class App {
       avatars: this.avatars,
       role: this.role,
       topDown: this.topDown,
+      viewCamera: this.topDown ? this.topDownCamera.camera : this.camera,
       elapsed: this.elapsed,
       frame: () => this.frameStats.latest,
       goTo: (id: string) => void this.goTo(id),
@@ -1683,6 +1684,24 @@ export class App {
             const next = saveGraphics({ hitBoxes: !graphics().hitBoxes });
             this.menuDirty = true;
             this.notify(next.hitBoxes ? 'Hitboxen an' : 'Hitboxen aus');
+          },
+        },
+        {
+          // **Was das Wand-Ghosting sieht** — gezeichnet von
+          // `worlds/grid/ghostView.ts`, von oben und in jeder Gitterwelt. Gelb
+          // kann verdecken, rot ist gerade durchsichtig, weiß ist die Spalte
+          // der Figur, in der gefragt wird.
+          id: 'gfx:ghost-boxes',
+          label: 'Ghosting zeigen',
+          sub: 'Von oben: welche Wände durchsichtig werden können (gelb) und sind (rot)',
+          caption: 'Liegt über allem · Werkstattansicht, nur in der Ansicht von oben',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.ghostBoxes,
+          run: () => {
+            const next = saveGraphics({ ghostBoxes: !graphics().ghostBoxes });
+            this.menuDirty = true;
+            this.notify(next.ghostBoxes ? 'Ghosting zeigen an' : 'Ghosting zeigen aus');
           },
         },
         {

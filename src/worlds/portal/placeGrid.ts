@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { TILE } from '../nav/navTile';
 import { KAYKIT_ACCENT } from '../../core/kaykitIndex';
-import { MAX_TILES, type GridTile } from './gridSnap';
+import { MAX_TILES, type GridEdge, type GridTile } from './gridSnap';
 
 /**
  * **Die Kacheln, auf die das Getragene fällt** — das Gitter unter der Hand.
@@ -53,9 +53,22 @@ const SEAM = 0.06;
  */
 const BAR = 0.08;
 
+/**
+ * **Wie breit die leuchtende Kante unter einer Wand ist**, in Metern.
+ *
+ * Breiter als der Rahmen einer Kachel, weil sie allein steht: Sie ist die
+ * ganze Auskunft und nicht der Rand von einer. Schmaler als die Wand selbst
+ * (die dünnste im Regal ist 0,15 m), damit sie von oben neben der Wand nicht
+ * wie ein zweiter Sockel aussieht, sondern wie die Fuge, auf der sie steht.
+ */
+const EDGE_BAR = 0.14;
+
 export class PlaceGrid {
   /** Die Flächen und ihre Rahmen — gebaut wird nur, was schon einmal nötig war. */
   private readonly quads: THREE.Object3D[] = [];
+  /** Die Kantenstücke unter einer Wand (`showEdges`), ebenso auf Vorrat. */
+  private readonly edges: THREE.Mesh[] = [];
+  private readonly edge: THREE.PlaneGeometry;
   private readonly fill: THREE.PlaneGeometry;
   private readonly frame: THREE.BufferGeometry;
   private readonly fillSkin: THREE.MeshBasicMaterial;
@@ -72,6 +85,10 @@ export class PlaceGrid {
     this.fill = new THREE.PlaneGeometry(side, side);
     this.fill.rotateX(-Math.PI / 2);
     this.frame = bandGeometry(side, BAR);
+    // Liegend und von Westen nach Osten; ein Stück von Norden nach Süden ist
+    // dasselbe Netz, um eine Vierteldrehung gedreht.
+    this.edge = new THREE.PlaneGeometry(side, EDGE_BAR);
+    this.edge.rotateX(-Math.PI / 2);
     this.fillSkin = new THREE.MeshBasicMaterial({
       color: KAYKIT_ACCENT,
       transparent: true,
@@ -125,6 +142,43 @@ export class PlaceGrid {
       quad.visible = index < count && tile !== undefined;
       if (tile) quad.position.set(tile.x, y + LIFT, tile.z);
     }
+    for (const edge of this.edges) edge.visible = false;
+    this.group.visible = true;
+  }
+
+  /**
+   * **Die Kante zeigen, auf der eine Wand stehen wird** — statt der Kacheln.
+   *
+   * Eine Wand steht **zwischen** zwei Kacheln (`gridSnap.gridPose`), und ein
+   * Gitter aus Kacheln sagte bei ihr genau das Falsche: Es leuchtete eine
+   * Kachel an, auf der gar nichts steht. Gezeigt wird deshalb die Fuge selbst,
+   * ein Stück je Kachel der Wandlänge, ohne Tiefenprüfung wie der Rahmen —
+   * die Wand, die man trägt, steht ja genau darüber.
+   */
+  showEdges(edges: readonly GridEdge[], y: number): void {
+    const count = Math.min(edges.length, MAX_TILES);
+    if (count === 0 || !Number.isFinite(y)) {
+      this.hide();
+      return;
+    }
+    while (this.edges.length < count) {
+      const bar = new THREE.Mesh(this.edge, this.frameSkin);
+      bar.name = `place-edge-${this.edges.length}`;
+      bar.castShadow = false;
+      bar.receiveShadow = false;
+      bar.renderOrder = 3;
+      this.edges.push(bar);
+      this.group.add(bar);
+    }
+    for (let index = 0; index < this.edges.length; index++) {
+      const bar = this.edges[index]!;
+      const edge = edges[index];
+      bar.visible = index < count && edge !== undefined;
+      if (!edge) continue;
+      bar.position.set(edge.x, y + LIFT, edge.z);
+      bar.rotation.y = edge.alongX ? 0 : Math.PI / 2;
+    }
+    for (const quad of this.quads) quad.visible = false;
     this.group.visible = true;
   }
 
@@ -136,7 +190,9 @@ export class PlaceGrid {
     this.group.removeFromParent();
     this.group.clear();
     this.quads.length = 0;
+    this.edges.length = 0;
     this.fill.dispose();
+    this.edge.dispose();
     this.frame.dispose();
     this.fillSkin.dispose();
     this.frameSkin.dispose();

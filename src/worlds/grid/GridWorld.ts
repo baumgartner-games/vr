@@ -25,7 +25,16 @@ import {
 } from '../nav/navTile';
 import { blockModel, blockModelSpot, type BlockKind } from './blocks';
 import { changeSlidingDoor } from './slidingDoor';
-import { blocksView, wallsHiding, type GhostCandidate } from './wallGhost';
+import {
+  GHOST_SHOULDER,
+  blocksView,
+  wallsHiding,
+  type GhostCandidate,
+  type GhostPoint,
+} from './wallGhost';
+import { ModelGhosts } from './modelGhost';
+import { GhostBoxView, type GhostBoxLine } from './ghostView';
+import { turnedHalf, yawOf } from '../portal/gridSnap';
 import { batchKey, joinsBatch, joinsGhostBatch } from './gridBatch';
 import { fixtureTile, type BlockPlacement, type GridPlan } from './gridPlan';
 import { knownKind } from './fixtures/kinds';
@@ -263,6 +272,17 @@ export abstract class GridWorld extends PortalWorld {
   private readonly wallGhosts: GhostSlab[] = [];
   /** Die zweite Palette: dieselben Farben, durchsichtig (`ghostFor`). */
   private readonly ghostPalette = new Map<PlanSolidKind, THREE.Material>();
+  /**
+   * **Was aus dem Regal hingestellt ist, wird genauso durchsichtig**
+   * (`modelGhost.ts`) — eine Wand aus dem Regal ist kein Quader aus dem
+   * Grundriss und stand deshalb bisher als einzige von oben im Weg.
+   */
+  private readonly modelGhosts = new ModelGhosts(GHOST_OPACITY);
+  /** Die hingestellten Modelle dieses Bildes, als Kandidaten (`stepWallGhosts`). */
+  private readonly modelCandidates: ModelCandidate[] = [];
+  private readonly placedScratch: PhysicsBody[] = [];
+  /** Die Werkstattansicht des Ghostings (`ghostView.ts`), ab dem ersten Anschalten. */
+  private ghostBoxView: GhostBoxView | null = null;
   /**
    * **Auf welcher Ebene das Rig steht** — die Schnittkante der Ansicht von
    * oben (`core/cutaway.ts`, `viewLevel`).
@@ -1893,20 +1913,85 @@ export abstract class GridWorld extends PortalWorld {
     // Wände stehen von oben einzeln da und aus den Augen als Bündel, und diese
     // eine Frage entscheidet beides (`showGhostBatches`).
     this.showGhostBatches(!ctx.topDown);
-    if (this.wallGhosts.length === 0) return;
     if (!ctx.topDown) {
       this.clearWallGhosts();
+      this.ghostBoxView?.hide();
       return;
     }
+    // **Von der Kamera, die das Bild zeichnet, und zwar in Weltkoordinaten.**
+    // Hier stand `ctx.camera.position` — die Kamera der eigenen Augen, und von
+    // der die Stelle **im Rig**: knapp über dessen Nullpunkt, wo auch immer
+    // man stand. Gefragt wurde damit stets aus der Reihe z = 0 heraus, und je
+    // weiter die Figur davon entfernt war, desto schiefer lag die Strecke —
+    // am Rand der Karte wurde die falsche Wand durchsichtig.
+    const eye = (ctx.viewCamera ?? ctx.camera).getWorldPosition(_eye);
     const rig = ctx.rig.position;
     const aim = { x: rig.x, y: rig.y + GHOST_AIM, z: rig.z };
-    const hidden = new Set(wallsHiding(ctx.camera.position, aim, this.wallGhosts));
+    const models = this.gatherModelCandidates();
+    const hidden = new Set<GhostCandidate>(wallsHiding(eye, aim, this.wallGhosts));
     for (const one of this.wallGhosts) this.setGhost(one, hidden.has(one));
+    const hiddenModels = wallsHiding(eye, aim, models);
+    this.modelGhosts.apply(hiddenModels.map((one) => one.entry.object));
+    for (const one of hiddenModels) hidden.add(one);
+    this.drawGhostView(eye, aim, ctx.rig.getFloorY(), models, hidden);
+  }
+
+  /**
+   * **Die hingestellten Modelle als Kästen** — Mitte und Grundfläche des
+   * Colliders, in der Vierteldrehung, in der sie stehen (`gridSnap.turnedHalf`).
+   * Jedes Bild neu, denn anders als ein Quader aus dem Grundriss kann ein
+   * Modell umfallen, weggeschoben oder woanders hingestellt werden.
+   */
+  private gatherModelCandidates(): ModelCandidate[] {
+    const out = this.modelCandidates;
+    out.length = 0;
+    for (const entry of this.placedModels(this.placedScratch)) {
+      entry.object.getWorldPosition(_spot);
+      entry.object.getWorldQuaternion(_turn);
+      const { halfX, halfZ } = turnedHalf(entry.halfExtents, yawOf(_turn));
+      const one: ModelCandidate = {
+        entry,
+        box: {
+          x: _spot.x,
+          y: _spot.y,
+          z: _spot.z,
+          w: 2 * halfX,
+          h: 2 * entry.halfExtents.y,
+          d: 2 * halfZ,
+        },
+      };
+      if (blocksView(one)) out.push(one);
+    }
+    return out;
+  }
+
+  /**
+   * **Die Werkstattansicht nachziehen** (_Grafik → Ghosting zeigen_,
+   * `ghostView.ts`) — oder weglegen, wenn das Häkchen aus ist. Gebaut wird
+   * sie erst beim ersten Anschalten: Wer es nie tut, bekommt kein Netz.
+   */
+  private drawGhostView(
+    eye: GhostPoint,
+    aim: GhostPoint,
+    floor: number,
+    models: readonly ModelCandidate[],
+    hidden: ReadonlySet<GhostCandidate>,
+  ): void {
+    if (!graphics().ghostBoxes || !this.group) {
+      this.ghostBoxView?.hide();
+      return;
+    }
+    this.ghostBoxView ??= new GhostBoxView(this.root);
+    const boxes: GhostBoxLine[] = [];
+    for (const one of this.wallGhosts) boxes.push({ box: one.box, hidden: hidden.has(one) });
+    for (const one of models) boxes.push({ box: one.box, hidden: hidden.has(one) });
+    this.ghostBoxView.show(aim, eye, floor, GHOST_SHOULDER, boxes);
   }
 
   /** Alles zurück auf sein eigenes Material. */
   private clearWallGhosts(): void {
     for (const one of this.wallGhosts) this.setGhost(one, false);
+    this.modelGhosts.clear();
   }
 
   private setGhost(one: GhostSlab, on: boolean): void {
@@ -2331,6 +2416,11 @@ export abstract class GridWorld extends PortalWorld {
     this.wallGhosts.length = 0;
     for (const material of this.ghostPalette.values()) material.dispose();
     this.ghostPalette.clear();
+    this.modelGhosts.dispose();
+    this.modelCandidates.length = 0;
+    this.placedScratch.length = 0;
+    this.ghostBoxView?.dispose();
+    this.ghostBoxView = null;
     this.rigLevel = 0;
     this.clearFixtures();
     this.dropBlockModels();
@@ -2527,6 +2617,9 @@ const _feet = new THREE.Vector3();
 /** Der Kopf, wenn das Rig um den Versatz zwischen Kopf und Ursprung zu schieben ist. */
 const _head = new THREE.Vector3();
 const _spot = new THREE.Vector3();
+/** Wo die Kamera steht, die das Bild zeichnet — für das Ghosting. */
+const _eye = new THREE.Vector3();
+const _turn = new THREE.Quaternion();
 
 /**
  * **Ein gebauter Einbau**: seine Art, sein Zustand, sein Bild, seine Körper —
@@ -2540,6 +2633,11 @@ interface GhostSlab extends GhostCandidate {
   mesh: THREE.Mesh;
   kind: PlanSolidKind;
   on: boolean;
+}
+
+/** **Ein hingestelltes Modell, das jemanden verdecken kann** (`modelGhost.ts`). */
+interface ModelCandidate extends GhostCandidate {
+  entry: PhysicsBody;
 }
 
 interface FixtureRun {

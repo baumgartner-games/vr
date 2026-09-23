@@ -443,6 +443,14 @@ unterscheiden sich Platte und Anstrich nur noch in der Farbe — und die ist
 dieselbe geworden (siehe unten). 64 m wären die Hälfte mehr an allem für
 sechzehn Meter, in denen nichts mehr passiert.
 
+**Nachtrag, September 2026: Die Schürze wandert.** Ein fester Ring hört
+irgendwo auf, und dort stand man eines Tages: „die prototype floor tiles sind
+nicht überall zu sehen." Seither liegt sie als Quadrat von 48 m nach jeder Seite
+um die Kachel der Figur und zieht nach, sobald die Figur vier Kacheln weiter ist
+(`plateField.plateSpots`, `plateAnchor`, `PLATE_STEP`; `PlateFloor.reseat`
+schreibt nur die Matrizen neu). Das sind **9 409** Platten statt 26 688 — der
+Rand ist trotzdem nie näher als 44 m.
+
 **Und der Plattenboden zieht ins Gelände ein.** Er lag bis dahin nur dort, wo
 _nichts_ gebaut war; jetzt bekommt jede Bodenkachel des Grundrisses ihre
 Platte auf die Oberkante: **7 865** Prototyp-Platten (77 × 105 Kacheln minus
