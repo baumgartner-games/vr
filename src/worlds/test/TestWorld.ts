@@ -11,6 +11,7 @@ import { ALL_GROUPS, GROUP_WORLD } from '../../physics/PhysicsWorld';
 import type { WorldContext } from '../../core/types';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
+import type { FurnitureChange } from '../../core/worldChanges';
 import { npcSkin } from '../npc/npcKinds';
 import { FIELD, HORIZON_COLORS, KITCHEN_SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
 import { spawnAt } from './spawnAt';
@@ -105,6 +106,14 @@ export class TestWorld extends GridWorld {
    */
   protected override takeFurniture(_ctx: WorldContext, path: string): boolean {
     return this.kitchen.takeShelfPiece(path);
+  }
+
+  /**
+   * **Eine eingefügte Weltänderung** — Möbel mit Kachel und Drehung hat nur
+   * die Küche (`zones/kitchen.applyChange`, `core/worldChanges.ts`).
+   */
+  protected override applyFurnitureChange(change: FurnitureChange): boolean {
+    return this.kitchen.applyChange(change);
   }
 
   protected override editorTitle(): string {

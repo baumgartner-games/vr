@@ -20,6 +20,20 @@ import type { PhysicsBody } from '../../../physics/PhysicsWorld';
 import type { PlayerAvatar } from '../../../core/PlayerAvatar';
 import type { PlayerRig } from '../../../core/PlayerRig';
 import { kitchenEyeScale, onPostureChange } from '../../../core/posture';
+import {
+  GAME_MODE_LABELS,
+  gameMode,
+  movesFurniture,
+  refillsCatalogue,
+  setGameMode,
+  type GameMode,
+} from '../../../core/gameMode';
+import {
+  changeKey,
+  recordFurniture,
+  type FurnitureChange,
+  type TilePose,
+} from '../../../core/worldChanges';
 import type { WorldContext } from '../../../core/types';
 import { TextPlane } from '../../../ui/TextPlane';
 import { KITCHEN } from '../layout';
@@ -798,6 +812,20 @@ interface Furnish {
    * ohne Station will sich dann genauso anmelden.
    */
   usable: THREE.Object3D | null;
+  /**
+   * **Frisch aus einem Katalog und noch nie hingestellt** — der Möbelkatalog,
+   * das Regal, der Kopierer (`takeFromCatalogue`).
+   *
+   * Im _Baukasten_ kommt beim Hinstellen eines solchen Stücks gleich das
+   * nächste in die Hand (`core/gameMode.refillsCatalogue`, `dropPiece`). Ein
+   * Herd, den man nur umstellt, war schon da und gibt keinen zweiten her —
+   * sonst füllte sich die Küche beim Aufräumen von selbst.
+   */
+  fresh: boolean;
+  /** Unter welchem Schlüssel die Liste der Weltänderungen dieses Möbel führt. */
+  readonly changeKey: string;
+  /** Wo es vor dem Aufheben stand — für die Liste der Weltänderungen. */
+  liftedFrom: TilePose | null;
 }
 
 /**
@@ -1341,6 +1369,7 @@ export class KitchenZone implements TestZone {
    * noch da, nachdem das Feuer schon brennt.
    */
   update(dt: number, ctx: WorldContext): void {
+    this.syncMode();
     this.aim(ctx);
     this.fitEyes(ctx);
     this.holdFeet(ctx);
@@ -1477,7 +1506,9 @@ export class KitchenZone implements TestZone {
    * Dinge: das Netz tauschen und es sagen.
    */
   private cook(dt: number): void {
-    if (!this.stations.length) return;
+    // **Beim Einrichten stehen alle Uhren** (`pauseStations`): Was auf den
+    // Möbeln liegt, bleibt liegen, aber es brät nicht weiter und niemand isst.
+    if (!this.stations.length || this.editing) return;
     for (const spot of this.stations) {
       // **Ein Möbel in den Händen arbeitet nicht** — dieselbe Zeile wie beim
       // Band nebenan (`runBelts`) und aus einem stärkeren Grund: Der Herd
@@ -1896,7 +1927,9 @@ export class KitchenZone implements TestZone {
    * der Vordermann noch nicht weggezogen ist.
    */
   private runBelts(dt: number): void {
-    if (!this.stations.length) return;
+    // Und kein Band schiebt — eine Bahn, die man gerade umbaut, soll nichts
+    // zwischen zwei Möbeln fallen lassen (`pauseStations`).
+    if (!this.stations.length || this.editing) return;
     // **Erst nachsehen, wer schon vergeben ist.** Ein Kombinierer, dessen Uhr
     // läuft, hat sich eine Nachbarkachel genommen — die darf in diesem Bild
     // weder weiterschieben noch von einem Zugband leergezogen werden. Die
@@ -2483,13 +2516,13 @@ export class KitchenZone implements TestZone {
    * Schleife geworden statt einer Zeile: Mit dem Schalter _zwei Gegenstände_
    * aus läuft sie genau einmal — es gibt genau ein Fach —, mit ihm an zweimal,
    * und jedes Fach geht an **seine** Hand. Das Möbel steht trotzdem allein
-   * davor: Es schließt jedes Essen aus (`takeFromCatalogue`, `toggleEdit`),
+   * davor: Es schließt jedes Essen aus (`takeFromCatalogue`, `setEditing`),
    * teilt sich also nie die Stelle vor dem Bauch mit einem Teller.
    */
   private carryInHands(ctx: WorldContext): void {
     // **Das getragene Möbel zuerst**, denn es teilt sich die Stelle vor dem
     // Bauch mit dem Essen und schließt es aus (`takeFromCatalogue`,
-    // `toggleEdit`): Wer Möbel trägt, trägt sonst nichts.
+    // `setEditing`): Wer Möbel trägt, trägt sonst nichts.
     this.aimHeld();
     this.shrinkPiece(ctx);
     const piece = this.lifted?.model ?? null;
@@ -2747,7 +2780,7 @@ export class KitchenZone implements TestZone {
    * der niemand mehr fragt: `heldBy` gibt danach für jede Seite dasselbe Fach
    * zurück, und das andere wäre unerreichbar. Bleiben darf eines — das der
    * zuletzt tätigen Hand (`kitchenCarry.keptOnFold`) —, und das andere geht
-   * dorthin zurück, wo es hingehört: dieselbe Regel, die `toggleEdit` und das
+   * dorthin zurück, wo es hingehört: dieselbe Regel, die `setEditing` und das
    * Aufräumen schon haben (`putBack`).
    */
   private foldHands(): void {
@@ -2904,8 +2937,9 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Alle Uhren aus, alle Flächen leer** — der gemeinsame Kern von `B`/`Y`
-   * und des Umbaus.
+   * **Alle Uhren aus, alle Flächen leer** — der Kern von `B`/`Y`. Der Umbau
+   * nimmt seit dem Spielmodus die sanftere Fassung (`pauseStations`): Dort
+   * bleibt liegen, was auf den Möbeln liegt.
    *
    * Er stand bis eben nur im Aufräumen, und der Umbau machte daneben seine
    * eigene, kürzere Fassung: Er räumte die **Hände** und ließ alles andere
@@ -2915,7 +2949,7 @@ export class KitchenZone implements TestZone {
    * man kocht nicht.
    *
    * **Geräte gehen heim, Essen geht weg** — dieselbe Unterscheidung wie in
-   * `toggleEdit` (`kitchenBuild.goesHomeOnEdit`): Topf, Pfanne und
+   * `setEditing` (`kitchenBuild.goesHomeOnEdit`): Topf, Pfanne und
    * Feuerlöscher gibt es genau einmal in dieser Küche
    * (`core/kitchenModel.takeUtensil`), und wer sie wie ein halbes Brötchen
    * wegwürfe, hätte einen Herd ohne Pfanne und keinen Weg, eine neue zu
@@ -2977,6 +3011,49 @@ export class KitchenZone implements TestZone {
     // Umbauknopf in `reset`: eine Beschriftung, die das Gegenteil dessen sagt,
     // was gerade gilt, ist schlimmer als gar keine.
     this.showLeakLabel();
+    this.hideTicket();
+  }
+
+  /**
+   * **Die Küche hält an, und was auf den Möbeln liegt, bleibt liegen** — der
+   * Anfang des Einrichtens (`setEditing`).
+   *
+   * Hier lief bis zum Spielmodus `calmStations`, also dasselbe wie bei
+   * `B`/`Y`: alle Flächen leer, alle Uhren aus. Das war die Antwort auf „man
+   * baut um, man kocht nicht" — und sie warf dabei weg, worum es beim
+   * Einrichten geht. Gewünscht war der Umbau aus _PlateUp!_: „Möbel (samt
+   * Items drauf) umstellen". Also bleibt jetzt alles, wo es ist, und fährt
+   * beim Aufheben mit (`carryLoad`).
+   *
+   * **Gekocht wird trotzdem nicht**, und das hält eine Zeile in `cook` und eine
+   * in `runBelts` fest: Die Uhren stehen, solange eingerichtet wird, und laufen
+   * danach dort weiter, wo sie standen — dieselbe Regel wie für ein einzelnes
+   * Möbel in den Händen.
+   *
+   * Aufgeräumt wird nur, was **unterwegs** war: Ein Brötchen mitten auf dem
+   * Band oder halb auf dem Weg in den Kombinierer steht zwischen zwei
+   * Kachelmitten, und beim Umstellen gehörte es keiner von beiden. Es geht auf
+   * die Kachel zurück, von der es kam. Und die **Hände** werden frei, wie
+   * bisher: Wer einrichtet, trägt Möbel und keinen Teller.
+   */
+  private pauseStations(): void {
+    this.spraying = false;
+    this.sprayLatch = false;
+    this.beltNow = null;
+    const loose = [...this.holds.values()].map((hold) => hold.thing);
+    this.holds.clear();
+    if (this.avatar) this.avatar.carry = null;
+    for (const spot of this.stations) {
+      if (spot.home.held) continue;
+      spot.belt = BELT_EMPTY;
+      spot.join = IDLE_COMBINE;
+      if (spot.on) this.restOn(spot, spot.on);
+      // Die Balken über den Stationen gehen mit — sie stünden über Möbeln, die
+      // man gleich woandershin trägt.
+      this.gauges?.clear(spot.key);
+      spot.shown = null;
+    }
+    for (const thing of loose) this.putBack(thing);
     this.hideTicket();
   }
 
@@ -3201,6 +3278,9 @@ export class KitchenZone implements TestZone {
       held: false,
       cargo: null,
       usable: null,
+      fresh: false,
+      changeKey: changeKey('kitchen'),
+      liftedFrom: null,
     };
     const foot = this.standAt(furnish);
     // **Das erste Netz je Sorte wird die Vorlage** (`models`) — aus ihm klont
@@ -5109,7 +5189,13 @@ export class KitchenZone implements TestZone {
       {
         use: () => {
           button.press();
-          return this.toggleEdit();
+          // **Der Knopf schaltet den Spielmodus** und nicht an ihm vorbei
+          // (`core/gameMode.ts`): Wer in der Küche umbaut, sieht es danach
+          // auch im Menü — und aus dem _Baukasten_ führt er zurück ans
+          // Spielen wie aus dem Einrichten.
+          setGameMode(this.editing ? 'play' : 'arrange');
+          this.syncMode();
+          return true;
         },
         usePrompt: () => (this.editing ? BUILD_BUTTON_LABELS.on : BUILD_BUTTON_LABELS.off),
         // Ein Knopf will gedrückt werden — ausgeschrieben, obwohl es die
@@ -5124,7 +5210,8 @@ export class KitchenZone implements TestZone {
   }
 
   /**
-   * **Umbau an, Umbau aus.**
+   * **Umbau an, Umbau aus** — gerufen vom Spielmodus (`syncMode`), und nur
+   * dann, wenn sich zwischen _Spielen_ und den beiden anderen etwas ändert.
    *
    * Beim Anschalten wandern die Hände frei: Wer mit einem Teller in der Hand
    * umzubauen anfängt, hätte ein Möbel **und** einen Teller darin, und beim
@@ -5142,7 +5229,7 @@ export class KitchenZone implements TestZone {
    * etwas. Was einen Platz hat, an den es gehört, geht deshalb dorthin
    * zurück; weggeworfen wird nur, was keinen hat.
    */
-  private toggleEdit(): boolean {
+  private setEditing(on: boolean, mode: GameMode): boolean {
     const world = this.world;
     if (!world) return false;
     // **In beide Richtungen die Hände frei.** Beim Ausschalten war das schon
@@ -5151,13 +5238,12 @@ export class KitchenZone implements TestZone {
     // Station, die das Abräumen gleich darauf auf ihre alte Kachel
     // zurückräumt, und der Topf läge dort, wo der Herd einmal stand.
     if (this.lifted) this.dropPiece(true);
-    this.editing = !this.editing;
-    // **Und mit den Händen hört die ganze Küche auf zu arbeiten**
-    // (`calmStations`): Der Herd brennt nicht mehr, der Gast am Tisch ist
-    // aufgestanden, das Band steht, die Stapel sind weg. Das Aufräumen selbst
-    // unterscheidet dabei wie hier zwischen Gerät und Ware
-    // (`kitchenBuild.goesHomeOnEdit`).
-    if (this.editing) this.calmStations();
+    this.editing = on;
+    // **Und mit den Händen hört die Küche auf zu arbeiten** — aber was auf den
+    // Möbeln liegt, bleibt liegen und fährt beim Umstellen mit
+    // (`pauseStations`). Die Hände unterscheiden dabei wie bisher zwischen
+    // Gerät und Ware (`kitchenBuild.goesHomeOnEdit`).
+    if (this.editing) this.pauseStations();
     // Alle Anmeldungen fallen lassen: Im Baumodus meint `A` etwas anderes,
     // und ein Möbel, das noch die Anmeldung von vorhin trägt, tut das Falsche.
     for (const furnish of this.furniture) {
@@ -5167,10 +5253,28 @@ export class KitchenZone implements TestZone {
     // Das Schild geht mit: Es sagt, was der **nächste** Druck tut.
     this.showBuildLabel();
     world.notify(
-      this.editing ? 'Umbau: Möbel sind abgeräumt und lassen sich tragen' : 'Umbau beendet',
+      this.editing
+        ? `${GAME_MODE_LABELS[mode]}: Möbel samt Inhalt lassen sich tragen`
+        : 'Spielen: die Küche arbeitet wieder',
     );
     this.refreshStations();
     return true;
+  }
+
+  /**
+   * **Der Spielmodus sagt, ob umgebaut wird** (`core/gameMode.ts`) — die Küche
+   * zieht nur nach.
+   *
+   * Jedes Bild einmal gefragt und nicht über einen Zuhörer: Ein Zuhörer
+   * müsste beim Abbauen der Welt wieder abgemeldet werden und beim Aufbauen
+   * den Stand nachholen, der sich in der Zwischenzeit geändert hat — die
+   * Frage je Bild kann beides nicht vergessen, und sie kostet einen
+   * Vergleich.
+   */
+  private syncMode(): void {
+    const mode = gameMode();
+    const wanted = movesFurniture(mode);
+    if (wanted !== this.editing) this.setEditing(wanted, mode);
   }
 
   /** Im Baumodus hört **jedes** Möbel auf `A` — und zwar auf sich selbst. */
@@ -5541,6 +5645,53 @@ export class KitchenZone implements TestZone {
   }
 
   /**
+   * **Eine Zeile aus der Liste der Weltänderungen nachstellen**
+   * (`core/worldChanges.ts`) — das _Einfügen_ im Menü.
+   *
+   * Ein Möbel, das umgestellt wurde, wird an seiner alten Stelle gesucht
+   * (Name **und** Kachel, denn Arbeitsplatten gibt es viele), aufgehoben und
+   * an der neuen hingestellt. Eines, das aus dem Katalog neu kam, entsteht neu
+   * und wird ebenso hingestellt. Beides geht über dieselben Handgriffe wie von
+   * Hand (`liftPiece`, `dropPiece`) — was mitfährt, fährt also mit, und die
+   * Liste schreibt das Einfügen selbst wieder mit.
+   *
+   * **Steht es schon da, ist nichts zu tun**, und das ist Erfolg: Wer dieselbe
+   * Liste zweimal einfügt, soll beim zweiten Mal nicht zwanzig Absagen lesen.
+   * Ist die Zielkachel belegt, geht das Möbel dorthin zurück, wo es stand —
+   * vielleicht wird sie im zweiten Durchgang frei (`PortalWorld.pasteChanges`).
+   *
+   * @returns ob es danach so steht, wie die Zeile sagt
+   */
+  applyChange(change: FurnitureChange): boolean {
+    const world = this.world;
+    if (!world) return false;
+    const piece = kitchenPiece(change.piece);
+    if (!piece) return false;
+    if (this.lifted) this.dropPiece(true);
+    const standing = (x: number, z: number): Furnish | undefined =>
+      this.furniture.find(
+        (one) => !one.held && one.piece.name === change.piece && one.x === x && one.z === z,
+      );
+    const there = standing(change.to.x, change.to.z);
+    if (there && (there.turn - change.to.turn) % 4 === 0) return true;
+    if (change.from) {
+      const furnish = standing(change.from.x, change.from.z);
+      if (!furnish || !this.liftPiece(furnish) || this.lifted !== furnish) return false;
+    } else if (!this.takeFromCatalogue(piece)) {
+      return false;
+    }
+    const lifted = this.lifted as Furnish | null;
+    if (!lifted) return false;
+    this.dropPiece(false, change.to);
+    if (this.lifted !== lifted) return true;
+    // Belegt: zurück, wo es stand — oder, frisch aus dem Katalog, auf seine
+    // Heimatkachel.
+    if (lifted.liftedFrom) this.dropPiece(false, lifted.liftedFrom);
+    if (this.lifted) this.dropPiece(true);
+    return false;
+  }
+
+  /**
    * **Ein Möbel aus dem KayKit-Regal** — dasselbe Netz, aber diesmal mit
    * seiner Regel.
    *
@@ -5619,6 +5770,7 @@ export class KitchenZone implements TestZone {
       () => null,
     );
     if (!furnish) return false;
+    furnish.fresh = true;
     this.liftPiece(furnish);
     world.notify(`${piece.label} aus dem Katalog — hinstellen mit A`);
     return true;
@@ -5940,6 +6092,10 @@ export class KitchenZone implements TestZone {
       world.notify(why);
       return true;
     }
+    // **Wo es stand, bevor es in die Hände kam** — für die Liste der
+    // Weltänderungen (`dropPiece`). Ein frisches Stück aus dem Katalog stand
+    // nirgends; seine Heimatkachel ist nur der Platz fürs Aufräumen.
+    furnish.liftedFrom = furnish.fresh ? null : { x: furnish.x, z: furnish.z, turn: furnish.turn };
     furnish.held = true;
     this.lifted = furnish;
     this.dropBody(furnish);
@@ -6089,7 +6245,7 @@ export class KitchenZone implements TestZone {
    * Gedreht wird mit dem **Auslöser**: in der Brille der Trigger der rechten
    * Hand, von oben die linke Maustaste, `RT` am Pad und der rote Knopf auf dem
    * Glas. Er ist im Umbau frei, und zwar mit Sicherheit: Wer ein Möbel trägt,
-   * trägt keinen Feuerlöscher — das Anschalten räumt die Hände (`toggleEdit`),
+   * trägt keinen Feuerlöscher — das Anschalten räumt die Hände (`setEditing`),
    * und nur ein gehaltener Löscher pustet (`kitchenSpray.sprayOn`).
    *
    * **Der Satz nennt die Seite und nicht die Himmelsrichtung**, denn die
@@ -6140,10 +6296,17 @@ export class KitchenZone implements TestZone {
    * dabei immer frei: Sie wurde beim Aufheben freigegeben, und niemand kann
    * sie in der Zwischenzeit belegt haben, weil man nur **ein** Möbel trägt.
    */
-  private dropPiece(home = false): boolean {
+  private dropPiece(home = false, at: TilePose | null = null): boolean {
     const world = this.world;
     const furnish = this.lifted;
     if (!world || !furnish) return false;
+    // **Eine ausdrückliche Stelle** kommt aus einer eingefügten Liste von
+    // Weltänderungen (`applyChange`): Dort steht, wohin und wie herum, und der
+    // Bauplatz vor den Füßen hat nichts zu sagen.
+    if (at) {
+      furnish.turn = (((at.turn % 4) + 4) % 4) as Turn;
+      furnish.size = footprint(furnish.piece, furnish.turn);
+    }
     // **Nach Hause heißt auch: wie es stand.** Die alte Kachel ist frei, die
     // alte Drehung aber nicht unbedingt harmlos — wer eine Ausgabetheke quer
     // gedreht dorthin zurückzwänge, wo sie längs stand, schöbe sie in das Möbel
@@ -6152,7 +6315,11 @@ export class KitchenZone implements TestZone {
       furnish.turn = furnish.spot.turn ?? 0;
       furnish.size = footprint(furnish.piece, furnish.turn);
     }
-    const want = home ? { x: furnish.spot.x, z: furnish.spot.z } : (this.ghostAt ?? null);
+    const want = home
+      ? { x: furnish.spot.x, z: furnish.spot.z }
+      : at
+        ? { x: at.x, z: at.z }
+        : (this.ghostAt ?? null);
     if (!want) return false;
     const target: BuildSpot = { x: want.x, z: want.z, w: furnish.size.w, d: furnish.size.d };
     const why = whyNotBuilt(target, this.taken(furnish), { w: KITCHEN.w, d: KITCHEN.d });
@@ -6164,6 +6331,19 @@ export class KitchenZone implements TestZone {
     furnish.z = target.z;
     furnish.held = false;
     this.lifted = null;
+    // **In die Liste der Weltänderungen** (`core/worldChanges.ts`) — sie
+    // schreibt nur mit, solange das Häkchen gesetzt ist, und führt eine
+    // Bilanz: dreimal umgestellt ist einmal umgestellt.
+    recordFurniture(furnish.changeKey, furnish.piece.name, furnish.liftedFrom, {
+      x: furnish.x,
+      z: furnish.z,
+      turn: furnish.turn,
+    });
+    // **Im Baukasten kommt das nächste gleich nach** (`core/gameMode.ts`) —
+    // aber nur für ein Stück, das frisch aus einem Katalog kam und jetzt
+    // wirklich hingestellt wurde. `B`/`Y` stellt heim und ist kein Hinstellen.
+    const refill = furnish.fresh && !home && !at && refillsCatalogue(gameMode());
+    furnish.fresh = false;
     // **Wieder in voller Größe**: Getragen wurde es für den Träger als
     // Miniatur (`shrinkPiece`), hingestellt wird das Möbel.
     furnish.model.scale.setScalar(kitchenPieceScale(furnish.piece));
@@ -6199,6 +6379,14 @@ export class KitchenZone implements TestZone {
         : `${furnish.piece.label} abgesetzt`,
     );
     this.refreshStations();
+    // Mit derselben Drehung in den Händen wie das eben hingestellte: Wer eine
+    // Reihe baut, hat das Wenden schon einmal erledigt.
+    if (refill && this.takeFromCatalogue(furnish.piece) && this.lifted) {
+      const next: Furnish = this.lifted;
+      next.hold = furnish.hold;
+      this.facePiece();
+      this.aimHeld();
+    }
     return true;
   }
 

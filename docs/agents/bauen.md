@@ -776,3 +776,60 @@ beides auf einmal erwischen. Im Bauplatz fällt das nicht auf (dort liegt nichts
 herum), anderswo ist es selten (die Requisiten sind beim Bauen eingefroren und
 das Haus ist unsichtbar), aber es ist da. Der saubere Weg wäre, dass die Welt
 ihr Greifen abgibt, solange die Karte draußen ist.
+
+## Der Spielmodus und die Liste der Weltänderungen
+
+**Drei Modi, eine Zeile** (`core/gameMode.ts`): _Einstellungen →
+Spielmodus_ schaltet mit jedem Klick weiter — **Spielen**, **Einrichten**,
+**Baukasten**, und wieder von vorn. Gewünscht war das mit den Namen
+_Adventure, Edit, Creative_, und ausdrücklich nicht mit diesen; die drei
+Verben sagen, was man in dem Modus tut.
+
+- **Spielen** ist die Küche, wie sie war: Gegenstände benutzen, ablegen,
+  einen Burger von der Ausgabe nehmen. Die Möbel stehen.
+- **Einrichten** ist der Umbau aus _PlateUp!_. Möbel werden aufgehoben und
+  neu hingestellt, **samt dem, was darauf liegt** — die Pfanne fährt auf
+  dem Herd mit, die Teller auf der Ausgabe (`kitchen.carryLoad`).
+  Gegenstände selbst nimmt man in dem Modus nicht in die Hand. Bis dahin
+  räumte das Anschalten des Umbaus jede Fläche leer (`calmStations`, dasselbe
+  wie `B`/`Y`); jetzt bleibt alles liegen, und nur die **Uhren stehen**:
+  `cook` und `runBelts` tun nichts, solange eingerichtet wird, und laufen
+  danach dort weiter, wo sie standen (`kitchen.pauseStations`). Aufgeräumt
+  wird nur, was gerade **unterwegs** war — ein Brötchen mitten auf dem Band
+  geht auf seine Kachel zurück — und was in den Händen lag.
+- **Baukasten** ist Einrichten, und dazu: Wer ein Stück **aus einem Katalog**
+  genommen hat — dem Möbelkatalog am Computer-Tisch, dem Kopierer oder dem
+  KayKit-Regal — und es hinstellt, hat sofort die nächste Kopie in der Hand,
+  in der Küche sogar mit derselben Drehung. Nur für frische Stücke
+  (`Furnish.fresh`, `PortalWorld.shelfFresh`): Wer einen Herd umstellt, der
+  schon stand, bekommt keinen zweiten.
+
+**Der rote Umbauknopf schaltet denselben Modus** (_Küche umbauen_ →
+Einrichten, _Küche nutzen_ → Spielen), und die Küche fragt je Bild nur ab,
+was gilt (`kitchen.syncMode`). Zwei Schalter mit je eigenem Zustand liefen
+beim ersten Druck auf den jeweils anderen auseinander. Gespeichert wird der
+Modus **nicht**: Jede Sitzung fängt mit _Spielen_ an.
+
+**Die Liste der Weltänderungen** (`core/worldChanges.ts`, Menü
+_Weltänderungen_) ist dafür da, Umgestelltes weiterzugeben — einrichten,
+_Kopieren_, in den Chat einfügen. Ein Häkchen schaltet das Mitschreiben ein;
+_Einfügen_ stellt eine kopierte Liste in der Welt nach (Zwischenablage, sonst
+ein Textfeld), _Liste leeren_ fängt neu an. Drei Entscheidungen:
+
+- **Eine Bilanz und kein Protokoll.** Dreimal umgestellt ist einmal
+  umgestellt; wer ein Möbel an seinen alten Platz zurückstellt, hat nichts
+  geändert, und die Zeile geht wieder.
+- **Die Zahlen des Aufbaus.** Ein Küchenmöbel steht als
+  `{"kitchen":"stove-pan","from":[3,0,0],"to":[8,5,2]}` darin: Kachel `x`,
+  `z` und Viertelumdrehungen relativ zur Küche, also genau das, was in
+  `kitchenPlan.KITCHEN_SPOTS` steht. `from: null` heißt: neu aus dem
+  Katalog. Modelle aus dem Regal stehen mit Weltmetern und Grad darin.
+- **Im Browser gespeichert**, anders als der Modus: Eine Liste, die beim
+  Neuladen weg ist, bevor man sie kopiert hat, ist eine halbe Stunde
+  Einrichten ohne Spur.
+
+Beim Einfügen wird ein umgestelltes Möbel an seiner alten Kachel gesucht und
+über dieselben Handgriffe wie von Hand umgesetzt (`kitchen.applyChange`), in
+zwei Durchgängen, damit getauschte Plätze aufgehen. Was schon dasteht, zählt
+als erledigt; ein Modell, das schon an derselben Stelle steht, wird nicht
+doppelt hingestellt.
