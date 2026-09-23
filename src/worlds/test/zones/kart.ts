@@ -43,6 +43,7 @@ import {
   GROUP_WORLD,
   type PhysicsBody,
 } from '../../../physics/PhysicsWorld';
+import { ROAD_SLICES, bendRoad, sliceAlong } from '../../kart/kartRoad';
 import { propFit } from './propFit';
 import { propMeasure, propPart, propShape } from './propModel';
 import type { TestZone, ZoneHost } from './zone';
@@ -94,6 +95,19 @@ const BARRIER_OFFSET = 1.1;
  * dasteht, ist eine, die beim nächsten Mal an drei Stellen geändert wird.
  */
 const BARRIER_SIZE = { x: 1, y: 0.6, z: 1 } as const;
+
+/**
+ * **Die Straße der Stadt** — eine gerade Kachel von 1 × 1 m, z längs, mit
+ * Bordstein an beiden Rändern (`kart/kartRoad.ts`).
+ */
+const ROAD_MODEL = 'city-builder-bits/road_straight.glb';
+/**
+ * **Wo in der Kachel der Asphalt oben ist**, in ihren Metern — nachgemessen:
+ * 0,035 der Asphalt, 0,036 die Linien, 0,05 der Bordstein. Diese Höhe kommt
+ * auf `TARMAC_TOP` zu liegen, damit an der Zielgeraden keine Stufe zur
+ * Boxengasse steht.
+ */
+const ROAD_ASPHALT_TOP = 0.035;
 
 /**
  * **Der Stein am Streckenrand** — `block-bits/bricks_B.glb`. Er ersetzt das
@@ -897,11 +911,62 @@ export class KartZone implements TestZone {
   private buildRoad(world: ZoneHost): void {
     const tarmac = this.own(new THREE.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.95 }));
     const paint = this.own(new THREE.MeshBasicMaterial({ color: 0xf2f4f8, toneMapped: false }));
-    world.root.add(this.ribbon(0, HALF_WIDTH, TARMAC_TOP, tarmac));
-    // Die weißen Linien knapp innerhalb der Kante; in einer Kurve braucht das
-    // Auge sie.
-    world.root.add(this.ribbon(HALF_WIDTH - 0.25, 0.08, TARMAC_TOP + 0.01, paint));
-    world.root.add(this.ribbon(-(HALF_WIDTH - 0.25), 0.08, TARMAC_TOP + 0.01, paint));
+    const built = [
+      this.ribbon(0, HALF_WIDTH, TARMAC_TOP, tarmac),
+      // Die weißen Linien knapp innerhalb der Kante; in einer Kurve braucht
+      // das Auge sie.
+      this.ribbon(HALF_WIDTH - 0.25, 0.08, TARMAC_TOP + 0.01, paint),
+      this.ribbon(-(HALF_WIDTH - 0.25), 0.08, TARMAC_TOP + 0.01, paint),
+    ];
+    for (const mesh of built) world.root.add(mesh);
+    this.fillRoad(world, built);
+  }
+
+  /**
+   * **Die Straße der KayKit-Stadt statt des gebauten Bands**
+   * (`kart/kartRoad.ts`) — nachgeladen wie die Steine der Bande
+   * (`fillBarriers`), und bis dahin, oder in einem Checkout ohne die
+   * gekauften Pakete für immer, fährt man auf dem Band.
+   */
+  private fillRoad(world: ZoneHost, built: readonly THREE.Mesh[]): void {
+    if (!canLoadModels()) return;
+    void import('../../../core/kaykitModel').then(async (module) => {
+      const model = await module.kaykitModel(ROAD_MODEL);
+      if (model) this.swapRoad(world, built, model);
+    });
+  }
+
+  /**
+   * **Aus der Kachel wird die Runde** — geschnitten, gebogen, ein Netz.
+   *
+   * Dieselben Ausgänge wie bei der Bande (`swapBarriers`): Ist die Zone
+   * abgeräumt oder gibt die Datei nicht genau ein Netz mit einem Material her,
+   * bleibt das Band liegen, und die Materialien der Kopie gehen gleich weg.
+   * Die Geometrie der Kopie gehört der Vorlage und wird nur **gelesen**.
+   */
+  private swapRoad(world: ZoneHost, built: readonly THREE.Mesh[], model: THREE.Object3D): void {
+    const part = propPart(model);
+    if (!this.world || !part) {
+      for (const skin of kaykitSkins(model)) skin.dispose();
+      return;
+    }
+    model.updateMatrixWorld(true);
+    const flat = part.mesh.geometry.clone();
+    flat.applyMatrix4(part.mesh.matrixWorld);
+    flat.computeBoundingBox();
+    const box = flat.boundingBox!;
+    const sliced = sliceAlong(flat, ROAD_SLICES, box.min.z, box.max.z);
+    flat.dispose();
+    const geometry = this.shape(
+      bendRoad(sliced, this.path, HALF_WIDTH * 2, TARMAC_TOP, ROAD_ASPHALT_TOP),
+    );
+    sliced.dispose();
+    const road = new THREE.Mesh(geometry, this.own(part.skin));
+    // Portalfähig wie das Band davor (`PortalWorld`, `surface:`).
+    road.name = 'surface:track';
+    road.receiveShadow = true;
+    world.root.add(road);
+    for (const mesh of built) mesh.removeFromParent();
   }
 
   /**

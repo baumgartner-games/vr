@@ -828,6 +828,17 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   Welt wie beim Bauen als Miniatur von oben sieht (`editor/miniature.ts`), ist
   offen. Der eigene Körper ist in der Brille ohnehin nicht zu sehen
   (`LAYER_SELF_ONLY`), der Kran also auch nicht.
+- **Aus dem Regal** (`dressCrane`, `CRANE_MODELS`): oben ein Dropship aus der
+  Raumbasis (halbe Größe), darunter die hängende Kette aus der Wundertüte
+  (`mixed-bag/chain_hanging_A`), unten ein Angelhaken, doppelt so groß
+  (`rpg-tools-bits/fishing_hook_A`). Gewünscht war: _„statt Seil die Kette und
+  unten einen Haken, gerne statt dem Kran oben ein anderes passendes Objekt
+  aus KayKit."_ Die Kette wird so lang gezogen, dass der Haken bei
+  `CRANE_CLAW_DROP` (1,15 m unter dem Dropship) endet — dort hängt, was der
+  Kran trägt. Getauscht wird erst, wenn alle drei da sind; bis dahin steht der
+  gebaute Kran mit seiner Lotschnur. Das Dropship dreht sich nicht mehr
+  (`CRANE_SPIN` 0): Ein Fluggerät mit Nase, das sich im Kreis dreht, sieht
+  verloren aus. Es schaut nach Norden.
 - **Nur lokal.** Mitspieler sehen weiter den Koch; der Modus geht nicht über
   die Leitung.
 - **Keine Physik** (`PortalWorld.updateCraneFlight`). Gewünscht war: _„als Kran

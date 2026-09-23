@@ -51,16 +51,21 @@ export function screenTopDown(view: ScreenView, mode: GameMode): boolean {
 export const CRANE_HEIGHT = 1.7;
 /** Wie weit es auf und ab schwebt, in Metern. */
 export const CRANE_BOB = 0.05;
-/** Wie schnell es sich um sich selbst dreht, im Bogenmaß je Sekunde. */
-export const CRANE_SPIN = 0.5;
+/**
+ * Wie schnell es sich um sich selbst dreht, im Bogenmaß je Sekunde — **gar
+ * nicht**, seit oben ein Dropship schwebt (`dressCrane`): Ein Fluggerät mit
+ * Nase, das sich langsam im Kreis dreht, sieht aus wie eines, das die
+ * Orientierung verloren hat. Es schaut nach Norden, und Norden ist oben.
+ */
+export const CRANE_SPIN = 0;
 /** Wie viele Klauen — drei greifen, und drei haben kein Vorn. */
 export const CRANE_CLAWS = 3;
 
 /**
- * **Wie tief die Klauen reichen**, in Metern unter dem Gehäuse — dort hängt,
- * was der Kran trägt (`craneCarryY`).
+ * **Wie tief der Haken reicht**, in Metern unter dem Kran — dort hängt, was er
+ * trägt (`craneCarryY`), und dorthin reicht die Kette (`dressCrane`).
  */
-export const CRANE_CLAW_DROP = 0.8;
+export const CRANE_CLAW_DROP = 1.15;
 
 /**
  * **Wie weit um den Punkt unter dem Kran noch etwas gemeint ist**, in Metern
@@ -236,16 +241,111 @@ export function buildCraneMark(): THREE.Group {
   return mark;
 }
 
+/**
+ * **Die Teile aus dem Regal** — oben ein Dropship aus der Raumbasis, darunter
+ * die hängende Kette aus der Wundertüte, unten ein Haken aus dem
+ * Werkzeugkasten. Gewünscht war: _„statt Seil `mixed-bag/chain_hanging_A.glb`
+ * nutzen und unten einen Haken — gerne statt dem Kran oben ein anderes
+ * passendes Objekt aus KayKit."_
+ */
+export const CRANE_MODELS = {
+  top: 'space-base-bits/dropship.glb',
+  chain: 'mixed-bag/chain_hanging_A.glb',
+  hook: 'rpg-tools-bits/fishing_hook_A.glb',
+} as const;
+/** Das Dropship ist 1,5 m lang; als Kran über einer Küche reicht die Hälfte. */
+const TOP_SCALE = 0.5;
+/** Der Angelhaken ist 27 cm hoch; als Kranhaken doppelt so groß. */
+const HOOK_SCALE = 2;
+/** Wie weit die Unterseite des Dropships unter dem Ursprung des Krans liegt. */
+const TOP_BOTTOM = -0.05;
+/** Wie weit Kette und Haken ineinander stecken, damit keine Lücke bleibt. */
+const TUCK = 0.03;
+
+/** Lädt ein Modell aus dem Regal — `core/kaykitModel.kaykitModel`, im Test ein Ersatz. */
+export type CraneLoader = (path: string) => Promise<THREE.Object3D | null>;
+
+/**
+ * **Den gebauten Kran gegen die Teile aus dem Regal tauschen** — sobald alle
+ * drei da sind, und nur dann.
+ *
+ * Bis dahin (und in einem Checkout ohne die gekauften Pakete für immer) steht
+ * der gebaute Kran da; ein halber Tausch — Dropship ohne Kette — sähe kaputt
+ * aus. Die Kette wird so lang gezogen, dass der Haken genau bei
+ * `CRANE_CLAW_DROP` endet: dort hängt, was der Kran trägt, und dafür ist der
+ * Haken da. Die Lotschnur geht mit dem gebauten Kran: Die Kette reicht jetzt
+ * selbst fast bis zum Kreis am Boden.
+ *
+ * Die Geometrie der Regalkopien gehört der Vorlage im Speicher und wird beim
+ * Abräumen nicht freigegeben (`userData.sharedAssets`, `disposeCrane`).
+ *
+ * @returns ob getauscht wurde
+ */
+export async function dressCrane(crane: THREE.Group, load: CraneLoader): Promise<boolean> {
+  const [top, chain, hook] = await Promise.all([
+    load(CRANE_MODELS.top),
+    load(CRANE_MODELS.chain),
+    load(CRANE_MODELS.hook),
+  ]);
+  if (!top || !chain || !hook || !crane.parent) {
+    for (const part of [top, chain, hook]) if (part) disposeCrane(part);
+    return false;
+  }
+  const dressed = new THREE.Group();
+  dressed.name = 'crane-dressed';
+  dressed.userData.sharedAssets = true;
+
+  top.scale.multiplyScalar(TOP_SCALE);
+  const topBox = new THREE.Box3().setFromObject(top);
+  top.position.y += TOP_BOTTOM - topBox.min.y;
+  dressed.add(top);
+
+  hook.scale.multiplyScalar(HOOK_SCALE);
+  const hookBox = new THREE.Box3().setFromObject(hook);
+  hook.position.y += -CRANE_CLAW_DROP - hookBox.min.y;
+  const hookTop = -CRANE_CLAW_DROP + (hookBox.max.y - hookBox.min.y);
+  dressed.add(hook);
+
+  const chainBox = new THREE.Box3().setFromObject(chain);
+  const span = TOP_BOTTOM + TUCK - (hookTop - TUCK);
+  const length = chainBox.max.y - chainBox.min.y;
+  if (length > 1e-6) chain.scale.multiplyScalar(span / length);
+  const scaledBox = new THREE.Box3().setFromObject(chain);
+  chain.position.y += TOP_BOTTOM + TUCK - scaledBox.max.y;
+  dressed.add(chain);
+
+  const layers = crane.layers.mask;
+  dressed.traverse((object) => {
+    object.layers.mask = layers;
+    if ((object as THREE.Mesh).isMesh) object.castShadow = true;
+  });
+  for (const built of [...crane.children]) disposeCrane(built);
+  crane.add(dressed);
+  return true;
+}
+
 /** Gibt frei, was `buildCrane` oder `buildCraneMark` gebaut hat. */
 export function disposeCrane(crane: THREE.Object3D): void {
   const seen = new Set<{ dispose(): void }>();
   crane.traverse((object) => {
     const mesh = object as THREE.Mesh;
     if (!mesh.isMesh) return;
-    seen.add(mesh.geometry);
+    if (!sharedBelow(mesh, crane)) seen.add(mesh.geometry);
     const material = mesh.material;
     for (const one of Array.isArray(material) ? material : [material]) seen.add(one);
   });
   for (const one of seen) one.dispose();
   crane.removeFromParent();
+}
+
+/**
+ * Ob die Geometrie dieses Netzes einer Vorlage gehört — ein Knoten auf dem
+ * Weg nach oben trägt `userData.sharedAssets` (`core/kaykitModel.copyOf`).
+ */
+function sharedBelow(mesh: THREE.Object3D, root: THREE.Object3D): boolean {
+  for (let node: THREE.Object3D | null = mesh; node; node = node.parent) {
+    if (node.userData.sharedAssets) return true;
+    if (node === root) break;
+  }
+  return false;
 }

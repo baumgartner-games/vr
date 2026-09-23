@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import {
+  CRANE_MODELS,
+  dressCrane,
+  type CraneLoader,
   CRANE_CLAW_DROP,
   CRANE_MARK_RADIUS,
   CRANE_TOUCH,
@@ -114,5 +117,65 @@ describe('crane carry and mark', () => {
     const box = new THREE.Box3().setFromObject(mark);
     expect(box.max.x).toBeCloseTo(CRANE_MARK_RADIUS);
     disposeCrane(mark);
+  });
+});
+
+describe('dressCrane', () => {
+  /** Ein Ersatz für eine Regalkopie: ein Kasten unter einem geteilten Halter. */
+  function fake(w: number, h: number, bottom: number): THREE.Object3D {
+    const holder = new THREE.Group();
+    holder.userData.sharedAssets = true;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), new THREE.MeshBasicMaterial());
+    box.position.y = bottom + h / 2;
+    holder.add(box);
+    return holder;
+  }
+  const sizes: Record<string, [number, number, number]> = {
+    [CRANE_MODELS.top]: [1.5, 0.65, 0],
+    [CRANE_MODELS.chain]: [0.15, 0.94, -0.94],
+    [CRANE_MODELS.hook]: [0.12, 0.27, -0.22],
+  };
+  const load: CraneLoader = (path) => {
+    const size = sizes[path];
+    return Promise.resolve(size ? fake(...size) : null);
+  };
+
+  it('tauscht den gebauten Kran gegen Dropship, Kette und Haken', async () => {
+    const crane = buildCrane();
+    new THREE.Group().add(crane);
+    expect(await dressCrane(crane, load)).toBe(true);
+    expect(crane.children.map((child) => child.name)).toEqual(['crane-dressed']);
+    const [top, hook, chain] = crane.children[0]!.children;
+    const topBox = new THREE.Box3().setFromObject(top!);
+    const chainBox = new THREE.Box3().setFromObject(chain!);
+    const hookBox = new THREE.Box3().setFromObject(hook!);
+    // Der Haken endet dort, wo das Getragene hängt …
+    expect(hookBox.min.y).toBeCloseTo(-CRANE_CLAW_DROP, 6);
+    // … und die Kette reicht ohne Lücke vom Dropship bis in den Haken.
+    expect(chainBox.max.y).toBeGreaterThanOrEqual(topBox.min.y);
+    expect(chainBox.min.y).toBeLessThanOrEqual(hookBox.max.y);
+  });
+
+  it('lässt den gebauten Kran stehen, solange ein Teil fehlt', async () => {
+    const crane = buildCrane();
+    new THREE.Group().add(crane);
+    const before = crane.children.length;
+    const partial: CraneLoader = (path) =>
+      path === CRANE_MODELS.hook ? Promise.resolve(null) : load(path);
+    expect(await dressCrane(crane, partial)).toBe(false);
+    expect(crane.children).toHaveLength(before);
+  });
+
+  it('gibt beim Abräumen die geteilte Geometrie der Regalkopien nicht frei', async () => {
+    const crane = buildCrane();
+    new THREE.Group().add(crane);
+    await dressCrane(crane, load);
+    let disposed = 0;
+    crane.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (mesh.isMesh) mesh.geometry.addEventListener('dispose', () => disposed++);
+    });
+    disposeCrane(crane);
+    expect(disposed).toBe(0);
   });
 });
