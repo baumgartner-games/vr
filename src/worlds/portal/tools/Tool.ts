@@ -13,7 +13,14 @@ import type { PortalKey } from '../PortalSync';
 import type { BagKind } from '../props';
 import type { BeltOffset } from '../beltSettings';
 import type { PropReport, PropStyle } from '../PortalWorld';
-import type { Attachment } from './attachments';
+import type { Attachment, SightAid } from './attachments';
+
+/** Was `Tool.sightLine` über die Visierlinie sagt. */
+export interface SightLine {
+  aid: SightAid;
+  /** Wie weit das Werkzeug hinter dem Punkt noch reicht, in Metern. */
+  rear: number;
+}
 import type { PaintSurface } from './paintCanvas';
 import type { NpcControl } from '../../npc/NpcDirector';
 import type { SignControl } from '../../signs/SignRoom';
@@ -514,6 +521,21 @@ export abstract class Tool extends THREE.Group {
    */
   attachments(): readonly Attachment[] {
     return [];
+  }
+
+  /**
+   * **Die Visierlinie**, über die man mit diesem Werkzeug zielt — am Schirm
+   * aus den Augen, mit gehaltener rechter Maustaste oder LB
+   * (`PortalWorld.updateScreenHand`, `eyeHand.eyeSightPose`).
+   *
+   * Schreibt einen Punkt auf der Linie und ihre Drehung (-Z entlang, +Y oben)
+   * in den Raum des Werkzeugs und sagt, welche Zielhilfe es ist und wie weit
+   * das Werkzeug **hinter** diesem Punkt noch reicht (in Metern, entlang der
+   * Linie) — oder `null` für ein Werkzeug, über das man nicht zielt. Das ist
+   * fast jedes: nur eine Waffe hat Kimme und Korn.
+   */
+  sightLine(_point: THREE.Vector3, _rotation: THREE.Quaternion): SightLine | null {
+    return null;
   }
 
   /**

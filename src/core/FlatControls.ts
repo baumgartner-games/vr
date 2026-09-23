@@ -152,6 +152,18 @@ export class FlatControls {
   private firePointer: number | null = null;
   /** Ob die linke Maustaste gerade als Trigger unten liegt — von oben, und aus den Augen mit Werkzeug. */
   private mouseFire = false;
+  /**
+   * Ob die rechte Maustaste gerade liegt — aus den Augen, mit einem Werkzeug
+   * in der Hand, heißt das **zielen über die Waffe** (`PlayerRig.sighting`).
+   */
+  private mouseSight = false;
+  /**
+   * Welche Maustasten zuletzt lagen (`PointerEvent.buttons`). Gebraucht, weil
+   * eine **zweite** Taste kein `pointerdown` bekommt, sondern nur ein
+   * `pointermove` mit neuer Maske — wer rechts zum Zielen hält und dann links
+   * schießt, schösse sonst nie (`chordButtons`).
+   */
+  private mouseButtons = 0;
   /** Wo der Mauszeiger zuletzt stand, in CSS-Punkten. `null`: noch nie bewegt. */
   private mouse: { x: number; y: number } | null = null;
   /**
@@ -254,6 +266,8 @@ export class FlatControls {
     // Was noch gedrückt war, bleibt beim Umschalten nicht gedrückt: ein
     // Trigger, der über den Ansichtswechsel liegen bleibt, feuert weiter.
     this.mouseFire = false;
+    this.mouseSight = false;
+    this.rig.sighting = false;
     this.firePointer = null;
     this.setPressed(this.pads.fire, false);
     this.aimStick.set(0, 0);
@@ -311,6 +325,7 @@ export class FlatControls {
     const sprint = this.held('sprint') || pad.sprint;
 
     if (this.topDownOn) {
+      this.rig.sighting = false;
       this.walkNorthUp(dt, x, z, jump, sprint, pad);
       return;
     }
@@ -328,6 +343,9 @@ export class FlatControls {
     // was sie ohne Werkzeug schon immer geschossen hat (die Portale, über die
     // Welt): ein zweiter Weg dorthin wäre ein zweiter Schuss.
     this.rig.setTrigger(this.rig.armed ? this.triggerValue(pad) : 0);
+    // **Zielen über die Waffe**: rechte Maustaste oder LB halten. LB ist von
+    // oben der Zoom und hat aus den Augen sonst nichts zu tun.
+    this.rig.sighting = this.rig.armed && (this.mouseSight || pad.zoomIn);
 
     if (x === 0 && z === 0) {
       if (jump) this.rig.requestJump();
@@ -657,6 +675,9 @@ export class FlatControls {
     this.on(window, 'blur', () => {
       this.keys.clear();
       this.mouseFire = false;
+      this.mouseSight = false;
+      this.mouseButtons = 0;
+      this.rig.sighting = false;
       this.rig.useHeld = false;
       // Derselbe Gedanke eine Zeile höher: Ein Fenster, das den Fokus verliert,
       // hält keinen Stock mehr (`PlayerRig.aiming`).
@@ -694,6 +715,9 @@ export class FlatControls {
           }
           return;
         }
+        // Auch der Klick, der den Zeiger holt, zählt als liegende Taste — sonst
+        // schösse die erste Mausbewegung danach, solange er noch unten ist.
+        this.mouseButtons = event.buttons;
         if (!this.pointerLocked) {
           void this.canvas.requestPointerLock?.();
           return;
@@ -714,6 +738,7 @@ export class FlatControls {
         // oben. Dort ist die Maus alles, was man hat; hier liegt `E` neben
         // `WASD`, und eine Pistole, die in der Küche nicht schießt, weil
         // gerade ein Topf in Reichweite steht, sähe kaputt aus.
+        if (event.button === 2) this.mouseSight = true;
         if (event.button === 0 && this.rig.carrying) this.pressMouseUse();
         else if (event.button === 0 && this.rig.armed) this.mouseFire = true;
         else if (event.button === 0 && this.rig.useCandidate) this.useQueued = true;
@@ -757,6 +782,7 @@ export class FlatControls {
         // und eine echte Mausbewegung nimmt das Zielen vom Stock zurück.
         this.mouse = { x: event.clientX, y: event.clientY };
         this.aimedWithStick = false;
+        this.chordButtons(event.buttons);
         if (this.pointerLocked) this.look(event.movementX, event.movementY);
         return;
       }
@@ -787,8 +813,10 @@ export class FlatControls {
     });
 
     const end = (event: PointerEvent) => {
-      if (event.pointerType === 'mouse' && event.button === 0) {
-        this.mouseFire = false;
+      if (event.pointerType === 'mouse') {
+        if (event.button === 0) this.mouseFire = false;
+        if (event.button === 2) this.mouseSight = false;
+        this.mouseButtons = event.buttons;
       }
       if (event.pointerId === this.stickPointer) {
         this.stickPointer = null;
@@ -815,6 +843,26 @@ export class FlatControls {
     };
     this.on(this.canvas, 'pointerup', end);
     this.on(this.canvas, 'pointercancel', end);
+  }
+
+  /**
+   * **Maustasten, die zu einer schon liegenden dazukommen oder gehen.**
+   *
+   * Pointer Events melden nur die **erste** Taste als `pointerdown` und nur
+   * die **letzte** als `pointerup`; alles dazwischen kommt als `pointermove`
+   * mit neuer Tastenmaske. Aus den Augen ist genau das der Normalfall: rechts
+   * halten zum Zielen, links drücken zum Schießen. Also wird die Maske hier
+   * gelesen — was losgelassen ist, ist los, und ein neuer Linksklick mit
+   * einem Werkzeug in der Hand ist ein Schuss.
+   */
+  private chordButtons(buttons: number): void {
+    const was = this.mouseButtons;
+    this.mouseButtons = buttons;
+    if ((buttons & 1) === 0) this.mouseFire = false;
+    if ((buttons & 2) === 0) this.mouseSight = false;
+    if (this.topDownOn || !this.pointerLocked || !this.rig.armed) return;
+    if ((buttons & 1) !== 0 && (was & 1) === 0) this.mouseFire = true;
+    if ((buttons & 2) !== 0 && (was & 2) === 0) this.mouseSight = true;
   }
 
   /**

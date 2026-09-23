@@ -4,7 +4,36 @@ import { CHEF_EYE, CHEF_TOOL, POSE_SCALE } from '../../core/chefFit';
 import { screenCarryPoint, type CarrySpan, type ScreenCarryView } from '../../core/screenCarry';
 import type { PlayerRig } from '../../core/PlayerRig';
 import { GRIP_TO_RAY } from './tools/gripFit';
-import { EYE_GRIP, EYE_GRIP_LEFT, eyeGripRotation, type EyeHold } from './eyeHand';
+import {
+  EYE_GRIP,
+  EYE_GRIP_LEFT,
+  EYE_SCALE,
+  eyeGripRotation,
+  eyeSightPose,
+  type EyeHold,
+  type EyePose,
+  type EyeSight,
+} from './eyeHand';
+
+/** Was die Hand vor dem Auge in einem Bild wissen muss (`ScreenHand.update`). */
+export interface EyeView {
+  /** Wie weit das Fadenkreuz trifft, in Metern. */
+  distance: number;
+  /** Wie das Werkzeug im Griff liegt, oder `null` für die leere Hand. */
+  hold: EyeHold | null;
+  /** Die Visierlinie des Werkzeugs, oder `null`, wenn man nicht darüber zielt. */
+  sight: EyeSight | null;
+  /** Wie weit die Waffe gerade am Auge ist: 0 an der Hüfte, 1 im Anschlag. */
+  sighting: number;
+}
+
+const _hipTurn = new THREE.Quaternion();
+const _sightTurn = new THREE.Quaternion();
+const _sightAt = new THREE.Vector3();
+const _sightPose: EyePose = {
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0, w: 1 },
+};
 
 /**
  * **Die Bildschirmhand** — die rechte Hand der Figur, wenn keine Brille da
@@ -150,11 +179,11 @@ export class ScreenHand {
    * Eingabe (`PlayerRig.setTrigger`) auf die Flanken, die ein Werkzeug kennt.
    *
    * @param stretch wie hoch die Figur in diesem Bild steht (`AvatarBody.stretch`)
-   * @param eye     aus den Augen: wie weit das Fadenkreuz trifft und wie das
-   *                Werkzeug im Griff liegt (`eyeHand.ts`); `null` von oben
+   * @param eye     aus den Augen: wohin gezielt wird und wie das Werkzeug im
+   *                Griff liegt (`eyeHand.ts`); `null` von oben
    */
-  update(stretch = 1, eye: { distance: number; hold: EyeHold | null } | null = null): void {
-    if (eye) this.placeAtEye(eye.distance, eye.hold);
+  update(stretch = 1, eye: EyeView | null = null): void {
+    if (eye) this.placeAtEye(eye);
     else this.place(stretch);
     const value = this.rig.trigger;
     const down = value > TRIGGER_DOWN;
@@ -193,14 +222,20 @@ export class ScreenHand {
 
   /**
    * **Die Hand vor das Auge** — unten rechts im Bild, auf das Fadenkreuz
-   * gedreht (`eyeHand.ts`), in echter Größe und nicht auf Figurenmaß.
+   * gedreht (`eyeHand.ts`), halb so groß wie in echt (`EYE_SCALE`).
+   *
+   * **Und beim Zielen am Auge** (`EyeView.sighting`): Die Lage wandert von der
+   * Hüfte zu der, in der die Visierlinie auf der Blickachse liegt
+   * (`eyeSightPose`) — Stelle und Drehung zugleich, damit die Waffe auf dem
+   * Weg nicht durchs Bild kippt.
    *
    * Der Zeigestrahl steht dabei gegen den Griff wie an einem Controller
    * (`GRIP_TO_RAY`), und das ist der ganze Trick: Die Zielkorrektur jedes
    * Werkzeugs ist damit dieselbe wie in der Brille, also liegt die Pistole
    * so in der gezeichneten Faust wie dort.
    */
-  private placeAtEye(distance: number, hold: EyeHold | null): void {
+  private placeAtEye(view: EyeView): void {
+    const { distance, hold, sight, sighting } = view;
     const camera = this.rig.camera;
     if (!this.eye) {
       this.eye = true;
@@ -211,9 +246,23 @@ export class ScreenHand {
       this.ray.quaternion.set(GRIP_TO_RAY.x, GRIP_TO_RAY.y, GRIP_TO_RAY.z, GRIP_TO_RAY.w);
     }
     this.pivot.position.set(EYE_GRIP.x, EYE_GRIP.y, EYE_GRIP.z);
-    eyeGripRotation(EYE_GRIP, hold, distance, this.pivot.quaternion);
+    eyeGripRotation(EYE_GRIP, hold, distance, _hipTurn, EYE_SCALE);
+    this.pivot.quaternion.copy(_hipTurn);
+    let scale = EYE_SCALE;
+    if (hold && sight && sighting > 0) {
+      eyeSightPose(hold, sight, sight.scale, _sightPose);
+      const at = _sightPose.position;
+      const turn = _sightPose.rotation;
+      // Weich hinein und hinaus, damit das Anlegen nicht wie ein Sprung aussieht.
+      const t = sighting * sighting * (3 - 2 * sighting);
+      this.pivot.position.lerp(_sightAt.set(at.x, at.y, at.z), t);
+      this.pivot.quaternion.slerp(_sightTurn.set(turn.x, turn.y, turn.z, turn.w), t);
+      scale += (sight.scale - EYE_SCALE) * t;
+    }
+    this.pivot.scale.setScalar(scale);
     this.offPivot.position.set(EYE_GRIP_LEFT.x, EYE_GRIP_LEFT.y, EYE_GRIP_LEFT.z);
     eyeGripRotation(EYE_GRIP_LEFT, null, distance, this.offPivot.quaternion);
+    this.offPivot.scale.setScalar(EYE_SCALE);
     this.pivot.updateMatrixWorld(true);
     this.offPivot.updateMatrixWorld(true);
   }
@@ -258,6 +307,7 @@ export class ScreenHand {
       this.offPivot.removeFromParent();
       this.pivot.position.set(0, 0, 0);
       this.pivot.quaternion.identity();
+      this.pivot.scale.setScalar(1);
       this.ray.quaternion.identity();
     }
     // Der Kopf im Raum des Rigs — ohne Brille sitzt die Kamera genau dort, und

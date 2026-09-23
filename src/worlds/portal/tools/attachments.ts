@@ -30,6 +30,14 @@ const _scopeTurn = new THREE.Quaternion();
 const _scopeScale = new THREE.Vector3();
 const _ahead = new THREE.Vector3();
 
+/**
+ * **Die drei Zielhilfen, über die man zielt** — in der Reihenfolge, in der sie
+ * beim Zielen gewinnen, wenn mehrere auf der Schiene sitzen: erst das
+ * Fernrohr, dann der Rotpunkt, dann Kimme und Korn.
+ */
+export const SIGHT_AIDS = ['scope', 'reddot', 'irons'] as const;
+export type SightAid = (typeof SIGHT_AIDS)[number];
+
 /** What an attachment is told every frame. */
 export interface AttachmentContext {
   host: ToolHost;
@@ -86,6 +94,16 @@ export abstract class Attachment extends THREE.Group {
   resetPose(toolId: string): void {
     this.setPose(this.factoryPose);
     saveAttachmentPose(toolId, this.attachmentId, this.factoryPose);
+  }
+
+  /**
+   * **Wo man durchschaut** — ein Punkt auf der Visierlinie im eigenen Raum
+   * (die Linie läuft sein -Z entlang), und welche Art Zielhilfe das ist.
+   * `null` für alles, was man nicht ans Auge nimmt: die Flugbahn, das
+   * Röntgengerät.
+   */
+  sightPoint(_out: THREE.Vector3): SightAid | null {
+    return null;
   }
 
   update(_dt: number, _ctx: AttachmentContext): void {}
@@ -165,6 +183,12 @@ class RedDotSight extends Attachment {
     this.add(this.dot);
   }
 
+  override sightPoint(out: THREE.Vector3): SightAid {
+    // Mitten durchs Glas: dort liegt der Punkt, der 25 m draußen steht.
+    out.set(0, 0, 0);
+    return 'reddot';
+  }
+
   override update(_dt: number, ctx: AttachmentContext): void {
     this.dot.visible = ctx.held;
   }
@@ -203,6 +227,10 @@ class IronSights extends Attachment {
     const bead = new THREE.Mesh(new THREE.SphereGeometry(0.0022, 6, 5), mark);
     bead.position.set(0, 0.013, -0.163);
     this.add(bead);
+  }
+
+  override sightPoint(out: THREE.Vector3): SightAid {
+    return ironsLine(out);
   }
 }
 
@@ -506,6 +534,13 @@ class TelescopicSight extends Attachment {
     this.add(this.reticle);
   }
 
+  override sightPoint(out: THREE.Vector3): SightAid {
+    // Die hintere Linse — man schaut hinein, und das Bild darauf ist das
+    // vergrößerte.
+    out.copy(this.lens.position);
+    return 'scope';
+  }
+
   override update(_dt: number, ctx: AttachmentContext): void {
     this.zoom = ctx.zoom;
     this.live = ctx.held;
@@ -547,6 +582,19 @@ class TelescopicSight extends Attachment {
     this.target.dispose();
   }
 }
+
+/**
+ * **Die Linie über Kimme und Korn**, im Raum der Kimme: Oberkante der Kimme
+ * (1,2 cm) — die Perle des Korns vorn steht auf 1,3 cm, die Linie läuft also
+ * fast waagerecht nach vorn.
+ */
+export function ironsLine(out: THREE.Vector3): SightAid {
+  out.set(0, 0.0125, 0);
+  return 'irons';
+}
+
+/** Wo Kimme und Korn ab Werk auf der Schiene sitzen, in Metern. */
+export const IRONS_ON_RAIL = 0.034;
 
 /** Builds one of the aiming aids; `none` has nothing to build. */
 export function createSight(kind: SightKind): Attachment | null {

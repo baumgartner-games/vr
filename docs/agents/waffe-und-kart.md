@@ -186,6 +186,32 @@ einem Werkzeug geht sie aus dem Bild.
 - **Das Werkzeug bleibt über den Ansichtswechsel in der Hand.** Es kommt
   einmal mit der Bildschirmhand und wechselt danach nur über den
   Werkzeug-Knopf (`#hud-tool`, `Tab`).
+- **Aus den Augen ist alles halb so groß** (`eyeHand.EYE_SCALE`). In echter
+  Größe füllte die doppelt große Pistole das halbe Bild, und eine Tomate
+  davor deckte die Küche zu (gemeldet: _„viel zu groß, man erkennt nichts im
+  Bild"_). Gestaucht wird der Halter der Hand, also Faust und Werkzeug
+  zusammen; was getragen wird, zeichnet `PortalWorld.shrinkScreenCarry` im
+  selben Maß — **nur das Bild**: Körper, Einrasten und Gitter rechnen mit der
+  echten Größe, und beim Loslassen ist das Ding sofort wieder so groß wie im
+  Raum. **Von oben und in der Brille bleibt alles in echter Größe**: Von oben
+  ist die Kamera weit weg, und in der Brille muss ein Ding so groß sein, wie
+  die Hand es fühlt.
+- **Zielen über die Waffe: rechte Maustaste oder LB halten**
+  (`PlayerRig.sighting`). Die Waffe kommt in `EYE_SIGHT_TIME` ans Auge, bis
+  ihre Visierlinie auf der Blickachse liegt (`eyeHand.eyeSightPose`, mit
+  Test); das Fadenkreuz geht dabei weg. Welche Linie, sagt das Werkzeug
+  (`Tool.sightLine`): an der Pistole die beste Zielhilfe auf der Schiene —
+  **Fernrohr** vor **Rotpunkt** vor **Kimme & Korn** —, und ohne eine die
+  Oberkante der Waffe. Kimme und Korn sitzen mitten auf der großen Pistole,
+  also rückt sie so weit weg, dass ihr hinteres Ende 20 cm vor dem Auge
+  bleibt (`eyeSightRelief`, `EYE_REAR_CLEAR`). Das **Fernrohr** kommt als einziges in
+  echter Größe ans Auge (`eyeSightScale`): Halb so groß wäre seine Linse ein
+  Knopf. Gerechnet wird wieder aus Haltung und Schiene, nicht aus der Lage,
+  damit der Rückstoß im Anschlag zu sehen bleibt. LB ist von oben der Zoom
+  und aus den Augen sonst frei. Und weil eine **zweite** Maustaste kein
+  `pointerdown` bekommt, sondern nur ein `pointermove` mit neuer Maske, liest
+  `FlatControls.chordButtons` die Tasten dort — sonst schösse, wer rechts
+  zielt, links nie.
 
 ## Die Kartzone
 
