@@ -33,6 +33,7 @@ describe('Grafikeinstellungen', () => {
       showFps: false,
       gridLines: false,
       hitBoxes: false,
+      ghostBoxes: false,
       showHandles: false,
       shadows: true,
       // Die Animationen sind ab Werk aus — nachgerechnet wird die Kurve
@@ -208,6 +209,19 @@ describe('Grafikeinstellungen', () => {
     );
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, gridLines: true, hitBoxes: true })).toBe(
       'Einfach · Gitterlinien · Hitboxen',
+    );
+  });
+
+  /**
+   * **Was das Ghosting sieht, ebenso** — ab Werk aus, nur ein echtes Ja, und
+   * in der Überschrift nur, wenn es an ist.
+   */
+  it('merkt sich das Ghosting-Gitter nur als echtes Ja und nennt es nur, wenn es an ist', () => {
+    expect(DEFAULT_GRAPHICS.ghostBoxes).toBe(false);
+    expect(clampGraphics({ ghostBoxes: true })).toEqual({ ...DEFAULT_GRAPHICS, ghostBoxes: true });
+    expect(clampGraphics({ ghostBoxes: 1 as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true, ghostBoxes: true })).toBe(
+      'Einfach · Hitboxen · Ghosting',
     );
   });
 

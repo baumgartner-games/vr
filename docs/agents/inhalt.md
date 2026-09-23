@@ -347,7 +347,13 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
       nachhinkenden Kamera aus erwischte beim Laufen die Wand **neben** ihr —
       nach Westen die eine, nach Osten spiegelbildlich die andere. Eine Wand,
       die neben der Figur entlangläuft, verliert keine Auskunft und bleibt
-      deshalb stehen. Was sie schneidet, bekommt
+      deshalb stehen. **Gefragt wird aus der Kamera, die das Bild zeichnet**
+      (`WorldContext.viewCamera`, ihre Weltposition): Bis September 2026 stand
+      hier die Kamera der eigenen Augen, und von der die Stelle im Rig — die
+      Strecke fing damit immer in der Reihe z = 0 an, und am Rand der Karte lag
+      die durchsichtige Wand daneben. **Hingestellte Modelle zählen mit**
+      (`grid/modelGhost.ts`), und was die Rechnung sieht, zeigt _Grafik →
+      Ghosting zeigen_ (siehe [Grafik](grafik.md)). Was sie schneidet, bekommt
       für dieses eine Bild ein **durchsichtiges Zwillingsmaterial** — gleiche
       Farbe, `transparent`, `opacity 0.25`, `depthWrite false` — und danach
       sein eigenes zurück. Die Zwillinge liegen in einer zweiten Palette und
@@ -2251,12 +2257,15 @@ im Spiel also zwei Kacheln —, und in eine
   Platten davor wäre wieder genau die Kante, die keiner sehen soll. Gezählt
   werden kann trotzdem: Die Fuge sitzt jeden Meter.
 
-  **Und der Plattenboden liegt nicht nur draußen.** Rings um das Gelände geht
-  eine **Schürze** 48 m weit, und auf jeder Bodenkachel des Geländes selbst
+  **Und der Plattenboden liegt nicht nur draußen.** Um die Figur herum liegt
+  eine **Schürze** 48 m weit, die mit ihr wandert (`TestWorld.followPlates`,
+  `plateField.plateSpots` — bis September 2026 ein fester Ring um das
+  Gelände, an dessen Ende man auf die Leinwand trat), und auf jeder
+  Bodenkachel des Geländes selbst
   liegt eine Platte auf der Oberkante — Prototypenplatten unten, Steinplatten
   oben auf dem Podest, nichts in der Küche, die ihren eigenen Belag hat.
-  Zusammen sind das gut vierunddreißigtausend Platten und rund 691 000 Dreiecke
-  in **zwei** Zeichenaufrufen (`shared/plateFloor.ts`, die Rechnung dahinter in
+  Zusammen sind das höchstens gut siebzehntausend Platten (9 409 in der
+  Schürze, 7 890 auf dem Gelände) in **drei** Zeichenaufrufen (`shared/plateFloor.ts`, die Rechnung dahinter in
   `shared/plateField.ts` und `test/floorPlate.ts`); einen Schatten wirft davon
   keine. Eine Platte ist dabei genau **eine Kachel** groß, damit jede
   Plattenfuge auch eine Kachelkante ist — bei zwei Metern war nur jede zweite

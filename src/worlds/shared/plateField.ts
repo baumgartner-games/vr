@@ -13,10 +13,10 @@ import { TILE } from '../nav/navTile';
  *
  * Zwei Fragen werden hier beantwortet, und beide sind Arithmetik:
  *
- * - **Die Schürze** (`plateSpots`) — der Ring um das Gelände, dort, wo gar
+ * - **Die Schürze** (`plateSpots`) — ein Quadrat um die Figur, dort, wo gar
  *   nichts gebaut ist. Der Boden geht bis zum Horizont (500 m,
- *   `environment.WORLD_RADIUS`), die Platten können das nicht; also ein
- *   endlicher Ring, und dahinter bleibt die gekachelte Leinwand stehen — mit
+ *   `environment.WORLD_RADIUS`), die Platten können das nicht; also wandern
+ *   sie mit, und dahinter bleibt die gekachelte Leinwand stehen — mit
  *   **denselben Farben** wie die Platte darauf (siehe `PLATE_FACE`), damit die
  *   Schürze in die Textur übergeht, statt an ihr abzubrechen.
  * - **Der gebaute Boden** (`floorPlateSpots`) — jede Kachel, auf der ein
@@ -71,8 +71,14 @@ export interface PlateSpot {
 export const PLATE_SIZE = TILE;
 
 /**
- * **Wie weit der Ring über das Gelände hinausreicht**, in Metern — und was er
+ * **Wie weit die Schürze um die Figur herum reicht**, in Metern — und was sie
  * kostet.
+ *
+ * Sie wandert seit dem September 2026 mit der Figur mit (`plateSpots`); die
+ * Rechnung unten stammt aus der Zeit, als sie ein fester Ring um das Gelände
+ * war, und bleibt stehen, weil sie erklärt, warum die Zahl diese ist. Als
+ * Quadrat um die Figur sind es **97 × 97 = 9 409** Platten (`plateCapacity`),
+ * und auf dem Gelände selbst weniger — dort liegen seine eigenen.
  *
  * **Achtundvierzig.** Vorher standen hier zweiunddreißig, geborgt von der
  * Kantenlänge des Kastens, in dem diese Maschine scharfe Schatten zeichnet;
@@ -155,50 +161,95 @@ export const PLATE_FACE = 0x3493ce;
 export const PLATE_SEAM = 0x43acdf;
 
 /**
- * **Alle Platten der Schürze** — der Ring um `hole`, ohne `hole` selbst.
+ * **Die Platten der Schürze** — ein Quadrat um die Figur, ohne das Gelände.
  *
- * Das Raster hängt an der **Ecke des ausgelassenen Rechtecks** und nicht am
- * Weltnullpunkt: Damit fallen die Kanten des Geländes von selbst auf eine
- * Plattenfuge. Bei einer Platte von einer Kachel (`PLATE_SIZE`) gehen alle
- * vier auf, solange das Rechteck aus ganzen Kacheln besteht — und das tut es
- * (`layout.FIELD`, 77 × 105).
+ * Hier stand bis zum September 2026 ein fester **Ring** um das Gelände, 48 m
+ * weit. Gemeldet wurde dazu: „die prototype floor tiles sind nicht überall zu
+ * sehen" — und am Rand des Rings war das auch so: Wer weiter hinauslief, stand
+ * auf einmal auf der gemalten Leinwand, und die Grenze lief als gerade Linie
+ * quer durchs Bild. Ein Ring, der weit genug reicht, dass ihn niemand je
+ * erreicht, reicht bis zum Horizont; das sind fünfhundert Meter und
+ * Millionen Platten.
  *
- * Ausgelassen wird, was **ganz** im Rechteck liegt. Die Regel stammt aus der
- * Zeit der zwei Meter breiten Platten, als die gegenüberliegende Kante
- * zwangsläufig mitten in einer Platte lag; sie steht weiter hier, weil sie
- * auch dann noch das Richtige tut: Eine Platte, die mit einer Kante
- * herausschaut, wird gesetzt, und der Ring schließt lückenlos an das an, was
- * im Rechteck gebaut ist.
+ * Also **wandert die Schürze mit** (`worlds/test/TestWorld.followPlates`):
+ * ein Quadrat von `reach` Metern nach jeder Seite um die Kachel, auf der die
+ * Figur steht. Dort, wo man ist, liegen damit immer Platten, und ihr Rand ist
+ * immer so weit weg, wie er es beim Ring im besten Fall war. Und es ist
+ * **billiger**: 97 × 97 = 9 409 Platten statt 26 688 (siehe `PLATE_SKIRT`).
+ *
+ * Das Raster ist das der Welt (`TILE`) und nicht das des Rechtecks: Beide
+ * decken sich, solange das Gelände aus ganzen Kacheln besteht — und das tut
+ * es (`layout.FIELD`, 77 × 105).
+ *
+ * **Ausgelassen wird, was ganz im Gelände liegt** — dort legt die Gitterwelt
+ * ihre eigenen Platten, eine je Bodenkachel (`floorPlateSpots`), und eine
+ * zweite Lage darunter wäre bezahlt und nie zu sehen.
  *
  * Herausgereicht wird die **Mitte** jeder Platte, weil das die Stelle ist, an
  * der sie gesetzt wird; wer die Kanten braucht, rechnet `PLATE_SIZE / 2` dazu.
  */
 export function plateSpots(
   hole: PlateArea,
+  around: PlateSpot,
   size: number = PLATE_SIZE,
-  skirt: number = PLATE_SKIRT,
+  reach: number = PLATE_SKIRT,
 ): PlateSpot[] {
-  // So viele Platten braucht das Rechteck selbst, aufgerundet — die letzte
-  // ragt heraus, siehe oben. Und so viele kommen auf jeder Seite dazu; auch
-  // hier aufgerundet, denn eine halbe Platte Schürze gibt es nicht und zu
-  // schmal soll sie nicht werden.
-  const cols = Math.ceil(hole.w / size);
-  const rows = Math.ceil(hole.d / size);
-  const pad = Math.ceil(skirt / size);
-
+  if (![around.x, around.z, size, reach].every((value) => Number.isFinite(value)) || size <= 0) {
+    return [];
+  }
+  const pad = Math.ceil(reach / size);
+  const col0 = Math.floor(around.x / size);
+  const row0 = Math.floor(around.z / size);
   const out: PlateSpot[] = [];
-  for (let col = -pad; col < cols + pad; col++) {
-    const x = hole.x + col * size;
+  for (let col = col0 - pad; col <= col0 + pad; col++) {
+    const x = col * size;
     // Ganz im Rechteck ist eine Spalte nur, wenn **beide** Kanten drin liegen.
     const insideX = x >= hole.x && x + size <= hole.x + hole.w;
-    for (let row = -pad; row < rows + pad; row++) {
-      const z = hole.z + row * size;
+    for (let row = row0 - pad; row <= row0 + pad; row++) {
+      const z = row * size;
       const insideZ = z >= hole.z && z + size <= hole.z + hole.d;
       if (insideX && insideZ) continue;
       out.push({ x: x + size / 2, z: z + size / 2 });
     }
   }
   return out;
+}
+
+/**
+ * **Wie viele Platten die Schürze höchstens hat** — so groß wird das Bündel
+ * angelegt, einmal und nicht bei jedem Nachziehen neu.
+ */
+export function plateCapacity(size: number = PLATE_SIZE, reach: number = PLATE_SKIRT): number {
+  const side = 2 * Math.ceil(reach / size) + 1;
+  return side * side;
+}
+
+/**
+ * **Wie viele Kacheln die Figur gehen darf, bevor die Schürze nachzieht.**
+ *
+ * Nicht jede: Nachziehen heißt, neuntausend Matrizen neu zu schreiben, und
+ * wer an einer Fuge hin- und hertritt, täte das sonst in jedem zweiten Bild.
+ * Vier Kacheln sind bei 48 m Reichweite nichts, was man sieht — der Rand
+ * liegt dann zwischen 44 und 52 m weit weg statt bei genau 48.
+ */
+export const PLATE_STEP = 4;
+
+/**
+ * **Ob die Schürze nachziehen muss** — und wenn ja, um welche Kachel sie
+ * danach liegt. `null` heißt: Sie bleibt, wo sie ist.
+ */
+export function plateAnchor(
+  anchor: PlateSpot | null,
+  x: number,
+  z: number,
+  size: number = PLATE_SIZE,
+  step: number = PLATE_STEP,
+): PlateSpot | null {
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+  const here = { x: (Math.floor(x / size) + 0.5) * size, z: (Math.floor(z / size) + 0.5) * size };
+  if (!anchor) return here;
+  const far = Math.max(Math.abs(here.x - anchor.x), Math.abs(here.z - anchor.z));
+  return far >= step * size ? here : null;
 }
 
 // --- der gebaute Boden ------------------------------------------------------

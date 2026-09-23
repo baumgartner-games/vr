@@ -129,6 +129,10 @@ export class PlateFloor {
   private gone = false;
   /** Wer erfahren will, dass wirklich ein Bündel dasteht (siehe Konstruktor). */
   private readonly ready: (() => void) | undefined;
+  /** Wo die Platten gerade liegen sollen — auch solange die Datei unterwegs ist. */
+  private seats: readonly PlateSeat[];
+  /** Wie viele Platten das Bündel höchstens fasst (`reseat`). */
+  private readonly capacity: number;
 
   /**
    * `options.ready` wird **genau dann** gerufen, wenn wirklich ein Bündel
@@ -145,18 +149,37 @@ export class PlateFloor {
    * die Bedingung und nicht der Sonderfall: Ein Objekt hat genau **eine**
    * Sichtbarkeit, und das ist derselbe Satz, aus dem auch die Bündel des
    * Grundrisses je Etage entstehen (`grid/gridBatch.batchKey`).
+   *
+   * `options.capacity` ist für einen Boden, der **wandert** (`reseat`): So
+   * viele Platten fasst das Bündel dann höchstens, und es wird einmal in
+   * dieser Größe angelegt statt bei jedem Nachziehen neu.
    */
   constructor(
     root: THREE.Object3D,
     model: string,
     seats: readonly PlateSeat[],
-    options: { level?: number; ready?: () => void } = {},
+    options: { level?: number; ready?: () => void; capacity?: number } = {},
   ) {
     this.ready = options.ready;
+    this.seats = seats;
+    this.capacity = Math.max(seats.length, options.capacity ?? 0);
     this.group.name = `plate-floor:${model}`;
     if (options.level !== undefined) this.group.userData.level = options.level;
     root.add(this.group);
-    this.fill(model, seats);
+    this.fill(model);
+  }
+
+  /**
+   * **Die Platten woandershin legen** — die Schürze der Testwelt wandert mit
+   * der Figur (`plateField.plateSpots`).
+   *
+   * Dasselbe Bündel, nur neue Matrizen: kein neuer Zeichenaufruf, keine neue
+   * Geometrie. Was über `capacity` hinausgeht, fällt weg; ist die Datei noch
+   * unterwegs, gilt die neue Liste, sobald sie ankommt.
+   */
+  reseat(seats: readonly PlateSeat[]): void {
+    this.seats = seats;
+    if (this.bundle) this.place(this.bundle);
   }
 
   /**
@@ -195,12 +218,12 @@ export class PlateFloor {
    * bei der Druckplatte: `core/kaykitModel` zieht `GLTFLoader` samt
    * `import.meta` herein, und beides gibt es in Jest nicht.
    */
-  private fill(file: string, seats: readonly PlateSeat[]): void {
-    if (!canLoadModels() || seats.length === 0) return;
+  private fill(file: string): void {
+    if (!canLoadModels() || this.capacity === 0) return;
     void import('../../core/kaykitModel').then(async (module) => {
       const model = await module.kaykitModel(file);
       if (!model) return;
-      this.build(model, seats);
+      this.build(model);
     });
   }
 
@@ -215,7 +238,7 @@ export class PlateFloor {
    * der aus 2,80 m die bestellte eine Kachel macht. Eine abgeschriebene Zahl
    * wäre die, die beim nächsten Paket-Update stehen bleibt.
    */
-  private build(model: THREE.Object3D, seats: readonly PlateSeat[]): void {
+  private build(model: THREE.Object3D): void {
     const mesh = onlyMesh(model);
     const skin = mesh && !Array.isArray(mesh.material) ? mesh.material : null;
     // Abgeräumt, während die Datei unterwegs war — oder eine Datei, aus der
@@ -284,7 +307,7 @@ export class PlateFloor {
     // `computeBoundingSphere` rechnet three sie beim ersten Aussieben aus
     // einer einzigen Platte am Nullpunkt aus — und siebte damit den ganzen
     // Boden weg, sobald man von seiner Mitte wegschaut.
-    const bundle = new THREE.InstancedMesh(shape, skin, seats.length);
+    const bundle = new THREE.InstancedMesh(shape, skin, this.capacity);
     bundle.name = this.group.name;
     // Gehalten wie der texturierte Boden nebenan (`environment.createGround`):
     // Er **empfängt** Schatten und wirft keinen. Das ist bei einer Fläche
@@ -298,15 +321,23 @@ export class PlateFloor {
     // zehntausend Platten wäre.
     bundle.receiveShadow = true;
     markBackdrop(bundle);
-    seats.forEach((seat, i) => {
-      _at.makeTranslation(seat.x, seat.y, seat.z);
-      bundle.setMatrixAt(i, _at);
-    });
-    bundle.instanceMatrix.needsUpdate = true;
-    bundle.computeBoundingSphere();
+    this.place(bundle);
     this.group.add(bundle);
     this.bundle = bundle;
     this.ready?.();
+  }
+
+  /** Die Sitze in das Bündel schreiben — beim Bauen und bei jedem `reseat`. */
+  private place(bundle: THREE.InstancedMesh): void {
+    const count = Math.min(this.seats.length, this.capacity);
+    for (let i = 0; i < count; i++) {
+      const seat = this.seats[i]!;
+      _at.makeTranslation(seat.x, seat.y, seat.z);
+      bundle.setMatrixAt(i, _at);
+    }
+    bundle.count = count;
+    bundle.instanceMatrix.needsUpdate = true;
+    bundle.computeBoundingSphere();
   }
 }
 

@@ -886,6 +886,16 @@ an derselben Stelle: Der Weg durchs Menü bleibt beim Zumachen stehen
 Dauert das Laden, sagt es das: `Lädt …` am Handgelenk. Kommt nichts an, steht
 dort `… nicht geladen`, und sonst passiert nichts.
 
+**Und was geladen werden musste, kommt auch an.** Bis zum September 2026 blieb
+es beim `Lädt …`: `conjureModel` prüfte nach dem Warten, ob die Welt noch
+dieselbe ist, mit `this.context !== ctx` — aber der Kontext ist **jedes Bild
+ein neues Objekt** (`App.context` ist ein Getter). Nach dem ersten Bild Warten
+hieß die Antwort also immer „andere Welt", und das Modell wurde verworfen.
+Aufgefallen ist das nur deshalb selten, weil fast alles, was man nimmt, schon
+in seiner Kachel geladen war (`kaykitModelNow`). Gefragt wird jetzt an der
+**Physik**, die genau so lange lebt wie die Welt; dasselbe gilt für eine
+eingefügte Liste der Weltänderungen (`placeModelChange`).
+
 **Am Bildschirm und auf dem Telefon** liegt es ebenfalls in der Hand — seit
 die **Bildschirmhand** (`worlds/portal/screenHand.ts`) nicht nur Werkzeuge
 hält, sondern auch trägt. Hier stand einmal, das Modell entstehe 70 cm vor dem
@@ -936,6 +946,26 @@ Also rastet ein abgelegtes Modell ein (`worlds/portal/gridSnap.ts`,
   Fass, das man schief in der Faust hielt, steht danach aufrecht. Nicken und
   Rollen zu behalten hieße, ein Möbel auf die Kante zu stellen, das man gerade
   hinstellen wollte.
+
+**Wände stehen auf der Fuge, und was zwei Kacheln breit ist, auf zweien**
+(`gridSnap.gridPose` mit der Hülle, `snapAxis`, `wallAxis`). Gemeldet: „die
+Wand steht mittig, statt am Rand der Kacheln" und „steht über 3 Kacheln,
+obwohl es auf 2 Kacheln stehen könnte". Beides war dieselbe Regel — Ursprung
+auf die Kachelmitte —, und beides beantwortet jetzt jede Achse für sich:
+
+- **Quer durch eine Wand** geht es auf die nächste Fuge. Eine Wand ist, was
+  höchstens eine halbe Kachel dick (`WALL_THIN`), mindestens drei Viertel lang
+  (`WALL_LONG`) und doppelt so lang wie dick ist — gefragt wird die
+  Grundfläche und nicht der Dateiname, also gehören Zaun, Brüstung und
+  Lebkuchenwand genauso dorthin. Nachgemessen: `restaurant-bits/wall` ist
+  0,25 m dick, die Prototyp-Wand 0,37, die Mauer aus `medieval-hexagon` 0,40.
+- **Eine ungerade Zahl Kacheln** (gerundet, `tileSpan`) bleibt auf der
+  Kachelmitte — ein Fass, ein Tisch, ein Apfel von 1,025 m.
+- **Eine gerade Zahl** geht auf die Fuge: Die zwei Meter breite Wand liegt dann
+  auf genau zwei Kacheln statt auf einer ganzen und zwei halben.
+
+Auf der Fuge wird mit `Math.round` gerastet — gemeint ist die nächste, und was
+schon darauf steht, bleibt dort (ein Test stellt jede Lage zweimal hin).
 
 **Die Höhe bleibt, wie sie ist**, und das ist Absicht: Wo der Boden unter einem
 Punkt liegt, weiß hier niemand — es kann der Estrich sein, ein Tisch oder das
@@ -989,10 +1019,23 @@ beantwortet die Frage nicht mehr, für die es da ist. Mit der Hälfte als
 Schwelle ist es eine.
 
 **Die Hälfte zählt dabei mit**, und das ist die andere Seite derselben Regel:
-Ein zwei Meter breites Möbel steht mit seinem Ursprung auf einer Kachelmitte
-und liegt damit auf einer ganzen und zwei halben Kacheln. Alle drei leuchten —
-es ragt wirklich dorthin, und ob daneben noch Platz ist, ist die Frage, für
-die das Gitter da ist.
+Ein Möbel, das über seine Kacheln hinausragt, soll das auch zeigen. Bis zum
+September 2026 stand hier als Beispiel ein zwei Meter breites Möbel, das mit
+seinem Ursprung auf einer Kachelmitte stand und deshalb **drei** Kacheln
+anleuchtete — das Gitter sagte die Wahrheit, nur war die Wahrheit falsch
+gerastet. Seit eine gerade Zahl Kacheln auf die Fuge rastet (oben), leuchten
+unter ihm genau zwei.
+
+### Und unter einer Wand leuchtet die Kante
+
+Gemeldet: „es ist nicht ersichtlich, wo genau die Wand stehen wird (Anzeige
+des Randes)." Eine Wand steht **zwischen** zwei Kachelreihen, und ein Gitter
+aus Kacheln sagt bei ihr genau das Falsche — es leuchtet eine Kachel an, auf
+der nichts steht. Unter einer Wand liegen deshalb statt der Kacheln
+**Kantenstücke** auf der Fuge (`gridSnap.wallEdges`, `PlaceGrid.showEdges`),
+eines je Kachel ihrer Länge, 14 cm breit und wie der Rahmen ohne
+Tiefenprüfung. Eines je Kachel und nicht ein Strich über alles, aus demselben
+Grund wie beim Gitter: Man soll zählen können, wie lang sie ist.
 
 ### Warum ein Rahmen und nicht nur eine Fläche
 

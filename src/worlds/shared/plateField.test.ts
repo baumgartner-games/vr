@@ -1,8 +1,11 @@
 import {
   PLATE_SIZE,
   PLATE_SKIRT,
+  PLATE_STEP,
   floorPlateModels,
   floorPlateSpots,
+  plateAnchor,
+  plateCapacity,
   plateSpots,
   type PlateArea,
 } from './plateField';
@@ -19,7 +22,7 @@ import { TILE } from '../nav/navTile';
  * es, und jede von ihnen ist in der Brille ein Fehler, den niemand im Boden
  * sucht:
  *
- * - **Lückenlos.** Der Ring deckt sein Rechteck vollständig und ohne
+ * - **Lückenlos.** Die Schürze deckt ihr Quadrat vollständig und ohne
  *   Doppelung ab; eine ausgelassene Platte wäre ein Loch im Boden, eine
  *   doppelte ein Flimmern.
  * - **Das Gelände bleibt frei** — aber nur, soweit eine ganze Platte
@@ -49,43 +52,71 @@ function floor(x: number, z: number, w: number, d: number, top: number, level = 
 }
 
 describe('plateSpots', () => {
-  it('deckt seinen Ring lückenlos und ohne Doppelung ab', () => {
-    const spots = plateSpots(EVEN, 1, 4);
-    // 8 + 2·4 = 16 Spalten, 6 + 2·4 = 14 Zeilen, minus die 8 · 6 des Rechtecks.
-    expect(spots).toHaveLength(16 * 14 - 8 * 6);
+  /** Weit weg von jedem Loch: das volle Quadrat. */
+  const AWAY = { x: 100.5, z: -80.5 };
+
+  it('deckt sein Quadrat lückenlos und ohne Doppelung ab', () => {
+    const spots = plateSpots(EVEN, AWAY, 1, 4);
+    // 2·4 + 1 = 9 Kacheln je Seite, um die Kachel der Figur herum.
+    expect(spots).toHaveLength(9 * 9);
     expect(new Set(spots.map((one) => at(one.x, one.z))).size).toBe(spots.length);
+  });
+
+  it('liegt um die Kachel, auf der die Figur steht', () => {
+    const spots = plateSpots(EVEN, { x: 100.9, z: -80.1 }, 1, 4);
+    const xs = spots.map((one) => one.x);
+    const zs = spots.map((one) => one.z);
+    expect(Math.min(...xs)).toBe(96.5);
+    expect(Math.max(...xs)).toBe(104.5);
+    expect(Math.min(...zs)).toBe(-84.5);
+    expect(Math.max(...zs)).toBe(-76.5);
   });
 
   it('lässt ein Rechteck aus ganzen Kacheln exakt aus', () => {
     // Mit einer Platte von einer Kachel geht jedes Kachelrechteck restlos auf:
-    // Es gibt keine Platte mehr, die halb im Gelände liegt.
+    // Es gibt keine Platte, die halb im Gelände liegt — und keine Lücke davor.
     for (const hole of [EVEN, ODD]) {
-      for (const spot of plateSpots(hole, 1, 4)) {
+      const around = { x: hole.x + 1.5, z: hole.z + 1.5 };
+      const spots = plateSpots(hole, around, 1, 12);
+      for (const spot of spots) {
         const insideX = spot.x > hole.x && spot.x < hole.x + hole.w;
         const insideZ = spot.z > hole.z && spot.z < hole.z + hole.d;
         expect(insideX && insideZ).toBe(false);
       }
+      expect(spots).toHaveLength(25 * 25 - hole.w * hole.d);
     }
   });
 
-  it('reicht auf jeder Seite mindestens so weit hinaus wie bestellt', () => {
-    const skirt = 6;
-    const spots = plateSpots(ODD, 1, skirt);
-    const xs = spots.map((one) => one.x);
-    const zs = spots.map((one) => one.z);
-    expect(Math.min(...xs) - 0.5).toBeLessThanOrEqual(ODD.x - skirt);
-    expect(Math.max(...xs) + 0.5).toBeGreaterThanOrEqual(ODD.x + ODD.w + skirt);
-    expect(Math.min(...zs) - 0.5).toBeLessThanOrEqual(ODD.z - skirt);
-    expect(Math.max(...zs) + 0.5).toBeGreaterThanOrEqual(ODD.z + ODD.d + skirt);
-  });
-
-  it('legt jede Platte auf das Raster der Rechteckecke', () => {
-    for (const spot of plateSpots(ODD, 1, 6)) {
+  it('legt jede Platte auf das Raster der Welt', () => {
+    for (const spot of plateSpots(ODD, { x: -7.3, z: 2.2 }, 1, 6)) {
       // `Math.abs`, weil `%` links vom Nullpunkt `-0` liefert und `toBe` das
       // von `0` unterscheidet (`Object.is`).
-      expect(Math.abs((spot.x - 0.5 - ODD.x) % 1)).toBe(0);
-      expect(Math.abs((spot.z - 0.5 - ODD.z) % 1)).toBe(0);
+      expect(Math.abs((spot.x - 0.5) % 1)).toBe(0);
+      expect(Math.abs((spot.z - 0.5) % 1)).toBe(0);
     }
+  });
+
+  it('hält Unsinn aus', () => {
+    expect(plateSpots(EVEN, { x: Number.NaN, z: 0 }, 1, 4)).toEqual([]);
+    expect(plateSpots(EVEN, AWAY, 0, 4)).toEqual([]);
+  });
+});
+
+describe('plateAnchor', () => {
+  it('legt die Schürze beim ersten Mal um die Kachel der Figur', () => {
+    expect(plateAnchor(null, 3.2, -1.7)).toEqual({ x: 3.5, z: -1.5 });
+  });
+
+  it('zieht erst nach, wenn die Figur ein paar Kacheln weiter ist', () => {
+    const anchor = { x: 3.5, z: -1.5 };
+    expect(plateAnchor(anchor, 3.5 + PLATE_STEP - 1, -1.5)).toBeNull();
+    expect(plateAnchor(anchor, 3.5, -1.5 - PLATE_STEP + 1)).toBeNull();
+    expect(plateAnchor(anchor, 3.5 + PLATE_STEP, -1.5)).toEqual({ x: 3.5 + PLATE_STEP, z: -1.5 });
+    expect(plateAnchor(anchor, 3.5, -1.5 - PLATE_STEP)).toEqual({ x: 3.5, z: -1.5 - PLATE_STEP });
+  });
+
+  it('bleibt bei Unsinn liegen', () => {
+    expect(plateAnchor({ x: 0.5, z: 0.5 }, Number.NaN, 0)).toBeNull();
   });
 });
 
@@ -102,37 +133,37 @@ describe('die Schürze der Testwelt', () => {
     expect(PLATE_SIZE).toBe(TILE);
   });
 
-  it('kostet 26 688 Platten, und das ist die Zahl, die das Bild bezahlt', () => {
-    // (77 + 2·48) · (105 + 2·48) − 77 · 105. Bei 20 Dreiecken je Platte
-    // (`Floor_Prototype.glb`, nachgezählt an der Datei) sind das 533 760
+  it('kostet höchstens 9 409 Platten, und das ist die Zahl, die das Bild bezahlt', () => {
+    // (2·48 + 1)². Als fester Ring um das Gelände waren es 26 688 — bei 20
+    // Dreiecken je Platte (`Floor_Prototype.glb`) 188 180 statt 533 760
     // Dreiecke in **einem** Zeichenaufruf, weil es ein `InstancedMesh` ist.
     expect(PLATE_SKIRT).toBe(48);
-    expect(plateSpots(field)).toHaveLength(26688);
+    expect(plateCapacity()).toBe(9409);
+    const outside = { x: field.x - 200, z: field.z - 200 };
+    expect(plateSpots(field, outside)).toHaveLength(plateCapacity());
   });
 
   it('lässt das gebaute Gelände vollständig frei', () => {
     // Dort liegen eigene Platten, eine je Bodenkachel (`floorPlateSpots`) —
     // eine zweite Lage darunter wäre bezahlt und nie zu sehen.
     const half = PLATE_SIZE / 2;
-    for (const spot of plateSpots(field)) {
+    const edge = { x: field.x + 0.5, z: field.z + field.d - 0.5 };
+    for (const spot of plateSpots(field, edge)) {
       const inX = spot.x - half >= field.x && spot.x + half <= field.x + field.w;
       const inZ = spot.z - half >= field.z && spot.z + half <= field.z + field.d;
       expect(inX && inZ).toBe(false);
     }
   });
 
-  it('bleibt bequem innerhalb des Bodens bis zum Horizont', () => {
-    // Die Schürze liegt auf dem texturierten Kasten (`environment.createGround`,
-    // 500 m Halbmesser) — eine Platte, die darüber hinausragte, schwebte.
-    for (const spot of plateSpots(field)) {
-      expect(Math.abs(spot.x)).toBeLessThan(400);
-      expect(Math.abs(spot.z)).toBeLessThan(400);
-    }
-  });
-
-  it('reicht so weit hinaus, wie bestellt ist', () => {
-    const xs = plateSpots(field).map((one) => one.x);
-    expect(Math.min(...xs) - PLATE_SIZE / 2).toBeLessThanOrEqual(field.x - PLATE_SKIRT);
+  it('liegt überall, wohin man läuft — auch weit hinter dem alten Ring', () => {
+    // Das war der Befund: 48 m hinter dem Gelände hörten die Platten auf.
+    const far = { x: field.x - 120.5, z: field.z - 90.5 };
+    const spots = plateSpots(field, far);
+    const under = spots.some((one) => one.x === far.x && one.z === far.z);
+    expect(under).toBe(true);
+    const xs = spots.map((one) => one.x);
+    expect(Math.min(...xs) - PLATE_SIZE / 2).toBeLessThanOrEqual(far.x - PLATE_SKIRT);
+    expect(Math.max(...xs) + PLATE_SIZE / 2).toBeGreaterThanOrEqual(far.x + PLATE_SKIRT);
   });
 });
 

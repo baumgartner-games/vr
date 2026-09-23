@@ -276,9 +276,58 @@ nach dem Häkchen steht deshalb **vor** dem Aufruf und nicht danach — wer es a
 hat, merkt von der Datei nichts, und der `LineSegments` entsteht überhaupt erst
 beim ersten Mal Anschalten.
 
+## Ghosting zeigen
+
+Das fünfte Häkchen ist die dritte Auskunft und gehört zum **Wand-Ghosting**
+(_Von oben_: was zwischen Kamera und Figur steht, wird durchsichtig —
+`grid/wallGhost.ts`).
+_Menü → Grafik → **Ghosting zeigen**_ (`GraphicsSettings.ghostBoxes`, ab Werk
+aus) legt die Kästen, über die das Ghosting entscheidet, als Drahtgitter über
+die Welt (`grid/ghostView.ts`). Gewünscht mit genau diesem Zweck: „wenn wir
+sehen könnten, welche Box/Felder unsichtbar werden sollen, um diesem Bug
+entgegenzuwirken." Ein Fehler im Ghosting sieht im Bild immer gleich aus — die
+falsche Wand wird durchsichtig —, und welcher es war, sagt erst der Kasten.
+
+- **Gelb** ist ein Kasten, der verdecken **könnte** (`blocksView`: kein Boden,
+  höher als ein Knie), es in diesem Bild aber nicht tut; **rot** ist, was
+  gerade durchsichtig ist. Gezeichnet wird nur, was höchstens 14 m von der
+  Figur weg ist (`GHOST_VIEW_REACH`) — ein Gelände voller gelber Gitter ist
+  ein Teppich, in dem man den roten nicht findet.
+- **Weiß** ist die **Spalte**, in der gefragt wird, als Streifen auf dem
+  Boden: so breit wie die Schultern (`GHOST_SHOULDER`) und von der Figur bis
+  unter die Kamera. Was rot ist, muss darin stehen. Als Strecke durch die Luft
+  wäre sie nutzlos gewesen — sie läuft genau auf die Kamera zu, und von dort
+  aus ist jede solche Strecke ein Punkt (so stand es im ersten Versuch da:
+  ein waagerechter Strich quer über das Bild).
+- **Ohne Tiefenprüfung** wie die Hitboxen, und nur von oben: In der Brille und
+  aus den Augen wird nicht geghostet, also gibt es dort auch nichts zu zeigen.
+
+**Und der Fehler, für den sie bestellt wurde, war beim ersten Hinsehen da.**
+Gemeldet war: „teilweise am Rand der Karte ist der Offset nicht korrekt, wo die
+Wand unsichtbar sein soll." `stepWallGhosts` fragte mit
+`ctx.camera.position` — der Kamera der **eigenen Augen**, und die hängt als Kind
+im Rig (`PlayerRig`, `this.add(camera)`). Ihre `position` ist also die Stelle
+**im Rig**: `(0, Augenhöhe, 0)`, wo auch immer man steht. Gefragt wurde damit
+stets aus der Reihe z = 0 heraus, und je weiter die Figur davon weg war, desto
+schiefer lag die Strecke. Nahe dem Nullpunkt ging das fast gut, am Rand des
+Geländes (die Küche liegt bei z = −31) wurde die falsche Wand durchsichtig
+oder keine. Seither trägt der Weltkontext die Kamera, **aus der das Bild
+gezeichnet wird** (`WorldContext.viewCamera`: von oben die `TopDownCamera`), und
+gefragt wird mit ihrer Weltposition (`getWorldPosition`).
+
+**Und was man selbst hinstellt, wird genauso durchsichtig**
+(`grid/modelGhost.ts`). Das Ghosting kannte nur die Quader aus dem Grundriss;
+eine Wand aus dem Regal ist ein Modell und blieb stehen, während die gebaute
+daneben durchsichtig wurde. Jetzt kommt jedes hingestellte Modell
+(`PortalWorld.placedModels`, getragene nicht) mit seinem Collider-Kasten in
+**dieselbe** Rechnung, und durchsichtig wird es über einen Zwilling je Material
+— einmal gebaut, geteilt, am Netz getauscht und nicht am Material, aus demselben
+Grund wie die zweite Palette der Quader. Der schwarze Rand des Comics geht
+solange weg, der gelbe Saum des Hervorhebens bleibt.
+
 ## Griffe zeigen
 
-Das fünfte Häkchen ist die dritte Auskunft und gehört zu den Griffen, an denen
+Das sechste Häkchen ist die vierte Auskunft und gehört zu den Griffen, an denen
 eine Hand ein Ding anfasst (_Ein Griff ist auch für das, was kein Werkzeug ist_).
 Ein Griff ist absichtlich nichts, was man sieht — man nimmt die Pfanne am Stiel
 und nicht einen Punkt am Stiel. Nur lässt sich eine Lage, die man nicht sieht,

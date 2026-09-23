@@ -45,6 +45,21 @@ export interface WorldContext {
    * aus den Augen ist es falsch — dort sind es die echten Hände.
    */
   readonly topDown: boolean;
+  /**
+   * **Die Kamera, aus der dieses Bild gezeichnet wird** — von oben die
+   * Kamera schräg über der Figur (`core/TopDownCamera.ts`), sonst `camera`.
+   *
+   * `camera` ist das nicht: Sie hängt als Kind im Rig, und ihre `position`
+   * ist die Stelle **im Rig** — knapp über dem Nullpunkt, egal wo man steht.
+   * Das Wand-Ghosting hat genau damit gerechnet und fragte deshalb immer vom
+   * Weltnullpunkt aus (`grid/GridWorld.stepWallGhosts`): In der Mitte des
+   * Geländes ging das fast gut, an seinem Rand lag die durchsichtige Wand
+   * daneben. Wer eine Weltposition braucht, nimmt `getWorldPosition`.
+   *
+   * Optional, weil eine Vorschau und die Tests ohne sie auskommen; dann gilt
+   * `camera`.
+   */
+  readonly viewCamera?: THREE.PerspectiveCamera;
   /** Seconds since the app started. */
   readonly elapsed: number;
   /**

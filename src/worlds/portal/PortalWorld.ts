@@ -121,7 +121,7 @@ import {
   PROP_LABELS,
   type PropKind,
 } from './props';
-import { gridPose, placesOnGrid, tilesCovered } from './gridSnap';
+import { gridPose, placesOnGrid, tilesCovered, turnedHalf, wallEdges } from './gridSnap';
 import { PlaceGrid } from './placeGrid';
 import {
   KAYKIT_ACCENT,
@@ -3127,8 +3127,8 @@ export class PortalWorld implements World {
    * Fass doppelt hin.
    */
   private async placeModelChange(change: ModelChange): Promise<void> {
-    const ctx = this.context;
-    if (!ctx || !this.physics) return;
+    const physics = this.physics;
+    if (!this.context || !physics) return;
     const kind = modelKind(change.path);
     const at = new THREE.Vector3(change.at.x, change.at.y, change.at.z);
     for (const body of this.bodies.values()) {
@@ -3136,7 +3136,9 @@ export class PortalWorld implements World {
       if (has === kind && body.object.position.distanceTo(at) < 0.05) return;
     }
     const model = kaykitModelNow(change.path) ?? (await kaykitModel(change.path));
-    if (this.context !== ctx || !this.physics || !model) return;
+    // An der Physik und nicht am Kontext — der ist jedes Bild ein neuer
+    // (siehe `conjureModel`).
+    if (!this.context || this.physics !== physics || !model) return;
     const spin = new THREE.Quaternion().setFromAxisAngle(UP, (change.yaw * Math.PI) / 180);
     const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
     const entry = this.createModelProp(id, kind, model, at, spin);
@@ -8648,7 +8650,7 @@ export class PortalWorld implements World {
 
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
-    const pose = gridPose(_point.x, _point.z, _quaternion);
+    const pose = gridPose(_point.x, _point.z, _quaternion, entry.halfExtents);
     _point.set(pose.x, _point.y, pose.z);
     _quaternion.setFromAxisAngle(UP, pose.yaw);
 
@@ -8690,19 +8692,37 @@ export class PortalWorld implements World {
     }
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
-    const pose = gridPose(_point.x, _point.z, _quaternion);
+    const pose = gridPose(_point.x, _point.z, _quaternion, entry.halfExtents);
     // **Die Grundfläche einer Vierteldrehung** ist die des Colliders, bei einer
-    // Viertel- oder Dreivierteldrehung mit vertauschten Achsen. Genommen wird
-    // die Hülle, die auch die Physik benutzt (`props.modelPropShape`) — ein
-    // zweites Mal messen hieße, zwei Größen für ein Fass zu haben.
-    const turned = Math.abs(Math.sin(pose.yaw)) > 0.5;
-    const half = entry.halfExtents;
-    const halfX = turned ? half.z : half.x;
-    const halfZ = turned ? half.x : half.z;
-    grid.show(
-      tilesCovered(pose.x - halfX, pose.x + halfX, pose.z - halfZ, pose.z + halfZ),
-      ctx.rig.getFloorY(),
-    );
+    // Viertel- oder Dreivierteldrehung mit vertauschten Achsen
+    // (`gridSnap.turnedHalf`) — dieselbe, mit der gerade eingerastet wurde.
+    const { halfX, halfZ } = turnedHalf(entry.halfExtents, pose.yaw);
+    const floor = ctx.rig.getFloorY();
+    // **Eine Wand bekommt ihre Kante und keine Kacheln**: Sie steht zwischen
+    // zwei Reihen, und eine leuchtende Kachel sagte „hier", wo nichts steht.
+    if (pose.wall !== null) {
+      grid.showEdges(wallEdges(pose, halfX, halfZ), floor);
+      return;
+    }
+    grid.show(tilesCovered(pose.x - halfX, pose.x + halfX, pose.z - halfZ, pose.z + halfZ), floor);
+  }
+
+  /**
+   * **Was aus dem Regal hingestellt ist** — jedes Modell (`props.ModelKind`),
+   * das gerade niemand trägt.
+   *
+   * Die Gitterwelt fragt danach, weil eine hingestellte Wand von oben genauso
+   * durchsichtig werden soll wie eine gebaute (`GridWorld.stepWallGhosts`).
+   * Getragenes fällt heraus: Was man in der Hand hat, soll man sehen.
+   */
+  protected placedModels(out: PhysicsBody[]): PhysicsBody[] {
+    out.length = 0;
+    for (const entry of this.bodies.values()) {
+      if (entry.carried || entry.removed) continue;
+      const kind = (entry.object.userData as { propKind?: PropKind }).propKind ?? null;
+      if (modelPathOf(kind) !== null) out.push(entry);
+    }
+    return out;
   }
 
   /**
@@ -9057,6 +9077,7 @@ export class PortalWorld implements World {
     path: string,
     hand: Handedness | null,
   ): Promise<void> {
+    const physics = this.physics;
     let model = kaykitModelNow(path);
     if (!model) {
       // Nur, wenn wirklich gewartet wird: Was schon im Speicher liegt — und
@@ -9067,12 +9088,20 @@ export class PortalWorld implements World {
     }
     // Nach dem Warten kann alles anders sein: eine andere Welt, keine Physik
     // mehr. Was dann noch herbeigerufen würde, gehörte niemandem.
-    if (this.context !== ctx || !this.physics) return;
+    //
+    // **Gefragt wird an der Physik und nicht am Kontext.** Hier stand
+    // `this.context !== ctx` — aber der Kontext ist jedes Bild ein neues
+    // Objekt (`App.context`, ein Getter), und nach dem ersten Bild Warten
+    // war die Antwort damit immer „andere Welt": Ein Modell, das erst geladen
+    // werden musste, meldete „Lädt …" und kam nie an. Die Physik dagegen
+    // lebt genau so lange wie die Welt (`dispose`).
+    const now = this.context;
+    if (!now || !physics || this.physics !== physics) return;
     if (!model) {
-      ctx.notify(`${humanLabel(path.slice(path.lastIndexOf('/') + 1))} nicht geladen`);
+      now.notify(`${humanLabel(path.slice(path.lastIndexOf('/') + 1))} nicht geladen`);
       return;
     }
-    this.spawnModel(ctx, model, path, hand);
+    this.spawnModel(now, model, path, hand);
   }
 
   /**
