@@ -9,7 +9,7 @@
  * das lang und dünn ist, keine Zahl, sondern eine Entscheidung, und eine
  * Entscheidung ohne Test wird beim nächsten Umbau wieder zur Laune.
  */
-import { BULLET_LENGTH_IN_RADII, bulletAim, bulletScale } from './bulletFit';
+import { BULLET_LENGTH_IN_RADII, BULLET_VIEW_GROWTH, bulletAim, bulletScale } from './bulletFit';
 import { rotateVec, type Vec3 } from './tools/aim';
 
 /** Die lange Achse von `Bullet.glb`, im Maßstab seines Pakets: 0,225 × 0,7. */
@@ -19,26 +19,21 @@ const MODEL_THICKNESS = 0.0525;
 /** Der Halbmesser, den eine Kugel von 60 g hat (`PortalWorld.spawnBullet`). */
 const PLAIN_RADIUS = 0.014;
 
-describe('Die Patrone wird auf die doppelte Größe der Kugel gebracht', () => {
-  it('ist so lang, wie das Kügelchen doppelt dick war', () => {
+describe('Die Patrone wird auf das Zwanzigfache der Kugel gebracht', () => {
+  it('ist zehnmal so lang, wie das Kügelchen doppelt dick war', () => {
     const scale = bulletScale(MODEL_LENGTH, PLAIN_RADIUS);
-    // 2,8 cm Durchmesser hatte die Kugel, 5,6 cm lang wird die Patrone.
-    expect(MODEL_LENGTH * scale).toBeCloseTo(4 * PLAIN_RADIUS, 6);
-    expect(MODEL_LENGTH * scale).toBeCloseTo(0.056, 6);
-    expect(BULLET_LENGTH_IN_RADII).toBe(4);
+    // 2,8 cm Durchmesser hatte die Kugel, 5,6 cm lang war die Patrone, und
+    // „gerne 10x so groß" macht daraus 56 cm.
+    expect(BULLET_VIEW_GROWTH).toBe(10);
+    expect(BULLET_LENGTH_IN_RADII).toBe(40);
+    expect(MODEL_LENGTH * scale).toBeCloseTo(0.56, 6);
   });
 
-  it('wird dabei dünner als das Kügelchen — und das ist der Preis', () => {
-    // Die ehrliche Kehrseite der Entscheidung: Von der Seite ist die Patrone
-    // knapp doppelt so groß wie die Kugelscheibe, von vorn ist sie es nicht.
+  it('ist auch von vorn jetzt dicker als das Kügelchen', () => {
     const scale = bulletScale(MODEL_LENGTH, PLAIN_RADIUS);
     const thickness = MODEL_THICKNESS * scale;
-    expect(thickness).toBeCloseTo(0.0187, 4);
-    expect(thickness).toBeLessThan(2 * PLAIN_RADIUS);
-    // Von der Seite dagegen: 5,6 × 1,87 cm gegen die Kreisscheibe der Kugel.
-    const flank = 4 * PLAIN_RADIUS * thickness;
-    const disc = Math.PI * PLAIN_RADIUS * PLAIN_RADIUS;
-    expect(flank / disc).toBeGreaterThan(1.6);
+    expect(thickness).toBeCloseTo(0.187, 3);
+    expect(thickness).toBeGreaterThan(2 * PLAIN_RADIUS);
   });
 
   it('wächst mit der Masse, weil der Halbmesser es tut', () => {
@@ -46,7 +41,7 @@ describe('Die Patrone wird auf die doppelte Größe der Kugel gebracht', () => {
     // geht mit: Sie hängt am Halbmesser und nicht an einer eigenen Zahl.
     const heavy = 0.014 * Math.cbrt(0.48 / 0.06);
     expect(heavy).toBeCloseTo(0.028, 6);
-    expect(MODEL_LENGTH * bulletScale(MODEL_LENGTH, heavy)).toBeCloseTo(0.112, 6);
+    expect(MODEL_LENGTH * bulletScale(MODEL_LENGTH, heavy)).toBeCloseTo(1.12, 6);
   });
 
   it('lässt ein unmögliches Maß, wie es ist', () => {

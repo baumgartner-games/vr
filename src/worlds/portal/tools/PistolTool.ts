@@ -51,6 +51,17 @@ const _axisX = new THREE.Vector3(1, 0, 0);
 const GRIP_LENGTH = 0.1;
 
 /**
+ * **Die Waffe in der Hand ist doppelt so groß, wie der Griff es verlangte.**
+ *
+ * Auf den Halterzylinder gerechnet (`GRIP_LENGTH`) wirkte die Pistole in der
+ * Hand wie ein Spielzeug — gewünscht war ausdrücklich das Doppelte. Die Mitte
+ * des Griffs bleibt dabei auf der Mitte des Zylinders (`fitGun` rechnet den Ort
+ * um den Faktor herum), also wächst die Waffe **um die Faust herum** und nicht
+ * aus ihr heraus; Mündung, Schiene und Zähler ziehen über `fitParts` mit.
+ */
+const GUN_SIZE = 2;
+
+/**
  * **Die Pistole aus dem Regal** — und warum sie erst jetzt kommt.
  *
  * In der Bestandsaufnahme der Regalmodelle steht sie seit der ersten Runde mit
@@ -252,7 +263,7 @@ export class PistolTool extends Tool {
       // Brille mit in der Rechnung.
       const magazine = model.getObjectByName(GUN_MODEL_MAGAZINE);
       const anchor = this.gripPart;
-      const fit = anchor ? fitGun(model, GRIP_LENGTH, anchor.position) : null;
+      const fit = anchor ? fitGun(model, GRIP_LENGTH * GUN_SIZE, anchor.position) : null;
       // Drei Wege hier heraus, und alle drei sind normal: Das Werkzeug ist
       // inzwischen weg, die Datei hat den Magazinknoten nicht (Paket-Update),
       // oder aus dem Netz war kein Griff zu lesen. Die Kopie steht in allen

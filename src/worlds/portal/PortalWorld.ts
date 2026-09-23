@@ -17,11 +17,14 @@ import {
   GAME_MODE_HINTS,
   GAME_MODE_LABELS,
   gameMode,
+  movesFurniture,
+  movesStructure,
   nextGameMode,
   onGameMode,
   refillsCatalogue,
   setGameMode,
 } from '../../core/gameMode';
+import { modelStance, standsFast, type ModelStance } from './modelStance';
 import {
   changeKey,
   clearWorldChanges,
@@ -150,7 +153,7 @@ import {
 } from '../../core/kaykitIndex';
 import { kaykitClips, kaykitModel, kaykitModelNow, loadKaykitIndex } from '../../core/kaykitModel';
 import { kaykitSkins } from '../../core/kaykitHeight';
-import { BULLET_MODEL, bulletAim, bulletScale } from './bulletFit';
+import { BULLET_MODEL, BULLET_VIEW_GROWTH, bulletAim, bulletScale } from './bulletFit';
 import { snapToGrip } from './propGrip';
 import { CORK_LENGTH, CORK_NAME, CORK_RADIUS, CORK_SPEED, Foam, ShakeMeter } from './champagne';
 import {
@@ -1156,6 +1159,8 @@ export class PortalWorld implements World {
    * (`core/gameMode.refillsCatalogue`, `release`).
    */
   private readonly shelfFresh = new WeakSet<PhysicsBody>();
+  /** Wie jedes Modell aus dem Regal steht (`modelStance.ts`) — nur Modelle stehen hier. */
+  private readonly stances = new WeakMap<PhysicsBody, ModelStance>();
   /** Unter welchem Schlüssel die Liste der Weltänderungen ein Modell führt. */
   private readonly changeKeys = new WeakMap<PhysicsBody, string>();
   /** Die Zuhörer, die die Menüzeilen nachziehen — einmal je Welt angemeldet. */
@@ -5576,6 +5581,12 @@ export class PortalWorld implements World {
       membership: GROUP_PROP,
       filter: ALL_GROUPS,
     });
+    // Die Kopie einer Wand ist eine Wand: Sie steht so fest wie ihr Vorbild.
+    const stance = this.stances.get(entry);
+    if (stance) {
+      this.stances.set(copy, stance);
+      this.applyStance(copy);
+    }
 
     const kind = (source.userData as { propKind?: PropKind }).propKind ?? null;
     const id = kind ? (this.sync?.nextId() ?? `local-${this.bodies.size}`) : null;
@@ -5849,6 +5860,9 @@ export class PortalWorld implements World {
     }
     body.lockTranslations(fixed, true);
     body.lockRotations(fixed, true);
+    // Freigegeben heißt: zurück in die eigene Haltung, und ein Möbel steht
+    // dann wieder fest und nicht plötzlich kippelig.
+    if (!fixed) this.applyStance(entry);
   }
 
   private updateFloatZone(): void {
@@ -7362,7 +7376,7 @@ export class PortalWorld implements World {
     }
     return {
       object: new THREE.Mesh(
-        new THREE.SphereGeometry(radius, 10, 8),
+        new THREE.SphereGeometry(radius * BULLET_VIEW_GROWTH, 10, 8),
         new THREE.MeshBasicMaterial({ color: tracer ? 0xff7a2f : 0xffd98a, toneMapped: false }),
       ),
       // Geometrie und Material der gerechneten Kugel räumt `disposeTree` ab;
@@ -8007,7 +8021,7 @@ export class PortalWorld implements World {
       // Ein festgestelltes Ding im Schwebekasten wird nicht angefasst: die
       // Faust, die man zum Messen darum schließt, ist dieselbe Geste wie
       // Greifen (`floatFixed`).
-      if (this.fixedInZone(touched)) return null;
+      if (this.holdsStill(touched)) return null;
       _aim0.set('touch', touched).point.copy(_hand);
       return _aim0;
     }
@@ -8018,7 +8032,7 @@ export class PortalWorld implements World {
 
     controller.getRay(_ray);
     const entry = this.findAimTarget(_ray, REMOTE_RANGE, controller.handedness);
-    if (!entry || this.fixedInZone(entry)) return null;
+    if (!entry || this.holdsStill(entry)) return null;
     const target = aimTargetOf(entry);
     const inZone = near && nearZoneDistance(target, this.nearZone) !== null;
     if (!inZone && !this.grabConfig.remote) return null;
@@ -8437,7 +8451,7 @@ export class PortalWorld implements World {
     // Was im Schwebekasten **festgestellt** ist, fliegt auch nicht: ein Flug
     // hängt den Körper kinematisch an die Hand, und eine gesperrte Achse hält
     // einen kinematischen Körper nicht auf (`setFloatFixed`).
-    if (this.fixedInZone(entry)) return;
+    if (this.holdsStill(entry)) return;
     const physics = this.physics!;
     const t = entry.body.translation();
     _point.set(t.x, t.y, t.z);
@@ -8538,7 +8552,7 @@ export class PortalWorld implements World {
     // Und auch hier: festgestellt ist festgestellt. `attach` ist die Stelle, an
     // der *jeder* Weg endet — die Hand, der Ferngriff, der Schwerkrafthandschuh
     // —, also steht die Sperre auch hier und nicht nur beim Zielen.
-    if (this.fixedInZone(entry)) return;
+    if (this.holdsStill(entry)) return;
     const loose = this.loose.get(entry);
     if (loose) {
       this.lastActHand = hand;
@@ -9566,7 +9580,53 @@ export class PortalWorld implements World {
     quaternion: THREE.Quaternion | null,
   ): PhysicsBody {
     const blueprint = modelPropShape(model, propLabel(kind));
-    return this.placeProp(id, kind, blueprint.object, blueprint, position, quaternion);
+    const entry = this.placeProp(id, kind, blueprint.object, blueprint, position, quaternion);
+    const path = modelPathOf(kind);
+    if (path !== null) {
+      const stance = modelStance(path, blueprint.halfExtents.clone().multiplyScalar(2));
+      this.stances.set(entry, stance);
+      this.applyStance(entry);
+    }
+    return entry;
+  }
+
+  /**
+   * **Ein Möbel oder ein Stück Bau steht fest** (`modelStance.ts`): Drehung
+   * und waagerechte Verschiebung sind gesperrt, die Schwerkraft nicht. Es sinkt
+   * senkrecht auf das, was darunter liegt, und kippt und rutscht danach nicht
+   * mehr — keine Kugel, kein Stoß, kein Spieler schiebt es weg.
+   *
+   * Getragen wird es trotzdem: Ein kinematischer Körper fragt nicht nach
+   * gesperrten Achsen (siehe `fixFloating`), die Hand bewegt es also wie
+   * jedes andere Ding. Die Sperre gilt ab dem Moment, in dem es wieder
+   * dynamisch wird — beim Hinstellen.
+   */
+  private applyStance(entry: PhysicsBody): void {
+    const stance = this.stances.get(entry);
+    if (!stance || !standsFast(stance)) return;
+    entry.body.setAngvel(_zeroVelocity, true);
+    entry.body.lockRotations(true, true);
+    entry.body.setEnabledTranslations(false, true, false, true);
+  }
+
+  /**
+   * **Ob der Spielmodus dieses Ding gerade festhält** — ein Stück Bau außerhalb
+   * des _Baukastens_, ein Möbel beim _Spielen_ (`core/gameMode`).
+   *
+   * Frisch aus dem Regal ist davon ausgenommen (`shelfFresh`): Was man gerade
+   * genommen hat, liegt schon in der Hand, und wer im _Einrichten_ eine Wand
+   * aus dem Regal nimmt, soll sie auch hinstellen können.
+   */
+  private heldByMode(entry: PhysicsBody): boolean {
+    const stance = this.stances.get(entry);
+    if (!stance || stance === 'loose' || this.shelfFresh.has(entry)) return false;
+    const mode = gameMode();
+    return stance === 'structure' ? !movesStructure(mode) : !movesFurniture(mode);
+  }
+
+  /** Was gerade nicht gegriffen wird: im Schwebekasten festgestellt, oder vom Modus gehalten. */
+  private holdsStill(entry: PhysicsBody): boolean {
+    return this.fixedInZone(entry) || this.heldByMode(entry);
   }
 
   /** Der gemeinsame Teil: hinstellen, Körper geben, in die Bücher schreiben. */

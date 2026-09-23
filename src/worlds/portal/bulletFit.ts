@@ -46,8 +46,14 @@ export const BULLET_MODEL = 'prototype-bits/Bullet.glb';
  *
  * Vier, nicht zwei: Der Halbmesser kommt herein, der Durchmesser ist sein
  * Doppeltes, und doppelt so groß ist noch einmal das Doppelte.
+ *
+ * **Und seit September 2026 zehnmal so viel** (`BULLET_VIEW_GROWTH`): Auch
+ * 5,6 cm waren im Flug kaum zu finden — „viel zu winzig". Die Patrone ist
+ * jetzt 56 cm lang und knapp 19 cm stark. Das ist nur das **Bild**; der Körper
+ * und die Trefferrechnung bleiben beim Halbmesser, den die Masse sagt.
  */
-export const BULLET_LENGTH_IN_RADII = 4;
+export const BULLET_VIEW_GROWTH = 10;
+export const BULLET_LENGTH_IN_RADII = 4 * BULLET_VIEW_GROWTH;
 
 /**
  * **Der Faktor auf das gemessene Netz**, damit die Patrone so lang wird.
