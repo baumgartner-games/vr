@@ -157,6 +157,36 @@ Halterzylinder_. Für diese Seite zählen drei Folgen:
 Ohne WebGL und in einem Checkout ohne die gekauften Pakete bleibt beides
 gebaut — das ist der normale Ausgang und keine Notlösung.
 
+**Aus den Augen am Schirm** hält die Hand ihr Werkzeug jetzt auch — vorher
+tat sie das nur von oben, und aus den Augen war weder eine Hand zu sehen noch
+zu schießen (gemeldet: _„in aus den Augen kann ich gar nicht schießen"_). Die
+Bildschirmhand (`screenHand.ts`) hängt dort **an der Kamera**, unten rechts im
+Bild (`eyeHand.EYE_GRIP`), und gezeichnet wird sie von denselben
+`HandVisuals` wie in der Brille (`HandVisuals.setScreenHands`). Das geht, weil
+ihr Griff gegen ihren Zeigestrahl genau so steht wie an einem Controller
+(`GRIP_TO_RAY`): Die Zielkorrektur jedes Werkzeugs ist damit die der Brille,
+und die eingemessene Faust liegt um dieselbe Pistole. Mit leerer Hand steht
+links eine zweite Hand daneben, nur zum Ansehen (`ScreenHand.offHand`); mit
+einem Werkzeug geht sie aus dem Bild.
+
+- **Gezielt wird aufs Fadenkreuz.** In der Mitte steht ein Kreuz
+  (`.eye-crosshair`), solange ein Werkzeug in der Hand liegt. Die Hand sitzt
+  aber rechts unten, und ein Lauf parallel zur Blickachse schösse eine
+  Handbreit daneben — deshalb dreht `eyeHand.eyeGripRotation` den Griff so,
+  dass die Laufachse durch den Punkt geht, den das Kreuz gerade trifft (ein
+  Strahl gegen die festen Flächen, geglättet, 1,5 bis 60 m; mit Test).
+  Gerechnet wird aus der **Haltung** und nicht aus der Lage der Waffe, sonst
+  drehte die Hand den Rückstoß jedes Mal wieder weg.
+- **Der Linksklick ist der Trigger** (`PlayerRig.armed`, `FlatControls`),
+  dazu RT und `B` auf dem Glas — und zwar **vor** dem Benutzen, anders als
+  von oben: Aus den Augen liegt `E` neben `WASD`, und eine Pistole, die in der
+  Küche nicht schießt, weil ein Topf in Reichweite steht, sähe kaputt aus.
+  Portale schießt die Maus nur noch mit leerer Hand; der Vorschauring geht mit
+  einem Werkzeug in der Hand aus.
+- **Das Werkzeug bleibt über den Ansichtswechsel in der Hand.** Es kommt
+  einmal mit der Bildschirmhand und wechselt danach nur über den
+  Werkzeug-Knopf (`#hud-tool`, `Tab`).
+
 ## Die Kartzone
 
 Ein Kart ist sieben reine Module und ein bisschen Verdrahtung:

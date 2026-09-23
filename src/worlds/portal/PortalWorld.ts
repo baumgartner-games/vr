@@ -364,6 +364,8 @@ import {
   type HandUseFind,
 } from '../../core/handUse';
 import { ScreenHand } from './screenHand';
+import { EYE_AIM_MAX, type EyeHold } from './eyeHand';
+import { GRIP_TO_RAY } from './tools/gripFit';
 import type { CarrySpan, ScreenCarryView } from '../../core/screenCarry';
 import { Highlight } from '../../core/highlight';
 import type { ToolChoice, ToolOption } from '../../core/types';
@@ -579,6 +581,17 @@ const _rotation = new THREE.Quaternion();
 const _normalMatrix = new THREE.Matrix3();
 const _ray = new THREE.Ray();
 const _aimRay = new THREE.Ray();
+/** Der Blick durchs Fadenkreuz — woran die Hand vor dem Auge zielt (`eyeAim`). */
+const _eyeRay = new THREE.Ray();
+const _eyeHoldAt = new THREE.Vector3();
+const _eyeHoldTurn = new THREE.Quaternion();
+const _eyeHoldAlong = new THREE.Vector3();
+const _eyeGripToRay = new THREE.Quaternion(
+  GRIP_TO_RAY.x,
+  GRIP_TO_RAY.y,
+  GRIP_TO_RAY.z,
+  GRIP_TO_RAY.w,
+);
 const _quaternion = new THREE.Quaternion();
 const _hitPoint = new THREE.Vector3();
 const _hitNormal = new THREE.Vector3();
@@ -1026,20 +1039,30 @@ export class PortalWorld implements World {
   /**
    * **Die Hand am Schirm** (`screenHand.ts`) — in beiden flachen Ansichten.
    *
-   * Von oben hält sie das Werkzeug, dessen Trigger der Linksklick ist; aus
-   * den Augen hält sie keines (dort schießt die Maus die Portale). **Tragen**
-   * tut sie in beiden: Was aus dem Beutel oder dem Regal kommt, hängt an
+   * In beiden hält sie das gewählte Werkzeug, dessen Trigger der Linksklick
+   * ist: von oben an der Faust der Figur, aus den Augen vor der Kamera, wo man
+   * sie samt Waffe sieht (`eyeHand.ts`). Mit leerer Hand schießt die Maus aus
+   * den Augen weiter die Portale. **Tragen** tut sie in beiden: Was aus dem Beutel oder dem Regal kommt, hängt an
    * ihrem zweiten Anker (`ScreenHand.carry`, `updateScreenCarry`) — vorher
    * fiel es dort zu Boden. In der Brille gibt es sie nicht: Dort sind die
    * Hände die getrackten.
    */
   private screenHand: ScreenHand | null = null;
   /**
-   * **Ob die Bildschirmhand gerade ein Werkzeug halten soll** — das tut sie
-   * nur von oben, und der Merker sagt, ob beim Ansichtswechsel etwas zu tun
-   * ist.
+   * **Ob die Bildschirmhand ihr Werkzeug schon bekommen hat** — einmal, wenn
+   * sie entsteht; danach wechselt es nur noch über die Wahl
+   * (`chooseScreenTool`).
    */
   private screenToolOn = false;
+  /** Das Fadenkreuz aus den Augen — da, solange die Hand ein Werkzeug hält. */
+  private crosshair: HTMLElement | null = null;
+  /**
+   * Wie weit das Fadenkreuz gerade trifft, geglättet — daran dreht sich die
+   * Hand vor dem Auge (`eyeHand.ts`). Geglättet, weil ein Blick über eine
+   * Kante die Weite von zwei auf dreißig Meter springen lässt, und eine Waffe,
+   * die dabei im Bild zuckt, sieht kaputt aus.
+   */
+  private eyeAimDistance = EYE_AIM_MAX;
   /**
    * **Wie groß das ist, was die Bildschirmhand trägt** — halbe Ausdehnung,
    * gemessen beim Zugreifen.
@@ -4583,6 +4606,10 @@ export class PortalWorld implements World {
     this.screenHand = null;
     this.screenToolOn = false;
     ctx.avatar.screenHand = null;
+    ctx.hands.setScreenHands([]);
+    ctx.rig.armed = false;
+    this.crosshair?.remove();
+    this.crosshair = null;
     for (const entry of [...this.usables]) this.removeUsable(entry.object);
     // Der Saum hängt an einem Ding der Welt und darf ihr nicht folgen.
     this.highlighter.dispose();
@@ -9136,6 +9163,19 @@ export class PortalWorld implements World {
       }
       ctx.hands.setGestureOverride(hand, null);
     }
+
+    // **Und die Hand vor dem Auge** (`screenHand.ts`): Sie trägt die Haltung
+    // ihres Werkzeugs wie jede andere — dieselbe eingemessene Faust um
+    // dieselbe Pistole. Was sie _trägt_, hängt vor ihr in der Luft und nicht
+    // in ihr, also bleibt sie dabei offen. Nach den echten Händen, damit eine
+    // abgemeldete, die noch „rechts" heißt, ihr nichts überschreibt.
+    const screen = this.screenHand;
+    const side = screen?.state.handedness;
+    if (screen && side && !ctx.renderer.xr.isPresenting) {
+      const tool = this.held.get(side) ?? null;
+      ctx.hands.setHeldTool(side, tool?.toolId ?? null);
+      ctx.hands.setGestureOverride(side, tool ? 'grip' : null);
+    }
   }
 
   /**
@@ -10074,12 +10114,16 @@ export class PortalWorld implements World {
    * was sie hielt, geht dabei weg. Für die Brille ändert sich damit nichts —
    * dort sind die Hände die getrackten.
    *
-   * **Das Werkzeug bekommt sie nur von oben**, und das ist dieselbe
-   * Aufteilung wie bisher: Aus den Augen gehört der Linksklick den Portalen
-   * (`bindFlatInput`), und eine Pistole, die dort plötzlich in einer
-   * unsichtbaren Faust hinge, nähme ihn ihnen weg. Was sie in **beiden**
-   * Ansichten kann, ist **tragen** (`updateScreenCarry`) — dafür gibt es sie
-   * aus den Augen überhaupt erst.
+   * **Das Werkzeug hält sie in beiden Ansichten.** Aus den Augen gab es das
+   * lange nicht — der Linksklick gehörte dort den Portalen, und eine Pistole
+   * in einer unsichtbaren Faust hätte ihn ihnen weggenommen. Gemeldet war
+   * genau das Gegenteil: _„aus den Augen kann ich gar nicht schießen"_, und
+   * man wollte die Hand samt Waffe sehen. Jetzt hängt die Hand dort vor der
+   * Kamera (`ScreenHand.placeAtEye`), gezeichnet von denselben `HandVisuals`
+   * wie in der Brille, der Linksklick ist ihr Trigger (`PlayerRig.armed`), und
+   * in der Mitte steht ein Fadenkreuz. Mit **leerer** Hand bleibt der
+   * Linksklick der Portalschuss. **Tragen** kann sie in beiden Ansichten
+   * (`updateScreenCarry`).
    */
   private updateScreenHand(ctx: WorldContext): void {
     const wanted = !ctx.renderer.xr.isPresenting;
@@ -10094,30 +10138,105 @@ export class PortalWorld implements World {
       hand.dispose();
       this.screenHand = null;
       ctx.avatar.screenHand = null;
+      ctx.hands.setScreenHands([]);
+      ctx.rig.armed = false;
+      this.showCrosshair(false);
       return;
     }
     const fresh = hand ?? new ScreenHand(ctx.rig);
     this.screenHand = fresh;
-    // **Und das Werkzeug wechselt mit der Ansicht**: Wer von oben aus den
-    // Augen geht, legt es weg, und wer zurückkommt, bekommt es wieder.
-    if (ctx.topDown !== this.screenToolOn) {
-      this.screenToolOn = ctx.topDown;
-      if (ctx.topDown) {
-        const id = this.screenTool();
-        const tool = id ? this.freshTool(id) : null;
-        if (tool) this.takeTool(ctx, fresh.state, tool);
-      } else {
-        this.dropScreenTool();
-      }
+    // Das Werkzeug kommt einmal, mit der Hand — und bleibt über jeden
+    // Ansichtswechsel in ihr. Es wechselt nur, wenn jemand anderes wählt.
+    if (!this.screenToolOn) {
+      this.screenToolOn = true;
+      const id = this.screenTool();
+      const tool = id ? this.freshTool(id) : null;
+      if (tool) this.takeTool(ctx, fresh.state, tool);
     }
+    const eye = !ctx.topDown;
+    const screenTool = this.held.get('right') ?? null;
+    // Aus den Augen ist der Linksklick der Trigger, sobald ein Werkzeug in der
+    // Hand liegt (`FlatControls`) — und nicht mehr der Portalschuss.
+    ctx.rig.armed = eye && screenTool !== null;
+    // **Die Hände vor dem Auge**: die rechte immer, die linke nur, solange die
+    // rechte leer ist — eine Pistole hält man mit einer Hand.
+    ctx.hands.setScreenHands(
+      eye ? (screenTool ? [fresh.state] : [fresh.state, fresh.offHand]) : [],
+    );
+    this.showCrosshair(eye && screenTool !== null && !ctx.menu.isOpen);
     // **Mit der Höhe der Figur**: Von oben federt sie beim Laufen und atmet im
     // Stehen (`core/squish.ts`), und das Werkzeug in ihrer Faust geht mit
     // (`ScreenHand.place`). Die Zahl ist die des vorigen Bildes — der Avatar
     // rechnet erst nach der Welt (`App.update`) —, und ein Bild Versatz sieht
     // niemand; ein Werkzeug, das auf halber Höhe stehen bliebe, sieht jeder.
-    fresh.update(ctx.avatar.stretch);
+    fresh.update(
+      ctx.avatar.stretch,
+      eye
+        ? {
+            // Gemessen wird nur, wenn etwas zielt — die leere Hand zeigt geradeaus.
+            distance: screenTool ? this.eyeAim(ctx) : EYE_AIM_MAX,
+            hold: this.eyeHold(screenTool),
+          }
+        : null,
+    );
     // Die Hand der Figur greift nur dort nach, wo man sie sieht — von oben.
     ctx.avatar.screenHand = ctx.topDown ? fresh.at : null;
+  }
+
+  /**
+   * **Wie weit das Fadenkreuz trifft** — geglättet, in Metern
+   * (`eyeAimDistance`). Gefragt werden die festen Flächen, gegen die auch
+   * eine Kugel prallt; wer ins Leere schaut, zielt auf die größte Weite.
+   */
+  private eyeAim(ctx: WorldContext): number {
+    const ray = this.headRay(ctx, _eyeRay);
+    const hit = this.castSurface(ray, EYE_AIM_MAX, this.solids);
+    const want = hit ? hit.point.distanceTo(ray.origin) : EYE_AIM_MAX;
+    // Ein Zehntel je Bild: in einer Viertelsekunde da, ohne zu zucken.
+    this.eyeAimDistance += (want - this.eyeAimDistance) * 0.1;
+    return this.eyeAimDistance;
+  }
+
+  /**
+   * **Wie das Werkzeug im Griff liegt** — sein Nullpunkt und seine Laufachse,
+   * im Raum des Griffs (`eyeHand.EyeHold`).
+   *
+   * Aus der **Haltung** gerechnet (`Tool.holdIn`) und nicht aus der Lage, in
+   * der das Werkzeug gerade steht: Die Pistole schlägt beim Schuss hoch, und
+   * eine Hand, die das jedes Mal wieder aufs Kreuz zurückdrehte, nähme ihr den
+   * Rückstoß.
+   */
+  private eyeHold(tool: Tool | null): EyeHold | null {
+    if (!tool) return null;
+    tool.holdIn('right', _eyeHoldAt, _eyeHoldTurn);
+    // Ein Werkzeug, das zielt, liegt auf dem Zeigestrahl (`Tool.applyHold`);
+    // der steht vor dem Auge um `GRIP_TO_RAY` gegen den Griff, wie am Controller.
+    if (tool.alignToAim) _eyeHoldTurn.premultiply(_eyeGripToRay);
+    _eyeHoldAlong.set(0, 0, -1).applyQuaternion(_eyeHoldTurn);
+    return {
+      position: { x: _eyeHoldAt.x, y: _eyeHoldAt.y, z: _eyeHoldAt.z },
+      forward: { x: _eyeHoldAlong.x, y: _eyeHoldAlong.y, z: _eyeHoldAlong.z },
+    };
+  }
+
+  /**
+   * **Das Fadenkreuz** — ein Punkt mit vier Strichen in der Bildmitte, solange
+   * aus den Augen ein Werkzeug in der Hand liegt. Gebaut, wenn es zum ersten
+   * Mal gebraucht wird; die Welt räumt es beim Gehen ab.
+   */
+  private showCrosshair(on: boolean): void {
+    if (!on) {
+      if (this.crosshair) this.crosshair.hidden = true;
+      return;
+    }
+    if (!this.crosshair) {
+      const cross = document.createElement('div');
+      cross.className = 'eye-crosshair';
+      cross.setAttribute('aria-hidden', 'true');
+      document.body.append(cross);
+      this.crosshair = cross;
+    }
+    this.crosshair.hidden = false;
   }
 
   /**
@@ -10432,8 +10551,8 @@ export class PortalWorld implements World {
     if (this.toolPick !== undefined && id === this.toolPick) return;
     this.toolPick = id;
     const hand = this.screenHand;
-    // Aus den Augen hält diese Hand kein Werkzeug (`updateScreenHand`); die
-    // Wahl wird dann nur gemerkt und gilt, sobald man wieder von oben schaut.
+    // Ohne Bildschirmhand (in der Brille) wird die Wahl nur gemerkt und gilt,
+    // sobald es wieder eine gibt.
     if (!ctx || !hand || !this.screenToolOn) return;
     this.dropScreenTool();
     const tool = id ? this.freshTool(id) : null;
@@ -10482,6 +10601,11 @@ export class PortalWorld implements World {
       // gibt: Die gibt es seit dem Tragen auch aus den Augen, und dort ist
       // der Linksklick weiter der Portalschuss.
       if (ctx.topDown) return;
+      // **Und aus den Augen genauso, sobald die Hand ein Werkzeug hält**
+      // (`PlayerRig.armed`): Dann ist der Linksklick sein Trigger, und ein
+      // Portal obendrauf wäre derselbe zweite Schuss. Die rechte Taste
+      // schweigt dann auch — ein rotes Portal ohne blaues ist kein Paar.
+      if (ctx.rig.armed) return;
       if (event.button === 0) this.flatShoot(ctx, 'a');
       else if (event.button === 2) this.flatShoot(ctx, 'b');
     };
@@ -10568,8 +10692,10 @@ export class PortalWorld implements World {
       if (presenting) {
         const gun = this.heldGunFor(key);
         if (gun) ray = gun.aimRay(_aimRay);
-      } else if (key === 'a') {
-        // Flat play has one crosshair; the second portal shares it.
+      } else if (key === 'a' && !ctx.rig.armed) {
+        // Flat play has one crosshair; the second portal shares it. Mit einem
+        // Werkzeug in der Hand schießt der Klick keine Portale, also zeigt der
+        // Ring auch keins an.
         ray = this.headRay(ctx, _aimRay);
       }
 

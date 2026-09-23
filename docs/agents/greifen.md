@@ -521,6 +521,9 @@ einem steht — aber nur, wenn wirklich etwas dasteht
 (`PlayerRig.useCandidate`) und der Zeiger schon geholt ist, damit der Klick
 ins Bild nicht aus Versehen bedient. Anders als `A` ist sie kein Knopf für
 zwei Dinge: Ein Klick ins Leere tut nichts und springt vor allem nicht.
+**Hält die Hand ein Werkzeug** (`PlayerRig.armed`), ist sie aus den Augen
+zuerst dessen Trigger und benutzt nichts mehr — dafür bleibt `E`; siehe
+[Die Waffe](./waffe-und-kart.md#die-waffe), _Aus den Augen am Schirm_.
 
 **Und von oben tut sie dasselbe** (`FlatControls`, der Zweig `topDownOn` in
 `pointerdown`). Wer eine Küche am Schreibtisch spielt, führt die Figur mit der

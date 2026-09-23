@@ -316,6 +316,16 @@ export class PlayerRig extends THREE.Group {
    */
   carrying = false;
 
+  /**
+   * **Ob die Bildschirmhand aus den Augen ein Werkzeug hält**
+   * (`PortalWorld.updateScreenHand`) — dann ist die linke Maustaste dort sein
+   * Trigger, wie von oben, und nicht mehr der Portalschuss.
+   *
+   * Gesetzt von der Welt, jedes Bild; wer keine Bildschirmhand hat, lässt es
+   * auf `false`, und aus den Augen bleibt alles, wie es war.
+   */
+  armed = false;
+
   /** Ein Klick, der das Getragene ablegen will (`requestDrop`, `takeDrop`). */
   private dropQueued = false;
 
@@ -373,8 +383,8 @@ export class PlayerRig extends THREE.Group {
 
   /**
    * **Der Trigger der rechten Hand**, 0…1 — vom Bildschirm aus gesetzt
-   * (`B`, RT, Linksklick, Touch-`B`), damit die Pistole von oben genauso
-   * feuert wie in der Brille und nicht über einen zweiten Weg.
+   * (`B`, RT, Linksklick, Touch-`B`), damit die Pistole von oben und aus den
+   * Augen genauso feuert wie in der Brille und nicht über einen zweiten Weg.
    */
   setTrigger(value: number): void {
     this.triggerValue = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
@@ -479,6 +489,7 @@ export class PlayerRig extends THREE.Group {
     this.useCandidate = false;
     this.useBusy = false;
     this.carrying = false;
+    this.armed = false;
     this.dropQueued = false;
     this.aiming = false;
     this.sprintScale = 1;

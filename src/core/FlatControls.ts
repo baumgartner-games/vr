@@ -150,7 +150,7 @@ export class FlatControls {
   private aimStick = new THREE.Vector2();
   private usePointer: number | null = null;
   private firePointer: number | null = null;
-  /** Ob die linke Maustaste gerade unten liegt — von oben ist sie der Trigger. */
+  /** Ob die linke Maustaste gerade als Trigger unten liegt — von oben, und aus den Augen mit Werkzeug. */
   private mouseFire = false;
   /** Wo der Mauszeiger zuletzt stand, in CSS-Punkten. `null`: noch nie bewegt. */
   private mouse: { x: number; y: number } | null = null;
@@ -322,10 +322,12 @@ export class FlatControls {
     if (pad.aim.x !== 0 || pad.aim.y !== 0) {
       this.look(pad.aim.x * PAD_LOOK_SPEED * dt, pad.aim.y * PAD_LOOK_SPEED * dt, 1);
     }
-    // Der Trigger gehört von oben der Figur; aus den Augen schießt weiter, was
-    // schon immer geschossen hat (die Maus, über die Welt) — ein zweiter Weg
-    // dorthin wäre ein zweiter Schuss.
-    this.rig.setTrigger(0);
+    // **Und der Trigger aus den Augen**: Hält die Hand vor dem Auge ein
+    // Werkzeug (`PlayerRig.armed`), ist er dasselbe wie von oben — Linksklick,
+    // RT, `B` auf dem Glas. Sonst bleibt er zu, und die Maus schießt weiter,
+    // was sie ohne Werkzeug schon immer geschossen hat (die Portale, über die
+    // Welt): ein zweiter Weg dorthin wäre ein zweiter Schuss.
+    this.rig.setTrigger(this.rig.armed ? this.triggerValue(pad) : 0);
 
     if (x === 0 && z === 0) {
       if (jump) this.rig.requestJump();
@@ -461,8 +463,14 @@ export class FlatControls {
     this.rig.requestDrop();
   }
 
+  /** Alle Geber des Triggers zusammen: RT, die linke Maustaste, `B` auf dem Glas. */
+  private triggerValue(pad: GamepadFrame): number {
+    return Math.max(pad.trigger, this.mouseFire ? 1 : 0, this.firePointer !== null ? 1 : 0);
+  }
+
   /**
-   * **Schießen und Zoom** — was es nur von oben gibt.
+   * **Schießen und Zoom** — von oben. Geschossen wird inzwischen auch aus den
+   * Augen, sobald die Hand dort ein Werkzeug hält (`PlayerRig.armed`).
    *
    * Der Trigger geht ans Rig und nicht an die Welt (`PlayerRig.setTrigger`):
    * Was in der rechten Hand der Figur liegt, weiß die Welt, und die fragt dort
@@ -471,12 +479,7 @@ export class FlatControls {
    * jeder Ansicht und nicht nur hier.
    */
   private applyTopDownButtons(pad: GamepadFrame): void {
-    const trigger = Math.max(
-      pad.trigger,
-      this.mouseFire ? 1 : 0,
-      this.firePointer !== null ? 1 : 0,
-    );
-    this.rig.setTrigger(trigger);
+    this.rig.setTrigger(this.triggerValue(pad));
 
     if (this.padZoomIn.justPressed) this.view?.zoomBy(-1);
     if (this.padZoomOut.justPressed) this.view?.zoomBy(1);
@@ -705,7 +708,14 @@ export class FlatControls {
         // vor allem nicht springen. Und der erste Klick bleibt der, der den
         // Zeiger holt (oben), sonst benutzte man beim Hineinklicken ins Bild
         // aus Versehen, was gerade vor einem steht.
+        //
+        // **Und mit einem Werkzeug in der Hand ist sie dessen Trigger**
+        // (`PlayerRig.armed`) — und zwar **vor** dem Benutzen, anders als von
+        // oben. Dort ist die Maus alles, was man hat; hier liegt `E` neben
+        // `WASD`, und eine Pistole, die in der Küche nicht schießt, weil
+        // gerade ein Topf in Reichweite steht, sähe kaputt aus.
         if (event.button === 0 && this.rig.carrying) this.pressMouseUse();
+        else if (event.button === 0 && this.rig.armed) this.mouseFire = true;
         else if (event.button === 0 && this.rig.useCandidate) this.useQueued = true;
         return;
       }
