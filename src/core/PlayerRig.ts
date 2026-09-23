@@ -326,6 +326,14 @@ export class PlayerRig extends THREE.Group {
    */
   armed = false;
 
+  /**
+   * **Ob gerade über die Waffe gezielt wird** — am Schirm aus den Augen die
+   * gehaltene rechte Maustaste oder LB am Pad (`FlatControls`). Die Welt holt
+   * die Waffe dann ans Auge (`PortalWorld.updateScreenHand`); was keine
+   * Visierlinie hat (`Tool.sightLine`), überhört es.
+   */
+  sighting = false;
+
   /** Ein Klick, der das Getragene ablegen will (`requestDrop`, `takeDrop`). */
   private dropQueued = false;
 
@@ -490,6 +498,7 @@ export class PlayerRig extends THREE.Group {
     this.useBusy = false;
     this.carrying = false;
     this.armed = false;
+    this.sighting = false;
     this.dropQueued = false;
     this.aiming = false;
     this.sprintScale = 1;

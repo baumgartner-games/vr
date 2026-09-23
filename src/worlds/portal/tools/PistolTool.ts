@@ -1,6 +1,14 @@
 import * as THREE from 'three';
-import { Tool, disposeToolTree, type ToolHost } from './Tool';
-import { createSight, type Attachment, type AttachmentContext } from './attachments';
+import { Tool, disposeToolTree, type SightLine, type ToolHost } from './Tool';
+import {
+  IRONS_ON_RAIL,
+  SIGHT_AIDS,
+  createSight,
+  ironsLine,
+  type Attachment,
+  type AttachmentContext,
+  type SightAid,
+} from './attachments';
 import { saveWeaponSettings, weaponSettings } from './gearStore';
 import {
   AMMO_KINDS,
@@ -60,6 +68,8 @@ const GRIP_LENGTH = 0.1;
  * aus ihr heraus; Mündung, Schiene und Zähler ziehen über `fitParts` mit.
  */
 const GUN_SIZE = 2;
+/** Wie weit über der Oberkante die Visierlinie ohne Visier läuft, in Metern. */
+const TOP_SIGHT_LIFT = 0.008;
 
 /**
  * **Die Pistole aus dem Regal** — und warum sie erst jetzt kommt.
@@ -146,6 +156,8 @@ export class PistolTool extends Tool {
   private readonly texture: THREE.CanvasTexture;
   /** The aiming aids currently clipped on, by their kind. */
   private readonly sights = new Map<SightKind, Attachment>();
+  /** Die Hülle des gekauften Modells im Werkzeugraum, sobald es geladen ist. */
+  private gunBounds: THREE.Box3 | null = null;
   private settings: WeaponSettings;
   private rounds: number;
   private reloading = 0;
@@ -274,6 +286,9 @@ export class PistolTool extends Tool {
         return;
       }
       const magazineBox = gunBox(new THREE.Box3().setFromObject(magazine), fit, new THREE.Box3());
+      // Die Hülle der ganzen Waffe im Werkzeugraum — über ihre Oberkante zielt
+      // man, wenn kein Visier auf der Schiene sitzt (`sightLine`).
+      this.gunBounds = gunBox(new THREE.Box3().setFromObject(model), fit, new THREE.Box3());
 
       const mount = new THREE.Group();
       mount.name = 'pistol-model';
@@ -420,6 +435,47 @@ export class PistolTool extends Tool {
 
   override attachments(): readonly Attachment[] {
     return [...this.sights.values()];
+  }
+
+  /**
+   * **Über welche Zielhilfe gezielt wird** — die beste, die auf der Schiene
+   * sitzt (`SIGHT_AIDS`: Fernrohr vor Rotpunkt vor Kimme und Korn). Sitzt
+   * keine darauf, zielt man trotzdem: über die **Oberkante** der Waffe, vom
+   * hinteren Ende nach vorn. Eine Pistole ohne Visier hat immer noch eine
+   * Oberkante, und über die schaut man, wie über eine Kimme.
+   */
+  override sightLine(point: THREE.Vector3, rotation: THREE.Quaternion): SightLine {
+    const aid = this.findSight(point, rotation);
+    // Wie weit die Waffe hinter diesem Punkt noch reicht: Sie zeigt nach −z,
+    // ihr hinteres Ende ist also die größte Zahl.
+    const back = this.gunBounds?.max.z ?? point.z;
+    return { aid, rear: Math.max(0, back - point.z) };
+  }
+
+  private findSight(point: THREE.Vector3, rotation: THREE.Quaternion): SightAid {
+    this.rail.updateMatrix();
+    for (const aid of SIGHT_AIDS) {
+      const sight = this.sights.get(aid);
+      if (!sight || !sight.sightPoint(point)) continue;
+      sight.updateMatrix();
+      point.applyMatrix4(sight.matrix).applyMatrix4(this.rail.matrix);
+      rotation.copy(this.rail.quaternion).multiply(sight.quaternion);
+      return aid;
+    }
+    const bounds = this.gunBounds;
+    if (bounds) {
+      // Hinten oben, eine Fingerbreite darüber.
+      point.set(0, bounds.max.y + TOP_SIGHT_LIFT, bounds.max.z);
+      rotation.identity();
+      return 'irons';
+    }
+    // Die gebaute Pistole (ohne WebGL, ohne Pakete): dort, wo Kimme und Korn
+    // ab Werk säßen.
+    ironsLine(point);
+    point.y += IRONS_ON_RAIL;
+    point.applyMatrix4(this.rail.matrix);
+    rotation.copy(this.rail.quaternion);
+    return 'irons';
   }
 
   /** Muzzle velocity in m/s. */

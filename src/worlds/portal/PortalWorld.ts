@@ -364,7 +364,15 @@ import {
   type HandUseFind,
 } from '../../core/handUse';
 import { ScreenHand } from './screenHand';
-import { EYE_AIM_MAX, type EyeHold } from './eyeHand';
+import {
+  EYE_AIM_MAX,
+  EYE_SCALE,
+  EYE_SIGHT_TIME,
+  eyeSightRelief,
+  eyeSightScale,
+  type EyeHold,
+  type EyeSight,
+} from './eyeHand';
 import { GRIP_TO_RAY } from './tools/gripFit';
 import type { CarrySpan, ScreenCarryView } from '../../core/screenCarry';
 import { Highlight } from '../../core/highlight';
@@ -585,7 +593,10 @@ const _aimRay = new THREE.Ray();
 const _eyeRay = new THREE.Ray();
 const _eyeHoldAt = new THREE.Vector3();
 const _eyeHoldTurn = new THREE.Quaternion();
-const _eyeHoldAlong = new THREE.Vector3();
+const _eyeSightAt = new THREE.Vector3();
+/** Die Größe des Getragenen, so wie es gerade gezeichnet wird (`updateScreenCarry`). */
+const _screenSpanShown = { radius: 0, half: 0 };
+const _eyeSightTurn = new THREE.Quaternion();
 const _eyeGripToRay = new THREE.Quaternion(
   GRIP_TO_RAY.x,
   GRIP_TO_RAY.y,
@@ -1063,6 +1074,18 @@ export class PortalWorld implements World {
    * die dabei im Bild zuckt, sieht kaputt aus.
    */
   private eyeAimDistance = EYE_AIM_MAX;
+  /**
+   * **Wie weit die Waffe gerade am Auge ist** — 0 an der Hüfte, 1 im Anschlag
+   * (`ScreenHand.placeAtEye`). Wandert in `EYE_SIGHT_TIME` hin und zurück,
+   * solange die rechte Maustaste oder LB liegt (`PlayerRig.sighting`).
+   */
+  private eyeSighting = 0;
+  /**
+   * **Was die Bildschirmhand aus den Augen halb so groß trägt** — und in
+   * welcher Größe es vorher war, damit es beim Loslassen oder beim Wechsel
+   * nach oben wieder so groß wird (`shrinkScreenCarry`).
+   */
+  private shrunk: { entry: PhysicsBody; scale: THREE.Vector3 } | null = null;
   /**
    * **Wie groß das ist, was die Bildschirmhand trägt** — halbe Ausdehnung,
    * gemessen beim Zugreifen.
@@ -5514,7 +5537,9 @@ export class PortalWorld implements World {
         entry,
         position: entry.object.position.clone(),
         quaternion: entry.object.quaternion.clone(),
-        scale: entry.object.scale.clone(),
+        // Was aus den Augen gerade halb so groß getragen wird, wird in seiner
+        // echten Größe gemerkt (`shrinkScreenCarry`).
+        scale: (this.shrunk?.entry === entry ? this.shrunk.scale : entry.object.scale).clone(),
         half: entry.halfExtents.clone(),
         velocity: new THREE.Vector3(linvel.x, linvel.y, linvel.z),
         spin: new THREE.Vector3(angvel.x, angvel.y, angvel.z),
@@ -6131,7 +6156,7 @@ export class PortalWorld implements World {
 
     // Vor allem anderen: Die Hand am Schirm ist selbst eine Hand, und was in
     // ihr liegt, will gleich mit dem Rest der Werkzeuge nachgeführt werden.
-    this.updateScreenHand(ctx);
+    this.updateScreenHand(ctx, dt);
     // Und was sie **trägt**, noch davor — der Benutzen-Knopf gehört dann ihr
     // und nicht dem, was vor der Figur steht (`updateUsables` kommt danach).
     this.updateScreenCarry(dt, ctx);
@@ -8682,6 +8707,9 @@ export class PortalWorld implements World {
     placed = false,
   ): void {
     const physics = this.physics!;
+    // Was aus den Augen halb so groß getragen wurde, ist beim Loslassen
+    // wieder so groß wie im Raum (`shrinkScreenCarry`).
+    if (this.shrunk?.entry === grab.entry) this.unshrinkScreenCarry();
     this.grabs.delete(hand);
     if (!drop) return;
 
@@ -10125,7 +10153,7 @@ export class PortalWorld implements World {
    * Linksklick der Portalschuss. **Tragen** kann sie in beiden Ansichten
    * (`updateScreenCarry`).
    */
-  private updateScreenHand(ctx: WorldContext): void {
+  private updateScreenHand(ctx: WorldContext, dt: number): void {
     const wanted = !ctx.renderer.xr.isPresenting;
     const hand = this.screenHand;
     if (!wanted) {
@@ -10163,7 +10191,17 @@ export class PortalWorld implements World {
     ctx.hands.setScreenHands(
       eye ? (screenTool ? [fresh.state] : [fresh.state, fresh.offHand]) : [],
     );
-    this.showCrosshair(eye && screenTool !== null && !ctx.menu.isOpen);
+    // **Zielen über Kimme und Korn** (`Tool.sightLine`): solange die rechte
+    // Maustaste oder LB liegt, kommt die Waffe ans Auge. Das Fadenkreuz geht
+    // dabei weg — man zielt jetzt über die Waffe selbst.
+    const sight = eye ? this.eyeSight(screenTool) : null;
+    const wantSight = sight !== null && ctx.rig.sighting && !ctx.menu.isOpen;
+    const step = dt / EYE_SIGHT_TIME;
+    this.eyeSighting = wantSight
+      ? Math.min(1, this.eyeSighting + step)
+      : Math.max(0, this.eyeSighting - step);
+    if (!sight) this.eyeSighting = 0;
+    this.showCrosshair(eye && screenTool !== null && !ctx.menu.isOpen && this.eyeSighting < 0.5);
     // **Mit der Höhe der Figur**: Von oben federt sie beim Laufen und atmet im
     // Stehen (`core/squish.ts`), und das Werkzeug in ihrer Faust geht mit
     // (`ScreenHand.place`). Die Zahl ist die des vorigen Bildes — der Avatar
@@ -10176,6 +10214,8 @@ export class PortalWorld implements World {
             // Gemessen wird nur, wenn etwas zielt — die leere Hand zeigt geradeaus.
             distance: screenTool ? this.eyeAim(ctx) : EYE_AIM_MAX,
             hold: this.eyeHold(screenTool),
+            sight,
+            sighting: this.eyeSighting,
           }
         : null,
     );
@@ -10212,10 +10252,27 @@ export class PortalWorld implements World {
     // Ein Werkzeug, das zielt, liegt auf dem Zeigestrahl (`Tool.applyHold`);
     // der steht vor dem Auge um `GRIP_TO_RAY` gegen den Griff, wie am Controller.
     if (tool.alignToAim) _eyeHoldTurn.premultiply(_eyeGripToRay);
-    _eyeHoldAlong.set(0, 0, -1).applyQuaternion(_eyeHoldTurn);
     return {
       position: { x: _eyeHoldAt.x, y: _eyeHoldAt.y, z: _eyeHoldAt.z },
-      forward: { x: _eyeHoldAlong.x, y: _eyeHoldAlong.y, z: _eyeHoldAlong.z },
+      rotation: { x: _eyeHoldTurn.x, y: _eyeHoldTurn.y, z: _eyeHoldTurn.z, w: _eyeHoldTurn.w },
+    };
+  }
+
+  /**
+   * **Die Visierlinie des Werkzeugs in der Hand** (`Tool.sightLine`) — oder
+   * `null` für eines, über das man nicht zielt. Gemessen an der Schiene und
+   * nicht an der Lage der Waffe, aus demselben Grund wie `eyeHold`: Der
+   * Rückstoß soll im Anschlag zu sehen sein und nicht weggedreht werden.
+   */
+  private eyeSight(tool: Tool | null): EyeSight | null {
+    if (!tool) return null;
+    const line = tool.sightLine(_eyeSightAt, _eyeSightTurn);
+    if (!line) return null;
+    return {
+      point: { x: _eyeSightAt.x, y: _eyeSightAt.y, z: _eyeSightAt.z },
+      rotation: { x: _eyeSightTurn.x, y: _eyeSightTurn.y, z: _eyeSightTurn.z, w: _eyeSightTurn.w },
+      relief: eyeSightRelief(line.aid, line.rear),
+      scale: eyeSightScale(line.aid),
     };
   }
 
@@ -10325,6 +10382,7 @@ export class PortalWorld implements World {
     const side = this.screenCarrySide();
     const grab = hand && side ? this.grabs.get(side) : undefined;
     if (!hand || !side || !grab) {
+      this.unshrinkScreenCarry();
       // Ein Klick, der nichts mehr zum Ablegen fand, verfällt — sonst legte er
       // das nächste Ding ab, kaum dass es in der Hand ist.
       ctx.rig.takeDrop();
@@ -10339,7 +10397,14 @@ export class PortalWorld implements World {
     ctx.rig.useBusy = true;
     // Und die linke Maustaste legt es ab wie `E` (`PlayerRig.carrying`).
     ctx.rig.carrying = true;
-    hand.placeCarry(screenCarryView(ctx), this.screenSpan, ctx.avatar.bob, ctx.avatar.stretch);
+    // **Aus den Augen halb so groß** (`eyeHand.EYE_SCALE`), von oben in echt —
+    // und der Anker rückt dafür so nah, wie es der gezeichneten Größe
+    // entspricht, sonst schwebte eine halbe Tomate einen Meter vor einem her.
+    const shrink = ctx.topDown ? 1 : EYE_SCALE;
+    this.shrinkScreenCarry(grab.entry, shrink);
+    _screenSpanShown.radius = this.screenSpan.radius * shrink;
+    _screenSpanShown.half = this.screenSpan.half * shrink;
+    hand.placeCarry(screenCarryView(ctx), _screenSpanShown, ctx.avatar.bob, ctx.avatar.stretch);
     hand.carry.getWorldPosition(_screenCarryAt);
     // **Und die Figur legt ihre Hände darunter** — aber nur von oben, denn
     // nur dort sieht man sie (`PlayerAvatar.carry`).
@@ -10404,6 +10469,35 @@ export class PortalWorld implements World {
     // in der Faust, nur ohne Nahgriff und ohne Zuggeste.
     this.carryGrab(dt, ctx, side, grab, hand.state, hand.carry, _screenReach);
     _screenReach.clear();
+  }
+
+  /**
+   * **Was getragen wird, in der Größe zeichnen, die die Ansicht will** — aus
+   * den Augen halb so groß (`EYE_SCALE`), von oben wie es ist.
+   *
+   * Nur das Bild wird kleiner und nicht der Körper: Getroffen, gestapelt und
+   * eingerastet wird weiter mit der echten Größe (`halfExtents`), und beim
+   * Loslassen ist das Ding sofort wieder so groß, wie es im Raum steht
+   * (`release` → `unshrinkScreenCarry`). Die Größe davor wird gemerkt, nicht
+   * angenommen: Modelle aus dem Regal tragen einen Maßstab je Paket.
+   */
+  private shrinkScreenCarry(entry: PhysicsBody, factor: number): void {
+    if (this.shrunk && this.shrunk.entry !== entry) this.unshrinkScreenCarry();
+    if (factor === 1) {
+      this.unshrinkScreenCarry();
+      return;
+    }
+    if (!this.shrunk) this.shrunk = { entry, scale: entry.object.scale.clone() };
+    entry.object.scale.copy(this.shrunk.scale).multiplyScalar(factor);
+  }
+
+  /** Das Getragene wieder in seiner echten Größe. */
+  private unshrinkScreenCarry(): void {
+    const shrunk = this.shrunk;
+    if (!shrunk) return;
+    this.shrunk = null;
+    shrunk.entry.object.scale.copy(shrunk.scale);
+    shrunk.entry.object.updateMatrixWorld(true);
   }
 
   /**
