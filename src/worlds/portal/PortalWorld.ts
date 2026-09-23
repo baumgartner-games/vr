@@ -9875,6 +9875,9 @@ export class PortalWorld implements World {
     const side = this.screenCarrySide();
     const grab = hand && side ? this.grabs.get(side) : undefined;
     if (!hand || !side || !grab) {
+      // Ein Klick, der nichts mehr zum Ablegen fand, verfällt — sonst legte er
+      // das nächste Ding ab, kaum dass es in der Hand ist.
+      ctx.rig.takeDrop();
       this.screenPress = null;
       this.screenUseWas = ctx.rig.useHeld;
       this.freeScreenClaim(ctx);
@@ -9884,12 +9887,22 @@ export class PortalWorld implements World {
     // **Der Knopf gehört dem Getragenen** — sonst spränge die Figur dabei
     // (`PlayerRig.useBusy`, dieselbe Regel wie beim Feuerlöscher der Küche).
     ctx.rig.useBusy = true;
+    // Und die linke Maustaste legt es ab wie `E` (`PlayerRig.carrying`).
+    ctx.rig.carrying = true;
     hand.placeCarry(screenCarryView(ctx), this.screenSpan, ctx.avatar.bob, ctx.avatar.stretch);
     hand.carry.getWorldPosition(_screenCarryAt);
     // **Und die Figur legt ihre Hände darunter** — aber nur von oben, denn
     // nur dort sieht man sie (`PlayerAvatar.carry`).
     ctx.avatar.carry = ctx.topDown ? _screenCarryHands.copy(hand.carry.position) : null;
     this.screenClaim = true;
+
+    // **Die linke Maustaste legt sofort ab** (`FlatControls.pressMouseUse`) —
+    // ein Klick ist kein Tippen, das behält, sondern ein Hinstellen.
+    if (ctx.rig.takeDrop()) {
+      this.release(ctx, side, grab, true, true);
+      this.screenPress = null;
+      return;
+    }
 
     const held = ctx.rig.useHeld;
     // **Die Flanke kommt aus zwei Quellen, und sie muss aus beiden kommen.**
@@ -9988,6 +10001,7 @@ export class PortalWorld implements World {
     if (!this.screenClaim) return;
     this.screenClaim = false;
     ctx.rig.useBusy = false;
+    ctx.rig.carrying = false;
     ctx.avatar.carry = null;
   }
 

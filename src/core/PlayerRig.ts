@@ -304,6 +304,34 @@ export class PlayerRig extends THREE.Group {
   useBusy = false;
 
   /**
+   * **Ob die Bildschirmhand gerade etwas trägt**, das der Benutzen-Knopf
+   * ablegt (`PortalWorld.updateScreenCarry`) — ein Möbel, eine Wand aus dem
+   * Regal, ein Ding aus dem Beutel.
+   *
+   * Enger als `useBusy`: Dort meldet sich auch der Feuerlöscher, und bei dem
+   * ist die linke Maustaste von oben der **Auslöser** und soll es bleiben.
+   * Was getragen wird, legt die linke Maustaste dagegen ab, genau wie `E`
+   * (`FlatControls`) — gemeldet: „sollte auf PC mit linker Maustaste auch
+   * geplaced werden."
+   */
+  carrying = false;
+
+  /** Ein Klick, der das Getragene ablegen will (`requestDrop`, `takeDrop`). */
+  private dropQueued = false;
+
+  /** Die linke Maustaste will ablegen, was die Bildschirmhand trägt. */
+  requestDrop(): void {
+    this.dropQueued = true;
+  }
+
+  /** Den Wunsch abholen — je Klick genau einmal wahr. */
+  takeDrop(): boolean {
+    const drop = this.dropQueued;
+    this.dropQueued = false;
+    return drop;
+  }
+
+  /**
    * **Ob der Benutzen-Knopf gerade _liegt_** — nicht die Flanke, die Taste.
    *
    * `requestUse` ist eine Flanke, und das ist für Knöpfe, Türen und Schilder
@@ -450,6 +478,8 @@ export class PlayerRig extends THREE.Group {
     this.jumpLock = false;
     this.useCandidate = false;
     this.useBusy = false;
+    this.carrying = false;
+    this.dropQueued = false;
     this.aiming = false;
     this.sprintScale = 1;
     // Die Stauchung gehört der Welt, die man gerade verlässt (`eyeScale`) —

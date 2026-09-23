@@ -64,6 +64,7 @@ import { clearInputConfig, inputConfig, saveInputConfig } from './inputStore';
 import type { InputPress } from './FlatControls';
 import { GraphicsQuality } from './GraphicsQuality';
 import { FrameStats } from './FrameStats';
+import { PositionHud } from './positionHud';
 import { appearance, appearanceSummary, onAppearanceChange, saveAppearance } from './appearance';
 import { HEADGEAR_LABELS, HEADGEAR_SUBS, nextHeadgear, type HeadgearKind } from './headgear';
 import { BODY_LABELS, BODY_SUBS, HEAD_LABELS, HEAD_SUBS, nextBody, nextHead } from './avatarLook';
@@ -252,6 +253,8 @@ export class App {
    */
   private readonly quality: GraphicsQuality;
   private readonly frameStats: FrameStats;
+  /** Wo man steht, als Zahl (`core/positionHud.ts`, _Grafik → Position zeigen_). */
+  private readonly positionHud: PositionHud;
 
   private world: World | null = null;
   private worldMenu: MenuEntry[] = [];
@@ -345,6 +348,8 @@ export class App {
     // Das Feld unten rechts hängt am Häkchen im Grafik-Menü — und F3 schaltet
     // dasselbe Häkchen, damit beide dasselbe sagen.
     this.frameStats.visible = graphics().showFps;
+    this.positionHud = new PositionHud();
+    this.positionHud.visible = graphics().showPosition;
     this.frameStats.onToggle = (on) => {
       saveGraphics({ showFps: on });
       this.menuDirty = true;
@@ -909,6 +914,7 @@ export class App {
     this.mirrors.dispose();
     this.quality.dispose();
     this.frameStats.dispose();
+    this.positionHud.dispose();
     this.net.disconnect();
     this.renderer.dispose();
   }
@@ -1652,6 +1658,23 @@ export class App {
           },
         },
         {
+          // **Wo man steht, als Zahl** — `core/positionHud.ts`. Das Feld
+          // oben links unter dem Menüknopf; mit Metern, Kachel, Ebene und der
+          // Adresse `?at=…`, die genau dorthin führt.
+          id: 'gfx:position',
+          label: 'Position zeigen',
+          sub: 'x, z und Höhe in Metern · Kachel, Ebene und ?at=-Adresse',
+          caption: 'Oben links · am Schirm und auf dem Telefon',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.showPosition,
+          run: () => {
+            const next = saveGraphics({ showPosition: !graphics().showPosition });
+            this.positionHud.visible = next.showPosition;
+            this.menuDirty = true;
+          },
+        },
+        {
           // **Die Gitterlinien der eigenen Ebene** — gezeichnet von
           // `worlds/grid/GridWorld.ts`, und nur dort: Eine Welt ohne Kacheln
           // hat keine Kanten zu zeigen, und das Häkchen bleibt dort ohne
@@ -2362,6 +2385,7 @@ export class App {
 
   private onSessionStart = (): void => {
     this.frameStats.setImmersive(true);
+    this.positionHud.setImmersive(true);
     this.role = 'vr';
     // Ab jetzt tragen die Handgelenke das Menü, nicht die Seite.
     this.wristMenu.presenting = true;
@@ -2384,6 +2408,7 @@ export class App {
 
   private onSessionEnd = (): void => {
     this.frameStats.setImmersive(false);
+    this.positionHud.setImmersive(false);
     this.resizeWebBuffer();
     this.role = detectFlatRole();
     this.wristMenu.presenting = false;
@@ -2547,6 +2572,13 @@ export class App {
     const rendered = this.world?.render?.(viewContext) ?? false;
     if (!rendered) this.renderer.render(this.scene, view);
     this.topDownCamera.uncut();
+    this.positionHud.update(
+      dt,
+      this.rig.position.x,
+      this.rig.position.y,
+      this.rig.position.z,
+      this.world?.viewLevel?.()?.level ?? null,
+    );
     const sample = this.frameStats.update(
       time,
       performance.now() - started,

@@ -32,6 +32,7 @@ describe('Grafikeinstellungen', () => {
       xrScale: 1,
       showFps: false,
       gridLines: false,
+      showPosition: false,
       hitBoxes: false,
       ghostBoxes: false,
       showHandles: false,
@@ -210,6 +211,15 @@ describe('Grafikeinstellungen', () => {
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, gridLines: true, hitBoxes: true })).toBe(
       'Einfach · Gitterlinien · Hitboxen',
     );
+  });
+
+  it('merkt sich die Positionsanzeige nur als echtes Ja', () => {
+    expect(DEFAULT_GRAPHICS.showPosition).toBe(false);
+    expect(clampGraphics({ showPosition: true })).toEqual({
+      ...DEFAULT_GRAPHICS,
+      showPosition: true,
+    });
+    expect(clampGraphics({ showPosition: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
   });
 
   /**
