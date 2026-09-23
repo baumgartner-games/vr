@@ -13,6 +13,8 @@ import { PageMenu } from '../ui/PageMenu';
 import { HAND_LABEL, ToolButton, toolEntries } from '../ui/ToolButton';
 import { WardrobeMenu } from '../ui/WardrobeMenu';
 import { TopDownCamera } from './TopDownCamera';
+import { isCrane, screenTopDown } from './crane';
+import { gameMode, onGameMode } from './gameMode';
 import {
   SCREEN_VIEW_LABELS,
   SCREEN_VIEW_SUBS,
@@ -294,6 +296,8 @@ export class App {
   private fpsEntry: MenuEntry | null = null;
   /** Dem Vollbild wieder zuhören aufhören — die Zeile darüber hängt daran (`fullscreenRow`). */
   private stopFullscreenWatch: (() => void) | null = null;
+  /** Meldet das Zuhören am Spielmodus wieder ab (`core/crane.ts`). */
+  private readonly stopGameModeWatch: () => void;
   /** Dasselbe für die Zeile, die zeigt, was gerade am Pad anliegt (`inputsMenu`). */
   private liveInput: MenuEntry | null = null;
   /** Welche Zeile des Eingaben-Menüs gerade auf einen Druck wartet, wenn eine. */
@@ -404,6 +408,13 @@ export class App {
     // der einen Stelle, an der Eingabe zusammenläuft (`FlatControls`).
     this.flat.onTools = () => this.toggleToolMenu();
     this.view = screenView(this.role);
+    // **Der Spielmodus schaltet die Ansicht mit** (`core/crane.ts`): Wer
+    // einrichtet, ist der Kran und sieht am Schirm von oben; mit _Spielen_
+    // kommt die eigene Wahl zurück.
+    this.stopGameModeWatch = onGameMode(() => {
+      this.applyView();
+      this.menuDirty = true;
+    });
     this.refreshMenu();
 
     // Der Name gilt ab sofort und nicht erst ab dem Verbinden: er steht im
@@ -802,7 +813,9 @@ export class App {
   /**
    * **Ob die Ansicht von oben gerade das Bild ist.**
    *
-   * Vier Dinge müssen zusammenkommen: Es ist _Von oben_ gewählt, die Brille
+   * Vier Dinge müssen zusammenkommen: Es ist _Von oben_ gewählt — oder man
+   * ist gerade der Kran, der beim Einrichten über der Küche schwebt
+   * (`core/crane.ts`) —, die Brille
    * ist ab (darin gibt es nur die eine Ansicht), die Welt bringt keine eigene
    * mit (Haunting hat seine Runde von oben schon — `World.ownsFlat`), und man
    * schaut niemandem zu. **Zuschauen ist selbst eine Kamera**
@@ -812,7 +825,7 @@ export class App {
    */
   get topDown(): boolean {
     return (
-      this.view === '2d' &&
+      screenTopDown(this.view, gameMode()) &&
       !this.renderer.xr.isPresenting &&
       !this.world?.ownsFlat &&
       !this.spectating
@@ -831,7 +844,11 @@ export class App {
     this.pointer.topDown = on;
     // Von oben sieht man sich selbst — Kopf nach vorn und Fäuste dran.
     this.avatar.headFollowsRig = on;
-    this.avatar.showHands = on;
+    // **Von oben und beim Einrichten ist man der Kran** (`core/crane.ts`) —
+    // der Koch tritt ab, samt seinen Händen.
+    const crane = on && isCrane(gameMode());
+    this.avatar.crane = crane;
+    this.avatar.showHands = on && !crane;
     if (on) this.topDownCamera.reset();
     else if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();
   }
@@ -895,6 +912,7 @@ export class App {
     window.removeEventListener('resize', this.onResize);
     this.stopFullscreenWatch?.();
     this.stopFullscreenWatch = null;
+    this.stopGameModeWatch();
     this.renderer.xr.removeEventListener('sessionstart', this.onSessionStart);
     this.renderer.xr.removeEventListener('sessionend', this.onSessionEnd);
     this.unloadWorld();
@@ -1029,7 +1047,13 @@ export class App {
     return {
       id: 'view',
       label: 'Ansicht',
-      sub: available ? SCREEN_VIEW_LABELS[this.view] : 'Hier gibt es nur die eine',
+      // Die Wahl bleibt, auch wenn sie gerade nicht gilt: Der Kran sieht von
+      // oben (`core/crane.ts`), und das soll hier stehen und nicht verwundern.
+      sub: !available
+        ? 'Hier gibt es nur die eine'
+        : !flat && isCrane(gameMode())
+          ? `${SCREEN_VIEW_LABELS[this.view]} · als Kran von oben`
+          : SCREEN_VIEW_LABELS[this.view],
       icon: 'worlds',
       accent: 0x9fe3ff,
       children: [

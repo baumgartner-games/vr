@@ -5741,7 +5741,12 @@ export class KitchenZone implements TestZone {
    */
   private takeFromCatalogue(piece: KitchenPiece): boolean {
     const world = this.world;
-    if (!world || this.lifted || this.handsFull()) return false;
+    if (!world) return false;
+    // **Wer wechselt, legt den Pinsel weg** (`scrapFresh`): Mit einem frischen
+    // Stück in den Händen gab der Katalog bisher nichts her, und das Regal
+    // machte daraus ein Fass neben dem getragenen Herd.
+    this.scrapFresh();
+    if (this.lifted || this.handsFull()) return false;
     // **Geklont wird über `cloneModel`** und nicht über `clone(true)`: Der
     // Griff in den Katalog geschieht im Konstrukt-Raum, und dort ist die
     // Vorlage gerade ausgeblendet. Das gebaute Stück braucht das nicht — es
@@ -5773,6 +5778,45 @@ export class KitchenZone implements TestZone {
     furnish.fresh = true;
     this.liftPiece(furnish);
     world.notify(`${piece.label} aus dem Katalog — hinstellen mit A`);
+    return true;
+  }
+
+  /**
+   * **Ein frisch aus dem Katalog genommenes Stück wieder weg** — es stand nie,
+   * also verschwindet es, ohne eine Spur zu hinterlassen.
+   *
+   * Gebraucht wird das beim **Wechseln** im _Baukasten_: Wer einen Herd in den
+   * Händen hat und im Regal die Spüle wählt, will die Spüle und nicht zwei
+   * Möbel. Heimgestellt (`dropPiece(true)`) stünde der Herd danach auf seiner
+   * Heimatkachel, und die ist bei einem frischen Stück nur der Platz fürs
+   * Aufräumen und nicht einer, den jemand gewählt hat.
+   *
+   * Ein frisches Stück hat kein Gerät (`takeFromCatalogue`), keinen Körper
+   * (`liftPiece` hat ihn abgebaut) und nichts darauf; abzuräumen bleiben das
+   * Netz, seine Griffkreuze, die Station und der Eintrag in der Möbelliste.
+   *
+   * @returns ob eines weggeräumt wurde
+   */
+  scrapFresh(): boolean {
+    const furnish = this.lifted;
+    if (!furnish?.fresh) return false;
+    this.lifted = null;
+    furnish.held = false;
+    const at = this.furniture.indexOf(furnish);
+    if (at >= 0) this.furniture.splice(at, 1);
+    const station = furnish.station;
+    if (station) {
+      this.gauges?.clear(station.key);
+      const index = this.stations.indexOf(station);
+      if (index >= 0) this.stations.splice(index, 1);
+    }
+    const handles = furnish.model.getObjectByName('kitchen-handle-holder');
+    if (handles) this.handleView.forget(handles);
+    if (this.models.get(furnish.piece.name) === furnish.model)
+      this.models.delete(furnish.piece.name);
+    furnish.model.removeFromParent();
+    this.forget(furnish.model);
+    this.refreshStations();
     return true;
   }
 

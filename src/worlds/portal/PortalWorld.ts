@@ -125,6 +125,7 @@ import {
   type PropKind,
 } from './props';
 import { gridPose, placesOnGrid, tilesCovered, turnedHalf, wallEdges, yawOf } from './gridSnap';
+import { swapOut } from './shelfSwap';
 import { PlaceGrid } from './placeGrid';
 import {
   AREA_MAX,
@@ -6343,7 +6344,7 @@ export class PortalWorld implements World {
 
     // A hand can only carry one thing, tool or prop.
     const grab = this.grabs.get(hand);
-    if (grab) this.release(ctx, hand, grab, true);
+    if (grab) this.letGo(ctx, hand, grab);
     if (tool.heldBy) this.held.delete(tool.heldBy);
 
     const home = belt.slotOf(tool);
@@ -8736,6 +8737,34 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Was die Hand hielt, weicht dem, was sie jetzt nimmt** — ein anderes
+   * Stück aus dem Regal, etwas aus dem Beutel, ein Werkzeug.
+   *
+   * Hier stand ein schlichtes Loslassen, und das war im _Baukasten_ der
+   * gemeldete Fehler beim Wechseln: Loslassen ohne Schwung **ist**
+   * Hinstellen (`gridSnap.placesOnGrid`), das alte Stück rastete also vor den
+   * Füßen ein — und weil es frisch aus dem Regal kam, holte es gleich die
+   * nächste Kopie in die Hand (`placedFromShelf`). Die warf das eben gewählte
+   * Stück wieder hinaus, das rastete ein und holte **seine** nächste Kopie,
+   * und so fort, Mikrotask um Mikrotask, bis die Seite stand.
+   *
+   * **Ein frisches Stück war nie hingestellt**: Es ist der Pinsel, mit dem man
+   * baut, und wer den Pinsel wechselt, legt den alten weg und nicht auf den
+   * Boden. Es verschwindet deshalb, ohne Zeile in der Liste der
+   * Weltänderungen. Alles andere fällt wie bisher — und holt nichts nach,
+   * weil es nicht frisch ist.
+   */
+  private letGo(ctx: WorldContext, hand: Handedness, grab: HandGrab): void {
+    if (swapOut(this.shelfFresh.has(grab.entry)) === 'drop') {
+      this.release(ctx, hand, grab, true);
+      return;
+    }
+    this.shelfFresh.delete(grab.entry);
+    this.release(ctx, hand, grab, false);
+    this.removeProp(grab.entry, true);
+  }
+
+  /**
    * **Ein Modell aus dem Regal ist hingestellt worden** — in die Liste der
    * Weltänderungen damit, und im _Baukasten_ gleich das nächste in die Hand.
    *
@@ -9249,7 +9278,7 @@ export class PortalWorld implements World {
       const tool = this.held.get(hand);
       if (tool) this.stowTool(tool);
       const existing = this.grabs.get(hand);
-      if (existing) this.release(ctx, hand, existing, true);
+      if (existing) this.letGo(ctx, hand, existing);
       this.attach(hand, anchor, entry);
     } else {
       // **Und am Schirm fängt die Bildschirmhand es auf** (`screenCatch`).
@@ -9488,7 +9517,7 @@ export class PortalWorld implements World {
       const tool = this.held.get(hand);
       if (tool) this.stowTool(tool);
       const existing = this.grabs.get(hand);
-      if (existing) this.release(ctx, hand, existing, true);
+      if (existing) this.letGo(ctx, hand, existing);
       this.attach(hand, anchor, entry);
     } else {
       // **Am Schirm und auf dem Telefon in die Bildschirmhand** — das ist der
@@ -10333,7 +10362,7 @@ export class PortalWorld implements World {
     // Eine Hand trägt eines. Was noch darin lag, geht vorher weg — dieselbe
     // Regel wie in der Brille.
     const busy = this.grabs.get(side);
-    if (busy) this.release(ctx, side, busy, true);
+    if (busy) this.letGo(ctx, side, busy);
     // **Und ein Werkzeug ist auch nur eines.** Eine Pistole in der Faust und
     // eine Tomate vor dem Bauch waren zwei Dinge in einer Hand — gemeldet als
     // _„es kann nicht sein, dass ich eine Tomate und eine Pistole halte"_.
@@ -10534,7 +10563,7 @@ export class PortalWorld implements World {
   private dropScreenCarry(ctx: WorldContext): void {
     const side = this.screenCarrySide();
     const grab = side ? this.grabs.get(side) : undefined;
-    if (side && grab) this.release(ctx, side, grab, true);
+    if (side && grab) this.letGo(ctx, side, grab);
     this.screenPress = null;
     this.screenTapped = false;
     this.freeScreenClaim(ctx);

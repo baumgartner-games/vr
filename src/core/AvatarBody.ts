@@ -245,6 +245,8 @@ export class AvatarBody extends THREE.Group {
 
   /** Ob der Träger gerade in seinen eigenen Augen steckt (`setSelfView`). */
   private selfView = false;
+  /** Ob der ganze Körper weggetreten ist — für den Kran (`setBodyHidden`). */
+  private bodyHidden = false;
 
   /** Trägt den Rumpf des Modells und sein Watscheln (`wearModel`). */
   private sway: THREE.Group | null = null;
@@ -949,6 +951,19 @@ export class AvatarBody extends THREE.Group {
   }
 
   /**
+   * **Den ganzen Körper wegtreten lassen** — Kopf, Rumpf, Hände und Figur.
+   *
+   * Für den Kran (`core/crane.ts`): Wer einrichtet, ist der Greifer über der
+   * Küche und nicht der Koch darunter. Über `applyBodyVisible` und nicht
+   * daran vorbei, sonst schaltete der nächste Hut- oder Figurwechsel den Koch
+   * mitten im Einrichten wieder an.
+   */
+  protected setBodyHidden(on: boolean): void {
+    this.bodyHidden = on;
+    this.applyBodyVisible();
+  }
+
+  /**
    * **Wer gerade zu sehen ist** — an einer Stelle, weil drei Schalter darüber
    * mitreden: der Koch tritt ab, wenn eine Figur aus dem Regal da ist
    * (`chefOn`), die Hände lassen sich einzeln abstellen (`handsOn`), und wer
@@ -959,8 +974,8 @@ export class AvatarBody extends THREE.Group {
    * Koch gerade gar nicht dastand.
    */
   private applyBodyVisible(): void {
-    const chef = this.chefOn;
-    const seen = !this.selfView;
+    const chef = this.chefOn && !this.bodyHidden;
+    const seen = !this.selfView && !this.bodyHidden;
     this.head.visible = chef && seen;
     this.torso.visible = chef && seen;
     // Sichtbar ist immer nur eine Sorte Hand: das Modell, wenn es da ist,
