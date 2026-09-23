@@ -11,6 +11,7 @@ import {
 } from '../../../core/kitchenFit';
 import { kitchenPieceForModel } from '../../../core/kitchenShelf';
 import { canLoadModels, CHEF_CARRY } from '../../../core/chefFit';
+import { craneCarryY } from '../../../core/crane';
 import { USE_REACH, type UseSource } from '../../../core/usable';
 import { holdFor, nearestHandle, type GrabHandle, type GrabPose } from '../../../core/grabHandles';
 import { HandleView } from '../../../core/handleView';
@@ -290,6 +291,8 @@ export * from './kitchenBlocks';
  * keine feste Höhe mehr.
  */
 const CARRY_POINT = new THREE.Vector3(CHEF_CARRY.x, CHEF_CARRY.y, CHEF_CARRY.z);
+/** Die halbe Höhe, mit der ein Möbel unter dem Kran hängt, in Metern. */
+const CRANE_PIECE_HALF = 0.5;
 
 /**
  * **Auf welcher Höhe der Bauch in diesem Bild ist**, im Raum des Rigs.
@@ -958,6 +961,12 @@ export class KitchenZone implements TestZone {
    */
   private rig: PlayerRig | null = null;
   /**
+   * **Ob man gerade der Kran ist** (`core/crane.ts`, `WorldContext.crane`) —
+   * dann hängt das getragene Möbel unter dem Greifer, und abgesetzt wird auf
+   * der Kachel darunter und nicht auf der vor den Füßen.
+   */
+  private crane = false;
+  /**
    * **Der Maßstab, auf den die Küche die Augenhöhe bringt** — einmal gerechnet
    * und nicht sechzigmal in der Sekunde.
    *
@@ -1426,6 +1435,7 @@ export class KitchenZone implements TestZone {
     // sich beim Beugen gar nicht mitbewegt, ob sie ihn stauchen soll
     // (`fitEyes`). Dieselbe Rechnung wie in `PlayerRig.placeFeetAt`, und am
     // Bildschirm ändert sie nichts: dort sitzt die Kamera über dem Ursprung.
+    this.crane = Boolean(ctx.crane);
     ctx.rig.getHeadPosition(_feet);
     _feet.setY(ctx.rig.getFloorY());
     _rigAhead.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_spin));
@@ -2529,6 +2539,12 @@ export class KitchenZone implements TestZone {
     if (piece) {
       if (ctx.renderer.xr.isPresenting) {
         piece.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
+        ctx.avatar.carry = null;
+      } else if (this.crane) {
+        // **Unter dem Greifer** (`core/crane.craneCarryY`), genau über der
+        // Kachel, auf der es gleich landet. Der Fuß des Möbels ist sein
+        // Ursprung; gerechnet wird mit einem Möbel von einem Meter.
+        piece.position.set(0, craneCarryY(CRANE_PIECE_HALF) - CRANE_PIECE_HALF, 0);
         ctx.avatar.carry = null;
       } else {
         piece.position.set(CHEF_CARRY.x, carryY(ctx), CHEF_CARRY.z);
@@ -6471,7 +6487,7 @@ export class KitchenZone implements TestZone {
       _aim,
       { x: KITCHEN.x * TILE, z: KITCHEN.z * TILE },
       TILE,
-      BUILD_AHEAD,
+      this.crane ? 0 : BUILD_AHEAD,
     );
     const target: BuildSpot = { x: tile.x, z: tile.z, w: furnish.size.w, d: furnish.size.d };
     this.ghostAt = target;

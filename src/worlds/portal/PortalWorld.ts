@@ -337,8 +337,10 @@ import {
   shotHitsUsable,
   usableShows,
   type UseCandidate,
+  type UsePick,
   type Usable,
 } from '../../core/usable';
+import { CRANE_TOUCH, buildCraneMark, disposeCrane } from '../../core/crane';
 import {
   interactionGrab,
   interactionKind,
@@ -1506,6 +1508,15 @@ export class PortalWorld implements World {
   private reachRing: THREE.Mesh | null = null;
   private sync: PortalSync | null = null;
   private locomotion: PhysicsLocomotion | null = null;
+  /**
+   * **Wo der Flug als Kran angefangen hat** (`core/crane.ts`) — die Füße in
+   * dem Bild, in dem man zum Kran wurde, oder `null`, solange man keiner ist.
+   * Dorthin geht es zurück, wenn beim Landen keine freie Stelle zu finden
+   * ist (`updateCraneFlight`).
+   */
+  private craneStart: THREE.Vector3 | null = null;
+  /** Der Kreis am Boden unter dem Kran (`core/crane.buildCraneMark`). */
+  private craneMark: THREE.Group | null = null;
   protected context: WorldContext | null = null;
   private portalRenderer: PortalRenderer | null = null;
   private ghosts: PortalGhosts | null = null;
@@ -1637,6 +1648,7 @@ export class PortalWorld implements World {
     this.handleReset(ctx);
 
     this.locomotion.phaseMask = this.playerFunnelMask();
+    this.updateCraneFlight(ctx);
 
     this.updateRemotePlayers(ctx);
     this.reportHands();
@@ -4734,6 +4746,9 @@ export class PortalWorld implements World {
     // before that world is freed.
     ctx.rig.setLocomotion(new FreeLocomotion());
     this.locomotion = null;
+    this.craneStart = null;
+    if (this.craneMark) disposeCrane(this.craneMark);
+    this.craneMark = null;
 
     // Ghosts hand the originals their real materials back, so they go first.
     this.ghosts?.dispose();
@@ -9949,7 +9964,7 @@ export class PortalWorld implements World {
    */
   protected useForward(ctx: WorldContext): boolean {
     this.aimUse(ctx);
-    const pick = pickUsable(this.collectUsables(), _useAt, _useForward, this.useReach());
+    const pick = this.pickBody(ctx);
     if (!pick) return false;
     return pick.candidate.usable.use({ kind: 'player', at: _useAt, forward: _useForward });
   }
@@ -10001,10 +10016,84 @@ export class PortalWorld implements World {
    */
   private aimUse(ctx: WorldContext): void {
     ctx.rig.updateMatrixWorld(true);
+    // **Der Kran zeigt nach unten** (`core/crane.ts`): gemeint ist, worüber
+    // er schwebt. Ohne Richtung wählt `pickUsable` nur, was die Stelle
+    // überdeckt — und die ist die unter dem Kopf, dort hängt der Greifer.
+    if (ctx.crane) {
+      ctx.rig.getHeadPosition(_useAt);
+      _useAt.y = ctx.rig.getFloorY() + USE_CHEST;
+      _useForward.set(0, 0, 0);
+      return;
+    }
     _useAt.set(ctx.rig.position.x, ctx.rig.getFloorY() + USE_CHEST, ctx.rig.position.z);
     _useRigAhead.set(0, 0, -1).applyQuaternion(ctx.rig.getWorldQuaternion(_quaternion));
     ctx.rig.getHeadForward(_useHeadAhead);
     aimForward(ctx.topDown, _useRigAhead, _useHeadAhead, _useForward);
+  }
+
+  /**
+   * **Als Kran durch alles hindurch** — und beim Zurückschalten sicher landen.
+   *
+   * Gewünscht war es so: _„als Kran will ich keine Physik haben, also auch
+   * durch Wände und über Arbeitsplatten fliegen können."_ Das gibt es schon,
+   * für den Konstrukt-Raum (`PhysicsLocomotion.ghost`): keine Kapsel, keine
+   * Schwerkraft, das Rig geht dorthin, wohin der Stock zeigt. Gesetzt wird es
+   * jedes Bild, weil jedes `resync` es abschaltet.
+   *
+   * **Das Ende ist die eigentliche Arbeit.** Wer über dem Herd aufhört, Kran
+   * zu sein, stünde im Herd. `PhysicsLocomotion.land` sucht deshalb in Ringen
+   * die nächste freie Stelle mit Boden darunter; findet sich keine, geht es
+   * zurück an den Ort, an dem der Flug anfing.
+   */
+  private updateCraneFlight(ctx: WorldContext): void {
+    const locomotion = this.locomotion;
+    if (!locomotion) return;
+    if (ctx.crane) {
+      if (!this.craneStart) this.craneStart = this.playerFeet(new THREE.Vector3());
+      locomotion.ghost = true;
+      return;
+    }
+    const start = this.craneStart;
+    if (!start) return;
+    this.craneStart = null;
+    if (locomotion.land(ctx.rig)) return;
+    this.movePlayerTo(ctx, start);
+  }
+
+  /**
+   * **Der Kreis am Boden, wohin der Kran zeigt** — solange dort nichts
+   * hervorgehoben ist.
+   *
+   * Leuchtet ein Ding unter dem Kran, sagt der Saum schon alles; zwei
+   * Auskünfte für dieselbe Stelle wären eine zu viel. Und trägt der Kran ein
+   * Modell aus dem Regal, zeigt das Gitter die Kacheln, auf denen es landet
+   * (`updatePlaceGrid`) — der Kreis darunter wäre dieselbe Auskunft, nur
+   * ungenauer.
+   */
+  private updateCraneMark(ctx: WorldContext, highlighted: boolean): void {
+    const show = Boolean(ctx.crane) && !highlighted && this.carriedModel() === null;
+    if (!show) {
+      if (this.craneMark) this.craneMark.visible = false;
+      return;
+    }
+    const mark = (this.craneMark ??= buildCraneMark());
+    if (mark.parent !== ctx.scene) ctx.scene.add(mark);
+    ctx.rig.getHeadPosition(_point);
+    mark.position.set(_point.x, ctx.rig.getFloorY() + 0.02, _point.z);
+    mark.visible = true;
+  }
+
+  /**
+   * **Was der Körper meint** — die eine Auswahl für Saum und Taste.
+   *
+   * Als Kran nur, was unter ihm liegt (`CRANE_TOUCH`); sonst der Strahl aus
+   * der Brust und die Füße wie immer.
+   */
+  private pickBody(ctx: WorldContext): UsePick | null {
+    if (ctx.crane) {
+      return pickUsable(this.collectUsables(), _useAt, _useForward, 0, CRANE_TOUCH);
+    }
+    return pickUsable(this.collectUsables(), _useAt, _useForward, this.useReach());
   }
 
   /**
@@ -10020,10 +10109,7 @@ export class PortalWorld implements World {
     if (ctx.rig.takeUse()) this.useForward(ctx);
     this.aimUse(ctx);
 
-    const pick =
-      this.usables.length > 0
-        ? pickUsable(this.collectUsables(), _useAt, _useForward, this.useReach())
-        : null;
+    const pick = this.usables.length > 0 ? this.pickBody(ctx) : null;
     ctx.rig.useCandidate = pick !== null;
     const object = pick?.candidate.object ?? null;
     this.bodyPick = pick && object ? { usable: pick.candidate.usable, object } : null;
@@ -10091,10 +10177,10 @@ export class PortalWorld implements World {
       // dasselbe Netz geben keinen zweiten Saum, sondern einen doppelt dicken.
       this.secondHighlighter.highlight(second === first ? null : second);
     } else {
-      this.highlighter.highlight(
-        this.useInteraction?.interactive ? (chosen?.object ?? null) : null,
-      );
+      const shown = this.useInteraction?.interactive ? (chosen?.object ?? null) : null;
+      this.highlighter.highlight(shown);
       this.secondHighlighter.highlight(null);
+      this.updateCraneMark(ctx, shown !== null);
     }
     this.highlighter.update(dt);
     this.secondHighlighter.update(dt);
@@ -11600,6 +11686,7 @@ function spanOf(object: THREE.Object3D): CarrySpan {
 
 /** Welche der beiden flachen Ansichten gerade läuft (`core/screenCarry.ts`). */
 function screenCarryView(ctx: WorldContext): ScreenCarryView {
+  if (ctx.crane) return 'crane';
   return ctx.topDown ? 'topDown' : 'firstPerson';
 }
 

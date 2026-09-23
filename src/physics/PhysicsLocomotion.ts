@@ -1,9 +1,17 @@
 import * as THREE from 'three';
-import { PLAYER_CAPSULE_RADIUS } from './playerClearance';
+import { PLAYER_CAPSULE_RADIUS, landingOffsets } from './playerClearance';
 import type { Collider, KinematicCharacterController, RigidBody } from '@dimforge/rapier3d-compat';
 import type { Locomotion } from '../core/Locomotion';
 import type { PlayerRig } from '../core/PlayerRig';
-import { ALL_GROUPS, GROUP_PLAYER, interactionGroups, type PhysicsWorld } from './PhysicsWorld';
+import {
+  ALL_GROUPS,
+  GROUP_HAND,
+  GROUP_NPC,
+  GROUP_PLAYER,
+  GROUP_PROP,
+  interactionGroups,
+  type PhysicsWorld,
+} from './PhysicsWorld';
 
 /**
  * Everything the player capsule may bump into. Other players are deliberately
@@ -147,6 +155,12 @@ const _matrix = new THREE.Matrix4();
 
 /** Die Kapsel steht immer aufrecht, und der Formwurf geht immer nach unten. */
 const UPRIGHT = { x: 0, y: 0, z: 0, w: 1 };
+/** Wogegen beim Landen gesucht wird: alles Feste, nichts, das weicht. */
+const LAND_FILTER = ALL_GROUPS & ~(GROUP_PLAYER | GROUP_PROP | GROUP_NPC | GROUP_HAND);
+/** Wie tief unter der abgesetzten Kapsel noch Boden sein muss, in Metern. */
+const LAND_FLOOR = 0.4;
+/** Die Stellen, an denen gelandet werden darf, der Reihe nach. */
+const LANDING = landingOffsets();
 const DOWN = { x: 0, y: -1, z: 0 };
 
 /**
@@ -546,6 +560,62 @@ export class PhysicsLocomotion implements Locomotion {
     this.syncCapsuleToRig(rig, true);
     this.grounded = false;
     this.coyote = 0;
+  }
+
+  /**
+   * **Aus dem Flug landen** — die nächste Stelle suchen, an der die Kapsel
+   * frei steht und Boden unter sich hat, das Rig dorthin rücken und wieder
+   * gehen wie immer (`resync`, das `ghost` abschaltet).
+   *
+   * Der Kran fliegt durch Wände und über Arbeitsplatten (`core/crane.ts`,
+   * `ghost`); wer ihn über einem Herd verlässt, stünde sonst im Herd. Gesucht
+   * wird in Ringen um die Stelle unter dem Kopf (`landingOffsets`), und nur
+   * gegen das, was fest steht: Gegenstände, Figuren und Hände weichen ohnehin.
+   *
+   * @returns ob eine freie Stelle gefunden wurde — sonst bleibt das Rig, wo es
+   *          ist, und der Aufrufer bringt es zurück, wo der Flug anfing
+   */
+  land(rig: PlayerRig): boolean {
+    rig.getHeadPosition(_head);
+    const y = rig.getFloorY() + SEAT_CLEARANCE + this.halfHeight + RADIUS;
+    const groups = interactionGroups(GROUP_PLAYER, LAND_FILTER);
+    const world = this.physics.world;
+    this.physics.syncColliders();
+    for (const [dx, dz] of LANDING) {
+      const centre = { x: _head.x + dx, y, z: _head.z + dz };
+      const blocked = world.intersectionWithShape(
+        centre,
+        UPRIGHT,
+        this.collider.shape,
+        undefined,
+        groups,
+        this.collider,
+        this.body,
+      );
+      if (blocked) continue;
+      // **Und Boden darunter**: Wer über den Rand der Welt hinausgeflogen ist,
+      // soll nicht ins Nichts fallen, sondern am Rand landen.
+      const floor = world.castShape(
+        centre,
+        UPRIGHT,
+        DOWN,
+        this.collider.shape,
+        0,
+        LAND_FLOOR,
+        true,
+        undefined,
+        groups,
+        this.collider,
+        this.body,
+      );
+      if (!floor) continue;
+      rig.position.x += dx;
+      rig.position.z += dz;
+      rig.updateMatrixWorld(true);
+      this.resync(rig);
+      return true;
+    }
+    return false;
   }
 
   dispose(): void {

@@ -129,3 +129,45 @@ describe('Der Körper im Konstrukt (`PhysicsLocomotion.ghost`)', () => {
     expect(rig.position.x).toBeLessThan(1.6);
   }, 30000);
 });
+
+describe('Der Kran landet (`PhysicsLocomotion.land`)', () => {
+  it('bleibt, wo er ist, wenn dort Platz ist', async () => {
+    const { rig, loco, walk } = await stage();
+    walk(1 / 60, 0);
+    loco.ghost = true;
+    expect(loco.land(rig.asRig)).toBe(true);
+    expect(rig.position.x).toBe(0);
+    expect(rig.position.z).toBe(0);
+    expect(loco.ghost).toBe(false);
+  }, 30000);
+
+  it('landet neben der Küchenzeile und nicht in ihr', async () => {
+    const { rig, loco, walk } = await stage();
+    // Ein Bild Physik, damit die Welt ihre Körper kennt — im Spiel läuft das
+    // ohnehin jedes Bild.
+    walk(1 / 60, 0);
+    // Mitten über die Zeile geflogen (x = 2, 0,6 m dick) …
+    rig.position.set(2, 0, 0);
+    loco.ghost = true;
+    expect(loco.land(rig.asRig)).toBe(true);
+    // … und daneben abgesetzt: weit genug von ihrer Mitte, dass die Kapsel
+    // (Halbmesser 0,24) die Zeile nicht berührt.
+    expect(Math.abs(rig.position.x - 2)).toBeGreaterThanOrEqual(0.3 + 0.24);
+    // Und danach steht man wirklich: Laufen nach Osten hält wieder an der
+    // Zeile, falls man westlich landete — der Körper ist zurück.
+    const landedWest = rig.position.x < 2;
+    walkEast(walk);
+    if (landedWest) expect(rig.position.x).toBeLessThan(1.6);
+  }, 30000);
+
+  it('sucht Boden unter sich — über dem Rand der Welt gibt es keinen Platz', async () => {
+    const { rig, loco, walk } = await stage();
+    walk(1 / 60, 0);
+    // Der Boden ist 500 m breit; zehn Meter darüber hinaus findet der Ring
+    // (drei Meter weit) nichts, und der Aufrufer bringt einen zurück.
+    rig.position.set(260, 0, 0);
+    loco.ghost = true;
+    expect(loco.land(rig.asRig)).toBe(false);
+    expect(rig.position.x).toBe(260);
+  }, 30000);
+});

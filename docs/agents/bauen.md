@@ -809,7 +809,9 @@ Gewünscht war es wie in _PlateUp!_: In **Einrichten** und **Baukasten** tritt
 der Koch ab, und über dem Kopf schwebt ein gelber Greifer — ein Gehäuse, ein
 Seil, drei Klauen im Drittelkreis (`buildCrane`). Er ist **rund**, weil
 „Richtungen erstmal nicht wichtig" waren: Ein Greifer ohne Vorn kann nicht
-falsch herum stehen. Er schwebt in fester Höhe (`CRANE_HEIGHT`, 2,2 m) und
+falsch herum stehen. Er schwebt in fester Höhe (`CRANE_HEIGHT`, 1,7 m — erst 2,2 m, aber von
+schräg oben stand er dann sichtbar eine halbe Kachel neben der Stelle, auf die
+er zeigte) und
 nicht über der Kopfhöhe, sonst sänke er beim Ducken, und dreht sich langsam
 um sich selbst (`cranePose`). Der Körper geht dabei über
 `AvatarBody.setBodyHidden` und nicht an `applyBodyVisible` vorbei — sonst
@@ -828,6 +830,30 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   (`LAYER_SELF_ONLY`), der Kran also auch nicht.
 - **Nur lokal.** Mitspieler sehen weiter den Koch; der Modus geht nicht über
   die Leitung.
+- **Keine Physik** (`PortalWorld.updateCraneFlight`). Gewünscht war: _„als Kran
+  will ich keine Physik haben, also auch durch Wände und über Arbeitsplatten
+  fliegen können."_ Das ist der kollisionsfreie Körper des Konstrukt-Raums
+  (`PhysicsLocomotion.ghost`), jedes Bild neu gesetzt, weil jedes `resync` ihn
+  abschaltet. **Das Ende ist die Arbeit**: Wer über dem Herd aufhört, Kran zu
+  sein, stünde im Herd. `PhysicsLocomotion.land` sucht in Ringen
+  (`playerClearance.landingOffsets`, bis 3 m) die nächste Stelle, an der die
+  Kapsel frei steht und Boden unter sich hat — gegen alles Feste, nicht gegen
+  Gegenstände, die ohnehin weichen. Findet sich keine, geht es zurück an den
+  Ort, an dem man zum Kran wurde. Geprüft mit echtem Rapier
+  (`playerGhost.test.ts`): bleibt auf freiem Boden stehen, landet neben der
+  Küchenzeile und nicht in ihr, findet über dem Rand der Welt nichts.
+- **Gemeint ist, was unter dem Kran liegt** (`PortalWorld.pickBody`,
+  `CRANE_TOUCH`). Ohne Vorn gibt es keinen Strahl aus der Brust; `pickUsable`
+  bekommt keine Richtung und nimmt nur, was die Stelle unter dem Kopf
+  überdeckt. Dorthin hängt auch das Getragene (`screenCarry`, Ansicht
+  `crane`; in der Küche `carryInHands`), und die Küche setzt auf der Kachel
+  darunter ab statt auf der vor den Füßen (`showGhost`, `tileAhead` ohne
+  Vorlauf) — Saum, Taste und Ablage meinen dieselbe Stelle.
+- **Ein Kreis am Boden** (`buildCraneMark`, `PortalWorld.updateCraneMark`)
+  zeigt diese Stelle, solange dort nichts hervorgehoben ist: Leuchtet ein Ding,
+  sagt der gelbe Saum schon alles, und trägt der Kran ein Modell aus dem Regal,
+  zeigt das Gitter die Kacheln (`updatePlaceGrid`). Er liegt über allem
+  (`depthTest` aus), fängt keinen Strahl und wirft keinen Schatten.
 
 **Wechseln im _Baukasten_ hängte die Seite auf** (`portal/shelfSwap.ts`,
 `PortalWorld.letGo`). Wer ein Stück aus dem KayKit-Regal in der Hand hatte und

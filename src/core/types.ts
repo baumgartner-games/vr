@@ -46,6 +46,16 @@ export interface WorldContext {
    */
   readonly topDown: boolean;
   /**
+   * **Ob man gerade der Kran ist** (`core/crane.ts`) — von oben, und im
+   * _Einrichten_ oder _Baukasten_. Dann meint `A`, was **unter** dem Kran
+   * liegt, und nicht, was vor der Figur steht; das Getragene hängt unter dem
+   * Greifer, und die Welt hält den Körper nicht auf.
+   *
+   * Freiwillig, weil Vorschau und Tests ohne auskommen: fehlt es, ist man es
+   * nicht.
+   */
+  readonly crane?: boolean;
+  /**
    * **Die Kamera, aus der dieses Bild gezeichnet wird** — von oben die
    * Kamera schräg über der Figur (`core/TopDownCamera.ts`), sonst `camera`.
    *
