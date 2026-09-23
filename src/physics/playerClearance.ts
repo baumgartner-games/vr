@@ -141,3 +141,32 @@ export function clearOfPlayer(
 ): boolean {
   return bodyOverlap(body, point, radius) <= -CLEARANCE_MARGIN;
 }
+
+/**
+ * **Wo man landen darf, der Reihe nach** — Versätze um die Stelle unter dem
+ * Kran, in Metern (`PhysicsLocomotion.land`).
+ *
+ * Als Kran fliegt man durch Wände und über Arbeitsplatten (`core/crane.ts`),
+ * und beim Zurückschalten steht die Kapsel dann womöglich **in** einer
+ * Küchenzeile. Rapier löste das in einem Schritt auf, irgendwohin. Also wird
+ * vorher gesucht: zuerst genau dort, dann Ring um Ring nach außen, je Ring
+ * reihum — die nächste freie Stelle gewinnt. Findet sich keine, entscheidet
+ * der Aufrufer (zurück an den Ort, an dem man zum Kran wurde).
+ *
+ * @param step  Abstand zweier Ringe, in Metern
+ * @param rings wie viele Ringe nach außen
+ */
+export function landingOffsets(step = 0.25, rings = 12): [number, number][] {
+  const out: [number, number][] = [[0, 0]];
+  for (let ring = 1; ring <= rings; ring++) {
+    const radius = ring * step;
+    // So viele Punkte, dass zwei Nachbarn höchstens einen Ringabstand
+    // auseinanderliegen — außen dichter als innen.
+    const count = Math.max(8, Math.ceil((2 * Math.PI * radius) / step));
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      out.push([Math.sin(angle) * radius, -Math.cos(angle) * radius]);
+    }
+  }
+  return out;
+}

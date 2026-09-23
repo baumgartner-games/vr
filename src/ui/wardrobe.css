@@ -21,7 +21,9 @@
   background: rgba(2, 4, 10, 0.55);
 }
 
-.wrobe[hidden] { display: none; }
+.wrobe[hidden] {
+  display: none;
+}
 
 .wrobe__sheet {
   display: flex;
@@ -68,8 +70,17 @@
   cursor: pointer;
 }
 
-.wrobe__close:hover { background: rgba(140, 170, 230, 0.24); }
-.wrobe__close svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.wrobe__close:hover {
+  background: rgba(140, 170, 230, 0.24);
+}
+.wrobe__close svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
 
 /* Auf dem Telefon untereinander: die Figur oben, die Zeilen darunter. */
 .wrobe__body {
@@ -96,9 +107,17 @@
   cursor: grab;
 }
 
-.wrobe__stage:active { cursor: grabbing; }
-.wrobe__stage[hidden] { display: none; }
-.wrobe__stage canvas { display: block; width: 100%; height: 100%; }
+.wrobe__stage:active {
+  cursor: grabbing;
+}
+.wrobe__stage[hidden] {
+  display: none;
+}
+.wrobe__stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 
 .wrobe__rows {
   flex: 1;
@@ -132,7 +151,9 @@
   cursor: pointer;
 }
 
-.wrobe__arrow:hover { background: rgba(140, 170, 230, 0.28); }
+.wrobe__arrow:hover {
+  background: rgba(140, 170, 230, 0.28);
+}
 
 .wrobe__pick {
   flex: 1;
@@ -142,9 +163,23 @@
   text-align: center;
 }
 
-.wrobe__pick strong { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
-.wrobe__pick small { font-size: 12px; line-height: 1.35; color: var(--muted); }
-.wrobe__pick .wrobe__label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.wrobe__pick strong {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.wrobe__pick small {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.wrobe__pick .wrobe__label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
 
 .wrobe__foot {
   display: flex;

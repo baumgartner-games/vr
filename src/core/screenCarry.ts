@@ -1,4 +1,5 @@
 import { CHEF_CARRY } from './chefFit';
+import { craneCarryY } from './crane';
 
 /**
  * **Wo ein getragener Gegenstand am Schirm hängt** — ohne three.js, ohne
@@ -30,7 +31,7 @@ import { CHEF_CARRY } from './chefFit';
  */
 
 /** Welche der beiden flachen Ansichten gerade läuft. */
-export type ScreenCarryView = 'topDown' | 'firstPerson';
+export type ScreenCarryView = 'topDown' | 'firstPerson' | 'crane';
 
 /** Wie groß das Getragene ist — mehr braucht die Rechnung nicht. */
 export interface CarrySpan {
@@ -133,6 +134,10 @@ export function screenCarryPoint(
 ): CarryPoint {
   const radius = Math.max(0, span.radius);
   const half = Math.max(0, span.half);
+  // **Der Kran trägt unter sich** (`core/crane.ts`): genau über der Stelle,
+  // auf die der Kreis am Boden zeigt, mit der Oberkante an den Klauen. Ohne
+  // Vorn gibt es kein „vor der Figur".
+  if (view === 'crane') return { x: 0, y: craneCarryY(half), z: 0 };
   if (view === 'firstPerson') {
     // Vor der Kamera: so weit weg, wie das Ding groß ist, und so weit
     // heruntergehängt, dass seine Oberkante unter der Blickachse bleibt.

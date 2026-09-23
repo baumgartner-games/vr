@@ -3,6 +3,7 @@ import {
   type PlayerBody,
   bodyOverlap,
   capsuleOverlap,
+  landingOffsets,
   clearOfPlayer,
   handOverlap,
 } from './playerClearance';
@@ -93,5 +94,26 @@ describe('Steckt es in der Hand?', () => {
     const nobody: PlayerBody = { capsule: null, hands: [] };
     expect(bodyOverlap(nobody, dropped, 0.09)).toBe(-Infinity);
     expect(clearOfPlayer(nobody, dropped, 0.09)).toBe(true);
+  });
+});
+
+describe('landingOffsets', () => {
+  it('fängt genau unter dem Kran an und geht Ring um Ring nach außen', () => {
+    const spots = landingOffsets(0.25, 4);
+    expect(spots[0]).toEqual([0, 0]);
+    let last = 0;
+    for (const [dx, dz] of spots) {
+      const distance = Math.hypot(dx, dz);
+      expect(distance).toBeGreaterThanOrEqual(last - 1e-9);
+      last = distance;
+    }
+    expect(last).toBeCloseTo(1, 9);
+  });
+
+  it('lässt zwischen zwei Nachbarn auf einem Ring keine Lücke über einem Ringabstand', () => {
+    const spots = landingOffsets(0.25, 12).slice(1);
+    const outer = spots.filter(([dx, dz]) => Math.abs(Math.hypot(dx, dz) - 3) < 1e-6);
+    const [a, b] = [outer[0]!, outer[1]!];
+    expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeLessThanOrEqual(0.25 + 1e-9);
   });
 });

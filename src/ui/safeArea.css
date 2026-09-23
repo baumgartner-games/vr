@@ -43,7 +43,15 @@
   --app-height: 100%;
 }
 
-.safe-area--top { padding-top: var(--safe-top); }
-.safe-area--right { padding-right: var(--safe-right); }
-.safe-area--bottom { padding-bottom: var(--safe-bottom); }
-.safe-area--left { padding-left: var(--safe-left); }
+.safe-area--top {
+  padding-top: var(--safe-top);
+}
+.safe-area--right {
+  padding-right: var(--safe-right);
+}
+.safe-area--bottom {
+  padding-bottom: var(--safe-bottom);
+}
+.safe-area--left {
+  padding-left: var(--safe-left);
+}

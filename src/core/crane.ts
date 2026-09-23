@@ -48,13 +48,42 @@ export function screenTopDown(view: ScreenView, mode: GameMode): boolean {
 }
 
 /** Wie hoch das Gehäuse über dem Boden schwebt, in Metern. */
-export const CRANE_HEIGHT = 2.2;
+export const CRANE_HEIGHT = 1.7;
 /** Wie weit es auf und ab schwebt, in Metern. */
 export const CRANE_BOB = 0.05;
 /** Wie schnell es sich um sich selbst dreht, im Bogenmaß je Sekunde. */
 export const CRANE_SPIN = 0.5;
 /** Wie viele Klauen — drei greifen, und drei haben kein Vorn. */
 export const CRANE_CLAWS = 3;
+
+/**
+ * **Wie tief die Klauen reichen**, in Metern unter dem Gehäuse — dort hängt,
+ * was der Kran trägt (`craneCarryY`).
+ */
+export const CRANE_CLAW_DROP = 0.8;
+
+/**
+ * **Wie weit um den Punkt unter dem Kran noch etwas gemeint ist**, in Metern
+ * — zusätzlich zum Halbmesser des Dings (`core/usable.pickUsable`, `touch`).
+ *
+ * Klein, weil der Kran **zeigt** und nicht steht: Gemeint ist, worüber er
+ * schwebt, und nicht, was eine Figur an dieser Stelle mit den Füßen berührte
+ * (`USE_TOUCH`, 0,6 m). Jedes Ding hat mindestens `USE_RADIUS` (0,4 m), also
+ * reicht die Auswahl um die halbe Kachel, die man vor sich sieht.
+ */
+export const CRANE_TOUCH = 0.05;
+
+/** Der Halbmesser des Kreises am Boden unter dem Kran, in Metern. */
+export const CRANE_MARK_RADIUS = 0.42;
+
+/**
+ * **Wie hoch die Mitte des Getragenen hängt**, im Raum des Rigs — mit der
+ * Oberkante an den Klauen, und nie mit der Unterkante im Boden.
+ */
+export function craneCarryY(half: number): number {
+  const top = CRANE_HEIGHT - CRANE_CLAW_DROP;
+  return Math.max(top - Math.max(0, half), Math.max(0, half) + 0.05);
+}
 
 /** Gelb wie eine Baustelle, dunkel wie Stahl. */
 const CRANE_YELLOW = 0xf2b632;
@@ -139,10 +168,75 @@ export function buildCrane(): THREE.Group {
   crane.traverse((object) => {
     if ((object as THREE.Mesh).isMesh) object.castShadow = true;
   });
+
+  // **Die Lotschnur** — von den Klauen bis zum Boden. Von schräg oben steht
+  // der Kran sichtbar neben der Stelle, über der er schwebt (die Kamera sieht
+  // ihn mit Höhe, den Kreis ohne); die Schnur verbindet beides, damit man
+  // nicht raten muss, welcher Kreis zu welchem Kran gehört. Halb durchsichtig
+  // und ohne Schatten: eine Auskunft, kein Bauteil.
+  const drop = CRANE_HEIGHT - 0.52;
+  const plumb = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, drop, 8),
+    new THREE.MeshBasicMaterial({
+      color: CRANE_YELLOW,
+      transparent: true,
+      opacity: 0.6,
+      depthTest: false,
+      depthWrite: false,
+    }),
+  );
+  plumb.name = 'crane-plumb';
+  // Über dem, was darunter steht: Hinter einer Kiste verschwände sie genau
+  // dort, wo sie etwas sagen soll.
+  plumb.renderOrder = 9;
+  plumb.position.y = -0.52 - drop / 2;
+  plumb.raycast = () => undefined;
+  crane.add(plumb);
   return crane;
 }
 
-/** Gibt frei, was `buildCrane` gebaut hat — Geometrien und Materialien. */
+/**
+ * **Der Kreis am Boden** — wohin der Kran zeigt, solange er über nichts
+ * schwebt, das hervorgehoben wird.
+ *
+ * Ein Ring und ein blasser Innenkreis, flach auf dem Boden, gezeichnet über
+ * allem, was dort liegt (`depthTest` aus): Er ist eine Auskunft und kein
+ * Ding, und eine Auskunft, die unter einem Teppich verschwindet, gibt keine.
+ * Er wirft keinen Schatten und fängt keinen Strahl.
+ */
+export function buildCraneMark(): THREE.Group {
+  const mark = new THREE.Group();
+  mark.name = 'crane-mark';
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(CRANE_MARK_RADIUS - 0.05, CRANE_MARK_RADIUS, 40),
+    new THREE.MeshBasicMaterial({
+      color: CRANE_YELLOW,
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+      depthWrite: false,
+    }),
+  );
+  const fill = new THREE.Mesh(
+    new THREE.CircleGeometry(CRANE_MARK_RADIUS - 0.05, 40),
+    new THREE.MeshBasicMaterial({
+      color: CRANE_YELLOW,
+      transparent: true,
+      opacity: 0.18,
+      depthTest: false,
+      depthWrite: false,
+    }),
+  );
+  for (const flat of [ring, fill]) {
+    flat.rotation.x = -Math.PI / 2;
+    flat.renderOrder = 10;
+    flat.raycast = () => undefined;
+    mark.add(flat);
+  }
+  return mark;
+}
+
+/** Gibt frei, was `buildCrane` oder `buildCraneMark` gebaut hat. */
 export function disposeCrane(crane: THREE.Object3D): void {
   const seen = new Set<{ dispose(): void }>();
   crane.traverse((object) => {

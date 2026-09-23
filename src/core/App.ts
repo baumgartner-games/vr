@@ -498,6 +498,7 @@ export class App {
       avatars: this.avatars,
       role: this.role,
       topDown: this.topDown,
+      crane: this.avatar.crane,
       viewCamera: this.topDown ? this.topDownCamera.camera : this.camera,
       elapsed: this.elapsed,
       frame: () => this.frameStats.latest,
