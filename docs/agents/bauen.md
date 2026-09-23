@@ -804,6 +804,44 @@ Verben sagen, was man in dem Modus tut.
   (`Furnish.fresh`, `PortalWorld.shelfFresh`): Wer einen Herd umstellt, der
   schon stand, bekommt keinen zweiten.
 
+**Wer einrichtet, ist der Kran** (`core/crane.ts`, seit September 2026).
+Gewünscht war es wie in _PlateUp!_: In **Einrichten** und **Baukasten** tritt
+der Koch ab, und über dem Kopf schwebt ein gelber Greifer — ein Gehäuse, ein
+Seil, drei Klauen im Drittelkreis (`buildCrane`). Er ist **rund**, weil
+„Richtungen erstmal nicht wichtig" waren: Ein Greifer ohne Vorn kann nicht
+falsch herum stehen. Er schwebt in fester Höhe (`CRANE_HEIGHT`, 2,2 m) und
+nicht über der Kopfhöhe, sonst sänke er beim Ducken, und dreht sich langsam
+um sich selbst (`cranePose`). Der Körper geht dabei über
+`AvatarBody.setBodyHidden` und nicht an `applyBodyVisible` vorbei — sonst
+schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
+
+- **Am Schirm heißt Kran: von oben** (`screenTopDown`, `App.topDown`). Wer
+  _Aus den Augen_ gewählt hat, behält die Wahl; sie gilt nur nicht, solange
+  eingerichtet wird, und kommt mit _Spielen_ von selbst zurück. Das Menü
+  _Ansicht_ sagt es dazu (`… · als Kran von oben`). Gespeichert wird nichts —
+  der Modus nicht, und die Wahl der Startseite wird nicht überschrieben.
+  Umgeschaltet wird über `onGameMode` im `App`: Der Modus sagt es, die
+  Ansicht folgt.
+- **In der Brille bleibt es vorerst beim Alten.** Ob man dort steht oder die
+  Welt wie beim Bauen als Miniatur von oben sieht (`editor/miniature.ts`), ist
+  offen. Der eigene Körper ist in der Brille ohnehin nicht zu sehen
+  (`LAYER_SELF_ONLY`), der Kran also auch nicht.
+- **Nur lokal.** Mitspieler sehen weiter den Koch; der Modus geht nicht über
+  die Leitung.
+
+**Wechseln im _Baukasten_ hängte die Seite auf** (`portal/shelfSwap.ts`,
+`PortalWorld.letGo`). Wer ein Stück aus dem KayKit-Regal in der Hand hatte und
+ein anderes wählte, ließ das alte los — und Loslassen ohne Schwung **ist**
+Hinstellen (`gridSnap.placesOnGrid`). Das alte rastete ein, holte als frisches
+Katalogstück seine nächste Kopie (`placedFromShelf`), die warf das neue
+hinaus, das holte seinerseits nach, Mikrotask um Mikrotask. Jetzt gilt: **Ein
+frisches Stück war nie hingestellt** — es ist der Pinsel und verschwindet beim
+Wechseln, ohne Zeile in der Liste der Weltänderungen; alles andere fällt wie
+bisher. Dasselbe in der Küche (`KitchenZone.scrapFresh`): Mit einem frischen
+Möbel in den Händen gab der Katalog vorher nichts her, und das Regal machte
+daraus ein Fass neben dem getragenen Herd. Geprüft wird die Regel samt
+Gegenprobe (die alte Regel hört nie auf) in `shelfSwap.test.ts`.
+
 **Was aus dem Regal hingestellt wird, hat eine Haltung**
 (`worlds/portal/modelStance.ts`, seit September 2026). Vorher war jedes
 Modell ein Fass mit Physik, und eine im _Baukasten_ gestellte Wand kippte um

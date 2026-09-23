@@ -114,7 +114,11 @@ export class TestWorld extends GridWorld {
    * (`zones/kitchen.takeShelfPiece`, `core/kitchenShelf.ts`).
    */
   protected override takeFurniture(_ctx: WorldContext, path: string): boolean {
-    return this.kitchen.takeShelfPiece(path);
+    if (this.kitchen.takeShelfPiece(path)) return true;
+    // **Wird es kein Möbel, geht ein frisches trotzdem aus den Händen**
+    // (`scrapFresh`) — sonst trüge man gleich Herd und Fass.
+    this.kitchen.scrapFresh();
+    return false;
   }
 
   /**

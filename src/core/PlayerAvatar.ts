@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { AvatarBody, type AvatarLimb } from './AvatarBody';
 import { CHEF_EYE, CHEF_GRIP, POSE_SCALE } from './chefFit';
+import { buildCrane, cranePose, disposeCrane } from './crane';
 import type { PlayerRig } from './PlayerRig';
 import type { XRInput } from './XRInput';
 
@@ -78,6 +79,14 @@ export class PlayerAvatar extends AvatarBody {
    */
   carry: THREE.Vector3 | null = null;
 
+  /**
+   * **Der Kran** (`core/crane.ts`) — gebaut beim ersten Einrichten, danach
+   * nur noch an- und ausgeschaltet.
+   */
+  private craneMesh: THREE.Group | null = null;
+  /** Die Uhr des Krans: Schweben und Drehen hängen daran. */
+  private craneTime = 0;
+
   /** Wie weit der Kopf beim Tragen mitwippt (`AvatarBody.headBob`). */
   private static readonly CARRY_BOB = 0.018;
 
@@ -91,6 +100,27 @@ export class PlayerAvatar extends AvatarBody {
     this.name = 'player-avatar';
     this.setHandsVisible(false);
     this.setLayer(LAYER_SELF_ONLY);
+  }
+
+  /**
+   * **Ob man gerade der Kran ist** — der Körper tritt ab, der Greifer
+   * schwebt über dem Kopf (`core/crane.ts`).
+   */
+  set crane(on: boolean) {
+    if (on && !this.craneMesh) {
+      this.craneMesh = buildCrane();
+      this.add(this.craneMesh);
+      // Dieselbe Ebene wie der Rest des Körpers: von oben zu sehen, aus den
+      // eigenen Augen nicht.
+      const layers = this.head.layers.mask;
+      this.craneMesh.traverse((object) => (object.layers.mask = layers));
+    }
+    if (this.craneMesh) this.craneMesh.visible = on;
+    this.setBodyHidden(on);
+  }
+
+  get crane(): boolean {
+    return this.craneMesh?.visible ?? false;
   }
 
   /** Ob die Handkugeln mitgezeichnet werden — von oben ja, sonst nicht. */
@@ -153,6 +183,13 @@ export class PlayerAvatar extends AvatarBody {
     }
 
     _head.position.setFromMatrixPosition(headLocal);
+    const crane = this.craneMesh;
+    if (crane?.visible) {
+      this.craneTime += dt;
+      const pose = cranePose(_head.position.x, _head.position.z, this.craneTime);
+      crane.position.set(pose.x, pose.y, pose.z);
+      crane.rotation.y = pose.yaw;
+    }
     // Die Höhe kommt auch von oben aus der Kamera — Ducken und Sitzen sollen
     // die Figur ja kleiner machen. Nur ihre Drehung nicht.
     if (this.headFollowsRig) _head.quaternion!.identity();
@@ -183,6 +220,12 @@ export class PlayerAvatar extends AvatarBody {
       }
     }
     this.update(dt, _head, left, right);
+  }
+
+  override dispose(): void {
+    if (this.craneMesh) disposeCrane(this.craneMesh);
+    this.craneMesh = null;
+    super.dispose();
   }
 
   private setLayer(layer: number): void {
