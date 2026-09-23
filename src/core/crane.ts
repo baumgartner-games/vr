@@ -55,7 +55,8 @@ export const CRANE_BOB = 0.05;
  * Wie schnell es sich um sich selbst dreht, im Bogenmaß je Sekunde — **gar
  * nicht**, seit oben ein Dropship schwebt (`dressCrane`): Ein Fluggerät mit
  * Nase, das sich langsam im Kreis dreht, sieht aus wie eines, das die
- * Orientierung verloren hat. Es schaut nach Norden, und Norden ist oben.
+ * Orientierung verloren hat. Es dreht sich mit der Figur und schaut dorthin,
+ * wohin sie läuft (`TOP_TURN`).
  */
 export const CRANE_SPIN = 0;
 /** Wie viele Klauen — drei greifen, und drei haben kein Vorn. */
@@ -253,6 +254,12 @@ export const CRANE_MODELS = {
   chain: 'mixed-bag/chain_hanging_A.glb',
   hook: 'rpg-tools-bits/fishing_hook_A.glb',
 } as const;
+/**
+ * **Das Dropship einmal umgedreht.** In der Datei zeigt seine Nase nach +z,
+ * und das ist in three.js **hinten**: Der Kran hängt am Rig und dreht mit der
+ * Figur, und so flog er gemeldet „immer in die entgegengesetzte Richtung".
+ */
+const TOP_TURN = Math.PI;
 /** Das Dropship ist 1,5 m lang; als Kran über einer Küche reicht die Hälfte. */
 const TOP_SCALE = 0.5;
 /** Der Angelhaken ist 27 cm hoch; als Kranhaken doppelt so groß. */
@@ -296,6 +303,7 @@ export async function dressCrane(crane: THREE.Group, load: CraneLoader): Promise
   dressed.userData.sharedAssets = true;
 
   top.scale.multiplyScalar(TOP_SCALE);
+  top.rotation.y += TOP_TURN;
   const topBox = new THREE.Box3().setFromObject(top);
   top.position.y += TOP_BOTTOM - topBox.min.y;
   dressed.add(top);

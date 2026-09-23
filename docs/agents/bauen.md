@@ -838,7 +838,9 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   Kran trägt. Getauscht wird erst, wenn alle drei da sind; bis dahin steht der
   gebaute Kran mit seiner Lotschnur. Das Dropship dreht sich nicht mehr
   (`CRANE_SPIN` 0): Ein Fluggerät mit Nase, das sich im Kreis dreht, sieht
-  verloren aus. Es schaut nach Norden.
+  verloren aus. Es dreht mit der Figur und schaut, wohin sie läuft — in der
+  Datei zeigt die Nase nach hinten, deshalb steht es um 180° gedreht
+  (`TOP_TURN`).
 - **Nur lokal.** Mitspieler sehen weiter den Koch; der Modus geht nicht über
   die Leitung.
 - **Keine Physik** (`PortalWorld.updateCraneFlight`). Gewünscht war: _„als Kran
