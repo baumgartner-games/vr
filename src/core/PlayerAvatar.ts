@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { AvatarBody, type AvatarLimb } from './AvatarBody';
-import { CHEF_EYE, CHEF_GRIP, POSE_SCALE } from './chefFit';
-import { buildCrane, cranePose, disposeCrane } from './crane';
+import { CHEF_EYE, CHEF_GRIP, POSE_SCALE, canLoadModels } from './chefFit';
+import { buildCrane, cranePose, disposeCrane, dressCrane } from './crane';
 import type { PlayerRig } from './PlayerRig';
 import type { XRInput } from './XRInput';
 
@@ -114,6 +114,12 @@ export class PlayerAvatar extends AvatarBody {
       // eigenen Augen nicht.
       const layers = this.head.layers.mask;
       this.craneMesh.traverse((object) => (object.layers.mask = layers));
+      // **Und dann die Teile aus dem Regal** (`dressCrane`): Dropship, Kette,
+      // Haken. Bis sie da sind, steht der gebaute Kran — ohne WebGL für immer.
+      if (canLoadModels()) {
+        const crane = this.craneMesh;
+        void import('./kaykitModel').then((module) => dressCrane(crane, module.kaykitModel));
+      }
     }
     if (this.craneMesh) this.craneMesh.visible = on;
     this.setBodyHidden(on);

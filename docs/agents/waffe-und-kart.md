@@ -246,6 +246,27 @@ Zwei Zahlen tragen das Ganze, und beide sind Kacheln:
   heraus. Aus dieser einen Zeile folgt, ob eine Runde sich schließt, und der
   Test rechnet es nach, statt es zu glauben.
 
+**Die Fahrbahn ist die Straße der KayKit-Stadt** (`kart/kartRoad.ts`,
+`KartZone.fillRoad`, seit September 2026). Gewünscht war: _„die
+Go-Kart-Straßen durch KayKit-Streets ersetzen."_ Die Stadt hat Kacheln von
+einem Meter — Gerade, Ecke, Kurve —, und ihre Kurve hat genau **ein**
+Verhältnis von Breite zu Radius; die Bahn hier ist vier Meter breit und hat
+Kurven von 4, 6, 9 und 11 m. Die Strecke nach der Kachel umzubauen hätte das
+Fahren umgebaut. Also wird **`city-builder-bits/road_straight`** genommen,
+auf die Breite der Bahn gezogen, in zehn Scheiben je Kachel quer zur
+Fahrtrichtung geschnitten (`sliceAlong`) und Scheibe für Scheibe auf die
+Mittellinie gelegt (`bendRoad`) — so folgen gelber Rand, weiße Striche und
+Bordstein jedem Bogen. Eine Kachel ist so lang wie breit, heraus kommt **ein**
+Netz mit **einem** Material für die ganze Runde. Die Oberkante des Asphalts
+der Kachel (0,035) liegt auf `TARMAC_TOP`, also ohne Stufe zur Boxengasse.
+Bis die Datei da ist — oder ohne die gekauften Pakete für immer —, liegt das
+gebaute graue Band mit den weißen Linien. Die Rot-Weiß-Randsteine und die
+Bande bleiben, wie sie waren; an der Boxengasse steht jetzt der Bordstein der
+Kachel, ein paar Zentimeter hoch und nur fürs Auge (die Fahrbahn ist kein
+Körper). Geprüft wird ohne Szene (`kartRoad.test.ts`): kein Dreieck über
+eine Scheibengrenze, keine Fläche verloren, die Kanten auf den Kanten der
+Bahn, die Normalen oben.
+
 Weil alle Maße ganze Kacheln sind, liegt **jede Naht auf einer Kachelkante** —
 und genau deshalb passen Strecke, Boxengasse und Grundriss ohne einen einzigen
 krummen Zwischenwert zusammen. Auf dem Metergitter misst die Runde 35 × 25 m
