@@ -2,6 +2,8 @@ import { PLATE_PROTOTYPE, PLATE_STONE, floorPlate } from './floorPlate';
 import { floorPlateSpots } from '../shared/plateField';
 import { FIELD, KITCHEN, PODIUM } from './layout';
 import { DECK } from './zones/podium';
+import { SPIKES } from './zones/navigation';
+import { PIT_BOXES, PIT_LANE } from '../kart/kartCourse';
 import { testPlan } from './testPlan';
 
 /**
@@ -43,6 +45,20 @@ describe('floorPlate', () => {
     expect(floorPlate({ col: KITCHEN.x - 1, row: KITCHEN.z, level: 0 })).toBe(PLATE_PROTOTYPE);
   });
 
+  it('legt unter Stachelfeld und Boxengasse keinen zweiten Boden', () => {
+    // Gemeldet als Z-Fighting: Die rote Falle und der Asphalt **sind** dort
+    // der Boden, und eine Prototyp-Platte darunter flimmerte durch.
+    for (const rect of [SPIKES, PIT_LANE, PIT_BOXES]) {
+      expect(floorPlate({ col: rect.x, row: rect.z, level: 0 })).toBeNull();
+      expect(
+        floorPlate({ col: rect.x + rect.w - 1, row: rect.z + rect.d - 1, level: 0 }),
+      ).toBeNull();
+    }
+    // Gleich daneben ist wieder Gelände.
+    expect(floorPlate({ col: SPIKES.x - 1, row: SPIKES.z, level: 0 })).toBe(PLATE_PROTOTYPE);
+    expect(floorPlate({ col: SPIKES.x + SPIKES.w, row: SPIKES.z, level: 0 })).toBe(PLATE_PROTOTYPE);
+  });
+
   it('legt auf das Obergeschoss Stein', () => {
     expect(floorPlate({ col: DECK.x, row: DECK.z, level: 1 })).toBe(PLATE_STONE);
     expect(floorPlate({ col: PODIUM.x, row: PODIUM.z, level: 1 })).toBe(PLATE_STONE);
@@ -62,8 +78,9 @@ describe('der Plattenboden der Testwelt', () => {
 
   /**
    * **Die Zahl, die das Bild bezahlt.** Das Gelände ist 77 × 105 Kacheln
-   * (`FIELD`, 8 085), davon gehören 20 × 11 der Küche (`KITCHEN`, 220) — macht
-   * 7 865 Platten aus `prototype-bits/Floor_Prototype.glb` zu je 20 Dreiecken,
+   * (`FIELD`, 8 085), davon gehören 20 × 11 der Küche (`KITCHEN`, 220), 3 × 3
+   * dem Stachelfeld (`SPIKES`, 9) und 3 × 10 + 2 × 5 der Boxengasse
+   * (`PIT_LANE`, `PIT_BOXES`, 40) — macht 7 816 Platten aus `prototype-bits/Floor_Prototype.glb` zu je 20 Dreiecken,
    * also rund 157 000 Dreiecke in **einem** Zeichenaufruf. Dazu 25 Steinplatten
    * auf dem Deck (`podium.DECK`, 5 × 5) zu je 66 Dreiecken in einem zweiten.
    *
@@ -71,13 +88,14 @@ describe('der Plattenboden der Testwelt', () => {
    * darin: Sie liegen auf derselben Kachel wie die Masse darunter, und dort
    * gehört genau eine Platte hin (`shared/plateField.floorPlateSpots`).
    */
-  it('kostet 7 865 Prototyp- und 25 Steinplatten', () => {
+  it('kostet 7 816 Prototyp- und 25 Steinplatten', () => {
     const prototype = spots.filter((one) => one.model === PLATE_PROTOTYPE);
     const stone = spots.filter((one) => one.model === PLATE_STONE);
-    expect(prototype).toHaveLength(FIELD.w * FIELD.d - KITCHEN.w * KITCHEN.d);
-    expect(prototype).toHaveLength(7865);
+    const own = [KITCHEN, SPIKES, PIT_LANE, PIT_BOXES].reduce((sum, r) => sum + r.w * r.d, 0);
+    expect(prototype).toHaveLength(FIELD.w * FIELD.d - own);
+    expect(prototype).toHaveLength(7816);
     expect(stone).toHaveLength(DECK.w * DECK.d);
-    expect(spots).toHaveLength(7890);
+    expect(spots).toHaveLength(7841);
   });
 
   it('legt auf keine Kachel zwei Platten', () => {

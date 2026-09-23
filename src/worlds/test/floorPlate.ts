@@ -1,5 +1,7 @@
 import type { PlateTile } from '../shared/plateField';
+import { PIT_BOXES, PIT_LANE } from '../kart/kartCourse';
 import { KITCHEN } from './layout';
+import { SPIKES } from './zones/navigation';
 
 /**
  * **Welche Platte auf welche Kachel gehört** — die ganze Entscheidung, und
@@ -15,7 +17,8 @@ import { KITCHEN } from './layout';
  * Drei Regeln, und jede beantwortet eine eigene Frage:
  *
  * - **Die Küche bekommt keine.** Sie hat ihren eigenen, feineren Boden, und
- *   das ist Absicht (siehe `KITCHEN`, unten).
+ *   das ist Absicht (siehe `KITCHEN`, unten). Dasselbe gilt für jede andere
+ *   Fläche, die ihren Boden selbst mitbringt (`OWN_FLOORS`).
  * - **Das Obergeschoss bekommt Stein.** Der Auftrag dazu ist wörtlich: „für
  *   die obere Ebene einen Steinboden statt des Prototyp-Bodens."
  * - **Alles andere bekommt den Prototyp-Boden** — das Gelände, die Zonen, die
@@ -106,13 +109,41 @@ export const PLATE_STONE = 'dungeon/floor_tile_small.glb';
  *
  * Also das Rechteck. Es ist dieselbe Konstante, aus der auch der Belag seine
  * Wiederholung rechnet, und damit können die beiden gar nicht auseinanderlaufen.
+ * Es steht in `OWN_FLOORS`, zusammen mit den anderen Flächen, die ihren Boden
+ * selbst mitbringen.
  */
-function inKitchenTile(col: number, row: number): boolean {
-  return (
-    col >= KITCHEN.x &&
-    col < KITCHEN.x + KITCHEN.w &&
-    row >= KITCHEN.z &&
-    row < KITCHEN.z + KITCHEN.d
+
+/**
+ * **Wo schon ein Boden liegt, kommt kein zweiter hin** — die Flächen, die
+ * ihren Belag selbst mitbringen, jede als Kachelrechteck.
+ *
+ * - die Küche (`KITCHEN`, siehe oben),
+ * - das Stachelfeld der Navigationszone (`zones/navigation.SPIKES`): Die
+ *   rote Falle ist dort der Boden, ihre Platte liegt fünf Millimeter über
+ *   null (`SPIKES_LIFT`),
+ * - die Boxengasse samt Buchten (`kart/kartPit.ts`): Asphalt, zwei
+ *   Zentimeter über null (`TARMAC_TOP`).
+ *
+ * Gemeldet war: _„bei einigen Böden ein Z-Buffer-Fight … wenn dort ein Boden
+ * liegt, braucht es keinen Prototype-Floor."_ Die Platte darunter lag mit
+ * ihrer Oberkante auf null und zieht sich obendrein einen Schritt Richtung
+ * Kamera (`shared/plateFloor.depthSeam`) — gegen fünf Millimeter und auch
+ * gegen zwei Zentimeter gewinnt sie damit ab ein paar Metern Abstand
+ * streifenweise, und von oben sah das Stachelfeld aus wie halb übermalt.
+ * Zwei Böden übereinander kann man nicht so weit auseinanderlegen, dass sie
+ * aus jeder Entfernung sauber bleiben; einen weglassen kann man.
+ */
+const OWN_FLOORS: readonly { x: number; z: number; w: number; d: number }[] = [
+  KITCHEN,
+  SPIKES,
+  PIT_LANE,
+  PIT_BOXES,
+];
+
+/** Ob auf dieser Kachel schon ein eigener Boden liegt (`OWN_FLOORS`). */
+export function ownsFloor(col: number, row: number): boolean {
+  return OWN_FLOORS.some(
+    (rect) => col >= rect.x && col < rect.x + rect.w && row >= rect.z && row < rect.z + rect.d,
   );
 }
 
@@ -125,13 +156,14 @@ function inKitchenTile(col: number, row: number): boolean {
  * und das Podest ein Raum. Der Grundriss weiß es (`grid/solids.PlanSolid.level`),
  * also wird er gefragt — geraten wäre es falsch.
  *
- * **Die Küche zuerst**, und ohne Rücksicht auf die Etage: Sie liegt auf Ebene
- * 0 und hätte sonst schon den Prototyp-Boden bekommen, bevor jemand nach ihr
- * fragt — und ein zweites Stockwerk über ihr gibt es nicht (`layout.LEVELS`
- * kennt genau eines, und das ist das Podest). Eine Regel, die über der Küche
- * wieder zugriffe, wäre eine Regel für einen Fall, den es nicht gibt.
+ * **Die eigenen Böden zuerst** (`OWN_FLOORS`, die Küche vorneweg), und ohne
+ * Rücksicht auf die Etage: Sie liegen auf Ebene 0 und hätten sonst schon den
+ * Prototyp-Boden bekommen, bevor jemand nach ihnen fragt — und ein zweites
+ * Stockwerk über ihnen gibt es nicht (`layout.LEVELS` kennt genau eines, und
+ * das ist das Podest). Eine Regel, die darüber wieder zugriffe, wäre eine
+ * Regel für einen Fall, den es nicht gibt.
  */
 export function floorPlate(tile: PlateTile): string | null {
-  if (inKitchenTile(tile.col, tile.row)) return null;
+  if (ownsFloor(tile.col, tile.row)) return null;
   return tile.level > 0 ? PLATE_STONE : PLATE_PROTOTYPE;
 }

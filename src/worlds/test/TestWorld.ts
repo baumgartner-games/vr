@@ -296,17 +296,6 @@ export class TestWorld extends GridWorld {
     ];
   }
 
-  /**
-   * **Womit die Bildschirmhand anfängt**: die rote Portalwaffe.
-   *
-   * Nicht die Pistole, obwohl es hier einen Schießstand gibt: Was man von oben
-   * zuerst ausprobiert, sind die Portale, und wer schießen will, wählt die
-   * Pistole mit einem Druck im Werkzeug-Knopf.
-   */
-  protected override defaultScreenTool(): string | null {
-    return 'gun-red';
-  }
-
   protected override buildEnvironment(): void {
     super.buildEnvironment();
     this.root.add(createSky(0x6ea8e8, 0xdbe7f2));

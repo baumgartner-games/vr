@@ -52,7 +52,7 @@ Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
 keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist **alles, was es
-gibt** und in gut einer halben Minute durch (5061 Tests) — eine zweite,
+gibt** und in gut einer halben Minute durch (5069 Tests) — eine zweite,
 langsame Suite und den CI-Job daneben gab es einmal, sie sind weg (siehe
 [Tests](docs/agents/tests.md)).
 

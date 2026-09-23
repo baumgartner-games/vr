@@ -105,12 +105,38 @@ export class ToolBelt {
     return this.pose();
   }
 
+  /** Ob der Körper gerade zu sehen ist (`setVisible`, die Drohne). */
+  private shown = true;
+  /** Ob der Gürtel überhaupt getragen wird (`setWorn`, nur in der Brille). */
+  private worn = true;
+
   /**
    * Hides both hips at once. The drone takes the view out of the body; a belt
    * hanging around a camera that flew away is only in the way.
    */
   setVisible(visible: boolean): void {
-    for (const slot of this.slots) slot.visible = visible;
+    this.shown = visible;
+    this.applyVisible();
+  }
+
+  /**
+   * **Der Gürtel gehört zur Brille.** Nur dort gibt es Hände, die an die
+   * Hüfte greifen; am Schirm hält die Bildschirmhand, was man im
+   * Werkzeug-Knopf wählt (`PortalWorld.screenTool`).
+   *
+   * Und sichtbar war er dort trotzdem — in **Spielergröße** am Rig, also von
+   * oben eine zweite, doppelt so große Pistole vor der Brust der Figur, die
+   * auch dann blieb, wenn die Hand längst etwas anderes hielt. Gemeldet als:
+   * _„ich habe zwei an?"_
+   */
+  setWorn(worn: boolean): void {
+    if (worn === this.worn) return;
+    this.worn = worn;
+    this.applyVisible();
+  }
+
+  private applyVisible(): void {
+    for (const slot of this.slots) slot.visible = this.shown && this.worn;
   }
 
   slot(side: Handedness): BeltSlot {

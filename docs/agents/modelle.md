@@ -453,12 +453,23 @@ Rand ist trotzdem nie näher als 44 m.
 
 **Und der Plattenboden zieht ins Gelände ein.** Er lag bis dahin nur dort, wo
 _nichts_ gebaut war; jetzt bekommt jede Bodenkachel des Grundrisses ihre
-Platte auf die Oberkante: **7 865** Prototyp-Platten (77 × 105 Kacheln minus
-die 220 der Küche) und **25 Steinplatten** auf dem Podest
+Platte auf die Oberkante: **7 816** Prototyp-Platten (77 × 105 Kacheln minus
+die 220 der Küche, die 9 des Stachelfelds und die 40 der Boxengasse — siehe
+unten) und **25 Steinplatten** auf dem Podest
 (`dungeon/floor_tile_small.glb` — im Spiel genau eine Kachel, also gar keine
 Umrechnung). Mit der Schürze zusammen sind das **34 553 Platten, rund 691 000
 Dreiecke, zwei Zeichenaufrufe**. Schatten werfen sie keine: Was Kulisse ist,
 gehört nicht in den Schattendurchgang.
+
+**Wo schon ein Boden liegt, kommt keine Platte hin** (`test/floorPlate.OWN_FLOORS`,
+seit September 2026): die Küche mit ihren Fliesen, das Stachelfeld der
+Navigationszone (die rote Falle _ist_ dort der Boden, 5 mm über null) und die
+Boxengasse samt Buchten (Asphalt, 2 cm über null). Die Platte darunter lag
+genau auf null und zieht sich obendrein einen Schritt Richtung Kamera
+(`plateFloor.depthSeam`) — ab ein paar Metern gewann sie streifenweise gegen
+den Belag darüber, gemeldet als Z-Fighting. Zwei Böden übereinander lassen sich
+nicht so weit trennen, dass sie aus jeder Entfernung sauber bleiben; einen
+weglassen lässt sich.
 
 **Die Küche bleibt außen vor** — und zwar exakt `layout.KITCHEN` und
 ausdrücklich nicht `kitchenPlan.inKitchen()`. Die beiden Grenzen sehen gleich
