@@ -113,9 +113,13 @@ export class PlaceGrid {
   /**
    * **Die Kacheln zeigen.** Eine leere Liste macht das Gitter unsichtbar —
    * dasselbe wie `hide`, nur ohne dass der Aufrufer sich das merken muss.
+   *
+   * `limit` hebt die Grenze für eine gezogene Fläche (`areaPaint.ts`): Unter
+   * einem Möbel sind es nie mehr als `MAX_TILES`, unter einem Boden von
+   * zwanzig mal zwanzig schon.
    */
-  show(tiles: readonly GridTile[], y: number): void {
-    const count = Math.min(tiles.length, MAX_TILES);
+  show(tiles: readonly GridTile[], y: number, limit = MAX_TILES): void {
+    const count = Math.min(tiles.length, limit);
     if (count === 0 || !Number.isFinite(y)) {
       this.hide();
       return;
@@ -155,8 +159,8 @@ export class PlaceGrid {
    * ein Stück je Kachel der Wandlänge, ohne Tiefenprüfung wie der Rahmen —
    * die Wand, die man trägt, steht ja genau darüber.
    */
-  showEdges(edges: readonly GridEdge[], y: number): void {
-    const count = Math.min(edges.length, MAX_TILES);
+  showEdges(edges: readonly GridEdge[], y: number, limit = MAX_TILES): void {
+    const count = Math.min(edges.length, limit);
     if (count === 0 || !Number.isFinite(y)) {
       this.hide();
       return;

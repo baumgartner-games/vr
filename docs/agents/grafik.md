@@ -344,6 +344,17 @@ der Welt sehen". Eine fehlende Bodenplatte, eine falsch durchsichtige Wand —
 höchstens alle Zehntelsekunde und nur, wenn sich die Zeile ändert; wie die
 Bildrate ist es DOM und in der Brille unsichtbar.
 
+**Und darunter steht _Kopieren_** (`positionLine`). Gewünscht: „ein
+Kopierband, dass ich die aktuellen Position kopieren kann." Abschreiben ist
+genau die Fehlerquelle, die das Feld abschaffen sollte. Kopiert werden alle
+drei Zeilen als **eine**, mit `·` dazwischen —
+`x 8.40 · z −33.10 · y 0.00 · Kachel 8 | -34 · Ebene 0 · ?at=8,-34` —, weil
+eine Chatzeile mit Umbrüchen beim Einfügen in drei Nachrichten zerfällt. Der
+Knopf sagt anderthalb Sekunden lang _Kopiert ✓_; lässt der Browser die
+Zwischenablage nicht zu, steht dort _Markiert_, und `Strg+C` tut den Rest
+(`ui/clipboard.ts`, dieselbe Ersatzantwort wie an jedem anderen
+_Kopieren_). Das Feld selbst lässt Klicks weiter durch, nur der Knopf nicht.
+
 ## Griffe zeigen
 
 Das sechste Häkchen ist die vierte Auskunft und gehört zu den Griffen, an denen

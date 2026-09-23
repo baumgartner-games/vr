@@ -833,3 +833,73 @@ Beim Einfügen wird ein umgestelltes Möbel an seiner alten Kachel gesucht und
 zwei Durchgängen, damit getauschte Plätze aufgehen. Was schon dasteht, zählt
 als erledigt; ein Modell, das schon an derselben Stelle steht, wird nicht
 doppelt hingestellt.
+
+## Flächen setzen im Baukasten
+
+**Ein Rechteck ziehen, und auf jede Kachel kommt eine Kopie**
+(`worlds/portal/areaPaint.ts` rechnet, `areaPad.ts` sind die Knöpfe,
+`PortalWorld.updateAreaPaint` setzt ein). Gewünscht: „so ein bisschen die Idee
+wie bei City Skylines, dass ich zum Beispiel den Küchenboden wählen kann und
+sagen kann: Ich möchte von Position 1–2 … den Küchenboden setzen und möchte das
+dann bestätigen." Stück für Stück hinzustellen geht im _Baukasten_ schon
+lange (das nächste liegt nach jedem Ablegen in der Hand); für einen Boden von
+zehn mal zehn Kacheln ist das aber hundertmal Zielen.
+
+**Wann es die Leiste gibt**: im _Baukasten_, am Schirm oder auf dem Telefon,
+mit einem **Modell aus dem Regal** in der Bildschirmhand (`areaBrush`). Dann
+steht oben in der Mitte _▦ Fläche_ (auf dem Telefon unten, oben links wohnt
+die Positionsanzeige). In der Brille nicht — dort gibt es keinen Zeiger über
+einem Bild, und die Leiste ist DOM. Ein Küchenmöbel, das in der Küche aus dem
+Katalog zum funktionierenden Möbel wird (`takeFurniture`), ist kein Modell und
+bekommt sie auch nicht: Es hat eine Heimatkachel, und hundert Herde mit
+Heimatkachel sind eine andere Frage.
+
+**Das Stück in der Hand ist der Pinsel.** Es bleibt in der Hand, und jede
+Stelle der Fläche bekommt eine Kopie in **seiner** Drehung — gedreht wird
+also wie bisher, bevor man zieht. Gesetzt wird über denselben Weg wie eine
+eingefügte Liste der Weltänderungen (`placeModelAt`, früher nur
+`placeModelChange`): mit Id im Netz, mit Zeile in der Liste, und was genau
+dort schon steht, kommt nicht doppelt hin. Die Kopien entstehen eine Handbreit
+über dem Boden, auf dem man steht, und fallen das letzte Stück.
+
+**Zwei Wege zu denselben zwei Ecken** (`AreaSelect`), und beide gehen auf
+beiden Geräten:
+
+- **Ziehen**: drücken, ziehen, loslassen. Das ist der Weg der Maus.
+- **Tippen**: Ein Druck, der auf seiner Kachel losgelassen wird, ist die erste
+  Ecke; der nächste Tipp die zweite (wer dabei zieht, schiebt sie noch mit).
+  Das ist der Weg des Fingers. Zweimal dieselbe Kachel ist eine Kachel.
+
+Die Maus zeigt schon vor dem ersten Klick, welche Kachel es würde. Solange
+_Fläche_ an ist, liegt über dem Bild eine Zeichenfläche, die jeden Druck
+abfängt, bevor die Steuerung ihn als Blick, Ablegen oder Schuss liest; die
+Maus wird dafür aus dem Fang gelassen (`exitPointerLock`). Laufen geht am
+Schirm weiter mit den Tasten; auf dem Telefon liegen die Stöcke unter der
+Zeichenfläche, also erst _Beenden_, dann laufen.
+
+**Ab mehr als vier Kacheln wird gefragt** (`AREA_CONFIRM`, gezählt werden die
+Kacheln des Rechtecks): _4 × 3 = 12 Kacheln · 3× Floor Kitchen setzen?_ mit
+_Bestätigen_ und _Abbrechen_ — am Schirm auch `Enter` und `Esc`. Darunter wird
+sofort gesetzt; wer eine Kachel antippt, will nicht jedes Mal bestätigen.
+`Esc` nimmt erst eine halbe Auswahl zurück und beendet beim zweiten Mal den
+Modus. Mehr als **400** Stücke (`AREA_MAX`) setzt eine Fläche nicht — jedes
+ist ein Körper der Physik und ein Eintrag im Netz, und so eine Fläche war fast
+sicher ein verrutschter Finger.
+
+**Welche Stellen eine Fläche hat** (`areaPlan`), nach denselben Regeln wie das
+Einrasten einzeln (siehe
+[Was hingestellt wird, rastet auf dem Kachelgitter ein](assetregal.md)):
+
+- **Was auf Kacheln steht**, wird Reihe für Reihe ausgelegt, Schritt so groß
+  wie seine Grundfläche: eine Bodenplatte von einer Kachel auf jede, der
+  Küchenboden des Restaurants (zwei mal zwei) auf jede zweite. Was nicht mehr
+  ganz ins Rechteck passt, kommt nicht hin; eines kommt immer.
+- **Eine Wand** kommt nicht **in** die Fläche, sondern um sie **herum**: Das
+  Rechteck bekommt seinen Rand auf den Fugen, die Wände quer dazu um eine
+  Vierteldrehung gedreht. Ein Rechteck von nur einer Reihe wird eine gerade
+  Wand an seiner Nord- oder Westkante. Zwanzig Wände nebeneinander wären keine
+  Absicht; ein Raum ist eine.
+
+Die Vorschau ist das Gitter unter dem Getragenen (`PlaceGrid`), nur mit
+höherer Grenze (`AREA_PREVIEW`, 1 600 statt 64 Kacheln): leuchtende Kacheln,
+bei Wänden die Kantenstücke.

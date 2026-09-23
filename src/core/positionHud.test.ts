@@ -2,7 +2,7 @@
  * **Die Zeilen der Positionsanzeige** (`positionHud.ts`) — Meter, Kachel, Ebene
  * und die Adresse, die `worlds/test/spawnAt.ts` wieder liest.
  */
-import { positionText } from './positionHud';
+import { positionLine, positionText } from './positionHud';
 import { spawnAt } from '../worlds/test/spawnAt';
 
 describe('positionText', () => {
@@ -27,5 +27,11 @@ describe('positionText', () => {
     expect(positionText(1, 0, 1, null)).not.toContain('Ebene');
     expect(positionText(-0.001, 0, 0, null)).toContain('x 0.00');
     expect(positionText(Number.NaN, 0, 0, 0)).toBe('Position unbekannt');
+  });
+
+  it('kopiert alle drei Zeilen als eine', () => {
+    expect(positionLine(positionText(12.345, 0, -31.2, 0))).toBe(
+      'x 12.35 · z −31.20 · y 0.00 · Kachel 12 | -32 · Ebene 0 · ?at=12,-32',
+    );
   });
 });
