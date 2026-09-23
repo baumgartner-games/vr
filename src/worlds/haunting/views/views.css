@@ -7,68 +7,17 @@
  * ist. Handgesetzt, einzeilig — CSS steht nicht unter Prettier.
  */
 @import '../ui/widgets.css';
-.role {
-  position: absolute;
-  inset: 0;
-  background: #070a10;
-  color: #e8ecf7;
-  font:
-    14px system-ui,
-    sans-serif;
-  overflow: hidden;
-  user-select: none;
-  -webkit-user-select: none;
-}
-.role [hidden] {
-  display: none !important;
-}
-.role__map {
-  position: absolute;
-  inset: 0;
-}
-.role__map .mapview__canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.role__hud {
-  position: absolute;
-  left: 12px;
-  top: max(10px, env(safe-area-inset-top));
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(12, 18, 32, 0.82);
-  border: 1px solid rgba(140, 170, 230, 0.3);
-  pointer-events: none;
-  max-width: 62vw;
-}
-.role__hud strong {
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  color: #8fb7ff;
-}
-.role__hud span {
-  font-size: 12px;
-  color: #97a3bd;
-}
-.role--panel .role__hud strong {
-  color: #7fe0ff;
-}
-.role--scout .role__hud strong {
-  color: #6fe39a;
-}
-.role--archive .role__hud strong {
-  color: #ffd84a;
-}
-.role__toast {
-  position: absolute;
-  left: 50%;
-  top: max(76px, calc(env(safe-area-inset-top) + 66px));
-  transform: translateX(-50%);
-}
+.role { position: absolute; inset: 0; background: #070a10; color: #e8ecf7; font: 14px system-ui, sans-serif; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.role [hidden] { display: none !important; }
+.role__map { position: absolute; inset: 0; }
+.role__map .mapview__canvas { width: 100%; height: 100%; display: block; }
+.role__hud { position: absolute; left: 12px; top: max(10px, env(safe-area-inset-top)); display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: 10px; background: rgba(12, 18, 32, 0.82); border: 1px solid rgba(140, 170, 230, 0.3); pointer-events: none; max-width: 62vw; }
+.role__hud strong { font-size: 12px; letter-spacing: .14em; color: #8fb7ff; }
+.role__hud span { font-size: 12px; color: #97a3bd; }
+.role--panel .role__hud strong { color: #7fe0ff; }
+.role--scout .role__hud strong { color: #6fe39a; }
+.role--archive .role__hud strong { color: #ffd84a; }
+.role__toast { position: absolute; left: 50%; top: max(76px, calc(env(safe-area-inset-top) + 66px)); transform: translateX(-50%); }
 
 /* Die Raumakte liegt über der Karte und lässt oben einen Streifen frei: Dort
    steht die Kopfzeile der Seite, und ein Blatt darunter wäre halb verdeckt.
@@ -77,136 +26,41 @@
    zwei Karten liegt das Bild des Raums, und in der 3D-Welt ist das ein Loch
    in die Leinwand (`role__hole`). Eine durchgehende Fläche darüber wäre ein
    schwarzes Rechteck statt eines Zimmers. */
-.role__sheet {
-  position: absolute;
-  left: 50%;
-  top: max(60px, calc(env(safe-area-inset-top) + 52px));
-  transform: translateX(-50%);
-  width: min(92vw, 400px);
-  max-height: calc(100dvh - 76px);
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  z-index: 3;
-}
-.role__card {
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 14px;
-}
-.role__sheet-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.role__sheet-head strong {
-  font-size: 16px;
-}
+.role__sheet { position: absolute; left: 50%; top: max(60px, calc(env(safe-area-inset-top) + 52px)); transform: translateX(-50%); width: min(92vw, 400px); max-height: calc(100dvh - 76px); overflow: auto; display: flex; flex-direction: column; gap: 6px; z-index: 3; }
+.role__card { gap: 4px; padding: 12px 14px; border-radius: 14px; }
+.role__sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.role__sheet-head strong { font-size: 16px; }
 /* Der Code ist die Sache, die durch den Raum gerufen wird: groß, breit
    gesperrt, in der Farbe, die auf der Karte das Ziel meint. */
-.role__code {
-  font:
-    700 26px/1.1 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  letter-spacing: 0.18em;
-  color: #ffd84a;
-  text-align: right;
-}
-.role__picture {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(140, 170, 230, 0.25);
-}
+.role__code { font: 700 26px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .18em; color: #ffd84a; text-align: right; }
+.role__picture { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; border: 1px solid rgba(140, 170, 230, 0.25); }
 /* Nur die 2D-Fassung bekommt einen Grund: Dort liegt eine Karte darin und
    kein Loch, und ein Rand um nichts sähe aus wie ein kaputtes Bild. */
-.role__picture:has(.role__closeup) {
-  background: #05070c;
-}
+.role__picture:has(.role__closeup) { background: #05070c; }
 /* Das Loch bleibt durchsichtig: Dahinter zeichnet die 3D-Welt in genau dieses
    Rechteck (`RoleView.viewport`), und ein Hintergrund läge davor. */
-.role__hole {
-  position: absolute;
-  inset: 0;
-  touch-action: none;
-}
-.role__hole--full {
-  position: absolute;
-  inset: 0;
-}
-.role__hole .mapview {
-  position: absolute;
-  inset: 0;
-}
-.role__hole .mapview__canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.role__ptools {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  display: flex;
-  gap: 6px;
-}
-.role__hint {
-  color: #6b7690;
-  font-size: 11px;
-}
+.role__hole { position: absolute; inset: 0; touch-action: none; }
+.role__hole--full { position: absolute; inset: 0; }
+.role__hole .mapview { position: absolute; inset: 0; }
+.role__hole .mapview__canvas { width: 100%; height: 100%; display: block; }
+.role__ptools { position: absolute; right: 8px; top: 8px; display: flex; gap: 6px; }
+.role__hint { color: #6b7690; font-size: 11px; }
 
 /* **Blatt auf heißt Karte weg.** Der Befund des Besitzers war, dass sich die
    Raumakte über der Karte nicht rollen ließ und darunter ein Grundriss
    weiterleuchtete, auf den man beim Zielen traf. Also nimmt `is-sheet` die
    Karte aus dem Bild und gibt dem Blatt die ganze Fläche — dieselbe Form für
    die Raumakte des Archivars und die Tafel der Schalttafel. */
-.role.is-sheet .role__map {
-  visibility: hidden;
-}
-.role.is-sheet .role__sheet {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  transform: none;
-  width: auto;
-  max-height: none;
-  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
-}
+.role.is-sheet .role__map { visibility: hidden; }
+.role.is-sheet .role__sheet { left: 0; right: 0; bottom: 0; transform: none; width: auto; max-height: none; padding: 0 12px calc(12px + env(safe-area-inset-bottom)); }
 
 /* Der eine Knopf oben rechts, der das Blatt aufschlägt und wieder wegnimmt —
    bei der Schalttafel die Tafel, beim Fernseher seine Linse. Er bleibt stehen,
    solange das Blatt offen ist: Ein Menü, das sich nur über den Umweg
    „irgendetwas in der Liste antippen" schließen lässt, ist eine Falle. */
-.role__corner {
-  position: absolute;
-  right: 10px;
-  top: max(10px, env(safe-area-inset-top));
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-  padding: 7px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(140, 170, 230, 0.4);
-  background: rgba(12, 18, 32, 0.92);
-  color: #e8ecf7;
-  font: inherit;
-  touch-action: manipulation;
-}
-.role__corner strong {
-  font-size: 13px;
-}
-.role__corner small {
-  font-size: 11px;
-  color: #97a3bd;
-}
+.role__corner { position: absolute; right: 10px; top: max(10px, env(safe-area-inset-top)); z-index: 4; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; padding: 7px 12px; border-radius: 12px; border: 1px solid rgba(140, 170, 230, 0.4); background: rgba(12, 18, 32, 0.92); color: #e8ecf7; font: inherit; touch-action: manipulation; }
+.role__corner strong { font-size: 13px; }
+.role__corner small { font-size: 11px; color: #97a3bd; }
 
 /* Die Schalterliste der Schalttafel (`.role__switch*`) ist weg: Die Rolle ist
    die Karte selbst — Tür und Lampe werden dort angetippt (`views/panelRole.ts`). */
@@ -215,96 +69,36 @@
    Karte der Rolle (eine deckende Leinwand), der Grund der Rolle und der
    Grund der Seite. Sonst zeichnet die Welt brav in das Rechteck und man
    sieht davon nichts. */
-.role--archive.is-hole {
-  background: none;
-}
-.role--archive.is-hole .role__map {
-  visibility: hidden;
-}
+.role--archive.is-hole { background: none; }
+.role--archive.is-hole .role__map { visibility: hidden; }
 .haunt:has(.role--archive.is-hole),
-.haunt:has(.role--archive.is-hole) .haunt__body {
-  background: none;
-}
+.haunt:has(.role--archive.is-hole) .haunt__body { background: none; }
 
 /* **Der Zuschauer ist sein Bild.** Die Station füllt die Fläche unter der
    Leiste, und die drei Zeilen liegen als Karten am unteren Rand darüber —
    nichts davon deckend, denn dahinter zeichnet die 3D-Welt. Ein Grund an
    dieser Stelle wäre ein schwarzes Rechteck statt eines Puppenhauses. */
-.role--watch {
-  background: none;
-}
-.role--watch .role__hole--full {
-  position: absolute;
-  inset: 0;
-  touch-action: none;
-}
+.role--watch { background: none; }
+.role--watch .role__hole--full { position: absolute; inset: 0; touch-action: none; }
 /* Der Stock zum Fliegen (`map/joystick.css`), hier über dem Loch. */
-.role--watch .role__watch-stick {
-  z-index: 3;
-  --flat-bottom: max(14px, env(safe-area-inset-bottom));
-}
+.role--watch .role__watch-stick { z-index: 3; --flat-bottom: max(14px, env(safe-area-inset-bottom)); }
 /* Die fremde Rollenansicht liegt über dem Puppenhaus und deckt es zu: Zwei
    Bilder übereinander wären beide unlesbar. */
-.role__stage {
-  position: absolute;
-  inset: 0;
-}
-.role--watch.is-guest {
-  background: #070a10;
-}
+.role__stage { position: absolute; inset: 0; }
+.role--watch.is-guest { background: #070a10; }
 /* Die Überschrift der Linse (`ui-head`) in der Farbe des Zuschauers. */
-.role__h {
-  margin-top: 4px;
-  letter-spacing: 0.1em;
-  color: #8fb7ff;
-}
-.role__watch-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
+.role__h { margin-top: 4px; letter-spacing: .1em; color: #8fb7ff; }
+.role__watch-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 /* Die Wahlknöpfe der Linse: der Listenknopf (`ui-option`), etwas runder und mit dem gewählten in Cyan. */
-.role__watch-key {
-  padding: 9px 11px;
-  border-radius: 12px;
-  border-color: rgba(140, 170, 230, 0.3);
-  background: rgba(18, 24, 40, 0.86);
-  color: #97a3bd;
-}
-.role__watch-key strong {
-  font-size: 14px;
-  color: #e8ecf7;
-}
-.role__watch-key small {
-  font-size: 11.5px;
-  line-height: 1.35;
-}
-.role__watch-key--wide {
-  grid-column: 1 / -1;
-}
-.role__watch-key.is-active {
-  border-color: #7fe0ff;
-  background: rgba(20, 44, 60, 0.92);
-}
-.role__watch-key.is-active strong {
-  color: #7fe0ff;
-}
-.role__notes {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-height: 55%;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
-}
+.role__watch-key { padding: 9px 11px; border-radius: 12px; border-color: rgba(140, 170, 230, 0.3); background: rgba(18, 24, 40, 0.86); color: #97a3bd; }
+.role__watch-key strong { font-size: 14px; color: #e8ecf7; }
+.role__watch-key small { font-size: 11.5px; line-height: 1.35; }
+.role__watch-key--wide { grid-column: 1 / -1; }
+.role__watch-key.is-active { border-color: #7fe0ff; background: rgba(20, 44, 60, 0.92); }
+.role__watch-key.is-active strong { color: #7fe0ff; }
+.role__notes { position: absolute; left: 0; right: 0; bottom: 0; max-height: 55%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); }
 /* Die Kacheln (`ui-note`) liegen über dem Puppenhaus und decken es, wo sie stehen. */
-.role__notes .ui-note {
-  background: rgba(10, 15, 26, 0.9);
-}
+.role__notes .ui-note { background: rgba(10, 15, 26, 0.9); }
 
 /* **Die Rollen als Knöpfe in einem Panel** (`views/roleTabs.ts`) — derselbe
    Kopf über der 2D-Welt (`roleStrip.ts`) und über der Karte des Telefons
@@ -314,151 +108,46 @@
    in zwei Zeilen passen, ist jede Pille zweizeilig: oben der Platz, klein
    darunter, was er hält. Wer sich hier einhängt, setzt selbst, wo das Panel
    steht (`haunting.css`); dieses Blatt sagt nur, wie es aussieht. */
-.role-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
-  min-width: 0;
-  border-radius: 14px;
-  background: rgba(10, 15, 26, 0.92);
-  border: 1px solid rgba(140, 170, 230, 0.3);
-}
-.role-strip__key {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-  min-height: 36px;
-  padding: 4px 10px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: none;
-  color: #97a3bd;
-  font: inherit;
-  line-height: 1.15;
-  text-align: left;
-  white-space: nowrap;
-  touch-action: manipulation;
-}
-.role-strip__key strong {
-  font-size: 12px;
-  font-weight: 600;
-}
-.role-strip__key small {
-  font-size: 10px;
-  color: #7c89a4;
-}
+.role-strip { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; min-width: 0; border-radius: 14px; background: rgba(10, 15, 26, 0.92); border: 1px solid rgba(140, 170, 230, 0.3); }
+.role-strip__key { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 36px; padding: 4px 10px; border-radius: 10px; border: 1px solid transparent; background: none; color: #97a3bd; font: inherit; line-height: 1.15; text-align: left; white-space: nowrap; touch-action: manipulation; }
+.role-strip__key strong { font-size: 12px; font-weight: 600; }
+.role-strip__key small { font-size: 10px; color: #7c89a4; }
 /* Was ich **halte**, ist gelb umrandet; was gerade **offen** ist, leuchtet.
    Zwei Auskünfte, zwei Zeichen: Wer am Stock steht und ins Archiv sieht, sieht beides. */
-.role-strip__key.is-mine {
-  border-color: rgba(255, 196, 90, 0.75);
-  color: #e8ecf7;
-}
-.role-strip__key.is-active {
-  background: rgba(140, 170, 230, 0.18);
-  border-color: rgba(140, 170, 230, 0.5);
-  color: #e8ecf7;
-  font-weight: 650;
-}
-.role-strip__key.is-active small,
-.role-strip__key.is-mine small {
-  color: #b8c4dd;
-}
-.role-strip__key:disabled {
-  opacity: 0.45;
-}
+.role-strip__key.is-mine { border-color: rgba(255, 196, 90, 0.75); color: #e8ecf7; }
+.role-strip__key.is-active { background: rgba(140, 170, 230, 0.18); border-color: rgba(140, 170, 230, 0.5); color: #e8ecf7; font-weight: 650; }
+.role-strip__key.is-active small, .role-strip__key.is-mine small { color: #b8c4dd; }
+.role-strip__key:disabled { opacity: 0.45; }
 /* **Die Bühne der aufgeschlagenen Rolle** — keine Schicht über allem: Sie
    fängt unter dem Rollenstreifen an und füllt den Rest. Die Rolle darin ist
    `absolute; inset: 0` und füllt die Bühne. */
-.role-stage {
-  position: relative;
-}
+.role-stage { position: relative; }
 /* Was in der Rolle oben steht, rechnet nicht mehr mit dem Rand der Seite oder
    dem Streifen: Beide liegen jetzt **über** der Bühne, nicht in ihr. Ein
    Kasten bei 10 px ist ein Kasten 10 px unter den Sprungknöpfen. `--flat-top`
    gilt für das Monster (`monster/monster.css`), das dieselbe Kante liest. */
-.role-stage {
-  --flat-top: 10px;
-}
-.role-stage .role__hud {
-  top: 10px;
-}
-.role-stage .role__toast {
-  top: 64px;
-}
-.role-stage .role__sheet {
-  top: 60px;
-  max-height: calc(100% - 72px);
-}
-.role-stage .role__corner {
-  top: 10px;
-}
-.role-stage .role.is-sheet .role__sheet {
-  max-height: none;
-}
-.role-stage .role__bar {
-  padding-top: 8px;
-}
+.role-stage { --flat-top: 10px; }
+.role-stage .role__hud { top: 10px; }
+.role-stage .role__toast { top: 64px; }
+.role-stage .role__sheet { top: 60px; max-height: calc(100% - 72px); }
+.role-stage .role__corner { top: 10px; }
+.role-stage .role.is-sheet .role__sheet { max-height: none; }
+.role-stage .role__bar { padding-top: 8px; }
 
 /* **Ein Stuhl, eine Karte** (`seatRole.ts`). Die drei Rollen liegen als durchsichtige
    Schichten über der einen Karte: Ihre Knöpfe, Meldungen und Blätter sind da, ihr Grund
    und ihre eigene Karte nicht. Zeiger gehen durch die Schicht hindurch auf die Karte —
    nur was in der Schicht steht, fängt sie. Ein aufgeschlagenes Blatt bekommt seinen Grund
    zurück und nimmt die Karte darunter aus dem Bild, wie bei einer Rolle allein. */
-.role--seat > .role {
-  background: none;
-  pointer-events: none;
-}
-.role--seat > .role > * {
-  pointer-events: auto;
-}
-.role--seat > .role.is-sheet {
-  background: #070a10;
-  pointer-events: auto;
-}
-.role--seat:has(> .role.is-sheet) > .role__map {
-  visibility: hidden;
-}
-.role--seat:has(> .role--archive.is-hole) {
-  background: none;
-}
-.role--seat:has(> .role--archive.is-hole) > .role.is-sheet {
-  background: none;
-}
+.role--seat > .role { background: none; pointer-events: none; }
+.role--seat > .role > * { pointer-events: auto; }
+.role--seat > .role.is-sheet { background: #070a10; pointer-events: auto; }
+.role--seat:has(> .role.is-sheet) > .role__map { visibility: hidden; }
+.role--seat:has(> .role--archive.is-hole) { background: none; }
+.role--seat:has(> .role--archive.is-hole) > .role.is-sheet { background: none; }
 /* Die eine Zeile oben statt drei Kästchen: je Fähigkeit Name und Meldung. */
-.role__bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  z-index: 3;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  padding: 8px 12px;
-  padding-top: max(8px, env(safe-area-inset-top));
-  background: rgba(7, 10, 16, 0.86);
-  border-bottom: 1px solid rgba(140, 170, 230, 0.18);
-  font-size: 12px;
-  color: #97a3bd;
-  pointer-events: none;
-}
-.role__bar-cell {
-  display: inline-flex;
-  gap: 6px;
-  align-items: baseline;
-  white-space: nowrap;
-}
-.role__bar strong {
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  color: #e8ecf7;
-}
-.role--seat .role__toast {
-  top: 64px;
-}
-.role--seat > .role .role__toast {
-  top: 64px;
-}
+.role__bar { position: absolute; left: 0; right: 0; top: 0; z-index: 3; display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); background: rgba(7, 10, 16, 0.86); border-bottom: 1px solid rgba(140, 170, 230, 0.18); font-size: 12px; color: #97a3bd; pointer-events: none; }
+.role__bar-cell { display: inline-flex; gap: 6px; align-items: baseline; white-space: nowrap; }
+.role__bar strong { font-size: 11px; letter-spacing: .12em; color: #e8ecf7; }
+.role--seat .role__toast { top: 64px; }
+.role--seat > .role .role__toast { top: 64px; }

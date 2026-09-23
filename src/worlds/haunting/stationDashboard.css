@@ -12,32 +12,17 @@
   --haunt-line: #2b4654;
   --haunt-line-strong: #527786;
 }
-.haunt[data-station='archive'],
-.haunt [data-accent='archive'] {
-  --haunt-accent: #78dfe7;
-}
-.haunt[data-station='scout'],
-.haunt [data-accent='scout'] {
-  --haunt-accent: #89edbe;
-}
-.haunt__bar {
-  flex: none;
-  gap: 8px;
-}
-.haunt button:hover:not(:disabled) {
-  border-color: var(--haunt-accent);
-}
-.haunt__body {
-  min-height: 0;
-}
-.haunt[data-station='archive'],
-.haunt[data-station='scout'],
-.haunt[data-station='hack'] {
+.haunt[data-station="archive"], .haunt [data-accent="archive"] { --haunt-accent: #78dfe7; }
+.haunt[data-station="scout"], .haunt [data-accent="scout"] { --haunt-accent: #89edbe; }
+.haunt__bar { flex: none; gap: 8px; }
+.haunt button:hover:not(:disabled) { border-color: var(--haunt-accent); }
+.haunt__body { min-height: 0; }
+.haunt[data-station="archive"], .haunt[data-station="scout"], .haunt[data-station="hack"] {
   background: #08151e;
 }
-.haunt[data-station='archive'] .haunt__body,
-.haunt[data-station='scout'] .haunt__body,
-.haunt[data-station='hack'] .haunt__body {
+.haunt[data-station="archive"] .haunt__body,
+.haunt[data-station="scout"] .haunt__body,
+.haunt[data-station="hack"] .haunt__body {
   width: 100%;
   max-width: 1040px;
   align-self: center;
@@ -57,32 +42,14 @@
   text-align: left;
 }
 
-.haunt__round-result {
-  padding: 18px;
-  border: 1px solid #75d7bb;
-  border-radius: 12px;
-  background: #11362f;
-  line-height: 1.55;
-}
-.haunt__round-result strong {
-  font-size: 19px;
-  color: #b7ffe9;
-}
-.haunt__round-result p {
-  margin: 8px 0 14px;
-}
-.haunt__round-result.is-lost {
-  border-color: #df8b8e;
-  background: #3a232c;
-}
-.haunt__round-result.is-lost strong {
-  color: #ffc7ca;
-}
+.haunt__round-result { padding: 18px; border: 1px solid #75d7bb; border-radius: 12px; background: #11362f; line-height: 1.55; }
+.haunt__round-result strong { font-size: 19px; color: #b7ffe9; }
+.haunt__round-result p { margin: 8px 0 14px; }
+.haunt__round-result.is-lost { border-color: #df8b8e; background: #3a232c; }
+.haunt__round-result.is-lost strong { color: #ffc7ca; }
 
 @media (max-width: 580px) {
-  .haunt__bar {
-    padding-inline: 8px;
-  }
+  .haunt__bar { padding-inline: 8px; }
 }
 
 /* **Die zweispaltige Archivseite ist weg.** Sie stammt aus der Zeit, als der
