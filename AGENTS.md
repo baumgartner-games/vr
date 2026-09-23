@@ -52,7 +52,7 @@ Vor dem Push laufen `npm run typecheck`, `npm run lint`, `npm run format:check`
 und `npm test` — dieselben vier Schritte, die auch die CI macht
 (`.github/workflows/deploy.yml`). Eine Regel, an die sich nur erinnert wird, ist
 keine; deshalb prüft sie jetzt jeder Push nach. `npm test` ist **alles, was es
-gibt** und in gut einer halben Minute durch (5015 Tests) — eine zweite,
+gibt** und in gut einer halben Minute durch (5026 Tests) — eine zweite,
 langsame Suite und den CI-Job daneben gab es einmal, sie sind weg (siehe
 [Tests](docs/agents/tests.md)).
 
@@ -151,8 +151,8 @@ Stichpunkten).
   Darin: Die schwarze Kante · Die Brille rechnet kleiner, wenn man es sagt · Die Gitterlinien · Die Hitboxen · Griffe zeigen · Squishy: die Figur federt beim Laufen und atmet im Stehen · Was die Kamera ansieht · Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind · Und die Wände auch — nur nicht von oben · Wer sagt, dass er keinen Schatten wirft, wirft keinen · Zwei Zahlen, die man einmal kennen sollte · Die Messstrecke der Küche — und wer die Aufrufe verbraucht · Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht.
 - **[Modelle im Repository](docs/agents/modelle.md)** — Welche Datei welches Netz hergibt, wie zugeschnitten wird und was es wiegt.
   Darin: Der zweite Katalog: 156 Stücke, ein Material, eine Textur · Der dritte Katalog: die Wundertüte · Das vierte: ein Regal und kein Katalog · Was aus dem Regal die gebaute Geometrie ersetzt — und was nicht · Eine Build-Nummer an jeder Adresse · Und der Ton wird aufgeschlossen, nicht eingeschaltet · Und dann zog die erste Küche in den zweiten Katalog um · Fünf Zahlen, die aus dem Katalog mehr machen als eine Liste · Anfassen in der Küche · Der Körper unter dem Möbel.
-- **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — und der Umbau, während man darin steht.
-  Darin: Der Konstrukt-Raum · Bauen, während man darin steht.
+- **[Bauen](docs/agents/bauen.md)** — Der Konstrukt-Raum, aus dem die Möbel kommen — der Umbau, während man darin steht, und die drei Spielmodi.
+  Darin: Der Konstrukt-Raum · Bauen, während man darin steht · Der Spielmodus und die Liste der Weltänderungen.
 - **[Das KayKit-Regal](docs/agents/assetregal.md)** — Die gekaufte Sammlung als Menü: Schubladen, Suchfeld, Ordner für Ordner, mit dem Modell in der Kachel.
   Darin: Warum ein Regal und kein zweiter Beutel · Was wo liegt · Zwei Spalten in der Brille — und so viele, wie passen, am Schirm · Der Katalog nimmt den ganzen Schirm · Drei Wege hinein: alles, Pakete, Kategorien · Schubladen: Figuren, Möbel, Natur — und sieben weitere · Wo man war, wenn man wiederkommt — und der Weg zurück an den Anfang · Und ein Suchfeld — aber nur am Schirm · Deutsch suchen — ein Wörterbuch und keine 4470 Zeilen · Das Modell in der Kachel — und wie es auf dem Telefon dorthin kommt · In der Kachel stand nur der Kopf — und warum · Ein ⓘ in der Ecke jeder Kachel — und die Seite dahinter · Die genaue Bezeichnung — die Adresse an einem Stück, und ein Knopf daneben · Geladen wird, was zu sehen ist · Fächer in der Brille — und Nachladen beim Scrollen am Schirm · Die Ids sind Adressen · Was beim Nehmen passiert · Was hingestellt wird, rastet auf dem Kachelgitter ein · Das Gitter unter dem Getragenen · Die Kisten des Regals stehen auf einem Deckel · Aus dem Regal wird in der Küche ein Möbel · Aus einem Modell wird ein Gegenstand · Eine Figur, die läuft · Ein Maßstab je Paket — und warum die Ritter zu groß waren · Keine Build-Nummer · Geteilte Geometrie · Grenzen.
 - **[Spielfigur, Karte und Beutel](docs/agents/spielfigur.md)** — Wie man aussieht, was am Handgelenk hängt und was aus dem Beutel kommt.

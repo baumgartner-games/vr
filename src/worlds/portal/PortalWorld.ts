@@ -13,6 +13,29 @@ import {
 } from './PortalSync';
 import { PortalRenderer } from './PortalRenderer';
 import { nextPortalDepth, portalDepth, savePortalDepth } from './portalDepth';
+import {
+  GAME_MODE_HINTS,
+  GAME_MODE_LABELS,
+  gameMode,
+  nextGameMode,
+  onGameMode,
+  refillsCatalogue,
+  setGameMode,
+} from '../../core/gameMode';
+import {
+  changeKey,
+  clearWorldChanges,
+  formatChanges,
+  onWorldChanges,
+  parseChanges,
+  recordModel,
+  setTrackingChanges,
+  trackingChanges,
+  worldChanges,
+  type FurnitureChange,
+  type ModelChange,
+} from '../../core/worldChanges';
+import { COPY_FALLBACK, copyText } from '../../ui/clipboard';
 import { PortalGhosts } from './PortalGhosts';
 import { crossPoint } from './portalCrossing';
 import { funnelGroups } from './portalFunnel';
@@ -1105,6 +1128,17 @@ export class PortalWorld implements World {
   /** Der Schaum geknallter Flaschen, solange er fällt. */
   private readonly foams: Foam[] = [];
   private readonly spawned = new Set<PhysicsBody>();
+  /**
+   * **Frisch aus dem Regal und noch nie hingestellt** — im _Baukasten_ kommt
+   * beim Hinstellen eines solchen Modells gleich das nächste in die Hand
+   * (`core/gameMode.refillsCatalogue`, `release`).
+   */
+  private readonly shelfFresh = new WeakSet<PhysicsBody>();
+  /** Unter welchem Schlüssel die Liste der Weltänderungen ein Modell führt. */
+  private readonly changeKeys = new WeakMap<PhysicsBody, string>();
+  /** Die Zuhörer, die die Menüzeilen nachziehen — einmal je Welt angemeldet. */
+  private modeWatch: (() => void) | null = null;
+  private changesWatch: (() => void) | null = null;
   private readonly flights = new Map<PhysicsBody, Flight>();
   private readonly links = new Map<Handedness, RemoteLink>();
   private readonly ropes = new Map<
@@ -1604,6 +1638,7 @@ export class PortalWorld implements World {
         icon: 'settings',
         accent: 0x4aa8ff,
         children: [
+          this.modeEntry(),
           this.grabMenu(toggle),
           this.depthEntry(),
           this.physicsMenu(),
@@ -1626,6 +1661,7 @@ export class PortalWorld implements World {
           },
         ],
       },
+      this.changesMenu(),
       {
         id: 'reset',
         label: 'Labor zurücksetzen',
@@ -2893,6 +2929,232 @@ export class PortalWorld implements World {
     if (!next.remote) this.clearLinks();
     if (!next.rope) for (const hand of this.ropes.keys()) this.hideRope(hand);
     if (!next.ghost) for (const hand of this.ghostHands.keys()) this.hideGhost(hand);
+  }
+
+  /**
+   * **Der Spielmodus** — eine Zeile, und jeder Klick schaltet weiter:
+   * _Spielen_, _Einrichten_, _Baukasten_ und wieder von vorn
+   * (`core/gameMode.ts`).
+   *
+   * Gebaut wie die Portaltiefe darunter: Die Beschriftung sagt, was gilt, und
+   * wird nach jedem Druck nachgezogen. Auch nach einem Druck **woanders** —
+   * der rote Umbauknopf der Küche schaltet denselben Modus, und eine Zeile,
+   * die danach noch _Spielen_ sagt, wäre die falsche Auskunft.
+   */
+  private modeEntry(): MenuEntry {
+    const entry: MenuEntry = {
+      id: 'setting:game-mode',
+      label: '',
+      icon: 'hammer',
+      accent: 0xffa94d,
+      run: () => {
+        const mode = setGameMode(nextGameMode(gameMode()));
+        this.refreshMenuLabels();
+        this.context?.notify(`Spielmodus: ${GAME_MODE_LABELS[mode]}`);
+      },
+    };
+    const paint = (): void => {
+      const mode = gameMode();
+      entry.label = `Spielmodus: ${GAME_MODE_LABELS[mode]}`;
+      entry.sub = GAME_MODE_HINTS[mode];
+    };
+    paint();
+    this.menuLabels.push(paint);
+    this.modeWatch ??= onGameMode(() => this.refreshMenuLabels());
+    return entry;
+  }
+
+  /**
+   * **Weltänderungen** — ein Häkchen, das mitschreibt, und zwei Knöpfe, die
+   * die Liste hinaus- und wieder hereintragen (`core/worldChanges.ts`).
+   *
+   * Gewünscht war es als Weg, Änderungen weiterzugeben: einrichten, kopieren,
+   * in den Chat einfügen. Was dort ankommt, ist eine Bilanz — welches Möbel
+   * von wo nach wo, welches Modell wohin — und kein Protokoll jedes Griffs.
+   *
+   * _Einfügen_ liest zuerst die Zwischenablage. Wo der Browser das nicht
+   * erlaubt (ohne `https`, in manchen Brillen), geht ein Textfeld auf, in das
+   * man die Liste von Hand einfügt — dieselbe Antwort wie beim Konfig-Code.
+   */
+  private changesMenu(): MenuEntry {
+    const accent = 0x5ee0a0;
+    const track: MenuEntry = {
+      id: 'changes:track',
+      label: 'Änderungen aufzeichnen',
+      icon: 'tape',
+      accent,
+      checked: trackingChanges(),
+      run: () => {
+        setTrackingChanges(!trackingChanges());
+        this.refreshMenuLabels();
+        this.context?.notify(
+          trackingChanges() ? 'Änderungen werden aufgezeichnet' : 'Aufzeichnung angehalten',
+        );
+      },
+    };
+    const copy: MenuEntry = {
+      id: 'changes:copy',
+      label: 'Kopieren',
+      icon: 'sign',
+      accent,
+      run: () => void this.copyChanges(),
+    };
+    const paste: MenuEntry = {
+      id: 'changes:paste',
+      label: 'Einfügen',
+      sub: 'Eine kopierte Liste in dieser Welt nachstellen',
+      icon: 'sign',
+      accent,
+      run: () => void this.pasteFromClipboard(),
+    };
+    const clear: MenuEntry = {
+      id: 'changes:clear',
+      label: 'Liste leeren',
+      sub: 'Das Häkchen bleibt, wie es ist',
+      icon: 'eraser',
+      accent,
+      run: () => {
+        clearWorldChanges();
+        this.refreshMenuLabels();
+        this.context?.notify('Liste der Weltänderungen geleert');
+      },
+    };
+    const menu: MenuEntry = {
+      id: 'changes',
+      label: 'Weltänderungen',
+      icon: 'tape',
+      accent,
+      children: [track, copy, paste, clear],
+    };
+    const paint = (): void => {
+      const on = trackingChanges();
+      const count = worldChanges().length;
+      track.checked = on;
+      track.sub = on
+        ? 'Möbel und Modelle werden mitgeschrieben'
+        : 'Aus — es wird nichts mitgeschrieben';
+      copy.sub = count
+        ? `${count} Änderung(en) in die Zwischenablage`
+        : 'Noch nichts aufgezeichnet';
+      menu.sub = `${on ? 'Aufzeichnung an' : 'Aufzeichnung aus'} · ${count} Änderung(en)`;
+    };
+    paint();
+    this.menuLabels.push(paint);
+    this.changesWatch ??= onWorldChanges(() => this.refreshMenuLabels());
+    return menu;
+  }
+
+  private async copyChanges(): Promise<void> {
+    const list = worldChanges();
+    if (!list.length) {
+      this.context?.notify('Noch keine Änderungen aufgezeichnet');
+      return;
+    }
+    const text = formatChanges(list);
+    console.info('[bgvr] Weltänderungen:\n' + text);
+    const copied = await copyText(text);
+    this.context?.notify(copied ? `${list.length} Änderung(en) kopiert` : COPY_FALLBACK);
+  }
+
+  private async pasteFromClipboard(): Promise<void> {
+    let text: string | null = null;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      text = null;
+    }
+    if (text && parseChanges(text)) {
+      this.pasteChanges(text);
+      return;
+    }
+    this.askLines({
+      title: 'Weltänderungen einfügen',
+      sub: 'Die kopierte Liste hier hinein',
+      value: '',
+      hint: 'Beginnt mit „Weltänderungen" oder mit [',
+      commit: (typed) => this.pasteChanges(typed),
+    });
+  }
+
+  /**
+   * **Eine Liste nachstellen** — die Möbel über die Welt (`applyFurnitureChange`),
+   * die Modelle hier.
+   *
+   * **Zwei Durchgänge** für die Möbel: Wer zwei Möbel die Plätze hat tauschen
+   * lassen, bekommt im ersten Durchgang eine belegte Kachel, weil das andere
+   * noch dasteht. Im zweiten ist sie frei.
+   */
+  private pasteChanges(text: string): void {
+    const list = parseChanges(text);
+    if (!list || !list.length) {
+      this.context?.notify('Keine Weltänderungen im Text gefunden');
+      return;
+    }
+    let open: FurnitureChange[] = list.filter(
+      (change): change is FurnitureChange => change.kind === 'furniture',
+    );
+    let done = 0;
+    for (let round = 0; round < 2 && open.length; round++) {
+      const left: FurnitureChange[] = [];
+      for (const change of open) {
+        if (this.applyFurnitureChange(change)) done += 1;
+        else left.push(change);
+      }
+      open = left;
+    }
+    const models = list.filter((change): change is ModelChange => change.kind === 'model');
+    for (const change of models) void this.placeModelChange(change);
+    const failed = open.length;
+    this.context?.notify(
+      `Eingefügt: ${done + models.length} von ${list.length}` +
+        (failed ? ` · ${failed} Möbel nicht gefunden oder kein Platz` : ''),
+    );
+  }
+
+  /**
+   * **Ob diese Welt ein Möbel nach einer eingefügten Zeile umstellen kann.**
+   *
+   * Die Antwort hier ist `nein` — Möbel mit Kachel und Drehung hat nur die
+   * Küche der Testwelt (`TestWorld`, `KitchenZone.applyChange`).
+   */
+  protected applyFurnitureChange(_change: FurnitureChange): boolean {
+    return false;
+  }
+
+  /**
+   * Ein Modell aus einer eingefügten Liste hinstellen — außer, genau dieses
+   * steht dort schon: Dieselbe Liste zweimal einzufügen stellt nicht jedes
+   * Fass doppelt hin.
+   */
+  private async placeModelChange(change: ModelChange): Promise<void> {
+    const ctx = this.context;
+    if (!ctx || !this.physics) return;
+    const kind = modelKind(change.path);
+    const at = new THREE.Vector3(change.at.x, change.at.y, change.at.z);
+    for (const body of this.bodies.values()) {
+      const has = (body.object.userData as { propKind?: PropKind }).propKind;
+      if (has === kind && body.object.position.distanceTo(at) < 0.05) return;
+    }
+    const model = kaykitModelNow(change.path) ?? (await kaykitModel(change.path));
+    if (this.context !== ctx || !this.physics || !model) return;
+    const spin = new THREE.Quaternion().setFromAxisAngle(UP, (change.yaw * Math.PI) / 180);
+    const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
+    const entry = this.createModelProp(id, kind, model, at, spin);
+    this.sync?.spawned(id, kind, poseOf(entry));
+    this.noteModel(entry, change.path);
+  }
+
+  /** Ein hingestelltes Modell in die Liste der Weltänderungen. */
+  private noteModel(entry: PhysicsBody, path: string): void {
+    let key = this.changeKeys.get(entry);
+    if (!key) {
+      key = changeKey('model');
+      this.changeKeys.set(entry, key);
+    }
+    entry.object.getWorldPosition(_point);
+    entry.object.getWorldQuaternion(_quaternion);
+    _euler.setFromQuaternion(_quaternion, 'YXZ');
+    recordModel(key, path, _point, (_euler.y * 180) / Math.PI);
   }
 
   private depthEntry(): MenuEntry {
@@ -8326,8 +8588,10 @@ export class PortalWorld implements World {
     // Vierteldrehung, wie jedes Möbel dieser Welt (`gridSnap.ts`). Dann ist es
     // kein Wurf mehr, also fliegt es auch nicht: Die Geschwindigkeit, die der
     // Körper und das Netz gleich bekommen, ist null.
-    if (this.snapPlaced(grab.entry, placed, thrown.length())) thrown.set(0, 0, 0);
+    const snapped = this.snapPlaced(grab.entry, placed, thrown.length());
+    if (snapped) thrown.set(0, 0, 0);
     grab.entry.body.setLinvel({ x: thrown.x, y: thrown.y, z: thrown.z }, true);
+    if (snapped) this.placedFromShelf(ctx, hand, grab.entry);
 
     // Whoever simulates picks the throw up from here.
     const id = this.idOf(grab.entry);
@@ -8337,6 +8601,28 @@ export class PortalWorld implements World {
       this.reopenMenu = false;
       ctx.menu.openSubmenu('bag');
     }
+  }
+
+  /**
+   * **Ein Modell aus dem Regal ist hingestellt worden** — in die Liste der
+   * Weltänderungen damit, und im _Baukasten_ gleich das nächste in die Hand.
+   *
+   * Das nächste kommt nur für ein Modell, das **frisch aus dem Regal** kam
+   * (`shelfFresh`): Wer ein Fass umstellt, das schon stand, bekommt kein
+   * zweites. Genommen wird es erst nach diesem Loslassen und nicht mitten
+   * darin (`queueMicrotask`) — die Hand ist sonst noch halb belegt, und am
+   * Schirm fängt die Bildschirmhand gerade das alte auf.
+   */
+  private placedFromShelf(ctx: WorldContext, hand: Handedness, entry: PhysicsBody): void {
+    const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
+    if (path === null) return;
+    this.noteModel(entry, path);
+    if (!this.shelfFresh.has(entry)) return;
+    this.shelfFresh.delete(entry);
+    if (!refillsCatalogue(gameMode())) return;
+    queueMicrotask(() => {
+      if (this.context === ctx) this.takeModel(ctx, path, hand);
+    });
   }
 
   /**
@@ -8817,6 +9103,7 @@ export class PortalWorld implements World {
     const kind = modelKind(path);
     const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
     const entry = this.createModelProp(id, kind, model, _point, null);
+    this.shelfFresh.add(entry);
     // Über das Netz geht die Sorte — und die *ist* hier der Pfad: Der andere
     // lädt dieselbe Datei und bekommt dasselbe Fass (`PortalSync`, `spawn`).
     this.sync?.spawned(id, kind, poseOf(entry));

@@ -260,7 +260,7 @@ export function ridesAlong(load: BuildLoad): boolean {
  * erst in die Hände.
  *
  * **Warum kein Wort über volle Hände.** Wer umbaut, trägt nichts: Das
- * Anschalten räumt die Hände (`kitchen.toggleEdit`), und solange umgebaut
+ * Anschalten räumt die Hände (`kitchen.setEditing`), und solange umgebaut
  * wird, kommt auch nichts hinein — die Spüle behandelt den Umbau wie eine
  * volle Hand und lässt den sauberen Teller im Wasser stehen
  * (`kitchen.workFrame`). Ein Möbel und ein Topf zugleich gibt es also nicht,
@@ -310,7 +310,7 @@ export function holdForRim(id: string | null | undefined): Turn {
 }
 
 /**
- * **Wohin das Getragene geht, wenn der Umbau anfängt** (`kitchen.toggleEdit`).
+ * **Wohin das Getragene geht, wenn der Umbau anfängt** (`kitchen.setEditing`).
  *
  * Wer umbaut, trägt nichts — das Anschalten räumt die Hände, sonst hätte man
  * ein Möbel **und** einen Topf darin. Die Frage ist nur, wohin damit, und hier
