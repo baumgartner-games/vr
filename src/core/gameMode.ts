@@ -45,8 +45,9 @@ export const GAME_MODE_LABELS: Readonly<Record<GameMode, string>> = {
 /** Was der Modus tut — ein Satz unter der Zeile im Menü. */
 export const GAME_MODE_HINTS: Readonly<Record<GameMode, string>> = {
   play: 'Gegenstände benutzen, ablegen und nehmen · Möbel stehen fest',
-  arrange: 'Möbel samt Inhalt umstellen · Gegenstände bleiben darauf liegen',
-  creative: 'Wie Einrichten · aus dem Katalog kommt nach dem Hinstellen die nächste Kopie',
+  arrange: 'Möbel samt Inhalt umstellen · Wände bleiben stehen',
+  creative:
+    'Wie Einrichten, auch Wände · aus dem Katalog kommt nach dem Hinstellen die nächste Kopie',
 };
 
 /** Der Modus nach diesem — nach dem letzten wieder der erste. */
@@ -58,6 +59,15 @@ export function nextGameMode(mode: GameMode): GameMode {
 /** **Ob Möbel sich tragen lassen** — in beiden Modi außer _Spielen_. */
 export function movesFurniture(mode: GameMode): boolean {
   return mode !== 'play';
+}
+
+/**
+ * **Ob sich der Bau selbst umsetzen lässt** — Wände, Böden, Säulen aus dem
+ * Regal (`worlds/portal/modelStance`). Nur im _Baukasten_: Im _Einrichten_
+ * werden Möbel umgestellt, aber nicht umgebaut.
+ */
+export function movesStructure(mode: GameMode): boolean {
+  return mode === 'creative';
 }
 
 /** **Ob ein hingestelltes Katalogstück gleich nachkommt** — nur im _Baukasten_. */

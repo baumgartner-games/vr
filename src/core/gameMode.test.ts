@@ -3,6 +3,7 @@ import {
   GAME_MODES,
   gameMode,
   movesFurniture,
+  movesStructure,
   nextGameMode,
   onGameMode,
   refillsCatalogue,
@@ -30,6 +31,10 @@ describe('gameMode', () => {
   it('moves furniture in both building modes, and refills only in Baukasten', () => {
     expect(GAME_MODES.map(movesFurniture)).toEqual([false, true, true]);
     expect(GAME_MODES.map(refillsCatalogue)).toEqual([false, false, true]);
+  });
+
+  it('moves walls only in Baukasten — Einrichten richtet ein und baut nicht um', () => {
+    expect(GAME_MODES.map(movesStructure)).toEqual([false, false, true]);
   });
 
   it('tells its listeners once per real change — not on the same mode again', () => {

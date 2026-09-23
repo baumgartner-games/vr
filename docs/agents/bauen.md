@@ -804,6 +804,29 @@ Verben sagen, was man in dem Modus tut.
   (`Furnish.fresh`, `PortalWorld.shelfFresh`): Wer einen Herd umstellt, der
   schon stand, bekommt keinen zweiten.
 
+**Was aus dem Regal hingestellt wird, hat eine Haltung**
+(`worlds/portal/modelStance.ts`, seit September 2026). Vorher war jedes
+Modell ein Fass mit Physik, und eine im _Baukasten_ gestellte Wand kippte um
+wie eines. Jetzt sagt der Dateiname (und für namenlose Wände die Form über
+`gridSnap.wallAxis`), was es ist:
+
+- **Bau** — Wand, Boden, Säule, Tür, Fenster, Zaun, Treppe: steht fest und
+  lässt sich **nur im _Baukasten_** umsetzen (`gameMode.movesStructure`). Im
+  _Einrichten_ wird eingerichtet, nicht umgebaut.
+- **Möbel** — Tisch, Vorratskiste, Küchenzeile, Herd, Kühlschrank, Regal,
+  Bett, Stuhl: steht fest und lässt sich wie jedes Möbel im _Einrichten_ und
+  im _Baukasten_ umstellen, beim _Spielen_ nicht.
+- **Lose** — Fass, Teller, Topf, Essen: Physik wie bisher, in jedem Modus
+  greifbar.
+
+„Fest" heißt: Drehung und waagerechte Verschiebung sind gesperrt, die
+Schwerkraft nicht (`PortalWorld.applyStance`). Ein Möbel wird in Handhöhe
+losgelassen und sinkt senkrecht auf das, was darunter liegt; ein Körper vom
+Typ _fest_ bliebe dort in der Luft hängen. Frisch aus dem Regal Genommenes ist
+von der Modussperre ausgenommen (`shelfFresh`) — es liegt ja schon in der Hand.
+Die Förderbänder und die übrigen Möbel der Küche selbst sind ohnehin feste
+Körper (`TestWorld.addSolid`).
+
 **Der rote Umbauknopf schaltet denselben Modus** (_Küche umbauen_ →
 Einrichten, _Küche nutzen_ → Spielen), und die Küche fragt je Bild nur ab,
 was gilt (`kitchen.syncMode`). Zwei Schalter mit je eigenem Zustand liefen

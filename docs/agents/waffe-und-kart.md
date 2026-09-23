@@ -147,6 +147,12 @@ Halterzylinder_. Für diese Seite zählen drei Folgen:
   Kugeldurchmesser, damit 1,87 cm dick: von der Seite knapp das Doppelte, von
   vorn **weniger** als vorher. Die Leuchtspur glüht voll orange, die
   gewöhnliche gedämpft gelb.
+- **Und seit September 2026 ist beides größer.** Die Patrone ist zehnmal so
+  lang wie zuvor (`bulletFit.BULLET_VIEW_GROWTH`: 56 cm statt 5,6 cm), das
+  Kügelchen ohne Modell ebenso — nur das Bild, Körper und Treffer bleiben beim
+  Halbmesser der Masse. Und die Waffe in der Hand ist doppelt so groß
+  (`PistolTool.GUN_SIZE`): Die Griffmitte bleibt auf dem Halterzylinder, die
+  Waffe wächst um die Faust herum.
 
 Ohne WebGL und in einem Checkout ohne die gekauften Pakete bleibt beides
 gebaut — das ist der normale Ausgang und keine Notlösung.
