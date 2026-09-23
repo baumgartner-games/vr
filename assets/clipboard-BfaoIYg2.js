@@ -1,0 +1,2 @@
+async function i(t){try{return await navigator.clipboard.writeText(t),!0}catch{return n(t),!1}}const o="Kopieren ging nicht — Text ist markiert, Strg+C.";function n(t){const e=document.createElement("textarea");e.value=t,e.setAttribute("readonly",""),e.style.position="fixed",e.style.opacity="0",document.body.append(e),e.select(),window.setTimeout(()=>e.remove(),3e4)}export{o as C,i as c};
+//# sourceMappingURL=clipboard-BfaoIYg2.js.map
