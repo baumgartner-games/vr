@@ -448,6 +448,20 @@ export class FlatControls {
   }
 
   /**
+   * **Ein Klick legt ab, was getragen wird** — sofort und nicht erst beim
+   * zweiten (`PlayerRig.requestDrop`).
+   *
+   * Nicht über den Benutzen-Knopf: Der kennt _Halten oder Tippen_, und ein
+   * Klick ist immer ein Tippen — das Getragene bliebe in der Hand, und erst
+   * der zweite Klick legte es ab. Mit der Maus zeigt man aber, wohin es soll,
+   * und klickt dann; zweimal klicken zu müssen sähe aus wie ein verlorener
+   * Klick.
+   */
+  private pressMouseUse(): void {
+    this.rig.requestDrop();
+  }
+
+  /**
    * **Schießen und Zoom** — was es nur von oben gibt.
    *
    * Der Trigger geht ans Rig und nicht an die Welt (`PlayerRig.setTrigger`):
@@ -666,8 +680,13 @@ export class FlatControls {
           // sie der Auslöser. So bleibt der Feuerlöscher auf freier Fläche der
           // linken Maustaste, und ein Klick vor der Ausgabetheke gibt aus,
           // statt ins Leere zu spritzen.
+          //
+          // **Was getragen wird, legt sie ab** (`PlayerRig.carrying`) — wie
+          // `E`, und vor allem anderen: Wer mit einer Wand in den Händen
+          // klickt, will sie hinstellen und nicht schießen.
           if (event.button === 0) {
-            if (this.rig.useCandidate) this.useQueued = true;
+            if (this.rig.carrying) this.pressMouseUse();
+            else if (this.rig.useCandidate) this.useQueued = true;
             else this.mouseFire = true;
           }
           return;
@@ -686,7 +705,8 @@ export class FlatControls {
         // vor allem nicht springen. Und der erste Klick bleibt der, der den
         // Zeiger holt (oben), sonst benutzte man beim Hineinklicken ins Bild
         // aus Versehen, was gerade vor einem steht.
-        if (event.button === 0 && this.rig.useCandidate) this.useQueued = true;
+        if (event.button === 0 && this.rig.carrying) this.pressMouseUse();
+        else if (event.button === 0 && this.rig.useCandidate) this.useQueued = true;
         return;
       }
       const pads = this.pads;
@@ -757,7 +777,9 @@ export class FlatControls {
     });
 
     const end = (event: PointerEvent) => {
-      if (event.pointerType === 'mouse' && event.button === 0) this.mouseFire = false;
+      if (event.pointerType === 'mouse' && event.button === 0) {
+        this.mouseFire = false;
+      }
       if (event.pointerId === this.stickPointer) {
         this.stickPointer = null;
         this.stick.set(0, 0);

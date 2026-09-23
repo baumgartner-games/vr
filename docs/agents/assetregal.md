@@ -915,7 +915,12 @@ Drei Stücke waren dafür nötig; die lange Fassung steht in
   und der Körper ist dabei kinematisch und für den Spieler weich
   (`PhysicsWorld.setCarried`). Kein zweiter Weg, etwas in der Hand zu halten.
 - **Der Benutzen-Knopf legt ab** — `A` auf dem Glas, `A` am Pad, `E` oder
-  Enter. Solange getragen wird, gehört er dem Getragenen und springt nicht
+  Enter. **Und am PC die linke Maustaste**, mit einem Klick
+  (`PlayerRig.carrying`, `requestDrop`): Ein Klick ist kein _Tippen_, das
+  behält, sondern ein Hinstellen — wer mit der Maus zeigt, wohin die Wand
+  soll, und dann klickt, will nicht zweimal klicken. Den Feuerlöscher
+  betrifft das nicht; bei ihm bleibt die linke Maustaste von oben der
+  Auslöser. Solange getragen wird, gehört er dem Getragenen und springt nicht
   (`PlayerRig.useBusy`, dieselbe Regel wie beim Feuerlöscher der Küche), und
   _Halten oder Tippen_ gilt wie in der Brille (`core/handUse.ts`).
 

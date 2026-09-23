@@ -77,6 +77,12 @@ export interface GraphicsSettings {
    */
   gridLines: boolean;
   /**
+   * **Wo man steht, als Zahl** (`core/positionHud.ts`) — Meter, Kachel, Ebene
+   * und die Adresse `?at=…` dorthin. Gewünscht, um Stellen weitergeben zu
+   * können: „die x-, y-Pos und ggf. z-Pos in der Welt sehen". Ab Werk aus.
+   */
+  showPosition: boolean;
+  /**
    * **Die Umrisse der Körper**, über alles andere gelegt
    * (`physics/HitboxView.ts`).
    *
@@ -379,6 +385,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   xrScale: 1,
   showFps: false,
   gridLines: false,
+  showPosition: false,
   hitBoxes: false,
   ghostBoxes: false,
   showHandles: false,
@@ -536,6 +543,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     : DEFAULT_GRAPHICS.xrScale;
   const showFps = raw.showFps === true;
   const gridLines = raw.gridLines === true;
+  const showPosition = raw.showPosition === true;
   const hitBoxes = raw.hitBoxes === true;
   const ghostBoxes = raw.ghostBoxes === true;
   const showHandles = raw.showHandles === true;
@@ -576,6 +584,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     xrScale,
     showFps,
     gridLines,
+    showPosition,
     hitBoxes,
     ghostBoxes,
     showHandles,

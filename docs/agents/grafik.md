@@ -325,6 +325,25 @@ daneben durchsichtig wurde. Jetzt kommt jedes hingestellte Modell
 Grund wie die zweite Palette der Quader. Der schwarze Rand des Comics geht
 solange weg, der gelbe Saum des Hervorhebens bleibt.
 
+## Position zeigen
+
+Noch ein Häkchen, und die einfachste Auskunft von allen: _Menü → Grafik →
+**Position zeigen**_ (`GraphicsSettings.showPosition`, ab Werk aus) legt
+oben links unter den Menüknopf ein Feld mit drei Zeilen
+(`core/positionHud.ts`):
+
+- `x`, `z` und `y` in Metern — Osten, Süden, Höhe der Füße, so wie three.js
+  rechnet. Die Höhe steht zuletzt, weil sie von oben fast immer null ist.
+- Kachel und Ebene — dasselbe Raster, auf dem gebaut und eingerastet wird.
+- `?at=x,z` (samt Ebene, wenn sie nicht null ist) — die Schreibweise, die
+  `worlds/test/spawnAt.ts` liest. Wer die Zeile weitergibt, gibt den Weg mit.
+
+Gewünscht, um Stellen weitergeben zu können: „die x-, y-Pos und ggf. z-Pos in
+der Welt sehen". Eine fehlende Bodenplatte, eine falsch durchsichtige Wand —
+„hinter der Küche" findet niemand wieder, `?at=8,-33` schon. Geschrieben wird
+höchstens alle Zehntelsekunde und nur, wenn sich die Zeile ändert; wie die
+Bildrate ist es DOM und in der Brille unsichtbar.
+
 ## Griffe zeigen
 
 Das sechste Häkchen ist die vierte Auskunft und gehört zu den Griffen, an denen
