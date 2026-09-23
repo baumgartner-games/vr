@@ -297,7 +297,8 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
       `TOOL_IDS`), und ein Tipp wählt **und schließt**: Eine Liste, die offen
       bleibt, verdeckt genau das, worauf man gerade zielen wollte. Was die Welt
       von sich aus hineinlegte, heißt jetzt `defaultScreenTool()` und ist
-      bloß die Vorgabe.
+      bloß die Vorgabe — und die ist seit September 2026 überall die **leere
+      Hand** (vorher Pistole, in der Testwelt die rote Portalwaffe).
   - **Aufgeschnitten wird, was über einem liegt** (`core/cutaway.ts` mit Test,
     Plan E8). Eine Kamera schräg über der Szene hat ein Problem, das eine
     Kamera in der Brille nie hatte: Sie steht **unter** dem Dach. In einem Haus

@@ -803,6 +803,20 @@ jemand vergisst. Genau eine Zeile musste dafür weichen: Die Schleife über die
 Controller lässt fallen, was eine Hand ohne Tracking hält — und die
 Bildschirmhand hat nie eins. Sie ist davon ausgenommen, und nur sie.
 
+### Eine Hand, ein Ding — Werkzeug oder Vorrat
+
+Werkzeug und Getragenes schließen sich aus (seit September 2026, gemeldet als
+_„es kann nicht sein, dass ich eine Tomate und eine Pistole halte"_). Was die
+Bildschirmhand auffängt (`screenCatch`), ersetzt das Werkzeug darin, und der
+Werkzeug-Knopf zeigt danach **Hand (leer)**; wer umgekehrt im Knopf ein
+Werkzeug — oder die leere Hand — wählt, lässt fallen, was die Figur trug
+(`chooseScreenTool`). Fallen und nicht hinstellen: Hingestellt holte der
+_Baukasten_ sofort die nächste Kopie in dieselbe Hand.
+
+**Und der Gürtel ist am Schirm unsichtbar** (`ToolBelt.setWorn`). An ihn greift
+nur eine getrackte Hand; am Rig hing er trotzdem, in Spielergröße, und war von
+oben eine zweite, große Pistole vor der Brust der Figur.
+
 ### Der Benutzen-Knopf legt ab
 
 Am Schirm gibt es keine Greif-Taste. Es gibt `A` auf dem Glas, `A` am Pad, `E`

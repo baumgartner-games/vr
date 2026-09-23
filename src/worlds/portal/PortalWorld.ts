@@ -6122,6 +6122,9 @@ export class PortalWorld implements World {
     belt.update(dt, ctx.rig, ctx.avatar.bodyYaw, _carried);
 
     const presenting = ctx.renderer.xr.isPresenting;
+    // Ohne Brille greift keine Hand an die Hüfte — und ein Gürtel in
+    // Spielergröße war von oben eine zweite Pistole vor der Brust der Figur.
+    belt.setWorn(presenting);
     for (const controller of ctx.input.controllers) {
       const hand = controller.handedness;
       if (!hand) continue;
@@ -10155,6 +10158,13 @@ export class PortalWorld implements World {
     // Regel wie in der Brille.
     const busy = this.grabs.get(side);
     if (busy) this.release(ctx, side, busy, true);
+    // **Und ein Werkzeug ist auch nur eines.** Eine Pistole in der Faust und
+    // eine Tomate vor dem Bauch waren zwei Dinge in einer Hand — gemeldet als
+    // _„es kann nicht sein, dass ich eine Tomate und eine Pistole halte"_.
+    // Werkzeug und Vorrat werden gleich behandelt: Was man nimmt, ersetzt,
+    // was man hielt, und der Werkzeug-Knopf zeigt danach die leere Hand.
+    this.toolPick = null;
+    this.dropScreenTool();
 
     this.screenSpan = spanOf(entry.object);
     hand.placeCarry(screenCarryView(ctx), this.screenSpan, ctx.avatar.bob, ctx.avatar.stretch);
@@ -10339,14 +10349,17 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Womit die Bildschirmhand anfängt.**
+   * **Womit die Bildschirmhand anfängt: mit nichts.**
    *
-   * Die Pistole, weil der Linksklick der Trigger dieser Hand ist und ein
-   * Trigger ohne Waffe nichts bedeutet (Plan, E5). Eine Welt, in der
-   * geschossen nichts zu suchen hat, sagt hier etwas anderes oder `null`.
+   * Hier stand einmal die Pistole, weil der Linksklick der Trigger dieser
+   * Hand ist (Plan, E5). Gewünscht ist aber ausdrücklich die **leere Hand**:
+   * Wer schießen will, wählt die Pistole im Werkzeug-Knopf (`#hud-tool`), und
+   * eine leere Hand kann tragen, was aus Beutel und Regal kommt, ohne dass
+   * vorher etwas weggelegt werden muss (`screenCatch`). Eine Welt, die mit
+   * einem Werkzeug anfangen will, sagt es hier.
    */
   protected defaultScreenTool(): string | null {
-    return 'pistol';
+    return null;
   }
 
   /**
@@ -10409,9 +10422,15 @@ export class PortalWorld implements World {
    * gemerkt und gilt, sobald es wieder eine gibt.
    */
   private chooseScreenTool(id: string | null): void {
+    const ctx = this.context;
+    // **Was die Figur trägt, stellt sie dafür ab** — die Gegenrichtung zu
+    // `screenCatch`: Eine Hand hält eines, ein Werkzeug oder einen Vorrat.
+    // Auch „Hand (leer)" leert sie, darum steht das vor dem Vergleich. Fallen
+    // gelassen und nicht hingestellt: Hingestellt holte der _Baukasten_ gleich
+    // die nächste Kopie in dieselbe Hand (`placedFromShelf`).
+    if (ctx) this.dropScreenCarry(ctx);
     if (this.toolPick !== undefined && id === this.toolPick) return;
     this.toolPick = id;
-    const ctx = this.context;
     const hand = this.screenHand;
     // Aus den Augen hält diese Hand kein Werkzeug (`updateScreenHand`); die
     // Wahl wird dann nur gemerkt und gilt, sobald man wieder von oben schaut.
