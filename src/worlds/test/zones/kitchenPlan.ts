@@ -677,8 +677,19 @@ export const KITCHEN_SPOTS: readonly Spot[] = [
 /** Wie weit ein Möbel eine Kachel verteuert — teurer als ein Baustein. */
 const FURNITURE_COST = 8;
 
-/** Wo die Oberkante des Küchenbodens liegt — knapp über dem Gelände. */
-export const KITCHEN_FLOOR = 0.02;
+/**
+ * **Wo die Oberkante des Küchenbodens liegt** — auf null, genau wie jeder
+ * andere Boden der Testwelt.
+ *
+ * Bis September 2026 lag sie zwei Zentimeter darüber, damit sich Estrich und
+ * Gelände nicht um jedes Pixel streiten. Gemeldet war dann: _„es scheint bei
+ * der küche, dass der boden dort auch uneben ist … diese sollen alle gleich
+ * hoch sein"_ — eine Wand, die halb vor und halb in der Küche stand, stand um
+ * genau diese zwei Zentimeter schief zu ihrer Nachbarin. Gestritten wird
+ * seitdem nicht mehr: Oben liegt der Belag (`kitchenFloor.ts`, zwei
+ * Millimeter darüber), und der verdeckt Estrich und Gelände gleichermaßen.
+ */
+export const KITCHEN_FLOOR = 0;
 
 /**
  * **Wie weit vor der Küche ihre Augenhöhe schon gilt**, in Metern.
@@ -747,13 +758,13 @@ export function stampKitchen(plan: GridPlan): void {
   const south = KITCHEN.z + KITCHEN.d - 1;
 
   // **Der Estrich.** Ohne ihn steht die Küche auf der Wiese des Geländes, und
-  // eine Spüle im Gras sieht aus wie ein Versehen. Er liegt knapp über dem
-  // Gelände, damit sich die beiden nicht um jedes Pixel streiten — dieselbe
-  // Handbreit wie der Asphalt der Boxengasse.
+  // eine Spüle im Gras sieht aus wie ein Versehen. Seine Oberkante liegt seit
+  // September 2026 **bündig** mit dem Gelände (`KITCHEN_FLOOR`, dort der
+  // Grund) — vorher zwei Zentimeter darüber, und das war eine Stufe.
   //
-  // **Zu sehen ist er nur noch von der Seite**: Oben liegen seit dem Spieltest
-  // am Handy die karierten Fliesen (`kitchenFloor.ts`), zwei Millimeter
-  // darüber. Der Quader hier bleibt trotzdem genau so stehen, wie er steht —
+  // **Zu sehen ist er nicht mehr**: Oben liegen seit dem Spieltest am Handy
+  // die karierten Fliesen (`kitchenFloor.ts`), zwei Millimeter darüber. Der
+  // Quader hier bleibt trotzdem genau so stehen, wie er steht —
   // er ist der **Körper**, auf dem gelaufen wird, und seine Oberkante ist die
   // Höhe, auf der jedes Möbel der Küche aufsetzt (`KITCHEN_FLOOR`). Der Belag
   // ist nur das Bild; wer ihn zum Körper machte, hätte zwei Kollider

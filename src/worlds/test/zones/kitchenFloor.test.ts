@@ -158,6 +158,6 @@ describe('der Belag liegt über dem Estrich und nicht darin', () => {
   it('liegt zwei Millimeter über dem Boden, auf dem die Möbel stehen', () => {
     expect(KITCHEN_CHECKER_LIFT).toBeGreaterThan(0);
     expect(KITCHEN_CHECKER_LIFT).toBeLessThan(0.005);
-    expect(KITCHEN_FLOOR + KITCHEN_CHECKER_LIFT).toBeCloseTo(0.022, 6);
+    expect(KITCHEN_FLOOR + KITCHEN_CHECKER_LIFT).toBeCloseTo(0.002, 6);
   });
 });

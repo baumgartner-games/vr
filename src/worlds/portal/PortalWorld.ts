@@ -24,7 +24,7 @@ import {
   refillsCatalogue,
   setGameMode,
 } from '../../core/gameMode';
-import { modelStance, standsFast, type ModelStance } from './modelStance';
+import { isFloorPiece, modelStance, standsFast, type ModelStance } from './modelStance';
 import {
   changeKey,
   clearWorldChanges,
@@ -131,6 +131,7 @@ import {
   quarterYaw,
   tilesCovered,
   turnedHalf,
+  type GridTile,
   wallEdges,
   yawOf,
 } from './gridSnap';
@@ -1225,6 +1226,12 @@ export class PortalWorld implements World {
   private readonly shelfFresh = new WeakSet<PhysicsBody>();
   /** Wie jedes Modell aus dem Regal steht (`modelStance.ts`) — nur Modelle stehen hier. */
   private readonly stances = new WeakMap<PhysicsBody, ModelStance>();
+  /**
+   * **Die Bodenstücke aus dem Regal** (`modelStance.isFloorPiece`) und wie hoch
+   * ihre Lauffläche über ihrer Mitte liegt (`props.ModelBlueprint.tread`).
+   * Nur, was hier steht, wird beim Hinstellen eingelassen (`sinkFloor`).
+   */
+  private readonly floorPieces = new WeakMap<PhysicsBody, number>();
   /** Unter welchem Schlüssel die Liste der Weltänderungen ein Modell führt. */
   private readonly changeKeys = new WeakMap<PhysicsBody, string>();
   /** Die Zuhörer, die die Menüzeilen nachziehen — einmal je Welt angemeldet. */
@@ -3288,6 +3295,10 @@ export class PortalWorld implements World {
     const spin = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
     const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
     const entry = this.createModelProp(id, kind, model, at, spin);
+    // Ein Bodenstück aus einer eingefügten Liste liegt genauso im Boden wie
+    // eines, das gerade hingestellt wurde — sonst stiege es beim Einfügen um
+    // seine halbe Dicke wieder heraus.
+    this.sinkFloor(entry);
     this.sync?.spawned(id, kind, poseOf(entry));
     this.noteModel(entry, path);
     return true;
@@ -7096,6 +7107,7 @@ export class PortalWorld implements World {
     }
     const index = this.props.indexOf(entry);
     if (index < 0) return;
+    if (this.floorPieces.has(entry)) this.coverFloor(entry, null);
     // Ein Geist der Abrissbombe gibt seine Materialien zurück, bevor alles
     // freigegeben wird — der Geist selbst gehört allen Zielen.
     if (this.bombTarget?.entry === entry) this.markBombTarget(null);
@@ -8667,6 +8679,9 @@ export class PortalWorld implements World {
       return;
     }
     const physics = this.physics!;
+    // Ein eingelassenes Bodenstück gibt seine Kacheln frei, sobald es wieder
+    // in der Hand ist (`sinkFloor`).
+    if (this.floorPieces.has(entry)) this.coverFloor(entry, null);
     entry.body.setBodyType(physics.rapier.RigidBodyType.KinematicPositionBased, true);
     physics.setCarried(entry, true);
     entry.object.updateWorldMatrix(true, false);
@@ -8846,8 +8861,14 @@ export class PortalWorld implements World {
     if (!this.shelfFresh.has(entry)) return;
     this.shelfFresh.delete(entry);
     if (!refillsCatalogue(gameMode())) return;
+    // **Die nächste Kopie kommt so gedreht, wie diese hingestellt wurde** —
+    // wer eine Reihe Wände quer stellt, dreht nicht jede einzeln nach.
+    // Gemeldet war: _„wenn ich ein objekt rotiert habe und gesetzt habe,
+    // [soll] die rotation für das nächste objekt erhalten bleiben."_
+    entry.object.getWorldQuaternion(_quaternion);
+    const yaw = quarterYaw(yawOf(_quaternion));
     queueMicrotask(() => {
-      if (this.context === ctx) this.takeModel(ctx, path, hand);
+      if (this.context === ctx) this.takeModel(ctx, path, hand, yaw);
     });
   }
 
@@ -8890,8 +8911,78 @@ export class PortalWorld implements World {
     // Ohne diese Zeile dreht sich das Möbel nach dem Einrasten weiter aus der
     // Drehung heraus, die die Hand ihm mitgegeben hat.
     entry.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    this.sinkFloor(entry);
     return true;
   }
+
+  /**
+   * **Ein Bodenstück in den Boden legen** — bündig mit seiner Lauffläche auf
+   * der Höhe des Bodens darunter, als fester Körper, und die Platten, die es
+   * deckt, gehen so lange aus dem Bild (`coverFloor`).
+   *
+   * Gemeldet war: _„auch werden die floors grade darauf gesetzt statt in die
+   * fläche hinein."_ Ein Bodenstück, das wie jedes andere Stück Bau auf den
+   * Boden **sinkt** (`applyStance`), liegt um seine ganze Dicke darüber, und
+   * darauf steht dann jede Wand höher als daneben. Also sinkt es nicht,
+   * sondern wird **gesetzt**: Die Welt sagt, wo ihr Boden an dieser Stelle
+   * liegt (`floorTopAt`), und der Körper wird dort festgemacht — ein Körper
+   * mit Schwerkraft, der zur Hälfte im Boden steckt, würde von der Physik
+   * wieder herausgedrückt.
+   *
+   * Weiß die Welt keinen Boden (das Portal-Labor hat kein Kachelraster), bleibt
+   * es beim Sinken.
+   *
+   * @returns ob eingelassen wurde
+   */
+  private sinkFloor(entry: PhysicsBody): boolean {
+    const tread = this.floorPieces.get(entry);
+    const physics = this.physics;
+    if (tread === undefined || !physics) return false;
+    entry.object.getWorldPosition(_point);
+    entry.object.getWorldQuaternion(_quaternion);
+    const yaw = quarterYaw(yawOf(_quaternion));
+    const { halfX, halfZ } = turnedHalf(entry.halfExtents, yaw);
+    const tiles = tilesCovered(
+      _point.x - halfX,
+      _point.x + halfX,
+      _point.z - halfZ,
+      _point.z + halfZ,
+    );
+    const top = this.floorTopAt(tiles, _point.y);
+    if (top === null) return false;
+    _point.y = top - tread;
+    entry.object.position.copy(_point);
+    entry.object.updateWorldMatrix(true, false);
+    entry.previousPosition.copy(_point);
+    entry.body.setBodyType(physics.rapier.RigidBodyType.Fixed, true);
+    entry.body.setTranslation({ x: _point.x, y: _point.y, z: _point.z }, true);
+    entry.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.coverFloor(entry, { tiles, top });
+    return true;
+  }
+
+  /**
+   * **Wie hoch der Boden unter diesen Kacheln liegt** — die Oberkante, auf der
+   * man geht, oder `null`, wenn diese Welt es nicht weiß.
+   *
+   * @param below von hier aus nach unten gesucht: Unter dem Podest liegt
+   *   dieselbe Kachel noch einmal, und gemeint ist der Boden unter dem Stück.
+   */
+  protected floorTopAt(_tiles: readonly GridTile[], _below: number): number | null {
+    return null;
+  }
+
+  /**
+   * **Diese Kacheln deckt jetzt ein Bodenstück**, bündig auf `top` — `null`
+   * heißt: keine mehr
+   * (aufgehoben, abgerissen, weggeräumt). Die Welt nimmt ihre eigenen Platten
+   * dort aus dem Bild und legt sie zurück, sobald das Stück weg ist
+   * (`GridWorld`).
+   */
+  protected coverFloor(
+    _entry: PhysicsBody,
+    _cover: { readonly tiles: readonly GridTile[]; readonly top: number } | null,
+  ): void {}
 
   /**
    * **Das Gitter unter dem Getragenen nachführen** — oder es wegnehmen, wenn
@@ -9482,12 +9573,17 @@ export class PortalWorld implements World {
    * **Und es geht beim Hinstellen nicht wieder auf** — anders als der Beutel
    * (`reopenMenu`): Wer einrichtet, will sehen, was er hingestellt hat.
    */
-  private takeModel(ctx: WorldContext, path: string, hand: Handedness | null): void {
+  private takeModel(
+    ctx: WorldContext,
+    path: string,
+    hand: Handedness | null,
+    yaw: number | null = null,
+  ): void {
     ctx.menu.toggle(false);
     // **Erst fragen, ob daraus hier ein Möbel wird** — und nur sonst ein Fass
     // (`takeFurniture`).
     if (this.takeFurniture(ctx, path)) return;
-    void this.conjureModel(ctx, path, hand);
+    void this.conjureModel(ctx, path, hand, yaw);
   }
 
   /**
@@ -9516,6 +9612,7 @@ export class PortalWorld implements World {
     ctx: WorldContext,
     path: string,
     hand: Handedness | null,
+    yaw: number | null = null,
   ): Promise<void> {
     const physics = this.physics;
     let model = kaykitModelNow(path);
@@ -9541,7 +9638,7 @@ export class PortalWorld implements World {
       now.notify(`${humanLabel(path.slice(path.lastIndexOf('/') + 1))} nicht geladen`);
       return;
     }
-    this.spawnModel(now, model, path, hand);
+    this.spawnModel(now, model, path, hand, yaw);
   }
 
   /**
@@ -9553,6 +9650,7 @@ export class PortalWorld implements World {
     model: THREE.Object3D,
     path: string,
     hand: Handedness | null,
+    yaw: number | null = null,
   ): void {
     const controller = hand ? ctx.input.get(hand) : null;
     const anchor = controller?.tracked ? gripOf(controller) : null;
@@ -9571,7 +9669,10 @@ export class PortalWorld implements World {
 
     const kind = modelKind(path);
     const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
-    const entry = this.createModelProp(id, kind, model, _point, null);
+    // Gedreht wie das zuletzt hingestellte Stück (`placedFromShelf`) — gegriffen wird
+    // danach mit genau dieser Lage, und der Kran hält sie beim Tragen fest.
+    const spin = yaw === null ? null : new THREE.Quaternion().setFromAxisAngle(UP, yaw);
+    const entry = this.createModelProp(id, kind, model, _point, spin);
     this.shelfFresh.add(entry);
     // Über das Netz geht die Sorte — und die *ist* hier der Pfad: Der andere
     // lädt dieselbe Datei und bekommt dasselbe Fass (`PortalSync`, `spawn`).
@@ -9748,8 +9849,10 @@ export class PortalWorld implements World {
     const entry = this.placeProp(id, kind, blueprint.object, blueprint, position, quaternion);
     const path = modelPathOf(kind);
     if (path !== null) {
-      const stance = modelStance(path, blueprint.halfExtents.clone().multiplyScalar(2));
+      const size = blueprint.halfExtents.clone().multiplyScalar(2);
+      const stance = modelStance(path, size);
       this.stances.set(entry, stance);
+      if (isFloorPiece(path, size)) this.floorPieces.set(entry, blueprint.tread);
       this.applyStance(entry);
     }
     return entry;
@@ -9846,6 +9949,7 @@ export class PortalWorld implements World {
       }
       const index = this.props.indexOf(entry);
       if (index >= 0) this.props.splice(index, 1);
+      if (this.floorPieces.has(entry)) this.coverFloor(entry, null);
       physics.remove(entry);
       disposeTree(entry.object);
     }

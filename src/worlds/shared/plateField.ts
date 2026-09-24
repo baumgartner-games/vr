@@ -418,9 +418,8 @@ const NEIGHBOURS: readonly (readonly [number, number])[] = [
  * geht es um **Kacheln**, hier um einen **Quader**, und der kann über beides
  * laufen. Die Masse des Geländes trägt Platten auf 7 865 Kacheln und auf den
  * 220 Kacheln der Küche keine — sie verschwindet trotzdem ganz, denn unter der
- * Küche liegt sie unter deren eigenem Steinboden
- * (`zones/kitchenPlan.stampKitchen`, eine Masse mit Oberkante 0,02 m) und ist
- * dort gar nicht zu sehen.
+ * Küche liegt sie unter deren kariertem Belag (`zones/kitchenFloor.ts`, zwei
+ * Millimeter über null) und ist dort gar nicht zu sehen.
  *
  * Herausgereicht wird die Liste der **Dateien** und nicht ein `boolean`:
  * Unsichtbar werden darf ein Quader erst, wenn jede davon wirklich angekommen

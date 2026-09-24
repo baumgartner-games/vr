@@ -155,7 +155,7 @@ Konstrukt, und Boden, Deckkraft und Welle hängen alle daran. Damit ein
 **übernimmt das Verlassen den Stand** und stellt die Uhr nicht auf null: Beim
 Hineinblenden ist `open01` gleich `clock / FADE`, beim Hinausblenden
 `1 − clock / FADE` — eine Uhr, die dabei zurückgesetzt würde, spränge erst auf
-*ganz offen* und blendete von dort zurück. Wer zweimal kurz hintereinander
+_ganz offen_ und blendete von dort zurück. Wer zweimal kurz hintereinander
 drückt, und das tut jeder, der sich verdrückt hat, sähe die Welt einmal ganz
 verschwinden, bevor sie wiederkommt. Hinein kommen die Stücke
 als **Welle** (`RISE_STAGGER`, 0,04 s je Stück), hinaus alle zusammen: Nach
@@ -800,7 +800,8 @@ Verben sagen, was man in dem Modus tut.
 - **Baukasten** ist Einrichten, und dazu: Wer ein Stück **aus einem Katalog**
   genommen hat — dem Möbelkatalog am Computer-Tisch, dem Kopierer oder dem
   KayKit-Regal — und es hinstellt, hat sofort die nächste Kopie in der Hand,
-  in der Küche sogar mit derselben Drehung. Nur für frische Stücke
+  **mit derselben Drehung** (aus dem Regal seit September 2026:
+  `placedFromShelf` reicht die Vierteldrehung an `spawnModel` weiter). Nur für frische Stücke
   (`Furnish.fresh`, `PortalWorld.shelfFresh`): Wer einen Herd umstellt, der
   schon stand, bekommt keinen zweiten.
 
@@ -929,6 +930,16 @@ wie eines. Jetzt sagt der Dateiname (und für namenlose Wände die Form über
   wird deshalb an beiden Enden um 5 cm verlängert, die Fasen schieben sich
   ineinander. Körper, Einrasten und Kachelzahl bleiben beim gemessenen Maß;
   ein freies Wandende steht dafür 5 cm über — so gewollt.
+  **Bodenstücke liegen im Boden, nicht darauf** (`modelStance.isFloorPiece`,
+  `PortalWorld.sinkFloor`, seit September 2026): Bau mit `floor`/`road` im
+  Namen und flacher als breit wird beim Hinstellen **bündig** mit seiner
+  Lauffläche auf die Höhe des Grundrisses gesetzt (`floorTopAt`,
+  `shared/floorCover.ts`) und als fester Körper festgemacht; eine Stachelfalle
+  zählt ohne ihre Stacheln (`props.ModelBlueprint.tread`). Die Prototyp-Platten
+  darunter gehen aus dem Bild (`GridWorld.coverFloor`, `PlateFloor.reseat`) und
+  kommen zurück, sobald das Stück aufgehoben, abgerissen oder weggeräumt ist.
+  In der Küche liegt es 4 mm über null, knapp über ihrem Belag
+  (`floorPlate.KITCHEN_PIECE_LIFT`).
 - **Möbel** — Tisch, Vorratskiste, Küchenzeile, Herd, Kühlschrank, Regal,
   Bett, Stuhl: steht fest und lässt sich wie jedes Möbel im _Einrichten_ und
   im _Baukasten_ umstellen, beim _Spielen_ nicht.

@@ -167,3 +167,38 @@ export function floorPlate(tile: PlateTile): string | null {
   if (ownsFloor(tile.col, tile.row)) return null;
   return tile.level > 0 ? PLATE_STONE : PLATE_PROTOTYPE;
 }
+
+/**
+ * **Wie weit ein Bodenstück aus dem Regal in der Küche über null liegt**, in
+ * Metern — vier Millimeter.
+ *
+ * Draußen tritt ein Bodenstück an die Stelle der Platte (`GridWorld.coverFloor`)
+ * und liegt bündig auf null. In der Küche gibt es keine Platte, sondern den
+ * karierten Belag, und der liegt zwei Millimeter über null
+ * (`zones/kitchenFloor.KITCHEN_CHECKER_LIFT`) — **eine** Fläche über die ganze
+ * Küche, aus der sich keine Kachel herausnehmen lässt. Ein Stück genau auf
+ * null läge darunter und wäre unsichtbar; eines auf zwei Millimetern stritte
+ * mit ihm um jeden Bildpunkt. Also liegt es noch einmal so hoch darüber: eine
+ * Stufe, die kein Auge sieht und an der kein Möbel schief steht.
+ */
+export const KITCHEN_PIECE_LIFT = 0.004;
+
+/**
+ * **Wie hoch ein Bodenstück über dem Grundriss liegt**, der es trägt — null,
+ * außer in der Küche (`KITCHEN_PIECE_LIFT`).
+ *
+ * @param tiles die Kachelmitten, die das Stück deckt, in Weltmetern
+ */
+export function floorPieceLift(tiles: readonly { x: number; z: number }[]): number {
+  const inKitchen = tiles.some((tile) => {
+    const col = Math.floor(tile.x);
+    const row = Math.floor(tile.z);
+    return (
+      col >= KITCHEN.x &&
+      col < KITCHEN.x + KITCHEN.w &&
+      row >= KITCHEN.z &&
+      row < KITCHEN.z + KITCHEN.d
+    );
+  });
+  return inKitchen ? KITCHEN_PIECE_LIFT : 0;
+}
