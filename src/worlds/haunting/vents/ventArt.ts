@@ -5,6 +5,8 @@ import type { HouseSpec } from '../house';
 import { SHIP, ShipBatch } from '../shipArt';
 import { VentNet } from './ventGraph';
 import { FLAP_HEIGHT, FLAP_WIDTH } from './ventPlacement';
+import { canLoadModels } from '../../../core/chefFit';
+import { fitProp } from '../world3d/stationProps';
 
 /**
  * **Die Klappen in 3D** — ein Rahmen und vier Lamellen je Klappe, unten an
@@ -80,11 +82,63 @@ export class VentFlapArt {
   private readonly closed = new Map<THREE.InstancedMesh, Map<number, THREE.Matrix4>>();
   private openId: string | null = null;
 
+  /** Die Gitter aus dem Regal je Klappe — zu und offen (`VENT_GRATE`). */
+  private readonly grates = new Map<string, { shut: THREE.Object3D; open: THREE.Object3D }>();
+
   constructor(spec: HouseSpec, net: VentNet = new VentNet(spec)) {
     this.group = buildVentFlaps(spec, net);
     this.ids = net.flaps.map((flap) => flap.id);
     this.slats = this.meshOf(SHIP.trim);
     this.strips = this.meshOf(SHIP.amber);
+    this.dress(net);
+  }
+
+  /**
+   * **Die Klappe aus dem Regal** — ein Gitter des Dungeon-Pakets
+   * (`dungeon/floor_tile_grate.glb`, offen `…_grate_open.glb`), hochkant an
+   * die Wand gestellt und in die Maße der Klappe gebracht. Gewünscht war, in
+   * der Station nur Einrichtung aus dem Regal zu nutzen; eine Lüftungsklappe
+   * hat es nicht, ein Bodengitter kommt ihr am nächsten. Die gebaute Klappe
+   * bleibt der Ersatz, bis beide Gitter geladen sind.
+   */
+  private dress(net: VentNet): void {
+    if (!canLoadModels()) return;
+    void import('../../../core/kaykitModel').then(async (module) => {
+      const built: THREE.Object3D[] = [...this.group.children];
+      for (const flap of net.flaps) {
+        const [shut, open] = await Promise.all([
+          module.kaykitModel(VENT_GRATE),
+          module.kaykitModel(VENT_GRATE_OPEN),
+        ]);
+        if (!shut || !open) return;
+        const wall = VentNet.wallPoint(flap);
+        const nx = dirX(flap.dir),
+          nz = dirZ(flap.dir);
+        const face = PLAN_WALL_T / 2 + 0.035;
+        const holder = new THREE.Group();
+        holder.name = `vent-grate-${flap.id}`;
+        holder.position.set(wall.x - nx * face, FLAP_BOTTOM + FLAP_HEIGHT / 2, wall.z - nz * face);
+        // +z des Halters schaut in den Raum, gegen die Richtung der Wand.
+        holder.rotation.y = Math.atan2(-nx, -nz);
+        const pair = { shut: new THREE.Group(), open: new THREE.Group() };
+        for (const [key, model] of [
+          ['shut', shut],
+          ['open', open],
+        ] as const) {
+          fitProp(model, { width: FLAP_WIDTH, height: 0.05, depth: FLAP_HEIGHT }, true);
+          model.position.y -= 0.025;
+          // Hochkant: Die Oberseite des Gitters (+y) dreht nach +z, in den Raum.
+          pair[key].rotation.x = Math.PI / 2;
+          pair[key].add(model);
+          holder.add(pair[key]);
+        }
+        pair.open.visible = this.openId === flap.id;
+        pair.shut.visible = this.openId !== flap.id;
+        this.grates.set(flap.id, pair);
+        this.group.add(holder);
+      }
+      for (const one of built) one.visible = false;
+    });
   }
 
   /** Welche Klappe gerade offen steht — höchstens eine. */
@@ -103,6 +157,11 @@ export class VentFlapArt {
   private apply(id: string, open: boolean): void {
     const index = this.ids.indexOf(id);
     if (index < 0) return;
+    const grate = this.grates.get(id);
+    if (grate) {
+      grate.open.visible = open;
+      grate.shut.visible = !open;
+    }
     if (this.slats)
       for (let k = 0; k < 4; k++)
         this.swap(this.slats, index * 4 + k, open, (scale) => {
@@ -149,3 +208,7 @@ export class VentFlapArt {
     return null;
   }
 }
+
+/** Die Klappe aus dem Regal: ein Bodengitter, zu und offen. */
+const VENT_GRATE = 'dungeon/floor_tile_grate.glb';
+const VENT_GRATE_OPEN = 'dungeon/floor_tile_grate_open.glb';

@@ -43,7 +43,14 @@ import { PLAN_DOOR_H } from '../editor/levelPlan';
 import { TILE, dirX } from '../nav/navTile';
 import { canLoadModels } from '../../core/chefFit';
 import { LIFT_DOOR } from './plan';
-import { CONSOLE_MODEL, dressProp } from './world3d/stationProps';
+import {
+  CONSOLE_MODEL,
+  dressMesh,
+  dressProp,
+  MEDKIT_MODEL,
+  PART_MODEL,
+} from './world3d/stationProps';
+import { DoorLever } from './world3d/doorLever';
 import { DEFAULT_LIGHTING, lightingPreset, type BotLighting } from './botLighting';
 import {
   MONSTER_FIELDS,
@@ -240,7 +247,8 @@ interface Door {
   leaves: DoorLeaf[];
   amount: number;
   at: THREE.Vector3;
-  panel: Screen;
+  /** Die Wandhebel neben der Tür, auf jeder Seite einer (`world3d/doorLever.ts`). */
+  levers: DoorLever[];
   light: THREE.MeshBasicMaterial;
   /** Alles, was zu dieser Tür gehört — zum Ausblenden mit ihren Räumen. */
   group: THREE.Group;
@@ -1005,6 +1013,8 @@ export class ShipExperience {
           lootMount.z,
         ])
       : null;
+    // Ersatzteil und Medkit aus dem Regal (`world3d/stationProps.ts`).
+    if (lootMesh) dressMesh(lootMesh, loot === 'medkit' ? MEDKIT_MODEL : PART_MODEL);
     // **Hier hing einmal ein amberfarbenes Schild mit dem Inhalt am Schrank**,
     // dauerhaft sichtbar, quer durch den halben Raum lesbar. Es war das
     // größte Leck: Solange es hing, war jede Frage an den Archivar überflüssig
@@ -1324,6 +1334,7 @@ export class ShipExperience {
     for (const part of lying) {
       if (this.droppedParts.has(part.id)) continue;
       const mesh = this.mesh([0.28, 0.16, 0.22], SHIP.amber, this.root, [part.x, 0.16, part.z]);
+      dressMesh(mesh, PART_MODEL);
       mesh.name = `dropped-${part.id}`;
       mesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), part.id)} aufnehmen`;
       this.droppedParts.set(part.id, mesh);
@@ -1786,14 +1797,18 @@ export class ShipExperience {
       const light = new THREE.MeshBasicMaterial({ color: 0x91ffd0, toneMapped: false });
       const width = 'span' in d ? doorWidth(d) : STATION_DOOR_W;
       const leaves = this.doorLeaves(g, width);
-      const panel = this.screen(0.34, 0.36);
-      panel.mesh.position.set(width / 2 + 0.2, 1.25, 0.18);
-      g.add(panel.mesh);
-      panel.mesh.userData.interactionLabel = 'E: Schiebetür bedienen';
-      const back = panel.mesh.clone();
-      back.rotation.y = Math.PI;
-      back.position.z = -0.18;
-      g.add(back);
+      // **Ein Wandhebel auf jeder Seite** statt der Schalttafel: rot und
+      // unten, solange die Tür gesperrt ist, grün und oben sonst. Er hängt
+      // mittig über der Tür auf dem Sturz — neben einer Tür über zwei Kacheln
+      // ist oft keine Wand, sondern ein Fenster oder die Wand des Ganges quer.
+      const levers = [1, -1].map((side) => {
+        const lever = new DoorLever();
+        lever.root.position.set(0, DOOR_LEVER_Y, side * DOOR_LEVER_WALL);
+        if (side < 0) lever.root.rotation.y = Math.PI;
+        lever.hit.userData.interactionLabel = 'E: Tür sperren oder freigeben';
+        g.add(lever.root);
+        return lever;
+      });
       this.root.add(g);
       const at = g.position.clone();
       const rooms = 'a' in d ? [d.a, ...(d.b ? [d.b] : [])] : null;
@@ -1802,7 +1817,7 @@ export class ShipExperience {
         leaves,
         amount: this.host.state().shut.includes(d.id) ? 0 : 1,
         at,
-        panel,
+        levers,
         light,
         group: g,
         rooms,
@@ -1820,8 +1835,7 @@ export class ShipExperience {
         this.host.door(d.id);
         this.sound('door');
       };
-      this.bind(panel.mesh, action);
-      this.bind(back, action);
+      for (const lever of levers) this.bind(lever.hit, action);
     }
   }
 
@@ -1860,14 +1874,18 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.heldLamp.name = 'desktop-flashlight';
     this.heldLamp.setBeamGuide(false);
     this.heldLamp.setLit(true);
-    this.mesh([0.15, 0.2, 0.07], 0xcad8c9, this.heldMedkit, [0, 0, 0]);
-    this.mesh([0.035, 0.105, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.041]);
-    this.mesh([0.095, 0.033, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.047]);
+    const kit = this.mesh([0.15, 0.2, 0.07], 0xcad8c9, this.heldMedkit, [0, 0, 0]);
+    const cross = [
+      this.mesh([0.035, 0.105, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.041]),
+      this.mesh([0.095, 0.033, 0.009], 0x80352f, this.heldMedkit, [0, 0, -0.047]),
+    ];
+    // Das Kreuz gehört zum gebauten Kasten und geht mit ihm, sobald der Trank da ist.
+    dressMesh(kit, MEDKIT_MODEL, cross);
     // Das Ersatzteil sieht in der Hand aus wie in der Kiste — derselbe Kasten,
     // dieselbe Farbe. Wer es aufhebt, soll nicht raten müssen, ob er wirklich
     // das hat, was er gesucht hat.
     this.heldPart.name = 'desktop-held-part';
-    this.mesh([0.28, 0.16, 0.22], SHIP.amber, this.heldPart, [0, 0, 0]);
+    dressMesh(this.mesh([0.28, 0.16, 0.22], SHIP.amber, this.heldPart, [0, 0, 0]), PART_MODEL);
     this.torch.add(this.heldLamp, this.heldMedkit, this.heldPart);
     this.host.ctx.camera.add(this.torch);
     this.torch.position.set(0.24, -0.24, -0.4);
@@ -2191,6 +2209,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
           : state.shut.includes(door.id));
       const goal = Number(this.host.doorOpen?.(door.id) ?? !locked);
       door.light.color.setHex(locked ? 0xff5267 : 0x78ffd0);
+      for (const lever of door.levers) lever.set(locked, dt);
       const before = door.amount;
       door.amount += Math.sign(goal - before) * Math.min(Math.abs(goal - before), dt * 2.5);
       for (const leaf of door.leaves) leaf.pivot.rotation.y = door.amount * leaf.swing * DOOR_SWING;
@@ -2322,7 +2341,6 @@ ANTIPPEN: ZUM SAFE-RAUM`,
 
   private paint(): void {
     if (this.disposed) return;
-    const state = this.host.state();
     const crew = this.crew;
     this.rows(this.command, [
       'HAUNTING / ORBITAL · 1 VR + 2 HANDYS',
@@ -2334,18 +2352,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
         ? `TESTLICHT: ${crew.options.bright ? 'HELL' : 'DUNKEL'} · ANTIPPEN`
         : 'TESTLABOR: MIT TEST ÖFFNEN',
     ]);
-    for (const door of this.doors) {
-      const locked =
-        this.host.doorLocked?.(door.id) ??
-        (door.id === 'test-bay' || door.id === TRAINING_DOOR.id
-          ? !crew.options.test
-          : state.shut.includes(door.id));
-      this.rows(door.panel, [
-        locked ? 'GESPERRT' : 'BEREIT',
-        door.id === 'test-bay' || door.id === TRAINING_DOOR.id ? 'ÜBUNGSDECK' : 'SCHOTT',
-        locked ? 'ANTIPPEN' : 'AUTOMATIK',
-      ]);
-    }
+    // Die Türen zeigen ihren Stand an den Hebeln (`DoorLever`, im Bildtakt).
     for (const screen of this.screens)
       if (screen.mesh.userData.locker) {
         const id = screen.mesh.userData.locker as string;
@@ -3733,7 +3740,12 @@ function disposeObject(root: THREE.Object3D): void {
   const geometries = new Set<THREE.BufferGeometry>(),
     materials = new Set<THREE.Material>(),
     textures = new Set<THREE.Texture>();
-  root.traverse((object) => {
+  // **An einem Modell aus dem Regal hört das Aufräumen auf**
+  // (`userData.sharedAssets`, `core/kaykitModel.copyOf`): Seine Geometrie und
+  // Textur gehören der Vorlage im Speicher und allen anderen Kopien.
+  const visit = (object: THREE.Object3D): void => {
+    if (object.userData.sharedAssets) return;
+    for (const child of object.children) visit(child);
     const mesh = object as THREE.Mesh;
     if (mesh.geometry) geometries.add(mesh.geometry);
     for (const material of Array.isArray(mesh.material)
@@ -3745,7 +3757,8 @@ function disposeObject(root: THREE.Object3D): void {
       const map = (material as THREE.MeshBasicMaterial).map;
       if (map) textures.add(map);
     }
-  });
+  };
+  visit(root);
   geometries.forEach((g) => g.dispose());
   materials.forEach((m) => m.dispose());
   textures.forEach((t) => t.dispose());
@@ -3781,3 +3794,7 @@ function actionKey(text: string, action: string): HTMLButtonElement {
 const DOOR_LEAF = 'prototype-bits/Door_A_Metal.glb';
 /** Wie weit ein Blatt aufschwingt — knapp eine Vierteldrehung. */
 const DOOR_SWING = Math.PI * 0.48;
+/** Wie weit ein Türhebel vor der Wandmitte hängt: die halbe Dicke der Wand aus dem Regal. */
+const DOOR_LEVER_WALL = 0.14;
+/** Wie hoch die Mitte eines Türhebels hängt: auf der Zarge über der Tür, unter dem Wegweiser (`signMesh.SIGN_BOTTOM`). */
+const DOOR_LEVER_Y = PLAN_DOOR_H + 0.16;

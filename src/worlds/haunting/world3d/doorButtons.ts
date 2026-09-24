@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../../core/chefFit';
 import { dirX, dirZ, TILE, type Dir } from '../../nav/navTile';
-import { doorMiddle } from '../house';
+import { doorEdges, doorMiddle } from '../house';
 
 /**
  * **Vor und hinter jeder Tür ein Knopf im Boden** — grün, wenn sie aufgeht,
@@ -46,27 +46,32 @@ export interface ButtonDoor {
 }
 
 /**
- * Die Mitten der beiden Knöpfe einer Tür — eine halbe Kachel vor und hinter
- * ihrer Mitte (`house.doorMiddle`). Bei einer Tür über zwei Kacheln liegt der
- * Knopf also mittig auf der Fuge der beiden, genau vor der Öffnung.
+ * **Die Mitten der Knöpfe einer Tür** — einer auf jeder Bodenkachel davor und
+ * dahinter, also zwei je Kachel der Öffnung.
+ *
+ * Gemeldet: _„Der Button auf dem Boden kann nicht mittig sein, sondern wie der
+ * Boden-Floor nur auf einem stehen. Also sollte es dann zwei geben."_ Eine
+ * Tür über zwei Kacheln hat damit vier Knöpfe, zwei auf jeder Seite, jeder
+ * mitten auf seiner Platte (`house.doorEdges`).
  */
-export function doorButtonSpots(
-  door: ButtonDoor,
-): [{ x: number; z: number }, { x: number; z: number }] {
-  const middle = doorMiddle(door);
-  const nx = dirX(door.dir) * (TILE / 2);
-  const nz = dirZ(door.dir) * (TILE / 2);
-  return [
-    { x: middle.x - nx, z: middle.z - nz },
-    { x: middle.x + nx, z: middle.z + nz },
-  ];
+export function doorButtonSpots(door: ButtonDoor): { x: number; z: number }[] {
+  const nx = dirX(door.dir) * TILE;
+  const nz = dirZ(door.dir) * TILE;
+  return doorEdges(door).flatMap((edge) => {
+    const x = (edge.x + 0.5) * TILE;
+    const z = (edge.z + 0.5) * TILE;
+    return [
+      { x, z },
+      { x: x + nx, z: z + nz },
+    ];
+  });
 }
 
 /**
  * **Ob jemand auf einem der beiden Knöpfe steht** — oder schon in der Tür.
  *
- * Ein Knopf gilt für die ganze Fläche vor der Tür: so breit wie sie, eine
- * Kachel tief. Wer davor steht, steht auf ihm; die Kante dazwischen ist die
+ * Ein Knopf gilt für seine ganze Kachel, und die Knöpfe einer Tür zusammen
+ * für die Fläche davor und dahinter: so breit wie sie, eine Kachel tief. Wer davor steht, steht auf ihm; die Kante dazwischen ist die
  * Tür selbst, also ist darin mitgemeint.
  */
 export function buttonPressed(

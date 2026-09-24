@@ -256,7 +256,10 @@ for (const name of browserNames) {
         await page.locator('#haunt-connect').click();
         await page.locator('#screen-view [data-view="2d"]').click();
         await page.locator('#haunt-enter').click();
-        await page.locator('.haunt').waitFor();
+        // Hinein lädt die Station samt ihrer Modelle — lokal gut 25 s mit
+        // Software-Grafik, auf dem Runner knapp an der Minute. Also dieselbe
+        // Frist wie beim Laden der Startwelt.
+        await page.locator('.haunt').waitFor({ timeout: 90000 });
         await shot('roles');
 
         await assignPowers();

@@ -184,7 +184,11 @@ export function dressCabinet(
     model.traverse((object) => {
       if (!door && /door/i.test(object.name) && (object as THREE.Mesh).isMesh) door = object;
     });
-    if (door) leaf.attach(door);
+    if (door) {
+      leaf.attach(door);
+      // Aus der Kopie herausgelöst — und trotzdem Geometrie der Vorlage.
+      (door as THREE.Object3D).userData.sharedAssets = true;
+    }
     for (const one of fallback) one.visible = false;
     // Das gebaute Blatt trägt weiter Bildschirm und Beute — nur sein eigenes
     // Bild und seine Beschläge gehen weg.
@@ -192,5 +196,42 @@ export function dressCabinet(
     (leaf.material as THREE.Material).dispose();
     leaf.material = hidden;
     for (const child of leaf.children) if (/door-hardware/.test(child.name)) child.visible = false;
+  });
+}
+
+/** Das Ersatzteil der Station: eine Batterie. */
+export const PART_MODEL = 'block-bits/battery.glb';
+/** Das Medkit: ein roter Trank — das Regal hat keinen Verbandskasten. */
+export const MEDKIT_MODEL = 'adventurers/potion_medium_red.glb';
+
+/**
+ * **Ein gebautes Kästchen wird zum Träger eines Modells** — das Netz bleibt
+ * (es trägt Bindung, Beschriftung, Sichtbarkeit und Treffer: `bind`,
+ * `interactionLabel`, Röntgenblick), sein **Material** geht aus, und das
+ * Modell aus dem Regal sitzt, in seine Maße eingepasst, mitten darin.
+ */
+export function dressMesh(
+  mesh: THREE.Mesh,
+  path: string,
+  alsoHide: readonly THREE.Object3D[] = [],
+): void {
+  if (!canLoadModels()) return;
+  mesh.geometry.computeBoundingBox();
+  const box = mesh.geometry.boundingBox!;
+  const size = {
+    width: box.max.x - box.min.x,
+    height: box.max.y - box.min.y,
+    depth: box.max.z - box.min.z,
+  };
+  void import('../../../core/kaykitModel').then(async (module) => {
+    const model = await module.kaykitModel(path);
+    if (!model || !fitProp(model, size)) return;
+    model.name = `station-prop:${path}`;
+    // `fitProp` stellt die Unterkante auf null; das Kästchen hat seine Mitte dort.
+    model.position.y += box.min.y;
+    mesh.add(model);
+    for (const one of Array.isArray(mesh.material) ? mesh.material : [mesh.material])
+      one.visible = false;
+    for (const one of alsoHide) one.visible = false;
   });
 }
