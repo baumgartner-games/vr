@@ -841,6 +841,18 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   verloren aus. Es dreht mit der Figur und schaut, wohin sie läuft — in der
   Datei zeigt die Nase nach hinten, deshalb steht es um 180° gedreht
   (`TOP_TURN`).
+- **Tasten fahren das Bild, der Zeiger stellt den Kran** (`FlatControls.crane`,
+  `flyCrane`, seit September 2026). Gewünscht war: _„im Baukasten-Modus (von
+  oben) will ich (im Web mit WASD, mobil mit Joystick) die Kamera-Position
+  bewegen. Die Position des Hakens/Raumschiffs soll über Mauszeiger bzw.
+  Touch passieren."_ Als Kran löst sich die Kamera vom Rig
+  (`TopDownCamera.detach`) und fährt mit `WASD`/linkem Stock
+  (`TopDownCamera.pan`, Tempo `CRANE_PAN` × Zoomabstand je Sekunde). Der Kran
+  fliegt zu dem Punkt am Boden unter Mauszeiger oder Finger
+  (`TopDownCamera.groundPoint`), weich mit `CRANE_FOLLOW_TAU` (0,05 s,
+  `craneVelocity`); der rechte Stock schiebt ihn für alle ohne Maus. Ein
+  Finger, der losgelassen wird, lässt den Kran stehen, wo er ist. Gilt für
+  _Einrichten_ und _Baukasten_ — beide sind der Kran.
 - **Nur lokal.** Mitspieler sehen weiter den Koch; der Modus geht nicht über
   die Leitung.
 - **Keine Physik** (`PortalWorld.updateCraneFlight`). Gewünscht war: _„als Kran

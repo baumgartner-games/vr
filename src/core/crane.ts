@@ -79,6 +79,72 @@ export const CRANE_CLAW_DROP = 1.15;
  */
 export const CRANE_TOUCH = 0.05;
 
+/**
+ * **Wie schnell die Kamera als Kran fährt** — in Abständen je Sekunde.
+ *
+ * Gewünscht war: _„im Baukasten-Modus (von oben) will ich (im Web mit WASD,
+ * mobil mit Joystick) die Kamera-Position bewegen. Die Position des
+ * Hakens/Raumschiffs soll über Mauszeiger bzw. Touch passieren."_ WASD und
+ * der linke Stock schieben also nicht mehr den Kran, sondern das Bild
+ * (`TopDownCamera.pan`). Das Tempo hängt am Zoom: Wer weit weg ist, will
+ * weiter fahren, wer nah dran ist, feiner — ein fester Wert in Metern wäre
+ * auf 60 m Abstand ein Kriechen und auf 5 m ein Sprung.
+ */
+export const CRANE_PAN = 0.9;
+
+/**
+ * **Der Schritt der Kamera in diesem Bild**, in Weltmetern — Norden oben,
+ * wie jede Taste von oben (`FlatControls.walkNorthUp`).
+ */
+export function cranePan(
+  x: number,
+  z: number,
+  distance: number,
+  sprint: boolean,
+  dt: number,
+): { x: number; z: number } {
+  const length = Math.hypot(x, z);
+  if (!(length > 0) || !(dt > 0)) return { x: 0, z: 0 };
+  const scale = (Math.min(1, length) / length) * distance * CRANE_PAN * (sprint ? 2 : 1) * dt;
+  return { x: x * scale, z: z * scale };
+}
+
+/**
+ * **Wie schnell der Kran dem Zeiger nachzieht** — die Zeitkonstante in
+ * Sekunden. Kurz, denn gezeigt wird mit der Hand: Ein Haken, der eine halbe
+ * Sekunde hinterherschwebt, hebt beim Klick das Falsche. Und doch nicht null,
+ * sonst spränge das Dropship bei jedem Ruck der Maus.
+ */
+export const CRANE_FOLLOW_TAU = 0.05;
+
+/** Wie schnell der Kran höchstens fliegt, in Metern je Sekunde. */
+export const CRANE_MAX_SPEED = 60;
+
+/**
+ * **Die Geschwindigkeit, mit der der Kran seinem Ziel nachzieht** — so, dass
+ * er in diesem Bild den Anteil `weight(dt, CRANE_FOLLOW_TAU)` des Weges
+ * schafft. Geflogen wird ohne Physik (`PhysicsLocomotion.ghost`), und dort
+ * ist eine Geschwindigkeit genau ein Weg je Bild.
+ */
+export function craneVelocity(
+  fromX: number,
+  fromZ: number,
+  goalX: number,
+  goalZ: number,
+  dt: number,
+): { x: number; z: number } {
+  if (!(dt > 0)) return { x: 0, z: 0 };
+  const share = 1 - Math.exp(-dt / CRANE_FOLLOW_TAU);
+  let x = ((goalX - fromX) * share) / dt;
+  let z = ((goalZ - fromZ) * share) / dt;
+  const speed = Math.hypot(x, z);
+  if (speed > CRANE_MAX_SPEED) {
+    x *= CRANE_MAX_SPEED / speed;
+    z *= CRANE_MAX_SPEED / speed;
+  }
+  return { x, z };
+}
+
 /** Der Halbmesser des Kreises am Boden unter dem Kran, in Metern. */
 export const CRANE_MARK_RADIUS = 0.42;
 

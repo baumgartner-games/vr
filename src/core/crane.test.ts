@@ -13,6 +13,10 @@ import {
   CRANE_HEIGHT,
   buildCrane,
   cranePose,
+  CRANE_MAX_SPEED,
+  CRANE_PAN,
+  cranePan,
+  craneVelocity,
   disposeCrane,
   isCrane,
   screenTopDown,
@@ -22,6 +26,29 @@ import { screenCarryPoint } from './screenCarry';
 import { pickUsable } from './usable';
 
 describe('crane', () => {
+  it('fährt die Kamera schneller, je weiter sie weg ist', () => {
+    const near = cranePan(0, -1, 5, false, 1);
+    const far = cranePan(0, -1, 30, false, 1);
+    expect(near.z).toBeCloseTo(-5 * CRANE_PAN, 9);
+    expect(far.z).toBeCloseTo(-30 * CRANE_PAN, 9);
+    expect(cranePan(0, -1, 5, true, 1).z).toBeCloseTo(2 * near.z, 9);
+    // Schräg ist nicht schneller als gerade.
+    const diagonal = cranePan(1, 1, 5, false, 1);
+    expect(Math.hypot(diagonal.x, diagonal.z)).toBeCloseTo(5 * CRANE_PAN, 9);
+    expect(cranePan(0, 0, 5, false, 1)).toEqual({ x: 0, z: 0 });
+  });
+
+  it('zieht den Kran zum Zeiger, ohne darüber hinauszuschießen', () => {
+    const dt = 1 / 60;
+    let x = 0;
+    for (let i = 0; i < 60; i++) x += craneVelocity(x, 0, 2, 0, dt).x * dt;
+    expect(x).toBeGreaterThan(1.99);
+    expect(x).toBeLessThanOrEqual(2);
+    const far = craneVelocity(0, 0, 1000, 0, dt);
+    expect(far.x).toBeCloseTo(CRANE_MAX_SPEED, 9);
+    expect(craneVelocity(0, 0, 1, 1, 0)).toEqual({ x: 0, z: 0 });
+  });
+
   it('ist der Kran in Einrichten und Baukasten, nicht beim Spielen', () => {
     expect(GAME_MODES.map(isCrane)).toEqual([false, true, true]);
   });

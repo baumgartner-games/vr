@@ -195,6 +195,20 @@ describe('floorPlateSpots', () => {
     expect(middle?.y).toBe(0);
   });
 
+  it('legt Masse und Weg auf eine Höhe — ohne Stufe dazwischen', () => {
+    // Gemeldet: „die boden platten liegen hier nicht alle gleich auf". Die
+    // Masse liegt zwei Zentimeter tiefer als der Weg darauf; ihre Platten
+    // rücken hoch, auch die, die den Weg gar nicht berühren.
+    const spots = floorPlateSpots([floor(2.5, 0.5, 5, 1, -0.02), floor(0.5, 0.5, 1, 1, 0)], always);
+    expect(spots).toHaveLength(5);
+    for (const spot of spots) expect(spot.y).toBe(0);
+  });
+
+  it('lässt eine echte Stufe stehen', () => {
+    const spots = floorPlateSpots([floor(0.5, 0.5, 1, 1, 0), floor(1.5, 0.5, 1, 1, 0.7)], always);
+    expect(spots.map((one) => one.y).sort()).toEqual([0, 0.7]);
+  });
+
   it('hält die Etagen auseinander', () => {
     // Unter dem Podest wird durchgelaufen: sein Deck und das Gelände darunter
     // sind dieselbe Kachel und zwei Böden.

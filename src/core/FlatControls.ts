@@ -24,6 +24,7 @@ import {
 import { inputConfig, onInputConfigChange } from './inputStore';
 import { pinchFactor, yawFromDirection, type Vec2 } from './topDownPose';
 import { smoothAngle } from '../net/PoseSmoothing';
+import { cranePan, craneVelocity } from './crane';
 
 /**
  * **Ein abgefangener Druck** — was das Menü beim Einstellen bekommt. Am Pad
@@ -175,6 +176,13 @@ export class FlatControls {
    */
   private aimedWithStick = false;
   private topDownOn = false;
+  /** Ob man gerade der Kran ist (`crane`). */
+  private craneOn = false;
+  /** Wohin der Kran fliegt, in Weltmetern — `null`: noch nirgendwohin gezeigt. */
+  private craneGoal: THREE.Vector3 | null = null;
+  /** Der Finger, der dem Kran gerade zeigt, wohin — und wo er liegt. */
+  private cranePointer: number | null = null;
+  private readonly craneTouch = { x: 0, y: 0 };
   private readonly pads: TouchPads;
   /** Die Flanken des Gamepads — Knöpfe eines Pads kommen als Zustand, nicht als Ereignis. */
   private readonly padUse = new ButtonState();
@@ -277,6 +285,36 @@ export class FlatControls {
     this.rig.setTrigger(0);
   }
 
+  /**
+   * **Als Kran von oben** (`core/crane.ts`, gesetzt von `App.applyView`).
+   *
+   * Gewünscht war: _„im Baukasten-Modus (von oben) will ich (im Web mit WASD,
+   * mobil mit Joystick) die Kamera-Position bewegen. Die Position des
+   * Hakens/Raumschiffs soll über Mauszeiger bzw. Touch passieren, dort wohin
+   * ich zeige soll der Kran stehen."_ Also zwei Geber für zwei Dinge:
+   *
+   * - **WASD, linker Stock, Stock auf dem Glas** fahren die Kamera
+   *   (`TopDownCamera.pan`), und nicht mehr den Kran.
+   * - **Mauszeiger oder ein Finger auf dem Glas** sagen, wo der Kran steht:
+   *   der Punkt am Boden unter dem Zeiger (`TopDownCamera.groundPoint`). Der
+   *   rechte Stock (am Pad und auf dem Glas) schiebt ihn von dort aus weiter,
+   *   für alle ohne Maus.
+   *
+   * Klick und `A` bleiben, was sie waren: Sie nehmen und stellen hin, was
+   * unter dem Kran liegt — und der liegt jetzt unter dem Zeiger.
+   */
+  get crane(): boolean {
+    return this.craneOn;
+  }
+
+  set crane(on: boolean) {
+    if (on === this.craneOn) return;
+    this.craneOn = on;
+    this.craneGoal = null;
+    this.cranePointer = null;
+    this.view?.detach(on);
+  }
+
   /** Called when the player is placed, so look direction matches the spawn. */
   syncFromRig(): void {
     this.yaw = new THREE.Euler().setFromQuaternion(this.rig.quaternion, 'YXZ').y;
@@ -324,6 +362,11 @@ export class FlatControls {
     this.jumpQueued = false;
     const sprint = this.held('sprint') || pad.sprint;
 
+    if (this.topDownOn && this.craneOn && this.view) {
+      this.rig.sighting = false;
+      this.flyCrane(dt, x, z, sprint, pad, this.view);
+      return;
+    }
     if (this.topDownOn) {
       this.rig.sighting = false;
       this.walkNorthUp(dt, x, z, jump, sprint, pad);
@@ -417,6 +460,63 @@ export class FlatControls {
     }
     const speed = this.rig.walkSpeed(sprint, this.speed * (sprint ? 1.8 : 1));
     this.rig.setIntent(_move.multiplyScalar(speed), jump, sprint);
+  }
+
+  /**
+   * **Der Kran: Tasten fahren das Bild, der Zeiger stellt den Kran** (siehe
+   * `crane`).
+   *
+   * Der Kran fliegt ohne Physik (`PortalWorld.updateCraneFlight`), also ist
+   * die Geschwindigkeit hier genau der Weg zum Ziel, weich gemacht
+   * (`crane.craneVelocity`). Gesprungen wird nicht — ein Kran hat keine Beine.
+   */
+  private flyCrane(
+    dt: number,
+    x: number,
+    z: number,
+    sprint: boolean,
+    pad: GamepadFrame,
+    view: TopDownCamera,
+  ): void {
+    this.applyTopDownButtons(pad);
+    const step = cranePan(x, z, view.zoomDistance, sprint, dt);
+    if (step.x !== 0 || step.z !== 0) view.pan(step.x, step.z);
+
+    this.rig.getHeadPosition(_head);
+    const goal = (this.craneGoal ??= new THREE.Vector3(_head.x, 0, _head.z));
+    const floorY = this.rig.getFloorY();
+    // Ein Finger geht vor, dann die Maus — solange nicht zuletzt ein Stock
+    // gezeigt hat (`aimedWithStick`): Die Maus liegt beim Spielen mit dem Pad
+    // irgendwo und zöge den Kran sonst dauernd zu sich.
+    const screen =
+      this.cranePointer !== null ? this.craneTouch : this.aimedWithStick ? null : this.mouse;
+    if (screen && view.groundPoint(screen.x, screen.y, floorY, _hit)) {
+      goal.set(_hit.x, 0, _hit.z);
+    }
+    const sx = pad.aim.x !== 0 || pad.aim.y !== 0 ? pad.aim.x : this.aimStick.x;
+    const sz = pad.aim.x !== 0 || pad.aim.y !== 0 ? pad.aim.y : this.aimStick.y;
+    if (sx !== 0 || sz !== 0) {
+      this.aimedWithStick = true;
+      const nudge = cranePan(sx, sz, view.zoomDistance, sprint, dt);
+      goal.x += nudge.x;
+      goal.z += nudge.z;
+    }
+
+    const velocity = craneVelocity(_head.x, _head.z, goal.x, goal.z, dt);
+    _move.set(velocity.x, 0, velocity.z);
+    // Das Dropship schaut, wohin es fliegt — aber erst ab Schritttempo, sonst
+    // zittert die Nase bei jedem Bildpunkt, den die Maus zuckt.
+    if (_move.lengthSq() > CRANE_TURN_SPEED * CRANE_TURN_SPEED) {
+      this.yaw = smoothAngle(
+        _euler.setFromQuaternion(this.rig.quaternion, 'YXZ').y,
+        yawFromDirection(_move.x, _move.z),
+        dt,
+        TURN_TAU,
+      );
+      this.rig.rotation.set(0, this.yaw, 0);
+      this.rig.updateMatrixWorld(true);
+    }
+    this.rig.setIntent(_move);
   }
 
   /**
@@ -764,10 +864,17 @@ export class FlatControls {
         this.setPressed(pads.fire, true);
       } else if (this.freeHit(event)) {
         // Ein Finger, der auf nichts liegt: Er sieht sich um — bis ein zweiter
-        // dazukommt, dann zoomen die beiden (`updatePinch`).
+        // dazukommt, dann zoomen die beiden (`updatePinch`). Als Kran zeigt
+        // er stattdessen, wohin der Kran soll (`crane`).
         this.freeTouches.set(event.pointerId, { x: event.clientX, y: event.clientY });
         if (this.startPinch()) {
           this.lookPointer = null;
+          this.cranePointer = null;
+        } else if (this.topDownOn && this.craneOn && this.cranePointer === null) {
+          this.cranePointer = event.pointerId;
+          this.craneTouch.x = event.clientX;
+          this.craneTouch.y = event.clientY;
+          this.aimedWithStick = false;
         } else if (this.lookPointer === null) {
           this.lookPointer = event.pointerId;
           this.lookLast.set(event.clientX, event.clientY);
@@ -805,6 +912,10 @@ export class FlatControls {
           this.updatePinch();
           return;
         }
+        if (event.pointerId === this.cranePointer) {
+          this.craneTouch.x = event.clientX;
+          this.craneTouch.y = event.clientY;
+        }
         if (event.pointerId === this.lookPointer) {
           this.look(event.clientX - this.lookLast.x, event.clientY - this.lookLast.y);
           this.lookLast.set(event.clientX, event.clientY);
@@ -837,6 +948,7 @@ export class FlatControls {
         this.setPressed(this.pads.fire, false);
       }
       if (event.pointerId === this.lookPointer) this.lookPointer = null;
+      if (event.pointerId === this.cranePointer) this.cranePointer = null;
       if (this.freeTouches.delete(event.pointerId) && this.freeTouches.size < 2) {
         this.pinchGap = null;
       }
@@ -937,6 +1049,10 @@ export class FlatControls {
 }
 
 const _ground: Vec2 = { x: 0, z: 0 };
+const _head = new THREE.Vector3();
+const _hit = new THREE.Vector3();
+/** Ab welchem Tempo sich das Dropship in Flugrichtung dreht, in m/s. */
+const CRANE_TURN_SPEED = 0.8;
 
 /** Aus dem Weg eines Fingers eine Auslenkung von −1 bis 1 (Radius 56 Punkte). */
 function clampStick(delta: number): number {
