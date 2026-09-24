@@ -60,6 +60,14 @@ import { playEmpty, playPick, playPop, playSlam, playSwitch } from '../../core/A
 import { disposeShapes } from '../shared/environment';
 import { PlateFloor, type PlateSeat } from '../shared/plateFloor';
 import { floorPlateModels, floorPlateSpots, type PlateTile } from '../shared/plateField';
+import {
+  addFloorTops,
+  floorTopUnder,
+  uncoveredSeats,
+  type Cover,
+  type CoverTile,
+  type FloorTops,
+} from '../shared/floorCover';
 import { ConstructRoom, type ConstructItem, type ConstructOptions } from '../shared/construct';
 import { WardrobeRack, type RackPiece } from '../shared/wardrobeRack';
 import { appearance, saveAppearance, type Appearance } from '../../core/appearance';
@@ -177,6 +185,16 @@ export abstract class GridWorld extends PortalWorld {
   private readonly plateReady = new Set<string>();
   /** Die Plattenböden selbst (`shared/plateFloor.ts`) — beim Umbau wieder weg. */
   private readonly platesBuilt: PlateFloor[] = [];
+  /** Und je Plattenboden alle seine Sitze — auch die, die gerade gedeckt sind. */
+  private readonly plateSeats = new Map<PlateFloor, PlateSeat[]>();
+  /**
+   * **Wie hoch der Boden je Kachel liegt** (`shared/floorCover.ts`) — aus
+   * jedem Bodenquader des Grundrisses, auch denen ohne Platten (die Küche).
+   * Daran richtet sich ein Bodenstück aus dem Regal aus (`floorTopAt`).
+   */
+  private readonly floorTops: FloorTops = new Map();
+  /** **Was die Bodenstücke aus dem Regal gerade decken** (`coverFloor`). */
+  private readonly floorCovers = new Map<PhysicsBody, Cover>();
   /** Und die Bodenquader, aus denen ihre Kacheln gerechnet werden. */
   private readonly plateSolids: PlanSolid[] = [];
   /**
@@ -1575,6 +1593,7 @@ export abstract class GridWorld extends PortalWorld {
     // ein eigenes kommt (`gridBatch.batchKey`): Es sind neunhundert Quader und
     // eine Masse über das ganze Gelände, und die einzeln zu zeichnen wäre
     // teurer als alles, was hier gespart wird.
+    addFloorTops(this.floorTops, solid);
     const plates = floorPlateModels(solid, this.plateChoice);
     if (plates.length > 0) {
       const key = plates.join('|');
@@ -1645,10 +1664,46 @@ export abstract class GridWorld extends PortalWorld {
       byBundle.set(key, bundle);
     }
     for (const { file, level, seats } of byBundle.values()) {
-      this.platesBuilt.push(
-        new PlateFloor(group, file, seats, { level, ready: () => this.plateArrived(file) }),
-      );
+      // Was ein Bodenstück schon deckt, kommt gar nicht erst ins Bild — der
+      // Grundriss wird umgebaut, die Stücke aus dem Regal bleiben liegen.
+      const floor = new PlateFloor(group, file, this.visibleSeats(seats), {
+        level,
+        capacity: seats.length,
+        ready: () => this.plateArrived(file),
+      });
+      this.platesBuilt.push(floor);
+      this.plateSeats.set(floor, seats);
     }
+  }
+
+  /** Die Sitze, die kein Bodenstück aus dem Regal deckt. */
+  private visibleSeats(seats: readonly PlateSeat[]): PlateSeat[] {
+    return uncoveredSeats(seats, this.floorCovers.values());
+  }
+
+  /**
+   * **Wie hoch der Boden unter diesen Kacheln liegt** — aus dem Grundriss und
+   * nicht aus der Physik: Die Frage fällt beim Hinstellen, und dort soll die
+   * Antwort die Oberkante sein, die auch die Platten tragen
+   * (`shared/floorCover.floorTopUnder`).
+   */
+  protected override floorTopAt(tiles: readonly CoverTile[], below: number): number | null {
+    return floorTopUnder(this.floorTops, tiles, below);
+  }
+
+  /**
+   * **Ein Bodenstück deckt diese Kacheln — oder keine mehr.** Die Platten
+   * darunter gehen aus dem Bild und kommen zurück, sobald es aufgehoben,
+   * abgerissen oder weggeräumt ist. Das Bündel bleibt dasselbe: nur neue
+   * Matrizen (`PlateFloor.reseat`), kein neuer Zeichenaufruf.
+   */
+  protected override coverFloor(entry: PhysicsBody, cover: Cover | null): void {
+    if (cover === null) {
+      if (!this.floorCovers.delete(entry)) return;
+    } else {
+      this.floorCovers.set(entry, cover);
+    }
+    for (const [floor, seats] of this.plateSeats) floor.reseat(this.visibleSeats(seats));
   }
 
   /**
@@ -1684,6 +1739,8 @@ export abstract class GridWorld extends PortalWorld {
   private dropFloorPlates(): void {
     for (const plates of this.platesBuilt) plates.dispose();
     this.platesBuilt.length = 0;
+    this.plateSeats.clear();
+    this.floorTops.clear();
     this.plated.clear();
     this.plateReady.clear();
     this.plateSolids.length = 0;

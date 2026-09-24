@@ -269,6 +269,13 @@ export interface ModelBlueprint extends PropPhysics {
   /** Der Knoten, der in die Welt kommt — mit dem Modell darin, mittig. */
   object: THREE.Object3D;
   label: string;
+  /**
+   * **Wie hoch die Lauffläche über der Mitte liegt**, in Metern — die
+   * Oberkante ohne das, was aus einer Falle herausragt (`treadOf`). Ein
+   * Bodenstück wird mit genau dieser Höhe bündig in den Boden gelegt
+   * (`modelStance.isFloorPiece`, `PortalWorld.sinkFloor`).
+   */
+  tread: number;
 }
 
 const PROP_COLORS: Record<'sphere' | 'pyramid' | 'plank' | 'block' | 'cylinder', number> = {
@@ -355,6 +362,7 @@ export function modelPropShape(model: THREE.Object3D, label: string): ModelBluep
     model.position.sub(centre);
   }
   object.add(stretchWall(model, box.isEmpty() ? null : size));
+  const tread = treadOf(model) ?? size.y / 2;
 
   const halfExtents = size
     .clone()
@@ -367,7 +375,37 @@ export function modelPropShape(model: THREE.Object3D, label: string): ModelBluep
     shape: { kind: 'box' },
     halfExtents,
     label,
+    tread,
   };
+}
+
+/**
+ * **Die Oberkante, auf der man geht** — gemessen am schon zentrierten Modell,
+ * ohne jeden Knoten, der `spike` im Namen trägt.
+ *
+ * Eine Stachelfalle (`platformer/…/floor_spikes_trap_…`) ist eine Platte mit
+ * Stacheln darauf, und eingelassen wird die **Platte**: Ihre Oberseite gehört
+ * auf die Höhe des Bodens, die Stacheln stehen darüber — dieselbe Messung
+ * wie beim Stachelfeld der Navigationszone (`worlds/test/zones/navigation.ts`,
+ * `plateTop`). Für alles andere ist es schlicht die Oberkante.
+ */
+function treadOf(model: THREE.Object3D): number | null {
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  const part = new THREE.Box3();
+  const skip = (object: THREE.Object3D | null): boolean => {
+    for (let at = object; at && at !== model.parent; at = at.parent) {
+      if (/spike/i.test(at.name)) return true;
+    }
+    return false;
+  };
+  model.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh || skip(mesh)) return;
+    part.setFromObject(mesh);
+    box.union(part);
+  });
+  return box.isEmpty() ? null : box.max.y;
 }
 
 /**

@@ -3,7 +3,7 @@
  * (`modelStance.ts`). Gewünscht war: Wände, Tische, Vorratskisten und die
  * Küchenmöbel bleiben stehen, statt umzukippen; ein Fass darf weiter rollen.
  */
-import { modelStance, nameWords, standsFast } from './modelStance';
+import { isFloorPiece, modelStance, nameWords, standsFast } from './modelStance';
 
 describe('Die Wörter eines Dateinamens', () => {
   it('trennt an Unterstrich und Großbuchstaben und schreibt klein', () => {
@@ -85,5 +85,22 @@ describe('Die Haltung eines Modells', () => {
     expect(standsFast('structure')).toBe(true);
     expect(standsFast('furniture')).toBe(true);
     expect(standsFast('loose')).toBe(false);
+  });
+});
+
+describe('Bodenstücke', () => {
+  const flat = { x: 2, y: 0.1, z: 2 };
+
+  it('sind Bau mit einem Bodenwort im Namen, und flach', () => {
+    expect(isFloorPiece('restaurant-bits/floor_kitchen.glb', flat)).toBe(true);
+    expect(
+      isFloorPiece('platformer/red/floor_spikes_trap_2x2x1_red.glb', { x: 2, y: 1, z: 2 }),
+    ).toBe(true);
+    expect(isFloorPiece('city/road_straight.glb', flat)).toBe(true);
+  });
+
+  it('sind keine Wände und keine hohen Klötze', () => {
+    expect(isFloorPiece('restaurant-bits/wall.glb', { x: 2, y: 2, z: 0.25 })).toBe(false);
+    expect(isFloorPiece('dungeon/floor_tile_large.glb', { x: 1, y: 2, z: 1 })).toBe(false);
   });
 });

@@ -147,3 +147,37 @@ export function modelStance(
 export function standsFast(stance: ModelStance): boolean {
   return stance !== 'loose';
 }
+
+/** Wörter im Dateinamen, die eine **Fläche** meinen, auf der man geht. */
+const FLOOR_WORDS: ReadonlySet<string> = new Set(['floor', 'road']);
+
+/**
+ * **Ob ein Modell ein Stück Boden ist** — eines, das beim Hinstellen **in**
+ * den Boden gelegt wird statt darauf, und die Platte darunter ersetzt
+ * (`PortalWorld.sinkFloor`).
+ *
+ * Gemeldet war: _„wenn ich kitchen floor setze, [soll] der prototype floor
+ * damit ersetzt werden … auch werden die floors grade darauf gesetzt statt in
+ * die fläche hinein. Auch bei den anderen böden wie spikes …"_ Eine
+ * Bodenplatte, die obendrauf liegt, ist eine Stufe, an der jede Wand und
+ * jedes Möbel um ihre Dicke höher steht als daneben.
+ *
+ * Drei Bedingungen, alle drei nötig:
+ *
+ * - **Bau** (`modelStance` ist `structure`) — ein Tisch bleibt ein Möbel,
+ *   gleich wie flach er ist.
+ * - **Ein Bodenwort im Namen** (`FLOOR_WORDS`): `floor_kitchen`,
+ *   `floor_spikes_trap_2x2x1_red`, `road_straight`.
+ * - **Flach**: niedriger, als die schmalere Seite breit ist. Eine Wand heißt
+ *   nicht `floor`, aber eine Säule, die zufällig so hieße, bliebe stehen.
+ *
+ * @param size die volle Hülle in Metern (Breite, Höhe, Tiefe)
+ */
+export function isFloorPiece(
+  path: string,
+  size: { readonly x: number; readonly y: number; readonly z: number },
+): boolean {
+  if (modelStance(path, size) !== 'structure') return false;
+  if (!nameWords(path).some((word) => FLOOR_WORDS.has(word))) return false;
+  return size.y < Math.min(size.x, size.z);
+}

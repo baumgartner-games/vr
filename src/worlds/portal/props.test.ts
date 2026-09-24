@@ -104,3 +104,27 @@ describe('Wände aus dem Regal', () => {
     expect(drawn(modelPropShape(box(2, 0.1, 0.25), 'Brett').object).x).toBeCloseTo(2, 9);
   });
 });
+
+describe('die Lauffläche eines Modells', () => {
+  it('ist die Oberkante über der Mitte', () => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 2));
+    mesh.position.set(0, 0.1, 0);
+    const root = new THREE.Group();
+    root.add(mesh);
+    expect(modelPropShape(root, 'Boden').tread).toBeCloseTo(0.1, 6);
+  });
+
+  it('lässt die Stacheln einer Falle außen vor', () => {
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 2));
+    plate.position.set(0, 0.25, 0);
+    const spikes = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.3, 1.6));
+    spikes.name = 'floor_spikes_trap_spikes_2x2x1_red';
+    spikes.position.set(0, 0.65, 0);
+    const root = new THREE.Group();
+    root.add(plate, spikes);
+    // Hülle 0 … 0,8 m, Mitte auf 0,4 m; die Platte endet auf 0,5 m.
+    const shape = modelPropShape(root, 'Falle');
+    expect(shape.halfExtents.y).toBeCloseTo(0.4, 6);
+    expect(shape.tread).toBeCloseTo(0.1, 6);
+  });
+});

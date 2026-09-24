@@ -21,7 +21,7 @@ import type { FurnitureChange } from '../../core/worldChanges';
 import { npcSkin } from '../npc/npcKinds';
 import { FIELD, HORIZON_COLORS, KITCHEN_SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
 import { spawnAt } from './spawnAt';
-import { floorPlate, PLATE_PROTOTYPE } from './floorPlate';
+import { floorPieceLift, floorPlate, PLATE_PROTOTYPE } from './floorPlate';
 import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
@@ -200,6 +200,18 @@ export class TestWorld extends GridWorld {
    */
   protected override floorPlate(tile: PlateTile): string | null {
     return floorPlate(tile);
+  }
+
+  /**
+   * **Wie hoch ein Bodenstück aus dem Regal liegt** — auf dem Grundriss, und
+   * in der Küche einen Hauch über ihrem Belag (`floorPlate.floorPieceLift`).
+   */
+  protected override floorTopAt(
+    tiles: readonly { x: number; z: number }[],
+    below: number,
+  ): number | null {
+    const top = super.floorTopAt(tiles, below);
+    return top === null ? null : top + floorPieceLift(tiles);
   }
 
   /**

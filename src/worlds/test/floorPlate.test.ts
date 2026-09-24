@@ -1,4 +1,11 @@
-import { PLATE_PROTOTYPE, PLATE_STONE, floorPlate } from './floorPlate';
+import {
+  KITCHEN_PIECE_LIFT,
+  PLATE_PROTOTYPE,
+  PLATE_STONE,
+  floorPieceLift,
+  floorPlate,
+} from './floorPlate';
+import { KITCHEN_CHECKER_LIFT } from './zones/kitchenFloor';
 import { floorPlateSpots } from '../shared/plateField';
 import { FIELD, KITCHEN, PODIUM } from './layout';
 import { DECK } from './zones/podium';
@@ -115,5 +122,15 @@ describe('der Plattenboden der Testwelt', () => {
     for (const spot of spots.filter((one) => one.model === PLATE_STONE)) {
       expect(spot.y).toBeCloseTo(2.8, 9);
     }
+  });
+});
+
+describe('Bodenstücke aus dem Regal in der Küche', () => {
+  it('liegen über dem Belag und draußen bündig auf null', () => {
+    expect(KITCHEN_PIECE_LIFT).toBeGreaterThan(KITCHEN_CHECKER_LIFT);
+    expect(KITCHEN_PIECE_LIFT).toBeLessThan(0.01);
+    const inside = { x: KITCHEN.x + 0.5, z: KITCHEN.z + 0.5 };
+    expect(floorPieceLift([inside])).toBe(KITCHEN_PIECE_LIFT);
+    expect(floorPieceLift([{ x: KITCHEN.x - 0.5, z: KITCHEN.z + 0.5 }])).toBe(0);
   });
 });
