@@ -99,6 +99,10 @@ describe('Bodenstücke', () => {
     expect(isFloorPiece('city/road_straight.glb', flat)).toBe(true);
   });
 
+  it('und das leere Stück („Empty") ist auch eines — es ersetzt die Platte durch den Himmel', () => {
+    expect(isFloorPiece('prototype-bits/Empty.glb', { x: 1, y: 0.25, z: 1 })).toBe(true);
+  });
+
   it('sind keine Wände und keine hohen Klötze', () => {
     expect(isFloorPiece('restaurant-bits/wall.glb', { x: 2, y: 2, z: 0.25 })).toBe(false);
     expect(isFloorPiece('dungeon/floor_tile_large.glb', { x: 1, y: 2, z: 1 })).toBe(false);
