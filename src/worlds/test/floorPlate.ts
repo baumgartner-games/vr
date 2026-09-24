@@ -219,10 +219,19 @@ export function floorPieceLift(tiles: readonly { x: number; z: number }[]): numb
  *
  * @param floor die Oberkante des Küchenbodens (`kitchenPlan.KITCHEN_FLOOR`)
  */
+/** Wie hoch ein alter Estrich über dem Belag liegen darf und trotzdem verschwindet. */
+export const UNDER_FLOOR_REACH = 0.03;
+
 export function underKitchenFloor(solid: PlanSolid, floor: number): boolean {
   if (solid.kind !== 'floor' && solid.kind !== 'stone') return false;
   if ((solid.level ?? 0) !== 0) return false;
-  if (Math.abs(solid.y + solid.h / 2 - floor) > 0.005) return false;
+  // **Und bis zu drei Zentimeter darüber**: Ein Umbau, der im Gerät
+  // gespeichert wurde, bevor die Küche auf null kam (`grid/worldStore.ts`),
+  // bringt seinen Estrich auf der alten Höhe mit — zwei Zentimeter **über**
+  // dem Belag. Gemeldet als _„in der Handy-PWA ist in der Küche noch der
+  // Estrich-Boden, im Web aber nicht"_: Die App hat ihren eigenen Speicher.
+  const top = solid.y + solid.h / 2;
+  if (top < floor - 0.005 || top > floor + UNDER_FLOOR_REACH) return false;
   const eps = 1e-6;
   return (
     solid.x - solid.w / 2 >= KITCHEN.x - eps &&

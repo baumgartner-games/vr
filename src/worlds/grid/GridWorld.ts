@@ -2350,6 +2350,11 @@ export abstract class GridWorld extends PortalWorld {
     plan.restore(saved.graph, saved.blocks, saved.masses, saved.fixtures);
   }
 
+  /** Für _Zurücksetzen_: der gespeicherte Umbau dieser Welt ist weg. */
+  protected override forgetStored(): void {
+    forgetWorld(this.worldId());
+  }
+
   /** Den Stand in den Browser schreiben. Sagt, ob es geklappt hat. */
   protected saveWorld(quiet = false): boolean {
     const plan = this.grid;

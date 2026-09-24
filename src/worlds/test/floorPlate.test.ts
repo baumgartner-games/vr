@@ -155,4 +155,12 @@ describe('unter dem Belag der Küche', () => {
     const field = solids.find((solid) => solid.kind === 'floor' && solid.w === FIELD.w);
     expect(field && underKitchenFloor(field, KITCHEN_FLOOR)).toBe(false);
   });
+
+  it('auch den Estrich eines alten gespeicherten Umbaus — zwei Zentimeter höher', () => {
+    const stone = solids.find((solid) => solid.kind === 'stone' && hidden.includes(solid))!;
+    const old = { ...stone, y: stone.y + 0.02 };
+    expect(underKitchenFloor(old, KITCHEN_FLOOR)).toBe(true);
+    // Eine Stufe von zehn Zentimetern ist dagegen etwas, das dasteht.
+    expect(underKitchenFloor({ ...stone, y: stone.y + 0.1 }, KITCHEN_FLOOR)).toBe(false);
+  });
 });

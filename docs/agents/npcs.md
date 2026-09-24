@@ -348,7 +348,7 @@ Bedienung, nicht der Besitzer. Der Schnitt dazwischen ist derselbe wie beim
 Werkzeugkasten: die Welt reicht ein paar Fähigkeiten herein (`NpcWorld`), der
 Bestand reicht ein paar Befehle heraus (`NpcControl`, am Werkzeug erreichbar
 über `ToolHost.npcs()`), und keiner der beiden kennt die Innereien des
-anderen. _Labor zurücksetzen_ räumt sie mit weg; vierzig gleichzeitig sind die
+anderen. _Zurücksetzen_ räumt sie mit weg; vierzig gleichzeitig sind die
 Notbremse.
 
 **Wer verfolgt wird, ist der Körper und nicht die Kamera.** Wer mit der Drohne

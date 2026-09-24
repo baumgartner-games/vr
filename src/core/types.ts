@@ -83,6 +83,12 @@ export interface WorldContext {
   /** Switch to another world by id (safe to call from inside update). */
   goTo(worldId: string): void;
   /**
+   * **Dieselbe Welt noch einmal von vorn** — abräumen und frisch laden, als
+   * käme man gerade herein (_Menü → Zurücksetzen_). Optional, weil nur die
+   * App es kann; eine Attrappe im Test braucht es nicht.
+   */
+  reload?(): void;
+  /**
    * **Einem Raum beitreten**, ohne dass die Welt den Transport kennt.
    *
    * Welten sehen nie, was unter der Verbindung liegt (`net/types.ts`), können
