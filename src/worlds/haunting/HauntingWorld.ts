@@ -4404,16 +4404,22 @@ export class HauntingWorld extends GridWorld {
  * fünften Abend das Haus, das nicht mehr lädt.
  */
 function dispose(group: THREE.Object3D): void {
+  // **Unter einem Modell aus dem Regal** (`userData.sharedAssets`) gehören
+  // Geometrie und Textur der Vorlage im Speicher und allen anderen Kopien;
+  // dort gehen nur die eigenen Materialien der Kopie weg.
+  const visit = (one: THREE.Object3D, shared: boolean): void => {
+    const own = shared || !!one.userData.sharedAssets;
+    const mesh = one as Partial<THREE.Mesh>;
+    if (!own) mesh.geometry?.dispose();
+    const material = mesh.material;
+    for (const part of Array.isArray(material) ? material : material ? [material] : []) {
+      if (!own) (part as THREE.MeshBasicMaterial).map?.dispose();
+      part.dispose();
+    }
+    for (const child of one.children) visit(child, own);
+  };
   for (const child of [...group.children]) {
-    child.traverse((one) => {
-      const mesh = one as Partial<THREE.Mesh>;
-      mesh.geometry?.dispose();
-      const material = mesh.material;
-      for (const part of Array.isArray(material) ? material : material ? [material] : []) {
-        (part as THREE.MeshBasicMaterial).map?.dispose();
-        part.dispose();
-      }
-    });
+    visit(child, false);
     group.remove(child);
   }
 }

@@ -5,7 +5,13 @@ import { DIR_E, DIR_N } from '../../nav/navTile';
 describe('Türknöpfe', () => {
   const door: ButtonDoor = { id: 'd', x: 3, z: 5, dir: DIR_E };
 
-  it('liegen auf der Kachel der Tür und auf der dahinter', () => {
+  it('liegen auf der Kachel der Tür und auf der dahinter — je Kachel einer', () => {
+    expect(doorButtonSpots({ ...door, dir: DIR_N, span: 2 })).toEqual([
+      { x: 3.5, z: 5.5 },
+      { x: 3.5, z: 4.5 },
+      { x: 4.5, z: 5.5 },
+      { x: 4.5, z: 4.5 },
+    ]);
     expect(doorButtonSpots(door)).toEqual([
       { x: 3.5, z: 5.5 },
       { x: 4.5, z: 5.5 },

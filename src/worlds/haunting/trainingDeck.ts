@@ -204,6 +204,19 @@ Prüfe den freien Durchgang.`,
     slot.position.set(0, -0.23 + i * 0.09, 0.056);
     vent.add(slot);
   }
+  // Das Gitter aus dem Regal, hochkant, wie an den Klappen der Station
+  // (`vents/ventArt.ts`); das gebaute ist Ersatz.
+  const grate = new THREE.Group();
+  grate.rotation.x = Math.PI / 2;
+  grate.position.z = 0.05;
+  vent.add(grate);
+  dressProp(
+    grate,
+    'dungeon/floor_tile_grate.glb',
+    { width: 0.8, height: 0.05, depth: 0.65 },
+    [...vent.children.filter((child) => child !== grate)],
+    true,
+  );
   vent.position.set(models.maxX - 0.3, 1.3, models.minZ + 8.5);
   vent.rotation.y = -Math.PI / 2;
   root.add(vent);

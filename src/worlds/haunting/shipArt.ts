@@ -403,35 +403,11 @@ function buildCommandHull(): THREE.Group {
   group.name = 'station-command-hull';
   const batch = new ShipBatch();
   floor(batch, APRON);
-  const south = (APRON.z + APRON.d) * TILE,
-    centreX = (APRON.x + APRON.w / 2) * TILE,
-    centreZ = (APRON.z + APRON.d / 2) * TILE;
-  // Die Fensterfront in Feldern von zweieinhalb Metern — dem Maß der alten
-  // Kachel, das für Pfosten und Sturzstücke das richtige geblieben ist.
-  const bay = 2.5;
-  for (let left = APRON.x * TILE; left < (APRON.x + APRON.w) * TILE - 1e-6; left += bay) {
-    const x = left + bay / 2;
-    batch.box(
-      SHIP.hull,
-      [bay - 0.25, 0.15, 0.18],
-      [x, PLAN_WALL_H - 0.18, south - PLAN_WALL_T / 2 - 0.1],
-    );
-    batch.pipe(
-      SHIP.trim,
-      0.034,
-      bay - 0.2,
-      [x, PLAN_WALL_H - 0.39, south - PLAN_WALL_T / 2 - 0.1],
-      true,
-    );
-    for (const side of [-1, 1])
-      batch.box(
-        SHIP.trim,
-        [0.09, PLAN_WALL_H - 0.12, 0.13],
-        [x + side * (bay / 2 - 0.19), PLAN_WALL_H / 2, south - PLAN_WALL_T / 2 - 0.09],
-      );
-  }
-  // Ceiling service rail remains inside the deck; no old 3-metre bay offsets.
-  batch.box(SHIP.trim, [APRON.w * TILE - 0.6, 0.11, 0.14], [centreX, PLAN_WALL_H - 0.12, centreZ]);
+  const centreX = (APRON.x + APRON.w / 2) * TILE;
+  // **Die Fensterfront ist aus dem Regal** (`Wall_Window_Closed_Narrow`,
+  // `world3d/stationWalls.ts`): Pfosten, Rohr und Deckenschiene, die hier je
+  // zweieinhalb Meter standen, sind weg — gewünscht war, in der Station nichts
+  // Eigenes zu bauen, was es im Regal gibt.
   const title = label(
     'HAUNTING / ORBITAL\nEINSATZZENTRALE · SICHERER BEREICH',
     Math.min(3.4, APRON.w * TILE - 0.8),
