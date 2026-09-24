@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SPACE_RANGER } from '../../core/avatarFigures';
 import './haunting.css';
 import { clickedKey, el } from './ui/dom';
 import { key as uiKey } from './ui/widgets';
@@ -501,7 +502,6 @@ export class ShipExperience {
    */
   private chosen: string | null | undefined;
   private readonly bayLight = named(new THREE.PointLight(0xddefff, 0, 6, 2), 'training-bay-light');
-  private readonly suitColors = new Map<THREE.MeshStandardMaterial, THREE.Color>();
   private suitImmersive: boolean | null = null;
   private readonly lockerHome = new THREE.Vector3();
 
@@ -596,7 +596,11 @@ export class ShipExperience {
     if (host.ctx.role === 'vr') {
       host.ctx.camera.add(this.visor);
       this.buildSuit();
-      host.ctx.wear('helmet');
+      // **Der Techniker ist der Space Ranger mit Helm** (gewünscht: _„Als
+      // Spieler-Charakter nutze bitte den Space Ranger mit Helm."_): Figur und
+      // Raumhelm aus dem Regal, geliehen für die Dauer der Station.
+      host.ctx.dress?.(SPACE_RANGER);
+      host.ctx.wear('space');
       this.dom.setAttribute('aria-label', 'Haunting Spielsteuerung');
       this.dom.addEventListener('click', this.domClick);
       this.crosshair.setAttribute('aria-hidden', 'true');
@@ -1909,31 +1913,16 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       : HAND_LABEL[this.rightItem];
   }
 
+  /**
+   * **Der Anzug** ist seit dem Space Ranger dessen eigener
+   * (`SPACE_RANGER`): Umgefärbte Materialien und ein Brustgurt aus Quadern
+   * gehörten zur gebauten Figur. Geblieben ist die Wunde, die der Anzug zeigt,
+   * und wer den eigenen Körper sieht.
+   */
   private buildSuit(): void {
     const avatar = this.host.ctx.avatar;
-    avatar.traverse((object) => {
-      const material = (object as THREE.Mesh).material;
-      if (
-        material &&
-        !Array.isArray(material) &&
-        material instanceof THREE.MeshStandardMaterial &&
-        material.color.getHex() !== 0x1d2434 &&
-        !this.suitColors.has(material)
-      ) {
-        this.suitColors.set(material, material.color.clone());
-        material.color.setHex(0xc6d5d5);
-      }
-    });
-    this.suit.name = 'astronaut-chest-rig';
+    this.suit.name = 'astronaut-suit';
     avatar.add(this.suit);
-    this.mesh([0.32, 0.24, 0.075], 0xd3dcd7, this.suit, [0, 0, -0.15]);
-    this.mesh([0.2, 0.11, 0.015], SHIP.dark, this.suit, [0, 0.02, -0.196]);
-    const badge = label('EVA / 03', 0.16, 0.046);
-    badge.position.set(0, 0.025, -0.207);
-    badge.rotation.y = Math.PI;
-    this.suit.add(badge);
-    for (const side of [-1, 1])
-      this.mesh([0.035, 0.45, 0.055], SHIP.amber, this.suit, [side * 0.15, 0, -0.12]);
     this.wound.position.set(0.03, -0.2, -0.185);
     this.wound.rotation.y = Math.PI;
     this.suit.add(this.wound);
@@ -3679,9 +3668,9 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.effects.dispose();
     this.audio.dispose();
     this.hearingAudio.dispose();
-    for (const [material, color] of this.suitColors) material.color.copy(color);
     if (this.player) {
       this.host.ctx.wear(null);
+      this.host.ctx.dress?.(null);
       this.host.ctx.avatar.traverse((o) => o.layers.set(LAYER_SELF_ONLY));
       this.host.ctx.rig.frozen = false;
     }

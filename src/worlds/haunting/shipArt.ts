@@ -1,10 +1,9 @@
 import * as THREE from 'three';
-import { PLAN_DOOR_H, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
-import { DIRS, TILE, dirX, dirZ, type Dir } from '../nav/navTile';
+import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
+import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
   APRON,
   MARKS,
-  roomAt,
   roomCode,
   spacesOf,
   tilesOf,
@@ -155,16 +154,9 @@ function floor(batch: ShipBatch, rect: Rect, accent = SHIP.cyan, circulation = f
   for (const tile of tilesOf(rect)) {
     const x = (tile.x + 0.5) * TILE,
       z = (tile.z + 0.5) * TILE;
-    // Eine Kachel ist ein Meter, und das ist die Deckplatte: eine je Kachel,
-    // im Schachbrett gefärbt. Neun Platten je Kachel (0,83 m auf dem alten
-    // 2,5-m-Gitter) wären auf viereinhalbtausend Kacheln vierzigtausend
-    // Quader in einem Netz — für ein Bild, das aus Augenhöhe niemand sieht.
-    batch.box(SHIP.dark, [TILE - 0.025, 0.018, TILE - 0.025], [x, 0.017, z]);
-    batch.box(
-      (tile.x + tile.z) % 2 === 0 ? SHIP.deck : SHIP.trim,
-      [TILE - 0.06, 0.013, TILE - 0.06],
-      [x, 0.033, z],
-    );
+    // **Die Deckplatte kommt aus dem Regal** (`HauntingWorld.floorPlate`,
+    // `prototype-bits/Floor.glb`, eine je Kachel) — hier liegen nur noch die
+    // Markierungen darauf.
     const edge = tile.z === rect.z || tile.z === rect.z + rect.d - 1;
     if (edge) {
       const toward = tile.z === rect.z ? -1 : 1;
@@ -278,100 +270,9 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
   floor(batch, room.rect, accent, room.circulation);
   if (room.circulation) addCorridorName(group, room, accent);
   else addDepartmentMark(group, batch, room, accent);
-  for (const tile of tilesOf(room.rect))
-    for (const dir of DIRS) {
-      if (roomAt(spec, tile.x + dirX(dir), tile.z + dirZ(dir))?.id === room.id) continue;
-      const x = (tile.x + 0.5 + dirX(dir) / 2) * TILE,
-        z = (tile.z + 0.5 + dirZ(dir) / 2) * TILE;
-      const yaw = [0, -Math.PI / 2, Math.PI, Math.PI / 2][dir]!;
-      const local = (u: number, y: number, v: number): Triplet => [
-        x + Math.cos(yaw) * u + Math.sin(yaw) * v,
-        y,
-        z - Math.sin(yaw) * u + Math.cos(yaw) * v,
-      ];
-      const openingAt = (side: Dir): boolean =>
-        spec.doors.some(
-          (door) =>
-            (door.x === tile.x && door.z === tile.z && door.dir === side) ||
-            (door.x + dirX(door.dir) === tile.x &&
-              door.z + dirZ(door.dir) === tile.z &&
-              (door.dir + 2) % 4 === side),
-        ) ||
-        spec.windows.some(
-          (window) => window.x === tile.x && window.z === tile.z && window.dir === side,
-        );
-      const opening = openingAt(dir);
-      // **Die Ecke an einer Tür bleibt frei.** Seit die Tür eine ganze
-      // Kachelkante breit ist (`STATION_DOOR_W`), reicht ihre Öffnung bis in
-      // die Ecke; was an der Wand daneben hängt, ragte sonst in den
-      // Durchgang. `u` läuft für Wand `dir` auf die Ecke mit Wand `dir + 1`
-      // zu (`local`), also wird dort und am anderen Ende je ein Stück
-      // ausgelassen, wenn an dieser Ecke eine Tür steht.
-      const cut = 0.34;
-      const cutPlus = openingAt(((dir + 1) % 4) as Dir) ? cut : 0,
-        cutMinus = openingAt(((dir + 3) % 4) as Dir) ? cut : 0;
-      const span = (length: number): [number, number] => [
-        length - cutMinus - cutPlus,
-        (cutMinus - cutPlus) / 2,
-      ];
-      // Ein Pfosten je Meter Wand, an der Kante der Kachel: Die Pfosten der
-      // Nachbarkacheln stoßen aneinander und werden zusammen zu einem.
-      const face = PLAN_WALL_T / 2,
-        post = TILE / 2 - 0.05;
-      for (const u of [-post + cutMinus, post - cutPlus]) {
-        batch.box(SHIP.trim, [0.1, 2.2, 0.11], local(u, 1.15, face + 0.065), false, yaw);
-        // Angled shoulders and rounded conduit break the rectangular wall silhouette.
-        batch.box(SHIP.trim, [0.1, 0.28, 0.1], local(u, 2.42, face + 0.1), false, yaw, Math.PI / 5);
-      }
-      if (!opening) {
-        const panel = (colour: number, size: Triplet, y: number, depth: number): void => {
-          const [length, centre] = span(size[0]);
-          batch.box(colour, [length, size[1], size[2]], local(centre, y, face + depth), false, yaw);
-        };
-        panel(SHIP.hull, [TILE - 0.2, 1.41, 0.032], 1.365, 0.021);
-        // Broad department colour, inset seams and a kick plate make the ship's
-        // rooms readable at a glance, without adding decorative floor obstacles.
-        panel(accent, [TILE - 0.2, 0.29, 0.037], 0.705, 0.044);
-        panel(SHIP.dark, [TILE - 0.16, 0.2, 0.051], 0.18, 0.032);
-        panel(SHIP.trim, [TILE - 0.18, 0.11, 0.043], 0.42, 0.03);
-        panel(SHIP.dark, [TILE - 0.3, 0.075, 0.044], 1.84, 0.044);
-        // One small low-level status marker is visible during a total blackout.
-        batch.box(
-          accent,
-          [0.17, 0.015, 0.012],
-          local(-post + cutMinus + 0.23, 0.31, face + 0.055),
-          true,
-          yaw,
-        );
-      }
-      // Everything crossing the wall segment is above the actual door head.
-      batch.box(
-        SHIP.hull,
-        [TILE - 0.12, 0.13, 0.12],
-        local(0, PLAN_WALL_H - 0.19, face + 0.085),
-        false,
-        yaw,
-        Math.PI / 5,
-      );
-      batch.pipe(
-        SHIP.trim,
-        0.032,
-        TILE - 0.14,
-        local(0, PLAN_WALL_H - 0.42, face + 0.09),
-        dirX(dir) === 0,
-      );
-      if (opening) {
-        // The interactive door owns its red/green indicator. Hull art only
-        // supplies a neutral recess, so a locked door cannot still look green.
-        batch.box(
-          SHIP.dark,
-          [0.66, 0.14, 0.05],
-          local(0, PLAN_DOOR_H + 0.18, face + 0.063),
-          false,
-          yaw,
-        );
-      }
-    }
+  // **Die Wände kommen aus dem Regal** (`world3d/stationWalls.ts`): Pfosten,
+  // Paneele, Sturzleiste und Rohr, die hier je Kachelkante standen, sind weg.
+  // Die Tür zeichnet ihre Blätter und ihr Licht selbst (`ShipExperience`).
   const signText = room.circulation
     ? `${room.name.toUpperCase()}\nTRANSIT`
     : `${room.name.toUpperCase()}\n${MARKS[room.signature]}`;

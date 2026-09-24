@@ -232,6 +232,8 @@ export class App {
    * `null` — dann gilt die Einstellung (`core/appearance.ts`).
    */
   private worn: HeadgearKind | null = null;
+  /** Die Figur, die eine Welt dem Spieler gerade geliehen hat (`WorldContext.dress`). */
+  private dressed: string | null = null;
   /** 2D oder 3D am Bildschirm (`core/screenView.ts`). */
   private view: ScreenView = '3d';
   readonly avatars: RemoteAvatars;
@@ -513,6 +515,7 @@ export class App {
       },
       say: (text, options) => void this.say(text, options),
       wear: (kind) => this.wear(kind),
+      dress: (figure) => this.dress(figure),
       openWardrobe: () => this.openWardrobe(),
     };
   }
@@ -1630,8 +1633,14 @@ export class App {
     this.applyAppearance();
   }
 
+  private dress(figure: string | null): void {
+    this.dressed = figure;
+    this.applyAppearance();
+  }
+
   private applyAppearance(): void {
-    const look = { ...appearance(), hat: this.worn ?? appearance().hat };
+    const own = appearance();
+    const look = { ...own, hat: this.worn ?? own.hat, figure: this.dressed ?? own.figure };
     this.avatar.setLook(look);
     const known = this.net.look;
     if (

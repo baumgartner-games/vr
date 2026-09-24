@@ -534,6 +534,7 @@ export abstract class GridWorld extends PortalWorld {
     // unter ihnen wartet, geht jetzt aus dem Bild, samt seinem Bündel.
     this.plateArrived(OWN_FLOOR);
     this.buildGridLines();
+    this.gridRebuilt();
   }
 
   /**
@@ -553,6 +554,33 @@ export abstract class GridWorld extends PortalWorld {
   protected underOwnFloor(_solid: PlanSolid): boolean {
     return false;
   }
+
+  /**
+   * **Das Material eines Quaders** — voreingestellt das seiner Sorte.
+   *
+   * Eine Welt, die an einer Stelle des Grundrisses etwas anderes zeichnet (die
+   * Raumstation legt über ihre Wandläufe Wände aus dem Regal), gibt ihm hier
+   * ein eigenes, das sie später unsichtbar schalten kann. Körper, Ghosting und
+   * Bündel bleiben dieselben: Gebündelt wird ohnehin je Material.
+   */
+  protected solidMaterial(solid: PlanSolid): THREE.Material {
+    return this.materialFor(solid.kind);
+  }
+
+  /**
+   * **Ein Quader ist von oben gerade durchsichtig geworden** (oder nicht mehr)
+   * — für eine Welt, die an seiner Stelle ein eigenes Bild zeigt.
+   */
+  protected wallGhosted(_mesh: THREE.Mesh, _on: boolean): void {}
+
+  /**
+   * **Der Grundriss steht neu** — jeder Quader ist gebaut (`gridSolidBuilt`
+   * kam für jeden), die Bündel stehen. Voreingestellt passiert nichts.
+   */
+  protected gridRebuilt(): void {}
+
+  /** **Ein Quader aus dem Grundriss ist gebaut** — mit seinem Netz. */
+  protected gridSolidBuilt(_mesh: THREE.Mesh, _solid: PlanSolid): void {}
 
   /**
    * **Aus vielen gleichen Kästen werden wenige Zeichenaufrufe.**
@@ -1587,7 +1615,7 @@ export abstract class GridWorld extends PortalWorld {
     const portal = solid.portal ?? solid.kind === 'panel';
     const mesh = this.slab(
       parent,
-      this.materialFor(solid.kind),
+      this.solidMaterial(solid),
       [solid.w, solid.h, solid.d],
       [solid.x, solid.y, solid.z],
       portal,
@@ -1604,6 +1632,7 @@ export abstract class GridWorld extends PortalWorld {
     }
     this.slabs.push(mesh);
     this.rememberGhost(mesh, solid);
+    this.gridSolidBuilt(mesh, solid);
     // **Und ob an seiner Stelle einmal ein Modell steht** (`blocks.blockModel`).
     // Die Frage fällt hier und nicht erst bei der Ankunft der Datei: Gebündelt
     // wird gleich, unsichtbar wird der Quader frühestens ein paar hundert
@@ -1949,6 +1978,7 @@ export abstract class GridWorld extends PortalWorld {
   private rememberGhost(mesh: THREE.Mesh, solid: PlanSolid): void {
     const one: GhostSlab = {
       mesh,
+      base: mesh.material as THREE.Material,
       kind: solid.kind,
       floor: solid.kind === 'floor',
       box: { x: solid.x, y: solid.y, z: solid.z, w: solid.w, h: solid.h, d: solid.d },
@@ -2084,7 +2114,12 @@ export abstract class GridWorld extends PortalWorld {
   private setGhost(one: GhostSlab, on: boolean): void {
     if (one.on === on) return;
     one.on = on;
-    one.mesh.material = on ? this.ghostFor(one.kind) : this.materialFor(one.kind);
+    // **Ein Quader, der ohnehin nicht zu sehen ist, bleibt es** — auch
+    // durchsichtig: Seine Welt zeichnet an seiner Stelle etwas anderes
+    // (`solidMaterial`) und erfährt über `wallGhosted`, dass es jetzt
+    // durchsichtig sein soll.
+    one.mesh.material = on && one.base.visible ? this.ghostFor(one.kind) : one.base;
+    this.wallGhosted(one.mesh, on);
   }
 
   /**
@@ -2353,12 +2388,19 @@ export abstract class GridWorld extends PortalWorld {
   /** Für _Zurücksetzen_: der gespeicherte Umbau dieser Welt ist weg. */
   protected override forgetStored(): void {
     forgetWorld(this.worldId());
+    // Und diese Welt schreibt nichts mehr hinein: Sie wird gleich abgeräumt,
+    // und wer mit offener Karte geht, speichert dabei (`dispose`) — genau den
+    // Umbau, den _Zurücksetzen_ eben weggeworfen hat.
+    this.storeClosed = true;
   }
+
+  /** Nach _Zurücksetzen_: kein Speichern mehr aus dieser Welt (`forgetStored`). */
+  private storeClosed = false;
 
   /** Den Stand in den Browser schreiben. Sagt, ob es geklappt hat. */
   protected saveWorld(quiet = false): boolean {
     const plan = this.grid;
-    if (!plan) return false;
+    if (!plan || this.storeClosed) return false;
     const ok = keepWorld(this.worldId(), plan, { name: this.worldName() });
     if (!quiet) {
       this.announce(ok ? 'Welt gespeichert' : 'Kein Speicher da — nimm den Export');
@@ -2723,6 +2765,8 @@ const _turn = new THREE.Quaternion();
  */
 interface GhostSlab extends GhostCandidate {
   mesh: THREE.Mesh;
+  /** Das eigene Material des Quaders (`solidMaterial`) — dahin geht es zurück. */
+  base: THREE.Material;
   kind: PlanSolidKind;
   on: boolean;
 }

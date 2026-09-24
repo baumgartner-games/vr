@@ -133,6 +133,12 @@ export interface WorldContext {
    */
   wear(kind: HeadgearKind | null): void;
   /**
+   * **Gibt dem Spieler eine Figur** (`core/avatarFigures.ts`) — geliehen wie
+   * ein Hut über `wear`: `null` gibt ihm die eigene zurück. Die Raumstation
+   * steckt jeden in den Space Ranger. Optional, weil nur die App es kann.
+   */
+  dress?(figure: string | null): void;
+  /**
    * **Die Umkleide aufmachen** (`ui/WardrobeMenu.ts`).
    *
    * Sie gehört `App` und keiner Welt, aus demselben Grund wie das Aussehen

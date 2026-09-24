@@ -447,6 +447,26 @@ gelaufen wird, und gelaufen wird auf dem ganzen Gelände. Nur zu Fuß —
 `PlayerRig.wishing` ist der Merker, den alle vier Steuerungen setzen, und
 `seated` schließt das Kart aus.
 
+### Geliehen: eine Figur von der Welt, und der Raumhelm
+
+Eine Welt kann dem Spieler nicht nur einen Hut aufsetzen (`WorldContext.wear`),
+sondern auch **eine Figur leihen** (`WorldContext.dress`, seit September
+2026) — dieselbe Regel: `null` gibt die eigene zurück, gespeichert wird nichts
+(`App.dress`, `App.applyAppearance` legt beides über `appearance()`). Die
+Raumstation steckt den Techniker so in den **Space Ranger**
+(`avatarFigures.SPACE_RANGER`) und setzt ihm den **Raumhelm** auf
+(`HeadgearKind` `space`, hinten an die Liste gehängt, damit gespeicherte Hüte
+bleiben, was sie waren). Gewünscht war: _„Als Spieler-Charakter nutze bitte den
+Space Ranger mit Helm."_ Die Figur des Regals trägt keinen Helm; der liegt als
+eigenes Zubehör daneben (`…/SpaceRanger_Helmet.glb`). `headgear.fitSpaceHelmet`
+lädt ihn nach (bis dahin, und ohne die gekauften Pakete für immer, steht eine
+gebaute Kugel mit Visier da) und setzt ihn **am Kopfknochen einer Regalfigur
+genau so, wie er gebaut ist**: Zubehör und Figur haben dieselbe Einheit und
+ihren Ursprung am Knochen, also wird nur die Verschiebung und Skalierung der
+Hutgruppe (`headgearFor`) wieder herausgerechnet. Nach dem Kopfhalbmesser
+geschätzt saß er im großen Kopf der Figur und war unsichtbar. Auf dem gebauten
+Koch wird er wie jeder Hut nach dem Kopf eingepasst.
+
 ## Die Karte in der Hand
 
 Ein Werkzeug im Regal, das nichts tut außer zu sagen, wo man ist

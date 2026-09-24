@@ -20,6 +20,7 @@ import {
   tilesOf,
   APRON_INNER,
   APRON_OUTER,
+  COMMAND_LIFT,
   type HouseDoor,
   type HouseRoom,
   type HouseSpec,
@@ -30,6 +31,8 @@ import { housePlan } from './plan';
 import { flickerLevel, freshSpook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
 import { buildShip, buildCorridorBeacons, roomAccent, type StationBeacon } from './shipArt';
+import { StationWalls, wallRun, type WallRun } from './world3d/stationWalls';
+import { buttonPressed, DoorButtons, type ButtonDoor } from './world3d/doorButtons';
 import { buildActor, type ShipActor } from './actorArt';
 import { defaultLens, throughEyes, type WatchLens } from './watchLens';
 import { ShipExperience } from './ShipExperience';
@@ -175,7 +178,8 @@ import {
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
 import type { ToolChoice, WorldContext } from '../../core/types';
-import type { PlanSolidKind } from '../grid/solids';
+import type { PlanSolid, PlanSolidKind } from '../grid/solids';
+import type { PlateTile } from '../shared/plateField';
 import type { Handedness } from '../../core/XRInput';
 
 /**
@@ -717,6 +721,17 @@ export class HauntingWorld extends GridWorld {
    * von einer Tür, die zufällt: Nur die zweite macht ein Geräusch.
    */
   private builtDoors = '?';
+  /** Die Wandläufe dieses Neubaus, je Quader des Grundrisses (`gridSolidBuilt`). */
+  private wallRuns = new Map<THREE.Object3D, WallRun>();
+  /** Die Wände aus dem Regal über diesen Läufen (`world3d/stationWalls.ts`). */
+  private stationWalls: StationWalls | null = null;
+  /** Das Material der Wandquader — unsichtbar, sobald die Wände aus dem Regal stehen. */
+  private runMaterial: THREE.Material | null = null;
+  /** Die Knöpfe vor und hinter jeder Tür (`world3d/doorButtons.ts`). */
+  private doorButtons: DoorButtons | null = null;
+  private buttonDoors: ButtonDoor[] = [];
+  /** Auf welchen Türknöpfen gerade jemand steht — je Bild neu (`pressButtons`). */
+  private readonly pressedDoors = new Set<string>();
 
   // --- die Welt ------------------------------------------------------------
 
@@ -754,8 +769,12 @@ export class HauntingWorld extends GridWorld {
     return 0;
   }
 
+  /**
+   * Die Wand im Grau der Wand aus dem Regal: Tür- und Fensterteile bleiben
+   * gebaute Quader und stehen zwischen den Läufen aus `prototype-bits/Wall.glb`.
+   */
   protected override tint(): Partial<Record<PlanSolidKind, number>> {
-    return { floor: 0x3a4b58, wall: 0x728590, wood: 0x4c6370, door: 0x536d7b };
+    return { floor: 0x3a4b58, wall: 0x8b9099, wood: 0x4c6370, door: 0x536d7b };
   }
 
   /**
@@ -774,6 +793,47 @@ export class HauntingWorld extends GridWorld {
 
   protected override slidingGridDoors(): boolean {
     return true;
+  }
+
+  /**
+   * **Der Boden der Station ist die Bodenplatte aus dem Regal** — `Floor`,
+   * die erste der drei im Prototyp-Paket (`prototype-bits/Floor.glb`), eine je
+   * Kachel. Gewünscht war: _„Nutze als Floor innerhalb der Space Station bitte
+   * den Floor Floor, also der erste."_ Wie in der Testwelt verschwinden die
+   * Bodenquader darunter, sobald die Platten liegen (`GridWorld.plateArrived`);
+   * wo keine Kachel ist, ist Weltraum.
+   */
+  protected override floorPlate(_tile: PlateTile): string | null {
+    return STATION_FLOOR;
+  }
+
+  /** Die Wandläufe bekommen ein eigenes Material — es geht aus, wenn die Wände aus dem Regal stehen. */
+  protected override solidMaterial(solid: PlanSolid): THREE.Material {
+    const base = super.solidMaterial(solid);
+    if (!wallRun(solid)) return base;
+    this.runMaterial ??= base.clone();
+    return this.runMaterial;
+  }
+
+  protected override gridSolidBuilt(mesh: THREE.Mesh, solid: PlanSolid): void {
+    const run = wallRun(solid);
+    if (run) this.wallRuns.set(mesh, run);
+  }
+
+  /** Der Grundriss steht neu — also auch die Wände aus dem Regal darüber. */
+  protected override gridRebuilt(): void {
+    this.stationWalls?.dispose();
+    const runs = [...this.wallRuns].map(([solid, run]) => ({ solid, run }));
+    this.wallRuns = new Map();
+    const material = this.runMaterial;
+    if (material) material.visible = true;
+    this.stationWalls = new StationWalls(this.root, runs, () => {
+      if (material) material.visible = false;
+    });
+  }
+
+  protected override wallGhosted(mesh: THREE.Mesh, on: boolean): void {
+    this.stationWalls?.ghost(mesh, on);
   }
 
   /**
@@ -1072,6 +1132,12 @@ export class HauntingWorld extends GridWorld {
     // Ausnahme nicht und gäbe sie allen weg. `ShipActor.dispose` hält an der
     // richtigen Stelle an — und nimmt den Körper gleich aus `live` heraus.
     this.releaseActors();
+    this.doorButtons?.dispose();
+    this.doorButtons = null;
+    this.stationWalls?.dispose();
+    this.stationWalls = null;
+    this.runMaterial?.dispose();
+    this.runMaterial = null;
     dispose(this.stage);
     dispose(this.live);
     this.bloodShape?.dispose();
@@ -1105,6 +1171,8 @@ export class HauntingWorld extends GridWorld {
     this.experience?.dispose();
     this.experience = null;
     this.dropFixtures();
+    this.doorButtons?.dispose();
+    this.doorButtons = null;
     dispose(this.stage);
     this.lamps.clear();
     const art = buildShip(this.spec);
@@ -1134,9 +1202,39 @@ export class HauntingWorld extends GridWorld {
       beacon.root.userData.level = 1;
       this.stage.add(beacon.root);
     }
+    this.buttonDoors = [
+      ...this.spec.doors,
+      TEST_BAY_DOOR,
+      ...(this.state.crew.options.test ? [TRAINING_DOOR] : []),
+    ];
+    this.doorButtons = new DoorButtons(this.stage, this.buttonDoors);
     if (this.context) this.mountExperience(this.context);
     if (this.ui) this.buildDoorMarks();
     this.nextPhoneRender = 0;
+  }
+
+  /**
+   * **Wer auf einem Türknopf steht** — und die Knöpfe danach einfärben.
+   *
+   * Grün, solange die Tür aufgeht, rot, solange sie gesperrt ist
+   * (`doorLocked`); eingedrückt, wenn jemand darauf steht. Dieselben Bewohner
+   * wie bei der Automatik (`doorOccupants`), damit Knopf und Tür sich einig
+   * sind.
+   */
+  private pressButtons(): void {
+    const occupants = this.doorOccupants();
+    this.pressedDoors.clear();
+    for (const door of this.buttonDoors)
+      if (buttonPressed(door, occupants)) this.pressedDoors.add(door.id);
+    this.doorButtons?.update((id) => ({
+      locked: this.doorLocked(id),
+      pressed: this.pressedDoors.has(id),
+    }));
+  }
+
+  /** Ob eine Tür gesperrt ist — die Übungstür, solange kein Testdeck läuft. */
+  private doorLocked(id: string): boolean {
+    return id === TEST_BAY_DOOR.id ? !this.state.crew.options.test : this.state.shut.includes(id);
   }
 
   private buildFixtureColliders(): void {
@@ -1185,10 +1283,12 @@ export class HauntingWorld extends GridWorld {
       usable: (object, usable, options) => this.addUsable(object, usable, options),
       unusable: (object) => this.removeUsable(object),
       round: () => this.rules.status(this.state),
+      // **Die Blätter fahren erst auf, wenn jemand auf dem Knopf steht**
+      // (`pressButtons`) — rein fürs Auge: Durchlassen tut die Automatik.
       doorOpen: (id) =>
-        id === 'test-bay' ? this.state.crew.options.test : this.automaticDoors.isOpen(id),
-      doorLocked: (id) =>
-        id === 'test-bay' ? !this.state.crew.options.test : this.state.shut.includes(id),
+        (id === 'test-bay' ? this.state.crew.options.test : this.automaticDoors.isOpen(id)) &&
+        this.pressedDoors.has(id),
+      doorLocked: (id) => this.doorLocked(id),
       travel: (at, yaw) => this.movePlayerTo(ctx, at, yaw),
       equip: (id, hand) => {
         if (id === 'off') this.stowCarriedTool(hand);
@@ -1718,6 +1818,8 @@ export class HauntingWorld extends GridWorld {
     if (this.isHost && !this.waitingHandover && ctx.role === 'vr') this.stepKernel(dt, ctx);
     else if (this.kernelLoco) this.kernelLoco.active = false;
     this.applyDoors(dt);
+    this.pressButtons();
+    this.stationWalls?.setTopDown(ctx.topDown);
     this.applyLights(dt);
     this.cullRoomArt(dt, ctx);
     this.applyBlob(dt);
@@ -4260,3 +4362,12 @@ function describeSeat(setup: RoundSetup, seat: SeatId): string {
   );
   return held.length ? held.join(' + ') : 'keine Fähigkeit';
 }
+
+/** Die Bodenplatte der Station (`floorPlate`): die erste im Prototyp-Paket. */
+export const STATION_FLOOR = 'prototype-bits/Floor.glb';
+
+/**
+ * Die Tür zum Aufzug ins Testdeck, wie der Plan sie setzt (`plan.housePlan`:
+ * nach Westen aus der ersten Kachel des Schachts). Offen nur mit Testdeck.
+ */
+const TEST_BAY_DOOR: ButtonDoor = { id: 'test-bay', x: COMMAND_LIFT.x, z: COMMAND_LIFT.z, dir: 3 };

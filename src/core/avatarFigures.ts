@@ -128,6 +128,10 @@ export const FIGURE_MAX_HEIGHT = 2.4;
  * Sie haben andere Verhältnisse und gehören in den Nahkampf, nicht in die
  * Küche.
  */
+/** Der Space Ranger — die Figur der Raumstation (`worlds/haunting/ShipExperience`). */
+export const SPACE_RANGER =
+  'mystery-monthly-4/7-january-2024-space-ranger/character/SpaceRanger.glb';
+
 export const FIGURE_KINDS: readonly FigureKind[] = [
   {
     path: FIGURE_CHEF,
@@ -196,7 +200,7 @@ export const FIGURE_KINDS: readonly FigureKind[] = [
     height: FIGURE_HEIGHT,
   },
   {
-    path: 'mystery-monthly-4/7-january-2024-space-ranger/character/SpaceRanger.glb',
+    path: SPACE_RANGER,
     label: 'Space Ranger',
     sub: 'Raumanzug mit Helm',
     height: FIGURE_HEIGHT,
