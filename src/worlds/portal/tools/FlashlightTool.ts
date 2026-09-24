@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { stopAtWalls } from '../../shared/wallLight';
 import { Tool, disposeToolTree, grabMaterial, type ToolHost } from './Tool';
 import { quatFromEulerXYZ } from './toolPose';
 import { GRAB_GLOW, GRAB_TINT } from '../../../core/colors';
@@ -176,6 +177,9 @@ export class FlashlightTool extends Tool {
 
     this.beam = new THREE.SpotLight(0xfff1cf, 0, beamRange(this.angle), 0, 0.45, 1.6);
     this.beam.position.set(0, 0, LENS_Z);
+    // Der Kegel hört an der Wand auf (`shared/wallLight.ts`) — und das eigene
+    // Gehäuse, die Hand dahinter, wirft keinen Schatten in ihn.
+    stopAtWalls(this.beam, 512, 0.12);
     this.add(this.beam);
     // A spot light shines at its target, so the target rides in front of it.
     this.beam.target.position.set(0, 0, LENS_Z - 1);

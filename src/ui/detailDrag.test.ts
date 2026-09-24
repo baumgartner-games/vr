@@ -66,6 +66,13 @@ describe('Ein Wisch über der Vorschau', () => {
     expect(half.yaw).toBeCloseTo(Math.PI, 6);
   });
 
+  it('dreht das Modell mit dem Finger — die Kamera wandert dafür dagegen', () => {
+    // Nach rechts gewischt, wird der Kamerawinkel kleiner: So dreht sich das
+    // Modell nach rechts mit. Vorher war es genau andersherum (gemeldet).
+    const right = detailDrag({ yaw: 1, pitch: 0, zoom: 1 }, 20, 0, 390, 800);
+    expect(right.yaw).toBeLessThan(1);
+  });
+
   it('kippt senkrecht und hält dabei an', () => {
     const up = detailDrag({ yaw: 0, pitch: 0, zoom: 1 }, 0, 4000, 390, 800);
     expect(up.pitch).toBe(DETAIL_TILT_MAX);

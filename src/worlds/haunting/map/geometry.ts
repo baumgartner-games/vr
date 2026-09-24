@@ -8,6 +8,8 @@ import {
   type HouseRoom,
   type HouseSpec,
   type Rect,
+  doorMiddle,
+  doorWidth,
 } from '../house';
 import { COMMAND } from '../roomGraph';
 import { stationLayout, type FloorBounds } from '../stationLayout';
@@ -61,11 +63,10 @@ export function rectCentre(rect: Rect): MapPoint {
 }
 
 /** Wo die Mitte einer Türöffnung liegt — auf der Wand, nicht auf der Kachel. */
-export function doorCentre(door: Pick<HouseDoor, 'x' | 'z' | 'dir'>): MapPoint {
-  return {
-    x: (door.x + 0.5 + dirX(door.dir) * 0.5) * TILE,
-    z: (door.z + 0.5 + dirZ(door.dir) * 0.5) * TILE,
-  };
+export function doorCentre(door: Pick<HouseDoor, 'x' | 'z' | 'dir' | 'span'>): MapPoint {
+  // Bei einer Tür über zwei Kacheln die Fuge zwischen beiden
+  // (`house.doorMiddle`); ein Fenster hat keine `span` und ist eine Kante.
+  return doorMiddle(door);
 }
 
 /**
@@ -166,7 +167,8 @@ export function wallSegments(spec: HouseSpec): MapSegment[] {
         const across = axis === 'x' ? centre.z : centre.x;
         if (Math.abs(across - edge.at) > 1e-6) continue;
         const along = axis === 'x' ? centre.x : centre.z;
-        gaps.push({ from: along - DOOR_WIDTH / 2, to: along + DOOR_WIDTH / 2, kind: 'wall' });
+        const half = doorWidth(door) / 2;
+        gaps.push({ from: along - half, to: along + half, kind: 'wall' });
       }
       for (const window of spec.windows) {
         if (window.roomId !== room.id) continue;
@@ -407,8 +409,8 @@ export function walkable(
 function openingAlong(spec: HouseSpec, shut: readonly string[], door: HouseDoor): [number, number] {
   const centre = doorCentre(door);
   const axis = doorAxis(door.dir);
-  let from = -DOOR_WIDTH / 2;
-  let to = DOOR_WIDTH / 2;
+  let from = -doorWidth(door) / 2;
+  let to = doorWidth(door) / 2;
   const neighbours = spec.doors.filter((other) => {
     if (other === door || shut.includes(other.id) || doorAxis(other.dir) !== axis) return false;
     const at = doorCentre(other);
@@ -417,17 +419,17 @@ function openingAlong(spec: HouseSpec, shut: readonly string[], door: HouseDoor)
   });
   const offsets = neighbours.map((other) => {
     const at = doorCentre(other);
-    return axis === 'x' ? at.x - centre.x : at.z - centre.z;
+    return { at: axis === 'x' ? at.x - centre.x : at.z - centre.z, half: doorWidth(other) / 2 };
   });
   let grew = true;
   while (grew) {
     grew = false;
-    for (const offset of offsets) {
-      if (Math.abs(offset - DOOR_WIDTH / 2 - to) < 1e-6) {
-        to = offset + DOOR_WIDTH / 2;
+    for (const { at: offset, half } of offsets) {
+      if (Math.abs(offset - half - to) < 1e-6) {
+        to = offset + half;
         grew = true;
-      } else if (Math.abs(offset + DOOR_WIDTH / 2 - from) < 1e-6) {
-        from = offset - DOOR_WIDTH / 2;
+      } else if (Math.abs(offset + half - from) < 1e-6) {
+        from = offset - half;
         grew = true;
       }
     }

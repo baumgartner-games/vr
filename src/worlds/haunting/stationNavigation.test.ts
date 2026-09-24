@@ -1,7 +1,7 @@
 import { PLAN_DOOR_H } from '../editor/levelPlan';
 import { TILE, tileKey, type TileKey } from '../nav/navTile';
 import { routeLength, stepAlong, type RoutePose } from './navmesh/route';
-import { generateHouse, roomCentre, roomOf, type HouseSpec } from './house';
+import { doorEdges, generateHouse, roomCentre, roomOf, type HouseSpec } from './house';
 import { housePlan } from './plan';
 import { stationRoute } from './stationNavigation';
 import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
@@ -129,13 +129,13 @@ test('closing the front door invalidates the cached path; reopening restores it'
   const goal = goalFor(spec, spec.entryRoom);
   const door = spec.doors.find((d) => d.id === spec.frontDoor)!;
   expect(stationRoute(spec, plan.graph, from, goal).complete).toBe(true);
-  plan.door(door.x, door.z, door.dir, 0, false);
+  for (const edge of doorEdges(door)) plan.door(edge.x, edge.z, edge.dir, 0, false);
   const closed = stationRoute(spec, plan.graph, from, goal);
   expect(closed.grounded).toBe(true);
   expect(closed.complete).toBe(false);
   // Die Zentrale liegt nördlich der Schleuse: Der Teilweg bleibt davor.
   expect(closed.points!.every((p) => p.z < door.z * TILE)).toBe(true);
-  plan.door(door.x, door.z, door.dir, 0, true);
+  for (const edge of doorEdges(door)) plan.door(edge.x, edge.z, edge.dir, 0, true);
   expect(stationRoute(spec, plan.graph, from, goal).complete).toBe(true);
 });
 

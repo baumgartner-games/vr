@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CARGO_MODEL, dressCabinet, LOCKER_MODEL } from './world3d/stationProps';
 import type { MarkId } from './house';
 import {
   CARGO_BAND_COLORS,
@@ -521,6 +522,8 @@ function cabinet(safety: boolean, mark?: CargoMark): CabinetModel {
   door.add(details.build('door-hardware'));
   root.add(door);
   if (!safety && mark) root.add(markBand(mark, w, h, d));
+  // Das Modell aus dem Regal an die Stelle des Gebauten (`world3d/stationProps.ts`).
+  dressCabinet(root, door, safety ? LOCKER_MODEL : CARGO_MODEL, size);
   return {
     root,
     door,

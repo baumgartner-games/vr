@@ -351,7 +351,24 @@ export const WALL_OVERLAP = 0.05;
  * —, hinge sonst schief in seinem eigenen Kasten und läge auf dem Boden halb
  * darin.
  */
-export function modelPropShape(model: THREE.Object3D, label: string): ModelBlueprint {
+/**
+ * **Durchgänge, durch die man geht** — die Öffnung als Anteil des Stücks
+ * (`tools/prototype-variants.mjs`): halbe Breite der Öffnung durch halbe
+ * Breite des Stücks, Oberkante der Öffnung durch seine Höhe. Ein Durchgang als
+ * voller Kasten war eine Wand mit aufgemaltem Loch — gemeldet: _„Wall_Doorway
+ * sollte bei der Bounding Box angepasst werden bzw. dass man durchgehen
+ * kann."_
+ */
+export const MODEL_ARCHES: Readonly<Record<string, { open: number; top: number }>> = {
+  'prototype-bits/Wall_Doorway.glb': { open: 0.8, top: 0.75 },
+  'prototype-bits/Wall_Doorway_Wide.glb': { open: 0.9, top: 0.75 },
+};
+
+export function modelPropShape(
+  model: THREE.Object3D,
+  label: string,
+  path: string | null = null,
+): ModelBlueprint {
   const object = new THREE.Group();
   object.name = 'prop-model';
   model.updateMatrixWorld(true);
@@ -369,10 +386,13 @@ export function modelPropShape(model: THREE.Object3D, label: string): ModelBluep
     .multiplyScalar(0.5)
     .max(new THREE.Vector3(MODEL_HALF_MIN, MODEL_HALF_MIN, MODEL_HALF_MIN));
   const volume = halfExtents.x * halfExtents.y * halfExtents.z * 8;
+  const arch = path === null ? undefined : MODEL_ARCHES[path];
   return {
     object,
     mass: THREE.MathUtils.clamp(volume * MODEL_DENSITY, MODEL_MASS_MIN, MODEL_MASS_MAX),
-    shape: { kind: 'box' },
+    shape: arch
+      ? { kind: 'arch', ...arch, along: halfExtents.x >= halfExtents.z ? 'x' : 'z' }
+      : { kind: 'box' },
     halfExtents,
     label,
     tread,

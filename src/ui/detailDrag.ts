@@ -112,7 +112,10 @@ export function detailDrag(
   const across = width > 0 ? dx / width : 0;
   const along = height > 0 ? dy / height : 0;
   return {
-    yaw: wrap(pose.yaw + across * DETAIL_SPIN),
+    // **Minus**: `yaw` ist der Winkel der Kamera um das Modell. Wer nach rechts
+    // wischt, will das Modell nach rechts drehen — die Kamera muss dafür nach
+    // links wandern. Mit Plus drehte es sich genau falsch herum (gemeldet).
+    yaw: wrap(pose.yaw - across * DETAIL_SPIN),
     pitch: clampTilt(pose.pitch + along * DETAIL_TILT),
     zoom: pose.zoom,
   };

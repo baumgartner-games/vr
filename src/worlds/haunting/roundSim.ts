@@ -1,4 +1,4 @@
-import { generateHouse, onApron, type HouseSpec } from './house';
+import { doorWidth, generateHouse, onApron, type HouseSpec } from './house';
 import { TILE } from '../nav/navTile';
 import {
   ENTITY_PROFILES,
@@ -28,7 +28,7 @@ import { DEFAULT_TUNING, type BotTuning } from './botTuning';
 import { HEARING, Hearing, reachOf, type HearingWorld } from './audio/hearing';
 import { NOISE } from './audio/cues';
 import { roomsOf, wallsOf } from './map/extract';
-import { DOOR_WIDTH, doorAxis, doorCentre } from './map/geometry';
+import { doorAxis, doorCentre } from './map/geometry';
 import { VentNet } from './vents/ventGraph';
 import { CREW_SIZE, SEAL_HOLD, askSeal, commandLag, dueSeal, freshSeal } from './rules/doorSeal';
 
@@ -129,7 +129,7 @@ export function hearingWorld(seed: number): HearingWorld {
         b: door.b ?? COMMAND,
         at: doorCentre(door),
         axis: doorAxis(door.dir),
-        width: DOOR_WIDTH,
+        width: doorWidth(door),
         open: false,
         locked: false,
         material: door.material,

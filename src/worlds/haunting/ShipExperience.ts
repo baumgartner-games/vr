@@ -40,7 +40,10 @@ import { MirrorSurface } from '../shared/Mirror';
 import { ShipEffects } from './ShipEffects';
 import { CONDENSATION_FRAGMENT } from './helmetCondensation';
 import { PLAN_DOOR_H } from '../editor/levelPlan';
-import { TILE, dirX, dirZ } from '../nav/navTile';
+import { TILE, dirX } from '../nav/navTile';
+import { canLoadModels } from '../../core/chefFit';
+import { LIFT_DOOR } from './plan';
+import { CONSOLE_MODEL, dressProp } from './world3d/stationProps';
 import { DEFAULT_LIGHTING, lightingPreset, type BotLighting } from './botLighting';
 import {
   MONSTER_FIELDS,
@@ -70,6 +73,8 @@ import {
   type HouseRoom,
   type HouseSpec,
   STATION_DOOR_W,
+  doorMiddle,
+  doorWidth,
 } from './house';
 import { HauntingComfort } from './HauntingComfort';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
@@ -218,19 +223,19 @@ interface Locker {
 /** Wie durchsichtig der Schrank von innen ist — ein Geist, kein Glas. */
 const LOCKER_GHOST_OPACITY = 0.28;
 /** Ein Segment des Schiebeblatts: wo es zu steht und wie weit es beim Öffnen fährt. */
+/** Ein Türblatt: das Gelenk an der Zarge, und in welche Richtung es aufschwingt. */
 interface DoorLeaf {
-  mesh: THREE.Mesh;
-  rest: number;
-  travel: number;
+  pivot: THREE.Group;
+  swing: number;
 }
 interface Door {
   id: string;
   /**
-   * **Vier Segmente, zwei je Seite, teleskopisch** (Paket „Eine Türbreite"):
-   * Die Öffnung ist so breit wie eine Kachel abzüglich Wand
-   * (`STATION_DOOR_W`), der Pfosten daneben nur `PLAN_WALL_T` breit. Ein
-   * Blatt von halber Türbreite fände darin keinen Platz; zwei Viertel je
-   * Seite schieben sich übereinander und dann in Pfosten und Wand.
+   * **Die Blätter aus dem Regal** (`DOOR_LEAF`, `prototype-bits/Door_A_Metal`):
+   * zwei in einem Durchgang über zwei Kacheln, eins in einem schmalen, jedes
+   * am Gelenk an seiner Zarge, und sie schwingen zur selben Seite auf. Vorher
+   * fuhren vier gebaute Segmente teleskopisch in die Wand — gewünscht war,
+   * in der Station nichts Eigenes zu bauen, was es im Regal gibt.
    */
   leaves: DoorLeaf[];
   amount: number;
@@ -1546,9 +1551,14 @@ export class ShipExperience {
     const g = new THREE.Group();
     g.position.copy(at);
     g.rotation.y = yaw;
-    this.mesh([1.18, 0.16, 0.5], SHIP.trim, g, [0, 0.08, 0]);
-    this.mesh([0.58, 0.62, 0.32], SHIP.dark, g, [0, 0.44, -0.05]);
-    this.mesh([1.18, 0.95, 0.24], SHIP.trim, g, [0, 1.16, 0]);
+    const built = [
+      this.mesh([1.18, 0.16, 0.5], SHIP.trim, g, [0, 0.08, 0]),
+      this.mesh([0.58, 0.62, 0.32], SHIP.dark, g, [0, 0.44, -0.05]),
+      this.mesh([1.18, 0.95, 0.24], SHIP.trim, g, [0, 1.16, 0]),
+    ];
+    // Unterbau aus dem Regal (`world3d/stationProps.ts`); der Bildschirm mit
+    // dem Rätsel bleibt, er ist die Konsole.
+    dressProp(g, CONSOLE_MODEL, { width: 1.18, height: 0.8, depth: 0.5 }, built);
     const screen = this.screen(1.05, 0.83);
     screen.mesh.position.set(0, 1.16, 0.125);
     g.add(screen.mesh);
@@ -1696,64 +1706,88 @@ export class ShipExperience {
     this.paint();
   }
 
+  /**
+   * **Die Blätter einer Tür** — eins je Kachel der Öffnung, am Gelenk an der
+   * Zarge; das Modell aus dem Regal kommt nach (`DOOR_LEAF`). Solange es
+   * unterwegs ist, und ohne die gekauften Pakete, steht ein schlichtes Blatt
+   * an seiner Stelle.
+   */
+  private doorLeaves(group: THREE.Group, width: number): DoorLeaf[] {
+    const count = width > STATION_DOOR_W + 1e-6 ? 2 : 1;
+    // Die Öffnung des Durchgangs: zwei Kacheln abzüglich der Zarge (0,1 m je
+    // Seite, `tools/prototype-variants.mjs`), eine Kachel abzüglich 0,2 m.
+    const opening = count === 2 ? width - 0.2 : width - 0.2;
+    const leafWidth = opening / count;
+    const leaves: DoorLeaf[] = [];
+    for (let i = 0; i < count; i++) {
+      const pivot = new THREE.Group();
+      pivot.name = 'door-leaf';
+      // Links das Gelenk bei −Öffnung/2, das Blatt läuft nach +x; rechts
+      // gespiegelt — um 180° gedreht und nicht mit negativem Maßstab, sonst
+      // stünden die Flächen verkehrt herum.
+      const left = i === 0;
+      const hinge = new THREE.Group();
+      hinge.position.x = left ? -opening / 2 : opening / 2;
+      if (!left) hinge.rotation.y = Math.PI;
+      hinge.add(pivot);
+      group.add(hinge);
+      const stand = this.mesh([leafWidth - 0.02, PLAN_DOOR_H - 0.02, 0.06], 0x6f7780, pivot, [
+        leafWidth / 2,
+        PLAN_DOOR_H / 2,
+        0,
+      ]);
+      stand.name = 'door-leaf-stand-in';
+      leaves.push({ pivot, swing: left ? -1 : 1 });
+      if (canLoadModels()) void this.fitDoorLeaf(pivot, stand, leafWidth);
+    }
+    return leaves;
+  }
+
+  /** Das Türblatt aus dem Regal in sein Gelenk: gemessen, auf Blattbreite und Türhöhe gebracht. */
+  private async fitDoorLeaf(
+    pivot: THREE.Group,
+    stand: THREE.Object3D,
+    width: number,
+  ): Promise<void> {
+    const { kaykitModel } = await import('../../core/kaykitModel');
+    const model = await kaykitModel(DOOR_LEAF);
+    if (!model || this.disposed) return;
+    model.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(model);
+    const wide = box.max.x - box.min.x;
+    const high = box.max.y - box.min.y;
+    if (!(wide > 1e-6) || !(high > 1e-6)) return;
+    model.scale.x *= width / wide;
+    model.scale.y *= PLAN_DOOR_H / high;
+    model.updateMatrixWorld(true);
+    box.setFromObject(model);
+    model.position.set(-box.min.x, -box.min.y, -(box.min.z + box.max.z) / 2);
+    pivot.add(model);
+    stand.visible = false;
+  }
+
   private buildDoors(): void {
     const occupied = new Set<string>();
     for (const d of [
       ...this.host.spec().doors,
-      { id: 'test-bay', x: 2, z: 4, dir: 3 as const },
+      LIFT_DOOR,
       ...(this.crew.options.test ? [TRAINING_DOOR] : []),
     ]) {
       const g = new THREE.Group();
       g.name = `door-${d.id}`;
-      g.position.set(
-        (d.x + 0.5 + dirX(d.dir) * 0.5) * TILE,
-        0,
-        (d.z + 0.5 + dirZ(d.dir) * 0.5) * TILE,
-      );
+      const middle = doorMiddle(d);
+      g.position.set(middle.x, 0, middle.z);
       g.rotation.y = dirX(d.dir) === 0 ? 0 : Math.PI / 2;
       const boundary = `${g.position.x}:${g.position.z}:${g.rotation.y}`;
       if (occupied.has(boundary)) continue;
       occupied.add(boundary);
+      // **Die Farbe der Tür zeigen die Knöpfe davor** (`world3d/doorButtons.ts`):
+      // grün oder rot. Das Material bleibt als Merker, ohne Netz daran.
       const light = new THREE.MeshBasicMaterial({ color: 0x91ffd0, toneMapped: false });
-      const housing = this.mesh([STATION_DOOR_W + 0.2, 0.15, 0.2], SHIP.dark, g, [
-        0,
-        PLAN_DOOR_H + 0.12,
-        0,
-      ]);
-      housing.name = `door-status-${d.id}`;
-      for (const side of [-1, 1]) {
-        const bar = new THREE.Mesh(
-          new THREE.BoxGeometry(STATION_DOOR_W * 0.67, 0.065, 0.015),
-          light,
-        );
-        bar.position.set(0, 0, side * 0.109);
-        housing.add(bar);
-      }
-      const leaves: DoorLeaf[] = [];
-      const quarter = STATION_DOOR_W / 4;
-      for (const side of [-1, 1]) {
-        // Innen (an der Fuge) und außen (am Pfosten): Beide fahren beim
-        // Öffnen in den Pfosten — das innere die ganze Breite, das äußere die
-        // halbe — und liegen dann übereinander.
-        for (const [rest, travel, depth] of [
-          [side * quarter * 0.5, side * STATION_DOOR_W, 0],
-          [side * quarter * 1.5, side * (STATION_DOOR_W / 2), 0.03],
-        ] as const) {
-          const m = this.mesh([quarter, PLAN_DOOR_H - 0.04, 0.14 - depth * 2], 0x617781, g, [
-            rest,
-            PLAN_DOOR_H / 2,
-            depth,
-          ]);
-          this.mesh([0.035, PLAN_DOOR_H - 0.18, 0.16 - depth * 2], SHIP.dark, m, [
-            -side * (quarter / 2) + side * 0.05,
-            0,
-            0,
-          ]);
-          leaves.push({ mesh: m, rest, travel });
-        }
-      }
+      const width = 'span' in d ? doorWidth(d) : STATION_DOOR_W;
+      const leaves = this.doorLeaves(g, width);
       const panel = this.screen(0.34, 0.36);
-      panel.mesh.position.set(STATION_DOOR_W / 2 + 0.2, 1.25, 0.18);
+      panel.mesh.position.set(width / 2 + 0.2, 1.25, 0.18);
       g.add(panel.mesh);
       panel.mesh.userData.interactionLabel = 'E: Schiebetür bedienen';
       const back = panel.mesh.clone();
@@ -2159,7 +2193,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       door.light.color.setHex(locked ? 0xff5267 : 0x78ffd0);
       const before = door.amount;
       door.amount += Math.sign(goal - before) * Math.min(Math.abs(goal - before), dt * 2.5);
-      for (const leaf of door.leaves) leaf.mesh.position.x = leaf.rest + door.amount * leaf.travel;
+      for (const leaf of door.leaves) leaf.pivot.rotation.y = door.amount * leaf.swing * DOOR_SWING;
     }
     // **Der Saum sitzt auf der Zielkiste** — aber nur, wenn die Kiste
     // überhaupt verraten werden darf: Bei einem Menschen am Archiv nennt
@@ -3742,3 +3776,8 @@ function buildLockerSlits(): THREE.Group {
 function actionKey(text: string, action: string): HTMLButtonElement {
   return uiKey('', { text, data: { action } });
 }
+
+/** Das Türblatt der Station aus dem Regal: `Door_A` in Grau, so hoch wie der Bogen. */
+const DOOR_LEAF = 'prototype-bits/Door_A_Metal.glb';
+/** Wie weit ein Blatt aufschwingt — knapp eine Vierteldrehung. */
+const DOOR_SWING = Math.PI * 0.48;

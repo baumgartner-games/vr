@@ -51,7 +51,9 @@ describe('Wo man stehen darf', () => {
     const room = spec.rooms[0]!;
     const centre = rectCentre(room.rect);
     expect(walkable(spec, [], centre, 0.35)).toBe(true);
-    const onWall = { x: room.rect.x * TILE, z: centre.z };
+    // An der Westwand, eine Kachel vor der Ecke — mitten auf der Wand kann
+    // seit den breiten Türen (`house.STATION_DOOR_SPAN`) eine Öffnung sein.
+    const onWall = { x: room.rect.x * TILE, z: (room.rect.z + 1.5) * TILE };
     expect(walkable(spec, [], onWall, 0.35)).toBe(false);
     const door = spec.doors.find((d) => d.b)!;
     expect(walkable(spec, [], doorCentre(door), 0.35)).toBe(true);

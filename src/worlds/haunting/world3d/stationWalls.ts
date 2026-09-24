@@ -117,11 +117,34 @@ export function runPieces(run: WallRun): WallPiece[] {
   return pieces;
 }
 
+/**
+ * **Ein Durchgang oder ein Fenster aus dem Regal** an einer Stelle der Station
+ * — in seiner eigenen Größe (`kaykitFit.KAYKIT_FILE_SCALE`), mit der Mitte auf
+ * der Kante, längs der Wand gedreht. `solids` sind die Quader des Grundrisses,
+ * die an seiner Stelle stehen (Sturz, Brüstung, Pfosten): Wird einer davon von
+ * oben durchsichtig, wird es das Stück auch.
+ */
+export interface StationFeature {
+  path: string;
+  x: number;
+  z: number;
+  alongX: boolean;
+  base: number;
+  solids: THREE.Object3D[];
+}
+
+/** Ein Teil eines Stücks: eine Geometrie mit ihrem Material, auf null gestellt. */
+interface UnitPart {
+  geometry: THREE.BufferGeometry;
+  /** Vom Netz der Datei in das auf null gestellte Stück. */
+  matrix: THREE.Matrix4;
+  /** Der Name des Materials — gleich benannte teilen sich eines (`prototype_texture`, `glass`). */
+  material: string;
+}
+
 /** Ein Stück aus dem Regal, auf null gestellt: Mitte in x und z, Unterkante auf null. */
 interface Unit {
-  geometry: THREE.BufferGeometry;
-  /** Vom Netz der Datei in dieses auf null gestellte Stück. */
-  matrix: THREE.Matrix4;
+  parts: UnitPart[];
   /** Länge (x) und Höhe (y) in Metern. */
   length: number;
   height: number;
@@ -133,39 +156,42 @@ const _t = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
 
-/** Die Wände einer Station — geladen, gebaut, und beim Umbau wieder weg. */
+/** Die Wände, Durchgänge und Fenster einer Station — geladen, gebaut, und beim Umbau wieder weg. */
 export class StationWalls {
   private readonly group = new THREE.Group();
-  /** Von oben: ein Netz je Lauf, geschlüsselt nach dem Quader, über dem es steht. */
-  private readonly single = new Map<THREE.Object3D, THREE.Mesh>();
+  /** Von oben: eine Gruppe je Lauf oder Stück, geschlüsselt nach den Quadern darunter. */
+  private readonly single = new Map<THREE.Object3D, THREE.Group>();
   /** Aus den Augen: die verschmolzenen Felder. */
   private readonly merged: THREE.Mesh[] = [];
   private readonly ghosts = new ModelGhosts(0.25);
-  private readonly faded = new Set<THREE.Object3D>();
+  /** Welche Quader einer Gruppe gerade durchsichtig sind. */
+  private readonly faded = new Map<THREE.Group, Set<THREE.Object3D>>();
   private readonly owned: { dispose(): void }[] = [];
   private gone = false;
   private topDown: boolean | null = null;
 
   /**
-   * @param runs    die Läufe, jeder mit dem Quader des Grundrisses, der ihn trägt
-   * @param ready   gerufen, sobald die Wände wirklich dastehen — dann dürfen
-   *                die Quader aus dem Bild
+   * @param runs     die Läufe, jeder mit dem Quader des Grundrisses, der ihn trägt
+   * @param features Durchgänge und Fenster (`StationFeature`)
+   * @param ready    gerufen, sobald alles wirklich dasteht — dann dürfen die
+   *                 Quader aus dem Bild
    */
   constructor(
     root: THREE.Object3D,
     private readonly runs: readonly { solid: THREE.Object3D; run: WallRun }[],
+    private readonly features: readonly StationFeature[],
     private readonly ready: () => void,
   ) {
     this.group.name = 'station-walls';
     this.group.userData.level = 0;
     root.add(this.group);
-    if (!canLoadModels() || runs.length === 0) return;
+    if (!canLoadModels() || runs.length + features.length === 0) return;
+    const paths = [
+      ...new Set([STATION_WALL, STATION_WALL_HALF, ...features.map((one) => one.path)]),
+    ];
     void import('../../../core/kaykitModel').then(async (module) => {
-      const [full, half] = await Promise.all([
-        module.kaykitModel(STATION_WALL),
-        module.kaykitModel(STATION_WALL_HALF),
-      ]);
-      this.build(full, half);
+      const models = await Promise.all(paths.map((path) => module.kaykitModel(path)));
+      this.build(new Map(paths.map((path, i) => [path, models[i] ?? null])));
     });
   }
 
@@ -173,21 +199,24 @@ export class StationWalls {
   setTopDown(on: boolean): void {
     if (this.topDown === on) return;
     this.topDown = on;
-    for (const mesh of this.single.values()) mesh.visible = on;
+    for (const group of new Set(this.single.values())) group.visible = on;
     for (const mesh of this.merged) mesh.visible = !on;
     if (!on) this.ghost(null, false);
   }
 
-  /** Der Lauf über diesem Quader ist gerade durchsichtig — oder nicht mehr. */
+  /** Der Quader `solid` ist gerade durchsichtig — oder nicht mehr; sein Stück folgt ihm. */
   ghost(solid: THREE.Object3D | null, on: boolean): void {
     if (solid === null) this.faded.clear();
     else {
-      const mesh = this.single.get(solid);
-      if (!mesh) return;
-      if (on) this.faded.add(mesh);
-      else this.faded.delete(mesh);
+      const group = this.single.get(solid);
+      if (!group) return;
+      const set = this.faded.get(group) ?? new Set<THREE.Object3D>();
+      if (on) set.add(solid);
+      else set.delete(solid);
+      if (set.size) this.faded.set(group, set);
+      else this.faded.delete(group);
     }
-    this.ghosts.apply(this.faded);
+    this.ghosts.apply(this.faded.keys());
   }
 
   dispose(): void {
@@ -200,52 +229,100 @@ export class StationWalls {
     this.group.removeFromParent();
   }
 
-  private build(full: THREE.Object3D | null, half: THREE.Object3D | null): void {
-    const wall = full ? unitOf(full) : null;
-    const short = half ? unitOf(half) : null;
-    const material = full ? materialOf(full) : null;
-    if (half) for (const one of materialsOf(half)) one.dispose();
-    if (this.gone || !wall || !short || !material) {
-      material?.dispose();
+  private build(models: ReadonlyMap<string, THREE.Object3D | null>): void {
+    // **Ein Material je Name** für alle Stücke: Sie teilen die Textur des
+    // Pakets, und so lassen sie sich zusammen zeichnen. Die Materialien der
+    // übrigen Kopien gehen gleich wieder weg.
+    const materials = new Map<string, THREE.Material>();
+    const units = new Map<string, Unit>();
+    for (const [path, model] of models) {
+      if (!model) continue;
+      for (const material of materialsOf(model)) {
+        if (!materials.has(material.name)) materials.set(material.name, material);
+        else material.dispose();
+      }
+      const unit = unitOf(model);
+      if (unit) units.set(path, unit);
+    }
+    this.owned.push(...materials.values());
+    const wall = units.get(STATION_WALL);
+    const short = units.get(STATION_WALL_HALF);
+    if (this.gone || !wall || !short) {
+      for (const one of materials.values()) one.dispose();
+      this.owned.length = 0;
       return;
     }
-    this.owned.push(material);
 
     const cells = new Map<string, Placed[]>();
+    const place = (
+      keys: readonly THREE.Object3D[],
+      parts: Placed[],
+      x: number,
+      z: number,
+    ): void => {
+      const group = this.pieceGroup(parts, materials);
+      if (!group) return;
+      for (const key of keys) this.single.set(key, group);
+      const cell = `${Math.floor(x / CELL)}:${Math.floor(z / CELL)}`;
+      cells.set(cell, [...(cells.get(cell) ?? []), ...parts]);
+    };
     for (const { solid, run } of this.runs) {
-      const parts: Placed[] = runPieces(run).map((piece) => {
+      const parts = runPieces(run).flatMap((piece) => {
         const unit = piece.half ? short : wall;
-        return { geometry: unit.geometry, matrix: pieceMatrix(run, piece, unit) };
+        return placedParts(unit, pieceMatrix(run, piece, unit));
       });
-      const shape = bake(parts);
-      if (!shape) continue;
-      this.owned.push(shape);
-      const mesh = this.mesh(shape, material, 'station-wall-run');
-      mesh.visible = this.topDown === true;
-      this.single.set(solid, mesh);
-      const key = `${Math.floor(run.x / CELL)}:${Math.floor(run.z / CELL)}`;
-      const cell = cells.get(key) ?? [];
-      cell.push(...parts);
-      cells.set(key, cell);
+      place([solid], parts, run.x, run.z);
     }
-    for (const parts of cells.values()) {
-      const shape = bake(parts);
-      if (!shape) continue;
-      this.owned.push(shape);
-      const mesh = this.mesh(shape, material, 'station-wall-cell');
-      mesh.visible = this.topDown !== true;
-      this.merged.push(mesh);
+    for (const feature of this.features) {
+      const unit = units.get(feature.path);
+      if (!unit) continue;
+      _q.setFromAxisAngle(_up, feature.alongX ? 0 : Math.PI / 2);
+      const at = new THREE.Matrix4().compose(
+        new THREE.Vector3(feature.x, feature.base, feature.z),
+        _q,
+        new THREE.Vector3(1, 1, 1),
+      );
+      place(feature.solids, placedParts(unit, at), feature.x, feature.z);
     }
+    for (const parts of cells.values())
+      for (const [name, material] of materials) {
+        const shape = bake(parts.filter((part) => part.material === name));
+        if (!shape) continue;
+        this.owned.push(shape);
+        const mesh = this.mesh(shape, material, 'station-wall-cell');
+        mesh.visible = this.topDown !== true;
+        this.group.add(mesh);
+        this.merged.push(mesh);
+      }
     this.ready();
+  }
+
+  /** Von oben: ein Lauf oder Stück als eigene Gruppe, ein Netz je Material. */
+  private pieceGroup(
+    parts: readonly Placed[],
+    materials: ReadonlyMap<string, THREE.Material>,
+  ): THREE.Group | null {
+    const group = new THREE.Group();
+    group.name = 'station-wall-run';
+    group.visible = this.topDown === true;
+    for (const [name, material] of materials) {
+      const shape = bake(parts.filter((part) => part.material === name));
+      if (!shape) continue;
+      this.owned.push(shape);
+      group.add(this.mesh(shape, material, 'station-wall-part'));
+    }
+    if (group.children.length === 0) return null;
+    this.group.add(group);
+    return group;
   }
 
   private mesh(shape: THREE.BufferGeometry, material: THREE.Material, name: string): THREE.Mesh {
     const mesh = new THREE.Mesh(shape, material);
     mesh.name = name;
-    mesh.castShadow = true;
+    // Glas wirft keinen Schatten — sonst hielte das Fenster das Licht auf.
+    mesh.castShadow = !material.transparent;
     mesh.receiveShadow = true;
     mesh.userData.level = 0;
-    this.group.add(mesh);
     return mesh;
   }
 }
@@ -253,9 +330,19 @@ export class StationWalls {
 interface Placed {
   geometry: THREE.BufferGeometry;
   matrix: THREE.Matrix4;
+  material?: string;
 }
 
-/** Wo ein Stück steht: auf dem Lauf, gedreht in seine Richtung, gestreckt auf Länge und Höhe. */
+/** Die Teile eines Stücks an ihrem Platz: `at` mal ihre eigene Matrix. */
+function placedParts(unit: Unit, at: THREE.Matrix4): Placed[] {
+  return unit.parts.map((part) => ({
+    geometry: part.geometry,
+    matrix: new THREE.Matrix4().multiplyMatrices(at, part.matrix),
+    material: part.material,
+  }));
+}
+
+/** Wo ein Wandstück steht: auf dem Lauf, gedreht in seine Richtung, gestreckt auf Länge und Höhe. */
 function pieceMatrix(run: WallRun, piece: WallPiece, unit: Unit): THREE.Matrix4 {
   const x = run.x + (run.alongX ? piece.along : 0);
   const z = run.z + (run.alongX ? 0 : piece.along);
@@ -265,21 +352,11 @@ function pieceMatrix(run: WallRun, piece: WallPiece, unit: Unit): THREE.Matrix4 
     _q,
     new THREE.Vector3(piece.length / unit.length, run.height / unit.height, 1),
   );
-  return new THREE.Matrix4().multiplyMatrices(_m, unit.matrix);
+  return new THREE.Matrix4().copy(_m);
 }
 
-/** Das eine Netz einer Datei, gemessen und auf null gestellt. */
+/** Die Netze einer Datei, gemessen und gemeinsam auf null gestellt. */
 function unitOf(model: THREE.Object3D): Unit | null {
-  let mesh: THREE.Mesh | null = null;
-  let count = 0;
-  model.traverse((object) => {
-    if ((object as THREE.Mesh).isMesh) {
-      mesh = object as THREE.Mesh;
-      count++;
-    }
-  });
-  if (!mesh || count !== 1) return null;
-  const only = mesh as THREE.Mesh;
   model.position.set(0, 0, 0);
   model.updateMatrixWorld(true);
   _box.setFromObject(model);
@@ -287,12 +364,17 @@ function unitOf(model: THREE.Object3D): Unit | null {
   const height = _box.max.y - _box.min.y;
   if (!(length > 1e-6) || !(height > 1e-6)) return null;
   _t.makeTranslation(-(_box.min.x + _box.max.x) / 2, -_box.min.y, -(_box.min.z + _box.max.z) / 2);
-  return {
-    geometry: only.geometry,
-    matrix: new THREE.Matrix4().multiplyMatrices(_t, only.matrixWorld),
-    length,
-    height,
-  };
+  const parts: UnitPart[] = [];
+  model.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+    parts.push({
+      geometry: mesh.geometry,
+      matrix: new THREE.Matrix4().multiplyMatrices(_t, mesh.matrixWorld),
+      material: mesh.material.name,
+    });
+  });
+  return parts.length ? { parts, length, height } : null;
 }
 
 function materialsOf(model: THREE.Object3D): THREE.Material[] {
@@ -305,12 +387,6 @@ function materialsOf(model: THREE.Object3D): THREE.Material[] {
   return out;
 }
 
-function materialOf(model: THREE.Object3D): THREE.Material | null {
-  const all = materialsOf(model);
-  for (const extra of all.slice(1)) extra.dispose();
-  return all[0] ?? null;
-}
-
 /**
  * **Viele Stücke zu einer Geometrie**, die Matrizen eingebacken.
  *
@@ -318,7 +394,9 @@ function materialOf(model: THREE.Object3D): THREE.Material | null {
  * Puffer: Die Dateien des Regals sind quantisiert (`Int16`, normalisiert),
  * und erst diese Zugriffe rechnen daraus Meter. Geschrieben wird in `Float32`.
  */
-export function bake(parts: readonly Placed[]): THREE.BufferGeometry | null {
+export function bake(
+  parts: readonly { geometry: THREE.BufferGeometry; matrix: THREE.Matrix4 }[],
+): THREE.BufferGeometry | null {
   const first = parts[0]?.geometry;
   if (!first || !first.attributes.position) return null;
   const names = Object.keys(first.attributes)

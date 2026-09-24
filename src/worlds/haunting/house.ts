@@ -16,7 +16,61 @@ import { DIR_E, DIR_N, DIR_S, DIR_W, TILE, type Dir } from '../nav/navTile';
  * Die anderen Welten des Rasters behalten `PLAN_DOOR_W` mit Pfosten.
  */
 export const STATION_DOOR_W = TILE;
+
+/**
+ * **Die Türen der Station sind zwei Kacheln breit** (`HouseDoor.span`).
+ *
+ * Gewünscht war: _„davon auch eine Breite 2x1 Version, die dann in der Space
+ * Station genutzt wird, und es dort nur 2x1-Türen gibt"_ — der Durchgang aus
+ * dem Regal (`prototype-bits/Wall_Doorway_Wide`, `world3d/stationDoors.ts`)
+ * ist zwei Kacheln breit, und ein Gang auch. Eine Tür ist damit zwei
+ * nebeneinanderliegende Kachelkanten derselben Wand: die an `x`/`z` und die
+ * nächste längs der Wand (`doorEdges`). `STATION_DOOR_W` bleibt die Breite
+ * **einer** Kante — der Plan setzt je Kante eine Tür ohne Pfosten —, die
+ * ganze Öffnung ist `doorWidth(door)`.
+ */
+export const STATION_DOOR_SPAN = 2;
+
+/** Längs welcher Achse eine Tür in Richtung `dir` weiterläuft: an N/S nach Osten, an O/W nach Süden. */
+export function doorAlong(dir: Dir): { x: number; z: number } {
+  return dir === DIR_N || dir === DIR_S ? { x: 1, z: 0 } : { x: 0, z: 1 };
+}
+
+/** Die Kachelkanten einer Tür, von ihrer ersten an (`HouseDoor.span`, ohne Angabe eine). */
+export function doorEdges(door: {
+  x: number;
+  z: number;
+  dir: Dir;
+  span?: number;
+}): Array<{ x: number; z: number; dir: Dir }> {
+  const along = doorAlong(door.dir);
+  const out: Array<{ x: number; z: number; dir: Dir }> = [];
+  for (let i = 0; i < (door.span ?? 1); i++)
+    out.push({ x: door.x + along.x * i, z: door.z + along.z * i, dir: door.dir });
+  return out;
+}
+
+/** Wie breit die ganze Öffnung einer Tür ist, in Metern. */
+export function doorWidth(door: { span?: number }): number {
+  return (door.span ?? 1) * STATION_DOOR_W;
+}
+
+/** Die Mitte einer Tür auf ihrer Wand — bei zwei Kacheln die Fuge zwischen beiden. */
+export function doorMiddle(door: { x: number; z: number; dir: Dir; span?: number }): {
+  x: number;
+  z: number;
+} {
+  const along = doorAlong(door.dir);
+  const extra = ((door.span ?? 1) - 1) / 2;
+  const nx = door.dir === DIR_E ? 1 : door.dir === DIR_W ? -1 : 0;
+  const nz = door.dir === DIR_S ? 1 : door.dir === DIR_N ? -1 : 0;
+  return {
+    x: (door.x + 0.5 + nx * 0.5 + along.x * extra) * TILE,
+    z: (door.z + 0.5 + nz * 0.5 + along.z * extra) * TILE,
+  };
+}
 import { Rng } from './rng';
+import { STATION_VENTS } from './vents/ventNet.data';
 import { buildPanel, type PanelSwitch } from './panel';
 
 /**
@@ -250,6 +304,11 @@ export interface HouseDoor {
   dir: Dir;
   /** Holz hält einen Verfolger ein paar Sekunden auf, Stahl für immer. */
   material: 'wood' | 'metal';
+  /**
+   * Wie viele Kachelkanten die Tür längs ihrer Wand misst (`doorEdges`) —
+   * ohne Angabe eine, in der Station zwei (`STATION_DOOR_SPAN`).
+   */
+  span?: number;
 }
 
 export interface HouseTask {
@@ -484,26 +543,42 @@ function connectStation(
     a: HouseRoom,
     b: HouseRoom | null,
     spot: { x: number; z: number; dir: Dir },
+    span = STATION_DOOR_SPAN,
   ): void => {
-    doors.push({ id: `d${doors.length}`, a: a.id, b: b?.id ?? null, ...spot, material: 'metal' });
+    doors.push({
+      id: `d${doors.length}`,
+      a: a.id,
+      b: b?.id ?? null,
+      ...spot,
+      material: 'metal',
+      span,
+    });
   };
   // A room is entered from the gallery above/below. Keep the middle of each
   // wall free for the approach; no random corner doorway can pinch the capsule.
+  // **Zwei Kacheln je Tür** (`STATION_DOOR_SPAN`): `spots` läuft längs der
+  // Wand, also ist `spots[k + 1]` die zweite Kante einer Tür, die bei `k`
+  // anfängt.
   for (const room of rooms) {
     const links = passages
       .map((p) => ({ p, spots: shared(room.rect, p.rect) }))
       .filter(({ spots }) => spots.length > 0);
     for (const { p, spots } of links) {
-      if (links.length === 1 && spots.length >= 4) {
+      if (spots.length < STATION_DOOR_SPAN) add(room, p, spots[0]!, spots.length);
+      else if (links.length === 1 && spots.length >= 6) {
         add(room, p, spots[1]!);
-        add(room, p, spots[spots.length - 2]!);
-      } else add(room, p, spots[Math.floor(spots.length / 2)]!);
+        add(room, p, spots[spots.length - 3]!);
+      } else add(room, p, spots[Math.max(0, Math.floor(spots.length / 2) - 1)]!);
     }
   }
+  // Zwischen zwei Gängen steht die ganze gemeinsame Kante offen — jetzt in
+  // Türen zu zwei Kacheln, und ein ungerader Rest bekommt eine einzelne.
   for (let i = 0; i < passages.length; i++)
-    for (let j = i + 1; j < passages.length; j++)
-      for (const spot of shared(passages[i]!.rect, passages[j]!.rect))
-        add(passages[i]!, passages[j]!, spot);
+    for (let j = i + 1; j < passages.length; j++) {
+      const spots = shared(passages[i]!.rect, passages[j]!.rect);
+      for (let k = 0; k < spots.length; k += STATION_DOOR_SPAN)
+        add(passages[i]!, passages[j]!, spots[k]!, Math.min(STATION_DOOR_SPAN, spots.length - k));
+    }
   // Die Schleuse geht **in die Kantine** und nicht mehr in eine leere Röhre:
   // Die Einsatzzentrale liegt nördlich davon, mit der Fensterfront dazwischen.
   const entry = rooms.find((room) => room.name === 'Cafeteria') ?? rooms[0]!;
@@ -528,7 +603,7 @@ function commandDoorTile(rect: Rect): { x: number; z: number; dir: Dir } {
 export function commandWindows(rect: Rect, door: { x: number; z: number }): HouseWindow[] {
   const out: HouseWindow[] = [];
   for (let x = rect.x; x < rect.x + rect.w; x++) {
-    if (x === door.x) continue;
+    if (x >= door.x && x < door.x + STATION_DOOR_SPAN) continue;
     if (x < APRON.x || x >= APRON.x + APRON.w) continue;
     out.push({ id: `wc${out.length}`, roomId: '', x, z: rect.z, dir: DIR_N });
   }
@@ -542,7 +617,13 @@ function stationWindows(
   doors: readonly HouseDoor[],
   entryRoom: string,
 ): HouseWindow[] {
-  const taken = new Set(doors.map((door) => edgeKey(door.x, door.z, door.dir)));
+  const taken = new Set(
+    doors.flatMap((door) => doorEdges(door).map((edge) => edgeKey(edge.x, edge.z, edge.dir))),
+  );
+  // **Und keine Scheibe, wo eine Lüftungsklappe hängt** (`vents/ventNet.data.ts`):
+  // Seit die Türen zwei Kacheln breit sind, sitzen manche Klappen eine Kachel
+  // weiter draußen — an einem Stück Wand, das auch Hülle sein kann.
+  for (const flap of STATION_VENTS.flaps) taken.add(edgeKey(flap.x, flap.z, flap.dir));
   const windows: HouseWindow[] = [];
   const entry = rooms.find((room) => room.id === entryRoom);
   const front = entry
@@ -763,11 +844,12 @@ function doorTiles(doors: readonly HouseDoor[]): Set<string> {
     [DIR_S]: [0, 1],
     [DIR_W]: [-1, 0],
   };
-  for (const door of doors) {
-    const [dx, dz] = step[door.dir];
-    out.add(`${door.x}:${door.z}`);
-    out.add(`${door.x + dx}:${door.z + dz}`);
-  }
+  for (const door of doors)
+    for (const edge of doorEdges(door)) {
+      const [dx, dz] = step[edge.dir];
+      out.add(`${edge.x}:${edge.z}`);
+      out.add(`${edge.x + dx}:${edge.z + dz}`);
+    }
   return out;
 }
 
@@ -1034,7 +1116,9 @@ function placeWindows(
   rooms: readonly HouseRoom[],
   doors: readonly HouseDoor[],
 ): HouseWindow[] {
-  const taken = new Set(doors.map((door) => edgeKey(door.x, door.z, door.dir)));
+  const taken = new Set(
+    doors.flatMap((door) => doorEdges(door).map((edge) => edgeKey(edge.x, edge.z, edge.dir))),
+  );
   for (const room of rooms) {
     for (const mark of room.marks) taken.add(edgeKey(mark.x, mark.z, mark.dir));
   }

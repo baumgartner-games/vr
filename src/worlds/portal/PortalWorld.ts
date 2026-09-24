@@ -411,6 +411,7 @@ const SHAPE_LABELS: Record<string, string> = {
   cylinder: 'Zylinder',
   cone: 'Kegel',
   hull: 'Hülle',
+  arch: 'Bogen',
 };
 const SPAWN = new THREE.Vector3(0, 0, 5.5);
 /** Zwischenlagen fürs Benutzen — Ort und Blickrichtung der Figur (`core/usable.ts`). */
@@ -9940,9 +9941,9 @@ export class PortalWorld implements World {
     position: THREE.Vector3,
     quaternion: THREE.Quaternion | null,
   ): PhysicsBody {
-    const blueprint = modelPropShape(model, propLabel(kind));
-    const entry = this.placeProp(id, kind, blueprint.object, blueprint, position, quaternion);
     const path = modelPathOf(kind);
+    const blueprint = modelPropShape(model, propLabel(kind), path);
+    const entry = this.placeProp(id, kind, blueprint.object, blueprint, position, quaternion);
     if (path !== null) {
       const size = blueprint.halfExtents.clone().multiplyScalar(2);
       const stance = modelStance(path, size);

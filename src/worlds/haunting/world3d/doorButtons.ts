@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { canLoadModels } from '../../../core/chefFit';
 import { dirX, dirZ, TILE, type Dir } from '../../nav/navTile';
+import { doorMiddle } from '../house';
 
 /**
  * **Vor und hinter jeder Tür ein Knopf im Boden** — grün, wenn sie aufgeht,
@@ -34,42 +35,54 @@ export const BUTTON_SIZE = 0.7;
 /** Wie tief die Kappe beim Drauftreten einsinkt, in Metern. */
 export const BUTTON_DROP = 0.03;
 
-/** Eine Tür, wie sie hier gebraucht wird: ihre Kachel und die Richtung der Kante. */
+/** Eine Tür, wie sie hier gebraucht wird: ihre erste Kachel, die Richtung der Kante, ihre Breite. */
 export interface ButtonDoor {
   id: string;
   x: number;
   z: number;
   dir: Dir;
+  /** Kachelkanten längs der Wand (`house.HouseDoor.span`), ohne Angabe eine. */
+  span?: number;
 }
 
-/** Die Mitten der beiden Knöpfe einer Tür — auf ihrer Kachel und auf der dahinter. */
+/**
+ * Die Mitten der beiden Knöpfe einer Tür — eine halbe Kachel vor und hinter
+ * ihrer Mitte (`house.doorMiddle`). Bei einer Tür über zwei Kacheln liegt der
+ * Knopf also mittig auf der Fuge der beiden, genau vor der Öffnung.
+ */
 export function doorButtonSpots(
   door: ButtonDoor,
 ): [{ x: number; z: number }, { x: number; z: number }] {
-  const x = (door.x + 0.5) * TILE;
-  const z = (door.z + 0.5) * TILE;
+  const middle = doorMiddle(door);
+  const nx = dirX(door.dir) * (TILE / 2);
+  const nz = dirZ(door.dir) * (TILE / 2);
   return [
-    { x, z },
-    { x: x + dirX(door.dir) * TILE, z: z + dirZ(door.dir) * TILE },
+    { x: middle.x - nx, z: middle.z - nz },
+    { x: middle.x + nx, z: middle.z + nz },
   ];
 }
 
 /**
  * **Ob jemand auf einem der beiden Knöpfe steht** — oder schon in der Tür.
  *
- * Ein Knopf ist so groß wie seine Kachel: Wer auf der Kachel vor der Tür
- * steht, steht auf ihm. Die Kante zwischen beiden Kacheln ist die Tür selbst,
- * also ist darin mitgemeint.
+ * Ein Knopf gilt für die ganze Fläche vor der Tür: so breit wie sie, eine
+ * Kachel tief. Wer davor steht, steht auf ihm; die Kante dazwischen ist die
+ * Tür selbst, also ist darin mitgemeint.
  */
 export function buttonPressed(
   door: ButtonDoor,
   occupants: readonly { x: number; z: number }[],
 ): boolean {
-  const spots = doorButtonSpots(door);
-  const reach = TILE / 2;
-  return occupants.some((one) =>
-    spots.some((spot) => Math.abs(one.x - spot.x) <= reach && Math.abs(one.z - spot.z) <= reach),
-  );
+  const middle = doorMiddle(door);
+  const along = dirX(door.dir) === 0;
+  const half = ((door.span ?? 1) * TILE) / 2;
+  return occupants.some((one) => {
+    const dx = one.x - middle.x;
+    const dz = one.z - middle.z;
+    const wide = along ? Math.abs(dx) : Math.abs(dz);
+    const deep = along ? Math.abs(dz) : Math.abs(dx);
+    return wide <= half && deep <= TILE;
+  });
 }
 
 /** Was ein Knopf gerade zeigt. */

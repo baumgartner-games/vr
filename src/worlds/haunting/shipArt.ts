@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { dressProps, FIXTURE_MODELS } from './world3d/stationProps';
+import { FIXTURE_CATALOG } from './fixtureDimensions';
 import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
@@ -338,6 +340,7 @@ function addRoomFixtures(
     string,
     { positions: number[]; normals: number[]; material: THREE.Material }
   >();
+  const fallback: THREE.Object3D[] = [];
   for (const placement of placements) {
     if (!placement.markId) continue;
     const fixture = buildFixture(placement.markId, roomKind === 'kueche' ? 'canteen' : 'default');
@@ -373,7 +376,26 @@ function addRoomFixtures(
     const mesh = new THREE.Mesh(geometry, data.material);
     mesh.name = `room-fixtures-${finish}`;
     group.add(mesh);
+    fallback.push(mesh);
   }
+  // **Und dann die Modelle aus dem Regal an ihre Stelle** (`world3d/stationProps.ts`):
+  // Das gebaute Bündel ist nur noch der Ersatz, bis sie geladen sind.
+  const items = placements.flatMap((placement) => {
+    if (!placement.markId) return [];
+    const holder = new THREE.Group();
+    holder.name = `room-fixture-${placement.markId}`;
+    holder.position.set(placement.x, 0, placement.z);
+    holder.rotation.y = placement.yaw;
+    group.add(holder);
+    return [
+      {
+        holder,
+        path: FIXTURE_MODELS[placement.markId],
+        size: FIXTURE_CATALOG[placement.markId],
+      },
+    ];
+  });
+  dressProps(items, fallback);
 }
 
 function buildCommandHull(): THREE.Group {

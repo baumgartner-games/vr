@@ -112,3 +112,18 @@ describe('Der Maßstab einzelner Dateien', () => {
     expect(kaykitScale('prototype-bits/character/Dummy.glb')).toBe(KAYKIT_FIGURE_SCALE);
   });
 });
+
+describe('Der Maßstab in die Höhe', () => {
+  it('stellt die Wände 2,8 m hoch und die Türen so hoch wie die Öffnung des Durchgangs', async () => {
+    const { kaykitScale3 } = await import('./kaykitFit');
+    // 4 Quelleinheiten hoch → 2,8 m, 4 breit → 2 m.
+    expect(kaykitScale3('prototype-bits/Wall.glb')).toEqual([0.5, 0.7, 0.5]);
+    expect(kaykitScale3('restaurant-bits/wall.glb')).toEqual([0.5, 0.7, 0.5]);
+    expect(kaykitScale3('prototype-bits/Wall_Doorway_Wide.glb')).toEqual([0.5, 0.7, 0.5]);
+    // Die Öffnung ist 3,0 Einheiten hoch (`tools/prototype-variants.mjs`) → 2,1 m;
+    // die Originaltür ist 2,8 hoch und wird gestreckt, die Metalltür ist schon 3,0.
+    expect(2.8 * kaykitScale3('prototype-bits/Door_A.glb')[1]).toBeCloseTo(2.1, 6);
+    expect(3.0 * kaykitScale3('prototype-bits/Door_A_Metal.glb')[1]).toBeCloseTo(2.1, 6);
+    expect(kaykitScale3('prototype-bits/Barrel_A.glb')).toEqual([0.7, 0.7, 0.7]);
+  });
+});

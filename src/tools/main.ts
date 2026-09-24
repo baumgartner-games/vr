@@ -381,6 +381,7 @@ const SHAPE_LABELS: Record<string, string> = {
   cylinder: 'Zylinder',
   cone: 'Kegel',
   hull: 'Hülle',
+  arch: 'Bogen',
 };
 
 /**

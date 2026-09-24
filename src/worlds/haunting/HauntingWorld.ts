@@ -1,8 +1,23 @@
 import { NavigationOverlay } from './navigationOverlay';
+import { stopAtWalls } from '../shared/wallLight';
 import * as THREE from 'three';
 import { GridWorld } from '../grid/GridWorld';
 import { PLAN_DOOR_H, PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
-import { DIRS, DIR_E, DIR_N, DIR_S, TILE, dirX, dirZ, type Dir } from '../nav/navTile';
+import {
+  DIRS,
+  DIR_E,
+  DIR_N,
+  DIR_S,
+  TILE,
+  dirX,
+  dirZ,
+  keyLevel,
+  keyX,
+  keyZ,
+  wallDir,
+  wallTile,
+  type Dir,
+} from '../nav/navTile';
 import { FlashlightTool } from '../portal/tools/FlashlightTool';
 import { playSlam, playSwitch } from '../../core/Audio';
 import { yawOfForward } from '../../core/walkFrame';
@@ -20,18 +35,21 @@ import {
   tilesOf,
   APRON_INNER,
   APRON_OUTER,
-  COMMAND_LIFT,
   type HouseDoor,
   type HouseRoom,
   type HouseSpec,
   type Rect,
   STATION_DOOR_W,
+  doorEdges,
+  doorMiddle,
+  doorWidth,
 } from './house';
-import { housePlan } from './plan';
+import { housePlan, LIFT_DOOR } from './plan';
 import { flickerLevel, freshSpook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
 import { buildShip, buildCorridorBeacons, roomAccent, type StationBeacon } from './shipArt';
-import { StationWalls, wallRun, type WallRun } from './world3d/stationWalls';
+import { StationWalls, wallRun, type StationFeature, type WallRun } from './world3d/stationWalls';
+import { dressProp } from './world3d/stationProps';
 import { buttonPressed, DoorButtons, type ButtonDoor } from './world3d/doorButtons';
 import { buildActor, type ShipActor } from './actorArt';
 import { defaultLens, throughEyes, type WatchLens } from './watchLens';
@@ -435,6 +453,8 @@ export class HauntingWorld extends GridWorld {
   private crewPlaces = new Map<string, PeerPose>();
   private crewPlacedAt = -Infinity;
   private lampPool: THREE.PointLight[] = [];
+  /** Seit wann die Schattenkarten der Lampen nicht neu gezeichnet wurden. */
+  private lampShadowClock = 0;
   private testLight: THREE.AmbientLight | null = null;
   private commandLight: THREE.SpotLight | null = null;
   private readonly fixtureSlabs: THREE.Object3D[] = [];
@@ -723,6 +743,11 @@ export class HauntingWorld extends GridWorld {
   private builtDoors = '?';
   /** Die Wandläufe dieses Neubaus, je Quader des Grundrisses (`gridSolidBuilt`). */
   private wallRuns = new Map<THREE.Object3D, WallRun>();
+  /** Sturz, Brüstung und Pfosten je Tür- oder Fensterkante (`onOpening`). */
+  private openingSolids = new Map<string, THREE.Object3D[]>();
+  private openings = new Map<string, 'door' | 'window'>();
+  private openingPlan: GridPlan | null = null;
+  private openingVersion = -1;
   /** Die Wände aus dem Regal über diesen Läufen (`world3d/stationWalls.ts`). */
   private stationWalls: StationWalls | null = null;
   /** Das Material der Wandquader — unsichtbar, sobald die Wände aus dem Regal stehen. */
@@ -732,6 +757,8 @@ export class HauntingWorld extends GridWorld {
   private buttonDoors: ButtonDoor[] = [];
   /** Auf welchen Türknöpfen gerade jemand steht — je Bild neu (`pressButtons`). */
   private readonly pressedDoors = new Set<string>();
+  /** Welche Türen `applyDoors` in diesem Bild offen hat — für das Bild der Blätter. */
+  private readonly openDoors = new Set<string>();
 
   // --- die Welt ------------------------------------------------------------
 
@@ -807,29 +834,113 @@ export class HauntingWorld extends GridWorld {
     return STATION_FLOOR;
   }
 
-  /** Die Wandläufe bekommen ein eigenes Material — es geht aus, wenn die Wände aus dem Regal stehen. */
+  /**
+   * Die Wandläufe, Türstürze und Fensterteile bekommen ein eigenes Material —
+   * es geht aus, wenn Wände, Durchgänge und Fenster aus dem Regal stehen
+   * (`world3d/stationWalls.ts`).
+   */
   protected override solidMaterial(solid: PlanSolid): THREE.Material {
     const base = super.solidMaterial(solid);
-    if (!wallRun(solid)) return base;
+    if (!wallRun(solid) && !this.onOpening(solid)) return base;
     this.runMaterial ??= base.clone();
     return this.runMaterial;
   }
 
   protected override gridSolidBuilt(mesh: THREE.Mesh, solid: PlanSolid): void {
     const run = wallRun(solid);
-    if (run) this.wallRuns.set(mesh, run);
+    if (run) {
+      this.wallRuns.set(mesh, run);
+      return;
+    }
+    const key = this.onOpening(solid);
+    if (!key) return;
+    const list = this.openingSolids.get(key) ?? [];
+    list.push(mesh);
+    this.openingSolids.set(key, list);
   }
 
-  /** Der Grundriss steht neu — also auch die Wände aus dem Regal darüber. */
+  /**
+   * **Ob ein Quader zu einer Tür oder einem Fenster gehört** — ein Sturz, eine
+   * Brüstung, ein Pfosten — und wenn ja, der Schlüssel ihrer Kante.
+   */
+  private onOpening(solid: PlanSolid): string | null {
+    if (solid.kind !== 'wall' || solid.door !== undefined || wallRun(solid)) return null;
+    const key = edgeKeyAt(solid.x, solid.z, solid.w > solid.d);
+    return this.openingEdges().has(key) ? key : null;
+  }
+
+  /** Die Kanten mit Tür oder Fenster im Plan, je Planstand einmal gerechnet. */
+  private openingEdges(): ReadonlyMap<string, 'door' | 'window'> {
+    const plan = this.grid;
+    if (!plan) return new Map();
+    if (this.openingPlan === plan && this.openingVersion === plan.version) return this.openings;
+    this.openingPlan = plan;
+    this.openingVersion = plan.version;
+    this.openings = new Map();
+    for (const [key, wall] of plan.graph.wallEntries()) {
+      if (wall.kind === 'solid') continue;
+      const tile = wallTile(key);
+      if (keyLevel(tile) !== 0) continue;
+      const dir = wallDir(key);
+      const at = edgeCentre(keyX(tile), keyZ(tile), dir);
+      this.openings.set(edgeKeyAt(at.x, at.z, at.alongX), wall.kind);
+    }
+    return this.openings;
+  }
+
+  /** Der Grundriss steht neu — also auch Wände, Durchgänge und Fenster aus dem Regal. */
   protected override gridRebuilt(): void {
     this.stationWalls?.dispose();
     const runs = [...this.wallRuns].map(([solid, run]) => ({ solid, run }));
     this.wallRuns = new Map();
+    const features = this.stationFeatures();
+    this.openingSolids = new Map();
     const material = this.runMaterial;
     if (material) material.visible = true;
-    this.stationWalls = new StationWalls(this.root, runs, () => {
+    this.stationWalls = new StationWalls(this.root, runs, features, () => {
       if (material) material.visible = false;
     });
+  }
+
+  /**
+   * **Die Durchgänge und Fenster aus dem Regal** — an jeder Tür der breite
+   * Durchgang (`STATION_DOORWAY_WIDE`, zwei Kacheln) bzw. der schmale für eine
+   * einzelne Kante, an jedem Fenster das schmale Fenster mit grauem Rahmen
+   * (`STATION_WINDOW`).
+   */
+  private stationFeatures(): StationFeature[] {
+    const out: StationFeature[] = [];
+    const doors: Array<{ x: number; z: number; dir: Dir; span?: number }> = [
+      ...this.spec.doors,
+      LIFT_DOOR,
+      ...(this.state.crew.options.test ? [TRAINING_DOOR] : []),
+    ];
+    const doorEdgeKeys = new Set<string>();
+    for (const door of doors) {
+      const middle = doorMiddle(door);
+      const alongX = edgeCentre(door.x, door.z, door.dir).alongX;
+      const solids: THREE.Object3D[] = [];
+      for (const edge of doorEdges(door)) {
+        const at = edgeCentre(edge.x, edge.z, edge.dir);
+        const key = edgeKeyAt(at.x, at.z, at.alongX);
+        doorEdgeKeys.add(key);
+        solids.push(...(this.openingSolids.get(key) ?? []));
+      }
+      out.push({
+        path: doorWidth(door) > STATION_DOOR_W ? STATION_DOORWAY_WIDE : STATION_DOORWAY,
+        x: middle.x,
+        z: middle.z,
+        alongX,
+        base: 0,
+        solids,
+      });
+    }
+    for (const [key, kind] of this.openingEdges()) {
+      if (kind !== 'window' || doorEdgeKeys.has(key)) continue;
+      const at = edgeOfKey(key);
+      out.push({ path: STATION_WINDOW, ...at, base: 0, solids: this.openingSolids.get(key) ?? [] });
+    }
+    return out;
   }
 
   protected override wallGhosted(mesh: THREE.Mesh, on: boolean): void {
@@ -1189,6 +1300,14 @@ export class HauntingWorld extends GridWorld {
     this.buildFixtureColliders();
     this.lampPool = Array.from({ length: 2 }, () => {
       const light = new THREE.PointLight(0xcce8e6, 0, 15, 2);
+      // **Die Lampe leuchtet ihren Raum aus und nicht die Nachbarn**
+      // (`shared/wallLight.ts`). Ihre Schattenkarte wird nur neu gezeichnet,
+      // wenn sie umzieht, und sonst viermal die Sekunde (`LAMP_SHADOW_EVERY`)
+      // — sechs Seiten je Bild für zwei Lampen wären in der Brille zu teuer,
+      // und die Wände stehen still.
+      stopAtWalls(light, 256);
+      light.shadow.autoUpdate = false;
+      light.shadow.needsUpdate = true;
       this.stage.add(light);
       return light;
     });
@@ -1221,8 +1340,12 @@ export class HauntingWorld extends GridWorld {
    * wie bei der Automatik (`doorOccupants`), damit Knopf und Tür sich einig
    * sind.
    */
-  private pressButtons(): void {
+  private pressButtons(ctx: WorldContext): void {
     const occupants = this.doorOccupants();
+    // **Auch die eigenen Füße** — am Schirm ist der Techniker die Figur, die
+    // läuft (`flatTechnician`, dann ist `ctx.role` hier `vr`), und deren Kopf
+    // steht nicht unbedingt in `doorOccupants`.
+    if (ctx.role === 'vr') occupants.push({ x: ctx.rig.position.x, z: ctx.rig.position.z });
     this.pressedDoors.clear();
     for (const door of this.buttonDoors)
       if (buttonPressed(door, occupants)) this.pressedDoors.add(door.id);
@@ -1285,8 +1408,10 @@ export class HauntingWorld extends GridWorld {
       round: () => this.rules.status(this.state),
       // **Die Blätter fahren erst auf, wenn jemand auf dem Knopf steht**
       // (`pressButtons`) — rein fürs Auge: Durchlassen tut die Automatik.
+      // Offen ist, was `applyDoors` entschieden hat — beim Gastgeber mit Kern
+      // fährt die Runde die Türen, und die Automatik rechnet dann gar nicht.
       doorOpen: (id) =>
-        (id === 'test-bay' ? this.state.crew.options.test : this.automaticDoors.isOpen(id)) &&
+        (id === 'test-bay' ? this.state.crew.options.test : this.openDoors.has(id)) &&
         this.pressedDoors.has(id),
       doorLocked: (id) => this.doorLocked(id),
       travel: (at, yaw) => this.movePlayerTo(ctx, at, yaw),
@@ -1373,11 +1498,18 @@ export class HauntingWorld extends GridWorld {
     const table = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 1.1), metal);
     table.position.set(x, 0.85, z);
     this.vanRig.add(table);
+    const built: THREE.Object3D[] = [table];
     for (const side of [-1, 1]) {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.85, 0.1), metal);
       leg.position.set(x + side * 1.05, 0.42, z);
       this.vanRig.add(leg);
+      built.push(leg);
     }
+    // Der Tisch aus dem Regal (`world3d/stationProps.ts`); der gebaute ist Ersatz.
+    const desk = new THREE.Group();
+    desk.position.set(x, 0, z);
+    this.vanRig.add(desk);
+    dressProp(desk, COMMAND_DESK, { width: 2.4, height: 0.9, depth: 1.1 }, built);
 
     // Ein Monitor je Gerät — Rot, Gelb, Blau und das Monster, in den Farben
     // der Reiter am Telefon. Sie zeigen (noch) nicht, was die Geräte sehen —
@@ -1420,6 +1552,18 @@ export class HauntingWorld extends GridWorld {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.48, 0.07), metal);
       post.position.set(stoolX, 0.24, stoolZ);
       this.vanRig.add(post);
+      // Der Hocker aus dem Regal, in der Farbe seines Geräts.
+      const seat = new THREE.Group();
+      seat.position.set(stoolX, 0, stoolZ);
+      this.vanRig.add(seat);
+      dressProp(
+        seat,
+        COMMAND_STOOL,
+        { width: 0.45, height: 0.56, depth: 0.45 },
+        [stool, post],
+        false,
+        colour,
+      );
     }
 
     this.buildDusk();
@@ -1608,7 +1752,7 @@ export class HauntingWorld extends GridWorld {
       // Ein heller Pfropfen wäre schlicht Wand gewesen — man müsste die Bögen
       // zählen, um zu merken, dass dort überhaupt eine Tür ist.
       const plug = new THREE.Mesh(
-        new THREE.PlaneGeometry(STATION_DOOR_W, PLAN_WALL_T + 0.12),
+        new THREE.PlaneGeometry(doorWidth(door), PLAN_WALL_T + 0.12),
         shutInk,
       );
       plug.rotation.x = -Math.PI / 2;
@@ -1685,10 +1829,12 @@ export class HauntingWorld extends GridWorld {
   /** Ob auf dieser Kachelkante eine Tür sitzt — egal, von welcher Seite gefragt. */
   private doorAt(x: number, z: number, dir: Dir): HouseDoor | undefined {
     const edge = edgeCentre(x, z, dir);
-    return this.spec.doors.find((door) => {
-      const at = doorEdge(door);
-      return Math.abs(at.x - edge.x) < 0.01 && Math.abs(at.z - edge.z) < 0.01;
-    });
+    return this.spec.doors.find((door) =>
+      doorEdges(door).some((one) => {
+        const at = edgeCentre(one.x, one.z, one.dir);
+        return Math.abs(at.x - edge.x) < 0.01 && Math.abs(at.z - edge.z) < 0.01;
+      }),
+    );
   }
 
   /**
@@ -1740,7 +1886,7 @@ export class HauntingWorld extends GridWorld {
       az = -az;
     }
     pivot.rotation.y = Math.atan2(-az, ax);
-    pivot.position.set((-ax * STATION_DOOR_W) / 2, 0, (-az * STATION_DOOR_W) / 2);
+    pivot.position.set((-ax * doorWidth(door)) / 2, 0, (-az * doorWidth(door)) / 2);
   }
 
   // --- der Stand ------------------------------------------------------------
@@ -1818,7 +1964,7 @@ export class HauntingWorld extends GridWorld {
     if (this.isHost && !this.waitingHandover && ctx.role === 'vr') this.stepKernel(dt, ctx);
     else if (this.kernelLoco) this.kernelLoco.active = false;
     this.applyDoors(dt);
-    this.pressButtons();
+    this.pressButtons(ctx);
     this.stationWalls?.setTopDown(ctx.topDown);
     this.applyLights(dt);
     this.cullRoomArt(dt, ctx);
@@ -2719,7 +2865,9 @@ export class HauntingWorld extends GridWorld {
         kernel && door.id !== TRAINING_DOOR.id
           ? kernel.round.doorOpen(door.id)
           : this.automaticDoors.step(door.id, at, shut.has(door.id), ghosts, dt);
-      this.setSlidingGridDoor(door.x, door.z, door.dir, open);
+      if (open) this.openDoors.add(door.id);
+      else this.openDoors.delete(door.id);
+      for (const edge of doorEdges(door)) this.setSlidingGridDoor(edge.x, edge.z, edge.dir, open);
     }
     if (now !== before) this.hearSlam(before, shut);
   }
@@ -2818,6 +2966,11 @@ export class HauntingWorld extends GridWorld {
       ([id]) => lighting.lamps && (wideOpen ? id === viewRoom?.id : this.state.lit.includes(id)),
     );
     active.sort((a, b) => a[1].at.distanceToSquared(_head) - b[1].at.distanceToSquared(_head));
+    this.lampShadowClock += dt;
+    if (this.lampShadowClock >= LAMP_SHADOW_EVERY) {
+      this.lampShadowClock = 0;
+      for (const light of this.lampPool) light.shadow.needsUpdate = true;
+    }
     for (let i = 0; i < this.lampPool.length; i++) {
       const light = this.lampPool[i]!;
       const entry = active[i];
@@ -2829,6 +2982,7 @@ export class HauntingWorld extends GridWorld {
         const spook = this.runningRound()?.spook ?? null;
         const haunted = !bright && spook && id === spook.room ? flickerLevel(spook.since) : 1;
         const glow = Math.min(haunted, lampGlow(this.lampBook, id, this.state.time));
+        if (!light.position.equals(lamp.at)) light.shadow.needsUpdate = true;
         light.position.copy(lamp.at);
         light.color.setHex(lamp.color);
         light.intensity = LAMP_ON * glow * lampScale;
@@ -2893,7 +3047,7 @@ export class HauntingWorld extends GridWorld {
       ? null
       : visibleStationRooms(this.spec, _head, this.state.shut, (door) => {
           const edge = doorEdge(door);
-          const half = STATION_DOOR_W / 2;
+          const half = doorWidth(door) / 2;
           this.doorwayBounds.min.set(
             edge.x - (edge.alongX ? half : 0.1),
             0,
@@ -4316,12 +4470,13 @@ function freshState(seed: number, options: StationOptions = stationOptions(null)
  * (entlang X), nach Osten und Westen längs. Dieselbe Unterscheidung wie beim
  * Bauen der Wände (`levelBuild`), und aus demselben Grund.
  */
-function doorEdge(door: { x: number; z: number; dir: Dir }): {
+function doorEdge(door: { x: number; z: number; dir: Dir; span?: number }): {
   x: number;
   z: number;
   alongX: boolean;
 } {
-  return edgeCentre(door.x, door.z, door.dir);
+  // Die Mitte der ganzen Tür — bei zwei Kacheln die Fuge (`house.doorMiddle`).
+  return { ...doorMiddle(door), alongX: edgeCentre(door.x, door.z, door.dir).alongX };
 }
 
 /**
@@ -4366,8 +4521,34 @@ function describeSeat(setup: RoundSetup, seat: SeatId): string {
 /** Die Bodenplatte der Station (`floorPlate`): die erste im Prototyp-Paket. */
 export const STATION_FLOOR = 'prototype-bits/Floor.glb';
 
-/**
- * Die Tür zum Aufzug ins Testdeck, wie der Plan sie setzt (`plan.housePlan`:
- * nach Westen aus der ersten Kachel des Schachts). Offen nur mit Testdeck.
- */
-const TEST_BAY_DOOR: ButtonDoor = { id: 'test-bay', x: COMMAND_LIFT.x, z: COMMAND_LIFT.z, dir: 3 };
+/** Die Aufzugstür (`plan.LIFT_DOOR`) — für die Knöpfe davor. */
+const TEST_BAY_DOOR: ButtonDoor = LIFT_DOOR;
+
+/** Wie oft die Schattenkarte einer Deckenlampe neu gezeichnet wird, in Sekunden. */
+const LAMP_SHADOW_EVERY = 0.25;
+
+/** Der schmale Durchgang (eine Kachel) und der breite (zwei) aus dem Regal. */
+export const STATION_DOORWAY = 'prototype-bits/Wall_Doorway.glb';
+export const STATION_DOORWAY_WIDE = 'prototype-bits/Wall_Doorway_Wide.glb';
+/** Das Fenster der Station: eine Kachel, grauer Rahmen, Glas zum Durchsehen. */
+export const STATION_WINDOW = 'prototype-bits/Wall_Window_Closed_Narrow.glb';
+
+/** Ein Schlüssel für eine Kachelkante aus ihrer Mitte in Metern und ihrer Richtung. */
+function edgeKeyAt(x: number, z: number, alongX: boolean): string {
+  return alongX
+    ? `x:${Math.floor(x / TILE)}:${Math.round(z / TILE)}`
+    : `z:${Math.round(x / TILE)}:${Math.floor(z / TILE)}`;
+}
+
+/** Die Mitte einer Kante aus ihrem Schlüssel (`edgeKeyAt`). */
+function edgeOfKey(key: string): { x: number; z: number; alongX: boolean } {
+  const [axis, a, b] = key.split(':');
+  const alongX = axis === 'x';
+  return alongX
+    ? { x: (Number(a) + 0.5) * TILE, z: Number(b) * TILE, alongX }
+    : { x: Number(a) * TILE, z: (Number(b) + 0.5) * TILE, alongX };
+}
+
+/** Der Tisch und die Hocker der Einsatzzentrale aus dem Regal. */
+const COMMAND_DESK = 'furniture-bits/desk_large.glb';
+const COMMAND_STOOL = 'furniture-bits/chair_stool.glb';

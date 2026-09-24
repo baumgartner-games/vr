@@ -1,9 +1,9 @@
 import { dirX, dirZ, type Dir } from '../../nav/navTile';
-import { spacesOf, type HouseSpec } from '../house';
-import { DOOR_WIDTH, doorCentre } from '../map/geometry';
+import { doorWidth, spacesOf, type HouseSpec } from '../house';
+import { doorCentre } from '../map/geometry';
 import type { MapItem, MapPoint } from '../map/mapSnapshot';
 import { STATION_VENTS, type VentNetData } from './ventNet.data';
-import { FLAP_INSET, flapApproach, flapWall } from './ventPlacement';
+import { FLAP_INSET, FLAP_WIDTH, flapApproach, flapWall } from './ventPlacement';
 
 /**
  * **Der Vent-Graph** — Klappen in Metern und wer mit wem verbunden ist.
@@ -58,7 +58,12 @@ export class VentNet {
       const wall = flapWall(flap);
       for (const door of spec.doors) {
         const centre = doorCentre(door);
-        if (Math.hypot(centre.x - wall.x, centre.z - wall.z) < DOOR_WIDTH)
+        // Auf derselben Wandlinie und längs innerhalb der Öffnung (samt halber
+        // Klappe) — eine Tür über zwei Kacheln ist zwei Meter breit.
+        const alongX = dirX(door.dir) === 0;
+        const across = alongX ? Math.abs(centre.z - wall.z) : Math.abs(centre.x - wall.x);
+        const along = alongX ? Math.abs(centre.x - wall.x) : Math.abs(centre.z - wall.z);
+        if (across < 0.01 && along < doorWidth(door) / 2 + FLAP_WIDTH / 2)
           throw new Error(`Vent ${flap.id}: sitzt in der Türöffnung ${door.id}`);
       }
       if (this.byId.has(flap.id)) throw new Error(`Vent ${flap.id}: doppelte Kennung`);

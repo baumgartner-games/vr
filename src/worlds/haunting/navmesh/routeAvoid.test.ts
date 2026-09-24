@@ -134,8 +134,15 @@ describe('Eine Stelle, die die Wegsuche meidet', () => {
   it('geht trotzdem hindurch, wenn es keinen Bogen gibt', () => {
     const world = station();
     const spaces = world.rooms.spaces;
-    const from = world.rooms.centre(spaces[0]!);
-    const to = world.rooms.centre(spaces[spaces.length - 1]!);
+    // Ein Weg mit Knick: Seit die Schleuse zwei Kacheln breit ist und mittig in
+    // der Kantinenwand sitzt, geht der Weg Kantine → Zentrale schnurgerade.
+    const pairs = spaces.flatMap((a) => spaces.map((b) => [a, b] as const));
+    const [start, end] = pairs.find(
+      ([a, b]) =>
+        (route(world, world.rooms.centre(a), world.rooms.centre(b)).points ?? []).length > 3,
+    )!;
+    const from = world.rooms.centre(start);
+    const to = world.rooms.centre(end);
     const middle = (route(world, from, to).points ?? [])[2] ?? from;
     // Ein Gewicht, das jede Alternative schlagen müsste — und trotzdem kommt
     // er an: Die Stelle ist teuer, nicht gesperrt.
@@ -178,8 +185,15 @@ describe('Eine Stelle, die die Wegsuche meidet', () => {
   it('geht durch den Kern, wenn es keinen Weg daneben gibt', () => {
     const world = station();
     const spaces = world.rooms.spaces;
-    const from = world.rooms.centre(spaces[0]!);
-    const to = world.rooms.centre(spaces[spaces.length - 1]!);
+    // Ein Weg mit Knick: Seit die Schleuse zwei Kacheln breit ist und mittig in
+    // der Kantinenwand sitzt, geht der Weg Kantine → Zentrale schnurgerade.
+    const pairs = spaces.flatMap((a) => spaces.map((b) => [a, b] as const));
+    const [start, end] = pairs.find(
+      ([a, b]) =>
+        (route(world, world.rooms.centre(a), world.rooms.centre(b)).points ?? []).length > 3,
+    )!;
+    const from = world.rooms.centre(start);
+    const to = world.rooms.centre(end);
     const middle = (route(world, from, to).points ?? [])[2] ?? from;
     // Ein Kern, der die halbe Station verschluckt — und er kommt trotzdem an.
     const desperate = route(world, from, to, { at: middle, radius: 2, weight: 1, core: 30 });

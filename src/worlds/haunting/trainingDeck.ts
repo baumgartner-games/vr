@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { dressProp, FIXTURE_MODELS } from './world3d/stationProps';
 import { MirrorSurface } from '../shared/Mirror';
 import { TILE } from '../nav/navTile';
 import { MARKS, type HouseSpec, type MarkId } from './house';
@@ -135,6 +136,7 @@ export function buildTrainingDeck(host: TrainingDeckHost): MirrorSurface {
     const x = models.minX + 2 + (i % 5) * 3.8;
     const z = models.minZ + 2 + Math.floor(i / 5) * 3.1;
     const fixture = buildFixture(id);
+    dressProp(fixture, FIXTURE_MODELS[id], size, [...fixture.children]);
     fixture.position.set(x, 0, z);
     root.add(fixture);
     sign(
