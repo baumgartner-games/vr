@@ -838,9 +838,9 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   Kran trägt. Getauscht wird erst, wenn alle drei da sind; bis dahin steht der
   gebaute Kran mit seiner Lotschnur. Das Dropship dreht sich nicht mehr
   (`CRANE_SPIN` 0): Ein Fluggerät mit Nase, das sich im Kreis dreht, sieht
-  verloren aus. Es dreht mit der Figur und schaut, wohin sie läuft — in der
-  Datei zeigt die Nase nach hinten, deshalb steht es um 180° gedreht
-  (`TOP_TURN`).
+  verloren aus. Es dreht mit dem Rig — und das dreht nur, wer dreht (`R`,
+  rechter Stock, siehe unten); in der Datei zeigt die Nase nach hinten,
+  deshalb steht es um 180° gedreht (`TOP_TURN`).
 - **Tasten fahren das Bild, der Zeiger stellt den Kran** (`FlatControls.crane`,
   `flyCrane`, seit September 2026). Gewünscht war: _„im Baukasten-Modus (von
   oben) will ich (im Web mit WASD, mobil mit Joystick) die Kamera-Position
@@ -850,9 +850,16 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   (`TopDownCamera.pan`, Tempo `CRANE_PAN` × Zoomabstand je Sekunde). Der Kran
   fliegt zu dem Punkt am Boden unter Mauszeiger oder Finger
   (`TopDownCamera.groundPoint`), weich mit `CRANE_FOLLOW_TAU` (0,05 s,
-  `craneVelocity`); der rechte Stock schiebt ihn für alle ohne Maus. Ein
-  Finger, der losgelassen wird, lässt den Kran stehen, wo er ist. Gilt für
-  _Einrichten_ und _Baukasten_ — beide sind der Kran.
+  `craneVelocity`); wer nur ein Pad hat, bekommt ihn in der Bildmitte
+  (`centrePoint`). Ein Finger, der losgelassen wird, lässt den Kran stehen,
+  wo er ist. Gilt für _Einrichten_ und _Baukasten_ — beide sind der Kran.
+- **Gedreht wird mit `R`** (`craneTurn`, eine Vierteldrehung, `Shift`+`R`
+  zurück) oder mit dem rechten Stock (die Nase zeigt dorthin, auf das nächste
+  Viertel gerastet). Gewünscht war: _„im Web mittels R rotieren (anstelle der
+  Richtung der Drohne) … im Web ohne Stick dreht die Drohne sich dann nicht."_
+  Das Dropship schaut also nicht mehr in Flugrichtung; das Getragene dreht mit.
+  Als Kran setzt `R` die Welt deshalb **nicht** zurück (`PortalWorld.flatKeys`
+  fragt `movesFurniture`) — das bleibt über das Menü.
 - **Nur lokal.** Mitspieler sehen weiter den Koch; der Modus geht nicht über
   die Leitung.
 - **Keine Physik** (`PortalWorld.updateCraneFlight`). Gewünscht war: _„als Kran

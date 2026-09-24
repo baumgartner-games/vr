@@ -145,6 +145,34 @@ export function craneVelocity(
   return { x, z };
 }
 
+/**
+ * **Die Drehung des Krans** — in Vierteln, wie alles, was er hinstellt
+ * (`worlds/portal/gridSnap.quarterYaw`).
+ *
+ * Gewünscht war: _„im Web mittels R rotieren (anstelle der Richtung der
+ * Drohne), auf dem Handy mit dem rechten Stick; im Web ohne Stick dreht die
+ * Drohne sich dann nicht, sondern nur mit R."_ Das Dropship schaut also nicht
+ * mehr in Flugrichtung; es dreht sich nur, wenn jemand dreht — und was es
+ * trägt, dreht mit, denn es hängt im Raum des Rigs (`screenCarry`).
+ *
+ * `R` ist eine Vierteldrehung im Uhrzeigersinn von oben gesehen (Gieren
+ * nimmt gegen den Uhrzeigersinn zu, also minus), mit `Shift` zurück. Der
+ * Stock zeigt: Die Nase geht in die Richtung, in die er ausgelenkt ist, auf
+ * das nächste Viertel gerastet — denn hingestellt wird ohnehin gerastet, und
+ * ein Stück, das schief hängt und gerade landet, sieht aus wie ein Fehler.
+ */
+export function craneQuarter(yaw: number): number {
+  if (!Number.isFinite(yaw)) return 0;
+  const quarter = Math.PI / 2;
+  const turns = ((Math.round(yaw / quarter) % 4) + 4) % 4;
+  return turns > 2 ? (turns - 4) * quarter : turns * quarter;
+}
+
+/** Eine Vierteldrehung weiter — `R` (`clockwise`) oder `Shift`+`R`. */
+export function craneTurn(yaw: number, clockwise: boolean): number {
+  return craneQuarter(craneQuarter(yaw) + (clockwise ? -1 : 1) * (Math.PI / 2));
+}
+
 /** Der Halbmesser des Kreises am Boden unter dem Kran, in Metern. */
 export const CRANE_MARK_RADIUS = 0.42;
 

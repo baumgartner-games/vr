@@ -16,6 +16,8 @@ import {
   CRANE_MAX_SPEED,
   CRANE_PAN,
   cranePan,
+  craneQuarter,
+  craneTurn,
   craneVelocity,
   disposeCrane,
   isCrane,
@@ -36,6 +38,19 @@ describe('crane', () => {
     const diagonal = cranePan(1, 1, 5, false, 1);
     expect(Math.hypot(diagonal.x, diagonal.z)).toBeCloseTo(5 * CRANE_PAN, 9);
     expect(cranePan(0, 0, 5, false, 1)).toEqual({ x: 0, z: 0 });
+  });
+
+  it('dreht mit R um ein Viertel im Uhrzeigersinn, mit Shift zurück', () => {
+    const quarter = Math.PI / 2;
+    expect(craneTurn(0, true)).toBeCloseTo(-quarter, 9);
+    expect(craneTurn(0, false)).toBeCloseTo(quarter, 9);
+    // Vier Drehungen sind eine ganze — und aus einem schiefen Winkel wird
+    // zuerst ein gerader.
+    let yaw = 0.3;
+    for (let i = 0; i < 4; i++) yaw = craneTurn(yaw, true);
+    expect(yaw).toBeCloseTo(0, 9);
+    expect(craneQuarter(1.4)).toBeCloseTo(quarter, 9);
+    expect(craneQuarter(Number.NaN)).toBe(0);
   });
 
   it('zieht den Kran zum Zeiger, ohne darüber hinauszuschießen', () => {

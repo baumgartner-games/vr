@@ -10819,8 +10819,12 @@ export class PortalWorld implements World {
       else if (event.button === 2) this.flatShoot(ctx, 'b');
     };
     this.flatKeys = (event: KeyboardEvent) => {
-      // "r" is a reset — unless it is going into the keypad.
-      if (event.code === 'KeyR' && !isTyping()) this.resetWorld(ctx);
+      // "r" is a reset — unless it is going into the keypad, or the crane is
+      // flying: Dann dreht `R` den Kran (`FlatControls.crane`), und ein
+      // Umbau, der beim Drehen die Welt zurücksetzt, wäre ein verlorener Umbau.
+      if (event.code === 'KeyR' && !isTyping() && !movesFurniture(gameMode())) {
+        this.resetWorld(ctx);
+      }
     };
     this.blockContextMenu = (event: Event) => event.preventDefault();
     this.canvas.addEventListener('mousedown', this.flatFire);

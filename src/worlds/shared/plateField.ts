@@ -303,10 +303,10 @@ export type PlateChoice = (tile: PlateTile) => string | null;
  * `kind: 'floor'`), und die kommen in zwei Größen: als **Masse** über das
  * ganze Gelände (in der Testwelt ein Quader von 77 × 105 Kacheln) und als
  * einzelne **Kachel** überall dort, wo wirklich gelaufen wird. Beide liegen
- * übereinander — die Masse mit ihrer Oberkante auf −0,02 m, die Kacheln auf
- * 0 —, und ohne die Zusammenfassung hier bekäme jede begangene Kachel **zwei**
- * Platten im Abstand von zwei Zentimetern: eine, die man sieht, und eine, die
- * man bezahlt.
+ * übereinander — beide mit ihrer Oberkante auf 0 (bis September 2026 lag die
+ * Masse zwei Zentimeter tiefer, siehe `PLATE_FLUSH`) —, und ohne die
+ * Zusammenfassung hier bekäme jede begangene Kachel **zwei** Platten: eine,
+ * die man sieht, und eine, die man bezahlt.
  *
  * Also wird je Kachel **und Etage** die höchste Oberkante genommen. Die Etage
  * gehört dazu, weil unter dem Podest durchgelaufen wird: Sein Deck (Ebene 1)
@@ -361,6 +361,11 @@ export function floorPlateSpots(
  * unsichtbar; seit auf beiden Platten liegen, wird der Saum zur **Stufe**:
  * Jede Kante zwischen Weg und Gelände war eine Fuge mit zwei Zentimetern
  * Versatz, quer durchs Bild.
+ *
+ * Seitdem liegt die Masse der Testwelt selbst auf null (`testPlan.ts`), und
+ * dort tut diese Regel nichts mehr. Sie bleibt für alles, was die alte Masse
+ * noch mitbringt — eine gespeicherte Welt (`grid/worldFile.ts`) trägt ihre
+ * Massen samt Höhe, und die sähe ohne sie wieder gestuft aus.
  *
  * Drei Zentimeter fangen genau diesen Saum und nichts sonst: Die kleinste
  * gewollte Stufe dieses Grundrisses ist eine Treppenstufe (0,7 m) oder der

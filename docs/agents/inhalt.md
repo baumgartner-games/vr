@@ -2275,12 +2275,15 @@ im Spiel also zwei Kacheln —, und in eine
   Collider; die Platten sind reine Zierde und liegen zwei Zentimeter über ihm,
   man steht also **in** ihnen. Der gebaute Boden darunter bleibt ebenfalls
   stehen, nur unsichtbar — er trägt weiter Kollision, Etage und Wegenetz.
-  **Eine Etage, eine Höhe** (`plateField.PLATE_FLUSH`, seit September 2026):
-  Die Masse des Geländes endet zwei Zentimeter unter den begangenen Kacheln,
-  und ihre Platten lagen deshalb zwei Zentimeter tiefer — jede Kante zwischen
-  Weg und Gelände war eine sichtbare Stufe (_„die boden platten liegen hier
-  nicht alle gleich auf?"_). Jetzt rücken Platten, die bis zu 3 cm unter ihrer
-  Nachbarin liegen, auf deren Höhe; echte Stufen (Treppe, Podest) bleiben.
+  **Eine Etage, eine Höhe** (seit September 2026): Die Masse des Geländes
+  endete zwei Zentimeter unter den begangenen Kacheln, und ihre Platten lagen
+  deshalb zwei Zentimeter tiefer — jede Kante zwischen Weg und Gelände war
+  eine sichtbare Stufe (_„die boden platten liegen hier nicht alle gleich
+  auf?"_). Jetzt liegt die Masse **auf null** (`test/testPlan.ts`): Man steht
+  überall auf der Plattenhöhe und fällt nicht tiefer. Für gespeicherte Welten,
+  die die alte Masse noch mitbringen, rücken Platten bis 3 cm unter ihrer
+  Nachbarin auf deren Höhe (`plateField.PLATE_FLUSH`); echte Stufen (Treppe,
+  Podest) bleiben.
 
   Den Zeichner teilt sich dieser Boden inzwischen mit einem zweiten
   (`checkerTexture`): Die **Küche der Testwelt** ist ebenfalls kariert, mit
