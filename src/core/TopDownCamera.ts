@@ -226,6 +226,20 @@ export class TopDownCamera {
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
+    return this.castGround(y, out);
+  }
+
+  /**
+   * **Der Punkt am Boden in der Bildmitte** — dorthin fliegt der Kran, solange
+   * weder Maus noch Finger je gezeigt haben: mit dem Pad fährt man das Bild,
+   * und der Kran fährt mit.
+   */
+  centrePoint(y: number, out: THREE.Vector3): THREE.Vector3 | null {
+    _ndc.set(0, 0);
+    return this.castGround(y, out);
+  }
+
+  private castGround(y: number, out: THREE.Vector3): THREE.Vector3 | null {
     _ray.setFromCamera(_ndc, this.camera);
     _plane.set(_up, -y);
     return _ray.ray.intersectPlane(_plane, out);

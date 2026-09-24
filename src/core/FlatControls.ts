@@ -24,7 +24,7 @@ import {
 import { inputConfig, onInputConfigChange } from './inputStore';
 import { pinchFactor, yawFromDirection, type Vec2 } from './topDownPose';
 import { smoothAngle } from '../net/PoseSmoothing';
-import { cranePan, craneVelocity } from './crane';
+import { cranePan, craneQuarter, craneTurn, craneVelocity } from './crane';
 
 /**
  * **Ein abgefangener Druck** — was das Menü beim Einstellen bekommt. Am Pad
@@ -183,6 +183,10 @@ export class FlatControls {
   /** Der Finger, der dem Kran gerade zeigt, wohin — und wo er liegt. */
   private cranePointer: number | null = null;
   private readonly craneTouch = { x: 0, y: 0 };
+  /** Ob Maus oder Finger dem Kran schon einmal gezeigt haben, wohin. */
+  private craneAimed = false;
+  /** Wie oft `R` seit dem letzten Bild gedrückt wurde — mit Richtung (`crane`). */
+  private craneTurns = 0;
   private readonly pads: TouchPads;
   /** Die Flanken des Gamepads — Knöpfe eines Pads kommen als Zustand, nicht als Ereignis. */
   private readonly padUse = new ButtonState();
@@ -296,9 +300,10 @@ export class FlatControls {
    * - **WASD, linker Stock, Stock auf dem Glas** fahren die Kamera
    *   (`TopDownCamera.pan`), und nicht mehr den Kran.
    * - **Mauszeiger oder ein Finger auf dem Glas** sagen, wo der Kran steht:
-   *   der Punkt am Boden unter dem Zeiger (`TopDownCamera.groundPoint`). Der
-   *   rechte Stock (am Pad und auf dem Glas) schiebt ihn von dort aus weiter,
-   *   für alle ohne Maus.
+   *   der Punkt am Boden unter dem Zeiger (`TopDownCamera.groundPoint`).
+   * - **`R` dreht ihn** um ein Viertel (`Shift`+`R` zurück), der **rechte
+   *   Stock** (am Pad und auf dem Glas) richtet ihn aus (`crane.craneTurn`).
+   *   Von selbst dreht er sich nicht mehr — auch nicht in Flugrichtung.
    *
    * Klick und `A` bleiben, was sie waren: Sie nehmen und stellen hin, was
    * unter dem Kran liegt — und der liegt jetzt unter dem Zeiger.
@@ -312,6 +317,7 @@ export class FlatControls {
     this.craneOn = on;
     this.craneGoal = null;
     this.cranePointer = null;
+    this.craneTurns = 0;
     this.view?.detach(on);
   }
 
@@ -485,37 +491,36 @@ export class FlatControls {
     this.rig.getHeadPosition(_head);
     const goal = (this.craneGoal ??= new THREE.Vector3(_head.x, 0, _head.z));
     const floorY = this.rig.getFloorY();
-    // Ein Finger geht vor, dann die Maus — solange nicht zuletzt ein Stock
-    // gezeigt hat (`aimedWithStick`): Die Maus liegt beim Spielen mit dem Pad
-    // irgendwo und zöge den Kran sonst dauernd zu sich.
-    const screen =
-      this.cranePointer !== null ? this.craneTouch : this.aimedWithStick ? null : this.mouse;
-    if (screen && view.groundPoint(screen.x, screen.y, floorY, _hit)) {
-      goal.set(_hit.x, 0, _hit.z);
-    }
+    // Ein Finger geht vor, dann die Maus. Hat noch keiner von beiden gezeigt
+    // — mit dem Pad —, fliegt der Kran in die Bildmitte, und der linke Stock
+    // fährt ihn mit dem Bild.
+    const screen = this.cranePointer !== null ? this.craneTouch : this.mouse;
+    if (screen) this.craneAimed = true;
+    const hit = !this.craneAimed
+      ? view.centrePoint(floorY, _hit)
+      : screen
+        ? view.groundPoint(screen.x, screen.y, floorY, _hit)
+        : null;
+    if (hit) goal.set(hit.x, 0, hit.z);
+    // **Gedreht wird nur, wenn jemand dreht** — `R`, oder der rechte Stock,
+    // der die Nase dorthin zeigt, wohin er ausgelenkt ist. Die Maus zeigt
+    // weiter auf die Stelle und nimmt dem Stock das Zielen nicht weg: Anders
+    // als beim Laufen (`aimYaw`) meinen die beiden hier verschiedene Dinge.
     const sx = pad.aim.x !== 0 || pad.aim.y !== 0 ? pad.aim.x : this.aimStick.x;
     const sz = pad.aim.x !== 0 || pad.aim.y !== 0 ? pad.aim.y : this.aimStick.y;
-    if (sx !== 0 || sz !== 0) {
-      this.aimedWithStick = true;
-      const nudge = cranePan(sx, sz, view.zoomDistance, sprint, dt);
-      goal.x += nudge.x;
-      goal.z += nudge.z;
+    const now = _euler.setFromQuaternion(this.rig.quaternion, 'YXZ').y;
+    let yaw = now;
+    if (Math.hypot(sx, sz) > CRANE_STICK_TURN) yaw = craneQuarter(this.groundYaw(sx, sz));
+    for (; this.craneTurns > 0; this.craneTurns--) yaw = craneTurn(yaw, true);
+    for (; this.craneTurns < 0; this.craneTurns++) yaw = craneTurn(yaw, false);
+    if (yaw !== now) {
+      this.yaw = yaw;
+      this.rig.rotation.set(0, yaw, 0);
+      this.rig.updateMatrixWorld(true);
     }
 
     const velocity = craneVelocity(_head.x, _head.z, goal.x, goal.z, dt);
     _move.set(velocity.x, 0, velocity.z);
-    // Das Dropship schaut, wohin es fliegt — aber erst ab Schritttempo, sonst
-    // zittert die Nase bei jedem Bildpunkt, den die Maus zuckt.
-    if (_move.lengthSq() > CRANE_TURN_SPEED * CRANE_TURN_SPEED) {
-      this.yaw = smoothAngle(
-        _euler.setFromQuaternion(this.rig.quaternion, 'YXZ').y,
-        yawFromDirection(_move.x, _move.z),
-        dt,
-        TURN_TAU,
-      );
-      this.rig.rotation.set(0, this.yaw, 0);
-      this.rig.updateMatrixWorld(true);
-    }
     this.rig.setIntent(_move);
   }
 
@@ -768,6 +773,12 @@ export class FlatControls {
       if (this.bound(e.code, 'tools') && !e.repeat) {
         e.preventDefault();
         this.toolsQueued = true;
+      }
+      // **`R` dreht den Kran** (`crane`) — nur als Kran; sonst setzt dieselbe
+      // Taste die Welt zurück (`PortalWorld.flatKeys`), und die fragt dafür
+      // den Spielmodus.
+      if (e.code === 'KeyR' && this.topDownOn && this.craneOn && !e.repeat) {
+        this.craneTurns += e.shiftKey ? -1 : 1;
       }
       this.keys.add(e.code);
     });
@@ -1051,8 +1062,8 @@ export class FlatControls {
 const _ground: Vec2 = { x: 0, z: 0 };
 const _head = new THREE.Vector3();
 const _hit = new THREE.Vector3();
-/** Ab welchem Tempo sich das Dropship in Flugrichtung dreht, in m/s. */
-const CRANE_TURN_SPEED = 0.8;
+/** Wie weit der rechte Stock ausgelenkt sein muss, bevor er den Kran dreht. */
+const CRANE_STICK_TURN = 0.5;
 
 /** Aus dem Weg eines Fingers eine Auslenkung von −1 bis 1 (Radius 56 Punkte). */
 function clampStick(delta: number): number {

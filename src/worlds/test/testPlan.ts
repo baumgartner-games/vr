@@ -67,9 +67,18 @@ import { fitStart, stampStart } from './zones/start';
 export function testPlan(): GridPlan {
   const plan = new GridPlan(LEVELS);
 
-  // Der Boden des Geländes, zwei Zentimeter unter null, damit er sich mit den
-  // Bodenkacheln darüber nicht um jedes Pixel streitet.
-  plan.mass('floor', FIELD, -0.5, -0.02, { portal: true });
+  // Der Boden des Geländes, **auf null** — genau so hoch wie die Kacheln, auf
+  // denen gelaufen wird. Er lag einmal zwei Zentimeter tiefer, damit er sich
+  // mit ihnen nicht um jedes Pixel streitet; seit auf beiden Platten aus dem
+  // Regal liegen und beide Quader darunter unsichtbar werden
+  // (`shared/plateField.ts`), war das nur noch eine Stufe, auf der man stand:
+  // _„die boden platten liegen hier nicht alle gleich auf"_. Gewünscht war,
+  // dass man direkt auf der Plattenhöhe steht und nicht tiefer fällt — genau
+  // das ist diese Masse jetzt: der Boden unter jeder Platte, auf null. Bis die
+  // Platten da sind, liegen Masse und Kacheln in einer Ebene; beide tragen
+  // dasselbe Material (`GridWorld.materialFor('floor')`), und zwei gleiche
+  // Flächen in einer Ebene sehen aus wie eine.
+  plan.mass('floor', FIELD, -0.5, 0, { portal: true });
 
   // Die begehbaren Flächen: die Zonen und die Gänge dazwischen. Was hier nicht
   // steht, ist Gelände — man steht darauf (die Masse trägt), aber es ist kein
