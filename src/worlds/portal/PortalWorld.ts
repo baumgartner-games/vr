@@ -1385,6 +1385,17 @@ export class PortalWorld implements World {
   private areaPad: AreaPad | null = null;
   /** Ob _Fläche_ gerade an ist. */
   private areaOn = false;
+  /**
+   * **Der laufende Pinselstrich** (`paintStroke`) — welches Modell, wo zuletzt
+   * gesetzt wurde und welche Plätze in diesem Strich schon eine Kopie haben.
+   */
+  private paint: {
+    entry: PhysicsBody;
+    path: string;
+    last: THREE.Vector3;
+    done: Set<string>;
+    count: number;
+  } | null = null;
   /** Die Ecken der Fläche, zwischen Drücken, Ziehen und Nachfrage. */
   private readonly areaSelect = new AreaSelect();
   /** Die Kachel unter der Maus, bevor gedrückt wird — sie leuchtet schon. */
@@ -8873,6 +8884,90 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Ein Pinselstrich beginnt** — oder nicht, und dann wird wie bisher
+   * abgelegt.
+   *
+   * Gewünscht war: _„im web von oben mit maus gedrückt halten mehrere objekte
+   * legen (also über mehrere felder ziehen und dann wird auf jedem feld das
+   * objekt gelegt) wie bei einem paint tool."_ Das Stück in der Hand ist der
+   * Pinsel, wie bei der Fläche (`commitArea`): Es bleibt am Kran, und jede
+   * Kachel, über die er mit gedrückter Taste fährt, bekommt eine Kopie in
+   * genau seiner Drehung. Ein einfacher Klick ist ein Strich über eine
+   * Kachel — und hinterlässt genau das, was vorher ein Ablegen samt
+   * nachgelegter Kopie hinterließ.
+   *
+   * Nur **von oben**, nur im **Baukasten** (`gameMode.refillsCatalogue`), nur
+   * mit einem Stück **frisch aus dem Regal** (`shelfFresh`) und nur mit der
+   * **Maus** (`PlayerRig.paintHeld`) — wer ein Möbel umstellt, das schon
+   * stand, stellt es hin; wer `E` drückt, auch.
+   *
+   * @returns ob gemalt wird
+   */
+  private startPaint(ctx: WorldContext, entry: PhysicsBody): boolean {
+    this.paint = null;
+    if (!ctx.topDown || !ctx.rig.paintHeld) return false;
+    if (!refillsCatalogue(gameMode()) || !this.shelfFresh.has(entry)) return false;
+    const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind ?? null);
+    if (path === null) return false;
+    entry.object.getWorldPosition(_point);
+    this.paint = { entry, path, last: _point.clone(), done: new Set(), count: 0 };
+    this.paintAt(ctx, this.paint, _point.x, _point.z);
+    return true;
+  }
+
+  /**
+   * **Den Pinselstrich ein Bild weiterziehen** — von der Stelle des letzten
+   * Bildes bis hierher, in Schritten unter einer halben Kachel: Der Kran folgt
+   * der Maus weich, und wer schnell zieht, überspränge sonst Kacheln.
+   */
+  private paintStroke(ctx: WorldContext, entry: PhysicsBody): void {
+    const paint = this.paint;
+    if (!paint) return;
+    if (paint.entry !== entry || !ctx.rig.paintHeld) {
+      this.paint = null;
+      if (paint.count > 1)
+        ctx.notify(`${paint.count}× ${propLabel(modelKind(paint.path))} gesetzt`);
+      return;
+    }
+    entry.object.getWorldPosition(_point);
+    const steps = Math.ceil(paint.last.distanceTo(_point) / (TILE / 2));
+    for (let i = 1; i <= steps; i++) {
+      _direction.lerpVectors(paint.last, _point, i / steps);
+      this.paintAt(ctx, paint, _direction.x, _direction.z);
+    }
+    paint.last.copy(_point);
+  }
+
+  /**
+   * **Eine Kopie des Pinsels auf die Kachel unter diesem Punkt** — eingerastet
+   * wie beim Hinstellen (`gridSnap.gridPose`), aus der Höhe der Fläche
+   * (`commitArea`), und nur, wenn dort nicht schon dasselbe Modell steht.
+   */
+  private paintAt(
+    ctx: WorldContext,
+    paint: NonNullable<PortalWorld['paint']>,
+    x: number,
+    z: number,
+  ): void {
+    const entry = paint.entry;
+    entry.object.getWorldQuaternion(_quaternion);
+    const pose = gridPose(x, z, _quaternion, entry.halfExtents);
+    const key = `${pose.x.toFixed(3)}/${pose.z.toFixed(3)}`;
+    if (paint.done.has(key)) return;
+    paint.done.add(key);
+    const kind = modelKind(paint.path);
+    for (const body of this.bodies.values()) {
+      if (body === entry || body.carried || body.removed) continue;
+      if ((body.object.userData as { propKind?: PropKind }).propKind !== kind) continue;
+      const at = body.object.position;
+      if (Math.hypot(at.x - pose.x, at.z - pose.z) < 0.05) return;
+    }
+    const y = ctx.rig.getFloorY() + entry.halfExtents.y + AREA_LIFT;
+    paint.count += 1;
+    void this.placeModelAt(paint.path, new THREE.Vector3(pose.x, y, pose.z), pose.yaw);
+  }
+
+  /**
    * **Ein hingestelltes Modell auf das Kachelgitter setzen** — oder es liegen
    * lassen, wenn es keines ist oder geworfen wurde.
    *
@@ -10801,10 +10896,13 @@ export class PortalWorld implements World {
     // **Die linke Maustaste legt sofort ab** (`FlatControls.pressMouseUse`) —
     // ein Klick ist kein Tippen, das behält, sondern ein Hinstellen.
     if (ctx.rig.takeDrop()) {
-      this.release(ctx, side, grab, true, true);
       this.screenPress = null;
-      return;
+      if (!this.startPaint(ctx, grab.entry)) {
+        this.release(ctx, side, grab, true, true);
+        return;
+      }
     }
+    this.paintStroke(ctx, grab.entry);
 
     const held = ctx.rig.useHeld;
     // **Die Flanke kommt aus zwei Quellen, und sie muss aus beiden kommen.**

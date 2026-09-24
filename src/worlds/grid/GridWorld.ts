@@ -77,6 +77,9 @@ import type { MenuEntry } from '../../ui/menu';
 import type { Handedness } from '../../core/XRInput';
 import type { PhysicsBody } from '../../physics/PhysicsWorld';
 
+/** Die „Datei“, auf die ein Quader unter einem eigenen Belag wartet (`underOwnFloor`). */
+const OWN_FLOOR = 'own-floor';
+
 /**
  * **Eine Welt, die auf dem Kachelgitter steht.**
  *
@@ -527,7 +530,28 @@ export abstract class GridWorld extends PortalWorld {
     // **Und der Boden bekommt Platten**, aus demselben Regal und mit derselben
     // Verzögerung (`buildFloorPlates`).
     this.buildFloorPlates();
+    // Die eigenen Beläge liegen schon (die Zonen bauen sie synchron) — was
+    // unter ihnen wartet, geht jetzt aus dem Bild, samt seinem Bündel.
+    this.plateArrived(OWN_FLOOR);
     this.buildGridLines();
+  }
+
+  /**
+   * **Ob ein Quader unter einem Belag liegt, den die Welt selbst zeichnet** —
+   * dann ist er Körper und kein Bild mehr, und wird unsichtbar.
+   *
+   * Gemeldet war: _„wo ist der küchenboden hin? … es scheint einfach ein
+   * grauer boden darüber zu liegen."_ Seit die Küche auf null liegt
+   * (`kitchenPlan.KITCHEN_FLOOR`), trennen ihren Belag nur zwei Millimeter vom
+   * Estrich darunter, und ein Tiefenpuffer, der die nicht mehr auseinander-
+   * hält, zeichnet den Estrich darüber. Zwei Flächen so dicht übereinander
+   * lassen sich nicht auf jedem Gerät sauber trennen; eine weglassen kann man —
+   * dieselbe Antwort wie bei den Platten (`plateArrived`).
+   *
+   * Die Antwort dieser Welt ist `nein`; die Testwelt kennt ihre Küche.
+   */
+  protected underOwnFloor(_solid: PlanSolid): boolean {
+    return false;
   }
 
   /**
@@ -1600,6 +1624,12 @@ export abstract class GridWorld extends PortalWorld {
       mesh.userData.plates = key;
       this.rememberPlated(key, mesh);
       this.plateSolids.push(solid);
+    } else if (this.underOwnFloor(solid)) {
+      // **Und was unter einem eigenen Belag liegt, geht genauso aus dem Bild**
+      // (`underOwnFloor`) — dieselbe Warteliste, nur ist ihre „Datei“ sofort
+      // da (`rebuildGrid`, `OWN_FLOOR`).
+      mesh.userData.plates = OWN_FLOOR;
+      this.rememberPlated(OWN_FLOOR, mesh);
     }
     // **Und ob er in ein Bündel darf** (`gridBatch.ts`): Ein Boden, eine
     // Schwelle, eine Rampe wird nie durchsichtig — also kostet es nichts, sie

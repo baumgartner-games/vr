@@ -4,7 +4,9 @@ import {
   PLATE_STONE,
   floorPieceLift,
   floorPlate,
+  underKitchenFloor,
 } from './floorPlate';
+import { KITCHEN_FLOOR } from './zones/kitchenPlan';
 import { KITCHEN_CHECKER_LIFT } from './zones/kitchenFloor';
 import { floorPlateSpots } from '../shared/plateField';
 import { FIELD, KITCHEN, PODIUM } from './layout';
@@ -132,5 +134,25 @@ describe('Bodenstücke aus dem Regal in der Küche', () => {
     const inside = { x: KITCHEN.x + 0.5, z: KITCHEN.z + 0.5 };
     expect(floorPieceLift([inside])).toBe(KITCHEN_PIECE_LIFT);
     expect(floorPieceLift([{ x: KITCHEN.x - 0.5, z: KITCHEN.z + 0.5 }])).toBe(0);
+  });
+});
+
+describe('unter dem Belag der Küche', () => {
+  const solids = testPlan().solids();
+  const hidden = solids.filter((solid) => underKitchenFloor(solid, KITCHEN_FLOOR));
+
+  it('verschwinden der Estrich und die Bodenkacheln der Küche', () => {
+    expect(hidden.some((solid) => solid.kind === 'stone')).toBe(true);
+    expect(hidden.filter((solid) => solid.kind === 'floor')).toHaveLength(KITCHEN.w * KITCHEN.d);
+  });
+
+  it('und nichts, was über die Küche hinausreicht oder über ihrem Boden steht', () => {
+    for (const solid of hidden) {
+      expect(solid.x - solid.w / 2).toBeGreaterThanOrEqual(KITCHEN.x - 1e-6);
+      expect(solid.x + solid.w / 2).toBeLessThanOrEqual(KITCHEN.x + KITCHEN.w + 1e-6);
+      expect(solid.y + solid.h / 2).toBeCloseTo(KITCHEN_FLOOR, 6);
+    }
+    const field = solids.find((solid) => solid.kind === 'floor' && solid.w === FIELD.w);
+    expect(field && underKitchenFloor(field, KITCHEN_FLOOR)).toBe(false);
   });
 });

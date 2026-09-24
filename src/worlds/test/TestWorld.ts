@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
-import type { PlanSolidKind } from '../grid/solids';
+import type { PlanSolid, PlanSolidKind } from '../grid/solids';
 import { createSky } from '../shared/environment';
 import { DustTrail } from '../shared/dustTrail';
 import { PLATE_TOP, PlateFloor } from '../shared/plateFloor';
@@ -21,7 +21,9 @@ import type { FurnitureChange } from '../../core/worldChanges';
 import { npcSkin } from '../npc/npcKinds';
 import { FIELD, HORIZON_COLORS, KITCHEN_SPAWN, ZONE_LABELS, ZONE_TILES, centre } from './layout';
 import { spawnAt } from './spawnAt';
-import { floorPieceLift, floorPlate, PLATE_PROTOTYPE } from './floorPlate';
+import { floorPieceLift, floorPlate, PLATE_PROTOTYPE, underKitchenFloor } from './floorPlate';
+import { KITCHEN_FLOOR } from './zones/kitchenPlan';
+import { canLoadModels } from '../../core/chefFit';
 import { fitTest, testPlan } from './testPlan';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
@@ -200,6 +202,15 @@ export class TestWorld extends GridWorld {
    */
   protected override floorPlate(tile: PlateTile): string | null {
     return floorPlate(tile);
+  }
+
+  /**
+   * **Unter dem Belag der Küche wird nichts gezeichnet** (`floorPlate.underKitchenFloor`)
+   * — aber nur, wenn es den Belag gibt: Ohne WebGL baut ihn die Küche nicht
+   * (`kitchenFloor.ts`), und dann ist der Estrich der Boden, den man sieht.
+   */
+  protected override underOwnFloor(solid: PlanSolid): boolean {
+    return canLoadModels() && underKitchenFloor(solid, KITCHEN_FLOOR);
   }
 
   /**

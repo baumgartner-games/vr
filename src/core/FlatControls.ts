@@ -280,6 +280,7 @@ export class FlatControls {
     this.mouseFire = false;
     this.mouseSight = false;
     this.rig.sighting = false;
+    this.rig.paintHeld = false;
     this.firePointer = null;
     this.setPressed(this.pads.fire, false);
     this.aimStick.set(0, 0);
@@ -794,6 +795,7 @@ export class FlatControls {
     this.on(window, 'blur', () => {
       this.keys.clear();
       this.mouseFire = false;
+      this.rig.paintHeld = false;
       this.mouseSight = false;
       this.mouseButtons = 0;
       this.rig.sighting = false;
@@ -831,8 +833,11 @@ export class FlatControls {
           // ob er sie bekommt, entscheidet die Welt (nur im _Baukasten_).
           if (event.button === 2 && this.craneOn) this.rig.requestBomb();
           if (event.button === 0) {
-            if (this.rig.carrying) this.pressMouseUse();
-            else if (this.rig.useCandidate) this.useQueued = true;
+            if (this.rig.carrying) {
+              this.pressMouseUse();
+              // Gedrückt halten und ziehen malt (`PlayerRig.paintHeld`).
+              this.rig.paintHeld = true;
+            } else if (this.rig.useCandidate) this.useQueued = true;
             else this.mouseFire = true;
           }
           return;
@@ -952,6 +957,7 @@ export class FlatControls {
     const end = (event: PointerEvent) => {
       if (event.pointerType === 'mouse') {
         if (event.button === 0) this.mouseFire = false;
+        if (event.button === 0) this.rig.paintHeld = false;
         if (event.button === 2) this.mouseSight = false;
         this.mouseButtons = event.buttons;
       }
@@ -997,6 +1003,7 @@ export class FlatControls {
     const was = this.mouseButtons;
     this.mouseButtons = buttons;
     if ((buttons & 1) === 0) this.mouseFire = false;
+    if ((buttons & 1) === 0) this.rig.paintHeld = false;
     if ((buttons & 2) === 0) this.mouseSight = false;
     if (this.topDownOn || !this.pointerLocked || !this.rig.armed) return;
     if ((buttons & 1) !== 0 && (was & 1) === 0) this.mouseFire = true;
