@@ -644,6 +644,24 @@ diesem Menü, nur schärfer:
   und allen anderen Kopien (siehe _Wer sich die Geometrie teilt_); weggeräumt
   wird nur der Rahmen darum.
 
+### Auf dem Telefon öffnete das ⓘ nichts — die Fächer und die Suche
+
+Gemeldet: _„Auf dem Handy kann ich durch das Info-Icon leider nicht auf das
+Menü für weitere Infos gelangen."_ Der Druck kam an; verloren ging er beim
+**Weg durchs Menü**. Das ⓘ legt die Id des Modells auf den Weg
+(`menuNav.push`), und sowohl `PageMenu.applyNav` als auch `menuNav.walkPath`
+(der Baum wird zweimal die Sekunde neu gesetzt und der Weg dabei beschnitten)
+suchten sie nur unter den **direkten** Kindern der Seite. Am Schirm stehen die
+Fächer „1–60", „61–120" aber offen (`flatten`, siehe _Fächer in der Brille_),
+die Kachel ist dort nur scheinbar ein Kind der Seite — und ein Suchtreffer ist
+gar keines. Am Telefon hat fast jeder Ordner mehr als sechzig Dateien, also
+öffnete das ⓘ dort praktisch nie. Seitdem sucht **ein** Schritt
+(`menuNav.findStep`) erst unter den Kindern, dann in den offenen Fächern und
+für einen Steckbrief (`detail`) zuletzt im ganzen Baum — die Ids sind Adressen
+und damit eindeutig. Geprüft in `pageMenu.test.ts` (_Das ⓘ hinter
+aufgeklappten Fächern_), mit Fach und mit Suche, jeweils auch nach einem
+Neubau des Baums.
+
 ## Die genaue Bezeichnung — die Adresse an einem Stück, und ein Knopf daneben
 
 Es fing mit zwei Bestellungen an, die ins Leere gingen. In einer Sitzung waren
@@ -1287,6 +1305,24 @@ Namensliste.
 `userData.sharedAssets` an (siehe _Wer sich die Geometrie teilt_): Geometrie
 und Textur gehören der Vorlage im Speicher und allen anderen Kopien.
 
+## Das leere Bodenstück: „Empty"
+
+`prototype-bits/Empty.glb` ist das einzige Stück im Regal, das nicht aus der
+gekauften Sammlung kommt: ein Kasten von einer Kachel (2 × 0,5 × 2
+Quelleinheiten, mit 0,5 also 1 × 0,25 × 1 m), dessen Material ganz
+durchsichtig ist (`alphaMode: BLEND`, Deckkraft null). Gewünscht war _„im
+KayKit-Katalog ein Floor-Teil, welches einfach ‚empty' heißt und einen leeren
+Floor-Type darstellt, wodurch ich in Haunting den Weltraum darstellen kann bzw.
+den Blick zur Skybox"_. Es ist ein **Bodenstück** wie jedes andere
+(`modelStance`: `empty` steht in `STRUCTURE_WORDS` und `FLOOR_WORDS`): Es
+wird bündig in den Boden gelegt und nimmt die Platte darunter weg
+(`PortalWorld.sinkFloor`, `GridWorld.coverFloor`) — und zeichnet selbst nichts.
+Wo es liegt, sieht man, was unter der Platte ist: in einer Gitterwelt mit
+Platten nichts mehr, also den Himmel bzw. den Weltraum. Getragen wird man
+weiter (der Körper des Stücks und der des Grundrisses bleiben). Die Datei ist
+von Hand geschrieben (ein Kasten, 1,5 KB) und in `index.json` eingetragen; wer
+`tools/kaykit-model.mjs` neu laufen lässt, muss sie liegen lassen.
+
 ## Ein Maßstab je Paket — und warum die Ritter zu groß waren
 
 `KAYKIT_SCALE` ist **0,5**, dieselbe Zahl wie bei der Wundertüte
@@ -1332,6 +1368,18 @@ Pointe: Innerhalb eines Pakets ist alles in derselben Einheit gebaut. In
 Munitionskiste (0,57 → 0,40 m) — und genau so soll es sein. Sieben Zeilen liest
 man; viertausendfünfhundert nicht. Die Tests daneben halten die Tabelle
 ehrlich: Jeder Schlüssel muss ein Paket sein, das im Index wirklich steht.
+
+### Und einzelne Dateien: die gelbe Wand so groß wie die grüne
+
+Seit September 2026 gibt es neben dem Maßstab je Paket eine kurze Liste je
+Datei (`kaykitFit.KAYKIT_FILE_SCALE`). Gewünscht war, dass die Prototyp-Wand
+mit dem gelben Sockel (`prototype-bits/Wall.glb`) so groß ist wie die
+Restaurantwand mit dem grünen (`restaurant-bits/wall.glb`): beide 4 × 4
+Quelleinheiten, die gelbe mit dem Figurenmaßstab ihres Pakets aber 2,80 m
+statt 2,00 m. Jetzt nehmen `Wall*`, `Primitive_Wall*`, `Floor*`, `Door*` und
+`Empty` aus `prototype-bits` die Vorgabe 0,5 — zwei Kacheln lang und hoch. Der
+Durchgang (`Wall_Doorway`) ist damit 1,40 m hoch; die Figur des Pakets passt
+nicht mehr hindurch, und das ist der Preis gleich hoher Wände.
 
 ## Keine Build-Nummer an diesen Adressen
 

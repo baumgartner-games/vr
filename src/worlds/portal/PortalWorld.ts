@@ -1814,11 +1814,11 @@ export class PortalWorld implements World {
       this.changesMenu(),
       {
         id: 'reset',
-        label: 'Labor zurücksetzen',
-        sub: 'Portale, Würfel und Dominos',
+        label: 'Zurücksetzen',
+        sub: 'Alles auf Anfang — auch Möbel und gespeicherte Umbauten',
         icon: 'reset',
         accent: COLOR_RED,
-        run: () => this.resetWorld(ctx()),
+        run: () => this.resetEverything(ctx()),
       },
     ];
   }
@@ -11511,6 +11511,36 @@ export class PortalWorld implements World {
     this.sync?.resetShared();
     ctx.notify('Labor zurückgesetzt');
   }
+
+  /**
+   * **Alles auf Anfang** — der Knopf _Zurücksetzen_ im Menü.
+   *
+   * Gewünscht war ein Reset, der **alles** zurücksetzt, statt „Labor
+   * zurücksetzen", das nur Portale, Würfel und Dominos zurücklegte. Stehen
+   * blieben dabei verschobene Möbel, Stücke aus dem Regal, ein Umbau aus dem
+   * Baukasten — und der liegt im Speicher des Geräts (`grid/worldStore.ts`)
+   * und kommt beim nächsten Start wieder. Genau so stand in der Handy-App noch
+   * ein alter Küchenboden, als er im Browser längst neu war.
+   *
+   * Also: das Geteilte zurück (wie bisher, auch bei den anderen), den
+   * gespeicherten Stand vergessen (`forgetStored`), die Liste der
+   * Weltänderungen leeren und die Welt frisch laden. `R` und die zweite Taste
+   * in der Brille bleiben beim kleinen Zurücksetzen — ein versehentlicher
+   * Tastendruck soll keinen Umbau löschen.
+   */
+  private resetEverything(ctx: WorldContext): void {
+    this.resetShared();
+    this.sync?.resetShared();
+    this.forgetStored();
+    clearWorldChanges();
+    if (ctx.reload) {
+      ctx.notify('Alles zurückgesetzt');
+      ctx.reload();
+    } else ctx.notify('Zurückgesetzt');
+  }
+
+  /** Was diese Welt im Gerät aufhebt, vergessen — voreingestellt nichts. */
+  protected forgetStored(): void {}
 
   /** The reset itself, without telling anybody — used by both ends. */
   private resetShared(): void {

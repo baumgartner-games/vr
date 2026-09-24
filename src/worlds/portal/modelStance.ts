@@ -57,6 +57,8 @@ const STRUCTURE_WORDS: ReadonlySet<string> = new Set([
   'terrain',
   'tunnel',
   'maze',
+  // `prototype-bits/Empty.glb` — das leere Bodenstück (siehe `FLOOR_WORDS`).
+  'empty',
 ]);
 
 /** Wörter im Dateinamen, die ein Möbel meinen. */
@@ -149,7 +151,7 @@ export function standsFast(stance: ModelStance): boolean {
 }
 
 /** Wörter im Dateinamen, die eine **Fläche** meinen, auf der man geht. */
-const FLOOR_WORDS: ReadonlySet<string> = new Set(['floor', 'road']);
+const FLOOR_WORDS: ReadonlySet<string> = new Set(['floor', 'road', 'empty']);
 
 /**
  * **Ob ein Modell ein Stück Boden ist** — eines, das beim Hinstellen **in**

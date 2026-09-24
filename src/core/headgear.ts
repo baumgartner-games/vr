@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HEAD_RADIUS, HEAD_SPREAD } from './avatarLook';
 import { CHEF_HAT_SEAT, chefHatVertices } from './chefHat';
+import { canLoadModels } from './chefFit';
 
 /**
  * **Was man auf dem Kopf trägt** — die erste Sorte Kleidung in diesem Projekt.
@@ -56,7 +57,7 @@ import { CHEF_HAT_SEAT, chefHatVertices } from './chefHat';
 
 /** Was es zu tragen gibt. `none` ist ausdrücklich einer davon. */
 export type HeadgearKind =
-  'none' | 'chef' | 'cap' | 'helmet' | 'hardhat' | 'beanie' | 'tophat' | 'crown';
+  'none' | 'chef' | 'cap' | 'helmet' | 'hardhat' | 'beanie' | 'tophat' | 'crown' | 'space';
 
 export const HEADGEAR_KINDS: readonly HeadgearKind[] = [
   'none',
@@ -67,6 +68,9 @@ export const HEADGEAR_KINDS: readonly HeadgearKind[] = [
   'beanie',
   'tophat',
   'crown',
+  // Hinten angehängt: Die Reihenfolge ist die im Menü, und was schon
+  // gespeichert ist, soll dasselbe bleiben.
+  'space',
 ];
 
 export const HEADGEAR_LABELS: Record<HeadgearKind, string> = {
@@ -78,6 +82,7 @@ export const HEADGEAR_LABELS: Record<HeadgearKind, string> = {
   beanie: 'Mütze',
   tophat: 'Zylinder',
   crown: 'Krone',
+  space: 'Raumhelm',
 };
 
 export const HEADGEAR_SUBS: Record<HeadgearKind, string> = {
@@ -89,7 +94,11 @@ export const HEADGEAR_SUBS: Record<HeadgearKind, string> = {
   beanie: 'Strickmütze mit Bommel',
   tophat: 'Hoch, schwarz, mit Band',
   crown: 'Für den, der die Bestzeit hat',
+  space: 'Der Helm des Space Rangers — aus dem KayKit-Regal',
 };
+
+/** Der Helm des Space Rangers (`space`), aus dem Regal. */
+export const SPACE_HELMET = 'mystery-monthly-4/7-january-2024-space-ranger/SpaceRanger_Helmet.glb';
 
 /** Die nächste Kopfbedeckung, oben wieder von vorn. */
 export function nextHeadgear(kind: HeadgearKind): HeadgearKind {
@@ -346,9 +355,83 @@ export function buildHeadgear(kind: HeadgearKind, tint = 0x3f6fb5): THREE.Group 
       }
       break;
     }
+    case 'space': {
+      // **Der Raumhelm kommt aus dem Regal** (`SPACE_HELMET`) — der zum Space
+      // Ranger gehört, der in der Raumstation die Figur ist
+      // (`worlds/haunting/ShipExperience`). Bis er geladen ist, und für immer
+      // ohne die gekauften Pakete, steht an seiner Stelle eine gebaute Kugel
+      // mit Visier; dann geht sie aus dem Bild.
+      const shell = new THREE.Mesh(
+        new THREE.SphereGeometry(r(1.3), 22, 16),
+        solid(0xe9eef2, 0.35, 0.2),
+      );
+      shell.position.y = -r(0.075);
+      const visor = new THREE.Mesh(
+        new THREE.SphereGeometry(r(1.32), 22, 12, -0.9, 1.8, 1.05, 0.62),
+        new THREE.MeshStandardMaterial({ color: 0x2a6f9e, roughness: 0.12, metalness: 0.6 }),
+      );
+      visor.position.y = shell.position.y;
+      visor.rotation.y = Math.PI;
+      const stand = new THREE.Group();
+      stand.name = 'space-helmet-stand-in';
+      stand.add(shell, visor);
+      group.add(stand);
+      if (canLoadModels()) void fitSpaceHelmet(group, stand);
+      break;
+    }
   }
 
   return group;
+}
+
+/**
+ * **Den Helm aus dem Regal auf den Kopf setzen** — gemessen und nicht
+ * abgeschrieben: so breit wie die gebaute Schale (`r(1.3)` Halbmesser, etwas
+ * Luft dazu), mit der Mitte auf ihrer Mitte, das Visier nach vorn (−z; die
+ * Figuren des Regals schauen nach +z).
+ */
+async function fitSpaceHelmet(group: THREE.Group, stand: THREE.Object3D): Promise<void> {
+  const { kaykitModel } = await import('./kaykitModel');
+  const model = await kaykitModel(SPACE_HELMET);
+  if (!model) return;
+  model.name = 'space-helmet';
+  // **Am Kopfknochen des Space Rangers sitzt er, wie er gebaut ist.** Helm
+  // und Figur kommen aus demselben Paket und in derselben Einheit, und ein
+  // Zubehör des Regals hat seinen Ursprung am Knochen, an den es gehört. Also
+  // steht er relativ zum Knochen genau auf null — die Gruppe des Huts ist
+  // gegenüber dem Knochen verschoben und skaliert (`headgearFor`), das wird
+  // hier wieder herausgerechnet — und mit der eigenen Matrix fällt auch der
+  // Maßstab des Pakets weg (`kaykitFit.kaykitScale`): Die Figur trägt ihn
+  // schon an ihrer Wurzel.
+  // Geschätzt nach dem Kopfhalbmesser saß er **im** großen Kopf der Figur.
+  const bone = group.parent as THREE.Bone | null;
+  if (bone?.isBone) {
+    group.updateMatrix();
+    model.matrixAutoUpdate = false;
+    model.matrix.copy(group.matrix).invert();
+    model.matrixWorldNeedsUpdate = true;
+    model.traverse((object) => (object.layers.mask = group.layers.mask));
+    group.add(model);
+    stand.visible = false;
+    return;
+  }
+  model.rotation.y = Math.PI;
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const wide = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+  if (!(wide > 1e-6)) return;
+  const scale = (2 * r(1.36)) / wide;
+  model.scale.multiplyScalar(scale);
+  model.updateMatrixWorld(true);
+  box.setFromObject(model);
+  model.position.set(
+    -(box.min.x + box.max.x) / 2,
+    -r(0.075) - (box.min.y + box.max.y) / 2,
+    -(box.min.z + box.max.z) / 2,
+  );
+  model.traverse((object) => (object.layers.mask = group.layers.mask));
+  group.add(model);
+  stand.visible = false;
 }
 
 /**

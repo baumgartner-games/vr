@@ -232,6 +232,8 @@ export class App {
    * `null` — dann gilt die Einstellung (`core/appearance.ts`).
    */
   private worn: HeadgearKind | null = null;
+  /** Die Figur, die eine Welt dem Spieler gerade geliehen hat (`WorldContext.dress`). */
+  private dressed: string | null = null;
   /** 2D oder 3D am Bildschirm (`core/screenView.ts`). */
   private view: ScreenView = '3d';
   readonly avatars: RemoteAvatars;
@@ -503,6 +505,7 @@ export class App {
       elapsed: this.elapsed,
       frame: () => this.frameStats.latest,
       goTo: (id: string) => void this.goTo(id),
+      reload: () => void this.reloadWorld(),
       join: (room: string) => void this.joinRoom(room),
       touchStick: (on: boolean) => this.hooks.onTouchStick?.(on),
       notify: (message: string) => this.notify(message),
@@ -512,6 +515,7 @@ export class App {
       },
       say: (text, options) => void this.say(text, options),
       wear: (kind) => this.wear(kind),
+      dress: (figure) => this.dress(figure),
       openWardrobe: () => this.openWardrobe(),
     };
   }
@@ -536,6 +540,20 @@ export class App {
    * im Aufbauen war — heraus kam eine halbe Welt, in der nichts mehr
    * funktionierte, und der Weg dorthin war ein doppelter Tipper.
    */
+  /**
+   * **Die Welt, in der man steht, noch einmal laden** — für _Zurücksetzen_.
+   *
+   * `goTo` mit derselben Id täte nichts (schon da); also vergisst die App erst,
+   * wo sie ist, und lädt dann wie beim Hineingehen. Die alte Welt wird dabei
+   * wie sonst auch erst abgeräumt, wenn die neue geladen ist.
+   */
+  async reloadWorld(): Promise<void> {
+    const id = this.worldId;
+    if (!id || this.loading !== null) return;
+    this.worldId = '';
+    await this.goTo(id);
+  }
+
   async goTo(id: string): Promise<void> {
     const definition = findWorld(id) ?? findWorld(DEFAULT_WORLD)!;
     if (this.loading === definition.id) return;
@@ -1615,8 +1633,14 @@ export class App {
     this.applyAppearance();
   }
 
+  private dress(figure: string | null): void {
+    this.dressed = figure;
+    this.applyAppearance();
+  }
+
   private applyAppearance(): void {
-    const look = { ...appearance(), hat: this.worn ?? appearance().hat };
+    const own = appearance();
+    const look = { ...own, hat: this.worn ?? own.hat, figure: this.dressed ?? own.figure };
     this.avatar.setLook(look);
     const known = this.net.look;
     if (

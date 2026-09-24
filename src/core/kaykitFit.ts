@@ -89,6 +89,29 @@ export const KAYKIT_PACK_SCALE: Readonly<Record<string, number>> = {
 };
 
 /**
+ * **Die wenigen Dateien, die nicht dem Maßstab ihres Pakets folgen.**
+ *
+ * Gewünscht war: _„Die Wall [mit dem gelben Rand unten] muss angepasst werden
+ * von der Größe, damit sie der anderen Wall, die unten grün ist, gleich groß
+ * ist."_ Die grüne ist `restaurant-bits/wall.glb` — 4 × 4 × 0,5
+ * Quelleinheiten, mit der Vorgabe 0,5 also 2,00 × 2,00 × 0,25 m, genau zwei
+ * Kacheln. Die gelbe ist `prototype-bits/Wall.glb`, ebenfalls 4 × 4 × 0,53,
+ * aber mit dem Figurenmaßstab ihres Pakets (0,7) 2,80 × 2,80 × 0,37 m — drei
+ * Kacheln, die auf keiner Fuge enden. Mit 0,5 stehen beide gleich groß
+ * nebeneinander (die gelbe 2,00 × 2,00 × 0,27 m).
+ *
+ * Dazu die ganze Familie, die daneben steht: halbe Wand, Fenster, Durchgang,
+ * die Tür darin und die Böden des Pakets (`Floor.glb` wird 2 × 2 m, zwei
+ * Kacheln statt 2,8 m). Der Durchgang ist dann 1,40 m hoch — die Figur des
+ * Pakets passt nicht mehr hindurch, und das ist der Preis dafür, dass die
+ * Wände gleich hoch sind. Die Figur, die Fässer und Kisten bleiben bei 0,7.
+ */
+export const KAYKIT_FILE_SCALE: readonly (readonly [RegExp, number])[] = [
+  [/^prototype-bits\/(?:Primitive_)?(?:Wall|Floor|Door)[^/]*\.glb$/, KAYKIT_SCALE],
+  [/^prototype-bits\/Empty\.glb$/, KAYKIT_SCALE],
+];
+
+/**
  * **Der Maßstab für eine Adresse im Regal** — `adventurers/characters/Knight.glb`
  * fragt nach `adventurers`.
  *
@@ -98,6 +121,7 @@ export const KAYKIT_PACK_SCALE: Readonly<Record<string, number>> = {
  * `models/kaykit/` läge — gibt es nicht, und sie bekäme die Vorgabe.
  */
 export function kaykitScale(path: string): number {
+  for (const [pattern, scale] of KAYKIT_FILE_SCALE) if (pattern.test(path)) return scale;
   const cut = path.indexOf('/');
   const pack = cut < 0 ? path : path.slice(0, cut);
   return KAYKIT_PACK_SCALE[pack] ?? KAYKIT_SCALE;

@@ -83,6 +83,12 @@ export interface WorldContext {
   /** Switch to another world by id (safe to call from inside update). */
   goTo(worldId: string): void;
   /**
+   * **Dieselbe Welt noch einmal von vorn** — abräumen und frisch laden, als
+   * käme man gerade herein (_Menü → Zurücksetzen_). Optional, weil nur die
+   * App es kann; eine Attrappe im Test braucht es nicht.
+   */
+  reload?(): void;
+  /**
    * **Einem Raum beitreten**, ohne dass die Welt den Transport kennt.
    *
    * Welten sehen nie, was unter der Verbindung liegt (`net/types.ts`), können
@@ -126,6 +132,12 @@ export interface WorldContext {
    * wieder seinen eigenen Hut auf.
    */
   wear(kind: HeadgearKind | null): void;
+  /**
+   * **Gibt dem Spieler eine Figur** (`core/avatarFigures.ts`) — geliehen wie
+   * ein Hut über `wear`: `null` gibt ihm die eigene zurück. Die Raumstation
+   * steckt jeden in den Space Ranger. Optional, weil nur die App es kann.
+   */
+  dress?(figure: string | null): void;
   /**
    * **Die Umkleide aufmachen** (`ui/WardrobeMenu.ts`).
    *

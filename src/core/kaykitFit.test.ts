@@ -91,3 +91,24 @@ function readIndex(): KaykitIndex | null {
     return null;
   }
 }
+
+/**
+ * **Die gelbe Wand ist so groß wie die grüne.** Gewünscht war, dass
+ * `prototype-bits/Wall.glb` (gelber Rand unten) dieselbe Größe hat wie
+ * `restaurant-bits/wall.glb` (grüner Rand) — beide 4 Quelleinheiten hoch.
+ */
+describe('Der Maßstab einzelner Dateien', () => {
+  it('bringt die Wände, Böden und Türen der Prototypen auf den Maßstab der Restaurantwand', () => {
+    expect(kaykitScale('prototype-bits/Wall.glb')).toBe(kaykitScale('restaurant-bits/wall.glb'));
+    expect(kaykitScale('prototype-bits/Wall_Half.glb')).toBe(KAYKIT_SCALE);
+    expect(kaykitScale('prototype-bits/Primitive_Wall.glb')).toBe(KAYKIT_SCALE);
+    expect(kaykitScale('prototype-bits/Floor.glb')).toBe(KAYKIT_SCALE);
+    expect(kaykitScale('prototype-bits/Door_A.glb')).toBe(KAYKIT_SCALE);
+    expect(kaykitScale('prototype-bits/Empty.glb')).toBe(KAYKIT_SCALE);
+  });
+
+  it('und lässt Figur, Fass und Kiste des Pakets bei ihrem Maßstab', () => {
+    expect(kaykitScale('prototype-bits/Barrel_A.glb')).toBe(KAYKIT_FIGURE_SCALE);
+    expect(kaykitScale('prototype-bits/character/Dummy.glb')).toBe(KAYKIT_FIGURE_SCALE);
+  });
+});

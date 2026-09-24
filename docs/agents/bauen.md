@@ -926,6 +926,20 @@ Möbel in den Händen gab der Katalog vorher nichts her, und das Regal machte
 daraus ein Fass neben dem getragenen Herd. Geprüft wird die Regel samt
 Gegenprobe (die alte Regel hört nie auf) in `shelfSwap.test.ts`.
 
+**_Zurücksetzen_ setzt alles zurück** (Menü, vorher _Labor zurücksetzen_;
+`PortalWorld.resetEverything`, seit September 2026): Portale, Gegenstände und
+NPCs wie bisher — und dazu der im Gerät gespeicherte Umbau
+(`GridWorld.forgetStored` → `worldStore.forgetWorld`), die Liste der
+Weltänderungen und alles, was aus dem Regal hingestellt oder verschoben wurde:
+Die Welt wird frisch geladen (`WorldContext.reload` → `App.reloadWorld`). `R`
+am Schirm und die zweite Taste in der Brille bleiben beim kleinen
+Zurücksetzen, damit ein verirrter Tastendruck keinen Umbau löscht. Ein alter
+gespeicherter Umbau war auch der Grund für den grauen Estrich über der Küche
+in der Handy-App (die App hat ihren eigenen Speicher): Er brachte den Estrich
+auf der Höhe von vor „Küche auf null" mit, zwei Zentimeter über dem Belag.
+`floorPlate.underKitchenFloor` blendet deshalb auch einen Estrich bis
+`UNDER_FLOOR_REACH` (3 cm) über dem Belag aus.
+
 **Was aus dem Regal hingestellt wird, hat eine Haltung**
 (`worlds/portal/modelStance.ts`, seit September 2026). Vorher war jedes
 Modell ein Fass mit Physik, und eine im _Baukasten_ gestellte Wand kippte um

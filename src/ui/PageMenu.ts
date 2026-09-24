@@ -1,6 +1,6 @@
 import { drawMenuIcon, type MenuDetail, type MenuEntry, type MenuFact } from './menu';
 import { COPY_FALLBACK, copyText } from './clipboard';
-import { MenuNav } from './menuNav';
+import { MenuNav, findStep } from './menuNav';
 import { clampColumns, fitColumns, readColumns, stepColumns, writeColumns } from './pageCols';
 import { keepSafe, setSafeEdge } from './safeArea';
 import { clipLabel } from '../core/kaykitClips';
@@ -532,7 +532,7 @@ export class PageMenu {
     ];
     let level: MenuEntry[] = this.root;
     for (const id of this.nav.path) {
-      const entry = level.find((candidate) => candidate.id === id);
+      const entry = findStep(this.root, level, id);
       if (!entry) break;
       // **Eine Detailseite hat keine Kinder** und ist trotzdem eine Seite
       // (`MenuEntry.detail`): Sie zeigt ein Modell, also endet der Weg auf ihr

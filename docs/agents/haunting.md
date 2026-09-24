@@ -121,10 +121,50 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
   Fracht und Konsolen. Geometrie wird je Material zusammengefasst; technische
   Grenzmaße bleiben testbar. `shipArt.ts` zeichnet helle Marine-Paneele,
   Raumfarben, Deckfugen, Wegmarken, doppelseitige Schilder mit Wandabstand,
-  Kreaturen und den Demo-Techniker. **Die Station selbst ist weiter ganz
-  gebaut** — kein Paneel, keine Konsole und kein Schild kommt aus einem
-  gekauften Katalog. **Wer darin herumläuft, kommt jetzt aus dem Regal**
-  (siehe _Wer im Schiff einen Körper hat_).
+  Kreaturen und den Demo-Techniker. **Boden und Wände kommen seit September
+  2026 aus dem Regal** (siehe _Boden, Wände und Türknöpfe aus dem Regal_);
+  Konsolen, Geräte und Schilder sind weiter gebaut. **Wer darin herumläuft,
+  kommt aus dem Regal** (siehe _Wer im Schiff einen Körper hat_).
+- **Boden, Wände und Türknöpfe aus dem Regal** — die Station zieht wie die
+  Testwelt auf „Grundriss gebaut, Bild aus dem Regal" um:
+  - **Boden**: `HauntingWorld.floorPlate` gibt jeder Kachel
+    `prototype-bits/Floor.glb` (die erste der drei Bodenplatten des Pakets);
+    die Bodenquader gehen aus dem Bild, sobald die Platten liegen. Die
+    gezeichneten Deckplatten (`shipArt.floor`) sind weg, die Markierungen
+    darauf (Kanten, Pfeile, Gangnamen, Abteilungszeichen) bleiben.
+  - **Wände**: die Prototyp-Wand mit dem gelben Sockel
+    (`world3d/stationWalls.ts`, `prototype-bits/Wall.glb` und `Wall_Half.glb`,
+    2 × 2 m bzw. 1 × 2 m wie die grüne Restaurantwand,
+    `kaykitFit.KAYKIT_FILE_SCALE`). Jeder Wandlauf des Grundrisses
+    (`wallRun`: voll hoch, eine Wanddicke, ganze Kacheln, kein Türteil) wird mit
+    Stücken von zwei Kacheln und am ungeraden Ende einem halben belegt
+    (`runPieces`), in die Höhe auf `PLAN_WALL_H` gestreckt und je Ende um
+    `WALL_REACH` verlängert (die Ecken schließen). Die Quader bleiben als
+    Körper, Wegsuche und Ghosting stehen; ihr Material (`solidMaterial`, ein
+    eigenes je Welt) wird unsichtbar, sobald die Wände dastehen. Von oben steht
+    jeder Lauf als eigenes Netz da und wird mit seinem Quader durchsichtig
+    (`GridWorld.wallGhosted` → `StationWalls.ghost`), aus den Augen sind die
+    Läufe je 16-m-Feld verschmolzen (21 Netze statt 131). Tür- und
+    Fensterteile bleiben gebaute Quader im Grau der Wand (`tint`). Die
+    gezeichneten Pfosten, Paneele, Sturzleisten und Rohre (`shipArt`) sind weg.
+    Neu in `GridWorld` dafür: `solidMaterial`, `gridSolidBuilt`,
+    `gridRebuilt`, `wallGhosted`.
+  - **Türknöpfe** (`world3d/doorButtons.ts`): vor und hinter jeder Tür ein
+    Knopf aus `platformer/green|red/button_base_*.glb`, grün, solange die Tür
+    aufgeht, rot, solange sie gesperrt ist (`HauntingWorld.doorLocked`).
+    Gewünscht: _„wenn man drauf tritt, öffnet sich die Tür (rein visuell,
+    theoretisch ist die Tür immer offen) … ist eine Tür verschlossen, sind die
+    Bodenplatten rot und man kann nicht durch."_ Genau so: Durchlassen tut
+    weiter die Automatik (`automaticDoors.ts`, ihr Auslöser reicht über beide
+    Knöpfe), die Blätter fahren aber erst auf, wenn jemand auf einem der beiden
+    Knöpfe steht (`buttonPressed`, `pressButtons`, `doorOpen` in
+    `mountExperience`); die Kappe sinkt dabei ein. Vier `InstancedMesh` für
+    alle Knöpfe. Die Aufzugstür (`test-bay`) hat ihre Knöpfe an der Kante, die
+    der Plan setzt (`COMMAND_LIFT`, nach Westen).
+  - **Draußen** ist weiter der Weltraum (`world3d/spaceBackdrop.ts`); wer im
+    Baukasten eine Kachel zu Weltraum machen will, legt das leere Bodenstück
+    „Empty" darauf (`prototype-bits/Empty.glb`, siehe
+    `docs/agents/assetregal.md`).
 - **Wer im Schiff einen Körper hat** (`actorArt.ts`, `actorFit.ts`): Techniker
   und Monster sind seit dem KayKit-Regal (`docs/agents/assetregal.md`,
   _Eine Figur, die läuft_) **Akteure** und keine Gruppen mehr —
@@ -146,6 +186,10 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     steht auf demselben mittleren Skelett wie die Roboter — aufrecht, zwei
     Beine, 1,9 m. Er sähe aus wie der Stalker in einer anderen Farbe, und drei
     Monster, die sich nur in der Farbe unterscheiden, sind eines.
+  **Der Techniker selbst ist der Space Ranger mit Helm** (`ShipExperience`,
+  `ctx.dress(SPACE_RANGER)` und `ctx.wear('space')`, siehe
+  `docs/agents/spielfigur.md`, _Geliehen_). Das Umfärben des eigenen Körpers
+  und der gebaute Brustgurt (`EVA / 03`) sind damit weg.
   **Der gebaute Körper bleibt der Ersatz** und wird beim Eintreffen der Figur
   nur ausgeblendet, nie weggeworfen (dasselbe Muster wie `core/AvatarBody`
   mit dem Koch): Eine Runde, die erst anfängt, wenn ein Monster geladen ist,
