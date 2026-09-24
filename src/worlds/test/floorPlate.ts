@@ -1,3 +1,4 @@
+import type { PlanSolid } from '../grid/solids';
 import type { PlateTile } from '../shared/plateField';
 import { PIT_BOXES, PIT_LANE } from '../kart/kartCourse';
 import { KITCHEN } from './layout';
@@ -201,4 +202,32 @@ export function floorPieceLift(tiles: readonly { x: number; z: number }[]): numb
     );
   });
   return inKitchen ? KITCHEN_PIECE_LIFT : 0;
+}
+
+/**
+ * **Ob ein Quader unter dem Belag der Küche liegt** — der Estrich und die
+ * Bodenkacheln des Grundrisses, die beide genau dort aufhören, wo der Belag
+ * zwei Millimeter darüber anfängt (`zones/kitchenFloor.ts`).
+ *
+ * Solche Quader werden unsichtbar (`GridWorld.underOwnFloor`): Seit die Küche
+ * auf null liegt, trennt sie vom Belag zu wenig, als dass jeder
+ * Tiefenpuffer sie auseinanderhielte — gemeldet als _„es scheint einfach ein
+ * grauer boden darüber zu liegen"_. Nur Böden und Stein auf der unteren
+ * Etage, ganz innerhalb der Küche und mit der Oberkante auf ihrem Boden: Eine
+ * Stufe, ein Möbel oder eine Masse, die über die Küche hinausreicht, bleiben
+ * stehen.
+ *
+ * @param floor die Oberkante des Küchenbodens (`kitchenPlan.KITCHEN_FLOOR`)
+ */
+export function underKitchenFloor(solid: PlanSolid, floor: number): boolean {
+  if (solid.kind !== 'floor' && solid.kind !== 'stone') return false;
+  if ((solid.level ?? 0) !== 0) return false;
+  if (Math.abs(solid.y + solid.h / 2 - floor) > 0.005) return false;
+  const eps = 1e-6;
+  return (
+    solid.x - solid.w / 2 >= KITCHEN.x - eps &&
+    solid.x + solid.w / 2 <= KITCHEN.x + KITCHEN.w + eps &&
+    solid.z - solid.d / 2 >= KITCHEN.z - eps &&
+    solid.z + solid.d / 2 <= KITCHEN.z + KITCHEN.d + eps
+  );
 }

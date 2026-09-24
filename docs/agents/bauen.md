@@ -861,6 +861,17 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   Das Dropship schaut also nicht mehr in Flugrichtung; das Getragene dreht mit.
   Als Kran setzt `R` die Welt deshalb **nicht** zurück (`PortalWorld.flatKeys`
   fragt `movesFurniture`) — das bleibt über das Menü.
+- **Malen mit gedrückter Maus** (`PortalWorld.startPaint`, `paintStroke`,
+  seit September 2026). Gewünscht war: _„im web von oben mit maus gedrückt
+  halten mehrere objekte legen … wie bei einem paint tool."_ Im _Baukasten_
+  und mit einem Stück frisch aus dem Regal ist der Linksklick ein
+  Pinselstrich: Das Stück bleibt am Kran, und jede Kachel, über die er mit
+  gedrückter Taste fährt, bekommt eine Kopie in seiner Drehung
+  (`placeModelAt`, dieselbe Höhe wie die Fläche). Zwischen zwei Bildern wird
+  in halben Kacheln nachgezogen, damit schnelles Ziehen keine Lücken lässt;
+  wo dasselbe Modell schon steht, kommt keine zweite hin. Ein einfacher Klick
+  ist ein Strich über eine Kachel. `E` und ein Möbel, das schon stand, legen
+  weiter ab wie bisher (`PlayerRig.paintHeld` setzt nur die Maus).
 - **Die Abrissbombe** (`core/craneBomb.ts`, `PortalWorld.updateBomb`, seit
   September 2026). Gewünscht war: _„mit einem Rechtsklick soll im
   Baukasten-Modus eine Bombe geholt werden in die Hand, mit der Sachen
@@ -939,7 +950,10 @@ wie eines. Jetzt sagt der Dateiname (und für namenlose Wände die Form über
   darunter gehen aus dem Bild (`GridWorld.coverFloor`, `PlateFloor.reseat`) und
   kommen zurück, sobald das Stück aufgehoben, abgerissen oder weggeräumt ist.
   In der Küche liegt es 4 mm über null, knapp über ihrem Belag
-  (`floorPlate.KITCHEN_PIECE_LIFT`).
+  (`floorPlate.KITCHEN_PIECE_LIFT`). Estrich und Bodenkacheln unter dem
+  Küchenbelag werden gar nicht gezeichnet (`GridWorld.underOwnFloor`,
+  `floorPlate.underKitchenFloor`) — zwei Millimeter Abstand hielt nicht jeder
+  Tiefenpuffer auseinander, und der graue Estrich lag dann über den Fliesen.
 - **Möbel** — Tisch, Vorratskiste, Küchenzeile, Herd, Kühlschrank, Regal,
   Bett, Stuhl: steht fest und lässt sich wie jedes Möbel im _Einrichten_ und
   im _Baukasten_ umstellen, beim _Spielen_ nicht.

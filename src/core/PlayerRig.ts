@@ -336,6 +336,13 @@ export class PlayerRig extends THREE.Group {
 
   /** Ein Klick, der das Getragene ablegen will (`requestDrop`, `takeDrop`). */
   private dropQueued = false;
+  /**
+   * **Ob die linke Maustaste von oben noch liegt**, seit sie etwas Getragenes
+   * abgelegt hat — der Pinselstrich (`PortalWorld.paintStroke`): Wer mit einem
+   * Stück aus dem Regal gedrückt über die Kacheln zieht, legt auf jede eine
+   * Kopie. Gesetzt und gelöscht von `FlatControls`.
+   */
+  paintHeld = false;
   /** Ein Rechtsklick des Krans, der die Bombe holen oder weglegen will. */
   private bombQueued = false;
 
