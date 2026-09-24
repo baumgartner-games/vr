@@ -1,6 +1,6 @@
 import type { GridPlan } from '../grid/gridPlan';
 import type { NavGraph } from '../nav/navGraph';
-import type { HouseSpec } from './house';
+import { doorEdges, type HouseSpec } from './house';
 import { housePlan } from './plan';
 import { TRAINING_DOOR } from './trainingLayout';
 
@@ -40,7 +40,8 @@ export class StationTravelPlan {
     } else if (this.locks !== stamp) {
       const shut = new Set(locked);
       for (const door of test ? [...spec.doors, TRAINING_DOOR] : spec.doors)
-        this.plan.door(door.x, door.z, door.dir, 0, !shut.has(door.id));
+        for (const edge of doorEdges(door))
+          this.plan.door(edge.x, edge.z, edge.dir, 0, !shut.has(door.id));
       this.locks = stamp;
     }
     return this.plan.graph;

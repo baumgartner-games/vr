@@ -136,8 +136,12 @@ test('auf der Station fallen alle Türen zwischen zwei Gängen zu Kreuzungen zus
   );
   const hallDoors = spec.doors.filter((door) => halls.has(door.a) && halls.has(door.b ?? ''));
   const junctions = openingsOf(spec).filter((opening) => opening.junction);
-  expect(hallDoors.length).toBeGreaterThan(junctions.length);
-  expect(junctions.reduce((sum, opening) => sum + opening.edges.length, 0)).toBe(hallDoors.length);
+  // Seit die Türen der Station zwei Kacheln breit sind (`house.STATION_DOOR_SPAN`),
+  // ist eine Kreuzung meist **eine** Tür — gezählt werden deshalb die Kanten.
+  expect(hallDoors.length).toBeGreaterThanOrEqual(junctions.length);
+  expect(junctions.reduce((sum, opening) => sum + opening.edges.length, 0)).toBe(
+    hallDoors.reduce((sum, door) => sum + (door.span ?? 1), 0),
+  );
   // Kein Gang trägt eine Kreuzung doppelt.
   const keys = junctions.map((opening) => opening.id);
   expect(new Set(keys).size).toBe(keys.length);

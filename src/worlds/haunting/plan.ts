@@ -9,6 +9,8 @@ import {
   roomAt,
   spacesOf,
   STATION_DOOR_W,
+  STATION_DOOR_SPAN,
+  doorEdges,
   tilesOf,
   type HouseSpec,
 } from './house';
@@ -212,8 +214,9 @@ export function housePlan(
     plan.wall(COMMAND_LIFT.x + dx, COMMAND_LIFT.z + COMMAND_LIFT.d - 1, DIR_S);
   for (let dz = 0; dz < COMMAND_LIFT.d; dz++)
     plan.wall(COMMAND_LIFT.x + COMMAND_LIFT.w - 1, COMMAND_LIFT.z + dz, DIR_E);
-  plan.door(COMMAND_LIFT.x, COMMAND_LIFT.z, DIR_W, 0, test);
-  for (let dz = 1; dz < COMMAND_LIFT.d; dz++) plan.wall(COMMAND_LIFT.x, COMMAND_LIFT.z + dz, DIR_W);
+  // Die Aufzugstür ist wie jede Tür der Station zwei Kacheln breit
+  // (`house.STATION_DOOR_SPAN`) — die ganze Westseite des Schachts.
+  for (const edge of doorEdges(LIFT_DOOR)) plan.door(edge.x, edge.z, edge.dir, 0, test);
   if (test) {
     for (const room of TRAINING_ROOMS) {
       plan.room(room, { walls: true, ceiling: PLAN_WALL_H });
@@ -223,9 +226,10 @@ export function housePlan(
     plan.door(TRAINING_DOOR.x, TRAINING_DOOR.z, TRAINING_DOOR.dir, 0, !shut.has(TRAINING_DOOR.id));
   if (!spec.passages) innerWalls(plan, spec);
 
-  for (const door of spec.doors) {
-    plan.door(door.x, door.z, door.dir, 0, !shut.has(door.id));
-  }
+  // Eine Tür über zwei Kacheln sind zwei Türen im Plan, die zusammen auf- und
+  // zugehen (`house.doorEdges`).
+  for (const door of spec.doors)
+    for (const edge of doorEdges(door)) plan.door(edge.x, edge.z, edge.dir, 0, !shut.has(door.id));
 
   // **Die Fenster kommen nach den Wänden.** Sie ersetzen eine Kante, die schon
   // steht — wer sie vorher setzte, bekäme sie von `plan.room(…, { walls: true })`
@@ -257,3 +261,15 @@ function innerWalls(plan: GridPlan, spec: HouseSpec): void {
 // **`blockFor` steht bei den Maßen**, nicht hier: Die 2D-Szene braucht die
 // Höhe eines Möbels und darf dafür nicht den halben Bauplan mitladen.
 export { blockFor } from './fixtureDimensions';
+
+/**
+ * **Die Aufzugstür zum Testdeck**, wie der Plan sie setzt: nach Westen aus dem
+ * Schacht, über seine ganze Breite. Offen nur mit Testdeck.
+ */
+export const LIFT_DOOR = {
+  id: 'test-bay',
+  x: COMMAND_LIFT.x,
+  z: COMMAND_LIFT.z,
+  dir: DIR_W,
+  span: STATION_DOOR_SPAN,
+} as const;

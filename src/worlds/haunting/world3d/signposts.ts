@@ -1,6 +1,6 @@
 import { PLAN_WALL_T } from '../../editor/levelPlan';
 import { TILE, dirX, dirZ, type Dir } from '../../nav/navTile';
-import { APRON, spacesOf, type HouseRoom, type HouseSpec } from '../house';
+import { APRON, doorEdges, spacesOf, type HouseRoom, type HouseSpec } from '../house';
 import { roomsOf } from '../map/extract';
 import { COMMAND } from '../roomGraph';
 
@@ -97,10 +97,12 @@ export function openingsOf(spec: HouseSpec): Opening[] {
   for (const door of spec.doors) {
     const a = door.a;
     const b = door.b ?? COMMAND;
-    const edge: Edge = { x: door.x, z: door.z, dir: door.dir };
+    // Eine Tür über zwei Kacheln sind zwei Kanten (`house.doorEdges`) — das
+    // Schild hängt über ihrer Mitte.
+    const edges: Edge[] = doorEdges(door);
     const bothHalls = !!spaces.get(a)?.circulation && !!spaces.get(b)?.circulation;
     if (!bothHalls) {
-      out.push({ id: door.id, a, b, edges: [edge], junction: false });
+      out.push({ id: door.id, a, b, edges, junction: false });
       continue;
     }
     const [first, second] = [a, b].sort();
@@ -111,7 +113,7 @@ export function openingsOf(spec: HouseSpec): Opening[] {
       junctions.set(key, junction);
       out.push(junction);
     }
-    junction.edges.push(a === first ? edge : flip(edge));
+    junction.edges.push(...(a === first ? edges : edges.map(flip)));
   }
   return out;
 }

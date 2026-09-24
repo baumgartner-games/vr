@@ -102,14 +102,43 @@ export const KAYKIT_PACK_SCALE: Readonly<Record<string, number>> = {
  *
  * Dazu die ganze Familie, die daneben steht: halbe Wand, Fenster, Durchgang,
  * die Tür darin und die Böden des Pakets (`Floor.glb` wird 2 × 2 m, zwei
- * Kacheln statt 2,8 m). Der Durchgang ist dann 1,40 m hoch — die Figur des
- * Pakets passt nicht mehr hindurch, und das ist der Preis dafür, dass die
- * Wände gleich hoch sind. Die Figur, die Fässer und Kisten bleiben bei 0,7.
+ * Kacheln statt 2,8 m). Die Figur, die Fässer und Kisten bleiben bei 0,7.
+ *
+ * **In die Höhe gilt ein eigener Maßstab** (`KaykitScale3`): Wände 0,7, also
+ * 2,8 m hoch, und der abgewandelte Durchgang (`tools/prototype-variants.mjs`)
+ * hat damit eine Öffnung von 2,1 m, durch die der Space Ranger mit Helm
+ * aufrecht geht; die Türen sind genau so hoch.
  */
-export const KAYKIT_FILE_SCALE: readonly (readonly [RegExp, number])[] = [
-  [/^prototype-bits\/(?:Primitive_)?(?:Wall|Floor|Door)[^/]*\.glb$/, KAYKIT_SCALE],
-  [/^prototype-bits\/Empty\.glb$/, KAYKIT_SCALE],
+export const KAYKIT_FILE_SCALE: readonly (readonly [RegExp, KaykitScale3])[] = [
+  // **Die Wände sind 2,8 m hoch** (zweiter Wunsch, September 2026): _„bei der
+  // Tür-Höhe stell am besten den Astronaut-Charakter daneben … ggf. müssen wir
+  // sonst die Wände höher alle machen."_ Der Space Ranger ist mit Helm 1,8 m
+  // groß; eine Wand von 2 m und ein Durchgang von 1,4 m reichten ihm nicht.
+  // Also in die Höhe 0,7 statt 0,5 — die Wandhöhe der Gitterwelten
+  // (`PLAN_WALL_H`) —, in der Breite weiter zwei Kacheln. Die grüne
+  // Restaurantwand wächst mit, damit beide gleich groß bleiben.
+  [/^prototype-bits\/(?:Primitive_)?Wall[^/]*\.glb$/, [KAYKIT_SCALE, 0.7, KAYKIT_SCALE]],
+  [/^restaurant-bits\/wall[^/]*\.glb$/, [KAYKIT_SCALE, 0.7, KAYKIT_SCALE]],
+  // Die Tür so hoch wie die Öffnung des Durchgangs (2,1 m, `tools/prototype-variants.mjs`):
+  // die abgewandelte ist schon höher gebaut, die Originale werden gestreckt.
+  [/^prototype-bits\/Door_A_Metal\.glb$/, [KAYKIT_SCALE, 0.7, KAYKIT_SCALE]],
+  [/^prototype-bits\/Door[^/]*\.glb$/, [KAYKIT_SCALE, 0.75, KAYKIT_SCALE]],
+  [/^prototype-bits\/(?:Primitive_)?Floor[^/]*\.glb$/, [KAYKIT_SCALE, KAYKIT_SCALE, KAYKIT_SCALE]],
+  [/^prototype-bits\/Empty\.glb$/, [KAYKIT_SCALE, KAYKIT_SCALE, KAYKIT_SCALE]],
 ];
+
+/** Ein Maßstab je Achse — Breite, Höhe, Tiefe. */
+export type KaykitScale3 = readonly [number, number, number];
+
+/**
+ * **Der Maßstab je Achse** für eine Adresse — für alle Pakete gleich in allen
+ * drei Richtungen, für die Ausnahmen in `KAYKIT_FILE_SCALE` in die Höhe anders.
+ */
+export function kaykitScale3(path: string): KaykitScale3 {
+  for (const [pattern, scale] of KAYKIT_FILE_SCALE) if (pattern.test(path)) return scale;
+  const one = kaykitScale(path);
+  return [one, one, one];
+}
 
 /**
  * **Der Maßstab für eine Adresse im Regal** — `adventurers/characters/Knight.glb`
@@ -121,7 +150,7 @@ export const KAYKIT_FILE_SCALE: readonly (readonly [RegExp, number])[] = [
  * `models/kaykit/` läge — gibt es nicht, und sie bekäme die Vorgabe.
  */
 export function kaykitScale(path: string): number {
-  for (const [pattern, scale] of KAYKIT_FILE_SCALE) if (pattern.test(path)) return scale;
+  for (const [pattern, scale] of KAYKIT_FILE_SCALE) if (pattern.test(path)) return scale[0];
   const cut = path.indexOf('/');
   const pack = cut < 0 ? path : path.slice(0, cut);
   return KAYKIT_PACK_SCALE[pack] ?? KAYKIT_SCALE;

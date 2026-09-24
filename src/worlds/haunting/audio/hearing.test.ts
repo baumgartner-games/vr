@@ -286,28 +286,32 @@ describe('Das Hörmodell', () => {
   it('zählt eine geteilte Wand nur einmal, obwohl sie im Snapshot zweimal steht', () => {
     const round = new FlatRound(3, { test: true });
     const snapshot = round.snapshot();
-    const door = snapshot.doors.find((d) => d.b && !d.open)!;
-    const a = snapshot.rooms.find((r) => r.id === door.a)!;
-    const b = snapshot.rooms.find((r) => r.id === door.b)!;
-    // Zwei Punkte dicht an der gemeinsamen Wand, weit weg von der Tür: Die
-    // Luftlinie kreuzt genau eine Wand (zwei Kanten), also kostet sie WALL_LOSS.
-    const toA = normal(door, a.centre);
-    const along = door.axis === 'x' ? { x: 1, z: 0 } : { x: 0, z: 1 };
-    for (const shift of [2.5, -2.5, 1.5, -1.5]) {
-      const p = {
-        x: door.at.x + toA.x * 0.3 + along.x * shift,
-        z: door.at.z + toA.z * 0.3 + along.z * shift,
-      };
-      const q = {
-        x: door.at.x - toA.x * 0.3 + along.x * shift,
-        z: door.at.z - toA.z * 0.3 + along.z * shift,
-      };
-      if (!pointInPolygon(p, a.polygon) || !pointInPolygon(q, b.polygon)) continue;
-      const path = new Hearing().path(snapshot, p, q);
-      // Über die Tür: 0,3 + 2,5 hin und zurück plus Türblatt = 5,6 + 4; durch
-      // die Wand: 0,6 + 9. Beides ist möglich — aber nie zweimal die Wand.
-      expect(path.distance).toBeLessThanOrEqual(0.6 + WALL_LOSS + 1e-6);
-      return;
+    // Irgendeine geschlossene Tür zwischen zwei Räumen, an deren Wand neben der
+    // Öffnung auf beiden Seiten Platz ist — seit die Türen zwei Kacheln breit
+    // sind, ist ein zwei Meter breiter Gang daneben ganz Öffnung.
+    for (const door of snapshot.doors.filter((d) => d.b && !d.open)) {
+      const a = snapshot.rooms.find((r) => r.id === door.a)!;
+      const b = snapshot.rooms.find((r) => r.id === door.b)!;
+      // Zwei Punkte dicht an der gemeinsamen Wand, weit weg von der Tür: Die
+      // Luftlinie kreuzt genau eine Wand (zwei Kanten), also kostet sie WALL_LOSS.
+      const toA = normal(door, a.centre);
+      const along = door.axis === 'x' ? { x: 1, z: 0 } : { x: 0, z: 1 };
+      for (const shift of [2.5, -2.5, 3.5, -3.5]) {
+        const p = {
+          x: door.at.x + toA.x * 0.3 + along.x * shift,
+          z: door.at.z + toA.z * 0.3 + along.z * shift,
+        };
+        const q = {
+          x: door.at.x - toA.x * 0.3 + along.x * shift,
+          z: door.at.z - toA.z * 0.3 + along.z * shift,
+        };
+        if (!pointInPolygon(p, a.polygon) || !pointInPolygon(q, b.polygon)) continue;
+        const path = new Hearing().path(snapshot, p, q);
+        // Über die Tür oder durch die Wand — beides ist möglich, aber nie
+        // zweimal die Wand.
+        expect(path.distance).toBeLessThanOrEqual(0.6 + WALL_LOSS + 1e-6);
+        return;
+      }
     }
     throw new Error('keine Stelle an der Wand gefunden');
   });

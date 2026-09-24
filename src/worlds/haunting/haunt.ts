@@ -1,5 +1,5 @@
-import { DIR_E, DIR_N, DIR_S, TILE, type Dir } from '../nav/navTile';
-import { roomAt, spacesOf, type HouseDoor, type HouseSpec } from './house';
+import { TILE, type Dir } from '../nav/navTile';
+import { doorMiddle, roomAt, spacesOf, type HouseDoor, type HouseSpec } from './house';
 
 /**
  * **Was das Monster mit dem Haus macht, während es darin herumläuft.**
@@ -249,12 +249,11 @@ function sealsOff(spec: HouseSpec, shut: ReadonlySet<string>, closing: string): 
  * Kachel danebengegriffen schlüge das Monster Türen zu, an denen es gar nicht
  * vorbeigekommen ist.
  */
-function doorCentre(door: { x: number; z: number; dir: Dir }): { x: number; z: number } {
-  const alongX = door.dir === DIR_N || door.dir === DIR_S;
-  return {
-    x: (door.x + (alongX ? 0.5 : door.dir === DIR_E ? 1 : 0)) * TILE,
-    z: (door.z + (alongX ? (door.dir === DIR_S ? 1 : 0) : 0.5)) * TILE,
-  };
+function doorCentre(door: { x: number; z: number; dir: Dir; span?: number }): {
+  x: number;
+  z: number;
+} {
+  return doorMiddle(door);
 }
 
 /** Aus Metern eine Kachel — dieselbe Rechnung wie `droneRoute.tileAt`. */

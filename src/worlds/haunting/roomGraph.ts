@@ -1,6 +1,6 @@
 import { DOOR_LOSS, WALL_LOSS } from './audio/hearing';
-import { APRON, onApron, spacesOf, type HouseSpec, type Rect } from './house';
-import { DIR_E, DIR_N, DIR_S, TILE, type Dir } from '../nav/navTile';
+import { APRON, doorMiddle, onApron, spacesOf, type HouseSpec, type Rect } from './house';
+import { TILE, type Dir } from '../nav/navTile';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { COMMAND_HOME } from './trainingLayout';
 import type { RoutineWorld } from './monsterRoutine';
@@ -325,10 +325,6 @@ function touching(a: Rect, b: Rect): boolean {
  * gleich in Metern: Nach Norden und Süden liegt die Kante quer zur Kachel,
  * nach Osten und Westen längs.
  */
-function doorCentre(door: { x: number; z: number; dir: Dir }): FloorPoint {
-  const alongX = door.dir === DIR_N || door.dir === DIR_S;
-  return {
-    x: (door.x + (alongX ? 0.5 : door.dir === DIR_E ? 1 : 0)) * TILE,
-    z: (door.z + (alongX ? (door.dir === DIR_S ? 1 : 0) : 0.5)) * TILE,
-  };
+function doorCentre(door: { x: number; z: number; dir: Dir; span?: number }): FloorPoint {
+  return doorMiddle(door);
 }

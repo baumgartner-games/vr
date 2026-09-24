@@ -1,3 +1,4 @@
+import { doorMiddle } from '../house';
 import { TILE } from '../../nav/navTile';
 import { COMMAND, stationGraph, type StationGraph } from '../roomGraph';
 import { simulationSpec } from '../roundSim';
@@ -425,8 +426,12 @@ describe('Die Türen auf der echten Raumkarte', () => {
     for (const door of spec.doors) {
       const point = graph.doorPoint(door.id);
       expect(point).not.toBeNull();
+      // Auf der Wand, und bei einer Tür über zwei Kacheln auf der Fuge dazwischen
+      // (`house.doorMiddle`).
+      const middle = doorMiddle(door);
+      expect(Math.hypot(point!.x - middle.x, point!.z - middle.z)).toBeCloseTo(0);
       const tile = { x: (door.x + 0.5) * TILE, z: (door.z + 0.5) * TILE };
-      expect(Math.hypot(point!.x - tile.x, point!.z - tile.z)).toBeCloseTo(TILE / 2);
+      expect(Math.hypot(point!.x - tile.x, point!.z - tile.z)).toBeGreaterThan(TILE / 2 - 1e-6);
     }
     expect(graph.doorPoint('gibtesnicht')).toBeNull();
   });

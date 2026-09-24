@@ -1,7 +1,7 @@
 import { PLAYER_CAPSULE_RADIUS } from '../../physics/playerClearance';
 import { PLAN_DOOR_W } from '../editor/levelPlan';
 import { doorAxis, doorCentre, DOOR_WIDTH, walkable } from './map/geometry';
-import { STATION_DOOR_W } from './house';
+import { doorWidth, STATION_DOOR_W } from './house';
 import { FlatRound, PLAYER_RADIUS } from './map/flatRound';
 import { AutomaticDoors } from './automaticDoors';
 import { CROUCH_FACTOR, PLAYER_SPRINT_SPEED, PLAYER_WALK_SPEED } from './mission';
@@ -32,14 +32,17 @@ describe('Eine Wahrheit für 2D und 3D', () => {
     const alongX = doorAxis(door.dir) === 'x';
     const beside = (metres: number) =>
       alongX ? { x: at.x + metres, z: at.z } : { x: at.x, z: at.z + metres };
-    // Mitten in der Öffnung geht es; am Pfosten nicht mehr.
+    // Mitten in der Öffnung geht es; am Pfosten nicht mehr. Die Öffnung ist
+    // so breit wie die Tür (`house.doorWidth`, zwei Kacheln in der Station).
+    const width = doorWidth(door);
+    expect(width).toBe(2 * STATION_DOOR_W);
     expect(walkable(round.house, [], beside(0), PLAYER_RADIUS)).toBe(true);
-    expect(
-      walkable(round.house, [], beside(DOOR_WIDTH / 2 - PLAYER_RADIUS - 0.02), PLAYER_RADIUS),
-    ).toBe(true);
-    expect(
-      walkable(round.house, [], beside(DOOR_WIDTH / 2 - PLAYER_RADIUS + 0.02), PLAYER_RADIUS),
-    ).toBe(false);
+    expect(walkable(round.house, [], beside(width / 2 - PLAYER_RADIUS - 0.02), PLAYER_RADIUS)).toBe(
+      true,
+    );
+    expect(walkable(round.house, [], beside(width / 2 - PLAYER_RADIUS + 0.02), PLAYER_RADIUS)).toBe(
+      false,
+    );
   });
 
   it('fährt die Türen der 2D-Runde mit der Türautomatik des Schiffs', () => {

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { kaykitScale } from './kaykitFit';
+import { kaykitScale3 } from './kaykitFit';
 import { kaykitClipFiles } from './kaykitClips';
 import { kaykitPlinth } from './kaykitCrate';
 import type { KaykitIndex } from './kaykitIndex';
@@ -313,7 +313,7 @@ function copyOf(
     holder.add(plinth);
   }
   holder.add(clone);
-  holder.scale.setScalar(kaykitScale(path));
+  holder.scale.set(...kaykitScale3(path));
   return holder;
 }
 

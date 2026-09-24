@@ -1,7 +1,7 @@
 import type { NavGraph } from '../../nav/navGraph';
 import { TILE, dirX, dirZ } from '../../nav/navTile';
 import type { RoutePath } from './route';
-import type { HouseDoor, HouseSpec } from '../house';
+import { doorMiddle as stationDoorMiddle, type HouseDoor, type HouseSpec } from '../house';
 import { COMMAND, type StationGraph } from '../roomGraph';
 import type { FloorPoint } from '../stationLayout';
 import { coreCrossed, stationRoute, type RouteAvoid } from '../stationNavigation';
@@ -476,10 +476,7 @@ function connects(door: HouseDoor, a: string, b: string): boolean {
 
 /** Die Mitte der Öffnung — auf der Wand, wie `geometry.doorCentre`. */
 function doorMiddle(door: HouseDoor): FloorPoint {
-  return {
-    x: (door.x + 0.5 + dirX(door.dir) * 0.5) * TILE,
-    z: (door.z + 0.5 + dirZ(door.dir) * 0.5) * TILE,
-  };
+  return stationDoorMiddle(door);
 }
 
 /** Der Punkt `WAIT_DEPTH` vor der Tür, auf der Seite, auf der `from` steht. */

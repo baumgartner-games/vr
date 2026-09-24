@@ -76,7 +76,15 @@ export type ColliderShape =
   | { kind: 'ball' }
   | { kind: 'cylinder' }
   | { kind: 'cone' }
-  | { kind: 'hull'; points: Float32Array };
+  | { kind: 'hull'; points: Float32Array }
+  /**
+   * **Ein Bogen**: zwei Pfosten und ein Sturz statt eines vollen Kastens — ein
+   * Durchgang aus dem Regal (`prototype-bits/Wall_Doorway`), durch den man
+   * gehen kann. `open` ist die halbe Breite der Öffnung als Anteil der halben
+   * Breite, `top` ihre Oberkante als Anteil der Höhe (von unten), `along` die
+   * Achse, längs der der Bogen steht.
+   */
+  | { kind: 'arch'; open: number; top: number; along: 'x' | 'z' };
 
 export interface BodyOptions {
   /** Half extents; taken from the mesh geometry when omitted. */
@@ -97,6 +105,8 @@ export interface PhysicsBody {
   object: THREE.Object3D;
   body: RigidBody;
   collider: Collider;
+  /** Weitere Teile desselben Körpers — die Pfosten und der Sturz eines Bogens. */
+  extras?: Collider[];
   /** Half size of the collider — the reach test grows this by a fixed margin. */
   halfExtents: THREE.Vector3;
   /** Silhouette of the collider, kept so it can be resized later. */
@@ -216,10 +226,11 @@ export class PhysicsWorld {
 
   /** Reibung und Rückprall aller Objekte auf einen Schlag. */
   setMaterial(friction: number, restitution: number): void {
-    for (const entry of this.dynamicBodies) {
-      entry.collider.setFriction(friction);
-      entry.collider.setRestitution(restitution);
-    }
+    for (const entry of this.dynamicBodies)
+      for (const collider of collidersOf(entry)) {
+        collider.setFriction(friction);
+        collider.setRestitution(restitution);
+      }
   }
 
   /**
@@ -488,7 +499,8 @@ export class PhysicsWorld {
 
   private applyFilter(entry: PhysicsBody): void {
     if (entry.ghost) {
-      entry.collider.setCollisionGroups(interactionGroups(entry.membership, 0));
+      for (const collider of collidersOf(entry))
+        collider.setCollisionGroups(interactionGroups(entry.membership, 0));
       return;
     }
     let filter = entry.filter;
@@ -496,7 +508,8 @@ export class PhysicsWorld {
     // Rumpf **und** Hände: ein Ding in der Faust hat vom Fingerkasten so wenig
     // zu befürchten wie von der Kapsel (`playerClearance.ts`).
     if (entry.carried || entry.clearing) filter &= ~GROUP_PLAYER & ~GROUP_HAND;
-    entry.collider.setCollisionGroups(interactionGroups(entry.membership, filter));
+    for (const collider of collidersOf(entry))
+      collider.setCollisionGroups(interactionGroups(entry.membership, filter));
   }
 
   /**
@@ -531,6 +544,16 @@ export class PhysicsWorld {
         scalePoints(entry.shape.points, half);
         entry.collider.setShape(new rapier.ConvexPolyhedron(entry.shape.points));
         break;
+      case 'arch': {
+        const parts = archParts(entry.shape, half);
+        collidersOf(entry).forEach((collider, index) => {
+          const part = parts[index];
+          if (!part) return;
+          collider.setShape(new rapier.Cuboid(part.half.x, part.half.y, part.half.z));
+          collider.setTranslationWrtParent(part.at);
+        });
+        break;
+      }
     }
   }
 
@@ -620,20 +643,34 @@ export class PhysicsWorld {
 
     const body = world.createRigidBody(description);
 
-    const colliderDesc = colliderFor(rapier, options.shape ?? { kind: 'box' }, half)
-      .setFriction(options.friction ?? 0.7)
-      .setRestitution(options.restitution ?? 0.05)
-      .setCollisionGroups(interactionGroups(membership, filter));
-    if (options.mass !== undefined) colliderDesc.setMass(options.mass);
-
-    const collider = world.createCollider(colliderDesc, body);
+    const shape = options.shape ?? { kind: 'box' };
+    const descriptions =
+      shape.kind === 'arch'
+        ? archParts(shape, half).map((part) =>
+            rapier.ColliderDesc.cuboid(part.half.x, part.half.y, part.half.z).setTranslation(
+              part.at.x,
+              part.at.y,
+              part.at.z,
+            ),
+          )
+        : [colliderFor(rapier, shape, half)];
+    const colliders = descriptions.map((colliderDesc) => {
+      colliderDesc
+        .setFriction(options.friction ?? 0.7)
+        .setRestitution(options.restitution ?? 0.05)
+        .setCollisionGroups(interactionGroups(membership, filter));
+      if (options.mass !== undefined) colliderDesc.setMass(options.mass / descriptions.length);
+      return world.createCollider(colliderDesc, body);
+    });
+    const collider = colliders[0]!;
 
     return {
       object,
       body,
       collider,
       halfExtents: half.clone(),
-      shape: options.shape ?? { kind: 'box' },
+      shape,
+      ...(colliders.length > 1 ? { extras: colliders.slice(1) } : {}),
       phaseMask: 0,
       carried: false,
       clearing: false,
@@ -644,6 +681,38 @@ export class PhysicsWorld {
       removed: false,
     };
   }
+}
+
+/** Der Collider eines Körpers und seine weiteren Teile, in einer Liste. */
+function collidersOf(entry: PhysicsBody): Collider[] {
+  return entry.extras ? [entry.collider, ...entry.extras] : [entry.collider];
+}
+
+/**
+ * **Die Teile eines Bogens** (`ColliderShape` `arch`) — linker Pfosten,
+ * rechter Pfosten, Sturz; ein Pfosten, der schmaler als ein Zentimeter wäre,
+ * fällt weg (der breite Durchgang hat fast keinen).
+ */
+export function archParts(
+  shape: { open: number; top: number; along: 'x' | 'z' },
+  half: { x: number; y: number; z: number },
+): Array<{ at: { x: number; y: number; z: number }; half: { x: number; y: number; z: number } }> {
+  const long = shape.along === 'x' ? half.x : half.z;
+  const thick = shape.along === 'x' ? half.z : half.x;
+  const open = Math.min(Math.max(shape.open, 0), 1) * long;
+  const top = -half.y + Math.min(Math.max(shape.top, 0), 1) * 2 * half.y;
+  const place = (along: number, y: number, halfAlong: number, halfY: number) => ({
+    at: shape.along === 'x' ? { x: along, y, z: 0 } : { x: 0, y, z: along },
+    half:
+      shape.along === 'x'
+        ? { x: halfAlong, y: halfY, z: thick }
+        : { x: thick, y: halfY, z: halfAlong },
+  });
+  const parts = [place(0, (top + half.y) / 2, open, Math.max((half.y - top) / 2, 0.005))];
+  const post = (long - open) / 2;
+  if (post > 0.005)
+    for (const side of [-1, 1]) parts.push(place(side * (open + post), 0, post, half.y));
+  return parts;
 }
 
 function colliderFor(
@@ -687,6 +756,10 @@ function colliderFor(
         rapier.ColliderDesc.convexHull(shape.points) ??
         rapier.ColliderDesc.cuboid(half.x, half.y, half.z)
       );
+    case 'arch':
+      // Ein Bogen sind mehrere Teile (`archParts`, in `addBody`); einzeln
+      // gefragt ist er sein Kasten.
+      return rapier.ColliderDesc.cuboid(half.x, half.y, half.z);
   }
 }
 

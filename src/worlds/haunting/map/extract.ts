@@ -1,14 +1,7 @@
 import { TILE } from '../../nav/navTile';
-import { APRON, spacesOf, type HouseSpec } from '../house';
+import { APRON, doorWidth, spacesOf, type HouseSpec } from '../house';
 import { COMMAND } from '../roomGraph';
-import {
-  DOOR_WIDTH,
-  doorAxis,
-  doorCentre,
-  rectCentre,
-  rectPolygon,
-  wallSegments,
-} from './geometry';
+import { doorAxis, doorCentre, rectCentre, rectPolygon, wallSegments } from './geometry';
 import { stationLayout } from '../stationLayout';
 import type { MapSource } from './mapSource';
 import type {
@@ -64,12 +57,12 @@ function apronWalls(spec: HouseSpec): MapSegment[] {
     segments.push(
       {
         a: { x: x0, z: z0 },
-        b: { x: at.x - DOOR_WIDTH / 2, z: z0 },
+        b: { x: at.x - doorWidth(front) / 2, z: z0 },
         roomId: COMMAND,
         kind: 'glass',
       },
       {
-        a: { x: at.x + DOOR_WIDTH / 2, z: z0 },
+        a: { x: at.x + doorWidth(front) / 2, z: z0 },
         b: { x: x1, z: z0 },
         roomId: COMMAND,
         kind: 'glass',
@@ -191,7 +184,7 @@ export function extractMapSnapshot(source: MapSource, kind: '3d' | 'flat' = '3d'
       b: door.b ?? COMMAND,
       at: doorCentre(door),
       axis: doorAxis(door.dir),
-      width: DOOR_WIDTH,
+      width: doorWidth(door),
       open: source.doorOpen(door.id),
       locked: state.shut.includes(door.id),
       material: door.material,
