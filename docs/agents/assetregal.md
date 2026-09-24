@@ -589,6 +589,11 @@ dreifach; das **Mausrad** tut dasselbe in Rasten, über dieselbe Umrechnung wie
 der Zoom von oben (`core/wheelZoom.ts`). Wer mit zwei Fingern zieht, dreht
 dabei nicht nebenher — ein Kneifen mit Schlenker ist kein Kneifen.
 
+**Die Drehrichtung folgt dem Finger** (`detailDrag`, seit September 2026):
+Wer nach rechts wischt, dreht das Modell nach rechts. `yaw` ist der Winkel der
+**Kamera** um das Modell; sie wandert dafür nach links, also zieht ein Wisch
+nach rechts vom Winkel ab. Vorher drehte es sich genau falsch herum (gemeldet).
+
 ### Animationen: Die Figur bringt keine mit, ihr Skelett schon
 
 „Bei Charakteren will ich die Animation auswählen können (Idle, Running, was
@@ -1304,6 +1309,34 @@ Namensliste.
 `dispose()` räumt Mischer und Gruppe ab und hält dabei an
 `userData.sharedAssets` an (siehe _Wer sich die Geometrie teilt_): Geometrie
 und Textur gehören der Vorlage im Speicher und allen anderen Kopien.
+
+## Abgewandelte Prototyp-Stücke: Durchgang, Fenster, Tür
+
+`tools/prototype-variants.mjs` rechnet aus den unveränderten Originalen in
+`tools/kaykit-originals/prototype-bits/` fünf Stücke ins Regal (September 2026,
+gewünscht beim Umbau der Raumstation):
+
+- **`Wall_Doorway`** — eine Kachel breit statt zwei, die Tür in der Mitte,
+  der Bogen höher: Die Öffnung ist 3,0 statt 2,8 Quelleinheiten hoch, mit dem
+  Maßstab der Wände (0,7 in die Höhe) **2,1 m** — genug für den Space Ranger
+  mit Helm (1,8 m). Der gelbe Sockel bleibt, wie er ist.
+- **`Wall_Doorway_Wide`** — dasselbe über zwei Kacheln, die Öffnung 1,8 m
+  breit. Das ist der Durchgang der Raumstation.
+- **`Wall_Window_Closed`** (in place) und **`Wall_Window_Closed_Narrow`** (eine
+  Kachel) — der Rahmen in Dunkelgrau statt Holzbraun, das Glas als eigenes,
+  durchscheinendes Teil (`glass`, 35 %). Die Farbe steht in **einer** Zahl
+  (`FRAME_SHIFT`, die Verschiebung im Atlas): 0 braun, −384 dunkelgrau,
+  −256 schwarz, −128 blau, −512 weiß, −640 gelb — ändern und das Werkzeug neu
+  laufen lassen.
+- **`Door_A_Metal`** — `Door_A` in Grau und so hoch wie die Öffnung.
+
+Dazu zwei Dinge im Code: **Ein Maßstab je Achse** (`kaykitFit.kaykitScale3`,
+`KAYKIT_FILE_SCALE` mit Tripeln): Wände 0,5 × 0,7 × 0,5 (2 m breit, 2,8 m hoch —
+auch die grüne Restaurantwand), Türen so hoch wie die Öffnung (`Door_*` 0,75,
+`Door_A_Metal` 0,7). Und **ein Bogen als Körper** (`PhysicsWorld`
+`ColliderShape` `arch`, `archParts`: zwei Pfosten und ein Sturz statt eines
+Kastens, `props.MODEL_ARCHES`) — durch einen Durchgang aus dem Regal geht man
+jetzt hindurch, statt an seiner Hülle hängenzubleiben.
 
 ## Das leere Bodenstück: „Empty"
 

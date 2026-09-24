@@ -165,6 +165,56 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     Baukasten eine Kachel zu Weltraum machen will, legt das leere Bodenstück
     „Empty" darauf (`prototype-bits/Empty.glb`, siehe
     `docs/agents/assetregal.md`).
+- **Zweite Runde (September 2026): Türen über zwei Kacheln, alles aus dem
+  Regal, Licht hält an Wänden.**
+  - **Jede Tür der Station misst zwei Kachelkanten** (`house.STATION_DOOR_SPAN`,
+    `HouseDoor.span`). Gewünscht: _„davon eine Breite-2x1-Version, die in der
+    Space Station genutzt wird, und es dort nur 2x1-Türen gibt"_. Eine Tür
+    beginnt an `x`/`z` und läuft längs der Wand weiter (`doorAlong`,
+    `doorEdges`); ihre Mitte ist die Fuge (`doorMiddle`), ihre Breite
+    `doorWidth`. `STATION_DOOR_W` ist weiter die Breite **einer** Kante — der
+    Plan setzt je Kante eine Tür ohne Pfosten (`plan.ts`,
+    `stationTravelPlan.ts`, `HauntingWorld.applyDoors`). Der Generator
+    (`connectStation`) legt Raumtüren mittig über zwei Kanten und teilt
+    Gangkreuzungen in Paare; die Schleuse sitzt mittig in der Kantinenwand, die
+    Aufzugstür (`plan.LIFT_DOOR`) über die ganze Westseite des Schachts. Alles,
+    was eine Türmitte rechnete, fragt jetzt `doorMiddle` (Karte `geometry.doorCentre`,
+    `roomGraph`, `haunt`, `flatNavigator`, Wegweiser, Knöpfe, Layout), alles,
+    was eine Breite brauchte, `doorWidth` (Kartenwände, `openingAlong`,
+    Snapshot, Runde). Tür-Objekte ohne `span` (alte Haustests) bleiben eine
+    Kante breit. Die Lüftungsklappen (`vents/ventNet.data.ts`) sind je eine
+    Kachel von der Tür weggerückt, und kein Hüllenfenster sitzt mehr auf einer
+    Klappe (`house.stationWindows`).
+  - **Durchgänge, Fenster, Türblätter aus dem Regal**: An jeder Tür steht
+    `prototype-bits/Wall_Doorway_Wide` (bzw. der schmale für eine einzelne
+    Kante), an jedem Fenster `Wall_Window_Closed_Narrow` mit grauem Rahmen und
+    durchsichtigem Glas (`HauntingWorld.stationFeatures`,
+    `world3d/stationWalls.ts`, `StationFeature`). Die Quader, die dort im
+    Grundriss stehen (Sturz, Brüstung, Pfosten), werden unsichtbar wie die
+    Wandläufe (`onOpening`, `openingEdges` aus dem Graphen) und steuern das
+    Ghosting ihres Stücks. Die Türblätter sind `Door_A_Metal` — zwei je
+    Durchgang, die am Gelenk aufschwingen (`ShipExperience.doorLeaves`,
+    `DOOR_SWING`); Statusgehäuse und Schiebesegmente sind weg, die Farbe der
+    Tür zeigen die Knöpfe. Offen sieht eine Tür aus, wenn `applyDoors` sie
+    geöffnet hat **und** jemand auf einem Knopf steht (`openDoors`,
+    `pressedDoors`; am Schirm zählt die eigene Figur mit).
+  - **Die Einrichtung kommt aus dem Regal** (`world3d/stationProps.ts`):
+    Gewünscht: _„Bitte nutze keine eigenen Elemente/Möbel in Haunting außer die
+    aus dem KayKit-Katalog. Z. B. für den Spind kannst du Locker nutzen."_ Jedes
+    Kennzeichen hat ein Modell (`FIXTURE_MODELS`), eingepasst in seine
+    Stellfläche (`fitProp`); Spind und Frachtschrank sind `Locker` bzw.
+    `Locker_Decorated`, die Modelltür hängt am fahrenden Blatt
+    (`dressCabinet`); Konsolen stehen auf einem Schreibtisch, die Zentrale hat
+    Tisch und Hocker aus dem Regal (die Hocker in der Farbe ihres Geräts). Das
+    Gebaute bleibt nur der Ersatz, bis das Modell geladen ist. **Noch gebaut**
+    sind Schilder und Bodenmarkierungen (Auskunft, kein Möbel), die
+    Lüftungsklappen, Deckenleuchten, Drehleuchten und der Crawler — dafür hat
+    das Regal nichts Passendes.
+  - **Licht hält an Wänden** (`shared/wallLight.ts`): Die Taschenlampe und die
+    beiden Deckenleuchten der Station werfen Schatten (Karte 512 bzw. 256 je
+    Seite); die Deckenleuchten zeichnen ihre Karte nur beim Umzug und
+    viermal die Sekunde neu (`LAMP_SHADOW_EVERY`). Ohne Schatten in der Grafik
+    (`renderer.shadowMap.enabled`) bleibt es wie vorher.
 - **Wer im Schiff einen Körper hat** (`actorArt.ts`, `actorFit.ts`): Techniker
   und Monster sind seit dem KayKit-Regal (`docs/agents/assetregal.md`,
   _Eine Figur, die läuft_) **Akteure** und keine Gruppen mehr —

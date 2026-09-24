@@ -49,6 +49,7 @@ import { flickerLevel, freshSpook } from './haunt';
 import { fitView, homeView, pannedView, zoomedView, type ArchiveView } from './archiveView';
 import { buildShip, buildCorridorBeacons, roomAccent, type StationBeacon } from './shipArt';
 import { StationWalls, wallRun, type StationFeature, type WallRun } from './world3d/stationWalls';
+import { dressProp } from './world3d/stationProps';
 import { buttonPressed, DoorButtons, type ButtonDoor } from './world3d/doorButtons';
 import { buildActor, type ShipActor } from './actorArt';
 import { defaultLens, throughEyes, type WatchLens } from './watchLens';
@@ -1497,11 +1498,18 @@ export class HauntingWorld extends GridWorld {
     const table = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 1.1), metal);
     table.position.set(x, 0.85, z);
     this.vanRig.add(table);
+    const built: THREE.Object3D[] = [table];
     for (const side of [-1, 1]) {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.85, 0.1), metal);
       leg.position.set(x + side * 1.05, 0.42, z);
       this.vanRig.add(leg);
+      built.push(leg);
     }
+    // Der Tisch aus dem Regal (`world3d/stationProps.ts`); der gebaute ist Ersatz.
+    const desk = new THREE.Group();
+    desk.position.set(x, 0, z);
+    this.vanRig.add(desk);
+    dressProp(desk, COMMAND_DESK, { width: 2.4, height: 0.9, depth: 1.1 }, built);
 
     // Ein Monitor je Gerät — Rot, Gelb, Blau und das Monster, in den Farben
     // der Reiter am Telefon. Sie zeigen (noch) nicht, was die Geräte sehen —
@@ -1544,6 +1552,18 @@ export class HauntingWorld extends GridWorld {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.48, 0.07), metal);
       post.position.set(stoolX, 0.24, stoolZ);
       this.vanRig.add(post);
+      // Der Hocker aus dem Regal, in der Farbe seines Geräts.
+      const seat = new THREE.Group();
+      seat.position.set(stoolX, 0, stoolZ);
+      this.vanRig.add(seat);
+      dressProp(
+        seat,
+        COMMAND_STOOL,
+        { width: 0.45, height: 0.56, depth: 0.45 },
+        [stool, post],
+        false,
+        colour,
+      );
     }
 
     this.buildDusk();
@@ -4528,3 +4548,7 @@ function edgeOfKey(key: string): { x: number; z: number; alongX: boolean } {
     ? { x: (Number(a) + 0.5) * TILE, z: Number(b) * TILE, alongX }
     : { x: Number(a) * TILE, z: (Number(b) + 0.5) * TILE, alongX };
 }
+
+/** Der Tisch und die Hocker der Einsatzzentrale aus dem Regal. */
+const COMMAND_DESK = 'furniture-bits/desk_large.glb';
+const COMMAND_STOOL = 'furniture-bits/chair_stool.glb';

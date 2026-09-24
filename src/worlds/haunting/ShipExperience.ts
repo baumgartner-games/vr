@@ -43,6 +43,7 @@ import { PLAN_DOOR_H } from '../editor/levelPlan';
 import { TILE, dirX } from '../nav/navTile';
 import { canLoadModels } from '../../core/chefFit';
 import { LIFT_DOOR } from './plan';
+import { CONSOLE_MODEL, dressProp } from './world3d/stationProps';
 import { DEFAULT_LIGHTING, lightingPreset, type BotLighting } from './botLighting';
 import {
   MONSTER_FIELDS,
@@ -1550,9 +1551,14 @@ export class ShipExperience {
     const g = new THREE.Group();
     g.position.copy(at);
     g.rotation.y = yaw;
-    this.mesh([1.18, 0.16, 0.5], SHIP.trim, g, [0, 0.08, 0]);
-    this.mesh([0.58, 0.62, 0.32], SHIP.dark, g, [0, 0.44, -0.05]);
-    this.mesh([1.18, 0.95, 0.24], SHIP.trim, g, [0, 1.16, 0]);
+    const built = [
+      this.mesh([1.18, 0.16, 0.5], SHIP.trim, g, [0, 0.08, 0]),
+      this.mesh([0.58, 0.62, 0.32], SHIP.dark, g, [0, 0.44, -0.05]),
+      this.mesh([1.18, 0.95, 0.24], SHIP.trim, g, [0, 1.16, 0]),
+    ];
+    // Unterbau aus dem Regal (`world3d/stationProps.ts`); der Bildschirm mit
+    // dem Rätsel bleibt, er ist die Konsole.
+    dressProp(g, CONSOLE_MODEL, { width: 1.18, height: 0.8, depth: 0.5 }, built);
     const screen = this.screen(1.05, 0.83);
     screen.mesh.position.set(0, 1.16, 0.125);
     g.add(screen.mesh);
