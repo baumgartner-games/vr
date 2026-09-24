@@ -1,4 +1,13 @@
-import { BAG_ITEMS, PROP_GRIPS, PROP_LABELS, createPropShape, type PropKind } from './props';
+import * as THREE from 'three';
+import {
+  BAG_ITEMS,
+  PROP_GRIPS,
+  PROP_LABELS,
+  WALL_OVERLAP,
+  createPropShape,
+  modelPropShape,
+  type PropKind,
+} from './props';
 
 /**
  * Der Beutel hat zwei Listen — was er anbietet und wie es heißt —, und sie
@@ -55,5 +64,43 @@ describe('die Griffe der Beutel-Objekte', () => {
   it('gibt der Sektflasche einen — und dem Würfel keinen', () => {
     expect(PROP_GRIPS.champagne).toBeDefined();
     expect(PROP_GRIPS.cube).toBeUndefined();
+  });
+});
+
+describe('Wände aus dem Regal', () => {
+  const box = (w: number, h: number, d: number): THREE.Object3D => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d));
+    // Wie bei den KayKit-Dateien: der Ursprung unter den Füßen, nicht in der Mitte.
+    mesh.position.set(0.3, h / 2, 0);
+    const root = new THREE.Group();
+    root.add(mesh);
+    return root;
+  };
+  const drawn = (object: THREE.Object3D): THREE.Vector3 => {
+    object.updateMatrixWorld(true);
+    return new THREE.Box3().setFromObject(object).getSize(new THREE.Vector3());
+  };
+
+  it('stehen im Bild an jedem Ende um die Fase über — der Körper nicht', () => {
+    const wall = modelPropShape(box(2, 2, 0.25), 'Wand');
+    const size = drawn(wall.object);
+    expect(size.x).toBeCloseTo(2 + 2 * WALL_OVERLAP, 9);
+    expect(size.z).toBeCloseTo(0.25, 9);
+    expect(wall.halfExtents.x).toBeCloseTo(1, 9);
+    // Und die Mitte bleibt in der Mitte.
+    const centre = new THREE.Box3().setFromObject(wall.object).getCenter(new THREE.Vector3());
+    expect(centre.length()).toBeCloseTo(0, 9);
+  });
+
+  it('strecken in Nord-Süd-Richtung, wenn sie so stehen', () => {
+    const size = drawn(modelPropShape(box(0.25, 2, 2), 'Wand').object);
+    expect(size.z).toBeCloseTo(2 + 2 * WALL_OVERLAP, 9);
+    expect(size.x).toBeCloseTo(0.25, 9);
+  });
+
+  it('lassen alles andere, wie es ist', () => {
+    expect(drawn(modelPropShape(box(1, 1, 1), 'Kiste').object).x).toBeCloseTo(1, 9);
+    // Flach und lang, aber niedrig: ein Brett, keine Wand.
+    expect(drawn(modelPropShape(box(2, 0.1, 0.25), 'Brett').object).x).toBeCloseTo(2, 9);
   });
 });

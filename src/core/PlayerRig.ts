@@ -336,6 +336,20 @@ export class PlayerRig extends THREE.Group {
 
   /** Ein Klick, der das Getragene ablegen will (`requestDrop`, `takeDrop`). */
   private dropQueued = false;
+  /** Ein Rechtsklick des Krans, der die Bombe holen oder weglegen will. */
+  private bombQueued = false;
+
+  /** Die Abrissbombe holen oder weglegen (`core/craneBomb.ts`). */
+  requestBomb(): void {
+    this.bombQueued = true;
+  }
+
+  /** Den Wunsch abholen — je Klick genau einmal wahr. */
+  takeBomb(): boolean {
+    const bomb = this.bombQueued;
+    this.bombQueued = false;
+    return bomb;
+  }
 
   /** Die linke Maustaste will ablegen, was die Bildschirmhand trägt. */
   requestDrop(): void {

@@ -165,6 +165,17 @@ export function recordModel(
   save();
 }
 
+/**
+ * **Die Zeile eines Dings streichen** — es ist abgerissen worden
+ * (`core/craneBomb.ts`). Ein Modell, das erst hingestellt und dann wieder
+ * abgerissen wurde, hat an der Welt nichts geändert.
+ */
+export function forgetChange(key: string): void {
+  load();
+  if (!tracking || !changes.delete(key)) return;
+  save();
+}
+
 function round(value: number): number {
   return Math.round(value * 100) / 100;
 }

@@ -319,6 +319,14 @@ export class FlatControls {
     this.cranePointer = null;
     this.craneTurns = 0;
     this.view?.detach(on);
+    // **Der Kran steht auf einem Viertel, von Anfang an** — sonst übernähme
+    // er die Laufrichtung der Figur, und jede Vierteldrehung mit `R` bliebe
+    // um genau diesen Rest schief zu den Platten.
+    if (on) {
+      this.yaw = craneQuarter(_euler.setFromQuaternion(this.rig.quaternion, 'YXZ').y);
+      this.rig.rotation.set(0, this.yaw, 0);
+      this.rig.updateMatrixWorld(true);
+    }
   }
 
   /** Called when the player is placed, so look direction matches the spawn. */
@@ -819,6 +827,9 @@ export class FlatControls {
           // **Was getragen wird, legt sie ab** (`PlayerRig.carrying`) — wie
           // `E`, und vor allem anderen: Wer mit einer Wand in den Händen
           // klickt, will sie hinstellen und nicht schießen.
+          // **Rechts holt der Kran die Abrissbombe** (`core/craneBomb.ts`) —
+          // ob er sie bekommt, entscheidet die Welt (nur im _Baukasten_).
+          if (event.button === 2 && this.craneOn) this.rig.requestBomb();
           if (event.button === 0) {
             if (this.rig.carrying) this.pressMouseUse();
             else if (this.rig.useCandidate) this.useQueued = true;
@@ -870,6 +881,10 @@ export class FlatControls {
         this.usePointer = event.pointerId;
         this.aQueued = true;
         this.setPressed(pads.use, true);
+      } else if (this.topDownOn && this.craneOn && hitsElement(pads.fire, event)) {
+        // Als Kran ist `B` auf dem Glas der Rechtsklick: die Abrissbombe.
+        // Gezündet wird sie mit `A` — dort, wo auch sonst genommen wird.
+        this.rig.requestBomb();
       } else if (hitsElement(pads.fire, event)) {
         this.firePointer = event.pointerId;
         this.setPressed(pads.fire, true);

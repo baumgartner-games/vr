@@ -860,6 +860,20 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   Das Dropship schaut also nicht mehr in Flugrichtung; das Getragene dreht mit.
   Als Kran setzt `R` die Welt deshalb **nicht** zurück (`PortalWorld.flatKeys`
   fragt `movesFurniture`) — das bleibt über das Menü.
+- **Die Abrissbombe** (`core/craneBomb.ts`, `PortalWorld.updateBomb`, seit
+  September 2026). Gewünscht war: _„mit einem Rechtsklick soll im
+  Baukasten-Modus eine Bombe geholt werden in die Hand, mit der Sachen
+  abgerissen werden können. Dann sind die Elemente, welche abgerissen werden
+  sollen, als Ghost markiert."_ Rechtsklick (auf dem Glas `B`) hängt eine
+  Bombe aus dem Regal an den Haken (`platformer/neutral/bomb.glb`) und legt
+  sie beim zweiten Mal wieder weg. Solange sie hängt, wird das Ding unter dem
+  Kran rot und durchscheinend (`markBombTarget`), und Linksklick, `E` oder
+  `A` reißt genau das ab — für alle in der Sitzung (`removeProp` mit
+  `share`). Ein hingestelltes Modell verliert dabei auch seine Zeile in der
+  Liste der Weltänderungen (`worldChanges.forgetChange`); was schon zur Welt
+  gehörte, steht darin nicht als Abriss. Nur im _Baukasten_, nur als Kran,
+  nur mit leeren Klauen (`bombAllowed`); Gebautes aus dem Grundriss und die
+  Möbel der Küche sind keine Gegenstände und bleiben stehen.
 - **Nur lokal.** Mitspieler sehen weiter den Koch; der Modus geht nicht über
   die Leitung.
 - **Keine Physik** (`PortalWorld.updateCraneFlight`). Gewünscht war: _„als Kran
@@ -908,7 +922,13 @@ wie eines. Jetzt sagt der Dateiname (und für namenlose Wände die Form über
 
 - **Bau** — Wand, Boden, Säule, Tür, Fenster, Zaun, Treppe: steht fest und
   lässt sich **nur im _Baukasten_** umsetzen (`gameMode.movesStructure`). Im
-  _Einrichten_ wird eingerichtet, nicht umgebaut.
+  _Einrichten_ wird eingerichtet, nicht umgebaut. **Wände schließen an**
+  (`props.WALL_OVERLAP`, seit September 2026): Die KayKit-Wände haben an den
+  Enden eine 45°-Fase von 5 cm, und zwei gerade Stücke Stoß an Stoß ließen
+  eine V-Kerbe offen. Das Bild jeder Wand (dünn, lang, hoch — `gridSnap.wallAxis`)
+  wird deshalb an beiden Enden um 5 cm verlängert, die Fasen schieben sich
+  ineinander. Körper, Einrasten und Kachelzahl bleiben beim gemessenen Maß;
+  ein freies Wandende steht dafür 5 cm über — so gewollt.
 - **Möbel** — Tisch, Vorratskiste, Küchenzeile, Herd, Kühlschrank, Regal,
   Bett, Stuhl: steht fest und lässt sich wie jedes Möbel im _Einrichten_ und
   im _Baukasten_ umstellen, beim _Spielen_ nicht.

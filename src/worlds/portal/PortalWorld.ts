@@ -31,6 +31,7 @@ import {
   formatChanges,
   onWorldChanges,
   parseChanges,
+  forgetChange,
   recordModel,
   setTrackingChanges,
   trackingChanges,
@@ -124,7 +125,15 @@ import {
   PROP_LABELS,
   type PropKind,
 } from './props';
-import { gridPose, placesOnGrid, tilesCovered, turnedHalf, wallEdges, yawOf } from './gridSnap';
+import {
+  gridPose,
+  placesOnGrid,
+  quarterYaw,
+  tilesCovered,
+  turnedHalf,
+  wallEdges,
+  yawOf,
+} from './gridSnap';
 import { swapOut } from './shelfSwap';
 import { PlaceGrid } from './placeGrid';
 import {
@@ -340,7 +349,13 @@ import {
   type UsePick,
   type Usable,
 } from '../../core/usable';
-import { CRANE_TOUCH, buildCraneMark, disposeCrane } from '../../core/crane';
+import { CRANE_TOUCH, buildCraneMark, craneCarryY, disposeCrane } from '../../core/crane';
+import {
+  BOMB_GHOST_COLOR,
+  BOMB_GHOST_OPACITY,
+  BOMB_MODEL,
+  bombAllowed,
+} from '../../core/craneBomb';
 import {
   interactionGrab,
   interactionKind,
@@ -1515,6 +1530,21 @@ export class PortalWorld implements World {
    * ist (`updateCraneFlight`).
    */
   private craneStart: THREE.Vector3 | null = null;
+  /** Ob man in diesem Bild der Kran ist — für `attach`, das keinen `ctx` hat. */
+  private craneNow = false;
+  /**
+   * **Die Abrissbombe am Haken** (`core/craneBomb.ts`) — `null`, solange der
+   * Kran keine trägt. Die Gruppe hängt am Rig, darin das Modell, sobald es da
+   * ist.
+   */
+  private bomb: THREE.Group | null = null;
+  /** Was gerade als Geist markiert ist — samt den Materialien von vorher. */
+  private bombTarget: {
+    entry: PhysicsBody;
+    skins: Map<THREE.Mesh, THREE.Material | THREE.Material[]>;
+  } | null = null;
+  /** Der Geist selbst: ein Material für alles, was gleich abgerissen wird. */
+  private bombGhost: THREE.MeshStandardMaterial | null = null;
   /** Der Kreis am Boden unter dem Kran (`core/crane.buildCraneMark`). */
   private craneMark: THREE.Group | null = null;
   protected context: WorldContext | null = null;
@@ -4749,6 +4779,9 @@ export class PortalWorld implements World {
     this.craneStart = null;
     if (this.craneMark) disposeCrane(this.craneMark);
     this.craneMark = null;
+    this.putBombAway();
+    this.bombGhost?.dispose();
+    this.bombGhost = null;
 
     // Ghosts hand the originals their real materials back, so they go first.
     this.ghosts?.dispose();
@@ -7063,6 +7096,9 @@ export class PortalWorld implements World {
     }
     const index = this.props.indexOf(entry);
     if (index < 0) return;
+    // Ein Geist der Abrissbombe gibt seine Materialien zurück, bevor alles
+    // freigegeben wird — der Geist selbst gehört allen Zielen.
+    if (this.bombTarget?.entry === entry) this.markBombTarget(null);
 
     const id = this.idOf(entry);
     this.unweld(entry);
@@ -8654,6 +8690,20 @@ export class PortalWorld implements World {
       _point.setFromMatrixPosition(_matrix.multiplyMatrices(anchor.matrixWorld, offset));
     } else {
       entry.object.getWorldPosition(_point);
+      // **Der Kran hält, was er hebt, im rechten Winkel zu sich** — und er
+      // selbst steht immer auf einem Viertel (`core/crane.craneTurn`). Ohne
+      // das blieb der Winkel zwischen Kran und Stück vom Aufnehmen stehen,
+      // und `R` drehte eine Wand in sauberen 90°-Schritten schief über die
+      // Platten: _„bei dem R-Modus sollte es um 90° drehen, sauber zu den
+      // Bodenplatten."_ Aufrecht bleibt es ohnehin; hier fällt nur der Rest
+      // der Gierung weg.
+      if (this.craneNow && !controller) {
+        const scale = new THREE.Vector3();
+        offset.decompose(_point, _quaternion, scale);
+        _quaternion.setFromAxisAngle(UP, quarterYaw(yawOf(_quaternion)));
+        offset.compose(_point, _quaternion, scale);
+        entry.object.getWorldPosition(_point);
+      }
     }
     // **Diese Hand hat gehandelt** (`lastActHand`): Ihr gehört von jetzt an der
     // Saum, solange nur ein Gegenstand getragen wird.
@@ -10046,6 +10096,7 @@ export class PortalWorld implements World {
    * zurück an den Ort, an dem der Flug anfing.
    */
   private updateCraneFlight(ctx: WorldContext): void {
+    this.craneNow = Boolean(ctx.crane);
     const locomotion = this.locomotion;
     if (!locomotion) return;
     if (ctx.crane) {
@@ -10084,6 +10135,117 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Die Abrissbombe** (`core/craneBomb.ts`) — holen, zielen, zünden.
+   *
+   * Rechtsklick (oder `B` auf dem Glas) holt sie an den Haken und legt sie
+   * wieder weg. Solange sie hängt, wird das Ding unter dem Kran zum **Geist**:
+   * rot und durchscheinend, und genau das reißt der nächste Druck ab —
+   * Linksklick, `E` oder `A`, dieselben Geber wie beim Nehmen. Abgerissen wird
+   * für alle in der Sitzung (`removeProp` mit `share`); war es ein
+   * hingestelltes Modell, geht auch seine Zeile aus der Liste der
+   * Weltänderungen.
+   *
+   * @returns ob die Bombe gerade hängt — dann gehören ihr die Tasten
+   */
+  private updateBomb(ctx: WorldContext): boolean {
+    const allowed = bombAllowed(gameMode(), Boolean(ctx.crane), this.screenCarrySide() !== null);
+    if (ctx.rig.takeBomb() && allowed) {
+      if (this.bomb) this.putBombAway();
+      else this.fetchBomb(ctx);
+    }
+    if (this.bomb && !allowed) this.putBombAway();
+    if (!this.bomb) return false;
+
+    ctx.rig.getHeadPosition(_point);
+    const floor = ctx.rig.getFloorY();
+    _point.y = floor + 0.5;
+    let target = this.findProp(_point);
+    if (!target) {
+      _point.y = floor + 1.2;
+      target = this.findProp(_point);
+    }
+    if (target !== (this.bombTarget?.entry ?? null)) this.markBombTarget(target);
+    ctx.rig.useCandidate = target !== null;
+    if (ctx.rig.takeUse() && target) this.detonate(target);
+    return true;
+  }
+
+  /** Die Bombe an den Haken — erst gebaut, dann, wenn da, aus dem Regal. */
+  private fetchBomb(ctx: WorldContext): void {
+    const bomb = new THREE.Group();
+    bomb.name = 'crane-bomb';
+    bomb.position.set(0, craneCarryY(0.2), 0);
+    const stand = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 18, 12),
+      new THREE.MeshStandardMaterial({ color: 0x23262e, roughness: 0.5 }),
+    );
+    stand.name = 'crane-bomb-stand';
+    bomb.add(stand);
+    ctx.rig.add(bomb);
+    this.bomb = bomb;
+    playTone({ type: 'triangle', from: 260, to: 520, duration: 0.08, gain: 0.05 });
+    void kaykitModel(BOMB_MODEL).then((model) => {
+      if (!model || this.bomb !== bomb) return;
+      bomb.remove(stand);
+      disposeTree(stand);
+      model.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(model);
+      const centre = box.getCenter(new THREE.Vector3());
+      model.position.sub(centre);
+      bomb.add(model);
+    });
+  }
+
+  /** Die Bombe weg, und der Geist mit ihr. */
+  private putBombAway(): void {
+    this.markBombTarget(null);
+    if (!this.bomb) return;
+    this.bomb.removeFromParent();
+    disposeTree(this.bomb);
+    this.bomb = null;
+  }
+
+  /** Das Ziel als Geist zeigen — und dem vorigen seine Materialien zurückgeben. */
+  private markBombTarget(entry: PhysicsBody | null): void {
+    const was = this.bombTarget;
+    if (was) {
+      for (const [mesh, skin] of was.skins) mesh.material = skin;
+      this.bombTarget = null;
+    }
+    if (!entry) return;
+    const ghost = (this.bombGhost ??= new THREE.MeshStandardMaterial({
+      color: BOMB_GHOST_COLOR,
+      emissive: BOMB_GHOST_COLOR,
+      emissiveIntensity: 0.35,
+      transparent: true,
+      opacity: BOMB_GHOST_OPACITY,
+      depthWrite: false,
+    }));
+    const skins = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+    entry.object.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      skins.set(mesh, mesh.material);
+      mesh.material = ghost;
+    });
+    this.bombTarget = { entry, skins };
+  }
+
+  /** Abreißen — für alle, und ohne Spur in der Liste der Weltänderungen. */
+  private detonate(entry: PhysicsBody): void {
+    // Die eigenen Materialien zurück, bevor `removeProp` alles freigibt: Der
+    // Geist gehört allen Zielen und darf dabei nicht mit weg.
+    this.markBombTarget(null);
+    const key = this.changeKeys.get(entry);
+    if (key) {
+      forgetChange(key);
+      this.changeKeys.delete(entry);
+    }
+    this.removeProp(entry, true);
+    playTone({ type: 'sawtooth', from: 180, to: 40, duration: 0.35, gain: 0.08 });
+  }
+
+  /**
    * **Was der Körper meint** — die eine Auswahl für Saum und Taste.
    *
    * Als Kran nur, was unter ihm liegt (`CRANE_TOUCH`); sonst der Strahl aus
@@ -10106,6 +10268,12 @@ export class PortalWorld implements World {
    * aufzumachen.
    */
   private updateUsables(ctx: WorldContext): void {
+    // **Mit der Bombe am Haken meint jeder Druck: abreißen** — und sonst
+    // nichts (`updateBomb`). Saum und Benutzen ruhen so lange.
+    if (this.updateBomb(ctx)) {
+      this.bodyPick = null;
+      return;
+    }
     if (ctx.rig.takeUse()) this.useForward(ctx);
     this.aimUse(ctx);
 
