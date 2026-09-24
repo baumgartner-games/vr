@@ -1069,3 +1069,59 @@ describe('Der sichere Bereich des Blattes', () => {
     menu.dispose();
   });
 });
+
+/**
+ * **Das ⓘ im großen Ordner und im Suchtreffer.** Am Telefon öffnete es nichts:
+ * Die Kachel steht dort in einem aufgeklappten Fach („1–60") oder ist ein
+ * Treffer der Suche, und der Weg durchs Menü suchte sie nur unter den direkten
+ * Kindern der Seite — der nächste Neubau des Baums schnitt den Schritt ab.
+ */
+describe('Das ⓘ hinter aufgeklappten Fächern', () => {
+  let host: HTMLElement;
+
+  function withDetails(): MenuEntry[] {
+    const root = catalogue([]);
+    for (const shelf of root[0]!.children!) {
+      for (const file of shelf.children!) {
+        file.detail = { preview: file.id, facts: [{ label: 'Adresse', value: file.id }] };
+      }
+    }
+    return root;
+  }
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    document.body.append(host);
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    host.remove();
+  });
+
+  it('öffnet den Steckbrief einer Kachel aus dem zweiten Fach — auch nach dem Neubau', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(withDetails());
+    menu.openSubmenu('assets');
+    info(menu, 'kaykit:tile_3.glb').click();
+    expect(title(menu)).toBe('Tile 3');
+    // Der Baum wird zweimal die Sekunde neu gesetzt; die Seite bleibt offen.
+    menu.setRoot(withDetails());
+    expect(title(menu)).toBe('Tile 3');
+    menu.dispose();
+  });
+
+  it('öffnet den Steckbrief eines Suchtreffers', () => {
+    const menu = new PageMenu({ host });
+    menu.setRoot(withDetails());
+    menu.openSubmenu('assets');
+    const search = menu.element.querySelector<HTMLInputElement>('.pmenu__search')!;
+    search.value = 'tile 77';
+    search.dispatchEvent(new Event('input'));
+    info(menu, 'kaykit:tile_77.glb').click();
+    expect(title(menu)).toBe('Tile 77');
+    menu.setRoot(withDetails());
+    expect(title(menu)).toBe('Tile 77');
+    menu.dispose();
+  });
+});

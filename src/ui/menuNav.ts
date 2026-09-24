@@ -168,7 +168,7 @@ export function walkPath(entries: readonly MenuEntry[], path: readonly string[])
   const out: string[] = [];
   let level: readonly MenuEntry[] = entries;
   for (const id of path) {
-    const entry = level.find((candidate) => candidate.id === id);
+    const entry = findStep(entries, level, id);
     if (!entry) break;
     if (!entry.children) {
       if (entry.detail) out.push(id);
@@ -178,6 +178,44 @@ export function walkPath(entries: readonly MenuEntry[], path: readonly string[])
     level = entry.children;
   }
   return out;
+}
+
+/**
+ * **Ein Schritt auf dem Weg** — und er muss finden, was am Schirm zu sehen war.
+ *
+ * Zuerst unter den Kindern der Ebene, dann in ihren Fächern (`flatten`: „1–60"
+ * steht am Schirm offen, die Kachel ist also scheinbar ein direktes Kind), und
+ * für einen Steckbrief (`detail`) zuletzt im ganzen Baum. Das Letzte ist das
+ * ⓘ eines Suchtreffers: Der Treffer liegt irgendwo in der Sammlung und nicht
+ * unter der Seite, auf der gesucht wurde. Ohne diese beiden Umwege schnitt der
+ * nächste Neubau des Baums den Schritt sofort wieder ab — und auf dem Telefon,
+ * wo fast jeder Ordner mehr als sechzig Dateien hat, öffnete das ⓘ nie etwas.
+ * Die Ids sind Adressen und damit eindeutig; das Suchen im ganzen Baum findet
+ * also dasselbe Modell und nicht bloß eines mit demselben Namen.
+ */
+export function findStep(
+  root: readonly MenuEntry[],
+  level: readonly MenuEntry[],
+  id: string,
+): MenuEntry | undefined {
+  const direct = level.find((candidate) => candidate.id === id);
+  if (direct) return direct;
+  for (const entry of level) {
+    if (!entry.flatten || !entry.children) continue;
+    const inside = entry.children.find((candidate) => candidate.id === id);
+    if (inside) return inside;
+  }
+  return findDetail(root, id);
+}
+
+function findDetail(entries: readonly MenuEntry[], id: string): MenuEntry | undefined {
+  for (const entry of entries) {
+    if (entry.children) {
+      const found = findDetail(entry.children, id);
+      if (found) return found;
+    } else if (entry.id === id && entry.detail) return entry;
+  }
+  return undefined;
 }
 
 function samePath(a: readonly string[], b: readonly string[]): boolean {
