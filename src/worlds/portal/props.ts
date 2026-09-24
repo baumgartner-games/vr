@@ -7,6 +7,7 @@ import { MIRROR_DEPTH, MIRROR_HEIGHT, MIRROR_WIDTH, buildStandingMirror } from '
 import { BLANKET_SIZE, buildHeatedBlanket } from './heatedBlanket';
 import type { PropGrip } from './propGrip';
 import { humanLabel } from '../../core/kaykitIndex';
+import { WALL_LONG, wallAxis } from './gridSnap';
 
 /** Everything the magic bag can conjure. The name travels over the network. */
 export type BagKind =
@@ -305,6 +306,27 @@ const MODEL_MASS_MAX = 60;
 const MODEL_HALF_MIN = 0.01;
 
 /**
+ * **Wie weit eine Wand aus dem Regal an jedem Ende übersteht**, in Metern.
+ *
+ * Gemeldet war: _„bei den KayKit-Wall-Assets … an den Ecken okay, aber bei den
+ * geraden Übergängen so eine komische Lücke."_ Nachgemessen an
+ * `restaurant-bits/wall`: 4 Quelleinheiten lang, und die senkrechten Enden
+ * sind rundum in 45° gefast, 0,1 Quelleinheiten tief — im Spiel (Maßstab 0,5)
+ * **5 cm**. Zwei Wände Stoß an Stoß ergeben damit auf jeder Seite eine
+ * V-Kerbe, 10 cm breit und 5 cm tief. An einer Ecke überdecken sich die
+ * Stücke, dort fällt es nicht auf.
+ *
+ * Also wird das **Bild** einer Wand an jedem Ende um genau die Fase
+ * verlängert: Zwei Nachbarn schieben ihre Fasen ineinander, und die Kerbe ist
+ * zu. Der Preis ist bewusst angenommen — _„dann ragt die Wand ggf. leicht auf
+ * das nächste Tile, aber damit werde ich wohl leben müssen"_ —: Ein freies
+ * Wandende steht 5 cm über seine Fuge hinaus. Der **Körper** bleibt beim
+ * gemessenen Maß (`modelPropShape`), damit Einrasten und Kachelzählung
+ * (`gridSnap.tileSpan`) dieselben bleiben.
+ */
+export const WALL_OVERLAP = 0.05;
+
+/**
  * **Ein geladenes Modell als Gegenstand.**
  *
  * Aus dem Beutel kommt jede Sorte mit ihrem eigenen Bauplan — Netz, Masse und
@@ -327,13 +349,13 @@ export function modelPropShape(model: THREE.Object3D, label: string): ModelBluep
   object.name = 'prop-model';
   model.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(model);
+  const size = box.isEmpty() ? new THREE.Vector3(0.2, 0.2, 0.2) : box.getSize(new THREE.Vector3());
   if (!box.isEmpty()) {
     const centre = box.getCenter(new THREE.Vector3());
     model.position.sub(centre);
   }
-  object.add(model);
+  object.add(stretchWall(model, box.isEmpty() ? null : size));
 
-  const size = box.isEmpty() ? new THREE.Vector3(0.2, 0.2, 0.2) : box.getSize(new THREE.Vector3());
   const halfExtents = size
     .clone()
     .multiplyScalar(0.5)
@@ -346,6 +368,24 @@ export function modelPropShape(model: THREE.Object3D, label: string): ModelBluep
     halfExtents,
     label,
   };
+}
+
+/**
+ * **Eine Wand schließt an ihre Nachbarin an** (`WALL_OVERLAP`) — gestreckt
+ * wird nur das Bild, in einer eigenen Gruppe um das schon zentrierte Modell:
+ * So geht die Streckung von der Mitte aus und in **Weltachsen**, egal wie das
+ * Modell in sich gedreht ist. Was keine Wand ist, kommt unverändert zurück.
+ */
+function stretchWall(model: THREE.Object3D, size: THREE.Vector3 | null): THREE.Object3D {
+  if (!size || size.y < WALL_LONG) return model;
+  const across = wallAxis(size.x, size.z);
+  if (across === null) return model;
+  const along = across === 'x' ? 'z' : 'x';
+  const shell = new THREE.Group();
+  shell.name = 'wall-overlap';
+  shell.scale[along] = (size[along] + 2 * WALL_OVERLAP) / size[along];
+  shell.add(model);
+  return shell;
 }
 
 /**

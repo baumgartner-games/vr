@@ -908,7 +908,13 @@ wie eines. Jetzt sagt der Dateiname (und für namenlose Wände die Form über
 
 - **Bau** — Wand, Boden, Säule, Tür, Fenster, Zaun, Treppe: steht fest und
   lässt sich **nur im _Baukasten_** umsetzen (`gameMode.movesStructure`). Im
-  _Einrichten_ wird eingerichtet, nicht umgebaut.
+  _Einrichten_ wird eingerichtet, nicht umgebaut. **Wände schließen an**
+  (`props.WALL_OVERLAP`, seit September 2026): Die KayKit-Wände haben an den
+  Enden eine 45°-Fase von 5 cm, und zwei gerade Stücke Stoß an Stoß ließen
+  eine V-Kerbe offen. Das Bild jeder Wand (dünn, lang, hoch — `gridSnap.wallAxis`)
+  wird deshalb an beiden Enden um 5 cm verlängert, die Fasen schieben sich
+  ineinander. Körper, Einrasten und Kachelzahl bleiben beim gemessenen Maß;
+  ein freies Wandende steht dafür 5 cm über — so gewollt.
 - **Möbel** — Tisch, Vorratskiste, Küchenzeile, Herd, Kühlschrank, Regal,
   Bett, Stuhl: steht fest und lässt sich wie jedes Möbel im _Einrichten_ und
   im _Baukasten_ umstellen, beim _Spielen_ nicht.
