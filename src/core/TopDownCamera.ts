@@ -91,6 +91,15 @@ export class TopDownCamera {
   private level: number | null = null;
   /** Was für dieses Bild ausgeblendet ist. Nach dem Zeichnen wieder her damit. */
   private readonly hidden: THREE.Object3D[] = [];
+  /**
+   * **Wohin die Kamera schaut, solange sie niemandem folgt** — als Kran
+   * (`core/crane.ts`). Dann fährt WASD das Bild (`pan`), und der Kran geht
+   * dorthin, wohin der Zeiger zeigt (`groundPoint`). `null`: Sie folgt dem
+   * Rig wie immer.
+   */
+  private free: { x: number; z: number } | null = null;
+  /** Ob `free` beim nächsten Bild wieder über das Rig gehört (`reset`). */
+  private refocus = false;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.camera.name = 'top-down-camera';
@@ -123,9 +132,14 @@ export class TopDownCamera {
    */
   update(dt: number, rig: PlayerRig, ground: ViewLevel | null = null): void {
     this.level = ground?.level ?? null;
-    this.pose[0] = rig.position.x;
+    if (this.free && this.refocus) {
+      this.free.x = rig.position.x;
+      this.free.z = rig.position.z;
+    }
+    this.refocus = false;
+    this.pose[0] = this.free?.x ?? rig.position.x;
     this.pose[1] = (ground?.floorY ?? rig.getFloorY()) + TOP_DOWN_FOCUS;
-    this.pose[2] = rig.position.z;
+    this.pose[2] = this.free?.z ?? rig.position.z;
     this.focus.setTarget(this.pose);
     this.focus.update(dt, FOLLOW_TAU);
     // Der Zoom rastet in Stufen, fährt aber nicht hart: Ein Sprung von 16 auf
@@ -168,6 +182,53 @@ export class TopDownCamera {
   reset(): void {
     this.focus.reset();
     this.distance = this.target;
+    this.refocus = true;
+  }
+
+  /**
+   * **Die Kamera vom Rig lösen — oder wieder daran hängen.** Als Kran fährt
+   * sie selbst (`pan`) und fängt dort an, wo das Rig gerade steht; danach
+   * zieht sie weich zurück hinter die Figur.
+   */
+  detach(on: boolean): void {
+    if (on === (this.free !== null)) return;
+    this.free = on ? { x: 0, z: 0 } : null;
+    this.refocus = on;
+  }
+
+  /** Ob die Kamera gerade selbst fährt (`detach`). */
+  get detached(): boolean {
+    return this.free !== null;
+  }
+
+  /** **Das Bild verschieben**, in Weltmetern — nur, solange es niemandem folgt. */
+  pan(dx: number, dz: number): void {
+    if (!this.free || this.refocus) return;
+    this.free.x += dx;
+    this.free.z += dz;
+  }
+
+  /**
+   * **Welcher Punkt am Boden unter dem Zeiger liegt** — der Strahl durch den
+   * Bildpunkt, geschnitten mit der Ebene auf Höhe `y`. `null`, wenn der
+   * Strahl sie nicht trifft (über den Horizont hinaus — von oben praktisch
+   * nie).
+   */
+  groundPoint(
+    clientX: number,
+    clientY: number,
+    y: number,
+    out: THREE.Vector3,
+  ): THREE.Vector3 | null {
+    const rect = this.canvas.getBoundingClientRect();
+    if (!(rect.width > 0) || !(rect.height > 0)) return null;
+    _ndc.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    _ray.setFromCamera(_ndc, this.camera);
+    _plane.set(_up, -y);
+    return _ray.ray.intersectPlane(_plane, out);
   }
 
   /**
@@ -276,3 +337,7 @@ function overflowOf(node: Element): string {
 }
 
 const _target = new THREE.Vector3();
+const _ndc = new THREE.Vector2();
+const _ray = new THREE.Raycaster();
+const _plane = new THREE.Plane();
+const _up = new THREE.Vector3(0, 1, 0);

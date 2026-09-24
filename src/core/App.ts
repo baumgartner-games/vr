@@ -849,6 +849,9 @@ export class App {
     // der Koch tritt ab, samt seinen Händen.
     const crane = on && isCrane(gameMode());
     this.avatar.crane = crane;
+    // Und als Kran fahren die Tasten das Bild, der Zeiger stellt den Kran
+    // (`FlatControls.crane`).
+    this.flat.crane = crane;
     this.avatar.showHands = on && !crane;
     if (on) this.topDownCamera.reset();
     else if (!this.renderer.xr.isPresenting) this.flat.syncFromRig();

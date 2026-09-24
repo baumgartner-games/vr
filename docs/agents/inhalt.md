@@ -2275,6 +2275,12 @@ im Spiel also zwei Kacheln —, und in eine
   Collider; die Platten sind reine Zierde und liegen zwei Zentimeter über ihm,
   man steht also **in** ihnen. Der gebaute Boden darunter bleibt ebenfalls
   stehen, nur unsichtbar — er trägt weiter Kollision, Etage und Wegenetz.
+  **Eine Etage, eine Höhe** (`plateField.PLATE_FLUSH`, seit September 2026):
+  Die Masse des Geländes endet zwei Zentimeter unter den begangenen Kacheln,
+  und ihre Platten lagen deshalb zwei Zentimeter tiefer — jede Kante zwischen
+  Weg und Gelände war eine sichtbare Stufe (_„die boden platten liegen hier
+  nicht alle gleich auf?"_). Jetzt rücken Platten, die bis zu 3 cm unter ihrer
+  Nachbarin liegen, auf deren Höhe; echte Stufen (Treppe, Podest) bleiben.
 
   Den Zeichner teilt sich dieser Boden inzwischen mit einem zweiten
   (`checkerTexture`): Die **Küche der Testwelt** ist ebenfalls kariert, mit

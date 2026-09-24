@@ -345,8 +345,65 @@ export function floorPlateSpots(
       }
     }
   }
+  flush(best, size);
   return [...best.values()];
 }
+
+/**
+ * **Wie weit eine Platte höchstens unter ihrer Nachbarin liegen darf, um auf
+ * deren Höhe zu rücken**, in Metern.
+ *
+ * Gemeldet war: _„die boden platten liegen hier nicht alle gleich auf?"_ —
+ * und sie taten es nicht. Die Masse des Geländes hat ihre Oberkante mit
+ * Absicht zwei Zentimeter unter null (`worlds/test/testPlan.ts`: damit sie
+ * sich mit den Bodenkacheln darüber nicht um jedes Pixel streitet), die
+ * begangenen Kacheln liegen auf null. Solange nur Quader dastanden, war das
+ * unsichtbar; seit auf beiden Platten liegen, wird der Saum zur **Stufe**:
+ * Jede Kante zwischen Weg und Gelände war eine Fuge mit zwei Zentimetern
+ * Versatz, quer durchs Bild.
+ *
+ * Drei Zentimeter fangen genau diesen Saum und nichts sonst: Die kleinste
+ * gewollte Stufe dieses Grundrisses ist eine Treppenstufe (0,7 m) oder der
+ * Sprung auf ein Podest, und beide liegen um ein Vielfaches darüber.
+ */
+export const PLATE_FLUSH = 0.03;
+
+/**
+ * **Eine Etage, eine Höhe** — Platten, die nur um den Saum unter ihrer
+ * Nachbarin liegen, rücken auf deren Höhe, und zwar über das ganze
+ * zusammenhängende Stück.
+ *
+ * Nachbarn und nicht „die Höhe der Etage": Diese Datei kennt keine Etagen-
+ * höhen, nur Quader, und das soll so bleiben. Eine Welle von den höheren
+ * Platten aus reicht dafür — sie läuft über die Masse, bis sie an eine
+ * wirkliche Stufe stößt. Der Körper bleibt, wo er ist: Man steht auf dem
+ * Gelände damit zwei Zentimeter **in** der Platte, und zwei Zentimeter sind
+ * die Haut der Spielerkapsel (siehe `plateFloor.PLATE_LIFT`, derselbe Handel
+ * für die Schürze).
+ */
+function flush(best: Map<string, PlateFloorSpot>, size: number): void {
+  const queue = [...best.values()].sort((a, b) => b.y - a.y);
+  for (let i = 0; i < queue.length; i++) {
+    const spot = queue[i]!;
+    const col = Math.round((spot.x - size / 2) / size);
+    const row = Math.round((spot.z - size / 2) / size);
+    for (const [dc, dr] of NEIGHBOURS) {
+      const next = best.get(`${col + dc}/${row + dr}/${spot.level}`);
+      if (!next) continue;
+      const below = spot.y - next.y;
+      if (below <= 1e-9 || below > PLATE_FLUSH + 1e-9) continue;
+      next.y = spot.y;
+      queue.push(next);
+    }
+  }
+}
+
+const NEIGHBOURS: readonly (readonly [number, number])[] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
 
 /**
  * **Welche Dateien ein Quader abwartet** — die Frage, an der hängt, ob er
