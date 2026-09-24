@@ -215,6 +215,36 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     Seite); die Deckenleuchten zeichnen ihre Karte nur beim Umzug und
     viermal die Sekunde neu (`LAMP_SHADOW_EVERY`). Ohne Schatten in der Grafik
     (`renderer.shadowMap.enabled`) bleibt es wie vorher.
+- **Dritte Runde (September 2026): Knöpfe je Kachel, Wandhebel, noch mehr
+  aus dem Regal.**
+  - **Ein Knopf steht auf einer Kachel, nicht auf der Fuge**
+    (`doorButtons.doorButtonSpots`). Gewünscht: _„Der Button auf dem Boden
+    kann nicht mittig sein, sondern wie die Bodenplatte nur auf einer stehen.
+    Also sollte es dann zwei geben."_ Eine Tür über zwei Kanten hat deshalb
+    vier Knöpfe — je Kante einen davor und einen dahinter, jeder mitten auf
+    seiner Kachel; eine Tür über eine Kante behält zwei.
+  - **Wandhebel statt Schalttafel** (`world3d/doorLever.ts`, `DoorLever`):
+    Über jeder Tür hängt auf beiden Seiten ein
+    `platformer/green|red/lever_wall_base_A_*.glb` auf dem Rahmen
+    (`DOOR_LEVER_Y`, unter den Wegweisern) — grün mit dem Griff nach oben,
+    solange die Tür aufgeht, rot mit dem Griff nach unten, solange sie
+    gesperrt ist; der Griff legt in einer Viertelsekunde um. Bedient wird er
+    wie vorher die Tafel (`bind` auf einen unsichtbaren Treffer um den Hebel).
+    Die Tafel mit „GESPERRT"/„BEREIT" ist weg.
+  - **Weitere Einrichtung aus dem Regal:** Die Lüftungsklappen sind ein Gitter
+    (`dungeon/floor_tile_grate.glb`, offen `…_grate_open`; `ventArt.dress`, auch
+    im Testdeck), Ersatzteile sind eine Batterie (`block-bits/battery.glb`),
+    das Medkit ein roter Trank (`adventurers/potion_medium_red.glb`) —
+    `stationProps.dressMesh` hängt das Modell in das gebaute Kästchen, das als
+    Träger für Bindung, Beschriftung und Treffer bleibt. Auf dem Tisch der
+    Zentrale (`desk_large`, gestreckt) stehen `furniture-bits/monitor.glb` mit
+    dem farbigen Bildschirm ihres Geräts; die gebauten Buchten, Rohre und das
+    Geländer der Kommandohülle (`shipArt.buildCommandHull`) sind weg. **Noch
+    gebaut** bleiben Auskunft (Schilder, Bodenmarkierungen, Bildschirmflächen),
+    Leuchten und der Crawler.
+  - Modellteile, die aus ihrer Kopie herausgelöst werden (Hebelgriff,
+    Spindtür), tragen `userData.sharedAssets`; `disposeObject` und
+    `HauntingWorld.dispose` geben dort nur Materialien frei.
 - **Wer im Schiff einen Körper hat** (`actorArt.ts`, `actorFit.ts`): Techniker
   und Monster sind seit dem KayKit-Regal (`docs/agents/assetregal.md`,
   _Eine Figur, die läuft_) **Akteure** und keine Gruppen mehr —
@@ -236,17 +266,17 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     steht auf demselben mittleren Skelett wie die Roboter — aufrecht, zwei
     Beine, 1,9 m. Er sähe aus wie der Stalker in einer anderen Farbe, und drei
     Monster, die sich nur in der Farbe unterscheiden, sind eines.
-  **Der Techniker selbst ist der Space Ranger mit Helm** (`ShipExperience`,
-  `ctx.dress(SPACE_RANGER)` und `ctx.wear('space')`, siehe
-  `docs/agents/spielfigur.md`, _Geliehen_). Das Umfärben des eigenen Körpers
-  und der gebaute Brustgurt (`EVA / 03`) sind damit weg.
-  **Der gebaute Körper bleibt der Ersatz** und wird beim Eintreffen der Figur
-  nur ausgeblendet, nie weggeworfen (dasselbe Muster wie `core/AvatarBody`
-  mit dem Koch): Eine Runde, die erst anfängt, wenn ein Monster geladen ist,
-  fängt manchmal gar nicht an, und ein Checkout ohne die gekauften Pakete ist
-  ein normaler Zustand. Die Höhen sind deshalb die der gebauten Körper, die
-  sie ersetzen — sonst verschöbe der Ersatz stillschweigend Sichtlinien,
-  Ghost und Karte.
+    **Der Techniker selbst ist der Space Ranger mit Helm** (`ShipExperience`,
+    `ctx.dress(SPACE_RANGER)` und `ctx.wear('space')`, siehe
+    `docs/agents/spielfigur.md`, _Geliehen_). Das Umfärben des eigenen Körpers
+    und der gebaute Brustgurt (`EVA / 03`) sind damit weg.
+    **Der gebaute Körper bleibt der Ersatz** und wird beim Eintreffen der Figur
+    nur ausgeblendet, nie weggeworfen (dasselbe Muster wie `core/AvatarBody`
+    mit dem Koch): Eine Runde, die erst anfängt, wenn ein Monster geladen ist,
+    fängt manchmal gar nicht an, und ein Checkout ohne die gekauften Pakete ist
+    ein normaler Zustand. Die Höhen sind deshalb die der gebauten Körper, die
+    sie ersetzen — sonst verschöbe der Ersatz stillschweigend Sichtlinien,
+    Ghost und Karte.
 - **Lesbarkeit im Dunkeln**, zwei Wege, und die **Datei** entscheidet:
   Beide Roboter bringen ein Material `robot_glow` mit (`emissiveFactor`
   [1,1,1], dieselbe Atlas-Textur auch als `emissiveTexture`), und das bekommt
@@ -409,7 +439,7 @@ Paket beim Gastgeber in der Brille:
   Brille oder der Techniker am Bildschirm, `flatTechnician`, keine wartende
   Übergabe); ein Telefon in der Zentrale als Gastgeber lässt die Runde
   stehen. Eine Übergabe lässt den Kern los (`releaseMonster` → `kernel =
-  null`) und stellt ihn aus den Büchern neu; `stateMessage` und Snapshot
+null`) und stellt ihn aus den Büchern neu; `stateMessage` und Snapshot
   ändern sich nicht.
 - **Weg ist damit** aus `HauntingWorld`: `stepCrew`, `stepLocks`, `stepLamps`,
   `stepSpook`, `trackMonster`, `noticeRepairs`, `checkItems`, `stepTrail`,
@@ -1407,7 +1437,7 @@ raum)` gibt dieselbe Auskunft nach außen, und `monsterRoutine` stellt seinen
   (`--orbital-top`). Der Stock der Karten-Rollen (`map/joystick.ts`,
   `map/joystick.css`: Monster, Zuschauer) hat eine **sichtbare Ruhestellung**
   unten links und springt beim Aufsetzen unter den Daumen; `.flat [hidden] {
-  display: none !important }` bleibt Pflicht.
+display: none !important }` bleibt Pflicht.
 - **Die Karte hat die Handschrift eines Brettspiels** (`map/mapView.ts`,
   `INK`): helle Böden mit Kachelfugen (`FLOOR_TILE` 1,25 m), Wände als dunkler
   Kern mit heller Kante, **Türen als Blätter in Pfosten** — zu ist ein Blatt

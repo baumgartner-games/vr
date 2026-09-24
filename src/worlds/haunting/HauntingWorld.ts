@@ -1509,7 +1509,15 @@ export class HauntingWorld extends GridWorld {
     const desk = new THREE.Group();
     desk.position.set(x, 0, z);
     this.vanRig.add(desk);
-    dressProp(desk, COMMAND_DESK, { width: 2.4, height: 0.9, depth: 1.1 }, built);
+    // Gestreckt, damit die Platte genau auf `COMMAND_DESK_TOP` liegt — darauf
+    // stehen die Monitore.
+    dressProp(
+      desk,
+      COMMAND_DESK,
+      { width: 2.4, height: COMMAND_DESK_TOP, depth: 1.1 },
+      built,
+      true,
+    );
 
     // Ein Monitor je Gerät — Rot, Gelb, Blau und das Monster, in den Farben
     // der Reiter am Telefon. Sie zeigen (noch) nicht, was die Geräte sehen —
@@ -1517,8 +1525,13 @@ export class HauntingWorld extends GridWorld {
     // für die der VR-Spieler den Weg zurückgeht. Der Fernseher hat keinen:
     // kein Gerät, sondern das Fenster für die, die zusehen.
     for (const { colour, x: stoolX, z: stoolZ } of COMMAND_STOOLS) {
+      // Der Monitor aus dem Regal auf dem Tisch, das farbige Bild vorn darauf.
+      const monitor = new THREE.Group();
+      monitor.position.set(stoolX, COMMAND_DESK_TOP, z - 0.5);
+      this.vanRig.add(monitor);
+      dressProp(monitor, COMMAND_MONITOR, COMMAND_MONITOR_SIZE, []);
       const screen = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.46, 0.32),
+        new THREE.PlaneGeometry(0.42, 0.24),
         new THREE.MeshBasicMaterial({
           color: colour,
           toneMapped: false,
@@ -1526,7 +1539,7 @@ export class HauntingWorld extends GridWorld {
           transparent: true,
         }),
       );
-      screen.position.set(stoolX, 1.4, z - 0.5);
+      screen.position.set(stoolX, COMMAND_DESK_TOP + 0.235, z - 0.5 + 0.06);
       this.vanRig.add(screen);
 
       // **Und ein Platz davor, in derselben Farbe.** Vier Leute sitzen an
@@ -4558,3 +4571,8 @@ function edgeOfKey(key: string): { x: number; z: number; alongX: boolean } {
 /** Der Tisch und die Hocker der Einsatzzentrale aus dem Regal. */
 const COMMAND_DESK = 'furniture-bits/desk_large.glb';
 const COMMAND_STOOL = 'furniture-bits/chair_stool.glb';
+const COMMAND_MONITOR = 'furniture-bits/monitor.glb';
+/** Der Monitor auf dem Tisch: so breit wie das farbige Bild davor und etwas mehr. */
+const COMMAND_MONITOR_SIZE = { width: 0.5, height: 0.4, depth: 0.2 };
+/** Die Höhe der Tischplatte — der Tisch wird darauf eingepasst, die Monitore stehen darauf. */
+const COMMAND_DESK_TOP = 0.9;
