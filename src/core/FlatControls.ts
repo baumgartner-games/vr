@@ -319,6 +319,14 @@ export class FlatControls {
     this.cranePointer = null;
     this.craneTurns = 0;
     this.view?.detach(on);
+    // **Der Kran steht auf einem Viertel, von Anfang an** — sonst übernähme
+    // er die Laufrichtung der Figur, und jede Vierteldrehung mit `R` bliebe
+    // um genau diesen Rest schief zu den Platten.
+    if (on) {
+      this.yaw = craneQuarter(_euler.setFromQuaternion(this.rig.quaternion, 'YXZ').y);
+      this.rig.rotation.set(0, this.yaw, 0);
+      this.rig.updateMatrixWorld(true);
+    }
   }
 
   /** Called when the player is placed, so look direction matches the spawn. */

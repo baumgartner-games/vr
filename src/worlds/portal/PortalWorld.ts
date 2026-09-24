@@ -124,7 +124,15 @@ import {
   PROP_LABELS,
   type PropKind,
 } from './props';
-import { gridPose, placesOnGrid, tilesCovered, turnedHalf, wallEdges, yawOf } from './gridSnap';
+import {
+  gridPose,
+  placesOnGrid,
+  quarterYaw,
+  tilesCovered,
+  turnedHalf,
+  wallEdges,
+  yawOf,
+} from './gridSnap';
 import { swapOut } from './shelfSwap';
 import { PlaceGrid } from './placeGrid';
 import {
@@ -1515,6 +1523,8 @@ export class PortalWorld implements World {
    * ist (`updateCraneFlight`).
    */
   private craneStart: THREE.Vector3 | null = null;
+  /** Ob man in diesem Bild der Kran ist — für `attach`, das keinen `ctx` hat. */
+  private craneNow = false;
   /** Der Kreis am Boden unter dem Kran (`core/crane.buildCraneMark`). */
   private craneMark: THREE.Group | null = null;
   protected context: WorldContext | null = null;
@@ -8654,6 +8664,20 @@ export class PortalWorld implements World {
       _point.setFromMatrixPosition(_matrix.multiplyMatrices(anchor.matrixWorld, offset));
     } else {
       entry.object.getWorldPosition(_point);
+      // **Der Kran hält, was er hebt, im rechten Winkel zu sich** — und er
+      // selbst steht immer auf einem Viertel (`core/crane.craneTurn`). Ohne
+      // das blieb der Winkel zwischen Kran und Stück vom Aufnehmen stehen,
+      // und `R` drehte eine Wand in sauberen 90°-Schritten schief über die
+      // Platten: _„bei dem R-Modus sollte es um 90° drehen, sauber zu den
+      // Bodenplatten."_ Aufrecht bleibt es ohnehin; hier fällt nur der Rest
+      // der Gierung weg.
+      if (this.craneNow && !controller) {
+        const scale = new THREE.Vector3();
+        offset.decompose(_point, _quaternion, scale);
+        _quaternion.setFromAxisAngle(UP, quarterYaw(yawOf(_quaternion)));
+        offset.compose(_point, _quaternion, scale);
+        entry.object.getWorldPosition(_point);
+      }
     }
     // **Diese Hand hat gehandelt** (`lastActHand`): Ihr gehört von jetzt an der
     // Saum, solange nur ein Gegenstand getragen wird.
@@ -10046,6 +10070,7 @@ export class PortalWorld implements World {
    * zurück an den Ort, an dem der Flug anfing.
    */
   private updateCraneFlight(ctx: WorldContext): void {
+    this.craneNow = Boolean(ctx.crane);
     const locomotion = this.locomotion;
     if (!locomotion) return;
     if (ctx.crane) {
