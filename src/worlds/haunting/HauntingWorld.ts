@@ -756,6 +756,8 @@ export class HauntingWorld extends GridWorld {
   private buttonDoors: ButtonDoor[] = [];
   /** Auf welchen Türknöpfen gerade jemand steht — je Bild neu (`pressButtons`). */
   private readonly pressedDoors = new Set<string>();
+  /** Welche Türen `applyDoors` in diesem Bild offen hat — für das Bild der Blätter. */
+  private readonly openDoors = new Set<string>();
 
   // --- die Welt ------------------------------------------------------------
 
@@ -1337,8 +1339,12 @@ export class HauntingWorld extends GridWorld {
    * wie bei der Automatik (`doorOccupants`), damit Knopf und Tür sich einig
    * sind.
    */
-  private pressButtons(): void {
+  private pressButtons(ctx: WorldContext): void {
     const occupants = this.doorOccupants();
+    // **Auch die eigenen Füße** — am Schirm ist der Techniker die Figur, die
+    // läuft (`flatTechnician`, dann ist `ctx.role` hier `vr`), und deren Kopf
+    // steht nicht unbedingt in `doorOccupants`.
+    if (ctx.role === 'vr') occupants.push({ x: ctx.rig.position.x, z: ctx.rig.position.z });
     this.pressedDoors.clear();
     for (const door of this.buttonDoors)
       if (buttonPressed(door, occupants)) this.pressedDoors.add(door.id);
@@ -1401,8 +1407,10 @@ export class HauntingWorld extends GridWorld {
       round: () => this.rules.status(this.state),
       // **Die Blätter fahren erst auf, wenn jemand auf dem Knopf steht**
       // (`pressButtons`) — rein fürs Auge: Durchlassen tut die Automatik.
+      // Offen ist, was `applyDoors` entschieden hat — beim Gastgeber mit Kern
+      // fährt die Runde die Türen, und die Automatik rechnet dann gar nicht.
       doorOpen: (id) =>
-        (id === 'test-bay' ? this.state.crew.options.test : this.automaticDoors.isOpen(id)) &&
+        (id === 'test-bay' ? this.state.crew.options.test : this.openDoors.has(id)) &&
         this.pressedDoors.has(id),
       doorLocked: (id) => this.doorLocked(id),
       travel: (at, yaw) => this.movePlayerTo(ctx, at, yaw),
@@ -1936,7 +1944,7 @@ export class HauntingWorld extends GridWorld {
     if (this.isHost && !this.waitingHandover && ctx.role === 'vr') this.stepKernel(dt, ctx);
     else if (this.kernelLoco) this.kernelLoco.active = false;
     this.applyDoors(dt);
-    this.pressButtons();
+    this.pressButtons(ctx);
     this.stationWalls?.setTopDown(ctx.topDown);
     this.applyLights(dt);
     this.cullRoomArt(dt, ctx);
@@ -2837,6 +2845,8 @@ export class HauntingWorld extends GridWorld {
         kernel && door.id !== TRAINING_DOOR.id
           ? kernel.round.doorOpen(door.id)
           : this.automaticDoors.step(door.id, at, shut.has(door.id), ghosts, dt);
+      if (open) this.openDoors.add(door.id);
+      else this.openDoors.delete(door.id);
       for (const edge of doorEdges(door)) this.setSlidingGridDoor(edge.x, edge.z, edge.dir, open);
     }
     if (now !== before) this.hearSlam(before, shut);
