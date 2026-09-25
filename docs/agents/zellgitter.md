@@ -81,22 +81,39 @@ den großen Kacheln bleibt.
   - Ohne Schrägen fehlt die Zeile.
   - `0.1` bis `0.3` werden weiter gelesen.
 
+- **NPCs laufen als 2 × 2-Block** (`nav/cellRoute.ts`, `NavAgent.plan`).
+  Die Wegsuche über ganze Kacheln (`navPath.findPath`) bleibt die grobe
+  Planung, denn nur sie kennt Meinung, Türen, Gefahren, Treppen, Portale und
+  Sprünge.
+  - In einem Schlauch aus diesen Kacheln sucht `CellGrid.findPath` den Weg
+    eines 2 × 2-Blocks. Der Schlauch umfasst die Kacheln des Wegs und ihre
+    Nachbarn, Nachbarn aber nur ohne Gefahr.
+  - Offen gilt dabei **nur die Tür, durch die der grobe Weg geht**. Eine
+    andere Tür im Schlauch ist womöglich die verriegelte, um die er
+    herumführt.
+  - Wegpunkte stehen nur dort, wo der Block die Richtung wechselt, und
+    sind **eng** (`tight`).
+  - An Verbindungen (andere Etage, keine Nachbarschaft, Wand mit Treppe)
+    wird geteilt. Die Enden jedes Stücks tragen ihre Kachel, damit
+    `NavAgent.hop` Sprung und Portal erkennt wie bisher.
+  - Passt in einem Stück kein Block durch (ein Durchlass unter einem
+    Meter), bleibt es beim Schnurzug über Kacheln (`pullString`).
+  - Die Schrägen kommen über `NavGraph.slopeAt` in den Graphen der NPCs:
+    `GridPlan` hängt sie in seinen Graphen, `GridWorld.navReady` in den
+    abgetasteten.
+
 ## Was noch nicht auf Zellen läuft
 
-Der Umbau ist in Stufen geplant. Stufe 1 ist der Kern oben.
-
-1. **NPCs auf Zellen.**
-   - `nav/navAgent.ts` plant heute über ganze Kacheln (`findPath`) und
-     meidet Schrägen nur über ihre Kosten.
-   - Umstellen heißt: `CellGrid.findPath` als Wegsuche des Agenten, dazu
-     Möbel als gesperrte Zellen.
-   - Möbel sind im Graphen heute nur ein Kostenfaktor (`GridPlan.refresh`).
-2. **Haunting.**
+1. **Haunting.**
    - Die Station rechnet mit eigenem Kern (`haunting/map/geometry.ts`
      `walkable`/`slide`, `stationNavigation.ts` mit einem Raster von 0,25 m,
-     `roomGraph.ts`). Die Rechtecke dort kennen keine Schrägen.
+     `roomGraph.ts`). Ihre Rechtecke kennen keine Schrägen.
    - Die schrägen Ecken der Vorlage (`docs/orbital/station-vorlage.webp`)
-     kommen erst, wenn dieser Kern auf das Zellgitter umgezogen ist.
+     kommen, wenn dieser Kern auf das Zellgitter umgezogen ist.
+2. **Möbel als gesperrte Zellen.**
+   - Heute ist ein Möbel im Graphen ein Kostenfaktor (`GridPlan.refresh`).
+   - Den NPCs sperrt es eine Kachel nur, wo das Abtasten (`navBake.ts`) es
+     als Hindernis findet.
 3. **Kleinere Dinge auf halbe Kacheln** (der Blumentopf an den Rand einer
    Kachel).
    - Möbel bleiben vorerst auf ganzen Metern, so ist es gewünscht.
