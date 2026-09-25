@@ -13,32 +13,37 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 - **Die Kachel ist ein Meter** (`nav/navTile.TILE` = 1). Die Station steht
   in `house.ts` als Tabelle in Metern, **abgepaust von der Vorlage des
   Besitzers** (`docs/orbital/station-vorlage.webp`, siehe unten _Die Vorlage
-  am Boden_): Cafeteria 20 × 21, Storage 11 × 17, Reactor 8 × 12, Security
-  6 × 10, O2 6 × 5, Navigation 7 × 9, die übrigen 8…10 m je Seite. **Gänge
-  drei Kacheln breit** wie auf der Zeichnung (die beiden Gänge an der
-  Cafeteria vier), `STATION_BOUNDS` = 81 × 46 m, `HOUSE` 40 × 30 m, Vorplatz
-  `APRON` 40 × 5 m, Aufzug `COMMAND_LIFT` 2 × 2. Kein Raum berührt einen
-  anderen (eine Kachel Fuge; `roomGraph.test` verlangt, dass es keine
-  Wandnachbarn ohne Tür gibt); Räume hängen nur über Gänge zusammen, und
-  **zwischen zwei Gängen steht die ganze gemeinsame Kante offen** (Kreuzung).
-  **Ein Gang berührt einen Raum nur dort, wo eine Tür sein soll** —
-  `connectStation` setzt an jede gemeinsame Kante eine; wer einen Gang an
-  einer Raumwand entlangführt, bekommt dort eine Tür, die niemand gezeichnet
-  hat. Lehrzimmer: `EAST` = Ostrand + 15 m, Safe 12 × 10, Modelle 20 × 15.
+  am Boden_), und zwar **so klein, wie die Einrichtung es zulässt**: Gänge
+  zwei Kacheln breit, Fugen eine Kachel, Räume meist 6 × 6 (Cafeteria
+  10 × 10, Storage 6 × 10, Reactor 5 × 10, Security 5 × 6, O2 6 × 5),
+  `STATION_BOUNDS` = 55 × 30 m, `HOUSE` 40 × 30 m, Vorplatz `APRON`
+  40 × 5 m, Aufzug `COMMAND_LIFT` 2 × 2. **Ein Raum braucht rund sechs
+  Meter**: Kleiner (5 × 5 wurde probiert, als der Besitzer die Station
+  halbiert haben wollte) findet `stationLayout` für Merkmal, zwei Kisten,
+  Schutzschrank und Konsole keinen sicheren Platz mehr („No safe station
+  furniture layout"). Wer Räume verkleinert, prüft mehrere hundert Samen,
+  nicht nur einen. Kein Raum berührt einen anderen (eine Kachel Fuge;
+  `roomGraph.test` verlangt, dass es keine Wandnachbarn ohne Tür gibt);
+  Räume hängen nur über Gänge zusammen, und **zwischen zwei Gängen steht die
+  ganze gemeinsame Kante offen** (Kreuzung). **Ein Gang berührt einen Raum
+  nur dort, wo eine Tür sein soll** — `connectStation` setzt an jede
+  gemeinsame Kante eine; wer einen Gang an einer Raumwand entlangführt,
+  bekommt dort eine Tür, die niemand gezeichnet hat. Lehrzimmer: `EAST` =
+  Ostrand + 15 m, Safe 12 × 10, Modelle 20 × 15.
 - **Die Vorlage am Boden** (`world3d/blueprint.ts`, `blueprintArt.ts`):
   _Optionen → Grundriss-Vorlage_ (im Weltmenü _Grundriss-Vorlage: an/aus_)
   legt die Zeichnung als Bild auf den Boden, gemerkt je Gerät
-  (`localStorage` `haunting:blueprint`). Eichung: **16 Pixel = 1 m**,
-  Pixel (747, 32) — Mitte und Oberkante der Cafeteria — ist `x = 0,
-  z = −52`. Das Bild `public/haunting/station-outline.png` ist aus der
-  Vorlage gerechnet (Wände gelb, Räume blau, Gänge grün getönt, der Rest
-  durchsichtig); `blueprint.test` prüft, dass jeder Raum höchstens zwei
-  Meter neben seiner Zeichnung liegt. Die größten Abweichungen sitzen dort,
-  wo die Zeichnung Schrägen hat (MedBay, Reactor, O2 an der Cafeteria) —
-  das Raster kennt keine, und ein Rechteck muss dort ausweichen, damit zwei
-  Räume sich nicht berühren. **Schrägen (45°-Wände) sind noch nicht
-  gebaut**; was sie für Wegsuche und Kollision bedeuten, steht im
-  Pull Request dieser Änderung.
+  (`localStorage` `haunting:blueprint`). Eichung: **24 Pixel = 1 m**, die
+  beste Deckung der Raummitten — Pixelspalte 747 (Mitte der Cafeteria) ist
+  `x = 0`, Pixelzeile 32 ist `z = −55`. Das Bild
+  `public/haunting/station-outline.png` ist aus der Vorlage gerechnet
+  (Wände gelb, Räume blau, Gänge grün getönt, der Rest durchsichtig);
+  `blueprint.test` prüft, dass jede Raummitte höchstens 2,5 m neben ihrer
+  Zeichnung liegt. Abweichungen gibt es, wo die Zeichnung Schrägen hat (das
+  Raster kennt keine), wo ein kleiner Raum für seine Möbel größer sein muss
+  (Security, O2, Navigation) und bei der Cafeteria, die gezeichnet größer
+  ist als gebaut. **Schrägen (45°-Wände) sind noch nicht gebaut**; was sie
+  für Wegsuche und Kollision bedeuten, steht in PR #221.
 - **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
   topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und was hinter
   offenen Türen innerhalb von `TOP_DOWN_REACH` = 6 m liegt. Über allem

@@ -84,6 +84,10 @@ describe('Das Steuer übers Netz beim Gastgeber', () => {
 
   it('bewegt das Monster mit dem Stock und lässt es ohne Stock stehen', () => {
     const { round, say, step } = host();
+    // Im breitesten Raum, am Westrand: Nach Osten ist Platz für Gehen und Rennen.
+    const hall = round.house.rooms.find((room) => room.id === round.house.entryRoom)!;
+    const centre = round.graph.centre(hall.id);
+    Object.assign(round.monster, { x: centre.x - 3, z: centre.z, space: hall.id });
     const start = { x: round.monster.x, z: round.monster.z };
     step(30);
     expect(round.monster.x).toBe(start.x);

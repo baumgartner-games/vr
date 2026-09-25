@@ -97,16 +97,16 @@ describe('MapView', () => {
         y: 0,
       }) as DOMRect;
     const round = new FlatRound(5, { test: true });
-    const view = new MapView({ minScale: 6, maxScale: 60 });
+    const view = new MapView({ minScale: 8, maxScale: 60 });
     view.setSnapshot(round.snapshot());
     view.follow(PLAYER_ID);
     view.setView({ scale: 22 });
     view.follow(PLAYER_ID);
     view.draw();
-    // Hundert Meter Haus bei 6 Punkten je Meter wären 600 Punkte auf 360.
+    // Sechzig Meter Station bei 8 Punkten je Meter wären 480 Punkte auf 360.
     view.zoomAt(0.01, 180, 320);
     const fit = view.fitScale();
-    expect(fit).toBeLessThan(6);
+    expect(fit).toBeLessThan(8);
     expect(view.getView().scale).toBeCloseTo(fit);
     view.draw();
     const b = round.snapshot().bounds;
@@ -130,7 +130,7 @@ describe('MapView', () => {
    */
   it('lässt das ganz herausgezoomte Haus nach unten unter den oberen Rand ziehen', () => {
     const round = new FlatRound(5, { test: true });
-    const view = new MapView({ minScale: 6, maxScale: 60 });
+    const view = new MapView({ minScale: 8, maxScale: 60 });
     view.setSnapshot(round.snapshot());
     view.fit();
     view.draw();

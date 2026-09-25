@@ -116,10 +116,13 @@ describe('Eine Stelle, die die Wegsuche meidet', () => {
       // Trichter, und dann wiegt die Suche Länge gegen Nähe ab — und der
       // Schnurzug gibt hinterher noch ein Prozent davon zurück, weil er nur
       // fragt, ob die Kapsel durchpasst. Genau dafür gibt es den harten Kern
-      // (`RouteAvoid.core`, Test darunter): Der ist die Zusage.
+      // (`RouteAvoid.core`, Test darunter): Der ist die Zusage. Seit die
+      // Station kompakt ist (Räume um sechs Meter), liegt ein Trichter von
+      // sieben Metern oft über der ganzen Bahn, und der Schnurzug gibt bis
+      // zu sechs Prozent zurück.
       const plainDread = dread(plain, from, avoid);
       const shyDread = dread(shy, from, avoid);
-      expect(shyDread).toBeLessThanOrEqual(plainDread * 1.05);
+      expect(shyDread).toBeLessThanOrEqual(plainDread * 1.06);
       if (shyDread < plainDread - 1) {
         better++;
         // … und wo sie weniger kostet, hält sie auch mehr Abstand.

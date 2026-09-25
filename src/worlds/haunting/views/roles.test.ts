@@ -678,7 +678,7 @@ describe('Ein Stuhl mit mehreren Fähigkeiten', () => {
 
     // **Die Lampe sitzt in der Zimmermitte** — ein Tipp dort schaltet Licht
     // (die Schalttafel ist dran); ein Tipp daneben öffnet die Akte.
-    const room = round.snapshot().rooms.find((one) => !one.circulation)!;
+    const room = roomWithSpace(view, round.snapshot());
     const lamp = round.snapshot().lights.find((one) => one.id === room.id)!;
     const before = round.state().lit.includes(room.id);
     tapAt(view, lamp.at);
@@ -703,7 +703,7 @@ describe('Ein Stuhl mit mehreren Fähigkeiten', () => {
     expect(view.element.querySelector('.role--seat > .role__toast')?.textContent).toContain(
       'Schalttafel',
     );
-    const room = round.snapshot().rooms.find((one) => !one.circulation)!;
+    const room = roomWithSpace(view, round.snapshot());
     tapAt(view, freeSpot(view, round.snapshot(), room));
     expect(view.sheetOpen).toBe(false);
     expect(view.element.querySelector('.role--seat > .role__toast')?.textContent).toBe(room.name);
@@ -752,4 +752,25 @@ function freeSpot(
     }
   }
   throw new Error(`Kein freier Fleck in ${room.id}`);
+}
+
+/**
+ * Der erste Raum (kein Gang), in dem `freeSpot` eine Stelle findet. Die
+ * Cafeteria ist auf der kleinen Testkarte voll — Schleuse, Lampe, Werkzeug —,
+ * und welcher Raum Platz hat, ist keine Aussage des Tests.
+ */
+function roomWithSpace(
+  view: { map: { toScreen(x: number, z: number): { x: number; y: number } } },
+  snapshot: MapSnapshot,
+): MapSnapshot['rooms'][number] {
+  for (const room of snapshot.rooms) {
+    if (room.circulation) continue;
+    try {
+      freeSpot(view, snapshot, room);
+      return room;
+    } catch {
+      // Zu voll — der nächste.
+    }
+  }
+  throw new Error('Kein Raum mit freiem Fleck');
 }
