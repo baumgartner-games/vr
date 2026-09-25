@@ -6,8 +6,6 @@ import {
   CellGrid,
   blockStart,
   cellsFor,
-  diagonalSlides,
-  gateStep,
   glides,
   moveOnCells,
   standable,
@@ -276,32 +274,6 @@ describe('Eine 45°-Wand mit nichts dahinter — wie die Ecken der Station', () 
     }
   });
 
-  it('hält auch die Zellsperre des Spielers — mit Stößen der Physik dazwischen', () => {
-    const grid = cornered();
-    let seed = 7;
-    const random = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let a = 0; a < 16; a++) {
-      const memory = { lastFree: null as { x: number; z: number } | null };
-      let p = { x: 3.5, z: 3.5 };
-      for (let i = 0; i < 600; i++) {
-        const turn = (a / 16) * Math.PI * 2 + (i > 200 ? (random() - 0.5) * 2 : 0);
-        const step = 0.02 + random() * 0.3;
-        const dx = Math.cos(turn) * step,
-          dz = Math.sin(turn) * step;
-        // Wie `PhysicsLocomotion.gateCells`: ganz, nur x, nur z, gar nicht.
-        const full = { x: p.x + dx, z: p.z + dz },
-          alongX = { x: p.x + dx, z: p.z },
-          alongZ = { x: p.x, z: p.z + dz };
-        if (gateStep(grid, p, full, memory)) p = full;
-        else if (gateStep(grid, p, alongX, memory)) p = alongX;
-        else if (gateStep(grid, p, alongZ, memory)) p = alongZ;
-        // Ab und zu ein Stoß, an dem das Gitter nicht gefragt wird.
-        if (i % 37 === 0) p = { x: p.x + (random() - 0.5) * 0.2, z: p.z + (random() - 0.5) * 0.2 };
-        expect(p.x + p.z).toBeGreaterThan(4 - 0.15);
-      }
-    }
-  });
-
   it('drückt an einer Schräge in die freie Richtung, statt stehen zu bleiben', () => {
     const grid = cornered();
     // Nach Westen gegen die „╱" (x + z = 4 m): Die Figur rutscht an ihr nach
@@ -311,20 +283,6 @@ describe('Eine 45°-Wand mit nichts dahinter — wie die Ecken der Station', () 
     expect(p.z).toBeGreaterThan(2.5);
     expect(p.x).toBeLessThan(2.5);
     expect(p.x + p.z).toBeGreaterThan(4);
-    // Mit der Zellsperre des Spielers ebenso (`PhysicsLocomotion.gateCells`).
-    const memory = { lastFree: null as { x: number; z: number } | null };
-    let q = { x: 4, z: 1.5 };
-    for (let i = 0; i < 200; i++) {
-      const dx = -0.03,
-        dz = 0;
-      const candidates = [{ x: dx, z: dz }, ...diagonalSlides(dx, dz)];
-      const step = candidates.find((c) =>
-        gateStep(grid, q, { x: q.x + c.x, z: q.z + c.z }, memory),
-      );
-      if (step) q = { x: q.x + step.x, z: q.z + step.z };
-    }
-    expect(q.z).toBeGreaterThan(2.5);
-    expect(q.x + q.z).toBeGreaterThan(4);
   });
 
   it('rutscht an einer Schräge mitten im Raum entlang — aus jeder Richtung, ohne Loch', () => {
@@ -350,18 +308,11 @@ describe('Eine 45°-Wand mit nichts dahinter — wie die Ecken der Station', () 
         const cx = 6 + (off - 6) * 0.09,
           cz = 6 - (off - 6) * 0.09;
         let p = { x: cx - dx * 2.2, z: cz - dz * 2.2 };
-        const memory = { lastFree: null as { x: number; z: number } | null };
         let moved = 0;
         for (let i = 0; i < 120; i++) {
-          const sx = dx * 0.04,
-            sz = dz * 0.04;
-          const step = [{ x: sx, z: sz }, ...diagonalSlides(sx, sz)].find((c) =>
-            gateStep(grid, p, { x: p.x + c.x, z: p.z + c.z }, memory),
-          );
-          if (step) {
-            p = { x: p.x + step.x, z: p.z + step.z };
-            moved++;
-          }
+          const next = moveOnCells(grid, p, dx * 0.04, dz * 0.04);
+          if (next.x !== p.x || next.z !== p.z) moved++;
+          p = next;
         }
         // Die ganze Zeit in Bewegung, und auf der eigenen Seite der Wand.
         expect(moved).toBe(120);

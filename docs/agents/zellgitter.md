@@ -57,18 +57,48 @@ den großen Kacheln bleibt.
     übernimmt die Drehung.
   - Wer nur Kästen kennt (`solidBounds`, Ghosting), sieht einen Kasten um die
     Mitte.
-- **Der Spieler bewegt sich nur auf dem Gitter** (`PhysicsLocomotion.cellGate`,
-  gestellt von `GridWorld.playerCellGate`, Regel wie `cellGrid.moveOnCells`):
+- **Der Spieler geht in der Ebene** (`PhysicsLocomotion.plane`, gestellt von
+  `GridWorld.playerPlane`, Rechnung in `nav/planeMove.ts`, seit Oktober 2026):
+  - Gewünscht: _„nicht mit der 3D-Kollision, sondern auf der 2D-Ebene … die
+    Spieler bewegen sich an sich nur in der 2D-Ebene."_ Das Verhalten heißt in
+    Spielen **Wall Sliding** bzw. **Collide and Slide**.
+  - Der Spieler ist ein **Kreis** (`PLAYER_PLANE_RADIUS` = 0,35 m — klein
+    genug, dass er über Eck durch das Bild oben schlüpft), die Welt
+    eine Menge von **Strecken** (`cellPlaneWalls`): geschlossene Kanten (Wand,
+    Fenster, geschlossene Tür, eingerastete Regalwand, von beiden Seiten
+    gefragt), Schrägen als Diagonale ihrer Kachel, gesperrte Zellen (Möbel,
+    fehlender Boden) als Kästen.
+  - Ein Schritt wird in Stücken von einem Viertel des Radius gemacht, danach
+    wird der Kreis aus der Wand geschoben, in der er am tiefsten steckt —
+    senkrecht zu ihr (`slideCircle`). Übrig bleibt der Anteil **längs** der
+    Wand: gleiten an jeder Wand, in jedem Winkel, ohne Fallunterscheidung. An
+    einem Wandende rundet der Kreis die Ecke.
+  - Vorher probierte der Schritt „ganz, nur x, nur z, längs der Diagonalen"
+    (`diagonalSlides`, `gateStep`) — an einer Schräge gewann je Bild eine andere
+    Möglichkeit, und das war das Ruckeln (gemeldet: _„Beim Laufen gegen eine
+    schräge Wand ruckelt der Spieler"_).
   - Wände, Türen, Fenster, Schrägen und Möbel der Gitterwelten tragen
     `PlanSolid.cell` und sitzen in der Physik im eigenen Bit `GROUP_CELL`.
     Die Kapsel des Spielers geht durch sie hindurch (`PLAYER_FILTER`), denn
-    über sie entscheidet allein das Gitter.
-  - Böden, Treppen, Rampen, Podeste, Massen und bewegliche Kisten bleiben
-    Physik.
-  - Der Schritt wird ganz gemacht, nur längs x, nur längs z oder gar nicht,
-    je nachdem, ob der 2 × 2-Block danach frei ist.
-  - Wer auf einem gesperrten Block steht, darf heraus.
-  - Außerhalb des Grundrisses schweigt das Gitter (`voidIsFree`).
+    über sie entscheidet allein die Ebene. Die Physik trägt den Spieler nur
+    noch in der Höhe: Böden, Podeste, Massen und bewegliche Kisten.
+  - Gefragt wird auf der Etage, auf der die Füße stehen; außerhalb des
+    Grundrisses auf Etage 0, dort ist das Nichts frei (`voidIsFree`).
+  - **Die Treppe ist ein Gang mit Einbahnwänden** (`CellSource.flight`,
+    `GridPlan.flightOn`): Ihre Seiten halten nur von außen
+    (`PlaneWall.outside`) — hinauf geht es nur von unten, herunter überall.
+    Wer halb auf ihr steht, wird nicht mit einem Ruck hinausgeworfen, er kommt
+    nur nicht zurück. Neben einem Lauf derselben Richtung (breite Treppe) ist
+    keine Seite.
+  - **Auf der Treppe wird nur die Höhe bewegt** (`GridPlan.flightFloor`): Kein
+    Controller klettert Stufe für Stufe, die Höhe folgt einer Linie über die
+    Vorderkanten der Stufen — unten die erste Stufe, oben die letzte, nie in
+    einer Stufe. Gilt für Treppe und Rampe, sobald die Füße höchstens 0,35 m
+    daneben sind (`FLIGHT_CATCH`).
+  - **Springen gibt es dort nicht**: Über eine Wand, die nur in der Ebene steht,
+    springt man nicht hinweg (_„Springen kann an sich dann auch raus"_). Welten
+    ohne Gitter springen weiter.
+  - Getestet mit echtem Rapier an Treppe und Podest (`physics/playerPlane.test.ts`).
 - **Möbel sperren Zellen** (`GridPlan.furnitureCells`, `boxCells`):
   - Gesperrt ist jede Zelle, in die ein Quader eines Bausteins mindestens
     15 cm hineinragt (`CELL_OVERLAP`) und der höher ist als eine Stufe
@@ -134,8 +164,9 @@ den großen Kacheln bleibt.
     über etwas springt.
 - **Aus einem gesperrten Block** (abgesetzt, geschoben) geht es heraus, aber
   nicht über eine Wand:
-  - Der Spieler (`gateStep`, `GridWorld.playerCellGate`) darf nur zurück zur
-    letzten Stelle, an der er stehen durfte.
+  - Der Spieler wird aus jeder Wand, in der er steckt, zu der Seite
+    geschoben, auf der seine Mitte steht (`planeMove.slideCircle`) — über die
+    Linie kommt er so nicht.
   - Früher war von einem gesperrten Block aus jeder Schritt erlaubt. Über den
     Streifen über Eck kam man an einer 45°-Wand so auf einen gesperrten Block
     und von dort ins Leere hinter der Station — gemeldet als Sturz aus
@@ -169,12 +200,12 @@ den großen Kacheln bleibt.
   - **Außerhalb des Grundrisses** fragt die Zellsperre des Spielers auf
     Etage 0 weiter. Vorher schwieg sie dort, und eine Wand auf dem Gelände
     hielt nur von innen.
-- **An einer schrägen Wand entlang gleiten** (`diagonalSlides`): Nach „ganz,
-  nur x, nur z" versucht der Schritt noch seine Anteile längs der beiden
-  Diagonalen. Wer gegen eine Schräge läuft, wird in die freie Richtung
-  gedrückt. Damit das an den Blockmitten nicht hängen bleibt, ist die Zone um
-  eine Mitte eine Raute, so breit wie der schräge Streifen, und ein Streifen
-  wird auch im Nachbarfeld gefunden (`standable`, `inSquare`).
+- **An einer schrägen Wand entlang gleiten** — für den Spieler in der Ebene
+  (siehe oben); für die NPCs weiter mit `diagonalSlides`: Nach „ganz, nur x,
+  nur z" versucht der Schritt noch seine Anteile längs der beiden Diagonalen.
+  Damit das an den Blockmitten nicht hängen bleibt, ist die Zone um eine
+  Mitte eine Raute, so breit wie der schräge Streifen, und ein Streifen wird
+  auch im Nachbarfeld gefunden (`standable`, `inSquare`).
   - **Dreiecke aus drei freien Mitten** zählen ganz: Ist die vierte Ecke eines
     Feldes an einer Schräge gesperrt, ist das Dreieck der anderen drei frei.
     Vorher lag darin ein Loch, in dem man mitten vor der Wand stehen blieb
@@ -208,9 +239,9 @@ den großen Kacheln bleibt.
   _Wandparcours_) hat gerade Wand, Ecke, Lücke, Gang, beide Schrägen, einen
   schrägen Gang und einen Knick wie an der Station. Ein gespeicherter Stand
   von vorher bekommt ihn dazu (`ensureWallLab` in `TestWorld.planLoaded`). Die Tests laufen mit
-  `gateStep` dagegen (`wallLab.test.ts`).
+  `planeMove.slideOnCells` dagegen (`wallLab.test.ts`).
 - **Alle Figuren gehen auf dem Gitter** (`moveOnCells`, `glides`):
-  - Der Spieler über `PhysicsLocomotion.cellGate`, die NPCs über
+  - Der Spieler in der Ebene (`PhysicsLocomotion.plane`), die NPCs über
     `NpcWorld.cells` (`GridWorld.cellsForAgents`): `Npc.update` schneidet die
     Geschwindigkeit des Hirns mit `moveOnCells` zu, ihr Zylinder geht durch
     `GROUP_CELL` hindurch.

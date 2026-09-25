@@ -156,6 +156,13 @@ Spüle, und in der Brille ein `A`, das neben der Ausgabe absprang, statt den
 Teller zu nehmen. Gehen, Ducken, Sprinten und Greifen bleiben unberührt, und
 einen Schritt vor der Tür springt es wieder wie überall.
 
+**In den Welten auf dem Gitter wird gar nicht gesprungen** (Testwelt, Hub,
+Editor, Haunting — seit Oktober 2026). Dort geht der Spieler in der Ebene
+(`PhysicsLocomotion.plane`, siehe [Das Zellgitter](./zellgitter.md)): Wände
+stehen nur in 2D, und über eine solche Wand springt man nicht hinweg.
+Gewünscht: _„Springen kann an sich dann auch raus."_ Der Knopf bleibt, wo er
+ist, und tut dort nichts; die Welten ohne Gitter springen weiter.
+
 **Die Sperre sitzt im Gestell und nicht in einer Steuerung** — anders als
 `PlayerRig.locked`, das nur in der Brille hält (siehe [Bauen](./bauen.md), der
 Konstrukt-Raum). Jeder Sprungwunsch, von welcher Hand oder Taste auch immer,
