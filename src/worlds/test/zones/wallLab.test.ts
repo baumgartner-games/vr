@@ -1,4 +1,7 @@
 import { CellGrid, gateStep, navCellSource } from '../../nav/cellGrid';
+import { GridPlan } from '../../grid/gridPlan';
+import { tileKey } from '../../nav/navTile';
+import { ensureWallLab } from './wallLab';
 import { WALL_LAB } from '../layout';
 import { testPlan } from '../testPlan';
 
@@ -73,5 +76,19 @@ describe('Der Wandparcours', () => {
       expect(p.x + p.z).toBeGreaterThan(X + Z + 24);
       expect(p.z).toBeGreaterThan(Z + 8);
     }
+  });
+});
+
+describe('Ein gespeicherter Stand ohne Parcours', () => {
+  it('bekommt ihn dazu — Boden, Wände und Schrägen', () => {
+    const old = new GridPlan([0]);
+    old.floor({ x: -2, z: -2, w: 4, d: 4 });
+    ensureWallLab(old);
+    expect(old.graph.has(tileKey(X, Z, 0))).toBe(true);
+    expect(old.slopeAt(tileKey(X + 13, Z + 6, 0))).toBe('slash');
+    // Ein zweites Mal ändert nichts.
+    const version = old.version;
+    ensureWallLab(old);
+    expect(old.version).toBe(version);
   });
 });

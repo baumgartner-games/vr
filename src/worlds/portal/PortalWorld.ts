@@ -5525,12 +5525,15 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Wohin ein Sturz aus der Welt führt**: an den Startpunkt (`true`) oder
-   * auf die letzte Stelle mit Boden (`false`, die Vorgabe des Sandkastens).
-   * Die Welten auf dem Gitter nehmen den Start (`GridWorld`).
+   * **Wohin ein Sturz aus der Welt führt**: an den Startpunkt der Welt
+   * (`true`, in allen Welten) oder auf die letzte Stelle mit Boden (`false`).
+   * Gewünscht: _„in allen welten, wenn ich runter falle [soll] der spieler
+   * nicht einfach nach oben teleportiert werden, sondern wirklich zum spawn
+   * der welt"_ — die letzte Stelle mit Boden liegt nach einem Sturz durch
+   * eine Wand womöglich hinter ihr.
    */
   protected fallRespawnAtStart(): boolean {
-    return false;
+    return true;
   }
 
   /**

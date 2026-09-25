@@ -861,7 +861,12 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   Kacheln gekürzt — eine 2×1-Wand geht durch eine Kachel, eine 4×1-Wand durch
   zwei (`gridSnap.diagonalPose`, `PortalWorld.fitWall`). Für das Zellgitter
   ist sie danach eine Schräge wie eine gebaute (`GridWorld.refreshWallSlopes`).
-  Alles andere rastet beim Hinstellen weiter auf ein Viertel. Gewünscht war: _„im Web mittels R rotieren (anstelle der
+  Alles andere rastet beim Hinstellen weiter auf ein Viertel.
+  **`R` gehalten** (länger als `crane.CRANE_TWIST_HOLD`, 0,25 s): Der Kran
+  bleibt stehen, und die Nase zeigt zum Mauszeiger, auf Achtel gerastet
+  (`crane.craneAimYaw`). Gewünscht: _„wenn ich r gedrückt halte, [soll] ich
+  nach einem kurzen moment mit der maus richtung die grad zahl der wand
+  einstellen [können]? 0,45,90 etc."_ Gewünscht war: _„im Web mittels R rotieren (anstelle der
   Richtung der Drohne) … im Web ohne Stick dreht die Drohne sich dann nicht."_
   Das Dropship schaut also nicht mehr in Flugrichtung; das Getragene dreht mit.
   Als Kran setzt `R` die Welt deshalb **nicht** zurück (`PortalWorld.flatKeys`

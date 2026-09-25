@@ -12,11 +12,17 @@ import {
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
 import { CellGrid, cellKey, gateStep, navCellSource, type Slope } from '../nav/cellGrid';
-import type { DiagonalWall } from '../portal/gridSnap';
+import { gridPose, wallEdges, type DiagonalWall } from '../portal/gridSnap';
+import { markRole } from './fixtures/mark';
+import { checkMarks, markSummary, type Mark, type Verdict } from './markCheck';
 import { FootprintView, type Occupant } from './footprintView';
 import type { CellGate } from '../../physics/PhysicsLocomotion';
 import {
   DIRS,
+  DIR_E,
+  DIR_N,
+  DIR_S,
+  DIR_W,
   NO_TILE,
   TILE,
   keyLevel,
@@ -123,6 +129,21 @@ const OWN_FLOOR = 'own-floor';
  * belaufen können.
  */
 const _footprintFeet = new THREE.Vector3();
+
+/** Wie oft die Wandtests neu geprüft werden, in Sekunden (`refreshMarks`). */
+const MARK_EVERY = 0.4;
+
+/** Eine Kante als Schlüssel, immer von der Kachel aus, an deren Nord- oder Westseite sie liegt. */
+function edgeId(tx: number, tz: number, dir: Dir, level: number): string {
+  return `${tx},${tz},${dir},${level}`;
+}
+
+/** Dieselbe Kante, egal von welcher Seite gefragt (`edgeId`). */
+function edgeAt(tx: number, tz: number, dir: Dir, level: number): string {
+  if (dir === DIR_S) return edgeId(tx, tz + 1, DIR_N, level);
+  if (dir === DIR_E) return edgeId(tx + 1, tz, DIR_W, level);
+  return edgeId(tx, tz, dir, level);
+}
 
 export abstract class GridWorld extends PortalWorld {
   /** Der gebaute Grundriss — steht ab `buildEnvironment()` bereit. */
@@ -303,6 +324,16 @@ export abstract class GridWorld extends PortalWorld {
    * denn eine Wand aus dem Regal kann aufgehoben und umgestellt werden.
    */
   private readonly wallSlopes = new Map<TileKey, Slope>();
+  /**
+   * **Die geraden Wände aus dem Regal** auf ihren Fugen, als `x,z,Richtung,Etage`
+   * (Richtung nur Nord oder West, `edgeId`) — für das Zellgitter
+   * (`NavCellOptions.walls`), jedes Bild neu (`refreshWallSlopes`).
+   */
+  private readonly propEdges = new Set<string>();
+  /** Die Urteile der Wandtests (`refreshMarks`), nach Kennung der Marke. */
+  private markVerdicts: ReadonlyMap<string, Verdict> = new Map();
+  private markClock = 0;
+  private markLine = '';
   /** Wo der Spieler zuletzt stehen durfte (`playerCellGate`, `gateStep`). */
   private readonly gateMemory: { lastFree: { x: number; z: number } | null } = { lastFree: null };
   /** Die Anzeige der belegten Blöcke (_Menü → Grafik → Belegte Felder_). */
@@ -926,6 +957,8 @@ export abstract class GridWorld extends PortalWorld {
           voidIsFree: true,
           blocked: (ix, iz, level) =>
             plan.furnitureCells().has(cellKey(ix, iz, level)) || this.cellBlocked(ix, iz, level),
+          walls: (tx, tz, dir, level) =>
+            this.propEdges.size > 0 && this.propEdges.has(edgeAt(tx, tz, dir, level)),
         }),
       );
     }
@@ -935,17 +968,68 @@ export abstract class GridWorld extends PortalWorld {
   /** Die Schrägen der hingestellten Wände unter 45° neu einsammeln (`wallSlopes`). */
   private refreshWallSlopes(): void {
     this.wallSlopes.clear();
+    this.propEdges.clear();
     const graph = this.grid?.graph;
     if (!graph) return;
     for (const entry of this.placedModels(this.placedScratch)) {
-      const wall = (entry.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall;
-      if (!wall) continue;
       entry.object.getWorldPosition(_spot);
       const at = graph.at(_spot.x, _spot.z, _spot.y - entry.halfExtents.y);
       const level = at === NO_TILE ? 0 : keyLevel(at);
-      for (const cell of wall.cells)
-        this.wallSlopes.set(tileKey(cell.x, cell.z, level), wall.slope);
+      const wall = (entry.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall;
+      if (wall) {
+        for (const cell of wall.cells)
+          this.wallSlopes.set(tileKey(cell.x, cell.z, level), wall.slope);
+        continue;
+      }
+      // **Eine gerade Wand aus dem Regal** steht auf einer Fuge
+      // (`gridSnap.gridPose`) — dort ist sie für das Zellgitter eine Wand wie
+      // eine gebaute (`propEdges`). Nur, wenn sie wirklich eingerastet steht:
+      // Eine umgefallene oder schief geschobene hält weiter nur die Physik.
+      entry.object.getWorldQuaternion(_turn);
+      const pose = gridPose(_spot.x, _spot.z, _turn, entry.halfExtents);
+      if (pose.wall === null) continue;
+      if (Math.abs(_spot.x - pose.x) > 0.05 || Math.abs(_spot.z - pose.z) > 0.05) continue;
+      const twist = Math.abs(
+        Math.atan2(Math.sin(yawOf(_turn) - pose.yaw), Math.cos(yawOf(_turn) - pose.yaw)),
+      );
+      if (twist > 0.05) continue;
+      const { halfX, halfZ } = turnedHalf(entry.halfExtents, pose.yaw);
+      for (const edge of wallEdges(pose, halfX, halfZ)) {
+        if (edge.alongX)
+          this.propEdges.add(edgeId(Math.floor(edge.x), Math.round(edge.z), DIR_N, level));
+        else this.propEdges.add(edgeId(Math.round(edge.x), Math.floor(edge.z), DIR_W, level));
+      }
     }
+  }
+
+  /**
+   * **Die Wandtests prüfen** (`markCheck.ts`, `fixtures/mark.ts`) — alle
+   * `MARK_EVERY` Sekunden, denn eine Wand aus dem Regal kann jederzeit
+   * umgestellt werden. Ändert sich die Zahl der bestandenen, sagt es eine
+   * Zeile am Handgelenk.
+   */
+  private refreshMarks(dt: number, ctx: WorldContext): void {
+    this.markClock -= dt;
+    if (this.markClock > 0) return;
+    this.markClock = MARK_EVERY;
+    const grid = this.cellGrid();
+    const marks: Mark[] = [];
+    for (const run of this.fixtures) {
+      const role = markRole(run.kind.kind);
+      if (!role) continue;
+      marks.push({
+        id: run.place.id,
+        role,
+        x: run.place.x,
+        z: run.place.z,
+        level: run.place.level,
+      });
+    }
+    const verdicts = grid && marks.length ? checkMarks(grid, marks) : new Map<string, Verdict>();
+    this.markVerdicts = verdicts;
+    const summary = markSummary(verdicts);
+    if (summary && summary !== this.markLine) ctx.notify(summary);
+    this.markLine = summary;
   }
 
   /**
@@ -978,15 +1062,6 @@ export abstract class GridWorld extends PortalWorld {
    */
   protected override cellsForAgents(): CellGrid | null {
     return this.cellGrid();
-  }
-
-  /**
-   * **Wer durch die Welt fällt, fängt am Start wieder an** — gewünscht, seit
-   * man in Haunting durch eine 45°-Wand fiel: Die letzte Stelle mit Boden
-   * liegt dann womöglich hinter der Wand (`PortalWorld.rescuePlayer`).
-   */
-  protected override fallRespawnAtStart(): boolean {
-    return true;
   }
 
   protected override playerCellGate(): CellGate | null {
@@ -1289,6 +1364,9 @@ export abstract class GridWorld extends PortalWorld {
         triggered: run.triggered,
         weightOn: on.weight,
         playerOn: on.player,
+        ...(markRole(run.kind.kind)
+          ? { verdict: this.markVerdicts.get(run.place.id) ?? null }
+          : {}),
       };
       run.used = false;
       run.hit = false;
@@ -2515,6 +2593,7 @@ export abstract class GridWorld extends PortalWorld {
     this.trackLevel(ctx);
     this.showGridLines();
     this.refreshWallSlopes();
+    this.refreshMarks(dt, ctx);
     this.showFootprints(ctx);
     this.stepWallGhosts(ctx);
     // **Vor den Einbauten**, damit ein Schild, das in diesem Bild gelesen

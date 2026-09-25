@@ -1,5 +1,5 @@
 import type { GridPlan } from '../../grid/gridPlan';
-import { DIR_E, DIR_N, DIR_S, DIR_W, type Dir } from '../../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey, type Dir } from '../../nav/navTile';
 import { WALL_LAB } from '../layout';
 
 /**
@@ -69,6 +69,22 @@ export function stampWallLab(plan: GridPlan): void {
   wall(14, 10, DIR_W);
 }
 
+/**
+ * **Den Parcours in einen gespeicherten Plan setzen, dem er fehlt**
+ * (`TestWorld.planLoaded`). Ein Stand, der vor dem Parcours gespeichert
+ * wurde, ersetzt den ganzen Grundriss (`GridWorld.applyStored`), und wer ihn
+ * geladen hat, sähe den Parcours nie — gemeldet: _„hmm ich sehe noch
+ * nichts"_. Fehlt der Boden an seiner Ecke, kommt er dazu: Boden, Wände,
+ * Schrägen. Wände und Schrägen setzen ist doppelt ohne Folgen; einen Parcours,
+ * den jemand umgebaut hat, erkennt man an seinem Boden, und der bleibt dann,
+ * wie er ist.
+ */
+export function ensureWallLab(plan: GridPlan): void {
+  if (plan.graph.has(tileKey(WALL_LAB.x, WALL_LAB.z, 0))) return;
+  plan.floor(WALL_LAB);
+  stampWallLab(plan);
+}
+
 /** Die Schilder — Einbauten mit Kennung, damit ein geladener Stand sie wiederbekommt. */
 export function fitWallLab(plan: GridPlan): void {
   const signs: Array<[string, number, number, 'n' | 's', string]> = [
@@ -81,6 +97,13 @@ export function fitWallLab(plan: GridPlan): void {
     ['7', 2, 11, 's', '7 · Schräger Gang zwischen zwei Schrägen'],
     ['8', 17, 11, 's', '8 · Wand knickt unter 45° ab — wie die Station'],
   ];
+  // **Ein Beispiel für die Bodenmarken** (`grid/fixtures/mark.ts`): Start
+  // westlich der Lücke, „darf hin" östlich davon. Weitere setzt man selbst —
+  // Einrichten → Einbauten.
+  const start = at(7, 4),
+    goal = at(10, 4);
+  plan.putFixture({ id: 'wandtest-start', kind: 'mark-start', x: start.x, z: start.z, dir: DIR_N });
+  plan.putFixture({ id: 'wandtest-luecke', kind: 'mark-go', x: goal.x, z: goal.z, dir: DIR_N });
   for (const [id, lx, lz, side, text] of signs) {
     const t = at(lx, lz);
     const dir = side === 'n' ? DIR_N : DIR_S;

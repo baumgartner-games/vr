@@ -25,6 +25,7 @@ import { floorPieceLift, floorPlate, PLATE_PROTOTYPE, underKitchenFloor } from '
 import { KITCHEN_FLOOR } from './zones/kitchenPlan';
 import { canLoadModels } from '../../core/chefFit';
 import { fitTest, testPlan } from './testPlan';
+import { ensureWallLab } from './zones/wallLab';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
 import { KartZone } from './zones/kart';
@@ -172,6 +173,8 @@ export class TestWorld extends GridWorld {
    * zweites Mal gesetzt stünden sie zweimal da.
    */
   protected override planLoaded(plan: GridPlan): void {
+    // Ein Stand von vor dem Wandparcours bekommt ihn dazu (`ensureWallLab`).
+    ensureWallLab(plan);
     fitTest(plan);
   }
 

@@ -90,6 +90,11 @@ export interface FixtureInput {
   playerOn: boolean;
   /** Ein anderer Einbau hat ihn ausgelöst (`trigger`). */
   triggered: boolean;
+  /**
+   * **Das Urteil eines Wandtests** über eine Bodenmarke (`fixtures/mark.ts`,
+   * `GridWorld.checkMarks`) — für jeden anderen Einbau leer.
+   */
+  verdict?: 'pass' | 'fail' | null;
 }
 
 /** Ein Ort in der Welt, in Metern. */
