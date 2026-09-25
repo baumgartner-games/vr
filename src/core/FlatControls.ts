@@ -24,7 +24,15 @@ import {
 import { inputConfig, onInputConfigChange } from './inputStore';
 import { pinchFactor, yawFromDirection, type Vec2 } from './topDownPose';
 import { smoothAngle } from '../net/PoseSmoothing';
-import { craneEighth, cranePan, craneQuarter, craneTurn, craneVelocity } from './crane';
+import {
+  CRANE_TWIST_HOLD,
+  craneAimYaw,
+  craneEighth,
+  cranePan,
+  craneQuarter,
+  craneTurn,
+  craneVelocity,
+} from './crane';
 
 /**
  * **Ein abgefangener Druck** — was das Menü beim Einstellen bekommt. Am Pad
@@ -187,6 +195,12 @@ export class FlatControls {
   private craneAimed = false;
   /** Wie oft `R` seit dem letzten Bild gedrückt wurde — mit Richtung (`crane`). */
   private craneTurns = 0;
+  /**
+   * **`R` liegt** — seit wann (`performance.now`) und ob mit `Shift`. Kurz
+   * getippt dreht es beim Loslassen ein Achtel; gehalten dreht nach
+   * `CRANE_TWIST_HOLD` die Maus (`crane.craneAimYaw`).
+   */
+  private craneTwist: { since: number; shift: boolean } | null = null;
   private readonly pads: TouchPads;
   /** Die Flanken des Gamepads — Knöpfe eines Pads kommen als Zustand, nicht als Ereignis. */
   private readonly padUse = new ButtonState();
@@ -319,6 +333,7 @@ export class FlatControls {
     this.craneGoal = null;
     this.cranePointer = null;
     this.craneTurns = 0;
+    this.craneTwist = null;
     this.view?.detach(on);
     // **Der Kran steht auf einem Viertel, von Anfang an** — sonst übernähme
     // er die Laufrichtung der Figur, und jede Vierteldrehung mit `R` bliebe
@@ -510,7 +525,11 @@ export class FlatControls {
       : screen
         ? view.groundPoint(screen.x, screen.y, floorY, _hit)
         : null;
-    if (hit) goal.set(hit.x, 0, hit.z);
+    // **`R` gehalten: Der Kran bleibt stehen, und die Maus zeigt die Drehung**
+    // (`crane.craneAimYaw`) — vom Kran zum Zeiger, auf Achtel gerastet.
+    const twist = this.craneTwist;
+    const twisting = twist !== null && (performance.now() - twist.since) / 1000 >= CRANE_TWIST_HOLD;
+    if (hit && !twisting) goal.set(hit.x, 0, hit.z);
     // **Gedreht wird nur, wenn jemand dreht** — `R`, oder der rechte Stock,
     // der die Nase dorthin zeigt, wohin er ausgelenkt ist. Die Maus zeigt
     // weiter auf die Stelle und nimmt dem Stock das Zielen nicht weg: Anders
@@ -522,6 +541,7 @@ export class FlatControls {
     if (Math.hypot(sx, sz) > CRANE_STICK_TURN) yaw = craneEighth(this.groundYaw(sx, sz));
     for (; this.craneTurns > 0; this.craneTurns--) yaw = craneTurn(yaw, true);
     for (; this.craneTurns < 0; this.craneTurns++) yaw = craneTurn(yaw, false);
+    if (twisting && hit) yaw = craneAimYaw(goal.x, goal.z, hit.x, hit.z, yaw);
     if (yaw !== now) {
       this.yaw = yaw;
       this.rig.rotation.set(0, yaw, 0);
@@ -787,13 +807,23 @@ export class FlatControls {
       // Taste die Welt zurück (`PortalWorld.flatKeys`), und die fragt dafür
       // den Spielmodus.
       if (e.code === 'KeyR' && this.topDownOn && this.craneOn && !e.repeat) {
-        this.craneTurns += e.shiftKey ? -1 : 1;
+        this.craneTwist = { since: performance.now(), shift: e.shiftKey };
       }
       this.keys.add(e.code);
     });
-    this.on(window, 'keyup', (e: KeyboardEvent) => this.keys.delete(e.code));
+    this.on(window, 'keyup', (e: KeyboardEvent) => {
+      this.keys.delete(e.code);
+      // Kurz getippt: ein Achtel weiter. Gehalten hat die Maus gedreht.
+      const twist = this.craneTwist;
+      if (e.code === 'KeyR' && twist) {
+        if ((performance.now() - twist.since) / 1000 < CRANE_TWIST_HOLD)
+          this.craneTurns += twist.shift ? -1 : 1;
+        this.craneTwist = null;
+      }
+    });
     this.on(window, 'blur', () => {
       this.keys.clear();
+      this.craneTwist = null;
       this.mouseFire = false;
       this.rig.paintHeld = false;
       this.mouseSight = false;

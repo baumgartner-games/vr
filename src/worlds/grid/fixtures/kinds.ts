@@ -5,6 +5,7 @@ import { GATE } from './gate';
 import { fixtureKind, fixtureKinds, registerKind, type FixtureKind } from './index';
 import { LAMP } from './lamp';
 import { LEVER } from './lever';
+import { MARK_GO, MARK_START, MARK_STOP } from './mark';
 import { PLATE } from './plate';
 import { SIGN } from './sign';
 import { WARDROBE } from './wardrobe';
@@ -36,6 +37,9 @@ registerKind(LEVER);
 registerKind(PLATE);
 registerKind(LAMP);
 registerKind(WARDROBE);
+registerKind(MARK_START);
+registerKind(MARK_GO);
+registerKind(MARK_STOP);
 
 /** Die Art mit diesem Namen — `null`, wenn dieses Programm sie nicht kennt. */
 export function knownKind(kind: string): FixtureKind<unknown> | null {

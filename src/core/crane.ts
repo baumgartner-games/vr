@@ -182,6 +182,36 @@ export function craneEighth(yaw: number): number {
   return turns > 4 ? (turns - 8) * eighth : turns * eighth;
 }
 
+/**
+ * **Wie lange `R` liegen muss, bis die Maus dreht**, in Sekunden. Gewünscht:
+ * _„wenn ich r gedrückt halte, [soll] ich nach einem kurzen moment mit der
+ * maus richtung die grad zahl der wand einstellen [können]? 0,45,90 etc."_
+ * Ein kurzer Tipp bleibt ein Achtel weiter (`craneTurn`).
+ */
+export const CRANE_TWIST_HOLD = 0.25;
+
+/** Wie weit der Zeiger mindestens vom Kran weg sein muss, damit er eine Richtung zeigt, in Metern. */
+export const CRANE_TWIST_REACH = 0.35;
+
+/**
+ * **Die Drehung zum Zeiger hin**, auf das nächste Achtel gerastet — die Nase
+ * des Krans zeigt vom Kran (`fromX`, `fromZ`) auf den Punkt am Boden unter der
+ * Maus (`toX`, `toZ`). Liegt der Zeiger auf dem Kran, bleibt `current`.
+ */
+export function craneAimYaw(
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+  current: number,
+): number {
+  const dx = toX - fromX,
+    dz = toZ - fromZ;
+  if (!(Math.hypot(dx, dz) >= CRANE_TWIST_REACH)) return current;
+  // Dieselbe Richtung wie `topDownPose.yawFromDirection`: −z ist vorn.
+  return craneEighth(Math.atan2(-dx, -dz));
+}
+
 /** Ein Achtel weiter — `R` (`clockwise`) oder `Shift`+`R`; zweimal ist ein Viertel. */
 export function craneTurn(yaw: number, clockwise: boolean): number {
   return craneEighth(craneEighth(yaw) + (clockwise ? -1 : 1) * (Math.PI / 4));

@@ -142,14 +142,33 @@ den großen Kacheln bleibt.
   - `moveOnCells` lässt eine gestrandete Figur innerhalb ihres Blocks und auf
     einen freien.
 - **Wer doch durch die Welt fällt**, bekommt oben eine Box mit dem Weg dorthin
-  zum Kopieren (`shared/fallTrail.ts`, `ui/fallReport.ts`). In den Welten auf
-  dem Gitter beginnt er danach am Startpunkt (`fallRespawnAtStart`).
-- **Wände aus dem Regal unter 45°** (`gridSnap.diagonalPose`,
-  `PortalWorld.fitWall`) werden Schrägen im Zellgitter
-  (`GridWorld.refreshWallSlopes`).
+  zum Kopieren (`shared/fallTrail.ts`, `ui/fallReport.ts`). In **allen**
+  Welten beginnt er danach am Startpunkt der Welt (`fallRespawnAtStart`) —
+  gewünscht: _„nicht einfach nach oben teleportiert, sondern wirklich zum
+  spawn der welt"_.
+- **Wände aus dem Regal** gehören zum Zellgitter (`GridWorld.refreshWallSlopes`):
+  - Unter 45° (`gridSnap.diagonalPose`, `PortalWorld.fitWall`) als Schrägen.
+  - Gerade und eingerastet (auf einer Fuge, in einer Vierteldrehung) als
+    Wände auf ihren Kanten (`propEdges`, `NavCellOptions.walls`).
+  - Umgefallen oder schief geschoben hält sie nur die Physik.
+- **Wandtests mit Bodenmarken** (`grid/fixtures/mark.ts`, `grid/markCheck.ts`):
+  - Drei Einbauten, gesetzt unter _Einrichten → Einbauten_: _Start (Wandtest)_
+    (blau), _Darf hin_ (grün) und _Darf nicht hin_ (rot).
+  - Gewünscht: _„test cases definieren, wo der spieler hin dürfte und wohin
+    nicht … floor tiles 1x1 (grün und rot, start punkt des spielers)"_.
+  - Die Welt flutet alle 0,4 s von den Startmarken aus das Zellgitter mit der
+    Regel des Gehens (`canStep`, 2×2-Block), `MARK_MARGIN` Kacheln um die
+    Marken herum.
+  - Grün ist bestanden, wenn erreicht, rot, wenn nicht. Der Rahmen der Marke
+    ist dann weiß; durchgefallen blinkt er magenta.
+  - Am Handgelenk steht „Wandtests: n von m bestanden", sobald sich die Zahl
+    ändert.
+  - Alle Starts fluten gemeinsam: Rot hält nur in einem abgeschlossenen
+    Bereich.
 - **Der Wandparcours der Testwelt** (`test/zones/wallLab.ts`, im Menü
   _Wandparcours_) hat gerade Wand, Ecke, Lücke, Gang, beide Schrägen, einen
-  schrägen Gang und einen Knick wie an der Station. Die Tests laufen mit
+  schrägen Gang und einen Knick wie an der Station. Ein gespeicherter Stand
+  von vorher bekommt ihn dazu (`ensureWallLab` in `TestWorld.planLoaded`). Die Tests laufen mit
   `gateStep` dagegen (`wallLab.test.ts`).
 - **Alle Figuren gehen auf dem Gitter** (`moveOnCells`, `glides`):
   - Der Spieler über `PhysicsLocomotion.cellGate`, die NPCs über

@@ -16,6 +16,7 @@ import {
   CRANE_MAX_SPEED,
   CRANE_PAN,
   cranePan,
+  craneAimYaw,
   craneEighth,
   craneQuarter,
   craneTurn,
@@ -53,6 +54,17 @@ describe('crane', () => {
     expect(craneEighth(0.7)).toBeCloseTo(eighth, 9);
     expect(craneQuarter(1.4)).toBeCloseTo(Math.PI / 2, 9);
     expect(craneQuarter(Number.NaN)).toBe(0);
+  });
+
+  it('dreht bei gehaltenem R zur Maus hin, auf Achtel gerastet', () => {
+    const eighth = Math.PI / 4;
+    // Zeiger nördlich (−z): Nase nach Norden, Drehung 0.
+    expect(craneAimYaw(0, 0, 0, -2, 1)).toBeCloseTo(0, 9);
+    // Nordwesten: +45°. Osten: −90°.
+    expect(craneAimYaw(0, 0, -1, -1, 0)).toBeCloseTo(eighth, 9);
+    expect(craneAimYaw(0, 0, 3, 0.2, 0)).toBeCloseTo(-2 * eighth, 9);
+    // Auf dem Kran selbst zeigt der Zeiger nichts: Es bleibt, wie es war.
+    expect(craneAimYaw(0, 0, 0.1, 0.1, 0.7)).toBe(0.7);
   });
 
   it('zieht den Kran zum Zeiger, ohne darüber hinauszuschießen', () => {

@@ -558,6 +558,11 @@ export interface NavCellOptions {
   /** Was sonst auf Zellen steht (`CellSource.blocked`) — Möbel, Einbauten. */
   blocked?: (ix: number, iz: number, level: number) => boolean;
   /**
+   * **Wände, die nicht im Graphen stehen** — hingestellte Wände aus dem Regal
+   * (`GridWorld.propEdges`). `true` heißt: Diese Kante ist zu.
+   */
+  walls?: (tx: number, tz: number, dir: Dir, level: number) => boolean;
+  /**
    * **Was eine fehlende Kachel ist.** Für die Wegsuche ein Loch (`false`,
    * die Vorgabe); für den Spieler, der von der Physik getragen wird, nichts,
    * worüber das Gitter zu befinden hat (`true`) — außerhalb des Grundrisses
@@ -592,6 +597,7 @@ export function navCellSource(
       return graph.walkable(key);
     },
     open(tx, tz, dir, level) {
+      if (options.walls?.(tx, tz, dir, level)) return false;
       const key = keyOf(tx, tz, level);
       if (key === NO_TILE) return !!options.voidIsFree;
       const wall = graph.wall(key, dir);
