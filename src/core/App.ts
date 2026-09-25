@@ -1764,7 +1764,7 @@ export class App {
           // ohne Tiefenprüfung über allem: Ein Umriss, den das Möbel verdeckt,
           // zu dem er gehört, beantwortet keine Frage.
           id: 'gfx:hitboxes',
-          label: 'Hitboxen',
+          label: 'Hitboxen (3D)',
           sub: 'Die Körper der Physik als Drahtgitter · mit dem Kreis um den Spieler',
           caption: 'Liegt über allem · Werkstattansicht, kostet Bildrate',
           icon: 'settings',
@@ -1773,7 +1773,26 @@ export class App {
           run: () => {
             const next = saveGraphics({ hitBoxes: !graphics().hitBoxes });
             this.menuDirty = true;
-            this.notify(next.hitBoxes ? 'Hitboxen an' : 'Hitboxen aus');
+            this.notify(next.hitBoxes ? 'Hitboxen (3D) an' : 'Hitboxen (3D) aus');
+          },
+        },
+        {
+          // **Die Zellen des Gitters** — gezeichnet von
+          // `worlds/grid/cellHitboxView.ts`: rot belegt, grün frei, rote
+          // Linien für geschlossene Kanten. Das, woran Spieler und NPCs
+          // wirklich hängen bleiben, seit Wände nur noch über das Gitter
+          // blocken.
+          id: 'gfx:grid-hitboxes',
+          label: 'Hitboxen (2D-Gitter)',
+          sub: 'Die halben Kacheln um dich · rot belegt, grün frei, rote Linie: Wand',
+          caption: 'Liegt über allem · Werkstattansicht — in Welten ohne Gitter passiert nichts',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.gridHitBoxes,
+          run: () => {
+            const next = saveGraphics({ gridHitBoxes: !graphics().gridHitBoxes });
+            this.menuDirty = true;
+            this.notify(next.gridHitBoxes ? 'Hitboxen (2D) an' : 'Hitboxen (2D) aus');
           },
         },
         {

@@ -237,10 +237,24 @@ Vier Sachen sind daran entschieden (`GridWorld`, `buildGridLines`):
   paar tausend Linien neu baut, blitzt beim ersten Bild auf und sieht aus wie
   ein Fehler.
 
+## Die Hitboxen des Gitters (2D)
+
+Neben den Hitboxen der Physik steht ein eigenes Häkchen: _Menü → Grafik →
+**Hitboxen (2D-Gitter)**_ (`GraphicsSettings.gridHitBoxes`, ab Werk aus,
+`worlds/grid/cellHitboxView.ts`). Es zeigt die **halben Kacheln** um den
+Spieler, acht Meter weit: **rot**, wo eine Zelle belegt ist (Schräge, Möbel,
+Pfosten einer Tür, Wand aus dem Regal), **grün**, wo sie frei ist; jede
+geschlossene Kachelkante und jede Schräge als **rote Linie**. Seit Wände aus
+dem Regal Spieler und NPCs nur noch über das Gitter aufhalten, ist das die
+Ansicht, die sagt, woran man hängen bleibt — die 3D-Hitboxen zeigen deren
+Kasten weiter, er hält aber nur noch Gegenstände auf. Beide lassen sich einzeln
+an- und ausschalten. Gezählt wird fünfmal je Sekunde, in Puffern, die einmal
+angelegt werden.
+
 ## Die Hitboxen
 
 Das vierte Häkchen ist die zweite Auskunft und die ehrlichste: _Menü → Grafik →
-**Hitboxen**_ (`GraphicsSettings.hitBoxes`, ab Werk aus) legt die **Körper der
+**Hitboxen (3D)**_ (`GraphicsSettings.hitBoxes`, ab Werk aus) legt die **Körper der
 Physik** als Drahtgitter über die Welt (`physics/HitboxView.ts`). Was man sieht,
 ist nämlich nicht, woran man hängen bleibt — ein Tresen ist einen halben Meter
 hoch und hat eine unsichtbare Sperre von 1,40 m über sich

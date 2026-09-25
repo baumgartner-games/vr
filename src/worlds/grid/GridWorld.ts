@@ -17,6 +17,7 @@ import { MODEL_ARCHES, modelPathOf, type PropKind } from '../portal/props';
 import { markRole } from './fixtures/mark';
 import { checkMarks, markSummary, type Mark, type Verdict } from './markCheck';
 import { FootprintView, type Occupant } from './footprintView';
+import { CellHitboxView } from './cellHitboxView';
 import type { CellGate } from '../../physics/PhysicsLocomotion';
 import {
   DIRS,
@@ -343,6 +344,8 @@ export abstract class GridWorld extends PortalWorld {
   private readonly gateMemory: { lastFree: { x: number; z: number } | null } = { lastFree: null };
   /** Die Anzeige der belegten Blöcke (_Menü → Grafik → Belegte Felder_). */
   private readonly footprints = new FootprintView();
+  /** Die Hitboxen des Gitters um den Spieler (_Grafik → Hitboxen (2D-Gitter)_). */
+  private readonly cellHitboxes = new CellHitboxView();
   private readonly occupants: Occupant[] = [];
   /**
    * **Was der Kamera die Figur verdecken kann** — Wände, Massen, Bausteine
@@ -1129,6 +1132,25 @@ export abstract class GridWorld extends PortalWorld {
       add(_footprintFeet.x, _footprintFeet.z, _footprintFeet.y);
     }
     this.footprints.update(on, this.cellGrid(), list);
+  }
+
+  /** Die Zellen um den Spieler zeigen: belegt, frei, geschlossene Kanten. */
+  private showCellHitboxes(dt: number, ctx: WorldContext): void {
+    const on = graphics().gridHitBoxes;
+    const graph = this.grid?.graph;
+    if (!on || !graph) {
+      this.cellHitboxes.update(dt, false, null, null);
+      return;
+    }
+    if (!this.cellHitboxes.group.parent) this.root.add(this.cellHitboxes.group);
+    const level = this.rigLevel;
+    this.cellHitboxes.update(dt, true, this.cellGrid(), {
+      x: ctx.rig.position.x,
+      z: ctx.rig.position.z,
+      level,
+      floorY: graph.levelY(level),
+      hasTile: (tx, tz) => graph.has(tileKey(tx, tz, level)),
+    });
   }
 
   /** Die Netze wieder weg — Formen einzeln, das geteilte Material zum Schluss. */
@@ -2618,6 +2640,7 @@ export abstract class GridWorld extends PortalWorld {
     this.refreshWallSlopes();
     this.refreshMarks(dt, ctx);
     this.showFootprints(ctx);
+    this.showCellHitboxes(dt, ctx);
     this.stepWallGhosts(ctx);
     // **Vor den Einbauten**, damit ein Schild, das in diesem Bild gelesen
     // wird, sein Bild zum Aufbauen des Menüs bekommt (siehe `openReading`).
@@ -2843,6 +2866,7 @@ export abstract class GridWorld extends PortalWorld {
     this.gridCellSkin?.dispose();
     this.gridCellSkin = null;
     this.footprints.group.removeFromParent();
+    this.cellHitboxes.group.removeFromParent();
     this.cells = null;
     this.cellsFor = null;
     this.wallGhosts.length = 0;

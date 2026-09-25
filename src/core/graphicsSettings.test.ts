@@ -36,6 +36,7 @@ describe('Grafikeinstellungen', () => {
       cellFootprints: false,
       showPosition: false,
       hitBoxes: false,
+      gridHitBoxes: false,
       ghostBoxes: false,
       showHandles: false,
       shadows: true,
@@ -202,16 +203,28 @@ describe('Grafikeinstellungen', () => {
    * sind — wer ein Drahtgitter über der Welt hat, soll in der Zeile darüber
    * lesen, woran das liegt.
    */
+  it('schaltet die Hitboxen des Gitters einzeln — 2D neben 3D', () => {
+    expect(DEFAULT_GRAPHICS.gridHitBoxes).toBe(false);
+    expect(clampGraphics({ gridHitBoxes: true })).toEqual({
+      ...DEFAULT_GRAPHICS,
+      gridHitBoxes: true,
+    });
+    expect(clampGraphics({ gridHitBoxes: 1 as never })).toEqual(DEFAULT_GRAPHICS);
+    expect(
+      graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true, gridHitBoxes: true }),
+    ).toBe('Einfach · Hitboxen 3D · Hitboxen 2D');
+  });
+
   it('merkt sich die Hitboxen nur als echtes Ja und nennt sie nur, wenn sie an sind', () => {
     expect(DEFAULT_GRAPHICS.hitBoxes).toBe(false);
     expect(clampGraphics({ hitBoxes: true })).toEqual({ ...DEFAULT_GRAPHICS, hitBoxes: true });
     expect(clampGraphics({ hitBoxes: 'ja' as never })).toEqual(DEFAULT_GRAPHICS);
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: false })).toBe('Einfach');
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true })).toBe(
-      'Einfach · Hitboxen',
+      'Einfach · Hitboxen 3D',
     );
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, gridLines: true, hitBoxes: true })).toBe(
-      'Einfach · Gitterlinien · Hitboxen',
+      'Einfach · Gitterlinien · Hitboxen 3D',
     );
   });
 
@@ -233,7 +246,7 @@ describe('Grafikeinstellungen', () => {
     expect(clampGraphics({ ghostBoxes: true })).toEqual({ ...DEFAULT_GRAPHICS, ghostBoxes: true });
     expect(clampGraphics({ ghostBoxes: 1 as never })).toEqual(DEFAULT_GRAPHICS);
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true, ghostBoxes: true })).toBe(
-      'Einfach · Hitboxen · Ghosting',
+      'Einfach · Hitboxen 3D · Ghosting',
     );
   });
 
@@ -254,7 +267,7 @@ describe('Grafikeinstellungen', () => {
       'Einfach · Griffe',
     );
     expect(graphicsSummary({ mode: 'simple', xrScale: 1, hitBoxes: true, showHandles: true })).toBe(
-      'Einfach · Hitboxen · Griffe',
+      'Einfach · Hitboxen 3D · Griffe',
     );
   });
 

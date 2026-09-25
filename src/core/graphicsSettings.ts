@@ -112,6 +112,20 @@ export interface GraphicsSettings {
    */
   hitBoxes: boolean;
   /**
+   * **Die Hitboxen des Gitters** (`worlds/grid/cellHitboxView.ts`) — die
+   * halben Kacheln um den Spieler, rot, wo eine Wand, eine Schräge oder ein
+   * Möbel sie belegt, grün, wo sie frei sind; dazu jede geschlossene
+   * Kachelkante als rote Linie.
+   *
+   * Das Gegenstück zu `hitBoxes`: Die Physik zeigt ihre Körper in 3D, das
+   * Gitter seine Zellen in 2D — und seit die Wände aus dem Regal Spieler und
+   * NPCs **nur noch über das Gitter** aufhalten, ist das die Ansicht, die
+   * sagt, wo man hängen bleibt. Gewünscht: _„welche grid tiles besetzt sind
+   * durch die wand und welche frei sind … (2d grid hitboxes, 3d hitboxes)
+   * einzeln an und ausschaltbar"_. Ab Werk **aus**.
+   */
+  gridHitBoxes: boolean;
+  /**
    * **Was das Wand-Ghosting sieht** (`worlds/grid/ghostView.ts`) — von oben.
    *
    * Jede Wand, jede Masse und jedes hingestellte Modell, das die Figur
@@ -399,6 +413,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   cellFootprints: false,
   showPosition: false,
   hitBoxes: false,
+  gridHitBoxes: false,
   ghostBoxes: false,
   showHandles: false,
   shadows: true,
@@ -558,6 +573,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const cellFootprints = raw.cellFootprints === true;
   const showPosition = raw.showPosition === true;
   const hitBoxes = raw.hitBoxes === true;
+  const gridHitBoxes = raw.gridHitBoxes === true;
   const ghostBoxes = raw.ghostBoxes === true;
   const showHandles = raw.showHandles === true;
   // **Nicht `=== true`**, anders als die beiden darüber: Die Schatten sind ab
@@ -600,6 +616,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     cellFootprints,
     showPosition,
     hitBoxes,
+    gridHitBoxes,
     ghostBoxes,
     showHandles,
     shadows,
@@ -743,6 +760,7 @@ export function graphicsSummary(
         | 'gridLines'
         | 'cellFootprints'
         | 'hitBoxes'
+        | 'gridHitBoxes'
         | 'ghostBoxes'
         | 'showHandles'
         | 'shadows'
@@ -757,7 +775,8 @@ export function graphicsSummary(
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
   const grid = settings.gridLines ? ' · Gitterlinien' : '';
   const cells = settings.cellFootprints ? ' · Belegte Felder' : '';
-  const boxes = settings.hitBoxes ? ' · Hitboxen' : '';
+  const boxes = settings.hitBoxes ? ' · Hitboxen 3D' : '';
+  const cellBoxes = settings.gridHitBoxes ? ' · Hitboxen 2D' : '';
   const ghosts = settings.ghostBoxes ? ' · Ghosting' : '';
   const grips = settings.showHandles ? ' · Griffe' : '';
   // Genannt wird die Abweichung: „mit Schatten" sagt niemandem etwas, „ohne
@@ -780,7 +799,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${ghosts}${grips}${shade}${squishy}${breath}${pads}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${cellBoxes}${ghosts}${grips}${shade}${squishy}${breath}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------
