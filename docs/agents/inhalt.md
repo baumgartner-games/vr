@@ -598,7 +598,12 @@ Ein Kapitel des [Projektwissens](../../AGENTS.md) — dort steht der Wegweiser
   sondern ein Versehen. Die Höhe steht als Anteil, damit sie mit dem
   mitwächst, der sie trägt, und im Sitzen nicht auf Brusthöhe rutscht.
   Verschoben wird mit dem **Gürtel-Justierer** (siehe unten), gespeichert wird
-  im Browser (`bgvr.belt`).
+  im Browser (`bgvr.belt`). **Ausgeliefert** wird die Höhe mit **0,65** der
+  Augenhöhe (`DEFAULT_BELT`), in Test- und Spukwelt dieselbe Zahl, weil beide
+  denselben `ToolBelt` tragen. Vorher war es die Hälfte — 0,80 m bei 1,60 m
+  Augenhöhe, also der Schritt und nicht der Hosenbund, und jeder Griff zum
+  Holster ein Bücken. 0,65 sind 1,04 m, gut einen halben Meter unter dem Kopf.
+  Wer den Gürtel schon einmal selbst verschoben hat, behält seine Zahl.
 - **Loslassen heißt fallen lassen**: wer ein Werkzeug irgendwo _anders_ als
   über einer Hüfte loslässt, lässt es fallen — es liegt dann als Objekt im
   Raum, kann angestoßen und von jeder Hand wieder aufgehoben oder in der Luft

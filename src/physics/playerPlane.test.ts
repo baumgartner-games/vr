@@ -80,6 +80,8 @@ async function stage(): Promise<{
     navCellSource(plan.graph, (key) => plan.slopeAt(key), {
       voidIsFree: true,
       flight: (tx, tz, level) => plan.flightOn(tileKey(tx, tz, level))?.dir ?? null,
+      flightSide: (tx, tz, side, part, level) =>
+        plan.flightSideOpen(tileKey(tx, tz, level), side, part),
     }),
   );
   const plane: PlayerPlane = {
@@ -123,13 +125,34 @@ describe('Gehen in der Ebene mit echter Physik', () => {
     }
   });
 
-  it('lässt nicht seitlich auf die Treppe', async () => {
+  it('lässt nicht seitlich auf die Treppe, wo sie schon hoch ist', async () => {
     const { rig, walk } = await stage();
-    rig.position.set(1.5, 0, 6.5);
+    rig.position.set(1.5, 0, 5.5);
     walk(0.2, 0, 0);
     walk(3, 1.2, 0);
     expect(rig.position.x).toBeLessThan(STAIR_X - PLAYER_PLANE_RADIUS + 0.02);
     expect(rig.position.y).toBeLessThan(0.1);
+  });
+
+  it('lässt von beiden Seiten auf die untere Hälfte der untersten Kachel', async () => {
+    // Gewünscht: _„an der untersten Treppe … auch von beiden Seiten
+    // betreten"_ (`GridPlan.flightSideOpen`).
+    for (const [from, vx] of [
+      [1.5, 1.2],
+      [5.5, -1.2],
+    ] as const) {
+      const { rig, walk } = await stage();
+      rig.position.set(from, 0, 6.9);
+      walk(0.2, 0, 0);
+      for (let i = 0; i < 40 && Math.abs(rig.position.x - (STAIR_X + 0.5)) > 0.1; i++)
+        walk(0.05, vx, 0);
+      // Auf dem Lauf angekommen, und von ihm getragen.
+      expect(Math.abs(rig.position.x - (STAIR_X + 0.5))).toBeLessThan(0.15);
+      expect(rig.position.y).toBeGreaterThan(0.15);
+      // Und von dort geht es wie immer hinauf.
+      walk(5, 0, -1.2);
+      expect(rig.position.y).toBeCloseTo(STOREY, 1);
+    }
   });
 
   it('lässt seitlich von der Treppe herunter', async () => {

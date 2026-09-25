@@ -322,8 +322,10 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     das Regal nichts Passendes.
   - **Licht hält an Wänden** (`shared/wallLight.ts`): Die Taschenlampe und die
     beiden Deckenleuchten der Station werfen Schatten (Karte 512 bzw. 256 je
-    Seite); die Deckenleuchten zeichnen ihre Karte nur beim Umzug und
-    viermal die Sekunde neu (`LAMP_SHADOW_EVERY`). Ohne Schatten in der Grafik
+    Seite); die Deckenleuchten zeichnen ihre Karte nur beim Umzug, beim
+    Angehen und viermal die Sekunde neu (`LAMP_SHADOW_EVERY`) — abwechselnd,
+    nie beide im selben Bild, und nie, solange sie dunkel sind
+    (`stationLighting.LampShadowTurns`, siehe „Das Ruckeln"). Ohne Schatten in der Grafik
     (`renderer.shadowMap.enabled`) bleibt es wie vorher.
 - **Dritte Runde (September 2026): Knöpfe je Kachel, Wandhebel, noch mehr
   aus dem Regal.**
@@ -380,6 +382,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     `ctx.dress(SPACE_RANGER)` und `ctx.wear('space')`, siehe
     `docs/agents/spielfigur.md`, _Geliehen_). Das Umfärben des eigenen Körpers
     und der gebaute Brustgurt (`EVA / 03`) sind damit weg.
+    **In der Brille sieht der Techniker nur seine Hände**, wie in der
+    Testwelt: Der Körper liegt auch dort ganz auf `LAYER_SELF_ONLY`
+    (`ShipExperience.updateSuitVisibility`), also nur im Spiegel und durchs
+    Portal. Vorher schaltete die Brille ihn auf Ebene 0 dazu, und man stand im
+    eigenen Rumpf. Die anderen sehen die Figur aus dem Netz, ganz wie vorher.
     **Der gebaute Körper bleibt der Ersatz** und wird beim Eintreffen der Figur
     nur ausgeblendet, nie weggeworfen (dasselbe Muster wie `core/AvatarBody`
     mit dem Koch): Eine Runde, die erst anfängt, wenn ein Monster geladen ist,
@@ -854,6 +861,31 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   `ShipExperience.inLockerRoom` prüft Raumzugehörigkeit vor Codeeingabe,
   Eintritt und Nahbereichsauswahl: kein Schutzschrankzugriff durch Nachbarwände.
   Übungsschränke setzen den passenden Trainingsraum und aktiven Test voraus.
+  **Schutzschrank und Frachtschrank leuchten, und in der Brille gehen sie mit
+  Trigger oder Greifen** (`shipHandUse.ts`, mit Test). Gemeldet war: „Die
+  Trigger-Interaktion geht bei den Schutzspinden nicht." Zwei Gründe: Beim
+  Kern angemeldet war nur das **Tastenfeld** (60 cm Schirm auf einem Kasten
+  von 2,2 m) bzw. das Blatt der Kiste — wer auf die Schranktür zielte, traf
+  nichts; und wo der Laser des Zeigers (`core/Pointer.ts`) auf einem
+  Schiffsziel lag, galt die Hand als „zeigt aufs Menü" (`hoveringWith`), und
+  die Hand der Welt (`PortalWorld.useByHand`) trat zurück — kein gelber Saum,
+  keine Greif-Taste. Jetzt meldet `bind` den **ganzen Kasten** an
+  (`BindExtra.usableOn`, Radius `LOCKER_USE_RADIUS`/`CABINET_USE_RADIUS`), mit
+  der Absicht `SHIP_HAND_USE` (`press`, in der Brille `aimTrigger` + `grip`,
+  **ohne** Berühren — wer vorbeigeht oder drinsteht, steckt in der Greifbox).
+  Der Laser einer **freien** Hand geht hindurch (`Pointer.rayPasses`,
+  `PortalWorld.handUsesFreely` über `ShipHost.handFree`); eine Hand mit Lampe
+  oder Radar zielt weiter mit dem Zeiger, dann auf den ganzen Kasten und nur
+  bis `PANEL_RANGE`, damit ein ferner Schrank der Lampe nicht den Trigger
+  nimmt. Bewirkt wird dasselbe wie mit `A`/`E` (`useObject` → `openCabinet`/
+  `takeLoot`/`enterLocker`), also derselbe Stand für alle über das Netz. Das
+  Teil in der Kiste bietet sich erst an, wenn es offen daliegt. **Von innen**
+  bietet der Schutzschrank keinen Saum an (`lockerInteraction`: eine
+  umgestülpte Hülle wäre von innen ein gelber Kasten um den Kopf); hinaus geht
+  es mit Trigger oder Greifen einer freien Hand (`stepLockerExit`,
+  `lockerExitPress`) — nicht im Bild des Einstiegs (`interactionCooldown`).
+  Tastenfeld antippen und `A` bleiben. Von oben und aus den Augen leuchtet
+  damit auch der ganze Kasten statt nur des Tastenfelds.
 
 **Mission, Werkzeuge und Komfort**
 
@@ -2471,6 +2503,53 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
   `stationLighting` erlaubt im normalen eingeschalteten Deck `ambient=0.28`,
   stromlos und im dunklen Test `0`. Heller Test (`0.78`) und Simulation (`0.55`)
   haben eigene Werte; Trainingsräume verwenden lokale Beleuchtung.
+- **Das Ruckeln (September 2026).** Gemeldet: _„Haunting ruckelt /
+  Performance leidet extrem."_ Gemessen im Container (Chromium, SwiftShader;
+  Zählwerte und die JavaScript-Zeiten gelten, Bildraten nicht), mit laufender
+  Mission und einem Gang durch alle Räume. Sieben Posten, alle behoben:
+  1. **Der Umriss jedes Raums wurde je Bild zweimal neu gerechnet**
+     (`house.roomOutline` über `map/extract.roomsOf`, gefragt vom Hörweg
+     `ShipExperience.stepSound` und von `FlatRound.snapshot`): 4,3 ms je
+     Kartenstand, also rund 9 ms je Bild auf einem Desktop-Prozessor. Die
+     Form ändert sich nie; jetzt einmal je Form (`shapeOutlines`) — 0,1 ms.
+  2. **Die 338 Wände aus dem Regal waren fallende Körper**, dicht an dicht
+     und an jeder Ecke in Berührung, also nie schlafend: 1,4–3,2 ms je
+     Physikschritt. Was die Welt selbst aufstellt (`PortalWorld.placeModel`,
+     `ownByWorld`), steht jetzt fest: 0,006 ms.
+  3. **Und jedes weitere Gerät baute sie noch einmal.** Angesagt (`spawn`) und
+     im Schnappschuss mitgeschickt, standen zu zweit 676 Wände da, zu dritt
+     1 014 — doppelt gezeichnet, doppelt gerechnet. Solche Stücke gehen nicht
+     mehr über die Leitung (`PortalSyncOptions.local`), und „Zurücksetzen"
+     räumt sie nicht mehr als Beutelware weg.
+  4. **Jede Wand ein Zeichenaufruf** — jetzt Bündel je 16-m-Feld und Aussehen
+     (`shared/modelBatch.ts`, `PortalWorld.stepWorldBatch`), aus den Augen;
+     von oben steht alles einzeln, weil dort geghostet wird. Wer in der Hand
+     liegt oder aufleuchtet, steht einzeln, ohne Neubau. In einem
+     beleuchteten Raum: 138 → 88 Aufrufe im Hauptbild (in der Brille ×2),
+     55 → 32 im Schattendurchgang.
+  5. **Beide Deckenleuchten zeichneten ihre sechs Schattenseiten im selben
+     Bild, viermal die Sekunde, auch dunkel** — ein Bild mit 418 statt 193
+     Aufrufen im Takt von 4 Hz. Jetzt abwechselnd und nur, wenn sie brennen
+     (`LampShadowTurns`, `lampShadowDue`), und mit den Bündeln 221 statt 418.
+  6. **Shader wurden beim ersten Betreten eines Raums übersetzt** (zehn
+     Programme beim Gang durch die Station, je eines ein Stocken). Jetzt eine
+     Sekunde nach Rundenstart vorab für alle Materialien der Szene
+     (`HauntingWorld.warmShaders`, `renderer.compile`); beim Gang bleiben zwei
+     Schattenvarianten. Nicht früher: Im Startbild brennen für einen
+     Augenblick Lichter, die gleich wieder ausgehen, und ein Programm gilt nur
+     für seine Zahl an Lichtern.
+  7. **Kleinzeug je Bild:** `PortalGhosts.update` zog ohne ein offenes Portal
+     die Matrizen jedes Stücks nach (1,25 ms), `GridWorld.refreshWallSlopes`
+     sammelte alle Wände neu ein, auch wenn keine sich bewegt hatte (gut
+     1 ms, jetzt `wallsMoved`), und gebündelte Wände sind aus dem
+     Matrizenlauf genommen (`modelBatch.freeze`).
+  Zusammen, dieselbe Messstrecke vorher/nachher: `world.update` im Mittel
+  19,1 → 4,0 ms. **Noch offen**, falls die Quest weiter klemmt:
+  `MirrorRenderer.render` läuft jedes Bild über die sichtbare Szene
+  (`collectMirrors`, ~0,5–0,9 ms), sobald irgendwo ein Spiegel existiert —
+  in der Station hängt einer im Übungsdeck; und jeder Wechsel der
+  Taschenlampen (an/aus, aufheben) ändert die Zahl der Lichter und damit
+  einmal je Kombination alle Programme.
 - Generator-/Platzierungs-/Route-Tests prüfen viele Seeds und Raumzahlen,
   maßhaltige Modelle, Türfreiheit, Kurven, Schachtwände und sichere Spawns.
   Ganze Botrunden werden auch gegen tatsächliche automatische Türen getestet.

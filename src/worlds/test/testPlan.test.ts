@@ -6,7 +6,7 @@ import { readWorld, writeWorld } from '../grid/worldFile';
 import '../grid/fixtures/kinds';
 import { flowField, findPath } from '../nav/navPath';
 import { HUMAN_PROFILE } from '../nav/navProfile';
-import { keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
+import { DIR_E, DIR_W, keyLevel, keyX, keyZ, tileKey } from '../nav/navTile';
 import { KART_START, PIT_LANE } from '../kart/kartCourse';
 import {
   CLIMB,
@@ -267,6 +267,17 @@ describe('Treppe und Podest', () => {
     // (`GridPlan.stairs`, `connect`). Die unteren kann man auch von der Seite
     // betreten, und das darf man auch — eine Treppe ist kein Schacht.
     expect(path.tiles).toContain(tileKey(STAIR_X, STAIR_FOOT - (STAIR_LENGTH - 1), 0));
+  });
+
+  it('lässt die unterste Treppenkachel von beiden Seiten betreten', () => {
+    // Gewünscht: _„an der untersten Treppe … auch von beiden Seiten"_ — über
+    // die untere Hälfte, die nur eine Stufe über dem Gelände liegt.
+    const foot = tileKey(STAIR_X, STAIR_FOOT, 0);
+    for (const side of [DIR_W, DIR_E] as const) {
+      expect(plan.flightSideOpen(foot, side, 0)).toBe(true);
+      expect(plan.flightSideOpen(foot, side, 1)).toBe(false);
+      expect(plan.flightSideOpen(tileKey(STAIR_X, STAIR_FOOT - 1, 0), side, 0)).toBe(false);
+    }
   });
 
   it('schlägt das Loch über jeder Treppenkachel', () => {

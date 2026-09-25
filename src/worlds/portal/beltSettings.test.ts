@@ -13,8 +13,8 @@ import {
 const HEAD = 1.6;
 
 describe('Gürtel-Position', () => {
-  it('liefert die Zahlen aus, die vorher fest im Code standen', () => {
-    expect(DEFAULT_BELT).toEqual({ side: 0.26, height: 0.5, forward: -0.04 });
+  it('liefert den Gürtel auf Hosenbundhöhe aus', () => {
+    expect(DEFAULT_BELT).toEqual({ side: 0.26, height: 0.65, forward: -0.04 });
   });
 
   it('holt jeden Wert in die Grenzen zurück', () => {
@@ -55,10 +55,10 @@ describe('Gürtel-Position', () => {
     expect(right.z).toBeCloseTo(left.z, 6);
   });
 
-  it('hängt die Hüften auf halber Augenhöhe auf', () => {
-    expect(beltSlotPoint(DEFAULT_BELT, 'right', HEAD, 0).y).toBeCloseTo(0.8, 6);
+  it('hängt die Hüften auf 0,65 der Augenhöhe auf, gut einen halben Meter unter dem Kopf', () => {
+    expect(beltSlotPoint(DEFAULT_BELT, 'right', HEAD, 0).y).toBeCloseTo(1.04, 6);
     // Wer sitzt, hat den Gürtel tiefer — die Höhe ist ein Anteil, keine Zahl.
-    expect(beltSlotPoint(DEFAULT_BELT, 'right', 1.2, 0).y).toBeCloseTo(0.6, 6);
+    expect(beltSlotPoint(DEFAULT_BELT, 'right', 1.2, 0).y).toBeCloseTo(0.78, 6);
   });
 
   it('legt die Voreinstellung hinter die Körpermitte, nicht davor', () => {
@@ -90,9 +90,9 @@ describe('Gürtel-Position', () => {
 
   it('rechnet gezogene Zentimeter in Anteile der Augenhöhe um', () => {
     const raised = dragBelt(DEFAULT_BELT, { right: 0, up: 0.16, forward: 0 }, 'right', HEAD);
-    expect(raised.height).toBeCloseTo(0.6, 6);
+    expect(raised.height).toBeCloseTo(0.75, 6);
     // Dieselbe Höhe soll auch dort herauskommen, wo sie gezogen wurde.
-    expect(beltSlotPoint(raised, 'right', HEAD, 0).y).toBeCloseTo(0.96, 6);
+    expect(beltSlotPoint(raised, 'right', HEAD, 0).y).toBeCloseTo(1.2, 6);
   });
 
   it('schiebt beide Hüften nach vorn', () => {
@@ -117,7 +117,7 @@ describe('Gürtel-Position', () => {
   });
 
   it('schreibt die drei Zahlen so auf, wie sie in der Brille zu lesen sind', () => {
-    expect(beltLabel(DEFAULT_BELT)).toBe('26 cm · 0.50 · 4 cm hinten');
+    expect(beltLabel(DEFAULT_BELT)).toBe('26 cm · 0.65 · 4 cm hinten');
     expect(beltLabel({ side: 0.3, height: 0.42, forward: 0.12 })).toBe('30 cm · 0.42 · 12 cm vorn');
   });
 

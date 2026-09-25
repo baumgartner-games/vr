@@ -137,6 +137,8 @@ const _footprintFeet = new THREE.Vector3();
 
 /** Wie oft die Wandtests neu geprüft werden, in Sekunden (`refreshMarks`). */
 const MARK_EVERY = 0.4;
+/** Wie viele Zahlen je Wand in `wallStamp.values` stehen: Lage, Drehung, halbe Größe. */
+const WALL_STAMP = 10;
 
 /** Eine Kante als Schlüssel, immer von der Kachel aus, an deren Nord- oder Westseite sie liegt. */
 function edgeId(tx: number, tz: number, dir: Dir, level: number): string {
@@ -370,6 +372,17 @@ export abstract class GridWorld extends PortalWorld {
   /** Die hingestellten Modelle dieses Bildes, als Kandidaten (`stepWallGhosts`). */
   private readonly modelCandidates: ModelCandidate[] = [];
   private readonly placedScratch: PhysicsBody[] = [];
+  /**
+   * **Wie die Wände aus dem Regal beim letzten Einsammeln standen**
+   * (`refreshWallSlopes`, `wallsMoved`) — je Stück Lage, Drehung und halbe
+   * Größe, dazu der Plan, auf dem gerechnet wurde.
+   */
+  private readonly wallStamp: {
+    graph: NavGraph | null;
+    entries: PhysicsBody[];
+    walls: unknown[];
+    values: number[];
+  } = { graph: null, entries: [], walls: [], values: [] };
   /** Die Werkstattansicht des Ghostings (`ghostView.ts`), ab dem ersten Anschalten. */
   private ghostBoxView: GhostBoxView | null = null;
   /**
@@ -971,6 +984,8 @@ export abstract class GridWorld extends PortalWorld {
           walls: (tx, tz, dir, level) =>
             this.propEdges.size > 0 && this.propEdges.has(edgeAt(tx, tz, dir, level)),
           flight: (tx, tz, level) => plan.flightOn(tileKey(tx, tz, level))?.dir ?? null,
+          flightSide: (tx, tz, side, part, level) =>
+            plan.flightSideOpen(tileKey(tx, tz, level), side, part),
         }),
       );
     }
@@ -979,6 +994,12 @@ export abstract class GridWorld extends PortalWorld {
 
   /** Die Schrägen der hingestellten Wände unter 45° neu einsammeln (`wallSlopes`). */
   private refreshWallSlopes(): void {
+    // **Nur, wenn sich etwas bewegt hat.** Eingesammelt wurde in jedem Bild,
+    // weil jede Wand jederzeit umgestellt werden kann — in Haunting 338 Wände,
+    // je eine Rechnung über ihre Fugen und drei Mengen neu aufgebaut, gemessen
+    // gut 1 ms je Bild. Stehen alle, wo sie standen, stimmt auch das Ergebnis
+    // noch; der Vergleich kostet einen Bruchteil davon.
+    if (!this.wallsMoved(this.grid?.graph ?? null)) return;
     this.wallSlopes.clear();
     this.propEdges.clear();
     this.propCells.clear();
@@ -992,6 +1013,44 @@ export abstract class GridWorld extends PortalWorld {
     for (const entry of was)
       if (!entry.removed && !this.gridWalls.has(entry)) this.physics?.setGridWall(entry, false);
     for (const entry of this.gridWalls) this.physics?.setGridWall(entry, true);
+  }
+
+  /** Ob seit dem letzten Einsammeln eine Wand dazukam, wegfiel oder woanders steht. */
+  private wallsMoved(graph: NavGraph | null): boolean {
+    const stamp = this.wallStamp;
+    const models = this.placedModels(this.placedScratch);
+    let same = stamp.graph === graph && stamp.entries.length === models.length;
+    for (let i = 0; same && i < models.length; i++) {
+      const entry = models[i]!;
+      const at = i * WALL_STAMP;
+      const { position: p, quaternion: q } = entry.object;
+      const h = entry.halfExtents;
+      same =
+        stamp.entries[i] === entry &&
+        stamp.walls[i] === (entry.object.userData as { diagonalWall?: unknown }).diagonalWall &&
+        stamp.values[at] === p.x &&
+        stamp.values[at + 1] === p.y &&
+        stamp.values[at + 2] === p.z &&
+        stamp.values[at + 3] === q.x &&
+        stamp.values[at + 4] === q.y &&
+        stamp.values[at + 5] === q.z &&
+        stamp.values[at + 6] === q.w &&
+        stamp.values[at + 7] === h.x &&
+        stamp.values[at + 8] === h.y &&
+        stamp.values[at + 9] === h.z;
+    }
+    if (same) return false;
+    stamp.graph = graph;
+    stamp.entries = [...models];
+    stamp.walls = models.map(
+      (entry) => (entry.object.userData as { diagonalWall?: unknown }).diagonalWall,
+    );
+    stamp.values = models.flatMap((entry) => {
+      const { position: p, quaternion: q } = entry.object;
+      const h = entry.halfExtents;
+      return [p.x, p.y, p.z, q.x, q.y, q.z, q.w, h.x, h.y, h.z];
+    });
+    return true;
   }
 
   /**

@@ -99,6 +99,13 @@ export interface CellSource {
    * überall.
    */
   flight?(tx: number, tz: number, level: number): Dir | null;
+  /**
+   * **Ob man seitlich auf eine Hälfte der Treppenkachel kommt** — von der
+   * Kachel in Richtung `side` aus; `part` 0 ist die Hälfte am Fuß des Laufs,
+   * 1 die obere (`GridPlan.flightSideOpen`). Dort ist ihre Seite keine Wand.
+   * Ohne diese Frage ist keine offen.
+   */
+  flightSide?(tx: number, tz: number, side: Dir, part: 0 | 1, level: number): boolean;
 }
 
 /** Die Kachel, in der eine Zelle liegt, und ihre Lage darin (0 oder 1 je Achse). */
@@ -169,6 +176,11 @@ export class CellGrid {
   /** Die Steigrichtung der Treppe oder Rampe auf dieser Kachel (`CellSource.flight`). */
   flightAt(tx: number, tz: number, level = 0): Dir | null {
     return this.source.flight?.(tx, tz, level) ?? null;
+  }
+
+  /** Ob diese Hälfte einer Treppenseite von außen betreten werden kann (`CellSource.flightSide`). */
+  flightSideOpen(tx: number, tz: number, side: Dir, part: 0 | 1, level = 0): boolean {
+    return this.source.flightSide?.(tx, tz, side, part, level) ?? false;
   }
 
   /**
@@ -648,6 +660,8 @@ export interface NavCellOptions {
   voidIsFree?: boolean;
   /** Treppen und Rampen (`CellSource.flight`). */
   flight?: (tx: number, tz: number, level: number) => Dir | null;
+  /** Wo ihre Seiten offen sind (`CellSource.flightSide`). */
+  flightSide?: (tx: number, tz: number, side: Dir, part: 0 | 1, level: number) => boolean;
 }
 
 /**
@@ -690,6 +704,7 @@ export function navCellSource(
     },
     ...(options.blocked ? { blocked: options.blocked } : {}),
     ...(options.flight ? { flight: options.flight } : {}),
+    ...(options.flightSide ? { flightSide: options.flightSide } : {}),
   };
 }
 

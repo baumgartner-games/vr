@@ -33,7 +33,15 @@ import {
 import { LAYER_SELF_ONLY } from '../../core/PlayerAvatar';
 import type { ToolChoice, ToolOption, WorldContext } from '../../core/types';
 import type { Usable } from '../../core/usable';
+import type { InteractionLike } from '../../core/interaction';
 import { isTyping } from '../../core/textEntry';
+import {
+  SHIP_HAND_USE,
+  lockerExitPress,
+  lockerInteraction,
+  shipRayPasses,
+  type HandPress,
+} from './shipHandUse';
 import type { Handedness } from '../../core/XRInput';
 import type { MenuEntry } from '../../ui/menu';
 import { MirrorSurface } from '../shared/Mirror';
@@ -153,6 +161,12 @@ interface ShipHost {
    */
   usable?(object: THREE.Object3D, usable: Usable, options?: { radius?: number }): void;
   unusable?(object: THREE.Object3D): void;
+  /**
+   * Ob diese Hand in der Brille gerade frei benutzt — ohne Werkzeug und ohne
+   * Gegenstand (`PortalWorld.handUsesFreely`). Nur einer freien Hand nimmt der
+   * Schrank den Laser ab (`shipHandUse.shipRayPasses`).
+   */
+  handFree?(hand: Handedness): boolean;
   /** Versetzt den Spieler; mit `yaw` schaut er danach dorthin (`movePlayerTo`). */
   travel(at: THREE.Vector3, yaw?: number): void;
   /** Wo der Techniker aus Zahlen steht — `null`, solange keine Bot-Runde läuft (`flatKernel.ts`). */
@@ -297,6 +311,15 @@ const GOAL_SEAM: OutlineLook = { width: 0.014, maxGrow: 0.05, color: 0xffd84a };
  */
 const XRAY_LABEL_RANGE = 8;
 const PANEL_RANGE = 3.5;
+/**
+ * **Wie breit ein Schrank fürs Benutzen von oben ist**, in Metern
+ * (`core/usable.pickUsable`). Angemeldet ist der ganze Kasten, und dessen Mitte
+ * liegt eine halbe Tiefe hinter der Tür, an der vorher das Tastenfeld bzw.
+ * das Blatt saß — ohne den Zuschlag reichte `A` vor der Tür eine Handbreit
+ * weniger weit als bisher.
+ */
+const LOCKER_USE_RADIUS = 0.65;
+const CABINET_USE_RADIUS = 0.5;
 const HAND_LABEL = {
   off: 'frei',
   flashlight: 'Taschenlampe',
@@ -316,6 +339,16 @@ interface BindExtra {
   use?: (() => void) | null;
   prompt?: () => string;
   radius?: number;
+  /**
+   * Beim Kern an **diesem** Objekt anmelden statt am Zeigerziel — der ganze
+   * Schrank statt seines Tastenfelds oder Blatts: Um ihn legt sich der Saum,
+   * und seine Ausdehnung ist die Greifbox der Hand (`PortalWorld.useByHand`).
+   */
+  usableOn?: THREE.Object3D;
+  /** Die Absicht (`core/interaction.ts`), bei jedem Lesen neu gefragt. */
+  interaction?: () => InteractionLike;
+  /** Wessen Strahl hindurchgeht (`Pointer.rayPasses`); Berühren bleibt. */
+  rayPasses?: (hand: Handedness | null) => boolean;
 }
 
 /** Station-only interactions. All game state belongs to the VR host snapshot. */
@@ -323,6 +356,8 @@ export class ShipExperience {
   readonly root = new THREE.Group();
   readonly bay = new THREE.Group();
   private readonly targets: THREE.Object3D[] = [];
+  /** Was beim Kern an einem anderen Objekt hängt als am Zeiger (`BindExtra.usableOn`). */
+  private readonly usableTargets: THREE.Object3D[] = [];
   private readonly screens: Screen[] = [];
   private readonly cabinets: Cabinet[] = [];
   /**
@@ -882,15 +917,23 @@ export class ShipExperience {
     // Hinweis über der Figur kommen mit. Der Hinweis ist die Beschriftung des
     // Fadenkreuzes ohne ihr „E: " — oder, was `prompt` gerade sagt.
     const use = extra.use === undefined ? () => action(null) : extra.use;
+    const usableOn = extra.usableOn ?? object;
+    if (usableOn !== object) this.usableTargets.push(usableOn);
+    const intent = extra.interaction;
     if (use)
       this.host.usable?.(
-        object,
+        usableOn,
         {
-          use: () => this.useObject(object, use, wearable),
+          use: () => this.useObject(usableOn, use, wearable),
           usePrompt: () => {
             if (extra.prompt) return extra.prompt();
             const text = object.userData.interactionLabel as string | undefined;
             return (text ?? 'Benutzen').replace(/^E:\s*/, '');
+          },
+          // Ein Getter, weil sich die Absicht mit dem Stand ändert (von innen
+          // bietet der Schutzschrank nichts an) — ohne Angabe ein Knopf.
+          get interaction() {
+            return intent?.();
           },
         },
         extra.radius !== undefined ? { radius: extra.radius } : {},
@@ -899,6 +942,7 @@ export class ShipExperience {
       object,
       pokeable,
       ignore: (hand) => wearable && hand === 'left',
+      ...(extra.rayPasses ? { rayPasses: extra.rayPasses } : {}),
       onHover: () => {
         this.host.ctx.rig.getHeadPosition(_head);
         object.getWorldPosition(_pos);
@@ -1062,17 +1106,51 @@ export class ShipExperience {
     // immer das Blatt. Erst leer, dann geht sie mit demselben Druck zu.
     const exposed = (): boolean =>
       !!lootMesh && this.crew.opened.includes(id) && !this.crew.inventory.includes(id);
+    //
+    // **Beim Kern hängt der ganze Schrank** (`usableOn`) und nicht das Blatt:
+    // Der Saum legt sich um den Kasten, und in der Brille ist er die Greifbox
+    // der Hand — auch dann noch, wenn das Blatt offen nur ein Streifen ist.
+    // Trigger oder Greif-Taste (`shipHandUse.SHIP_HAND_USE`) tun dasselbe wie
+    // `A`: öffnen, das Teil nehmen, hineinsehen, schließen.
+    const use = (): void => (exposed() ? this.takeLoot(id) : this.openCabinet(id));
     this.bind(leaf, () => this.openCabinet(id), false, false, {
-      use: () => (exposed() ? this.takeLoot(id) : this.openCabinet(id)),
+      use,
       prompt: () =>
         exposed()
           ? `${lootLabel(this.host.spec(), loot)} nehmen`
           : 'Frachtschrank öffnen / schließen',
+      usableOn: g,
+      radius: CABINET_USE_RADIUS,
+      interaction: () => SHIP_HAND_USE,
+      rayPasses: this.freeRay,
     });
+    // Und für eine Hand mit Lampe oder Radar der Zeiger auf dem ganzen Kasten.
+    this.bind(g, use, false, false, { use: null, rayPasses: this.toolRay(g) });
     if (lootMesh) {
       lootMesh.userData.interactionLabel = `E: ${lootLabel(this.host.spec(), loot)} nehmen`;
-      this.bind(lootMesh, () => this.takeLoot(id));
+      // Das Teil bietet sich erst an, wenn es offen daliegt — vorher nähme die
+      // Hand an der Tür womöglich das Teil dahinter statt der Tür und täte nichts.
+      this.bind(lootMesh, () => this.takeLoot(id), false, true, {
+        interaction: () => (exposed() ? SHIP_HAND_USE : 'none'),
+        rayPasses: this.freeRay,
+      });
     }
+  }
+  /** Der Laser einer **freien** Hand geht hindurch: Sie bedient den Schrank über den Kern. */
+  private readonly freeRay = (hand: Handedness | null): boolean =>
+    shipRayPasses(hand, (one) => this.host.handFree?.(one) ?? false);
+  /**
+   * Nur der Laser einer Hand mit Werkzeug trifft den ganzen Kasten — und nur
+   * in Reichweite (`PANEL_RANGE`): Ein Schrank am anderen Ende des Raums
+   * schluckte sonst den Trigger der Lampe, ohne selbst etwas zu tun. Der
+   * Schirm und freie Hände gehen hindurch.
+   */
+  private toolRay(object: THREE.Object3D): (hand: Handedness | null) => boolean {
+    return (hand) => {
+      if (hand === null || this.freeRay(hand)) return true;
+      this.host.ctx.rig.getHeadPosition(_head);
+      return object.getWorldPosition(_pos).distanceTo(_head) > PANEL_RANGE;
+    };
   }
   /**
    * **Eine Kiste aufklappen kostet fünf Sekunden** (`rules/chore.ts`) — und
@@ -1382,6 +1460,13 @@ export class ShipExperience {
       }
       this.lockerDigit(id, 0);
     };
+    // **Angemeldet ist der ganze Schrank, nicht das Tastenfeld** (`usableOn`).
+    // Bis hierher war das Tastenfeld — 60 cm Schirm auf einem Kasten von
+    // 2,2 m — das einzige, was auf Trigger, `A` oder Saum antwortete; wer in
+    // der Brille auf die Tür zielte, traf nichts. Jetzt leuchtet der Kasten,
+    // und in der Brille steigt eine freie Hand mit Trigger oder Greif-Taste
+    // ein (`shipHandUse`), der Laser geht dafür durch das Tastenfeld hindurch.
+    // Angetippt wird es weiter, wie es draufsteht.
     this.bind(
       keypad.mesh,
       (uv) => {
@@ -1389,8 +1474,17 @@ export class ShipExperience {
       },
       false,
       true,
-      { use: press },
+      {
+        use: press,
+        usableOn: group,
+        radius: LOCKER_USE_RADIUS,
+        interaction: () => lockerInteraction(!!this.crew.hidden),
+        rayPasses: (hand) => hand !== null,
+      },
     );
+    // Eine Hand mit Lampe oder Radar zielt weiter mit dem Zeiger — auf den
+    // ganzen Kasten, und ihr Trigger gehört dann ihm und nicht der Lampe.
+    this.bind(group, press, false, false, { use: null, rayPasses: this.toolRay(group) });
   }
   /**
    * **Der Schutzschrank hat keinen Code mehr** — ein Tipp, und man ist drin;
@@ -1436,8 +1530,15 @@ export class ShipExperience {
     this.host.travel(locker.group.position.clone(), locker.group.rotation.y + Math.PI);
     this.crew.hidden = locker.id;
     locker.open = false;
+    // Derselbe Druck, der hineinbrachte, führt nicht gleich wieder hinaus
+    // (`stepLockerExit` läuft im selben Bild danach).
+    this.interactionCooldown = 0.2;
     this.ghostLocker(locker, true);
-    this.host.say('Geschützt. AUSGANG vor dir antippen oder E drücken, um herauszutreten.');
+    this.host.say(
+      this.host.ctx.renderer.xr.isPresenting
+        ? 'Geschützt. Trigger oder Greifen, um herauszutreten.'
+        : 'Geschützt. AUSGANG vor dir antippen oder E drücken, um herauszutreten.',
+    );
     this.sound('door');
   }
   /**
@@ -1973,6 +2074,15 @@ ANTIPPEN: ZUM SAFE-RAUM`,
    * (`SPACE_RANGER`): Umgefärbte Materialien und ein Brustgurt aus Quadern
    * gehörten zur gebauten Figur. Geblieben ist die Wunde, die der Anzug zeigt,
    * und wer den eigenen Körper sieht.
+   *
+   * **Aus den eigenen Augen niemand** — in der Brille so wenig wie am Schirm.
+   * Die Brille hat den Körper eine Weile auf Ebene 0 dazugeschaltet
+   * bekommen, und dann stand der Techniker in seinem eigenen Rumpf: Arme, die
+   * den getrackten Händen hinterherhingen, ein Helm vor der Nase. Jetzt gilt
+   * dieselbe Regel wie in der Testwelt (`PlayerAvatar`, `LAYER_SELF_ONLY`):
+   * man sieht die eigenen Hände (`HandVisuals`), den Anzug nur im Spiegel und
+   * durchs Portal. Die anderen sehen ohnehin nicht diesen Körper, sondern die
+   * Figur aus dem Netz — für sie bleibt der Techniker ganz.
    */
   private buildSuit(): void {
     const avatar = this.host.ctx.avatar;
@@ -1984,15 +2094,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.updateSuitVisibility();
   }
   private updateSuitVisibility(): void {
+    // Nachgezogen wird trotzdem bei jedem Wechsel in die Brille und zurück:
+    // Was dazwischen am Körper angebaut wurde, soll auf keiner anderen Ebene
+    // hängen als der Rest.
     const immersive = this.host.ctx.renderer.xr.isPresenting;
     if (this.suitImmersive === immersive) return;
     this.suitImmersive = immersive;
-    const avatar = this.host.ctx.avatar;
-    avatar.traverse((object) => {
-      object.layers.set(LAYER_SELF_ONLY);
-      if (immersive) object.layers.enable(0);
-    });
-    avatar.head.traverse((object) => object.layers.set(LAYER_SELF_ONLY));
+    this.host.ctx.avatar.traverse((object) => object.layers.set(LAYER_SELF_ONLY));
   }
 
   private commandAction(index: number): void {
@@ -2178,6 +2286,32 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.host.ctx.refreshWorldMenu();
   }
 
+  /**
+   * **Aus dem Schutzschrank, wie man hineinkam** — in der Brille mit Trigger
+   * oder Greif-Taste einer freien Hand (`shipHandUse.lockerExitPress`). Von
+   * innen bietet der Schrank keinen Saum an (`lockerInteraction`), also fragt
+   * hier niemand den Kern, sondern die Knöpfe selbst. Eine Hand, deren Laser
+   * auf einer Menüseite liegt, meint das Menü.
+   */
+  private stepLockerExit(): void {
+    const ctx = this.host.ctx;
+    if (!this.player || !this.crew.hidden || this.crew.simulation) return;
+    if (!ctx.renderer.xr.isPresenting) return;
+    const hands: HandPress[] = [];
+    for (const hand of ['left', 'right'] as const) {
+      const controller = ctx.input.get(hand);
+      if (!controller?.tracked) continue;
+      hands.push({
+        trigger: controller.trigger.justPressed,
+        grip: controller.squeeze.justPressed,
+        free: (this.host.handFree?.(hand) ?? false) && !ctx.pointer.hoveringWith(hand),
+      });
+    }
+    if (!lockerExitPress(hands, this.interactionCooldown <= 0)) return;
+    this.leaveLocker();
+    this.paint();
+  }
+
   update(dt: number): void {
     const ctx = this.host.ctx;
     const state = this.host.state();
@@ -2185,6 +2319,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.stepTraining();
     ctx.rig.getHeadPosition(_head);
     this.interactionCooldown = Math.max(0, this.interactionCooldown - dt);
+    this.stepLockerExit();
     this.stepChore(dt, _head);
     this.stepArchiveRadio();
     this.updateTools(dt);
@@ -3729,6 +3864,7 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       this.host.ctx.pointer.remove(target);
       this.host.unusable?.(target);
     }
+    for (const target of this.usableTargets) this.host.unusable?.(target);
     this.effects.dispose();
     this.audio.dispose();
     this.hearingAudio.dispose();

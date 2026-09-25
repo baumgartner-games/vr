@@ -64,6 +64,18 @@ describe('Die schrägen Ecken der Station', () => {
     expect(insideSpace(cafeteria, { x: r.x + 2.5, z: r.z + r.d - 2.5 })).toBe(true);
   });
 
+  it('rechnet den Umriss einer geformten Form nur einmal (er wird je Bild gefragt)', () => {
+    const shaped = spacesOf(spec).filter((room) => room.shape);
+    expect(shaped.length).toBeGreaterThan(0);
+    for (const room of shaped) {
+      const first = roomOutline(room);
+      // Dieselbe Liste und nicht nur dieselben Zahlen: gerechnet wurde nicht noch einmal.
+      expect(roomOutline(room)).toBe(first);
+      // Und sie ist trotzdem der Umriss dieser Form — ein Ring aus Ecken in Metern.
+      expect(first.length).toBeGreaterThanOrEqual(4);
+    }
+  });
+
   it('lässt Türen, Klappen, Fenster, Merkmale und Aufgaben außerhalb der Ecken', () => {
     for (const door of spec.doors)
       for (const edge of doorEdges(door)) {

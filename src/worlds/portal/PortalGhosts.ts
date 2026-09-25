@@ -119,6 +119,20 @@ export class PortalGhosts {
   update(portals: Portal[]): void {
     const open = portals.filter((portal) => portal.placed && portal.link?.placed);
 
+    // **Ohne ein offenes Paar steckt nichts in einem Portal** — und dann ist
+    // auch nichts nachzurechnen. Die Schleife unten zieht für jedes
+    // angemeldete Ding die Matrizen seiner Eltern und seines ganzen Baums nach
+    // (`updateWorldMatrix(true, true)`), in jedem Bild; in Haunting, wo nie ein
+    // Portal steht, waren das 338 Wände und gemessen 1,25 ms je Bild.
+    if (open.length === 0) {
+      for (const entry of this.tracked.values()) {
+        entry.portal = null;
+        this.restore(entry);
+        if (entry.ghost) entry.ghost.root.visible = false;
+      }
+      return;
+    }
+
     for (const entry of this.tracked.values()) {
       entry.object.updateWorldMatrix(true, true);
       entry.anchor.updateWorldMatrix(true, false);

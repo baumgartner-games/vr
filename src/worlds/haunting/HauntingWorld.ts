@@ -62,7 +62,7 @@ import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
 import { COMMAND_STOOLS, COMMAND_TABLE, crewPlacement } from './world3d/commandSeats';
-import { stationLighting } from './stationLighting';
+import { LampShadowTurns, lampShadowDue, stationLighting } from './stationLighting';
 import { ENTITY_PROFILES } from './threat';
 import { acousticField, BOT_FOV, BOT_VISION, MONSTER_FOV } from './perception';
 import { topDownRooms, visibleStationRooms } from './stationVisibility';
@@ -476,7 +476,8 @@ export class HauntingWorld extends GridWorld {
   private crewPlacedAt = -Infinity;
   private lampPool: THREE.PointLight[] = [];
   /** Seit wann die Schattenkarten der Lampen nicht neu gezeichnet wurden. */
-  private lampShadowClock = 0;
+  /** Welche der beiden Leuchten ihre Schattenkarte als nächste neu zeichnet. */
+  private readonly lampShadows = new LampShadowTurns(LAMP_POOL, LAMP_SHADOW_EVERY);
   private testLight: THREE.AmbientLight | null = null;
   private commandLight: THREE.SpotLight | null = null;
   private readonly fixtureSlabs: THREE.Object3D[] = [];
@@ -614,6 +615,10 @@ export class HauntingWorld extends GridWorld {
   private setupTouchedAt = -Infinity;
   /** Bei allen anderen nur das Monster an der angesagten Stelle (`actorArt.ts`). */
   private blob: ShipActor | null = null;
+  /** Für welche Runde die Shader schon vorab übersetzt sind (`warmShaders`). */
+  private warmedFor = '';
+  /** Wie lange die Runde schon läuft, bis vorab übersetzt wird. */
+  private warmClock = 0;
   /** Die flachen Flecken auf dem Boden — Weltgeometrie, damit sie in der Brille steht. */
   private bloodArt: THREE.Group | null = null;
   /**
@@ -1393,13 +1398,13 @@ export class HauntingWorld extends GridWorld {
     this.cullTimer = 0;
     this.culledHead.set(Infinity, Infinity, Infinity);
     this.buildFixtureColliders();
-    this.lampPool = Array.from({ length: 2 }, () => {
+    this.lampPool = Array.from({ length: LAMP_POOL }, () => {
       const light = new THREE.PointLight(0xcce8e6, 0, 15, 2);
       // **Die Lampe leuchtet ihren Raum aus und nicht die Nachbarn**
       // (`shared/wallLight.ts`). Ihre Schattenkarte wird nur neu gezeichnet,
-      // wenn sie umzieht, und sonst viermal die Sekunde (`LAMP_SHADOW_EVERY`)
-      // — sechs Seiten je Bild für zwei Lampen wären in der Brille zu teuer,
-      // und die Wände stehen still.
+      // wenn sie umzieht oder angeht, und sonst viermal die Sekunde
+      // (`LAMP_SHADOW_EVERY`) — abwechselnd, nie beide im selben Bild, und
+      // nie, solange sie dunkel ist (`applyLights`, `LampShadowTurns`).
       stopAtWalls(light, 256);
       light.shadow.autoUpdate = false;
       light.shadow.needsUpdate = true;
@@ -1500,6 +1505,7 @@ export class HauntingWorld extends GridWorld {
       // (`PortalWorld.addUsable`): `A`, Saum und Hinweis über der Figur.
       usable: (object, usable, options) => this.addUsable(object, usable, options),
       unusable: (object) => this.removeUsable(object),
+      handFree: (hand) => this.handUsesFreely(hand),
       round: () => this.rules.status(this.state),
       // **Die Blätter fahren erst auf, wenn jemand auf dem Knopf steht**
       // (`pressButtons`) — rein fürs Auge: Durchlassen tut die Automatik.
@@ -2095,6 +2101,7 @@ export class HauntingWorld extends GridWorld {
     this.applyLights(dt);
     this.cullRoomArt(dt, ctx);
     this.applyBlob(dt);
+    this.warmShaders(dt, ctx);
     this.paintTrail();
     this.paintGhost(dt);
     this.experience?.update(dt);
@@ -2676,6 +2683,44 @@ export class HauntingWorld extends GridWorld {
   }
 
   /**
+   * **Die Shader der Runde vorab übersetzen** — einmal, wenn sie losgeht.
+   *
+   * three.js übersetzt das Programm eines Materials erst, wenn es zum ersten
+   * Mal gezeichnet wird, und wartet dann darauf (`getProgramInfoLog`). In der
+   * Station heißt „zum ersten Mal": beim ersten Betreten eines Raums, dessen
+   * Einrichtung bis dahin ausgeblendet war (`cullRoomArt`), und beim ersten
+   * Blick auf das Monster. Gemessen waren das beim Gang durch alle Räume zehn
+   * bis dreizehn neue Programme, jedes ein Ruckler mitten im Laufen — auf einer
+   * Quest je Programm leicht eine Zehntelsekunde.
+   *
+   * `renderer.compile` geht über **alle** Materialien der Szene, auch die
+   * ausgeblendeten, und übersetzt sie für die Lichter, die gerade brennen.
+   * Das Warten fällt damit auf den Start der Runde, wo ohnehin das Licht
+   * ausgeht, und die Grafikkarte übersetzt im Hintergrund weiter, während man
+   * losläuft.
+   *
+   * **Und erst eine Sekunde nach dem Start** (`WARM_AFTER`): Im Bild des
+   * Starts selbst brennen für einen Augenblick Lichter, die gleich wieder
+   * ausgehen (die Übungsleuchte, die zweite Lampe am Schirm), und ein Programm
+   * gilt nur für genau die Zahl an Lichtern, für die es übersetzt ist. Vorab
+   * übersetzt für die falsche Zahl wären dreißig Programme umsonst gewesen —
+   * gemessen. Bis dahin steht auch das Monster (`applyBlob`).
+   */
+  private warmShaders(dt: number, ctx: WorldContext): void {
+    if (this.state.phase !== 'running') {
+      this.warmClock = 0;
+      return;
+    }
+    const options = this.state.crew.options;
+    const key = `${this.spec.seed}|${this.spec.rooms.length}|${options.monster}|${options.test}`;
+    if (key === this.warmedFor) return;
+    this.warmClock += dt;
+    if (this.warmClock < WARM_AFTER) return;
+    this.warmedFor = key;
+    ctx.renderer.compile(ctx.scene, ctx.camera);
+  }
+
+  /**
    * **Die Blutspur auf dem Boden** (`rules/blood.ts`) — flache Flecken als
    * **Weltgeometrie** und nicht als Zeichen auf dem Bildschirm.
    *
@@ -3096,14 +3141,14 @@ export class HauntingWorld extends GridWorld {
       ([id]) => lighting.lamps && (wideOpen ? id === viewRoom?.id : this.state.lit.includes(id)),
     );
     active.sort((a, b) => a[1].at.distanceToSquared(_head) - b[1].at.distanceToSquared(_head));
-    this.lampShadowClock += dt;
-    if (this.lampShadowClock >= LAMP_SHADOW_EVERY) {
-      this.lampShadowClock = 0;
-      for (const light of this.lampPool) light.shadow.needsUpdate = true;
-    }
+    // **Höchstens eine Schattenkarte je Bild, und nur für Licht, das brennt**
+    // (`stationLighting.LampShadowTurns`, `lampShadowDue`).
+    const turn = this.lampShadows.step(dt);
     for (let i = 0; i < this.lampPool.length; i++) {
       const light = this.lampPool[i]!;
       const entry = active[i];
+      const before = light.intensity;
+      let moved = false;
       light.intensity = 0;
       if (entry) {
         const [id, lamp] = entry;
@@ -3112,11 +3157,16 @@ export class HauntingWorld extends GridWorld {
         const spook = this.runningRound()?.spook ?? null;
         const haunted = !bright && spook && id === spook.room ? flickerLevel(spook.since) : 1;
         const glow = Math.min(haunted, lampGlow(this.lampBook, id, this.state.time));
-        if (!light.position.equals(lamp.at)) light.shadow.needsUpdate = true;
+        moved = !light.position.equals(lamp.at);
         light.position.copy(lamp.at);
         light.color.setHex(lamp.color);
         light.intensity = LAMP_ON * glow * lampScale;
       }
+      if (lampShadowDue(i === turn, moved, before, light.intensity))
+        light.shadow.needsUpdate = true;
+      // Eine dunkle Leuchte zeichnet nichts — three.js fragt dafür nicht nach
+      // der Stärke, sondern nur nach diesem Schalter.
+      else if (light.intensity <= 0) light.shadow.needsUpdate = false;
     }
     for (const [id, lamp] of this.lamps)
       lamp.glass.material.color.lerpColors(
@@ -4696,6 +4746,10 @@ const TEST_BAY_DOOR: ButtonDoor = LIFT_DOOR;
 
 /** Wie oft die Schattenkarte einer Deckenlampe neu gezeichnet wird, in Sekunden. */
 const LAMP_SHADOW_EVERY = 0.25;
+/** So lange läuft eine Runde, bevor ihre Shader vorab übersetzt werden (`warmShaders`), in Sekunden. */
+const WARM_AFTER = 1;
+/** Wie viele Punktleuchten die Deckenlampen der Station unter sich teilen. */
+const LAMP_POOL = 2;
 
 /** Der schmale Durchgang (eine Kachel) und der breite (zwei) aus dem Regal. */
 export const STATION_DOORWAY = 'prototype-bits/Wall_Doorway.glb';
