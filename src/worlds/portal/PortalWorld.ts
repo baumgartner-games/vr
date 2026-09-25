@@ -3309,7 +3309,22 @@ export class PortalWorld implements World {
    * @param yaw Drehung um die Hochachse, in Bogenmaß
    * @returns ob es hingestellt wurde
    */
-  private async placeModelAt(path: string, at: THREE.Vector3, yaw: number): Promise<boolean> {
+  /**
+   * **Ein Modell aus dem Regal als Teil der Welt aufstellen** — für eine
+   * Welt, die mit Regalstücken gebaut ist (der Wandparcours der Testwelt,
+   * `test/zones/wallLab.ts`). Es landet nicht in der Liste der Weltänderungen:
+   * Es gehört der Welt und nicht dem, der gerade baut.
+   */
+  protected placeModel(path: string, at: THREE.Vector3, yaw: number): void {
+    void this.placeModelAt(path, at, yaw, false);
+  }
+
+  private async placeModelAt(
+    path: string,
+    at: THREE.Vector3,
+    yaw: number,
+    note = true,
+  ): Promise<boolean> {
     const physics = this.physics;
     if (!this.context || !physics) return false;
     const kind = modelKind(path);
@@ -3334,7 +3349,7 @@ export class PortalWorld implements World {
     // seine halbe Dicke wieder heraus.
     this.sinkFloor(entry);
     this.sync?.spawned(id, kind, poseOf(entry));
-    this.noteModel(entry, path);
+    if (note) this.noteModel(entry, path);
     return true;
   }
 
@@ -9248,10 +9263,12 @@ export class PortalWorld implements World {
     const base = this.wallBase(entry);
     const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long);
     const floorY = ctx.rig.getFloorY();
-    // **Eine Wand unter 45°** leuchtet die Kacheln an, durch die sie schräg geht.
+    // **Eine Wand unter 45°** zeigt ihre Schräge — ein Strich durch jede
+    // Kachel, durch die sie geht (`PlaceGrid.showSlants`).
     if (pose.diagonal) {
-      grid.show(
-        pose.diagonal.cells.map((cell) => ({ x: (cell.x + 0.5) * TILE, z: (cell.z + 0.5) * TILE })),
+      const slope = pose.diagonal.slope;
+      grid.showSlants(
+        pose.diagonal.cells.map((cell) => ({ ...cell, slope })),
         floorY,
       );
       return;

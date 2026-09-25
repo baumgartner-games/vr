@@ -12,7 +12,7 @@ import {
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
 import { CellGrid, cellKey, gateStep, navCellSource, type Slope } from '../nav/cellGrid';
-import { gridPose, wallEdges, type DiagonalWall } from '../portal/gridSnap';
+import { wallCells, type DiagonalWall } from '../portal/gridSnap';
 import { markRole } from './fixtures/mark';
 import { checkMarks, markSummary, type Mark, type Verdict } from './markCheck';
 import { FootprintView, type Occupant } from './footprintView';
@@ -330,6 +330,8 @@ export abstract class GridWorld extends PortalWorld {
    * (`NavCellOptions.walls`), jedes Bild neu (`refreshWallSlopes`).
    */
   private readonly propEdges = new Set<string>();
+  /** Die Wände aus dem Regal, die gerade auf dem Gitter stehen (`PhysicsBody.gridWall`). */
+  private gridWalls = new Set<PhysicsBody>();
   /** Die Urteile der Wandtests (`refreshMarks`), nach Kennung der Marke. */
   private markVerdicts: ReadonlyMap<string, Verdict> = new Map();
   private markClock = 0;
@@ -969,8 +971,20 @@ export abstract class GridWorld extends PortalWorld {
   private refreshWallSlopes(): void {
     this.wallSlopes.clear();
     this.propEdges.clear();
+    const was = this.gridWalls;
+    this.gridWalls = new Set();
     const graph = this.grid?.graph;
-    if (!graph) return;
+    if (graph) this.collectWalls(graph);
+    // **Was auf dem Gitter steht, hält Spieler und NPCs nicht mehr mit seinem
+    // Kasten auf** (`PhysicsBody.gridWall`) — genau wie eine gebaute Wand.
+    // Aufgehoben, umgefallen oder schief geschoben ist es wieder ein Körper.
+    for (const entry of was)
+      if (!this.gridWalls.has(entry)) this.physics?.setGridWall(entry, false);
+    for (const entry of this.gridWalls) this.physics?.setGridWall(entry, true);
+  }
+
+  /** Die Wände aus dem Regal einsammeln — schräge als Schrägen, gerade als Kanten. */
+  private collectWalls(graph: NavGraph): void {
     for (const entry of this.placedModels(this.placedScratch)) {
       entry.object.getWorldPosition(_spot);
       const at = graph.at(_spot.x, _spot.z, _spot.y - entry.halfExtents.y);
@@ -979,26 +993,19 @@ export abstract class GridWorld extends PortalWorld {
       if (wall) {
         for (const cell of wall.cells)
           this.wallSlopes.set(tileKey(cell.x, cell.z, level), wall.slope);
+        this.gridWalls.add(entry);
         continue;
       }
       // **Eine gerade Wand aus dem Regal** steht auf einer Fuge
-      // (`gridSnap.gridPose`) — dort ist sie für das Zellgitter eine Wand wie
+      // (`gridSnap.wallCells`) — dort ist sie für das Zellgitter eine Wand wie
       // eine gebaute (`propEdges`). Nur, wenn sie wirklich eingerastet steht:
       // Eine umgefallene oder schief geschobene hält weiter nur die Physik.
       entry.object.getWorldQuaternion(_turn);
-      const pose = gridPose(_spot.x, _spot.z, _turn, entry.halfExtents);
-      if (pose.wall === null) continue;
-      if (Math.abs(_spot.x - pose.x) > 0.05 || Math.abs(_spot.z - pose.z) > 0.05) continue;
-      const twist = Math.abs(
-        Math.atan2(Math.sin(yawOf(_turn) - pose.yaw), Math.cos(yawOf(_turn) - pose.yaw)),
-      );
-      if (twist > 0.05) continue;
-      const { halfX, halfZ } = turnedHalf(entry.halfExtents, pose.yaw);
-      for (const edge of wallEdges(pose, halfX, halfZ)) {
-        if (edge.alongX)
-          this.propEdges.add(edgeId(Math.floor(edge.x), Math.round(edge.z), DIR_N, level));
-        else this.propEdges.add(edgeId(Math.round(edge.x), Math.floor(edge.z), DIR_W, level));
-      }
+      const cells = wallCells(_spot.x, _spot.z, _turn, entry.halfExtents);
+      if (!cells || cells.edges.length === 0) continue;
+      for (const edge of cells.edges)
+        this.propEdges.add(edgeId(edge.x, edge.z, edge.dir === 'n' ? DIR_N : DIR_W, level));
+      this.gridWalls.add(entry);
     }
   }
 

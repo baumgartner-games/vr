@@ -453,3 +453,49 @@ function axisTiles(a: number, b: number): number[] {
   if (out.length === 0) out.push(Math.floor((low + high) / 2 / TILE));
   return out;
 }
+
+/**
+ * **Was eine hingestellte Wand aus dem Regal auf dem Gitter ist** — Kanten,
+ * wenn sie gerade auf einer Fuge steht, Schrägen, wenn sie unter 45° steht,
+ * und `null`, wenn sie keine eingerastete Wand ist (umgefallen, schief
+ * geschoben, oder gar keine Wand). Die Rechnung, mit der die Gitterwelt sie
+ * in ihr Zellgitter stellt (`GridWorld.refreshWallSlopes`).
+ *
+ * Kanten stehen als Kachel und Richtung, und zwar immer an der Nord- oder
+ * Westseite ihrer Kachel.
+ */
+export interface WallCells {
+  edges: Array<{ x: number; z: number; dir: 'n' | 'w' }>;
+  slopes: Array<{ x: number; z: number; slope: 'slash' | 'backslash' }>;
+}
+
+/** Wie weit eine Wand neben ihrer eingerasteten Lage stehen darf und trotzdem zählt. */
+const SNAPPED = 0.05;
+
+export function wallCells(
+  x: number,
+  z: number,
+  rotation: Turned,
+  half: { readonly x: number; readonly z: number },
+  long?: number,
+): WallCells | null {
+  const pose = gridPose(x, z, rotation, half, long);
+  if (Math.abs(x - pose.x) > SNAPPED || Math.abs(z - pose.z) > SNAPPED) return null;
+  const yaw = yawOf(rotation);
+  if (Math.abs(Math.atan2(Math.sin(yaw - pose.yaw), Math.cos(yaw - pose.yaw))) > SNAPPED)
+    return null;
+  if (pose.diagonal) {
+    const slope = pose.diagonal.slope;
+    return { edges: [], slopes: pose.diagonal.cells.map((cell) => ({ ...cell, slope })) };
+  }
+  if (pose.wall === null) return null;
+  const { halfX, halfZ } = turnedHalf(half, pose.yaw);
+  return {
+    edges: wallEdges(pose, halfX, halfZ).map((edge) =>
+      edge.alongX
+        ? { x: Math.floor(edge.x / TILE), z: Math.round(edge.z / TILE), dir: 'n' as const }
+        : { x: Math.round(edge.x / TILE), z: Math.floor(edge.z / TILE), dir: 'w' as const },
+    ),
+    slopes: [],
+  };
+}

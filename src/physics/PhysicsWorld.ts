@@ -132,6 +132,13 @@ export interface PhysicsBody {
    */
   clearing: boolean;
   /**
+   * **Eine Wand auf dem Gitter** (`GridWorld.refreshWallSlopes`): Eine
+   * eingerastete Wand aus dem Regal hält Spieler und NPCs nicht mehr mit ihrem
+   * Kasten auf — das tut das Zellgitter, wie bei jeder gebauten Wand. Kisten,
+   * Würfe und Kugeln prallen weiter an ihr ab.
+   */
+  gridWall?: boolean;
+  /**
    * Set while the body is flying to a hand after a remote grab. It touches
    * nothing at all then, so the pull always arrives.
    */
@@ -500,6 +507,13 @@ export class PhysicsWorld {
    * reeled in on a fixed path must not be knocked off course by the crate it
    * happens to fly past.
    */
+  /** Eine Wand aus dem Regal auf das Gitter stellen oder zurück (`PhysicsBody.gridWall`). */
+  setGridWall(entry: PhysicsBody, on: boolean): void {
+    if (!!entry.gridWall === on) return;
+    entry.gridWall = on;
+    this.applyFilter(entry);
+  }
+
   setGhost(entry: PhysicsBody, ghost: boolean): void {
     if (entry.ghost === ghost) return;
     entry.ghost = ghost;
@@ -517,6 +531,7 @@ export class PhysicsWorld {
     // Rumpf **und** Hände: ein Ding in der Faust hat vom Fingerkasten so wenig
     // zu befürchten wie von der Kapsel (`playerClearance.ts`).
     if (entry.carried || entry.clearing) filter &= ~GROUP_PLAYER & ~GROUP_HAND;
+    if (entry.gridWall) filter &= ~GROUP_PLAYER & ~GROUP_NPC;
     for (const collider of collidersOf(entry))
       collider.setCollisionGroups(interactionGroups(entry.membership, filter));
   }

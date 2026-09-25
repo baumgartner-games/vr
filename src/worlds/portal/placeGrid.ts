@@ -181,9 +181,40 @@ export class PlaceGrid {
       if (!edge) continue;
       bar.position.set(edge.x, y + LIFT, edge.z);
       bar.rotation.y = edge.alongX ? 0 : Math.PI / 2;
+      bar.scale.x = 1;
     }
     for (const quad of this.quads) quad.visible = false;
     this.group.visible = true;
+  }
+
+  /**
+   * **Die Schräge zeigen, auf der eine Wand unter 45° stehen wird** — ein Strich
+   * quer durch jede Kachel, durch die sie geht (`gridSnap.diagonalPose`).
+   * Gewünscht: _„bei schrägen wänden … dass diese dann auch als schräge linie
+   * angezeigt werden, wie bei graden elementen."_ Dieselben Striche wie bei
+   * `showEdges`, um 45° gedreht und auf die Diagonale gestreckt.
+   */
+  showSlants(
+    cells: ReadonlyArray<{
+      readonly x: number;
+      readonly z: number;
+      readonly slope: 'slash' | 'backslash';
+    }>,
+    y: number,
+    limit = MAX_TILES,
+  ): void {
+    this.showEdges(
+      cells.map((cell) => ({ x: cell.x + 0.5, z: cell.z + 0.5, alongX: true })),
+      y,
+      limit,
+    );
+    cells.forEach((cell, index) => {
+      const bar = this.edges[index];
+      if (!bar) return;
+      // Die lange Achse des Strichs (+x) wird zu (cos, −sin): „╱" bei +45°.
+      bar.rotation.y = cell.slope === 'slash' ? Math.PI / 4 : -Math.PI / 4;
+      bar.scale.x = Math.SQRT2;
+    });
   }
 
   hide(): void {

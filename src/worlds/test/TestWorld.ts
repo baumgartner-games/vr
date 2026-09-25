@@ -24,8 +24,8 @@ import { spawnAt } from './spawnAt';
 import { floorPieceLift, floorPlate, PLATE_PROTOTYPE, underKitchenFloor } from './floorPlate';
 import { KITCHEN_FLOOR } from './zones/kitchenPlan';
 import { canLoadModels } from '../../core/chefFit';
-import { fitTest, testPlan } from './testPlan';
-import { ensureWallLab } from './zones/wallLab';
+import { clearPlanWalls, fitTest, testPlan } from './testPlan';
+import { ensureWallLab, wallLabModels } from './zones/wallLab';
 import { ClimbZone } from './zones/climb';
 import { InteractZone } from './zones/interact';
 import { KartZone } from './zones/kart';
@@ -176,6 +176,7 @@ export class TestWorld extends GridWorld {
     // Ein Stand von vor dem Wandparcours bekommt ihn dazu (`ensureWallLab`).
     ensureWallLab(plan);
     fitTest(plan);
+    clearPlanWalls(plan);
   }
 
   /**
@@ -337,6 +338,10 @@ export class TestWorld extends GridWorld {
     if (!ctx || !this.physics) return;
     const host = this.zoneHost();
     for (const zone of this.zones) zone.build(ctx, host);
+    // **Der Wandparcours aus dem Regal** (`zones/wallLab.ts`). Steht schon ein
+    // Stück an seiner Stelle, kommt kein zweites (`placeModel`).
+    for (const wall of wallLabModels())
+      this.placeModel(wall.path, new THREE.Vector3(wall.x, wall.y, wall.z), wall.yaw);
     this.dust ??= new DustTrail(this.root);
     // **Und der Boden draußen bekommt Platten** (`shared/plateFloor.ts`).
     //
