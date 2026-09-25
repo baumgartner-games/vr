@@ -168,9 +168,23 @@ export function craneQuarter(yaw: number): number {
   return turns > 2 ? (turns - 4) * quarter : turns * quarter;
 }
 
-/** Eine Vierteldrehung weiter — `R` (`clockwise`) oder `Shift`+`R`. */
+/**
+ * **Auf das nächste Achtel gerastet** — die Stellungen des Krans, seit Wände
+ * auch unter 45° stehen dürfen (`worlds/portal/gridSnap.diagonalPose`).
+ * Gewünscht: _„Ich brauche beim Platzieren von Wänden auch die Möglichkeit
+ * diese im 45° Winkel zu setzen … z.B. mit rechten Stick auf 45° gedreht."_
+ * Was keine Wand ist, rastet beim Hinstellen weiter auf ein Viertel.
+ */
+export function craneEighth(yaw: number): number {
+  if (!Number.isFinite(yaw)) return 0;
+  const eighth = Math.PI / 4;
+  const turns = ((Math.round(yaw / eighth) % 8) + 8) % 8;
+  return turns > 4 ? (turns - 8) * eighth : turns * eighth;
+}
+
+/** Ein Achtel weiter — `R` (`clockwise`) oder `Shift`+`R`; zweimal ist ein Viertel. */
 export function craneTurn(yaw: number, clockwise: boolean): number {
-  return craneQuarter(craneQuarter(yaw) + (clockwise ? -1 : 1) * (Math.PI / 2));
+  return craneEighth(craneEighth(yaw) + (clockwise ? -1 : 1) * (Math.PI / 4));
 }
 
 /** Der Halbmesser des Kreises am Boden unter dem Kran, in Metern. */

@@ -321,7 +321,9 @@ und geschlossene Türen, und dass ein Stockwerk gezeigt wird und nicht vier
 dieser Reihenfolge, und der harte Deckel darüber), die
 **Rettung aus der Tiefe** (`src/worlds/shared/fallRescue.ts` — ab wann ein
 Sturz einer ist, und dass der _höchste_ Treffer gewinnt: von unten gesucht
-landet man im Keller eines Hauses, von oben auf seinem Dach), die **Dicke der
+landet man im Keller eines Hauses, von oben auf seinem Dach) samt der **Spur
+vor dem Sturz** (`src/worlds/shared/fallTrail.ts` — was der Bericht zum
+Kopieren zeigt), die **Dicke der
 Bodenplatte** (`src/worlds/shared/ground.test.ts` — dass sie dicker ist als die
 Haut der Spielerkapsel; sie war es einmal nicht, und man merkte es nur daran,
 dass der Spieler beim Gehen stockte), der **Kurzcode**

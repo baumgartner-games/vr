@@ -11,7 +11,8 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
-import { CellGrid, cellKey, glides, navCellSource, snapCell } from '../nav/cellGrid';
+import { CellGrid, cellKey, gateStep, navCellSource, type Slope } from '../nav/cellGrid';
+import type { DiagonalWall } from '../portal/gridSnap';
 import { FootprintView, type Occupant } from './footprintView';
 import type { CellGate } from '../../physics/PhysicsLocomotion';
 import {
@@ -295,6 +296,15 @@ export abstract class GridWorld extends PortalWorld {
   private cells: CellGrid | null = null;
   /** Für wen es gebaut ist — ein neuer Plan bekommt ein neues. */
   private cellsFor: GridPlan | null = null;
+  /**
+   * **Die Schrägen der Wände aus dem Regal**, die unter 45° stehen
+   * (`PortalWorld.fitWall`, `userData.diagonalWall`) — neben denen des
+   * Bauplans für Zellgitter und NPCs. Jedes Bild neu (`refreshWallSlopes`),
+   * denn eine Wand aus dem Regal kann aufgehoben und umgestellt werden.
+   */
+  private readonly wallSlopes = new Map<TileKey, Slope>();
+  /** Wo der Spieler zuletzt stehen durfte (`playerCellGate`, `gateStep`). */
+  private readonly gateMemory: { lastFree: { x: number; z: number } | null } = { lastFree: null };
   /** Die Anzeige der belegten Blöcke (_Menü → Grafik → Belegte Felder_). */
   private readonly footprints = new FootprintView();
   private readonly occupants: Occupant[] = [];
@@ -912,7 +922,7 @@ export abstract class GridWorld extends PortalWorld {
     if (this.cellsFor !== plan) {
       this.cellsFor = plan;
       this.cells = new CellGrid(
-        navCellSource(plan.graph, (key) => plan.slopeAt(key), {
+        navCellSource(plan.graph, (key) => plan.slopeAt(key) ?? this.wallSlopes.get(key) ?? null, {
           voidIsFree: true,
           blocked: (ix, iz, level) =>
             plan.furnitureCells().has(cellKey(ix, iz, level)) || this.cellBlocked(ix, iz, level),
@@ -920,6 +930,22 @@ export abstract class GridWorld extends PortalWorld {
       );
     }
     return this.cells;
+  }
+
+  /** Die Schrägen der hingestellten Wände unter 45° neu einsammeln (`wallSlopes`). */
+  private refreshWallSlopes(): void {
+    this.wallSlopes.clear();
+    const graph = this.grid?.graph;
+    if (!graph) return;
+    for (const entry of this.placedModels(this.placedScratch)) {
+      const wall = (entry.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall;
+      if (!wall) continue;
+      entry.object.getWorldPosition(_spot);
+      const at = graph.at(_spot.x, _spot.z, _spot.y - entry.halfExtents.y);
+      const level = at === NO_TILE ? 0 : keyLevel(at);
+      for (const cell of wall.cells)
+        this.wallSlopes.set(tileKey(cell.x, cell.z, level), wall.slope);
+    }
   }
 
   /**
@@ -946,26 +972,38 @@ export abstract class GridWorld extends PortalWorld {
    * Der Spieler steht optisch, wo er will, logisch auf dem 2×2-Block, auf den
    * seine Füße gerundet werden (`snapCell`). Ein Schritt, der ihn auf einen
    * Block brächte, der nicht frei ist — über eine Schräge, halb in eine Fuge
-   * mit Wand —, wird nicht gemacht. Wer schon auf einem gesperrten Block
-   * steht (abgesetzt, durch ein Portal gekommen), bleibt nicht kleben: Aus
-   * einem solchen Block heraus ist jeder Schritt erlaubt.
+   * mit Wand —, wird nicht gemacht (`nav/cellGrid.gateStep`). Wer schon auf
+   * einem gesperrten Block steht (abgesetzt, geschoben), bleibt nicht kleben:
+   * Er darf zurück zur letzten Stelle, an der er stehen durfte.
    */
   protected override cellsForAgents(): CellGrid | null {
     return this.cellGrid();
+  }
+
+  /**
+   * **Wer durch die Welt fällt, fängt am Start wieder an** — gewünscht, seit
+   * man in Haunting durch eine 45°-Wand fiel: Die letzte Stelle mit Boden
+   * liegt dann womöglich hinter der Wand (`PortalWorld.rescuePlayer`).
+   */
+  protected override fallRespawnAtStart(): boolean {
+    return true;
   }
 
   protected override playerCellGate(): CellGate | null {
     return (fromX, fromZ, toX, toZ, y) => {
       const grid = this.cellGrid();
       if (!grid) return true;
-      const from = snapCell(fromX, fromZ),
-        to = snapCell(toX, toZ);
-      if (from.cx === to.cx && from.cz === to.cz) return true;
       const level = this.cellLevel(toX, toZ, y);
       if (level === null) return true;
       const was = this.cellLevel(fromX, fromZ, y) ?? level;
-      if (!grid.footprintFree(from, was)) return true;
-      return glides(grid, fromX, fromZ, toX, toZ, level);
+      return gateStep(
+        grid,
+        { x: fromX, z: fromZ },
+        { x: toX, z: toZ },
+        this.gateMemory,
+        level,
+        was,
+      );
     };
   }
 
@@ -2476,6 +2514,7 @@ export abstract class GridWorld extends PortalWorld {
     this.stepBursts(dt);
     this.trackLevel(ctx);
     this.showGridLines();
+    this.refreshWallSlopes();
     this.showFootprints(ctx);
     this.stepWallGhosts(ctx);
     // **Vor den Einbauten**, damit ein Schild, das in diesem Bild gelesen
@@ -2823,7 +2862,7 @@ export abstract class GridWorld extends PortalWorld {
     for (const link of plan.graph.links()) graph.addLink({ ...link });
     // Und die Schrägen: Die NPCs laufen auf Zellen (`nav/cellRoute.ts`), und
     // dort sperrt eine Schräge zwei Zellen ihrer Kachel.
-    graph.slopeAt = (key) => plan.slopeAt(key);
+    graph.slopeAt = (key) => plan.slopeAt(key) ?? this.wallSlopes.get(key) ?? null;
   }
 }
 

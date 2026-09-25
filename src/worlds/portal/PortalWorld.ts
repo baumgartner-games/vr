@@ -126,15 +126,25 @@ import {
   type PropKind,
 } from './props';
 import {
+  eighthYaw,
   gridPose,
   placesOnGrid,
   quarterYaw,
   tilesCovered,
   turnedHalf,
+  type DiagonalWall,
   type GridTile,
+  type PlacePose,
   wallEdges,
   yawOf,
 } from './gridSnap';
+
+/** Wie eine Wand ungekürzt war (`PortalWorld.wallBase`). */
+interface WallBase {
+  half: THREE.Vector3;
+  scale: THREE.Vector3;
+  long: number;
+}
 import { swapOut } from './shelfSwap';
 import { PlaceGrid } from './placeGrid';
 import {
@@ -293,6 +303,8 @@ import { BRAINS, brainLabel } from '../npc/npcBrains';
 import { npcSettings, saveNpcSettings } from './tools/gearStore';
 import { withBrain, withKind } from '../npc/npcSettings';
 import { LANDING_CLEARANCE, needsRescue, rescueHeight } from '../shared/fallRescue';
+import { FallTrail, fallReportText } from '../shared/fallTrail';
+import { FallReport } from '../../ui/fallReport';
 import {
   EARTH_GRAVITY,
   PHYSICS_FIELDS,
@@ -1315,6 +1327,9 @@ export class PortalWorld implements World {
   /** Wo der Spieler zuletzt festen Boden unter den Füßen hatte. */
   private readonly lastGround = new THREE.Vector3();
   private hasLastGround = false;
+  /** Die letzten Stellen des Spielers — für den Bericht nach einem Sturz (`shared/fallTrail.ts`). */
+  private readonly fallTrail = new FallTrail();
+  private readonly fallReport = new FallReport();
   /** Die Fläche bis zum Horizont, unter allem, was die Welt sonst baut. */
   private horizonFloor: THREE.Mesh | null = null;
   /** Läuft, wenn jemand die Welt-Physik umstellt. */
@@ -1739,7 +1754,7 @@ export class PortalWorld implements World {
     this.updatePortalDepth(ctx);
     this.updateAim(ctx);
     this.applyViewOverride(ctx);
-    this.updateFallRescue(ctx);
+    this.updateFallRescue(ctx, dt);
     this.updateHitboxes();
     // Zuletzt: was die Welt für sich selbst tut. Dieselbe Zeile läuft in der
     // laufenden Vorschau ohne alles darüber (`stepPreview`).
@@ -3310,6 +3325,10 @@ export class PortalWorld implements World {
     const spin = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
     const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
     const entry = this.createModelProp(id, kind, model, at, spin);
+    // **Eine Wand unter 45° kommt gekürzt** (`fitWall`) — aus einer Liste und
+    // vom Pinsel genauso wie aus der Hand.
+    const base = this.wallBase(entry);
+    this.fitWall(entry, gridPose(at.x, at.z, spin, base.half, base.long));
     // Ein Bodenstück aus einer eingefügten Liste liegt genauso im Boden wie
     // eines, das gerade hingestellt wurde — sonst stiege es beim Einfügen um
     // seine halbe Dicke wieder heraus.
@@ -4687,6 +4706,7 @@ export class PortalWorld implements World {
   }
 
   dispose(ctx: WorldContext): void {
+    this.fallReport.dispose();
     for (const foam of this.foams) foam.dispose();
     this.foams.length = 0;
     // Die Hand am Schirm hängt am **Rig** und nicht an der Welt: Sie überlebte
@@ -5505,6 +5525,15 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Wohin ein Sturz aus der Welt führt**: an den Startpunkt (`true`) oder
+   * auf die letzte Stelle mit Boden (`false`, die Vorgabe des Sandkastens).
+   * Die Welten auf dem Gitter nehmen den Start (`GridWorld`).
+   */
+  protected fallRespawnAtStart(): boolean {
+    return false;
+  }
+
+  /**
    * Wer unter die Welt fällt, kommt oben wieder heraus.
    *
    * Gemerkt wird die letzte Stelle mit Boden unter den Füßen; von dort geht
@@ -5513,9 +5542,11 @@ export class PortalWorld implements World {
    * und „im Keller eines Hauses": von unten gesucht landet man unter dem Dach,
    * von oben darauf.
    */
-  private updateFallRescue(ctx: WorldContext): void {
+  private updateFallRescue(ctx: WorldContext, dt: number): void {
     const locomotion = this.locomotion;
     if (!locomotion || ctx.rig.frozen || this.viewOverride) return;
+    ctx.rig.getHeadPosition(_head);
+    this.fallTrail.record(dt, _head.x, ctx.rig.getFloorY(), _head.z, locomotion.grounded);
     if (locomotion.grounded) {
       ctx.rig.getHeadPosition(_head);
       this.lastGround.set(_head.x, 0, _head.z);
@@ -5601,6 +5632,27 @@ export class PortalWorld implements World {
 
   /** Setzt den Spieler auf die Oberfläche über der Stelle, an der er fiel. */
   private rescuePlayer(ctx: WorldContext): void {
+    // **Erst der Bericht, dann die Rettung** (`shared/fallTrail.ts`,
+    // `ui/fallReport.ts`): der Weg bis hierher, oben im Bild zum Kopieren.
+    ctx.rig.getHeadPosition(_head);
+    const where = typeof location === 'undefined' ? 'Welt' : location.hash || location.pathname;
+    this.fallReport.show(
+      fallReportText(where, this.fallTrail.trail, {
+        x: _head.x,
+        y: ctx.rig.getFloorY(),
+        z: _head.z,
+      }),
+    );
+    this.fallTrail.clear();
+    if (this.fallRespawnAtStart()) {
+      // **Zurück an den Start** — gewünscht für die Welten auf dem Gitter:
+      // Wer durch eine Wand fiel, stünde an der letzten Stelle mit Boden
+      // womöglich wieder hinter ihr.
+      this.hasLastGround = false;
+      this.movePlayerTo(ctx, this.spawnPoint(), this.spawnYaw());
+      ctx.notify('Durch die Welt gefallen — zurück am Start');
+      return;
+    }
     const spawn = this.spawnPoint();
     const x = this.hasLastGround ? this.lastGround.x : spawn.x;
     const z = this.hasLastGround ? this.lastGround.z : spawn.z;
@@ -8754,7 +8806,7 @@ export class PortalWorld implements World {
       if (this.craneNow && !controller) {
         const scale = new THREE.Vector3();
         offset.decompose(_point, _quaternion, scale);
-        _quaternion.setFromAxisAngle(UP, quarterYaw(yawOf(_quaternion)));
+        _quaternion.setFromAxisAngle(UP, eighthYaw(yawOf(_quaternion)));
         offset.compose(_point, _quaternion, scale);
         entry.object.getWorldPosition(_point);
       }
@@ -8905,7 +8957,7 @@ export class PortalWorld implements World {
     // Gemeldet war: _„wenn ich ein objekt rotiert habe und gesetzt habe,
     // [soll] die rotation für das nächste objekt erhalten bleiben."_
     entry.object.getWorldQuaternion(_quaternion);
-    const yaw = quarterYaw(yawOf(_quaternion));
+    const yaw = eighthYaw(yawOf(_quaternion));
     queueMicrotask(() => {
       if (this.context === ctx) this.takeModel(ctx, path, hand, yaw);
     });
@@ -8979,7 +9031,8 @@ export class PortalWorld implements World {
   ): void {
     const entry = paint.entry;
     entry.object.getWorldQuaternion(_quaternion);
-    const pose = gridPose(x, z, _quaternion, entry.halfExtents);
+    const base = this.wallBase(entry);
+    const pose = gridPose(x, z, _quaternion, base.half, base.long);
     const key = `${pose.x.toFixed(3)}/${pose.z.toFixed(3)}`;
     if (paint.done.has(key)) return;
     paint.done.add(key);
@@ -8993,6 +9046,63 @@ export class PortalWorld implements World {
     const y = ctx.rig.getFloorY() + entry.halfExtents.y + AREA_LIFT;
     paint.count += 1;
     void this.placeModelAt(paint.path, new THREE.Vector3(pose.x, y, pose.z), pose.yaw);
+  }
+
+  /**
+   * **Wie eine Wand aus dem Regal ungekürzt war** — halbe Grundfläche, Maßstab
+   * und gerade Länge. Nach `fitWall` steht das unter `userData.wallBase`, denn
+   * am gekürzten Körper ließe sich nicht mehr ablesen, wie viele Kacheln er
+   * gerade einnähme.
+   */
+  private wallBase(entry: PhysicsBody): {
+    half: THREE.Vector3;
+    scale: THREE.Vector3;
+    long: number;
+  } {
+    const stored = (entry.object.userData as { wallBase?: WallBase }).wallBase;
+    if (stored) return stored;
+    const half = entry.halfExtents.clone();
+    return { half, scale: entry.object.scale.clone(), long: 2 * Math.max(half.x, half.z) };
+  }
+
+  /**
+   * **Eine Wand unter 45° auf ihre Diagonale kürzen** (`gridSnap.diagonalPose`)
+   * — Bild und Körper, längs ihrer langen Achse, auf `tiles`·√2 m. Eine 2×1-Wand
+   * geht dann genau durch eine Kachel, eine 4×1-Wand durch zwei. Die Kacheln
+   * und die Schräge stehen danach unter `userData.diagonalWall`: Die Welt auf
+   * dem Gitter macht daraus Schrägen für das Zellgitter
+   * (`GridWorld.refreshWallSlopes`).
+   *
+   * Wird sie wieder gerade hingestellt, bekommt sie ihr altes Maß zurück.
+   */
+  private fitWall(entry: PhysicsBody, pose: PlacePose): void {
+    const data = entry.object.userData as { wallBase?: WallBase; diagonalWall?: DiagonalWall };
+    const physics = this.physics;
+    if (!physics) return;
+    if (!pose.diagonal) {
+      const base = data.wallBase;
+      if (!base) return;
+      entry.object.scale.copy(base.scale);
+      physics.resize(entry, base.half);
+      delete data.wallBase;
+      delete data.diagonalWall;
+      return;
+    }
+    const base = this.wallBase(entry);
+    data.wallBase = base;
+    const factor = pose.diagonal.length / base.long;
+    const alongX = base.half.x >= base.half.z;
+    entry.object.scale.copy(base.scale);
+    const half = base.half.clone();
+    if (alongX) {
+      entry.object.scale.x *= factor;
+      half.x *= factor;
+    } else {
+      entry.object.scale.z *= factor;
+      half.z *= factor;
+    }
+    physics.resize(entry, half);
+    data.diagonalWall = pose.diagonal;
   }
 
   /**
@@ -9018,7 +9128,9 @@ export class PortalWorld implements World {
 
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
-    const pose = gridPose(_point.x, _point.z, _quaternion, entry.halfExtents);
+    const base = this.wallBase(entry);
+    const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long);
+    this.fitWall(entry, pose);
     _point.set(pose.x, _point.y, pose.z);
     _quaternion.setFromAxisAngle(UP, pose.yaw);
 
@@ -9130,7 +9242,17 @@ export class PortalWorld implements World {
     }
     entry.object.getWorldPosition(_point);
     entry.object.getWorldQuaternion(_quaternion);
-    const pose = gridPose(_point.x, _point.z, _quaternion, entry.halfExtents);
+    const base = this.wallBase(entry);
+    const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long);
+    const floorY = ctx.rig.getFloorY();
+    // **Eine Wand unter 45°** leuchtet die Kacheln an, durch die sie schräg geht.
+    if (pose.diagonal) {
+      grid.show(
+        pose.diagonal.cells.map((cell) => ({ x: (cell.x + 0.5) * TILE, z: (cell.z + 0.5) * TILE })),
+        floorY,
+      );
+      return;
+    }
     // **Die Grundfläche einer Vierteldrehung** ist die des Colliders, bei einer
     // Viertel- oder Dreivierteldrehung mit vertauschten Achsen
     // (`gridSnap.turnedHalf`) — dieselbe, mit der gerade eingerastet wurde.

@@ -6,7 +6,10 @@ import {
   CellGrid,
   blockStart,
   cellsFor,
+  gateStep,
+  glides,
   moveOnCells,
+  standable,
   cellCentre,
   navCellSource,
   slopeBlocks,
@@ -209,10 +212,99 @@ describe('Blöcke jeder Größe und die eine Bewegung', () => {
     expect(snapCell(q.x, q.z)).toEqual({ cx: 1, cz: 2 });
   });
 
+  it('lässt den Körper nicht in eine Wand — nur eine Achtelzelle über die Blockmitte', () => {
+    const { graph } = room();
+    // Eine Innenwand auf der Fuge x = 2 (Kachel 1 nach Osten), über die ganze Höhe.
+    for (const z of [0, 1, 2]) graph.setWall(tileKey(1, z), DIR_E, { kind: 'solid' });
+    const grid = new CellGrid(navCellSource(graph, () => null));
+    let p = { x: 1, z: 1.5 };
+    for (let i = 0; i < 100; i++) p = moveOnCells(grid, p, 0.03, 0);
+    // Die Blockmitte vor der Wand liegt bei x = 1,5; weiter als 1,5 + 0,125 nicht.
+    expect(p.x).toBeGreaterThan(1.5);
+    expect(p.x).toBeLessThanOrEqual(1.625 + 1e-9);
+    // Mit 0,24 m Körper bleibt die Wand (Fuge 2, 0,1 m dick) unberührt.
+    expect(2 - 0.1 - (p.x + 0.24)).toBeGreaterThan(0);
+  });
+
   it('lässt aus einem gesperrten Block heraus', () => {
     const grid = new CellGrid({ ...open, floor: (tx) => tx >= 0 });
     const at = { x: 0.1, z: 1 };
     expect(grid.footprintFree(snapCell(at.x, at.z))).toBe(false);
     expect(moveOnCells(grid, at, 0.3, 0).x).toBeCloseTo(0.4);
+  });
+});
+
+describe('Eine 45°-Wand mit nichts dahinter — wie die Ecken der Station', () => {
+  /**
+   * Ein Feld 8 × 8, dessen Nordwestecke unter 45° abgeschnitten ist: Auf der
+   * Diagonale x + z = 3 (Kacheln) stehen Schrägen „╱", dahinter fehlt der
+   * Boden. `voidIsFree` wie für den Spieler: Das Nichts sagt nichts.
+   */
+  function cornered(): CellGrid {
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 8, d: 8 });
+    wallRect(graph, { x: 0, z: 0, w: 8, d: 8 });
+    const slopes = new Map<TileKey, Slope>();
+    for (let x = 0; x < 8; x++)
+      for (let z = 0; z < 8; z++) {
+        if (x + z < 3) graph.removeTile(tileKey(x, z));
+        else if (x + z === 3) slopes.set(tileKey(x, z), 'slash');
+      }
+    return new CellGrid(
+      navCellSource(graph, (key) => slopes.get(key) ?? null, { voidIsFree: true }),
+    );
+  }
+
+  it('lässt niemanden über die Schräge, in keiner Richtung und bei keinem Tempo', () => {
+    const grid = cornered();
+    for (let a = 0; a < 16; a++) {
+      const angle = (a / 16) * Math.PI * 2;
+      for (const step of [0.02, 0.07, 0.2, 0.45]) {
+        let p = { x: 3.5, z: 3.5 };
+        for (let i = 0; i < 400; i++) {
+          // Erst an der Wand entlang, dann mit Gewalt schräg hinein.
+          const turn = i < 150 ? angle : angle + (i % 7) * 0.3;
+          p = moveOnCells(grid, p, Math.cos(turn) * step, Math.sin(turn) * step);
+          // Die Schräge läuft über x + z = 4 Meter; innen bleibt man darüber.
+          expect(p.x + p.z).toBeGreaterThan(4);
+          expect(Math.max(p.x, p.z)).toBeLessThan(8);
+        }
+      }
+    }
+  });
+
+  it('hält auch die Zellsperre des Spielers — mit Stößen der Physik dazwischen', () => {
+    const grid = cornered();
+    let seed = 7;
+    const random = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let a = 0; a < 16; a++) {
+      const memory = { lastFree: null as { x: number; z: number } | null };
+      let p = { x: 3.5, z: 3.5 };
+      for (let i = 0; i < 600; i++) {
+        const turn = (a / 16) * Math.PI * 2 + (i > 200 ? (random() - 0.5) * 2 : 0);
+        const step = 0.02 + random() * 0.3;
+        const dx = Math.cos(turn) * step,
+          dz = Math.sin(turn) * step;
+        // Wie `PhysicsLocomotion.gateCells`: ganz, nur x, nur z, gar nicht.
+        const full = { x: p.x + dx, z: p.z + dz },
+          alongX = { x: p.x + dx, z: p.z },
+          alongZ = { x: p.x, z: p.z + dz };
+        if (gateStep(grid, p, full, memory)) p = full;
+        else if (gateStep(grid, p, alongX, memory)) p = alongX;
+        else if (gateStep(grid, p, alongZ, memory)) p = alongZ;
+        // Ab und zu ein Stoß, an dem das Gitter nicht gefragt wird.
+        if (i % 37 === 0) p = { x: p.x + (random() - 0.5) * 0.2, z: p.z + (random() - 0.5) * 0.2 };
+        expect(p.x + p.z).toBeGreaterThan(4 - 0.15);
+      }
+    }
+  });
+
+  it('gleitet über Eck nur im Streifen zwischen zwei freien Blöcken', () => {
+    const grid = new Picture(['#..', '...', '..#']);
+    // Zwischen (1, 2) und (2, 1) liegt der Streifen: dort darf man stehen.
+    expect(standable(grid, 0.75, 0.75)).toBe(true);
+    // Neben dem Streifen, auf dem gesperrten Block (1, 1), nicht.
+    expect(standable(grid, 0.5, 0.5)).toBe(false);
+    expect(glides(grid, 0.5, 1, 1, 0.5)).toBe(true);
   });
 });

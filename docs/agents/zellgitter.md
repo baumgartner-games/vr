@@ -119,6 +119,38 @@ den großen Kacheln bleibt.
     `GridPlan` hängt sie in seinen Graphen, `GridWorld.navReady` in den
     abgetasteten.
 
+- **Wo eine Figur stehen darf** (`standable`, seit Oktober 2026):
+  - Logisch auf einem freien Block, gezeichnet nur **zwischen** freien
+    Blöcken: auf der Verbindung zweier freier Nachbarn (gerade oder schräg)
+    mit einer Achtelzelle Spiel zu jeder Seite, oder in einem Feld, dessen
+    vier Blockmitten frei sind.
+  - Vorher durfte sie eine Viertelzelle in jede Richtung über ihren Block
+    hinaus, auch zur Wand hin — dann steckte ihr Körper in der Wand (gemeldet
+    in der Küche der Testwelt).
+  - **Über Eck** ist nur der schmale Streifen zwischen den beiden freien
+    Blöcken erlaubt, nicht das ganze Quadrat.
+  - `glides` prüft eine Strecke in Viertelzellen, damit ein langes Bild nicht
+    über etwas springt.
+- **Aus einem gesperrten Block** (abgesetzt, geschoben) geht es heraus, aber
+  nicht über eine Wand:
+  - Der Spieler (`gateStep`, `GridWorld.playerCellGate`) darf nur zurück zur
+    letzten Stelle, an der er stehen durfte.
+  - Früher war von einem gesperrten Block aus jeder Schritt erlaubt. Über den
+    Streifen über Eck kam man an einer 45°-Wand so auf einen gesperrten Block
+    und von dort ins Leere hinter der Station — gemeldet als Sturz aus
+    Haunting.
+  - `moveOnCells` lässt eine gestrandete Figur innerhalb ihres Blocks und auf
+    einen freien.
+- **Wer doch durch die Welt fällt**, bekommt oben eine Box mit dem Weg dorthin
+  zum Kopieren (`shared/fallTrail.ts`, `ui/fallReport.ts`). In den Welten auf
+  dem Gitter beginnt er danach am Startpunkt (`fallRespawnAtStart`).
+- **Wände aus dem Regal unter 45°** (`gridSnap.diagonalPose`,
+  `PortalWorld.fitWall`) werden Schrägen im Zellgitter
+  (`GridWorld.refreshWallSlopes`).
+- **Der Wandparcours der Testwelt** (`test/zones/wallLab.ts`, im Menü
+  _Wandparcours_) hat gerade Wand, Ecke, Lücke, Gang, beide Schrägen, einen
+  schrägen Gang und einen Knick wie an der Station. Die Tests laufen mit
+  `gateStep` dagegen (`wallLab.test.ts`).
 - **Alle Figuren gehen auf dem Gitter** (`moveOnCells`, `glides`):
   - Der Spieler über `PhysicsLocomotion.cellGate`, die NPCs über
     `NpcWorld.cells` (`GridWorld.cellsForAgents`): `Npc.update` schneidet die
@@ -127,10 +159,10 @@ den großen Kacheln bleibt.
   - Schiebt die Physik einen NPC (ein Stoß) auf einen gesperrten Block, holt
     ihn `Npc.holdOnCells` auf die letzte freie Stelle zurück — außer über
     Eck.
-  - **Über Eck gleiten** (`glides`): Stetig gerundet wechselt eine Figur erst
-    in einer Achse. Der Block dazwischen darf gesperrt sein, wenn der
-    schräge, auf den sie zuläuft, frei ist — sonst käme niemand durch die
-    Lücke aus dem Bild oben.
+  - **Über Eck gleiten** (`standable`): Stetig gerundet wechselt eine Figur
+    erst in einer Achse. Der Block dazwischen darf gesperrt sein, solange
+    sie im Streifen zwischen den beiden freien Blöcken bleibt — sonst käme
+    niemand durch die Lücke aus dem Bild oben.
 - **Die Größe des Agenten** (`NpcSkin.cells`, `AgentTuning.cells`, Vorgabe
   2): Auf Blöcken dieser Größe plant `cellRoute` und geht `moveOnCells`.
 - **Getroffen wird auf dem festen Block**: Die Reichweite des Hirns misst von

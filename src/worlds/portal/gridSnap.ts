@@ -126,9 +126,15 @@ export function gridPose(
   z: number,
   rotation: Turned,
   half?: { readonly x: number; readonly z: number },
+  long?: number,
 ): PlacePose {
-  const yaw = quarterYaw(yawOf(rotation));
-  if (!half) return { x: tileCentre(x), z: tileCentre(z), yaw, wall: null };
+  const raw = yawOf(rotation);
+  if (half && wallAxis(2 * half.x, 2 * half.z) !== null) {
+    const eighth = eighthYaw(raw);
+    if (isDiagonal(eighth)) return diagonalPose(x, z, eighth, half, long);
+  }
+  const yaw = quarterYaw(raw);
+  if (!half) return { x: tileCentre(x), z: tileCentre(z), yaw, wall: null, diagonal: null };
   const { halfX, halfZ } = turnedHalf(half, yaw);
   const wall = wallAxis(2 * halfX, 2 * halfZ);
   return {
@@ -136,6 +142,74 @@ export function gridPose(
     z: snapAxis(z, 2 * halfZ, wall === 'z'),
     yaw,
     wall,
+    diagonal: null,
+  };
+}
+
+/**
+ * **Auf das nächste Achtel gerundet**, in Bogenmaß, in (−180°, 180°] — die
+ * Drehung, in der eine Wand stehen darf: gerade oder unter 45°.
+ */
+export function eighthYaw(yaw: number): number {
+  if (!Number.isFinite(yaw)) return 0;
+  const eighth = Math.PI / 4;
+  const turns = ((Math.round(yaw / eighth) % 8) + 8) % 8;
+  return turns > 4 ? (turns - 8) * eighth : turns * eighth;
+}
+
+/** Ob ein Achtel schräg ist — 45°, 135°, … */
+export function isDiagonal(yaw: number): boolean {
+  return Math.abs(Math.round(yaw / (Math.PI / 4))) % 2 === 1;
+}
+
+/**
+ * **Eine Wand unter 45° einrasten** (`DiagonalWall`).
+ *
+ * `long` ist die gerade Länge der Wand, wie sie aus dem Regal kam — nach dem
+ * Kürzen steht an `half` die schräge, und aus der ließe sich die Zahl der
+ * Kacheln nicht mehr zurückrechnen.
+ *
+ * Bei ungerader Zahl Kacheln sitzt die Mitte auf einer Kachelmitte, bei
+ * gerader auf einer Kachelecke — genau wie eine Wand auf Kacheln.
+ */
+export function diagonalPose(
+  x: number,
+  z: number,
+  yaw: number,
+  half: { readonly x: number; readonly z: number },
+  long?: number,
+): PlacePose {
+  const straight = long ?? 2 * Math.max(half.x, half.z);
+  const tiles = Math.max(1, Math.round(tileSpan(straight) / 2));
+  const odd = tiles % 2 === 1;
+  const px = odd ? tileCentre(x) : Math.round(x / TILE) * TILE;
+  const pz = odd ? tileCentre(z) : Math.round(z / TILE) * TILE;
+  // Die lange Achse im eigenen Rahmen, in die Welt gedreht (three.js: +x
+  // wird zu (cos, −sin), +z zu (sin, cos)).
+  const alongX = half.x >= half.z;
+  const dx = alongX ? Math.cos(yaw) : Math.sin(yaw);
+  const dz = alongX ? -Math.sin(yaw) : Math.cos(yaw);
+  const sx = Math.sign(Math.round(dx * 1e6)) || 1,
+    sz = Math.sign(Math.round(dz * 1e6)) || 1;
+  const cells: Array<{ x: number; z: number }> = [];
+  for (let k = 0; k < tiles; k++) {
+    const off = k - (tiles - 1) / 2;
+    cells.push({
+      x: Math.floor((px + off * sx * TILE) / TILE),
+      z: Math.floor((pz + off * sz * TILE) / TILE),
+    });
+  }
+  return {
+    x: px,
+    z: pz,
+    yaw,
+    wall: null,
+    diagonal: {
+      tiles,
+      length: tiles * Math.SQRT2 * TILE,
+      slope: sx * sz < 0 ? 'slash' : 'backslash',
+      cells,
+    },
   };
 }
 
@@ -148,6 +222,29 @@ export function gridPose(
  */
 export interface PlacePose extends GridPose {
   readonly wall: 'x' | 'z' | null;
+  /** Eine Wand unter 45° (`diagonalPose`) — sonst `null`. */
+  readonly diagonal: DiagonalWall | null;
+}
+
+/**
+ * **Eine Wand unter 45°** — gewünscht: _„Dann soll eine 2x1 Wand auch nur
+ * genau 1l1u stehen können (z.B. mit rechten Stick auf 45° gedreht), und eine
+ * 4x1 Wand soll dann 2l2u abdecken."_
+ *
+ * Sie geht schräg durch `tiles` Kacheln, eine je zwei Kacheln ihrer geraden
+ * Länge, und wird dafür auf die Diagonale dieser Kacheln gekürzt (`length`,
+ * `tiles`·√2 m). Jede Kachel trägt danach eine Schräge (`nav/cellGrid.Slope`)
+ * — über das Gehen entscheidet sie auf dem Zellgitter wie eine gebaute
+ * (`GridWorld`, `wallSlopes`).
+ */
+export interface DiagonalWall {
+  readonly tiles: number;
+  /** Die gekürzte Länge längs der Wand, in Metern. */
+  readonly length: number;
+  /** „╱" von Südwest nach Nordost oder „╲" von Nordwest nach Südost. */
+  readonly slope: 'slash' | 'backslash';
+  /** Die Kacheln, durch die sie geht, als Kachelnummern. */
+  readonly cells: ReadonlyArray<{ readonly x: number; readonly z: number }>;
 }
 
 /**

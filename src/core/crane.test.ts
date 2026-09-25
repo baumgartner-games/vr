@@ -16,6 +16,7 @@ import {
   CRANE_MAX_SPEED,
   CRANE_PAN,
   cranePan,
+  craneEighth,
   craneQuarter,
   craneTurn,
   craneVelocity,
@@ -40,16 +41,17 @@ describe('crane', () => {
     expect(cranePan(0, 0, 5, false, 1)).toEqual({ x: 0, z: 0 });
   });
 
-  it('dreht mit R um ein Viertel im Uhrzeigersinn, mit Shift zurück', () => {
-    const quarter = Math.PI / 2;
-    expect(craneTurn(0, true)).toBeCloseTo(-quarter, 9);
-    expect(craneTurn(0, false)).toBeCloseTo(quarter, 9);
-    // Vier Drehungen sind eine ganze — und aus einem schiefen Winkel wird
+  it('dreht mit R um ein Achtel im Uhrzeigersinn, mit Shift zurück', () => {
+    const eighth = Math.PI / 4;
+    expect(craneTurn(0, true)).toBeCloseTo(-eighth, 9);
+    expect(craneTurn(0, false)).toBeCloseTo(eighth, 9);
+    // Acht Drehungen sind eine ganze — und aus einem schiefen Winkel wird
     // zuerst ein gerader.
-    let yaw = 0.3;
-    for (let i = 0; i < 4; i++) yaw = craneTurn(yaw, true);
+    let yaw = 0.1;
+    for (let i = 0; i < 8; i++) yaw = craneTurn(yaw, true);
     expect(yaw).toBeCloseTo(0, 9);
-    expect(craneQuarter(1.4)).toBeCloseTo(quarter, 9);
+    expect(craneEighth(0.7)).toBeCloseTo(eighth, 9);
+    expect(craneQuarter(1.4)).toBeCloseTo(Math.PI / 2, 9);
     expect(craneQuarter(Number.NaN)).toBe(0);
   });
 

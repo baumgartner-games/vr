@@ -11,6 +11,7 @@ import {
   RANGE,
   START,
   CLIMB,
+  WALL_LAB,
 } from './layout';
 import { fitClimb, stampClimb } from './zones/climb';
 import { fitEffects, stampEffects } from './zones/effects';
@@ -22,6 +23,7 @@ import { fitPodium, stampPodium } from './zones/podium';
 import { fitPortals, stampPortals } from './zones/portals';
 import { fitRange, stampRange } from './zones/range';
 import { fitStart, stampStart } from './zones/start';
+import { fitWallLab, stampWallLab } from './zones/wallLab';
 
 /**
  * **Die Testwelt als Grundriss** — ein Gelände, neun Zonen, ein Boden.
@@ -92,6 +94,7 @@ export function testPlan(): GridPlan {
     RANGE,
     CLIMB,
     KITCHEN,
+    WALL_LAB,
     ...PATHS,
   ]) {
     plan.floor(rect);
@@ -105,6 +108,7 @@ export function testPlan(): GridPlan {
   stampKart(plan);
   stampClimb(plan);
   stampKitchen(plan);
+  stampWallLab(plan);
   // Nach dem Boden des Obergeschosses, und deshalb als vorletzte: Die Treppe
   // schlägt das Loch über sich selbst, und was danach noch Boden legt, legt es
   // wieder zu.
@@ -137,6 +141,7 @@ export function fitTest(plan: GridPlan): void {
   fitKart(plan);
   fitClimb(plan);
   fitKitchen(plan);
+  fitWallLab(plan);
   fitPodium(plan);
   fitPortals(plan);
 }

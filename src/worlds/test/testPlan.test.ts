@@ -499,6 +499,7 @@ function roundTrip(source: GridPlan): GridPlan {
     read.blocks,
     read.masses,
     read.fixtures,
+    read.slopes,
   );
 }
 

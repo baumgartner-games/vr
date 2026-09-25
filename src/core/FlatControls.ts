@@ -24,7 +24,7 @@ import {
 import { inputConfig, onInputConfigChange } from './inputStore';
 import { pinchFactor, yawFromDirection, type Vec2 } from './topDownPose';
 import { smoothAngle } from '../net/PoseSmoothing';
-import { cranePan, craneQuarter, craneTurn, craneVelocity } from './crane';
+import { craneEighth, cranePan, craneQuarter, craneTurn, craneVelocity } from './crane';
 
 /**
  * **Ein abgefangener Druck** — was das Menü beim Einstellen bekommt. Am Pad
@@ -302,7 +302,7 @@ export class FlatControls {
    *   (`TopDownCamera.pan`), und nicht mehr den Kran.
    * - **Mauszeiger oder ein Finger auf dem Glas** sagen, wo der Kran steht:
    *   der Punkt am Boden unter dem Zeiger (`TopDownCamera.groundPoint`).
-   * - **`R` dreht ihn** um ein Viertel (`Shift`+`R` zurück), der **rechte
+   * - **`R` dreht ihn** um ein Achtel (zweimal ist ein Viertel) (`Shift`+`R` zurück), der **rechte
    *   Stock** (am Pad und auf dem Glas) richtet ihn aus (`crane.craneTurn`).
    *   Von selbst dreht er sich nicht mehr — auch nicht in Flugrichtung.
    *
@@ -519,7 +519,7 @@ export class FlatControls {
     const sz = pad.aim.x !== 0 || pad.aim.y !== 0 ? pad.aim.y : this.aimStick.y;
     const now = _euler.setFromQuaternion(this.rig.quaternion, 'YXZ').y;
     let yaw = now;
-    if (Math.hypot(sx, sz) > CRANE_STICK_TURN) yaw = craneQuarter(this.groundYaw(sx, sz));
+    if (Math.hypot(sx, sz) > CRANE_STICK_TURN) yaw = craneEighth(this.groundYaw(sx, sz));
     for (; this.craneTurns > 0; this.craneTurns--) yaw = craneTurn(yaw, true);
     for (; this.craneTurns < 0; this.craneTurns++) yaw = craneTurn(yaw, false);
     if (yaw !== now) {
