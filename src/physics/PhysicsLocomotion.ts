@@ -159,6 +159,8 @@ const _desired = new THREE.Vector3();
 const _applied = new THREE.Vector3();
 /** Was nach dem Gleiten in der Ebene von `_desired` übrig ist (`plane`). */
 const _ask = new THREE.Vector3();
+/** Der waagerechte Teil davon, für den Schritt über dem Boden (`walkPlane`). */
+const _flat = new THREE.Vector3();
 const _rotation = new THREE.Quaternion();
 const _matrix = new THREE.Matrix4();
 
@@ -212,6 +214,14 @@ export interface PlayerPlane {
  * erst, und wer unter dem Lauf steht, steht nicht auf ihm.
  */
 const FLIGHT_CATCH = 0.35;
+
+/**
+ * **Wie hoch der waagerechte Schritt über dem Boden gemacht wird**, wo in der
+ * Ebene gegangen wird (`walkPlane`) — so hoch, wie der Controller steigt. Was
+ * niedriger ist, hält nicht auf, sondern wird bestiegen: eine Schwelle, eine
+ * Stufe, die Fuge zwischen zwei Bodenkörpern.
+ */
+const PLANE_STEP = 0.32;
 
 export class PhysicsLocomotion implements Locomotion {
   readonly velocity = new THREE.Vector3();
@@ -479,7 +489,8 @@ export class PhysicsLocomotion implements Locomotion {
     if (stair !== null && Math.abs(stair - foot) <= FLIGHT_CATCH) {
       this.walkFlight(stair - foot);
     } else {
-      this.walkPhysics();
+      if (plane && !this.flight) this.walkPlane();
+      else this.walkPhysics();
       // Was die Physik noch dazutut (ein Stoß, eine Rutsche), bleibt
       // ebenfalls vor den Wänden der Ebene.
       if (plane && (_applied.x !== 0 || _applied.z !== 0)) {
@@ -538,6 +549,69 @@ export class PhysicsLocomotion implements Locomotion {
     _applied.set(_ask.x, lift, _ask.z);
     this.grounded = true;
     this.velocity.y = 0;
+    this.recovered = 0;
+  }
+
+  /**
+   * **Der Schritt in der Ebene, und die Physik nur für die Höhe.**
+   *
+   * Gemessen an der Schräge im Wandparcours: Die Ebene ließ den Spieler sauber
+   * an der Wand entlanggleiten, und dann gab der Character-Controller den
+   * Schritt nicht her — alle paar Dutzend Bilder ein ganzes Bild lang null,
+   * auch mitten auf freiem Boden. Er hakt mit der Sohle an den Fugen zwischen
+   * den Bodenkörpern. Das war das Stocken im Video (_„das Gleiten klappt
+   * manchmal und manchmal nicht"_).
+   *
+   * Deshalb geht der waagerechte Schritt **eine Stufe über dem Boden**
+   * (`PLANE_STEP`): Dort hält nur, was höher ist als eine Stufe — Kisten,
+   * Brüstungen, Säulen —, und keine Fuge. Die Höhe kommt danach aus einem
+   * Formwurf nach unten: Boden in Reichweite heißt stehen (eine Stufe hinauf
+   * oder hinunter inbegriffen), keiner heißt fallen.
+   */
+  private walkPlane(): void {
+    const groups = interactionGroups(GROUP_PLAYER, PLAYER_FILTER & ~this.phaseMask);
+    const t = this.body.translation();
+    const top = t.y + PLANE_STEP;
+    this.body.setTranslation({ x: t.x, y: top, z: t.z }, false);
+    this.physics.syncColliders();
+    _flat.set(_ask.x, 0, _ask.z);
+    this.controller.computeColliderMovement(this.collider, _flat, undefined, groups);
+    const moved = this.controller.computedMovement();
+    const hx = moved.x,
+      hz = moved.z;
+    this.body.setTranslation(t, false);
+    this.physics.syncColliders();
+
+    const fall = _ask.y;
+    if (fall > 0) {
+      _applied.set(hx, fall, hz);
+      this.grounded = false;
+      return;
+    }
+    // Hinunter reicht der Wurf eine Stufe unter die Sohle, wer steht — so
+    // geht man eine Stufe abwärts, statt über ihr zu fliegen —, und sonst so
+    // weit, wie man in diesem Bild fällt.
+    const reach = PLANE_STEP + (this.grounded ? PLANE_STEP : 0) - fall;
+    const hit = this.physics.world.castShape(
+      { x: t.x + hx, y: top, z: t.z + hz },
+      UPRIGHT,
+      DOWN,
+      this.collider.shape,
+      CHARACTER_SKIN,
+      reach,
+      false,
+      undefined,
+      groups,
+      this.collider,
+      this.body,
+    );
+    if (hit) {
+      _applied.set(hx, top - hit.time_of_impact - t.y, hz);
+      this.grounded = true;
+    } else {
+      _applied.set(hx, fall, hz);
+      this.grounded = false;
+    }
     this.recovered = 0;
   }
 

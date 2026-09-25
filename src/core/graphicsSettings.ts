@@ -263,6 +263,32 @@ export interface GraphicsSettings {
    * Brille auf dem Kopf und die Welt, die ihre eigene Steuerung mitbringt.
    */
   screenPads: ScreenPads;
+  /**
+   * **Womit man am Glas läuft** — der Stock oder ein Steuerkreuz (_Menü →
+   * Einstellungen → Interface_). Gewünscht: _„neben Joysticks ein Steuerkreuz
+   * als Alternative"_. Das Kreuz kennt acht Richtungen und immer volles
+   * Tempo; der Stock bleibt die Voreinstellung.
+   */
+  movePad: MovePad;
+}
+
+/** Stock oder Steuerkreuz (`GraphicsSettings.movePad`). */
+export type MovePad = 'stick' | 'dpad';
+export const MOVE_PADS = ['stick', 'dpad'] as const;
+
+export const MOVE_PAD_LABELS: Readonly<Record<MovePad, string>> = {
+  stick: 'Joystick',
+  dpad: 'Steuerkreuz',
+};
+
+export const MOVE_PAD_SUBS: Readonly<Record<MovePad, string>> = {
+  stick: 'Ziehen, so weit und so schräg, wie man will',
+  dpad: 'Acht Richtungen, immer volles Tempo',
+};
+
+/** Ein Druck auf die Zeile: Joystick → Steuerkreuz und wieder zurück. */
+export function nextMovePad(pad: MovePad): MovePad {
+  return MOVE_PADS[(MOVE_PADS.indexOf(pad) + 1) % MOVE_PADS.length]!;
 }
 
 /**
@@ -424,6 +450,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   idleSquishScale: 1,
   idleSquishSpeed: 1,
   screenPads: 'auto',
+  movePad: 'stick',
 };
 
 export const GRAPHICS_MODE_LABELS: Record<GraphicsMode, string> = {
@@ -608,6 +635,9 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
   const screenPads = SCREEN_PADS.includes(raw.screenPads as ScreenPads)
     ? (raw.screenPads as ScreenPads)
     : DEFAULT_GRAPHICS.screenPads;
+  const movePad = MOVE_PADS.includes(raw.movePad as MovePad)
+    ? (raw.movePad as MovePad)
+    : DEFAULT_GRAPHICS.movePad;
   return {
     mode,
     xrScale,
@@ -627,6 +657,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     idleSquishScale,
     idleSquishSpeed,
     screenPads,
+    movePad,
   };
 }
 

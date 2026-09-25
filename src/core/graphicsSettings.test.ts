@@ -13,6 +13,7 @@ import {
   graphics,
   graphicsProfile,
   graphicsSummary,
+  nextMovePad,
   nextGraphicsMode,
   nextSquishScale,
   nextSquishSpeed,
@@ -54,7 +55,16 @@ describe('Grafikeinstellungen', () => {
       // Die Stöcke auf dem Glas entscheiden sich nach Gerät — nachgerechnet
       // wird das in `screenPads.test.ts`.
       screenPads: 'auto',
+      // Links unten der Stock — das Steuerkreuz ist die Wahl im Menü.
+      movePad: 'stick',
     });
+  });
+
+  it('merkt sich Stock oder Steuerkreuz und liest Unbekanntes als Stock', () => {
+    expect(clampGraphics({ movePad: 'dpad' }).movePad).toBe('dpad');
+    expect(clampGraphics({ movePad: 'kreuz' as never }).movePad).toBe('stick');
+    expect(nextMovePad('stick')).toBe('dpad');
+    expect(nextMovePad('dpad')).toBe('stick');
   });
 
   /**

@@ -156,6 +156,14 @@ Spüle, und in der Brille ein `A`, das neben der Ausgabe absprang, statt den
 Teller zu nehmen. Gehen, Ducken, Sprinten und Greifen bleiben unberührt, und
 einen Schritt vor der Tür springt es wieder wie überall.
 
+**Joystick oder Steuerkreuz** (_Menü → Einstellungen → Interface → Laufen
+am Schirm_, `graphicsSettings.movePad`). Links unten liegt ab Werk der Stock;
+wer umstellt, bekommt ein Steuerkreuz mit acht Richtungen und immer vollem
+Tempo (`core/dpad.ts`, `FlatControls.pressDpad`). Anders als beim Stock zählt
+die Richtung von der Mitte des Kreuzes und nicht vom ersten Aufsetzen, und
+schon der erste Druck läuft los. Gewünscht: _„neben Joysticks ein Steuerkreuz
+als Alternative"_.
+
 **In den Welten auf dem Gitter wird gar nicht gesprungen** (Testwelt, Hub,
 Editor, Haunting — seit Oktober 2026). Dort geht der Spieler in der Ebene
 (`PhysicsLocomotion.plane`, siehe [Das Zellgitter](./zellgitter.md)): Wände

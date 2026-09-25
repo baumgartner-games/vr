@@ -150,3 +150,50 @@ describe('Gehen in der Ebene mit echter Physik', () => {
     expect(rig.position.y).toBeLessThan(0.05);
   });
 });
+
+describe('Gleiten über einen Boden aus vielen Stücken', () => {
+  /**
+   * Gemessen im Wandparcours: Die Ebene gab den Schritt längs der Schräge her,
+   * und der Character-Controller schluckte ihn alle paar Dutzend Bilder ganz
+   * — er hakte mit der Sohle an den Fugen zwischen den Bodenkörpern. Hier ein
+   * Boden aus Kacheln von einem Meter und eine Schräge, an der man entlangläuft.
+   */
+  it('bleibt kein einziges Bild stehen', async () => {
+    const physics = await PhysicsWorld.create(-9.81);
+    for (let x = -2; x < 12; x++)
+      for (let z = -2; z < 12; z++) {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 0.2, 1));
+        mesh.position.set(x + 0.5, -0.1, z + 0.5);
+        mesh.updateMatrixWorld(true);
+        physics.addStatic(mesh, { membership: GROUP_WORLD, filter: ALL_GROUPS });
+      }
+    // Eine Wand „╲" von (0, 0) nach (10, 10), nur in der Ebene.
+    const wall = [{ ax: 0, az: 0, bx: 10, bz: 10 }];
+    const { slideCircle } = await import('../worlds/nav/planeMove');
+    const plane: PlayerPlane = {
+      slide: (x, z, dx, dz) => slideCircle(wall, x, z, dx, dz),
+      flightFloor: () => null,
+    };
+    const rig = new TestRig();
+    rig.position.set(1, 0, 3);
+    const loco = new PhysicsLocomotion(physics, rig.asRig);
+    loco.plane = plane;
+    const dt = 1 / 60;
+    const step = (vx: number, vz: number): void => {
+      loco.apply(rig.asRig, _move.set(vx, 0, vz), false, dt);
+      physics.step(dt);
+    };
+    for (let i = 0; i < 30; i++) step(0, 0);
+    // Nach Osten gegen die Wand, dann an ihr entlang nach Südosten.
+    let last = rig.position.clone();
+    let stalls = 0;
+    for (let i = 0; i < 240; i++) {
+      step(3.2, 0);
+      if (i > 20 && rig.position.distanceTo(last) < 0.01) stalls++;
+      last = rig.position.clone();
+    }
+    expect(stalls).toBe(0);
+    expect(rig.position.x).toBeGreaterThan(6);
+    expect(Math.abs(rig.position.y)).toBeLessThan(0.05);
+  });
+});
