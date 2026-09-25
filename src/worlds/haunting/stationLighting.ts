@@ -98,3 +98,15 @@ export function lampShadowDue(turn: boolean, moved: boolean, before: number, now
   if (now <= 0) return false;
   return turn || moved || before <= 0;
 }
+
+/**
+ * Ob eine dunkle Leuchte ihr ausstehendes Neuzeichnen **absagen** darf.
+ *
+ * Nur, wenn es ihre Karte schon gibt: three.js legt sie beim ersten Zeichnen
+ * an, und ein Licht mit Schatten, aber ohne Karte, tastet im Shader ins Leere.
+ * Genau das hat auf dem Handy die ganze Station schwarz gemacht — die Lampen
+ * starten dunkel, und abgesagt wurde, bevor je eine Karte gezeichnet war.
+ */
+export function lampShadowIdle(now: number, hasMap: boolean): boolean {
+  return now <= 0 && hasMap;
+}
