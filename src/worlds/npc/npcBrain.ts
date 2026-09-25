@@ -90,6 +90,12 @@ export interface BrainSense {
    * Wegpunkt ist immer nah, sonst wäre er keiner.
    */
   goal?: Point | null;
+  /**
+   * **Der Abstand zum Spieler, wenn die Welt ihn anders misst** als Luftlinie
+   * zwischen den gezeichneten Stellen — auf dem Zellgitter von Block zu Block
+   * (`Npc.update`). Fehlt er, zählt die Luftlinie.
+   */
+  range?: number;
   dt: number;
   /** Eine Zahl aus [0,1). Als Funktion, damit ein Test sie stellen kann. */
   random: () => number;
@@ -165,7 +171,7 @@ export function stepBrain(
 ): BrainStep {
   state.cooldown = Math.max(0, state.cooldown - sense.dt);
   const maxTurn = tuning.turn * DEG * sense.dt;
-  const range = sense.player ? distanceBetween(sense.at, sense.player) : Infinity;
+  const range = sense.player ? (sense.range ?? distanceBetween(sense.at, sense.player)) : Infinity;
   const sees = sense.player !== null && tuning.sense > 0 && range <= tuning.sense;
 
   if (id === 'wander') return wander(state, sense, tuning, maxTurn, sees);

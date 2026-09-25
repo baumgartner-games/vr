@@ -98,7 +98,8 @@ export function stationRoute(
     typeof goal === 'number'
       ? { x: tileCentreX(goal), z: tileCentreZ(goal) }
       : { x: goal.x, z: goal.z };
-  const end = grid.nearestFree(target.x, target.z, 0, 4, AGENT_CELLS) ?? snapCell(target.x, target.z);
+  const end =
+    grid.nearestFree(target.x, target.z, 0, 4, AGENT_CELLS) ?? snapCell(target.x, target.z);
   const found = grid.search(start, end, 0, AGENT_CELLS, (at) => dread(avoid, cellCentre(at)));
   const points = corners(found.path).map((at) => cellCentre(at));
   if (found.complete && points.length) {

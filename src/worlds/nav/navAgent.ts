@@ -1,3 +1,4 @@
+import { FOOTPRINT } from './cellGrid';
 import { cellRoute } from './cellRoute';
 import { NavBelief } from './navBelief';
 import { breakable } from './navDoor';
@@ -82,6 +83,12 @@ export interface AgentTuning {
    * nicht gehen kann.
    */
   stepUp: number;
+  /**
+   * **Wie viele halbe Kacheln er je Seite belegt** (`nav/cellGrid.ts`): 2 ist
+   * ein Block von 2 × 2, einen Meter breit — die Vorgabe für eine
+   * mittelgroße Figur. Auf Blöcken dieser Größe sucht `cellRoute` den Weg.
+   */
+  cells: number;
 }
 
 export const AGENT_DEFAULTS: AgentTuning = {
@@ -93,6 +100,7 @@ export const AGENT_DEFAULTS: AgentTuning = {
   maxNodes: 3000,
   girth: 0.3,
   stepUp: HUMAN_PROFILE.stepUp,
+  cells: FOOTPRINT,
 };
 
 /** Ein Punkt in der Welt, wie ihn die Welt herüberreicht. */
@@ -388,7 +396,7 @@ export class NavAgent {
     };
     const found = findPath(graph, from, to, options);
     this.route =
-      cellRoute(graph, found.tiles, at, found.complete ? goal : null) ??
+      cellRoute(graph, found.tiles, at, found.complete ? goal : null, this.tuning.cells) ??
       pullString(graph, found.tiles, options);
     this.tiles = [];
     for (const point of this.route) {

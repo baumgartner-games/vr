@@ -374,6 +374,40 @@ export function cellsFor(width: number): number {
 }
 
 /**
+ * **Ob eine Figur von einem freien Block aus stetig hierher gleiten darf** —
+ * die Regel, die `moveOnCells` und die Zellsperre des Spielers
+ * (`GridWorld.playerCellGate`) teilen.
+ *
+ * Erlaubt ist, was im eigenen Block bleibt oder auf einem freien endet.
+ * **Über Eck** zählt ein Schrägschritt nur am Ziel (`canStep`), die Figur
+ * gleitet aber stetig und rundet unterwegs erst in einer Achse um: Der Block
+ * dazwischen darf gesperrt sein, wenn der schräge dahinter, auf den sie
+ * zuläuft, frei ist. Von dort geht es nur weiter auf einen freien Block —
+ * oder zurück.
+ */
+export function glides(
+  grid: CellGrid,
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+  level = 0,
+  size = FOOTPRINT,
+): boolean {
+  const home = snapCell(fromX, fromZ, size),
+    to = snapCell(toX, toZ, size);
+  if (to.cx === home.cx && to.cz === home.cz) return true;
+  if (grid.footprintFree(to, level, size)) return true;
+  const ox = to.cx - home.cx,
+    oz = to.cz - home.cz;
+  if (Math.abs(ox) + Math.abs(oz) !== 1) return false;
+  const sx = ox !== 0 ? ox : Math.sign(toX - fromX),
+    sz = oz !== 0 ? oz : Math.sign(toZ - fromZ);
+  if (sx === 0 || sz === 0) return false;
+  return grid.footprintFree({ cx: home.cx + sx, cz: home.cz + sz }, level, size);
+}
+
+/**
  * **Ein Schritt auf dem Gitter, stetig gezeichnet** — die eine Bewegung, die
  * alle Figuren machen.
  *
@@ -402,23 +436,7 @@ export function moveOnCells(
   const home = snapCell(at.x, at.z, size);
   const x = at.x + dx,
     z = at.z + dz;
-  const fits = (px: number, pz: number): boolean => {
-    const to = snapCell(px, pz, size);
-    if (to.cx === home.cx && to.cz === home.cz) return true;
-    if (grid.footprintFree(to, level, size)) return true;
-    // **Über Eck:** Ein Schrägschritt zählt nur am Ziel (`canStep`), die
-    // Figur gleitet aber stetig und rundet unterwegs erst in einer Achse
-    // um. Der Block dazwischen darf gesperrt sein, wenn der schräge dahinter,
-    // auf den sie zuläuft, frei ist. Von dort geht es nur weiter auf einen
-    // freien Block — oder zurück.
-    const ox = to.cx - home.cx,
-      oz = to.cz - home.cz;
-    if (Math.abs(ox) + Math.abs(oz) !== 1) return false;
-    const sx = ox !== 0 ? ox : Math.sign(dx),
-      sz = oz !== 0 ? oz : Math.sign(dz);
-    if (sx === 0 || sz === 0) return false;
-    return grid.footprintFree({ cx: home.cx + sx, cz: home.cz + sz }, level, size);
-  };
+  const fits = (px: number, pz: number): boolean => glides(grid, at.x, at.z, px, pz, level, size);
   // Wer auf einem gesperrten Block steht, darf heraus — auf jeden freien und
   // innerhalb seines eigenen, nur nicht in einen anderen gesperrten.
   const stuck = !grid.footprintFree(home, level, size);

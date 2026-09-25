@@ -119,18 +119,36 @@ den großen Kacheln bleibt.
     `GridPlan` hängt sie in seinen Graphen, `GridWorld.navReady` in den
     abgetasteten.
 
+- **Alle Figuren gehen auf dem Gitter** (`moveOnCells`, `glides`):
+  - Der Spieler über `PhysicsLocomotion.cellGate`, die NPCs über
+    `NpcWorld.cells` (`GridWorld.cellsForAgents`): `Npc.update` schneidet die
+    Geschwindigkeit des Hirns mit `moveOnCells` zu, ihr Zylinder geht durch
+    `GROUP_CELL` hindurch.
+  - Schiebt die Physik einen NPC (ein Stoß) auf einen gesperrten Block, holt
+    ihn `Npc.holdOnCells` auf die letzte freie Stelle zurück — außer über
+    Eck.
+  - **Über Eck gleiten** (`glides`): Stetig gerundet wechselt eine Figur erst
+    in einer Achse. Der Block dazwischen darf gesperrt sein, wenn der
+    schräge, auf den sie zuläuft, frei ist — sonst käme niemand durch die
+    Lücke aus dem Bild oben.
+- **Die Größe des Agenten** (`NpcSkin.cells`, `AgentTuning.cells`, Vorgabe
+  2): Auf Blöcken dieser Größe plant `cellRoute` und geht `moveOnCells`.
+- **Getroffen wird auf dem festen Block**: Die Reichweite des Hirns misst von
+  Blockmitte zu Blockmitte (`BrainSense.range`), in Haunting ebenso
+  (`stationCells.blockGap`). Gezeichnet wird dazwischen interpoliert.
+- **Haunting läuft auf demselben Gitter** (`haunting/map/stationCells.ts`,
+  `docs/agents/haunting.md`): Bewegung und Wegsuche der Runde, die
+  Einrichtung als gesperrte Zellen.
+
 ## Was noch nicht auf Zellen läuft
 
-1. **Haunting.**
-   - Die Station rechnet mit eigenem Kern (`haunting/map/geometry.ts`
-     `walkable`/`slide`, `stationNavigation.ts` mit einem Raster von 0,25 m,
-     `roomGraph.ts`). Ihre Rechtecke kennen keine Schrägen.
-   - Die schrägen Ecken der Vorlage (`docs/orbital/station-vorlage.webp`)
-     kommen, wenn dieser Kern auf das Zellgitter umgezogen ist.
-2. **Möbel als gesperrte Zellen.**
-   - Heute ist ein Möbel im Graphen ein Kostenfaktor (`GridPlan.refresh`).
-   - Den NPCs sperrt es eine Kachel nur, wo das Abtasten (`navBake.ts`) es
-     als Hindernis findet.
+1. **Schrägen in der Station.** Das Gitter der Station kennt sie; es fehlen
+   nur die schrägen Ecken der Vorlage (`docs/orbital/station-vorlage.webp`)
+   in `house.ts` und im Bauplan.
+2. **Möbel im Graphen der NPCs.**
+   - Für die grobe Planung über Kacheln ist ein Möbel weiter ein
+     Kostenfaktor (`GridPlan.refresh`); gesperrt sind seine Zellen erst auf
+     dem Gitter.
 3. **Kleinere Dinge auf halbe Kacheln** (der Blumentopf an den Rand einer
    Kachel).
    - Möbel bleiben vorerst auf ganzen Metern, so ist es gewünscht.

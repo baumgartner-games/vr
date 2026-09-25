@@ -11,7 +11,7 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
-import { CellGrid, cellKey, navCellSource, snapCell } from '../nav/cellGrid';
+import { CellGrid, cellKey, glides, navCellSource, snapCell } from '../nav/cellGrid';
 import { FootprintView, type Occupant } from './footprintView';
 import type { CellGate } from '../../physics/PhysicsLocomotion';
 import {
@@ -950,6 +950,10 @@ export abstract class GridWorld extends PortalWorld {
    * steht (abgesetzt, durch ein Portal gekommen), bleibt nicht kleben: Aus
    * einem solchen Block heraus ist jeder Schritt erlaubt.
    */
+  protected override cellsForAgents(): CellGrid | null {
+    return this.cellGrid();
+  }
+
   protected override playerCellGate(): CellGate | null {
     return (fromX, fromZ, toX, toZ, y) => {
       const grid = this.cellGrid();
@@ -961,7 +965,7 @@ export abstract class GridWorld extends PortalWorld {
       if (level === null) return true;
       const was = this.cellLevel(fromX, fromZ, y) ?? level;
       if (!grid.footprintFree(from, was)) return true;
-      return grid.footprintFree(to, level);
+      return glides(grid, fromX, fromZ, toX, toZ, level);
     };
   }
 

@@ -320,6 +320,7 @@ import {
   type PhysicsBody,
 } from '../../physics/PhysicsWorld';
 import { PhysicsLocomotion, type CellGate } from '../../physics/PhysicsLocomotion';
+import type { CellGrid } from '../nav/cellGrid';
 import { HitboxView } from '../../physics/HitboxView';
 import { graphics } from '../../core/graphicsSettings';
 import { silentPhysics } from '../../physics/silentPhysics';
@@ -1628,6 +1629,7 @@ export class PortalWorld implements World {
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
       nav: () => this.navForAgents(),
+      cells: () => this.cellsForAgents(),
     });
     this.director.setBars(this.npcBars);
     this.director.setHitView(this.npcHitView);
@@ -4888,6 +4890,7 @@ export class PortalWorld implements World {
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
       nav: () => this.navForAgents(),
+      cells: () => this.cellsForAgents(),
     });
     this.director.setBars(this.npcBars);
     this.director.setHitView(this.npcHitView);
@@ -5301,6 +5304,15 @@ export class PortalWorld implements World {
    * (`GridWorld`).
    */
   protected playerCellGate(): CellGate | null {
+    return null;
+  }
+
+  /**
+   * **Das Zellgitter für die NPCs** (`NpcWorld.cells`) — `null` in einer Welt
+   * ohne Gitter; dort hält sie weiter die Physik auf. Die Welten auf dem
+   * Gitter stellen es (`GridWorld`).
+   */
+  protected cellsForAgents(): CellGrid | null {
     return null;
   }
 

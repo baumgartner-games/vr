@@ -68,6 +68,13 @@ export interface NpcSkin {
    * einem wehtut, hängt daran, was man ist, und nicht daran, was man vorhat.
    */
   profile: string;
+  /**
+   * **Wie viele halbe Kacheln er je Seite belegt** (`nav/cellGrid.ts`) —
+   * fehlt die Zahl, sind es 2, ein Block von 2 × 2. Auf diesem Block steht er
+   * logisch, darauf plant er seinen Weg, und von ihm aus wird getroffen;
+   * gezeichnet wird er dazwischen.
+   */
+  cells?: number;
   /** Die drei Farben des Modells: Haut, Kleidung, Augen. */
   palette: { skin: number; cloth: number; eye: number };
   /**

@@ -63,7 +63,11 @@ test.each([14])('walking routes in %i-room stations clear models and real door f
         complete: true,
         grounded: true,
       });
-      expect({ seed, goal: room.id, clear: clearPath(spec, plan.graph, from, route.points!) }).toEqual({
+      expect({
+        seed,
+        goal: room.id,
+        clear: clearPath(spec, plan.graph, from, route.points!),
+      }).toEqual({
         seed,
         goal: room.id,
         clear: true,
