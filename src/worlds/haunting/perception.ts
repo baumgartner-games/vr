@@ -1,6 +1,6 @@
 import { DOOR_LOSS, GLASS_LOSS, WALL_LOSS } from './audio/hearing';
 import type { NavGraph } from '../nav/navGraph';
-import { DIRS, TILE, neighbour, tileKey, type TileKey } from '../nav/navTile';
+import { DIRS, TILE, neighbour, tileKey, type Dir, type TileKey } from '../nav/navTile';
 import type { SignalPoint } from './threat';
 
 /**
@@ -57,6 +57,7 @@ export function acousticField(
   graph: NavGraph,
   source: SignalPoint,
   range: number,
+  shelfWall?: (key: TileKey, dir: Dir) => boolean,
 ): Map<TileKey, number> {
   const start = pointKey(source);
   const costs = new Map<TileKey, number>();
@@ -71,7 +72,10 @@ export function acousticField(
       const next = neighbour(key, dir);
       if (!graph.has(next)) continue;
       const wall = graph.wall(key, dir);
-      const total = cost + TILE + lossOf(wall);
+      // **Eine Wand aus dem Regal dämpft wie eine gebaute** — in Haunting sind
+      // alle Wände Regalstücke (`grid/shelfWalls.ts`), der Plan hat keine.
+      const loss = wall ? lossOf(wall) : shelfWall?.(key, dir) ? WALL_LOSS : 0;
+      const total = cost + TILE + loss;
       if (total > range || total >= (costs.get(next) ?? Infinity)) continue;
       costs.set(next, total);
       queue.push({ key: next, cost: total });

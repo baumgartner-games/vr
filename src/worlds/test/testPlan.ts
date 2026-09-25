@@ -1,4 +1,4 @@
-import { keyLevel, keyX, keyZ, wallDir, wallTile, type WallKey } from '../nav/navTile';
+import { clearPlanWalls } from '../grid/shelfWalls';
 import { GridPlan } from '../grid/gridPlan';
 import {
   EFFECTS,
@@ -127,21 +127,8 @@ export function testPlan(): GridPlan {
   return plan;
 }
 
-/**
- * **Alle festen Planwände und Schrägen weg** — Türen und Fenster bleiben.
- *
- * Die Testwelt baut Wände nur noch aus dem Regal (`zones/wallLab.ts`), und
- * eine eingerastete Regalwand ist auf dem Zellgitter eine Wand wie jede
- * andere (`GridWorld.refreshWallSlopes`). Auch ein gespeicherter Stand von
- * vorher verliert sie (`TestWorld.planLoaded`).
- */
-export function clearPlanWalls(plan: GridPlan): void {
-  const solid: WallKey[] = [];
-  for (const [key, wall] of plan.graph.wallEntries()) if (wall.kind === 'solid') solid.push(key);
-  for (const key of solid) plan.graph.clearWall(wallTile(key), wallDir(key));
-  for (const { tile } of plan.saveSlopes())
-    plan.slope(keyX(tile), keyZ(tile), null, keyLevel(tile));
-}
+/** Alle festen Planwände und Schrägen weg — jetzt für alle Welten in `grid/shelfWalls.ts`. */
+export { clearPlanWalls };
 
 /**
  * **Die Einbauten aller Zonen** — Tor, Türen, Auslöser, Düsen, Lampen,

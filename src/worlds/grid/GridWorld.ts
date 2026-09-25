@@ -28,6 +28,8 @@ import {
   NO_TILE,
   TILE,
   keyLevel,
+  keyX,
+  keyZ,
   tileCentreX,
   tileCentreZ,
   tileIndexAt,
@@ -990,6 +992,18 @@ export abstract class GridWorld extends PortalWorld {
     for (const entry of was)
       if (!entry.removed && !this.gridWalls.has(entry)) this.physics?.setGridWall(entry, false);
     for (const entry of this.gridWalls) this.physics?.setGridWall(entry, true);
+  }
+
+  /**
+   * **Ob an dieser Kachelkante eine Wand aus dem Regal steht** — für was eine
+   * Welt über das Gehen hinaus mit Wänden rechnet (Haunting: das Hören,
+   * `perception.acousticField`).
+   */
+  protected shelfWallAt(key: TileKey, dir: Dir): boolean {
+    return (
+      this.propEdges.size > 0 &&
+      this.propEdges.has(edgeAt(keyX(key), keyZ(key), dir, keyLevel(key)))
+    );
   }
 
   /** Die Wände aus dem Regal einsammeln — schräge als Schrägen, gerade als Kanten. */

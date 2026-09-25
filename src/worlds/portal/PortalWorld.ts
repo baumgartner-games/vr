@@ -3325,28 +3325,32 @@ export class PortalWorld implements World {
    * `test/zones/wallLab.ts`). Es landet nicht in der Liste der Weltänderungen:
    * Es gehört der Welt und nicht dem, der gerade baut.
    */
-  protected placeModel(path: string, at: THREE.Vector3, yaw: number): void {
-    void this.placeModelAt(path, at, yaw, false);
+  protected placeModel(path: string, at: THREE.Vector3, yaw: number): Promise<PhysicsBody | null> {
+    return this.placeModelAt(path, at, yaw, false);
   }
 
+  /**
+   * @returns das hingestellte Stück — `null`, wenn keines kam (stand schon
+   *   da, Modell fehlt, Welt inzwischen weg)
+   */
   private async placeModelAt(
     path: string,
     at: THREE.Vector3,
     yaw: number,
     note = true,
-  ): Promise<boolean> {
+  ): Promise<PhysicsBody | null> {
     const physics = this.physics;
-    if (!this.context || !physics) return false;
+    if (!this.context || !physics) return null;
     const kind = modelKind(path);
     for (const body of this.bodies.values()) {
       if (body.carried || body.removed) continue;
       const has = (body.object.userData as { propKind?: PropKind }).propKind;
-      if (has === kind && body.object.position.distanceTo(at) < 0.05) return false;
+      if (has === kind && body.object.position.distanceTo(at) < 0.05) return null;
     }
     const model = kaykitModelNow(path) ?? (await kaykitModel(path));
     // An der Physik und nicht am Kontext — der ist jedes Bild ein neuer
     // (siehe `conjureModel`).
-    if (!this.context || this.physics !== physics || !model) return false;
+    if (!this.context || this.physics !== physics || !model) return null;
     const spin = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
     const id = this.sync?.nextId() ?? `local-${this.bodies.size}`;
     const entry = this.createModelProp(id, kind, model, at, spin);
@@ -3362,7 +3366,7 @@ export class PortalWorld implements World {
     this.sinkFloor(entry);
     this.sync?.spawned(id, kind, poseOf(entry));
     if (note) this.noteModel(entry, path);
-    return true;
+    return entry;
   }
 
   /** Ein hingestelltes Modell in die Liste der Weltänderungen. */
