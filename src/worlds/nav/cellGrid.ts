@@ -137,6 +137,19 @@ export class CellGrid {
   }
 
   /**
+   * **Ob man über diese Kachelkante kommt** — die Frage der Quelle, für die
+   * Anzeige der Gitter-Hitboxen (`grid/cellHitboxView.ts`).
+   */
+  edgeOpen(tx: number, tz: number, dir: Dir, level = 0): boolean {
+    return this.source.open(tx, tz, dir, level);
+  }
+
+  /** Die Schräge in dieser Kachel — ebenfalls für die Anzeige. */
+  slopeAt(tx: number, tz: number, level = 0): Slope | null {
+    return this.source.slope(tx, tz, level);
+  }
+
+  /**
    * **Ob ein 2×2-Block mit dieser Mitte frei ist.**
    *
    * Vier Zellen, und dazu die Kanten *zwischen* ihnen: Liegt die Mitte auf
@@ -452,6 +465,16 @@ function inSquare(
     f11 = free(sx + 1, sz + 1);
   const inside = du >= 0 && du <= 1 && dv >= 0 && dv <= 1;
   if (inside && f00 && f10 && f01 && f11) return true;
+  // **Ein Dreieck aus drei freien Mitten** — wo die vierte an einer Schräge
+  // gesperrt ist. Seine drei Seiten sind Streifen (zwei gerade, ein
+  // schräger), also ist auch das Innere ein Weg. Ohne das blieb darin ein
+  // Loch, und wer an einer 45°-Wand entlanglief, blieb dort hängen.
+  if (inside) {
+    if (f00 && f10 && f01 && du + dv <= 1) return true;
+    if (f11 && f10 && f01 && du + dv >= 1) return true;
+    if (f10 && f00 && f11 && dv <= du) return true;
+    if (f01 && f00 && f11 && du <= dv) return true;
+  }
   const w = TRANSIT_WIDTH,
     slant = TRANSIT_WIDTH + SLANT_SLACK;
   // Die Mitten selbst — eine Raute, damit sie an die schrägen Streifen

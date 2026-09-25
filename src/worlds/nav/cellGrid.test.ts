@@ -327,6 +327,48 @@ describe('Eine 45°-Wand mit nichts dahinter — wie die Ecken der Station', () 
     expect(q.x + q.z).toBeGreaterThan(4);
   });
 
+  it('rutscht an einer Schräge mitten im Raum entlang — aus jeder Richtung, ohne Loch', () => {
+    // Gemeldet: _„wenn ich auf eine 45° wand von links nach rechts zulaufe,
+    // sollte der charakter nicht einfach stehen bleiben, sondern entlang der
+    // wand weiter runter/rauf laufen"_. Zwischen drei freien Blockmitten lag
+    // ein Dreieck, das keine Regel abdeckte; darin blieb man hängen.
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 12, d: 12 });
+    wallRect(graph, { x: 0, z: 0, w: 12, d: 12 });
+    const slopes = new Map<TileKey, Slope>();
+    for (let i = 3; i < 9; i++) slopes.set(tileKey(i, 11 - i), 'slash');
+    const grid = new CellGrid(
+      navCellSource(graph, (key) => slopes.get(key) ?? null, { voidIsFree: true }),
+    );
+    for (const [dx, dz] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const)
+      for (let off = 0; off < 12; off++) {
+        const cx = 6 + (off - 6) * 0.09,
+          cz = 6 - (off - 6) * 0.09;
+        let p = { x: cx - dx * 2.2, z: cz - dz * 2.2 };
+        const memory = { lastFree: null as { x: number; z: number } | null };
+        let moved = 0;
+        for (let i = 0; i < 120; i++) {
+          const sx = dx * 0.04,
+            sz = dz * 0.04;
+          const step = [{ x: sx, z: sz }, ...diagonalSlides(sx, sz)].find((c) =>
+            gateStep(grid, p, { x: p.x + c.x, z: p.z + c.z }, memory),
+          );
+          if (step) {
+            p = { x: p.x + step.x, z: p.z + step.z };
+            moved++;
+          }
+        }
+        // Die ganze Zeit in Bewegung, und auf der eigenen Seite der Wand.
+        expect(moved).toBe(120);
+        expect(Math.sign(p.x + p.z - 12)).toBe(Math.sign(cx - dx * 2.2 + (cz - dz * 2.2) - 12));
+      }
+  });
+
   it('gleitet über Eck nur im Streifen zwischen zwei freien Blöcken', () => {
     const grid = new Picture(['#..', '...', '..#']);
     // Zwischen (1, 2) und (2, 1) liegt der Streifen: dort darf man stehen.

@@ -46,7 +46,13 @@ import type { MenuEntry } from '../../ui/menu';
  */
 const FRAME = 1 / 60;
 
-jest.mock('../grid/GridWorld', () => ({ GridWorld: class {} }));
+jest.mock('../grid/GridWorld', () => ({
+  GridWorld: class {
+    menu(): unknown[] {
+      return [];
+    }
+  },
+}));
 jest.mock('./haunting.css', () => ({}));
 jest.mock('./stationDashboard.css', () => ({}));
 jest.mock('./monster/monster.css', () => ({}));

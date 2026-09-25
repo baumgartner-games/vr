@@ -1,6 +1,14 @@
 import type { GridPlan } from '../../grid/gridPlan';
 import { DIR_N, DIR_S, tileKey } from '../../nav/navTile';
 import { WALL_LAB } from '../layout';
+import type { Slope } from '../../nav/cellGrid';
+import {
+  SHELF_WALL,
+  SHELF_WALL_HALF,
+  wallRun,
+  wallSlant,
+  type ShelfWall,
+} from '../../grid/shelfWalls';
 
 /**
  * **Der Wandparcours** — Wände zum Dagegenlaufen, jede Sorte einmal, **aus
@@ -29,55 +37,25 @@ import { WALL_LAB } from '../layout';
  * (`grid/fixtures/mark.ts`) zeigen, wohin man darf.
  */
 
-export const LAB_WALL = 'prototype-bits/Wall.glb';
-export const LAB_WALL_HALF = 'prototype-bits/Wall_Half.glb';
+export const LAB_WALL = SHELF_WALL;
+export const LAB_WALL_HALF = SHELF_WALL_HALF;
 
-/** Wie hoch die Mitte einer Regalwand steht — sie fällt den Rest auf den Boden. */
-const WALL_Y = 1.4;
-
-/** Ein Stück des Parcours: Modell, Mitte in Weltmetern, Drehung in Bogenmaß. */
-export interface LabWall {
-  path: string;
-  x: number;
-  y: number;
-  z: number;
-  yaw: number;
-}
+/** Ein Stück des Parcours — ein Regalstück (`grid/shelfWalls.ts`). */
+export type LabWall = ShelfWall;
 
 const X = WALL_LAB.x,
   Z = WALL_LAB.z;
-const ALONG_X = 0;
-const ALONG_Z = Math.PI / 2;
-/** „╱": die lange Achse nach Nordosten (`gridSnap.diagonalPose`). */
-const SLASH = Math.PI / 4;
-/** „╲": nach Südosten. */
-const BACKSLASH = -Math.PI / 4;
+const SLASH: Slope = 'slash';
+const BACKSLASH: Slope = 'backslash';
 
-/**
- * **Eine gerade Wand über `length` Kacheln** — aus ganzen Stücken, am Ende
- * ein halbes. `alongX`: auf der Fuge `z = line`, von `from` nach Osten; sonst
- * auf der Fuge `x = line`, von `from` nach Süden.
- */
+/** Eine gerade Wand über `length` Kacheln (`shelfWalls.wallRun`). */
 function run(out: LabWall[], alongX: boolean, line: number, from: number, length: number): void {
-  let at = from;
-  for (let left = length; left > 0;) {
-    const piece = left >= 2 ? 2 : 1;
-    const mid = at + piece / 2;
-    out.push({
-      path: piece === 2 ? LAB_WALL : LAB_WALL_HALF,
-      x: alongX ? mid : line,
-      y: WALL_Y,
-      z: alongX ? line : mid,
-      yaw: alongX ? ALONG_X : ALONG_Z,
-    });
-    at += piece;
-    left -= piece;
-  }
+  wallRun(out, alongX, line, from, length);
 }
 
 /** Eine Wand unter 45° durch die Kachel (`lx`, `lz`) des Parcours. */
-function slant(out: LabWall[], lx: number, lz: number, yaw: number): void {
-  out.push({ path: LAB_WALL, x: X + lx + 0.5, y: WALL_Y, z: Z + lz + 0.5, yaw });
+function slant(out: LabWall[], lx: number, lz: number, slope: Slope): void {
+  wallSlant(out, X + lx, Z + lz, slope);
 }
 
 /** **Alle Wände des Parcours** — die Welt stellt sie beim Aufbau hin (`TestWorld.buildProps`). */

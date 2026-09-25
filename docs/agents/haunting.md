@@ -232,6 +232,27 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     gezeichneten Pfosten, Paneele, Sturzleisten und Rohre (`shipArt`) sind weg.
     Neu in `GridWorld` dafür: `solidMaterial`, `gridSolidBuilt`,
     `gridRebuilt`, `wallGhosted`.
+  - **Seit Oktober 2026 stehen die Wände aus dem Regal, wie in der Testwelt**
+    — gemeldet: _„die haunting nutzt nicht die gleichen walls wie in test
+    welt, da in haunting die wände nicht sauber durchgängig sind. Bitte sowas
+    komplett vermeiden"_. Der Grundriss der Welt hat keine festen Wände mehr
+    (`HauntingWorld.stationPlan` → `shelfWalls.clearPlanWalls`); jede feste
+    Wand und jede Schräge des vollen Grundrisses wird ein Regalstück
+    (`HauntingWorld.placeStationWalls` → `shelfWalls.planShelfWalls`):
+    ungestreckt, ganze und halbe Stücke auf den Fugen, unter 45° ein ganzes je
+    Kachel — dieselbe Rechnung wie der Wandparcours (`test/zones/wallLab.ts`).
+    Sie blocken nur über das Gitter (`GridWorld.collectWalls`) und lassen sich
+    im **Baukasten** verschieben und ersetzen (_Menü → Baukasten_: Regal,
+    Spielmodus, Weltänderungen). Das Hören zählt sie als Wand
+    (`perception.acousticField`, `GridWorld.shelfWallAt`). `stationShelf.test`
+    prüft, dass sie jede Kante und Schräge genau einmal decken. Die Runde selbst
+    (`StationTravelPlan`, Monster, Bots) rechnet weiter mit dem vollen
+    Grundriss. Der Absatz darüber (`StationWalls`-Läufe) gilt nur noch für
+    Türen und Fenster.
+  - **Die Station ist fest** (`STATION_SEED`): Grundriss, Fenster,
+    Sicherungskasten und Aufgaben kommen jedes Mal gleich, damit ein Umbau im
+    Baukasten beim nächsten Laden wieder passt. Umbauten gehen als
+    Weltänderungen heraus und werden in den Code übernommen.
   - **Türknöpfe** (`world3d/doorButtons.ts`): vor und hinter jeder Tür ein
     Knopf aus `platformer/green|red/button_base_*.glb`, grün, solange die Tür
     aufgeht, rot, solange sie gesperrt ist (`HauntingWorld.doorLocked`).

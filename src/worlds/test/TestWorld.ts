@@ -342,7 +342,7 @@ export class TestWorld extends GridWorld {
     // **Der Wandparcours aus dem Regal** (`zones/wallLab.ts`). Steht schon ein
     // Stück an seiner Stelle, kommt kein zweites (`placeModel`).
     for (const wall of [...wallLabModels(), ...kitchenWallModels()])
-      this.placeModel(wall.path, new THREE.Vector3(wall.x, wall.y, wall.z), wall.yaw);
+      void this.placeModel(wall.path, new THREE.Vector3(wall.x, wall.y, wall.z), wall.yaw);
     this.dust ??= new DustTrail(this.root);
     // **Und der Boden draußen bekommt Platten** (`shared/plateFloor.ts`).
     //

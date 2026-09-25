@@ -90,7 +90,7 @@ import {
   stationOptions,
   type StationOptions,
 } from './mission';
-import { Rng, rollSeed } from './rng';
+import { Rng } from './rng';
 import { StationUi } from './stationUi';
 import type { ArchiveDesk } from './views/archiveDesk';
 import { extractMapSnapshot } from './map/extract';
@@ -199,6 +199,8 @@ import {
   type MonsterBook,
 } from './net';
 import type { GridPlan } from '../grid/gridPlan';
+import { clearPlanWalls, planShelfWalls } from '../grid/shelfWalls';
+import type { PhysicsBody } from '../../physics/PhysicsWorld';
 import type { MenuEntry } from '../../ui/menu';
 import { BlueprintArt } from './world3d/blueprintArt';
 import { TopDownFog } from './world3d/topDownFog';
@@ -400,6 +402,15 @@ const _lid = new THREE.Plane(new THREE.Vector3(0, -1, 0), SHOW_CUT);
 const _noLid: THREE.Plane[] = [];
 const _lidOn = [_lid];
 
+/**
+ * **Der Same der Station — fest.** Der Grundriss ist die Skeld-Karte, aber
+ * Fenster, Sicherungskasten, Aufgaben und Schalttafel würfelt der Same
+ * (`house.generateHouse`). Seit die Station im Baukasten umgebaut wird, steht
+ * sie jedes Mal gleich da: Was umgebaut wird, soll beim nächsten Laden an
+ * derselben Stelle passen.
+ */
+export const STATION_SEED = 1;
+
 export class HauntingWorld extends GridWorld {
   /**
    * **Die Ansicht von oben ist die des Kerns** (`core/TopDownCamera.ts`):
@@ -413,7 +424,10 @@ export class HauntingWorld extends GridWorld {
   readonly ownsFlat = false;
 
   /** Der Bauplan dieser Runde. Steht vor dem ersten `layout()` fest. */
-  private spec: HouseSpec = generateHouse(rollSeed(), 8);
+  private spec: HouseSpec = generateHouse(STATION_SEED, 8);
+  /** Die Wände der Station aus dem Regal (`placeStationWalls`) — und für welches Haus. */
+  private stationShelf: PhysicsBody[] = [];
+  private stationShelfFor = '';
   private state: HauntState = freshState(this.spec.seed);
 
   /** Alles, was zum Haus gehört und nicht aus dem Kachelplan kommt. */
@@ -781,7 +795,50 @@ export class HauntingWorld extends GridWorld {
   // --- die Welt ------------------------------------------------------------
 
   protected override layout(): GridPlan {
-    return housePlan(this.spec, new Set(this.state.shut), this.state.crew.options.test);
+    return this.stationPlan(new Set(this.state.shut), this.state.crew.options.test);
+  }
+
+  /**
+   * **Der Grundriss der Station ohne feste Wände** — die stehen als
+   * Regalstücke (`placeStationWalls`), genau wie in der Testwelt. Gewünscht:
+   * _„die haunting nutzt nicht die gleichen walls wie in test welt, da in
+   * haunting die wände nicht sauber durchgängig sind. Bitte sowas komplett
+   * vermeiden"_. Türen und Fenster bleiben Teil des Plans.
+   *
+   * Die Runde selbst (Monster, Bots, Wege, `StationTravelPlan`) rechnet weiter
+   * mit dem vollen Grundriss aus `housePlan` — sie hängt am Samen, nicht an
+   * dem, was hier steht.
+   */
+  private stationPlan(shut: ReadonlySet<string>, test: boolean): GridPlan {
+    const plan = housePlan(this.spec, new Set(shut), test);
+    clearPlanWalls(plan);
+    return plan;
+  }
+
+  /**
+   * **Die Wände der Station aus dem Regal aufstellen** — aus den festen
+   * Wänden und Schrägen des vollen Grundrisses (`shelfWalls.planShelfWalls`):
+   * ungestreckte ganze und halbe `prototype-bits/Wall.glb` auf den Fugen, unter
+   * 45° ein Stück je Kachel. Eingerastet sind sie Wände auf dem Zellgitter
+   * (`GridWorld.collectWalls`), und im Baukasten lassen sie sich verschieben
+   * und ersetzen. Ein anderes Haus (Raumzahl, Test) räumt die alten weg.
+   */
+  private placeStationWalls(): void {
+    const test = this.state.crew.options.test;
+    const key = `${this.spec.seed}:${this.spec.rooms.length}:${test ? 1 : 0}`;
+    if (key === this.stationShelfFor || !this.context || !this.physics) return;
+    for (const entry of this.stationShelf) if (!entry.removed) this.removeProp(entry, true);
+    this.stationShelf = [];
+    this.stationShelfFor = key;
+    for (const wall of planShelfWalls(housePlan(this.spec, new Set(), test)))
+      void this.placeModel(wall.path, new THREE.Vector3(wall.x, wall.y, wall.z), wall.yaw).then(
+        (entry) => {
+          if (!entry) return;
+          // Kam es an, als schon ein anderes Haus stand: gleich wieder weg.
+          if (this.stationShelfFor !== key) this.removeProp(entry, true);
+          else this.stationShelf.push(entry);
+        },
+      );
   }
 
   /**
@@ -1063,8 +1120,10 @@ export class HauntingWorld extends GridWorld {
     this.kernelHead = null;
   }
 
-  /** Portal-lab cubes and dominoes have no place in the station. */
-  protected override buildProps(): void {}
+  /** Portal-lab cubes and dominoes have no place in the station — nur ihre Wände aus dem Regal. */
+  protected override buildProps(): void {
+    this.placeStationWalls();
+  }
 
   /** Was das Monster an einer gesperrten Tür getan hat — Geräusch und Welle (`monster/monsterWalk.ts`). */
 
@@ -2058,7 +2117,10 @@ export class HauntingWorld extends GridWorld {
       const bot = this.experience?.botPose;
       const monster = this.state.monster;
       // Das akustische Feld ist nur Anzeige — gerechnet, wenn jemand hinsieht.
-      this.hearing = monster && this.nav ? acousticField(this.nav, monster, 24) : new Map();
+      this.hearing =
+        monster && this.nav
+          ? acousticField(this.nav, monster, 24, (key, dir) => this.shelfWallAt(key, dir))
+          : new Map();
       this.navigationOverlay.perception(
         bot
           ? {
@@ -2476,9 +2538,10 @@ export class HauntingWorld extends GridWorld {
       this.spec = generateHouse(next.seed, next.crew.options.rooms);
       this.state = next;
       this.automaticDoors.clear();
-      this.grid?.replaceWith(housePlan(this.spec, new Set(next.shut), next.crew.options.test));
+      this.grid?.replaceWith(this.stationPlan(new Set(next.shut), next.crew.options.test));
       this.builtDoors = '?';
       this.buildHouse();
+      this.placeStationWalls();
       return;
     }
     this.state = next;
@@ -3649,8 +3712,22 @@ export class HauntingWorld extends GridWorld {
         if (this.context) this.unstickPlayer(this.context);
       },
     );
+    // **Der Baukasten** — Regal, Spielmodus, Weltänderungen, dasselbe Menü
+    // wie in der Testwelt (`PortalWorld.menu`). Gewünscht: _„ich will in
+    // haunting auch die möglichkeit haben, die welt umzubauen im baukasten
+    // modus"_. Die Station ist fest (`STATION_SEED`); was umgebaut wird, geht
+    // als Weltänderungen heraus und wird in den Code übernommen.
+    const build: MenuEntry = {
+      id: 'haunt:build',
+      label: 'Baukasten',
+      sub: 'Station umbauen · Regal, Spielmodus, Weltänderungen',
+      icon: 'tools',
+      accent: 0x9d7bff,
+      children: super.menu(),
+    };
     if (this.context?.role !== 'vr')
       return [
+        build,
         entry(
           'haunt:technician',
           'Als Techniker am Desktop testen',
@@ -3786,6 +3863,7 @@ export class HauntingWorld extends GridWorld {
           }),
       ),
       rescue,
+      build,
       ...(this.experience?.menu() ?? []),
     ];
   }
@@ -4463,17 +4541,18 @@ export class HauntingWorld extends GridWorld {
     this.locks = freshLocks();
     this.lampBook = freshLamps();
     this.automaticDoors.clear();
-    this.spec = generateHouse(rollSeed(), options.rooms);
+    this.spec = generateHouse(STATION_SEED, options.rooms);
     this.state = freshState(this.spec.seed, options);
     this.routineDice = new Rng(this.spec.seed >>> 0);
     // Frische Bücher, frischer Kern (`ensureKernel`).
     this.pendingBooks = null;
     this.kernel = null;
-    this.grid?.replaceWith(housePlan(this.spec, new Set(), options.test));
+    this.grid?.replaceWith(this.stationPlan(new Set(), options.test));
     this.builtDoors = '?';
     this.blob?.dispose();
     this.blob = null;
     this.buildHouse();
+    this.placeStationWalls();
     if (this.context) this.movePlayerTo(this.context, this.spawnPoint());
     this.context?.net.emit(HAUNT_CHANNEL, stateMessage(this.state));
     this.context?.refreshWorldMenu();

@@ -83,6 +83,7 @@ den großen Kacheln bleibt.
   - Bei gerader Größe liegt die Stellung auf einer Zellecke, bei ungerader
     in einer Zellmitte.
   - Jede Kachelkante im Inneren des Blocks wird geprüft.
+- **Anzeige:** _Menü → Grafik → Hitboxen (2D-Gitter)_ zeigt jede Zelle um den Spieler, rot belegt, grün frei (`grid/cellHitboxView.ts`).
 - **Anzeige:** _Menü → Grafik → Belegte Felder_
   (`graphicsSettings.cellFootprints`, `grid/footprintView.ts`).
   - Unter Spieler, Mitspielern und NPCs liegt ihr 2 × 2-Block, grün frei,
@@ -174,6 +175,11 @@ den großen Kacheln bleibt.
   gedrückt. Damit das an den Blockmitten nicht hängen bleibt, ist die Zone um
   eine Mitte eine Raute, so breit wie der schräge Streifen, und ein Streifen
   wird auch im Nachbarfeld gefunden (`standable`, `inSquare`).
+  - **Dreiecke aus drei freien Mitten** zählen ganz: Ist die vierte Ecke eines
+    Feldes an einer Schräge gesperrt, ist das Dreieck der anderen drei frei.
+    Vorher lag darin ein Loch, in dem man mitten vor der Wand stehen blieb
+    (gemeldet: _„rutsche ich die wand nicht weiter entlang"_). Seitdem ist die
+    Grenze vor einer Schräge eine gerade Linie.
 - **Die Küchenwände der Testwelt** kommen aus dem Regal
   (`test/zones/kitchenWalls.ts`), so wie der Besitzer sie gebaut hat.
   - Beim Hinstellen zeigt das Gitter unter dem Kran die Fuge, bei einer
