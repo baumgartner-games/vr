@@ -7,17 +7,20 @@ import {
   DIR_N,
   DIR_S,
   DIR_W,
+  NO_TILE,
   TILE,
   dirX,
   dirZ,
   keyLevel,
+  keyX,
+  keyZ,
   tileCentreX,
   tileCentreZ,
   tileKey,
   type Dir,
   type TileKey,
 } from '../nav/navTile';
-import { BLOCKS, blockRise, blockSolids, type BlockKind } from './blocks';
+import { BLOCKS, blockRise, blockSolids, flightStepRise, type BlockKind } from './blocks';
 import { FIXTURE_COST, fixtureKind, type FixturePlacement, type Props } from './fixtures/index';
 import { standing, type PlanSolid, type PlanSolidKind } from './solids';
 import { boxCells, cellKey, type Slope } from '../nav/cellGrid';
@@ -332,6 +335,59 @@ export class GridPlan {
 
   private furniture: ReadonlySet<string> = new Set();
   private furnitureAt = -1;
+
+  /**
+   * **Die Treppe oder Rampe auf einer Kachel** — `null`, wenn dort keine
+   * steht. Für das Gehen in der Ebene: ihre Seiten als Einbahnwände
+   * (`planeMove.cellPlaneWalls`) und die Höhe, auf der man über sie geht
+   * (`GridWorld.flightFloor`). Gerechnet wird je Stand des Plans einmal.
+   */
+  flightOn(tile: TileKey): (BlockPlacement & { kind: 'stairs' | 'ramp' }) | null {
+    if (this.flightsAt !== this.version) {
+      this.flights.clear();
+      for (const one of this.placed)
+        if (one.kind === 'stairs' || one.kind === 'ramp')
+          this.flights.set(one.tile, one as BlockPlacement & { kind: 'stairs' | 'ramp' });
+      this.flightsAt = this.version;
+    }
+    return this.flights.get(tile) ?? null;
+  }
+
+  private readonly flights = new Map<TileKey, BlockPlacement & { kind: 'stairs' | 'ramp' }>();
+  private flightsAt = -1;
+
+  /**
+   * **Wie hoch man auf einer Treppe oder Rampe steht** — `null`, wenn unter
+   * (`x`, `z`) keine ist; `footY` sagt, auf welcher Etage gefragt wird.
+   *
+   * Gewünscht: _„Der Spieler wird nur an der Höhe bewegt bei der Treppe."_ Auf
+   * dem Lauf klettert also kein Controller Stufe für Stufe
+   * (`PhysicsLocomotion.plane`), sondern die Höhe folgt einer Linie über die
+   * **Vorderkanten** der Stufen: Unten steht man auf der ersten Stufe (so hoch
+   * hob einen auch der Controller), oben auf der letzten, und dazwischen nie
+   * in einer Stufe — wer seitlich heruntergeht, hängt an keiner Kante fest.
+   */
+  flightFloor(x: number, z: number, footY: number): number | null {
+    const key = this.graph.at(x, z, footY);
+    if (key === NO_TILE) return null;
+    const flight = this.flightOn(key);
+    if (!flight) return null;
+    const level = keyLevel(key);
+    const tx = keyX(key),
+      tz = keyZ(key);
+    const height = flight.height ?? BLOCKS[flight.kind].height;
+    const base = this.graph.levelY(level) + (flight.lift ?? 0);
+    // Wie weit man in dieser Kachel den Lauf hinauf ist, 0 hinten bis 1 vorn.
+    const u = x / TILE - tx,
+      v = z / TILE - tz;
+    const along =
+      flight.dir === DIR_N ? 1 - v : flight.dir === DIR_S ? v : flight.dir === DIR_E ? u : 1 - u;
+    const y = base + flightStepRise(flight.kind, height) + clamp01(along) * height;
+    // Die letzte Kachel endet auf ihrer obersten Stufe — dort liegt der Boden
+    // der Etage darüber.
+    const next = this.flightOn(tileKey(tx + dirX(flight.dir), tz + dirZ(flight.dir), level));
+    return next && next.dir === flight.dir ? y : Math.min(y, base + height);
+  }
 
   /** Die Schräge einer Kachel, wenn eine darin steht. */
   slopeAt(key: TileKey): Slope | null {
@@ -1058,3 +1114,7 @@ function levelUnder(graph: NavGraph, y: number): number {
 /** Die vier Richtungen, damit eine Welt sie nicht aus dem Kachelmodul holen muss. */
 export { DIR_N, DIR_E, DIR_S, DIR_W, TILE };
 export type { Dir, NavRect };
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}

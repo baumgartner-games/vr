@@ -370,6 +370,23 @@ const EDGE = -TILE / 2;
 /** Wie hoch die Portaltafel über dem Boden anfängt. */
 const PANEL_SILL = 0.2;
 
+/** Wie viele Stufen ein Keil über eine Kachel bekommt (`steps`). */
+function stepCount(height: number, rise: number): number {
+  return Math.max(
+    1,
+    Math.min(Math.floor(TILE / STEP_RUN), Math.ceil(height / Math.max(0.01, rise))),
+  );
+}
+
+/**
+ * **Wie hoch eine Stufe einer Treppen- oder Rampenkachel ist** — für die Höhe,
+ * auf der der Spieler über einen Lauf geht (`GridWorld.flightFloor`): über
+ * die Vorderkanten der Stufen, also nie in einer.
+ */
+export function flightStepRise(kind: 'stairs' | 'ramp', height: number): number {
+  return height / stepCount(height, kind === 'stairs' ? STEP_RISE : RAMP_RISE);
+}
+
 /**
  * **Ein Keil aus Stufen über eine Kachel**, von hinten nach vorn ansteigend.
  *
@@ -378,10 +395,7 @@ const PANEL_SILL = 0.2;
  * der Character-Controller nicht) als eine, auf der kein Fuß steht.
  */
 function steps(height: number, rise: number): PlanSolid[] {
-  const count = Math.max(
-    1,
-    Math.min(Math.floor(TILE / STEP_RUN), Math.ceil(height / Math.max(0.01, rise))),
-  );
+  const count = stepCount(height, rise);
   const run = TILE / count;
   const out: PlanSolid[] = [];
   for (let i = 0; i < count; i++) {

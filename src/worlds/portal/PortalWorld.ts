@@ -335,7 +335,7 @@ import {
   portalSurfaceGroup,
   type PhysicsBody,
 } from '../../physics/PhysicsWorld';
-import { PhysicsLocomotion, type CellGate } from '../../physics/PhysicsLocomotion';
+import { PhysicsLocomotion, type PlayerPlane } from '../../physics/PhysicsLocomotion';
 import type { CellGrid } from '../nav/cellGrid';
 import { HitboxView } from '../../physics/HitboxView';
 import { graphics } from '../../core/graphicsSettings';
@@ -1639,7 +1639,7 @@ export class PortalWorld implements World {
 
     ctx.rig.placeFeetAt(this.spawnPoint(), this.spawnYaw());
     this.locomotion = new PhysicsLocomotion(this.physics, ctx.rig);
-    this.locomotion.cellGate = this.playerCellGate();
+    this.locomotion.plane = this.playerPlane();
     ctx.rig.setLocomotion(this.locomotion);
     this.applyWorldPhysics();
     this.unsubscribePhysics = onWorldPhysicsChange(() => this.applyWorldPhysics());
@@ -5350,11 +5350,11 @@ export class PortalWorld implements World {
   }
 
   /**
-   * **Die Zellsperre für den Spieler** (`PhysicsLocomotion.cellGate`) — `null`
-   * in einer Welt ohne Gitter. Die Welten auf dem Gitter stellen sie
+   * **Die Ebene, in der der Spieler geht** (`PhysicsLocomotion.plane`) —
+   * `null` in einer Welt ohne Gitter. Die Welten auf dem Gitter stellen sie
    * (`GridWorld`).
    */
-  protected playerCellGate(): CellGate | null {
+  protected playerPlane(): PlayerPlane | null {
     return null;
   }
 

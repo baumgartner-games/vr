@@ -11,14 +11,15 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
-import { CellGrid, cellKey, gateStep, navCellSource, type Slope } from '../nav/cellGrid';
+import { CellGrid, cellKey, navCellSource, type Slope } from '../nav/cellGrid';
+import { slideOnCells } from '../nav/planeMove';
 import { wallCells, type DiagonalWall } from '../portal/gridSnap';
 import { MODEL_ARCHES, modelPathOf, type PropKind } from '../portal/props';
 import { markRole } from './fixtures/mark';
 import { checkMarks, markSummary, type Mark, type Verdict } from './markCheck';
 import { FootprintView, type Occupant } from './footprintView';
 import { CellHitboxView } from './cellHitboxView';
-import type { CellGate } from '../../physics/PhysicsLocomotion';
+import type { PlayerPlane } from '../../physics/PhysicsLocomotion';
 import {
   DIRS,
   DIR_E,
@@ -342,8 +343,6 @@ export abstract class GridWorld extends PortalWorld {
   private markVerdicts: ReadonlyMap<string, Verdict> = new Map();
   private markClock = 0;
   private markLine = '';
-  /** Wo der Spieler zuletzt stehen durfte (`playerCellGate`, `gateStep`). */
-  private readonly gateMemory: { lastFree: { x: number; z: number } | null } = { lastFree: null };
   /** Die Anzeige der belegten Blöcke (_Menü → Grafik → Belegte Felder_). */
   private readonly footprints = new FootprintView();
   /** Die Hitboxen des Gitters um den Spieler (_Grafik → Hitboxen (2D-Gitter)_). */
@@ -971,6 +970,7 @@ export abstract class GridWorld extends PortalWorld {
             this.cellBlocked(ix, iz, level),
           walls: (tx, tz, dir, level) =>
             this.propEdges.size > 0 && this.propEdges.has(edgeAt(tx, tz, dir, level)),
+          flight: (tx, tz, level) => plan.flightOn(tileKey(tx, tz, level))?.dir ?? null,
         }),
       );
     }
@@ -1083,42 +1083,32 @@ export abstract class GridWorld extends PortalWorld {
     return key === NO_TILE ? null : keyLevel(key);
   }
 
-  /**
-   * **Die Zellsperre des Spielers** (`PhysicsLocomotion.cellGate`).
-   *
-   * Der Spieler steht optisch, wo er will, logisch auf dem 2×2-Block, auf den
-   * seine Füße gerundet werden (`snapCell`). Ein Schritt, der ihn auf einen
-   * Block brächte, der nicht frei ist — über eine Schräge, halb in eine Fuge
-   * mit Wand —, wird nicht gemacht (`nav/cellGrid.gateStep`). Wer schon auf
-   * einem gesperrten Block steht (abgesetzt, geschoben), bleibt nicht kleben:
-   * Er darf zurück zur letzten Stelle, an der er stehen durfte.
-   */
   protected override cellsForAgents(): CellGrid | null {
     return this.cellGrid();
   }
 
-  protected override playerCellGate(): CellGate | null {
-    return (fromX, fromZ, toX, toZ, y) => {
-      const grid = this.cellGrid();
-      if (!grid) return true;
-      // **Auch außerhalb des Grundrisses** wird gefragt, auf Etage 0: Dort
-      // stehen Wände aus dem Regal auf dem Gelände, und seit ihr Kasten den
-      // Spieler durchlässt (`PhysicsBody.gridWall`), hielt sie nur noch das
-      // Gitter auf — das an dieser Stelle schwieg. Gemeldet: _„einige wände
-      // [blocken] nur von einer seite"_. Boden gibt es dort keinen, aber das
-      // Nichts ist für den Spieler frei (`voidIsFree`), Wände zählen trotzdem.
-      const to = this.cellLevel(toX, toZ, y);
-      const from = this.cellLevel(fromX, fromZ, y);
-      const level = to ?? from ?? 0;
-      const was = from ?? level;
-      return gateStep(
-        grid,
-        { x: fromX, z: fromZ },
-        { x: toX, z: toZ },
-        this.gateMemory,
-        level,
-        was,
-      );
+  /**
+   * **Die Ebene des Spielers** (`PhysicsLocomotion.plane`).
+   *
+   * Der Spieler geht in 2D: ein Kreis, der an den Wänden des Zellgitters
+   * entlanggleitet (`nav/planeMove.slideOnCells`) — geraden, schrägen, den
+   * Kästen der Möbel und den Seiten der Treppen, die nur von außen halten.
+   * Gefragt wird auf der Etage, auf der seine Füße stehen.
+   *
+   * **Auch außerhalb des Grundrisses**, auf Etage 0: Dort stehen Wände aus dem
+   * Regal auf dem Gelände, und seit ihr Kasten den Spieler durchlässt
+   * (`PhysicsBody.gridWall`), hält sie nur noch die Ebene auf. Boden gibt es
+   * dort keinen, aber das Nichts ist für den Spieler frei (`voidIsFree`).
+   */
+  protected override playerPlane(): PlayerPlane | null {
+    return {
+      slide: (x, z, dx, dz, footY) => {
+        const grid = this.cellGrid();
+        if (!grid) return { x: x + dx, z: z + dz };
+        const level = this.cellLevel(x, z, footY) ?? this.cellLevel(x + dx, z + dz, footY) ?? 0;
+        return slideOnCells(grid, x, z, dx, dz, level);
+      },
+      flightFloor: (x, z, footY) => this.grid?.flightFloor(x, z, footY) ?? null,
     };
   }
 

@@ -1,4 +1,5 @@
-import { CellGrid, gateStep, navCellSource, type Slope } from '../../nav/cellGrid';
+import { CellGrid, navCellSource, type Slope } from '../../nav/cellGrid';
+import { slideOnCells } from '../../nav/planeMove';
 import { GridPlan } from '../../grid/gridPlan';
 import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey, type Dir, type TileKey } from '../../nav/navTile';
 import { wallCells } from '../../portal/gridSnap';
@@ -41,18 +42,10 @@ function labGrid(): CellGrid {
 
 const grid = labGrid();
 
-/** Wie der Spieler läuft: ganz, nur x, nur z, gar nicht (`PhysicsLocomotion.gateCells`). */
+/** Wie der Spieler läuft: in der Ebene, an den Wänden entlang (`PhysicsLocomotion.plane`). */
 function walk(from: { x: number; z: number }, dx: number, dz: number, frames = 300) {
-  const memory = { lastFree: null as { x: number; z: number } | null };
   let p = { ...from };
-  for (let i = 0; i < frames; i++) {
-    const full = { x: p.x + dx, z: p.z + dz },
-      alongX = { x: p.x + dx, z: p.z },
-      alongZ = { x: p.x, z: p.z + dz };
-    if (gateStep(grid, p, full, memory)) p = full;
-    else if (gateStep(grid, p, alongX, memory)) p = alongX;
-    else if (gateStep(grid, p, alongZ, memory)) p = alongZ;
-  }
+  for (let i = 0; i < frames; i++) p = slideOnCells(grid, p.x, p.z, dx, dz);
   return p;
 }
 
@@ -80,7 +73,9 @@ describe('Der Wandparcours', () => {
   });
 
   it('5 · lässt niemanden über die Schräge — auch nicht schräg hinein', () => {
-    // „╱" über (13 + i, 6 − i): Die Linie ist x + z = X + Z + 20 (Meter).
+    // „╱" über (13 + i, 6 − i): Die Linie ist x + z = X + Z + 20 (Meter), von
+    // (X + 13, Z + 7) bis (X + 17, Z + 3). Um ihre Enden herum darf man — wie
+    // bei der geraden Wand —, durch sie hindurch nicht.
     const line = X + Z + 20;
     for (const [dx, dz] of [
       [0.04, 0.04],
@@ -89,9 +84,28 @@ describe('Der Wandparcours', () => {
       [0.04, 0],
       [0, 0.04],
     ]) {
-      const p = walk({ x: X + 13.5, z: Z + 4.5 }, dx!, dz!);
-      expect(p.x + p.z).toBeLessThan(line);
+      let p = { x: X + 13.5, z: Z + 4.5 };
+      for (let i = 0; i < 300; i++) {
+        p = slideOnCells(grid, p.x, p.z, dx!, dz!);
+        const along = p.x - p.z - (X - Z);
+        if (along > 6 && along < 14) expect(p.x + p.z).toBeLessThan(line);
+      }
     }
+  });
+
+  it('5 · gleitet an der Schräge entlang, statt stehen zu bleiben', () => {
+    // Nach Westen gegen die „╱": die Wand hinunter nach Südwesten.
+    const p = walk({ x: X + 17.5, z: Z + 4.5 }, -0.04, 0, 120);
+    expect(p.z).toBeGreaterThan(Z + 5.5);
+    expect(p.x + p.z).toBeGreaterThan(X + Z + 20);
+  });
+
+  it('7 · lässt durch den schrägen Gang', () => {
+    // Zwischen x + z = 12 und x + z = 14 (Meter im Parcours), von Südwest nach Nordost.
+    const p = walk({ x: X + 1.4, z: Z + 11.6 }, 0.03, -0.03, 120);
+    expect(p.x).toBeGreaterThan(X + 4);
+    expect(p.x + p.z).toBeGreaterThan(X + Z + 12);
+    expect(p.x + p.z).toBeLessThan(X + Z + 14);
   });
 
   it('8 · lässt niemanden durch den Knick von gerader Wand in die Schräge', () => {
