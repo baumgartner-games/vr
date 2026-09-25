@@ -1,14 +1,45 @@
-import { CellGrid, gateStep, navCellSource } from '../../nav/cellGrid';
+import { CellGrid, gateStep, navCellSource, type Slope } from '../../nav/cellGrid';
 import { GridPlan } from '../../grid/gridPlan';
-import { tileKey } from '../../nav/navTile';
-import { ensureWallLab } from './wallLab';
+import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey, type Dir, type TileKey } from '../../nav/navTile';
+import { wallCells } from '../../portal/gridSnap';
 import { WALL_LAB } from '../layout';
 import { testPlan } from '../testPlan';
+import { LAB_WALL, ensureWallLab, wallLabModels } from './wallLab';
 
 const plan = testPlan();
-const grid = new CellGrid(
-  navCellSource(plan.graph, (key) => plan.slopeAt(key), { voidIsFree: true }),
-);
+
+/**
+ * **Das Gitter mit den Regalwänden des Parcours** — dieselbe Rechnung wie in
+ * der Welt (`gridSnap.wallCells`, `GridWorld.refreshWallSlopes`), mit den
+ * Maßen der Prototyp-Wand: 2 m bzw. 1 m lang, 0,37 m dick.
+ */
+function labGrid(): CellGrid {
+  const edges = new Set<string>();
+  const slopes = new Map<TileKey, Slope>();
+  for (const wall of wallLabModels()) {
+    const half = { x: wall.path === LAB_WALL ? 1 : 0.5, z: 0.185 };
+    const turn = { x: 0, y: Math.sin(wall.yaw / 2), z: 0, w: Math.cos(wall.yaw / 2) };
+    const cells = wallCells(wall.x, wall.z, turn, half);
+    expect(cells).not.toBeNull();
+    for (const edge of cells!.edges) edges.add(`${edge.x},${edge.z},${edge.dir}`);
+    for (const one of cells!.slopes) slopes.set(tileKey(one.x, one.z, 0), one.slope);
+  }
+  const closed = (tx: number, tz: number, dir: Dir): boolean => {
+    if (dir === DIR_N) return edges.has(`${tx},${tz},n`);
+    if (dir === DIR_S) return edges.has(`${tx},${tz + 1},n`);
+    if (dir === DIR_W) return edges.has(`${tx},${tz},w`);
+    return edges.has(`${tx + 1},${tz},w`);
+  };
+  void DIR_E;
+  return new CellGrid(
+    navCellSource(plan.graph, (key) => slopes.get(key) ?? null, {
+      voidIsFree: true,
+      walls: closed,
+    }),
+  );
+}
+
+const grid = labGrid();
 
 /** Wie der Spieler läuft: ganz, nur x, nur z, gar nicht (`PhysicsLocomotion.gateCells`). */
 function walk(from: { x: number; z: number }, dx: number, dz: number, frames = 300) {
@@ -80,15 +111,20 @@ describe('Der Wandparcours', () => {
 });
 
 describe('Ein gespeicherter Stand ohne Parcours', () => {
-  it('bekommt ihn dazu — Boden, Wände und Schrägen', () => {
+  it('bekommt seinen Boden dazu — die Wände kommen aus dem Regal', () => {
     const old = new GridPlan([0]);
     old.floor({ x: -2, z: -2, w: 4, d: 4 });
     ensureWallLab(old);
     expect(old.graph.has(tileKey(X, Z, 0))).toBe(true);
-    expect(old.slopeAt(tileKey(X + 13, Z + 6, 0))).toBe('slash');
-    // Ein zweites Mal ändert nichts.
     const version = old.version;
     ensureWallLab(old);
     expect(old.version).toBe(version);
+  });
+});
+
+describe('Die Testwelt ohne Planwände', () => {
+  it('hat keine feste Wand mehr im Grundriss und keine Schräge', () => {
+    for (const [, wall] of plan.graph.wallEntries()) expect(wall.kind).not.toBe('solid');
+    expect(plan.saveSlopes()).toHaveLength(0);
   });
 });

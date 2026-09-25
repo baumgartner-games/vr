@@ -146,11 +146,24 @@ den großen Kacheln bleibt.
   Welten beginnt er danach am Startpunkt der Welt (`fallRespawnAtStart`) —
   gewünscht: _„nicht einfach nach oben teleportiert, sondern wirklich zum
   spawn der welt"_.
-- **Wände aus dem Regal** gehören zum Zellgitter (`GridWorld.refreshWallSlopes`):
+- **Wände aus dem Regal** gehören zum Zellgitter (`GridWorld.refreshWallSlopes`,
+  `gridSnap.wallCells`):
   - Unter 45° (`gridSnap.diagonalPose`, `PortalWorld.fitWall`) als Schrägen.
   - Gerade und eingerastet (auf einer Fuge, in einer Vierteldrehung) als
     Wände auf ihren Kanten (`propEdges`, `NavCellOptions.walls`).
-  - Umgefallen oder schief geschoben hält sie nur die Physik.
+  - **Eingerastet hält ihr Kasten Spieler und NPCs nicht mehr auf**
+    (`PhysicsBody.gridWall`, `PhysicsWorld.setGridWall`) — das tut allein
+    das Gitter, wie bei jeder gebauten Wand. Kisten, Würfe und Kugeln prallen
+    weiter an ihr ab. Gewünscht: _„ja, nur gitter"_ — ein System statt zwei.
+  - Umgefallen oder schief geschoben ist sie wieder ein Körper.
+  - Beim Hinstellen zeigt das Gitter unter dem Kran die Fuge, bei einer
+    Schräge einen schrägen Strich je Kachel (`PlaceGrid.showSlants`).
+- **Die Testwelt hat keine Planwände mehr** (`testPlan.clearPlanWalls`, auch
+  für einen gespeicherten Stand in `TestWorld.planLoaded`): gewünscht _„alle
+  normalen wände komplett zu entfernen. Ich will nur noch mit den kaykit
+  wänden arbeiten."_ Türen und Fenster bleiben. Der Wandparcours steht aus
+  Regalwänden (`wallLabModels`, aufgestellt mit `PortalWorld.placeModel`, das
+  nichts in die Weltänderungen schreibt).
 - **Wandtests mit Bodenmarken** (`grid/fixtures/mark.ts`, `grid/markCheck.ts`):
   - Drei Einbauten, gesetzt unter _Einrichten → Einbauten_: _Start (Wandtest)_
     (blau), _Darf hin_ (grün) und _Darf nicht hin_ (rot).

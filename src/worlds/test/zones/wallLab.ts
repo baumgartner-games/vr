@@ -1,17 +1,20 @@
 import type { GridPlan } from '../../grid/gridPlan';
-import { DIR_E, DIR_N, DIR_S, DIR_W, tileKey, type Dir } from '../../nav/navTile';
+import { DIR_N, DIR_S, tileKey } from '../../nav/navTile';
 import { WALL_LAB } from '../layout';
 
 /**
- * **Der Wandparcours** — Wände zum Dagegenlaufen, jede Sorte einmal.
+ * **Der Wandparcours** — Wände zum Dagegenlaufen, jede Sorte einmal, **aus
+ * dem Regal**.
  *
  * Gewünscht: _„Wir sollten in der Test Welt ein paar Wand Test cases
- * aufstellen, die ich dann prüfen kann."_ Anlass waren zwei Befunde: In der
- * Küche kam man in die Wand hinein (die Figur durfte eine Viertelzelle über
- * ihren Block hinaus, `nav/cellGrid.standable`), und in Haunting fiel man
- * durch eine 45°-Wand aus der Welt (`cellGrid.gateStep`). Über das Gehen
- * entscheidet in dieser Welt allein das Zellgitter (`docs/agents/zellgitter.md`);
- * hier steht, was es können muss, nebeneinander:
+ * aufstellen, die ich dann prüfen kann."_ Und danach: _„bitte ich dich alle
+ * normalen wände komplett zu entfernen. Ich will nur noch mit den kaykit
+ * wänden arbeiten."_ Seitdem hat die Testwelt keine Planwände mehr
+ * (`testPlan.clearPlanWalls`), und der Parcours steht aus denselben Wänden,
+ * die man selbst aus dem Regal nimmt (`prototype-bits/Wall.glb`, zwei Meter,
+ * und `Wall_Half.glb`, einer). Eingerastet sind sie Wände auf dem Zellgitter
+ * wie jede andere (`GridWorld.refreshWallSlopes`): gerade als Kanten, unter
+ * 45° als Schrägen — über das Gehen entscheidet allein das Gitter.
  *
  * 1. eine gerade Wand — von beiden Seiten und um ihre Enden herum,
  * 2. eine Ecke,
@@ -22,75 +25,111 @@ import { WALL_LAB } from '../layout';
  * 7. ein schräger Gang zwischen zwei Schrägen,
  * 8. eine gerade Wand, die unter 45° abknickt — wie die Ecken der Station.
  *
- * Die Nummern stehen auf den Schildern. Eine eigene Wand aus dem Regal unter
- * 45° (`R` am Kran) lässt sich daneben auf die Wiese stellen.
+ * Die Nummern stehen auf den Schildern; die Bodenmarken
+ * (`grid/fixtures/mark.ts`) zeigen, wohin man darf.
  */
 
-/** Die Kachel in Weltkoordinaten zu einer Stelle im Parcours. */
-function at(lx: number, lz: number): { x: number; z: number } {
-  return { x: WALL_LAB.x + lx, z: WALL_LAB.z + lz };
+export const LAB_WALL = 'prototype-bits/Wall.glb';
+export const LAB_WALL_HALF = 'prototype-bits/Wall_Half.glb';
+
+/** Wie hoch die Mitte einer Regalwand steht — sie fällt den Rest auf den Boden. */
+const WALL_Y = 1.4;
+
+/** Ein Stück des Parcours: Modell, Mitte in Weltmetern, Drehung in Bogenmaß. */
+export interface LabWall {
+  path: string;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
 }
 
-export function stampWallLab(plan: GridPlan): void {
-  const wall = (lx: number, lz: number, dir: Dir): void => {
-    const t = at(lx, lz);
-    plan.wall(t.x, t.z, dir);
-  };
-  const slope = (lx: number, lz: number, kind: 'slash' | 'backslash'): void => {
-    const t = at(lx, lz);
-    plan.slope(t.x, t.z, kind);
-  };
-  // 1. Gerade Wand, sechs Kacheln.
-  for (let lz = 2; lz <= 7; lz++) wall(1, lz, DIR_E);
-  // 2. Ecke.
-  for (let lx = 4; lx <= 6; lx++) wall(lx, 3, DIR_N);
-  for (let lz = 3; lz <= 6; lz++) wall(6, lz, DIR_E);
-  // 3. Lücke von einer Kachel.
-  for (let lz = 2; lz <= 7; lz++) if (lz !== 4) wall(8, lz, DIR_E);
-  // 4. Gang von einem Meter.
-  for (let lz = 2; lz <= 7; lz++) {
-    wall(11, lz, DIR_W);
-    wall(11, lz, DIR_E);
+const X = WALL_LAB.x,
+  Z = WALL_LAB.z;
+const ALONG_X = 0;
+const ALONG_Z = Math.PI / 2;
+/** „╱": die lange Achse nach Nordosten (`gridSnap.diagonalPose`). */
+const SLASH = Math.PI / 4;
+/** „╲": nach Südosten. */
+const BACKSLASH = -Math.PI / 4;
+
+/**
+ * **Eine gerade Wand über `length` Kacheln** — aus ganzen Stücken, am Ende
+ * ein halbes. `alongX`: auf der Fuge `z = line`, von `from` nach Osten; sonst
+ * auf der Fuge `x = line`, von `from` nach Süden.
+ */
+function run(out: LabWall[], alongX: boolean, line: number, from: number, length: number): void {
+  let at = from;
+  for (let left = length; left > 0;) {
+    const piece = left >= 2 ? 2 : 1;
+    const mid = at + piece / 2;
+    out.push({
+      path: piece === 2 ? LAB_WALL : LAB_WALL_HALF,
+      x: alongX ? mid : line,
+      y: WALL_Y,
+      z: alongX ? line : mid,
+      yaw: alongX ? ALONG_X : ALONG_Z,
+    });
+    at += piece;
+    left -= piece;
   }
+}
+
+/** Eine Wand unter 45° durch die Kachel (`lx`, `lz`) des Parcours. */
+function slant(out: LabWall[], lx: number, lz: number, yaw: number): void {
+  out.push({ path: LAB_WALL, x: X + lx + 0.5, y: WALL_Y, z: Z + lz + 0.5, yaw });
+}
+
+/** **Alle Wände des Parcours** — die Welt stellt sie beim Aufbau hin (`TestWorld.buildProps`). */
+export function wallLabModels(): LabWall[] {
+  const out: LabWall[] = [];
+  // 1. Gerade Wand, sechs Kacheln, auf der Fuge x = X + 2.
+  run(out, false, X + 2, Z + 2, 6);
+  // 2. Ecke: drei nach Osten auf z = Z + 3, dann vier nach Süden auf x = X + 7.
+  run(out, true, Z + 3, X + 4, 3);
+  run(out, false, X + 7, Z + 3, 4);
+  // 3. Lücke von einer Kachel (z = Z + 4 … Z + 5) auf der Fuge x = X + 9.
+  run(out, false, X + 9, Z + 2, 2);
+  run(out, false, X + 9, Z + 5, 3);
+  // 4. Gang von einem Meter zwischen x = X + 11 und X + 12.
+  run(out, false, X + 11, Z + 2, 6);
+  run(out, false, X + 12, Z + 2, 6);
   // 5. Schräge „╱" über vier Kacheln.
-  for (let i = 0; i < 4; i++) slope(13 + i, 6 - i, 'slash');
+  for (let i = 0; i < 4; i++) slant(out, 13 + i, 6 - i, SLASH);
   // 6. Schräge „╲" über vier Kacheln.
-  for (let i = 0; i < 4; i++) slope(18 + i, 3 + i, 'backslash');
+  for (let i = 0; i < 4; i++) slant(out, 18 + i, 3 + i, BACKSLASH);
   // 7. Schräger Gang: zwei „╱" nebeneinander, zwei Kacheln auseinander.
   for (let i = 0; i < 3; i++) {
-    slope(1 + i, 10 - i, 'slash');
-    slope(3 + i, 10 - i, 'slash');
+    slant(out, 1 + i, 10 - i, SLASH);
+    slant(out, 3 + i, 10 - i, SLASH);
   }
-  // 8. Gerade Wand nach Osten, die nach Südwesten unter 45° abknickt und
-  //    gerade nach Süden weitergeht.
-  for (let lx = 16; lx <= 19; lx++) wall(lx, 8, DIR_N);
-  slope(15, 8, 'slash');
-  slope(14, 9, 'slash');
-  wall(14, 10, DIR_W);
+  // 8. Gerade Wand nach Osten, die nach Südwesten abknickt und nach Süden weitergeht.
+  run(out, true, Z + 8, X + 16, 4);
+  slant(out, 15, 8, SLASH);
+  slant(out, 14, 9, SLASH);
+  run(out, false, X + 14, Z + 10, 1);
+  return out;
 }
 
 /**
- * **Den Parcours in einen gespeicherten Plan setzen, dem er fehlt**
+ * **Den Boden des Parcours in einen gespeicherten Plan setzen, dem er fehlt**
  * (`TestWorld.planLoaded`). Ein Stand, der vor dem Parcours gespeichert
- * wurde, ersetzt den ganzen Grundriss (`GridWorld.applyStored`), und wer ihn
- * geladen hat, sähe den Parcours nie — gemeldet: _„hmm ich sehe noch
- * nichts"_. Fehlt der Boden an seiner Ecke, kommt er dazu: Boden, Wände,
- * Schrägen. Wände und Schrägen setzen ist doppelt ohne Folgen; einen Parcours,
- * den jemand umgebaut hat, erkennt man an seinem Boden, und der bleibt dann,
- * wie er ist.
+ * wurde, ersetzt den ganzen Grundriss (`GridWorld.applyStored`) — gemeldet:
+ * _„hmm ich sehe noch nichts"_. Die Wände sind Regalstücke und kommen ohnehin
+ * beim Aufbau (`wallLabModels`).
  */
 export function ensureWallLab(plan: GridPlan): void {
   if (plan.graph.has(tileKey(WALL_LAB.x, WALL_LAB.z, 0))) return;
   plan.floor(WALL_LAB);
-  stampWallLab(plan);
 }
 
-/** Die Schilder — Einbauten mit Kennung, damit ein geladener Stand sie wiederbekommt. */
+/** Die Schilder und das Beispiel der Bodenmarken — Einbauten mit Kennung. */
 export function fitWallLab(plan: GridPlan): void {
+  const at = (lx: number, lz: number) => ({ x: X + lx, z: Z + lz });
   const signs: Array<[string, number, number, 'n' | 's', string]> = [
     ['1', 1, 0, 'n', '1 · Gerade Wand — von beiden Seiten und um die Enden'],
     ['2', 5, 0, 'n', '2 · Ecke'],
-    ['3', 8, 0, 'n', '3 · Lücke von einer Kachel — der 2×2-Block passt genau'],
+    ['3', 9, 0, 'n', '3 · Lücke von einer Kachel — der 2×2-Block passt genau'],
     ['4', 11, 0, 'n', '4 · Gang von einem Meter'],
     ['5', 14, 0, 'n', '5 · Schräge ╱'],
     ['6', 19, 0, 'n', '6 · Schräge ╲'],
@@ -100,14 +139,13 @@ export function fitWallLab(plan: GridPlan): void {
   // **Ein Beispiel für die Bodenmarken** (`grid/fixtures/mark.ts`): Start
   // westlich der Lücke, „darf hin" östlich davon. Weitere setzt man selbst —
   // Einrichten → Einbauten.
-  const start = at(7, 4),
+  const start = at(8, 4),
     goal = at(10, 4);
   plan.putFixture({ id: 'wandtest-start', kind: 'mark-start', x: start.x, z: start.z, dir: DIR_N });
   plan.putFixture({ id: 'wandtest-luecke', kind: 'mark-go', x: goal.x, z: goal.z, dir: DIR_N });
   for (const [id, lx, lz, side, text] of signs) {
     const t = at(lx, lz);
     const dir = side === 'n' ? DIR_N : DIR_S;
-    plan.wall(t.x, t.z, dir);
     plan.putFixture({
       id: `schild-wand-${id}`,
       kind: 'sign',

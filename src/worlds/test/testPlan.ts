@@ -1,3 +1,4 @@
+import { keyLevel, keyX, keyZ, wallDir, wallTile, type WallKey } from '../nav/navTile';
 import { GridPlan } from '../grid/gridPlan';
 import {
   EFFECTS,
@@ -23,7 +24,7 @@ import { fitPodium, stampPodium } from './zones/podium';
 import { fitPortals, stampPortals } from './zones/portals';
 import { fitRange, stampRange } from './zones/range';
 import { fitStart, stampStart } from './zones/start';
-import { fitWallLab, stampWallLab } from './zones/wallLab';
+import { fitWallLab } from './zones/wallLab';
 
 /**
  * **Die Testwelt als Grundriss** — ein Gelände, neun Zonen, ein Boden.
@@ -108,7 +109,6 @@ export function testPlan(): GridPlan {
   stampKart(plan);
   stampClimb(plan);
   stampKitchen(plan);
-  stampWallLab(plan);
   // Nach dem Boden des Obergeschosses, und deshalb als vorletzte: Die Treppe
   // schlägt das Loch über sich selbst, und was danach noch Boden legt, legt es
   // wieder zu.
@@ -117,8 +117,30 @@ export function testPlan(): GridPlan {
   // vorher nicht gab.
   stampPortals(plan);
 
+  // **Keine Planwände** — gewünscht: _„bitte ich dich alle normalen wände
+  // komplett zu entfernen. Ich will nur noch mit den kaykit wänden arbeiten."_
+  // Die Zonen setzen ihre Wände weiter (so bleiben ihre Stempel lesbar), und
+  // hier gehen sie alle wieder weg (`clearPlanWalls`).
+  // Nach den Einbauten: Einige setzen hinter ihr Schild noch eine Wand.
   fitTest(plan);
+  clearPlanWalls(plan);
   return plan;
+}
+
+/**
+ * **Alle festen Planwände und Schrägen weg** — Türen und Fenster bleiben.
+ *
+ * Die Testwelt baut Wände nur noch aus dem Regal (`zones/wallLab.ts`), und
+ * eine eingerastete Regalwand ist auf dem Zellgitter eine Wand wie jede
+ * andere (`GridWorld.refreshWallSlopes`). Auch ein gespeicherter Stand von
+ * vorher verliert sie (`TestWorld.planLoaded`).
+ */
+export function clearPlanWalls(plan: GridPlan): void {
+  const solid: WallKey[] = [];
+  for (const [key, wall] of plan.graph.wallEntries()) if (wall.kind === 'solid') solid.push(key);
+  for (const key of solid) plan.graph.clearWall(wallTile(key), wallDir(key));
+  for (const { tile } of plan.saveSlopes())
+    plan.slope(keyX(tile), keyZ(tile), null, keyLevel(tile));
 }
 
 /**
