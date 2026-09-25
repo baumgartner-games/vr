@@ -156,6 +156,26 @@ den großen Kacheln bleibt.
     das Gitter, wie bei jeder gebauten Wand. Kisten, Würfe und Kugeln prallen
     weiter an ihr ab. Gewünscht: _„ja, nur gitter"_ — ein System statt zwei.
   - Umgefallen oder schief geschoben ist sie wieder ein Körper.
+  - **Ein Durchgang** (`props.MODEL_ARCHES`, z. B.
+    `restaurant-bits/wall_doorway.glb`, 2 m mit 0,8 m Öffnung) sperrt keine
+    Kante, sondern nur die Zellen an seinen Pfosten (`WallCells.cells`,
+    `GridWorld.propCells`). Dazwischen bleiben zwei Zellen frei, und ein
+    2×2-Block geht hindurch.
+  - **Eine neue Wand ersetzt die alte**: Was eine Fuge oder schräge Kachel mit
+    ihr teilt, leuchtet beim Darüberhalten rot (`PortalWorld.markReplaced`) und
+    verschwindet beim Loslassen (`replaceWalls`). Durchgang und Fenster zählen
+    dabei in voller Länge.
+  - **Außerhalb des Grundrisses** fragt die Zellsperre des Spielers auf
+    Etage 0 weiter. Vorher schwieg sie dort, und eine Wand auf dem Gelände
+    hielt nur von innen.
+- **An einer schrägen Wand entlang gleiten** (`diagonalSlides`): Nach „ganz,
+  nur x, nur z" versucht der Schritt noch seine Anteile längs der beiden
+  Diagonalen. Wer gegen eine Schräge läuft, wird in die freie Richtung
+  gedrückt. Damit das an den Blockmitten nicht hängen bleibt, ist die Zone um
+  eine Mitte eine Raute, so breit wie der schräge Streifen, und ein Streifen
+  wird auch im Nachbarfeld gefunden (`standable`, `inSquare`).
+- **Die Küchenwände der Testwelt** kommen aus dem Regal
+  (`test/zones/kitchenWalls.ts`), so wie der Besitzer sie gebaut hat.
   - Beim Hinstellen zeigt das Gitter unter dem Kran die Fuge, bei einer
     Schräge einen schrägen Strich je Kachel (`PlaceGrid.showSlants`).
 - **Die Testwelt hat keine Planwände mehr** (`testPlan.clearPlanWalls`, auch

@@ -362,6 +362,10 @@ export const WALL_OVERLAP = 0.05;
 export const MODEL_ARCHES: Readonly<Record<string, { open: number; top: number }>> = {
   'prototype-bits/Wall_Doorway.glb': { open: 0.8, top: 0.75 },
   'prototype-bits/Wall_Doorway_Wide.glb': { open: 0.9, top: 0.75 },
+  // Nachgemessen an der Datei: 4 Quelleinheiten breit, die Öffnung ±0,8 —
+  // im Spiel 2 m mit 0,8 m Durchgang. Gemeldet: _„betrifft wohl die tür auch,
+  // dass ich da nicht durch kann?"_ Sie war ein voller Kasten.
+  'restaurant-bits/wall_doorway.glb': { open: 0.4, top: 0.75 },
 };
 
 export function modelPropShape(

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { PLAYER_CAPSULE_RADIUS, landingOffsets } from './playerClearance';
 import type { Collider, KinematicCharacterController, RigidBody } from '@dimforge/rapier3d-compat';
 import type { Locomotion } from '../core/Locomotion';
+import { diagonalSlides } from '../worlds/nav/cellGrid';
 import type { PlayerRig } from '../core/PlayerRig';
 import {
   ALL_GROUPS,
@@ -377,6 +378,15 @@ export class PhysicsLocomotion implements Locomotion {
     if (_applied.z !== 0 && gate(at.x, at.z, at.x, z, at.y)) {
       _applied.x = 0;
       return;
+    }
+    // **An einer Schräge entlang** (`cellGrid.diagonalSlides`): Wer gegen
+    // eine 45°-Wand läuft, wird in die freie Richtung gedrückt.
+    for (const slide of diagonalSlides(_applied.x, _applied.z)) {
+      if (gate(at.x, at.z, at.x + slide.x, at.z + slide.z, at.y)) {
+        _applied.x = slide.x;
+        _applied.z = slide.z;
+        return;
+      }
     }
     _applied.x = 0;
     _applied.z = 0;

@@ -6,6 +6,7 @@ import {
   CellGrid,
   blockStart,
   cellsFor,
+  diagonalSlides,
   gateStep,
   glides,
   moveOnCells,
@@ -206,10 +207,11 @@ describe('Blöcke jeder Größe und die eine Bewegung', () => {
     let p = cellCentre({ cx: 1, cz: 2 });
     for (let i = 0; i < 20; i++) p = moveOnCells(grid, p, 0.025, -0.025);
     expect(snapCell(p.x, p.z)).toEqual({ cx: 2, cz: 1 });
-    // Gerade in die Ecke hinein geht es dagegen nicht.
+    // Gerade in die Ecke hinein drückt die Wand in die freie Richtung — hier
+    // schräg durch die Lücke (`diagonalSlides`).
     let q = cellCentre({ cx: 1, cz: 2 });
     for (let i = 0; i < 20; i++) q = moveOnCells(grid, q, 0.05, 0);
-    expect(snapCell(q.x, q.z)).toEqual({ cx: 1, cz: 2 });
+    expect(snapCell(q.x, q.z)).toEqual({ cx: 2, cz: 1 });
   });
 
   it('lässt den Körper nicht in eine Wand — nur eine Achtelzelle über die Blockmitte', () => {
@@ -219,9 +221,10 @@ describe('Blöcke jeder Größe und die eine Bewegung', () => {
     const grid = new CellGrid(navCellSource(graph, () => null));
     let p = { x: 1, z: 1.5 };
     for (let i = 0; i < 100; i++) p = moveOnCells(grid, p, 0.03, 0);
-    // Die Blockmitte vor der Wand liegt bei x = 1,5; weiter als 1,5 + 0,125 nicht.
+    // Die Blockmitte vor der Wand liegt bei x = 1,5; weiter als gut eine
+    // Achtelzelle (0,135 m) nicht.
     expect(p.x).toBeGreaterThan(1.5);
-    expect(p.x).toBeLessThanOrEqual(1.625 + 1e-9);
+    expect(p.x).toBeLessThanOrEqual(1.5 + 0.27 * 0.5 + 1e-9);
     // Mit 0,24 m Körper bleibt die Wand (Fuge 2, 0,1 m dick) unberührt.
     expect(2 - 0.1 - (p.x + 0.24)).toBeGreaterThan(0);
   });
@@ -297,6 +300,31 @@ describe('Eine 45°-Wand mit nichts dahinter — wie die Ecken der Station', () 
         expect(p.x + p.z).toBeGreaterThan(4 - 0.15);
       }
     }
+  });
+
+  it('drückt an einer Schräge in die freie Richtung, statt stehen zu bleiben', () => {
+    const grid = cornered();
+    // Nach Westen gegen die „╱" (x + z = 4 m): Die Figur rutscht an ihr nach
+    // Südwesten entlang — x wird kleiner, z größer, und sie bleibt innen.
+    let p = { x: 4, z: 1.5 };
+    for (let i = 0; i < 200; i++) p = moveOnCells(grid, p, -0.03, 0);
+    expect(p.z).toBeGreaterThan(2.5);
+    expect(p.x).toBeLessThan(2.5);
+    expect(p.x + p.z).toBeGreaterThan(4);
+    // Mit der Zellsperre des Spielers ebenso (`PhysicsLocomotion.gateCells`).
+    const memory = { lastFree: null as { x: number; z: number } | null };
+    let q = { x: 4, z: 1.5 };
+    for (let i = 0; i < 200; i++) {
+      const dx = -0.03,
+        dz = 0;
+      const candidates = [{ x: dx, z: dz }, ...diagonalSlides(dx, dz)];
+      const step = candidates.find((c) =>
+        gateStep(grid, q, { x: q.x + c.x, z: q.z + c.z }, memory),
+      );
+      if (step) q = { x: q.x + step.x, z: q.z + step.z };
+    }
+    expect(q.z).toBeGreaterThan(2.5);
+    expect(q.x + q.z).toBeGreaterThan(4);
   });
 
   it('gleitet über Eck nur im Streifen zwischen zwei freien Blöcken', () => {
