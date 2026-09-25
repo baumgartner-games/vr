@@ -41,6 +41,15 @@ export function portalSurfaceGroup(index: number): number {
   return 1 << (PORTAL_SURFACE_BASE + (index % PORTAL_SURFACE_SLOTS));
 }
 
+/**
+ * **Was das Zellgitter sperrt** (`worlds/nav/cellGrid.ts`, `PlanSolid.cell`):
+ * Wände, Türen, Fenster, Schrägen und Möbel der Gitterwelten. Der Spieler
+ * geht physikalisch durch sie hindurch — für ihn entscheidet das Gitter
+ * (`PhysicsLocomotion.cellGate`); alles andere prallt ab wie an jeder Wand.
+ * Das letzte Bit, nach den zehn der Portalflächen.
+ */
+export const GROUP_CELL = 1 << 15;
+
 export const ALL_GROUPS = 0xffff;
 
 /** Rapier packs membership and filter into one 32 bit value. */

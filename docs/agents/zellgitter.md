@@ -57,15 +57,32 @@ den großen Kacheln bleibt.
     übernimmt die Drehung.
   - Wer nur Kästen kennt (`solidBounds`, Ghosting), sieht einen Kasten um die
     Mitte.
-- **Der Spieler** (`PhysicsLocomotion.cellGate`, gestellt von
-  `GridWorld.playerCellGate`):
-  - Die Physik hält weiter die Wände auf. Danach wird der Schritt gegen das
-    Gitter geprüft: erst ganz, dann nur längs x, dann nur längs z.
-  - Ein Schritt auf einen gesperrten Block wird nicht gemacht.
-  - Wer schon auf einem gesperrten Block steht (abgesetzt, durch ein Portal
-    gekommen), bleibt nicht kleben.
-  - Außerhalb des Grundrisses schweigt das Gitter (`voidIsFree`), denn dort
-    trägt die Physik.
+- **Der Spieler bewegt sich nur auf dem Gitter** (`PhysicsLocomotion.cellGate`,
+  gestellt von `GridWorld.playerCellGate`, Regel wie `cellGrid.moveOnCells`):
+  - Wände, Türen, Fenster, Schrägen und Möbel der Gitterwelten tragen
+    `PlanSolid.cell` und sitzen in der Physik im eigenen Bit `GROUP_CELL`.
+    Die Kapsel des Spielers geht durch sie hindurch (`PLAYER_FILTER`), denn
+    über sie entscheidet allein das Gitter.
+  - Böden, Treppen, Rampen, Podeste, Massen und bewegliche Kisten bleiben
+    Physik.
+  - Der Schritt wird ganz gemacht, nur längs x, nur längs z oder gar nicht,
+    je nachdem, ob der 2 × 2-Block danach frei ist.
+  - Wer auf einem gesperrten Block steht, darf heraus.
+  - Außerhalb des Grundrisses schweigt das Gitter (`voidIsFree`).
+- **Möbel sperren Zellen** (`GridPlan.furnitureCells`, `boxCells`):
+  - Gesperrt ist jede Zelle, in die ein Quader eines Bausteins mindestens
+    15 cm hineinragt (`CELL_OVERLAP`) und der höher ist als eine Stufe
+    (30 cm).
+  - Treppe, Rampe und Podest sperren nichts.
+  - Ein Einbau mit Körper sperrt seine Kachel.
+  - Eine Welt kann weitere Zellen sperren (`GridWorld.cellBlocked`).
+  - Was keine Zelle sperrt, zum Beispiel ein dünnes Geländer, bleibt für den
+    Spieler Physik.
+- **Blöcke jeder Größe** (`size`, `blockStart`, `cellsFor`):
+  - Ein Agent sagt, wie viele Zellen je Seite er belegt.
+  - Bei gerader Größe liegt die Stellung auf einer Zellecke, bei ungerader
+    in einer Zellmitte.
+  - Jede Kachelkante im Inneren des Blocks wird geprüft.
 - **Anzeige:** _Menü → Grafik → Belegte Felder_
   (`graphicsSettings.cellFootprints`, `grid/footprintView.ts`).
   - Unter Spieler, Mitspielern und NPCs liegt ihr 2 × 2-Block, grün frei,

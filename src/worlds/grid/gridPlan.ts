@@ -20,7 +20,7 @@ import {
 import { BLOCKS, blockRise, blockSolids, type BlockKind } from './blocks';
 import { FIXTURE_COST, fixtureKind, type FixturePlacement, type Props } from './fixtures/index';
 import { standing, type PlanSolid, type PlanSolidKind } from './solids';
-import type { Slope } from '../nav/cellGrid';
+import { boxCells, cellKey, type Slope } from '../nav/cellGrid';
 import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 
 /**
@@ -285,6 +285,53 @@ export class GridPlan {
     this.refresh(key);
     return this;
   }
+
+  /**
+   * **Die Zellen, auf denen etwas steht** (`nav/cellGrid.CellSource.blocked`)
+   * — Möbel und feste Einbauten, als Schlüssel `ix,iz,Etage`.
+   *
+   * Aus den Quadern der Bausteine gerechnet und nicht aus einer zweiten
+   * Maßtabelle: Was in der Welt steht, sperrt genau die Zellen, in die es
+   * ragt (`boxCells`). Treppe, Rampe und Podest sperren nichts — auf ihnen
+   * geht man —, und was niedriger ist als eine Stufe (30 cm), auch nicht.
+   * Ein Einbau mit Körper (`kind.solid`) sperrt seine ganze Kachel.
+   * Gerechnet wird je Stand des Plans einmal.
+   */
+  furnitureCells(): ReadonlySet<string> {
+    if (this.furnitureAt === this.version) return this.furniture;
+    const out = new Set<string>();
+    for (const one of this.placed) {
+      const facts = BLOCKS[one.kind];
+      if (facts.steps || facts.rise > 0) continue;
+      const level = keyLevel(one.tile);
+      const base = this.graph.levelY(level);
+      for (const solid of blockSolids(one.kind, {
+        x: tileCentreX(one.tile),
+        z: tileCentreZ(one.tile),
+        base,
+        dir: one.dir,
+        ...(one.height === undefined ? {} : { height: one.height }),
+        ...(one.lift === undefined ? {} : { lift: one.lift }),
+      })) {
+        for (const cell of furnitureCellsOf(solid, base)) out.add(cellKey(cell.ix, cell.iz, level));
+      }
+    }
+    for (const one of this.fitted) {
+      const kind = fixtureKind(one.kind);
+      if (!kind || kind.door || !kind.solid(kind.init(one))) continue;
+      const tile = fixtureTile(one);
+      const x = tileCentreX(tile),
+        z = tileCentreZ(tile);
+      for (const cell of boxCells({ minX: x - 0.5, maxX: x + 0.5, minZ: z - 0.5, maxZ: z + 0.5 }))
+        out.add(cellKey(cell.ix, cell.iz, one.level));
+    }
+    this.furniture = out;
+    this.furnitureAt = this.version;
+    return out;
+  }
+
+  private furniture: ReadonlySet<string> = new Set();
+  private furnitureAt = -1;
 
   /** Die Schräge einer Kachel, wenn eine darin steht. */
   slopeAt(key: TileKey): Slope | null {
@@ -725,6 +772,8 @@ export class GridPlan {
 
   solids(): PlanSolid[] {
     const out = planSolids(this.graph, this.doorWidth());
+    // Wände, Türen und Fenster sperrt das Zellgitter (`PlanSolid.cell`).
+    for (const one of out) if (one.kind !== 'floor') one.cell = true;
     for (const one of this.stack) out.push(massSolid(this.graph, one));
     for (const one of this.placed) {
       // **Ein Baustein steht auf der Ebene seiner Kachel** — die Brüstung auf
@@ -740,10 +789,17 @@ export class GridPlan {
         ...(one.lift === undefined ? {} : { lift: one.lift }),
       })) {
         solid.level = level;
+        // Möbel sperren ihre Zellen (`furnitureCells`) — dieselbe Regel hier:
+        // Was keine Zelle sperrt (ein dünnes Geländer), bleibt Physik.
+        const facts = BLOCKS[one.kind];
+        const base = this.graph.levelY(level);
+        if (!facts.steps && facts.rise === 0 && furnitureCellsOf(solid, base).length > 0)
+          solid.cell = true;
         out.push(solid);
       }
     }
-    for (const [tile, slope] of this.slopeTiles) out.push(slopeSolid(this.graph, tile, slope));
+    for (const [tile, slope] of this.slopeTiles)
+      out.push({ ...slopeSolid(this.graph, tile, slope), cell: true });
     return out;
   }
 
@@ -878,6 +934,31 @@ export class GridPlan {
  * gibt — er schrammt dann an der Wand entlang, statt stehen zu bleiben.
  */
 export const SLOPE_COST = 6;
+
+/** Was niedriger ist als das, sperrt keine Zelle: eine Stufe, ein Teppich. */
+const CELL_STEP = 0.3;
+
+/**
+ * **So weit muss ein Möbel in eine Zelle ragen, damit es sie sperrt**, in
+ * Metern. Eine Küchenzeile von 0,6 m Tiefe an einer Kante ragt 0,1 m in die
+ * hintere Zellreihe und sperrt sie damit nicht — man kommt an ihre Front
+ * heran. Ein Tisch von 0,8 m ragt 0,4 m in jede seiner vier Zellen.
+ */
+const CELL_OVERLAP = 0.15;
+
+/** Die Zellen, die ein Quader eines Möbels sperrt — keine, wenn er niedriger ist als eine Stufe. */
+function furnitureCellsOf(solid: PlanSolid, base: number): Array<{ ix: number; iz: number }> {
+  if (solid.y + solid.h / 2 - base < CELL_STEP) return [];
+  return boxCells(
+    {
+      minX: solid.x - solid.w / 2,
+      maxX: solid.x + solid.w / 2,
+      minZ: solid.z - solid.d / 2,
+      maxZ: solid.z + solid.d / 2,
+    },
+    CELL_OVERLAP,
+  );
+}
 
 /**
  * **Der Quader einer Schräge**: eine Wand voller Höhe, so lang wie die

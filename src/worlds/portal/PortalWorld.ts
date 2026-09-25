@@ -5313,6 +5313,7 @@ export class PortalWorld implements World {
     portalable: boolean,
     physics = true,
     yaw = 0,
+    membership = GROUP_WORLD,
   ): THREE.Mesh {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
     mesh.position.set(position[0], position[1], position[2]);
@@ -5329,7 +5330,7 @@ export class PortalWorld implements World {
 
     // Every portal surface gets a bit of its own, so a portal on the wall does
     // not also open up the floor you are standing on.
-    let group = GROUP_WORLD;
+    let group = membership;
     if (portalable) {
       group = portalSurfaceGroup(this.surfaceGroups.size);
       this.surfaceGroups.set(mesh, group);

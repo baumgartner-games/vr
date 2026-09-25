@@ -11,7 +11,7 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
-import { CellGrid, navCellSource, snapCell } from '../nav/cellGrid';
+import { CellGrid, cellKey, navCellSource, snapCell } from '../nav/cellGrid';
 import { FootprintView, type Occupant } from './footprintView';
 import type { CellGate } from '../../physics/PhysicsLocomotion';
 import {
@@ -78,7 +78,7 @@ import type { PlanSolid, PlanSolidKind } from './solids';
 import type { WorldContext } from '../../core/types';
 import type { MenuEntry } from '../../ui/menu';
 import type { Handedness } from '../../core/XRInput';
-import type { PhysicsBody } from '../../physics/PhysicsWorld';
+import { GROUP_CELL, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
 
 /** Die „Datei“, auf die ein Quader unter einem eigenen Belag wartet (`underOwnFloor`). */
 const OWN_FLOOR = 'own-floor';
@@ -912,10 +912,23 @@ export abstract class GridWorld extends PortalWorld {
     if (this.cellsFor !== plan) {
       this.cellsFor = plan;
       this.cells = new CellGrid(
-        navCellSource(plan.graph, (key) => plan.slopeAt(key), { voidIsFree: true }),
+        navCellSource(plan.graph, (key) => plan.slopeAt(key), {
+          voidIsFree: true,
+          blocked: (ix, iz, level) =>
+            plan.furnitureCells().has(cellKey(ix, iz, level)) || this.cellBlocked(ix, iz, level),
+        }),
       );
     }
     return this.cells;
+  }
+
+  /**
+   * **Was eine Welt über den Bauplan hinaus auf Zellen stellt** — die
+   * Einrichtung der Station etwa (`HauntingWorld`), die nicht aus Bausteinen
+   * des Plans besteht. Ohne Überschreiben: nichts.
+   */
+  protected cellBlocked(_ix: number, _iz: number, _level: number): boolean {
+    return false;
   }
 
   /**
@@ -1746,6 +1759,8 @@ export abstract class GridWorld extends PortalWorld {
       portal,
       this.solid,
       solid.yaw ?? 0,
+      // Was das Zellgitter sperrt, sperrt für den Spieler nur das Gitter.
+      solid.cell ? GROUP_CELL : GROUP_WORLD,
     );
     // **Die Ebene bleibt am Quader hängen** (`core/cutaway.ts`, Plan E8): Von
     // oben verschwindet alles, was über der Ebene des Rigs liegt, und geraten
