@@ -372,21 +372,71 @@ export class GridPlan {
     if (key === NO_TILE) return null;
     const flight = this.flightOn(key);
     if (!flight) return null;
-    const level = keyLevel(key);
-    const tx = keyX(key),
-      tz = keyZ(key);
-    const height = flight.height ?? BLOCKS[flight.kind].height;
-    const base = this.graph.levelY(level) + (flight.lift ?? 0);
     // Wie weit man in dieser Kachel den Lauf hinauf ist, 0 hinten bis 1 vorn.
-    const u = x / TILE - tx,
-      v = z / TILE - tz;
+    const u = x / TILE - keyX(key),
+      v = z / TILE - keyZ(key);
     const along =
       flight.dir === DIR_N ? 1 - v : flight.dir === DIR_S ? v : flight.dir === DIR_E ? u : 1 - u;
+    return this.flightY(key, flight, along);
+  }
+
+  /**
+   * **Die Höhe eines Laufs** auf seiner Kachel `key`, `along` von 0 (das
+   * untere Ende der Kachel) bis 1 (das obere) — die Rechnung hinter
+   * `flightFloor` und `flightSideOpen`.
+   */
+  private flightY(
+    key: TileKey,
+    flight: BlockPlacement & { kind: 'stairs' | 'ramp' },
+    along: number,
+  ): number {
+    const level = keyLevel(key);
+    const height = flight.height ?? BLOCKS[flight.kind].height;
+    const base = this.graph.levelY(level) + (flight.lift ?? 0);
     const y = base + flightStepRise(flight.kind, height) + clamp01(along) * height;
     // Die letzte Kachel endet auf ihrer obersten Stufe — dort liegt der Boden
     // der Etage darüber.
-    const next = this.flightOn(tileKey(tx + dirX(flight.dir), tz + dirZ(flight.dir), level));
+    const next = this.flightOn(
+      tileKey(keyX(key) + dirX(flight.dir), keyZ(key) + dirZ(flight.dir), level),
+    );
     return next && next.dir === flight.dir ? y : Math.min(y, base + height);
+  }
+
+  /**
+   * **Ob man seitlich auf diese Hälfte einer Treppenkachel kommt** — von der
+   * Kachel neben ihr in Richtung `side` aus. `part` 0 ist die untere Hälfte
+   * der Seite (zum Fuß des Laufs hin), 1 die obere; eine Hälfte ist genau
+   * eine Zelle, eine Seite also 2 × 1.
+   *
+   * Gewünscht: _„an der untersten Treppe … dass diese 2x2 Treppe über der
+   * unteren 2x1 auch von beiden Seiten betreten werden kann — bzw. generell
+   * Treppenarten, die auf einer der Ebenen anfangen"_. Die Regel dahinter:
+   * **Offen ist eine Hälfte, auf der der Lauf höchstens eine Stufe
+   * (`FLIGHT_SIDE_STEP`) über oder unter dem Boden daneben liegt** — dort
+   * fängt ihn der Schritt ohnehin (`PhysicsLocomotion`, `FLIGHT_CATCH`). Bei
+   * einer Treppe, die auf einer Etage anfängt, ist das die untere Hälfte ihrer
+   * untersten Kachel (0,175 m bis 0,525 m), bei einer Rampe die ganze unterste
+   * Kachel; neben einem Podest auf halber Höhe die Hälfte, die auf seiner Höhe
+   * liegt. Überall sonst bleibt die Seite eine Wand von außen.
+   *
+   * Zu bleibt sie auch neben einem Lauf in eine andere Richtung und neben
+   * einer Kachel, die nicht begehbar ist.
+   */
+  flightSideOpen(tile: TileKey, side: Dir, part: 0 | 1): boolean {
+    const flight = this.flightOn(tile);
+    if (!flight) return false;
+    // Nur die beiden Seiten — Fuß und Kopf des Laufs sind ohnehin offen.
+    if (side === flight.dir || side === (((flight.dir + 2) % 4) as Dir)) return false;
+    const level = keyLevel(tile);
+    const beside = tileKey(keyX(tile) + dirX(side), keyZ(tile) + dirZ(side), level);
+    if (this.flightOn(beside)) return false;
+    // Neben dem Grundriss trägt das Gelände, und das liegt auf der Etage.
+    const facts = this.graph.tile(beside);
+    if (facts && !this.graph.walkable(beside)) return false;
+    const floor = this.graph.levelY(level) + (facts?.rise ?? 0);
+    const low = this.flightY(tile, flight, part * 0.5);
+    const high = this.flightY(tile, flight, part * 0.5 + 0.5);
+    return low <= floor + FLIGHT_SIDE_STEP + 1e-6 && high >= floor - FLIGHT_SIDE_STEP - 1e-6;
   }
 
   /** Die Schräge einer Kachel, wenn eine darin steht. */
@@ -990,6 +1040,15 @@ export class GridPlan {
  * gibt — er schrammt dann an der Wand entlang, statt stehen zu bleiben.
  */
 export const SLOPE_COST = 6;
+
+/**
+ * **Wie weit ein Lauf über oder unter dem Boden daneben liegen darf**, damit
+ * man seitlich auf ihn kommt (`GridPlan.flightSideOpen`), in Metern — eine
+ * gute Stufe. Dieselbe Zahl wie `FLIGHT_CATCH` in `PhysicsLocomotion`: So weit
+ * neben dem Lauf fängt der Schritt die Füße, und eine Seite, die weiter
+ * aufginge, führte auf keine Treppe, sondern gegen ihre Stufen.
+ */
+export const FLIGHT_SIDE_STEP = 0.35;
 
 /** Was niedriger ist als das, sperrt keine Zelle: eine Stufe, ein Teppich. */
 const CELL_STEP = 0.3;

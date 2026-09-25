@@ -223,7 +223,8 @@ function pushOut(
  * - **Die Seiten einer Treppe** als Einbahnwände (`PlaneWall.outside`): Wer
  *   daneben steht, kommt nicht seitlich hinauf; wer auf ihr steht, darf
  *   herunter. Liegt daneben ein Lauf derselben Richtung (eine breite Treppe),
- *   ist dort keine Seite.
+ *   ist dort keine Seite — und keine auf der Hälfte einer Seite, auf der der
+ *   Lauf nur eine Stufe über dem Boden daneben liegt (`flightSides`).
  */
 export function cellPlaneWalls(
   grid: CellGrid,
@@ -281,7 +282,13 @@ function diagonal(tx: number, tz: number, slope: Slope): PlaneWall {
     : { ax: x, az: z, bx: x + TILE, bz: z + TILE };
 }
 
-/** Die beiden Seiten einer Treppenkachel als Einbahnwände nach außen. */
+/**
+ * **Die beiden Seiten einer Treppenkachel als Einbahnwände nach außen** — je
+ * Seite zwei Hälften zu einer Zelle, und jede, auf die man von daneben
+ * hinaufkommt (`CellGrid.flightSideOpen`), fehlt: Eine Treppe, die auf einer
+ * Etage anfängt, betritt man über die untere Hälfte ihrer untersten Kachel
+ * auch von beiden Seiten. Sind beide Hälften zu, bleibt es eine Strecke.
+ */
 function flightSides(
   grid: CellGrid,
   out: PlaneWall[],
@@ -292,15 +299,33 @@ function flightSides(
 ): void {
   const x = tx * TILE,
     z = tz * TILE;
+  const half = TILE / 2;
   for (const side of climb === DIR_N || climb === DIR_S ? [DIR_W, DIR_E] : [DIR_N, DIR_S]) {
     const nx = dirX(side as Dir),
       nz = dirZ(side as Dir);
     if (grid.flightAt(tx + nx, tz + nz, level) === climb) continue;
     const outside = { x: nx, z: nz };
-    if (side === DIR_W) out.push({ ax: x, az: z, bx: x, bz: z + TILE, outside });
-    else if (side === DIR_E) out.push({ ax: x + TILE, az: z, bx: x + TILE, bz: z + TILE, outside });
-    else if (side === DIR_N) out.push({ ax: x, az: z, bx: x + TILE, bz: z, outside });
-    else out.push({ ax: x, az: z + TILE, bx: x + TILE, bz: z + TILE, outside });
+    // Die Seite als Strecke längs der Kachel, `from` … `to` in Metern vom
+    // Nord- bzw. Westrand der Kachel.
+    const segment = (from: number, to: number): PlaneWall => {
+      if (side === DIR_W) return { ax: x, az: z + from, bx: x, bz: z + to, outside };
+      if (side === DIR_E) return { ax: x + TILE, az: z + from, bx: x + TILE, bz: z + to, outside };
+      if (side === DIR_N) return { ax: x + from, az: z, bx: x + to, bz: z, outside };
+      return { ax: x + from, az: z + TILE, bx: x + to, bz: z + TILE, outside };
+    };
+    // Die untere Hälfte liegt am Fuß des Laufs: im Süden, wer nach Norden
+    // steigt, im Westen, wer nach Osten steigt.
+    const footFirst = climb === DIR_S || climb === DIR_E;
+    const lowOpen = grid.flightSideOpen(tx, tz, side as Dir, 0, level);
+    const highOpen = grid.flightSideOpen(tx, tz, side as Dir, 1, level);
+    if (!lowOpen && !highOpen) {
+      out.push(segment(0, TILE));
+      continue;
+    }
+    const low = footFirst ? segment(0, half) : segment(half, TILE);
+    const high = footFirst ? segment(half, TILE) : segment(0, half);
+    if (!lowOpen) out.push(low);
+    if (!highOpen) out.push(high);
   }
 }
 

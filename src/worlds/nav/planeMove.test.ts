@@ -18,6 +18,7 @@ function field(
   d: number,
   slopes = new Map<TileKey, Slope>(),
   flights = new Map<TileKey, Dir>(),
+  sideOpen?: (tx: number, tz: number, side: Dir, part: 0 | 1) => boolean,
 ): CellGrid {
   const graph = new NavGraph([0]);
   fillRect(graph, { x: 0, z: 0, w, d });
@@ -26,6 +27,7 @@ function field(
     navCellSource(graph, (key) => slopes.get(key) ?? null, {
       voidIsFree: true,
       flight: (tx, tz, level) => flights.get(tileKey(tx, tz, level)) ?? null,
+      ...(sideOpen ? { flightSide: (tx, tz, side, part) => sideOpen(tx, tz, side, part) } : {}),
     }),
   );
 }
@@ -159,6 +161,44 @@ describe('Die Treppe als Gang mit Einbahnwänden', () => {
     const up = walk(grid, { x: 3.5, z: 7.5 }, 0, -0.04, 100).at(-1)!;
     expect(up.z).toBeLessThan(3.5);
     expect(up.x).toBeCloseTo(3.5, 5);
+  });
+});
+
+describe('Die unterste Treppenkachel von der Seite', () => {
+  /**
+   * Dieselbe Treppe, aber die untere Hälfte ihrer untersten Kachel (z = 6,5
+   * bis 7) ist von beiden Seiten offen — so, wie `GridPlan.flightSideOpen` es
+   * für eine Treppe sagt, die auf der Etage anfängt.
+   */
+  function stairs(): CellGrid {
+    const flights = new Map<TileKey, Dir>();
+    for (let z = 3; z <= 6; z++) flights.set(tileKey(3, z), DIR_N);
+    return field(8, 8, new Map(), flights, (_tx, tz, _side, part) => tz === 6 && part === 0);
+  }
+
+  it('lässt nur die obere Hälfte der Seite als Wand stehen', () => {
+    const sides = cellPlaneWalls(stairs(), 2, 2, 4, 7).filter((one) => one.outside);
+    // Drei Kacheln mit zwei ganzen Seiten, und unten je eine halbe.
+    expect(sides).toHaveLength(8);
+    const foot = sides.filter((one) => Math.max(one.az, one.bz) > 6);
+    expect(foot).toHaveLength(2);
+    for (const one of foot) {
+      expect(Math.min(one.az, one.bz)).toBeCloseTo(6);
+      expect(Math.max(one.az, one.bz)).toBeCloseTo(6.5);
+    }
+  });
+
+  it('lässt von beiden Seiten auf die untere Hälfte', () => {
+    const grid = stairs();
+    const fromWest = walk(grid, { x: 1.5, z: 6.9 }, 0.04, 0, 50).at(-1)!;
+    expect(fromWest.x).toBeGreaterThan(3.4);
+    const fromEast = walk(grid, { x: 5.5, z: 6.9 }, -0.04, 0, 50).at(-1)!;
+    expect(fromEast.x).toBeLessThan(3.6);
+  });
+
+  it('hält weiter oben wie bisher', () => {
+    const onto = walk(stairs(), { x: 1.5, z: 5.5 }, 0.04, 0, 100).at(-1)!;
+    expect(onto.x).toBeCloseTo(3 - R, 5);
   });
 });
 

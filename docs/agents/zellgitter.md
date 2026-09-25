@@ -90,6 +90,20 @@ den großen Kacheln bleibt.
     Wer halb auf ihr steht, wird nicht mit einem Ruck hinausgeworfen, er kommt
     nur nicht zurück. Neben einem Lauf derselben Richtung (breite Treppe) ist
     keine Seite.
+  - **Wo der Lauf nur eine Stufe hoch ist, ist die Seite offen**
+    (`GridPlan.flightSideOpen`, `CellSource.flightSide`): Jede Seite einer
+    Treppenkachel zählt als zwei Hälften zu einer Zelle, und eine Hälfte ist
+    keine Wand, wenn der Lauf auf ihr höchstens 0,35 m (`FLIGHT_SIDE_STEP`,
+    dieselbe Zahl wie `FLIGHT_CATCH`) über oder unter dem Boden daneben liegt.
+    Gewünscht: _„an der untersten Treppe … dass diese 2x2 Treppe über der
+    unteren 2x1 auch von beiden Seiten betreten werden kann — bzw. generell
+    Treppenarten, die auf einer der Ebenen anfangen"_. Bei einer Treppe, die
+    auf einer Etage anfängt, ist das die untere Hälfte ihrer untersten Kachel
+    (0,175 m bis 0,525 m), bei einer Rampe die ganze unterste Kachel, neben
+    einem Podest die Hälften auf seiner Höhe. Die Bewegung selbst ist
+    unverändert: Hinter der offenen Hälfte fängt der Schritt die Füße wie am
+    Fuß des Laufs. Der Graph (Bots, NPCs) verband die Treppenkacheln seitlich
+    schon immer; Haunting hat keine Treppen und fragt nicht.
   - **Auf der Treppe wird nur die Höhe bewegt** (`GridPlan.flightFloor`): Kein
     Controller klettert Stufe für Stufe, die Höhe folgt einer Linie über die
     Vorderkanten der Stufen — unten die erste Stufe, oben die letzte, nie in
@@ -143,7 +157,8 @@ den großen Kacheln bleibt.
     einer Schräge durchschnitten), blau auf Treppe und Rampe.
   - Rote Linien: die Wände der Ebene (Kanten, Schrägen).
   - Weiße Pfeile auf jeder Treppenkachel: bergauf in der Mitte, nach außen an
-    jeder Seite, die nur von außen hält.
+    jeder Seite, die nur von außen hält — an einer halb offenen nur vor der
+    Hälfte, die hält.
   - Die Felder liegen auf dem Boden, auf der Treppe schräg auf ihrem Lauf, und
     werden verdeckt wie der Boden; nur die Pfeile liegen immer obenauf.
 - **Anzeige:** _Menü → Grafik → Belegte Felder_

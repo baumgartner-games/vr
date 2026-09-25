@@ -421,6 +421,63 @@ describe('Treppen über mehrere Kacheln', () => {
     expect(plan.blocks()[1]!.height).toBeCloseTo(1.4);
   });
 
+  /**
+   * Gewünscht: _„an der untersten Treppe … dass diese 2x2 Treppe über der
+   * unteren 2x1 auch von beiden Seiten betreten werden kann — bzw. generell
+   * Treppenarten, die auf einer der Ebenen anfangen"_.
+   */
+  describe('seitlich betreten', () => {
+    /** Drei Kacheln breit, die Treppe in der Mitte. */
+    function wide(): GridPlan {
+      const plan = new GridPlan([0, 2.8]);
+      plan.floor({ x: 0, z: 0, w: 3, d: 6 });
+      plan.floor({ x: 0, z: 0, w: 3, d: 6, level: 1 });
+      return plan;
+    }
+
+    it('lässt die untere Hälfte der untersten Kachel von beiden Seiten auf', () => {
+      const plan = wide();
+      plan.stairs(1, 5, DIR_N, 0);
+      const foot = tileKey(1, 5, 0);
+      for (const side of [DIR_W, DIR_E] as const) {
+        expect(plan.flightSideOpen(foot, side, 0)).toBe(true);
+        // Die obere Hälfte liegt schon 0,525 m hoch — dort hält die Seite.
+        expect(plan.flightSideOpen(foot, side, 1)).toBe(false);
+      }
+      // Und die Kacheln darüber bleiben von außen zu.
+      for (const z of [4, 3, 2])
+        for (const side of [DIR_W, DIR_E] as const)
+          for (const part of [0, 1] as const)
+            expect(plan.flightSideOpen(tileKey(1, z, 0), side, part)).toBe(false);
+      // Fuß und Kopf sind keine Seiten.
+      expect(plan.flightSideOpen(foot, DIR_S, 0)).toBe(false);
+      expect(plan.flightSideOpen(foot, DIR_N, 0)).toBe(false);
+    });
+
+    it('lässt eine Rampe über ihre ganze unterste Kachel auf', () => {
+      const plan = wide();
+      plan.ramp(1, 5, DIR_N, 0, 7);
+      const foot = tileKey(1, 5, 0);
+      // 2,8 m auf sieben Kacheln sind je 0,4 m: Die obere Hälfte fängt bei
+      // 0,3 m an und ist damit noch eine Stufe.
+      expect(plan.flightSideOpen(foot, DIR_W, 0)).toBe(true);
+      expect(plan.flightSideOpen(foot, DIR_W, 1)).toBe(true);
+      expect(plan.flightSideOpen(tileKey(1, 4, 0), DIR_W, 0)).toBe(false);
+    });
+
+    it('öffnet neben einem Podest die Hälften auf seiner Höhe', () => {
+      const plan = wide();
+      plan.stairs(1, 5, DIR_N, 0);
+      // Ein Podest von 1,2 m neben der zweiten Kachel (0,7 m bis 1,4 m).
+      plan.put('platform', 0, 4, DIR_N, 0, 1.2);
+      const second = tileKey(1, 4, 0);
+      expect(plan.flightSideOpen(second, DIR_W, 0)).toBe(true);
+      expect(plan.flightSideOpen(second, DIR_W, 1)).toBe(true);
+      // Auf der anderen Seite liegt Boden auf null — dort bleibt sie zu.
+      expect(plan.flightSideOpen(second, DIR_E, 0)).toBe(false);
+    });
+  });
+
   it('macht die Rampe länger als die Treppe', () => {
     const treppe = twoFloors();
     treppe.stairs(0, 5, DIR_N, 0);

@@ -203,7 +203,8 @@ export class CellHitboxView {
 
   /**
    * **Die Pfeile einer Treppenkachel**: bergauf in der Mitte, und nach außen
-   * an jeder Seite, die nur von außen hält (`planeMove.cellPlaneWalls`).
+   * an jeder Seite, die nur von außen hält (`planeMove.cellPlaneWalls`) — an
+   * einer halb offenen nur vor der Hälfte, die hält.
    */
   private stairArrows(
     grid: CellGrid,
@@ -248,9 +249,17 @@ export class CellHitboxView {
       // Vom Rand der Treppe ein Stück hinaus: hier geht es herunter.
       // Flach auf der Höhe der Treppe an diesem Rand — nicht schräg hinunter
       // bis auf den Boden daneben.
-      const fromX = cx + sx * 0.25,
-        fromZ = cz + sz * 0.25;
-      arrow(fromX, fromZ, sx, sz, 0.5, y(fromX, fromZ));
+      // Ist eine Hälfte der Seite offen (`CellGrid.flightSideOpen`), steht
+      // der Pfeil nur auf der, die hält — mitten vor ihrer Zelle.
+      const lowOpen = grid.flightSideOpen(tx, tz, side, 0, level);
+      const highOpen = grid.flightSideOpen(tx, tz, side, 1, level);
+      const shifts =
+        lowOpen || highOpen ? [...(lowOpen ? [] : [-0.25]), ...(highOpen ? [] : [0.25])] : [0];
+      for (const shift of shifts) {
+        const fromX = cx + sx * 0.25 + ux * shift,
+          fromZ = cz + sz * 0.25 + uz * shift;
+        arrow(fromX, fromZ, sx, sz, 0.5, y(fromX, fromZ));
+      }
     }
   }
 

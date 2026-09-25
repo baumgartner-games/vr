@@ -971,6 +971,8 @@ export abstract class GridWorld extends PortalWorld {
           walls: (tx, tz, dir, level) =>
             this.propEdges.size > 0 && this.propEdges.has(edgeAt(tx, tz, dir, level)),
           flight: (tx, tz, level) => plan.flightOn(tileKey(tx, tz, level))?.dir ?? null,
+          flightSide: (tx, tz, side, part, level) =>
+            plan.flightSideOpen(tileKey(tx, tz, level), side, part),
         }),
       );
     }
