@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { PLAYER_CAPSULE_RADIUS, landingOffsets } from './playerClearance';
 import type { Collider, KinematicCharacterController, RigidBody } from '@dimforge/rapier3d-compat';
 import type { Locomotion } from '../core/Locomotion';
-import { diagonalSlides } from '../worlds/nav/cellGrid';
 import type { PlayerRig } from '../core/PlayerRig';
 import {
   ALL_GROUPS,
@@ -158,6 +157,8 @@ const _head = new THREE.Vector3();
 const _lag = new THREE.Vector3();
 const _desired = new THREE.Vector3();
 const _applied = new THREE.Vector3();
+/** Was nach dem Gleiten in der Ebene von `_desired` übrig ist (`plane`). */
+const _ask = new THREE.Vector3();
 const _rotation = new THREE.Quaternion();
 const _matrix = new THREE.Matrix4();
 
@@ -188,16 +189,29 @@ const DOWN = { x: 0, y: -1, z: 0 };
  * Beugen und kein Gang durch die Wand.
  */
 /**
- * Ob der Spieler von (`fromX`, `fromZ`) nach (`toX`, `toZ`) darf — die Füße auf
- * Höhe `y`. Gestellt von der Welt (`GridWorld.playerCellGate`).
+ * **Die Ebene, in der der Spieler geht** — gestellt von den Welten auf dem
+ * Zellgitter (`GridWorld.playerPlane`). Die Füße stehen auf Höhe `footY`.
  */
-export type CellGate = (
-  fromX: number,
-  fromZ: number,
-  toX: number,
-  toZ: number,
-  y: number,
-) => boolean;
+export interface PlayerPlane {
+  /**
+   * Der Schritt um (`dx`, `dz`) in der Ebene, an den Wänden entlang geglitten
+   * (`nav/planeMove.slideOnCells`) — gibt die neue Stelle zurück.
+   */
+  slide(x: number, z: number, dx: number, dz: number, footY: number): { x: number; z: number };
+  /**
+   * **Die Höhe der Treppe unter dieser Stelle** — `null`, wenn dort keine ist.
+   * Auf einer Treppe rechnet keine Physik: Der Spieler geht in der Ebene, und
+   * nur die Höhe folgt dem Lauf.
+   */
+  flightFloor(x: number, z: number, footY: number): number | null;
+}
+
+/**
+ * Wie weit die Füße über oder unter einer Treppe sein dürfen, damit sie auf
+ * ihr gehen, in Metern — eine gute Stufe. Wer von höher herunterfällt, fällt
+ * erst, und wer unter dem Lauf steht, steht nicht auf ihm.
+ */
+const FLIGHT_CATCH = 0.35;
 
 export class PhysicsLocomotion implements Locomotion {
   readonly velocity = new THREE.Vector3();
@@ -348,48 +362,21 @@ export class PhysicsLocomotion implements Locomotion {
   }
 
   /**
-   * **Die Zellsperre der Welt** (`worlds/nav/cellGrid.ts`): ob der Schritt von
-   * einer Stelle zur nächsten logisch erlaubt ist. `null` heißt, die Welt hat
-   * kein Zellgitter, und es zählt nur die Physik.
+   * **Die Ebene der Welt** (`worlds/nav/planeMove.ts`) — `null` heißt, die
+   * Welt hat kein Zellgitter, und es zählt nur die Physik.
    *
-   * Gefragt wird nach der Physik und nicht statt ihr: Die Wände hält weiter
-   * Rapier auf. Was die Sperre dazu tut, ist die Regel des Gitters — eine
-   * Figur steht logisch auf einem freien 2×2-Block —, und dort, wo Physik und
-   * Gitter verschieden antworten (eine Schräge, die Fuge zwischen zwei
-   * Kacheln), gewinnt das Gitter.
+   * Mit Ebene geht der Spieler **in 2D**: Wände, Schrägen und Möbel hält die
+   * Ebene auf, und an ihnen gleitet er entlang (Collide and Slide). Die
+   * Physik trägt ihn nur noch in der Höhe — Boden, Kisten, Fallen —, und auf
+   * einer Treppe nicht einmal das (`PlayerPlane.flightFloor`). Springen gibt
+   * es dort nicht: Über eine Wand, die nur in der Ebene steht, springt man
+   * nicht hinweg.
    */
-  cellGate: CellGate | null = null;
+  plane: PlayerPlane | null = null;
 
-  /**
-   * Den Schritt dieses Bildes gegen die Zellsperre prüfen — erst ganz, dann
-   * nur längs x, dann nur längs z, sonst gar nicht. Dasselbe Gleiten wie an
-   * einer Wand, nur an der Kante eines Blocks.
-   */
-  private gateCells(at: { x: number; y: number; z: number }): void {
-    const gate = this.cellGate;
-    if (!gate || (_applied.x === 0 && _applied.z === 0)) return;
-    const x = at.x + _applied.x,
-      z = at.z + _applied.z;
-    if (gate(at.x, at.z, x, z, at.y)) return;
-    if (_applied.x !== 0 && gate(at.x, at.z, x, at.z, at.y)) {
-      _applied.z = 0;
-      return;
-    }
-    if (_applied.z !== 0 && gate(at.x, at.z, at.x, z, at.y)) {
-      _applied.x = 0;
-      return;
-    }
-    // **An einer Schräge entlang** (`cellGrid.diagonalSlides`): Wer gegen
-    // eine 45°-Wand läuft, wird in die freie Richtung gedrückt.
-    for (const slide of diagonalSlides(_applied.x, _applied.z)) {
-      if (gate(at.x, at.z, at.x + slide.x, at.z + slide.z, at.y)) {
-        _applied.x = slide.x;
-        _applied.z = slide.z;
-        return;
-      }
-    }
-    _applied.x = 0;
-    _applied.z = 0;
+  /** Wo die Sohle der Kapsel steht — die Haut unter ihr eingerechnet. */
+  private footY(): number {
+    return this.body.translation().y - this.halfHeight - RADIUS - CHARACTER_SKIN;
   }
 
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void {
@@ -433,7 +420,7 @@ export class PhysicsLocomotion implements Locomotion {
     else this.jumpWish = Math.max(0, this.jumpWish - dt);
     if (this.grounded && this.velocity.y <= 0 && !this.flight) this.coyote = COYOTE_TIME;
     else this.coyote = Math.max(0, this.coyote - dt);
-    const takeOff = this.jumpWish > 0 && this.coyote > 0 && !this.flight;
+    const takeOff = this.jumpWish > 0 && this.coyote > 0 && !this.flight && !this.plane;
 
     if (this.flight) {
       // Flying: the glove owns the whole velocity, gravity does not get a say.
@@ -472,9 +459,93 @@ export class PhysicsLocomotion implements Locomotion {
 
     _desired.copy(this.velocity).multiplyScalar(dt).add(_lag);
 
+    // **Erst in der Ebene** (`plane`): Der Schritt gleitet an den Wänden
+    // entlang, bevor die Physik ihn sieht. Auf einer Treppe ist er damit
+    // schon fertig — die Höhe kommt vom Lauf und nicht aus Stufen, an denen
+    // der Controller hochklettert.
+    _ask.copy(_desired);
+    const plane = this.plane;
+    const from = this.body.translation();
+    const foot = this.footY();
+    if (plane) {
+      const to = plane.slide(from.x, from.z, _desired.x, _desired.z, foot);
+      _ask.x = to.x - from.x;
+      _ask.z = to.z - from.z;
+    }
+    const stair =
+      plane && !this.flight && this.velocity.y <= 0
+        ? plane.flightFloor(from.x + _ask.x, from.z + _ask.z, foot)
+        : null;
+    if (stair !== null && Math.abs(stair - foot) <= FLIGHT_CATCH) {
+      this.walkFlight(stair - foot);
+    } else {
+      this.walkPhysics();
+      // Was die Physik noch dazutut (ein Stoß, eine Rutsche), bleibt
+      // ebenfalls vor den Wänden der Ebene.
+      if (plane && (_applied.x !== 0 || _applied.z !== 0)) {
+        const to = plane.slide(from.x, from.z, _applied.x, _applied.z, foot);
+        _applied.x = to.x - from.x;
+        _applied.z = to.z - from.z;
+      }
+    }
+
+    const t = this.body.translation();
+    this.body.setNextKinematicTranslation({
+      x: t.x + _applied.x,
+      y: t.y + _applied.y,
+      z: t.z + _applied.z,
+    });
+    // Kinematic bodies only move on the next step; keep our own view in sync.
+    this.body.setTranslation(
+      { x: t.x + _applied.x, y: t.y + _applied.y, z: t.z + _applied.z },
+      true,
+    );
+
+    if (this.grounded && !this.flight && this.velocity.y < 0) this.velocity.y = 0;
+    // Actually blocked by something: drop that part of the momentum. The
+    // threshold has to stay generous, otherwise a portal fling dies instantly.
+    if (blocked(_applied.x, _desired.x)) this.velocity.x *= 0.3;
+    if (blocked(_applied.z, _desired.z)) this.velocity.z *= 0.3;
+
+    // **Das Rig macht nur den Schritt mit, nicht die Nachführung.**
+    //
+    // Was die Welt hergibt (`_applied`), ist zweierlei auf einmal: der Schritt,
+    // den der Stock wollte, und die Nachführung hinter den Kopf her
+    // (`_lag`). Das Rig darf nur das erste mitmachen — die zweite steht ja
+    // schon im Bild, die Brille hat den Kopf bereits dorthin gesetzt.
+    //
+    // Und wenn die Welt **weniger** hergibt, als gefragt war, trifft das beide
+    // anteilig. Genau das stand hier vorher nicht: Der ganze Fehlbetrag ging
+    // auf den Schritt, also wurde das Rig um alles zurückgeschoben, was dem
+    // Kopf verwehrt blieb — und ein Kopf, der sich über den Tresen beugt,
+    // stand damit still. Das ist der Befund „die Kamera bleibt starr, wenn ich
+    // mich nach links, rechts oder vorn beuge": In der Küche steht man immer
+    // an einem Möbel, und die Trefferkästen dort reichen bis auf 1,40 m
+    // (`zones/kitchen.BLOCK_HEIGHT`) — also bis in Augenhöhe.
+    rig.position.x += _applied.x - shareOf(_lag.x, _applied.x, _desired.x);
+    rig.position.z += _applied.z - shareOf(_lag.z, _applied.z, _desired.z);
+    rig.position.y += this.settle(_applied.y);
+    rig.updateMatrixWorld(true);
+
+    this.holdLean(rig);
+  }
+
+  /**
+   * **Auf einer Treppe gehen** (`PlayerPlane.flightFloor`): der Schritt aus
+   * der Ebene, die Höhe vom Lauf — und keine Physik dazwischen.
+   */
+  private walkFlight(lift: number): void {
+    _applied.set(_ask.x, lift, _ask.z);
+    this.grounded = true;
+    this.velocity.y = 0;
+    this.recovered = 0;
+  }
+
+  /** Der Schritt durch den Character-Controller: Boden, Kisten, Fallen. */
+  private walkPhysics(): void {
     this.controller.computeColliderMovement(
       this.collider,
-      _desired,
+      _ask,
       undefined,
       interactionGroups(GROUP_PLAYER, PLAYER_FILTER & ~this.phaseMask),
     );
@@ -539,47 +610,6 @@ export class PhysicsLocomotion implements Locomotion {
       this.recovered = 0;
       if (_desired.y < 0 && untouched(_applied.y, _desired.y)) _applied.y = 0;
     }
-
-    const t = this.body.translation();
-    this.gateCells(t);
-    this.body.setNextKinematicTranslation({
-      x: t.x + _applied.x,
-      y: t.y + _applied.y,
-      z: t.z + _applied.z,
-    });
-    // Kinematic bodies only move on the next step; keep our own view in sync.
-    this.body.setTranslation(
-      { x: t.x + _applied.x, y: t.y + _applied.y, z: t.z + _applied.z },
-      true,
-    );
-
-    if (this.grounded && !this.flight && this.velocity.y < 0) this.velocity.y = 0;
-    // Actually blocked by something: drop that part of the momentum. The
-    // threshold has to stay generous, otherwise a portal fling dies instantly.
-    if (blocked(_applied.x, _desired.x)) this.velocity.x *= 0.3;
-    if (blocked(_applied.z, _desired.z)) this.velocity.z *= 0.3;
-
-    // **Das Rig macht nur den Schritt mit, nicht die Nachführung.**
-    //
-    // Was die Welt hergibt (`_applied`), ist zweierlei auf einmal: der Schritt,
-    // den der Stock wollte, und die Nachführung hinter den Kopf her
-    // (`_lag`). Das Rig darf nur das erste mitmachen — die zweite steht ja
-    // schon im Bild, die Brille hat den Kopf bereits dorthin gesetzt.
-    //
-    // Und wenn die Welt **weniger** hergibt, als gefragt war, trifft das beide
-    // anteilig. Genau das stand hier vorher nicht: Der ganze Fehlbetrag ging
-    // auf den Schritt, also wurde das Rig um alles zurückgeschoben, was dem
-    // Kopf verwehrt blieb — und ein Kopf, der sich über den Tresen beugt,
-    // stand damit still. Das ist der Befund „die Kamera bleibt starr, wenn ich
-    // mich nach links, rechts oder vorn beuge": In der Küche steht man immer
-    // an einem Möbel, und die Trefferkästen dort reichen bis auf 1,40 m
-    // (`zones/kitchen.BLOCK_HEIGHT`) — also bis in Augenhöhe.
-    rig.position.x += _applied.x - shareOf(_lag.x, _applied.x, _desired.x);
-    rig.position.z += _applied.z - shareOf(_lag.z, _applied.z, _desired.z);
-    rig.position.y += this.settle(_applied.y);
-    rig.updateMatrixWorld(true);
-
-    this.holdLean(rig);
   }
 
   /**

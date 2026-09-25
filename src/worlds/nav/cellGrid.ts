@@ -92,6 +92,13 @@ export interface CellSource {
    * Frage steht auf keiner Zelle etwas.
    */
   blocked?(ix: number, iz: number, level: number): boolean;
+  /**
+   * **Die Treppe oder Rampe auf dieser Kachel** — die Richtung, in die sie
+   * steigt, oder `null`. Ihre Seiten sind für den Spieler Wände nur von außen
+   * (`planeMove.cellPlaneWalls`): hinauf geht es nur von unten, herunter
+   * überall.
+   */
+  flight?(tx: number, tz: number, level: number): Dir | null;
 }
 
 /** Die Kachel, in der eine Zelle liegt, und ihre Lage darin (0 oder 1 je Achse). */
@@ -147,6 +154,21 @@ export class CellGrid {
   /** Die Schräge in dieser Kachel — ebenfalls für die Anzeige. */
   slopeAt(tx: number, tz: number, level = 0): Slope | null {
     return this.source.slope(tx, tz, level);
+  }
+
+  /**
+   * **Ob eine Zelle ganz zu ist** — kein Boden oder etwas darauf. Anders als
+   * `cellFree` ohne die Schräge: Die ist für die Bewegung in der Ebene eine
+   * Linie und kein Kasten (`planeMove.cellPlaneWalls`).
+   */
+  cellSolid(ix: number, iz: number, level = 0): boolean {
+    if (!this.source.floor(split(ix).tile, split(iz).tile, level)) return true;
+    return !!this.source.blocked?.(ix, iz, level);
+  }
+
+  /** Die Steigrichtung der Treppe oder Rampe auf dieser Kachel (`CellSource.flight`). */
+  flightAt(tx: number, tz: number, level = 0): Dir | null {
+    return this.source.flight?.(tx, tz, level) ?? null;
   }
 
   /**
@@ -513,8 +535,8 @@ const GLIDE_STEP = CELL / 4;
  * **Ob eine Figur stetig von hier nach dort gleiten darf** — jede Stelle
  * unterwegs ist `standable`, in Schritten von einer Viertelzelle geprüft.
  * Ein langer Schritt (ein langsames Bild) springt so über nichts hinweg.
- * Die Regel, die `moveOnCells` und die Zellsperre des Spielers
- * (`GridWorld.playerCellGate`) teilen.
+ * Die Regel, nach der `moveOnCells` die NPCs gehen lässt. Der Spieler geht
+ * seit Oktober 2026 in der Ebene (`planeMove.ts`).
  */
 export function glides(
   grid: CellGrid,
@@ -557,44 +579,6 @@ export function diagonalSlides(dx: number, dz: number): Array<{ x: number; z: nu
   }
   out.sort((a, b) => b.weight - a.weight);
   return out.map(({ x, z }) => ({ x, z }));
-}
-
-/**
- * Wie weit die letzte freie Stelle höchstens weg sein darf, damit es aus einem
- * gesperrten Block nur zu ihr zurück geht, in Metern (`gateStep`). Weiter weg
- * wurde die Figur versetzt, und die Stelle sagt nichts mehr.
- */
-export const STUCK_REACH = 1.5;
-
-/**
- * **Die Zellsperre des Spielers als Rechnung** (`GridWorld.playerCellGate`):
- * Darf er von `from` nach `to`? `memory.lastFree` ist die letzte Stelle, an der
- * er stehen durfte; die Rechnung schreibt sie fort.
- *
- * Wer stehen darf (`standable`), gleitet (`glides`). Wer auf einem gesperrten
- * Block steht — abgesetzt, geschoben —, darf nur zurück zur letzten freien
- * Stelle, nicht auf irgendeinen freien Block: Der kann hinter der Wand liegen,
- * auf deren Fuge er gerade steht.
- */
-export function gateStep(
-  grid: CellGrid,
-  from: { x: number; z: number },
-  to: { x: number; z: number },
-  memory: { lastFree: { x: number; z: number } | null },
-  level = 0,
-  fromLevel = level,
-  size = FOOTPRINT,
-): boolean {
-  if (standable(grid, from.x, from.z, fromLevel, size)) {
-    memory.lastFree = { x: from.x, z: from.z };
-    return glides(grid, from.x, from.z, to.x, to.z, level, size);
-  }
-  const back = memory.lastFree;
-  if (back && Math.hypot(from.x - back.x, from.z - back.z) < STUCK_REACH)
-    return Math.hypot(to.x - back.x, to.z - back.z) < Math.hypot(from.x - back.x, from.z - back.z);
-  const home = snapCell(from.x, from.z, size),
-    next = snapCell(to.x, to.z, size);
-  return (home.cx === next.cx && home.cz === next.cz) || grid.footprintFree(next, level, size);
 }
 
 /**
@@ -662,6 +646,8 @@ export interface NavCellOptions {
    * steht er auf Gelände oder fällt, und beides regelt die Physik.
    */
   voidIsFree?: boolean;
+  /** Treppen und Rampen (`CellSource.flight`). */
+  flight?: (tx: number, tz: number, level: number) => Dir | null;
 }
 
 /**
@@ -703,6 +689,7 @@ export function navCellSource(
       return key === NO_TILE ? null : slopeAt(key);
     },
     ...(options.blocked ? { blocked: options.blocked } : {}),
+    ...(options.flight ? { flight: options.flight } : {}),
   };
 }
 
