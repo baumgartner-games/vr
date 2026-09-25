@@ -1,5 +1,5 @@
 import { freshCrew, stationOptions } from './mission';
-import { LampShadowTurns, lampShadowDue, stationLighting } from './stationLighting';
+import { LampShadowTurns, lampShadowDue, lampShadowIdle, stationLighting } from './stationLighting';
 
 describe('station darkness', () => {
   it('switches off all broad station lighting while retaining safe test mode', () => {
@@ -60,5 +60,14 @@ describe('Schattenkarten der Deckenleuchten', () => {
     expect(lampShadowDue(true, false, 1, 1)).toBe(true);
     expect(lampShadowDue(false, true, 1, 1)).toBe(true);
     expect(lampShadowDue(false, false, 0, 1)).toBe(true);
+  });
+});
+
+describe('lampShadowIdle', () => {
+  it('cancels a dark lamp redraw only once its shadow map exists', () => {
+    // Ohne Karte muss sie einmal gezeichnet werden, sonst wird die Station schwarz.
+    expect(lampShadowIdle(0, false)).toBe(false);
+    expect(lampShadowIdle(0, true)).toBe(true);
+    expect(lampShadowIdle(1, true)).toBe(false);
   });
 });

@@ -62,7 +62,7 @@ import { ShipExperience } from './ShipExperience';
 import { safeRoomSpawn, stationLayout } from './stationLayout';
 import { COMMAND_HOME, TRAINING_DOOR, trainingRoomAt } from './trainingLayout';
 import { COMMAND_STOOLS, COMMAND_TABLE, crewPlacement } from './world3d/commandSeats';
-import { LampShadowTurns, lampShadowDue, stationLighting } from './stationLighting';
+import { LampShadowTurns, lampShadowDue, lampShadowIdle, stationLighting } from './stationLighting';
 import { ENTITY_PROFILES } from './threat';
 import { acousticField, BOT_FOV, BOT_VISION, MONSTER_FOV } from './perception';
 import { topDownRooms, visibleStationRooms } from './stationVisibility';
@@ -3165,8 +3165,10 @@ export class HauntingWorld extends GridWorld {
       if (lampShadowDue(i === turn, moved, before, light.intensity))
         light.shadow.needsUpdate = true;
       // Eine dunkle Leuchte zeichnet nichts — three.js fragt dafür nicht nach
-      // der Stärke, sondern nur nach diesem Schalter.
-      else if (light.intensity <= 0) light.shadow.needsUpdate = false;
+      // der Stärke, sondern nur nach diesem Schalter; aber erst, wenn es ihre
+      // Karte schon gibt (`lampShadowIdle`).
+      else if (lampShadowIdle(light.intensity, !!light.shadow.map))
+        light.shadow.needsUpdate = false;
     }
     for (const [id, lamp] of this.lamps)
       lamp.glass.material.color.lerpColors(

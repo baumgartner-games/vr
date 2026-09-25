@@ -2531,6 +2531,10 @@ watch | monster`, `COLOUR_STATIONS`); Archiv, Schalttafel und Späher sind
      Bild, viermal die Sekunde, auch dunkel** — ein Bild mit 418 statt 193
      Aufrufen im Takt von 4 Hz. Jetzt abwechselnd und nur, wenn sie brennen
      (`LampShadowTurns`, `lampShadowDue`), und mit den Bündeln 221 statt 418.
+     **Aber eine Karte muss es geben** (`lampShadowIdle`): Die Lampen starten
+     dunkel, und wer ihnen das Zeichnen absagt, bevor three.js die Karte je
+     angelegt hat, lässt den Shader ins Leere tasten — in 0.1.48 war davon die
+     ganze Station schwarz, nur Sterne und Schilder blieben.
   6. **Shader wurden beim ersten Betreten eines Raums übersetzt** (zehn
      Programme beim Gang durch die Station, je eines ein Stocken). Jetzt eine
      Sekunde nach Rundenstart vorab für alle Materialien der Szene
