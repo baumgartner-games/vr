@@ -6,14 +6,20 @@ import type { Rect } from '../house';
  *
  * Der Besitzer hat die Umrisse der Station von oben gezeichnet
  * (`docs/orbital/station-vorlage.webp`, 1400 × 800 Pixel), und
- * `house.stationRooms` ist danach abgepaust: **16 Pixel sind ein Meter**, die
- * Oberkante der Cafeteria (Pixelzeile 32) ist `z = −52`, ihre Mitte
- * (Pixelspalte 747) ist `x = 0`. Aus der Vorlage ist
+ * `house.stationRooms` ist danach abgepaust. **24 Pixel sind ein Meter** —
+ * die Station war einmal im Maßstab 16 Pixel gebaut und dem Besitzer zu groß;
+ * halbiert (32 Pixel) passten die Pflichtmöbel nicht mehr in die kleinen
+ * Räume (`stationLayout`, ein Raum braucht rund sechs Meter), also sind die
+ * Gänge und Fugen halbiert und die Räume so klein, wie es die Einrichtung
+ * erlaubt. Die Eichung ist die beste Deckung der Raummitten: Pixelspalte 747
+ * (Mitte der Cafeteria) ist `x = 0`, Pixelzeile 32 ist `z = −55` — die
+ * gezeichnete Cafeteria ist größer als die gebaute und ragt drei Meter über
+ * deren Nordwand. Aus der Vorlage ist
  * `public/haunting/station-outline.png` gerechnet — Wände als helle Linien,
  * Räume und Gänge leicht getönt, alles andere durchsichtig —, und wer es
  * einschaltet (_Optionen → Grundriss-Vorlage_), sieht, wo das Raster von
  * der Zeichnung abweicht: an den Schrägen, die das Kachelgitter nicht kennt,
- * und dort, wo zwei Räume einen Meter Fuge brauchten.
+ * und dort, wo ein Raum für seine Möbel größer sein musste.
  *
  * Hier stehen nur Zahlen, kein three.js und kein `import.meta`: Die Eichung
  * prüft ein Test (`blueprint.test.ts`) gegen die Räume des Grundrisses.
@@ -23,9 +29,9 @@ export const BLUEPRINT = {
   file: 'haunting/station-outline.png',
   width: 1400,
   height: 800,
-  pxPerMetre: 16,
+  pxPerMetre: 24,
   /** Ein Pixel der Vorlage und der Punkt der Station, auf dem er liegt. */
-  anchor: { px: 747, py: 32, x: 0, z: -52 },
+  anchor: { px: 747, py: 32, x: 0, z: -55 },
 } as const;
 
 /** Wo ein Pixel der Vorlage in der Station liegt, in Metern. */

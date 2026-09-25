@@ -278,10 +278,12 @@ describe('Die Karte aus Monstersicht', () => {
     const { round, view, step } = seat(4);
     round.torch = false;
     round.haunt.lit.length = 0;
-    // Das Monster steht in der Raummitte und schaut nach Norden; der
-    // Techniker steht im Dunkeln drei Meter vor ihm.
-    const centre = round.graph.centre(round.monster.space);
-    Object.assign(round.monster, { x: centre.x, z: centre.z, yaw: 0 });
+    // Das Monster steht in der Mitte des Storage und schaut nach Norden; der
+    // Techniker steht im Dunkeln drei Meter vor ihm. Der Storage ist zehn
+    // Meter tief — dort passen drei Meter Abstand sicher hinein.
+    const storage = round.house.rooms.find((room) => room.name === 'Storage')!;
+    const centre = round.graph.centre(storage.id);
+    Object.assign(round.monster, { x: centre.x, z: centre.z, yaw: 0, space: storage.id });
     expect(round.place({ x: centre.x, z: centre.z - 3 })).toBe(true);
     step(1);
     const dark = view.current.field;

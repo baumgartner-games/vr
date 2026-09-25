@@ -12,15 +12,16 @@ import { CLOSE_SIGHT, monsterSight } from './monsterSight';
  */
 
 /**
- * Ein Raum, der in einer Richtung mindestens drei Meter misst — Platz für drei
- * Meter Abstand — und **nicht die Cafeteria**: Durch deren Fensterfront fällt
+ * Ein Raum, der in einer Richtung acht Meter misst — von der Mitte aus Platz
+ * für drei Meter Abstand und noch einen Meter bis zur Wand — und **nicht die
+ * Cafeteria**: Durch deren Fensterfront fällt
  * das Licht der Zentrale, und dort steht im Dunkeln niemand.
  */
 function wideRoom(round: FlatRound): { room: HouseRoom; axis: 'x' | 'z' } {
   for (const room of spacesOf(round.house)) {
     if (room.id === round.house.entryRoom) continue;
-    if (room.rect.w >= 3) return { room, axis: 'x' };
-    if (room.rect.d >= 3) return { room, axis: 'z' };
+    if (room.rect.w >= 8) return { room, axis: 'x' };
+    if (room.rect.d >= 8) return { room, axis: 'z' };
   }
   throw new Error('kein breiter Raum');
 }

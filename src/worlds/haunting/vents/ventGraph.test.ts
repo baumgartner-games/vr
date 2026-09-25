@@ -106,7 +106,7 @@ describe('Das Lüftungsnetz aus der Datendatei', () => {
         }),
     ).toThrow(/unbekannte Klappe/);
     expect(
-      () => new VentNet(spec, { flaps: [good, { ...good, dir: DIR_E, x: 9, z: -40 }], links: [] }),
+      () => new VentNet(spec, { flaps: [good, { ...good, dir: DIR_E, x: 4, z: -50 }], links: [] }),
     ).toThrow(/doppelte/);
   });
 

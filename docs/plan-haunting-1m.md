@@ -89,8 +89,9 @@ den neuen Konstanten `0,6` ergibt statt der `DOOR_WIDTH` der Karte.
 - **Der feste Skeld-Grundriss** (`stationRooms()`), in Kacheln `x, z, w, d`:
 
   _Nachtrag (September 2026): Die Tabelle ist Geschichte. Der Grundriss ist
-  seither von der Zeichnung des Besitzers abgepaust (16 px = 1 m, Gänge drei
-  Kacheln breit, `STATION_BOUNDS` 81 × 46 m) — was gilt, steht in
+  seither von der Zeichnung des Besitzers abgepaust (Gänge zwei Kacheln
+  breit, Räume so klein, wie die Einrichtung es zulässt, `STATION_BOUNDS`
+  55 × 30 m) — was gilt, steht in
   `house.stationRooms` und in `docs/agents/haunting.md` unter „Die Vorlage am
   Boden"._
 

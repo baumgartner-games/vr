@@ -25,17 +25,17 @@ const TRACED: Record<string, readonly [number, number, number, number]> = {
 describe('Die Grundriss-Vorlage am Boden', () => {
   const spec = generateHouse(1, 14);
 
-  it('legt die Cafeteria-Oberkante und -Mitte auf ihren Ankerpunkt', () => {
-    expect(blueprintPoint(BLUEPRINT.anchor.px, BLUEPRINT.anchor.py)).toEqual({ x: 0, z: -52 });
+  it('legt die Cafeteria-Mitte auf x = 0, 24 Pixel je Meter', () => {
+    expect(blueprintPoint(BLUEPRINT.anchor.px, BLUEPRINT.anchor.py)).toEqual({ x: 0, z: -55 });
     const area = blueprintArea();
-    expect(area.w).toBeCloseTo(87.5);
-    expect(area.d).toBeCloseTo(50);
+    expect(area.w).toBeCloseTo(1400 / 24);
+    expect(area.d).toBeCloseTo(800 / 24);
   });
 
-  it('deckt jeden Raum der Station — höchstens zwei Meter neben der Zeichnung', () => {
-    // Zwei Meter, weil das Raster keine Schrägen kennt: Wo die Zeichnung eine
-    // Ecke abschrägt, weicht das Rechteck aus, damit zwei Räume nicht
-    // aneinanderstoßen (`house.stationRooms`).
+  it('deckt jeden Raum der Station — die Mitte höchstens zweieinhalb Meter daneben', () => {
+    // Zweieinhalb Meter, weil das Raster keine Schrägen kennt und ein Raum für
+    // seine Pflichtmöbel rund sechs Meter braucht: Kleine Räume der Zeichnung
+    // sind gebaut größer, große (die Cafeteria) kleiner (`house.stationRooms`).
     for (const room of spec.rooms) {
       const traced = TRACED[room.name];
       expect(traced).toBeDefined();
@@ -44,21 +44,21 @@ describe('Die Grundriss-Vorlage am Boden', () => {
       const b = blueprintPoint(right, bottom);
       const cx = room.rect.x + room.rect.w / 2;
       const cz = room.rect.z + room.rect.d / 2;
-      expect(Math.abs(cx - (a.x + b.x) / 2)).toBeLessThanOrEqual(2);
-      expect(Math.abs(cz - (a.z + b.z) / 2)).toBeLessThanOrEqual(2);
-      expect(Math.abs(room.rect.w - (b.x - a.x))).toBeLessThanOrEqual(3);
-      expect(Math.abs(room.rect.d - (b.z - a.z))).toBeLessThanOrEqual(4);
+      expect(Math.abs(cx - (a.x + b.x) / 2)).toBeLessThanOrEqual(2.5);
+      expect(Math.abs(cz - (a.z + b.z) / 2)).toBeLessThanOrEqual(2.5);
+      expect(Math.abs(room.rect.w - (b.x - a.x))).toBeLessThanOrEqual(4.5);
+      expect(Math.abs(room.rect.d - (b.z - a.z))).toBeLessThanOrEqual(4.5);
     }
     expect(spec.rooms).toHaveLength(Object.keys(TRACED).length);
   });
 
-  it('liegt ganz über der Station', () => {
+  it('liegt über der Station — höchstens einen Meter ragt etwas hinaus', () => {
     const area = blueprintArea();
     for (const space of [...spec.rooms, ...(spec.passages ?? [])]) {
-      expect(space.rect.x).toBeGreaterThanOrEqual(area.x);
-      expect(space.rect.z).toBeGreaterThanOrEqual(area.z);
-      expect(space.rect.x + space.rect.w).toBeLessThanOrEqual(area.x + area.w);
-      expect(space.rect.z + space.rect.d).toBeLessThanOrEqual(area.z + area.d);
+      expect(space.rect.x).toBeGreaterThanOrEqual(area.x - 1);
+      expect(space.rect.z).toBeGreaterThanOrEqual(area.z - 1);
+      expect(space.rect.x + space.rect.w).toBeLessThanOrEqual(area.x + area.w + 1);
+      expect(space.rect.z + space.rect.d).toBeLessThanOrEqual(area.z + area.d + 1);
     }
   });
 });
