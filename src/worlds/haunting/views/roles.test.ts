@@ -20,6 +20,7 @@ import {
 } from '../rules/roundSetup';
 import { DROPPED_SEEN } from '../rules/archiveGoals';
 import { TILE } from '../../nav/navTile';
+import { plainTiles } from '../house';
 import './archive.register';
 import './panel.register';
 import './scout.register';
@@ -296,8 +297,10 @@ describe('Der Archivar', () => {
     state.dropped = [
       {
         id: task.id,
-        x: (room.rect.x + 0.5) * TILE,
-        z: (room.rect.z + 0.5) * TILE,
+        // Auf einer ganzen Kachel des Raums — die Ecke seines Rechtecks kann
+        // hinter einer Schräge liegen (`stationMap.ts`).
+        x: (plainTiles(room)[0]!.x + 0.5) * TILE,
+        z: (plainTiles(room)[0]!.z + 0.5) * TILE,
         since: 100 - (DROPPED_SEEN - 1),
       },
     ];

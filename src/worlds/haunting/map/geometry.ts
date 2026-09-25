@@ -5,7 +5,7 @@ import {
   cutWalls,
   insideSpace,
   spacesOf,
-  type Corner,
+  straightWalls,
   STATION_DOOR_W,
   type HouseDoor,
   type HouseRoom,
@@ -150,21 +150,12 @@ export function wallSegments(spec: HouseSpec): MapSegment[] {
     if (door.b) doorsOn.set(door.b, [...(doorsOn.get(door.b) ?? []), door]);
   }
   for (const room of spacesOf(spec)) {
-    const r = room.rect;
-    const x0 = r.x * TILE,
-      z0 = r.z * TILE,
-      x1 = (r.x + r.w) * TILE,
-      z1 = (r.z + r.d) * TILE;
     // **Schräge Ecken** (`HouseRoom.cuts`) kürzen die geraden Wände, und
-    // die schräge kommt als eigene Strecke dazu.
-    const cut = (corner: Corner): number =>
-      (room.cuts?.find((one) => one.corner === corner)?.size ?? 0) * TILE;
-    const edges: Array<{ a: MapPoint; b: MapPoint; axis: 'x' | 'z'; at: number }> = [
-      { a: { x: x0 + cut('nw'), z: z0 }, b: { x: x1 - cut('ne'), z: z0 }, axis: 'x', at: z0 },
-      { a: { x: x0 + cut('sw'), z: z1 }, b: { x: x1 - cut('se'), z: z1 }, axis: 'x', at: z1 },
-      { a: { x: x0, z: z0 + cut('nw') }, b: { x: x0, z: z1 - cut('sw') }, axis: 'z', at: x0 },
-      { a: { x: x1, z: z0 + cut('ne') }, b: { x: x1, z: z1 - cut('se') }, axis: 'z', at: x1 },
-    ];
+    // die schräge kommt als eigene Strecke dazu; ein geformter Raum
+    // (`HouseRoom.shape`) hat so viele gerade Wände, wie er Kanten hat
+    // (`straightWalls`).
+    const edges: Array<{ a: MapPoint; b: MapPoint; axis: 'x' | 'z'; at: number }> =
+      straightWalls(room);
     for (const wall of cutWalls(room))
       segments.push({ a: wall.a, b: wall.b, roomId: room.id, kind: 'wall' });
     for (const edge of edges) {

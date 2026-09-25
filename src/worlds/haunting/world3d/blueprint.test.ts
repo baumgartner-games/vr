@@ -25,17 +25,18 @@ const TRACED: Record<string, readonly [number, number, number, number]> = {
 describe('Die Grundriss-Vorlage am Boden', () => {
   const spec = generateHouse(1, 14);
 
-  it('legt die Cafeteria-Mitte auf x = 0, 24 Pixel je Meter', () => {
-    expect(blueprintPoint(BLUEPRINT.anchor.px, BLUEPRINT.anchor.py)).toEqual({ x: 0, z: -55 });
+  it('legt die Vorlage im Maßstab 20 Pixel je Meter unter die Station', () => {
+    expect(blueprintPoint(BLUEPRINT.anchor.px, BLUEPRINT.anchor.py)).toEqual({ x: -34, z: -52 });
     const area = blueprintArea();
-    expect(area.w).toBeCloseTo(1400 / 24);
-    expect(area.d).toBeCloseTo(800 / 24);
+    expect(area.w).toBeCloseTo(1400 / 20);
+    expect(area.d).toBeCloseTo(800 / 20);
   });
 
-  it('deckt jeden Raum der Station — die Mitte höchstens zweieinhalb Meter daneben', () => {
-    // Zweieinhalb Meter, weil das Raster keine Schrägen kennt und ein Raum für
-    // seine Pflichtmöbel rund sechs Meter braucht: Kleine Räume der Zeichnung
-    // sind gebaut größer, große (die Cafeteria) kleiner (`house.stationRooms`).
+  it('deckt jeden Raum der Station — die Mitte höchstens anderthalb Meter daneben', () => {
+    // Seit die Station Kachel für Kachel nach der Vorlage gebaut ist
+    // (`stationMap.ts`), weicht ein Raum nur noch ab, wo eine Linie auf die
+    // nächste Kachelkante gerundet ist — oder wo O2 und Navigation für ihre
+    // Pflichtmöbel eine Kachel breiter sein mussten.
     for (const room of spec.rooms) {
       const traced = TRACED[room.name];
       expect(traced).toBeDefined();
@@ -44,10 +45,16 @@ describe('Die Grundriss-Vorlage am Boden', () => {
       const b = blueprintPoint(right, bottom);
       const cx = room.rect.x + room.rect.w / 2;
       const cz = room.rect.z + room.rect.d / 2;
-      expect(Math.abs(cx - (a.x + b.x) / 2)).toBeLessThanOrEqual(2.5);
-      expect(Math.abs(cz - (a.z + b.z) / 2)).toBeLessThanOrEqual(2.5);
-      expect(Math.abs(room.rect.w - (b.x - a.x))).toBeLessThanOrEqual(4.5);
-      expect(Math.abs(room.rect.d - (b.z - a.z))).toBeLessThanOrEqual(4.5);
+      expect({ room: room.name, dx: Math.abs(cx - (a.x + b.x) / 2) <= 1.5 }).toEqual({
+        room: room.name,
+        dx: true,
+      });
+      expect({ room: room.name, dz: Math.abs(cz - (a.z + b.z) / 2) <= 1.5 }).toEqual({
+        room: room.name,
+        dz: true,
+      });
+      expect(Math.abs(room.rect.w - (b.x - a.x))).toBeLessThanOrEqual(1.5);
+      expect(Math.abs(room.rect.d - (b.z - a.z))).toBeLessThanOrEqual(1.5);
     }
     expect(spec.rooms).toHaveLength(Object.keys(TRACED).length);
   });

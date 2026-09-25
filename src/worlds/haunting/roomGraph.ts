@@ -1,5 +1,16 @@
 import { DOOR_LOSS, WALL_LOSS } from './audio/hearing';
-import { APRON, doorMiddle, onApron, spacesOf, type HouseSpec, type Rect } from './house';
+import {
+  APRON,
+  doorMiddle,
+  onApron,
+  roomTiles,
+  spaceHolds,
+  spacesOf,
+  tilesOf,
+  type HouseRoom,
+  type HouseSpec,
+  type Rect,
+} from './house';
 import { TILE, type Dir } from '../nav/navTile';
 import { stationLayout, type FloorPoint } from './stationLayout';
 import { COMMAND_HOME } from './trainingLayout';
@@ -155,14 +166,21 @@ function buildGraph(spec: HouseSpec, knowsCommand: boolean): StationGraph {
   // gedämpften Matrix und nicht in `links`. Die Zentrale bringt ihr eigenes
   // Rechteck mit (den Vorplatz), sonst wäre die Fensterfront zur Kantine für
   // das Gehör eine Wand ohne Ende.
+  // Ein geformter Raum (`HouseRoom.shape`) stößt nur mit seinen Kacheln an,
+  // nicht mit dem Rechteck um ihn herum.
   const rects = new Map<string, Rect>(spaces.map((room) => [room.id, room.rect]));
   if (knowsCommand) rects.set(COMMAND, APRON);
+  const shaped = new Map(spaces.filter((room) => room.shape).map((room) => [room.id, room]));
   const walls: Array<[string, string]> = [];
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
       const a = rects.get(ids[i]!),
         b = rects.get(ids[j]!);
-      if (a && b && touching(a, b)) walls.push([ids[i]!, ids[j]!]);
+      if (!a || !b || !touching(a, b, true)) continue;
+      const sa = shaped.get(ids[i]!),
+        sb = shaped.get(ids[j]!);
+      if ((sa || sb) && !tilesTouch(sa ?? a, sb ?? b)) continue;
+      walls.push([ids[i]!, ids[j]!]);
     }
 
   const lockers = new Map<string, FloorPoint>();
@@ -247,6 +265,10 @@ function buildGraph(spec: HouseSpec, knowsCommand: boolean): StationGraph {
     },
     spaceAt: (point) => {
       for (const room of spaces) {
+        if (room.shape) {
+          if (spaceHolds(room, point)) return room.id;
+          continue;
+        }
         const r = room.rect;
         if (
           point.x >= r.x * TILE &&
@@ -310,12 +332,29 @@ export function walkingGap(graph: StationGraph, from: Placed, to: Placed): numbe
  * berühren und dabei ein Stück von mehr als null Kacheln gemeinsam haben. Eine
  * Ecke, die eine andere Ecke berührt, ist keine Wand.
  */
-function touching(a: Rect, b: Rect): boolean {
+function touching(a: Rect, b: Rect, orOverlap = false): boolean {
   const alongX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
   const alongZ = Math.min(a.z + a.d, b.z + b.d) - Math.max(a.z, b.z);
+  // Die Rechtecke geformter Räume dürfen ineinanderragen — dann entscheiden
+  // die Kacheln (`tilesTouch`).
+  if (orOverlap && alongX > 0 && alongZ > 0) return true;
   if (a.x + a.w === b.x || b.x + b.w === a.x) return alongZ > 0;
   if (a.z + a.d === b.z || b.z + b.d === a.z) return alongX > 0;
   return false;
+}
+
+/** Ob zwei Räume (oder ein Raum und ein Rechteck) Kachel an Kachel liegen. */
+function tilesTouch(a: HouseRoom | Rect, b: HouseRoom | Rect): boolean {
+  const tiles = (one: HouseRoom | Rect): Array<{ x: number; z: number }> =>
+    'rect' in one ? roomTiles(one) : tilesOf(one);
+  const theirs = new Set(tiles(b).map((tile) => `${tile.x},${tile.z}`));
+  return tiles(a).some(
+    (tile) =>
+      theirs.has(`${tile.x + 1},${tile.z}`) ||
+      theirs.has(`${tile.x - 1},${tile.z}`) ||
+      theirs.has(`${tile.x},${tile.z + 1}`) ||
+      theirs.has(`${tile.x},${tile.z - 1}`),
+  );
 }
 
 /**

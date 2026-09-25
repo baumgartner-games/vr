@@ -1,4 +1,4 @@
-import { DIR_E, DIR_N } from '../../nav/navTile';
+import { DIR_N } from '../../nav/navTile';
 import { generateHouse, spacesOf } from '../house';
 import { DOOR_WIDTH, doorCentre, rectPolygon } from '../map/geometry';
 import { pointInPolygon } from '../map/mapSnapshot';
@@ -93,20 +93,24 @@ describe('Das Lüftungsnetz aus der Datendatei', () => {
     expect(() => new VentNet(spec, { flaps: [{ ...good, dir: DIR_N }], links: [] })).toThrow(
       /Rand/,
     );
-    // In der Türöffnung: die Cafeteria-Südtür zum Mittelgang, eine Kachel
-    // neben der Klappe.
-    expect(() => new VentNet(spec, { flaps: [{ ...good, x: good.x + 1 }], links: [] })).toThrow(
-      /Türöffnung/,
-    );
+    // In der Türöffnung: eine Tür der Cafeteria zu einem Gang.
+    const door = spec.doors.find((one) => one.a === good.roomId && one.b !== null)!;
     expect(
       () =>
         new VentNet(spec, {
-          flaps: [good, { ...good, id: 'zwei', x: good.x - 1 }],
+          flaps: [{ ...good, x: door.x, z: door.z, dir: door.dir }],
+          links: [],
+        }),
+    ).toThrow(/Türöffnung/);
+    expect(
+      () =>
+        new VentNet(spec, {
+          flaps: [good, { ...good, id: 'zwei', z: good.z + 1 }],
           links: [['zwei', 'drei']],
         }),
     ).toThrow(/unbekannte Klappe/);
     expect(
-      () => new VentNet(spec, { flaps: [good, { ...good, dir: DIR_E, x: 4, z: -50 }], links: [] }),
+      () => new VentNet(spec, { flaps: [good, { ...good, z: good.z + 1 }], links: [] }),
     ).toThrow(/doppelte/);
   });
 

@@ -1,4 +1,4 @@
-import { DIR_E, DIR_S, DIR_W, type Dir } from '../../nav/navTile';
+import { DIR_E, DIR_N, DIR_W, type Dir } from '../../nav/navTile';
 
 /**
  * **Das Lüftungsnetz der Station — als Daten.**
@@ -38,20 +38,20 @@ export interface VentNetData {
 
 export const STATION_VENTS: VentNetData = {
   flaps: [
-    { id: 'vent-cafeteria', roomId: 'r0', x: -2, z: -43, dir: DIR_S },
-    { id: 'vent-upper-engine', roomId: 'r1', x: -24, z: -48, dir: DIR_W },
-    { id: 'vent-reactor', roomId: 'r2', x: -30, z: -41, dir: DIR_W },
-    { id: 'vent-security', roomId: 'r3', x: -13, z: -41, dir: DIR_E },
-    { id: 'vent-medbay', roomId: 'r4', x: -11, z: -42, dir: DIR_W },
-    { id: 'vent-lower-engine', roomId: 'r5', x: -24, z: -33, dir: DIR_W },
-    { id: 'vent-electrical', roomId: 'r6', x: -6, z: -35, dir: DIR_E },
-    { id: 'vent-storage', roomId: 'r7', x: 2, z: -34, dir: DIR_E },
-    { id: 'vent-weapons', roomId: 'r8', x: 14, z: -50, dir: DIR_E },
-    { id: 'vent-o2', roomId: 'r9', x: 6, z: -43, dir: DIR_W },
-    { id: 'vent-navigation', roomId: 'r10', x: 24, z: -43, dir: DIR_E },
-    { id: 'vent-admin', roomId: 'r11', x: 9, z: -36, dir: DIR_E },
-    { id: 'vent-shields', roomId: 'r12', x: 17, z: -33, dir: DIR_E },
-    { id: 'vent-communications', roomId: 'r13', x: 4, z: -25, dir: DIR_W },
+    { id: 'vent-cafeteria', roomId: 'r0', x: -8, z: -41, dir: DIR_W },
+    { id: 'vent-upper-engine', roomId: 'r1', x: -24, z: -48, dir: DIR_N },
+    { id: 'vent-reactor', roomId: 'r2', x: -31, z: -41, dir: DIR_N },
+    { id: 'vent-security', roomId: 'r3', x: -17, z: -37, dir: DIR_E },
+    { id: 'vent-medbay', roomId: 'r4', x: -15, z: -41, dir: DIR_W },
+    { id: 'vent-lower-engine', roomId: 'r5', x: -28, z: -27, dir: DIR_W },
+    { id: 'vent-electrical', roomId: 'r6', x: -13, z: -32, dir: DIR_N },
+    { id: 'vent-storage', roomId: 'r7', x: -6, z: -26, dir: DIR_W },
+    { id: 'vent-weapons', roomId: 'r8', x: 14, z: -49, dir: DIR_N },
+    { id: 'vent-o2', roomId: 'r9', x: 9, z: -36, dir: DIR_W },
+    { id: 'vent-navigation', roomId: 'r10', x: 30, z: -36, dir: DIR_E },
+    { id: 'vent-admin', roomId: 'r11', x: 6, z: -33, dir: DIR_N },
+    { id: 'vent-shields', roomId: 'r12', x: 18, z: -25, dir: DIR_E },
+    { id: 'vent-communications', roomId: 'r13', x: 10, z: -21, dir: DIR_E },
   ],
   links: [
     ['vent-reactor', 'vent-upper-engine'],
