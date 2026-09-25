@@ -104,7 +104,11 @@ describe('Möbel stehen im Weg', () => {
   it('lässt niemanden in einer Grundfläche stehen und gleitet daran entlang', () => {
     const blocks = fixtureBlocks(spec);
     expect(blocks.length).toBeGreaterThan(10);
-    const box = blocks[0]!;
+    // Ein Kasten, vor dem westlich ein Meter Platz ist — einer an der Westwand
+    // taugt nicht für den Anlauf.
+    const box = blocks.find((b) =>
+      walkable(spec, [], { x: b.minX - 1, z: (b.minZ + b.maxZ) / 2 }, 0.35, blocks),
+    )!;
     const middle = { x: (box.minX + box.maxX) / 2, z: (box.minZ + box.maxZ) / 2 };
     expect(walkable(spec, [], middle, 0.35)).toBe(true);
     expect(walkable(spec, [], middle, 0.35, blocks)).toBe(false);

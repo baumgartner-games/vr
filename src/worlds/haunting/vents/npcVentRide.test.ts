@@ -51,12 +51,12 @@ function patrolTo(goal: { x: number; z: number }): RoutineOutput {
   };
 }
 
-function seat(kind: 'stalker' | 'crawler' = 'crawler') {
+function seat(kind: 'stalker' | 'crawler' = 'crawler', from = 'vent-cafeteria') {
   const spec = generateHouse(3, 14);
   const body = fakeBody();
   const ride = NpcVentRide.forSpec(spec, body, kind, 3.2);
   const graph = stationGraph(spec);
-  const flap = ride.net.flap('vent-cafeteria')!;
+  const flap = ride.net.flap(from)!;
   const rider: VentRider = { x: flap.approach.x, z: flap.approach.z, yaw: 0, space: flap.roomId };
   return { spec, body, ride, graph, flap, rider };
 }
@@ -82,18 +82,21 @@ function drive(
 
 describe('Die Fahrt des NPC-Monsters durch das Netz', () => {
   it('nimmt das Ziel der Routine, biegt es auf die Klappe um und steigt davor ein', () => {
-    const { ride, graph, flap, rider } = seat();
-    const admin = ride.net.flap('vent-admin')!;
-    const goal = graph.centre(admin.roomId);
+    // Von Security nach Electrical: Zu Fuß geht es über Reactor-Querung,
+    // Westgang und Lower Engine — der Schacht spart den halben Westflügel.
+    const { ride, graph, flap, rider } = seat('crawler', 'vent-security');
+    const electrical = ride.net.flap('vent-electrical')!;
+    const goal = graph.centre(electrical.roomId);
     // Weit weg von der Klappe: Der Lotse zeigt erst einmal zur Klappe.
     // Drei Meter neben der Klappe: Weit genug, dass der Lotse erst zur Klappe
-    // zeigt, nah genug, dass die Fahrt sich gegen die 33 m zu Fuß noch lohnt.
-    rider.x = flap.approach.x + 3;
+    // zeigt, nah genug, dass die Fahrt sich gegen den Weg zu Fuß noch lohnt.
+    // Die Klappe hängt an der Ostwand; drei Meter westlich ist mitten im Raum.
+    rider.x = flap.approach.x - 3;
     const steered = ride.steer(patrolTo(goal), rider, 100, graph);
     expect(steered.goal).toEqual(flap.approach);
     expect(ride.ride.busy).toBe(false);
     // Der Rapier-Körper hält eine Körperlänge vor seinem Ziel — das reicht.
-    rider.x = flap.approach.x + NPC_VENT_REACH - 0.05;
+    rider.x = flap.approach.x - NPC_VENT_REACH + 0.05;
     expect(NPC_VENT_REACH).toBeGreaterThan(1.15);
     expect(NPC_VENT_REACH).toBeLessThan(VENT_REACH);
     const entering = ride.steer(patrolTo(goal), rider, 100 + DT, graph);

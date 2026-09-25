@@ -60,7 +60,7 @@ import { COMMAND_STOOLS, COMMAND_TABLE, crewPlacement } from './world3d/commandS
 import { stationLighting } from './stationLighting';
 import { ENTITY_PROFILES } from './threat';
 import { acousticField, BOT_FOV, BOT_VISION, MONSTER_FOV } from './perception';
-import { visibleStationRooms } from './stationVisibility';
+import { topDownRooms, visibleStationRooms } from './stationVisibility';
 import { FlatKernel } from './flatKernel';
 import { KernelLocomotion } from './kernelLocomotion';
 import { loadTuning, saveTuning, clampTuning, type BotTuning } from './botTuning';
@@ -195,6 +195,9 @@ import {
 } from './net';
 import type { GridPlan } from '../grid/gridPlan';
 import type { MenuEntry } from '../../ui/menu';
+import { BlueprintArt } from './world3d/blueprintArt';
+import { TopDownFog } from './world3d/topDownFog';
+import { loadBlueprintShown, saveBlueprintShown } from './world3d/blueprint';
 import type { ToolChoice, WorldContext } from '../../core/types';
 import type { PlanSolid, PlanSolidKind } from '../grid/solids';
 import type { PlateTile } from '../shared/plateField';
@@ -472,7 +475,17 @@ export class HauntingWorld extends GridWorld {
   private readonly cullRotation = new THREE.Quaternion();
   private cullTimer = 0;
   private culledDoors = '';
+  private culledTopDown = false;
   private readonly navigationOverlay = new NavigationOverlay();
+  /**
+   * **Die Grundriss-Vorlage am Boden** (`world3d/blueprint.ts`) — zum
+   * Vergleichen, wo das Raster von der Zeichnung abweicht. Aus, bis jemand
+   * sie einschaltet; gemerkt wird es je Gerät.
+   */
+  private readonly blueprint = new BlueprintArt();
+  private blueprintShown = loadBlueprintShown();
+  /** Von oben die Deckel über Räumen, die die Figur nicht sieht (`world3d/topDownFog.ts`). */
+  private fog: TopDownFog | null = null;
   /**
    * **Der Rechenkern** (`flatKernel.ts`): die 2D-Runde, die im Schiff des
    * Gastgebers rechnet. `null`, bis das erste Bild ihn stellt oder nachdem
@@ -1054,6 +1067,8 @@ export class HauntingWorld extends GridWorld {
     this.roof = PLAN_WALL_H;
     this.navigationOverlay.setRooms(this.spec);
     this.root.add(this.navigationOverlay.root);
+    this.root.add(this.blueprint.mesh);
+    this.blueprint.show(this.blueprintShown);
     this.root.add(this.stage);
     this.root.add(this.live);
     this.root.add(this.vanRig);
@@ -1210,6 +1225,9 @@ export class HauntingWorld extends GridWorld {
 
   override dispose(ctx: WorldContext): void {
     this.navigationOverlay.dispose();
+    this.blueprint.dispose();
+    this.fog?.dispose();
+    this.fog = null;
     ctx.rig.pace = null;
     this.kernel = null;
     this.kernelLoco = null;
@@ -1290,6 +1308,9 @@ export class HauntingWorld extends GridWorld {
     this.stage.add(art);
     this.ventArt = new VentFlapArt(this.spec, this.vents);
     this.stage.add(this.ventArt.group);
+    this.fog?.dispose();
+    this.fog = new TopDownFog(this.spec);
+    this.root.add(this.fog.group);
     this.roomArt.clear();
     for (const group of art.children) {
       const id = group.userData.roomId as string | undefined;
@@ -1443,6 +1464,12 @@ export class HauntingWorld extends GridWorld {
         this.tuning = clampTuning(tuning);
         saveTuning(this.tuning);
         this.runningRound()?.retune(this.tuning);
+      },
+      blueprint: () => this.blueprintShown,
+      setBlueprint: (on) => {
+        this.blueprintShown = on;
+        saveBlueprintShown(on);
+        this.blueprint.show(on);
       },
       simulationSpeed: () => this.simulationSpeed,
       setSimulationSpeed: (speed) => {
@@ -3032,9 +3059,22 @@ export class HauntingWorld extends GridWorld {
     }
   }
 
-  /** Hide detail meshes in rooms that no open doorway can currently reveal. */
+  /**
+   * Hide detail meshes in rooms that no open doorway can currently reveal.
+   *
+   * **Von oben zählt die Figur und nicht die Kamera** (`topDownRooms`): Die
+   * Kamera über der Station hat jede Tür im Bild, und die Frage „liegt die
+   * Öffnung im Blickfeld" war dort immer ja — die Nachbarräume standen offen
+   * da, samt dem, was darin läuft. Dazu schaltete das Telefon des
+   * Technikers das Ausblenden ganz ab, weil `ui` gesetzt war; ganz sehen darf
+   * aber nur, wer zuschaut (Tafel, Archiv, Bot-Runde), und nicht, wer den
+   * Techniker am Bordstock spielt. Von oben decken die Deckel zu, was die
+   * Figur nicht sieht (`world3d/topDownFog.ts`).
+   */
   private cullRoomArt(dt: number, ctx: WorldContext): void {
-    const full = !!this.ui || this.state.crew.simulation;
+    const full = (!!this.ui && !this.flatTechnician) || this.state.crew.simulation;
+    const topDown = ctx.topDown && !full;
+    this.fog?.setTopDown(topDown);
     ctx.rig.getHeadPosition(_head);
     const camera = ctx.renderer.xr.isPresenting ? ctx.renderer.xr.getCamera() : ctx.camera;
     camera.updateWorldMatrix(true, false);
@@ -3045,12 +3085,14 @@ export class HauntingWorld extends GridWorld {
       !full &&
       this.cullTimer > 0 &&
       doors === this.culledDoors &&
+      topDown === this.culledTopDown &&
       this.culledHead.distanceToSquared(_head) < 0.25 &&
       Math.abs(this.culledRotation.dot(this.cullRotation)) > 0.9995
     )
       return;
     this.cullTimer = 0.2;
     this.culledDoors = doors;
+    this.culledTopDown = topDown;
     this.culledHead.copy(_head);
     this.culledRotation.copy(this.cullRotation);
     this.roomFrustum.setFromProjectionMatrix(
@@ -3058,25 +3100,28 @@ export class HauntingWorld extends GridWorld {
     );
     const visible = full
       ? null
-      : visibleStationRooms(this.spec, _head, this.state.shut, (door) => {
-          const edge = doorEdge(door);
-          const half = doorWidth(door) / 2;
-          this.doorwayBounds.min.set(
-            edge.x - (edge.alongX ? half : 0.1),
-            0,
-            edge.z - (edge.alongX ? 0.1 : half),
-          );
-          this.doorwayBounds.max.set(
-            edge.x + (edge.alongX ? half : 0.1),
-            PLAN_DOOR_H,
-            edge.z + (edge.alongX ? 0.1 : half),
-          );
-          // A generous margin prevents edge popping while turning in a headset.
-          this.doorwayBounds.expandByScalar(0.7);
-          return this.roomFrustum.intersectsBox(this.doorwayBounds);
-        });
+      : topDown
+        ? topDownRooms(this.spec, _head, this.state.shut)
+        : visibleStationRooms(this.spec, _head, this.state.shut, (door) => {
+            const edge = doorEdge(door);
+            const half = doorWidth(door) / 2;
+            this.doorwayBounds.min.set(
+              edge.x - (edge.alongX ? half : 0.1),
+              0,
+              edge.z - (edge.alongX ? 0.1 : half),
+            );
+            this.doorwayBounds.max.set(
+              edge.x + (edge.alongX ? half : 0.1),
+              PLAN_DOOR_H,
+              edge.z + (edge.alongX ? 0.1 : half),
+            );
+            // A generous margin prevents edge popping while turning in a headset.
+            this.doorwayBounds.expandByScalar(0.7);
+            return this.roomFrustum.intersectsBox(this.doorwayBounds);
+          });
     for (const [id, group] of this.roomArt) group.visible = !visible || visible.has(id);
     this.experience?.setVisibleRooms(visible);
+    this.fog?.update(topDown ? visible : null);
   }
 
   // --- die Einsatzzentrale ---------------------------------------------------
