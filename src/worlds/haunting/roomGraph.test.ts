@@ -1,5 +1,5 @@
 import { DOOR_LOSS, WALL_LOSS } from './audio/hearing';
-import { generateHouse, spacesOf, type HouseSpec, type Rect } from './house';
+import { generateHouse, roomTiles, spacesOf, type HouseRoom, type HouseSpec } from './house';
 import {
   COMMAND,
   monsterGraph,
@@ -35,19 +35,23 @@ function wallOnlyPairs(spec: HouseSpec): Array<[string, string]> {
     for (let j = i + 1; j < spaces.length; j++) {
       const a = spaces[i]!,
         b = spaces[j]!;
-      if (!touching(a.rect, b.rect)) continue;
+      if (!tilesTouch(a, b)) continue;
       if (doors.has([a.id, b.id].sort().join('|'))) continue;
       out.push([a.id, b.id]);
     }
   return out;
 }
 
-function touching(a: Rect, b: Rect): boolean {
-  const alongX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
-  const alongZ = Math.min(a.z + a.d, b.z + b.d) - Math.max(a.z, b.z);
-  if (a.x + a.w === b.x || b.x + b.w === a.x) return alongZ > 0;
-  if (a.z + a.d === b.z || b.z + b.d === a.z) return alongX > 0;
-  return false;
+/** Ob zwei Räume Kachel an Kachel liegen — auch geformte (`HouseRoom.shape`). */
+function tilesTouch(a: HouseRoom, b: HouseRoom): boolean {
+  const theirs = new Set(roomTiles(b).map((tile) => `${tile.x},${tile.z}`));
+  return roomTiles(a).some(
+    (tile) =>
+      theirs.has(`${tile.x + 1},${tile.z}`) ||
+      theirs.has(`${tile.x - 1},${tile.z}`) ||
+      theirs.has(`${tile.x},${tile.z + 1}`) ||
+      theirs.has(`${tile.x},${tile.z - 1}`),
+  );
 }
 
 /**

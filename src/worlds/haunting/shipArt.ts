@@ -7,6 +7,7 @@ import {
   APRON,
   MARKS,
   roomCode,
+  cutAt,
   cutWalls,
   plainTiles,
   spacesOf,
@@ -331,6 +332,33 @@ const CUT_CAP = 0x070b11;
 function cutCaps(room: HouseRoom): THREE.Mesh[] {
   const r = room.rect;
   const material = new THREE.MeshBasicMaterial({ color: CUT_CAP });
+  // **Ein geformter Raum** (`HouseRoom.shape`) deckt je Schrägkachel ihre
+  // äußere Hälfte zu — die Ecke seines Rechtecks kann in einem anderen Raum
+  // liegen (eine Nische, ein Anbau).
+  if (room.shape) {
+    const out: THREE.Mesh[] = [];
+    for (const [at, corner] of room.shape) {
+      if (!corner) continue;
+      const [tx, tz] = at.split(',').map(Number) as [number, number];
+      const x0 = tx * TILE,
+        z0 = tz * TILE,
+        x1 = (tx + 1) * TILE,
+        z1 = (tz + 1) * TILE;
+      const cx = corner === 'nw' || corner === 'sw' ? x0 : x1,
+        cz = corner === 'nw' || corner === 'ne' ? z0 : z1;
+      const shape = new THREE.Shape([
+        new THREE.Vector2(cx, -cz),
+        new THREE.Vector2(cx === x0 ? x1 : x0, -cz),
+        new THREE.Vector2(cx, -(cz === z0 ? z1 : z0)),
+      ]);
+      const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.y = 0.08;
+      mesh.name = `cut-cap-${corner}`;
+      out.push(mesh);
+    }
+    return out;
+  }
   return cutWalls(room).map((wall) => {
     const corner = {
       x: (wall.corner === 'nw' || wall.corner === 'sw' ? r.x : r.x + r.w) * TILE,
@@ -368,6 +396,9 @@ export function closedTileX(spec: HouseSpec, room: HouseRoom, dir: 0 | 2): numbe
             (door.dir + 2) % 4 === dir),
       ) || spec.windows.some((window) => window.x === x && window.z === z && window.dir === dir);
     if (open) continue;
+    // Nur, wo die Wand gerade läuft — nicht über einer Schräge oder vor einer
+    // Nische eines geformten Raums (`HouseRoom.shape`).
+    if (cutAt(room, x, z) !== null) continue;
     if (best === null || Math.abs(x - centre) < Math.abs(best - centre)) best = x;
   }
   return best;

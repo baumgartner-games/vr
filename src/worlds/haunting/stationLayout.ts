@@ -1,6 +1,7 @@
 import { PLAN_WALL_T } from '../editor/levelPlan';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import {
+  boxInShape,
   roomOf,
   spacesOf,
   STATION_DOOR_W,
@@ -81,6 +82,9 @@ export function roomBounds(room: HouseRoom): FloorBounds {
 const CUT_CLEAR = 0.15;
 
 function cutFree(room: HouseRoom, bounds: FloorBounds): boolean {
+  // Ein geformter Raum (`HouseRoom.shape`): jede Kachel darunter gehört dazu,
+  // und von schrägen Wänden und Nischen bleibt derselbe Abstand.
+  if (room.shape) return boxInShape(room, bounds, CUT_CLEAR);
   if (!room.cuts) return true;
   const corners = [
     { x: bounds.minX, z: bounds.minZ },

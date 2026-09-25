@@ -31,7 +31,10 @@ function inCut(x: number, z: number): HouseRoom | null {
   for (const room of spacesOf(spec)) {
     const r = room.rect;
     if (x < r.x || x >= r.x + r.w || z < r.z || z >= r.z + r.d) continue;
-    if (cutAt(room, x, z) !== null) return room;
+    const cut = cutAt(room, x, z);
+    // Hinter der Schräge eines geformten Raums (`HouseRoom.shape`) kann ein
+    // anderer liegen — sein Rechteck ragt über fremde Kacheln.
+    if (cut !== null && !(room.shape && cut === 'out')) return room;
   }
   return null;
 }
@@ -41,20 +44,24 @@ describe('Die schrägen Ecken der Station', () => {
     const r = cafeteria.rect;
     const south = r.z + r.d - 1,
       east = r.x + r.w - 1;
-    // Südwest, zwei Kacheln: die Ecke fällt weg, ihre Nachbarn tragen „╲".
+    // Die Cafeteria nach der Vorlage (`stationMap.ts`) ist ein Achteck.
+    // Südwest, vier Kacheln: die Ecke fällt weg, die Diagonale trägt „╲".
     expect(cutAt(cafeteria, r.x, south)).toBe('out');
-    expect(cutAt(cafeteria, r.x + 1, south)).toBe('backslash');
-    expect(cutAt(cafeteria, r.x, south - 1)).toBe('backslash');
-    expect(cutAt(cafeteria, r.x + 1, south - 1)).toBeNull();
-    // Südost „╱", die Nordecken bleiben (dort liegt die Glasfront zur Zentrale).
-    expect(cutAt(cafeteria, east - 1, south)).toBe('slash');
-    expect(cutAt(cafeteria, r.x, r.z)).toBeNull();
-    expect(roomAt(spec, r.x, south)).toBeNull();
-    expect(roomAt(spec, r.x + 1, south)?.id).toBe(cafeteria.id);
-    // Der Umriss hat sechs Ecken, und ein Punkt hinter der Schräge liegt draußen.
-    expect(roomOutline(cafeteria)).toHaveLength(6);
+    expect(cutAt(cafeteria, r.x + 1, south - 1)).toBe('out');
+    expect(cutAt(cafeteria, r.x + 3, south)).toBe('backslash');
+    expect(cutAt(cafeteria, r.x, south - 3)).toBe('backslash');
+    expect(cutAt(cafeteria, r.x + 2, south - 2)).toBeNull();
+    // Südost „╱", und auch die Nordecken sind schräg — die Glasfront zur
+    // Zentrale liegt dazwischen (`house.commandWindows`).
+    expect(cutAt(cafeteria, east - 4, south)).toBe('slash');
+    expect(cutAt(cafeteria, r.x, r.z)).toBe('out');
+    // Die Ecke ist leer — die Kachel ganz außen gehört schon der MedBay.
+    expect(roomAt(spec, r.x + 1, south - 1)).toBeNull();
+    expect(roomAt(spec, r.x + 3, south)?.id).toBe(cafeteria.id);
+    // Der Umriss hat acht Ecken, und ein Punkt hinter der Schräge liegt draußen.
+    expect(roomOutline(cafeteria)).toHaveLength(8);
     expect(insideSpace(cafeteria, { x: r.x + 0.5, z: r.z + r.d - 0.5 })).toBe(false);
-    expect(insideSpace(cafeteria, { x: r.x + 1.5, z: r.z + r.d - 1.5 })).toBe(true);
+    expect(insideSpace(cafeteria, { x: r.x + 2.5, z: r.z + r.d - 2.5 })).toBe(true);
   });
 
   it('lässt Türen, Klappen, Fenster, Merkmale und Aufgaben außerhalb der Ecken', () => {
@@ -82,12 +89,12 @@ describe('Die schrägen Ecken der Station', () => {
     const plan = housePlan(spec);
     const r = cafeteria.rect;
     const south = r.z + r.d - 1;
-    expect(plan.slopeAt(tileKey(r.x + 1, south))).toBe('backslash');
-    expect(plan.graph.walkable(tileKey(r.x, south))).toBe(false);
-    expect(plan.graph.walkable(tileKey(r.x + 1, south))).toBe(true);
+    expect(plan.slopeAt(tileKey(r.x + 3, south))).toBe('backslash');
+    expect(plan.graph.walkable(tileKey(r.x + 1, south - 1))).toBe(false);
+    expect(plan.graph.walkable(tileKey(r.x + 3, south))).toBe(true);
     // Die Schrägkachel hat nach Westen keine Wand — dort ist die Schräge die
-    // Grenze. Nach Süden steht eine, denn dort grenzt ein Gang an.
-    expect(plan.graph.wall(tileKey(r.x, south - 1), 3)).toBeUndefined();
+    // Grenze.
+    expect(plan.graph.wall(tileKey(r.x, south - 3), 3)).toBeUndefined();
     // Die Schrägen stehen als gedrehte Wände im Plan.
     expect(plan.solids().filter((solid) => solid.yaw).length).toBeGreaterThan(20);
   });
@@ -98,11 +105,11 @@ describe('Die schrägen Ecken der Station', () => {
     const r = cafeteria.rect;
     const south = r.z + r.d - 1;
     // „╲" sperrt Nordwest und Südost ihrer Kachel; Nordost ist innen und frei.
-    expect(grid.cellFree((r.x + 1) * 2, south * 2)).toBe(false);
-    expect(grid.cellFree((r.x + 1) * 2 + 1, south * 2)).toBe(true);
+    expect(grid.cellFree((r.x + 3) * 2, south * 2)).toBe(false);
+    expect(grid.cellFree((r.x + 3) * 2 + 1, south * 2)).toBe(true);
     // Ein 2×2-Block steht innen an der Schräge, einer auf ihr nicht.
-    expect(grid.footprintFree(snapCell(r.x + 2, south))).toBe(true);
-    expect(grid.footprintFree(snapCell(r.x + 1, south + 0.5))).toBe(false);
+    expect(grid.footprintFree(snapCell(r.x + 4, south))).toBe(true);
+    expect(grid.footprintFree(snapCell(r.x + 3, south + 0.5))).toBe(false);
   });
 
   it('zeichnet die schrägen Wände auf die Karte', () => {
@@ -110,7 +117,7 @@ describe('Die schrägen Ecken der Station', () => {
     const diagonal = wallSegments(spec).filter(
       (s) => s.roomId === cafeteria.id && s.a.x !== s.b.x && s.a.z !== s.b.z,
     );
-    expect(diagonal).toHaveLength(2);
+    expect(diagonal).toHaveLength(4);
     // Keine gerade Wand reicht mehr bis in die abgeschnittene Ecke.
     const straight = wallSegments(spec).filter(
       (s) => s.roomId === cafeteria.id && (s.a.x === s.b.x || s.a.z === s.b.z),

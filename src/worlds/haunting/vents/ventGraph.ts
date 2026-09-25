@@ -1,5 +1,5 @@
 import { dirX, dirZ, type Dir } from '../../nav/navTile';
-import { doorWidth, spacesOf, type HouseSpec } from '../house';
+import { cutAt, doorWidth, spacesOf, type HouseSpec } from '../house';
 import { doorCentre } from '../map/geometry';
 import type { MapItem, MapPoint } from '../map/mapSnapshot';
 import { STATION_VENTS, type VentNetData } from './ventNet.data';
@@ -45,13 +45,14 @@ export class VentNet {
       const room = rooms.get(flap.roomId);
       if (!room) throw new Error(`Vent ${flap.id}: unbekannter Raum ${flap.roomId}`);
       const r = room.rect;
-      const inside = flap.x >= r.x && flap.x < r.x + r.w && flap.z >= r.z && flap.z < r.z + r.d;
+      const within = (x: number, z: number): boolean =>
+        x >= r.x && x < r.x + r.w && z >= r.z && z < r.z + r.d && cutAt(room, x, z) !== 'out';
+      // Eine ganze Kachel des Raums — nicht hinter und nicht auf einer Schräge.
+      const inside = within(flap.x, flap.z) && cutAt(room, flap.x, flap.z) === null;
       if (!inside) throw new Error(`Vent ${flap.id}: Kachel liegt nicht in ${flap.roomId}`);
       const nx = dirX(flap.dir),
         nz = dirZ(flap.dir);
-      const beyondX = flap.x + nx,
-        beyondZ = flap.z + nz;
-      const onEdge = beyondX < r.x || beyondX >= r.x + r.w || beyondZ < r.z || beyondZ >= r.z + r.d;
+      const onEdge = !within(flap.x + nx, flap.z + nz);
       if (!onEdge) throw new Error(`Vent ${flap.id}: Wand liegt nicht am Rand von ${flap.roomId}`);
       // Dieselbe Rechnung wie für das Layout (`ventPlacement.ts`) — Klappe
       // und freigehaltener Platz davor müssen dieselbe Stelle meinen.

@@ -53,6 +53,13 @@ function corner(seed: number): Corner {
         pointInPolygon(near, a.polygon) &&
         pointInPolygon(side, b.polygon) &&
         pointInPolygon(inside, b.polygon) &&
+        // Nicht auf der Kante zu einem dritten Raum — dort säße die Quelle in
+        // einer anderen Tür (die Gänge der Vorlage sind schmal, `stationMap.ts`).
+        !snapshot.doors.some(
+          (other) =>
+            Math.hypot(other.at.x - side.x, other.at.z - side.z) < 1.5 ||
+            (other !== door && Math.hypot(other.at.x - door.at.x, other.at.z - door.at.z) < 4),
+        ) &&
         round.place(near)
       )
         return { round, door, near, side };
@@ -244,8 +251,13 @@ describe('Das Hörmodell', () => {
     expect(shut.doors.find((d) => d.id === door.id)!.open).toBe(false);
     const closed = new Hearing().path(shut, side, near);
     expect(Number.isFinite(closed.distance)).toBe(true);
-    expect(closed.distance).toBeCloseTo(open.distance + DOOR_LOSS, 6);
-    expect(closed.from).toEqual(door.at);
+    // Durch das geschlossene Blatt um genau DOOR_LOSS mehr — es sei denn, ein
+    // anderer Weg ist jetzt kürzer (die Station nach der Vorlage hat mehr
+    // Durchgänge, `stationMap.ts`); abgeschnitten ist der Schall nie.
+    expect(closed.distance).toBeGreaterThan(open.distance);
+    expect(closed.distance).toBeLessThanOrEqual(open.distance + DOOR_LOSS + 1e-6);
+    if (closed.from.x === door.at.x && closed.from.z === door.at.z)
+      expect(closed.distance).toBeCloseTo(open.distance + DOOR_LOSS, 6);
   });
 
   it('lässt Schall durch eine Wand ohne Tür — gedämpft, nicht abgeschnitten', () => {

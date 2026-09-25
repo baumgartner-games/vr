@@ -14,7 +14,7 @@ import {
   tilesOf,
 } from './house';
 import { housePlan } from './plan';
-import { STATION_BOUNDS } from './house';
+import { STATION_BOUNDS, cutAt } from './house';
 import { stationLayout } from './stationLayout';
 
 /** Architecture regressions: the ship must really have transit floor and empty hull cavities. */
@@ -55,12 +55,15 @@ describe('separated orbital ship modules', () => {
       for (const room of spaces)
         for (const tile of roomTiles(room)) {
           expect(
+            // Geformte Räume (`HouseRoom.shape`): Ihre Rechtecke dürfen
+            // ineinanderragen, ihre Kacheln nicht.
             spaces.filter(
               (candidate) =>
                 tile.x >= candidate.rect.x &&
                 tile.x < candidate.rect.x + candidate.rect.w &&
                 tile.z >= candidate.rect.z &&
-                tile.z < candidate.rect.z + candidate.rect.d,
+                tile.z < candidate.rect.z + candidate.rect.d &&
+                cutAt(candidate, tile.x, tile.z) !== 'out',
             ),
           ).toHaveLength(1);
           expect(plan.graph.has(tileKey(tile.x, tile.z))).toBe(true);

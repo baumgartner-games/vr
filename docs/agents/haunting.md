@@ -10,42 +10,55 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 **Das 1-m-Gitter und das Ende der gemalten 2D-Welt** (Paket H, September
 2026, `docs/plan-haunting-1m.md`) — was seither gilt, in Zahlen und Namen:
 
-- **Die Kachel ist ein Meter** (`nav/navTile.TILE` = 1). Die Station steht
-  in `house.ts` als Tabelle in Metern, **abgepaust von der Vorlage des
-  Besitzers** (`docs/orbital/station-vorlage.webp`, siehe unten _Die Vorlage
-  am Boden_), und zwar **so klein, wie die Einrichtung es zulässt**: Gänge
-  zwei Kacheln breit, Fugen eine Kachel, Räume meist 6 × 6 (Cafeteria
-  10 × 10, Storage 6 × 10, Reactor 5 × 10, Security 5 × 6, O2 6 × 5),
-  `STATION_BOUNDS` = 55 × 30 m, `HOUSE` 40 × 30 m, Vorplatz `APRON`
-  40 × 5 m, Aufzug `COMMAND_LIFT` 2 × 2. **Ein Raum braucht rund sechs
-  Meter**: Kleiner (5 × 5 wurde probiert, als der Besitzer die Station
-  halbiert haben wollte) findet `stationLayout` für Merkmal, zwei Kisten,
-  Schutzschrank und Konsole keinen sicheren Platz mehr („No safe station
-  furniture layout"). Wer Räume verkleinert, prüft mehrere hundert Samen,
-  nicht nur einen. Kein Raum berührt einen anderen (eine Kachel Fuge;
-  `roomGraph.test` verlangt, dass es keine Wandnachbarn ohne Tür gibt);
-  Räume hängen nur über Gänge zusammen, und **zwischen zwei Gängen steht die
-  ganze gemeinsame Kante offen** (Kreuzung). **Ein Gang berührt einen Raum
-  nur dort, wo eine Tür sein soll** — `connectStation` setzt an jede
-  gemeinsame Kante eine; wer einen Gang an einer Raumwand entlangführt,
-  bekommt dort eine Tür, die niemand gezeichnet hat. Lehrzimmer: `EAST` =
-  Ostrand + 15 m, Safe 12 × 10, Modelle 20 × 15.
+- **Die Kachel ist ein Meter** (`nav/navTile.TILE` = 1). **Seit Oktober 2026
+  ist die Station Kachel für Kachel nach der Vorlage des Besitzers gebaut**
+  (`stationMap.ts`, `docs/orbital/station-vorlage.webp`), im Maßstab
+  **20 Pixel = 1 m** — gewünscht: _„die Boden und Wandbekleidung passen nicht
+  zum Boden Bild Rahmen von Raumschiff"_, dann _„Bitte auf 20px = 1m"_. Vorher
+  war sie eine Tabelle von Rechtecken, nur ungefähr abgepaust (24 Pixel =
+  1 m), und die Wände lagen neben den gelben Linien.
+  - `STATION_MAP` ist ein Textbild: ein Zeichen je Kachel, `.` leer, `:` Gang,
+    ein Großbuchstabe eine Kachel des Raums (`house.STATION_ROOMS` nennt Name,
+    Art, Merkmal), derselbe Buchstabe klein eine **Schrägkachel**. Welche Ecke
+    abgeschnitten ist, sagen die Nachbarn (`house.stationShapes`).
+  - Ein Raum hat dafür eine **Form** (`HouseRoom.shape`: Kachel → `null` oder
+    die abgeschnittene Ecke); `rect` ist nur das umschließende Rechteck, und
+    Rechtecke zweier Räume dürfen ineinanderragen. Alles, was einen Raum
+    Kachel für Kachel fragt, geht über `cutAt`, `cutOf`, `roomTiles`,
+    `plainTiles`, `insideSpace`, `spaceHolds`, `roomOutline`, `cutWalls`,
+    `straightWalls` und `boxInShape` — die kennen Form und Rechteck mit
+    Schrägecken (`cuts`, das Haus außerhalb der Station) gleichermaßen.
+  - Wandnachbarn (`roomGraph`) und Türen (`connectStation` → `sharedWith`)
+    zählen Kacheln, nicht Rechtecke: Eine Nische hat Wände mitten im Rechteck.
+  - Die Gänge sind so breit wie gezeichnet (meist drei Kacheln);
+    `stationRooms` legt die `:`-Kacheln zu Rechtecken zusammen.
+  - **Kein Raum berührt einen anderen** (`roomGraph.test`: keine Wandnachbarn
+    ohne Tür); wo die Zeichnung zwei Schrägen dichter zusammenlegt, ist eine
+    Schräge eine Kachel länger (Cafeteria unten rechts neben O2).
+  - **Wo die Einrichtung nicht passt, ist ein Raum eine Kachel größer als
+    gezeichnet** (O2, Navigation), und ein kleiner Raum (unter
+    `SMALL_ROOM_TILES` = 45 Kacheln) bekommt nur ein Hüllenfenster
+    (`stationWindows`) — geprüft über 300 Samen, beide Raumzahlen. Wer die
+    Karte ändert, prüft wieder so viele (`stationLayout` wirft sonst „No safe
+    station furniture layout").
+  - Die Lüftungsklappen (`vents/ventNet.data.ts`) stehen auf ganzen Kacheln
+    an einer Wand des Raums, nie in einer Tür.
+  - `STATION_BOUNDS` ist das Rechteck der Karte (65 × 37 m ab −34/−52),
+    `HOUSE` 40 × 30 m, Vorplatz `APRON` 40 × 5 m nördlich der Cafeteria,
+    Aufzug `COMMAND_LIFT` 2 × 2. Lehrzimmer: `EAST` = Ostrand + 15 m.
 - **Die Vorlage am Boden** (`world3d/blueprint.ts`, `blueprintArt.ts`):
   _Optionen → Grundriss-Vorlage_ (im Weltmenü _Grundriss-Vorlage: an/aus_)
   legt die Zeichnung als Bild auf den Boden, gemerkt je Gerät
-  (`localStorage` `haunting:blueprint`). Eichung: **24 Pixel = 1 m**, die
-  beste Deckung der Raummitten — Pixelspalte 747 (Mitte der Cafeteria) ist
-  `x = 0`, Pixelzeile 32 ist `z = −55`. Das Bild
+  (`localStorage` `haunting:blueprint`). Eichung: **20 Pixel = 1 m**, die
+  beste Deckung aller Wandlinien mit den Kachelkanten — Pixelspalte 52 ist
+  `x = −34`, Pixelzeile 36,2 ist `z = −52`. Das Bild
   `public/haunting/station-outline.png` ist aus der Vorlage gerechnet
   (Wände gelb, Räume blau, Gänge grün getönt, der Rest durchsichtig);
-  `blueprint.test` prüft, dass jede Raummitte höchstens 2,5 m neben ihrer
-  Zeichnung liegt. Abweichungen gibt es, wo die Zeichnung Schrägen hat (das
-  Raster kennt keine), wo ein kleiner Raum für seine Möbel größer sein muss
-  (Security, O2, Navigation) und bei der Cafeteria, die gezeichnet größer
-  ist als gebaut.
-- **Die schrägen Ecken** (45°-Wände der Vorlage; `HouseRoom.cuts`,
-  `house.cutAt`). Die letzte Spalte der Raumtabelle in `stationRooms` nennt
-  Ecke und Länge in Kacheln: `'sw2 se2'`.
+  `blueprint.test` prüft, dass jede Raummitte höchstens 1,5 m neben ihrer
+  Zeichnung liegt.
+- **Die schrägen Wände** (45°-Wände der Vorlage). Die Schrägkacheln stehen in
+  der Karte (`STATION_MAP`, kleine Buchstaben); außerhalb der Station gibt es
+  noch Ecken als `HouseRoom.cuts` (Ecke und Länge, `'sw2 se2'`).
   - Die Kacheln auf der Diagonale tragen eine Schräge (`GridPlan.slope`),
     die Kacheln dahinter gehören zu keinem Raum (`roomAt` → `null`).
   - `plan.stationSpace` baut Boden und Wände je Kachel. Zu den beiden
@@ -53,22 +66,15 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
     ist die Grenze.
   - Gegangen und gesucht wird darüber auf dem Zellgitter wie überall
     (`stationCellGrid` liest die Schrägen).
-  - Gezeichnet wird mit einem Stück der Regalwand je Schrägkachel
-    (`stationWalls.wallRun` mit `yaw`). Hinter der Schräge deckt ein dunkles
+  - Gezeichnet werden alle Wände als Regalstücke (`grid/shelfWalls.ts`,
+    `HauntingWorld.placeStationWalls`). Hinter der Schräge deckt ein dunkles
     Dreieck die äußere Hälfte der Bodenplatte zu (`shipArt.cutCaps`).
   - Karte (`wallSegments`, `roomOutline`), Archiv und Papierkarte
     (`HauntingWorld.wallsOf`) zeichnen die Schräge mit.
   - Türen, Klappen, Fenster, Merkmale, Aufgaben und Sicherungskasten liegen
-    nie in einer Ecke (`plainTiles`, `stationCorners.test`).
-  - Möbel stehen ganz auf der Innenseite (`stationLayout.cutFree`).
-  - **Die Längen sind so groß, wie die Einrichtung es zulässt**, geprüft über
-    400 Samen. Mit zwei Kacheln fand `stationLayout` in den kleinen Räumen
-    auf manchen Samen keinen Platz mehr. Deshalb haben Upper Engine,
-    Security, MedBay, O2, Navigation und Communications nur Ecken von einer
-    Kachel. Lower Engine und Shields haben keine, denn dort scheiterte schon
-    eine Kachel. Die Cafeteria hat nur unten schräge Ecken: Oben liegt die
-    Glasfront zur Einsatzzentrale. Wer eine Ecke vergrößert, prüft wieder
-    Hunderte Samen.
+    nie auf einer Schrägkachel (`plainTiles`, `stationCorners.test`).
+  - Möbel stehen ganz auf der Innenseite und halten von Schrägen und Nischen
+    Abstand (`stationLayout.cutFree` → `boxInShape`).
 - **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
   topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und was hinter
   offenen Türen innerhalb von `TOP_DOWN_REACH` = 6 m liegt. Über allem

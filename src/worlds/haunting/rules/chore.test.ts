@@ -48,18 +48,21 @@ describe('Ein Handgriff, der Zeit kostet', () => {
 
 describe('Die Kiste in der 2D-Runde', () => {
   /** Die nächste Kiste — und der Weg dorthin, ohne Wegsuche: hinsetzen. */
-  function atCrate(): { round: FlatRound; id: string } {
+  function atCrate(): { round: FlatRound; id: string; inward: { x: number; z: number } } {
     const round = new FlatRound(3, { test: true });
-    const crate = round
-      .snapshot()
-      .items.find((item) => item.kind === 'cargo' && item.state === 'closed')!;
+    const snapshot = round.snapshot();
+    const crate = snapshot.items.find((item) => item.kind === 'cargo' && item.state === 'closed')!;
+    // Weg von der Wand, an der die Kiste steht: zur Mitte ihres Raums.
+    const centre = snapshot.rooms.find((room) => room.id === crate.roomId)!.centre;
+    const length = Math.hypot(centre.x - crate.at.x, centre.z - crate.at.z);
+    const inward = { x: (centre.x - crate.at.x) / length, z: (centre.z - crate.at.z) / length };
     Object.assign(round.player, {
       x: crate.at.x,
       z: crate.at.z,
       space: crate.roomId,
     });
     round.step(1 / 30, { x: 0, z: 0, sprint: false });
-    return { round, id: crate.id };
+    return { round, id: crate.id, inward };
   }
 
   const STILL = { x: 0, z: 0, sprint: false };
@@ -79,13 +82,13 @@ describe('Die Kiste in der 2D-Runde', () => {
   });
 
   it('bricht ab, wer dabei losläuft', () => {
-    const { round, id } = atCrate();
+    const { round, id, inward } = atCrate();
     round.act('interact');
     expect(round.busy).not.toBeNull();
-    // Nach Westen, in den Raum: Nach Osten steht die Kiste an der Wand, und
-    // seit sich eine Figur nur noch eine Achtelzelle über ihre Blockmitte zur
-    // Wand hin schiebt (`cellGrid.standable`), käme sie dort nicht weg.
-    for (let t = 0; t < 1.5; t += 0.1) round.step(0.1, { x: -1, z: 0, sprint: false });
+    // In den Raum hinein: Hinter der Kiste steht die Wand, und seit sich eine
+    // Figur nur noch eine Achtelzelle über ihre Blockmitte zur Wand hin
+    // schiebt (`cellGrid.standable`), käme sie dort nicht weg.
+    for (let t = 0; t < 1.5; t += 0.1) round.step(0.1, { x: inward.x, z: inward.z, sprint: false });
     expect(round.busy).toBeNull();
     expect(round.state().crew.opened).not.toContain(id);
     expect(round.drain().some((event) => event.text.includes('abgebrochen'))).toBe(true);
