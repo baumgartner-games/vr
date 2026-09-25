@@ -2802,6 +2802,9 @@ export abstract class GridWorld extends PortalWorld {
       }
     }
     for (const link of plan.graph.links()) graph.addLink({ ...link });
+    // Und die Schrägen: Die NPCs laufen auf Zellen (`nav/cellRoute.ts`), und
+    // dort sperrt eine Schräge zwei Zellen ihrer Kachel.
+    graph.slopeAt = (key) => plan.slopeAt(key);
   }
 }
 

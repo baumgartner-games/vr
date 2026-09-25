@@ -1,3 +1,4 @@
+import { cellRoute } from './cellRoute';
 import { NavBelief } from './navBelief';
 import { breakable } from './navDoor';
 import { doorBroken, type DoorPower, type NavGraph, type WallFacts } from './navGraph';
@@ -267,7 +268,7 @@ export class NavAgent {
       this.timer <= 0 ||
       stuck ||
       this.belief.version !== this.seenBelief;
-    if (planned) this.plan(graph, from, to);
+    if (planned) this.plan(graph, from, to, at, goal);
 
     this.jump = NO_TILE;
     this.leap = NO_TILE;
@@ -368,7 +369,17 @@ export class NavAgent {
     return learned;
   }
 
-  private plan(graph: NavGraph, from: TileKey, to: TileKey): void {
+  /**
+   * **Erst grob über Kacheln, dann fein als 2×2-Block über Zellen.**
+   *
+   * Die Kacheln entscheiden, wo es langgeht — Türen, Meinung, Treppen,
+   * Portale (`findPath`). Gelaufen wird der Weg eines Blocks von zwei mal zwei
+   * halben Kacheln in diesem Schlauch (`cellRoute.ts`), in acht Richtungen und
+   * an Schrägen schräg entlang. Passt dort kein Block durch, bleibt es beim
+   * Schnurzug über Kacheln (`pullString`) — lieber ein Weg, der schrammt, als
+   * einer, den es nicht gibt.
+   */
+  private plan(graph: NavGraph, from: TileKey, to: TileKey, at: Spot3, goal: Spot3): void {
     const options = {
       profile: this.tuning.profile,
       belief: this.belief,
@@ -376,7 +387,9 @@ export class NavAgent {
       radius: this.tuning.girth,
     };
     const found = findPath(graph, from, to, options);
-    this.route = pullString(graph, found.tiles, options);
+    this.route =
+      cellRoute(graph, found.tiles, at, found.complete ? goal : null) ??
+      pullString(graph, found.tiles, options);
     this.tiles = [];
     for (const point of this.route) {
       if (this.tiles[this.tiles.length - 1] !== point.tile) this.tiles.push(point.tile);

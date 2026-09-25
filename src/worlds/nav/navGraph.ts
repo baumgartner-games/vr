@@ -1,3 +1,4 @@
+import type { Slope } from './cellGrid';
 import {
   DIRS,
   NO_TILE,
@@ -337,6 +338,16 @@ export class NavGraph {
   private readonly linkById = new Map<string, NavLink>();
   private readonly exits = new Map<TileKey, LinkExit[]>();
   private readonly blocked = new Set<TileKey>();
+
+  /**
+   * **Die Schräge einer Kachel** (`cellGrid.Slope`) — eine Wand unter 45°
+   * quer durch sie hindurch.
+   *
+   * Eine Frage und keine Tabelle: Die Schrägen stehen im Bauplan
+   * (`GridPlan.slope`), und wer den Graphen für die Wegsuche baut, hängt sie
+   * hier ein (`GridWorld.navReady`). Ohne Bauplan gibt es keine.
+   */
+  slopeAt: (key: TileKey) => Slope | null = () => null;
 
   constructor(levels: readonly number[] = [0]) {
     this.levels = levels.length > 0 ? [...levels] : [0];
