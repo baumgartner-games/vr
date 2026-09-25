@@ -1,10 +1,12 @@
-import { PLAN_DOOR_H } from '../editor/levelPlan';
+import { moveOnCells, snapCell } from '../nav/cellGrid';
+import type { NavGraph } from '../nav/navGraph';
 import { TILE, tileKey, type TileKey } from '../nav/navTile';
 import { routeLength, stepAlong, type RoutePose } from './navmesh/route';
 import { doorEdges, generateHouse, roomCentre, roomOf, type HouseSpec } from './house';
+import { stationCellGrid } from './map/stationCells';
 import { housePlan } from './plan';
 import { stationRoute } from './stationNavigation';
-import { routeBlocked, stationLayout, type FloorBounds, type FloorPoint } from './stationLayout';
+import { routeBlocked, stationLayout, type FloorPoint } from './stationLayout';
 import { COMMAND_HOME, TRAINING_ROOMS, trainingSpawn } from './trainingLayout';
 
 function goalFor(spec: HouseSpec, id: string): TileKey {
@@ -17,30 +19,35 @@ function poseFor(spec: HouseSpec, id: string): RoutePose {
   return { x: (centre.x + 0.5) * TILE, z: (centre.z + 0.5) * TILE, yaw: 0 };
 }
 
-function walls(spec: HouseSpec): FloorBounds[] {
-  return housePlan(spec)
-    .solids()
-    .filter((s) => (s.kind === 'wall' || s.kind === 'door') && s.y - s.h / 2 < PLAN_DOOR_H)
-    .map((s) => ({
-      minX: s.x - s.w / 2,
-      maxX: s.x + s.w / 2,
-      minZ: s.z - s.d / 2,
-      maxZ: s.z + s.d / 2,
-    }));
-}
-
+/**
+ * **Ob ein 2×2-Block den ganzen Weg gehen kann** — mit der einen Bewegung
+ * (`moveOnCells`) auf dem Zellgitter, das auch die Runde fragt
+ * (`map/stationCells.ts`). Die alte Frage, ob eine Kapsel von 0,3 m an
+ * Möbelkästen vorbeikommt, ist keine mehr: Über das Gehen entscheidet in allen
+ * Welten allein das Gitter.
+ */
 function clearPath(
+  spec: HouseSpec,
+  graph: NavGraph,
   from: FloorPoint,
   points: readonly FloorPoint[],
-  boxes: readonly FloorBounds[],
-  radius: number,
 ): boolean {
-  let previous = from;
+  const grid = stationCellGrid(spec, graph);
+  let at = { x: from.x, z: from.z };
   for (const point of points) {
-    if (boxes.some((box) => routeBlocked(previous, point, box, radius))) return false;
-    previous = point;
+    for (let i = 0; i < 4000; i++) {
+      const dx = point.x - at.x,
+        dz = point.z - at.z;
+      const length = Math.hypot(dx, dz);
+      if (length < 1e-6) break;
+      const step = Math.min(0.05, length);
+      const next = moveOnCells(grid, at, (dx / length) * step, (dz / length) * step);
+      if (next.x === at.x && next.z === at.z) return false;
+      at = next;
+    }
+    if (Math.hypot(point.x - at.x, point.z - at.z) > 1e-6) return false;
   }
-  return true;
+  return grid.footprintFree(snapCell(at.x, at.z));
 }
 
 test.each([14])('walking routes in %i-room stations clear models and real door frames', (count) => {
@@ -48,7 +55,6 @@ test.each([14])('walking routes in %i-room stations clear models and real door f
     const spec = generateHouse(seed, count);
     const plan = housePlan(spec);
     const from = poseFor(spec, spec.entryRoom);
-    const boxes = [...stationLayout(spec).map((p) => p.bounds), ...walls(spec)];
     for (const room of spec.rooms) {
       const route = stationRoute(spec, plan.graph, from, goalFor(spec, room.id));
       expect({ seed, goal: room.id, complete: route.complete, grounded: route.grounded }).toEqual({
@@ -57,38 +63,27 @@ test.each([14])('walking routes in %i-room stations clear models and real door f
         complete: true,
         grounded: true,
       });
-      expect(clearPath(from, route.points!, boxes, 0.3)).toBe(true);
+      expect({ seed, goal: room.id, clear: clearPath(spec, plan.graph, from, route.points!) }).toEqual({
+        seed,
+        goal: room.id,
+        clear: true,
+      });
     }
   }
 });
 
-test('a route rounds corners with short, collision-clear curve samples', () => {
+test('a route walks straight where the block fits and diagonally along corners', () => {
   const spec = generateHouse(2, 8);
+  const plan = housePlan(spec);
   const from = poseFor(spec, spec.entryRoom);
   const target = poseFor(spec, 'r2');
-  const route = stationRoute(spec, housePlan(spec).graph, from, target, 0.3);
+  const route = stationRoute(spec, plan.graph, from, target, 0.3);
   expect(route.complete).toBe(true);
   expect(route.points!.at(-1)).toEqual({ x: target.x, z: target.z });
-  const boxes = [...stationLayout(spec).map((p) => p.bounds), ...walls(spec)];
-  expect(clearPath(from, route.points!, boxes, 0.3)).toBe(true);
-  let curvedSamples = 0;
-  const points = [from, ...route.points!];
-  for (let i = 1; i < points.length - 1; i++) {
-    const a = points[i - 1]!,
-      b = points[i]!,
-      c = points[i + 1]!;
-    const dx = b.x - a.x,
-      dz = b.z - a.z;
-    const ex = c.x - b.x,
-      ez = c.z - b.z;
-    if (Math.hypot(dx, dz) > 0.13 || Math.hypot(ex, ez) > 0.13) continue;
-    if (Math.abs(dx * ez - dz * ex) < 1e-7) continue;
-    curvedSamples++;
-    // A hard architectural right angle is now several smaller heading changes.
-    const cosine = (dx * ex + dz * ez) / (Math.hypot(dx, dz) * Math.hypot(ex, ez));
-    expect(Math.acos(Math.max(-1, Math.min(1, cosine)))).toBeLessThan(Math.PI / 3);
-  }
-  expect(curvedSamples).toBeGreaterThanOrEqual(3);
+  expect(clearPath(spec, plan.graph, from, route.points!)).toBe(true);
+  // Gezogen, nicht als Treppe: weniger Punkte als halbe Meter Weg.
+  const length = routeLength({ ...from, velocity: 0 }, route);
+  expect(route.points!.length).toBeLessThan(length / 0.5);
 });
 
 test('the seed2 route avoids the tall locker crossed by the old tile-centre route', () => {
@@ -98,7 +93,7 @@ test('the seed2 route avoids the tall locker crossed by the old tile-centre rout
   const locker = stationLayout(spec).find((p) => p.id === 'locker-r3')!;
   const route = stationRoute(spec, plan.graph, from, goalFor(spec, 'r0'), 0.3);
   expect(route.complete).toBe(true);
-  expect(clearPath(from, route.points!, [locker.bounds], 0.3)).toBe(true);
+  expect(clearPath(spec, plan.graph, from, route.points!)).toBe(true);
   const pose = { ...from };
   for (let frame = 0; frame < 12000 && route.points!.length; frame++) {
     const previous = { ...pose };

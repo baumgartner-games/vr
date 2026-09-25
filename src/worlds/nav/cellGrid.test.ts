@@ -197,6 +197,18 @@ describe('Blöcke jeder Größe und die eine Bewegung', () => {
     expect(grid.footprintFree(snapCell(p.x, p.z))).toBe(true);
   });
 
+  it('schlüpft in kleinen Schritten über Eck, wie es das Bild erlaubt', () => {
+    // [w][ ][ ] / [p][p][ ] / [p][p][w] → rechts oben, in Zellen.
+    const grid = new Picture(['#..', '...', '..#']);
+    let p = cellCentre({ cx: 1, cz: 2 });
+    for (let i = 0; i < 20; i++) p = moveOnCells(grid, p, 0.025, -0.025);
+    expect(snapCell(p.x, p.z)).toEqual({ cx: 2, cz: 1 });
+    // Gerade in die Ecke hinein geht es dagegen nicht.
+    let q = cellCentre({ cx: 1, cz: 2 });
+    for (let i = 0; i < 20; i++) q = moveOnCells(grid, q, 0.05, 0);
+    expect(snapCell(q.x, q.z)).toEqual({ cx: 1, cz: 2 });
+  });
+
   it('lässt aus einem gesperrten Block heraus', () => {
     const grid = new CellGrid({ ...open, floor: (tx) => tx >= 0 });
     const at = { x: 0.1, z: 1 };

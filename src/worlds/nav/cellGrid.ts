@@ -212,46 +212,126 @@ export class CellGrid {
    * oder `null`, wenn es keinen Weg gibt.
    */
   findPath(from: CellPos, to: CellPos, level = 0, size = FOOTPRINT): CellPos[] | null {
-    if (!this.footprintFree(to, level, size)) return null;
+    const found = this.search(from, to, level, size);
+    return found.complete ? found.path : null;
+  }
+
+  /**
+   * **Die Suche mit allem, was eine Welt dazu wissen will.**
+   *
+   * - `extra(at)`: ein Aufschlag je Meter auf dieser Stellung — die Gefahr,
+   *   um die man lieber herumgeht (`haunting/stationNavigation.RouteAvoid`).
+   *   Die Schätzung bleibt die reine Länge, also findet A* weiter den
+   *   billigsten Weg.
+   * - Ohne Weg ans Ziel kommt der **beste Teilweg** zurück: der zur Stellung,
+   *   die dem Ziel am nächsten liegt (`complete: false`). Wer vor einer
+   *   verschlossenen Tür steht, läuft so bis an sie heran und nicht nirgendwohin.
+   */
+  search(
+    from: CellPos,
+    to: CellPos,
+    level = 0,
+    size = FOOTPRINT,
+    extra?: (at: CellPos) => number,
+  ): { path: CellPos[]; complete: boolean } {
     const key = (at: CellPos): number => (at.cx + 4096) * 8192 + (at.cz + 4096);
     const guess = (at: CellPos): number => {
       const dx = Math.abs(at.cx - to.cx),
         dz = Math.abs(at.cz - to.cz);
       return Math.max(dx, dz) + (Math.SQRT2 - 1) * Math.min(dx, dz);
     };
+    const reachable = this.footprintFree(to, level, size);
     const cost = new Map<number, number>([[key(from), 0]]);
     const parent = new Map<number, CellPos>();
-    const open: Array<{ at: CellPos; f: number }> = [{ at: from, f: guess(from) }];
+    const heap = new CellHeap();
+    heap.push(from, guess(from));
     const closed = new Set<number>();
+    let best = from;
+    let bestGuess = guess(from);
     let searched = 0;
-    while (open.length > 0) {
-      // Eine kleine Liste statt eines Haufens: Die Wege hier sind Räume lang,
-      // und die Suche ist Werkzeug, nicht Schleife je Bild.
-      let best = 0;
-      for (let i = 1; i < open.length; i++) if (open[i]!.f < open[best]!.f) best = i;
-      const { at } = open.splice(best, 1)[0]!;
+    let complete = false;
+    while (heap.size > 0) {
+      const at = heap.pop()!;
       const here = key(at);
       if (closed.has(here)) continue;
-      if (at.cx === to.cx && at.cz === to.cz) {
-        const path = [at];
-        for (let step = parent.get(here); step; step = parent.get(key(step))) path.push(step);
-        return path.reverse();
-      }
       closed.add(here);
-      if (++searched > SEARCH_LIMIT) return null;
+      const h = guess(at);
+      if (h < bestGuess) {
+        bestGuess = h;
+        best = at;
+      }
+      if (reachable && at.cx === to.cx && at.cz === to.cz) {
+        best = at;
+        complete = true;
+        break;
+      }
+      if (++searched > SEARCH_LIMIT) break;
       const base = cost.get(here)!;
       for (const [dx, dz] of MOVES) {
         const next = { cx: at.cx + dx, cz: at.cz + dz };
         const there = key(next);
         if (closed.has(there) || !this.footprintFree(next, level, size)) continue;
-        const g = base + STEP_COST[dx !== 0 && dz !== 0 ? 1 : 0];
+        const length = STEP_COST[dx !== 0 && dz !== 0 ? 1 : 0];
+        const g = base + length * (1 + (extra ? extra(next) : 0));
         if (g >= (cost.get(there) ?? Infinity)) continue;
         cost.set(there, g);
         parent.set(there, at);
-        open.push({ at: next, f: g + guess(next) });
+        heap.push(next, g + guess(next));
       }
     }
-    return null;
+    const path = [best];
+    for (let step = parent.get(key(best)); step; step = parent.get(key(step))) path.push(step);
+    return { path: path.reverse(), complete };
+  }
+}
+
+/** Ein kleiner Haufen für die Suche — nach Priorität, die kleinste zuerst. */
+class CellHeap {
+  private readonly items: CellPos[] = [];
+  private readonly priorities: number[] = [];
+
+  get size(): number {
+    return this.items.length;
+  }
+
+  push(item: CellPos, priority: number): void {
+    const items = this.items,
+      priorities = this.priorities;
+    let i = items.length;
+    items.push(item);
+    priorities.push(priority);
+    while (i > 0) {
+      const up = (i - 1) >> 1;
+      if (priorities[up]! <= priority) break;
+      items[i] = items[up]!;
+      priorities[i] = priorities[up]!;
+      i = up;
+    }
+    items[i] = item;
+    priorities[i] = priority;
+  }
+
+  pop(): CellPos | undefined {
+    const items = this.items,
+      priorities = this.priorities;
+    const top = items[0];
+    const lastItem = items.pop();
+    const lastPriority = priorities.pop();
+    if (items.length === 0 || lastItem === undefined || lastPriority === undefined) return top;
+    let i = 0;
+    for (;;) {
+      const left = i * 2 + 1;
+      if (left >= items.length) break;
+      const right = left + 1;
+      const child = right < items.length && priorities[right]! < priorities[left]! ? right : left;
+      if (priorities[child]! >= lastPriority) break;
+      items[i] = items[child]!;
+      priorities[i] = priorities[child]!;
+      i = child;
+    }
+    items[i] = lastItem;
+    priorities[i] = lastPriority;
+    return top;
   }
 }
 
@@ -301,10 +381,12 @@ export function cellsFor(width: number): number {
  * steht sie auf dem Block, auf den ihre Füße gerundet werden (`snapCell`),
  * und nur das Gitter entscheidet: Der Schritt wird ganz gemacht, wenn der
  * Block danach frei ist; sonst nur längs x oder nur längs z — dasselbe
- * Gleiten wie an einer Wand —, sonst gar nicht. Ist schon der Block am Start
- * nicht frei (abgesetzt, von der Welt verschoben), bleibt niemand kleben:
- * Dann geht jeder Schritt, der nicht in einen *anderen* gesperrten Block
- * führt, und jeder, der auf einen freien führt.
+ * Gleiten wie an einer Wand —, sonst gar nicht. Über Eck (das Bild des
+ * Besitzers in `docs/agents/zellgitter.md`) darf der Block dazwischen
+ * gesperrt sein, wenn der schräge Block, auf den die Figur zuläuft, frei ist.
+ * Ist schon der Block am Start nicht frei (abgesetzt, von der Welt
+ * verschoben, über Eck unterwegs), bleibt niemand kleben: Dann geht jeder
+ * Schritt, der nicht in einen *anderen* gesperrten Block führt.
  *
  * Kein Physikkörper, keine Wandquader: Was die Welt in 3D zeigt, ist
  * Darstellung. Gibt die neue Stelle zurück.
@@ -320,15 +402,35 @@ export function moveOnCells(
   const home = snapCell(at.x, at.z, size);
   const x = at.x + dx,
     z = at.z + dz;
-  // Wer schon auf einem gesperrten Block steht, darf heraus.
-  if (!grid.footprintFree(home, level, size)) return { x, z };
   const fits = (px: number, pz: number): boolean => {
     const to = snapCell(px, pz, size);
-    return (to.cx === home.cx && to.cz === home.cz) || grid.footprintFree(to, level, size);
+    if (to.cx === home.cx && to.cz === home.cz) return true;
+    if (grid.footprintFree(to, level, size)) return true;
+    // **Über Eck:** Ein Schrägschritt zählt nur am Ziel (`canStep`), die
+    // Figur gleitet aber stetig und rundet unterwegs erst in einer Achse
+    // um. Der Block dazwischen darf gesperrt sein, wenn der schräge dahinter,
+    // auf den sie zuläuft, frei ist. Von dort geht es nur weiter auf einen
+    // freien Block — oder zurück.
+    const ox = to.cx - home.cx,
+      oz = to.cz - home.cz;
+    if (Math.abs(ox) + Math.abs(oz) !== 1) return false;
+    const sx = ox !== 0 ? ox : Math.sign(dx),
+      sz = oz !== 0 ? oz : Math.sign(dz);
+    if (sx === 0 || sz === 0) return false;
+    return grid.footprintFree({ cx: home.cx + sx, cz: home.cz + sz }, level, size);
   };
-  if (fits(x, z)) return { x, z };
-  if (dx !== 0 && fits(x, at.z)) return { x, z: at.z };
-  if (dz !== 0 && fits(at.x, z)) return { x: at.x, z };
+  // Wer auf einem gesperrten Block steht, darf heraus — auf jeden freien und
+  // innerhalb seines eigenen, nur nicht in einen anderen gesperrten.
+  const stuck = !grid.footprintFree(home, level, size);
+  const ok = stuck
+    ? (px: number, pz: number): boolean => {
+        const to = snapCell(px, pz, size);
+        return (to.cx === home.cx && to.cz === home.cz) || grid.footprintFree(to, level, size);
+      }
+    : fits;
+  if (ok(x, z)) return { x, z };
+  if (dx !== 0 && ok(x, at.z)) return { x, z: at.z };
+  if (dz !== 0 && ok(at.x, z)) return { x: at.x, z };
   return { x: at.x, z: at.z };
 }
 
