@@ -11,14 +11,42 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
 2026, `docs/plan-haunting-1m.md`) — was seither gilt, in Zahlen und Namen:
 
 - **Die Kachel ist ein Meter** (`nav/navTile.TILE` = 1). Die Station steht
-  in `house.ts` als Tabelle in Metern: Räume meist 10 × 10 (Cafeteria
-  20 × 18, Storage 15 × 12, Electrical 10 × 12, MedBay 9 × 10), **Gänge zwei
-  Kacheln breit**, `STATION_BOUNDS` = 70 × 60 m, `HOUSE` 40 × 30 m, Vorplatz
+  in `house.ts` als Tabelle in Metern, **abgepaust von der Vorlage des
+  Besitzers** (`docs/orbital/station-vorlage.webp`, siehe unten _Die Vorlage
+  am Boden_): Cafeteria 20 × 21, Storage 11 × 17, Reactor 8 × 12, Security
+  6 × 10, O2 6 × 5, Navigation 7 × 9, die übrigen 8…10 m je Seite. **Gänge
+  drei Kacheln breit** wie auf der Zeichnung (die beiden Gänge an der
+  Cafeteria vier), `STATION_BOUNDS` = 81 × 46 m, `HOUSE` 40 × 30 m, Vorplatz
   `APRON` 40 × 5 m, Aufzug `COMMAND_LIFT` 2 × 2. Kein Raum berührt einen
   anderen (eine Kachel Fuge; `roomGraph.test` verlangt, dass es keine
   Wandnachbarn ohne Tür gibt); Räume hängen nur über Gänge zusammen, und
   **zwischen zwei Gängen steht die ganze gemeinsame Kante offen** (Kreuzung).
-  Lehrzimmer: `EAST` = Ostrand + 15 m, Safe 12 × 10, Modelle 20 × 15.
+  **Ein Gang berührt einen Raum nur dort, wo eine Tür sein soll** —
+  `connectStation` setzt an jede gemeinsame Kante eine; wer einen Gang an
+  einer Raumwand entlangführt, bekommt dort eine Tür, die niemand gezeichnet
+  hat. Lehrzimmer: `EAST` = Ostrand + 15 m, Safe 12 × 10, Modelle 20 × 15.
+- **Die Vorlage am Boden** (`world3d/blueprint.ts`, `blueprintArt.ts`):
+  _Optionen → Grundriss-Vorlage_ (im Weltmenü _Grundriss-Vorlage: an/aus_)
+  legt die Zeichnung als Bild auf den Boden, gemerkt je Gerät
+  (`localStorage` `haunting:blueprint`). Eichung: **16 Pixel = 1 m**,
+  Pixel (747, 32) — Mitte und Oberkante der Cafeteria — ist `x = 0,
+  z = −52`. Das Bild `public/haunting/station-outline.png` ist aus der
+  Vorlage gerechnet (Wände gelb, Räume blau, Gänge grün getönt, der Rest
+  durchsichtig); `blueprint.test` prüft, dass jeder Raum höchstens zwei
+  Meter neben seiner Zeichnung liegt. Die größten Abweichungen sitzen dort,
+  wo die Zeichnung Schrägen hat (MedBay, Reactor, O2 an der Cafeteria) —
+  das Raster kennt keine, und ein Rechteck muss dort ausweichen, damit zwei
+  Räume sich nicht berühren. **Schrägen (45°-Wände) sind noch nicht
+  gebaut**; was sie für Wegsuche und Kollision bedeuten, steht im
+  Pull Request dieser Änderung.
+- **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
+  topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und was hinter
+  offenen Türen innerhalb von `TOP_DOWN_REACH` = 6 m liegt. Über allem
+  anderen liegt auf Wandhöhe ein dunkler Deckel; die Einsatzzentrale bleibt
+  aus der Cafeteria sichtbar (Glas). Vorher fragte `cullRoomArt` auch von
+  oben, ob eine Türöffnung im Blickfeld liegt — von oben ist das jede —, und
+  das Telefon des Technikers blendete gar nichts aus, weil `ui` gesetzt war.
+  Ganz sehen darf nur, wer zuschaut (Tafel, Archiv, Bot-Runde).
 - **Die Tür ist eine ganze Kachelkante**: `house.STATION_DOOR_W` = `TILE`
   = 1,0 m, **ohne Pfosten** (`levelBuild.doorParts` lässt den Pfosten bei
   Breite null weg; `stationNavigation.buildGrid` legt dann keine

@@ -124,7 +124,7 @@ export const HOUSE: Rect = { x: -20, z: -87, w: 40, d: 30 };
  * Zahlen brauchen — die Zellenschleife der Gänge, die Himmelsrichtung eines
  * Gangnamens und die Lehrzimmer, die 15 m östlich davon stehen.
  */
-export const STATION_BOUNDS: Rect = { x: -32, z: -52, w: 70, d: 60 };
+export const STATION_BOUNDS: Rect = { x: -44, z: -52, w: 81, d: 46 };
 /** Wie breit der Tisch der Einsatzzentrale ist, in Kacheln. */
 export const VAN_W = 4;
 
@@ -421,20 +421,20 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
   // Fuge von einem Meter — sonst hörte das Monster durch eine Wand, die es
   // vorher nicht gab (`roomGraph.earshot`, `WALL_LOSS`).
   const definitions: Array<[string, RoomKind, MarkId, number, number, number, number]> = [
-    ['Cafeteria', 'kueche', 'ofen', -10, -52, 20, 18],
-    ['Upper Engine', 'werkstatt', 'werkbank', -30, -48, 10, 10],
-    ['Reactor', 'wohnzimmer', 'kamin', -32, -34, 10, 15],
-    ['Security', 'bibliothek', 'buecher', -20, -27, 10, 10],
-    ['MedBay', 'bad', 'wanne', -20, -38, 9, 10],
-    ['Lower Engine', 'werkstatt', 'werkbank', -30, -12, 10, 10],
-    ['Electrical', 'kammer', 'kiste', -19, -16, 10, 12],
-    ['Storage', 'kammer', 'kiste', -8, -12, 15, 12],
-    ['Weapons', 'werkstatt', 'werkbank', 20, -48, 10, 10],
-    ['O2', 'esszimmer', 'standuhr', 12, -34, 10, 10],
-    ['Navigation', 'musikzimmer', 'sessel', 28, -32, 10, 10],
-    ['Admin', 'bibliothek', 'buecher', 6, -23, 10, 10],
-    ['Shields', 'werkstatt', 'werkbank', 24, -8, 10, 10],
-    ['Communications', 'musikzimmer', 'klavier', 8, -2, 10, 10],
+    ['Cafeteria', 'kueche', 'ofen', -10, -52, 20, 21],
+    ['Upper Engine', 'werkstatt', 'werkbank', -36, -46, 10, 10],
+    ['Reactor', 'wohnzimmer', 'kamin', -44, -35, 8, 12],
+    ['Security', 'bibliothek', 'buecher', -27, -35, 6, 10],
+    ['MedBay', 'bad', 'wanne', -20, -39, 9, 11],
+    ['Lower Engine', 'werkstatt', 'werkbank', -36, -23, 10, 10],
+    ['Electrical', 'kammer', 'kiste', -18, -26, 9, 10],
+    ['Storage', 'kammer', 'kiste', -8, -23, 11, 17],
+    ['Weapons', 'werkstatt', 'werkbank', 14, -48, 9, 10],
+    ['O2', 'esszimmer', 'standuhr', 11, -35, 6, 5],
+    ['Navigation', 'musikzimmer', 'sessel', 30, -35, 7, 9],
+    ['Admin', 'bibliothek', 'buecher', 5, -28, 8, 8],
+    ['Shields', 'werkstatt', 'werkbank', 14, -21, 9, 10],
+    ['Communications', 'musikzimmer', 'klavier', 4, -13, 9, 7],
   ];
   const rooms = definitions.map(([name, kind, signature, x, z, w, d], i): HouseRoom => ({
     id: `r${i}`,
@@ -448,17 +448,21 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
   // Corridor strips are unioned, then merged into rectangles: no overlapping
   // floors, and no furniture in circulation spaces. Two tiles = two metres.
   const strips: Rect[] = [
-    { x: -20, z: -44, w: 10, d: 2 }, // Nordwestgang: Upper Engine ↔ Cafeteria
-    { x: -16, z: -42, w: 2, d: 4 }, // Stich zur MedBay
-    { x: -22, z: -38, w: 2, d: 26 }, // Westgang: Reactor, Security, MedBay, Triebwerke
-    { x: -20, z: -4, w: 12, d: 2 }, // Südwestgang: Lower Engine, Electrical, Storage
-    { x: -1, z: -34, w: 2, d: 22 }, // Mittelgang: Cafeteria ↔ Storage
-    { x: 1, z: -20, w: 5, d: 2 }, // Stich zu Admin
-    { x: 10, z: -44, w: 10, d: 2 }, // Nordostgang: Cafeteria ↔ Weapons
-    { x: 16, z: -42, w: 2, d: 8 }, // Stich zu O2
-    { x: 24, z: -38, w: 2, d: 30 }, // Ostgang: Weapons ↔ Shields
-    { x: 22, z: -28, w: 6, d: 2 }, // Gang zur Navigation
-    { x: 7, z: -4, w: 17, d: 2 }, // Südostgang: Storage, Communications, Shields
+    { x: -26, z: -44, w: 16, d: 4 }, // Nordwestgang: Upper Engine ↔ Cafeteria
+    { x: -17, z: -40, w: 3, d: 1 }, // Stich zur MedBay
+    { x: -32, z: -36, w: 3, d: 13 }, // Westgang: Upper Engine ↔ Lower Engine
+    { x: -36, z: -31, w: 9, d: 3 }, // Querung: Reactor ↔ Security
+    { x: -26, z: -20, w: 6, d: 4 }, // Südwestgang: Lower Engine …
+    { x: -23, z: -16, w: 3, d: 2 }, // … knickt nach Süden …
+    { x: -23, z: -14, w: 15, d: 3 }, // … und läuft zum Storage
+    { x: -18, z: -16, w: 3, d: 2 }, // Stich zur Electrical
+    { x: -2, z: -31, w: 3, d: 8 }, // Mittelgang: Cafeteria ↔ Storage
+    { x: 1, z: -28, w: 4, d: 3 }, // Stich zu Admin
+    { x: 10, z: -44, w: 4, d: 4 }, // Nordostgang: Cafeteria ↔ Weapons
+    { x: 17, z: -38, w: 3, d: 17 }, // Ostgang: Weapons ↔ O2 ↔ Shields
+    { x: 20, z: -35, w: 10, d: 3 }, // Gang zur Navigation
+    { x: 3, z: -18, w: 11, d: 3 }, // Südostgang: Storage ↔ Shields
+    { x: 9, z: -15, w: 3, d: 2 }, // Stich zu Communications
   ];
   const cells = new Set<string>();
   for (const strip of strips)

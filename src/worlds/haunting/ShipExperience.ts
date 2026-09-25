@@ -162,6 +162,9 @@ interface ShipHost {
   /** Die Gewichte beider Bots und ihr Zeitraffer — nur in der Bot-Runde. */
   tuning?(): BotTuning;
   retune?(tuning: BotTuning): void;
+  /** Ob die Grundriss-Vorlage am Boden liegt (`world3d/blueprint.ts`). */
+  blueprint?(): boolean;
+  setBlueprint?(on: boolean): void;
   simulationSpeed?(): number;
   /** Die Stufe direkt einstellen (`simulationSpeed.ts` rastet sie ein). */
   setSimulationSpeed?(speed: number): void;
@@ -3180,6 +3183,15 @@ ANTIPPEN: ZUM SAFE-RAUM`,
       note(`Realitätsnah · ${SHARED.playerView}`),
       watchKey(crew.simulation),
     ];
+    if (this.host.setBlueprint)
+      items.push(
+        key(
+          { blueprint: '' },
+          'Grundriss-Vorlage',
+          'Die gezeichneten Umrisse der Station als Bild auf dem Boden',
+          { pressed: !!this.host.blueprint?.() },
+        ),
+      );
     if (crew.simulation) items.push(...speedKeys(this.host.simulationSpeed?.() ?? 1));
     items.push(head(SHARED.open));
     if (this.host.stations)
@@ -3212,7 +3224,12 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     if (!pressed) return;
     const data = pressed.dataset;
     if (data['watch'] !== undefined) this.toggleSimulation();
-    else if (data['speed'] !== undefined) {
+    else if (data['blueprint'] !== undefined) {
+      // Das Menü bleibt offen: Man will sehen, dass der Schalter umgelegt ist.
+      this.host.setBlueprint?.(!this.host.blueprint?.());
+      renderOptions(this.optionsPanel, this.shipOptions());
+      return;
+    } else if (data['speed'] !== undefined) {
       // Die Stufe wechselt, das Menü bleibt offen: Wer das Tempo stellt,
       // will sehen, welche Pille jetzt leuchtet, und vielleicht gleich die
       // nächste.
@@ -3316,6 +3333,12 @@ ANTIPPEN: ZUM SAFE-RAUM`,
           this.audio.setEnabled(this.audioOn);
           this.hearingAudio.setEnabled(this.audioOn);
         },
+      ),
+      row(
+        'blueprint',
+        `Grundriss-Vorlage: ${this.host.blueprint?.() ? 'an' : 'aus'}`,
+        'Die gezeichneten Umrisse der Station als Bild auf dem Boden',
+        () => this.host.setBlueprint?.(!this.host.blueprint?.()),
       ),
       row(
         'ambient',
