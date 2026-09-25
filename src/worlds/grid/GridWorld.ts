@@ -1138,24 +1138,65 @@ export abstract class GridWorld extends PortalWorld {
     this.footprints.update(on, this.cellGrid(), list);
   }
 
-  /** Die Zellen um den Spieler zeigen: belegt, frei, geschlossene Kanten. */
+  /**
+   * **Das Zellgitter auf dem Boden zeigen** — belegt, frei, Wände, Treppen mit
+   * ihren Pfeilen (`CellHitboxView`). An mit _Belegte Felder_ und mit
+   * _Hitboxen (2D-Gitter)_.
+   */
   private showCellHitboxes(dt: number, ctx: WorldContext): void {
-    const on = graphics().gridHitBoxes;
-    const graph = this.grid?.graph;
-    if (!on || !graph) {
+    const settings = graphics();
+    const on = settings.gridHitBoxes || settings.cellFootprints;
+    const plan = this.grid;
+    const graph = plan?.graph;
+    if (!on || !plan || !graph) {
       this.cellHitboxes.update(dt, false, null, null);
       return;
     }
     if (!this.cellHitboxes.group.parent) this.root.add(this.cellHitboxes.group);
     const level = this.rigLevel;
+    const floorY = graph.levelY(level);
     this.cellHitboxes.update(dt, true, this.cellGrid(), {
       x: ctx.rig.position.x,
       z: ctx.rig.position.z,
       level,
-      floorY: graph.levelY(level),
+      bounds: this.levelBounds(level),
       hasTile: (tx, tz) => graph.has(tileKey(tx, tz, level)),
+      floorAt: (x, z) => {
+        const key = tileKey(tileIndexAt(x), tileIndexAt(z), level);
+        if (!graph.has(key)) return floorY;
+        return plan.flightFloor(x, z, floorY) ?? floorY + (graph.tile(key)?.rise ?? 0);
+      },
     });
   }
+
+  /** Das Rechteck der Kacheln einer Etage — gemerkt je Stand des Plans. */
+  private levelBounds(
+    level: number,
+  ): { tx0: number; tz0: number; tx1: number; tz1: number } | null {
+    const plan = this.grid;
+    if (!plan) return null;
+    const stamp = `${plan.version}:${level}`;
+    if (this.boundsStamp === stamp) return this.bounds;
+    let box: { tx0: number; tz0: number; tx1: number; tz1: number } | null = null;
+    for (const key of plan.graph.tileKeys()) {
+      if (keyLevel(key) !== level) continue;
+      const tx = keyX(key),
+        tz = keyZ(key);
+      if (!box) box = { tx0: tx, tz0: tz, tx1: tx, tz1: tz };
+      else {
+        box.tx0 = Math.min(box.tx0, tx);
+        box.tz0 = Math.min(box.tz0, tz);
+        box.tx1 = Math.max(box.tx1, tx);
+        box.tz1 = Math.max(box.tz1, tz);
+      }
+    }
+    this.bounds = box;
+    this.boundsStamp = stamp;
+    return box;
+  }
+
+  private bounds: { tx0: number; tz0: number; tx1: number; tz1: number } | null = null;
+  private boundsStamp = '';
 
   /** Die Netze wieder weg — Formen einzeln, das geteilte Material zum Schluss. */
   private dropGridLines(): void {

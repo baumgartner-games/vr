@@ -338,7 +338,13 @@ import {
 import { PhysicsLocomotion, type PlayerPlane } from '../../physics/PhysicsLocomotion';
 import type { CellGrid } from '../nav/cellGrid';
 import { HitboxView } from '../../physics/HitboxView';
-import { graphics } from '../../core/graphicsSettings';
+import {
+  MOVE_PAD_LABELS,
+  MOVE_PAD_SUBS,
+  graphics,
+  nextMovePad,
+  saveGraphics,
+} from '../../core/graphicsSettings';
 import { silentPhysics } from '../../physics/silentPhysics';
 import { FreeLocomotion } from '../../core/Locomotion';
 import { GRAB_GLOW, GRAB_GLOW_LOCKED, GRAB_GLOW_PICKED } from '../../core/colors';
@@ -1818,6 +1824,7 @@ export class PortalWorld implements World {
         accent: 0x4aa8ff,
         children: [
           this.modeEntry(),
+          this.interfaceMenu(),
           this.grabMenu(toggle),
           this.depthEntry(),
           this.physicsMenu(),
@@ -3120,6 +3127,40 @@ export class PortalWorld implements World {
    * der rote Umbauknopf der Küche schaltet denselben Modus, und eine Zeile,
    * die danach noch _Spielen_ sagt, wäre die falsche Auskunft.
    */
+  /**
+   * **Interface** — wie man am Glas bedient. Bisher eine Zeile: Joystick oder
+   * Steuerkreuz links unten (`graphicsSettings.movePad`, `FlatControls`).
+   * Gewünscht: _„neben Joysticks ein Steuerkreuz als Alternative"_.
+   */
+  private interfaceMenu(): MenuEntry {
+    const pad: MenuEntry = {
+      id: 'setting:move-pad',
+      label: '',
+      icon: 'settings',
+      accent: 0x4aa8ff,
+      run: () => {
+        const next = saveGraphics({ movePad: nextMovePad(graphics().movePad) });
+        this.refreshMenuLabels();
+        this.context?.notify(`Laufen am Schirm: ${MOVE_PAD_LABELS[next.movePad]}`);
+      },
+    };
+    const paint = (): void => {
+      const now = graphics().movePad;
+      pad.label = `Laufen am Schirm: ${MOVE_PAD_LABELS[now]}`;
+      pad.sub = MOVE_PAD_SUBS[now];
+    };
+    paint();
+    this.menuLabels.push(paint);
+    return {
+      id: 'setting:interface',
+      label: 'Interface',
+      sub: 'Joystick oder Steuerkreuz',
+      icon: 'settings',
+      accent: 0x4aa8ff,
+      children: [pad],
+    };
+  }
+
   private modeEntry(): MenuEntry {
     const entry: MenuEntry = {
       id: 'setting:game-mode',

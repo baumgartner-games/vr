@@ -373,6 +373,15 @@ h1 {
   transition: transform 60ms linear;
 }
 
+/* Das Steuerkreuz statt des Stocks (Menü → Einstellungen → Interface): zwei
+   Balken als Kreuz, darüber leuchtet der gedrückte Arm (`FlatControls.pressDpad`). */
+.touch__stick--dpad { border-radius: 18px; background: transparent; border: none; }
+.touch__stick--dpad::before, .touch__stick--dpad::after { content: ''; position: absolute; border: 1px solid var(--border); background: rgba(12, 18, 32, 0.45); border-radius: 10px; }
+.touch__stick--dpad::before { width: 44px; height: 128px; left: 42px; top: 0; }
+.touch__stick--dpad::after { width: 128px; height: 44px; left: 0; top: 42px; }
+.touch__stick--dpad span { position: relative; z-index: 1; width: 40px; height: 40px; opacity: 0; transition: none; }
+.touch__stick--dpad[data-dir] span { opacity: 1; background: rgba(140, 170, 230, 0.6); }
+
 /* Rechts unten: Zielstock und die beiden Knöpfe — nur in der Ansicht von oben. */
 .touch__right[hidden] { display: none; }
 

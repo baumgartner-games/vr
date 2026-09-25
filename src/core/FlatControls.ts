@@ -22,6 +22,8 @@ import {
   type KeyAction,
 } from './inputMap';
 import { inputConfig, onInputConfigChange } from './inputStore';
+import { graphics, onGraphicsChange } from './graphicsSettings';
+import { dpadDirection } from './dpad';
 import { pinchFactor, yawFromDirection, type Vec2 } from './topDownPose';
 import { smoothAngle } from '../net/PoseSmoothing';
 import {
@@ -233,6 +235,10 @@ export class FlatControls {
         ? pads
         : { stick: pads, aim: null, use: null, fire: null, right: null, tool: null, menu: null };
     this.bind();
+    // **Stock oder Steuerkreuz** (`graphicsSettings.movePad`) — das Feld zeigt,
+    // was gilt, und wechselt, sobald jemand im Menü umstellt.
+    this.showMovePad();
+    this.disposers.push(onGraphicsChange(() => this.showMovePad()));
     // Eine verstellte Belegung gilt sofort — der Plan wird beim nächsten Bild
     // neu gerechnet, nicht hier: Welches Pad dann steckt, weiß erst `readPad`.
     this.disposers.push(
@@ -906,6 +912,8 @@ export class FlatControls {
         this.stickPointer = event.pointerId;
         this.stickOrigin.set(event.clientX, event.clientY);
         this.canvas.setPointerCapture(event.pointerId);
+        // Das Kreuz zählt vom ersten Druck an — der Stock erst, wenn man zieht.
+        if (this.dpad) this.pressDpad(event);
       } else if (this.topDownOn && this.aimPointer === null && hitsElement(pads.aim, event)) {
         this.aimPointer = event.pointerId;
         this.aimOrigin.set(event.clientX, event.clientY);
@@ -954,7 +962,9 @@ export class FlatControls {
         if (this.pointerLocked) this.look(event.movementX, event.movementY);
         return;
       }
-      if (event.pointerId === this.stickPointer) {
+      if (event.pointerId === this.stickPointer && this.dpad) {
+        this.pressDpad(event);
+      } else if (event.pointerId === this.stickPointer) {
         const dx = clampStick(event.clientX - this.stickOrigin.x);
         const dy = clampStick(event.clientY - this.stickOrigin.y);
         this.stick.set(dx, dy);
@@ -995,6 +1005,7 @@ export class FlatControls {
         this.stickPointer = null;
         this.stick.set(0, 0);
         this.updateStickVisual(this.pads.stick, 0, 0);
+        this.pads.stick?.removeAttribute('data-dir');
       }
       if (event.pointerId === this.aimPointer) {
         this.aimPointer = null;
@@ -1098,6 +1109,40 @@ export class FlatControls {
     if (!a || !b) return null;
     const gap = Math.hypot(a.x - b.x, a.y - b.y);
     return gap > 0 ? gap : null;
+  }
+
+  /** Ob links das Steuerkreuz liegt statt des Stocks (`graphicsSettings.movePad`). */
+  private get dpad(): boolean {
+    return graphics().movePad === 'dpad';
+  }
+
+  /** Das Feld links zeigt Stock oder Kreuz (`style.css`, `.touch__stick--dpad`). */
+  private showMovePad(): void {
+    const el = this.pads.stick;
+    if (!el) return;
+    el.classList.toggle('touch__stick--dpad', this.dpad);
+    if (this.stickPointer === null) this.stick.set(0, 0);
+    this.updateStickVisual(el, 0, 0);
+    el.removeAttribute('data-dir');
+  }
+
+  /**
+   * **Ein Finger auf dem Kreuz**: Die Richtung zählt von der Mitte des Feldes
+   * aus und nicht von dort, wo der Finger aufsetzte — ein Kreuz hat feste
+   * Arme (`dpadDirection`).
+   */
+  private pressDpad(event: PointerEvent): void {
+    const el = this.pads.stick;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const dir = dpadDirection(
+      event.clientX - (rect.left + rect.width / 2),
+      event.clientY - (rect.top + rect.height / 2),
+    );
+    this.stick.set(dir.x, dir.y);
+    this.updateStickVisual(el, dir.x * 42, dir.y * 42);
+    if (dir.name) el.dataset.dir = dir.name;
+    else el.removeAttribute('data-dir');
   }
 
   private updateStickVisual(el: HTMLElement | null, x: number, y: number): void {

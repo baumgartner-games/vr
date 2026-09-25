@@ -98,7 +98,16 @@ den großen Kacheln bleibt.
   - **Springen gibt es dort nicht**: Über eine Wand, die nur in der Ebene steht,
     springt man nicht hinweg (_„Springen kann an sich dann auch raus"_). Welten
     ohne Gitter springen weiter.
-  - Getestet mit echtem Rapier an Treppe und Podest (`physics/playerPlane.test.ts`).
+  - **Die Physik berührt den Boden nicht mehr seitlich** (`walkPlane`): Der
+    waagerechte Schritt wird eine Stufe (0,32 m) über dem Boden gerechnet —
+    dort halten nur Kisten, Brüstungen, Säulen —, die Höhe kommt aus einem
+    Formwurf nach unten. Vorher hakte der Character-Controller mit der Sohle an
+    den Fugen zwischen den Bodenkörpern und schluckte alle paar Dutzend Bilder
+    einen ganzen Schritt, auch wenn die Ebene ihn hergab. Gemessen im
+    Wandparcours; das war das Stocken beim Gleiten (_„klappt manchmal und
+    manchmal nicht"_).
+  - Getestet mit echtem Rapier an Treppe und Podest und an einem Boden aus
+    einzelnen Kacheln (`physics/playerPlane.test.ts`).
 - **Möbel sperren Zellen** (`GridPlan.furnitureCells`, `boxCells`):
   - Gesperrt ist jede Zelle, in die ein Quader eines Bausteins mindestens
     15 cm hineinragt (`CELL_OVERLAP`) und der höher ist als eine Stufe
@@ -113,7 +122,18 @@ den großen Kacheln bleibt.
   - Bei gerader Größe liegt die Stellung auf einer Zellecke, bei ungerader
     in einer Zellmitte.
   - Jede Kachelkante im Inneren des Blocks wird geprüft.
-- **Anzeige:** _Menü → Grafik → Hitboxen (2D-Gitter)_ zeigt jede Zelle um den Spieler, rot belegt, grün frei (`grid/cellHitboxView.ts`).
+- **Anzeige:** _Menü → Grafik → Belegte Felder_ oder _Hitboxen (2D-Gitter)_
+  zeigt das Gitter **auf dem Boden** (`grid/cellHitboxView.ts`, seit Oktober
+  2026). Gewünscht: _„alle Gitter-Felder sehen, ob diese mit Wand belegt sind
+  oder frei … bei der Treppe … mit einem Pfeil … immer auf dem Boden"_.
+  - Jede halbe Kachel der Etage, auf der man steht (nicht mehr nur acht Meter
+    um den Spieler): grün frei, rot belegt (Möbel, Pfosten, kein Boden, von
+    einer Schräge durchschnitten), blau auf Treppe und Rampe.
+  - Rote Linien: die Wände der Ebene (Kanten, Schrägen).
+  - Weiße Pfeile auf jeder Treppenkachel: bergauf in der Mitte, nach außen an
+    jeder Seite, die nur von außen hält.
+  - Die Felder liegen auf dem Boden, auf der Treppe schräg auf ihrem Lauf, und
+    werden verdeckt wie der Boden; nur die Pfeile liegen immer obenauf.
 - **Anzeige:** _Menü → Grafik → Belegte Felder_
   (`graphicsSettings.cellFootprints`, `grid/footprintView.ts`).
   - Unter Spieler, Mitspielern und NPCs liegt ihr 2 × 2-Block, grün frei,

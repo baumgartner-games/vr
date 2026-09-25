@@ -1748,7 +1748,7 @@ export class App {
           // von `worlds/grid/footprintView.ts`, in den Welten auf dem Gitter.
           id: 'gfx:cell-footprints',
           label: 'Belegte Felder',
-          sub: 'Die 2×2 halben Kacheln unter jeder Figur · grün frei, rot gesperrt',
+          sub: 'Jede halbe Kachel auf dem Boden · grün frei, rot belegt, Pfeile an Treppen · dazu 2×2 unter jeder Figur',
           caption: 'Werkstattansicht — in Welten ohne Gitter passiert nichts',
           icon: 'settings',
           accent: 0x6f7d99,
@@ -1784,7 +1784,7 @@ export class App {
           // blocken.
           id: 'gfx:grid-hitboxes',
           label: 'Hitboxen (2D-Gitter)',
-          sub: 'Die halben Kacheln um dich · rot belegt, grün frei, rote Linie: Wand',
+          sub: 'Jede halbe Kachel der Etage · rot belegt, grün frei, rote Linie: Wand, Pfeile an Treppen',
           caption: 'Liegt über allem · Werkstattansicht — in Welten ohne Gitter passiert nichts',
           icon: 'settings',
           accent: 0x6f7d99,
