@@ -42,9 +42,33 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   Zeichnung liegt. Abweichungen gibt es, wo die Zeichnung Schrägen hat (das
   Raster kennt keine), wo ein kleiner Raum für seine Möbel größer sein muss
   (Security, O2, Navigation) und bei der Cafeteria, die gezeichnet größer
-  ist als gebaut. **Schrägen (45°-Wände) hat die Station noch nicht** —
-  seit die Station auf dem Zellgitter läuft (nächster Punkt), fehlen sie nur
-  noch in `house.ts` und im Bauplan (`GridPlan.slope`).
+  ist als gebaut.
+- **Die schrägen Ecken** (45°-Wände der Vorlage; `HouseRoom.cuts`,
+  `house.cutAt`). Die letzte Spalte der Raumtabelle in `stationRooms` nennt
+  Ecke und Länge in Kacheln: `'sw2 se2'`.
+  - Die Kacheln auf der Diagonale tragen eine Schräge (`GridPlan.slope`),
+    die Kacheln dahinter gehören zu keinem Raum (`roomAt` → `null`).
+  - `plan.stationSpace` baut Boden und Wände je Kachel. Zu den beiden
+    Außenseiten der Ecke hat eine Schrägkachel keine Wand, denn die Schräge
+    ist die Grenze.
+  - Gegangen und gesucht wird darüber auf dem Zellgitter wie überall
+    (`stationCellGrid` liest die Schrägen).
+  - Gezeichnet wird mit einem Stück der Regalwand je Schrägkachel
+    (`stationWalls.wallRun` mit `yaw`). Hinter der Schräge deckt ein dunkles
+    Dreieck die äußere Hälfte der Bodenplatte zu (`shipArt.cutCaps`).
+  - Karte (`wallSegments`, `roomOutline`), Archiv und Papierkarte
+    (`HauntingWorld.wallsOf`) zeichnen die Schräge mit.
+  - Türen, Klappen, Fenster, Merkmale, Aufgaben und Sicherungskasten liegen
+    nie in einer Ecke (`plainTiles`, `stationCorners.test`).
+  - Möbel stehen ganz auf der Innenseite (`stationLayout.cutFree`).
+  - **Die Längen sind so groß, wie die Einrichtung es zulässt**, geprüft über
+    400 Samen. Mit zwei Kacheln fand `stationLayout` in den kleinen Räumen
+    auf manchen Samen keinen Platz mehr. Deshalb haben Upper Engine,
+    Security, MedBay, O2, Navigation und Communications nur Ecken von einer
+    Kachel. Lower Engine und Shields haben keine, denn dort scheiterte schon
+    eine Kachel. Die Cafeteria hat nur unten schräge Ecken: Oben liegt die
+    Glasfront zur Einsatzzentrale. Wer eine Ecke vergrößert, prüft wieder
+    Hunderte Samen.
 - **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
   topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und was hinter
   offenen Türen innerhalb von `TOP_DOWN_REACH` = 6 m liegt. Über allem

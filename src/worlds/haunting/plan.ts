@@ -1,10 +1,13 @@
 import { GridPlan } from '../grid/gridPlan';
 import { PLAN_WALL_H } from '../editor/levelPlan';
-import { DIR_E, DIR_N, DIR_S, DIR_W } from '../nav/navTile';
+import { DIR_E, DIR_N, DIR_S, DIR_W, dirX, dirZ, type Dir } from '../nav/navTile';
 import {
   APRON,
   APRON_OUTER,
   COMMAND_LIFT,
+  cutAt,
+  cutOf,
+  cutSides,
   HOUSE,
   roomAt,
   spacesOf,
@@ -12,6 +15,7 @@ import {
   STATION_DOOR_SPAN,
   doorEdges,
   tilesOf,
+  type HouseRoom,
   type HouseSpec,
 } from './house';
 import type { PlanSolid } from '../grid/solids';
@@ -197,7 +201,7 @@ export function housePlan(
 ): GridPlan {
   const plan = new StationPlan([0]);
   if (spec.passages) {
-    for (const room of spacesOf(spec)) plan.room(room.rect, { walls: true, ceiling: PLAN_WALL_H });
+    for (const room of spacesOf(spec)) stationSpace(plan, room);
   } else plan.room(HOUSE, { walls: true, ceiling: PLAN_WALL_H });
   // Die geschlossene Einsatzzentrale bleibt Teil des Missionsgraphen: Der
   // Techniker geht durch dieselbe Schleuse hinaus und wieder herein.
@@ -242,6 +246,41 @@ export function housePlan(
   }
 
   return plan;
+}
+
+/**
+ * **Ein Raum oder Gang der Station** — Boden, Wände ringsum und Decke wie
+ * `GridPlan.room`, aber **mit schrägen Ecken** (`HouseRoom.cuts`):
+ *
+ * - Kacheln hinter einer schrägen Wand bekommen keinen Boden und keine Wand.
+ * - Eine Kachel, durch die sie geht, trägt die Schräge (`GridPlan.slope`)
+ *   und hat zu den beiden Außenseiten der Ecke keine Wand: Dort ist die
+ *   schräge Wand die Grenze, und über das Gehen entscheidet das Zellgitter.
+ * - Jede andere Kante zu etwas, das nicht dieser Raum ist, ist eine Wand —
+ *   dieselbe Regel wie `wallRect`, nur je Kachel gefragt.
+ */
+function stationSpace(plan: GridPlan, room: HouseRoom): void {
+  const r = room.rect;
+  const mine = (x: number, z: number): boolean =>
+    x >= r.x && x < r.x + r.w && z >= r.z && z < r.z + r.d && cutAt(room, x, z) !== 'out';
+  for (let z = r.z; z < r.z + r.d; z++)
+    for (let x = r.x; x < r.x + r.w; x++) {
+      if (!mine(x, z)) continue;
+      plan.floor({ x, z, w: 1, d: 1, level: 0 });
+    }
+  for (let z = r.z; z < r.z + r.d; z++)
+    for (let x = r.x; x < r.x + r.w; x++) {
+      if (!mine(x, z)) continue;
+      const cut = cutOf(room, x, z);
+      const open: readonly Dir[] = cut ? cutSides(cut.corner) : [];
+      for (const dir of [DIR_N, DIR_E, DIR_S, DIR_W] as const) {
+        if (open.includes(dir) || mine(x + dirX(dir), z + dirZ(dir))) continue;
+        plan.wall(x, z, dir);
+      }
+      const slope = cutAt(room, x, z);
+      if (slope !== null && slope !== 'out') plan.slope(x, z, slope);
+    }
+  plan.mass('wall', { ...r, level: 0 }, PLAN_WALL_H, PLAN_WALL_H + 0.3, { level: 1 });
 }
 
 /** Die Wände zwischen den Zimmern — überall, wo zwei verschiedene aneinanderstoßen. */

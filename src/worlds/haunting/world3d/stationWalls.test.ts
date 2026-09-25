@@ -44,3 +44,21 @@ describe('Wandläufe der Station', () => {
     expect(pieces[0]!.half).toBe(true);
   });
 });
+
+describe('Schräge Wände der Station', () => {
+  it('macht aus jeder Schräge ein gedrehtes Stück über die Diagonale', () => {
+    const plan = housePlan(generateHouse(3, 14));
+    const slanted = plan.solids().filter((solid) => solid.yaw);
+    expect(slanted.length).toBeGreaterThan(0);
+    for (const solid of slanted) {
+      const run = wallRun(solid)!;
+      expect(run).not.toBeNull();
+      expect(Math.abs(run.yaw!)).toBeCloseTo(Math.PI / 4);
+      expect(run.length).toBeCloseTo(Math.SQRT2);
+      const pieces = runPieces(run);
+      expect(pieces).toHaveLength(1);
+      expect(pieces[0]!.length).toBeCloseTo(Math.SQRT2 + 2 * WALL_REACH);
+      expect(run.height).toBeCloseTo(PLAN_WALL_H);
+    }
+  });
+});

@@ -1,3 +1,4 @@
+import type { Slope } from '../nav/cellGrid';
 import { DIR_E, DIR_N, DIR_S, DIR_W, TILE, type Dir } from '../nav/navTile';
 
 /**
@@ -291,6 +292,156 @@ export interface HouseRoom {
   lamp: boolean;
   /** Transit spaces have architecture/light but no mission furniture or archive dossier. */
   circulation?: boolean;
+  /**
+   * **Abgeschrägte Ecken** — die 45°-Wände der Vorlage
+   * (`docs/orbital/station-vorlage.webp`). Siehe `CornerCut`.
+   */
+  cuts?: CornerCut[];
+}
+
+/** Eine Ecke eines Raums, nach Himmelsrichtung. */
+export type Corner = 'nw' | 'ne' | 'se' | 'sw';
+
+/**
+ * **Eine Ecke unter 45° abgeschnitten**, `size` Kacheln lang an jeder der
+ * beiden Wände.
+ *
+ * Die Wand läuft schräg von Wand zu Wand. Die Kacheln, durch die sie geht,
+ * tragen eine Schräge (`Slope`, im Bauplan `GridPlan.slope`) und gehören
+ * weiter zum Raum — ihre innere Hälfte ist Boden, auf dem man geht
+ * (`nav/cellGrid.slopeBlocks`). Die Kacheln dahinter, in der Ecke, gehören
+ * zu keinem Raum mehr (`cutAt` → `'out'`).
+ */
+export interface CornerCut {
+  corner: Corner;
+  size: number;
+}
+
+/**
+ * **Was eine abgeschrägte Ecke aus dieser Kachel macht**: `'out'` für eine
+ * Kachel hinter der schrägen Wand, die Schräge für eine Kachel, durch die sie
+ * geht, `null` für eine gewöhnliche.
+ */
+export function cutAt(room: HouseRoom, x: number, z: number): 'out' | Slope | null {
+  if (!room.cuts) return null;
+  const r = room.rect;
+  for (const cut of room.cuts) {
+    const i = cut.corner === 'nw' || cut.corner === 'sw' ? x - r.x : r.x + r.w - 1 - x;
+    const j = cut.corner === 'nw' || cut.corner === 'ne' ? z - r.z : r.z + r.d - 1 - z;
+    if (i < 0 || j < 0 || i + j > cut.size - 1) continue;
+    if (i + j < cut.size - 1) return 'out';
+    return cutSlope(cut.corner);
+  }
+  return null;
+}
+
+/** Nordwest und Südost schneidet ein „╱", Nordost und Südwest ein „╲". */
+export function cutSlope(corner: Corner): Slope {
+  return corner === 'nw' || corner === 'se' ? 'slash' : 'backslash';
+}
+
+/** Die beiden Wände, zwischen denen die Ecke liegt — dorthin hat eine Schrägkachel keine Wand. */
+export function cutSides(corner: Corner): readonly [Dir, Dir] {
+  const ns = corner === 'nw' || corner === 'ne' ? DIR_N : DIR_S;
+  const ew = corner === 'nw' || corner === 'sw' ? DIR_W : DIR_E;
+  return [ns, ew];
+}
+
+/** Welche Ecke eine Schrägkachel dieses Raums schneidet — `null` für jede andere Kachel. */
+export function cutOf(room: HouseRoom, x: number, z: number): CornerCut | null {
+  for (const cut of room.cuts ?? []) {
+    const one = { ...room, cuts: [cut] };
+    const hit = cutAt(one, x, z);
+    if (hit !== null && hit !== 'out') return cut;
+  }
+  return null;
+}
+
+/** Die Kacheln eines Raums — ohne die hinter seinen schrägen Ecken. */
+export function roomTiles(room: HouseRoom): Array<{ x: number; z: number }> {
+  return tilesOf(room.rect).filter((tile) => cutAt(room, tile.x, tile.z) !== 'out');
+}
+
+/** Die ganzen Kacheln eines Raums — ohne schräge Ecken und die Kacheln dahinter. */
+export function plainTiles(room: HouseRoom): Array<{ x: number; z: number }> {
+  return tilesOf(room.rect).filter((tile) => cutAt(room, tile.x, tile.z) === null);
+}
+
+/**
+ * **Ob ein Punkt (in Metern) im Raum liegt**, `inset` Meter von jeder Wand —
+ * auch von der schrägen.
+ */
+export function insideSpace(room: HouseRoom, at: { x: number; z: number }, inset = 0): boolean {
+  const r = room.rect;
+  const x0 = r.x * TILE,
+    z0 = r.z * TILE,
+    x1 = (r.x + r.w) * TILE,
+    z1 = (r.z + r.d) * TILE;
+  if (at.x < x0 + inset || at.x > x1 - inset || at.z < z0 + inset || at.z > z1 - inset)
+    return false;
+  for (const cut of room.cuts ?? []) {
+    const u = cut.corner === 'nw' || cut.corner === 'sw' ? at.x - x0 : x1 - at.x;
+    const v = cut.corner === 'nw' || cut.corner === 'ne' ? at.z - z0 : z1 - at.z;
+    if (u + v < cut.size * TILE + inset * Math.SQRT2) return false;
+  }
+  return true;
+}
+
+/**
+ * **Der Umriss eines Raums** in Metern, ab Nordwest — ein
+ * Rechteck, dem die schrägen Ecken abgeschnitten sind.
+ */
+export function roomOutline(room: HouseRoom): Array<{ x: number; z: number }> {
+  const r = room.rect;
+  const x0 = r.x * TILE,
+    z0 = r.z * TILE,
+    x1 = (r.x + r.w) * TILE,
+    z1 = (r.z + r.d) * TILE;
+  const size = (corner: Corner): number =>
+    (room.cuts?.find((cut) => cut.corner === corner)?.size ?? 0) * TILE;
+  const out: Array<{ x: number; z: number }> = [];
+  const push = (x: number, z: number): void => {
+    const last = out[out.length - 1];
+    if (!last || Math.abs(last.x - x) > 1e-9 || Math.abs(last.z - z) > 1e-9) out.push({ x, z });
+  };
+  // Dieselbe Umlaufrichtung wie `map/geometry.rectPolygon`: Nordwest, Südwest,
+  // Südost, Nordost.
+  push(x0 + size('nw'), z0);
+  push(x0, z0 + size('nw'));
+  push(x0, z1 - size('sw'));
+  push(x0 + size('sw'), z1);
+  push(x1 - size('se'), z1);
+  push(x1, z1 - size('se'));
+  push(x1, z0 + size('ne'));
+  push(x1 - size('ne'), z0);
+  const first = out[0]!,
+    last = out[out.length - 1]!;
+  if (Math.abs(first.x - last.x) < 1e-9 && Math.abs(first.z - last.z) < 1e-9) out.pop();
+  return out;
+}
+
+/** Die schrägen Wände eines Raums als Strecken in Metern. */
+export function cutWalls(
+  room: HouseRoom,
+): Array<{ a: { x: number; z: number }; b: { x: number; z: number }; corner: Corner }> {
+  const r = room.rect;
+  const x0 = r.x * TILE,
+    z0 = r.z * TILE,
+    x1 = (r.x + r.w) * TILE,
+    z1 = (r.z + r.d) * TILE;
+  return (room.cuts ?? []).map((cut) => {
+    const s = cut.size * TILE;
+    switch (cut.corner) {
+      case 'nw':
+        return { a: { x: x0, z: z0 + s }, b: { x: x0 + s, z: z0 }, corner: cut.corner };
+      case 'ne':
+        return { a: { x: x1 - s, z: z0 }, b: { x: x1, z: z0 + s }, corner: cut.corner };
+      case 'se':
+        return { a: { x: x1, z: z1 - s }, b: { x: x1 - s, z: z1 }, corner: cut.corner };
+      case 'sw':
+        return { a: { x: x0 + s, z: z1 }, b: { x: x0, z: z1 - s }, corner: cut.corner };
+    }
+  });
 }
 
 export interface HouseDoor {
@@ -420,23 +571,27 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
   // einen anderen Raum**: Zwischen zwei Räumen liegt immer ein Gang oder eine
   // Fuge von einem Meter — sonst hörte das Monster durch eine Wand, die es
   // vorher nicht gab (`roomGraph.earshot`, `WALL_LOSS`).
-  const definitions: Array<[string, RoomKind, MarkId, number, number, number, number]> = [
-    ['Cafeteria', 'kueche', 'ofen', -5, -52, 10, 10],
-    ['Upper Engine', 'werkstatt', 'werkbank', -24, -51, 6, 7],
-    ['Reactor', 'wohnzimmer', 'kamin', -30, -45, 5, 10],
-    ['Security', 'bibliothek', 'buecher', -17, -44, 5, 6],
-    ['MedBay', 'bad', 'wanne', -11, -45, 5, 7],
-    ['Lower Engine', 'werkstatt', 'werkbank', -24, -36, 6, 6],
-    ['Electrical', 'kammer', 'kiste', -11, -37, 6, 6],
-    ['Storage', 'kammer', 'kiste', -3, -36, 6, 10],
-    ['Weapons', 'werkstatt', 'werkbank', 8, -52, 7, 6],
-    ['O2', 'esszimmer', 'standuhr', 6, -45, 6, 5],
-    ['Navigation', 'musikzimmer', 'sessel', 19, -46, 6, 6],
-    ['Admin', 'bibliothek', 'buecher', 4, -39, 6, 6],
-    ['Shields', 'werkstatt', 'werkbank', 11, -35, 7, 6],
-    ['Communications', 'musikzimmer', 'klavier', 4, -28, 6, 6],
+  // **Die schrägen Ecken der Vorlage** (letzte Spalte, `CornerCut`): Ecke und
+  // Länge in Kacheln, abgepaust von `docs/orbital/station-vorlage.webp`. Keine
+  // schneidet eine Tür oder eine Lüftungsklappe an (`house.test`), und jede
+  // lässt der Einrichtung genug Platz (`stationLayout`).
+  const definitions: Array<[string, RoomKind, MarkId, number, number, number, number, string]> = [
+    ['Cafeteria', 'kueche', 'ofen', -5, -52, 10, 10, 'sw2 se2'],
+    ['Upper Engine', 'werkstatt', 'werkbank', -24, -51, 6, 7, 'nw1'],
+    ['Reactor', 'wohnzimmer', 'kamin', -30, -45, 5, 10, 'nw2 sw2'],
+    ['Security', 'bibliothek', 'buecher', -17, -44, 5, 6, 'nw1 ne1'],
+    ['MedBay', 'bad', 'wanne', -11, -45, 5, 7, 'sw1'],
+    ['Lower Engine', 'werkstatt', 'werkbank', -24, -36, 6, 6, ''],
+    ['Electrical', 'kammer', 'kiste', -11, -37, 6, 6, 'ne1 se2'],
+    ['Storage', 'kammer', 'kiste', -3, -36, 6, 10, 'nw2 sw1'],
+    ['Weapons', 'werkstatt', 'werkbank', 8, -52, 7, 6, 'ne2'],
+    ['O2', 'esszimmer', 'standuhr', 6, -45, 6, 5, 'nw1'],
+    ['Navigation', 'musikzimmer', 'sessel', 19, -46, 6, 6, 'ne1'],
+    ['Admin', 'bibliothek', 'buecher', 4, -39, 6, 6, 'se2'],
+    ['Shields', 'werkstatt', 'werkbank', 11, -35, 7, 6, ''],
+    ['Communications', 'musikzimmer', 'klavier', 4, -28, 6, 6, 'sw1 se1'],
   ];
-  const rooms = definitions.map(([name, kind, signature, x, z, w, d], i): HouseRoom => ({
+  const rooms = definitions.map(([name, kind, signature, x, z, w, d, cuts], i): HouseRoom => ({
     id: `r${i}`,
     name,
     kind,
@@ -444,6 +599,7 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
     rect: { x, z, w, d },
     marks: [],
     lamp: true,
+    cuts: parseCuts(cuts),
   }));
   // Corridor strips are unioned, then merged into rectangles: no overlapping
   // floors, and no furniture in circulation spaces. Two tiles = two metres.
@@ -493,6 +649,18 @@ function stationRooms(): { rooms: HouseRoom[]; passages: HouseRoom[]; bounds: Re
     }
   namePassages(rooms, passages);
   return { rooms, passages, bounds: STATION_BOUNDS };
+}
+
+/** „nw2 se3" → zwei Ecken: Nordwest zwei Kacheln, Südost drei. */
+function parseCuts(text: string): CornerCut[] {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((one) => {
+      const match = /^(nw|ne|se|sw)(\d+)$/.exec(one);
+      if (!match) throw new Error(`Unbekannte Ecke: ${one}`);
+      return { corner: match[1] as Corner, size: Number(match[2]) };
+    });
 }
 
 /**
@@ -565,7 +733,10 @@ function connectStation(
   // anfängt.
   for (const room of rooms) {
     const links = passages
-      .map((p) => ({ p, spots: shared(room.rect, p.rect) }))
+      .map((p) => ({
+        p,
+        spots: shared(room.rect, p.rect).filter((spot) => cutAt(room, spot.x, spot.z) === null),
+      }))
       .filter(({ spots }) => spots.length > 0);
     for (const { p, spots } of links) {
       if (spots.length < STATION_DOOR_SPAN) add(room, p, spots[0]!, spots.length);
@@ -638,7 +809,7 @@ function stationWindows(
     : [];
   for (const window of front) taken.add(edgeKey(window.x, window.z, window.dir));
   for (const room of rooms) {
-    const candidates = tilesOf(room.rect)
+    const candidates = plainTiles(room)
       .flatMap((tile) => ([DIR_N, DIR_E, DIR_S, DIR_W] as const).map((dir) => ({ ...tile, dir })))
       .filter((edge) => {
         const x = edge.x + (edge.dir === DIR_E ? 1 : edge.dir === DIR_W ? -1 : 0);
@@ -870,7 +1041,7 @@ function placeMarks(rng: Rng, rooms: HouseRoom[], blocked: ReadonlySet<string>):
       if (!wanted.includes(extra)) wanted.push(extra);
     }
 
-    const all = rng.shuffle(tilesOf(room.rect));
+    const all = rng.shuffle(plainTiles(room));
     // Freie Kacheln zuerst; nur wenn ein Zimmer nichts als Türen hat, wird auf
     // den Rest zurückgegriffen — lieber ein Regal im Weg als gar keine Küche.
     const free = all.filter((one) => !blocked.has(`${one.x}:${one.z}`));
@@ -1182,7 +1353,7 @@ function placeFuse(
     .filter((room) => room.id !== entryRoom)
     .sort((a, b) => distance(entry.rect, b.rect) - distance(entry.rect, a.rect));
   const room = far[0] ?? entry;
-  const tile = rng.pick(tilesOf(room.rect));
+  const tile = rng.pick(plainTiles(room));
   return { roomId: room.id, x: tile.x, z: tile.z, dir: outwardDir(room.rect, tile) };
 }
 
@@ -1209,7 +1380,7 @@ function placeTasks(rng: Rng, rooms: readonly HouseRoom[], entryRoom: string): H
   const out: HouseTask[] = [];
   for (let i = 0; i < Math.min(TASK_COUNT, usable.length); i++) {
     const room = usable[i]!;
-    const tile = rng.pick(tilesOf(room.rect));
+    const tile = rng.pick(plainTiles(room));
     out.push({
       id: `t${i}`,
       label: loot[i] ?? 'Andenken',
@@ -1252,7 +1423,8 @@ export function roomAt(spec: HouseSpec, x: number, z: number): HouseRoom | null 
         x >= room.rect.x &&
         x < room.rect.x + room.rect.w &&
         z >= room.rect.z &&
-        z < room.rect.z + room.rect.d,
+        z < room.rect.z + room.rect.d &&
+        cutAt(room, x, z) !== 'out',
     ) ?? null
   );
 }

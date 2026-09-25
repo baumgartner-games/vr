@@ -8,6 +8,7 @@ import {
   roomAt,
   roomCentre,
   roomOf,
+  roomTiles,
   spacesOf,
   stationBounds,
   tilesOf,
@@ -52,7 +53,7 @@ describe('separated orbital ship modules', () => {
       expect(holes.length).toBeGreaterThan(0);
       for (const tile of holes) expect(plan.graph.has(tileKey(tile.x, tile.z))).toBe(false);
       for (const room of spaces)
-        for (const tile of tilesOf(room.rect)) {
+        for (const tile of roomTiles(room)) {
           expect(
             spaces.filter(
               (candidate) =>
@@ -84,7 +85,7 @@ describe('separated orbital ship modules', () => {
         expect(roomAt(spec, window.x + dirX(window.dir), window.z + dirZ(window.dir))).toBeNull();
         expect(plan.graph.wall(tileKey(window.x, window.z), window.dir)?.kind).toBe('window');
       }
-      const area = spaces.reduce((sum, room) => sum + room.rect.w * room.rect.d, 0);
+      const area = spaces.reduce((sum, room) => sum + roomTiles(room).length, 0);
       expect([...plan.graph.tileKeys()]).toHaveLength(area + APRON.w * APRON.d);
       expect(stationBounds(spec)).toEqual(STATION_BOUNDS);
     }
