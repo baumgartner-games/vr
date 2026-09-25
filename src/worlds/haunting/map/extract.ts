@@ -1,5 +1,5 @@
 import { TILE } from '../../nav/navTile';
-import { APRON, doorWidth, spacesOf, type HouseSpec } from '../house';
+import { APRON, doorWidth, roomOutline, spacesOf, type HouseSpec } from '../house';
 import { COMMAND } from '../roomGraph';
 import { doorAxis, doorCentre, rectCentre, rectPolygon, wallSegments } from './geometry';
 import { stationLayout } from '../stationLayout';
@@ -78,7 +78,7 @@ export function roomsOf(spec: HouseSpec, lit: readonly string[]): MapRoom[] {
     id: room.id,
     name: room.name,
     kind: room.kind,
-    polygon: rectPolygon(room.rect),
+    polygon: roomOutline(room),
     centre: rectCentre(room.rect),
     circulation: !!room.circulation,
     lit: lit.includes(room.id),

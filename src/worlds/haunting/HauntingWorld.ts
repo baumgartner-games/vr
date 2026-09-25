@@ -30,11 +30,14 @@ import {
   generateHouse,
   onApron,
   roomAt,
+  roomTiles,
+  cutOf,
+  cutSides,
+  cutWalls,
   roomCentre,
   roomOf,
   spacesOf,
   stationBounds,
-  tilesOf,
   APRON_INNER,
   APRON_OUTER,
   type HouseDoor,
@@ -1844,8 +1847,11 @@ export class HauntingWorld extends GridWorld {
     // ihren Enden um genau diese halbe Stärke über die Kante hinaus.
     const reach = TILE / 2 + PLAN_WALL_T / 2;
 
-    for (const tile of tilesOf(room.rect)) {
+    for (const tile of roomTiles(room)) {
+      // An einer schrägen Ecke ist die schräge Wand die Grenze (unten).
+      const cut = cutOf(room, tile.x, tile.z);
       for (const dir of DIRS) {
+        if (cut && cutSides(cut.corner).includes(dir)) continue;
         const nx = tile.x + dirX(dir);
         const nz = tile.z + dirZ(dir);
         const next = roomAt(this.spec, nx, nz);
@@ -1874,6 +1880,15 @@ export class HauntingWorld extends GridWorld {
           group.add(bar);
         }
       }
+    }
+    for (const wall of cutWalls(room)) {
+      const length = Math.hypot(wall.b.x - wall.a.x, wall.b.z - wall.a.z) + PLAN_WALL_T;
+      const bar = new THREE.Mesh(new THREE.PlaneGeometry(length, PLAN_WALL_T), ink);
+      bar.rotation.order = 'YXZ';
+      bar.rotation.y = -Math.atan2(wall.b.z - wall.a.z, wall.b.x - wall.a.x);
+      bar.rotation.x = -Math.PI / 2;
+      bar.position.set((wall.a.x + wall.b.x) / 2, PAPER_MARK_Y - 0.005, (wall.a.z + wall.b.z) / 2);
+      group.add(bar);
     }
     return group;
   }

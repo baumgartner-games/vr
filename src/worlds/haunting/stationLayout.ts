@@ -72,6 +72,34 @@ export function roomBounds(room: HouseRoom): FloorBounds {
   };
 }
 
+/**
+ * **Die schrägen Ecken bleiben frei** (`HouseRoom.cuts`): Ein Möbel steht
+ * ganz auf der Innenseite der schrägen Wand, mit einer halben Wanddicke
+ * Abstand — auf der inneren Hälfte einer Schrägkachel darf es stehen, durch
+ * die Wand ragen nicht.
+ */
+const CUT_CLEAR = 0.15;
+
+function cutFree(room: HouseRoom, bounds: FloorBounds): boolean {
+  if (!room.cuts) return true;
+  const corners = [
+    { x: bounds.minX, z: bounds.minZ },
+    { x: bounds.maxX, z: bounds.minZ },
+    { x: bounds.minX, z: bounds.maxZ },
+    { x: bounds.maxX, z: bounds.maxZ },
+  ];
+  const r = room.rect;
+  return room.cuts.every((cut) =>
+    corners.every((at) => {
+      const u =
+        cut.corner === 'nw' || cut.corner === 'sw' ? at.x - r.x * TILE : (r.x + r.w) * TILE - at.x;
+      const v =
+        cut.corner === 'nw' || cut.corner === 'ne' ? at.z - r.z * TILE : (r.z + r.d) * TILE - at.z;
+      return u + v >= cut.size * TILE + CUT_CLEAR * Math.SQRT2;
+    }),
+  );
+}
+
 function roomMiddle(room: HouseRoom): FloorPoint {
   const b = roomBounds(room);
   return { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 };
@@ -471,6 +499,7 @@ function packRoom(
     // sie durchwühlt — und der soll nicht im Türrahmen stehen.
     cargoClearances = doorClearances(spec, room.id, CARGO_DOOR_DEPTH),
     clear = (request: Request, bounds: FloorBounds): boolean =>
+      cutFree(room, bounds) &&
       !clearances.some((one) => footprintsOverlap(bounds, one)) &&
       // Die Deko-Kiste zählt mit: Vor der Tür sieht man ihr nicht an, dass in
       // ihr nichts liegt — man läuft sie genauso an und steht genauso im Weg.

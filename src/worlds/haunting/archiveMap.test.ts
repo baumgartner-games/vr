@@ -95,6 +95,8 @@ describe('Archive 2D chart', () => {
       lineTo(x: number, y: number) {
         to = [x, y];
       },
+      closePath() {},
+      fill() {},
       stroke() {
         lines.push({ color, from, to });
       },

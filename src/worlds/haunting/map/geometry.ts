@@ -2,7 +2,10 @@ import { TILE, dirX, dirZ, type Dir } from '../../nav/navTile';
 import { PLAN_WALL_T } from '../../editor/levelPlan';
 import {
   APRON,
+  cutWalls,
+  insideSpace,
   spacesOf,
+  type Corner,
   STATION_DOOR_W,
   type HouseDoor,
   type HouseRoom,
@@ -152,12 +155,18 @@ export function wallSegments(spec: HouseSpec): MapSegment[] {
       z0 = r.z * TILE,
       x1 = (r.x + r.w) * TILE,
       z1 = (r.z + r.d) * TILE;
+    // **Schräge Ecken** (`HouseRoom.cuts`) kürzen die geraden Wände, und
+    // die schräge kommt als eigene Strecke dazu.
+    const cut = (corner: Corner): number =>
+      (room.cuts?.find((one) => one.corner === corner)?.size ?? 0) * TILE;
     const edges: Array<{ a: MapPoint; b: MapPoint; axis: 'x' | 'z'; at: number }> = [
-      { a: { x: x0, z: z0 }, b: { x: x1, z: z0 }, axis: 'x', at: z0 },
-      { a: { x: x0, z: z1 }, b: { x: x1, z: z1 }, axis: 'x', at: z1 },
-      { a: { x: x0, z: z0 }, b: { x: x0, z: z1 }, axis: 'z', at: x0 },
-      { a: { x: x1, z: z0 }, b: { x: x1, z: z1 }, axis: 'z', at: x1 },
+      { a: { x: x0 + cut('nw'), z: z0 }, b: { x: x1 - cut('ne'), z: z0 }, axis: 'x', at: z0 },
+      { a: { x: x0 + cut('sw'), z: z1 }, b: { x: x1 - cut('se'), z: z1 }, axis: 'x', at: z1 },
+      { a: { x: x0, z: z0 + cut('nw') }, b: { x: x0, z: z1 - cut('sw') }, axis: 'z', at: x0 },
+      { a: { x: x1, z: z0 + cut('ne') }, b: { x: x1, z: z1 - cut('se') }, axis: 'z', at: x1 },
     ];
+    for (const wall of cutWalls(room))
+      segments.push({ a: wall.a, b: wall.b, roomId: room.id, kind: 'wall' });
     for (const edge of edges) {
       const gaps: Array<{ from: number; to: number; kind: MapSegment['kind'] }> = [];
       for (const door of doorsOn.get(room.id) ?? []) {
@@ -301,9 +310,9 @@ export function spaceAtMetres(
   if (prefer === COMMAND && insideRect(APRON, at)) return COMMAND;
   if (prefer) {
     const known = spaces.find((room) => room.id === prefer);
-    if (known && insideRect(known.rect, at)) return known;
+    if (known && insideSpace(known, at)) return known;
   }
-  for (const room of spaces) if (insideRect(room.rect, at, margin)) return room;
+  for (const room of spaces) if (insideSpace(room, at, margin)) return room;
   if (insideRect(APRON, at, margin)) return COMMAND;
   if (prefer) {
     // Noch in der Nische: Der alte Raum gilt weiter.
@@ -311,7 +320,7 @@ export function spaceAtMetres(
     if (known) return known;
     if (prefer === COMMAND) return COMMAND;
   }
-  for (const room of spaces) if (insideRect(room.rect, at)) return room;
+  for (const room of spaces) if (insideSpace(room, at)) return room;
   return insideRect(APRON, at) ? COMMAND : null;
 }
 
@@ -381,7 +390,7 @@ export function walkable(
 ): boolean {
   if (insideBlocks(blocks, at, radius)) return false;
   const inset = WALL_T / 2 + radius;
-  for (const room of spacesOf(spec)) if (insideRect(room.rect, at, inset)) return true;
+  for (const room of spacesOf(spec)) if (insideSpace(room, at, inset)) return true;
   if (insideRect(APRON, at, inset)) return true;
   for (const door of spec.doors) {
     if (shut.includes(door.id)) continue;

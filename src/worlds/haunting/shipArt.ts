@@ -7,6 +7,8 @@ import {
   APRON,
   MARKS,
   roomCode,
+  cutWalls,
+  plainTiles,
   spacesOf,
   tilesOf,
   type HouseRoom,
@@ -152,8 +154,15 @@ function signAccent(sign: Signpost): number {
   return sign.kind ? roomAccent(sign.kind) : SHIP.amber;
 }
 
-function floor(batch: ShipBatch, rect: Rect, accent = SHIP.cyan, circulation = false): void {
-  for (const tile of tilesOf(rect)) {
+function floor(
+  batch: ShipBatch,
+  rect: Rect,
+  accent = SHIP.cyan,
+  circulation = false,
+  room: HouseRoom | null = null,
+): void {
+  // Nur auf ganzen Kacheln: Hinter und unter einer schrägen Ecke liegt keine Markierung.
+  for (const tile of room ? plainTiles(room) : tilesOf(rect)) {
     const x = (tile.x + 0.5) * TILE,
       z = (tile.z + 0.5) * TILE;
     // **Die Deckplatte kommt aus dem Regal** (`HauntingWorld.floorPlate`,
@@ -269,7 +278,7 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
   group.userData.roomId = room.id;
   const batch = new ShipBatch(),
     accent = room.circulation ? SHIP.cyan : roomAccent(room.kind);
-  floor(batch, room.rect, accent, room.circulation);
+  floor(batch, room.rect, accent, room.circulation, room);
   if (room.circulation) addCorridorName(group, room, accent);
   else addDepartmentMark(group, batch, room, accent);
   // **Die Wände kommen aus dem Regal** (`world3d/stationWalls.ts`): Pfosten,
@@ -304,7 +313,41 @@ function buildRoomHull(spec: HouseSpec, room: HouseRoom): THREE.Group {
     group.add(sign);
   }
   group.add(batch.build());
+  for (const cap of cutCaps(room)) group.add(cap);
   return group;
+}
+
+/** Die Farbe hinter einer schrägen Wand — wie der Raum zwischen den Modulen. */
+const CUT_CAP = 0x070b11;
+
+/**
+ * **Was hinter einer schrägen Wand liegt, sieht man nicht** (`HouseRoom.cuts`).
+ *
+ * Die Kacheln, durch die sie geht, haben ganzen Boden — Platte und Quader
+ * sind quadratisch, und die innere Hälfte wird begangen. Die äußere Hälfte
+ * deckt ein Dreieck in der Farbe des Zwischenraums zu, knapp über den
+ * Bodenplatten: von oben eine saubere Schräge statt einer Zahnreihe.
+ */
+function cutCaps(room: HouseRoom): THREE.Mesh[] {
+  const r = room.rect;
+  const material = new THREE.MeshBasicMaterial({ color: CUT_CAP });
+  return cutWalls(room).map((wall) => {
+    const corner = {
+      x: (wall.corner === 'nw' || wall.corner === 'sw' ? r.x : r.x + r.w) * TILE,
+      z: (wall.corner === 'nw' || wall.corner === 'ne' ? r.z : r.z + r.d) * TILE,
+    };
+    // In der Ebene des Formwerkzeugs ist y = −z: nach dem Kippen liegt es flach.
+    const shape = new THREE.Shape([
+      new THREE.Vector2(corner.x, -corner.z),
+      new THREE.Vector2(wall.a.x, -wall.a.z),
+      new THREE.Vector2(wall.b.x, -wall.b.z),
+    ]);
+    const mesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.08;
+    mesh.name = `cut-cap-${wall.corner}`;
+    return mesh;
+  });
 }
 
 /**

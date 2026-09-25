@@ -1,4 +1,4 @@
-import { APRON, MARKS, type HouseSpec, type Rect } from './house';
+import { APRON, MARKS, insideSpace, roomOutline, type HouseSpec, type Rect } from './house';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import { stationLayout } from './stationLayout';
 import { fitView, type ArchiveView } from './archiveView';
@@ -57,15 +57,7 @@ export function archiveRoomAt(
   if (px < 0 || py < 0 || px > projection.width || py > projection.height) return null;
   const x = (px - projection.x) / projection.scale;
   const z = (py - projection.z) / projection.scale;
-  return (
-    spec.rooms.find(
-      (room) =>
-        x >= room.rect.x &&
-        z >= room.rect.z &&
-        x < room.rect.x + room.rect.w &&
-        z < room.rect.z + room.rect.d,
-    )?.id ?? null
-  );
+  return spec.rooms.find((room) => insideSpace(room, { x: x * TILE, z: z * TILE }))?.id ?? null;
 }
 
 export function paintArchiveMap(
@@ -118,11 +110,18 @@ export function paintArchiveMap(
       y = pz(r.z),
       w = r.w * p.scale,
       h = r.d * p.scale;
+    // Der Umriss mit den schrägen Ecken (`roomOutline`), in Metern → Pixel.
+    c.beginPath();
+    roomOutline(room).forEach((at, i) => {
+      if (i === 0) c.moveTo(px(at.x / TILE), pz(at.z / TILE));
+      else c.lineTo(px(at.x / TILE), pz(at.z / TILE));
+    });
+    c.closePath();
     c.fillStyle = selected ? '#393722' : '#12232e';
-    c.fillRect(x, y, w, h);
+    c.fill();
     c.strokeStyle = selected ? '#f5ce78' : '#7290a1';
     c.lineWidth = selected ? 3 : 2;
-    c.strokeRect(x, y, w, h);
+    c.stroke();
     if (!mini) {
       for (const mark of fixtures.filter((placement) => placement.roomId === room.id)) {
         c.save();

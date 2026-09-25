@@ -138,18 +138,16 @@ den großen Kacheln bleibt.
   (`stationCells.blockGap`). Gezeichnet wird dazwischen interpoliert.
 - **Haunting läuft auf demselben Gitter** (`haunting/map/stationCells.ts`,
   `docs/agents/haunting.md`): Bewegung und Wegsuche der Runde, die
-  Einrichtung als gesperrte Zellen.
+  Einrichtung als gesperrte Zellen — und die schrägen Ecken der Station
+  (`HouseRoom.cuts`) als Schrägen im Bauplan.
 
 ## Was noch nicht auf Zellen läuft
 
-1. **Schrägen in der Station.** Das Gitter der Station kennt sie; es fehlen
-   nur die schrägen Ecken der Vorlage (`docs/orbital/station-vorlage.webp`)
-   in `house.ts` und im Bauplan.
-2. **Möbel im Graphen der NPCs.**
+1. **Möbel im Graphen der NPCs.**
    - Für die grobe Planung über Kacheln ist ein Möbel weiter ein
      Kostenfaktor (`GridPlan.refresh`); gesperrt sind seine Zellen erst auf
      dem Gitter.
-3. **Kleinere Dinge auf halbe Kacheln** (der Blumentopf an den Rand einer
+2. **Kleinere Dinge auf halbe Kacheln** (der Blumentopf an den Rand einer
    Kachel).
    - Möbel bleiben vorerst auf ganzen Metern, so ist es gewünscht.
    - Das Zellgitter trüge auch halbe, sobald Bausteine es tun.

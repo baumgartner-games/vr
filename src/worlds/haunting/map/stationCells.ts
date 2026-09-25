@@ -80,7 +80,7 @@ export function stationFixtureCells(spec: HouseSpec): ReadonlySet<string> {
 export function stationCellGrid(spec: HouseSpec, graph: NavGraph): CellGrid {
   const fixtures = stationFixtureCells(spec);
   const extent = missionExtent(spec);
-  const source = navCellSource(graph, () => null, {
+  const source = navCellSource(graph, (key) => graph.slopeAt(key), {
     blocked: (ix, iz, level) => fixtures.has(cellKey(ix, iz, level)),
   });
   return new CellGrid({

@@ -61,6 +61,12 @@ export interface WallRun {
   alongX: boolean;
   base: number;
   height: number;
+  /**
+   * **Eine schräge Wand** (`GridPlan.slope`, die Ecken der Station): um
+   * diesen Winkel gedreht, statt längs x oder z. Sie ist ein Stück, so lang
+   * wie die Diagonale ihrer Kachel.
+   */
+  yaw?: number;
 }
 
 /** Ein Stück eines Laufs: die Mitte längs des Laufs (von seiner Mitte aus) und die Länge. */
@@ -80,6 +86,19 @@ export interface WallPiece {
 export function wallRun(solid: PlanSolid): WallRun | null {
   if (solid.kind !== 'wall' || solid.door !== undefined) return null;
   if (solid.h < PLAN_WALL_H - 1e-6) return null;
+  if (solid.yaw) {
+    // Die Schräge (`gridPlan.slopeSolid`): längs ihrer eigenen x-Achse √2 lang.
+    if (Math.abs(Math.abs(solid.yaw) - Math.PI / 4) > 1e-6) return null;
+    return {
+      x: solid.x,
+      z: solid.z,
+      length: solid.w,
+      alongX: true,
+      base: solid.y - solid.h / 2,
+      height: solid.h,
+      yaw: solid.yaw,
+    };
+  }
   const alongX = solid.w > solid.d;
   const length = alongX ? solid.w : solid.d;
   const thick = alongX ? solid.d : solid.w;
@@ -103,6 +122,8 @@ export function wallRun(solid: PlanSolid): WallRun | null {
  * zusammen von `−length/2 − WALL_REACH` bis `+length/2 + WALL_REACH`.
  */
 export function runPieces(run: WallRun): WallPiece[] {
+  // Eine Schräge ist ein halbes Stück, gestreckt über die Diagonale.
+  if (run.yaw) return [{ along: 0, length: run.length + 2 * WALL_REACH, half: true }];
   const tiles = Math.round(run.length / TILE);
   const stretch = (run.length + 2 * WALL_REACH) / run.length;
   const pieces: WallPiece[] = [];
@@ -346,7 +367,7 @@ function placedParts(unit: Unit, at: THREE.Matrix4): Placed[] {
 function pieceMatrix(run: WallRun, piece: WallPiece, unit: Unit): THREE.Matrix4 {
   const x = run.x + (run.alongX ? piece.along : 0);
   const z = run.z + (run.alongX ? 0 : piece.along);
-  _q.setFromAxisAngle(_up, run.alongX ? 0 : Math.PI / 2);
+  _q.setFromAxisAngle(_up, run.yaw ?? (run.alongX ? 0 : Math.PI / 2));
   _m.compose(
     new THREE.Vector3(x, run.base, z),
     _q,
