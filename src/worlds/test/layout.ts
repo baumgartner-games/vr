@@ -135,6 +135,13 @@ export const CLIMB: NavRect = { x: 24, z: 9, w: 10, d: 9 };
 export const KITCHEN: NavRect = { x: 12, z: -31, w: 20, d: 11 };
 
 /**
+ * **Der Wandparcours** (`zones/wallLab.ts`) — westlich der Küche, am Gang an
+ * ihrer Westwand. Gerade Wände, Ecken, eine Lücke, ein Gang und Schrägen, zum
+ * Dagegenlaufen.
+ */
+export const WALL_LAB: NavRect = { x: -15, z: -34, w: 24, d: 12 };
+
+/**
  * **Wo man in der Küche ankommt** — die Mitte des Gangs zwischen Insel und
  * Ausgabe, dort, wo ein Koch steht.
  *
@@ -239,6 +246,7 @@ export const ZONE_TILES: Readonly<Record<string, { x: number; z: number; level: 
   kart: { x: -20, z: 22, level: 0 },
   climb: { x: CLIMB.x + 5, z: CLIMB.z + 4, level: 0 },
   kitchen: { ...KITCHEN_SPAWN, level: 0 },
+  walls: { x: WALL_LAB.x + 22, z: WALL_LAB.z + 9, level: 0 },
 };
 
 /**
@@ -259,6 +267,7 @@ export const ZONE_LABELS: Readonly<Record<string, string>> = {
   kart: 'Boxengasse',
   climb: 'Kletterwand',
   kitchen: 'Küche',
+  walls: 'Wandparcours',
 };
 
 /** Die Mitte einer Kachel in Weltmetern — Zonen rechnen damit ihre Requisiten aus. */

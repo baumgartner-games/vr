@@ -10,7 +10,9 @@ import * as THREE from 'three';
 import { TILE } from '../nav/navTile';
 import {
   PLACE_SPEED,
+  eighthYaw,
   gridPose,
+  isDiagonal,
   placesOnGrid,
   quarterYaw,
   snapAxis,
@@ -284,5 +286,45 @@ describe('die Kacheln unter dem Getragenen', () => {
 
   it('hält Unsinn aus', () => {
     expect(tilesCovered(Number.NaN, 1, 0, 1)).toEqual([]);
+  });
+});
+
+describe('Wände unter 45°', () => {
+  const turn = (yaw: number) => ({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) });
+  const wall2 = { x: 1, z: 0.125 };
+  const wall4 = { x: 2, z: 0.125 };
+
+  it('rastet eine Wand auf Achtel, alles andere auf Viertel', () => {
+    expect(eighthYaw(0.7)).toBeCloseTo(Math.PI / 4, 9);
+    expect(isDiagonal(eighthYaw(0.7))).toBe(true);
+    expect(gridPose(0.3, 0.3, turn(0.7), wall2).diagonal).not.toBeNull();
+    // Ein Fass bleibt gerade.
+    expect(gridPose(0.3, 0.3, turn(0.7), { x: 0.4, z: 0.4 }).diagonal).toBeNull();
+  });
+
+  it('stellt eine 2×1-Wand schräg durch genau eine Kachel', () => {
+    const pose = gridPose(3.3, 5.8, turn(Math.PI / 4), wall2);
+    expect(pose.diagonal!.tiles).toBe(1);
+    expect(pose.diagonal!.length).toBeCloseTo(Math.SQRT2, 9);
+    expect(pose.diagonal!.cells).toEqual([{ x: 3, z: 5 }]);
+    expect([pose.x, pose.z]).toEqual([3.5, 5.5]);
+    // +45° dreht die lange Achse (+x) nach (cos, −sin): nach Nordosten — „╱".
+    expect(pose.diagonal!.slope).toBe('slash');
+    expect(gridPose(3.3, 5.8, turn(-Math.PI / 4), wall2).diagonal!.slope).toBe('backslash');
+  });
+
+  it('stellt eine 4×1-Wand schräg durch zwei Kacheln, die Mitte auf einer Ecke', () => {
+    const pose = gridPose(3.3, 5.8, turn(Math.PI / 4), wall4);
+    expect(pose.diagonal!.tiles).toBe(2);
+    expect([pose.x, pose.z]).toEqual([3, 6]);
+    expect(pose.diagonal!.cells).toEqual([
+      { x: 2, z: 6 },
+      { x: 3, z: 5 },
+    ]);
+  });
+
+  it('zählt Kacheln an der geraden Länge, auch wenn die Wand schon gekürzt ist', () => {
+    const shortened = { x: Math.SQRT2, z: 0.125 };
+    expect(gridPose(0, 0, turn(Math.PI / 4), shortened, 4).diagonal!.tiles).toBe(2);
   });
 });

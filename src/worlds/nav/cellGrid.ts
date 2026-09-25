@@ -374,16 +374,81 @@ export function cellsFor(width: number): number {
 }
 
 /**
- * **Ob eine Figur von einem freien Block aus stetig hierher gleiten darf** —
- * die Regel, die `moveOnCells` und die Zellsperre des Spielers
- * (`GridWorld.playerCellGate`) teilen.
+ * **Ob eine Figur hier stehen darf** — die eine Frage, aus der jede Bewegung
+ * besteht.
  *
- * Erlaubt ist, was im eigenen Block bleibt oder auf einem freien endet.
- * **Über Eck** zählt ein Schrägschritt nur am Ziel (`canStep`), die Figur
- * gleitet aber stetig und rundet unterwegs erst in einer Achse um: Der Block
- * dazwischen darf gesperrt sein, wenn der schräge dahinter, auf den sie
- * zuläuft, frei ist. Von dort geht es nur weiter auf einen freien Block —
- * oder zurück.
+ * Logisch steht eine Figur auf einem freien Block (`footprintFree`), gezeichnet
+ * wird sie **zwischen** ihren Blöcken: auf dem Weg von der Mitte eines freien
+ * Blocks zur Mitte eines anderen freien daneben — gerade oder schräg. Die
+ * Mitten der Blöcke sind ein Gitter; erlaubt ist
+ *
+ * - jedes Feld dieses Gitters, dessen vier Ecken frei sind (offene Fläche),
+ * - sonst nur ein Streifen von `TRANSIT_WIDTH` Zellen um die Verbindung zweier
+ *   freier Nachbarn (gerade oder schräg) und um eine freie Mitte selbst.
+ *
+ * **Warum so eng.** Bis Oktober 2026 galt „der Block unter den Füßen ist frei".
+ * Dann durfte die Figur eine Viertelzelle weit an jede Seite ihres Blocks,
+ * auch in Richtung einer Wand: Ihre Mitte stand 0,25 m vor der Wandfuge, ihr
+ * Körper (0,24 m) steckte in der Wand (0,1 m dick) — gemeldet in der Küche
+ * der Testwelt: „ich kann auf die Wand zulaufen". Jetzt geht es zur Wand hin
+ * nur um den Streifen über die Mitte hinaus, eine Achtelzelle.
+ *
+ * **Über Eck** (das Bild des Besitzers, `docs/agents/zellgitter.md`) ist die
+ * schräge Verbindung zweier freier Blöcke ein Weg, auch wenn die beiden
+ * geraden Blöcke dazwischen gesperrt sind. Unterwegs rundet die Figur auf
+ * einen davon — erlaubt, aber nur im Streifen. Bis Oktober 2026 hieß die
+ * Ausnahme „der gesperrte Block dazwischen, und von einem gesperrten Block aus
+ * jeder freie": An einer 45°-Wand kam man so über die Wand ins Leere dahinter.
+ */
+export function standable(
+  grid: CellGrid,
+  x: number,
+  z: number,
+  level = 0,
+  size = FOOTPRINT,
+): boolean {
+  const odd = size % 2 === 0 ? 0 : 0.5;
+  const u = x / CELL - odd,
+    v = z / CELL - odd;
+  const fx = Math.floor(u),
+    fz = Math.floor(v);
+  const du = u - fx,
+    dv = v - fz;
+  const free = (cx: number, cz: number): boolean => grid.footprintFree({ cx, cz }, level, size);
+  const f00 = free(fx, fz),
+    f10 = free(fx + 1, fz),
+    f01 = free(fx, fz + 1),
+    f11 = free(fx + 1, fz + 1);
+  if (f00 && f10 && f01 && f11) return true;
+  const w = TRANSIT_WIDTH,
+    slant = TRANSIT_WIDTH * Math.SQRT2;
+  // Die Mitten selbst.
+  if (f00 && du <= w && dv <= w) return true;
+  if (f10 && 1 - du <= w && dv <= w) return true;
+  if (f01 && du <= w && 1 - dv <= w) return true;
+  if (f11 && 1 - du <= w && 1 - dv <= w) return true;
+  // Die geraden Verbindungen.
+  if (f00 && f10 && dv <= w) return true;
+  if (f01 && f11 && 1 - dv <= w) return true;
+  if (f00 && f01 && du <= w) return true;
+  if (f10 && f11 && 1 - du <= w) return true;
+  // Die schrägen — über Eck.
+  if (f00 && f11 && Math.abs(du - dv) <= slant) return true;
+  return f10 && f01 && Math.abs(du + dv - 1) <= slant;
+}
+
+/** Wie breit der Streifen um eine Verbindung zu jeder Seite ist, in Zellen. */
+const TRANSIT_WIDTH = 0.25;
+
+/** In welchen Schritten eine Strecke geprüft wird: ein Viertel einer Zelle. */
+const GLIDE_STEP = CELL / 4;
+
+/**
+ * **Ob eine Figur stetig von hier nach dort gleiten darf** — jede Stelle
+ * unterwegs ist `standable`, in Schritten von einer Viertelzelle geprüft.
+ * Ein langer Schritt (ein langsames Bild) springt so über nichts hinweg.
+ * Die Regel, die `moveOnCells` und die Zellsperre des Spielers
+ * (`GridWorld.playerCellGate`) teilen.
  */
 export function glides(
   grid: CellGrid,
@@ -394,17 +459,52 @@ export function glides(
   level = 0,
   size = FOOTPRINT,
 ): boolean {
-  const home = snapCell(fromX, fromZ, size),
-    to = snapCell(toX, toZ, size);
-  if (to.cx === home.cx && to.cz === home.cz) return true;
-  if (grid.footprintFree(to, level, size)) return true;
-  const ox = to.cx - home.cx,
-    oz = to.cz - home.cz;
-  if (Math.abs(ox) + Math.abs(oz) !== 1) return false;
-  const sx = ox !== 0 ? ox : Math.sign(toX - fromX),
-    sz = oz !== 0 ? oz : Math.sign(toZ - fromZ);
-  if (sx === 0 || sz === 0) return false;
-  return grid.footprintFree({ cx: home.cx + sx, cz: home.cz + sz }, level, size);
+  const length = Math.hypot(toX - fromX, toZ - fromZ);
+  const steps = Math.max(1, Math.ceil(length / GLIDE_STEP));
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    if (!standable(grid, fromX + (toX - fromX) * t, fromZ + (toZ - fromZ) * t, level, size))
+      return false;
+  }
+  return true;
+}
+
+/**
+ * Wie weit die letzte freie Stelle höchstens weg sein darf, damit es aus einem
+ * gesperrten Block nur zu ihr zurück geht, in Metern (`gateStep`). Weiter weg
+ * wurde die Figur versetzt, und die Stelle sagt nichts mehr.
+ */
+export const STUCK_REACH = 1.5;
+
+/**
+ * **Die Zellsperre des Spielers als Rechnung** (`GridWorld.playerCellGate`):
+ * Darf er von `from` nach `to`? `memory.lastFree` ist die letzte Stelle, an der
+ * er stehen durfte; die Rechnung schreibt sie fort.
+ *
+ * Wer stehen darf (`standable`), gleitet (`glides`). Wer auf einem gesperrten
+ * Block steht — abgesetzt, geschoben —, darf nur zurück zur letzten freien
+ * Stelle, nicht auf irgendeinen freien Block: Der kann hinter der Wand liegen,
+ * auf deren Fuge er gerade steht.
+ */
+export function gateStep(
+  grid: CellGrid,
+  from: { x: number; z: number },
+  to: { x: number; z: number },
+  memory: { lastFree: { x: number; z: number } | null },
+  level = 0,
+  fromLevel = level,
+  size = FOOTPRINT,
+): boolean {
+  if (standable(grid, from.x, from.z, fromLevel, size)) {
+    memory.lastFree = { x: from.x, z: from.z };
+    return glides(grid, from.x, from.z, to.x, to.z, level, size);
+  }
+  const back = memory.lastFree;
+  if (back && Math.hypot(from.x - back.x, from.z - back.z) < STUCK_REACH)
+    return Math.hypot(to.x - back.x, to.z - back.z) < Math.hypot(from.x - back.x, from.z - back.z);
+  const home = snapCell(from.x, from.z, size),
+    next = snapCell(to.x, to.z, size);
+  return (home.cx === next.cx && home.cz === next.cz) || grid.footprintFree(next, level, size);
 }
 
 /**
@@ -415,12 +515,12 @@ export function glides(
  * steht sie auf dem Block, auf den ihre Füße gerundet werden (`snapCell`),
  * und nur das Gitter entscheidet: Der Schritt wird ganz gemacht, wenn der
  * Block danach frei ist; sonst nur längs x oder nur längs z — dasselbe
- * Gleiten wie an einer Wand —, sonst gar nicht. Über Eck (das Bild des
- * Besitzers in `docs/agents/zellgitter.md`) darf der Block dazwischen
- * gesperrt sein, wenn der schräge Block, auf den die Figur zuläuft, frei ist.
- * Ist schon der Block am Start nicht frei (abgesetzt, von der Welt
- * verschoben, über Eck unterwegs), bleibt niemand kleben: Dann geht jeder
- * Schritt, der nicht in einen *anderen* gesperrten Block führt.
+ * Gleiten wie an einer Wand —, sonst gar nicht. Frei heißt: jede Stelle
+ * unterwegs ist `standable` (`glides`) — über Eck also auch der Streifen
+ * zwischen zwei schräg benachbarten freien Blöcken. Steht die Figur schon
+ * auf einem gesperrten Block (abgesetzt, von der Welt verschoben), bleibt
+ * niemand kleben: Dann geht jeder Schritt, der in ihrem Block bleibt oder
+ * auf einer Stelle endet, auf der man stehen darf.
  *
  * Kein Physikkörper, keine Wandquader: Was die Welt in 3D zeigt, ist
  * Darstellung. Gibt die neue Stelle zurück.
@@ -437,9 +537,11 @@ export function moveOnCells(
   const x = at.x + dx,
     z = at.z + dz;
   const fits = (px: number, pz: number): boolean => glides(grid, at.x, at.z, px, pz, level, size);
-  // Wer auf einem gesperrten Block steht, darf heraus — auf jeden freien und
-  // innerhalb seines eigenen, nur nicht in einen anderen gesperrten.
-  const stuck = !grid.footprintFree(home, level, size);
+  // Wer nicht stehen darf (abgesetzt, von der Welt verschoben), darf heraus —
+  // innerhalb seines Blocks und auf einen freien, nicht in einen gesperrten.
+  // Dort geht es in seinem Block weiter bis zur Mitte, und ab da gilt wieder
+  // `glides`.
+  const stuck = !standable(grid, at.x, at.z, level, size);
   const ok = stuck
     ? (px: number, pz: number): boolean => {
         const to = snapCell(px, pz, size);

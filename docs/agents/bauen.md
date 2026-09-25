@@ -854,9 +854,14 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   `craneVelocity`); wer nur ein Pad hat, bekommt ihn in der Bildmitte
   (`centrePoint`). Ein Finger, der losgelassen wird, lässt den Kran stehen,
   wo er ist. Gilt für _Einrichten_ und _Baukasten_ — beide sind der Kran.
-- **Gedreht wird mit `R`** (`craneTurn`, eine Vierteldrehung, `Shift`+`R`
-  zurück) oder mit dem rechten Stock (die Nase zeigt dorthin, auf das nächste
-  Viertel gerastet). Gewünscht war: _„im Web mittels R rotieren (anstelle der
+- **Gedreht wird mit `R`** (`craneTurn`, ein Achtel, `Shift`+`R` zurück —
+  zweimal ist ein Viertel) oder mit dem rechten Stock (die Nase zeigt dorthin,
+  auf das nächste Achtel gerastet). Achtel, seit Wände auch unter 45° stehen:
+  Eine Wand aus dem Regal rastet schräg ein und wird auf die Diagonale ihrer
+  Kacheln gekürzt — eine 2×1-Wand geht durch eine Kachel, eine 4×1-Wand durch
+  zwei (`gridSnap.diagonalPose`, `PortalWorld.fitWall`). Für das Zellgitter
+  ist sie danach eine Schräge wie eine gebaute (`GridWorld.refreshWallSlopes`).
+  Alles andere rastet beim Hinstellen weiter auf ein Viertel. Gewünscht war: _„im Web mittels R rotieren (anstelle der
   Richtung der Drohne) … im Web ohne Stick dreht die Drohne sich dann nicht."_
   Das Dropship schaut also nicht mehr in Flugrichtung; das Getragene dreht mit.
   Als Kran setzt `R` die Welt deshalb **nicht** zurück (`PortalWorld.flatKeys`

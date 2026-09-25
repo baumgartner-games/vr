@@ -58,6 +58,14 @@ html, body {
 .position-hud__copy { display: block; margin-top: 5px; min-height: 30px; padding: 3px 10px; border: 1px solid #65808e; border-radius: 5px; background: #0f2530; color: #c7f4df; font: inherit; cursor: pointer; pointer-events: auto; }
 .position-hud__copy:hover { background: #17384a; }
 
+/* ---------- Sturz aus der Welt (`ui/fallReport.ts`) ---------- */
+.fall-report { position: fixed; top: max(64px, calc(env(safe-area-inset-top) + 56px)); left: 50%; transform: translateX(-50%); z-index: 6; width: min(560px, calc(100vw - 32px)); padding: 8px 10px; border: 1px solid #b86b5c; border-radius: 6px; background: #1a0c0ae8; color: #f4d7c7; font: 12px/1.45 ui-monospace, monospace; }
+.fall-report[hidden] { display: none; }
+.fall-report__text { max-height: 40vh; overflow: auto; margin: 6px 0; white-space: pre; font: inherit; user-select: text; }
+.fall-report__row { display: flex; gap: 8px; }
+.fall-report__button { min-height: 32px; padding: 3px 12px; border: 1px solid #b86b5c; border-radius: 5px; background: #2e1510; color: #f4d7c7; font: inherit; cursor: pointer; }
+.fall-report__button:hover { background: #452019; }
+
 /* ---------- Fläche setzen im Baukasten (`worlds/portal/areaPad.ts`) ----------
    Die Leiste oben in der Mitte, die Zeichenfläche darunter über dem ganzen Bild.
    Die Fläche liegt unter dem HUD (z 5), damit Menü und Knöpfe bedienbar bleiben. */

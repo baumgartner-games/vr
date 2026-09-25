@@ -82,7 +82,10 @@ describe('Die Kiste in der 2D-Runde', () => {
     const { round, id } = atCrate();
     round.act('interact');
     expect(round.busy).not.toBeNull();
-    for (let t = 0; t < 1.5; t += 0.1) round.step(0.1, { x: 1, z: 0, sprint: false });
+    // Nach Westen, in den Raum: Nach Osten steht die Kiste an der Wand, und
+    // seit sich eine Figur nur noch eine Achtelzelle über ihre Blockmitte zur
+    // Wand hin schiebt (`cellGrid.standable`), käme sie dort nicht weg.
+    for (let t = 0; t < 1.5; t += 0.1) round.step(0.1, { x: -1, z: 0, sprint: false });
     expect(round.busy).toBeNull();
     expect(round.state().crew.opened).not.toContain(id);
     expect(round.drain().some((event) => event.text.includes('abgebrochen'))).toBe(true);
