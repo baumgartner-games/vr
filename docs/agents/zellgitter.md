@@ -106,8 +106,20 @@ den großen Kacheln bleibt.
     einen ganzen Schritt, auch wenn die Ebene ihn hergab. Gemessen im
     Wandparcours; das war das Stocken beim Gleiten (_„klappt manchmal und
     manchmal nicht"_).
+  - **Wo der Kreis nicht hinpasst, bleibt er stehen**: Steckt er nach allen
+    Runden des Herausschiebens noch in einer Wand (eine Lücke schmaler als er,
+    etwa zwischen einer Schräge und einer Mauerecke der Station), gilt das
+    Stück des Schritts nicht. Vorher pendelte er dort Bild für Bild zwischen
+    zwei Stellen.
+  - **Haunting ebenso** (`StationCells.slide`): Der Techniker — und damit der
+    Spieler in der 3D-Station, der durch die Runde geht (`flatKernel.ts`) —
+    gleitet in der Ebene. Die Runde bewegte ihn bis dahin noch mit
+    `moveOnCells`, und an den schrägen Ecken stockte er (gemeldet: _„auf der
+    Testwelt klappt das Wandgleiten super, bei Haunting anscheinend nicht"_).
+    Das Monster geht weiter auf Blöcken (`moveOnCells`).
   - Getestet mit echtem Rapier an Treppe und Podest und an einem Boden aus
-    einzelnen Kacheln (`physics/playerPlane.test.ts`).
+    einzelnen Kacheln (`physics/playerPlane.test.ts`), dazu an den Schrägen
+    der Station (`haunting/map/stationSlide.test.ts`).
 - **Möbel sperren Zellen** (`GridPlan.furnitureCells`, `boxCells`):
   - Gesperrt ist jede Zelle, in die ein Quader eines Bausteins mindestens
     15 cm hineinragt (`CELL_OVERLAP`) und der höher ist als eine Stufe

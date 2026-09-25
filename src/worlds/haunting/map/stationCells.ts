@@ -8,6 +8,7 @@ import {
   navCellSource,
   snapCell,
 } from '../../nav/cellGrid';
+import { slideOnCells } from '../../nav/planeMove';
 import type { NavGraph } from '../../nav/navGraph';
 import { missionExtent, type HouseSpec } from '../house';
 import { StationTravelPlan } from '../stationTravelPlan';
@@ -31,8 +32,10 @@ import { fixtureBlocks } from './geometry';
  *   Zelle, in die ein Möbel des Packers (`stationLayout`) mindestens 15 cm
  *   ragt — dieselbe Regel wie für die Möbel der anderen Welten
  *   (`GridPlan.furnitureCells`).
- * - **Figuren** stehen auf einem Block von `AGENT_CELLS` Zellen je Seite und
- *   bewegen sich mit `moveOnCells` — ganz, längs x, längs z oder gar nicht.
+ * - **Das Monster** steht auf einem Block von `AGENT_CELLS` Zellen je Seite
+ *   und bewegt sich mit `moveOnCells` — ganz, längs x, längs z oder gar nicht.
+ * - **Der Techniker** geht in der Ebene wie der Spieler jeder anderen Gitterwelt
+ *   (`slide`, `nav/planeMove.ts`): ein Kreis, der an den Wänden entlanggleitet.
  *
  * Die Lehrzimmer des Testdecks gehören nicht dazu: Dort bewegt die Physik
  * (`HauntingWorld.kernelInput`, `canStand`).
@@ -55,6 +58,9 @@ export function blockGap(
     q = cellCentre(snapCell(b.x, b.z, size), size);
   return Math.hypot(p.x - q.x, p.z - q.z);
 }
+
+/** Wie weit ein Schritt des Technikers höchstens reicht, in Metern (`StationCells.slide`). */
+const SLIDE_REACH = 1.5;
 
 /** So weit muss ein Möbel in eine Zelle ragen, damit es sie sperrt — wie `GridPlan`. */
 const FIXTURE_OVERLAP = 0.15;
@@ -120,7 +126,30 @@ export class StationCells {
     return this.grid(closed).footprintFree(snapCell(at.x, at.z, size), 0, size);
   }
 
-  /** Ein Schritt auf dem Gitter (`moveOnCells`). */
+  /**
+   * **Ein Schritt des Technikers, in der Ebene** (`planeMove.slideOnCells`) —
+   * an jeder Wand entlang gleitend, auch an den schrägen Ecken der Station.
+   *
+   * Gemeldet: _„auf der Testwelt klappt das Wandgleiten super, bei Haunting
+   * anscheinend nicht"_. Die Runde bewegte den Techniker noch mit
+   * `moveOnCells` — ganz, nur x, nur z, diagonal —, und an einer Schräge
+   * gewann je Bild eine andere dieser Möglichkeiten. Der Spieler in der 3D-Welt
+   * geht durch diese Runde (`flatKernel.ts`), deshalb half ihm die Ebene der
+   * anderen Welten hier nicht.
+   */
+  slide(
+    closed: readonly string[],
+    at: { x: number; z: number },
+    dx: number,
+    dz: number,
+  ): { x: number; z: number } {
+    // Weiter als ein paar Schritte ist kein Schritt, sondern ein Sprung des
+    // Körpers — der bleibt, wo er ist, statt durch die Station zu gleiten.
+    if (Math.hypot(dx, dz) > SLIDE_REACH) return { x: at.x, z: at.z };
+    return slideOnCells(this.grid(closed), at.x, at.z, dx, dz, 0);
+  }
+
+  /** Ein Schritt auf dem Gitter (`moveOnCells`) — für das Monster. */
   move(
     closed: readonly string[],
     at: { x: number; z: number },

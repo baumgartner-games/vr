@@ -992,7 +992,7 @@ export class FlatRound implements MapSource {
     let left = Math.max(0, Math.min(0.5, dt));
     // Der Schritt des Körpers (Brille) einmal je Bild, nicht je Scheibe.
     if (input.shift && this.stepping && !this.haunt.crew.hidden) {
-      const to = this.cells.move(this.closed, this.player, input.shift.x, input.shift.z);
+      const to = this.cells.slide(this.closed, this.player, input.shift.x, input.shift.z);
       this.player.x = to.x;
       this.player.z = to.z;
       const space = spaceAtMetres(this.house, this.player, this.player.space, SPACE_MARGIN);
@@ -1082,7 +1082,7 @@ export class FlatRound implements MapSource {
       const nx = input.x / length,
         nz = input.z / length;
       if (input.yaw === undefined) this.player.yaw = Math.atan2(-nx, -nz);
-      const to = this.cells.move(this.closed, this.player, nx * speed * dt, nz * speed * dt);
+      const to = this.cells.slide(this.closed, this.player, nx * speed * dt, nz * speed * dt);
       this.player.x = to.x;
       this.player.z = to.z;
       const space = spaceAtMetres(this.house, this.player, this.player.space, SPACE_MARGIN);
