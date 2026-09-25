@@ -418,6 +418,7 @@ import {
 import { GRIP_TO_RAY } from './tools/gripFit';
 import type { CarrySpan, ScreenCarryView } from '../../core/screenCarry';
 import { Highlight } from '../../core/highlight';
+import { ModelBatch, type BatchItem } from '../shared/modelBatch';
 import type { ToolChoice, ToolOption } from '../../core/types';
 import { overBudget, type LooseEntry } from './tools/looseBudget';
 import { findMaterial, isTransparent } from './tools/materials';
@@ -1243,6 +1244,16 @@ export class PortalWorld implements World {
   private readonly foams: Foam[] = [];
   private readonly spawned = new Set<PhysicsBody>();
   /**
+   * **Was die Welt selbst aufgestellt hat** (`placeModel`) — die Wände aus dem
+   * Regal in Haunting und im Wandparcours. Jedes Gerät baut sie aus demselben
+   * Bauplan selbst; über die Leitung geht davon nichts (`PortalSync`,
+   * `local`), und sie stehen fest statt als Körper, der fallen kann.
+   */
+  private readonly worldOwned = new WeakSet<PhysicsBody>();
+  /** Dieselben Stücke gebündelt gezeichnet (`shared/modelBatch.ts`, `stepWorldBatch`). */
+  private worldBatch: ModelBatch | null = null;
+  private readonly worldBatchItems: PhysicsBody[] = [];
+  /**
    * **Frisch aus dem Regal und noch nie hingestellt** — im _Baukasten_ kommt
    * beim Hinstellen eines solchen Modells gleich das nächste in die Hand
    * (`core/gameMode.refillsCatalogue`, `release`).
@@ -1772,6 +1783,7 @@ export class PortalWorld implements World {
     this.applyViewOverride(ctx);
     this.updateFallRescue(ctx, dt);
     this.updateHitboxes();
+    this.stepWorldBatch(dt, ctx);
     // Zuletzt: was die Welt für sich selbst tut. Dieselbe Zeile läuft in der
     // laufenden Vorschau ohne alles darüber (`stepPreview`).
     this.simulate(dt);
@@ -3405,9 +3417,68 @@ export class PortalWorld implements World {
     // eines, das gerade hingestellt wurde — sonst stiege es beim Einfügen um
     // seine halbe Dicke wieder heraus.
     this.sinkFloor(entry);
-    this.sync?.spawned(id, kind, poseOf(entry));
-    if (note) this.noteModel(entry, path);
+    if (note) {
+      this.sync?.spawned(id, kind, poseOf(entry));
+      this.noteModel(entry, path);
+    } else this.ownByWorld(entry);
     return entry;
+  }
+
+  /**
+   * **Die Stücke der Welt als Bündel zeichnen** (`shared/modelBatch.ts`) —
+   * aus den Augen, nicht von oben: Von oben wird je Stück durchsichtig
+   * (`GridWorld.stepWallGhosts`, `modelGhost.ts`), und dafür muss jedes für
+   * sich dastehen.
+   *
+   * Einzeln steht, was gerade jemand in der Hand hat, was unter einer Hand
+   * aufleuchtet (`highlighted`), was fliegt und was gleich ersetzt wird
+   * (`replaced`) — alles, was anders aussieht oder woanders ist als das Bündel.
+   */
+  private stepWorldBatch(dt: number, ctx: WorldContext): void {
+    const items = this.worldBatchItems;
+    items.length = 0;
+    for (const entry of this.props)
+      if (!entry.removed && this.worldOwned.has(entry)) items.push(entry);
+    if (!items.length && !this.worldBatch) return;
+    this.worldBatch ??= new ModelBatch(this.root);
+    this.worldBatch.step(dt, !ctx.topDown, items, this.looseInBatch);
+  }
+
+  /** Ob ein Stück der Welt gerade einzeln stehen muss (`stepWorldBatch`). */
+  private readonly looseInBatch = (item: BatchItem): boolean => {
+    const entry = item as PhysicsBody;
+    return (
+      entry.carried ||
+      this.highlighted.has(entry) ||
+      this.flights.has(entry) ||
+      this.replaced.has(entry)
+    );
+  };
+
+  /**
+   * **Ein Stück, das der Welt gehört** (`placeModel`) — fest und nur hier.
+   *
+   * Zwei Dinge, gemessen in Haunting (338 Wände aus dem Regal):
+   *
+   * - **Fest statt fallend.** Als Körper mit Schwerkraft standen die Wände
+   *   dicht an dicht, berührten sich an jeder Ecke (`WALL_OVERLAP`) und
+   *   schliefen deshalb nie ein — ein Schritt der Physik kostete 1,4 bis
+   *   3,2 ms, und das in jedem Bild. Als feste Körper sind es 0,006 ms. Wer
+   *   ein Stück im Baukasten aufnimmt, macht es wie bisher beweglich
+   *   (`setBodyType` beim Greifen); nur das Aufgestellte steht.
+   * - **Nicht über die Leitung.** Jedes Gerät stellt dieselben Stücke aus
+   *   demselben Bauplan selbst auf. Angesagt (`spawn`) und im Schnappschuss
+   *   des Gastgebers (`spawned`) mitgeschickt, baute jedes weitere Gerät sie
+   *   auf allen anderen **noch einmal** auf — zu zweit standen 676 Wände da,
+   *   zu dritt 1 014, jede doppelt gezeichnet und doppelt gerechnet. Und
+   *   „Zurücksetzen" räumte sie als Beutelware weg (`clearSpawned`).
+   */
+  private ownByWorld(entry: PhysicsBody): void {
+    const physics = this.physics;
+    this.spawned.delete(entry);
+    this.worldOwned.add(entry);
+    if (!physics || entry.removed) return;
+    entry.body.setBodyType(physics.rapier.RigidBodyType.Fixed, true);
   }
 
   /** Ein hingestelltes Modell in die Liste der Weltänderungen. */
@@ -4833,6 +4904,8 @@ export class PortalWorld implements World {
     this.signs = null;
     this.sync?.dispose();
     this.sync = null;
+    this.worldBatch?.dispose();
+    this.worldBatch = null;
     this.clearRemotePlayers(ctx);
 
     if (this.keys) {
@@ -11927,6 +12000,10 @@ export class PortalWorld implements World {
       net: ctx.net,
       physics: this.physics!,
       bodies: this.bodies,
+      local: (id) => {
+        const entry = this.bodies.get(id);
+        return !!entry && this.worldOwned.has(entry);
+      },
       heldLocally: (id) => {
         const entry = this.bodies.get(id);
         return !!entry && (this.handHolding(entry) !== null || this.flights.has(entry));

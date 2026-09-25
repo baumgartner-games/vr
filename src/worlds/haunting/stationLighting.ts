@@ -48,3 +48,53 @@ export function stationLighting(
     command: dark || inTraining ? 0 : 22,
   };
 }
+
+/**
+ * **Welche Deckenleuchte ihre Schattenkarte in diesem Bild neu zeichnet** —
+ * höchstens eine, und nur eine, die brennt.
+ *
+ * Eine Punktleuchte zeichnet ihre Karte sechsmal, einmal je Würfelseite
+ * (`shared/wallLight.ts`), und jede Seite ist ein Durchgang über alles, was im
+ * Umkreis Schatten wirft. Bis hierher bestellten beide Leuchten des Pools
+ * (`HauntingWorld.lampPool`) ihre Karte **im selben Bild**, viermal die
+ * Sekunde, und auch dann, wenn sie gar nicht brannten: Gemessen kamen in
+ * diesem einen Bild 300 bis 420 Zeichenaufrufe und gut 100 000 Dreiecke zu
+ * den sonst knapp 200 dazu — ein Ruckler im Takt von 4 Hz, in der Brille am
+ * deutlichsten. Jetzt wechseln sie sich ab (jede kommt weiter alle `every`
+ * Sekunden dran), und eine dunkle Leuchte zeichnet gar nichts.
+ *
+ * Zieht eine Leuchte um oder geht sie gerade an, zeichnet sie sofort — ihre
+ * alte Karte gehört an eine andere Stelle oder ist veraltet.
+ */
+export class LampShadowTurns {
+  private clock = 0;
+  private turn = -1;
+
+  constructor(
+    private readonly count: number,
+    private readonly every: number,
+  ) {}
+
+  /** Die Leuchte, die in diesem Bild an der Reihe ist, oder `-1`. */
+  step(dt: number): number {
+    if (this.count <= 0) return -1;
+    this.clock += dt;
+    if (this.clock < this.every / this.count) return -1;
+    this.clock = 0;
+    this.turn = (this.turn + 1) % this.count;
+    return this.turn;
+  }
+}
+
+/**
+ * Ob eine Leuchte ihre Karte jetzt neu zeichnen soll.
+ *
+ * @param turn    sie ist an der Reihe (`LampShadowTurns.step`)
+ * @param moved   sie hängt seit dem letzten Bild woanders
+ * @param before  ihre Stärke im letzten Bild
+ * @param now     ihre Stärke jetzt
+ */
+export function lampShadowDue(turn: boolean, moved: boolean, before: number, now: number): boolean {
+  if (now <= 0) return false;
+  return turn || moved || before <= 0;
+}

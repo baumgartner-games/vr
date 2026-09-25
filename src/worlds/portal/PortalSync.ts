@@ -73,6 +73,13 @@ export interface PortalSyncOptions {
   physics: PhysicsWorld;
   /** Every synced prop, by its shared id. */
   bodies: Map<string, PhysicsBody>;
+  /**
+   * **Was jedes Gerät selbst aufstellt** — die Wände, die eine Welt aus ihrem
+   * Bauplan baut (`PortalWorld.placeModel`). Sie stehen in `bodies`, gehen
+   * aber nicht über die Leitung: kein Mitfahren, keine Bewegung, kein Platz
+   * im Schnappschuss. Fehlt die Angabe, ist nichts davon lokal.
+   */
+  local?: (id: string) => boolean;
   /** True while a local hand or a remote pull owns the prop's transform. */
   /**
    * Als Eigenschaft und nicht als Methode geschrieben: Sie wird hier aus dem
@@ -307,8 +314,9 @@ export class PortalSync {
    * props we do drive fall and bounce for real.
    */
   private applyDrivers(dt: number): void {
-    const { physics, bodies, heldLocally } = this.options;
+    const { physics, bodies, heldLocally, local } = this.options;
     for (const [id, entry] of bodies) {
+      if (local?.(id)) continue;
       if (this.drives(id)) {
         if (this.kinematic.delete(id)) {
           // Only wake it up again if no local hand is holding it kinematically.
@@ -354,8 +362,9 @@ export class PortalSync {
 
   private sendMoves(): void {
     const items: Array<[string, ...Pose7]> = [];
+    const local = this.options.local;
     for (const [id, entry] of this.options.bodies) {
-      if (!this.drives(id)) continue;
+      if (local?.(id) || !this.drives(id)) continue;
       const pose = poseOf(entry);
       const previous = this.lastSent.get(id);
       if (previous && !moved(previous, pose)) continue;
@@ -372,7 +381,9 @@ export class PortalSync {
 
   private snapshot(): Snapshot {
     const bodies: Array<[string, ...Pose7]> = [];
-    for (const [id, entry] of this.options.bodies) bodies.push([id, ...poseOf(entry)]);
+    const local = this.options.local;
+    for (const [id, entry] of this.options.bodies)
+      if (!local?.(id)) bodies.push([id, ...poseOf(entry)]);
 
     const spawned = this.options.spawnedProps().map(({ id, kind }) => {
       const entry = this.options.bodies.get(id)!;

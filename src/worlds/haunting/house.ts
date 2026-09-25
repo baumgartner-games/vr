@@ -569,11 +569,40 @@ function shapeOutline(shape: ReadonlyMap<string, Corner | null>): Array<{ x: num
 }
 
 /**
+ * **Die Umrisse der geformten Räume, einmal je Form gerechnet.**
+ *
+ * `shapeOutline` läuft über jede Kachel einer Form, baut Zeichenketten als
+ * Schlüssel und sucht darin den Rand — gut hundert Kacheln je Raum, gut
+ * tausend je Station. Gefragt wird aber in **jedem Bild**, und zwar zweimal:
+ * Der Hörweg der Brille (`ShipExperience.stepSound`, `mapSnapshot`) und die
+ * Runde des Kerns (`FlatRound.snapshot`) bauen je einen Kartenstand, und jeder
+ * Kartenstand fragt jeden Raum nach seinem Umriss (`map/extract.roomsOf`).
+ * Gemessen waren das 4,3 ms je Stand auf einem Desktop-Prozessor, also rund
+ * 9 ms je Bild — auf einer Quest mehr als das ganze Bild hat. Die Form
+ * ändert sich nach dem Bau der Station nie (`stationShapes`), also gilt ihr
+ * Umriss so lange wie sie.
+ *
+ * **Die Liste wird geteilt** und darf nicht verändert werden — sie gehört
+ * dem Cache, nicht dem Aufrufer.
+ */
+const shapeOutlines = new WeakMap<
+  ReadonlyMap<string, Corner | null>,
+  Array<{ x: number; z: number }>
+>();
+
+/**
  * **Der Umriss eines Raums** in Metern, ab Nordwest — ein
  * Rechteck, dem die schrägen Ecken abgeschnitten sind.
  */
 export function roomOutline(room: HouseRoom): Array<{ x: number; z: number }> {
-  if (room.shape) return shapeOutline(room.shape);
+  if (room.shape) {
+    let outline = shapeOutlines.get(room.shape);
+    if (!outline) {
+      outline = shapeOutline(room.shape);
+      shapeOutlines.set(room.shape, outline);
+    }
+    return outline;
+  }
   const r = room.rect;
   const x0 = r.x * TILE,
     z0 = r.z * TILE,

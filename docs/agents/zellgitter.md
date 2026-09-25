@@ -267,7 +267,11 @@ den großen Kacheln bleibt.
   normalen wände komplett zu entfernen. Ich will nur noch mit den kaykit
   wänden arbeiten."_ Türen und Fenster bleiben. Der Wandparcours steht aus
   Regalwänden (`wallLabModels`, aufgestellt mit `PortalWorld.placeModel`, das
-  nichts in die Weltänderungen schreibt).
+  nichts in die Weltänderungen schreibt). Was `placeModel` aufstellt, gehört
+  der Welt: Es steht als **fester** Körper, geht nicht über die Leitung (jedes
+  Gerät baut es selbst) und wird aus den Augen gebündelt gezeichnet
+  (`shared/modelBatch.ts`) — siehe [Haunting](haunting.md), „Das Ruckeln".
+  Im Baukasten aufgenommen, ist es wie jedes andere Stück beweglich.
 - **Wandtests mit Bodenmarken** (`grid/fixtures/mark.ts`, `grid/markCheck.ts`):
   - Drei Einbauten, gesetzt unter _Einrichten → Einbauten_: _Start (Wandtest)_
     (blau), _Darf hin_ (grün) und _Darf nicht hin_ (rot).
