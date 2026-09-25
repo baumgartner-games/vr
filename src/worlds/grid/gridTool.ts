@@ -9,6 +9,7 @@ import { DIR_N, keyLevel, keyX, keyZ } from '../nav/navTile';
 import { BLOCKS, BLOCK_KINDS, type BlockKind } from './blocks';
 import { fixtureKind, type Props } from './fixtures/index';
 import type { GridPlan } from './gridPlan';
+import type { Slope } from '../nav/cellGrid';
 
 /**
  * **Was ein Druck auf den Grundriss tut** — die vier Bauwerkzeuge und die
@@ -192,7 +193,13 @@ export function applyGridTool(
       }
       const gone = plan.takeBlock(spot.tile);
       if (gone) return { changed: true, says: `${BLOCKS[gone.kind].label} weg` };
+      // Dann die Schräge — sie steht in der Kachel, nicht an einer Kante.
+      if (spot.dir === null && plan.slopeAt(spot.tile)) {
+        plan.slope(keyX(spot.tile), keyZ(spot.tile), null, keyLevel(spot.tile));
+        return { changed: true, says: 'Schräge weg' };
+      }
     }
+    if (tool === 'slope') return turnSlope(plan, spot);
     return applyTool(plan.graph, tool, spot);
   }
 
@@ -242,4 +249,26 @@ function setFixture(plan: GridPlan, tool: FixtureTool, spot: PlanSpot, props: Pr
     props,
   });
   return { changed: true, says: kind.label };
+}
+
+/**
+ * **Die Schräge einer Kachel weiterdrehen**: keine → „/" → „\" → keine.
+ *
+ * Ein Werkzeug und nicht zwei: Welche Diagonale gemeint ist, sieht man erst,
+ * wenn sie steht — und dann tippt man lieber noch einmal, als vorher zwischen
+ * zwei Knöpfen zu wählen, deren Namen niemand auseinanderhält.
+ */
+function turnSlope(plan: GridPlan, spot: PlanSpot): PlanEdit {
+  if (!plan.graph.has(spot.tile)) return { changed: false, says: 'Erst Boden legen' };
+  const next: Slope | null =
+    plan.slopeAt(spot.tile) === null
+      ? 'slash'
+      : plan.slopeAt(spot.tile) === 'slash'
+        ? 'backslash'
+        : null;
+  plan.slope(keyX(spot.tile), keyZ(spot.tile), next, keyLevel(spot.tile));
+  return {
+    changed: true,
+    says: next === 'slash' ? 'Schräge ╱' : next === 'backslash' ? 'Schräge ╲' : 'Schräge weg',
+  };
 }

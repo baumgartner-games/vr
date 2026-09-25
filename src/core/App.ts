@@ -1744,6 +1744,21 @@ export class App {
           },
         },
         {
+          // **Die Felder, auf denen die Figuren logisch stehen** — gezeichnet
+          // von `worlds/grid/footprintView.ts`, in den Welten auf dem Gitter.
+          id: 'gfx:cell-footprints',
+          label: 'Belegte Felder',
+          sub: 'Die 2×2 halben Kacheln unter jeder Figur · grün frei, rot gesperrt',
+          caption: 'Werkstattansicht — in Welten ohne Gitter passiert nichts',
+          icon: 'settings',
+          accent: 0x6f7d99,
+          checked: settings.cellFootprints,
+          run: () => {
+            saveGraphics({ cellFootprints: !graphics().cellFootprints });
+            this.menuDirty = true;
+          },
+        },
+        {
           // **Die Umrisse der Physik** — gezeichnet von
           // `physics/HitboxView.ts`, in jeder Welt, die Physik hat. Sie liegen
           // ohne Tiefenprüfung über allem: Ein Umriss, den das Möbel verdeckt,

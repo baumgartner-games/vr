@@ -77,6 +77,17 @@ export interface GraphicsSettings {
    */
   gridLines: boolean;
   /**
+   * **Die 2×2 Zellen, die eine Figur logisch belegt**
+   * (`worlds/grid/footprintView.ts`, `worlds/nav/cellGrid.ts`).
+   *
+   * Seit die Welten auf Zellen von einem halben Meter rechnen, steht jede
+   * Figur logisch auf einem Block von zwei mal zwei Zellen, auch wenn sie
+   * optisch dazwischen steht. Diese Anzeige zeigt den Block — für den
+   * Spieler, die Mitspieler und die NPCs, grün, wenn er frei ist. Ab Werk aus:
+   * eine Werkstattansicht wie die Hitboxen.
+   */
+  cellFootprints: boolean;
+  /**
    * **Wo man steht, als Zahl** (`core/positionHud.ts`) — Meter, Kachel, Ebene
    * und die Adresse `?at=…` dorthin. Gewünscht, um Stellen weitergeben zu
    * können: „die x-, y-Pos und ggf. z-Pos in der Welt sehen". Ab Werk aus.
@@ -385,6 +396,7 @@ export const DEFAULT_GRAPHICS: GraphicsSettings = {
   xrScale: 1,
   showFps: false,
   gridLines: false,
+  cellFootprints: false,
   showPosition: false,
   hitBoxes: false,
   ghostBoxes: false,
@@ -543,6 +555,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     : DEFAULT_GRAPHICS.xrScale;
   const showFps = raw.showFps === true;
   const gridLines = raw.gridLines === true;
+  const cellFootprints = raw.cellFootprints === true;
   const showPosition = raw.showPosition === true;
   const hitBoxes = raw.hitBoxes === true;
   const ghostBoxes = raw.ghostBoxes === true;
@@ -584,6 +597,7 @@ export function clampGraphics(settings: Partial<GraphicsSettings> | undefined): 
     xrScale,
     showFps,
     gridLines,
+    cellFootprints,
     showPosition,
     hitBoxes,
     ghostBoxes,
@@ -727,6 +741,7 @@ export function graphicsSummary(
       Pick<
         GraphicsSettings,
         | 'gridLines'
+        | 'cellFootprints'
         | 'hitBoxes'
         | 'ghostBoxes'
         | 'showHandles'
@@ -741,6 +756,7 @@ export function graphicsSummary(
 ): string {
   const scale = settings.xrScale === 1 ? '' : ` · Brille ${XR_SCALE_LABELS[settings.xrScale]}`;
   const grid = settings.gridLines ? ' · Gitterlinien' : '';
+  const cells = settings.cellFootprints ? ' · Belegte Felder' : '';
   const boxes = settings.hitBoxes ? ' · Hitboxen' : '';
   const ghosts = settings.ghostBoxes ? ' · Ghosting' : '';
   const grips = settings.showHandles ? ' · Griffe' : '';
@@ -764,7 +780,7 @@ export function graphicsSummary(
     settings.screenPads && settings.screenPads !== DEFAULT_GRAPHICS.screenPads
       ? ` · Bildschirm-Steuerung ${settings.screenPads === 'on' ? 'an' : 'aus'}`
       : '';
-  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${boxes}${ghosts}${grips}${shade}${squishy}${breath}${pads}`;
+  return `${GRAPHICS_MODE_LABELS[settings.mode]}${scale}${grid}${cells}${boxes}${ghosts}${grips}${shade}${squishy}${breath}${pads}`;
 }
 
 // --- der Speicher ----------------------------------------------------------

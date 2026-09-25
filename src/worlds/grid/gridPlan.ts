@@ -20,6 +20,8 @@ import {
 import { BLOCKS, blockRise, blockSolids, type BlockKind } from './blocks';
 import { FIXTURE_COST, fixtureKind, type FixturePlacement, type Props } from './fixtures/index';
 import { standing, type PlanSolid, type PlanSolidKind } from './solids';
+import type { Slope } from '../nav/cellGrid';
+import { PLAN_WALL_H, PLAN_WALL_T } from '../editor/levelPlan';
 
 /**
  * **Der Grundriss einer Welt** — Kacheln, Kanten, Bausteine und Massen.
@@ -142,6 +144,17 @@ export class GridPlan {
   /** Die Massen. Heißt `stack`, weil `masses()` sie herausgibt. */
   private readonly stack: Mass[] = [];
   /**
+   * **Die Wände unter 45°** — eine je Kachel, quer durch sie hindurch
+   * (`nav/cellGrid.Slope`).
+   *
+   * Eine eigene Liste und kein Eintrag im Graphen: Der Graph kennt Kanten
+   * zwischen Kacheln, und eine Schräge ist keine Kante, sondern teilt eine
+   * Kachel. Was sie sperrt, sind zwei ihrer vier Zellen (`nav/cellGrid.ts`);
+   * für die Wegsuche über ganze Kacheln macht sie die Kachel teuer
+   * (`SLOPE_COST`), damit niemand hindurchplant, der nur Kacheln kennt.
+   */
+  private readonly slopeTiles = new Map<TileKey, Slope>();
+  /**
    * Was auf einer Kachel gälte, wenn kein Baustein darauf stünde.
    *
    * Ohne diese Notiz wäre ein Baustein nicht wieder wegzunehmen: Sein
@@ -252,6 +265,47 @@ export class GridPlan {
   /** Ein Fenster: hält auf, verrät aber, was dahinter passiert. */
   window(x: number, z: number, dir: Dir, level = 0): this {
     setWindow(this.graph, tileKey(x, z, level), dir);
+    return this;
+  }
+
+  /**
+   * **Eine Wand unter 45° quer durch eine Kachel** — `null` nimmt sie weg.
+   *
+   * Sie steht nur auf Boden: Eine Schräge im Nichts ist ein Fehler im Editor
+   * oder in einer Welt, und er fällt hier auf statt als Wand in der Luft.
+   */
+  slope(x: number, z: number, slope: Slope | null, level = 0): this {
+    const key = tileKey(x, z, level);
+    if (slope && !this.graph.has(key)) return this;
+    if (slope) this.slopeTiles.set(key, slope);
+    else if (!this.slopeTiles.delete(key)) return this;
+    this.edits++;
+    this.refresh(key);
+    return this;
+  }
+
+  /** Die Schräge einer Kachel, wenn eine darin steht. */
+  slopeAt(key: TileKey): Slope | null {
+    return this.slopeTiles.get(key) ?? null;
+  }
+
+  /** Alle Schrägen, zum Speichern (`worldFile.ts`). */
+  saveSlopes(): Array<{ tile: TileKey; slope: Slope }> {
+    return [...this.slopeTiles].map(([tile, slope]) => ({ tile, slope }));
+  }
+
+  /** Und wieder zurück. Was auf einer Kachel steht, die es nicht gibt, fällt weg. */
+  loadSlopes(list: ReadonlyArray<{ tile: TileKey; slope: Slope }>): this {
+    const touched = new Set<TileKey>(this.slopeTiles.keys());
+    this.slopeTiles.clear();
+    for (const one of list) {
+      if (!this.graph.has(one.tile)) continue;
+      if (one.slope !== 'slash' && one.slope !== 'backslash') continue;
+      this.slopeTiles.set(one.tile, one.slope);
+      touched.add(one.tile);
+    }
+    this.edits++;
+    for (const tile of touched) this.refresh(tile);
     return this;
   }
 
@@ -541,6 +595,7 @@ export class GridPlan {
       if (!kind || kind.door) continue;
       if (kind.solid(kind.init(one))) cost *= kind.cost ?? FIXTURE_COST;
     }
+    if (this.slopeTiles.has(tile)) cost *= SLOPE_COST;
     this.graph.setTile(tile, { cost, rise });
   }
 
@@ -686,6 +741,7 @@ export class GridPlan {
         out.push(solid);
       }
     }
+    for (const [tile, slope] of this.slopeTiles) out.push(slopeSolid(this.graph, tile, slope));
     return out;
   }
 
@@ -742,6 +798,7 @@ export class GridPlan {
     blocks: readonly BlockPlacement[],
     masses: readonly Mass[] = [],
     fixtures: readonly FixturePlacement[] = [],
+    slopes: ReadonlyArray<{ tile: TileKey; slope: Slope }> = [],
   ): this {
     replacePlan(this.graph, graph);
     this.base.clear();
@@ -754,6 +811,7 @@ export class GridPlan {
     this.placed.length = 0;
     this.loadBlocks(blocks);
     this.loadFixtures(fixtures);
+    this.loadSlopes(slopes);
     return this;
   }
 
@@ -806,8 +864,41 @@ export class GridPlan {
     for (const mass of source.stack) this.stack.push({ ...mass, rect: { ...mass.rect } });
     this.loadBlocks(source.saveBlocks());
     this.loadFixtures(source.saveFixtures());
+    this.loadSlopes(source.saveSlopes());
     return this;
   }
+}
+
+/**
+ * **Wie viel teurer eine Kachel mit Schräge für die Wegsuche über ganze
+ * Kacheln ist.** Hoch, aber nicht gesperrt: Die Hälfte der Kachel ist frei,
+ * und wer nur Kacheln kennt, soll hindurch dürfen, wenn es sonst keinen Weg
+ * gibt — er schrammt dann an der Wand entlang, statt stehen zu bleiben.
+ */
+export const SLOPE_COST = 6;
+
+/**
+ * **Der Quader einer Schräge**: eine Wand voller Höhe, so lang wie die
+ * Diagonale der Kachel, um 45° gedreht (`PlanSolid.yaw`).
+ *
+ * `slash` läuft von Südwest nach Nordost: Die lokale x-Achse zeigt nach
+ * (+1, −1), also +45° um die Hochachse. `backslash` läuft von Nordwest nach
+ * Südost, −45°.
+ */
+export function slopeSolid(graph: NavGraph, tile: TileKey, slope: Slope): PlanSolid {
+  const level = keyLevel(tile);
+  const base = graph.levelY(level);
+  return {
+    kind: 'wall',
+    x: tileCentreX(tile),
+    y: base + PLAN_WALL_H / 2,
+    z: tileCentreZ(tile),
+    w: Math.SQRT2 * TILE,
+    h: PLAN_WALL_H,
+    d: PLAN_WALL_T,
+    yaw: slope === 'slash' ? Math.PI / 4 : -Math.PI / 4,
+    level,
+  };
 }
 
 /**

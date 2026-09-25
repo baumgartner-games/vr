@@ -11,6 +11,9 @@ import {
   storedWorld,
 } from './worldStore';
 import type { NavGraph } from '../nav/navGraph';
+import { CellGrid, navCellSource, snapCell } from '../nav/cellGrid';
+import { FootprintView, type Occupant } from './footprintView';
+import type { CellGate } from '../../physics/PhysicsLocomotion';
 import {
   DIRS,
   NO_TILE,
@@ -118,6 +121,8 @@ const OWN_FLOOR = 'own-floor';
  * Navigationskarte neu abgetastet: Was man gebaut hat, sollen NPCs auch
  * belaufen können.
  */
+const _footprintFeet = new THREE.Vector3();
+
 export abstract class GridWorld extends PortalWorld {
   /** Der gebaute Grundriss — steht ab `buildEnvironment()` bereit. */
   protected grid: GridPlan | null = null;
@@ -280,6 +285,19 @@ export abstract class GridWorld extends PortalWorld {
   private readonly gridLines: THREE.LineSegments[] = [];
   /** Ihr Material — eines für alle, und über den Umbau hinweg dasselbe. */
   private gridLineSkin: THREE.Material | null = null;
+  /** Die halben Kacheln dazwischen — dieselben Linien, blasser. */
+  private gridCellSkin: THREE.Material | null = null;
+  /**
+   * **Das Zellgitter dieser Welt** (`nav/cellGrid.ts`) — halbe Kacheln, auf
+   * denen jede Figur logisch einen 2×2-Block belegt. Es liest den Plan live
+   * (Graph und Schrägen), also wird es einmal je Plan gebaut und nie neu.
+   */
+  private cells: CellGrid | null = null;
+  /** Für wen es gebaut ist — ein neuer Plan bekommt ein neues. */
+  private cellsFor: GridPlan | null = null;
+  /** Die Anzeige der belegten Blöcke (_Menü → Grafik → Belegte Felder_). */
+  private readonly footprints = new FootprintView();
+  private readonly occupants: Occupant[] = [];
   /**
    * **Was der Kamera die Figur verdecken kann** — Wände, Massen, Bausteine
    * (`wallGhost.ts`).
@@ -768,6 +786,9 @@ export abstract class GridWorld extends PortalWorld {
     const group = this.group;
     if (!plan || !group) return;
     const points = new Map<number, number[]>();
+    // **Und die halben Kacheln dazwischen, blasser** (`nav/cellGrid.ts`): Auf
+    // ihnen stehen die Figuren, auf den ganzen die Möbel.
+    const halves = new Map<number, number[]>();
     for (const key of plan.graph.tileKeys()) {
       const level = keyLevel(key);
       const y = plan.graph.levelY(level) + (plan.graph.tile(key)?.rise ?? 0) + GRID_LINE_LIFT;
@@ -803,6 +824,21 @@ export abstract class GridWorld extends PortalWorld {
         z0,
       );
       points.set(level, into);
+      const xm = x0 + TILE / 2,
+        zm = z0 + TILE / 2;
+      const half = halves.get(level) ?? [];
+      half.push(xm, y, z0, xm, y, z1, x0, y, zm, x1, y, zm);
+      halves.set(level, half);
+    }
+    for (const [level, list] of halves) {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(list, 3));
+      const lines = new THREE.LineSegments(geometry, this.gridCellMaterial());
+      lines.name = `grid-cells:${level}`;
+      lines.userData.level = level;
+      lines.visible = false;
+      group.add(lines);
+      this.gridLines.push(lines);
     }
     for (const [level, list] of points) {
       const geometry = new THREE.BufferGeometry();
@@ -837,6 +873,17 @@ export abstract class GridWorld extends PortalWorld {
     return this.gridLineSkin;
   }
 
+  /** Das Material der halben Kacheln — dieselbe Farbe, halb so deutlich. */
+  private gridCellMaterial(): THREE.Material {
+    this.gridCellSkin ??= new THREE.LineBasicMaterial({
+      color: 0x9ec4ff,
+      transparent: true,
+      opacity: 0.14,
+      depthWrite: false,
+    });
+    return this.gridCellSkin;
+  }
+
   /**
    * **Sichtbar genau für die Ebene, auf der das Rig steht** — und nur, wenn
    * das Häkchen an ist.
@@ -851,6 +898,84 @@ export abstract class GridWorld extends PortalWorld {
     const on = graphics().gridLines;
     for (const lines of this.gridLines)
       lines.visible = on && lines.userData.level === this.rigLevel;
+  }
+
+  /**
+   * **Das Zellgitter des aktuellen Plans** — `null` ohne Plan.
+   *
+   * Für den Spieler mit `voidIsFree`: Außerhalb des Grundrisses trägt ihn die
+   * Physik (Gelände, Massen), und dort hat das Gitter nichts zu sagen.
+   */
+  protected cellGrid(): CellGrid | null {
+    const plan = this.grid;
+    if (!plan) return null;
+    if (this.cellsFor !== plan) {
+      this.cellsFor = plan;
+      this.cells = new CellGrid(
+        navCellSource(plan.graph, (key) => plan.slopeAt(key), { voidIsFree: true }),
+      );
+    }
+    return this.cells;
+  }
+
+  /**
+   * **Die Etage unter einer Stelle** — oder `null`, wenn dort keine Kachel
+   * liegt. Dann steht man außerhalb des Grundrisses, und das Gitter schweigt.
+   */
+  private cellLevel(x: number, z: number, y: number): number | null {
+    const key = this.grid?.graph.at(x, z, y) ?? NO_TILE;
+    return key === NO_TILE ? null : keyLevel(key);
+  }
+
+  /**
+   * **Die Zellsperre des Spielers** (`PhysicsLocomotion.cellGate`).
+   *
+   * Der Spieler steht optisch, wo er will, logisch auf dem 2×2-Block, auf den
+   * seine Füße gerundet werden (`snapCell`). Ein Schritt, der ihn auf einen
+   * Block brächte, der nicht frei ist — über eine Schräge, halb in eine Fuge
+   * mit Wand —, wird nicht gemacht. Wer schon auf einem gesperrten Block
+   * steht (abgesetzt, durch ein Portal gekommen), bleibt nicht kleben: Aus
+   * einem solchen Block heraus ist jeder Schritt erlaubt.
+   */
+  protected override playerCellGate(): CellGate | null {
+    return (fromX, fromZ, toX, toZ, y) => {
+      const grid = this.cellGrid();
+      if (!grid) return true;
+      const from = snapCell(fromX, fromZ),
+        to = snapCell(toX, toZ);
+      if (from.cx === to.cx && from.cz === to.cz) return true;
+      const level = this.cellLevel(toX, toZ, y);
+      if (level === null) return true;
+      const was = this.cellLevel(fromX, fromZ, y) ?? level;
+      if (!grid.footprintFree(from, was)) return true;
+      return grid.footprintFree(to, level);
+    };
+  }
+
+  /** Die belegten Blöcke zeigen: Spieler, Mitspieler, NPCs. */
+  private showFootprints(ctx: WorldContext): void {
+    const on = graphics().cellFootprints;
+    if (!on) {
+      this.footprints.group.visible = false;
+      return;
+    }
+    if (!this.footprints.group.parent) this.root.add(this.footprints.group);
+    const graph = this.grid?.graph;
+    const list = this.occupants;
+    list.length = 0;
+    const add = (x: number, z: number, y: number): void => {
+      const key = graph?.at(x, z, y) ?? NO_TILE;
+      if (!graph || key === NO_TILE) return;
+      const level = keyLevel(key);
+      list.push({ x, z, level, y: graph.levelY(level) + (graph.tile(key)?.rise ?? 0) });
+    };
+    add(ctx.rig.position.x, ctx.rig.position.z, ctx.rig.position.y);
+    ctx.avatars.forEachHead((head) => add(head.x, head.z, head.y - 1.2));
+    for (const npc of this.director?.crowd ?? []) {
+      npc.feet(_footprintFeet);
+      add(_footprintFeet.x, _footprintFeet.z, _footprintFeet.y);
+    }
+    this.footprints.update(on, this.cellGrid(), list);
   }
 
   /** Die Netze wieder weg — Formen einzeln, das geteilte Material zum Schluss. */
@@ -1620,6 +1745,7 @@ export abstract class GridWorld extends PortalWorld {
       [solid.x, solid.y, solid.z],
       portal,
       this.solid,
+      solid.yaw ?? 0,
     );
     // **Die Ebene bleibt am Quader hängen** (`core/cutaway.ts`, Plan E8): Von
     // oben verschwindet alles, was über der Ebene des Rigs liegt, und geraten
@@ -2331,6 +2457,7 @@ export abstract class GridWorld extends PortalWorld {
     this.stepBursts(dt);
     this.trackLevel(ctx);
     this.showGridLines();
+    this.showFootprints(ctx);
     this.stepWallGhosts(ctx);
     // **Vor den Einbauten**, damit ein Schild, das in diesem Bild gelesen
     // wird, sein Bild zum Aufbauen des Menüs bekommt (siehe `openReading`).
@@ -2382,7 +2509,7 @@ export abstract class GridWorld extends PortalWorld {
     if (!this.editable()) return;
     const saved = storedWorld(this.worldId());
     if (!saved) return;
-    plan.restore(saved.graph, saved.blocks, saved.masses, saved.fixtures);
+    plan.restore(saved.graph, saved.blocks, saved.masses, saved.fixtures, saved.slopes);
   }
 
   /** Für _Zurücksetzen_: der gespeicherte Umbau dieser Welt ist weg. */
@@ -2421,7 +2548,13 @@ export abstract class GridWorld extends PortalWorld {
     forgetWorld(this.worldId());
     const fresh = this.layout();
     this.planReady(fresh);
-    plan.restore(fresh.bare(), fresh.blocks(), fresh.masses(), fresh.saveFixtures());
+    plan.restore(
+      fresh.bare(),
+      fresh.blocks(),
+      fresh.masses(),
+      fresh.saveFixtures(),
+      fresh.saveSlopes(),
+    );
     this.announce(`Wieder ${this.originalName()}`);
   }
 
@@ -2454,7 +2587,7 @@ export abstract class GridWorld extends PortalWorld {
         );
         return;
       }
-      plan.restore(result.graph, result.blocks, result.masses, result.fixtures);
+      plan.restore(result.graph, result.blocks, result.masses, result.fixtures, result.slopes);
       this.planLoaded(plan);
       this.saveWorld(true);
       this.announce(`Geladen: ${result.file.name ?? result.file.world ?? 'Welt'}`);
@@ -2547,6 +2680,11 @@ export abstract class GridWorld extends PortalWorld {
     this.dropGridLines();
     this.gridLineSkin?.dispose();
     this.gridLineSkin = null;
+    this.gridCellSkin?.dispose();
+    this.gridCellSkin = null;
+    this.footprints.group.removeFromParent();
+    this.cells = null;
+    this.cellsFor = null;
     this.wallGhosts.length = 0;
     for (const material of this.ghostPalette.values()) material.dispose();
     this.ghostPalette.clear();

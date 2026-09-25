@@ -49,6 +49,7 @@ function roundTrip(plan: GridPlan): GridPlan {
     read.blocks,
     read.masses,
     read.fixtures,
+    read.slopes,
   );
 }
 
@@ -56,7 +57,7 @@ describe('Eine Welt als Datei', () => {
   it('trägt Format und Versionsnummer', () => {
     const file = writeWorld(house(), { world: 'test', saved: '2026-09-07T10:00:00.000Z' });
     expect(file.format).toBe(WORLD_FORMAT);
-    expect(file.version).toBe('0.3.0');
+    expect(file.version).toBe('0.4.0');
     expect(file.world).toBe('test');
     expect(file.saved).toBe('2026-09-07T10:00:00.000Z');
   });
@@ -414,5 +415,43 @@ describe('Der Dateiname', () => {
       'dark-2026-01-02.welt.json',
     );
     expect(worldFileName({ saved: '2026-01-02T00:00:00.000Z' })).toBe('welt-2026-01-02.welt.json');
+  });
+});
+
+describe('Wände unter 45° in der Datei', () => {
+  it('bringt jede Schräge samt Richtung zurück — und kostet die Kachel', () => {
+    const plan = house();
+    plan.slope(1, 1, 'slash').slope(2, 1, 'backslash');
+    const file = writeWorld(plan);
+    expect(file.slopes).toEqual([
+      { x: 1, z: 1, slope: 'slash' },
+      { x: 2, z: 1, slope: 'backslash' },
+    ]);
+    const back = roundTrip(plan);
+    expect(back.slopeAt(tileKey(1, 1))).toBe('slash');
+    expect(back.slopeAt(tileKey(2, 1))).toBe('backslash');
+    expect(back.graph.tile(tileKey(1, 1))?.cost).toBe(plan.graph.tile(tileKey(1, 1))?.cost);
+    // Gespeichert wird der blanke Boden, der Aufschlag kommt beim Laden wieder.
+    expect(back.bare().tile(tileKey(1, 1))?.cost).toBe(1);
+  });
+
+  it('schreibt keine Zeile, wo keine Schräge steht, und liest Fassung 0.3 weiter', () => {
+    const file = writeWorld(house());
+    expect(file.slopes).toBeUndefined();
+    const old = { ...file, version: '0.3.0' };
+    expect(readWorld(JSON.parse(JSON.stringify(old))).slopes).toEqual([]);
+  });
+
+  it('baut aus einer Schräge eine gedrehte Wand über die Diagonale', () => {
+    const plan = house();
+    plan.slope(1, 1, 'slash');
+    const wall = plan.solids().find((one) => one.yaw !== undefined)!;
+    expect(wall.kind).toBe('wall');
+    expect(wall.x).toBeCloseTo(1.5);
+    expect(wall.z).toBeCloseTo(1.5);
+    expect(wall.w).toBeCloseTo(Math.SQRT2);
+    expect(wall.yaw).toBeCloseTo(Math.PI / 4);
+    plan.slope(1, 1, null);
+    expect(plan.solids().some((one) => one.yaw !== undefined)).toBe(false);
   });
 });

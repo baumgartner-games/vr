@@ -170,6 +170,12 @@ export class RemoteAvatars extends THREE.Group {
   }
 
   /** Latest smoothed world head pose of a peer. */
+  /** Die Köpfe aller Mitspieler, deren Pose schon angekommen ist — für Anzeigen am Boden. */
+  forEachHead(visit: (position: THREE.Vector3) => void): void {
+    for (const avatar of this.avatars.values())
+      if (avatar.poses.head.primed) visit(avatar.poses.head.position);
+  }
+
   getHeadPose(peerId: string, position: THREE.Vector3): boolean {
     const avatar = this.avatars.get(peerId);
     if (!avatar?.poses.head.primed) return false;
