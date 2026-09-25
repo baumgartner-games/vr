@@ -1,6 +1,7 @@
 import { NavGraph } from '../nav/navGraph';
 import { NavFormatError, readNav, writeNav, type NavFile } from '../nav/navSerial';
-import { TILE, keyLevel, keyX, keyZ, tileKey, type Dir } from '../nav/navTile';
+import { TILE, keyLevel, keyX, keyZ, tileKey, type Dir, type TileKey } from '../nav/navTile';
+import type { Slope } from '../nav/cellGrid';
 import { BLOCKS, type BlockKind } from './blocks';
 import type { FixturePlacement, Props } from './fixtures/index';
 import { GRID_KINDS, type PlanSolidKind } from './solids';
@@ -73,7 +74,7 @@ export const WORLD_FORMAT = 'baumgartner-welt';
  * **abgelehnt** und nicht halb geladen: Eine Welt, der beim Laden die Hälfte
  * fehlt, sieht aus wie eine kaputte Welt und nicht wie eine zu neue.
  */
-export const WORLD_VERSION = '0.3.0';
+export const WORLD_VERSION = '0.4.0';
 
 /**
  * Welche Fassungen dieses Programm lesen kann.
@@ -86,13 +87,18 @@ export const WORLD_VERSION = '0.3.0';
  * deren vier Läufe alle auf dem Boden anfangen, und ein altes Programm kann
  * das nicht wissen — deshalb lehnt es sie ab.
  *
+ * **`0.4` bringt die Wände unter 45°** (`slopes`, `nav/cellGrid.ts`). Eine
+ * ältere Datei hat keine, und das ist eine leere Liste; ein älteres Programm
+ * ließe die Schrägen weg und hätte offene Ecken, wo Wände stehen — deshalb
+ * lehnt es eine `0.4`-Datei ab.
+ *
  * **Die Kacheln sind mit `0.3` einen Meter groß** und nicht mehr 2,5 m. Das
  * fällt hier gar nicht auf, weil es im Kopf der Navigationsdatei steht und
  * dort geprüft wird (`nav/navSerial.ts`): Eine Karte mit fremder Kachelgröße
  * wird abgelehnt, mit klarer Meldung. Zwei Prüfungen für dieselbe Zahl wären
  * eine zu viel.
  */
-const READABLE: readonly string[] = ['0.1', '0.2', '0.3'];
+const READABLE: readonly string[] = ['0.1', '0.2', '0.3', '0.4'];
 
 /** Eine Kachel in der Datei: Spalte, Zeile, Etage. */
 interface TileRef {
@@ -165,6 +171,11 @@ export interface WorldFixtureEntry extends TileRef {
   props?: Props;
 }
 
+/** Eine Wand unter 45° in ihrer Kachel — seit Fassung `0.4`. */
+export interface WorldSlopeEntry extends TileRef {
+  slope: Slope;
+}
+
 /** Eine Welt, so wie sie in der Datei steht. */
 export interface WorldFile {
   format: typeof WORLD_FORMAT;
@@ -187,6 +198,8 @@ export interface WorldFile {
   masses: WorldMassEntry[];
   /** Die Einbauten — seit Fassung `0.2`. Eine ältere Datei hat die Zeile nicht. */
   fixtures: WorldFixtureEntry[];
+  /** Die Wände unter 45° — seit Fassung `0.4`. Fehlt, wenn es keine gibt. */
+  slopes?: WorldSlopeEntry[];
 }
 
 /** Was schiefgehen kann, wenn eine Datei nicht das ist, wofür sie sich ausgibt. */
@@ -228,7 +241,19 @@ export function writeWorld(plan: GridPlan, meta: WorldMeta = {}): WorldFile {
     blocks: plan.blocks().map(blockEntry),
     masses: plan.masses().map(massEntry),
     fixtures: plan.fixtures().map(fixtureEntry),
+    ...slopeEntries(plan),
   };
+}
+
+/** Die Schrägen — gar keine Zeile, wenn es keine gibt. */
+function slopeEntries(plan: GridPlan): { slopes?: WorldSlopeEntry[] } {
+  const slopes = plan.saveSlopes().map(({ tile, slope }) => {
+    const entry: WorldSlopeEntry = { x: keyX(tile), z: keyZ(tile), slope };
+    const level = keyLevel(tile);
+    if (level !== 0) entry.l = level;
+    return entry;
+  });
+  return slopes.length > 0 ? { slopes } : {};
 }
 
 /**
@@ -296,6 +321,8 @@ export interface WorldContents {
   masses: Mass[];
   /** Die Einbauten — bei einer Datei aus Fassung `0.1` eine leere Liste. */
   fixtures: FixturePlacement[];
+  /** Die Wände unter 45° — vor Fassung `0.4` eine leere Liste. */
+  slopes: Array<{ tile: TileKey; slope: Slope }>;
 }
 
 /**
@@ -337,6 +364,7 @@ export function readWorld(data: unknown): WorldContents {
     blocks: readBlocks(raw.blocks, graph),
     masses: readMasses(raw.masses),
     fixtures: readFixtures(raw.fixtures, graph),
+    slopes: readSlopes(raw.slopes, graph),
   };
 }
 
@@ -422,6 +450,23 @@ function readBlocks(list: unknown, graph: NavGraph): BlockPlacement[] {
  * Was ohne Kachel, ohne Kennung oder ohne Richtung dasteht, fällt trotzdem
  * weg: Das ist kein Einbau aus der Zukunft, sondern kaputt.
  */
+function readSlopes(list: unknown, graph: NavGraph): Array<{ tile: TileKey; slope: Slope }> {
+  if (list === undefined) return [];
+  if (!Array.isArray(list)) throw new WorldFormatError('„slopes" ist keine Liste');
+  const out: Array<{ tile: TileKey; slope: Slope }> = [];
+  const taken = new Set<TileKey>();
+  for (const raw of list) {
+    if (!raw || typeof raw !== 'object') continue;
+    const one = raw as Partial<WorldSlopeEntry>;
+    if (one.slope !== 'slash' && one.slope !== 'backslash') continue;
+    const tile = safeTile(one);
+    if (tile === null || !graph.has(tile) || taken.has(tile)) continue;
+    taken.add(tile);
+    out.push({ tile, slope: one.slope });
+  }
+  return out;
+}
+
 function readFixtures(list: unknown, graph: NavGraph): FixturePlacement[] {
   if (list === undefined) return [];
   if (!Array.isArray(list)) throw new WorldFormatError('„fixtures" ist keine Liste');

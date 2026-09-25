@@ -42,8 +42,10 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   Zeichnung liegt. Abweichungen gibt es, wo die Zeichnung Schrägen hat (das
   Raster kennt keine), wo ein kleiner Raum für seine Möbel größer sein muss
   (Security, O2, Navigation) und bei der Cafeteria, die gezeichnet größer
-  ist als gebaut. **Schrägen (45°-Wände) sind noch nicht gebaut**; was sie
-  für Wegsuche und Kollision bedeuten, steht in PR #221.
+  ist als gebaut. **Schrägen (45°-Wände) hat die Station noch nicht**: Der
+  Kern der Welten kann sie seit dem Zellgitter (`docs/agents/zellgitter.md`),
+  der eigene Kern der Station (`map/geometry.ts`, `stationNavigation.ts`)
+  noch nicht — das ist dort Stufe 2.
 - **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
   topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und was hinter
   offenen Türen innerhalb von `TOP_DOWN_REACH` = 6 m liegt. Über allem

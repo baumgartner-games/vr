@@ -179,6 +179,18 @@ const DOWN = { x: 0, y: -1, z: 0 };
  * stehen und der Kopf geht weiter — bis `LEAN_LIMIT`, denn ein Beugen ist ein
  * Beugen und kein Gang durch die Wand.
  */
+/**
+ * Ob der Spieler von (`fromX`, `fromZ`) nach (`toX`, `toZ`) darf — die Füße auf
+ * Höhe `y`. Gestellt von der Welt (`GridWorld.playerCellGate`).
+ */
+export type CellGate = (
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+  y: number,
+) => boolean;
+
 export class PhysicsLocomotion implements Locomotion {
   readonly velocity = new THREE.Vector3();
   grounded = false;
@@ -325,6 +337,42 @@ export class PhysicsLocomotion implements Locomotion {
     }
     if (!this.flight) this.flight = new THREE.Vector3();
     this.flight.copy(velocity);
+  }
+
+  /**
+   * **Die Zellsperre der Welt** (`worlds/nav/cellGrid.ts`): ob der Schritt von
+   * einer Stelle zur nächsten logisch erlaubt ist. `null` heißt, die Welt hat
+   * kein Zellgitter, und es zählt nur die Physik.
+   *
+   * Gefragt wird nach der Physik und nicht statt ihr: Die Wände hält weiter
+   * Rapier auf. Was die Sperre dazu tut, ist die Regel des Gitters — eine
+   * Figur steht logisch auf einem freien 2×2-Block —, und dort, wo Physik und
+   * Gitter verschieden antworten (eine Schräge, die Fuge zwischen zwei
+   * Kacheln), gewinnt das Gitter.
+   */
+  cellGate: CellGate | null = null;
+
+  /**
+   * Den Schritt dieses Bildes gegen die Zellsperre prüfen — erst ganz, dann
+   * nur längs x, dann nur längs z, sonst gar nicht. Dasselbe Gleiten wie an
+   * einer Wand, nur an der Kante eines Blocks.
+   */
+  private gateCells(at: { x: number; y: number; z: number }): void {
+    const gate = this.cellGate;
+    if (!gate || (_applied.x === 0 && _applied.z === 0)) return;
+    const x = at.x + _applied.x,
+      z = at.z + _applied.z;
+    if (gate(at.x, at.z, x, z, at.y)) return;
+    if (_applied.x !== 0 && gate(at.x, at.z, x, at.z, at.y)) {
+      _applied.z = 0;
+      return;
+    }
+    if (_applied.z !== 0 && gate(at.x, at.z, at.x, z, at.y)) {
+      _applied.x = 0;
+      return;
+    }
+    _applied.x = 0;
+    _applied.z = 0;
   }
 
   apply(rig: PlayerRig, velocity: THREE.Vector3, jump: boolean, dt: number): void {
@@ -476,6 +524,7 @@ export class PhysicsLocomotion implements Locomotion {
     }
 
     const t = this.body.translation();
+    this.gateCells(t);
     this.body.setNextKinematicTranslation({
       x: t.x + _applied.x,
       y: t.y + _applied.y,

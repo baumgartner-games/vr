@@ -274,3 +274,27 @@ describe('Einbauten setzen', () => {
     expect(plan.fixtures()).toHaveLength(0);
   });
 });
+
+describe('Die Schräge im Editor', () => {
+  it('dreht bei jedem Tippen weiter: keine, ╱, ╲, keine', () => {
+    const plan = room();
+    const spot = { tile: tileKey(1, 1), dir: null };
+    expect(applyGridTool(plan, 'slope', spot).says).toBe('Schräge ╱');
+    expect(plan.slopeAt(spot.tile)).toBe('slash');
+    expect(applyGridTool(plan, 'slope', spot).says).toBe('Schräge ╲');
+    expect(plan.slopeAt(spot.tile)).toBe('backslash');
+    expect(applyGridTool(plan, 'slope', spot).says).toBe('Schräge weg');
+    expect(plan.slopeAt(spot.tile)).toBeNull();
+  });
+
+  it('steht nur auf Boden und geht mit dem Radiergummi wieder weg', () => {
+    const plan = room();
+    expect(applyGridTool(plan, 'slope', { tile: tileKey(40, 40), dir: null }).changed).toBe(false);
+    const spot = { tile: tileKey(1, 1), dir: null };
+    applyGridTool(plan, 'slope', spot);
+    expect(applyGridTool(plan, 'erase', spot).says).toBe('Schräge weg');
+    expect(plan.slopeAt(spot.tile)).toBeNull();
+    // Der Boden darunter bleibt.
+    expect(plan.graph.has(spot.tile)).toBe(true);
+  });
+});

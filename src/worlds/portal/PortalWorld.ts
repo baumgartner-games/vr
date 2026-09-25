@@ -319,7 +319,7 @@ import {
   portalSurfaceGroup,
   type PhysicsBody,
 } from '../../physics/PhysicsWorld';
-import { PhysicsLocomotion } from '../../physics/PhysicsLocomotion';
+import { PhysicsLocomotion, type CellGate } from '../../physics/PhysicsLocomotion';
 import { HitboxView } from '../../physics/HitboxView';
 import { graphics } from '../../core/graphicsSettings';
 import { silentPhysics } from '../../physics/silentPhysics';
@@ -1613,6 +1613,7 @@ export class PortalWorld implements World {
 
     ctx.rig.placeFeetAt(this.spawnPoint(), this.spawnYaw());
     this.locomotion = new PhysicsLocomotion(this.physics, ctx.rig);
+    this.locomotion.cellGate = this.playerCellGate();
     ctx.rig.setLocomotion(this.locomotion);
     this.applyWorldPhysics();
     this.unsubscribePhysics = onWorldPhysicsChange(() => this.applyWorldPhysics());
@@ -5294,6 +5295,15 @@ export class PortalWorld implements World {
     chamber.add(sign);
   }
 
+  /**
+   * **Die Zellsperre für den Spieler** (`PhysicsLocomotion.cellGate`) — `null`
+   * in einer Welt ohne Gitter. Die Welten auf dem Gitter stellen sie
+   * (`GridWorld`).
+   */
+  protected playerCellGate(): CellGate | null {
+    return null;
+  }
+
   /** Adds a box that is both visible and solid. */
   protected slab(
     parent: THREE.Object3D,
@@ -5302,9 +5312,13 @@ export class PortalWorld implements World {
     position: readonly [number, number, number],
     portalable: boolean,
     physics = true,
+    yaw = 0,
   ): THREE.Mesh {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
     mesh.position.set(position[0], position[1], position[2]);
+    // Gedreht wird vor dem Körper: Der Collider übernimmt die Lage des Meshes
+    // (`PhysicsWorld.addStatic`) — die Wand unter 45° (`gridPlan.slopeSolid`).
+    if (yaw !== 0) mesh.rotation.y = yaw;
     mesh.name = portalable ? 'surface:panel' : 'surface:shielded';
     parent.add(mesh);
     mesh.updateWorldMatrix(true, false);

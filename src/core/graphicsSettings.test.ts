@@ -32,6 +32,8 @@ describe('Grafikeinstellungen', () => {
       xrScale: 1,
       showFps: false,
       gridLines: false,
+      // Die belegten Felder der Figuren sind eine Werkstattansicht: ab Werk aus.
+      cellFootprints: false,
       showPosition: false,
       hitBoxes: false,
       ghostBoxes: false,

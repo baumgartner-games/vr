@@ -80,11 +80,11 @@ export const PLAN_WINDOW_HEAD = 2.1;
 /**
  * **Womit ein Werkzeug auf den Plan zeigt** — was man gerade baut.
  *
- * Vier und nicht mehr: Ein Editor mit zwanzig Werkzeugen ist einer, in dem man
- * das richtige sucht. Boden, Wand, Tür — und der Radiergummi, der alles drei
- * wieder wegnimmt, je nachdem, worauf man zeigt.
+ * Fünf und nicht mehr: Ein Editor mit zwanzig Werkzeugen ist einer, in dem man
+ * das richtige sucht. Boden, Wand, Tür, die Schräge unter 45° — und der
+ * Radiergummi, der alles wieder wegnimmt, je nachdem, worauf man zeigt.
  */
-export type PlanTool = 'floor' | 'wall' | 'door' | 'erase';
+export type PlanTool = 'floor' | 'wall' | 'door' | 'slope' | 'erase';
 
 export interface PlanToolSpec {
   id: PlanTool;
@@ -112,6 +112,15 @@ export const PLAN_TOOLS: readonly PlanToolSpec[] = [
     label: 'Tür',
     sub: 'In eine Wand, die schon steht',
     accent: 0xe58aa8,
+  },
+  {
+    // **Die Wand unter 45°** (`nav/cellGrid.ts`, `GridPlan.slope`) — sie lebt
+    // im Bauplan und nicht im Graphen, darum setzt sie `gridTool.applyGridTool`
+    // und nicht `applyTool` hier.
+    id: 'slope',
+    label: 'Schräge',
+    sub: 'Quer durch eine Kachel · nochmal tippen dreht, ein drittes Mal nimmt sie weg',
+    accent: 0xffc24d,
   },
   {
     id: 'erase',
@@ -165,6 +174,9 @@ export function applyTool(plan: NavGraph, tool: PlanTool, spot: PlanSpot): PlanE
       return setWall(plan, spot, 'door');
     case 'erase':
       return erase(plan, spot);
+    case 'slope':
+      // Steht im Bauplan, nicht im Graphen (`gridTool.applyGridTool`).
+      return NOTHING;
   }
 }
 

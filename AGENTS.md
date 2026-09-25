@@ -147,6 +147,7 @@ Stichpunkten).
 ### Architektur
 
 - **[Architektur](docs/agents/architektur.md)** — Der Überblick: welcher Ordner was tut, und warum die Rechnung neben der Darstellung steht.
+- **[Das Zellgitter](docs/agents/zellgitter.md)** — Halbe Kacheln, Figuren auf 2 × 2, Wände unter 45° — und was noch nicht auf Zellen läuft.
 - **[Wie schön es aussieht](docs/agents/grafik.md)** — Licht, Schatten, Regler — und was ein Bild in der Brille kostet.
   Darin: Die schwarze Kante · Die Brille rechnet kleiner, wenn man es sagt · Die Gitterlinien · Die Hitboxen · Ghosting zeigen · Position zeigen · Griffe zeigen · Squishy: die Figur federt beim Laufen und atmet im Stehen · Was die Kamera ansieht · Warum tausend Bodenkacheln trotzdem ein Zeichenaufruf sind · Und die Wände auch — nur nicht von oben · Wer sagt, dass er keinen Schatten wirft, wirft keinen · Zwei Zahlen, die man einmal kennen sollte · Die Messstrecke der Küche — und wer die Aufrufe verbraucht · Und eine Tafel malt sich nicht neu, wenn dasselbe daraufsteht.
 - **[Modelle im Repository](docs/agents/modelle.md)** — Welche Datei welches Netz hergibt, wie zugeschnitten wird und was es wiegt.

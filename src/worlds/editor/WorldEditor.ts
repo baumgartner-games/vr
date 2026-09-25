@@ -1744,6 +1744,8 @@ function box(
 ): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(solid.w, solid.h, solid.d), material);
   mesh.position.set(solid.x - offset.x, solid.y, solid.z - offset.z);
+  // Die Schräge steht auch auf dem Tischmodell schräg (`gridPlan.slopeSolid`).
+  if (solid.yaw) mesh.rotation.y = solid.yaw;
   mesh.name = `plan:${solid.kind}`;
   return mesh;
 }

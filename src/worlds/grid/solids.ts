@@ -73,6 +73,13 @@ export interface PlanSolid {
   /** Bei einer Tür: ihr Name im Plan — daran erkennt man das Blatt wieder. */
   door?: string;
   /**
+   * **Um die Hochachse gedreht**, im Bogenmaß — bisher nur die Wand unter 45°
+   * (`gridPlan.slopeSolid`). Ohne Angabe steht der Quader achsparallel, und so
+   * rechnen alle, die nur Kästen kennen (`solidBounds`, Ghosting): Für sie ist
+   * eine gedrehte Wand ein Kasten um ihre Mitte.
+   */
+  yaw?: number;
+  /**
    * **Auf welcher Etage er steht** — die Marke, an der von oben aufgeschnitten
    * wird (`core/cutaway.ts`, Plan E8).
    *

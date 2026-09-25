@@ -210,6 +210,13 @@ Metergitter ist das die Frage, die man beim Bauen alle zwei Minuten hat, und
 ein Netz, für das man erst die Karte vom Gürtel ziehen muss, beantwortet sie
 nicht.
 
+Seit dem Zellgitter (`docs/agents/zellgitter.md`) liegen **die halben Kacheln
+blass dazwischen** (`grid-cells:<Etage>`, eigenes Material mit einem Drittel
+der Deckkraft): Auf ihnen stehen die Figuren, auf den ganzen die Möbel. Das
+Häkchen daneben, _Belegte Felder_ (`GraphicsSettings.cellFootprints`, ab Werk
+aus), zeigt unter jeder Figur ihren 2 × 2-Block — grün frei, rot gesperrt
+(`grid/footprintView.ts`).
+
 Vier Sachen sind daran entschieden (`GridWorld`, `buildGridLines`):
 
 - **Je Etage ein Netz und nicht eines für alles.** Gezeichnet wird ein
