@@ -94,33 +94,61 @@ export function slideCircle(
     // — und nicht das Ende der anderen, das ihn sonst um die Fuge herum ein
     // Stück vorwärtsschöbe.
     for (let round = 0; round < PUSH_ROUNDS; round++) {
-      let deepest: PlaneWall | null = null;
-      let deepestReach = 0;
-      let depth = 1e-9;
-      for (const wall of walls) {
-        // Eine Einbahnwand zählt nur für den, der vor dem Stück draußen stand
-        // — und wer gerade erst von der Treppe heruntergeht, steckt noch halb
-        // darin. Ihn hält sie nur dort, wo er schon ist: Er kommt nicht zurück
-        // hinein, wird aber auch nicht mit einem Ruck hinausgeworfen.
-        let reach = radius;
-        if (wall.outside) {
-          if (sideOf(wall, fromX, fromZ) <= 0) continue;
-          reach = Math.min(radius, gapTo(wall, fromX, fromZ));
-        }
-        const inside = reach - gapTo(wall, px, pz);
-        if (inside > depth) {
-          depth = inside;
-          deepest = wall;
-          deepestReach = reach;
-        }
-      }
+      const deepest = deepestWall(walls, px, pz, fromX, fromZ, radius);
       if (!deepest) break;
-      const out = pushOut(deepest, px, pz, fromX, fromZ, deepestReach);
+      const out = pushOut(deepest.wall, px, pz, fromX, fromZ, deepest.reach);
       px = out.x;
       pz = out.z;
     }
+    // **Wo der Kreis nicht hinpasst, bleibt er stehen.** In einer Lücke, die
+    // schmaler ist als er (zwischen einer Schräge und einer Mauerecke der
+    // Station), schob ihn jede Wand in die andere, und er pendelte Bild für
+    // Bild zwischen zwei Stellen hin und her. Steckt er nach allen Runden
+    // noch in einer Wand — und tiefer als vor dem Stück —, gilt das Stück
+    // nicht.
+    const left = deepestWall(walls, px, pz, fromX, fromZ, radius);
+    if (left && left.depth > STUCK) {
+      const before = deepestWall(walls, fromX, fromZ, fromX, fromZ, radius);
+      if (!before || left.depth >= before.depth - 1e-6) {
+        px = fromX;
+        pz = fromZ;
+        break;
+      }
+    }
   }
   return { x: px, z: pz };
+}
+
+/** Wie tief der Kreis nach allen Runden noch in einer Wand stecken darf, in Metern. */
+const STUCK = 1e-4;
+
+/**
+ * **Die Wand, in der der Kreis um (`px`, `pz`) am tiefsten steckt** — samt
+ * ihrer Reichweite und der Tiefe, oder `null`, wenn er keine berührt.
+ */
+function deepestWall(
+  walls: readonly PlaneWall[],
+  px: number,
+  pz: number,
+  fromX: number,
+  fromZ: number,
+  radius: number,
+): { wall: PlaneWall; reach: number; depth: number } | null {
+  let best: { wall: PlaneWall; reach: number; depth: number } | null = null;
+  for (const wall of walls) {
+    // Eine Einbahnwand zählt nur für den, der vor dem Stück draußen stand —
+    // und wer gerade erst von der Treppe heruntergeht, steckt noch halb
+    // darin. Ihn hält sie nur dort, wo er schon ist: Er kommt nicht zurück
+    // hinein, wird aber auch nicht mit einem Ruck hinausgeworfen.
+    let reach = radius;
+    if (wall.outside) {
+      if (sideOf(wall, fromX, fromZ) <= 0) continue;
+      reach = Math.min(radius, gapTo(wall, fromX, fromZ));
+    }
+    const depth = reach - gapTo(wall, px, pz);
+    if (depth > (best?.depth ?? 1e-9)) best = { wall, reach, depth };
+  }
+  return best;
 }
 
 /** Auf welcher Seite einer Einbahnwand ein Punkt liegt: > 0 heißt draußen. */
