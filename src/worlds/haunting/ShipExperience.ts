@@ -1973,6 +1973,15 @@ ANTIPPEN: ZUM SAFE-RAUM`,
    * (`SPACE_RANGER`): Umgefärbte Materialien und ein Brustgurt aus Quadern
    * gehörten zur gebauten Figur. Geblieben ist die Wunde, die der Anzug zeigt,
    * und wer den eigenen Körper sieht.
+   *
+   * **Aus den eigenen Augen niemand** — in der Brille so wenig wie am Schirm.
+   * Die Brille hat den Körper eine Weile auf Ebene 0 dazugeschaltet
+   * bekommen, und dann stand der Techniker in seinem eigenen Rumpf: Arme, die
+   * den getrackten Händen hinterherhingen, ein Helm vor der Nase. Jetzt gilt
+   * dieselbe Regel wie in der Testwelt (`PlayerAvatar`, `LAYER_SELF_ONLY`):
+   * man sieht die eigenen Hände (`HandVisuals`), den Anzug nur im Spiegel und
+   * durchs Portal. Die anderen sehen ohnehin nicht diesen Körper, sondern die
+   * Figur aus dem Netz — für sie bleibt der Techniker ganz.
    */
   private buildSuit(): void {
     const avatar = this.host.ctx.avatar;
@@ -1984,15 +1993,13 @@ ANTIPPEN: ZUM SAFE-RAUM`,
     this.updateSuitVisibility();
   }
   private updateSuitVisibility(): void {
+    // Nachgezogen wird trotzdem bei jedem Wechsel in die Brille und zurück:
+    // Was dazwischen am Körper angebaut wurde, soll auf keiner anderen Ebene
+    // hängen als der Rest.
     const immersive = this.host.ctx.renderer.xr.isPresenting;
     if (this.suitImmersive === immersive) return;
     this.suitImmersive = immersive;
-    const avatar = this.host.ctx.avatar;
-    avatar.traverse((object) => {
-      object.layers.set(LAYER_SELF_ONLY);
-      if (immersive) object.layers.enable(0);
-    });
-    avatar.head.traverse((object) => object.layers.set(LAYER_SELF_ONLY));
+    this.host.ctx.avatar.traverse((object) => object.layers.set(LAYER_SELF_ONLY));
   }
 
   private commandAction(index: number): void {

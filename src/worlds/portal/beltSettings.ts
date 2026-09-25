@@ -3,7 +3,8 @@
  *
  * Die Zahlen standen bis eben als drei Konstanten mitten in `ToolBelt.update`,
  * und damit hing der Gürtel bei allen gleich: 26 cm zur Seite, auf halber
- * Augenhöhe, vier Zentimeter hinter der Körpermitte. Das ist für jemanden mit
+ * Augenhöhe (seit dem Hochsetzen 0,65 davon, siehe `DEFAULT_BELT`), vier
+ * Zentimeter hinter der Körpermitte. Das ist für jemanden mit
  * langen Armen ein bequemer Griff und für jemanden mit kurzen eine Verrenkung
  * — und niemand konnte etwas daran ändern, weil es nirgends eine Stelle dafür
  * gab. Jetzt gibt es eine: der Gürtel-Justierer zeigt auf eine Hüfte, und die
@@ -36,11 +37,19 @@ export interface BeltOffset {
 }
 
 /**
- * Wie der Gürtel ausgeliefert wird — dieselben drei Zahlen, die vorher fest
- * im Code standen. Vier Zentimeter *hinter* der Mitte: ein Halfter sitzt an
- * der Hüfte und nicht auf dem Bauch.
+ * Wie der Gürtel ausgeliefert wird. Vier Zentimeter *hinter* der Mitte: ein
+ * Halfter sitzt an der Hüfte und nicht auf dem Bauch.
+ *
+ * **Höhe 0,65 der Augenhöhe**, nicht mehr die Hälfte. Die halbe Augenhöhe war
+ * der Schritt und nicht der Gürtel: bei 1,60 m Augenhöhe hingen die Hüften auf
+ * 0,80 m, eine Handbreit unter den hängenden Händen, und jeder Griff zum
+ * Holster war ein Bücken. Ein Hosenbund sitzt bei rund 0,6 der Körpergröße,
+ * die Augen bei rund 0,93 — das sind 0,65 der Augenhöhe: 1,04 m bei 1,60 m,
+ * also gut einen halben Meter unter dem Kopf, dort, wo die Hand beim Stehen
+ * von selbst hinfällt. Test- und Spukwelt teilen diese eine Zahl, weil beide
+ * denselben `ToolBelt` aus `PortalWorld` tragen.
  */
-export const DEFAULT_BELT: BeltOffset = { side: 0.26, height: 0.5, forward: -0.04 };
+export const DEFAULT_BELT: BeltOffset = { side: 0.26, height: 0.65, forward: -0.04 };
 
 /** Grenzen, damit eine ziehende Hand den Gürtel nicht in die nächste Wand schiebt. */
 export const BELT_LIMITS = {
@@ -150,7 +159,7 @@ export function beltSlotPoint(
   };
 }
 
-/** Was in der Brille an einer Hüfte steht: „26 cm · 0,50 · 4 cm hinten". */
+/** Was in der Brille an einer Hüfte steht: „26 cm · 0,65 · 4 cm hinten". */
 export function beltLabel(offset: BeltOffset): string {
   const belt = clampBelt(offset);
   const depth = Math.abs(Math.round(belt.forward * 100));

@@ -28,7 +28,7 @@ const SIDES: readonly Handedness[] = ['left', 'right'];
  * die Hände sind.
  *
  * Wo der Gürtel hängt, war bis eben eine Entscheidung des Codes — 26 cm zur
- * Seite, halbe Augenhöhe, vier Zentimeter nach hinten. Das passt dem, für den
+ * Seite, feste Höhe, vier Zentimeter nach hinten. Das passt dem, für den
  * es gemessen wurde. Wer kürzere Arme hat, greift daneben; wer im Sitzen
  * spielt, greift in den Stuhl. Und man merkt es nicht beim Lesen, sondern beim
  * dritten Fehlgriff mitten im Spiel.

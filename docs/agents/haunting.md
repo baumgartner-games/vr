@@ -380,6 +380,11 @@ und nicht aus `APRON.z` plus einer geratenen Zahl.
     `ctx.dress(SPACE_RANGER)` und `ctx.wear('space')`, siehe
     `docs/agents/spielfigur.md`, _Geliehen_). Das Umfärben des eigenen Körpers
     und der gebaute Brustgurt (`EVA / 03`) sind damit weg.
+    **In der Brille sieht der Techniker nur seine Hände**, wie in der
+    Testwelt: Der Körper liegt auch dort ganz auf `LAYER_SELF_ONLY`
+    (`ShipExperience.updateSuitVisibility`), also nur im Spiegel und durchs
+    Portal. Vorher schaltete die Brille ihn auf Ebene 0 dazu, und man stand im
+    eigenen Rumpf. Die anderen sehen die Figur aus dem Netz, ganz wie vorher.
     **Der gebaute Körper bleibt der Ersatz** und wird beim Eintreffen der Figur
     nur ausgeblendet, nie weggeworfen (dasselbe Muster wie `core/AvatarBody`
     mit dem Koch): Eine Runde, die erst anfängt, wenn ein Monster geladen ist,
