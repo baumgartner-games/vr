@@ -249,3 +249,15 @@ describe('Der Auftrag', () => {
     expect(Math.hypot(step.vx, step.vz)).toBeLessThan(full * 0.1);
   });
 });
+
+describe('Treffer auf dem Zellgitter', () => {
+  it('misst die Reichweite von Block zu Block, wenn die Welt sie mitgibt', () => {
+    const chase = brainOf('chase').tuning;
+    const player = { x: 0, z: -(chase.reach - 0.1) };
+    // Gezeichnet in Reichweite, die festen Blöcke aber weiter auseinander.
+    const far = stepBrain('chase', newBrainState(0), sense({ player, range: chase.reach + 0.5 }));
+    expect(far.gait).not.toBe('strike');
+    const near = stepBrain('chase', newBrainState(0), sense({ player, range: chase.reach }));
+    expect(near.gait).toBe('strike');
+  });
+});

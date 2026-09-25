@@ -4,6 +4,9 @@ import { DIR_E, tileKey, type TileKey } from './navTile';
 import {
   CELL,
   CellGrid,
+  blockStart,
+  cellsFor,
+  moveOnCells,
   cellCentre,
   navCellSource,
   slopeBlocks,
@@ -153,5 +156,63 @@ describe('Das Zellgitter — halbe Kacheln, Figuren auf 2×2', () => {
     const loose = new CellGrid(navCellSource(graph, () => null, { voidIsFree: true }));
     expect(strict.footprintFree({ cx: 10, cz: 10 })).toBe(false);
     expect(loose.footprintFree({ cx: 10, cz: 10 })).toBe(true);
+  });
+});
+
+describe('Blöcke jeder Größe und die eine Bewegung', () => {
+  const open: CellSource = { floor: () => true, open: () => true, slope: () => null };
+
+  it('stellt 1×1 in eine Zellmitte, 2×2 auf eine Zellecke, 3×3 wieder in eine Mitte', () => {
+    expect(snapCell(0.3, 0.3, 1)).toEqual({ cx: 0, cz: 0 });
+    expect(cellCentre({ cx: 0, cz: 0 }, 1)).toEqual({ x: 0.25, z: 0.25 });
+    expect(snapCell(0.3, 0.3, 2)).toEqual({ cx: 1, cz: 1 });
+    expect(snapCell(0.3, 0.3, 3)).toEqual({ cx: 0, cz: 0 });
+    expect(blockStart(0, 3)).toBe(-1);
+    expect(cellsFor(0.5)).toBe(1);
+    expect(cellsFor(0.6)).toBe(2);
+    expect(cellsFor(1)).toBe(2);
+  });
+
+  it('prüft jede Kachelkante im Inneren eines großen Blocks', () => {
+    const { graph } = room();
+    graph.setWall(tileKey(1, 1), DIR_E, { kind: 'solid' });
+    const grid = new CellGrid(navCellSource(graph, () => null));
+    // 1×1 passt neben die Wand, 3×3 über sie nicht.
+    expect(grid.footprintFree({ cx: 3, cz: 3 }, 0, 1)).toBe(true);
+    expect(grid.footprintFree({ cx: 4, cz: 3 }, 0, 3)).toBe(false);
+    expect(grid.footprintFree({ cx: 5, cz: 3 }, 0, 3)).toBe(true);
+  });
+
+  it('gleitet an einer Wand entlang und kommt nicht hindurch', () => {
+    const { grid } = room();
+    // An der Nordwand: nach Norden geht nichts, schräg bleibt die Ostbewegung.
+    const at = { x: 1.5, z: 0.5 };
+    const moved = moveOnCells(grid, at, 0.2, -0.2);
+    expect(moved.x).toBeCloseTo(1.7);
+    expect(snapCell(moved.x, moved.z).cz).toBe(1);
+    // Hundert kleine Schritte nach Westen enden an der Westwand, nicht dahinter.
+    let p = { x: 1.5, z: 1.5 };
+    for (let i = 0; i < 100; i++) p = moveOnCells(grid, p, -0.05, 0);
+    expect(p.x).toBeGreaterThanOrEqual(0.25);
+    expect(grid.footprintFree(snapCell(p.x, p.z))).toBe(true);
+  });
+
+  it('schlüpft in kleinen Schritten über Eck, wie es das Bild erlaubt', () => {
+    // [w][ ][ ] / [p][p][ ] / [p][p][w] → rechts oben, in Zellen.
+    const grid = new Picture(['#..', '...', '..#']);
+    let p = cellCentre({ cx: 1, cz: 2 });
+    for (let i = 0; i < 20; i++) p = moveOnCells(grid, p, 0.025, -0.025);
+    expect(snapCell(p.x, p.z)).toEqual({ cx: 2, cz: 1 });
+    // Gerade in die Ecke hinein geht es dagegen nicht.
+    let q = cellCentre({ cx: 1, cz: 2 });
+    for (let i = 0; i < 20; i++) q = moveOnCells(grid, q, 0.05, 0);
+    expect(snapCell(q.x, q.z)).toEqual({ cx: 1, cz: 2 });
+  });
+
+  it('lässt aus einem gesperrten Block heraus', () => {
+    const grid = new CellGrid({ ...open, floor: (tx) => tx >= 0 });
+    const at = { x: 0.1, z: 1 };
+    expect(grid.footprintFree(snapCell(at.x, at.z))).toBe(false);
+    expect(moveOnCells(grid, at, 0.3, 0).x).toBeCloseTo(0.4);
   });
 });

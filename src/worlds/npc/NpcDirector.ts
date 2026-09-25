@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Npc, type NavRun } from './Npc';
 import type { BarMode } from './NpcBody';
 import type { NavGraph } from '../nav/navGraph';
+import type { CellGrid } from '../nav/cellGrid';
 import type { PathPoint } from '../nav/navPath';
 import { npcSkin, type NpcKind } from './npcKinds';
 import { brainLabel, type BrainId } from './npcBrains';
@@ -75,6 +76,13 @@ export interface NpcWorld {
    * jeder wieder Luftlinie, so wie vorher.
    */
   nav?: () => NavGraph | null;
+  /**
+   * **Das Zellgitter dieser Welt** (`worlds/nav/cellGrid.ts`) — `null`, wenn
+   * es keines gibt. Wo es eines gibt, entscheidet allein es, wohin ein NPC
+   * gehen kann (`Npc.update`, `moveOnCells`); Wände und Möbel darauf hält
+   * die Physik für ihn nicht mehr auf.
+   */
+  cells?: () => CellGrid | null;
 }
 
 /** Und was ein Werkzeug oder ein Menü damit tun darf. */
@@ -519,6 +527,7 @@ export class NpcDirector implements NpcControl {
     const run: NavRun | null = graph
       ? {
           graph,
+          cells: this.world.cells?.() ?? null,
           at: player ? { x: player.x, y: player.y, z: player.z } : null,
           now: this.time,
         }

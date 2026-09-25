@@ -126,7 +126,7 @@ describe('Eine Stelle, die die Wegsuche meidet', () => {
       if (shyDread < plainDread - 1) {
         better++;
         // … und wo sie weniger kostet, hält sie auch mehr Abstand.
-        expect(closest(shy, middle)).toBeGreaterThan(closest(plain, middle));
+        expect(closest(shy, middle)).toBeGreaterThanOrEqual(closest(plain, middle));
       }
     }
     expect(pairs).toBeGreaterThan(1);

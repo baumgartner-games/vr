@@ -5,6 +5,7 @@ import { brainOf, type BrainId, type BrainTuning } from './npcBrains';
 import { hitZone, type HitBody, type HitZone } from './npcHit';
 import { npcSkin, type NpcKind, type NpcSkin } from './npcKinds';
 import {
+  GROUP_CELL,
   GROUP_NPC,
   ALL_GROUPS,
   type PhysicsBody,
@@ -17,7 +18,15 @@ import { fallDamage, fallHeight } from '../nav/navFall';
 import { GUARD_SENSES, ZOMBIE_SENSES } from '../nav/navPerception';
 import type { NavGraph } from '../nav/navGraph';
 import { profileOf } from '../nav/navProfile';
-import { NO_TILE, type TileKey } from '../nav/navTile';
+import { NO_TILE, keyLevel, type TileKey } from '../nav/navTile';
+import {
+  FOOTPRINT,
+  cellCentre,
+  glides,
+  moveOnCells,
+  snapCell,
+  type CellGrid,
+} from '../nav/cellGrid';
 import { yawThrough } from '../portal/portalCrossing';
 
 /**
@@ -83,6 +92,14 @@ export class Npc {
    * hineingeschrieben wird, ist keine mehr, sondern ein Schweben.
    */
   private flying = 0;
+  /**
+   * **Wie viele halbe Kacheln er je Seite belegt** (`NpcSkin.cells`, Vorgabe
+   * 2). Logisch steht er auf einem Block dieser Größe (`nav/cellGrid.ts`),
+   * gezeichnet wird er dazwischen.
+   */
+  readonly cells: number;
+  /** Die letzte Stelle, deren Block frei war — wohin ihn das Gitter zurückholt. */
+  private readonly lastFree = { x: 0, z: 0, known: false };
   /**
    * Wie schnell er in diesem Sturz höchstens gefallen ist, in m/s — `0`,
    * solange er steht (`land`).
@@ -160,6 +177,7 @@ export class Npc {
     errand?: THREE.Vector3 | null;
   }) {
     const skin = npcSkin(options.kind);
+    this.cells = Math.max(1, Math.round(skin.cells ?? FOOTPRINT));
     this.physics = options.physics;
     this.skin = skin;
     this.brain = options.brain;
@@ -194,7 +212,9 @@ export class Npc {
       // Kugel nicht. Die prallte sonst vor der Trefferzone ab und träfe nie
       // (`PhysicsWorld.GROUP_NPC`).
       membership: GROUP_NPC,
-      filter: ALL_GROUPS,
+      // **Wände, Türen und Möbel der Gitterwelten** (`GROUP_CELL`) hält nicht
+      // die Physik auf, sondern das Zellgitter (`update`, `moveOnCells`).
+      filter: ALL_GROUPS & ~GROUP_CELL,
     });
     this.entry.body.lockRotations(true, true);
     this.entry.previousPosition.copy(this.holder.position);
@@ -353,13 +373,21 @@ export class Npc {
 
     if (this.land()) return false;
 
+    const grid = nav?.cells ?? null;
+    const level = grid ? this.cellLevel(nav!.graph) : null;
+    if (grid && level !== null) this.holdOnCells(grid, level);
     const t = this.entry.body.translation();
     const waypoint = this.navigate(dt, { x: t.x, z: t.z }, player, nav ?? null);
     const goal = this.errand ? { x: this.errand.x, z: this.errand.z } : null;
+    // **Getroffen wird von Block zu Block**: Auf dem Gitter zählt der Abstand
+    // zwischen seinem festen Block und dem des Spielers (2 × 2), nicht der
+    // zwischen den gezeichneten Stellen dazwischen.
+    const range =
+      grid && player ? blockGap({ x: t.x, z: t.z }, this.cells, player, FOOTPRINT) : undefined;
     const step = stepBrain(
       this.brain,
       this.state,
-      { at: { x: t.x, z: t.z }, yaw: this.yaw, player, waypoint, goal, dt, random },
+      { at: { x: t.x, z: t.z }, yaw: this.yaw, player, waypoint, goal, dt, random, range },
       this.externallyNavigated ? this.navigatorTuning! : this.tuning,
     );
 
@@ -387,6 +415,13 @@ export class Npc {
     // Schweben.
     this.flying = Math.max(0, this.flying - dt);
     if (this.flying === 0) {
+      // **Wohin er gehen kann, sagt allein das Gitter** — ganz, längs x,
+      // längs z oder gar nicht, wie der Spieler (`moveOnCells`).
+      if (grid && level !== null && dt > 0 && (step.vx !== 0 || step.vz !== 0)) {
+        const to = moveOnCells(grid, t, step.vx * dt, step.vz * dt, level, this.cells);
+        step.vx = (to.x - t.x) / dt;
+        step.vz = (to.z - t.z) / dt;
+      }
       const velocity = this.entry.body.linvel();
       this.entry.body.setLinvel({ x: step.vx, y: velocity.y, z: step.vz }, true);
     }
@@ -407,6 +442,36 @@ export class Npc {
     if (step.attack) this.model.swing();
     this.model.setAlert(step.sees);
     return step.attack;
+  }
+
+  /** Die Etage, auf der seine Füße stehen — `null` außerhalb des Grundrisses. */
+  private cellLevel(graph: NavGraph): number | null {
+    this.feet(_feet);
+    const key = graph.at(_feet.x, _feet.z, _feet.y);
+    return key === NO_TILE ? null : keyLevel(key);
+  }
+
+  /**
+   * **Was die Physik mit ihm gemacht hat, prüft das Gitter.** Ein Stoß des
+   * Spielers oder eines anderen NPC kann ihn auf einen gesperrten Block
+   * schieben — in eine Wand, über die Fuge einer Tür. Dorthin kommt er nur
+   * über Eck (`glides`); sonst holt ihn das Gitter auf die letzte Stelle
+   * zurück, deren Block frei war.
+   */
+  private holdOnCells(grid: CellGrid, level: number): void {
+    const t = this.entry.body.translation();
+    const here = snapCell(t.x, t.z, this.cells);
+    if (grid.footprintFree(here, level, this.cells)) {
+      this.lastFree.x = t.x;
+      this.lastFree.z = t.z;
+      this.lastFree.known = true;
+      return;
+    }
+    const back = this.lastFree;
+    if (!back.known || glides(grid, back.x, back.z, t.x, t.z, level, this.cells)) return;
+    const home = snapCell(back.x, back.z, this.cells);
+    if (!grid.footprintFree(home, level, this.cells)) return;
+    this.entry.body.setTranslation({ x: back.x, y: t.y, z: back.z }, true);
   }
 
   /**
@@ -476,7 +541,11 @@ export class Npc {
       }
     }
 
-    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile), girth: this.skin.radius });
+    this.agent ??= new NavAgent({
+      profile: profileOf(this.skin.profile),
+      girth: this.skin.radius,
+      cells: this.cells,
+    });
     this.feet(_feet);
     const step = this.agent.step(nav.graph, _feet, destination, dt, nav.now);
     // **Der Schritt, den man nicht geht.** Steht eine Tür im Weg, wird sie
@@ -649,7 +718,11 @@ export class Npc {
    * (`navBelief.ts`). Wer nur zusehen will, nimmt `path`.
    */
   mind(): NavAgent {
-    this.agent ??= new NavAgent({ profile: profileOf(this.skin.profile), girth: this.skin.radius });
+    this.agent ??= new NavAgent({
+      profile: profileOf(this.skin.profile),
+      girth: this.skin.radius,
+      cells: this.cells,
+    });
     return this.agent;
   }
 
@@ -874,6 +947,8 @@ export class Npc {
 /** Was ein NPC über das Navigationsgitter dieser Frame wissen muss. */
 export interface NavRun {
   graph: NavGraph;
+  /** Das Zellgitter der Welt (`NpcWorld.cells`) — `null` ohne. */
+  cells?: CellGrid | null;
   /** Wo der Spieler steht, mit Höhe — die Etage hängt daran. */
   at: Spot3 | null;
   /** Weltzeit in Sekunden. */
@@ -925,3 +1000,18 @@ const _probe = new THREE.Vector3();
 
 /** Der Weg dessen, der noch keinen hat. */
 const EMPTY_ROUTE: readonly PathPoint[] = [];
+
+/**
+ * **Wie weit zwei Blöcke auseinander stehen**, von Mitte zu Mitte — der
+ * Abstand, mit dem auf dem Zellgitter getroffen wird.
+ */
+function blockGap(
+  a: { x: number; z: number },
+  sizeA: number,
+  b: { x: number; z: number },
+  sizeB: number,
+): number {
+  const p = cellCentre(snapCell(a.x, a.z, sizeA), sizeA),
+    q = cellCentre(snapCell(b.x, b.z, sizeB), sizeB);
+  return Math.hypot(p.x - q.x, p.z - q.z);
+}

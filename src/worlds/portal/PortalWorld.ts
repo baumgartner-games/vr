@@ -320,6 +320,7 @@ import {
   type PhysicsBody,
 } from '../../physics/PhysicsWorld';
 import { PhysicsLocomotion, type CellGate } from '../../physics/PhysicsLocomotion';
+import type { CellGrid } from '../nav/cellGrid';
 import { HitboxView } from '../../physics/HitboxView';
 import { graphics } from '../../core/graphicsSettings';
 import { silentPhysics } from '../../physics/silentPhysics';
@@ -1628,6 +1629,7 @@ export class PortalWorld implements World {
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
       nav: () => this.navForAgents(),
+      cells: () => this.cellsForAgents(),
     });
     this.director.setBars(this.npcBars);
     this.director.setHitView(this.npcHitView);
@@ -4888,6 +4890,7 @@ export class PortalWorld implements World {
       strikePlayer: (direction, strength) => this.takeHit(direction, strength),
       notify: (message) => this.announce(message),
       nav: () => this.navForAgents(),
+      cells: () => this.cellsForAgents(),
     });
     this.director.setBars(this.npcBars);
     this.director.setHitView(this.npcHitView);
@@ -5304,6 +5307,15 @@ export class PortalWorld implements World {
     return null;
   }
 
+  /**
+   * **Das Zellgitter für die NPCs** (`NpcWorld.cells`) — `null` in einer Welt
+   * ohne Gitter; dort hält sie weiter die Physik auf. Die Welten auf dem
+   * Gitter stellen es (`GridWorld`).
+   */
+  protected cellsForAgents(): CellGrid | null {
+    return null;
+  }
+
   /** Adds a box that is both visible and solid. */
   protected slab(
     parent: THREE.Object3D,
@@ -5313,6 +5325,7 @@ export class PortalWorld implements World {
     portalable: boolean,
     physics = true,
     yaw = 0,
+    membership = GROUP_WORLD,
   ): THREE.Mesh {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
     mesh.position.set(position[0], position[1], position[2]);
@@ -5329,7 +5342,7 @@ export class PortalWorld implements World {
 
     // Every portal surface gets a bit of its own, so a portal on the wall does
     // not also open up the floor you are standing on.
-    let group = GROUP_WORLD;
+    let group = membership;
     if (portalable) {
       group = portalSurfaceGroup(this.surfaceGroups.size);
       this.surfaceGroups.set(mesh, group);

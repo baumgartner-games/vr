@@ -24,7 +24,7 @@ import {
 } from '../mission';
 import { loadMemory, packMemory, type HauntState, type MonsterBook, type TrailBook } from '../net';
 import { COMMAND, monsterGraph, stationGraph, type StationGraph } from '../roomGraph';
-import { stationLayout, type FloorBounds, type FloorPoint } from '../stationLayout';
+import { stationLayout, type FloorPoint } from '../stationLayout';
 import { MonsterRoutine, paceSpeed, type RoutineOutput } from '../monsterRoutine';
 import { MonsterMemory, shutPairs } from '../monster/monsterMemory';
 import { graphEstimator } from '../monster/monsterIntercept';
@@ -83,15 +83,8 @@ import { VentPilot } from '../vents/ventPilot';
 import type { MonsterDriver } from '../monster/monsterDriver';
 import { FlatNavigator } from '../navmesh';
 import { MonsterWalk, type WalkEvent } from '../monster/monsterWalk';
-import {
-  doorAxis,
-  doorCentre,
-  fixtureBlocks,
-  slide,
-  spaceAtMetres,
-  walkable,
-  WALL_T,
-} from './geometry';
+import { doorAxis, doorCentre, spaceAtMetres, WALL_T } from './geometry';
+import { blockGap, StationCells } from './stationCells';
 import { AutomaticDoors } from '../automaticDoors';
 import { extractMapSnapshot } from './extract';
 import type { MapSource } from './mapSource';
@@ -456,20 +449,20 @@ export class FlatRound implements MapSource {
   private readonly glitch: DoorGlitch;
   /** Die Türautomatik des Schiffs — dasselbe Stück, dieselben Zahlen (`stepDoors`). */
   private readonly automaticDoors = new AutomaticDoors();
-  /** Die Türen, deren Blatt gerade zu ist — für `slide` eine Wand (`closedDoors`). */
+  /** Die Türen, deren Blatt gerade zu ist — für das Zellgitter eine Wand (`closedDoors`). */
   private closed: string[] = [];
+  /**
+   * **Die Station auf dem Zellgitter** (`stationCells.ts`) — dasselbe System
+   * wie in jeder Welt: Techniker und Monster stehen auf 2 × 2 halben Kacheln,
+   * und ob ein Schritt geht, entscheidet allein das Gitter.
+   */
+  private readonly cells: StationCells;
   /** Die Tür, die hinter dem fliehenden Techniker zufällt (`rules/doorSeal.ts`). */
   private readonly seal: DoorSeal = freshSeal();
   /** In welchem Raum er im letzten Bild stand — daran hängt „ist er durch eine Tür?". */
   private wasSpace = COMMAND;
   /** Wie viele mitspielen: entscheidet über die Wartezeit bis zum Riegel. */
   private readonly players: number;
-  /**
-   * **Die Grundflächen der Möbel** (`geometry.fixtureBlocks`): Was in 3D im
-   * Weg steht, steht auch hier im Weg — durch einen Tank läuft niemand mehr.
-   * Die Wegsuche kannte diese Kästen längst; jetzt kennt sie auch der Schritt.
-   */
-  private readonly blocks: readonly FloorBounds[];
   /** Die Wegsuche des Spielers zum nächsten Ziel — nur, wenn jemand den Weg sehen will. */
   private playerNav: FlatNavigator | null = null;
   private readonly rng: Rng;
@@ -494,7 +487,7 @@ export class FlatRound implements MapSource {
     const resume = options.resume ?? null;
     this.house = generateHouse(seed, 14);
     this.graph = stationGraph(this.house);
-    this.blocks = fixtureBlocks(this.house);
+    this.cells = new StationCells(this.house);
     this.players = options.players ?? (options.setup ? crewSize(options.setup) : CREW_SIZE);
     // **Ohne Archiv kein Ziel** (`rules/roundSetup.goalPrecision`): kein
     // Dreieck am Rand, keine Liste. Wer die Fähigkeit nicht hat, hört, wo es
@@ -999,15 +992,7 @@ export class FlatRound implements MapSource {
     let left = Math.max(0, Math.min(0.5, dt));
     // Der Schritt des Körpers (Brille) einmal je Bild, nicht je Scheibe.
     if (input.shift && this.stepping && !this.haunt.crew.hidden) {
-      const to = slide(
-        this.house,
-        this.closed,
-        this.player,
-        input.shift.x,
-        input.shift.z,
-        PLAYER_RADIUS,
-        this.blocks,
-      );
+      const to = this.cells.move(this.closed, this.player, input.shift.x, input.shift.z);
       this.player.x = to.x;
       this.player.z = to.z;
       const space = spaceAtMetres(this.house, this.player, this.player.space, SPACE_MARGIN);
@@ -1097,15 +1082,7 @@ export class FlatRound implements MapSource {
       const nx = input.x / length,
         nz = input.z / length;
       if (input.yaw === undefined) this.player.yaw = Math.atan2(-nx, -nz);
-      const to = slide(
-        this.house,
-        this.closed,
-        this.player,
-        nx * speed * dt,
-        nz * speed * dt,
-        PLAYER_RADIUS,
-        this.blocks,
-      );
+      const to = this.cells.move(this.closed, this.player, nx * speed * dt, nz * speed * dt);
       this.player.x = to.x;
       this.player.z = to.z;
       const space = spaceAtMetres(this.house, this.player, this.player.space, SPACE_MARGIN);
@@ -1122,9 +1099,9 @@ export class FlatRound implements MapSource {
     // wenn niemand blutet — sonst blieben die Tropfen einer längst
     // geschlossenen Wunde bis zum Rundenende liegen.
     stepTrail(this.blood, this.player, this.haunt.time);
-    const gap = this.haunt.monsterOn
-      ? Math.hypot(this.player.x - this.monster.x, this.player.z - this.monster.z)
-      : Infinity;
+    // Der Abstand zählt zwischen den festen Blöcken (`blockGap`), nicht
+    // zwischen den gezeichneten Stellen dazwischen.
+    const gap = this.haunt.monsterOn ? blockGap(this.player, this.monster) : Infinity;
     if (live) this.stepSeal(gap);
     stepVitals(crew, dt, speed, gap);
 
@@ -1615,14 +1592,11 @@ export class FlatRound implements MapSource {
     if (distance < 1e-3) return;
     this.monster.yaw = Math.atan2(-dx, -dz);
     const travel = Math.min(distance, speed * dt);
-    const to = slide(
-      this.house,
+    const to = this.cells.move(
       this.closed,
       this.monster,
       (dx / distance) * travel,
       (dz / distance) * travel,
-      MONSTER_RADIUS,
-      this.blocks,
     );
     // **Die Einsatzzentrale betritt es nie.** Die Wegsuche führt es nicht
     // dorthin (seine Karte kennt den Ort nicht), aber ein Schritt, der an der
@@ -2073,11 +2047,11 @@ export class FlatRound implements MapSource {
   /** Nur für Tests: den Spieler irgendwohin stellen, wo man stehen darf. */
   /** Ob an dieser Stelle jemand stehen kann — Raum, Vorplatz oder Tür, nicht Wand und nicht Möbel. */
   canStand(at: FloorPoint): boolean {
-    return walkable(this.house, this.closed, at, PLAYER_RADIUS, this.blocks);
+    return this.cells.canStand(this.closed, at);
   }
 
   place(at: FloorPoint): boolean {
-    if (!walkable(this.house, this.closed, at, PLAYER_RADIUS, this.blocks)) return false;
+    if (!this.cells.canStand(this.closed, at)) return false;
     this.player.x = at.x;
     this.player.z = at.z;
     const space = spaceAtMetres(this.house, at);

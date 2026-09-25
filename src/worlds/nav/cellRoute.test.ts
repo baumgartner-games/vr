@@ -94,6 +94,17 @@ describe('Der Weg eines NPC auf Zellen', () => {
     expect(cellRoute(graph, tiles, { x: 0.5, z: 0.5 }, { x: 1.5, z: 0.5 })).toBeNull();
   });
 
+  it('plant für jede Blockgröße — ein 3×3-Agent passt nicht, wo 2×2 geht', () => {
+    const graph = new NavGraph([0]);
+    fillRect(graph, { x: 0, z: 0, w: 6, d: 1 });
+    const tiles = findPath(graph, tileKey(0, 0), tileKey(5, 0), { profile: HUMAN_PROFILE }).tiles;
+    const from = { x: 0.5, z: 0.5 },
+      to = { x: 5.5, z: 0.5 };
+    expect(cellRoute(graph, tiles, from, to, 2)).not.toBeNull();
+    expect(cellRoute(graph, tiles, from, to, 1)).not.toBeNull();
+    expect(cellRoute(graph, tiles, from, to, 3)).toBeNull();
+  });
+
   it('bringt einen Läufer um eine Schräge herum ans Ziel', () => {
     const graph = slanted();
     const agent = new NavAgent({ profile: HUMAN_PROFILE });

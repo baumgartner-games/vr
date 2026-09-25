@@ -1,3 +1,5 @@
+import { cellKey } from '../nav/cellGrid';
+import { stationFixtureCells } from './map/stationCells';
 import { NavigationOverlay } from './navigationOverlay';
 import { stopAtWalls } from '../shared/wallLight';
 import * as THREE from 'three';
@@ -777,6 +779,16 @@ export class HauntingWorld extends GridWorld {
 
   protected override layout(): GridPlan {
     return housePlan(this.spec, new Set(this.state.shut), this.state.crew.options.test);
+  }
+
+  /**
+   * **Die Einrichtung der Station sperrt ihre Zellen** — auch für den
+   * Spieler, den die Physik trägt (Mitspieler, Lehrzimmer): Möbel des Packers
+   * (`stationLayout`) stehen nicht als Bausteine im Plan, und über das Gehen
+   * entscheidet allein das Gitter (`map/stationCells.ts`).
+   */
+  protected override cellBlocked(ix: number, iz: number, level: number): boolean {
+    return stationFixtureCells(this.spec).has(cellKey(ix, iz, level));
   }
 
   protected override worldId(): string {

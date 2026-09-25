@@ -42,10 +42,9 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   Zeichnung liegt. Abweichungen gibt es, wo die Zeichnung Schrägen hat (das
   Raster kennt keine), wo ein kleiner Raum für seine Möbel größer sein muss
   (Security, O2, Navigation) und bei der Cafeteria, die gezeichnet größer
-  ist als gebaut. **Schrägen (45°-Wände) hat die Station noch nicht**: Der
-  Kern der Welten kann sie seit dem Zellgitter (`docs/agents/zellgitter.md`),
-  der eigene Kern der Station (`map/geometry.ts`, `stationNavigation.ts`)
-  noch nicht — das ist dort Stufe 2.
+  ist als gebaut. **Schrägen (45°-Wände) hat die Station noch nicht** —
+  seit die Station auf dem Zellgitter läuft (nächster Punkt), fehlen sie nur
+  noch in `house.ts` und im Bauplan (`GridPlan.slope`).
 - **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
   topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und was hinter
   offenen Türen innerhalb von `TOP_DOWN_REACH` = 6 m liegt. Über allem
@@ -54,10 +53,35 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   oben, ob eine Türöffnung im Blickfeld liegt — von oben ist das jede —, und
   das Telefon des Technikers blendete gar nichts aus, weil `ui` gesetzt war.
   Ganz sehen darf nur, wer zuschaut (Tafel, Archiv, Bot-Runde).
+- **Die Station läuft auf dem Zellgitter** (September 2026, der Wunsch des
+  Besitzers: „nur ein System für die Welten"; `map/stationCells.ts`,
+  `docs/agents/zellgitter.md`). Ob man irgendwo gehen kann, entscheiden in
+  der 2D-Runde wie im Schiff allein die halben Kacheln; die 3D-Welt ist nur
+  Darstellung.
+  - **Das Gitter**: `stationCellGrid(spec, graph)` über dem Graphen des
+    Bauplans (`StationTravelPlan.graph`, Türen zu nach Liste), begrenzt auf
+    `missionExtent` (die Lehrzimmer gehören nicht dazu). Die Einrichtung des
+    Packers sperrt jede Zelle, in die sie 15 cm ragt
+    (`stationFixtureCells`, wie `GridPlan.furnitureCells`).
+  - **Bewegung**: Techniker und Monster der Runde (`FlatRound`) stehen auf
+    Blöcken von `AGENT_CELLS` = 2 × 2 und gehen mit `moveOnCells`
+    (`StationCells.move`). `geometry.walkable`/`slide` bewegen niemanden
+    mehr.
+  - **Wegsuche**: `stationRoute` ist A\* auf demselben Gitter
+    (`CellGrid.search`, Aufschlag `dread` für `RouteAvoid`), danach ein
+    Schnurzug, dessen Strecken der Block frei abgehen kann (`lineClear`).
+    Das alte 0,25-m-Raster (`buildGrid`, `softenCorners`) ist weg; der
+    Parameter `clearance` bleibt nur für die Aufrufer.
+  - **Treffer**: Der Abstand für `CONTACT` zählt von Blockmitte zu
+    Blockmitte (`blockGap`), nicht zwischen den gezeichneten Stellen.
+  - **Im Schiff**: `HauntingWorld.cellBlocked` stellt die Einrichtung auf
+    das Gitter des Spielers — auch wer von der Physik getragen wird
+    (Mitspieler, Lehrzimmer), geht nicht durch einen Schrank.
 - **Die Tür ist eine ganze Kachelkante**: `house.STATION_DOOR_W` = `TILE`
   = 1,0 m, **ohne Pfosten** (`levelBuild.doorParts` lässt den Pfosten bei
   Breite null weg; `stationNavigation.buildGrid` legt dann keine
-  Pfostenkästen). Begründung: Auf dem 0,25-m-Raster der Wegsuche
+  Pfostenkästen). Begründung (aus der Zeit vor dem Zellgitter, die Breite
+  gilt weiter — ein 2 × 2-Block ist genau eine Tür breit): Auf dem 0,25-m-Raster der Wegsuche
   (`SUBDIVISIONS` = 4) passt ein Körper von `MONSTER_RADIUS` = **0,3** durch
   1,0 m (Streifen 0,4 m, Rasterpunkte bei ±0,125); mit 0,8 m und Pfosten
   läge kein Rasterpunkt mehr im Streifen. `stationRoute` nimmt 0,3 als
@@ -726,9 +750,9 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   offen gehaltene Sperrtür bleibt bis zum Verlassen der Schwelle navigierbar
   (`occupiedOpen`); sonst sperrt das Monster beim Spuken seine eigene Startposition ein. Ohne diese Trennung endet eine partielle
   Route vor einer beliebigen Wand, und die Tür bekommt nie ein Nahsignal.
-- `stationNavigation.ts` verwendet dieselben Maße wie Collider und Modelle.
-  Quadratische Kurven werden mit ca.12cm Schritten und `segmentClear` geprüft;
-  in engen Ecken schrumpft der Kurvenradius, nötigenfalls bleibt die Ecke.
+- `stationNavigation.ts` rechnet auf dem Zellgitter (siehe oben, _Die
+  Station läuft auf dem Zellgitter_); Kurven gibt es nicht mehr, der
+  Schnurzug schneidet Ecken nur, wo der Block frei durchkommt.
   `stepAlong` verbraucht die ganze Framezeit über mehrere Wegpunkte, mit
   Beschleunigung und Abbremsen. Navigation wird bei Sperränderungen ungültig.
   **Eine Navigation für beide Welten**: Auch das Monster und der Techniker der

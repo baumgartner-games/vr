@@ -7,6 +7,7 @@ import {
   ALL_GROUPS,
   GROUP_HAND,
   GROUP_NPC,
+  GROUP_CELL,
   GROUP_PLAYER,
   GROUP_PROP,
   interactionGroups,
@@ -18,7 +19,13 @@ import {
  * missing: bodies that block each other in a shared room are only ever in the
  * way — you cannot see your own, so you cannot avoid theirs either.
  */
-const PLAYER_FILTER = ALL_GROUPS & ~GROUP_PLAYER;
+/**
+ * Die Kapsel stößt an allem an außer an sich selbst — **und an dem, was das
+ * Zellgitter sperrt** (`GROUP_CELL`): Über Wände und Möbel der Gitterwelten
+ * entscheidet `cellGate`, nicht Rapier. Böden, Treppen und Kisten bleiben
+ * Physik.
+ */
+const PLAYER_FILTER = ALL_GROUPS & ~GROUP_PLAYER & ~GROUP_CELL;
 
 const RADIUS = PLAYER_CAPSULE_RADIUS;
 const TERMINAL_VELOCITY = 32;

@@ -1,4 +1,4 @@
-import { CellGrid, CELL, type CellPos, type CellSource } from './cellGrid';
+import { CellGrid, FOOTPRINT, cellCentre, type CellPos, type CellSource } from './cellGrid';
 import type { NavGraph } from './navGraph';
 import type { PathPoint } from './navPath';
 import {
@@ -22,7 +22,7 @@ import {
 } from './navTile';
 
 /**
- * **Der Weg eines NPC auf halben Kacheln — als 2×2-Block** (`cellGrid.ts`).
+ * **Der Weg eines NPC auf halben Kacheln — als Block, Vorgabe 2×2** (`cellGrid.ts`, `size`).
  *
  * Die Wegsuche über ganze Kacheln (`navPath.findPath`) bleibt die grobe
  * Planung, denn nur sie weiß, was ein NPC glaubt (`navBelief.ts`), welche Tür
@@ -55,6 +55,7 @@ export function cellRoute(
   tiles: readonly TileKey[],
   from: { x: number; z: number },
   goal: { x: number; z: number } | null,
+  size = FOOTPRINT,
 ): PathPoint[] | null {
   if (tiles.length === 0) return null;
   const runs = splitRuns(graph, tiles);
@@ -67,21 +68,20 @@ export function cellRoute(
       last = run[run.length - 1]!;
     const start =
       r === 0
-        ? grid.nearestFree(from.x, from.z, level)
-        : grid.nearestFree(centreX(first), centreZ(first), level);
+        ? grid.nearestFree(from.x, from.z, level, 4, size)
+        : grid.nearestFree(centreX(first), centreZ(first), level, 4, size);
     // Das Ziel gilt nur, wenn es wirklich im letzten Stück liegt — ein Weg,
     // der davor abbricht, endet an seiner letzten Kachel.
     const aimsGoal = r === runs.length - 1 && goal !== null && graph.at(goal.x, goal.z) === last;
     const end = aimsGoal
-      ? grid.nearestFree(goal.x, goal.z, level)
-      : grid.nearestFree(centreX(last), centreZ(last), level);
+      ? grid.nearestFree(goal.x, goal.z, level, 4, size)
+      : grid.nearestFree(centreX(last), centreZ(last), level, 4, size);
     if (!start || !end) return null;
-    const path = grid.findPath(start, end, level);
+    const path = grid.findPath(start, end, level, size);
     if (!path) return null;
     const kept = corners(path);
     kept.forEach((at, i) => {
-      const x = at.cx * CELL,
-        z = at.cz * CELL;
+      const { x, z } = cellCentre(at, size);
       // Die Enden gehören zu ihrer Kachel des groben Wegs: Daran erkennt der
       // Agent eine Verbindung (`navAgent.hop`) und die Tür vor sich.
       const tile = i === 0 ? first : i === kept.length - 1 ? last : tileAt(x, z, level);

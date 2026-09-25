@@ -80,6 +80,14 @@ export interface PlanSolid {
    */
   yaw?: number;
   /**
+   * **Was das Zellgitter schon sperrt** (`nav/cellGrid.ts`): Wände, Türen,
+   * Fenster, Schrägen, Möbel. Für den Spieler entscheidet über diese Quader
+   * das Gitter und nicht die Physik — sie bekommen ein eigenes Bit
+   * (`GROUP_CELL`), durch das die Kapsel hindurchgeht. Alles andere (Kisten,
+   * NPCs, Hände) prallt weiter an ihnen ab.
+   */
+  cell?: boolean;
+  /**
    * **Auf welcher Etage er steht** — die Marke, an der von oben aufgeschnitten
    * wird (`core/cutaway.ts`, Plan E8).
    *
