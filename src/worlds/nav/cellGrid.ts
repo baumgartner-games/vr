@@ -412,33 +412,76 @@ export function standable(
     v = z / CELL - odd;
   const fx = Math.floor(u),
     fz = Math.floor(v);
-  const du = u - fx,
-    dv = v - fz;
-  const free = (cx: number, cz: number): boolean => grid.footprintFree({ cx, cz }, level, size);
-  const f00 = free(fx, fz),
-    f10 = free(fx + 1, fz),
-    f01 = free(fx, fz + 1),
-    f11 = free(fx + 1, fz + 1);
-  if (f00 && f10 && f01 && f11) return true;
+  const known = new Map<number, boolean>();
+  const free = (cx: number, cz: number): boolean => {
+    const key = (cx + 4096) * 8192 + (cz + 4096);
+    let hit = known.get(key);
+    if (hit === undefined) {
+      hit = grid.footprintFree({ cx, cz }, level, size);
+      known.set(key, hit);
+    }
+    return hit;
+  };
+  // **Auch die Nachbarfelder fragen**: Ein Streifen gehört zum Feld zwischen
+  // seinen beiden Mitten, ragt an deren Enden aber um seine Breite hinein.
+  // Wer an einer Schräge entlanggleitet, geht genau dort an einer Mitte
+  // vorbei — nur im eigenen Feld gefragt, blieb er dort stehen.
+  for (let sz = fz - 1; sz <= fz + 1; sz++)
+    for (let sx = fx - 1; sx <= fx + 1; sx++)
+      if (inSquare(u - sx, v - sz, sx, sz, free)) return true;
+  return false;
+}
+
+/**
+ * **Ein Feld zwischen vier Blockmitten** — (`sx`, `sz`) ist seine Ecke oben
+ * links, (`du`, `dv`) die Stelle darin; außerhalb von 0…1 heißt: knapp
+ * daneben, am Rand eines Streifens (`standable`).
+ */
+function inSquare(
+  du: number,
+  dv: number,
+  sx: number,
+  sz: number,
+  free: (cx: number, cz: number) => boolean,
+): boolean {
+  const reach = TRANSIT_WIDTH + 2 * SLANT_SLACK;
+  if (du < -reach || du > 1 + reach || dv < -reach || dv > 1 + reach) return false;
+  const f00 = free(sx, sz),
+    f10 = free(sx + 1, sz),
+    f01 = free(sx, sz + 1),
+    f11 = free(sx + 1, sz + 1);
+  const inside = du >= 0 && du <= 1 && dv >= 0 && dv <= 1;
+  if (inside && f00 && f10 && f01 && f11) return true;
   const w = TRANSIT_WIDTH,
-    slant = TRANSIT_WIDTH * Math.SQRT2;
-  // Die Mitten selbst.
-  if (f00 && du <= w && dv <= w) return true;
-  if (f10 && 1 - du <= w && dv <= w) return true;
-  if (f01 && du <= w && 1 - dv <= w) return true;
-  if (f11 && 1 - du <= w && 1 - dv <= w) return true;
-  // Die geraden Verbindungen.
-  if (f00 && f10 && dv <= w) return true;
-  if (f01 && f11 && 1 - dv <= w) return true;
-  if (f00 && f01 && du <= w) return true;
-  if (f10 && f11 && 1 - du <= w) return true;
-  // Die schrägen — über Eck.
-  if (f00 && f11 && Math.abs(du - dv) <= slant) return true;
-  return f10 && f01 && Math.abs(du + dv - 1) <= slant;
+    slant = TRANSIT_WIDTH + SLANT_SLACK;
+  // Die Mitten selbst — eine Raute, damit sie an die schrägen Streifen
+  // anschließt (dort zählt dieselbe Summe der Achsen).
+  if (f00 && Math.abs(du) + Math.abs(dv) <= slant) return true;
+  if (f10 && Math.abs(1 - du) + Math.abs(dv) <= slant) return true;
+  if (f01 && Math.abs(du) + Math.abs(1 - dv) <= slant) return true;
+  if (f11 && Math.abs(1 - du) + Math.abs(1 - dv) <= slant) return true;
+  // Die geraden Verbindungen, zwischen ihren Mitten.
+  const alongU = du >= 0 && du <= 1,
+    alongV = dv >= 0 && dv <= 1;
+  if (alongU && f00 && f10 && Math.abs(dv) <= w) return true;
+  if (alongU && f01 && f11 && Math.abs(1 - dv) <= w) return true;
+  if (alongV && f00 && f01 && Math.abs(du) <= w) return true;
+  if (alongV && f10 && f11 && Math.abs(1 - du) <= w) return true;
+  // Die schrägen — über Eck, zwischen ihren Mitten.
+  const t1 = (du + dv) / 2,
+    t2 = (du - dv + 1) / 2;
+  if (f00 && f11 && t1 >= 0 && t1 <= 1 && Math.abs(du - dv) <= slant) return true;
+  return f10 && f01 && t2 >= 0 && t2 <= 1 && Math.abs(du + dv - 1) <= slant;
 }
 
 /** Wie breit der Streifen um eine Verbindung zu jeder Seite ist, in Zellen. */
 const TRANSIT_WIDTH = 0.25;
+/**
+ * Um so viel ist der schräge Streifen breiter als die Raute um eine Mitte: Wer
+ * die Raute am Rand verlässt und an einer Schräge entlanggleitet, bleibt so
+ * sicher im Streifen und nicht auf dessen Linie hängen.
+ */
+const SLANT_SLACK = 0.02;
 
 /** In welchen Schritten eine Strecke geprüft wird: ein Viertel einer Zelle. */
 const GLIDE_STEP = CELL / 4;
@@ -467,6 +510,30 @@ export function glides(
       return false;
   }
   return true;
+}
+
+/**
+ * **An einer schrägen Wand entlang gleiten** — die Anteile eines Schritts
+ * längs der beiden Diagonalen, der größere zuerst.
+ *
+ * Gewünscht: _„wenn ich weiter gegen eine wand (z. B. schräge wand versuche
+ * zu laufen) [soll] der spieler dann in die freie richtung gedrückt
+ * [werden]."_ An einer geraden Wand tun das schon „nur längs x" und „nur
+ * längs z"; an einer Schräge steht die freie Richtung unter 45°, und genau
+ * die liefert diese Zerlegung. Wer senkrecht auf eine Schräge zuläuft, hat
+ * längs ihr keinen Anteil und bleibt stehen.
+ */
+export function diagonalSlides(dx: number, dz: number): Array<{ x: number; z: number }> {
+  const out: Array<{ x: number; z: number; weight: number }> = [];
+  for (const [ux, uz] of [
+    [Math.SQRT1_2, Math.SQRT1_2],
+    [Math.SQRT1_2, -Math.SQRT1_2],
+  ] as const) {
+    const t = dx * ux + dz * uz;
+    if (Math.abs(t) > 1e-9) out.push({ x: t * ux, z: t * uz, weight: Math.abs(t) });
+  }
+  out.sort((a, b) => b.weight - a.weight);
+  return out.map(({ x, z }) => ({ x, z }));
 }
 
 /**
@@ -551,6 +618,9 @@ export function moveOnCells(
   if (ok(x, z)) return { x, z };
   if (dx !== 0 && ok(x, at.z)) return { x, z: at.z };
   if (dz !== 0 && ok(at.x, z)) return { x: at.x, z };
+  // An einer Schräge entlang (`diagonalSlides`).
+  for (const slide of diagonalSlides(dx, dz))
+    if (ok(at.x + slide.x, at.z + slide.z)) return { x: at.x + slide.x, z: at.z + slide.z };
   return { x: at.x, z: at.z };
 }
 

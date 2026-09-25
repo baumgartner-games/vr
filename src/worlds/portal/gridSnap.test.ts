@@ -13,6 +13,7 @@ import {
   eighthYaw,
   gridPose,
   isDiagonal,
+  wallCells,
   placesOnGrid,
   quarterYaw,
   snapAxis,
@@ -326,5 +327,31 @@ describe('Wände unter 45°', () => {
   it('zählt Kacheln an der geraden Länge, auch wenn die Wand schon gekürzt ist', () => {
     const shortened = { x: Math.SQRT2, z: 0.125 };
     expect(gridPose(0, 0, turn(Math.PI / 4), shortened, 4).diagonal!.tiles).toBe(2);
+  });
+});
+
+describe('Wände aus dem Regal auf dem Gitter', () => {
+  const turn = (yaw: number) => ({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) });
+
+  it('sperrt bei einem Durchgang nur die Zellen an seinen Pfosten', () => {
+    // Zwei Meter auf der Fuge z = 0, von x = 0 bis 2, Öffnung 0,8 m.
+    const cells = wallCells(1, 0, turn(0), { x: 1, z: 0.125 }, undefined, { open: 0.4 })!;
+    expect(cells.edges).toHaveLength(0);
+    expect(cells.cells).toEqual([
+      { ix: 0, iz: -1 },
+      { ix: 0, iz: 0 },
+      { ix: 3, iz: -1 },
+      { ix: 3, iz: 0 },
+    ]);
+  });
+
+  it('macht aus einer geraden Wand zwei Kanten und aus einer schiefen nichts', () => {
+    const cells = wallCells(1, 0, turn(0), { x: 1, z: 0.125 })!;
+    expect(cells.edges).toEqual([
+      { x: 0, z: 0, dir: 'n' },
+      { x: 1, z: 0, dir: 'n' },
+    ]);
+    expect(wallCells(1.3, 0, turn(0), { x: 1, z: 0.125 })).toBeNull();
+    expect(wallCells(1, 0, turn(0.3), { x: 1, z: 0.125 })).toBeNull();
   });
 });

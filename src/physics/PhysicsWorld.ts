@@ -509,6 +509,11 @@ export class PhysicsWorld {
    */
   /** Eine Wand aus dem Regal auf das Gitter stellen oder zurück (`PhysicsBody.gridWall`). */
   setGridWall(entry: PhysicsBody, on: boolean): void {
+    // **Ein weggenommener Körper hat keinen Collider mehr** — wer ihn anfasst,
+    // bringt Rapier zum Absturz („unreachable executed", gemeldet nach _Alles
+    // zurücksetzen_: Die Wände aus dem Regal waren weg, die Liste der
+    // Gitterwände hielt sie noch ein Bild lang fest).
+    if (entry.removed || this.freed) return;
     if (!!entry.gridWall === on) return;
     entry.gridWall = on;
     this.applyFilter(entry);

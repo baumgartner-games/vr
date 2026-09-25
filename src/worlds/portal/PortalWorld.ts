@@ -135,9 +135,13 @@ import {
   type DiagonalWall,
   type GridTile,
   type PlacePose,
+  wallCells,
   wallEdges,
   yawOf,
 } from './gridSnap';
+
+const _turnScratch = new THREE.Quaternion();
+const _footSpot = new THREE.Vector3();
 
 /** Wie eine Wand ungekürzt war (`PortalWorld.wallBase`). */
 interface WallBase {
@@ -1580,6 +1584,12 @@ export class PortalWorld implements World {
   } | null = null;
   /** Der Geist selbst: ein Material für alles, was gleich abgerissen wird. */
   private bombGhost: THREE.MeshStandardMaterial | null = null;
+  /** Was beim Loslassen ersetzt wird, rot angezeigt (`markReplaced`), samt eigener Materialien. */
+  private readonly replaced = new Map<
+    PhysicsBody,
+    Map<THREE.Mesh, THREE.Material | THREE.Material[]>
+  >();
+  private readonly replaceScratch: PhysicsBody[] = [];
   /** Der Kreis am Boden unter dem Kran (`core/crane.buildCraneMark`). */
   private craneMark: THREE.Group | null = null;
   protected context: WorldContext | null = null;
@@ -3343,7 +3353,9 @@ export class PortalWorld implements World {
     // **Eine Wand unter 45° kommt gekürzt** (`fitWall`) — aus einer Liste und
     // vom Pinsel genauso wie aus der Hand.
     const base = this.wallBase(entry);
-    this.fitWall(entry, gridPose(at.x, at.z, spin, base.half, base.long));
+    const pose = gridPose(at.x, at.z, spin, base.half, base.long);
+    this.replaceWalls(entry, pose);
+    this.fitWall(entry, pose);
     // Ein Bodenstück aus einer eingefügten Liste liegt genauso im Boden wie
     // eines, das gerade hingestellt wurde — sonst stiege es beim Einfügen um
     // seine halbe Dicke wieder heraus.
@@ -9067,6 +9079,106 @@ export class PortalWorld implements World {
   }
 
   /**
+   * **Wo eine Wand aus dem Regal auf dem Gitter steht** — ihre Kanten und
+   * schrägen Kacheln als Schlüssel (`gridSnap.wallCells`), in voller Länge:
+   * Ein Durchgang oder ein Fenster belegt dieselbe Fuge wie eine volle Wand.
+   * `null`, wenn das Ding keine eingerastete Wand ist.
+   */
+  private wallFootprint(entry: PhysicsBody, pose?: PlacePose): Set<string> | null {
+    const out = new Set<string>();
+    if (pose) {
+      if (pose.diagonal) {
+        for (const cell of pose.diagonal.cells) out.add(`s:${cell.x},${cell.z}`);
+        return out;
+      }
+      if (pose.wall === null) return null;
+      const base = this.wallBase(entry);
+      _turnScratch.setFromAxisAngle(UP, pose.yaw);
+      const cells = wallCells(pose.x, pose.z, _turnScratch, base.half, base.long);
+      if (!cells) return null;
+      for (const edge of cells.edges) out.add(`e:${edge.x},${edge.z},${edge.dir}`);
+      return out.size ? out : null;
+    }
+    const diagonal = (entry.object.userData as { diagonalWall?: DiagonalWall }).diagonalWall;
+    if (diagonal) {
+      for (const cell of diagonal.cells) out.add(`s:${cell.x},${cell.z}`);
+      return out;
+    }
+    entry.object.getWorldPosition(_footSpot);
+    entry.object.getWorldQuaternion(_turnScratch);
+    const cells = wallCells(_footSpot.x, _footSpot.z, _turnScratch, entry.halfExtents);
+    if (!cells) return null;
+    for (const edge of cells.edges) out.add(`e:${edge.x},${edge.z},${edge.dir}`);
+    return out.size ? out : null;
+  }
+
+  /**
+   * **Die Wände, die eine Wand an dieser Stelle ersetzt** — jede hingestellte,
+   * die eine Fuge oder schräge Kachel mit ihr teilt. Gewünscht: _„wenn ich
+   * eine andere wand dahinsetze, wo eine wand bereits existiert, … sollten
+   * [die alten] ersetzt werden"_ — und vorher rot angezeigt.
+   */
+  private wallsUnder(entry: PhysicsBody, pose: PlacePose): PhysicsBody[] {
+    const mine = this.wallFootprint(entry, pose);
+    if (!mine) return [];
+    const out: PhysicsBody[] = [];
+    for (const other of this.placedModels(this.replaceScratch)) {
+      if (other === entry) continue;
+      const theirs = this.wallFootprint(other);
+      if (!theirs) continue;
+      for (const key of theirs)
+        if (mine.has(key)) {
+          out.push(other);
+          break;
+        }
+    }
+    return out;
+  }
+
+  /** Die Wände unter einer neuen wegnehmen (`wallsUnder`) — ohne Spur in den Weltänderungen. */
+  private replaceWalls(entry: PhysicsBody, pose: PlacePose): void {
+    const gone = this.wallsUnder(entry, pose);
+    if (!gone.length) return;
+    this.markReplaced([]);
+    for (const old of gone) {
+      const key = this.changeKeys.get(old);
+      if (key) {
+        forgetChange(key);
+        this.changeKeys.delete(old);
+      }
+      this.removeProp(old, true);
+    }
+  }
+
+  /** Rot zeigen, was beim Loslassen ersetzt wird — mit dem Geist der Abrissbombe. */
+  private markReplaced(entries: readonly PhysicsBody[]): void {
+    const same =
+      entries.length === this.replaced.size && entries.every((one) => this.replaced.has(one));
+    if (same) return;
+    for (const [, skins] of this.replaced) for (const [mesh, skin] of skins) mesh.material = skin;
+    this.replaced.clear();
+    if (!entries.length) return;
+    const ghost = (this.bombGhost ??= new THREE.MeshStandardMaterial({
+      color: BOMB_GHOST_COLOR,
+      emissive: BOMB_GHOST_COLOR,
+      emissiveIntensity: 0.35,
+      transparent: true,
+      opacity: BOMB_GHOST_OPACITY,
+      depthWrite: false,
+    }));
+    for (const entry of entries) {
+      const skins = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
+      entry.object.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        skins.set(mesh, mesh.material);
+        mesh.material = ghost;
+      });
+      this.replaced.set(entry, skins);
+    }
+  }
+
+  /**
    * **Wie eine Wand aus dem Regal ungekürzt war** — halbe Grundfläche, Maßstab
    * und gerade Länge. Nach `fitWall` steht das unter `userData.wallBase`, denn
    * am gekürzten Körper ließe sich nicht mehr ablesen, wie viele Kacheln er
@@ -9148,6 +9260,7 @@ export class PortalWorld implements World {
     entry.object.getWorldQuaternion(_quaternion);
     const base = this.wallBase(entry);
     const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long);
+    this.replaceWalls(entry, pose);
     this.fitWall(entry, pose);
     _point.set(pose.x, _point.y, pose.z);
     _quaternion.setFromAxisAngle(UP, pose.yaw);
@@ -9256,6 +9369,7 @@ export class PortalWorld implements World {
     const entry = this.carriedModel();
     if (!entry) {
       grid.hide();
+      this.markReplaced([]);
       return;
     }
     entry.object.getWorldPosition(_point);
@@ -9263,6 +9377,9 @@ export class PortalWorld implements World {
     const base = this.wallBase(entry);
     const pose = gridPose(_point.x, _point.z, _quaternion, base.half, base.long);
     const floorY = ctx.rig.getFloorY();
+    // **Was hier schon steht, wird ersetzt** — und leuchtet rot, solange man
+    // darüber hält (`wallsUnder`).
+    this.markReplaced(this.wallsUnder(entry, pose));
     // **Eine Wand unter 45°** zeigt ihre Schräge — ein Strich durch jede
     // Kachel, durch die sie geht (`PlaceGrid.showSlants`).
     if (pose.diagonal) {

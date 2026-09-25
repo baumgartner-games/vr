@@ -467,6 +467,27 @@ function axisTiles(a: number, b: number): number[] {
 export interface WallCells {
   edges: Array<{ x: number; z: number; dir: 'n' | 'w' }>;
   slopes: Array<{ x: number; z: number; slope: 'slash' | 'backslash' }>;
+  /**
+   * **Gesperrte Zellen** (halbe Kacheln, `nav/cellGrid.CELL`) — die Pfosten
+   * eines Durchgangs. Er sperrt keine ganze Kante, sondern nur die Zellen zu
+   * beiden Seiten seiner Pfosten; dazwischen geht man hindurch.
+   */
+  cells: Array<{ ix: number; iz: number }>;
+}
+
+/** Die halbe Kachel des Zellgitters (`nav/cellGrid.CELL`). */
+const HALF = TILE / 2;
+/** Wie weit ein Pfosten in eine Zelle ragen muss, damit er sie sperrt — wie ein Möbel (`GridPlan.furnitureCells`). */
+const POST_OVERLAP = 0.15;
+
+/** Die Zellen längs einer Strecke [a, b], in die sie mindestens `POST_OVERLAP` ragt. */
+function cellsAlong(a: number, b: number): number[] {
+  const out: number[] = [];
+  for (let i = Math.floor(a / HALF); i * HALF < b; i++) {
+    const overlap = Math.min(b, (i + 1) * HALF) - Math.max(a, i * HALF);
+    if (overlap >= POST_OVERLAP) out.push(i);
+  }
+  return out;
 }
 
 /** Wie weit eine Wand neben ihrer eingerasteten Lage stehen darf und trotzdem zählt. */
@@ -478,6 +499,7 @@ export function wallCells(
   rotation: Turned,
   half: { readonly x: number; readonly z: number },
   long?: number,
+  arch?: { readonly open: number },
 ): WallCells | null {
   const pose = gridPose(x, z, rotation, half, long);
   if (Math.abs(x - pose.x) > SNAPPED || Math.abs(z - pose.z) > SNAPPED) return null;
@@ -486,10 +508,31 @@ export function wallCells(
     return null;
   if (pose.diagonal) {
     const slope = pose.diagonal.slope;
-    return { edges: [], slopes: pose.diagonal.cells.map((cell) => ({ ...cell, slope })) };
+    return {
+      edges: [],
+      slopes: pose.diagonal.cells.map((cell) => ({ ...cell, slope })),
+      cells: [],
+    };
   }
   if (pose.wall === null) return null;
   const { halfX, halfZ } = turnedHalf(half, pose.yaw);
+  if (arch) {
+    // **Ein Durchgang**: zwei Pfosten, dazwischen offen (`props.MODEL_ARCHES`).
+    const alongX = pose.wall === 'z';
+    const halfLong = alongX ? halfX : halfZ;
+    const centre = alongX ? pose.x : pose.z;
+    const line = Math.round((alongX ? pose.z : pose.x) / HALF);
+    const post = (1 - arch.open) * halfLong;
+    const cells: Array<{ ix: number; iz: number }> = [];
+    for (const [a, b] of [
+      [centre - halfLong, centre - halfLong + post],
+      [centre + halfLong - post, centre + halfLong],
+    ] as const)
+      for (const i of cellsAlong(a, b))
+        for (const row of [line - 1, line])
+          cells.push(alongX ? { ix: i, iz: row } : { ix: row, iz: i });
+    return { edges: [], slopes: [], cells };
+  }
   return {
     edges: wallEdges(pose, halfX, halfZ).map((edge) =>
       edge.alongX
@@ -497,5 +540,6 @@ export function wallCells(
         : { x: Math.round(edge.x / TILE), z: Math.floor(edge.z / TILE), dir: 'w' as const },
     ),
     slopes: [],
+    cells: [],
   };
 }

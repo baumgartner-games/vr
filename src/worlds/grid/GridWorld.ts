@@ -13,6 +13,7 @@ import {
 import type { NavGraph } from '../nav/navGraph';
 import { CellGrid, cellKey, gateStep, navCellSource, type Slope } from '../nav/cellGrid';
 import { wallCells, type DiagonalWall } from '../portal/gridSnap';
+import { MODEL_ARCHES, modelPathOf, type PropKind } from '../portal/props';
 import { markRole } from './fixtures/mark';
 import { checkMarks, markSummary, type Mark, type Verdict } from './markCheck';
 import { FootprintView, type Occupant } from './footprintView';
@@ -330,6 +331,8 @@ export abstract class GridWorld extends PortalWorld {
    * (`NavCellOptions.walls`), jedes Bild neu (`refreshWallSlopes`).
    */
   private readonly propEdges = new Set<string>();
+  /** Die Zellen, die Pfosten eines Durchgangs aus dem Regal sperren (`gridSnap.wallCells`). */
+  private readonly propCells = new Set<string>();
   /** Die Wände aus dem Regal, die gerade auf dem Gitter stehen (`PhysicsBody.gridWall`). */
   private gridWalls = new Set<PhysicsBody>();
   /** Die Urteile der Wandtests (`refreshMarks`), nach Kennung der Marke. */
@@ -958,7 +961,9 @@ export abstract class GridWorld extends PortalWorld {
         navCellSource(plan.graph, (key) => plan.slopeAt(key) ?? this.wallSlopes.get(key) ?? null, {
           voidIsFree: true,
           blocked: (ix, iz, level) =>
-            plan.furnitureCells().has(cellKey(ix, iz, level)) || this.cellBlocked(ix, iz, level),
+            plan.furnitureCells().has(cellKey(ix, iz, level)) ||
+            this.propCells.has(cellKey(ix, iz, level)) ||
+            this.cellBlocked(ix, iz, level),
           walls: (tx, tz, dir, level) =>
             this.propEdges.size > 0 && this.propEdges.has(edgeAt(tx, tz, dir, level)),
         }),
@@ -971,6 +976,7 @@ export abstract class GridWorld extends PortalWorld {
   private refreshWallSlopes(): void {
     this.wallSlopes.clear();
     this.propEdges.clear();
+    this.propCells.clear();
     const was = this.gridWalls;
     this.gridWalls = new Set();
     const graph = this.grid?.graph;
@@ -979,7 +985,7 @@ export abstract class GridWorld extends PortalWorld {
     // Kasten auf** (`PhysicsBody.gridWall`) — genau wie eine gebaute Wand.
     // Aufgehoben, umgefallen oder schief geschoben ist es wieder ein Körper.
     for (const entry of was)
-      if (!this.gridWalls.has(entry)) this.physics?.setGridWall(entry, false);
+      if (!entry.removed && !this.gridWalls.has(entry)) this.physics?.setGridWall(entry, false);
     for (const entry of this.gridWalls) this.physics?.setGridWall(entry, true);
   }
 
@@ -1001,10 +1007,13 @@ export abstract class GridWorld extends PortalWorld {
       // eine gebaute (`propEdges`). Nur, wenn sie wirklich eingerastet steht:
       // Eine umgefallene oder schief geschobene hält weiter nur die Physik.
       entry.object.getWorldQuaternion(_turn);
-      const cells = wallCells(_spot.x, _spot.z, _turn, entry.halfExtents);
-      if (!cells || cells.edges.length === 0) continue;
+      const path = modelPathOf((entry.object.userData as { propKind?: PropKind }).propKind);
+      const arch = path === null ? undefined : MODEL_ARCHES[path];
+      const cells = wallCells(_spot.x, _spot.z, _turn, entry.halfExtents, undefined, arch);
+      if (!cells || cells.edges.length + cells.cells.length === 0) continue;
       for (const edge of cells.edges)
         this.propEdges.add(edgeId(edge.x, edge.z, edge.dir === 'n' ? DIR_N : DIR_W, level));
+      for (const cell of cells.cells) this.propCells.add(cellKey(cell.ix, cell.iz, level));
       this.gridWalls.add(entry);
     }
   }
@@ -1075,9 +1084,16 @@ export abstract class GridWorld extends PortalWorld {
     return (fromX, fromZ, toX, toZ, y) => {
       const grid = this.cellGrid();
       if (!grid) return true;
-      const level = this.cellLevel(toX, toZ, y);
-      if (level === null) return true;
-      const was = this.cellLevel(fromX, fromZ, y) ?? level;
+      // **Auch außerhalb des Grundrisses** wird gefragt, auf Etage 0: Dort
+      // stehen Wände aus dem Regal auf dem Gelände, und seit ihr Kasten den
+      // Spieler durchlässt (`PhysicsBody.gridWall`), hielt sie nur noch das
+      // Gitter auf — das an dieser Stelle schwieg. Gemeldet: _„einige wände
+      // [blocken] nur von einer seite"_. Boden gibt es dort keinen, aber das
+      // Nichts ist für den Spieler frei (`voidIsFree`), Wände zählen trotzdem.
+      const to = this.cellLevel(toX, toZ, y);
+      const from = this.cellLevel(fromX, fromZ, y);
+      const level = to ?? from ?? 0;
+      const was = from ?? level;
       return gateStep(
         grid,
         { x: fromX, z: fromZ },
