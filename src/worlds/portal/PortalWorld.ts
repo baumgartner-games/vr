@@ -6556,6 +6556,17 @@ export class PortalWorld implements World {
     return false;
   }
 
+  /**
+   * **Ob diese Hand in der Brille gerade benutzen kann** (`useByHand`): kein
+   * Werkzeug in ihr, kein Gegenstand, und kein Werkzeug der anderen Hand, das
+   * sie mit beansprucht — dieselbe Vorfahrt wie in `updateGrabs`. Eine Welt,
+   * die eigene Ziele hat, fragt das, bevor sie einer Hand den Laser nimmt:
+   * Eine volle Hand bedient ihre Dinge weiter über den Zeiger.
+   */
+  protected handUsesFreely(hand: Handedness): boolean {
+    return !this.held.has(hand) && !this.grabs.has(hand) && !this.claimedHand(hand);
+  }
+
   private takeTool(ctx: WorldContext, controller: ControllerState, tool: Tool): void {
     const hand = controller.handedness;
     const belt = this.belt;

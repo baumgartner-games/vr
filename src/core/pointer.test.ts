@@ -129,6 +129,33 @@ test('a panel that ignores the hand it rides on leaves that trigger alone', () =
   expect(pointer.hoveringWith('left')).toBe(false);
 });
 
+/**
+ * **Der Laser geht hindurch, die Fingerspitze nicht** (`rayPasses`) — der
+ * Schutzschrank in der Brille: Zielen und Trigger gehören dort der Hand der
+ * Welt (`PortalWorld.useByHand`, mit Saum), das Tastenfeld antippen bleibt.
+ */
+test('a ray that passes a target leaves the hand free, poking still reaches it', () => {
+  const selects: Array<Handedness | null> = [];
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.4), new THREE.MeshBasicMaterial());
+  mesh.position.set(-0.3, 0, -1);
+  scene.add(mesh);
+  pointer.add({
+    object: mesh,
+    rayPasses: (hand) => hand === 'left',
+    onSelect: (hit: PointerHit) => selects.push(hit.hand),
+  });
+  controllers.left.trigger.justPressed = true;
+  frame();
+  expect(pointer.hoveringWith('left')).toBe(false);
+  expect(selects).toEqual([]);
+
+  // Die Fingerspitze sitzt sechs Zentimeter vor dem Strahlursprung — auf der Tafel.
+  controllers.left.trigger.justPressed = false;
+  controllers.left.targetRay.position.set(-0.3, 0, -0.94);
+  frame();
+  expect(selects).toEqual(['left']);
+});
+
 test('the pointer switched off drops every hover', () => {
   const left = panel(-0.3);
   frame();

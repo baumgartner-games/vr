@@ -50,6 +50,17 @@ export interface PointerTarget {
    * whatever is holding it.
    */
   ignore?(hand: Handedness | null): boolean;
+  /**
+   * **Der Strahl dieser Hand geht hindurch** — Berühren bleibt (`pokeable`).
+   *
+   * Anders als `ignore`, das eine Hand ganz aussperrt, trifft es nur den
+   * Laser (und den Strahl vom Schirm, wenn `null` gefragt wird). Gebraucht
+   * wird das für Dinge, die in der Brille die Welt selbst über die Hand
+   * bedient (`PortalWorld.useByHand`: Saum, Trigger, Greif-Taste): Ein Laser,
+   * der darauf liegt, zählt als „zeigt aufs Menü" (`hoveringWith`) und nähme
+   * der Hand genau diese Bedienung weg.
+   */
+  rayPasses?(hand: Handedness | null): boolean;
 }
 
 const _ray = new THREE.Ray();
@@ -351,7 +362,7 @@ export class Pointer {
     let best: { target: PointerTarget; hit: PointerHit } | null = null;
     for (const target of this.targets) {
       if (!visibleInHierarchy(target.object)) continue;
-      if (target.ignore?.(hand)) continue;
+      if (target.ignore?.(hand) || target.rayPasses?.(hand)) continue;
       const intersections = this.raycaster.intersectObject(target.object, true);
       const first = intersections[0];
       if (!first) continue;

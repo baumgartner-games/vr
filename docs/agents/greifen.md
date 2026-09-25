@@ -666,7 +666,12 @@ Drei Vorfahrten stehen daneben, und alle drei sind die vorhandenen:
   benutzt nichts — ihr Trigger gehört dem, was sie hält.
 - Liegt der Strahl einer Hand auf einer **Menüseite**, gehört ihr Trigger dem
   Menü (`Pointer.hoveringWith`, dieselbe Regel wie bei den Werkzeugen). Die
-  andere Hand arbeitet weiter.
+  andere Hand arbeitet weiter. **Das gilt für jedes Zeigerziel**, nicht nur
+  für Menüs — wer ein Ding zugleich beim Zeiger und beim Kern anmeldet, nimmt
+  der Hand damit Saum und Greif-Taste. Dafür gibt es `PointerTarget.rayPasses`:
+  Der Laser geht hindurch, Berühren (`pokeable`) bleibt. So machen es die
+  Schränke in Haunting für eine freie Hand
+  ([Haunting](./haunting.md), `shipHandUse.ts`).
 - **Ein Druck, eine Wirkung**: Zwei Hände auf demselben Knopf lösen ihn im
   selben Bild einmal aus.
 

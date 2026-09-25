@@ -1500,6 +1500,7 @@ export class HauntingWorld extends GridWorld {
       // (`PortalWorld.addUsable`): `A`, Saum und Hinweis über der Figur.
       usable: (object, usable, options) => this.addUsable(object, usable, options),
       unusable: (object) => this.removeUsable(object),
+      handFree: (hand) => this.handUsesFreely(hand),
       round: () => this.rules.status(this.state),
       // **Die Blätter fahren erst auf, wenn jemand auf dem Knopf steht**
       // (`pressButtons`) — rein fürs Auge: Durchlassen tut die Automatik.

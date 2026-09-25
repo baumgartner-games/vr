@@ -859,6 +859,31 @@ Was **weiterhin verschieden** ist — gewusst, nicht vergessen:
   `ShipExperience.inLockerRoom` prüft Raumzugehörigkeit vor Codeeingabe,
   Eintritt und Nahbereichsauswahl: kein Schutzschrankzugriff durch Nachbarwände.
   Übungsschränke setzen den passenden Trainingsraum und aktiven Test voraus.
+  **Schutzschrank und Frachtschrank leuchten, und in der Brille gehen sie mit
+  Trigger oder Greifen** (`shipHandUse.ts`, mit Test). Gemeldet war: „Die
+  Trigger-Interaktion geht bei den Schutzspinden nicht." Zwei Gründe: Beim
+  Kern angemeldet war nur das **Tastenfeld** (60 cm Schirm auf einem Kasten
+  von 2,2 m) bzw. das Blatt der Kiste — wer auf die Schranktür zielte, traf
+  nichts; und wo der Laser des Zeigers (`core/Pointer.ts`) auf einem
+  Schiffsziel lag, galt die Hand als „zeigt aufs Menü" (`hoveringWith`), und
+  die Hand der Welt (`PortalWorld.useByHand`) trat zurück — kein gelber Saum,
+  keine Greif-Taste. Jetzt meldet `bind` den **ganzen Kasten** an
+  (`BindExtra.usableOn`, Radius `LOCKER_USE_RADIUS`/`CABINET_USE_RADIUS`), mit
+  der Absicht `SHIP_HAND_USE` (`press`, in der Brille `aimTrigger` + `grip`,
+  **ohne** Berühren — wer vorbeigeht oder drinsteht, steckt in der Greifbox).
+  Der Laser einer **freien** Hand geht hindurch (`Pointer.rayPasses`,
+  `PortalWorld.handUsesFreely` über `ShipHost.handFree`); eine Hand mit Lampe
+  oder Radar zielt weiter mit dem Zeiger, dann auf den ganzen Kasten und nur
+  bis `PANEL_RANGE`, damit ein ferner Schrank der Lampe nicht den Trigger
+  nimmt. Bewirkt wird dasselbe wie mit `A`/`E` (`useObject` → `openCabinet`/
+  `takeLoot`/`enterLocker`), also derselbe Stand für alle über das Netz. Das
+  Teil in der Kiste bietet sich erst an, wenn es offen daliegt. **Von innen**
+  bietet der Schutzschrank keinen Saum an (`lockerInteraction`: eine
+  umgestülpte Hülle wäre von innen ein gelber Kasten um den Kopf); hinaus geht
+  es mit Trigger oder Greifen einer freien Hand (`stepLockerExit`,
+  `lockerExitPress`) — nicht im Bild des Einstiegs (`interactionCooldown`).
+  Tastenfeld antippen und `A` bleiben. Von oben und aus den Augen leuchtet
+  damit auch der ganze Kasten statt nur des Tastenfelds.
 
 **Mission, Werkzeuge und Komfort**
 
