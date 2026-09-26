@@ -433,6 +433,9 @@ export function floorPlateModels(
   size: number = PLATE_SIZE,
 ): string[] {
   if (solid.kind !== 'floor') return [];
+  // Ein halber Boden unter einer Schräge (`PlanSolid.half`) bekommt keine
+  // Platte: Sie ist quadratisch und stünde über die Schräge hinaus.
+  if (solid.half) return [];
   const out = new Set<string>();
   const level = solid.level ?? 0;
   const west = solid.x - solid.w / 2;

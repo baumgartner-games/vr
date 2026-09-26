@@ -4,7 +4,7 @@ import { TILE, keyLevel, keyX, keyZ, tileKey, type Dir, type TileKey } from '../
 import type { Slope } from '../nav/cellGrid';
 import { BLOCKS, type BlockKind } from './blocks';
 import type { FixturePlacement, Props } from './fixtures/index';
-import { GRID_KINDS, type PlanSolidKind } from './solids';
+import { GRID_KINDS, slopeCorners, type FloorCorner, type PlanSolidKind } from './solids';
 import type { BlockPlacement, GridPlan, Mass } from './gridPlan';
 
 /**
@@ -174,6 +174,12 @@ export interface WorldFixtureEntry extends TileRef {
 /** Eine Wand unter 45° in ihrer Kachel — seit Fassung `0.4`. */
 export interface WorldSlopeEntry extends TileRef {
   slope: Slope;
+  /**
+   * **Der halbe Boden darunter** (`GridPlan.halfFloor`): die Ecke, deren
+   * Dreieck leer bleibt. Fehlt bei ganzem Boden; eine ältere Fassung kennt die
+   * Zeile nicht und legt dort eben den ganzen Boden.
+   */
+  empty?: FloorCorner;
 }
 
 /** Eine Welt, so wie sie in der Datei steht. */
@@ -247,8 +253,9 @@ export function writeWorld(plan: GridPlan, meta: WorldMeta = {}): WorldFile {
 
 /** Die Schrägen — gar keine Zeile, wenn es keine gibt. */
 function slopeEntries(plan: GridPlan): { slopes?: WorldSlopeEntry[] } {
-  const slopes = plan.saveSlopes().map(({ tile, slope }) => {
+  const slopes = plan.saveSlopes().map(({ tile, slope, empty }) => {
     const entry: WorldSlopeEntry = { x: keyX(tile), z: keyZ(tile), slope };
+    if (empty) entry.empty = empty;
     const level = keyLevel(tile);
     if (level !== 0) entry.l = level;
     return entry;
@@ -322,7 +329,7 @@ export interface WorldContents {
   /** Die Einbauten — bei einer Datei aus Fassung `0.1` eine leere Liste. */
   fixtures: FixturePlacement[];
   /** Die Wände unter 45° — vor Fassung `0.4` eine leere Liste. */
-  slopes: Array<{ tile: TileKey; slope: Slope }>;
+  slopes: Array<{ tile: TileKey; slope: Slope; empty?: FloorCorner }>;
 }
 
 /**
@@ -450,10 +457,13 @@ function readBlocks(list: unknown, graph: NavGraph): BlockPlacement[] {
  * Was ohne Kachel, ohne Kennung oder ohne Richtung dasteht, fällt trotzdem
  * weg: Das ist kein Einbau aus der Zukunft, sondern kaputt.
  */
-function readSlopes(list: unknown, graph: NavGraph): Array<{ tile: TileKey; slope: Slope }> {
+function readSlopes(
+  list: unknown,
+  graph: NavGraph,
+): Array<{ tile: TileKey; slope: Slope; empty?: FloorCorner }> {
   if (list === undefined) return [];
   if (!Array.isArray(list)) throw new WorldFormatError('„slopes" ist keine Liste');
-  const out: Array<{ tile: TileKey; slope: Slope }> = [];
+  const out: Array<{ tile: TileKey; slope: Slope; empty?: FloorCorner }> = [];
   const taken = new Set<TileKey>();
   for (const raw of list) {
     if (!raw || typeof raw !== 'object') continue;
@@ -462,7 +472,8 @@ function readSlopes(list: unknown, graph: NavGraph): Array<{ tile: TileKey; slop
     const tile = safeTile(one);
     if (tile === null || !graph.has(tile) || taken.has(tile)) continue;
     taken.add(tile);
-    out.push({ tile, slope: one.slope });
+    const empty = slopeCorners(one.slope).find((corner) => corner === one.empty);
+    out.push(empty ? { tile, slope: one.slope, empty } : { tile, slope: one.slope });
   }
   return out;
 }

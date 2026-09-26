@@ -862,6 +862,13 @@ schaltete der nächste Hutwechsel den Koch mitten im Einrichten wieder an.
   Kacheln gekürzt — eine 2×1-Wand geht durch eine Kachel, eine 4×1-Wand durch
   zwei (`gridSnap.diagonalPose`, `PortalWorld.fitWall`). Für das Zellgitter
   ist sie danach eine Schräge wie eine gebaute (`GridWorld.refreshWallSlopes`).
+  **Halber Boden unter einer Schräge** (September 2026): Im Werkzeug
+  _Schräge_ des Bauplans schaltet das dritte und vierte Tippen den Boden
+  darunter auf die innere Hälfte (`GridPlan.halfFloor`, leer wird die Seite
+  mit weniger Boden, `gridTool.outerCorner`; Einzelheiten in
+  `docs/agents/zellgitter.md`). Die Station von Haunting setzt ihn an jeder
+  Schräge. Für eine eingerastete Regalwand unter 45° gibt es den Schalter
+  noch nicht.
   Alles andere rastet beim Hinstellen weiter auf ein Viertel.
   **`R` gehalten** (länger als `crane.CRANE_TWIST_HOLD`, 0,25 s): Der Kran
   bleibt stehen, und die Nase zeigt zum Mauszeiger, auf Achtel gerastet

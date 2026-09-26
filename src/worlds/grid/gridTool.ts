@@ -5,7 +5,8 @@ import {
   type PlanSpot,
   type PlanTool,
 } from '../editor/levelPlan';
-import { DIR_N, keyLevel, keyX, keyZ } from '../nav/navTile';
+import { DIR_N, keyLevel, keyX, keyZ, tileKey, type TileKey } from '../nav/navTile';
+import { slopeCorners, type FloorCorner } from './solids';
 import { BLOCKS, BLOCK_KINDS, type BlockKind } from './blocks';
 import { fixtureKind, type Props } from './fixtures/index';
 import type { GridPlan } from './gridPlan';
@@ -252,23 +253,59 @@ function setFixture(plan: GridPlan, tool: FixtureTool, spot: PlanSpot, props: Pr
 }
 
 /**
- * **Die Schräge einer Kachel weiterdrehen**: keine → „/" → „\" → keine.
+ * **Die Schräge einer Kachel weiterdrehen**: keine → „╱" → „╲" → „╱" mit
+ * halbem Boden → „╲" mit halbem Boden → keine.
  *
  * Ein Werkzeug und nicht zwei: Welche Diagonale gemeint ist, sieht man erst,
  * wenn sie steht — und dann tippt man lieber noch einmal, als vorher zwischen
- * zwei Knöpfen zu wählen, deren Namen niemand auseinanderhält.
+ * zwei Knöpfen zu wählen, deren Namen niemand auseinanderhält. Dasselbe gilt
+ * für den **halben Boden** (`GridPlan.halfFloor`, Wunsch des Besitzers vom
+ * September 2026): Leer wird die Hälfte, die nach draußen zeigt
+ * (`outerCorner`).
  */
 function turnSlope(plan: GridPlan, spot: PlanSpot): PlanEdit {
   if (!plan.graph.has(spot.tile)) return { changed: false, says: 'Erst Boden legen' };
-  const next: Slope | null =
-    plan.slopeAt(spot.tile) === null
-      ? 'slash'
-      : plan.slopeAt(spot.tile) === 'slash'
-        ? 'backslash'
-        : null;
-  plan.slope(keyX(spot.tile), keyZ(spot.tile), next, keyLevel(spot.tile));
+  const slope = plan.slopeAt(spot.tile);
+  const half = plan.halfFloorAt(spot.tile) !== null;
+  const next: { slope: Slope; half: boolean } | null =
+    slope === null
+      ? { slope: 'slash', half: false }
+      : slope === 'slash' && !half
+        ? { slope: 'backslash', half: false }
+        : slope === 'backslash' && !half
+          ? { slope: 'slash', half: true }
+          : slope === 'slash'
+            ? { slope: 'backslash', half: true }
+            : null;
+  const x = keyX(spot.tile),
+    z = keyZ(spot.tile),
+    level = keyLevel(spot.tile);
+  plan.slope(x, z, next?.slope ?? null, level);
+  plan.halfFloor(x, z, next?.half ? outerCorner(plan, spot.tile, next.slope) : null, level);
+  const mark = next?.slope === 'slash' ? '╱' : '╲';
   return {
     changed: true,
-    says: next === 'slash' ? 'Schräge ╱' : next === 'backslash' ? 'Schräge ╲' : 'Schräge weg',
+    says: !next ? 'Schräge weg' : next.half ? `Schräge ${mark}, Boden halb` : `Schräge ${mark}`,
   };
+}
+
+/**
+ * **Welche Hälfte einer Schrägkachel nach draußen zeigt** — die Ecke, an
+ * deren beiden Kanten weniger Boden liegt. Gleich viel: die erste
+ * (`slopeCorners`).
+ */
+export function outerCorner(plan: GridPlan, tile: TileKey, slope: Slope): FloorCorner {
+  const x = keyX(tile),
+    z = keyZ(tile),
+    level = keyLevel(tile);
+  const floored = (corner: FloorCorner): number => {
+    const dz = corner === 'nw' || corner === 'ne' ? -1 : 1;
+    const dx = corner === 'nw' || corner === 'sw' ? -1 : 1;
+    return (
+      Number(plan.graph.has(tileKey(x, z + dz, level))) +
+      Number(plan.graph.has(tileKey(x + dx, z, level)))
+    );
+  };
+  const [first, second] = slopeCorners(slope);
+  return floored(second) < floored(first) ? second : first;
 }

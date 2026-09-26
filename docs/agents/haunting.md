@@ -151,8 +151,21 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   - Gegangen und gesucht wird darüber auf dem Zellgitter wie überall
     (`stationCellGrid` liest die Schrägen).
   - Gezeichnet werden alle Wände als Regalstücke (`grid/shelfWalls.ts`,
-    `HauntingWorld.placeStationWalls`). Hinter der Schräge deckt ein dunkles
-    Dreieck die äußere Hälfte der Bodenplatte zu (`shipArt.cutCaps`).
+    `HauntingWorld.placeStationWalls`).
+  - **Hinter der Schräge ist kein Boden** (September 2026, Wunsch des
+    Besitzers): Jede Schrägkachel trägt nur ihre innere Hälfte
+    (`GridPlan.halfFloor`, gesetzt in `plan.stationSpace`, gezeichnet als
+    dreieckiges Stück `grid/halfFloor.ts`, nicht zu Rechtecken
+    zusammengelegt in `StationPlan.solids`). Vorher lag dort eine ganze
+    Platte, und ein dunkles Dreieck (`shipArt.cutCaps`, entfallen) deckte die
+    äußere Hälfte zu — von außen stand es über. Gehen ändert sich nicht
+    (`stationCorners.test`, `halfFloor.test`).
+  - **Falle**: Die Welt räumt die Schrägen aus dem Plan (`clearPlanWalls`,
+    sie stehen als Regalstücke) und tauscht den Plan bei jeder Tür aus
+    (`GridPlan.replaceWith`). Beides nahm den halben Boden zuerst mit — die
+    Station stand wieder auf ganzen Platten, und die äußeren Hälften schauten
+    als graue Stufen unter den Schrägen hervor. Jetzt bleibt er
+    (`slope(…, keepHalfFloor)`, `replaceWith` kopiert ihn; `halfFloor.test`).
   - Karte (`wallSegments`, `roomOutline`), Archiv und Papierkarte
     (`HauntingWorld.wallsOf`) zeichnen die Schräge mit.
   - Türen, Klappen, Fenster, Merkmale, Aufgaben und Sicherungskasten liegen
@@ -160,13 +173,43 @@ inhaltliche Stand in README und diese Architektur müssen zusammenpassen.
   - Möbel stehen ganz auf der Innenseite und halten von Schrägen und Nischen
     Abstand (`stationLayout.cutFree` → `boxInShape`).
 - **Von oben sieht man nur, was die Figur sieht** (`stationVisibility.
-  topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und was hinter
-  offenen Türen innerhalb von `TOP_DOWN_REACH` = 6 m liegt. Über allem
-  anderen liegt auf Wandhöhe ein dunkler Deckel; die Einsatzzentrale bleibt
-  aus der Cafeteria sichtbar (Glas). Vorher fragte `cullRoomArt` auch von
-  oben, ob eine Türöffnung im Blickfeld liegt — von oben ist das jede —, und
-  das Telefon des Technikers blendete gar nichts aus, weil `ui` gesetzt war.
-  Ganz sehen darf nur, wer zuschaut (Tafel, Archiv, Bot-Runde).
+  topDownRooms`, `world3d/topDownFog.ts`): den eigenen Raum und **ganze**
+  Nachbarräume, deren verbindende Tür gerade offen steht (das Blatt der
+  Türautomatik, `HauntingWorld.openDoors`; verriegelt zählt nie). Ein Gang
+  zählt samt allen Stücken, die über offene Durchgänge (`passage`) daran
+  hängen, als ein Raum. Weiter reicht es nicht: Der Raum hinter dem Nachbarn
+  bleibt dunkel. Die Einsatzzentrale bleibt aus der Cafeteria sichtbar (Glas).
+  Wunsch des Besitzers (September 2026, vom Handy): _„Eigener Raum und der
+  andere Raum, wo die Tür geöffnet ist, aber sauber eben."_ Vorher zeigte ein
+  Abstand von 6 m zur Türmitte (`TOP_DOWN_REACH`, entfallen) den Nachbarn
+  angeschnitten.
+  - **Die Deckel sind Blöcke** (`lidPieces`): vom Boden bis knapp über die
+    Wandkrone (`LID_TOP`), Kachel für Kachel genau im Umriss des Raums. Zu
+    einem anderen Raum enden sie auf der Wandmitte, nach draußen reichen sie
+    `LID_OUTSET` = 35 cm über die Wand (samt gelbem Sockel); eine
+    Schrägkachel trägt nur ihre innere Hälfte, schräg nach außen geschoben.
+    Die alten Deckel waren flache Rechtecke auf Wandhöhe, so groß wie
+    `rect` — bei geformten Räumen nur das umschließende Rechteck, also über
+    Nischen des Nachbarn; und weil die Kamera schräg schaut, lag der Deckel
+    im Bild versetzt, und unter seiner Kante schauten Boden und Wände des
+    Nachbarn als Streifen hervor. Durch die Seiten eines Blocks sieht man aus
+    keinem Winkel mehr hinein, auch nicht durch eine offene Tür eines
+    sichtbaren Nachbarn. `topDownFog.test` prüft Umriss, Wandmitte, Überstand,
+    Schrägen und Höhe, `stationVisibility.test` die Regel.
+  - **Sie sehen aus wie das Dach der Station**, nicht wie schwarze Hochhäuser
+    (Rückmeldung zur ersten Fassung): oben ein dunkles Blaugrau
+    (`ROOF_COLOUR`, etwas heller als der Weltraum) mit Plattenfugen alle 2 m
+    in Weltkoordinaten (Canvas-Textur, ohne DOM einfarbig), die Seiten
+    dunkler (`SIDE_COLOUR`), an der Oberkante ein feiner heller Rand
+    (`LineSegments`). Die Höhe ist echt — `LID_TOP` = Wandhöhe + 4 cm, ohne
+    Skalierung; ganz schwarz ließen sich Oberseite und Seiten nur nicht
+    unterscheiden. Achtung: Das Dach ist einseitig gezeichnet, die Dreiecke
+    laufen von oben gesehen gegen den Uhrzeigersinn (der Test prüft die
+    Normale).
+  - Vorher fragte `cullRoomArt` auch von oben, ob eine Türöffnung im
+    Blickfeld liegt — von oben ist das jede —, und das Telefon des Technikers
+    blendete gar nichts aus, weil `ui` gesetzt war. Ganz sehen darf nur, wer
+    zuschaut (Tafel, Archiv, Bot-Runde).
 - **Aus den Augen sieht man durch Türen hindurch — und nur durch das Stück
   Bild, das sie freigeben** (`stationVisibility.portalRooms`, September 2026).
   Jeder Raum trägt ein Rechteck im Bild; der Raum hinter einer Tür bekommt
