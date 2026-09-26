@@ -1,6 +1,6 @@
 import { archiveBounds, archiveProjection, archiveRoomAt, paintArchiveMap } from './archiveMap';
 import { homeView } from './archiveView';
-import { APRON, generateHouse } from './house';
+import { APRON, generateHouse, leafDoors } from './house';
 import { TILE, dirX, dirZ } from '../nav/navTile';
 import { stationLayout } from './stationLayout';
 
@@ -110,8 +110,9 @@ describe('Archive 2D chart', () => {
     const p = archiveProjection(spec, 1500, 1000, homeView());
     paintArchiveMap(c, spec, { selected: spec.rooms[0]!.id, shut }, p, false);
     const doors = lines.filter((line) => line.color === '#ff8575' || line.color === '#76d4e4');
-    expect(doors).toHaveLength(spec.doors.length);
-    spec.doors.forEach((door, index) => {
+    // Offene Durchgänge zwischen Gangstücken sind keine Türen (`HouseDoor.passage`).
+    expect(doors).toHaveLength(leafDoors(spec).length);
+    leafDoors(spec).forEach((door, index) => {
       const line = doors[index]!;
       expect(line.color).toBe(shut.includes(door.id) ? '#ff8575' : '#76d4e4');
       expect((line.from[0]! + line.to[0]!) / 2).toBeCloseTo(
