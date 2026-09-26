@@ -35,17 +35,17 @@
     <title>Baumgartner VR</title>
     <meta name="description" content="WebXR Spielwiese: Hub-Welt, Weltenauswahl und experimentelle VR-Prototypen." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8C%80%3C/text%3E%3C/svg%3E" />
-    <script type="module" crossorigin src="/vr/assets/main-B4XCk4UB.js"></script>
+    <script type="module" crossorigin src="/vr/assets/main-DDINasH-.js"></script>
     <link rel="modulepreload" crossorigin href="/vr/assets/pwa-C82_zIY8.js">
-    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-BS8duFey.js">
+    <link rel="modulepreload" crossorigin href="/vr/assets/Audio-DOwfsrAP.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/posture-BiXtEZiL.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/menuGroups-m1H-8fCR.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/fullscreen-t6LUfsK2.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/inputStore-C9FeL0gC.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/assetVersion-CMKnc4jh.js">
     <link rel="modulepreload" crossorigin href="/vr/assets/roundFlow-DWDzGA3m.js">
-    <link rel="stylesheet" crossorigin href="/vr/assets/main-DPMhjuex.css">
-    <meta name="bgvr-build" content="faf554ea109b">
+    <link rel="stylesheet" crossorigin href="/vr/assets/main-BTOa1XAk.css">
+    <meta name="bgvr-build" content="69c3307267c3">
   </head>
   <body>
     <canvas id="scene"></canvas>
@@ -503,6 +503,9 @@
         <div id="touch-a" class="touch__btn touch__btn--a">A</div>
         <!-- Der Auslöser — kein „B" mehr: `B` heißt überall _Zurück_ (docs/agents/steuerung.md). -->
         <div id="touch-b" class="touch__btn touch__btn--b" aria-label="Auslösen"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></div>
+        <!-- Das Bild drehen, eine Vierteldrehung je Tipp (wie `Q` und ←/→ am Steuerkreuz) — links über dem Stock. -->
+        <div id="touch-turn-left" class="touch__turn touch__turn--left" role="button" aria-label="Bild nach links drehen"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 3v5h5"/></svg></div>
+        <div id="touch-turn-right" class="touch__turn touch__turn--right" role="button" aria-label="Bild nach rechts drehen"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3v5h-5"/></svg></div>
       </div>
       <div class="touch__hint">Links ziehen = gehen · rechts wischen = umsehen</div>
     </div>
