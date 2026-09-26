@@ -851,7 +851,7 @@ export function stampKitchen(plan: GridPlan): void {
  * Jede dieser fünf Änderungen macht einen Satz im alten Text falsch — und ein
  * falscher Satz auf einem Schild kostet mehr Zeit als drei fehlende.
  */
-/** Das Tor in den Burgerladen: Kennung und Kachel (Gang südlich der Küche). */
+/** Das Tor ins Restaurant (vormals Burgerladen): Kennung und Kachel (Gang südlich der Küche). */
 export const BURGER_GATE = 'tor-burgerladen';
 export const BURGER_GATE_TILE = { x: KITCHEN.x - 3, z: KITCHEN.z + KITCHEN.d + 1 } as const;
 
@@ -868,7 +868,7 @@ export function fitKitchen(plan: GridPlan): void {
     dir: DIR_E,
     props: {
       world: 'plateup',
-      label: '→ Burgerladen',
+      label: '→ Restaurant',
       accent: 0xf2a33a,
       note: 'Die Spielküche mit Gastraum',
     },

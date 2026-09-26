@@ -11,6 +11,7 @@ import { playPick, playTone } from '../../core/Audio';
 import { ALL_GROUPS, GROUP_WORLD, type PhysicsBody } from '../../physics/PhysicsWorld';
 import type { MenuEntry } from '../../ui/menu';
 import { TextPlane } from '../../ui/TextPlane';
+import { CloseButton } from '../../ui/CloseButton';
 import { GridWorld } from '../grid/GridWorld';
 import type { GridPlan } from '../grid/gridPlan';
 import type { PlanSolid, PlanSolidKind } from '../grid/solids';
@@ -21,6 +22,7 @@ import {
   KITCHEN_CHECKER_LIGHT,
 } from '../test/zones/kitchenFloor';
 import { KitchenGauges } from '../test/zones/kitchenGauge';
+import { HAND_FOOD_SCALE } from '../test/zones/kitchenGrab';
 import { FoodKit } from '../test/zones/kitchenProps';
 import {
   kitchenInteractionSpec,
@@ -193,6 +195,8 @@ export class PlateUpWorld extends GridWorld {
   private hint: TutorialHint | null = null;
   private hintArrow: THREE.Group | null = null;
   private hintPlane: TextPlane | null = null;
+  /** Das ✕ an der Tafel des Tipps (Brille) — schaltet die Einsteigerhilfe aus. */
+  private hintClose: CloseButton | null = null;
   /** Die Leiste unten am Schirm: Hinweis und was man in der Hand hat. */
   private handBar: HTMLDivElement | null = null;
   /** Die Bestellzettel oben am Schirm. */
@@ -266,7 +270,7 @@ export class PlateUpWorld extends GridWorld {
   }
 
   protected override editorTitle(): string {
-    return 'Burgerladen';
+    return 'Restaurant';
   }
 
   protected override layout(): GridPlan {
@@ -282,7 +286,7 @@ export class PlateUpWorld extends GridWorld {
   }
 
   protected override welcome(): string {
-    return 'Burgerladen — die Glocke an der Durchreiche öffnet den Laden';
+    return 'Restaurant — die Glocke an der Durchreiche öffnet den Laden';
   }
 
   /** Leere Hände: In der Küche trägt man Teller und keine Pistole. */
@@ -476,6 +480,7 @@ export class PlateUpWorld extends GridWorld {
     this.tickets?.remove();
     this.tickets = null;
     this.ticketKey = '';
+    this.dropHintClose(ctx);
     this.hintPlane?.dispose();
     this.hintPlane = null;
     this.hintArrow = null;
@@ -966,7 +971,7 @@ export class PlateUpWorld extends GridWorld {
     const board = new TextPlane({
       width: 5.6,
       height: 0.95,
-      title: 'Burgerladen',
+      title: 'Restaurant',
       body: '',
       align: 'center',
       accent: 0xf2a33a,
@@ -981,7 +986,7 @@ export class PlateUpWorld extends GridWorld {
     const sign = new TextPlane({
       width: 3.4,
       height: 2.0,
-      title: 'Burgerladen',
+      title: 'Restaurant',
       body: '',
       accent: 0xf2a33a,
       face: true,
@@ -1218,7 +1223,11 @@ export class PlateUpWorld extends GridWorld {
         if (thing.parent !== controller.hold) controller.hold.add(thing);
         thing.position.set(0, -0.02, -0.08);
         thing.rotation.set(0, 0, 0);
-        thing.scale.setScalar(0.8);
+        // **Halb so groß in der Hand** (`kitchenGrab.HAND_FOOD_SCALE`): Hier
+        // wird nur Essen und Geschirr getragen, und in voller Größe versperrt
+        // der Burger vor der Brille die Sicht. Auf Platte und Tisch steht ein
+        // eigenes Netz in voller Größe (`setHeld` baut es neu).
+        thing.scale.setScalar(HAND_FOOD_SCALE);
       } else {
         if (thing.parent !== ctx.rig) ctx.rig.add(thing);
         thing.position.set(0, ctx.rig.camera.position.y - 0.62, -0.42);
@@ -1944,6 +1953,46 @@ export class PlateUpWorld extends GridWorld {
     plane.visible = false;
     this.root.add(plane);
     this.hintPlane = plane;
+    this.attachHintClose(plane);
+  }
+
+  /**
+   * **Ein ✕ rechts neben den Tipp** — in der Brille war er nur zu lesen, nicht
+   * wegzuklicken. Es steht **neben** der Tafel und nicht auf ihr, damit es
+   * kein Wort zudeckt; Strahl mit Trigger oder `A`, oder mit dem Finger
+   * antippen (`ui/CloseButton.ts`). Was es tut, steht bei `closeTutorial`.
+   */
+  private attachHintClose(plane: TextPlane): void {
+    if (this.context) this.dropHintClose(this.context);
+    const close = new CloseButton({ size: 0.32, hit: 0.56, accent: 0x5ee0a0, front: true });
+    close.position.set(1.2 + 0.24, 0, 0);
+    plane.add(close);
+    this.hintClose = close;
+    this.context?.pointer.add(close.asPointerTarget(() => this.closeTutorial()));
+  }
+
+  private dropHintClose(ctx: WorldContext): void {
+    const close = this.hintClose;
+    if (!close) return;
+    this.hintClose = null;
+    ctx.pointer.remove(close);
+    close.removeFromParent();
+    close.dispose();
+  }
+
+  /**
+   * **Das ✕ am Tipp: die Einsteigerhilfe ist aus** — dasselbe wie _Menü →
+   * Einsteigerhilfe aus_, und genauso gemerkt (`bgvr.plateup.tutorial` =
+   * `off`). Nicht nur dieser eine Satz geht weg: Der nächste stünde ein paar
+   * Sekunden später an derselben Stelle, und wer die Hilfe wegklickt, will
+   * sie nicht mehr. Zurück kommt sie über das Menü.
+   */
+  private closeTutorial(): void {
+    if (!this.tutorialOn) return;
+    this.tutorialOn = false;
+    writeTutorial('off');
+    this.hint = null;
+    this.announce('Einsteigerhilfe aus — im Menü wieder einschalten');
   }
 
   private refreshHint(ctx: WorldContext): void {
@@ -2038,7 +2087,7 @@ export class PlateUpWorld extends GridWorld {
     if (this.handBar.dataset.key !== key) {
       this.handBar.dataset.key = key;
       this.handBar.textContent = '';
-      if (tip) this.handBar.append(pill(`Tipp: ${tip}`, true));
+      if (tip) this.handBar.append(tipPill(tip, () => this.closeTutorial()));
       if (hand) this.handBar.append(pill(hand, false));
     }
 
@@ -2607,6 +2656,25 @@ function pill(text: string, tip: boolean): HTMLDivElement {
   const el = document.createElement('div');
   el.className = tip ? 'plateup-pill plateup-pill--tip' : 'plateup-pill';
   el.textContent = text;
+  return el;
+}
+
+/** Der Tipp am Schirm — mit einem ✕, das die Einsteigerhilfe ausschaltet. */
+function tipPill(text: string, close: () => void): HTMLDivElement {
+  const el = pill(`Tipp: ${text}`, true);
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'plateup-pill__close';
+  button.textContent = '✕';
+  button.title = 'Einsteigerhilfe ausschalten';
+  button.setAttribute('aria-label', 'Einsteigerhilfe ausschalten');
+  // Der Druck gehört dem Knopf und nicht dem Spiel darunter (Stöcke am Glas).
+  button.addEventListener('pointerdown', (event) => event.stopPropagation());
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    close();
+  });
+  el.append(button);
   return el;
 }
 

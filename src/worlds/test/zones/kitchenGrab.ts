@@ -10,7 +10,7 @@ import {
 } from '../../../core/grabHandles';
 import { TILE } from '../../nav/navTile';
 import { PLATE_HEIGHT, PLATE_RADIUS } from './kitchenProps';
-import type { KitchenItem } from './kitchenRecipes';
+import { isDishware, isFood, type KitchenItem } from './kitchenRecipes';
 
 /**
  * **Wo die Hand ein Küchending anfasst** — die Griffe der Küche, und sonst
@@ -560,6 +560,31 @@ export function kitchenCarryTurn(item: KitchenItem): number {
   const ahead = CARRY_FRONT[item];
   if (!ahead) return 0;
   return Math.atan2(ahead.x, -ahead.z);
+}
+
+/**
+ * **Wie groß Essen in der Brille in der Hand liegt** — halb so groß wie auf
+ * der Arbeitsplatte.
+ *
+ * Gemeldet: „Tomaten, Salatblätter, Brötchen, Buletten und alle Burger sind
+ * richtig groß, versperren aber die Sicht." Stimmt — in echter Größe hält man
+ * einen Teller von 47 cm eine Handbreit vor der Brille, und der verdeckt die
+ * halbe Küche. **Nur in der Hand** und nur in der Brille: Auf der Platte, auf
+ * dem Teller und am Tisch bleibt alles, wie es ist, und am Schirm hat die
+ * Ansicht aus den Augen ihre eigene Verkleinerung (`PlateUpWorld.carryInHands`).
+ */
+export const HAND_FOOD_SCALE = 0.5;
+
+/**
+ * **Der Maßstab für dieses Ding in der Hand** (`HAND_FOOD_SCALE` oder 1).
+ *
+ * Kleiner wird, was gegessen wird oder worauf gegessen wird — jede Zutat, jeder
+ * Burger, jeder Teller, auch der dreckige (`isFood`, `isDishware`). **Geräte
+ * bleiben groß**: Eine halbe Pfanne wäre ein Spielzeug, und ein Feuerlöscher
+ * verdeckt nichts, was man beim Löschen sehen müsste.
+ */
+export function kitchenHandScale(item: KitchenItem): number {
+  return isFood(item) || isDishware(item) ? HAND_FOOD_SCALE : 1;
 }
 
 /**

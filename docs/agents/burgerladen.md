@@ -1,6 +1,6 @@
-# Der Burgerladen
+# Das Restaurant
 
-Eine eigene kleine Welt (`#plateup`, Menü → _Burgerladen_, Tor im Hub und im
+Eine eigene kleine Welt (`#plateup`, Menü → _Restaurant_, Tor im Hub und im
 Gang südlich der Testküche): eine eingerichtete **Spielküche mit Gastraum**
 und ein Spiel nach dem Vorbild von _PlateUp!_. Gäste kommen herein, setzen
 sich an einen freien Tisch und bestellen einen Burger; man brät, schneidet,
@@ -11,6 +11,17 @@ Werkhalle. Dieser Laden ist das Gegenteil: ein fertiger Raum, in dem genau
 eine Sache passiert. Die **Regeln am Möbel** sind trotzdem dieselben
 (`test/zones/kitchenCarry.kitchenDeed`), damit ein Brötchen hier nicht anders
 auf den Teller geht als dort.
+
+**Der Name.** Bis Ende September 2026 hieß die Welt _Burgerladen_; jetzt
+heißt sie überall, wo ein Spieler es liest, **Restaurant** — Menü, Startseite,
+Tore (`world.title`, `kitchenPlan` → `→ Restaurant`), Schilder und Tafeln
+(`signText`, `buildBoards`), die Tastenhilfe (`controlHints.ZONE_LABELS`,
+`xrGuide.xrHints`) und der Editor. **Nicht umbenannt** ist, woran Links und
+Code hängen: die Id und der Hash `#plateup`, die Ordner und Dateien
+(`worlds/plateup/`, dieses Kapitel `burgerladen.md`), die Zone `burger` und
+das Tor `tor-burgerladen`. Wer „Laden" liest, liest das Verb des Spiels
+(„Laden öffnen", „der Laden macht zu") — das blieb, weil es in einem
+Restaurant genauso stimmt.
 
 ## Was wo liegt
 
@@ -178,6 +189,31 @@ ersten Tag verabschiedet sie sich und merkt sich das
 (`localStorage` `bgvr.plateup.tutorial` = `done`); _Menü → Einsteigerhilfe
 aus/an_ schaltet sie von Hand.
 
+**Und ein ✕ zum Wegklicken.** Gemeldet: „In der Brille konnte ich die
+Hinweise nicht anfassen." Der Tipp hat deshalb ein ✕ — in der Brille **rechts
+neben** der Tafel (nicht auf ihr, damit es kein Wort zudeckt), mit einer
+unsichtbaren Trefferfläche von 56 cm um ein Zeichen von 32 cm
+(`ui/CloseButton.ts`): Strahl darauf und Trigger oder `A`, oder mit dem
+Finger antippen; liegt der Strahl darauf, wird das Zeichen größer. Am Schirm
+steht dasselbe ✕ als Knopf im grünen Tipp unten. **Was es tut**
+(`closeTutorial`): Es schaltet die Einsteigerhilfe **aus**, genau wie das
+Menü, und merkt sich das (`bgvr.plateup.tutorial` = `off`). Nur den einen
+Satz wegzunehmen wäre sinnlos gewesen — der nächste stünde ein paar Sekunden
+später an derselben Stelle, und wer die Hilfe wegklickt, will sie nicht mehr.
+Zurück kommt sie über _Menü → Einsteigerhilfe an_; die Meldung beim Klick sagt
+das dazu.
+
+**Essen liegt in der Brille halb so groß in der Hand**
+(`kitchenGrab.HAND_FOOD_SCALE`, `carryInHands`). Gemeldet: Tomate, Salat,
+Brötchen, Bulette und jeder Burger seien richtig groß, versperrten aber die
+Sicht — ein Teller von 47 cm eine Handbreit vor der Brille deckt die halbe
+Küche zu. Vorher stand dort 0,8, jetzt 0,5, und **nur in der Hand**: Auf
+Platte, Durchreiche und Tisch steht ohnehin ein eigenes Netz in voller Größe
+(`setHeld` baut das Getragene neu, sobald es die Hand wechselt). Ohne
+getrackten Controller hängt es wie bisher mit 0,8 vor der Brust, aus den Augen
+am Schirm mit 0,42 unten im Bild. Die Testküche macht dasselbe, siehe
+[Greifen](./greifen.md#was-in-der-brille-in-der-hand-liegt).
+
 **Wo man den Stand sieht.** Drei Stellen, jede für eine Ansicht:
 
 - die **Tafel über der Nordwand** (im Raum, dreht sich um die Hochachse zur
@@ -237,7 +273,7 @@ Dieselbe wie in der Testküche — die Stationen melden sich mit
 - **In der Brille**: Hand an die Station, **greifen** nimmt, **loslassen** legt
   ab (dieselbe Regel wie in der Testküche, siehe
   [Greifen](./greifen.md)); das Getragene liegt in der Hand, die es genommen
-  hat. In der Küche gilt die Küchen-Augenhöhe (`posture.kitchenEyeScale`), und
+  hat, Essen und Teller dort halb so groß (siehe oben). In der Küche gilt die Küchen-Augenhöhe (`posture.kitchenEyeScale`), und
   gesprungen wird im Laden nicht (`jumpLock`).
 
 ## Zum Prüfen

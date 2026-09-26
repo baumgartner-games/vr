@@ -94,6 +94,42 @@ export function wrapLines(
 }
 
 /**
+ * **Das ✕ zum Schließen** — eine runde Scheibe im Ton der Knöpfe, ein Ring in
+ * der Akzentfarbe und darin ein kräftiges Kreuz. Gemalt als zwei Striche und
+ * nicht als Schriftzeichen: Ob eine Schrift das „✕" überhaupt kennt, weiß man
+ * in der Brille erst, wenn dort ein leeres Kästchen steht.
+ *
+ * `x`/`y` ist die Mitte, `r` der Halbmesser, alles in Leinwandpixeln.
+ */
+export function paintClose(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  accent: number,
+): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, r - 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(40, 52, 78, 0.96)';
+  ctx.fill();
+  ctx.lineWidth = Math.max(3, r * 0.1);
+  ctx.strokeStyle = css(accent);
+  ctx.stroke();
+  const arm = r * 0.4;
+  ctx.beginPath();
+  ctx.moveTo(x - arm, y - arm);
+  ctx.lineTo(x + arm, y + arm);
+  ctx.moveTo(x + arm, y - arm);
+  ctx.lineTo(x - arm, y + arm);
+  ctx.lineCap = 'round';
+  ctx.lineWidth = Math.max(4, r * 0.18);
+  ctx.strokeStyle = CARD_INK;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
  * **Ein Chip: der Knopf im Kästchen, daneben was er tut** — wie
  * `.hints__item` am Schirm. Gibt die Breite zurück, die er braucht.
  */

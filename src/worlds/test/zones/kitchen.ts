@@ -13,7 +13,12 @@ import { kitchenPieceForModel } from '../../../core/kitchenShelf';
 import { canLoadModels, CHEF_CARRY } from '../../../core/chefFit';
 import { craneCarryY } from '../../../core/crane';
 import { USE_REACH, type UseSource } from '../../../core/usable';
-import { holdFor, nearestHandle, type GrabHandle, type GrabPose } from '../../../core/grabHandles';
+import {
+  holdForScaled,
+  nearestHandle,
+  type GrabHandle,
+  type GrabPose,
+} from '../../../core/grabHandles';
 import { HandleView } from '../../../core/handleView';
 import type { Handedness } from '../../../core/XRInput';
 import { footprintCellKeys } from '../../nav/cellGrid';
@@ -80,6 +85,7 @@ import { DIRTY_STACK_MAX, FoodKit, SINK_TILT, WATER_LOOK } from './kitchenProps'
 import {
   KITCHEN_STATION_GRAB,
   kitchenCarryTurn,
+  kitchenHandScale,
   kitchenGrab,
   kitchenHandles,
   kitchenPieceGrab,
@@ -342,6 +348,18 @@ const PAN_RIM = 0.04;
  */
 function looseRim(item: KitchenItem): number {
   return item === 'pot' ? POT_BOWL.floor : PAN_RIM;
+}
+
+/**
+ * **Wieder in voller Größe** — die Gegenbewegung zur halben Größe in der
+ * Brillenhand (`holdInHand`, `kitchenGrab.kitchenHandScale`).
+ *
+ * Nur für das, was dort überhaupt verkleinert wird: Ein Gerät kommt mit dem
+ * Maßstab aus dem Möbelmodell, den es behalten soll, und wird hier nicht
+ * angefasst.
+ */
+function fullSize(thing: Carried): void {
+  if (kitchenHandScale(thing.dish.item) !== 1) thing.object.scale.setScalar(1);
 }
 
 /**
@@ -2672,6 +2690,7 @@ export class KitchenZone implements TestZone {
     const object = thing.object;
     if (object.parent !== this.rig) this.rig?.add(object);
     object.rotation.set(0, kitchenCarryTurn(thing.dish.item), 0);
+    fullSize(thing);
   }
 
   /**
@@ -2713,7 +2732,16 @@ export class KitchenZone implements TestZone {
     // und nicht gemessen (`kitchenGrab.kitchenHandles`). Deshalb bleibt bei
     // einer Übergabe derselbe `handle` stehen und die Pfanne dreht sich nicht
     // in der Luft.
-    const pose = holdFor(hold.thing.handle);
+    //
+    // **Und Essen liegt dabei halb so groß in der Hand**
+    // (`kitchenGrab.kitchenHandScale`) — ein Teller in echter Größe eine
+    // Handbreit vor der Brille verdeckt die halbe Küche. Gestaucht wird um
+    // den Griff (`holdForScaled`), damit der Tellerrand in der Faust bleibt;
+    // zurück auf volle Größe geht es beim Ablegen (`restOn`) und vor dem
+    // Bauch (`backToBelly`).
+    const scale = kitchenHandScale(hold.thing.dish.item);
+    const pose = holdForScaled(hold.thing.handle, scale);
+    object.scale.setScalar(scale);
     object.position.set(pose.position.x, pose.position.y, pose.position.z);
     object.quaternion.set(pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w);
     return true;
@@ -5099,6 +5127,7 @@ export class KitchenZone implements TestZone {
    * hinten, und der Rost lag frei davor.
    */
   private restOn(spot: Station, thing: Carried): void {
+    fullSize(thing);
     const [hx, hz] = kitchenHub(thing.dish.item);
     thing.object.position.set(spot.deck.x - hx, spot.deck.y, spot.deck.z - hz);
   }

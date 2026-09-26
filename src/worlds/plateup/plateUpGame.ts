@@ -600,7 +600,7 @@ export function signText(shift: Shift): { title: string; body: string } {
   switch (shift.phase) {
     case 'ready':
       return {
-        title: 'Burgerladen',
+        title: 'Restaurant',
         body: [
           'Gäste kommen, setzen sich und bestellen.',
           'Brötchen + Patty vom Grill (+ Salat oder Tomate vom Brett)',

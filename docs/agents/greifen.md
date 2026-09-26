@@ -934,6 +934,19 @@ Hand, die zugegriffen hat — demselben Knoten, an dem jedes Werkzeug hängt, un
 der bei einer getrackten Hand schon den Versatz zum Zeigestrahl trägt
 (`core/handHold.ts`). Damit dreht sich die Pfanne mit dem Handgelenk.
 
+**Essen liegt dort halb so groß** (`kitchenGrab.kitchenHandScale`,
+`HAND_FOOD_SCALE` = 0,5): jede Zutat, jeder Burger, jeder Teller, auch der
+dreckige. Gemeldet war, dass Tomate, Salat, Brötchen und Bulette zwar richtig
+groß sind, in der Hand aber die Sicht versperren — in echter Größe hält man
+einen Teller von 47 cm eine Handbreit vor der Brille. **Geräte bleiben groß**
+(Pfanne, Topf, Löscher, Schlüssel). Gestaucht wird **um den Griff**
+(`grabHandles.holdForScaled`): Wer den Teller am Rand hält, behält den Rand in
+der Faust, und der Teller rückt zu ihr hin, statt mit dem halben Maßstab aus
+ihr herauszurutschen. Volle Größe gibt es zurück, sobald es die Hand verlässt
+— beim Ablegen (`restOn`, die eine Stelle, an der alles auf eine Station
+kommt) und vor dem Bauch (`backToBelly`, `fullSize`). Das Restaurant macht
+dasselbe mit derselben Zahl ([Das Restaurant](./burgerladen.md)).
+
 Von oben und am Schreibtisch bleibt alles beim Alten: Das Getragene hängt vor dem
 Bauch (`core/chefFit.CHEF_CARRY`). Fällt ein Controller weg oder wird die Brille
 abgesetzt, holt `kitchen.backToBelly` es dorthin zurück. Ein **Gegenstand der

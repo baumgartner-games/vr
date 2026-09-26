@@ -82,7 +82,7 @@ describe('controlHints — die Tastenhilfe', () => {
 });
 
 /**
- * **Die Sonderzonen** (`HintZone`): Kart, Burgerladen, Baukasten und die
+ * **Die Sonderzonen** (`HintZone`): Kart, Restaurant, Baukasten und die
  * Station sagen, was dort anders ist — einheitlich: vorn das Schildchen, dann
  * die Knöpfe, zuletzt das Menü.
  */
@@ -98,14 +98,14 @@ describe('controlHints — die Sonderzonen', () => {
     );
   });
 
-  it('sagt im Burgerladen Nehmen, Ablegen und die Glocke', () => {
+  it('sagt im Restaurant Nehmen, Ablegen und die Glocke', () => {
     const burger = (holding: boolean, closed: boolean, useCandidate: boolean): string =>
       hintText(controlHints({ ...base, useCandidate, zone: { kind: 'burger', holding, closed } }));
-    expect(burger(false, false, true)).toBe('[Burgerladen] · A Nehmen · ☰ Menü');
-    expect(burger(true, false, true)).toBe('[Burgerladen] · A Ablegen · ☰ Menü');
-    expect(burger(false, true, false)).toBe('[Burgerladen] · A Glocke läuten · ☰ Menü');
+    expect(burger(false, false, true)).toBe('[Restaurant] · A Nehmen · ☰ Menü');
+    expect(burger(true, false, true)).toBe('[Restaurant] · A Ablegen · ☰ Menü');
+    expect(burger(false, true, false)).toBe('[Restaurant] · A Glocke läuten · ☰ Menü');
     // Nichts in Reichweite: Die Zeile sagt, wo `A` etwas tut.
-    expect(burger(true, false, false)).toBe('[Burgerladen] · A an Platte/Tisch: Ablegen · ☰ Menü');
+    expect(burger(true, false, false)).toBe('[Restaurant] · A an Platte/Tisch: Ablegen · ☰ Menü');
     // Von oben kommt das Drehen des Bildes dazu.
     const top = hintText(
       controlHints({
@@ -115,7 +115,7 @@ describe('controlHints — die Sonderzonen', () => {
         zone: { kind: 'burger', holding: false, closed: false },
       }),
     );
-    expect(top).toBe('[Burgerladen] · E Nehmen · Q Bild drehen · M Menü');
+    expect(top).toBe('[Restaurant] · E Nehmen · Q Bild drehen · M Menü');
   });
 
   it('nennt im Baukasten das Werkzeug und wie man es wechselt', () => {

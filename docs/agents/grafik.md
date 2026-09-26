@@ -26,7 +26,7 @@ nur einen Schatten-Kreis unter sich."_
   Loch in die Leinwand, und die helle Seite schien als _heller_ Kreis durch.
   Angemeldet wird mit `markBlobShadow(fußpunkt, radius)` am Objekt, dessen
   Weltposition zwischen den Füßen liegt: `AvatarBody` (Spieler, Mitspieler,
-  Koch) am Rumpf, `NpcBody`, Haunting-`Actor`, Gäste im Burgerladen, `Kart`.
+  Koch) am Rumpf, `NpcBody`, Haunting-`Actor`, Gäste im Restaurant, `Kart`.
   Die Szene wird zweimal die Sekunde danach abgesucht. Wo der Boden liegt,
   weiß niemand — jeder Kreis merkt sich den tiefsten Fußpunkt (`followFloor`:
   hinunter sofort, hinauf mit 0,6 m/s, ab 2,5 m Sprung sofort), und je höher
@@ -1111,7 +1111,7 @@ jeder Nächste noch einmal haben muss.
 
 Die Küchenstrecke fragt, **wer** in einer Welt die Aufrufe verbraucht, und
 geht dafür tief. Für die Welten, die in den letzten Wochen dazukamen oder
-umgebaut wurden — die Lobby des Hubs, der Burgerladen, der Bauplatz, die
+umgebaut wurden — die Lobby des Hubs, das Restaurant, der Bauplatz, die
 Sitzecke der Testwelt, die Übungsrunde in Haunting —, fehlte die breitere
 Frage: **wie viel** kostet jede, verglichen mit der Küche, die man kennt?
 Dafür gibt es `tools/perf-worlds.mjs` (`npm run perf:worlds`), mit derselben
@@ -1125,7 +1125,7 @@ SMOKE_EXECUTABLE=/opt/pw-browsers/chromium npm run perf:worlds -- --url=http://1
 … --profile                                 # wer in world.update die Zeit braucht
 ```
 
-Je Welt wird geladen, das Vorbereitende getan — im Burgerladen den Laden
+Je Welt wird geladen, das Vorbereitende getan — im Restaurant den Laden
 öffnen (`debugOpen`, Uhr ×4), bis Gäste sitzen; in der Testwelt neben die
 Sitzecke stellen (`?at=-16,1`), bis die Besucher Platz genommen haben; in
 Haunting in die Einsatzzentrale und, als zweite Stelle, in die Cafeteria —,
@@ -1154,7 +1154,7 @@ ist _Hauptbild × 2 + Schatten + Renderziele_ (siehe oben):
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Testküche (Bezug), `?at=kitchen#test` | 209 / 303 → 200 / 293 | 227 → 225 | 645 → **624** | 279 k | 5 034 (674) | 347 | 3–7 ms |
 | Hub, Mitte der Lobby | 32 / 36 → 32 / 35 | 38 → 33 | 103 → **97** | 20 k | 347 (72) | 65 | 0,5 ms |
-| Burgerladen, Tag 1 offen, 3 Gäste | 62 / 94 → 53 / 73 | 156 → 106 | 281 → **213** | 30 k → 34 k | 557 (206) | 78 | 0,6 ms |
+| Restaurant, Tag 1 offen, 3 Gäste | 62 / 94 → 53 / 73 | 156 → 106 | 281 → **213** | 30 k → 34 k | 557 (206) | 78 | 0,6 ms |
 | Bauplatz (ohne Beispielraum, s. o.) | 19 / 26 | 19 | **56** | 12 k | 265 (34) | 27 | 0,5 ms |
 | Testwelt, Sitzecke, 6 Besucher | 219 / 564 → 210 / 532 | 142 → 126 | 580 → **545** | 331 k | 5 120 (732) | 392 | 3–4 ms |
 | Haunting, Übungsrunde, Einsatzzentrale | 253 / 596 → 162 / 378 | 49 → 48 | 554 → **371** | 207 k → 178 k | 2 747 (860) | 757 | 3 ms |
@@ -1162,7 +1162,7 @@ ist _Hauptbild × 2 + Schatten + Renderziele_ (siehe oben):
 
 Links vom Pfeil vorher, rechts nachher; Netze und Materialien stehen im
 Zustand vorher. Renderziele (Spiegel, Portalsichten) waren an keiner der
-Stellen im Bild. Die Dreiecke im Burgerladen **steigen**, und das ist
+Stellen im Bild. Die Dreiecke im Restaurant **steigen**, und das ist
 dieselbe Rechnung wie bei den Bodenkacheln: Ein Bündel wird als Ganzes
 ausgesiebt oder gar nicht. Die Zahlen für die Cafeteria vorher stammen aus
 einem Lauf auf dem Stand vor dem Umbau, alle anderen aus `--ab` in derselben
@@ -1171,13 +1171,13 @@ Szene.
 Drei Dinge stehen in dieser Tabelle:
 
 **Die neuen Welten sind billig — bis auf Haunting.** Hub, Bauplatz und
-Burgerladen liegen bei einem Drittel der Küche und darunter. Die Sitzecke
+Restaurant liegen bei einem Drittel der Küche und darunter. Die Sitzecke
 liegt in der Testwelt und bezahlt deren Gelände mit; die Besucher selbst sind
 je Figur gut **acht Aufrufe im Schatten** und zwei bis drei im Bild (eine
 KayKit-Figur aus dem Abenteurer-Paket ist ein halbes Dutzend Netze mit Skelett
 — daran ist ohne neue Modelle nichts zu bündeln).
 
-**Im Burgerladen war der Schatten das Bild.** 152 von 272 Aufrufen waren
+**Im Restaurant war der Schatten das Bild.** 152 von 272 Aufrufen waren
 Schatten, und die meisten davon Wände, Stühle und Tische, die zu Dutzenden
 gleich dastehen: Die Wand `wall` allein war 19 Aufrufe im Schatten.
 
@@ -1241,7 +1241,7 @@ aus dem letzten Bild — ein Einrasten des Körpers kam erst ein Bild später an
 Jetzt nimmt es die Kamera des Spielers (Kopfhaltung lokal unter dem frischen
 Körper, Projektion über beide Augen).
 
-**Was es nicht verändert.** Die Fotos aus `--ab` sind für den Burgerladen,
+**Was es nicht verändert.** Die Fotos aus `--ab` sind für das Restaurant,
 den Hub und die Stachelfallen Bild für Bild dieselben. Für Haunting
 steht die Prüfung im Absatz davor; die Rechnung ist außerdem **konservativ**
 in dem Sinn, dass sie nur
@@ -1273,6 +1273,6 @@ und Aussehen weniger Stücke (`ModelBatch.drifted`).
   in `world.update`** (12 % im Profil, `--profile`), vor `traverse` und
   `updateMatrixWorld`. Die Bündel selbst tauchen unter den ersten fünfzehn
   nicht auf.
-- **Die Stationen des Burgerladens** (je ein Aufruf in Bild und Schatten)
+- **Die Stationen des Restaurants** (je ein Aufruf in Bild und Schatten)
   könnten mit ins Bündel, wenn das, was darauf liegt, an einem eigenen Knoten
   hängt und nicht am Möbel.

@@ -166,6 +166,9 @@ body:has(.hints[data-device="touch"]:not([hidden])) .plateup-tickets { top: calc
 .plateup-hand[hidden], .plateup-tickets[hidden] { display: none; }
 .plateup-pill { --hud-accent: #f2a33a; max-width: 100%; box-sizing: border-box; padding: 6px 14px; border-radius: var(--hud-radius-pill); border: 2px solid var(--hud-accent); background: var(--hud-bg); color: var(--hud-ink); box-shadow: var(--hud-shadow); backdrop-filter: var(--hud-blur); text-align: center; }
 .plateup-pill--tip { --hud-accent: #5ee0a0; background: var(--hud-good-bg); }
+.plateup-pill__close { pointer-events: auto; margin-left: 10px; min-width: 28px; min-height: 28px; padding: 0 6px; vertical-align: middle; border: 1px solid var(--hud-line); border-radius: var(--hud-radius-pill); background: var(--hud-raise); color: var(--hud-ink); font: 700 14px/1 var(--hud-font); cursor: pointer; }
+.plateup-pill__close:hover { background: var(--hud-raise-hi); }
+.plateup-pill__close:focus-visible { outline: 2px solid var(--hud-accent); outline-offset: 2px; }
 .plateup-ticket { min-width: 92px; padding: 4px 8px 6px; border-radius: var(--hud-radius-sm); background: #fffaf0; border: 2px solid #3a3f4b; color: #2b2f38; font: 600 12px/1.25 var(--hud-font); box-shadow: var(--hud-shadow); }
 .plateup-ticket--urgent { border-color: #e0584f; }
 .plateup-ticket__table { font-size: 11px; color: #6b6f78; }

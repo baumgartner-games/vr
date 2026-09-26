@@ -1236,6 +1236,12 @@ export class App {
     this.rig.setLocomotion(new FreeLocomotion());
     this.pointer.clear();
     this.wristMenu.attachPointer();
+    // **Die Willkommens-Tafel der Brille gehört auch keiner Welt**, und ihr
+    // Zeigerziel räumt `clear` genauso mit weg wie das der Tastatur. Es
+    // stand bis hierhin nur einmal im Konstruktor — nach dem ersten
+    // Weltwechsel ging die Tafel mit Trigger nicht mehr zu, nur noch von
+    // selbst („die Texte konnte ich in der Brille nicht anfassen").
+    if (this.xrGuide) this.pointer.add(this.xrGuide.asPointerTarget());
     // Die Tastatur gehört nicht der Welt: sie überlebt den Wechsel, ihr
     // Zeigerziel aber nicht — das räumt `clear` mit weg.
     this.keys.close();
