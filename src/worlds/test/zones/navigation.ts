@@ -268,9 +268,9 @@ export class NavigationZone implements TestZone {
     this.buildButton(ctx, world);
   }
 
-  update(dt: number): void {
+  update(dt: number, ctx?: WorldContext): void {
     this.button?.update(dt);
-    this.seating.update(dt);
+    this.seating.update(dt, ctx);
   }
 
   /** `B`/`Y` räumt die Zone leer: Wer noch unterwegs ist, ist es nicht mehr. */

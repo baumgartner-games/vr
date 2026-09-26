@@ -39,6 +39,8 @@ const QUEUE = { x: -13, z: 2, length: 3 } as const;
 export const SEATING_DOOR = { x: -8.5, z: 3.2 } as const;
 /** Der Knopf, der sie einlässt. */
 const BUTTON_TILE = { x: -9, z: -2 } as const;
+/** Ab welcher Entfernung zum Eingang die ersten Besucher kommen, in Metern. */
+const OPEN_REACH = 30;
 /** Wie viele auf einen Druck kommen. */
 const ADMIT = 6;
 
@@ -137,18 +139,27 @@ export class SeatingCorner {
     this.fillFurniture(world);
   }
 
-  update(dt: number): void {
+  update(dt: number, ctx?: WorldContext): void {
     this.button?.update(dt);
-    // Wer hereinkommt, soll nicht vor einer leeren Ecke stehen: Die ersten
-    // Besucher kommen im ersten Bild — beim Bauen der Zone gibt es den
-    // Regisseur noch nicht, der sie setzen könnte.
-    if (!this.opened && this.routine) this.opened = this.routine.admit(ADMIT) > 0;
+    // **Die ersten Besucher kommen, sobald jemand in der Nähe ist** — nicht
+    // beim Bauen (da gibt es den Regisseur noch nicht) und nicht für den, der
+    // in der Küche am anderen Ende der Welt anfängt: Sechs Figuren samt ihrer
+    // Bewegungen wären für ihn Ladezeit und Bildrate für nichts. Wer dann
+    // kommt, soll nicht vor einer leeren Ecke stehen.
+    if (!this.opened && this.routine && ctx && this.near(ctx)) {
+      this.opened = this.routine.admit(ADMIT) > 0;
+    }
     this.routine?.update(dt);
   }
 
   reset(): void {
     this.routine?.clear();
     this.opened = false;
+  }
+
+  private near(ctx: WorldContext): boolean {
+    const at = ctx.rig.position;
+    return Math.hypot(at.x - SEATING_DOOR.x, at.z - SEATING_DOOR.z) <= OPEN_REACH;
   }
 
   /** Was die Besucher gerade tun — für den Test und für eine Meldung. */

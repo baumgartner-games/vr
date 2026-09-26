@@ -1107,9 +1107,12 @@ Solange eine Haltung gilt, rechnet das Hirn nicht.
 **Zu sehen in der Testwelt**, Navigationszone, Südrand
 (`test/zones/seating.ts`): drei Stühle aus `furniture-bits`, eine Bank aus
 `dungeon`, eine Schlange mit drei Plätzen daneben und ein roter Knopf
-_Besucher einlassen_. Beim Betreten kommen sechs Abenteurer herein (fünf
-Sitzplätze — der sechste stellt sich an), jeder setzt sich zweimal, dann gehen
-sie zum Ausgang in der Südostecke. Die Möbel haben **keinen Körper**: Ein
+_Besucher einlassen_. Sobald man der Ecke näher als 30 m kommt, kommen sechs
+Abenteurer herein (fünf Sitzplätze — der sechste stellt sich an), jeder setzt
+sich zweimal, dann gehen sie zum Ausgang in der Südostecke. Nicht schon beim
+Bauen der Welt: Die Testwelt fängt in der Küche an, und sechs Figuren samt
+Bewegungen wären dort Ladezeit und Bildrate für nichts. Die Möbel haben
+**keinen Körper**: Ein
 Stuhl, den das Gitter sperrt, ist einer, auf den sich niemand setzen kann.
 Der rote Knopf _NPC losschicken_ daneben räumt seitdem nur noch **seinen**
 Läufer weg (`ZoneHost.sendNpc` gibt ihn zurück) und nicht die Besucher.
