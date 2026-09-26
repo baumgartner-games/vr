@@ -102,7 +102,7 @@
           darunter. Ein Sitzender ist sonst einfach ein sehr kleiner Stehender,
           und jede Theke, jeder Kartsitz und jeder Horizont ist plötzlich für
           jemand Größeren gebaut. Später umzustellen geht unter
-          Menü → Bewegung → Haltung.
+          Menü → Einstellungen → Bewegung → Haltung.
         -->
         <fieldset id="posture-field" class="posture" hidden>
           <legend>Spielst du im Sitzen oder im Stehen?</legend>
@@ -322,6 +322,10 @@
           <a href="./inputs.html">Controller prüfen</a>
           <a href="./tools.html">Werkzeuge &amp; Beutel</a>
         </nav>
+        <!-- Und aus der Lobby einer Runde zurück zur Weltauswahl — ohne Adresse ist es die Spielwiese. -->
+        <nav class="landing__links only-haunting" aria-label="Weitere Seiten">
+          <a href="./">← Andere Welt wählen</a>
+        </nav>
 
         <!--
           **Die Version, ganz unten und ganz klein.** `0.<Build>.<Patch>` aus
@@ -447,7 +451,7 @@
       <button type="button" id="net-center" class="btn--mini btn--grow">Ansicht zentrieren</button>
       <p class="panel__hint">Ziehen dreht die Kamera · Mausrad ändert den Abstand</p>
       <p class="panel__hint">
-        Im Headset stehen dieselben Optionen unter <strong>Menü → Verbindung → Zuschauen</strong>.
+        Im Headset stehen dieselben Optionen unter <strong>Menü → Zusammen → Zuschauen</strong>.
         Dort wird nur die Position des anderen Spielers übernommen, die Blickrichtung bleibt deine.
       </p>
     </section>
@@ -463,7 +467,7 @@
     <!--
       **Die Steuerung auf dem Glas.** Ob sie überhaupt dasteht, entscheidet
       eine einzige Rechnung (`src/core/screenPads.ts`, angewandt in
-      `src/main.ts`): die Einstellung unter **Menü → Grafik →
+      `src/main.ts`): die Einstellung unter **Menü → Einstellungen → Grafik →
       Bildschirm-Steuerung** (an / aus / automatisch), und in der Automatik das
       Gerät — nur am Handy, und dort nur, solange kein Gamepad angesteckt ist.
       In der Brille und in Welten mit eigener Steuerung nie.

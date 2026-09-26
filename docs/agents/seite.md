@@ -160,8 +160,113 @@ Für die Spielwiese heißt das: Auf einer PS5 spielt man **mit dem Zeiger**, und
 genau dafür ist die Ansicht _Von oben_ ohnehin gebaut (Maus zielt, Klick
 schießt). Der Vollbildknopf ist dort besonders viel wert.
 
+## Das Menü: sieben Bereiche und eine Tabelle
+
+Gemeldet war: „Die Menüführung ist verbesserungswürdig — wie die Menüs
+aufgebaut und gruppiert sind." Bis dahin hing **jeder** Eintrag an der Wurzel:
+sieben aus der App (Welten, Ansicht, Verbindung, Bewegung, Eingaben, Aussehen,
+Grafik), dahinter alles, was die Welt mitbrachte — in der Testwelt vierzehn
+weitere, von _Werkzeuge_ über _NPC_ und _Weltänderungen_ bis _Zeiten löschen_.
+Gut zwanzig Zeilen gleichen Gewichts, und die Hitboxen der Physik standen im
+Grafik-Menü zwischen _Schatten_ und _Vollbild_.
+
+Jetzt hat die Wurzel **wenige Hauptbereiche**, am Schirm (`ui/PageMenu.ts`)
+und am Handgelenk (`ui/WristMenu.ts`) dieselben, weil beide denselben Baum
+lesen:
+
+| Bereich | Was darin steht (Id) |
+| ------- | -------------------- |
+| _Weiterspielen_ | steht über allem — das Häufigste, was man mit einem offenen Menü tut |
+| **Spielen** | die Welten (`world:*`, Spiele zuerst, `WIP`/`TEST` hinten), _Ansicht_ (`view`), und was die Welt anbietet: _Zu einer Zone_, _Karts in die Box_, _Zeiten löschen_, _Zurücksetzen_ |
+| **Bauen & Gestalten** | _Spielmodus_ (aus `settings` herausgezogen), _Werkzeuge_, _Magischer Beutel_, _KayKit-Regal_, _NPC_, _Welt sichern_ |
+| **Zusammen** | die Verbindung (`net`): Raum, Name, Chat, Stimme, Zuschauen |
+| **Figur** | das Aussehen (`look`) |
+| **Einstellungen** | _Bewegung_, _Grafik_, _Hände & Greifen_ (so heißt `settings` hier) |
+| **Steuerung & Hilfe** | _Eingaben_ (`input`), und am Schirm zwei Verweise in einen neuen Tab: Eingabeseite und Werkzeugseite (`help:*`) |
+| **Werkstatt** `TEST` | alles zum Prüfen und Messen — Bildrate, Position, Gitterlinien, belegte Felder, Hitboxen, Ghosting, Griffe, Trefferzonen und Navigation der NPCs, Welt-Physik, Weltänderungen, Konfig-Code, Werkzeug-Posen |
+
+**Die Ordnung steht an einer Stelle** — `MENU_PLACEMENT` in
+`ui/menuGroups.ts`, mit Test. Wer baut, baut weiter flach: `App.refreshMenu`
+legt Welten, App-Menüs und `World.menu()` in **eine** Liste, und
+`groupMenu` macht daraus die Wurzel. Eine Zeile der Tabelle ist eine Id und
+ein Bereich; sie greift auf zwei Ebenen:
+
+- **Ein Eintrag der Wurzel** (`tools`, `net`, `gfx`) kommt samt Untermenü in
+  seinen Bereich.
+- **Eine Zeile eines Untermenüs** (`gfx:hitboxes`, `setting:config`) wird aus
+  ihrem Menü herausgenommen und in den Bereich gestellt — so bleibt der Code,
+  der eine Einstellung kennt, bei ihr (`App.graphicsMenu` baut die Hitboxen
+  weiter), und nur die Tabelle sagt, dass sie in die Werkstatt gehört. Das
+  Objekt bleibt dabei dasselbe: Die Bildraten-Zeile, die die App zweimal die
+  Sekunde umschreibt, kommt in der Werkstatt an.
+
+**Einen neuen Menüpunkt einordnen:** eine Id geben und sie in
+`MENU_PLACEMENT` an die Stelle schreiben, an der er im Bereich stehen soll
+(die Reihenfolge der Tabelle ist die Reihenfolge im Bereich). Was dort nicht
+steht, geht nicht verloren: An der Wurzel landet es hinten in _Spielen_
+(„was diese Welt kann"), in einem Untermenü bleibt es, wo es ist. Eine neue
+Welt braucht gar nichts — `world:*` fängt sie; ist sie ein Prüfstand, bekommt
+ihre Definition `test: true` (Schildchen `TEST`, hinter die Spiele), eine
+Baustelle `experimental: true` (`WIP`).
+
+Drei Regeln halten den Baum ehrlich (`groupMenu`):
+
+- **Leere Bereiche gibt es nicht.** Haunting bringt keine Werkzeuge mit, also
+  steht dort kein _Bauen & Gestalten_.
+- **Ein Bereich mit nur einem Untermenü _ist_ dieses Untermenü.** _Zusammen_
+  öffnet direkt die Verbindung, _Figur_ direkt das Aussehen — eine Seite mit
+  einer einzigen Zeile, die zur eigentlichen Seite führt, wäre ein Klick, der
+  nichts erklärt. Die Zeile trägt dann die Id des Eintrags (`net`, `look`),
+  der Weg dorthin bleibt also derselbe, falls einmal etwas dazukommt.
+- **Die Bereichs-Ids** (`spielen`, `bauen`, …) sind Seiten im Weg
+  (`menuNav.ts`) und dürfen mit keiner Eintrags-Id zusammenfallen; der Test
+  prüft es.
+
+### Wo man ist, und wie man zurückkommt
+
+- **Brotkrumen.** Über dem Titel steht klein der Weg bis hierher — am Schirm
+  „Menü › Einstellungen" als Knöpfe, jeder ein Sprung dorthin
+  (`PageMenu.paintCrumbs`); am Handgelenk an der Stelle, an der sonst
+  _BAUMGARTNER VR_ steht, von vorn gekürzt, wenn er zu lang wird
+  (`PageOptions.crumb`, `UIPanel`).
+- **`Esc` geht eine Ebene zurück** und macht erst ganz oben zu
+  (`PageMenu.back`); steht ein Suchbegriff im Regal, wird zuerst der gelöscht.
+  Vorher schloss `Esc` das ganze Menü, egal wie tief man stand.
+- **`WristMenus.back()`** ist dieselbe Treppe für jede Taste, die „zurück"
+  heißen soll (`B` am Pad, in der Brille), egal welches Gesicht des Menüs
+  gerade oben ist; `false` heißt, es war gar nichts offen. Die Belegung
+  selbst gehört `core/inputMap.ts` — hier steht nur, was gerufen wird.
+- **`openSubmenu(id)` findet die Seite unter ihrem Bereich**
+  (`findMenuPath`, höchstens drei Ebenen tief): Welten rufen weiter
+  `openSubmenu('bag')`, die App `openSubmenu('look')`, ohne zu wissen, dass
+  darüber jetzt _Bauen & Gestalten_ bzw. _Figur_ steht.
+- **Das Menü bleibt, wo man war** (`menuNav.ts`) — über Schließen und
+  Wiederöffnen, an beiden Handgelenken und am Schirm. Über das **Neuladen**
+  hinaus merkt es sich nur den Katalog (`menuRecall.ts`); der gilt jetzt
+  auch eine Ebene tiefer: Wer _Bauen & Gestalten → KayKit-Regal_ öffnet,
+  steht wieder im Ordner von vorhin.
+
+### Alte Wege, neue Wege
+
+In älteren Kapiteln steht oft noch der alte Weg; so heißt er jetzt:
+
+| Früher | Jetzt |
+| ------ | ----- |
+| Menü → Welten | Menü → Spielen |
+| Menü → Ansicht | Menü → Spielen → Ansicht |
+| Menü → Verbindung | Menü → Zusammen |
+| Menü → Aussehen | Menü → Figur |
+| Menü → Bewegung / Grafik | Menü → Einstellungen → Bewegung / Grafik |
+| Menü → Einstellungen (der Welt) | Menü → Einstellungen → Hände & Greifen; _Spielmodus_ unter Bauen & Gestalten |
+| Menü → Eingaben | Menü → Steuerung & Hilfe → Eingaben |
+| Menü → Werkzeuge / Beutel / KayKit-Regal / NPC | Menü → Bauen & Gestalten → … |
+| Menü → Grafik → Hitboxen, Bildrate, Position, Gitter, Griffe, Ghosting | Menü → Werkstatt |
+| Menü → NPC → Trefferzonen, Navigation | Menü → Werkstatt |
+| Menü → Einstellungen → Welt-Physik, Konfig-Code, Posen; Menü → Weltänderungen | Menü → Werkstatt |
+
 ## Menü → Eingaben
 
+Heute unter _Steuerung & Hilfe_ (siehe oben).
 Dieselbe Belegung wie auf der Eingabeseite, aber dort, wo man steht, wenn sie
 einem auffällt (`App.inputsMenu`). Vier Zeilen:
 
@@ -320,6 +425,58 @@ Geprüft wird es in `tools/browser-smoke.mjs`, gleich nach dem ersten Bild der
 Ansicht von oben: Die Leinwand muss das Fenster genau decken, und der
 Bildpuffer muss sein Seitenverhältnis haben. Die Rechnung dahinter hängt an
 keinem Browser und steht in `ui/safeArea.test.ts`.
+
+## Die Startseite: eine Welt wählen, einmal drücken
+
+Gewünscht war „ein aufgeräumter, einladender Startbildschirm mit klarer
+Hauptaktion, Weltauswahl mit Bildern, sekundäre Aktionen dezent". Von oben
+nach unten steht jetzt da (`index.html`, `style.css` am Ende):
+
+1. **Titel und eine Zeile** — was das hier ist, ohne „WebXR-Basis für
+   Experimente".
+2. **Welt wählen** — eine Karte je Welt, mit Bild, Name und einer Zeile
+   (`ui/landingWorlds.ts`, mit Test). Die Reihenfolge ist die des Menüs:
+   Spiele zuerst, dann Baustellen (`WIP`), dann Prüfstände (`TEST`);
+   Haunting trägt `LOBBY`. Am Schreibtisch vier nebeneinander, am Telefon
+   zwei — die Karten sind ohne Scrollen zu sehen.
+3. **Ansicht am Bildschirm** (oder mit Brille: die Haltung) — dieselbe Frage
+   wie bisher, nur eine Reihe kleiner.
+4. **Der eine Knopf**, `#enter`: groß _Spielen_ (mit Brille _In VR spielen_),
+   klein darunter, wohin — „Testwelt · Aus den Augen" (`paintEnterLabel`).
+   Während des Downloads steht oben „Lädt … 17 %" und die Zeile darunter
+   schweigt. Die Lobby einer Runde (`#haunt-enter`) bleibt bei _Beitreten_:
+   dort tritt man einer Runde bei.
+5. Ladebalken, Download, Brillen-Status — unverändert.
+6. **Nebenwege, dezent:** _Zusammen spielen_ zugeklappt, darunter zwei stille
+   Verweise (_Controller prüfen_, _Werkzeuge & Beutel_), die Version ganz
+   unten. Beide Verweise stehen auch im Menü unter _Steuerung & Hilfe_.
+
+**Eine Karte wählt — und lädt.** `pickWorld` (`main.ts`) schreibt die Welt
+in die Adresse (`replaceState`, ein Neuladen landet wieder dort), markiert
+die Karte, schreibt den Knopf um, hält das Vorwärmen der Standardwelt an und
+fordert die neue sofort an (`ensureWorld`): Wer eine Karte tippt, will
+gleich hinein, und die Sekunden bis zum Druck sind die, die das Laden
+braucht. Der Knopf wird dabei stumpf, bis die Welt steht — dieselbe Regel wie
+beim Start. Damit eine ältere Ladung nichts mehr meldet, merkt sich
+`loadWorld`, für welche Welt sie lief. Wählt jemand im **Menü** der
+Startseite eine andere Welt, ziehen Karte und Knopf nach
+(`onWorldChanged`).
+
+**Die Lobby-Karte wählt nicht**: Haunting braucht erst Name und Raum-Code,
+und welche Startseite gilt, entscheidet `main.ts` beim Laden
+(`hauntLanding`). Die Karte setzt also `#haunting` und lädt einmal neu; von
+dort führt _← Andere Welt wählen_ zurück.
+
+**Die Bilder** liegen in `public/worlds/` (WebP, 480 × 270, zusammen rund
+35 kB, `loading="lazy"`) und stehen in der Definition der Welt
+(`WorldDefinition.preview`). Es sind Aufnahmen der Welten selbst — Hub und
+Bauplatz aus den Augen, die Testwelt (Küche) von oben —, Haunting nimmt den
+vorhandenen Stationsplan (`public/haunting/station-outline.png`) vor einem
+Sternenfeld. **Eine neue Welt ohne Bild** bekommt eine Fläche in ihrer
+Akzentfarbe; wer ein Bild will, nimmt die Welt im Browser auf (Hände und
+Handgelenk-Knopf ausblenden: `bgvr.handVisuals.hidden = true`,
+`bgvr.wristMenu.visible = false`), verkleinert auf 480 × 270 und trägt den
+Pfad als `preview` ein.
 
 ## Die Version auf der Startseite
 
