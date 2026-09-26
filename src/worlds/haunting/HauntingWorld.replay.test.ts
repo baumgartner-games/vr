@@ -396,7 +396,14 @@ test('the headset menu leads with the mission and says why a start is refused', 
   // Ein fremder Gastgeber darf den Eintrag nicht stumm machen (`rules/worldMenu.ts`).
   world.lobbyChoice = { intent: 'play', me: 'technician' };
   world.hostId = 'remote';
-  const rounds = world.menu().filter((row) => row.id.startsWith('haunt:'));
+  // Vor dem Start: die Übungsrunde (`rules/roundFlow.ts`).
+  world.state.phase = 'briefing';
+  const menu = world.menu().filter((row) => row.id.startsWith('haunt:'));
+  // **Oben steht, in welcher Runde man ist** (`rules/roundFlow.ts`) — vor dem
+  // Start die Übungsrunde.
+  expect(menu[0]!.id).toBe('haunt:status');
+  expect(menu[0]!.label).toBe('Jetzt: Übungsrunde');
+  const rounds = menu.slice(1);
   // Dieselben drei Absichten wie im Van (`rules/lobby.ts`), in derselben
   // Reihenfolge.
   expect(rounds.slice(0, 3).map((row) => row.id)).toEqual([
@@ -412,6 +419,31 @@ test('the headset menu leads with the mission and says why a start is refused', 
   rounds[0]!.run!(null);
   expect(ctx.notify).toHaveBeenCalledWith(HOST_BUSY);
   expect(ctx.menu.toggle).not.toHaveBeenCalled();
+});
+
+test('the headset menu names the real round and offers its abort instead of a second practice start', () => {
+  const world = replay();
+  world.context = {
+    ...election('vr'),
+    notify: jest.fn(),
+    menu: { toggle: jest.fn() },
+    renderer: { xr: { isPresenting: true } },
+  };
+  world.state.phase = 'running';
+  world.state.crew.options.test = false;
+  world.state.crew.simulation = false;
+  const ids = world.menu().map((row) => row.id);
+  const status = world.menu().find((row) => row.id === 'haunt:status')!;
+  expect(status.label).toBe('Jetzt: Echte Runde');
+  // „Übungsrunde" und „abbrechen" führten beide in die Übung — nur einer bleibt.
+  expect(ids).toContain('haunt:stop');
+  expect(ids).not.toContain('haunt:train');
+  // Die Einstellungen stehen nicht mehr zwischen den Starts, sondern darunter.
+  expect(ids).not.toContain('haunt:light');
+  const settings = world.menu().find((row) => row.id === 'haunt:settings') as unknown as {
+    children: Array<{ id: string }>;
+  };
+  expect(settings.children.map((row) => row.id)).toContain('haunt:light');
 });
 
 test('returning to the station menu cancels a queued solo bot round', () => {

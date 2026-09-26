@@ -54,7 +54,7 @@ describe('Das geteilte Optionsmenü', () => {
       sound.map((one) => (one.kind === 'key' ? one.label : one.kind === 'head' ? one.text : '')),
     ).toEqual(['Ton', 'Effekte: normal', 'Ambiente: leise']);
     expect(leaveKeys().map((one) => (one.kind === 'key' ? one.label : ''))).toEqual([
-      'Zurück zu den Rollen',
+      'Rollen & Aufbau',
       'Weiterspielen',
     ]);
   });

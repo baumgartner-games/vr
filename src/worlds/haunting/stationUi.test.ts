@@ -519,7 +519,7 @@ describe('Der Aufbau — eine Verteilung, ein Knopf', () => {
     expect(document.querySelector('[data-setup-me]')).toBeNull();
     expect(document.querySelectorAll('[data-seat]')).toHaveLength(5);
     const test = button('[data-test-roles]');
-    expect(test.textContent).toContain('Rollen testen');
+    expect(test.textContent).toContain('Übungsrunde');
     expect(test.textContent).toContain('Rot');
     test.click();
     expect(game.ui.inSetup).toBe(false);
@@ -544,7 +544,7 @@ describe('Der Aufbau — eine Verteilung, ein Knopf', () => {
     toSetup();
     expect(document.querySelector('[data-join]')).not.toBeNull();
     const join = button('[data-test-roles]');
-    expect(join.textContent).toContain('Zur laufenden Runde');
+    expect(join.textContent).toContain('Zur laufenden echten Runde');
     expect(join.textContent).toContain('Rot');
     expect(join.textContent).not.toContain('ohne Uhr');
     join.click();
@@ -555,16 +555,19 @@ describe('Der Aufbau — eine Verteilung, ein Knopf', () => {
     game.state.phase = 'briefing';
     game.ui.refresh();
     expect(document.querySelector('[data-join]')).toBeNull();
-    expect(button('[data-test-roles]').textContent).toContain('Rollen testen');
+    expect(button('[data-test-roles]').textContent).toContain('Übungsrunde');
   });
 
   it('beschriftet den einen Startknopf ohne Ansicht in Klammern', () => {
     crew('red', false);
     toSetup();
     const label = () => button('[data-start-setup]').querySelector('strong')!.textContent;
-    expect(label()).toBe('Mission starten');
+    expect(label()).toBe('Echte Runde starten');
+    // **Die echte Runde ist immer die mit Monster** (`rules/roundFlow.ts`):
+    // Steht das Monster auf der Tafel auf „Aus", holt der Start es zurück —
+    // die Übung ist der Knopf daneben, kein zweiter Start.
     button('[data-seat="monster"] [data-setup-who="off"]').click();
-    expect(label()).toBe('Test starten');
+    expect(label()).toBe('Echte Runde starten');
   });
 
   /**
@@ -804,6 +807,59 @@ describe('Rollen sind Plätze mit Fähigkeiten', () => {
   });
 });
 
+describe('Übungsrunde oder echte Runde — immer sichtbar', () => {
+  /**
+   * **Der Befund des Besitzers**: „wie, wann mit Test, wann echt". Vorn in der
+   * Leiste über der Karte steht deshalb immer das Schild der Runde, und das
+   * Zahnrad ist ein Pausemenü: oben der Modus, zuerst „Weiterspielen".
+   */
+  it('zeigt vorn in der Leiste, ob geübt oder echt gespielt wird', () => {
+    const game = crew('red', false);
+    const badge = (): HTMLElement =>
+      document.querySelector<HTMLElement>('.haunt__quest [data-mode]')!;
+    expect(badge().dataset['mode']).toBe('real');
+    expect(badge().textContent).toBe('ECHTE RUNDE');
+    game.state.phase = 'briefing';
+    game.ui.refresh();
+    expect(badge().dataset['mode']).toBe('practice');
+    expect(badge().textContent).toBe('ÜBUNGSRUNDE');
+  });
+
+  it('macht aus dem Zahnrad ein Pausemenü mit dem Modus oben und „Weiterspielen" zuerst', () => {
+    const game = crew('red', false);
+    game.state.phase = 'briefing';
+    game.ui.refresh();
+    button('[data-options]').click();
+    const menu = document.querySelector<HTMLElement>('.haunt__menu')!;
+    expect(menu.querySelector('.ui-head')?.textContent).toBe('Pause · Übungsrunde');
+    expect(menu.querySelector('[data-mode-line]')?.textContent).toContain(
+      'Du bist in einer Übungsrunde',
+    );
+    const keys = [...menu.querySelectorAll('button')];
+    expect(keys[0]!.hasAttribute('data-close-options')).toBe(true);
+    // Je Modus genau ein Weg, die Runde zu ändern.
+    expect(menu.querySelectorAll('[data-start-setup],[data-stop-round]')).toHaveLength(1);
+  });
+
+  it('trennt im Aufbau Übungsrunde und echte Runde unter zwei Überschriften', () => {
+    const game = crew('red', false);
+    game.state.phase = 'briefing';
+    toSetup();
+    const heads = [...document.querySelectorAll('.haunt__body > .ui-head')].map(
+      (h) => h.textContent,
+    );
+    expect(heads).toEqual(['1 · Rollen verteilen', '2 · Übungsrunde oder echte Runde']);
+    const modes = document.querySelector('.lobby__modes')!;
+    expect(modes.querySelector('[data-test-roles] strong')?.textContent).toBe('Übungsrunde');
+    expect(modes.querySelector('[data-start-setup] strong')?.textContent).toBe(
+      'Echte Runde starten',
+    );
+    expect(document.querySelector('[data-setup-mode]')?.textContent).toContain(
+      'Jetzt: Übungsrunde',
+    );
+  });
+});
+
 describe('Das Zahnrad über der Karte', () => {
   /**
    * **Mission starten und stoppen stehen im Zahnrad** — und „Zurück zu den
@@ -817,7 +873,7 @@ describe('Das Zahnrad über der Karte', () => {
     expect(game.ui.optionsOpen).toBe(true);
     const menu = document.querySelector<HTMLElement>('.haunt__menu')!;
     expect(menu.hidden).toBe(false);
-    expect(menu.querySelector('[data-stop-round]')?.textContent).toContain('Mission stoppen');
+    expect(menu.querySelector('[data-stop-round]')?.textContent).toContain('Echte Runde abbrechen');
     expect(menu.querySelector('[data-start-setup]')).toBeNull();
     for (const key of ['[data-setup]', '[data-game-menu]', '[data-page-net]', '[data-page-vr]'])
       expect(menu.querySelector(key)).not.toBeNull();
@@ -829,7 +885,7 @@ describe('Das Zahnrad über der Karte', () => {
     game.ui.refresh();
     button('[data-options]').click();
     expect(menu.querySelector('[data-stop-round]')).toBeNull();
-    expect(menu.querySelector('[data-start-setup]')?.textContent).toContain('Mission starten');
+    expect(menu.querySelector('[data-start-setup]')?.textContent).toContain('Echte Runde starten');
     button('[data-start-setup]').click();
     expect(game.startSetup).toHaveBeenCalledTimes(1);
     // Weiterspielen schließt nur; „Zurück zu den Rollen" holt den Aufbau.
@@ -850,16 +906,16 @@ describe('Das Zahnrad über der Karte', () => {
    * Runde" — eine Uhr, die vor dem Start herunterzählte, war der Befund des
    * Besitzers. Auch die Warnung unter einer Minute gilt nur in der Mission.
    */
-  it('zeigt im Test keine Uhr, sondern „Test · keine Runde"', () => {
+  it('zeigt in der Übungsrunde statt der Uhr „keine Uhr" hinter dem Schild', () => {
     const game = crew('yellow');
     const quest = document.querySelector<HTMLElement>('.haunt__quest')!;
     game.setRound({ phase: 'briefing', oxygen: 42 });
     game.state.phase = 'briefing';
     game.ui.refresh();
     expect(quest.textContent).not.toContain('O₂');
-    expect(quest.querySelector('[data-idle]')?.textContent).toBe('Test · keine Runde');
+    expect(quest.querySelector('[data-idle]')?.textContent).toBe('keine Uhr');
     expect(quest.classList.contains('is-low')).toBe(false);
-    expect(quest.getAttribute('aria-label')).toContain('keine Runde');
+    expect(quest.getAttribute('aria-label')).toContain('keine Uhr');
     game.setRound({ phase: 'running', oxygen: 42 });
     game.state.phase = 'running';
     game.ui.refresh();
